@@ -1,0 +1,10 @@
+src-tauri/target/
+resources/
+dist/
+# Private firmware/key inputs are never committed here.
+*.key
+rbp
+rbp.patched
+*.UPD
+*.upd
+XDJXZ_v126.zip
