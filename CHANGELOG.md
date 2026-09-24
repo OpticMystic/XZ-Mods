@@ -8,8 +8,6 @@
 - Place inline bypass after the three stems and share the widget geometry with waveform drawing.
 - Prepare the standalone app and built-in Library loader from one hash-verified runtime bundle. Reject mismatched library pairs or bootstrap files.
 
-- Replace factory volume-test reporting with a passive hook on the XZ's normal mixer MIDI report path. CH3 controls Deck 1 and CH4 controls Deck 2. HIGH is Vocals, MID Harmonics, LOW Drums. Centre is unity, left fades to silence, with pickup to prevent jumps. Normal mixer MIDI messages pass through unchanged. Physical EQ and audio-routing acceptance remains pending.
-- Gate each mapping on a local USB track and the spare channel's PC input selector. A computer may stay attached. LINK, PC-deck, unknown sources and external channel inputs suspend their mapping.
 - Show the native-screen VJ.Tools / Exit VJ button only while the network connection is live. Keep the VJ.Tools settings in MODS offline; native-view touches no longer reach the desktop, and video-view gestures no longer leak into native playback.
 
 The 0.1.2 runtime remains an experimental preview. Cold-boot and full physical playback qualification are recorded separately from the build checks.

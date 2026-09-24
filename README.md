@@ -33,9 +33,6 @@ is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resou
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
 
-The spare-channel EQ does not control stems on the physical XZ in this release.
-See the status below before using it.
-
 This update includes the native waveform stem strip, independent deck pad
 controls, selectable A-D/E-H stem banks, default-on stems, brighter default stem
 cue colors, overlay toggle, loop-start cache fixes and OverCue v4 playback
@@ -55,20 +52,12 @@ The source track must match its recorded SHA-256. Unsupported schemas fail close
 The included separation and aligned-stem import workflows produce legacy
 `stemd-cache/1` files. They do not export OverCue bundles. Both paths remain available.
 
-## Standalone EQ and screen control
+## Native stem controls
 
-The Spare Channel Stem EQ setting remains visible in MODS > Controls, but the
-published 0.1.2 preview does not control stems from those knobs on a physical
-XZ. A CH3 HIGH sweep produced MIDI on the separate mixer USB endpoint; the
-rooted player's hook received no reports. Changing **Mixer MIDI Message** in
-Utility does not deliver those reports to the player. Leave this option off for
-a show. No qualified fix has been published.
-
-The intended mapping is CH3 to Deck 1 and CH4 to Deck 2. HIGH controls Vocals,
-MID Harmonics, and LOW Drums. An offline candidate would read the internal mixer
-status packet, but stock mixer firmware does not publish EQ values there. The
-candidate is not in the tracked runtime or published bundle. A RAM-only mixer
-CPU load method and six-knob audio acceptance remain unfinished.
+The 0.1.2 preview displays one selected deck's stem strip beneath the native
+waveforms. The next RAM-only trial places four buttons under each deck's
+waveform: Vocals, Harmonics, Drums, and Bypass. Both deck rows stay visible;
+the trial has not been published or accepted on hardware yet.
 
 In MODS > Controls, choose whether stems use hot cues A-D or E-H. The selected
 bank maps its first three pads to Vocals, Harmonics and Drums, followed by
@@ -82,10 +71,8 @@ choice is retained when the settings USB is writable.
 ## Release status
 
 The native GUI, cancellable backend, cache import and portable packaging are
-implemented. This remains a developer preview. The spare-channel EQ path is
-not physically qualified. Selectable pad banks need live-player acceptance.
-Final
-native-player pad, loop, focus, two-deck and cold-boot acceptance remains
+implemented. This remains a developer preview. Selectable pad banks need
+live-player acceptance. Final native-player pad, loop, focus, two-deck and cold-boot acceptance remains
 pending, as does the real model execution matrix. A successful file check does
 not prove playback alignment.
 
