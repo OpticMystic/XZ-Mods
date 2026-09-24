@@ -55,19 +55,18 @@ The included separation and aligned-stem import workflows produce legacy
 
 ## Standalone EQ and screen control
 
-In MODS > Controls, enable Spare Channel Stem EQ. Channel 3 controls Deck 1,
-channel 4 controls Deck 2. HIGH controls Vocals, MID Harmonics, LOW Drums.
-This preview reads the XZ's normal mixer MIDI reports inside the player and
-passes them through unchanged. It does not need a DJ application mapping or a
-desktop relay. In Utility, set **Mixer MIDI Message** to **Send** or **Send with
-Time Param**. Each deck must have a local USB track loaded, and its spare mixer
-channel must be set to PC. LINK/PC-deck sources and external channel selections
-suspend the matching control. The EQ status stays at **Waiting** until a valid
-knob report arrives.
+The Spare Channel Stem EQ setting remains visible in MODS > Controls, but the
+published 0.1.2 preview does not control stems from those knobs on a physical
+XZ. A CH3 HIGH sweep produced MIDI on the separate mixer USB endpoint; the
+rooted player's hook received no reports. Changing **Mixer MIDI Message** in
+Utility does not deliver those reports to the player. Leave this option off for
+a show. No qualified fix has been published.
 
-Play prepared tracks briefly to establish native audio alignment. Centre is full
-stem volume, left fades to silence, and right adds no boost. Move a knob through
-the current stem level to pick it up without a sudden jump.
+The intended mapping is CH3 to Deck 1 and CH4 to Deck 2. HIGH controls Vocals,
+MID Harmonics, and LOW Drums. An offline candidate would read the internal mixer
+status packet, but stock mixer firmware does not publish EQ values there. The
+candidate is not in the tracked runtime or published bundle. A RAM-only mixer
+CPU load method and six-knob audio acceptance remain unfinished.
 
 In MODS > Controls, choose whether stems use hot cues A-D or E-H. The selected
 bank maps its first three pads to Vocals, Harmonics and Drums, followed by
@@ -81,8 +80,9 @@ choice is retained when the settings USB is writable.
 ## Release status
 
 The native GUI, cancellable backend, cache import and portable packaging are
-implemented. This remains a developer preview. The passive mixer telemetry and
-selectable pad banks need live-player acceptance before release. Final
+implemented. This remains a developer preview. The spare-channel EQ path is
+not physically qualified. Selectable pad banks need live-player acceptance.
+Final
 native-player pad, loop, focus, two-deck and cold-boot acceptance remains
 pending, as does the real model execution matrix. A successful file check does
 not prove playback alignment.
