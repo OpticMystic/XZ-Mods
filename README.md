@@ -73,7 +73,7 @@ In MODS > Controls, choose whether stems use hot cues A-D or E-H. The selected
 bank maps its first three pads to Vocals, Harmonics and Drums, followed by
 bypass. The other bank keeps its normal hot cues.
 
-The top-left VJ.Tools button appears only while the MODS VJ CONNECTION setting
+The top-left VJ.Tools button appears only while the MODS VJ.TOOLS CONNECTION setting
 is enabled and the VJ.Tools network connection is live. Exit VJ returns to
 native playback. The VJ.Tools settings remain in MODS when offline, and view
 choice is retained when the settings USB is writable.
