@@ -4,17 +4,19 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import zipfile
 
-APP=Path(__file__).resolve().parents[1];ROOT=APP.parents[1]
+APP=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--exe',type=Path)
+p.add_argument('--toolkit',type=Path,default=APP.parent/'xdj-xz-toolkit' if (APP.parent/'xdj-xz-toolkit').is_dir() else APP.parents[1]/'packages/xdj-xz-toolkit')
 a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
 portable=a.output/'XZ Mods Builder';portable.mkdir()
 shutil.copyfile(a.exe or APP/'src-tauri/target/debug/xz-mods-builder.exe',portable/'XZ Mods.exe')
 shutil.copytree(APP/'resources',portable/'resources')
-for name in ('README.md','BUILDING.md','LICENSE'):shutil.copyfile(APP/name,portable/name)
+for name in ('README.md','BUILDING.md','CHANGELOG.md','LICENSE'):shutil.copyfile(APP/name,portable/name)
 (portable/'START HERE.txt').write_text(
     'XZ Mods Builder - developer preview\n\n'
     'Run XZ Mods.exe. VJ.Tools and Python are not required.\n'
@@ -29,7 +31,11 @@ for path in portable.rglob('*'):
         raise ValueError('Prohibited private firmware/key/model asset in preview: '+path.name)
 def digest(path):
     with path.open('rb') as file:return hashlib.file_digest(file,'sha256').hexdigest()
-manifest={'product':'XZ Mods','stage':'developer-preview','public_release_qualified':False,
+version=json.loads((APP/'src-tauri/tauri.conf.json').read_text())['version']
+manifest={'product':'XZ Mods','version':version,'stage':'developer-preview','public_release_qualified':False,
+    'source_commit':subprocess.check_output(['git','-C',str(APP),'rev-parse','HEAD'],text=True).strip() if (APP/'.git').exists() else None,
+    'prepared_formats':['overcue-stems/4','stemd-cache/1'],
+    'runtime':json.loads((portable/'resources/runtime/manifest.json').read_text()),
     'vjtools_required':False,'python_required':False,'firmware_included':False,'keys_included':False,
     'model_weights_included':False,'files':{str(path.relative_to(portable)).replace('\\','/'):digest(path)
     for path in sorted(portable.rglob('*')) if path.is_file()}}
@@ -46,13 +52,13 @@ for folder in ('ui','src-tauri','tools','docs'):
     for path in (APP/folder).rglob('*'):
         relative=path.relative_to(APP)
         if path.is_file() and 'target' not in relative.parts and '__pycache__' not in relative.parts:
-            source_files[str(Path('apps/xz-mods-builder')/relative)]=path
-for name in ('README.md','BUILDING.md','LICENSE','.gitignore'):
-    source_files[str(Path('apps/xz-mods-builder')/name)]=APP/name
-for path in (ROOT/'packages/xdj-xz-toolkit/builder').rglob('*'):
+            source_files[str(Path('XZ-Mods')/relative)]=path
+for name in ('README.md','BUILDING.md','CHANGELOG.md','LICENSE','.gitignore'):
+    source_files[str(Path('XZ-Mods')/name)]=APP/name
+for path in (a.toolkit/'builder').rglob('*'):
     if path.is_file() and path.suffix in ('.py','.c','.json','.md') and '__pycache__' not in path.parts:
-        source_files[str(path.relative_to(ROOT))]=path
-source_files['LICENSE']=ROOT/'LICENSE'
+        source_files[str(Path('xdj-xz-toolkit')/path.relative_to(a.toolkit))]=path
+source_files['xdj-xz-toolkit/LICENSE']=a.toolkit/'LICENSE'
 with zipfile.ZipFile(source_zip,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as output:
     for relative,path in sorted(source_files.items()):output.write(path,relative)
 print(json.dumps({'portable':str(archive),'portable_sha256':digest(archive),'source':str(source_zip),

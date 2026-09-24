@@ -19,7 +19,7 @@ From this repository root (with the toolkit alongside):
 ```powershell
 python ..\xdj-xz-toolkit\mods\build.py --zig <zig.exe> --output <runtime-build>
 python tools\prepare_resources.py --runtime-build <runtime-build> --zig <zig.exe>
-cargo build --manifest-path src-tauri\Cargo.toml --locked
+python tools\build_native.py --release
 ```
 
 With an explicit toolkit path:
@@ -59,3 +59,15 @@ mirrors are not approved presets.
 The real model execution matrix and full installed inference dependency lock
 are not yet qualified. The current package is a developer preview, not a
 completed public mod release.
+
+## Package and verify the preview
+
+```powershell
+python tools/verify_backend.py --resources resources --evidence dist/backend-check.json
+python ../xdj-xz-toolkit/builder/tests/verify_overcue_builder.py --checker resources/xz-overcue-check.exe --backend resources/backend/xz-mods-service.exe
+python tools/package_preview.py --output dist/0.1.1 --exe src-tauri/target/x86_64-pc-windows-msvc/release/xz-mods-builder.exe
+```
+
+Choose a new evidence file and output directory for each run. The source ZIP
+contains sibling `XZ-Mods` and `xdj-xz-toolkit` directories so the documented
+build layout works after extraction. The public runtime remains experimental.
