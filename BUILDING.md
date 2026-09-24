@@ -71,3 +71,19 @@ python tools/package_preview.py --output dist/0.1.1 --exe src-tauri/target/x86_6
 Choose a new evidence file and output directory for each run. The source ZIP
 contains sibling `XZ-Mods` and `xdj-xz-toolkit` directories so the documented
 build layout works after extraction. The public runtime remains experimental.
+
+## Shared runtime parity
+
+Release packaging uses the paired bundle from `tools/build-xz-mods-bundle.py`
+in VJ.Tools Library, or `tools/build_bundle.py` in the toolkit checkout.
+Pass that same directory to the standalone builder:
+
+```powershell
+python tools/prepare_resources.py --runtime-bundle <paired-bundle> --zig <zig.exe> --toolkit <toolkit-checkout>
+```
+
+VJ.Tools packages that bundle from `packages/xdj-xz-toolkit/runtime`.
+Both packaging paths verify its hashes and reject native source or bootstrap
+changes that have not been rebuilt. `tools/verify-xz-runtime-parity.py` in
+VJ.Tools verifies standalone resources against bundled or installed loader files.
+`--runtime-build` remains a development input; it does not establish release parity.

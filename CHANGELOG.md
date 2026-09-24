@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.2 - 2026-09-23
+
+- Match screen controls, waveforms and pad colors to HOT CUE A Vocals, B Harmonics, C Drums, D bypass.
+- Add a saved Controls option for STEMS ON A-D or STEMS ON E-H. The inactive bank keeps its normal hot cues, including when a press is released after switching banks.
+- Enable stems by default when no saved USB setting exists, use brighter default red/blue/green stem cue colors, and show the native-screen VJ.Tools corner button only while the network connection is live. VJ.Tools settings remain in MODS offline.
+- Place inline bypass after the three stems and share the widget geometry with waveform drawing.
+- Prepare the standalone app and built-in Library loader from one hash-verified runtime bundle. Reject mismatched library pairs or bootstrap files.
+
+- Replace factory volume-test reporting with a passive hook on the XZ's normal mixer MIDI report path. CH3 controls Deck 1 and CH4 controls Deck 2. HIGH is Vocals, MID Harmonics, LOW Drums. Centre is unity, left fades to silence, with pickup to prevent jumps. Normal mixer MIDI messages pass through unchanged. Physical EQ and audio-routing acceptance remains pending.
+- Gate each mapping on a local USB track and the spare channel's PC input selector. A computer may stay attached. LINK, PC-deck, unknown sources and external channel inputs suspend their mapping.
+- Show the native-screen VJ.Tools / Exit VJ button only while the network connection is live. Keep the VJ.Tools settings in MODS offline; native-view touches no longer reach the desktop, and video-view gestures no longer leak into native playback.
+
+The 0.1.2 runtime remains an experimental preview. Cold-boot and full physical playback qualification are recorded separately from the build checks.
+
 ## 0.1.1 - 2026-09-23
 
 Developer preview for XDJ-XZ firmware 1.26.

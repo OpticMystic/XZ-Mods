@@ -26,15 +26,18 @@ or point the resource builder at any toolkit checkout:
 $env:XZ_TOOLKIT_DIR = "C:\path\to\xdj-xz-toolkit"
 ```
 
-## 0.1.1 developer preview
+## 0.1.2 preview candidate
 
-[Download the Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.1).
-Extract the ZIP and run `XZ Mods.exe`. Keep its `resources` folder beside it.
-Windows requires WebView2. VJ.Tools and a developer Python installation are not required.
+The Windows package is built locally, but this candidate is not posted for
+download yet. Hardware acceptance for the new mixer EQ path is still pending.
+Once released, extract the ZIP and run `XZ Mods.exe` with its `resources` folder
+beside it. Windows requires WebView2. VJ.Tools and a developer Python
+installation are not required.
 
 This update includes the native waveform stem strip, independent deck pad
-controls, overlay toggle, loop-start cache fixes and OverCue v4 playback adapter.
-See [the changelog](CHANGELOG.md) for changes and verification limits.
+controls, selectable A-D/E-H stem banks, default-on stems, brighter default stem
+cue colors, overlay toggle, loop-start cache fixes and OverCue v4 playback
+adapter. See [the changelog](CHANGELOG.md) for changes and verification limits.
 
 ## Use prepared OverCue tracks
 
@@ -50,12 +53,38 @@ The source track must match its recorded SHA-256. Unsupported schemas fail close
 The included separation and aligned-stem import workflows produce legacy
 `stemd-cache/1` files. They do not export OverCue bundles. Both paths remain available.
 
+## Standalone EQ and screen control
+
+In MODS > Controls, enable Spare Channel Stem EQ. Channel 3 controls Deck 1,
+channel 4 controls Deck 2. HIGH controls Vocals, MID Harmonics, LOW Drums.
+This preview reads the XZ's normal mixer MIDI reports inside the player and
+passes them through unchanged. It does not need a DJ application mapping or a
+desktop relay. In Utility, set **Mixer MIDI Message** to **Send** or **Send with
+Time Param**. Each deck must have a local USB track loaded, and its spare mixer
+channel must be set to PC. LINK/PC-deck sources and external channel selections
+suspend the matching control. The EQ status stays at **Waiting** until a valid
+knob report arrives.
+
+Play prepared tracks briefly to establish native audio alignment. Centre is full
+stem volume, left fades to silence, and right adds no boost. Move a knob through
+the current stem level to pick it up without a sudden jump.
+
+In MODS > Controls, choose whether stems use hot cues A-D or E-H. The selected
+bank maps its first three pads to Vocals, Harmonics and Drums, followed by
+bypass. The other bank keeps its normal hot cues.
+
+The top-left VJ.Tools button appears only while the VJ.Tools network connection
+is live. Exit VJ returns to native playback. The VJ.Tools settings remain in
+MODS when offline, and view choice is retained when the settings USB is writable.
+
 ## Release status
 
 The native GUI, cancellable backend, cache import and portable packaging are
-implemented. This is still a developer preview. Final native-player pad, loop,
-focus, two-deck and cold-boot acceptance remains pending, as does the real model
-execution matrix. A successful file check does not prove playback alignment.
+implemented. This remains a developer preview. The passive mixer telemetry and
+selectable pad banks need live-player acceptance before release. Final
+native-player pad, loop, focus, two-deck and cold-boot acceptance remains
+pending, as does the real model execution matrix. A successful file check does
+not prove playback alignment.
 
 Public package inputs are allowlisted. Firmware application binaries, boot
 keys, private boot images and firmware-extracted graphics are not shipped —
