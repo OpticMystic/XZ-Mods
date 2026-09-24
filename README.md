@@ -26,13 +26,15 @@ or point the resource builder at any toolkit checkout:
 $env:XZ_TOOLKIT_DIR = "C:\path\to\xdj-xz-toolkit"
 ```
 
-## 0.1.2 preview candidate
+## 0.1.2 developer preview
 
-The Windows package is built locally, but this candidate is not posted for
-download yet. Hardware acceptance for the new mixer EQ path is still pending.
-Once released, extract the ZIP and run `XZ Mods.exe` with its `resources` folder
+The [Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.2)
+is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resources` folder
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
+
+The spare-channel EQ does not control stems on the physical XZ in this release.
+See the status below before using it.
 
 This update includes the native waveform stem strip, independent deck pad
 controls, selectable A-D/E-H stem banks, default-on stems, brighter default stem
