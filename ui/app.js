@@ -10,7 +10,7 @@ for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{
 function values(){return {volume:$('stem-volume').value,source:$('source').value,preset:document.querySelector('[name=engine]:checked').value};}
 function required(ids){for(const id of ids)if(!$(id).value.trim()){showError('Enter or choose the required '+({'volume':'USB folder','stem-volume':'output folder','branding-artist':'artist name','branding-volume':'branding destination',source:'original track',firmware:'firmware input',key:'boot key',harmonics:'harmonics file',vocals:'vocals file'}[id]||id)+' first.');return false;}return true;}
 function showError(message){$('job-panel').classList.remove('hidden');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');}
-function busy(value){document.querySelectorAll('.pick,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#choose-cache,#download-firmware,#import-branding,.branding-add,.branding-remove').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);}
+function busy(value){document.querySelectorAll('.pick,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#import-branding,.branding-add,.branding-remove').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);}
 async function run(request,title){
   if(!invoke){showError('Open XZ Mods Builder to run this operation. This browser view is a preview.');return;}
   if(activeJob!==null)return;
@@ -25,7 +25,8 @@ async function run(request,title){
         if(state.result){
           $('job-result').textContent=JSON.stringify(state.result,null,2);$('job-details').classList.remove('hidden');
           $('job-summary').textContent=state.result.image?'Verified image: '+state.result.image+(state.result.requires_copy_to_usb_root?' · Copy autoexec.bin to the root of a FAT/FAT32 USB.':''):
-            state.result.track_on_usb?'Compatible cache prepared. Original track preserved. Track on USB: '+state.result.track_on_usb:
+            state.result.format==='overcue-stems/4'?'OverCue track verified. All seven mixes and every audio page passed. Your USB was not changed.':
+            state.result.track_on_usb?'Legacy stemd cache prepared. Original track preserved. Track on USB: '+state.result.track_on_usb:
             state.result.branding_directory?'Branding saved: '+state.result.branding_directory:state.result.installed?'Selected engine files installed separately from VJ.Tools.':'';
         }
         return state;
@@ -79,4 +80,9 @@ $('import-branding').onclick=()=>{
   if(!required(['branding-artist','branding-volume']))return;
   if(!brandingFiles.length){showError('Add a logo, EPK or visual first.');return;}
   run({method:'import_branding',volume:$('branding-volume').value,artist:$('branding-artist').value,website:$('branding-website').value,files:brandingFiles.map(file=>({...file}))},'Preparing DJ branding');
+};
+
+$('check-overcue').onclick=async()=>{
+  try{const source=await invoke('pick_path',{kind:'file'});if(source)await run({method:'inspect_overcue',source},'Checking OverCue track');}
+  catch(error){showError(String(error));}
 };

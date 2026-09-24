@@ -29,7 +29,7 @@ def _resolve_toolkit():
     if (sibling/'builder'/'firmware.py').is_file():return sibling
     legacy=APP.parents[1]/'packages/xdj-xz-toolkit'
     return legacy
-TOOLKIT=_resolve_toolkit()
+TOOLKIT=_resolve_toolkit().resolve()
 resources=APP/'resources';resources.mkdir(exist_ok=True)
 def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def copy(source,target):target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target)
@@ -37,6 +37,9 @@ runtime=resources/'runtime';runtime.mkdir(exist_ok=True)
 copy(a.runtime_build/'libxz-mods-development.so',runtime/'libxz-mods.so')
 copy(a.runtime_build/'libxz-directfb-mods-test.so',runtime/'libxz-receiver.so')
 (runtime/'manifest.json').write_text(json.dumps({'firmware':'XDJ-XZ 1.26','profile':'experimental','hardware_qualified':False,
+    'prepared_formats':['overcue-stems/4','stemd-cache/1'],
+    'source_repository':'https://github.com/OpticMystic/xdj-xz-toolkit',
+    'source_commit':subprocess.check_output(['git','-C',str(TOOLKIT),'rev-parse','HEAD'],text=True).strip() if (TOOLKIT/'.git').exists() else None,
     'runtime_sha256':digest(runtime/'libxz-mods.so'),'receiver_sha256':digest(runtime/'libxz-receiver.so'),
     'vjtools_connection':True,'vjtools_required':False},indent=2)+'\n')
 copy(TOOLKIT/'vendor/tools/xz_runtime/orchestrator.sh',resources/'bootstrap.sh')
@@ -46,6 +49,9 @@ copy(APP/'LICENSE',licenses/'XZ-Mods-MIT.txt')
 copy(TOOLKIT/'mods/key/LICENSE-MPL-2.0',licenses/'Mozilla-MPL-2.0.txt')
 copy(Path(sys.base_prefix)/'LICENSE.txt',licenses/'Python-PSF.txt')
 copy(TOOLKIT/'mods/ui/fonts/OFL.txt',licenses/'Barlow-OFL.txt')
+for name,relative in (('miniz-MIT.txt','miniz/LICENSE'),('jsmn-MIT.txt','jsmn/LICENSE'),('sha256-public-domain.txt','sha256/README.md')):
+    dependency=TOOLKIT/'mods/audio/vendor'/relative
+    if dependency.is_file():copy(dependency,licenses/name)
 for path in (TOOLKIT/'mods/audio/licenses').iterdir():
     if path.is_file():copy(path,licenses/('cdj3k-mods-'+path.name))
 for name in ('LICENSE-MIT','LICENSE-APACHE'):
@@ -71,7 +77,7 @@ for entry in ('runtime.c','runtime.h','ui_runtime.c','ui_runtime.h','settings.c'
     copy(TOOLKIT/'mods'/entry,source/'mods'/entry)
 for folder in ('cue','audio','key','ui','tests'):
     for path in (TOOLKIT/'mods'/folder).rglob('*'):
-        if path.is_file() and (path.suffix in ('.c','.h','.ld','.md','.txt') or path.name.startswith(('LICENSE','COPYING'))):
+        if path.is_file() and (path.suffix in ('.c','.h','.ld','.md','.txt','.py','.json') or path.name.startswith(('LICENSE','COPYING'))):
             copy(path,source/'mods'/path.relative_to(TOOLKIT/'mods'))
 for name in ('generate.py','source.json','BarlowSemiCondensed-Medium.ttf'):
     copy(TOOLKIT/'mods/ui/fonts'/name,source/'mods/ui/fonts'/name)
@@ -94,6 +100,7 @@ for name in ('LICENSE-MIT','LICENSE-APACHE'):
 uv_record['executable_sha256']=digest(resources/'uv.exe')
 (resources/'uv-source.json').write_text(json.dumps(uv_record,indent=2)+'\n')
 subprocess.run([sys.executable,str(TOOLKIT/'builder/build_audio_helper.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-audio-helper.exe')],check=True)
+subprocess.run([sys.executable,str(TOOLKIT/'builder/build_overcue_check.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-overcue-check.exe')],check=True)
 with tempfile.TemporaryDirectory(prefix='xz-backend-package-') as temporary:
     subprocess.run([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--debug=noarchive','--noupx',
         '--name','xz-mods-service','--distpath',temporary+'/dist','--workpath',temporary+'/work','--specpath',temporary,

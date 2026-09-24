@@ -26,26 +26,36 @@ or point the resource builder at any toolkit checkout:
 $env:XZ_TOOLKIT_DIR = "C:\path\to\xdj-xz-toolkit"
 ```
 
-## Work and release gates
+## 0.1.1 developer preview
 
-- [x] Audit standalone boundaries and the upstream stem-cache contract.
-- [x] Import the tested, atomic upstream-compatible cache writer.
-- [ ] Build the simplified native GUI and cancellable local job service.
-- [ ] Stage and verify a USB image from explicitly supplied local inputs.
-- [ ] Integrate two licensed separation profiles and cache export.
-- [ ] Package the independent backend, runtime, notices and installer.
-- [ ] Verify the complete GUI and generated artifacts without VJ.Tools.
-- [ ] Complete physical XZ controls, audio and boot qualification when testing resumes.
+[Download the Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.1).
+Extract the ZIP and run `XZ Mods.exe`. Keep its `resources` folder beside it.
+Windows requires WebView2. VJ.Tools and a developer Python installation are not required.
 
-Public release means a new machine can install this app without VJ.Tools,
-prepare compatible audio/cache files, review the USB target, build a verified
-image without replacing unrelated files, and boot a hardware-qualified mod.
-An attractive GUI or a passing ARM build alone does not meet that gate.
+This update includes the native waveform stem strip, independent deck pad
+controls, overlay toggle, loop-start cache fixes and OverCue v4 playback adapter.
+See [the changelog](CHANGELOG.md) for changes and verification limits.
 
-Current release status is a developer preview. The native inline layout and
-several advertised upstream features remain incomplete. Only the qualified
-feature subset may be promoted in a release; the remaining features stay
-visible with their actual readiness.
+## Use prepared OverCue tracks
+
+Keep the matching Rekordbox `Contents` and OverCue `CDJMODS` folders on the same
+USB. In **Prepare stems**, choose **Check OverCue track**, then select the original
+track inside `Contents`. The builder checks source identity and every compressed
+audio page using the same decoder as the player. It does not change the USB.
+
+Supported prepared format: `overcue-index/1` and `overcue-stems/4`, 96 kHz stereo
+signed-16-bit PCM in `OVPGZ001` pages, including all seven prepared mixes.
+The source track must match its recorded SHA-256. Unsupported schemas fail closed.
+
+The included separation and aligned-stem import workflows produce legacy
+`stemd-cache/1` files. They do not export OverCue bundles. Both paths remain available.
+
+## Release status
+
+The native GUI, cancellable backend, cache import and portable packaging are
+implemented. This is still a developer preview. Final native-player pad, loop,
+focus, two-deck and cold-boot acceptance remains pending, as does the real model
+execution matrix. A successful file check does not prove playback alignment.
 
 Public package inputs are allowlisted. Firmware application binaries, boot
 keys, private boot images and firmware-extracted graphics are not shipped —
@@ -54,6 +64,3 @@ supply the official XDJXZ.UPD plus your local boot key at build time (see
 The `builder/firmware.py::import_application` path accepts the official 1.26
 `.UPD` (or the outer ZIP containing exactly one `.UPD`); unknown versions fail
 closed. The GUI must not claim broader firmware support.
-
-User constraint: no XZ restarts, hardware tests or changes to the running
-VJ.Tools application during this development session.
