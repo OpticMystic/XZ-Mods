@@ -1,6 +1,6 @@
 # XZ Mods user guide
 
-For XDJ-XZ firmware 1.26 and Windows developer preview 0.1.3. This download
+For XDJ-XZ firmware 1.26 and Windows developer preview 0.1.4. This download
 includes the split rows, themes and physical pad fixes shown below. Rebuild
 your existing USB loader to get the update. See [build instructions](../BUILDING.md)
 to build source.
@@ -8,7 +8,7 @@ to build source.
 ## Prepare your USB
 
 1. Back up your Rekordbox USB. Start with a few tracks and a spare USB or staging folder.
-2. Download [preview 0.1.3](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.3).
+2. Download [preview 0.1.4](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.4).
    Extract it and keep `XZ Mods.exe` beside its `resources` folder. Windows needs
    WebView2. VJ.Tools and a separate Python installation are not required.
 3. In the builder, choose your output folder, the official 1.26 ZIP or
@@ -41,7 +41,7 @@ Each deck has four controls: **Vocals, Harmonics, Drums, Bypass**.
 - Tap the top STEMS button to hide or show the rows. Visibility does not disable
   stem audio or the physical pad assignments.
 
-This is a real capture of the runtime included in preview 0.1.3.
+This is a real capture of the runtime included in preview 0.1.4.
 Earlier preview 0.1.2 has the selected-deck strip.
 
 ## Assign physical stem pads
@@ -74,7 +74,7 @@ Preview 0.1.2 includes the seven earlier styles.
 This RAM-trial capture shows gray panels, dark text and the XZ Mods loading
 banner with no tracks loaded. The native adapter covers artwork, text,
 waveforms, markers and dialogs; full screen-family verification is ongoing.
-The 0.1.3 loader automatically applies the original loading artwork to a validated
+The 0.1.4 loader automatically applies the original loading artwork to a validated
 copy of the device GUI in RAM. The public package contains only the replacement
 artwork, not the manufacturer GUI pack.
 

@@ -26,9 +26,9 @@ or point the resource builder at any toolkit checkout:
 $env:XZ_TOOLKIT_DIR = "C:\path\to\xdj-xz-toolkit"
 ```
 
-## 0.1.3 developer preview
+## 0.1.4 developer preview
 
-The [Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.3)
+The [Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.4)
 is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resources` folder
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
@@ -54,11 +54,11 @@ The included separation and aligned-stem import workflows produce legacy
 
 ## Native stem controls
 
-The 0.1.3 preview displays two taller rows, one below each native waveform,
+The 0.1.4 preview displays two taller rows, one below each native waveform,
 with Vocals, Harmonics, Drums and Bypass. Tap to mute and drag horizontally to
 adjust volume. Split-row visibility, clean audio and bright physical pads were
 confirmed in RAM trials, including the latest pure pad hues. Full cold-boot/two-deck
-qualification still needs acceptance. Rebuild existing USB loaders with 0.1.3
+qualification still needs acceptance. Rebuild existing USB loaders with 0.1.4
 to get these changes; updating source alone does not update a USB stick.
 
 Read the [user guide with actual hardware screenshots](docs/USER-GUIDE.md) for
