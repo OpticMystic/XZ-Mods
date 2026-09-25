@@ -10,7 +10,7 @@ for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{
 function values(){return {volume:$('stem-volume').value,source:$('source').value,preset:document.querySelector('[name=engine]:checked').value};}
 function required(ids){for(const id of ids)if(!$(id).value.trim()){showError('Enter or choose the required '+({'volume':'USB folder','stem-volume':'output folder','branding-artist':'artist name','branding-volume':'branding destination',source:'original track',firmware:'firmware input',key:'boot key',harmonics:'harmonics file',vocals:'vocals file'}[id]||id)+' first.');return false;}return true;}
 function showError(message){$('job-panel').classList.remove('hidden');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');}
-function busy(value){document.querySelectorAll('.pick,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#import-branding,.branding-add,.branding-remove').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);}
+function busy(value){document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#import-branding,.branding-add,.branding-remove').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);}
 async function run(request,title){
   if(!invoke){showError('Open XZ Mods Builder to run this operation. This browser view is a preview.');return;}
   if(activeJob!==null)return;
@@ -41,11 +41,18 @@ for(const button of document.querySelectorAll('.pick'))button.onclick=async()=>{
   catch(error){showError(String(error));}
 };
 $('cancel').onclick=async()=>{if(activeJob!==null){await invoke('cancel_job',{id:activeJob});$('job-message').textContent='Cancelling safely…';}};
-$('verify-inputs').onclick=async()=>{if(!required(['firmware','key']))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value,key:$('key').value},'Checking firmware inputs');if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?'XZ 1.26 application and decryption key verified.':'XZ 1.26 application verified. The key has not been verified against an encrypted source image.';};
+$('prepare-usb').onclick=async()=>{
+  if(!invoke){showError('Open XZ Mods Builder to prepare a USB.');return;}
+  try{
+    const volume=await invoke('pick_path',{kind:'folder'});
+    if(volume)await run({method:'prepare_usb',volume,experimental:true},'Preparing your XDJ-XZ USB');
+  }catch(error){showError(String(error));}
+};
+$('verify-inputs').onclick=async()=>{if(!required(['firmware']))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware inputs');if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?'XZ 1.26 firmware and boot support verified.':'XZ 1.26 application verified. Choose the official firmware ZIP to verify complete boot support.';};
 $('build').onclick=()=>{
-  if(!required(['volume','firmware','key']))return;
+  if(!required(['volume','firmware']))return;
   if(!$('experimental').checked){showError('Review and acknowledge the experimental build status before preparing a USB.');return;}
-  run({method:'build_usb',volume:$('volume').value,firmware:$('firmware').value,key:$('key').value,experimental:true},'Building your preview USB');
+  run({method:'build_usb',volume:$('volume').value,firmware:$('firmware').value,experimental:true},'Building your preview USB');
 };
 $('import-stems').onclick=()=>{if(required(['source','stem-volume','harmonics','vocals']))run({method:'import_stems',...values(),harmonics:$('harmonics').value,vocals:$('vocals').value,separation_id:$('separation-id').value,harmonics_gain:Number($('harmonics-gain').value),vocals_gain:Number($('vocals-gain').value)},'Importing compatible stems');};
 $('setup-engine').onclick=()=>run({method:'setup_engine',...values()},'Setting up the separation engine');

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 - 2026-09-25
+
+- Add **Choose USB and prepare loader**: one selection downloads the official XDJ-XZ 1.26 firmware, prepares boot support from Pioneer’s published source, builds the mod image and verifies its contents before writing `autoexec.bin` to the FAT/FAT32 USB root.
+- Pin downloaded inputs by size and SHA-256. Cache verified downloads for later builds. Keep existing loader files and music untouched; reject an unsuitable destination before downloading.
+- Keep local firmware and staging builds in Advanced options. Ship the Deflate64 decoder with its LGPL notice and source, while excluding firmware, boot files and generated images from the public download.
+
+The automatic path passed the actual published downloads, boot-support extraction and a complete encrypted-image round trip in a disposable folder. No USB drive was mounted for a physical preparation or XDJ-XZ cold-boot test. Device operation remains a developer preview.
+
 ## 0.1.4 - 2026-09-25
 
 - Fix USB startup stopping before MODS appeared: the artwork checksum list now uses POSIX line endings when built on Windows.

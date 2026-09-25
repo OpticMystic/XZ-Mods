@@ -122,28 +122,7 @@ uv_record['executable_sha256']=digest(resources/'uv.exe')
 (resources/'uv-source.json').write_text(json.dumps(uv_record,indent=2)+'\n')
 subprocess.run([sys.executable,str(TOOLKIT/'builder/build_audio_helper.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-audio-helper.exe')],check=True)
 subprocess.run([sys.executable,str(TOOLKIT/'builder/build_overcue_check.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-overcue-check.exe')],check=True)
-with tempfile.TemporaryDirectory(prefix='xz-backend-package-') as temporary:
-    subprocess.run([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--debug=noarchive','--noupx',
-        '--name','xz-mods-service','--distpath',temporary+'/dist','--workpath',temporary+'/work','--specpath',temporary,
-        '--paths',str(TOOLKIT),'--add-data',str(TOOLKIT/'builder/models.json')+':builder',
-        str(TOOLKIT/'builder/entry.py')],check=True,env={**os.environ,'PYINSTALLER_CONFIG_DIR':temporary+'/cache'})
-    destination=resources/'backend'
-    incoming=resources/('.backend-new-'+uuid.uuid4().hex)
-    backup=resources/('.backend-old-'+uuid.uuid4().hex)
-    shutil.copytree(Path(temporary)/'dist/xz-mods-service',incoming)
-    for path in (incoming,destination,backup):
-        if not path.resolve().is_relative_to(resources.resolve()) or path.is_symlink() or path.is_junction():
-            raise ValueError('Backend staging path escaped the resource directory')
-    if destination.exists():
-        if not (destination/'xz-mods-service.exe').is_file():raise ValueError('Existing backend folder is not a generated builder bundle')
-        destination.rename(backup)
-    try:incoming.rename(destination)
-    except BaseException:
-        if backup.exists():backup.rename(destination)
-        raise
-    finally:
-        for owned in (incoming,backup):
-            if owned.exists():shutil.rmtree(owned)
+subprocess.run([sys.executable,str(APP/'tools/build_backend.py'),'--toolkit',str(TOOLKIT)],check=True)
 for path in resources.rglob('*'):
     if path.is_file() and (path.suffix.lower() in ('.key','.upd','.pth','.ckpt','.safetensors') or path.name in ('rbp','rbp.patched','autoexec.bin','imagedata.dat','XDJXZ_v126.zip')):
         raise ValueError('Public package contains a prohibited firmware/key asset: '+path.name)

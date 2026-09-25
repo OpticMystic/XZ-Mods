@@ -1,26 +1,27 @@
 # XZ Mods user guide
 
-For XDJ-XZ firmware 1.26 and Windows developer preview 0.1.4. This download
+For XDJ-XZ firmware 1.26 and Windows developer preview 0.1.5. This download
 includes the split rows, themes and physical pad fixes shown below. Rebuild
 your existing USB loader to get the update. See [build instructions](../BUILDING.md)
 to build source.
 
 ## Prepare your USB
 
-1. Back up your Rekordbox USB. Start with a few tracks and a spare USB or staging folder.
-2. Download [preview 0.1.4](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.4).
+1. Back up your Rekordbox USB. Start with a few tracks and a spare FAT/FAT32 USB.
+2. Download [preview 0.1.5](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.5).
    Extract it and keep `XZ Mods.exe` beside its `resources` folder. Windows needs
    WebView2. VJ.Tools and a separate Python installation are not required.
-3. In the builder, choose your output folder, the official 1.26 ZIP or
-   `XDJXZ.UPD`, and your local boot key. Click **Check inputs**.
-4. Read the experimental-build notice and click **Build preview USB**.
-   Existing loader files are not overwritten. Firmware, boot keys and generated
-   personal boot images are excluded from public downloads.
-5. For OverCue-prepared tracks, keep matching `Contents` and `CDJMODS` folders on
+3. Plug in the USB. In **Prepare USB**, click **Choose USB and prepare loader**
+   and select the USB drive root. The app downloads and verifies the official
+   firmware and required boot support, then builds and checks `autoexec.bin`.
+   First setup downloads about 320 MB; verified files are cached locally.
+   The USB must be FAT/FAT32. Existing music and loader files are not overwritten.
+   The public download contains no firmware, boot support or personal boot image.
+4. For OverCue-prepared tracks, keep matching `Contents` and `CDJMODS` folders on
    the same USB. Open **Prepare stems → Check OverCue track** and choose the
    original track inside `Contents`. This reads the source and all prepared pages
    without changing them. Supported prepared format is `overcue-stems/4`.
-6. Alternatively, use the included separation or aligned-stem import workflow
+5. Alternatively, use the included separation or aligned-stem import workflow
    to create a legacy `stemd-cache/1` cache. It does not export OverCue bundles.
 
 Start the XZ with the prepared mod USB using the boot procedure for your image.
