@@ -26,17 +26,17 @@ or point the resource builder at any toolkit checkout:
 $env:XZ_TOOLKIT_DIR = "C:\path\to\xdj-xz-toolkit"
 ```
 
-## 0.1.2 developer preview
+## 0.1.3 developer preview
 
-The [Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.2)
+The [Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.3)
 is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resources` folder
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
 
-This update includes the native waveform stem strip, independent deck pad
-controls, selectable A-D/E-H stem banks, default-on stems, brighter default stem
-cue colors, overlay toggle, loop-start cache fixes and OverCue v4 playback
-adapter. See [the changelog](CHANGELOG.md) for changes and verification limits.
+This update includes two taller stem rows, horizontal volume gestures,
+independent deck pads, A-D/E-H banks, corrected pad brightness and colors,
+twelve display styles and automatic XZ Mods loading artwork. It retains the
+OverCue v4 playback adapter. See [the changelog](CHANGELOG.md) for verification limits.
 
 ## Use prepared OverCue tracks
 
@@ -54,12 +54,12 @@ The included separation and aligned-stem import workflows produce legacy
 
 ## Native stem controls
 
-The 0.1.2 preview displays one selected deck's stem strip beneath the native
-waveforms. Current toolkit source adds two taller rows, one below each waveform,
+The 0.1.3 preview displays two taller rows, one below each native waveform,
 with Vocals, Harmonics, Drums and Bypass. Tap to mute and drag horizontally to
 adjust volume. Split-row visibility, clean audio and bright physical pads were
 confirmed in RAM trials, including the latest pure pad hues. Full cold-boot/two-deck
-qualification still needs acceptance. These changes are not in the 0.1.2 download.
+qualification still needs acceptance. Rebuild existing USB loaders with 0.1.3
+to get these changes; updating source alone does not update a USB stick.
 
 Read the [user guide with actual hardware screenshots](docs/USER-GUIDE.md) for
 USB preparation, pad assignments, the twelve current-source display styles,
