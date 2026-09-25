@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 - 2026-09-25
+
+- Fix USB startup stopping before MODS appeared: the artwork checksum list now uses POSIX line endings when built on Windows.
+- Keep the tested 0.1.3 audio runtime, stem controls, themes and pad colors.
+- Add a regression check for every generated artwork checksum entry. The generated files also pass Linux `md5sum -c`.
+
+Rebuild any USB made with 0.1.3 using this version. The failure left the normal player running; it did not install the MODS runtime. Final hardware boot acceptance is recorded separately.
+
 ## 0.1.3 - 2026-09-25
 
 - Ship the tested runtime and matching display bridge in the Windows builder, shared with the VJ.Tools USB loader.

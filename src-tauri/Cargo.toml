@@ -1,6 +1,6 @@
 [package]
 name = "xz-mods-builder"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "MIT"
 description = "Independent XZ Mods USB and stem preparation tool"
