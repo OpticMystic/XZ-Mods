@@ -44,6 +44,8 @@ if a.runtime_bundle:
     bundle_manifest=verify_mods_source(a.runtime_bundle,TOOLKIT)
     copy(a.runtime_bundle/'libxz-mods.so',runtime/'libxz-mods.so')
     copy(a.runtime_bundle/'libxz-receiver.so',runtime/'libxz-receiver.so')
+    if (a.runtime_bundle/'branding').is_dir():
+        shutil.copytree(a.runtime_bundle/'branding',resources/'branding',dirs_exist_ok=True)
 else:
     copy(a.runtime_build/'libxz-mods-development.so',runtime/'libxz-mods.so')
     copy(a.runtime_build/'libxz-directfb-mods-test.so',runtime/'libxz-receiver.so')

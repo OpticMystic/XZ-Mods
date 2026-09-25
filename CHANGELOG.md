@@ -1,13 +1,16 @@
 # Changelog
 
-## Unreleased - 2026-09-24
+## 0.1.3 - 2026-09-25
+
+- Ship the tested runtime and matching display bridge in the Windows builder, shared with the VJ.Tools USB loader.
+- Include the XZ Mods splash and loading banner automatically. The loader applies the original artwork to a validated GUI copy in RAM.
 
 - Document the current toolkit's two 48-pixel stem rows, tap-to-mute and horizontal volume gestures.
 - Document the streamlined Controls, Appearance, VJ.Tools and Advanced pages and five added display themes.
 - Correct physical pad brightness and cover both pad banks in the toolkit. Use native primary colors independently of display themes.
 - Add actual XZ screenshots, a version-specific user guide and links to CDJ3K-Mods, OverCue, XDJ-RX3 Toolkit and XDJ-AZ Mods.
 
-Split rows, clean playback, bright pads and the final primary pad colors were confirmed in RAM trials. Full theme coverage and cold-boot/two-deck qualification remain pending. The Windows download remains 0.1.2; these source and documentation updates are not a new packaged release.
+Split rows, clean playback, bright pads and the final primary pad colors were confirmed in RAM trials. Both packaged builders pass image round-trip checks and contain the same runtime, SHA256 `218aca8d00d354d67e780e061d3cc0727eb5a82f530abf0534c719018316c134`. The automatic RAM artwork patch changes only the two permitted image regions. Full theme coverage and cold-boot/two-deck qualification remain pending; this remains a developer preview.
 
 ## 0.1.2 - 2026-09-23
 
