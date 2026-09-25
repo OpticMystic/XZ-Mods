@@ -55,9 +55,16 @@ The included separation and aligned-stem import workflows produce legacy
 ## Native stem controls
 
 The 0.1.2 preview displays one selected deck's stem strip beneath the native
-waveforms. The next RAM-only trial places four buttons under each deck's
-waveform: Vocals, Harmonics, Drums, and Bypass. Both deck rows stay visible;
-the trial has not been published or accepted on hardware yet.
+waveforms. Current toolkit source adds two taller rows, one below each waveform,
+with Vocals, Harmonics, Drums and Bypass. Tap to mute and drag horizontally to
+adjust volume. Split-row visibility, clean audio and bright physical pads were
+confirmed in RAM trials, including the latest pure pad hues. Full cold-boot/two-deck
+qualification still needs acceptance. These changes are not in the 0.1.2 download.
+
+Read the [user guide with actual hardware screenshots](docs/USER-GUIDE.md) for
+USB preparation, pad assignments, the twelve current-source display styles,
+recovery and [related community projects](docs/USER-GUIDE.md#related-projects).
+The public website is [vj.tools/xz-mods](https://vj.tools/xz-mods).
 
 In MODS > Controls, choose whether stems use hot cues A-D or E-H. The selected
 bank maps its first three pads to Vocals, Harmonics and Drums, followed by
