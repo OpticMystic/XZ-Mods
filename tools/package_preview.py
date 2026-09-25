@@ -17,6 +17,7 @@ portable=a.output/'XZ Mods Builder';portable.mkdir()
 shutil.copyfile(a.exe or APP/'src-tauri/target/debug/xz-mods-builder.exe',portable/'XZ Mods.exe')
 shutil.copytree(APP/'resources',portable/'resources')
 for name in ('README.md','BUILDING.md','CHANGELOG.md','LICENSE'):shutil.copyfile(APP/name,portable/name)
+shutil.copytree(APP/'docs',portable/'docs')
 (portable/'START HERE.txt').write_text(
     'XZ Mods Builder - developer preview\n\n'
     'Run XZ Mods.exe. VJ.Tools and Python are not required.\n'
