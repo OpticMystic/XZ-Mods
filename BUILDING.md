@@ -8,7 +8,7 @@ It pairs with the public toolkit repo
 or pass `--toolkit <path>` / set `$XZ_TOOLKIT_DIR`.
 
 The current Windows development build uses Rust 1.96, Zig 0.16, Python 3.14.3,
-PyInstaller 6.22.2, pycdlib 1.20.0, cryptography 48.0.0 and pyelftools. Use a
+PyInstaller 6.22.2, pycdlib 1.20.0, cryptography 48.0.0, inflate64 1.0.4 and pyelftools. Use a
 dedicated Python virtual environment for development. Pillow generates the
 optional UI font atlas; NumPy and FFmpeg are used by the relevant offline tests.
 Neither FFmpeg nor the installed developer Python is required by the packaged
@@ -33,6 +33,17 @@ builder code, original logo, decoder and licensed dependencies. It rejects
 firmware applications, boot keys, personal boot images and model checkpoints
 inside the public resource tree. Model weights and official firmware are
 downloaded separately from their original publishers when requested.
+The official 1.26 firmware and the manufacturer's published source archives are
+downloaded on first USB preparation and checked against pinned sizes and hashes.
+The source ZIPs use Deflate64, so the frozen backend includes inflate64. Its
+LGPL notice and exact source archive ship in `resources/licenses/`.
+
+For a builder-only update that retains the paired ARM runtime:
+
+```powershell
+python tools/build_backend.py --toolkit ..\xdj-xz-toolkit
+python tools/build_native.py --release
+```
 
 ## Covered source and notices
 
@@ -65,7 +76,7 @@ completed public mod release.
 ```powershell
 python tools/verify_backend.py --resources resources --evidence dist/backend-check.json
 python ../xdj-xz-toolkit/builder/tests/verify_overcue_builder.py --checker resources/xz-overcue-check.exe --backend resources/backend/xz-mods-service.exe
-python tools/package_preview.py --output dist/0.1.1 --exe src-tauri/target/x86_64-pc-windows-msvc/release/xz-mods-builder.exe
+python tools/package_preview.py --output dist/0.1.5 --exe src-tauri/target/x86_64-pc-windows-msvc/release/xz-mods-builder.exe
 ```
 
 Choose a new evidence file and output directory for each run. The source ZIP

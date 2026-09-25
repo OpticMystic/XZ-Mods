@@ -54,6 +54,12 @@ with tempfile.TemporaryDirectory(prefix='xz-builder-acceptance-') as temporary:
     checks['cancel_before_mutation']=not (volume/'mods/stemd-cache/cancelled-v1').exists()
     env.pop('XZ_BUILDER_CANCEL_FILE')
     if a.local_firmware and a.local_key:
+        automatic=call({'method':'inspect_firmware','firmware':str(a.local_firmware.resolve())})
+        assert automatic['ok'] and automatic['result']['key_verified_against_input'],automatic
+        checks['packaged_automatic_boot_support']=True
+        unsuitable=call({'method':'prepare_usb','volume':str(volume),'experimental':True})
+        assert not unsuitable['ok'] and 'FAT/FAT32 USB drive' in unsuitable['error'],unsuitable
+        checks['one_step_rejects_non_usb_before_download']=True
         build=call({'method':'build_usb','volume':str(volume),'firmware':str(a.local_firmware.resolve()),'key':str(a.local_key.resolve()),'experimental':True})
         assert build['ok'],build
         assert (volume/'autoexec.bin').is_file() and not build['result']['share_image']

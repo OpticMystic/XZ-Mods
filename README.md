@@ -26,12 +26,19 @@ or point the resource builder at any toolkit checkout:
 $env:XZ_TOOLKIT_DIR = "C:\path\to\xdj-xz-toolkit"
 ```
 
-## 0.1.4 developer preview
+## 0.1.5 developer preview
 
-The [Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.4)
+The [Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.5)
 is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resources` folder
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
+
+Plug in a FAT/FAT32 USB and choose **Prepare USB → Choose USB and prepare loader**.
+The app downloads the official 1.26 firmware and the boot support it needs, checks
+their hashes, then writes and verifies `autoexec.bin` in the USB root. It never
+formats the drive or replaces an existing loader. Firmware and boot support stay
+in an app-local cache for later builds. A local firmware file and staging folder
+remain available under Advanced options.
 
 This update includes two taller stem rows, horizontal volume gestures,
 independent deck pads, A-D/E-H banks, corrected pad brightness and colors,
@@ -54,11 +61,11 @@ The included separation and aligned-stem import workflows produce legacy
 
 ## Native stem controls
 
-The 0.1.4 preview displays two taller rows, one below each native waveform,
+The current preview displays two taller rows, one below each native waveform,
 with Vocals, Harmonics, Drums and Bypass. Tap to mute and drag horizontally to
 adjust volume. Split-row visibility, clean audio and bright physical pads were
 confirmed in RAM trials, including the latest pure pad hues. Full cold-boot/two-deck
-qualification still needs acceptance. Rebuild existing USB loaders with 0.1.4
+qualification still needs acceptance. Rebuild existing USB loaders with 0.1.5
 to get these changes; updating source alone does not update a USB stick.
 
 Read the [user guide with actual hardware screenshots](docs/USER-GUIDE.md) for
@@ -85,8 +92,8 @@ not prove playback alignment.
 
 Public package inputs are allowlisted. Firmware application binaries, boot
 keys, private boot images and firmware-extracted graphics are not shipped —
-supply the official XDJXZ.UPD plus your local boot key at build time (see
-`BUILDING.md` and the toolkit's `vendor/decrypted_iso/README.md`).
+download from the manufacturer during preparation, or supply a local official
+1.26 ZIP or UPD under Advanced options (see `BUILDING.md`).
 The `builder/firmware.py::import_application` path accepts the official 1.26
 `.UPD` (or the outer ZIP containing exactly one `.UPD`); unknown versions fail
 closed. The GUI must not claim broader firmware support.

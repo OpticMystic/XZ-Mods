@@ -22,7 +22,8 @@ shutil.copytree(APP/'docs',portable/'docs')
     'XZ Mods Builder - developer preview\n\n'
     'Run XZ Mods.exe. VJ.Tools and Python are not required.\n'
     'Windows requires the Microsoft Edge WebView2 Runtime.\n'
-    'Official firmware and boot keys are local inputs, not included.\n'
+    'Choose a FAT/FAT32 USB in the app; verified official firmware and boot support download automatically.\n'
+    'Firmware, boot support and generated personal images are not included.\n'
     'Model downloads are separate and use the reviewed original model sources.\n'
     'Do not treat this preview as a hardware-qualified public firmware release.\n'
     'Real model execution and final XZ boot/audio/control tests remain pending.\n'
@@ -54,6 +55,8 @@ for folder in ('ui','src-tauri','tools','docs'):
         relative=path.relative_to(APP)
         if path.is_file() and 'target' not in relative.parts and '__pycache__' not in relative.parts:
             source_files[str(Path('XZ-Mods')/relative)]=path
+for path in (APP/'third_party').rglob('*'):
+    if path.is_file():source_files[str(Path('XZ-Mods')/path.relative_to(APP))]=path
 for name in ('README.md','BUILDING.md','CHANGELOG.md','LICENSE','.gitignore'):
     source_files[str(Path('XZ-Mods')/name)]=APP/name
 for path in (a.toolkit/'builder').rglob('*'):
