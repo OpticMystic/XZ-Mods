@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased - 2026-09-24
+
+- Document the current toolkit's two 48-pixel stem rows, tap-to-mute and horizontal volume gestures.
+- Document the streamlined Controls, Appearance, VJ.Tools and Advanced pages and five added display themes.
+- Correct physical pad brightness and cover both pad banks in the toolkit. Use native primary colors independently of display themes.
+- Add actual XZ screenshots, a version-specific user guide and links to CDJ3K-Mods, OverCue, XDJ-RX3 Toolkit and XDJ-AZ Mods.
+
+Split rows, clean playback, bright pads and the final primary pad colors were confirmed in RAM trials. Full theme coverage and cold-boot/two-deck qualification remain pending. The Windows download remains 0.1.2; these source and documentation updates are not a new packaged release.
+
 ## 0.1.2 - 2026-09-23
 
 - Match screen controls, waveforms and pad colors to HOT CUE A Vocals, B Harmonics, C Drums, D bypass.
