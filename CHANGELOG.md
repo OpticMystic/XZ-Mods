@@ -6,7 +6,7 @@
 - Pin downloaded inputs by size and SHA-256. Cache verified downloads for later builds. Keep existing loader files and music untouched; reject an unsuitable destination before downloading.
 - Keep local firmware and staging builds in Advanced options. Ship the Deflate64 decoder with its LGPL notice and source, while excluding firmware, boot files and generated images from the public download.
 
-The automatic path passed the actual published downloads, boot-support extraction and a complete encrypted-image round trip in a disposable folder. No USB drive was mounted for a physical preparation or XDJ-XZ cold-boot test. Device operation remains a developer preview.
+The automatic path passed the actual published downloads, boot-support extraction and a complete encrypted-image round trip in a disposable folder. No USB drive was mounted during the release build checks. After publication, the user prepared a USB with 0.1.5 and cold-booted the XDJ-XZ with MODS running. This confirms the loader path on that setup; extended two-deck and experimental controls remain separate acceptance work.
 
 ## 0.1.4 - 2026-09-25
 

@@ -4,8 +4,9 @@ Independent Windows Tauri application for XDJ-XZ firmware 1.26. VJ.Tools
 branding and connection support are built in; VJ.Tools installation, account,
 library database and release process are not dependencies.
 
-> Developer preview. Only the qualified feature subset may be promoted in a
-> release; the remaining features stay visible with their actual readiness.
+> Version 0.1.5 is the current stable USB loader release for XDJ-XZ 1.26.
+> Gate Cue, Smart Cue, Groove, X-PAD and full two-deck performance still have
+> separate readiness limits in the app.
 
 ## Repositories
 
@@ -26,9 +27,9 @@ or point the resource builder at any toolkit checkout:
 $env:XZ_TOOLKIT_DIR = "C:\path\to\xdj-xz-toolkit"
 ```
 
-## 0.1.5 developer preview
+## 0.1.5 release
 
-The [Windows preview](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.5)
+The [Windows release](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.5)
 is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resources` folder
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
@@ -61,12 +62,14 @@ The included separation and aligned-stem import workflows produce legacy
 
 ## Native stem controls
 
-The current preview displays two taller rows, one below each native waveform,
+The included runtime displays two taller rows, one below each native waveform,
 with Vocals, Harmonics, Drums and Bypass. Tap to mute and drag horizontally to
 adjust volume. Split-row visibility, clean audio and bright physical pads were
-confirmed in RAM trials, including the latest pure pad hues. Full cold-boot/two-deck
-qualification still needs acceptance. Rebuild existing USB loaders with 0.1.5
-to get these changes; updating source alone does not update a USB stick.
+confirmed in RAM trials, including the latest pure pad hues. After release, the
+user prepared a USB with 0.1.5 and cold-booted the XDJ-XZ with MODS running.
+Extended two-deck, pad, loop and focus qualification remains pending. To update
+an older USB, back up and remove its existing `autoexec.bin` before preparing it
+with 0.1.5; updating source alone does not update a USB stick.
 
 Read the [user guide with actual hardware screenshots](docs/USER-GUIDE.md) for
 USB preparation, pad assignments, the twelve current-source display styles,
@@ -85,10 +88,10 @@ choice is retained when the settings USB is writable.
 ## Release status
 
 The native GUI, cancellable backend, cache import and portable packaging are
-implemented. This remains a developer preview. Selectable pad banks need
-live-player acceptance. Final native-player pad, loop, focus, two-deck and cold-boot acceptance remains
-pending, as does the real model execution matrix. A successful file check does
-not prove playback alignment.
+implemented. The user confirmed USB preparation and XDJ-XZ cold boot with 0.1.5.
+Selectable pad banks, extended two-deck playback, loops, focus and the real
+model execution matrix still need acceptance. A successful file check does not
+prove playback alignment.
 
 Public package inputs are allowlisted. Firmware application binaries, boot
 keys, private boot images and firmware-extracted graphics are not shipped —

@@ -1,14 +1,15 @@
 # XZ Mods user guide
 
-For XDJ-XZ firmware 1.26 and Windows developer preview 0.1.5. This download
+For XDJ-XZ firmware 1.26 and Windows release 0.1.5. This download
 includes the split rows, themes and physical pad fixes shown below. Rebuild
-your existing USB loader to get the update. See [build instructions](../BUILDING.md)
+your existing USB loader to get the update. Back up and remove its existing
+`autoexec.bin` before using the builder. See [build instructions](../BUILDING.md)
 to build source.
 
 ## Prepare your USB
 
 1. Back up your Rekordbox USB. Start with a few tracks and a spare FAT/FAT32 USB.
-2. Download [preview 0.1.5](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.5).
+2. Download [release 0.1.5](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.5).
    Extract it and keep `XZ Mods.exe` beside its `resources` folder. Windows needs
    WebView2. VJ.Tools and a separate Python installation are not required.
 3. Plug in the USB. In **Prepare USB**, click **Choose USB and prepare loader**
@@ -93,7 +94,8 @@ builds can save settings to the USB.
 If audio becomes corrupted during testing, stop playback and fully reboot.
 Reload the same track and check the original mix before continuing. The runtime
 runs in RAM, but experimental software can still crash or disrupt playback.
-Full two-deck, loop, focus and cold-boot qualification remains in progress.
+The user confirmed USB preparation and XDJ-XZ cold boot with 0.1.5. Extended
+two-deck, loop, focus and experimental-control qualification remains in progress.
 
 ## Related projects
 
