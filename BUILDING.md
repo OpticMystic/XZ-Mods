@@ -67,11 +67,12 @@ separate original-source MIT grants recorded in `builder/models.json`.
 Demucs research-only weights, UMXL non-commercial weights and unclear model
 mirrors are not approved presets.
 
-The real model execution matrix and full installed inference dependency lock
-are not yet qualified. The current package is a developer preview, not a
-completed public mod release.
+The user confirmed USB preparation and XDJ-XZ cold boot with 0.1.5. The real
+model execution matrix, extended two-deck performance and experimental
+controls still need separate qualification. The 0.1.5 asset retains its
+original preview filename; GitHub now marks the tested release as latest.
 
-## Package and verify the preview
+## Package and verify 0.1.5
 
 ```powershell
 python tools/verify_backend.py --resources resources --evidence dist/backend-check.json
