@@ -1,12 +1,15 @@
 # XZ Mods
 
-Independent Windows Tauri application for XDJ-XZ firmware 1.26. VJ.Tools
-branding and connection support are built in; VJ.Tools installation, account,
-library database and release process are not dependencies.
+XZ Mods is a Windows app for preparing XDJ-XZ USB loaders, saved settings,
+and stems. It targets firmware 1.26.
 
-> Version 0.1.5 is the current stable USB loader release for XDJ-XZ 1.26.
-> Gate Cue, Smart Cue, Groove, X-PAD and full two-deck performance still have
-> separate readiness limits in the app.
+The current release is version 0.1.8. It adds a USB track browser, stem status,
+model generation from the track list, grouped stem imports, and app updates.
+The Windows installer is the main package; a portable ZIP is also available.
+The 3-band waveform page is removed while that feature is being corrected.
+
+Standalone export of new tracks without Rekordbox is a separate prototype.
+The test track loaded and played with working stems on an XDJ-XZ. This exporter is not yet connected to the app interface.
 
 ## Repositories
 
@@ -57,8 +60,13 @@ Supported prepared format: `overcue-index/1` and `overcue-stems/4`, 96 kHz stere
 signed-16-bit PCM in `OVPGZ001` pages, including all seven prepared mixes.
 The source track must match its recorded SHA-256. Unsupported schemas fail closed.
 
-The included separation and aligned-stem import workflows produce legacy
-`stemd-cache/1` files. They do not export OverCue bundles. Both paths remain available.
+[OverCue](https://overcue.gg/) is the recommended way to prepare stems.
+XZ Mods also includes a beta stem builder. Its separation and aligned-stem import
+workflows write the [open OverCue format](https://github.com/OverCue-gg/overcue-stems-format)
+under `CDJMODS` and never replace stems OverCue made. The source must be a
+44.1 kHz stereo WAV or FLAC track that Rekordbox already exported to the USB's
+`Contents` folder. Separation runs on the CPU. The beta is not hardware-qualified,
+so check playback alignment on the player.
 
 ## Native stem controls
 

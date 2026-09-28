@@ -20,6 +20,7 @@ runtime_input=p.add_mutually_exclusive_group(required=True)
 runtime_input.add_argument('--runtime-build',type=Path)
 runtime_input.add_argument('--runtime-bundle',type=Path,help='Verified paired bundle shared with the VJ.Tools XZ loader')
 p.add_argument('--zig',type=Path,required=True)
+p.add_argument('--runtime-source',type=Path,help='Native source checkout matching the paired runtime; defaults to toolkit')
 p.add_argument('--toolkit',type=Path,default=None,
     help='Path to the xdj-xz-toolkit checkout (default: $XZ_TOOLKIT_DIR, sibling ../xdj-xz-toolkit, or monorepo packages/xdj-xz-toolkit)')
 a=p.parse_args()
@@ -32,6 +33,7 @@ def _resolve_toolkit():
     legacy=APP.parents[1]/'packages/xdj-xz-toolkit'
     return legacy
 TOOLKIT=_resolve_toolkit().resolve()
+RUNTIME_SOURCE=(a.runtime_source or TOOLKIT).resolve()
 resources=APP/'resources';resources.mkdir(exist_ok=True)
 def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def copy(source,target):target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target)
@@ -41,9 +43,10 @@ if a.runtime_bundle:
     sys.path.insert(0,str(TOOLKIT/'vendor'))
     from tools.xz_firmware.mods_bundle import verify_mods_source
     a.runtime_bundle=a.runtime_bundle.resolve()
-    bundle_manifest=verify_mods_source(a.runtime_bundle,TOOLKIT)
+    bundle_manifest=verify_mods_source(a.runtime_bundle,RUNTIME_SOURCE)
     copy(a.runtime_bundle/'libxz-mods.so',runtime/'libxz-mods.so')
     copy(a.runtime_bundle/'libxz-receiver.so',runtime/'libxz-receiver.so')
+    if (a.runtime_bundle/'settings-schema.json').is_file():copy(a.runtime_bundle/'settings-schema.json',runtime/'settings-schema.json')
     if (a.runtime_bundle/'branding').is_dir():
         shutil.copytree(a.runtime_bundle/'branding',resources/'branding',dirs_exist_ok=True)
 else:
@@ -52,12 +55,14 @@ else:
 (runtime/'manifest.json').write_text(json.dumps({'firmware':'XDJ-XZ 1.26','profile':'experimental','hardware_qualified':False,
     'prepared_formats':['overcue-stems/4','stemd-cache/1'],
     'bundle_manifest_sha256':digest(a.runtime_bundle/'manifest.json') if a.runtime_bundle else None,
-    'source_repository':'https://github.com/OpticMystic/xdj-xz-toolkit',
+    'source_repository':bundle_manifest.get('source_repository') if bundle_manifest else 'https://github.com/OpticMystic/xdj-xz-toolkit',
+    'source_directory':bundle_manifest.get('source_directory','.') if bundle_manifest else '.',
     'source_commit':bundle_manifest['source_commit'] if bundle_manifest else (subprocess.check_output(['git','-C',str(TOOLKIT),'rev-parse','HEAD'],text=True).strip() if (TOOLKIT/'.git').exists() else None),
+    'settings_schema_sha256':digest(runtime/'settings-schema.json') if (runtime/'settings-schema.json').is_file() else None,
     'runtime_sha256':digest(runtime/'libxz-mods.so'),'receiver_sha256':digest(runtime/'libxz-receiver.so'),
     'vjtools_connection':True,'vjtools_required':False},indent=2)+'\n')
 copy(a.runtime_bundle/'bootstrap.sh' if a.runtime_bundle else TOOLKIT/'vendor/tools/xz_runtime/orchestrator.sh',resources/'bootstrap.sh')
-for name in ('inference.py','models.json'):copy(TOOLKIT/'builder'/name,resources/'inference'/name)
+for name in ('inference.py','overcue_roles.py','grouped_stems.py','models.json'):copy(TOOLKIT/'builder'/name,resources/'inference'/name)
 licenses=resources/'licenses';licenses.mkdir(exist_ok=True)
 copy(APP/'LICENSE',licenses/'XZ-Mods-MIT.txt')
 copy(TOOLKIT/'mods/key/LICENSE-MPL-2.0',licenses/'Mozilla-MPL-2.0.txt')
@@ -88,17 +93,17 @@ for distribution in ('pycdlib','cryptography','cffi','pyinstaller'):
             if str(entry).startswith('pycdlib/') and entry.suffix=='.py':copy(dist.locate_file(entry),licenses/'source'/entry)
 source=resources/'source'/'xdj-xz-toolkit';source.mkdir(parents=True,exist_ok=True)
 for entry in ('runtime.c','runtime.h','ui_runtime.c','ui_runtime.h','settings.c','settings.h','runtime_smoke.c','build.py','xz-relocations.ld'):
-    copy(TOOLKIT/'mods'/entry,source/'mods'/entry)
+    copy(RUNTIME_SOURCE/'mods'/entry,source/'mods'/entry)
 for folder in ('cue','audio','key','ui','tests'):
-    for path in (TOOLKIT/'mods'/folder).rglob('*'):
+    for path in (RUNTIME_SOURCE/'mods'/folder).rglob('*'):
         if path.is_file() and (path.suffix in ('.c','.h','.ld','.md','.txt','.py','.json') or path.name.startswith(('LICENSE','COPYING'))):
-            copy(path,source/'mods'/path.relative_to(TOOLKIT/'mods'))
+            copy(path,source/'mods'/path.relative_to(RUNTIME_SOURCE/'mods'))
 for name in ('generate.py','source.json','BarlowSemiCondensed-Medium.ttf'):
-    copy(TOOLKIT/'mods/ui/fonts'/name,source/'mods/ui/fonts'/name)
+    copy(RUNTIME_SOURCE/'mods/ui/fonts'/name,source/'mods/ui/fonts'/name)
 for name in ('xz_directfb_hook.c','mods_bridge.h','orchestrator.sh'):
-    copy(TOOLKIT/'vendor/tools/xz_runtime'/name,source/'vendor/tools/xz_runtime'/name)
+    copy(RUNTIME_SOURCE/'vendor/tools/xz_runtime'/name,source/'vendor/tools/xz_runtime'/name)
 for folder in ('build/dfb-generated','build/directfb-1.4-src/include','build/directfb-1.4-src/lib'):
-    for path in (TOOLKIT/'vendor'/folder).rglob('*.h'):copy(path,source/'vendor'/path.relative_to(TOOLKIT/'vendor'))
+    for path in (RUNTIME_SOURCE/'vendor'/folder).rglob('*.h'):copy(path,source/'vendor'/path.relative_to(RUNTIME_SOURCE/'vendor'))
 if a.runtime_bundle:
     with zipfile.ZipFile(a.runtime_bundle/'source.zip') as archive:
         for entry in archive.infolist():

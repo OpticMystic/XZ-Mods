@@ -1,11 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod app_updates;
 use serde_json::{json, Value};
-use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicU64, Ordering}, Mutex}};
+use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Mutex}};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 #[derive(Default)]
-struct Jobs { counter: AtomicU64, entries: Mutex<HashMap<u64, (Value, PathBuf)>> }
+struct Jobs { updating:AtomicBool, counter: AtomicU64, entries: Mutex<HashMap<u64, (Value, PathBuf)>> }
 impl Drop for Jobs {
     fn drop(&mut self){if let Ok(entries)=self.entries.lock(){for (value,path) in entries.values(){if value["running"]==true{let _=std::fs::write(path,b"cancel");}}}}
 }
@@ -24,6 +25,11 @@ async fn pick_path(app:tauri::AppHandle,kind:String)->Result<Option<String>,Stri
     }).await.map_err(|e|e.to_string())?
 }
 
+#[tauri::command]
+async fn pick_stem_files(app:tauri::AppHandle)->Result<Vec<String>,String>{
+    tauri::async_runtime::spawn_blocking(move||Ok(app.dialog().file().add_filter("Audio stems",&["wav","flac","aif","aiff","ogg","mp3"]).blocking_pick_files().unwrap_or_default().into_iter().map(|p|p.to_string()).collect())).await.map_err(|e|e.to_string())?
+}
+
 fn resource_root(app: &tauri::AppHandle) -> Result<PathBuf,String> {
     if let Some(path)=std::env::var_os("XZ_BUILDER_RESOURCES") { return Ok(PathBuf::from(path)); }
     app.path().resource_dir().map(|p|p.join("resources")).map_err(|e|e.to_string())
@@ -35,6 +41,7 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
     let root=resource_root(&app)?;
     let state=app.state::<Jobs>();
     let mut entries=state.entries.lock().map_err(|_|"Job state unavailable")?;
+    if state.updating.load(Ordering::Acquire){return Err("An app update is running".into());}
     if entries.values().any(|(value,_)|value["running"]==true){return Err("Wait for the current operation or cancel it".into());}
     let id=state.counter.fetch_add(1,Ordering::Relaxed)+1;
     let folder=app.path().app_local_data_dir().map_err(|e|e.to_string())?.join("jobs");
@@ -53,18 +60,21 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
             #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
             let mut child=command.spawn().map_err(|e|format!("Builder backend is unavailable: {e}"))?;
             child.stdin.take().ok_or("Backend input unavailable")?.write_all(&serde_json::to_vec(&request).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
-            let mut final_seen=false;
+            let mut final_event:Option<Value>=None;
             for line in BufReader::new(child.stdout.take().ok_or("Backend output unavailable")?).lines(){
                 let line=line.map_err(|e|e.to_string())?;
                 if line.len()>65536{continue;}
                 if let Ok(mut event)=serde_json::from_str::<Value>(&line){
-                    let done=event["event"]=="result";event["running"]=json!(!done);
-                    app.state::<Jobs>().entries.lock().map_err(|_|"Job state unavailable")?.insert(id,(event,cancel.clone()));
-                    final_seen|=done;
+                    let done=event["event"]=="result";event["running"]=json!(true);
+                    app.state::<Jobs>().entries.lock().map_err(|_|"Job state unavailable")?.insert(id,(event.clone(),cancel.clone()));
+                    if done{final_event=Some(event.clone());}
                 }
             }
-            child.wait().map_err(|e|e.to_string())?;
-            if !final_seen{return Err("Builder backend ended without a result".into());}
+            let exit=child.wait().map_err(|e|e.to_string())?;
+            let Some(mut event)=final_event else{return Err("Builder backend ended without a result".into());};
+            if !exit.success(){return Err("Builder backend exited unexpectedly after its result".into());}
+            event["running"]=json!(false);
+            app.state::<Jobs>().entries.lock().map_err(|_|"Job state unavailable")?.insert(id,(event,cancel.clone()));
             Ok(())
         })();
         if let Err(error)=result {
@@ -86,19 +96,28 @@ fn cancel_job(app:tauri::AppHandle,id:u64)->Result<(),String>{
     if value["running"]==true{std::fs::write(path,b"cancel").map_err(|e|e.to_string())?;}
     Ok(())
 }
+// The webview can only ask for these exact pages, so page content can never make the shell open an arbitrary URL.
+const LINKS:[&str;5]=[app_updates::RELEASE_PAGE,app_updates::PORTABLE_URL,"https://vj.tools","https://overcue.gg","https://github.com/OverCue-gg/overcue-stems-format"];
 #[tauri::command]
-fn open_vj_tools()->Result<(),String>{
+fn open_link(url:String)->Result<(),String>{
+    let url=*LINKS.iter().find(|link|**link==url).ok_or("This link is not available in XZ Mods")?;
     #[cfg(windows)] {
         use std::os::windows::process::CommandExt;
-        Command::new("rundll32.exe").args(["url.dll,FileProtocolHandler","https://vj.tools"])
+        Command::new("rundll32.exe").args(["url.dll,FileProtocolHandler",url])
             .creation_flags(0x08000000).spawn().map_err(|e|e.to_string())?;
         Ok(())
     }
-    #[cfg(not(windows))] {Err("Visit https://vj.tools in your browser".into())}
+    #[cfg(not(windows))] {Err(format!("Visit {url} in your browser"))}
+}
+#[tauri::command]
+fn open_licenses(app:tauri::AppHandle)->Result<(),String>{
+    let folder=resource_root(&app)?.join("licenses");
+    if !folder.is_dir(){return Err("License notices are missing from this installation".into());}
+    Command::new("explorer.exe").arg(folder).spawn().map_err(|e|e.to_string())?;Ok(())
 }
 fn main(){
-    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).manage(Jobs::default())
-        .invoke_handler(tauri::generate_handler![start_job,job_status,cancel_job,pick_path,open_vj_tools])
+    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(Jobs::default()).manage(app_updates::Updates::default())
+        .invoke_handler(tauri::generate_handler![start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update])
         .on_window_event(|window,event|{
             if matches!(event,tauri::WindowEvent::CloseRequested{..}) {
                 if let Ok(entries)=window.state::<Jobs>().entries.lock(){
