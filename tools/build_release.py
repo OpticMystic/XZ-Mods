@@ -31,8 +31,11 @@ if not installer.is_file() or not Path(str(installer)+'.sig').is_file():raise Sy
 if a.portable:
     subprocess.run(['python','-X','utf8',str(APP/'tools/package_preview.py'),'--output',str(a.output),'--exe',str(APP/'src-tauri/target/x86_64-pc-windows-msvc/release/xz-mods-builder.exe')],check=True)
 else:a.output.mkdir(parents=True,exist_ok=False)
-for path in [installer,Path(str(installer)+'.sig')]:shutil.copyfile(path,a.output/path.name)
-feed={'version':version,'notes':markdown,'pub_date':datetime.now(timezone.utc).isoformat().replace('+00:00','Z'),'platforms':{'windows-x86_64':{'signature':Path(str(installer)+'.sig').read_text().strip(),'url':f'https://github.com/OpticMystic/XZ-Mods/releases/download/v{version}/'+quote(installer.name)}}}
+# GitHub normalizes spaces in asset names to dots; publish that name explicitly.
+asset_name=installer.name.replace(' ','.')
+shutil.copyfile(installer,a.output/asset_name)
+shutil.copyfile(Path(str(installer)+'.sig'),a.output/(asset_name+'.sig'))
+feed={'version':version,'notes':markdown,'pub_date':datetime.now(timezone.utc).isoformat().replace('+00:00','Z'),'platforms':{'windows-x86_64':{'signature':Path(str(installer)+'.sig').read_text().strip(),'url':f'https://github.com/OpticMystic/XZ-Mods/releases/download/v{version}/'+quote(asset_name)}}}
 (a.output/'latest.json').write_text(json.dumps(feed,indent=2)+'\n')
 (a.output/'release-notes.md').write_text(markdown)
 checks=[]
