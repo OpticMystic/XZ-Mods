@@ -1,20 +1,64 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "XZ Mods",
-  "version": "0.1.5",
+  "version": "0.1.8",
   "identifier": "com.opticmystic.xzmods",
-  "build": { "frontendDist": "../ui" },
+  "build": {
+    "frontendDist": "../ui"
+  },
   "app": {
     "withGlobalTauri": true,
-    "windows": [{ "label": "main", "title": "XZ Mods Builder", "width": 1120, "height": 820, "minWidth": 900, "minHeight": 680, "create": false }],
-    "security": { "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'" }
+    "windows": [
+      {
+        "label": "main",
+        "title": "XZ Mods Builder",
+        "width": 1120,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 680,
+        "create": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'"
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/icon.ico"],
-    "resources": { "../resources/": "resources/" },
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../resources/": "resources/"
+    },
     "shortDescription": "Standalone XDJ-XZ USB mod and stem preparation",
-    "category": "Music"
+    "category": "Music",
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "startMenuFolder": "XZ Mods",
+        "displayLanguageSelector": false
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ4MDU2NDEzMTlFRUVGODcKUldTSDcrNFpFMlFGU0xQeks3RzcwSjl1bEUzajBIZnAzSGhJcDZJQWZJNGh2Y0lBdHh3ZVd3ZTAK",
+      "endpoints": [
+        "https://github.com/OpticMystic/XZ-Mods/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      },
+      "requireSignedVersion": true
+    }
   }
 }

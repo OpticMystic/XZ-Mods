@@ -1,0 +1,70 @@
+{
+  "releases": [
+    {
+      "version": "0.1.8",
+      "date": "2026-09-28",
+      "features": [
+        "Install XZ Mods with the Windows installer, or download the optional portable ZIP.",
+        "The app checks for updates at startup. Review the release notes, then download and install a signed update.",
+        "Update an existing USB loader with a backup and restore option, and edit the settings saved on your USB.",
+        "Use 24 controller themes with consistent MODS menu positions and a top-right Close button.",
+        "Customize four backward/forward Beat Jump pairs on each of two pages under Controls. Hold Shift and tap Beat Jump for page 2.",
+        "Page 2 is enabled by default with 16, 32, 64 and 128 beats. Labels show both beats and bars; red/orange pad shades identify the second page.",
+        "Assign stem shortcuts through an eight-pad diagram in Controls.",
+        "Browse the Rekordbox USB library with automatic drive selection, free space and stem status. Generate stems with Open-Unmix HQ or Vocal focus.",
+        "Import multiple instrument stems, assign them to Drums, Vocals or Harmonics, and combine them into OverCue files for an exported track."
+      ],
+      "fixes": [
+        "Fixed track-title contrast in LCARS and Analog themes.",
+        "Keep theme, pad and Beat Jump settings saved between controller restarts when the settings USB is writable.",
+        "Fixed the narrow, vertically wrapped Prepare a new USB card and rewrote the app instructions.",
+        "Fixed Open-Unmix model loading and Vocal focus processing on Windows CPUs.",
+        "Allow exFAT music libraries in the stem browser and importer, separately from boot-loader requirements."
+      ],
+      "changes": [
+        "Removed the 3-band waveform, DJ branding and VJ.Tools pages from the Windows app."
+      ]
+    },
+    {
+      "version": "0.1.7",
+      "date": "2026-09-28",
+      "features": [
+        "Browse tracks from the Rekordbox USB database with automatic drive selection, free space and stem status.",
+        "Generate stems from the track list using Open-Unmix HQ or Vocal focus.",
+        "Import multiple instrument stems, assign them to drums, vocals or harmonics, and combine them into OverCue files.",
+        "Check for app updates from the Builder.",
+        "Download and install updates through the Windows installer. A portable ZIP is also available.",
+        "Read new features and fixes before updating. The app opens the release notes after an update."
+      ],
+      "fixes": [
+        "Finished jobs now release their files before another operation or app update starts.",
+        "Fixed the narrow, vertically wrapped text in Prepare a new USB.",
+        "Rewrote app instructions and simplified the About page.",
+        "Fixed Open-Unmix HQ failing to load its model files.",
+        "Fixed Vocal focus failing on Windows CPUs.",
+        "Read and prepare stems on exFAT music USBs without applying the boot-loader filesystem restriction."
+      ],
+      "changes": [
+        "Removed the 3-band waveform tools while they are being corrected."
+      ]
+    },
+    {
+      "version": "0.1.6",
+      "date": "2026-09-28",
+      "features": [
+        "Update an existing USB loader with a verified backup and restore option.",
+        "Edit the themes, stem shortcuts and beat-jump sizes saved on a USB.",
+        "Use separate eight-pad setup views for Stem Shortcuts and Beat Jump in Controls."
+      ],
+      "fixes": [
+        "Restore readable track titles in LCARS and Analog themes.",
+        "Save theme, pad-bank and stem-row settings between reloads.",
+        "Keep beat-jump page 2 enabled by default and distinguish its pads with red/orange shades."
+      ],
+      "changes": [
+        "Move the MODS Close button to the top-right corner.",
+        "Remove DJ branding and VJ.Tools pages from the Windows Builder and simplify its wording."
+      ]
+    }
+  ]
+}

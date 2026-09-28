@@ -84,6 +84,16 @@ Choose a new evidence file and output directory for each run. The source ZIP
 contains sibling `XZ-Mods` and `xdj-xz-toolkit` directories so the documented
 build layout works after extraction. The public runtime remains experimental.
 
+For waveform changes, exercise the frozen backend on disposable fixtures:
+
+```powershell
+python tools/verify_waveforms.py --resources resources --evidence dist/waveform-check.json
+```
+
+Add `--corpus <analysis-copy-folder>` to verify copied real `.EXT` / `.2EX` pairs.
+The verifier copies these into a temporary folder, checks Apply and Restore,
+then verifies the source files were not changed. It never connects to the XZ.
+
 ## Shared runtime parity
 
 Release packaging uses the paired bundle from `tools/build-xz-mods-bundle.py`
@@ -99,3 +109,31 @@ Both packaging paths verify its hashes and reject native source or bootstrap
 changes that have not been rebuilt. `tools/verify-xz-runtime-parity.py` in
 VJ.Tools verifies standalone resources against bundled or installed loader files.
 `--runtime-build` remains a development input; it does not establish release parity.
+
+## Loader update and settings checks
+
+Run `python -m unittest builder.tests.test_managed_usb -v` from the toolkit.
+The frozen-backend and packaged-app checks must use the matching prepared
+resources. `settings-schema.json` is hashed in the runtime manifest; do not
+copy an older sibling settings parser over the paired runtime source.
+
+On a Linux host or WSL, run
+`python3 tools/verify_settings_contract.py --resources resources --toolkit ../xdj-xz-toolkit`.
+It compares Python parsing, exact defaults, old record lengths and range
+rejection with the C parser carried by that resource bundle.
+
+When the paired native source and Python builder live in different checkouts,
+pass `--runtime-source <native-checkout>` and `--toolkit <builder-checkout>` to
+`prepare_resources.py`. Each must match its packaged artifact; the source ZIP
+keeps the actual paired native source and current builder source.
+
+
+## Windows installer and app updater
+
+Run `python tools/build_release.py --output dist/<version> --portable` after preparing resources and rebuilding the frozen backend. This creates the primary NSIS installer, its updater signature, latest.json, checksums and an optional portable ZIP. It does not publish them.
+
+Keep the updater private key outside the repository and release packages. Set TAURI_SIGNING_PRIVATE_KEY to its file path. The build checks that its public key matches the app configuration. Preserve this key across releases.
+
+The updater reads the GitHub latest release and accepts only a newer signed installer from this repository. Publish the installer and signature first, then latest.json. Release notes come from release-notes.json, with new features before bug fixes; keep the matching CHANGELOG.md entry consistent. A local build is not proof that the public updater feed is published.
+
+The updater-test Cargo feature allows loopback test endpoints through XZ_UPDATER_TEST_API and XZ_UPDATER_TEST_ENDPOINT. Never use this feature in published builds.

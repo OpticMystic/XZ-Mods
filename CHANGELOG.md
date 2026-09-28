@@ -1,5 +1,100 @@
 # Changelog
 
+## 0.1.8 - 2026-09-28
+
+### New features
+
+- Install XZ Mods with the Windows installer, or download the optional portable ZIP.
+- The app checks for updates at startup. Review the release notes, then download and install a signed update.
+- Update an existing USB loader with a backup and restore option, and edit the settings saved on your USB.
+- Use 24 controller themes with consistent MODS menu positions and a top-right Close button.
+- Customize four backward/forward Beat Jump pairs on each of two pages under Controls. Hold Shift and tap Beat Jump for page 2.
+- Page 2 is enabled by default with 16, 32, 64 and 128 beats. Labels show both beats and bars; red/orange pad shades identify the second page.
+- Assign stem shortcuts through an eight-pad diagram in Controls.
+- Browse the Rekordbox USB library with automatic drive selection, free space and stem status. Generate stems with Open-Unmix HQ or Vocal focus.
+- Import multiple instrument stems, assign them to Drums, Vocals or Harmonics, and combine them into OverCue files for an exported track.
+
+### Bug fixes
+
+- Fixed track-title contrast in LCARS and Analog themes.
+- Keep theme, pad and Beat Jump settings saved between controller restarts when the settings USB is writable.
+- Fixed the narrow, vertically wrapped Prepare a new USB card and rewrote the app instructions.
+- Fixed Open-Unmix model loading and Vocal focus processing on Windows CPUs.
+- Allow exFAT music libraries in the stem browser and importer, separately from boot-loader requirements.
+
+### Other changes
+
+- Removed the 3-band waveform, DJ branding and VJ.Tools pages from the Windows app.
+
+Validation: controller menu/title and settings checks, native/editor settings parity, real model runs on short test audio, grouped import and OverCue page verification. The separate standalone new-track export prototype loaded and played on the user's XDJ-XZ with working stem controls; that exporter is not yet connected to the app interface.
+
+## Unreleased
+
+- Add an experimental **Prepare layered waveforms** operation. It stores actual PWV7 low/mid/high data beside the tracks without modifying Rekordbox files. The new native scrolling-wave renderer draws blue outer bands, amber/brown mid bands and a white core. Existing loaders must be rebuilt or replaced to use it. The bottom overview remains stock.
+- Retain the earlier recolouring operation under **Legacy RGB colour adaptation**. It is not layered rendering.
+
+Layered-renderer verification: 92 builder tests passed with one real export-database fixture skipped. Production C renders of five real tracks, the native adapter fixture with ASan/UBSan, the existing portable UI suite and ARM ABI checks passed. Actual scrolling, zoom, cues, loops, themes and performance still require an XZ trial.
+
+- Recommend OverCue on **Prepare stems**. Link to overcue.gg and keep **Check OverCue track**.
+- Add the beta stem builder. Separation and aligned-stem import now write the open OverCue format (`overcue-index/1`) under `CDJMODS` instead of a legacy `stemd-cache/1` cache.
+- Take the USB from the chosen track. The track must be a 44.1 kHz stereo WAV or FLAC file that Rekordbox already exported to `Contents`. The separate output folder field is gone.
+- Leave stems OverCue made unchanged. Report when matching stems were reused or earlier XZ Mods stems were replaced.
+- Add **3-band waveforms**. It recolours the waveforms Rekordbox exported to the USB with CDJ-3000 style 3-band colours. Cues and music are unchanged. **Restore Rekordbox colours** puts back the originals kept in `CDJMODS/waveform-rgb-originals`.
+- Rework Super Nintendo, Windows 95, Game Boy Color and Aqua / iTunes. Keep the original Game Boy green palette and fix lowercase, baseline and narrow-glyph rendering. Latin-1 accented letters use readable base letters in the pixel font.
+- Add light/dark pairs for all seven styled families, including a second Game Boy DMG shell and Liquid Glass. The Appearance page keeps every style visible with separate Light and Dark buttons. Existing saved theme IDs retain their meaning.
+- Correct Aqua selection contrast, reduce its brushed-metal noise, darken Graphite highlights, and keep the full Game Boy Color label visible. Windows 95 Dark uses a readable purple selected state.
+- Reject empty waveform analysis sections per track, bound colour-cache memory and check cancellation between tracks.
+
+Offline verification: 88 builder tests passed with one real export-database fixture skipped; all 21 theme renders and 441 theme selection combinations passed. Native surface, runtime-control and skin integration tests passed, and the ARM runtime passed ABI checks. The frozen backend applied and restored five copied real tracks byte-for-byte and preserved later cue edits in a separate fixture. No new theme or waveform was loaded on the XZ. This is single-colour-per-column adaptation, not native layered 3-band rendering; hardware appearance and overview interpretation remain unverified.
+
+Beta stems pass file verification only. Playback alignment on the XZ has not been tested on hardware.
+
+## 0.1.7 - 2026-09-28 (local build)
+
+### New features
+
+- Browse tracks from the Rekordbox USB database with automatic drive selection, free space and stem status.
+- Generate stems from the track list using Open-Unmix HQ or Vocal focus.
+- Import multiple instrument stems, assign them to drums, vocals or harmonics, and combine them into OverCue files.
+- Check for app updates from the Builder.
+- Download and install updates through the Windows installer. A portable ZIP is also available.
+- Read new features and fixes before updating. The app opens the release notes after an update.
+
+### Bug fixes
+
+- Finished jobs now release their files before another operation or app update starts.
+- Fixed the narrow, vertically wrapped text in Prepare a new USB.
+- Rewrote app instructions and simplified the About page.
+- Fixed Open-Unmix HQ failing to load its model files.
+- Fixed Vocal focus failing on Windows CPUs.
+- Read and prepare stems on exFAT music USBs without applying the boot-loader filesystem restriction.
+
+### Other changes
+
+- Removed the 3-band waveform tools while they are being corrected.
+
+Verified: builder and updater tests, actual USB library reading, both model pipelines on a short synthetic track, and grouped imports with all seven OverCue roles checked. Standalone new-track export is a separate offline prototype, pending XDJ-XZ playback testing. No public update feed was published.
+
+## 0.1.6 - 2026-09-28 (local build)
+
+- Update an existing USB loader with verified backup, changed-file checks and
+  restore. The original prepare-new flow still refuses to overwrite a loader.
+- Edit the complete current USB settings format, including 24 themes, stem
+  shortcuts, two beat-jump pages and stem-row visibility.
+- Remove the Windows DJ branding and VJ.Tools pages and simplify the copy.
+- Put Close at the top right of MODS. Place Stem Shortcuts and Beat Jump in
+  separate Controls views with eight-pad diagrams.
+- Restore title contrast for LCARS untagged tracks and Analog title panels.
+  Keep menu positions consistent across themes and retain persistent USB settings.
+
+Verified: native/editor settings parity, safe-update failure cases, all-theme
+layout/input tests, native contrast regression, ARM load tests, and the actual
+Windows app update/backup/restore/settings flow using real encrypted loaders
+in a disposable NTFS folder. Physical FAT USB replacement and a fresh boot of
+this new loader are not claimed. Controller menu/title changes are in a RAM
+trial; the loaded-title visual check is recorded separately in task evidence.
+No public release was published by this build.
+
 ## 0.1.5 - 2026-09-25
 
 - Add **Choose USB and prepare loader**: one selection downloads the official XDJ-XZ 1.26 firmware, prepares boot support from Pioneer’s published source, builds the mod image and verifies its contents before writing `autoexec.bin` to the FAT/FAT32 USB root.

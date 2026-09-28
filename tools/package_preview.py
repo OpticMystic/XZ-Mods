@@ -11,23 +11,22 @@ APP=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--exe',type=Path)
+p.add_argument('--resources',type=Path,default=APP/'resources',help='Prepared resource snapshot; use a private copy for concurrent builds')
 p.add_argument('--toolkit',type=Path,default=APP.parent/'xdj-xz-toolkit' if (APP.parent/'xdj-xz-toolkit').is_dir() else APP.parents[1]/'packages/xdj-xz-toolkit')
 a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
 portable=a.output/'XZ Mods Builder';portable.mkdir()
 shutil.copyfile(a.exe or APP/'src-tauri/target/debug/xz-mods-builder.exe',portable/'XZ Mods.exe')
-shutil.copytree(APP/'resources',portable/'resources')
+shutil.copytree(a.resources,portable/'resources')
 for name in ('README.md','BUILDING.md','CHANGELOG.md','LICENSE'):shutil.copyfile(APP/name,portable/name)
 shutil.copytree(APP/'docs',portable/'docs')
 (portable/'START HERE.txt').write_text(
-    'XZ Mods Builder - developer preview\n\n'
-    'Run XZ Mods.exe. VJ.Tools and Python are not required.\n'
-    'Windows requires the Microsoft Edge WebView2 Runtime.\n'
-    'Choose a FAT/FAT32 USB in the app; verified official firmware and boot support download automatically.\n'
-    'Firmware, boot support and generated personal images are not included.\n'
-    'Model downloads are separate and use the reviewed original model sources.\n'
-    'Do not treat this preview as a hardware-qualified public firmware release.\n'
-    'Real model execution and final XZ boot/audio/control tests remain pending.\n'
-    'Explore VJ.Tools: https://vj.tools\n',encoding='utf8')
+    'XZ Mods Builder\n\n'
+    'Run XZ Mods.exe. Windows requires the Microsoft Edge WebView2 Runtime.\n'
+    'Choose a FAT/FAT32 USB in the app to prepare or update its loader.\n'
+    'The app downloads the required firmware and boot support on first use.\n'
+    'Test your USB on the XDJ-XZ before using it in a set.\n'
+    'For app updates, use App updates. To stay portable, download the latest ZIP\n'
+    'and extract it to a new folder. The in-app installer installs the Windows version.\n',encoding='utf8')
 for path in portable.rglob('*'):
     if path.is_file() and (path.suffix.lower() in ('.key','.upd','.pth','.ckpt','.safetensors') or path.name in ('rbp','rbp.patched','autoexec.bin','imagedata.dat','XDJXZ_v126.zip')):
         raise ValueError('Prohibited private firmware/key/model asset in preview: '+path.name)
@@ -48,8 +47,8 @@ with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as output
         if path.is_file():output.write(path,str(Path(portable.name)/path.relative_to(portable)))
 source_zip=a.output/'XZ-Mods-Builder-preview-source.zip'
 source_files={}
-for path in (APP/'resources/source').rglob('*'):
-    if path.is_file():source_files[str(path.relative_to(APP/'resources/source'))]=path
+for path in (a.resources/'source').rglob('*'):
+    if path.is_file():source_files[str(path.relative_to(a.resources/'source'))]=path
 for folder in ('ui','src-tauri','tools','docs'):
     for path in (APP/folder).rglob('*'):
         relative=path.relative_to(APP)
@@ -57,7 +56,7 @@ for folder in ('ui','src-tauri','tools','docs'):
             source_files[str(Path('XZ-Mods')/relative)]=path
 for path in (APP/'third_party').rglob('*'):
     if path.is_file():source_files[str(Path('XZ-Mods')/path.relative_to(APP))]=path
-for name in ('README.md','BUILDING.md','CHANGELOG.md','LICENSE','.gitignore'):
+for name in ('README.md','BUILDING.md','CHANGELOG.md','release-notes.json','LICENSE','.gitignore'):
     source_files[str(Path('XZ-Mods')/name)]=APP/name
 for path in (a.toolkit/'builder').rglob('*'):
     if path.is_file() and path.suffix in ('.py','.c','.json','.md') and '__pycache__' not in path.parts:
