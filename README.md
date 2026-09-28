@@ -3,7 +3,11 @@
 XZ Mods is a Windows app for preparing XDJ-XZ USB loaders, saved settings,
 and stems. It targets firmware 1.26.
 
-The current release is version 0.1.8. It adds a USB track browser, stem status,
+The current release is version 0.1.8.
+
+[Windows installer](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.8/XZ%20Mods_0.1.8_x64-setup.exe) | [Portable ZIP](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.8/XZ-Mods-Builder-preview-win64.zip)
+
+ It adds a USB track browser, stem status,
 model generation from the track list, grouped stem imports, and app updates.
 The Windows installer is the main package; a portable ZIP is also available.
 The 3-band waveform page is removed while that feature is being corrected.
@@ -30,7 +34,7 @@ or point the resource builder at any toolkit checkout:
 $env:XZ_TOOLKIT_DIR = "C:\path\to\xdj-xz-toolkit"
 ```
 
-## 0.1.5 release
+## Earlier release: 0.1.5
 
 The [Windows release](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.5)
 is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resources` folder
@@ -80,7 +84,7 @@ an older USB, back up and remove its existing `autoexec.bin` before preparing it
 with 0.1.5; updating source alone does not update a USB stick.
 
 Read the [user guide with actual hardware screenshots](docs/USER-GUIDE.md) for
-USB preparation, pad assignments, the twelve current-source display styles,
+USB preparation, pad assignments, the controller display themes,
 recovery and [related community projects](docs/USER-GUIDE.md#related-projects).
 The public website is [vj.tools/xz-mods](https://vj.tools/xz-mods).
 
