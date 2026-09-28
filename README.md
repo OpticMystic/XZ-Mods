@@ -3,9 +3,9 @@
 XZ Mods is a Windows app for preparing XDJ-XZ USB loaders, saved settings,
 and stems. It targets firmware 1.26.
 
-The current release is version 0.1.8.
+The current release is version 0.1.9.
 
-[Windows installer](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.8/XZ.Mods_0.1.8_x64-setup.exe) | [Portable ZIP](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.8/XZ-Mods-Builder-preview-win64.zip)
+[Windows installer](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.9/XZ.Mods_0.1.9_x64-setup.exe) | [Portable ZIP](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.9/XZ-Mods-Builder-preview-win64.zip)
 
  It adds a USB track browser, stem status,
 model generation from the track list, grouped stem imports, and app updates.

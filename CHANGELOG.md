@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.9 - 2026-09-28
+
+### New features
+
+- Native player artwork for the Game Boy, Super Nintendo, Windows 95, Game Boy Color, Aqua and DMG theme families.
+- Dedicated Glass panels with readable data wells and clearer focus states.
+- Separate green LCD waveform areas for DMG, and theme-specific title bars for Windows 95, RPG, Aqua and DMG.
+
+### Bug fixes
+
+- More saturated LCARS orange and violet, connected panel rails, and corrected deck-2 title colors.
+- Fixed title text contrast and antialiasing against each theme's background.
+- Preserved stronger waveform and cue colors instead of washing them toward the text color.
+- Reduced oversized Glass menu capsules and overpowering background gradients.
+- Kept cue regions, playheads, tempo readouts and transparent artwork masks protected.
+
+### Other changes
+
+- After installing, use USB loader > Back up and update loader to put these changes on an existing USB. Installing the app alone does not update the controller loader.
+- Theme IDs and saved selections are unchanged.
+
+Verified: portable native renderer tests, AddressSanitizer/UndefinedBehaviorSanitizer integration, ARM build and isolated controller tests, and bounded ARM waveform benchmarks. Live visual acceptance of every new theme is still pending. The controller USB was not rewritten during development.
+
 ## 0.1.8 - 2026-09-28
 
 ### New features
