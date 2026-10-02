@@ -30,6 +30,8 @@ def _resolve_toolkit():
     if a.toolkit:return Path(a.toolkit)
     env=os.environ.get('XZ_TOOLKIT_DIR')
     if env:return Path(env)
+    published=APP/'source/xdj-xz-toolkit'
+    if (published/'builder/firmware.py').is_file():return published
     sibling=APP.parent/'xdj-xz-toolkit'
     if (sibling/'builder'/'firmware.py').is_file():return sibling
     legacy=APP.parents[1]/'packages/xdj-xz-toolkit'

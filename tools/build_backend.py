@@ -12,7 +12,7 @@ import uuid
 
 APP=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--toolkit',type=Path,default=APP.parent/'xdj-xz-toolkit')
+parser.add_argument('--toolkit',type=Path,default=APP/'source/xdj-xz-toolkit' if (APP/'source/xdj-xz-toolkit').is_dir() else APP.parent/'xdj-xz-toolkit')
 args=parser.parse_args()
 toolkit=args.toolkit.resolve()
 resources=APP/'resources'
