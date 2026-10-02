@@ -170,3 +170,11 @@ Public Mac distribution still requires a Developer ID signature and notarization
 The private build does not publish a GitHub release or update feed. Mac update
 downloads must be signed `.app.tar.gz` bundles from this repository; a Windows
 installer is rejected by the Mac updater.
+
+macOS FAT32 volumes do not implement exclusive rename. New files use exclusive
+creation and complete readback; existing files and folders are never replaced by
+this path. Stem indexes are published after their complete bundles. The first
+write of a new `autoexec.bin` is not crash-atomic on FAT32. An interrupted first
+write may leave an incomplete new loader; inspect and repair it before booting
+the player. Updates to existing loaders retain the verified backup and replacement
+workflow.
