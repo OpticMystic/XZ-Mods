@@ -137,3 +137,36 @@ Keep the updater private key outside the repository and release packages. Set TA
 The updater reads the GitHub latest release and accepts only a newer signed installer from this repository. Publish the installer and signature first, then latest.json. Release notes come from release-notes.json, with new features before bug fixes; keep the matching CHANGELOG.md entry consistent. A local build is not proof that the public updater feed is published.
 
 The updater-test Cargo feature allows loopback test endpoints through XZ_UPDATER_TEST_API and XZ_UPDATER_TEST_ENDPOINT. Never use this feature in published builds.
+
+## Build a private Mac preview
+
+Build on macOS 14 or later, using the native architecture. Apple Silicon and Intel
+packages contain their own Python backend, audio helpers and uv. The controller
+libraries remain ARM32 in both packages. Current PyTorch wheels require Apple
+Silicon for generation; grouped stem import works on both architectures.
+
+Install Rust, Node 22 and Python 3.13, then install the build dependencies:
+
+```sh
+python3 -m pip install pyinstaller==6.22.2 pycdlib==1.20.0 cryptography==48.0.0 inflate64==1.0.4 pyelftools==0.33 pillow==12.3.0 certifi==2026.2.25
+```
+
+Place the paired runtime bundle and its signed `ota-release` directory beside
+each other. The private source snapshot supplies both, plus the matching toolkit.
+It carries no private signing keys, firmware images or game WADs.
+
+```sh
+python3 tools/build_macos.py --toolkit ../xdj-xz-toolkit --runtime-bundle ../runtime-bundle --output ../mac-packages
+```
+
+The script verifies input hashes, builds the native helpers and frozen backend,
+preserves Python framework symlinks, signs the package ad hoc, and creates an app
+archive and DMG. It exercises imports through the packaged backend, a disposable
+FAT32 disk image, exclusive publication and a visible app window. Apple Silicon
+also runs both approved models through FLAC output and complete audio verification.
+Checksums and check records ship beside the private packages.
+
+Public Mac distribution still requires a Developer ID signature and notarization.
+The private build does not publish a GitHub release or update feed. Mac update
+downloads must be signed `.app.tar.gz` bundles from this repository; a Windows
+installer is rejected by the Mac updater.

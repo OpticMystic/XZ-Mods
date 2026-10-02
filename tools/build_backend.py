@@ -42,12 +42,12 @@ with tempfile.TemporaryDirectory(prefix='xz-backend-package-') as temporary:
     destination=resources/'backend'
     incoming=resources/('.backend-new-'+uuid.uuid4().hex)
     backup=resources/('.backend-old-'+uuid.uuid4().hex)
-    shutil.copytree(Path(temporary)/'dist/xz-mods-service',incoming)
+    shutil.copytree(Path(temporary)/'dist/xz-mods-service',incoming,symlinks=True)
     for path in (incoming,destination,backup):
         if not path.resolve().is_relative_to(resources.resolve()) or path.is_symlink() or path.is_junction():
             raise ValueError('Backend staging path escaped the resource directory')
     if destination.exists():
-        if not (destination/'xz-mods-service.exe').is_file():raise ValueError('Existing backend folder is not a generated builder bundle')
+        if not (destination/('xz-mods-service.exe' if os.name=='nt' else 'xz-mods-service')).is_file():raise ValueError('Existing backend folder is not a generated builder bundle')
         destination.rename(backup)
     try:incoming.rename(destination)
     except BaseException:

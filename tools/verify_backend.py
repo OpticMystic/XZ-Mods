@@ -23,10 +23,11 @@ if a.evidence.exists():raise ValueError('Choose a new evidence file')
 sys.path.insert(0,str(a.toolkit.resolve()/'builder/tests'))
 from pdb_fixture import write_export
 env=os.environ.copy();env.update({'XZ_BUILDER_RESOURCES':str(resources),'XZ_AUDIO_HELPER':str(resources/'xz-audio-helper.exe'),
-    'PATH':str(Path(os.environ['SystemRoot'])/'System32')})
+    'PATH':str(Path(os.environ['SystemRoot'])/'System32') if os.name=='nt' else '/usr/bin:/bin:/usr/sbin:/sbin'})
+if os.name!='nt':env['XZ_AUDIO_HELPER']=str(resources/'xz-audio-helper')
 env.pop('PYTHONPATH',None);env.pop('PYTHONHOME',None)
 def call(request):
-    result=subprocess.run([str(resources/'backend/xz-mods-service.exe')],input=json.dumps(request),capture_output=True,text=True,
+    result=subprocess.run([str(resources/'backend'/('xz-mods-service.exe' if os.name=='nt' else 'xz-mods-service'))],input=json.dumps(request),capture_output=True,text=True,
         encoding='utf-8',env=env,timeout=300)
     if result.returncode:raise RuntimeError(result.stderr)
     return json.loads(result.stdout.splitlines()[-1])
@@ -58,9 +59,10 @@ with tempfile.TemporaryDirectory(prefix='xz-builder-acceptance-') as temporary:
     before=tree(volume);inputs={name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in stems.items()}
     assert not (volume/'CDJMODS').exists()
     if not a.no_engine:
-        python=root/'data/engine-python/Scripts/python.exe'
-        subprocess.run([str(resources/'uv.exe'),'venv','--python','3.11',str(python.parents[1])],check=True,capture_output=True)
-        subprocess.run([str(resources/'uv.exe'),'pip','install','--python',str(python),'numpy==2.2.6','scipy==1.16.1'],check=True,capture_output=True)
+        python=root/'data/engine-python'/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+        uv=resources/('uv.exe' if os.name=='nt' else 'uv')
+        subprocess.run([str(uv),'venv','--python','3.11',str(python.parents[1])],check=True,capture_output=True)
+        subprocess.run([str(uv),'pip','install','--python',str(python),'numpy==2.2.6','scipy==1.16.1'],check=True,capture_output=True)
         (root/'data/setup-umxhq.json').write_text('{}')
         imported=call(request);assert imported['ok'],imported
         receipt=imported['result']

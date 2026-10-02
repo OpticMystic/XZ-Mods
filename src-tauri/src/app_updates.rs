@@ -4,7 +4,10 @@ use tauri::Manager;
 use tauri_plugin_updater::{Update,UpdaterExt};
 
 pub const RELEASE_PAGE:&str="https://github.com/OpticMystic/XZ-Mods/releases/latest";
+#[cfg(windows)]
 pub const PORTABLE_URL:&str="https://github.com/OpticMystic/XZ-Mods/releases/latest/download/XZ-Mods-Builder-preview-win64.zip";
+#[cfg(not(windows))]
+pub const PORTABLE_URL:&str=RELEASE_PAGE;
 const RELEASE_API:&str="https://api.github.com/repos/OpticMystic/XZ-Mods/releases/latest";
 
 pub struct Updates { pub inner:Mutex<UpdateState> }
@@ -43,9 +46,9 @@ fn newer(current:&str,latest:&str)->Result<std::cmp::Ordering,String>{
     Ok(latest.cmp(&current))
 }
 fn approved_download(url:&reqwest::Url)->bool{
-    if url.scheme()=="https"&&url.host_str()==Some("github.com")&&url.path().starts_with("/OpticMystic/XZ-Mods/releases/download/")&&url.path().ends_with("-setup.exe"){return true;}
+    if url.scheme()=="https"&&url.host_str()==Some("github.com")&&url.path().starts_with("/OpticMystic/XZ-Mods/releases/download/")&&url.path().ends_with(crate::host::update_suffix()){return true;}
     #[cfg(feature="updater-test")]
-    if url.scheme()=="http"&&url.host_str()==Some("127.0.0.1")&&url.path().ends_with("-setup.exe"){return true;}
+    if url.scheme()=="http"&&url.host_str()==Some("127.0.0.1")&&url.path().ends_with(crate::host::update_suffix()){return true;}
     false
 }
 #[cfg(feature="updater-test")]
@@ -57,8 +60,11 @@ fn test_url(key:&str)->Option<reqwest::Url>{
 pub fn app_information(app:tauri::AppHandle)->Result<Value,String>{
     let version=app.package_info().version.to_string();
     let show_notes=marker(&app).ok().and_then(|p|std::fs::read(p).ok()).and_then(|b|serde_json::from_slice::<Value>(&b).ok()).is_some_and(|v|v["version"]==version);
+    #[cfg(not(target_os="macos"))]
     let installed=std::env::current_exe().ok().and_then(|p|p.parent().map(|d|d.join("uninstall.exe").is_file())).unwrap_or(false);
-    Ok(json!({"version":version,"installed":installed,"show_release_notes":show_notes,"release_notes":bundled_notes(),"test_build":cfg!(feature="updater-test")}))
+    #[cfg(target_os="macos")]
+    let installed=std::env::current_exe().ok().is_some_and(|p|p.components().any(|c|c.as_os_str().to_string_lossy().ends_with(".app")));
+    Ok(json!({"version":version,"installed":installed,"platform":std::env::consts::OS,"portable_url":PORTABLE_URL,"show_release_notes":show_notes,"release_notes":bundled_notes(),"test_build":cfg!(feature="updater-test")}))
 }
 #[tauri::command]
 pub fn acknowledge_release_notes(app:tauri::AppHandle)->Result<(),String>{
@@ -83,6 +89,10 @@ async fn check_inner(app:&tauri::AppHandle)->Result<Value,String>{
     let release:Value=serde_json::from_slice(&bytes).map_err(|_|"GitHub returned invalid release information")?;
     if release["draft"]==true||release["prerelease"]==true{return Err("The update service returned an unpublished or prerelease build".into());}
     let latest=release["tag_name"].as_str().ok_or("Release version is missing")?.trim_start_matches('v').to_string();
+    #[cfg(target_os="macos")]
+    if !release["assets"].as_array().is_some_and(|assets|assets.iter().any(|item|item["name"].as_str().is_some_and(|name|name.ends_with(".dmg")||name.ends_with(".app.tar.gz")))) {
+        return Ok(json!({"phase":"not_ready","current_version":current,"latest_version":latest,"message":"No public Mac update is available yet. This private preview stays installed.","checked_at":now()}));
+    }
     let comparison=newer(&current,&latest)?;
     if comparison!=std::cmp::Ordering::Greater{
         let phase=if comparison==std::cmp::Ordering::Less{"ahead"}else{"current"};
@@ -135,8 +145,11 @@ pub async fn install_app_update(app:tauri::AppHandle)->Result<(),String>{
     if let Err(error)=write_marker(&app,&update.version){app.state::<crate::Jobs>().updating.store(false,Ordering::Release);state(&app,json!({"phase":"error","message":error}));return Err(error);}
     state(&app,json!({"phase":"installing","message":"Restarting to install the update...","latest_version":update.version}));
     match update.install(bytes){
-        Ok(())=>Ok(()),
-        Err(_)=>{app.state::<crate::Jobs>().updating.store(false,Ordering::Release);state(&app,json!({"phase":"error","message":"The Windows installer could not start. Your current app is unchanged."}));Err("Could not start the Windows installer".into())}
+        Ok(())=>{
+            #[cfg(target_os="macos")] {app.restart();}
+            #[cfg(not(target_os="macos"))] {Ok(())}
+        },
+        Err(_)=>{app.state::<crate::Jobs>().updating.store(false,Ordering::Release);state(&app,json!({"phase":"error","message":"The app update could not be installed. Your current app is unchanged."}));Err("Could not install the app update".into())}
     }
 }
 
@@ -145,6 +158,11 @@ mod tests{
     use super::*;
     #[test]fn release_notes_prioritize_features_then_fixes(){let n=parse_notes("# XZ Mods 1.2.3\n## Fixes\n- Keep USB settings.\n## New features\n- App updates.\n");assert_eq!(n["features"][0],"App updates.");assert_eq!(n["fixes"][0],"Keep USB settings.");}
     #[test]fn versions_do_not_downgrade(){assert_eq!(newer("0.1.7","v0.1.5").unwrap(),std::cmp::Ordering::Less);assert_eq!(newer("0.1.7","0.1.8").unwrap(),std::cmp::Ordering::Greater);assert!(newer("0.1.7","garbage").is_err());}
-    #[test]fn download_origin_is_restricted(){assert!(approved_download(&"https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.8/XZ.Mods_0.1.8_x64-setup.exe".parse().unwrap()));assert!(!approved_download(&"https://example.com/x64-setup.exe".parse().unwrap()));assert!(!approved_download(&"https://github.com/Other/Repo/releases/download/v1/x64-setup.exe".parse().unwrap()));}
+    #[test]fn download_origin_is_restricted(){
+        let suffix=crate::host::update_suffix();
+        assert!(approved_download(&format!("https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.8/XZ.Mods{suffix}").parse().unwrap()));
+        assert!(!approved_download(&format!("https://example.com/XZ.Mods{suffix}").parse().unwrap()));
+        assert!(!approved_download(&format!("https://github.com/Other/Repo/releases/download/v1/XZ.Mods{suffix}").parse().unwrap()));
+    }
     #[test]fn bundled_notes_have_current_version_and_clear_groups(){let n=bundled_notes();let item=n["releases"].as_array().unwrap().iter().find(|r|r["version"]==env!("CARGO_PKG_VERSION")).unwrap();assert!(item["features"].as_array().is_some());assert!(item["fixes"].as_array().is_some());}
 }
