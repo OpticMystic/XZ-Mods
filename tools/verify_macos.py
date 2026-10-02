@@ -81,7 +81,7 @@ with tempfile.TemporaryDirectory(prefix='xz-mac-fat-') as temporary:
         destination.rmdir()
         cache._publish_new(staged, destination)
         assert destination.is_dir() and not staged.exists()
-        checks['fat32_atomic_no_replace'] = True
+        checks['fat32_exclusive_no_replace'] = True
         assert (volume / 'keep-music.txt').read_text() == 'Keep existing music'
     finally:
         subprocess.run(['/usr/bin/hdiutil', 'detach', str(volume)], check=True)
@@ -101,5 +101,5 @@ finally:
     process.terminate()
     process.wait(timeout=10)
 args.evidence.write_text(json.dumps({'checks': checks, 'physical_usb': False, 'device_access': False,
-    'apple_developer_signed': False, 'notarized': False}, indent=2) + '\n')
+    'apple_developer_signed': False, 'notarized': False, 'new_fat_loader_first_write_crash_atomic': False}, indent=2) + '\n')
 print(json.dumps(checks, indent=2))
