@@ -1,9 +1,16 @@
 # XZ Mods
 
-XZ Mods is a Windows app for preparing XDJ-XZ USB loaders, saved settings,
+XZ Mods is a desktop app for preparing XDJ-XZ USB loaders, saved settings,
 and stems. It targets firmware 1.26.
 
-The current release is version 0.1.9.
+The current public Windows release is version 0.1.9.
+
+Private macOS previews are built for Apple Silicon and Intel Macs running macOS
+14 or later. They include the current USB tools, settings, games, batch stems,
+FLAC import and reader, and paired controller runtime. Stem generation with the
+current models requires Apple Silicon; Intel Macs can import prepared stems.
+Mac previews use an ad-hoc signature and are not notarized public releases.
+See [the Mac build procedure](BUILDING.md#build-a-private-mac-preview).
 
 [Windows installer](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.9/XZ.Mods_0.1.9_x64-setup.exe) | [Portable ZIP](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.9/XZ-Mods-Builder-preview-win64.zip)
 

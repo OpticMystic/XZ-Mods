@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "icon": ["icons/icon.icns"],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "infoPlist": "Info.macos.plist",
+      "signingIdentity": "-"
+    }
+  }
+}

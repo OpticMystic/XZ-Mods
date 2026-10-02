@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod app_updates;
+mod host;
 use serde_json::{json, Value};
 use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Mutex}};
 use tauri::Manager;
@@ -51,11 +52,11 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
     drop(entries);
     std::thread::spawn(move || {
         let result=(|| -> Result<(),String> {
-            let backend=root.join("backend").join("xz-mods-service.exe");
+            let backend=root.join("backend").join(host::executable("xz-mods-service"));
             let mut command=Command::new(backend);
             command.env("XZ_BUILDER_RESOURCES",&root).env("XZ_BUILDER_CANCEL_FILE",&cancel)
                 .env("XZ_BUILDER_DATA",app.path().app_local_data_dir().map_err(|e|e.to_string())?)
-                .env("XZ_AUDIO_HELPER",root.join("xz-audio-helper.exe"))
+                .env("XZ_AUDIO_HELPER",root.join(host::executable("xz-audio-helper")))
                 .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
             #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
             let mut child=command.spawn().map_err(|e|format!("Builder backend is unavailable: {e}"))?;
@@ -107,13 +108,20 @@ fn open_link(url:String)->Result<(),String>{
             .creation_flags(0x08000000).spawn().map_err(|e|e.to_string())?;
         Ok(())
     }
-    #[cfg(not(windows))] {Err(format!("Visit {url} in your browser"))}
+    #[cfg(target_os="macos")] {
+        Command::new("/usr/bin/open").arg(url).spawn().map_err(|e|e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(any(windows,target_os="macos")))] {Err(format!("Visit {url} in your browser"))}
 }
 #[tauri::command]
 fn open_licenses(app:tauri::AppHandle)->Result<(),String>{
     let folder=resource_root(&app)?.join("licenses");
     if !folder.is_dir(){return Err("License notices are missing from this installation".into());}
-    Command::new("explorer.exe").arg(folder).spawn().map_err(|e|e.to_string())?;Ok(())
+    #[cfg(windows)] let opener="explorer.exe";
+    #[cfg(target_os="macos")] let opener="/usr/bin/open";
+    #[cfg(not(any(windows,target_os="macos")))] let opener="xdg-open";
+    Command::new(opener).arg(folder).spawn().map_err(|e|e.to_string())?;Ok(())
 }
 fn main(){
     tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(Jobs::default()).manage(app_updates::Updates::default())
