@@ -50,7 +50,7 @@ source_zip=a.output/'XZ-Mods-Builder-preview-source.zip'
 source_files={}
 for path in (a.resources/'source').rglob('*'):
     if path.is_file():source_files[str(path.relative_to(a.resources/'source'))]=path
-for folder in ('ui','src-tauri','tools','docs'):
+for folder in ('ui','src-tauri','tools','docs','source'):
     for path in (APP/folder).rglob('*'):
         relative=path.relative_to(APP)
         if path.is_file() and 'target' not in relative.parts and '__pycache__' not in relative.parts:
