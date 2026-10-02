@@ -3,7 +3,7 @@
 XZ Mods is a standalone Tauri application. The VJ.Tools Library application and
 database are not build or runtime dependencies.
 
-The exact toolkit source used for 0.1.10 is included in `source/xdj-xz-toolkit`.
+The exact toolkit source used for 0.2.0 is included in `source/xdj-xz-toolkit`.
 Use `--toolkit source/xdj-xz-toolkit` to build from that immutable snapshot.
 `release-source.json` records each input hash and the paired native runtime.
 The matching release source ZIP contains the app and toolkit side by side.

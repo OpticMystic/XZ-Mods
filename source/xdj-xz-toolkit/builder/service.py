@@ -26,7 +26,7 @@ def resources():
     if not configured:raise ValueError('Builder resources are not configured')
     return Path(configured).resolve()
 
-VERSION='0.1.10'
+VERSION='0.2.0'
 # 96 kHz roles are capped at 4096 pages; resample_poly(320/147) output is ceil(frames*320/147).
 MAX_SOURCE_FRAMES=overcue_writer.MAX_FRAMES*147//320
 
