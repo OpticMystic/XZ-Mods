@@ -1,0 +1,721 @@
+{
+  "format": "xz-mods-settings-schema/1",
+  "header": "XZ_MODS_SETTINGS 1",
+  "accepted_field_counts": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    22,
+    23
+  ],
+  "fields": [
+    {
+      "key": "stems",
+      "label": "Stem audio",
+      "group": "stems",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "gate",
+      "label": "Gate cue",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "smart",
+      "label": "Smart cue",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "theme",
+      "label": "Theme",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 23,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "ORIGINAL"
+        },
+        {
+          "value": 1,
+          "label": "WHITE"
+        },
+        {
+          "value": 2,
+          "label": "CYBERPUNK"
+        },
+        {
+          "value": 3,
+          "label": "NEON"
+        },
+        {
+          "value": 4,
+          "label": "MOCHA"
+        },
+        {
+          "value": 5,
+          "label": "AURORA"
+        },
+        {
+          "value": 6,
+          "label": "SANDSTONE"
+        },
+        {
+          "value": 7,
+          "label": "GAME BOY"
+        },
+        {
+          "value": 8,
+          "label": "SUPER NINTENDO"
+        },
+        {
+          "value": 9,
+          "label": "WINDOWS 95"
+        },
+        {
+          "value": 10,
+          "label": "GAME BOY COLOR"
+        },
+        {
+          "value": 11,
+          "label": "AQUA / ITUNES"
+        },
+        {
+          "value": 12,
+          "label": "GAME BOY DARK"
+        },
+        {
+          "value": 13,
+          "label": "SUPER NINTENDO DARK"
+        },
+        {
+          "value": 14,
+          "label": "WINDOWS 95 DARK"
+        },
+        {
+          "value": 15,
+          "label": "GAME BOY COLOR DARK"
+        },
+        {
+          "value": 16,
+          "label": "AQUA / ITUNES DARK"
+        },
+        {
+          "value": 17,
+          "label": "GAME BOY DMG"
+        },
+        {
+          "value": 18,
+          "label": "GAME BOY DMG DARK"
+        },
+        {
+          "value": 19,
+          "label": "LIQUID GLASS"
+        },
+        {
+          "value": 20,
+          "label": "LIQUID GLASS DARK"
+        },
+        {
+          "value": 21,
+          "label": "LCARS"
+        },
+        {
+          "value": 22,
+          "label": "MATRIX"
+        },
+        {
+          "value": 23,
+          "label": "ANALOG"
+        }
+      ]
+    },
+    {
+      "key": "stem_page",
+      "label": "Stem shortcut pad mode",
+      "group": "stems",
+      "default": 0,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Hot Cue"
+        },
+        {
+          "value": 1,
+          "label": "Beat Loop"
+        },
+        {
+          "value": 2,
+          "label": "Slip Loop"
+        },
+        {
+          "value": 3,
+          "label": "Beat Jump"
+        }
+      ]
+    },
+    {
+      "key": "shift_pages",
+      "label": "Shift + pad modes for stems",
+      "group": "stems",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "pad_feedback",
+      "label": "Stem pad lights",
+      "group": "stems",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "shift_keysync",
+      "label": "Shift + Sync",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "fb_takeover",
+      "label": "VJ.Tools screen view",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "takeover_assign",
+      "label": "Screen switch button",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Link"
+        },
+        {
+          "value": 1,
+          "label": "Rekordbox"
+        },
+        {
+          "value": 2,
+          "label": "Onscreen"
+        }
+      ]
+    },
+    {
+      "key": "spare_eq",
+      "label": "Legacy spare EQ flag",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    {
+      "key": "stem_bank",
+      "label": "Stem shortcut bank",
+      "group": "stems",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Pads A-D"
+        },
+        {
+          "value": 1,
+          "label": "Pads E-H"
+        }
+      ]
+    },
+    {
+      "key": "jump_enabled",
+      "label": "Custom Beat Jump",
+      "group": "beat_jump",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "jump_shift_page",
+      "label": "Shift + Beat Jump page 2",
+      "group": "beat_jump",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "jump_1",
+      "label": "Page 1: A/B",
+      "group": "beat_jump",
+      "default": 0,
+      "min": 0,
+      "max": 9,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "1 beat"
+        },
+        {
+          "value": 1,
+          "label": "2 beats"
+        },
+        {
+          "value": 2,
+          "label": "4 beats / 1 bar"
+        },
+        {
+          "value": 3,
+          "label": "8 beats / 2 bars"
+        },
+        {
+          "value": 4,
+          "label": "16 beats / 4 bars"
+        },
+        {
+          "value": 5,
+          "label": "32 beats / 8 bars"
+        },
+        {
+          "value": 6,
+          "label": "64 beats / 16 bars"
+        },
+        {
+          "value": 7,
+          "label": "16 bars / 64 beats"
+        },
+        {
+          "value": 8,
+          "label": "32 bars / 128 beats"
+        },
+        {
+          "value": 9,
+          "label": "64 bars / 256 beats"
+        }
+      ]
+    },
+    {
+      "key": "jump_2",
+      "label": "Page 1: C/D",
+      "group": "beat_jump",
+      "default": 1,
+      "min": 0,
+      "max": 9,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "1 beat"
+        },
+        {
+          "value": 1,
+          "label": "2 beats"
+        },
+        {
+          "value": 2,
+          "label": "4 beats / 1 bar"
+        },
+        {
+          "value": 3,
+          "label": "8 beats / 2 bars"
+        },
+        {
+          "value": 4,
+          "label": "16 beats / 4 bars"
+        },
+        {
+          "value": 5,
+          "label": "32 beats / 8 bars"
+        },
+        {
+          "value": 6,
+          "label": "64 beats / 16 bars"
+        },
+        {
+          "value": 7,
+          "label": "16 bars / 64 beats"
+        },
+        {
+          "value": 8,
+          "label": "32 bars / 128 beats"
+        },
+        {
+          "value": 9,
+          "label": "64 bars / 256 beats"
+        }
+      ]
+    },
+    {
+      "key": "jump_3",
+      "label": "Page 1: E/F",
+      "group": "beat_jump",
+      "default": 2,
+      "min": 0,
+      "max": 9,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "1 beat"
+        },
+        {
+          "value": 1,
+          "label": "2 beats"
+        },
+        {
+          "value": 2,
+          "label": "4 beats / 1 bar"
+        },
+        {
+          "value": 3,
+          "label": "8 beats / 2 bars"
+        },
+        {
+          "value": 4,
+          "label": "16 beats / 4 bars"
+        },
+        {
+          "value": 5,
+          "label": "32 beats / 8 bars"
+        },
+        {
+          "value": 6,
+          "label": "64 beats / 16 bars"
+        },
+        {
+          "value": 7,
+          "label": "16 bars / 64 beats"
+        },
+        {
+          "value": 8,
+          "label": "32 bars / 128 beats"
+        },
+        {
+          "value": 9,
+          "label": "64 bars / 256 beats"
+        }
+      ]
+    },
+    {
+      "key": "jump_4",
+      "label": "Page 1: G/H",
+      "group": "beat_jump",
+      "default": 3,
+      "min": 0,
+      "max": 9,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "1 beat"
+        },
+        {
+          "value": 1,
+          "label": "2 beats"
+        },
+        {
+          "value": 2,
+          "label": "4 beats / 1 bar"
+        },
+        {
+          "value": 3,
+          "label": "8 beats / 2 bars"
+        },
+        {
+          "value": 4,
+          "label": "16 beats / 4 bars"
+        },
+        {
+          "value": 5,
+          "label": "32 beats / 8 bars"
+        },
+        {
+          "value": 6,
+          "label": "64 beats / 16 bars"
+        },
+        {
+          "value": 7,
+          "label": "16 bars / 64 beats"
+        },
+        {
+          "value": 8,
+          "label": "32 bars / 128 beats"
+        },
+        {
+          "value": 9,
+          "label": "64 bars / 256 beats"
+        }
+      ]
+    },
+    {
+      "key": "jump_5",
+      "label": "Page 2: A/B",
+      "group": "beat_jump",
+      "default": 4,
+      "min": 0,
+      "max": 9,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "1 beat"
+        },
+        {
+          "value": 1,
+          "label": "2 beats"
+        },
+        {
+          "value": 2,
+          "label": "4 beats / 1 bar"
+        },
+        {
+          "value": 3,
+          "label": "8 beats / 2 bars"
+        },
+        {
+          "value": 4,
+          "label": "16 beats / 4 bars"
+        },
+        {
+          "value": 5,
+          "label": "32 beats / 8 bars"
+        },
+        {
+          "value": 6,
+          "label": "64 beats / 16 bars"
+        },
+        {
+          "value": 7,
+          "label": "16 bars / 64 beats"
+        },
+        {
+          "value": 8,
+          "label": "32 bars / 128 beats"
+        },
+        {
+          "value": 9,
+          "label": "64 bars / 256 beats"
+        }
+      ]
+    },
+    {
+      "key": "jump_6",
+      "label": "Page 2: C/D",
+      "group": "beat_jump",
+      "default": 5,
+      "min": 0,
+      "max": 9,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "1 beat"
+        },
+        {
+          "value": 1,
+          "label": "2 beats"
+        },
+        {
+          "value": 2,
+          "label": "4 beats / 1 bar"
+        },
+        {
+          "value": 3,
+          "label": "8 beats / 2 bars"
+        },
+        {
+          "value": 4,
+          "label": "16 beats / 4 bars"
+        },
+        {
+          "value": 5,
+          "label": "32 beats / 8 bars"
+        },
+        {
+          "value": 6,
+          "label": "64 beats / 16 bars"
+        },
+        {
+          "value": 7,
+          "label": "16 bars / 64 beats"
+        },
+        {
+          "value": 8,
+          "label": "32 bars / 128 beats"
+        },
+        {
+          "value": 9,
+          "label": "64 bars / 256 beats"
+        }
+      ]
+    },
+    {
+      "key": "jump_7",
+      "label": "Page 2: E/F",
+      "group": "beat_jump",
+      "default": 6,
+      "min": 0,
+      "max": 9,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "1 beat"
+        },
+        {
+          "value": 1,
+          "label": "2 beats"
+        },
+        {
+          "value": 2,
+          "label": "4 beats / 1 bar"
+        },
+        {
+          "value": 3,
+          "label": "8 beats / 2 bars"
+        },
+        {
+          "value": 4,
+          "label": "16 beats / 4 bars"
+        },
+        {
+          "value": 5,
+          "label": "32 beats / 8 bars"
+        },
+        {
+          "value": 6,
+          "label": "64 beats / 16 bars"
+        },
+        {
+          "value": 7,
+          "label": "16 bars / 64 beats"
+        },
+        {
+          "value": 8,
+          "label": "32 bars / 128 beats"
+        },
+        {
+          "value": 9,
+          "label": "64 bars / 256 beats"
+        }
+      ]
+    },
+    {
+      "key": "jump_8",
+      "label": "Page 2: G/H",
+      "group": "beat_jump",
+      "default": 8,
+      "min": 0,
+      "max": 9,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "1 beat"
+        },
+        {
+          "value": 1,
+          "label": "2 beats"
+        },
+        {
+          "value": 2,
+          "label": "4 beats / 1 bar"
+        },
+        {
+          "value": 3,
+          "label": "8 beats / 2 bars"
+        },
+        {
+          "value": 4,
+          "label": "16 beats / 4 bars"
+        },
+        {
+          "value": 5,
+          "label": "32 beats / 8 bars"
+        },
+        {
+          "value": 6,
+          "label": "64 beats / 16 bars"
+        },
+        {
+          "value": 7,
+          "label": "16 bars / 64 beats"
+        },
+        {
+          "value": 8,
+          "label": "32 bars / 128 beats"
+        },
+        {
+          "value": 9,
+          "label": "64 bars / 256 beats"
+        }
+      ]
+    },
+    {
+      "key": "stems_overlay",
+      "label": "Show stem rows",
+      "group": "stems",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    }
+  ]
+}

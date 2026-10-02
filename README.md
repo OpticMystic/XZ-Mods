@@ -3,21 +3,33 @@
 XZ Mods is a desktop app for preparing XDJ-XZ USB loaders, saved settings,
 and stems. It targets firmware 1.26.
 
-The current public Windows release is version 0.1.9.
+The current release is version 0.1.10, with a Windows installer and utilities for
+Apple Silicon and Intel Macs running macOS 14 or later.
 
-Private macOS previews are built for Apple Silicon and Intel Macs running macOS
-14 or later. They include the current USB tools, settings, games, batch stems,
-FLAC import and reader, and paired controller runtime. Stem generation with the
-current models requires Apple Silicon; Intel Macs can import prepared stems.
-Mac previews use an ad-hoc signature and are not notarized public releases.
-See [the Mac build procedure](BUILDING.md#build-a-private-mac-preview).
+[Windows installer](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.10/XZ.Mods_0.1.10_x64-setup.exe) | [Portable ZIP](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.10/XZ-Mods-Builder-preview-win64.zip) | [Mac downloads](https://github.com/OpticMystic/XZ-Mods/releases/tag/v0.1.10) | [Matching source](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.10/XZ-Mods-Builder-preview-source.zip)
 
-[Windows installer](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.9/XZ.Mods_0.1.9_x64-setup.exe) | [Portable ZIP](https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.9/XZ-Mods-Builder-preview-win64.zip)
+- Prepare a new USB, update an existing loader with a backup, restore a loader,
+  and edit saved controller settings.
+- Choose 24 controller themes, eight-pad stem shortcuts and two Beat Jump pages.
+- Browse exported Rekordbox tracks, generate stems with Open-Unmix HQ or Vocal
+  focus, import grouped instrument stems, or prepare selected tracks as a batch.
+- Read new OverCue FLAC pages and existing zlib pages. Generate and Import write
+  FLAC and verify all seven playback mixes while preserving the original track.
+- Display layered stem waveforms and prepare backed-up 3-band waveform colours.
+- Open Beat Arcade and the real-waveform Wave Rider game from the native Games
+  menu. Normal boot stays on the DJ screen.
+- Download and prepare Doom shareware, Chex Quest and Freedoom data through Games.
+  Commercial IWADs must come from the user. MyHouse remains unavailable until its
+  native engine and controller support are qualified.
+- Install signed app updates through App updates.
 
- It adds a USB track browser, stem status,
-model generation from the track list, grouped stem imports, and app updates.
-The Windows installer is the main package; a portable ZIP is also available.
-The 3-band waveform page is removed while that feature is being corrected.
+Apple Silicon supports generation with the current models. Intel Macs support
+stem imports and the USB, settings, waveform and game tools. The Mac packages
+are ad-hoc signed and are not notarized. See [the Mac instructions](docs/USER-GUIDE.md#install-the-mac-utility).
+
+The latest runtime remains experimental. The release includes native ARM tests
+and local controller screen checks; extended cold-boot, two-deck and real-song
+phase qualification remains pending. See [the changelog](CHANGELOG.md).
 
 Standalone export of new tracks without Rekordbox is a separate prototype.
 The test track loaded and played with working stems on an XDJ-XZ. This exporter is not yet connected to the app interface.
@@ -68,7 +80,7 @@ track inside `Contents`. The builder checks source identity and every compressed
 audio page using the same decoder as the player. It does not change the USB.
 
 Supported prepared format: `overcue-index/1` and `overcue-stems/4`, 96 kHz stereo
-signed-16-bit PCM in `OVPGZ001` pages, including all seven prepared mixes.
+signed-16-bit PCM in `OVPGZ001` zlib or `OVPGZ003` FLAC pages, including all seven prepared mixes.
 The source track must match its recorded SHA-256. Unsupported schemas fail closed.
 
 [OverCue](https://overcue.gg/) is the recommended way to prepare stems.

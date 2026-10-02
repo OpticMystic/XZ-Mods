@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "0.1.10",
+      "date": "2026-10-02",
+      "features": [
+        "Apple Silicon and Intel Mac utilities for macOS 14 or later. Apple Silicon can generate stems; both architectures can import stems and use USB, settings, waveform and game tools.",
+        "Read the new OverCue OVPGZ003 FLAC stem pages alongside existing OVPGZ001 zlib pages. Generate and import now write FLAC pages and verify all seven playback mixes.",
+        "Prepare selected tracks as a batch, reuse verified stems, see each track's progress, cancel safely, and retry failed tracks.",
+        "Layered Vocals, Drums and Harmonics waveforms with a live playhead, plus a backed-up 3-band waveform preparation tool.",
+        "Beat Arcade rhythm games and Wave Rider, a jog-wheel game driven by the loaded track's real waveform. Open them when wanted through MODS > Extras > Games.",
+        "Games setup downloads Doom shareware, Chex Quest and Freedoom, checks the downloads, and prepares supported data on the selected USB. Bring your own licensed commercial IWAD."
+      ],
+      "fixes": [
+        "Disk-backed audio processing bounds whole-track memory instead of loading long tracks and seven mixes into RAM.",
+        "CPU Vocal focus reduces attention memory; long FLAC source inspection uses bounded reads.",
+        "Improved native waveform refresh and theme rendering while preserving deck transport and existing stem controls.",
+        "Beat Arcade and Wave Rider stay closed during normal startup. The automatic game opening switch is only a local test option."
+      ],
+      "changes": [
+        "Installing or updating the desktop app does not update an existing controller USB. Open USB loader and use Back up and update loader to install the matching runtime.",
+        "Mac packages use an ad-hoc signature and are not notarized. Follow the Mac setup instructions before opening the downloaded utility.",
+        "The newest native runtime remains experimental. Physical game-control feel, real-song phase alignment and extended two-deck cold-boot qualification are still pending. MyHouse stays visible as unavailable until native GZDoom support is qualified."
+      ]
+    },
+    {
       "version": "0.1.9",
       "date": "2026-09-28",
       "features": [

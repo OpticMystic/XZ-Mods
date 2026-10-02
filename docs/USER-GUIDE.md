@@ -23,13 +23,18 @@ to build source.
    your Rekordbox USB. Keep the matching `Contents` and `CDJMODS` folders on the
    same USB. Open **Prepare stems > Check OverCue track** and choose the original
    track inside `Contents`. This reads the source and all prepared pages without
-   changing them. The supported prepared format is `overcue-stems/4`.
+   changing them. Both new lossless FLAC pages and legacy zlib pages are supported,
+   including OverCue Desktop's **Repack existing** output. Update the USB loader
+   with this local build before loading FLAC-prepared tracks on the XZ.
 5. Or use the beta stem builder in **Prepare stems > Build stems in XZ Mods**.
    It writes the same [open OverCue format](https://github.com/OverCue-gg/overcue-stems-format)
    under `CDJMODS` and never replaces stems OverCue made. Export the track with
    Rekordbox first. It must be a 44.1 kHz stereo WAV or FLAC file in the USB's
    `Contents` folder. Choose that track, choose an engine, then click
-   **Prepare stems**. Separation runs on the CPU and is slow. To use stems you
+   **Prepare stems**. Separation runs on the CPU, one track at a time, with
+   bounded model windows and disk-backed audio buffers. Generate and Import write
+   lossless FLAC pages. Temporary disk space replaces full-track RAM allocations;
+   the app checks space before processing. To use stems you
    already have, open **Use stems you already have**, set up the engine and
    import aligned harmonics and vocals for the same track. The beta has not been
    qualified on hardware. Check each track on the player before you use it in a set.
@@ -182,3 +187,43 @@ Use files that start at the same point as the complete track. By default, length
 Open App updates and choose Check for updates. When a signed update is available, review its new features and bug fixes, then choose Download and install update. Finish any USB or stem operation first. The Windows installer updates the app and reopens it.
 
 For a portable copy, download the ZIP and extract it into a new folder. The in-app installer installs the standard Windows version. Updating the app does not replace the loader on a USB; use USB loader for that.
+
+
+## Install the Mac utility
+
+Download the Apple Silicon or Intel package for your Mac from the matching release.
+macOS 14 or later is required. Open the DMG and copy XZ Mods to Applications.
+These preview packages are ad-hoc signed and are not notarized. If macOS blocks
+opening, use System Settings > Privacy & Security > Open Anyway for XZ Mods,
+then confirm opening the app you downloaded from this repository.
+
+Apple Silicon can generate stems with the approved models. Intel Macs can import
+aligned stems, prepare or update a USB, edit settings, and use waveform and game
+setup. App updates use signed architecture-specific bundles when available.
+
+## Prepare selected tracks
+
+Select tracks in Prepare stems, choose the model, then use Prepare selected.
+The app processes tracks in order, reuses verified prepared stems and reports
+finished, failed and queued tracks. Cancel leaves completed tracks available.
+Use Retry failed to retry the unsuccessful selections. Keep enough free space
+on both the USB and the computer for disk-backed processing.
+
+## New FLAC stem pages
+
+The reader accepts OverCue's OVPGZ003 FLAC pages and existing OVPGZ001 zlib
+pages. Generate and Import write FLAC and verify all seven playback mixes.
+Keep Contents and CDJMODS together. Update an older USB loader through USB
+loader > Back up and update loader before using the new FLAC pages on the XZ.
+
+## Open games when wanted
+
+Normal XZ Mods startup keeps the DJ screen open. Choose MODS > Extras > Games
+for Beat Arcade, Wave Rider or installed Doom data. Beat Arcade and Wave Rider
+never become a saved startup preference. Automatic opening is a local test
+switch that the normal USB loader does not set.
+
+Games setup can obtain Doom shareware, Chex Quest and Freedoom and verify copied
+data. Choose your own licensed commercial IWAD for commercial Doom content.
+MyHouse needs a native GZDoom engine that remains unavailable; downloading its
+files does not qualify its engine or controller controls.

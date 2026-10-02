@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wave Rider native preview</title>
+<style>body{margin:0;background:#060914;color:#e4eefb;font:15px system-ui;display:grid;place-content:center;min-height:100vh}main{max-width:960px;padding:24px}h1{font-size:20px;font-weight:600}p{color:#96a4ba;line-height:1.6}canvas{width:min(92vw,960px);height:auto;aspect-ratio:5/3;border:1px solid #27324a;touch-action:none;background:#080d1c}button{font:inherit;color:inherit;background:#17243c;border:1px solid #354863;border-radius:5px;padding:8px 14px;margin-right:8px}small{color:#96a4ba}</style>
+<main><h1>Wave Rider · native C preview</h1>
+<p>Actual exported waveform data. Simulated playhead, no audio or controller connection.</p>
+<canvas width="800" height="480" tabindex="0" aria-label="Wave Rider native game screen. Click Set up Wave Rider, then follow the on-screen controls."></canvas>
+<p>Arrow keys or mouse wheel = jog altitude · Q = CUE hop · 1–8 = pads · Space = pause preview</p>
+<button id="pause">Pause / resume track</button><button id="rewind">Replay from 20s</button><small id="state"></small></main>
+<script>
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),status=document.querySelector('#state');
+const send=body=>fetch('/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+const keys=new Set();
+document.addEventListener('keydown',event=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','q','Q'].includes(event.key)){event.preventDefault();}if(event.repeat)return;keys.add(event.key);if(event.key.toLowerCase()==='q')send({kind:'key',key:0});if(event.key===' ')send({kind:'pause'});if(/^[1-8]$/.test(event.key))send({kind:'key',key:Number(event.key)});});
+document.addEventListener('keyup',event=>keys.delete(event.key));window.addEventListener('blur',()=>keys.clear());
+setInterval(()=>{let delta=(keys.has('ArrowUp')||keys.has('ArrowRight')?1:0)-(keys.has('ArrowDown')||keys.has('ArrowLeft')?1:0);if(delta)send({kind:'move',delta:delta*13});},25);
+canvas.addEventListener('wheel',event=>{event.preventDefault();send({kind:'move',delta:-Math.sign(event.deltaY)*24});},{passive:false});
+function touch(event,down){const r=canvas.getBoundingClientRect();send({kind:'touch',x:Math.floor((event.clientX-r.left)*800/r.width),y:Math.floor((event.clientY-r.top)*480/r.height),down});}
+canvas.addEventListener('pointerdown',event=>{canvas.setPointerCapture(event.pointerId);touch(event,1)});canvas.addEventListener('pointerup',event=>touch(event,0));canvas.addEventListener('pointercancel',event=>touch(event,0));
+document.querySelector('#pause').onclick=()=>send({kind:'pause'});document.querySelector('#rewind').onclick=()=>send({kind:'seek',seconds:20});
+async function frame(){try{const response=await fetch('/frame');const bitmap=await createImageBitmap(await response.blob());ctx.drawImage(bitmap,0,0);bitmap.close();}finally{setTimeout(frame,30)}}frame();
+setInterval(async()=>{const s=await(await fetch('/state')).json();status.textContent=`${(s.position/150).toFixed(1)}s · ${s.score} points`;},500);
+</script></html>

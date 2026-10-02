@@ -1,0 +1,105 @@
+/* SPDX-License-Identifier: MIT */
+#define _POSIX_C_SOURCE 200809L
+#include "settings.h"
+#include "ui/themes.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+void xz_settings_default(struct xz_settings *s) {
+    *s = (struct xz_settings){.stems=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1};
+}
+static int valid(const struct xz_settings *s) {
+    for (int i=0;i<8;i++) if ((unsigned)s->jump.sizes[i]>=XZ_JUMP_SIZES) return 0;
+    return (unsigned)s->stems_overlay<=1 && (unsigned)s->wave_mode<=2 && (unsigned)s->jump.enabled<=1 && (unsigned)s->jump.shift_page<=1 && (unsigned)s->stems <= 1 && (unsigned)s->gate <= 1 &&
+        (unsigned)s->smart <= 1 && (unsigned)s->theme < XZ_THEME_COUNT &&
+        (unsigned)s->stem_page <= 3 && (unsigned)s->shift_pages <= 1 &&
+        (unsigned)s->pad_feedback <= 1 && (unsigned)s->shift_keysync <= 1 &&
+        (unsigned)s->fb_takeover <= 1 && (unsigned)s->takeover_assign <= 2 && (unsigned)s->spare_eq <= 1 && (unsigned)s->stem_bank <= 1;
+}
+int xz_settings_parse(const char *text, struct xz_settings *out) {
+    struct xz_settings s;
+    const char *header = "XZ_MODS_SETTINGS 1\n";
+    const char *keys[] = {
+        "stems=","gate=","smart=","theme=","stem_page=",
+        "shift_pages=","pad_feedback=","shift_keysync=",
+        "fb_takeover=","takeover_assign=","spare_eq=","stem_bank=",
+        "jump_enabled=","jump_shift_page=","jump_1=","jump_2=","jump_3=","jump_4=","jump_5=","jump_6=","jump_7=","jump_8=","stems_overlay=","wave_mode="
+    };
+    int *values[] = {
+        &s.stems,&s.gate,&s.smart,&s.theme,&s.stem_page,
+        &s.shift_pages,&s.pad_feedback,&s.shift_keysync,
+        &s.fb_takeover,&s.takeover_assign,&s.spare_eq,&s.stem_bank,
+        &s.jump.enabled,&s.jump.shift_page,&s.jump.sizes[0],&s.jump.sizes[1],&s.jump.sizes[2],&s.jump.sizes[3],&s.jump.sizes[4],&s.jump.sizes[5],&s.jump.sizes[6],&s.jump.sizes[7],&s.stems_overlay,&s.wave_mode
+    };
+    if (strncmp(text,header,strlen(header))) return -1;
+    text += strlen(header);
+    xz_settings_default(&s);
+    for (unsigned i=0;i<24;i++) {
+        if (((i >= 8 && i <= 12)||i==22||i==23) && *text == '\0') break;
+        size_t size = strlen(keys[i]);
+        if (strncmp(text,keys[i],size)) return -1;
+        text += size;
+        if (*text < '0' || *text > '9') return -1;
+        int value = *text++ - '0';
+        if (*text >= '0' && *text <= '9') {
+            if (!value) return -1;
+            value = value*10 + *text++ - '0';
+        }
+        if (*text++ != '\n') return -1;
+        *values[i] = value;
+    }
+    if (*text || !valid(&s)) return -1;
+    *out = s; return 0;
+}
+int xz_settings_format(const struct xz_settings *s, char *out, size_t size) {
+    if (!valid(s)) return -1;
+    int n = snprintf(out,size,"XZ_MODS_SETTINGS 1\nstems=%d\ngate=%d\nsmart=%d\ntheme=%d\nstem_page=%d\nshift_pages=%d\npad_feedback=%d\nshift_keysync=%d\nfb_takeover=%d\ntakeover_assign=%d\nspare_eq=%d\nstem_bank=%d\njump_enabled=%d\njump_shift_page=%d\njump_1=%d\njump_2=%d\njump_3=%d\njump_4=%d\njump_5=%d\njump_6=%d\njump_7=%d\njump_8=%d\nstems_overlay=%d\nwave_mode=%d\n",
+        s->stems,s->gate,s->smart,s->theme,s->stem_page,s->shift_pages,s->pad_feedback,s->shift_keysync,s->fb_takeover,s->takeover_assign,s->spare_eq,s->stem_bank,s->jump.enabled,s->jump.shift_page,
+        s->jump.sizes[0],s->jump.sizes[1],s->jump.sizes[2],s->jump.sizes[3],s->jump.sizes[4],s->jump.sizes[5],s->jump.sizes[6],s->jump.sizes[7],s->stems_overlay,s->wave_mode);
+    return n < 0 || (size_t)n >= size ? -1 : n;
+}
+static int paths(const char *usb, char *dir, char *file) {
+    struct stat st;
+    if (!usb || usb[0] != '/' || lstat(usb,&st) || !S_ISDIR(st.st_mode)) return -1;
+    if (!strncmp(usb,"/media/",7)) {
+        struct stat root;
+        if (stat("/",&root) || root.st_dev == st.st_dev) return -1;
+    }
+    if (snprintf(dir,1024,"%s/VJ.Tools",usb) >= 1024 ||
+        snprintf(file,1024,"%s/XZ-Mods.cfg",dir) >= 1024) return -1;
+    if (!lstat(dir,&st) && !S_ISDIR(st.st_mode)) return -1;
+    return 0;
+}
+int xz_settings_load(const char *usb, struct xz_settings *s) {
+    char dir[1024], path[1024], text[512];
+    if (paths(usb,dir,path)) return -1;
+    int fd = open(path,O_RDONLY|O_NOFOLLOW);
+    if (fd < 0) return errno == ENOENT ? 1 : -1;
+    struct stat st;
+    if (fstat(fd,&st) || !S_ISREG(st.st_mode) || st.st_size >= (off_t)sizeof(text)) { close(fd); return -1; }
+    ssize_t n = read(fd,text,sizeof(text)-1); close(fd);
+    if (n < 0 || n != st.st_size || memchr(text,0,(size_t)n)) return -1;
+    text[n] = 0;
+    return xz_settings_parse(text,s);
+}
+int xz_settings_save(const char *usb, const struct xz_settings *s) {
+    char dir[1024],path[1024],temp[1060],text[512];
+    int n = xz_settings_format(s,text,sizeof(text));
+    if (n < 0 || paths(usb,dir,path)) return -1;
+    if (mkdir(dir,0755) && errno != EEXIST) return -1;
+    snprintf(temp,sizeof(temp),"%s/.XZ-Mods.XXXXXX",dir);
+    int fd = mkstemp(temp);
+    if (fd < 0) return -1;
+    int ok = write(fd,text,(size_t)n) == n && fsync(fd) == 0;
+    if (close(fd)) ok = 0;
+    if (ok && rename(temp,path) == 0) {
+        int directory = open(dir,O_RDONLY|O_DIRECTORY);
+        if (directory < 0) return -1;
+        int result = fsync(directory); close(directory); return result;
+    }
+    unlink(temp); return -1;
+}

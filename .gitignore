@@ -8,3 +8,6 @@ rbp.patched
 *.UPD
 *.upd
 XDJXZ_v126.zip
+
+__pycache__/
+.opus-staging/

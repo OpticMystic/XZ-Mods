@@ -3,7 +3,12 @@
 XZ Mods is a standalone Tauri application. The VJ.Tools Library application and
 database are not build or runtime dependencies.
 
-It pairs with the public toolkit repo
+The exact toolkit source used for 0.1.10 is included in `source/xdj-xz-toolkit`.
+Use `--toolkit source/xdj-xz-toolkit` to build from that immutable snapshot.
+`release-source.json` records each input hash and the paired native runtime.
+The matching release source ZIP contains the app and toolkit side by side.
+
+It also pairs with the public toolkit repo
 (https://github.com/OpticMystic/xdj-xz-toolkit). Clone both side by side,
 or pass `--toolkit <path>` / set `$XZ_TOOLKIT_DIR`.
 
@@ -166,7 +171,8 @@ FAT32 disk image, exclusive publication and a visible app window. Apple Silicon
 also runs both approved models through FLAC output and complete audio verification.
 Checksums and check records ship beside the private packages.
 
-Public Mac distribution still requires a Developer ID signature and notarization.
+The public Mac preview uses an ad-hoc signature and is not notarized.
+A Developer ID signature and notarization remain a separate distribution task.
 The private build does not publish a GitHub release or update feed. Mac update
 downloads must be signed `.app.tar.gz` bundles from this repository; a Windows
 installer is rejected by the Mac updater.
