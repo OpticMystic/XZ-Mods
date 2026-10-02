@@ -132,7 +132,8 @@ def main():
     prepare(args.toolkit.resolve(), args.runtime_bundle.resolve())
     run(sys.executable, '-m', 'unittest', 'builder.tests.test_macos_host', 'builder.tests.test_fat_publication',
         'builder.tests.test_cache', 'builder.tests.test_managed_usb', 'builder.tests.test_stem_batch',
-        'builder.tests.test_stem_library', '-q', cwd=args.toolkit.resolve())
+        'builder.tests.test_stem_library', 'builder.tests.test_games',
+        'builder.tests.test_layered_waveforms', '-q', cwd=args.toolkit.resolve())
     icon = APP / 'src-tauri/icons'
     from PIL import Image
     Image.open(icon / 'icon.ico').convert('RGBA').resize((1024, 1024)).save(icon / 'app-icon.png')
@@ -151,6 +152,10 @@ def main():
         tar.add(app, arcname=app.name)
     run(sys.executable, APP / 'tools/verify_backend.py', '--resources', app / 'Contents/Resources/resources',
         '--toolkit', args.toolkit.resolve(), '--evidence', output / 'backend-check.json')
+    run(sys.executable, APP / 'tools/verify_stem_batch.py', '--resources', app / 'Contents/Resources/resources',
+        '--toolkit', args.toolkit.resolve(), '--fixture-root', output / 'batch-fixture',
+        '--evidence', output / 'batch-check.json')
+    shutil.rmtree(output / 'batch-fixture')
     run(sys.executable, APP / 'tools/verify_macos.py', '--app', app, '--evidence', output / 'macos-check.json')
     if platform.machine() == 'arm64':
         run(sys.executable, APP / 'tools/verify_macos_models.py', '--resources', app / 'Contents/Resources/resources',

@@ -36,6 +36,7 @@ version=json.loads((APP/'src-tauri/tauri.conf.json').read_text())['version']
 manifest={'product':'XZ Mods','version':version,'stage':'developer-preview','public_release_qualified':False,
     'source_commit':subprocess.check_output(['git','-C',str(APP),'rev-parse','HEAD'],text=True).strip() if (APP/'.git').exists() else None,
     'prepared_formats':['overcue-stems/4','stemd-cache/1'],
+    'prepared_containers':['OVPGZ001','OVPGZ003'], 'stem_page_codecs':['zlib','flac-96k'],
     'runtime':json.loads((portable/'resources/runtime/manifest.json').read_text()),
     'vjtools_required':False,'python_required':False,'firmware_included':False,'keys_included':False,
     'model_weights_included':False,'files':{str(path.relative_to(portable)).replace('\\','/'):digest(path)
@@ -56,7 +57,7 @@ for folder in ('ui','src-tauri','tools','docs'):
             source_files[str(Path('XZ-Mods')/relative)]=path
 for path in (APP/'third_party').rglob('*'):
     if path.is_file():source_files[str(Path('XZ-Mods')/path.relative_to(APP))]=path
-for name in ('README.md','BUILDING.md','CHANGELOG.md','release-notes.json','LICENSE','.gitignore'):
+for name in ('README.md','BUILDING.md','CHANGELOG.md','release-notes.json','release-source.json','LICENSE','.gitignore'):
     source_files[str(Path('XZ-Mods')/name)]=APP/name
 for path in (a.toolkit/'builder').rglob('*'):
     if path.is_file() and path.suffix in ('.py','.c','.json','.md') and '__pycache__' not in path.parts:

@@ -1,0 +1,25 @@
+{
+  "repository": "https://github.com/chocolate-doom/chocolate-doom",
+  "commit": "2ddd290b8226e1d1f0c52e344e76150261a8c0c3",
+  "files": {
+    "deh_io.c": "274869e59a9cfd82817492bdf715c00d769dc7517c2e4bea371350e5294f5b93",
+    "deh_main.c": "eefa8f873e3f9eefe66cc463121af87012a764bc70235ec2dd73d0e8b6f928ee",
+    "deh_mapping.c": "8eb1153221a608178f3a48b304a434df62cfe946a1032eb2bafeae409736c9ab",
+    "deh_str.c": "8a8ed9cc70431b66910e2abc04fa2688c8a96a18a94a7f6c0abbffe00042a559",
+    "deh_text.c": "aa5de4717efa89a0cafc525da21fed49788a020a7d7d19f4cef78bcac1aaaff6",
+    "deh_ammo.c": "1e456ee7e1619e94e7ffadc7a0df51dab449d1fc5d7075c32eccfc0e057c411f",
+    "deh_bexstr.c": "c623bca371080baffe6c415792d0532f0daf4d3e9a50db0cb315b2e9f5009f46",
+    "deh_cheat.c": "a773e6185b3bd22dc85e38715191aa626c53406935928016b62bc3a7bf31aaaa",
+    "deh_doom.c": "2012fe97132f292e986f988041a896bbc72734cb060623c75c870266e212c3c4",
+    "deh_frame.c": "1c41e9db18493de9abd598b59fda0ace8e8af9c02dd196ebec4f1f203d04710f",
+    "deh_misc.c": "83c96fa7150ab35bc96cda04aa6b0a24050ef1b494b7d33ef7560d93955bf607",
+    "deh_ptr.c": "36acde57c6147375d9168cfc506605e65261ac1cc0c2403fc400992a20dcfd71",
+    "deh_sound.c": "cfac57910235b153ba5338cee3067f130955f61b31a4a3b6a34e9c194c409b50",
+    "deh_thing.c": "9c2c067fcfed28eb783f14a75581a9d79350b5f7132296b17a3ee072b757c004",
+    "deh_weapon.c": "78d0cab702ad249e4cc144dcdf8aa8e7e1c39bf7451d95bdbba94ee777b503b8",
+    "deh_defs.h": "0cc59975fd703152a46018a64958da8ba1417c9b76a6ff34bc32e0ad7fb0edb5",
+    "deh_io.h": "9d439cc32da712c713c6f6f95186f25df034da7cbe3da73c71b6196fa2f4f0f4",
+    "deh_mapping.h": "2b62628e7bc6d10ba2db80eb933f73bfd543d581eee2132905b1ac803b522312",
+    "COPYING": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+  }
+}

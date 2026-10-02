@@ -1,9 +1,11 @@
 """Verify the packaged Mac app, helper closure, real FAT image and GUI launch."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import plistlib
+import platform
 import subprocess
 import tempfile
 import time
@@ -27,7 +29,18 @@ checks['native_helper_closure'] = True
 info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
 assert info['LSMinimumSystemVersion'] == '14.0'
 assert info['NSRemovableVolumesUsageDescription'] and info['NSLocalNetworkUsageDescription']
+version = json.loads((Path(__file__).resolve().parents[1] / 'src-tauri/tauri.conf.json').read_text())['version']
+assert info['CFBundleShortVersionString'] == version, info
 checks['mac_permissions_and_minimum_version'] = True
+runtime = json.loads((resources / 'runtime/manifest.json').read_text())
+for field, name in (('runtime_sha256', 'libxz-mods.so'), ('receiver_sha256', 'libxz-receiver.so'),
+                    ('doom_sha256', 'xz-doom'), ('ota_updater_sha256', 'xz-updater'),
+                    ('ota_runtime_smoke_sha256', 'xz-runtime-smoke'), ('settings_schema_sha256', 'settings-schema.json')):
+    with (resources / 'runtime' / name).open('rb') as stream:
+        assert hashlib.file_digest(stream, 'sha256').hexdigest() == runtime[field], name
+assert runtime['prepared_containers'] == ['OVPGZ001', 'OVPGZ003']
+assert runtime['stem_page_codecs'] == ['zlib', 'flac-96k']
+checks['exact_paired_runtime_and_stem_formats'] = True
 
 env = {**os.environ, 'XZ_BUILDER_RESOURCES': str(resources), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'}
 
@@ -100,6 +113,7 @@ try:
 finally:
     process.terminate()
     process.wait(timeout=10)
-args.evidence.write_text(json.dumps({'checks': checks, 'physical_usb': False, 'device_access': False,
+args.evidence.write_text(json.dumps({'version': version, 'architecture': platform.machine(), 'runtime': runtime,
+    'checks': checks, 'physical_usb': False, 'device_access': False,
     'apple_developer_signed': False, 'notarized': False, 'new_fat_loader_first_write_crash_atomic': False}, indent=2) + '\n')
 print(json.dumps(checks, indent=2))
