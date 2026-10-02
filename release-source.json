@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "version": "0.1.10",
+  "version": "0.2.0",
   "source_directory": "source/xdj-xz-toolkit",
   "source_repository": "https://github.com/OpticMystic/XZ-Mods",
   "native_source_archive_sha256": "b8473d501a95bdf7394df3cc693e125513db614ffcab51b52cbb3dc3b3741d00",
   "runtime_sha256": "e47166e2de73d44875c7d3c08ee4822268cd78e3b5a5a806a0911de4e761c730",
-  "matching_archive": "https://github.com/OpticMystic/XZ-Mods/releases/download/v0.1.10/XZ-Mods-Builder-preview-source.zip",
+  "matching_archive": "https://github.com/OpticMystic/XZ-Mods/releases/download/v0.2.0/XZ-Mods-Builder-preview-source.zip",
   "files": {
     "builder/__init__.py": "605df398cc462888989ea37287be9895dc51fd8453dd2b93b0d002ac9ba7589f",
     "builder/audio_helper.c": "24a6bd89c3a34337178e19011459796592dd3ede38ae6a5eb9a9fc2c9b282ff5",
@@ -33,7 +33,7 @@
     "builder/overcue_writer.py": "a83dd64ea445b01abc3fbe476612f4b824102bc56765c93af632e03bbada56ff",
     "builder/rekordbox_pdb.py": "f45f63746b1b35df5300d87b0b0c507c88a1ac472da69ec9e9c68371610b1e2b",
     "builder/runtime_ota.py": "80931f332989c3f368a37ea2841a722c9b9326adb9a5c288ff3b7c55956ed036",
-    "builder/service.py": "7a88fd1696cc9c5a6fa8c9b8573a04f7744c335c41f543f3da14d36be838837b",
+    "builder/service.py": "f5b6b524579702905ea00642a218ee8230573cd2f0c6c7aaa31e42dc553e42c1",
     "builder/stem_batch.py": "550386e0307a4b9476ec16e42723a56cca41fe87297073e45843f5dd77b92923",
     "builder/stem_import.py": "34818547d619efad14ecda1b5a876b561db5cd1aeb7744fe2464f07ce85ac8a2",
     "builder/stem_library.py": "5f62b251e4fb19ad94a6cd5fa85be2d92da6e61d92a9ababc734cf8f280f85d8",
