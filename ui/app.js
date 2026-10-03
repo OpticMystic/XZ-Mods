@@ -8,35 +8,75 @@ const batchStates={queued:'Queued',running:'Working',prepared:'Prepared',reused:
 let stemSelection=new Map(),stemSelectionKey=null,stemBatch=null;
 let usbInspection=null,settingsVolume=null,settingsIdentity=null,settingsData=null,settingsValues=null;
 const titles={usb:'USB loader','usb-settings':'USB settings',stems:'Prepare your stems',games:'Games','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
+// The single job panel moves next to the control that started the work. feedbackHome is that control;
+// feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
+const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library'];
+const feedbackGroups='p,label,.actions,.path-row,.batch-toolbar,.library-toolbar,#stem-dropzone,.section-heading,.columns';
+let feedbackHome=null,feedbackLive=false;
 for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{
   document.querySelectorAll('.page').forEach(page=>page.classList.toggle('hidden',page.id!==button.dataset.page));
   document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('selected',item===button));
   $('page-title').textContent=titles[button.dataset.page];
-  if(activeJob===null)$('job-panel').classList.add('hidden');
+  if(!feedbackLive)jobPanel.classList.add('hidden');else{positionFeedback();revealFeedback();}
   if(button.dataset.page==='stems'&&!stemLibraryStarted){stemLibraryStarted=true;discoverStemDrives();}
 };
 const preset=()=>document.querySelector('[name=engine]:checked').value;
-function required(ids){for(const id of ids)if(!$(id).value.trim()){showError('Enter or choose the required '+({'volume':'USB folder',source:'track from your USB Contents folder',firmware:'firmware input',key:'boot key',harmonics:'harmonics file',vocals:'vocals file'}[id]||id)+' first.');return false;}return true;}
-function showError(message){$('job-panel').classList.remove('hidden');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');}
-function busy(value){value=value||appUpdating;value=value||appUpdating;value=value||appUpdating;document.querySelectorAll(".library-action,.stem-import-control,#add-stem-files,#import-stem-groups,#stem-drive,#choose-stem-drive,#refresh-stem-drives,#search-stem-library,#library-engine").forEach(el=>el.disabled=value||!invoke);if(stemLibrary)updateLibraryPagination(value);document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,#choose-settings-usb,#save-usb-settings,#reload-usb-settings,.restore-loader,#setup-games-usb,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);$('import-stem-groups').disabled=value||!invoke||!importTarget||!importFiles.length||importFiles.some(item=>!item.group);$('install-app-update').disabled=value||activeJob!==null;updateStemBatchControls(value);}
+function required(ids,origin){for(const id of ids)if(!$(id).value.trim()){showError('Enter or choose the required '+({'volume':'USB folder',source:'track from your USB Contents folder',firmware:'firmware input',key:'boot key',harmonics:'harmonics file',vocals:'vocals file'}[id]||id)+' first.',origin);return false;}return true;}
+function movePanel(insert){
+  const focused=jobPanel.contains(document.activeElement)?document.activeElement:null;
+  insert();
+  document.querySelectorAll('tr.job-row').forEach(row=>{if(!row.contains(jobPanel))row.remove();});
+  if(!jobPanel.classList.contains('hidden'))for(let details=jobPanel.parentElement?.closest('details');details;details=details.parentElement?.closest('details'))details.open=true;
+  if(focused?.isConnected&&document.activeElement!==focused)focused.focus({preventScroll:true});
+}
+function homeShown(home){
+  if(!home?.isConnected)return false;
+  const dialog=home.closest('dialog');if(dialog)return dialog.open;
+  return !home.closest('.page')?.classList.contains('hidden');
+}
+// Beside feedbackHome when its page is showing; otherwise at the top of the current page.
+function positionFeedback(){
+  if(homeShown(feedbackHome)){
+    const home=feedbackHome,row=home.closest('#stem-tracks tr');
+    if(row)return movePanel(()=>{
+      let holder=row.nextElementSibling;
+      if(!holder?.classList.contains('job-row')){holder=node('tr',undefined,'job-row');const cell=node('td');cell.colSpan=[...row.cells].reduce((span,item)=>span+item.colSpan,0);holder.append(cell);row.after(holder);}
+      holder.firstElementChild.append(jobPanel);
+    });
+    let anchor=home,group;while((group=anchor.parentElement?.closest(feedbackGroups)))anchor=group;
+    return movePanel(()=>anchor.after(jobPanel));
+  }
+  const page=document.querySelector('main>.page:not(.hidden)');if(!page)return;
+  const lead=page.querySelector(':scope>.intro,:scope>.overcue-recommendation');
+  movePanel(()=>lead?lead.after(jobPanel):page.prepend(jobPanel));
+}
+function revealFeedback(){if(!jobPanel.classList.contains('hidden')&&jobPanel.isConnected)jobPanel.scrollIntoView({block:'nearest'});}
+function showFeedback(origin){feedbackHome=origin||null;jobPanel.classList.remove('hidden');positionFeedback();}
+function showError(message,origin){jobPanel.classList.remove('is-cancelled');jobPanel.classList.add('is-error');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');showFeedback(origin);revealFeedback();}
+function busy(value){value=value||appUpdating;value=value||appUpdating;value=value||appUpdating;document.querySelectorAll(".library-action,.stem-import-control,#add-stem-files,#import-stem-groups,#stem-drive,#choose-stem-drive,#refresh-stem-drives,#search-stem-library,#library-engine").forEach(el=>el.disabled=value||!invoke);if(stemLibrary)updateLibraryPagination(value);document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,#choose-settings-usb,#save-usb-settings,#reload-usb-settings,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);$('import-stem-groups').disabled=value||!invoke||!importTarget||!importFiles.length||importFiles.some(item=>!item.group);$('install-app-update').disabled=value||activeJob!==null;updateStemBatchControls(value);}
 function stemSummary(result){
   return (result.reused?'Matching stems for '+result.file_path+' were already on the USB. XZ Mods reused them.':'XZ Mods wrote beta stems for '+result.file_path+'.')+
     (result.replaced_previous?' It replaced the stems XZ Mods made earlier for this track.':'')+
     ' All files passed verification. Check alignment on the player before you use this track in a set.';
 }
-async function run(request,title){
-  if(!invoke){showError('Open XZ Mods Builder to run this operation. This browser view is a preview.');return;}
+async function run(request,title,origin){
+  if(!invoke){showError('Open XZ Mods Builder to run this operation. This browser view is a preview.',origin);return;}
   if(activeJob!==null||appUpdating)return;
-  $('job-panel').classList.toggle('hidden',['discover_stem_usbs','browse_stem_library'].includes(request.method));$('job-title').textContent=title;$('job-message').textContent='Starting…';$('job-details').classList.add('hidden');$('job-details').open=false;$('job-result').textContent='';$('job-summary').textContent='';$('job-progress').removeAttribute('value');$('job-progress').classList.remove('hidden');$('cancel').classList.remove('hidden');$('cancel').disabled=false;busy(true);
+  const quiet=quietMethods.includes(request.method);let settled=null;
+  if(!quiet){jobPanel.classList.remove('is-error','is-cancelled');$('job-title').textContent=title;$('job-message').textContent='Starting…';$('job-details').classList.add('hidden');$('job-details').open=false;$('job-result').textContent='';$('job-summary').textContent='';$('job-progress').removeAttribute('value');$('job-progress').classList.remove('hidden');$('cancel').classList.remove('hidden');$('cancel').disabled=false;feedbackLive=true;showFeedback(origin);revealFeedback();}
+  busy(true);
   try{
     activeJob=await invoke('start_job',{request});
     while(true){
       const state=await invoke('job_status',{id:activeJob});
+      if(quiet){if(!state.running)return state;await new Promise(resolve=>setTimeout(resolve,350));continue;}
       $('job-message').textContent=state.message||state.error||(state.ok?'Completed':'Working…');
       const batch=request.method==='generate_library_stem_batch'?(state.result?.format===batchFormat?state.result:state.batch):null;
       if(batch&&applyStemBatch(batch,state)){const counts=stemBatchCounts();$('job-progress').max=Math.max(1,counts.total);$('job-progress').value=counts.done;$('job-summary').textContent=stemBatchCountsText(counts);}
       if(!state.running){
-        $('job-title').textContent=state.ok?'Completed':state.cancelled||state.result?.cancelled===true?'Cancelled':'Operation not completed';
+        const cancelled=Boolean(state.cancelled||state.result?.cancelled===true);
+        $('job-title').textContent=state.ok?'Completed':cancelled?'Cancelled':'Operation not completed';
+        settled=state.ok?null:cancelled?'is-cancelled':'is-error';
         if(state.result){
           $('job-result').textContent=JSON.stringify(state.result,null,2);$('job-details').classList.remove('hidden');
           $('job-summary').textContent=state.result.format===batchFormat?stemBatchCountsText(stemBatchCounts()):state.result.format==='xz-mods-loader-updated/1'?'Loader updated. Previous loader: '+state.result.backup:state.result.format==='xz-mods-loader-restored/1'?'Previous loader restored.':state.result.format==='xz-mods-settings-saved/1'?'Settings saved to USB and checked.':state.result.image?'Verified image: '+state.result.image+(state.result.requires_copy_to_usb_root?' · Copy autoexec.bin to the root of a FAT/FAT32 USB.':''):
@@ -55,12 +95,15 @@ async function run(request,title){
       }
       await new Promise(resolve=>setTimeout(resolve,350));
     }
-  }catch(error){showError(String(error));}
-  finally{activeJob=null;busy(false);$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');}
+  }catch(error){if(quiet)return {ok:false,running:false,error:String(error)};settled='is-error';showError(String(error),origin);}
+  finally{
+    activeJob=null;busy(false);
+    if(!quiet){feedbackLive=false;$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');if(settled){jobPanel.classList.add(settled);revealFeedback();}}
+  }
 }
 for(const button of document.querySelectorAll('.pick'))button.onclick=async()=>{
   try{const path=await invoke('pick_path',{kind:button.dataset.kind});if(path)$(button.dataset.target).value=path;}
-  catch(error){showError(String(error));}
+  catch(error){showError(String(error),button);}
 };
 async function cancelActiveJob(){
   if(activeJob===null)return;
@@ -72,60 +115,66 @@ async function cancelActiveJob(){
 $('cancel').onclick=cancelActiveJob;
 const gameLabels={doom:'Doom shareware',chex:'Chex Quest',freedoom:'Freedoom Phase 2',myhouse:'My House'};
 for(const game of Object.keys(gameLabels)){
-  $('download-'+game).onclick=()=>run({method:'download_game',game},'Downloading '+gameLabels[game]);
-  $('copy-'+game+'-usb').onclick=async()=>{
-    if(!invoke){showError('Open the installed XZ Mods app to copy games to USB.');return;}
-    try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await run({method:'install_game_usb',game,volume},'Downloading and copying '+gameLabels[game]);}
-    catch(error){showError(String(error));}
+  const download=$('download-'+game),copy=$('copy-'+game+'-usb');
+  download.onclick=()=>run({method:'download_game',game},'Downloading '+gameLabels[game],download);
+  copy.onclick=async()=>{
+    if(!invoke){showError('Open the installed XZ Mods app to copy games to USB.',copy);return;}
+    try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await run({method:'install_game_usb',game,volume},'Downloading and copying '+gameLabels[game],copy);}
+    catch(error){showError(String(error),copy);}
   };
 }
 $('setup-games-usb').onclick=async()=>{
-  if(!invoke){showError('Open the installed XZ Mods app to set up games on USB.');return;}
-  try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await run({method:'prepare_games_usb',volume},'Setting up games on USB');}
-  catch(error){showError(String(error));}
+  const origin=$('setup-games-usb');
+  if(!invoke){showError('Open the installed XZ Mods app to set up games on USB.',origin);return;}
+  try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await run({method:'prepare_games_usb',volume},'Setting up games on USB',origin);}
+  catch(error){showError(String(error),origin);}
 };
 $('ota-detect').onclick=async()=>{
-  const response=await run({method:'ota_networks'},'Detecting XZ network adapters');
+  const response=await run({method:'ota_networks'},'Detecting XZ network adapters',$('ota-detect'));
   if(response?.ok){const select=$('ota-network');select.replaceChildren();for(const address of response.result.addresses){const option=document.createElement('option');option.value=address;option.textContent=address;select.append(option);}
     $('ota-status').textContent=response.result.ready?'Choose the XZ network adapter, then start the update server.':'Network update files are missing. Install the current XZ Mods app and prepare its USB loader.';
   }
 };
 $('ota-start').onclick=async()=>{
-  const address=$('ota-network').value;if(!address){showError('Detect adapters and choose the XZ network adapter first.');return;}
+  const origin=$('ota-start'),address=$('ota-network').value;if(!address){showError('Detect adapters and choose the XZ network adapter first.',origin);return;}
   $('ota-status').textContent='Starting on '+address+'. On the XZ, open Extras → Network updates.';
-  await run({method:'serve_runtime_updates',address},'Serving signed XZ updates');
+  await run({method:'serve_runtime_updates',address},'Serving signed XZ updates',origin);
 };
 $('prepare-usb').onclick=async()=>{
-  if(!invoke){showError('Open XZ Mods Builder to prepare a USB.');return;}
+  const origin=$('prepare-usb');
+  if(!invoke){showError('Open XZ Mods Builder to prepare a USB.',origin);return;}
   try{
     const volume=await invoke('pick_path',{kind:'folder'});
-    if(volume)await run({method:'prepare_usb',volume,experimental:true},'Preparing your XDJ-XZ USB');
-  }catch(error){showError(String(error));}
+    if(volume)await run({method:'prepare_usb',volume,experimental:true},'Preparing your XDJ-XZ USB',origin);
+  }catch(error){showError(String(error),origin);}
 };
-$('verify-inputs').onclick=async()=>{if(!required(['firmware']))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware');if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?'XZ 1.26 firmware and boot support verified.':'XZ 1.26 application verified. Choose the official firmware ZIP to verify complete boot support.';};
+$('verify-inputs').onclick=async()=>{const origin=$('verify-inputs');if(!required(['firmware'],origin))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware',origin);if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?'XZ 1.26 firmware and boot support verified.':'XZ 1.26 application verified. Choose the official firmware ZIP to verify complete boot support.';};
 $('build').onclick=()=>{
-  if(!required(['volume','firmware']))return;
-  if(!$('experimental').checked){showError('Check the testing reminder before preparing a USB.');return;}
-  run({method:'build_usb',volume:$('volume').value,firmware:$('firmware').value,experimental:true},'Preparing the USB loader');
+  const origin=$('build');
+  if(!required(['volume','firmware'],origin))return;
+  if(!$('experimental').checked){showError('Check the testing reminder before preparing a USB.',origin);return;}
+  run({method:'build_usb',volume:$('volume').value,firmware:$('firmware').value,experimental:true},'Preparing the USB loader',origin);
 };
-$('import-stems').onclick=()=>{if(required(['source','harmonics','vocals']))run({method:'import_stems',source:$('source').value,harmonics:$('harmonics').value,vocals:$('vocals').value,separation_id:$('separation-id').value,harmonics_gain:Number($('harmonics-gain').value),vocals_gain:Number($('vocals-gain').value)},'Importing stems (beta)');};
-$('setup-engine').onclick=()=>run({method:'setup_engine',preset:preset()},'Setting up the separation engine');
-$('download-firmware').onclick=async()=>{const result=await run({method:'download_firmware'},'Getting the official firmware');if(result?.ok)$('firmware').value=result.result.firmware_path;};
-$('separate').onclick=()=>{if(required(['source']))run({method:'separate',source:$('source').value,preset:preset(),device:'cpu'},'Preparing stems (beta)');};
+$('import-stems').onclick=()=>{const origin=$('import-stems');if(required(['source','harmonics','vocals'],origin))run({method:'import_stems',source:$('source').value,harmonics:$('harmonics').value,vocals:$('vocals').value,separation_id:$('separation-id').value,harmonics_gain:Number($('harmonics-gain').value),vocals_gain:Number($('vocals-gain').value)},'Importing stems (beta)',origin);};
+$('setup-engine').onclick=()=>run({method:'setup_engine',preset:preset()},'Setting up the separation engine',$('setup-engine'));
+$('download-firmware').onclick=async()=>{const result=await run({method:'download_firmware'},'Getting the official firmware',$('download-firmware'));if(result?.ok)$('firmware').value=result.result.firmware_path;};
+$('separate').onclick=()=>{const origin=$('separate');if(required(['source'],origin))run({method:'separate',source:$('source').value,preset:preset(),device:'cpu'},'Preparing stems (beta)',origin);};
 $('choose-cache').onclick=async()=>{
-  if(!$('source').value){showError('Choose the original track before reading its cache.');return;}
+  const origin=$('choose-cache');
+  if(!$('source').value){showError('Choose the original track before reading its cache.',origin);return;}
   try{
     const entry=await invoke('pick_path',{kind:'folder'});if(!entry)return;
-    const response=await run({method:'inspect_cache',source:$('source').value,entry},'Reading stem cache');
+    const response=await run({method:'inspect_cache',source:$('source').value,entry},'Reading stem cache',origin);
     if(response?.ok){const data=response.result;for(const name of ['harmonics','vocals']){$(name).value=data[name];$(name+'-gain').value=data[name+'_gain'];}$('separation-id').value=data.separation_id;}
-  }catch(error){showError(String(error));}
+  }catch(error){showError(String(error),origin);}
 };
 if(!invoke){$('browser-note').classList.remove('hidden');busy(false);}
-for(const link of document.querySelectorAll('a[target=_blank]'))link.onclick=async event=>{if(invoke){event.preventDefault();try{await invoke('open_link',{url:link.getAttribute('href')});}catch(error){showError(String(error));}}};
+for(const link of document.querySelectorAll('a[target=_blank]'))link.onclick=async event=>{if(invoke){event.preventDefault();try{await invoke('open_link',{url:link.getAttribute('href')});}catch(error){showError(String(error),link);}}};
 
 $('check-overcue').onclick=async()=>{
-  try{const source=await invoke('pick_path',{kind:'file'});if(source)await run({method:'inspect_overcue',source},'Checking OverCue track');}
-  catch(error){showError(String(error));}
+  const origin=$('check-overcue');
+  try{const source=await invoke('pick_path',{kind:'file'});if(source)await run({method:'inspect_overcue',source},'Checking OverCue track',origin);}
+  catch(error){showError(String(error),origin);}
 };
 
 function showPage(name){document.querySelector('nav button[data-page="'+name+'"]').click();}
@@ -142,18 +191,19 @@ function renderUsb(inspection){
     const select=node('select');select.className='usb-setting';
     for(const backup of inspection.backups){const option=node('option',new Date(backup.created).toLocaleString()+' - '+(backup.previous.bytes/1048576).toFixed(1)+' MB');option.value=backup.id;select.append(option);}
     const button=node('button','Restore selected backup','secondary restore-loader');
-    button.onclick=async()=>{const result=await run({method:'restore_usb_loader',volume:inspection.volume,expected_identity:usbInspection.identity,expected_loader:usbInspection.loader,transaction_id:select.value},'Restoring the previous loader');if(result?.ok)renderUsb(result.result.inspection);};
+    // Feedback goes after the backups list: renderUsb replaces its contents on success.
+    button.onclick=async()=>{const result=await run({method:'restore_usb_loader',volume:inspection.volume,expected_identity:usbInspection.identity,expected_loader:usbInspection.loader,transaction_id:select.value},'Restoring the previous loader',backups);if(result?.ok)renderUsb(result.result.inspection);};
     backups.append(select,button);
   }
 }
-async function inspectUsb(volume){const result=await run({method:'inspect_usb',volume},'Reading USB loader and settings');if(result?.ok)renderUsb(result.result);}
-$('inspect-usb').onclick=async()=>{try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await inspectUsb(volume);}catch(error){showError(String(error));}};
-$('refresh-usb').onclick=()=>{if(usbInspection)inspectUsb(usbInspection.volume);};
+async function inspectUsb(volume,origin){const result=await run({method:'inspect_usb',volume},'Reading USB loader and settings',origin);if(result?.ok)renderUsb(result.result);}
+$('inspect-usb').onclick=async()=>{const origin=$('inspect-usb');try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await inspectUsb(volume,origin);}catch(error){showError(String(error),origin);}};
+$('refresh-usb').onclick=()=>{if(usbInspection)inspectUsb(usbInspection.volume,$('refresh-usb'));};
 $('update-usb').onclick=async()=>{
   if(!usbInspection?.loader.exists)return;
   const request={method:'update_usb',volume:usbInspection.volume,expected_identity:usbInspection.identity,expected_loader:usbInspection.loader,experimental:true};
   if($('firmware').value.trim())request.firmware=$('firmware').value.trim();
-  const result=await run(request,'Backing up and updating the USB loader');if(result?.ok)renderUsb(result.result.inspection);
+  const result=await run(request,'Backing up and updating the USB loader',$('update-usb'));if(result?.ok)renderUsb(result.result.inspection);
 };
 function stemDiagram(values){
   const block=node('div',undefined,'pad-map'),roles=['VOCALS','HARMONICS','DRUMS','BYPASS'];
@@ -196,16 +246,17 @@ function renderSettings(){
     holder.append(panel);
   }
 }
-async function loadSettings(volume){
-  const result=await run({method:'read_usb_settings',volume},'Reading USB settings');
+async function loadSettings(volume,origin){
+  const result=await run({method:'read_usb_settings',volume},'Reading USB settings',origin);
   if(result?.ok){settingsVolume=volume;settingsIdentity=result.result.identity;settingsData=result.result.settings;settingsValues=settingsData.editable?{...settingsData.values}:null;renderSettings();}
 }
-$('choose-settings-usb').onclick=async()=>{try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await loadSettings(volume);}catch(error){showError(String(error));}};
-$('edit-selected-usb').onclick=()=>{if(usbInspection){showPage('usb-settings');loadSettings(usbInspection.volume);}};
-$('reload-usb-settings').onclick=()=>{if(settingsVolume)loadSettings(settingsVolume);};
+$('choose-settings-usb').onclick=async()=>{const origin=$('choose-settings-usb');try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await loadSettings(volume,origin);}catch(error){showError(String(error),origin);}};
+// The read happens on the settings page, so its feedback belongs beside that page's USB chooser.
+$('edit-selected-usb').onclick=()=>{if(usbInspection){showPage('usb-settings');loadSettings(usbInspection.volume,$('choose-settings-usb'));}};
+$('reload-usb-settings').onclick=()=>{if(settingsVolume)loadSettings(settingsVolume,$('reload-usb-settings'));};
 $('save-usb-settings').onclick=async()=>{
   if(!settingsData?.editable||!settingsVolume)return;
-  const result=await run({method:'save_usb_settings',volume:settingsVolume,expected_identity:settingsIdentity,expected_revision:settingsData.revision,values:{...settingsValues}},'Saving USB settings');
+  const result=await run({method:'save_usb_settings',volume:settingsVolume,expected_identity:settingsIdentity,expected_revision:settingsData.revision,values:{...settingsValues}},'Saving USB settings',$('save-usb-settings'));
   if(result?.ok){settingsData=result.result.settings;settingsIdentity=result.result.identity;settingsValues={...settingsData.values};renderSettings();$('settings-status').textContent='Settings saved to USB and verified. The XZ loads them when its loader starts.';}
 };
 
@@ -230,7 +281,7 @@ function renderAppUpdate(status){
 }
 $('about-updates').onclick=()=>showPage('updates');
 $('review-app-update').onclick=()=>showPage('updates');
-$('open-licenses').onclick=async()=>{try{await invoke('open_licenses');}catch(error){showError(String(error));}};
+$('open-licenses').onclick=async()=>{try{await invoke('open_licenses');}catch(error){showError(String(error),$('open-licenses'));}};
 $('check-app-update').onclick=async()=>{
   if(updateChecking||appUpdating)return;updateChecking=true;$('available-notes').classList.add('hidden');renderAppUpdate({phase:'checking',message:'Checking for updates...'});
   try{renderAppUpdate(await invoke('check_app_update'));}catch(error){renderAppUpdate({phase:'error',message:String(error)});}finally{updateChecking=false;$('check-app-update').disabled=!invoke||appUpdating;}
@@ -263,8 +314,14 @@ function updateLibraryPagination(disabled=false){
   $('stem-next').disabled=disabled||!stemLibrary||stemLibrary.offset+stemLibrary.page_size>=stemLibrary.matched;
   updateStemBatchControls(disabled);
 }
+// Empties the track table without taking the job panel with it. Returns the track row the feedback belonged to.
+function clearStemTracks(){
+  const rows=$('stem-tracks'),row=feedbackHome?.closest('#stem-tracks tr'),held=row?{path:row.dataset.filePath,action:feedbackHome.dataset.action}:null;
+  if(row||jobPanel.closest('#stem-tracks')){feedbackHome=rows.closest('.table-scroll');positionFeedback();}
+  rows.replaceChildren();return held;
+}
 function renderStemLibrary(data){
-  stemLibrary=data;const rows=$('stem-tracks');rows.replaceChildren();
+  stemLibrary=data;const rows=$('stem-tracks'),held=clearStemTracks();
   const key=libraryKey(data);
   if(key!==stemSelectionKey){stemSelection.clear();stemSelectionKey=key;$('stem-selection-note').textContent='';}
   if(stemBatch&&!stemBatch.running&&stemBatch.key===key)stemBatch.refreshed=true;
@@ -272,15 +329,15 @@ function renderStemLibrary(data){
   $('stem-space').textContent=(data.free_bytes/1073741824).toFixed(2)+' GB free of '+(data.total_bytes/1073741824).toFixed(2)+' GB';
   if(data.index_error)$('stem-drive-status').textContent+=' · The stem index could not be read. '+data.index_error;
   for(const track of data.tracks){
-    const row=node('tr');row.append(selectionCell(track,row));const title=node('td');title.append(node('strong',track.title),node('small',track.file_path));row.append(title,node('td',track.artist||'Unknown artist'),node('td',track.duration?Math.floor(track.duration/60)+':'+String(track.duration%60).padStart(2,'0'):'—'));
+    const row=node('tr');row.dataset.filePath=track.file_path;row.append(selectionCell(track,row));const title=node('td');title.append(node('strong',track.title),node('small',track.file_path));row.append(title,node('td',track.artist||'Unknown artist'),node('td',track.duration?Math.floor(track.duration/60)+':'+String(track.duration%60).padStart(2,'0'):'—'));
     const status=node('td',track.stem_label);if(track.detail)status.append(node('small',track.detail));row.append(status);
     const action=node('td');
-    if(track.can_generate){const button=node('button',track.stem_status==='present'?'Regenerate':'Generate','secondary library-action');button.onclick=async()=>{
-      const result=await run({method:'generate_library_stems',volume:data.volume,expected_identity:data.identity,file_path:track.file_path,preset:$('library-engine').value},'Preparing stems: '+track.title);
+    if(track.can_generate){const button=node('button',track.stem_status==='present'?'Regenerate':'Generate','secondary library-action');button.dataset.action='generate';button.onclick=async()=>{
+      const result=await run({method:'generate_library_stems',volume:data.volume,expected_identity:data.identity,file_path:track.file_path,preset:$('library-engine').value},'Preparing stems: '+track.title,button);
       if(result?.ok)await browseStemLibrary(data.volume,data.offset);
     };action.append(button);}
-    if(track.can_verify){const button=node('button','Verify','secondary library-action');button.onclick=async()=>{
-      const result=await run({method:'inspect_overcue',source:track.source},'Verifying stems: '+track.title);
+    if(track.can_verify){const button=node('button','Verify','secondary library-action');button.dataset.action='verify';button.onclick=async()=>{
+      const result=await run({method:'inspect_overcue',source:track.source},'Verifying stems: '+track.title,button);
       status.replaceChildren(node('span',result?.ok?'Verified':result?.cancelled?'Verification cancelled':'Verification failed'));
     };action.append(button);}
     if(!track.can_generate&&!track.can_verify){const button=node('button','Set up stems','primary library-action');button.onclick=()=>openStemSetup(data,track);action.append(button);}
@@ -288,6 +345,7 @@ function renderStemLibrary(data){
     row.append(action);rows.append(row);
   }
   if(!data.tracks.length){const cell=node('td',data.total?'No tracks match your search.':'This Rekordbox library is empty. Export tracks to the USB, then refresh.');cell.colSpan=6;const row=node('tr');row.append(cell);rows.append(row);}
+  if(held){const row=[...rows.children].find(item=>item.dataset.filePath===held.path);if(row){feedbackHome=row.querySelector('[data-action="'+held.action+'"]')||row;positionFeedback();}}
   $('stem-page-summary').textContent=data.matched?(data.offset+1)+'–'+Math.min(data.offset+data.page_size,data.matched)+' of '+data.matched:'0 tracks';updateLibraryPagination();
   renderStemSelection();renderStemBatch();
 }
@@ -301,6 +359,8 @@ function openStemSetup(data,track){
   $('stem-setup-result').textContent='';$('stem-setup').showModal();
 }
 $('stem-setup-close').onclick=()=>$('stem-setup').close();
+// Feedback started in the dialog moves to the page when the dialog closes.
+$('stem-setup').addEventListener('close',()=>{if(jobPanel.closest('#stem-setup')){positionFeedback();if(feedbackLive)revealFeedback();}});
 $('stem-setup-verify').onclick=async()=>{
   if(!stemSetupTarget||activeJob!==null||appUpdating)return;
   const button=$('stem-setup-verify');button.disabled=true;
@@ -308,7 +368,7 @@ $('stem-setup-verify').onclick=async()=>{
     await browseStemLibrary(stemSetupTarget.volume,stemLibrary?.offset||0);
     const track=stemLibrary?.tracks.find(item=>item.file_path===stemSetupTarget.file_path);
     if(!track?.source||!track.can_verify){$('stem-setup-result').textContent=track?.stem_status==='unavailable'?'The audio file is still missing. Re-export it from Rekordbox to this USB, then check again.':track?.detail||'This track has no complete stem export yet. Prepare it in OverCue Desktop, then check again.';return;}
-    const result=await run({method:'inspect_overcue',source:track.source},'Verifying prepared stems');
+    const result=await run({method:'inspect_overcue',source:track.source},'Verifying prepared stems',button);
     $('stem-setup-result').textContent=result?.ok?'All seven mixes verified. This track is ready for the updated XZ loader.':result?.error||'Verification did not complete. Check the stem export and retry.';
   }finally{button.disabled=false;}
 };
@@ -435,7 +495,8 @@ async function startStemBatch(entries,retry=false){
   const engine=$('library-engine');
   stemBatch={key:libraryKey(data),volume:data.volume,preset:engine.value,presetLabel:'Engine: '+engine.selectedOptions[0].textContent,retry,running:true,cancelRequested:false,refreshed:false,status:'running',items,message:'',error:'',result:null,signature:''};
   $('stem-batch-failed-only').checked=false;renderStemBatch();$('stem-batch').scrollIntoView({behavior:'smooth',block:'nearest'});
-  const state=await run({method:'generate_library_stem_batch',volume:data.volume,expected_identity:data.identity,track_ids:items.map(item=>item.id),preset:stemBatch.preset},(retry?'Retrying stems for ':'Preparing stems for ')+plural(items.length,'track'));
+  // Batch feedback sits under the batch progress bar, where the batch is tracked.
+  const state=await run({method:'generate_library_stem_batch',volume:data.volume,expected_identity:data.identity,track_ids:items.map(item=>item.id),preset:stemBatch.preset},(retry?'Retrying stems for ':'Preparing stems for ')+plural(items.length,'track'),$('stem-batch-progress'));
   const batch=stemBatch;batch.running=false;batch.cancelRequested=false;
   if(state?.result?.format!==batchFormat&&state?.cancelled){batch.status='cancelled';batch.error='';}
   else if(state?.result?.format!==batchFormat){batch.status='error';batch.error=state?.error||(state?'The batch ended without a result. Refresh the library to see which tracks were prepared.':$('job-message').textContent||'The batch could not be started.');}
@@ -462,19 +523,20 @@ async function browseStemLibrary(volume,offset=0){
   if(stemLibraryLoading||activeJob!==null||appUpdating)return;stemLibraryLoading=true;
   $('stem-drive-status').textContent='Reading the Rekordbox library and stem files...';
   try{const result=await run({method:'browse_stem_library',volume,offset,query:$('stem-search').value},'Reading USB music');
-    if(result?.ok)renderStemLibrary(result.result);else{$('stem-drive-status').textContent=result?.error||'The USB could not be read. Reconnect it and choose the drive again.';$('stem-tracks').replaceChildren();stemLibrary=null;updateLibraryPagination();}
+    if(result?.ok)renderStemLibrary(result.result);else{$('stem-drive-status').textContent=result?.error||'The USB could not be read. Reconnect it and choose the drive again.';clearStemTracks();stemLibrary=null;updateLibraryPagination();}
   }finally{stemLibraryLoading=false;}
 }
 async function discoverStemDrives(){
   if(!invoke)return;
-  const result=await run({method:'discover_stem_usbs'},'Finding Rekordbox USBs');if(!result?.ok)return;
+  const result=await run({method:'discover_stem_usbs'},'Finding Rekordbox USBs');
+  if(!result?.ok){if(result)$('stem-drive-status').textContent=result.error||'Rekordbox USBs could not be listed. Reconnect the USB, then choose Find USBs.';return;}
   const select=$('stem-drive'),previous=select.value;select.replaceChildren();
   for(const drive of result.result.drives){const option=node('option',drive.label+' · '+drive.volume);option.value=drive.volume;select.append(option);}
   if([...select.options].some(option=>option.value===previous))select.value=previous;
-  if(select.value)await browseStemLibrary(select.value);else{$('stem-drive-status').textContent='No Rekordbox USB found. Connect a USB exported for the XDJ-XZ, then choose Find USBs.';$('stem-space').textContent='';$('stem-tracks').replaceChildren();stemLibrary=null;updateLibraryPagination();}
+  if(select.value)await browseStemLibrary(select.value);else{$('stem-drive-status').textContent='No Rekordbox USB found. Connect a USB exported for the XDJ-XZ, then choose Find USBs.';$('stem-space').textContent='';clearStemTracks();stemLibrary=null;updateLibraryPagination();}
 }
 $('stem-drive').onchange=()=>{$('stem-search').value='';browseStemLibrary($('stem-drive').value);};
-$('choose-stem-drive').onclick=async()=>{try{const volume=await invoke('pick_path',{kind:'folder'});if(!volume)return;const select=$('stem-drive');if(![...select.options].some(o=>o.value===volume)){const option=node('option',volume);option.value=volume;select.append(option);}select.value=volume;$('stem-search').value='';await browseStemLibrary(volume);}catch(error){showError(String(error));}};
+$('choose-stem-drive').onclick=async()=>{try{const volume=await invoke('pick_path',{kind:'folder'});if(!volume)return;const select=$('stem-drive');if(![...select.options].some(o=>o.value===volume)){const option=node('option',volume);option.value=volume;select.append(option);}select.value=volume;$('stem-search').value='';await browseStemLibrary(volume);}catch(error){showError(String(error),$('choose-stem-drive'));}};
 $('refresh-stem-drives').onclick=discoverStemDrives;
 $('search-stem-library').onclick=()=>{if($('stem-drive').value)browseStemLibrary($('stem-drive').value);};
 $('stem-search').onkeydown=event=>{if(event.key==='Enter')$('search-stem-library').click();};
@@ -496,12 +558,12 @@ function renderStemAssignments(){
   $('stem-group-summary').textContent=['drums','vocals','harmonics'].map(group=>group[0].toUpperCase()+group.slice(1)+': '+importFiles.filter(item=>item.group===group).length).join(' · ');
   $('import-stem-groups').disabled=!invoke||!importTarget||!importFiles.length||importFiles.some(item=>!item.group)||activeJob!==null||appUpdating;
 }
-$('add-stem-files').onclick=async event=>{event.stopPropagation();try{addStemFiles(await invoke('pick_stem_files'));}catch(error){showError(String(error));}};
+$('add-stem-files').onclick=async event=>{event.stopPropagation();try{addStemFiles(await invoke('pick_stem_files'));}catch(error){showError(String(error),$('add-stem-files'));}};
 $('stem-dropzone').onclick=()=>$('add-stem-files').click();
 $('stem-dropzone').onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();$('add-stem-files').click();}};
 $('import-stem-groups').onclick=async()=>{
   if(!importTarget||!importFiles.length||importFiles.some(item=>!item.group))return;
-  const result=await run({method:'import_grouped_stems',volume:importTarget.volume,expected_identity:importTarget.identity,file_path:importTarget.track.file_path,files:importFiles.map(item=>({...item})),fit_length:$('fit-stem-length').checked},'Importing stems: '+importTarget.track.title);
+  const result=await run({method:'import_grouped_stems',volume:importTarget.volume,expected_identity:importTarget.identity,file_path:importTarget.track.file_path,files:importFiles.map(item=>({...item})),fit_length:$('fit-stem-length').checked},'Importing stems: '+importTarget.track.title,$('import-stem-groups'));
   $('stem-import-message').textContent=result?.ok?'Stems saved in OverCue format. Check playback timing on the XZ.':result?.error||'Import cancelled.';
   if(result?.ok&&stemLibrary)await browseStemLibrary(stemLibrary.volume,stemLibrary.offset);renderStemAssignments();
 };
