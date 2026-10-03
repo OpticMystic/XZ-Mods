@@ -105,7 +105,7 @@ with 0.1.5; updating source alone does not update a USB stick.
 Read the [user guide with actual hardware screenshots](docs/USER-GUIDE.md) for
 USB preparation, pad assignments, the controller display themes,
 recovery and [related community projects](docs/USER-GUIDE.md#related-projects).
-The public website is [vj.tools/xz-mods](https://vj.tools/xz-mods).
+The public website is [vj.tools/xz-mods](https://www.vj.tools/xz-mods).
 
 In MODS > Controls, choose whether stems use hot cues A-D or E-H. The selected
 bank maps its first three pads to Vocals, Harmonics and Drums, followed by

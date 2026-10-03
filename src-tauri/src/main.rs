@@ -98,7 +98,7 @@ fn cancel_job(app:tauri::AppHandle,id:u64)->Result<(),String>{
     Ok(())
 }
 // The webview can only ask for these exact pages, so page content can never make the shell open an arbitrary URL.
-const LINKS:[&str;5]=[app_updates::RELEASE_PAGE,app_updates::PORTABLE_URL,"https://vj.tools","https://overcue.gg","https://github.com/OverCue-gg/overcue-stems-format"];
+const LINKS:[&str;5]=[app_updates::RELEASE_PAGE,app_updates::PORTABLE_URL,"https://www.vj.tools","https://overcue.gg","https://github.com/OverCue-gg/overcue-stems-format"];
 #[tauri::command]
 fn open_link(url:String)->Result<(),String>{
     let url=*LINKS.iter().find(|link|**link==url).ok_or("This link is not available in XZ Mods")?;
