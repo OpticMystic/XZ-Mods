@@ -245,7 +245,7 @@ async function loadAppInformation(){
   if(!invoke){$('check-app-update').disabled=true;$('open-licenses').disabled=true;return;}
   try{
     const info=await invoke('app_information');document.querySelectorAll('[data-app-version]').forEach(item=>item.textContent=info.version);
-    $('update-install-note').textContent=info.platform==='macos'?'Mac updates require a published, signed Mac package. Check the release page for available downloads.':info.installed?'The Windows installer updates the app and reopens it when finished.':'You are using the portable app. Updating here installs the Windows version. To stay portable, download the ZIP below and extract it to a new folder.';
+    $('update-install-note').textContent=info.platform==='macos'?'Mac updates require a published, signed Mac package. Check the release page for available downloads.':info.installed?'The Windows installer updates the app and reopens it when finished.':'You are using the portable app. Updating here installs the Windows version; it does not replace this portable folder. After installing, open XZ Mods from the desktop shortcut. To stay portable, download the current ZIP below and replace the old folder.';
     if(info.platform==='macos'){
       const link=document.querySelector('a[href$="XZ-Mods-Builder-preview-win64.zip"]');
       link.href=info.portable_url;link.textContent='View Mac downloads';

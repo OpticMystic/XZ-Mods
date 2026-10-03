@@ -17,6 +17,7 @@ p.add_argument('--skip-build',action='store_true',help='Package an installer alr
 a=p.parse_args()
 config=json.loads((APP/'src-tauri/tauri.conf.json').read_text())
 version=config['version']
+subprocess.run(['python',str(APP/'tools/verify_release_source.py')],check=True)
 key=Path(os.environ.get('TAURI_SIGNING_PRIVATE_KEY',str(Path(os.environ['LOCALAPPDATA'])/'XZ Mods Release Keys/updater.key')))
 if not key.is_file():raise SystemExit('Updater signing key missing. Set TAURI_SIGNING_PRIVATE_KEY to its path.')
 if key.with_suffix(key.suffix+'.pub').read_text().strip()!=config['plugins']['updater']['pubkey'].strip():raise SystemExit('Signing key does not match the app updater public key.')

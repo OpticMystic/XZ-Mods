@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.1 - 2026-10-02
+
+Hotfix for 0.2.0.
+
+### Included features
+
+- XZ Mods 0.2.1 is the hotfix for 0.2.0. Use this desktop preparation tool for new loaders and existing-loader updates.
+- Includes the 0.2.0 feature set: FLAC stems, selected-track batches, layered waveforms, Beat Arcade, Wave Rider and game downloads.
+
+### Bug fixes
+
+- Corrects the old 0.1.9 labels in the bundled app so its version is correct before the startup check finishes.
+- Identifies the hotfix consistently in the app, Python backend, signed updater feed and website.
+
+### Installation and verification
+
+- The paired controller runtime is the same verified payload shipped with 0.2.0. This hotfix updates the desktop package and version labels.
+- Installing this app does not change your USB. Prepare or update its loader separately when ready.
+- A portable folder is not replaced by the Windows installer. After installing, open XZ Mods from the desktop shortcut; to stay portable, replace the folder with the current ZIP.
+- Mac previews remain ad-hoc signed and not notarized. My House still requires a qualified native GZDoom port.
+
 ## 0.2.0 - 2026-10-02
 
 ### New features
