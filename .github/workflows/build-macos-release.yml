@@ -1,0 +1,70 @@
+name: Build XZ Mods Mac release packages
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.17.1'
+      - name: Prepare the published native runtime and current app source
+        run: |
+          python - <<'PY'
+          import hashlib,os,shutil,tarfile,urllib.request
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'xz-mac'
+          root.mkdir()
+          archive=root/'published-source.tar.gz'
+          url='https://github.com/OpticMystic/XZ-Mods/releases/download/v0.2.0/XZ-Mods-Mac-preview-source.tar.gz'
+          with urllib.request.urlopen(url,timeout=60) as response,archive.open('wb') as output:
+              shutil.copyfileobj(response,output)
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()=='35c2f88e668aa5c35903e91cf514741152a04c12b8df7c3f9e15601fce5e7113'
+          with tarfile.open(archive) as source:source.extractall(root,filter='data')
+          checkout=Path(os.environ['GITHUB_WORKSPACE'])
+          app=root/'XZ-Mods'
+          for name in ('ui','src-tauri','tools','third_party','source'):
+              shutil.copytree(checkout/name,app/name,dirs_exist_ok=True,ignore=shutil.ignore_patterns('target','__pycache__','.git'))
+          for name in ('README.md','BUILDING.md','CHANGELOG.md','LICENSE','release-notes.json','release-source.json'):
+              shutil.copyfile(checkout/name,app/name)
+          shutil.copytree(checkout/'source/xdj-xz-toolkit',root/'xdj-xz-toolkit',dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__'))
+          PY
+      - name: Install backend build dependencies
+        run: python -m pip install pyinstaller==6.22.2 pycdlib==1.20.0 cryptography==48.0.0 inflate64==1.0.4 pyelftools==0.33 pillow==12.3.0 certifi==2026.2.25
+      - uses: actions/cache@v4
+        with:
+          key: xz-mac-${{ matrix.arch }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ runner.temp }}/xz-mac/XZ-Mods/src-tauri/target
+      - name: Build and verify the app and disk image
+        run: |
+          python "$RUNNER_TEMP/xz-mac/XZ-Mods/tools/build_macos.py" \
+            --toolkit "$RUNNER_TEMP/xz-mac/xdj-xz-toolkit" \
+            --runtime-bundle "$RUNNER_TEMP/xz-mac/runtime-bundle" \
+            --output "$RUNNER_TEMP/xz-mac/packages"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: XZ-Mods-macOS-${{ matrix.arch }}
+          path: ${{ runner.temp }}/xz-mac/packages/
+          retention-days: 14

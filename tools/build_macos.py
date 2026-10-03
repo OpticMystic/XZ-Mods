@@ -130,6 +130,7 @@ def main():
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     prepare(args.toolkit.resolve(), args.runtime_bundle.resolve())
+    run(sys.executable, APP / 'tools/verify_release_source.py')
     run(sys.executable, '-m', 'unittest', 'builder.tests.test_macos_host', 'builder.tests.test_fat_publication',
         'builder.tests.test_cache', 'builder.tests.test_managed_usb', 'builder.tests.test_stem_batch',
         'builder.tests.test_stem_library', 'builder.tests.test_games',
