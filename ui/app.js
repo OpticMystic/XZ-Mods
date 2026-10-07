@@ -2,17 +2,23 @@ const $=id=>document.getElementById(id);
 const invoke=window.__TAURI__?.core?.invoke;
 let activeJob=null,appUpdating=false,updateChecking=false;
 let importTarget=null,importFiles=[];
-let stemLibraryStarted=false,stemLibrary=null,stemLibraryLoading=false;
+let stemLibraryStarted=false,stemLibraryStarting=false,stemLibrary=null,stemLibraryLoading=false;
+// Work that found another job running waits here and runs once the current job ends.
+const idleQueue=[];
 const batchLimit=100,batchFormat='xz-stem-batch/1';
 const batchStates={queued:'Queued',running:'Working',prepared:'Prepared',reused:'Already prepared',failed:'Failed',cancelled:'Cancelled'};
 let stemSelection=new Map(),stemSelectionKey=null,stemBatch=null;
 let usbInspection=null,settingsVolume=null,settingsIdentity=null,settingsData=null,settingsValues=null;
 // Library repair: the inspection is the only basis for a repair or undo, and it is dropped whenever the chosen USB changes.
 let repairInspection=null,repairDiscovery=null;
+// Mod version: modInventory is the last list the backend returned and holds the saved choice. modDraft is the
+// unsaved dropdown and checkbox state. USB writes read only the saved choice, through selectedVersionRequest().
+let modInventory=null,modDraft=null,modLoadError='',modImportFolder='',modImportedId=null;
+const modChannels={preview:'Preview',public:'Public release',release:'Public release',released:'Released',development:'Development build',dev:'Development build',imported:'Imported'};
 const titles={usb:'USB loader','usb-settings':'USB settings',stems:'Prepare your stems','library-repair':'Repair library',games:'Games','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
-const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library'];
+const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library','list_mod_versions','inspect_mod_settings'];
 const feedbackGroups='p,label,.actions,.path-row,.batch-toolbar,.library-toolbar,#stem-dropzone,.section-heading,.columns';
 let feedbackHome=null,feedbackLive=false;
 for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{
@@ -20,7 +26,7 @@ for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{
   document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('selected',item===button));
   $('page-title').textContent=titles[button.dataset.page];
   if(!feedbackLive)jobPanel.classList.add('hidden');else{positionFeedback();revealFeedback();}
-  if(button.dataset.page==='stems'&&!stemLibraryStarted){stemLibraryStarted=true;discoverStemDrives();}
+  if(button.dataset.page==='stems')startStemLibrary();
   if(button.dataset.page==='library-repair'&&!repairDiscovery)repairDiscovery=discoverRepairDrives();
 };
 const preset=()=>document.querySelector('[name=engine]:checked').value;
@@ -56,7 +62,7 @@ function positionFeedback(){
 function revealFeedback(){if(!jobPanel.classList.contains('hidden')&&jobPanel.isConnected)jobPanel.scrollIntoView({block:'nearest'});}
 function showFeedback(origin){feedbackHome=origin||null;jobPanel.classList.remove('hidden');positionFeedback();}
 function showError(message,origin){jobPanel.classList.remove('is-cancelled');jobPanel.classList.add('is-error');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');showFeedback(origin);revealFeedback();}
-function busy(value){value=value||appUpdating;value=value||appUpdating;value=value||appUpdating;document.querySelectorAll(".library-action,.stem-import-control,#add-stem-files,#import-stem-groups,#stem-drive,#choose-stem-drive,#refresh-stem-drives,#search-stem-library,#library-engine").forEach(el=>el.disabled=value||!invoke);if(stemLibrary)updateLibraryPagination(value);document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,#choose-settings-usb,#save-usb-settings,#reload-usb-settings,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);$('import-stem-groups').disabled=value||!invoke||!importTarget||!importFiles.length||importFiles.some(item=>!item.group);$('install-app-update').disabled=value||activeJob!==null;updateStemBatchControls(value);updateRepairControls(value);}
+function busy(value){value=value||appUpdating;value=value||appUpdating;value=value||appUpdating;document.querySelectorAll(".library-action,.stem-import-control,#add-stem-files,#import-stem-groups,#stem-drive,#choose-stem-drive,#refresh-stem-drives,#search-stem-library,#library-engine").forEach(el=>el.disabled=value||!invoke);if(stemLibrary)updateLibraryPagination(value);document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,#choose-settings-usb,#save-usb-settings,#reload-usb-settings,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);$('import-stem-groups').disabled=value||!invoke||!importTarget||!importFiles.length||importFiles.some(item=>!item.group);$('install-app-update').disabled=value||activeJob!==null;updateStemBatchControls(value);updateRepairControls(value);updateModVersionControls(value);}
 function stemSummary(result){
   return (result.reused?'Matching stems for '+result.file_path+' were already on the USB. XZ Mods reused them.':'XZ Mods wrote beta stems for '+result.file_path+'.')+
     (result.replaced_previous?' It replaced the stems XZ Mods made earlier for this track.':'')+
@@ -96,6 +102,9 @@ async function run(request,title,origin){
           else if(state.result.format==='xz-library-repaired/1'){$('job-title').textContent='Repair written · not yet tested in Rekordbox';$('job-summary').textContent=state.result.summary||'';}
           else if(state.result.format==='xz-library-restored/1'){$('job-title').textContent='Repair undone';$('job-summary').textContent=state.result.summary||'';}
           else if(state.result.format==='xz-library-report/1')$('job-summary').textContent='Report saved: '+state.result.report_path;
+          if(state.result.mod_version?.id){const summary=$('job-summary').textContent.trim();$('job-summary').textContent=(summary&&!/[.!?]$/.test(summary)?summary+'.':summary)+(summary?' ':'')+'Mod version: '+modVersionText(state.result.mod_version)+'.';}
+          const adjusted=state.result.settings_adjustment;
+          if(adjusted?.backup){const summary=$('job-summary').textContent.trim();$('job-summary').textContent=(summary&&!/[.!?]$/.test(summary)?summary+'.':summary)+(summary?' ':'')+'USB settings adjusted for this version. Original settings backed up: '+adjusted.backup+'.';}
           if(state.result.format===batchFormat&&stemBatch)$('job-title').textContent=stemBatchHeading(stemBatch.status,stemBatchCounts());
         }
         return state;
@@ -105,6 +114,7 @@ async function run(request,title,origin){
   }catch(error){if(quiet)return {ok:false,running:false,error:String(error)};settled='is-error';showError(String(error),origin);}
   finally{
     activeJob=null;busy(false);
+    if(idleQueue.length)setTimeout(()=>{while(idleQueue.length&&activeJob===null&&!appUpdating)idleQueue.shift()();});
     if(!quiet){feedbackLive=false;$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');if(settled){jobPanel.classList.add(settled);revealFeedback();}}
   }
 }
@@ -150,17 +160,22 @@ $('ota-start').onclick=async()=>{
 $('prepare-usb').onclick=async()=>{
   const origin=$('prepare-usb');
   if(!invoke){showError('Open XZ Mods Builder to prepare a USB.',origin);return;}
+  const version=selectedVersionRequest(origin);if(!version)return;
   try{
     const volume=await invoke('pick_path',{kind:'folder'});
-    if(volume)await run({method:'prepare_usb',volume,experimental:true},'Preparing your XDJ-XZ USB',origin);
+    if(!volume)return;
+    const settings=await confirmModSettings(volume,version,origin);if(!settings)return;
+    await run({method:'prepare_usb',volume,experimental:true,...version,...settings},'Preparing your XDJ-XZ USB',origin);
   }catch(error){showError(String(error),origin);}
 };
 $('verify-inputs').onclick=async()=>{const origin=$('verify-inputs');if(!required(['firmware'],origin))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware',origin);if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?'XZ 1.26 firmware and boot support verified.':'XZ 1.26 application verified. Choose the official firmware ZIP to verify complete boot support.';};
-$('build').onclick=()=>{
+$('build').onclick=async()=>{
   const origin=$('build');
   if(!required(['volume','firmware'],origin))return;
   if(!$('experimental').checked){showError('Check the testing reminder before preparing a USB.',origin);return;}
-  run({method:'build_usb',volume:$('volume').value,firmware:$('firmware').value,experimental:true},'Preparing the USB loader',origin);
+  const version=selectedVersionRequest(origin);if(!version)return;
+  const volume=$('volume').value,settings=await confirmModSettings(volume,version,origin);if(!settings)return;
+  run({method:'build_usb',volume,firmware:$('firmware').value,experimental:true,...version,...settings},'Preparing the USB loader',origin);
 };
 $('import-stems').onclick=()=>{const origin=$('import-stems');if(required(['source','harmonics','vocals'],origin))run({method:'import_stems',source:$('source').value,harmonics:$('harmonics').value,vocals:$('vocals').value,separation_id:$('separation-id').value,harmonics_gain:Number($('harmonics-gain').value),vocals_gain:Number($('vocals-gain').value)},'Importing stems (beta)',origin);};
 $('setup-engine').onclick=()=>run({method:'setup_engine',preset:preset()},'Setting up the separation engine',$('setup-engine'));
@@ -190,8 +205,11 @@ function renderUsb(inspection){
   usbInspection=inspection;$('usb-update-details').classList.remove('hidden');
   $('usb-selected-path').textContent=inspection.volume;
   $('usb-loader-status').textContent=inspection.loader.exists?'Existing loader: '+(inspection.loader.bytes/1048576).toFixed(1)+' MB.':'No loader found. Use Prepare a new USB below.';
-  $('usb-loader-note').textContent=inspection.requires_copy_to_usb_root?'This is a prepared folder. Copy the updated autoexec.bin to the USB root afterward.':'The old loader is backed up before replacement. Its installed version cannot be identified from this file.';
-  $('update-usb').disabled=!inspection.loader.exists||!invoke;
+  // Only a version recorded after a write is shown. Older loaders stay unknown; never assume the saved choice.
+  const recorded=inspection.recorded_mod_version?.id?inspection.recorded_mod_version:null;
+  $('usb-recorded-version').textContent=!inspection.loader.exists?'':recorded?'Mod version on this USB: '+modVersionText(recorded)+'.':'Mod version on this USB: unknown. Loaders written before XZ Mods recorded versions do not say which build they hold.';
+  $('usb-loader-note').textContent=inspection.requires_copy_to_usb_root?'This is a prepared folder. Copy the updated autoexec.bin to the USB root afterward.':recorded?'The old loader is backed up before replacement.':'The old loader is backed up before replacement. Its installed version cannot be identified from this file.';
+  updateModVersionControls();
   const backups=$('loader-backups');backups.replaceChildren();
   if(inspection.backups.length){
     backups.append(node('h3','Restore a previous loader'));
@@ -208,7 +226,10 @@ $('inspect-usb').onclick=async()=>{const origin=$('inspect-usb');try{const volum
 $('refresh-usb').onclick=()=>{if(usbInspection)inspectUsb(usbInspection.volume,$('refresh-usb'));};
 $('update-usb').onclick=async()=>{
   if(!usbInspection?.loader.exists)return;
-  const request={method:'update_usb',volume:usbInspection.volume,expected_identity:usbInspection.identity,expected_loader:usbInspection.loader,experimental:true};
+  const version=selectedVersionRequest($('update-usb'));if(!version)return;
+  const inspection=usbInspection,settings=await confirmModSettings(inspection.volume,version,$('update-usb'));if(!settings)return;
+  if(usbInspection!==inspection){showError('The USB was read again while you were deciding. Nothing was written. Choose Back up and update again.',$('update-usb'));return;}
+  const request={method:'update_usb',volume:inspection.volume,expected_identity:inspection.identity,expected_loader:inspection.loader,experimental:true,...version,...settings};
   if($('firmware').value.trim())request.firmware=$('firmware').value.trim();
   const result=await run(request,'Backing up and updating the USB loader',$('update-usb'));if(result?.ok)renderUsb(result.result.inspection);
 };
@@ -536,11 +557,22 @@ async function browseStemLibrary(volume,offset=0){
 async function discoverStemDrives(){
   if(!invoke)return;
   const result=await run({method:'discover_stem_usbs'},'Finding Rekordbox USBs');
-  if(!result?.ok){if(result)$('stem-drive-status').textContent=result.error||'Rekordbox USBs could not be listed. Reconnect the USB, then choose Find USBs.';return;}
+  if(!result)return;
+  if(!result.ok){$('stem-drive-status').textContent=result.error||'Rekordbox USBs could not be listed. Reconnect the USB, then choose Find USBs.';return false;}
+  stemLibraryStarted=true;
   const select=$('stem-drive'),previous=select.value;select.replaceChildren();
   for(const drive of result.result.drives){const option=node('option',drive.label+' · '+drive.volume);option.value=drive.volume;select.append(option);}
   if([...select.options].some(option=>option.value===previous))select.value=previous;
   if(select.value)await browseStemLibrary(select.value);else{$('stem-drive-status').textContent='No Rekordbox USB found. Connect a USB exported for the XDJ-XZ, then choose Find USBs.';$('stem-space').textContent='';clearStemTracks();stemLibrary=null;updateLibraryPagination();}
+  return true;
+}
+// The first visit to Prepare stems lists USBs. It counts as started only once the listing ran; if another job
+// (such as the startup mod version read) was running, it waits for that job and tries again.
+async function startStemLibrary(){
+  if(stemLibraryStarted||stemLibraryStarting||!invoke)return;
+  stemLibraryStarting=true;let listed;
+  try{listed=await discoverStemDrives();}finally{stemLibraryStarting=false;}
+  if(listed===undefined&&!$('stems').classList.contains('hidden')&&!idleQueue.includes(startStemLibrary))idleQueue.push(startStemLibrary);
 }
 $('stem-drive').onchange=()=>{$('stem-search').value='';browseStemLibrary($('stem-drive').value);};
 $('choose-stem-drive').onclick=async()=>{try{const volume=await invoke('pick_path',{kind:'folder'});if(!volume)return;const select=$('stem-drive');if(![...select.options].some(o=>o.value===volume)){const option=node('option',volume);option.value=volume;select.append(option);}select.value=volume;$('stem-search').value='';await browseStemLibrary(volume);}catch(error){showError(String(error),$('choose-stem-drive'));}};
@@ -783,3 +815,181 @@ $('open-library-repair').onclick=async()=>{
   if(activeJob===null&&!appUpdating&&invoke)await inspectLibrary($('inspect-library'));
 };
 updateRepairControls();
+
+// Mod version. The list, save and import calls return the same inventory. Saving only records the choice on this
+// PC; the next loader built or updated uses it. The backend writes the exact archived build and refuses unknown ones.
+function shortHash(hash){return hash?String(hash).slice(0,12):'unknown';}
+function channelText(channel){return modChannels[channel]||channel||'Unknown channel';}
+function pinText(pinned){return pinned?'kept on the USB':'network updates can change it';}
+// For recorded and written versions: label, pin state when known, short runtime hash.
+function modVersionText(version){return (version.label||version.id)+(typeof version.pinned==='boolean'?', '+pinText(version.pinned):'')+' · runtime '+shortHash(version.runtime_sha256);}
+function modVersionById(id){return modInventory?.versions.find(version=>version.id===id)||null;}
+function savedModVersion(){return modInventory?modVersionById(modInventory.selected.id):null;}
+function savedPinned(){return modInventory?.selected.pinned!==false;}
+function modDraftState(){
+  if(modDraft)return modDraft;
+  const saved=modInventory.selected,fallback=modVersionById(saved.id)?saved.id:modVersionById(modInventory.bundled_id)?modInventory.bundled_id:modInventory.versions[0].id;
+  return {id:fallback,pinned:savedPinned()};
+}
+function modVersionsReady(){return Boolean(modInventory?.versions.length);}
+function modDirty(){if(!modVersionsReady())return false;const draft=modDraftState();return draft.id!==modInventory.selected.id||draft.pinned!==savedPinned();}
+// The only source of mod_version_id for prepare_usb, build_usb and update_usb: the saved choice, never the dropdown.
+function selectedVersionRequest(origin){
+  const saved=savedModVersion();
+  if(!saved){showError('Set and save the mod version at the top of the USB loader page before writing a loader.',origin);return null;}
+  if(modDirty()){showError('You changed the mod version but did not save it. Choose Save choice or Undo change at the top of the USB loader page, then try again.',origin);return null;}
+  return {mod_version_id:saved.id,pin_mod_version:savedPinned()};
+}
+// True while the saved choice on this PC is still exactly the one a request was built from.
+function sameSavedVersion(version){return savedModVersion()?.id===version.mod_version_id&&savedPinned()===version.pin_mod_version&&!modDirty();}
+// Settings compatibility. Older mod versions read fewer settings and refuse a newer settings file. Before every
+// loader write the backend reports whether this USB's settings need converting for the saved version. Compatible
+// settings go straight to the write. A needed conversion is sent as adapt_mod_settings only after the user accepts
+// that exact plan for that USB and version. Resolves to the extra request fields, or null when nothing may be written.
+let modSettingsPrompt=null;
+async function confirmModSettings(volume,version,origin){
+  const result=await run({method:'inspect_mod_settings',volume},'Checking USB settings',origin);
+  if(!result){if(invoke)showError('Another task is still running. Wait for it to finish, then try again. Nothing was written.',origin);return null;}
+  if(!result.ok){showError('The USB settings could not be checked, so nothing was written. '+(result.error||'Reconnect the USB and try again.'),origin);return null;}
+  const data=result.result,change=data?.settings_change;
+  if(data?.format!=='xz-mod-settings/1'||data.mod_version_id!==version.mod_version_id||!sameSavedVersion(version)){showError('The settings check does not match the saved mod version. Nothing was written. Try again.',origin);return null;}
+  if(change===null)return {};
+  if(change?.required!==true){showError('XZ Mods returned a settings check this app cannot read. Nothing was written. Check again, or reinstall the app.',origin);return null;}
+  const saved=savedModVersion(),dialog=$('mod-settings-confirm'),fields=$('mod-settings-fields');
+  $('mod-settings-summary').textContent=change.summary||'The settings on this USB were saved by a newer mod version. '+(saved.label||saved.id)+' cannot read them as they are.';
+  fields.replaceChildren();
+  for(const [heading,keys] of [['Removed, this version does not have them',change.removed_fields],['Reset to this version\'s default',change.reset_fields]]){
+    if(!Array.isArray(keys)||!keys.length)continue;
+    const list=node('ul');for(const key of keys){const item=node('li');item.append(node('code',String(key)));list.append(item);}
+    fields.append(node('h3',heading),list);
+  }
+  $('mod-settings-target').textContent='USB: '+volume+' · mod version '+(saved.label||saved.id);
+  return new Promise(resolve=>{
+    modSettingsPrompt={version,origin,settle(accepted){
+      if(modSettingsPrompt!==this)return;
+      modSettingsPrompt=null;if(dialog.open)dialog.close();
+      if(!accepted)showError('Nothing was written. The USB settings were left as they are.',origin);
+      resolve(accepted?{adapt_mod_settings:true,expected_mod_settings:change.expected}:null);
+    }};
+    dialog.showModal();updateModVersionControls();$('mod-settings-go').focus();
+  });
+}
+$('mod-settings-go').onclick=()=>{
+  const prompt=modSettingsPrompt;if(!prompt||activeJob!==null||appUpdating)return;
+  if(!sameSavedVersion(prompt.version)){prompt.settle(false);showError('The saved mod version changed, so this settings plan no longer applies. Nothing was written. Start the write again.',prompt.origin);return;}
+  prompt.settle(true);
+};
+$('mod-settings-cancel').onclick=()=>modSettingsPrompt?.settle(false);
+// Escape and any other close count as Cancel.
+$('mod-settings-confirm').addEventListener('close',()=>modSettingsPrompt?.settle(false));
+function applyModInventory(data){
+  const valid=data?.format==='xz-mod-versions/1'&&Array.isArray(data.versions)&&data.selected&&typeof data.selected==='object';
+  modInventory=valid?data:null;modLoadError=valid?'':'XZ Mods returned a mod version list this app cannot read. Check again, or reinstall the app.';
+  if(modDraft&&!modVersionById(modDraft.id))modDraft=null;
+  // A changed saved choice voids a settings plan that is waiting for an answer.
+  if(modSettingsPrompt&&!sameSavedVersion(modSettingsPrompt.version)){const origin=modSettingsPrompt.origin;modSettingsPrompt.settle(false);showError('The saved mod version changed, so this settings plan no longer applies. Nothing was written. Start the write again.',origin);}
+  renderModVersions();return valid;
+}
+function updateModVersionControls(locked=false){
+  locked=locked||activeJob!==null||appUpdating||!invoke;
+  document.querySelectorAll('.mod-control').forEach(control=>control.disabled=locked);
+  const ready=Boolean(savedModVersion()),dirty=modDirty();
+  $('save-mod-version').disabled=locked||!dirty;
+  $('revert-mod-version').classList.toggle('hidden',!dirty||!ready);
+  $('mod-wizard-import').disabled=locked||!modImportFolder;
+  $('mod-wizard-done').disabled=locked||!modVersionsReady();
+  // Writes need a saved, available version. A dirty selection is refused with an explanation when clicked.
+  $('prepare-usb').disabled=locked||!ready;$('build').disabled=locked||!ready;
+  $('update-usb').disabled=locked||!ready||!usbInspection?.loader.exists;
+}
+function renderModVersions(){
+  const ready=modVersionsReady(),saved=savedModVersion();
+  $('mod-version-setup').classList.toggle('hidden',ready);$('mod-version-editor').classList.toggle('hidden',!ready);$('mod-version-saved').classList.toggle('hidden',!ready);
+  $('mod-version-badge').classList.toggle('hidden',!saved);
+  if(!ready){
+    $('mod-version-setup-reason').textContent=!invoke?'Mod versions load in the desktop app.':modLoadError||(modInventory?'No mod versions are on this PC. Import a build to continue. USB writes stay off until a version is saved.':'Reading mod versions…');
+  }else{
+    const meta=$('mod-version-meta');meta.replaceChildren();
+    if(saved){
+      $('mod-version-label').textContent=saved.label||saved.id;
+      for(const text of [channelText(saved.channel),savedPinned()?'Kept on the USB':'Network updates allowed',saved.id===modInventory.bundled_id?'Included with this app':'',saved.firmware?'Firmware '+saved.firmware:''])if(text)meta.append(node('li',text));
+      $('mod-version-description').textContent=saved.description||'';
+      const hash=$('mod-version-hash');hash.textContent='Runtime '+shortHash(saved.runtime_sha256)+(saved.source_commit?' · source '+String(saved.source_commit).slice(0,10):'');hash.title=saved.runtime_sha256||'';
+      $('mod-version-badge').textContent=saved.hardware_qualified===true?'Hardware-tested':'Not hardware-verified';
+    }else{
+      $('mod-version-label').textContent=modInventory.selected.id?'Saved version is missing':'No saved choice';
+      $('mod-version-description').textContent=(modInventory.selected.id?'The saved build '+modInventory.selected.id+' is not on this PC. Import it, or choose another version and save. ':'Choose a version below and save it. ')+'USB writes stay off until then.';
+      $('mod-version-hash').textContent='';$('mod-version-hash').title='';
+    }
+    const select=$('mod-version-select'),draft=modDraftState();select.replaceChildren();
+    for(const version of modInventory.versions){const option=node('option',(version.label||version.id)+(version.id===modInventory.bundled_id?' · included with this app':''));option.value=version.id;select.append(option);}
+    select.value=draft.id;$('mod-version-pin').checked=draft.pinned;
+    const choice=modVersionById(draft.id);
+    $('mod-version-draft').textContent=choice&&choice.id!==saved?.id?[channelText(choice.channel),choice.hardware_qualified===true?'':'Not hardware-verified',choice.description,'Runtime '+shortHash(choice.runtime_sha256)].filter(Boolean).join(' · '):'';
+    const dirty=modDirty();$('mod-version-dirty').classList.toggle('hidden',!dirty);
+    $('mod-version-dirty').textContent=dirty?'Not saved. USB writes still use '+(saved?(saved.label||saved.id)+', '+pinText(savedPinned()):'no version')+'. Save choice to use '+(choice?.label||draft.id)+', '+pinText(draft.pinned)+'.':'';
+  }
+  for(const line of document.querySelectorAll('.mod-version-uses')){
+    line.textContent=saved?'Writes mod version '+(saved.label||saved.id)+', '+pinText(savedPinned())+'.'+(modDirty()?' Your unsaved change is not used.':''):'Mod version not set. Set it at the top of the USB loader page before writing a loader.';
+    line.classList.toggle('is-blocked',!saved||modDirty());
+  }
+  $('mod-wizard-list').textContent=!invoke?'Open the desktop app to read mod versions.':ready?plural(modInventory.versions.length,'mod version')+' found on this PC. '+(saved?'Saved choice: '+(saved.label||saved.id)+'.':'No usable saved choice yet.'):modLoadError||(modInventory?'No mod versions found on this PC. Import a build below.':'Reading mod versions…');
+  updateModVersionControls();
+}
+async function loadModVersions(){
+  if(!invoke){renderModVersions();return false;}
+  const result=await run({method:'list_mod_versions'},'Reading mod versions');
+  if(!result){if(!modInventory){modLoadError='Mod versions were not read because another task was running. Check again.';renderModVersions();}return false;}
+  if(!result.ok){modInventory=null;modLoadError='Mod versions could not be read. '+(result.error||'Check again, or import a build.');renderModVersions();return false;}
+  return applyModInventory(result.result);
+}
+function showModVersionEditor(focus){showPage('usb');$('mod-version').scrollIntoView({behavior:'smooth',block:'start'});$(focus).focus({preventScroll:true});}
+function openModWizard(importing){
+  modImportedId=null;$('mod-wizard-title').textContent=importing?'Import a mod build':'Set up mod versions';
+  $('mod-wizard-done').textContent='Choose version';$('mod-wizard-import-result').textContent='';$('mod-wizard-folder').textContent=modImportFolder;
+  renderModVersions();$('mod-version-wizard').showModal();if(importing)$('mod-wizard-choose').focus();
+}
+$('mod-version-select').onchange=()=>{modDraft={id:$('mod-version-select').value,pinned:$('mod-version-pin').checked};renderModVersions();};
+$('mod-version-pin').onchange=$('mod-version-select').onchange;
+$('revert-mod-version').onclick=()=>{modDraft=null;renderModVersions();};
+$('save-mod-version').onclick=async()=>{
+  if(!modDirty())return;
+  const draft=modDraftState(),origin=$('save-mod-version');
+  const result=await run({method:'select_mod_version',mod_version_id:draft.id,pinned:draft.pinned,expected_revision:modInventory.selected.revision},'Saving the mod version choice',origin);
+  // A refused save (for example, the choice changed in another window) keeps the draft and refreshes the revision.
+  if(!result?.ok){if(result&&!result.cancelled)await loadModVersions();return;}
+  modDraft=null;
+  if(!applyModInventory(result.result)){showError('The save returned a result this app cannot read. Check the mod version before you write a USB.',origin);return;}
+  const saved=savedModVersion();
+  $('job-summary').textContent=saved?'Saved on this PC: '+(saved.label||saved.id)+', '+pinText(savedPinned())+'. The next loader you build or update uses it. No USB was changed.':'';
+};
+$('import-mod-version').onclick=()=>openModWizard(true);
+$('open-mod-version-setup').onclick=()=>openModWizard(false);
+$('ota-mod-version').onclick=()=>{if(modVersionsReady())showModVersionEditor('mod-version-pin');else openModWizard(false);};
+$('mod-wizard-retry').onclick=()=>{modLoadError='';if(!modInventory)$('mod-wizard-list').textContent='Reading mod versions…';loadModVersions();};
+$('mod-wizard-choose').onclick=async()=>{
+  try{const folder=await invoke('pick_path',{kind:'folder'});if(!folder)return;modImportFolder=folder;modImportedId=null;$('mod-wizard-folder').textContent=folder;$('mod-wizard-import-result').textContent='';$('mod-wizard-done').textContent='Choose version';updateModVersionControls();}
+  catch(error){showError(String(error),$('mod-wizard-choose'));}
+};
+$('mod-wizard-import').onclick=async()=>{
+  if(!modImportFolder)return;const origin=$('mod-wizard-import');
+  const result=await run({method:'import_mod_version',folder:modImportFolder},'Importing and verifying a mod build',origin);
+  if(!result?.ok)return;
+  if(!applyModInventory(result.result)){showError('The import returned a result this app cannot read. Check again before you choose a version.',origin);return;}
+  const imported=modVersionById(result.result.imported_id);modImportedId=imported?.id||null;
+  $('mod-wizard-import-result').textContent=imported?'Added to the list: '+(imported.label||imported.id)+'. Its files passed the hash check. Runtime '+shortHash(imported.runtime_sha256)+'. Not hardware-verified.':'Import finished. The version list was refreshed.';
+  $('job-summary').textContent='';
+  if(imported)$('mod-wizard-done').textContent='Choose this version';
+};
+// Choosing an imported build only fills the dropdown. It is used after Save choice.
+$('mod-wizard-done').onclick=()=>{
+  if(!modVersionsReady())return;
+  if(modImportedId&&modVersionById(modImportedId))modDraft={id:modImportedId,pinned:modDraftState().pinned};
+  $('mod-version-wizard').close();renderModVersions();showModVersionEditor('mod-version-select');
+};
+$('mod-wizard-close').onclick=()=>$('mod-version-wizard').close();
+$('mod-version-wizard').addEventListener('close',()=>{
+  if(!$('mod-version-wizard').contains(jobPanel))return;
+  feedbackHome=modVersionsReady()?$('save-mod-version'):$('mod-version-setup-reason');positionFeedback();if(feedbackLive)revealFeedback();
+});
+loadModVersions();

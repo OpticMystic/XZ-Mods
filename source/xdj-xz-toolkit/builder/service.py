@@ -139,6 +139,30 @@ def three_band_waveforms(request,job,restore):
         **report,'failed':failed[:50],'failed_count':len(failed)}
 
 def dispatch(request,job):
+    from . import mod_versions
+    method=request.get('method')
+    if method=='list_mod_versions':return mod_versions.inventory(resources())
+    if method=='select_mod_version':return mod_versions.choose(resources(),request)
+    if method=='import_mod_version':return mod_versions.import_version(resources(),request['folder'])
+    if method=='inspect_mod_settings':return mod_versions.inspect_settings(resources(),request['volume'])
+    if method in ('prepare_usb','build_usb','update_usb'):
+        with mod_versions.selected_resources(resources(),request,job) as (selected,version):
+            change=mod_versions.settings_change(request['volume'],selected,resources())
+            if change and request.get('adapt_mod_settings') is not True:
+                raise ValueError('This version needs compatible USB settings. Review the settings adjustment before switching versions.')
+            if change and request.get('expected_mod_settings')!=change['expected']:
+                raise ValueError('USB settings changed since the adjustment was reviewed. Inspect them again.')
+            result=_dispatch(request,job,selected,change)
+            result['mod_version']=version
+            try:
+                mod_versions.record_loader(result,version)
+                if 'inspection' in result:result['inspection']['recorded_mod_version']=version
+            except (OSError,ValueError) as exc:
+                result['version_record_warning']='Loader verified, but its local version record could not be saved: '+str(exc)
+            return result
+    return _dispatch(request,job)
+
+def _dispatch(request,job,loader_resources=None,settings_change=None):
     method=request.get('method')
     if method in ('inspect_device_library','repair_device_library','restore_device_library','save_device_library_report'):
         from . import library_repair
@@ -170,17 +194,21 @@ def dispatch(request,job):
         from . import managed_usb
         volume=request['volume']
         if method=='inspect_usb':return managed_usb.inspect(volume,resources())
-        if method=='read_usb_settings':return {'identity':managed_usb.identity(volume),'settings':managed_usb.read_settings(volume,resources())}
+        if method=='read_usb_settings':
+            from . import mod_versions
+            return {'identity':managed_usb.identity(volume),'settings':managed_usb.read_settings(volume,mod_versions.settings_resources(volume,resources()))}
         observed=request['expected_identity']
         managed_usb.check_target(volume,observed)
-        if method=='save_usb_settings':return managed_usb.save_settings(volume,observed,request['expected_revision'],request['values'],resources(),job)
+        if method=='save_usb_settings':
+            from . import mod_versions
+            return managed_usb.save_settings(volume,observed,request['expected_revision'],request['values'],mod_versions.settings_resources(volume,resources()),job)
         if method=='restore_usb_loader':return managed_usb.restore_loader(volume,observed,request['expected_loader'],request['transaction_id'],resources(),job)
         if request.get('experimental') is not True:raise ValueError('Review the loader update details before updating')
         managed_usb._check_revision(Path(volume)/'autoexec.bin',request['expected_loader'])
         from .boot_support import ensure_boot_key
         firmware=request.get('firmware') or official_firmware(job)
         key=request.get('key') or ensure_boot_key(job)
-        result=managed_usb.update_loader(volume,observed,request['expected_loader'],firmware,key,resources(),job)
+        result=managed_usb.update_loader(volume,observed,request['expected_loader'],firmware,key,loader_resources or resources(),job,settings_change=settings_change)
         if usb.target_info(volume,boot_loader=False)['direct_usb_root']:result['game_setup']=games.prepare_usb(volume,job)
         return result
     if method=='import_grouped_stems':
@@ -209,7 +237,10 @@ def dispatch(request,job):
         from .boot_support import ensure_boot_key
         if request.get('experimental') is not True:raise ValueError('Review the experimental build notice before preparing a USB')
         key=request.get('key') or ensure_boot_key(job)
-        result=usb.build_usb(request['volume'],request['firmware'],key,resources(),job,True)
+        if settings_change:
+            from . import managed_usb
+            result=managed_usb.build_with_settings(request['volume'],request['firmware'],key,loader_resources or resources(),job,settings_change)
+        else:result=usb.build_usb(request['volume'],request['firmware'],key,loader_resources or resources(),job,True)
         if result.get('direct_usb_root'):result['game_setup']=games.prepare_usb(request['volume'],job)
         return result
     if method=='prepare_usb':
@@ -218,7 +249,10 @@ def dispatch(request,job):
         volume=usb.require_usb_root(request['volume'])
         firmware=official_firmware(job)
         key=ensure_boot_key(job)
-        result=usb.build_usb(volume,firmware,key,resources(),job,True)
+        if settings_change:
+            from . import managed_usb
+            result=managed_usb.build_with_settings(volume,firmware,key,loader_resources or resources(),job,settings_change)
+        else:result=usb.build_usb(volume,firmware,key,loader_resources or resources(),job,True)
         return {**result,'firmware_source':'AlphaTheta','one_step':True,'game_setup':games.prepare_usb(volume,job)}
     if method in ('apply_three_band','restore_rgb_waveforms'):return three_band_waveforms(request,job,method=='restore_rgb_waveforms')
     if method in ('setup_engine','separate'):
