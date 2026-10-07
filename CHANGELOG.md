@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased local changes
+
+- Adds a Repair library utility for Device Libraries with blank pages interrupting playback-history chains. It preserves track IDs, playlists and prepared stems, backs up catalogs on the computer, and supports exact undo while the catalog is unchanged.
+- Rejects unsupported damage, stale inspections, changed USB identities and repairs while Rekordbox is open. Structural checks do not replace testing in Rekordbox and on the player.
+
 ## 0.2.1 - 2026-10-02
 
 Hotfix for 0.2.0.

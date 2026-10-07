@@ -140,6 +140,11 @@ def three_band_waveforms(request,job,restore):
 
 def dispatch(request,job):
     method=request.get('method')
+    if method in ('inspect_device_library','repair_device_library','restore_device_library','save_device_library_report'):
+        from . import library_repair
+        if method=='inspect_device_library':return library_repair.inspect(request['volume'])
+        if method=='save_device_library_report':return library_repair.save_report(request['volume'])
+        return library_repair.mutate(request,job,restore=method=='restore_device_library')
     if method=='games_status':return games.status()
     if method=='download_game':return games.obtain(request['game'],job)
     if method=='install_game_usb':return games.install(request['game'],request['volume'],job)
