@@ -7,7 +7,9 @@ const batchLimit=100,batchFormat='xz-stem-batch/1';
 const batchStates={queued:'Queued',running:'Working',prepared:'Prepared',reused:'Already prepared',failed:'Failed',cancelled:'Cancelled'};
 let stemSelection=new Map(),stemSelectionKey=null,stemBatch=null;
 let usbInspection=null,settingsVolume=null,settingsIdentity=null,settingsData=null,settingsValues=null;
-const titles={usb:'USB loader','usb-settings':'USB settings',stems:'Prepare your stems',games:'Games','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
+// Library repair: the inspection is the only basis for a repair or undo, and it is dropped whenever the chosen USB changes.
+let repairInspection=null,repairDiscovery=null;
+const titles={usb:'USB loader','usb-settings':'USB settings',stems:'Prepare your stems','library-repair':'Repair library',games:'Games','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
 const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library'];
@@ -19,6 +21,7 @@ for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{
   $('page-title').textContent=titles[button.dataset.page];
   if(!feedbackLive)jobPanel.classList.add('hidden');else{positionFeedback();revealFeedback();}
   if(button.dataset.page==='stems'&&!stemLibraryStarted){stemLibraryStarted=true;discoverStemDrives();}
+  if(button.dataset.page==='library-repair'&&!repairDiscovery)repairDiscovery=discoverRepairDrives();
 };
 const preset=()=>document.querySelector('[name=engine]:checked').value;
 function required(ids,origin){for(const id of ids)if(!$(id).value.trim()){showError('Enter or choose the required '+({'volume':'USB folder',source:'track from your USB Contents folder',firmware:'firmware input',key:'boot key',harmonics:'harmonics file',vocals:'vocals file'}[id]||id)+' first.',origin);return false;}return true;}
@@ -53,7 +56,7 @@ function positionFeedback(){
 function revealFeedback(){if(!jobPanel.classList.contains('hidden')&&jobPanel.isConnected)jobPanel.scrollIntoView({block:'nearest'});}
 function showFeedback(origin){feedbackHome=origin||null;jobPanel.classList.remove('hidden');positionFeedback();}
 function showError(message,origin){jobPanel.classList.remove('is-cancelled');jobPanel.classList.add('is-error');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');showFeedback(origin);revealFeedback();}
-function busy(value){value=value||appUpdating;value=value||appUpdating;value=value||appUpdating;document.querySelectorAll(".library-action,.stem-import-control,#add-stem-files,#import-stem-groups,#stem-drive,#choose-stem-drive,#refresh-stem-drives,#search-stem-library,#library-engine").forEach(el=>el.disabled=value||!invoke);if(stemLibrary)updateLibraryPagination(value);document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,#choose-settings-usb,#save-usb-settings,#reload-usb-settings,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);$('import-stem-groups').disabled=value||!invoke||!importTarget||!importFiles.length||importFiles.some(item=>!item.group);$('install-app-update').disabled=value||activeJob!==null;updateStemBatchControls(value);}
+function busy(value){value=value||appUpdating;value=value||appUpdating;value=value||appUpdating;document.querySelectorAll(".library-action,.stem-import-control,#add-stem-files,#import-stem-groups,#stem-drive,#choose-stem-drive,#refresh-stem-drives,#search-stem-library,#library-engine").forEach(el=>el.disabled=value||!invoke);if(stemLibrary)updateLibraryPagination(value);document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#setup-engine,#separate,#import-stems,#check-overcue,#choose-cache,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,#choose-settings-usb,#save-usb-settings,#reload-usb-settings,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,[name=engine],#harmonics-gain,#vocals-gain,#separation-id,#experimental').forEach(input=>input.disabled=value);$('import-stem-groups').disabled=value||!invoke||!importTarget||!importFiles.length||importFiles.some(item=>!item.group);$('install-app-update').disabled=value||activeJob!==null;updateStemBatchControls(value);updateRepairControls(value);}
 function stemSummary(result){
   return (result.reused?'Matching stems for '+result.file_path+' were already on the USB. XZ Mods reused them.':'XZ Mods wrote beta stems for '+result.file_path+'.')+
     (result.replaced_previous?' It replaced the stems XZ Mods made earlier for this track.':'')+
@@ -89,6 +92,10 @@ async function run(request,title,origin){
             $('job-summary').textContent=(state.result.image?'Loader ready. ':'')+(names?'Game files on USB: '+names+'. ':'')+(setup.failed_count?setup.failed_count+' download(s) failed. Open Games and choose Set up games to retry. ':'')+'My House still needs the native GZDoom port.';
           }else if(state.result.format==='xz-game-installed/1')$('job-summary').textContent=state.result.name+' copied to USB and verified.'+(state.result.requires_gzdoom?' My House still needs the native GZDoom port.':'');
           else if(state.result.format==='xz-game-downloaded/1')$('job-summary').textContent=state.result.name+' downloaded and verified.';
+          else if(state.result.format==='xz-library-inspected/1')$('job-summary').textContent='Check finished. The results are below.';
+          else if(state.result.format==='xz-library-repaired/1'){$('job-title').textContent='Repair written · not yet tested in Rekordbox';$('job-summary').textContent=state.result.summary||'';}
+          else if(state.result.format==='xz-library-restored/1'){$('job-title').textContent='Repair undone';$('job-summary').textContent=state.result.summary||'';}
+          else if(state.result.format==='xz-library-report/1')$('job-summary').textContent='Report saved: '+state.result.report_path;
           if(state.result.format===batchFormat&&stemBatch)$('job-title').textContent=stemBatchHeading(stemBatch.status,stemBatchCounts());
         }
         return state;
@@ -574,3 +581,205 @@ if(invoke)window.__TAURI__.webviewWindow.getCurrentWebviewWindow().onDragDropEve
   if(payload.type==='drop'&&!$('stems').classList.contains('hidden')&&activeJob===null&&!appUpdating){addStemFiles(payload.paths);$('grouped-import').scrollIntoView({behavior:'smooth',block:'start'});}
 }).catch(error=>{$('stem-import-message').textContent='Drag and drop is unavailable. Use Choose stem files.';});
 
+// Library repair. Checking only reads. Repair and undo send back the identity and file hashes from the check
+// they were planned on, so the backend refuses if the library changed in between.
+const repairVerdicts={
+  healthy:{badge:'No damage found',text:'No structural damage found in the checked tables. Rekordbox and player acceptance still need testing.'},
+  repairable:{badge:'Repair available',text:'Some playback history pages are cut off by blank pages. XZ Mods can reconnect the intact pages. History entries that are already missing cannot be recovered.'},
+  not_repairable:{badge:'Cannot repair here',text:'This library has damage XZ Mods cannot repair. This app only reconnects intact playback history pages. Save a report to keep the details.'},
+  no_library:{badge:'No library',text:'No Rekordbox library was found here. Choose the USB root or a folder that contains PIONEER.'}
+};
+const repairCountLabels=[['tracks','Tracks'],['playlists','Playlists'],['stem_sets','Stem sets']];
+function repairVerdictText(data){return repairVerdicts[data?.verdict]?.text||'XZ Mods could not classify this library. Save a report to keep the details.';}
+function repairWritable(){return Boolean(repairInspection)&&!repairInspection.rekordbox_running;}
+function restorableBackups(data){return (data?.backups||[]).filter(backup=>backup&&backup.restorable===true);}
+function selectedRepairBackup(){return restorableBackups(repairInspection).find(item=>item.id===$('repair-backups').value);}
+function formatBytes(bytes){return bytes>=1048576?(bytes/1048576).toFixed(1)+' MB':bytes>=1024?(bytes/1024).toFixed(1)+' KB':bytes+' bytes';}
+function formatCreated(value){const date=new Date(value);return isNaN(date)?String(value):date.toLocaleString();}
+function updateRepairControls(locked=false){
+  locked=locked||activeJob!==null||appUpdating||!invoke;
+  document.querySelectorAll('.repair-control').forEach(control=>control.disabled=locked);
+  const volume=$('repair-drive').value,data=repairInspection,none=!$('repair-drive').options.length;
+  $('inspect-library').classList.toggle('hidden',none);$('repair-connect-open').classList.toggle('hidden',!none);
+  $('inspect-library').disabled=locked||!volume;$('repair-connect-check').disabled=locked||!volume;
+  $('recheck-library').disabled=locked||!data;$('save-library-report').disabled=locked||!data;
+  $('repair-library').classList.toggle('hidden',Boolean(data?.rekordbox_running));
+  $('repair-library').disabled=locked||!repairWritable()||data.verdict!=='repairable'||!data.repair;
+  $('restore-library-backup').disabled=locked||!repairWritable()||!selectedRepairBackup();
+  $('repair-undo-go').disabled=locked||!repairWritable()||!selectedRepairBackup();
+}
+function clearRepair(){
+  repairInspection=null;
+  for(const id of ['repair-inspection','repair-plan','repair-outcome','repair-undo'])$(id).classList.add('hidden');
+  $('repair-report-path').textContent='';$('repair-backups').replaceChildren();
+  updateRepairControls();
+}
+function renderRepairInspection(data){
+  if(data?.format!=='xz-library-inspected/1'){clearRepair();showError('The library check returned a result this app cannot read. Check again before changing this USB.',$('repair-drive-status'));return false;}
+  repairInspection=data;$('repair-inspection').classList.remove('hidden');
+  $('repair-volume').textContent=data.volume;
+  const verdict=repairVerdicts[data.verdict],badge=$('repair-verdict-badge');
+  badge.textContent=verdict?.badge||'Unknown';badge.dataset.verdict=verdict?data.verdict:'unknown';
+  $('repair-verdict').textContent=repairVerdictText(data);
+  const counts=$('repair-counts');counts.replaceChildren();
+  if(data.counts&&data.verdict!=='no_library')for(const [key,label] of repairCountLabels)if(Number.isFinite(data.counts[key])){const chip=node('li');chip.append(node('strong',String(data.counts[key])),document.createTextNode(label));counts.append(chip);}
+  counts.classList.toggle('hidden',!counts.children.length);
+  const findings=$('repair-findings');findings.replaceChildren();
+  for(const finding of data.findings||[]){const item=node('li',finding.summary||finding.code);if(finding.code)item.append(node('small',finding.code));findings.append(item);}
+  findings.classList.toggle('hidden',!findings.children.length);
+  const files=$('repair-files');files.replaceChildren();
+  for(const [path,info] of Object.entries(data.expected_files||{})){
+    const item=node('li');item.append(node('strong',path),node('span',info?.exists?formatBytes(info.bytes):'Not found'));
+    if(info?.sha256)item.append(node('small','SHA-256 '+info.sha256));files.append(item);
+  }
+  const plan=data.verdict==='repairable'&&data.repair,restorable=restorableBackups(data);
+  $('repair-rekordbox-block').classList.toggle('hidden',!data.rekordbox_running||!(plan||restorable.length));
+  $('repair-no-library').classList.toggle('hidden',data.verdict!=='no_library');
+  $('repair-plan').classList.toggle('hidden',!plan);
+  if(plan){
+    $('repair-plan-title').textContent=data.repair.title||'Reconnect playback history pages';
+    for(const [id,list] of [['repair-changes',data.repair.changes],['repair-keeps',data.repair.keeps]]){const holder=$(id);holder.replaceChildren();for(const text of list||[])holder.append(node('li',text));}
+    $('repair-history-warning').textContent=data.repair.history_warning||'History entries that are already missing cannot be recovered.';
+    $('repair-backup-root').textContent=data.backup_root?'The current library files are backed up to '+data.backup_root+' before anything is written.':'';
+  }
+  const select=$('repair-backups'),previous=select.value;select.replaceChildren();
+  for(const backup of restorable){const option=node('option','Repair on '+formatCreated(backup.created));option.value=backup.id;select.append(option);}
+  if(restorable.some(backup=>backup.id===previous))select.value=previous;
+  $('repair-undo').classList.toggle('hidden',!restorable.length);
+  const others=(data.backups||[]).length-restorable.length;
+  $('repair-backup-other').textContent=others?plural(others,'other backup')+' cannot be undone from here. '+(others===1?'It is':'They are')+' kept'+(data.backup_root?' in '+data.backup_root:'')+'.':'';
+  $('repair-backup-folder').textContent=selectedRepairBackup()?.folder||'';
+  updateRepairControls();return true;
+}
+function renderRepairOutcome(kind,result){
+  const panel=$('repair-outcome');panel.classList.remove('hidden');
+  $('repair-outcome-title').textContent=kind==='repair'?'Repair written':'Repair undone';
+  $('repair-outcome-summary').textContent=result.summary||'';
+  $('repair-outcome-backup').textContent=result.backup?.folder?(kind==='repair'?'Backup of the library before this repair: ':'Backup of the library replaced during undo: ')+result.backup.folder:'';
+  const rows=$('repair-compare');rows.replaceChildren();const changed=[],warnings=[];
+  if(kind==='repair'&&result.before&&result.after)for(const [key,label] of repairCountLabels){
+    const before=result.before[key],after=result.after[key];if(before===undefined&&after===undefined)continue;
+    const row=node('tr');row.append(node('td',label),node('td',String(before??'—')),node('td',String(after??'—')));
+    if(before!==after){row.classList.add('changed');changed.push(label+' '+(before??'—')+' → '+(after??'—'));}rows.append(row);
+  }
+  panel.querySelector('.repair-compare-wrap').classList.toggle('hidden',!rows.children.length);
+  if(kind==='repair'){
+    if(!rows.children.length)warnings.push('The repair did not report library counts, so they could not be compared.');
+    if(changed.length)warnings.push('Library counts changed: '+changed.join(', ')+'. This repair should not change them. Undo this repair and save a report.');
+    if(result.inspection?.verdict!=='healthy')warnings.push('The check after the repair reports: '+repairVerdictText(result.inspection));
+  }
+  $('repair-outcome-warning').textContent=warnings.join(' ');$('repair-outcome-warning').classList.toggle('hidden',!warnings.length);
+  $('repair-outcome-note').textContent=kind==='restore'?'The library is back to how it was before that repair, including the history damage.':result.rekordbox_verified===true?'':'Rekordbox has not checked this repair. Open the USB in Rekordbox and load tracks on the XZ before you use it in a set.';
+  // The control that started the work may now be hidden, so the feedback joins the outcome.
+  feedbackHome=$('repair-outcome-summary');positionFeedback();panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function addRepairFolderOption(volume){const option=node('option',volume);option.value=volume;option.dataset.chosen='1';$('repair-drive').append(option);}
+function selectRepairVolume(volume){
+  const select=$('repair-drive');
+  if(![...select.options].some(option=>option.value===volume))addRepairFolderOption(volume);
+  select.value=volume;if(repairInspection?.volume!==volume)clearRepair();
+  $('repair-drive-status').textContent='Ready to check '+volume+'.';updateRepairControls();
+}
+async function discoverRepairDrives(){
+  if(!invoke){updateRepairControls();return;}
+  const result=await run({method:'discover_stem_usbs'},'Finding Rekordbox USBs');
+  if(!result){repairDiscovery=null;return;}
+  if(!result.ok){$('repair-drive-status').textContent=result.error||'Rekordbox USBs could not be listed. Reconnect the USB, then choose Find USBs.';updateRepairControls();return;}
+  const select=$('repair-drive'),previous=select.value,chosen=[...select.options].filter(option=>option.dataset.chosen).map(option=>option.value);
+  select.replaceChildren();
+  for(const drive of result.result.drives){const option=node('option',drive.label+' · '+drive.volume);option.value=drive.volume;select.append(option);}
+  for(const volume of chosen)if(![...select.options].some(option=>option.value===volume))addRepairFolderOption(volume);
+  if([...select.options].some(option=>option.value===previous))select.value=previous;
+  if(select.value!==repairInspection?.volume)clearRepair();
+  const count=result.result.drives.length;
+  $('repair-drive-status').textContent=count?plural(count,'Rekordbox USB')+' found. Choose one, then check its library.':select.options.length?'No Rekordbox USB found. You can check the chosen folder.':'No Rekordbox USB found. Connect the USB, then find it again.';
+  updateRepairControls();return count;
+}
+async function pickRepairFolder(origin){
+  try{const volume=await invoke('pick_path',{kind:'folder'});if(volume){selectRepairVolume(volume);return volume;}}
+  catch(error){showError(String(error),origin);}
+  return null;
+}
+async function inspectLibrary(origin){
+  const volume=$('repair-drive').value;if(!volume){openRepairConnect();return null;}
+  const result=await run({method:'inspect_device_library',volume},'Checking the Rekordbox library',origin);
+  // A result for a USB that is no longer selected is stale.
+  if(!result?.ok||$('repair-drive').value!==volume)return null;
+  return renderRepairInspection(result.result)?result.result:null;
+}
+$('repair-drive').onchange=()=>selectRepairVolume($('repair-drive').value);
+$('choose-repair-drive').onclick=()=>pickRepairFolder($('choose-repair-drive'));
+$('find-repair-drives').onclick=()=>{repairDiscovery=discoverRepairDrives();};
+$('inspect-library').onclick=()=>inspectLibrary($('inspect-library'));
+$('recheck-library').onclick=()=>inspectLibrary($('recheck-library'));
+$('repair-backups').onchange=()=>{$('repair-backup-folder').textContent=selectedRepairBackup()?.folder||'';updateRepairControls();};
+$('save-library-report').onclick=async()=>{
+  const data=repairInspection;if(!data)return;
+  const result=await run({method:'save_device_library_report',volume:data.volume},'Saving a library report',$('save-library-report'));
+  if(result?.ok&&result.result?.report_path&&repairInspection===data)$('repair-report-path').textContent='Report saved to '+result.result.report_path;
+};
+$('repair-library').onclick=async()=>{
+  const data=repairInspection;if(!data||data.verdict!=='repairable'||!data.repair||data.rekordbox_running)return;
+  const origin=$('repair-library');
+  const result=await run({method:'repair_device_library',volume:data.volume,expected_identity:data.identity,expected_files:data.expected_files,repair_id:data.repair.id},'Backing up and repairing the library',origin);
+  if(!result?.ok)return;
+  if(result.result?.format!=='xz-library-repaired/1'){showError('The repair returned a result this app cannot read. Check the library again before you use this USB.',origin);return;}
+  renderRepairInspection(result.result.inspection);renderRepairOutcome('repair',result.result);
+};
+$('restore-library-backup').onclick=()=>{
+  const backup=selectedRepairBackup();if(!backup||!repairWritable())return;
+  $('repair-undo-text').textContent='This puts back the library files saved before the repair on '+formatCreated(backup.created)+'.';
+  $('repair-undo-confirm').showModal();updateRepairControls();
+};
+$('repair-undo-cancel').onclick=()=>$('repair-undo-confirm').close();
+$('repair-undo-go').onclick=async()=>{
+  const data=repairInspection,backup=selectedRepairBackup();$('repair-undo-confirm').close();
+  if(!backup||!repairWritable())return;
+  const origin=$('restore-library-backup');
+  const result=await run({method:'restore_device_library',volume:data.volume,expected_identity:data.identity,expected_files:data.expected_files,backup_id:backup.id},'Undoing the repair',origin);
+  if(!result?.ok)return;
+  if(result.result?.format!=='xz-library-restored/1'){showError('The undo returned a result this app cannot read. Check the library again before you use this USB.',origin);return;}
+  renderRepairInspection(result.result.inspection);renderRepairOutcome('restore',result.result);
+};
+// Setup wizard for the no-USB and no-library states: connect, choose, check.
+function openRepairConnect(){
+  const volume=$('repair-drive').value;
+  $('repair-connect-found').textContent=volume?'Selected: '+volume:'Nothing selected yet.';
+  $('repair-connect-result').textContent='';$('repair-connect').showModal();updateRepairControls();
+}
+$('repair-connect-open').onclick=openRepairConnect;
+$('repair-choose-other').onclick=openRepairConnect;
+$('repair-connect-find').onclick=async()=>{
+  repairDiscovery=discoverRepairDrives();const count=await repairDiscovery;if(count===undefined)return;
+  const volume=$('repair-drive').value;
+  $('repair-connect-found').textContent=count?plural(count,'Rekordbox USB')+' found. Selected: '+volume:'No Rekordbox USB found yet. Check that it is plugged in and shows in File Explorer, then find it again, or choose a folder.'+(volume?' Selected: '+volume:'');
+};
+$('repair-connect-choose').onclick=async()=>{const volume=await pickRepairFolder($('repair-connect-choose'));if(volume)$('repair-connect-found').textContent='Selected: '+volume;};
+$('repair-connect-check').onclick=async()=>{
+  const data=await inspectLibrary($('repair-connect-check'));if(!data)return;
+  if(data.verdict==='no_library'){$('repair-connect-result').textContent=repairVerdicts.no_library.text;return;}
+  $('repair-connect').close();$('repair-inspection').scrollIntoView({behavior:'smooth',block:'nearest'});
+};
+$('repair-connect-close').onclick=()=>$('repair-connect').close();
+// Rekordbox blocks writes: close it, then check again.
+$('repair-prepare-open').onclick=()=>{$('repair-prepare-result').textContent='';$('repair-prepare').showModal();updateRepairControls();};
+$('repair-prepare-recheck').onclick=async()=>{
+  const data=await inspectLibrary($('repair-prepare-recheck'));if(!data)return;
+  if(data.rekordbox_running){$('repair-prepare-result').textContent='Rekordbox is still open. Quit it, wait a few seconds, then check again.';return;}
+  $('repair-prepare').close();
+  const next=data.verdict==='repairable'&&data.repair?$('repair-library'):!$('repair-undo').classList.contains('hidden')?$('restore-library-backup'):null;
+  if(next){next.scrollIntoView({behavior:'smooth',block:'nearest'});next.focus({preventScroll:true});}
+};
+$('repair-prepare-close').onclick=()=>$('repair-prepare').close();
+// Feedback started in a repair dialog moves to the page when the dialog closes.
+for(const dialog of document.querySelectorAll('.repair-dialog'))dialog.addEventListener('close',()=>{
+  if(!dialog.contains(jobPanel))return;
+  feedbackHome=repairInspection?$('repair-verdict'):$('repair-drive-status');positionFeedback();if(feedbackLive)revealFeedback();
+});
+// Always reachable from the stems page, including when the library there cannot be read.
+$('open-library-repair').onclick=async()=>{
+  const volume=$('stem-drive').value;showPage('library-repair');await repairDiscovery;
+  if(!volume)return;selectRepairVolume(volume);
+  if(activeJob===null&&!appUpdating&&invoke)await inspectLibrary($('inspect-library'));
+};
+updateRepairControls();
