@@ -143,11 +143,53 @@ def read_settings(volume,resources):
 def inspect(volume,resources):
     volume=_safe_path(volume);observed=identity(volume)
     manifest=json.loads((Path(resources)/'runtime/manifest.json').read_text())
-    return {'format':'xz-mods-usb/1','volume':str(volume),'identity':observed,'loader':revision(volume/'autoexec.bin'),
-            'installed_version':None,'runtime_sha256':manifest['runtime_sha256'],'settings':read_settings(volume,resources),
+    loader=revision(volume/'autoexec.bin')
+    from . import mod_versions
+    try:recorded=mod_versions.lookup_loader(loader)
+    except (OSError,ValueError):recorded=None
+    return {'format':'xz-mods-usb/1','volume':str(volume),'identity':observed,'loader':loader,'recorded_mod_version':recorded,
+            'installed_version':recorded.get('label') if recorded else None,'runtime_sha256':manifest['runtime_sha256'],'settings':read_settings(volume,mod_versions.settings_resources(volume,resources)),
             'backups':recoveries(volume),**usb.target_info(volume)}
 
-def update_loader(volume,expected_identity,expected_loader,rbp,key,resources,job):
+def _commit_loader(volume,observed,expected_loader,candidate,job,settings_change=None):
+    changed=None
+    if settings_change:
+        _check_revision(volume/SETTINGS,settings_change['expected'])
+        compatible=candidate.parent/'compatible-settings.cfg'
+        _write(compatible,settings_change['data'])
+        changed=_commit(volume,observed,SETTINGS,settings_change['expected'],compatible,job)
+    try:
+        result=_commit(volume,observed,'autoexec.bin',expected_loader,candidate,job)
+    except BaseException as error:
+        if changed:
+            # Restore the profile only while the old loader and our exact adjusted
+            # profile remain in place. Never overwrite an intervening user edit.
+            try:
+                check_target(volume,observed)
+                if revision(volume/'autoexec.bin')==expected_loader and revision(volume/SETTINGS)==changed['revision']:
+                    from .jobs import Job
+                    rollback=candidate.parent/'rollback-settings.cfg'
+                    _write(rollback,_regular(changed['backup']).read_bytes())
+                    _commit(volume,observed,SETTINGS,changed['revision'],rollback,Job())
+                else:
+                    raise RuntimeError('Loader or settings changed during the failed switch')
+            except (OSError,ValueError,RuntimeError) as recovery_error:
+                raise RuntimeError(f'{error}. Settings recovery needs inspection: {recovery_error}. Original settings backup: {changed["backup"]}') from error
+        raise
+    if changed:result['settings_adjustment']={'backup':changed['backup'],'transaction_id':changed['transaction_id'],
+        'removed_fields':settings_change['removed_fields'],'reset_fields':settings_change['reset_fields']}
+    return result
+
+def build_with_settings(volume,rbp,key,resources,job,settings_change):
+    volume=_safe_path(volume);observed=identity(volume);expected={'exists':False}
+    with _lease(volume,observed):
+        _check_revision(volume/'autoexec.bin',expected)
+        with tempfile.TemporaryDirectory(prefix='.xzmods-version-',dir=volume) as temp:
+            built=usb.build_usb(temp,rbp,key,resources,job,True)
+            result=_commit_loader(volume,observed,expected,Path(built['image']),job,settings_change)
+        return {**built,**result,**usb.target_info(volume),'image':str(volume/'autoexec.bin')}
+
+def update_loader(volume,expected_identity,expected_loader,rbp,key,resources,job,settings_change=None):
     volume=_safe_path(volume)
     if not isinstance(expected_loader,dict) or expected_loader.get('exists') is not True:raise ValueError('Inspect an existing loader first')
     with _lease(volume,expected_identity):
@@ -156,7 +198,7 @@ def update_loader(volume,expected_identity,expected_loader,rbp,key,resources,job
         with tempfile.TemporaryDirectory(prefix='.xzmods-update-',dir=volume) as temp:
             candidate=usb.build_usb(temp,rbp,key,resources,job,True)
             job.progress('backup','Backing up the existing loader before replacement')
-            result=_commit(volume,expected_identity,'autoexec.bin',expected_loader,Path(candidate['image']),job)
+            result=_commit_loader(volume,expected_identity,expected_loader,Path(candidate['image']),job,settings_change)
         return {'format':'xz-mods-loader-updated/1',**result,'image':str(volume/'autoexec.bin'),'inspection':inspect(volume,resources)}
 
 def save_settings(volume,expected_identity,expected_revision,values,resources,job):

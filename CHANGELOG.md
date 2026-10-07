@@ -2,6 +2,9 @@
 
 ## Unreleased local changes
 
+- Adds persistent mod-version selection with immutable local archives, matched runtime and receiver files, and an option to keep a USB loader pinned across network updates.
+- Offers backed-up settings adaptation when an older mod cannot read newer preferences. Retains the existing loader-restore path and uses the recorded mod's schema when editing its settings.
+
 - Adds a Repair library utility for Device Libraries with blank pages interrupting playback-history chains. It preserves track IDs, playlists and prepared stems, backs up catalogs on the computer, and supports exact undo while the catalog is unchanged.
 - Rejects unsupported damage, stale inspections, changed USB identities and repairs while Rekordbox is open. Structural checks do not replace testing in Rekordbox and on the player.
 

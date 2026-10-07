@@ -83,6 +83,16 @@ def build_usb(volume,rbp,key,resources,job,experimental=False):
         staging=temporary/'payload'
         job.progress('build','Assembling the standalone mod and VJ.Tools connection')
         expected=firmware.stage_payload(staging,patched,runtime,receiver,resources/'bootstrap.sh')
+        version_path=resources/'mod-version.json'
+        if version_path.is_file():
+            version_data=version_path.read_bytes()
+            version=json.loads(version_data)
+            if version.get('runtime_sha256')!=manifest['runtime_sha256'] or version.get('receiver_sha256')!=manifest['receiver_sha256']:
+                raise ValueError('Selected mod version does not match the payload libraries')
+            if version.get('bootstrap_sha256')!=sha(resources/'bootstrap.sh'):
+                raise ValueError('Selected mod startup policy changed before building')
+            (staging/'xz-mod-version.json').write_bytes(version_data)
+            expected['xz-mod-version.json']=version_data
         branding=resources/'branding'
         if branding.is_dir():
             (staging/'branding').mkdir()
