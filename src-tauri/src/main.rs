@@ -18,7 +18,7 @@ async fn pick_path(app:tauri::AppHandle,kind:String)->Result<Option<String>,Stri
         let dialog=app.dialog().file();
         let selected=match kind.as_str(){
             "folder"=>dialog.blocking_pick_folder(),
-            "audio"=>dialog.add_filter("Compatible audio",&["wav","flac"]).blocking_pick_file(),
+            "audio"=>dialog.add_filter("Compatible audio",&["wav","flac","mp3"]).blocking_pick_file(),
             "file"=>dialog.blocking_pick_file(),
             _=>return Err("Unknown file picker".to_string()),
         };
@@ -28,7 +28,7 @@ async fn pick_path(app:tauri::AppHandle,kind:String)->Result<Option<String>,Stri
 
 #[tauri::command]
 async fn pick_stem_files(app:tauri::AppHandle)->Result<Vec<String>,String>{
-    tauri::async_runtime::spawn_blocking(move||Ok(app.dialog().file().add_filter("Audio stems",&["wav","flac","aif","aiff","ogg","mp3"]).blocking_pick_files().unwrap_or_default().into_iter().map(|p|p.to_string()).collect())).await.map_err(|e|e.to_string())?
+    tauri::async_runtime::spawn_blocking(move||Ok(app.dialog().file().add_filter("Audio stems or a ZIP",&["wav","flac","aif","aiff","ogg","mp3","zip"]).blocking_pick_files().unwrap_or_default().into_iter().map(|p|p.to_string()).collect())).await.map_err(|e|e.to_string())?
 }
 
 fn resource_root(app: &tauri::AppHandle) -> Result<PathBuf,String> {

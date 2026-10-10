@@ -84,7 +84,7 @@ elif (runtime/'doom1.wad').is_file():
     'ota_runtime_smoke_sha256':digest(runtime/'xz-runtime-smoke') if (runtime/'xz-runtime-smoke').is_file() else None,
     'vjtools_connection':True,'vjtools_required':False},indent=2)+'\n')
 copy(a.runtime_bundle/'bootstrap.sh' if a.runtime_bundle else TOOLKIT/'vendor/tools/xz_runtime/orchestrator.sh',resources/'bootstrap.sh')
-for name in ('inference.py','overcue_roles.py','overcue_flac_pack.py','grouped_stems.py','models.json'):copy(TOOLKIT/'builder'/name,resources/'inference'/name)
+for name in ('inference.py','overcue_roles.py','overcue_flac_pack.py','grouped_stems.py','resample_source.py','stem_align.py','stem_waveforms.py','models.json'):copy(TOOLKIT/'builder'/name,resources/'inference'/name)
 licenses=resources/'licenses';licenses.mkdir(exist_ok=True)
 copy(APP/'LICENSE',licenses/'XZ-Mods-MIT.txt')
 copy(TOOLKIT/'mods/key/LICENSE-MPL-2.0',licenses/'Mozilla-MPL-2.0.txt')
