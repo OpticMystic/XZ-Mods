@@ -135,7 +135,7 @@ def recoveries(volume):
 def read_settings(volume,resources):
     schema=usb_settings.contract(resources);path=_safe_path(Path(volume)/SETTINGS);rev=revision(path)
     try:
-        if rev.get('bytes',0)>511:raise ValueError('Settings file is larger than this runtime supports; original was preserved')
+        if rev.get('bytes',0)>1023:raise ValueError('Settings file is larger than this runtime supports; original was preserved')
         values=usb_settings.parse(path.read_bytes(),schema) if rev['exists'] else usb_settings.defaults(schema)
     except ValueError as exc:return {'editable':False,'reason':str(exc),'revision':rev,'schema':schema}
     return {'editable':True,'values':values,'revision':rev,'schema':schema,'path':str(path)}
