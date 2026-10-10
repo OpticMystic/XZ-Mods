@@ -233,8 +233,11 @@ $('update-usb').onclick=async()=>{
   if($('firmware').value.trim())request.firmware=$('firmware').value.trim();
   const result=await run(request,'Backing up and updating the USB loader',$('update-usb'));if(result?.ok)renderUsb(result.result.inspection);
 };
+const STEM_ORDERS=[[2,1,0],[2,0,1],[1,2,0],[1,0,2],[0,2,1],[0,1,2]];
+const STEM_NAMES=['DRUMS','HARMONICS','VOCALS'];
 function stemDiagram(values){
-  const block=node('div',undefined,'pad-map'),roles=['VOCALS','HARMONICS','DRUMS','BYPASS'];
+  const order=STEM_ORDERS[values.stem_order]||STEM_ORDERS[0];
+  const block=node('div',undefined,'pad-map'),roles=[...order.map(stem=>STEM_NAMES[stem]),'BYPASS'];
   for(let pad=0;pad<8;pad++){
     const assigned=Math.floor(pad/4)===values.stem_bank;
     const button=node('button',undefined,'pad-square usb-setting'+(assigned?' assigned':''));button.type='button';
@@ -265,7 +268,7 @@ function renderSettings(){
       }else{
         input=node('select');for(const choice of field.choices){const option=node('option',choice.label);option.value=String(choice.value);input.append(option);}
         input.value=String(settingsValues[field.key]);
-        input.onchange=()=>{settingsValues[field.key]=Number(input.value);if(field.key==='stem_bank'||field.key==='stem_page')renderSettings();};
+        input.onchange=()=>{settingsValues[field.key]=Number(input.value);if(field.key==='stem_bank'||field.key==='stem_page'||field.key==='stem_order')renderSettings();};
       }
       input.classList.add('usb-setting');input.dataset.setting=field.key;label.append(input);fields.append(label);
     }
