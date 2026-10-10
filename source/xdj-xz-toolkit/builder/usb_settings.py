@@ -23,10 +23,12 @@ def validate(values,schema):
         value=values[field['key']]
         if type(value) is not int or not field['min']<=value<=field['max']:
             raise ValueError('Invalid value for '+field['label'])
+    columns=[values[key] for key in ('browse_1','browse_2','browse_3') if key in values]
+    if len(set(columns))!=len(columns):raise ValueError('Browse columns must differ')
     return dict(values)
 
 def parse(data,schema):
-    if len(data)>511:raise ValueError('Settings file is too large for this runtime')
+    if len(data)>1023:raise ValueError('Settings file is too large for this runtime')
     try:text=data.decode('ascii')
     except UnicodeError:raise ValueError('Settings file is not native ASCII') from None
     if not text.startswith(schema['header']+'\n') or not text.endswith('\n') or '\r' in text or '\0' in text:

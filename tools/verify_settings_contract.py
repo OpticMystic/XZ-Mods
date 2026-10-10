@@ -9,9 +9,9 @@ with tempfile.TemporaryDirectory(prefix='xz-settings-contract-') as folder:
  code.write_text('''#include "settings.h"
 #include "ui/themes.h"
 #include <stdio.h>
-int main(int argc,char **argv){struct xz_settings s;char text[512];
+int main(int argc,char **argv){struct xz_settings s;char text[1024];
 if(argc==1){xz_settings_default(&s);int n=xz_settings_format(&s,text,sizeof(text));if(n<0)return 3;fputs(text,stdout);return 0;}
-FILE *f=fopen(argv[1],"rb");if(!f)return 2;size_t n=fread(text,1,511,f);fclose(f);text[n]=0;return xz_settings_parse(text,&s)?1:0;}
+FILE *f=fopen(argv[1],"rb");if(!f)return 2;size_t n=fread(text,1,1023,f);fclose(f);text[n]=0;return xz_settings_parse(text,&s)?1:0;}
 ''')
  subprocess.run(['gcc','-std=c11','-O1','-I',str(native),str(code),str(native/'settings.c'),'-o',str(exe)],check=True)
  expected=usb_settings.serialize(usb_settings.defaults(schema),schema)
