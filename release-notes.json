@@ -1,6 +1,28 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.1",
+      "date": "2026-10-10",
+      "preview": true,
+      "features": [
+        "Prepare stems is one flow: pick the USB, see every track as Ready or Missing with its size, select, and press Prepare. The track list is also the batch view.",
+        "MP3 exports prepare stems directly, along with 24-bit, float and any-rate WAV or FLAC. AIFF and AAC are listed as not yet supported.",
+        "Every track shows the USB space its stems will take, and the selection line shows the total, the range and the space left after. The estimate learns from every bundle this computer writes.",
+        "Import stems made elsewhere: Suno 12-stem or 2-stem downloads, Demucs, UVR or a DAW, as files or a ZIP. Roles are assigned by name, timing and level are measured against the exported track, and stems from another song are refused.",
+        "A new separation engine uses the GPU when one is present: Balanced (Mel-Band RoFormer vocals with fine-tuned Demucs drums), Fast and Light presets, all MIT-licensed, with a live percentage and a time estimate learned on this computer.",
+        "Bundles now carry per-stem waveform analysis, so the XDJ-XZ STEMS scrolling waveform and stem overview strips work for tracks XZ Mods prepared, not only OverCue ones."
+      ],
+      "fixes": [
+        "Stems imported from VBR MP3 files are decoded in one read; libsndfile returned wrong samples when reading them in parts.",
+        "Adding waveforms to an existing bundle never rewrites its manifest in place, so an unplug cannot lock a track out of XZ Mods."
+      ],
+      "changes": [
+        "The engine setup wizard checks the computer, chooses a preset, installs the runtime (CUDA on NVIDIA, otherwise processor) and runs a 30-second live test before the first batch.",
+        "The Vocal focus preset is retired; Balanced replaces it with a better vocal model under the same licence.",
+        "The paired controller runtime is byte-identical to 0.2.1; installing this preview does not change your USB."
+      ]
+    },
+    {
       "version": "0.2.1",
       "date": "2026-10-02",
       "hotfix_for": "0.2.0",

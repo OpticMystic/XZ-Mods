@@ -76,7 +76,7 @@ def prepare(toolkit, bundle):
                 shutil.copyfile(distribution.locate_file(item), target)
     inference = resources / 'inference'
     inference.mkdir(exist_ok=True)
-    for name in ('inference.py', 'overcue_roles.py', 'overcue_flac_pack.py', 'grouped_stems.py', 'models.json'):
+    for name in ('inference.py', 'overcue_roles.py', 'overcue_flac_pack.py', 'grouped_stems.py', 'resample_source.py', 'stem_align.py', 'stem_waveforms.py', 'models.json'):
         shutil.copyfile(toolkit / 'builder' / name, inference / name)
     # C helpers use the same source decoder as the ARM runtime, compiled for this Mac.
     compiler = '/usr/bin/clang'
