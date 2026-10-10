@@ -2,6 +2,11 @@
 
 ## Unreleased local changes
 
+- Prepares stems from MP3 exports, and from 24-bit, float or any-rate WAV and FLAC. AIFF and AAC are listed as not yet supported instead of pointing elsewhere.
+- Estimates the USB space every track's stems will take, per role, and learns from each bundle written on this computer. Estimates include the new waveform files and the 4096-page and 4 MiB index limits.
+- Replaces the CPU-only Open-Unmix pipeline with a separation engine that uses the GPU when present: Balanced (Mel-Band RoFormer vocals, fine-tuned Demucs drums), Fast and Light, all MIT-licensed weights, one worker per batch, a percentage and a time estimate learned on this computer. The Vocal focus preset is retired.
+- Writes per-stem waveform analysis into every bundle, so the XDJ-XZ STEMS scrolling waveform and stem overview strips work for tracks XZ Mods prepared. Existing XZ Mods bundles can get them without separating again.
+- Decodes imported VBR MP3 stems in one read; libsndfile returned wrong samples when reading them in parts. Adding waveforms never rewrites a bundle's manifest in place.
 - Rebuilds Prepare stems as one page. A sticky bar shows the USB, a storage meter, the size of the current selection with the space left after it, and one button. When a selection does not fit, the button prepares the tracks that do. Rows show Missing, Queued, Preparing with a percentage, Ready, Failed and the reason, and change in place while a batch runs. Filters, search and a details drawer per track replace the separate batch, import and check panels.
 - Adds a stem engine setup that checks the computer, recommends a quality, downloads once, and tests on 30 seconds of your music before the first batch. Every setup failure names one cause and one fix.
 - Adds an import window for stems made elsewhere (Suno, Demucs, UVR or any WAV, FLAC, MP3 or AIFF set, or a ZIP). It places files by name, lines them up with the track on the USB, and asks only when a file needs a place or the stems do not match. A vocals and instrumental pair continues after engine setup.
