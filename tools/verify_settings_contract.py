@@ -19,9 +19,10 @@ FILE *f=fopen(argv[1],"rb");if(!f)return 2;size_t n=fread(text,1,1023,f);fclose(
  cases=[expected]
  lines=expected.splitlines(keepends=True)
  cases += [b''.join(lines[:n+1]) for n in range(8,24)]
+ raw=lambda values:(schema['header']+chr(10)+''.join(f"{f['key']}={values[f['key']]}"+chr(10) for f in schema['fields'])).encode('ascii')
  for field in schema['fields']:
   for value in [field['min'],field['max']]:
-   values=usb_settings.defaults(schema);values[field['key']]=value;cases.append(usb_settings.serialize(values,schema))
+   values=usb_settings.defaults(schema);values[field['key']]=value;cases.append(raw(values))
   cases.append(expected.replace((field['key']+'='+str(field['default'])+'\n').encode(),(field['key']+'='+str(field['max']+1)+'\n').encode()))
  cases += [expected+b'future=1\n',expected.replace(b'\n',b'\r\n'),expected.replace(b'SETTINGS 1',b'SETTINGS 2')]
  for i,data in enumerate(cases):
