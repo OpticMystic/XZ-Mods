@@ -12,7 +12,7 @@ const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9);
 assert(!output || output.endsWith('.json'), 'Evidence output must use a .json filename');
 const mockSource = `window.testMode='error';window.testPickFailure=false;window.testCalls=[];
 window.testLibrary={volume:'E:/Test USB',identity:{serial:'feedback-fixture'},total:18,matched:18,offset:0,page_size:50,free_bytes:1024,total_bytes:10737418240,
-tracks:Array.from({length:18},(_,i)=>({id:String(i+1),title:'Test track '+(i+1),artist:'Feedback fixture',file_path:'Contents/test-'+i+'.wav',source:'E:/Test USB/Contents/test-'+i+'.wav',duration:120,stem_status:'missing',stem_label:'Not prepared',can_generate:true,can_verify:true}))};
+tracks:Array.from({length:18},(_,i)=>({id:String(i+1),title:'Test track '+(i+1),artist:'Feedback fixture',file_path:'Contents/test-'+i+'.wav',source:'E:/Test USB/Contents/test-'+i+'.wav',duration:120,stem_status:'present',stem_label:'Prepared',can_generate:true,can_verify:true,producer:'xz-mods',stored_bytes:440401920}))};
 window.testMockInvoke=async(command,args)=>{
   window.testCalls.push(command);
   if(command==='app_information')return {version:'0.2.1',platform:'windows',installed:true,release_notes:{releases:[]}};
@@ -21,6 +21,7 @@ window.testMockInvoke=async(command,args)=>{
   if(command==='job_status'){
     if(window.testRequest.method==='discover_stem_usbs')return {running:false,ok:true,message:'Completed',result:{drives:[]}};
     if(window.testRequest.method==='browse_stem_library')return {running:false,ok:true,message:'Completed',result:window.testLibrary};
+    if(window.testRequest.method==='list_mod_versions')return {running:false,ok:true,message:'Completed',result:{format:'xz-mod-versions/1',versions:[{id:'v1',label:'Feedback build'}],selected:{id:'v1',pinned:true,revision:1},bundled_id:'v1'}};
     if(window.testMode==='running')return {running:true,ok:false,message:'Preparing stems...'};
     if(window.testMode==='cancelled')return {running:false,ok:false,cancelled:true,message:'Cancelled safely'};
     if(window.testMode==='throw')throw Error('Not enough free space. Free 2 GB and try again.');
@@ -33,10 +34,9 @@ window.testMockInvoke=async(command,args)=>{
 const profile = endpoint ? null : await mkdtemp(join(tmpdir(), 'xz-feedback-'));
 const child = endpoint ? null : spawn(process.env.XZ_TEST_BROWSER || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   ['--headless=new', '--disable-gpu', '--no-first-run', '--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore', windowsHide: true });
-let socket;
+let socket, base = endpoint;
 const results = [];
 try {
-  let base = endpoint;
   if (!base) {
     for (let attempt = 0; attempt < 100; attempt++) {
       try { const port = (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]; base = 'http://127.0.0.1:' + port; break; }
@@ -101,12 +101,12 @@ try {
   if (endpoint) {
     await evaluate(`showPage('usb');window.scrollTo(0,0);showError('Not enough free space. Free 2 GB and try again.',document.getElementById('prepare-usb'));`);
     await measure('#prepare-usb', 'installed-usb-free-space');
-    await evaluate(`stemLibraryStarted=true;showPage('stems');renderStemLibrary(testLibrary);document.querySelector('#stem-tracks tr .library-action').scrollIntoView({block:'center'});showError('Not enough free space. Free 2 GB and try again.',document.querySelector('#stem-tracks tr .library-action'));`);
-    await measure('#stem-tracks tr .library-action', 'installed-track-free-space');
-    await evaluate(`document.getElementById('separate').closest('details').open=true;document.getElementById('separate').scrollIntoView({block:'center'});document.getElementById('source').value='';document.getElementById('separate').click();`);
-    await measure('#separate', 'installed-required-input');
-    await evaluate(`openStemSetup(testLibrary,testLibrary.tracks[0]);showError('Not enough free space. Free 2 GB and try again.',document.getElementById('stem-setup-verify'));`);
-    await measure('#stem-setup-verify', 'installed-setup-dialog');
+    await evaluate(`stemLibraryStarted=true;showPage('stems');renderStemLibrary(testLibrary);document.querySelector('#stem-tracks .st-open-button').click();document.querySelector('#stem-tracks [data-action="verify"]').scrollIntoView({block:'center'});showError('Not enough free space. Free 2 GB and try again.',document.querySelector('#stem-tracks [data-action="verify"]'));`);
+    await measure('#stem-tracks [data-action="verify"]', 'installed-track-free-space');
+    await evaluate(`showPage('usb');document.getElementById('verify-inputs').closest('details').open=true;document.getElementById('verify-inputs').scrollIntoView({block:'center'});document.getElementById('firmware').value='';document.getElementById('verify-inputs').click();`);
+    await measure('#verify-inputs', 'installed-required-input');
+    await evaluate(`showPage('stems');stemEngine=stemsApi.engine({device:'cpu'});openEngineWizard('choose');showError('Not enough free space. Free 2 GB and try again.',document.getElementById('st-eng-primary'));`);
+    await measure('#st-eng-primary', 'installed-setup-dialog');
     assert(await evaluate('testCalls.length===0&&activeJob===null'), 'Installed layout checks must not start native jobs');
     console.log('PASS: installed renderer notices are visible beside their actions; no native test jobs');
   } else {
@@ -121,19 +121,19 @@ try {
   await measure('#copy-doom-usb', 'picker-failure');
   await evaluate(`testPickFailure=false;document.querySelector('nav button[data-page="stems"]').click();`);
   await waitFor('activeJob===null');
-  await evaluate(`renderStemLibrary(testLibrary);document.querySelector('#stem-tracks tr .library-action').scrollIntoView({block:'center'});document.querySelector('#stem-tracks tr .library-action').click();`);
+  await evaluate(`renderStemLibrary(testLibrary);document.querySelector('#stem-tracks .st-open-button').click();document.querySelector('#stem-tracks [data-action="verify"]').scrollIntoView({block:'center'});document.querySelector('#stem-tracks [data-action="verify"]').click();`);
   await waitFor(`activeJob===null&&document.getElementById('job-message').textContent.includes('Not enough free space')`);
-  await measure('#stem-tracks tr .library-action', 'track-free-space');
-  assert(await evaluate(`Boolean(document.getElementById('job-panel').closest('td')?.closest('tr')?.previousElementSibling?.querySelector('.library-action'))`), 'Per-track notice must sit in a valid table row beside the selected track');
+  await measure('#stem-tracks [data-action="verify"]', 'track-free-space');
+  assert(await evaluate(`Boolean(document.getElementById('job-panel').closest('td')?.closest('tr')?.previousElementSibling?.querySelector('[data-action="verify"]'))`), 'Per-track notice must sit in a valid table row beside the selected track');
   await evaluate(`browseStemLibrary(testLibrary.volume);`);
   await waitFor('activeJob===null&&!stemLibraryLoading');
-  assert(await evaluate(`document.getElementById('job-panel').checkVisibility()&&document.getElementById('job-message').textContent.includes('Not enough free space')`), 'Background refresh must preserve the failure notice');
-  await evaluate(`document.getElementById('separate').closest('details').open=true;document.getElementById('separate').scrollIntoView({block:'center'});document.getElementById('source').value='';document.getElementById('separate').click();`);
-  await waitFor(`document.getElementById('job-message').textContent.includes('required')`);
-  await measure('#separate', 'required-input');
-  await evaluate(`testMode='throw';document.getElementById('setup-engine').click();`);
+  assert(await evaluate(`document.getElementById('job-panel').checkVisibility()&&document.getElementById('job-message').textContent.includes('Not enough free space')&&Boolean(document.getElementById('job-panel').closest('tr')?.previousElementSibling?.querySelector('[data-action="verify"]'))`), 'Background refresh must preserve the failure notice beside its track');
+  await evaluate(`testMode='throw';document.querySelector('#stem-tracks [data-action="verify"]').click();`);
   await waitFor(`activeJob===null&&document.getElementById('job-message').textContent.includes('Not enough free space')`);
-  await measure('#setup-engine', 'thrown-error');
+  await measure('#stem-tracks [data-action="verify"]', 'thrown-error');
+  await evaluate(`testMode='error';document.querySelector('nav button[data-page="usb"]').click();document.getElementById('verify-inputs').closest('details').open=true;document.getElementById('verify-inputs').scrollIntoView({block:'center'});document.getElementById('firmware').value='';document.getElementById('verify-inputs').click();`);
+  await waitFor(`document.getElementById('job-message').textContent.includes('required')`);
+  await measure('#verify-inputs', 'required-input');
   await evaluate(`testMode='running';document.querySelector('nav button[data-page="games"]').click();document.getElementById('download-doom').scrollIntoView({block:'center'});document.getElementById('download-doom').click();`);
   await waitFor('activeJob!==null');
   await measure('#download-doom', 'progress');
@@ -148,17 +148,27 @@ try {
   await waitFor('activeJob===null');
   await measure('#download-doom', 'cancelled');
   assert(await evaluate(`document.getElementById('job-message').textContent.includes('Cancelled')`), 'Cancellation must still work');
-  await evaluate(`testMode='error';document.querySelector('nav button[data-page="stems"]').click();renderStemLibrary(testLibrary);openStemSetup(testLibrary,testLibrary.tracks[0]);document.getElementById('stem-setup-verify').click();`);
+  await evaluate(`testMode='error';document.querySelector('nav button[data-page="stems"]').click();renderStemLibrary(testLibrary);openEngineWizard('check');`);
+  await waitFor(`activeJob===null&&Boolean(document.getElementById('st-eng-report'))`);
+  await evaluate(`document.getElementById('st-eng-report').click();`);
   await waitFor(`activeJob===null&&document.getElementById('job-message').textContent.includes('Not enough free space')`);
-  await measure('#stem-setup-verify', 'setup-dialog');
-  assert(await evaluate(`document.getElementById('stem-setup').contains(document.getElementById('job-panel'))`), 'Dialog feedback must appear inside the active dialog');
-  await evaluate(`document.getElementById('stem-setup-close').click();`);
+  await measure('#st-eng-report', 'setup-dialog');
+  assert(await evaluate(`document.getElementById('st-engine').contains(document.getElementById('job-panel'))`), 'Dialog feedback must appear inside the active dialog');
+  await evaluate(`closeEngineWizard();`);
+  await waitFor(`!document.getElementById('st-engine').contains(document.getElementById('job-panel'))`);
   console.log('PASS: action feedback is visible beside the initiating action');
   }
 } finally {
   if (endpoint && socket?.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ id: 99999, method: 'Page.reload', params: {} }));
     await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  if (!endpoint && base) {
+    try {
+      const version = await (await fetch(base + '/json/version', { signal: AbortSignal.timeout(2000) })).json();
+      const browser = new WebSocket(version.webSocketDebuggerUrl);
+      await new Promise(resolve => { browser.onopen = () => { browser.send(JSON.stringify({ id: 1, method: 'Browser.close' })); setTimeout(resolve, 300); }; browser.onerror = resolve; });
+    } catch {}
   }
   socket?.close();
   child?.kill();
