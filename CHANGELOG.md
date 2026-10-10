@@ -2,6 +2,11 @@
 
 ## Unreleased local changes
 
+- Rebuilds Prepare stems as one page. A sticky bar shows the USB, a storage meter, the size of the current selection with the space left after it, and one button. When a selection does not fit, the button prepares the tracks that do. Rows show Missing, Queued, Preparing with a percentage, Ready, Failed and the reason, and change in place while a batch runs. Filters, search and a details drawer per track replace the separate batch, import and check panels.
+- Adds a stem engine setup that checks the computer, recommends a quality, downloads once, and tests on 30 seconds of your music before the first batch. Every setup failure names one cause and one fix.
+- Adds an import window for stems made elsewhere (Suno, Demucs, UVR or any WAV, FLAC, MP3 or AIFF set, or a ZIP). It places files by name, lines them up with the track on the USB, and asks only when a file needs a place or the stems do not match. A vocals and instrumental pair continues after engine setup.
+- Shows progress with the current step, one forward-only percentage per track and the time left. Cancel, an unplugged USB and a full USB each end with a summary and the one next step.
+
 - Adds persistent mod-version selection with immutable local archives, matched runtime and receiver files, and an option to keep a USB loader pinned across network updates.
 - Offers backed-up settings adaptation when an older mod cannot read newer preferences. Retains the existing loader-restore path and uses the recorded mod's schema when editing its settings.
 
