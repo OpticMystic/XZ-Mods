@@ -123,6 +123,7 @@
 tr.is-open .st-open span{transform:rotate(90deg);color:#fff98a}
 .st-sub{display:block;font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st-sub[data-tone=bad]{color:#f2b8ae}.st-sub[data-tone=warn]{color:#e0c99a}.st-sub[data-tone=run]{color:#fff98a}
+.st-regen{color:#e0c99a}
 
 /* Status pill: glyph + word + colour, so it reads without colour too. */
 .st-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 8px 2px 7px;border:1px solid #474d49;border-radius:3px;font-size:11.5px;font-weight:600;line-height:1.45;white-space:nowrap;color:#c3c9c5;background:#151817;position:relative;overflow:hidden}

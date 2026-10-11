@@ -345,6 +345,8 @@ const ST={
   'done.wrongUsb':'This is a different USB. Plug in {usb} to retry.','done.loaderOld':'To play these on the XZ, update the loader on this USB.','done.updateLoader':'Update loader',
   'drawer.source':'From {format}. About {bytes} on this USB, between {low} and {high}.','drawer.mp3':'MP3s are decoded and lined up with the player before separating, so the stems stay in time with the track.',
   'drawer.byXz':'Prepared by XZ Mods on {date} · {preset} · {bytes}','drawer.byOther':'Prepared outside XZ Mods · {bytes}','drawer.unchecked':'Not checked yet. Verify reads every audio page and does not change your USB.',
+  'sub.regenerate':'Prepare again · MP3 timing',
+  'drawer.regenerate':'Made from an MP3 before XZ Mods 0.3.0-preview.2, so these stems start 25 ms early against the player. The XDJ-XZ lines them up live; the stem waveforms and other players do not. Prepare again fixes it.',
   'drawer.compat':'Also works with stems prepared by OverCue Desktop.','drawer.unavailable':'The audio file for this track is not on the USB. Export it to this USB again from Rekordbox, then check again.',
   'drawer.unsupported':'{format} tracks cannot be prepared yet. Support is planned. This track would need about {bytes}.','drawer.running':'{stage}. Step {k} of 8, started {elapsed} ago.',
   'drawer.replaceAsk':'Replace the stems for {title}? The current stems stay until the new ones pass their check.','drawer.replace':'Replace','drawer.keep':'Keep',
@@ -425,7 +427,8 @@ const stemsApi={
     return {id:String(row.id),title:row.title||'Track '+row.id,artist:row.artist||'',duration:row.duration||0,filePath:row.file_path,source:row.source||null,
       status:row.stem_status,detail:row.detail||'',canGenerate:Boolean(row.can_generate),canVerify:Boolean(row.can_verify),format:formatOf(row.file_path),
       sampleRate:row.sample_rate||null,bitrate:row.bitrate||null,estimate:{bytes:estimate.bytes??row.estimated_bytes??0,low:estimate.low_bytes??0,high:estimate.high_bytes??0},
-      storedBytes:row.stored_bytes??null,producer:row.producer||null,preparedAt:row.prepared_at||null,preset:row.preset||null};
+      storedBytes:row.stored_bytes??null,producer:row.producer||null,preparedAt:row.prepared_at||null,preset:row.preset||null,
+      timeline:row.timeline||null,needsRegeneration:row.needs_regeneration===true};
   },
   noLibrary(state){return state.error_code==='no_library'||/^No Rekordbox Device Library/.test(state.error||'');},
   progress(state){
@@ -659,6 +662,7 @@ function rowSub(track,state){
   const item=batchItem(track.id),check=stemChecks.get(stemSelectionKey+'\n'+track.id);
   const text={damaged:check&&check.mixes<7?t('sub.damaged',{bad:7-check.mixes}):'The check failed',unavailable:ST['sub.unavailable'],unsupported:t('sub.unsupported',{format:track.format}),
     error:track.detail,running:stageLabel(item),reused:ST['sub.reused'],failed:item?.error||'',missing:track.canGenerate?'':track.detail}[state];
+  if(!text&&ROW_STATES[state].done&&track.needsRegeneration)return el('span',{class:'st-sub',dataset:{tone:'warn'},text:ST['sub.regenerate']});
   return text?el('span',{class:'st-sub',dataset:{tone:ROW_STATES[state].tone},text}):null;
 }
 function verifyChips(check){
@@ -681,6 +685,7 @@ function stemDrawer(track,state){
     if(state==='missing')actions.push(withAction(action('drawer.importElsewhere','import'),'import'));
   }else if(ROW_STATES[state].done||state==='damaged'){
     facts.push(el('p',{text:provenance(track)}),check?verifyChips(check):el('p',{text:ST['drawer.unchecked']}),el('p',{class:'st-compat',text:ST['drawer.compat']}));
+    if(track.needsRegeneration)facts.splice(1,0,el('p',{class:'st-regen',text:ST['drawer.regenerate']}));
     if(track.canVerify&&state!=='damaged')actions.push(withAction(action(check?'drawer.verifyAgain':'drawer.verify','verify'),'verify'));
     actions.push(withAction(action('drawer.importReplace','import'),'import'));
     if(track.canGenerate&&stemsSupported())actions.push(withAction(action('drawer.prepareAgain','ask'),'ask'));

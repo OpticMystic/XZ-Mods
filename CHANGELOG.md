@@ -2,6 +2,7 @@
 
 ## Unreleased local changes
 
+- Prepares MP3 stems on the player's timeline: the decoder keeps every MP3 frame instead of trimming the LAME encoder delay, so bundles from tagged MP3s no longer start 25 ms early. The stems page marks MP3 bundles made before this build with "Prepare again · MP3 timing"; each MP3 manifest records its source rate and LAME timing. Mirrors the OverCue Desktop 2.2.5 fix of 2026-10-10.
 - Prepares stems from MP3 exports, and from 24-bit, float or any-rate WAV and FLAC. AIFF and AAC are listed as not yet supported instead of pointing elsewhere.
 - Estimates the USB space every track's stems will take, per role, and learns from each bundle written on this computer. Estimates include the new waveform files and the 4096-page and 4 MiB index limits.
 - Replaces the CPU-only Open-Unmix pipeline with a separation engine that uses the GPU when present: Balanced (Mel-Band RoFormer vocals, fine-tuned Demucs drums), Fast and Light, all MIT-licensed weights, one worker per batch, a percentage and a time estimate learned on this computer. The Vocal focus preset is retired.
