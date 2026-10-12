@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.5",
+      "date": "2026-10-12",
+      "preview": true,
+      "features": [
+        "NonEssentials step. Set up USB is six steps: USB, Loadout, NonEssentials, Settings, Write, Done. Games are chosen in NonEssentials; the Loadout tree shows them with one link there.",
+        "Games page in the left navigation. It covers the games built into the loader (Beat Arcade, Wave Rider, Rhythm Lab, Static Surfer) and the free downloads (Doom shareware, Chex Quest, Freedoom Phase 2, My House). Find my USB picks the USB without going through the wizard; Review and write opens the same Write step.",
+        "Update preview. When the USB holds an older XZ Mods loader, the Loadout step lists what changes on your XZ with the new one, grouped as New, Improved and Fixed, and anything the new version no longer has. The Write step counts the changes on the loader row."
+      ],
+      "fixes": [
+        "The USB loadout tree and the settings menu colours lay out correctly in the installed app. Inline styles are now set in a way the app's security policy allows."
+      ],
+      "requirements": [
+        "Pioneer DJ XDJ-XZ firmware 1.26.",
+        "Not hardware-verified: test the loader on your XZ before a set."
+      ]
+    },
+    {
       "version": "0.3.0-preview.4",
       "date": "2026-10-12",
       "preview": true,
