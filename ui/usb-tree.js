@@ -7,7 +7,7 @@ const STATES={
   outdated:{badge:'Update available',tone:'warn'},
   unknown:{badge:'Unknown version',tone:'warn'},
   missing:{badge:'Not on USB',tone:'off'},
-  untouched:{badge:'Never changed by XZ Mods',tone:'quiet'}
+  untouched:{badge:'Never touched',tone:'quiet'}
 };
 const PLANS={add:'Will add',update:'Will update',change:'Will change'};
 const LEGEND=[['ok','Up to date'],['warn','Update available'],['off','Not on USB'],['plan','Will be written']];
