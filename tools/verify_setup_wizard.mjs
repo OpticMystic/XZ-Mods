@@ -119,7 +119,7 @@ try {
   await check(`txt('.wz-pane h2')==='What is on this USB'&&document.querySelector('.tree[data-mode=edit]')`, 'choosing the USB opens the loadout tree');
   await check(`row('loader').dataset.state==='missing'&&box('loader').checked&&badge('loader')==='Will add'&&row('loader').dataset.plan==='1'`, 'fresh: loader not on USB, ticked, Will add');
   await check(`rowTxt('drive').includes('KINGSTON')&&rowTxt('drive').includes('FAT32')&&rowTxt('drive').includes('29.1 GB free of 32 GB')`, 'drive row shows label, filesystem and free space');
-  await check(`rowTxt('rekordbox').includes('Never changed')&&!box('rekordbox')&&!row('rekordbox').querySelector('button')`, 'Rekordbox row reads never changed, with no control');
+  await check(`rowTxt('rekordbox').includes('Never touched')&&!box('rekordbox')&&!row('rekordbox').querySelector('button')`, 'Rekordbox row reads never touched, with no control');
   await check(`rowTxt('stems').includes('None yet')&&badge('stems')==='Not on USB'&&button('Prepare stems',row('stems'))`, 'stems row: none yet, one link to Prepare stems');
   await check(`txt('.tree-aside').includes('Fixture build')`, 'loader row names the saved mod version');
   await check(`['doom','chex','freedoom','myhouse'].every(id=>box('game-'+id)&&!box('game-'+id).checked&&badge('game-'+id)==='Not on USB')`, 'four games listed, none ticked');
