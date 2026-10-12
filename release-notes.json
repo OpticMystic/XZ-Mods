@@ -1,6 +1,20 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.4",
+      "date": "2026-10-12",
+      "preview": true,
+      "features": [
+        "USB loadout shown as a file tree with status, update markers and tick boxes. The Loadout step draws the USB as folders and files: the loader, settings, loader backups, each game, prepared stems and the Rekordbox library, each marked Up to date, Update available, Not on USB or Never changed. Tick what to add or update; the Write step highlights exactly those rows and Done shows the USB as read back.",
+        "Set up USB is five steps: USB, Loadout, Settings, Write, Done. The separate Loader and Games steps are folded into the Loadout tree."
+      ],
+      "fixes": [],
+      "requirements": [
+        "Pioneer DJ XDJ-XZ firmware 1.26.",
+        "Not hardware-verified: test the loader on your XZ before a set."
+      ]
+    },
+    {
       "version": "0.3.0-preview.3",
       "date": "2026-10-11",
       "preview": true,
