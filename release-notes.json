@@ -1,6 +1,20 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.7",
+      "date": "2026-10-12",
+      "preview": true,
+      "features": [
+        "Set up USB is five steps: USB, Loadout, DJ Profile, Write, Done. The NonEssentials and Settings steps are gone, and so is the separate Games page.",
+        "Custom installation in the Write step. A new USB gets every free game that works on the XZ (Doom shareware, Chex Quest, Freedoom Phase 2); open Custom installation to untick any of them. A USB that already has the loader keeps the games it has and gets no new ones unless you tick them.",
+        "Your USB's colour from rekordbox is read correctly: the live settings row, not a stale earlier one."
+      ],
+      "changes": [
+        "My House is removed. It needs GZDoom, which does not run on the XZ, so copying it never made it playable.",
+        "The settings editor is removed from the app. Change settings on the XZ in the MODS menu; a new loader still writes the default settings file."
+      ]
+    },
+    {
       "version": "0.3.0-preview.6",
       "date": "2026-10-12",
       "preview": true,

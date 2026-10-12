@@ -6,7 +6,6 @@ const GAMES=[
   {id:'doom',name:'Doom shareware',kind:'download',bit:4,blurb:'The original free first episode'},
   {id:'chex',name:'Chex Quest',kind:'download',bit:4,blurb:'The cereal promo game, with its patch'},
   {id:'freedoom',name:'Freedoom Phase 2',kind:'download',bit:4,blurb:'A complete free base game'},
-  {id:'myhouse',name:'My House',kind:'download',bit:5,blurb:'A Doom II mod'},
   {id:'beat-arcade',name:'Beat Arcade',kind:'builtin',bit:0,blurb:'Pong and Breakout played to the beat with the jog wheels'},
   {id:'wave-rider',name:'Wave Rider',kind:'builtin',bit:1,blurb:'Surf the hills your song draws, solo or with a friend'},
   {id:'rhythm-lab',name:'Rhythm Lab',kind:'builtin',bit:2,blurb:'Ten short studies of ways to play along with a track'},
@@ -17,7 +16,7 @@ const GROUPS=[
   {kind:'download',title:'Free downloads',note:'Copied to VJTOOLS\\Games on the USB.'}
 ];
 const mb=bytes=>(bytes/1048576).toFixed(bytes>=104857600?0:1)+' MB';
-const gameNote=(game,found)=>[game.blurb,found?.requires_gzdoom?'Not playable on the XZ yet':null].filter(Boolean).join(' · ');
+const gameNote=game=>game.blurb||'';
 
 function dot(tone){return el('span',{class:'tree-dot',dataset:{tone},'aria-hidden':'true'});}
 function menuSwitch(game,menu){
@@ -39,12 +38,17 @@ function gameRow(game,found,props){
     el('span',{class:'tree-status'},dot(state.tone),el('span',{class:'tree-badge',text:state.status})),
     el('span',{class:'games-controls'},state.control||null,props.menu&&state.status!=='Not on USB'?menuSwitch(game,props.menu):null));
 }
+// Built-in games are compiled into the loader. Without games_menu they cannot be left out, so they are one line, not rows.
+function builtinLine(){
+  const names=GAMES.filter(game=>game.kind==='builtin').map(game=>game.name);
+  return el('p',{class:'games-builtin-line',text:names.slice(0,-1).join(', ')+' and '+names.at(-1)+' are built into the loader and always come with it.'});
+}
 // props: {inspection, games:Set, loaderOnUsb, menu:{value,set(bit,on)}|null, toggleGame(id,on), allGames(), noGames()}
 function createGamesChooser(props){
   const found=new Map((props.inspection.games||[]).map(game=>[game.id,game]));
   const offered=GAMES.filter(game=>game.kind==='builtin'||found.has(game.id));
   const missing=offered.some(game=>game.kind==='download'&&!found.get(game.id).installed);
-  return el('div',{class:'games'},...GROUPS.map(group=>el('section',{class:'games-group',dataset:{kind:group.kind}},
+  return el('div',{class:'games'},...GROUPS.map(group=>group.kind==='builtin'&&!props.menu?builtinLine():el('section',{class:'games-group',dataset:{kind:group.kind}},
     el('div',{class:'games-head'},el('h3',{text:group.title}),el('small',{class:'games-note',text:!props.menu&&group.fixed||group.note}),
       group.kind==='download'&&missing?el('span',{class:'games-bulk'},
         el('button',{type:'button',class:'text-button',text:'Add all free games',onclick:props.allGames}),

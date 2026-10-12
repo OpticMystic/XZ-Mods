@@ -329,3 +329,15 @@ label.djp-dest-row{cursor:pointer}
 .djp-have-text>span:not(.djp-active){color:#c3c9c5;font-size:12px}
 .djp-have .actions{align-items:center}
 @media(max-width:700px){.djp-have{grid-template-columns:auto minmax(0,1fr)}.djp-have .actions{grid-column:1/-1}}
+/* Write step: Custom installation accordion */
+.wz-custom{border:1px solid var(--line);border-radius:6px;background:#0d0f10}
+.wz-custom>summary{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:14px 16px;font-size:14px;list-style:none}
+.wz-custom>summary::-webkit-details-marker{display:none}
+.wz-custom>summary::before{content:"";flex:none;width:7px;height:7px;margin-right:2px;border-right:1.5px solid #c3c9c5;border-bottom:1.5px solid #c3c9c5;transform:translateY(-2px) rotate(-45deg);transition:transform .12s}
+.wz-custom[open]>summary::before{transform:translateY(-4px) rotate(45deg)}
+details.wz-custom[open]>summary{margin-bottom:0;border-bottom:1px solid #1f2324}
+.wz-custom-title{font-weight:600;color:#eef0ec}
+.wz-custom-summary{color:var(--muted);font-size:12px;font-weight:400}
+.wz-custom-body{display:grid;gap:12px;padding:14px 16px}
+.wz-custom-body .wz-lead{margin:0}
+.games-builtin-line{margin:0;color:var(--muted);font-size:12px;line-height:1.5}

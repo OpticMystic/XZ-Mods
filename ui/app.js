@@ -17,7 +17,7 @@ let repairInspection=null,repairDiscovery=null;
 // unsaved dropdown and checkbox state. USB writes read only the saved choice, through selectedVersionRequest().
 let modInventory=null,modDraft=null,modLoadError='',modImportFolder='',modImportedId=null;
 const modChannels={preview:'Preview',public:'Public release',release:'Public release',released:'Released',development:'Development build',dev:'Development build',imported:'Imported'};
-const titles={setup:'Set up USB',games:'Games','dj-profile':'DJ Profile',advanced:'Advanced tools',stems:'Prepare stems','library-repair':'Repair library','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
+const titles={setup:'Set up USB','dj-profile':'DJ Profile',advanced:'Advanced tools',stems:'Prepare stems','library-repair':'Repair library','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
 const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library','plan_engine_setup','list_mod_versions','inspect_mod_settings'];
@@ -96,7 +96,7 @@ async function run(request,title,origin,watch){
             const setup=state.result.game_setup||state.result;
             const names=setup.games.filter(game=>game.ok).map(game=>game.name).join(', ');
             $('job-summary').textContent=(state.result.image?'Loader ready. ':'')+(names?'Game files on USB: '+names+'. ':'')+(setup.failed_count?setup.failed_count+' download(s) failed. Open Set up USB and retry the failed games. ':'')+'My House still needs the native GZDoom port.';
-          }else if(state.result.format==='xz-game-installed/1')$('job-summary').textContent=state.result.name+' copied to USB and verified.'+(state.result.requires_gzdoom?' My House still needs the native GZDoom port.':'');
+          }else if(state.result.format==='xz-game-installed/1')$('job-summary').textContent=state.result.name+' copied to USB and verified.';
           else if(state.result.format==='xz-game-downloaded/1')$('job-summary').textContent=state.result.name+' downloaded and verified.';
           else if(state.result.format==='xz-library-inspected/1')$('job-summary').textContent='Check finished. The results are below.';
           else if(state.result.format==='xz-library-repaired/1'){$('job-title').textContent='Repair written · not yet tested in Rekordbox';$('job-summary').textContent=state.result.summary||'';}
@@ -129,7 +129,7 @@ async function cancelActiveJob(){
   catch(error){$('cancel').disabled=false;if(stemBatch?.running){stemBatch.cancelRequested=false;renderStems();}$('job-message').textContent='Could not cancel: '+String(error);}
 }
 $('cancel').onclick=cancelActiveJob;
-const gameLabels={doom:'Doom shareware',chex:'Chex Quest',freedoom:'Freedoom Phase 2',myhouse:'My House'};
+const gameLabels={doom:'Doom shareware',chex:'Chex Quest',freedoom:'Freedoom Phase 2'};
 for(const game of Object.keys(gameLabels)){
   const download=$('download-'+game),copy=$('copy-'+game+'-usb');
   download.onclick=()=>run({method:'download_game',game},'Downloading '+gameLabels[game],download);

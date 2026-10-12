@@ -199,7 +199,7 @@ try {
   const showDj = () => evaluate(`showPage('dj-profile');window.scrollTo(0,0)`);
 
   await open('empty');
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,games,dj-profile,stems,library-repair,device-updates,advanced,updates,licenses'&&txt('nav button[data-page="dj-profile"]')==='DJ Profile'`, 'nav: DJ Profile right after Games');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,dj-profile,stems,library-repair,device-updates,advanced,updates,licenses'&&txt('nav button[data-page="dj-profile"]')==='DJ Profile'`, 'nav: DJ Profile right after Set up USB');
   await showDj();
   await check(`txt('#page-title')==='DJ Profile'&&page().querySelectorAll('button').length===1&&Boolean(button('Find my USB'))&&!fx.requests.some(r=>r.method==='read_dj_profiles')`, 'no USB: one Find my USB button and no read yet');
   await click('Find my USB');
@@ -363,17 +363,13 @@ try {
   await shot('08-loadout-row');
   await evaluate(`document.querySelector('.tree-row[data-id=djprofile] button').click()`);
   await waitFor(`setupWizard.state.step==='profile'&&wiz().querySelector('.djp-have')`, 'DJ Profile step');
-  await check(`txt('.wz-step[data-state=current]')==='3DJ Profile'&&txt('.djp-have strong',wiz())==='DJ Kai'&&txt('.djp-have .djp-active',wiz())==='Active on the XZ'&&Boolean(button('Edit',wiz()))&&button('Next',wiz())`, 'its Edit link opens the DJ Profile step: the active profile at a glance, Edit, Next');
+  await check(`txt('.wz-step[data-state=current]')==='3DJ Profile'&&txt('.djp-have strong',wiz())==='DJ Kai'&&txt('.djp-have .djp-active',wiz())==='Active on the XZ'&&Boolean(button('Edit',wiz()))&&button('Review and write',wiz())`, 'its Edit link opens the DJ Profile step: the active profile at a glance, Edit, Review and write');
   await check(`!document.getElementById('djp-host').childElementCount`, 'the step and the page never draw the editor twice');
   await shot('09-step-have');
   await evaluate(`button('Edit',wiz()).click()`);
-  await check(`wiz().querySelector('#djp-name').value==='DJ Kai'&&txt('.djp-save-why',wiz())==='No changes yet.'&&djProfilePage.pending()===null&&button('Next',wiz())`, 'editing in the step: an unchanged profile plans nothing');
+  await check(`wiz().querySelector('#djp-name').value==='DJ Kai'&&txt('.djp-save-why',wiz())==='No changes yet.'&&djProfilePage.pending()===null&&button('Review and write',wiz())`, 'editing in the step: an unchanged profile plans nothing');
   await evaluate(`button('Keep the saved profile',wiz()).click()`);
   await check(`wiz().querySelector('.djp-have')`, 'Keep the saved profile goes back to the summary');
-  await evaluate(`setupWizard.goto('settings')`);
-  await check(`txt('.dv-header .dv-profile strong')==='DJ Kai'&&txt('.dv-header .dv-usb')==='USB · E:\\\\'`, 'settings menu header carries the active DJ chip, like the XZ');
-  await evaluate(`document.querySelector('.dv-header .dv-profile').click()`);
-  await check(`setupWizard.state.step==='profile'`, 'the header chip opens the DJ Profile step');
 
   await open('empty');
   await evaluate(`showPage('setup')`);
@@ -388,13 +384,11 @@ try {
   await check(`wiz().querySelector('.djp-swatch[data-hex="#9828f0"]').getAttribute('aria-pressed')==='true'&&!wiz().querySelector('#djp-save')&&wiz().querySelector('.djp-drop[data-empty="1"]')`, 'step editor: USB colour preselected, a drop target, no separate Save button');
   await shot('10-step-empty');
   await evaluate(`const f=wiz().querySelector('#djp-name');f.value='DJ Nova';f.dispatchEvent(new Event('input',{bubbles:true}))`);
-  await check(`Boolean(button('Next',wiz()))&&!button('Skip for now',wiz())&&txt('.djp-save-why',wiz())==='Saved to the USB in the Write step.'&&djProfilePage.pending().plan==='add'&&wiz().querySelector('#djp-name').value==='DJ Nova'`, 'a name turns Skip for now into Next and says when it is written');
+  await check(`Boolean(button('Review and write',wiz()))&&!button('Skip for now',wiz())&&txt('.djp-save-why',wiz())==='Saved to the USB in the Write step.'&&djProfilePage.pending().plan==='add'&&wiz().querySelector('#djp-name').value==='DJ Nova'`, 'a name turns Skip for now into Review and write and says when it is written');
   await evaluate(`fx.drag('drop',['C:\\\\Logos\\\\kai-square.png'])`);
   await waitFor(`djProfilePage.state.draft.logos.length===1&&activeJob===null`, 'dropped logo in the step');
   await check(`wiz().querySelector('.djp-dev-body .djp-tile img')&&wiz().querySelector('#djp-name').value==='DJ Nova'`, 'a logo dropped on the step shows in the preview');
   await shot('11-step-filled');
-  await evaluate(`button('Next',wiz()).click()`); await waitFor(`setupWizard.state.step==='nonessentials'`, 'nonessentials');
-  await evaluate(`button('Next',wiz()).click()`); await waitFor(`setupWizard.state.step==='settings'`, 'settings');
   await evaluate(`button('Review and write',wiz()).click()`); await waitFor(`setupWizard.state.step==='write'`, 'write');
   await check(`document.querySelector('.tree-row[data-id=djprofile]').dataset.plan==='1'&&txt('.tree-row[data-id=djprofile] .tree-badge')==='Will add'&&txt('.tree-row[data-id=djprofile] .tree-detail')==='New profile DJ Nova'&&!button('Write to USB',wiz()).disabled&&count('save_dj_profile')===0`, 'Write step plans the profile, nothing saved yet');
   await shot('12-write-plan');
