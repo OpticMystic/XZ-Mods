@@ -46,7 +46,8 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     const item=node('loader',1,'file','autoexec.bin','XZ Mods loader',state,detail,plan,control);
     if(plan==='update'&&c.update&&modChangeCount(c.update))item.planNote=plural(modChangeCount(c.update),'change');
     const changelog=c&&saved&&(['outdated','unknown'].includes(state)||plan==='update')?c.changelog:null;
-    if(c&&(writing||!saved||changelog))item.aside=[writing||!saved?c.versionLine:null,changelog];
+    // The build chooser stays under the loader row whenever there is a choice to make.
+    if(c)item.aside=[c.versionLine,changelog];
     return item;
   };
   const settingsNode=()=>{

@@ -341,3 +341,15 @@ details.wz-custom[open]>summary{margin-bottom:0;border-bottom:1px solid #1f2324}
 .wz-custom-body{display:grid;gap:12px;padding:14px 16px}
 .wz-custom-body .wz-lead{margin:0}
 .games-builtin-line{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
+/* Loader row: which build goes on the USB */
+.wz-build{display:grid;gap:10px}
+.wz-build-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
+.wz-build-option{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:start;margin:0;padding:10px 12px;border:1px solid #2c3031;border-radius:5px;background:#0b0d0d;cursor:pointer}
+.wz-build-option[data-checked="1"]{border-color:var(--yellow);background:#16170f}
+.wz-build-option input[type=radio]{margin:3px 0 0;accent-color:var(--yellow)}
+.wz-build-text{display:grid;gap:2px;min-width:0}
+.wz-build-text strong{font-size:13px;color:#eef0ec}
+.wz-build-text small{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.wz-build-option select{grid-column:2;padding:7px 8px;font-size:12px}
+.wz-build-pin{margin:0;font-size:12px;color:#c3c9c5}
+.wz-build-note{margin:0;color:#b6e2bb;font-size:12px}
