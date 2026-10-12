@@ -18,9 +18,9 @@ Apple Silicon and Intel Macs running macOS 14 or later.
 - Display layered stem waveforms and prepare backed-up 3-band waveform colours.
 - Open Beat Arcade and the real-waveform Wave Rider game from the native Games
   menu. Normal boot stays on the DJ screen.
-- Download and prepare Doom shareware, Chex Quest and Freedoom data through Games.
-  Commercial IWADs must come from the user. MyHouse remains unavailable until its
-  native engine and controller support are qualified.
+- Download and prepare Doom shareware, Chex Quest and Freedoom data. Set up USB
+  includes them; leave any out under Custom installation in the Write step.
+  Commercial IWADs must come from the user.
 - Install signed app updates through App updates.
 
 Apple Silicon supports generation with the current models. Intel Macs support

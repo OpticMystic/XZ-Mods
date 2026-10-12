@@ -9,6 +9,8 @@ const STATES={
   missing:{badge:'Not on USB',tone:'off'},
   untouched:{badge:'Never touched',tone:'quiet'}
 };
+// The only setting the wizard changes now: which built-in games the GAMES menu lists.
+const SETTING_LABEL={games_menu:'Games menu'};
 const PLANS={add:'Will add',update:'Will update',change:'Will change'};
 const LEGEND=[['ok','Up to date'],['warn','Update available'],['off','Not on USB'],['plan','Will be written']];
 const STEMS='CDJMODS\\stems',REKORDBOX='PIONEER\\rekordbox',BACKUPS='VJ.Tools\\XZ-Mods-updates',SETTINGS='VJ.Tools\\XZ-Mods.cfg',DJPROFILE='DJPROFILE';
@@ -24,7 +26,7 @@ function relative(path,volume){
 function node(id,depth,kind,path,label,state,detail,plan=null,control=null,children=[]){return {id,depth,kind,path,label,state,detail,plan,control,children};}
 
 // choices is null for the Done step: the tree then shows the USB as it is, with no plans or controls.
-// choices: {loader, saved, games:Set, changes:[keys], settingsEditable, versionLine, update, changelog, profile, setLoader, chooseGames, editProfile, editSettings}
+// choices: {loader, saved, games:Set, changes:[keys], settingsEditable, versionLine, update, changelog, profile, setLoader, chooseGames, editProfile}
 function usbLoadout(inspection,{driveLabel,choices=null}={}){
   const ins=inspection,volume=ins.volume,c=choices,saved=c?c.saved:savedModVersion();
   const planned=plan=>c?plan:null,loaderWriting=Boolean(c&&c.loader!=='keep'&&(c.saved||savedModVersion()));
@@ -51,10 +53,10 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     const settings=ins.settings,exists=settings.revision?.exists!==false,changes=c?c.changes:[];
     let plan=null,detail;
     if(!settings.editable)detail=settings.reason;
-    else if(changes.length){plan=planned('change');detail=changes.slice(0,3).map(key=>window.SETTINGS_MENU_LABEL?.[key]||key).join(', ')+(changes.length>3?' and '+(changes.length-3)+' more':'');}
+    else if(changes.length){plan=planned('change');detail=changes.slice(0,3).map(key=>SETTING_LABEL[key]||key).join(', ')+(changes.length>3?' and '+(changes.length-3)+' more':'');}
     else if(!exists){plan=planned(c&&(loaderWriting||c.settingsEditable)?'add':null);detail=plan?'New file with defaults':'Not written yet';}
     else detail=plural(settings.schema?.fields?.length||Object.keys(settings.values||{}).length,'field')+' · matches USB';
-    const item=node('settings',2,'file',relative(settings.path,volume)||SETTINGS,'Settings',exists?'present':'missing',detail,plan,c?{kind:'link',label:'Edit settings',onClick:c.editSettings}:null);
+    const item=node('settings',2,'file',relative(settings.path,volume)||SETTINGS,'Settings',exists?'present':'missing',detail,plan,null);
     if(plan==='change')item.planNote=String(changes.length);
     return item;
   };
@@ -74,7 +76,7 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     return node('djprofile',1,'folder',DJPROFILE,'DJ profiles',count?'present':'missing',detail,planned(want?.plan||null),
       c?{kind:'link',label:count?'Edit DJ profile':'Create a DJ profile',onClick:c.editProfile}:null);
   };
-  const games=ins.games||[],stems=ins.stems||{tracks:0,bytes:0},space=ins.space||{};
+  const games=(ins.games||[]).filter(game=>GAMES.some(entry=>entry.id===game.id)),stems=ins.stems||{tracks:0,bytes:0},space=ins.space||{};
   const vjtools=[settingsNode(),backupsNode()].filter(Boolean),gameNodes=games.map(gameNode);
   const anyPresent=list=>list.some(item=>item.state!=='missing');
   const spaceText=space.free_bytes!=null&&space.total_bytes!=null?gb(space.free_bytes)+' free of '+gb(space.total_bytes):'';
@@ -82,7 +84,7 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     loaderNode(),
     node('vjtools',1,'folder','VJ.Tools','XZ Mods files',anyPresent(vjtools)?'present':'missing','Settings and loader backups',null,null,vjtools),
     node('games',1,'folder','VJTOOLS\\Games','Games',anyPresent(gameNodes)?'present':'missing','Free downloads, opened from EXTRAS › GAMES',null,
-      c?{kind:'link',label:'Choose in NonEssentials',onClick:c.chooseGames}:null,gameNodes),
+      c?{kind:'link',label:'Choose games',onClick:c.chooseGames}:null,gameNodes),
     profilesNode(),
     node('stems',1,'folder',STEMS,'Prepared stems',stems.tracks>0?'present':'missing',stems.tracks>0?plural(stems.tracks,'track')+' · '+size(stems.bytes):'None yet',null,
       c?{kind:'link',label:'Prepare stems',onClick:()=>showPage('stems')}:null),
