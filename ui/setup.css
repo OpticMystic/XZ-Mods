@@ -291,3 +291,41 @@ label.djp-dest-row{cursor:pointer}
 .djp-path input{font-family:Consolas,monospace;font-size:12px}
 .djp-howto{margin:0;padding-left:22px;line-height:1.9;color:#e3e7e2}
 @media(max-width:1000px){.djp-editor{grid-template-columns:minmax(0,1fr)}.djp-preview{position:static}}
+/* DJ profile: logo drop target, rekordbox colour swatches, wizard step */
+.djp-drop{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 14px;border:1.5px dashed #3a4040;border-radius:6px;background:#0b0d0d;cursor:pointer;transition:border-color .12s,background .12s}
+.djp-drop:hover{border-color:#6d7473}
+.djp-drop[data-empty="1"]{grid-template-columns:minmax(0,1fr);justify-items:center;gap:10px;padding:26px 18px;text-align:center}
+.djp-drop[data-full="1"]{cursor:default;border-style:solid;opacity:.7}
+.djp-edit[data-drag] .djp-drop{border-color:var(--yellow);border-style:solid;background:#1b1d14}
+.djp-drop-icon{position:relative;width:36px;height:36px;border:1.5px solid #6d7473;border-radius:50%}
+.djp-drop-icon::before{content:"";position:absolute;left:50%;top:9px;width:1.5px;height:17px;margin-left:-.75px;background:#c3c9c5}
+.djp-drop-icon::after{content:"";position:absolute;left:50%;top:9px;width:8px;height:8px;margin-left:-5px;border-left:1.5px solid #c3c9c5;border-top:1.5px solid #c3c9c5;transform:rotate(45deg);transform-origin:center}
+.djp-edit[data-drag] .djp-drop-icon{border-color:var(--yellow)}
+.djp-drop:not([data-empty]) .djp-drop-icon{width:28px;height:28px}
+.djp-drop:not([data-empty]) .djp-drop-icon::before{top:6px;height:14px}
+.djp-drop:not([data-empty]) .djp-drop-icon::after{top:6px;width:6px;height:6px;margin-left:-4px}
+.djp-drop-text{display:grid;gap:3px;min-width:0}
+.djp-drop-text strong{font-size:14px}
+.djp-drop[data-empty="1"] .djp-drop-text strong{font-size:16px}
+.djp-drop-text small{color:var(--muted);font-size:12px;line-height:1.4}
+.djp-colour{flex-wrap:wrap}
+.djp-swatches{display:flex;gap:6px;flex-wrap:wrap}
+.djp-swatch{position:relative;width:30px;height:30px;padding:0;border:2px solid transparent;border-radius:50%;background:var(--swatch);box-shadow:inset 0 0 0 2px #111314;cursor:pointer}
+.djp-swatch:hover{border-color:#6d7473}
+.djp-swatch[aria-pressed=true]{border-color:#f1f3ef}
+.djp-swatch[data-stick="1"]::after{content:"USB";position:absolute;left:50%;top:100%;margin-top:2px;transform:translateX(-50%);font-size:9px;letter-spacing:.6px;color:var(--muted)}
+.djp-custom{display:flex;gap:8px;align-items:center}
+.djp-custom input[type=text]{width:100px}
+.djp-colour-note .text-button{font-size:12px}
+.djp-group:has(.djp-swatch[data-stick="1"]) .djp-colour{padding-bottom:12px}
+.wz-profile #wz-djp-slot{display:grid;gap:14px;min-width:0}
+.djp-step-edit{display:grid;gap:14px}
+.djp-step-edit .djp-save-row{gap:14px}
+.djp-have{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:18px;align-items:center;padding:14px 16px;border:1px solid #3f6b45;border-radius:6px;background:#0d0f10}
+.djp-have .djp-tile{width:96px;height:96px}.djp-have .djp-mono{font-size:28px}
+.djp-have-text{display:grid;gap:4px;min-width:0}
+.djp-have-text small{color:var(--muted);font-size:10px;letter-spacing:1px}
+.djp-have-text strong{font-size:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.djp-have-text>span:not(.djp-active){color:#c3c9c5;font-size:12px}
+.djp-have .actions{align-items:center}
+@media(max-width:700px){.djp-have{grid-template-columns:auto minmax(0,1fr)}.djp-have .actions{grid-column:1/-1}}

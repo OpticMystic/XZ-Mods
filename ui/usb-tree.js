@@ -24,7 +24,7 @@ function relative(path,volume){
 function node(id,depth,kind,path,label,state,detail,plan=null,control=null,children=[]){return {id,depth,kind,path,label,state,detail,plan,control,children};}
 
 // choices is null for the Done step: the tree then shows the USB as it is, with no plans or controls.
-// choices: {loader, saved, games:Set, changes:[keys], settingsEditable, versionLine, update, changelog, setLoader, chooseGames, editSettings}
+// choices: {loader, saved, games:Set, changes:[keys], settingsEditable, versionLine, update, changelog, profile, setLoader, chooseGames, editProfile, editSettings}
 function usbLoadout(inspection,{driveLabel,choices=null}={}){
   const ins=inspection,volume=ins.volume,c=choices,saved=c?c.saved:savedModVersion();
   const planned=plan=>c?plan:null,loaderWriting=Boolean(c&&c.loader!=='keep'&&(c.saved||savedModVersion()));
@@ -66,11 +66,13 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     const ticked=Boolean(c?.games.has(game.id))&&!game.installed;
     return node('game-'+game.id,2,'folder',relative(game.folder,volume),game.name,game.installed?'present':'missing',gameNote(GAMES.find(entry=>entry.id===game.id)||{},game),planned(ticked?'add':null));
   };
-  // Read-only here: profiles are written from the DJ Profile page, never by the Write step.
+  // The Write step saves the DJ Profile step's draft (c.profile: {plan, name, problem}); the tree only reports it.
   const profilesNode=()=>{
-    const found=ins.dj_profiles||{count:0,active_name:null},count=found.count||0;
-    return node('djprofile',1,'folder',DJPROFILE,'DJ profiles',count?'present':'missing',count?plural(count,'profile')+(found.active_name?' · active '+found.active_name:''):'No DJ profile yet',null,
-      c?{kind:'link',label:count?'Edit DJ profiles':'Create a DJ profile',onClick:()=>showPage('dj-profile')}:null);
+    const found=ins.dj_profiles||{count:0,active_name:null},count=found.count||0,want=c?.profile;
+    const detail=want?.plan?(want.plan==='add'?'New profile ':'Changes to ')+want.name:want?.problem?'Not written: '+want.problem:
+      count?plural(count,'profile')+(found.active_name?' · active '+found.active_name:''):'No DJ profile yet';
+    return node('djprofile',1,'folder',DJPROFILE,'DJ profiles',count?'present':'missing',detail,planned(want?.plan||null),
+      c?{kind:'link',label:count?'Edit DJ profile':'Create a DJ profile',onClick:c.editProfile}:null);
   };
   const games=ins.games||[],stems=ins.stems||{tracks:0,bytes:0},space=ins.space||{};
   const vjtools=[settingsNode(),backupsNode()].filter(Boolean),gameNodes=games.map(gameNode);

@@ -110,7 +110,9 @@ function installMock() {
     throw Error('Unexpected method ' + request.method);
   };
   const usb = (volume, label) => ({ volume, label, removable: true, loader: true, settings: true, rekordbox: true, games: 0 });
-  window.__TAURI__ = { core: { invoke: async (command, args) => {
+  fx.dropHandlers = [];
+  fx.drag = (type, paths) => fx.dropHandlers.forEach(handler => handler({ payload: { type, paths, position: { x: 10, y: 10 } } }));
+  window.__TAURI__ = { webviewWindow: { getCurrentWebviewWindow: () => ({ onDragDropEvent: async handler => { fx.dropHandlers.push(handler); return () => {}; } }) }, core: { invoke: async (command, args) => {
     fx.calls.push(command);
     if (command === 'app_information') return { version: '0.3.0', platform: 'windows', installed: true, release_notes: { releases: [] } };
     if (command === 'check_app_update') return { phase: 'current', message: 'Up to date' };
@@ -120,6 +122,7 @@ function installMock() {
     if (command === 'pick_path') { fx.picks.push(args.kind); return args.kind === 'image' ? fx.pickQueue.shift() ?? null : args.kind === 'folder' ? 'D:\\Promo' : null; }
     throw Error('Unexpected command ' + command);
   } } };
+  window.wiz = () => document.getElementById('setup');
   fx.csp = [];
   document.addEventListener('securitypolicyviolation', event => fx.csp.push(event.violatedDirective + ' ' + (event.blockedURI || 'inline') + ' ' + (event.sourceFile || '').split('/').pop() + ':' + event.lineNumber));
   window.page = () => document.getElementById('dj-profile');
@@ -200,8 +203,14 @@ try {
   await showDj();
   await check(`txt('#page-title')==='DJ Profile'&&page().querySelectorAll('button').length===1&&Boolean(button('Find my USB'))&&!fx.requests.some(r=>r.method==='read_dj_profiles')`, 'no USB: one Find my USB button and no read yet');
   await click('Find my USB');
-  await waitFor(`djProfilePage.state.phase==='list'`, 'list after Find my USB');
+  await waitFor(`djProfilePage.state.phase==='editing'`, 'editor after Find my USB');
   await check(`document.querySelector('nav button.selected').dataset.page==='dj-profile'&&setupWizard.state.usb==='E:\\\\'&&last('read_dj_profiles').volume==='E:\\\\'`, 'one USB: picked automatically, shared with the wizard, profiles read');
+  await check(`txt('#dj-profile h2')==='New DJ profile'&&document.activeElement!==null&&Boolean(document.getElementById('djp-name'))`, 'empty stick: the editor opens straight away, no extra click');
+  await check(`djProfilePage.state.draft.accent==='#9828f0'&&document.getElementById('djp-accent').value==='#9828f0'&&page().querySelector('.djp-swatch[data-hex="#9828f0"]').getAttribute('aria-pressed')==='true'&&page().querySelector('.djp-swatch[data-hex="#9828f0"]').dataset.stick==='1'&&txt('.djp-colour-note')==="Matches this USB's colour in rekordbox (Purple)."`, 'colour defaults to the USB colour set in rekordbox, marked on its swatch');
+  await check(`page().querySelectorAll('.djp-swatch').length===8&&txt('.djp-drop[data-empty="1"] strong')==='Drop your logo here'&&button('Choose file').classList.contains('primary')`, 'eight rekordbox swatches; an empty logo drop target with a primary Choose file');
+  await check(`!page().querySelector('.djp-more').open&&txt('.djp-more summary')==='Tagline, links and more (optional)'&&page().querySelector('.djp-more #djp-tagline')&&page().querySelector('.djp-more .djp-link')`, 'tagline, links, other names and note wait under one optional fold');
+  await shot('01a-editor-first');
+  await click('Cancel');
   await check(`txt('#dj-profile h2')==='DJ profiles on KINGSTON'&&txt('#dj-profile .wz-lead')==='No DJ profile on this USB yet. A profile puts your name and logo on the XZ and lets VJ software on the same network pick them up.'&&button('New DJ profile').classList.contains('primary')`, 'empty stick: the one sentence and the primary New DJ profile button');
   await check(`!page().querySelector('.djp-track-panel')&&!page().querySelector('.djp-cards')`, 'empty stick: no cards and no track section yet');
   await shot('01-empty');
@@ -209,9 +218,9 @@ try {
 
   await click('New DJ profile');
   await check(`djProfilePage.state.phase==='editing'&&txt('#dj-profile h2')==='New DJ profile'&&document.getElementById('djp-save').disabled&&txt('.djp-save-why')==='Add your DJ name to save.'`, 'editor: Save disabled until there is a name, and says why');
-  await check(`page().querySelectorAll('.djp-link').length===1&&page().querySelector('.djp-link select').value==='media-kit'&&page().querySelector('.djp-link select option:checked').textContent==='EPK'&&txt('.djp-group-head small',page().querySelectorAll('.djp-group')[1]).startsWith('Link to your EPK or files')`, 'links start with one EPK row and the EPK hint');
+  await check(`page().querySelectorAll('.djp-link').length===1&&page().querySelector('.djp-link select').value==='media-kit'&&page().querySelector('.djp-link select option:checked').textContent==='EPK'&&txt('.djp-more .djp-group-head small').startsWith('Link to your EPK or files')`, 'links start with one EPK row and the EPK hint');
   await check(`[...page().querySelector('.djp-link select').options].map(o=>o.textContent).join()==='EPK,Files,Website,Instagram,SoundCloud,Mixcloud,Bandcamp,Other'`, 'link kinds: EPK first, then the short list');
-  await check(`!page().querySelector('.djp-more').open&&txt('.djp-more summary').startsWith('More')&&txt('.djp-edit').includes('first profile on the USB')&&!document.getElementById('djp-make-active')`, 'aliases and note wait under More; first profile becomes active without a tick box');
+  await check(`txt('.djp-edit').includes('first profile on the USB')&&!document.getElementById('djp-make-active')`, 'first profile becomes active without a tick box');
   await check(`txt('.djp-dev-head .dv-profile strong')==='TAP TO SET UP'&&page().querySelector('.djp-dev-head .dv-avatar').dataset.empty==='1'`, 'preview header chip shows the device empty state before a name');
   await shot('02-editor');
   await evaluate(`type('#djp-name','   ')`);
@@ -226,21 +235,36 @@ try {
   await evaluate(`type('#djp-tagline','x'.repeat(81))`);
   await check(`err('tagline')==='Use at most 80 characters.'&&document.getElementById('djp-save').disabled`, 'tagline over 80 characters rejected inline');
   await evaluate(`type('#djp-tagline','Techno all night long')`);
+  await evaluate(`page().querySelector('.djp-swatch[data-hex="#f87070"]').click()`);
+  await check(`djProfilePage.state.draft.accent==='#f87070'&&document.getElementById('djp-accent').value==='#f87070'&&document.getElementById('djp-accent-pick').value==='#f87070'&&page().querySelector('.djp-swatch[data-hex="#f87070"]').getAttribute('aria-pressed')==='true'&&txt('.djp-colour-note')==='This USB is Purple in rekordbox. Use Purple'`, 'a swatch sets the colour; the note offers the USB colour back');
+  await evaluate(`document.getElementById('djp-use-stick').click()`);
+  await check(`djProfilePage.state.draft.accent==='#9828f0'`, 'Use Purple restores the USB colour');
   await evaluate(`type('#djp-accent','#12')`);
   await check(`err('accent')==='Use a colour like #2997ff.'&&document.getElementById('djp-save').disabled`, 'bad accent hex rejected inline');
   await evaluate(`type('#djp-accent','#E0664F')`);
   await check(`err('accent')===''&&document.getElementById('djp-accent-pick').value==='#e0664f'`, 'hex field drives the colour picker');
 
   await evaluate(`fx.pickQueue.push('C:\\\\Logos\\\\kai-wordmark.png','C:\\\\Logos\\\\kai-square.png')`);
-  await click('Add logo');
-  await click('Add logo');
-  await check(`fx.picks.filter(k=>k==='image').length===2&&fx.requests.filter(r=>r.method==='read_logo').map(r=>r.path).join('|')==='C:\\\\Logos\\\\kai-wordmark.png|C:\\\\Logos\\\\kai-square.png'`, 'Add logo uses pick_path kind image, then read_logo');
+  await click('Choose file');
+  await check(`txt('.djp-drop strong')==='Drop another logo here'&&button('Choose file').classList.contains('secondary')`, 'after the first logo the drop target asks for alternates');
+  await click('Choose file');
+  await check(`fx.picks.filter(k=>k==='image').length===2&&fx.requests.filter(r=>r.method==='read_logo').map(r=>r.path).join('|')==='C:\\\\Logos\\\\kai-wordmark.png|C:\\\\Logos\\\\kai-square.png'`, 'Choose file uses pick_path kind image, then read_logo');
+  await evaluate(`fx.drag('enter',['C:\\\\Logos\\\\l3.png'])`);
+  await check(`page().querySelector('.djp-edit').hasAttribute('data-drag')&&getComputedStyle(page().querySelector('.djp-drop')).borderTopStyle==='solid'`, 'dragging files over the window lights the drop target');
+  await evaluate(`fx.drag('leave')`);
+  await check(`!page().querySelector('.djp-edit').hasAttribute('data-drag')`, 'leaving the window clears it');
+  await evaluate(`fx.drag('drop',['C:\\\\Logos\\\\l3.png','C:\\\\Logos\\\\notes.txt'])`);
+  await idle();
+  await check(`page().querySelectorAll('.djp-logo').length===3&&djProfilePage.state.draft.logos[2].path==='C:\\\\Logos\\\\l3.png'&&!fx.requests.some(r=>r.method==='read_logo'&&r.path.endsWith('notes.txt'))&&err('logos')===''`, 'a dropped PNG is read and added; a dropped non-image is ignored when an image came with it');
+  await evaluate(`fx.drag('drop',['C:\\\\Logos\\\\notes.txt'])`);
+  await check(`err('logos')==='Drop a PNG or JPEG image.'`, 'dropping only non-images says what to drop');
+  await evaluate(`page().querySelectorAll('.djp-logo .djp-remove')[2].click()`);
   await check(`page().querySelectorAll('.djp-logo').length===2&&txt('.djp-logo[data-main="1"] .djp-main')==='Main logo'&&txt('.djp-logo small').startsWith('1600 × 600 px')&&Boolean(button('Make main'))`, 'logo rows show size, the main logo, and Make main on the other');
   await evaluate(`fx.pickQueue.push('C:\\\\Logos\\\\kai-square.png')`);
-  await click('Add logo');
+  await click('Choose file');
   await check(`err('logos')==='That logo is already in the list.'&&page().querySelectorAll('.djp-logo').length===2`, 'the same file twice is refused inline');
   await evaluate(`fx.pickQueue.push('C:\\\\Logos\\\\notes.txt')`);
-  await click('Add logo');
+  await click('Choose file');
   await check(`err('logos')==='Choose a PNG or JPEG image. This file is neither.'`, 'a non-image shows the backend reason inline');
   await click('Make main');
   await check(`djProfilePage.state.draft.logos[0].path==='C:\\\\Logos\\\\kai-square.png'&&page().querySelectorAll('.djp-logo')[0].dataset.main==='1'`, 'Make main moves that logo first');
@@ -248,19 +272,25 @@ try {
   await check(`getComputedStyle(page().querySelector('.djp-dev-body .djp-tile')).width==='160px'&&getComputedStyle(page().querySelector('.djp-dev-body .djp-tile img')).objectFit==='contain'&&getComputedStyle(page().querySelector('.djp-dev-body .djp-tile')).backgroundColor==='rgb(0, 0, 0)'`, 'tile is 160 px, logo fit inside over black');
   await check(`getComputedStyle(page().querySelector('.djp-device')).getPropertyValue('--dv-accent').trim()==='#54c1e6'`, 'preview uses the USB settings theme (CYBERPUNK)');
   await check(`txt('.djp-vj').includes('DJ Kai')&&txt('.djp-vj').includes('Techno all night long')&&txt('.djp-vj').includes('EPK drive.google.com')`, 'What VJ software sees: name, tagline and links');
+  await evaluate(`page().querySelector('.djp-more').open=true`);
+  await waitFor(`djProfilePage.state.draft.moreOpen`, 'the optional fold opens');
   await click('Add link');
   await check(`page().querySelectorAll('.djp-link select')[1].value==='website'`, 'second link suggests Website once EPK is there');
   await evaluate(`type('.djp-link:nth-child(2) input[type=url]','https://djkai.example')`);
 
   await evaluate(`fx.pickQueue.push('C:\\\\Logos\\\\l3.png','C:\\\\Logos\\\\l4.png','C:\\\\Logos\\\\l5.png','C:\\\\Logos\\\\l6.png','C:\\\\Logos\\\\l7.png','C:\\\\Logos\\\\l8.png','C:\\\\Logos\\\\l9.png')`);
-  for (let i = 0; i < 6; i++) await click('Add logo');
-  await check(`page().querySelectorAll('.djp-logo').length===8&&document.getElementById('djp-add-logo').disabled&&txt('.djp-group').includes('8 logos is the most a profile holds.')`, '8 logos: Add logo is disabled and says why');
+  for (let i = 0; i < 6; i++) await click('Choose file');
+  await check(`page().querySelectorAll('.djp-logo').length===8&&document.getElementById('djp-add-logo').disabled&&txt('.djp-drop strong')==='8 logos is the most a profile holds.'`, '8 logos: Choose file is disabled and says why');
+  await evaluate(`fx.drag('drop',['C:\\\\Logos\\\\l9.png'])`);
+  await idle();
+  await check(`page().querySelectorAll('.djp-logo').length===8`, 'a 9th dropped logo is refused too');
   await evaluate(`document.getElementById('djp-add-logo').click()`);
   await idle();
   await check(`page().querySelectorAll('.djp-logo').length===8&&fx.picks.filter(k=>k==='image').length===10`, 'a 9th logo is refused without opening the picker');
+  await evaluate(`djProfilePage.state.draft.logoError='';djProfilePage.render()`);
   await check(`txt('#djp-budget')==='6.9 MB of 24 MB left for logos.'`, 'remaining logo budget shows once it gets close');
   for (let i = 0; i < 6; i++) await evaluate(`page().querySelectorAll('.djp-logo .djp-remove')[2].click()`);
-  await check(`page().querySelectorAll('.djp-logo').length===2&&!document.getElementById('djp-budget')&&!document.getElementById('djp-add-logo').disabled`, 'removing logos brings Add logo back and hides the budget');
+  await check(`page().querySelectorAll('.djp-logo').length===2&&!document.getElementById('djp-budget')&&!document.getElementById('djp-add-logo').disabled`, 'removing logos brings Choose file back and hides the budget');
   await check(`document.documentElement.scrollWidth<=innerWidth&&page().querySelector('.djp-editor').scrollWidth<=page().querySelector('.djp-editor').clientWidth`, 'editor fits without horizontal scroll');
   await evaluate(`page().querySelector('.djp-more').open=true`);
   await waitFor(`djProfilePage.state.draft.moreOpen`, 'More opens');
@@ -329,14 +359,21 @@ try {
 
   await evaluate(`showPage('setup')`);
   await check(`setupWizard.state.step==='loadout'&&txt('.tree-row[data-id=djprofile] .tree-detail')==='2 profiles · active DJ Kai'&&document.querySelector('.tree-row[data-id=djprofile]').dataset.state==='present'&&txt('.tree-row[data-id=djprofile] small')==='DJPROFILE'`, 'loadout tree: DJ profiles row with count and active name');
-  await check(`txt('.tree-row[data-id=djprofile] .tree-badge')==='On USB'&&!document.querySelector('.tree-row[data-id=djprofile] input')`, 'the DJ profiles row has no tick box: the wizard never writes profiles');
+  await check(`txt('.tree-row[data-id=djprofile] .tree-badge')==='On USB'&&!document.querySelector('.tree-row[data-id=djprofile] input')`, 'the DJ profiles row has no tick box');
   await shot('08-loadout-row');
   await evaluate(`document.querySelector('.tree-row[data-id=djprofile] button').click()`);
-  await check(`document.querySelector('nav button.selected').dataset.page==='dj-profile'&&djProfilePage.state.phase==='list'`, 'its Edit DJ profiles link opens the DJ Profile page');
-  await evaluate(`showPage('setup');setupWizard.goto('settings')`);
+  await waitFor(`setupWizard.state.step==='profile'&&wiz().querySelector('.djp-have')`, 'DJ Profile step');
+  await check(`txt('.wz-step[data-state=current]')==='3DJ Profile'&&txt('.djp-have strong',wiz())==='DJ Kai'&&txt('.djp-have .djp-active',wiz())==='Active on the XZ'&&Boolean(button('Edit',wiz()))&&button('Next',wiz())`, 'its Edit link opens the DJ Profile step: the active profile at a glance, Edit, Next');
+  await check(`!document.getElementById('djp-host').childElementCount`, 'the step and the page never draw the editor twice');
+  await shot('09-step-have');
+  await evaluate(`button('Edit',wiz()).click()`);
+  await check(`wiz().querySelector('#djp-name').value==='DJ Kai'&&txt('.djp-save-why',wiz())==='No changes yet.'&&djProfilePage.pending()===null&&button('Next',wiz())`, 'editing in the step: an unchanged profile plans nothing');
+  await evaluate(`button('Keep the saved profile',wiz()).click()`);
+  await check(`wiz().querySelector('.djp-have')`, 'Keep the saved profile goes back to the summary');
+  await evaluate(`setupWizard.goto('settings')`);
   await check(`txt('.dv-header .dv-profile strong')==='DJ Kai'&&txt('.dv-header .dv-usb')==='USB · E:\\\\'`, 'settings menu header carries the active DJ chip, like the XZ');
   await evaluate(`document.querySelector('.dv-header .dv-profile').click()`);
-  await check(`document.querySelector('nav button.selected').dataset.page==='dj-profile'`, 'the header chip opens the DJ Profile page');
+  await check(`setupWizard.state.step==='profile'`, 'the header chip opens the DJ Profile step');
 
   await open('empty');
   await evaluate(`showPage('setup')`);
@@ -344,10 +381,30 @@ try {
   await waitFor(`document.querySelector('.wz-usb')`, 'wizard USB card');
   await evaluate(`document.querySelector('.wz-usb').click()`);
   await waitFor(`setupWizard.state.step==='loadout'&&activeJob===null`, 'wizard loadout');
-  await check(`txt('.tree-row[data-id=djprofile] .tree-detail')==='No DJ profile yet'&&txt('.tree-row[data-id=djprofile] button')==='Create a DJ profile'&&count('read_dj_profiles')===0`, 'empty stick tree row: Create a DJ profile, and no profile read while the page is hidden');
-  await evaluate(`document.querySelector('.tree-row[data-id=djprofile] button').click()`);
-  await waitFor(`djProfilePage.state.phase==='list'`, 'list after the tree link');
-  await check(`last('read_dj_profiles').volume==='E:\\\\'&&Boolean(button('New DJ profile'))`, 'a USB chosen in the wizard is enough: the page reads it on open');
+  await check(`txt('.tree-row[data-id=djprofile] .tree-detail')==='No DJ profile yet'&&txt('.tree-row[data-id=djprofile] button')==='Create a DJ profile'&&count('read_dj_profiles')===0`, 'empty stick tree row: Create a DJ profile, and no profile read before the step');
+  await evaluate(`button('Next',wiz()).click()`);
+  await waitFor(`setupWizard.state.step==='profile'&&wiz().querySelector('#djp-name')`, 'DJ Profile step editor');
+  await check(`last('read_dj_profiles').volume==='E:\\\\'&&txt('.wz-pane h2',wiz())==='Your DJ profile'&&Boolean(button('Skip for now',wiz()))&&txt('.djp-save-why',wiz())==='Add your DJ name to save a profile, or skip this step.'`, 'Next from Loadout: the DJ Profile step reads the USB and opens the editor; Next says Skip for now');
+  await check(`wiz().querySelector('.djp-swatch[data-hex="#9828f0"]').getAttribute('aria-pressed')==='true'&&!wiz().querySelector('#djp-save')&&wiz().querySelector('.djp-drop[data-empty="1"]')`, 'step editor: USB colour preselected, a drop target, no separate Save button');
+  await shot('10-step-empty');
+  await evaluate(`const f=wiz().querySelector('#djp-name');f.value='DJ Nova';f.dispatchEvent(new Event('input',{bubbles:true}))`);
+  await check(`Boolean(button('Next',wiz()))&&!button('Skip for now',wiz())&&txt('.djp-save-why',wiz())==='Saved to the USB in the Write step.'&&djProfilePage.pending().plan==='add'&&wiz().querySelector('#djp-name').value==='DJ Nova'`, 'a name turns Skip for now into Next and says when it is written');
+  await evaluate(`fx.drag('drop',['C:\\\\Logos\\\\kai-square.png'])`);
+  await waitFor(`djProfilePage.state.draft.logos.length===1&&activeJob===null`, 'dropped logo in the step');
+  await check(`wiz().querySelector('.djp-dev-body .djp-tile img')&&wiz().querySelector('#djp-name').value==='DJ Nova'`, 'a logo dropped on the step shows in the preview');
+  await shot('11-step-filled');
+  await evaluate(`button('Next',wiz()).click()`); await waitFor(`setupWizard.state.step==='nonessentials'`, 'nonessentials');
+  await evaluate(`button('Next',wiz()).click()`); await waitFor(`setupWizard.state.step==='settings'`, 'settings');
+  await evaluate(`button('Review and write',wiz()).click()`); await waitFor(`setupWizard.state.step==='write'`, 'write');
+  await check(`document.querySelector('.tree-row[data-id=djprofile]').dataset.plan==='1'&&txt('.tree-row[data-id=djprofile] .tree-badge')==='Will add'&&txt('.tree-row[data-id=djprofile] .tree-detail')==='New profile DJ Nova'&&!button('Write to USB',wiz()).disabled&&count('save_dj_profile')===0`, 'Write step plans the profile, nothing saved yet');
+  await shot('12-write-plan');
+  await evaluate(`button('Write to USB',wiz()).click()`);
+  await waitFor(`setupWizard.state.step==='done'&&activeJob===null`, 'done');
+  await check(`(()=>{const r=last('save_dj_profile');return count('save_dj_profile')===1&&r.profile.dj_name==='DJ Nova'&&r.profile.accent==='#9828f0'&&r.expected_revision===null&&r.make_active===true&&r.logos.map(l=>l.path).join()==='C:\\\\Logos\\\\kai-square.png';})()`, 'Write saves the step draft once: name, USB colour, dropped logo');
+  await check(`txt('.wz-done',wiz()).includes('DJ profile DJ Nova saved to the USB.')&&txt('.tree-row[data-id=djprofile] .tree-detail')==='1 profile · active DJ Nova'&&Boolean(button('Make the profile track',wiz()))`, 'Done lists the profile, the tree shows it, and the profile track is one click away');
+  await shot('13-done');
+  await evaluate(`button('Make the profile track',wiz()).click()`);
+  await check(`document.querySelector('nav button.selected').dataset.page==='dj-profile'&&txt('.djp-saved').startsWith('Saved DJ Nova to the USB.')`, 'Make the profile track opens the DJ Profile page on the saved profile');
 
   await open('folder');
   await showDj();
@@ -371,8 +428,8 @@ try {
   await click('Find my USB');
   await check(`page().querySelectorAll('.wz-usb').length===2&&djProfilePage.state.phase==='no-usb'`, 'several USBs: the USB cards, nothing chosen yet');
   await evaluate(`page().querySelectorAll('.wz-usb')[1].click()`);
-  await waitFor(`djProfilePage.state.phase==='list'`, 'list after card');
-  await check(`last('read_dj_profiles').volume==='F:\\\\'&&txt('#dj-profile h2')==='DJ profiles on SANDISK'`, 'choosing a card reads that USB');
+  await waitFor(`djProfilePage.state.phase==='editing'`, 'editor after card');
+  await check(`last('read_dj_profiles').volume==='F:\\\\'&&txt('#dj-profile h2')==='New DJ profile'`, 'choosing a card reads that USB');
 
   assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));
   await cspClean();

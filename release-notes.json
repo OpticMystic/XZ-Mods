@@ -1,6 +1,17 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.6",
+      "date": "2026-10-12",
+      "preview": true,
+      "features": [
+        "DJ Profile step in Set up USB, right after Loadout. Type your DJ name, drop your logo, and the Write step saves the profile with the loader, games and settings. Skip for now if you don't want one yet; a USB that already has a profile shows it with an Edit button.",
+        "Drop your logo. Drag a PNG or JPEG from Explorer anywhere onto the window while the profile editor is open, or use Choose file. Several files at once become alternates.",
+        "Your USB's colour. A new profile starts in the colour this USB has in rekordbox, shown as the marked swatch among rekordbox's eight colours. Any other colour is one click away.",
+        "Less to fill in. The editor shows the name, logo and colour; tagline, links, other names and the note fold away under one optional heading. On a USB with no profile yet, the DJ Profile page opens the editor straight away."
+      ]
+    },
+    {
       "version": "0.3.0-preview.5",
       "date": "2026-10-12",
       "preview": true,
