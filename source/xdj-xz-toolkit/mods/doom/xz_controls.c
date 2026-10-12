@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "xz_controls.h"
 #include "vendor/doomkeys.h"
+#include "native_bridge.h"
 #include "../ui/pixel_font.h"
 #include <string.h>
 
@@ -26,10 +27,25 @@ void xz_doom_touch(struct xz_doom_controls *c,int down,int x,int y) {
         return;
     }
 }
+int xz_doom_nav_tap(struct xz_doom_controls *c,unsigned nav) {
+    if(c->tap || (c->tapped && c->sent[c->tapped])) return 0;
+    /* Encoder down moves down Doom's menus; ENTER selects, ESCAPE goes back. */
+    int key=nav==XZ_GAME_NAV_UP?KEY_UPARROW:nav==XZ_GAME_NAV_DOWN?KEY_DOWNARROW:
+        nav==XZ_GAME_NAV_ENTER?KEY_ENTER:nav==XZ_GAME_NAV_BACK?KEY_ESCAPE:0;
+    if(nav==XZ_GAME_NAV_QUIT) c->quit=1;
+    else if(key) c->tap=c->tapped=key;
+    return 1;
+}
 int xz_doom_key(struct xz_doom_controls *c,int *pressed,unsigned char *key) {
-    for(unsigned i=0;i<256;i++) if(c->sent[i]!=(c->desired[i]|c->physical[i])) {
-        *pressed=c->desired[i]|c->physical[i]; *key=(unsigned char)i; c->sent[i]=(unsigned char)*pressed; return 1;
+    for(unsigned i=0;i<256;i++) {
+        int tapped=c->tap && c->tap==(int)i;
+        int level=c->desired[i]|c->physical[i]|tapped;
+        if(c->sent[i]==level) continue;
+        *pressed=level; *key=(unsigned char)i; c->sent[i]=(unsigned char)level;
+        if(tapped) c->tap=0;
+        return 1;
     }
+    if(c->tap) c->tap=0; /* already held by another source: nothing to send */
     return 0;
 }
 void xz_doom_physical(struct xz_doom_controls *c,uint32_t buttons,int turn) {
@@ -65,6 +81,6 @@ void xz_doom_compose(uint16_t *out,const uint32_t *game,const struct xz_doom_con
         int x=b->x+(b->w-(int)strlen(b->label)*12)/2;
         text(out,x,b->y+b->h/2-7,b->label,0xffff);
     }
-    text(out,160,419,"DOOM / NATIVE XZ",0xfd20);
+    text(out,160,419,"KNOB MENUS / REKORDBOX EXITS",0xfd20);
     text(out,160,443,"FIRE TOGGLES / USE OPENS",0xffff);
 }

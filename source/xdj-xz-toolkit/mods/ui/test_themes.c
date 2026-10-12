@@ -24,7 +24,7 @@ int main(int argc,char **argv){
   assert(strlen(xz_theme_name(theme))>0);
  }
  assert(xz_theme_palette(-1)==xz_theme_palette(0));assert(xz_theme_palette(XZ_THEME_COUNT)==xz_theme_palette(0));
- assert(xz_theme_palette(6)->bg==0xfbf0d9);assert(xz_theme_palette(0)->stem[0]==0xff3b30);
+ assert(xz_theme_palette(6)->bg==0xfbf0d9);assert(xz_theme_palette(0)->stem[0]==0x2997ff);
  {
   uint16_t pixels[186*66];struct xz_theme_surface s={pixels,186,186,66,0,0,186,66};
   xz_theme_background(s,11,(struct xz_theme_rect){0,0,186,66});

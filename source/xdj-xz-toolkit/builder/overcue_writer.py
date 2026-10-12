@@ -14,6 +14,7 @@ import math
 import os
 from pathlib import Path
 from .host import executable
+from . import mp3_timing
 import re
 import shutil
 import struct
@@ -37,6 +38,14 @@ ID_TAKEN = ("Another OverCue entry already uses this Rekordbox track id for a di
             "XZ Mods left it unchanged.")
 STAGING = ".xz-mods-staging-"
 BUNDLE = re.compile(r"[0-9a-f]{16}")
+# Per-stem waveforms the runtime reads (mods/ui/layered_wave_source.c, mods/audio/overcue_file.c load_wave).
+# Optional in the OverCue format and outside the bundle name. stem_waveforms.py writes them; it runs in the
+# import environment, so its column size is repeated here and pinned equal by test_stem_waveforms.py.
+WAVEFORM_STEMS = ("drums", "harmonics", "vocal")
+WAVEFORM_SECTIONS = {".2EX": (b"PWV7", 3, 8 * 1024 * 1024), ".EXT": (b"PWV3", 1, 4 * 1024 * 1024)}
+WAVEFORM_FILES = tuple(f"stems-{stem}-waveform{suffix}" for stem in WAVEFORM_STEMS for suffix in WAVEFORM_SECTIONS)
+WAVEFORM_COLUMN_FRAMES = 640
+WAVEFORM_TEMPORARY = ".xz-mods-wave-"
 
 
 def role_file(role):
@@ -282,6 +291,151 @@ def _existing_bundle(folder, pcm, frames, source_sha256):
     return tables
 
 
+def check_waveform(path, frames):
+    """Apply the runtime readers' checks to one waveform file and require one column per 640 frames."""
+    path = cache._regular(path)
+    tag, entry_size, limit = WAVEFORM_SECTIONS[path.suffix]
+    if path.stat().st_size > limit:
+        raise ValueError(f"{path.name} is too large for the player")
+    data = path.read_bytes()
+    if len(data) < 12 or data[:4] != b"PMAI":
+        raise ValueError(f"{path.name} is not an analysis file")
+    header, length = struct.unpack_from(">II", data, 4)
+    if not 12 <= header <= length == len(data):
+        raise ValueError(f"{path.name} has an inconsistent length")
+    at = header
+    while at + 12 <= length and data[at:at + 4] != tag:
+        head, total = struct.unpack_from(">II", data, at + 4)
+        if head < 12 or total < head or total > length - at:
+            raise ValueError(f"{path.name} has an inconsistent section")
+        at += total
+    if at + 24 > length:
+        raise ValueError(f"{path.name} has no {tag.decode()} section")
+    head, total, size, count = struct.unpack_from(">IIII", data, at + 4)
+    columns = -(-frames // WAVEFORM_COLUMN_FRAMES)
+    if (head, size, count) != (24, entry_size, columns) or total != head + size * count or total > length - at:
+        raise ValueError(f"{path.name} does not have one {tag.decode()} column per 1/150 s of this track")
+    return {"section": tag.decode(), "columns": columns, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+
+
+def _generated_waveforms(waves, frames):
+    """Records for freshly generated waveform files, or (None, reason) when they are missing or invalid."""
+    if waves is None:
+        return None, None
+    try:
+        return {name: check_waveform(waves / name, frames) for name in WAVEFORM_FILES}, None
+    except (OSError, ValueError) as error:
+        return None, f"Stem waveforms were not written: {error}"
+
+
+def has_waveforms(folder, frames):
+    """True when every waveform file in the bundle passes the player's checks for this track length."""
+    try:
+        for name in WAVEFORM_FILES:
+            check_waveform(folder / name, frames)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def waveforms_present(folder, frames):
+    """has_waveforms by file size alone, cheap enough for every row of a library page."""
+    columns = -(-frames // WAVEFORM_COLUMN_FRAMES)
+    try:
+        return all((folder / name).stat().st_size == 52 + WAVEFORM_SECTIONS[name[-4:]][1] * columns
+                   for name in WAVEFORM_FILES)
+    except OSError:
+        return False
+
+
+def _copy_waveforms(waves, target, records, frames):
+    for name in WAVEFORM_FILES:
+        pending = target / (WAVEFORM_TEMPORARY + name)
+        shutil.copyfile(waves / name, pending)
+        with open(pending, "rb+") as output:
+            os.fsync(output.fileno())
+        if check_waveform(pending, frames) != records[name]:
+            raise ValueError(f"{name} changed while it was copied to the USB")
+        os.replace(pending, target / name)
+
+
+def _install_waveforms(folder, waves, records, frames):
+    """Add waveforms to a published bundle. The manifest is never rewritten in place: on FAT an unplug
+    mid-replace would lose it, and a bundle without a manifest no longer reads as XZ Mods' own."""
+    for leftover in folder.glob(WAVEFORM_TEMPORARY + "*"):
+        leftover.unlink()
+    _copy_waveforms(waves, folder, records, frames)
+
+
+def _waveform_script():
+    return cache._regular(Path(os.environ["XZ_BUILDER_RESOURCES"]) / "inference/stem_waveforms.py")
+
+
+def render_waveforms(python, source, output, job):
+    """Run stem_waveforms.py. The stems play without waveforms, so a failure is reported, not raised."""
+    job.progress("waveforms", "Drawing the stem waveforms for the player")
+    try:
+        job.run([python, "-I", _waveform_script(), *source, "--output", output])
+        return output, None
+    except (RuntimeError, OSError, ValueError, KeyError) as error:
+        return None, f"Stem waveforms were not written: {error}"
+
+
+def add_waveforms(usb_root, file_path, python, job):
+    """Give an XZ Mods bundle its stem waveforms from the PCM it already stores, without separating again."""
+    mods = cache._safe_path(Path(usb_root) / "CDJMODS")
+    stems = cache._safe_path(mods / "stems")
+    with exclusive_lock(cache._safe_path(mods / ".xz-mods.lock"), "Another XZ Mods window is writing stems to this USB"):
+        index = read_index(mods)[0]
+        bundles = {entry.get("bundle") for name in ("tracks", "tracks_onelibrary")
+                   for entry in index.get(name, {}).values() if entry.get("file_path") == file_path}
+        if len(bundles) != 1:
+            raise ValueError("This track has no stems on this USB")
+        bundle = bundles.pop()
+        if not owned_by_xz_mods(stems, bundle):
+            raise ValueError("OverCue prepared this track. XZ Mods left it unchanged.")
+        folder = cache._safe_path(stems / bundle)
+        runtime = _parse_json(_read_bytes(folder / "overcue-manifest.json", "manifest"), "manifest").get("runtime", {})
+        frames = runtime.get("frames") if isinstance(runtime, dict) else None
+        if type(frames) is not int or not 0 < frames <= MAX_FRAMES:
+            raise ValueError(f"CDJMODS/stems/{bundle} has an invalid manifest")
+        if has_waveforms(folder, frames):
+            return {"bundle": bundle, "waveforms": True, "added": False}
+        with tempfile.TemporaryDirectory(prefix="xz-stem-waves-", ignore_cleanup_errors=True) as temporary:
+            waves, scratch = Path(temporary) / "waveforms", Path(temporary) / "decoded"
+            scratch.mkdir()
+            job.progress("waveforms", "Drawing the stem waveforms from the stems on this USB")
+            job.run([python, "-I", _waveform_script(), "--bundle", folder, "--scratch", scratch, "--output", waves])
+            records = {name: check_waveform(waves / name, frames) for name in WAVEFORM_FILES}
+            _install_waveforms(folder, waves, records, frames)
+    return {"bundle": bundle, "waveforms": True, "added": True}
+
+
+def source_record(file_path, source_sha256, source_codec, source=None):
+    """The manifest's ``source`` object. Every MP3 bundle records its LAME timing so the library can tell
+    bundles on the player's timeline from older ones written from a gapless decode."""
+    source = source or {}
+    record = {"file_path": file_path, "sha256": source_sha256, "codec": source_codec,
+              "sample_rate": int(source.get("sample_rate") or 44100)}
+    mp3 = source.get("mp3")
+    if source_codec == "mp3" and isinstance(mp3, dict):
+        record["mp3"] = {"lame_tag": bool(mp3.get("lame_tag")), "delay_frames": int(mp3.get("delay_frames", 0)),
+                         "padding_frames": int(mp3.get("padding_frames", 0)), "timeline": "player"}
+    return record
+
+
+def mp3_timeline(manifest, source_path):
+    """'player' when an XZ Mods MP3 bundle keeps every decoded frame, 'gapless' when it was written from a trimmed
+    decode of a LAME-tagged file (prepare again), None when the question does not arise."""
+    source = manifest.get("source") if isinstance(manifest.get("source"), dict) else {}
+    if manifest.get("writer", {}).get("name") != WRITER or Path(source_path).suffix.lower() != ".mp3":
+        return None
+    if isinstance(source.get("mp3"), dict):
+        return "player"
+    probe = mp3_timing.probe(source_path)
+    return "gapless" if probe and probe["lame_tag"] else "player"
+
+
 def _write_json(path, value, compact=False):
     text = json.dumps(value, ensure_ascii=False, **({"separators": (",", ":")} if compact else {"indent": 1}))
     data = text.encode("utf-8") + b"\n"
@@ -293,22 +447,30 @@ def _write_json(path, value, compact=False):
         os.fsync(output.fileno())
 
 
-def publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_dir, separation, version, job, page_python=None):
+def publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_dir, separation, version, job, page_python=None,
+            source=None):
+    """``source`` describes the original file's timeline: ``{'sample_rate': int, 'mp3': helper mp3 object or None}``."""
     if page_python is None:
-        return _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_dir, separation, version, job)
+        return _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_dir, separation, version, job,
+                        source=source)
     with tempfile.TemporaryDirectory(prefix='xz-flac-pages-') as temporary:
         packed = Path(temporary) / 'pages'
         script = cache._regular(Path(os.environ['XZ_BUILDER_RESOURCES']) / 'inference/overcue_flac_pack.py')
         job.progress('pack', 'Encoding lossless FLAC stem pages')
         job.run([page_python, '-I', script, '--roles', roles_dir, '--output', packed])
-        return _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_dir,
-                        separation, version, job, packed)
+        waves, error = render_waveforms(page_python, ['--roles', roles_dir], Path(temporary) / 'waveforms', job)
+        receipt = _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_dir,
+                           separation, version, job, packed, waves, source=source)
+        return {**receipt, 'waveform_error': error} if error else receipt
 
 
-def _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_dir, separation, version, job, packed=None):
+def _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_dir, separation, version, job,
+             packed=None, waves=None, source=None):
     """Pack, verify, and index one track. Returns the receipt fields shared by both entry points."""
+    source = source_record(file_path, source_sha256, source_codec, source)
     result, files = _read_roles(roles_dir)
     frames, headroom = result["frames"], float(result["headroom_gain"])
+    waveforms, waveform_error = _generated_waveforms(waves, frames)
     pcm = {role: result["roles"][role]["sha256"] for role in ROLES}
     prepared_tables = {role: verify_role(packed / role_file(role), pcm[role], frames) for role in ROLES} if packed else None
     codec = 'flac-96k' if packed else 'zlib'
@@ -349,17 +511,28 @@ def _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_d
                         raise ValueError("Rendered role changed while packing")
                 job.progress("verify", "Reading back every stem page")
                 tables = {role: verify_role(staging / role_file(role), pcm[role], frames) for role in ROLES}
+                if waveforms:
+                    try:
+                        _copy_waveforms(waves, staging, waveforms, frames)
+                    except (OSError, ValueError) as error:
+                        for name in WAVEFORM_FILES:
+                            for leftover in (staging / name, staging / (WAVEFORM_TEMPORARY + name)):
+                                if leftover.exists():
+                                    leftover.unlink()
+                        waveforms, waveform_error = None, f"Stem waveforms were not written: {error}"
                 # loudness_gain stays 1: the device aligns the stored full mix to its own decode, and that
                 # scale already undoes the headroom. Dividing by it again would play every stem too loud.
                 _write_json(staging / "overcue-manifest.json", {
                     "schema": MANIFEST_SCHEMA,
                     "writer": {"name": WRITER, "version": version, "beta": True},
-                    "source": {"file_path": file_path, "sha256": source_sha256, "codec": source_codec, "sample_rate": 44100},
+                    "source": source,
                     "runtime": {"sample_rate": 96000, "channels": 2, "format": "s16le", "frames": frames,
-                                "latency_pad_frames": 0, "headroom_gain": headroom, "page_codec": codec},
+                                "latency_pad_frames": mp3_timing.latency_pad_frames(source.get("mp3"), source["sample_rate"]),
+                                "headroom_gain": headroom, "page_codec": codec},
                     "separation": separation,
                     "roles": {role: {"file": role_file(role), "bytes": frames * 4, "sha256": pcm[role],
-                                     "page_table_sha256": tables[role], "loudness_gain": 1.0} for role in ROLES}})
+                                     "page_table_sha256": tables[role], "loudness_gain": 1.0} for role in ROLES},
+                    **({"waveforms": waveforms} if waveforms else {})})
                 job.check()
                 cache._publish_new(staging, folder)
             finally:
@@ -368,6 +541,12 @@ def _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_d
             rebuilt = True
         else:
             rebuilt = False
+            if waveforms and owned_by_xz_mods(stems, bundle) and not has_waveforms(folder, frames):
+                job.progress("waveforms", "Adding the stem waveforms to the stems already on this USB")
+                try:
+                    _install_waveforms(folder, waves, waveforms, frames)
+                except (OSError, ValueError) as error:
+                    waveform_error = f"Stem waveforms were not written: {error}"
         entry = {"bundle": bundle, "file_path": file_path, "frames": frames, "three_part": 1, "page_bytes": PAGE_BYTES, "page_codec": codec}
         for role in ROLES:
             key = role.replace("-", "_")
@@ -393,5 +572,7 @@ def _publish(usb_root, file_path, track_id, source_sha256, source_codec, roles_d
         published, _ = read_index(mods)
         if published.get("tracks", {}).get(str(track_id), {}).get("bundle") != bundle or conflicts(published, track_id, file_path, bundle):
             raise ValueError("CDJMODS/index.json did not read back as written")
-    return {"bundle": bundle, "frames": frames, "reused": merged is None and not rebuilt,
-            "replaced_previous": replaced, "verified": True, "page_codec": codec}
+    receipt = {"bundle": bundle, "frames": frames, "reused": merged is None and not rebuilt,
+               "replaced_previous": replaced, "verified": True, "page_codec": codec,
+               "waveforms": has_waveforms(folder, frames)}
+    return {**receipt, "waveform_error": waveform_error} if waveform_error else receipt

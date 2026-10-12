@@ -5,8 +5,8 @@
 #define XZ_LCARS_ICE 0x24c4ff
 #endif
 
-/* Frame: sidebar 0..124, content 148..792, top bar 0..40, bottom bar 452..480. */
-enum { SIDE=124, X0=148, X1=792, CW=X1-X0, TOP=40, BOTTOM=452, CAP=64, GAP=4 };
+/* Frame: sidebar 0..124, content 136..792, top bar 0..40, info dock 412..480. */
+enum { SIDE=124, X0=XZ_UI_CX, X1=792, CW=X1-X0, TOP=40, CAP=64, GAP=4 };
 enum { TL=1, TR=2, BL=4, BR=8, LEFT=TL|BL, RIGHT=TR|BR, ALL=15 };
 enum { ALIGN_L, ALIGN_C, ALIGN_R };
 
@@ -61,22 +61,22 @@ static void capped(struct xz_canvas c,int x,int y,int w,int h,uint32_t col,int o
 
 static void elbow(struct xz_canvas c,int top,uint32_t col){
  if(top){shape(c,0,0,SIDE,72,36,TL,col);xz_rect(c,SIDE,0,76,TOP,col);xz_rect(c,SIDE,TOP,16,16,col);shape(c,SIDE,TOP,32,32,16,TL,0);}
- else{shape(c,0,408,SIDE,72,36,BL,col);xz_rect(c,SIDE,BOTTOM,76,28,col);xz_rect(c,SIDE,BOTTOM-16,16,16,col);shape(c,SIDE,BOTTOM-32,32,32,16,BL,0);}
+ else{shape(c,0,XZ_UI_DOCK_Y-56,SIDE,48,24,BL,col);}
 }
 static void chip(struct xz_canvas c,int x,int y,int w,int h,int tab,const char *s,int scale,uint32_t tab_col,uint32_t col){
  shape(c,x,y,tab,h,h/2,LEFT,tab_col);text(c,x+tab+8,y,w-tab-8,h,s,scale,ALIGN_R,col);
 }
 static void deck_header(struct xz_canvas c,const struct xz_ui *u,const struct xz_ui_deck *d,const struct xz_theme_palette *p,char *buf,size_t len){
- uint32_t ice=XZ_LCARS_ICE;
+ uint32_t ice=XZ_LCARS_ICE;int wave_y=u->page==XZ_UI_STEMS?108:100,half=u->page==XZ_UI_STEMS?22:14;
  block(c,X0,48,452,36,18,ALL,XZ_LCARS_VIOLET,0,d->track?d->track:(u->deck<2?"NO TRACK LOADED":"COMPUTER DECK / EXTERNAL AUDIO"),2,ALIGN_L,14);
  if(d->bpm>0)snprintf(buf,len,"%.1f BPM",(double)d->bpm);else snprintf(buf,len,"---.- BPM");
  chip(c,608,48,184,36,40,buf,2,p->ink,d->bpm>0?ice:p->ink);
  if(d->wave_peaks&&d->wave_count){
   size_t n=d->wave_count<322?d->wave_count:322;
-  for(size_t j=0;j<n;j++){int h=d->wave_peaks[j*d->wave_count/n]*60/255;if(h<2)h=2;xz_rect(c,X0+(int)(j*CW/n),124-h/2,2,h,p->ink);}
+  for(size_t j=0;j<n;j++){int h=d->wave_peaks[j*d->wave_count/n]*half*2/255;if(h<2)h=2;xz_rect(c,X0+(int)(j*CW/n),wave_y-h/2,2,h,p->ink);}
  }else{
-  xz_rect(c,X0,123,CW,2,xz_blend(0,p->ink,96));
-  xz_rect(c,X0+CW/2-80,112,160,24,0);text(c,X0,112,CW,24,"WAVEFORM NOT AVAILABLE",1,ALIGN_C,ice);
+  xz_rect(c,X0,wave_y-1,CW,2,xz_blend(0,p->ink,96));
+  xz_rect(c,X0+CW/2-80,wave_y-12,160,24,0);text(c,X0,wave_y-12,CW,24,"WAVEFORM NOT AVAILABLE",1,ALIGN_C,ice);
  }
 }
 static void pad(struct xz_canvas c,const struct xz_ui_widget *a,uint32_t cap_col,uint32_t body,int outline,const char *state,uint32_t alarm,int not_ready){
@@ -89,31 +89,31 @@ static void pad(struct xz_canvas c,const struct xz_ui_widget *a,uint32_t cap_col
  else text(c,a->x+8,a->y+a->h-24,a->w-16,18,state,1,ALIGN_R,outline?dim:0);
 }
 static void render(const struct xz_ui_scene *s){
- struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;
+ struct xz_canvas c=s->c;const struct xz_ui *u=s->u;
  const struct xz_ui_deck *d=s->d;const struct xz_theme_palette *p=s->p;char buf[96];size_t i;
  uint32_t ink=p->ink,sun=p->accent,red=p->alarm,violet=XZ_LCARS_VIOLET,ice=XZ_LCARS_ICE,dim=xz_blend(0,ink,110);
  int decks=u->page==XZ_UI_STEMS||u->page==XZ_UI_XPAD||u->page==XZ_UI_SETTINGS;
- const char *footer=xz_ui_footer_text(u,m);int alarm=u->notice[0]&&u->page!=XZ_UI_CONTROLS&&u->page!=XZ_UI_THEMES;
+ int alarm=u->notice[0]&&u->page!=XZ_UI_CONTROLS&&u->page!=XZ_UI_THEMES;
  xz_rect(c,0,0,800,480,0);
  elbow(c,1,ink);elbow(c,0,alarm?red:ink);
- xz_text(c,SIDE-8-xz_text_width(c,"XDJ-XZ",1,20),58,"XDJ-XZ",1,20,0);
  xz_text(c,212,13,"XZ MODS",2,12,ink);
  if(!decks){
   block(c,296,0,260,TOP,0,0,ink,0,"XDJ-XZ",1,ALIGN_R,10);
-  block(c,560,0,148,TOP,0,0,violet,0,"vj.tools/xzmods",1,ALIGN_R,10);
+  /* The DJ Profile chip owns the corner when there is one. */
+  if(!s->m->dj)block(c,560,0,148,TOP,0,0,violet,0,"xzmods.com",1,ALIGN_R,10);
  }
  shape(c,760,0,40,TOP,20,RIGHT,ink);
- text(c,212,BOTTOM,512,28,footer,1,ALIGN_L,alarm?red:ink);
- shape(c,728,BOTTOM,72,28,14,RIGHT,alarm?red:violet);
  for(i=0;i<s->n;i++){
   struct xz_ui_widget a=s->w[i];int available=s->look[i].available,selected=s->look[i].selected;uint32_t color=s->look[i].color;
   int unavailable=!available;
   switch(a.kind){
+  case XZ_UI_FEATURE_LINK:
+   block(c,a.x,a.y,a.w,a.h,a.h/2,ALL,violet,0,a.label,fit(c,a.label,a.w-32),ALIGN_L,16);break;
   case XZ_UI_PANEL:
    if(a.index==XZ_UI_STEMS||a.index==XZ_UI_XPAD||a.index==XZ_UI_CONNECTION){block(c,a.x,a.y,a.w,a.h,a.h/2,ALL,violet,0,a.label,2,ALIGN_L,22);break;}
    shape(c,a.x,a.y,a.w,a.h,0,0,selected?sun:ink);
    text(c,a.x+8,a.y+a.h-26,a.w-16,20,a.label,fit(c,a.label,a.w-16),ALIGN_R,0);
-   if(selected)xz_rect(c,SIDE,a.y+a.h-10,X0-SIDE-8,6,sun);
+   if(selected)xz_rect(c,SIDE,a.y+a.h-10,X0-SIDE-4,6,sun);
    break;
   case XZ_UI_CLOSE:
    shape(c,a.x,a.y,a.w,a.h,0,0,red);text(c,a.x+8,a.y+a.h-26,a.w-16,20,a.label,2,ALIGN_R,0);break;
@@ -124,7 +124,8 @@ static void render(const struct xz_ui_scene *s){
    text(c,a.x+10,a.y+a.h-22,a.w-20,14,a.label,1,ALIGN_L,0);
    break;
   case XZ_UI_JUMP_ENABLE:case XZ_UI_JUMP_SHIFT:case XZ_UI_ENABLE:case XZ_UI_STEMS_OVERLAY:case XZ_UI_PAD_FEEDBACK:case XZ_UI_SHIFT_PAGES:case XZ_UI_SHIFT_KEYSYNC:
-  case XZ_UI_TAKEOVER_TOGGLE:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_BYPASS:
+  case XZ_UI_TAKEOVER_TOGGLE:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_BYPASS:case XZ_UI_METRICS_TOGGLE:
+  case XZ_UI_KEY_FEEDBACK:case XZ_UI_RAM_DEBUG:case XZ_UI_REKORDBOX_KEY:
    if(unavailable)capped(c,a.x,a.y,a.w,a.h,dim,1,a.label,red,0,"NOT READY");
    else if(selected)capped(c,a.x,a.y,a.w,a.h,ink,0,a.label,ink,0,"ON");
    else capped(c,a.x,a.y,a.w,a.h,ink,1,a.label,ink,1,"OFF");
@@ -134,7 +135,7 @@ static void render(const struct xz_ui_scene *s){
    else if(selected)capped(c,a.x,a.y,a.w,a.h,ink,0,a.label,ink,0,"ON");
    else capped(c,a.x,a.y,a.w,a.h,ink,1,a.label,ink,1,"OFF");
    break;
-  case XZ_UI_STEM_BANK:case XZ_UI_STEM_PAGE:case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_WAVE_MODE:
+  case XZ_UI_STEM_BANK:case XZ_UI_STEM_PAGE:case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_WAVE_MODE:case XZ_UI_RAM_DECK:
    block(c,a.x,a.y,a.w,a.h,a.h/2,ALL,selected?sun:violet,0,a.label,fit(c,a.label,a.w-a.h),ALIGN_C,a.h/2-4);
    break;
   case XZ_UI_KEY_SHIFT:case XZ_UI_KEY_SYNC:
@@ -190,81 +191,17 @@ static void render(const struct xz_ui_scene *s){
   default:block(c,a.x,a.y,a.w,a.h,a.h/2,ALL,available?ink:dim,!available||((a.kind==XZ_UI_CONTROL_SECTION||a.kind==XZ_UI_JUMP_EDIT_PAGE||a.kind==XZ_UI_JUMP_PAIR||a.kind==XZ_UI_JUMP_SIZE)&&!selected),a.label,1,ALIGN_L,10);break;}
  }
  if(u->page==XZ_UI_STEMS||u->page==XZ_UI_XPAD)deck_header(c,u,d,p,buf,sizeof(buf));
- if(u->page==XZ_UI_STEMS){
-  xz_text(c,X0,164,"GROOVE PADS",2,20,ink);
-  xz_text(c,X0+140,168,"REPLACE A STEM WITH AN ASSIGNED GROOVE / USE THE PLAY-SCREEN ROWS TO MIX STEMS",1,100,ice);
-  xz_text(c,X0,196,"UNASSIGNED OR UNAVAILABLE PADS ARE MARKED BELOW",1,80,ice);
- }else if(u->page==XZ_UI_XPAD){
-  snprintf(buf,sizeof(buf),"%s BEATS / %+.1f KEY",xz_ui_lengths[d->loop_index>=0&&d->loop_index<6?d->loop_index:0],(double)d->pitch);
-  chip(c,636,276,156,24,24,buf,1,violet,ice);
-  xz_text(c,X0,428,"SAMPLE BANK A-H / CLOSING X-PAD STOPS SOUND / VOL AND HOLD LATCH",1,100,ice);
- }else if(u->page==XZ_UI_SETTINGS){
-  xz_text(c,X0,48,"DECK SETTINGS + EXPERIMENTAL TOOLS",1,60,ice);
-  xz_text(c,474,300,"SCROLLING WAVEFORM",2,30,ink);
-  xz_text(c,474,326,"STEMS SHOWS 3-BAND WITHOUT STEMS",1,60,ice);
-  xz_text(c,X0,404,"STEM SERVER: NOT AVAILABLE",1,40,ice);
-  xz_text(c,X0,424,"UNAVAILABLE TOOLS ARE MARKED NOT READY",1,60,ice);
- }else if(u->page==XZ_UI_CONTROLS){
-  /* Shared graphical setup draws after the skin. */
- }else if(u->page==XZ_UI_CONNECTION){
-  const struct xz_ui_connection *v=&m->connection;
-  xz_text(c,X0,48,"VJ.TOOLS CONNECTION",2,30,ink);
-  xz_text(c,X0,70,"OPTIONAL COMPUTER LINK / DJ FEATURES WORK STANDALONE",1,60,ice);
-  shape(c,246,88,8,196,4,ALL,violet);
-  static const char *const labels[5]={"STATUS","DEVICE IP","PORT","PROTOCOL","RECEIVED FPS"};
-  const char *values[5];
-  values[0]=!v->ready?"NOT AVAILABLE":v->connected?"CONNECTED":v->enabled?"WAITING FOR VJ.TOOLS":"DISABLED";
-  values[1]=v->device_ip&&*v->device_ip?v->device_ip:"NOT REPORTED";
-  char port[16];if(v->port)snprintf(port,sizeof(port),"%u",v->port);else snprintf(port,sizeof(port),"NOT REPORTED");values[2]=port;
-  values[3]=v->protocol&&*v->protocol?v->protocol:"NOT REPORTED";
-  if(v->ready&&v->connected&&v->stats_valid)snprintf(buf,sizeof(buf),"%.1f HZ",(double)v->frame_hz);else snprintf(buf,sizeof(buf),"NOT REPORTED");values[4]=buf;
-  for(int k=0;k<5;k++){
-   int y=92+k*38;uint32_t col=k==0?(v->ready&&v->connected?sun:ice):ice;
-   text(c,X0,y,238-X0,20,labels[k],1,ALIGN_R,ink);
-   text(c,262,y,230,20,values[k],fit(c,values[k],230),ALIGN_L,col);
-  }
-  xz_text(c,X0,288,"STATUS COMES FROM THE RECEIVER",1,40,ice);
-  xz_text(c,X0,306,m->fb_takeover?"COMPUTER SCREEN ACTIVE":"NATIVE PLAY SCREEN ACTIVE",1,40,m->fb_takeover?sun:ice);
-  xz_text(c,500,104,"SCREEN SWITCH BUTTON",1,30,ice);
-  xz_text(c,500,296,"OPTIONAL VJ.TOOLS LIBRARY CONNECTION",1,48,ice);
-  xz_text(c,500,314,"vj.tools",2,12,ink);
-  xz_text(c,X0,424,"DJ MODS: CDJ3K-MODS / NSAINTOT + CONTRIBUTORS",1,60,ice);
- }
+ /* Control descriptions live in the info dock; connection status is shared. */
+ if(u->page==XZ_UI_XPAD){
+  snprintf(buf,sizeof(buf),"LOOP %s BEATS / %+.1f KEY",xz_ui_lengths[d->loop_index>=0&&d->loop_index<6?d->loop_index:0],(double)d->pitch);
+  xz_text(c,X0,124,buf,1,80,ice);
+ }else if(u->page==XZ_UI_CONNECTION)xz_ui_page_details(s);
 }
 static void render_inline(const struct xz_ui_scene *s){
- struct xz_canvas c=s->c;const struct xz_ui_model *m=s->m;const struct xz_theme_palette *p=s->p;
- uint32_t ink=p->ink,red=p->alarm,dim=xz_blend(0,ink,110);char buf[16];
- xz_rect(c,0,0,c.width,c.height,0);
- for(size_t i=0;i<s->n;i++){
-  struct xz_ui_widget a=s->w[i];const struct xz_ui_deck *d=&m->deck[a.deck];
-  int available=s->look[i].available,selected=s->look[i].selected;
-  int top=18,band=10,low=a.h-top-band;
-  if(a.kind==XZ_UI_MUTE){
-   uint32_t stem=p->stem[a.index],col=available?stem:dim;int level=clamp100(d->levels[a.index]);
-   if(selected||!available)ring(c,a.x,a.y,a.w,top,top/2,TL|TR,2,col);else shape(c,a.x,a.y,a.w,top,top/2,TL|TR,col);
-   xz_rect(c,a.x,a.y+top,4,band,col);
-   text(c,a.x+9,a.y,a.w-18,top,a.label,1,ALIGN_L,selected||!available?col:0);
-   if(!available)block(c,a.x+a.w-62,a.y+1,60,top-2,8,ALL,red,0,"NOT READY",1,ALIGN_C,2);
-   else if(d->stem_loading)block(c,a.x+a.w-56,a.y+1,54,top-2,8,ALL,red,0,"LOADING",1,ALIGN_C,2);
-   else if(selected)text(c,a.x+9,a.y,a.w-18,top,"MUTE",1,ALIGN_R,col);
-   ring(c,a.x,a.y+top+band,a.w,low,low/2,BL|BR,2,col);
-   int fill=available&&!selected?(a.w-8)*level/100:0;
-   if(fill>0)shape(c,a.x+4,a.y+top+band+4,fill,low-8,(low-8)/2,ALL,col);
-   snprintf(buf,sizeof(buf),"%d%%",level);
-   if(available)text(c,a.x+8,a.y+top+band,a.w-16,low,buf,1,ALIGN_R,fill>a.w-48?0:col);
-   continue;
-  }
-  uint32_t col=!available?dim:selected?red:ink;
-  if(selected)shape(c,a.x,a.y,a.w,top,top/2,TL|TR,col);else ring(c,a.x,a.y,a.w,top,top/2,TL|TR,2,col);
-  xz_rect(c,a.x,a.y+top,4,band,col);
-  text(c,a.x+9,a.y,a.w-18,top,a.label,1,ALIGN_L,selected?0:col);
-  if(!available)block(c,a.x+a.w-62,a.y+1,60,top-2,8,ALL,red,0,"NOT READY",1,ALIGN_C,2);
-  else text(c,a.x+9,a.y,a.w-18,top,selected?"ON":"OFF",1,ALIGN_R,selected?0:col);
-  if(selected)shape(c,a.x,a.y+top+band,a.w,low,low/2,BL|BR,col);else ring(c,a.x,a.y+top+band,a.w,low,low/2,BL|BR,2,col);
-  text(c,a.x+9,a.y+top+band,a.w-18,low,a.deck?"DECK 2":"DECK 1",1,ALIGN_L,selected?0:col);
-  text(c,a.x+9,a.y+top+band,a.w-18,low,"BYPASS",1,ALIGN_R,selected?0:col);
- }
+ xz_rect(s->c,0,0,s->c.width,s->c.height,0);
+ xz_ui_stem_rows(s);
 }
+
 static void render_buttons(struct xz_canvas c,int stems,int vj_visible,int vj_active){
  const struct xz_theme_palette *p=xz_theme_palette(c.theme);uint32_t ice=XZ_LCARS_ICE;
  struct xz_ui_widget buttons[3]={{744,0,56,24,XZ_UI_NONE,0,0,"MODS",-1},{674,0,68,24,XZ_UI_NONE,0,0,"STEMS",-1},{0,0,112,24,XZ_UI_NONE,0,0,vj_active?"EXIT VJ":"VJ.TOOLS",-1}};

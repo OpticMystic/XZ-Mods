@@ -1,0 +1,38 @@
+{
+  "credit": "VJ OpticMystic",
+  "local_prototype": true,
+  "worlds": [
+    {
+      "source": "E:\\Game INspiration\\krea-images-10-03-2026\\psychedelic_jungle_of_tech__horror_merge_mushrooms_skulls_organic_vines_wires_neon_circuits__all_twi_7dee0b42-882b-4fb5-9735-624a7bbf93dd.png",
+      "sha256": "28669abddad3ab91510a1c834dc9df1317af5742395a579d7e9b93b8e18ac8ed",
+      "packed": "world-0.png",
+      "operation": "cover resize for native framebuffer texture"
+    },
+    {
+      "source": "E:\\Game INspiration\\krea-images-10-03-2026\\unitys_embrace_vast_abstract_landscapeno_horizon_only_fractal_patterns_that_pulse_with_the_dnb_rhyth_4a83a6ff-a8cb-47ff-9cca-f8410015c2f8.png",
+      "sha256": "3c1632424978188d05dfe92ac87bcbc0c4994fd0c901d74540fb5c1548a9e693",
+      "packed": "world-1.png",
+      "operation": "cover resize for native framebuffer texture"
+    },
+    {
+      "source": "E:\\Game INspiration\\krea-images-10-03-2026 (3)\\chrome_face_tunnel__endless_tunnel_formed_from_hundreds_of_reflective_human_faces_eyes_opening_in_wa_587ee73b-2dbe-4333-9242-b171b49df776.png",
+      "sha256": "155c6fd81480ee79d847d223f455d26f91fdc1638a5809ef28e57b9ca4ba7251",
+      "packed": "world-2.png",
+      "operation": "cover resize for native framebuffer texture"
+    }
+  ],
+  "character": {
+    "reference_id": 8,
+    "source": "E:\\Codex\\xz-prism-pilgrim-20261003\\art\\static-surfer-cat.png",
+    "tool": "built-in image_gen",
+    "transparent": true,
+    "sha256": "78932197a255f6103352300f94cfacbb09f0948058d398c0692a871d4ba4b4b0"
+  },
+  "birthday_cow": {
+    "reference_id": 26,
+    "tool": "built-in image_gen",
+    "transparent": true,
+    "packed": "static-surfer-birthday-cow.png",
+    "purpose": "featured title character and streak-triggered UFO fly-bys"
+  }
+}

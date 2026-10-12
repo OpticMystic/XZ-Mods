@@ -3,6 +3,9 @@
 #define XZ_AUDIO_RUNTIME_H
 #include "stems.h"
 #include <stdint.h>
+struct xz_audio_batch {void *previous,*deck,*publication;uint32_t generation;};
+void xz_audio_batch_begin(int deck,int32_t position,struct xz_audio_batch *);
+void xz_audio_batch_end(struct xz_audio_batch *);
 
 enum xz_audio_state {
     XZ_AUDIO_STOPPED, XZ_AUDIO_WAITING_TRACK, XZ_AUDIO_LOADING_TRACK,
@@ -23,11 +26,15 @@ struct xz_audio_status {
     char path[1024];
     int prepared, alignment_frames;
     float alignment_correlation;
+    size_t retained_stems_bytes;
+    unsigned stem_count;
+    char format_name[32], error[160];
 };
 int xz_audio_start(void);
 void xz_audio_stop(void);
 void xz_audio_set_enabled(int enabled);
 void xz_audio_set_levels(int deck, struct xz_stem_levels levels);
+void xz_audio_set_levels4(int deck, const float levels[4]);
 int xz_audio_get_status(int deck, struct xz_audio_status *out);
 int xz_audio_waveform(int deck, unsigned role, unsigned char *bins, size_t count, float *progress);
 /* Audio-thread lookup for a manager captured by the successful load snapshot.

@@ -9,9 +9,11 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sys
 import tempfile
 import uuid
-from . import usb,usb_settings
+import ctypes
+from . import dj_profile,games,usb,usb_settings
 from .cache import _safe_path,_regular,_publish_new
 from .jobs import exclusive_lock
 
@@ -144,12 +146,43 @@ def inspect(volume,resources):
     volume=_safe_path(volume);observed=identity(volume)
     manifest=json.loads((Path(resources)/'runtime/manifest.json').read_text())
     loader=revision(volume/'autoexec.bin')
-    from . import mod_versions
+    from . import mod_versions,rekordbox_pdb,stem_library
+    try:space=shutil.disk_usage(volume);space={'free_bytes':space.free,'total_bytes':space.total}
+    except OSError:space={'free_bytes':None,'total_bytes':None}
     try:recorded=mod_versions.lookup_loader(loader)
     except (OSError,ValueError):recorded=None
     return {'format':'xz-mods-usb/1','volume':str(volume),'identity':observed,'loader':loader,'recorded_mod_version':recorded,
             'installed_version':recorded.get('label') if recorded else None,'runtime_sha256':manifest['runtime_sha256'],'settings':read_settings(volume,mod_versions.settings_resources(volume,resources)),
-            'backups':recoveries(volume),**usb.target_info(volume)}
+            'backups':recoveries(volume),'games':games.installed(volume),'space':space,'stems':stem_library.stems_on_usb(volume),
+            'rekordbox':volume.joinpath(*rekordbox_pdb.EXPORT_PDB).is_file(),'dj_profiles':dj_profile.summary(volume),**usb.target_info(volume)}
+
+def discover(resources):
+    """Drives the setup wizard can offer: removable volumes, plus any volume already carrying an XZ Mods loader."""
+    found=[]
+    def describe(root,label,removable):
+        loader=(root/'autoexec.bin').is_file();settings=(root/SETTINGS).is_file()
+        rekordbox=root.joinpath('PIONEER','rekordbox','export.pdb').is_file()
+        if not (removable or loader):return
+        found.append({'volume':str(root),'label':label or str(root),'removable':removable,'loader':loader,'settings':settings,'rekordbox':rekordbox,
+                      'games':sum(game['installed'] for game in games.installed(root))})
+    if os.name=='nt':
+        kernel=ctypes.windll.kernel32
+        for number in range(26):
+            root=Path(chr(65+number)+':/')
+            if not kernel.GetLogicalDrives()&(1<<number):continue
+            kind=kernel.GetDriveTypeW(str(root))
+            if kind not in (2,3):continue
+            label=ctypes.create_unicode_buffer(261)
+            try:kernel.GetVolumeInformationW(str(root),label,261,None,None,None,None,0)
+            except OSError:continue
+            describe(root,label.value,kind==2)
+    elif sys.platform=='darwin':
+        for root in Path('/Volumes').iterdir():
+            if root.is_symlink() or not root.is_dir():continue
+            try:removable=os.stat(root).st_dev!=os.stat('/').st_dev
+            except OSError:continue
+            describe(root,root.name,removable)
+    return {'format':'xz-usbs/1','usbs':found}
 
 def _commit_loader(volume,observed,expected_loader,candidate,job,settings_change=None):
     changed=None

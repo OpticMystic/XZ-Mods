@@ -111,10 +111,10 @@ int main(void){
  visible=0;assert(composite_for_present()==composite_frame);assert(memcmp(composite_frame,pristine,16)==0);
  mods_render=NULL;assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==&region&&last_flags==55);
  mods_render=&mods_token;draw_result=0;assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==&region&&last_flags==55);
- draw_result=1;assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==NULL&&last_flags==DSFLIP_WAITFORSYNC);
+ draw_result=1;assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==NULL&&last_flags==(55|DSFLIP_WAITFORSYNC));
  visible=1;draw_result=0;{int previous=flips;assert(hooked_primary_flip(&surface,&region,55)==DFB_OK);assert(flips==previous);}
  visible=0;mods_render=NULL;vj_active=1;
- assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==NULL&&last_flags==DSFLIP_WAITFORSYNC);
+ assert(hooked_primary_flip(&surface,&region,55)==19);assert(last_region==NULL&&last_flags==(55|DSFLIP_WAITFORSYNC));
  framebuffer_presenter_started=1;{int previous=flips;assert(hooked_primary_flip(&surface,&region,55)==DFB_OK);assert(flips==previous);}
  framebuffer_presenter_started=0;vj_active=1;vjfs_client_fd=9;
  xz_vj_touch_v1(1,100,200);assert(touch_calls==1&&touch_type==1&&touch_px==100&&touch_py==200);

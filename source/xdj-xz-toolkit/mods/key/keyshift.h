@@ -36,6 +36,7 @@ void xz_key_shift_init(struct xz_key_shift *state);
 /* Accept one quantized semitone from -12 through 12. Return -1 and leave the
  * state unchanged for invalid input. Call only on the owning audio thread. */
 int xz_key_shift_set_semitones(struct xz_key_shift *state, int semitones);
+int xz_key_shift_set_cents(struct xz_key_shift *state, int cents);
 
 /* Process one sequential 44.1 kHz interleaved-stereo block in place. Zero and
  * neutral blocks remain bit exact while still warming history. */

@@ -1,0 +1,768 @@
+{
+  "index": [
+    {
+      "name": "valid two profiles",
+      "valid": true,
+      "document": {
+        "schema": "vjtools.dj-profile-index",
+        "version": 1,
+        "revision": "2026-10-08T15-00-00Z-0001",
+        "active": "djp_lena",
+        "profiles": [
+          {
+            "dj_id": "djp_kai",
+            "dj_name": "DJ Kai"
+          },
+          {
+            "dj_id": "djp_lena",
+            "dj_name": "Lena B"
+          }
+        ]
+      }
+    },
+    {
+      "name": "active not listed",
+      "valid": false,
+      "document": {
+        "schema": "vjtools.dj-profile-index",
+        "version": 1,
+        "revision": "2026-10-08T15-00-00Z-0001",
+        "active": "djp_nobody",
+        "profiles": [
+          {
+            "dj_id": "djp_kai",
+            "dj_name": "DJ Kai"
+          },
+          {
+            "dj_id": "djp_lena",
+            "dj_name": "Lena B"
+          }
+        ]
+      }
+    },
+    {
+      "name": "duplicate dj_id",
+      "valid": false,
+      "document": {
+        "schema": "vjtools.dj-profile-index",
+        "version": 1,
+        "revision": "2026-10-08T15-00-00Z-0001",
+        "active": "djp_lena",
+        "profiles": [
+          {
+            "dj_id": "djp_kai",
+            "dj_name": "DJ Kai"
+          },
+          {
+            "dj_id": "djp_kai",
+            "dj_name": "DJ Kai"
+          }
+        ]
+      }
+    },
+    {
+      "name": "no profiles",
+      "valid": false,
+      "document": {
+        "schema": "vjtools.dj-profile-index",
+        "version": 1,
+        "revision": "2026-10-08T15-00-00Z-0001",
+        "active": "djp_lena",
+        "profiles": []
+      }
+    },
+    {
+      "name": "seventeen profiles",
+      "valid": false,
+      "document": {
+        "schema": "vjtools.dj-profile-index",
+        "version": 1,
+        "revision": "2026-10-08T15-00-00Z-0001",
+        "active": "d0",
+        "profiles": [
+          {
+            "dj_id": "d0",
+            "dj_name": "D0"
+          },
+          {
+            "dj_id": "d1",
+            "dj_name": "D1"
+          },
+          {
+            "dj_id": "d2",
+            "dj_name": "D2"
+          },
+          {
+            "dj_id": "d3",
+            "dj_name": "D3"
+          },
+          {
+            "dj_id": "d4",
+            "dj_name": "D4"
+          },
+          {
+            "dj_id": "d5",
+            "dj_name": "D5"
+          },
+          {
+            "dj_id": "d6",
+            "dj_name": "D6"
+          },
+          {
+            "dj_id": "d7",
+            "dj_name": "D7"
+          },
+          {
+            "dj_id": "d8",
+            "dj_name": "D8"
+          },
+          {
+            "dj_id": "d9",
+            "dj_name": "D9"
+          },
+          {
+            "dj_id": "d10",
+            "dj_name": "D10"
+          },
+          {
+            "dj_id": "d11",
+            "dj_name": "D11"
+          },
+          {
+            "dj_id": "d12",
+            "dj_name": "D12"
+          },
+          {
+            "dj_id": "d13",
+            "dj_name": "D13"
+          },
+          {
+            "dj_id": "d14",
+            "dj_name": "D14"
+          },
+          {
+            "dj_id": "d15",
+            "dj_name": "D15"
+          },
+          {
+            "dj_id": "d16",
+            "dj_name": "D16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unsafe dj_id",
+      "valid": false,
+      "document": {
+        "schema": "vjtools.dj-profile-index",
+        "version": 1,
+        "revision": "2026-10-08T15-00-00Z-0001",
+        "active": "../x",
+        "profiles": [
+          {
+            "dj_id": "../x",
+            "dj_name": "X"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wrong schema",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "revision": "2026-10-08T15-00-00Z-0001",
+        "active": "djp_lena",
+        "profiles": [
+          {
+            "dj_id": "djp_kai",
+            "dj_name": "DJ Kai"
+          },
+          {
+            "dj_id": "djp_lena",
+            "dj_name": "Lena B"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown fields are ignored",
+      "valid": true,
+      "document": {
+        "schema": "vjtools.dj-profile-index",
+        "version": 1,
+        "revision": "2026-10-08T15-00-00Z-0001",
+        "active": "djp_lena",
+        "profiles": [
+          {
+            "dj_id": "djp_kai",
+            "dj_name": "DJ Kai"
+          },
+          {
+            "dj_id": "djp_lena",
+            "dj_name": "Lena B"
+          }
+        ],
+        "future_field": {
+          "x": 1
+        }
+      }
+    }
+  ],
+  "profile": [
+    {
+      "name": "valid full profile",
+      "valid": true,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "valid minimal profile",
+      "valid": true,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_lena",
+        "revision": "5e1a9d40-0000-4000-8000-0000000b2b00",
+        "dj_name": "Lena B",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "c3016fc4b20640a0cf8fd02a46d7ef42b85054e61451e615f93ec79ab04baf69",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "1973be00f56fefe4de7c7dd8f4b4c1d00b5e8d0aaac3762810ae12b0f3338ce3",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        }
+      }
+    },
+    {
+      "name": "legacy bundle path",
+      "valid": true,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_lena",
+        "revision": "5e1a9d40-0000-4000-8000-0000000b2b00",
+        "dj_name": "Lena B",
+        "note": "",
+        "bundle": "",
+        "secondary_logos": []
+      }
+    },
+    {
+      "name": "bundle under another dj_id",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "logo outside its bundle",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "tagline over 80 characters",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "accent not #rrggbb",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "red",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "http link",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "http://example.com"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "page_url not https",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "javascript:alert(1)"
+      }
+    },
+    {
+      "name": "nine aliases",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "A0",
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6",
+          "A7",
+          "A8"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "tile wrong size",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 100,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "tile outside renditions",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    },
+    {
+      "name": "traversal in logo path",
+      "valid": false,
+      "document": {
+        "schema": "vj.tools.dj-profile",
+        "version": 1,
+        "dj_id": "djp_kai",
+        "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+        "dj_name": "DJ Kai",
+        "note": "",
+        "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+        "preferred_logo": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/../../x.png",
+          "bytes": 75,
+          "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+          "label": "Preferred logo",
+          "note": ""
+        },
+        "secondary_logos": [],
+        "xz_tile": {
+          "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+          "bytes": 51200,
+          "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+          "width": 160,
+          "height": 160,
+          "format": "rgb565le"
+        },
+        "tagline": "Deep tech, Berlin",
+        "accent": "#ff2a6d",
+        "aliases": [
+          "KAI",
+          "Kai Moreno"
+        ],
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://example.com/kai"
+          },
+          {
+            "kind": "media-kit",
+            "url": "https://example.com/kai/press.zip"
+          }
+        ],
+        "page_url": "https://vj.tools/dj#p1.fixture"
+      }
+    }
+  ]
+}

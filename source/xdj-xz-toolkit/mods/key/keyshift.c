@@ -3,6 +3,7 @@
 #include "keyshift.h"
 #include <stddef.h>
 #include <string.h>
+#include <math.h>
 
 #define XZ_KEY_GRAIN_UP 512u
 #define XZ_KEY_GRAIN_DOWN 2048u
@@ -156,6 +157,16 @@ int xz_key_shift_set_semitones(struct xz_key_shift *state, int semitones)
     state->target = semitone_ratio[semitones + 12];
     state->grain = state->target > 1.0f ?
         (float)XZ_KEY_GRAIN_UP : (float)XZ_KEY_GRAIN_DOWN;
+    return 0;
+}
+
+int xz_key_shift_set_cents(struct xz_key_shift *state, int cents)
+{
+    if (!state || !state->initialized || cents < -1200 || cents > 1200) return -1;
+    if (cents % 100 == 0) return xz_key_shift_set_semitones(state, cents / 100);
+    state->semitones = (int)roundf(cents * .01f);
+    state->target = exp2f(cents / 1200.0f);
+    state->grain = state->target > 1.0f ? (float)XZ_KEY_GRAIN_UP : (float)XZ_KEY_GRAIN_DOWN;
     return 0;
 }
 

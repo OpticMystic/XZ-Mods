@@ -33,8 +33,15 @@ Neither instruction uses a PC-relative operand, so the existing bounded
 ARM trampoline can relocate them. The entry is added to the explicit hook
 allowlist and checked against those bytes before installation.
 
-The hook owns rotation only while MODS is visible on the beat-jump editor.
-It applies the same clamped size step as the touch controls and queues the
-same preference save. Other pages, closed MODS and stopped runtime forward
-the original delta to the native function. Encoder failure leaves touch
-editing available and the menu displays USE UP / DOWN.
+The hook owns rotation whenever MODS is open and no game holds the screen:
+turning moves the menu focus. On the beat-jump editor, pushing a pair enters
+an edit where turning applies the same clamped size step as the touch
+controls and queues the same preference save. Closed MODS, an open game and
+a stopped runtime forward the original delta to the native function. Encoder
+failure leaves touch editing available and the menu displays USE UP / DOWN.
+
+`UiKey_EncoderPush` at `0xdec08` starts `70402de90040a0e1`: push
+{r4,r5,r6,lr}; mov r4,r0. Neither instruction is PC-relative, so it uses the
+same trampoline and allowlist. While MODS is open the push activates the
+focused control; otherwise all four argument registers pass to the stock
+function unchanged.

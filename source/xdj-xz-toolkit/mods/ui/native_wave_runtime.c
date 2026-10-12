@@ -19,7 +19,7 @@ static _Thread_local uint16_t scratch[XZ_NATIVE_WAVE_PIXELS];
 static _Thread_local struct {uintptr_t gr,hw,thread;uint16_t *pixels;int pitch,deck;} footer;
 static _Thread_local uint16_t footer_scratch[300*34];
 __attribute__((visibility("default"))) uint32_t xz_native_wave_skin_v1[4]={1};
-static int transformed, observed, observe_only, focus_verified;
+static int transformed, drawn_layout, observed, observe_only, focus_verified;
 struct xz_inline_proof { uint32_t version,captures,frames,skipped; };
 __attribute__((visibility("default"))) struct xz_inline_proof xz_inline_proof_v1={1,0,0,0};
 
@@ -55,7 +55,7 @@ int xz_native_focus_deck(void){
 int xz_native_inline_active(void){
     struct xz_native_wave_scene current;
     if(!scene(&current)){__atomic_store_n(&transformed,0,__ATOMIC_RELEASE);return 0;}
-    return __atomic_load_n(&transformed,__ATOMIC_ACQUIRE);
+    return __atomic_load_n(&transformed,__ATOMIC_ACQUIRE)&&requested&&requested()==__atomic_load_n(&drawn_layout,__ATOMIC_ACQUIRE);
 }
 static int lock_hook(void *window,void **pixels,int *pitch){
     uintptr_t caller=(uintptr_t)__builtin_return_address(0);
@@ -103,13 +103,14 @@ static int unlock_hook(void *window){
     if(pair.captured&&pair.scene.hw==(uintptr_t)window){
         xz_layered_wave_end();
         struct xz_native_wave_scene current;int drawn=0;
-        int inline_rows=requested&&requested();
+        int inline_rows=requested?requested():XZ_STEM_LAYOUT_HIDDEN;
         if(scene(&current)&&!observe_only){
             drawn=xz_native_wave_finish_styled(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,xz_mods_native_style_v1()?style_main_wave:NULL,inline_rows);
             if(drawn&&xz_mods_native_style_v1())__atomic_fetch_add(&xz_native_wave_skin_v1[1],1,__ATOMIC_RELAXED);
         }
         else xz_native_wave_reset(&pair);
+        __atomic_store_n(&drawn_layout,drawn?inline_rows:0,__ATOMIC_RELEASE);
         __atomic_store_n(&transformed,drawn&&inline_rows,__ATOMIC_RELEASE);
         if(drawn)__atomic_fetch_add(&xz_inline_proof_v1.frames,1,__ATOMIC_RELAXED);
         else __atomic_fetch_add(&xz_inline_proof_v1.skipped,1,__ATOMIC_RELAXED);

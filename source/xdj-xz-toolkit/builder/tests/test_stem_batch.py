@@ -31,6 +31,21 @@ class RecordingJob:
         return json.dumps(self.verified)
 
 
+class FakeEngine:
+    opened = []
+
+    def __init__(self, preset, job, resources):
+        self.preset, self.job, self.resources = preset, job, resources
+        self.state = {'device': 'cpu', 'python': 'python'}
+
+    def __enter__(self):
+        FakeEngine.opened.append(self)
+        return self
+
+    def __exit__(self, *error):
+        self.closed = True
+
+
 class BatchTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -49,7 +64,7 @@ class BatchTests(unittest.TestCase):
         self.resources = self.root / 'resources'
 
     def generate(self, effect):
-        with patch.object(stem_batch.engines, 'separate', side_effect=effect):
+        with patch.object(stem_batch.engines, 'Engine', FakeEngine),                 patch.object(stem_batch.engines, 'separate', side_effect=lambda request, job, resources, engine=None: effect(request, job, resources)):
             return stem_batch.generate(self.request, self.job, self.resources)
 
     def test_continues_after_track_failure_and_preserves_sources(self):

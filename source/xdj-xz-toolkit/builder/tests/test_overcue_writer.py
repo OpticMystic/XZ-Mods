@@ -159,11 +159,23 @@ class PublishTests(unittest.TestCase):
         self.track.write_bytes(b"original track bytes")
         self.source_sha = hashlib.sha256(self.track.read_bytes()).hexdigest()
 
-    def publish(self, name, seed=0, track_id=12, file_path="/Contents/a.wav"):
+    def publish(self, name, seed=0, track_id=12, file_path="/Contents/a.wav", codec="wav", source=None):
         roles = render_roles(Path(self.temp.name) / name, 40000, seed)
-        receipt = writer.publish(self.root, file_path, track_id, self.source_sha, "wav", Path(self.temp.name) / name,
-                                 "test-model", "0.0-test", QuietJob())
+        receipt = writer.publish(self.root, file_path, track_id, self.source_sha, codec, Path(self.temp.name) / name,
+                                 "test-model", "0.0-test", QuietJob(), source=source)
         return roles, receipt
+
+    def test_mp3_manifest_records_the_player_timeline(self):
+        mp3 = {"lame_tag": True, "delay_frames": 1105, "padding_frames": 407}
+        _, receipt = self.publish("mp3", file_path="/Contents/a.mp3", codec="mp3", source={"sample_rate": 44100, "mp3": mp3})
+        manifest = json.loads((self.root / "CDJMODS/stems" / receipt["bundle"] / "overcue-manifest.json").read_text())
+        self.assertEqual(manifest["source"]["mp3"], {**mp3, "timeline": "player"})
+        self.assertEqual((manifest["source"]["codec"], manifest["source"]["sample_rate"]), ("mp3", 44100))
+        self.assertEqual(manifest["runtime"]["latency_pad_frames"], 2405)
+        _, plain = self.publish("plain", seed=3, file_path="/Contents/a.mp3", codec="mp3",
+                                source={"sample_rate": 48000, "mp3": {"lame_tag": False, "delay_frames": 0, "padding_frames": 0}})
+        manifest = json.loads((self.root / "CDJMODS/stems" / plain["bundle"] / "overcue-manifest.json").read_text())
+        self.assertEqual((manifest["runtime"]["latency_pad_frames"], manifest["source"]["sample_rate"]), (0, 48000))
 
     def test_publish_verify_reuse_and_replace(self):
         (self.root / "CDJMODS").mkdir()
@@ -172,7 +184,7 @@ class PublishTests(unittest.TestCase):
             {"schema": "overcue-index/1", "keyed_by": "export.pdb", "tracks": {"3": foreign}, "future": 1}))
         roles, receipt = self.publish("roles")
         bundle = writer.bundle_name({role: roles[role]["sha256"] for role in writer.ROLES})
-        self.assertEqual(receipt, {"bundle": bundle, "frames": 40000, "reused": False, "replaced_previous": False, "verified": True, "page_codec": "zlib"})
+        self.assertEqual(receipt, {"bundle": bundle, "frames": 40000, "reused": False, "replaced_previous": False, "verified": True, "page_codec": "zlib", "waveforms": False})
         index = json.loads((self.root / "CDJMODS/index.json").read_text())
         self.assertEqual((index["future"], index["tracks"]["3"]), (1, foreign))
         entry = index["tracks"]["12"]

@@ -31,5 +31,35 @@ portable shifter keeps neutral output byte-identical. Start installs the hook;
 stop disables processing and resets both desired values to zero. The code hook
 stays mapped for the process lifetime under the parent runtime's nodelete rule.
 
-The adapter does not implement Key Sync, track-key metadata, UI readiness, or
-hook whitelisting in the parent runtime. Those are separate integration tasks.
+`native.c` reads the original analyzed key, master flags, Master Tempo, and the
+stock effective tempo ratio with exact 1.26 instruction guards and repeated
+snapshot checks. `music.c` calculates the playing key and residual cents.
+Shift+Sync matches the other deck's playing pitch, using the relative key when
+the two tracks have different major/minor modes. A pitch shifter cannot change
+a track's major/minor mode. A second press recomputes the target idempotently.
+
+UI requests use integer cents bound to the native output epoch. Loading another
+track invalidates the request before its first output block. The post-stretch
+adapter applies the cents ratio at a block boundary. Master Tempo holds the
+original key against tempo changes; an explicit key shift still changes it.
+With Master Tempo off, the display also includes the native tempo/nudge ratio.
+
+The USB browser reads the exported DeviceSQL database on a separate worker.
+Only valid live rows contribute keys. Native title rendering receives a
+prefixed display copy in the USB's Classic or Camelot preference. A second
+glyph pass colors the prefix and restores the first pass's native bounds.
+Track metadata, title strings, and the USB database stay unchanged. Conflicting
+or unknown keys for the same displayed title on the selected USB are left
+unannotated. The other USB's metadata is never borrowed. Remote library views are excluded. The index
+accepts at most 131,072 tracks per USB and rejects an incomplete/malformed index.
+
+Green means an equal, adjacent-wheel, or relative key within 25 cents of the
+master. Amber means a harmonically related key outside that tuning tolerance.
+Other keys retain neutral coloring. Missing metadata or an ambiguous master
+opens Key Sync Setup; Detect verifies the two tracks and enables the shortcut.
+An existing saved `shift_keysync=0` preference is retained until that action.
+
+Host tones, native-shaped input/control replays, export parsing, text-wrapper
+tests, and ARM ABI builds verify software behavior. Controller key metadata,
+the physical chord, real-song audio quality, browser scrolling, timing under
+load, and a fresh USB boot still require live acceptance of this exact bundle.

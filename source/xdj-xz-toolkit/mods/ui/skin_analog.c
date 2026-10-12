@@ -9,7 +9,8 @@ static void txt(struct xz_canvas c,int x,int y,int w,const char *s,int scale,uin
 static void engraved(struct xz_canvas c,int x,int y,int w,const char *s){txt(c,x+1,y+1,w,s,2,CREAM);txt(c,x,y,w,s,2,INK);}
 
 static void lamp(struct xz_canvas c,int x,int y,int on,uint32_t color){xz_disc(c,x,y,5,INK);xz_disc(c,x,y,3,on?color:0x766644);if(on)xz_rect(c,x-1,y-2,2,1,CREAM);}
-static int toggle(enum xz_ui_action_kind k){return k==XZ_UI_ENABLE||k==XZ_UI_STEMS_OVERLAY||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||k==XZ_UI_SHIFT_KEYSYNC||k==XZ_UI_TAKEOVER_TOGGLE||k==XZ_UI_HOLD||k==XZ_UI_OVERDUB||k==XZ_UI_CONNECTION_ENABLE||k==XZ_UI_DISCOVERY;}
+static int toggle(enum xz_ui_action_kind k){return k==XZ_UI_ENABLE||k==XZ_UI_STEMS_OVERLAY||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||k==XZ_UI_SHIFT_KEYSYNC||k==XZ_UI_TAKEOVER_TOGGLE||k==XZ_UI_HOLD||k==XZ_UI_OVERDUB||k==XZ_UI_CONNECTION_ENABLE||k==XZ_UI_DISCOVERY||
+ k==XZ_UI_KEY_FEEDBACK||k==XZ_UI_RAM_DEBUG||k==XZ_UI_REKORDBOX_KEY||k==XZ_UI_METRICS_TOGGLE;}
 static void metal(struct xz_canvas c){
  for(int y=0;y<c.height;y++){unsigned h=(unsigned)y*2654435761u;uint32_t color=h%7==0?0xd2c29c:h%11==0?0xe0d0aa:METAL;xz_rect(c,0,y,c.width,1,color);}
 }
@@ -20,10 +21,11 @@ static void fader(struct xz_canvas c,int x,int y,int w,int value){
 }
 
 static void render(const struct xz_ui_scene *s){
- struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;const struct xz_ui_deck *d=s->d;char buf[128];metal(c);
- engraved(c,148,10,140,"XZ MODS");txt(c,12,50,108,"XDJ-XZ",1,INK);
- if(u->page!=XZ_UI_SETTINGS&&u->page!=XZ_UI_STEMS&&u->page!=XZ_UI_XPAD)txt(c,500,12,208,"ANALOG / vj.tools/xzmods",1,INK);
- xz_rect(c,148,39,644,1,INK);
+ struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_deck *d=s->d;char buf[128];metal(c);
+ engraved(c,XZ_UI_CX,10,140,"XZ MODS");
+ /* The DJ Profile chip owns the corner when there is one. */
+ if(!s->m->dj&&u->page!=XZ_UI_SETTINGS&&u->page!=XZ_UI_STEMS&&u->page!=XZ_UI_XPAD)txt(c,500,12,208,"ANALOG / xzmods.com",1,INK);
+ xz_rect(c,XZ_UI_CX,39,XZ_UI_CW,1,INK);
  for(int k=0;k<4;k++){int x=k&1?786:13,y=k&2?438:14;xz_disc(c,x,y,5,INK);xz_disc(c,x,y,4,0xae9e78);xz_line16(c,(x-2)*16,(y+2)*16,(x+2)*16,(y-2)*16,16,INK);}
  for(size_t i=0;i<s->n;i++){
   struct xz_ui_widget a=s->w[i];int available=s->look[i].available,selected=s->look[i].selected;
@@ -61,23 +63,12 @@ static void render(const struct xz_ui_scene *s){
   }else if(*state){if(!available)xz_rect(box,0,box.height-13,box.width,13,RED);txt(box,3,box.height-11,box.width-6,state,1,available?INK:CREAM);}
  }
  xz_ui_page_details(s);
- well(c,0,452,800,28);txt(c,212,462,580,xz_ui_footer_text(u,m),1,u->notice[0]?AMBER:CREAM);
 }
 static void render_inline(const struct xz_ui_scene *s){
- struct xz_canvas c=s->c;metal(c);
- for(size_t i=0;i<s->n;i++){
-  struct xz_ui_widget a=s->w[i];const struct xz_ui_deck *d=&s->m->deck[a.deck];int available=s->look[i].available,selected=s->look[i].selected;char buf[24];
-  xz_border(c,a.x,a.y,a.w,a.h,INK);txt(c,a.x+6,a.y+3,a.w-26,a.label,1,INK);
-  int value=a.kind==XZ_UI_MUTE?percent(d->levels[a.index]):0;
-  lamp(c,a.x+a.w-12,a.y+8,available&&(a.kind==XZ_UI_MUTE?!selected&&value>0:selected),a.kind==XZ_UI_MUTE?s->look[i].color:RED);
-  if(a.kind==XZ_UI_MUTE){
-   if(available&&!selected&&!d->stem_loading)fader(c,a.x+7,a.y+36,a.w-54,value);snprintf(buf,sizeof(buf),"%d%%",value);
-   txt(c,a.x+a.w-38,a.y+32,34,buf,1,INK);
-   const char *state=!available?"NOT READY":d->stem_loading?"LOADING":selected?"MUTED":"";
-   txt(c,a.x+6,a.y+32,a.w-50,state,1,RED);
-  }else {snprintf(buf,sizeof(buf),"D%d  %s",a.deck+1,selected?"ON":"OFF");txt(c,a.x+8,a.y+32,a.w-16,available?buf:"NOT READY",1,INK);}
- }
+ xz_rect(s->c,0,0,s->c.width,s->c.height,METAL);
+ xz_ui_stem_rows(s);
 }
+
 static void render_buttons(struct xz_canvas c,int stems,int vj_visible,int vj_active){
  const int x[3]={744,674,0},w[3]={56,68,112};const char *labels[3]={"MODS","STEMS",vj_active?"EXIT VJ":"VJ.TOOLS"};
  for(int i=0;i<(vj_visible?3:2);i++){int on=i==1?stems:i==2?vj_active:0;xz_rect(c,x[i],0,w[i],24,METAL);xz_border(c,x[i],0,w[i],24,INK);xz_rect(c,x[i]+3,3,4,18,on?AMBER:INK);txt(c,x[i]+12,8,w[i]-14,labels[i],1,INK);}

@@ -34,18 +34,19 @@ int xz_native_wave_finish_styled(struct xz_native_wave_pair *p,const struct xz_n
     if(!saved.captured || !xz_native_wave_scene_valid(s) || !(s->flags & 0x01000000u) || thread != saved.thread ||
         hw != saved.scene.hw || hw != s->hw || s->gr != saved.scene.gr ||
         s->lifecycle_epoch != saved.scene.lifecycle_epoch || !scratch ||
-        ((uintptr_t)scratch & 1u) || count < XZ_NATIVE_WAVE_PIXELS || (inline_rows&&!render)||(!inline_rows&&!style))return 0;
+        ((uintptr_t)scratch & 1u) || count < XZ_NATIVE_WAVE_PIXELS || (unsigned)inline_rows>=XZ_STEM_LAYOUT_COUNT || (inline_rows&&!render)||(!inline_rows&&!style))return 0;
     uintptr_t a=(uintptr_t)scratch,b=(uintptr_t)saved.pixels;
     size_t bytes=XZ_NATIVE_WAVE_PIXELS*sizeof(*scratch);
     if(a>UINTPTR_MAX-bytes || b>UINTPTR_MAX-bytes || (a<b+bytes && b<a+bytes))return 0;
     memcpy(scratch,saved.pixels,bytes);
     if(style)style(scratch,XZ_NATIVE_WAVE_PIXELS);
     if(inline_rows){
-    if(!xz_wave_compact(scratch,XZ_NATIVE_WAVE_PIXELS,536,XZ_WAVE_LANE_HEIGHT) ||
-        !render(context,rows,XZ_NATIVE_WAVE_ROWS_PIXELS,536,536,XZ_WAVE_INLINE_HEIGHT))return 0;
-    memcpy(scratch+536*XZ_NATIVE_WAVE_ROW1_Y,rows,536*XZ_NATIVE_WAVE_ROW_HEIGHT*sizeof(*rows));
-    memcpy(scratch+536*XZ_NATIVE_WAVE_ROW2_Y,rows+536*XZ_NATIVE_WAVE_ROW_HEIGHT,
-           536*XZ_NATIVE_WAVE_ROW_HEIGHT*sizeof(*rows));
+        struct xz_wave_layout g;if(!xz_wave_layout_get(inline_rows,&g))return 0;
+        size_t row_pixels=536*g.control_height;
+        if(!xz_wave_layout_pixels(scratch,XZ_NATIVE_WAVE_PIXELS,536,inline_rows) ||
+           !render(context,rows,row_pixels*2,536,536,(int)g.control_height*2))return 0;
+        memcpy(scratch+536*g.control_y[0],rows,row_pixels*sizeof(*rows));
+        memcpy(scratch+536*g.control_y[1],rows+row_pixels,row_pixels*sizeof(*rows));
     }
     memcpy(saved.pixels,scratch,bytes);
     return 1;

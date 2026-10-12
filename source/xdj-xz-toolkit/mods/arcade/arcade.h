@@ -41,6 +41,8 @@ struct xz_arcade {
     double note_flash,drop_at;
     float menu_jog;
     int last_player,winner,feedback_player,touch_down,quiet;
+    /* DJ VIEW pressed while already paused: the host returns to the deck. */
+    int leave;
     const char *feedback;
 };
 void xz_arcade_init(struct xz_arcade *,uint32_t now);
@@ -57,4 +59,10 @@ void xz_arcade_tempo(struct xz_arcade *,float bpm,uint32_t at);
 float xz_arcade_jog_gain(const struct xz_arcade *);
 float xz_arcade_paddle_size(const struct xz_arcade *,int deck);
 int xz_arcade_render(const struct xz_arcade *,uint16_t *,size_t count,size_t stride);
+struct xz_game_targets;
+/* Same frame, also listing the controls drawn on it (see game_nav.h). */
+int xz_arcade_render_targets(const struct xz_arcade *,uint16_t *,size_t count,size_t stride,struct xz_game_targets *);
+/* BACK key: the menu and the paused screen go to DJ VIEW, beat setup closes,
+   results return to the menu. Play ignores it. */
+void xz_arcade_back(struct xz_arcade *,uint32_t now);
 #endif

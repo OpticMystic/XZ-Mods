@@ -3,6 +3,7 @@
 #include <stdint.h>
 int xz_native_skin_start(int theme);
 void xz_native_skin_request(int theme);
+void xz_native_skin_request_repaint(void);
 const char *xz_native_skin_status(void);
 void xz_native_skin_stop(void);
 int xz_native_skin_on_owner_thread(void);

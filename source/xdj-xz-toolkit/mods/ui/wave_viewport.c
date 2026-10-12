@@ -1,29 +1,33 @@
 #include "wave_viewport.h"
 #include <string.h>
-static unsigned lane_row(unsigned row,unsigned lane_height) {
-    if(row<10)return row;
-    if(row>=lane_height-10)return 132-(lane_height-row);
-    return 10+(row-10)*112/(lane_height-20);
+static unsigned lane_row(unsigned row,unsigned height) {
+ if(row<10)return row;
+ if(row>=height-10)return 132-(height-row);
+ return 10+(row-10)*112/(height-20);
 }
-unsigned xz_wave_source_row(unsigned row,unsigned lane_height) {
-    if(lane_height<=20||lane_height>132)return 0;
-    if(row<lane_height)return lane_row(row,lane_height);
-    if(row<lane_height+XZ_WAVE_CONTROL_HEIGHT)return 132;
-    if(row<lane_height*2+XZ_WAVE_CONTROL_HEIGHT)return 136+lane_row(row-lane_height-XZ_WAVE_CONTROL_HEIGHT,lane_height);
-    return 267;
+unsigned xz_wave_layout_source_row(const struct xz_wave_layout *g,unsigned row) {
+ int deck=xz_wave_layout_lane_at(g,(int)row);
+ if(deck>=0)return (deck?136:0)+lane_row(row-g->lane_y[deck],g->lane_height);
+ return 132;
 }
-int xz_wave_compact(uint16_t *pixels,size_t count,size_t stride,unsigned lane_height) {
-    if(!pixels||lane_height<=20||lane_height>(268-2*XZ_WAVE_CONTROL_HEIGHT)/2||stride<536||
-       stride>SIZE_MAX/sizeof(*pixels)/268||count<stride*268)return 0;
-    for(unsigned y=0;y<lane_height;y++) {
-        unsigned source=xz_wave_source_row(y,lane_height);
-        memmove(pixels+(size_t)y*stride,pixels+(size_t)source*stride,536*sizeof(*pixels));
-    }
-    for(unsigned y=lane_height+XZ_WAVE_CONTROL_HEIGHT;y<lane_height*2+XZ_WAVE_CONTROL_HEIGHT;y++) {
-        unsigned source=xz_wave_source_row(y,lane_height);
-        memmove(pixels+(size_t)y*stride,pixels+(size_t)source*stride,536*sizeof(*pixels));
-    }
-    for(unsigned y=lane_height;y<lane_height+XZ_WAVE_CONTROL_HEIGHT;y++)memset(pixels+(size_t)y*stride,0,536*sizeof(*pixels));
-    for(unsigned y=lane_height*2+XZ_WAVE_CONTROL_HEIGHT;y<268;y++)memset(pixels+(size_t)y*stride,0,536*sizeof(*pixels));
-    return 1;
+int xz_wave_layout_pixels(uint16_t *pixels,size_t count,size_t stride,int mode) {
+ struct xz_wave_layout g;
+ if(!pixels||!xz_wave_layout_get(mode,&g)||stride<XZ_WAVE_WIDTH||
+    stride>SIZE_MAX/sizeof(*pixels)/XZ_WAVE_HEIGHT||count<stride*XZ_WAVE_HEIGHT)return 0;
+ if(mode==XZ_STEM_LAYOUT_HIDDEN)return 1;
+ /* Below layouts move up. The outer top lane moves down and must copy bottom
+    first; its last ten cue rows stay in place. No extra full-frame buffer. */
+ for(int deck=0;deck<2;deck++){
+  int downward=g.lane_y[deck]>(deck?136u:0u);
+  for(unsigned i=0;i<g.lane_height;i++){
+   unsigned y=g.lane_y[deck]+(downward?g.lane_height-1-i:i);
+   unsigned src=xz_wave_layout_source_row(&g,y);
+   memmove(pixels+y*stride,pixels+src*stride,XZ_WAVE_WIDTH*sizeof(*pixels));
+  }
+ }
+ for(unsigned y=0;y<XZ_WAVE_HEIGHT;y++){
+  uint16_t *row=pixels+y*stride;
+  if(xz_wave_layout_lane_at(&g,(int)y)<0)memset(row,0,XZ_WAVE_WIDTH*sizeof(*pixels));
+ }
+ return 1;
 }

@@ -17,13 +17,10 @@ CATALOG={
          'archive':{'filename':'chex.zip','url':'https://www.chexquest3.com/downloads/chex.zip','bytes':3773924,'sha256':'df8e391b0f802f82ac9b71ec4faea4b1cd858097d04eb70aff2d1a39150e0419'},
          'patch':{'filename':'chexdeh.zip','url':'https://youfailit.net/pub/idgames/themes/chex/chexdeh.zip','bytes':9250,'sha256':'eeed61747165a4a90c792cf4ae4572593ff36a8f87d365af5107f68ed4000bad'}},
  'freedoom':{'label':'Freedoom Phase 2','directory':'Freedoom','wad':'freedoom2.wad','sha256':'a8772e088847032510d97ba2312406a6998f21cbab44d4ff10696faa9c0ecd4b',
-         'archive':{'filename':'freedoom-0.13.0.zip','url':'https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedoom-0.13.0.zip','bytes':24143781,'sha256':'3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59'}},
- 'myhouse':{'label':'My House','directory':'MyHouse','wad':'myhouse.pk3','sha256':'44665f732ae2cb81e9d45007949ef001383970f8513ee7a010f432b05cb3221e',
-         'archive':{'filename':'myhouse.pk3','url':'https://drive.usercontent.google.com/download?id=1jPaghNQ39MOVS7qRAqXUUoja5GyLY4mO&export=download&confirm=t','bytes':68881167,'sha256':'44665f732ae2cb81e9d45007949ef001383970f8513ee7a010f432b05cb3221e'},
-         'readme':{'filename':'myhouse.txt','url':'https://drive.google.com/uc?export=download&id=1q-4CXhFp9sDDjHnwj0ciM5zMexeq2T7V','bytes':2257,'sha256':'b4a11e560b031d58f65325a28a9d98284eb9659e2b9a91f89e5b1eb4188b1fd3'}}}
+         'archive':{'filename':'freedoom-0.13.0.zip','url':'https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedoom-0.13.0.zip','bytes':24143781,'sha256':'3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59'}}}
 
 def _record(game):
-    if game not in CATALOG:raise ValueError('Choose Doom shareware, Chex Quest, Freedoom or My House')
+    if game not in CATALOG:raise ValueError('Choose Doom shareware, Chex Quest or Freedoom')
     return CATALOG[game]
 
 def _publish(path,data):
@@ -64,11 +61,7 @@ def obtain(game,job):
     elif game=='freedoom':
         for name in ('freedoom2.wad','COPYING.txt','CREDITS.txt','CREDITS-MUSIC.txt'):
             files[name]=_member(archive,name)
-        notice='Freedoom Phase 2, version 0.13.0. BSD-3-Clause; original license and credits included. A free Doom II-compatible base game with different artwork, not commercial Doom II. My House compatibility and XZ playback still require verification.\n'
-    else:
-        files['myhouse.pk3']=archive.read_bytes()
-        files['myhouse.txt']=download(record['readme'],data_root()/'games/downloads',job).read_bytes()
-        notice='My House by Steve Nelson (Veddge). Downloaded directly from the author for personal use, unmodified; not bundled or mirrored by XZ Mods. Original notice included. It declares CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ . Requires native GZDoom and Doom II-compatible base data. Doom shareware cannot run this mod. Downloaded data is not proof of XZ engine compatibility.\n'
+        notice='Freedoom Phase 2, version 0.13.0. BSD-3-Clause; original license and credits included. A free Doom II-compatible base game with different artwork, not commercial Doom II.\n'
     if hashlib.sha256(files[record['wad']]).hexdigest()!=record['sha256']:raise ValueError('Extracted WAD integrity failed')
     files['SOURCE.txt']=(notice+'Source: '+record['archive']['url']+'\n').encode('utf8')
     job.check()
@@ -96,20 +89,37 @@ def install(game,volume,job):
         _publish(destination/name,data)
         if usb.sha(destination/name)!=digest:raise ValueError('USB game file failed readback verification')
     _publish(destination/'game.json',(source/'game.json').read_bytes())
-    return {'format':'xz-game-installed/1','game':game,'name':record['label'],'folder':str(destination),'wad':str(destination/record['wad']),'native_menu':'MODS > Extras > Games','existing_music_preserved':True,'requires_gzdoom':game=='myhouse','hardware_verified':False}
+    return {'format':'xz-game-installed/1','game':game,'name':record['label'],'folder':str(destination),'wad':str(destination/record['wad']),'native_menu':'MODS > Extras > Games','existing_music_preserved':True,'hardware_verified':False}
 
-def prepare_usb(volume,job):
-    """Keep the loader usable when an optional download fails; report every result."""
-    volume=cache._safe_path(volume);identity=_target(volume);results=[]
+def selection(requested):
+    """Catalog ids to copy. None or a missing key means every game; an explicit list is honoured as given."""
+    if requested is None:return list(CATALOG)
+    if not isinstance(requested,list):raise ValueError('games must be a list of game ids')
+    unknown=[game for game in requested if game not in CATALOG]
+    if unknown:raise ValueError('Unknown game: '+', '.join(map(str,unknown)))
+    return [game for game in CATALOG if game in requested]
+
+def installed(volume):
+    """What each catalog game looks like on this USB, read without network or writes."""
+    volume=cache._safe_path(volume);result=[]
     for game,record in CATALOG.items():
-        job.check()
+        folder=volume/'VJTOOLS/Games'/record['directory']
+        result.append({'id':game,'name':record['label'],'installed':(folder/record['wad']).is_file(),'folder':str(folder),
+                       'bytes':record['archive']['bytes']})
+    return result
+
+def prepare_usb(volume,job,requested=None):
+    """Copy the chosen games; keep the loader usable when an optional download fails; report every result."""
+    volume=cache._safe_path(volume);identity=_target(volume);results=[]
+    for game in selection(requested):
+        record=CATALOG[game];job.check()
         if _target(volume)!=identity:raise ValueError('The selected USB changed. Choose it again before copying games.')
         try:results.append({**install(game,volume,job),'ok':True})
         except (OSError,ValueError,RuntimeError,zipfile.BadZipFile) as exc:
             results.append({'game':game,'name':record['label'],'ok':False,'error':str(exc)})
     failed=sum(not r['ok'] for r in results)
-    return {'format':'xz-games-usb/1','games':results,'failed_count':failed,'commercial_doom2_downloaded':False,
-            'myhouse_requires_gzdoom':True,'retry_method':'prepare_games_usb','existing_music_preserved':True}
+    return {'format':'xz-games-usb/1','games':results,'failed_count':failed,'skipped':[game for game in CATALOG if game not in selection(requested)],
+            'commercial_doom2_downloaded':False,'retry_method':'prepare_games_usb','existing_music_preserved':True}
 
 def status():
     result=[]

@@ -47,5 +47,5 @@ int xz_native_wave_finish(struct xz_native_wave_pair *,const struct xz_native_wa
                          xz_native_wave_render,void *context);
 int xz_native_wave_finish_styled(struct xz_native_wave_pair *,const struct xz_native_wave_scene *,
                          uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,
-                         xz_native_wave_render,void *context,xz_native_wave_style,int inline_rows);
+                         xz_native_wave_render,void *context,xz_native_wave_style,int stem_layout);
 #endif

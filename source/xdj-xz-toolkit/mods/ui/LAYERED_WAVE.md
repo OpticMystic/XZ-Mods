@@ -9,8 +9,12 @@ CDJ-3000, in one of two looks chosen in MODS > Settings > SCROLLING WAVEFORM:
   is as thick as its band, so the outline is low+mid+high.
 - **STEMS** stacks drums (outside), harmonics and vocals (core) the same way, from
   the per-stem analysis an OverCue bundle carries (`stems-*-waveform.2EX`, each
-  stem's three bands summed), in the active theme's stem pad colours. Tracks
-  without stems fall back to 3-BAND.
+  stem's three bands summed), in the active theme's stem pad colours. Both
+  OverCue Desktop and the XZ Mods stem builder (`builder/stem_waveforms.py`,
+  one column per 640 frames at 96 kHz) write those files. Tracks without
+  stems fall back to 3-BAND. So do four-stem tracks: their sets carry no
+  per-stem waveform analysis yet, so no bass lane is drawn and no bass
+  envelope is estimated. The LOCAL STEM SETUP page says so.
 - **STOCK WAVE** leaves the native renderer alone.
 
 No preparation step. Both looks read analysis rekordbox or the stem builder

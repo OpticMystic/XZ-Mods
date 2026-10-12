@@ -1,7 +1,7 @@
 #ifndef XZ_UI_THEME_ANALOG_H
 #define XZ_UI_THEME_ANALOG_H
 /* Included by themes.h after the fill/edge/mix primitives. */
-#define XZ_THEME_ANALOG_PALETTE {0x1a1408,0xf2e6c9,0xffa33c,0xcc3322,{0xe8412c,0x3d8fe0,0x4cc45c}}
+#define XZ_THEME_ANALOG_PALETTE {0x1a1408,0xf2e6c9,0xffa33c,0xcc3322,{0x3d8fe0,0xe8412c,0x4cc45c}}
 #define XZ_THEME_ANALOG_NAME "ANALOG"
 /* Bevelled metal key. The stock 128x36 restyle draws this at inset 3 and then
    overwrites everything from inset 9 inward, so the key edge lives in the
@@ -18,7 +18,7 @@ static inline void xz_theme_analog_frame(struct xz_theme_surface s,struct xz_the
  xz_theme_fill(s,(struct xz_theme_rect){r.x+5,r.y+5,r.w-10,1},xz_theme_mix(fill,0xf2e6c9,selected?60:24));
 }
 /* Stock screen as dial glass: six flat warm steps from glass to cream ink,
-   saturated hues snapped to amber, drums red, harmonics blue or vocals green. */
+   saturated hues snapped to amber, drums blue, harmonics red or vocals green. */
 static inline int xz_theme_analog_tone(unsigned r,unsigned g,unsigned b,unsigned light,uint32_t *rgb) {
  unsigned mx=r>g?r:g,mn=r<g?r:g;if(b>mx)mx=b;if(b<mn)mn=b;
  if(mx>=96&&mx-mn>=72){

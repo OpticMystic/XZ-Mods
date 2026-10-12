@@ -72,7 +72,7 @@ def make_unloaded_logo(
     logo_y = (92 - supplied.height) // 2
     image.paste(supplied, (logo_x, logo_y), supplied)
     draw.text((124, 3), "XZ MODS", font=_font(32, preferred_font), fill=WHITE)
-    draw.text((124, 43), "vj.tools/xzmods", font=_font(32, preferred_font), fill=(168,206,255))
+    draw.text((124, 43), "xzmods.com", font=_font(32, preferred_font), fill=(168,206,255))
     return image
 
 

@@ -8,7 +8,8 @@ static int percent(float v){return v<=0?0:v>=1?100:(int)(v*100+.5f);}
 static void txt(struct xz_canvas c,int x,int y,int width,const char *s,int size,uint32_t color){xz_pixel_text(c,x,y,s,size,width/(size*6),color);}
 
 static int toggle(enum xz_ui_action_kind k){
- return k==XZ_UI_ENABLE||k==XZ_UI_STEMS_OVERLAY||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||k==XZ_UI_SHIFT_KEYSYNC||k==XZ_UI_TAKEOVER_TOGGLE||k==XZ_UI_HOLD||k==XZ_UI_OVERDUB||k==XZ_UI_CONNECTION_ENABLE||k==XZ_UI_DISCOVERY;
+ return k==XZ_UI_ENABLE||k==XZ_UI_STEMS_OVERLAY||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||k==XZ_UI_SHIFT_KEYSYNC||k==XZ_UI_TAKEOVER_TOGGLE||k==XZ_UI_HOLD||k==XZ_UI_OVERDUB||k==XZ_UI_CONNECTION_ENABLE||k==XZ_UI_DISCOVERY||
+  k==XZ_UI_KEY_FEEDBACK||k==XZ_UI_RAM_DEBUG||k==XZ_UI_REKORDBOX_KEY||k==XZ_UI_METRICS_TOGGLE;
 }
 
 /* Static glyph trails stay in the margins, outside every control and readout. */
@@ -23,10 +24,11 @@ static void bar(struct xz_canvas c,int x,int y,int w,int value,uint32_t color){
  int cells=w/8;for(int k=0;k<cells;k++)xz_rect(c,x+k*8,y,6,8,k*100<value*cells?color:DARK);
 }
 static void render(const struct xz_ui_scene *s){
- struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;const struct xz_ui_deck *d=s->d;char buf[128];
+ struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_deck *d=s->d;char buf[128];
  xz_rect(c,0,0,800,480,0);rain(c,(int)u->page+u->deck);
- xz_rect(c,0,0,800,40,GREEN);txt(c,148,10,140,"XZ MODS",2,0);txt(c,12,50,108,"XDJ-XZ",1,GREEN);
- if(u->page!=XZ_UI_SETTINGS&&u->page!=XZ_UI_STEMS&&u->page!=XZ_UI_XPAD)txt(c,520,12,184,"vj.tools/xzmods",1,0);
+ xz_rect(c,0,0,800,40,GREEN);txt(c,148,10,140,"XZ MODS",2,0);
+ /* The DJ Profile chip owns the corner when there is one. */
+ if(!s->m->dj&&u->page!=XZ_UI_SETTINGS&&u->page!=XZ_UI_STEMS&&u->page!=XZ_UI_XPAD)txt(c,520,12,184,"xzmods.com",1,0);
  for(size_t i=0;i<s->n;i++){
   struct xz_ui_widget a=s->w[i];int available=s->look[i].available,selected=s->look[i].selected;
   uint32_t ink=selected&&available?0:available?GREEN:WARN,bg=selected&&available?GREEN:0;
@@ -56,23 +58,12 @@ static void render(const struct xz_ui_scene *s){
   if(a.kind==XZ_UI_GROOVE_PAD)xz_rect(c,a.x+a.w-8,a.y+3,5,a.h-6,s->look[i].color);
  }
  xz_ui_page_details(s);
- xz_rect(c,0,452,800,28,DARK);txt(c,212,462,580,xz_ui_footer_text(u,m),1,u->notice[0]?WARN:HEAD);
 }
 static void render_inline(const struct xz_ui_scene *s){
- struct xz_canvas c=s->c;xz_rect(c,0,0,c.width,c.height,0);
- for(size_t i=0;i<s->n;i++){
-  struct xz_ui_widget a=s->w[i];const struct xz_ui_deck *d=&s->m->deck[a.deck];int available=s->look[i].available,selected=s->look[i].selected;char buf[24];
-  xz_border(c,a.x,a.y,a.w,a.h,TAIL);
-  if(selected)xz_rect(c,a.x+2,a.y+2,a.w-4,16,GREEN);
-  txt(c,a.x+6,a.y+4,a.w-12,a.label,1,selected?0:s->look[i].color);
-  if(a.kind==XZ_UI_MUTE){
-   int value=percent(d->levels[a.index]);if(available&&!selected&&!d->stem_loading)bar(c,a.x+6,a.y+34,a.w-48,value,GREEN);
-   snprintf(buf,sizeof(buf),"%d%%",value);txt(c,a.x+a.w-36,a.y+34,32,buf,1,HEAD);
-   const char *state=!available?"NOT READY":d->stem_loading?"LOADING":selected?"MUTED":"";
-   txt(c,a.x+6,a.y+34,a.w-48,state,1,WARN);
-  }else {snprintf(buf,sizeof(buf),"D%d BYPASS %s",a.deck+1,selected?"ON":"OFF");txt(c,a.x+6,a.y+34,a.w-12,available?buf:"NOT READY",1,available?HEAD:WARN);}
- }
+ xz_rect(s->c,0,0,s->c.width,s->c.height,0);
+ xz_ui_stem_rows(s);
 }
+
 static void render_buttons(struct xz_canvas c,int stems,int vj_visible,int vj_active){
  const int x[3]={744,674,0},w[3]={56,68,112};const char *label[3]={"MODS","STEMS",vj_active?"EXIT VJ":"VJ.TOOLS"};
  for(int i=0;i<(vj_visible?3:2);i++){int on=i==1?stems:i==2?vj_active:0;xz_rect(c,x[i],0,w[i],24,on?GREEN:0);xz_border(c,x[i],0,w[i],24,GREEN);txt(c,x[i]+6,8,w[i]-12,label[i],1,on?0:HEAD);}

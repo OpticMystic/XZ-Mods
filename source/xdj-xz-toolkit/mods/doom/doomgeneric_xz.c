@@ -36,6 +36,7 @@ static const char *snapshot;
 static struct touch_event incoming;
 static size_t incoming_bytes;
 static struct xz_game_input *physical;
+static uint32_t nav_read;
 static uint32_t owner;
 
 static uint64_t now_ms(void) {
@@ -92,7 +93,7 @@ void DG_Init(void) {
         }
         physical=mmap(NULL,sizeof(*physical),PROT_READ|PROT_WRITE,MAP_SHARED,fd,0); close(fd);
         if(physical==MAP_FAILED) { physical=NULL; perror("Native input mmap"); exit(2); }
-        if(physical->magic!=XZ_GAME_INPUT_MAGIC || physical->version!=1) { fprintf(stderr,"Unknown native input protocol\n"); exit(2); }
+        if(physical->magic!=XZ_GAME_INPUT_MAGIC || physical->version!=XZ_GAME_INPUT_VERSION) { fprintf(stderr,"Unknown native input protocol\n"); exit(2); }
         uint32_t previous=__atomic_load_n(&physical->owner,__ATOMIC_ACQUIRE);
         if(previous && kill((pid_t)previous,0)==-1 && errno==ESRCH)
             __atomic_compare_exchange_n(&physical->owner,&previous,0,0,__ATOMIC_ACQ_REL,__ATOMIC_RELAXED);
@@ -104,6 +105,8 @@ void DG_Init(void) {
             __atomic_store_n(&physical->buttons[i],0,__ATOMIC_RELAXED);
             __atomic_store_n(&physical->jog_time[i],0,__ATOMIC_RELAXED);
         }
+        /* Taps queued for an earlier game are not ours. */
+        nav_read=__atomic_load_n(&physical->nav_head,__ATOMIC_ACQUIRE);
         __atomic_store_n(&physical->heartbeat,(uint32_t)now_ms(),__ATOMIC_RELEASE);
         printf("XZ_DOOM_INPUT native bridge claimed pid=%u\n",owner);
     } else { fprintf(stderr,"XZ_DOOM_INPUT native bridge absent; touchscreen only\n"); }
@@ -151,6 +154,9 @@ int DG_GetKey(int *pressed,unsigned char *key) {
             if((uint32_t)(now-at)<100) turn+=(int32_t)__atomic_load_n(&physical->jog[i],__ATOMIC_RELAXED);
         }
         xz_doom_physical(&controls,buttons,turn);
+        uint32_t head=__atomic_load_n(&physical->nav_head,__ATOMIC_ACQUIRE);
+        if(head-nav_read>XZ_GAME_NAV) nav_read=head-XZ_GAME_NAV;
+        if(nav_read!=head && xz_doom_nav_tap(&controls,__atomic_load_n(&physical->nav[nav_read%XZ_GAME_NAV],__ATOMIC_RELAXED))) nav_read++;
     }
     if(display>=0) for(;;) {
         ssize_t n=recv(display,(unsigned char *)&incoming+incoming_bytes,

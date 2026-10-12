@@ -28,6 +28,7 @@ class GameSetupTests(unittest.TestCase):
                 self.assertEqual(first,second)
                 self.assertEqual(Path(first['wad']).read_bytes(),data)
                 self.assertEqual((Path(first['folder'])/'COPYING.txt').read_bytes(),b'license')
+                self.assertTrue((Path(first['folder'])/'SOURCE.txt').read_text().startswith('Freedoom Phase 2, version 0.13.0.'))
                 Path(first['wad']).write_bytes(b'custom WAD')
                 with self.assertRaises(FileExistsError):games.install('freedoom',volume,Job())
                 self.assertEqual(Path(first['wad']).read_bytes(),b'custom WAD')
@@ -56,11 +57,11 @@ class GameSetupTests(unittest.TestCase):
     def test_partial_download_failure_reports_and_continues(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(games.usb,'target_info',return_value={'direct_usb_root':True}):
             def install(game,volume,job):
-                if game=='myhouse':raise OSError('Author host unavailable')
+                if game=='freedoom':raise OSError('Download host unavailable')
                 return {'game':game,'name':games.CATALOG[game]['label']}
             with patch.object(games,'install',side_effect=install):result=games.prepare_usb(temp,Job())
             self.assertEqual(result['failed_count'],1)
-            self.assertEqual([r['game'] for r in result['games'] if r['ok']],['doom','chex','freedoom'])
+            self.assertEqual([r['game'] for r in result['games'] if r['ok']],['doom','chex'])
             self.assertFalse(result['commercial_doom2_downloaded'])
 
     def test_cancellation_propagates_instead_of_becoming_download_failure(self):

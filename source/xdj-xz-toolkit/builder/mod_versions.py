@@ -237,6 +237,26 @@ def import_version(resources, folder):
     return {**inventory(resources), 'imported_id': record['id']}
 
 
+BRANDING_IMAGES = ('splash.rgb565', 'logo.rgb565', 'MD5SUMS')
+
+
+def current_branding(resources, view):
+    """Give every loader this app's splash and logo, whichever mod version it carries.
+
+    Archived versions keep the images they were saved with, so an older build would bring
+    back an old splash. The images only patch the firmware pack through apply.sh, so they
+    are swapped only when both sides use the same apply.sh."""
+    current, target = Path(resources) / 'branding', Path(view) / 'branding'
+    names = ('apply.sh', *BRANDING_IMAGES)
+    if not all((current / name).is_file() for name in names) or not (target / 'apply.sh').is_file():
+        return False
+    if (current / 'apply.sh').read_bytes() != (target / 'apply.sh').read_bytes():
+        return False
+    for name in BRANDING_IMAGES:
+        shutil.copyfile(cache._regular(current / name), target / name)
+    return True
+
+
 @contextmanager
 def selected_resources(resources, request, job):
     state = inventory(resources)
@@ -257,6 +277,7 @@ def selected_resources(resources, request, job):
             shutil.copyfile(cache._regular(source / name), target)
         _write(view / 'bundle.json', record)
         _verify(view)
+        current_branding(resources, view)
         boot_path = view / 'bootstrap.sh'
         boot = boot_path.read_bytes().replace(b'\r\n', b'\n')
         if pinned:

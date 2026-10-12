@@ -1,0 +1,16 @@
+{
+  "schema": "vjtools.dj-profile-index",
+  "version": 1,
+  "revision": "2026-10-08T15-00-00Z-0001",
+  "active": "djp_lena",
+  "profiles": [
+    {
+      "dj_id": "djp_kai",
+      "dj_name": "DJ Kai"
+    },
+    {
+      "dj_id": "djp_lena",
+      "dj_name": "Lena B"
+    }
+  ]
+}

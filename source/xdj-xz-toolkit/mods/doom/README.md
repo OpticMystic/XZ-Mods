@@ -23,7 +23,9 @@ the VJ.Tools connection page is no longer in Advanced.
 | Hot cue E / F, held | Strafe left / right |
 | Hot cue G | Enter |
 | Hot cue H | Game menu |
-| Touch EXIT | End the game and restore the previous screen mode |
+| Browse encoder turn / push | Menu up or down / Enter |
+| BACK | Game menu (Escape) |
+| REKORDBOX, or touch EXIT | End the game and restore the previous screen mode |
 
 Play/A and Cue/C use independent source states. Releasing one keeps its game
 action held while the other remains down. Jog inactivity releases turning.

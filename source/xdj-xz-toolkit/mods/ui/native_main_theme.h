@@ -108,7 +108,7 @@ static inline int xz_native_main_art(unsigned id,int theme,struct xz_asset_role_
    xz_theme_fill(s,(struct xz_theme_rect){29,4,1,22},tail);
   }else if(idle){
    xz_main_text(s,28,20,"XZ / PERFORMANCE TERMINAL",2,p->accent);
-   xz_main_text(s,28,56,"MATRIX   vj.tools/xzmods",2,green);
+   xz_main_text(s,28,56,"MATRIX   xzmods.com",2,green);
    for(int k=0;k<6;k++)xz_theme_fill(s,(struct xz_theme_rect){width-18,12+k*12,6,7},k==0?p->accent:k<3?green:tail);
   }
  }else{
@@ -131,7 +131,7 @@ static inline int xz_native_main_art(unsigned id,int theme,struct xz_asset_role_
   }else{
    xz_theme_brushed(s,whole,brass);xz_theme_fill(s,(struct xz_theme_rect){12,8,width-24,height-16},p->bg);
    xz_main_text(s,32,21,"XZ / ANALOG TRANSPORT",3,light);
-   xz_main_text(s,32,58,"vj.tools/xzmods",2,p->accent);
+   xz_main_text(s,32,58,"xzmods.com",2,p->accent);
   }
   xz_theme_bevel(s,whole,0,light,dark);
  }

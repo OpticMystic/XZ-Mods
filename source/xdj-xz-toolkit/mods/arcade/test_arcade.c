@@ -88,7 +88,9 @@ int main(int argc,char **argv){
     unsigned char p[96];packet(p);struct xz_arcade_beat sample;
     assert(xz_arcade_decode_beat(p,96,&sample)&&sample.bpm==120&&sample.deck==0&&sample.bar==1);
     assert(!xz_arcade_decode_beat(p,95,&sample));p[95]=2;assert(!xz_arcade_decode_beat(p,96,&sample));packet(p);p[92]=0;assert(!xz_arcade_decode_beat(p,96,&sample));
-    printf("PASS qualified PRO DJ LINK beat layout and invalid packet rejection\n");
+    packet(p);p[33]=p[95]=17;assert(xz_arcade_decode_beat(p,96,&sample)&&sample.deck==0);
+    p[33]=p[95]=18;assert(xz_arcade_decode_beat(p,96,&sample)&&sample.deck==1);
+    printf("PASS qualified PRO DJ LINK beat layout, software deck aliases and invalid packet rejection\n");
     launch(&g,XZ_ARCADE_PONG_DUEL);g.player[0].energy=9;xz_arcade_key(&g,0,XZ_ARCADE_PAD_B,now);assert(g.player[0].energy==6&&xz_arcade_paddle_size(&g,0)==172);
     xz_arcade_key(&g,0,XZ_ARCADE_PAD_C,now);assert(g.player[0].energy==2&&g.player[0].shield);
     xz_arcade_key(&g,0,XZ_ARCADE_PAD_D,now);assert(g.player[0].energy==2&&g.player[0].drop_until==0);
@@ -96,6 +98,14 @@ int main(int argc,char **argv){
     screenshot(&g,prefix,"drop");
     xz_arcade_init(&g,now);screenshot(&g,prefix,"menu");g.phase=XZ_ARCADE_CLOCK;screenshot(&g,prefix,"clock");
     launch(&g,XZ_ARCADE_PONG_DUEL);xz_arcade_key(&g,0,XZ_ARCADE_PAUSE_KEY,now);screenshot(&g,prefix,"paused");g.phase=XZ_ARCADE_RESULT;g.winner=1;screenshot(&g,prefix,"result");
+    launch(&g,XZ_ARCADE_PONG_DUEL);advance(&g,350);xz_arcade_key(&g,0,XZ_ARCADE_CUE_KEY,now);assert(g.player[0].notes==0);
+    advance(&g,150);xz_arcade_key(&g,0,XZ_ARCADE_CUE_KEY,now);assert(g.player[0].notes==1);
+    g.player[0].energy=6;xz_arcade_key(&g,0,XZ_ARCADE_PAD_D,now);assert(g.drop_pending);
+    xz_arcade_key(&g,0,XZ_ARCADE_PAUSE_KEY,now);for(int i=0;i<100;i++)advance(&g,100);
+    xz_arcade_key(&g,0,XZ_ARCADE_CUE_KEY,now);xz_arcade_key(&g,1,XZ_ARCADE_CUE_KEY,now);
+    while(g.phase==XZ_ARCADE_COUNT_IN)advance(&g,10);
+    assert(g.drop_pending&&g.drop_at>g.clock&&fabs(g.drop_at/4-round(g.drop_at/4))<1e-6);
+    puts("PASS early-tap recovery and queued Drop stays on a future downbeat after pause");
     launch(&g,XZ_ARCADE_BREAK_SOLO);
     int last_note=-1;
     for(int i=0;i<2500;i++){

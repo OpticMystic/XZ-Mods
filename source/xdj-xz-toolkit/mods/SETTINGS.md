@@ -3,8 +3,29 @@
 The loader passes its mounted USB root in `XZ_MODS_USB`. Preferences are stored
 at `VJ.Tools/XZ-Mods.cfg` on that USB. The audio/input callbacks never write files.
 The settings worker atomically replaces a complete version1 record and reports
-save success or failure in MODS. An absent file uses defaults; an invalid record
-is rejected as a whole. Settings are shared by both internal decks.
+save success or failure in MODS. An invalid record is rejected as a whole.
+Settings are shared by both internal decks.
+
+The behaviour follows the stock My Settings:
+
+- Browsing a local USB (USB1/USB2 key) loads that stick's settings. PC and
+  LINK sources never change them.
+- A stick with no settings file, or an invalid one, keeps the current
+  settings. Pulling the selected stick keeps them too ("USB REMOVED: SETTINGS
+  KEPT"). Nothing resets to defaults mid-set.
+- Every change saves on its own to the selected stick. There is no save
+  button. The result ("SAVED TO USB 2", "NOT SAVED TO USB 2: CHECK USB")
+  takes the MODS footer on every page for 3 seconds.
+- The XZ remembers the last applied settings on its internal settings volume
+  (`settings_internal.c`, `/root/settings/VJ.Tools/preferences.{0,1}`: two
+  CRC-checked slots, UBIFS `ubiN:settings` mount check, 256 KiB free-space
+  floor; the stock `XdjSettings.dat` is never touched). A boot with no stick
+  restores them; a stick with settings still wins once it loads. With no stick
+  inserted, changes save only there ("SAVED ON THIS XZ / NO USB").
+- `XZ_MODS_SETTINGS_READONLY=1` (RAM trials) writes nothing anywhere.
+
+DJ profiles are not settings. They live only on the DJ's stick, never on the
+XZ.
 
 ```
 XZ_MODS_SETTINGS 1
@@ -20,9 +41,14 @@ fb_takeover=1
 takeover_assign=0
 ```
 
+`rekordbox_menu`: 1 (default) makes the physical REKORDBOX key open and close
+MODS, so every setting stays reachable with the browse encoder and BACK when the
+touchscreen does not respond. 0 restores the key's stock rekordbox action. It is
+appended after `ram_debug`; records without it load the default.
+
 `fb_takeover`: 1 (enabled, default), 0 (disabled). Controls whether the VJ.Tools video and composite frame takes over the hardware display framebuffer. When disabled, the native Pioneer XDJ-XZ playback/browse screen is displayed uninterrupted.
 
-`takeover_assign`: 0 (LINK physical button, default), 1 (REKORDBOX physical button), 2 (Onscreen VJ.Tools button in opposite corner from MODS). Selects which control toggles FB display takeover on and off.
+`takeover_assign`: 0 (LINK physical button, default), 1 (REKORDBOX physical button), 2 (Onscreen VJ.Tools button in opposite corner from MODS). Selects which control toggles FB display takeover on and off. REKORDBOX only switches takeover while `rekordbox_menu=0`.
 
 
 `stem_page`: 0 Hot Cue, 1 Beat Loop, 2 Slip Loop, 3 Beat Jump. A/B/C toggle
@@ -38,8 +64,10 @@ default that setting to0. Per-track mute/bypass and temporary key shifts are
 performance state and are not restored on boot.
 
 Hardware acceptance still requires a saved preference readback and player
-restart with the same USB. Host and isolated ARM filesystem tests do not prove
-USB removal or physical power-loss behaviour.
+restart with the same USB, a restart with no USB (internal restore) and a
+stick pull mid-set. Host and isolated ARM filesystem tests
+(`tests/verify_profiles.py`, under WSL gcc with ASan/UBSan) do not prove USB
+removal, the real UBIFS mount or physical power-loss behaviour.
 
 ## Beat-jump pad assignments
 
@@ -81,7 +109,24 @@ equivalent beat/bar entries. On physical page 2, the native red/orange grouping 
 amber-orange shades. Brightness scales with the native intensity, and
 off/dim states, blinking and forced native status remain unchanged. Page 1 retains native colors.
 
-`stems_overlay` is an optional trailing boolean, default 1 for older records.
+`stems_overlay` stores the stem-row layout. Existing values retain their
+meaning: 0 hidden with normal waveforms, 1 full-height rows below each deck.
+The added values are 2 half-height rows below, 3 full-height rows above the
+top deck and below the bottom deck, and 4 half-height rows at those outside
+edges. The native STEMS button cycles 1, 2, 3, 4, 0, then 1. Its five marks
+show the current choice. MODS > CONTROLS and the desktop USB settings editor
+show the saved layout. Older records still default to 1.
+
+Full rows are 48 pixels high; half rows are 24. Each half-height choice
+returns 24 pixels to each waveform, raising its height from 84 to 108.
+Hidden restores both 132-pixel native lanes. Cue bands and x coordinates
+retain their original size; waveform touches map back to the original rows.
+
+Local stem buttons fill from left to right by their effective level. Sliding
+right raises the level and fill; sliding left lowers both. Muting clears the
+fill while retaining the stored percentage in the label. PC controls retain
+their confirmed on/off feedback and setup button; they do not invent volume
+values the PC transport does not report.
 
 `wave_mode` is an optional trailing field after `stems_overlay`: 0 stock
 scrolling waveform, 1 CDJ-3000 style layered 3-band (default, also for older
@@ -90,8 +135,32 @@ falls back to 3-band on tracks without an OverCue bundle. MODS > Settings >
 SCROLLING WAVEFORM changes it live. `XZ_MODS_WAVE_MODE` overrides it at start.
 See `ui/LAYERED_WAVE.md`.
 Stem-row visibility and the A-D/E-H pad bank now queue preference saves.
+Stem colors are configured in MODS > APPEARANCE > STEM COLORS. The existing
+drum and harmonic shades are swapped, so drums are blue, harmonics red and
+vocals green in the Original theme. Each theme keeps its original shades.
+Choose a color for each stem, or THEME to follow appearance. RESET STEM
+COLORS restores all three theme defaults. Choices update the stem rows,
+pad LEDs, prepared STEMS waveform and waveform shortcut preview together.
+The frequency-based 3-BAND waveform keeps its blue/amber/white palette.
+
+`stem_drums_color`, `stem_harmonics_color` and `stem_vocals_color` append
+after `key_format`. Each is 0 theme default, 1 blue, 2 red, 3 green, 4 amber,
+5 purple, 6 cyan, 7 pink or 8 white. Older settings records default all three
+to 0. Fixed choices survive theme changes and save with the selected USB
+profile. These fields also appear in the desktop USB settings editor.
 The live launcher must omit XZ_MODS_THEME to respect the saved theme and set
 XZ_MODS_SETTINGS_READONLY=0 for durable USB preferences.
+
+`stem_order` appends after `metrics_enabled` as the 38th field. It stores
+the left-to-right order of the three stems on the play-screen stem rows,
+and pads A/B/C and their lights follow it: 0 vocals/harmonics/drums (the
+original order, and the default for older records), 1 vocals/drums/harmonics,
+2 harmonics/vocals/drums, 3 harmonics/drums/vocals, 4 drums/vocals/harmonics,
+5 drums/harmonics/vocals. MODS > GENERAL > STEM SETTINGS > STEM ORDER cycles
+it; the pad diagram beside the button shows the result, and the desktop USB
+settings editor offers the same six choices. The layered STEMS waveform and
+the rekordbox PC stem row keep their own order. Like every setting it saves
+to the selected USB.
 
 `XZ_MODS_SETTINGS_USB` can select a separate mounted USB partition for
 preferences. It takes precedence over `XZ_MODS_USB` for settings only; media

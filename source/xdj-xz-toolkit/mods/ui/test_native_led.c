@@ -54,7 +54,7 @@ int main(void) {
  assert(!memcmp(packet,saved,sizeof(packet)));
  /* Firmware PadColorCode palette entries 21, 1, 42, 64 at 0x47b740.
     Secondary channels must stay zero on the three colored physical pads. */
- const unsigned char native_rgb[4][3]={{0,255,0},{0,0,255},{255,0,0},{255,255,255}};
+ const unsigned char native_rgb[4][3]={{0,255,0},{255,0,0},{0,0,255},{255,255,255}};
  packet[2*XZ_LED_RECORD_BYTES+0x18]=0;
  assert(xz_native_led_apply(packet,sizeof(packet),8,1,stem_color)==4);
  for(unsigned i=0;i<4;i++) {
