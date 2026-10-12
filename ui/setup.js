@@ -59,6 +59,7 @@ async function chooseUsb(volume,origin){
   startState(inspection);
   usbInspection=inspection;renderUsb(inspection);
   W.step='loadout';render();
+  await followNewest();
 }
 async function pickFolder(origin){
   if(!invoke){showError('Open the desktop app to choose a USB.',origin);return;}
@@ -91,12 +92,62 @@ function stepUsb(){
     list?.length?el('div',{class:'wz-usb-list',role:'list'},...list.map(usbCard)):null,
     !list?el('p',{class:'fine',text:'A FAT32 USB that Rekordbox exports to works best. XZ Mods never formats a drive or touches your music.'}):null);
 }
+// Which build goes on the USB is chosen here, in the loader row. Newest is the build that came with this app;
+// Another build lists the rest, newest first, one entry per runtime. A pick is saved on this PC at once.
+const bundledVersion=()=>modVersionById(modInventory?.bundled_id);
+const sameRuntime=(a,b)=>Boolean(a&&b&&a.runtime_sha256===b.runtime_sha256);
+const isIncluded=version=>/^Included development build /.test(version?.label||'');
+function otherBuilds(){
+  const newest=bundledVersion(),seen=new Set([newest?.runtime_sha256]);
+  return [...modInventory.versions].sort((a,b)=>String(b.archived_at||'').localeCompare(String(a.archived_at||'')))
+    .filter(version=>{const key=version.runtime_sha256||version.id;if(seen.has(key))return false;seen.add(key);return true;});
+}
+function buildDate(version){const date=new Date(version?.archived_at||'');return isNaN(date)?'':date.toLocaleDateString(undefined,{month:'short',day:'numeric'});}
+function buildName(version){
+  const label=version.label||version.id,date=buildDate(version);
+  return (isIncluded(version)?'Development build '+String(version.runtime_sha256||'').slice(0,8):label)+(date?' · '+date:'');
+}
+let buildSaving=false,buildNote='';
+async function saveBuild(id,pinned,origin){
+  if(buildSaving||!modInventory)return;
+  buildSaving=true;render();
+  const result=await run({method:'select_mod_version',mod_version_id:id,pinned,expected_revision:modInventory.selected.revision},'Saving the build choice',origin,()=>{});
+  buildSaving=false;
+  // A new build re-plans the loader row from scratch: write it unless the USB already holds it.
+  if(result?.ok){applyModInventory(result.result);W.loader='auto';}
+  else{if(result&&!result.cancelled)showError('The build choice was not saved. '+(result.error||''),origin);await loadModVersions();}
+  render();
+}
+// A saved choice that is only an older build this app once included follows the newest one; a build picked
+// on purpose (a release, a preview, an import) stays.
+async function followNewest(){
+  const saved=savedModVersion(),newest=bundledVersion();
+  if(!saved||!newest||sameRuntime(saved,newest)||!isIncluded(saved)||String(saved.archived_at||'')>=String(newest.archived_at||''))return;
+  await saveBuild(newest.id,savedPinned(),null);
+  if(sameRuntime(savedModVersion(),newest)){buildNote='Switched to the newest build, which came with this app.';render();}
+}
+function buildChooser(){
+  const saved=savedModVersion(),newest=bundledVersion(),onNewest=sameRuntime(saved,newest),others=otherBuilds(),busy=buildSaving||activeJob!==null;
+  const otherValue=onNewest?(others[0]?.id||''):saved?.id||'';
+  const option=(value,checked,title,detail,extra)=>el('label',{class:'wz-build-option',dataset:{value,checked:checked?'1':null}},
+    el('input',{type:'radio',name:'wz-build',value,checked:checked?true:null,disabled:busy?true:null,
+      onchange:event=>{const id=value==='newest'?newest.id:event.currentTarget.closest('.wz-build-option').querySelector('select').value;saveBuild(id,savedPinned(),event.currentTarget);}}),
+    el('span',{class:'wz-build-text'},el('strong',{text:title}),el('small',{text:detail})),extra||null);
+  return el('div',{class:'wz-build'},
+    el('div',{class:'wz-build-options',role:'radiogroup','aria-label':'Build to write'},
+      newest?option('newest',onNewest,'Newest','Came with this app'+(buildDate(newest)?' · '+buildDate(newest):'')+(newest.hardware_qualified===true?' · hardware-tested':' · not hardware-tested yet')):null,
+      others.length?option('other',!onNewest,'Another build',!onNewest&&saved?buildName(saved):'An older or imported build',
+        el('select',{'aria-label':'Another build',disabled:busy?true:null,onchange:event=>saveBuild(event.target.value,savedPinned(),event.target)},
+          ...others.map(version=>el('option',{value:version.id,selected:version.id===otherValue?true:null,text:buildName(version)})))):null),
+    el('label',{class:'check wz-build-pin'},el('input',{type:'checkbox',checked:savedPinned()?true:null,disabled:busy?true:null,onchange:event=>saveBuild(saved.id,event.target.checked,event.target)}),
+      ' Keep this build on the USB (network updates leave it alone)'),
+    buildNote?el('p',{class:'wz-build-note',role:'status',text:buildNote}):null);
+}
 function versionLine(){
   const saved=savedModVersion();
   if(!modVersionsReady())return el('div',{class:'wz-setup-needed'},el('p',{text:'No mod version is on this PC yet, so there is nothing to write to a loader.'}),el('button',{type:'button',class:'primary',text:'Set up mod versions',onclick:()=>openModWizard(false)}));
-  if(!saved)return el('div',{class:'wz-setup-needed'},el('p',{text:'Choose which XZ Mods build goes on this USB.'}),el('button',{type:'button',class:'primary',text:'Choose mod version',onclick:()=>showModVersionEditor('mod-version-select')}));
-  return el('p',{class:'wz-version'},el('span',{text:(saved.hardware_qualified===true?'Hardware-tested':'Not hardware-verified')+(savedPinned()?' · kept on the USB':' · network updates allowed')+' · '}),
-    el('button',{type:'button',class:'text-button',text:'Change',onclick:()=>showModVersionEditor('mod-version-select')}));
+  if(!saved)return el('div',{class:'wz-setup-needed'},el('p',{text:'Choose which XZ Mods build goes on this USB.'}),el('button',{type:'button',class:'primary',text:'Use the newest build',onclick:event=>saveBuild(bundledVersion()?.id||modInventory.versions[0].id,true,event.currentTarget)}));
+  return buildChooser();
 }
 function driveLabel(){return W.usbs?.find(item=>item.volume===W.usb)?.label||W.usb;}
 function choices(){

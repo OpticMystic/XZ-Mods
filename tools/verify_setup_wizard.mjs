@@ -30,9 +30,20 @@ function installMock() {
     recorded_mod_version: usb.loader ? fx.recorded : null, installed_version: null, runtime_sha256: 'newsha',
     settings: { editable: true, values: { ...defaults, theme: 2 }, revision: { exists: usb.settings, bytes: 400 }, schema, path: 'E:\\VJ.Tools\\XZ-Mods.cfg' }, backups: [], games: gamesOnUsb(), direct_usb_root: true, requires_copy_to_usb_root: false, filesystem: 'FAT32',
     space: { free_bytes: 29100000000, total_bytes: 32000000000 }, stems: { tracks: hasLoader ? 12 : 0, bytes: 734003200 }, rekordbox: true });
+  // mode 'builds': several archived builds, one duplicate of the newest runtime, saved choice an older included build.
+  const builds = mode === 'builds' ? [
+    { id: 'v1', label: 'Included development build newsha12', runtime_sha256: 'newsha12', hardware_qualified: false, source_commit: savedCommit, archived_at: '2026-10-12T09:54:00Z' },
+    { id: 'dup', label: 'Included development build newsha12', runtime_sha256: 'newsha12', hardware_qualified: false, source_commit: savedCommit, archived_at: '2026-10-12T09:48:00Z' },
+    { id: 'old', label: 'Included development build 98cc63d1', runtime_sha256: '98cc63d1aaaa', hardware_qualified: false, source_commit: OLD, archived_at: '2026-10-08T19:51:00Z' },
+    { id: 'rel', label: '0.2.1 released', runtime_sha256: 'e47166e2aaaa', hardware_qualified: false, source_commit: OLD, archived_at: '2026-10-08T17:00:00Z' }]
+    : [{ id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', hardware_qualified: false, source_commit: savedCommit }];
+  fx.selections = [];
+  fx.selected = { id: mode === 'noversion' ? 'missing' : mode === 'builds' ? 'old' : 'v1', pinned: true, revision: 1 };
+  const inventory = () => ({ format: 'xz-mod-versions/1', versions: builds, selected: { ...fx.selected }, bundled_id: 'v1' });
   const status = request => {
     switch (request.method) {
-      case 'list_mod_versions': return { running: false, ok: true, result: { format: 'xz-mod-versions/1', versions: [{ id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', hardware_qualified: false, source_commit: savedCommit }], selected: { id: mode === 'noversion' ? 'missing' : 'v1', pinned: true, revision: 1 }, bundled_id: 'v1' } };
+      case 'list_mod_versions': return { running: false, ok: true, result: inventory() };
+      case 'select_mod_version': { fx.selected = { id: request.mod_version_id, pinned: request.pinned, revision: fx.selected.revision + 1 }; fx.selections.push(request); return { running: false, ok: true, result: inventory() }; }
       case 'discover_usbs': return { running: false, ok: true, result: { format: 'xz-usbs/1', usbs: mode === 'nousb' ? [] : [usb] } };
       case 'inspect_usb': return { running: false, ok: true, result: inspection() };
       case 'inspect_mod_settings': return { running: false, ok: true, result: { format: 'xz-mod-settings/1', mod_version_id: 'v1', settings_change: null } };
@@ -149,7 +160,8 @@ try {
   await check(`rowTxt('drive').includes('KINGSTON')&&rowTxt('drive').includes('FAT32')&&rowTxt('drive').includes('29.1 GB free of 32 GB')`, 'drive row shows label, filesystem and free space');
   await check(`rowTxt('rekordbox').includes('Never touched')&&!box('rekordbox')&&!row('rekordbox').querySelector('button')`, 'Rekordbox row reads never touched, with no control');
   await check(`rowTxt('stems').includes('None yet')&&badge('stems')==='Not on USB'&&button('Prepare stems',row('stems'))`, 'stems row: none yet, one link to Prepare stems');
-  await check(`rowTxt('loader').includes('Fixture build')&&txt('.tree-aside').includes('Not hardware-verified')&&!txt('.tree-aside').includes('Fixture build')`, 'loader box names the saved version; the line under it does not repeat it');
+  await check(`rowTxt('loader').includes('Fixture build')&&document.querySelector('.tree-aside .wz-build-option[data-value=newest]').dataset.checked==='1'&&txt('.tree-aside .wz-build-option[data-value=newest]').includes('Came with this app')&&!document.querySelector('.tree-aside .wz-build-option[data-value=other]')&&txt('.wz-build-pin').includes('Keep this build on the USB')`, 'the build is chosen in the loader row: Newest selected, no Another build when there is none, the keep-on-USB box beside it');
+  await check(`!button('Change')&&!txt('#wiz').includes('Advanced tools')`, 'choosing the build never sends the DJ to Advanced tools');
   await check(`['doom','chex','freedoom'].every(id=>row('game-'+id)&&!box('game-'+id)&&badge('game-'+id)==='Will add')&&!row('game-myhouse')&&!txt('#wiz').includes('My House')`, 'fresh USB: every working free game is planned by default; My House is gone even when the backend lists it');
   await check(`button('Choose games',row('games'))&&!button('Edit settings')`, 'Games folder links to Choose games; there is no settings editor');
   await check(`document.querySelector('.tree').scrollWidth<=document.querySelector('.tree').clientWidth&&document.documentElement.scrollWidth<=innerWidth`, 'tree fits without horizontal scroll');
@@ -244,8 +256,10 @@ try {
   await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
   await evaluate(`document.querySelector('.wz-usb').click()`);
   await step('loadout');
-  await check(`box('loader').disabled&&!row('loader').dataset.plan&&button('Choose mod version')&&button('Next').disabled`, 'missing mod version: loader box disabled, nothing planned, one button into the chooser, Next held');
+  await check(`box('loader').disabled&&!row('loader').dataset.plan&&button('Use the newest build')&&button('Next').disabled`, 'missing saved build: loader box disabled, nothing planned, one button, Next held');
   await shot('12-loadout-noversion');
+  await click('Use the newest build');
+  await check(`fx.selections.at(-1).mod_version_id==='v1'&&fx.selections.at(-1).pinned===true&&!box('loader').disabled&&badge('loader').startsWith('Will')`, 'Use the newest build saves it in place and plans the loader');
 
   const chooseFirstUsb = async () => {
     await click('Find my USB');
@@ -263,6 +277,22 @@ try {
   await chooseFirstUsb();
   await check(`txt('.tree-aside .mu-head small')==='New build → Fixture build'&&txt('.mu-group[data-group=removed] h5')==='Not in Fixture build'&&document.querySelectorAll('.mu-group[data-group=removed] .mu-item').length===8&&document.querySelectorAll('.mu-group').length===1`, 'downgrade: Not in Fixture build lists the eight changes the DJ loses');
   await shot('09-downgrade');
+
+  await open('builds');
+  await chooseFirstUsb();
+  await waitFor(`fx.selections.length===1&&activeJob===null&&document.querySelector('.wz-build-note')`, 'older included build follows the newest');
+  await check(`fx.selections[0].mod_version_id==='v1'&&fx.selections[0].pinned===true&&txt('.wz-build-note')==='Switched to the newest build, which came with this app.'&&document.querySelector('.wz-build-option[data-value=newest]').dataset.checked==='1'`, 'a saved older included build follows the newest build that came with the app');
+  await check(`[...document.querySelectorAll('.wz-build select option')].map(o=>o.value).join()==='old,rel'&&[...document.querySelectorAll('.wz-build select option')].map(o=>o.textContent).join('|')==='Development build 98cc63d1 · Oct 8|0.2.1 released · Oct 8'`, 'Another build lists the rest newest first, one entry per runtime, with readable names and dates');
+  await evaluate(`(()=>{const select=document.querySelector('.wz-build select');select.value='rel';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await waitFor(`fx.selections.length===2&&activeJob===null`, 'another build saved');
+  await check(`fx.selections[1].mod_version_id==='rel'&&document.querySelector('.wz-build-option[data-value=other]').dataset.checked==='1'&&txt('.wz-build-option[data-value=other] small')==='0.2.1 released · Oct 8'&&box('loader').checked&&row('loader').dataset.plan==='1'`, 'picking another build saves it at once and plans the loader with it');
+  await shot('13-build-chooser');
+  await evaluate(`document.querySelector('.wz-build-pin input').click()`);
+  await waitFor(`fx.selections.length===3&&activeJob===null`, 'pin saved');
+  await check(`fx.selections[2].mod_version_id==='rel'&&fx.selections[2].pinned===false&&!document.querySelector('.wz-build-pin input').checked`, 'the keep-on-USB box saves the pin for the same build');
+  await evaluate(`document.querySelector('.wz-build-option[data-value=newest] input').click()`);
+  await waitFor(`fx.selections.length===4&&activeJob===null`, 'newest saved');
+  await check(`fx.selections[3].mod_version_id==='v1'&&document.querySelector('.wz-build-option[data-value=newest]').dataset.checked==='1'`, 'Newest is one click back');
 
   await open('nonotes');
   await chooseFirstUsb();
