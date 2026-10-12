@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.3",
+      "date": "2026-10-11",
+      "preview": true,
+      "features": [
+        "Set up USB is one guided flow: find the USB, see what is on it, add or update the loader, pick games, edit settings, write, done. It replaces the USB loader, USB settings and Games pages; their one-off tools moved to Advanced tools.",
+        "Games are a choice. Doom shareware, Chex Quest, Freedoom Phase 2 and My House are listed with their sizes and are only downloaded and copied when ticked. Games already on the USB are shown as such and left alone. Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer stay built into the loader.",
+        "The settings editor is laid out like the MODS menu on the XZ: the same GENERAL, CONTROLS, APPEARANCE, ADVANCED and EXTRAS tabs, the same rows and pad diagram, an info dock that explains the control under the pointer, drawn in the theme you pick. Browse columns, which the XZ reads but does not show, get their own page under ADVANCED.",
+        "One write at the end: the loader (backed up first), the chosen games and your settings go to the USB together, then the USB is read back."
+      ],
+      "fixes": [
+        "A USB without a Rekordbox library is now found by the USB finder; before, only exported sticks were listed.",
+        "Preparing or updating a loader no longer forces every free game download onto the USB."
+      ],
+      "requirements": [
+        "Pioneer DJ XDJ-XZ firmware 1.26.",
+        "Not hardware-verified: test the loader on your XZ before a set."
+      ]
+    },
+    {
       "version": "0.3.0-preview.2",
       "date": "2026-10-10",
       "preview": true,

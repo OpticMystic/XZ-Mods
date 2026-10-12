@@ -10,14 +10,14 @@ let stemSelection=new Map(),stemSelectionKey=null,stemBatch=null;
 let stemPhase='idle',stemBusy=false,stemDrives=[],stemVolume=null,stemFilter='all',stemQuery='',stemSearchTimer=null,stemConfirm=null,stemEngine=null;
 const stemOpen=new Set(),stemChecks=new Map(),stemFresh=new Set();
 let stemRowsById=new Map(),eng=null,imp=null;
-let usbInspection=null,settingsVolume=null,settingsIdentity=null,settingsData=null,settingsValues=null;
+let usbInspection=null;
 // Library repair: the inspection is the only basis for a repair or undo, and it is dropped whenever the chosen USB changes.
 let repairInspection=null,repairDiscovery=null;
 // Mod version: modInventory is the last list the backend returned and holds the saved choice. modDraft is the
 // unsaved dropdown and checkbox state. USB writes read only the saved choice, through selectedVersionRequest().
 let modInventory=null,modDraft=null,modLoadError='',modImportFolder='',modImportedId=null;
 const modChannels={preview:'Preview',public:'Public release',release:'Public release',released:'Released',development:'Development build',dev:'Development build',imported:'Imported'};
-const titles={usb:'USB loader','usb-settings':'USB settings',stems:'Prepare stems','library-repair':'Repair library',games:'Games','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
+const titles={setup:'Set up USB',advanced:'Advanced tools',stems:'Prepare stems','library-repair':'Repair library','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
 const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library','plan_engine_setup','list_mod_versions','inspect_mod_settings'];
@@ -63,7 +63,7 @@ function positionFeedback(){
 function revealFeedback(){if(!jobPanel.classList.contains('hidden')&&jobPanel.isConnected)jobPanel.scrollIntoView({block:'nearest'});}
 function showFeedback(origin){feedbackHome=origin||null;jobPanel.classList.remove('hidden');positionFeedback();}
 function showError(message,origin){jobPanel.classList.remove('is-cancelled');jobPanel.classList.add('is-error');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');showFeedback(origin);revealFeedback();}
-function busy(value){value=value||appUpdating;stemBusy=value;document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,#choose-settings-usb,#save-usb-settings,#reload-usb-settings,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,#experimental').forEach(input=>input.disabled=value);$('install-app-update').disabled=value||activeJob!==null;renderStems();updateRepairControls(value);updateModVersionControls(value);}
+function busy(value){value=value||appUpdating;stemBusy=value;document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,#experimental').forEach(input=>input.disabled=value);$('install-app-update').disabled=value||activeJob!==null;renderStems();updateRepairControls(value);updateModVersionControls(value);}
 function verifySummary(result){
   const check=stemsApi.verify(result);
   return [t('verify.mixes',{ok:check.mixes}),check.pages?ST['verify.pagesAll']:'',check.identity?ST['verify.identity']:''].filter(Boolean).join(' · ')+'. Your USB was not changed.';
@@ -94,7 +94,7 @@ async function run(request,title,origin,watch){
           if(state.result.game_setup || state.result.format==='xz-games-usb/1'){
             const setup=state.result.game_setup||state.result;
             const names=setup.games.filter(game=>game.ok).map(game=>game.name).join(', ');
-            $('job-summary').textContent=(state.result.image?'Loader ready. ':'')+(names?'Game files on USB: '+names+'. ':'')+(setup.failed_count?setup.failed_count+' download(s) failed. Open Games and choose Set up games to retry. ':'')+'My House still needs the native GZDoom port.';
+            $('job-summary').textContent=(state.result.image?'Loader ready. ':'')+(names?'Game files on USB: '+names+'. ':'')+(setup.failed_count?setup.failed_count+' download(s) failed. Open Set up USB and retry the failed games. ':'')+'My House still needs the native GZDoom port.';
           }else if(state.result.format==='xz-game-installed/1')$('job-summary').textContent=state.result.name+' copied to USB and verified.'+(state.result.requires_gzdoom?' My House still needs the native GZDoom port.':'');
           else if(state.result.format==='xz-game-downloaded/1')$('job-summary').textContent=state.result.name+' downloaded and verified.';
           else if(state.result.format==='xz-library-inspected/1')$('job-summary').textContent='Check finished. The results are below.';
@@ -213,63 +213,7 @@ $('update-usb').onclick=async()=>{
   if($('firmware').value.trim())request.firmware=$('firmware').value.trim();
   const result=await run(request,'Backing up and updating the USB loader',$('update-usb'));if(result?.ok)renderUsb(result.result.inspection);
 };
-const STEM_ORDERS=[[2,1,0],[2,0,1],[1,2,0],[1,0,2],[0,2,1],[0,1,2]];
-const STEM_NAMES=['DRUMS','HARMONICS','VOCALS'];
-function stemDiagram(values){
-  const order=STEM_ORDERS[values.stem_order]||STEM_ORDERS[0];
-  const block=node('div',undefined,'pad-map'),roles=[...order.map(stem=>STEM_NAMES[stem]),'BYPASS'];
-  for(let pad=0;pad<8;pad++){
-    const assigned=Math.floor(pad/4)===values.stem_bank;
-    const button=node('button',undefined,'pad-square usb-setting'+(assigned?' assigned':''));button.type='button';
-    button.append(node('strong',String.fromCharCode(65+pad)),node('span',assigned?roles[pad%4]:'Original pad'));
-    button.setAttribute('aria-label','Use pads '+(pad<4?'A to D':'E to H')+' for stem shortcuts');
-    button.onclick=()=>{settingsValues.stem_bank=Math.floor(pad/4);renderSettings();};block.append(button);
-  }
-  return block;
-}
-function renderSettings(){
-  const data=settingsData;$('settings-editor').classList.toggle('hidden',!data?.editable);
-  $('settings-selected-path').textContent=settingsVolume||'';
-  if(!data)return;
-  $('settings-status').textContent=data.editable?(data.revision.exists?'Loaded saved settings. Changes are written only when you click Save.':'No settings file yet. Save to create one with these defaults.'):data.reason;
-  if(!data.editable)return;
-  const holder=$('settings-fields');holder.replaceChildren();
-  const names={appearance:'Appearance',stems:'Stem shortcuts',beat_jump:'Beat Jump',advanced:'Other controls'};
-  for(const group of Object.keys(names)){
-    const panel=node('section',undefined,'panel');panel.append(node('h2',names[group]));
-    if(group==='stems'){panel.append(node('p','Choose the pad mode, then tap a row to assign its four pads.'));}
-    if(group==='beat_jump')panel.append(node('p','Page 1 opens with Beat Jump. Hold Shift and tap Beat Jump for page 2. Each pair jumps backward and forward. One bar is four beats.'));
-    const fields=node('div',undefined,'settings-grid');
-    for(const field of data.schema.fields.filter(item=>item.group===group&&!item.readonly&&item.key!=='stem_bank')){
-      const label=node('label',field.label);let input;
-      if(field.kind==='boolean'){
-        input=node('input');input.type='checkbox';input.checked=settingsValues[field.key]===1;label.className='setting-toggle';
-        input.onchange=()=>{settingsValues[field.key]=input.checked?1:0;};
-      }else{
-        input=node('select');for(const choice of field.choices){const option=node('option',choice.label);option.value=String(choice.value);input.append(option);}
-        input.value=String(settingsValues[field.key]);
-        input.onchange=()=>{settingsValues[field.key]=Number(input.value);if(field.key==='stem_bank'||field.key==='stem_page'||field.key==='stem_order')renderSettings();};
-      }
-      input.classList.add('usb-setting');input.dataset.setting=field.key;label.append(input);fields.append(label);
-    }
-    panel.append(fields);if(group==='stems')panel.append(stemDiagram(settingsValues));
-    if(group==='stems'&&settingsValues.stem_page===3&&settingsValues.jump_enabled)panel.append(node('p','Custom Beat Jump is using the Beat Jump pads. Choose another mode for stem shortcuts, or switch Custom Beat Jump off.','notice'));
-    holder.append(panel);
-  }
-}
-async function loadSettings(volume,origin){
-  const result=await run({method:'read_usb_settings',volume},'Reading USB settings',origin);
-  if(result?.ok){settingsVolume=volume;settingsIdentity=result.result.identity;settingsData=result.result.settings;settingsValues=settingsData.editable?{...settingsData.values}:null;renderSettings();}
-}
-$('choose-settings-usb').onclick=async()=>{const origin=$('choose-settings-usb');try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await loadSettings(volume,origin);}catch(error){showError(String(error),origin);}};
-// The read happens on the settings page, so its feedback belongs beside that page's USB chooser.
-$('edit-selected-usb').onclick=()=>{if(usbInspection){showPage('usb-settings');loadSettings(usbInspection.volume,$('choose-settings-usb'));}};
-$('reload-usb-settings').onclick=()=>{if(settingsVolume)loadSettings(settingsVolume,$('reload-usb-settings'));};
-$('save-usb-settings').onclick=async()=>{
-  if(!settingsData?.editable||!settingsVolume)return;
-  const result=await run({method:'save_usb_settings',volume:settingsVolume,expected_identity:settingsIdentity,expected_revision:settingsData.revision,values:{...settingsValues}},'Saving USB settings',$('save-usb-settings'));
-  if(result?.ok){settingsData=result.result.settings;settingsIdentity=result.result.identity;settingsValues={...settingsData.values};renderSettings();$('settings-status').textContent='Settings saved to USB and verified. The XZ loads them when its loader starts.';}
-};
+$('edit-selected-usb').onclick=()=>{if(usbInspection)openSetupFor(usbInspection);};
 
 function renderReleaseNotes(holder,notes,version){
   const entry=node('div',undefined,'release-entry');if(version)entry.append(node('h2','Version '+version));
@@ -612,7 +556,7 @@ function endingModel(batch,sel){
   else if(ending.kind==='full'){line.append(el('span',{class:'warn',text:t('done.full',ending)}));primary={label:ST['action.chooseFewer'],action:()=>{for(const item of failed)if(stemsApi.didNotFit(item))stemSelection.delete(item.id);dismissEnding();renderStems();}};}
   else if(ending.kind==='wrongUsb')line.append(el('span',{class:'bad',text:t('done.wrongUsb',{usb:driveName(batch.volume)})}));
   else{line.append(el('span',{class:'bad',text:ending.error}));primary=selectPrimary(sel);}
-  if((ending.kind==='all'||ending.kind==='someFailed')&&stemLibrary.loaderOk===false)line.append(' ',ST['done.loaderOld'],' ',plainButton(ST['done.updateLoader'],()=>showPage('usb'),{text:true,key:'update-loader'}));
+  if((ending.kind==='all'||ending.kind==='someFailed')&&stemLibrary.loaderOk===false)line.append(' ',ST['done.loaderOld'],' ',plainButton(ST['done.updateLoader'],()=>showPage('setup'),{text:true,key:'update-loader'}));
   return {line,meterSelection:false,primary};
 }
 function stemBarModel(){
@@ -1478,7 +1422,7 @@ function modDirty(){if(!modVersionsReady())return false;const draft=modDraftStat
 // The only source of mod_version_id for prepare_usb, build_usb and update_usb: the saved choice, never the dropdown.
 function selectedVersionRequest(origin){
   const saved=savedModVersion();
-  if(!saved){showError('Set and save the mod version at the top of the USB loader page before writing a loader.',origin);return null;}
+  if(!saved){showError('Set and save the mod version in Advanced tools before writing a loader.',origin);return null;}
   if(modDirty()){showError('You changed the mod version but did not save it. Choose Save choice or Undo change at the top of the USB loader page, then try again.',origin);return null;}
   return {mod_version_id:saved.id,pin_mod_version:savedPinned()};
 }
@@ -1572,7 +1516,7 @@ function renderModVersions(){
     $('mod-version-dirty').textContent=dirty?'Not saved. USB writes still use '+(saved?(saved.label||saved.id)+', '+pinText(savedPinned()):'no version')+'. Save choice to use '+(choice?.label||draft.id)+', '+pinText(draft.pinned)+'.':'';
   }
   for(const line of document.querySelectorAll('.mod-version-uses')){
-    line.textContent=saved?'Writes mod version '+(saved.label||saved.id)+', '+pinText(savedPinned())+'.'+(modDirty()?' Your unsaved change is not used.':''):'Mod version not set. Set it at the top of the USB loader page before writing a loader.';
+    line.textContent=saved?'Writes mod version '+(saved.label||saved.id)+', '+pinText(savedPinned())+'.'+(modDirty()?' Your unsaved change is not used.':''):'Mod version not set. Set it in Advanced tools before writing a loader.';
     line.classList.toggle('is-blocked',!saved||modDirty());
   }
   $('mod-wizard-list').textContent=!invoke?'Open the desktop app to read mod versions.':ready?plural(modInventory.versions.length,'mod version')+' found on this PC. '+(saved?'Saved choice: '+(saved.label||saved.id)+'.':'No usable saved choice yet.'):modLoadError||(modInventory?'No mod versions found on this PC. Import a build below.':'Reading mod versions…');
@@ -1585,7 +1529,7 @@ async function loadModVersions(){
   if(!result.ok){modInventory=null;modLoadError='Mod versions could not be read. '+(result.error||'Check again, or import a build.');renderModVersions();return false;}
   return applyModInventory(result.result);
 }
-function showModVersionEditor(focus){showPage('usb');$('mod-version').scrollIntoView({behavior:'smooth',block:'start'});$(focus).focus({preventScroll:true});}
+function showModVersionEditor(focus){showPage('advanced');$('mod-version').scrollIntoView({behavior:'smooth',block:'start'});$(focus).focus({preventScroll:true});}
 function openModWizard(importing){
   modImportedId=null;$('mod-wizard-title').textContent=importing?'Import a mod build':'Set up mod versions';
   $('mod-wizard-done').textContent='Choose version';$('mod-wizard-import-result').textContent='';$('mod-wizard-folder').textContent=modImportFolder;

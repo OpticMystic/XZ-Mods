@@ -99,11 +99,11 @@ try {
     return measured;
   };
   if (endpoint) {
-    await evaluate(`showPage('usb');window.scrollTo(0,0);showError('Not enough free space. Free 2 GB and try again.',document.getElementById('prepare-usb'));`);
+    await evaluate(`showPage('advanced');window.scrollTo(0,0);showError('Not enough free space. Free 2 GB and try again.',document.getElementById('prepare-usb'));`);
     await measure('#prepare-usb', 'installed-usb-free-space');
     await evaluate(`stemLibraryStarted=true;showPage('stems');renderStemLibrary(testLibrary);document.querySelector('#stem-tracks .st-open-button').click();document.querySelector('#stem-tracks [data-action="verify"]').scrollIntoView({block:'center'});showError('Not enough free space. Free 2 GB and try again.',document.querySelector('#stem-tracks [data-action="verify"]'));`);
     await measure('#stem-tracks [data-action="verify"]', 'installed-track-free-space');
-    await evaluate(`showPage('usb');document.getElementById('verify-inputs').closest('details').open=true;document.getElementById('verify-inputs').scrollIntoView({block:'center'});document.getElementById('firmware').value='';document.getElementById('verify-inputs').click();`);
+    await evaluate(`showPage('advanced');document.getElementById('verify-inputs').closest('details').open=true;document.getElementById('verify-inputs').scrollIntoView({block:'center'});document.getElementById('firmware').value='';document.getElementById('verify-inputs').click();`);
     await measure('#verify-inputs', 'installed-required-input');
     await evaluate(`showPage('stems');stemEngine=stemsApi.engine({device:'cpu'});openEngineWizard('choose');showError('Not enough free space. Free 2 GB and try again.',document.getElementById('st-eng-primary'));`);
     await measure('#st-eng-primary', 'installed-setup-dialog');
@@ -112,11 +112,11 @@ try {
   } else {
   for (const size of [{width:900,height:680}, {width:1120,height:820}]) {
     if (!endpoint) await send('Emulation.setDeviceMetricsOverride', { ...size, deviceScaleFactor: 1, mobile: false });
-    await evaluate(`document.querySelector('nav button[data-page="usb"]').click();window.scrollTo(0,0);document.getElementById('prepare-usb').click();`);
+    await evaluate(`document.querySelector('nav button[data-page="advanced"]').click();window.scrollTo(0,0);document.getElementById('prepare-usb').click();`);
     await waitFor(`activeJob===null&&document.getElementById('job-panel').checkVisibility()&&document.getElementById('job-message').textContent.includes('Not enough free space')`);
     await measure('#prepare-usb', 'usb-free-space');
   }
-  await evaluate(`document.querySelector('nav button[data-page="games"]').click();testPickFailure=true;document.getElementById('copy-doom-usb').click();`);
+  await evaluate(`document.querySelector('nav button[data-page="advanced"]').click();testPickFailure=true;document.getElementById('copy-doom-usb').click();`);
   await waitFor(`document.getElementById('job-message').textContent.includes('folder could not be opened')`);
   await measure('#copy-doom-usb', 'picker-failure');
   await evaluate(`testPickFailure=false;document.querySelector('nav button[data-page="stems"]').click();`);
@@ -131,10 +131,10 @@ try {
   await evaluate(`testMode='throw';document.querySelector('#stem-tracks [data-action="verify"]').click();`);
   await waitFor(`activeJob===null&&document.getElementById('job-message').textContent.includes('Not enough free space')`);
   await measure('#stem-tracks [data-action="verify"]', 'thrown-error');
-  await evaluate(`testMode='error';document.querySelector('nav button[data-page="usb"]').click();document.getElementById('verify-inputs').closest('details').open=true;document.getElementById('verify-inputs').scrollIntoView({block:'center'});document.getElementById('firmware').value='';document.getElementById('verify-inputs').click();`);
+  await evaluate(`testMode='error';document.querySelector('nav button[data-page="advanced"]').click();document.getElementById('verify-inputs').closest('details').open=true;document.getElementById('verify-inputs').scrollIntoView({block:'center'});document.getElementById('firmware').value='';document.getElementById('verify-inputs').click();`);
   await waitFor(`document.getElementById('job-message').textContent.includes('required')`);
   await measure('#verify-inputs', 'required-input');
-  await evaluate(`testMode='running';document.querySelector('nav button[data-page="games"]').click();document.getElementById('download-doom').scrollIntoView({block:'center'});document.getElementById('download-doom').click();`);
+  await evaluate(`testMode='running';document.querySelector('nav button[data-page="advanced"]').click();document.getElementById('download-doom').scrollIntoView({block:'center'});document.getElementById('download-doom').click();`);
   await waitFor('activeJob!==null');
   await measure('#download-doom', 'progress');
   await evaluate(`document.querySelector('nav button[data-page="licenses"]').click();`);
@@ -142,7 +142,7 @@ try {
   await evaluate(`testMode='error';`);
   await waitFor('activeJob===null');
   assert(await evaluate(`document.getElementById('job-panel').checkVisibility()&&document.getElementById('job-message').textContent.includes('Not enough free space')&&document.getElementById('job-message').getBoundingClientRect().bottom<=innerHeight`), 'Final failure must remain visible after navigating');
-  await evaluate(`testMode='running';document.querySelector('nav button[data-page="games"]').click();document.getElementById('download-doom').scrollIntoView({block:'center'});document.getElementById('download-doom').click();`);
+  await evaluate(`testMode='running';document.querySelector('nav button[data-page="advanced"]').click();document.getElementById('download-doom').scrollIntoView({block:'center'});document.getElementById('download-doom').click();`);
   await waitFor('activeJob!==null');
   await evaluate(`document.getElementById('cancel').click();`);
   await waitFor('activeJob===null');
