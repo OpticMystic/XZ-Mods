@@ -1,7 +1,7 @@
 // Set up USB: one guided flow. Steps are a fixed list; what each step offers comes from the USB inspection.
 // State lives in W. Writes go through the same backend methods the Advanced tools page uses.
 (function(){
-const STEPS=[['usb','USB'],['loadout','Loadout'],['nonessentials','NonEssentials'],['settings','Settings'],['write','Write'],['done','Done']];
+const STEPS=[['usb','USB'],['loadout','Loadout'],['profile','DJ Profile'],['nonessentials','NonEssentials'],['settings','Settings'],['write','Write'],['done','Done']];
 const W={step:'usb',usbs:null,finding:false,usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,menu:null,result:null,writeOrigin:null,changesOpen:false};
 const host=$('wiz'),gamesHost=$('games-host'),listeners=[];
 
@@ -18,7 +18,9 @@ function settingsChanges(){
 }
 function settingsEditable(){return Boolean(W.inspection?.settings?.editable);}
 function writesLoader(){return loaderChoice()!=='keep';}
-function nothingToWrite(){return !writesLoader()&&!newGames().length&&!settingsChanges().length&&W.inspection?.settings?.revision?.exists!==false;}
+// The DJ Profile step keeps its draft in dj-profile.js; the Write step saves it with everything else.
+function profilePlan(){return window.djProfilePage?.pending()||null;}
+function nothingToWrite(){return !writesLoader()&&!newGames().length&&!settingsChanges().length&&!profilePlan()?.plan&&W.inspection?.settings?.revision?.exists!==false;}
 function stepIndex(step){return STEPS.findIndex(([id])=>id===step);}
 function reachable(step){
   const index=stepIndex(step);
@@ -92,7 +94,9 @@ function choices(){
   return {loader:loaderChoice(),saved:savedModVersion(),games:W.games,changes:settingsChanges(),settingsEditable:settingsEditable(),versionLine:versionLine(),
     update,changelog:modUpdatePanel(update,{expanded:W.changesOpen,onExpand:()=>{W.changesOpen=true;render();}}),
     setLoader:value=>{W.loader=value;render();},
+    profile:profilePlan(),
     chooseGames:()=>goto('nonessentials'),
+    editProfile:()=>goto('profile'),
     editSettings:()=>goto('settings')};
 }
 // games_menu is a setting only once the loader's schema has it; until then every built-in game stays in the menu.
@@ -115,36 +119,44 @@ function stepLoadout(){
     el('p',{class:'wz-lead',text:'Green is ready, amber needs an update, grey is not on the USB yet. Tick what you want written. Nothing changes until the Write step.'}),
     tree('edit'),
     W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB root. Copy the finished autoexec.bin to the USB root afterward.'}):null,
-    nav('usb','nonessentials',Boolean(savedModVersion())||loaderChoice()==='keep'));
+    stepNav());
+}
+// dj-profile.js draws into the slot (and asks for refreshNav as the draft changes).
+function stepProfile(){
+  return el('section',{class:'wz-pane wz-profile'},
+    el('h2',{text:'Your DJ profile'}),
+    el('p',{class:'wz-lead',text:'Your name and logo on the XZ, and for VJ software on the same network. '+(W.inspection.dj_profiles?.count?'Edit it here, or go on.':'It takes a minute. Skip it if you like and add it later.')}),
+    el('div',{id:'wz-djp-slot'}),
+    stepNav());
 }
 function stepNonEssentials(){
   return el('section',{class:'wz-pane'},
     el('h2',{text:'NonEssentials'}),
     el('p',{class:'wz-lead',text:'Games are extras. Nothing here is needed to DJ. Tick what you want on this USB.'}),
     gamesChooser(),
-    nav('loadout','settings',true));
+    stepNav());
 }
 function saveState(){
   const changes=settingsChanges().length;
-  return {label:changes?plural(changes,'change')+' · written in step 5':W.inspection.settings.revision.exists?'MATCHES USB':'NEW FILE · DEFAULTS',tone:changes?'dirty':'clean'};
+  return {label:changes?plural(changes,'change')+' · written in step '+(stepIndex('write')+1):W.inspection.settings.revision.exists?'MATCHES USB':'NEW FILE · DEFAULTS',tone:changes?'dirty':'clean'};
 }
 function stepSettings(){
   const settings=W.inspection.settings;
   if(!settings.editable)return el('section',{class:'wz-pane'},el('h2',{text:'Settings on this USB'}),el('p',{class:'notice',role:'alert',text:settings.reason}),
-    el('p',{text:'Updating the loader writes a fresh settings file with defaults. The settings editor opens once the USB has a readable file.'}),nav('nonessentials','write',true));
-  if(!W.menu)W.menu=createSettingsMenu({schema:settings.schema,values:W.settings,usbLabel:W.usb,onChange:values=>{W.settings=values;renderNavOnly();},save:saveState,onGames:()=>goto('nonessentials'),
-    profile:()=>W.inspection?.dj_profiles?.count?W.inspection.dj_profiles.active_name:null,onProfile:()=>showPage('dj-profile')});
+    el('p',{text:'Updating the loader writes a fresh settings file with defaults. The settings editor opens once the USB has a readable file.'}),stepNav());
+  if(!W.menu)W.menu=createSettingsMenu({schema:settings.schema,values:W.settings,usbLabel:W.usb,onChange:values=>{W.settings=values;refreshNav();},save:saveState,onGames:()=>goto('nonessentials'),
+    profile:()=>W.inspection?.dj_profiles?.count?W.inspection.dj_profiles.active_name:null,onProfile:()=>goto('profile')});
   else W.menu.setValues(W.settings);
   return el('section',{class:'wz-pane wz-settings'},
     el('h2',{text:'Settings, laid out like the MODS menu on your XZ'}),
     el('p',{class:'wz-lead',text:'The same five sections, the same rows. Hover a control to read what it does in the dock. Changes are written to the USB in the Write step.'}),
     W.menu.el,
-    nav('nonessentials','write',true));
+    stepNav());
 }
-function renderNavOnly(){const old=host.querySelector('.wz-nav');if(old)old.replaceWith(nav(W.step==='settings'?'nonessentials':null,W.step==='settings'?'write':null,true));const dock=host.querySelector('.dv-dock');if(dock&&W.menu)W.menu.render();}
+function refreshNav(){const old=host.querySelector('.wz-nav'),next=stepNav();if(old&&next)old.replaceWith(next);const dock=host.querySelector('.dv-dock');if(dock&&W.menu)W.menu.render();}
 async function write(origin){
-  if(nothingToWrite()){showError('Nothing is selected to write. Pick a loader action, a game or a setting first.',origin);return;}
-  W.writeOrigin=origin;const choice=loaderChoice(),games=newGames(),volume=W.usb,ins=W.inspection,result={loader:null,games:null,settings:null,errors:[]};
+  if(nothingToWrite()){showError('Nothing is selected to write. Pick a loader action, a DJ profile, a game or a setting first.',origin);return;}
+  W.writeOrigin=origin;const choice=loaderChoice(),games=newGames(),volume=W.usb,ins=W.inspection,result={loader:null,games:null,settings:null,profile:null,errors:[]};
   if(choice!=='keep'){
     const version=selectedVersionRequest(origin);if(!version)return;
     const settings=await confirmModSettings(volume,version,origin);if(!settings)return;
@@ -170,6 +182,10 @@ async function write(origin){
       else result.errors.push('Settings were not written.');
     }
   }
+  if(profilePlan()?.plan){
+    result.profile=await djProfilePage.writePending(origin);
+    if(result.profile&&!result.profile.ok)result.errors.push('Your DJ profile was not saved: '+result.profile.error);
+  }
   W.result=result;
   const again=await run({method:'inspect_usb',volume},'Checking the USB',origin,()=>{});
   if(again?.ok){W.inspection=again.result;usbInspection=again.result;renderUsb(again.result);}
@@ -181,7 +197,7 @@ function stepWrite(){
     el('h2',{text:'Ready to write'}),
     el('p',{class:'wz-lead',text:'Everything that changes is highlighted. Music, playlists and prepared stems are never touched.'}),
     tree('plan'),
-    nothing?el('p',{class:'notice',role:'status',text:'Nothing to write. Go back and choose a loader action, a game or a setting, or set up another USB.'}):null,
+    nothing?el('p',{class:'notice',role:'status',text:'Nothing to write. Go back and choose a loader action, a DJ profile, a game or a setting, or set up another USB.'}):null,
     el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'wz-write',disabled:nothing?true:null,text:'Write to USB',onclick:event=>write(event.currentTarget)}),
       el('button',{type:'button',class:'secondary',text:'Back',onclick:()=>goto('settings')})));
 }
@@ -192,6 +208,7 @@ function stepDone(){
   if(copied.length)lines.push('Games on USB: '+copied.join(', ')+'.');
   for(const game of failed)lines.push(game.name+' did not download: '+game.error);
   if(r.settings)lines.push('Settings saved to the USB and read back.');
+  if(r.profile?.ok)lines.push('DJ profile '+r.profile.name+' saved to the USB.');
   lines.push(...r.errors);
   return el('section',{class:'wz-pane'},
     el('h2',{text:failed.length||r.errors.length?'Finished, with something to check':'Your USB is ready'}),
@@ -202,13 +219,26 @@ function stepDone(){
     el('div',{class:'actions'},
       failed.length?el('button',{type:'button',class:'primary',text:'Retry the failed games',onclick:async event=>{const response=await run({method:'prepare_games_usb',volume:W.usb,games:failed.map(game=>game.game)},'Retrying game downloads',event.currentTarget);if(response?.ok){W.result={...W.result,games:response.result};render();}}}):null,
       el('button',{type:'button',class:failed.length?'secondary':'primary',text:'Set up another USB',onclick:reset}),
+      r.profile?.ok?el('button',{type:'button',class:'secondary',text:'Make the profile track',onclick:()=>showPage('dj-profile')}):null,
       el('button',{type:'button',class:'secondary',text:'Prepare stems for this USB',onclick:()=>showPage('stems')})));
 }
-function nav(backStep,nextStep,canNext){
+function nav(backStep,nextStep,canNext,label){
   return el('div',{class:'actions wz-nav'},
-    nextStep?el('button',{type:'button',class:'primary',disabled:canNext?null:true,text:nextStep==='write'?'Review and write':'Next',onclick:()=>goto(nextStep)}):null,
+    // Skipping is allowed but not the suggested path, so it is not drawn as the primary action.
+    nextStep?el('button',{type:'button',class:label==='Skip for now'?'secondary':'primary',disabled:canNext?null:true,text:label||(nextStep==='write'?'Review and write':'Next'),onclick:()=>goto(nextStep)}):null,
     backStep?el('button',{type:'button',class:'secondary',text:'Back',onclick:()=>goto(backStep)}):null,
     W.usb?el('span',{class:'wz-usb-now',text:'USB '+W.usb}):null);
+}
+// Back and Next for the middle steps. A DJ Profile step with no profile and no name says Skip for now.
+function stepNav(){
+  const profile=profilePlan()||W.inspection?.dj_profiles?.count;
+  switch(W.step){
+    case 'loadout':return nav('usb','profile',Boolean(savedModVersion())||loaderChoice()==='keep');
+    case 'profile':return nav('loadout','nonessentials',true,profile?'Next':'Skip for now');
+    case 'nonessentials':return nav('profile','settings',true);
+    case 'settings':return nav('nonessentials','write',true);
+  }
+  return null;
 }
 // The Games page draws the same chooser on the same state, so the Write step stays the one write path.
 function gamesPage(){
@@ -235,7 +265,7 @@ async function findAndChoose(origin){
   if(found?.length===1)await chooseUsb(found[0].volume,origin);
 }
 function render(){
-  const body=W.step==='usb'?stepUsb():W.step==='loadout'?stepLoadout():W.step==='nonessentials'?stepNonEssentials():W.step==='settings'?stepSettings():W.step==='write'?stepWrite():stepDone();
+  const body=W.step==='usb'?stepUsb():W.step==='loadout'?stepLoadout():W.step==='profile'?stepProfile():W.step==='nonessentials'?stepNonEssentials():W.step==='settings'?stepSettings():W.step==='write'?stepWrite():stepDone();
   // The shared job panel may sit inside a pane being replaced; re-place it so its ids stay in the document.
   const hadPanel=host.contains(jobPanel)||gamesHost.contains(jobPanel);
   host.replaceChildren(stepBar(),body);
@@ -245,7 +275,7 @@ function render(){
   if(W.step==='done'&&!feedbackLive&&!jobPanel.classList.contains('is-error'))jobPanel.classList.add('hidden');
   for(const listener of listeners)listener();
 }
-window.setupWizard={state:W,render,goto,reset,chooseUsb,findAndChoose,usbCard,driveLabel,loaderChoice,newGames,settingsChanges,usbLoadout,createUsbTree,onRender:listener=>listeners.push(listener)};
+window.setupWizard={state:W,render,refreshNav,goto,reset,chooseUsb,findAndChoose,usbCard,driveLabel,loaderChoice,newGames,settingsChanges,usbLoadout,createUsbTree,onRender:listener=>listeners.push(listener)};
 render();
 // Advanced tools can hand a USB it already read to the wizard.
 window.openSetupFor=inspection=>{W.usb=inspection.volume;W.inspection=inspection;W.loader='auto';W.games=new Set(inspection.games.filter(game=>game.installed).map(game=>game.id));W.settings=inspection.settings.editable?{...inspection.settings.values}:null;W.settingsStart=W.settings?{...W.settings}:null;W.menu=null;W.result=null;W.changesOpen=false;showPage('setup');goto('loadout');};

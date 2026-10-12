@@ -43,6 +43,7 @@ function installMock() {
       }
       case 'prepare_games_usb': { fx.written.push(request); const games = request.games.map(id => { fx.games[id] = true; return { game: id, name: id, ok: true }; }); return { running: false, ok: true, result: { format: 'xz-games-usb/1', games, failed_count: 0 } }; }
       case 'read_usb_settings': return { running: false, ok: true, result: { identity: { serial: 1 }, settings: inspection().settings } };
+      case 'read_dj_profiles': return { running: false, ok: true, result: { format: 'xz-dj-profiles/1', public_folder: null, revision: null, active: null, stick_colour: '#f870f8', legacy: false, profiles: [], problems: [] } };
       case 'save_usb_settings': fx.saved = request; fx.written.push(request); return { running: false, ok: true, result: { format: 'xz-mods-settings-saved/1', settings: { ...inspection().settings, values: request.values } } };
     }
     throw Error('Unexpected method ' + request.method);
@@ -136,7 +137,7 @@ try {
   await open('fresh');
   await check(`document.querySelector('nav button.selected').dataset.page==='setup'&&txt('#page-title')==='Set up USB'`, 'wizard is the first page');
   await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,games,dj-profile,stems,library-repair,device-updates,advanced,updates,licenses'&&txt('nav button[data-page=games]')==='Games'`, 'nav: Games page right after Set up USB, then DJ Profile');
-  await check(`[...document.querySelectorAll('.wz-step')].map(b=>b.textContent.replace(/^\\d/,'')).join()==='USB,Loadout,NonEssentials,Settings,Write,Done'&&document.querySelector('.wz-step[data-state=current]').textContent.includes('USB')`, 'six steps, NonEssentials third, USB current');
+  await check(`[...document.querySelectorAll('.wz-step')].map(b=>b.textContent.replace(/^\\d/,'')).join()==='USB,Loadout,DJ Profile,NonEssentials,Settings,Write,Done'&&document.querySelector('.wz-step[data-state=current]').textContent.includes('USB')`, 'seven steps, DJ Profile third, USB current');
   await click('Find my USB');
   await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
   await check(`txt('.wz-usb').includes('KINGSTON')&&txt('.wz-usb').includes('No loader yet')`, 'USB card says no loader yet');
@@ -167,6 +168,8 @@ try {
   await shot('02-nonessentials');
   await wide('02b-nonessentials-wide');
   await click('Back');
+  await step('profile');
+  await click('Back');
   await step('loadout');
   await check(`row('game-doom').dataset.plan==='1'&&badge('game-doom')==='Will add'&&!box('game-doom')`, 'loadout tree: Doom row plans Will add with no checkbox');
   await evaluate(`box('loader').click()`);
@@ -174,6 +177,12 @@ try {
   await evaluate(`box('loader').click()`);
   await check(`setupWizard.loaderChoice()==='add'&&badge('loader')==='Will add'`, 'ticking it again plans the add');
   await click('Next');
+  await step('profile');
+  await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ Profile step editor');
+  await check(`txt('.wz-pane h2')==='Your DJ profile'&&Boolean(button('Skip for now'))&&fx.requests.filter(r=>r.method==='read_dj_profiles'&&r.volume==='E:\\\\').length===1&&document.querySelector('.djp-swatch[data-hex="#f870f8"]').getAttribute('aria-pressed')==='true'`, 'DJ Profile step: reads the USB, opens the editor in its rekordbox colour, Skip for now');
+  await shot('01c-profile-step');
+  await wide('01d-profile-step-wide');
+  await click('Skip for now');
   await step('nonessentials');
   await click('Next');
   await step('settings');
@@ -212,9 +221,13 @@ try {
   await step('nonessentials');
   await check(`txt('.wz-pane h2')==='NonEssentials'&&gameBox('doom').checked`, 'GAMES card lands on NonEssentials; Doom stays ticked');
   await click('Back');
+  await step('profile');
+  await click('Back');
   await step('loadout');
   await check(`badge('settings')==='Will change · 5'&&row('settings').dataset.plan==='1'`, 'Settings row shows five pending changes');
   await click('Next');
+  await step('profile');
+  await click('Skip for now');
   await step('nonessentials');
   await click('Next');
   await step('settings');
@@ -247,7 +260,7 @@ try {
   await click('Show all 8 changes');
   await check(`muItems()===8&&!button('Show all 8 changes')`, 'Show all expands the preview in place');
   await shot('07-changelog-expanded');
-  await click('Next'); await step('nonessentials'); await click('Next'); await step('settings'); await click('Review and write'); await step('write');
+  await click('Next'); await step('profile'); await click('Skip for now'); await step('nonessentials'); await click('Next'); await step('settings'); await click('Review and write'); await step('write');
   await check(`badge('loader')==='Will update · 8 changes'&&!document.querySelector('.tree .mu')`, 'write step: loader badge counts the changes');
   await shot('10-write');
   await evaluate(`setupWizard.goto('loadout')`);
@@ -255,6 +268,8 @@ try {
   await evaluate(`box('loader').click()`);
   await check(`setupWizard.loaderChoice()==='keep'&&badge('loader')==='Update available'&&muItems()===8`, 'unticking keeps the loader; the expanded preview survives the re-render');
   await click('Next');
+  await step('profile');
+  await click('Skip for now');
   await step('nonessentials');
   await check(`!gameBox('chex')&&txt('#wiz .games-row[data-id=chex] .tree-badge')==='On USB'`, 'installed game reads On USB in NonEssentials with no box');
   await click('Add all free games');
@@ -274,7 +289,7 @@ try {
   await evaluate(`document.querySelector('.wz-usb').click()`);
   await step('loadout');
   await evaluate(`box('loader').click()`);
-  await click('Next'); await step('nonessentials'); await click('Next'); await step('settings'); await click('Review and write'); await step('write');
+  await click('Next'); await step('profile'); await click('Skip for now'); await step('nonessentials'); await click('Next'); await step('settings'); await click('Review and write'); await step('write');
   await check(`button('Write to USB').disabled&&txt('.wz-pane').includes('Nothing to write')`, 'Write is disabled when nothing changes');
 
   // No USB found and no saved mod version both end in one clear next action.
@@ -314,6 +329,8 @@ try {
   await open('gamesmenu');
   await chooseFirstUsb();
   await click('Next');
+  await step('profile');
+  await click('Skip for now');
   await step('nonessentials');
   await check(`[...document.querySelectorAll('#wiz .games-switch input')].map(input=>input.closest('.games-row').dataset.id).join()==='beat-arcade,wave-rider,rhythm-lab,static-surfer'&&txt('#wiz .games-group[data-kind=builtin] .games-note')==='Built into the loader.'&&gameSwitch('beat-arcade').checked`, 'games_menu in the schema: built-in games get a Show in GAMES menu switch; downloads not headed for the USB do not');
   await evaluate(`gameBox('doom').click()`);
