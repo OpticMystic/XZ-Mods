@@ -230,7 +230,7 @@ try {
   await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
   await evaluate(`document.querySelector('.wz-usb').click()`);
   await step('loadout');
-  await check(`box('loader').disabled&&button('Choose mod version')&&button('Next').disabled`, 'missing mod version: loader box disabled, one button into the chooser, Next held');
+  await check(`box('loader').disabled&&!row('loader').dataset.plan&&button('Choose mod version')&&button('Next').disabled`, 'missing mod version: loader box disabled, nothing planned, one button into the chooser, Next held');
   await shot('08-loadout-noversion');
 
   // Advanced tools keeps the old controls reachable.

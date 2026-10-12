@@ -28,12 +28,12 @@ function node(id,depth,kind,path,label,state,detail,plan=null,control=null,child
 // choices: {loader, saved, games:Set, changes:[keys], settingsEditable, versionLine, setLoader, toggleGame, allGames, noGames, editSettings}
 function usbLoadout(inspection,{driveLabel,choices=null}={}){
   const ins=inspection,volume=ins.volume,c=choices,saved=c?c.saved:savedModVersion();
-  const planned=plan=>c?plan:null;
+  const planned=plan=>c?plan:null,loaderWriting=Boolean(c&&c.loader!=='keep'&&(c.saved||savedModVersion()));
   const loaderNode=()=>{
     const recorded=ins.recorded_mod_version?.id?ins.recorded_mod_version:null,backups=ins.backups?.length||0;
     const state=!ins.loader.exists?'missing':!recorded?'unknown':!saved?'present':recorded.id===saved.id&&recorded.runtime_sha256===saved.runtime_sha256?'current':'outdated';
     const detail=ins.loader.exists?(versionName(recorded)||'Unknown build')+' · '+plural(backups,'backup')+' kept':'The file the XZ starts XZ Mods from';
-    const writing=c&&c.loader!=='keep',savedName=versionName(saved);
+    const writing=loaderWriting,savedName=versionName(saved);
     const plan=planned(writing?(state==='missing'?'add':'update'):null);
     let control=null;
     if(c){
@@ -51,7 +51,7 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     let plan=null,detail;
     if(!settings.editable)detail=settings.reason;
     else if(changes.length){plan=planned('change');detail=changes.slice(0,3).map(key=>window.SETTINGS_MENU_LABEL?.[key]||key).join(', ')+(changes.length>3?' and '+(changes.length-3)+' more':'');}
-    else if(!exists){plan=planned(c&&(c.loader!=='keep'||c.settingsEditable)?'add':null);detail=plan?'New file with defaults':'Not written yet';}
+    else if(!exists){plan=planned(c&&(loaderWriting||c.settingsEditable)?'add':null);detail=plan?'New file with defaults':'Not written yet';}
     else detail=plural(settings.schema?.fields?.length||Object.keys(settings.values||{}).length,'field')+' · matches USB';
     const item=node('settings',2,'file',relative(settings.path,volume)||SETTINGS,'Settings',exists?'present':'missing',detail,plan,c?{kind:'link',label:'Edit settings',onClick:c.editSettings}:null);
     if(plan==='change')item.planCount=changes.length;
