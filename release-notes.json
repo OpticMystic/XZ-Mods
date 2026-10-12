@@ -7,7 +7,9 @@
       "features": [
         "NonEssentials step. Set up USB is six steps: USB, Loadout, NonEssentials, Settings, Write, Done. Games are chosen in NonEssentials; the Loadout tree shows them with one link there.",
         "Games page in the left navigation. It covers the games built into the loader (Beat Arcade, Wave Rider, Rhythm Lab, Static Surfer) and the free downloads (Doom shareware, Chex Quest, Freedoom Phase 2, My House). Find my USB picks the USB without going through the wizard; Review and write opens the same Write step.",
-        "Update preview. When the USB holds an older XZ Mods loader, the Loadout step lists what changes on your XZ with the new one, grouped as New, Improved and Fixed, and anything the new version no longer has. The Write step counts the changes on the loader row."
+        "Update preview. When the USB holds an older XZ Mods loader, the Loadout step lists what changes on your XZ with the new one, grouped as New, Improved and Fixed, and anything the new version no longer has. The Write step counts the changes on the loader row.",
+        "DJ Profile page in the left navigation. Make the profile your XZ shows: your DJ name, a tagline, an accent colour, up to eight logos and links to your EPK or files. A live preview draws the MODS header chip and the 160 x 160 logo tile the way the XZ does. Profiles are saved on the USB only; the page lists every profile on the stick, marks the active one and makes another active. Profiles made by hand in a DJPROFILE folder show up too and can be saved as full profiles.",
+        "Profile track for newer players. Some players block reading extra files from the USB, so the DJ Profile page makes a silent MP3 that carries your name, logos and links in its tags. A three-step guide saves it on this computer (and optionally on the USB), confirms every sample is silent, and walks you through adding it to rekordbox in a DJ PROFILE playlist."
       ],
       "fixes": [
         "The USB loadout tree and the settings menu colours lay out correctly in the installed app. Inline styles are now set in a way the app's security policy allows."

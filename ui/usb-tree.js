@@ -11,7 +11,7 @@ const STATES={
 };
 const PLANS={add:'Will add',update:'Will update',change:'Will change'};
 const LEGEND=[['ok','Up to date'],['warn','Update available'],['off','Not on USB'],['plan','Will be written']];
-const STEMS='CDJMODS\\stems',REKORDBOX='PIONEER\\rekordbox',BACKUPS='VJ.Tools\\XZ-Mods-updates',SETTINGS='VJ.Tools\\XZ-Mods.cfg';
+const STEMS='CDJMODS\\stems',REKORDBOX='PIONEER\\rekordbox',BACKUPS='VJ.Tools\\XZ-Mods-updates',SETTINGS='VJ.Tools\\XZ-Mods.cfg',DJPROFILE='DJPROFILE';
 const mb=bytes=>(bytes/1048576).toFixed(bytes>=104857600?0:1)+' MB';
 const gb=bytes=>String(+(bytes/1e9).toFixed(bytes>=1e11?0:1))+' GB';
 const size=bytes=>bytes>=1e9?gb(bytes):mb(bytes);
@@ -66,6 +66,12 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     const ticked=Boolean(c?.games.has(game.id))&&!game.installed;
     return node('game-'+game.id,2,'folder',relative(game.folder,volume),game.name,game.installed?'present':'missing',gameNote(GAMES.find(entry=>entry.id===game.id)||{},game),planned(ticked?'add':null));
   };
+  // Read-only here: profiles are written from the DJ Profile page, never by the Write step.
+  const profilesNode=()=>{
+    const found=ins.dj_profiles||{count:0,active_name:null},count=found.count||0;
+    return node('djprofile',1,'folder',DJPROFILE,'DJ profiles',count?'present':'missing',count?plural(count,'profile')+(found.active_name?' · active '+found.active_name:''):'No DJ profile yet',null,
+      c?{kind:'link',label:count?'Edit DJ profiles':'Create a DJ profile',onClick:()=>showPage('dj-profile')}:null);
+  };
   const games=ins.games||[],stems=ins.stems||{tracks:0,bytes:0},space=ins.space||{};
   const vjtools=[settingsNode(),backupsNode()].filter(Boolean),gameNodes=games.map(gameNode);
   const anyPresent=list=>list.some(item=>item.state!=='missing');
@@ -75,6 +81,7 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     node('vjtools',1,'folder','VJ.Tools','XZ Mods files',anyPresent(vjtools)?'present':'missing','Settings and loader backups',null,null,vjtools),
     node('games',1,'folder','VJTOOLS\\Games','Games',anyPresent(gameNodes)?'present':'missing','Free downloads, opened from EXTRAS › GAMES',null,
       c?{kind:'link',label:'Choose in NonEssentials',onClick:c.chooseGames}:null,gameNodes),
+    profilesNode(),
     node('stems',1,'folder',STEMS,'Prepared stems',stems.tracks>0?'present':'missing',stems.tracks>0?plural(stems.tracks,'track')+' · '+size(stems.bytes):'None yet',null,
       c?{kind:'link',label:'Prepare stems',onClick:()=>showPage('stems')}:null),
     node('rekordbox',1,'folder',REKORDBOX,'Rekordbox library',ins.rekordbox?'untouched':'missing',ins.rekordbox?'Music and playlists, never touched':'Export from Rekordbox to this USB first')

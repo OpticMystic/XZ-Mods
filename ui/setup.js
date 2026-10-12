@@ -3,7 +3,7 @@
 (function(){
 const STEPS=[['usb','USB'],['loadout','Loadout'],['nonessentials','NonEssentials'],['settings','Settings'],['write','Write'],['done','Done']];
 const W={step:'usb',usbs:null,finding:false,usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,menu:null,result:null,writeOrigin:null,changesOpen:false};
-const host=$('wiz'),gamesHost=$('games-host');
+const host=$('wiz'),gamesHost=$('games-host'),listeners=[];
 
 function loaderChoice(){
   if(W.loader!=='auto')return W.loader;
@@ -132,7 +132,8 @@ function stepSettings(){
   const settings=W.inspection.settings;
   if(!settings.editable)return el('section',{class:'wz-pane'},el('h2',{text:'Settings on this USB'}),el('p',{class:'notice',role:'alert',text:settings.reason}),
     el('p',{text:'Updating the loader writes a fresh settings file with defaults. The settings editor opens once the USB has a readable file.'}),nav('nonessentials','write',true));
-  if(!W.menu)W.menu=createSettingsMenu({schema:settings.schema,values:W.settings,usbLabel:W.usb,onChange:values=>{W.settings=values;renderNavOnly();},save:saveState,onGames:()=>goto('nonessentials')});
+  if(!W.menu)W.menu=createSettingsMenu({schema:settings.schema,values:W.settings,usbLabel:W.usb,onChange:values=>{W.settings=values;renderNavOnly();},save:saveState,onGames:()=>goto('nonessentials'),
+    profile:()=>W.inspection?.dj_profiles?.count?W.inspection.dj_profiles.active_name:null,onProfile:()=>showPage('dj-profile')});
   else W.menu.setValues(W.settings);
   return el('section',{class:'wz-pane wz-settings'},
     el('h2',{text:'Settings, laid out like the MODS menu on your XZ'}),
@@ -242,8 +243,9 @@ function render(){
   if(hadPanel||feedbackLive)positionFeedback();
   // The done step lists the outcome itself; a finished job panel would say it twice.
   if(W.step==='done'&&!feedbackLive&&!jobPanel.classList.contains('is-error'))jobPanel.classList.add('hidden');
+  for(const listener of listeners)listener();
 }
-window.setupWizard={state:W,render,goto,reset,chooseUsb,loaderChoice,newGames,settingsChanges,usbLoadout,createUsbTree};
+window.setupWizard={state:W,render,goto,reset,chooseUsb,findAndChoose,usbCard,driveLabel,loaderChoice,newGames,settingsChanges,usbLoadout,createUsbTree,onRender:listener=>listeners.push(listener)};
 render();
 // Advanced tools can hand a USB it already read to the wizard.
 window.openSetupFor=inspection=>{W.usb=inspection.volume;W.inspection=inspection;W.loader='auto';W.games=new Set(inspection.games.filter(game=>game.installed).map(game=>game.id));W.settings=inspection.settings.editable?{...inspection.settings.values}:null;W.settingsStart=W.settings?{...W.settings}:null;W.menu=null;W.result=null;W.changesOpen=false;showPage('setup');goto('loadout');};

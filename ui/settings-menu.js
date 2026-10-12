@@ -1,7 +1,8 @@
 // The USB settings editor drawn like the XZ's own MODS menu: header, five-tab rail, two-column rows,
 // info dock. Pages and rows are one table (PAGES); the on-device tree in mods/ui/ui.c is the reference.
 // createSettingsMenu(options) returns {el, render, setValues}. Options: schema, values, onChange(values), save
-// ({label, tone, action}) for the dock's right side, usbLabel, onGames() for the EXTRAS > GAMES card.
+// ({label, tone, action}) for the dock's right side, usbLabel, onGames() for the EXTRAS > GAMES card, and profile()
+// (the active DJ name or null) with onProfile() for the header chip.
 (function(){
 const STEM_ORDERS=[[2,1,0],[2,0,1],[1,2,0],[1,0,2],[0,2,1],[0,1,2]];
 const STEM_NAMES=['DRUMS','HARMONICS','VOCALS'];
@@ -57,6 +58,15 @@ const PAGES={
 };
 const PARENT={controls:'general',beatjump:'controls',appearance:'general',stemcolors:'appearance',advanced:'general',keysetup:'advanced',browse:'advanced',extras:'general',vjtools:'extras'};
 const ROOT={general:'general',controls:'controls',beatjump:'controls',appearance:'appearance',stemcolors:'appearance',advanced:'advanced',keysetup:'advanced',browse:'advanced',extras:'extras',vjtools:'extras'};
+
+function djMonogram(name){return String(name||'').trim().split(/\s+/).filter(Boolean).slice(0,2).map(word=>[...word][0]).join('').toUpperCase();}
+// The MODS header's top-right corner: the active DJ like a signed-in user. Logo in a circle, name, the USB, a caret.
+// With no profile the XZ shows a silhouette and TAP TO SET UP.
+function profileChip({name,usb,preview,accent,onClick}){
+  const avatar=el('span',{class:'dv-avatar',dataset:{empty:name?null:'1'},style:accent?'--avatar:'+accent:null},preview?el('img',{src:preview,alt:''}):name?el('span',{text:djMonogram(name)}):null);
+  return el(onClick?'button':'span',{type:onClick?'button':null,class:'dv-profile',title:onClick?'Open DJ Profile':null,onclick:onClick},
+    avatar,el('span',{class:'dv-profile-text'},el('strong',{text:name||'TAP TO SET UP'}),usb?el('span',{class:'dv-usb',text:usb}):null),el('span',{class:'dv-caret','aria-hidden':'true'}));
+}
 
 function createSettingsMenu(options){
   const schema=options.schema,fields=new Map(schema.fields.map(field=>[field.key,field]));
@@ -188,7 +198,8 @@ function createSettingsMenu(options){
       el('div',{class:'dv-header'},
         el('button',{type:'button',class:'dv-back',disabled:history.length?null:true,onclick:back},el('span',{class:'dv-chevron dv-chevron-left','aria-hidden':'true'}),'BACK'),
         el('div',{class:'dv-title'},el('small',{text:'XZ MODS'}),el('strong',{text:PAGES[page].title})),
-        el('span',{class:'dv-usb',text:options.usbLabel?'USB · '+options.usbLabel:'xzmods.com'})),
+        options.onProfile?profileChip({name:options.profile?.(),usb:options.usbLabel?'USB · '+options.usbLabel:null,onClick:options.onProfile}):
+          el('span',{class:'dv-usb',text:options.usbLabel?'USB · '+options.usbLabel:'xzmods.com'})),
       el('nav',{class:'dv-rail','aria-label':'MODS sections'},...RAIL.map(([id,text])=>el('button',{type:'button',class:'dv-rail-tab','aria-current':ROOT[page]===id?'page':null,onclick:()=>{history=[];page=id;focus={kind:'page',id};render();}},
         el('span',{class:'dv-icon',dataset:{icon:id},'aria-hidden':'true'}),text))),
       content(),dock());
@@ -197,6 +208,7 @@ function createSettingsMenu(options){
   return {el:root,render,setValues(next){values={...next};render();},get values(){return values;}};
 }
 window.createSettingsMenu=createSettingsMenu;
+Object.assign(window,{profileChip,djMonogram});
 window.SETTINGS_MENU_PAGES=PAGES;
 window.SETTINGS_MENU_LABEL={...LABEL,stem_drums_color:'DRUMS COLOR',stem_harmonics_color:'HARMONICS COLOR',stem_vocals_color:'VOCALS COLOR',jump_1:'JUMP A/B',jump_2:'JUMP C/D',jump_3:'JUMP E/F',jump_4:'JUMP G/H',jump_5:'JUMP A/B (2)',jump_6:'JUMP C/D (2)',jump_7:'JUMP E/F (2)',jump_8:'JUMP G/H (2)',games_menu:'GAMES MENU'};
 })();
