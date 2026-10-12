@@ -1,0 +1,16 @@
+{
+  "artist": "VJ OpticMystic",
+  "cat_frames": 8,
+  "cow_frames": 4,
+  "scenery_tiles": 4,
+  "backgrounds": 3,
+  "source_files": {
+    "cat-motion-atlas.png": "f1591ad8b1b33a1292c5152ac326aa5030b8f9913465cff257c3d9e08b97fb92",
+    "cow-motion-atlas.png": "fa515ae2dfdd7c3c279d9c770106e295c96de51576841226a7b51a98202c6570",
+    "mushroom-panorama.png": "5db037fc38cd2cfc10ffcbe8afb6d7badbf38f41e31db6b18e2409be93abc1ee",
+    "packed-cat-poses.png": "e7f62a83af1d7354e8d2a2f1b709209b385f74d0662f87a0798d47a2744df6c2",
+    "scenery-atlas.png": "2d16def6611e06e1a0bad21ae0766787c7bdbdac69049ea379d65513c87a604c"
+  },
+  "generated_with": "built-in image_gen",
+  "original_art_unchanged": true
+}

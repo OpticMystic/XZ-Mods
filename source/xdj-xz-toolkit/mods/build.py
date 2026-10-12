@@ -8,8 +8,10 @@ import pathlib
 import shutil
 import subprocess
 from elftools.elf.elffile import ELFFile
+from capstone import Cs, CS_ARCH_ARM, CS_MODE_ARM
 
 from ui.ui_sources import UI_SOURCES
+from sdk.sdk_sources import SDK_SOURCES
 
 ROOT = pathlib.Path(__file__).resolve().parent
 
@@ -70,6 +72,16 @@ def main() -> None:
                     "-mfloat-abi=softfp", "-mfpu=neon", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
                     "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "audio/overcue_stream.c"),
                     "-o", str(stream_object)], check=True)
+    audio_runtime_object=args.output.resolve()/"audio-runtime-vfp.o"
+    subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
+                    "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
+                    "-fPIC","-fvisibility=hidden","-c",str(ROOT/"audio/runtime.c"),
+                    "-o",str(audio_runtime_object)],check=True)
+    media_object=args.output.resolve()/"stem-media-vfp.o"
+    subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
+                    "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
+                    "-fPIC","-fvisibility=hidden","-c",str(ROOT/"audio/stem_media.c"),
+                    "-o",str(media_object)],check=True)
     # The native column drawer passes its zoom float in s0. Enable VFP so the
     # per-function aapcs-vfp attribute is honored; the library stays soft-float.
     layered_object = args.output.resolve() / "layered-wave-runtime.o"
@@ -77,19 +89,45 @@ def main() -> None:
                     "-mfloat-abi=softfp", "-mfpu=neon", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
                     "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "ui/layered_wave_runtime.c"),
                     "-o", str(layered_object)], check=True)
+    # The XZ has VFPv3. Software floating point exceeded a 512-frame audio
+    # deadline on the controller; softfp keeps the stock register-call ABI.
+    key_object = args.output.resolve() / "keyshift-native.o"
+    subprocess.run([compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
+                    "-mfloat-abi=softfp", "-mfpu=vfpv3", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
+                    "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "key/keyshift.c"),
+                    "-o", str(key_object)], check=True)
+    with key_object.open("rb") as stream:
+        key_elf = ELFFile(stream)
+        key_symbol = next(s for s in key_elf.get_section_by_name(".symtab").iter_symbols()
+                          if s.name == "xz_key_shift_process")
+        key_section = key_elf.get_section(key_symbol["st_shndx"])
+        key_code = key_section.data()[key_symbol["st_value"]:key_symbol["st_value"] + key_symbol["st_size"]]
+        if key_elf["e_flags"] & 0x400 or not any(i.mnemonic.startswith("v")
+                for i in Cs(CS_ARCH_ARM, CS_MODE_ARM).disasm(key_code, 0)):
+            raise ValueError("Key DSP requires VFP instructions with the stock soft-float calling convention")
+    lab_objects = []
+    for name in ("rhythm_lab", "rhythm_lab_render", "glyph_run", "glyph_run_render", "game_motion_draw", "game_feel_art", "game_font", "wave_rider", "wave_rider_render", "wave_rider_art"):
+        target = args.output.resolve() / (name + "-native.o")
+        subprocess.run([compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
+                        "-mfloat-abi=softfp", "-mfpu=vfpv3", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
+                        "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "arcade" / (name + ".c")),
+                        "-o", str(target)], check=True)
+        lab_objects.append(str(target))
     command = [compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
                "-O2", "-s", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
                "-fvisibility=hidden", "-Wl,--no-undefined", "-Wl,-z,nodelete",
                "-Wl,-T," + str(ROOT / "xz-relocations.ld"),
                str(ROOT / "runtime.c"), str(ROOT / "cue/cue.c"), str(ROOT / "cue/native.c"),
                str(ROOT / "doom/native_bridge.c"),
+               str(ROOT / "kart/xz_kart_input.c"), str(ROOT / "kart/xz_kart_runtime.c"),
+               *(str(ROOT / "sdk" / name) for name in SDK_SOURCES),
                str(ROOT / "arcade/arcade.c"),str(ROOT / "arcade/render.c"),
                str(ROOT / "arcade/input.c"),str(ROOT / "arcade/clock.c"),str(ROOT / "arcade/native_clock.c"),
-               str(ROOT / "arcade/wave_rider.c"),str(ROOT / "arcade/wave_rider_render.c"),
                str(ROOT / "arcade/wave_rider_source.c"),str(ROOT / "arcade/wave_rider_runtime.c"),
+               *lab_objects, str(ROOT / "arcade/rhythm_lab_runtime.c"),
                str(ROOT / "doom/wad_catalog.c"),
                str(ROOT / "ota/native_update.c"),
-               str(ROOT / "ui_runtime.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
+               str(ROOT / "ui_runtime.c"), str(ROOT / "metrics_runtime.c"), str(ROOT / "pc_control/stems.c"), str(ROOT / "pc_control/native.c"), str(ROOT / "pc_control/wave.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
                str(ROOT / "ui/stem_pads.c"), str(ROOT / "ui/beat_jump.c"),
                str(ROOT / "ui/native_led.c"),
                str(ROOT / "ui/native_wave.c"),
@@ -98,12 +136,18 @@ def main() -> None:
                str(ROOT / "ui/native_skin_runtime.c"),
                str(ROOT / "ui/native_raw_skin.c"),
                str(ROOT / "ui/native_window_keys.c"),
-               str(ROOT / "settings.c"),
+               str(ROOT / "settings.c"), str(ROOT / "settings_internal.c"), str(ROOT / "usb_profile.c"),
+               str(ROOT / "dj_profile.c"), str(ROOT / "dj_runtime.c"), str(ROOT / "dj_profile_write.c"), str(ROOT / "dj_folders.c"),
                str(ROOT / "ui/wave_viewport.c"),
-               str(ROOT / "key/keyshift.c"), str(ROOT / "key/runtime.c"),
-               str(ROOT / "audio/runtime.c"), str(ROOT / "audio/native_reader.c"),
+               str(key_object), str(ROOT / "key/runtime.c"),
+               str(ROOT / "key/music.c"), str(ROOT / "key/native.c"), str(ROOT / "key/native_browse.c"), str(ROOT / "key/traffic.c"),
+               str(ROOT / "key/catalog.c"), str(ROOT / "key/browser.c"),
+               str(audio_runtime_object), str(ROOT / "audio/native_reader.c"),
+               str(ROOT / "audio/trace.c"),
+               str(ROOT / "ram/cache.c"), str(ROOT / "ram/runtime.c"), str(ROOT / "ram/removal.c"), str(ROOT / "ram/presentation.c"), str(ROOT / "ram/pin.c"),
                str(ROOT / "audio/stem_cache.c"), str(ROOT / "audio/stem_mix.c"), str(ROOT / "audio/stem_decode.c"),
-               str(ROOT / "audio/overcue_file.c"), str(stream_object),
+               str(ROOT / "audio/overcue_file.c"), str(ROOT / "audio/foreign_stems.c"),
+               str(ROOT / "audio/stem_mp3.c"), str(media_object), str(stream_object),
                str(ROOT / "audio/vendor/miniz/miniz_tinfl.c"), str(ROOT / "audio/vendor/sha256/sha256.c"),
                "-DMINIZ_NO_ARCHIVE_APIS", "-DMINIZ_NO_DEFLATE_APIS",
                "-pthread", "-lm", "-ldl",
@@ -143,8 +187,9 @@ def main() -> None:
                    "default_enabled": False, "hardware_verified": False,
                    "features": {"gate_cue": "native adapter, unverified",
                                 "smart_cue": "native adapter, unverified",
-                                "stems": "OverCue v4 96000 Hz paged PCM and legacy 44100 Hz WAV/FLAC; physical acceptance pending",
+                                "stems": "OverCue default; AZ four-part Vorbis and verified RX3 PCM packages/sidecars; legacy stemd retained; physical acceptance pending",
                                 "ui": "render and touch adapters, physical acceptance pending",
+                                "ram_tracks": "bounded complete compressed-track RAM; USB-removal adapter; physical eject acceptance pending",
                                 "vj_tools": "optional display bridge; original receiver separately packaged"}})
     destination.with_suffix(".json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf8")
     (args.output / "tests-build.json").write_text(json.dumps(test_evidence, indent=2) + "\n", encoding="utf8")

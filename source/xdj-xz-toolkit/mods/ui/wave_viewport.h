@@ -2,15 +2,50 @@
 #define XZ_WAVE_VIEWPORT_H
 #include <stddef.h>
 #include <stdint.h>
-/* The 536x268 native window holds two compact waveforms with a 48-row stem
-   control space after each. Called only after a complete redraw while locked.
-   Cue bands retain ten rows each; only the 112 interior rows are reduced. */
+/* Persisted stems_overlay values; existing 0 hidden / 1 below retain their meaning. */
+enum xz_stem_layout {
+ XZ_STEM_LAYOUT_HIDDEN=0, XZ_STEM_LAYOUT_BELOW=1, XZ_STEM_LAYOUT_BELOW_HALF=2,
+ XZ_STEM_LAYOUT_OUTER=3, XZ_STEM_LAYOUT_OUTER_HALF=4, XZ_STEM_LAYOUT_COUNT=5
+};
+#define XZ_WAVE_WIDTH 536
+#define XZ_WAVE_HEIGHT 268
+#define XZ_WAVE_NATIVE_LANE_HEIGHT 132
+#define XZ_WAVE_HALF_CONTROL_HEIGHT 24
+/* Maximum row buffers and original full-height geometry. */
 #define XZ_WAVE_LANE_HEIGHT 84
 #define XZ_WAVE_CONTROL_HEIGHT 48
-#define XZ_WAVE_SECOND_LANE_Y (XZ_WAVE_LANE_HEIGHT + XZ_WAVE_CONTROL_HEIGHT)
-#define XZ_WAVE_FIRST_CONTROL_Y (18 + XZ_WAVE_LANE_HEIGHT)
-#define XZ_WAVE_SECOND_CONTROL_Y (18 + XZ_WAVE_SECOND_LANE_Y + XZ_WAVE_LANE_HEIGHT)
-#define XZ_WAVE_INLINE_HEIGHT (XZ_WAVE_CONTROL_HEIGHT * 2)
-int xz_wave_compact(uint16_t *pixels,size_t count,size_t stride,unsigned lane_height);
-unsigned xz_wave_source_row(unsigned row,unsigned lane_height);
+#define XZ_WAVE_SECOND_LANE_Y 132
+#define XZ_WAVE_FIRST_CONTROL_Y 102
+#define XZ_WAVE_SECOND_CONTROL_Y 234
+#define XZ_WAVE_INLINE_HEIGHT 96
+struct xz_wave_layout { unsigned control_height,lane_height,lane_y[2],control_y[2]; };
+static inline int xz_wave_layout_get(int mode,struct xz_wave_layout *out) {
+ if(!out||(unsigned)mode>=XZ_STEM_LAYOUT_COUNT)return 0;
+ unsigned h=mode==XZ_STEM_LAYOUT_HIDDEN?0:
+  mode==XZ_STEM_LAYOUT_BELOW_HALF||mode==XZ_STEM_LAYOUT_OUTER_HALF?24:48;
+ unsigned lane=XZ_WAVE_NATIVE_LANE_HEIGHT-h;
+ int outer=mode==XZ_STEM_LAYOUT_OUTER||mode==XZ_STEM_LAYOUT_OUTER_HALF;
+ *out=(struct xz_wave_layout){h,lane,{outer?h:0,outer?136:lane+h},
+   {outer?0:lane,outer?268-h:lane*2+h}};
+ if(!h)out->lane_y[1]=136;
+ return 1;
+}
+static inline int xz_wave_layout_next(int mode) {
+ return (unsigned)mode<XZ_STEM_LAYOUT_COUNT?(mode+1)%XZ_STEM_LAYOUT_COUNT:XZ_STEM_LAYOUT_BELOW;
+}
+static inline const char *xz_wave_layout_name(int mode) {
+ static const char *const names[XZ_STEM_LAYOUT_COUNT]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF"};
+ return names[(unsigned)mode<XZ_STEM_LAYOUT_COUNT?mode:0];
+}
+static inline int xz_wave_layout_lane_at(const struct xz_wave_layout *g,int row) {
+ for(int d=0;d<2;d++)if(row>=(int)g->lane_y[d]&&row<(int)(g->lane_y[d]+g->lane_height))return d;
+ return -1;
+}
+static inline int xz_wave_layout_control_at(const struct xz_wave_layout *g,int row) {
+ for(int d=0;d<2;d++)if(g->control_height&&row>=(int)g->control_y[d]&&row<(int)(g->control_y[d]+g->control_height))return d;
+ return -1;
+}
+unsigned xz_wave_layout_source_row(const struct xz_wave_layout *,unsigned row);
+/* Native draw lock only. Directional moves preserve source rows while shrinking. */
+int xz_wave_layout_pixels(uint16_t *,size_t count,size_t stride,int mode);
 #endif

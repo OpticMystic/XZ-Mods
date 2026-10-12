@@ -5,6 +5,10 @@
 #include <string.h>
 #include <unistd.h>
 #include "../ui_runtime.c"
+#include "test_pc_runtime_stubs.h"
+#ifndef XZ_RHYTHM_LAB_RUNTIME_TEST
+#include "test_rhythm_lab_stubs.h"
+#endif
 #ifndef XZ_WAVE_RIDER_RUNTIME_TEST
 #include "test_wave_rider_stubs.h"
 #endif
@@ -14,10 +18,14 @@
 static int native_play=1,native_active=1,stock_calls,fixture_focus=-1,fixture_prepared=1;
 static struct xz_touch_status last_stock;
 static struct xz_stem_levels applied[2];
+static float applied_bass[2];
 static uint32_t fixture_generation=1;
-static unsigned waveform_calls[2];
+static unsigned fixture_stem_count[2]={3,3};
+static unsigned waveform_calls[2],fixture_audio_status_calls[2],fixture_key_snapshot_calls[2];
 int xz_native_skin_start(int theme){(void)theme;return 0;}
 void xz_native_skin_request(int theme){(void)theme;}
+static unsigned fixture_repaints;
+void xz_native_skin_request_repaint(void){fixture_repaints++;fixture_pc_redraws++;}
 const char *xz_native_skin_status(void){return "Native theme test fixture";}
 void xz_native_skin_stop(void){}
 int xz_native_focus_deck(void){return fixture_focus;}
@@ -34,19 +42,101 @@ int xz_runtime_beat_jump(int deck,int beats){jump_calls++;jump_deck=deck;jump_be
 int xz_runtime_set_cues(int a,int b){(void)a;(void)b;return 0;}
 int xz_key_get_desired_semitones(int d,int *out){(void)d;*out=0;return 0;}
 int xz_key_set_desired_semitones(int d,int n){(void)d;(void)n;return 0;}
+static struct xz_key_snapshot fixture_keys[2];
+static int fixture_key_valid[2],fixture_key_cents[2],fixture_key_requests;
+int xz_key_native_snapshot(unsigned deck,struct xz_key_snapshot *out){
+    if(deck<2)fixture_key_snapshot_calls[deck]++;
+    if(deck>1||!fixture_key_valid[deck])return 0;*out=fixture_keys[deck];return 1;
+}
+int xz_key_get_desired_cents(int deck,uint32_t epoch,int *out){
+    assert(deck>=0&&deck<2);*out=epoch==fixture_keys[deck].epoch?fixture_key_cents[deck]:0;return 0;
+}
+/* Requests reach the display only after the audio path applies them: tests call
+   fixture_key_apply() to model the next processed block for that deck. */
+static int fixture_key_applied[2];
+static __attribute__((unused)) void fixture_key_apply(int deck){fixture_key_applied[deck]=fixture_key_cents[deck];}
+int xz_key_get_applied_cents(int deck,uint32_t epoch,int *out){
+    assert(deck>=0&&deck<2);*out=epoch==fixture_keys[deck].epoch?fixture_key_applied[deck]:0;return 0;
+}
+int xz_key_set_desired_cents(int deck,uint32_t epoch,int cents){
+    assert(deck>=0&&deck<2&&epoch==fixture_keys[deck].epoch);
+    if(cents < -1200||cents>1200)return -1;
+    fixture_key_cents[deck]=cents;fixture_key_requests++;return 0;
+}
 void xz_audio_set_enabled(int on){(void)on;}
 void xz_audio_set_levels(int deck,struct xz_stem_levels value){applied[deck]=value;}
-int xz_audio_get_status(int deck,struct xz_audio_status *out){(void)deck;memset(out,0,sizeof(*out));out->generation=fixture_generation;out->prepared=fixture_prepared;out->state=XZ_AUDIO_EXPERIMENTAL_READY;return 0;}
+void xz_audio_set_levels4(int deck,const float value[4]){
+    applied[deck]=(struct xz_stem_levels){value[0],value[1],value[2]};applied_bass[deck]=value[3];
+}
+int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=XZ_AUDIO_EXPERIMENTAL_READY;return 0;}
 const char *xz_audio_state_name(enum xz_audio_state state){(void)state;return "ready";}
 int xz_audio_waveform(int deck,unsigned role,unsigned char *bins,size_t count,float *progress){
     (void)role;if(deck<0||deck>1)return 0;
     waveform_calls[deck]++;memset(bins,deck?24:8,count);if(progress)*progress=0.5;return 1;
 }
+static struct xz_ram_status fixture_ram[2];
+static int fixture_ram_rc,fixture_ram_calls[3];
+void xz_ram_status(int deck,struct xz_ram_status *out){assert(deck>=0&&deck<2);*out=fixture_ram[deck];}
+int xz_ram_request(int deck){fixture_ram_calls[0]++;if(fixture_ram_rc)return fixture_ram_rc;fixture_ram[deck].state=XZ_RAM_LOADING;return 0;}
+int xz_ram_cancel(int deck){fixture_ram_calls[1]++;fixture_ram[deck].state=XZ_RAM_EMPTY;return 0;}
+int xz_ram_release(int deck){fixture_ram_calls[2]++;fixture_ram[deck].state=XZ_RAM_READY;return 0;}
+static void ram_tap(enum xz_ui_action_kind kind,int index){
+    struct xz_ui_widget w[XZ_UI_WIDGETS];struct xz_ui_action a[XZ_UI_ACTIONS];size_t n=xz_ui_layout(&ui,&model,w);
+    xz_ui_cancel(&ui,a);
+    for(size_t i=0;i<n;i++)if(w[i].kind==kind&&w[i].index==index){
+        assert(xz_ui_touch(&ui,&model,w[i].x+w[i].w/2,w[i].y+w[i].h/2,1,a)==1&&a[0].kind==kind);
+        apply(NULL,a,1);xz_ui_touch(&ui,&model,0,0,0,a);return;
+    }
+    assert(!"missing RAM widget");
+}
+/* RAM TRACKS: the panel only starts, stops or frees the backend copy, and never saves settings. */
+static void ram_tracks(void){
+    const char *saved=model.settings_status;int pending=settings_pending;
+    memset(fixture_ram,0,sizeof(fixture_ram));refresh();
+    assert(model.deck[0].ram.state==XZ_UI_RAM_UNAVAILABLE&&model.deck[1].ram.state==XZ_UI_RAM_UNAVAILABLE);
+    ui.page=XZ_UI_SETTINGS;ram_tap(XZ_UI_PANEL,XZ_UI_RAM_SETUP);assert(ui.page==XZ_UI_RAM_SETUP);
+    ram_tap(XZ_UI_RAM_DECK,1);assert(ui.deck==1&&inline_ui.deck==1);
+    fixture_ram_rc=-1;ram_tap(XZ_UI_RAM_REQUEST,0);
+    assert(fixture_ram_calls[0]==1&&strstr(ui.notice,"RAM ENGINE NOT IN THIS LOADER"));
+    fixture_ram_rc=0;fixture_ram[1]=(struct xz_ram_status){XZ_RAM_EMPTY,0,0,"SOURCE ON USB1"};
+    refresh();assert(model.deck[1].ram.state==XZ_UI_RAM_EMPTY&&!strcmp(model.deck[1].ram.message,"SOURCE ON USB1"));
+    ram_tap(XZ_UI_RAM_REQUEST,0);
+    assert(fixture_ram_calls[0]==2&&model.deck[1].ram.state==XZ_UI_RAM_LOADING&&!strcmp(ui.notice,"DECK 2: COPYING ORIGINAL AUDIO TO RAM"));
+    fixture_ram[1].copied=3u<<20;fixture_ram[1].bytes=9u<<20;refresh();
+    assert(model.deck[1].ram.copied==3u<<20&&model.deck[1].ram.bytes==9u<<20);
+    ram_tap(XZ_UI_RAM_CANCEL,0);assert(fixture_ram_calls[1]==1&&model.deck[1].ram.state==XZ_UI_RAM_EMPTY);
+    /* A stale release after the USB has gone never reaches the backend. */
+    fixture_ram[1].state=XZ_RAM_DETACHED;
+    struct xz_ui_action release={.kind=XZ_UI_RAM_RELEASE,.deck=1};apply(NULL,&release,1);
+    assert(!fixture_ram_calls[2]&&strstr(ui.notice,"RELEASE NEEDS THE USB SOURCE"));
+    fixture_ram[1].state=XZ_RAM_READY;refresh();ram_tap(XZ_UI_RAM_RELEASE,0);
+    assert(fixture_ram_calls[2]==1&&model.deck[1].ram.state==XZ_UI_RAM_READY&&!strcmp(ui.notice,"DECK 2: RAM RELEASE REQUESTED"));
+    fixture_ram[1].state=XZ_RAM_EMPTY;refresh();assert(model.deck[1].ram.state==XZ_UI_RAM_EMPTY);
+    release.deck=2;apply(NULL,&release,1);assert(fixture_ram_calls[2]==1);
+    memset(fixture_ram[0].message,'W',sizeof(fixture_ram[0].message));fixture_ram[0].state=99;refresh();
+    assert(strlen(model.deck[0].ram.message)==sizeof(model.deck[0].ram.message)-1&&model.deck[0].ram.state==XZ_UI_RAM_UNAVAILABLE);
+    assert(model.settings_status==saved&&settings_pending==pending);
+    memset(fixture_ram,0,sizeof(fixture_ram));refresh();ui.page=XZ_UI_CONTROLS;ui.notice[0]=0;
+}
 static void stock(void *self,const struct xz_touch_status *s,const void *mode){(void)mode;stock_calls++;last_stock=*s;memcpy((char*)self+4,s,sizeof(*s));}
 static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_status s={(uint8_t)down,{0},x,y};touch_hook(self,&s,NULL);}
+#include "test_pc_runtime_controls.h"
+#include "test_pc_runtime_refresh.h"
+#include "test_stem_layout_runtime.h"
 int main(void){
     unsigned char self[32]={0};started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;model.stems_overlay=1;
     xz_ui_init(&ui);xz_ui_init(&inline_ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);stock_touch=stock;
+    struct xz_ui_action color_action={.kind=XZ_UI_STEM_COLOR,.index=0,.value=4};apply(NULL,&color_action,1);
+    assert(model.stem_colors[0]==4&&xz_ui_model_stem_color(&model,0)==0xff9f0a);
+#ifdef XZ_STEM_COLOR_CAPTURE_TEST
+    assert(captured_stem_colors[0]==0xff9f0a&&captured_stem_colors[1]==0xff3b30&&captured_stem_colors[2]==0x30d158);
+#endif
+    struct xz_settings color_snapshot=settings_snapshot();assert(color_snapshot.stem_colors[0]==4);
+    color_action.kind=XZ_UI_STEM_COLORS_RESET;apply(NULL,&color_action,1);
+    assert(!model.stem_colors[0]&&xz_ui_model_stem_color(&model,0)==0x2997ff);
+#ifdef XZ_STEM_COLOR_CAPTURE_TEST
+    assert(captured_stem_colors[0]==0x2997ff&&captured_stem_colors[1]==0xff3b30&&captured_stem_colors[2]==0x30d158);
+#endif
     contact(self,200,130,1);contact(self,200,130,0);assert(model.deck[0].muted==4&&applied[0].vocals==0&&stock_calls==0);
     contact(self,200,260,1);contact(self,200,260,0);assert(model.deck[1].muted==4&&applied[1].vocals==0);
     contact(self,200,130,1);contact(self,200,130,0);assert(!model.deck[0].muted&&applied[0].vocals==1);
@@ -55,6 +145,8 @@ int main(void){
     contact(self,600,260,1);contact(self,600,260,0);assert(model.deck[0].bypass&&model.deck[1].bypass);
     contact(self,600,130,1);contact(self,600,130,0);
     contact(self,600,260,1);contact(self,600,260,0);assert(!model.deck[0].bypass&&!model.deck[1].bypass);
+    test_pc_runtime_controls(self);
+    test_pc_runtime_refresh(self);
     struct xz_ui_action slider={.kind=XZ_UI_LEVEL,.deck=0,.index=2,.value=.5f};apply(NULL,&slider,1);
     contact(self,200,130,1);contact(self,160,260,1);
     assert(inline_contact_deck==0&&model.deck[0].levels[2]<.5f&&model.deck[1].levels[2]==1&&stock_calls==0);
@@ -71,15 +163,16 @@ int main(void){
     model.theme=0;settings_readonly=settings_running=0;
     contact(self,200,130,1);
     struct xz_ui_action hide={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&hide,1);
-    assert(!model.stems_overlay&&inline_cancelled&&!inline_ui.down);
+    assert(model.stems_overlay==XZ_STEM_LAYOUT_BELOW_HALF&&inline_cancelled&&!inline_ui.down);
     contact(self,200,130,0);assert(!inline_contact);
-    apply(NULL,&hide,1);assert(model.stems_overlay);
+    for(int step=0;step<4;step++)apply(NULL,&hide,1);assert(model.stems_overlay==XZ_STEM_LAYOUT_BELOW);
     int calls=stock_calls;native_active=0;contact(self,799,400,1);contact(self,799,400,0);assert(stock_calls==calls+2&&!inline_contact);
     native_active=1;contact(self,30,400,1);contact(self,200,130,1);contact(self,200,130,0);assert(stock_calls==calls+5);
-    contact(self,200,80,1);assert(last_stock.x==200&&last_stock.y==18+xz_wave_source_row(62,84));
-    contact(self,200,180,1);assert(last_stock.y==18+xz_wave_source_row(83,84));contact(self,200,180,0);
-    contact(self,200,180,1);assert(last_stock.y==18+xz_wave_source_row(162,84));
-    contact(self,200,130,1);assert(last_stock.y==18+xz_wave_source_row(132,84));contact(self,200,130,0);
+    struct xz_wave_layout default_geometry;assert(xz_wave_layout_get(XZ_STEM_LAYOUT_BELOW,&default_geometry));
+    contact(self,200,80,1);assert(last_stock.x==200&&last_stock.y==18+xz_wave_layout_source_row(&default_geometry,62));
+    contact(self,200,180,1);assert(last_stock.y==18+xz_wave_layout_source_row(&default_geometry,83));contact(self,200,180,0);
+    contact(self,200,180,1);assert(last_stock.y==18+xz_wave_layout_source_row(&default_geometry,162));
+    contact(self,200,130,1);assert(last_stock.y==18+xz_wave_layout_source_row(&default_geometry,132));contact(self,200,130,0);
     contact(self,200,260,1);fixture_generation++;contact(self,650,260,1);
     assert(model.deck[1].levels[2]==1&&inline_cancelled&&!inline_ui.down);
     contact(self,650,260,0);assert(!inline_contact);
@@ -114,10 +207,18 @@ int main(void){
     e.operation=0;assert(xz_ui_runtime_pad(&e,&flags));assert(applied[0].vocals==0&&applied[1].vocals==1);
     e.operation=2;assert(xz_ui_runtime_pad(&e,&flags));native_active=1;
     int before=stock_calls;contact(self,700,10,1);contact(self,700,10,1);contact(self,780,400,0);
-    assert(!model.stems_overlay&&!inline_enabled()&&stock_calls==before);
+    assert(model.stems_overlay==XZ_STEM_LAYOUT_BELOW_HALF&&inline_enabled()==XZ_STEM_LAYOUT_BELOW_HALF&&stock_calls==before);
     assert(!render_inline(NULL,pixels+1,count,536,536,XZ_WAVE_INLINE_HEIGHT));
+    assert(render_inline(NULL,pixels+1,536*48,536,536,48));
+    const int cycle_modes[4]={XZ_STEM_LAYOUT_OUTER,XZ_STEM_LAYOUT_OUTER_HALF,XZ_STEM_LAYOUT_HIDDEN,XZ_STEM_LAYOUT_BELOW};
+    unsigned layout_redraws=fixture_pc_redraws;
+    for(int step=0;step<4;step++){
+        contact(self,700,10,1);assert(model.stems_overlay==cycle_modes[step]);
+        contact(self,700,10,1);assert(model.stems_overlay==cycle_modes[step]);
+        contact(self,700,10,0);assert(inline_enabled()==cycle_modes[step]);
+    }
+    assert(fixture_pc_redraws==layout_redraws+4&&stock_calls==before);
     e.operation=0;assert(xz_ui_runtime_pad(&e,&flags));e.operation=2;assert(xz_ui_runtime_pad(&e,&flags));
-    contact(self,700,10,1);contact(self,700,10,0);assert(model.stems_overlay&&inline_enabled());
     fixture_focus=0;refresh();assert(inline_ui.deck==0);
     fixture_prepared=0;fixture_focus=1;refresh();assert(inline_ui.deck==0);
     fixture_prepared=1;refresh();assert(inline_ui.deck==1&&ui.deck==1);
@@ -167,12 +268,23 @@ int main(void){
             for(int other=0;other<8;other++)if(other!=page*4+pair)assert(model.jump.sizes[other]==prior.sizes[other]);
         }
     }
-    touch.visible=1;ui.jump_edit_page=1;ui.jump_edit_pair=3;model.jump.sizes[7]=4;
+    /* Encoder: pushing a pair starts a size edit; turning steps it; a closed menu forwards. */
+    touch.visible=1;ui.jump_edit_page=1;ui.jump_edit_pair=0;model.jump.sizes[7]=4;
+    ui.focus_kind=XZ_UI_JUMP_PAIR;ui.focus_index=7;ui.focus_deck=-1;ui.adjusting=0;
+    assert(encoder_push_hook(NULL,NULL,NULL,NULL)==1&&ui.jump_edit_pair==3&&ui.adjusting);
     assert(encoder_rotate_hook(1)==1&&model.jump.sizes[7]==5);
     assert(encoder_rotate_hook(-1)==1&&model.jump.sizes[7]==4);
     assert(encoder_rotate_hook(100)==1&&model.jump.sizes[7]==9);
     assert(encoder_rotate_hook(-100)==1&&model.jump.sizes[7]==0);
+    /* Not editing: turning moves focus and leaves the size alone. */
+    ui.adjusting=0;assert(encoder_rotate_hook(1)==1&&!model.jump.sizes[7]&&!(ui.focus_kind==XZ_UI_JUMP_PAIR&&ui.focus_index==7));
     touch.visible=0;assert(!encoder_rotate_hook(1)&&!model.jump.sizes[7]);
+    assert(!encoder_push_hook(NULL,NULL,NULL,NULL));
+    /* REKORDBOX is the hardware MODS key by default and toggles the panel. */
+    model.rekordbox_menu=1;assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==1&&touch.visible);
+    assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==1&&!touch.visible);
+    model.rekordbox_menu=0;assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==0&&!touch.visible);
+    model.rekordbox_menu=1;
     settings_readonly=0;ui.page=XZ_UI_CONTROLS;model.theme=0;
     /* Custom beat jump owns all four pairs even when stems use this page. */
     memset(&pads,0,sizeof(pads));memset(&jump_state,0,sizeof(jump_state));
@@ -222,9 +334,20 @@ int main(void){
             assert(found&&model.stem_bank==pad/4&&pads.bank==pad/4&&model.deck[0].muted==muted&&!memcmp(&jump,&model.jump,sizeof(jump)));
         }
     }
+    fixture_stem_count[0]=4;refresh();
+    assert(model.deck[0].stem_count==4&&pads.count[0]==4&&model.deck[1].stem_count==3);
+    struct xz_ui_action bass_level={.kind=XZ_UI_LEVEL,.deck=0,.index=3,.value=.4f};apply(NULL,&bass_level,1);
+    assert(applied_bass[0]==.4f);
+    struct xz_ui_action bass_mute={.kind=XZ_UI_MUTE,.phase=XZ_UI_PRESS,.deck=0,.index=3};apply(NULL,&bass_mute,1);
+    assert(applied_bass[0]==0&&(model.deck[0].muted&8u)&&!model.deck[0].bypass);
+    fixture_stem_count[0]=3;refresh();assert(!(model.deck[0].muted&8u)&&model.deck[0].levels[3]==1);
+    ram_tracks();
     /* Real settings worker writes UI choices; reloading restores them. */
     char persist_root[]="/tmp/xz-runtime-prefs-XXXXXX",persist_path[1200];
-    assert(mkdtemp(persist_root));strcpy(settings_usb,persist_root);assert(!stat(settings_usb,&settings_volume));
+    assert(mkdtemp(persist_root));strcpy(settings_usb,persist_root);
+    struct xz_settings profile_defaults;assert(xz_usb_profile_load(&settings_profile,persist_root,0,&profile_defaults,NULL)==1);
+    browse_settings(&profile_defaults);settings_slot=-1;
+    __atomic_store_n(&profile_slot,~0u,__ATOMIC_RELAXED);
     settings_readonly=0;settings_running=1;settings_pending=0;
     assert(!pthread_create(&settings_thread,NULL,settings_writer,NULL));
     pthread_mutex_lock(&ui_mutex);
@@ -238,8 +361,9 @@ int main(void){
     assert(settings_pending);settings_running=0;pthread_cond_signal(&settings_changed);pthread_mutex_unlock(&ui_mutex);
     assert(!pthread_join(settings_thread,NULL));
     struct xz_settings persisted;assert(!xz_settings_load(settings_usb,&persisted));
-    assert(persisted.theme==14&&persisted.stem_bank==1&&!persisted.stems_overlay&&persisted.jump.sizes[7]==9);
+    assert(persisted.theme==14&&persisted.stem_bank==1&&persisted.stems_overlay==XZ_STEM_LAYOUT_BELOW_HALF&&persisted.jump.sizes[7]==9);
     snprintf(persist_path,sizeof(persist_path),"%s/VJ.Tools/XZ-Mods.cfg",persist_root);assert(!unlink(persist_path));
     snprintf(persist_path,sizeof(persist_path),"%s/VJ.Tools",persist_root);assert(!rmdir(persist_path));assert(!rmdir(persist_root));
+    stem_layout_runtime_check();
     puts("PASS two-deck stem controls, waveform gestures, VJ view, all theme/page/bank LEDs and touch ownership");return 0;
 }

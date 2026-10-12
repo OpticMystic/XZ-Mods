@@ -9,7 +9,14 @@
     12,
     22,
     23,
-    24
+    24,
+    30,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38
   ],
   "fields": [
     {
@@ -710,13 +717,35 @@
     },
     {
       "key": "stems_overlay",
-      "label": "Show stem rows",
+      "label": "Stem row layout",
       "group": "stems",
       "default": 1,
       "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
+      "max": 4,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Hidden / normal waveforms"
+        },
+        {
+          "value": 1,
+          "label": "Below / full height"
+        },
+        {
+          "value": 2,
+          "label": "Below / half height"
+        },
+        {
+          "value": 3,
+          "label": "Outside / full height"
+        },
+        {
+          "value": 4,
+          "label": "Outside / half height"
+        }
+      ]
     },
     {
       "key": "wave_mode",
@@ -739,6 +768,354 @@
         {
           "value": 2,
           "label": "STEMS"
+        }
+      ]
+    },
+    {
+      "key": "browse_1",
+      "label": "Browse column 1",
+      "group": "browse",
+      "default": 0,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "TITLE"
+        },
+        {
+          "value": 1,
+          "label": "ARTIST"
+        },
+        {
+          "value": 2,
+          "label": "KEY"
+        },
+        {
+          "value": 3,
+          "label": "BPM"
+        }
+      ]
+    },
+    {
+      "key": "browse_2",
+      "label": "Browse column 2",
+      "group": "browse",
+      "default": 2,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "TITLE"
+        },
+        {
+          "value": 1,
+          "label": "ARTIST"
+        },
+        {
+          "value": 2,
+          "label": "KEY"
+        },
+        {
+          "value": 3,
+          "label": "BPM"
+        }
+      ]
+    },
+    {
+      "key": "browse_3",
+      "label": "Browse column 3",
+      "group": "browse",
+      "default": 3,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "TITLE"
+        },
+        {
+          "value": 1,
+          "label": "ARTIST"
+        },
+        {
+          "value": 2,
+          "label": "KEY"
+        },
+        {
+          "value": 3,
+          "label": "BPM"
+        }
+      ]
+    },
+    {
+      "key": "browse_key_prefix",
+      "label": "Show key before track title",
+      "group": "browse",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "browse_traffic",
+      "label": "Color compatible keys",
+      "group": "browse",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "key_format",
+      "label": "Key notation",
+      "group": "browse",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "USB PREFERENCE"
+        },
+        {
+          "value": 1,
+          "label": "CLASSIC"
+        },
+        {
+          "value": 2,
+          "label": "CAMELOT"
+        }
+      ]
+    },
+    {
+      "key": "stem_drums_color",
+      "label": "Drums color",
+      "group": "appearance",
+      "min": 0,
+      "max": 8,
+      "default": 0,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Theme default"
+        },
+        {
+          "value": 1,
+          "label": "Blue"
+        },
+        {
+          "value": 2,
+          "label": "Red"
+        },
+        {
+          "value": 3,
+          "label": "Green"
+        },
+        {
+          "value": 4,
+          "label": "Amber"
+        },
+        {
+          "value": 5,
+          "label": "Purple"
+        },
+        {
+          "value": 6,
+          "label": "Cyan"
+        },
+        {
+          "value": 7,
+          "label": "Pink"
+        },
+        {
+          "value": 8,
+          "label": "White"
+        }
+      ],
+      "kind": "choice",
+      "readonly": false
+    },
+    {
+      "key": "stem_harmonics_color",
+      "label": "Harmonics color",
+      "group": "appearance",
+      "min": 0,
+      "max": 8,
+      "default": 0,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Theme default"
+        },
+        {
+          "value": 1,
+          "label": "Blue"
+        },
+        {
+          "value": 2,
+          "label": "Red"
+        },
+        {
+          "value": 3,
+          "label": "Green"
+        },
+        {
+          "value": 4,
+          "label": "Amber"
+        },
+        {
+          "value": 5,
+          "label": "Purple"
+        },
+        {
+          "value": 6,
+          "label": "Cyan"
+        },
+        {
+          "value": 7,
+          "label": "Pink"
+        },
+        {
+          "value": 8,
+          "label": "White"
+        }
+      ],
+      "kind": "choice",
+      "readonly": false
+    },
+    {
+      "key": "stem_vocals_color",
+      "label": "Vocals color",
+      "group": "appearance",
+      "min": 0,
+      "max": 8,
+      "default": 0,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Theme default"
+        },
+        {
+          "value": 1,
+          "label": "Blue"
+        },
+        {
+          "value": 2,
+          "label": "Red"
+        },
+        {
+          "value": 3,
+          "label": "Green"
+        },
+        {
+          "value": 4,
+          "label": "Amber"
+        },
+        {
+          "value": 5,
+          "label": "Purple"
+        },
+        {
+          "value": 6,
+          "label": "Cyan"
+        },
+        {
+          "value": 7,
+          "label": "Pink"
+        },
+        {
+          "value": 8,
+          "label": "White"
+        }
+      ],
+      "kind": "choice",
+      "readonly": false
+    },
+    {
+      "key": "key_feedback",
+      "label": "Effective key and Key Sync display",
+      "group": "appearance",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "ram_debug",
+      "label": "Free RAM box",
+      "group": "debug",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "rekordbox_menu",
+      "label": "REKORDBOX key opens MODS",
+      "group": "advanced",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "metrics_enabled",
+      "label": "On-device metrics",
+      "group": "debug",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": false
+    },
+    {
+      "key": "stem_order",
+      "label": "Stem order",
+      "group": "stems",
+      "default": 0,
+      "min": 0,
+      "max": 5,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "VOCALS / HARMONICS / DRUMS"
+        },
+        {
+          "value": 1,
+          "label": "VOCALS / DRUMS / HARMONICS"
+        },
+        {
+          "value": 2,
+          "label": "HARMONICS / VOCALS / DRUMS"
+        },
+        {
+          "value": 3,
+          "label": "HARMONICS / DRUMS / VOCALS"
+        },
+        {
+          "value": 4,
+          "label": "DRUMS / VOCALS / HARMONICS"
+        },
+        {
+          "value": 5,
+          "label": "DRUMS / HARMONICS / VOCALS"
         }
       ]
     }

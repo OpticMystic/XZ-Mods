@@ -26,7 +26,8 @@ def resources():
     if not configured:raise ValueError('Builder resources are not configured')
     return Path(configured).resolve()
 
-VERSION='0.2.1'
+VERSION='0.3.0-preview.7'
+SOURCE_FORMATS=['WAV','FLAC','MP3']
 # 96 kHz roles are capped at 4096 pages; resample_poly(320/147) output is ceil(frames*320/147).
 MAX_SOURCE_FRAMES=overcue_writer.MAX_FRAMES*147//320
 
@@ -39,11 +40,14 @@ def status():
         'prepared_formats':['overcue-stems/4','stemd-cache/1'],
         'prepared_containers':['OVPGZ001','OVPGZ003'], 'stem_page_codecs':['zlib','flac-96k'],
         'separation_output_format':'overcue-index/1',
-        'stem_builder':{'beta':True,'source_formats':['WAV','FLAC'],'sample_rate':44100,'requires_rekordbox_export':True,
-                        'memory_profile':'bounded-cpu-windows-and-disk-backed-tracks','output_page_codec':'flac-96k'},
+        'stem_import':{'plan_format':'stem-import-plan/1','archives':['ZIP'],'source_formats':['WAV','FLAC','AIFF','OGG','MP3'],
+                       'groups':['vocals','drums','harmonics','instrumental','mix']},
+        'stem_builder':{'beta':True,'source_formats':SOURCE_FORMATS,'sample_rate':44100,'source_sample_rates':[cache.MIN_RATE,cache.MAX_RATE],
+                        'requires_rekordbox_export':True,
+                        'memory_profile':'disk-backed-tracks-gpu-when-present','output_page_codec':'flac-96k','default_preset':catalog.get('default_preset')},
         'release_ready':False,'runtime_present':manifest is not None,'runtime':manifest,
         'vjtools_required':False,'vjtools_connection':True,'engines':catalog,
-        'limits':{'sample_rate':44100,'channels':2,'source_formats':['WAV','FLAC'],
+        'limits':{'sample_rate':44100,'channels':2,'source_formats':SOURCE_FORMATS,'source_sample_rates':[cache.MIN_RATE,cache.MAX_RATE],
                   'max_source_frames':MAX_SOURCE_FRAMES},
         'release_gates':['Physical pad/audio retest','Native inline UI acceptance',
             'Fresh boot and two-deck qualification','Real model execution and cache timing tests',
@@ -56,6 +60,8 @@ class Track(NamedTuple):
     track_id:int
     frames:int
     sha256:str
+    source_rate:int=44100
+    mp3:dict|None=None
 
 def locate_track(source):
     """The USB root is everything before the first Contents folder, as the device reader derives it."""
@@ -67,11 +73,21 @@ def locate_track(source):
     info=cache.inspect_audio(source)
     if info['frames']>MAX_SOURCE_FRAMES:raise ValueError('This track is longer than OverCue stems allow (about 23 minutes).')
     overcue_writer.check_writable(root,file_path,track_id)
-    return Track(source,root,file_path,track_id,info['frames'],usb.sha(source))
+    return Track(source,root,file_path,track_id,info['frames'],usb.sha(source),info['sample_rate'],info.get('mp3'))
 
 def _as_wav(path,target,job):
-    if path.suffix.lower()=='.wav':return path
-    job.run([executable(resources(),'xz-audio-helper'),'convert',path,target]);return target
+    """A 44.1 kHz 16-bit stereo WAV for the inference and role stages, decoded and resampled only when needed."""
+    path=Path(path);target=Path(target);info=cache.inspect_audio(path)
+    native=info['sample_rate']==44100
+    if path.suffix.lower()=='.wav' and native and info.get('source_bits',16)==16 and info.get('source_channels',2)==2:return path
+    decoded=target if native else target.with_name(target.stem+'.source-rate.wav')
+    job.run([executable(resources(),'xz-audio-helper'),'convert',path,decoded])
+    if native:return target
+    from .stem_import import import_python
+    job.progress('decode',f'Resampling {info["sample_rate"]} Hz audio to 44.1 kHz. Your original track is unchanged.')
+    job.run([import_python(job,resources()),'-I',resources()/'inference'/'resample_source.py','--input',decoded,'--output',target,'--frames',str(info['frames'])])
+    decoded.unlink()
+    return target
 
 def prepare_stems(track,parts,separation_id,python,job,work,mix=None):
     """One pipeline for import and separation: 44.1 kHz parts, 96 kHz roles, verified OverCue bundle."""
@@ -83,6 +99,8 @@ def prepare_stems(track,parts,separation_id,python,job,work,mix=None):
         wavs[name]=_as_wav(path,work/(name+'.wav'),job)
     mix=mix or _as_wav(track.source,work/'mix.wav',job)
     roles=work/'roles'
+    import time
+    publish_started=time.time()
     job.progress('render','Resampling stems to 96 kHz for OverCue. Your original track is unchanged.')
     job.run([python,'-I',resources()/'inference'/'overcue_roles.py','--mix',mix,
         '--vocals',wavs['vocals'],'--vocals-gain',repr(parts['vocals'][1]),
@@ -92,7 +110,12 @@ def prepare_stems(track,parts,separation_id,python,job,work,mix=None):
     if usb.sha(track.source)!=track.sha256:raise ValueError('The track changed while stems were being prepared')
     from .stem_import import import_python
     receipt=overcue_writer.publish(track.usb_root,track.file_path,track.track_id,track.sha256,
-        track.source.suffix.lower()[1:],roles,separation_id,VERSION,job,page_python=import_python(job,resources()))
+        track.source.suffix.lower()[1:],roles,separation_id,VERSION,job,page_python=import_python(job,resources()),
+        source={'sample_rate':track.source_rate,'mp3':track.mp3})
+    from . import stem_estimate
+    from .engines import data_root,record_publish_timing
+    stem_estimate.observe_bundle(Path(track.usb_root)/'CDJMODS'/'stems'/receipt['bundle'],receipt['frames'],data_root())
+    if not receipt.get('reused'):record_publish_timing(track.frames,time.time()-publish_started)
     return {'format':overcue_writer.INDEX_SCHEMA,'beta':True,'usb_root':str(track.usb_root),'file_path':track.file_path,
         'track_id':track.track_id,**receipt,'alignment_verified':False,'separation_id':separation_id}
 
@@ -169,19 +192,31 @@ def _dispatch(request,job,loader_resources=None,settings_change=None):
         if method=='inspect_device_library':return library_repair.inspect(request['volume'])
         if method=='save_device_library_report':return library_repair.save_report(request['volume'])
         return library_repair.mutate(request,job,restore=method=='restore_device_library')
+    if method in ('read_dj_profiles','read_logo','save_dj_profile','set_active_dj_profile','write_profile_track'):
+        from . import dj_profile
+        if method=='read_dj_profiles':return dj_profile.read(request['volume'])
+        if method=='read_logo':return dj_profile.read_logo(request['path'])
+        if method=='save_dj_profile':return dj_profile.save(request['volume'],request)
+        if method=='set_active_dj_profile':return dj_profile.set_active(request['volume'],request['dj_id'],request.get('expected_revision'))
+        return dj_profile.write_profile_track(request['volume'],request['dj_id'],request.get('destination'),request.get('folder'))
     if method=='games_status':return games.status()
     if method=='download_game':return games.obtain(request['game'],job)
     if method=='install_game_usb':return games.install(request['game'],request['volume'],job)
-    if method=='prepare_games_usb':return games.prepare_usb(request['volume'],job)
+    if method=='prepare_games_usb':return games.prepare_usb(request['volume'],job,request.get('games'))
+    if method=='games_on_usb':return {'format':'xz-games-on-usb/1','games':games.installed(request['volume'])}
+    if method=='discover_usbs':
+        from . import managed_usb
+        return managed_usb.discover(resources())
     if method=='ota_networks':return {'addresses':runtime_ota.network_addresses(),'ready':(resources()/'ota-release/latest.xzu').is_file()}
     if method=='serve_runtime_updates':return runtime_ota.serve(resources(),request['address'],job)
     if method=='generate_library_stem_batch':
         from . import stem_batch
         return stem_batch.generate(request,job,resources())
-    if method in ('discover_stem_usbs','browse_stem_library','generate_library_stems'):
+    if method in ('discover_stem_usbs','browse_stem_library','generate_library_stems','add_stem_waveforms'):
         from . import stem_library
         if method=='discover_stem_usbs':return stem_library.discover()
         if method=='browse_stem_library':return stem_library.browse(request,job)
+        if method=='add_stem_waveforms':return stem_library.add_waveforms(request,job,resources())
         return stem_library.generate(request,job,resources())
 
     if method=='prepare_layered_waveforms':
@@ -209,11 +244,11 @@ def _dispatch(request,job,loader_resources=None,settings_change=None):
         firmware=request.get('firmware') or official_firmware(job)
         key=request.get('key') or ensure_boot_key(job)
         result=managed_usb.update_loader(volume,observed,request['expected_loader'],firmware,key,loader_resources or resources(),job,settings_change=settings_change)
-        if usb.target_info(volume,boot_loader=False)['direct_usb_root']:result['game_setup']=games.prepare_usb(volume,job)
+        if usb.target_info(volume,boot_loader=False)['direct_usb_root']:result['game_setup']=games.prepare_usb(volume,job,request.get('games'))
         return result
-    if method=='import_grouped_stems':
-        from .stem_import import import_groups
-        return import_groups(request,job,resources())
+    if method in ('plan_stem_import','import_grouped_stems'):
+        from . import stem_import
+        return (stem_import.plan if method=='plan_stem_import' else stem_import.import_groups)(request,job,resources())
     if method=='status':return status()
     if method=='inspect_overcue':
         source=cache._regular(request['source'])
@@ -241,7 +276,7 @@ def _dispatch(request,job,loader_resources=None,settings_change=None):
             from . import managed_usb
             result=managed_usb.build_with_settings(request['volume'],request['firmware'],key,loader_resources or resources(),job,settings_change)
         else:result=usb.build_usb(request['volume'],request['firmware'],key,loader_resources or resources(),job,True)
-        if result.get('direct_usb_root'):result['game_setup']=games.prepare_usb(request['volume'],job)
+        if result.get('direct_usb_root'):result['game_setup']=games.prepare_usb(request['volume'],job,request.get('games'))
         return result
     if method=='prepare_usb':
         from .boot_support import ensure_boot_key
@@ -253,11 +288,20 @@ def _dispatch(request,job,loader_resources=None,settings_change=None):
             from . import managed_usb
             result=managed_usb.build_with_settings(volume,firmware,key,loader_resources or resources(),job,settings_change)
         else:result=usb.build_usb(volume,firmware,key,loader_resources or resources(),job,True)
-        return {**result,'firmware_source':'AlphaTheta','one_step':True,'game_setup':games.prepare_usb(volume,job)}
+        return {**result,'firmware_source':'AlphaTheta','one_step':True,'game_setup':games.prepare_usb(volume,job,request.get('games'))}
     if method in ('apply_three_band','restore_rgb_waveforms'):return three_band_waveforms(request,job,method=='restore_rgb_waveforms')
-    if method in ('setup_engine','separate'):
-        from .engines import setup,separate
-        return setup(request,job,resources()) if method=='setup_engine' else separate(request,job,resources())
+    if method=='save_engine_report':
+        from . import engines
+        return engines.save_engine_report(request,job,resources())
+    if method in ('setup_engine','separate','plan_engine_setup','estimate_separation'):
+        from . import engines
+        if method=='plan_engine_setup':return engines.plan_engine_setup(request,job,resources())
+        if method=='estimate_separation':
+            frames=request['frames']
+            if type(frames) is not int or not 0<frames<=MAX_SOURCE_FRAMES:raise ValueError('Frames must be a positive track length')
+            return {'preset':request['preset'],'frames':frames,'device':engines.planned_device(request['preset']),
+                'seconds':engines.estimate_separation_seconds(request['preset'],frames)}
+        return engines.setup(request,job,resources()) if method=='setup_engine' else engines.separate(request,job,resources())
     raise ValueError('Unknown builder operation')
 
 def main():

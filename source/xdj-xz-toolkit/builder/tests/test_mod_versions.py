@@ -195,3 +195,30 @@ class VersionTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class CurrentBrandingTest(unittest.TestCase):
+    def _branding(self, root, splash, apply=b'#!/bin/sh\n'):
+        folder = Path(root) / 'branding'
+        folder.mkdir(parents=True)
+        (folder / 'apply.sh').write_bytes(apply)
+        (folder / 'splash.rgb565').write_bytes(splash)
+        (folder / 'logo.rgb565').write_bytes(splash[:4])
+        (folder / 'MD5SUMS').write_bytes(b'sums ' + splash)
+
+    def test_older_version_gets_the_apps_splash(self):
+        from builder import mod_versions
+        with tempfile.TemporaryDirectory() as app, tempfile.TemporaryDirectory() as view:
+            self._branding(app, b'xzmods.com')
+            self._branding(view, b'vj.tools/xzmods')
+            self.assertTrue(mod_versions.current_branding(app, view))
+            for name in ('splash.rgb565', 'logo.rgb565', 'MD5SUMS', 'apply.sh'):
+                self.assertEqual((Path(view) / 'branding' / name).read_bytes(), (Path(app) / 'branding' / name).read_bytes(), name)
+
+    def test_different_apply_script_keeps_the_versions_images(self):
+        from builder import mod_versions
+        with tempfile.TemporaryDirectory() as app, tempfile.TemporaryDirectory() as view:
+            self._branding(app, b'xzmods.com', apply=b'#!/bin/sh\nnew offsets\n')
+            self._branding(view, b'vj.tools/xzmods')
+            self.assertFalse(mod_versions.current_branding(app, view))
+            self.assertEqual((Path(view) / 'branding' / 'splash.rgb565').read_bytes(), b'vj.tools/xzmods')

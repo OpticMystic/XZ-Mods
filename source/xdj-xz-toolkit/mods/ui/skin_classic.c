@@ -3,120 +3,215 @@
 
 static float clampf(float v,float lo,float hi){return v<lo?lo:v>hi?hi:v;}
 
-
-static void deck_card(struct xz_canvas c,const struct xz_ui_widget *a,int selected,const struct xz_theme_palette *p){
- uint32_t edge=selected?p->accent:xz_blend(p->bg,p->ink,112);
- for(int row=0;row<a->h;row++){
-  int width=a->w-9+row*9/(a->h-1);
-  uint32_t fill=xz_blend(p->bg,selected?p->accent:p->ink,selected?48-row/2:34-row/3);
-  xz_rect(c,a->x,a->y+row,width,1,fill);xz_rect(c,a->x+width-1,a->y+row,1,1,edge);
- }
- xz_rect(c,a->x,a->y,a->w-9,1,edge);xz_rect(c,a->x,a->y+a->h-1,a->w,1,edge);
- xz_rect(c,a->x,a->y,1,a->h,edge);xz_rect(c,a->x+5,a->y+6,selected?3:1,20,selected?p->ink:edge);
+/* Flat themes get the modern rounded card; themes with their own chrome keep it. */
+static int flat(int theme){return xz_theme(theme)->chrome==XZ_CHROME_FLAT;}
+static void card(struct xz_canvas c,int theme,struct xz_ui_widget a,uint32_t fill,uint32_t edge,int selected){
+ if(!flat(theme)){xz_frame(c,theme,a,fill,selected);return;}
+ xz_round_rect(c,a.x,a.y,a.w,a.h,8,15,edge);
+ xz_round_rect(c,a.x+1,a.y+1,a.w-2,a.h-2,7,15,fill);
 }
 static void theme_card(struct xz_canvas c,const struct xz_ui_widget *a,int selected){
  const struct xz_theme_palette *sample=xz_theme_palette(a->index);
  struct xz_canvas own=c;own.theme=a->index;
  xz_frame(c,a->index,*a,sample->bg,selected);
- const char *state=selected?"SELECTED":"TAP TO APPLY";
- xz_text(own,a->x+10,a->y+7,a->label,1,(a->w-20)/6,sample->ink);
- xz_text(own,a->x+10,a->y+28,state,1,28,sample->ink);
+ /* Swatches: the theme's three stem colours and its accent. */
+ for(int k=0;k<4;k++)xz_round_rect(c,a->x+a->w-46+k*10,a->y+8,8,8,2,15,k<3?sample->stem[k]:sample->accent);
+ xz_text(own,a->x+10,a->y+8,a->label,1,(a->w-62)/6,sample->ink);
+ if(selected)xz_text(own,a->x+10,a->y+24,"SELECTED",1,12,sample->accent);
+}
+static int is_toggle(enum xz_ui_action_kind k){
+ return k==XZ_UI_ENABLE||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||
+  k==XZ_UI_SHIFT_KEYSYNC||k==XZ_UI_TAKEOVER_TOGGLE||k==XZ_UI_KEY_FEEDBACK||k==XZ_UI_RAM_DEBUG||k==XZ_UI_REKORDBOX_KEY||
+  k==XZ_UI_CONNECTION_ENABLE||k==XZ_UI_DISCOVERY||k==XZ_UI_HOLD||k==XZ_UI_OVERDUB||k==XZ_UI_METRICS_TOGGLE;
+}
+/* One of a set: the selected member is tinted with the accent. */
+static int is_choice(enum xz_ui_action_kind k){
+ return k==XZ_UI_STEM_PAGE||k==XZ_UI_WAVE_MODE||k==XZ_UI_KEY_FORMAT||k==XZ_UI_TAKEOVER_ASSIGN||k==XZ_UI_CONTROL_SECTION||
+  k==XZ_UI_JUMP_EDIT_PAGE||k==XZ_UI_RAM_DECK||k==XZ_UI_SDK_STEP||k==XZ_UI_SDK_CHOICE||k==XZ_UI_WAD_SELECT;
+}
+/* The one thing to do next on a setup or launch page. */
+static int is_primary(enum xz_ui_action_kind k,int index){
+ if(k==XZ_UI_PC_CONFIRM)return index==1;
+ return k==XZ_UI_DOOM_START||k==XZ_UI_UPDATE_CHECK||k==XZ_UI_RAM_REQUEST||k==XZ_UI_PC_CHECK||k==XZ_UI_PC_TEST||
+  k==XZ_UI_KEY_CHECK||k==XZ_UI_LOCAL_STEM_SETUP_STEP||k==XZ_UI_METRICS_CHECK||k==XZ_UI_MYHOUSE_CHECK||k==XZ_UI_DOOM_CHECK||k==XZ_UI_FEATURE_SETUP_OPEN||k==XZ_UI_FEATURE_SETUP_STEP||k==XZ_UI_LOCAL_STEM_SETUP_OPEN;
+}
+/* Launch cards on EXTRAS and GAMES: icon tile, title and a short tagline. */
+static const char *tagline(const struct xz_ui_widget *a){
+ switch(a->kind){
+ case XZ_UI_PANEL:switch(a->index){
+  case XZ_UI_CONNECTION:return "COMPUTER SCREEN AND FILMSTRIP LINK";
+  case XZ_UI_GAMES:return "CLASSIC GAMES AND BEAT ARCADE";
+  case XZ_UI_APPS:return "XZ SDK APPS FROM USB";
+  case XZ_UI_UPDATES:return "SIGNED UPDATES, ACTIVE NEXT BOOT";
+  case XZ_UI_DOOM_FILES:return "BASE GAME + ADD-ON";
+  case XZ_UI_MYHOUSE_SETUP:return "NEEDS THE NATIVE GZDOOM PORT";
+  default:return NULL;}
+ case XZ_UI_GAME_SELECT:return a->index?"ORIGINAL GAME + PATCH":"DOOM AND DOOM II DATA";
+ case XZ_UI_ARCADE_OPEN:return "BEAT-SYNCED, JOG WHEEL";
+ case XZ_UI_WAVE_RIDER_OPEN:return "RIDE THE TRACK WAVEFORM";
+ case XZ_UI_RHYTHM_LAB_OPEN:return "PLAYED ON THE PADS";
+ case XZ_UI_GLYPH_RUN_OPEN:return "RUNNER SET TO THE TRACK";
+ default:return NULL;}
+}
+static enum xz_ui_page card_icon(const struct xz_ui_widget *a){
+ return a->kind==XZ_UI_PANEL?(enum xz_ui_page)a->index:XZ_UI_GAMES;
+}
+static void chevron(struct xz_canvas c,int x,int y,int dir,uint32_t color){
+ xz_line16(c,x*16,(y-5)*16,(x+5*dir)*16,y*16,28,color);xz_line16(c,(x+5*dir)*16,y*16,x*16,(y+5)*16,28,color);
+}
+/* Large type when it fits; narrow cells use the small face throughout so a row reads evenly. */
+static void fit_text(struct xz_canvas c,int x,int y,int w,const char *s,uint32_t color){
+ if(w>=96&&xz_text_width(c,s,2,100)<=w){xz_text(c,x,y,s,2,100,color);return;}
+ xz_text(c,x,y+3,s,1,w/6,color);
+}
+static const char *section_title(enum xz_ui_page page){
+ switch(page){
+ case XZ_UI_GENERAL:return "GENERAL";case XZ_UI_FEATURE_SETUP:return "FEATURE SETUP";
+ case XZ_UI_CONTROLS:case XZ_UI_BEAT_JUMP:case XZ_UI_PC_STEMS:return "CONTROLS";
+ case XZ_UI_THEMES:return "APPEARANCE";case XZ_UI_STEM_COLORS:return "STEM COLORS";
+ case XZ_UI_SETTINGS:return "ADVANCED";case XZ_UI_EXTRAS:return "EXTRAS";
+ case XZ_UI_STEMS:return "GROOVE PADS";case XZ_UI_XPAD:return "X-PAD";
+ case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";
+ case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_CONNECTION:return "VJ.TOOLS";
+ case XZ_UI_GAMES:case XZ_UI_DOOM:case XZ_UI_DOOM_FILES:case XZ_UI_DOOM_SETUP:case XZ_UI_MYHOUSE_SETUP:return "GAMES";
+ case XZ_UI_UPDATES:case XZ_UI_UPDATE_SETUP:return "UPDATES";
+ case XZ_UI_APPS:case XZ_UI_APPS_SETUP:return "APPS";
+ case XZ_UI_LOCAL_STEM_SETUP:return "STEM SETUP";
+ case XZ_UI_METRICS_SETUP:return "METRICS SETUP";
+ case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";
+ default:return "MODS";}
 }
 static void render(const struct xz_ui_scene *s){
  struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;
- const struct xz_ui_deck *d=s->d;const struct xz_theme_palette *p=s->p;uint32_t panel,dim;char buf[96];size_t i;
- panel=xz_blend(p->bg,p->ink,28);dim=xz_blend(p->bg,p->ink,154);xz_theme_background(xz_surface(c),m->theme,(struct xz_theme_rect){0,0,800,480});
- xz_theme_frame(xz_surface(c),m->theme,(struct xz_theme_rect){0,0,800,40},xz_blend(p->bg,p->ink,15),0,XZ_THEME_HEADER);
- xz_text(c,148,10,"XZ MODS",2,15,m->theme==9?0xffffff:p->ink);xz_text(c,12,50,"XDJ-XZ",1,20,m->theme==9?0xffffff:dim);
- if(u->page!=XZ_UI_SETTINGS&&u->page!=XZ_UI_STEMS&&u->page!=XZ_UI_XPAD)xz_text(c,580,12,"vj.tools/xzmods",1,18,m->theme==9?0xffffff:p->accent);
+ const struct xz_ui_deck *d=s->d;const struct xz_theme_palette *p=s->p;char buf[96];size_t i;
+ int theme=m->theme,win=theme==9,modern=flat(theme);
+ uint32_t ink=p->ink,head_ink=win?0xffffff:ink;
+ uint32_t panel=xz_blend(p->bg,ink,22),edge=xz_blend(p->bg,ink,56),dim=xz_blend(p->bg,ink,150),faint=xz_blend(p->bg,ink,10);
+ xz_theme_background(xz_surface(c),theme,(struct xz_theme_rect){0,0,800,480});
+ /* Header and section rail. */
+ xz_theme_frame(xz_surface(c),theme,(struct xz_theme_rect){0,0,800,XZ_UI_HEAD},xz_blend(p->bg,ink,14),0,XZ_THEME_HEADER);
+ if(modern){
+  xz_rect(c,0,XZ_UI_HEAD,800,1,edge);
+  xz_rect(c,0,XZ_UI_HEAD+1,XZ_UI_RAIL_W,XZ_UI_DOCK_Y-XZ_UI_HEAD-1,faint);
+  xz_rect(c,XZ_UI_RAIL_W,XZ_UI_HEAD+1,1,XZ_UI_DOCK_Y-XZ_UI_HEAD-1,edge);
+ }
+ int decks=0;for(i=0;i<s->n;i++)decks|=s->w[i].kind==XZ_UI_DECK&&s->w[i].y<XZ_UI_HEAD;
+ xz_text(c,XZ_UI_CX,6,"XZ MODS",1,10,win?0xffffff:dim);
+ xz_text(c,XZ_UI_CX,18,section_title(u->page),2,decks?13:30,head_ink);
+ /* The DJ Profile chip owns the corner when there is one. */
+ if(!decks&&!m->dj)xz_text(c,600,16,"xzmods.com",1,20,win?0xffffff:p->accent);
  for(i=0;i<s->n;i++){
   struct xz_ui_widget a=s->w[i];int available=s->look[i].available,selected=s->look[i].selected;uint32_t color=s->look[i].color;
-  if(a.kind!=XZ_UI_DECK&&a.kind!=XZ_UI_SET_THEME){
-   xz_frame(c,m->theme,a,available?(selected?xz_blend(panel,color,38):panel):xz_blend(p->bg,p->ink,14),available&&selected);
-  }
-  if(a.kind==XZ_UI_PANEL)xz_rect(c,a.x,a.y+a.h-3,a.w,3,selected?p->accent:xz_blend(p->bg,p->ink,58));
-  if(a.kind==XZ_UI_MUTE||a.kind==XZ_UI_GROOVE_PAD)xz_rect(c,a.x,a.y,a.w,3,available?color:dim);
-  if(a.kind==XZ_UI_PANEL&&a.index==XZ_UI_STEMS&&(m->enabled&XZ_UI_STEM)&&!d->bypass&&
-      (d->levels[0]<1||d->levels[1]<1||d->levels[2]<1||d->muted||d->groove_active>=0))
-      xz_rect(c,a.x+a.w-8,a.y+7,4,4,p->alarm);
-  if(a.kind==XZ_UI_DECK){
-   deck_card(c,&a,selected,p);snprintf(buf,sizeof(buf),"DECK %d",a.index+1);
-   xz_text(c,a.x+14,a.y+4,buf,2,12,p->ink);xz_text(c,a.x+14,a.y+24,a.label,1,22,dim);
-  }
-  else if(a.kind==XZ_UI_SET_THEME)theme_card(c,&a,selected);
-  else if(a.kind==XZ_UI_LEVEL||a.kind==XZ_UI_VOLUME){
-   float value=a.kind==XZ_UI_LEVEL?d->levels[a.index]:d->sample_volume;
-   int position=(int)(clampf(value,0,1)*(float)(a.w-16));
-   uint32_t bar=a.kind==XZ_UI_LEVEL?p->stem[a.index]:p->accent;
-   if(a.kind==XZ_UI_LEVEL&&(d->muted&(1u<<a.index)))bar=dim;
-   xz_rect(c,a.x+8,a.y+27,a.w-16,2,dim);xz_rect(c,a.x+8,a.y+27,position,2,available?bar:dim);
-   for(int tick=0;tick<5;tick++)xz_rect(c,a.x+8+(a.w-16)*tick/4,a.y+24,1,8,dim);
-   xz_rect(c,a.x+5+position,a.y+20,6,16,available?p->ink:dim);
-   xz_rect(c,a.x+5+position,a.y+20,6,3,available?bar:dim);
-   snprintf(buf,sizeof(buf),"%d%%",(int)(clampf(value,0,1)*100+.5f));xz_text(c,a.x+8,a.y+5,buf,1,10,p->ink);
-  }else if(a.kind==XZ_UI_STRIP){
-   int k;for(k=0;k<6;k++){xz_rect(c,a.x+k*a.w/6,a.y,2,a.h,dim);xz_text(c,a.x+k*a.w/6+8,a.y+8,xz_ui_lengths[k],2,6,p->ink);}
-   xz_rect(c,a.x,a.y+a.h/2,a.w,1,dim);xz_text(c,a.x+8,a.y+38,"+12",1,5,dim);xz_text(c,a.x+8,a.y+118,"-12",1,5,dim);
-   if(d->loop_index>=0&&d->loop_index<6){int py=(int)((12-clampf(d->pitch,-12,12))*(a.h-4)/24);xz_rect(c,a.x+d->loop_index*a.w/6+4,a.y+py,a.w/6-8,3,available?p->accent:dim);}
-  }else if(a.kind==XZ_UI_KEY_SHIFT&&a.index==0){
-   if(available)snprintf(buf,sizeof(buf),"%+d",d->key_semitones);else snprintf(buf,sizeof(buf),"--");
-   xz_text(c,a.x+8,a.y+6,buf,2,5,available?p->ink:dim);
-   if(available)xz_text(c,a.x+8,a.y+30,"RESET",1,8,dim);
-  }else{
-   int scale=xz_text_width(c,a.label,2,100)>a.w-20?1:2;
-   xz_text(c,a.x+8,a.y+8,a.label,scale,(a.w-16)/(6*scale),available?p->ink:dim);
-   if(a.kind==XZ_UI_MUTE&&selected){
-    xz_rect(c,a.x+a.w-63,a.y+10,55,17,p->alarm);
-    xz_text(c,a.x+a.w-58,a.y+13,"MUTED",1,9,p->bg);
+  uint32_t text=available?ink:dim;
+  if(a.kind==XZ_UI_PANEL&&a.x<XZ_UI_RAIL_W){
+   /* Section rail: icon over label, accent bar on the open section. */
+   if(!modern)xz_frame(c,theme,a,panel,selected);
+   else if(selected){
+    xz_round_rect(c,a.x+6,a.y,a.w-12,a.h,10,15,xz_blend(p->bg,p->accent,48));
+    xz_round_rect(c,a.x,a.y+16,4,a.h-32,2,15,p->accent);
    }
-   if(a.kind==XZ_UI_JUMP_ENABLE||a.kind==XZ_UI_JUMP_SHIFT||a.kind==XZ_UI_SHIFT_PAGES||a.kind==XZ_UI_PAD_FEEDBACK||a.kind==XZ_UI_SHIFT_KEYSYNC||a.kind==XZ_UI_TAKEOVER_TOGGLE||a.kind==XZ_UI_STEMS_OVERLAY)
-    xz_text(c,a.x+a.w-40,a.y+18,selected?"ON":"OFF",1,6,selected?p->accent:dim);
-   if(a.kind==XZ_UI_ENABLE)xz_text(c,a.x+a.w-78,a.y+16,!available?"NOT READY":selected?"ON":"OFF",1,12,available&&selected?p->accent:dim);
-   if(a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY)
-    xz_text(c,a.x+8,a.y+34,m->connection.ready?(selected?"ON":"OFF"):"UNAVAILABLE",1,20,selected?p->accent:dim);
-   if(a.kind==XZ_UI_GROOVE_PAD)xz_text(c,a.x+8,a.y+31,available?(d->groove_active==a.index?"PLAYING":"READY"):"NOT READY",1,12,available?color:dim);
-   if(a.kind==XZ_UI_HOTCUE_PAD)xz_text(c,a.x+8,a.y+31,"HOT CUE",1,12,dim);
-   if(a.kind==XZ_UI_SERVER_AUTO)xz_text(c,a.x+8,a.y+27,m->server_auto?"AUTO":"MANUAL",1,30,p->accent);
-   if(a.kind==XZ_UI_SERVER_ADDRESS)xz_text(c,a.x+8,a.y+27,m->server_address&&*m->server_address?m->server_address:"NOT SET",1,58,dim);
-  }
-  if(!available&&a.kind!=XZ_UI_GROOVE_PAD&&a.kind!=XZ_UI_ENABLE)
-   xz_text(c,a.x+a.w-64,a.kind==XZ_UI_LEVEL||a.kind==XZ_UI_VOLUME?a.y+5:a.y+a.h-12,
-        a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY?"READ ONLY":"NOT READY",1,10,dim);
- }
- xz_ui_page_details(s);
- xz_rect(c,0,451,800,29,xz_blend(p->bg,p->ink,20));xz_rect(c,0,451,800,1,xz_blend(p->bg,p->ink,90));
- xz_text(c,212,461,xz_ui_footer_text(u,m),1,90,u->notice[0]?p->alarm:dim);
-}
-static void render_inline(const struct xz_ui_scene *s){
- struct xz_canvas c=s->c;const struct xz_ui_model *m=s->m;const struct xz_theme_palette *p=s->p;
- xz_rect(c,0,0,c.width,c.height,p->bg);
- for(size_t i=0;i<s->n;i++){
-  struct xz_ui_widget a=s->w[i];const struct xz_ui_deck *d=&m->deck[a.deck];
-  int available=s->look[i].available,selected=s->look[i].selected;
-  uint32_t color=available?p->ink:xz_blend(p->bg,p->ink,100);
-  xz_rect(c,a.x,a.y,a.w,a.h,xz_blend(p->bg,p->ink,22));
-  xz_border(c,a.x,a.y,a.w,a.h,xz_blend(p->bg,p->ink,100));
-  if(a.kind==XZ_UI_MUTE){
-   int on=available&&!selected&&d->levels[a.index]>0;
-   xz_rect(c,a.x+1,a.y+1,a.w-2,a.h-2,xz_blend(p->bg,p->stem[a.index],on?150:32));
-   xz_border(c,a.x,a.y,a.w,a.h,available?p->stem[a.index]:color);
-   if(m->theme>=7)xz_frame(c,m->theme,a,xz_blend(p->bg,p->stem[a.index],on?70:20),on);
-   xz_text(c,a.x+8,a.y+3,a.label,2,(a.w-16)/12,color);
-   int bar=(int)((a.w-48)*clampf(selected?0:d->levels[a.index],0,1));
-   xz_rect(c,a.x+6,a.y+a.h-10,a.w-48,4,xz_blend(p->bg,p->ink,60));
-   if(bar)xz_rect(c,a.x+6,a.y+a.h-10,bar,4,on?p->stem[a.index]:color);
-   char value[8];snprintf(value,sizeof(value),"%d%%",(int)(clampf(selected?0:d->levels[a.index],0,1)*100+.5f));
-   xz_text(c,a.x+a.w-34,a.y+a.h-14,selected?"MUTE":value,1,5,color);
-   if(d->stem_loading)xz_text(c,a.x+8,a.y+24,"LOADING",1,(a.w-16)/6,p->alarm);
+   uint32_t tone=selected?(modern?p->accent:ink):dim;
+   xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+a.w/2,a.y+25,tone);
+   int tw=xz_text_width(c,a.label,1,14);xz_text(c,a.x+(a.w-tw)/2,a.y+a.h-17,a.label,1,14,selected?ink:dim);
    continue;
   }
-  if(selected){xz_rect(c,a.x+1,a.y+1,a.w-2,a.h-2,xz_blend(p->bg,p->alarm,88));xz_border(c,a.x,a.y,a.w,a.h,p->alarm);}
-  if(m->theme>=7)xz_frame(c,m->theme,a,p->bg,selected);
-  xz_text(c,a.x+8,a.y+3,a.label,2,(a.w-16)/12,color);
-  xz_text(c,a.x+8,a.y+32,selected?"ON":"OFF",1,6,selected?p->alarm:color);
-  xz_text(c,a.x+a.w-29,a.y+32,a.deck?"D2":"D1",1,3,color);
+  if(a.kind==XZ_UI_BACK||a.kind==XZ_UI_CLOSE){
+   int cy=a.y+a.h/2;
+   if(!modern)xz_frame(c,theme,a,panel,0);
+   if(a.kind==XZ_UI_BACK){chevron(c,a.x+22,cy,-1,head_ink);xz_text(c,a.x+36,cy-7,"BACK",2,6,head_ink);}
+   else{
+    if(modern)xz_round_rect(c,a.x+6,a.y+7,a.w-12,a.h-14,(a.h-14)/2,15,xz_blend(p->bg,p->alarm,56));
+    int x=a.x+18;
+    xz_line16(c,x*16,(cy-4)*16,(x+8)*16,(cy+4)*16,26,head_ink);xz_line16(c,x*16,(cy+4)*16,(x+8)*16,(cy-4)*16,26,head_ink);
+    xz_text(c,a.x+33,cy-4,"CLOSE",1,8,head_ink);
+   }
+   continue;
+  }
+  if(a.kind==XZ_UI_DECK){
+   card(c,theme,a,selected?xz_blend(p->bg,p->accent,56):panel,selected?p->accent:edge,selected);
+   snprintf(buf,sizeof(buf),"DECK %d",a.index+1);xz_text(c,a.x+12,a.y+5,buf,2,12,ink);
+   xz_text(c,a.x+12,a.y+25,a.label,1,(a.w-24)/6,dim);
+   if(selected)xz_disc(c,a.x+a.w-16,a.y+a.h/2,4,p->accent);
+   continue;
+  }
+  if(a.kind==XZ_UI_SET_THEME){theme_card(c,&a,selected);continue;}
+  const char *line=tagline(&a);
+  if(line&&a.h>=72){
+   /* Launch card: icon tile, title, tagline and a chevron at the edge. */
+   card(c,theme,a,available?panel:faint,edge,0);
+   int big=a.h>=120,tile=big?56:44,tx=a.x+14,ty=big?a.y+16:a.y+(a.h-tile)/2;
+   xz_round_rect(c,tx,ty,tile,tile,12,15,xz_blend(p->bg,p->accent,modern?64:110));
+   xz_ui_chrome_icon(c,card_icon(&a),tx+tile/2,ty+tile/2,modern?p->accent:ink);
+   if(big){fit_text(c,a.x+14,ty+tile+18,a.w-48,a.label,text);xz_text(c,a.x+14,ty+tile+42,line,1,(a.w-48)/6,dim);}
+   else{fit_text(c,tx+tile+14,a.y+a.h/2-17,a.w-tile-64,a.label,text);xz_text(c,tx+tile+14,a.y+a.h/2+7,line,1,(a.w-tile-64)/6,dim);}
+   chevron(c,a.x+a.w-22,a.y+a.h/2,1,dim);
+   continue;
+  }
+  int primary=is_primary(a.kind,a.index)&&available,shared=a.kind==XZ_UI_STEM_PAD_CONFIG||a.kind==XZ_UI_JUMP_PAIR||a.kind==XZ_UI_STEMS_OVERLAY||a.kind==XZ_UI_STEM_ORDER;
+  uint32_t fill=!available?faint:primary?p->accent:is_choice(a.kind)&&selected?xz_blend(p->bg,p->accent,modern?64:120):panel;
+  uint32_t border=primary||(selected&&is_choice(a.kind))?p->accent:edge;
+  if(!shared)card(c,theme,a,fill,border,available&&selected&&!is_toggle(a.kind));
+  if(primary)text=modern?p->bg:ink;
+  if(a.kind==XZ_UI_MUTE||a.kind==XZ_UI_GROOVE_PAD)xz_round_rect(c,a.x+8,a.y+4,a.w-16,3,1,15,available?color:dim);
+  if(a.kind==XZ_UI_LEVEL||a.kind==XZ_UI_VOLUME){
+   float value=a.kind==XZ_UI_LEVEL?d->levels[a.index]:d->sample_volume;
+   int position=(int)(clampf(value,0,1)*(float)(a.w-24));
+   uint32_t bar=a.kind==XZ_UI_LEVEL?p->stem[a.index]:p->accent;
+   if(a.kind==XZ_UI_LEVEL&&(d->muted&(1u<<a.index)))bar=dim;
+   xz_round_rect(c,a.x+12,a.y+a.h/2-2,a.w-24,4,2,15,xz_blend(p->bg,ink,50));
+   xz_round_rect(c,a.x+12,a.y+a.h/2-2,position,4,2,15,available?bar:dim);
+   xz_disc(c,a.x+12+position,a.y+a.h/2,7,available?ink:dim);
+   snprintf(buf,sizeof(buf),"%d%%",(int)(clampf(value,0,1)*100+.5f));xz_text(c,a.x+a.w-40,a.y+4,buf,1,6,dim);
+  }else if(a.kind==XZ_UI_STRIP){
+   for(int k=0;k<6;k++){if(k)xz_rect(c,a.x+k*a.w/6,a.y+6,1,a.h-12,edge);xz_text(c,a.x+k*a.w/6+10,a.y+10,xz_ui_lengths[k],2,6,ink);}
+   xz_rect(c,a.x+8,a.y+a.h/2,a.w-16,1,edge);xz_text(c,a.x+10,a.y+34,"+12",1,5,dim);xz_text(c,a.x+10,a.y+a.h-16,"-12",1,5,dim);
+   if(d->loop_index>=0&&d->loop_index<6){int py=(int)((12-clampf(d->pitch,-12,12))*(float)(a.h-8)/24);xz_round_rect(c,a.x+d->loop_index*a.w/6+6,a.y+2+py,a.w/6-12,4,2,15,available?p->accent:dim);}
+  }else if(a.kind==XZ_UI_KEY_SHIFT&&a.index==0){
+   if(available)snprintf(buf,sizeof(buf),"%+d",d->key_semitones);else snprintf(buf,sizeof(buf),"--");
+   xz_text(c,a.x+12,a.y+5,buf,2,5,text);
+   xz_text(c,a.x+12,a.y+25,"RESET",1,8,dim);
+  }else if(!shared){
+   int compact=a.w<200,right=is_toggle(a.kind)?(compact?40:54):a.kind==XZ_UI_PANEL||(is_choice(a.kind)&&selected)?28:12;
+   int two=a.kind==XZ_UI_GROOVE_PAD||a.kind==XZ_UI_HOTCUE_PAD||a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY||
+    a.kind==XZ_UI_SERVER_AUTO||a.kind==XZ_UI_SERVER_ADDRESS||a.kind==XZ_UI_SAMPLE_PAD;
+   int ty=two||a.h>=56?a.y+10:a.y+(a.h-14)/2;
+   fit_text(c,a.x+12,ty,a.w-12-right,a.label,text);
+   if(is_toggle(a.kind)){
+    uint32_t track=xz_blend(p->bg,ink,60),knob=modern?0xffffff:ink;
+    if(compact){
+     /* Compact switch for four-across rows. */
+     int sx=a.x+a.w-36,sy=a.y+(a.h-16)/2;uint32_t f=!available?xz_blend(track,knob,30):selected?p->accent:track;
+     xz_round_rect(c,sx,sy,28,16,8,15,f);xz_disc(c,selected?sx+20:sx+8,sy+8,5,available?knob:xz_blend(track,knob,120));
+    }else xz_ui_chrome_switch(c,a.x+a.w-48,a.y+(a.h-20)/2,selected,available,track,knob,p->accent);
+   }
+   if(a.kind==XZ_UI_PANEL)chevron(c,a.x+a.w-18,a.y+a.h/2,1,dim);
+   if(is_choice(a.kind)&&selected&&a.kind!=XZ_UI_WAD_SELECT)xz_disc(c,a.x+a.w-16,a.y+a.h/2,4,p->accent);
+   if(a.kind==XZ_UI_MUTE&&selected){xz_round_rect(c,a.x+a.w-63,a.y+10,55,17,8,15,p->alarm);xz_text(c,a.x+a.w-56,a.y+14,"MUTED",1,9,p->bg);}
+   if(a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY)
+    xz_text(c,a.x+12,a.y+28,m->connection.ready?"":"UNAVAILABLE",1,20,dim);
+   if(a.kind==XZ_UI_GROOVE_PAD)xz_text(c,a.x+12,a.y+a.h-20,available?(d->groove_active==a.index?"PLAYING":"READY"):"NOT READY",1,12,available?color:dim);
+   if(a.kind==XZ_UI_HOTCUE_PAD)xz_text(c,a.x+12,a.y+a.h-20,"HOT CUE",1,12,dim);
+   if(a.kind==XZ_UI_SAMPLE_PAD&&selected)xz_round_rect(c,a.x+8,a.y+a.h-10,a.w-16,4,2,15,p->accent);
+   if(a.kind==XZ_UI_SERVER_AUTO)xz_text(c,a.x+12,a.y+27,m->server_auto?"AUTO":"MANUAL",1,30,p->accent);
+   if(a.kind==XZ_UI_SERVER_ADDRESS)xz_text(c,a.x+12,a.y+27,m->server_address&&*m->server_address?m->server_address:"NOT SET",1,58,dim);
+  }
+  if(!available&&!shared&&a.kind!=XZ_UI_GROOVE_PAD&&!is_toggle(a.kind)&&a.h<56){
+   /* Short controls: a status dot; the info dock spells out why. */
+   xz_disc(c,a.x+a.w-14,a.y+a.h/2,4,p->alarm);
+  }else if(!available&&!shared&&a.kind!=XZ_UI_GROOVE_PAD&&!is_toggle(a.kind)&&a.w>=120){
+   const char *tag=a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY?"READ ONLY":"NOT READY";
+   int tw=xz_text_width(c,tag,1,10)+14;
+   xz_round_rect(c,a.x+a.w-tw-8,a.y+a.h-20,tw,14,7,15,xz_blend(p->bg,p->alarm,60));
+   xz_text(c,a.x+a.w-tw-1,a.y+a.h-17,tag,1,10,p->alarm);
+  }
  }
+ xz_ui_page_details(s);
 }
+static void render_inline(const struct xz_ui_scene *s){
+ xz_rect(s->c,0,0,s->c.width,s->c.height,s->p->bg);
+ xz_ui_stem_rows(s);
+}
+
 void xz_ui_render_badge(uint16_t *pixels,size_t stride){
  if(!pixels||stride<800)return;
  struct xz_canvas c={pixels,stride,800,480,0};

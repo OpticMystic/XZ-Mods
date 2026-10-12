@@ -56,6 +56,7 @@ def main() -> None:
     parser.add_argument("--backup", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--portable-root", type=Path, help="Existing portable XZ Mods folder to update alongside the installed app")
     args = parser.parse_args()
     bundle, backup = args.bundle.resolve(), args.backup.resolve()
     manifest = load_mods_bundle(bundle)
@@ -68,6 +69,11 @@ def main() -> None:
         "installed": installed / "resources",
         "sibling": sibling / "resources",
     }
+    portable = args.portable_root.resolve() if args.portable_root else None
+    if portable:
+        if not (portable / "XZ Mods.exe").is_file():
+            raise RuntimeError("Expected portable XZ Mods.exe: " + str(portable))
+        resources["portable"] = portable / "resources"
     canonical = {
         "toolkit": ROOT.parent.parent / "runtime",
         "library": library / "xdj-toolkit/mods",
@@ -98,6 +104,8 @@ def main() -> None:
         "library_usb_builder": library / "xdj-toolkit/xz-builder.exe",
         "sibling_ui": sibling / "ui",
     }
+    if portable:
+        protected["portable_shell"] = portable / "XZ Mods.exe"
     for label, directory in resources.items():
         for name in ("backend", "inference", "source/xdj-xz-toolkit/builder"):
             protected[label + "/" + name] = directory / name
@@ -133,12 +141,16 @@ def main() -> None:
                 shutil.copy2(previous, destination)
     shutil.copytree(resources["sibling"] / "runtime", backup / "sibling-runtime")
     shutil.copytree(canonical["library"], backup / "library-runtime")
+    if portable:
+        shutil.copytree(resources["portable"] / "runtime", backup / "portable-runtime")
     subprocess.run([sys.executable, str(ROOT / "install_local.py"), "--bundle", str(bundle),
                     "--backup", str(backup / "core-runtime"),
                     "--evidence", str(backup / "core-installer.json")], check=True)
 
-    for label, target in (("sibling", resources["sibling"] / "runtime"),
-                          ("library", canonical["library"])):
+    additional = [("sibling", resources["sibling"] / "runtime"), ("library", canonical["library"])]
+    if portable:
+        additional.append(("portable", resources["portable"] / "runtime"))
+    for label, target in additional:
         for relative in manifest["files"]:
             replace_bytes(child(target, relative), (bundle / relative).read_bytes())
         if label == "library":
@@ -157,6 +169,10 @@ def main() -> None:
         bundle_manifest_sha256=receipt["bundle_manifest_sha256"],
         settings_schema_sha256=manifest["files"].get("settings-schema.json"),
         native_wave_rider=True, physical_wave_rider_controls_verified=False, track_phase_verified=False,
+        wave_rider_gameplay="slope-physics", wave_rider_modes=["solo", "co-op", "versus"],
+        wave_rider_controls="gentle-jog-cue-weight", wave_rider_spin_lift=True,
+        wave_rider_difficulties=["easy", "normal", "hard"], wave_rider_default_difficulty="easy",
+        wave_rider_credit="A game by VJ OpticMystic",
     )
     for label, directory in resources.items():
         target = directory / "runtime"
@@ -164,7 +180,7 @@ def main() -> None:
         replace_bytes(target / "manifest.json", (json.dumps(dict(previous, **metadata), indent=2) + "\n").encode())
         replace_bytes(directory / "bootstrap.sh", (bundle / "bootstrap.sh").read_bytes())
         source = directory / "source/xdj-xz-toolkit"
-        if label == "sibling":
+        if label not in ("builder", "installed"):
             with zipfile.ZipFile(bundle / "source.zip") as archive:
                 for relative in source_entries:
                     replace_bytes(child(source, relative), archive.read(relative))

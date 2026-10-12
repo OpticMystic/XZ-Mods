@@ -8,6 +8,107 @@ physical acceptance separately from portable UI tests.
 device, audio, network or allocation dependency. The runtime supplies a snapshot
 and receives typed actions; the renderer never assumes a feature is implemented.
 
+## Screen layout and hardware navigation
+
+The panel is a fixed grid shared by every skin (`ui_skin.h`): a 40 px header
+with BACK, the page title, optional deck pickers and CLOSE; a 124 px section
+rail (CONTROLS, APPEARANCE, ADVANCED, EXTRAS) with drawn icons; content in
+x 136..792, y 48..404; and an info dock at y 412..480. Controls never enter
+the dock (`test_ui.c` enforces this for all 24 themes). The dock names the
+focused control, its state (ON, OFF, SELECTED, NOT READY, ADJUSTING), what it
+changes, the save status or latest notice, and the hardware key hints.
+
+### DJ Profile in the header
+
+The header's right corner shows the DJ Profile like a signed-in user: the
+logo in a circle, the DJ name, the USB it came from and a caret. Beside the
+deck pickers it shrinks to the logo and caret, and the deck pickers narrow to
+170 px. The chip shows the active profile of the USB the master deck plays
+from, else a USB another deck plays from, else the USB the browser shows,
+else the first USB with a profile (`dj_runtime.c`). With no profile it shows
+a silhouette and TAP TO SET UP.
+
+Tapping the chip (or pushing it with the encoder) opens a list under the
+corner, over the dimmed page: every profile on both USBs with its logo,
+name, USB and tagline, a check on each USB's active profile, pages of five,
+and PROFILE SETUP (SET UP DJ PROFILE when there is none, as the primary
+button). Picking a profile rewrites only that USB's
+`DJPROFILE/VJTOOLS/index.json`; the footer shows the result on every page
+for three seconds. A damaged profile stays listed under its index name and
+cannot be picked. While the list is open it is the only thing touch and the
+encoder reach. A tap outside or BACK closes it, and focus returns to the chip.
+The list's last button opens the DJ PROFILE page (`ui_profile.c`). It shows
+one profile at a time: the full 160 px logo, name, tagline, USB and whether
+VJ software sees it now, and PREV and NEXT between profiles. QR display and
+online sharing are removed for now at the owner's request; the online page
+is not available. Buttons: EDIT, MAKE ACTIVE, NEW PROFILE, CHECK USB. With no
+profile the page walks insert USB, create, choose, with CREATE ON THIS XZ as
+the primary button and CHECK USB beside it.
+
+The editor (`XZ_UI_PROFILE_EDIT`) has four steps: DJ NAME and TAGLINE on an
+on-screen keyboard (letters, digits, a symbols layer, SHIFT, SPACE, DELETE; 64
+and 80 characters), LOGO from any PNG or JPEG on the USB (images directly in
+`DJPROFILE/<name>` and `DJPROFILES/<name>` folders first, then the rest of the
+stick up to three folders deep, rendered as the XZ tile before it is chosen,
+or NO LOGO for a monogram), and REVIEW with SAVE TO USB 1 or 2. A new profile
+takes the logo in the folder named like the typed name until the DJ picks
+(`xz_ui_profile_autopick`). Without one, the LOGO step tells the DJ to put the
+logo in `DJPROFILE/<typed name>`: as the whole step, with CHECK USB AGAIN as
+the one button, when the stick has no image at all, otherwise above a
+four-row list with RESCAN. The page with no profile leads with the same
+folder: make `DJPROFILE`, a folder with your DJ name inside, the logo in it.
+
+Hand-made folder profiles (`dj_folders.c`, standard §1.1) appear in the
+header and on the page in the stick's rekordbox colour. MAKE ACTIVE or EDIT
+on one saves it as a `VJTOOLS` profile with the folder's logo. A new profile walks the steps
+in order; EDIT opens on REVIEW and each CHANGE button returns there. BACK goes
+one step back before it leaves. Every key is focusable, so the encoder alone
+can type. Typing stays in `xz_ui`; SAVE hands the draft to the worker, which
+writes only `DJPROFILE/VJTOOLS` on that USB (`dj_profile_write.c`, mirroring
+Rust `publish_profile`) and makes a new profile active there. Profiles are
+never stored on the XZ. `model.dj` is NULL when the runtime has no reader,
+which hides the chip, the page's buttons and the editor.
+
+Every control is reachable without the touchscreen, so a player with a broken
+digitizer keeps the whole MODS menu:
+
+| Key | While MODS is open | While MODS is closed |
+|---|---|---|
+| REKORDBOX | closes MODS | opens MODS (ADVANCED > REKORDBOX KEY off restores the stock action) |
+| Browse encoder turn | moves focus: content in reading order, then deck pickers, then the section rail, wrapping | stock |
+| Browse encoder push | activates the focused control exactly like a tap | stock |
+| BACK | leaves a value edit, else goes up one page, else closes | stock |
+
+Focus is stored by control identity (`focus_kind`, `focus_index`,
+`focus_deck`), so relayouts keep it, and a touch moves it to the touched
+control. Pushing a beat-jump pair or the X-PAD volume enters an edit where
+turning changes the value; push or BACK ends it. `xz_ui_encoder_turn`,
+`xz_ui_encoder_push`, `xz_ui_focused` and `xz_ui_describe` are pure and
+host-tested; the runtime hooks `UiKey_EncoderRotate` (0xe15b0),
+`UiKey_EncoderPush` (0xdec08) and `UiKey_rekordbox` (0xe0a50) behind their
+prologue guards.
+
+The games launched from MODS take the same keys, so they need no touch either:
+
+| Key | Wave Rider, Rhythm Lab, Glyph Run, Beat Arcade | Doom |
+|---|---|---|
+| Browse encoder turn | first detent shows a focus ring on the screen's main control, later detents move it through every on-screen control | menu up / down |
+| Browse encoder push | taps the focused control | Enter |
+| BACK | one screen back (setup step, sub-screen, menu); from a game's first screen, leaves it; ignored mid-round | Escape (game menu) |
+| REKORDBOX | leaves the game and opens MODS on the page it was launched from | quits Doom; the next press opens MODS |
+
+Each game renderer records the controls it draws that frame
+(`arcade/game_nav.h`). The encoder moves over that list and a push replays a
+touch at the control's centre through the game's own touch handler, so touch
+and encoder share one hit test. A new set of controls means a new screen, and
+focus returns to its primary control; it never starts on DECK or DJ VIEW, so a
+stray push mid-round does nothing. Touching the screen hides the ring.
+`arcade/verify_game_nav.py` taps every recorded control on 22 game screens and
+drives Wave Rider setup with the encoder alone. Doom receives these keys
+through a tap queue in the shared input page (protocol version 2).
+SDK applications, including the kart preview, keep their own controls;
+REKORDBOX opens MODS over them, where APPS can stop them.
+
 ## Runtime contract
 
 1. Zero-initialize `xz_ui_model`; initialize each deck's `groove_active` and

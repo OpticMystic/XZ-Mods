@@ -35,5 +35,26 @@ int main(void){
     model.fb_takeover=0;model.connection.connected=0;
     contact(touch_self,700,380,1);contact(touch_self,700,380,0);assert(stock_calls==before+2);
     puts("PASS real runtime arcade open, two-player readiness, CUE strike and onscreen handoff, physical and touch release ownership, stock touch restore");
+
+    static uint16_t screen[800*480];
+    unsigned char back[24]={0};uint16_t back_key=0x4208;memcpy(back+8,&back_key,2);
+    model.rekordbox_menu=1;touch.visible=1;arcade.phase=XZ_ARCADE_MENU;arcade.mode=XZ_ARCADE_BREAK_SOLO;
+    apply(NULL,&open,1);assert(arcade_present&&arcade_opening_touch);
+    assert(xz_mods_render_v1(screen,800,480,800,NULL)==1&&game_frame.count>=7);
+    assert(encoder_rotate_hook(1)==1&&game_nav.visible&&game_nav.shown.at[game_nav.focus].y==208);
+    assert(xz_mods_render_v1(screen,800,480,800,NULL)==1&&screen[(208-3)*800+200]==0xffff);
+    /* The encoder opened nothing by touch, so the first push must not be eaten by the opening latch. */
+    assert(encoder_push_hook(NULL,NULL,NULL,NULL)==1&&arcade.mode==XZ_ARCADE_BREAK_SOLO&&arcade.phase==XZ_ARCADE_COUNT_IN);
+    menu_back_key_hook(NULL,back);back[11]=2;menu_back_key_hook(NULL,back);back[11]=0;
+    assert(arcade_present&&arcade.phase==XZ_ARCADE_COUNT_IN&&!menu_back_contact);
+    assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==1);
+    assert(!arcade_present&&touch.visible&&ui.page==XZ_UI_EXTRAS&&arcade.phase==XZ_ARCADE_MUSIC&&model.fb_takeover==0);
+    assert(game_locked()==GAME_NONE&&menu_owns_keys_locked()&&encoder_rotate_hook(1)==1);
+    apply(NULL,&open,1);assert(xz_mods_render_v1(screen,800,480,800,NULL)==1);
+    menu_back_key_hook(NULL,back);back[11]=2;menu_back_key_hook(NULL,back);
+    assert(!arcade_present&&!touch.visible&&!arcade.leave);
+    touch.visible=1;arcade.phase=XZ_ARCADE_MENU;apply(NULL,&open,1);xz_mods_render_v1(screen,800,480,800,NULL);
+    encoder_rotate_hook(1);contact(touch_self,10,470,1);assert(!game_nav.visible);contact(touch_self,10,470,0);
+    puts("PASS real runtime arcade encoder focus ring, push past the opening latch, BACK ignored mid-round, REKORDBOX to MODS, BACK on the paused screen, touch hides the ring");
     return 0;
 }

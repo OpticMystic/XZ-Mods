@@ -1,0 +1,23 @@
+{
+  "schema": "vj.tools.dj-branding",
+  "version": 1,
+  "id": "0b7c1f2e-0000-4000-8000-00000000c0de",
+  "artist": "DJ Kai",
+  "created_at": "2026-10-08T15:00:00+00:00",
+  "files": [
+    {
+      "role": "logo",
+      "path": "assets/001-logo.png",
+      "name": "logo.png",
+      "bytes": 75,
+      "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b"
+    },
+    {
+      "role": "rendition",
+      "path": "renditions/xz-tile-160.rgb565",
+      "name": "xz-tile-160.rgb565",
+      "bytes": 51200,
+      "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0"
+    }
+  ]
+}

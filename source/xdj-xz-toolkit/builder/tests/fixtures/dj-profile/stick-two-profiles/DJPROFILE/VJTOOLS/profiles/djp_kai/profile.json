@@ -1,0 +1,42 @@
+{
+  "schema": "vj.tools.dj-profile",
+  "version": 1,
+  "dj_id": "djp_kai",
+  "revision": "0b7c1f2e-0000-4000-8000-00000000c0de",
+  "dj_name": "DJ Kai",
+  "note": "",
+  "bundle": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de",
+  "preferred_logo": {
+    "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png",
+    "bytes": 75,
+    "sha256": "fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b",
+    "label": "Preferred logo",
+    "note": ""
+  },
+  "secondary_logos": [],
+  "xz_tile": {
+    "path": "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565",
+    "bytes": 51200,
+    "sha256": "d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0",
+    "width": 160,
+    "height": 160,
+    "format": "rgb565le"
+  },
+  "tagline": "Deep tech, Berlin",
+  "accent": "#ff2a6d",
+  "aliases": [
+    "KAI",
+    "Kai Moreno"
+  ],
+  "links": [
+    {
+      "kind": "website",
+      "url": "https://example.com/kai"
+    },
+    {
+      "kind": "media-kit",
+      "url": "https://example.com/kai/press.zip"
+    }
+  ],
+  "page_url": "https://vj.tools/dj#p1.fixture"
+}

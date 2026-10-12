@@ -6,6 +6,13 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__linux__)
+extern int xz_ram_files_pin(FILE *const[],struct xz_ram_file_pin[],size_t) __attribute__((weak));
+extern void xz_ram_file_unpin(struct xz_ram_file_pin *) __attribute__((weak));
+#else
+#define xz_ram_file_unpin xz_ram_file_unpin_absent
+static void (*xz_ram_file_unpin)(struct xz_ram_file_pin *);
+#endif
 #define JSMN_STATIC
 #include "vendor/jsmn/jsmn.h"
 #include "vendor/sha256/sha256.h"
@@ -160,7 +167,25 @@ int xz_oc_read(struct xz_oc_file *f,int64_t first,size_t count,int16_t *out){
         for(size_t i=0;i<n*2;i++){unsigned char *p=f->raw+(size_t)slot*XZ_OC_PAGE+offset+i*2;out[done*2+i]=(int16_t)((unsigned)p[0]|(unsigned)p[1]<<8);}done+=n;
     }return 0;
 }
-static void close_file(struct xz_oc_file *f){if(f->file)fclose(f->file);free(f->pages);free(f->raw);free(f->compressed);memset(f,0,sizeof(*f));}
+static void close_file(struct xz_oc_file *f){if(f->file)fclose(f->file);if(f->ram.mapping&&xz_ram_file_unpin)xz_ram_file_unpin(&f->ram);free(f->pages);free(f->raw);free(f->compressed);memset(f,0,sizeof(*f));}
+int xz_oc_assets_pin(struct xz_oc_assets *a){
+#if defined(__linux__)
+    if(!a||!xz_ram_files_pin)return 0;
+    struct xz_oc_file *members[7]={&a->role[0],&a->role[1],&a->role[2],&a->reference,&a->combination[0],&a->combination[1],&a->combination[2]};
+    FILE *files[7];struct xz_ram_file_pin pins[7]={{0}};
+    for(unsigned i=0;i<7;i++){if(members[i]->ram.mapping)return 1;files[i]=members[i]->file;}
+    int result=xz_ram_files_pin(files,pins,7);
+    if(result==1)for(unsigned i=0;i<7;i++)members[i]->ram=pins[i];
+    return result;
+#else
+    (void)a;return 0;
+#endif
+}
+size_t xz_oc_assets_ram_bytes(const struct xz_oc_assets *a){
+    if(!a)return 0;size_t total=a->reference.ram.bytes;
+    for(unsigned i=0;i<3;i++)total+=a->role[i].ram.bytes+a->combination[i].ram.bytes;
+    return total;
+}
 int xz_oc_verify_role(const char *path,uint64_t frames,const char *table_sha,const char *pcm_sha){
     struct xz_oc_file file={0};int rc=-1;
     if(!frames||frames>XZ_OC_MAX_PAGES*(XZ_OC_PAGE/4u)||!pcm_sha||strlen(pcm_sha)!=64)return -1;

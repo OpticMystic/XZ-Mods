@@ -1,0 +1,26 @@
+{
+  "artist": "VJ OpticMystic",
+  "worlds": [
+    {
+      "name": "liquid-wave",
+      "original": "E:\\BestOf2026zip\\a_massive_neon_ocean_wave_curling_in_slow_motion_against_a_dark_sky_the_water_is_impossibly_colored__c626966c-792d-43a7-887a-1fba8d1496af.png",
+      "sha256": "cb83816a01dde61e38b738aa6fcd401103309a8951ccee50b0289d7355a6913b",
+      "crop_top_after_width_768": 76,
+      "original_unchanged": true
+    },
+    {
+      "name": "sonic-tunnel",
+      "original": "E:\\BestOf2026zip\\7_sonic_ripple_shock_a_heavy_bass_hit_visualized_as_a_series_of_glowing_3d_rings_that_erupt_from_the_ccfbd5d1-5e55-449d-b433-9dac362241b0.png",
+      "sha256": "3a2773027ace869554faa40f458d96ff779c5f088d58be384a14edfa22dbd7c1",
+      "crop_top_after_width_768": 55,
+      "original_unchanged": true
+    },
+    {
+      "name": "gold-phoenix",
+      "original": "E:\\BestOf2026zip\\phoenix_birth_onhdr_neon_dream_vj_loop_flames_962e793e-cf6a-496e-b1ac-b8c24ad72f1b.png",
+      "sha256": "9e1917a0cf8711a3fda845d7092a8c3851995d4c24cdeb9e35f5e48000a4f369",
+      "crop_top_after_width_768": 65,
+      "original_unchanged": true
+    }
+  ]
+}

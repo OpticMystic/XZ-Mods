@@ -1,0 +1,25 @@
+{
+  "schema": "vj.tools.dj-profile",
+  "version": 1,
+  "dj_id": "djp_lena",
+  "revision": "5e1a9d40-0000-4000-8000-0000000b2b00",
+  "dj_name": "Lena B",
+  "note": "",
+  "bundle": "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00",
+  "preferred_logo": {
+    "path": "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00/assets/001-logo.png",
+    "bytes": 75,
+    "sha256": "c3016fc4b20640a0cf8fd02a46d7ef42b85054e61451e615f93ec79ab04baf69",
+    "label": "Preferred logo",
+    "note": ""
+  },
+  "secondary_logos": [],
+  "xz_tile": {
+    "path": "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00/renditions/xz-tile-160.rgb565",
+    "bytes": 51200,
+    "sha256": "1973be00f56fefe4de7c7dd8f4b4c1d00b5e8d0aaac3762810ae12b0f3338ce3",
+    "width": 160,
+    "height": 160,
+    "format": "rgb565le"
+  }
+}

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "arcade.h"
 #include "../ui/ui_skin.h"
+#include "game_nav.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -81,7 +82,11 @@ static void backdrop(struct xz_canvas c,const struct xz_arcade *g){
             xz_blend(deep,((int)floor(g->clock)&3)?cyan:pink,(unsigned)((1-wave)*60)));
     if(drop)polygon(c,400,243,70+(int)(bar*430),30+(int)(bar*205),(int)(bar*40),6,0x653956);
 }
+/* Controls drawn this frame, for encoder focus. Set only inside a render call.
+   Every card is a touch control; a selected card is where focus starts. */
+static struct xz_game_targets *targets;
 static void card(struct xz_canvas c,int x,int y,int w,int h,uint32_t col,const char *title,const char *sub,int selected){
+    xz_game_target_add(targets,x,y,w,h,selected?XZ_GAME_PRIMARY:XZ_GAME_NORMAL);
     xz_round_rect(c,x,y,w,h,12,15,selected?0x152b42:0x10192d);
     xz_rect(c,x+13,y+14,3,h-28,col);
     if(selected){xz_rect(c,x+12,y+h-3,w-24,2,col);xz_rect(c,x+12,y+1,w-24,1,xz_blend(0x10192d,col,95));}
@@ -111,8 +116,22 @@ static void charge(struct xz_canvas c,int x,int y,const struct xz_arcade_player 
     for(unsigned i=0;i<9;i++)xz_rect(c,x+(int)i*9,y,6,4,i<p->energy?color(deck):0x293247);
 }
 int xz_arcade_render(const struct xz_arcade *g,uint16_t *pixels,size_t count,size_t stride){
+    return xz_arcade_render_targets(g,pixels,count,stride,NULL);
+}
+static int draw(const struct xz_arcade *g,uint16_t *pixels,size_t stride);
+int xz_arcade_render_targets(const struct xz_arcade *g,uint16_t *pixels,size_t count,size_t stride,struct xz_game_targets *out){
+    if(out)out->count=0;
     if(!g||!pixels||stride<800||stride>count/480)return 0;
+    targets=out;
+    int result=draw(g,pixels,stride);
+    targets=NULL;
+    return result;
+}
+static int draw(const struct xz_arcade *g,uint16_t *pixels,size_t stride){
     struct xz_canvas c={pixels,stride,800,480,0};char s[128];backdrop(c,g);
+    if(g->phase!=XZ_ARCADE_CLOCK)xz_game_target_add(targets,232,8,337,30,XZ_GAME_NORMAL);
+    xz_game_target_add(targets,582,8,84,35,XZ_GAME_NORMAL);
+    xz_game_target_add(targets,680,8,108,35,XZ_GAME_EXIT);
     text(c,24,13,"BEAT / ARCADE",2,ink);
     xz_round_rect(c,232,8,337,30,8,15,0x121d32);clock_label(g,s,sizeof(s));center(c,400,16,s,1,g->live?cyan:dim);
     xz_round_rect(c,582,8,84,35,8,15,0x17243a);center(c,624,18,g->quiet?"CALM":"NEON",1,dim);

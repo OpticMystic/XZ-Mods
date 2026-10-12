@@ -4,6 +4,8 @@
 #endif
 #include "runtime.h"
 #include "keyshift.h"
+#include "../audio/trace.h"
+#include "../audio/runtime.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,6 +16,14 @@ struct fake_manager { unsigned char bytes[0x20]; };
 static struct fake_manager managers[2];
 static uint32_t rates[2] = {44100, 44100};
 static uint32_t generations[2] = {1, 10};
+/* The hardware recorder is disabled at this mocked firmware boundary. */
+int xz_audio_trace_enabled(void){return 0;}
+void xz_audio_batch_begin(int deck,int32_t position,struct xz_audio_batch *batch){(void)deck;(void)position;memset(batch,0,sizeof(*batch));}
+void xz_audio_batch_end(struct xz_audio_batch *batch){(void)batch;}
+uint64_t xz_audio_trace_time(void){return 0;}
+void xz_audio_trace_record(unsigned deck,unsigned stage,const float *pcm,const struct xz_audio_trace_context *context){
+    (void)deck;(void)stage;(void)pcm;(void)context;assert(0&&"Disabled recorder must not receive a block");
+}
 static int mapped[2] = {1, 1};
 static operate_fn installed;
 static unsigned hook_calls, original_calls;
@@ -157,6 +167,35 @@ int main(void)
     assert(original_calls == 16);
     assert(xz_key_set_desired_semitones(0, 13) == -1);
     assert(xz_key_get_desired_semitones(2, &desired) == -1);
-    puts("PASS exact hook guard/ABI, original return, neutral bypass, two decks, generation reset and no-active/rate/owner/stop gates");
+    assert(xz_key_runtime_start()==0);
+    assert(xz_key_set_desired_cents(0,generations[0],77)==0);
+    assert(xz_key_get_desired_cents(0,generations[0],&desired)==0&&desired==77);
+    generations[0]++;
+    assert(xz_key_get_desired_cents(0,generations[0],&desired)==0&&desired==0);
+    fill(a,512,0.51f);memcpy(original_a,a,sizeof(a));
+    assert(installed(&managers[0],1000,a,512,900)==1037&&!memcmp(a,original_a,sizeof(a)));
+    assert(xz_key_set_desired_cents(0,0,100)==-1&&xz_key_set_desired_cents(0,generations[0],1201)==-1);
+    xz_key_runtime_stop();
+    assert(xz_key_runtime_start()==0);
+    assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
+    assert(xz_key_set_desired_cents(0,generations[0],77)==0);
+    assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
+    rates[0]=44100;set_active(&managers[0],1);
+    assert(installed(&managers[0],1100,a,512,1000)==1137);
+    assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired>0&&desired<77);
+    set_active(&managers[0],0);assert(installed(&managers[0],1137,a,512,1000)==1174);
+    assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
+    set_active(&managers[0],1);
+    for(int i=0;i<16;i++)assert(installed(&managers[0],1174+i*37,a,512,1000)==1211+i*37);
+    assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==77);
+    rates[0]=48000;assert(installed(&managers[0],2000,a,512,1000)==2037);
+    assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
+    rates[0]=44100;
+    assert(xz_key_get_applied_cents(0,generations[0]+1,&desired)==0&&desired==0);
+    xz_key_runtime_observe(1);
+    assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
+    xz_key_runtime_observe(0);xz_key_runtime_stop();
+    assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
+    puts("PASS exact hook guard/ABI, original return, neutral bypass, two decks, generation reset, applied-pitch proof and no-active/rate/owner/stop gates");
     return 0;
 }

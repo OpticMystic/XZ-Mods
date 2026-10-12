@@ -3,9 +3,16 @@
 #include "cue/native.h"
 #include "runtime.h"
 #include "audio/runtime.h"
+#include "audio/trace.h"
+#include "ram/runtime.h"
+#include "ram/abi.h"
 #include "ui_runtime.h"
 #include "key/runtime.h"
 #include "doom/native_bridge.h"
+#include "kart/xz_kart_runtime.h"
+#include "sdk/xz_sdk_host.h"
+extern int xz_mods_takeover_v1(void);
+static int kart_display_ready(void) { return xz_sdk_host_foreground() && xz_mods_takeover_v1(); }
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -35,8 +42,10 @@ struct code_hook {
     void *trampoline;
     int protection;
 };
-/* One slot for each of the 21 explicitly qualified ARM entrypoints below. */
-static struct code_hook code_hooks[24];
+/* Qualified audio, UI, and RAM-track entrypoints share this bounded table.
+ * The complete guarded set currently contains 51 entrypoints; keep room for
+ * every enabled adapter so later UI hooks cannot lose their repaint owner. */
+static struct code_hook code_hooks[64];
 static unsigned code_hook_count;
 struct pad_trace_record { uint32_t key,operation_byte,channel,mode,decoded,deck,pad,operation,hotcue,ui_flags; };
 struct pad_trace { uint32_t version,sequence,count,enabled;struct pad_trace_record records[64]; };
@@ -161,7 +170,14 @@ int xz_hook_arm(uint32_t address, const unsigned char expected[8],
                                  address == 0x1656c4 ? wave_unlock_guard :
                                  address == 0x25d7f4 ? mixer_receive_guard :
                                  address == 0x2bde78 ? mixer_midi_cc_guard : NULL;
+    static const unsigned char menu_back_guard[8]={0xf0,0x4f,0x2d,0xe9,0x01,0x40,0xa0,0xe1};
+    if(address==0x2eae50)guard=menu_back_guard;
+    static const unsigned char master_tempo_guard[8]={0x38,0x40,0x2d,0xe9,0x00,0x40,0xa0,0xe1};
+    if(address==0x28bac4)guard=master_tempo_guard;
     if(address==0xe15b0)guard=encoder_guard;
+    /* UiKey_EncoderPush: push {r4,r5,r6,lr}; mov r4,r0. No PC-relative operand. */
+    static const unsigned char encoder_push_guard[8]={0x70,0x40,0x2d,0xe9,0x00,0x40,0xa0,0xe1};
+    if(address==0xdec08)guard=encoder_push_guard;
     if(address==0x159ad4)guard=skin_image_guard;
     if(address==0x1594d8)guard=skin_fill_rect_guard;
     if(address==0x15a62c)guard=skin_draw_text_guard;
@@ -171,8 +187,21 @@ int xz_hook_arm(uint32_t address, const unsigned char expected[8],
     if(address==0x157cc0)guard=skin_gamma_guard;
     if(address==0x15cca8)guard=skin_color_guard;
     if(address==0x15c92c)guard=skin_option_guard;
+    static const unsigned char key_list_guard[8]={0xf0,0x4f,0x2d,0xe9,0x01,0x60,0xa0,0xe1};
+    if(address==0x236270)guard=key_list_guard;
+    static const unsigned char key_traffic_guard[8]={0xf0,0x41,0x2d,0xe9,0x00,0x40,0xa0,0xe1};
+    if(address==0x17c58c)guard=key_traffic_guard;
     static const unsigned char layered_wave_guard[8] = {0xf0,0x4f,0x2d,0xe9,0x80,0x52,0xa0,0xe1};
     if(address==0x1fab28)guard=layered_wave_guard;
+    static const unsigned char pc_receive_guard[8]={0xf0,0x4f,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
+    static const unsigned char pc_wave_clear_guard[8]={0x03,0x00,0x50,0xe3,0xf0,0x41,0x2d,0xe9};
+    static const unsigned char pc_wave_discard_guard[8]={0x03,0x00,0x50,0xe3,0xf0,0x47,0x2d,0xe9};
+    static const unsigned char pc_midi_feedback_guard[8]={0x22,0x30,0xd0,0xe5,0xf0,0x47,0x2d,0xe9};
+    if(address==0xe52d0)guard=pc_receive_guard;
+    if(address==0xe8194)guard=pc_wave_clear_guard;
+    if(address==0xe8604)guard=pc_wave_discard_guard;
+    if(address==0x27a3f4)guard=pc_midi_feedback_guard;
+    if(!guard)guard=xz_ram_hook_guard(address);
     if (!application_verified || !guard || !expected || !replacement || !original ||
         code_hook_count >= sizeof(code_hooks)/sizeof(code_hooks[0]) || memcmp(expected, guard, 8) != 0) return -1;
     int protection = range_protection(address, 8);
@@ -220,6 +249,7 @@ int xz_runtime_beat_jump(int deck,int beats) {
 }
 
 static int physical_key(void *self, const void *input) {
+    if(!observer && xz_kart_runtime_physical(self,input)) return 1;
     if(!observer && xz_ui_runtime_arcade_key(self,input)) return 1;
     if(!observer && xz_doom_physical_key(self,input)) return 1;
     struct xz_cue_event event = {0};
@@ -312,17 +342,27 @@ __attribute__((constructor)) static void start(void) {
     xz_log(observer ? "OBSERVER installed; stock dispatch retained" : "EXPERIMENTAL gate/smart cue adapter installed");
     if (observer) return;
     if(xz_doom_bridge_start()) xz_log("Doom: native input bridge unavailable");
+    xz_kart_runtime_display_probe(kart_display_ready);
+    if(xz_kart_runtime_start()) xz_log("Kart: explicit physical-input bridge unavailable");
+    (void)xz_audio_trace_start();
+    if(memory_fd < 0 || xz_ram_start()) xz_log("RAM tracks: guarded adapter unavailable");
     int audio_ready = memory_fd >= 0 && xz_audio_start() == 0;
     int stems_default = enabled_default("XZ_MODS_STEMS", 1);
-    int key_ready = audio_ready && enabled("XZ_MODS_KEYSHIFT") && xz_key_runtime_start() == 0;
+    int key_wanted=enabled_default("XZ_MODS_KEYSHIFT",0);
+    xz_key_runtime_observe(!key_wanted);
+    int key_hook=audio_ready && (key_wanted || stems_default || xz_audio_trace_enabled()) && xz_key_runtime_start()==0;
+    int key_ready=key_wanted && key_hook;
     if (audio_ready && stems_default) xz_audio_set_enabled(1);
     if (enabled("XZ_MODS_UI")) xz_ui_runtime_start(audio_ready, key_ready, stems_default);
 }
 
 __attribute__((destructor)) static void stop(void) {
+    xz_audio_trace_stop();
     xz_ui_runtime_stop();
+    xz_kart_runtime_stop();
     xz_key_runtime_stop();
     xz_audio_stop();
+    xz_ram_stop();
     if (memory_fd >= 0) { close(memory_fd); memory_fd = -1; }
     if (!installed || *key_slot != (uint32_t)(uintptr_t)physical_key) return;
     long page_size = sysconf(_SC_PAGESIZE);

@@ -5,6 +5,10 @@
 #include "layered_wave_source.h"
 #include "../runtime.h"
 #include "../audio/native_reader.h"
+#include "../ram/runtime.h"
+extern int xz_ram_retained_source(unsigned,struct xz126_deck_source *) __attribute__((weak));
+#include "../pc_control/stems.h"
+#include "../pc_control/wave.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +26,7 @@
 #define CENTER(deck) (65u+(deck)*136u)
 typedef void (XZ_WAVE_ABI *native_column_fn)(unsigned,unsigned,unsigned,unsigned,unsigned,float);
 static native_column_fn stock_column;
-struct prepared {uint32_t player,file_frames;int mode;char path[XZ126_READER_PATH_MAX];struct xz_wave_load load;struct xz_layered_data data;};
+struct prepared {uint32_t player,file_frames;int mode,pc;unsigned physical,slot;uint32_t epoch,serial;char path[XZ126_READER_PATH_MAX];struct xz_wave_load load;struct xz_layered_data data;};
 /* Published read-only to the draw thread; the worker is the only writer. A replaced copy
  * is freed only after RETIRE_MS, so a frame that picked it up always finishes with it.
  * No lock on the draw path: a missed lock used to cost a whole stock frame (a flicker). */
@@ -32,8 +36,9 @@ static struct prepared *live[2];
 static struct {struct prepared *p;long at;} retired[RETIRE_SLOTS];
 /* Worker-only bookkeeping per deck. */
 static struct {long last_valid,retry_at;char failed[XZ126_READER_PATH_MAX];} track[2];
+static struct {unsigned slot;uint32_t epoch,serial,count;int mode;long retry_at;} pc_track[2];
 static int started,mode;
-static uint16_t colors[3]={0xf800,0x07e0,0x001f};
+static uint16_t colors[3]={0x2cbf,0xf9c6,0x368b};
 static _Thread_local struct {int active;uint16_t *pixels;const struct prepared *deck[2];uint32_t flags[2];int direct[2];} frame;
 /* What this thread drew in the current frame; it outlives the lock for the theme pass. */
 static _Thread_local struct {struct xz_layered_data look[2];struct xz_layered_col col[2][WIDTH];int any;} drawn;
@@ -48,11 +53,15 @@ static long now_us(void){struct timeval t;gettimeofday(&t,NULL);return t.tv_sec*
 static int read_mem(void *c,uint32_t a,void *b,size_t n){(void)c;return xz_read_memory(a,b,n);}
 static int word(uint32_t a,uint32_t *v){return xz_read_memory(a,v,4);}
 static int current_source(unsigned deck,struct xz126_deck_source *s){
- uint32_t engine;return word(XZ126_PLAY_ENGINE_CELL,&engine)||xz126_deck_source_read(read_mem,NULL,engine,deck,s);
+ uint32_t engine;int result=word(XZ126_PLAY_ENGINE_CELL,&engine)||xz126_deck_source_read(read_mem,NULL,engine,deck,s);
+ return result&&xz_ram_retained_source&&xz_ram_retained_source(deck,s)?0:result;
 }
 /* 1 while the deck still holds p's file. The XZ rebinds its reader objects mid-track
  * (loops, scratching), so only a readable, different path counts as a change. */
 static int still_current(const struct prepared *p){
+ if(p->pc)return xz_pc_wave_current(p->physical,p->slot,p->epoch,p->serial,p->data.count);
+ struct xz_pc_stem_source source;
+ if(xz_pc_stems_native_source(p->physical,&source)&&source.pc)return 0;
  uint32_t reader,impl;char path[XZ126_READER_PATH_MAX];size_t n=strlen(p->path)+1;
  if(word(p->player+0xc8,&reader)||!reader||word(reader+4,&impl)||!impl||xz_read_memory(impl,path,n))return 1;
  if(path[0]!='/')return 1;
@@ -86,9 +95,41 @@ static int load(struct prepared *p,unsigned deck,int stems){
  xz_log(line);__atomic_fetch_add(&xz_layered_wave_proof_v1[1],1,__ATOMIC_RELAXED);
  return 0;
 }
+static void pc_deck_tick(unsigned i,int wanted,long now,const struct xz_pc_stem_source *source){
+ struct prepared *cur=__atomic_load_n(&live[i],__ATOMIC_ACQUIRE);
+ /* A PC source must never reuse an exported-USB reader, including during setup. */
+ if(cur&&(!cur->pc||!still_current(cur))){publish(i,NULL);cur=NULL;}
+ if(!source->linked||!source->rekordbox||!source->loaded||source->slot<0||source->slot>=4){
+  if(cur)publish(i,NULL);
+  return;
+ }
+ if(cur&&cur->mode==wanted)return;
+ unsigned slot=(unsigned)source->slot;struct xz_pc_wave_stamp stamp;
+ if(!xz_pc_wave_native_stamp(slot,&stamp)||stamp.busy||!stamp.complete||!stamp.count||stamp.count>540000)return;
+ if(pc_track[i].slot==slot&&pc_track[i].epoch==stamp.epoch&&pc_track[i].serial==stamp.serial&&
+    pc_track[i].count==stamp.count&&pc_track[i].mode==wanted&&now<pc_track[i].retry_at)return;
+ pc_track[i].slot=slot;pc_track[i].epoch=stamp.epoch;pc_track[i].serial=stamp.serial;
+ pc_track[i].count=stamp.count;pc_track[i].mode=wanted;pc_track[i].retry_at=now+1000;
+ struct prepared *next=calloc(1,sizeof(*next));if(!next)return;
+ next->pc=1;next->physical=i;next->mode=wanted;
+ long begun=now_ms();
+ if(xz_pc_wave_load(i,&next->load,&next->slot,&next->epoch,&next->serial)){
+  prepared_free(next);return;
+ }
+ next->data=(struct xz_layered_data){next->load.bands,next->load.count,next->load.normalization,next->load.kind,{0,0,0}};
+ if(!still_current(next)){prepared_free(next);return;}
+ /* STEMS keeps its documented real-PWV7 fallback for PERFORMANCE mode. */
+ pc_track[i].retry_at=0;publish(i,next);
+ __atomic_store_n(&xz_layered_wave_proof_v1[6],(uint32_t)(now_ms()-begun),__ATOMIC_RELAXED);
+ __atomic_fetch_add(&xz_layered_wave_proof_v1[1],1,__ATOMIC_RELAXED);
+ char line[160];snprintf(line,sizeof(line),"LAYERED_WAVE: deck=%u PC slot=%u real-PWV7 samples=%u epoch=%u serial=%u",i+1,next->slot,next->load.count,next->epoch,next->serial);xz_log(line);
+}
 static void deck_tick(unsigned i,int wanted,long now){
  struct prepared *cur=__atomic_load_n(&live[i],__ATOMIC_ACQUIRE);
  if(!wanted){if(cur)publish(i,NULL);return;}
+ struct xz_pc_stem_source pc_source;
+ if(xz_pc_stems_native_source(i,&pc_source)&&pc_source.pc){pc_deck_tick(i,wanted,now,&pc_source);return;}
+ if(cur&&cur->pc){publish(i,NULL);cur=NULL;}
  struct xz126_deck_source s;
  /* A failed snapshot is usually the player rebinding; keep drawing for a while. */
  if(current_source(i,&s)){if(cur&&now-track[i].last_valid>5000)publish(i,NULL);return;}
@@ -98,7 +139,7 @@ static void deck_tick(unsigned i,int wanted,long now){
  if(same&&cur->mode==wanted&&!retry)return;
  if(now<track[i].retry_at&&!strcmp(track[i].failed,s.path))return;
  struct prepared *next=calloc(1,sizeof(*next));if(!next)return;
- next->player=s.player;next->file_frames=s.file_frames;next->mode=wanted;memcpy(next->path,s.path,sizeof(next->path));
+ next->physical=i;next->player=s.player;next->file_frames=s.file_frames;next->mode=wanted;memcpy(next->path,s.path,sizeof(next->path));
  /* The current copy stays on screen while the next one loads, so a mode switch or a
   * stems retry never blanks the waveform. */
  if(load(next,i,wanted==XZ_WAVE_STEMS)||(retry&&next->load.kind!=XZ_LAYERED_STEMS)){
@@ -116,6 +157,7 @@ static void *worker(void *unused){
  for(;;){
   int wanted=__atomic_load_n(&mode,__ATOMIC_ACQUIRE);long now=now_ms();
   sweep(now);
+  xz_pc_wave_state();
   for(unsigned i=0;i<2;i++)deck_tick(i,wanted,now);
   struct timespec delay={0,250000000};nanosleep(&delay,NULL);
  }

@@ -50,17 +50,28 @@ def _regular(value: str | os.PathLike) -> Path:
     return path
 
 
-def inspect_audio(path: str | os.PathLike) -> dict:
-    """Inspect PCM16 stereo 44100 Hz WAV, or FLAC with XZ_AUDIO_HELPER.
+SUPPORTED_SUFFIXES = (".wav", ".flac", ".mp3")
+MIN_RATE, MAX_RATE = 8000, 192000
 
+
+def frames_at_44100(source_frames: int, rate: int) -> int:
+    """Decoded length after polyphase resampling to 44.1 kHz: ceil(frames * 44100 / rate)."""
+    return -(-int(source_frames) * 44100 // int(rate))
+
+
+def inspect_audio(path: str | os.PathLike) -> dict:
+    """Inspect WAV, FLAC or MP3 audio with XZ_AUDIO_HELPER; plain 44.1 kHz PCM16 WAV needs no helper.
+
+    "frames" is always the 44.1 kHz frame count the pipeline works in;
+    "source_frames" and "sample_rate" describe the file itself.
     XZ_AUDIO_HELPER is a trusted application configuration, never a media field.
     It must point to the bundled native executable, not a shell command.
     """
     path = _regular(path)
     before = path.stat()
     suffix = path.suffix.lower()
-    if suffix not in (".wav", ".flac"):
-        raise ValueError("Only .wav and .flac audio files are supported")
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise ValueError("Only .wav, .flac and .mp3 audio files are supported")
     helper = os.environ.get("XZ_AUDIO_HELPER")
     if helper:
         if not Path(helper).is_absolute():
@@ -73,17 +84,18 @@ def inspect_audio(path: str | os.PathLike) -> dict:
             raise ValueError("Native audio inspection failed: " + result.stderr.strip()[:500])
         try:
             info = json.loads(result.stdout)
-            frames = info["frames"]
-            valid = (type(frames) is int and frames > 0 and
-                     (info["sample_rate"], info["channels"], info["sample_width"]) == (44100, 2, 2)
-                     and info["format"] == suffix[1:] and info["pcm_bytes"] == frames * 4)
+            source_frames, rate = info["frames"], info["sample_rate"]
+            valid = (type(source_frames) is int and source_frames > 0 and type(rate) is int
+                     and MIN_RATE <= rate <= MAX_RATE and (info["channels"], info["sample_width"]) == (2, 2)
+                     and info["format"] == suffix[1:] and info["pcm_bytes"] == source_frames * 4)
         except (ValueError, KeyError, TypeError) as exc:
             raise ValueError("Invalid native audio inspection response") from exc
         if not valid or _identity(before) != _identity(path.stat()):
             raise ValueError("Invalid native audio or input changed during inspection")
-        return {**info, "path": str(path), "file_bytes": before.st_size}
-    if suffix == ".flac":
-        raise ValueError("FLAC requires the bundled XZ_AUDIO_HELPER executable")
+        return {**info, "frames": frames_at_44100(source_frames, rate), "source_frames": source_frames,
+                "path": str(path), "file_bytes": before.st_size}
+    if suffix != ".wav":
+        raise ValueError("FLAC and MP3 require the bundled XZ_AUDIO_HELPER executable")
     try:
         with wave.open(str(path), "rb") as audio:
             frames = audio.getnframes()
@@ -102,9 +114,9 @@ def inspect_audio(path: str | os.PathLike) -> dict:
     after = path.stat()
     if _identity(before) != _identity(after):
         raise ValueError("Audio changed during inspection")
-    return {"path": str(path), "frames": frames, "sample_rate": 44100,
+    return {"path": str(path), "frames": frames, "source_frames": frames, "sample_rate": 44100,
             "channels": 2, "sample_width": 2, "pcm_bytes": frames * 4,
-            "file_bytes": after.st_size}
+            "source_channels": 2, "source_bits": 16, "file_bytes": after.st_size}
 
 
 def _identity(info: os.stat_result) -> tuple:

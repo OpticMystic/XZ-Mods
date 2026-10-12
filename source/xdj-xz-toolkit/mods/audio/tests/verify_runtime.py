@@ -25,8 +25,9 @@ with tempfile.TemporaryDirectory(prefix="xz-runtime-verification-") as temporary
     print(f"Deliberate failing assertion rejected, exit {result.returncode}", flush=True)
 
     sources = [HERE / "test_runtime.c"] + [HERE.parent / name for name in (
-        "native_reader.c", "stem_cache.c", "stem_mix.c", "stem_decode.c", "overcue_file.c", "overcue_stream.c",
+        "native_reader.c", "stem_cache.c", "stem_mix.c", "stem_decode.c", "overcue_file.c", "overcue_stream.c", "foreign_stems.c", "stem_media.c", "stem_mp3.c", "trace.c",
         "vendor/miniz/miniz_tinfl.c", "vendor/sha256/sha256.c")]
+    sources += [HERE.parent.parent / "ram" / name for name in ("cache.c", "runtime.c", "removal.c", "presentation.c", "pin.c")]
     command = CC + ["-std=c11", "-O1", "-g", "-UNDEBUG", "-Wall", "-Wextra", "-Werror",
                     "-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
     command += ["-DMINIZ_NO_ARCHIVE_APIS", "-DMINIZ_NO_DEFLATE_APIS", "-Wno-misleading-indentation"]

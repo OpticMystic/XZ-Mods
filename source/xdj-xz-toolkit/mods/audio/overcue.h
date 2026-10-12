@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "../ram/pin.h"
 
 #define XZ_OC_PAGE 131072u
 #define XZ_OC_RATE 96000u
@@ -20,6 +21,7 @@ struct xz_oc_file {
     unsigned codec, has_pcm_sha;
     unsigned char pcm_sha[32];
     unsigned char *raw, *compressed;
+    struct xz_ram_file_pin ram;
 };
 struct xz_oc_assets {
     struct xz_oc_file role[3], reference, combination[3];
@@ -33,6 +35,8 @@ struct xz_oc_assets {
 /* Worker-only immutable USB reader. Opens only the source's exact indexed bundle,
  * verifies source identity, metadata/table hashes, and each decoded page. */
 int xz_oc_open(const char *source, struct xz_oc_assets *, char *error, size_t capacity);
+int xz_oc_assets_pin(struct xz_oc_assets *);
+size_t xz_oc_assets_ram_bytes(const struct xz_oc_assets *);
 void xz_oc_close(struct xz_oc_assets *);
 /* Index lookup only: the stem bundle folder for a source path, without opening or hashing audio. */
 int xz_oc_bundle(const char *source, char *folder, size_t capacity);
@@ -42,8 +46,9 @@ int xz_oc_verify(struct xz_oc_file *);
 int xz_oc_verify_role(const char *path, uint64_t frames, const char *table_sha, const char *pcm_sha);
 struct xz_oc_file *xz_oc_mix_file(struct xz_oc_assets *, unsigned mask);
 float xz_oc_mix_gain(const struct xz_oc_assets *, unsigned mask);
-struct xz_oc_plan { float source, gain[2]; unsigned mask[2]; };
+struct xz_oc_plan { float source, gain[3]; unsigned mask[3]; };
 int xz_oc_plan_levels(const float levels[3], struct xz_oc_plan *);
+int xz_oc_plan_levels4(const float levels[4], struct xz_oc_plan *);
 /* Call only on an owned background worker, never a native/audio thread. */
 int xz_oc_worker_schedule(void);
 
@@ -60,4 +65,13 @@ void xz_oc_stream_loop_start(struct xz_oc_stream *,int32_t position);
 size_t xz_oc_stream_mix(struct xz_oc_stream *, float *stereo, size_t frames, int64_t position, const float levels[3]);
 void xz_oc_stream_status(struct xz_oc_stream *, struct xz_oc_status *);
 void xz_oc_stream_wave(struct xz_oc_stream *, unsigned role, unsigned char *bins, size_t count, float *progress);
+void xz_oc_stream_trace_state(struct xz_oc_stream *,uint32_t out[10]);
+size_t xz_oc_stream_mix_trace(struct xz_oc_stream *,float *,size_t,int64_t,const float[3],uint32_t out[16]);
+size_t xz_oc_stream_mix4_trace(struct xz_oc_stream *,float *,size_t,int64_t,const float[4],uint32_t out[16]);
+unsigned xz_oc_stream_stem_count(const struct xz_oc_stream *);
+const char *xz_oc_stream_format(const struct xz_oc_stream *);
+int xz_oc_stream_has_wave(const struct xz_oc_stream *, unsigned role);
+int xz_oc_stream_neutral(const struct xz_oc_stream *);
+size_t xz_oc_stream_ram_bytes(const struct xz_oc_stream *);
+void xz_oc_stream_position(struct xz_oc_stream *,int32_t);
 #endif

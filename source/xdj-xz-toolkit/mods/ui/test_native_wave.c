@@ -8,10 +8,10 @@
 #error "Native wave acceptance requires active assertions"
 #endif
 static uint16_t pixels[XZ_NATIVE_WAVE_PIXELS+8],scratch[XZ_NATIVE_WAVE_PIXELS+8];
-static int calls;
+static int calls,expected_height=XZ_WAVE_INLINE_HEIGHT;
 static void tint(uint16_t *pixels,uint32_t count){for(uint32_t i=0;i<count;i++)pixels[i]^=0xffff;}
 static int draw(void *context,uint16_t *out,size_t count,size_t stride,int width,int height) {
-    assert(count==536*XZ_WAVE_INLINE_HEIGHT&&stride==536&&width==536&&height==XZ_WAVE_INLINE_HEIGHT);calls++;
+    assert(count==(size_t)536*expected_height&&stride==536&&width==536&&height==expected_height);calls++;
     for(size_t i=0;i<count;i++)out[i]=0xabcd;
     return *(int *)context;
 }
@@ -28,9 +28,10 @@ int main(void) {
     fill();assert(xz_native_wave_capture(&pair,&s,0x1fd058,7,pixels,1072));
     assert(xz_native_wave_finish(&pair,&s,7,200,scratch,XZ_NATIVE_WAVE_PIXELS,draw,&success));
     assert(!pair.captured&&!pair.pixels&&calls==1);
+    struct xz_wave_layout geometry;assert(xz_wave_layout_get(XZ_STEM_LAYOUT_BELOW,&geometry));
     for(unsigned y=0;y<268;y++)for(unsigned x=0;x<536;x++){
         uint16_t expected=(y>=84&&y<132)||(y>=216&&y<264)?0xabcd:
-            y<84||(y>=132&&y<216)?xz_wave_source_row(y,84):0;
+            y<84||(y>=132&&y<216)?xz_wave_layout_source_row(&geometry,y):0;
         assert(pixels[y*536+x]==expected);
     }
     for(unsigned i=0;i<8;i++)assert(pixels[XZ_NATIVE_WAVE_PIXELS+i]==0xdead&&scratch[XZ_NATIVE_WAVE_PIXELS+i]==0xdead);
@@ -73,5 +74,19 @@ int main(void) {
         assert(xz_native_wave_finish_styled(&pair,&s,7,200,scratch,XZ_NATIVE_WAVE_PIXELS,draw,&success,tint,1));
         assert(pixels[0]==0xffff&&pixels[536*XZ_NATIVE_WAVE_ROW1_Y]==0xabcd);
     }
-    puts("PASS native wave paired ownership, scene gates, transactional rendering, cue bands and bounds");
+    for(int mode=1;mode<XZ_STEM_LAYOUT_COUNT;mode++){
+        assert(xz_wave_layout_get(mode,&geometry));expected_height=(int)geometry.control_height*2;
+        fill();assert(xz_native_wave_capture(&pair,&s,0x1fd058,7,pixels,1072));
+        assert(xz_native_wave_finish_styled(&pair,&s,7,200,scratch,XZ_NATIVE_WAVE_PIXELS,draw,&success,NULL,mode));
+        for(unsigned y=0;y<268;y++)for(unsigned x=0;x<536;x++){
+            int button=xz_wave_layout_control_at(&geometry,(int)y),wave=xz_wave_layout_lane_at(&geometry,(int)y);
+            uint16_t expected=button>=0?0xabcd:wave>=0?(uint16_t)xz_wave_layout_source_row(&geometry,y):0;
+            assert(pixels[y*536+x]==expected);
+        }
+        success=0;fill();assert(xz_native_wave_capture(&pair,&s,0x1fd058,7,pixels,1072));
+        assert(!xz_native_wave_finish_styled(&pair,&s,7,200,scratch,XZ_NATIVE_WAVE_PIXELS,draw,&success,NULL,mode));
+        for(unsigned y=0;y<268;y++)assert(pixels[y*536]==y);
+        success=1;
+    }
+    puts("PASS native wave paired ownership, all layouts, transactional failures, cue bands and bounds");
 }

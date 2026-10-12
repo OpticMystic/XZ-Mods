@@ -85,6 +85,9 @@ static struct skin_snapshot *request_and_prepare(int theme){
 }
 int main(void){
  init_fixture();
+ xz_native_skin_request_repaint();xz_native_skin_request_repaint();
+ assert(repaints==0);owner_epoch(repaint_spy);assert(repaints==1);
+ owner_epoch(repaint_spy);assert(repaints==1);repaints=0;
  for(int t=0;t<XZ_THEME_COUNT;t++){
   struct skin_snapshot *s=prepare(t,0);assert(s&&(t?s->pack!=NULL:!s->pack&&!s->lut&&!s->wave_lut));
   if(t)assert_lut(s->lut,t);

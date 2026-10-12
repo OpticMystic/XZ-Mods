@@ -130,7 +130,7 @@ def main():
         streaming = root / 'stream.exe'
         subprocess.run(compiler + checks + [
             '-DMINIZ_NO_ARCHIVE_APIS', '-DMINIZ_NO_DEFLATE_APIS',
-            str(ROOT / 'overcue_file.c'), str(ROOT / 'stem_decode.c'), str(ROOT / 'overcue_stream.c'), str(ROOT / 'vendor/miniz/miniz_tinfl.c'),
+            str(ROOT / 'overcue_file.c'), str(ROOT / 'stem_decode.c'), str(ROOT / 'overcue_stream.c'), str(ROOT / 'foreign_stems.c'), str(ROOT / 'stem_media.c'), str(ROOT / 'stem_mp3.c'), str(ROOT / 'vendor/miniz/miniz_tinfl.c'),
             str(ROOT / 'vendor/sha256/sha256.c'), str(ROOT / 'tests/test_overcue_stream.c'), '-pthread', '-lm', '-o', str(streaming)], check=True)
         source, bundle, _, _ = fixture(root / 'stream-usb', signal=True)
         subprocess.run([str(streaming), str(source)], check=True, timeout=30)

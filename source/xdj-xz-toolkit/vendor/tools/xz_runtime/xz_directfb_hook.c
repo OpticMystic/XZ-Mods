@@ -19,6 +19,7 @@
 #include <sys/time.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "mods_bridge.h"
@@ -643,6 +644,41 @@ static const uint8_t *composite_for_present(void) {
     return composite_frame;
 }
 
+__attribute__((visibility("default"))) uint32_t xz_kart_primary_display_proof_v1[14] = {1};
+static unsigned diagnostic_display_writer;
+static unsigned diagnostic_primary_logged;
+static int diagnostic_primary_enabled(void) {
+    const char *enabled = getenv("XZ_KART_DIAGNOSTIC_PRIMARY_DISPLAY");
+    return enabled && strcmp(enabled, "1") == 0;
+}
+static int diagnostic_primary_active(int overlay_enabled) {
+    return overlay_enabled && diagnostic_primary_enabled() && latest_exclusive &&
+           mods_game_active && mods_game_active();
+}
+static int diagnostic_writer_claim(unsigned writer) {
+    unsigned idle = 0;
+    return __atomic_compare_exchange_n(&diagnostic_display_writer, &idle, writer, 0,
+                                       __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
+}
+static void diagnostic_writer_release(void) {
+    __atomic_store_n(&diagnostic_display_writer, 0u, __ATOMIC_RELEASE);
+}
+static int diagnostic_background_begin(int overlay_enabled) {
+    if (!diagnostic_primary_enabled()) return 1;
+    if (diagnostic_primary_active(overlay_enabled)) {
+        __atomic_fetch_add(&xz_kart_primary_display_proof_v1[10], 1u, __ATOMIC_RELAXED);
+        return 0;
+    }
+    if (!diagnostic_writer_claim(1u)) {
+        __atomic_fetch_add(&xz_kart_primary_display_proof_v1[13], 1u, __ATOMIC_RELAXED);
+        return 0;
+    }
+    return 1;
+}
+static void diagnostic_background_end(void) {
+    if (diagnostic_primary_enabled()) diagnostic_writer_release();
+}
+
 static void draw_latest_frame(uint8_t *pixels, int pitch, int surface_width, int surface_height) {
     int width;
     int height;
@@ -667,6 +703,7 @@ static void draw_latest_frame(uint8_t *pixels, int pitch, int surface_width, int
                 (size_t)width * 2
             );
         }
+        if (diagnostic_primary_active(1)) __atomic_fetch_add(&xz_kart_primary_display_proof_v1[11], 1u, __ATOMIC_RELAXED);
     }
     pthread_mutex_unlock(&frame_mutex);
 }
@@ -856,7 +893,8 @@ static void *framebuffer_presenter(void *unused) {
         struct timeval finished;
         long elapsed_us;
         gettimeofday(&started, NULL);
-        if (overlay_is_active()) {
+        int overlay_enabled = overlay_is_active();
+        if (overlay_enabled && diagnostic_background_begin(overlay_enabled)) {
             if (0 && !directfb_suspended && directfb_interface) {
                 directfb_interface->WaitIdle(directfb_interface);
                 if (directfb_interface->Suspend(directfb_interface) == DFB_OK) {
@@ -888,6 +926,7 @@ static void *framebuffer_presenter(void *unused) {
                 framebuffer_present_count += 1;
             }
             write_runtime_stats_if_due();
+            diagnostic_background_end();
         } else if (0 && directfb_suspended && directfb_interface) {
             if (directfb_interface->Resume(directfb_interface) == DFB_OK) {
                 directfb_suspended = 0;
@@ -918,10 +957,18 @@ static void draw_probe_overlay(IDirectFBSurface *surface) {
 
     if (!overlay_is_active()) return;
     if (surface->GetSize(surface, &width, &height) != DFB_OK) return;
-    if (surface->GetPixelFormat(surface, &format) != DFB_OK || format != DSPF_RGB16) return;
+    if (diagnostic_primary_active(1)) {
+        __atomic_fetch_add(&xz_kart_primary_display_proof_v1[2], 1u, __ATOMIC_RELAXED);
+        xz_kart_primary_display_proof_v1[6] = (uint32_t)width;
+        xz_kart_primary_display_proof_v1[7] = (uint32_t)height;
+    }
+    if (surface->GetPixelFormat(surface, &format) != DFB_OK) return;
+    if (diagnostic_primary_active(1)) xz_kart_primary_display_proof_v1[8] = (uint32_t)format;
+    if (format != DSPF_RGB16) return;
     if (width < 16 || height < top + overlay_height) return;
     if (surface->Lock(surface, DSLF_WRITE, &pixels, &pitch) != DFB_OK || !pixels) return;
 
+    if (diagnostic_primary_active(1)) xz_kart_primary_display_proof_v1[9] = (uint32_t)pitch;
     draw_latest_frame((uint8_t *)pixels, pitch, width, height);
     if (!latest_exclusive) {
         draw_cached_preview((uint8_t *)pixels, pitch, width, height);
@@ -943,6 +990,7 @@ static void draw_probe_overlay(IDirectFBSurface *surface) {
         }
     }
     surface->Unlock(surface);
+    if (diagnostic_primary_active(1)) __atomic_fetch_add(&xz_kart_primary_display_proof_v1[3], 1u, __ATOMIC_RELAXED);
     if (!logged_overlay) {
         log_line("OVERLAY_DRAWN primary RGB16 surface");
         logged_overlay = 1;
@@ -971,22 +1019,34 @@ static DFBResult hooked_primary_flip(
     int overlay_enabled = overlay_is_active();
     int mods_drawn;
     DFBResult result;
-    if (framebuffer_presenter_started && overlay_enabled) {
+    int native_primary = diagnostic_primary_active(overlay_enabled);
+    uint32_t copied_before = __atomic_load_n(&xz_kart_primary_display_proof_v1[11], __ATOMIC_RELAXED);
+    if (native_primary) {
+        __atomic_fetch_add(&xz_kart_primary_display_proof_v1[1], 1u, __ATOMIC_RELAXED);
+        if (!diagnostic_writer_claim(2u)) {
+            __atomic_fetch_add(&xz_kart_primary_display_proof_v1[12], 1u, __ATOMIC_RELAXED);
+            return DFB_OK;
+        }
+    }
+    if (framebuffer_presenter_started && overlay_enabled && !native_primary) {
         flip_count += 1;
         return DFB_OK;
     }
-    if (primary_60hz_presenter_started && overlay_enabled) {
+    if (primary_60hz_presenter_started && overlay_enabled && !native_primary) {
         /* The dedicated presenter owns full-surface flips while VJ output is
          * active. Stock rendering may continue updating the backbuffer. */
         flip_count += 1;
         return DFB_OK;
     }
     if (directfb_interface && overlay_enabled) directfb_interface->WaitIdle(directfb_interface);
-    if (!framebuffer_presenter_started) draw_probe_overlay(thiz);
+    if (!framebuffer_presenter_started || native_primary) draw_probe_overlay(thiz);
     /* Closed-panel badge is painted onto stock flips too. A busy/no-draw
      * renderer must leave the original partial-flip region and flags intact. */
     mods_drawn = draw_mods_on_surface(thiz);
-    if (mods_render && mods_panel_visible() && !mods_drawn) return DFB_OK;
+    if (mods_render && mods_panel_visible() && !mods_drawn) {
+        if (native_primary) diagnostic_writer_release();
+        return DFB_OK;
+    }
     if (directfb_interface && overlay_enabled) directfb_interface->WaitIdle(directfb_interface);
     // The XZ normally flips only its dirty region. Overlay pixels can lie
     // outside that region, so promote the whole backbuffer only while an
@@ -995,8 +1055,18 @@ static DFBResult hooked_primary_flip(
     result = original_primary_flip(
         thiz,
         (overlay_enabled || mods_drawn) ? NULL : region,
-        (overlay_enabled || mods_drawn) ? DSFLIP_WAITFORSYNC : flags
+        (overlay_enabled || mods_drawn) ? (flags | DSFLIP_WAITFORSYNC) : flags
     );
+    if (native_primary) {
+        __atomic_fetch_add(&xz_kart_primary_display_proof_v1[4], 1u, __ATOMIC_RELAXED);
+        __atomic_store_n(&xz_kart_primary_display_proof_v1[5], (uint32_t)result, __ATOMIC_RELAXED);
+        if (result == DFB_OK && __atomic_load_n(&xz_kart_primary_display_proof_v1[11], __ATOMIC_RELAXED) != copied_before &&
+            !__atomic_exchange_n(&diagnostic_primary_logged, 1u, __ATOMIC_RELAXED))
+            fprintf(stderr, "OOL_PRIMARY_DISPLAY first_copy_flip result=%d width=%u height=%u format=%u pitch=%u\n",
+                    result, xz_kart_primary_display_proof_v1[6], xz_kart_primary_display_proof_v1[7],
+                    xz_kart_primary_display_proof_v1[8], xz_kart_primary_display_proof_v1[9]);
+        diagnostic_writer_release();
+    }
     flip_count += 1;
     write_runtime_stats_if_due();
     return result;

@@ -155,6 +155,7 @@ static void ready_publication(struct publication *p, unsigned char *memory)
     *(unsigned char *)(uintptr_t)(stream_reader + 0x9c) = 1;
     *(unsigned char *)(uintptr_t)(stream_reader + 0x69) = 1;
     p->reader = stream_reader;
+    __atomic_store_n(&decks[0].known_reader,stream_reader,__ATOMIC_RELEASE);
     p->reader_impl = self + 0x300;
     p->reader_frames = 2;
     p->generation = 42;
@@ -215,12 +216,35 @@ static void enabled_stream_test(void)
     __atomic_store_n(&decks[0].published, NULL, __ATOMIC_SEQ_CST);
     __atomic_store_n(&decks[1].generation, 42, __ATOMIC_SEQ_CST);
     __atomic_store_n(&decks[1].published, &p, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&decks[1].known_reader,p.reader,__ATOMIC_RELEASE);
     xz_audio_set_levels(1, (struct xz_stem_levels){1, 1, 1});
     exercise_enabled_stream(memory, 0, 0, h, v);
     xz_audio_set_levels(1, (struct xz_stem_levels){0.5f, 1.5f, 0});
     exercise_enabled_stream(memory, 0, 1, h, v);
     assert(decks[0].mixed == 2 && decks[1].mixed == 1);
     __atomic_store_n(&decks[1].published, NULL, __ATOMIC_SEQ_CST);
+
+    ready_publication(&p,memory);
+    __atomic_store_n(&decks[1].source_work,0,__ATOMIC_RELEASE);
+    xz_audio_set_levels(0,(struct xz_stem_levels){1,1,1});
+    exercise_enabled_stream(memory,0,0,h,v);
+    assert(!(decks[0].source_work&1u));
+    /* A neutral path must never touch publication/ring metadata. A new level
+     * request must restore the real adapter before returning from the setter. */
+    __atomic_store_n(&decks[0].published,(struct publication*)(uintptr_t)1,__ATOMIC_SEQ_CST);
+    float untouched[8];assert(stream_hook((void*)(uintptr_t)1,0,untouched,4)==0x12345678);
+    assert(untouched[0]==.75f&&untouched[4]==0);
+    __atomic_store_n(&decks[0].published,&p,__ATOMIC_SEQ_CST);
+    xz_audio_set_levels(0,(struct xz_stem_levels){.5f,1.5f,0});
+    assert(decks[0].source_work&1u);exercise_enabled_stream(memory,0,1,h,v);
+    decks[0].mixed=2;
+
+    struct xz_audio_batch batch,nested;xz_audio_batch_begin(0,0,&batch);assert(decks[0].users==1);
+    float batched[8];assert(stream_hook(memory,0,batched,4)==0x12345678);assert(decks[0].users==1);
+    xz_audio_batch_begin(-1,0,&nested);assert(source_batch==&nested);xz_audio_batch_end(&nested);assert(source_batch==&batch);
+    __atomic_add_fetch(&decks[0].generation,1,__ATOMIC_SEQ_CST);
+    assert(stream_hook(memory,0,batched,4)==0x12345678);assert(batched[0]==.75f);
+    xz_audio_batch_end(&batch);assert(!source_batch&&!decks[0].users);decks[0].mixed=2;
 
     ready_publication(&p, memory);
     *(unsigned char *)(uintptr_t)(stream_reader + 0x69) = 0;

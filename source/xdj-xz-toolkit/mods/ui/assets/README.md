@@ -1,7 +1,8 @@
 # XZ Mods loading artwork
 
 `xz-mods.png` is the original artwork supplied by the project owner on
-2026-09-24. Preserve its aspect ratio and embedded `vj.tools/xzmods` URL.
+2026-09-24, with the visible domain updated to `xzmods.com` on 2026-10-11.
+Preserve its aspect ratio and the `xzmods.com` caption.
 
 To prepare a private GUI pack from a locally obtained XZ 1.26 image pack:
 

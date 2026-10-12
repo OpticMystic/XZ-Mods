@@ -27,6 +27,13 @@ class ManagedUsbTests(unittest.TestCase):
         s=snapshot or self.snapshot()
         with patch.object(usb.usb,'build_usb',self.build):
             return usb.update_loader(self.volume,s['identity'],s['loader'],self.firmware,self.firmware,self.resources,job or self.job)
+    def test_inspect_reports_space_stems_and_rekordbox(self):
+        (self.volume/'CDJMODS/stems/track').mkdir(parents=True);(self.volume/'CDJMODS/stems/track/a.bin').write_bytes(b'x'*7)
+        report=self.snapshot()
+        self.assertGreater(report['space']['total_bytes'],0);self.assertLessEqual(report['space']['free_bytes'],report['space']['total_bytes'])
+        self.assertEqual(report['stems'],{'tracks':1,'bytes':7});self.assertFalse(report['rekordbox'])
+        (self.volume/'PIONEER/rekordbox').mkdir(parents=True);(self.volume/'PIONEER/rekordbox/export.pdb').write_bytes(b'pdb')
+        self.assertTrue(self.snapshot()['rekordbox'])
     def test_identity_keeps_large_os_ids_as_strings(self):
         observed=usb.identity(self.volume)
         self.assertIsInstance(observed["device"],str);self.assertIsInstance(observed["directory"],str)
@@ -88,7 +95,7 @@ class ManagedUsbTests(unittest.TestCase):
         with self.assertRaises(ValueError):usb.restore_loader(self.volume,snap['identity'],snap['loader'],folder.name,self.resources,self.job)
         self.assertEqual(self.loader.read_bytes(),b'new verified loader')
     def test_schema_binding_low_space_and_lock_collision(self):
-        with patch.object(usb.shutil,'disk_usage',return_value=type('Space',(),{'free':0})()),self.assertRaisesRegex(ValueError,'free space'):self.update()
+        with patch.object(usb.shutil,'disk_usage',return_value=type('Space',(),{'free':0,'total':0})()),self.assertRaisesRegex(ValueError,'free space'):self.update()
         (self.volume/'.xzmods-write.lock').write_bytes(b'unrelated file')
         with self.assertRaisesRegex(ValueError,'recognized lock'):self.update()
         self.assertEqual(self.loader.read_bytes(),b'old verified loader')

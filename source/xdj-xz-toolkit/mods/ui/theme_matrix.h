@@ -1,7 +1,7 @@
 #ifndef XZ_UI_THEME_MATRIX_H
 #define XZ_UI_THEME_MATRIX_H
 /* Included by themes.h after the fill/edge/mix primitives. */
-#define XZ_THEME_MATRIX_PALETTE {0x000000,0x33cc33,0xccffcc,0xffb000,{0xff4444,0x44a0ff,0x66ff66}}
+#define XZ_THEME_MATRIX_PALETTE {0x000000,0x33cc33,0xccffcc,0xffb000,{0x44a0ff,0xff4444,0x66ff66}}
 #define XZ_THEME_MATRIX_NAME "MATRIX"
 #define XZ_MATRIX_TAIL1 0x1a801a
 #define XZ_MATRIX_TAIL2 0x0a5c0a

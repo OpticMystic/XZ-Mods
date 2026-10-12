@@ -40,56 +40,56 @@ struct xz_theme {
 static inline int xz_theme_id(int theme) { return theme>=0&&theme<XZ_THEME_COUNT?theme:0; }
 static inline const struct xz_theme *xz_theme(int theme) {
  static const struct xz_theme table[XZ_THEME_COUNT]={
- {"ORIGINAL",0,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x000000,0xf4f5f6,0xa8ceff,0xffa000,{0xff3b30,0x2997ff,0x30d158}},.face=0},
- {"WHITE",1,0,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0xf0f0f0,0x141414,0x176398,0xa35400,{0xc52727,0x125eae,0x16753d}},.face=0},
- {"CYBERPUNK",2,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x00060e,0xdff3f7,0x54c1e6,0xfee801,{0xff2e88,0x54c1e6,0x2bf58a}},.face=0},
- {"NEON",3,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x0b0d17,0xc9d1d9,0x00e5ff,0xff9100,{0xff2daa,0x00e5ff,0x7c4dff}},.face=0},
- {"MOCHA",4,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x1e1e2e,0xcdd6f4,0xcba6f7,0xfab387,{0xf38ba8,0x89b4fa,0xa6e3a1}},.face=0},
- {"AURORA",5,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x141414,0xf0fef9,0x00e575,0xd451ff,{0xff4fc3,0x006afb,0x00e575}},.face=0},
- {"SANDSTONE",6,0,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0xfbf0d9,0x262a44,0x393f61,0xfdb03f,{0xe8705d,0x393f61,0x869a5f}},.face=0},
+ {"ORIGINAL",0,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x000000,0xf4f5f6,0xa8ceff,0xffa000,{0x2997ff,0xff3b30,0x30d158}},.face=0},
+ {"WHITE",1,0,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0xf0f0f0,0x141414,0x176398,0xa35400,{0x125eae,0xc52727,0x16753d}},.face=0},
+ {"CYBERPUNK",2,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x00060e,0xdff3f7,0x54c1e6,0xfee801,{0x54c1e6,0xff2e88,0x2bf58a}},.face=0},
+ {"NEON",3,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x0b0d17,0xc9d1d9,0x00e5ff,0xff9100,{0x00e5ff,0xff2daa,0x7c4dff}},.face=0},
+ {"MOCHA",4,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x1e1e2e,0xcdd6f4,0xcba6f7,0xfab387,{0x89b4fa,0xf38ba8,0xa6e3a1}},.face=0},
+ {"AURORA",5,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x141414,0xf0fef9,0x00e575,0xd451ff,{0x006afb,0xff4fc3,0x00e575}},.face=0},
+ {"SANDSTONE",6,0,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0xfbf0d9,0x262a44,0x393f61,0xfdb03f,{0x393f61,0xe8705d,0x869a5f}},.face=0},
  /* 7: the DMG LCD, four sage tones. Lows/mids/highs map to tones 1/2/3. */
- {"GAME BOY",7,0,XZ_CHROME_GB_LCD,XZ_FONT_PIXEL,XZ_PATTERN_DITHER,XZ_MAP_TONES,{0xb5c98b,0x1d2b20,0x4d6041,0x1d2b20,{0x4d6041,0x8a9f68,0x1d2b20}},
+ {"GAME BOY",7,0,XZ_CHROME_GB_LCD,XZ_FONT_PIXEL,XZ_PATTERN_DITHER,XZ_MAP_TONES,{0xb5c98b,0x1d2b20,0x4d6041,0x1d2b20,{0x8a9f68,0x4d6041,0x1d2b20}},
   .face=0xb5c98b,.hi=0xb5c98b,.lo=0x1d2b20,.title=0xb5c98b,.title_ink=0x1d2b20,.well=0xb5c98b,.well_ink=0x1d2b20,.tones={0xb5c98b,0x8a9f68,0x4d6041,0x1d2b20}},
  /* 8: the console. US SNES grey body, lavender/purple switches, Super Famicom ABXY colours as the stem vocabulary. */
- {"SUPER NINTENDO",8,0,XZ_CHROME_SNES_PAD,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0xd2d2d6,0x26262e,0x5b4ea6,0xd9a520,{0xe0332e,0x2c5db8,0x2e9e4f}},
+ {"SUPER NINTENDO",8,0,XZ_CHROME_SNES_PAD,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0xd2d2d6,0x26262e,0x5b4ea6,0xd9a520,{0x2c5db8,0xe0332e,0x2e9e4f}},
   .face=0xe6e6ea,.hi=0xf8f8fa,.hi2=0x8c84c8,.lo=0x84848c,.lo2=0x5b4ea6,.title=0xb4b4bc,.title_ink=0x26262e,.well=0xc2c2c8,.well_ink=0x26262e,.desk=0xd2d2d6,.sel_ink=0xffffff},
  /* 9: Windows 95 classic scheme. Face c0c0c0, bevels ffffff/dfdfdf/808080/000000, navy title, teal desktop. */
- {"WINDOWS 95",9,0,XZ_CHROME_WIN95,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_WIN95,{0xc0c0c0,0x000000,0x000080,0x800000,{0x800000,0x000080,0x008000}},
+ {"WINDOWS 95",9,0,XZ_CHROME_WIN95,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_WIN95,{0xc0c0c0,0x000000,0x000080,0x800000,{0x000080,0x800000,0x008000}},
   .face=0xc0c0c0,.hi=0xffffff,.hi2=0xdfdfdf,.lo=0x000000,.lo2=0x808080,.title=0x000080,.title_ink=0xffffff,.well=0xffffff,.well_ink=0x000000,.desk=0x008080,.sel_ink=0x000000,
   .tones={0xc0c0c0,0x808080,0x404040,0x000000}},
  /* 10: Pokemon Gold/Silver text boxes. White box, dark double border, saturated primaries. */
- {"GAME BOY COLOR",10,0,XZ_CHROME_GBC_BOX,XZ_FONT_PIXEL,XZ_PATTERN_TILE_GRID,XZ_MAP_RAMP,{0xd0e8b8,0x181818,0x2878f8,0xd82820,{0xf85040,0x2878f8,0x30b048}},
+ {"GAME BOY COLOR",10,0,XZ_CHROME_GBC_BOX,XZ_FONT_PIXEL,XZ_PATTERN_TILE_GRID,XZ_MAP_RAMP,{0xd0e8b8,0x181818,0x2878f8,0xd82820,{0x2878f8,0xf85040,0x30b048}},
   .face=0xf8f8f8,.hi=0xf8f8f8,.lo=0x282828,.title=0xf8f8f8,.title_ink=0x181818,.well=0xf8f8f8,.well_ink=0x181818,.desk=0xd0e8b8},
  /* 11: iTunes 4-6. Pinstripes, brushed-metal title, blue gel, LCD status well. */
- {"AQUA / ITUNES",11,0,XZ_CHROME_AQUA,XZ_FONT_ATLAS,XZ_PATTERN_PINSTRIPE,XZ_MAP_RAMP,{0xf2f2f2,0x1c1c1c,0x3875d7,0xd94f3d,{0xd8443a,0x3875d7,0x3fa34d}},
+ {"AQUA / ITUNES",11,0,XZ_CHROME_AQUA,XZ_FONT_ATLAS,XZ_PATTERN_PINSTRIPE,XZ_MAP_RAMP,{0xf2f2f2,0x1c1c1c,0x3875d7,0xd94f3d,{0x3875d7,0xd8443a,0x3fa34d}},
   .face=0xf4f7fb,.hi=0xffffff,.hi2=0xedf3fe,.lo=0x7d8aa0,.lo2=0x2f5aa8,.title=0xbcbcbc,.title_ink=0x202020,.well=0xdfe7d8,.well_ink=0x2a3a2a,.desk=0xe9e9e9,.sel_ink=0xffffff},
  /* 12: the backlit LCD. Same four-tone ladder, inverted (the classic emulator greens). */
- {"GAME BOY DARK",7,1,XZ_CHROME_GB_LCD,XZ_FONT_PIXEL,XZ_PATTERN_DITHER,XZ_MAP_TONES,{0x0f380f,0x9bbc0f,0x8bac0f,0x9bbc0f,{0x8bac0f,0x306230,0x9bbc0f}},
+ {"GAME BOY DARK",7,1,XZ_CHROME_GB_LCD,XZ_FONT_PIXEL,XZ_PATTERN_DITHER,XZ_MAP_TONES,{0x0f380f,0x9bbc0f,0x8bac0f,0x9bbc0f,{0x306230,0x8bac0f,0x9bbc0f}},
   .face=0x0f380f,.hi=0x0f380f,.lo=0x9bbc0f,.title=0x0f380f,.title_ink=0x9bbc0f,.well=0x0f380f,.well_ink=0x9bbc0f,.tones={0x0f380f,0x306230,0x8bac0f,0x9bbc0f}},
  /* 13: the 16-bit RPG menu window. Navy-to-blue gradient, white rounded bevel, shadowed white text, triangle cursor. */
- {"SUPER NINTENDO DARK",8,1,XZ_CHROME_RPG_WINDOW,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x000010,0xffffff,0x9fb8ff,0xffd75a,{0xff6a5a,0x6aa0ff,0x7ee08a}},
+ {"SUPER NINTENDO DARK",8,1,XZ_CHROME_RPG_WINDOW,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x000010,0xffffff,0x9fb8ff,0xffd75a,{0x6aa0ff,0xff6a5a,0x7ee08a}},
   .face=0x2a48b0,.hi=0xf4f4f4,.hi2=0xa0a0b8,.lo=0x101020,.lo2=0x101020,.title=0x2a48b0,.title_ink=0xffffff,.well=0x0e1858,.well_ink=0xffffff,.desk=0x000010,.sel_ink=0xffffff,.shadow=0x101020},
  /* 14: Windows 95 High Contrast Black scheme (values from memory: black face, white/grey bevels, purple title and selection). */
- {"WINDOWS 95 DARK",9,1,XZ_CHROME_WIN95,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_WIN95,{0x000000,0xffffff,0x800080,0xffff00,{0xff0000,0x0000ff,0x00ff00}},
+ {"WINDOWS 95 DARK",9,1,XZ_CHROME_WIN95,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_WIN95,{0x000000,0xffffff,0x800080,0xffff00,{0x0000ff,0xff0000,0x00ff00}},
   .face=0x000000,.hi=0xffffff,.hi2=0xc0c0c0,.lo=0xc0c0c0,.lo2=0x808080,.title=0x800080,.title_ink=0xffffff,.well=0x000000,.well_ink=0xffffff,.desk=0x000000,.sel_ink=0xffffff,
   .tones={0x000000,0x808080,0xc0c0c0,0xffffff}},
  /* 15: Atomic Purple shell. Deep translucent purple, lavender double border, white text. */
- {"GAME BOY COLOR DARK",10,1,XZ_CHROME_GBC_BOX,XZ_FONT_PIXEL,XZ_PATTERN_TILE_GRID,XZ_MAP_RAMP,{0x1e1030,0xf0e6ff,0x5aa0ff,0xff6060,{0xff5a4a,0x5aa0ff,0x58e070}},
+ {"GAME BOY COLOR DARK",10,1,XZ_CHROME_GBC_BOX,XZ_FONT_PIXEL,XZ_PATTERN_TILE_GRID,XZ_MAP_RAMP,{0x1e1030,0xf0e6ff,0x5aa0ff,0xff6060,{0x5aa0ff,0xff5a4a,0x58e070}},
   .face=0x35205a,.hi=0xd8c8f8,.lo=0xd8c8f8,.title=0x35205a,.title_ink=0xf0e6ff,.well=0x35205a,.well_ink=0xf0e6ff,.desk=0x1e1030},
  /* 16: OS X Graphite. Charcoal pinstripes, graphite gel, blue selection glow. */
- {"AQUA / ITUNES DARK",11,1,XZ_CHROME_AQUA,XZ_FONT_ATLAS,XZ_PATTERN_PINSTRIPE,XZ_MAP_RAMP,{0x2c2c2e,0xececec,0x4f8ef7,0xff6b5a,{0xff5f57,0x4f8ef7,0x5ad27a}},
+ {"AQUA / ITUNES DARK",11,1,XZ_CHROME_AQUA,XZ_FONT_ATLAS,XZ_PATTERN_PINSTRIPE,XZ_MAP_RAMP,{0x2c2c2e,0xececec,0x4f8ef7,0xff6b5a,{0x4f8ef7,0xff5f57,0x5ad27a}},
   .face=0x6b6b70,.hi=0xa8a8ae,.hi2=0x3a3a3e,.lo=0x141416,.lo2=0x1d3a78,.title=0x48484c,.title_ink=0xf0f0f0,.well=0x1c261e,.well_ink=0xa8e0b0,.desk=0x333336,.sel_ink=0xffffff},
  /* 17: the DMG-01 shell. Dot-matrix grey, dark bezel band with the two stripes, magenta A/B pills, logo purple-blue type, green LCD footer. */
- {"GAME BOY DMG",12,0,XZ_CHROME_DMG_SHELL,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0xc2c0bc,0x2a2a52,0x9b2256,0xb8322a,{0x9b2256,0x484686,0x5f7a2e}},
+ {"GAME BOY DMG",12,0,XZ_CHROME_DMG_SHELL,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0xc2c0bc,0x2a2a52,0x9b2256,0xb8322a,{0x484686,0x9b2256,0x5f7a2e}},
   .face=0xcfcdc9,.hi=0xe6e4e0,.hi2=0x8c2f52,.lo=0x8c8a86,.lo2=0x484686,.title=0x33334a,.title_ink=0xd0d0e0,.well=0xb5c98b,.well_ink=0x1d2b20,.desk=0xc2c0bc,.sel_ink=0xf6e6ee},
  /* 18: the black Play It Loud! DMG. Same magenta, same green LCD. */
- {"GAME BOY DMG DARK",12,1,XZ_CHROME_DMG_SHELL,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x1a1a1c,0xd8d8dc,0x9b2256,0xd63c3c,{0xc0306c,0x6a6ac8,0x8fb04a}},
+ {"GAME BOY DMG DARK",12,1,XZ_CHROME_DMG_SHELL,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,{0x1a1a1c,0xd8d8dc,0x9b2256,0xd63c3c,{0x6a6ac8,0xc0306c,0x8fb04a}},
   .face=0x2a2a2e,.hi=0x3e3e44,.hi2=0x8c2f52,.lo=0x000000,.lo2=0x484686,.title=0x0e0e10,.title_ink=0xb0b0b8,.well=0xb5c98b,.well_ink=0x1d2b20,.desk=0x1a1a1c,.sel_ink=0xf6e6ee},
  /* 19/20: Liquid Glass. Frosted panels over a mesh gradient, specular rim, capsules, system blue tint when selected. */
- {"LIQUID GLASS",13,0,XZ_CHROME_GLASS,XZ_FONT_ATLAS,XZ_PATTERN_MESH,XZ_MAP_RAMP,{0xeef1f8,0x111318,0x0a84ff,0xff453a,{0xff453a,0x0a84ff,0x30b158}},
+ {"LIQUID GLASS",13,0,XZ_CHROME_GLASS,XZ_FONT_ATLAS,XZ_PATTERN_MESH,XZ_MAP_RAMP,{0xeef1f8,0x111318,0x0a84ff,0xff453a,{0x0a84ff,0xff453a,0x30b158}},
   .face=0xffffff,.hi=0xffffff,.hi2=0xffffff,.lo=0x3a4050,.lo2=0x3a4050,.title=0xffffff,.title_ink=0x111318,.well=0xffffff,.well_ink=0x3a4050,.desk=0xeef1f8,.sel_ink=0xffffff,
   .tones={0xe3deec,0xd8e4f2,0xddeae8,0xe8e1ed}},
- {"LIQUID GLASS DARK",13,1,XZ_CHROME_GLASS,XZ_FONT_ATLAS,XZ_PATTERN_MESH,XZ_MAP_RAMP,{0x0f1118,0xf2f4f8,0x0a84ff,0xff6961,{0xff6961,0x409cff,0x30d158}},
+ {"LIQUID GLASS DARK",13,1,XZ_CHROME_GLASS,XZ_FONT_ATLAS,XZ_PATTERN_MESH,XZ_MAP_RAMP,{0x0f1118,0xf2f4f8,0x0a84ff,0xff6961,{0x409cff,0xff6961,0x30d158}},
   .face=0x30343f,.hi=0xffffff,.hi2=0xffffff,.lo=0x000000,.lo2=0x000000,.title=0x30343f,.title_ink=0xf2f4f8,.well=0x30343f,.well_ink=0xb8bcc8,.desk=0x0f1118,.sel_ink=0xffffff,
   .tones={0x242338,0x172b40,0x183332,0x302333}},
  {XZ_THEME_LCARS_NAME,14,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,XZ_THEME_LCARS_PALETTE,.face=0},

@@ -1,0 +1,9 @@
+https://github.com/nothings/stb
+File: stb_image.h, version line "stb_image - v2.30 - public domain image loader"
+Downloaded 2026-10-08 from https://raw.githubusercontent.com/nothings/stb/master/stb_image.h
+Master at download: 2c980bb59875b0d32144a71867fbdebb2f77cd20
+Last commit touching stb_image.h: 013ac3beddff3dbffafd5177e7972067cd2b5083 (2024-05-31)
+sha256(stb_image.h) 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
+License: MIT or public domain (LICENSE, from the same repository)
+Used only by dj_profile_write.c: STBI_ONLY_PNG, STBI_ONLY_JPEG, STBI_NO_STDIO, STBI_NO_LINEAR, STBI_NO_HDR,
+STBI_NO_FAILURE_STRINGS, STBI_NO_THREAD_LOCALS, STB_IMAGE_STATIC, STBI_MAX_DIMENSIONS 8192. Unmodified.

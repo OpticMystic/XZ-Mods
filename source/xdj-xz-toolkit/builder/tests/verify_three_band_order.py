@@ -18,12 +18,12 @@ parser.add_argument('--ext', type=Path, help='sibling ANLZ0000.EXT, adds rekordb
 parser.add_argument('--max-lag', type=int, default=8, help='entries of audio/waveform offset to search')
 args = parser.parse_args()
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from builder import three_band
+from builder import three_band, stem_waveforms
 
 RATE = 44100
 HOP = RATE // 150
 EDGES = [30, 60, 120, 250, 500, 1000, 2000, 4000, 8000, 16000]
-FAMILY = {'low': (30, 250), 'mid': (250, 2000), 'high': (2000, 16000)}
+FAMILY = dict(zip(('low', 'mid', 'high'), stem_waveforms.BAND_HZ))
 
 
 def samples(path):

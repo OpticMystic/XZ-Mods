@@ -1,7 +1,7 @@
 #ifndef XZ_UI_THEME_LCARS_H
 #define XZ_UI_THEME_LCARS_H
 /* Included by themes.h after the fill/edge/mix primitives. */
-#define XZ_THEME_LCARS_PALETTE {0x000000,0xff7800,0xffc000,0xff4545,{0xee4433,0x4488ff,0x44cc66}}
+#define XZ_THEME_LCARS_PALETTE {0x000000,0xff7800,0xffc000,0xff4545,{0x4488ff,0xee4433,0x44cc66}}
 #define XZ_THEME_LCARS_NAME "LCARS"
 #define XZ_LCARS_VIOLET 0xa64cff
 #define XZ_LCARS_ICE 0x24c4ff
