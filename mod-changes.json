@@ -1,0 +1,277 @@
+{
+  "format": "xz-mod-changes/1",
+  "builds": [
+    {
+      "label": "0.2.1 released",
+      "source_commit": "76836bf9dca37c0209fe90854ca9a7a3aecefaad"
+    },
+    {
+      "label": "0.2.2-preview.1 original",
+      "source_commit": "beda20536e71c8cc8eb34ce88346ff39b6512edf"
+    },
+    {
+      "label": "0.2.2-preview.2 original",
+      "source_commit": "bff248f878bd0848e3ae088c9b31eb00dd9c67db"
+    },
+    {
+      "label": "Development 22615771 before MT reset",
+      "source_commit": "22615771a79e3fc221d1a728f328646301fa99b6"
+    },
+    {
+      "label": "Development MT reset 40b5219b",
+      "source_commit": "40b5219b9abeb7ed9828935d8f9cc3aad89561b4"
+    },
+    {
+      "label": "Included development build f8364764",
+      "source_commit": "2a84e957cd4516a28899da83ca1b37cde4504d23"
+    },
+    {
+      "label": "Included development build 98cc63d1",
+      "source_commit": "33388192097b6617e87f070f7231475b47970b09"
+    },
+    {
+      "label": "Included development build 3e26e372",
+      "source_commit": "b5a6a26a2bffe015c43da6386526831a64d9dd9e"
+    }
+  ],
+  "changes": [
+    {
+      "id": "wave-rider-hills",
+      "commit": "5e29220e8d63fd14c2234654d1de4800228b1e33",
+      "kind": "new",
+      "area": "MODS › EXTRAS › GAMES › WAVE RIDER",
+      "text": "Wave Rider is now hill surfing. The loaded track's waveform becomes the hills, and two players can ride co-op or versus on the two jogs."
+    },
+    {
+      "id": "wave-rider-steering",
+      "commit": "53772699cd7c89ac58b386f098b64ff80e1b2eab",
+      "kind": "fixed",
+      "area": "MODS › EXTRAS › GAMES › WAVE RIDER",
+      "text": "Small jog turns now tilt the Wave Rider ship instead of spinning it, and CUE adds weight on the slopes. SPIN LIFT is an optional quick jog spin near a crest."
+    },
+    {
+      "id": "key-sync",
+      "commit": "189c307f4708e68cae0d8241350e19dae26c50f8",
+      "kind": "new",
+      "area": "SHIFT + SYNC",
+      "text": "SHIFT + SYNC shifts the key of a deck to match the master deck. KEY SETUP checks both tracks and the master before it turns on."
+    },
+    {
+      "id": "browse-keys",
+      "commit": "189c307f4708e68cae0d8241350e19dae26c50f8",
+      "kind": "new",
+      "area": "Browse",
+      "text": "The USB track list shows each track's key before its title. Green fits the master deck. Amber fits but is detuned."
+    },
+    {
+      "id": "pc-stems",
+      "commit": "2826ffe5a5def4c01318e79341109f725a01f0fc",
+      "kind": "new",
+      "area": "MODS › CONTROLS › PC STEMS",
+      "text": "With rekordbox in PERFORMANCE mode on a computer, the XZ shows the computer track's 3-band waveform and the onscreen stem buttons switch its stems on and off. A setup page tests one drums switch first."
+    },
+    {
+      "id": "stem-mute-load",
+      "commit": "57b271f4fe16eb23116dbb98405ed246d7912e8f",
+      "kind": "improved",
+      "area": "Stems",
+      "text": "Muting stems on both decks does less audio work per block. This targets the distortion heard when muting stems on two decks. It is not yet confirmed on an XZ."
+    },
+    {
+      "id": "ram-tracks",
+      "commit": "682fcc9c075fc65c2d3e5ee2fc6273c927188db1",
+      "kind": "new",
+      "area": "MODS › ADVANCED › RAM TRACKS",
+      "text": "RAM TRACKS copies the playing track into memory, with its prepared stems when there is room, so it keeps playing after USB STOP. One track per deck, up to 64 MB. This is experimental. Keeping the title and waveform on screen after the USB leaves is not confirmed yet."
+    },
+    {
+      "id": "rhythm-lab",
+      "commit": "6d0ff9e037c4313eaf9a24e7f2fea40f867084fc",
+      "kind": "new",
+      "area": "MODS › EXTRAS › GAMES › RHYTHM LAB",
+      "text": "RHYTHM LAB adds ten short rhythm studies by VJ OpticMystic for the jogs and pads. They are prototypes, and you can rate each one."
+    },
+    {
+      "id": "static-surfer",
+      "commit": "6d0ff9e037c4313eaf9a24e7f2fea40f867084fc",
+      "kind": "new",
+      "area": "MODS › EXTRAS › GAMES › STATIC SURFER",
+      "text": "STATIC SURFER is a rhythm platformer by VJ OpticMystic. Tap to jump and tilt the jog to pass through the glyphs."
+    },
+    {
+      "id": "wave-rider-angle",
+      "commit": "6d0ff9e037c4313eaf9a24e7f2fea40f867084fc",
+      "kind": "improved",
+      "area": "MODS › EXTRAS › GAMES › WAVE RIDER",
+      "text": "The jog now sets the Wave Rider board's angle. Nose down gains speed and nose up launches. You can calibrate your jog and remap the action button."
+    },
+    {
+      "id": "stem-colors",
+      "commit": "6d0ff9e037c4313eaf9a24e7f2fea40f867084fc",
+      "kind": "new",
+      "area": "MODS › APPEARANCE › STEM COLORS",
+      "text": "Pick a color for drums, harmonics and vocals, or let the theme choose. Drums are now blue and harmonics red by default. Stem rows, pad lights and the STEMS waveform all follow the choice."
+    },
+    {
+      "id": "stem-row-layouts",
+      "commit": "6d0ff9e037c4313eaf9a24e7f2fea40f867084fc",
+      "kind": "new",
+      "area": "STEMS button",
+      "text": "The STEMS button cycles five stem row layouts. Rows can be full or half height, below the waveforms or at the outer edges, or hidden. Each stem button fills left to right with its level."
+    },
+    {
+      "id": "key-feedback",
+      "commit": "6d0ff9e037c4313eaf9a24e7f2fea40f867084fc",
+      "kind": "new",
+      "area": "MODS › ADVANCED › KEY FEEDBACK",
+      "text": "Each deck shows its original key, playing key and cents in the beat countdown area. Linked decks show MASTER and SYNC. Turn KEY FEEDBACK off to get the stock countdown back."
+    },
+    {
+      "id": "browse-sort",
+      "commit": "6d0ff9e037c4313eaf9a24e7f2fea40f867084fc",
+      "kind": "new",
+      "area": "Browse",
+      "text": "SORT and COLUMN sit above the USB track list and open the native sort menu. KEY FORMAT picks Classic or Camelot keys and is saved on each USB."
+    },
+    {
+      "id": "usb-apps",
+      "commit": "6d0ff9e037c4313eaf9a24e7f2fea40f867084fc",
+      "kind": "new",
+      "area": "MODS › EXTRAS › APPS",
+      "text": "APPS runs XZ SDK apps from the USB, when you tap RUN or each time the USB goes in. DJ controls keep working while an app runs."
+    },
+    {
+      "id": "browse-stall",
+      "commit": "021b4c70a33bc452582311d869f3553f8474b259",
+      "kind": "fixed",
+      "area": "Browse",
+      "text": "Changing stem rows or stem levels no longer freezes BROWSE."
+    },
+    {
+      "id": "mods-back",
+      "commit": "9a7ac47c50dd2105abbd50c23a1af8235ce8f3e4",
+      "kind": "new",
+      "area": "MODS",
+      "text": "Every MODS page has a BACK button, and the physical BACK button steps back one page."
+    },
+    {
+      "id": "mods-no-touch",
+      "commit": "5d995b8d218a90d20c78f906bfce773621485a29",
+      "kind": "new",
+      "area": "MODS › ADVANCED › REKORDBOX KEY",
+      "text": "MODS works without the touchscreen. The REKORDBOX key opens and closes it, the browse encoder moves between controls and a push selects. Turn REKORDBOX KEY off to get the stock key back."
+    },
+    {
+      "id": "mods-info-dock",
+      "commit": "5d995b8d218a90d20c78f906bfce773621485a29",
+      "kind": "improved",
+      "area": "MODS",
+      "text": "The MODS menu has a section rail on the left and an info box that explains the selected control and shows whether your change was saved."
+    },
+    {
+      "id": "wave-rider-flips",
+      "commit": "8f6be08d3c0dafc0a16f9c408f8f8d5d0a541597",
+      "kind": "new",
+      "area": "MODS › EXTRAS › GAMES › WAVE RIDER",
+      "text": "Spin the jog in the air to flip the Wave Rider board, then land level to bank flips and crests. Three perfect landings in a row light a rocket. Three new worlds use VJ OpticMystic's artwork."
+    },
+    {
+      "id": "wave-rider-air-response",
+      "commit": "22615771a79e3fc221d1a728f328646301fa99b6",
+      "kind": "fixed",
+      "area": "MODS › EXTRAS › GAMES › WAVE RIDER",
+      "text": "The Wave Rider board answers the jog faster in the air, and spinning back brakes it sooner."
+    },
+    {
+      "id": "master-tempo-reset",
+      "commit": "40b5219b9abeb7ed9828935d8f9cc3aad89561b4",
+      "kind": "new",
+      "area": "MASTER TEMPO",
+      "text": "Pressing MASTER TEMPO while Key Sync is on returns that deck to its original key. Master Tempo stays on, and the next press works as stock."
+    },
+    {
+      "id": "wave-rider-difficulty",
+      "commit": "daa8f198cb8c8f44e117db42b70bb97903a57599",
+      "kind": "new",
+      "area": "MODS › EXTRAS › GAMES › WAVE RIDER",
+      "text": "Wave Rider has EASY, NORMAL and HARD. EASY is the default and holds the air angle you set. Clean landings show the points they earned."
+    },
+    {
+      "id": "top-bar-metrics",
+      "commit": "89cc02d675a84ab8c37697b40e650869a1eda476",
+      "kind": "new",
+      "area": "METRICS in the top bar",
+      "text": "METRICS shows CPU, RAM and chip temperature next to STEMS and MODS. It is off by default. The temperature turns yellow at 80 C and flashes red at 90 C."
+    },
+    {
+      "id": "settings-kept",
+      "commit": "0377b65b8fd567db2096d466c951f336b087b5d9",
+      "kind": "improved",
+      "area": "MODS settings",
+      "text": "Pulling the USB, or loading one without settings, keeps your current settings. The XZ remembers your last settings and restores them when it starts without a USB. The footer says SAVED TO USB or NOT SAVED after each change."
+    },
+    {
+      "id": "settings-older-records",
+      "commit": "ab0184d483f19cf62b29490981525ca23d24851c",
+      "kind": "fixed",
+      "area": "MODS settings",
+      "text": "Settings saved by an older loader no longer turn your Off choices, such as KEY FEEDBACK or the 3-band waveform, back On."
+    },
+    {
+      "id": "games-encoder",
+      "commit": "984bf6c2970861eab079f41efb1a90e43927f6f7",
+      "kind": "new",
+      "area": "MODS › EXTRAS › GAMES",
+      "text": "Every game works without the touchscreen. The encoder moves and selects, BACK steps back and REKORDBOX returns to MODS. DJ VIEW on the Beat Arcade pause screen now returns to the deck."
+    },
+    {
+      "id": "dj-profile-header",
+      "commit": "33388192097b6617e87f070f7231475b47970b09",
+      "kind": "new",
+      "area": "MODS header",
+      "text": "The MODS header shows the DJ profile from your USB with its logo and name. Tap it to switch between the profiles on both USBs. Nothing is stored on the XZ."
+    },
+    {
+      "id": "dj-profile-editor",
+      "commit": "ebb518e99940d05003f269d2e6e1e79f652a4025",
+      "kind": "new",
+      "area": "MODS › EXTRAS › DJ PROFILE",
+      "text": "Create or edit a DJ profile on the XZ. Type the DJ name and a tagline with the encoder or by touch, pick a logo image from the USB, then save it to USB 1 or USB 2."
+    },
+    {
+      "id": "dj-profile-folders",
+      "commit": "ed8722a4eee58c088688e68e786b5e9f34c6c85e",
+      "kind": "new",
+      "area": "MODS › EXTRAS › DJ PROFILE",
+      "text": "A folder named after the DJ inside DJPROFILE, with a logo in it, now counts as a profile. Profiles without their own color use the USB's rekordbox color."
+    },
+    {
+      "id": "general-menu",
+      "commit": "24e6da5ffe326ba22ce630769d37ffdca34eb7bf",
+      "kind": "improved",
+      "area": "MODS › GENERAL",
+      "text": "MODS opens on GENERAL, which lists the main features in one place. A feature that needs setup opens a short page that detects it, enables it and has you test it on a deck."
+    },
+    {
+      "id": "stem-order",
+      "commit": "b10de4dd798dba3b2d54d7b186129c51fe10f39f",
+      "kind": "new",
+      "area": "MODS › GENERAL › STEM SETTINGS › STEM ORDER",
+      "text": "STEM ORDER sets the left to right order of drums, harmonics and vocals. The stem rows, pads A, B and C and their lights follow it. It saves to your USB."
+    },
+    {
+      "id": "xzmods-branding",
+      "commit": "9a444b4ae8c9c2bf01453b5d868faf7b9a859872",
+      "kind": "improved",
+      "area": "Loading screen and MODS",
+      "text": "The loading artwork and MODS screens show xzmods.com."
+    },
+    {
+      "id": "four-stems",
+      "commit": "999d15b42170ab15c7f47f4e9c1545b2b043860e",
+      "kind": "new",
+      "area": "Stems",
+      "text": "The XZ also plays stems prepared in the AZ MODS and RX3 formats. On four-stem tracks pad D mutes bass. Sets that do not match the track are refused and the original audio plays. Not yet tested on an XZ."
+    }
+  ]
+}
