@@ -9,7 +9,7 @@
 .wz-step-n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#2a2d2e;font-size:11px;font-weight:600;color:#fff}
 .wz-step[data-state=current] .wz-step-n{background:var(--yellow);color:#000}
 .wz-step[data-state=done] .wz-step-n{background:#4a4d2e;color:#f1f3c8}
-.wz-pane{display:grid;gap:14px;padding:22px 24px;border:1px solid var(--line);border-radius:6px;background:#111314}
+.wz-pane{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:22px 24px;border:1px solid var(--line);border-radius:6px;background:#111314}
 .wz-pane h2{margin:0;font-size:22px;letter-spacing:-.2px}
 .wz-pane h3{margin:0 0 6px;font-size:14px}
 .wz-lead{margin:0;color:#c3c9c5;line-height:1.55;max-width:70ch}
@@ -35,7 +35,7 @@
 /* USB loadout tree (tree-) */
 .tree{display:grid;gap:10px;min-width:0}
 .tree-rows{display:grid;border:1px solid var(--line);border-radius:6px;background:#0d0f10;padding:6px 0;min-width:0}
-.tree-row{display:grid;grid-template-columns:calc(var(--depth)*22px) 20px minmax(0,1fr) 150px 200px;column-gap:12px;align-items:center;min-height:48px;margin:0;padding:0 14px;color:inherit;font-size:13px;min-width:0}
+.tree-row{display:grid;grid-template-columns:calc(var(--depth)*22px) 20px minmax(0,1fr) 180px 200px;column-gap:12px;align-items:center;min-height:48px;margin:0;padding:0 14px;color:inherit;font-size:13px;min-width:0}
 label.tree-row{cursor:pointer}
 .tree-row:hover{background:#121516}
 .tree-row[data-plan="1"]{background:#15170f;box-shadow:inset 3px 0 var(--yellow)}
@@ -76,6 +76,44 @@ label.tree-row{cursor:pointer}
 .tree-aside .wz-version{font-size:12px;color:#b4bab6}
 .tree-legend{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:0;padding:0 4px;font-size:11px;color:var(--muted);line-height:1.4}
 .tree-legend li{display:flex;align-items:center;gap:7px}
+
+/* Games chooser (games-) */
+#games-host{display:grid;gap:18px}
+.games{display:grid;gap:20px;min-width:0}
+.games-group{display:grid;gap:8px;min-width:0}
+.games-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:0 4px}
+.games-head h3{margin:0;font-size:14px}
+.games-head small{color:var(--muted);font-size:12px}
+.games-bulk{display:flex;gap:16px;margin-left:auto;font-size:12px}
+.games-rows{display:grid;border:1px solid var(--line);border-radius:6px;background:#0d0f10;padding:6px 0;min-width:0}
+.games-row{display:grid;grid-template-columns:minmax(0,1fr) 150px 300px;column-gap:12px;align-items:center;min-height:56px;padding:8px 16px;font-size:13px;min-width:0}
+.games-row+.games-row{border-top:1px solid #1b1e1f}
+.games-row[data-plan="1"]{background:#15170f;box-shadow:inset 3px 0 var(--yellow)}
+.games-row[data-plan="1"] .tree-badge{color:var(--yellow)}
+.games-name{display:grid;gap:3px;min-width:0}
+.games-name strong{font-size:13px;font-weight:600;color:#eef0ec}
+.games-blurb{color:#a9afab;font-size:12px}
+.games-controls{display:flex;align-items:center;justify-content:flex-end;gap:18px;min-width:0}
+.games-switch{display:flex;align-items:center;gap:8px;margin:0;font-size:12px;color:#c9cec9;cursor:pointer;white-space:nowrap}
+.games-switch input{appearance:none;flex:none;width:30px;height:16px;margin:0;border-radius:8px;background:#3a3f40;position:relative;cursor:pointer;transition:background .12s}
+.games-switch input::before{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#c9cec9;transition:left .12s}
+.games-switch input:checked{background:var(--yellow)}
+.games-switch input:checked::before{left:16px;background:#181a02}
+.games-switch input:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+
+/* Update preview under the loader row (mu-) */
+.mu{display:grid;gap:10px;margin-top:10px;padding:14px 16px;border:1px solid #2f3434;border-radius:6px;background:#111415;max-width:720px}
+.mu-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.mu-head h4{margin:0;font-size:13px;color:#eef0ec}
+.mu-head small{color:var(--muted);font-size:12px}
+.mu-note{margin:0;color:#c3c9c5;font-size:12px;line-height:1.5}
+.mu-group{display:grid;gap:4px}
+.mu-group h5{display:flex;align-items:center;gap:8px;margin:0;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:#d9dcc2}
+.mu-group ul{list-style:none;margin:0;padding:0;line-height:1.45}
+.mu-item{display:grid;grid-template-columns:110px minmax(0,1fr);gap:12px;padding:3px 0;font-size:12px;color:#d5d9d6}
+.mu-area{font-variant:small-caps;letter-spacing:.6px;text-transform:lowercase;color:#8d9492;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-more{justify-self:start;font-size:12px}
+.mu-quiet{margin:6px 0 0;color:var(--muted);font-size:12px}
 
 /* Device menu. 800 x 480 like the XZ screen: 40 header, 124 rail, 656 content, 68 dock. */
 .dv{--dv-panel:color-mix(in srgb,var(--dv-bg) 91%,var(--dv-ink));--dv-edge:color-mix(in srgb,var(--dv-bg) 78%,var(--dv-ink));--dv-dim:color-mix(in srgb,var(--dv-bg) 41%,var(--dv-ink));

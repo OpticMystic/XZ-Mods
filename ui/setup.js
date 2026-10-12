@@ -1,9 +1,9 @@
 // Set up USB: one guided flow. Steps are a fixed list; what each step offers comes from the USB inspection.
 // State lives in W. Writes go through the same backend methods the Advanced tools page uses.
 (function(){
-const STEPS=[['usb','USB'],['loadout','Loadout'],['settings','Settings'],['write','Write'],['done','Done']];
-const W={step:'usb',usbs:null,finding:false,usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,menu:null,result:null,writeOrigin:null};
-const host=$('wiz');
+const STEPS=[['usb','USB'],['loadout','Loadout'],['nonessentials','NonEssentials'],['settings','Settings'],['write','Write'],['done','Done']];
+const W={step:'usb',usbs:null,finding:false,usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,menu:null,result:null,writeOrigin:null,changesOpen:false};
+const host=$('wiz'),gamesHost=$('games-host');
 
 function loaderChoice(){
   if(W.loader!=='auto')return W.loader;
@@ -29,7 +29,7 @@ function reachable(step){
 }
 function goto(step){if(!reachable(step))return;W.step=step;render();host.scrollIntoView({block:'start'});}
 
-function reset(){Object.assign(W,{step:'usb',usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,menu:null,result:null});render();}
+function reset(){Object.assign(W,{step:'usb',usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,menu:null,result:null,changesOpen:false});render();}
 
 async function findUsbs(origin){
   W.finding=true;render();
@@ -37,12 +37,13 @@ async function findUsbs(origin){
   W.finding=false;
   if(!response?.ok){W.usbs=[];render();if(response&&!response.cancelled)showError('USB drives could not be listed. '+(response.error||'Choose a folder instead.'),origin);return;}
   W.usbs=response.result.usbs;render();
+  return W.usbs;
 }
 async function chooseUsb(volume,origin){
   const response=await run({method:'inspect_usb',volume},'Reading the USB',origin,()=>{});
   if(!response?.ok){if(response&&!response.cancelled)showError('The USB could not be read. '+(response.error||'Reconnect it and choose it again.'),origin);return;}
   const inspection=response.result;
-  Object.assign(W,{usb:volume,inspection,loader:'auto',games:new Set(inspection.games.filter(game=>game.installed).map(game=>game.id)),result:null,menu:null});
+  Object.assign(W,{usb:volume,inspection,loader:'auto',games:new Set(inspection.games.filter(game=>game.installed).map(game=>game.id)),result:null,menu:null,changesOpen:false});
   W.settings=inspection.settings.editable?{...inspection.settings.values}:null;W.settingsStart=W.settings?{...W.settings}:null;
   usbInspection=inspection;renderUsb(inspection);
   W.step='loadout';render();
@@ -82,18 +83,30 @@ function versionLine(){
   const saved=savedModVersion();
   if(!modVersionsReady())return el('div',{class:'wz-setup-needed'},el('p',{text:'No mod version is on this PC yet, so there is nothing to write to a loader.'}),el('button',{type:'button',class:'primary',text:'Set up mod versions',onclick:()=>openModWizard(false)}));
   if(!saved)return el('div',{class:'wz-setup-needed'},el('p',{text:'Choose which XZ Mods build goes on this USB.'}),el('button',{type:'button',class:'primary',text:'Choose mod version',onclick:()=>showModVersionEditor('mod-version-select')}));
-  return el('p',{class:'wz-version'},el('span',{text:'Writes '}),el('strong',{text:saved.label||saved.id}),el('span',{text:(saved.hardware_qualified===true?' · hardware-tested':' · not hardware-verified')+(savedPinned()?' · kept on the USB':' · network updates allowed')+' · '}),
+  return el('p',{class:'wz-version'},el('span',{text:(saved.hardware_qualified===true?'Hardware-tested':'Not hardware-verified')+(savedPinned()?' · kept on the USB':' · network updates allowed')+' · '}),
     el('button',{type:'button',class:'text-button',text:'Change',onclick:()=>showModVersionEditor('mod-version-select')}));
 }
 function driveLabel(){return W.usbs?.find(item=>item.volume===W.usb)?.label||W.usb;}
 function choices(){
-  const games=W.inspection.games;
+  const update=modUpdate(W.inspection.recorded_mod_version?.id?W.inspection.recorded_mod_version:null,savedModVersion());
   return {loader:loaderChoice(),saved:savedModVersion(),games:W.games,changes:settingsChanges(),settingsEditable:settingsEditable(),versionLine:versionLine(),
+    update,changelog:modUpdatePanel(update,{expanded:W.changesOpen,onExpand:()=>{W.changesOpen=true;render();}}),
     setLoader:value=>{W.loader=value;render();},
+    chooseGames:()=>goto('nonessentials'),
+    editSettings:()=>goto('settings')};
+}
+// games_menu is a setting only once the loader's schema has it; until then every built-in game stays in the menu.
+function gamesMenu(){
+  const field=W.inspection.settings?.schema?.fields?.some(item=>item.key==='games_menu');
+  if(!field||!settingsEditable()||!W.settings)return null;
+  return {value:W.settings.games_menu,set:(bit,on)=>{W.settings={...W.settings,games_menu:on?W.settings.games_menu|1<<bit:W.settings.games_menu&~(1<<bit)};render();}};
+}
+function gamesChooser(){
+  const games=W.inspection.games;
+  return createGamesChooser({inspection:W.inspection,games:W.games,loaderOnUsb:W.inspection.loader.exists||loaderChoice()!=='keep',menu:gamesMenu(),
     toggleGame:(id,on)=>{if(on)W.games.add(id);else W.games.delete(id);render();},
     allGames:()=>{for(const game of games)W.games.add(game.id);render();},
-    noGames:()=>{W.games=new Set(games.filter(game=>game.installed).map(game=>game.id));render();},
-    editSettings:()=>goto('settings')};
+    noGames:()=>{W.games=new Set(games.filter(game=>game.installed).map(game=>game.id));render();}});
 }
 function tree(mode){return createUsbTree({nodes:usbLoadout(W.inspection,{driveLabel:driveLabel(),choices:mode==='result'?null:choices()}),mode});}
 function stepLoadout(){
@@ -102,25 +115,32 @@ function stepLoadout(){
     el('p',{class:'wz-lead',text:'Green is ready, amber needs an update, grey is not on the USB yet. Tick what you want written. Nothing changes until the Write step.'}),
     tree('edit'),
     W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB root. Copy the finished autoexec.bin to the USB root afterward.'}):null,
-    nav('usb','settings',Boolean(savedModVersion())||loaderChoice()==='keep'));
+    nav('usb','nonessentials',Boolean(savedModVersion())||loaderChoice()==='keep'));
+}
+function stepNonEssentials(){
+  return el('section',{class:'wz-pane'},
+    el('h2',{text:'NonEssentials'}),
+    el('p',{class:'wz-lead',text:'Games are extras. Nothing here is needed to DJ. Tick what you want on this USB.'}),
+    gamesChooser(),
+    nav('loadout','settings',true));
 }
 function saveState(){
   const changes=settingsChanges().length;
-  return {label:changes?plural(changes,'change')+' · written in step 4':W.inspection.settings.revision.exists?'MATCHES USB':'NEW FILE · DEFAULTS',tone:changes?'dirty':'clean'};
+  return {label:changes?plural(changes,'change')+' · written in step 5':W.inspection.settings.revision.exists?'MATCHES USB':'NEW FILE · DEFAULTS',tone:changes?'dirty':'clean'};
 }
 function stepSettings(){
   const settings=W.inspection.settings;
   if(!settings.editable)return el('section',{class:'wz-pane'},el('h2',{text:'Settings on this USB'}),el('p',{class:'notice',role:'alert',text:settings.reason}),
-    el('p',{text:'Updating the loader writes a fresh settings file with defaults. The settings editor opens once the USB has a readable file.'}),nav('loadout','write',true));
-  if(!W.menu)W.menu=createSettingsMenu({schema:settings.schema,values:W.settings,usbLabel:W.usb,onChange:values=>{W.settings=values;renderNavOnly();},save:saveState,onGames:()=>goto('loadout')});
+    el('p',{text:'Updating the loader writes a fresh settings file with defaults. The settings editor opens once the USB has a readable file.'}),nav('nonessentials','write',true));
+  if(!W.menu)W.menu=createSettingsMenu({schema:settings.schema,values:W.settings,usbLabel:W.usb,onChange:values=>{W.settings=values;renderNavOnly();},save:saveState,onGames:()=>goto('nonessentials')});
   else W.menu.setValues(W.settings);
   return el('section',{class:'wz-pane wz-settings'},
     el('h2',{text:'Settings, laid out like the MODS menu on your XZ'}),
     el('p',{class:'wz-lead',text:'The same five sections, the same rows. Hover a control to read what it does in the dock. Changes are written to the USB in the Write step.'}),
     W.menu.el,
-    nav('loadout','write',true));
+    nav('nonessentials','write',true));
 }
-function renderNavOnly(){const old=host.querySelector('.wz-nav');if(old)old.replaceWith(nav(W.step==='settings'?'loadout':null,W.step==='settings'?'write':null,true));const dock=host.querySelector('.dv-dock');if(dock&&W.menu)W.menu.render();}
+function renderNavOnly(){const old=host.querySelector('.wz-nav');if(old)old.replaceWith(nav(W.step==='settings'?'nonessentials':null,W.step==='settings'?'write':null,true));const dock=host.querySelector('.dv-dock');if(dock&&W.menu)W.menu.render();}
 async function write(origin){
   if(nothingToWrite()){showError('Nothing is selected to write. Pick a loader action, a game or a setting first.',origin);return;}
   W.writeOrigin=origin;const choice=loaderChoice(),games=newGames(),volume=W.usb,ins=W.inspection,result={loader:null,games:null,settings:null,errors:[]};
@@ -189,11 +209,36 @@ function nav(backStep,nextStep,canNext){
     backStep?el('button',{type:'button',class:'secondary',text:'Back',onclick:()=>goto(backStep)}):null,
     W.usb?el('span',{class:'wz-usb-now',text:'USB '+W.usb}):null);
 }
+// The Games page draws the same chooser on the same state, so the Write step stays the one write path.
+function gamesPage(){
+  if(!W.inspection){
+    const list=W.usbs;
+    return el('section',{class:'wz-pane'},
+      el('h2',{text:'Games on your USB'}),
+      el('p',{class:'wz-lead',text:'Find your USB first to see which games it has.'}),
+      el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'games-find',disabled:W.finding?true:null,text:W.finding?'Looking…':list?'Look again':'Find my USB',onclick:event=>findAndChoose(event.currentTarget)})),
+      list&&!list.length?el('p',{class:'notice',role:'status',text:'No USB drive was found. Plug in the USB, wait a moment, then choose Look again.'}):null,
+      list?.length>1?el('div',{class:'wz-usb-list',role:'list'},...list.map(usbCard)):null);
+  }
+  return el('section',{class:'wz-pane'},
+    el('h2',{text:'Games on '+driveLabel()}),
+    el('p',{class:'wz-lead',text:'Games are extras. Nothing here is needed to DJ. Tick what you want, then review and write.'}),
+    gamesChooser(),
+    el('div',{class:'actions'},
+      el('button',{type:'button',class:'primary',text:'Review and write',onclick:()=>{W.result=null;showPage('setup');goto('write');}}),
+      el('button',{type:'button',class:'secondary',text:'Back to Set up USB',onclick:()=>showPage('setup')}),
+      el('span',{class:'wz-usb-now',text:'USB '+W.usb})));
+}
+async function findAndChoose(origin){
+  const found=await findUsbs(origin);
+  if(found?.length===1)await chooseUsb(found[0].volume,origin);
+}
 function render(){
-  const body=W.step==='usb'?stepUsb():W.step==='loadout'?stepLoadout():W.step==='settings'?stepSettings():W.step==='write'?stepWrite():stepDone();
-  // The shared job panel may sit inside the pane being replaced; re-place it so its ids stay in the document.
-  const hadPanel=host.contains(jobPanel);
+  const body=W.step==='usb'?stepUsb():W.step==='loadout'?stepLoadout():W.step==='nonessentials'?stepNonEssentials():W.step==='settings'?stepSettings():W.step==='write'?stepWrite():stepDone();
+  // The shared job panel may sit inside a pane being replaced; re-place it so its ids stay in the document.
+  const hadPanel=host.contains(jobPanel)||gamesHost.contains(jobPanel);
   host.replaceChildren(stepBar(),body);
+  gamesHost.replaceChildren(gamesPage());
   if(hadPanel||feedbackLive)positionFeedback();
   // The done step lists the outcome itself; a finished job panel would say it twice.
   if(W.step==='done'&&!feedbackLive&&!jobPanel.classList.contains('is-error'))jobPanel.classList.add('hidden');
@@ -201,5 +246,5 @@ function render(){
 window.setupWizard={state:W,render,goto,reset,chooseUsb,loaderChoice,newGames,settingsChanges,usbLoadout,createUsbTree};
 render();
 // Advanced tools can hand a USB it already read to the wizard.
-window.openSetupFor=inspection=>{W.usb=inspection.volume;W.inspection=inspection;W.loader='auto';W.games=new Set(inspection.games.filter(game=>game.installed).map(game=>game.id));W.settings=inspection.settings.editable?{...inspection.settings.values}:null;W.settingsStart=W.settings?{...W.settings}:null;W.menu=null;W.result=null;showPage('setup');goto('loadout');};
+window.openSetupFor=inspection=>{W.usb=inspection.volume;W.inspection=inspection;W.loader='auto';W.games=new Set(inspection.games.filter(game=>game.installed).map(game=>game.id));W.settings=inspection.settings.editable?{...inspection.settings.values}:null;W.settingsStart=W.settings?{...W.settings}:null;W.menu=null;W.result=null;W.changesOpen=false;showPage('setup');goto('loadout');};
 })();

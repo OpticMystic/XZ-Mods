@@ -11,7 +11,6 @@ const STATES={
 };
 const PLANS={add:'Will add',update:'Will update',change:'Will change'};
 const LEGEND=[['ok','Up to date'],['warn','Update available'],['off','Not on USB'],['plan','Will be written']];
-const GAME_NOTES={doom:'The original free first episode',chex:'The cereal promo game, with its patch',freedoom:'A complete free base game',myhouse:'A Doom II mod'};
 const STEMS='CDJMODS\\stems',REKORDBOX='PIONEER\\rekordbox',BACKUPS='VJ.Tools\\XZ-Mods-updates',SETTINGS='VJ.Tools\\XZ-Mods.cfg';
 const mb=bytes=>(bytes/1048576).toFixed(bytes>=104857600?0:1)+' MB';
 const gb=bytes=>String(+(bytes/1e9).toFixed(bytes>=1e11?0:1))+' GB';
@@ -25,7 +24,7 @@ function relative(path,volume){
 function node(id,depth,kind,path,label,state,detail,plan=null,control=null,children=[]){return {id,depth,kind,path,label,state,detail,plan,control,children};}
 
 // choices is null for the Done step: the tree then shows the USB as it is, with no plans or controls.
-// choices: {loader, saved, games:Set, changes:[keys], settingsEditable, versionLine, setLoader, toggleGame, allGames, noGames, editSettings}
+// choices: {loader, saved, games:Set, changes:[keys], settingsEditable, versionLine, update, changelog, setLoader, chooseGames, editSettings}
 function usbLoadout(inspection,{driveLabel,choices=null}={}){
   const ins=inspection,volume=ins.volume,c=choices,saved=c?c.saved:savedModVersion();
   const planned=plan=>c?plan:null,loaderWriting=Boolean(c&&c.loader!=='keep'&&(c.saved||savedModVersion()));
@@ -43,7 +42,9 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
       else control={kind:'check',checked:writing,disabled:!saved,label:saved?(state==='current'?'Reinstall ':'Update to ')+savedName:'Update the loader',onToggle:toggle};
     }
     const item=node('loader',1,'file','autoexec.bin','XZ Mods loader',state,detail,plan,control);
-    if(c&&(writing||!saved))item.aside=c.versionLine;
+    if(plan==='update'&&c.update&&modChangeCount(c.update))item.planNote=plural(modChangeCount(c.update),'change');
+    const changelog=c&&saved&&(['outdated','unknown'].includes(state)||plan==='update')?c.changelog:null;
+    if(c&&(writing||!saved||changelog))item.aside=[writing||!saved?c.versionLine:null,changelog];
     return item;
   };
   const settingsNode=()=>{
@@ -54,7 +55,7 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     else if(!exists){plan=planned(c&&(loaderWriting||c.settingsEditable)?'add':null);detail=plan?'New file with defaults':'Not written yet';}
     else detail=plural(settings.schema?.fields?.length||Object.keys(settings.values||{}).length,'field')+' · matches USB';
     const item=node('settings',2,'file',relative(settings.path,volume)||SETTINGS,'Settings',exists?'present':'missing',detail,plan,c?{kind:'link',label:'Edit settings',onClick:c.editSettings}:null);
-    if(plan==='change')item.planCount=changes.length;
+    if(plan==='change')item.planNote=String(changes.length);
     return item;
   };
   const backupsNode=()=>{
@@ -63,9 +64,7 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
   };
   const gameNode=game=>{
     const ticked=Boolean(c?.games.has(game.id))&&!game.installed;
-    const detail=(GAME_NOTES[game.id]||'')+(game.requires_gzdoom?' · Not playable on the XZ yet':'');
-    const control=c&&!game.installed?{kind:'check',checked:ticked,label:'Add · '+mb(game.bytes),onToggle:on=>c.toggleGame(game.id,on)}:null;
-    return node('game-'+game.id,2,'folder',relative(game.folder,volume),game.name,game.installed?'present':'missing',detail,planned(ticked?'add':null),control);
+    return node('game-'+game.id,2,'folder',relative(game.folder,volume),game.name,game.installed?'present':'missing',gameNote(GAMES.find(entry=>entry.id===game.id)||{},game),planned(ticked?'add':null));
   };
   const games=ins.games||[],stems=ins.stems||{tracks:0,bytes:0},space=ins.space||{};
   const vjtools=[settingsNode(),backupsNode()].filter(Boolean),gameNodes=games.map(gameNode);
@@ -75,7 +74,7 @@ function usbLoadout(inspection,{driveLabel,choices=null}={}){
     loaderNode(),
     node('vjtools',1,'folder','VJ.Tools','XZ Mods files',anyPresent(vjtools)?'present':'missing','Settings and loader backups',null,null,vjtools),
     node('games',1,'folder','VJTOOLS\\Games','Games',anyPresent(gameNodes)?'present':'missing','Free downloads, opened from EXTRAS › GAMES',null,
-      c?[{kind:'link',label:'Add all free games',onClick:c.allGames},{kind:'link',label:'None',onClick:c.noGames}]:null,gameNodes),
+      c?{kind:'link',label:'Choose in NonEssentials',onClick:c.chooseGames}:null,gameNodes),
     node('stems',1,'folder',STEMS,'Prepared stems',stems.tracks>0?'present':'missing',stems.tracks>0?plural(stems.tracks,'track')+' · '+size(stems.bytes):'None yet',null,
       c?{kind:'link',label:'Prepare stems',onClick:()=>showPage('stems')}:null),
     node('rekordbox',1,'folder',REKORDBOX,'Rekordbox library',ins.rekordbox?'untouched':'missing',ins.rekordbox?'Music and playlists, never touched':'Export from Rekordbox to this USB first')
@@ -91,7 +90,7 @@ function controlEl(control){
 function row(item,mode){
   const state=STATES[item.state],plan=mode!=='result'&&item.plan?item.plan:null;
   const controls=mode==='edit'?[].concat(item.control||[]):[],check=controls.find(control=>control.kind==='check');
-  const badge=plan?PLANS[plan]+(item.planCount?' · '+item.planCount:''):state?.badge||'';
+  const badge=plan?PLANS[plan]+(item.planNote?' · '+item.planNote:''):state?.badge||'';
   const tone=plan?'plan':state?.tone;
   return el(check?'label':'div',{class:'tree-row',style:'--depth:'+item.depth,dataset:{id:item.id,kind:item.kind,state:item.state,plan:plan?'1':null,dim:mode==='plan'&&!plan?'1':null}},
     el('span',{class:'tree-indent','aria-hidden':'true'}),

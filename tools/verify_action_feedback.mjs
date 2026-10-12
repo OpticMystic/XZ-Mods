@@ -4,6 +4,7 @@ import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serveUi } from './csp_server.mjs';
 
 // No packages needed. Exercise the actual renderer using Chromium's CDP API.
 const app = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -31,6 +32,7 @@ window.testMockInvoke=async(command,args)=>{
   if(command==='cancel_job'){window.testMode='cancelled';return {};}
   throw Error('Unexpected test command: '+command);
 };`;
+const server = endpoint ? null : await serveUi(app);
 const profile = endpoint ? null : await mkdtemp(join(tmpdir(), 'xz-feedback-'));
 const child = endpoint ? null : spawn(process.env.XZ_TEST_BROWSER || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   ['--headless=new', '--disable-gpu', '--no-first-run', '--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore', windowsHide: true });
@@ -60,8 +62,8 @@ try {
   };
   await send('Page.enable');
   if (!endpoint) {
-    await send('Page.addScriptToEvaluateOnNewDocument', { source: mockSource + 'window.__TAURI__={core:{invoke:window.testMockInvoke}};' });
-    await send('Page.navigate', { url: 'file:///' + app.replaceAll('\\', '/') + '/ui/index.html' });
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: "window.__csp=[];document.addEventListener('securitypolicyviolation',event=>window.__csp.push(event.violatedDirective+' '+(event.blockedURI||'inline')+' '+(event.sourceFile||'').split('/').pop()+':'+event.lineNumber));" + mockSource + 'window.__TAURI__={core:{invoke:window.testMockInvoke}};' });
+    await send('Page.navigate', { url: server.url + 'index.html' });
     for (let attempt = 0; attempt < 100; attempt++) {
       if (await evaluate('Boolean(document.getElementById("prepare-usb")?.onclick)')) break;
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -156,6 +158,7 @@ try {
   assert(await evaluate(`document.getElementById('st-engine').contains(document.getElementById('job-panel'))`), 'Dialog feedback must appear inside the active dialog');
   await evaluate(`closeEngineWizard();`);
   await waitFor(`!document.getElementById('st-engine').contains(document.getElementById('job-panel'))`);
+  if (!endpoint) assert.deepEqual(await evaluate('window.__csp'), [], 'No CSP violations under the app policy');
   console.log('PASS: action feedback is visible beside the initiating action');
   }
 } finally {
@@ -171,6 +174,7 @@ try {
     } catch {}
   }
   socket?.close();
+  await server?.close();
   child?.kill();
   if (profile) {
     assert(dirname(resolve(profile))===resolve(tmpdir())&&basename(profile).startsWith('xz-feedback-'), 'Cleanup must stay inside the generated browser profile');

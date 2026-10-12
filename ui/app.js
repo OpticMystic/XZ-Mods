@@ -17,7 +17,7 @@ let repairInspection=null,repairDiscovery=null;
 // unsaved dropdown and checkbox state. USB writes read only the saved choice, through selectedVersionRequest().
 let modInventory=null,modDraft=null,modLoadError='',modImportFolder='',modImportedId=null;
 const modChannels={preview:'Preview',public:'Public release',release:'Public release',released:'Released',development:'Development build',dev:'Development build',imported:'Imported'};
-const titles={setup:'Set up USB',advanced:'Advanced tools',stems:'Prepare stems','library-repair':'Repair library','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
+const titles={setup:'Set up USB',games:'Games',advanced:'Advanced tools',stems:'Prepare stems','library-repair':'Repair library','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
 const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library','plan_engine_setup','list_mod_versions','inspect_mod_settings'];
@@ -441,6 +441,8 @@ function el(tag,props,...children){
     if(value===undefined||value===null||value===false)continue;
     if(key==='class')item.className=value;
     else if(key==='text')item.textContent=value;
+    // The app's CSP has no 'unsafe-inline' for styles: a style attribute is dropped, CSSOM writes are allowed.
+    else if(key==='style')item.style.cssText=value;
     else if(key==='dataset'){for(const [name,data] of Object.entries(value))if(data!==undefined&&data!==null)item.dataset[name]=data;}
     else if(key.startsWith('on'))item[key]=value;
     else item.setAttribute(key,value===true?'':value);

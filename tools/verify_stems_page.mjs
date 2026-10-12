@@ -4,6 +4,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serveUi } from './csp_server.mjs';
 
 // No packages needed. Drives the real renderer in headless Edge over CDP with a mocked Tauri invoke.
 // Run: node tools/verify_stems_page.mjs   (XZ_TEST_BROWSER overrides the browser path)
@@ -100,6 +101,7 @@ function installMock() {
   window.txt = selector => document.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim() || '';
 }
 
+const server = await serveUi(app);
 const profile = await mkdtemp(join(tmpdir(), 'xz-stems-'));
 const child = spawn(process.env.XZ_TEST_BROWSER || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   ['--headless=new', '--disable-gpu', '--no-first-run', '--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore', windowsHide: true });
@@ -135,11 +137,11 @@ try {
   await send('Runtime.enable');
   socket.addEventListener('message', event => { const data = JSON.parse(event.data); if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.exception?.description || data.params.exceptionDetails.text); });
   await send('Page.enable');
-  await send('Page.addScriptToEvaluateOnNewDocument', { source: '(' + installMock + ')();' });
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: "window.__csp=[];document.addEventListener('securitypolicyviolation',event=>window.__csp.push(event.violatedDirective+' '+(event.blockedURI||'inline')+' '+(event.sourceFile||'').split('/').pop()+':'+event.lineNumber));" + '(' + installMock + ')();' });
   await send('Emulation.setDeviceMetricsOverride', { width: 1100, height: 720, deviceScaleFactor: 1, mobile: false });
   const open = async mode => {
     await send('Page.navigate', { url: 'about:blank' });
-    await send('Page.navigate', { url: 'file:///' + app.replaceAll('\\', '/') + '/ui/index.html#' + mode });
+    await send('Page.navigate', { url: server.url + 'index.html#' + mode });
     await waitFor(`typeof renderStems==='function'&&Boolean(document.querySelector('nav button[data-page="stems"]')?.onclick)&&activeJob===null`, 'app loaded');
     await evaluate(`document.querySelector('nav button[data-page="stems"]').click()`);
   };
@@ -346,6 +348,7 @@ try {
     if (file === 'ui/app.js') assert(!text.slice(start, end).includes('\u2014'), 'No em dash in the stems module');
   }
   assert.deepEqual(errors, [], 'No page exceptions');
+  assert.deepEqual(await evaluate('window.__csp'), [], 'No CSP violations under the app policy');
   console.log(`PASS: ${passed} stems page checks`);
 } finally {
   try {
@@ -354,6 +357,7 @@ try {
     await new Promise(done => { browser.onopen = () => { browser.send(JSON.stringify({ id: 1, method: 'Browser.close' })); setTimeout(done, 300); }; browser.onerror = done; });
   } catch {}
   socket?.close();
+  await server.close();
   child.kill();
   assert(dirname(resolve(profile)) === resolve(tmpdir()) && basename(profile).startsWith('xz-stems-'), 'Cleanup must stay inside the generated browser profile');
   await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });

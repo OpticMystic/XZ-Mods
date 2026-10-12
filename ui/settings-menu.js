@@ -40,7 +40,7 @@ const DOCK={
   key_feedback:'Shows the effective key and Key Sync state on the deck.',ram_debug:'Shows free RAM on the screen. For troubleshooting.',rekordbox_menu:'The REKORDBOX key opens and closes MODS. Turn off to keep the stock key.',
   metrics_enabled:'On-device metrics and temperature warnings in the top bar.',stem_order:'The order of the three stem rows and pads on screen. The diagram updates as you change it.',
   stem_bank:'Tap a pad to choose which four pads carry the stem shortcuts.',theme:'Tap a theme card to choose it. The XZ redraws every screen in it.',
-  jump:'Tap a pair, then use the arrows to change its jump size.',games:'Games are chosen in the Loadout step of this wizard; on the XZ they open from EXTRAS > GAMES.'
+  jump:'Tap a pair, then use the arrows to change its jump size.',games:'Games are chosen in the NonEssentials step of this wizard; on the XZ they open from EXTRAS > GAMES.'
 };
 const PAGES={
   general:{title:'GENERAL',rows:[['toggle','stems'],['link','STEM SETTINGS','controls'],['toggle','jump_enabled'],['link','JUMP SETTINGS','beatjump'],['toggle','gate'],['toggle','smart'],
@@ -52,22 +52,12 @@ const PAGES={
   advanced:{title:'ADVANCED',rows:[['link','KEY SETUP','keysetup'],['link','BROWSE COLUMNS','browse'],['toggle','shift_keysync'],['toggle','key_feedback'],['toggle','ram_debug'],['toggle','shift_pages'],['toggle','rekordbox_menu'],['choice','wave_mode',2]]},
   keysetup:{title:'KEY SETUP',rows:[['toggle','shift_keysync'],['toggle','key_feedback'],['choice','key_format',2]]},
   browse:{title:'BROWSE COLUMNS',rows:[['cycle','browse_1',1],['cycle','browse_2',1],['cycle','browse_3',1],['toggle','browse_key_prefix'],['toggle','browse_traffic']]},
-  extras:{title:'EXTRAS',rows:[['card','VJ.TOOLS','SCREEN VIEW AND LINK','vjtools'],['card','GAMES','CHOSEN IN THE LOADOUT STEP','games']]},
+  extras:{title:'EXTRAS',rows:[['card','VJ.TOOLS','SCREEN VIEW AND LINK','vjtools'],['card','GAMES','CHOSEN IN NONESSENTIALS','games']]},
   vjtools:{title:'VJ.TOOLS',rows:[['toggle','fb_takeover'],['choice','takeover_assign',2]]}
 };
 const PARENT={controls:'general',beatjump:'controls',appearance:'general',stemcolors:'appearance',advanced:'general',keysetup:'advanced',browse:'advanced',extras:'general',vjtools:'extras'};
 const ROOT={general:'general',controls:'controls',beatjump:'controls',appearance:'appearance',stemcolors:'appearance',advanced:'advanced',keysetup:'advanced',browse:'advanced',extras:'extras',vjtools:'extras'};
 
-function el(tag,attrs,...children){
-  const item=document.createElement(tag);
-  for(const [key,value] of Object.entries(attrs||{})){
-    if(value===undefined||value===null||value===false)continue;
-    if(key==='class')item.className=value;else if(key==='text')item.textContent=value;else if(key.startsWith('on'))item[key]=value;
-    else if(key==='dataset')Object.assign(item.dataset,value);else item.setAttribute(key,value===true?'':value);
-  }
-  for(const child of children)if(child!==null&&child!==undefined&&child!==false)item.append(child);
-  return item;
-}
 function createSettingsMenu(options){
   const schema=options.schema,fields=new Map(schema.fields.map(field=>[field.key,field]));
   let values={...options.values},page='general',history=[],focus={kind:'page',id:'general'},jumpPair=0;
@@ -170,7 +160,7 @@ function createSettingsMenu(options){
   }
   function card(title,tagline,target){
     const games=target==='games';
-    return el('button',{type:'button',class:'dv-card',dataset:{span:1,target},onmouseenter:()=>peek('custom',target,title,games?'STEP 2':'OPEN'),
+    return el('button',{type:'button',class:'dv-card',dataset:{span:1,target},onmouseenter:()=>peek('custom',target,title,games?'STEP 3':'OPEN'),
       onclick:()=>{if(games)options.onGames?.();else go(target);}},el('span',{class:'dv-card-icon','aria-hidden':'true'}),el('span',{class:'dv-card-text'},el('strong',{text:title}),el('small',{text:tagline})),el('span',{class:'dv-chevron','aria-hidden':'true'}));
   }
   // Hover and focus preview a control in the dock without changing anything.
@@ -208,5 +198,5 @@ function createSettingsMenu(options){
 }
 window.createSettingsMenu=createSettingsMenu;
 window.SETTINGS_MENU_PAGES=PAGES;
-window.SETTINGS_MENU_LABEL={...LABEL,stem_drums_color:'DRUMS COLOR',stem_harmonics_color:'HARMONICS COLOR',stem_vocals_color:'VOCALS COLOR',jump_1:'JUMP A/B',jump_2:'JUMP C/D',jump_3:'JUMP E/F',jump_4:'JUMP G/H',jump_5:'JUMP A/B (2)',jump_6:'JUMP C/D (2)',jump_7:'JUMP E/F (2)',jump_8:'JUMP G/H (2)'};
+window.SETTINGS_MENU_LABEL={...LABEL,stem_drums_color:'DRUMS COLOR',stem_harmonics_color:'HARMONICS COLOR',stem_vocals_color:'VOCALS COLOR',jump_1:'JUMP A/B',jump_2:'JUMP C/D',jump_3:'JUMP E/F',jump_4:'JUMP G/H',jump_5:'JUMP A/B (2)',jump_6:'JUMP C/D (2)',jump_7:'JUMP E/F (2)',jump_8:'JUMP G/H (2)',games_menu:'GAMES MENU'};
 })();
