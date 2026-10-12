@@ -135,7 +135,7 @@ try {
 
   await open('fresh');
   await check(`document.querySelector('nav button.selected').dataset.page==='setup'&&txt('#page-title')==='Set up USB'`, 'wizard is the first page');
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,games,stems,library-repair,device-updates,advanced,updates,licenses'&&txt('nav button[data-page=games]')==='Games'`, 'nav: Games page right after Set up USB');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,games,dj-profile,stems,library-repair,device-updates,advanced,updates,licenses'&&txt('nav button[data-page=games]')==='Games'`, 'nav: Games page right after Set up USB, then DJ Profile');
   await check(`[...document.querySelectorAll('.wz-step')].map(b=>b.textContent.replace(/^\\d/,'')).join()==='USB,Loadout,NonEssentials,Settings,Write,Done'&&document.querySelector('.wz-step[data-state=current]').textContent.includes('USB')`, 'six steps, NonEssentials third, USB current');
   await click('Find my USB');
   await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
