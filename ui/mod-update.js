@@ -34,6 +34,7 @@ function modUpdatePanel(update,{expanded,onExpand}){
   return el('section',{class:'mu','aria-label':'What changes on your XZ'},
     el('div',{class:'mu-head'},el('h4',{text:'What changes on your XZ'}),el('small',{text:(versionName(update.from)||'Unknown version')+' → '+to})),
     update.kind==='unknown'?el('p',{class:'mu-note',text:'The version of the loader on this USB is not known. It was written on another computer or by an older app. Here is what '+to+' brings.'}):null,
+    el('p',{class:'mu-note',text:'This list comes from what the build contains. Not every change has been tested on a deck.'}),
     ...groups.map(([title,list])=>el('div',{class:'mu-group',dataset:{group:title}},el('h5',{text:title}),el('ul',{},...list.map(item)))),
     update.added.length>LIMIT&&!expanded?el('button',{type:'button',class:'text-button mu-more',text:'Show all '+update.added.length+' changes',onclick:onExpand}):null,
     update.removed.length?el('div',{class:'mu-group',dataset:{group:'removed'}},el('h5',{},el('span',{class:'tree-dot',dataset:{tone:'warn'},'aria-hidden':'true'}),el('span',{text:'Not in '+to})),
