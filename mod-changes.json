@@ -68,7 +68,7 @@
       "commit": "2826ffe5a5def4c01318e79341109f725a01f0fc",
       "kind": "new",
       "area": "MODS › CONTROLS › PC STEMS",
-      "text": "With rekordbox in PERFORMANCE mode on a computer, the XZ shows the computer track's 3-band waveform and the onscreen stem buttons switch its stems on and off. A setup page tests one drums switch first."
+      "text": "Experimental. With rekordbox in PERFORMANCE mode on a computer, the onscreen stem buttons switch that track's stems. Showing the computer track's 3-band waveform on the XZ needs a companion program on the computer and the XZ network connection. It was seen once in a test capture and has not been confirmed by watching a deck."
     },
     {
       "id": "stem-mute-load",
