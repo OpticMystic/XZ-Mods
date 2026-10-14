@@ -2,8 +2,12 @@
   IfFileExists "$INSTDIR\resources\${NAME}\*.*" 0 xz_${NAME}_done
   IfFileExists "$INSTDIR\resources\runtime\manifest.json" 0 xz_${NAME}_unknown
   GetFullPathName $R0 "$INSTDIR\resources\${NAME}"
+  StrCmp $R0 "" xz_${NAME}_failed
+  ClearErrors
+  CreateDirectory "$INSTDIR\resource-backups"
+  IfErrors xz_${NAME}_failed
   GetFullPathName $R1 "$INSTDIR\resource-backups"
-  CreateDirectory "$R1"
+  StrCmp $R1 "" xz_${NAME}_failed
   StrCpy $R2 1
 xz_${NAME}_find:
   IfFileExists "$R1\${NAME}-$R2" 0 xz_${NAME}_move
