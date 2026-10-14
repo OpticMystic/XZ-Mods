@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Windows upgrades now archive the complete previous resource folder, including older runtime helpers and generated caches, before installing the new package. An explicit verified offline catalog input retains rollback versions in clean builds. Isolated installer checks cover fresh installs, repeated upgrades and refusal to move unidentified resources.
+
 - Preview.9 targets 30 fps for Live Streamer and OBS with lossless RGB565 compression, bounded delivery and GPU drawing. The rate badge reports measured frames. Legacy loaders retain their working preview. Sanitized native codec/handler checks and Windows transport tests pass; a three-minute PC replay sustained 30 fps. Actual XZ performance and audio/control acceptance remain open.
 
 - Preview.8 adds Live Streamer screen viewing and a local OBS Browser Source URL, with a read-only controller endpoint and a one-frame-per-second preview. Disconnects clear stale frames and reconnect automatically.
