@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Preview.9 targets 30 fps for Live Streamer and OBS with lossless RGB565 compression, bounded delivery and GPU drawing. The rate badge reports measured frames. Legacy loaders retain their working preview. Sanitized native codec/handler checks and Windows transport tests pass; a three-minute PC replay sustained 30 fps. Actual XZ performance and audio/control acceptance remain open.
+
 - Preview.8 adds Live Streamer screen viewing and a local OBS Browser Source URL, with a read-only controller endpoint and a one-frame-per-second preview. Disconnects clear stale frames and reconnect automatically.
 - Adds automatic playback support for OverCue `OVPGZ004` 44.1 kHz FLAC stem sets while retaining older zlib and 96 kHz FLAC sets. The desktop checker verifies the declared rate, every decoded page, complete PCM hashes and source identity.
 - USB stem controls report the actual readiness reason, and turning stems on no longer requires a repeated setup sequence. The MODS menu distinguishes USB stems from PC stems. Physical controller acceptance is recorded separately from host verification.

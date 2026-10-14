@@ -2,6 +2,8 @@
 mod app_updates;
 mod host;
 mod live_stream;
+mod screen_protocol;
+mod screen_transport;
 use serde_json::{json, Value};
 use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Mutex}};
 use tauri::Manager;

@@ -1,6 +1,6 @@
 [package]
 name = "xz-mods-builder"
-version = "0.3.0-preview.8"
+version = "0.3.0-preview.9"
 edition = "2021"
 license = "MIT"
 description = "Independent XZ Mods USB and stem preparation tool"
@@ -19,6 +19,7 @@ tauri-plugin-updater = "2"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
 semver = "1"
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 
 [profile.dev]
 debug = 0

@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}canvas{width:100%;height:100%;object-fit:contain}#notice{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#eee;font:18px system-ui;padding:24px}#notice[hidden],canvas[hidden],button[hidden]{display:none}button{margin:12px auto;padding:9px 18px;cursor:pointer}</style></head>
+<body><canvas width="800" height="480" aria-label="Live XDJ-XZ screen" hidden></canvas><div id="notice"><p id="message">Connecting to the XZ screen…</p><button id="retry" hidden>Retry picture</button></div>
+<script>
+'use strict';
+const canvas=document.querySelector('canvas'),notice=document.getElementById('notice'),message=document.getElementById('message'),retry=document.getElementById('retry');
+const stats=window.xzScreenStats={received:0,presented:0,skipped:0,fps:null,renderer:'',lastSequence:null,lastFrameAt:null};
+let socket=null,gl=null,texture=null,pending=null,reconnect=null,protocol=1,lastFrame=0,lastSequence=null;
+const times=[];
+function hide(text){canvas.hidden=true;notice.hidden=false;message.textContent=text;}
+function initialize(){
+  gl=canvas.getContext('webgl',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:false});
+  if(!gl)throw Error('The screen viewer could not start graphics acceleration.');
+  const shader=(type,source)=>{const value=gl.createShader(type);gl.shaderSource(value,source);gl.compileShader(value);if(!gl.getShaderParameter(value,gl.COMPILE_STATUS))throw Error('The screen renderer could not compile its shader.');return value;};
+  const vertex=shader(gl.VERTEX_SHADER,'attribute vec2 position;varying vec2 uv;void main(){gl_Position=vec4(position,0.,1.);uv=vec2((position.x+1.)*.5,(1.-position.y)*.5);}');
+  const fragment=shader(gl.FRAGMENT_SHADER,'precision mediump float;uniform sampler2D picture;varying vec2 uv;void main(){gl_FragColor=texture2D(picture,uv);}');
+  const program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,fragment);gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error('The screen renderer could not link its shader.');
+  gl.useProgram(program);gl.deleteShader(vertex);gl.deleteShader(fragment);
+  const vertices=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vertices);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  const location=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,2,gl.FLOAT,false,0,0);
+  texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT,2);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,800,480,0,gl.RGB,gl.UNSIGNED_SHORT_5_6_5,null);gl.disable(gl.DITHER);gl.viewport(0,0,800,480);
+  const info=gl.getExtension('WEBGL_debug_renderer_info');stats.renderer=String(gl.getParameter(info?info.UNMASKED_RENDERER_WEBGL:gl.RENDERER));
+}
+function draw(){
+  const frame=pending;pending=null;
+  if(!frame||!gl||gl.isContextLost())return;
+  if(performance.now()-frame.at>(frame.protocol===2?1000:3000)){hide('XZ screen disconnected');frame.socket.close();return;}
+  gl.bindTexture(gl.TEXTURE_2D,texture);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,800,480,gl.RGB,gl.UNSIGNED_SHORT_5_6_5,new Uint16Array(frame.data,16));
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  if(gl.getError()!==gl.NO_ERROR){hide('The screen could not be drawn.');retry.hidden=false;frame.socket.close();return;}
+  stats.presented++;const now=performance.now();times.push(now);while(times.length>2&&times[0]<now-2500)times.shift();
+  stats.fps=times.length>1&&now-times[0]>=2000?(times.length-1)*1000/(now-times[0]):null;
+  canvas.hidden=false;notice.hidden=true;retry.hidden=true;
+  if(frame.socket.readyState===WebSocket.OPEN){const ack=new ArrayBuffer(4);new DataView(ack).setUint32(0,frame.sequence,true);frame.socket.send(ack);}
+}
+function connect(){
+  clearTimeout(reconnect);reconnect=null;
+  if(!gl||gl.isContextLost())return;
+  const url=new URL('frames',location.href);url.protocol='ws:';
+  const current=new WebSocket(url);socket=current;current.binaryType='arraybuffer';
+  current.onmessage=event=>{
+    if(current!==socket)return;
+    if(typeof event.data==='string'){hide('XZ screen disconnected');return;}
+    const data=event.data;
+    if(data.byteLength!==768016){hide('Unsupported XZ screen frame.');current.close();return;}
+    const header=new DataView(data);
+    if(header.getUint32(0,true)!==0x56505a58||header.getUint16(8,true)!==800||header.getUint16(10,true)!==480){hide('Unsupported XZ screen frame.');current.close();return;}
+    const version=header.getUint32(12,true);if(version!==1&&version!==2){hide('Unsupported XZ screen frame.');current.close();return;}
+    const sequence=header.getUint32(4,true);
+    if(lastSequence!==null){const gap=(sequence-lastSequence)>>>0;if(gap>1&&gap<0x80000000)stats.skipped+=gap-1;}
+    lastSequence=sequence;protocol=version;lastFrame=performance.now();stats.received++;stats.lastSequence=sequence;stats.lastFrameAt=lastFrame;
+    pending={data,sequence,protocol:version,at:lastFrame,socket:current};requestAnimationFrame(draw);
+  };
+  current.onclose=()=>{if(current!==socket)return;pending=null;if(!retry.hidden)return;hide('XZ screen disconnected');reconnect=setTimeout(connect,1000);};
+  current.onerror=()=>current.close();
+}
+retry.onclick=()=>location.reload();
+canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();hide('The screen renderer paused.');retry.hidden=false;if(socket)socket.close();});
+canvas.addEventListener('webglcontextrestored',()=>location.reload());
+setInterval(()=>{if(lastFrame&&performance.now()-lastFrame>(protocol===2?1000:3000))hide('XZ screen disconnected');},250);
+try{initialize();connect();}catch(error){hide(error.message);retry.hidden=false;}
+</script></body></html>

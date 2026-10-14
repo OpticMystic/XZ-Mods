@@ -125,7 +125,7 @@ for folder in ('cue','audio','key','ui','tests','doom','ota'):
             copy(path,source/'mods'/path.relative_to(RUNTIME_SOURCE/'mods'))
 for name in ('generate.py','source.json','BarlowSemiCondensed-Medium.ttf'):
     copy(RUNTIME_SOURCE/'mods/ui/fonts'/name,source/'mods/ui/fonts'/name)
-for name in ('xz_directfb_hook.c','xz_screen_server.h','mods_bridge.h','orchestrator.sh'):
+for name in ('xz_directfb_hook.c','xz_screen_server.h','xz_screen_codec.h','mods_bridge.h','orchestrator.sh'):
     copy(RUNTIME_SOURCE/'vendor/tools/xz_runtime'/name,source/'vendor/tools/xz_runtime'/name)
 for folder in ('build/dfb-generated','build/directfb-1.4-src/include','build/directfb-1.4-src/lib'):
     for path in (RUNTIME_SOURCE/'vendor'/folder).rglob('*.h'):copy(path,source/'vendor'/path.relative_to(RUNTIME_SOURCE/'vendor'))
