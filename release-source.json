@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "version": "0.3.0-preview.9",
+  "version": "0.3.0-preview.10",
   "source_directory": "source/xdj-xz-toolkit",
   "source_repository": "https://github.com/OpticMystic/XZ-Mods",
-  "native_source_archive_sha256": "08b5b5ee996861c9d96d163fd89ae8dd2836764b6592f6e4cc06c266b626b397",
-  "runtime_sha256": "6bdfae1e3583bb7a9d3a0b4b7cf09014f7515287460780174e7a458da3adfc81",
-  "matching_archive": "XZ-Mods-0.3.0-preview.9-source.zip (local, not published)",
+  "native_source_archive_sha256": "4f1510ab4b77b0e2c1011cd98e257ebc756b16afc551e29b44dee21bbb463894",
+  "runtime_sha256": "f413175846aaa323557e740cbf9ff8dd8a6e790a7acb9a0c313dfa87f6cc3e5c",
+  "matching_archive": "XZ-Mods-0.3.0-preview.10-source.zip (local, not published)",
   "local_build": true,
   "receiver_sha256": "27c08969a92717517ecc4de5d9217a5ebcee6780054f0236adf21db7300e7ae7",
   "native_source": {
     "repository": "https://github.com/OpticMystic/XZ-Mods",
     "directory": "source/xdj-xz-toolkit",
-    "commit": "df94a269c55ae113e9c9e6da5637af42fa1f228a",
+    "commit": "b5e0cd21b0d078e9becad2afffc0f92de984b672",
     "paths": [
       "mods",
       "vendor"
@@ -19,7 +19,7 @@
   },
   "builder_source": {
     "repository": "https://github.com/OpticMystic/XZ-Mods",
-    "commit": "df94a269c55ae113e9c9e6da5637af42fa1f228a",
+    "commit": "b5e0cd21b0d078e9becad2afffc0f92de984b672",
     "paths": [
       "source/xdj-xz-toolkit/builder"
     ]
@@ -57,7 +57,7 @@
     "builder/resample_source.py": "ec032939e959583665056c5b546842eb5d35d12e01c3329ed76aae339dcc71a6",
     "builder/runtime_ota.py": "3fed840d3d67a0c232761534c695762b0c2ae3eaeb3b01aaaa16e4b106151e6a",
     "builder/SEPARATION.md": "3dccadd914c3727abd1eb9516ca72c4c73bee50bdd39d630cc73e1611bd553ef",
-    "builder/service.py": "db2a90c2f237787035fbd1206f95f2f9bd5ec6a4da5c34fcfb69526a805658f7",
+    "builder/service.py": "5375040bf3ead23b2110be3d3faa43240f41cbfb93aa93ee7ab42bca367bce7e",
     "builder/stem_align.py": "2d8bcb339a18baca73f5758ab7cba64f8683ee9a6d122d5d557bc8e4e12e26c2",
     "builder/stem_batch.py": "93d7c16d3fe661267bb54a445a7b564502a12abef9c06c6e082aa5454a00c5f5",
     "builder/stem_estimate.py": "4f413c7635684814e8e7bdc9e045903b52a6d74e67ad58ff9e331a7b8295a9ea",
@@ -314,13 +314,15 @@
     "mods/capture_native_screen.py": "96fa7b8c31c4fe9f2695b66afe7d7bd11291e9ed08f25d44488f356461953fd3",
     "mods/cue/cue.c": "8a8c8c38919a73dd8d6720b8363d0381ef66db12a65054f93b802fc277222280",
     "mods/cue/cue.h": "1695c5a6d5146b716109ad9fe1ee2e7fb1433fa572e6e2df853436ef00a05d3f",
-    "mods/cue/native.c": "9447271552801f33845fdf02430e312f2043fdfb74b6c87b74d683f320a5c5e2",
+    "mods/cue/native.c": "d15e3a1fd504227bfb8d02569d7dec0540b7c9177a7f8f319dc871fe9fabe085",
     "mods/cue/native.h": "70069bd292245f8bbc0e8f3ff87e1acfca3e7f7ef82b766e2c68845515495137",
+    "mods/cue/native_follow_fixture.c": "6c970e87c601bebbb20c4dfe59127efb18f8c6485b1ba68ef7380d622db52bc3",
     "mods/cue/PAD_EVENT_ABI.md": "88e7a8974669d95d32dac88af4ee78ff79191bee929db5e9f443c31a0ca7d709",
-    "mods/cue/README.md": "d6fd988d0a22fcc056c3605bacedbab5079c6b301eb72ba7a5b82ea811237366",
+    "mods/cue/README.md": "7e1ddec0361178b6c8ed5b5c317e028bbbe14cfc390b67f0606ed807038aeb1c",
     "mods/cue/test_cue.c": "431d8d9d4a01f8b54a9097b993bb41464fe43c4083cf2e50773494a16776974f",
-    "mods/cue/test_native_decode.c": "5b6e8c8216580e8d3395c34e347ab0b5bebb1826e4fea45729fc4e7c1886a499",
+    "mods/cue/test_native_decode.c": "502ff40aacfa1c7ed9e1cd09ea84b91900a68ef7c3f3a8cddc304b34d6b0586a",
     "mods/cue/verify.py": "ae2552319f70762090839d2918350bcdb4a1bc3cbdd33bfa515714efb17c1c49",
+    "mods/cue/verify_follow_transport.py": "5eef73941303b4d7eefa0ccefcb168bb63dd3f931a56f4fe0117a0e907e460ea",
     "mods/cue/verify_native_decode.py": "263f3e338dc0a17d5780ebf3e58a0b794a742e2d4ca15674d96bf67858173402",
     "mods/decisions.tsv": "e1a868e54e87086194d0be21ea310b2d147ee3d0b1306b251de28d0d23f7f1b1",
     "mods/deploy_development.py": "e584a79cf5823035d8d21f98bcebd9010b923b34800f2e143c1fab4095c64190",
@@ -680,7 +682,7 @@
     "mods/read_pad_trace.py": "a41e06f336db57499e97d691bad464691a72874d8d0a2eda4889702f51ee67c7",
     "mods/README.md": "58a8be85df304dff3a82c51985a6192c2eb38154ff907bba73b7780989cd585f",
     "mods/runtime.c": "6079807f23da09b6d212b3ccc2486e1c443fee8dbf703663448e7c1605c1538b",
-    "mods/runtime.h": "36ce44b28e085125d9dfb220484ad151061e14a004f5799d8ee7a01110749cdc",
+    "mods/runtime.h": "fac5279514a1c1b50d243af3abfe3d7b114cd87cad83d765930a727e8a88d147",
     "mods/runtime_smoke.c": "ed896d3da57efacf965322cf1baaf81f4b6018a4c869bd49722921cde70cab23",
     "mods/sdk/sdk_sources.py": "4043ae55a6c37dbd8bc97032c1e2520cdaa8f62dc63d958913d9a244610b80d6",
     "mods/sdk/xz_sdk_host.c": "4db01e093d205155a6c347725757667702f6548b2073c01be0ab68f5a4ea85f9",
