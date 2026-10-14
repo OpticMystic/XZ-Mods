@@ -327,7 +327,7 @@ def settings_change(volume, selected, current):
     expected = managed_usb.revision(path)
     if not expected['exists']:
         return None
-    _need(expected['bytes'] <= 511, 'The saved settings record is too large for these mod versions; it was preserved.')
+    _need(expected['bytes'] <= usb_settings.MAX_RECORD_BYTES, 'The saved settings record is too large for these mod versions; it was preserved.')
     original = cache._regular(path).read_bytes()
     target_schema = usb_settings.contract(selected)
     try:

@@ -149,6 +149,32 @@ class VersionTests(unittest.TestCase):
         self.assertTrue(all(old[k] == new[k] for k in old))
         self.assertIsNone(versions.settings_change(volume, self.b, self.b))
 
+    def test_shipped_profile_can_keep_or_switch_builds(self):
+        runtime = self.b / 'runtime'
+        schema_path = runtime / 'settings-schema.json'
+        schema_path.write_bytes((Path(__file__).parents[2] / 'mods/settings-schema.json').read_bytes())
+        manifest_path = runtime / 'manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['settings_schema_sha256'] = versions._hash(schema_path)
+        manifest_path.write_text(json.dumps(manifest))
+        volume, original = self.profile()
+        self.assertGreater(len(original), 511)
+        self.assertIsNone(versions.settings_change(volume, self.b, self.b))
+        plan = versions.settings_change(volume, self.a, self.b)
+        self.assertTrue(plan['required'])
+        self.assertEqual((volume / managed_usb.SETTINGS).read_bytes(), original)
+        old = usb_settings.parse(plan['data'], usb_settings.contract(self.a))
+        current = usb_settings.parse(original, usb_settings.contract(self.b))
+        self.assertTrue(all(old[key] == current[key] for key in old))
+
+    def test_oversized_profile_is_preserved_before_switch(self):
+        volume, _ = self.profile()
+        original = b'x' * 1024
+        (volume / managed_usb.SETTINGS).write_bytes(original)
+        with self.assertRaisesRegex(ValueError, 'too large'):
+            versions.settings_change(volume, self.a, self.b)
+        self.assertEqual((volume / managed_usb.SETTINGS).read_bytes(), original)
+
     def test_failed_loader_switch_restores_exact_original_profile(self):
         volume, original = self.profile()
         plan = versions.settings_change(volume, self.a, self.b)

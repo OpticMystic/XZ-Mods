@@ -12,6 +12,9 @@
       "changes": [
         "My House is removed. It needs GZDoom, which does not run on the XZ, so copying it never made it playable.",
         "The settings editor is removed from the app. Change settings on the XZ in the MODS menu; a new loader still writes the default settings file."
+      ],
+      "fixes": [
+        "Loader updates and build changes accept the current default settings profile instead of rejecting it as too large. Oversized or invalid profiles are still preserved."
       ]
     },
     {
