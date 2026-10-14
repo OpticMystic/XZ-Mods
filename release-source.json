@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "version": "0.3.0-preview.8",
+  "version": "0.3.0-preview.9",
   "source_directory": "source/xdj-xz-toolkit",
   "source_repository": "https://github.com/OpticMystic/XZ-Mods",
-  "native_source_archive_sha256": "6bbf1bcb833450d0a1eab9684b03dfef40e3538cc1f34f17f83ed2716e89f2dc",
+  "native_source_archive_sha256": "08b5b5ee996861c9d96d163fd89ae8dd2836764b6592f6e4cc06c266b626b397",
   "runtime_sha256": "6bdfae1e3583bb7a9d3a0b4b7cf09014f7515287460780174e7a458da3adfc81",
-  "matching_archive": "XZ-Mods-0.3.0-preview.8-source.zip (local, not published)",
+  "matching_archive": "XZ-Mods-0.3.0-preview.9-source.zip (local, not published)",
   "local_build": true,
-  "receiver_sha256": "bd51d53224b8432b9d3684984a8df8f14eab7ad92b7917b39dafe7fc2370e025",
+  "receiver_sha256": "27c08969a92717517ecc4de5d9217a5ebcee6780054f0236adf21db7300e7ae7",
   "native_source": {
     "repository": "https://github.com/OpticMystic/XZ-Mods",
     "directory": "source/xdj-xz-toolkit",
-    "commit": "2e9698ff93f02e80522e13a714401ead56ffb749",
+    "commit": "df94a269c55ae113e9c9e6da5637af42fa1f228a",
     "paths": [
       "mods",
       "vendor"
@@ -19,7 +19,7 @@
   },
   "builder_source": {
     "repository": "https://github.com/OpticMystic/XZ-Mods",
-    "commit": "4b11be8f0fabdbbb82362e52d2b35c07b34574a0",
+    "commit": "df94a269c55ae113e9c9e6da5637af42fa1f228a",
     "paths": [
       "source/xdj-xz-toolkit/builder"
     ]
@@ -57,7 +57,7 @@
     "builder/resample_source.py": "ec032939e959583665056c5b546842eb5d35d12e01c3329ed76aae339dcc71a6",
     "builder/runtime_ota.py": "3fed840d3d67a0c232761534c695762b0c2ae3eaeb3b01aaaa16e4b106151e6a",
     "builder/SEPARATION.md": "3dccadd914c3727abd1eb9516ca72c4c73bee50bdd39d630cc73e1611bd553ef",
-    "builder/service.py": "0c07b2059de8b742abbe2ffe47ac5ed8f079bac236384ca13532bf7777ccc985",
+    "builder/service.py": "db2a90c2f237787035fbd1206f95f2f9bd5ec6a4da5c34fcfb69526a805658f7",
     "builder/stem_align.py": "2d8bcb339a18baca73f5758ab7cba64f8683ee9a6d122d5d557bc8e4e12e26c2",
     "builder/stem_batch.py": "93d7c16d3fe661267bb54a445a7b564502a12abef9c06c6e082aa5454a00c5f5",
     "builder/stem_estimate.py": "4f413c7635684814e8e7bdc9e045903b52a6d74e67ad58ff9e331a7b8295a9ea",
@@ -707,7 +707,9 @@
     "mods/tests/test_dj_profile_write.c": "54eb906262367d9fd8f4643c6bf2a05b4d665b3d8a2b958bbf0080bd2a2e28c4",
     "mods/tests/test_dj_runtime.c": "c0cfa45fd5c43fe451779d19401de5709c11710c5205a4726c388c8ae3431908",
     "mods/tests/test_profile_runtime.c": "b6614dade9114dacd79615fbacbf45b534f4067c322841cef1c475a0eaa418b9",
+    "mods/tests/test_screen_codec.c": "112744a5fc9c1df0de2d56c1b810722ad21cd99538d3604a1399f117d582f247",
     "mods/tests/test_screen_server.c": "bd119108de1b6ff97053174cb7aac9a6efed960e46924595defbddb73e12498f",
+    "mods/tests/test_screen_server_wire.c": "96a3ad12c3f5617d34c9bcc30f5fd996827bf6c0e79fc1e5efd07b5d85800b0a",
     "mods/tests/test_settings.c": "46ef535b1085686feadcc0b155dfa3abff256a96282ec17e41d40869d8491d5d",
     "mods/tests/test_settings_internal.c": "a868712831be6e0d30c951c785da5a678ab5179a4dc44bbc3a74de20856add1f",
     "mods/tests/test_usb_profile.c": "b29b8a6a0eb9759b1b5507b6320c5a888357e3e83d562e4931b88a3f479e2d6a",
@@ -719,7 +721,8 @@
     "mods/tests/verify_native_surface.py": "5573d727412e3c4406efb115b74bdc335f1f13e385650158db8109b3bbe446f5",
     "mods/tests/verify_profiles.py": "130bedc63923ce938ecb3b7a25fd449626fb7781e84ab2b3a5f968b122433ea5",
     "mods/tests/verify_receiver.py": "fb0adbfe2997e03742cc797e9ba8b52b4382e855e0760390ffcdc20f4955ab5b",
-    "mods/tests/verify_screen_server.py": "248519445d5100223c440b8c7ce136ac140c300cac2beda82f76dd95b7b04106",
+    "mods/tests/verify_screen_codec.py": "fcd8e695addee89ecc3882837e779f10d5e6e3c24ebc43dc211f549f4e4b4070",
+    "mods/tests/verify_screen_server.py": "87f6249d042b3376013b863dd00783a9ed6e38ed4f3a0c5041cb44ae0923ad8b",
     "mods/transfer.c": "6b713c7efdca8042fe1e8c68959dc0e768816d7a2f9f56815a40fe5a690f446d",
     "mods/ui/assets/README.md": "b68f60e616cf11468b69e882555c6046f442eb381801fa9216384d9853600f0c",
     "mods/ui/assets/xz-mods.png": "c533644f58fe5500bb83b7698db36bba594e548faa827ffe573b42385dae9b9a",
@@ -1024,6 +1027,7 @@
     "vendor/tools/xz_runtime/mods_bridge.h": "e611f8a08370406f3debb528125cbfba4a418ad5271cc908b7986c9d13e97647",
     "vendor/tools/xz_runtime/orchestrator.sh": "61790f810f3c5ca3dc1cfd6f22bd1a009f659d756f5833a0f5e136ed22526a6c",
     "vendor/tools/xz_runtime/xz_directfb_hook.c": "df53469047cc34c4e3c22756a48bce121b4635a9f940adc899f418f2b56be458",
-    "vendor/tools/xz_runtime/xz_screen_server.h": "e9cc97e185484e625eb19385b920755808d49c24f009112184308209781aa1ec"
+    "vendor/tools/xz_runtime/xz_screen_codec.h": "8db0252a9ba698c4999c1da7fe7ed4600b21f27dc8e76cbf1ac8f4e4551a1115",
+    "vendor/tools/xz_runtime/xz_screen_server.h": "f12b6d208456403a6124fb956c8aea80e146b119090606fcb83827e156357d19"
   }
 }
