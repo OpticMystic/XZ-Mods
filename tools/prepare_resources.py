@@ -50,6 +50,7 @@ if a.runtime_bundle:
     bundle_manifest=verify_mods_source(a.runtime_bundle,RUNTIME_SOURCE)
     copy(a.runtime_bundle/'libxz-mods.so',runtime/'libxz-mods.so')
     copy(a.runtime_bundle/'libxz-receiver.so',runtime/'libxz-receiver.so')
+    copy(a.runtime_bundle/'source.zip',runtime/'source.zip')
     if (a.runtime_bundle/'xz-doom').is_file():copy(a.runtime_bundle/'xz-doom',runtime/'xz-doom')
     for name in ('xz-updater','xz-runtime-smoke','ota-trust.json'):
         if (a.runtime_bundle/name).is_file():copy(a.runtime_bundle/name,runtime/name)
@@ -136,8 +137,19 @@ if a.runtime_bundle:
                 raise ValueError('Unsafe runtime source archive member')
         archive.extractall(source)
 if a.runtime_bundle and (runtime/'xz-updater').is_file():
-    subprocess.run([sys.executable,str(RUNTIME_SOURCE/'mods/ota/publish.py'),'--bundle',str(a.runtime_bundle),
-                    '--output',str(resources/'ota-release'),'--label','XZ-Mods-local-runtime'],check=True)
+    oversized=any((a.runtime_bundle/name).stat().st_size>(16*1024*1024 if name=='source.zip' else 2*1024*1024)
+                  for name in ('libxz-mods.so','libxz-receiver.so','xz-doom','source.zip'))
+    if oversized:
+        record=json.loads((runtime/'manifest.json').read_text())
+        record['ota_unavailable_reason']='This runtime is larger than the XZ network updater supports. Update the USB loader in Set up USB.'
+        (runtime/'manifest.json').write_text(json.dumps(record,indent=2)+'\n')
+        for name in ('latest.xzu','manifest.bin','release.json'):
+            stale=resources/'ota-release'/name
+            if not stale.resolve().is_relative_to(resources.resolve()):raise ValueError('Unsafe OTA staging path')
+            stale.unlink(missing_ok=True)
+    else:
+        subprocess.run([sys.executable,str(RUNTIME_SOURCE/'mods/ota/publish.py'),'--bundle',str(a.runtime_bundle),
+                        '--output',str(resources/'ota-release'),'--label','XZ-Mods-local-runtime'],check=True)
 uv_record={'version':'0.11.33','url':'https://github.com/astral-sh/uv/releases/download/0.11.33/uv-x86_64-pc-windows-msvc.zip',
     'archive_sha256':'c253ce868ad48d29327b661452ce184c9e333e6d6f5bc8d6fcfbf4dd52b83442'}
 if not (resources/'uv.exe').is_file():

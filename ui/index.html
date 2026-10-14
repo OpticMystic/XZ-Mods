@@ -58,7 +58,7 @@
 <div class="notice mod-version-ota"><p>A USB built with <strong>Keep this version on the USB</strong> turned on ignores network updates. To let it take them, turn that option off, save the mod version, then update that USB's loader.</p><button id="ota-mod-version" class="primary">Choose mod version</button></div>
 <div class="panel"><h2>Set up XZ network updates</h2><p>1. Prepare or update the USB loader once to add network-update support.</p><p>2. Choose this computer's adapter connected to the XZ network.</p>
 <label>XZ network adapter<select id="ota-network"><option value="">Detect the network adapters first</option></select></label>
-<div class="actions"><button id="ota-detect" class="secondary">Detect adapters</button><button id="ota-start" class="primary">Start update server</button></div>
+<div class="actions"><button id="ota-detect" class="secondary">Detect adapters</button><button id="ota-start" class="primary">Start update server</button><button id="ota-usb-setup" class="primary hidden">Update the USB loader</button></div>
 <p>3. On the XZ, open <strong>MODS → Extras → Network updates</strong>, check for an update, then download it. Power cycle when you are ready to activate it.</p>
 <p id="ota-status" role="status">The update server stays on your selected network. Use Cancel below to stop it.</p><p class="fine">This updates XZ Mods and the game engine. It preserves music and the original USB recovery loader.</p></div></section>
 <section id="stems" class="page hidden">
@@ -72,7 +72,7 @@
 <div class="st-pager"><span id="st-pager-text"></span><div class="actions"><button id="stem-previous" class="secondary" type="button">Previous</button><button id="stem-next" class="secondary" type="button">Next</button></div></div>
 </div>
 </section>
-<section id="library-repair" class="page hidden"><p class="intro">Check the Rekordbox library on a USB. XZ Mods can reconnect playback history pages that blank pages have cut off. It does not change tracks, playlists, stems or any other library file.</p>
+<section id="library-repair" class="page hidden"><p class="intro">Check the Rekordbox library on a USB. XZ Mods can clear invalid unused pages and reconnect surviving playback-history pages. It preserves track records, playlists, music and prepared stems.</p>
 <div class="panel" id="repair-choose"><h2>1. Choose the USB</h2><div class="actions"><label class="drive-label">Rekordbox USB or folder<select id="repair-drive" class="repair-control" aria-label="Rekordbox USB or folder"></select></label><button id="choose-repair-drive" class="secondary repair-control">Choose folder</button><button id="find-repair-drives" class="secondary repair-control">Find USBs</button></div>
 <p id="repair-drive-status" role="status">Open this page to find your Rekordbox USB.</p>
 <div class="actions"><button id="inspect-library" class="primary repair-control">Check library</button><button id="repair-connect-open" class="primary repair-control hidden">Connect a USB</button></div>

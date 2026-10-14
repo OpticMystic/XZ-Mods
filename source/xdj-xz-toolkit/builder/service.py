@@ -207,7 +207,7 @@ def _dispatch(request,job,loader_resources=None,settings_change=None):
     if method=='discover_usbs':
         from . import managed_usb
         return managed_usb.discover(resources())
-    if method=='ota_networks':return {'addresses':runtime_ota.network_addresses(),'ready':(resources()/'ota-release/latest.xzu').is_file()}
+    if method=='ota_networks':return {'addresses':runtime_ota.network_addresses(),**runtime_ota.readiness(resources())}
     if method=='serve_runtime_updates':return runtime_ota.serve(resources(),request['address'],job)
     if method=='generate_library_stem_batch':
         from . import stem_batch
