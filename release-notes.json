@@ -14,6 +14,7 @@
         "The settings editor is removed from the app. Change settings on the XZ in the MODS menu; a new loader still writes the default settings file."
       ],
       "fixes": [
+        "Repair library can clear invalid data from unused Device Library pages, the repair verified on XZME in Windows rekordbox. It preserves active records, backs up the catalogs and OneLibrary journals, and supports exact undo while the files remain unchanged.",
         "Loader updates and build changes accept the current default settings profile instead of rejecting it as too large. Oversized or invalid profiles are still preserved."
       ]
     },

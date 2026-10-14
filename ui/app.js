@@ -1207,11 +1207,11 @@ if(invoke)window.__TAURI__.webviewWindow?.getCurrentWebviewWindow().onDragDropEv
 const repairVerdicts={
   healthy:{badge:'No damage found',text:'No structural damage found in the checked tables. Rekordbox and player acceptance still need testing.'},
   repairable:{badge:'Repair available',text:'Some playback history pages are cut off by blank pages. XZ Mods can reconnect the intact pages. History entries that are already missing cannot be recovered.'},
-  not_repairable:{badge:'Cannot repair here',text:'This library has damage XZ Mods cannot repair. This app only reconnects intact playback history pages. Save a report to keep the details.'},
+  not_repairable:{badge:'Cannot repair here',text:'This library has damage outside the supported unused-page and playback-history repairs. Save a report to keep the details.'},
   no_library:{badge:'No library',text:'No Rekordbox library was found here. Choose the USB root or a folder that contains PIONEER.'}
 };
 const repairCountLabels=[['tracks','Tracks'],['playlists','Playlists'],['stem_sets','Stem sets']];
-function repairVerdictText(data){return repairVerdicts[data?.verdict]?.text||'XZ Mods could not classify this library. Save a report to keep the details.';}
+function repairVerdictText(data){return (data?.verdict==='repairable'&&data.repair?.description)||repairVerdicts[data?.verdict]?.text||'XZ Mods could not classify this library. Save a report to keep the details.';}
 function repairWritable(){return Boolean(repairInspection)&&!repairInspection.rekordbox_running;}
 function restorableBackups(data){return (data?.backups||[]).filter(backup=>backup&&backup.restorable===true);}
 function selectedRepairBackup(){return restorableBackups(repairInspection).find(item=>item.id===$('repair-backups').value);}

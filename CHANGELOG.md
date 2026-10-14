@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Repair library detects and clears invalid data in unused Device Library pages, the correction that restored XZME in Windows rekordbox. Every active page, track ID, playlist and file length is preserved. Ambiguous layouts are refused; verified backups and exact undo cover this repair too. The app now describes the specific repair it offers. Controller playback acceptance remains separate.
+
 - Repair library now backs up and checks OneLibrary's transaction journals alongside its main database. New or changed journals block stale repairs and undo. Sixteen repair tests pass. This fixes backup coverage; it does not yet repair the reported XZME corruption warning in Windows rekordbox.
 
 - Loader updates and build changes accept the current 515-byte default settings profile. The switch now uses the settings parser's 1,023-byte limit; oversized records remain untouched. Current-profile and oversized-profile regressions cover the boundary. Physical controller acceptance remains separate.
