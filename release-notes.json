@@ -1,6 +1,20 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.10",
+      "date": "2026-10-14",
+      "preview": true,
+      "fixes": [
+        "Smart Cue updates the main cue without cancelling playback operations. This addresses Hot Cues stopping on release with Gate Cue off."
+      ],
+      "features": [
+        "Includes the 30 fps screen-stream target and measured frame-rate display from Preview.9."
+      ],
+      "requirements": [
+        "Update the USB loader for the Smart Cue correction and faster screen stream. ARM emulation and host tests pass; physical-controller acceptance remains pending."
+      ]
+    },
+    {
       "version": "0.3.0-preview.9",
       "date": "2026-10-14",
       "preview": true,
@@ -119,7 +133,7 @@
       "preview": true,
       "features": [
         "MP3 stems are prepared on the player's timeline. The decoder now keeps every MP3 frame, the way the XDJ-XZ does, instead of trimming the LAME encoder delay; the same fix OverCue Desktop 2.2.5 shipped today.",
-        "The stems page marks MP3 bundles made before this build with \"Prepare again Ã‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
+        "The stems page marks MP3 bundles made before this build with \"Prepare again Ãƒâ€šÃ‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
       ],
       "fixes": [
         "Bundles from LAME-tagged MP3s (most MP3s) started 25 ms (1,105 frames) early against the player's full mix. Untagged MP3s, WAV and FLAC were never affected.",

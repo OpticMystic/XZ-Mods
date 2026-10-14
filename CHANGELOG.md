@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Preview.10 changes Smart Cue to update the native main-cue position without cancelling playback reservations or ending slip/audible-pause state. Turning Smart Cue off resolved the owner's Hot Cue stop-on-release reproduction with Gate Cue off. The old adapter fails the new real-ARM emulation check; the replacement passes 53 cases on each supported 1.26 executable. Hardware acceptance remains pending.
+
 - Windows upgrades now archive the complete previous resource folder, including older runtime helpers and generated caches, before installing the new package. An explicit verified offline catalog input retains rollback versions in clean builds. Isolated installer checks cover fresh installs, repeated upgrades and refusal to move unidentified resources.
 
 - Preview.9 targets 30 fps for Live Streamer and OBS with lossless RGB565 compression, bounded delivery and GPU drawing. The rate badge reports measured frames. Legacy loaders retain their working preview. Sanitized native codec/handler checks and Windows transport tests pass; a three-minute PC replay sustained 30 fps. Actual XZ performance and audio/control acceptance remain open.
