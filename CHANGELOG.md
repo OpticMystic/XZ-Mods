@@ -2,6 +2,10 @@
 
 ## Unreleased local changes
 
+- Preview.8 adds Live Streamer screen viewing and a local OBS Browser Source URL, with a read-only controller endpoint and a one-frame-per-second preview. Disconnects clear stale frames and reconnect automatically.
+- Adds automatic playback support for OverCue `OVPGZ004` 44.1 kHz FLAC stem sets while retaining older zlib and 96 kHz FLAC sets. The desktop checker verifies the declared rate, every decoded page, complete PCM hashes and source identity.
+- USB stem controls report the actual readiness reason, and turning stems on no longer requires a repeated setup sequence. The MODS menu distinguishes USB stems from PC stems. Physical controller acceptance is recorded separately from host verification.
+
 - Repair library detects and clears invalid data in unused Device Library pages, the correction that restored XZME in Windows rekordbox. Every active page, track ID, playlist and file length is preserved. Ambiguous layouts are refused; verified backups and exact undo cover this repair too. The app now describes the specific repair it offers. Controller playback acceptance remains separate.
 
 - Repair library now backs up and checks OneLibrary's transaction journals alongside its main database. New or changed journals block stale repairs and undo. Sixteen repair tests pass. This fixes backup coverage; it does not yet repair the reported XZME corruption warning in Windows rekordbox.

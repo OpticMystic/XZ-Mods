@@ -68,7 +68,7 @@ void xz_audio_set_levels(int deck,struct xz_stem_levels value){applied[deck]=val
 void xz_audio_set_levels4(int deck,const float value[4]){
     applied[deck]=(struct xz_stem_levels){value[0],value[1],value[2]};applied_bass[deck]=value[3];
 }
-int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=XZ_AUDIO_EXPERIMENTAL_READY;return 0;}
+int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
 const char *xz_audio_state_name(enum xz_audio_state state){(void)state;return "ready";}
 int xz_audio_waveform(int deck,unsigned role,unsigned char *bins,size_t count,float *progress){
     (void)role;if(deck<0||deck>1)return 0;
@@ -123,6 +123,7 @@ static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_s
 #include "test_pc_runtime_controls.h"
 #include "test_pc_runtime_refresh.h"
 #include "test_stem_layout_runtime.h"
+#include "test_usb_stem_reason_runtime.h"
 int main(void){
     unsigned char self[32]={0};started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;model.stems_overlay=1;
     xz_ui_init(&ui);xz_ui_init(&inline_ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);stock_touch=stock;
@@ -365,5 +366,6 @@ int main(void){
     snprintf(persist_path,sizeof(persist_path),"%s/VJ.Tools/XZ-Mods.cfg",persist_root);assert(!unlink(persist_path));
     snprintf(persist_path,sizeof(persist_path),"%s/VJ.Tools",persist_root);assert(!rmdir(persist_path));assert(!rmdir(persist_root));
     stem_layout_runtime_check();
+    usb_stem_reason_runtime_check();
     puts("PASS two-deck stem controls, waveform gestures, VJ view, all theme/page/bank LEDs and touch ownership");return 0;
 }

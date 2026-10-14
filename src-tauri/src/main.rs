@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod app_updates;
 mod host;
+mod live_stream;
 use serde_json::{json, Value};
 use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Mutex}};
 use tauri::Manager;
@@ -125,10 +126,11 @@ fn open_licenses(app:tauri::AppHandle)->Result<(),String>{
     Command::new(opener).arg(folder).spawn().map_err(|e|e.to_string())?;Ok(())
 }
 fn main(){
-    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(Jobs::default()).manage(app_updates::Updates::default())
-        .invoke_handler(tauri::generate_handler![start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update])
+    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(Jobs::default()).manage(app_updates::Updates::default()).manage(live_stream::LiveStream::default())
+        .invoke_handler(tauri::generate_handler![start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect])
         .on_window_event(|window,event|{
             if matches!(event,tauri::WindowEvent::CloseRequested{..}) {
+                let _=live_stream::stop(&window.state::<live_stream::LiveStream>());
                 if let Ok(entries)=window.state::<Jobs>().entries.lock(){
                     for(value,path) in entries.values(){if value["running"]==true{let _=std::fs::write(path,b"cancel");}}
                 }

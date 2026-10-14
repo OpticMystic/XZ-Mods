@@ -1374,6 +1374,8 @@ static int vjfs_client_has_header(int client) {
          memcmp(header.magic, "VJVP", 4) == 0);
 }
 
+#include "xz_screen_server.h"
+
 static void *vjfs_listener(void *unused) {
     int server;
     int one = 1;
@@ -1782,6 +1784,7 @@ DFBResult DirectFBCreate(IDirectFB **ret_interface) {
         original_get_input_device = (*ret_interface)->GetInputDevice;
         (*ret_interface)->GetInputDevice = hooked_get_input_device;
         log_line("DIRECTFB_INTERFACE_HOOKED");
+        xz_screen_start();
         if (!primary_poll_started) {
             pthread_t thread;
             primary_poll_started = 1;

@@ -26,7 +26,7 @@ def resources():
     if not configured:raise ValueError('Builder resources are not configured')
     return Path(configured).resolve()
 
-VERSION='0.3.0-preview.7'
+VERSION='0.3.0-preview.8'
 SOURCE_FORMATS=['WAV','FLAC','MP3']
 # 96 kHz roles are capped at 4096 pages; resample_poly(320/147) output is ceil(frames*320/147).
 MAX_SOURCE_FRAMES=overcue_writer.MAX_FRAMES*147//320
@@ -38,7 +38,7 @@ def status():
     catalog=json.loads(catalog_path.read_text()) if catalog_path.exists() else {}
     return {'name':'XZ Mods','version':VERSION,'firmware':'XDJ-XZ 1.26',
         'prepared_formats':['overcue-stems/4','stemd-cache/1'],
-        'prepared_containers':['OVPGZ001','OVPGZ003'], 'stem_page_codecs':['zlib','flac-96k'],
+        'prepared_containers':['OVPGZ001','OVPGZ003','OVPGZ004'], 'stem_page_codecs':['zlib','flac-96k','flac-44k1'],
         'separation_output_format':'overcue-index/1',
         'stem_import':{'plan_format':'stem-import-plan/1','archives':['ZIP'],'source_formats':['WAV','FLAC','AIFF','OGG','MP3'],
                        'groups':['vocals','drums','harmonics','instrumental','mix']},

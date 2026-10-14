@@ -97,7 +97,9 @@ static int open_pgz(const char *path,const char *table_sha,uint64_t frames,struc
     if(fread(header,1,24,f->file)!=24||be32(header+8)!=XZ_OC_PAGE)return -1;
     if(!memcmp(header,"OVPGZ001",8))f->codec=1;
     else if(!memcmp(header,"OVPGZ003",8))f->codec=3;
+    else if(!memcmp(header,"OVPGZ004",8))f->codec=4;
     else return -1;
+    f->sample_rate=f->codec==4?44100u:XZ_OC_RATE;
     f->page_count=be32(header+12);f->bytes=be64(header+16);
     if(f->bytes!=frames*4||!f->page_count||f->page_count>XZ_OC_MAX_PAGES||f->page_count!=(f->bytes+XZ_OC_PAGE-1)/XZ_OC_PAGE)return -1;
     size_t table_bytes=(size_t)f->page_count*48;unsigned char *table=malloc(table_bytes);if(!table)return -1;
@@ -111,7 +113,7 @@ static int open_pgz(const char *path,const char *table_sha,uint64_t frames,struc
     for(uint32_t i=0;i<f->page_count;i++){
         const unsigned char *p=table+(size_t)i*48;struct xz_oc_page *page=f->pages+i;
         page->offset=be64(p);page->compressed=be32(p+8);page->bytes=be32(p+12);memcpy(page->sha,p+16,32);
-        uint32_t limit=f->codec==3?page->bytes+65536u:XZ_OC_COMPRESSED_MAX;
+        uint32_t limit=f->codec>=3?page->bytes+65536u:XZ_OC_COMPRESSED_MAX;
         if(page->offset!=previous||!page->compressed||page->compressed>limit||!page->bytes||page->bytes>XZ_OC_PAGE||page->bytes%4||
            (i+1<f->page_count&&page->bytes!=XZ_OC_PAGE)||page->offset+page->compressed>(uint64_t)file_bytes){free(table);return -1;}
         total+=page->bytes;previous=page->offset+page->compressed;
@@ -129,13 +131,13 @@ static int page_read(struct xz_oc_file *f,uint32_t index){
     struct xz_oc_page *p=f->pages+index;unsigned char sum[32];
     if(p->offset>LONG_MAX||fseek(f->file,(long)p->offset,SEEK_SET)||fread(f->compressed,1,p->compressed,f->file)!=p->compressed)return -1;
     size_t n;
-    if(f->codec==3){
+    if(f->codec>=3){
         if(p->compressed<42||memcmp(f->compressed,"fLaC",4)||(f->compressed[4]&127)!=0||
            f->compressed[5]!=0||f->compressed[6]!=0||f->compressed[7]!=34)return -1;
         drflac *decoder=drflac_open_memory(f->compressed,p->compressed,NULL);
         if(!decoder)return -1;
         uint64_t frames=p->bytes/4;
-        int valid=decoder->sampleRate==XZ_OC_RATE&&decoder->channels==2&&decoder->bitsPerSample==16&&
+        int valid=decoder->sampleRate==f->sample_rate&&decoder->channels==2&&decoder->bitsPerSample==16&&
                   decoder->totalPCMFrameCount==frames;
         uint64_t got=valid?drflac_read_pcm_frames_s16(decoder,frames,(int16_t *)raw):0;
         int16_t extra[2];
@@ -227,7 +229,7 @@ static int same_token(const struct document *d,int left,int right){
 }
 static int find_entry(const struct document *d,const char *track,char bundle[17]){
     const char *maps[]={"tracks","tracks_onelibrary"};int found=-1;char value[4096];
-    const char *keys[]={"bundle","frames","three_part","page_bytes","source_sha256",
+    const char *keys[]={"bundle","frames","three_part","page_bytes","sample_rate","source_sha256",
         "vocal_sha256","vocal_page_table_sha256","instrumental_sha256","instrumental_page_table_sha256",
         "drums_sha256","drums_page_table_sha256","harmonics_sha256","harmonics_page_table_sha256",
         "vocals_drums_sha256","vocals_drums_page_table_sha256","vocals_harmonics_sha256","vocals_harmonics_page_table_sha256",
@@ -264,7 +266,7 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
     if(frames<1||frames>XZ_OC_MAX_PAGES*(XZ_OC_PAGE/4u)||frames!=floor(frames))goto done;
     if(indexed){
         if(number(&index,field(&index,entry,"three_part"))!=1||number(&index,field(&index,entry,"page_bytes"))!=XZ_OC_PAGE)goto done;
-    }else if(number(&manifest,field(&manifest,runtime,"sample_rate"))!=XZ_OC_RATE||number(&manifest,field(&manifest,runtime,"channels"))!=2||
+    }else if((number(&manifest,field(&manifest,runtime,"sample_rate"))!=XZ_OC_RATE&&number(&manifest,field(&manifest,runtime,"sample_rate"))!=44100)||number(&manifest,field(&manifest,runtime,"channels"))!=2||
              !equal(&manifest,field(&manifest,runtime,"format"),"s16le"))goto done;
     a->frames=(uint64_t)frames;
     int source_digest=field(&index,entry,"source_sha256"),manifest_digest=field(&manifest,src,"sha256");
@@ -304,9 +306,16 @@ int xz_oc_open(const char *source,struct xz_oc_assets *a,char *error,size_t capa
         }
         if(snprintf(path,sizeof(path),"%s/stems-sidecar-%s.s16le.pgz",folder,names[i])>=(int)sizeof(path)||
            open_pgz(path,expected,a->frames,file))goto done;
+        if(!a->sample_rate)a->sample_rate=file->sample_rate;
+        if(file->sample_rate!=a->sample_rate){snprintf(error,capacity,"Stem mixes use different sample rates");goto done;}
         if(i>=4)a->combination_gain[i-4]=(float)gain;
         if(i<3){a->gain[i]=(float)gain;
             if(snprintf(path,sizeof(path),"%s/stems-%s-waveform.EXT",folder,names[i])<(int)sizeof(path))load_wave(path,&a->wave[i],&a->wave_count[i]);}
+    }
+    int declared_rate=field(&index,entry,"sample_rate");
+    if((declared_rate>=0&&number(&index,declared_rate)!=a->sample_rate)||
+       (runtime>=0&&field(&manifest,runtime,"sample_rate")>=0&&number(&manifest,field(&manifest,runtime,"sample_rate"))!=a->sample_rate)){
+        snprintf(error,capacity,"Stem sample rate does not match its index");goto done;
     }
     error[0]=0;rc=0;
 done:

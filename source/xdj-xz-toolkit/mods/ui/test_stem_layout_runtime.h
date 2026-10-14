@@ -62,7 +62,7 @@ static void stem_layout_runtime_check(void) {
  ram_tap(XZ_UI_LOCAL_STEM_SETUP_STEP,0);assert(ui.stem_setup_step==1);
  ram_tap(XZ_UI_LOCAL_STEM_SETUP_STEP,1);assert(ui.stem_setup_step==2&&(model.enabled&XZ_UI_STEM));
  /* An engine alone is not a verified feature: the live test needs a prepared track. */
- ram_tap(XZ_UI_LOCAL_STEM_SETUP_STEP,2);assert(touch.visible&&strstr(ui.notice,"NOT FOUND"));
+ ram_tap(XZ_UI_LOCAL_STEM_SETUP_STEP,2);assert(touch.visible&&model.deck[0].usb_reason==XZ_UI_USB_WHY_NOT_PREPARED&&strstr(ui.notice,"PREPARE THIS TRACK"));
  fixture_prepared=1;refresh();ram_tap(XZ_UI_LOCAL_STEM_SETUP_STEP,2);assert(!touch.visible);
  assert(inline_enabled()==XZ_STEM_LAYOUT_BELOW);
  puts("PASS native physical coordinates: four row layouts, both decks, right/left drags, captured wave crossing, mode-change cancellation and hidden passthrough");

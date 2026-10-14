@@ -36,7 +36,7 @@ version=json.loads((APP/'src-tauri/tauri.conf.json').read_text())['version']
 manifest={'product':'XZ Mods','version':version,'stage':'developer-preview','public_release_qualified':False,
     'source_commit':subprocess.check_output(['git','-C',str(APP),'rev-parse','HEAD'],text=True).strip() if (APP/'.git').exists() else None,
     'prepared_formats':['overcue-stems/4','stemd-cache/1'],
-    'prepared_containers':['OVPGZ001','OVPGZ003'], 'stem_page_codecs':['zlib','flac-96k'],
+    'prepared_containers':['OVPGZ001','OVPGZ003','OVPGZ004'], 'stem_page_codecs':['zlib','flac-96k','flac-44k1'],
     'runtime':json.loads((portable/'resources/runtime/manifest.json').read_text()),
     'vjtools_required':False,'python_required':False,'firmware_included':False,'keys_included':False,
     'model_weights_included':False,'files':{str(path.relative_to(portable)).replace('\\','/'):digest(path)

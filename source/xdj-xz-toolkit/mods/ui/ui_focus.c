@@ -113,7 +113,7 @@ static const char *page_title(int page){
  case XZ_UI_UPDATES:return "NETWORK UPDATES";case XZ_UI_UPDATE_SETUP:return "UPDATE SETUP";case XZ_UI_MYHOUSE_SETUP:return "MY HOUSE";
  case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";case XZ_UI_PC_STEMS:return "PC STEMS";
  case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_APPS:return "APPLICATIONS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
- case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "STEM SETUP";
+ case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";
  case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";default:return "MODS";}
 }
 static const char *panel_body(int page){
@@ -141,7 +141,7 @@ static const char *panel_body(int page){
  case XZ_UI_MYHOUSE_SETUP:return "Check the native GZDoom engine and My House files.";
  case XZ_UI_APPS_SETUP:return "Walk through detecting, installing and testing an XZ SDK app.";
  case XZ_UI_BEAT_JUMP:return "Custom beat jump sizes for the pads.";
- case XZ_UI_PC_STEMS:return "Switch rekordbox stems from this screen over USB.";
+ case XZ_UI_PC_STEMS:return "Switch rekordbox stems on a computer linked by USB cable.";
  case XZ_UI_PROFILE_SETUP:return "Your profile's name, logo and tagline, and creating or editing a profile on the USB.";
  default:return "Opens this page.";}
 }
@@ -151,12 +151,12 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_PANEL:case XZ_UI_FEATURE_LINK:return panel_body(k);
  case XZ_UI_FEATURE_SETUP_OPEN:return "Detect this feature and its USB track, choose a deck, then enable and test it.";
  case XZ_UI_FEATURE_SETUP_STEP:return u->feature_step==3?"Confirm only after testing the feature on the loaded deck.":"Run the next setup step. Missing support keeps its specific reason on screen.";
- case XZ_UI_LOCAL_STEM_SETUP_OPEN:return "Detect the local stem engine, enable it and verify a prepared USB track.";
+ case XZ_UI_LOCAL_STEM_SETUP_OPEN:return xz_ui_usb_next_step(xz_ui_usb_blocked(m,a->deck>=0?a->deck:u->deck<2?u->deck:0));
  case XZ_UI_METRICS_TOGGLE:return "Show or hide live CPU, RAM and temperature readings beside STEMS and MODS.";
  case XZ_UI_DECK:return u->page==XZ_UI_PC_STEMS?"Choose the deck this setup checks.":"Choose which deck these controls act on.";
- case XZ_UI_CONTROL_SECTION:return k==0?"Assign stem mutes to four pads in a pad mode.":k==1?"Edit custom beat jump sizes for the pads.":"Switch rekordbox stems from this screen over USB.";
+ case XZ_UI_CONTROL_SECTION:return k==0?"Assign stem mutes to four pads in a pad mode.":k==1?"Edit custom beat jump sizes for the pads.":"Switch rekordbox stems on a computer linked by USB cable.";
  case XZ_UI_ENABLE:
-  if(k==XZ_UI_STEM)return "Plays prepared OverCue stems on the XZ. Off plays the normal track audio.";
+  if(k==XZ_UI_STEM)return "Plays prepared stems from the USB on every deck. Off plays the normal track audio.";
   if(k==XZ_UI_GATE)return "Hot cue pads play only while held and jump back when released.";
   if(k==XZ_UI_SMART)return "Recalling a hot cue also moves the CUE point to it.";
   if(k==XZ_UI_PREVIEW)return "Hold a hot cue pad to hear it while the deck is paused.";
@@ -218,7 +218,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_RAM_REQUEST:return "Copies the loaded track's audio into RAM.";
  case XZ_UI_RAM_CANCEL:return "Stops the copy. The track keeps playing from USB.";
  case XZ_UI_RAM_RELEASE:return "Frees the RAM copy. Needs the USB still connected.";
- case XZ_UI_LOCAL_STEM_SETUP_STEP:return "Runs the next setup step for local stems.";
+ case XZ_UI_LOCAL_STEM_SETUP_STEP:return xz_ui_usb_next_step(xz_ui_usb_blocked(m,u->deck<2?u->deck:0));
  case XZ_UI_PC_CHECK:return "Checks this deck is playing from rekordbox on the computer.";
  case XZ_UI_PC_TEST:return "Sends one drums switch to rekordbox.";
  case XZ_UI_PC_CONFIRM:return k?"Drums switched in rekordbox. Finishes setup.":"Drums did not switch. Goes back to the test.";
@@ -255,7 +255,12 @@ int xz_ui_describe(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_u
  else if(a.kind==XZ_UI_STRIP)out->title="LOOP STRIP";
  out->body=body(u,m,&a);
  if(xz_ui_profile_owns(a.kind)){const char *title=NULL,*text=xz_ui_profile_describe(u,m,&a,&title);if(text)out->body=text;if(title)out->title=title;}
- if(!l.available)out->state="NOT READY";
+ /* Locked stems name their reason instead of a bare NOT READY. */
+ if(!l.available&&(a.kind==XZ_UI_MUTE||a.kind==XZ_UI_BYPASS||a.kind==XZ_UI_LEVEL)){
+  enum xz_ui_usb_reason why=xz_ui_usb_blocked(m,a.deck>=0?a.deck:u->deck<2?u->deck:0);
+  out->state=xz_ui_usb_reason_text(why);out->body=xz_ui_usb_next_step(why);
+ }
+ else if(!l.available)out->state="NOT READY";
  else if(u->adjusting)out->state="ADJUSTING";
  else switch(a.kind){
  case XZ_UI_STEM_ORDER:{

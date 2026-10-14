@@ -93,12 +93,91 @@ int main(void){
         xz_ui_inline_touch(&panel,&m,W,XZ_WAVE_INLINE_HEIGHT,b.x+40,y,0,a);
     }
 
-    /* Setup states keep the five-slot shape and end in the one SET UP button. */
+    /* Blocked states keep the five-slot shape and end in the deck's one reason.
+       Switched off with the engine present turns straight on for every deck. */
     m=local_model(4,3);m.enabled=0;
-    assert(row(&u,&m,0,w)==5&&w[4].kind==XZ_UI_LOCAL_STEM_SETUP_OPEN&&!strcmp(w[4].label,"SET UP"));
+    assert(row(&u,&m,0,w)==5&&w[4].kind==XZ_UI_ENABLE&&w[4].index==XZ_UI_STEM&&!strcmp(w[4].label,"TURN ON"));
+    {
+        struct xz_ui panel;xz_ui_init(&panel);
+        assert(tap(&panel,&m,&w[4],a)==1&&a[0].kind==XZ_UI_ENABLE&&a[0].index==XZ_UI_STEM&&a[0].value==1);
+        for(int slot=0;slot<4;slot++)assert(!xz_ui_widget_ready(&panel,&m,&w[slot]));
+    }
     m=local_model(3,3);m.deck[1].stem_error="4-STEM SET INCOMPLETE: BASS FILE MISSING";
-    assert(row(&u,&m,1,w)==4&&w[3].kind==XZ_UI_LOCAL_STEM_SETUP_OPEN);
+    assert(row(&u,&m,1,w)==4&&w[3].kind==XZ_UI_LOCAL_STEM_SETUP_OPEN&&!strcmp(w[3].label,"HOW TO FIX"));
+    /* A set that can't play never unlocks its mutes, even with the ready bit. */
+    for(int slot=0;slot<3;slot++)assert(!xz_ui_widget_ready(&u,&m,&w[slot]));
     assert(row(&u,&m,0,w)==4&&w[3].kind==XZ_UI_BYPASS);
+
+    /* Every reported reason: the trailing slot, mute gates, and no LOCKED text. */
+    {
+        static const struct {enum xz_ui_usb_reason why;int ready,enabled,playable;enum xz_ui_action_kind tail;const char *label;} cases[]={
+            {XZ_UI_USB_WHY_NONE,1,1,1,XZ_UI_BYPASS,"BYPASS"},
+            {XZ_UI_USB_WHY_ALIGNING,1,1,1,XZ_UI_BYPASS,"BYPASS"},
+            {XZ_UI_USB_WHY_LOADING,1,1,1,XZ_UI_BYPASS,"BYPASS"},
+            {XZ_UI_USB_WHY_LOADING,0,1,0,XZ_UI_LOCAL_STEM_SETUP_OPEN,"LOADING STEMS"},
+            {XZ_UI_USB_WHY_OFF,1,0,0,XZ_UI_ENABLE,"TURN ON"},
+            {XZ_UI_USB_WHY_NO_TRACK,0,1,0,XZ_UI_LOCAL_STEM_SETUP_OPEN,"NO TRACK LOADED"},
+            {XZ_UI_USB_WHY_NOT_PREPARED,0,1,0,XZ_UI_LOCAL_STEM_SETUP_OPEN,"HOW TO FIX"},
+            {XZ_UI_USB_WHY_ERROR,1,1,0,XZ_UI_LOCAL_STEM_SETUP_OPEN,"HOW TO FIX"},
+            {XZ_UI_USB_WHY_ENGINE,0,0,0,XZ_UI_LOCAL_STEM_SETUP_OPEN,"SET UP"},
+        };
+        for(size_t k=0;k<sizeof(cases)/sizeof(*cases);k++)for(int theme=0;theme<XZ_THEME_COUNT;theme++){
+            m=local_model(3,3);m.theme=theme;
+            m.deck[0].usb_reason=cases[k].why;m.deck[0].ready=cases[k].ready?XZ_UI_STEM:0;
+            if(!cases[k].enabled)m.enabled=0;
+            if(cases[k].why==XZ_UI_USB_WHY_ENGINE){m.deck[1].ready=0;m.deck[1].usb_reason=XZ_UI_USB_WHY_ENGINE;}
+            assert(xz_ui_usb_blocked(&m,0)==cases[k].why);
+            assert(row(&u,&m,0,w)==4&&w[3].kind==cases[k].tail&&!strcmp(w[3].label,cases[k].label));
+            for(int slot=0;slot<3;slot++)assert(xz_ui_widget_ready(&u,&m,&w[slot])==cases[k].playable);
+            assert(xz_ui_inline_render(&u,&m,pixels,sizeof(pixels)/sizeof(*pixels),W,W,XZ_WAVE_INLINE_HEIGHT));
+            /* A locked mute names the reason and asks the runtime to open setup at it. */
+            if(!cases[k].playable){
+                struct xz_ui panel;xz_ui_init(&panel);
+                assert(tap(&panel,&m,&w[0],a)==1&&a[0].kind==XZ_UI_UNAVAILABLE&&a[0].index==XZ_UI_STEM);
+                assert(!strcmp(panel.notice,xz_ui_usb_next_step(cases[k].why)));
+            }
+        }
+        assert(!strcmp(xz_ui_usb_reason_text(XZ_UI_USB_WHY_ALIGNING),"PLAY TO ALIGN"));
+        for(int why=XZ_UI_USB_WHY_UNKNOWN;why<=XZ_UI_USB_WHY_ERROR;why++){
+            assert(strlen(xz_ui_usb_reason_text((enum xz_ui_usb_reason)why))<=16);
+            assert(strstr(xz_ui_usb_reason_text((enum xz_ui_usb_reason)why),"LOCKED")==NULL);
+            assert(xz_ui_usb_next_step((enum xz_ui_usb_reason)why)[0]);
+        }
+        assert(!xz_ui_usb_action_label(XZ_UI_USB_WHY_NONE)&&!xz_ui_usb_action_label(XZ_UI_USB_WHY_ALIGNING)&&
+               !xz_ui_usb_action_label(XZ_UI_USB_WHY_NO_TRACK)&&!strcmp(xz_ui_usb_action_label(XZ_UI_USB_WHY_OFF),"TURN ON"));
+    }
+    /* Unreported hosts fall back on the existing fields; ready decks keep working. */
+    m=local_model(3,3);
+    assert(xz_ui_usb_blocked(&m,0)==XZ_UI_USB_WHY_NONE&&row(&u,&m,0,w)==4&&xz_ui_widget_ready(&u,&m,&w[0]));
+    m.deck[0].stem_loading=1;assert(xz_ui_usb_blocked(&m,0)==XZ_UI_USB_WHY_LOADING&&xz_ui_widget_ready(&u,&m,&w[0]));
+    m=local_model(3,3);m.enabled=0;assert(xz_ui_usb_blocked(&m,0)==XZ_UI_USB_WHY_OFF&&xz_ui_usb_engine(&m));
+    m=local_model(3,3);m.deck[0].ready=0;assert(xz_ui_usb_blocked(&m,0)==XZ_UI_USB_WHY_NO_TRACK);
+    m.deck[0].track="SONG.MP3";assert(xz_ui_usb_blocked(&m,0)==XZ_UI_USB_WHY_NOT_PREPARED);
+    m.deck[0].stem_error="BAD";assert(xz_ui_usb_blocked(&m,0)==XZ_UI_USB_WHY_ERROR);
+    m=local_model(3,3);m.enabled=0;m.deck[0].ready=m.deck[1].ready=0;
+    assert(!xz_ui_usb_engine(&m)&&xz_ui_usb_blocked(&m,0)==XZ_UI_USB_WHY_ENGINE);
+    /* An explicit OFF proves the engine even when the host clears the ready bits. */
+    m.deck[1].usb_reason=XZ_UI_USB_WHY_OFF;assert(xz_ui_usb_engine(&m)&&xz_ui_usb_blocked(&m,0)==XZ_UI_USB_WHY_OFF);
+
+    /* The setup page button is the deck's next real step, never DETECT on a ready track. */
+    {
+        static const struct {enum xz_ui_usb_reason why;int step;} steps[]={
+            {XZ_UI_USB_WHY_ENGINE,0},{XZ_UI_USB_WHY_OFF,1},{XZ_UI_USB_WHY_NONE,2},{XZ_UI_USB_WHY_ALIGNING,2},
+            {XZ_UI_USB_WHY_NOT_PREPARED,2},{XZ_UI_USB_WHY_ERROR,2},{XZ_UI_USB_WHY_NO_TRACK,2}};
+        for(size_t k=0;k<sizeof(steps)/sizeof(*steps);k++){
+            m=local_model(3,3);m.deck[0].usb_reason=steps[k].why;
+            struct xz_ui s;xz_ui_init(&s);s.page=XZ_UI_LOCAL_STEM_SETUP;s.deck=0;
+            struct xz_ui_widget all[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&s,&m,all);int found=0;
+            for(size_t i=0;i<n;i++)if(all[i].kind==XZ_UI_LOCAL_STEM_SETUP_STEP){found=1;assert(all[i].index==steps[k].step);}
+            assert(found);
+            for(int theme=0;theme<2;theme++){m.theme=theme;assert(xz_ui_render(&s,&m,screen,800*480,800));}
+        }
+        /* Fallback host: after the engine check passes the button turns stems on. */
+        m=local_model(3,3);m.enabled=0;m.deck[0].ready=m.deck[1].ready=0;
+        struct xz_ui s;xz_ui_init(&s);s.page=XZ_UI_LOCAL_STEM_SETUP;s.stem_setup_step=1;
+        struct xz_ui_widget all[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&s,&m,all);
+        for(size_t i=0;i<n;i++)if(all[i].kind==XZ_UI_LOCAL_STEM_SETUP_STEP)assert(all[i].index==1);
+    }
 
     /* One bass colour everywhere: the PC BASS colour, following user stem colours. */
     for(int theme=0;theme<XZ_THEME_COUNT;theme++)for(int custom=0;custom<2;custom++){

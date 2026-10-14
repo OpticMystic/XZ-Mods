@@ -70,7 +70,9 @@ def stem_status(root,track,index,index_error):
             file=cache._regular(folder/name);stored+=file.stat().st_size
             if not file.stat().st_size:raise ValueError('Empty stem file')
             with file.open('rb') as audio:magic=audio.read(8)
-            codecs.add('flac-96k' if magic==b'OVPGZ003' else 'zlib' if magic==b'OVPGZ001' else 'unknown')
+            codecs.add('flac-44k1' if magic==b'OVPGZ004' else 'flac-96k' if magic==b'OVPGZ003' else 'zlib' if magic==b'OVPGZ001' else 'unknown')
+        if 'unknown' in codecs:
+            raise ValueError('This stem format is not supported by this XZ Mods build. Update the app and USB loader.')
         owner=manifest.get('writer',{}).get('name','OverCue')
         codec=next(iter(codecs)) if len(codecs)==1 else 'mixed'
         separation=manifest.get('separation') if isinstance(manifest.get('separation'),dict) else {}
@@ -78,7 +80,7 @@ def stem_status(root,track,index,index_error):
         waveforms=type(frames) is int and writer.waveforms_present(folder,frames)
         timeline=writer.mp3_timeline(manifest,source)
         regenerate=timeline=='gapless'
-        result.update(stem_status='present',stem_label='Prepared · '+owner+(' · FLAC' if codec=='flac-96k' else '')+(' · Prepare again' if regenerate else ''),
+        result.update(stem_status='present',stem_label='Prepared · '+owner+(' · FLAC' if codec.startswith('flac-') else '')+(' · Prepare again' if regenerate else ''),
                       can_generate=supported and owner==writer.WRITER,can_verify=True,page_codec=codec,stored_bytes=stored,
                       producer='xz-mods' if owner==writer.WRITER else owner,prepared_at=int(folder.stat().st_mtime),
                       preset=separation.get('preset') or separation.get('method') or manifest.get('writer',{}).get('version'),

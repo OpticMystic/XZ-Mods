@@ -71,7 +71,7 @@ elif (runtime/'doom1.wad').is_file():
     (runtime/'doom1.wad').unlink()
 (runtime/'manifest.json').write_text(json.dumps({'firmware':'XDJ-XZ 1.26','profile':'experimental','hardware_qualified':False,
     'prepared_formats':['overcue-stems/4','stemd-cache/1'],
-    'prepared_containers':['OVPGZ001','OVPGZ003'], 'stem_page_codecs':['zlib','flac-96k'],
+    'prepared_containers':['OVPGZ001','OVPGZ003','OVPGZ004'], 'stem_page_codecs':['zlib','flac-96k','flac-44k1'],
     'bundle_manifest_sha256':digest(a.runtime_bundle/'manifest.json') if a.runtime_bundle else None,
     'source_repository':bundle_manifest.get('source_repository') if bundle_manifest else 'https://github.com/OpticMystic/xdj-xz-toolkit',
     'source_directory':bundle_manifest.get('source_directory','.') if bundle_manifest else '.',
@@ -124,7 +124,7 @@ for folder in ('cue','audio','key','ui','tests','doom','ota'):
             copy(path,source/'mods'/path.relative_to(RUNTIME_SOURCE/'mods'))
 for name in ('generate.py','source.json','BarlowSemiCondensed-Medium.ttf'):
     copy(RUNTIME_SOURCE/'mods/ui/fonts'/name,source/'mods/ui/fonts'/name)
-for name in ('xz_directfb_hook.c','mods_bridge.h','orchestrator.sh'):
+for name in ('xz_directfb_hook.c','xz_screen_server.h','mods_bridge.h','orchestrator.sh'):
     copy(RUNTIME_SOURCE/'vendor/tools/xz_runtime'/name,source/'vendor/tools/xz_runtime'/name)
 for folder in ('build/dfb-generated','build/directfb-1.4-src/include','build/directfb-1.4-src/lib'):
     for path in (RUNTIME_SOURCE/'vendor'/folder).rglob('*.h'):copy(path,source/'vendor'/path.relative_to(RUNTIME_SOURCE/'vendor'))

@@ -36,13 +36,21 @@ class LibraryTests(unittest.TestCase):
         bundle='a'*16;folder=self.root/'CDJMODS/stems'/bundle;folder.mkdir(parents=True)
         manifest={'schema':writer.MANIFEST_SCHEMA,'roles':{name:{} for name in writer.ROLES}}
         (folder/'overcue-manifest.json').write_text(json.dumps(manifest))
-        for name in writer.ROLES:(folder/writer.role_file(name)).write_bytes(b'present')
+        for name in writer.ROLES:(folder/writer.role_file(name)).write_bytes(b'OVPGZ001'+b'present')
         index={'schema':writer.INDEX_SCHEMA,'tracks':{'1':{'file_path':self.mapping[1],'bundle':bundle}}}
         (self.root/'CDJMODS/index.json').write_text(json.dumps(index))
         result=stem_library.browse({'volume':str(self.root),'query':'Track 1.wav'},QuietJob())
         self.assertEqual(result['tracks'][0]['stem_status'],'present')
         self.assertTrue(result['tracks'][0]['can_verify'])
         self.assertFalse(result['tracks'][0]['can_generate'])
+        for name in writer.ROLES:(folder/writer.role_file(name)).write_bytes(b'OVPGZ004'+b'present')
+        row=stem_library.browse({'volume':str(self.root),'query':'Track 1.wav'},QuietJob())['tracks'][0]
+        self.assertEqual((row['stem_status'],row['page_codec']),('present','flac-44k1'))
+        (folder/writer.role_file(writer.ROLES[0])).write_bytes(b'OVPGZ999'+b'unsupported')
+        row=stem_library.browse({'volume':str(self.root),'query':'Track 1.wav'},QuietJob())['tracks'][0]
+        self.assertEqual(row['stem_status'],'error')
+        self.assertFalse(row['can_verify'])
+        self.assertIn('not supported',row['detail'])
     def test_mp3_bundle_from_a_gapless_decode_asks_to_prepare_again(self):
         from builder import overcue_writer as writer,mp3_timing
         self.mapping[1]='/Contents/Artist/Track 1.mp3'

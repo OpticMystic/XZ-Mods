@@ -152,6 +152,52 @@ static char settings_usb[1024];
 static char settings_message[96];
 static uint32_t settings_flash_at; /* nonzero: when the last save result was reported */
 
+static int stem_json_string(char *out,size_t capacity,const char *text){
+    size_t n=0;static const char hex[]="0123456789abcdef";
+    if(capacity<3)return 0;out[n++]='"';
+    for(const unsigned char *p=(const unsigned char *)text;*p;p++){
+        if(n+7>=capacity)return 0;
+        if(*p=='"'||*p=='\\'){out[n++]='\\';out[n++]=(char)*p;}
+        else if(*p<32){out[n++]='\\';out[n++]='u';out[n++]='0';out[n++]='0';out[n++]=hex[*p>>4];out[n++]=hex[*p&15];}
+        else out[n++]=(char)*p;
+    }
+    out[n++]='"';out[n]=0;return 1;
+}
+/* The screen observer can inspect readiness without a shell or any control action. */
+__attribute__((visibility("default"))) size_t xz_mods_stem_status_json_v1(char *out,size_t capacity){
+    struct xz_audio_status state[2]={{0}};int available,on;
+    if(!out||capacity<128||pthread_mutex_trylock(&ui_mutex))return 0;
+    available=audio_available;on=!!(model.enabled&XZ_UI_STEM);
+    pthread_mutex_unlock(&ui_mutex);
+    if(available)for(int i=0;i<2;i++)if(xz_audio_get_status(i,&state[i]))return 0;
+    int n=snprintf(out,capacity,"{\"version\":1,\"ovpgz004\":true,\"engine\":%s,\"enabled\":%s,\"decks\":[",available?"true":"false",on?"true":"false");
+    if(n<0||(size_t)n>=capacity)return 0;size_t used=(size_t)n;
+    for(int i=0;i<2;i++){
+        char path[sizeof(state[i].path)*6+3],error[sizeof(state[i].error)*6+3],format[sizeof(state[i].format_name)*6+3];
+        if(!stem_json_string(path,sizeof(path),state[i].path)||!stem_json_string(error,sizeof(error),state[i].error)||
+           !stem_json_string(format,sizeof(format),state[i].format_name))return 0;
+        n=snprintf(out+used,capacity-used,"%s{\"deck\":%d,\"state\":%d,\"status\":\"%s\",\"prepared\":%s,\"generation\":%u,\"reader_rate\":%u,\"mixed_blocks\":%u,\"skipped_blocks\":%u,\"path\":%s,\"error\":%s,\"format\":%s}",
+            i?",":"",i+1,state[i].state,xz_audio_state_name(state[i].state),state[i].prepared?"true":"false",state[i].generation,
+            state[i].reader_rate,state[i].mixed_blocks,state[i].skipped_blocks,path,error,format);
+        if(n<0||(size_t)n>=capacity-used)return 0;used+=(size_t)n;
+    }
+    if(used+3>capacity)return 0;out[used++]=']';out[used++]='}';out[used]=0;return used;
+}
+
+static enum xz_ui_usb_reason usb_stem_reason(const struct xz_audio_status *state){
+    if(!audio_available)return XZ_UI_USB_WHY_ENGINE;
+    if(!(model.enabled&XZ_UI_STEM))return XZ_UI_USB_WHY_OFF;
+    switch(state->state){
+    case XZ_AUDIO_STOPPED:case XZ_AUDIO_WAITING_TRACK:return XZ_UI_USB_WHY_NO_TRACK;
+    case XZ_AUDIO_LOADING_TRACK:case XZ_AUDIO_DECODING:case XZ_AUDIO_PREPARED_BUFFERING:
+    case XZ_AUDIO_DISABLED:return XZ_UI_USB_WHY_LOADING;
+    case XZ_AUDIO_PREPARED_ALIGNING:return XZ_UI_USB_WHY_ALIGNING;
+    case XZ_AUDIO_EXPERIMENTAL_READY:return XZ_UI_USB_WHY_NONE;
+    case XZ_AUDIO_CACHE_MISSING:return XZ_UI_USB_WHY_NOT_PREPARED;
+    default:return XZ_UI_USB_WHY_ERROR;
+    }
+}
+
 /* XZ SDK HOST BINDING V1. The manager worker owns files, hashing and processes.
    Render and touch copy its snapshot with a trylock read and never wait on it.
    Host-only runtime fixtures link no manager: these weak references stay unset
@@ -833,18 +879,20 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             }else snprintf(ui.notice,sizeof(ui.notice),"WAIT ONE SECOND, THEN LIVE VERIFY AGAIN");
             break;
         case XZ_UI_LOCAL_STEM_SETUP_OPEN:
-            xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);ui.deck=a->deck>=0&&a->deck<2?a->deck:0;ui.stem_setup_step=0;
+            xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);ui.deck=a->deck>=0&&a->deck<2?a->deck:0;
+            refresh_local();ui.stem_setup_step=!audio_available?0:(model.enabled&XZ_UI_STEM)?2:1;
             xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);inline_layout_publish();break;
         case XZ_UI_LOCAL_STEM_SETUP_STEP: {
             int deck=ui.deck>=0&&ui.deck<2?ui.deck:0;
             if(model.deck[deck].pc_stems.source!=XZ_UI_SOURCE_LOCAL){xz_ui_navigate(&ui,XZ_UI_PC_STEMS);break;}
             refresh_local();
             if(!audio_available){snprintf(ui.notice,sizeof(ui.notice),"STEM ENGINE MISSING / UPDATE USB LOADER IN XZ MODS");break;}
-            if(a->index==0){ui.stem_setup_step=1;snprintf(ui.notice,sizeof(ui.notice),"ENGINE FOUND / CHOOSE YOUR LOADED DECK ABOVE");}
-            else if(a->index==1){requested_stems=1;model.enabled|=XZ_UI_STEM;xz_audio_set_enabled(1);levels(0);levels(1);ui.stem_setup_step=2;settings_queue();}
+            if(a->index==0){ui.stem_setup_step=(model.enabled&XZ_UI_STEM)?2:1;snprintf(ui.notice,sizeof(ui.notice),"%s",xz_ui_usb_next_step(xz_ui_usb_blocked(&model,deck)));}
+            else if(a->index==1){requested_stems=1;model.enabled|=XZ_UI_STEM;xz_audio_set_enabled(1);levels(0);levels(1);ui.stem_setup_step=2;settings_queue();refresh_local();}
             /* Live verify means a prepared track is actually playing stems, not just an engine present. */
             else if((model.deck[deck].ready&XZ_UI_STEM)&&audio_status[deck].prepared&&audio_status[deck].state==XZ_AUDIO_EXPERIMENTAL_READY){xz_native_touch_visible(&touch,0);__atomic_store_n(&visible,0,__ATOMIC_RELEASE);inline_redraw_pending=1;}
-            else snprintf(ui.notice,sizeof(ui.notice),"PREPARED STEMS NOT FOUND / LOAD A PREPARED USB TRACK AND RETRY");
+            else snprintf(ui.notice,sizeof(ui.notice),"%s",model.deck[deck].stem_error&&*model.deck[deck].stem_error?
+                model.deck[deck].stem_error:xz_ui_usb_next_step(xz_ui_usb_blocked(&model,deck)));
             inline_layout_publish();break;
         }
         case XZ_UI_UNAVAILABLE:
@@ -956,6 +1004,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
                     requested_stems = a->value != 0;
                     xz_audio_set_enabled(a->value != 0); model.enabled = next;
                     if (a->value != 0) { levels(0); levels(1); }
+                    for(int deck=0;deck<2;deck++)model.deck[deck].usb_reason=usb_stem_reason(&audio_status[deck]);
                 }
                 else if (xz_runtime_set_cues(!!(next & XZ_UI_GATE), !!(next & XZ_UI_SMART)) == 0) model.enabled = next;
             }
@@ -1276,6 +1325,7 @@ static void refresh_local(void) {
         ram_refresh(deck);
         if(model.deck[deck].pc_stems.source!=XZ_UI_SOURCE_LOCAL){key_valid[deck]=0;continue;}
         model.deck[deck].ready = XZ_UI_GATE | XZ_UI_SMART | XZ_UI_THEME;
+        model.deck[deck].usb_reason = XZ_UI_USB_WHY_ENGINE;
         key_valid[deck]=xz_key_native_snapshot((unsigned)deck,&key_snapshot[deck]);
         int cents=0,applied_cents=0;
         if (key_available&&key_valid[deck]) {
@@ -1324,6 +1374,7 @@ static void refresh_local(void) {
             model.deck[deck].ready |= XZ_UI_STEM;
             if (xz_audio_get_status(deck, &audio_status[deck]) == 0) {
                 struct xz_audio_status *s = &audio_status[deck];
+                model.deck[deck].usb_reason = usb_stem_reason(s);
                 int count=xz_stem_count((int)s->stem_count);
                 if (displayed_generation[deck] != s->generation || xz_stem_count(model.deck[deck].stem_count)!=count) {
                     displayed_generation[deck] = s->generation;

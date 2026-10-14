@@ -13,10 +13,10 @@
 #endif
 static void pause_worker(void){struct timespec t={0,20000000};nanosleep(&t,NULL);}
 static void original(struct xz_oc_assets *a,int64_t at,float pcm[4096]){
-    double first=(at+29.4)*96000/44100;int64_t base=(int64_t)floor(first);int16_t raw[10000];
+    double first=(at+29.4)*a->sample_rate/44100;int64_t base=(int64_t)floor(first);int16_t raw[10000];
     assert(!xz_oc_read(&a->reference,base,5000,raw));
     for(unsigned i=0;i<2048;i++)for(unsigned c=0;c<2;c++){
-        double t=first+i*96000.0/44100-base;size_t k=(size_t)t;double f=t-k;
+        double t=first+i*(double)a->sample_rate/44100-base;size_t k=(size_t)t;double f=t-k;
         pcm[i*2+c]=(float)((raw[k*2+c]*(1-f)+raw[(k+1)*2+c]*f)/32768*1.5);
     }
 }
@@ -56,11 +56,11 @@ int main(int argc,char **argv){
     }
     assert(status.state==XZ_OC_READY);original(&assets,15000,pcm);assert(xz_oc_stream_mix(s,pcm,2048,15000,no_vocals)==2048);
     double energy=0;for(unsigned i=256;i<4096;i++)energy+=pcm[i]*pcm[i];assert(energy>0.01);
-    double start=(15000+29.4)*96000/44100;int64_t base=(int64_t)floor(start);int16_t expected_pcm[10000];
+    double start=(15000+29.4)*assets.sample_rate/44100;int64_t base=(int64_t)floor(start);int16_t expected_pcm[10000];
     assert(!xz_oc_read(&assets.combination[0],base,5000,expected_pcm));
     double error_sum=0;
     for(unsigned i=128;i<2048;i++)for(unsigned c=0;c<2;c++){
-        double t=start+i*96000.0/44100-base;size_t k=(size_t)t;double f=t-k;
+        double t=start+i*(double)assets.sample_rate/44100-base;size_t k=(size_t)t;double f=t-k;
         double expected=(expected_pcm[k*2+c]*(1-f)+expected_pcm[(k+1)*2+c]*f)/32768*1.5;
         double delta=pcm[i*2+c]-expected;error_sum+=delta*delta;
     }
@@ -80,7 +80,7 @@ int main(int argc,char **argv){
         xz_oc_stream_status(s,&status);assert(status.misses==misses);
         double loop_error=0,loop_energy=0;
         for(unsigned i=0;i<2048;i++)for(unsigned c=0;c<2;c++){
-            double t=start+i*96000.0/44100-base;size_t k=(size_t)t;double f=t-k;
+            double t=start+i*(double)assets.sample_rate/44100-base;size_t k=(size_t)t;double f=t-k;
             double expected=(expected_pcm[k*2+c]*(1-f)+expected_pcm[(k+1)*2+c]*f)/32768*1.5;
             double delta=pcm[i*2+c]-expected;loop_error+=delta*delta;loop_energy+=pcm[i*2+c]*pcm[i*2+c];
         }

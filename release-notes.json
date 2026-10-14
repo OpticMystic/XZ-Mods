@@ -1,6 +1,22 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.8",
+      "date": "2026-10-14",
+      "preview": true,
+      "features": [
+        "Live Streamer shows the XZ screen on this computer and provides a local OBS Browser Source URL. The screen preview refreshes up to once per second."
+      ],
+      "fixes": [
+        "USB stems load automatically when a prepared track is loaded. The loader now reads newer OVPGZ004 44.1 kHz FLAC stem sets alongside the existing formats.",
+        "Stem controls show why a deck is unavailable, loading or aligning. Turning USB stems on is a direct action, and the menu separates USB stems from rekordbox PC stems.",
+        "The desktop stem list identifies supported FLAC formats and stops marking unknown formats as ready."
+      ],
+      "requirements": [
+        "Update the XZME USB loader for screen viewing and the new stem format. Controller playback acceptance is separate from host checks."
+      ]
+    },
+    {
       "version": "0.3.0-preview.7",
       "date": "2026-10-12",
       "preview": true,

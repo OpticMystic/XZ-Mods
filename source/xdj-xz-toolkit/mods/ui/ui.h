@@ -99,6 +99,14 @@ struct xz_ui_pc_stems {
     const char *reason;
     int setup_step;
 };
+/* Why USB (local OverCue) stems on a deck cannot play, or NONE when they can.
+ * The runtime fills xz_ui_deck.usb_reason every refresh. UNKNOWN (zero) means
+ * the host did not say, and the UI falls back to ready/enabled/error/track. */
+enum xz_ui_usb_reason {
+    XZ_UI_USB_WHY_UNKNOWN=0, XZ_UI_USB_WHY_NONE, XZ_UI_USB_WHY_ENGINE, XZ_UI_USB_WHY_OFF,
+    XZ_UI_USB_WHY_NO_TRACK, XZ_UI_USB_WHY_NOT_PREPARED, XZ_UI_USB_WHY_LOADING,
+    XZ_UI_USB_WHY_ALIGNING, XZ_UI_USB_WHY_ERROR
+};
 enum xz_ui_phase { XZ_UI_PRESS, XZ_UI_MOVE, XZ_UI_RELEASE };
 struct xz_ui_action {
     enum xz_ui_action_kind kind;
@@ -135,6 +143,7 @@ struct xz_ui_deck {
     int stem_count;          /* loaded stem set: 4, else three (OverCue default, zero included) */
     const char *stem_format; /* short set name for setup, e.g. "OVERCUE 3"; NULL when none */
     const char *stem_error;  /* why a stem set found on the USB can't play, one actionable line; NULL when none */
+    enum xz_ui_usb_reason usb_reason; /* runtime verdict for USB stems; UNKNOWN = not reported */
     unsigned char groove_stem[8];
     const unsigned char *wave_peaks;
     size_t wave_count;
@@ -303,9 +312,24 @@ int xz_ui_stem_count(const struct xz_ui_model *,int deck);
 /* Why PC controls on this deck are locked, or XZ_UI_PC_WHY_NONE when toggles may be sent. */
 enum xz_ui_pc_reason xz_ui_pc_blocked(const struct xz_ui_model *,int deck);
 const char *xz_ui_pc_reason_text(enum xz_ui_pc_reason);
+/* Why USB stems on this deck can't play: usb_reason when the runtime set it,
+   else derived from ready/enabled/stem_error/stem_loading/track. Never UNKNOWN. */
+enum xz_ui_usb_reason xz_ui_usb_blocked(const struct xz_ui_model *,int deck);
+/* 1 when the USB stem engine is present, so USB STEMS can be switched on directly. */
+int xz_ui_usb_engine(const struct xz_ui_model *);
+/* Short status ("USB STEMS OFF", "PLAY TO ALIGN"), at most 16 characters. */
+const char *xz_ui_usb_reason_text(enum xz_ui_usb_reason);
+/* The one fix for this reason ("TURN ON", "SET UP"), or NULL when there is
+   nothing to set up (ready, no track, loading, aligning). */
+const char *xz_ui_usb_action_label(enum xz_ui_usb_reason);
+/* One sentence naming the exact next step, for the setup page and notices. */
+const char *xz_ui_usb_next_step(enum xz_ui_usb_reason);
 /* Each deck row is equal slots: its stems, then one trailing control. A LOCAL
  * three-stem deck lays out the same three MUTE widgets and BYPASS as always; a
- * LOCAL four-stem deck adds a BASS MUTE at slot 3 (pad D/H) before BYPASS. A PC or
+ * LOCAL four-stem deck adds a BASS MUTE at slot 3 (pad D/H) before BYPASS. While
+ * USB stems can't play, the trailing slot carries the deck's one reason: ENABLE
+ * (XZ_UI_STEM, "TURN ON", all decks) when switched off with the engine present,
+ * else LOCAL_STEM_SETUP_OPEN labelled with the fix or the reason. A PC or
  * UNKNOWN deck lays out one PC_TOGGLE per role in pc_stems.available (three in
  * 3-stem mode, four in 4-stem mode; the three shared roles, locked, while the
  * mode is unreported), then PC_SETUP as the source tag in BYPASS's place. */

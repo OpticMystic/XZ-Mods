@@ -86,6 +86,26 @@ int main(int argc,char **argv){
   xz_ui_init(&ui);ui.page=XZ_UI_PC_STEMS;if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
   snprintf(name,sizeof(name),"theme-%d-pc%d-setup-%s",theme,mode?4:3,pc_names[k]);save(argv[1],name,800,480);
  }
+ /* USB stems: every reason on deck 1's inline row, plus its setup page and
+    General for two themes. Deck 2 stays ready unless the reason is global. */
+ static const char *usb_names[]={"unknown","ready","engine","off","no-track","not-prepared","loading","aligning","error"};
+ for(int theme=0;theme<XZ_THEME_COUNT;theme++)for(int why=XZ_UI_USB_WHY_NONE;why<=XZ_UI_USB_WHY_ERROR;why++){
+  model=baseline;model.theme=theme;model.stems_overlay=1;xz_ui_init(&ui);ui.deck=0;
+  struct xz_ui_deck *d=&model.deck[0];d->usb_reason=(enum xz_ui_usb_reason)why;d->stem_format="OVERCUE 3";
+  if(why==XZ_UI_USB_WHY_ENGINE){model.enabled=0;d->ready=model.deck[1].ready=XZ_UI_THEME;model.deck[1].usb_reason=XZ_UI_USB_WHY_ENGINE;d->stem_format=NULL;}
+  if(why==XZ_UI_USB_WHY_OFF){model.enabled=0;model.deck[1].usb_reason=XZ_UI_USB_WHY_OFF;}
+  if(why==XZ_UI_USB_WHY_NO_TRACK){d->ready&=~(uint32_t)XZ_UI_STEM;d->track=NULL;d->stem_format=NULL;}
+  if(why==XZ_UI_USB_WHY_NOT_PREPARED){d->ready&=~(uint32_t)XZ_UI_STEM;d->stem_format=NULL;}
+  if(why==XZ_UI_USB_WHY_LOADING||why==XZ_UI_USB_WHY_ALIGNING)d->stem_loading=1;
+  if(why==XZ_UI_USB_WHY_ERROR){d->ready&=~(uint32_t)XZ_UI_STEM;d->stem_error="4-STEM SET INCOMPLETE: BASS FILE MISSING";}
+  if(!xz_ui_inline_render(&ui,&model,pixels,536*XZ_WAVE_INLINE_HEIGHT,536,536,XZ_WAVE_INLINE_HEIGHT))return 1;
+  snprintf(name,sizeof(name),"theme-%d-inline-usb-%s",theme,usb_names[why]);save(argv[1],name,536,XZ_WAVE_INLINE_HEIGHT);
+  if(theme>1)continue;
+  ui.page=XZ_UI_LOCAL_STEM_SETUP;if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
+  snprintf(name,sizeof(name),"theme-%d-usb-setup-%s",theme,usb_names[why]);save(argv[1],name,800,480);
+  ui.page=XZ_UI_GENERAL;if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
+  snprintf(name,sizeof(name),"theme-%d-general-usb-%s",theme,usb_names[why]);save(argv[1],name,800,480);
+ }
  xz_ui_init(&ui);
  model=baseline;ui.page=XZ_UI_STEMS;
  model.theme=0;ui.deck=2;
