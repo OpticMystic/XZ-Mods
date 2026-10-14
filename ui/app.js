@@ -1,6 +1,6 @@
 const $=id=>document.getElementById(id);
 const invoke=window.__TAURI__?.core?.invoke;
-let activeJob=null,appUpdating=false,updateChecking=false;
+let activeJob=null,appUpdating=false,updateChecking=false,otaReady=false;
 let stemLibraryStarted=false,stemLibraryStarting=false,stemLibrary=null,stemLibraryLoading=false;
 // Work that found another job running waits here and runs once the current job ends.
 const idleQueue=[];
@@ -31,6 +31,7 @@ for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{
   if(button.dataset.page==='stems')startStemLibrary();
   if(button.dataset.page==='dj-profile')window.djProfilePage?.show();
   if(button.dataset.page==='library-repair'&&!repairDiscovery)repairDiscovery=discoverRepairDrives();
+  if(button.dataset.page==='device-updates')$('ota-detect').click();
 };
 function required(ids,origin){for(const id of ids)if(!$(id).value.trim()){showError('Enter or choose the required '+({'volume':'USB folder',firmware:'firmware input',key:'boot key'}[id]||id)+' first.',origin);return false;}return true;}
 function movePanel(insert){
@@ -64,7 +65,7 @@ function positionFeedback(){
 function revealFeedback(){if(!jobPanel.classList.contains('hidden')&&jobPanel.isConnected)jobPanel.scrollIntoView({block:'nearest'});}
 function showFeedback(origin){feedbackHome=origin||null;jobPanel.classList.remove('hidden');positionFeedback();}
 function showError(message,origin){jobPanel.classList.remove('is-cancelled');jobPanel.classList.add('is-error');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');showFeedback(origin);revealFeedback();}
-function busy(value){value=value||appUpdating;stemBusy=value;document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,#experimental').forEach(input=>input.disabled=value);$('install-app-update').disabled=value||activeJob!==null;renderStems();updateRepairControls(value);updateModVersionControls(value);}
+function busy(value){value=value||appUpdating;stemBusy=value;document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,#experimental').forEach(input=>input.disabled=value);$('ota-start').disabled=value||!invoke||!otaReady;$('install-app-update').disabled=value||activeJob!==null;renderStems();updateRepairControls(value);updateModVersionControls(value);}
 function verifySummary(result){
   const check=stemsApi.verify(result);
   return [t('verify.mixes',{ok:check.mixes}),check.pages?ST['verify.pagesAll']:'',check.identity?ST['verify.identity']:''].filter(Boolean).join(' · ')+'. Your USB was not changed.';
@@ -148,9 +149,12 @@ $('setup-games-usb').onclick=async()=>{
 $('ota-detect').onclick=async()=>{
   const response=await run({method:'ota_networks'},'Detecting XZ network adapters',$('ota-detect'));
   if(response?.ok){const select=$('ota-network');select.replaceChildren();for(const address of response.result.addresses){const option=document.createElement('option');option.value=address;option.textContent=address;select.append(option);}
-    $('ota-status').textContent=response.result.ready?'Choose the XZ network adapter, then start the update server.':'Network update files are missing. Install the current XZ Mods app and prepare its USB loader.';
+    $('ota-status').textContent=response.result.ready?'Choose the XZ network adapter, then start the update server.':response.result.reason||'Update this USB loader in Set up USB.';
+    otaReady=!!response.result.ready;$('ota-start').disabled=!otaReady;$('ota-start').classList.toggle('primary',response.result.ready);$('ota-start').classList.toggle('secondary',!response.result.ready);
+    $('ota-usb-setup').classList.toggle('hidden',response.result.ready);
   }
 };
+$('ota-usb-setup').onclick=()=>showPage('setup');
 $('ota-start').onclick=async()=>{
   const origin=$('ota-start'),address=$('ota-network').value;if(!address){showError('Detect adapters and choose the XZ network adapter first.',origin);return;}
   $('ota-status').textContent='Starting on '+address+'. On the XZ, open Extras → Network updates.';
