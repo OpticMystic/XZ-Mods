@@ -7,14 +7,40 @@ const LIVE_REASONS={
   protocol:{title:'The XZ answered unexpectedly',text:'Its USB loader may be from another XZ Mods version. Update the loader in Set up USB if this continues.',fix:true},
   stream:{title:'Screen stream interrupted',text:'Reconnecting automatically…'},
 };
-function liveView(result){
-  if(!result||result.phase==='stopped')return {live:false,title:'No XZ screen yet',text:'The XZ screen appears here, 800 × 480, once it is connected.',detail:'',fix:false};
-  if(result.phase==='live')return {live:true,title:'',text:`Live preview · 800 × 480 · about 1 frame per second · ${result.capture_ms} ms capture · ${result.frames} frames`,detail:'',fix:false};
-  const known=LIVE_REASONS[result.reason];
-  if(known)return {live:false,title:known.title,text:known.text,detail:result.error||'',fix:!!known.fix,reason:result.reason};
-  return {live:false,title:'Connecting',text:'Connecting to the XZ screen…',detail:result.error||'',fix:false};
+// The rate the picture actually arrives at. fps is the backend's rolling count
+// of real captures and stays null until it has measured one; target_fps only
+// says what the loader aims for, so it never stands in for a measurement.
+function liveRate(result){
+  const fps=result&&typeof result.fps==='number'&&isFinite(result.fps)?result.fps:null;
+  const legacy=!result||result.protocol!==2;
+  const measured=fps===null?'':fps<1?'under 1 fps':`${fps<10?fps.toFixed(1).replace(/\.0$/,''):Math.round(fps)} fps`;
+  if(legacy){
+    // Loader v1 (or a backend without the field) sends about one picture a second.
+    const rate=measured||'about 1 fps';
+    return {badge:`Preview · ${rate} · not performance video`,
+      note:'This USB loader sends about one picture per second: fine for watching the screen, not smooth enough for a performance stream.'+(result&&result.protocol===1?' Update the USB loader for a smoother picture.':''),
+      text:rate};
+  }
+  if(fps===null)return {badge:'Measuring frame rate…',note:'XZ Mods shows the frame rate it measures on this connection.',text:'measuring frame rate'};
+  const short=typeof result.target_fps==='number'&&fps<result.target_fps*0.9;
+  return {badge:`Live · ${measured}`,
+    note:short?`The XZ is sending ${measured} on this connection. A busy network or computer lowers the rate; fast waveform motion may look uneven.`:'Measured on this connection. A busy network or computer can lower the rate.',
+    text:measured};
 }
-if(typeof module!=='undefined')module.exports={liveView,LIVE_REASONS};
+const IDLE_NOTE='The frame rate depends on the USB loader and the network. XZ Mods shows the rate it measures once connected.';
+function liveView(result){
+  if(!result||result.phase==='stopped')return {live:false,title:'No XZ screen yet',text:'The XZ screen appears here, 800 × 480, once it is connected.',detail:'',fix:false,badge:'',note:IDLE_NOTE};
+  if(result.phase==='live'){
+    const rate=liveRate(result);
+    // An old loader still shows its picture; updating it is the one action, never a block.
+    const legacy=result.protocol===1;
+    return {live:true,title:'',text:`Live preview · 800 × 480 · ${rate.text} · ${result.capture_ms} ms capture · ${result.frames} frames`,detail:'',fix:legacy,reason:legacy?'legacy':'',badge:rate.badge,note:rate.note};
+  }
+  const known=LIVE_REASONS[result.reason];
+  if(known)return {live:false,title:known.title,text:known.text,detail:result.error||'',fix:!!known.fix,reason:result.reason,badge:'',note:IDLE_NOTE};
+  return {live:false,title:'Connecting',text:'Connecting to the XZ screen…',detail:result.error||'',fix:false,badge:'',note:IDLE_NOTE};
+}
+if(typeof module!=='undefined')module.exports={liveView,liveRate,LIVE_REASONS};
 else (() => {
   const screen=$('live-screen'),status=$('live-status'),wizard=$('live-wizard'),host=$('live-host');
   let running=false,url='',generation=0,busy=false,detecting=false,loaderFocused=false;
@@ -28,6 +54,8 @@ else (() => {
     // The placeholder covers the frame until a fresh picture arrives, so a stale screen never shows.
     $('live-placeholder').classList.toggle('hidden',view.live);
     $('live-placeholder-title').textContent=view.title||'Connecting';$('live-placeholder-text').textContent=view.text;
+    // The badge and note report the measured rate, so they hide until a picture is live.
+    $('live-rate').textContent=view.badge;$('live-rate').classList.toggle('hidden',!view.badge);$('live-rate-note').textContent=view.note;
     // One primary action: while a fix is needed it outranks setup.
     $('live-loader-fix').classList.toggle('hidden',!view.fix);
     $('live-setup').classList.toggle('primary',!view.fix);$('live-setup').classList.toggle('secondary',!!view.fix);
@@ -65,7 +93,7 @@ else (() => {
       running=false;generation++;url='';screen.removeAttribute('src');$('live-url').value='';controls();show(liveView(null));
       const result=await invoke('live_stream_start',{host:host.value.trim()});
       running=true;url=result.url;$('live-url').value=url;controls();
-      show({live:false,title:'Connecting',text:'Connecting to the XZ screen… This closes when the first picture arrives.',detail:'',fix:false});
+      show({live:false,title:'Connecting',text:'Connecting to the XZ screen… This closes when the first picture arrives.',detail:'',fix:false,badge:'',note:IDLE_NOTE});
       poll(generation);
     } catch(error){$('live-wizard-status').textContent=String(error);status.textContent=String(error);}
     finally{busy=false;$('live-connect').disabled=false;}
