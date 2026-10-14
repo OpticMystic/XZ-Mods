@@ -1,8 +1,10 @@
-"""Conservative Device Library history-chain repair, with local backups.
+"""Conservative Device Library repairs, with local backups.
 
 The supported failure has intact, ordered history pages separated by zeroed
 pages. Only next-page pointers change. This cannot recover the missing rows,
 repair arbitrary PDB damage, or validate the encrypted OneLibrary database.
+Unused-page repair clears malformed reserved pages only after every allocated
+page is accounted for. Active pages and unallocated trailing bytes are retained.
 Page layout: https://djl-analysis.deepsymmetry.org/rekordbox-export-analysis/exports.html
 """
 from __future__ import annotations
@@ -30,6 +32,7 @@ GUARDED = (PDB, 'PIONEER/rekordbox/exportExt.pdb',
            'PIONEER/rekordbox/exportLibrary.db-shm',
            'PIONEER/rekordbox/exportLibrary.db-journal', 'CDJMODS/index.json')
 REPAIR_ID = 'history-blank-gaps-v1'
+UNUSED_REPAIR_ID = 'unused-page-garbage-v1'
 MAX_BYTES = 128 * 1024 * 1024
 
 
@@ -148,6 +151,31 @@ def _history_candidate(data, size, tables, broken):
     return bytes(candidate), patches
 
 
+def _unused_candidate(data, size, tables):
+    active = set().union(*(_chain(data, size, table) for table in tables))
+    reserved = [table[1] for table in tables]
+    _require(all(n > 0 and n not in active for n in reserved),
+             'An unused-page pointer overlaps database content.')
+    _require(len(set(reserved)) == len(reserved), 'Unused-page ownership is ambiguous.')
+    dirty = [n for n in reserved if n < len(data) // size and any(data[n * size:(n + 1) * size])]
+    if not dirty:
+        return None, []
+    limit = struct.unpack_from('<I', data, 12)[0]
+    _require(0 < limit <= len(data) // size and active | set(reserved) == set(range(1, limit)),
+             'Allocated pages cannot all be accounted for; unused-page repair is unsafe.')
+    for n in dirty:
+        page = data[n * size:(n + 1) * size]
+        _require(struct.unpack_from('<I', page)[0] != 0,
+                 f'Unused page {n} may contain database content; it will not be cleared.')
+    candidate = bytearray(data)
+    for n in dirty:
+        candidate[n * size:(n + 1) * size] = bytes(size)
+    _require(all(candidate[n * size:(n + 1) * size] == data[n * size:(n + 1) * size] for n in active),
+             'Repair changed an active database page.')
+    _require(pdb._track_paths(candidate) == pdb._track_paths(data), 'Repair changed track identities.')
+    return bytes(candidate), sorted(dirty)
+
+
 def analyze(data):
     size, tables = _tables(data)
     findings, broken = [], []
@@ -165,15 +193,31 @@ def analyze(data):
                 page = _page(data, size, n, 7)
                 if not page[27] & 0x40:
                     playlists += sum(1 for _ in pdb._row_positions(page, int.from_bytes(page[24:27], 'little') & 8191))
-    candidate, patches = None, []
+    candidate, patches, unused_pages = None, [], []
+    repair_id = None
     if broken:
         try:
             candidate, patches = _history_candidate(data, size, tables, broken)
+            repair_id = REPAIR_ID
+            # Do not publish a partial repair when other catalog damage remains.
+            extra, _ = _unused_candidate(candidate, size, tables)
+            _require(extra is None, 'History damage and unused-page damage require separate recovery.')
+        except (ValueError, pdb._Unreadable, struct.error, UnicodeError) as exc:
+            candidate, repair_id = None, None
+            findings.append({'code': 'unsupported_damage', 'summary': str(exc) or 'Unknown database damage.'})
+    else:
+        try:
+            candidate, unused_pages = _unused_candidate(data, size, tables)
+            if candidate:
+                repair_id = UNUSED_REPAIR_ID
+                findings.append({'code': 'unused_page_garbage',
+                                 'summary': f'{len(unused_pages)} unused database pages contain invalid data.'})
         except (ValueError, pdb._Unreadable, struct.error, UnicodeError) as exc:
             findings.append({'code': 'unsupported_damage', 'summary': str(exc) or 'Unknown database damage.'})
-    return {'verdict': 'repairable' if candidate else 'not_repairable' if broken else 'healthy',
+    damaged = bool(broken) or any(f['code'] == 'unsupported_damage' for f in findings)
+    return {'verdict': 'repairable' if candidate else 'not_repairable' if damaged else 'healthy',
             'counts': {'tracks': len(tracks), 'playlists': playlists}, 'findings': findings,
-            'patches': patches, 'candidate': candidate}
+            'patches': patches, 'unused_pages': unused_pages, 'repair_id': repair_id, 'candidate': candidate}
 
 
 def _backup_root():
@@ -217,11 +261,17 @@ def inspect(volume):
             result.update({key: analysis[key] for key in ('verdict', 'findings')})
             result['counts'].update(analysis['counts'])
             if analysis['candidate']:
-                result['repair'] = {'id': REPAIR_ID, 'title': 'Reconnect surviving playback-history pages',
+                result['repair'] = {'id': analysis['repair_id'], 'title': 'Reconnect surviving playback-history pages',
                     'changes': [f"{len(analysis['patches'])} page links in {PDB}"],
                     'keeps': ['Track IDs, track records and playlists', 'Music, prepared stems and stem mappings',
                               'Waveforms, cues, OneLibrary and the USB loader'],
                     'history_warning': 'History entries in the blank pages are already missing. This repair does not recover them.'}
+                if analysis['repair_id'] == UNUSED_REPAIR_ID:
+                    result['repair'].update(
+                        title='Clear invalid data from unused database pages',
+                        changes=[f"Clear unused pages {', '.join(map(str, analysis['unused_pages']))} in {PDB}"],
+                        description='Invalid data in pages reserved for future use can prevent Rekordbox from opening this library.',
+                        history_warning='All active database pages, including playback history, stay byte-for-byte unchanged.')
         except (ValueError, pdb._Unreadable, struct.error, UnicodeError) as exc:
             result.update(verdict='not_repairable', findings=[{'code': 'unreadable_library',
                           'summary': str(exc) or 'The Device Library cannot be read safely.'}])
@@ -335,7 +385,8 @@ def mutate(request, job, *, restore=False):
             replacement = _read(folder / PDB)
             _require(_sha(replacement) == record['before_files'][PDB]['sha256'], 'Backup integrity check failed.')
         else:
-            _require(request.get('repair_id') == REPAIR_ID and before['verdict'] == 'repairable',
+            _require(before['verdict'] == 'repairable' and before['repair']
+                     and request.get('repair_id') == before['repair']['id'],
                      'No supported repair is available. Check the USB again.')
             replacement = analyze(_read(volume / PDB))['candidate']
             _require(replacement is not None, 'No safe repair candidate.')
@@ -348,7 +399,8 @@ def mutate(request, job, *, restore=False):
                 'backup': backup, 'before': before['counts'], 'after': after['counts'], 'inspection': after,
                 'rekordbox_verified': False,
                 'summary': 'Original library restored. It may contain the original damage.' if restore else
-                'History links repaired and structural checks passed. Track IDs, playlists and stem mappings are unchanged. Reopen Rekordbox to verify the USB.'}
+                ('Unused database pages cleared.' if before['repair']['id'] == UNUSED_REPAIR_ID else 'History links repaired.')
+                + ' Structural checks passed. Track IDs, playlists and stem mappings are unchanged. Reopen Rekordbox to verify the USB.'}
 
 
 def save_report(volume):

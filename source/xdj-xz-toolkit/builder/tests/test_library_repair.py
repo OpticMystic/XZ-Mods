@@ -16,6 +16,9 @@ def broken_library(root):
     data = bytearray(path.read_bytes())
     data.extend(bytes(4096 * 6))
     struct.pack_into('<I', data, 8, 2)
+    struct.pack_into('<I', data, 12, 10)
+    struct.pack_into('<I', data, 32, 5)
+    struct.pack_into('<I', data, 2 * 4096 + 12, 5)
     struct.pack_into('<4I', data, 44, 11, 9, 3, 8)
     for n, nxt, index in ((3, 4, True), (4, 6, False), (8, 9, False)):
         row = struct.pack('<I', n) + fixture._string('HISTORY 001')
@@ -31,6 +34,17 @@ def broken_library(root):
     (root / 'Contents/test.wav').write_bytes(b'keep original audio')
     (root / 'PIONEER/rekordbox/exportExt.pdb').write_bytes(b'preserve opaque companion')
     return path
+
+
+def unused_page_damage(path):
+    fixture.write_export(path, {7: '/Contents/test.wav'})
+    data = bytearray(path.read_bytes())
+    unused = len(data) // 4096
+    struct.pack_into('<I', data, 12, unused + 1)
+    data.extend(bytes(range(256)) * 16)
+    data.extend(b'tail' * 1024)
+    path.write_bytes(data)
+    return unused
 
 
 class LibraryRepairTests(unittest.TestCase):
@@ -50,7 +64,70 @@ class LibraryRepairTests(unittest.TestCase):
     def request(self):
         check = repair.inspect(self.root)
         return {'volume': str(self.root), 'expected_identity': check['identity'],
-                'expected_files': check['expected_files'], 'repair_id': repair.REPAIR_ID}
+                'expected_files': check['expected_files'],
+                'repair_id': check['repair']['id'] if check['repair'] else repair.REPAIR_ID}
+
+    def unused_page_damage(self):
+        unused = unused_page_damage(self.pdb)
+        self.original = self.pdb.read_bytes()
+        return unused
+
+    def test_unused_page_repair_preserves_all_active_pages_and_tail(self):
+        unused = self.unused_page_damage()
+        check = repair.inspect(self.root)
+        self.assertEqual(check['verdict'], 'repairable')
+        self.assertEqual(check['repair']['id'], 'unused-page-garbage-v1')
+        result = repair.mutate(self.request(), Job())
+        expected = bytearray(self.original)
+        expected[unused * 4096:(unused + 1) * 4096] = bytes(4096)
+        self.assertEqual(self.pdb.read_bytes(), expected)
+        self.assertEqual(result['before'], result['after'])
+        self.assertEqual(result['inspection']['verdict'], 'healthy')
+        self.assertIn('Unused', result['summary'])
+        self.assertEqual((Path(result['backup']['folder']) / repair.PDB).read_bytes(), self.original)
+        request = self.request()
+        request['backup_id'] = result['backup']['id']
+        repair.mutate(request, Job(), restore=True)
+        self.assertEqual(self.pdb.read_bytes(), self.original)
+
+    def test_zero_reserved_page_does_not_need_repair(self):
+        unused = self.unused_page_damage()
+        data = bytearray(self.original)
+        data[unused * 4096:(unused + 1) * 4096] = bytes(4096)
+        self.pdb.write_bytes(data)
+        self.assertEqual(repair.inspect(self.root)['verdict'], 'healthy')
+
+    def test_reserved_page_with_recognizable_database_content_is_not_cleared(self):
+        unused = self.unused_page_damage()
+        data = bytearray(self.original)
+        data[unused * 4096:(unused + 1) * 4096] = fixture._index_page(unused, unused + 1)
+        self.pdb.write_bytes(data)
+        self.assertEqual(repair.inspect(self.root)['verdict'], 'not_repairable')
+        self.assertIsNone(repair.inspect(self.root)['repair'])
+
+    def test_reserved_page_overlapping_active_data_is_not_cleared(self):
+        self.unused_page_damage()
+        data = bytearray(self.original)
+        struct.pack_into('<I', data, 32, 2)
+        self.pdb.write_bytes(data)
+        self.assertEqual(repair.inspect(self.root)['verdict'], 'not_repairable')
+
+    def test_unused_page_repair_rejects_changed_plan(self):
+        self.unused_page_damage()
+        request = self.request()
+        request['repair_id'] = repair.REPAIR_ID
+        with self.assertRaisesRegex(ValueError, 'No supported repair'):
+            repair.mutate(request, Job())
+        self.assertEqual(self.pdb.read_bytes(), self.original)
+
+    def test_unused_page_repair_requires_complete_allocation_map(self):
+        self.unused_page_damage()
+        data = bytearray(self.original)
+        struct.pack_into('<I', data, 12, 5)
+        self.pdb.write_bytes(data)
+        check = repair.inspect(self.root)
+        self.assertEqual(check['verdict'], 'not_repairable')
+        self.assertIsNone(check['repair'])
 
     def test_minimal_repair_preserves_rows_and_all_other_files(self):
         before = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}

@@ -1,4 +1,4 @@
-# Repair a Device Library history chain
+# Repair a Device Library
 
 Open **Repair library** in XZ Mods, then select the USB and choose **Check library**.
 Checking does not write to the USB. The same page is available from **Prepare stems**.
@@ -9,7 +9,12 @@ If XZ Mods offers a repair:
 2. Review the proposed change, then choose **Back up and repair**.
 3. Reopen Rekordbox and check the USB's tracks and playlists. Test playback on the player before using it in a set.
 
-The supported repair reconnects intact playback-history pages across specific blank-page gaps in `export.pdb`. It changes page links only. Track IDs, track records, playlists, prepared stems, stem mappings, analysis files and the loader stay unchanged. Entries already missing from blank history pages cannot be recovered by this operation.
+Two repairs are supported in `export.pdb`:
+
+- Clear invalid data from pages reserved for future use. This is the repair verified on XZME after Windows disk repair left the rekordbox corruption warning unchanged. It requires intact active page chains, distinct unused-page ownership, and a complete allocation map. Pages that might contain database records are refused. Only the identified unused pages are zeroed; active pages and trailing bytes stay unchanged.
+- Reconnect intact playback-history pages across specific blank-page gaps. Only page links change. Entries already missing from blank history pages cannot be recovered.
+
+Both preserve track IDs, track records, playlists, prepared stems, stem mappings, analysis files and the loader. Review the specific proposed change before repairing. Damage requiring both repairs at once is not currently repaired automatically.
 
 XZ Mods backs up the device catalogs and stem index to the computer before replacement. The result shows the backup folder. **Undo this repair** restores the exact original Device Library database, including its damage. Undo is available only while the catalog hashes still match the repaired state. Rekordbox can change these files when it opens the USB, so keep the backup even if Undo is no longer offered.
 
@@ -29,6 +34,7 @@ Close Rekordbox before checking the packaged backend. Choose a fixture parent on
 
 ```powershell
 python tools/verify_library_repair.py --resources resources --fixture-parent E:/CodexTemp --evidence E:/CodexTemp/library-repair-check.json
+python tools/verify_library_repair.py --resources resources --fixture-parent E:/CodexTemp --fixture-kind unused --evidence E:/CodexTemp/unused-page-repair-check.json
 ```
 
 The packaged check covers detection, repair, preserved files, verified backup, rejection of a stale inspection, exact undo and report creation. The source tests also cover process and device guards, unsupported damage, cancellation and interrupted publication.
