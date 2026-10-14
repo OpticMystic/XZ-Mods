@@ -21,6 +21,7 @@ runtime_input.add_argument('--runtime-build',type=Path)
 runtime_input.add_argument('--runtime-bundle',type=Path,help='Verified paired bundle shared with the VJ.Tools XZ loader')
 p.add_argument('--zig',type=Path,required=True)
 p.add_argument('--runtime-source',type=Path,help='Native source checkout matching the paired runtime; defaults to toolkit')
+p.add_argument('--version-seeds',type=Path,help='Verified offline mod catalog to retain in a clean package')
 p.add_argument('--doom-wad',type=Path,help='Private local Doom WAD to include in USB images; never uploaded or published')
 p.add_argument('--skip-backend',action='store_true',help='Retain an already built backend when only native runtime resources changed')
 p.add_argument('--toolkit',type=Path,default=None,
@@ -39,6 +40,20 @@ def _resolve_toolkit():
 TOOLKIT=_resolve_toolkit().resolve()
 RUNTIME_SOURCE=(a.runtime_source or TOOLKIT).resolve()
 resources=APP/'resources';resources.mkdir(exist_ok=True)
+if a.version_seeds:
+    sys.path.insert(0,str(TOOLKIT))
+    from builder import mod_versions
+    seeds=mod_versions.cache._safe_path(a.version_seeds)
+    catalog=mod_versions._json(seeds/'catalog.json')
+    if catalog.get('schema')!='xz-mod-seeds/1' or not isinstance(catalog.get('versions'),list) or len(catalog['versions'])>64:
+        raise ValueError('Invalid offline mod catalog')
+    for item in catalog['versions']:
+        ident=item.get('id')
+        if not isinstance(ident,str) or not mod_versions.ID.fullmatch(ident):raise ValueError('Invalid offline mod identifier')
+        if mod_versions._verify(seeds/ident)['id']!=ident:raise ValueError('Offline mod identity mismatch')
+        shutil.copytree(seeds/ident,resources/'mod-version-seeds'/ident,dirs_exist_ok=True)
+    (resources/'mod-version-seeds').mkdir(exist_ok=True)
+    shutil.copyfile(seeds/'catalog.json',resources/'mod-version-seeds/catalog.json')
 def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def copy(source,target):target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target)
 runtime=resources/'runtime';runtime.mkdir(exist_ok=True)

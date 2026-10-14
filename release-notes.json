@@ -11,6 +11,9 @@
       "requirements": [
         "Update the USB loader for the faster stream. An older loader keeps its working one-frame-per-second preview and offers an update button.",
         "The PC test sustained 30 fps with recorded XZ frames. Actual controller frame rate and playback-load acceptance remain unverified."
+      ],
+      "fixes": [
+        "The Windows installer backs up all previous bundled resources before replacing them. Clean packages can retain verified offline rollback versions."
       ]
     },
     {
@@ -116,7 +119,7 @@
       "preview": true,
       "features": [
         "MP3 stems are prepared on the player's timeline. The decoder now keeps every MP3 frame, the way the XDJ-XZ does, instead of trimming the LAME encoder delay; the same fix OverCue Desktop 2.2.5 shipped today.",
-        "The stems page marks MP3 bundles made before this build with \"Prepare again Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
+        "The stems page marks MP3 bundles made before this build with \"Prepare again Ã‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
       ],
       "fixes": [
         "Bundles from LAME-tagged MP3s (most MP3s) started 25 ms (1,105 frames) early against the player's full mix. Untagged MP3s, WAV and FLAC were never affected.",
