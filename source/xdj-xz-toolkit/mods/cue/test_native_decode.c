@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+/* Decoder fixtures never grant a process-memory read or execute cue setters. */
+int xz_read_memory(uint32_t address,void *out,size_t length){(void)address;(void)out;(void)length;return -1;}
 int main(void) {
     struct xz_cue_native n={.verified=1};
     unsigned char self[0x88]={0},input[12]={0};
