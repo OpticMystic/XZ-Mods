@@ -76,7 +76,7 @@ static const char *section_title(enum xz_ui_page page){
  case XZ_UI_GAMES:case XZ_UI_DOOM:case XZ_UI_DOOM_FILES:case XZ_UI_DOOM_SETUP:case XZ_UI_MYHOUSE_SETUP:return "GAMES";
  case XZ_UI_UPDATES:case XZ_UI_UPDATE_SETUP:return "UPDATES";
  case XZ_UI_APPS:case XZ_UI_APPS_SETUP:return "APPS";
- case XZ_UI_LOCAL_STEM_SETUP:return "STEM SETUP";
+ case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";
  case XZ_UI_METRICS_SETUP:return "METRICS SETUP";
  case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";
  default:return "MODS";}

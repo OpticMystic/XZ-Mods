@@ -259,7 +259,7 @@ static void pc_setup(void){
  assert(tap(&u,&m,XZ_UI_PC_CONFIRM,1).kind==XZ_UI_UNAVAILABLE);
  /* Deck choice on the page; source tags name the store each deck drives. */
  m.deck[1].pc_stems=(struct xz_ui_pc_stems){0};m.deck[1].pc_stems.source=XZ_UI_SOURCE_LOCAL;
- {struct xz_ui_widget w=find(&u,&m,XZ_UI_DECK,1);assert(!strcmp(w.label,"LOCAL STEMS"));
+ {struct xz_ui_widget w=find(&u,&m,XZ_UI_DECK,1);assert(!strcmp(w.label,"USB STEMS"));
   assert(!strcmp(find(&u,&m,XZ_UI_DECK,0).label,"PC STEMS"));}
  result=tap(&u,&m,XZ_UI_DECK,1);assert(result.kind==XZ_UI_DECK&&u.deck==1);
  assert(find(&u,&m,XZ_UI_PC_CHECK,XZ_UI_PC_STEP_DETECT).deck==1);

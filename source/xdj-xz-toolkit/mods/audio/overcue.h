@@ -18,7 +18,7 @@ struct xz_oc_file {
     struct xz_oc_page *pages;
     uint32_t page_count, cached_page[XZ_OC_PAGE_SLOTS], age[XZ_OC_PAGE_SLOTS], clock;
     uint64_t bytes;
-    unsigned codec, has_pcm_sha;
+    unsigned codec, sample_rate, has_pcm_sha;
     unsigned char pcm_sha[32];
     unsigned char *raw, *compressed;
     struct xz_ram_file_pin ram;
@@ -26,6 +26,7 @@ struct xz_oc_file {
 struct xz_oc_assets {
     struct xz_oc_file role[3], reference, combination[3];
     uint64_t frames;
+    unsigned sample_rate;
     float gain[3];
     float combination_gain[3];
     unsigned char *wave[3];

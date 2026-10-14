@@ -34,12 +34,12 @@ static int run(int argc, char **argv) {
             fputs("OverCue audio failed decoding or page/complete PCM checksum verification.\n",stderr);
             xz_oc_close(&assets);return 1;
         }
-        files++;if(file->codec==3)flac_files++;
+        files++;if(file->codec==3||file->codec==4)flac_files++;
     }
-    printf("{\"format\":\"overcue-stems/4\",\"sample_rate\":96000,\"channels\":2,"
+    printf("{\"format\":\"overcue-stems/4\",\"sample_rate\":%u,\"channels\":2,"
            "\"frames\":%llu,\"verified_mixes\":%u,\"all_pages_verified\":true,"
            "\"page_codec\":\"%s\",\"flac_mixes\":%u,\"source_identity_verified\":%s,\"audio_alignment_verified\":false}\n",
-           (unsigned long long)assets.frames, files,flac_files==7?"flac-96k":flac_files?"mixed":"zlib",flac_files,
+           assets.sample_rate,(unsigned long long)assets.frames, files,flac_files==7?(assets.sample_rate==44100?"flac-44k1":"flac-96k"):flac_files?"mixed":"zlib",flac_files,
            assets.source_hash_verified?"true":"false");
     xz_oc_close(&assets); return 0;
 }

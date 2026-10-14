@@ -257,10 +257,12 @@ struct xz_oc_stream *xz_oc_stream_open(const char *path,uint32_t rate,char *erro
     if(rate<32000||rate>96000){snprintf(error,capacity,"Unsupported XZ reader rate");return NULL;}
     struct xz_oc_stream *s=calloc(1,sizeof(*s));if(!s)return NULL;s->rate=rate;s->published=-1;s->loop_published=-1;s->loop_start=-1;s->state=XZ_OC_ALIGNING;
     if(xz_oc_open(path,&s->assets,error,capacity)){
+        char declared[4096];
+        if(!xz_oc_bundle(path,declared,sizeof(declared))){free(s);return NULL;}
         s->foreign=xz_foreign_open(path,error,capacity);if(!s->foreign){free(s);return NULL;}
     }
     s->role_count=s->foreign?xz_foreign_stem_count(s->foreign):3;
-    s->source_rate=s->foreign?xz_foreign_rate(s->foreign):XZ_OC_RATE;
+    s->source_rate=s->foreign?xz_foreign_rate(s->foreign):s->assets.sample_rate;
     if(!s->foreign&&xz_oc_assets_pin(&s->assets)<0){snprintf(error,capacity,"STEM RAM HANDOFF FAILED");xz_oc_stream_close(s);return NULL;}
     for(unsigned r=0;r<4;r++){float one=1;memcpy(&s->previous_levels[r],&one,4);}
     for(unsigned i=0;i<4;i++)for(unsigned r=0;r<stem_count(s)-1;r++){

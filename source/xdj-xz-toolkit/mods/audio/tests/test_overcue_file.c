@@ -12,6 +12,8 @@ int main(int argc,char **argv){
     int result=xz_oc_open(argv[1],&assets,error,sizeof(error));
     if(!strcmp(argv[2],"reject")){assert(result);puts("PASS rejected invalid bundle");return 0;}
     if(result){fprintf(stderr,"%s\n",error);return 1;}
+    if(!strcmp(argv[2],"valid44"))assert(assets.sample_rate==44100u);
+    else if(!strcmp(argv[2],"valid")||!strcmp(argv[2],"gain"))assert(assets.sample_rate==96000u);
     if(!strcmp(argv[2],"real")){
         int16_t samples[4096];
         for(unsigned r=0;r<3;r++){assert(!xz_oc_read(assets.role+r,(int64_t)(assets.frames/2),2048,samples));assert(assets.wave_count[r]);}

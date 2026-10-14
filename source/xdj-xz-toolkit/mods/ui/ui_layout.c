@@ -57,7 +57,8 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   if(xz_ui_profile_place(u,m,a))continue;
   switch(a->kind){
   case XZ_UI_FEATURE_LINK:
-   grid(a,2,k==XZ_UI_STEM_COLORS||k==XZ_UI_PC_STEMS?0:1,k==XZ_UI_CONTROLS?0:k==XZ_UI_BEAT_JUMP?1:k==XZ_UI_STEM_COLORS||k==XZ_UI_XPAD?4:k==XZ_UI_METRICS_SETUP?5:6,1);break;
+   /* PC STEMS sits beside the USB STEMS switch; stem settings join the bottom links. */
+   grid(a,2,k==XZ_UI_STEM_COLORS||k==XZ_UI_CONTROLS?0:1,k==XZ_UI_PC_STEMS?0:k==XZ_UI_BEAT_JUMP?1:k==XZ_UI_STEM_COLORS||k==XZ_UI_XPAD?4:k==XZ_UI_METRICS_SETUP?5:6,1);break;
   case XZ_UI_FEATURE_SETUP_OPEN:
    grid(a,2,k==XZ_UI_GATE||k==XZ_UI_PREVIEW?0:1,k==XZ_UI_GATE||k==XZ_UI_SMART?2:3,1);break;
   case XZ_UI_LOCAL_STEM_SETUP_OPEN:grid(a,2,0,0,1);break;
@@ -175,21 +176,23 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
    label(c,X0,276,CW,u->feature_cap==XZ_UI_GATE?"HOLD AND RELEASE A HOT CUE TO CHECK GATE CUE.":u->feature_cap==XZ_UI_SMART?"RECALL A HOT CUE AND CHECK THAT THE CUE POINT FOLLOWS.":u->feature_cap==XZ_UI_PREVIEW?"HOLD A HOT CUE WHILE PAUSED AND LISTEN FOR ITS PREVIEW.":"OPEN X-PAD SETTINGS AND CHECK A LOADED SAMPLE.",1,ink);
   }
  }else if(u->page==XZ_UI_LOCAL_STEM_SETUP){
-  label(c,X0,52,CW,"LOCAL STEMS SETUP",2,ink);
-  label(c,X0,78,CW,"1 DETECT  /  2 CHOOSE DECK + ENABLE  /  3 LIVE VERIFY",1,dim);
-  label(c,X0,112,CW,d->track&&*d->track?d->track:"NO TRACK LOADED ON THIS DECK",2,ink);
-  label(c,X0,136,CW,d->status?d->status:"WAITING FOR PREPARED STEMS",1,dim);
-  /* What was found on the USB, or the one reason the set found can't play. */
-  int four=u->deck>=0&&u->deck<2&&xz_ui_stem_count(m,u->deck)==4;
-  if(d->stem_error&&*d->stem_error)label(c,X0,154,CW,d->stem_error,1,p->alarm);
+  /* One deck, one reason, one next step. The button below is that step. */
+  int deck=u->deck>=0&&u->deck<2?u->deck:0,four=xz_ui_stem_count(m,deck)==4;
+  enum xz_ui_usb_reason why=xz_ui_usb_blocked(m,deck);
+  uint32_t tone=why==XZ_UI_USB_WHY_ERROR||why==XZ_UI_USB_WHY_ENGINE?p->alarm:why==XZ_UI_USB_WHY_NONE?p->accent:ink;
+  label(c,X0,52,CW,"USB STEMS SETUP",2,ink);
+  label(c,X0,78,CW,"1 CHECK ENGINE  /  2 TURN ON (ALL DECKS)  /  3 LOAD A PREPARED TRACK",1,dim);
+  label(c,X0,104,CW,d->track&&*d->track?d->track:"NO TRACK LOADED ON THIS DECK",2,ink);
+  snprintf(buf,sizeof(buf),"DECK %d: %s",deck+1,xz_ui_usb_reason_text(why));
+  label(c,X0,132,CW,buf,2,tone);
+  /* An error names what is wrong with the set; otherwise say what was found. */
+  if(why==XZ_UI_USB_WHY_ERROR)label(c,X0,158,CW,d->stem_error&&*d->stem_error?d->stem_error:d->status?d->status:"THE STEM SET COULD NOT BE READ",1,p->alarm);
   else if(d->stem_format&&*d->stem_format){
-   snprintf(buf,sizeof(buf),four?"FOUND: %s / BASS ON PAD D OR H":"FOUND: %s",d->stem_format);label(c,X0,154,CW,buf,1,ink);
+   snprintf(buf,sizeof(buf),four?"FOUND: %s / BASS ON PAD D OR H":"FOUND: %s",d->stem_format);label(c,X0,158,CW,buf,1,ink);
   }
-  label(c,X0,172,CW,"CHOOSE DECK 1 OR DECK 2 ABOVE",1,ink);
-  label(c,X0,192,CW,"PREPARE THE TRACK IN XZ MODS ON YOUR COMPUTER",1,ink);
-  label(c,X0,212,CW,"LOAD THAT PREPARED USB TRACK, THEN VERIFY HERE",1,ink);
-  label(c,X0,240,CW,"MISSING ENGINE: UPDATE YOUR USB LOADER IN XZ MODS",1,dim);
-  if(four)label(c,X0,260,CW,"4-STEM SETS CARRY NO STEM WAVEFORM: THE STEMS WAVEFORM SHOWS 3-BAND",1,dim);
+  label(c,X0,180,CW,xz_ui_usb_next_step(why),1,ink);
+  label(c,X0,204,CW,"CHOOSE DECK 1 OR DECK 2 ABOVE / PC STEMS HAVE THEIR OWN SETUP",1,dim);
+  if(four)label(c,X0,224,CW,"4-STEM SETS CARRY NO STEM WAVEFORM: THE STEMS WAVEFORM SHOWS 3-BAND",1,dim);
  }else if(u->page==XZ_UI_STEMS||u->page==XZ_UI_XPAD){
   int wave_y=u->page==XZ_UI_STEMS?108:100,half=u->page==XZ_UI_STEMS?22:16;
   label(c,X0,52,460,d->track?d->track:"NO TRACK LOADED",2,ink);

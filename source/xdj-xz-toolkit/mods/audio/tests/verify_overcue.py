@@ -124,6 +124,25 @@ def main():
         file.write_bytes(malformed)
         subprocess.run([str(binary), str(source), 'corrupt'], check=True)
         file.write_bytes(valid)
+        source44, bundle44, _, _ = fixture(root / 'flac44-usb')
+        repack(source44, bundle44, rate=44100)
+        subprocess.run([str(binary), str(source44), 'valid44'], check=True)
+        index44 = source44.parents[2] / 'CDJMODS/index.json'
+        valid_index44 = index44.read_bytes()
+        invalid = json.loads(valid_index44)
+        invalid['tracks']['1']['sample_rate'] = 96000
+        index44.write_text(json.dumps(invalid))
+        subprocess.run([str(binary), str(source44), 'reject'], check=True)
+        index44.write_bytes(valid_index44)
+        role44 = bundle44 / 'stems-sidecar-drums.s16le.pgz'
+        valid_role44 = role44.read_bytes()
+        wrong_rate = bytearray(valid_role44)
+        first = struct.unpack_from('>Q', wrong_rate, 24)[0]
+        streaminfo = int.from_bytes(wrong_rate[first + 18:first + 26], 'big')
+        wrong_rate[first + 18:first + 26] = ((48000 << 44) | (streaminfo & ((1 << 44) - 1))).to_bytes(8, 'big')
+        role44.write_bytes(wrong_rate)
+        subprocess.run([str(binary), str(source44), 'corrupt'], check=True)
+        role44.write_bytes(valid_role44)
         source, bundle, _, _ = fixture(root / 'mixed-usb')
         repack(source, bundle, roles={'drums', 'vocal'})
         subprocess.run([str(binary), str(source), 'valid'], check=True)
@@ -134,6 +153,9 @@ def main():
             str(ROOT / 'vendor/sha256/sha256.c'), str(ROOT / 'tests/test_overcue_stream.c'), '-pthread', '-lm', '-o', str(streaming)], check=True)
         source, bundle, _, _ = fixture(root / 'stream-usb', signal=True)
         subprocess.run([str(streaming), str(source)], check=True, timeout=30)
+        source44, bundle44, _, _ = fixture(root / 'stream44-usb', signal=True)
+        repack(source44, bundle44, rate=44100)
+        subprocess.run([str(streaming), str(source44)], check=True, timeout=30)
         repack(source, bundle)
         subprocess.run([str(streaming), str(source)], check=True, timeout=30)
 

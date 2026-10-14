@@ -520,6 +520,10 @@ static void prepare_deck(int index, struct xz126_deck_source source, uint32_t ge
     if (!cancelled(&context)) snprintf(deck->status.error,sizeof(deck->status.error),"%s",prepared_error);
     pthread_mutex_unlock(&control_mutex);
     free(p);
+    char declared_stems[4096];
+    if(!xz_oc_bundle(source.path,declared_stems,sizeof(declared_stems))){
+        set_state(deck,gen,XZ_AUDIO_PREPARED_ERROR,0);return;
+    }
     if (!is_wav_or_flac(source.path) || source.file_rate != 44100 ||
         source.reader_rate != 44100 || source.file_frames != source.reader_frames) {
         set_state(deck, gen, XZ_AUDIO_SOURCE_UNSUPPORTED, 0); return;

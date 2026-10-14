@@ -80,6 +80,17 @@ int main(void){
   m.deck[1].ready=XZ_UI_STEM;
   const struct xz_ui_widget available=find(&u,&m,XZ_UI_ENABLE,XZ_UI_STEM);
   assert(available.x==unavailable.x&&available.y==unavailable.y&&available.w==unavailable.w&&available.h==unavailable.h);
+  /* Row 0: USB STEMS for all decks beside PC STEMS SETUP; stem settings move to the bottom links. */
+  const struct xz_ui_widget pc=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS),settings=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS);
+  const struct xz_ui_widget keys=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS);
+  assert(pc.y==available.y&&pc.x>available.x&&strstr(available.label,"ALL DECKS"));
+  assert(settings.y==keys.y&&settings.x<keys.x&&settings.y>available.y);
+  /* An explicit OFF turns on in one tap even though the host cleared every ready bit. */
+  m.deck[1].ready=0;m.deck[0].usb_reason=m.deck[1].usb_reason=XZ_UI_USB_WHY_OFF;
+  assert(tap(&u,&m,XZ_UI_ENABLE,XZ_UI_STEM,a)==1&&a[0].kind==XZ_UI_ENABLE&&a[0].index==XZ_UI_STEM&&a[0].value==1);
+  m.deck[0].usb_reason=m.deck[1].usb_reason=XZ_UI_USB_WHY_ENGINE;
+  find(&u,&m,XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM);
+  m.deck[0].usb_reason=m.deck[1].usb_reason=XZ_UI_USB_WHY_UNKNOWN;
  }
  for(size_t k=1;k<sizeof(caps)/sizeof(*caps);k++){
   xz_ui_init(&u);memset(&m,0,sizeof(m));
