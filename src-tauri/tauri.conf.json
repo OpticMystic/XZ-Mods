@@ -41,7 +41,8 @@
       "nsis": {
         "installMode": "currentUser",
         "startMenuFolder": "XZ Mods",
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "windows/installer-hooks.nsh"
       },
       "webviewInstallMode": {
         "type": "downloadBootstrapper",
