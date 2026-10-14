@@ -13,6 +13,8 @@ The supported repair reconnects intact playback-history pages across specific bl
 
 XZ Mods backs up the device catalogs and stem index to the computer before replacement. The result shows the backup folder. **Undo this repair** restores the exact original Device Library database, including its damage. Undo is available only while the catalog hashes still match the repaired state. Rekordbox can change these files when it opens the USB, so keep the backup even if Undo is no longer offered.
 
+The backup and change checks include OneLibrary's `exportLibrary.db-wal`, `exportLibrary.db-shm`, and `exportLibrary.db-journal` files when present. The WAL can contain committed tracks that are not yet in the main database. History repair preserves all these files byte for byte. A journal appearing, disappearing, or changing invalidates the inspection and blocks repair or undo. Older receipts without journal fingerprints remain on disk but do not qualify for automatic undo.
+
 For other damage, choose **Save report**. This tool does not rebuild arbitrary damaged tables or validate the encrypted OneLibrary database. A passing structural check does not establish Rekordbox or player acceptance.
 
 ## Development verification

@@ -85,6 +85,49 @@ class LibraryRepairTests(unittest.TestCase):
             repair.mutate(request, Job())
         self.assertEqual(self.pdb.read_bytes(), self.original)
 
+    def test_onelibrary_sidecars_are_backed_up_without_changes(self):
+        records = {
+            'exportLibrary.db': b'encrypted main database',
+            'exportLibrary.db-wal': b'committed tracks not yet in main database',
+            'exportLibrary.db-shm': b'journal coordination state',
+            'exportLibrary.db-journal': b'rollback journal',
+        }
+        for name, data in records.items():
+            (self.pdb.parent / name).write_bytes(data)
+        result = repair.mutate(self.request(), Job())
+        folder = Path(result['backup']['folder']) / 'PIONEER/rekordbox'
+        for name, data in records.items():
+            with self.subTest(name=name):
+                self.assertEqual((folder / name).read_bytes(), data)
+                self.assertEqual((self.pdb.parent / name).read_bytes(), data)
+
+    def test_changed_or_new_onelibrary_sidecar_blocks_write(self):
+        for name in ('exportLibrary.db-wal', 'exportLibrary.db-shm', 'exportLibrary.db-journal'):
+            for already_exists in (False, True):
+                with self.subTest(name=name, already_exists=already_exists):
+                    self.pdb.write_bytes(self.original)
+                    path = self.pdb.parent / name
+                    path.unlink(missing_ok=True)
+                    if already_exists:
+                        path.write_bytes(b'previous journal')
+                    request = self.request()
+                    path.write_bytes(b'new journal state')
+                    with self.assertRaisesRegex(ValueError, 'changed since inspection'):
+                        repair.mutate(request, Job())
+                    self.assertEqual(self.pdb.read_bytes(), self.original)
+                    path.unlink()
+
+    def test_sidecar_change_after_repair_blocks_undo(self):
+        result = repair.mutate(self.request(), Job())
+        repaired = self.pdb.read_bytes()
+        (self.pdb.parent / 'exportLibrary.db-wal').write_bytes(b'new committed tracks')
+        self.assertFalse(repair.inspect(self.root)['backups'][0]['restorable'])
+        request = self.request()
+        request['backup_id'] = result['backup']['id']
+        with self.assertRaisesRegex(ValueError, 'cannot undo'):
+            repair.mutate(request, Job(), restore=True)
+        self.assertEqual(self.pdb.read_bytes(), repaired)
+
     def test_reconnected_usb_blocks_write(self):
         request = self.request()
         request['expected_identity']['serial'] = 'other-device'

@@ -29,6 +29,9 @@ def main():
     with tempfile.TemporaryDirectory(prefix='xz-library-test-', dir=args.fixture_parent) as media_dir, tempfile.TemporaryDirectory(prefix='xz-repair-appdata-') as state_dir:
         media = Path(media_dir)
         database = broken_library(media)
+        for suffix in ('', '-wal', '-shm', '-journal'):
+            (database.parent / ('exportLibrary.db' + suffix)).write_bytes(
+                ('preserve OneLibrary main database and journal ' + suffix).encode())
         original = database.read_bytes()
         protected = {str(p.relative_to(media)): p.read_bytes() for p in media.rglob('*') if p.is_file() and p != database}
         env = {**os.environ, 'XZ_BUILDER_RESOURCES': str(args.resources.resolve()), 'XZ_BUILDER_DATA': state_dir}
@@ -52,11 +55,23 @@ def main():
         assert result['rekordbox_verified'] is False
         assert database.read_bytes() != original
         assert (Path(result['backup']['folder']) / PDB).read_bytes() == original
+        for name in ('exportExt.pdb', 'exportLibrary.db', 'exportLibrary.db-wal',
+                     'exportLibrary.db-shm', 'exportLibrary.db-journal'):
+            assert (Path(result['backup']['folder']) / 'PIONEER/rekordbox' / name).read_bytes() == (database.parent / name).read_bytes()
         assert all((media / name).read_bytes() == data for name, data in protected.items())
         checks.append('repair preserves tracks, stems, companion files and exact backup')
         stale = call('repair_device_library', **guard)
         assert stale['ok'] is False and 'changed since inspection' in stale['error']
         checks.append('stale inspection rejected')
+        journal = database.parent / 'exportLibrary.db-wal'
+        journal_before = journal.read_bytes()
+        state = result['inspection']
+        journal.write_bytes(journal_before + b'new commit')
+        changed = call('restore_device_library', expected_identity=state['identity'],
+                       expected_files=state['expected_files'], backup_id=result['backup']['id'])
+        assert changed['ok'] is False and 'changed since inspection' in changed['error']
+        journal.write_bytes(journal_before)
+        checks.append('OneLibrary journal change rejects stale undo')
         state = result['inspection']
         restored = call('restore_device_library', expected_identity=state['identity'],
                         expected_files=state['expected_files'], backup_id=result['backup']['id'])
