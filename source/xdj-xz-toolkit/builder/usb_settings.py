@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+MAX_RECORD_BYTES = 1023
+
 def contract(resources):
     root=Path(resources)/'runtime'
     manifest=json.loads((root/'manifest.json').read_text())
@@ -28,7 +30,7 @@ def validate(values,schema):
     return dict(values)
 
 def parse(data,schema):
-    if len(data)>1023:raise ValueError('Settings file is too large for this runtime')
+    if len(data)>MAX_RECORD_BYTES:raise ValueError('Settings file is too large for this runtime')
     try:text=data.decode('ascii')
     except UnicodeError:raise ValueError('Settings file is not native ASCII') from None
     if not text.startswith(schema['header']+'\n') or not text.endswith('\n') or '\r' in text or '\0' in text:
