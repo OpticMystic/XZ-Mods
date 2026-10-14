@@ -25,7 +25,10 @@ from .jobs import exclusive_lock
 
 PDB = 'PIONEER/rekordbox/export.pdb'
 GUARDED = (PDB, 'PIONEER/rekordbox/exportExt.pdb',
-           'PIONEER/rekordbox/exportLibrary.db', 'CDJMODS/index.json')
+           'PIONEER/rekordbox/exportLibrary.db',
+           'PIONEER/rekordbox/exportLibrary.db-wal',
+           'PIONEER/rekordbox/exportLibrary.db-shm',
+           'PIONEER/rekordbox/exportLibrary.db-journal', 'CDJMODS/index.json')
 REPAIR_ID = 'history-blank-gaps-v1'
 MAX_BYTES = 128 * 1024 * 1024
 
