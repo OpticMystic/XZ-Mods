@@ -66,6 +66,7 @@ extern int xz_settings_internal_save(const struct xz_settings *) __attribute__((
 #include <string.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <math.h>
 
 static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -402,7 +403,7 @@ static void settings_queue(void) {
     settings_request.revision = ++settings_save_revision;
     settings_request.ui_revision = settings_revision;
     int selected=xz_ui_runtime_profile_selected();
-    settings_request.usb_writable=(selected<0||selected==settings_slot)&&(settings_target_empty||settings_owner_matches_locked());
+    settings_request.usb_writable=(selected<0||selected==settings_slot)&&((settings_target_empty&&!settings_owner_valid)||settings_owner_matches_locked());
     settings_request.slot=settings_slot;
     model.settings_status = settings_profile.root[0]&&settings_request.usb_writable ? "SAVING SETTINGS TO USB" : "SAVING SETTINGS ON THIS XZ";
     settings_pending = 1; pthread_cond_signal(&settings_changed);

@@ -104,6 +104,16 @@ int main(void){
  pthread_mutex_lock(&ui_mutex);model.theme=9;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_saved(a,9);wait_internal(9,2);wait_status("SAVED TO USB 1");
  pthread_mutex_lock(&ui_mutex);settings_request.profile=old;xz_settings_default(&settings_request.values);settings_request.values.theme=11;settings_request.revision=0;settings_pending=1;pthread_cond_signal(&settings_changed);pthread_mutex_unlock(&ui_mutex);
  profile_pause(100000000);assert(!xz_settings_load(a,&s)&&s.theme==9);assert(profile_bytes(b,observed_b)==original_b_size&&!memcmp(original_b,observed_b,original_b_size));wait_internal(9,2);
+ /* Browsing a blank stick cannot move an established profile owner. */
+ char blank[]="/dev/shm/xz-runtime-profile-blank-XXXXXX";assert(mkdtemp(blank));
+ pthread_mutex_lock(&fixture_mutex);snprintf(fixture_usb[1],1024,"%s",blank);pthread_mutex_unlock(&fixture_mutex);
+ xz_ui_runtime_profile_usb(1);wait_profile(blank,9,2);
+ pthread_mutex_lock(&ui_mutex);model.theme=10;settings_queue();pthread_mutex_unlock(&ui_mutex);
+ wait_internal(10,2);wait_status("SAVED ON THIS XZ / USB PROFILE KEPT");assert(xz_settings_load(blank,&s)>0);
+ xz_ui_runtime_profile_usb(0);wait_profile(a,10,2);
+ pthread_mutex_lock(&ui_mutex);assert(settings_owner_matches_locked());model.theme=9;settings_queue();pthread_mutex_unlock(&ui_mutex);
+ wait_saved(a,9);wait_internal(9,2);wait_status("SAVED TO USB 1");
+ pthread_mutex_lock(&fixture_mutex);snprintf(fixture_usb[1],1024,"%s",b);pthread_mutex_unlock(&fixture_mutex);clean(blank);
  /* A session-only app profile cannot discard the preceding durable layout edit. */
  pthread_mutex_lock(&ui_mutex);struct xz_ui_action cycle={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&cycle,1);
  struct xz_settings temporary,merged=settings_snapshot();unsigned fields=0;
@@ -127,6 +137,7 @@ int main(void){
  assert(xz_settings_internal_load(&s,NULL)==XZ_INTERNAL_SETTINGS_OK);profile_apply_locked(&s,"boot-xz");settings_slot=0;settings_restore_usb_locked(a,1);
  assert(model.theme==11&&model.stems_overlay==XZ_STEM_LAYOUT_OUTER_HALF&&settings_owner_valid&&!strcmp(model.settings_status,"SETTINGS RESTORED FROM USB"));
  char diagnostics[8192];struct xz_ui_model unchanged=model;size_t size=xz_mods_stem_status_json_v1(diagnostics,sizeof(diagnostics));assert(size&&diagnostics[size]==0);assert(strstr(diagnostics,"\"layout\":4")&&strstr(diagnostics,"\"profile_apply_count\":")&&strstr(diagnostics,"\"alignment_correlation\":"));assert(!memcmp(&unchanged,&model,sizeof(model)));
+ assert(strstr(diagnostics,"\"runtime_pid\":")&&strstr(diagnostics,"\"boot_runtime\":")&&strstr(diagnostics,"\"profile_owner_usb\":")&&strstr(diagnostics,"\"profile_owner_matches_target\":true")&&strstr(diagnostics,"\"profile_target_empty\":false"));
  char too_small[16];memset(too_small,0x5a,sizeof(too_small));assert(!xz_mods_stem_status_json_v1(too_small,sizeof(too_small)));for(unsigned i=0;i<sizeof(too_small);i++)assert(too_small[i]==0x5a);
  clean(a);clean(b);clean_internal(internal);
  puts("PASS applied-profile ownership: browsed USB byte-preserved, own/blank USB saves, durable edit survives source and session-profile changes, stale saves, explicit boot restore, explicit Apply+Save and read-only diagnostics");
