@@ -1,0 +1,23 @@
+{
+  "installed_builder": false,
+  "image": "E:\\Codex\\xz-stem-fix-20261015\\generated-loader-r4\\private-volume\\autoexec.bin",
+  "sha256": "2a635be43ac932de31a0056a687e4f9662696d614698c2b4557553aef38310d9",
+  "paired_runtime_verified": true,
+  "metadata_verified": true,
+  "pinned_version_verified": true,
+  "physical_usb_written": false,
+  "controller_tested": false,
+  "mod_version": {
+    "id": "ab9cec84aa4a65a42ace7257dd648029b991224694a85e7f045f082631b58862",
+    "label": "Included development build 1764ee87",
+    "channel": "development",
+    "runtime_sha256": "1764ee8799701b7bfaaeea6bc9130f3cc30ca3df31a1d4b27ca754ff99e81277",
+    "receiver_sha256": "dd12975a6436225139c04e6996e559fe39795eb9da42cd033393ac46f4a8b070",
+    "source_commit": "e9e9fd34df091f635b983f2ba3e96adc726ebd56",
+    "firmware": "XDJ-XZ 1.26",
+    "format": "xz-mod-loader-version/1",
+    "pinned": true,
+    "bootstrap_sha256": "ef949e86ba4a3a5c01b60d46c9c5e757ce932b6cb90ebd1fe58e7fb16d0c3914",
+    "base_bootstrap_sha256": "61790f810f3c5ca3dc1cfd6f22bd1a009f659d756f5833a0f5e136ed22526a6c"
+  }
+}
