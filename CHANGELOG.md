@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Preview.11 rebuilds the desktop UI as a device utility. The sidebar is USB, Stems, XZ Screen and Tools (a list that opens DJ Profile, Repair library, Network updates, XZ Mods version, App updates and About). The USB page finds a plugged-in USB through the new `list_volumes` host command (no backend job per poll) and opens it when there is one; it shows one status with one action, three tiles (DJ profile, games, stems) and the read-only file tree behind a disclosure. Writes run as a short flow (profile, review, writing, done) that sends the same backend requests as before. macOS: `managed_usb.discover` keeps only local `/dev/disk` volumes, `runtime_ota.network_addresses` puts 169.254.168.58 first, the Local Network prompt covers Live Streamer, App updates points to the downloads page, native fonts. `tools/verify_setup_wizard.mjs` 77 checks, `verify_dj_profile.mjs` 95, `verify_stems_page.mjs` 57.
+
 - Preview.10 changes Smart Cue to update the native main-cue position without cancelling playback reservations or ending slip/audible-pause state. Turning Smart Cue off resolved the owner's Hot Cue stop-on-release reproduction with Gate Cue off. The old adapter fails the new real-ARM emulation check; the replacement passes 53 cases on each supported 1.26 executable. Hardware acceptance remains pending.
 
 - Windows upgrades now archive the complete previous resource folder, including older runtime helpers and generated caches, before installing the new package. An explicit verified offline catalog input retains rollback versions in clean builds. Isolated installer checks cover fresh installs, repeated upgrades and refusal to move unidentified resources.
