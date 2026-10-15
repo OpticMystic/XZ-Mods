@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const html=readFileSync(new URL('../src-tauri/src/screen-view.html',import.meta.url),'utf8');
+const elements={canvas:{hidden:true,getContext:()=>null,addEventListener(){}},notice:{hidden:false},message:{textContent:''},retry:{hidden:true}};
+let now=0,watchdog;
+const context=vm.createContext({document:{querySelector:()=>elements.canvas,getElementById:id=>elements[id]},window:{},performance:{now:()=>now},setInterval:fn=>{watchdog=fn;},clearTimeout(){},location:{},WebSocket:{OPEN:1},setTimeout(){}});
+vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
+vm.runInContext('lastFrame=100;protocol=2;canvas.hidden=false;notice.hidden=true;',context);
+now=1900;watchdog();
+assert.equal(elements.canvas.hidden,false,'1.8s controller capture gap must not black out a connected picture');
+now=3200;watchdog();
+assert.equal(elements.canvas.hidden,true,'Stalled frames still expire after the bounded grace period');
+console.log('screen viewer slow-capture/stall regression: passed');
