@@ -1,0 +1,21 @@
+{
+  "installed_path": "C:\\Users\\short\\AppData\\Local\\XZ Mods\\xz-mods-builder.exe",
+  "process_id": 82228,
+  "installed_exe_sha256": "ab0aa3656b244899aeb51985dea1fff2c5f593b1ccb29b622809facb58596dc3",
+  "installer_payload_sha256": "ab0aa3656b244899aeb51985dea1fff2c5f593b1ccb29b622809facb58596dc3",
+  "packaging_patch": "Only Tauri bundle-type marker UNK to NSS, exactly three bytes; installer payload extracted with7zip matches installed exe",
+  "resources_verified": 2262,
+  "extra_resources": 0,
+  "runtime_sha256": "1764ee8799701b7bfaaeea6bc9130f3cc30ca3df31a1d4b27ca754ff99e81277",
+  "receiver_sha256": "dd12975a6436225139c04e6996e559fe39795eb9da42cd033393ac46f4a8b070",
+  "bundled_candidate_id": "ab9cec84aa4a65a42ace7257dd648029b991224694a85e7f045f082631b58862",
+  "preserved_selection": {
+    "id": "a7324f670381089d85c6f91e470226d9e298b38baaa5cbfa3aa9afbd711d1fa5",
+    "pinned": true,
+    "revision": "ec1e87101e7e092f1370bb015978801910a5575816968022324f1215dadc0298"
+  },
+  "controller_changed": false,
+  "physical_usb_written": false,
+  "hardware_acceptance": "pending",
+  "published": false
+}

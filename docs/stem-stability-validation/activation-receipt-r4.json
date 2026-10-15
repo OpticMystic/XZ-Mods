@@ -1,0 +1,19 @@
+{
+  "candidate_runtime_sha256": "1764ee8799701b7bfaaeea6bc9130f3cc30ca3df31a1d4b27ca754ff99e81277",
+  "receiver_sha256": "dd12975a6436225139c04e6996e559fe39795eb9da42cd033393ac46f4a8b070",
+  "expected_boot_runtime": "8fa5a242454d94c8328ed5cf7348e7da:experimental",
+  "boot_marker_limit": "Environment value identifies boot configuration, not the hash of the mapped library. Pair with verified pinned loader readback, new runtime PID and candidate diagnostics.",
+  "loader_verification": "E:\\Codex\\xz-stem-fix-20261015\\generated-loader-r4\\verification.json",
+  "native_source_commit": "e9e9fd34df091f635b983f2ba3e96adc726ebd56",
+  "physical_usb_written": false,
+  "controller_activated": false,
+  "hardware_acceptance": "pending receiver trial coordination plus fresh stopped-state proof and physical USB access",
+  "required_acceptance": [
+    "Both USB sources browse/load without unrequested layout changes",
+    "First physical stem pad after each track load remains visible and audible",
+    "All deliberate row layouts remain stable",
+    "Correlate any app-profile origin with configured Autoload and scan/probe logs",
+    "Smart Cue/Gate Cue, top and outer jog, Play/Pause and main Cue on both decks",
+    "USB replug fail-safe ownership behavior"
+  ]
+}

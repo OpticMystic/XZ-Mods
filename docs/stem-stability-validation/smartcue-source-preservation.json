@@ -1,0 +1,20 @@
+{
+  "baseline_runtime_sha256": "f413175846aaa323557e740cbf9ff8dd8a6e790a7acb9a0c313dfa87f6cc3e5c",
+  "cue_source_files_identical": {
+    "mods\\runtime.c": true,
+    "mods\\runtime.h": true,
+    "mods\\cue\\cue.c": true,
+    "mods\\cue\\cue.h": true,
+    "mods\\cue\\native.c": true,
+    "mods\\cue\\native.h": true,
+    "mods\\cue\\native_follow_fixture.c": true,
+    "mods\\cue\\PAD_EVENT_ABI.md": true,
+    "mods\\cue\\README.md": true,
+    "mods\\cue\\test_cue.c": true,
+    "mods\\cue\\test_native_decode.c": true,
+    "mods\\cue\\verify.py": true,
+    "mods\\cue\\verify_follow_transport.py": true,
+    "mods\\cue\\verify_native_decode.py": true
+  },
+  "physical_reacceptance_pending": true
+}
