@@ -4,6 +4,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 from builder import runtime_ota
 
 
@@ -42,6 +43,15 @@ class OtaReadinessTests(unittest.TestCase):
         reason='Runtime exceeds the network updater limit. Use Set up USB.'
         (self.root/'runtime/manifest.json').write_text(json.dumps({'ota_unavailable_reason':reason}))
         self.assertEqual(runtime_ota.readiness(self.root),{'ready':False,'reason':reason})
+
+
+class NetworkAddressTests(unittest.TestCase):
+    def test_xz_default_address_comes_first_on_mac(self):
+        ifconfig=('lo0: flags\n\tinet 127.0.0.1 netmask 0xff000000\n'
+                  'en0: flags\n\tinet 192.168.1.20 netmask 0xffffff00 broadcast 192.168.1.255\n'
+                  'en7: flags\n\tinet 169.254.168.58 netmask 0xffff0000 broadcast 169.254.255.255\n')
+        with patch.object(runtime_ota.sys,'platform','darwin'),patch('subprocess.check_output',return_value=ifconfig):
+            self.assertEqual(runtime_ota.network_addresses(),['169.254.168.58','192.168.1.20'])
 
 
 if __name__=='__main__':

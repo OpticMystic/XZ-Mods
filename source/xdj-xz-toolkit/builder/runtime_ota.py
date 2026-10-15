@@ -35,8 +35,9 @@ def network_addresses():
         import re
         import subprocess
         text=subprocess.check_output(['/sbin/ifconfig','-a'],text=True,timeout=10)
-        return sorted({ip for ip in re.findall(r'^\s+inet (\d+\.\d+\.\d+\.\d+) ',text,re.MULTILINE) if not ip.startswith('127.')})
-    addresses={item[4][0] for item in socket.getaddrinfo(socket.gethostname(),None,socket.AF_INET)}
+        addresses=set(re.findall(r'^\s+inet (\d+\.\d+\.\d+\.\d+) ',text,re.MULTILINE))
+    else:
+        addresses={item[4][0] for item in socket.getaddrinfo(socket.gethostname(),None,socket.AF_INET)}
     return sorted((ip for ip in addresses if not ip.startswith('127.')),key=lambda ip:(ip!='169.254.168.58',ip))
 
 def serve(resources:Path,address:str,job):
