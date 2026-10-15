@@ -69,6 +69,9 @@ void xz_audio_set_levels(int deck,struct xz_stem_levels value){applied[deck]=val
 void xz_audio_set_levels4(int deck,const float value[4]){
     applied[deck]=(struct xz_stem_levels){value[0],value[1],value[2]};applied_bass[deck]=value[3];
 }
+int xz_audio_set_levels4_for_generation(int deck,uint32_t generation,const float value[4]){
+    if(generation!=fixture_generation)return -1;xz_audio_set_levels4(deck,value);return 0;
+}
 int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));if(fixture_loaded&(1<<deck))snprintf(out->path,sizeof(out->path),"/media/usb2/test-track.mp3");out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
 const char *xz_audio_state_name(enum xz_audio_state state){(void)state;return "ready";}
 int xz_audio_waveform(int deck,unsigned role,unsigned char *bins,size_t count,float *progress){
@@ -138,6 +141,10 @@ static void generation_pad_consistency(void){
         refresh();
         int agrees=(model.deck[deck].muted&4)&&applied[deck].vocals==0;
         if(!agrees){fprintf(stderr,"FAIL deck %d first pad after load: UI mute=%u audio vocals=%f\n",deck+1,model.deck[deck].muted,applied[deck].vocals);assert(agrees);}
+        fixture_stem_count[deck]=4;refresh();
+        int survived=(model.deck[deck].muted&4)&&applied[deck].vocals==0;
+        if(!survived){fprintf(stderr,"FAIL deck %d prepared stem-count publication erased first pad\n",deck+1);assert(survived);}
+        fixture_stem_count[deck]=3;refresh();assert((model.deck[deck].muted&4)&&applied_bass[deck]==1);
     }
     puts("PASS first stem pad after track generation change stays visible and audible on both decks");
 }
@@ -353,7 +360,8 @@ int main(void){
             assert(found&&model.stem_bank==pad/4&&pads.bank==pad/4&&model.deck[0].muted==muted&&!memcmp(&jump,&model.jump,sizeof(jump)));
         }
     }
-    fixture_stem_count[0]=4;refresh();
+    /* A different four-stem track starts neutral; count-only publication is tested separately. */
+    fixture_generation++;fixture_stem_count[0]=4;refresh();
     assert(model.deck[0].stem_count==4&&pads.count[0]==4&&model.deck[1].stem_count==3);
     struct xz_ui_action bass_level={.kind=XZ_UI_LEVEL,.deck=0,.index=3,.value=.4f};apply(NULL,&bass_level,1);
     assert(applied_bass[0]==.4f);
@@ -365,6 +373,7 @@ int main(void){
     char persist_root[]="/tmp/xz-runtime-prefs-XXXXXX",persist_path[1200];
     assert(mkdtemp(persist_root));strcpy(settings_usb,persist_root);
     struct xz_settings profile_defaults;assert(xz_usb_profile_load(&settings_profile,persist_root,0,&profile_defaults,NULL)==1);
+    settings_target_empty=1;settings_owner_valid=0;
     browse_settings(&profile_defaults);settings_slot=-1;
     __atomic_store_n(&profile_slot,~0u,__ATOMIC_RELAXED);
     settings_readonly=0;settings_running=1;settings_pending=0;

@@ -5,10 +5,28 @@
 #error assertions required
 #endif
 #include <assert.h>
+#include <stdint.h>
+static uint32_t probe_generation_add(uint32_t *,uint32_t,int);
+#define __atomic_add_fetch probe_generation_add
 #include "../runtime.c"
+#undef __atomic_add_fetch
 #include <sys/mman.h>
 static unsigned char test_memory[65536];
 static uint32_t expect_generation;
+static int probe_control,probe_deferred;
+static uint32_t probe_generation;
+static uint32_t probe_generation_add(uint32_t *value,uint32_t amount,int order){
+ uint32_t result=__atomic_add_fetch(value,amount,order);
+ if(probe_control&&value==&decks[0].generation){
+  probe_generation=result;
+  if(!pthread_mutex_trylock(&control_mutex)){
+   pthread_mutex_unlock(&control_mutex);
+   xz_audio_set_levels(0,(struct xz_stem_levels){1,1,0});
+  }else probe_deferred=1;
+ }
+ return result;
+}
+
 static int load_result;
 static unsigned hook_count, stream_calls, guarded_read_calls;
 static uint32_t stream_reader;
@@ -320,5 +338,16 @@ int main(void) {
  assert(output_rate==44100 && output_generation==4);
  puts("disabled loads retain history without decode; enable queues known history; disable cancels and restores unity");
  puts("mocked native load/unload cancellation precedes original; captured new path; failed load never publishes");
+ setup();decks[0].generation=41;original_load=fake_load;running=enabled=1;load_result=0;expect_generation=42;
+ probe_control=1;probe_deferred=0;assert(load_hook((void*)(uintptr_t)0x11200,NULL)==0);probe_control=0;
+ assert(probe_generation==42);
+ if(probe_deferred)xz_audio_set_levels(0,(struct xz_stem_levels){1,1,0});
+ if(get_levels(&decks[0]).vocals!=0){fprintf(stderr,"FAIL native load reset erased a control on newly published generation\n");assert(0);}
+ const float stale_values[4]={0,0,0,0};
+ assert(xz_audio_set_levels4_for_generation(0,41,stale_values)==-1);
+ assert(get_levels(&decks[0]).drums==1&&get_levels(&decks[0]).vocals==0);
+ assert(xz_audio_set_levels4_for_generation(0,42,stale_values)==0&&get_levels(&decks[0]).drums==0);
+ puts("PASS native load generation publication cannot erase a new-generation stem control");
+
  return 0;
 }
