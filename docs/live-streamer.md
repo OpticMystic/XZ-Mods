@@ -1,6 +1,6 @@
 # View the XZ screen on your computer
 
-Live Streamer is in the XZ Mods sidebar. It displays the controller's screen and gives OBS a local Browser Source URL.
+Live Streamer is the **XZ Screen** page in the XZ Mods sidebar. It displays the controller's screen and gives OBS a local Browser Source URL.
 
 1. Update the XZME loader with this build. With both decks stopped, safely eject the USB, put it back in the XZ and power cycle the controller.
 2. Connect the computer and XZ to the same trusted network. Open **Live Streamer → Set up Live Streamer**. The app looks for the XZ automatically; select its address if more than one is found, then connect.
