@@ -1,6 +1,22 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.11",
+      "date": "2026-10-14",
+      "preview": true,
+      "features": [
+        "The app is simpler. The sidebar has four places: USB, Stems, XZ Screen and Tools. DJ Profile, Repair library, Network updates, XZ Mods version, App updates and About are in Tools.",
+        "Plug in your USB and it appears. The USB page shows one status (not installed, update available or up to date) with one button, plus your DJ profile, games and stems at a glance.",
+        "Installing or updating is a short guided flow: your DJ profile if you want one, a plain list of what will be written, then write. Music, playlists and prepared stems are never touched."
+      ],
+      "fixes": [
+        "On a Mac, only local USB drives are offered, not disk images or network shares. The XZ's network address is suggested first for network updates, and the app no longer says File Explorer or PC."
+      ],
+      "requirements": [
+        "Same USB loader and runtime as Preview.10. Updating this app does not change the loader on your USB."
+      ]
+    },
+    {
       "version": "0.3.0-preview.10",
       "date": "2026-10-14",
       "preview": true,
