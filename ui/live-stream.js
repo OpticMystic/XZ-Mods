@@ -113,9 +113,19 @@ else (() => {
       const result=await invoke('live_stream_status');if(token!==generation)return;
       const view=liveView(result);
       if(view.live){if(!screen.getAttribute('src'))screen.src=url;if(wizard.open)wizard.close();loaderFocused=false;}
+      if($('live-privacy').checked)$('live-privacy-status').textContent=result.privacy_covered?'Logo covering the stream.':view.live?'Performance screen visible.':'Waiting for the XZ screen.';
       show(view);
     }catch(error){status.textContent=String(error);}
     if(running&&token===generation)setTimeout(()=>poll(token),1000);
   }
+  const privacy=$('live-privacy'),privacyStatus=$('live-privacy-status');
+  let savedPrivacy=false;
+  privacy.onchange=async()=>{
+    const enabled=privacy.checked;privacy.disabled=true;
+    try {savedPrivacy=await invoke('live_stream_privacy',{enabled});privacy.checked=savedPrivacy;privacyStatus.textContent=savedPrivacy?'Browsing cover on.':'Browsing cover off.';}
+    catch(error){privacy.checked=savedPrivacy;privacyStatus.textContent=String(error);}
+    finally{privacy.disabled=false;}
+  };
+  if(invoke)invoke('live_stream_privacy',{}).then(enabled=>{savedPrivacy=enabled;privacy.checked=enabled;privacy.disabled=false;}).catch(error=>{privacyStatus.textContent=String(error);privacy.disabled=false;});
   controls();
 })();

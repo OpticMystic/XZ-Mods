@@ -28,6 +28,8 @@ struct Latest {
     reason: &'static str,
     samples: VecDeque<(Instant, usize, bool)>,
     diagnostics: Option<Value>,
+    privacy: bool,
+    revision: u64,
 }
 impl Latest {
     fn fresh(&self) -> bool {
@@ -55,6 +57,7 @@ impl Latest {
         self.frame = Some(frame);
         self.at = Some(now);
         self.frames += 1;
+        self.revision += 1;
         self.capture_ms = elapsed.as_millis();
         self.error.clear();
         self.reason = "";
@@ -99,7 +102,7 @@ impl Latest {
             "protocol":self.frame.as_ref().map(|frame|frame.protocol.version()),"target_fps":self.frame.as_ref().map(|frame|frame.protocol.target_fps()),
             "fps":fps,"changed_fps":changed_fps,"network_mbps":mbps,"device_copy_us":self.frame.as_ref().map(|frame|frame.copy_us),
             "device_encode_us":self.frame.as_ref().map(|frame|frame.encode_us),"pc_decode_us":self.frame.as_ref().map(|frame|frame.decode_us),"device_time_us":self.frame.as_ref().map(|frame|frame.device_time_us),
-            "device_sequence":self.frame.as_ref().map(|frame|frame.sequence),"diagnostics":self.diagnostics})
+            "device_sequence":self.frame.as_ref().map(|frame|frame.sequence),"diagnostics":self.diagnostics,"privacy_enabled":self.privacy,"privacy_covered":self.frame.as_ref().is_some_and(|frame| crate::stream_privacy::covered(frame,self.privacy))})
     }
 }
 
@@ -140,6 +143,10 @@ impl ScreenSession {
             url,
             host: address.ip().to_string(),
         })
+    }
+    pub fn set_privacy(&self, enabled: bool) {
+        let mut latest = self.latest.lock().unwrap();
+        if latest.privacy != enabled { latest.privacy = enabled; latest.revision += 1; }
     }
     pub fn connection_info(&self) -> Value {
         json!({"url":self.url,"frame_url":format!("{}frame.bmp",self.url),"width":800,"height":480})
@@ -443,7 +450,7 @@ fn serve_client(
                 let next = {
                     let value = latest.lock().unwrap();
                     if value.fresh() {
-                        value.frame.clone().map(|frame| (value.frames, frame))
+                        value.frame.clone().map(|frame| (value.revision, crate::stream_privacy::output(frame, value.privacy)))
                     } else {
                         None
                     }
@@ -529,7 +536,7 @@ fn serve_client(
         let pixels = {
             let value = latest.lock().unwrap();
             if value.fresh() {
-                value.frame.as_ref().map(|frame| frame.pixels.clone())
+                value.frame.clone().map(|frame| crate::stream_privacy::output(frame, value.privacy).pixels)
             } else {
                 None
             }
@@ -616,6 +623,48 @@ mod tests {
         let mut data = Vec::new();
         socket.read_to_end(&mut data).unwrap();
         data
+    }
+    #[test]
+    fn privacy_filters_http_websocket_and_existing_viewers() {
+        let (address, stop, latest, worker) = local_server();
+        {
+            let mut value = latest.lock().unwrap();
+            value.privacy = true;
+            value.revision += 1;
+        }
+        let still = get(address, "/test/frame.bmp", false);
+        assert!(still.ends_with(include_bytes!("stream-logo.rgb565")));
+        let socket = TcpStream::connect(address).unwrap();
+        socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        let (mut client, _) = tungstenite::client(format!("ws://{address}/test/frames"), socket).unwrap();
+        let first = client.read().unwrap().into_data();
+        assert_eq!(&first[16..], include_bytes!("stream-logo.rgb565"));
+        let acknowledge = |client: &mut tungstenite::WebSocket<TcpStream>, packet: &[u8]| {
+            client.send(Message::Binary(packet[4..8].to_vec().into())).unwrap();
+        };
+        {
+            let mut value = latest.lock().unwrap();
+            let mut performance = frame(0);
+            performance.pixels = crate::stream_privacy::tests::performance().into();
+            value.publish(performance, Duration::ZERO);
+        }
+        acknowledge(&mut client, &first);
+        let performance = client.read().unwrap().into_data();
+        assert_eq!(&performance[16..], crate::stream_privacy::tests::performance());
+        latest.lock().unwrap().publish(frame(0x55), Duration::ZERO);
+        acknowledge(&mut client, &performance);
+        let browsing = client.read().unwrap().into_data();
+        assert_eq!(&browsing[16..], include_bytes!("stream-logo.rgb565"));
+        {
+            let mut value = latest.lock().unwrap();
+            value.privacy = false;
+            value.revision += 1;
+        }
+        acknowledge(&mut client, &browsing);
+        let disabled = client.read().unwrap().into_data();
+        assert_eq!(&disabled[16..], &vec![0x55; PIXELS]);
+        stop.store(true, Ordering::Release);
+        worker.join().unwrap();
     }
     #[test]
     fn rgb565_bitmap_is_exact() {

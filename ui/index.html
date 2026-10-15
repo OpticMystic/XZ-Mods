@@ -66,6 +66,10 @@
 <p id="live-status" role="status">Set up Live Streamer to connect to your XZ.</p><p id="live-detail" class="fine hidden"></p>
 <div class="live-frame"><iframe id="live-screen" class="live-screen" title="Live XDJ-XZ screen" allow="fullscreen"></iframe><div id="live-placeholder" class="live-placeholder"><strong id="live-placeholder-title">No XZ screen yet</strong><span id="live-placeholder-text">The XZ screen appears here, 800 × 480, once it is connected.</span></div><span id="live-rate" class="live-rate hidden"></span></div>
 <p id="live-rate-note" class="fine">The frame rate depends on the USB loader and the network. XZ Mods shows the rate it measures once connected.</p></div>
+<div class="panel"><h2>Hide USB browsing</h2>
+<label><input id="live-privacy" type="checkbox" disabled> Show a logo while browsing USB</label>
+<p class="fine">Covers the stream with the XZ Mods logo while you browse. The stock performance screen returns automatically. Menus, custom themes and unrecognized screens stay covered. Applies to this preview and OBS.</p>
+<p id="live-privacy-status" role="status"></p></div>
 <div class="panel"><h2>Use in OBS</h2><p>Add a <strong>Browser</strong> source, paste this URL, and set its width to <strong>800</strong> and height to <strong>480</strong>. Keep XZ Mods running. This URL works on this computer only and changes when you reconnect.</p>
 <label>OBS Browser Source URL<input id="live-url" class="live-url" readonly placeholder="Connect the XZ first"></label><button id="live-copy" class="secondary" disabled>Copy OBS URL</button><p id="live-copy-status" role="status"></p></div>
 </section>

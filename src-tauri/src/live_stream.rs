@@ -12,6 +12,49 @@ pub struct LiveStream {
     session: Mutex<Option<ScreenSession>>,
 }
 
+fn privacy_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("stream-privacy.json"))
+}
+fn read_privacy(app: &tauri::AppHandle) -> Result<bool, String> {
+    match std::fs::read(privacy_path(app)?) {
+        Ok(bytes) => serde_json::from_slice(&bytes)
+            .map_err(|e| format!("Cannot read stream privacy preference: {e}")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e.to_string()),
+    }
+}
+#[tauri::command]
+pub fn live_stream_privacy(app: tauri::AppHandle, enabled: Option<bool>) -> Result<bool, String> {
+    let state = app.state::<LiveStream>();
+    let session = state
+        .session
+        .lock()
+        .map_err(|_| "Screen state unavailable")?;
+    if let Some(enabled) = enabled {
+        let path = privacy_path(&app)?;
+        std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+        std::fs::write(
+            &path,
+            if enabled {
+                b"true".as_slice()
+            } else {
+                b"false".as_slice()
+            },
+        )
+        .map_err(|e| e.to_string())?;
+        if let Some(session) = session.as_ref() {
+            session.set_privacy(enabled);
+        }
+        Ok(enabled)
+    } else {
+        read_privacy(&app)
+    }
+}
+
 fn target(host: &str) -> Result<SocketAddr, String> {
     let ip: Ipv4Addr = host.parse().map_err(|_| "Enter the XZ's IPv4 address")?;
     if ip.is_unspecified() || ip.is_multicast() || ip.is_broadcast() || ip.is_loopback() {
@@ -31,6 +74,7 @@ pub fn live_stream_start(app: tauri::AppHandle, host: String) -> Result<Value, S
         return Err("Stop the current screen stream before reconnecting".into());
     }
     let next = ScreenSession::start(address)?;
+    next.set_privacy(read_privacy(&app)?);
     let result = next.connection_info();
     *session = Some(next);
     Ok(result)
