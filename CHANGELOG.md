@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Live Streamer keeps the picture visible through slow controller captures instead of flashing Connecting after one second. Both the desktop preview and OBS use the same bounded three-second frame expiry; socket failures still clear the picture immediately. Measured controller capture/encoding speed remains separate from connection status.
+
 - Live Streamer offers a saved USB-browsing cover. It replaces unrecognized screens with the XZ Mods logo before sending either OBS frames or still images, and restores recognized stock performance screens automatically. Menus and custom themes remain covered. Physical-controller acceptance remains pending.
 
 - Preview.11 rebuilds the desktop UI as a device utility. The sidebar is USB, Stems, XZ Screen and Tools (a list that opens DJ Profile, Repair library, Network updates, XZ Mods version, App updates and About). The USB page finds a plugged-in USB through the new `list_volumes` host command (no backend job per poll) and opens it when there is one; it shows one status with one action, three tiles (DJ profile, games, stems) and the read-only file tree behind a disclosure. Writes run as a short flow (profile, review, writing, done) that sends the same backend requests as before. macOS: `managed_usb.discover` keeps only local `/dev/disk` volumes, `runtime_ota.network_addresses` puts 169.254.168.58 first, the Local Network prompt covers Live Streamer, App updates points to the downloads page, native fonts. `tools/verify_setup_wizard.mjs` 77 checks, `verify_dj_profile.mjs` 95, `verify_stems_page.mjs` 57.

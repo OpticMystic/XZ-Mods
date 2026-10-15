@@ -18,6 +18,7 @@ use tungstenite::{
 };
 
 const PAGE: &str = include_str!("screen-view.html");
+const MAX_FRAME_AGE_MS: u64 = 3000;
 #[derive(Default)]
 struct Latest {
     frame: Option<Frame>,
@@ -33,17 +34,11 @@ struct Latest {
 }
 impl Latest {
     fn fresh(&self) -> bool {
-        let limit = if self
-            .frame
-            .as_ref()
-            .is_some_and(|frame| frame.protocol == Protocol::Compressed)
-        {
-            1
-        } else {
-            3
-        };
+        // Protocol v2 is a format, not a measured delivery rate. A busy XZ can
+        // take over a second to capture/encode a frame on a healthy socket.
+        // Socket errors still clear the frame immediately in disconnected().
         self.at
-            .is_some_and(|at| at.elapsed() < Duration::from_secs(limit))
+            .is_some_and(|at| at.elapsed() < Duration::from_millis(MAX_FRAME_AGE_MS))
     }
     fn publish(&mut self, frame: Frame, elapsed: Duration) {
         let now = Instant::now();
@@ -667,6 +662,19 @@ mod tests {
         worker.join().unwrap();
     }
     #[test]
+    fn slow_connected_capture_does_not_flash_disconnected() {
+        assert!(PAGE.contains(&format!("const MAX_FRAME_AGE_MS={MAX_FRAME_AGE_MS};")));
+        let mut latest = Latest::default();
+        latest.publish(frame(1), Duration::from_millis(1700));
+        latest.at = Some(Instant::now() - Duration::from_millis(1800));
+        assert!(latest.fresh(), "A capture slower than 1 fps is still connected");
+        assert_eq!(latest.status()["phase"], "live");
+        latest.at = Some(Instant::now() - Duration::from_millis(3100));
+        assert!(!latest.fresh(), "A stalled stream must still expire");
+        latest.disconnected(CaptureError { reason: "stream", message: "socket closed".into(), legacy_fallback: false });
+        assert!(latest.frame.is_none(), "Real disconnects clear the picture immediately");
+    }
+    #[test]
     fn rgb565_bitmap_is_exact() {
         let pixels = vec![0x12; PIXELS];
         let bmp = bitmap(&pixels);
@@ -680,7 +688,7 @@ mod tests {
         let result = get(address, "/test/frame.bmp", true);
         assert!(result.starts_with(b"HTTP/1.1 200"));
         assert!(result.ends_with(&vec![0x55; PIXELS]));
-        latest.lock().unwrap().at = Some(Instant::now() - Duration::from_secs(2));
+        latest.lock().unwrap().at = Some(Instant::now() - Duration::from_secs(4));
         assert!(get(address, "/test/frame.bmp", false).starts_with(b"HTTP/1.1 503"));
         assert!(get(address, "/other", false).starts_with(b"HTTP/1.1 404"));
         stop.store(true, Ordering::Release);
