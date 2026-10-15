@@ -158,12 +158,25 @@ static void free_publication(struct publication *p)
     if (p) { xz_oc_stream_close(p->prepared); xz_stem_decoded_free(&p->decoded); free(p); }
 }
 
+static void store_levels(struct deck_state *deck,const float values[4]){
+    for(unsigned role=0;role<4;role++){
+        uint32_t bits;memcpy(&bits,&values[role],sizeof(bits));
+        __atomic_store_n(&deck->levels[role],bits,__ATOMIC_RELAXED);
+    }
+    request_source_work(deck);
+}
+/* control_mutex owns generation publication and control writes together. */
+static uint32_t advance_generation_locked(struct deck_state *deck){
+    const float neutral[4]={1,1,1,1};store_levels(deck,neutral);
+    return __atomic_add_fetch(&deck->generation,1,__ATOMIC_SEQ_CST);
+}
+
 static uint32_t cancel_deck(int index, enum xz_audio_state state)
 {
     struct deck_state *deck = &decks[index];
-    uint32_t gen = __atomic_add_fetch(&deck->generation, 1, __ATOMIC_SEQ_CST);
-    request_source_work(deck);
     pthread_mutex_lock(&control_mutex);
+    uint32_t gen=advance_generation_locked(deck);
+    request_source_work(deck);
     deck->pending_kind = 2;
     deck->pending_generation = gen;
     deck->history_valid = 0;
@@ -215,7 +228,6 @@ static int load_hook(void *reader, const void *track)
             output_epoch = __atomic_add_fetch(&decks[index].output_epoch, 1,
                                                __ATOMIC_ACQ_REL);
             generation = cancel_deck(index, XZ_AUDIO_LOADING_TRACK);
-            xz_audio_set_levels(index, (struct xz_stem_levels){1,1,1});
         }
     }
     result = original_load(reader, track);
@@ -602,18 +614,21 @@ void xz_audio_set_levels(int deck, struct xz_stem_levels levels)
     xz_audio_set_levels4(deck,values);
 }
 
-void xz_audio_set_levels4(int deck, const float values[4])
-{
-    unsigned i;
-    if (deck < 0 || deck >= DECKS || !values) return;
-    for (i = 0; i < 4; ++i)
-        if (!isfinite(values[i]) || values[i] < 0 || values[i] > 2) return;
-    for (i = 0; i < 4; ++i) {
-        uint32_t bits;
-        memcpy(&bits, &values[i], 4);
-        __atomic_store_n(&decks[deck].levels[i], bits, __ATOMIC_RELAXED);
-    }
-    request_source_work(&decks[deck]);
+static int levels_valid(int deck,const float values[4]){
+    if(deck<0||deck>=DECKS||!values)return 0;
+    for(unsigned role=0;role<4;role++)if(!isfinite(values[role])||values[role]<0||values[role]>2)return 0;
+    return 1;
+}
+void xz_audio_set_levels4(int deck,const float values[4]){
+    if(!levels_valid(deck,values))return;
+    pthread_mutex_lock(&control_mutex);store_levels(&decks[deck],values);pthread_mutex_unlock(&control_mutex);
+}
+int xz_audio_set_levels4_for_generation(int deck,uint32_t generation,const float values[4]){
+    if(!levels_valid(deck,values))return -1;
+    pthread_mutex_lock(&control_mutex);
+    int current=generation==__atomic_load_n(&decks[deck].generation,__ATOMIC_SEQ_CST);
+    if(current)store_levels(&decks[deck],values);
+    pthread_mutex_unlock(&control_mutex);return current?0:-1;
 }
 
 void xz_audio_set_enabled(int on)
@@ -624,7 +639,7 @@ void xz_audio_set_enabled(int on)
     for (int i = 0; i < DECKS; ++i) {
         struct deck_state *deck = &decks[i];
         if (!on) {
-            uint32_t gen = __atomic_add_fetch(&deck->generation, 1, __ATOMIC_SEQ_CST);
+            uint32_t gen=advance_generation_locked(deck);
             /* Preserve owned history only when no loader already invalidated it. */
             if (deck->history_valid && deck->pending_generation == gen - 1)
                 deck->pending_generation = gen;
@@ -632,7 +647,6 @@ void xz_audio_set_enabled(int on)
             deck->pending_kind = 2;
             deck->status.state = XZ_AUDIO_DISABLED;
             deck->status.pcm_bytes = 0;
-            xz_audio_set_levels(i, (struct xz_stem_levels){1,1,1});
         } else if (__atomic_load_n(&running, __ATOMIC_ACQUIRE) && deck->history_valid &&
                    deck->pending_generation == __atomic_load_n(&deck->generation, __ATOMIC_SEQ_CST)) {
             deck->pending_kind = 1;
@@ -648,8 +662,8 @@ int xz_audio_get_status(int index, struct xz_audio_status *out)
     if (index < 0 || index >= DECKS || !out) return -1;
     pthread_mutex_lock(&control_mutex);
     *out = decks[index].status;
+    out->generation=__atomic_load_n(&decks[index].generation,__ATOMIC_SEQ_CST);
     pthread_mutex_unlock(&control_mutex);
-    out->generation = __atomic_load_n(&decks[index].generation, __ATOMIC_SEQ_CST);
     out->retained_stems_bytes=0;
     out->mixed_blocks = __atomic_load_n(&decks[index].mixed, __ATOMIC_RELAXED);
     out->skipped_blocks = __atomic_load_n(&decks[index].skipped, __ATOMIC_RELAXED);
@@ -670,7 +684,7 @@ int xz_audio_get_status(int index, struct xz_audio_status *out)
         }else out->retained_stems_bytes=p->decoded.pcm_bytes;
         release(&decks[index]);
     }
-    return 0;
+    return out->generation==__atomic_load_n(&decks[index].generation,__ATOMIC_SEQ_CST)?0:-1;
 }
 
 int xz_audio_waveform(int index, unsigned role, unsigned char *bins, size_t count, float *progress)
