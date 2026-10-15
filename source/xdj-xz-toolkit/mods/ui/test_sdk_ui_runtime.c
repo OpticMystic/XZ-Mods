@@ -154,7 +154,7 @@ int main(void){
         started=0;assert(sdk_apply_profile(NULL,record,0)==-1);started=1;
         {
             /* A legacy app profile sets only what it wrote; explicit Off and Stems mode stay. */
-            struct xz_settings applied=settings_snapshot();applied.key_feedback=0;applied.wave_mode=2;profile_apply_locked(&applied);
+            struct xz_settings applied=settings_snapshot();applied.key_feedback=0;applied.wave_mode=2;profile_apply_locked(&applied,"explicit-profile");
             assert(sdk_apply_profile(NULL,"XZ_MODS_SETTINGS 1\nstems=1\ngate=0\nsmart=0\ntheme=7\nstem_page=0\nshift_pages=0\npad_feedback=1\nshift_keysync=0\n",0)==0);
             assert(model.theme==7&&model.key_feedback==0&&model.wave_mode==2);
         }

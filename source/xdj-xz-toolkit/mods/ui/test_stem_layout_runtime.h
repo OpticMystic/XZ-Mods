@@ -47,7 +47,7 @@ static void stem_layout_runtime_check(void) {
  for(int mode=0;mode<XZ_STEM_LAYOUT_COUNT;mode++){
   model.stems_overlay=mode;pc_refresh_locked();assert(inline_enabled()==mode);
   struct xz_settings profile;xz_settings_default(&profile);profile.stems_overlay=mode;
-  profile_apply_locked(&profile);assert(inline_enabled()==mode);
+  profile_apply_locked(&profile,"explicit-profile");assert(inline_enabled()==mode);
  }
  for(int d=0;d<2;d++)fixture_pc_source[d]=(struct xz_pc_stem_source){.slot=-1,.epoch=3};
  /* SET UP replaces BYPASS only while the stem engine is missing (stems requested at boot, engine absent). */

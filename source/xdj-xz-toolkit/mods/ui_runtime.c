@@ -134,8 +134,9 @@ static pthread_t settings_thread;
 static int settings_running, settings_pending, settings_readonly, settings_created;
 static struct xz_usb_profile settings_profile;
 static int settings_slot = -1;
-static struct { struct xz_usb_profile profile; struct xz_settings values; } settings_request;
-static void profile_apply_locked(const struct xz_settings *saved);
+static uint64_t settings_revision;
+static struct { struct xz_usb_profile profile; struct xz_settings values; uint64_t revision; } settings_request;
+static void profile_apply_locked(const struct xz_settings *saved,const char *origin);
 static void refresh_local(void);
 static int requested_stems;
 static int native_focus=-1;
@@ -151,6 +152,8 @@ __attribute__((visibility("default"))) struct prepared_proof xz_prepared_proof_v
 static char settings_usb[1024];
 static char settings_message[96];
 static uint32_t settings_flash_at; /* nonzero: when the last save result was reported */
+static uint32_t settings_profile_applies, stem_layout_actions, stem_layout_revision;
+static const char *stem_layout_origin="boot";
 
 static int stem_json_string(char *out,size_t capacity,const char *text){
     size_t n=0;static const char hex[]="0123456789abcdef";
@@ -165,20 +168,23 @@ static int stem_json_string(char *out,size_t capacity,const char *text){
 }
 /* The screen observer can inspect readiness without a shell or any control action. */
 __attribute__((visibility("default"))) size_t xz_mods_stem_status_json_v1(char *out,size_t capacity){
-    struct xz_audio_status state[2]={{0}};int available,on;
+    struct xz_audio_status state[2]={{0}};int available,on,layout,metrics,slot;
+    uint32_t revision,profiles,actions;const char *origin;
     if(!out||capacity<128||pthread_mutex_trylock(&ui_mutex))return 0;
     available=audio_available;on=!!(model.enabled&XZ_UI_STEM);
+    layout=model.stems_overlay;metrics=model.metrics_enabled;slot=settings_slot;
+    revision=stem_layout_revision;profiles=settings_profile_applies;actions=stem_layout_actions;origin=stem_layout_origin;
     pthread_mutex_unlock(&ui_mutex);
     if(available)for(int i=0;i<2;i++)if(xz_audio_get_status(i,&state[i]))return 0;
-    int n=snprintf(out,capacity,"{\"version\":1,\"ovpgz004\":true,\"engine\":%s,\"enabled\":%s,\"decks\":[",available?"true":"false",on?"true":"false");
+    int n=snprintf(out,capacity,"{\"version\":1,\"ovpgz004\":true,\"engine\":%s,\"enabled\":%s,\"layout\":%d,\"layout_revision\":%u,\"layout_origin\":\"%s\",\"layout_control_count\":%u,\"profile_apply_count\":%u,\"profile_usb\":%d,\"metrics_enabled\":%s,\"decks\":[",available?"true":"false",on?"true":"false",layout,revision,origin,actions,profiles,slot<0?0:slot+1,metrics?"true":"false");
     if(n<0||(size_t)n>=capacity)return 0;size_t used=(size_t)n;
     for(int i=0;i<2;i++){
         char path[sizeof(state[i].path)*6+3],error[sizeof(state[i].error)*6+3],format[sizeof(state[i].format_name)*6+3];
         if(!stem_json_string(path,sizeof(path),state[i].path)||!stem_json_string(error,sizeof(error),state[i].error)||
            !stem_json_string(format,sizeof(format),state[i].format_name))return 0;
-        n=snprintf(out+used,capacity-used,"%s{\"deck\":%d,\"state\":%d,\"status\":\"%s\",\"prepared\":%s,\"generation\":%u,\"reader_rate\":%u,\"mixed_blocks\":%u,\"skipped_blocks\":%u,\"path\":%s,\"error\":%s,\"format\":%s}",
+        n=snprintf(out+used,capacity-used,"%s{\"deck\":%d,\"state\":%d,\"status\":\"%s\",\"prepared\":%s,\"generation\":%u,\"reader_rate\":%u,\"mixed_blocks\":%u,\"skipped_blocks\":%u,\"alignment_frames\":%d,\"alignment_correlation\":%.6f,\"path\":%s,\"error\":%s,\"format\":%s}",
             i?",":"",i+1,state[i].state,xz_audio_state_name(state[i].state),state[i].prepared?"true":"false",state[i].generation,
-            state[i].reader_rate,state[i].mixed_blocks,state[i].skipped_blocks,path,error,format);
+            state[i].reader_rate,state[i].mixed_blocks,state[i].skipped_blocks,state[i].alignment_frames,(double)state[i].alignment_correlation,path,error,format);
         if(n<0||(size_t)n>=capacity-used)return 0;used+=(size_t)n;
     }
     if(used+3>capacity)return 0;out[used++]=']';out[used++]='}';out[used]=0;return used;
@@ -352,17 +358,19 @@ static void wave_configure(void) {
     for (int i = 0; i < 3; i++) colors[i] = xz_ui_model_stem_color(&model, i);
     xz_layered_wave_configure(model.wave_mode, colors);
 }
-/* Like the stock My Settings: the applied settings belong to the XZ until
-   another USB's settings load. A stick with no or invalid settings, or a
-   pulled stick, never resets them. Every change saves to the selected USB
-   and the XZ remembers the last applied settings across reboots. */
+/* The XZ owns applied settings. Browsing chooses a save destination only;
+   boot restore and explicit profile actions choose settings. A queued edit
+   keeps its revision and destination so a source switch cannot lose it or
+   write another user's USB. The XZ remembers the latest edit independently. */
 static void settings_queue(void) {
+    settings_revision++;
     if (settings_readonly) { model.settings_status = "CHANGES LAST UNTIL REBOOT"; return; }
     if (!settings_running) { model.settings_status = "SETTINGS SAVE UNAVAILABLE"; return; }
     if (!settings_profile.root[0] && !xz_settings_internal_save) { model.settings_status = "SETTINGS NOT SAVED: INSERT A USB"; return; }
     /* Pin the values and user when the action happens, before another USB can load. */
     settings_request.profile = settings_profile;
     settings_request.values = settings_snapshot();
+    settings_request.revision = settings_revision;
     model.settings_status = settings_profile.root[0] ? "SAVING SETTINGS TO USB" : "SAVING SETTINGS ON THIS XZ";
     settings_pending = 1; pthread_cond_signal(&settings_changed);
 }
@@ -373,7 +381,7 @@ static void settings_report(const char *status) {
 }
 static void profile_status(int slot, int rc) {
     snprintf(settings_message,sizeof(settings_message),"USB %d %s",slot+1,
-        rc < 0 ? "SETTINGS INVALID: KEPT CURRENT" : rc ? "HAS NO SETTINGS: KEPT CURRENT" : "SETTINGS LOADED");
+        rc < 0 ? "SETTINGS INVALID: KEPT CURRENT" : rc ? "HAS NO SETTINGS: KEPT CURRENT" : "SAVE TARGET READY");
     model.settings_status = settings_readonly ? "CHANGES LAST UNTIL REBOOT" : settings_message;
 }
 static void *settings_writer(void *unused) {
@@ -415,35 +423,30 @@ static void *settings_writer(void *unused) {
             previous.generation==settings_profile.generation && next.generation!=previous.generation && load_result!=-2) {
             settings_profile=next; settings_slot=selected;
             snprintf(settings_usb,sizeof(settings_usb),"%s",next.root);
-            settings_pending=0;
-            /* Fields an older record never wrote are unset: they keep what is applied. */
-            struct xz_settings merged=settings_snapshot();
-            int adopted=next.root[0]&&load_result==0&&!xz_settings_overlay(&merged,&loaded,present);
-            if(adopted) profile_apply_locked(&merged);
-            else if(next.root[0]&&load_result==0) load_result=-1;
+            /* Browsing only changes the save destination. Boot and explicit
+               profile actions own restoration; painting a track list must not
+               change live controls, levels, or readiness. Keep any queued edit
+               so it can still save to the XZ if its USB destination changed. */
             if(next.root[0]) profile_status(selected,load_result);
             else model.settings_status=settings_readonly?"CHANGES LAST UNTIL REBOOT":"USB REMOVED: SETTINGS KEPT";
-            if(adopted&&!settings_readonly&&xz_settings_internal_save) {
-                struct xz_settings remembered=settings_snapshot();
-                pthread_mutex_unlock(&ui_mutex);
-                (void)xz_settings_internal_save(&remembered);
-                pthread_mutex_lock(&ui_mutex);
-            }
         }
         if(settings_pending) {
             struct xz_usb_profile target=settings_request.profile;
             struct xz_settings saved=settings_request.values;
+            uint64_t revision=settings_request.revision;
+            int current=revision==settings_revision;
             settings_pending=0;
             int current_slot=xz_ui_runtime_profile_selected();
             int same_user=(current_slot<0||current_slot==settings_slot) && target.generation==settings_profile.generation &&
                 !strcmp(target.root,settings_profile.root) && target.mount_id==settings_profile.mount_id;
             int slot=settings_slot;
             pthread_mutex_unlock(&ui_mutex);
-            int usb_rc=!same_user?-1:target.root[0]?xz_usb_profile_save(&target,target.generation,&saved):1;
-            int internal_rc=same_user&&xz_settings_internal_save?xz_settings_internal_save(&saved):XZ_INTERNAL_SETTINGS_UNAVAILABLE;
+            int usb_rc=!same_user||!current?-1:target.root[0]?xz_usb_profile_save(&target,target.generation,&saved):1;
+            int internal_rc=current&&xz_settings_internal_save?xz_settings_internal_save(&saved):XZ_INTERNAL_SETTINGS_UNAVAILABLE;
             pthread_mutex_lock(&ui_mutex);
-            if(!settings_pending && target.generation==settings_profile.generation) {
+            if(!settings_pending && current && revision==settings_revision) {
                 if(usb_rc==0) snprintf(settings_message,sizeof(settings_message),"SAVED TO USB %d",slot+1);
+                else if(!same_user&&internal_rc==XZ_INTERNAL_SETTINGS_OK) snprintf(settings_message,sizeof(settings_message),"SAVED ON THIS XZ / USB CHANGED");
                 else if(usb_rc<0) snprintf(settings_message,sizeof(settings_message),"NOT SAVED TO USB %d: CHECK USB",slot+1);
                 else snprintf(settings_message,sizeof(settings_message),"%s",
                     internal_rc==XZ_INTERNAL_SETTINGS_OK?"SAVED ON THIS XZ / NO USB":"NOT SAVED: INSERT A USB");
@@ -708,7 +711,7 @@ static int sdk_apply_profile(void *context, const char *record, int persist) {
     struct xz_settings merged = settings_snapshot();
     int applied = __atomic_load_n(&started, __ATOMIC_ACQUIRE) && !xz_settings_overlay(&merged, &saved, present);
     if (applied) {
-        profile_apply_locked(&merged);
+        profile_apply_locked(&merged,"app-profile");
         if (persist) settings_queue(); else model.settings_status = "PROFILE APPLIED / NOT SAVED";
     }
     pthread_mutex_unlock(&ui_mutex);
@@ -966,6 +969,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_STEMS_OVERLAY:
             model.stems_overlay=xz_wave_layout_next(model.stems_overlay);
+            stem_layout_actions++;stem_layout_revision++;stem_layout_origin="layout-control";
             inline_redraw_pending=1;
             if(inline_contact){
                 struct xz_ui_action ignored[XZ_UI_ACTIONS];xz_ui_cancel(&inline_ui,ignored);inline_cancelled=1;
@@ -1279,6 +1283,22 @@ static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
     return stock_encoder_push?stock_encoder_push(arg0,arg1,arg2,arg3):0;
 }
 
+/* Called under ui_mutex before a physical stem action as well as rendering.
+   A late render must never erase a new-track pad press after the engine accepted it. */
+static void stem_generation_sync_locked(int deck,const struct xz_audio_status *status){
+    int count=xz_stem_count((int)status->stem_count);
+    if(displayed_generation[deck]==status->generation&&xz_stem_count(model.deck[deck].stem_count)==count)return;
+    displayed_generation[deck]=status->generation;
+    struct xz_ui_action cancelled[XZ_UI_ACTIONS];
+    if(inline_contact&&inline_contact_deck==deck){xz_ui_cancel(&inline_ui,cancelled);inline_cancelled=1;}
+    if(ui.deck==deck){xz_ui_cancel(&ui,cancelled);if(touch.capture)touch.opening_contact=1;}
+    model.deck[deck].stem_count=pads.count[deck]=count;
+    pads.muted[deck]=model.deck[deck].muted=0;
+    for(unsigned role=0;role<4;role++)model.deck[deck].levels[role]=1;
+    model.deck[deck].bypass=0;
+    levels(deck);
+}
+
 static void refresh_local(void) {
     model.settings_flash=settings_flash_at&&(uint32_t)(xz_game_milliseconds()-settings_flash_at)<3000u;
     model.doom_ready=xz_doom_ready();
@@ -1375,17 +1395,7 @@ static void refresh_local(void) {
             if (xz_audio_get_status(deck, &audio_status[deck]) == 0) {
                 struct xz_audio_status *s = &audio_status[deck];
                 model.deck[deck].usb_reason = usb_stem_reason(s);
-                int count=xz_stem_count((int)s->stem_count);
-                if (displayed_generation[deck] != s->generation || xz_stem_count(model.deck[deck].stem_count)!=count) {
-                    displayed_generation[deck] = s->generation;
-                    struct xz_ui_action cancelled[XZ_UI_ACTIONS];
-                    if (inline_contact&&inline_contact_deck == deck) { xz_ui_cancel(&inline_ui,cancelled); inline_cancelled = 1; }
-                    if (ui.deck == deck) { xz_ui_cancel(&ui,cancelled); if (touch.capture) touch.opening_contact = 1; }
-                    pads.muted[deck] = model.deck[deck].muted = 0;
-                    for(unsigned r=0;r<4;r++)model.deck[deck].levels[r]=1;
-                    model.deck[deck].bypass = 0;
-                }
-                model.deck[deck].stem_count=pads.count[deck]=count;
+                stem_generation_sync_locked(deck,s);
                 model.deck[deck].stem_format=s->format_name[0]?s->format_name:NULL;
                 model.deck[deck].stem_error=s->error[0]?s->error:NULL;
                 if(s->state!=XZ_AUDIO_EXPERIMENTAL_READY&&s->state!=XZ_AUDIO_PREPARED_ALIGNING&&s->state!=XZ_AUDIO_PREPARED_BUFFERING)
@@ -1514,6 +1524,10 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
     pc_refresh_locked();
     if(event->deck>=0&&event->deck<2&&model.deck[event->deck].pc_stems.source!=XZ_UI_SOURCE_LOCAL){
         pthread_mutex_unlock(&ui_mutex);return 0;
+    }
+    if(audio_available&&event->deck>=0&&event->deck<2){
+        struct xz_audio_status status;
+        if(!xz_audio_get_status(event->deck,&status))stem_generation_sync_locked(event->deck,&status);
     }
     if (event->deck >= 0 && event->deck < 2) deck_page[event->deck] = event->pad_page;
     if (event->sync && event->deck >= 0 && event->deck < 2) {
@@ -1861,8 +1875,10 @@ void xz_ui_runtime_profile_snapshot(struct xz_settings *out) {
     if (!out) return;
     pthread_mutex_lock(&ui_mutex); *out = settings_snapshot(); pthread_mutex_unlock(&ui_mutex);
 }
-static void profile_apply_locked(const struct xz_settings *saved) {
+static void profile_apply_locked(const struct xz_settings *saved,const char *origin) {
     int previous_theme=model.theme;
+    settings_revision++;settings_profile_applies++;
+    if(model.stems_overlay!=saved->stems_overlay){stem_layout_revision++;stem_layout_origin=origin;}
     model.jump = saved->jump; model.stems_overlay = saved->stems_overlay; model.wave_mode = saved->wave_mode;
     requested_stems = saved->stems; model.theme = saved->theme; model.stem_page = saved->stem_page;
     model.shift_pages = saved->shift_pages; model.pad_feedback = saved->pad_feedback;
@@ -1883,7 +1899,7 @@ static void profile_apply_locked(const struct xz_settings *saved) {
 }
 void xz_ui_runtime_profile_apply(const struct xz_settings *saved) {
     if (!saved) return;
-    pthread_mutex_lock(&ui_mutex); profile_apply_locked(saved); pthread_mutex_unlock(&ui_mutex);
+    pthread_mutex_lock(&ui_mutex); profile_apply_locked(saved,"explicit-profile"); pthread_mutex_unlock(&ui_mutex);
 }
 
 void xz_ui_runtime_on_source_key(int source) {
@@ -2014,7 +2030,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
         struct xz_settings remembered, merged = settings_snapshot(); unsigned present = 0;
         if (xz_settings_internal_load(&remembered, &present) == XZ_INTERNAL_SETTINGS_OK &&
             !xz_settings_overlay(&merged, &remembered, present)) {
-            profile_apply_locked(&merged); restored = 1;
+            profile_apply_locked(&merged,"boot-xz"); restored = 1;
             model.settings_status = "SETTINGS RESTORED ON THIS XZ";
         }
     }
@@ -2028,7 +2044,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
             if(!strncmp(usb,"/media/usb1/",12)) settings_slot=0;
             else if(!strncmp(usb,"/media/usb2/",12)) settings_slot=1;
             struct xz_settings merged=settings_snapshot();
-            if(!rc&&!xz_settings_overlay(&merged,&saved,present)) profile_apply_locked(&merged);
+            if(!rc&&!xz_settings_overlay(&merged,&saved,present)) profile_apply_locked(&merged,"boot-usb");
             if(rc<0) model.settings_status="INVALID USB SETTINGS: KEPT CURRENT";
             else if(!rc) model.settings_status="SETTINGS RESTORED FROM USB";
             else if(!restored) model.settings_status="USB SETTINGS READY";
