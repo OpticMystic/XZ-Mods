@@ -78,6 +78,9 @@ def main():
             info.external_attr = 0o100644 << 16
             archive.writestr(info, (source / name).read_bytes())
     manifest = json.loads((bundle / 'manifest.json').read_text())
+    baseline_manifest_hash = manifest.pop('bundle_manifest_sha256', None)
+    if baseline_manifest_hash:
+        manifest['source_base_bundle_manifest_sha256'] = baseline_manifest_hash
     manifest.update(receiver_sha256=sha(bundle / 'libxz-receiver.so'), hardware_qualified=False,
                     source_dirty=True, experimental_stream_color_bits=8,
                     source_snapshot_sha256=hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest(),
