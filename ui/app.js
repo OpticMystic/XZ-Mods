@@ -17,22 +17,28 @@ let repairInspection=null,repairDiscovery=null;
 // unsaved dropdown and checkbox state. USB writes read only the saved choice, through selectedVersionRequest().
 let modInventory=null,modDraft=null,modLoadError='',modImportFolder='',modImportedId=null;
 const modChannels={preview:'Preview',public:'Public release',release:'Public release',released:'Released',development:'Development build',dev:'Development build',imported:'Imported'};
-const titles={setup:'Set up USB','dj-profile':'DJ Profile',advanced:'Advanced tools',stems:'Prepare stems','live-stream':'Live Streamer','library-repair':'Repair library','device-updates':'XZ network updates',updates:'App updates',licenses:'About'};
+const titles={setup:'USB',stems:'Stems','live-stream':'XZ Screen',tools:'Tools','dj-profile':'DJ Profile','library-repair':'Repair library','device-updates':'Network updates',advanced:'XZ Mods version',updates:'App updates',licenses:'About'};
+// Pages opened from the Tools list. They keep Tools selected in the sidebar and show a back link.
+const toolPages=new Set(['dj-profile','library-repair','device-updates','advanced','updates','licenses']);
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
 const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library','plan_engine_setup','list_mod_versions','inspect_mod_settings'];
 const feedbackGroups='p,label,.actions,.path-row,.st-foot,.section-heading,.columns';
 let feedbackHome=null,feedbackLive=false;
-for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{
-  document.querySelectorAll('.page').forEach(page=>page.classList.toggle('hidden',page.id!==button.dataset.page));
-  document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('selected',item===button));
-  $('page-title').textContent=titles[button.dataset.page];
+const pageShown={stems:()=>startStemLibrary(),'dj-profile':()=>window.djProfilePage?.show(),
+  'library-repair':()=>{if(!repairDiscovery)repairDiscovery=discoverRepairDrives();},'device-updates':()=>$('ota-detect').click()};
+function showPage(name){
+  document.querySelectorAll('main>.page').forEach(page=>page.classList.toggle('hidden',page.id!==name));
+  const section=toolPages.has(name)?'tools':name;
+  document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('selected',item.dataset.page===section));
+  $('page-title').textContent=titles[name];
+  $('back-to-tools').classList.toggle('hidden',!toolPages.has(name));
   if(!feedbackLive)jobPanel.classList.add('hidden');else{positionFeedback();revealFeedback();}
-  if(button.dataset.page==='stems')startStemLibrary();
-  if(button.dataset.page==='dj-profile')window.djProfilePage?.show();
-  if(button.dataset.page==='library-repair'&&!repairDiscovery)repairDiscovery=discoverRepairDrives();
-  if(button.dataset.page==='device-updates')$('ota-detect').click();
-};
+  pageShown[name]?.();
+}
+for(const button of document.querySelectorAll('nav button'))button.onclick=()=>showPage(button.dataset.page);
+for(const row of document.querySelectorAll('.tool-row'))row.onclick=()=>showPage(row.dataset.open);
+$('back-to-tools').onclick=()=>showPage('tools');
 function required(ids,origin){for(const id of ids)if(!$(id).value.trim()){showError('Enter or choose the required '+({'volume':'USB folder',firmware:'firmware input',key:'boot key'}[id]||id)+' first.',origin);return false;}return true;}
 function movePanel(insert){
   const focused=jobPanel.contains(document.activeElement)?document.activeElement:null;
@@ -65,7 +71,7 @@ function positionFeedback(){
 function revealFeedback(){if(!jobPanel.classList.contains('hidden')&&jobPanel.isConnected)jobPanel.scrollIntoView({block:'nearest'});}
 function showFeedback(origin){feedbackHome=origin||null;jobPanel.classList.remove('hidden');positionFeedback();}
 function showError(message,origin){jobPanel.classList.remove('is-cancelled');jobPanel.classList.add('is-error');$('job-title').textContent='Operation not completed';$('job-message').textContent=message;$('job-summary').textContent='';$('job-details').classList.add('hidden');$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');showFeedback(origin);revealFeedback();}
-function busy(value){value=value||appUpdating;stemBusy=value;document.querySelectorAll('.pick,#prepare-usb,#build,#verify-inputs,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,#experimental').forEach(input=>input.disabled=value);$('ota-start').disabled=value||!invoke||!otaReady;$('install-app-update').disabled=value||activeJob!==null;renderStems();updateRepairControls(value);updateModVersionControls(value);}
+function busy(value){value=value||appUpdating;stemBusy=value;document.querySelectorAll('.pick,#build,#verify-inputs,#download-firmware,#inspect-usb,#update-usb,#refresh-usb,#edit-selected-usb,.restore-loader,#setup-games-usb,#ota-detect,#ota-start,[id^=download-],[id^=copy-]').forEach(button=>button.disabled=value||!invoke);document.querySelectorAll('.usb-setting,#experimental').forEach(input=>input.disabled=value);$('ota-start').disabled=value||!invoke||!otaReady;$('install-app-update').disabled=value||activeJob!==null;renderStems();updateRepairControls(value);updateModVersionControls(value);}
 function verifySummary(result){
   const check=stemsApi.verify(result);
   return [t('verify.mixes',{ok:check.mixes}),check.pages?ST['verify.pagesAll']:'',check.identity?ST['verify.identity']:''].filter(Boolean).join(' · ')+'. Your USB was not changed.';
@@ -96,7 +102,7 @@ async function run(request,title,origin,watch){
           if(state.result.game_setup || state.result.format==='xz-games-usb/1'){
             const setup=state.result.game_setup||state.result;
             const names=setup.games.filter(game=>game.ok).map(game=>game.name).join(', ');
-            $('job-summary').textContent=(state.result.image?'Loader ready. ':'')+(names?'Game files on USB: '+names+'. ':'')+(setup.failed_count?setup.failed_count+' download(s) failed. Open Set up USB and retry the failed games. ':'')+'My House still needs the native GZDoom port.';
+            $('job-summary').textContent=(state.result.image?'Loader ready. ':'')+(names?'Game files on USB: '+names+'. ':'')+(setup.failed_count?setup.failed_count+' download(s) failed. Retry the failed games on the USB page. ':'')+'My House still needs the native GZDoom port.';
           }else if(state.result.format==='xz-game-installed/1')$('job-summary').textContent=state.result.name+' copied to USB and verified.';
           else if(state.result.format==='xz-game-downloaded/1')$('job-summary').textContent=state.result.name+' downloaded and verified.';
           else if(state.result.format==='xz-library-inspected/1')$('job-summary').textContent='Check finished. The results are below.';
@@ -149,7 +155,7 @@ $('setup-games-usb').onclick=async()=>{
 $('ota-detect').onclick=async()=>{
   const response=await run({method:'ota_networks'},'Detecting XZ network adapters',$('ota-detect'));
   if(response?.ok){const select=$('ota-network');select.replaceChildren();for(const address of response.result.addresses){const option=document.createElement('option');option.value=address;option.textContent=address;select.append(option);}
-    $('ota-status').textContent=response.result.ready?'Choose the XZ network adapter, then start the update server.':response.result.reason||'Update this USB loader in Set up USB.';
+    $('ota-status').textContent=response.result.ready?'Choose the XZ network adapter, then start the update server.':response.result.reason||'Update the loader on this USB from the USB page.';
     otaReady=!!response.result.ready;$('ota-start').disabled=!otaReady;$('ota-start').classList.toggle('primary',response.result.ready);$('ota-start').classList.toggle('secondary',!response.result.ready);
     $('ota-usb-setup').classList.toggle('hidden',response.result.ready);
   }
@@ -159,17 +165,6 @@ $('ota-start').onclick=async()=>{
   const origin=$('ota-start'),address=$('ota-network').value;if(!address){showError('Detect adapters and choose the XZ network adapter first.',origin);return;}
   $('ota-status').textContent='Starting on '+address+'. On the XZ, open Extras → Network updates.';
   await run({method:'serve_runtime_updates',address},'Serving signed XZ updates',origin);
-};
-$('prepare-usb').onclick=async()=>{
-  const origin=$('prepare-usb');
-  if(!invoke){showError('Open XZ Mods Builder to prepare a USB.',origin);return;}
-  const version=selectedVersionRequest(origin);if(!version)return;
-  try{
-    const volume=await invoke('pick_path',{kind:'folder'});
-    if(!volume)return;
-    const settings=await confirmModSettings(volume,version,origin);if(!settings)return;
-    await run({method:'prepare_usb',volume,experimental:true,...version,...settings},'Preparing your XDJ-XZ USB',origin);
-  }catch(error){showError(String(error),origin);}
 };
 $('verify-inputs').onclick=async()=>{const origin=$('verify-inputs');if(!required(['firmware'],origin))return;const result=await run({method:'inspect_firmware',firmware:$('firmware').value},'Checking firmware',origin);if(result?.ok)$('input-result').textContent=result.result.key_verified_against_input?'XZ 1.26 firmware and boot support verified.':'XZ 1.26 application verified. Choose the official firmware ZIP to verify complete boot support.';};
 $('build').onclick=async()=>{
@@ -184,12 +179,11 @@ $('download-firmware').onclick=async()=>{const result=await run({method:'downloa
 if(!invoke){$('browser-note').classList.remove('hidden');busy(false);}
 for(const link of document.querySelectorAll('a[target=_blank]'))link.onclick=async event=>{if(invoke){event.preventDefault();try{await invoke('open_link',{url:link.getAttribute('href')});}catch(error){showError(String(error),link);}}};
 
-function showPage(name){document.querySelector('nav button[data-page="'+name+'"]').click();}
 function node(tag,text,className){const item=document.createElement(tag);if(text!==undefined)item.textContent=text;if(className)item.className=className;return item;}
 function renderUsb(inspection){
   usbInspection=inspection;$('usb-update-details').classList.remove('hidden');
   $('usb-selected-path').textContent=inspection.volume;
-  $('usb-loader-status').textContent=inspection.loader.exists?'Existing loader: '+(inspection.loader.bytes/1048576).toFixed(1)+' MB.':'No loader found. Use Prepare a new USB below.';
+  $('usb-loader-status').textContent=inspection.loader.exists?'Existing loader: '+(inspection.loader.bytes/1048576).toFixed(1)+' MB.':'No loader found. Install XZ Mods from the USB page.';
   // Only a version recorded after a write is shown. Older loaders stay unknown; never assume the saved choice.
   const recorded=inspection.recorded_mod_version?.id?inspection.recorded_mod_version:null;
   $('usb-recorded-version').textContent=!inspection.loader.exists?'':recorded?'Mod version on this USB: '+modVersionText(recorded)+'.':'Mod version on this USB: unknown. Loaders written before XZ Mods recorded versions do not say which build they hold.';
@@ -256,15 +250,12 @@ async function loadAppInformation(){
   if(!invoke){$('check-app-update').disabled=true;$('open-licenses').disabled=true;return;}
   try{
     const info=await invoke('app_information');document.querySelectorAll('[data-app-version]').forEach(item=>item.textContent=info.version);
-    $('update-install-note').textContent=info.platform==='macos'?'Mac updates require a published, signed Mac package. Check the release page for available downloads.':info.installed?'The Windows installer updates the app and reopens it when finished.':'You are using the portable app. Updating here installs the Windows version; it does not replace this portable folder. After installing, open XZ Mods from the desktop shortcut. To stay portable, download the current ZIP below and replace the old folder.';
-    if(info.platform==='macos'){
-      const link=document.querySelector('a[href$="XZ-Mods-Builder-preview-win64.zip"]');
-      link.href=info.portable_url;link.textContent='View Mac downloads';
-      link.closest('.panel').querySelector('p').textContent='Mac downloads are available for Apple Silicon and Intel. These preview packages are ad-hoc signed and are not notarized.';
-    }
+    // The Mac build ships no signed updater files, so in-app update cannot work there; .win-only/.mac-only follow this.
+    document.documentElement.dataset.platform=info.platform;
+    $('update-install-note').textContent=info.installed?'The Windows installer updates the app and reopens it when finished.':'You are using the portable app. Updating here installs the Windows version; it does not replace this portable folder. After installing, open XZ Mods from the desktop shortcut. To stay portable, download the current ZIP below and replace the old folder.';
     $('release-notes').replaceChildren();for(const release of info.release_notes.releases)renderReleaseNotes($('release-notes'),release,release.version);
     if(info.show_release_notes){showPage('updates');$('updated-message').classList.remove('hidden');await invoke('acknowledge_release_notes');}
-    $('check-app-update').click();
+    if(info.platform!=='macos')$('check-app-update').click();
   }catch(error){$('update-status').textContent=String(error);}
 }
 loadAppInformation();
@@ -1429,8 +1420,8 @@ function modDirty(){if(!modVersionsReady())return false;const draft=modDraftStat
 // The only source of mod_version_id for prepare_usb, build_usb and update_usb: the saved choice, never the dropdown.
 function selectedVersionRequest(origin){
   const saved=savedModVersion();
-  if(!saved){showError('Set and save the mod version in Advanced tools before writing a loader.',origin);return null;}
-  if(modDirty()){showError('You changed the mod version but did not save it. Choose Save choice or Undo change at the top of the USB loader page, then try again.',origin);return null;}
+  if(!saved){showError('Choose the XZ Mods build in Tools › XZ Mods version before writing a loader.',origin);return null;}
+  if(modDirty()){showError('You changed the mod version but did not save it. Choose Save choice or Undo change in Tools › XZ Mods version, then try again.',origin);return null;}
   return {mod_version_id:saved.id,pin_mod_version:savedPinned()};
 }
 // True while the saved choice on this computer is still exactly the one a request was built from.
@@ -1492,7 +1483,7 @@ function updateModVersionControls(locked=false){
   $('mod-wizard-import').disabled=locked||!modImportFolder;
   $('mod-wizard-done').disabled=locked||!modVersionsReady();
   // Writes need a saved, available version. A dirty selection is refused with an explanation when clicked.
-  $('prepare-usb').disabled=locked||!ready;$('build').disabled=locked||!ready;
+  $('build').disabled=locked||!ready;
   $('update-usb').disabled=locked||!ready||!usbInspection?.loader.exists;
 }
 function renderModVersions(){
@@ -1523,7 +1514,7 @@ function renderModVersions(){
     $('mod-version-dirty').textContent=dirty?'Not saved. USB writes still use '+(saved?(saved.label||saved.id)+', '+pinText(savedPinned()):'no version')+'. Save choice to use '+(choice?.label||draft.id)+', '+pinText(draft.pinned)+'.':'';
   }
   for(const line of document.querySelectorAll('.mod-version-uses')){
-    line.textContent=saved?'Writes mod version '+(saved.label||saved.id)+', '+pinText(savedPinned())+'.'+(modDirty()?' Your unsaved change is not used.':''):'Mod version not set. Set it in Advanced tools before writing a loader.';
+    line.textContent=saved?'Writes mod version '+(saved.label||saved.id)+', '+pinText(savedPinned())+'.'+(modDirty()?' Your unsaved change is not used.':''):'Mod version not set. Choose it above before writing a loader.';
     line.classList.toggle('is-blocked',!saved||modDirty());
   }
   $('mod-wizard-list').textContent=!invoke?'Open the desktop app to read mod versions.':ready?plural(modInventory.versions.length,'mod version')+' found on this computer. '+(saved?'Saved choice: '+(saved.label||saved.id)+'.':'No usable saved choice yet.'):modLoadError||(modInventory?'No mod versions found on this computer. Import a build below.':'Reading mod versions…');
