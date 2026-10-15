@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Live Streamer allows busy controller captures to finish within a bounded five-second receive/stall budget. Its lag guard compares delivery with capture/encoding completion, so variable XZ processing time no longer forces a network reconnect. Closed sockets still clear the picture immediately.
+
 - Live Streamer keeps the picture visible through slow controller captures instead of flashing Connecting after one second. Both the desktop preview and OBS use the same bounded three-second frame expiry; socket failures still clear the picture immediately. Measured controller capture/encoding speed remains separate from connection status.
 
 - Live Streamer offers a saved USB-browsing cover. It replaces unrecognized screens with the XZ Mods logo before sending either OBS frames or still images, and restores recognized stock performance screens automatically. Menus and custom themes remain covered. Physical-controller acceptance remains pending.
