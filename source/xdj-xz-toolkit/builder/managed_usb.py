@@ -177,10 +177,15 @@ def discover(resources):
             except OSError:continue
             describe(root,label.value,kind==2)
     elif sys.platform=='darwin':
+        import subprocess
+        from .host import mac_volume
         for root in Path('/Volumes').iterdir():
             if root.is_symlink() or not root.is_dir():continue
-            try:removable=os.stat(root).st_dev!=os.stat('/').st_dev
-            except OSError:continue
+            try:
+                # Network shares and plain folders also appear in /Volumes; keep only local /dev/disk mounts rooted at this entry.
+                if Path(mac_volume(root)['volume_root'])!=root:continue
+                removable=os.stat(root).st_dev!=os.stat('/').st_dev
+            except (OSError,ValueError,subprocess.SubprocessError):continue
             describe(root,root.name,removable)
     return {'format':'xz-usbs/1','usbs':found}
 

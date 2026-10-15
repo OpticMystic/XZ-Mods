@@ -1,6 +1,8 @@
 import hashlib,json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
+import subprocess
+from types import SimpleNamespace
 from builder import managed_usb as usb,usb_settings as settings
 from builder.jobs import Job,Cancelled
 
@@ -101,5 +103,24 @@ class ManagedUsbTests(unittest.TestCase):
         self.assertEqual(self.loader.read_bytes(),b'old verified loader')
         (self.resources/'runtime/settings-schema.json').write_bytes(b'{}')
         with self.assertRaisesRegex(ValueError,'does not match'):settings.contract(self.resources)
+
+class MacDiscoverTests(unittest.TestCase):
+    def test_offers_only_local_disk_mounts_from_volumes(self):
+        temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
+        volumes=Path(temp.name).resolve()
+        for name in ('KINGSTON','Folder','Share','Unreadable','Ejected'):(volumes/name).mkdir()
+        def mac_volume(root):
+            if root.name=='KINGSTON':return {'volume_root':str(root)}
+            if root.name=='Folder':return {'volume_root':'/'}
+            if root.name=='Share':raise ValueError('Choose a mounted USB volume or a local staging folder')
+            if root.name=='Unreadable':raise subprocess.CalledProcessError(1,['/usr/sbin/diskutil'])
+            raise OSError('volume went away')
+        fake_os=SimpleNamespace(name='posix',stat=lambda path:SimpleNamespace(st_dev=1 if str(path)=='/' else 2))
+        with patch.object(usb.sys,'platform','darwin'),patch.object(usb,'os',fake_os),\
+             patch.object(usb,'Path',lambda path:volumes if path=='/Volumes' else Path(path)),\
+             patch('builder.host.mac_volume',mac_volume):
+            found=usb.discover(None)['usbs']
+        self.assertEqual([drive['volume'] for drive in found],[str(volumes/'KINGSTON')])
+        self.assertTrue(found[0]['removable'])
 
 if __name__=='__main__':unittest.main()
