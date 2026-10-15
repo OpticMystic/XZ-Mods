@@ -20,6 +20,7 @@ static struct xz_touch_status last_stock;
 static struct xz_stem_levels applied[2];
 static float applied_bass[2];
 static uint32_t fixture_generation=1;
+static int fixture_loaded;
 static unsigned fixture_stem_count[2]={3,3};
 static unsigned waveform_calls[2],fixture_audio_status_calls[2],fixture_key_snapshot_calls[2];
 int xz_native_skin_start(int theme){(void)theme;return 0;}
@@ -68,7 +69,7 @@ void xz_audio_set_levels(int deck,struct xz_stem_levels value){applied[deck]=val
 void xz_audio_set_levels4(int deck,const float value[4]){
     applied[deck]=(struct xz_stem_levels){value[0],value[1],value[2]};applied_bass[deck]=value[3];
 }
-int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
+int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));if(fixture_loaded&(1<<deck))snprintf(out->path,sizeof(out->path),"/media/usb2/test-track.mp3");out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
 const char *xz_audio_state_name(enum xz_audio_state state){(void)state;return "ready";}
 int xz_audio_waveform(int deck,unsigned role,unsigned char *bins,size_t count,float *progress){
     (void)role;if(deck<0||deck>1)return 0;
@@ -124,6 +125,23 @@ static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_s
 #include "test_pc_runtime_refresh.h"
 #include "test_stem_layout_runtime.h"
 #include "test_usb_stem_reason_runtime.h"
+static void generation_pad_consistency(void){
+    started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;fixture_prepared=1;
+    model.jump.enabled=0;model.stem_page=0;model.shift_pages=0;model.stem_order=0;
+    memset(&pads,0,sizeof(pads));pads.bank=0;
+    for(int deck=0;deck<2;deck++){fixture_pc_source[deck]=(struct xz_pc_stem_source){.slot=-1,.epoch=100};fixture_pc_valid[deck]=1;fixture_stem_count[deck]=3;}
+    refresh();
+    for(int deck=0;deck<2;deck++){
+        fixture_generation++;applied[deck]=(struct xz_stem_levels){1,1,1};
+        struct xz_cue_event event={.deck=deck,.pad=0,.pad_page=0,.mode_button=-1,.hotcue_mode=1};unsigned flags;
+        assert(xz_ui_runtime_pad(&event,&flags));event.operation=2;assert(xz_ui_runtime_pad(&event,&flags));
+        refresh();
+        int agrees=(model.deck[deck].muted&4)&&applied[deck].vocals==0;
+        if(!agrees){fprintf(stderr,"FAIL deck %d first pad after load: UI mute=%u audio vocals=%f\n",deck+1,model.deck[deck].muted,applied[deck].vocals);assert(agrees);}
+    }
+    puts("PASS first stem pad after track generation change stays visible and audible on both decks");
+}
+
 int main(void){
     unsigned char self[32]={0};started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;model.stems_overlay=1;
     xz_ui_init(&ui);xz_ui_init(&inline_ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);stock_touch=stock;
@@ -365,6 +383,7 @@ int main(void){
     assert(persisted.theme==14&&persisted.stem_bank==1&&persisted.stems_overlay==XZ_STEM_LAYOUT_BELOW_HALF&&persisted.jump.sizes[7]==9);
     snprintf(persist_path,sizeof(persist_path),"%s/VJ.Tools/XZ-Mods.cfg",persist_root);assert(!unlink(persist_path));
     snprintf(persist_path,sizeof(persist_path),"%s/VJ.Tools",persist_root);assert(!rmdir(persist_path));assert(!rmdir(persist_root));
+    generation_pad_consistency();
     stem_layout_runtime_check();
     usb_stem_reason_runtime_check();
     puts("PASS two-deck stem controls, waveform gestures, VJ view, all theme/page/bank LEDs and touch ownership");return 0;
