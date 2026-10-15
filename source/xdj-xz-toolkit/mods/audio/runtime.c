@@ -167,8 +167,9 @@ static void store_levels(struct deck_state *deck,const float values[4]){
 }
 /* control_mutex owns generation publication and control writes together. */
 static uint32_t advance_generation_locked(struct deck_state *deck){
+    uint32_t generation=__atomic_add_fetch(&deck->generation,1,__ATOMIC_SEQ_CST);
     const float neutral[4]={1,1,1,1};store_levels(deck,neutral);
-    return __atomic_add_fetch(&deck->generation,1,__ATOMIC_SEQ_CST);
+    return generation;
 }
 
 static uint32_t cancel_deck(int index, enum xz_audio_state state)
