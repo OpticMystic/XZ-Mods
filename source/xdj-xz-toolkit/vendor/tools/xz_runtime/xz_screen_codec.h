@@ -16,6 +16,13 @@ static inline uint16_t xz_screen_delta_word(const unsigned char *pixels,
     if (previous) value ^= (uint16_t)(previous[i*2] | (uint16_t)previous[i*2+1] << 8);
     return value;
 }
+/* Fixed 256-color stream palette. No dithering or RLE work on the controller. */
+static inline unsigned char xz_screen_rgb332_pixel(uint16_t pixel) {
+    return (unsigned char)((pixel>>8&0xe0u)|(pixel>>6&0x1cu)|(pixel>>3&3u));
+}
+static inline void xz_screen_rgb332(unsigned char *out,const unsigned char *source,size_t count) {
+    for(size_t i=0;i<count;i++)out[i]=xz_screen_rgb332_pixel((uint16_t)(source[i*2]|(uint16_t)source[i*2+1]<<8));
+}
 static inline void xz_screen_put16(unsigned char *out, uint16_t value) {
     out[0]=(unsigned char)value;out[1]=(unsigned char)(value >> 8);
 }

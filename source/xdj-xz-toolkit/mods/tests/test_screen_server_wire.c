@@ -127,6 +127,29 @@ int main(int argc,char **argv){
             assert(send(pair[1],"XZAK\2\0\0\0",8,0)==8);
         }
     }
-    assert(statuses==1);close(pair[1]);pthread_join(worker,NULL);assert(status_calls==1);free(payload);free(pixels);
-    puts("PASS real screen handler: legacy, lossless push, two-frame credit, cached diagnostics and teardown");return 0;
+    assert(statuses==1);close(pair[1]);pthread_join(worker,NULL);assert(status_calls==1);capture_calls=0;status_calls=0;
+    for(size_t i=0;i<BYTES/2;i++){uint16_t value=(uint16_t)i;framebuffer[i*2]=(unsigned char)value;framebuffer[i*2+1]=(unsigned char)(value>>8);}
+    assert(!socketpair(AF_UNIX,SOCK_STREAM,0,pair));assert(!pthread_create(&worker,NULL,client,(void*)(intptr_t)pair[0]));
+    setsockopt(pair[1],SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
+    assert(send(pair[1],"XZSC\3\0\0\0",8,0)==8);frames=0;statuses=0;
+    while(frames<3){
+        assert(read_full(pair[1],header,4));
+        if(!memcmp(header,"XZSD",4)){assert(read_full(pair[1],header+4,4));size_t count=number(header+4);assert(count==13&&read_full(pair[1],payload,count));statuses++;continue;}
+        assert(!memcmp(header,"XZSF",4)&&read_full(pair[1],header+4,28));frames++;
+        assert(word(header+4)==3&&word(header+6)==800&&word(header+8)==480&&word(header+10)==4);
+        assert(number(header+12)==BYTES/2&&number(header+16)==frames&&read_full(pair[1],payload,BYTES/2));
+        for(size_t i=0;i<BYTES/2;i++){
+            uint16_t color=word(framebuffer+i*2);
+            unsigned r=(color>>11)&31,g=(color>>5)&63,b=color&31;
+            assert(payload[i]==((r/4)<<5|(g/8)<<2|b/8));
+        }
+        if(frames==2){
+            struct timeval short_timeout={0,100000};setsockopt(pair[1],SOL_SOCKET,SO_RCVTIMEO,&short_timeout,sizeof(short_timeout));
+            assert(recv(pair[1],header,1,0)==-1&&(errno==EAGAIN||errno==EWOULDBLOCK));
+            setsockopt(pair[1],SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
+            assert(send(pair[1],"XZAK\2\0\0\0",8,0)==8);
+        }
+    }
+    assert(statuses==1);close(pair[1]);pthread_join(worker,NULL);free(payload);free(pixels);
+    puts("PASS real screen handler: legacy, lossless v2, raw RGB332 v3, full frames, two-frame credit, cached diagnostics and teardown");return 0;
 }

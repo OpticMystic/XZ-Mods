@@ -12,7 +12,7 @@ const LIVE_REASONS={
 // says what the loader aims for, so it never stands in for a measurement.
 function liveRate(result){
   const fps=result&&typeof result.fps==='number'&&isFinite(result.fps)?result.fps:null;
-  const legacy=!result||result.protocol!==2;
+  const legacy=!result||![2,3].includes(result.protocol);
   const measured=fps===null?'':fps<1?'under 1 fps':`${fps<10?fps.toFixed(1).replace(/\.0$/,''):Math.round(fps)} fps`;
   if(legacy){
     // Loader v1 (or a backend without the field) sends about one picture a second.
@@ -34,7 +34,9 @@ function liveView(result){
     const rate=liveRate(result);
     // An old loader still shows its picture; updating it is the one action, never a block.
     const legacy=result.protocol===1;
-    return {live:true,title:'',text:`Live preview · 800 × 480 · ${rate.text} · ${result.capture_ms} ms capture · ${result.frames} frames`,detail:'',fix:legacy,reason:legacy?'legacy':'',badge:rate.badge,note:rate.note};
+    const needs8=result.requested_color_bits===8&&result.protocol!==3;
+    const mode=result.protocol===3?'Streaming 8-bit · 256 colors · full 800 × 480.':needs8?'8-bit needs an updated USB loader. Showing the working 16-bit stream.':'Streaming 16-bit · original colors · full 800 × 480.';
+    return {live:true,title:'',text:`Live preview · 800 × 480 · ${rate.text} · ${result.capture_ms} ms capture · ${result.frames} frames`,detail:'',fix:legacy||needs8,reason:legacy?'legacy':needs8?'color-depth':'',mode,badge:rate.badge,note:rate.note};
   }
   const known=LIVE_REASONS[result.reason];
   if(known)return {live:false,title:known.title,text:known.text,detail:result.error||'',fix:!!known.fix,reason:result.reason,badge:'',note:IDLE_NOTE};
@@ -43,13 +45,17 @@ function liveView(result){
 if(typeof module!=='undefined')module.exports={liveView,liveRate,LIVE_REASONS};
 else (() => {
   const screen=$('live-screen'),status=$('live-status'),wizard=$('live-wizard'),host=$('live-host');
+  const color=$('live-color-bits');
+  try {const saved=localStorage.getItem('xz-stream-color-bits');if(saved==='8'||saved==='16')color.value=saved;}catch{}
+  color.onchange=()=>{try{localStorage.setItem('xz-stream-color-bits',color.value);}catch{}};
   let running=false,url='',generation=0,busy=false,detecting=false,loaderFocused=false;
-  function controls(){ $('live-stop').disabled=!running;$('live-copy').disabled=!url;$('live-fullscreen').disabled=!running; }
+  function controls(){ $('live-color-bits').disabled=running||busy;$('live-stop').disabled=!running;$('live-copy').disabled=!url;$('live-fullscreen').disabled=!running; }
   // Never pull focus out of a field the person is typing in.
   function typing(){const active=document.activeElement;return !!active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA'||active.isContentEditable);}
   function show(view){
     // The placeholder explains; the status line only names the state, so nothing repeats.
     status.textContent=view.live?view.text:view.title||view.text;
+    $('live-color-status').textContent=view.mode||'Full 800 × 480 in either mode. Color depth changes when you reconnect.';
     $('live-detail').textContent=view.detail;$('live-detail').classList.toggle('hidden',!view.detail||view.detail===view.text);
     // The placeholder covers the frame until a fresh picture arrives, so a stale screen never shows.
     $('live-placeholder').classList.toggle('hidden',view.live);
@@ -91,12 +97,12 @@ else (() => {
     try {
       if(running)await invoke('live_stream_stop');
       running=false;generation++;url='';screen.removeAttribute('src');$('live-url').value='';controls();show(liveView(null));
-      const result=await invoke('live_stream_start',{host:host.value.trim()});
+      const result=await invoke('live_stream_start',{host:host.value.trim(),colorBits:Number($('live-color-bits').value)});
       running=true;url=result.url;$('live-url').value=url;controls();
       show({live:false,title:'Connecting',text:'Connecting to the XZ screen… This closes when the first picture arrives.',detail:'',fix:false,badge:'',note:IDLE_NOTE});
       poll(generation);
     } catch(error){$('live-wizard-status').textContent=String(error);status.textContent=String(error);}
-    finally{busy=false;$('live-connect').disabled=false;}
+    finally{busy=false;$('live-connect').disabled=false;controls();}
   };
   $('live-stop').onclick=async()=>{
     try{await invoke('live_stream_stop');running=false;generation++;url='';screen.removeAttribute('src');$('live-url').value='';controls();show(liveView(null));status.textContent='Screen stream stopped.';}

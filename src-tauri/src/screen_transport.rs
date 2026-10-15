@@ -95,7 +95,7 @@ impl Latest {
         });
         json!({"phase":if self.fresh(){"live"}else{"connecting"},"frames":self.frames,"capture_ms":self.capture_ms,
             "age_ms":self.at.map(|at|at.elapsed().as_millis()),"error":self.error,"reason":self.reason,"width":800,"height":480,
-            "protocol":self.frame.as_ref().map(|frame|frame.protocol.version()),"target_fps":self.frame.as_ref().map(|frame|frame.protocol.target_fps()),
+            "source_color_bits":self.frame.as_ref().map(|frame|frame.protocol.color_bits()),"protocol":self.frame.as_ref().map(|frame|frame.protocol.version()),"target_fps":self.frame.as_ref().map(|frame|frame.protocol.target_fps()),
             "fps":fps,"changed_fps":changed_fps,"network_mbps":mbps,"device_copy_us":self.frame.as_ref().map(|frame|frame.copy_us),
             "device_encode_us":self.frame.as_ref().map(|frame|frame.encode_us),"pc_decode_us":self.frame.as_ref().map(|frame|frame.decode_us),"device_time_us":self.frame.as_ref().map(|frame|frame.device_time_us),
             "device_sequence":self.frame.as_ref().map(|frame|frame.sequence),"diagnostics":self.diagnostics,"privacy_enabled":self.privacy,"privacy_covered":self.frame.as_ref().is_some_and(|frame| crate::stream_privacy::covered(frame,self.privacy))})
@@ -108,9 +108,10 @@ pub struct ScreenSession {
     clients: Arc<AtomicUsize>,
     url: String,
     host: String,
+    preferred: Protocol,
 }
 impl ScreenSession {
-    pub fn start(address: SocketAddr) -> Result<Self, String> {
+    pub fn start(address: SocketAddr, preferred: Protocol) -> Result<Self, String> {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|e| e.to_string())?;
         listener.set_nonblocking(true).map_err(|e| e.to_string())?;
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
@@ -122,7 +123,7 @@ impl ScreenSession {
         let (s, l) = (stop.clone(), latest.clone());
         thread::Builder::new()
             .name("XZ screen capture".into())
-            .spawn(move || run_capture(address, s, l))
+            .spawn(move || run_capture(address, s, l, preferred))
             .map_err(|e| e.to_string())?;
         let (s, l, c) = (stop.clone(), latest.clone(), clients.clone());
         if let Err(error) = thread::Builder::new()
@@ -138,6 +139,7 @@ impl ScreenSession {
             clients,
             url,
             host: address.ip().to_string(),
+            preferred,
         })
     }
     pub fn set_privacy(&self, enabled: bool) {
@@ -148,12 +150,13 @@ impl ScreenSession {
         }
     }
     pub fn connection_info(&self) -> Value {
-        json!({"url":self.url,"frame_url":format!("{}frame.bmp",self.url),"width":800,"height":480})
+        json!({"url":self.url,"frame_url":format!("{}frame.bmp",self.url),"width":800,"height":480,"requested_color_bits":self.preferred.color_bits()})
     }
     pub fn status(&self) -> Value {
         let mut result = self.latest.lock().unwrap().status();
         result["url"] = json!(self.url);
         result["host"] = json!(self.host);
+        result["requested_color_bits"] = json!(self.preferred.color_bits());
         result["viewer_connections"] = json!(self.clients.load(Ordering::Acquire));
         result
     }
@@ -176,23 +179,28 @@ fn screen_socket(address: SocketAddr) -> Result<TcpStream, CaptureError> {
     socket.set_write_timeout(Some(Duration::from_secs(2)))?;
     Ok(socket)
 }
-fn negotiate(address: SocketAddr) -> Result<(TcpStream, Decoder, Frame, Duration), CaptureError> {
-    let started = Instant::now();
-    let mut socket = screen_socket(address)?;
-    let mut decoder = Decoder::new(Protocol::Compressed);
-    match decoder.capture(&mut socket) {
-        Ok(frame) => Ok((socket, decoder, frame, started.elapsed())),
-        Err(error) if error.legacy_fallback => {
-            drop(socket);
-            let mut socket = screen_socket(address)?;
-            let mut decoder = Decoder::new(Protocol::Legacy);
-            let started = Instant::now();
-            let frame = decoder.capture(&mut socket)?;
-            Ok((socket, decoder, frame, started.elapsed()))
+fn negotiate(
+    address: SocketAddr,
+    preferred: Protocol,
+) -> Result<(TcpStream, Decoder, Frame, Duration), CaptureError> {
+    let protocols: &[Protocol] = match preferred {
+        Protocol::Rgb332 => &[Protocol::Rgb332, Protocol::Compressed, Protocol::Legacy],
+        Protocol::Compressed => &[Protocol::Compressed, Protocol::Legacy],
+        Protocol::Legacy => &[Protocol::Legacy],
+    };
+    for &protocol in protocols {
+        let started = Instant::now();
+        let mut socket = screen_socket(address)?;
+        let mut decoder = Decoder::new(protocol);
+        match decoder.capture(&mut socket) {
+            Ok(frame) => return Ok((socket, decoder, frame, started.elapsed())),
+            Err(error) if error.legacy_fallback => continue,
+            Err(error) => return Err(error),
         }
-        Err(error) => Err(error),
     }
+    unreachable!("The legacy decoder never requests another fallback")
 }
+
 struct FrameClock {
     device_us: u32,
     received: Instant,
@@ -233,20 +241,25 @@ impl FrameClock {
         Ok(())
     }
 }
-fn run_capture(address: SocketAddr, stop: Arc<AtomicBool>, latest: Arc<Mutex<Latest>>) {
+fn run_capture(
+    address: SocketAddr,
+    stop: Arc<AtomicBool>,
+    latest: Arc<Mutex<Latest>>,
+    preferred: Protocol,
+) {
     while !stop.load(Ordering::Acquire) {
         let result = (|| -> Result<(), CaptureError> {
-            let (mut socket, mut decoder, first, elapsed) = negotiate(address)?;
+            let (mut socket, mut decoder, first, elapsed) = negotiate(address, preferred)?;
             let protocol = first.protocol;
             let mut clock = FrameClock::new(device_ready_us(&first), Instant::now());
-            if protocol == Protocol::Compressed {
+            if protocol != Protocol::Legacy {
                 screen_protocol::acknowledge(&mut socket, first.sequence)?;
             }
             // V2 is paced by the player and bounded by two source credits.
             // Reading diagnostics must not add another frame delay on the PC.
             let interval = match protocol {
                 Protocol::Legacy => Duration::from_secs(1),
-                Protocol::Compressed => Duration::ZERO,
+                Protocol::Compressed | Protocol::Rgb332 => Duration::ZERO,
             };
             {
                 let mut value = latest.lock().unwrap();
@@ -276,7 +289,7 @@ fn run_capture(address: SocketAddr, stop: Arc<AtomicBool>, latest: Arc<Mutex<Lat
                 }
                 match event {
                     Event::Frame(frame) => {
-                        if protocol == Protocol::Compressed {
+                        if protocol != Protocol::Legacy {
                             clock.check(device_ready_us(&frame), Instant::now())?;
                             screen_protocol::acknowledge(&mut socket, frame.sequence)?;
                         }
@@ -584,6 +597,31 @@ mod tests {
     use super::*;
     use tungstenite::client::IntoClientRequest;
     #[test]
+    fn older_loader_keeps_its_working_sixteen_bit_stream_when_eight_bit_is_requested() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let source = thread::spawn(move || {
+            let (mut first, _) = listener.accept().unwrap();
+            let mut request = [0u8; 8];
+            first.read_exact(&mut request).unwrap();
+            assert_eq!(&request, b"XZSC\x03\0\0\0");
+            drop(first);
+            let (mut second, _) = listener.accept().unwrap();
+            second.read_exact(&mut request).unwrap();
+            assert_eq!(&request, b"XZSC\x02\0\0\0");
+            let mut header = [0u8; 32];
+            header[..12].copy_from_slice(b"XZSF\x02\0\x20\x03\xe0\x01\0\0");
+            header[12..16].copy_from_slice(&(PIXELS as u32).to_le_bytes());
+            header[16..20].copy_from_slice(&1u32.to_le_bytes());
+            second.write_all(&header).unwrap();
+            second.write_all(&vec![0x55; PIXELS]).unwrap();
+        });
+        let (_, _, frame, _) = negotiate(address, Protocol::Rgb332).unwrap();
+        assert_eq!(frame.protocol, Protocol::Compressed);
+        assert_eq!(frame.protocol.color_bits(), 16);
+        source.join().unwrap();
+    }
+    #[test]
     fn device_clock_wrap_is_valid_but_late_frames_are_rejected() {
         let now = Instant::now();
         let mut clock = FrameClock::new(u32::MAX - 29999, now);
@@ -654,7 +692,7 @@ mod tests {
         let stop = Arc::new(AtomicBool::new(false));
         let latest = Arc::new(Mutex::new(Latest::default()));
         let (s, l) = (stop.clone(), latest.clone());
-        let capture = thread::spawn(move || run_capture(address, s, l));
+        let capture = thread::spawn(move || run_capture(address, s, l, Protocol::Compressed));
         let until = Instant::now() + Duration::from_millis(3400);
         while latest.lock().unwrap().frames < 2 && Instant::now() < until {
             thread::sleep(Duration::from_millis(10));
@@ -883,7 +921,7 @@ mod tests {
             }
             socket.write_all(&vec![0x22; PIXELS]).unwrap();
         });
-        let (_, _, frame, _) = negotiate(address).unwrap();
+        let (_, _, frame, _) = negotiate(address, Protocol::Compressed).unwrap();
         assert_eq!(frame.protocol, Protocol::Legacy);
         assert_eq!(frame.pixels[0], 0x22);
         server.join().unwrap();
@@ -895,7 +933,7 @@ mod tests {
         let stop = Arc::new(AtomicBool::new(false));
         let latest = Arc::new(Mutex::new(Latest::default()));
         let (s, l) = (stop.clone(), latest.clone());
-        let worker = thread::spawn(move || run_capture(address, s, l));
+        let worker = thread::spawn(move || run_capture(address, s, l, Protocol::Compressed));
         let send = |socket: &mut TcpStream, color: u8| {
             let mut request = [0u8; 8];
             socket.read_exact(&mut request).unwrap();
@@ -946,7 +984,12 @@ mod tests {
         assert!(address.ip().is_loopback());
         let receipt = std::path::PathBuf::from(std::env::var("XZ_SCREEN_FIXTURE_RECEIPT").unwrap());
         assert!(!receipt.exists());
-        let session = ScreenSession::start(address).unwrap();
+        let preferred = if std::env::var("XZ_SCREEN_FIXTURE_COLOR_BITS").as_deref() == Ok("8") {
+            Protocol::Rgb332
+        } else {
+            Protocol::Compressed
+        };
+        let session = ScreenSession::start(address, preferred).unwrap();
         std::fs::write(&receipt, session.connection_info().to_string()).unwrap();
         let mut observations =
             std::fs::File::create(receipt.with_extension("samples.jsonl")).unwrap();

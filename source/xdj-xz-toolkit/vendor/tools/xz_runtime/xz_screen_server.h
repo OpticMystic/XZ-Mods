@@ -5,7 +5,9 @@
  * Version 2 replies have a 32-byte header: codec at 10, encoded size at 12,
  * sequence at 16, capture timestamp us at 20, copy us at 24, encode us at 28.
  * Codecs: 0 raw, 1 RLE16 keyframe, 2 RLE16 XOR delta, 3 unchanged frame.
- * A v2 request starts continuous delivery. XZAK + LE sequence acknowledges a
+ * Version 3 is opt-in raw RGB332: codec 4, exactly 384000 bytes per full frame.
+ * The physical RGB565 display is read-only; quantization happens only in the stream.
+ * A v2/v3 request starts continuous delivery. XZAK + LE sequence acknowledges a
  * frame; no more than two frames are in flight. XZSD snapshots arrive at 1 Hz.
  */
 #include <linux/fb.h>
@@ -76,8 +78,7 @@ static void xz_screen_client(int client) {
     if (fb < 0 || ioctl(fb,FBIOGET_FSCREENINFO,&f) < 0 || ioctl(fb,FBIOGET_VSCREENINFO,&v) < 0 ||
         !xz_screen_mode(&v,&f) || f.smem_len > 16u*1024u*1024u) goto done;
     map = mmap(NULL,f.smem_len,PROT_READ,MAP_SHARED,fb,0);
-    pixels = malloc(800u*480u*2u);
-    if (map == MAP_FAILED || !pixels) goto done;
+    if (map == MAP_FAILED) goto done;
     for (;;) {
         if(streaming){
             while(sequence-acknowledged>=2u){
@@ -86,18 +87,20 @@ static void xz_screen_client(int client) {
                 if(!((uint32_t)(ack-acknowledged)) || ack-acknowledged>sequence-acknowledged)goto done;
                 acknowledged=ack;
             }
-            memcpy(request,"XZSC\2\0\0\0",8);
+            memcpy(request,"XZSC\2\0\0\0",8);request[4]=(unsigned char)streaming;
         }else if(!read_full(client,request,sizeof(request)))break;
         if (!memcmp(request,"XZSD\1\0\0\0",8)) {
             if(!xz_screen_status(client,status,&status_bytes,&status_at))break;
             continue;
         }
-        int fast=!memcmp(request,"XZSC\2\0\0\0",8);
+        int rgb332=!memcmp(request,"XZSC\3\0\0\0",8);
+        int fast=rgb332||!memcmp(request,"XZSC\2\0\0\0",8);
         if (!fast && memcmp(request,"XZSC\1\0\0\0",8)) break;
-        if(fast&&!streaming){if(sequence)break;streaming=1;}
-        if(fast && !previous){previous=malloc(768000);encoded=malloc(768000);if(!previous||!encoded)break;}
+        if(fast&&!streaming){if(sequence)break;streaming=rgb332?3:2;}
+        if(!pixels){pixels=malloc(rgb332?384000u:768000u);if(!pixels)break;}
+        if(fast && !rgb332 && !previous){previous=malloc(768000);encoded=malloc(768000);if(!previous||!encoded)break;}
         uint32_t interval=fast?33333u:500000u, now=xz_screen_time_us();
-        unsigned version=fast?2u:1u;
+        unsigned version=rgb332?3u:fast?2u:1u;
         if(paced_version!=version){next_frame_at=now;paced_version=version;}
         int32_t delay=(int32_t)(next_frame_at-now);
         /* Keep an absolute cadence instead of accumulating sleep overshoot.
@@ -106,12 +109,15 @@ static void xz_screen_client(int client) {
         while((delay=(int32_t)(next_frame_at-now))>0 && delay<=(int32_t)interval){usleep((useconds_t)delay);now=xz_screen_time_us();}
         uint32_t started=now;next_frame_at+=interval;
         if (ioctl(fb,FBIOGET_VSCREENINFO,&v) < 0 || !xz_screen_mode(&v,&f)) break;
-        for (unsigned y=0;y<480;y++)
-            memcpy(pixels+y*1600u,map+(size_t)(y+v.yoffset)*f.line_length+v.xoffset*2u,1600);
+        for (unsigned y=0;y<480;y++) {
+            const unsigned char *row=map+(size_t)(y+v.yoffset)*f.line_length+v.xoffset*2u;
+            if(rgb332)xz_screen_rgb332(pixels+y*800u,row,800u);
+            else memcpy(pixels+y*1600u,row,1600);
+        }
         uint32_t copied=xz_screen_time_us();
         sequence++;
-        size_t size=768000;unsigned codec=0;const unsigned char *payload=pixels;
-        if(fast){
+        size_t size=rgb332?384000u:768000u;unsigned codec=rgb332?4u:0u;const unsigned char *payload=pixels;
+        if(fast&&!rgb332){
             int delta=previous_valid && previous_sequence==sequence-1;
             if(delta && !memcmp(pixels,previous,768000)){size=0;codec=3;}
             else {
@@ -120,12 +126,12 @@ static void xz_screen_client(int client) {
             }
         }
         uint32_t encoded_at=xz_screen_time_us();
-        header[4]=(unsigned char)(fast?2:1);xz_screen_put16(header+10,(uint16_t)codec);
+        header[4]=(unsigned char)version;xz_screen_put16(header+10,(uint16_t)codec);
         xz_screen_put32(header+12,(uint32_t)size);xz_screen_put32(header+16,sequence);
         xz_screen_put32(header+20,started);xz_screen_put32(header+24,copied-started);
         xz_screen_put32(header+28,encoded_at-copied);
         if (!xz_screen_write(client,header,fast?32:20) || !xz_screen_write(client,payload,size)) break;
-        if(fast){unsigned char *swap=previous;previous=pixels;pixels=swap;previous_sequence=sequence;previous_valid=1;}
+        if(fast&&!rgb332){unsigned char *swap=previous;previous=pixels;pixels=swap;previous_sequence=sequence;previous_valid=1;}
         if(fast&&(!status_bytes || xz_screen_time_us()-status_at>=1000000u)){
             if(!xz_screen_status(client,status,&status_bytes,&status_at))break;
         }
@@ -148,7 +154,7 @@ static void *xz_screen_listener(void *unused) {
     memset(&address,0,sizeof(address)); address.sin_family=AF_INET;
     address.sin_addr.s_addr=htonl(INADDR_ANY); address.sin_port=htons(50010);
     if (bind(server,(struct sockaddr *)&address,sizeof(address)) < 0 || listen(server,2) < 0) {close(server);return NULL;}
-    log_line("XZ_SCREEN_LISTENING port=50010 read_only=1 v1_fps=2 v2_target_fps=30");
+    log_line("XZ_SCREEN_LISTENING port=50010 read_only=1 v1_fps=2 v2_target_fps=30 v3_rgb332_target_fps=30");
     for (;;) {
         int client = accept(server,NULL,NULL);
         if (client < 0) {if (errno == EINTR) continue;break;}

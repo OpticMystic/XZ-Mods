@@ -50,7 +50,7 @@ function connect(){
     if(data.byteLength!==768016){hide('Unsupported XZ screen frame.');current.close();return;}
     const header=new DataView(data);
     if(header.getUint32(0,true)!==0x56505a58||header.getUint16(8,true)!==800||header.getUint16(10,true)!==480){hide('Unsupported XZ screen frame.');current.close();return;}
-    const version=header.getUint32(12,true);if(version!==1&&version!==2){hide('Unsupported XZ screen frame.');current.close();return;}
+    const version=header.getUint32(12,true);if(version!==1&&version!==2&&version!==3){hide('Unsupported XZ screen frame.');current.close();return;}
     const sequence=header.getUint32(4,true);
     if(lastSequence!==null){const gap=(sequence-lastSequence)>>>0;if(gap>1&&gap<0x80000000)stats.skipped+=gap-1;}
     lastSequence=sequence;protocol=version;lastFrame=performance.now();stats.received++;stats.lastSequence=sequence;stats.lastFrameAt=lastFrame;
