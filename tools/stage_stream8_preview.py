@@ -39,6 +39,8 @@ def main():
         tar.extractall(output, members=members, filter='data')
     shutil.copytree(baseline, output / 'resources')
     shutil.copytree(bundle, output / 'resources/runtime', dirs_exist_ok=True)
+    installed_manifest = dict(manifest, bundle_manifest_sha256=sha(bundle / 'manifest.json'))
+    (output / 'resources/runtime/manifest.json').write_text(json.dumps(installed_manifest, indent=2) + '\n', encoding='utf-8')
     for destination in [output / 'source/xdj-xz-toolkit', output / 'resources/source/xdj-xz-toolkit']:
         with zipfile.ZipFile(bundle / 'source.zip') as native:
             for entry in native.infolist():
