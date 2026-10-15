@@ -1,4 +1,4 @@
-use crate::screen_transport::ScreenSession;
+use crate::{screen_protocol::Protocol, screen_transport::ScreenSession};
 use serde_json::{json, Value};
 use std::{
     net::{Ipv4Addr, SocketAddr, UdpSocket},
@@ -63,8 +63,17 @@ fn target(host: &str) -> Result<SocketAddr, String> {
     Ok(SocketAddr::from((ip, 50010)))
 }
 #[tauri::command]
-pub fn live_stream_start(app: tauri::AppHandle, host: String) -> Result<Value, String> {
+pub fn live_stream_start(
+    app: tauri::AppHandle,
+    host: String,
+    color_bits: Option<u8>,
+) -> Result<Value, String> {
     let address = target(host.trim())?;
+    let protocol = match color_bits.unwrap_or(8) {
+        8 => Protocol::Rgb332,
+        16 => Protocol::Compressed,
+        _ => return Err("Choose 8-bit or 16-bit stream color".into()),
+    };
     let state = app.state::<LiveStream>();
     let mut session = state
         .session
@@ -73,7 +82,7 @@ pub fn live_stream_start(app: tauri::AppHandle, host: String) -> Result<Value, S
     if session.is_some() {
         return Err("Stop the current screen stream before reconnecting".into());
     }
-    let next = ScreenSession::start(address)?;
+    let next = ScreenSession::start(address, protocol)?;
     next.set_privacy(read_privacy(&app)?);
     let result = next.connection_info();
     *session = Some(next);

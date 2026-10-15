@@ -5,24 +5,45 @@ use std::{
 };
 
 pub const PIXELS: usize = 800 * 480 * 2;
+pub const RGB332_BYTES: usize = 800 * 480;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Protocol {
     Legacy,
     Compressed,
+    Rgb332,
 }
 impl Protocol {
     pub fn version(self) -> u16 {
         match self {
             Self::Legacy => 1,
             Self::Compressed => 2,
+            Self::Rgb332 => 3,
         }
     }
     pub fn target_fps(self) -> u32 {
         match self {
             Self::Legacy => 1,
-            Self::Compressed => 30,
+            Self::Compressed | Self::Rgb332 => 30,
         }
     }
+    pub fn color_bits(self) -> u8 {
+        match self {
+            Self::Rgb332 => 8,
+            Self::Legacy | Self::Compressed => 16,
+        }
+    }
+}
+
+pub fn rgb565_to_rgb332(pixel: u16) -> u8 {
+    (((pixel & 0xe000) >> 8) | ((pixel & 0x0700) >> 6) | ((pixel & 0x0018) >> 3)) as u8
+}
+pub fn rgb332_to_rgb565(pixel: u8) -> u16 {
+    let (r, g, b) = (
+        (pixel >> 5) as u16,
+        ((pixel >> 2) & 7) as u16,
+        (pixel & 3) as u16,
+    );
+    (((r << 2) | (r >> 1)) << 11) | (((g << 3) | g) << 5) | (b << 3) | (b << 1) | (b >> 1)
 }
 #[derive(Debug)]
 pub struct CaptureError {
@@ -119,14 +140,14 @@ impl Decoder {
                     return Err(CaptureError {
                         message: "XZ closed the screen response".into(),
                         reason: "stream",
-                        legacy_fallback: received == 0 && self.protocol == Protocol::Compressed,
+                        legacy_fallback: received == 0 && self.protocol != Protocol::Legacy,
                     })
                 }
                 Ok(bytes) => received += bytes,
                 Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
                 Err(error) => {
                     let fallback = received == 0
-                        && self.protocol == Protocol::Compressed
+                        && self.protocol != Protocol::Legacy
                         && error.kind() == std::io::ErrorKind::ConnectionReset;
                     let mut error = CaptureError::from(error);
                     error.legacy_fallback = fallback;
@@ -160,11 +181,17 @@ impl Decoder {
             } else if sequence != 1 {
                 return Err(invalid("Screen stream did not start with its first frame"));
             }
-            match codec {
-                0 if size == PIXELS => {}
-                1 | 2 if size > 0 && size <= PIXELS && size % 2 == 0 => {}
-                3 if size == 0 => {}
-                _ => return Err(invalid("Invalid compressed screen frame size or codec")),
+            if self.protocol == Protocol::Rgb332 {
+                if codec != 4 || size != RGB332_BYTES {
+                    return Err(invalid("Invalid 8-bit framebuffer size or codec"));
+                }
+            } else {
+                match codec {
+                    0 if size == PIXELS => {}
+                    1 | 2 if size > 0 && size <= PIXELS && size % 2 == 0 => {}
+                    3 if size == 0 => {}
+                    _ => return Err(invalid("Invalid compressed screen frame size or codec")),
+                }
             }
             if (codec == 2 || codec == 3) && self.previous.is_none() {
                 return Err(invalid("Screen delta has no initial frame"));
@@ -179,7 +206,14 @@ impl Decoder {
             let mut payload = vec![0u8; size];
             source.read_exact(&mut payload)?;
             let started = std::time::Instant::now();
-            let decoded = if codec == 0 {
+            let decoded = if codec == 4 {
+                let palette: [u16; 256] = std::array::from_fn(|i| rgb332_to_rgb565(i as u8));
+                let mut decoded = Vec::with_capacity(PIXELS);
+                for pixel in payload {
+                    decoded.extend_from_slice(&palette[pixel as usize].to_le_bytes());
+                }
+                decoded.into()
+            } else if codec == 0 {
                 payload.into()
             } else {
                 decode_rle(
@@ -302,6 +336,48 @@ mod tests {
         out[16..20].copy_from_slice(&sequence.to_le_bytes());
         out.extend_from_slice(data);
         out
+    }
+    #[test]
+    fn rgb332_is_a_complete_independent_frame_with_bounded_palette_error() {
+        for value in 0..=u16::MAX {
+            let color = rgb332_to_rgb565(rgb565_to_rgb332(value));
+            assert!(((value >> 11) as i32 - (color >> 11) as i32).abs() <= 3);
+            assert!((((value >> 5) & 63) as i32 - ((color >> 5) & 63) as i32).abs() <= 7);
+            assert!(((value & 31) as i32 - (color & 31) as i32).abs() <= 7);
+        }
+        let payload: Vec<u8> = (0..RGB332_BYTES).map(|i| i as u8).collect();
+        let mut decoder = Decoder::new(Protocol::Rgb332);
+        for sequence in [1, 2] {
+            let mut wire = packet(4, sequence, &payload);
+            wire[4..6].copy_from_slice(&3u16.to_le_bytes());
+            let frame = decoder.read_frame(&mut wire.as_slice()).unwrap();
+            assert_eq!(frame.pixels.len(), PIXELS);
+            assert_eq!(frame.encoded_bytes, RGB332_BYTES + 32);
+            assert_eq!(frame.protocol.color_bits(), 8);
+            for (i, pixel) in frame.pixels.chunks_exact(2).enumerate() {
+                assert_eq!(
+                    u16::from_le_bytes(pixel.try_into().unwrap()),
+                    rgb332_to_rgb565(payload[i])
+                );
+            }
+        }
+    }
+    #[test]
+    fn rgb332_rejects_partial_frames_and_cross_protocol_codecs() {
+        for (codec, payload) in [
+            (4, vec![0; RGB332_BYTES - 1]),
+            (0, vec![0; PIXELS]),
+            (3, vec![]),
+        ] {
+            let mut wire = packet(codec, 1, &payload);
+            wire[4..6].copy_from_slice(&3u16.to_le_bytes());
+            assert!(Decoder::new(Protocol::Rgb332)
+                .read_frame(&mut wire.as_slice())
+                .is_err());
+        }
+        assert!(Decoder::new(Protocol::Compressed)
+            .read_frame(&mut packet(4, 1, &vec![0; RGB332_BYTES]).as_slice())
+            .is_err());
     }
     #[test]
     fn pushed_frames_and_diagnostics_share_the_stream() {

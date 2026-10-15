@@ -63,6 +63,7 @@
 <section id="live-stream" class="page hidden">
 <p class="intro">See the XDJ-XZ screen on this computer and add it to an OBS scene. Screen only: no audio, and the XZ keeps all its controls.</p>
 <div class="panel"><div class="actions"><button id="live-setup" class="primary">Set up Live Streamer</button><button id="live-loader-fix" class="primary hidden">Update the USB loader</button><button id="live-stop" class="secondary" disabled>Stop stream</button><button id="live-fullscreen" class="secondary" disabled>Fullscreen</button></div>
+<label>Stream color<select id="live-color-bits"><option value="8" selected>8-bit · 256 colors (experimental)</option><option value="16">16-bit · original colors</option></select></label><p id="live-color-status" class="fine" role="status">Full 800 × 480 in either mode. Color depth changes when you reconnect.</p>
 <p id="live-status" role="status">Set up Live Streamer to connect to your XZ.</p><p id="live-detail" class="fine hidden"></p>
 <div class="live-frame"><iframe id="live-screen" class="live-screen" title="Live XDJ-XZ screen" allow="fullscreen"></iframe><div id="live-placeholder" class="live-placeholder"><strong id="live-placeholder-title">No XZ screen yet</strong><span id="live-placeholder-text">The XZ screen appears here, 800 × 480, once it is connected.</span></div><span id="live-rate" class="live-rate hidden"></span></div>
 <p id="live-rate-note" class="fine">The frame rate depends on the USB loader and the network. XZ Mods shows the rate it measures once connected.</p></div>
