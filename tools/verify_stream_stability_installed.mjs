@@ -36,7 +36,7 @@ try{
  assert(rows.length>=100,'Not enough live observation time');
  const result={source:'installed native IPC and actual renderer',samples:rows.length,nonLive:rows.filter(r=>r.phase!=='live').length,placeholderFlashes:rows.slice(8).filter(r=>!r.placeholderHidden).length,samplesOverOldCutoff:rows.filter(r=>r.age_ms>=1000).length,maxAgeMs:Math.max(...rows.map(r=>r.age_ms||0)),framesAdvanced:rows.at(-1).frames-rows[0].frames,errors:[...new Set(rows.map(r=>r.error).filter(Boolean))],url:rows.at(-1).url,rows};
  const viewerHTML=await(await fetch(result.url)).text();
- assert(viewerHTML.includes('const MAX_FRAME_AGE_MS=3000;'),'Installed OBS page must contain the corrected freshness policy');
+ assert(viewerHTML.includes('const MAX_FRAME_AGE_MS=5000;'),'Installed OBS page must contain the corrected freshness policy');
  if(output)await writeFile(output,JSON.stringify(result,null,2)+'\n');
  console.log(JSON.stringify({...result,rows:undefined},null,2));
  assert(result.framesAdvanced>5,'The picture must keep advancing');

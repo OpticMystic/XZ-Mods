@@ -8,7 +8,7 @@ const canvas=document.querySelector('canvas'),notice=document.getElementById('no
 const stats=window.xzScreenStats={received:0,presented:0,skipped:0,fps:null,renderer:'',lastSequence:null,lastFrameAt:null};
 let socket=null,gl=null,texture=null,pending=null,reconnect=null,protocol=1,lastFrame=0,lastSequence=null;
 const times=[];
-const MAX_FRAME_AGE_MS=3000;
+const MAX_FRAME_AGE_MS=5000;
 function hide(text){canvas.hidden=true;notice.hidden=false;message.textContent=text;}
 function initialize(){
   gl=canvas.getContext('webgl',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:false});

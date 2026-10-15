@@ -18,7 +18,7 @@ use tungstenite::{
 };
 
 const PAGE: &str = include_str!("screen-view.html");
-const MAX_FRAME_AGE_MS: u64 = 3000;
+const MAX_FRAME_AGE_MS: u64 = 5000;
 #[derive(Default)]
 struct Latest {
     frame: Option<Frame>,
@@ -44,8 +44,9 @@ impl Latest {
         let now = Instant::now();
         self.samples
             .push_back((now, frame.encoded_bytes, frame.changed));
-        while self.samples.len() > 180 || (self.samples.len() > 2
-            && self.samples.front().unwrap().0.elapsed() > Duration::from_millis(2500))
+        while self.samples.len() > 180
+            || (self.samples.len() > 2
+                && self.samples.front().unwrap().0.elapsed() > Duration::from_millis(2500))
         {
             self.samples.pop_front();
         }
@@ -141,7 +142,10 @@ impl ScreenSession {
     }
     pub fn set_privacy(&self, enabled: bool) {
         let mut latest = self.latest.lock().unwrap();
-        if latest.privacy != enabled { latest.privacy = enabled; latest.revision += 1; }
+        if latest.privacy != enabled {
+            latest.privacy = enabled;
+            latest.revision += 1;
+        }
     }
     pub fn connection_info(&self) -> Value {
         json!({"url":self.url,"frame_url":format!("{}frame.bmp",self.url),"width":800,"height":480})
@@ -168,7 +172,7 @@ fn screen_socket(address: SocketAddr) -> Result<TcpStream, CaptureError> {
         }else{CaptureError{reason:"network",message:format!("Cannot reach the XZ screen. Check its network connection and address. {error}"),legacy_fallback:false}}
     })?;
     socket.set_nodelay(true)?;
-    socket.set_read_timeout(Some(Duration::from_secs(2)))?;
+    socket.set_read_timeout(Some(Duration::from_millis(MAX_FRAME_AGE_MS)))?;
     socket.set_write_timeout(Some(Duration::from_secs(2)))?;
     Ok(socket)
 }
@@ -192,6 +196,14 @@ fn negotiate(address: SocketAddr) -> Result<(TcpStream, Decoder, Frame, Duration
 struct FrameClock {
     device_us: u32,
     received: Instant,
+}
+// The wire timestamp marks capture start. Compare delivery against encode
+// completion, so variable controller work is not mistaken for a queued frame.
+fn device_ready_us(frame: &Frame) -> u32 {
+    frame
+        .device_time_us
+        .wrapping_add(frame.copy_us)
+        .wrapping_add(frame.encode_us)
 }
 impl FrameClock {
     fn new(device_us: u32, received: Instant) -> Self {
@@ -226,7 +238,7 @@ fn run_capture(address: SocketAddr, stop: Arc<AtomicBool>, latest: Arc<Mutex<Lat
         let result = (|| -> Result<(), CaptureError> {
             let (mut socket, mut decoder, first, elapsed) = negotiate(address)?;
             let protocol = first.protocol;
-            let mut clock = FrameClock::new(first.device_time_us, Instant::now());
+            let mut clock = FrameClock::new(device_ready_us(&first), Instant::now());
             if protocol == Protocol::Compressed {
                 screen_protocol::acknowledge(&mut socket, first.sequence)?;
             }
@@ -265,7 +277,7 @@ fn run_capture(address: SocketAddr, stop: Arc<AtomicBool>, latest: Arc<Mutex<Lat
                 match event {
                     Event::Frame(frame) => {
                         if protocol == Protocol::Compressed {
-                            clock.check(frame.device_time_us, Instant::now())?;
+                            clock.check(device_ready_us(&frame), Instant::now())?;
                             screen_protocol::acknowledge(&mut socket, frame.sequence)?;
                         }
                         latest.lock().unwrap().publish(frame, tick.elapsed());
@@ -445,7 +457,12 @@ fn serve_client(
                 let next = {
                     let value = latest.lock().unwrap();
                     if value.fresh() {
-                        value.frame.clone().map(|frame| (value.revision, crate::stream_privacy::output(frame, value.privacy)))
+                        value.frame.clone().map(|frame| {
+                            (
+                                value.revision,
+                                crate::stream_privacy::output(frame, value.privacy),
+                            )
+                        })
                     } else {
                         None
                     }
@@ -531,7 +548,10 @@ fn serve_client(
         let pixels = {
             let value = latest.lock().unwrap();
             if value.fresh() {
-                value.frame.clone().map(|frame| crate::stream_privacy::output(frame, value.privacy).pixels)
+                value
+                    .frame
+                    .clone()
+                    .map(|frame| crate::stream_privacy::output(frame, value.privacy).pixels)
             } else {
                 None
             }
@@ -585,6 +605,66 @@ mod tests {
             changed: true,
         }
     }
+    #[test]
+    fn slow_encoding_is_not_mistaken_for_network_backlog() {
+        let now = Instant::now();
+        let mut first = frame(0);
+        first.copy_us = 10_000;
+        first.encode_us = 10_000;
+        let mut next = first.clone();
+        next.device_time_us = 500_000;
+        next.copy_us = 500_000;
+        next.encode_us = 1_300_000;
+        let mut clock = FrameClock::new(device_ready_us(&first), now);
+        assert!(clock
+            .check(device_ready_us(&next), now + Duration::from_millis(2280))
+            .is_ok());
+        assert!(
+            clock
+                .check(device_ready_us(&next), now + Duration::from_millis(3000))
+                .is_err(),
+            "Actual delivery backlog is still rejected"
+        );
+    }
+    #[test]
+    fn slow_controller_response_survives_the_two_second_boundary() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let source = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0; 8];
+            socket.read_exact(&mut request).unwrap();
+            assert_eq!(&request, b"XZSC\x02\0\0\0");
+            let send = |socket: &mut TcpStream, sequence: u32, time: u32| {
+                let mut header = [0; 32];
+                header[..12].copy_from_slice(b"XZSF\x02\0\x20\x03\xe0\x01\0\0");
+                header[12..16].copy_from_slice(&(PIXELS as u32).to_le_bytes());
+                header[16..20].copy_from_slice(&sequence.to_le_bytes());
+                header[20..24].copy_from_slice(&time.to_le_bytes());
+                socket
+                    .write_all(&header)
+                    .and_then(|_| socket.write_all(&vec![0; PIXELS]))
+            };
+            send(&mut socket, 1, 0).unwrap();
+            socket.read_exact(&mut request).unwrap();
+            thread::sleep(Duration::from_millis(2300));
+            let _ = send(&mut socket, 2, 2_300_000);
+            let _ = socket.read_exact(&mut request);
+        });
+        let stop = Arc::new(AtomicBool::new(false));
+        let latest = Arc::new(Mutex::new(Latest::default()));
+        let (s, l) = (stop.clone(), latest.clone());
+        let capture = thread::spawn(move || run_capture(address, s, l));
+        let until = Instant::now() + Duration::from_millis(3400);
+        while latest.lock().unwrap().frames < 2 && Instant::now() < until {
+            thread::sleep(Duration::from_millis(10));
+        }
+        let frames = latest.lock().unwrap().frames;
+        stop.store(true, Ordering::Release);
+        source.join().unwrap();
+        capture.join().unwrap();
+        assert!(frames >= 2, "Slow valid frames must not force a reconnect");
+    }
     fn local_server() -> (
         SocketAddr,
         Arc<AtomicBool>,
@@ -630,12 +710,17 @@ mod tests {
         let still = get(address, "/test/frame.bmp", false);
         assert!(still.ends_with(include_bytes!("stream-logo.rgb565")));
         let socket = TcpStream::connect(address).unwrap();
-        socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
-        let (mut client, _) = tungstenite::client(format!("ws://{address}/test/frames"), socket).unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let (mut client, _) =
+            tungstenite::client(format!("ws://{address}/test/frames"), socket).unwrap();
         let first = client.read().unwrap().into_data();
         assert_eq!(&first[16..], include_bytes!("stream-logo.rgb565"));
         let acknowledge = |client: &mut tungstenite::WebSocket<TcpStream>, packet: &[u8]| {
-            client.send(Message::Binary(packet[4..8].to_vec().into())).unwrap();
+            client
+                .send(Message::Binary(packet[4..8].to_vec().into()))
+                .unwrap();
         };
         {
             let mut value = latest.lock().unwrap();
@@ -645,7 +730,10 @@ mod tests {
         }
         acknowledge(&mut client, &first);
         let performance = client.read().unwrap().into_data();
-        assert_eq!(&performance[16..], crate::stream_privacy::tests::performance());
+        assert_eq!(
+            &performance[16..],
+            crate::stream_privacy::tests::performance()
+        );
         latest.lock().unwrap().publish(frame(0x55), Duration::ZERO);
         acknowledge(&mut client, &performance);
         let browsing = client.read().unwrap().into_data();
@@ -667,12 +755,27 @@ mod tests {
         let mut latest = Latest::default();
         latest.publish(frame(1), Duration::from_millis(1700));
         latest.at = Some(Instant::now() - Duration::from_millis(1800));
-        assert!(latest.fresh(), "A capture slower than 1 fps is still connected");
+        assert!(
+            latest.fresh(),
+            "A capture slower than 1 fps is still connected"
+        );
         assert_eq!(latest.status()["phase"], "live");
-        latest.at = Some(Instant::now() - Duration::from_millis(3100));
+        latest.at = Some(Instant::now() - Duration::from_millis(3500));
+        assert!(
+            latest.fresh(),
+            "Slow controller work is bounded by the receive budget"
+        );
+        latest.at = Some(Instant::now() - Duration::from_millis(5100));
         assert!(!latest.fresh(), "A stalled stream must still expire");
-        latest.disconnected(CaptureError { reason: "stream", message: "socket closed".into(), legacy_fallback: false });
-        assert!(latest.frame.is_none(), "Real disconnects clear the picture immediately");
+        latest.disconnected(CaptureError {
+            reason: "stream",
+            message: "socket closed".into(),
+            legacy_fallback: false,
+        });
+        assert!(
+            latest.frame.is_none(),
+            "Real disconnects clear the picture immediately"
+        );
     }
     #[test]
     fn rgb565_bitmap_is_exact() {
@@ -688,7 +791,7 @@ mod tests {
         let result = get(address, "/test/frame.bmp", true);
         assert!(result.starts_with(b"HTTP/1.1 200"));
         assert!(result.ends_with(&vec![0x55; PIXELS]));
-        latest.lock().unwrap().at = Some(Instant::now() - Duration::from_secs(4));
+        latest.lock().unwrap().at = Some(Instant::now() - Duration::from_secs(6));
         assert!(get(address, "/test/frame.bmp", false).starts_with(b"HTTP/1.1 503"));
         assert!(get(address, "/other", false).starts_with(b"HTTP/1.1 404"));
         stop.store(true, Ordering::Release);
@@ -845,11 +948,16 @@ mod tests {
         assert!(!receipt.exists());
         let session = ScreenSession::start(address).unwrap();
         std::fs::write(&receipt, session.connection_info().to_string()).unwrap();
-        let mut observations=std::fs::File::create(receipt.with_extension("samples.jsonl")).unwrap();
-        let mut last_sample=Instant::now()-Duration::from_secs(1);
+        let mut observations =
+            std::fs::File::create(receipt.with_extension("samples.jsonl")).unwrap();
+        let mut last_sample = Instant::now() - Duration::from_secs(1);
         let until = Instant::now() + Duration::from_secs(180);
         while Instant::now() < until && !receipt.with_extension("stop").exists() {
-            if last_sample.elapsed()>=Duration::from_secs(1){writeln!(observations,"{}",session.status()).unwrap();observations.flush().unwrap();last_sample=Instant::now();}
+            if last_sample.elapsed() >= Duration::from_secs(1) {
+                writeln!(observations, "{}", session.status()).unwrap();
+                observations.flush().unwrap();
+                last_sample = Instant::now();
+            }
             thread::sleep(Duration::from_millis(100));
         }
         std::fs::write(
