@@ -27,7 +27,7 @@ function installMock() {
     games: { doom: false, chex: hasLoader, freedoom: false, myhouse: false } };  // myhouse: an older backend may still list it; the UI must never offer it
   const usb = { loader: hasLoader, settings: hasLoader };
   const usbs = () => {
-    if (mode === 'nousb' && !fx.plugged) return [];
+    if ((mode === 'nousb' && !fx.plugged) || fx.unplugged) return [];
     const one = { volume: 'E:\\', label: 'KINGSTON', removable: true, loader: usb.loader, settings: usb.settings, rekordbox: true, games: Object.values(fx.games).filter(Boolean).length };
     return mode === 'multi' ? [one, { volume: 'F:\\', label: 'SANDISK', removable: true, loader: false, settings: false, rekordbox: false, games: 0 }] : [one];
   };
@@ -53,14 +53,19 @@ function installMock() {
     switch (request.method) {
       case 'list_mod_versions': return { running: false, ok: true, result: inventory() };
       case 'select_mod_version': { fx.selected = { id: request.mod_version_id, pinned: request.pinned, revision: fx.selected.revision + 1 }; fx.selections.push(request); return { running: false, ok: true, result: inventory() }; }
-      case 'discover_usbs': return { running: false, ok: true, result: { format: 'xz-usbs/1', usbs: usbs() } };
+      case 'discover_usbs':
+        if (fx.holdQuiet) return { running: true };
+        if (fx.failDiscover) { fx.failDiscover--; return { running: false, ok: false, error: 'The drive list could not be read.' }; }
+        return { running: false, ok: true, result: { format: 'xz-usbs/1', usbs: usbs() } };
+      case 'download_game': return { running: false, ok: true, result: { format: 'xz-game-downloaded/1', name: 'Doom shareware' } };
       case 'inspect_usb': return { running: false, ok: true, result: inspection(request.volume) };
       case 'inspect_mod_settings': return { running: false, ok: true, result: { format: 'xz-mod-settings/1', mod_version_id: 'v1', settings_change: null } };
       case 'prepare_usb': case 'update_usb': {
         if (fx.hold) return { running: true, message: 'Writing the loader…' };
+        if (fx.failWrite) return { running: false, ok: false, error: 'The USB is write-protected.', message: 'The USB is write-protected.' };
         if (!fx.written.includes(request)) fx.written.push(request);
         usb.loader = true; usb.settings = true; fx.recorded = { id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', source_commit: savedCommit };
-        const games = (request.games || []).map(id => { fx.games[id] = true; return { game: id, name: id, ok: true }; });
+        const games = (request.games || []).map(id => { if (id === fx.failGame) return { game: id, name: id, ok: false, error: 'Download failed' }; fx.games[id] = true; return { game: id, name: id, ok: true }; });
         return { running: false, ok: true, result: { format: request.method === 'update_usb' ? 'xz-mods-loader-updated/1' : 'xz-mods-usb-prepared/1', image: 'E:\\autoexec.bin', backup: 'E:\\VJ.Tools\\backup', game_setup: { format: 'xz-games-usb/1', games, failed_count: 0 }, inspection: inspection(request.volume) } };
       }
       case 'prepare_games_usb': { if (!fx.written.includes(request)) fx.written.push(request); const games = request.games.map(id => { fx.games[id] = true; return { game: id, name: id, ok: true }; }); return { running: false, ok: true, result: { format: 'xz-games-usb/1', games, failed_count: 0 } }; }
@@ -205,7 +210,17 @@ try {
   await check(`setupWizard.newGames().join()==='doom,freedoom'&&plan()[1]==='Add 2 free games: Doom shareware and Freedoom Phase 2'&&Boolean(document.querySelector('.wz-games-change .games'))`, 'unticking Chex Quest updates the checklist and keeps the chooser open');
   await check(fits, 'review with the games chooser fits without horizontal scroll');
   await shot('06b-flow-review-games');
-  await evaluate(`fx.hold=true;window.__mark=fx.requests.length`);
+  await evaluate(`appUpdating=true`);
+  await click('Write to USB');
+  await check(`setupWizard.state.step==='review'&&txt('#job-message').includes('updating itself')&&document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&!fx.requests.some(r=>r.method==='prepare_usb')`, 'Write during an app update says why and stays on the review instead of hanging');
+  await evaluate(`appUpdating=false;setupWizard.chooseUsb('E:\\\\')`);
+  await idle();
+  await check(`setupWizard.state.view==='flow'&&setupWizard.state.step==='review'&&fx.requests.at(-1).method==='read_dj_profiles'`, 'a queued USB choice never pulls the DJ out of the flow');
+  await evaluate(`fx.failWrite=true`);
+  await click('Write to USB');
+  await waitFor(`setupWizard.state.step==='review'&&activeJob===null&&txt('#job-message').includes('write-protected')`, 'failed write back on the review');
+  await check(`document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&document.getElementById('job-panel').classList.contains('is-error')&&!button('Write to USB').disabled&&fx.written.length===0`, 'a failed write returns to the review with the error beside it, ready to try again');
+  await evaluate(`fx.failWrite=false;fx.hold=true;window.__mark=fx.requests.length`);
   await click('Write to USB');
   await waitFor(`setupWizard.state.step==='writing'&&fx.requests.at(-1)?.method==='prepare_usb'&&document.getElementById('job-panel').checkVisibility()`, 'writing step with the job panel');
   await check(`document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&txt('#job-title')==='Adding the XZ Mods loader'&&!button('Write to USB')&&!document.querySelector('.wz-cancel')&&txt('.wz-flow-count')==='Step 3 of 4'`, 'writing: the job panel shows inside the flow; no Write or Cancel to press twice');
@@ -223,37 +238,46 @@ try {
   await view('find');
   await new Promise(done => setTimeout(done, 2600));
   await check(`setupWizard.state.view==='find'&&document.querySelectorAll('#wiz .wz-usb').length===1&&txt('.wz-find h2')==='Your XZ USB'&&txt('#wiz .wz-usb').includes('KINGSTON')&&txt('#wiz .wz-usb').includes('XZ Mods installed')`, 'Change USB goes back to the list and does not reopen the same USB by itself');
-  await evaluate(`document.querySelector('#wiz .wz-usb').click()`);
+  await evaluate(`fx.unplugged=true`);
+  await waitFor(`setupWizard.state.usbs?.length===0&&activeJob===null`, 'unplugged', 400);
+  await evaluate(`fx.unplugged=false`);
   await view('device');
-  await check(`txt('.wz-drive h2')==='KINGSTON'`, 'picking the card opens it again');
+  await check(`txt('.wz-drive h2')==='KINGSTON'`, 'unplugging and plugging the USB back in opens it by itself again');
 
   await open('nousb');
   await waitFor(`setupWizard.state.usbs!==null&&activeJob===null&&!setupWizard.state.finding`, 'first look finished');
   await check(`setupWizard.state.view==='find'&&document.querySelector('.wz-empty .wz-art svg')&&txt('.wz-find h2')==='Plug in your XZ USB'&&txt('.wz-find .wz-lead')==='XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'`, 'no USB: illustration, Plug in your XZ USB, one plain line');
   await check(`!document.querySelector('#wiz button.primary')&&!button('Find my USB')&&Boolean(button('Look again'))&&Boolean(button('Choose a folder instead'))&&button('Look again').classList.contains('text-button')`, 'no USB: no primary Find button, only quiet Look again and Choose a folder instead');
   await shot('00-find-empty');
-  await evaluate(`window.__mark=fx.requests.length;fx.plugged=true`);
-  await view('device');
-  await check(`since(window.__mark)==='discover_usbs,inspect_usb'&&txt('.wz-drive h2')==='KINGSTON'`, 'plugging in the USB opens it within a poll: list_volumes changed, one discover, one inspection');
+  await evaluate(`window.__mark=fx.requests.length;fx.failDiscover=1;fx.plugged=true`);
+  await waitFor(`setupWizard.state.view==='device'&&activeJob===null`, 'plugged-in USB opened', 400);
+  await check(`since(window.__mark)==='discover_usbs,discover_usbs,inspect_usb'&&txt('.wz-drive h2')==='KINGSTON'`, 'plugging in the USB opens it by itself; a discover that failed is retried on the next poll');
 
   await open('multi');
   await waitFor(`document.querySelectorAll('#wiz .wz-usb').length===2&&activeJob===null`, 'two USB cards');
   await check(`setupWizard.state.view==='find'&&txt('.wz-find h2')==='Choose your XZ USB'&&txt('#wiz .wz-usb:nth-child(2)').includes('No XZ Mods yet')&&!txt('#wiz .wz-usb').includes('game')`, 'several USBs: cards to pick from, with simple chips');
   await shot('01-find-several');
-  await evaluate(`document.querySelectorAll('#wiz .wz-usb')[1].click()`);
+  await evaluate(`fx.holdQuiet=true;window.__mark=fx.requests.length;document.getElementById('wz-look').click()`);
+  await waitFor(`activeJob!==null&&setupWizard.state.finding`, 'a slow discover holds the job slot');
+  await evaluate(`document.querySelectorAll('#wiz .wz-usb')[1].click();showPage('advanced');document.querySelector('#advanced .game-downloads').open=true;document.getElementById('download-doom').click();showPage('setup')`);
+  await new Promise(done => setTimeout(done, 400));
+  await evaluate(`fx.holdQuiet=false`);
   await view('device');
-  await check(`txt('.wz-drive h2')==='SANDISK'&&fx.requests.at(-1).volume==='F:\\\\'`, 'choosing a card opens that USB');
+  await waitFor(`fx.requests.some(r=>r.method==='download_game')&&activeJob===null`, 'download ran after the discover');
+  await check(`since(window.__mark).split(',').sort().join()==='discover_usbs,download_game,inspect_usb'&&txt('.wz-drive h2')==='SANDISK'&&fx.requests.find(r=>r.method==='inspect_usb'&&fx.requests.indexOf(r)>=window.__mark).volume==='F:\\\\'`, 'clicks made while a quiet discover runs wait for it and then all run: the card opens that USB, the download starts');
 
   await open('loader');
   await view('device');
-  await check(`document.querySelector('.wz-status').dataset.tone==='update'&&txt('.wz-status h3')==='Update available'&&txt('.wz-status p').startsWith('This USB has Old build.')&&Boolean(button('Update USB'))&&!document.querySelector('.wz-changes').open&&txt('.wz-changes summary')==='What changes on your XZ8 changes'`, 'older loader: Update available with the change list folded to its summary');
+  await check(`document.querySelector('.wz-status').dataset.tone==='update'&&txt('.wz-status h3')==='Update available'&&txt('.wz-status p').startsWith('This USB has Old build.')&&Boolean(button('Update USB'))&&!document.querySelector('.wz-changes').open&&txt('.wz-changes-count')==='8 changes'&&document.querySelector('.wz-changes-see').checkVisibility()&&!document.querySelector('.wz-changes-hide').checkVisibility()`, 'older loader: Update available with the change list folded to one summary line');
+  await check(`(document.getElementById('wz-primary').compareDocumentPosition(document.querySelector('.wz-changes'))&Node.DOCUMENT_POSITION_FOLLOWING)&&document.getElementById('wz-primary').getBoundingClientRect().bottom<=innerHeight`, 'Update USB sits under the status line, above the change list, inside the first screen at 1100x760');
+  await shot('03-device-update');
   await check(`txt('.wz-tile[data-tile=games] .wz-tile-value')==='1 game on USB'&&txt('.wz-tile[data-tile=stems] .wz-tile-value')==='12 tracks prepared'`, 'tiles count the game and the prepared tracks');
   await evaluate(`document.querySelector('.wz-changes summary').click()`);
   await check(`[...document.querySelectorAll('.wz-changes .mu-group h5')].map(h=>h.textContent).join()==='New,Improved,Fixed'&&document.querySelectorAll('.wz-changes .mu-item').length===6&&Boolean(button('Show all 8 changes'))&&txt('.wz-changes .mu-head small')==='Old build → Fixture build'`, 'the change list groups New, Improved, Fixed and names both builds');
   await click('Show all 8 changes');
   await check(`document.querySelectorAll('.wz-changes .mu-item').length===8&&document.querySelector('.wz-changes').open`, 'Show all expands in place and the list stays open');
   await check(fits, 'update view fits without horizontal scroll');
-  await shot('03-device-update');
+  await shot('03b-device-update-changes');
   await click('Update USB');
   await view('flow', 'review');
   await check(`txt('.wz-flow-title h2')==='Update USB'&&txt('.wz-flow-count')==='Step 1 of 3'&&plan().join('|')==='Back up and update the loader'&&txt('.wz-plan small')==='Old build → Fixture build'`, 'update flow: no profile step; the review says it backs up and updates the loader');
@@ -302,6 +326,18 @@ try {
   await view('device');
   await check(`txt('.wz-tile[data-tile=profile] .wz-tile-value')==='DJ Test'&&txt('.wz-tile[data-tile=profile] .wz-tile-action')==='Edit'`, 'the DJ profile tile shows the saved name');
 
+  await open('fresh');
+  await view('device');
+  await evaluate(`fx.failGame='chex'`);
+  await click('Install XZ Mods'); await view('flow', 'profile'); await click('Skip for now'); await view('flow', 'review');
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`txt('.wz-done-hero h3')==='Finished, with something to check'&&txt('.wz-done').includes('chex did not download: Download failed')&&Boolean(button('Retry the failed games'))`, 'a failed game download ends on Finished, with something to check and a Retry button');
+  await evaluate(`fx.failGame=null;window.__mark=fx.requests.length`);
+  await click('Retry the failed games');
+  await waitFor(`activeJob===null&&since(window.__mark)==='prepare_games_usb,inspect_usb'`, 'retry ran');
+  await check(`JSON.stringify(fx.written.at(-1).games)==='["chex"]'&&setupWizard.state.inspection.games.find(g=>g.id==='chex').installed&&txt('.wz-done').includes('Games on USB: chex.')`, 'Retry copies only the failed game and reads the USB again');
+
   await open('noversion');
   await view('device');
   await check(`document.querySelector('.wz-status').dataset.tone==='setup'&&txt('.wz-status p')==='Choose which XZ Mods build goes on this USB.'&&document.querySelectorAll('#wiz button.primary').length===1&&Boolean(button('Use the newest build'))`, 'no saved build: one button sets it up');
@@ -319,7 +355,7 @@ try {
 
   await open('unknown');
   await view('device');
-  await check(`txt('.wz-status p').startsWith('The XZ Mods version on this USB is not known.')&&txt('.wz-changes summary small')==='9 changes'`, 'unknown loader version: said plainly, every change in the target build listed');
+  await check(`txt('.wz-status p').startsWith('The XZ Mods version on this USB is not known.')&&txt('.wz-changes-count')==='9 changes'`, 'unknown loader version: said plainly, every change in the target build listed');
   await evaluate(`document.querySelector('.wz-changes summary').click()`);
   await check(`txt('.wz-changes .mu-note').includes('is not known')`, 'the change list explains the unknown version');
   await open('downgrade');

@@ -76,9 +76,11 @@
 .wz-status p{margin:0;color:#b9bfbb;line-height:1.55;max-width:62ch}
 .wz-status .actions{margin-top:16px}
 .wz-status .primary{padding:11px 22px;font-size:14px}
-.wz-changes{margin-top:12px;max-width:640px;border:1px solid var(--line);border-radius:8px;background:#0d0f10}
-.wz-changes summary{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:10px 14px;font-size:13px;font-weight:600}
-.wz-changes summary small{color:var(--muted);font-weight:500}
+.wz-changes{margin-top:14px;max-width:640px;border:1px solid var(--line);border-radius:8px;background:#0d0f10}
+.wz-changes summary{display:flex;align-items:baseline;gap:6px;padding:10px 14px;font-size:13px;font-weight:500;color:var(--muted)}
+.wz-changes-count{font-weight:600;color:#eef0ec}
+.wz-changes-see,.wz-changes-hide{color:var(--yellow);text-decoration:underline;text-underline-offset:3px}
+.wz-changes[open] .wz-changes-see,.wz-changes:not([open]) .wz-changes-hide{display:none}
 .wz-changes[open] summary{margin:0;border-bottom:1px solid var(--line)}
 .wz-changes .mu{margin:0;border:0;border-radius:0;background:none}
 .wz-changes .mu-head h4{display:none}

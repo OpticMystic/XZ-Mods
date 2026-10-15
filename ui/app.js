@@ -4,7 +4,16 @@ let activeJob=null,appUpdating=false,updateChecking=false,otaReady=false;
 let stemLibraryStarted=false,stemLibraryStarting=false,stemLibrary=null,stemLibraryLoading=false;
 // Work that found another job running waits here and runs once the current job ends.
 const idleQueue=[];
-function idle(){return activeJob===null&&!appUpdating?Promise.resolve():new Promise(resolve=>idleQueue.push(resolve));}
+// One waiter is released per idle moment: the first to start a job takes the slot and the rest wait for the next one.
+function drainIdle(){
+  if(!idleQueue.length||activeJob!==null||appUpdating)return;
+  idleQueue.shift()();
+  setTimeout(drainIdle);
+}
+function idle(){return activeJob===null&&!appUpdating&&!idleQueue.length?Promise.resolve():new Promise(resolve=>{idleQueue.push(resolve);setTimeout(drainIdle);});}
+// A quiet background look for USBs must never cost a click: run() waits for it instead of refusing.
+const yieldingMethods=['discover_usbs'];
+let activeYields=false,cancelPending=false;
 const batchLimit=100,batchFormat='xz-stem-batch/1';
 // Selection is keyed by the authoritative PDB track ID and scoped to one USB identity (stemSelectionKey).
 let stemSelection=new Map(),stemSelectionKey=null,stemBatch=null;
@@ -80,14 +89,18 @@ function verifySummary(result){
 // A watch callback runs the job without the shared job panel and receives every status update; the caller shows progress and the outcome.
 async function run(request,title,origin,watch){
   if(!invoke){showError('Open XZ Mods Builder to run this operation. This browser view is a preview.',origin);return;}
+  if(activeJob!==null&&activeYields&&!appUpdating)await idle();
   if(activeJob!==null||appUpdating)return;
   const quiet=Boolean(watch)||quietMethods.includes(request.method);let settled=null;
   if(!quiet){jobPanel.classList.remove('is-error','is-cancelled');$('job-title').textContent=title;$('job-message').textContent='Starting…';$('job-details').classList.add('hidden');$('job-details').open=false;$('job-result').textContent='';$('job-summary').textContent='';$('job-progress').removeAttribute('value');$('job-progress').classList.remove('hidden');$('cancel').classList.remove('hidden');$('cancel').disabled=false;feedbackLive=true;showFeedback(origin);revealFeedback();}
-  busy(true);
+  activeYields=yieldingMethods.includes(request.method);
+  // A yielding job leaves every button enabled: a click on one waits for it (above) instead.
+  if(!activeYields)busy(true);
   // Claimed before the first await, so another run() started in the same tick finds the slot taken.
-  activeJob='starting';
+  activeJob='starting';cancelPending=false;
   try{
     activeJob=await invoke('start_job',{request});
+    if(cancelPending)cancelActiveJob();
     while(true){
       const state=await invoke('job_status',{id:activeJob});
       if(quiet){watch?.(state);if(!state.running)return state;await new Promise(resolve=>setTimeout(resolve,350));continue;}
@@ -122,8 +135,8 @@ async function run(request,title,origin,watch){
     }
   }catch(error){if(quiet)return {ok:false,running:false,error:String(error)};settled='is-error';showError(String(error),origin);}
   finally{
-    activeJob=null;busy(false);
-    if(idleQueue.length)setTimeout(()=>{while(idleQueue.length&&activeJob===null&&!appUpdating)idleQueue.shift()();});
+    activeJob=null;activeYields=false;busy(false);
+    if(idleQueue.length)setTimeout(drainIdle);
     if(!quiet){feedbackLive=false;$('job-progress').classList.add('hidden');$('cancel').classList.add('hidden');if(settled){jobPanel.classList.add(settled);revealFeedback();}}
   }
 }
@@ -132,9 +145,11 @@ for(const button of document.querySelectorAll('.pick'))button.onclick=async()=>{
   catch(error){showError(String(error),button);}
 };
 async function cancelActiveJob(){
-  if(activeJob===null||activeJob==='starting')return;
+  if(activeJob===null)return;
   if(stemBatch?.running){stemBatch.cancelRequested=true;renderStems();}
   $('cancel').disabled=true;
+  // The job has no id until start_job answers; run() sends the cancel as soon as it does.
+  if(activeJob==='starting'){cancelPending=true;$('job-message').textContent='Cancelling safely…';return;}
   try{await invoke('cancel_job',{id:activeJob});$('job-message').textContent='Cancelling safely…';}
   catch(error){$('cancel').disabled=false;if(stemBatch?.running){stemBatch.cancelRequested=false;renderStems();}$('job-message').textContent='Could not cancel: '+String(error);}
 }
@@ -247,7 +262,7 @@ $('install-app-update').onclick=async()=>{
   if(activeJob!==null||appUpdating)return;appUpdating=true;busy(true);renderAppUpdate({phase:'downloading',message:'Downloading the installer...'});
   const timer=setInterval(async()=>{try{renderAppUpdate(await invoke('app_update_status'));}catch{}},400);
   try{await invoke('install_app_update');}catch(error){try{renderAppUpdate(await invoke('app_update_status'));}catch{renderAppUpdate({phase:'error',message:String(error)});}}
-  finally{clearInterval(timer);appUpdating=false;busy(false);$('check-app-update').disabled=!invoke;}
+  finally{clearInterval(timer);appUpdating=false;busy(false);$('check-app-update').disabled=!invoke;setTimeout(drainIdle);}
 };
 async function loadAppInformation(){
   if(!invoke){$('check-app-update').disabled=true;$('open-licenses').disabled=true;return;}
