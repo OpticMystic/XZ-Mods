@@ -1,5 +1,5 @@
-// The USB loadout as a file tree. usbLoadout() turns an inspection plus the wizard's choices into nodes;
-// createUsbTree() draws them. States and plans are tables so a row never decides its own wording or colour.
+// Every file XZ Mods knows about on a USB, as a read-only file tree. usbLoadout() turns an inspection into nodes;
+// createUsbTree() draws them. States are a table so a row never decides its own wording or colour.
 (function(){
 const STATES={
   current:{badge:'Up to date',tone:'ok'},
@@ -9,10 +9,7 @@ const STATES={
   missing:{badge:'Not on USB',tone:'off'},
   untouched:{badge:'Never touched',tone:'quiet'}
 };
-// The only setting the wizard changes now: which built-in games the GAMES menu lists.
-const SETTING_LABEL={games_menu:'Games menu'};
-const PLANS={add:'Will add',update:'Will update',change:'Will change'};
-const LEGEND=[['ok','Up to date'],['warn','Update available'],['off','Not on USB'],['plan','Will be written']];
+const LEGEND=[['ok','Up to date'],['warn','Update available'],['off','Not on USB']];
 const STEMS='CDJMODS\\stems',REKORDBOX='PIONEER\\rekordbox',BACKUPS='VJ.Tools\\XZ-Mods-updates',SETTINGS='VJ.Tools\\XZ-Mods.cfg',DJPROFILE='DJPROFILE';
 const mb=bytes=>(bytes/1048576).toFixed(bytes>=104857600?0:1)+' MB';
 const gb=bytes=>String(+(bytes/1e9).toFixed(bytes>=1e11?0:1))+' GB';
@@ -23,99 +20,55 @@ function relative(path,volume){
   const text=String(path||''),root=String(volume||'');
   return root&&text.toLowerCase().startsWith(root.toLowerCase())?text.slice(root.length).replace(/^[\\/]+/,''):text;
 }
-function node(id,depth,kind,path,label,state,detail,plan=null,control=null,children=[]){return {id,depth,kind,path,label,state,detail,plan,control,children};}
+function node(id,depth,kind,path,label,state,detail,children=[]){return {id,depth,kind,path,label,state,detail,children};}
 
-// choices is null for the Done step: the tree then shows the USB as it is, with no plans or controls.
-// choices: {loader, saved, games:Set, changes:[keys], settingsEditable, versionLine, update, changelog, profile, setLoader, chooseGames, editProfile}
-function usbLoadout(inspection,{driveLabel,choices=null}={}){
-  const ins=inspection,volume=ins.volume,c=choices,saved=c?c.saved:savedModVersion();
-  const planned=plan=>c?plan:null,loaderWriting=Boolean(c&&c.loader!=='keep'&&(c.saved||savedModVersion()));
+function usbLoadout(inspection,{driveLabel}={}){
+  const ins=inspection,volume=ins.volume,saved=savedModVersion();
   const loaderNode=()=>{
     const recorded=ins.recorded_mod_version?.id?ins.recorded_mod_version:null,backups=ins.backups?.length||0;
     const state=!ins.loader.exists?'missing':!recorded?'unknown':!saved?'present':recorded.id===saved.id&&recorded.runtime_sha256===saved.runtime_sha256?'current':'outdated';
     const detail=ins.loader.exists?(versionName(recorded)||'Unknown build')+' · '+plural(backups,'backup')+' kept':'The file the XZ starts XZ Mods from';
-    const writing=loaderWriting,savedName=versionName(saved);
-    const plan=planned(writing?(state==='missing'?'add':'update'):null);
-    let control=null;
-    if(c){
-      const toggle=on=>c.setLoader(on?(state==='missing'?'add':'update'):'keep');
-      if(state==='missing')control={kind:'check',checked:writing,disabled:!saved,label:saved?'Add the loader ('+savedName+')':'Add the loader',onToggle:toggle};
-      else if(state==='current'&&!writing)control={kind:'link',label:'Reinstall',onClick:()=>c.setLoader('update')};
-      else control={kind:'check',checked:writing,disabled:!saved,label:saved?(state==='current'?'Reinstall ':'Update to ')+savedName:'Update the loader',onToggle:toggle};
-    }
-    const item=node('loader',1,'file','autoexec.bin','XZ Mods loader',state,detail,plan,control);
-    if(plan==='update'&&c.update&&modChangeCount(c.update))item.planNote=plural(modChangeCount(c.update),'change');
-    const changelog=c&&saved&&(['outdated','unknown'].includes(state)||plan==='update')?c.changelog:null;
-    // The build chooser stays under the loader row whenever there is a choice to make.
-    if(c)item.aside=[c.versionLine,changelog];
-    return item;
+    return node('loader',1,'file','autoexec.bin','XZ Mods loader',state,detail);
   };
   const settingsNode=()=>{
-    const settings=ins.settings,exists=settings.revision?.exists!==false,changes=c?c.changes:[];
-    let plan=null,detail;
-    if(!settings.editable)detail=settings.reason;
-    else if(changes.length){plan=planned('change');detail=changes.slice(0,3).map(key=>SETTING_LABEL[key]||key).join(', ')+(changes.length>3?' and '+(changes.length-3)+' more':'');}
-    else if(!exists){plan=planned(c&&(loaderWriting||c.settingsEditable)?'add':null);detail=plan?'New file with defaults':'Not written yet';}
-    else detail=plural(settings.schema?.fields?.length||Object.keys(settings.values||{}).length,'field')+' · matches USB';
-    const item=node('settings',2,'file',relative(settings.path,volume)||SETTINGS,'Settings',exists?'present':'missing',detail,plan,null);
-    if(plan==='change')item.planNote=String(changes.length);
-    return item;
+    const settings=ins.settings,exists=settings.revision?.exists!==false;
+    const detail=!settings.editable?settings.reason:!exists?'Not written yet':plural(settings.schema?.fields?.length||Object.keys(settings.values||{}).length,'field');
+    return node('settings',2,'file',relative(settings.path,volume)||SETTINGS,'Settings',exists?'present':'missing',detail);
   };
-  const backupsNode=()=>{
-    const count=ins.backups?.length||0;
-    return count?node('backups',2,'folder',BACKUPS,'Loader backups','present',count+' kept',null,c?{kind:'link',label:'Restore in Advanced tools',onClick:()=>showPage('advanced')}:null):null;
-  };
-  const gameNode=game=>{
-    const ticked=Boolean(c?.games.has(game.id))&&!game.installed;
-    return node('game-'+game.id,2,'folder',relative(game.folder,volume),game.name,game.installed?'present':'missing',gameNote(GAMES.find(entry=>entry.id===game.id)||{},game),planned(ticked?'add':null));
-  };
-  // The Write step saves the DJ Profile step's draft (c.profile: {plan, name, problem}); the tree only reports it.
+  const backupsNode=()=>{const count=ins.backups?.length||0;return count?node('backups',2,'folder',BACKUPS,'Loader backups','present',count+' kept'):null;};
+  const gameNode=game=>node('game-'+game.id,2,'folder',relative(game.folder,volume),game.name,game.installed?'present':'missing',gameNote(GAMES.find(entry=>entry.id===game.id)||{},game));
   const profilesNode=()=>{
-    const found=ins.dj_profiles||{count:0,active_name:null},count=found.count||0,want=c?.profile;
-    const detail=want?.plan?(want.plan==='add'?'New profile ':'Changes to ')+want.name:want?.problem?'Not written: '+want.problem:
-      count?plural(count,'profile')+(found.active_name?' · active '+found.active_name:''):'No DJ profile yet';
-    return node('djprofile',1,'folder',DJPROFILE,'DJ profiles',count?'present':'missing',detail,planned(want?.plan||null),
-      c?{kind:'link',label:count?'Edit DJ profile':'Create a DJ profile',onClick:c.editProfile}:null);
+    const found=ins.dj_profiles||{count:0,active_name:null},count=found.count||0;
+    return node('djprofile',1,'folder',DJPROFILE,'DJ profiles',count?'present':'missing',count?plural(count,'profile')+(found.active_name?' · active '+found.active_name:''):'No DJ profile yet');
   };
   const games=(ins.games||[]).filter(game=>GAMES.some(entry=>entry.id===game.id)),stems=ins.stems||{tracks:0,bytes:0},space=ins.space||{};
   const vjtools=[settingsNode(),backupsNode()].filter(Boolean),gameNodes=games.map(gameNode);
   const anyPresent=list=>list.some(item=>item.state!=='missing');
   const spaceText=space.free_bytes!=null&&space.total_bytes!=null?gb(space.free_bytes)+' free of '+gb(space.total_bytes):'';
-  return [node('drive',0,'drive',volume,driveLabel||volume,null,[ins.filesystem,spaceText].filter(Boolean).join(' · '),null,null,[
+  return [node('drive',0,'drive',volume,driveLabel||volume,null,[ins.filesystem,spaceText].filter(Boolean).join(' · '),[
     loaderNode(),
-    node('vjtools',1,'folder','VJ.Tools','XZ Mods files',anyPresent(vjtools)?'present':'missing','Settings and loader backups',null,null,vjtools),
-    node('games',1,'folder','VJTOOLS\\Games','Games',anyPresent(gameNodes)?'present':'missing','Free downloads, opened from EXTRAS › GAMES',null,
-      c?{kind:'link',label:'Choose games',onClick:c.chooseGames}:null,gameNodes),
+    node('vjtools',1,'folder','VJ.Tools','XZ Mods files',anyPresent(vjtools)?'present':'missing','Settings and loader backups',vjtools),
+    node('games',1,'folder','VJTOOLS\\Games','Games',anyPresent(gameNodes)?'present':'missing','Free downloads, opened from EXTRAS › GAMES',gameNodes),
     profilesNode(),
-    node('stems',1,'folder',STEMS,'Prepared stems',stems.tracks>0?'present':'missing',stems.tracks>0?plural(stems.tracks,'track')+' · '+size(stems.bytes):'None yet',null,
-      c?{kind:'link',label:'Prepare stems',onClick:()=>showPage('stems')}:null),
+    node('stems',1,'folder',STEMS,'Prepared stems',stems.tracks>0?'present':'missing',stems.tracks>0?plural(stems.tracks,'track')+' · '+size(stems.bytes):'None yet'),
     node('rekordbox',1,'folder',REKORDBOX,'Rekordbox library',ins.rekordbox?'untouched':'missing',ins.rekordbox?'Music and playlists, never touched':'Export from Rekordbox to this USB first')
   ])];
 }
 
 function flatten(nodes){return nodes.flatMap(item=>[item,...flatten(item.children||[])]);}
 function dot(tone){return el('span',{class:'tree-dot',dataset:{tone},'aria-hidden':'true'});}
-function controlEl(control){
-  if(control.kind==='check')return el('span',{class:'tree-check'},el('input',{type:'checkbox',checked:control.checked,disabled:control.disabled,onchange:event=>control.onToggle(event.target.checked)}),el('span',{text:control.label}));
-  return el('button',{type:'button',class:'text-button tree-link',text:control.label,onclick:event=>{event.preventDefault();control.onClick();}});
-}
-function row(item,mode){
-  const state=STATES[item.state],plan=mode!=='result'&&item.plan?item.plan:null;
-  const controls=mode==='edit'?[].concat(item.control||[]):[],check=controls.find(control=>control.kind==='check');
-  const badge=plan?PLANS[plan]+(item.planNote?' · '+item.planNote:''):state?.badge||'';
-  const tone=plan?'plan':state?.tone;
-  return el(check?'label':'div',{class:'tree-row',style:'--depth:'+item.depth,dataset:{id:item.id,kind:item.kind,state:item.state,plan:plan?'1':null,dim:mode==='plan'&&!plan?'1':null}},
+function row(item){
+  const state=STATES[item.state];
+  return el('div',{class:'tree-row',role:'listitem',style:'--depth:'+item.depth,dataset:{id:item.id,kind:item.kind,state:item.state}},
     el('span',{class:'tree-indent','aria-hidden':'true'}),
     el('span',{class:'tree-icon',dataset:{kind:item.kind},'aria-hidden':'true'}),
     el('span',{class:'tree-name'},el('span',{class:'tree-title'},el('strong',{text:item.label}),el('small',{text:item.path})),
       el('span',{class:'tree-detail',title:item.detail||null,text:item.detail||''})),
-    el('span',{class:'tree-status'},tone?dot(tone):null,el('span',{class:'tree-badge',text:badge})),
-    el('span',{class:'tree-control'},...controls.map(controlEl)));
+    el('span',{class:'tree-status'},state?dot(state.tone):null,el('span',{class:'tree-badge',text:state?.badge||''})));
 }
-function createUsbTree({nodes,mode}){
-  const rows=flatten(nodes).flatMap(item=>[row(item,mode),mode==='edit'&&item.aside?el('div',{class:'tree-aside',style:'--depth:'+(item.depth+1)},item.aside):null]);
-  return el('div',{class:'tree',dataset:{mode}},
-    el('div',{class:'tree-rows',role:'list'},...rows),
+function createUsbTree({nodes}){
+  return el('div',{class:'tree'},
+    el('div',{class:'tree-rows',role:'list'},...flatten(nodes).map(row)),
     el('ul',{class:'tree-legend','aria-label':'Legend'},...LEGEND.map(([tone,text])=>el('li',{},dot(tone),el('span',{text})))));
 }
 Object.assign(window,{usbLoadout,createUsbTree});

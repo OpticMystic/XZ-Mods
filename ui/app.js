@@ -4,6 +4,7 @@ let activeJob=null,appUpdating=false,updateChecking=false,otaReady=false;
 let stemLibraryStarted=false,stemLibraryStarting=false,stemLibrary=null,stemLibraryLoading=false;
 // Work that found another job running waits here and runs once the current job ends.
 const idleQueue=[];
+function idle(){return activeJob===null&&!appUpdating?Promise.resolve():new Promise(resolve=>idleQueue.push(resolve));}
 const batchLimit=100,batchFormat='xz-stem-batch/1';
 // Selection is keyed by the authoritative PDB track ID and scoped to one USB identity (stemSelectionKey).
 let stemSelection=new Map(),stemSelectionKey=null,stemBatch=null;
@@ -22,10 +23,10 @@ const titles={setup:'USB',stems:'Stems','live-stream':'XZ Screen',tools:'Tools',
 const toolPages=new Set(['dj-profile','library-repair','device-updates','advanced','updates','licenses']);
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
-const jobPanel=$('job-panel'),quietMethods=['discover_stem_usbs','browse_stem_library','plan_engine_setup','list_mod_versions','inspect_mod_settings'];
+const jobPanel=$('job-panel'),quietMethods=['discover_usbs','discover_stem_usbs','browse_stem_library','plan_engine_setup','list_mod_versions','inspect_mod_settings'];
 const feedbackGroups='p,label,.actions,.path-row,.st-foot,.section-heading,.columns';
 let feedbackHome=null,feedbackLive=false;
-const pageShown={stems:()=>startStemLibrary(),'dj-profile':()=>window.djProfilePage?.show(),
+const pageShown={setup:()=>window.setupWizard?.shown(),stems:()=>startStemLibrary(),'dj-profile':()=>window.djProfilePage?.show(),
   'library-repair':()=>{if(!repairDiscovery)repairDiscovery=discoverRepairDrives();},'device-updates':()=>$('ota-detect').click()};
 function showPage(name){
   document.querySelectorAll('main>.page').forEach(page=>page.classList.toggle('hidden',page.id!==name));
@@ -83,6 +84,8 @@ async function run(request,title,origin,watch){
   const quiet=Boolean(watch)||quietMethods.includes(request.method);let settled=null;
   if(!quiet){jobPanel.classList.remove('is-error','is-cancelled');$('job-title').textContent=title;$('job-message').textContent='Starting…';$('job-details').classList.add('hidden');$('job-details').open=false;$('job-result').textContent='';$('job-summary').textContent='';$('job-progress').removeAttribute('value');$('job-progress').classList.remove('hidden');$('cancel').classList.remove('hidden');$('cancel').disabled=false;feedbackLive=true;showFeedback(origin);revealFeedback();}
   busy(true);
+  // Claimed before the first await, so another run() started in the same tick finds the slot taken.
+  activeJob='starting';
   try{
     activeJob=await invoke('start_job',{request});
     while(true){
@@ -129,7 +132,7 @@ for(const button of document.querySelectorAll('.pick'))button.onclick=async()=>{
   catch(error){showError(String(error),button);}
 };
 async function cancelActiveJob(){
-  if(activeJob===null)return;
+  if(activeJob===null||activeJob==='starting')return;
   if(stemBatch?.running){stemBatch.cancelRequested=true;renderStems();}
   $('cancel').disabled=true;
   try{await invoke('cancel_job',{id:activeJob});$('job-message').textContent='Cancelling safely…';}
