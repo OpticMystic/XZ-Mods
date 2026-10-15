@@ -7,12 +7,12 @@ import { fileURLToPath } from 'node:url';
 import { serveUi } from './csp_server.mjs';
 
 // Drives ui/index.html in headless Edge over CDP with a mocked Tauri invoke, served with the app's real CSP. No packages needed.
-// Run: node tools/verify_setup_wizard.mjs   (XZ_TEST_BROWSER overrides the browser path)
+// Run: node tools/verify_setup_wizard.mjs   (XZ_TEST_BROWSER overrides the browser path; XZ_WIZARD_SHOTS=<dir> saves screenshots)
 const app = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function installMock() {
   const mode = location.hash.slice(1) || 'fresh';
-  const hasLoader = ['loader', 'unknown', 'downgrade', 'nonotes'].includes(mode);
+  const hasLoader = ['loader', 'unknown', 'downgrade', 'nonotes', 'current'].includes(mode);
   const schema = mode === 'gamesmenu' ? { ...window.__SCHEMA__, fields: [...window.__SCHEMA__.fields, { key: 'games_menu', label: 'Games menu', group: 'extras', default: 63, min: 0, max: 63, kind: 'int', readonly: false }] } : window.__SCHEMA__;
   const defaults = Object.fromEntries(schema.fields.map(field => [field.key, field.default]));
   const OLD = '1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', NEW = '2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -20,20 +20,29 @@ function installMock() {
   Object.defineProperty(window, 'MOD_CHANGES', { writable: false, value: { format: 'xz-mod-changes-ui/1',
     changes: Object.fromEntries(kinds.map((kind, index) => ['c' + (index + 1), { kind, area: ['Stems', 'Games', 'Waveform'][index % 3], text: 'Fixture change ' + (index + 1) }])),
     builds: { [OLD]: ['c1'], [NEW]: kinds.map((kind, index) => 'c' + (kinds.length - index)) } } });
-  const recorded = { loader: { id: 'old', label: 'Old build', runtime_sha256: 'oldsha', source_commit: OLD.slice(0, 10) }, nonotes: { id: 'old', label: 'Old build', runtime_sha256: 'oldsha', source_commit: OLD },
-    downgrade: { id: 'new', label: 'New build', runtime_sha256: 'nsha', source_commit: NEW } }[mode] || null;
   const savedCommit = { downgrade: OLD, nonotes: 'abcdef1234567' }[mode] || NEW;
-  const fx = window.fx = { mode, calls: [], requests: [], saved: null, written: [], recorded, games: { doom: false, chex: hasLoader, freedoom: false, myhouse: false } };  // myhouse: an older backend may still list it; the UI must never offer it
-  const usb = { volume: 'E:\\', label: 'KINGSTON', removable: true, loader: hasLoader, settings: hasLoader, rekordbox: true, games: hasLoader ? 1 : 0 };
+  const recorded = { loader: { id: 'old', label: 'Old build', runtime_sha256: 'oldsha', source_commit: OLD.slice(0, 10) }, nonotes: { id: 'old', label: 'Old build', runtime_sha256: 'oldsha', source_commit: OLD },
+    downgrade: { id: 'new', label: 'New build', runtime_sha256: 'nsha', source_commit: NEW }, current: { id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', source_commit: NEW } }[mode] || null;
+  const fx = window.fx = { mode, calls: [], requests: [], saved: null, written: [], recorded, plugged: false, hold: false, profile: null,
+    games: { doom: false, chex: hasLoader, freedoom: false, myhouse: false } };  // myhouse: an older backend may still list it; the UI must never offer it
+  const usb = { loader: hasLoader, settings: hasLoader };
+  const usbs = () => {
+    if (mode === 'nousb' && !fx.plugged) return [];
+    const one = { volume: 'E:\\', label: 'KINGSTON', removable: true, loader: usb.loader, settings: usb.settings, rekordbox: true, games: Object.values(fx.games).filter(Boolean).length };
+    return mode === 'multi' ? [one, { volume: 'F:\\', label: 'SANDISK', removable: true, loader: false, settings: false, rekordbox: false, games: 0 }] : [one];
+  };
+  fx.volumes = () => ['C:\\', ...usbs().map(usb => usb.volume)];
   const gamesOnUsb = () => Object.entries(fx.games).map(([id, installed]) => ({ id, name: { doom: 'Doom shareware', chex: 'Chex Quest', freedoom: 'Freedoom Phase 2', myhouse: 'My House' }[id], installed, folder: 'E:\\VJTOOLS\\Games\\' + id, requires_gzdoom: id === 'myhouse', bytes: 2450688 }));
-  const inspection = () => ({ format: 'xz-mods-usb/1', volume: 'E:\\', identity: { serial: 1 }, loader: { exists: usb.loader, bytes: 4100000, sha256: 'abc' },
+  const inspection = volume => ({ format: 'xz-mods-usb/1', volume, identity: { serial: 1 }, loader: { exists: usb.loader, bytes: 4100000, sha256: 'abc' },
     recorded_mod_version: usb.loader ? fx.recorded : null, installed_version: null, runtime_sha256: 'newsha',
-    settings: { editable: true, values: { ...defaults, theme: 2 }, revision: { exists: usb.settings, bytes: 400 }, schema, path: 'E:\\VJ.Tools\\XZ-Mods.cfg' }, backups: [], games: gamesOnUsb(), direct_usb_root: true, requires_copy_to_usb_root: false, filesystem: 'FAT32',
-    space: { free_bytes: 29100000000, total_bytes: 32000000000 }, stems: { tracks: hasLoader ? 12 : 0, bytes: 734003200 }, rekordbox: true });
-  // mode 'builds': several archived builds, one duplicate of the newest runtime, saved choice an older included build.
+    settings: { editable: true, values: { ...defaults, theme: 2 }, revision: { exists: usb.settings, bytes: 400 }, schema, path: volume + 'VJ.Tools\\XZ-Mods.cfg' }, backups: [], games: gamesOnUsb(), direct_usb_root: true, requires_copy_to_usb_root: false, filesystem: 'FAT32',
+    space: { free_bytes: 29100000000, total_bytes: 32000000000 }, stems: { tracks: hasLoader ? 12 : 0, bytes: 734003200 }, rekordbox: true,
+    dj_profiles: fx.profile ? { count: 1, active_name: fx.profile.dj_name } : { count: 0, active_name: null } });
+  const profiles = () => ({ format: 'xz-dj-profiles/1', public_folder: fx.profile ? 'DJPROFILE' : null, revision: fx.profile ? 'r1' : null, active: fx.profile?.dj_id || null, stick_colour: '#f870f8', legacy: false, problems: [],
+    profiles: fx.profile ? [{ source: 'vjtools', editable: true, active: true, tagline: '', aliases: [], links: [], page_url: null, note: '', logos: [], tile: null, track: null, ...fx.profile }] : [] });
+  // mode 'builds': several archived builds, saved choice an older included build.
   const builds = mode === 'builds' ? [
     { id: 'v1', label: 'Included development build newsha12', runtime_sha256: 'newsha12', hardware_qualified: false, source_commit: savedCommit, archived_at: '2026-10-12T09:54:00Z' },
-    { id: 'dup', label: 'Included development build newsha12', runtime_sha256: 'newsha12', hardware_qualified: false, source_commit: savedCommit, archived_at: '2026-10-12T09:48:00Z' },
     { id: 'old', label: 'Included development build 98cc63d1', runtime_sha256: '98cc63d1aaaa', hardware_qualified: false, source_commit: OLD, archived_at: '2026-10-08T19:51:00Z' },
     { id: 'rel', label: '0.2.1 released', runtime_sha256: 'e47166e2aaaa', hardware_qualified: false, source_commit: OLD, archived_at: '2026-10-08T17:00:00Z' }]
     : [{ id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', hardware_qualified: false, source_commit: savedCommit }];
@@ -44,25 +53,33 @@ function installMock() {
     switch (request.method) {
       case 'list_mod_versions': return { running: false, ok: true, result: inventory() };
       case 'select_mod_version': { fx.selected = { id: request.mod_version_id, pinned: request.pinned, revision: fx.selected.revision + 1 }; fx.selections.push(request); return { running: false, ok: true, result: inventory() }; }
-      case 'discover_usbs': return { running: false, ok: true, result: { format: 'xz-usbs/1', usbs: mode === 'nousb' ? [] : [usb] } };
-      case 'inspect_usb': return { running: false, ok: true, result: inspection() };
+      case 'discover_usbs': return { running: false, ok: true, result: { format: 'xz-usbs/1', usbs: usbs() } };
+      case 'inspect_usb': return { running: false, ok: true, result: inspection(request.volume) };
       case 'inspect_mod_settings': return { running: false, ok: true, result: { format: 'xz-mod-settings/1', mod_version_id: 'v1', settings_change: null } };
       case 'prepare_usb': case 'update_usb': {
-        fx.written.push(request); usb.loader = true; usb.settings = true; fx.recorded = { id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', source_commit: savedCommit };
+        if (fx.hold) return { running: true, message: 'Writing the loader…' };
+        if (!fx.written.includes(request)) fx.written.push(request);
+        usb.loader = true; usb.settings = true; fx.recorded = { id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', source_commit: savedCommit };
         const games = (request.games || []).map(id => { fx.games[id] = true; return { game: id, name: id, ok: true }; });
-        return { running: false, ok: true, result: { format: request.method === 'update_usb' ? 'xz-mods-loader-updated/1' : 'xz-mods-usb-prepared/1', image: 'E:\\autoexec.bin', backup: 'E:\\VJ.Tools\\backup', game_setup: { format: 'xz-games-usb/1', games, failed_count: 0 }, inspection: inspection() } };
+        return { running: false, ok: true, result: { format: request.method === 'update_usb' ? 'xz-mods-loader-updated/1' : 'xz-mods-usb-prepared/1', image: 'E:\\autoexec.bin', backup: 'E:\\VJ.Tools\\backup', game_setup: { format: 'xz-games-usb/1', games, failed_count: 0 }, inspection: inspection(request.volume) } };
       }
-      case 'prepare_games_usb': { fx.written.push(request); const games = request.games.map(id => { fx.games[id] = true; return { game: id, name: id, ok: true }; }); return { running: false, ok: true, result: { format: 'xz-games-usb/1', games, failed_count: 0 } }; }
-      case 'read_usb_settings': return { running: false, ok: true, result: { identity: { serial: 1 }, settings: inspection().settings } };
-      case 'read_dj_profiles': return { running: false, ok: true, result: { format: 'xz-dj-profiles/1', public_folder: null, revision: null, active: null, stick_colour: '#f870f8', legacy: false, profiles: [], problems: [] } };
-      case 'save_usb_settings': fx.saved = request; fx.written.push(request); return { running: false, ok: true, result: { format: 'xz-mods-settings-saved/1', settings: { ...inspection().settings, values: request.values } } };
+      case 'prepare_games_usb': { if (!fx.written.includes(request)) fx.written.push(request); const games = request.games.map(id => { fx.games[id] = true; return { game: id, name: id, ok: true }; }); return { running: false, ok: true, result: { format: 'xz-games-usb/1', games, failed_count: 0 } }; }
+      case 'read_usb_settings': return { running: false, ok: true, result: { identity: { serial: 1 }, settings: inspection(request.volume).settings } };
+      case 'read_dj_profiles': return { running: false, ok: true, result: profiles() };
+      case 'save_dj_profile': {
+        if (!fx.written.includes(request)) fx.written.push(request);
+        fx.profile = { dj_id: 'djp_' + request.profile.dj_name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), dj_name: request.profile.dj_name, accent: request.profile.accent };
+        return { running: false, ok: true, result: { ...profiles(), saved: fx.profile.dj_id } };
+      }
+      case 'save_usb_settings': fx.saved = request; if (!fx.written.includes(request)) fx.written.push(request); return { running: false, ok: true, result: { format: 'xz-mods-settings-saved/1', settings: { ...inspection(request.volume).settings, values: request.values } } };
     }
     throw Error('Unexpected method ' + request.method);
   };
   window.__TAURI__ = { core: { invoke: async (command, args) => {
     fx.calls.push(command);
-    if (command === 'app_information') return { version: '0.3.0', platform: 'windows', installed: true, release_notes: { releases: [] } };
+    if (command === 'app_information') return { version: '0.3.0', platform: mode === 'mac' ? 'macos' : 'windows', installed: true, portable_url: 'https://github.com/OpticMystic/XZ-Mods/releases/latest', release_notes: { releases: [] } };
     if (command === 'check_app_update') return { phase: 'current', message: 'Up to date' };
+    if (command === 'list_volumes') return fx.volumes();
     if (command === 'start_job') { fx.requests.push(args.request); return fx.requests.length; }
     if (command === 'job_status') return status(fx.requests[args.id - 1]);
     if (command === 'cancel_job') return {};
@@ -71,16 +88,14 @@ function installMock() {
   } } };
   fx.csp = [];
   document.addEventListener('securitypolicyviolation', event => fx.csp.push(event.violatedDirective + ' ' + (event.blockedURI || 'inline') + ' ' + (event.sourceFile || '').split('/').pop() + ':' + event.lineNumber + ':' + event.columnNumber));
-  window.button = (text, root = document) => [...root.querySelectorAll('button')].find(item => item.textContent.trim() === text && item.checkVisibility() && !item.closest('nav'));
-  window.row = id => document.querySelector('.tree-row[data-id="' + id + '"]');
-  window.rowTxt = id => row(id)?.textContent.replace(/\s+/g, ' ').trim() || '';
-  window.badge = id => row(id)?.querySelector('.tree-badge').textContent || '';
-  window.box = id => row(id)?.querySelector('input[type=checkbox]') || null;
+  window.button = (text, root = document) => [...root.querySelectorAll('button,a.button')].find(item => item.textContent.trim() === text && item.checkVisibility() && !item.closest('nav'));
+  window.tile = id => document.querySelector('.wz-tile[data-tile="' + id + '"]');
   window.game = id => document.querySelector('.page:not(.hidden) .games-row[data-id="' + id + '"]');
   window.gameBox = id => game(id)?.querySelector('.tree-check input') || null;
   window.gameSwitch = id => game(id)?.querySelector('.games-switch input') || null;
-  window.muItems = () => [...document.querySelectorAll('.tree-aside .mu-item')].length;
+  window.plan = () => [...document.querySelectorAll('.wz-plan .wz-plan-text')].map(item => item.textContent);
   window.txt = selector => document.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim() || '';
+  window.since = mark => fx.requests.slice(mark).map(request => request.method).join();
 }
 
 const schema = JSON.parse(await readFile(resolve(app, process.env.XZ_SETTINGS_SCHEMA || '../VJToolsLibrary/packages/xdj-xz-toolkit/mods/settings-schema.json'), 'utf8'));
@@ -90,6 +105,12 @@ const child = spawn(process.env.XZ_TEST_BROWSER || 'C:/Program Files (x86)/Micro
   ['--headless=new', '--disable-gpu', '--no-first-run', '--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore', windowsHide: true });
 let socket, base, passed = 0;
 try {
+  for (const file of ['ui/index.html', 'ui/app.js', 'ui/setup.js', 'ui/dj-profile.js']) {
+    const text = await readFile(join(app, file), 'utf8');
+    assert(!/\bPC\b/.test(text.replace(/\/\/[^\n]*/g, '')), file + ' says "PC" where a Mac reads it too; say "this computer"');
+    assert(!/File Explorer|\bFinder\b/.test(text), file + ' names a file manager in fixed copy');
+  }
+  passed++; console.log('ok', 'fixed copy says "this computer" and names no file manager');
   for (let attempt = 0; attempt < 100 && !base; attempt++) {
     try { base = 'http://127.0.0.1:' + (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]; }
     catch { await new Promise(done => setTimeout(done, 100)); }
@@ -108,9 +129,9 @@ try {
     if (value.exceptionDetails) throw Error(expression.slice(0, 120) + ': ' + (value.exceptionDetails.exception?.description || value.exceptionDetails.text));
     return value.result.value;
   };
-  const context = () => evaluate(`'step: '+setupWizard.state.step+' job: '+activeJob+' requests: '+fx.requests.map(r=>r.method).join(',')+'\\n  pane: '+txt('.wz-pane').slice(0,300)`);
-  const waitFor = async (expression, label) => {
-    for (let attempt = 0; attempt < 200; attempt++) { if (await evaluate(expression)) return; await new Promise(done => setTimeout(done, 25)); }
+  const context = () => evaluate(`'view: '+setupWizard.state.view+' step: '+setupWizard.state.step+' job: '+activeJob+' requests: '+fx.requests.map(r=>r.method).join(',')+'\\n  wiz: '+txt('#wiz').slice(0,300)`);
+  const waitFor = async (expression, label, tries = 200) => {
+    for (let attempt = 0; attempt < tries; attempt++) { if (await evaluate(expression)) return; await new Promise(done => setTimeout(done, 25)); }
     throw Error('Timed out: ' + label + '\n  ' + await context() + '\n  page errors: ' + errors.join(' / '));
   };
   const check = async (expression, label) => {
@@ -121,199 +142,226 @@ try {
   socket.addEventListener('message', event => { const data = JSON.parse(event.data); if (data.method === 'Runtime.exceptionThrown') errors.push((data.params.exceptionDetails.exception?.description || data.params.exceptionDetails.text)+' @ '+JSON.stringify(data.params.exceptionDetails.stackTrace?.callFrames?.slice(0,4).map(f=>f.functionName+':'+f.url.split('/').pop()+':'+f.lineNumber))); });
   await send('Page.enable');
   await send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__SCHEMA__=' + JSON.stringify(schema) + ';(' + installMock + ')();' });
-  await send('Emulation.setDeviceMetricsOverride', { width: 1100, height: 760, deviceScaleFactor: 1, mobile: false });
+  const size = (width, height) => send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+  await size(1100, 760);
   const cspClean = async () => {
     const violations = await evaluate(`window.fx?.csp||[]`);
     assert.deepEqual(violations.slice(0, 5), [], 'CSP violations (' + violations.length + ')');
   };
   const open = async mode => {
     await cspClean();
+    assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));
     await send('Page.navigate', { url: 'about:blank' });
     await new Promise(done => setTimeout(done, 50));
     await send('Page.navigate', { url: server.url + 'index.html#' + mode });
     await waitFor(`document.readyState==='complete'&&window.setupWizard&&modInventory!==null`, 'page loaded (' + mode + ')');
-    errors.length = 0;
   };
-  const click = async text => { assert(await evaluate(`Boolean(button(${JSON.stringify(text)}))`), 'button "' + text + '" is visible\n  ' + await context()); await evaluate(`button(${JSON.stringify(text)}).click()`); };
-  // XZ_WIZARD_SHOTS=<dir> saves a screenshot at each named point for a visual review.
+  const click = async (text, root = 'document') => { assert(await evaluate(`Boolean(button(${JSON.stringify(text)},${root}))`), 'button "' + text + '" is visible\n  ' + await context()); await evaluate(`button(${JSON.stringify(text)},${root}).click()`); };
+  const idle = () => waitFor(`activeJob===null`, 'no job running');
+  const view = async (name, step) => waitFor(`setupWizard.state.view===${JSON.stringify(name)}&&${step ? `setupWizard.state.step===${JSON.stringify(step)}` : 'true'}&&activeJob===null`, 'view ' + name + (step ? ' / ' + step : ''));
   const shots = process.env.XZ_WIZARD_SHOTS; if (shots) await mkdir(shots, { recursive: true });
-  const shot = async name => { if (!shots) return; await new Promise(done => setTimeout(done, 120)); const image = await send('Page.captureScreenshot', { format: 'png' }); await writeFile(join(shots, name + '.png'), Buffer.from(image.data, 'base64')); };
-  const wide = async name => {
-    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-    await shot(name);
-    await send('Emulation.setDeviceMetricsOverride', { width: 1100, height: 760, deviceScaleFactor: 1, mobile: false });
+  const shot = async name => {
+    if (!shots) return;
+    for (const [width, height] of [[1100, 760], [1440, 900]]) {
+      await size(width, height);
+      await new Promise(done => setTimeout(done, 150));
+      const image = await send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(join(shots, name + '-' + width + '.png'), Buffer.from(image.data, 'base64'));
+    }
+    await size(1100, 760);
   };
-  const step = async (name) => waitFor(`setupWizard.state.step===${JSON.stringify(name)}&&activeJob===null`, 'step ' + name);
+  const fits = `document.documentElement.scrollWidth<=innerWidth`;
 
   await open('fresh');
-  await check(`document.querySelector('nav button.selected').dataset.page==='setup'&&txt('#page-title')==='Set up USB'`, 'wizard is the first page');
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,dj-profile,stems,library-repair,device-updates,advanced,updates,licenses'&&!document.getElementById('games')`, 'nav: no Games page; DJ Profile right after Set up USB');
-  await check(`[...document.querySelectorAll('.wz-step')].map(b=>b.textContent.replace(/^\\d/,'')).join()==='USB,Loadout,DJ Profile,Write,Done'&&document.querySelector('.wz-step[data-state=current]').textContent.includes('USB')`, 'five steps: no NonEssentials or Settings step, USB current');
-  await click('Find my USB');
-  await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
-  await check(`txt('.wz-usb').includes('KINGSTON')&&txt('.wz-usb').includes('No loader yet')`, 'USB card says no loader yet');
-  await shot('00-usb');
-  await evaluate(`document.querySelector('.wz-usb').click()`);
-  await step('loadout');
-  await check(`txt('.wz-pane h2')==='What is on this USB'&&document.querySelector('.tree[data-mode=edit]')`, 'choosing the USB opens the loadout tree');
-  await check(`row('loader').dataset.state==='missing'&&box('loader').checked&&badge('loader')==='Will add'&&row('loader').dataset.plan==='1'`, 'fresh: loader not on USB, ticked, Will add');
-  await check(`rowTxt('drive').includes('KINGSTON')&&rowTxt('drive').includes('FAT32')&&rowTxt('drive').includes('29.1 GB free of 32 GB')`, 'drive row shows label, filesystem and free space');
-  await check(`rowTxt('rekordbox').includes('Never touched')&&!box('rekordbox')&&!row('rekordbox').querySelector('button')`, 'Rekordbox row reads never touched, with no control');
-  await check(`rowTxt('stems').includes('None yet')&&badge('stems')==='Not on USB'&&button('Prepare stems',row('stems'))`, 'stems row: none yet, one link to Prepare stems');
-  await check(`rowTxt('loader').includes('Fixture build')&&document.querySelector('.tree-aside .wz-build-option[data-value=newest]').dataset.checked==='1'&&txt('.tree-aside .wz-build-option[data-value=newest]').includes('Came with this app')&&!document.querySelector('.tree-aside .wz-build-option[data-value=other]')&&txt('.wz-build-pin').includes('Keep this build on the USB')`, 'the build is chosen in the loader row: Newest selected, no Another build when there is none, the keep-on-USB box beside it');
-  await check(`!button('Change')&&!txt('#wiz').includes('Advanced tools')`, 'choosing the build never sends the DJ to Advanced tools');
-  await check(`['doom','chex','freedoom'].every(id=>row('game-'+id)&&!box('game-'+id)&&badge('game-'+id)==='Will add')&&!row('game-myhouse')&&!txt('#wiz').includes('My House')`, 'fresh USB: every working free game is planned by default; My House is gone even when the backend lists it');
-  await check(`button('Choose games',row('games'))&&!button('Edit settings')`, 'Games folder links to Choose games; there is no settings editor');
-  await check(`document.querySelector('.tree').scrollWidth<=document.querySelector('.tree').clientWidth&&document.documentElement.scrollWidth<=innerWidth`, 'tree fits without horizontal scroll');
-  await check(`['drive','loader','settings','game-doom'].every(id=>getComputedStyle(row(id)).gridTemplateColumns.split(' ').length===5)&&getComputedStyle(row('game-doom')).gridTemplateColumns.startsWith('44px')`, 'tree rows lay out as five grid tracks with the depth indent (CSP keeps the --depth style)');
-  await check(`txt('.tree-legend').includes('Up to date')&&txt('.tree-legend').includes('Will be written')`, 'legend explains the dots');
-  await shot('01-loadout');
-  await wide('01b-loadout-wide');
-  await click('Choose games');
-  await step('write');
-  await check(`document.querySelector('.wz-custom').open&&txt('.wz-custom-title')==='Custom installation'&&txt('.wz-custom-summary')==='3 free games will be added'`, 'Choose games opens the Write step with Custom installation expanded and a one-line summary');
-  await check(`txt('.wz-custom .games-builtin-line')==='Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer are built into the loader and always come with it.'&&!document.querySelector('.wz-custom .games-group[data-kind=builtin]')`, 'built-in games without games_menu: one line, no rows that cannot be ticked');
-  await check(`(()=>{const rows=[...document.querySelectorAll('.wz-custom .games-group[data-kind=download] .games-row')];return rows.map(r=>r.dataset.id).join()==='doom,chex,freedoom'&&rows.every(r=>r.querySelector('.tree-check input').checked)&&txt('.wz-custom .games-row[data-id=doom]').includes('Add · 2.3 MB');})()`, 'Custom installation: the three working downloads, all ticked, with sizes');
-  await evaluate(`gameBox('chex').click()`);
-  await check(`setupWizard.newGames().join()==='doom,freedoom'&&!row('game-chex').dataset.plan&&row('game-chex').dataset.dim==='1'&&txt('.wz-custom-summary')==='2 free games will be added'&&document.querySelector('.wz-custom').open`, 'unticking Chex Quest takes it off the plan; the summary follows and the panel stays open');
-  await check(`document.querySelector('.wz-custom .games').scrollWidth<=document.querySelector('.wz-custom .games').clientWidth&&document.documentElement.scrollWidth<=innerWidth`, 'custom installation fits without horizontal scroll');
-  await shot('02-write-custom');
-  await wide('02b-write-custom-wide');
-  await click('Back');
-  await step('profile');
-  await click('Back');
-  await step('loadout');
-  await check(`!row('game-chex').dataset.plan&&row('game-doom').dataset.plan==='1'&&badge('game-doom')==='Will add'&&!box('game-doom')`, 'loadout tree follows the custom choice');
-  await evaluate(`box('loader').click()`);
-  await check(`setupWizard.loaderChoice()==='keep'&&!row('loader').dataset.plan&&!box('loader').checked&&badge('loader')==='Not on USB'`, 'unticking the loader keeps it off the plan');
-  await evaluate(`box('loader').click()`);
-  await check(`setupWizard.loaderChoice()==='add'&&badge('loader')==='Will add'`, 'ticking it again plans the add');
-  await click('Next');
-  await step('profile');
-  await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ Profile step editor');
-  await check(`txt('.wz-pane h2')==='Your DJ profile'&&Boolean(button('Skip for now'))&&fx.requests.filter(r=>r.method==='read_dj_profiles'&&r.volume==='E:\\\\').length===1&&document.querySelector('.djp-swatch[data-hex="#f870f8"]').getAttribute('aria-pressed')==='true'`, 'DJ Profile step: reads the USB once, opens the editor in its rekordbox colour, Skip for now');
-  await shot('01c-profile-step');
-  await wide('01d-profile-step-wide');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools'&&[...document.querySelectorAll('nav button')].map(b=>b.textContent.trim()).join()==='USB,Stems,XZ Screen,Tools'&&document.querySelectorAll('nav button svg.icon use').length===4`, 'nav is USB, Stems, XZ Screen, Tools, each with an icon');
+  await check(`document.querySelector('nav button.selected').dataset.page==='setup'&&txt('#page-title')==='USB'&&!document.querySelector('header .eyebrow')&&getComputedStyle(document.getElementById('page-title')).fontSize==='20px'`, 'USB is the home page under a compact one-line header');
+  await view('device');
+  await check(`fx.requests.slice(0,3).map(r=>r.method).join()==='list_mod_versions,discover_usbs,inspect_usb'&&fx.calls.includes('list_volumes')&&!document.getElementById('job-panel').checkVisibility()`, 'a single USB opens by itself: no Find button, no job panel flash');
+  await check(`txt('.wz-drive h2')==='KINGSTON'&&txt('.wz-drive .wz-mono')==='E:\\\\'&&txt('.wz-drive-meta')==='FAT32 · 29.1 GB free of 32 GB'&&Boolean(button('Change USB'))`, 'device header: label, volume, filesystem and free space, Change USB');
+  await check(`document.querySelector('.wz-status').dataset.tone==='add'&&txt('.wz-status h3')==='XZ Mods is not on this USB yet'&&txt('.wz-status p')==='Adds the loader, free games and your DJ profile. Music and playlists stay as they are.'&&document.querySelectorAll('#wiz button.primary').length===1&&Boolean(button('Install XZ Mods'))`, 'fresh USB: one status and one primary button, Install XZ Mods');
+  await check(`txt('.wz-tile[data-tile=profile] .wz-tile-value')==='Not set'&&txt('.wz-tile[data-tile=profile] .wz-tile-action')==='Add'&&txt('.wz-tile[data-tile=games] .wz-tile-value')==='None'&&txt('.wz-tile[data-tile=stems] .wz-tile-value')==='None yet'&&txt('.wz-tile[data-tile=stems] .wz-tile-action')==='Prepare'`, 'tiles: DJ profile not set, no games, no stems yet');
+  await check(`txt('.wz-build-line')==='Build: Fixture build · Change'&&!document.querySelector('#wiz input[type=checkbox],#wiz input[type=radio],#wiz select')&&!document.querySelector('.wz-files').open`, 'one quiet build line; no tick boxes, radios or build chooser on the main path; files folded away');
+  await shot('02-device-fresh');
+  await evaluate(`document.querySelector('.wz-files summary').click()`);
+  await check(`document.querySelector('.wz-files .tree')&&!document.querySelector('.wz-files .tree input')&&document.querySelector('.tree-row[data-id=loader]').dataset.state==='missing'&&!document.querySelector('.tree-row[data-id=game-myhouse]')&&!txt('#wiz').includes('My House')`, 'Show every file opens the read-only tree, without My House');
+  await check(`(()=>{const rows=['drive','loader','settings','game-doom'].map(id=>document.querySelector('.tree-row[data-id="'+id+'"]'));return rows.every(r=>getComputedStyle(r).gridTemplateColumns.split(' ').length===4)&&getComputedStyle(rows[3]).gridTemplateColumns.startsWith('44px');})()`, 'tree rows keep the depth indent under the CSP (CSSOM --depth)');
+  await check(fits, 'device view fits without horizontal scroll');
+  await evaluate(`document.querySelector('.wz-files summary').click()`);
+
+  await click('Install XZ Mods');
+  await view('flow', 'profile');
+  await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ profile editor in the flow');
+  await check(`txt('.wz-flow-title h2')==='Install XZ Mods'&&txt('.wz-flow-count')==='Step 1 of 4'&&document.querySelectorAll('.wz-dots li').length===4&&document.querySelector('.wz-dots li[data-state=current]')===document.querySelector('.wz-dots li')&&Boolean(button('Cancel'))`, 'install flow: compact header, Step 1 of 4 with dots, Cancel');
+  await check(`Boolean(button('Skip for now'))&&button('Skip for now').classList.contains('secondary')&&Boolean(button('Back'))&&fx.requests.filter(r=>r.method==='read_dj_profiles').length===1`, 'a USB without a profile starts on the DJ profile step: Skip for now, Back');
+  await shot('05-flow-profile');
   await click('Skip for now');
-  await step('write');
-  await check(`(()=>{const planned=[...document.querySelectorAll('.tree-row[data-plan="1"]')].map(r=>r.dataset.id).sort().join();const rest=[...document.querySelectorAll('.tree-row:not([data-plan])')];return planned==='game-doom,game-freedoom,loader,settings'&&rest.length>0&&rest.every(r=>r.dataset.dim==='1');})()`, 'write tree highlights loader, settings defaults and the two games; everything else is dimmed');
-  await check(`!document.querySelector('.tree input')&&badge('loader')==='Will add'&&badge('settings')==='Will add'&&txt('.wz-lead').includes('never touched')`, 'write tree has no controls and says what is never touched');
+  await view('flow', 'review');
+  await check(`plan().join('|')==='Add the XZ Mods loader (Fixture build)|Add 3 free games: Doom shareware, Chex Quest and Freedoom Phase 2|Create the settings file'&&txt('.wz-safe')==='Music, playlists and prepared stems are never touched.'&&txt('.wz-flow-count')==='Step 2 of 4'`, 'review: a plain checklist of what will happen, then the reassurance line');
+  await check(`!document.querySelector('.wz-games-change .games')&&Boolean(button('Change games'))&&!button('Write to USB').disabled`, 'games stay folded behind Change games');
+  await shot('06-flow-review');
+  await click('Change games');
+  await check(`(()=>{const rows=[...document.querySelectorAll('.wz-games-change .games-group[data-kind=download] .games-row')];return rows.map(r=>r.dataset.id).join()==='doom,chex,freedoom'&&rows.every(r=>r.querySelector('.tree-check input').checked);})()&&txt('.wz-games-change .games-builtin-line').startsWith('Beat Arcade, Wave Rider')`, 'Change games opens the chooser in place: three downloads ticked, built-ins in one line');
+  await evaluate(`gameBox('chex').click()`);
+  await check(`setupWizard.newGames().join()==='doom,freedoom'&&plan()[1]==='Add 2 free games: Doom shareware and Freedoom Phase 2'&&Boolean(document.querySelector('.wz-games-change .games'))`, 'unticking Chex Quest updates the checklist and keeps the chooser open');
+  await check(fits, 'review with the games chooser fits without horizontal scroll');
+  await shot('06b-flow-review-games');
+  await evaluate(`fx.hold=true;window.__mark=fx.requests.length`);
   await click('Write to USB');
-  await step('done');
-  await check(`fx.written[0].method==='prepare_usb'&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'&&!fx.saved`, 'prepare_usb carries the chosen games; no separate settings write');
-  await check(`txt('.wz-pane h2')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')`, 'done step reports loader and games');
-  await check(`document.querySelector('.tree[data-mode=result]')&&row('game-doom').dataset.state==='present'&&row('game-chex').dataset.state==='missing'&&row('loader').dataset.state==='current'&&!document.querySelector('.tree [data-plan]')`, 'done tree shows Doom on the USB, Chex left out, the loader up to date');
-  await check(`txt('.wz-next').includes('REKORDBOX')`, 'done step tells the DJ how to open MODS on the XZ');
+  await waitFor(`setupWizard.state.step==='writing'&&fx.requests.at(-1)?.method==='prepare_usb'&&document.getElementById('job-panel').checkVisibility()`, 'writing step with the job panel');
+  await check(`document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&txt('#job-title')==='Adding the XZ Mods loader'&&!button('Write to USB')&&!document.querySelector('.wz-cancel')&&txt('.wz-flow-count')==='Step 3 of 4'`, 'writing: the job panel shows inside the flow; no Write or Cancel to press twice');
+  await shot('07-flow-writing');
+  await evaluate(`fx.hold=false`);
+  await view('flow', 'done');
+  await check(`since(window.__mark)==='inspect_mod_settings,prepare_usb,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='prepare_usb'&&fx.written[0].volume==='E:\\\\'&&fx.written[0].experimental===true&&fx.written[0].mod_version_id==='v1'&&fx.written[0].pin_mod_version===true&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'&&!fx.saved`, 'Write issues the same requests as before: settings check, prepare_usb with the chosen games, then a fresh inspection');
+  await check(`txt('.wz-done-hero h3')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')&&txt('.wz-next').includes('REKORDBOX')&&Boolean(button('Done'))&&!document.getElementById('job-panel').checkVisibility()`, 'done: success mark, result lines, the On the XZ steps, Done');
+  await shot('08-flow-done');
+  await click('Done');
+  await view('device');
+  await check(`document.querySelector('.wz-status').dataset.tone==='keep'&&txt('.wz-status h3')==='Up to date'&&txt('.wz-status p')==='Fixture build is on this USB.'&&!document.querySelector('#wiz button.primary')&&txt('.wz-tile[data-tile=games] .wz-tile-value')==='2 games on USB'`, 'Done returns to the re-inspected USB: up to date, no write button, two games');
 
-  await open('loader');
-  await click('Find my USB');
-  await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
-  await check(`txt('.wz-usb').includes('XZ Mods loader')&&txt('.wz-usb').includes('1 game on USB')`, 'card shows loader and game count');
-  await evaluate(`document.querySelector('.wz-usb').click()`);
-  await step('loadout');
-  await check(`row('loader').dataset.state==='outdated'&&box('loader').checked&&badge('loader')==='Will update · 8 changes'&&rowTxt('loader').includes('Old build')`, 'older loader: Update available, ticked, Will update');
-  await check(`!box('game-chex')&&badge('game-chex')==='On USB'&&badge('game-doom')==='Not on USB'&&!row('game-doom').dataset.plan`, 'a USB that has the loader adds no games by default');
-  await check(`rowTxt('stems').includes('12 tracks')&&rowTxt('stems').includes('700 MB')`, 'stems row counts prepared tracks');
-  await check(`txt('.tree-aside .mu h4')==='What changes on your XZ'&&txt('.tree-aside .mu-head small')==='Old build → Fixture build'`, 'update preview under the loader row names both versions');
-  await check(`[...document.querySelectorAll('.tree-aside .mu-group h5')].map(h=>h.textContent).join()==='New,Improved,Fixed'&&muItems()===6&&button('Show all 8 changes')`, 'preview groups New, Improved, Fixed, shows six, offers Show all 8');
-  await check(`document.querySelector('.tree').scrollWidth<=document.querySelector('.tree').clientWidth&&document.documentElement.scrollWidth<=innerWidth`, 'tree with the preview fits without horizontal scroll');
-  await shot('06-loadout-update-changelog');
-  await click('Show all 8 changes');
-  await check(`muItems()===8&&!button('Show all 8 changes')`, 'Show all expands the preview in place');
-  await shot('07-changelog-expanded');
-  await click('Next'); await step('profile'); await click('Skip for now'); await step('write');
-  await check(`badge('loader')==='Will update · 8 changes'&&!document.querySelector('.tree .mu')&&!document.querySelector('.wz-custom').open&&txt('.wz-custom-summary')==='No games will be added · 1 game on the USB kept'`, 'write step: loader badge counts the changes; Custom installation starts closed with its summary');
-  await shot('10-write');
-  await evaluate(`setupWizard.goto('loadout')`);
-  await step('loadout');
-  await evaluate(`box('loader').click()`);
-  await check(`setupWizard.loaderChoice()==='keep'&&badge('loader')==='Update available'&&muItems()===8`, 'unticking keeps the loader; the expanded preview survives the re-render');
-  await click('Next'); await step('profile'); await click('Skip for now'); await step('write');
-  await evaluate(`document.querySelector('.wz-custom summary').click()`);
-  await check(`document.querySelector('.wz-custom').open&&!gameBox('chex')&&txt('.wz-custom .games-row[data-id=chex] .tree-badge')==='On USB'`, 'opening Custom installation: the installed game reads On USB with no box');
-  await click('Add all free games');
-  await check(`setupWizard.newGames().join()==='doom,freedoom'&&[...document.querySelectorAll('.tree-row[data-plan="1"]')].map(r=>r.dataset.id).join()==='game-doom,game-freedoom'&&row('loader').dataset.dim==='1'&&row('settings').dataset.dim==='1'`, 'Add all plans the two missing games; loader and settings stay dimmed');
-  await click('Write to USB');
-  await step('done');
-  await check(`fx.written.length===1&&fx.written[0].method==='prepare_games_usb'&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'`, 'keeping the loader writes only the games');
+  await click('Change USB');
+  await view('find');
+  await new Promise(done => setTimeout(done, 2600));
+  await check(`setupWizard.state.view==='find'&&document.querySelectorAll('#wiz .wz-usb').length===1&&txt('.wz-find h2')==='Your XZ USB'&&txt('#wiz .wz-usb').includes('KINGSTON')&&txt('#wiz .wz-usb').includes('XZ Mods installed')`, 'Change USB goes back to the list and does not reopen the same USB by itself');
+  await evaluate(`document.querySelector('#wiz .wz-usb').click()`);
+  await view('device');
+  await check(`txt('.wz-drive h2')==='KINGSTON'`, 'picking the card opens it again');
 
-  await open('loader');
-  await click('Find my USB');
-  await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
-  await evaluate(`document.querySelector('.wz-usb').click()`);
-  await step('loadout');
-  await evaluate(`box('loader').click()`);
-  await click('Next'); await step('profile'); await click('Skip for now'); await step('write');
-  await check(`button('Write to USB').disabled&&txt('.wz-pane').includes('Nothing to write')`, 'Write is disabled when nothing changes');
-
-  // No USB found and no saved mod version both end in one clear next action.
   await open('nousb');
-  await click('Find my USB');
-  await waitFor(`txt('.wz-pane').includes('No USB drive was found')`, 'no-USB notice');
-  await check(`button('Look again')&&button('Choose a folder instead')`, 'no USB: Look again and folder fallback');
+  await waitFor(`setupWizard.state.usbs!==null&&activeJob===null&&!setupWizard.state.finding`, 'first look finished');
+  await check(`setupWizard.state.view==='find'&&document.querySelector('.wz-empty .wz-art svg')&&txt('.wz-find h2')==='Plug in your XZ USB'&&txt('.wz-find .wz-lead')==='XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'`, 'no USB: illustration, Plug in your XZ USB, one plain line');
+  await check(`!document.querySelector('#wiz button.primary')&&!button('Find my USB')&&Boolean(button('Look again'))&&Boolean(button('Choose a folder instead'))&&button('Look again').classList.contains('text-button')`, 'no USB: no primary Find button, only quiet Look again and Choose a folder instead');
+  await shot('00-find-empty');
+  await evaluate(`window.__mark=fx.requests.length;fx.plugged=true`);
+  await view('device');
+  await check(`since(window.__mark)==='discover_usbs,inspect_usb'&&txt('.wz-drive h2')==='KINGSTON'`, 'plugging in the USB opens it within a poll: list_volumes changed, one discover, one inspection');
+
+  await open('multi');
+  await waitFor(`document.querySelectorAll('#wiz .wz-usb').length===2&&activeJob===null`, 'two USB cards');
+  await check(`setupWizard.state.view==='find'&&txt('.wz-find h2')==='Choose your XZ USB'&&txt('#wiz .wz-usb:nth-child(2)').includes('No XZ Mods yet')&&!txt('#wiz .wz-usb').includes('game')`, 'several USBs: cards to pick from, with simple chips');
+  await shot('01-find-several');
+  await evaluate(`document.querySelectorAll('#wiz .wz-usb')[1].click()`);
+  await view('device');
+  await check(`txt('.wz-drive h2')==='SANDISK'&&fx.requests.at(-1).volume==='F:\\\\'`, 'choosing a card opens that USB');
+
+  await open('loader');
+  await view('device');
+  await check(`document.querySelector('.wz-status').dataset.tone==='update'&&txt('.wz-status h3')==='Update available'&&txt('.wz-status p').startsWith('This USB has Old build.')&&Boolean(button('Update USB'))&&!document.querySelector('.wz-changes').open&&txt('.wz-changes summary')==='What changes on your XZ8 changes'`, 'older loader: Update available with the change list folded to its summary');
+  await check(`txt('.wz-tile[data-tile=games] .wz-tile-value')==='1 game on USB'&&txt('.wz-tile[data-tile=stems] .wz-tile-value')==='12 tracks prepared'`, 'tiles count the game and the prepared tracks');
+  await evaluate(`document.querySelector('.wz-changes summary').click()`);
+  await check(`[...document.querySelectorAll('.wz-changes .mu-group h5')].map(h=>h.textContent).join()==='New,Improved,Fixed'&&document.querySelectorAll('.wz-changes .mu-item').length===6&&Boolean(button('Show all 8 changes'))&&txt('.wz-changes .mu-head small')==='Old build → Fixture build'`, 'the change list groups New, Improved, Fixed and names both builds');
+  await click('Show all 8 changes');
+  await check(`document.querySelectorAll('.wz-changes .mu-item').length===8&&document.querySelector('.wz-changes').open`, 'Show all expands in place and the list stays open');
+  await check(fits, 'update view fits without horizontal scroll');
+  await shot('03-device-update');
+  await click('Update USB');
+  await view('flow', 'review');
+  await check(`txt('.wz-flow-title h2')==='Update USB'&&txt('.wz-flow-count')==='Step 1 of 3'&&plan().join('|')==='Back up and update the loader'&&txt('.wz-plan small')==='Old build → Fixture build'`, 'update flow: no profile step; the review says it backs up and updates the loader');
+  await evaluate(`window.__mark=fx.requests.length`);
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`since(window.__mark)==='inspect_mod_settings,update_usb,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='update_usb'&&JSON.stringify(fx.written[0].expected_identity)==='{"serial":1}'&&fx.written[0].expected_loader.sha256==='abc'&&JSON.stringify(fx.written[0].games)==='[]'`, 'update writes update_usb with the inspected identity and loader, and adds no games');
+  await check(`txt('.wz-done').includes('Loader updated. The previous loader is backed up on the USB.')`, 'done says the old loader is backed up');
+
+  await open('loader');
+  await view('device');
+  await evaluate(`tile('games').click()`);
+  await view('flow', 'review');
+  await check(`txt('.wz-flow-title h2')==='Add games'&&Boolean(document.querySelector('.wz-games-change .games'))&&!gameBox('chex')&&txt('.wz-games-change .games-row[data-id=chex] .tree-badge')==='On USB'&&button('Write to USB').disabled&&txt('.wz-flow-body .notice').startsWith('Nothing to write yet')`, 'Games tile: Add games opens on the review with the chooser; nothing to write until a game is ticked');
+  await click('Add all free games');
+  await check(`plan().join('|')==='Add 2 free games: Doom shareware and Freedoom Phase 2'&&!button('Write to USB').disabled`, 'Add all plans the two missing games and nothing else');
+  await evaluate(`window.__mark=fx.requests.length`);
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`since(window.__mark)==='prepare_games_usb,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='prepare_games_usb'&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'`, 'a games-only write copies only the games and leaves the loader alone');
+
+  await open('current');
+  await view('device');
+  await check(`document.querySelector('.wz-status').dataset.tone==='keep'&&txt('.wz-status h3')==='Up to date'&&!document.querySelector('#wiz button.primary')`, 'up to date: a green status and no write button');
+  await shot('04-device-current');
+  await evaluate(`tile('profile').click()`);
+  await view('flow', 'profile');
+  await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ profile editor');
+  await check(`txt('.wz-flow-title h2')==='Save DJ profile'&&txt('.wz-flow-count')==='Step 1 of 4'`, 'DJ profile tile: Save DJ profile flow, even though the loader is up to date');
+  await click('Cancel');
+  await view('device');
+  await check(`djProfilePage.pending()===null&&document.querySelector('.wz-status').dataset.tone==='keep'`, 'Cancel goes back to the USB and drops the draft');
+  await evaluate(`tile('profile').click()`);
+  await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ profile editor again');
+  await evaluate(`const f=document.querySelector('#wz-djp-slot #djp-name');f.value='DJ Test';f.dispatchEvent(new Event('input',{bubbles:true}))`);
+  await check(`Boolean(button('Next'))&&button('Next').classList.contains('primary')&&!button('Skip for now')`, 'a name turns Skip for now into Next');
+  await click('Next');
+  await view('flow', 'review');
+  await check(`plan().join('|')==='Save DJ profile DJ Test'`, 'the review lists only the profile');
+  await evaluate(`window.__mark=fx.requests.length`);
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`since(window.__mark)==='save_dj_profile,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='save_dj_profile'&&fx.written[0].profile.dj_name==='DJ Test'&&fx.written[0].volume==='E:\\\\'`, 'a DJ-profile-only write saves the profile and nothing else');
+  await check(`txt('.wz-done').includes('DJ profile DJ Test saved to the USB.')&&!document.querySelector('.wz-next')&&Boolean(button('Make the profile track'))`, 'done lists the profile; the loader steps only show after a loader write');
+  await click('Done');
+  await view('device');
+  await check(`txt('.wz-tile[data-tile=profile] .wz-tile-value')==='DJ Test'&&txt('.wz-tile[data-tile=profile] .wz-tile-action')==='Edit'`, 'the DJ profile tile shows the saved name');
+
   await open('noversion');
-  await click('Find my USB');
-  await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
-  await evaluate(`document.querySelector('.wz-usb').click()`);
-  await step('loadout');
-  await check(`box('loader').disabled&&!row('loader').dataset.plan&&button('Use the newest build')&&button('Next').disabled`, 'missing saved build: loader box disabled, nothing planned, one button, Next held');
-  await shot('12-loadout-noversion');
+  await view('device');
+  await check(`document.querySelector('.wz-status').dataset.tone==='setup'&&txt('.wz-status p')==='Choose which XZ Mods build goes on this USB.'&&document.querySelectorAll('#wiz button.primary').length===1&&Boolean(button('Use the newest build'))`, 'no saved build: one button sets it up');
+  await shot('10-device-noversion');
   await click('Use the newest build');
-  await check(`fx.selections.at(-1).mod_version_id==='v1'&&fx.selections.at(-1).pinned===true&&!box('loader').disabled&&badge('loader').startsWith('Will')`, 'Use the newest build saves it in place and plans the loader');
-
-  const chooseFirstUsb = async () => {
-    await click('Find my USB');
-    await waitFor(`document.querySelector('.wz-usb')`, 'USB card appears');
-    await evaluate(`document.querySelector('.wz-usb').click()`);
-    await step('loadout');
-  };
-  await open('unknown');
-  await chooseFirstUsb();
-  await check(`row('loader').dataset.state==='unknown'&&txt('.tree-aside .mu-head small')==='Unknown version → Fixture build'&&txt('.mu-note').includes('is not known')&&txt('.mu-note').includes('Here is what Fixture build brings')`, 'unknown loader version: the preview says so');
-  await check(`muItems()===6&&button('Show all 9 changes')`, 'unknown loader version: lists every change in the target build');
-  await shot('08-unknown-version');
-
-  await open('downgrade');
-  await chooseFirstUsb();
-  await check(`txt('.tree-aside .mu-head small')==='New build → Fixture build'&&txt('.mu-group[data-group=removed] h5')==='Not in Fixture build'&&document.querySelectorAll('.mu-group[data-group=removed] .mu-item').length===8&&document.querySelectorAll('.mu-group').length===1`, 'downgrade: Not in Fixture build lists the eight changes the DJ loses');
-  await shot('09-downgrade');
+  await waitFor(`fx.selections.length===1&&activeJob===null&&document.querySelector('.wz-status').dataset.tone==='add'`, 'build saved');
+  await check(`fx.selections[0].mod_version_id==='v1'&&fx.selections[0].pinned===true&&Boolean(button('Install XZ Mods'))`, 'Use the newest build saves it in place and offers Install XZ Mods');
 
   await open('builds');
-  await chooseFirstUsb();
+  await view('device');
   await waitFor(`fx.selections.length===1&&activeJob===null&&document.querySelector('.wz-build-note')`, 'older included build follows the newest');
-  await check(`fx.selections[0].mod_version_id==='v1'&&fx.selections[0].pinned===true&&txt('.wz-build-note')==='Switched to the newest build, which came with this app.'&&document.querySelector('.wz-build-option[data-value=newest]').dataset.checked==='1'`, 'a saved older included build follows the newest build that came with the app');
-  await check(`[...document.querySelectorAll('.wz-build select option')].map(o=>o.value).join()==='old,rel'&&[...document.querySelectorAll('.wz-build select option')].map(o=>o.textContent).join('|')==='Development build 98cc63d1 · Oct 8|0.2.1 released · Oct 8'`, 'Another build lists the rest newest first, one entry per runtime, with readable names and dates');
-  await evaluate(`(()=>{const select=document.querySelector('.wz-build select');select.value='rel';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await waitFor(`fx.selections.length===2&&activeJob===null`, 'another build saved');
-  await check(`fx.selections[1].mod_version_id==='rel'&&document.querySelector('.wz-build-option[data-value=other]').dataset.checked==='1'&&txt('.wz-build-option[data-value=other] small')==='0.2.1 released · Oct 8'&&box('loader').checked&&row('loader').dataset.plan==='1'`, 'picking another build saves it at once and plans the loader with it');
-  await shot('13-build-chooser');
-  await evaluate(`document.querySelector('.wz-build-pin input').click()`);
-  await waitFor(`fx.selections.length===3&&activeJob===null`, 'pin saved');
-  await check(`fx.selections[2].mod_version_id==='rel'&&fx.selections[2].pinned===false&&!document.querySelector('.wz-build-pin input').checked`, 'the keep-on-USB box saves the pin for the same build');
-  await evaluate(`document.querySelector('.wz-build-option[data-value=newest] input').click()`);
-  await waitFor(`fx.selections.length===4&&activeJob===null`, 'newest saved');
-  await check(`fx.selections[3].mod_version_id==='v1'&&document.querySelector('.wz-build-option[data-value=newest]').dataset.checked==='1'`, 'Newest is one click back');
+  await check(`fx.selections[0].mod_version_id==='v1'&&txt('.wz-build-note')==='Switched to the newest build, which came with this app.'&&txt('.wz-build-name')==='Development build newsha12'`, 'a saved older included build follows the newest build, said in the build line');
+  await click('Change');
+  await check(`txt('#page-title')==='XZ Mods version'&&document.querySelector('nav button.selected').dataset.page==='tools'&&document.getElementById('back-to-tools').checkVisibility()`, 'Change in the build line opens Tools › XZ Mods version');
 
+  await open('unknown');
+  await view('device');
+  await check(`txt('.wz-status p').startsWith('The XZ Mods version on this USB is not known.')&&txt('.wz-changes summary small')==='9 changes'`, 'unknown loader version: said plainly, every change in the target build listed');
+  await evaluate(`document.querySelector('.wz-changes summary').click()`);
+  await check(`txt('.wz-changes .mu-note').includes('is not known')`, 'the change list explains the unknown version');
+  await open('downgrade');
+  await view('device');
+  await evaluate(`document.querySelector('.wz-changes summary').click()`);
+  await check(`txt('.mu-group[data-group=removed] h5')==='Not in Fixture build'&&document.querySelectorAll('.mu-group[data-group=removed] .mu-item').length===8`, 'downgrade: Not in Fixture build lists the changes the DJ loses');
   await open('nonotes');
-  await chooseFirstUsb();
-  await check(`txt('.tree-aside .mu-quiet')==='Notes for Fixture build are not available yet.'&&!document.querySelector('.mu')`, 'target build without notes: one quiet line');
+  await view('device');
+  await check(`txt('.wz-status .mu-quiet')==='Notes for Fixture build are not available yet.'&&!document.querySelector('.wz-changes')`, 'target build without notes: one quiet line');
 
   await open('gamesmenu');
-  await chooseFirstUsb();
-  await click('Choose games');
-  await step('write');
-  await check(`[...document.querySelectorAll('.wz-custom .games-group[data-kind=builtin] .games-switch input')].map(input=>input.closest('.games-row').dataset.id).join()==='beat-arcade,wave-rider,rhythm-lab,static-surfer'&&txt('.wz-custom .games-group[data-kind=builtin] .games-note')==='Built into the loader.'&&gameSwitch('beat-arcade').checked&&!document.querySelector('.wz-custom .games-builtin-line')`, 'games_menu in the schema: built-in games become rows with a Show in GAMES menu switch');
-  await check(`gameSwitch('doom')?.checked&&gameSwitch('doom').dataset.bit==='4'`, 'a download headed for the USB gets its menu switch too');
+  await view('device');
+  await evaluate(`tile('games').click()`);
+  await view('flow', 'review');
+  await check(`txt('.wz-flow-title h2')==='Install XZ Mods'&&[...document.querySelectorAll('.wz-games-change .games-group[data-kind=builtin] .games-switch input')].map(i=>i.closest('.games-row').dataset.id).join()==='beat-arcade,wave-rider,rhythm-lab,static-surfer'`, 'Games on a fresh USB joins the install; games_menu in the schema gives built-ins a menu switch');
   await evaluate(`gameSwitch('beat-arcade').click()`);
-  await check(`setupWizard.state.settings.games_menu===62&&setupWizard.settingsChanges().join()==='games_menu'&&!gameSwitch('beat-arcade').checked`, 'switching off Beat Arcade clears bit 0 and counts as a settings change');
-  await check(`badge('settings')==='Will change · 1'&&rowTxt('settings').includes('Games menu')`, 'write step: the settings row counts the games menu change');
-  await shot('03-custom-switches');
+  await check(`setupWizard.state.settings.games_menu===62&&setupWizard.settingsChanges().join()==='games_menu'&&plan().includes('Change which games show in the GAMES menu')`, 'switching off Beat Arcade is a settings change the review lists');
 
-  // Advanced tools keeps the old controls reachable, without My House.
+  await evaluate(`document.querySelector('nav button[data-page=tools]').click()`);
+  await check(`txt('#page-title')==='Tools'&&[...document.querySelectorAll('#tools .tool-row strong')].map(s=>s.textContent).join('|')==='DJ Profile|Repair library|Network updates|XZ Mods version|App updates|About'&&document.querySelectorAll('#tools .tool-row .tool-chevron').length===6&&!document.getElementById('back-to-tools').checkVisibility()`, 'Tools is one list of six rows with chevrons');
+  await shot('09-tools');
+  for (const [page, title] of [['dj-profile', 'DJ Profile'], ['library-repair', 'Repair library'], ['device-updates', 'Network updates'], ['advanced', 'XZ Mods version'], ['updates', 'App updates'], ['licenses', 'About']]) {
+    await evaluate(`document.querySelector('nav button[data-page=tools]').click();document.querySelector('.tool-row[data-open="${page}"]').click()`);
+    await check(`!document.getElementById('${page}').classList.contains('hidden')&&txt('#page-title')==='${title}'&&document.querySelector('nav button.selected').dataset.page==='tools'&&document.getElementById('back-to-tools').checkVisibility()`, 'Tools › ' + title + ' opens with a back link and Tools selected');
+  }
+  await evaluate(`document.getElementById('back-to-tools').click()`);
+  await check(`!document.getElementById('tools').classList.contains('hidden')&&txt('#page-title')==='Tools'`, 'the back link returns to Tools');
   await evaluate(`showPage('advanced')`);
-  await check(`txt('#page-title')==='Advanced tools'&&document.getElementById('mod-version')&&document.getElementById('setup-games-usb')&&document.getElementById('build')&&!document.getElementById('download-myhouse')&&!txt('#advanced').includes('My House')`, 'Advanced tools holds mod version, game downloads and the firmware-file build, and no My House');
-  assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));
+  await check(`document.getElementById('mod-version')&&document.getElementById('setup-games-usb')&&document.getElementById('build')&&document.getElementById('loader-backups')&&!document.getElementById('prepare-usb')&&!document.querySelector('#advanced .intro')&&txt('#advanced .game-downloads summary')==='Game downloads'&&!document.querySelector('#advanced .game-downloads').open&&!document.getElementById('download-myhouse')&&!txt('#advanced').includes('My House')`, 'XZ Mods version page: build panel, loader restore, firmware file, games in one folded section; no Prepare a new USB');
+  await shot('11-tools-version');
+
+  await open('mac');
+  await idle();
+  await evaluate(`showPage('updates')`);
+  await check(`!document.getElementById('check-app-update').checkVisibility()&&!document.getElementById('install-app-update').checkVisibility()&&Boolean(button('Open downloads page'))&&button('Open downloads page').classList.contains('primary')&&txt('#updates .mac-only p')==='Mac versions are downloaded from the release page.'&&!fx.calls.includes('check_app_update')`, 'Mac: App updates says where Mac versions come from, with one Open downloads page button and no update controls');
+  await shot('12-mac-updates');
+  await evaluate(`showPage('tools')`);
+  await check(`document.querySelector('.tool-row[data-open=updates] .mac-only').checkVisibility()&&txt('.tool-row[data-open=updates] .mac-only')==='Mac versions download from the release page'&&!document.querySelector('.tool-row[data-open=updates] .win-only').checkVisibility()`, 'Mac: the Tools row says the same in short');
+
   await cspClean();
+  assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));
+  passed++; console.log('ok', 'no CSP violations and no page errors');
   await check(`(()=>{const probe=document.createElement('div');probe.setAttribute('style','color:rgb(255, 0, 0)');document.body.append(probe);const blocked=getComputedStyle(probe).color!=='rgb(255, 0, 0)';probe.remove();return location.protocol==='http:'&&blocked;})()`, 'the page runs under the app CSP: a style attribute is blocked, as in the installed app');
   console.log('\n' + passed + ' checks passed');
 } finally {

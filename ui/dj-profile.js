@@ -3,8 +3,8 @@
 //   no-usb  -> loading -> list <-> editing -> saving -> list
 //                         list  -> track (where -> create -> rekordbox) -> list
 // The USB is the wizard's (setupWizard.state): choosing it on any page is enough.
-// The same state draws the Set up USB wizard's DJ Profile step. There the draft is not saved on its own: the
-// Write step saves it (pending / writePending), with the loader, games and settings.
+// The same state draws the DJ profile step of the USB page's write flow. There the draft is not saved on its own:
+// the write saves it (pending / writePending), with the loader, games and settings.
 (function(){
 const LIMITS={name:160,tagline:80,aliases:8,alias:80,links:12,url:2048,logos:8,logoBytes:8*1048576,totalBytes:24*1048576,noteBytes:8192};
 const LINK_KINDS=[['media-kit','EPK'],['files','Files'],['website','Website'],['instagram','Instagram'],['soundcloud','SoundCloud'],['mixcloud','Mixcloud'],['bandcamp','Bandcamp'],['link','Other']];
@@ -27,7 +27,7 @@ const urlHost=url=>{try{return new URL(url).host;}catch{return url;}};
 const savedProfiles=()=>(P.data?.profiles||[]).filter(profile=>profile.source!=='folder');
 const driveName=()=>setupWizard.driveLabel();
 const swatchName=hex=>STICK_SWATCHES.find(([value])=>value===String(hex||'').toLowerCase())?.[1]||null;
-const inWizard=()=>!$('setup').classList.contains('hidden')&&W.step==='profile';
+const inWizard=()=>!$('setup').classList.contains('hidden')&&W.view==='flow'&&W.step==='profile';
 const wizardSlot=()=>document.getElementById('wz-djp-slot');
 
 function set(patch){Object.assign(P,patch);render();}
@@ -152,6 +152,8 @@ async function writePending(origin){
 
 // --- actions ---
 
+// Cancelling the write flow drops its unsaved draft, so a later write cannot carry it.
+function discard(){if(P.phase==='editing')set({phase:'list',draft:null,error:null});}
 function edit(profile){const draft=draftFrom(profile);draft.start=draftKey(draft);set({phase:'editing',draft,error:null,saved:null});}
 async function save(){
   const d=P.draft;if(validate(d).save)return;
@@ -424,7 +426,7 @@ function stepStatus(){
   const want=pending();
   if(P.phase==='saving')return 'Saving…';
   if(!want)return P.draft.dj_id?'No changes yet.':'Add your DJ name to save a profile, or skip this step.';
-  return want.problem||(want.plan==='add'?'Saved to the USB in the Write step.':'Your changes are saved to the USB in the Write step.');
+  return want.problem||(want.plan==='add'?'Saved to the USB when you write.':'Your changes are saved to the USB when you write.');
 }
 // The wizard's DJ Profile step: the saved profile at a glance, or the editor when there is none yet.
 function viewStep(){
@@ -514,10 +516,10 @@ function render(){
   else{slot?.replaceChildren();pageHost.replaceChildren(VIEWS[P.phase]());}
   refreshEditor();
 }
+// Showing the USB page redraws it, and the redraw refills the step's slot that another page may have emptied.
 setupWizard.onRender(sync);
-// Coming back to Set up USB on the DJ Profile step: the slot was emptied while another page drew the editor.
-document.querySelector('nav button[data-page="setup"]').addEventListener('click',()=>{if(inWizard())sync();});
 window.__TAURI__?.webviewWindow?.getCurrentWebviewWindow().onDragDropEvent(onDragDrop).catch(()=>{});
-window.djProfilePage={state:P,show,render,load,validate,saveRequest,pending,writePending,addLogoPaths};
-render();
+window.djProfilePage={state:P,show,render,load,validate,saveRequest,pending,writePending,discard,addLogoPaths};
+// The USB page may have opened a USB before this script ran.
+sync();render();
 })();

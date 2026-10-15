@@ -18,10 +18,11 @@ Apple Silicon and Intel Macs running macOS 14 or later.
 - Display layered stem waveforms and prepare backed-up 3-band waveform colours.
 - Open Beat Arcade and the real-waveform Wave Rider game from the native Games
   menu. Normal boot stays on the DJ screen.
-- Download and prepare Doom shareware, Chex Quest and Freedoom data. Set up USB
-  includes them; leave any out under Custom installation in the Write step.
+- Download and prepare Doom shareware, Chex Quest and Freedoom data. Installing
+  XZ Mods on a USB includes them; leave any out with Change games before you write.
   Commercial IWADs must come from the user.
-- Install signed app updates through App updates.
+- On Windows, install signed app updates from Tools > App updates. Mac versions
+  are downloaded from the release page.
 
 Apple Silicon supports generation with the current models. Intel Macs support
 stem imports and the USB, settings, waveform and game tools. The Mac packages
@@ -75,7 +76,7 @@ OverCue v4 playback adapter. See [the changelog](CHANGELOG.md) for verification 
 ## Use prepared OverCue tracks
 
 Keep the matching Rekordbox `Contents` and OverCue `CDJMODS` folders on the same
-USB. In **Prepare stems**, choose **Check OverCue track**, then select the original
+USB. In **Stems**, choose **Check OverCue track**, then select the original
 track inside `Contents`. The builder checks source identity and every compressed
 audio page using the same decoder as the player. It does not change the USB.
 
