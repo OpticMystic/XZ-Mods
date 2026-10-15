@@ -56,18 +56,22 @@ function driveLabel(){return W.usbs?.find(item=>item.volume===W.usb)?.label||W.u
 
 // --- finding the USB ---
 
-// discovering is the in-flight discover_usbs, so a user action can wait for it instead of being dropped by run().
+// discovering is the in-flight discover_usbs, so a user action here can wait for it.
 let discovering=null,firstLook=null,pollTimer=null,polling=false,volumesSig=null,dismissed=null;
 const usbSig=list=>list.map(item=>item.volume).sort().join('|');
 async function ready(){while(discovering)await discovering;await idle();}
-function discover(user){
+// origin is where an error shows: this page's job slot, or the DJ Profile page's button when it asked.
+function discover(user,origin=jobSlot){
   discovering??=(async()=>{
     W.finding=true;render();
-    const response=await run({method:'discover_usbs'},'Looking for USB drives',jobSlot,()=>{});
+    const response=await run({method:'discover_usbs'},'Looking for USB drives',origin,()=>{});
     W.finding=false;
     if(!response){render();return null;}
-    if(!response.ok){W.usbs??=[];render();if(user&&!response.cancelled)showError('USB drives could not be listed. '+(response.error||'Choose a folder instead.'),jobSlot);return null;}
-    W.usbs=response.result.usbs;render();
+    if(!response.ok){W.usbs??=[];render();if(user&&!response.cancelled)showError('USB drives could not be listed. '+(response.error||'Choose a folder instead.'),origin);return null;}
+    W.usbs=response.result.usbs;
+    // Once the set differs from the one the DJ stepped away from (it was unplugged, say), a single USB may open by itself again.
+    if(usbSig(W.usbs)!==dismissed)dismissed=null;
+    render();
     return W.usbs;
   })().finally(()=>{discovering=null;});
   return discovering;
@@ -77,6 +81,7 @@ async function lookForUsbs(user){
   if(user)await idle();
   const list=await discover(user);
   if(W.view==='find'&&list?.length===1&&usbSig(list)!==dismissed)await chooseUsb(list[0].volume);
+  return list;
 }
 function pollWanted(){return Boolean(invoke)&&W.view==='find'&&!$('setup').classList.contains('hidden');}
 function schedulePoll(){
@@ -84,33 +89,42 @@ function schedulePoll(){
   if(!pollTimer&&!polling)pollTimer=setTimeout(poll,POLL_MS);
 }
 // list_volumes is a cheap host call with no job, so it never holds the job slot; a changed set triggers a real discover.
+// The new set is only remembered once a discover has read it, so a refused or failed discover is retried next tick.
 async function poll(){
   pollTimer=null;
   if(!pollWanted())return;
   polling=true;
+  const volumes=await invoke('list_volumes').catch(()=>null);
   try{
-    const sig=(await invoke('list_volumes')).join('|');
-    if(sig!==volumesSig&&activeJob===null&&!discovering){volumesSig=sig;await lookForUsbs(false);}
-  }catch{return;}
-  finally{polling=false;}
-  schedulePoll();
+    const sig=volumes?.join('|');
+    if(volumes&&sig!==volumesSig&&pollWanted()&&activeJob===null&&!discovering&&await lookForUsbs(false))volumesSig=sig;
+  }finally{
+    polling=false;
+    // A host without list_volumes cannot be polled; the first look and Look again still work there.
+    if(volumes)schedulePoll();
+  }
 }
 function shown(){
   if(invoke&&!firstLook)firstLook=(async()=>{
-    try{volumesSig=(await invoke('list_volumes')).join('|');}catch{}
+    let sig=null;
+    try{sig=(await invoke('list_volumes')).join('|');}catch{}
     await idle();
-    await lookForUsbs(false);
+    if(await lookForUsbs(false))volumesSig=sig;
   })();
   render();
 }
-async function chooseUsb(volume){
+// A queued choice never pulls the DJ out of a write flow they started in the meantime.
+async function chooseUsb(volume,origin=jobSlot){
   await ready();
-  const response=await run({method:'inspect_usb',volume},'Reading the USB',jobSlot,()=>{});
-  if(!response?.ok){if(response&&!response.cancelled)showError('The USB could not be read. '+(response.error||'Reconnect it and choose it again.'),jobSlot);return;}
+  if(W.view==='flow')return;
+  const response=await run({method:'inspect_usb',volume},'Reading the USB',origin,()=>{});
+  if(!response?.ok){if(response&&!response.cancelled)showError('The USB could not be read. '+(response.error||'Reconnect it and choose it again.'),origin);return;}
+  if(W.view==='flow')return;
   open(volume,response.result);
   await followNewest();
 }
 function open(volume,inspection){
+  if(W.flow?.steps.includes('profile'))window.djProfilePage?.discard();
   dismissed=null;
   startState(inspection);
   renderUsb(inspection);
@@ -127,11 +141,11 @@ function changeUsb(){
   lookForUsbs(false);
 }
 // The DJ Profile page's Find my USB: an explicit request, so a single USB opens even right after Change USB.
-async function findAndChoose(){
+async function findAndChoose(origin){
   dismissed=null;
   await idle();
-  const list=await discover(true);
-  if(list?.length===1)await chooseUsb(list[0].volume);
+  const list=await discover(true,origin);
+  if(list?.length===1)await chooseUsb(list[0].volume,origin);
 }
 // A view change drops a finished job panel from the view before; a running one stays.
 function go(patch){
@@ -169,7 +183,7 @@ async function followNewest(){
 
 function usbCard(item){
   const chips=[item.loader?'XZ Mods installed':'No XZ Mods yet',item.rekordbox?'Rekordbox USB':null].filter(Boolean);
-  return el('button',{type:'button',class:'wz-usb',onclick:()=>chooseUsb(item.volume)},
+  return el('button',{type:'button',class:'wz-usb',onclick:event=>chooseUsb(item.volume,host.contains(event.currentTarget)?jobSlot:event.currentTarget)},
     el('span',{class:'wz-usb-icon'},icon('usb')),
     el('span',{class:'wz-usb-text'},el('strong',{text:item.label}),el('small',{text:item.volume+(item.removable?'':' · not a removable drive')})),
     el('span',{class:'wz-chips'},...chips.map((text,index)=>el('span',{class:'wz-chip',dataset:{tone:index===0&&item.loader?'on':null},text}))),
@@ -213,7 +227,7 @@ function changesBox(){
   if(!panel||update.kind==='unavailable')return panel;
   const count=update.added.length+update.removed.length;
   return el('details',{class:'wz-changes',open:W.changesOpen?true:null,ontoggle:event=>{W.changesOpen=event.target.open;}},
-    el('summary',{},el('span',{text:'What changes on your XZ'}),el('small',{text:plural(count,'change')})),panel);
+    el('summary',{},el('span',{class:'wz-changes-count',text:plural(count,'change')}),' · ',el('span',{class:'wz-changes-see',text:'See what changes'}),el('span',{class:'wz-changes-hide',text:'Hide changes'})),panel);
 }
 function installReady(){return loaderChoice()==='add'&&Boolean(savedModVersion());}
 // One status, one action. Without a saved build the action is the one-button build setup.
@@ -236,8 +250,9 @@ function statusBlock(){
   const s=status();
   return el('div',{class:'wz-status',dataset:{tone:s.tone}},
     el('span',{class:'wz-status-icon'},icon(STATUS_ICONS[s.tone])),
-    el('div',{class:'wz-status-text'},el('h3',{text:s.title}),el('p',{text:s.line}),s.extra||null,
-      s.action?el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'wz-primary',disabled:buildSaving?true:null,text:s.action.label,onclick:s.action.run})):null));
+    el('div',{class:'wz-status-text'},el('h3',{text:s.title}),el('p',{text:s.line}),
+      s.action?el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'wz-primary',disabled:buildSaving?true:null,text:s.action.label,onclick:s.action.run})):null,
+      s.extra||null));
 }
 function tile(id,iconName,label,value,action,onclick){
   return el('button',{type:'button',class:'wz-tile',dataset:{tile:id},onclick},
@@ -374,11 +389,16 @@ function stepReview(){
 function stepWriting(){return [el('h3',{text:'Writing to '+driveLabel()}),planList(),safeLine(),jobSlot];}
 async function startWrite(){
   if(W.step!=='review'||nothingToWrite())return;
+  if(appUpdating){showError('XZ Mods is updating itself. Write to the USB once the update has finished.',jobSlot);return;}
   W.step='writing';render();
-  await ready();
-  await write(jobSlot);
-  // A write that stopped before the end (a refused confirmation or a failed request) returns to the review.
-  if(W.view==='flow'&&W.step==='writing'){W.step='review';render();}
+  try{
+    await ready();
+    await write(jobSlot);
+  }catch(error){showError(String(error),jobSlot);}
+  finally{
+    // A write that stopped before the end (a refused confirmation, a failed request, an error) returns to the review.
+    if(W.view==='flow'&&W.step==='writing'){W.step='review';render();}
+  }
 }
 async function write(origin){
   if(nothingToWrite()){showError('Nothing is selected to write. Pick a loader action, a DJ profile or a game first.',origin);return;}
@@ -421,7 +441,11 @@ function showDone(){W.step='done';render();host.scrollIntoView({block:'start'});
 async function retryGames(failed){
   await ready();
   const response=await run({method:'prepare_games_usb',volume:W.usb,games:failed.map(game=>game.game)},'Retrying game downloads',jobSlot);
-  if(response?.ok){W.result={...W.result,games:response.result};render();}
+  if(!response?.ok)return;
+  W.result={...W.result,games:response.result};
+  const again=await run({method:'inspect_usb',volume:W.usb},'Checking the USB',jobSlot,()=>{});
+  if(again?.ok){W.inspection=again.result;usbInspection=again.result;renderUsb(again.result);}
+  render();
 }
 function stepDone(){
   const r=W.result,games=r.games?.games||[],copied=games.filter(game=>game.ok).map(game=>game.name),failed=games.filter(game=>!game.ok);
