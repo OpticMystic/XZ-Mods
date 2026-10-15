@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveUi } from './csp_server.mjs';
+import { killBrowser } from './kill_browser.mjs';
 
 // No packages needed. Drives the real renderer in headless Edge over CDP with a mocked Tauri invoke.
 // Run: node tools/verify_stems_page.mjs   (XZ_TEST_BROWSER overrides the browser path)
@@ -358,7 +359,7 @@ try {
   } catch {}
   socket?.close();
   await server.close();
-  child.kill();
+  killBrowser(child, profile);
   assert(dirname(resolve(profile)) === resolve(tmpdir()) && basename(profile).startsWith('xz-stems-'), 'Cleanup must stay inside the generated browser profile');
   await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
 }
