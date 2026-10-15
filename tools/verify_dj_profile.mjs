@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveUi } from './csp_server.mjs';
+import { killBrowser } from './kill_browser.mjs';
 
 // Drives the DJ Profile page in headless Edge over CDP, served with the app's real CSP, against a mocked backend
 // that follows the read_dj_profiles / read_logo / save_dj_profile / set_active_dj_profile / write_profile_track
@@ -430,7 +431,7 @@ try {
 } finally {
   socket?.close();
   await server.close();
-  child.kill();
+  killBrowser(child, profile);
   await new Promise(done => setTimeout(done, 300));
   await rm(profile, { recursive: true, force: true }).catch(() => {});
 }

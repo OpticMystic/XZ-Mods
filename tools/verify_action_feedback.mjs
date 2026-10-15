@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveUi } from './csp_server.mjs';
+import { killBrowser } from './kill_browser.mjs';
 
 // No packages needed. Exercise the actual renderer using Chromium's CDP API.
 const app = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -175,7 +176,7 @@ try {
   }
   socket?.close();
   await server?.close();
-  child?.kill();
+  killBrowser(child, profile);
   if (profile) {
     assert(dirname(resolve(profile))===resolve(tmpdir())&&basename(profile).startsWith('xz-feedback-'), 'Cleanup must stay inside the generated browser profile');
     await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });

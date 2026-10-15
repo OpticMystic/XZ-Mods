@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveUi } from './csp_server.mjs';
+import { killBrowser } from './kill_browser.mjs';
 
 // Drives ui/index.html in headless Edge over CDP with a mocked Tauri invoke, served with the app's real CSP. No packages needed.
 // Run: node tools/verify_setup_wizard.mjs   (XZ_TEST_BROWSER overrides the browser path; XZ_WIZARD_SHOTS=<dir> saves screenshots)
@@ -403,7 +404,7 @@ try {
 } finally {
   socket?.close();
   await server.close();
-  child.kill();
+  killBrowser(child, profile);
   await new Promise(done => setTimeout(done, 300));
   await rm(profile, { recursive: true, force: true }).catch(() => {});
 }
