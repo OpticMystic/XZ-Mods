@@ -280,7 +280,7 @@ const ST={
   'action.prepareNone':'Prepare stems','action.prepareN':'Prepare {n} tracks','action.prepareOne':'Prepare 1 track','action.prepareFit':'Prepare {n} that fit','action.setupEngine':'Set up stem engine',
   'action.cancel':'Cancel','action.retryFailed':'Retry {n} failed','action.prepareRemaining':'Prepare {n} remaining','action.continue':'Continue','action.chooseFewer':'Choose fewer tracks','action.import':'Import stems',
   'engine.ready':'Engine: {preset} on {device}','engine.readyCpu':'Engine: {preset} on this processor','engine.change':'Change','engine.missing':'Stem engine not set up yet · a few minutes, once',
-  'engine.unsupportedHost':'Preparing needs a Windows PC or Apple silicon Mac',
+  'engine.unsupportedHost':'Making stems needs a Windows computer or an Apple silicon Mac. You can still import stems here.',
   'search.placeholder':'Search title or artist','filter.all':'All','filter.missing':'Missing','filter.ready':'Ready','filter.cant':'Can\'t prepare','filter.selected':'Selected','pager':'Showing {from} to {to} of {total}',
   'pill.missing':'Missing','pill.ready':'Ready','pill.verified':'Verified','pill.new':'New','pill.damaged':'Damaged','pill.unavailable':'No audio file','pill.unsupported':'Not yet','pill.error':'Can\'t read',
   'pill.queued':'Queued','pill.running':'Preparing {pct}%','pill.failed':'Failed','pill.cancelled':'Cancelled','pill.notStarted':'Not started',
@@ -886,7 +886,7 @@ function stemConnectResult(){
 }
 $('stem-connect-find').onclick=async()=>{
   const count=await discoverStemDrives();if(count===undefined)return;
-  $('stem-connect-found').textContent=count?plural(count,'Rekordbox USB')+' found. Selected: '+driveName(stemVolume):'No Rekordbox USB found yet. Check that it is plugged in and shows in File Explorer, then find it again, or choose a folder.';
+  $('stem-connect-found').textContent=count?plural(count,'Rekordbox USB')+' found. Selected: '+driveName(stemVolume):'No Rekordbox USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.';
   stemConnectResult();
 };
 $('stem-connect-choose').onclick=async()=>{const volume=await chooseStemFolder($('stem-connect-choose'));if(!volume)return;$('stem-connect-found').textContent='Selected: '+driveName(volume);stemConnectResult();};
@@ -1377,7 +1377,7 @@ $('repair-choose-other').onclick=openRepairConnect;
 $('repair-connect-find').onclick=async()=>{
   repairDiscovery=discoverRepairDrives();const count=await repairDiscovery;if(count===undefined)return;
   const volume=$('repair-drive').value;
-  $('repair-connect-found').textContent=count?plural(count,'Rekordbox USB')+' found. Selected: '+volume:'No Rekordbox USB found yet. Check that it is plugged in and shows in File Explorer, then find it again, or choose a folder.'+(volume?' Selected: '+volume:'');
+  $('repair-connect-found').textContent=count?plural(count,'Rekordbox USB')+' found. Selected: '+volume:'No Rekordbox USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.'+(volume?' Selected: '+volume:'');
 };
 $('repair-connect-choose').onclick=async()=>{const volume=await pickRepairFolder($('repair-connect-choose'));if(volume)$('repair-connect-found').textContent='Selected: '+volume;};
 $('repair-connect-check').onclick=async()=>{
@@ -1410,7 +1410,7 @@ async function openLibraryRepair(volume){
 updateRepairControls();
 
 // Mod version. The list, save and import calls return the same inventory. Saving only records the choice on this
-// PC; the next loader built or updated uses it. The backend writes the exact archived build and refuses unknown ones.
+// computer; the next loader built or updated uses it. The backend writes the exact archived build and refuses unknown ones.
 function shortHash(hash){return hash?String(hash).slice(0,12):'unknown';}
 function channelText(channel){return modChannels[channel]||channel||'Unknown channel';}
 function pinText(pinned){return pinned?'kept on the USB':'network updates can change it';}
@@ -1433,7 +1433,7 @@ function selectedVersionRequest(origin){
   if(modDirty()){showError('You changed the mod version but did not save it. Choose Save choice or Undo change at the top of the USB loader page, then try again.',origin);return null;}
   return {mod_version_id:saved.id,pin_mod_version:savedPinned()};
 }
-// True while the saved choice on this PC is still exactly the one a request was built from.
+// True while the saved choice on this computer is still exactly the one a request was built from.
 function sameSavedVersion(version){return savedModVersion()?.id===version.mod_version_id&&savedPinned()===version.pin_mod_version&&!modDirty();}
 // Settings compatibility. Older mod versions read fewer settings and refuse a newer settings file. Before every
 // loader write the backend reports whether this USB's settings need converting for the saved version. Compatible
@@ -1500,7 +1500,7 @@ function renderModVersions(){
   $('mod-version-setup').classList.toggle('hidden',ready);$('mod-version-editor').classList.toggle('hidden',!ready);$('mod-version-saved').classList.toggle('hidden',!ready);
   $('mod-version-badge').classList.toggle('hidden',!saved);
   if(!ready){
-    $('mod-version-setup-reason').textContent=!invoke?'Mod versions load in the desktop app.':modLoadError||(modInventory?'No mod versions are on this PC. Import a build to continue. USB writes stay off until a version is saved.':'Reading mod versions…');
+    $('mod-version-setup-reason').textContent=!invoke?'Mod versions load in the desktop app.':modLoadError||(modInventory?'No mod versions are on this computer. Import a build to continue. USB writes stay off until a version is saved.':'Reading mod versions…');
   }else{
     const meta=$('mod-version-meta');meta.replaceChildren();
     if(saved){
@@ -1511,7 +1511,7 @@ function renderModVersions(){
       $('mod-version-badge').textContent=saved.hardware_qualified===true?'Hardware-tested':'Not hardware-verified';
     }else{
       $('mod-version-label').textContent=modInventory.selected.id?'Saved version is missing':'No saved choice';
-      $('mod-version-description').textContent=(modInventory.selected.id?'The saved build '+modInventory.selected.id+' is not on this PC. Import it, or choose another version and save. ':'Choose a version below and save it. ')+'USB writes stay off until then.';
+      $('mod-version-description').textContent=(modInventory.selected.id?'The saved build '+modInventory.selected.id+' is not on this computer. Import it, or choose another version and save. ':'Choose a version below and save it. ')+'USB writes stay off until then.';
       $('mod-version-hash').textContent='';$('mod-version-hash').title='';
     }
     const select=$('mod-version-select'),draft=modDraftState();select.replaceChildren();
@@ -1526,7 +1526,7 @@ function renderModVersions(){
     line.textContent=saved?'Writes mod version '+(saved.label||saved.id)+', '+pinText(savedPinned())+'.'+(modDirty()?' Your unsaved change is not used.':''):'Mod version not set. Set it in Advanced tools before writing a loader.';
     line.classList.toggle('is-blocked',!saved||modDirty());
   }
-  $('mod-wizard-list').textContent=!invoke?'Open the desktop app to read mod versions.':ready?plural(modInventory.versions.length,'mod version')+' found on this PC. '+(saved?'Saved choice: '+(saved.label||saved.id)+'.':'No usable saved choice yet.'):modLoadError||(modInventory?'No mod versions found on this PC. Import a build below.':'Reading mod versions…');
+  $('mod-wizard-list').textContent=!invoke?'Open the desktop app to read mod versions.':ready?plural(modInventory.versions.length,'mod version')+' found on this computer. '+(saved?'Saved choice: '+(saved.label||saved.id)+'.':'No usable saved choice yet.'):modLoadError||(modInventory?'No mod versions found on this computer. Import a build below.':'Reading mod versions…');
   updateModVersionControls();
 }
 async function loadModVersions(){
@@ -1554,7 +1554,7 @@ $('save-mod-version').onclick=async()=>{
   modDraft=null;
   if(!applyModInventory(result.result)){showError('The save returned a result this app cannot read. Check the mod version before you write a USB.',origin);return;}
   const saved=savedModVersion();
-  $('job-summary').textContent=saved?'Saved on this PC: '+(saved.label||saved.id)+', '+pinText(savedPinned())+'. The next loader you build or update uses it. No USB was changed.':'';
+  $('job-summary').textContent=saved?'Saved on this computer: '+(saved.label||saved.id)+', '+pinText(savedPinned())+'. The next loader you build or update uses it. No USB was changed.':'';
 };
 $('import-mod-version').onclick=()=>openModWizard(true);
 $('open-mod-version-setup').onclick=()=>openModWizard(false);

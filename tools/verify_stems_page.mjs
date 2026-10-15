@@ -311,7 +311,7 @@ try {
 
   await open('intelmac');
   await waitFor(ready, 'intel mac library');
-  await check(`Boolean(button('Import stems',document.getElementById('st-bar')))&&!document.querySelector('#stem-tracks input[data-pick]')&&txt('#st-bar .st-engine')==='Preparing needs a Windows PC or Apple silicon Mac'&&document.getElementById('st-select-all-label').classList.contains('hidden')`, 'Intel Mac: Import stems is the primary, no checkboxes');
+  await check(`Boolean(button('Import stems',document.getElementById('st-bar')))&&!document.querySelector('#stem-tracks input[data-pick]')&&txt('#st-bar .st-engine')==='Making stems needs a Windows computer or an Apple silicon Mac. You can still import stems here.'&&document.getElementById('st-select-all-label').classList.contains('hidden')`, 'Intel Mac: Import stems is the primary, no checkboxes');
 
   await open('cuda');
   await waitFor(ready, 'library for the batch limit');
