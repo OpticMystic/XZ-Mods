@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "version": "0.3.0-preview.10",
+  "version": "0.3.0-preview.11",
   "source_directory": "source/xdj-xz-toolkit",
   "source_repository": "https://github.com/OpticMystic/XZ-Mods",
   "native_source_archive_sha256": "4f1510ab4b77b0e2c1011cd98e257ebc756b16afc551e29b44dee21bbb463894",
   "runtime_sha256": "f413175846aaa323557e740cbf9ff8dd8a6e790a7acb9a0c313dfa87f6cc3e5c",
-  "matching_archive": "XZ-Mods-0.3.0-preview.10-source.zip (local, not published)",
+  "matching_archive": "XZ-Mods-0.3.0-preview.11-source.zip (local, not published)",
   "local_build": true,
   "receiver_sha256": "27c08969a92717517ecc4de5d9217a5ebcee6780054f0236adf21db7300e7ae7",
   "native_source": {
@@ -19,7 +19,7 @@
   },
   "builder_source": {
     "repository": "https://github.com/OpticMystic/XZ-Mods",
-    "commit": "b5e0cd21b0d078e9becad2afffc0f92de984b672",
+    "commit": "299d5f121b89127556c9d34905370aa9415b7df5",
     "paths": [
       "source/xdj-xz-toolkit/builder"
     ]
@@ -44,7 +44,7 @@
     "builder/jobs.py": "4f91ec89ebfcaf78375183938459e4921b79fe2a1506cbbdd86c955ff5ee1ab0",
     "builder/layered_waveforms.py": "e0998e180fa50fad49975022e01921f68fdae3c7c0905a4bb5ecb91fd459bdd8",
     "builder/library_repair.py": "ee6a886fa884eb2ded2bb58642f4fafb8a44f0dbe385751bf7d1ec7ac43f4456",
-    "builder/managed_usb.py": "89d3c2f52b3b145152a71c477bab2768e6f865601c9849717e6480603a6e5a9f",
+    "builder/managed_usb.py": "6f9c4e2979916dd0701834d115400edc2ac26db8ae950d21b2b49c7fd2e12b8d",
     "builder/mod_versions.py": "0ade15739bcb8e36205d7eae06be328748ee23605c0e7411e7cfb743cc70c453",
     "builder/models.json": "b7f9801229781babe3a3250d361ba0ef12466ff0b5f34383a46cd1f63b61bd49",
     "builder/mp3_timing.py": "01ae249006f978b788b562200d43a35a62d6c944b0c18c52c10019647c9130c2",
@@ -55,9 +55,9 @@
     "builder/overcue_writer.py": "802705721fedbde6b41a680235695cbd3073a15d597ba1e1f2a6825343e53f80",
     "builder/rekordbox_pdb.py": "f45f63746b1b35df5300d87b0b0c507c88a1ac472da69ec9e9c68371610b1e2b",
     "builder/resample_source.py": "ec032939e959583665056c5b546842eb5d35d12e01c3329ed76aae339dcc71a6",
-    "builder/runtime_ota.py": "3fed840d3d67a0c232761534c695762b0c2ae3eaeb3b01aaaa16e4b106151e6a",
+    "builder/runtime_ota.py": "85d3eb3b9b5ea0e2eb30378a513a8dd12510fbfa1e47466cae6d6a899b4c0c76",
     "builder/SEPARATION.md": "3dccadd914c3727abd1eb9516ca72c4c73bee50bdd39d630cc73e1611bd553ef",
-    "builder/service.py": "5375040bf3ead23b2110be3d3faa43240f41cbfb93aa93ee7ab42bca367bce7e",
+    "builder/service.py": "5c0ee1dbabed02c61b1c2199d76590cff1375229c743e4efcfa71779853c9ae4",
     "builder/stem_align.py": "2d8bcb339a18baca73f5758ab7cba64f8683ee9a6d122d5d557bc8e4e12e26c2",
     "builder/stem_batch.py": "93d7c16d3fe661267bb54a445a7b564502a12abef9c06c6e082aa5454a00c5f5",
     "builder/stem_estimate.py": "4f413c7635684814e8e7bdc9e045903b52a6d74e67ad58ff9e331a7b8295a9ea",
@@ -100,7 +100,7 @@
     "builder/tests/test_library_repair.py": "d1275561db2d2d698fea803f47b27f6e8628bf70633a619acae914b8536b5d62",
     "builder/tests/test_low_memory.py": "08ced8d972b9bd3fe2ab3a6730aee4ba59a5e51800ae5f4c386ec6526f1331bf",
     "builder/tests/test_macos_host.py": "a6549c1d50fe08541c3a64977f95f2c97c8770bd5546a4ee8d6350697446c4df",
-    "builder/tests/test_managed_usb.py": "cb553b0c41e7cafb9531dff84b98777f7f4e311527e55ae579eb54810034d03b",
+    "builder/tests/test_managed_usb.py": "c5ca87b8eb4083970344f8d78720edc75e56f573237caa75e9bd68ed5c1cc1e3",
     "builder/tests/test_mod_versions.py": "32e57668cf1c59bb0a4a6b833864d3d76a2605c2156f0be2bd7b5eb420b69414",
     "builder/tests/test_mp3_timing.py": "12b9ee1e246dee1e6604a1b0815617107ad8fcd34902a909ed709fde2d00f421",
     "builder/tests/test_overcue_flac.py": "28c983850ed24a7629ef05553b2dd6e80e4acdaf7cc00df95b6553051acc16de",
@@ -109,7 +109,7 @@
     "builder/tests/test_prepare_usb.py": "ed1f57a78eb5370f6b325af7995bbb2d840fc2f30e3e889614f2dc9ef895718d",
     "builder/tests/test_rekordbox_pdb.py": "90ab2b13d07dde5ca0253ab6f1391f78ae6cf4b9dfa74f68e7ba650b74d92f47",
     "builder/tests/test_resample_source.py": "7404514df9d0a4aaa0898d7864bee8621115a897d93008f3cfdf1573da9c7276",
-    "builder/tests/test_runtime_ota_readiness.py": "ad12249e3a245d8c2a6e51a9fa98ee52589c2702cce9d4abc556832a29c7acd1",
+    "builder/tests/test_runtime_ota_readiness.py": "3b6717cc3f8b761473f473eeba3df4080d6f1cbd851ce6a2400367095d8a9840",
     "builder/tests/test_stem_align.py": "286b53db9aa3585debdf80ee17b3841a01c8c1cc8a4e97d5a45ad05ec192e902",
     "builder/tests/test_stem_batch.py": "9747c35a96df1c97979529ba9c6c0e511e4c5a3242fbd100f47d947fcabb9400",
     "builder/tests/test_stem_estimate.py": "ba409faf543313515808edfb420a639e9b66dee5cced7dbbc5111821640e00d3",
