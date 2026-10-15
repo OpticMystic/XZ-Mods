@@ -4,5 +4,5 @@
   <key>NSRemovableVolumesUsageDescription</key>
   <string>XZ Mods reads your exported tracks and writes verified loaders, settings and prepared stems to the USB drive you choose.</string>
   <key>NSLocalNetworkUsageDescription</key>
-  <string>XZ Mods serves verified runtime updates to your XDJ-XZ on the network adapter you choose.</string>
+  <string>XZ Mods finds your XDJ-XZ on the local network, shows its screen on this computer, and sends it verified updates over the network adapter you choose.</string>
 </dict></plist>
