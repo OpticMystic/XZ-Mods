@@ -1,6 +1,6 @@
 # XZ stem stability candidate
 
-Status: fourth independent review completed with no must-fix source defect. All five canonical software suites and ARM ABI checks pass. Frozen native candidate `1764ee87` pairs with receiver `dd12975a`; the PC candidate is installed and verified. Controller deployment and physical acceptance remain pending USB access, receiver-trial coordination and a fresh stopped-state check. No public publication is authorized.
+Status: fourth independent review completed with no must-fix source defect. All five canonical software suites and ARM ABI checks pass. Frozen native candidate `1764ee87` pairs with receiver `dd12975a`; the PC candidate is installed and verified. The XZME USB loader is now updated and verified. Controller boot and physical stem acceptance remain pending. No public publication is authorized.
 
 ## Observed failure
 
@@ -33,9 +33,9 @@ The read-only observer now reports the saved layout, change revision, last origi
 
 ## Hardware gate
 
-The owner accepted Smart Cue on both decks on `f4131758` / receiver `27c08969`, then authorized a separate receiver-only 8-bit trial retaining `f4131758`. This thread installed the PC candidate while preserving the pinned 8-bit trial selection. It has not changed the controller USB, native runtime or transport. Audio/UI activation waits for that isolated trial and fresh stopped-state evidence. Capture performance, 8-bit encoding and the 30 fps goal belong to another thread.
+Correction received at 19:33: the owner now reports Hot Cues working with Smart Cue OFF / Gate Cue OFF and is unsure of the earlier settings. Smart Cue-ON physical acceptance is not established. Earlier physical behavior reports remain preserved in the cue owner evidence; no cue-only retest is requested. Cue source from `f4131758` remains unchanged in this candidate. A separate receiver-only 8-bit trial was prepared but has no completed physical acceptance. This thread installed the PC candidate while preserving the pinned 8-bit trial selection. At the earlier PC installation, the controller USB and native runtime were unchanged; the subsequent USB staging is recorded below. The owner has now followed the poweroff/USB-transfer instructions to install the stem correction. This combined candidate cannot establish an isolated receiver performance result; activation still requires the stopped controller and verified USB loader. Capture performance, 8-bit encoding and the 30 fps goal belong to another thread.
 
-After safe activation, verify the exact candidate identity, browse and load tracks on both USB sources, cycle the saved layouts deliberately, test the first physical stem pad after track loads, and compare indicators with audible stem changes. Record the layout origin and revision at any unexpected movement. Keep Smart Cue, Gate Cue, jog, Play/Pause, main Cue and playback continuity in the acceptance pass. Release readiness remains open until those physical checks pass.
+After safe activation, verify the exact candidate identity, browse and load tracks on both USB sources, cycle the saved layouts deliberately, test the first physical stem pad after track loads, and compare indicators with audible stem changes. Record the layout origin and revision at any unexpected movement. Preserve the owner current cue settings. Check ordinary playback continuity while testing stems; do not demand a separate cue-only acceptance pass. Release readiness remains open until those physical checks pass.
 
 ## Intentional profile actions
 
@@ -47,4 +47,12 @@ Reinserting the owner USB changes its mount identity. Saves then stay on the XZ 
 
 The signed local installer completed with exit 0. The normal installed app runs at `C:/Users/short/AppData/Local/XZ Mods/xz-mods-builder.exe`, PID 82228, with a responding XZ Mods Builder window. Its SHA256 is `ab0aa3656b244899aeb51985dea1fff2c5f593b1ccb29b622809facb58596dc3`. All 2,262 resources match the frozen candidate with no extra files. The extracted NSIS payload matches the installed executable; only the expected three-byte Tauri bundle marker differs from the pre-package build. The initial direct-backend verification omitted the Tauri app-data override; rerunning with the actual app data confirms selection `a7324f67` remains pinned and byte-unchanged. Candidate `ab9cec84` is available but has not been selected or activated.
 
-Private encrypted loader `2a635be4` passed module, metadata and pin readback. It has not been copied to a physical USB. Windows reports no removable XZ USB. Physical release acceptance remains open. Local evidence is in `E:/Codex/xz-stem-fix-20261015/installed-r4-verification.json`, `installed-window-r4.json`, `generated-loader-r4/verification.json` and `activation-receipt-r4.json`.
+Private encrypted loader `2a635be4` passed module, metadata and pin readback. That earlier private test wrote no physical USB. The owner later connected XZME and authorized the physical loader update recorded below. Physical release acceptance remains open. Local evidence is in `E:/Codex/xz-stem-fix-20261015/installed-r4-verification.json`, `installed-window-r4.json`, `generated-loader-r4/verification.json` and `activation-receipt-r4.json`.
+
+## Physical USB staging, 19:37
+
+Fresh XZME `G:` identity was FAT32 serial `2697541434`. The managed update backed up the previous `c3cd5a26` loader on both the PC and USB, checked the current volume and loader revisions, then atomically installed candidate `1764ee87` with receiver `dd12975a`. Physical encrypted loader SHA256 is `81b9693da4cf9af3da9a69d03431b7a0c05f00ead39729cdc032f2be98f722bf`. Decrypted readback proves both embedded libraries, version metadata and pinning. All 13 protected non-loader files retain their hashes; size/time metadata for 2,996 media/library files is unchanged. No games or settings changes were made. The PC selection now pins candidate `ab9cec84`.
+
+The USB is ready for safe eject and a controller cold boot. No controller boot or physical stem test is claimed. This combined runtime/receiver candidate does not establish isolated 8-bit performance. Source cue code remains preserved, but Smart Cue-ON physical acceptance is explicitly not established following the 19:33 owner correction.
+
+Physical proof and rollback paths are in `E:/Codex/xz-stem-fix-20261015/usb-update-20261015/verification-summary.json`.
