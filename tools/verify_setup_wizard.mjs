@@ -83,8 +83,8 @@ function installMock() {
   };
   window.__TAURI__ = { core: { invoke: async (command, args) => {
     fx.calls.push(command);
-    if (command === 'app_information') return { version: '0.3.0', platform: mode === 'mac' ? 'macos' : 'windows', installed: true, portable_url: 'https://github.com/OpticMystic/XZ-Mods/releases/latest', release_notes: { releases: [] } };
-    if (command === 'check_app_update') return { phase: 'current', message: 'Up to date' };
+    if (command === 'app_information') return { version: mode.startsWith('beta') ? '0.3.0-preview.12' : '0.3.0', platform: mode === 'mac' ? 'macos' : 'windows', installed: true, update_channel: mode.startsWith('beta') ? 'beta' : 'stable', release_page: mode.startsWith('beta') ? 'https://beta.xzmods.com/' : 'https://github.com/OpticMystic/XZ-Mods/releases/latest', portable_url: mode.startsWith('beta') ? 'https://github.com/OpticMystic/XZ-Mods/releases/download/v0.3.0-preview.12/XZ-Mods-Builder-preview-win64.zip' : 'https://github.com/OpticMystic/XZ-Mods/releases/latest', release_notes: { releases: [] } };
+    if (command === 'check_app_update') { if (mode === 'betaoffline' && !fx.online) throw Error('Beta update service is offline'); return mode.startsWith('beta') ? { phase: 'available', channel: 'beta', latest_version: '0.3.0-preview.13', message: 'A newer XZ Mods beta is ready to install.', notes: { features: ['Beta updates'], fixes: [], changes: [] } } : { phase: 'current', message: 'Up to date' }; }
     if (command === 'list_volumes') return fx.volumes();
     if (command === 'start_job') { fx.requests.push(args.request); return fx.requests.length; }
     if (command === 'job_status') return status(fx.requests[args.id - 1]);
@@ -387,6 +387,20 @@ try {
   await evaluate(`showPage('advanced')`);
   await check(`document.getElementById('mod-version')&&document.getElementById('setup-games-usb')&&document.getElementById('build')&&document.getElementById('loader-backups')&&!document.getElementById('prepare-usb')&&!document.querySelector('#advanced .intro')&&txt('#advanced .game-downloads summary')==='Game downloads'&&!document.querySelector('#advanced .game-downloads').open&&!document.getElementById('download-myhouse')&&!txt('#advanced').includes('My House')`, 'XZ Mods version page: build panel, loader restore, firmware file, games in one folded section; no Prepare a new USB');
   await shot('11-tools-version');
+
+  await open('beta');
+  await waitFor(`fx.calls.filter(c=>c==='check_app_update').length===1&&!updateChecking`, 'one automatic beta check on launch');
+  await check(`document.documentElement.dataset.updateChannel==='beta'&&txt('#update-channel-note').includes('automatically at launch')&&document.getElementById('app-update-banner').checkVisibility()&&txt('#app-update-banner-text').includes('0.3.0-preview.13')`, 'beta startup shows the update banner without opening Tools');
+  await check(`document.getElementById('app-downloads').href==='https://beta.xzmods.com/'&&document.getElementById('portable-downloads').href.includes('/v0.3.0-preview.12/')`, 'beta download links never point at stable latest');
+  await evaluate(`showPage('updates');document.getElementById('check-app-update').click()`);
+  await waitFor(`fx.calls.filter(c=>c==='check_app_update').length===2&&!updateChecking`, 'manual beta recheck');
+  await open('betaoffline');
+  await waitFor(`fx.calls.includes('check_app_update')&&!updateChecking`, 'offline startup check settles');
+  await evaluate(`showPage('updates')`);
+  await check(`txt('#update-status').includes('offline')&&!document.getElementById('check-app-update').disabled&&activeJob===null`, 'offline startup stays usable and permits retry');
+  await evaluate(`fx.online=true;document.getElementById('check-app-update').click()`);
+  await waitFor(`fx.calls.filter(c=>c==='check_app_update').length===2&&!updateChecking`, 'offline beta retry succeeds');
+  await check(`document.getElementById('app-update-banner').checkVisibility()`, 'successful retry exposes the beta update');
 
   await open('mac');
   await idle();

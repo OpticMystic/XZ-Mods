@@ -1,6 +1,22 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.12",
+      "date": "2026-10-16",
+      "preview": true,
+      "features": [
+        "Beta builds check their dedicated signed beta feed automatically at launch. Stable builds keep the stable release channel."
+      ],
+      "fixes": [
+        "SHIFT + SYNC now toggles Key Sync off on the second press. The native Key Sync button and explicit shortcut-off action clear matching too.",
+        "Master Tempo clears the owned Key Sync request even when key metadata is temporarily unavailable, while preserving manual or newer-track requests."
+      ],
+      "requirements": [
+        "Controller fixes need the matching USB loader. Updating the Windows app alone does not change a controller USB.",
+        "Local acceptance build; final tester package follows after the signed updater install test."
+      ]
+    },
+    {
       "version": "0.3.0-preview.11",
       "date": "2026-10-14",
       "preview": true,

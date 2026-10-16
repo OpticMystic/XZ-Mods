@@ -101,7 +101,7 @@ static int browse_context(void) {
     return generation != play_list_generation;
 }
 /* A successful KEY SYNC stays shown until that deck loads another track or its shift changes. */
-static struct { int valid, cents; uint32_t epoch; } key_sync[2];
+static struct { int owned, valid, cents; uint32_t epoch; } key_sync[2];
 static unsigned profile_slot = ~0u;
 _Static_assert((int)XZ_BROWSE_TITLE==XZ_KEY_COLUMN_TITLE&&(int)XZ_BROWSE_ARTIST==XZ_KEY_COLUMN_ARTIST&&
     (int)XZ_BROWSE_KEY==XZ_KEY_COLUMN_KEY&&(int)XZ_BROWSE_BPM==XZ_KEY_COLUMN_BPM,"browse column values");
@@ -704,13 +704,25 @@ static int sync_key(int deck) {
         return key_sync_fail(deck,XZ_KEY_SYNC_RANGE);
     strip_error_until[deck]=0;
     __atomic_add_fetch(&xz_mods_key_proof_v1.requests,1,__ATOMIC_RELAXED);
-    key_sync[deck].valid=1;key_sync[deck].epoch=source.epoch;key_sync[deck].cents=cents;model.deck[deck].key_synced=1;
+    key_sync[deck].owned=key_sync[deck].valid=1;key_sync[deck].epoch=source.epoch;key_sync[deck].cents=cents;model.deck[deck].key_synced=1;
     char after[48];xz_key_readout(&source,cents,after,sizeof(after));
     snprintf(ui.notice,sizeof(ui.notice),"D%d KEY %s / MASTER D%d%s",deck+1,after,2-deck,
         source.original.minor!=master.original.minor?" RELATIVE KEY":"");
     xz_log(ui.notice);return 1;
 }
 
+static int clear_key_sync(int deck){
+    if(!key_sync[deck].owned)return 0;
+    int cleared=!xz_key_clear_desired_cents(deck,key_sync[deck].epoch,key_sync[deck].cents);
+    memset(&key_sync[deck],0,sizeof(key_sync[deck]));
+    model.deck[deck].key_synced=key_strip[deck].synced=0;strip_error_until[deck]=0;
+    return cleared;
+}
+static int toggle_key_sync(int deck){
+    if(deck<0||deck>1)return 0;
+    if(!key_sync[deck].owned)return sync_key(deck);
+    clear_key_sync(deck);snprintf(ui.notice,sizeof(ui.notice),"D%d KEY SYNC OFF",deck+1);return 1;
+}
 static int (*stock_master_tempo_key)(void *,const void *);
 static int (*native_master_tempo_on)(void *,int);
 static int master_tempo_key_hook(void *self,const void *input) {
@@ -721,14 +733,8 @@ static int master_tempo_key_hook(void *self,const void *input) {
     pthread_mutex_lock(&ui_mutex);
     if(operation==0&&!(master_tempo_down&bit)) {
         master_tempo_down|=bit;
-        if(started&&key_available&&!player[0x34]&&key_sync[deck].valid&&native_master_tempo_on) {
-            struct xz_key_snapshot current;
-            uint32_t epoch=key_sync[deck].epoch;
-            if(xz_key_native_snapshot((unsigned)deck,&current)&&current.epoch==epoch&&
-               !xz_key_set_desired_cents(deck,epoch,0)) {
-                key_sync[deck].valid=0;
-                model.deck[deck].key_synced=key_strip[deck].synced=0;
-                strip_error_until[deck]=0;
+        if(started&&key_available&&!player[0x34]&&key_sync[deck].owned&&native_master_tempo_on) {
+            if(clear_key_sync(deck)) {
                 master_tempo_owned|=bit;
                 /* The native setter preserves its LED/settings and is a no-op if already ON. */
                 native_master_tempo_on(self,1);
@@ -1119,7 +1125,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_SHIFT_PAGES: model.shift_pages = a->value != 0; break;
         case XZ_UI_PAD_FEEDBACK: model.pad_feedback = a->value != 0; break;
-        case XZ_UI_SHIFT_KEYSYNC: model.shift_keysync = a->value != 0; break;
+        case XZ_UI_SHIFT_KEYSYNC: model.shift_keysync = a->value != 0; if(!model.shift_keysync){clear_key_sync(0);clear_key_sync(1);} break;
         case XZ_UI_KEY_CHECK:
             ui.notice[0]=0;
             if(key_available&&xz_key_native_snapshot(0,&key_snapshot[0])&&xz_key_native_snapshot(1,&key_snapshot[1])&&
@@ -1128,7 +1134,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
                 snprintf(ui.notice,sizeof(ui.notice),"TWO KEYS + MASTER VERIFIED / SHIFT + SYNC ENABLED");
             }else snprintf(ui.notice,sizeof(ui.notice),"LOAD ANALYZED USB TRACKS + CHOOSE MASTER, THEN RETRY");
             break;
-        case XZ_UI_KEY_SYNC: sync_key(a->deck); break;
+        case XZ_UI_KEY_SYNC: toggle_key_sync(a->deck); break;
         case XZ_UI_BROWSE_COLUMN:
             if (!xz_key_browser_column_choose(model.browse_columns, a->index/4, a->index%4))
                 snprintf(ui.notice, sizeof(ui.notice), "BROWSE COLUMNS UNCHANGED");
@@ -1158,7 +1164,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
                     int target = a->index == 0 ? 0 : current + a->index*100;
                     if (xz_key_set_desired_cents(a->deck,snapshot.epoch,target) != 0)
                         snprintf(ui.notice, sizeof(ui.notice), "KEY RANGE IS -12 TO +12 SEMITONES");
-                    else { key_sync[a->deck].valid = 0; model.deck[a->deck].key_synced = 0; }
+                    else { memset(&key_sync[a->deck],0,sizeof(key_sync[a->deck])); model.deck[a->deck].key_synced = 0; }
                 }
             }
             break;
@@ -1414,7 +1420,10 @@ static void refresh_local(void) {
         xz_key_readout(key_valid[deck]?&shown:NULL,applied_cents,model.deck[deck].key_readout,sizeof(model.deck[deck].key_readout));
         /* Effective key: original + applied shift + tempo transpose unless Master Tempo holds it. */
         struct xz_playing_key playing={0};int valid=key_valid[deck]&&xz_key_playing(&key_snapshot[deck],applied_cents,&playing);
-        if(key_sync[deck].valid&&(!valid||key_snapshot[deck].epoch!=key_sync[deck].epoch||cents!=key_sync[deck].cents))key_sync[deck].valid=0;
+        if(key_sync[deck].owned&&key_available&&key_valid[deck]&&
+           (key_snapshot[deck].epoch!=key_sync[deck].epoch||cents!=key_sync[deck].cents))
+            memset(&key_sync[deck],0,sizeof(key_sync[deck]));
+        key_sync[deck].valid=key_sync[deck].owned&&valid&&key_available;
         model.deck[deck].key_synced=key_sync[deck].valid;
         char line[32]="";
         if(valid&&(playing.shift_cents||key_sync[deck].valid)){
@@ -1599,7 +1608,7 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
                    never gates a working track/master pair behind a setup page. */
                 int newly_enabled=!model.shift_keysync;
                 model.shift_keysync=1;
-                int done = sync_key(event->deck);
+                int done = toggle_key_sync(event->deck);
                 if(newly_enabled&&done)settings_queue();
                 /* A failure is shown inline on the deck strip. Only a missing key engine,
                    which no gesture can fix, opens its setup page. */

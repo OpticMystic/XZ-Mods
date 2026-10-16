@@ -28,6 +28,7 @@ struct xz_key_deck {
 static struct xz_key_deck decks[XZ_KEY_DECKS];
 static int desired_cents[XZ_KEY_DECKS];
 static uint32_t desired_epoch[XZ_KEY_DECKS];
+static unsigned char request_writer[XZ_KEY_DECKS];
 static int started;
 static int observe_only;
 __attribute__((visibility("default"))) struct xz_key_audio_proof xz_mods_key_audio_proof_v1={.version=1};
@@ -172,13 +173,25 @@ int xz_key_get_desired_semitones(int deck, int *semitones_out)
     return 0;
 }
 
-int xz_key_set_desired_cents(int deck, uint32_t epoch, int cents)
-{
-    if (deck < 0 || deck >= XZ_KEY_DECKS || !epoch || cents < -1200 || cents > 1200) return -1;
-    __atomic_store_n(&desired_epoch[deck], 0, __ATOMIC_RELEASE);
-    __atomic_store_n(&desired_cents[deck], cents, __ATOMIC_RELEASE);
-    __atomic_store_n(&desired_epoch[deck], epoch, __ATOMIC_RELEASE);
-    return 0;
+static void publish_request(int deck,uint32_t epoch,int cents){
+    __atomic_store_n(&desired_epoch[deck],0,__ATOMIC_RELEASE);
+    __atomic_store_n(&desired_cents[deck],cents,__ATOMIC_RELEASE);
+    __atomic_store_n(&desired_epoch[deck],epoch,__ATOMIC_RELEASE);
+}
+/* Control writers serialize here. The audio callback never takes this lock. */
+static void lock_request(int deck){while(__atomic_test_and_set(&request_writer[deck],__ATOMIC_ACQUIRE)){}}
+static void unlock_request(int deck){__atomic_clear(&request_writer[deck],__ATOMIC_RELEASE);}
+int xz_key_set_desired_cents(int deck,uint32_t epoch,int cents){
+    if(deck<0||deck>=XZ_KEY_DECKS||!epoch||cents < -1200||cents>1200)return -1;
+    lock_request(deck);publish_request(deck,epoch,cents);unlock_request(deck);return 0;
+}
+int xz_key_clear_desired_cents(int deck,uint32_t epoch,int expected_cents){
+    if(deck<0||deck>=XZ_KEY_DECKS||!epoch)return -1;
+    lock_request(deck);
+    int matches=__atomic_load_n(&desired_epoch[deck],__ATOMIC_ACQUIRE)==epoch&&
+        __atomic_load_n(&desired_cents[deck],__ATOMIC_ACQUIRE)==expected_cents;
+    if(matches)publish_request(deck,epoch,0);
+    unlock_request(deck);return matches?0:-1;
 }
 
 int xz_key_get_desired_cents(int deck, uint32_t epoch, int *out)
