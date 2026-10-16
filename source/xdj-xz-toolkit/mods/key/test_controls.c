@@ -64,7 +64,7 @@ static void master_tempo_exit_test(void){
     self[0x34]=0;
     /* Deck 1 uses the same native channel mapping and leaves Deck 2's intent/shift intact. */
     keys();self[0x26]=1;fixture_keys[0].master=0;fixture_keys[1].master=1;
-    fixture_key_cents[1]=fixture_key_applied[1]=100;key_sync[1].valid=1;
+    fixture_key_cents[1]=fixture_key_applied[1]=100;key_sync[1].owned=key_sync[1].valid=1;
     key_sync[1].epoch=fixture_keys[1].epoch;key_sync[1].cents=100;model.deck[1].key_synced=1;
     assert(sync_key(0));input[11]=0;assert(master_tempo_key_hook(self,input));
     assert(!key_sync[0].valid&&fixture_key_cents[0]==0&&fixture_keys[0].master_tempo);
@@ -72,8 +72,47 @@ static void master_tempo_exit_test(void){
     input[11]=2;assert(master_tempo_key_hook(self,input));
     puts("PASS Master Tempo exits Key Sync once, forces MT on, retains applied-key truth and stock/manual/Shift behavior");
 }
+static void key_sync_reset_after_metadata_gap_test(void){
+    for(int deck=0;deck<2;deck++){
+        keys();fixture_keys[0].master=deck!=0;fixture_keys[1].master=deck!=1;
+        assert(sync_key(deck));fixture_key_apply(deck);
+        fixture_key_valid[deck]=0;refresh();assert(!key_sync[deck].valid&&key_sync[deck].owned);
+        unsigned char self[0x138]={0},input[16]={0};self[0x26]=(unsigned char)(deck+1);
+        stock_master_tempo_key=fixture_master_tempo_stock;native_master_tempo_on=fixture_master_tempo_on;
+        assert(master_tempo_key_hook(self,input));
+        assert(fixture_key_cents[deck]==0&&!key_sync[deck].owned&&fixture_keys[deck].master_tempo);
+        input[11]=2;assert(master_tempo_key_hook(self,input));
+        fixture_key_valid[deck]=1;fixture_key_apply(deck);refresh();assert(!key_strip[deck].synced);
+        assert(sync_key(deck));fixture_keys[deck].epoch++;fixture_key_cents[deck]=300;
+        input[11]=0;master_tempo_key_hook(self,input);assert(fixture_key_cents[deck]==300);
+        input[11]=2;master_tempo_key_hook(self,input);
+    }
+    puts("PASS Master Tempo clears owned Key Sync through missing metadata and preserves newer track requests");
+}
+static void shift_keysync_toggle_test(void){
+    for(int deck=0;deck<2;deck++)for(int mt=0;mt<2;mt++){
+        keys();fixture_keys[0].master=deck!=0;fixture_keys[1].master=deck!=1;
+        fixture_keys[deck].master_tempo=mt;fixture_keys[deck].tempo_ratio=1.08;
+        struct xz_cue_event event={.deck=deck,.sync=1,.shift=1,.operation=0};unsigned trace;
+        assert(xz_ui_runtime_pad(&event,&trace)&&key_sync[deck].valid);
+        fixture_key_apply(deck);refresh();int applied=fixture_key_applied[deck];
+        event.operation=2;assert(xz_ui_runtime_pad(&event,&trace));
+        event.operation=0;assert(xz_ui_runtime_pad(&event,&trace));
+        assert(!key_sync[deck].valid&&!model.deck[deck].key_synced&&fixture_key_cents[deck]==0);
+        assert(fixture_keys[deck].master_tempo==mt&&fixture_key_applied[deck]==applied);
+        int requests=fixture_key_requests;
+        assert(xz_ui_runtime_pad(&event,&trace));event.operation=1;assert(xz_ui_runtime_pad(&event,&trace));
+        event.operation=2;assert(xz_ui_runtime_pad(&event,&trace)&&fixture_key_requests==requests);
+        fixture_key_apply(deck);refresh();assert(!key_strip[deck].synced);
+        event.operation=0;assert(xz_ui_runtime_pad(&event,&trace)&&key_sync[deck].valid);
+        event.operation=2;assert(xz_ui_runtime_pad(&event,&trace));
+    }
+    keys();assert(sync_key(1));
+    {struct xz_ui_action off={.kind=XZ_UI_SHIFT_KEYSYNC,.value=0};apply(NULL,&off,1);assert(!key_sync[1].owned&&fixture_key_cents[1]==0);}
+    puts("PASS second physical Shift+Sync press clears the shift once on both decks and preserves Master Tempo");
+}
 int main(void){
-    existing_controls_test();master_tempo_exit_test();keys();refresh();
+    existing_controls_test();master_tempo_exit_test();key_sync_reset_after_metadata_gap_test();shift_keysync_toggle_test();keys();refresh();
     assert(model.deck[1].ready&XZ_UI_KEYSYNC);assert(!(model.deck[0].ready&XZ_UI_KEYSYNC));
     struct xz_cue_event event={.deck=1,.sync=1,.shift=1,.operation=0};unsigned trace;
     assert(xz_ui_runtime_pad(&event,&trace)==1);
@@ -84,7 +123,7 @@ int main(void){
     event.operation=0;assert(!xz_ui_runtime_pad(&event,&trace)&&fixture_key_requests==1);
     event.operation=2;assert(!xz_ui_runtime_pad(&event,&trace));
     event.shift=1;event.operation=0;assert(xz_ui_runtime_pad(&event,&trace));
-    assert(fixture_key_cents[1]==200);event.operation=3;assert(xz_ui_runtime_pad(&event,&trace));
+    assert(fixture_key_cents[1]==0&&!key_sync[1].owned);event.operation=3;assert(xz_ui_runtime_pad(&event,&trace));
     fixture_keys[1].tempo_ratio=exp2(1.23/12);refresh();
     assert(strstr(model.deck[1].key_readout,"+23c"));
     event.operation=0;assert(xz_ui_runtime_pad(&event,&trace));
@@ -101,8 +140,10 @@ int main(void){
      assert(!model.deck[1].key_synced&&!key_strip[0].sync_master);}
     event.operation=0;assert(xz_ui_runtime_pad(&event,&trace));assert(fixture_key_cents[1]==200);
     event.operation=2;assert(xz_ui_runtime_pad(&event,&trace));
+    event.operation=0;assert(xz_ui_runtime_pad(&event,&trace)&&fixture_key_cents[1]==0);event.operation=2;assert(xz_ui_runtime_pad(&event,&trace));
     fixture_keys[1].original.minor=1;event.operation=0;assert(xz_ui_runtime_pad(&event,&trace));
     assert(fixture_key_cents[1]==-100);event.operation=2;assert(xz_ui_runtime_pad(&event,&trace));
+    event.operation=0;assert(xz_ui_runtime_pad(&event,&trace)&&fixture_key_cents[1]==0);event.operation=2;assert(xz_ui_runtime_pad(&event,&trace));
     int requests=fixture_key_requests;fixture_key_valid[0]=0;event.operation=0;
     {enum xz_ui_page page=ui.page;assert(xz_ui_runtime_pad(&event,&trace));assert(fixture_key_requests==requests&&ui.page==page&&!touch.visible);}
     /* No master key: the error is inline on deck 2's strip, nothing pops up. */

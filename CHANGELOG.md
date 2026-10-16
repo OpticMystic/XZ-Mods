@@ -2,6 +2,9 @@
 
 ## Unreleased local changes
 
+- Beta app updates use an isolated signed beta feed and check automatically at launch. Stable builds keep the stable channel.
+- SHIFT + SYNC toggles matching off; Master Tempo clears owned matching through temporary metadata gaps. Newer-track and manual key requests remain protected.
+
 - Live Streamer adds an experimental full-resolution 8-bit RGB332 mode: each controller frame is 384,000 bytes with a fixed 256-color palette and no RLE/delta work. The original 16-bit stream remains selectable, older loaders retain their working stream with an Update USB loader action, and the privacy logo recognizes the quantized screen. Hardware performance qualification remains separate from host tests.
 
 - Live Streamer allows busy controller captures to finish within a bounded five-second receive/stall budget. Its lag guard compares delivery with capture/encoding completion, so variable XZ processing time no longer forces a network reconnect. Closed sockets still clear the picture immediately.

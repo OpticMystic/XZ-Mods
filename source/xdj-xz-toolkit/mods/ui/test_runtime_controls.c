@@ -64,6 +64,10 @@ int xz_key_set_desired_cents(int deck,uint32_t epoch,int cents){
     if(cents < -1200||cents>1200)return -1;
     fixture_key_cents[deck]=cents;fixture_key_requests++;return 0;
 }
+int xz_key_clear_desired_cents(int deck,uint32_t epoch,int expected){
+    if(deck<0||deck>1||epoch!=fixture_keys[deck].epoch||fixture_key_cents[deck]!=expected)return -1;
+    fixture_key_cents[deck]=0;fixture_key_requests++;return 0;
+}
 void xz_audio_set_enabled(int on){(void)on;}
 void xz_audio_set_levels(int deck,struct xz_stem_levels value){applied[deck]=value;}
 void xz_audio_set_levels4(int deck,const float value[4]){

@@ -169,9 +169,9 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_STEM_BANK:return "Which four pads carry the stem shortcuts.";
  case XZ_UI_PAD_FEEDBACK:return "Pad lights show stem colors and dim muted stems.";
  case XZ_UI_SHIFT_PAGES:return "SHIFT + a pad mode button gives the four stem actions in that order.";
- case XZ_UI_SHIFT_KEYSYNC:return "SHIFT + SYNC matches this deck's key to the master deck.";
+ case XZ_UI_SHIFT_KEYSYNC:return "SHIFT + SYNC toggles key matching. Press again to turn it off. Master Tempo restores the original key.";
  case XZ_UI_KEY_SHIFT:return k<0?"Lowers the deck key one semitone.":k>0?"Raises the deck key one semitone.":"Returns the deck to its original key.";
- case XZ_UI_KEY_SYNC:return "Shifts this deck to a key compatible with the master deck.";
+ case XZ_UI_KEY_SYNC:return "Toggles key matching with the master deck. Press again to turn it off.";
  case XZ_UI_KEY_CHECK:return "Checks that both decks report analyzed keys and turns on key sync.";
  case XZ_UI_KEY_FEEDBACK:return "Shows the playing key where the countdown sits. Off restores the countdown.";
  case XZ_UI_KEY_FORMAT:return k==0?"Use the format set in the player's own settings.":k==1?"Musical keys such as Am and F#.":"Camelot wheel keys such as 8A and 2B.";
