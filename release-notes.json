@@ -1,7 +1,7 @@
 {
   "releases": [
     {
-      "version": "0.3.0-preview.12",
+      "version": "0.3.0-preview.13",
       "date": "2026-10-16",
       "preview": true,
       "features": [
@@ -13,7 +13,7 @@
       ],
       "requirements": [
         "Controller fixes need the matching USB loader. Updating the Windows app alone does not change a controller USB.",
-        "Local acceptance build; final tester package follows after the signed updater install test."
+        "Tester beta. Native control tests pass; physical XDJ-XZ verification remains separate."
       ]
     },
     {
@@ -165,7 +165,7 @@
       "preview": true,
       "features": [
         "MP3 stems are prepared on the player's timeline. The decoder now keeps every MP3 frame, the way the XDJ-XZ does, instead of trimming the LAME encoder delay; the same fix OverCue Desktop 2.2.5 shipped today.",
-        "The stems page marks MP3 bundles made before this build with \"Prepare again Ãƒâ€šÃ‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
+        "The stems page marks MP3 bundles made before this build with \"Prepare again \u00c3\u0192\u00c6\u2019\u00c3\u00a2\u00e2\u201a\u00ac\u00c5\u00a1\u00c3\u0192\u00e2\u20ac\u0161\u00c3\u201a\u00c2\u00b7 MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
       ],
       "fixes": [
         "Bundles from LAME-tagged MP3s (most MP3s) started 25 ms (1,105 frames) early against the player's full mix. Untagged MP3s, WAV and FLAC were never affected.",
