@@ -1,0 +1,184 @@
+#include "shell_internal.h"
+#include "shell_settings.h"
+#include "shell_browse.h"
+#include <string.h>
+
+static const char *const screen_names[XZ_SHELL_SCREEN_COUNT]={
+ "PLAY","BROWSE","PLAYLIST","TAG LIST","SEARCH","INFO","SHORTCUT","UTILITY","SOURCE"
+};
+const char *xz_shell_screen_name(enum xz_shell_screen s) { return s<XZ_SHELL_SCREEN_COUNT?screen_names[s]:"?"; }
+
+/* What a screen needs before it can be drawn. A missing slot or capability
+   hands the screen to the stock UI. */
+enum slot { SLOT_NONE, SLOT_BROWSE, SLOT_SETTINGS, SLOT_SOURCE, SLOT_INFO };
+static const struct { enum slot slot; uint32_t caps; } needs[XZ_SHELL_SCREEN_COUNT]={
+ [XZ_SHELL_PLAY]={SLOT_NONE,0},
+ [XZ_SHELL_BROWSE]={SLOT_BROWSE,XZ_SHELL_CAP_BROWSE},
+ [XZ_SHELL_PLAYLIST]={SLOT_BROWSE,XZ_SHELL_CAP_BROWSE},
+ [XZ_SHELL_TAG_LIST]={SLOT_BROWSE,XZ_SHELL_CAP_TAG_LIST},
+ [XZ_SHELL_SEARCH]={SLOT_BROWSE,XZ_SHELL_CAP_SEARCH},
+ [XZ_SHELL_INFO]={SLOT_INFO,0},
+ [XZ_SHELL_SHORTCUT]={SLOT_SETTINGS,0},
+ [XZ_SHELL_UTILITY]={SLOT_SETTINGS,0},
+ [XZ_SHELL_SOURCE]={SLOT_SOURCE,XZ_SHELL_CAP_SOURCE},
+};
+static int slot_present(const struct xz_shell_model *m, enum slot s) {
+ switch(s){
+ case SLOT_BROWSE:return m->browse!=NULL;
+ case SLOT_SETTINGS:return m->settings_screen!=NULL;
+ case SLOT_SOURCE:return m->source!=NULL;
+ case SLOT_INFO:return m->info!=NULL;
+ default:return 1;
+ }
+}
+static int available(const struct xz_shell_model *m, enum xz_shell_screen s) {
+ return slot_present(m,needs[s].slot)&&(m->capabilities&needs[s].caps)==needs[s].caps;
+}
+
+/* Navigation: screen x key -> transition (spec section 3.1).
+   OPEN replaces everything above PLAY (list keys toggle against PLAY),
+   PUSH layers over the current screen (INFO, SHORTCUT, UTILITY), POP goes up
+   one level, HOME to the top. */
+enum nav_kind { NAV_NONE, NAV_OPEN, NAV_PUSH, NAV_POP, NAV_HOME, NAV_HAND_OFF, NAV_SETTING, NAV_TAG };
+/* A transition packs its kind in the low nibble and its screen or setting above it. */
+#define NAV(kind,arg) ((uint16_t)((kind)|((arg)<<4)))
+#define OPEN(s) NAV(NAV_OPEN,s)
+#define PUSH(s) NAV(NAV_PUSH,s)
+#define POP NAV(NAV_POP,0)
+#define HOME NAV(NAV_HOME,0)
+#define NONE NAV(NAV_NONE,0)
+#define HAND_OFF NAV(NAV_HAND_OFF,0)
+/* ROW re-scans its arguments so LISTS can stand for the five list keys. */
+#define ROW(...) ROW_(__VA_ARGS__)
+#define ROW_(browse,taglist,playlist,search,source,info,shortcut,utility,menu,back) {  [XZ_SHELL_KEY_BACK]=back, [XZ_SHELL_KEY_BACK_HOLD]=HOME, [XZ_SHELL_KEY_BROWSE]=browse,  [XZ_SHELL_KEY_TAG_LIST]=taglist, [XZ_SHELL_KEY_PLAYLIST]=playlist, [XZ_SHELL_KEY_SEARCH]=search,  [XZ_SHELL_KEY_MENU]=menu, [XZ_SHELL_KEY_MENU_HOLD]=utility, [XZ_SHELL_KEY_SHORTCUT]=shortcut,  [XZ_SHELL_KEY_INFO]=info, [XZ_SHELL_KEY_SOURCE]=source, [XZ_SHELL_KEY_TAG_TRACK]=NAV(NAV_TAG,0),  [XZ_SHELL_KEY_TIME_MODE]=NAV(NAV_SETTING,XZ_SHELL_SET_TIME_MODE), [XZ_SHELL_KEY_QUANTIZE]=NAV(NAV_SETTING,XZ_SHELL_SET_QUANTIZE) }
+#define LISTS OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE)
+static const uint16_t nav[XZ_SHELL_SCREEN_COUNT][XZ_SHELL_KEY_COUNT]={
+ /*                     browse                 taglist                 playlist                search                 source                 info                shortcut                utility                 menu      back */
+ [XZ_SHELL_PLAY]    =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,NONE),
+ [XZ_SHELL_BROWSE]  =ROW(HOME,                 OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,POP),
+ [XZ_SHELL_PLAYLIST]=ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),HOME,                   OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,POP),
+ [XZ_SHELL_TAG_LIST]=ROW(OPEN(XZ_SHELL_BROWSE),HOME,                   OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,POP),
+ [XZ_SHELL_SEARCH]  =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),HOME,                 OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,POP),
+ [XZ_SHELL_SOURCE]  =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),HOME,                 PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),NONE,    POP),
+ [XZ_SHELL_INFO]    =ROW(LISTS,                                                                                                            POP,                PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),NONE,    POP),
+ [XZ_SHELL_SHORTCUT]=ROW(LISTS,                                                                                                            PUSH(XZ_SHELL_INFO),POP,                    PUSH(XZ_SHELL_UTILITY),NONE,    POP),
+ [XZ_SHELL_UTILITY] =ROW(LISTS,                                                                                                            PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),NONE,                  POP,     POP),
+};
+
+static void placeholder_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ (void)m;
+ sh_placeholder(c,xz_shell_screen_name(xz_shell_screen(u)),"PLACEHOLDER: THIS SCREEN IS DRAWN BY A LATER UNIT");
+}
+static size_t placeholder_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ (void)u;(void)m;(void)e;(void)out;return 0;
+}
+const struct sh_screen xz_shell_placeholder_screen={placeholder_render,placeholder_input};
+/* Each screen family owns one file; until it is built that file exports xz_shell_placeholder_screen. */
+static const struct sh_screen *const screens[XZ_SHELL_SCREEN_COUNT]={
+ [XZ_SHELL_PLAY]=&xz_shell_play_screen,
+ [XZ_SHELL_BROWSE]=&xz_shell_browse_screen, [XZ_SHELL_PLAYLIST]=&xz_shell_playlist_screen, [XZ_SHELL_TAG_LIST]=&xz_shell_tag_list_screen,
+ [XZ_SHELL_SEARCH]=&xz_shell_search_screen, [XZ_SHELL_INFO]=&xz_shell_info_screen, [XZ_SHELL_SHORTCUT]=&xz_shell_shortcut_screen,
+ [XZ_SHELL_UTILITY]=&xz_shell_utility_screen, [XZ_SHELL_SOURCE]=&xz_shell_source_screen,
+};
+
+/* Screens that consume BACK themselves (a pane or folder level up) before the navigation table pops. */
+static int (*const backs[XZ_SHELL_SCREEN_COUNT])(struct xz_shell *, const struct xz_shell_model *)={
+ [XZ_SHELL_UTILITY]=xz_shell_settings_back,
+};
+/* List screens answer whether they are below their top level; the BACK key then goes to their input. */
+static int (*const lists_back[XZ_SHELL_SCREEN_COUNT])(struct xz_shell *, const struct xz_shell_model *)={
+ [XZ_SHELL_BROWSE]=xz_shell_browse_back, [XZ_SHELL_PLAYLIST]=xz_shell_browse_back,
+ [XZ_SHELL_TAG_LIST]=xz_shell_browse_back, [XZ_SHELL_SEARCH]=xz_shell_browse_back,
+};
+/* A screen file that is still a stub exports an empty entry; it renders as the placeholder. */
+static const struct sh_screen *screen_of(const struct xz_shell *u) {
+ const struct sh_screen *s=screens[xz_shell_screen(u)];
+ return s->render&&s->input?s:&xz_shell_placeholder_screen;
+}
+void xz_shell_init(struct xz_shell *u) {
+ memset(u,0,sizeof *u);
+ u->stack[0].screen=XZ_SHELL_PLAY;u->depth=1;
+ u->zoom=XZ_SHELL_ZOOM_DEFAULT;
+}
+enum xz_shell_screen xz_shell_screen(const struct xz_shell *u) { return u->stack[u->depth-1].screen; }
+
+static void push(struct xz_shell *u, enum xz_shell_screen s) {
+ if(u->depth>=XZ_SHELL_STACK)return;
+ u->stack[u->depth]=(struct xz_shell_view){s,0,0,0};u->depth++;
+}
+static int on_stack(const struct xz_shell *u, enum xz_shell_screen s) {
+ for(int i=0;i<u->depth;i++)if(u->stack[i].screen==s)return 1;
+ return 0;
+}
+static size_t emit(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n, struct xz_shell_action a) {
+ if(n<XZ_SHELL_ACTIONS)out[n++]=a;
+ return n;
+}
+static enum xz_shell_time_mode shown_time_mode(const struct xz_shell_model *m, int deck) {
+ const struct xz_shell_deck *d=&m->deck[deck];
+ if(sh_has(d,XZ_SHELL_F_TIME_MODE))return d->time_mode;
+ if(sh_setting(m,XZ_SHELL_SET_TIME_MODE))return m->settings.time_mode;
+ return XZ_SHELL_TIME_REMAIN;
+}
+size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, int event_deck, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ size_t n=0;
+ if((int)k<0||k>=XZ_SHELL_KEY_COUNT)return 0;
+ if(u->popup.kind!=XZ_SHELL_POPUP_NONE&&(k==XZ_SHELL_KEY_BACK||k==XZ_SHELL_KEY_BACK_HOLD||k==XZ_SHELL_KEY_MENU)){
+  u->popup.kind=XZ_SHELL_POPUP_NONE;return 0;
+ }
+ uint16_t packed=nav[xz_shell_screen(u)][k];
+ struct { enum nav_kind kind; enum xz_shell_screen screen; enum xz_shell_setting setting; } t={(enum nav_kind)(packed&15),(enum xz_shell_screen)(packed>>4),(enum xz_shell_setting)(packed>>4)};
+ int deck=event_deck>=0&&event_deck<XZ_SHELL_DECKS?event_deck:u->deck;
+ switch(t.kind){
+ case NAV_NONE:break;
+ case NAV_OPEN:
+  if(!available(m,t.screen))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)t.screen});
+  u->depth=1;push(u,t.screen);break;
+ case NAV_PUSH:
+  if(on_stack(u,t.screen))break;
+  if(!available(m,t.screen))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)t.screen});
+  push(u,t.screen);break;
+ case NAV_POP:if(u->depth>1)u->depth--;break;
+ case NAV_HOME:u->depth=1;break;
+ case NAV_HAND_OFF:return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_HAND_OFF_MENU});
+ case NAV_SETTING:
+  if(!(m->capabilities&XZ_SHELL_CAP_SET_SETTING))break;
+  if(t.setting==XZ_SHELL_SET_TIME_MODE)
+   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,shown_time_mode(m,deck)==XZ_SHELL_TIME_REMAIN?XZ_SHELL_TIME_ELAPSED:XZ_SHELL_TIME_REMAIN,XZ_SHELL_SET_TIME_MODE});
+  if(t.setting==XZ_SHELL_SET_QUANTIZE){
+   const struct xz_shell_deck *d=&m->deck[deck];
+   int on=sh_has(d,XZ_SHELL_F_QUANTIZE)?d->quantize_on:0;
+   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,!on,XZ_SHELL_SET_QUANTIZE});
+  }
+  break;
+ case NAV_TAG:
+  if(m->capabilities&XZ_SHELL_CAP_TAG_TRACK)return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_TAG_TRACK,deck,0,0});
+  break;
+ }
+ return n;
+}
+size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ if(!u||!m||!e||!out)return 0;
+ if(e->kind==XZ_SHELL_KEY&&(e->key==XZ_SHELL_KEY_BACK||e->key==XZ_SHELL_KEY_BACK_HOLD)&&u->popup.kind==XZ_SHELL_POPUP_NONE){
+  enum xz_shell_screen s=xz_shell_screen(u);
+  /* A list below its top level goes up (BACK) or to the top (BACK_HOLD) through its own input, which emits the browse action. */
+  if(lists_back[s]&&lists_back[s](u,m))return screen_of(u)->input(u,m,e,out);
+  if(e->key==XZ_SHELL_KEY_BACK&&backs[s]&&backs[s](u,m))return 0;
+ }
+ if(e->kind==XZ_SHELL_KEY)return sh_key(u,m,e->key,e->deck,out);
+ if(u->popup.kind!=XZ_SHELL_POPUP_NONE){
+  if(e->kind==XZ_SHELL_TOUCH_DOWN||e->kind==XZ_SHELL_ENCODER_PUSH)u->popup.kind=XZ_SHELL_POPUP_NONE;
+  return 0;
+ }
+ return screen_of(u)->input(u,m,e,out);
+}
+int xz_shell_render(const struct xz_shell *u, const struct xz_shell_model *m, uint16_t *pixels, size_t stride) {
+ if(!u||!m||!pixels||stride<XZ_SHELL_WIDTH||u->depth<1||u->depth>XZ_SHELL_STACK)return 0;
+ struct xz_canvas c={pixels,stride,XZ_SHELL_WIDTH,XZ_SHELL_HEIGHT,XZ_THEME_FLAGSHIP};
+ screen_of(u)->render(u,m,c);
+ if(u->popup.kind!=XZ_SHELL_POPUP_NONE){
+  xz_rect(c,200,140,400,200,SH_CHROME);xz_border(c,200,140,400,200,SH_RAIL);
+  sh_text_center(c,400,230,"POPUP: DRAWN BY A LATER UNIT",SH_SMALL,SH_DIM);
+ }
+ return 1;
+}

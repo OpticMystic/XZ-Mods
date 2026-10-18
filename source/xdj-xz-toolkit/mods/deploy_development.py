@@ -29,7 +29,10 @@ def main():
     parser.add_argument("--native-view", action="store_true", help="Start this RAM trial on the native deck view; the visible VJ.Tools button can reopen the stream")
     parser.add_argument("--stems", action="store_true", help="Enable prepared-stem discovery with native-audio alignment")
     parser.add_argument("--ram-settings", action="store_true", help="Read existing preferences but keep all trial changes in RAM")
-    parser.add_argument("--theme", type=int, choices=range(12), help="Initial display theme for this RAM trial")
+    parser.add_argument("--theme", type=int, choices=range(25), help="Initial display theme for this RAM trial (24 = FLAGSHIP)")
+    parser.add_argument("--shell", action="store_true", help="Let the FLAGSHIP shell own the screen while theme 24 is active")
+    parser.add_argument("--shell-load-by-id", action="store_true", help="Offer the shell's unproven LOAD-by-track-id path (needs --shell)")
+    parser.add_argument("--shell-debug", action="store_true", help="Log FLAGSHIP shell frame counters once per second")
     parser.add_argument("--inline-observe", action="store_true", help="Observe the exact native wave lock without drawing")
     parser.add_argument("--settings-usb", help="Existing mounted XZ USB volume for persistent preferences")
     args = parser.parse_args()
@@ -136,6 +139,8 @@ def main():
     new_env += f" XZ_MODS_PAD_TRACE={int(args.pad_trace)}"
     if args.native_view:
         new_env += " XZ_MODS_NATIVE_VIEW=1"
+    if args.shell:
+        new_env += " XZ_MODS_SHELL=1" + " XZ_MODS_SHELL_LOAD_BY_ID=1" * args.shell_load_by_id + " XZ_MODS_SHELL_DEBUG=1" * args.shell_debug
     script = f'''#!/bin/sh
 trap '' HUP
 ulimit -c 0

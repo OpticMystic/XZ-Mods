@@ -1,0 +1,176 @@
+/* SPDX-License-Identifier: MIT */
+/* Pure parts of the FLAGSHIP shell runtime. No device, threads or allocation. */
+#include "shell_runtime.h"
+#include "shell/shell_settings.h"
+#include <string.h>
+
+/* Codes from VJToolsLibrary docs/research/2026-10-18-xz-shell-abi.md R1. */
+static const struct xz_shrt_key_map keys[]={
+ {0x209,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_BROWSE,-1},
+ {0x20a,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_LIST,-1},
+ {0x206,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_INFO,-1},
+ {0x20b,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU_HOLD},
+ {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1},
+ {0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1},
+ {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1},
+ {0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1},
+ {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD},
+ /* shell.h has no LOAD key: LOAD 1/2 stay stock, whose handler refuses outside its own list screens. */
+ {0x430f,1,XZ_SHRT_STOCK,-1,-1},{0x430f,2,XZ_SHRT_STOCK,-1,-1},
+ /* TIME MODE and QUANTIZE change deck state the shell reads back. */
+ {0x430b,0,XZ_SHRT_STOCK,-1,-1},{0x430c,0,XZ_SHRT_STOCK,-1,-1},
+};
+const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel) {
+ for(size_t i=0;i<sizeof keys/sizeof *keys;i++)
+  if(keys[i].code==code&&(!keys[i].channel||keys[i].channel==channel))return &keys[i];
+ return NULL;
+}
+enum xz_shrt_phase xz_shrt_phase_of(unsigned op) { return op==0?XZ_SHRT_PRESS:op==1?XZ_SHRT_HOLD:XZ_SHRT_RELEASE; }
+
+/* Runs one key on a copy of the shell. Only sh_key runs for these keys, and it
+   writes nothing but the shell struct, so the copy keeps the probe side-effect free. */
+struct probe { int effect, hands_off; };
+static struct probe probe(const struct xz_shell *u, const struct xz_shell_model *m, int key) {
+ struct probe p={0,0};
+ if(key<0)return p;
+ struct xz_shell copy;memcpy(&copy,u,sizeof copy);
+ struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,(enum xz_shell_key)key,-1};
+ struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ size_t n=xz_shell_input(&copy,m,&e,out);
+ for(size_t i=0;i<n;i++)if(out[i].kind==XZ_SHELL_ACT_HAND_OFF)p.hands_off=1;
+ p.effect=n>0||memcmp(&copy,u,sizeof copy)!=0;
+ return p;
+}
+enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shrt_key_map *k) {
+ if(!u||!m||!k||k->rule==XZ_SHRT_STOCK)return XZ_SHRT_PASS;
+ if(k->key==XZ_SHELL_KEY_BACK){
+  /* BACK never hands off (its table entries are POP, HOME or NONE) and a list
+     screen's BACK runs screen input with state outside the shell struct, so it
+     is not probed: it is inert only on a bare PLAY screen. */
+  return u->depth<=1&&u->popup.kind==XZ_SHELL_POPUP_NONE?XZ_SHRT_PASS:XZ_SHRT_SWALLOW;
+ }
+ struct probe a=probe(u,m,k->key),b=k->rule==XZ_SHRT_ON_RELEASE?probe(u,m,k->hold):(struct probe){0,0};
+ if(!a.effect&&!b.effect)return XZ_SHRT_PASS;
+ if((a.hands_off||!a.effect)&&(b.hands_off||!b.effect))return XZ_SHRT_PASS_HAND_OFF;
+ return XZ_SHRT_SWALLOW;
+}
+int xz_shrt_key_for_phase(const struct xz_shrt_key_map *k, enum xz_shrt_phase p, int held) {
+ if(!k||k->rule==XZ_SHRT_STOCK)return -1;
+ if(k->rule==XZ_SHRT_ON_PRESS)return p==XZ_SHRT_PRESS?k->key:-1;
+ if(p==XZ_SHRT_HOLD)return held?-1:k->hold;
+ if(p==XZ_SHRT_RELEASE)return held?-1:k->key;
+ return -1;
+}
+
+void xz_shrt_contact_press(struct xz_shrt_contacts *c, uint16_t code, unsigned channel, int swallow) {
+ int slot=-1;
+ for(int i=0;i<XZ_SHRT_CONTACTS;i++){
+  if(c->c[i].used&&c->c[i].code==code&&c->c[i].channel==channel){slot=i;break;}
+  if(!c->c[i].used&&slot<0)slot=i;
+ }
+ if(slot<0)slot=0; /* more than eight keys held: reuse the oldest slot */
+ c->c[slot].code=code;c->c[slot].channel=(uint8_t)channel;c->c[slot].used=1;
+ c->c[slot].swallow=(uint8_t)!!swallow;c->c[slot].held=0;
+}
+int xz_shrt_contact_follow(struct xz_shrt_contacts *c, uint16_t code, unsigned channel, enum xz_shrt_phase p, int *held) {
+ if(held)*held=0;
+ for(int i=0;i<XZ_SHRT_CONTACTS;i++){
+  if(!c->c[i].used||c->c[i].code!=code||c->c[i].channel!=channel)continue;
+  int swallow=c->c[i].swallow;
+  if(held)*held=c->c[i].held;
+  if(p==XZ_SHRT_HOLD)c->c[i].held=1;
+  else if(p==XZ_SHRT_RELEASE)c->c[i].used=0;
+  return swallow;
+ }
+ return -1;
+}
+
+struct xz_shrt_touch_step xz_shrt_touch_route(struct xz_shrt_touch *t, int owns, int x, int y, int down, int stock_down) {
+ struct xz_shrt_touch_step s={0,0,-1,t->x,t->y};
+ /* Native releases may clear the coordinates; the release keeps the last ones. */
+ if(down||x||y){t->x=x;t->y=y;s.x=x;s.y=y;}
+ switch(t->owner){
+ case XZ_SHRT_T_NONE:
+  if(!down){s.to_stock=!owns;return s;}
+  if(!owns){t->owner=XZ_SHRT_T_STOCK;s.to_stock=1;return s;}
+  if(stock_down){t->owner=XZ_SHRT_T_SWALLOW;s.release_stock=1;return s;}
+  t->owner=XZ_SHRT_T_SHELL;s.event=XZ_SHELL_TOUCH_DOWN;return s;
+ case XZ_SHRT_T_SHELL:
+  s.event=down?XZ_SHELL_TOUCH_MOVE:XZ_SHELL_TOUCH_UP;
+  if(!down)t->owner=XZ_SHRT_T_NONE;
+  return s;
+ case XZ_SHRT_T_STOCK:
+  /* The shell took the screen mid-gesture: end the stock gesture now and keep the rest. */
+  if(owns&&down){s.release_stock=stock_down;t->owner=XZ_SHRT_T_SWALLOW;return s;}
+  s.to_stock=1;if(!down)t->owner=XZ_SHRT_T_NONE;
+  return s;
+ case XZ_SHRT_T_SWALLOW:
+  if(!down)t->owner=XZ_SHRT_T_NONE;
+  return s;
+ }
+ return s;
+}
+
+int xz_shrt_push_event(struct xz_shrt_push *p, uint32_t flags, uint32_t state) {
+ /* The stock handler runs for every key pass while its state is set, so only
+    the press phase (flags 1) and the first long state count as events. */
+ if(flags==1){p->down=1;p->held=0;return XZ_SHELL_ENCODER_PUSH;}
+ if(p->down&&!p->held&&state==3){p->held=1;return XZ_SHELL_ENCODER_HOLD;}
+ return -1;
+}
+
+void xz_shrt_handoff_begin(struct xz_shrt_handoff *h, uint32_t now) {
+ if(!h->handed)h->count++;
+ h->handed=1;h->left_play=0;h->since=now;h->play_since=0;
+}
+void xz_shrt_handoff_end(struct xz_shrt_handoff *h) {
+ if(h->handed)h->resumes++;
+ h->handed=0;h->left_play=0;h->play_since=0;
+}
+int xz_shrt_handoff_step(struct xz_shrt_handoff *h, uint32_t now, int play) {
+ if(!h->handed)return 0;
+ if(play<0){h->play_since=0;return 0;}
+ if(!play){h->left_play=1;h->play_since=0;return 0;}
+ if(!h->play_since)h->play_since=now?now:1;
+ if((uint32_t)(now-h->play_since)<XZ_SHRT_RESUME_STABLE_MS)return 0;
+ if(!h->left_play&&(uint32_t)(now-h->since)<XZ_SHRT_RESUME_GRACE_MS)return 0;
+ xz_shrt_handoff_end(h);return 1;
+}
+void xz_shrt_handoff_caution(struct xz_shrt_handoff *h, uint32_t caution) { h->caution=caution!=0; }
+int xz_shrt_handoff_yields(const struct xz_shrt_handoff *h) { return h->handed||h->caution; }
+
+int xz_shrt_queue_push(struct xz_shrt_queue *q, const struct xz_shrt_command *c) {
+ for(unsigned i=0;i<q->count;i++){
+  struct xz_shrt_command *e=&q->c[(q->head+i)%XZ_SHRT_QUEUE];
+  if(e->kind==c->kind&&e->deck==c->deck&&c->kind!=XZ_SHRT_CMD_LOAD){*e=*c;q->coalesced++;return 1;}
+ }
+ if(q->count>=XZ_SHRT_QUEUE){q->dropped++;return 0;}
+ q->c[(q->head+q->count)%XZ_SHRT_QUEUE]=*c;q->count++;
+ return 1;
+}
+int xz_shrt_queue_pop(struct xz_shrt_queue *q, struct xz_shrt_command *out) {
+ if(!q->count)return 0;
+ *out=q->c[q->head];q->head=(q->head+1)%XZ_SHRT_QUEUE;q->count--;
+ return 1;
+}
+
+const char *const xz_shrt_quantize_choices[4]={"1/8","1/4","1/2","1"};
+int xz_shrt_quantize_index(int den) { return den==8?0:den==4?1:den==2?2:den==1?3:-1; }
+int xz_shrt_setting_command(const struct xz_shell_action *a, uint32_t now, struct xz_shrt_command *out) {
+ if(!a||!out||a->kind!=XZ_SHELL_ACT_SET_SETTING)return 0;
+ memset(out,0,sizeof *out);out->at_ms=now;
+ int deck=a->deck>=0&&a->deck<XZ_SHELL_DECKS?a->deck:-1;
+ switch(a->id){
+ case XZ_SHELL_SET_TIME_MODE: /* UiSetKeyTimeMode(channel, remain) */
+  if(a->value!=XZ_SHELL_TIME_REMAIN&&a->value!=XZ_SHELL_TIME_ELAPSED)return 0;
+  out->kind=XZ_SHRT_CMD_TIME_MODE;out->deck=deck;out->value=a->value==XZ_SHELL_TIME_REMAIN;return 1;
+ case XZ_SHELL_ITEM_QUANTIZE_BEAT: /* UiSetUtilQuantizeValue: 0 = 1 beat .. 3 = 1/8; choices run 1/8 .. 1 */
+  if(a->value<0||a->value>3)return 0;
+  out->kind=XZ_SHRT_CMD_QUANTIZE_BEAT;out->deck=-1;out->value=3-a->value;return 1;
+ default:
+  /* QUANTIZE on/off, PLAY MODE, AUTO CUE, HOT CUE AUTO LOAD and the rest have no C3 setter. */
+  return 0;
+ }
+}
+
+uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen s, int any_playing) { return s==XZ_SHELL_PLAY&&any_playing?33u:100u; }
