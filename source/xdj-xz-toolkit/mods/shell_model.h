@@ -41,6 +41,11 @@ void xz_shell_model_set_input(struct xz_shell_model_storage *storage, int deck,
 /* Guard failures counted per read family: [0] R3 stat frames, [1] R4 settings, [2] R5 title, [3] R6 caution. */
 void xz_shell_model_diagnostics(const struct xz_shell_model_storage *storage, uint32_t out[4]);
 
+/* BEAT FX guard failures (getBfxState and its field loads), and how many deck refreshes republished the
+   last complete snapshot because a read was torn or unstable (at most 250 ms per snapshot). */
+uint32_t xz_shell_model_fx_failures(const struct xz_shell_model_storage *storage);
+uint32_t xz_shell_model_holds(const struct xz_shell_model_storage *storage);
+
 /* Hot cue OUT time (loop hot cues); returns 0 when not known. */
 int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *storage, int deck, int cue, int32_t *out_ms);
 #endif

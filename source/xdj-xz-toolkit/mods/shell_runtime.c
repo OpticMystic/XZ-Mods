@@ -63,6 +63,10 @@ struct xz_shell_proof {
  uint32_t guards;                     /* bit per verified contract, enum guard */
  uint32_t model_guard_failures[4];    /* R3, R4, R5, R6 */
  uint32_t wave_loads, wave_failures, grid_loads, library_tracks[2], library_errors, list_builds, list_errors, list_build_ms;
+ /* Added for the 60 Hz pipeline (the struct reports its own size). Last whole second: */
+ uint32_t second_refreshes, second_gap_max_us, second_late, second_tick_busy, second_clock_reads, second_moving;
+ /* Since start: */
+ uint32_t model_holds, fx_guard_failures, caution_filtered, ui_requests, menu_passes;
 };
 __attribute__((visibility("default"),used)) struct xz_shell_proof xz_mods_shell_proof_v1={.version=1,.size=sizeof(struct xz_shell_proof)};
 enum guard { G_TIME_MODE, G_QUANTIZE, G_MENU, G_LOAD, G_PLAY_FLAG, G_MENU_VISIBLE, G_CLOCK, G_SETTINGS };
@@ -85,7 +89,26 @@ static struct xz_shrt_push push_state;
 static struct xz_shrt_queue queue;
 static struct xz_shell_runtime_frame_input last_input;
 static uint32_t last_call_ms, last_refresh_ms, last_pump_ms;
-static struct { uint32_t start, frames, calls, flips, skipped, busy, pump, ticks, render_max, refresh_max, refreshes; uint64_t render_us, refresh_us; } sec;
+static struct { uint32_t start, frames, calls, flips, skipped, busy, pump, ticks, tick_busy, render_max, refresh_max, refreshes, clock_reads, moving;
+ uint64_t render_us, refresh_us; struct xz_shrt_frames shown; } sec;
+/* Playhead and motion per deck (model thread), the caution debounce, header-button requests for
+   ui_runtime.c, the MENU key passed to stock, and the LOAD confirmation read a second later. */
+static struct xz_shrt_position position[XZ_SHELL_DECKS];
+static struct xz_shrt_motion motion[XZ_SHELL_DECKS];
+static struct xz_shrt_caution caution_state;
+static uint32_t last_caution_logged;
+static unsigned ui_requests;
+static int menu_passed;
+static struct { int pending, deck, tries; uint32_t id, before, at; uint8_t device_kind; } load_check;
+/* One-line feedback for actions the shell could not carry out (LOAD refused, not loaded, off). It is
+   published to the renderer once shell.h has the notice fields (XZ_SHELL_NOTICE_MS), and logged. */
+static char notice_text[48];
+static uint32_t notice_at;
+static int notice_pending;     /* raised since the last frame: stamped with that frame's clock */
+static int menu_inert;         /* a short MENU asked for stock's menu popup and was kept inert (SHELL_KEY note) */
+static uint32_t ui_requests_at;/* when header requests were raised; untaken after 500 ms they report a notice */
+static uint32_t load_actions; /* LOAD actions the shell input produced (queued or refused) */
+static struct { uint32_t second, lines, dropped; } key_log;
 
 /* ---- clocks and reads ---- */
 static uint64_t now_us(void) { struct timeval t;gettimeofday(&t,NULL);return (uint64_t)t.tv_sec*1000000u+(uint64_t)t.tv_usec; }
@@ -131,30 +154,24 @@ static struct loaded read_loaded(int deck) {
  return l;
 }
 static int settled(const struct loaded *l) { return l->known&&l->state!=7&&l->state!=9&&l->id&&l->id!=UINT32_MAX; }
-/* Stock is on its play screen: lifecycle flag set, browse mode 1 and no menu popup. -1 when unreadable. */
-static int stock_play(void) {
- uint32_t flag,menu;
- if(!has(G_PLAY_FLAG)||!word(PLAY_LIFECYCLE,&flag))return -1;
- if(!flag)return 0;
+/* Stock is on its play screen: lifecycle flag set, browse mode 1 and no menu popup. -1 when neither the
+   flag nor the browse mode can be read. Either one alone decides when the other is unreadable, so a
+   missing guard cannot keep the shell handed off for good. parts (debug): flag, mode, menu, or ~0u. */
+struct stock_parts { uint32_t flag, mode, menu; };
+static int stock_play_parts(struct stock_parts *p) {
+ uint32_t flag=UINT32_MAX,menu=UINT32_MAX;
+ int flag_known=has(G_PLAY_FLAG)&&word(PLAY_LIFECYCLE,&flag);
+ if(!flag_known)flag=UINT32_MAX;
  unsigned mode=xz_native_browse_mode();
+ if(!(has(G_MENU_VISIBLE)&&word(MENU_VISIBLE,&menu)))menu=UINT32_MAX;
+ if(p){p->flag=flag;p->mode=mode;p->menu=menu;}
+ if(!flag_known&&!mode)return -1;
+ if(flag_known&&!flag)return 0;
  if(mode&&mode!=1)return 0;
- if(has(G_MENU_VISIBLE)&&word(MENU_VISIBLE,&menu)&&menu)return 0;
+ if(menu!=UINT32_MAX&&menu)return 0;
  return 1;
 }
-/* R4 walk for one id (UiGetUtil* wrappers are PC-relative and are not called). */
-static int setting_value(uint32_t id, uint32_t *value) {
- uint32_t settings,list,count,entry,v,again;
- if(!has(G_SETTINGS)||!word(0x1c8a404,&settings)||!pointer(settings,0x170)||
-    !word(settings+0x164,&list)||!word(settings+0x16c,&count)||count>512||!pointer(list,(size_t)count*0x8c))return 0;
- int found=0;
- for(uint32_t i=0;i<count;i++){
-  if(!word(list+i*0x8c,&entry))return 0;
-  if(entry!=id)continue;
-  if(found||!word(list+i*0x8c+0x88,&v)||!word(list+i*0x8c+0x88,&again)||v!=again)return 0;
-  found=1;*value=v;
- }
- return found;
-}
+static int stock_play(void) { return stock_play_parts(NULL); }
 
 /* ---- libraries ---- */
 enum { USB_NONE, USB_LOADING, USB_READY, USB_ERROR };
@@ -317,7 +334,7 @@ static void fill_slots_locked(void) {
  uint32_t caps=XZ_SHELL_CAP_SOURCE;
  if(has(G_TIME_MODE)||has(G_QUANTIZE))caps|=XZ_SHELL_CAP_SET_SETTING;
  if(lib)caps|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
- if(lib&&load_enabled&&has(G_LOAD)&&has(G_SETTINGS))caps|=XZ_SHELL_CAP_LOAD;
+ if(lib&&load_enabled&&has(G_LOAD))caps|=XZ_SHELL_CAP_LOAD;
  model.capabilities=caps;
  model.settings.writable=0;
  for(int id=0;id<XZ_SHELL_SETTING_COUNT;id++)
@@ -573,29 +590,85 @@ static void roll_second(uint32_t now) {
  p->second_busy=sec.busy;p->second_pump=sec.pump;p->second_ticks=sec.ticks;
  p->second_render_avg_us=sec.frames?(uint32_t)(sec.render_us/sec.frames):0;p->second_render_max_us=sec.render_max;
  p->second_refresh_avg_us=sec.refreshes?(uint32_t)(sec.refresh_us/sec.refreshes):0;p->second_refresh_max_us=sec.refresh_max;
+ p->second_refreshes=sec.refreshes;p->second_gap_max_us=sec.shown.gap_max_us;p->second_late=sec.shown.late;
+ p->second_tick_busy=sec.tick_busy;p->second_clock_reads=sec.clock_reads;p->second_moving=sec.moving;
+ if(storage){p->model_holds=xz_shell_model_holds(storage);p->fx_guard_failures=xz_shell_model_fx_failures(storage);}
  p->handed_off=(uint32_t)handoff.handed;p->caution_yield=(uint32_t)handoff.caution;p->screen=(uint32_t)xz_shell_screen(&shell);
  p->hand_offs=handoff.count;p->resumes=handoff.resumes;p->commands_dropped=queue.dropped;
  if(storage)xz_shell_model_diagnostics(storage,p->model_guard_failures);
  __atomic_add_fetch(&p->sequence,1,__ATOMIC_RELEASE);
  if(debug){
-  char line[320];
-  snprintf(line,sizeof line,"SHELL: frames=%u calls=%u stock_flips=%u skipped=%u busy=%u render_avg_us=%u render_max_us=%u "
-   "refresh_avg_us=%u refresh_max_us=%u pump=%u ticks=%u owns=%u handed=%u caution=%u screen=%s caps=0x%x",
-   sec.frames,sec.calls,sec.flips,sec.skipped,sec.busy,p->second_render_avg_us,sec.render_max,p->second_refresh_avg_us,sec.refresh_max,
-   sec.pump,sec.ticks,(unsigned)owns_flag,(unsigned)handoff.handed,p->caution,xz_shell_screen_name(xz_shell_screen(&shell)),model.capabilities);
+  char line[640];struct stock_parts stock;int stock_now=stock_play_parts(&stock);
+  /* fps: frames the shell drew in the last second (each one is presented on the next vsync);
+     gap_max_ms/late: the longest frame-to-frame gap and the gaps over 20 ms (missed 60 Hz slots);
+     clock: native clock reads that succeeded (two decks per refresh); moving: deck bits playing or moving;
+     tick_busy: owner ticks skipped because a frame held the lock; holds: torn reads covered by the
+     last snapshot (cumulative). */
+  snprintf(line,sizeof line,"SHELL: fps=%u gap_max_ms=%u.%u late=%u calls=%u stock_flips=%u skipped=%u busy=%u render_avg_us=%u render_max_us=%u "
+   "refreshes=%u refresh_avg_us=%u refresh_max_us=%u clock=%u moving=0x%x period_ms=%u pump=%u ticks=%u tick_busy=%u owns=%u handed=%u caution=%u "
+   "holds=%u wave_loads=%u fx_guard=%u stock_play=%d flag=%u mode=%u menu=%u caution_ack=0x%x keys_dropped=%u screen=%s caps=0x%x",
+   sec.frames,sec.shown.gap_max_us/1000u,sec.shown.gap_max_us/100u%10u,sec.shown.late,sec.calls,sec.flips,sec.skipped,sec.busy,
+   p->second_render_avg_us,sec.render_max,sec.refreshes,p->second_refresh_avg_us,sec.refresh_max,sec.clock_reads,sec.moving,
+   (unsigned)period_ms,sec.pump,sec.ticks,sec.tick_busy,(unsigned)owns_flag,(unsigned)handoff.handed,p->caution,
+   p->model_holds,p->wave_loads,p->fx_guard_failures,stock_now,stock.flag,stock.mode,stock.menu,caution_state.ack,key_log.dropped,
+   xz_shell_screen_name(xz_shell_screen(&shell)),model.capabilities);
   xz_log(line);
  }
- memset(&sec,0,sizeof sec);sec.start=now;
+ uint64_t last_shown=sec.shown.last_us;
+ memset(&sec,0,sizeof sec);sec.start=now;sec.shown.last_us=last_shown;
 }
+
+/* ---- shell-owned display settings ----
+   Kept in RAM for the life of the process (across XZ_MODS_SHELL stop/start); a reboot starts from the
+   shell's defaults. ids: XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_ITEM_KEY_DISPLAY,
+   XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level). */
+static struct { int id, value, set; } display_saved[4]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
+ {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0}};
+static void save_display(int id, int value) {
+ for(int i=0;i<4;i++)if(display_saved[i].id==id){display_saved[i].value=value;display_saved[i].set=1;}
+}
+static void restore_display(void) {
+ for(int i=0;i<4;i++)if(display_saved[i].set)xz_shell_restore_setting(&shell,display_saved[i].id,display_saved[i].value);
+}
+
+/* ---- feedback and logs ---- */
+/* The text stays in notice_text until the next notice replaces it, so it outlives XZ_SHELL_NOTICE_MS.
+   notice_at_ms is stamped with the clock of the first frame that shows it, never a later thread's clock
+   (a stamp ahead of clock_ms would wrap the renderer's age test and hide the toast). */
+static void notice_locked(uint32_t now, const char *text) {
+ (void)now;snprintf(notice_text,sizeof notice_text,"%s",text);notice_pending=1;dirty_flag=1;
+ if(debug){char line[96];snprintf(line,sizeof line,"SHELL_NOTICE: %s",notice_text);xz_log(line);}
+}
+static void publish_notice_locked(void) {
+ if(notice_pending){notice_at=model.clock_ms?model.clock_ms:1;notice_pending=0;}
+#ifdef XZ_SHELL_NOTICE_MS
+ model.notice=notice_text[0]?notice_text:NULL;model.notice_at_ms=notice_at;
+#endif
+}
+/* At most 20 lines a second; the next line that gets through reports how many were dropped. */
+static int key_log_allowed(uint32_t now) {
+ if(!debug)return 0;
+ if(now-key_log.second>=1000u){key_log.second=now;key_log.lines=0;}
+ if(key_log.lines>=20){key_log.dropped++;return 0;}
+ key_log.lines++;return 1;
+}
+static const char *const verdict_names[3]={"pass","pass_hand_off","swallow"};
+static const char *const phase_names[3]={"press","hold","release"};
 
 /* ---- actions ---- */
 static void queue_command(const struct xz_shrt_command *c) {
  if(!xz_shrt_queue_push(&queue,c))xz_mods_shell_proof_v1.commands_dropped=queue.dropped;
 }
 static void refuse(void) { xz_mods_shell_proof_v1.commands_refused++; }
-static void hand_off_locked(uint32_t now) {
+static void hand_off_locked(uint32_t now, const char *why, unsigned what) {
  xz_shrt_handoff_begin(&handoff,now);set_owns(0);
  xz_mods_shell_proof_v1.handed_off=1;
+ if(debug){
+  struct stock_parts s;int play=stock_play_parts(&s);char line[160];
+  snprintf(line,sizeof line,"SHELL_HANDOFF: begin %s=0x%x screen=%s stock_play=%d flag=%u mode=%u menu=%u",
+   why,what,xz_shell_screen_name(xz_shell_screen(&shell)),play,s.flag,s.mode,s.menu);
+  xz_log(line);
+ }
 }
 static void browse_action(int32_t value, int op) {
  int k=list_index(xz_shell_screen(&shell));
@@ -638,18 +711,32 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   xz_mods_shell_proof_v1.actions++;
   switch(a->kind){
   case XZ_SHELL_ACT_SET_SETTING:
+   /* Shell-owned display settings are already applied in the shell: keep them for the next start. */
+   if(xz_shrt_shell_owned_setting(a->id)){save_display(a->id,a->value);break;}
    if(!xz_shrt_setting_writable(a->id,has(G_TIME_MODE),has(G_QUANTIZE))||
       !xz_shrt_setting_command(a,now,&c)){refuse();break;}
    queue_command(&c);break;
   case XZ_SHELL_ACT_LOAD:
-   if(!(model.capabilities&XZ_SHELL_CAP_LOAD)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<=0||browse_source<0){refuse();break;}
+   load_actions++;
+   if(!(model.capabilities&XZ_SHELL_CAP_LOAD)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<=0||browse_source<0){
+    refuse();
+    notice_locked(now,!load_enabled?"LOAD FROM THIS LIST IS OFF":!has(G_LOAD)?"LOAD IS NOT AVAILABLE ON THIS FIRMWARE":
+     browse_source<0?"NO USB TRACK LIST TO LOAD FROM":"THIS ROW CANNOT BE LOADED");
+    break;
+   }
    c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,a->deck,0,(uint32_t)a->id,(uint8_t)(2+browse_source),now};
    queue_command(&c);break;
   case XZ_SHELL_ACT_HAND_OFF:
-   if(a->id==XZ_SHELL_HAND_OFF_MENU&&has(G_MENU)){
-    c=(struct xz_shrt_command){XZ_SHRT_CMD_STOCK_MENU,-1,0,0,0,now};queue_command(&c);
-   }
-   hand_off_locked(now);break;
+   /* The stock menu is reached only by passing the physical MENU key to stock (xz_shrt_key_verdict).
+      A MENU hand-off from any other input has no native call to make: stock's short MENU on PLAY
+      opens nothing, and UiKey_Menu belongs to Ui_EventTask. Stay on screen instead of showing an
+      unchanged stock screen for the grace period. */
+   if(a->id==XZ_SHELL_HAND_OFF_MENU){refuse();menu_inert=1;break;}
+   hand_off_locked(now,"action_screen",(unsigned)a->id);break;
+  case XZ_SHELL_ACT_OPEN_MODS:
+   __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_OPEN_MODS,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;xz_mods_shell_proof_v1.ui_requests++;break;
+  case XZ_SHELL_ACT_TOGGLE_STEMS:
+   __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_TOGGLE_STEMS,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;xz_mods_shell_proof_v1.ui_requests++;break;
   case XZ_SHELL_ACT_BROWSE:browse_action(a->value,a->id);break;
   case XZ_SHELL_ACT_INFO_JUMP:info_jump(a);break;
   case XZ_SHELL_ACT_SET_SOURCE:
@@ -658,7 +745,8 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
     if(usb[slot].lib)browse_source=slot;else refuse();
    }else refuse();
    break;
-  case XZ_SHELL_ACT_ZOOM:case XZ_SHELL_ACT_ACTIVE_DECK:case XZ_SHELL_ACT_NONE:break; /* shell state */
+  case XZ_SHELL_ACT_ZOOM:save_display(XZ_SHELL_ITEM_WAVE_ZOOM,a->value);break; /* shell state, kept */
+  case XZ_SHELL_ACT_ACTIVE_DECK:case XZ_SHELL_ACT_NONE:break; /* shell state */
   default:refuse();break; /* SEEK, GRID_ADJUST, TAG_TRACK, SET_RATING, CLOSE_SHELL: capability off */
   }
  }
@@ -691,6 +779,7 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
    int beat=(int)floorf(clock.bar_phase)+1;
    input.bar_phase=beat<1?1:beat>4?4:beat;
    input.known|=K(PLAYING)|K(BAR_PHASE);
+   sec.clock_reads++;
   }
   if(grid_count[d]){input.grid=grid_cache[d];input.grid_count=grid_count[d];input.known|=K(GRID);}
   unsigned kind=loaded[d].known?loaded[d].device_kind:0;
@@ -702,14 +791,39 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  for(int d=0;d<XZ_SHELL_DECKS;d++)if(changed>>d&1u){
   /* A new track: drop the old grid now, load the new wave and grid on the worker. */
   wave_job[d].wanted++;wave_job[d].retry_at=0;grid_count[d]=0;pthread_cond_signal(&wake);
+  xz_shrt_position_reset(&position[d]);memset(&motion[d],0,sizeof motion[d]);
  }
- uint32_t caution=xz_shell_model_caution(storage);
+ /* Playhead: PLAYING comes from the native clock; when that read gives no answer, a stat-frame elapsed
+    time that keeps changing is the proof of motion. The published elapsed time is the smoothed line the
+    renderer extrapolates per frame (shell.h elapsed_at_ms). */
+ unsigned moving=0;
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  struct xz_shell_deck *k=&model.deck[d];
+  if(!(k->known&K(ELAPSED))||!(k->known&K(LOADED))||!k->loaded){xz_shrt_position_reset(&position[d]);memset(&motion[d],0,sizeof motion[d]);continue;}
+  int moved=xz_shrt_motion_step(&motion[d],k->elapsed_ms,k->elapsed_at_ms);
+  if(!(k->known&K(PLAYING))){k->playing=moved;k->known|=K(PLAYING);}
+  xz_shrt_position_step(&position[d],k->playing,k->elapsed_ms,k->elapsed_at_ms,k->known&K(TEMPO)?k->tempo_x100:0,&k->elapsed_ms,&k->elapsed_at_ms);
+  if(k->playing)moving|=1u<<d;
+ }
+ sec.moving|=moving;
+ uint32_t raw_caution=xz_shell_model_caution(storage),caution=xz_shrt_caution_filter(&caution_state,raw_caution);
+ if(caution!=raw_caution)xz_mods_shell_proof_v1.caution_filtered++;
  xz_shrt_handoff_caution(&handoff,caution);
  xz_mods_shell_proof_v1.caution=caution;
- if(handoff.handed&&xz_shrt_handoff_step(&handoff,now,stock_play()))dirty_flag=1;
- int playing=0;
- for(int d=0;d<XZ_SHELL_DECKS;d++)if(model.deck[d].known&K(PLAYING)&&model.deck[d].playing)playing=1;
- __atomic_store_n(&period_ms,xz_shrt_frame_period_ms(xz_shell_screen(&shell),playing),__ATOMIC_RELAXED);
+ if(handoff.handed){
+  uint32_t since=handoff.since;int left=handoff.left_play;
+  if(xz_shrt_handoff_step(&handoff,now,stock_play())){
+   dirty_flag=1;
+   if(debug){char line[120];snprintf(line,sizeof line,"SHELL_HANDOFF: resume after_ms=%u stock_left_play=%d",now-since,left);xz_log(line);}
+  }
+ }
+ if(caution!=last_caution_logged){
+  if(debug){char line[120];snprintf(line,sizeof line,"SHELL_CAUTION: read=0x%x yields=0x%x acknowledged=0x%x",raw_caution,caution,caution_state.ack);xz_log(line);}
+  last_caution_logged=caution;
+ }
+ uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),moving!=0);
+ if(period<__atomic_load_n(&period_ms,__ATOMIC_RELAXED))dirty_flag=1; /* playback started: draw now */
+ __atomic_store_n(&period_ms,period,__ATOMIC_RELAXED);
  refreshed=1;
  fill_slots_locked();
  last_refresh_ms=now;
@@ -725,7 +839,8 @@ int xz_shell_runtime_idle(void) {
 }
 int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shell_runtime_frame_input *in) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!in||!pixels||stride<XZ_SHELL_WIDTH)return 0;
- uint32_t now=now_ms();
+ uint64_t began_us=now_us();
+ uint32_t now=(uint32_t)(began_us/1000u);
  if(pthread_mutex_trylock(&mutex)){
   __atomic_add_fetch(&sec.busy,1,__ATOMIC_RELAXED);
   return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)?-1:0;
@@ -739,13 +854,26 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  if(owned&&!due){sec.skipped++;result=-1;goto done;}
  /* Off screen (handed off or yielding to a caution) the model still refreshes, at 10 Hz, to see the way back. */
  if(!owned&&refreshed&&now-last_refresh_ms<100u)goto done;
- refresh_locked(now,in);
+ /* The model refreshes at most every XZ_SHRT_REFRESH_MS (the native reads cost more than a frame can
+    spare); frames in between redraw the same model with a newer clock, and the renderer advances the
+    playhead from elapsed_at_ms. */
+ if(!owned||!refreshed||now-last_refresh_ms>=XZ_SHRT_REFRESH_MS)refresh_locked(now,in);
  if(!owns_now(in->eligible,in->theme)){set_owns(0);goto done;}
  set_owns(1);
+ model.clock_ms=now;
+ model.stems_known=in->stems_known;model.stems_on=in->stems_on;
+ /* Header requests ui_runtime.c never took (its weak hook missing, or no input thread ran) cannot run. */
+ if(ui_requests_at&&now-ui_requests_at>=500u){
+  unsigned stale=__atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL);ui_requests_at=0;
+  if(stale)notice_locked(now,stale&XZ_SHELL_UI_OPEN_MODS?"THE MODS PANEL DID NOT OPEN":"THE STEMS ROW DID NOT CHANGE");
+ }
+ publish_notice_locked();
  uint64_t began=now_us();
  result=xz_shell_render(&shell,&model,pixels,stride)?1:-1;
  uint32_t took=(uint32_t)(now_us()-began);
  sec.frames++;sec.render_us+=took;if(took>sec.render_max)sec.render_max=took;
+ /* The receiver presents what this call drew on its next vsync, so the start of the call is the frame's phase. */
+ xz_shrt_frame_mark(&sec.shown,began_us);
  xz_mods_shell_proof_v1.frames++;
  __atomic_store_n(&last_drawn_ms,now,__ATOMIC_RELEASE);__atomic_store_n(&dirty_flag,0,__ATOMIC_RELEASE);
 done:
@@ -765,18 +893,52 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
   enum xz_shrt_verdict v=owns?xz_shrt_key_verdict(&shell,&model,map):XZ_SHRT_PASS;
   swallow=v==XZ_SHRT_SWALLOW;
   xz_shrt_contact_press(&contacts,code,channel,swallow);
-  if(v==XZ_SHRT_PASS_HAND_OFF){hand_off_locked(now);xz_mods_shell_proof_v1.key_hand_offs++;}
-  if(swallow){int key=xz_shrt_key_for_phase(map,phase,0);if(key>=0)deliver_key_locked(key,map->deck,now);}
+  if(v==XZ_SHRT_PASS_HAND_OFF){
+   /* MENU goes to stock whole, but stock's short MENU on PLAY opens nothing: the shell steps aside only
+      when the hold arrives (stock opens UTILITY then). */
+   if(map->key==XZ_SHELL_KEY_MENU){menu_passed=1;xz_mods_shell_proof_v1.menu_passes++;}
+   else{hand_off_locked(now,"key",code);xz_mods_shell_proof_v1.key_hand_offs++;}
+  }
+  if(swallow){
+   uint32_t loads=load_actions;
+   int key=xz_shrt_key_for_phase(map,phase,0);if(key>=0)deliver_key_locked(key,map->deck,now);
+   if(map->key==XZ_SHELL_KEY_LOAD&&loads==load_actions)
+    notice_locked(now,list_index(xz_shell_screen(&shell))>=0?"SELECT A TRACK, THEN PRESS LOAD":"OPEN A TRACK LIST TO LOAD");
+  }
+  if(key_log_allowed(now)){
+   char line[200];
+   snprintf(line,sizeof line,"SHELL_KEY: code=0x%x channel=%u op=%u phase=press verdict=%s owns=%d screen=%s dropped=%u",
+    code,channel,op,verdict_names[v],owns,xz_shell_screen_name(xz_shell_screen(&shell)),key_log.dropped);
+   key_log.dropped=0;xz_log(line);
+  }
  }else{
   int held=0,decision=xz_shrt_contact_follow(&contacts,code,channel,phase,&held);
   if(decision>0){
    swallow=1;
    int key=xz_shrt_key_for_phase(map,phase,held);
    if(key>=0&&owns)deliver_key_locked(key,map->deck,now);
-  }else if(decision==0&&map->key==XZ_SHELL_KEY_BACK&&phase==XZ_SHRT_HOLD&&!held&&handoff.handed&&candidate(eligible,theme)){
-   /* BACK held over stock brings the shell back; the key itself still belongs to stock. */
-   xz_shrt_handoff_end(&handoff);xz_mods_shell_proof_v1.back_hold_resumes++;dirty_flag=1;
+  }else if(decision==0&&map->key==XZ_SHELL_KEY_BACK&&phase==XZ_SHRT_HOLD&&!held&&xz_shrt_handoff_yields(&handoff)&&candidate(eligible,theme)){
+   /* BACK held over stock brings the shell back; the key itself still belongs to stock. Over a
+      caution it also acknowledges that caution, so a caution id that stays latched cannot keep the
+      shell away (it yields again when the caution changes). */
+   if(handoff.caution){xz_shrt_caution_ack(&caution_state);handoff.caution=0;}
+   if(handoff.handed)xz_shrt_handoff_end(&handoff);
+   xz_mods_shell_proof_v1.back_hold_resumes++;dirty_flag=1;
+   if(debug)xz_log("SHELL_HANDOFF: resume by BACK hold");
+  }else if(decision==0&&map->key==XZ_SHELL_KEY_MENU&&menu_passed){
+   /* The MENU passed to stock: its hold opens UTILITY, so the shell steps aside now and comes back when
+      stock returns to PLAY. A short release changed nothing in stock and the shell stays. */
+   if(phase==XZ_SHRT_HOLD&&!held&&owns){hand_off_locked(now,"menu_hold",code);xz_mods_shell_proof_v1.key_hand_offs++;}
+   if(phase==XZ_SHRT_RELEASE)menu_passed=0;
   }
+  if(phase==XZ_SHRT_RELEASE&&key_log_allowed(now)){
+   char line[200];
+   snprintf(line,sizeof line,"SHELL_KEY: code=0x%x channel=%u op=%u phase=%s held=%d result=%s owns=%d%s",
+    code,channel,op,phase_names[phase],held,decision<0?"unknown_pass":decision?"swallow":"pass",owns,
+    menu_inert?" note=stock_menu_popup_inert(no proven path)":"");
+   xz_log(line);
+  }
+  if(phase==XZ_SHRT_RELEASE)menu_inert=0;
  }
  if(swallow)xz_mods_shell_proof_v1.keys_swallowed++;else xz_mods_shell_proof_v1.keys_passed++;
  pthread_mutex_unlock(&mutex);
@@ -821,13 +983,37 @@ int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint3
  return owns;
 }
 
+unsigned xz_shell_runtime_take_ui_requests(void) { ui_requests_at=0;return __atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL); }
+/* ui_runtime.c reports a header action it took but could not carry out (one short caps sentence). */
+void xz_shell_runtime_notice(const char *text) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!text)return;
+ pthread_mutex_lock(&mutex);notice_locked(0,text);pthread_mutex_unlock(&mutex);
+}
+
 /* ---- native UI thread ---- */
+/* LOAD LOCK and every other stock refusal (Total_Main_CheckLoadExec, CheckLoadLock: a playing deck under
+   LOAD LOCK, a track search, a jog touch) are decided by stock's own receiver, which shows its caution
+   0x145. The shell only declines a deck whose load is already in progress or unreadable. */
+enum { LOAD_OK=0, LOAD_GUARD=-1, LOAD_NOT_POSTED=-2, LOAD_STATE_UNREADABLE=-3, LOAD_DECK_LOADING=-4 };
+static const char *load_reason(int rc) {
+ return rc==LOAD_OK?"posted":rc==LOAD_GUARD?"code_guard":rc==LOAD_NOT_POSTED?"native_returned_0":
+  rc==LOAD_STATE_UNREADABLE?"deck_state_unreadable":rc==LOAD_DECK_LOADING?"deck_loading":"unknown";
+}
 static int load_refused(const struct xz_shrt_command *c) {
- uint32_t lock,state;
- /* UiGetUtilLoadLock (settings id 0x60): stored as 0/1 or 0x30/0x31; anything else is unknown and refuses. */
- if(!setting_value(0x60,&lock)||(lock!=0&&lock!=0x30))return 1;
- if(!word(TOTAL_WK+0x1610u+(uint32_t)c->deck*0x60u,&state)||state==7||state==9)return 1;
- return 0;
+ uint32_t state;
+ if(!word(TOTAL_WK+0x1610u+(uint32_t)c->deck*0x60u,&state))return LOAD_STATE_UNREADABLE;
+ return state==7||state==9?LOAD_DECK_LOADING:LOAD_OK;
+}
+/* Debug only: the raw LOAD LOCK setting (id 0x60), read in bulk, for the SHELL_COMMAND line. The shell
+   does not act on it any more; stock's receiver applies LOAD LOCK itself. UINT32_MAX = unreadable. */
+static uint32_t debug_load_lock(void) {
+ uint32_t settings,list,count,value=UINT32_MAX;
+ if(!has(G_SETTINGS)||!word(0x1c8a404,&settings)||!pointer(settings,0x170)||!word(settings+0x164,&list)||
+    !word(settings+0x16c,&count)||!count||count>512||!pointer(list,(size_t)count*0x8c))return value;
+ unsigned char *raw=malloc((size_t)count*0x8c);
+ if(raw&&!xz_read_memory(list,raw,(size_t)count*0x8c))
+  for(uint32_t i=0;i<count;i++){uint32_t id;memcpy(&id,raw+i*0x8c,4);if(id==0x60){memcpy(&value,raw+i*0x8c+0x88,4);break;}}
+ free(raw);return value;
 }
 static int run_command(const struct xz_shrt_command *c) {
  switch(c->kind){
@@ -839,18 +1025,16 @@ static int run_command(const struct xz_shrt_command *c) {
   if(c->value<0||c->value>3||!code_is(0xc9304,set_quantize_code,16))return -1;
   ((void(*)(int))(uintptr_t)0xc9304)(c->value);
   return 0;
- case XZ_SHRT_CMD_STOCK_MENU:{
-  /* The release-phase entry the mod already passes for MENU (mods/key/native_browse.c). */
-  if(!code_is(0xdf1e8,menu_code,16))return -1;
-  uint32_t entry[4]={2,0,2,0};
-  return ((int(*)(uint32_t *))(uintptr_t)0xdf1e8)(entry)>0?0:-2;
- }
+ /* XZ_SHRT_CMD_STOCK_MENU is never queued: the physical MENU key goes to stock instead. */
  case XZ_SHRT_CMD_LOAD:{
-  if(c->deck<0||c->deck>=XZ_SHELL_DECKS||!code_is(0x135728,load_code,16)||!code_is(0x13ba38,music_id_code,8))return -1;
-  if(load_refused(c))return -3;
-  /* music_id {node 0 = this player, device kind, browse kind 1 = track list (inferred), 0, id}. */
+  if(c->deck<0||c->deck>=XZ_SHELL_DECKS||!code_is(0x135728,load_code,16)||!code_is(0x13ba38,music_id_code,8))return LOAD_GUARD;
+  int refused=load_refused(c);
+  if(refused)return refused;
+  /* music_id {node 0 = this player, device kind 2 USB1 / 3 USB2, browse kind 1 (DB namespace, inferred), 0,
+     export.pdb track id}. 1 means the request was posted (message 0x40e), not that the deck loaded:
+     the owner tick reads the deck's loaded id a second later (SHELL_LOAD_CHECK). */
   unsigned char id[8]={0,c->device_kind,1,0};memcpy(id+4,&c->track_id,4);
-  return ((int(*)(int,void *,int))(uintptr_t)0x135728)(c->deck,id,3)?0:-2;
+  return ((int(*)(int,void *,int))(uintptr_t)0x135728)(c->deck,id,3)?LOAD_OK:LOAD_NOT_POSTED;
  }
  default:return -1;
  }
@@ -859,8 +1043,13 @@ void xz_shell_runtime_owner_tick(void) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return;
  uint32_t now=now_ms();
  struct xz_shrt_command commands[XZ_SHRT_QUEUE];unsigned n=0;int pump=0;
- if(pthread_mutex_trylock(&mutex))return;
+ /* A frame holds the lock for its render; the tick tries again on the next native event. */
+ if(pthread_mutex_trylock(&mutex)){__atomic_add_fetch(&sec.tick_busy,1,__ATOMIC_RELAXED);return;}
  sec.ticks++;
+ int check=0,check_deck=0,check_tries=0;uint32_t check_id=0,check_before=0;uint8_t check_kind=0;
+ if(load_check.pending&&(int32_t)(now-load_check.at)>=0){
+  check=1;check_deck=load_check.deck;check_id=load_check.id;check_before=load_check.before;check_kind=load_check.device_kind;check_tries=load_check.tries;load_check.pending=0;
+ }
  while(n<XZ_SHRT_QUEUE&&xz_shrt_queue_pop(&queue,&commands[n]))n++;
  /* Off screen, stock may not flip at all; keep checking the way back from here. */
  if(refreshed&&xz_shrt_handoff_yields(&handoff)&&candidate(last_input.eligible,last_input.theme)&&now-last_refresh_ms>=100u){
@@ -873,17 +1062,56 @@ void xz_shell_runtime_owner_tick(void) {
  roll_second(now);
  pthread_mutex_unlock(&mutex);
  for(unsigned i=0;i<n;i++){
-  int rc=run_command(&commands[i]);
-  uint32_t latency=now-commands[i].at_ms;
+  const struct xz_shrt_command *c=&commands[i];
+  struct loaded before={0,0,0,0};
+  if(c->kind==XZ_SHRT_CMD_LOAD&&c->deck>=0&&c->deck<XZ_SHELL_DECKS)before=read_loaded(c->deck);
+  int rc=run_command(c);
+  uint32_t latency=now-c->at_ms;
   pthread_mutex_lock(&mutex);
   struct xz_shell_proof *p=&xz_mods_shell_proof_v1;
-  p->last_command=(uint32_t)commands[i].kind;p->last_command_result=(uint32_t)rc;
+  p->last_command=(uint32_t)c->kind;p->last_command_result=(uint32_t)rc;
   if(rc)p->commands_refused++;else p->commands_run++;
   if(latency>p->command_latency_max_ms&&latency<60000u)p->command_latency_max_ms=latency;
+  if(c->kind==XZ_SHRT_CMD_LOAD&&!rc){
+   load_check.pending=1;load_check.deck=c->deck;load_check.id=c->track_id;load_check.device_kind=c->device_kind;
+   load_check.before=before.known?before.id:UINT32_MAX;load_check.at=now_ms()+1000u;load_check.tries=0;
+  }else if(c->kind==XZ_SHRT_CMD_LOAD){
+   char text[48];
+   snprintf(text,sizeof text,rc==LOAD_DECK_LOADING?"DECK %d IS STILL LOADING":"DECK %d DID NOT ACCEPT THE LOAD",c->deck+1);
+   notice_locked(now_ms(),text);
+  }
   dirty_flag=1;
   pthread_mutex_unlock(&mutex);
-  if(debug){char line[120];snprintf(line,sizeof line,"SHELL_COMMAND: kind=%d deck=%d value=%d result=%d latency_ms=%u",
-   (int)commands[i].kind,commands[i].deck,(int)commands[i].value,rc,latency);xz_log(line);}
+  if(debug){
+   char line[260];
+   if(c->kind==XZ_SHRT_CMD_LOAD)
+    snprintf(line,sizeof line,"SHELL_COMMAND: kind=%d deck=%d track_id=%u device_kind=%u result=%d reason=%s state_word=%u loaded_before=%u "
+     "load_lock_raw=0x%x latency_ms=%u",(int)c->kind,c->deck,c->track_id,(unsigned)c->device_kind,rc,load_reason(rc),
+     before.known?before.state:UINT32_MAX,before.known?before.id:UINT32_MAX,debug_load_lock(),latency);
+   else snprintf(line,sizeof line,"SHELL_COMMAND: kind=%d deck=%d value=%d result=%d latency_ms=%u",(int)c->kind,c->deck,(int)c->value,rc,latency);
+   xz_log(line);
+  }
+ }
+ if(check){
+  /* The LOAD request is asynchronous: report what the deck holds a second later. */
+  struct loaded l=read_loaded(check_deck);
+  int match=l.known&&l.id==check_id&&l.device_kind==check_kind;
+  if(debug){
+   char line[200];
+   snprintf(line,sizeof line,"SHELL_LOAD_CHECK: deck=%d requested_id=%u device_kind=%u loaded_before=%u loaded_id=%u loaded_kind=%u state=%u match=%d",
+    check_deck,check_id,(unsigned)check_kind,check_before,l.known?l.id:UINT32_MAX,(unsigned)l.device_kind,l.known?l.state:UINT32_MAX,match);
+   xz_log(line);
+  }
+  int loading=l.known&&(l.state==7||l.state==9);
+  pthread_mutex_lock(&mutex);
+  if(!match&&loading&&check_tries<4&&!load_check.pending){
+   /* Still loading: look again in a second. */
+   load_check.pending=1;load_check.deck=check_deck;load_check.id=check_id;load_check.device_kind=check_kind;
+   load_check.before=check_before;load_check.at=now_ms()+1000u;load_check.tries=check_tries+1;
+  }else if(!match){
+   char text[48];snprintf(text,sizeof text,"DECK %d DID NOT LOAD THE TRACK",check_deck+1);notice_locked(now_ms(),text);
+  }
+  pthread_mutex_unlock(&mutex);
  }
  if(pump)xz_native_skin_request_repaint();
 }
@@ -896,7 +1124,10 @@ int xz_shell_runtime_start(void) {
  storage=calloc(1,xz_shell_model_storage_size());
  if(!storage){xz_log("FLAGSHIP shell unavailable: no memory for the model");return -1;}
  xz_shell_init(&shell);
+ restore_display();
  memset(&model,0,sizeof model);memset(&handoff,0,sizeof handoff);memset(&queue,0,sizeof queue);
+ memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);
+ memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
  check_guards();
  running=1;

@@ -13,7 +13,8 @@ enum {
  SI_CLOSE_W=48, SI_TILE=0x313131
 };
 
-static inline struct xz_shell_rect si_close_rect(void) { return (struct xz_shell_rect){XZ_SHELL_WIDTH-SI_CLOSE_W,0,SI_CLOSE_W,SI_HEAD_H}; }
+/* Left of the mod header buttons, which own the bar's right end. */
+static inline struct xz_shell_rect si_close_rect(void) { return (struct xz_shell_rect){XZ_SHELL_HEADER_X-4-SI_CLOSE_W,0,SI_CLOSE_W,SI_HEAD_H}; }
 static inline struct xz_shell_rect si_strip_rect(int deck) { return (struct xz_shell_rect){deck*SI_HALF,SI_STRIP_Y,SI_HALF,SI_STRIP_H}; }
 static inline const struct xz_shell_view *si_view(const struct xz_shell *u) { return &u->stack[u->depth-1]; }
 static inline size_t si_emit(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n, struct xz_shell_action a) {
@@ -85,35 +86,11 @@ static inline void si_header(struct xz_canvas c, const char *title) {
 }
 
 /* ---- compact deck strip ---- */
-static inline void si_band_colors(const struct xz_shell_model *m, uint32_t out[3], int scale[3]) {
- enum xz_shell_wave_color mode=sh_setting(m,XZ_SHELL_SET_WAVE_COLOR)?m->settings.wave_color:XZ_SHELL_WAVE_3BAND;
- scale[0]=scale[1]=scale[2]=256;
- switch(mode){
- case XZ_SHELL_WAVE_RGB:out[0]=0xe03030;out[1]=0x30c040;out[2]=0x4080ff;break;
- case XZ_SHELL_WAVE_BLUE:out[0]=out[1]=SH_WAVE_LOW_DEEP;out[2]=SH_WHITE;scale[2]=128;break;
- default:out[0]=SH_WAVE_LOW_DEEP;out[1]=SH_WAVE_MID;out[2]=SH_WHITE;break;
- }
-}
-static inline void si_mini_overview(const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_deck *d, struct xz_shell_rect ov, int timed) {
- int ph=timed?ov.x+(int)((int64_t)sh_max(0,sh_min(d->elapsed_ms,d->total_ms))*(ov.w-1)/d->total_ms):-1;
+static inline void si_mini_overview(const struct xz_shell *u, struct xz_canvas c, const struct xz_shell_deck *d, struct xz_shell_rect ov, int32_t elapsed) {
+ int ph=elapsed>=0?ov.x+(int)((int64_t)sh_max(0,sh_min(elapsed,d->total_ms))*(ov.w-1)/d->total_ms):-1;
  xz_rect(c,ov.x,ov.y,ov.w,ov.h,SH_BLACK);
- const struct xz_shell_wave *w=&d->overview;
- if(sh_has(d,XZ_SHELL_F_OVERVIEW)&&w->columns&&w->count){
-  static const uint32_t played[3]={0x3c3c3c,0x6e6e6e,0xa0a0a0};
-  uint32_t color[3];int scale[3];si_band_colors(m,color,scale);
-  for(int x=0;x<ov.w;x++){
-   uint32_t from=(uint32_t)((int64_t)x*w->count/ov.w),to=(uint32_t)((int64_t)(x+1)*w->count/ov.w);
-   int band[3]={0,0,0};
-   if(to<=from)to=from+1;
-   for(uint32_t i=from;i<to&&i<w->count;i++){
-    band[0]=sh_max(band[0],w->columns[i].low);band[1]=sh_max(band[1],w->columns[i].mid);band[2]=sh_max(band[2],w->columns[i].high);
-   }
-   for(int b=0;b<3;b++){
-    int h=band[b]*scale[b]/256*(ov.h-1)/255;
-    if(h>0)xz_rect(c,ov.x+x,ov.y+ov.h-h,1,h,ph>=0&&ov.x+x<ph?played[b]:color[b]);
-   }
-  }
- }else xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);
+ if(sh_has(d,XZ_SHELL_F_OVERVIEW)&&d->overview.columns&&d->overview.count)sh_wave_overview(c,ov,&d->overview,sh_wave_color(u),ph);
+ else xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);
  if(ph>=0)xz_rect(c,ph,ov.y,1,ov.h,SH_PLAYHEAD);
 }
 static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
@@ -136,10 +113,11 @@ static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell
  else if(sh_setting(m,XZ_SHELL_SET_TIME_MODE))mode=m->settings.time_mode;
  else tm_known=0;
  sh_text(c,tx,y+5,mode==XZ_SHELL_TIME_REMAIN?"REMAIN":"TIME",SH_SMALL,tm_known?SH_WHITE:SH_DIM);
- int have_elapsed=loaded&&sh_has(d,XZ_SHELL_F_ELAPSED),have_total=loaded&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
+ int32_t elapsed=loaded?xz_shell_elapsed_now(m,deck):-1;
+ int have_elapsed=elapsed>=0,have_total=loaded&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
  int32_t shown=-1;
- if(mode==XZ_SHELL_TIME_REMAIN&&have_elapsed&&have_total)shown=sh_max(0,d->total_ms-d->elapsed_ms);
- else if(mode==XZ_SHELL_TIME_ELAPSED&&have_elapsed)shown=sh_max(0,d->elapsed_ms);
+ if(mode==XZ_SHELL_TIME_REMAIN&&have_elapsed&&have_total)shown=sh_max(0,d->total_ms-elapsed);
+ else if(mode==XZ_SHELL_TIME_ELAPSED&&have_elapsed)shown=elapsed;
  if(shown>=0){int32_t sec=shown/1000,min=sec/60;if(min>99){min=99;sec=99*60+59;}snprintf(text,sizeof text,"%02d:%02d",(int)min,(int)(sec%60));}
  else snprintf(text,sizeof text,"--:--");
  sh_num(c,tx,y+19,text,SH_NUM_MID,shown>=0?SH_WHITE:SH_DIM);
@@ -166,8 +144,7 @@ static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell
  sh_text_right(c,tempo_right-pw-1,y+21,text,SH_TEXT,sh_has(d,XZ_SHELL_F_TEMPO)?SH_WHITE:SH_DIM);
  sh_text_right(c,tempo_right,y+26,"%",SH_SMALL,SH_DIM);
  int ox=tx+sh_num_width(SH_NUM_MID,"00:00")+10,ow=tempo_right-62-ox;
- int timed=have_elapsed&&have_total;
- if(ow>8)si_mini_overview(m,c,d,(struct xz_shell_rect){ox,y+8,ow,33},timed);
+ if(ow>8)si_mini_overview(u,c,d,(struct xz_shell_rect){ox,y+8,ow,33},have_elapsed&&have_total?elapsed:-1);
 }
 static inline void si_strip(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,0,SI_STRIP_Y,c.width,SI_STRIP_H,SH_CHROME);

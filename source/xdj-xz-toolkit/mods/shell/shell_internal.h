@@ -60,4 +60,29 @@ void sh_info_icon(struct xz_canvas c, int cx, int cy, uint32_t color);
 int sh_chip(struct xz_canvas c, int x, int y, const char *s, uint32_t outline, uint32_t ink, int filled);
 /* Shell-wide placeholder page for screens later units draw. */
 void sh_placeholder(struct xz_canvas c, const char *title, const char *note);
+
+/* Shell-owned display settings, clamped so a corrupt value draws the default. */
+static inline enum xz_shell_wave_color sh_wave_color(const struct xz_shell *u) {
+ return (unsigned)u->display.wave_color<=XZ_SHELL_WAVE_3BAND?u->display.wave_color:XZ_SHELL_WAVE_3BAND;
+}
+static inline enum xz_shell_wave_position sh_wave_position(const struct xz_shell *u) {
+ return u->display.wave_position==XZ_SHELL_POSITION_LEFT?XZ_SHELL_POSITION_LEFT:XZ_SHELL_POSITION_CENTER;
+}
+static inline enum xz_shell_key_display sh_key_display(const struct xz_shell *u) {
+ return (unsigned)u->display.key_display<=XZ_SHELL_KEY_ALPHANUMERIC?u->display.key_display:XZ_SHELL_KEY_AS_DECK;
+}
+/* Waveforms (shell_wave.c). A lane is mirrored about the middle of r, amp px each way at full scale;
+   first_px is the absolute track pixel (ms x pps / 1000) drawn at r.x. An overview rises from the
+   bottom of r and greys out left of played_x (-1: nothing played). */
+void sh_wave_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int64_t first_px, int pps);
+void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int played_x);
+/* The key in the chosen notation; key itself when it is NULL, already in it, or neither notation. */
+const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *buffer, size_t cap);
+/* Mod header buttons (shell.c): drawn over every screen; hit tests padded to XZ_SHELL_HEADER_HIT_H. */
+void sh_header_buttons(const struct xz_shell_model *m, struct xz_canvas c);
+enum xz_shell_action_kind sh_header_hit(int x, int y);
+/* Runtime notice toast (shell_draw.c): shown, its box, and how many lines it wraps to (1 or 2). */
+int sh_notice_shown(const struct xz_shell_model *m);
+struct xz_shell_rect sh_notice_rect(const char *text, int *lines);
+void sh_notice(const struct xz_shell_model *m, struct xz_canvas c);
 #endif

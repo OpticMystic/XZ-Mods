@@ -64,6 +64,9 @@ int main(int argc, char **argv) {
  tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,6));
  shot(&u,&m,"touched-load");
  u.deck=1;shot(&u,&m,"touched-load-deck2");u.deck=0;
+ m.capabilities&=~(uint32_t)XZ_SHELL_CAP_LOAD;shot(&u,&m,"touched-load-off");
+ m.notice="SELECT A TRACK, THEN PRESS LOAD";m.notice_at_ms=m.clock_ms;shot(&u,&m,"touched-load-off-notice");
+ m.notice=NULL;m.capabilities|=XZ_SHELL_CAP_LOAD;
  /* INFO pane on the highlighted track. */
  tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_INFO,0));
  shot(&u,&m,"info");

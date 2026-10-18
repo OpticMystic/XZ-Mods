@@ -15,8 +15,9 @@ int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *,int,int,int
 #define K(f) XZ_SHELL_KNOWN(XZ_SHELL_F_##f)
 #define S(f) (1u<<XZ_SHELL_SET_##f)
 enum { FRAME_SIZE=0x26c, SCROLL_MAX=32768, OVERVIEW_MAX=1024, GRID_MAX=4096 };
-struct region {uint32_t address;size_t size;unsigned char data[2048];};
-static struct region image[24];static unsigned regions;
+struct region {uint32_t address;size_t size;unsigned char data[8192];};
+static struct region image[32];static unsigned regions;
+static int bump_elapsed; /* each title-record read advances deck 1's elapsed, as playback does */
 static uint32_t torn_address,fail_address;static unsigned torn_reads,read_calls,guard_reads[4];
 static const uint32_t guard_address[4]={0x249820,0x2508dc,0xd9310,0x18ca44};
 static const unsigned char guard_bytes[4][16]={
@@ -25,7 +26,7 @@ static const unsigned char guard_bytes[4][16]={
  {0x4c,0x3d,0x0d,0xe3,0x24,0x32,0x40,0xe3,0x89,0x2f,0xa0,0xe3,0x92,0x30,0x20,0xe0},
  {0x7c,0x3f,0x0f,0xe3,0xea,0x33,0x40,0xe3,0x00,0x00,0x93,0xe5,0x1e,0xff,0x2f,0xe1}};
 static unsigned char *map(uint32_t address,size_t size){
- assert(regions<24&&size<=sizeof(image[0].data));struct region *r=image+regions++;
+ assert(regions<32&&size<=sizeof(image[0].data));struct region *r=image+regions++;
  r->address=address;r->size=size;memset(r->data,0,sizeof(r->data));return r->data;
 }
 static unsigned char *at(uint32_t address,size_t size){
@@ -41,6 +42,7 @@ static int read_memory(uintptr_t address,void *out,size_t size){
  if(fail_address&&address<=fail_address&&(uint64_t)address+size>fail_address)return -1;
  unsigned char *p=at((uint32_t)address,size);if(!p)return -1;
  memcpy(out,p,size);
+ if(bump_elapsed&&address==0x224dd4c){unsigned char *e=at(0x3000000+0xc,4);e[0]=(unsigned char)(e[0]+7);}
  if(torn_address&&address<=torn_address&&(uint64_t)address+size>torn_address){
   if(torn_reads++&1)((unsigned char *)out)[torn_address-address]^=1;
  }
@@ -206,8 +208,18 @@ static void test_identity_and_waves(void){
   assert(!(m.deck[0].known&(K(WAVE)|K(OVERVIEW))));wave(s.storage);
   assert(!xz_shell_model_refresh(&m,s.storage,read_memory,9));assert(m.deck[0].known&K(WAVE));
  }
- torn_address=frame(0)+0x14;xz_shell_model_refresh(&m,s.storage,read_memory,10);assert(!(m.deck[0].known&K(WAVE)));
- torn_address=0;assert(!xz_shell_model_refresh(&m,s.storage,read_memory,11));assert(m.deck[0].known&K(WAVE));
+ /* A torn frame republishes the last complete snapshot (read at 9) for 250 ms, then fails closed. */
+ torn_address=frame(0)+0x14;assert(!xz_shell_model_refresh(&m,s.storage,read_memory,10));
+ assert((m.deck[0].known&(K(WAVE)|K(LOADED)|K(TITLE)|K(ELAPSED)))==(K(WAVE)|K(LOADED)|K(TITLE)|K(ELAPSED)));
+ assert(m.deck[0].elapsed_at_ms==9&&m.deck[0].title&&m.deck[0].title[0]==0x58&&xz_shell_model_holds(s.storage)==1);
+ assert(m.deck[1].elapsed_at_ms==10);
+ assert(!xz_shell_model_refresh(&m,s.storage,read_memory,9+250));assert(!(m.deck[0].known&(K(WAVE)|K(LOADED))));
+ torn_address=0;assert(!xz_shell_model_refresh(&m,s.storage,read_memory,260));assert(m.deck[0].known&K(WAVE));
+ /* Playback moves the frame between the two bracket reads: the snapshot stays complete. */
+ uint32_t before=(uint32_t)m.deck[0].elapsed_ms;bump_elapsed=1;
+ assert(!xz_shell_model_refresh(&m,s.storage,read_memory,261));bump_elapsed=0;
+ assert((m.deck[0].known&(K(WAVE)|K(LOADED)|K(TITLE)))==(K(WAVE)|K(LOADED)|K(TITLE))&&m.deck[0].elapsed_ms==(int32_t)before);
+ assert(xz_shell_model_holds(s.storage)==1);
  /* Loading suppresses stale title and retained waves; it is not an unload. */
  put32(total(0),7);assert(!xz_shell_model_refresh(&m,s.storage,read_memory,12));assert(!(m.deck[0].known&(K(LOADED)|K(TITLE)|K(WAVE))));
  put32(total(0),6);assert(!xz_shell_model_refresh(&m,s.storage,read_memory,13));assert(m.deck[0].known&K(WAVE));
@@ -260,7 +272,55 @@ static void test_invalid_data(void){
  xz_shell_model_set_input(NULL,0,NULL,0);xz_shell_model_set_wave(NULL,0,NULL,0,0,NULL,0,0);
  release(&s);puts("PASS maximum/malformed UTF-16, invalid numeric cells, settings disagreement/duplicates, unavailable reads");
 }
+static void test_fx(void){
+ fixture();struct guarded_storage s=allocate();struct xz_shell_model m={0};
+ xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(!m.fx.known&&xz_shell_model_fx_failures(s.storage)==1);
+ static const unsigned char entry[16]={0x66,0x1f,0x81,0xe2,0x00,0x30,0xa0,0xe1,0x07,0x00,0x91,0xe8,0x07,0x00,0x83,0xe8};
+ static const struct { uint32_t at; unsigned char code[4]; } loads[5]={
+  {0xc9044,{0x06,0x00,0xdd,0xe5}},{0xc91e4,{0x07,0x00,0xdd,0xe5}},{0xc915c,{0x0b,0x00,0xdd,0xe5}},
+  {0xc91a0,{0xfc,0x00,0xdd,0xe1}},{0xc90cc,{0xbe,0x00,0xdd,0xe1}}};
+ memcpy(map(0x25c914,16),entry,16);for(unsigned i=0;i<5;i++)memcpy(map(loads[i].at,4),loads[i].code,4);
+ map(0x3100050,4);put32(0x3100050,0x3300000);
+ /* The record the parent read live: SPIRAL, off, beat 1, 500 ms, 102.2 BPM. */
+ static const unsigned char live[12]={0x00,0x05,0x03,0x00,0x11,0x01,0x00,0x06,0xf4,0x01,0xfe,0x03};
+ memcpy(map(0x3300198,12),live,12);
+ const uint32_t base=(1u<<XZ_SHELL_FX_F_ON)|(1u<<XZ_SHELL_FX_F_BPM)|(1u<<XZ_SHELL_FX_F_TAP);
+ const uint32_t known=base|(1u<<XZ_SHELL_FX_F_NAME)|(1u<<XZ_SHELL_FX_F_BEAT)|(1u<<XZ_SHELL_FX_F_TIME);
+ xz_shell_model_refresh(&m,s.storage,read_memory,1);
+ assert(m.fx.known==known&&!m.fx.on&&!strcmp(m.fx.name,"SPIRAL")&&m.fx.beat_num==1&&m.fx.beat_den==1&&m.fx.time_ms==500);
+ assert(m.fx.bpm_x10==1022&&!m.fx.tap);
+ assert(xz_shell_model_fx_failures(s.storage)==1);
+ *at(0x3300198+3,1)=0x11;*at(0x3300198+7,1)=5;*at(0x3300198+2,1)=1;xz_shell_model_refresh(&m,s.storage,read_memory,2);
+ assert(m.fx.known==known&&m.fx.on&&!strcmp(m.fx.name,"ECHO")&&m.fx.beat_num==3&&m.fx.beat_den==4);
+ /* REVERB and PITCH: percent parameter and a dashed beat, so only ON and the name. */
+ *at(0x3300198+2,1)=4;xz_shell_model_refresh(&m,s.storage,read_memory,3);
+ assert(m.fx.known==(base|(1u<<XZ_SHELL_FX_F_NAME))&&!strcmp(m.fx.name,"REVERB"));
+ *at(0x3300198+2,1)=9;xz_shell_model_refresh(&m,s.storage,read_memory,4);assert(!strcmp(m.fx.name,"PITCH")&&!(m.fx.known&(1u<<XZ_SHELL_FX_F_TIME)));
+ *at(0x3300198+2,1)=14;*at(0x3300198+6,1)=1;xz_shell_model_refresh(&m,s.storage,read_memory,5);assert(m.fx.known==base&&m.fx.tap);
+ put16(0x3300198+10,0);xz_shell_model_refresh(&m,s.storage,read_memory,5);assert(!(m.fx.known&(1u<<XZ_SHELL_FX_F_BPM)));put16(0x3300198+10,1022);
+ *at(0x3300198+2,1)=13;*at(0x3300198+7,1)=13;xz_shell_model_refresh(&m,s.storage,read_memory,6);
+ assert(!strcmp(m.fx.name,"HELIX")&&!(m.fx.known&(1u<<XZ_SHELL_FX_F_BEAT))&&(m.fx.known&(1u<<XZ_SHELL_FX_F_TIME)));
+ assert(!(m.fx.known&((1u<<XZ_SHELL_FX_F_CHANNEL)|(1u<<XZ_SHELL_FX_F_LEVEL))));
+ torn_address=0x3300198+8;xz_shell_model_refresh(&m,s.storage,read_memory,7);assert(!m.fx.known);torn_address=0;
+ put32(0x3100050,0x3300001);xz_shell_model_refresh(&m,s.storage,read_memory,8);assert(!m.fx.known);
+ release(&s);puts("PASS BEAT FX: live record, names, beat table, REVERB/PITCH blanks, unknown effect, torn record, bad root, cached guard");
+}
+static void test_settings_bulk(void){
+ fixture();struct guarded_storage s=allocate();struct xz_shell_model m={0};
+ map(0x3204000,0x8c*40);put32(0x3200164,0x3204000);put32(0x320016c,40);
+ for(unsigned i=0;i<40;i++)put32(0x3204000+i*0x8c,0x7000+i);
+ put32(0x3204000+30*0x8c,0x10000003);put32(0x3204000+30*0x8c+0x88,0x100);
+ put32(0x3204000+31*0x8c,0x10000004);put32(0x3204000+31*0x8c+0x88,0x100);
+ put32(0x3204000+35*0x8c,0x62);put32(0x3204000+35*0x8c+0x88,0x30);
+ xz_shell_model_refresh(&m,s.storage,read_memory,0);read_calls=0;xz_shell_model_refresh(&m,s.storage,read_memory,1);
+ assert((m.deck[0].known&(K(TIME_MODE)|K(QUANTIZE)))==(K(TIME_MODE)|K(QUANTIZE))&&m.deck[0].time_mode==XZ_SHELL_TIME_ELAPSED&&m.deck[0].quantize_den==8);
+ assert(m.settings.known&S(TIME_MODE));
+ fprintf(stderr,"  reads per refresh with 40 settings: %u\n",read_calls);assert(read_calls<90);
+ torn_address=0x3204000+35*0x8c+0x88;xz_shell_model_refresh(&m,s.storage,read_memory,2);assert(!(m.deck[0].known&(K(TIME_MODE)|K(QUANTIZE))));
+ release(&s);puts("PASS settings list read in bulk across chunk boundaries, torn chunk fails closed");
+}
 int main(void){
  test_valid_and_input();test_guards();test_torn_and_pointers();test_identity_and_waves();test_flag_encodings();test_invalid_data();
+ test_fx();test_settings_bulk();
  puts("shell_model: all host acceptance tests passed; no hardware/device/network access");return 0;
 }

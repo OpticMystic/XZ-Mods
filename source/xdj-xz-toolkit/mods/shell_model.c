@@ -28,7 +28,11 @@
  */
 enum { TITLE_BYTES=769, KEY_BYTES=32, GRID_CAP=4096, SCROLL_CAP=32768,
        OVERVIEW_CAP=1024, WAVE_INPUT_CAP=1000000, FRAME_BYTES=0x26c, TOTAL_BYTES=0x28,
-       SETTINGS_CAP=512, RETRIES=3 };
+       SETTINGS_CAP=512, RETRIES=3, SETTING_BYTES=0x8c, SETTINGS_CHUNK=29 /* entries per bulk read */ };
+/* A deck whose native read fails for a moment (a torn frame or an unstable title record) keeps its
+   last complete snapshot this long, so a single bad read never blanks the lanes. elapsed_at_ms stays
+   at the time of that snapshot, so the renderer's extrapolation remains honest. */
+#define HOLD_MS 250u
 #define K(f) XZ_SHELL_KNOWN(XZ_SHELL_F_##f)
 #define SET(f) (1u<<XZ_SHELL_SET_##f)
 struct xz_shell_model_input {
@@ -44,10 +48,15 @@ struct deck_storage {
     struct xz_shell_column scroll[SCROLL_CAP], overview[OVERVIEW_CAP];
     uint32_t scroll_count, scroll_span, overview_count, overview_span;
     int hot_out_known;int32_t hot_out[XZ_SHELL_HOT_CUES];
+    /* Last complete native snapshot (before runtime inputs), for HOLD_MS. */
+    struct xz_shell_deck held;char held_title[TITLE_BYTES];
+    int held_valid;uint32_t held_at,held_id;
 };
 struct xz_shell_model_storage {
     struct deck_storage deck[XZ_SHELL_DECKS];
-    uint32_t caution, guard_failures[4];
+    uint32_t caution, guard_failures[4], fx_failures, holds;
+    /* Code bytes never change once they matched, so a verified guard is not read again. */
+    unsigned guard_ok, fx_guard_ok;
 };
 struct native_deck { unsigned char frame[FRAME_BYTES], total[TOTAL_BYTES]; };
 struct setting_pair { uint32_t id, value; };
@@ -91,10 +100,11 @@ static int native_deck(xz_shell_read_fn read,unsigned deck,struct native_deck *o
     }
     return 0;
 }
-/* Reject malformed UTF-16, rather than display a partial or invented title. */
+/* Reject malformed UTF-16, rather than display a partial or invented title. 1 = title, 0 = malformed or
+   empty, -1 = the record could not be read stably (transient). */
 static int title(xz_shell_read_fn read,unsigned deck,char out[TITLE_BYTES]){
     unsigned char record[0x224],again[0x224];size_t at=0;
-    if(!stable(read,0x224dd4c+deck*0x224,record,again,sizeof(record)))return 0;
+    if(!stable(read,0x224dd4c+deck*0x224,record,again,sizeof(record)))return -1;
     unsigned length=u16(record+0x20);
     if(!u16(record+8)||!length||length>256)return 0;
     for(unsigned i=0;i<length;i++){
@@ -118,9 +128,14 @@ static int settings_head(xz_shell_read_fn read,uint32_t head[3]){
         word(read,head[0]+0x164,head+1)&&word(read,head[0]+0x16c,head+2)&&
         head[2]<=SETTINGS_CAP&&(!head[2]||pointer(head[1],(size_t)head[2]*0x8c));
 }
+/* Reads the list in bulk, SETTINGS_CHUNK entries per read, each chunk twice: about 2 * n/29 reads
+   instead of 2 * n word reads (each read is one pread of /proc/self/mem on the deck). */
 static int settings_pass(xz_shell_read_fn read,uint32_t list,uint32_t n,struct setting_pair *out){
-    for(uint32_t i=0;i<n;i++){
-        if(!word(read,list+i*0x8c,&out[i].id)||!word(read,list+i*0x8c+0x88,&out[i].value))return 0;
+    unsigned char a[SETTINGS_CHUNK*SETTING_BYTES],b[SETTINGS_CHUNK*SETTING_BYTES];
+    for(uint32_t first=0;first<n;first+=SETTINGS_CHUNK){
+        uint32_t count=n-first<SETTINGS_CHUNK?n-first:SETTINGS_CHUNK;size_t length=(size_t)count*SETTING_BYTES;
+        if(!stable(read,list+first*SETTING_BYTES,a,b,length))return 0;
+        for(uint32_t i=0;i<count;i++){out[first+i].id=u32(a+i*SETTING_BYTES);out[first+i].value=u32(a+i*SETTING_BYTES+0x88);}
     }
     return 1;
 }
@@ -140,10 +155,10 @@ static int setting(const struct setting_pair *list,uint32_t n,uint32_t id,uint32
     for(uint32_t i=0;i<n;i++)if(list[i].id==id){if(found)return 0;*value=list[i].value;found=1;}
     return found;
 }
-static void frame_fields(struct xz_shell_deck *d,struct deck_storage *storage,const struct native_deck *n){
+static void frame_fields(struct xz_shell_deck *d,struct deck_storage *storage,const struct native_deck *n,uint32_t now_ms){
     const unsigned char *f=n->frame;uint32_t value;
     value=u32(f+8);if(value<=INT32_MAX){d->total_ms=(int32_t)value;d->known|=K(TOTAL);}
-    value=u32(f+0xc);if(value<=INT32_MAX){d->elapsed_ms=(int32_t)value;d->known|=K(ELAPSED);}
+    value=u32(f+0xc);if(value<=INT32_MAX){d->elapsed_ms=(int32_t)value;d->elapsed_at_ms=now_ms?now_ms:1;d->known|=K(ELAPSED);}
     value=u32(f+0x14);if(value<=INT32_MAX){d->bpm_x100=(int32_t)value;d->known|=K(BPM);}
     value=u32(f+0x18);if(value<=INT32_MAX){d->track_bpm_x100=(int32_t)value;d->known|=K(TRACK_BPM);}
     unsigned rate=u16(f+0x22);d->tempo_x100=rate&0x8000?(int32_t)rate-65536:(int32_t)rate;
@@ -243,6 +258,49 @@ static int identity(struct xz_shell_deck *d,struct deck_storage *s){
     s->identity_valid=1;s->identity_loaded=d->loaded;
     return changed;
 }
+/* BEAT FX state (E:/Claude/xz-fx-research-20261018/contracts.md section 1, read verified on the deck):
+   mgr = [0x1c8981c], mixer = [mgr+0x50], 12-byte record at mixer+0x198, as MixerCpuCom::getBfxState
+   0x25c914 copies it. Written by the mixer comm thread, so the record is read twice and both roots are
+   read again. Channel labels and LEVEL/DEPTH are not proven: those bits stay clear. */
+static const char *const fx_names[14]={"DELAY","ECHO","PING PONG","SPIRAL","REVERB","TRANS","FILTER",
+    "FLANGER","PHASER","PITCH","SLIP ROLL","ROLL","VINYL BRAKE","HELIX"};
+static const uint8_t fx_beats[12][2]={{1,16},{1,8},{1,4},{1,2},{3,4},{1,1},{2,1},{4,1},{8,1},{16,1},{32,1},{64,1}};
+static int fx_guards(xz_shell_read_fn read){
+    static const unsigned char entry[16]={0x66,0x1f,0x81,0xe2,0x00,0x30,0xa0,0xe1,0x07,0x00,0x91,0xe8,0x07,0x00,0x83,0xe8};
+    /* Field loads in the stock getters: type +2, ON +3, beat +7, parameter +8, BPM +10. */
+    static const struct { uint32_t at; unsigned char code[4]; } loads[5]={
+        {0xc9044,{0x06,0x00,0xdd,0xe5}},{0xc91e4,{0x07,0x00,0xdd,0xe5}},{0xc915c,{0x0b,0x00,0xdd,0xe5}},
+        {0xc91a0,{0xfc,0x00,0xdd,0xe1}},{0xc90cc,{0xbe,0x00,0xdd,0xe1}}};
+    unsigned char b[16];
+    if(!bytes(read,0x25c914,b,16)||memcmp(b,entry,16))return 0;
+    for(unsigned i=0;i<5;i++)if(!bytes(read,loads[i].at,b,4)||memcmp(b,loads[i].code,4))return 0;
+    return 1;
+}
+static void fx_fields(struct xz_shell_fx *f,struct xz_shell_model_storage *s,xz_shell_read_fn read){
+    if(!s->fx_guard_ok){
+        if(!fx_guards(read)){if(s->fx_failures!=UINT32_MAX)s->fx_failures++;return;}
+        s->fx_guard_ok=1;
+    }
+    uint32_t mgr,mixer,again;unsigned char a[12],b[12];
+    if(!word(read,0x1c8981c,&mgr)||!pointer(mgr,0x54)||!word(read,mgr+0x50,&mixer)||!pointer(mixer,0x1a4)||
+       !bytes(read,mixer+0x198,a,12)||!bytes(read,mixer+0x198,b,12)||memcmp(a,b,12)||
+       !word(read,0x1c8981c,&again)||again!=mgr||!word(read,mgr+0x50,&again)||again!=mixer)return;
+    unsigned effect=a[2],beat=a[7];
+    f->on=a[3]&1;f->known|=1u<<XZ_SHELL_FX_F_ON;
+    /* BPM source: +6 zero AUTO, non-zero TAP. BPM x10 at +10 (102.2 BPM read live as 1022). The +5
+       out-of-range byte was 1 in that live sample while the BPM matched the display, so it does not
+       gate the BPM; only an implausible value does. */
+    f->tap=a[6]!=0;f->known|=1u<<XZ_SHELL_FX_F_TAP;
+    {unsigned bpm=u16(a+10);if(bpm>=200&&bpm<=9990){f->bpm_x10=(int32_t)bpm;f->known|=1u<<XZ_SHELL_FX_F_BPM;}}
+    if(effect<14){f->name=fx_names[effect];f->known|=1u<<XZ_SHELL_FX_F_NAME;}
+    /* REVERB and PITCH show a dashed beat and a percent parameter in stock: beat and time stay blank. */
+    if(effect<14&&effect!=4&&effect!=9){
+        if(beat>=1&&beat<=12){f->beat_num=fx_beats[beat-1][0];f->beat_den=fx_beats[beat-1][1];f->known|=1u<<XZ_SHELL_FX_F_BEAT;}
+        f->time_ms=(int16_t)u16(a+8);f->known|=1u<<XZ_SHELL_FX_F_TIME;
+    }
+}
+uint32_t xz_shell_model_fx_failures(const struct xz_shell_model_storage *s){return s?s->fx_failures:0;}
+uint32_t xz_shell_model_holds(const struct xz_shell_model_storage *s){return s?s->holds:0;}
 unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_storage *s,xz_shell_read_fn read,uint32_t now_ms){
     static const unsigned char guards[4][16]={
         {0x0c,0x30,0x90,0xe5,0x00,0x00,0x53,0xe3,0x03,0x00,0xa0,0x01,0x1e,0xff,0x2f,0x01},
@@ -253,8 +311,12 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
     int ok[4],auto_known[2]={0,0},auto_value[2]={0,0};unsigned changed=0;
     struct setting_pair list[SETTINGS_CAP];uint32_t count=0;
     if(!m||!s)return 0;
-    memset(m->deck,0,sizeof(m->deck));memset(&m->settings,0,sizeof(m->settings));m->clock_ms=now_ms;
-    for(unsigned i=0;i<4;i++)ok[i]=guard(read,addresses[i],guards[i],s->guard_failures+i);
+    memset(m->deck,0,sizeof(m->deck));memset(&m->settings,0,sizeof(m->settings));memset(&m->fx,0,sizeof(m->fx));m->clock_ms=now_ms;
+    for(unsigned i=0;i<4;i++){
+        ok[i]=read&&((s->guard_ok>>i&1u)||guard(read,addresses[i],guards[i],s->guard_failures+i));
+        if(ok[i])s->guard_ok|=1u<<i;
+    }
+    if(read)fx_fields(&m->fx,s,read);
     unsigned char caution[4],again[4];
     /* Unknown caution must hand off too. UINT32_MAX is a fail-closed sentinel,
      * distinct from any 16-bit native browse caution id. */
@@ -263,20 +325,23 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
     if(ok[1])ok[1]=settings(read,list,&count);
     for(unsigned deck=0;deck<XZ_SHELL_DECKS;deck++){
         struct xz_shell_deck *d=m->deck+deck;struct deck_storage *v=s->deck+deck;struct native_deck n;
-        int have_native=ok[0]&&native_deck(read,deck,&n);
+        int have_native=ok[0]&&native_deck(read,deck,&n),title_state=0;
         v->hot_out_known=0;
         v->title[0]=0;
-        if(ok[2]&&title(read,deck,v->title)&&(!have_native||(u32(n.total)!=7&&u32(n.total)!=9))){
+        if(ok[2])title_state=title(read,deck,v->title);
+        if(title_state>0&&(!have_native||(u32(n.total)!=7&&u32(n.total)!=9))){
             d->title=v->title;d->known|=K(TITLE);
         }
-        /* Bracket the independently mutable title record with the same frame
-         * and loaded-id cells. A concurrent load must not mix two tracks. */
+        /* Bracket the independently mutable title record with the same loaded-track record and total
+         * time. A concurrent load must not mix two tracks. The rest of the frame (elapsed, BPM, phase)
+         * moves on its own while a deck plays, so it is not part of the bracket: the fields come from
+         * the first, self-consistent double read. */
         if(have_native){
             struct native_deck after;
-            if(!native_deck(read,deck,&after)||memcmp(&n,&after,sizeof(n))){
+            if(!native_deck(read,deck,&after)||memcmp(n.total,after.total,sizeof(n.total))||memcmp(n.frame+8,after.frame+8,4)){
                 have_native=0;d->known&=~K(TITLE);d->title=NULL;
             }else {
-                frame_fields(d,v,&n);auto_known[deck]=1;auto_value[deck]=!!(n.frame[0x2e]&2);
+                frame_fields(d,v,&n,now_ms);auto_known[deck]=1;auto_value[deck]=!!(n.frame[0x2e]&2);
             }
         }
         /* Identity must be settled, with a delivered title and sane total.
@@ -295,6 +360,21 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
             if(have_native&&setting(list,count,0x62,&value)&&value>=0x30&&value<=0x33){
                 d->quantize_on=!!(n.frame[0x2e]&0x80);d->quantize_num=1;d->quantize_den=1<<(0x33-value);d->known|=K(QUANTIZE);
             }
+        }
+        /* Hold: a complete snapshot is kept; a transient read failure (native frame unreadable or torn,
+         * or the title record unstable while the same track stays loaded) republishes it for HOLD_MS.
+         * A load in progress (state 7/9), a changed track id or malformed data never holds. */
+        {
+            uint32_t state=have_native?u32(n.total):0,id=have_native?u32(n.total+0xc):0;
+            int complete=have_native&&(d->known&K(LOADED))&&(!d->loaded||(d->known&(K(TITLE)|K(TOTAL)))==(K(TITLE)|K(TOTAL)));
+            int transient=read&&ok[0]&&(!have_native||(title_state<0&&state!=7&&state!=9&&id==v->held_id));
+            if(complete){
+                v->held=*d;v->held_valid=1;v->held_at=now_ms;v->held_id=id;
+                if(d->known&K(TITLE))memcpy(v->held_title,d->title,strlen(d->title)+1);else v->held_title[0]=0;
+            }else if(transient&&v->held_valid&&(uint32_t)(now_ms-v->held_at)<HOLD_MS){
+                *d=v->held;d->title=(d->known&K(TITLE))?v->held_title:NULL;
+                if(s->holds!=UINT32_MAX)s->holds++;
+            }else if(!transient||(uint32_t)(now_ms-v->held_at)>=HOLD_MS)v->held_valid=0;
         }
         input_fields(d,&v->input);
         if(identity(d,v)){changed|=1u<<deck;v->scroll_count=v->overview_count=0;}

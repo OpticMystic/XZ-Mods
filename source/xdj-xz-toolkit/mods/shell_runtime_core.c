@@ -43,20 +43,16 @@ static struct probe probe(const struct xz_shell *u, const struct xz_shell_model 
 }
 enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shrt_key_map *k) {
  if(!u||!m||!k||k->rule==XZ_SHRT_STOCK)return XZ_SHRT_PASS;
- if(k->key==XZ_SHELL_KEY_LOAD){
-  /* LOAD changes list memory when delivered. Inspect its highlight without running input. */
-  const struct xz_shell_browse_row *r=xz_shell_browse_highlight(u,m);
-  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return XZ_SHRT_PASS;
-  return m->capabilities&XZ_SHELL_CAP_LOAD?XZ_SHRT_SWALLOW:XZ_SHRT_PASS_HAND_OFF;
- }
- if(k->key==XZ_SHELL_KEY_BACK){
-  /* BACK never hands off (its table entries are POP, HOME or NONE) and a list
-     screen's BACK runs screen input with state outside the shell struct, so it
-     is not probed: it is inert only on a bare PLAY screen. */
-  return u->depth<=1&&u->popup.kind==XZ_SHELL_POPUP_NONE?XZ_SHRT_PASS:XZ_SHRT_SWALLOW;
- }
+ /* While the shell owns the screen, a browse-section key either acts in the shell (SWALLOW), is
+    inert (SWALLOW too) or hands the screen to stock visibly (PASS_HAND_OFF). It is never passed to a
+    hidden stock screen: stock would act on its own invisible browse cursor (LOAD would load a track
+    the shell is not showing, BACK or TAG TRACK would change state behind the shell). */
+ if(k->key==XZ_SHELL_KEY_LOAD)return XZ_SHRT_SWALLOW; /* loads the shell's highlighted track or nothing */
+ /* BACK never hands off (its table entries are POP, HOME or NONE) and a list screen's BACK runs
+    screen input with state outside the shell struct, so it is not probed. */
+ if(k->key==XZ_SHELL_KEY_BACK)return XZ_SHRT_SWALLOW;
  struct probe a=probe(u,m,k->key),b=k->rule==XZ_SHRT_ON_RELEASE?probe(u,m,k->hold):(struct probe){0,0};
- if(!a.effect&&!b.effect)return XZ_SHRT_PASS;
+ if(!a.effect&&!b.effect)return XZ_SHRT_SWALLOW;
  if((a.hands_off||!a.effect)&&(b.hands_off||!b.effect))return XZ_SHRT_PASS_HAND_OFF;
  return XZ_SHRT_SWALLOW;
 }
@@ -143,6 +139,23 @@ int xz_shrt_handoff_step(struct xz_shrt_handoff *h, uint32_t now, int play) {
  xz_shrt_handoff_end(h);return 1;
 }
 void xz_shrt_handoff_caution(struct xz_shrt_handoff *h, uint32_t caution) { h->caution=caution!=0; }
+void xz_shrt_handoff_shorten(struct xz_shrt_handoff *h, uint32_t now, uint32_t remaining) {
+ if(!h->handed||h->left_play||remaining>=XZ_SHRT_RESUME_GRACE_MS)return;
+ uint32_t since=now-(XZ_SHRT_RESUME_GRACE_MS-remaining);
+ if((int32_t)(since-h->since)<0)h->since=since;
+}
+uint32_t xz_shrt_caution_filter(struct xz_shrt_caution *c, uint32_t caution) {
+ uint32_t v;
+ if(caution!=UINT32_MAX){c->unknown_run=0;c->last=caution;v=caution;}
+ else{
+  if(c->unknown_run<XZ_SHRT_CAUTION_RUNS)c->unknown_run++;
+  v=c->unknown_run>=XZ_SHRT_CAUTION_RUNS?UINT32_MAX:c->last;
+ }
+ if(v!=c->ack)c->ack=0; /* a new or cleared value ends the acknowledgement */
+ c->shown=v;
+ return v&&v==c->ack?0:v;
+}
+void xz_shrt_caution_ack(struct xz_shrt_caution *c) { if(c->shown)c->ack=c->shown; }
 int xz_shrt_handoff_yields(const struct xz_shrt_handoff *h) { return h->handed||h->caution; }
 
 int xz_shrt_queue_push(struct xz_shrt_queue *q, const struct xz_shrt_command *c) {
@@ -162,6 +175,9 @@ int xz_shrt_queue_pop(struct xz_shrt_queue *q, struct xz_shrt_command *out) {
 
 const char *const xz_shrt_quantize_choices[4]={"1/8","1/4","1/2","1"};
 int xz_shrt_quantize_index(int den) { return den==8?0:den==4?1:den==2?2:den==1?3:-1; }
+int xz_shrt_shell_owned_setting(int id) {
+ return id==XZ_SHELL_SET_WAVE_COLOR||id==XZ_SHELL_SET_WAVE_POSITION||id==XZ_SHELL_ITEM_KEY_DISPLAY||id==XZ_SHELL_ITEM_WAVE_ZOOM;
+}
 int xz_shrt_setting_writable(int id, int time_mode, int quantize_beat) {
  return id==XZ_SHELL_SET_TIME_MODE?!!time_mode:id==XZ_SHELL_ITEM_QUANTIZE_BEAT?!!quantize_beat:0;
 }
@@ -182,4 +198,46 @@ int xz_shrt_setting_command(const struct xz_shell_action *a, uint32_t now, struc
  }
 }
 
-uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen s, int any_playing) { return s==XZ_SHELL_PLAY&&any_playing?33u:100u; }
+uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen s, int any_playing) { return s==XZ_SHELL_PLAY&&any_playing?XZ_SHRT_FRAME_LIVE_MS:XZ_SHRT_FRAME_IDLE_MS; }
+
+int xz_shrt_motion_step(struct xz_shrt_motion *m, int32_t elapsed_ms, uint32_t read_at) {
+ if(!m->valid){m->valid=1;m->last_ms=elapsed_ms;m->changed_at=read_at-XZ_SHRT_MOTION_MS;return 0;} /* one reading proves nothing */
+ if(elapsed_ms!=m->last_ms){m->last_ms=elapsed_ms;m->changed_at=read_at;}
+ return (uint32_t)(read_at-m->changed_at)<XZ_SHRT_MOTION_MS;
+}
+
+void xz_shrt_position_reset(struct xz_shrt_position *p) { memset(p,0,sizeof *p); }
+void xz_shrt_position_step(struct xz_shrt_position *p, int playing, int32_t elapsed_ms, uint32_t read_at,
+                           int32_t tempo_x100, int32_t *out_ms, uint32_t *out_at) {
+ int64_t rate_ppm=1000000+(int64_t)tempo_x100*100; /* tempo is in 0.01 % */
+ if(rate_ppm<250000)rate_ppm=250000;
+ if(!p->valid||!playing){
+  p->valid=1;p->base_us=(int64_t)elapsed_ms*1000;p->base_at=read_at;
+ }else if(read_at!=p->read_at||elapsed_ms!=p->read_ms){
+  /* A repeated reading (a held snapshot) carries no information and changes nothing. */
+  int64_t predicted=p->base_us+(int64_t)(int32_t)(read_at-p->base_at)*rate_ppm/1000;
+  int64_t error=(int64_t)elapsed_ms*1000-predicted;
+  if(error>XZ_SHRT_POSITION_SNAP_MS*1000||error< -XZ_SHRT_POSITION_SNAP_MS*1000)p->base_us=(int64_t)elapsed_ms*1000;
+  else{
+   int64_t nudge=error/8;
+   if(nudge>XZ_SHRT_POSITION_NUDGE_MS*1000)nudge=XZ_SHRT_POSITION_NUDGE_MS*1000;
+   if(nudge< -XZ_SHRT_POSITION_NUDGE_MS*1000)nudge=-XZ_SHRT_POSITION_NUDGE_MS*1000;
+   p->base_us=predicted+nudge;
+  }
+  p->base_at=read_at;
+ }
+ p->read_at=read_at;p->read_ms=elapsed_ms;
+ int64_t ms=(p->base_us+500)/1000;
+ *out_ms=ms<0?0:ms>INT32_MAX?INT32_MAX:(int32_t)ms;*out_at=p->base_at;
+}
+
+void xz_shrt_frame_mark(struct xz_shrt_frames *f, uint64_t now_us) {
+ if(f->last_us&&now_us>f->last_us){
+  uint64_t gap=now_us-f->last_us;
+  if(gap<1000000u){
+   if(gap>f->gap_max_us)f->gap_max_us=(uint32_t)gap;
+   if(gap>XZ_SHRT_LATE_US)f->late++;
+  }
+ }
+ f->last_us=now_us;f->frames++;
+}

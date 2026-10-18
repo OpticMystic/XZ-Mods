@@ -16,8 +16,18 @@
    CONTINUE).
 
    A read-only item (writable clear, or no XZ_SHELL_CAP_SET_SETTING) still
-   shows and moves like the others; applying a value on it emits HAND_OFF for
-   the screen, so the stock menu can make the change. */
+   shows and moves like the others, with one sentence saying why it is read only;
+   applying a value on it emits HAND_OFF for the screen, so the stock menu can
+   make the change.
+
+   Shell-owned display items (WAVE_COLOR, WAVE_POSITION, KEY_DISPLAY,
+   WAVE_ZOOM) are always shown and always settable: the shell adds them when
+   the table lacks them and overrides their current value with its own state
+   when the table lists them. Setting one changes the shell at once and emits
+   SET_SETTING for the runtime to store (WAVE_ZOOM emits XZ_SHELL_ACT_ZOOM).
+   The shell also adds PLAY MODE, HOT CUE AUTO LOAD (from model.settings)
+   and BEAT JUMP and QUANTIZE BEAT VALUE (from the active deck) when the table
+   lacks them, read only unless model.settings.writable says otherwise. */
 #include "shell.h"
 
 enum xz_shell_item_id {
@@ -50,6 +60,8 @@ enum xz_shell_item_id {
  XZ_SHELL_ITEM_HEADPHONE_CUE_MODE,
  XZ_SHELL_ITEM_AUTO_STANDBY,
  XZ_SHELL_ITEM_VERSION,            /* one choice: the version text */
+ XZ_SHELL_ITEM_KEY_DISPLAY,        /* shell-owned: enum xz_shell_key_display */
+ XZ_SHELL_ITEM_WAVE_ZOOM,          /* shell-owned: zoom level 0..XZ_SHELL_ZOOM_MAX */
  XZ_SHELL_ITEM_ID_END
 };
 

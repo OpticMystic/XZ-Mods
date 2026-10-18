@@ -55,12 +55,16 @@ static void verdicts(void) {
  /* Nothing the shell can open: the keys go to stock, which opens its own screens. */
  assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_PASS_HAND_OFF);
  assert(xz_shrt_key_verdict(&u,&m,info)==XZ_SHRT_PASS_HAND_OFF);
+ /* Without the settings slot the held MENU hands UTILITY to stock: the whole key goes there. */
  assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_PASS_HAND_OFF);
- assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_PASS);   /* TAG TRACK without the capability is stock's */
- assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_PASS);  /* BACK on the bare PLAY screen */
- assert(xz_shrt_key_verdict(&u,&m,load)==XZ_SHRT_PASS);
+ /* Inert keys are swallowed, never passed to the hidden stock screen: stock would act on its own
+    browse cursor or deck state behind the shell. */
+ assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_SWALLOW);  /* TAG TRACK without the capability */
+ assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_SWALLOW); /* BACK on the bare PLAY screen */
+ assert(xz_shrt_key_verdict(&u,&m,load)==XZ_SHRT_SWALLOW); /* LOAD on PLAY would load stock's cursor */
+ assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430b,0))==XZ_SHRT_PASS); /* deck keys stay stock's */
  assert(!memcmp(&before,&u,sizeof u));                     /* probes never touch the shell */
- /* With BROWSE and the settings slot the shell keeps them; MENU release still hands stock its menu popup. */
+ /* With BROWSE and the settings slot the shell keeps them; held MENU opens the shell's own UTILITY. */
  m.browse=&browse_slot;m.settings_screen=&settings_slot;m.capabilities=XZ_SHELL_CAP_BROWSE;
  assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_SWALLOW);
  assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
@@ -68,7 +72,14 @@ static void verdicts(void) {
  xz_shell_input(&u,&m,&e,out);
  assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_SWALLOW); /* BACK below PLAY belongs to the shell */
- puts("PASS press-time verdicts: hand-off pass-through, inert keys to stock, swallowed keys, side-effect-free probes");
+ /* On a list the short MENU asks for stock's menu popup (HAND_OFF_MENU, which the runtime keeps inert)
+    while the hold opens the shell's UTILITY: the shell keeps the key. */
+ assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
+ {struct xz_shell copy=u;e.key=XZ_SHELL_KEY_MENU;size_t n=xz_shell_input(&copy,&m,&e,out);
+  assert(n==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_HAND_OFF_MENU);}
+ e.key=XZ_SHELL_KEY_MENU_HOLD;xz_shell_input(&u,&m,&e,out);
+ assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
+ puts("PASS press-time verdicts: hand-off pass-through, inert keys swallowed, MENU to the shell's UTILITY, side-effect-free probes");
 }
 
 static void load_verdicts(void) {
@@ -82,7 +93,8 @@ static void load_verdicts(void) {
   u.depth=2;u.stack[1]=(struct xz_shell_view){screens[i],0,0,0};b.screen=screens[i];m.browse=&b;
   const struct xz_shrt_key_map *k=xz_shrt_key_lookup(0x430f,channel);
   struct xz_shell before=u;int touched=xz_shell_browse_touched();
-  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_PASS_HAND_OFF);
+  /* Without the capability LOAD is inert in the shell (stock would load its own hidden cursor). */
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
   m.capabilities|=XZ_SHELL_CAP_LOAD;
   assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
   assert(!memcmp(&before,&u,sizeof u)&&xz_shell_browse_touched()==touched);
@@ -91,25 +103,26 @@ static void load_verdicts(void) {
   /* Once swallowed at press, HOLD/RELEASE stay swallowed after LOAD returns to PLAY. */
   struct xz_shrt_contacts c={0};int held;
   xz_shrt_contact_press(&c,0x430f,channel,1);
-  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_PASS);
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
   assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_HOLD,&held)==1&&xz_shrt_key_for_phase(k,XZ_SHRT_HOLD,0)==-1);
   assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_RELEASE,&held)==1&&xz_shrt_key_for_phase(k,XZ_SHRT_RELEASE,1)==-1);
+  /* A folder row or an empty window: swallowed, and the shell's own LOAD input does nothing loadable. */
   u=before;row.kind=XZ_SHELL_ROW_FOLDER;
-  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_PASS);
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
   row.kind=XZ_SHELL_ROW_TRACK;b.window_count=0;
-  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_PASS);b.window_count=1;
-  /* An inert press keeps every following op stock's, even if the highlight changes. */
-  row.kind=XZ_SHELL_ROW_FOLDER;
-  xz_shrt_contact_press(&c,0x430f,channel,xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
-  row.kind=XZ_SHELL_ROW_TRACK;
-  assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_HOLD,&held)==0);
-  assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_RELEASE,&held)==0);
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
+  e.kind=XZ_SHELL_KEY;size_t n=xz_shell_input(&u,&m,&e,out);
+  for(size_t j=0;j<n;j++)assert(out[j].kind!=XZ_SHELL_ACT_LOAD);
+  b.window_count=1;
  }
  const enum xz_shell_screen nonlists[]={XZ_SHELL_PLAY,XZ_SHELL_INFO,XZ_SHELL_SHORTCUT,XZ_SHELL_UTILITY,XZ_SHELL_SOURCE};
  for(size_t i=0;i<sizeof nonlists/sizeof *nonlists;i++){
   u.stack[u.depth-1].screen=nonlists[i];
-  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430f,1))==XZ_SHRT_PASS);
-  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430f,2))==XZ_SHRT_PASS);
+  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430f,1))==XZ_SHRT_SWALLOW);
+  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430f,2))==XZ_SHRT_SWALLOW);
+  /* ...and inert there: LOAD belongs only to list input. */
+  struct xz_shell copy=u;struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_LOAD,0};
+  assert(xz_shell_input(&copy,&m,&e,out)==0);
  }
  puts("PASS LOAD mapping and verdicts: both decks, list-only loads, hand-off, pure probes, contact pass-through");
 }
@@ -194,7 +207,68 @@ static void hand_off(void) {
  xz_shrt_handoff_caution(&h,0);
  /* Begin twice counts one hand-off. */
  xz_shrt_handoff_begin(&h,50000);xz_shrt_handoff_begin(&h,50010);assert(h.count==4);
- puts("PASS hand-off: grace resume, leave-and-return resume, flicker, unknown state, BACK hold, cautions");
+ /* A short MENU passed to stock: stock stays on PLAY, the shell is back 300 ms after the release
+    (plus the stable time), not after the full grace. Shortening never extends. */
+ xz_shrt_handoff_begin(&h,60000);assert(!xz_shrt_handoff_step(&h,60100,1));
+ xz_shrt_handoff_shorten(&h,60200,300);
+ assert(!xz_shrt_handoff_step(&h,60400,1)&&xz_shrt_handoff_step(&h,60600,1));
+ xz_shrt_handoff_begin(&h,70000);xz_shrt_handoff_shorten(&h,70000,2400);xz_shrt_handoff_shorten(&h,70010,5000);
+ assert(h.since==70000-100);
+ /* Stock left PLAY (UTILITY opened on a hold): shortening does nothing, the shell waits for its return. */
+ xz_shrt_handoff_begin(&h,80000);assert(!xz_shrt_handoff_step(&h,80100,0));xz_shrt_handoff_shorten(&h,80200,0);
+ assert(h.since==80000&&!xz_shrt_handoff_step(&h,80300,1)&&xz_shrt_handoff_step(&h,80700,1));
+ /* The unknown caution sentinel passes only after three refreshes in a row; real ids pass at once. */
+ struct xz_shrt_caution c;memset(&c,0,sizeof c);
+ assert(xz_shrt_caution_filter(&c,UINT32_MAX)==0&&xz_shrt_caution_filter(&c,UINT32_MAX)==0&&xz_shrt_caution_filter(&c,0)==0);
+ assert(xz_shrt_caution_filter(&c,UINT32_MAX)==0&&xz_shrt_caution_filter(&c,UINT32_MAX)==0&&xz_shrt_caution_filter(&c,UINT32_MAX)==UINT32_MAX);
+ assert(xz_shrt_caution_filter(&c,UINT32_MAX)==UINT32_MAX&&xz_shrt_caution_filter(&c,0x144)==0x144&&xz_shrt_caution_filter(&c,UINT32_MAX)==0x144);
+ /* BACK hold acknowledges a latched caution until it changes; a new caution yields again. */
+ memset(&c,0,sizeof c);assert(xz_shrt_caution_filter(&c,0x13f)==0x13f);xz_shrt_caution_ack(&c);
+ assert(xz_shrt_caution_filter(&c,0x13f)==0&&xz_shrt_caution_filter(&c,0x13f)==0);
+ assert(xz_shrt_caution_filter(&c,0x145)==0x145&&xz_shrt_caution_filter(&c,0x13f)==0x13f);
+ xz_shrt_caution_ack(&c);assert(xz_shrt_caution_filter(&c,0)==0&&xz_shrt_caution_filter(&c,0x13f)==0x13f);
+ for(int i=0;i<3;i++)xz_shrt_caution_filter(&c,UINT32_MAX);
+ xz_shrt_caution_ack(&c);assert(xz_shrt_caution_filter(&c,UINT32_MAX)==0);
+ puts("PASS hand-off: grace resume, leave-and-return resume, flicker, unknown state, BACK hold, cautions, short MENU, caution debounce");
+}
+
+/* The playhead the shell publishes must advance smoothly between and across readings. */
+static void playhead(void) {
+ struct xz_shrt_motion mo;memset(&mo,0,sizeof mo);
+ assert(!xz_shrt_motion_step(&mo,1000,0)&&!xz_shrt_motion_step(&mo,1000,33)); /* first readings: unknown -> stopped */
+ assert(xz_shrt_motion_step(&mo,1030,66)&&xz_shrt_motion_step(&mo,1030,300)&&!xz_shrt_motion_step(&mo,1030,366));
+ struct xz_shrt_position p;xz_shrt_position_reset(&p);int32_t ms;uint32_t at;
+ /* Paused: the raw reading. */
+ xz_shrt_position_step(&p,0,5000,100,0,&ms,&at);assert(ms==5000&&at==100);
+ /* Playing at +2.00 %: readings come every 33 ms but advance in 10 ms steps with up to 9 ms of lag.
+    The published line must stay within 10 ms of the truth, never step back between frames, and every
+    frame-to-frame advance must stay within 3 ms of the true 16.67 ms x 1.02. */
+ const int32_t tempo=200;double truth=5000;int64_t last_shown=-1;double worst=0,worst_step=0;
+ for(int frame=1;frame<=600;frame++){
+  uint32_t now=100+(uint32_t)(frame*50/3);   /* 60 fps clock in ms */
+  truth=5000+(now-100)*1.02;
+  if(frame%2==0){                            /* the model refreshes every other frame */
+   int32_t reading=(int32_t)(truth/10)*10;   /* coarse stat-frame value */
+   xz_shrt_position_step(&p,1,reading,now,tempo,&ms,&at);
+  }
+  double shown=ms+(double)(int32_t)(now-at)*1.02;
+  double error=shown-truth;if(error<0)error=-error;
+  if(frame>60&&error>worst)worst=error;
+  if(last_shown>=0&&frame>60){
+   double step=shown-(double)last_shown/1000;assert(step>0);
+   double off=step-16.67*1.02;if(off<0)off=-off;if(off>worst_step)worst_step=off;
+  }
+  last_shown=(int64_t)(shown*1000);
+ }
+ printf("  playhead: worst error %.1f ms, worst frame step deviation %.2f ms\n",worst,worst_step);
+ assert(worst<10&&worst_step<3);
+ /* A cue jump snaps at once; a held (repeated) reading changes nothing. */
+ xz_shrt_position_step(&p,1,1000,20000,tempo,&ms,&at);assert(ms==1000&&at==20000);
+ xz_shrt_position_step(&p,1,1000,20000,tempo,&ms,&at);assert(ms==1000&&at==20000);
+ struct xz_shrt_frames f;memset(&f,0,sizeof f);
+ xz_shrt_frame_mark(&f,1000000);xz_shrt_frame_mark(&f,1016667);xz_shrt_frame_mark(&f,1050000);xz_shrt_frame_mark(&f,3000000);
+ assert(f.frames==4&&f.gap_max_us==33333&&f.late==1);
+ puts("PASS playhead: motion window, smoothed tempo-predicted position, snaps, held readings, frame gap statistics");
 }
 
 static void commands(void) {
@@ -220,6 +294,15 @@ static void commands(void) {
   assert(!q.count&&!xz_shrt_queue_pop(&q,&out));
  }
  a=(struct xz_shell_action){XZ_SHELL_ACT_LOAD,0,0,5};assert(!xz_shrt_setting_command(&a,0,&c));
+ /* Shell-owned display settings are stored and restored, never stock commands. */
+ assert(xz_shrt_shell_owned_setting(XZ_SHELL_SET_WAVE_COLOR)&&xz_shrt_shell_owned_setting(XZ_SHELL_SET_WAVE_POSITION)&&
+        xz_shrt_shell_owned_setting(XZ_SHELL_ITEM_KEY_DISPLAY)&&xz_shrt_shell_owned_setting(XZ_SHELL_ITEM_WAVE_ZOOM));
+ assert(!xz_shrt_shell_owned_setting(XZ_SHELL_SET_TIME_MODE)&&!xz_shrt_shell_owned_setting(XZ_SHELL_ITEM_QUANTIZE_BEAT));
+ {
+  struct xz_shell s;xz_shell_init(&s);
+  assert(xz_shell_restore_setting(&s,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_RGB)&&s.display.wave_color==XZ_SHELL_WAVE_RGB);
+  assert(xz_shell_restore_setting(&s,XZ_SHELL_ITEM_WAVE_ZOOM,5)&&s.zoom==5&&!xz_shell_restore_setting(&s,XZ_SHELL_SET_TIME_MODE,0));
+ }
  /* Queue: FIFO, a repeated setting replaces its queued value, LOADs never merge, overflow drops. */
  c=(struct xz_shrt_command){XZ_SHRT_CMD_TIME_MODE,0,1,0,0,1};assert(xz_shrt_queue_push(&q,&c));
  c.value=0;assert(xz_shrt_queue_push(&q,&c)&&q.count==1&&q.coalesced==1);
@@ -229,7 +312,9 @@ static void commands(void) {
  for(int i=0;i<XZ_SHRT_QUEUE;i++){c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,0,0,(uint32_t)i,2,0};assert(xz_shrt_queue_push(&q,&c));}
  assert(!xz_shrt_queue_push(&q,&c)&&q.dropped==1);
  for(int i=0;i<XZ_SHRT_QUEUE;i++){assert(xz_shrt_queue_pop(&q,&out)&&out.track_id==(uint32_t)i);}
- assert(xz_shrt_frame_period_ms(XZ_SHELL_PLAY,1)==33&&xz_shrt_frame_period_ms(XZ_SHELL_PLAY,0)==100&&xz_shrt_frame_period_ms(XZ_SHELL_BROWSE,1)==100);
+ assert(xz_shrt_frame_period_ms(XZ_SHELL_PLAY,1)==12&&xz_shrt_frame_period_ms(XZ_SHELL_PLAY,0)==100&&xz_shrt_frame_period_ms(XZ_SHELL_BROWSE,1)==100);
+ /* A 60 Hz caller with 2 ms of jitter is due on every tick at the live period. */
+ assert(XZ_SHRT_FRAME_LIVE_MS<=16-2&&XZ_SHRT_FRAME_LIVE_MS>1000/90);
  puts("PASS commands: C3 setting mapping, refusals, coalescing queue, overflow, frame periods");
 }
 
@@ -379,7 +464,7 @@ static void library(const char *path) {
 int main(int argc, char **argv) {
  assert(argc==2);
  fx_track_build(&track,1);
- key_table();verdicts();load_verdicts();contacts();touches();pushes();hand_off();commands();writable_settings();library(argv[1]);
+ key_table();verdicts();load_verdicts();contacts();touches();pushes();hand_off();playhead();commands();writable_settings();library(argv[1]);
  puts("PASS shell runtime");
  return 0;
 }

@@ -61,14 +61,34 @@ int sh_num_width(enum sh_num_face face, const char *s) {
  for(;*s;s++)x+=num_advance(table,num_glyph(table,(unsigned char)*s),(unsigned char)*s,&shift);
  return x;
 }
+/* Coverage blend in RGB565 with shifts: the big clock and BPM digits are redrawn every frame. */
+static void glyph(struct xz_canvas c, int x, int y, const struct xz_shell_glyph *g, uint32_t color) {
+ int sr=(int)((color>>19)&31),sg=(int)((color>>10)&63),sb=(int)((color>>3)&31);
+ uint16_t solid=(uint16_t)(sr<<11|sg<<5|sb);
+ int x0=x+g->x,y0=y+g->y;
+ for(int row=0;row<(int)g->height;row++){
+  int py=y0+row;
+  if(py<0||py>=c.height)continue;
+  const unsigned char *cov=xz_shell_font_coverage+g->offset+(size_t)row*g->width;
+  uint16_t *line=c.p+(size_t)py*c.stride;
+  for(int col=0;col<(int)g->width;col++){
+   int a=cov[col],px=x0+col;
+   if(!a||px<0||px>=c.width)continue;
+   if(a>=255){line[px]=solid;continue;}
+   unsigned d=line[px];int k=a+(a>>7);
+   int r=(int)(d>>11),gg=(int)((d>>5)&63),b=(int)(d&31);
+   r=(r*(256-k)+sr*k)>>8;gg=(gg*(256-k)+sg*k)>>8;b=(b*(256-k)+sb*k)>>8;
+   line[px]=(uint16_t)(r<<11|gg<<5|b);
+  }
+ }
+}
 void sh_num(struct xz_canvas c, int x, int y, const char *s, enum sh_num_face face, uint32_t color) {
  const struct xz_shell_glyph *table=num_face(face);
- if(!s)return;
+ if(!s||!c.p)return;
  for(;*s;s++){
   const struct xz_shell_glyph *g=num_glyph(table,(unsigned char)*s);int shift;
   int advance=num_advance(table,g,(unsigned char)*s,&shift);
-  for(unsigned row=0;row<g->height;row++)for(unsigned col=0;col<g->width;col++)
-   xz_plot(c,x+shift+g->x+(int)col,y+g->y+(int)row,color,xz_shell_font_coverage[g->offset+row*g->width+col]);
+  glyph(c,x+shift,y,g,color);
   x+=advance;
  }
 }
@@ -112,4 +132,66 @@ void sh_placeholder(struct xz_canvas c, const char *title, const char *note) {
  sh_text_center(c,c.width/2,c.height/2-20,title,SH_TEXT,SH_DIM);
  sh_text_center(c,c.width/2,c.height/2+4,note,SH_SMALL,SH_DIM);
  sh_text_center(c,c.width/2,c.height/2+22,"BACK RETURNS TO THE PLAY SCREEN",SH_SMALL,SH_DIM);
+}
+
+/* ---- runtime notice toast ----
+   A dark box centred over the middle of the screen, clear of the header
+   buttons. A sentence too wide for one line breaks at the space that balances
+   the two lines best; a second line that still does not fit ends in "...". */
+enum { NOTICE_TEXT_MAX=560, NOTICE_PAD=20, NOTICE_LINE=24, NOTICE_TOP=196, NOTICE_MIN_W=220 };
+static const struct xz_canvas notice_measure={NULL,XZ_SHELL_WIDTH,XZ_SHELL_WIDTH,XZ_SHELL_HEIGHT,XZ_THEME_FLAGSHIP};
+int sh_notice_shown(const struct xz_shell_model *m) {
+ /* The time comes first: an expired notice's pointer may already be retired. */
+ return m->clock_ms-m->notice_at_ms<(uint32_t)XZ_SHELL_NOTICE_MS&&m->notice&&*m->notice;
+}
+/* Byte offset of the space to break at, or -1 for one line. */
+static int notice_break(const char *text) {
+ char buffer[256];
+ if(sh_text_width(notice_measure,text,SH_TEXT)<=NOTICE_TEXT_MAX)return -1;
+ int best=-1,best_w=1<<30;
+ for(int i=1;text[i]&&i<(int)sizeof buffer-1;i++){
+  if(text[i]!=' ')continue;
+  memcpy(buffer,text,(size_t)i);buffer[i]=0;
+  int first=sh_text_width(notice_measure,buffer,SH_TEXT);
+  if(first>NOTICE_TEXT_MAX)break;
+  int second=sh_text_width(notice_measure,text+i+1,SH_TEXT);
+  int worst=first>second?first:second;
+  if(worst<best_w){best_w=worst;best=i;}
+ }
+ return best;
+}
+struct xz_shell_rect sh_notice_rect(const char *text, int *lines) {
+ int cut=text?notice_break(text):-1,w;
+ if(lines)*lines=cut<0?1:2;
+ if(!text)return (struct xz_shell_rect){0,0,0,0};
+ if(cut<0)w=sh_text_width(notice_measure,text,SH_TEXT);
+ else{
+  char first[256];memcpy(first,text,(size_t)cut);first[cut]=0;
+  w=sh_max(sh_text_width(notice_measure,first,SH_TEXT),sh_text_width(notice_measure,text+cut+1,SH_TEXT));
+ }
+ w=sh_max(NOTICE_MIN_W,sh_min(NOTICE_TEXT_MAX,w)+2*NOTICE_PAD);
+ int h=(cut<0?1:2)*NOTICE_LINE+20;
+ return (struct xz_shell_rect){(XZ_SHELL_WIDTH-w)/2,NOTICE_TOP-(cut<0?0:NOTICE_LINE/2),w,h};
+}
+void sh_notice(const struct xz_shell_model *m, struct xz_canvas c) {
+ if(!sh_notice_shown(m))return;
+ int lines;
+ struct xz_shell_rect r=sh_notice_rect(m->notice,&lines);
+ xz_rect(c,r.x-1,r.y-1,r.w+2,r.h+2,SH_BLACK);
+ xz_rect(c,r.x,r.y,r.w,r.h,SH_ROW_ALT);
+ xz_border(c,r.x,r.y,r.w,r.h,XZ_FLAGSHIP_RAIL_SELECTED);
+ xz_rect(c,r.x,r.y,r.w,3,SH_BLUE);
+ int y=r.y+12;
+ int room=r.w-2*NOTICE_PAD;
+ if(lines==1){
+  int w=sh_min(sh_text_width(c,m->notice,SH_TEXT),room);
+  sh_text_fit(c,r.x+(r.w-w)/2,y,room,m->notice,SH_TEXT,SH_WHITE);
+  return;
+ }
+ int cut=notice_break(m->notice);
+ char first[256];memcpy(first,m->notice,(size_t)cut);first[cut]=0;
+ sh_text_center(c,r.x+r.w/2,y,first,SH_TEXT,SH_WHITE);
+ const char *second=m->notice+cut+1;
+ int sw=sh_min(sh_text_width(c,second,SH_TEXT),room);
+ sh_text_fit(c,r.x+(r.w-sw)/2,y+NOTICE_LINE,room,second,SH_TEXT,SH_WHITE);
 }

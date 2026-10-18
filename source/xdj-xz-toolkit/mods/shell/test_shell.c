@@ -62,7 +62,7 @@ static void test_unknown_fields_read_nothing(void) {
   m.deck[d].title=m.deck[d].artist=m.deck[d].key=NULL;  /* ... and every pointer is NULL */
   m.deck[d].grid=NULL;m.deck[d].wave.columns=NULL;m.deck[d].overview.columns=NULL;m.deck[d].artwork=NULL;
  }
- m.settings.known=0;m.link_known=0;m.capabilities=0;m.clock_ms=0;
+ m.settings.known=0;m.link_known=0;m.capabilities=0;m.clock_ms=0;m.fx.known=0;m.stems_known=0;m.notice=NULL;
  m.browse=NULL;m.settings_screen=NULL;m.source=NULL;m.info=NULL;
  render_checked(&u,&m,buffer_a);
  memset(&zero,0,sizeof zero);
@@ -93,7 +93,7 @@ static void test_bounds_and_long_text(void) {
  struct xz_shell_rect s=xz_shell_play_rect(XZ_SHELL_R_STRIP,0);
  for(int y=s.y+5;y<s.y+26;y++)for(int x=s.x+s.w-8-21;x<s.x+s.w-8-13;x++)assert(at(frame(buffer_a),x,y)==rgb565(SH_CHROME));
  /* Every region lies inside the frame and the lanes never overlap the strips. */
- for(int d=0;d<XZ_SHELL_DECKS;d++)for(int r=XZ_SHELL_R_TOP_BAR;r<=XZ_SHELL_R_INFO_BUTTON;r++){
+ for(int d=0;d<XZ_SHELL_DECKS;d++)for(int r=XZ_SHELL_R_TOP_BAR;r<=XZ_SHELL_R_FX;r++){
   struct xz_shell_rect q=xz_shell_play_rect((enum xz_shell_play_region)r,d);
   assert(q.w>0&&q.h>0&&q.x>=0&&q.y>=0&&q.x+q.w<=XZ_SHELL_WIDTH&&q.y+q.h<=XZ_SHELL_HEIGHT);
  }
@@ -136,8 +136,8 @@ static void test_navigation(void) {
  press(&u,&m,XZ_SHELL_KEY_INFO,out);assert(u.depth==3);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK_HOLD,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&u.depth==1);
- /* MENU on PLAY and on lists is the stock popup; on UTILITY it closes. */
- assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_HAND_OFF_MENU&&u.depth==1);
+ /* A short MENU on PLAY does nothing, as on the stock deck; on lists it is the stock popup; on UTILITY it closes. */
+ assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.depth==1);
  press(&u,&m,XZ_SHELL_KEY_BROWSE,out);
  assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  /* HAND_OFF when a slot is NULL or a capability is missing; the stack does not move. */
@@ -313,7 +313,7 @@ static void test_deterministic(void) {
  u=before;
  /* Not loaded and LEFT playhead variants also render within bounds. */
  m.deck[1].loaded=0;render_checked(&u,&m,buffer_a);
- m.settings.wave_position=XZ_SHELL_POSITION_LEFT;render_checked(&u,&m,buffer_b);
+ u.display.wave_position=XZ_SHELL_POSITION_LEFT;render_checked(&u,&m,buffer_b);u.display.wave_position=XZ_SHELL_POSITION_CENTER;
  assert(memcmp(buffer_a,buffer_b,sizeof buffer_a));
  /* The playhead sits where the setting says. */
  struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,0);

@@ -44,6 +44,11 @@ club players, adapted to the XDJ-XZ.
   non-play screens, as the flagship does (research 3.3: a compact strip with player, time, mini
   overview, tempo and BPM for both decks). Draw it with your own static helper reading the same deck
   model. Hit targets are at least 44 px tall, or padded to 44.
+- The MODS and STEMS header buttons are drawn over every screen by `shell.c` (`XZ_SHELL_HEADER_X`
+  and friends in `shell.h`): keep x >= 674 clear above y 24, and put title-bar items left of it.
+- Waveforms, overviews, key text and the playhead position come from `shell_wave.c`
+  (`sh_wave_lane`, `sh_wave_overview`, `sh_key_text`, `xz_shell_elapsed_now`) so every screen draws a
+  deck the same way; wave colour, position and key notation are shell state (`u->display`).
 - Text never leaves its region: measure with the font width and truncate. No brand names (CDJ,
   Pioneer, rekordbox, AlphaTheta) in identifiers, file names, comments or on-screen text. Say "flagship
   player". Comments only for a non-obvious why.
