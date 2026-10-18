@@ -311,7 +311,8 @@ const EJECT_KEY='xz-eject-after-write';
 function ejectAfterWrite(){try{return localStorage.getItem(EJECT_KEY)==='1';}catch{return false;}}
 function setEjectAfterWrite(on){try{localStorage.setItem(EJECT_KEY,on?'1':'0');}catch{}render();}
 // Only a real drive in the desktop app can be ejected; a chosen folder cannot.
-function canEject(){return Boolean(invoke)&&Boolean(W.usb)&&!W.inspection?.requires_copy_to_usb_root;}
+// A drive the USB list did not mark removable (an internal disk, a folder) is never offered.
+function canEject(){return Boolean(invoke)&&Boolean(W.usb)&&!W.inspection?.requires_copy_to_usb_root&&Boolean(W.usbs?.find(item=>item.volume===W.usb)?.removable);}
 function ejectChoice(later=false){
   if(!canEject())return null;
   return el('label',{class:'check wz-eject-auto'},

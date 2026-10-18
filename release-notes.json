@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.14",
+      "date": "2026-10-18",
+      "preview": true,
+      "features": [],
+      "fixes": [
+        "Eject is only offered for USB drives and card readers. An internal disk chosen by mistake is never dismounted."
+      ],
+      "requirements": [
+        "Same USB loader and runtime as Preview.12. Updating this app does not change the loader on your USB."
+      ]
+    },
+    {
       "version": "0.3.0-preview.13",
       "date": "2026-10-18",
       "preview": true,
