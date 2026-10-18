@@ -129,6 +129,7 @@ static void fx_model_full(struct xz_shell_model *m, const struct fx_track *t) {
  fx_deck_one(&m->deck[0],t);fx_deck_two(&m->deck[1],t);
  m->capabilities=XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_SET_SETTING|XZ_SHELL_CAP_GRID;
  m->settings.known=(1u<<XZ_SHELL_SETTING_COUNT)-1;
+ m->settings.writable=((uint64_t)1<<XZ_SHELL_SETTING_COUNT)-1;
  m->settings.time_mode=XZ_SHELL_TIME_REMAIN;m->settings.wave_color=XZ_SHELL_WAVE_3BAND;
  m->settings.wave_position=XZ_SHELL_POSITION_CENTER;m->settings.play_mode=XZ_SHELL_PLAY_SINGLE;
  m->settings.auto_cue=1;m->settings.hot_cue_auto_load=1;

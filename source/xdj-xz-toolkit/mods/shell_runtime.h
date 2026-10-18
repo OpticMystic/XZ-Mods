@@ -51,7 +51,7 @@ void xz_shell_runtime_owner_tick(void);
    release with a separate event for the hold. STOCK entries are listed so the
    table documents every browse-section key the shell leaves alone. */
 enum xz_shrt_rule { XZ_SHRT_STOCK, XZ_SHRT_ON_PRESS, XZ_SHRT_ON_RELEASE };
-struct xz_shrt_key_map { uint16_t code; uint8_t channel; uint8_t rule; int8_t key, hold; };
+struct xz_shrt_key_map { uint16_t code; uint8_t channel; uint8_t rule; int8_t key, hold, deck; };
 const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel);
 enum xz_shrt_phase { XZ_SHRT_PRESS, XZ_SHRT_HOLD, XZ_SHRT_RELEASE };
 enum xz_shrt_phase xz_shrt_phase_of(unsigned op);
@@ -112,6 +112,7 @@ struct xz_shrt_queue { struct xz_shrt_command c[XZ_SHRT_QUEUE]; unsigned head, c
 int xz_shrt_queue_push(struct xz_shrt_queue *, const struct xz_shrt_command *);
 int xz_shrt_queue_pop(struct xz_shrt_queue *, struct xz_shrt_command *);
 /* SET_SETTING -> the C3 command it needs. 0 when no proven setter exists for that id or value. */
+int xz_shrt_setting_writable(int id, int time_mode, int quantize_beat);
 int xz_shrt_setting_command(const struct xz_shell_action *, uint32_t now, struct xz_shrt_command *);
 /* QUANTIZE BEAT VALUE choices in shell order, and the stored R4 value (0x30..0x33) -> choice index. */
 extern const char *const xz_shrt_quantize_choices[4];

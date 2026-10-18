@@ -142,7 +142,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  case NAV_HOME:u->depth=1;break;
  case NAV_HAND_OFF:return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_HAND_OFF_MENU});
  case NAV_SETTING:
-  if(!(m->capabilities&XZ_SHELL_CAP_SET_SETTING))break;
+  if(!sh_writable(m,t.setting))break;
   if(t.setting==XZ_SHELL_SET_TIME_MODE)
    return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,shown_time_mode(m,deck)==XZ_SHELL_TIME_REMAIN?XZ_SHELL_TIME_ELAPSED:XZ_SHELL_TIME_REMAIN,XZ_SHELL_SET_TIME_MODE});
   if(t.setting==XZ_SHELL_SET_QUANTIZE){
@@ -159,6 +159,9 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
 }
 size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  if(!u||!m||!e||!out)return 0;
+ /* LOAD belongs only to list input; all other screens leave it inert. */
+ if(e->kind==XZ_SHELL_KEY&&e->key==XZ_SHELL_KEY_LOAD&&lists_back[xz_shell_screen(u)])
+  return screen_of(u)->input(u,m,e,out);
  if(e->kind==XZ_SHELL_KEY&&(e->key==XZ_SHELL_KEY_BACK||e->key==XZ_SHELL_KEY_BACK_HOLD)&&u->popup.kind==XZ_SHELL_POPUP_NONE){
   enum xz_shell_screen s=xz_shell_screen(u);
   /* A list below its top level goes up (BACK) or to the top (BACK_HOLD) through its own input, which emits the browse action. */

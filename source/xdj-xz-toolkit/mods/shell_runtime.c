@@ -300,12 +300,14 @@ static void fill_settings(void) {
  const struct xz_shell_deck *d=&model.deck[0];
  int quantize=d->known&K(QUANTIZE)?xz_shrt_quantize_index(d->quantize_den):-1;
  setting_items[0]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_TIME_MODE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"TIME MODE",time_choices,2,
-  s->time_mode==XZ_SHELL_TIME_ELAPSED,(s->known>>XZ_SHELL_SET_TIME_MODE)&1,has(G_TIME_MODE)};
+  s->time_mode==XZ_SHELL_TIME_ELAPSED,(s->known>>XZ_SHELL_SET_TIME_MODE)&1,0};
  setting_items[1]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_QUANTIZE_BEAT,XZ_SHELL_SETTING_CAT_DJ_SETTING,"QUANTIZE BEAT VALUE",xz_shrt_quantize_choices,4,
-  quantize<0?0:quantize,quantize>=0,has(G_QUANTIZE)};
+  quantize<0?0:quantize,quantize>=0,0};
  setting_items[2]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_AUTO_CUE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on,2,
   !!s->auto_cue,(s->known>>XZ_SHELL_SET_AUTO_CUE)&1,0};
  settings_model=(struct xz_shell_settings_model){3,setting_items};
+ for(uint32_t i=0;i<settings_model.count;i++)
+  setting_items[i].writable=xz_shrt_setting_writable(setting_items[i].id,has(G_TIME_MODE),has(G_QUANTIZE));
 }
 /* Rebuilds every slot the runtime owns. Called after each refresh and after any swap, so the model
    never points at retired memory. */
@@ -317,6 +319,9 @@ static void fill_slots_locked(void) {
  if(lib)caps|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
  if(lib&&load_enabled&&has(G_LOAD)&&has(G_SETTINGS))caps|=XZ_SHELL_CAP_LOAD;
  model.capabilities=caps;
+ model.settings.writable=0;
+ for(int id=0;id<XZ_SHELL_SETTING_COUNT;id++)
+  if(xz_shrt_setting_writable(id,has(G_TIME_MODE),has(G_QUANTIZE)))model.settings.writable|=(uint64_t)1<<id;
  if(lib){fill_browse(lib);model.browse=&browse;}else model.browse=NULL;
  fill_source();model.source=&source_model;
  fill_settings();model.settings_screen=&settings_model;
@@ -633,8 +638,8 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   xz_mods_shell_proof_v1.actions++;
   switch(a->kind){
   case XZ_SHELL_ACT_SET_SETTING:
-   if(!xz_shrt_setting_command(a,now,&c)||(c.kind==XZ_SHRT_CMD_TIME_MODE&&!has(G_TIME_MODE))||
-      (c.kind==XZ_SHRT_CMD_QUANTIZE_BEAT&&!has(G_QUANTIZE))){refuse();break;}
+   if(!xz_shrt_setting_writable(a->id,has(G_TIME_MODE),has(G_QUANTIZE))||
+      !xz_shrt_setting_command(a,now,&c)){refuse();break;}
    queue_command(&c);break;
   case XZ_SHELL_ACT_LOAD:
    if(!(model.capabilities&XZ_SHELL_CAP_LOAD)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<=0||browse_source<0){refuse();break;}
@@ -665,8 +670,8 @@ static void deliver_locked(const struct xz_shell_event *e, uint32_t now) {
  size_t n=xz_shell_input(&shell,&model,e,out);
  execute_locked(out,n,now);
 }
-static void deliver_key_locked(int key, uint32_t now) {
- struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,(enum xz_shell_key)key,-1};
+static void deliver_key_locked(int key, int deck, uint32_t now) {
+ struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,(enum xz_shell_key)key,deck};
  deliver_locked(&e,now);
 }
 
@@ -761,13 +766,13 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
   swallow=v==XZ_SHRT_SWALLOW;
   xz_shrt_contact_press(&contacts,code,channel,swallow);
   if(v==XZ_SHRT_PASS_HAND_OFF){hand_off_locked(now);xz_mods_shell_proof_v1.key_hand_offs++;}
-  if(swallow){int key=xz_shrt_key_for_phase(map,phase,0);if(key>=0)deliver_key_locked(key,now);}
+  if(swallow){int key=xz_shrt_key_for_phase(map,phase,0);if(key>=0)deliver_key_locked(key,map->deck,now);}
  }else{
   int held=0,decision=xz_shrt_contact_follow(&contacts,code,channel,phase,&held);
   if(decision>0){
    swallow=1;
    int key=xz_shrt_key_for_phase(map,phase,held);
-   if(key>=0&&owns)deliver_key_locked(key,now);
+   if(key>=0&&owns)deliver_key_locked(key,map->deck,now);
   }else if(decision==0&&map->key==XZ_SHELL_KEY_BACK&&phase==XZ_SHRT_HOLD&&!held&&handoff.handed&&candidate(eligible,theme)){
    /* BACK held over stock brings the shell back; the key itself still belongs to stock. */
    xz_shrt_handoff_end(&handoff);xz_mods_shell_proof_v1.back_hold_resumes++;dirty_flag=1;

@@ -25,7 +25,7 @@ static void key_table(void) {
   {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1},{0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1},
   {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1},{0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1},
   {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD},
-  {0x430f,1,XZ_SHRT_STOCK,-1,-1},{0x430f,2,XZ_SHRT_STOCK,-1,-1},{0x430b,1,XZ_SHRT_STOCK,-1,-1},{0x430c,2,XZ_SHRT_STOCK,-1,-1},
+  {0x430f,1,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1},{0x430f,2,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1},{0x430b,1,XZ_SHRT_STOCK,-1,-1},{0x430c,2,XZ_SHRT_STOCK,-1,-1},
  };
  for(size_t i=0;i<sizeof expect/sizeof *expect;i++){
   const struct xz_shrt_key_map *k=xz_shrt_key_lookup(expect[i].code,expect[i].channel);
@@ -40,7 +40,8 @@ static void key_table(void) {
  assert(xz_shrt_key_for_phase(menu,XZ_SHRT_HOLD,0)==XZ_SHELL_KEY_MENU_HOLD&&xz_shrt_key_for_phase(menu,XZ_SHRT_HOLD,1)==-1);
  assert(xz_shrt_key_for_phase(menu,XZ_SHRT_RELEASE,0)==XZ_SHELL_KEY_MENU&&xz_shrt_key_for_phase(menu,XZ_SHRT_RELEASE,1)==-1);
  assert(xz_shrt_key_for_phase(info,XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_INFO&&xz_shrt_key_for_phase(info,XZ_SHRT_RELEASE,0)==-1);
- assert(xz_shrt_key_for_phase(xz_shrt_key_lookup(0x430f,1),XZ_SHRT_PRESS,0)==-1);
+ assert(xz_shrt_key_for_phase(xz_shrt_key_lookup(0x430f,1),XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_LOAD);
+ assert(xz_shrt_key_lookup(0x430f,1)->deck==0&&xz_shrt_key_lookup(0x430f,2)->deck==1);
  puts("PASS R1 key table: codes, channels, stock keys, press/hold/release phases");
 }
 
@@ -70,6 +71,48 @@ static void verdicts(void) {
  puts("PASS press-time verdicts: hand-off pass-through, inert keys to stock, swallowed keys, side-effect-free probes");
 }
 
+static void load_verdicts(void) {
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ struct xz_shell_browse_row row={0};row.kind=XZ_SHELL_ROW_TRACK;row.id=101;
+ struct xz_shell_browse_model b={0};
+ b.known=(1u<<XZ_SHELL_BF_TOTAL);b.total=1;b.window_count=1;b.rows=&row;
+ const enum xz_shell_screen screens[]={XZ_SHELL_BROWSE,XZ_SHELL_PLAYLIST,XZ_SHELL_TAG_LIST,XZ_SHELL_SEARCH};
+ for(size_t i=0;i<sizeof screens/sizeof *screens;i++)for(unsigned channel=1;channel<=2;channel++){
+  xz_shell_init(&u);xz_shell_browse_reset();fx_model_full(&m,&track);
+  u.depth=2;u.stack[1]=(struct xz_shell_view){screens[i],0,0,0};b.screen=screens[i];m.browse=&b;
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(0x430f,channel);
+  struct xz_shell before=u;int touched=xz_shell_browse_touched();
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_PASS_HAND_OFF);
+  m.capabilities|=XZ_SHELL_CAP_LOAD;
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
+  assert(!memcmp(&before,&u,sizeof u)&&xz_shell_browse_touched()==touched);
+  struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,(enum xz_shell_key)xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0),k->deck};
+  assert(xz_shell_input(&u,&m,&e,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].id==101&&out[0].deck==(int)channel-1&&u.depth==1);
+  /* Once swallowed at press, HOLD/RELEASE stay swallowed after LOAD returns to PLAY. */
+  struct xz_shrt_contacts c={0};int held;
+  xz_shrt_contact_press(&c,0x430f,channel,1);
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_PASS);
+  assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_HOLD,&held)==1&&xz_shrt_key_for_phase(k,XZ_SHRT_HOLD,0)==-1);
+  assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_RELEASE,&held)==1&&xz_shrt_key_for_phase(k,XZ_SHRT_RELEASE,1)==-1);
+  u=before;row.kind=XZ_SHELL_ROW_FOLDER;
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_PASS);
+  row.kind=XZ_SHELL_ROW_TRACK;b.window_count=0;
+  assert(xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_PASS);b.window_count=1;
+  /* An inert press keeps every following op stock's, even if the highlight changes. */
+  row.kind=XZ_SHELL_ROW_FOLDER;
+  xz_shrt_contact_press(&c,0x430f,channel,xz_shrt_key_verdict(&u,&m,k)==XZ_SHRT_SWALLOW);
+  row.kind=XZ_SHELL_ROW_TRACK;
+  assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_HOLD,&held)==0);
+  assert(xz_shrt_contact_follow(&c,0x430f,channel,XZ_SHRT_RELEASE,&held)==0);
+ }
+ const enum xz_shell_screen nonlists[]={XZ_SHELL_PLAY,XZ_SHELL_INFO,XZ_SHELL_SHORTCUT,XZ_SHELL_UTILITY,XZ_SHELL_SOURCE};
+ for(size_t i=0;i<sizeof nonlists/sizeof *nonlists;i++){
+  u.stack[u.depth-1].screen=nonlists[i];
+  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430f,1))==XZ_SHRT_PASS);
+  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430f,2))==XZ_SHRT_PASS);
+ }
+ puts("PASS LOAD mapping and verdicts: both decks, list-only loads, hand-off, pure probes, contact pass-through");
+}
 static void contacts(void) {
  struct xz_shrt_contacts c;memset(&c,0,sizeof c);int held;
  assert(xz_shrt_contact_follow(&c,0x4208,0,XZ_SHRT_RELEASE,&held)==-1); /* release without its press */
@@ -173,6 +216,8 @@ static void commands(void) {
   XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_SET_WAVE_POSITION,XZ_SHELL_ITEM_LOAD_LOCK,XZ_SHELL_ITEM_LCD_BRIGHTNESS};
  for(size_t i=0;i<sizeof refused/sizeof *refused;i++){
   a=(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,0,1,refused[i]};assert(!xz_shrt_setting_command(&a,0,&c));
+  if(xz_shrt_setting_writable(a.id,1,1)&&xz_shrt_setting_command(&a,0,&c))assert(xz_shrt_queue_push(&q,&c));
+  assert(!q.count&&!xz_shrt_queue_pop(&q,&out));
  }
  a=(struct xz_shell_action){XZ_SHELL_ACT_LOAD,0,0,5};assert(!xz_shrt_setting_command(&a,0,&c));
  /* Queue: FIFO, a repeated setting replaces its queued value, LOADs never merge, overflow drops. */
@@ -188,6 +233,34 @@ static void commands(void) {
  puts("PASS commands: C3 setting mapping, refusals, coalescing queue, overflow, frame periods");
 }
 
+static void writable_settings(void) {
+ for(int time=0;time<2;time++)for(int quantize=0;quantize<2;quantize++){
+  for(int id=0;id<XZ_SHELL_ITEM_ID_END;id++)
+   assert(xz_shrt_setting_writable(id,time,quantize)==(id==XZ_SHELL_ITEM_TIME_MODE?time:id==XZ_SHELL_ITEM_QUANTIZE_BEAT?quantize:0));
+  struct xz_shell u;struct xz_shell_model m;struct xz_shell_action actions[XZ_SHELL_ACTIONS];
+  struct xz_shrt_queue q={0};struct xz_shrt_command c;
+  xz_shell_init(&u);fx_model_full(&m,&track);m.settings.writable=0;
+  for(int id=0;id<XZ_SHELL_SETTING_COUNT;id++)
+   if(xz_shrt_setting_writable(id,time,quantize))m.settings.writable|=(uint64_t)1<<id;
+  assert(m.settings.writable==(time?(uint64_t)1<<XZ_SHELL_SET_TIME_MODE:0));
+  const struct xz_shell_event events[]={
+   {XZ_SHELL_TOUCH_DOWN,20,12,0,0,-1}, /* PLAY MODE has no setter. */
+   {XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_QUANTIZE,0},
+   {XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_TIME_MODE,0}};
+  for(size_t i=0;i<sizeof events/sizeof *events;i++){
+   size_t n=xz_shell_input(&u,&m,&events[i],actions);
+   assert(n==(size_t)(i==2&&time));
+   for(size_t j=0;j<n;j++){
+    assert(xz_shrt_setting_writable(actions[j].id,time,quantize));
+    assert(xz_shrt_setting_command(&actions[j],0,&c)&&xz_shrt_queue_push(&q,&c));
+   }
+  }
+  assert(q.count==(uint32_t)time);
+  if(time)assert(xz_shrt_queue_pop(&q,&c)&&c.kind==XZ_SHRT_CMD_TIME_MODE);
+  assert(!xz_shrt_queue_pop(&q,&c));
+ }
+ puts("PASS per-setting writable rule: shared IDs, runtime guard combinations, refused settings never queued");
+}
 static const char *title_of(const struct xz_shlib *L, uint32_t id) {
  const struct xz_shlib_track *t=xz_shlib_track(L,id);assert(t);return xz_shlib_text(L,t->title);
 }
@@ -306,7 +379,7 @@ static void library(const char *path) {
 int main(int argc, char **argv) {
  assert(argc==2);
  fx_track_build(&track,1);
- key_table();verdicts();contacts();touches();pushes();hand_off();commands();library(argv[1]);
+ key_table();verdicts();load_verdicts();contacts();touches();pushes();hand_off();commands();writable_settings();library(argv[1]);
  puts("PASS shell runtime");
  return 0;
 }

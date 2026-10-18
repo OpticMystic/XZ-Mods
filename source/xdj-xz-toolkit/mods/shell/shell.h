@@ -106,9 +106,10 @@ enum xz_shell_setting {
  XZ_SHELL_SET_TIME_MODE, XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_SET_PLAY_MODE,
  XZ_SHELL_SET_AUTO_CUE, XZ_SHELL_SET_HOT_CUE_AUTO_LOAD, XZ_SHELL_SET_QUANTIZE, XZ_SHELL_SETTING_COUNT
 };
-/* Device-wide settings the play screen reads. known is a bit per enum xz_shell_setting. */
+/* Device-wide settings the play screen reads. known and writable are bits per enum xz_shell_setting. */
 struct xz_shell_settings {
  uint32_t known;
+ uint64_t writable;
  enum xz_shell_time_mode time_mode;
  enum xz_shell_wave_color wave_color;
  enum xz_shell_wave_position wave_position;
@@ -136,9 +137,9 @@ enum xz_shell_event_kind {
 enum xz_shell_key {
  XZ_SHELL_KEY_BACK, XZ_SHELL_KEY_BACK_HOLD, XZ_SHELL_KEY_BROWSE, XZ_SHELL_KEY_TAG_LIST, XZ_SHELL_KEY_PLAYLIST,
  XZ_SHELL_KEY_SEARCH, XZ_SHELL_KEY_MENU, XZ_SHELL_KEY_MENU_HOLD, XZ_SHELL_KEY_SHORTCUT, XZ_SHELL_KEY_INFO,
- XZ_SHELL_KEY_SOURCE, XZ_SHELL_KEY_TAG_TRACK, XZ_SHELL_KEY_TIME_MODE, XZ_SHELL_KEY_QUANTIZE, XZ_SHELL_KEY_COUNT
+ XZ_SHELL_KEY_SOURCE, XZ_SHELL_KEY_TAG_TRACK, XZ_SHELL_KEY_TIME_MODE, XZ_SHELL_KEY_QUANTIZE, XZ_SHELL_KEY_LOAD, XZ_SHELL_KEY_COUNT
 };
-/* deck: the deck a per-deck key (TIME MODE, QUANTIZE) belongs to, or -1 for the active deck. */
+/* deck: the deck a per-deck key (TIME MODE, QUANTIZE, LOAD) belongs to, or -1 for the active deck. */
 struct xz_shell_event { enum xz_shell_event_kind kind; int x, y, delta; enum xz_shell_key key; int deck; };
 
 enum xz_shell_action_kind {

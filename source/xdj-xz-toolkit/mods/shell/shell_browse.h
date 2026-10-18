@@ -121,6 +121,8 @@ const char *xz_shell_browse_key_label(int index);
    of leaving the list. No side effects: the screen's input, given the BACK
    key event, emits BROWSE/UP and restores the parent level's cursor. */
 int xz_shell_browse_back(struct xz_shell *, const struct xz_shell_model *);
+/* Highlight as drawn, including a remembered cursor. Pure: safe for press-time probes. */
+const struct xz_shell_browse_row *xz_shell_browse_highlight(const struct xz_shell *, const struct xz_shell_model *);
 /* The shell's search text. Valid until the next input. */
 const char *xz_shell_browse_query(void);
 /* The touched row (LOAD chip), or -1. */
