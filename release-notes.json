@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.12",
+      "date": "2026-10-18",
+      "preview": true,
+      "features": [
+        "New FLAGSHIP theme in MODS > Appearance. The XZ play screen takes on the look of the current flagship club players: black panels with outlined captions, blue selection, red tempo and quantize marks, and a three-band waveform (blue lows, amber mids, cream highs).",
+        "The MODS menu in FLAGSHIP follows the flagship UTILITY and browse screens: a grey category rail, value rows with ON/OFF chips, radio choices, DECK tags, hot-cue style pad chips and a BEAT LOOP strip. Rotary turn moves, push selects, BACK goes up, as on those players."
+      ],
+      "fixes": [],
+      "requirements": [
+        "Update the USB loader to get the new runtime. The theme is saved on the USB like every other theme."
+      ]
+    },
+    {
       "version": "0.3.0-preview.11",
       "date": "2026-10-14",
       "preview": true,

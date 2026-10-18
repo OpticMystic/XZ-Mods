@@ -22,7 +22,8 @@ static const enum xz_ui_page section_pages[3]={XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ
 const char *const xz_ui_lengths[6]={"1/16","1/8","1/4","1/2","1","2"};
 static float clampf(float v,float lo,float hi){return v<lo?lo:v>hi?hi:v;}
 static const struct xz_ui_skin *skin_for(int theme){
- return theme==XZ_THEME_LCARS?&xz_skin_lcars:theme==XZ_THEME_MATRIX?&xz_skin_matrix:theme==XZ_THEME_ANALOG?&xz_skin_analog:&xz_skin_classic;
+ return theme==XZ_THEME_LCARS?&xz_skin_lcars:theme==XZ_THEME_MATRIX?&xz_skin_matrix:theme==XZ_THEME_ANALOG?&xz_skin_analog:
+  theme==XZ_THEME_FLAGSHIP?&xz_skin_flagship:&xz_skin_classic;
 }
 void xz_ui_render_native_buttons(uint16_t *pixels,size_t stride,int theme,int stems,int vj_visible,int vj_active){
  if(!pixels||stride<800)return;
@@ -702,7 +703,8 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  uint32_t bg,ink,accent;xz_ui_chrome_colors(m,&palette,&bg,&ink,&accent);
  xz_ui_chrome_profile(&s,bg,ink,xz_blend(bg,ink,160),accent,palette.alarm);
  if(!chrome)return;
- xz_ui_chrome_focus(&s,u->adjusting?palette.alarm:palette.accent);
+ /* Flagship selection is already blue, so its focus ring is white. */
+ xz_ui_chrome_focus(&s,u->adjusting?palette.alarm:m->theme==XZ_THEME_FLAGSHIP?0xffffff:palette.accent);
  xz_ui_chrome_dock(&s,bg,ink,xz_blend(bg,ink,160),accent,palette.alarm);
 }
 static struct xz_ui_action action(enum xz_ui_action_kind kind,enum xz_ui_phase phase,int deck,int index,float value,float second){

@@ -14,7 +14,8 @@ static inline uint16_t xz_native_palette_pixel(int theme,uint16_t source){
  uint32_t tone;
  if((theme==XZ_THEME_LCARS&&xz_theme_lcars_tone(r,g,b,light,&tone))||
  (theme==XZ_THEME_MATRIX&&xz_theme_matrix_tone(r,g,b,light,&tone))||
- (theme==XZ_THEME_ANALOG&&xz_theme_analog_tone(r,g,b,light,&tone)))return xz_theme_rgb565(tone);
+ (theme==XZ_THEME_ANALOG&&xz_theme_analog_tone(r,g,b,light,&tone))||
+ (theme==XZ_THEME_FLAGSHIP&&xz_theme_flagship_tone(r,g,b,light,&tone)))return xz_theme_rgb565(tone);
  unsigned maximum=r>g?r:g;if(b>maximum)maximum=b;
  unsigned minimum=r<g?r:g;if(b<minimum)minimum=b;
  unsigned chroma=maximum-minimum;

@@ -14,7 +14,7 @@ The panel is a fixed grid shared by every skin (`ui_skin.h`): a 40 px header
 with BACK, the page title, optional deck pickers and CLOSE; a 124 px section
 rail (CONTROLS, APPEARANCE, ADVANCED, EXTRAS) with drawn icons; content in
 x 136..792, y 48..404; and an info dock at y 412..480. Controls never enter
-the dock (`test_ui.c` enforces this for all 24 themes). The dock names the
+the dock (`test_ui.c` enforces this for all 25 themes). The dock names the
 focused control, its state (ON, OFF, SELECTED, NOT READY, ADJUSTING), what it
 changes, the save status or latest notice, and the hardware key hints.
 
@@ -317,4 +317,14 @@ top deck selectors, three-column Appearance picker and fixed control groups.
 Each skin retains its colors, text and widget rendering. Non-LCARS page details
 share those coordinates; inline stem rows and native main-screen layouts are
 unchanged. The layout test checks identical rectangles and touch targets for
-every control across all 24 themes.
+every control across all 25 themes.
+
+FLAGSHIP (theme 24, `skin_flagship.c`) draws the same grid as the UTILITY and
+browse screens of the current flagship club players: a `#191919` header and
+list rows with 1 px black separators, a `#3c3c3c` category rail whose open
+cell is `#646465`, `#007de1` for the selected choice row and primary buttons,
+outlined ON/OFF chips for toggles, hatched `#313131` launch tiles, outlined
+caption boxes (DECK, BPM, VOLUME, KEY) that carry a big value, HOT CUE style
+pad chips, radio rows on the theme list, and a `#ff4619` NOT READY / READ ONLY
+tag on anything the runtime cannot do yet. One `kind_style` table maps every
+widget kind to its row style before anything is drawn.

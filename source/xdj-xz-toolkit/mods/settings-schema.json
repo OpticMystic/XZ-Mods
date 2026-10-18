@@ -55,7 +55,7 @@
       "group": "appearance",
       "default": 0,
       "min": 0,
-      "max": 23,
+      "max": 24,
       "kind": "choice",
       "readonly": false,
       "choices": [
@@ -154,6 +154,10 @@
         {
           "value": 23,
           "label": "ANALOG"
+        },
+        {
+          "value": 24,
+          "label": "FLAGSHIP"
         }
       ]
     },

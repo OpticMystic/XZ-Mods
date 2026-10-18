@@ -152,9 +152,10 @@ static const struct xz_ui_dj_entry *dj_entry(const struct xz_ui_model *m,int k){
  return m->dj&&k>=0&&k<m->dj->count&&k<XZ_UI_DJ_ENTRIES?&m->dj->entry[k]:NULL;
 }
 void xz_ui_chrome_colors(const struct xz_ui_model *m,const struct xz_theme_palette *p,uint32_t *bg,uint32_t *ink,uint32_t *accent){
- *ink=m->theme==XZ_THEME_ANALOG?0x3a3020:p->ink;
- *bg=m->theme==XZ_THEME_ANALOG?0xd9c9a3:m->theme==XZ_THEME_LCARS||m->theme==XZ_THEME_MATRIX?0:p->bg;
- *accent=m->theme==XZ_THEME_MATRIX?0x33cc33:p->accent;
+ *ink=m->theme==XZ_THEME_ANALOG?0x3a3020:m->theme==XZ_THEME_FLAGSHIP?0xffffff:p->ink;
+ /* Flagship chrome (profile chip, info dock) sits on the #191919 status band, not the black page. */
+ *bg=m->theme==XZ_THEME_ANALOG?0xd9c9a3:m->theme==XZ_THEME_LCARS||m->theme==XZ_THEME_MATRIX?0:m->theme==XZ_THEME_FLAGSHIP?0x191919:p->bg;
+ *accent=m->theme==XZ_THEME_MATRIX?0x33cc33:m->theme==XZ_THEME_FLAGSHIP?0x007de1:p->accent;
 }
 /* A logo scaled from src (src_side square RGB565), masked to a circle or a rounded
    square; a monogram on the profile's accent without one, a head and shoulders with no profile. */

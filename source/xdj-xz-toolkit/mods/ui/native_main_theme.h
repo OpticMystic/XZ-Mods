@@ -22,11 +22,43 @@ static inline void xz_main_atlas(struct xz_theme_surface s,int x,int y,const cha
   x+=g->advance*scale;
  }
 }
+static inline void xz_main_atlas_centered(struct xz_theme_surface s,struct xz_theme_rect r,const char *text,uint32_t color){
+ int width=0,top=0,bottom=0;
+ for(const char *c=text;*c;c++){
+  const struct xz_font_glyph *g=&xz_font_glyphs[1][(unsigned char)*c-32];
+  if(c==text||g->y<top)top=g->y;if(c==text||g->y+g->height>bottom)bottom=g->y+g->height;width+=g->advance;
+ }
+ xz_main_atlas(s,r.x+(r.w-width)/2,r.y+(r.h-(bottom-top))/2-top,text,1,color);
+}
+/* Flagship painters shared with native_flagship_assets.h, which owns the
+   deck-tag and Beat FX header sprites at run time. */
+static inline void xz_flagship_title_band(struct xz_theme_surface s,int width,uint32_t bar){
+ xz_theme_fill(s,(struct xz_theme_rect){0,0,width,30},0);
+ xz_theme_fill(s,(struct xz_theme_rect){0,0,4,30},bar);
+ xz_theme_fill(s,(struct xz_theme_rect){4,29,width-4,1},XZ_FLAGSHIP_RAIL);
+}
+static inline void xz_flagship_deck_tag(struct xz_theme_surface s,unsigned id){
+ struct xz_theme_rect whole={0,0,s.width,s.height};
+ if(id==1027){
+  xz_theme_fill(s,whole,XZ_FLAGSHIP_BLUE);
+  xz_theme_fill(s,(struct xz_theme_rect){0,0,s.width,2},0xffffff);
+ }else{
+  xz_theme_fill(s,whole,id==1028?0x0c0c0c:XZ_FLAGSHIP_CHROME);
+  xz_theme_edge(s,whole,0,id==1028?XZ_FLAGSHIP_RAIL:0xffffff);
+ }
+}
+static inline void xz_flagship_fx_header(struct xz_theme_surface s){
+ /* Rows 0..8 stay black, as LCARS keeps them: native overlay controls draw there. */
+ xz_theme_fill(s,(struct xz_theme_rect){0,0,s.width,s.height},0);
+ xz_theme_fill(s,(struct xz_theme_rect){0,9,s.width,s.height-10},XZ_FLAGSHIP_CHROME);
+ xz_theme_fill(s,(struct xz_theme_rect){0,s.height-1,s.width,1},XZ_FLAGSHIP_RAIL);
+ xz_main_atlas_centered(s,(struct xz_theme_rect){0,9,s.width,s.height-10},"BEAT FX",0xffffff);
+}
 /* Only verified blank native artwork. The original text, track counters,
    cue overlays and touch rectangles continue to belong to Pioneer. */
 static inline int xz_native_main_art(unsigned id,int theme,struct xz_asset_role_info role,
  struct xz_theme_surface s,int width,int height){
- if(theme<XZ_THEME_LCARS||theme>XZ_THEME_ANALOG)return 0;
+ if(theme<XZ_THEME_LCARS||theme>XZ_THEME_FLAGSHIP)return 0;
  int panel=role.role==XZ_ASSET_TRACK_PANEL,title=role.role==XZ_ASSET_TITLE_STRIP;
  int deck=id>=1026&&id<=1028&&width==120&&height==41;
  int compact=(id==725||id==726)&&width==400&&height==70;
@@ -35,6 +67,29 @@ static inline int xz_native_main_art(unsigned id,int theme,struct xz_asset_role_
  if(!panel&&!title&&!deck&&!idle&&!compact&&!fx)return 0;
  const struct xz_theme_palette *p=xz_theme_palette(theme);
  struct xz_theme_rect whole={0,0,width,height};
+ if(theme==XZ_THEME_FLAGSHIP){
+  /* The destination still holds the LUT-mapped stock strip; its centre is the track colour. */
+  uint32_t track=xz_theme_rgb888(s.pixels[(size_t)(height/2)*s.stride+(size_t)(width/2)]);
+  if(!title||xz_theme_luma(track)<24)track=XZ_FLAGSHIP_RAIL;
+  xz_theme_fill(s,whole,0);
+  if(fx)xz_flagship_fx_header(s);
+  else if(deck)xz_flagship_deck_tag(s,id);
+  else if(idle){
+   xz_theme_fill(s,(struct xz_theme_rect){170,45,44,1},XZ_FLAGSHIP_RAIL);
+   xz_main_atlas_centered(s,(struct xz_theme_rect){214,30,102,30},"XZ MODS",XZ_FLAGSHIP_DIM);
+   xz_theme_fill(s,(struct xz_theme_rect){316,45,44,1},XZ_FLAGSHIP_RAIL);
+  }else{
+   xz_flagship_title_band(s,width,track);
+   if(panel){
+    /* Hairlines between the deck/track, time and tempo fields. The tempo well
+       (x 310..400), overview, time digits and cue gutters stay black. */
+    xz_theme_fill(s,(struct xz_theme_rect){129,40,1,60},XZ_FLAGSHIP_RAIL);
+    xz_theme_fill(s,(struct xz_theme_rect){306,40,1,60},XZ_FLAGSHIP_RAIL);
+    xz_theme_fill(s,(struct xz_theme_rect){132,103,168,1},XZ_FLAGSHIP_RAIL);
+   }
+  }
+  return 1;
+ }
  xz_theme_fill(s,whole,p->bg);
  if(fx){
   if(theme==XZ_THEME_LCARS){xz_main_round(s,0,0,width,height,15,p->ink);xz_main_round(s,6,3,width-12,height-6,11,p->bg);}
