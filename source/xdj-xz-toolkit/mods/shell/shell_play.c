@@ -94,14 +94,15 @@ static void render_top(const struct xz_shell_model *m, struct xz_canvas c) {
  int mode_known=sh_setting(m,XZ_SHELL_SET_PLAY_MODE);
  struct xz_shell_rect r=chips[0].r;
  xz_border(c,r.x,r.y,r.w,r.h,SH_DIM);
- sh_text(c,r.x+6,r.y+3,"SINGLE",SH_SMALL,mode_known&&m->settings.play_mode==XZ_SHELL_PLAY_SINGLE?SH_WHITE:SH_DIM);
+ uint32_t mode_ink=sh_writable(m,XZ_SHELL_SET_PLAY_MODE)?SH_WHITE:0x8c8c8c;
+ sh_text(c,r.x+6,r.y+3,"SINGLE",SH_SMALL,mode_known&&m->settings.play_mode==XZ_SHELL_PLAY_SINGLE?mode_ink:SH_DIM);
  int sep=r.x+6+sh_text_width(c,"SINGLE",SH_SMALL)+8;
  xz_rect(c,sep,r.y+3,1,10,SH_DIM);
- sh_text(c,sep+8,r.y+3,"CONTINUE",SH_SMALL,mode_known&&m->settings.play_mode==XZ_SHELL_PLAY_CONTINUE?SH_WHITE:SH_DIM);
+ sh_text(c,sep+8,r.y+3,"CONTINUE",SH_SMALL,mode_known&&m->settings.play_mode==XZ_SHELL_PLAY_CONTINUE?mode_ink:SH_DIM);
  int hot=sh_setting(m,XZ_SHELL_SET_HOT_CUE_AUTO_LOAD)&&m->settings.hot_cue_auto_load;
- sh_chip(c,chips[1].r.x,chips[1].r.y,"A. HOT CUE",SH_DIM,hot?SH_WHITE:SH_DIM,0);
+ sh_chip(c,chips[1].r.x,chips[1].r.y,"A. HOT CUE",SH_DIM,hot?(sh_writable(m,XZ_SHELL_SET_HOT_CUE_AUTO_LOAD)?SH_WHITE:0x8c8c8c):SH_DIM,0);
  int acue=sh_setting(m,XZ_SHELL_SET_AUTO_CUE)&&m->settings.auto_cue;
- sh_chip(c,chips[2].r.x,chips[2].r.y,"A. CUE",SH_DIM,acue?SH_WHITE:SH_DIM,0);
+ sh_chip(c,chips[2].r.x,chips[2].r.y,"A. CUE",SH_DIM,acue?(sh_writable(m,XZ_SHELL_SET_AUTO_CUE)?SH_WHITE:0x8c8c8c):SH_DIM,0);
  int link=m->link_known&&m->link_connected;
  int lw=sh_text_width(c,"LINK",SH_SMALL)+12;
  sh_chip(c,c.width-44-lw,5,"LINK",link?SH_BLUE:SH_DIM,link?SH_WHITE:SH_DIM,0);
@@ -372,10 +373,11 @@ static void render_strip(const struct xz_shell_model *m, struct xz_canvas c, int
  /* time */
  int tm_known;enum xz_shell_time_mode mode=time_mode_of(m,d,&tm_known);
  int cx=sx+60;
- sh_text(c,cx,NUM_Y,"REMAIN",SH_SMALL,tm_known&&mode==XZ_SHELL_TIME_REMAIN?SH_WHITE:SH_DIM);
+ uint32_t mode_ink=sh_writable(m,XZ_SHELL_SET_TIME_MODE)?SH_WHITE:0x8c8c8c;
+ sh_text(c,cx,NUM_Y,"REMAIN",SH_SMALL,tm_known&&mode==XZ_SHELL_TIME_REMAIN?mode_ink:SH_DIM);
  int sep=cx+sh_text_width(c,"REMAIN",SH_SMALL)+4;
  sh_text(c,sep,NUM_Y,"/",SH_SMALL,SH_DIM);
- sh_text(c,sep+8,NUM_Y,"TIME",SH_SMALL,tm_known&&mode==XZ_SHELL_TIME_ELAPSED?SH_WHITE:SH_DIM);
+ sh_text(c,sep+8,NUM_Y,"TIME",SH_SMALL,tm_known&&mode==XZ_SHELL_TIME_ELAPSED?mode_ink:SH_DIM);
  int have_elapsed=loaded&&sh_has(d,XZ_SHELL_F_ELAPSED),have_total=loaded&&sh_has(d,XZ_SHELL_F_TOTAL);
  int32_t shown=-1;
  if(loaded_known&&!loaded)shown=0;
@@ -469,7 +471,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
  }
  struct chip chips[3];
  for(int i=0;i<top_chips(measure,chips);i++)if(sh_inside(chips[i].r,x,y)){
-  if(!(m->capabilities&XZ_SHELL_CAP_SET_SETTING)||!sh_setting(m,chips[i].setting))return 0;
+  if(!sh_writable(m,chips[i].setting)||!sh_setting(m,chips[i].setting))return 0;
   int value=chips[i].setting==XZ_SHELL_SET_PLAY_MODE?(m->settings.play_mode==XZ_SHELL_PLAY_SINGLE?XZ_SHELL_PLAY_CONTINUE:XZ_SHELL_PLAY_SINGLE):
    chips[i].setting==XZ_SHELL_SET_AUTO_CUE?!m->settings.auto_cue:!m->settings.hot_cue_auto_load;
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,value,(int)chips[i].setting});
@@ -482,7 +484,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
    return seek(m,deck,x,out,n);
   }
   if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_TIME,deck),x,y)){
-   if(!(m->capabilities&XZ_SHELL_CAP_SET_SETTING))return 0;
+   if(!sh_writable(m,XZ_SHELL_SET_TIME_MODE))return 0;
    int known;enum xz_shell_time_mode mode=time_mode_of(m,&m->deck[deck],&known);
    return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,mode==XZ_SHELL_TIME_REMAIN?XZ_SHELL_TIME_ELAPSED:XZ_SHELL_TIME_REMAIN,XZ_SHELL_SET_TIME_MODE});
   }

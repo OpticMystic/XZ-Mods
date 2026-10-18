@@ -188,6 +188,33 @@ static void test_touch_load_and_return(void) {
  puts("PASS touch highlight, LOAD chip, hand-off without LOAD, return and cursor memory");
 }
 
+static void test_physical_load(void) {
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;
+ const enum xz_shell_screen screens[]={XZ_SHELL_BROWSE,XZ_SHELL_PLAYLIST,XZ_SHELL_TAG_LIST,XZ_SHELL_SEARCH};
+ const enum xz_shell_key keys[]={XZ_SHELL_KEY_BROWSE,XZ_SHELL_KEY_PLAYLIST,XZ_SHELL_KEY_TAG_LIST,XZ_SHELL_KEY_SEARCH};
+ for(size_t i=0;i<sizeof screens/sizeof *screens;i++)for(int deck=0;deck<2;deck++){
+  model(&m,&b);bx_tracks(&b,&lib,screens[i]);
+  open_screen(&u,&m,keys[i],screens[i]);u.deck=1-deck;
+  send(&u,&m,XZ_SHELL_ENCODER_TURN,0,0,2);
+  struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_LOAD,deck};
+  struct xz_shell_model no=m;no.capabilities&=~(uint32_t)XZ_SHELL_CAP_LOAD;
+  assert(xz_shell_input(&u,&no,&e,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==(int)screens[i]&&u.depth==2);
+  assert(xz_shell_input(&u,&m,&e,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==deck&&out[0].id==(int)lib.tracks[2].id);
+  assert(u.depth==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
+  /* Reopen and load the remembered highlight before any encoder or touch input. */
+  assert(press(&u,&m,keys[i])==0);
+  assert(xz_shell_input(&u,&m,&e,out)==1&&out[0].id==(int)lib.tracks[2].id&&out[0].deck==deck);
+  bx_folders(&b,&lib,screens[i]);open_screen(&u,&m,keys[i],screens[i]);
+  struct xz_shell before=u;
+  assert(xz_shell_input(&u,&m,&e,out)==0&&!memcmp(&before,&u,sizeof u));
+  assert(xz_shell_input(&u,&no,&e,out)==0&&!memcmp(&before,&u,sizeof u));
+  bx_tracks(&b,&lib,screens[i]);b.window_count=0;
+  assert(xz_shell_input(&u,&m,&e,out)==0&&!memcmp(&before,&u,sizeof u));
+  b.total=0;
+  assert(xz_shell_input(&u,&no,&e,out)==0&&!memcmp(&before,&u,sizeof u));
+ }
+ puts("PASS physical LOAD: all list screens and decks, hand-off, remembered highlight, folders and no highlight");
+}
 static void test_folders_and_back(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;
  model(&m,&b);bx_folders(&b,&lib,XZ_SHELL_PLAYLIST);
@@ -525,6 +552,7 @@ int main(void) {
  test_open_and_hand_off();
  test_cursor_scroll_and_window();
  test_touch_load_and_return();
+ test_physical_load();
  test_folders_and_back();
  test_drag_sort_jump();
  test_rail_and_toggles();

@@ -36,6 +36,9 @@ int main(int argc, char **argv) {
  xz_shell_init(&u);
  fx_model_full(&m,&track);
  shot(&u,&m,"play-full");
+ m.settings.writable=(uint64_t)1<<XZ_SHELL_SET_TIME_MODE;
+ shot(&u,&m,"play-time-mode-writable");
+ fx_model_full(&m,&track);
 
  u.deck=1;u.zoom=XZ_SHELL_ZOOM_MAX;shot(&u,&m,"play-zoom-in");
  u.zoom=0;shot(&u,&m,"play-zoom-out");

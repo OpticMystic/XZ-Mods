@@ -214,6 +214,13 @@ static struct sess session(const struct xz_shell *u, const struct xz_shell_brows
  return r;
 }
 
+const struct xz_shell_browse_row *xz_shell_browse_highlight(const struct xz_shell *u, const struct xz_shell_model *m) {
+ enum xz_shell_screen s=xz_shell_screen(u);
+ if(!list_screen(s))return NULL;
+ struct sess r=session(u,m->browse);
+ return row_at(m->browse,s,r.cursor);
+}
+
 /* ---- small marks ---- */
 static void folder_icon(struct xz_canvas c, int x, int y, uint32_t ink) {
  xz_rect(c,x,y,6,2,ink);
@@ -1030,14 +1037,19 @@ int xz_shell_browse_back(struct xz_shell *u, const struct xz_shell_model *m) {
  enum xz_shell_screen s=xz_shell_screen(u);
  return list_screen(s)&&matches(m->browse,s)&&depth_of(m->browse)>0;
 }
-/* Keys reach this only if shell.c offers them to the screen first: BACK
-   and BACK_HOLD climb the list; 0 actions means not consumed. */
+/* shell.c offers LOAD and the list-level BACK keys to this screen first. */
 static size_t list_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  enum xz_shell_screen s=xz_shell_screen(u);
  const struct xz_shell_browse_model *b=m->browse;
  if(!list_screen(s))return 0;
  if(!b)return e->kind==XZ_SHELL_KEY?0:hand_off(out,0,s);
  struct xz_shell_view *v=&u->stack[u->depth-1];
+ if(e->kind==XZ_SHELL_KEY&&e->key==XZ_SHELL_KEY_LOAD){
+  const struct xz_shell_browse_row *r=xz_shell_browse_highlight(u,m);
+  if(!r||r->kind!=XZ_SHELL_ROW_TRACK||e->deck<0||e->deck>=XZ_SHELL_DECKS)return 0;
+  if((m->capabilities&XZ_SHELL_CAP_LOAD)&&!v->focus)begin(v,b,s);
+  return load(u,m,r,e->deck,out,0);
+ }
  int depth=u->depth;
  if(!v->focus)begin(v,b,s);
  size_t n=0;

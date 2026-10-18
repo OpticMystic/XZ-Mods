@@ -242,6 +242,61 @@ static void test_seek_zoom_and_deck(void) {
  touch(&u,&readonly,XZ_SHELL_TOUCH_UP,0,0,out);
  puts("PASS seek maths, zoom clamps, grid mode, active deck and time mode");
 }
+static void test_writable_settings(void) {
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ xz_shell_init(&u);fx_model_full(&m,&track);
+ const struct xz_canvas measure={NULL,800,800,480,XZ_THEME_FLAGSHIP};
+ int widths[]={sh_text_width(measure,"SINGLE",SH_SMALL)+sh_text_width(measure,"CONTINUE",SH_SMALL)+28,
+  sh_text_width(measure,"A. HOT CUE",SH_SMALL)+12,sh_text_width(measure,"A. CUE",SH_SMALL)+12};
+ const int ids[]={XZ_SHELL_SET_PLAY_MODE,XZ_SHELL_SET_HOT_CUE_AUTO_LOAD,XZ_SHELL_SET_AUTO_CUE};
+ m.settings.writable=(uint64_t)1<<XZ_SHELL_SET_TIME_MODE;
+ render_checked(&u,&m,buffer_a);
+ int x=8;
+ for(int i=0;i<3;i++){
+  int grey=0;
+  for(int y=6;y<20;y++)for(int px=x+1;px<x+widths[i]-1;px++){
+   uint16_t ink=at(frame(buffer_a),px,y);
+   grey+=ink==rgb565(0x8c8c8c);
+   assert(ink!=rgb565(SH_BLUE)&&ink!=rgb565(SH_WHITE));
+  }
+  assert(grey>0);
+  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,x+widths[i]/2,12,out)==0);
+  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
+  m.settings.writable|=(uint64_t)1<<ids[i];
+  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,x+widths[i]/2,12,out)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==ids[i]);
+  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
+  m.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;
+  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,x+widths[i]/2,12,out)==0);
+  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
+  m.capabilities|=XZ_SHELL_CAP_SET_SETTING;
+  m.settings.writable=(uint64_t)1<<XZ_SHELL_SET_TIME_MODE;
+  x+=widths[i]+8;
+ }
+ struct xz_shell_event tm={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_TIME_MODE,1};
+ struct xz_shell_rect time=xz_shell_play_rect(XZ_SHELL_R_TIME,1);
+ assert(xz_shell_input(&u,&m,&tm,out)==1&&out[0].deck==1);
+ assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,time.x+10,time.y+10,out)==1&&out[0].id==XZ_SHELL_SET_TIME_MODE);
+ touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
+ m.settings.writable=0;
+ assert(xz_shell_input(&u,&m,&tm,out)==0);
+ assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,time.x+10,time.y+10,out)==0);
+ touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
+ assert(press(&u,&m,XZ_SHELL_KEY_QUANTIZE,out)==0);
+ puts("PASS writable settings: per-chip mask and capability, grey read-only values, TIME MODE key/touch refusal");
+}
+static void test_load_ignored_outside_lists(void) {
+ struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ fx_model_full(&m,&track);enable_all_screens(&m);m.capabilities|=XZ_SHELL_CAP_LOAD;
+ const enum xz_shell_screen screens[]={XZ_SHELL_PLAY,XZ_SHELL_INFO,XZ_SHELL_SHORTCUT,XZ_SHELL_UTILITY,XZ_SHELL_SOURCE};
+ for(size_t i=0;i<sizeof screens/sizeof *screens;i++)for(int deck=0;deck<2;deck++){
+  struct xz_shell u;xz_shell_init(&u);
+  if(screens[i]!=XZ_SHELL_PLAY){u.depth=2;u.stack[1]=(struct xz_shell_view){screens[i],0,0,0};}
+  struct xz_shell before=u;
+  struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_LOAD,deck};
+  assert(xz_shell_input(&u,&m,&e,out)==0&&!memcmp(&before,&u,sizeof u));
+ }
+ puts("PASS LOAD is inert on every non-list screen");
+}
 static void test_deterministic(void) {
  struct xz_shell u;struct xz_shell_model m,copy;
  xz_shell_init(&u);
@@ -277,6 +332,8 @@ int main(void) {
  test_bounds_and_long_text();
  test_navigation();
  test_seek_zoom_and_deck();
+ test_writable_settings();
+ test_load_ignored_outside_lists();
  test_deterministic();
  puts("PASS shell");
  return 0;

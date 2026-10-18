@@ -2,23 +2,23 @@
 /* Pure parts of the FLAGSHIP shell runtime. No device, threads or allocation. */
 #include "shell_runtime.h"
 #include "shell/shell_settings.h"
+#include "shell/shell_browse.h"
 #include <string.h>
 
 /* Codes from VJToolsLibrary docs/research/2026-10-18-xz-shell-abi.md R1. */
 static const struct xz_shrt_key_map keys[]={
- {0x209,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_BROWSE,-1},
- {0x20a,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_LIST,-1},
- {0x206,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_INFO,-1},
- {0x20b,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU_HOLD},
- {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1},
- {0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1},
- {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1},
- {0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1},
- {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD},
- /* shell.h has no LOAD key: LOAD 1/2 stay stock, whose handler refuses outside its own list screens. */
- {0x430f,1,XZ_SHRT_STOCK,-1,-1},{0x430f,2,XZ_SHRT_STOCK,-1,-1},
+ {0x209,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_BROWSE,-1,-1},
+ {0x20a,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_LIST,-1,-1},
+ {0x206,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_INFO,-1,-1},
+ {0x20b,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU_HOLD,-1},
+ {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1,-1},
+ {0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1,-1},
+ {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1,-1},
+ {0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1,-1},
+ {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD,-1},
+ {0x430f,1,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1,0},{0x430f,2,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1,1},
  /* TIME MODE and QUANTIZE change deck state the shell reads back. */
- {0x430b,0,XZ_SHRT_STOCK,-1,-1},{0x430c,0,XZ_SHRT_STOCK,-1,-1},
+ {0x430b,0,XZ_SHRT_STOCK,-1,-1,-1},{0x430c,0,XZ_SHRT_STOCK,-1,-1,-1},
 };
 const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel) {
  for(size_t i=0;i<sizeof keys/sizeof *keys;i++)
@@ -43,6 +43,12 @@ static struct probe probe(const struct xz_shell *u, const struct xz_shell_model 
 }
 enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shrt_key_map *k) {
  if(!u||!m||!k||k->rule==XZ_SHRT_STOCK)return XZ_SHRT_PASS;
+ if(k->key==XZ_SHELL_KEY_LOAD){
+  /* LOAD changes list memory when delivered. Inspect its highlight without running input. */
+  const struct xz_shell_browse_row *r=xz_shell_browse_highlight(u,m);
+  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return XZ_SHRT_PASS;
+  return m->capabilities&XZ_SHELL_CAP_LOAD?XZ_SHRT_SWALLOW:XZ_SHRT_PASS_HAND_OFF;
+ }
  if(k->key==XZ_SHELL_KEY_BACK){
   /* BACK never hands off (its table entries are POP, HOME or NONE) and a list
      screen's BACK runs screen input with state outside the shell struct, so it
@@ -156,6 +162,9 @@ int xz_shrt_queue_pop(struct xz_shrt_queue *q, struct xz_shrt_command *out) {
 
 const char *const xz_shrt_quantize_choices[4]={"1/8","1/4","1/2","1"};
 int xz_shrt_quantize_index(int den) { return den==8?0:den==4?1:den==2?2:den==1?3:-1; }
+int xz_shrt_setting_writable(int id, int time_mode, int quantize_beat) {
+ return id==XZ_SHELL_SET_TIME_MODE?!!time_mode:id==XZ_SHELL_ITEM_QUANTIZE_BEAT?!!quantize_beat:0;
+}
 int xz_shrt_setting_command(const struct xz_shell_action *a, uint32_t now, struct xz_shrt_command *out) {
  if(!a||!out||a->kind!=XZ_SHELL_ACT_SET_SETTING)return 0;
  memset(out,0,sizeof *out);out->at_ms=now;

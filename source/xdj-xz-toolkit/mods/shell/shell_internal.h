@@ -30,6 +30,9 @@ size_t sh_key(struct xz_shell *, const struct xz_shell_model *, enum xz_shell_ke
 
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
 static inline int sh_setting(const struct xz_shell_model *m, enum xz_shell_setting s) { return (m->settings.known>>s)&1; }
+static inline int sh_writable(const struct xz_shell_model *m, enum xz_shell_setting s) {
+ return (m->capabilities&XZ_SHELL_CAP_SET_SETTING)&&((m->settings.writable>>s)&1);
+}
 static inline int sh_min(int a, int b) { return a<b?a:b; }
 static inline int sh_max(int a, int b) { return a>b?a:b; }
 static inline int sh_inside(struct xz_shell_rect r, int x, int y) { return x>=r.x&&y>=r.y&&x<r.x+r.w&&y<r.y+r.h; }
