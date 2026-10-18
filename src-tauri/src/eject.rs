@@ -44,6 +44,9 @@ mod platform {
     const FSCTL_LOCK_VOLUME: u32 = 0x0009_0018;
     const FSCTL_DISMOUNT_VOLUME: u32 = 0x0009_0020;
     const IOCTL_STORAGE_GET_DEVICE_NUMBER: u32 = 0x002D_1080;
+    const IOCTL_STORAGE_QUERY_PROPERTY: u32 = 0x002D_1400;
+    // STORAGE_BUS_TYPE values for USB, SD and MMC readers.
+    const EJECTABLE_BUSES: [u32; 3] = [7, 0x0C, 0x0D];
     const DIGCF_PRESENT: u32 = 2;
     const DIGCF_DEVICEINTERFACE: u32 = 0x10;
     const CR_SUCCESS: u32 = 0;
@@ -96,6 +99,15 @@ mod platform {
         let mut returned = 0;
         unsafe { DeviceIoControl(handle.0, code, null_mut(), 0, output, size, &mut returned, null_mut()) != 0 }
     }
+    /// STORAGE_DEVICE_DESCRIPTOR.BusType (offset 28) from a StorageDeviceProperty standard query.
+    fn bus_type(handle: &Owned) -> Option<u32> {
+        let mut query = [0u32; 3];
+        let mut descriptor = [0u8; 1024];
+        let mut returned = 0;
+        let ok = unsafe { DeviceIoControl(handle.0, IOCTL_STORAGE_QUERY_PROPERTY, query.as_mut_ptr() as *mut c_void, 12,
+            descriptor.as_mut_ptr() as *mut c_void, descriptor.len() as u32, &mut returned, null_mut()) != 0 };
+        (ok && returned >= 32).then(|| u32::from_le_bytes([descriptor[28], descriptor[29], descriptor[30], descriptor[31]]))
+    }
     fn device_number(handle: &Owned) -> Option<DeviceNumber> {
         let mut number = DeviceNumber::default();
         ioctl(handle, IOCTL_STORAGE_GET_DEVICE_NUMBER, &mut number as *mut _ as *mut c_void, std::mem::size_of::<DeviceNumber>() as u32)
@@ -141,6 +153,10 @@ mod platform {
         let number = {
             let volume = open(&wide(&format!("\\\\.\\{drive}")), GENERIC_READ | GENERIC_WRITE)
                 .ok_or_else(|| format!("{drive} could not be opened to eject it. Use Safely Remove Hardware in the taskbar instead."))?;
+            // Internal disks report as fixed drives too; only a drive on a USB or card-reader bus is ever dismounted here.
+            if !bus_type(&volume).is_some_and(|bus| EJECTABLE_BUSES.contains(&bus)) {
+                return Err(format!("{drive} is not a USB drive, so XZ Mods will not eject it."));
+            }
             let number = device_number(&volume).ok_or("Windows did not say which device this USB is. Use Safely Remove Hardware in the taskbar instead.")?;
             // The lock fails while any program has a file open on the USB; that is the case to report plainly.
             if !ioctl(&volume, FSCTL_LOCK_VOLUME, null_mut(), 0) {
