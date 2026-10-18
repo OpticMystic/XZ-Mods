@@ -43,6 +43,18 @@ static uint32_t ram_debug_sample_ms;
 #include "settings_internal.h"
 #include "usb_profile.h"
 #include "dj_runtime.h"
+#include "shell_runtime.h"
+/* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
+#pragma weak xz_shell_runtime_start
+#pragma weak xz_shell_runtime_stop
+#pragma weak xz_shell_runtime_owns
+#pragma weak xz_shell_runtime_idle
+#pragma weak xz_shell_runtime_frame
+#pragma weak xz_shell_runtime_touch
+#pragma weak xz_shell_runtime_key
+#pragma weak xz_shell_runtime_encoder_turn
+#pragma weak xz_shell_runtime_encoder_push
+#pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
 extern int xz_settings_internal_load(struct xz_settings *, unsigned *) __attribute__((weak));
@@ -1232,12 +1244,51 @@ static void game_to_menu_locked(enum game g){
     else{xz_arcade_key(&arcade,0,XZ_ARCADE_PAUSE_KEY,xz_game_milliseconds());arcade_to_dj();}
 }
 
+/* The shell may own the screen only while MODS, a game, Doom and the VJ takeover leave it free. */
+static int shell_eligible_locked(void){
+    return !touch.visible&&game_locked()==GAME_NONE&&!xz_doom_running()&&!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE);
+}
+static int shell_owns_locked(void){return xz_shell_runtime_owns&&shell_eligible_locked()&&xz_shell_runtime_owns();}
+static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
+    memset(in,0,sizeof(*in));in->eligible=shell_eligible_locked();in->theme=model.theme;
+    for(int deck=0;deck<2;deck++){
+        if(!key_valid[deck])continue;
+        struct xz_shell_runtime_key *k=&in->key[deck];int other=1-deck,cents=0,other_cents=0;
+        int format=model.key_format==1?XZ_KEY_CLASSIC:model.key_format==2?XZ_KEY_CAMELOT:key_snapshot[deck].format;
+        xz_music_key_format(key_snapshot[deck].original,format,k->text);k->valid=1;
+        if(key_available)xz_key_get_applied_cents(deck,key_snapshot[deck].epoch,&cents);
+        k->shift=(int)round(cents*.01);
+        struct xz_playing_key mine,master;
+        if(key_valid[other]&&key_snapshot[other].master&&!key_snapshot[deck].master){
+            if(key_available)xz_key_get_applied_cents(other,key_snapshot[other].epoch,&other_cents);
+            k->matches_master=xz_key_playing(&key_snapshot[deck],cents,&mine)&&
+                xz_key_playing(&key_snapshot[other],other_cents,&master)&&xz_key_match(mine,master)==XZ_KEY_COMPATIBLE;
+        }
+    }
+}
+static int shell_touch_locked(void *self,const struct xz_touch_status *status,const void *mode){
+    if(!xz_shell_runtime_touch)return 0;
+    struct xz_touch_status previous;memcpy(&previous,(const char *)self+4,sizeof(previous));
+    int route=xz_shell_runtime_touch(shell_eligible_locked(),model.theme,(int)status->x,(int)status->y,!!status->down,!!previous.down);
+    if(route==XZ_SHELL_TOUCH_TO_STOCK)return 0;
+    /* A stock gesture in progress ends before the shell takes the contact. */
+    if(route==XZ_SHELL_TOUCH_TAKEN_RELEASE_STOCK){previous.down=0;stock_touch(self,&previous,mode);}
+    return 1;
+}
 static void (*stock_global_key)(void *,const void *);
 static int menu_back_contact;
 static void menu_back_key_hook(void *self,const void *input){
     uint16_t key=0;unsigned operation=0;
     if(input){memcpy(&key,(const unsigned char *)input+8,2);operation=((const unsigned char *)input)[11]&15;}
     int consumed=0;
+    /* Every key passes here (jog included), so only keys in the shell's table take the lock. */
+    unsigned channel=input?((const unsigned char *)input)[10]:0;
+    if(input&&xz_shell_runtime_key&&xz_shrt_key_lookup&&xz_shrt_key_lookup(key,channel)&&__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
+        pthread_mutex_lock(&ui_mutex);
+        consumed=xz_shell_runtime_key(shell_eligible_locked(),model.theme,key,channel,operation);
+        pthread_mutex_unlock(&ui_mutex);
+        if(consumed)return;
+    }
     if(key==0x4208){
         pthread_mutex_lock(&ui_mutex);
         int live=operation==0&&__atomic_load_n(&started,__ATOMIC_ACQUIRE);
@@ -1291,7 +1342,7 @@ static int (*stock_encoder_rotate)(int);
 static int encoder_rotate_hook(int delta) {
     if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
-        int owned=menu_owns_keys_locked();
+        int owned=menu_owns_keys_locked(),shell=0;
         if(owned&&delta){
             struct xz_ui_action actions[XZ_UI_ACTIONS];
             size_t n=xz_ui_encoder_turn(&ui,&model,delta,actions);
@@ -1299,12 +1350,16 @@ static int encoder_rotate_hook(int delta) {
             inline_layout_publish();
         }
         else if(game_locked()!=GAME_NONE){owned=1;if(delta)xz_game_nav_turn(&game_nav,delta);}
+        else if(!touch.visible&&delta&&xz_shell_runtime_encoder_turn&&
+                xz_shell_runtime_encoder_turn(shell_eligible_locked(),model.theme,delta))shell=1;
         else if(!touch.visible&&delta){
             /* One Doom menu step per detent, bounded like the menu's own turn. */
             int steps=delta<0?-delta:delta;if(steps>4)steps=4;
             for(int i=0;i<steps;i++)owned|=xz_doom_nav(delta>0?XZ_GAME_NAV_DOWN:XZ_GAME_NAV_UP);
         }
         pthread_mutex_unlock(&ui_mutex);
+        /* The shell redraws itself; a stock repaint would only cost a full native redraw. */
+        if(shell)return 1;
         if(owned){xz_native_skin_request_repaint();return 1;}
     }
     return stock_encoder_rotate?stock_encoder_rotate(delta):0;
@@ -1313,7 +1368,7 @@ static int (*stock_encoder_push)(void *,void *,void *,void *);
 static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
     if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
-        int owned=menu_owns_keys_locked();
+        int owned=menu_owns_keys_locked(),shell=0;
         if(owned){
             struct xz_ui_action actions[XZ_UI_ACTIONS];
             size_t n=xz_ui_encoder_push(&ui,&model,actions);
@@ -1321,8 +1376,15 @@ static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
             inline_layout_publish();
         }
         else if(game_locked()!=GAME_NONE){owned=1;game_push_locked(game_locked());}
+        else if(!touch.visible&&arg0&&xz_shell_runtime_encoder_push&&shell_eligible_locked()){
+            /* pushKey entry {flags, 0, state, handler}: the shell reads the press and hold phases from it. */
+            uint32_t entry[3];memcpy(entry,arg0,sizeof(entry));
+            shell=xz_shell_runtime_encoder_push(1,model.theme,entry[0],entry[2]);
+            if(!shell)owned=xz_doom_nav(XZ_GAME_NAV_ENTER);
+        }
         else if(!touch.visible)owned=xz_doom_nav(XZ_GAME_NAV_ENTER);
         pthread_mutex_unlock(&ui_mutex);
+        if(shell)return 1;
         if(owned){xz_native_skin_request_repaint();return 1;}
     }
     return stock_encoder_push?stock_encoder_push(arg0,arg1,arg2,arg3):0;
@@ -1746,6 +1808,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         }else if(!status->down)arcade_touch_owned=0;
         pthread_mutex_unlock(&ui_mutex);return;
     }
+    if(shell_touch_locked(self,status,mode)){pthread_mutex_unlock(&ui_mutex);return;}
     sdk_refresh();pc_refresh_locked();
     if(touch.visible||model.deck[0].pc_stems.source!=XZ_UI_SOURCE_PC||model.deck[1].pc_stems.source!=XZ_UI_SOURCE_PC)refresh_local();
     touch.vj_btn_w=(model.fb_takeover||xz_native_play_visible())?112:0;
@@ -1818,8 +1881,9 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     if(pc_redraw)xz_native_skin_request_repaint();
 }
 
+/* The receiver treats a shell-owned screen exactly like the open panel. */
 __attribute__((visibility("default"))) int xz_mods_visible_v1(void) {
-    return __atomic_load_n(&visible, __ATOMIC_ACQUIRE);
+    return __atomic_load_n(&visible, __ATOMIC_ACQUIRE)||(xz_shell_runtime_owns&&xz_shell_runtime_owns());
 }
 
 __attribute__((visibility("default"))) int xz_mods_native_touch_v1(void) {
@@ -1974,7 +2038,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
     if (pthread_mutex_trylock(&ui_mutex) != 0) {
         __atomic_add_fetch(&xz_mods_key_present_proof_v1.busy,1,__ATOMIC_RELAXED);
         if(!__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&
-           !__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)) {
+           !__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)&&!(xz_shell_runtime_owns&&xz_shell_runtime_owns())) {
             int drawn=0;
             uint32_t scene;
             if(badge_frame_cache.valid&&!xz_read_memory(0x3c6fc7c,&scene,4)&&scene==badge_frame_cache.scene) {
@@ -1993,6 +2057,8 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         }
         return 0;
     }
+    /* Between shell frames there is nothing to refresh or draw; the receiver keeps the last frame. */
+    if(xz_shell_runtime_idle&&shell_owns_locked()&&xz_shell_runtime_idle()){pthread_mutex_unlock(&ui_mutex);return 0;}
     refresh();
     if (connection && connection->version == 1 && connection->size == sizeof(*connection)) {
         memcpy(device_ip, connection->ipv4, sizeof(device_ip)); device_ip[15] = 0;
@@ -2009,10 +2075,16 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         model.connection.frame_hz = connection->frame_hz_milli / 1000.0f;
         model.connection.status = "CONNECTION SERVICE CONFIGURED BY THE MOD LOADER";
     }
-    int result;
+    int result,shell=0;
     key_frame_cache.enabled=0;
     badge_frame_cache.valid=0;
     game_frame.count=0;
+    struct xz_shell_runtime_frame_input shell_input;
+    if(xz_shell_runtime_frame){
+        shell_frame_input_locked(&shell_input);
+        /* Tell the shell it lost the screen to MODS or a game, so it stops claiming it. */
+        if(!shell_input.eligible)xz_shell_runtime_frame(pixels,stride,&shell_input);
+    }
     if(xz_rhythm_lab_present())result=xz_rhythm_lab_draw(pixels,(size_t)stride*height,stride,xz_game_milliseconds(),&game_frame);
     else if(xz_wave_rider_present())result=xz_wave_rider_draw(pixels,(size_t)stride*height,stride,xz_game_milliseconds(),&game_frame);
     else if(arcade_present){
@@ -2025,6 +2097,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         xz_arcade_proof_v1.bpm=arcade.bpm;xz_arcade_proof_v1.x=arcade.x;xz_arcade_proof_v1.y=arcade.y;
     }
     else if (touch.visible) result = xz_ui_render(&ui, &model, pixels, (size_t)stride * height, stride);
+    else if (xz_shell_runtime_frame&&(shell=xz_shell_runtime_frame(pixels,stride,&shell_input))!=0) result = shell>0;
     else {
         xz_key_frame_cache_store(&key_frame_cache,model.theme,model.key_feedback,model.fb_takeover,key_strip);
         badge_frame_cache.valid=!model.fb_takeover&&!xz_read_memory(0x3c6fc7c,&badge_frame_cache.scene,4);
@@ -2160,6 +2233,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     if(xz_hook_arm(0xdec08,encoder_push_guard,(void*)encoder_push_hook,(void**)&stock_encoder_push))
         xz_log("MODS encoder push unavailable; touch controls remain available");
     __atomic_store_n(&started, 1, __ATOMIC_RELEASE);
+    if(xz_shell_runtime_start&&xz_shell_runtime_start())xz_log("FLAGSHIP shell unavailable; the restyled stock screen stays");
     sdk_start();
     if(!xz_metrics_start||xz_metrics_start())xz_log("Metrics sampler unavailable; top-bar setup remains available");
     if(model.metrics_enabled&&xz_metrics_enable)xz_metrics_enable(1);
@@ -2182,6 +2256,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
 }
 
 void xz_ui_runtime_stop(void) {
+    if(xz_shell_runtime_stop)xz_shell_runtime_stop();
     if(xz_metrics_stop)xz_metrics_stop();
     sdk_stop();
     xz_key_browser_stop();

@@ -1,0 +1,60 @@
+#ifndef XZ_SHELL_INTERNAL_H
+#define XZ_SHELL_INTERNAL_H
+/* Shared by the shell's screens. Not part of the runtime contract. */
+#include "shell.h"
+#include "../ui/ui_skin.h"
+#include "../ui/theme_flagship.h"
+
+enum {
+ SH_BLACK=0x000000, SH_WHITE=0xffffff, SH_CHROME=XZ_FLAGSHIP_CHROME, SH_RAIL=XZ_FLAGSHIP_RAIL,
+ SH_ROW_ALT=XZ_FLAGSHIP_ROW_ALT, SH_DIM=XZ_FLAGSHIP_DIM, SH_BLUE=XZ_FLAGSHIP_BLUE, SH_RED=XZ_FLAGSHIP_RED,
+ SH_GREEN=XZ_FLAGSHIP_GREEN, SH_LOOP=XZ_FLAGSHIP_LOOP_ORANGE, SH_WAVE_LOW=XZ_FLAGSHIP_WAVE_LOW,
+ SH_WAVE_LOW_DEEP=XZ_FLAGSHIP_WAVE_LOW_DEEP, SH_WAVE_MID=XZ_FLAGSHIP_WAVE_MID, SH_WAVE_HIGH=XZ_FLAGSHIP_WAVE_HIGH,
+ SH_PLAYHEAD=0xff2020, SH_MEMORY=0xff3c3c, SH_SEPARATOR=0x303030
+};
+/* Atlas faces: 0 = 12 px (cap 9), 1 = 20 px (cap 14). Numeral faces are shell_font.h. */
+enum sh_face { SH_SMALL=1, SH_TEXT=2 };
+enum sh_num_face { SH_NUM_MID, SH_NUM_BPM, SH_NUM_BIG };
+enum { SH_CAP_SMALL=9, SH_CAP_TEXT=14 };
+
+struct sh_screen {
+ void (*render)(const struct xz_shell *, const struct xz_shell_model *, struct xz_canvas);
+ size_t (*input)(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+};
+extern const struct sh_screen xz_shell_play_screen, xz_shell_placeholder_screen;
+/* One per screen; shell_browse.c, shell_settings.c, shell_info.c and shell_source.c define them. */
+extern const struct sh_screen xz_shell_browse_screen, xz_shell_playlist_screen, xz_shell_tag_list_screen, xz_shell_search_screen;
+extern const struct sh_screen xz_shell_shortcut_screen, xz_shell_utility_screen, xz_shell_info_screen, xz_shell_source_screen;
+/* The navigation table applied to one key (shell.c); screens use it for on-screen buttons. */
+size_t sh_key(struct xz_shell *, const struct xz_shell_model *, enum xz_shell_key, int deck, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+
+static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
+static inline int sh_setting(const struct xz_shell_model *m, enum xz_shell_setting s) { return (m->settings.known>>s)&1; }
+static inline int sh_min(int a, int b) { return a<b?a:b; }
+static inline int sh_max(int a, int b) { return a>b?a:b; }
+static inline int sh_inside(struct xz_shell_rect r, int x, int y) { return x>=r.x&&y>=r.y&&x<r.x+r.w&&y<r.y+r.h; }
+
+/* Text. Every routine clips to width where one is given; nothing is drawn past it. */
+int sh_text_width(struct xz_canvas c, const char *s, enum sh_face face);
+void sh_text(struct xz_canvas c, int x, int y, const char *s, enum sh_face face, uint32_t color);
+/* Longest whole-character prefix that fits width. */
+void sh_text_fit(struct xz_canvas c, int x, int y, int width, const char *s, enum sh_face face, uint32_t color);
+void sh_text_right(struct xz_canvas c, int right, int y, const char *s, enum sh_face face, uint32_t color);
+void sh_text_center(struct xz_canvas c, int cx, int y, const char *s, enum sh_face face, uint32_t color);
+/* Numerals: digits are tabular (every digit takes the width of 0). Only
+   XZ_SHELL_FONT_CHARSET characters draw; others take a space. */
+int sh_num_width(enum sh_num_face face, const char *s);
+int sh_num_cap(enum sh_num_face face);
+void sh_num(struct xz_canvas c, int x, int y, const char *s, enum sh_num_face face, uint32_t color);
+void sh_num_right(struct xz_canvas c, int right, int y, const char *s, enum sh_num_face face, uint32_t color);
+
+/* Small marks. */
+void sh_triangle(struct xz_canvas c, int cx, int y, int size, int down, uint32_t color);
+void sh_note(struct xz_canvas c, int x, int y, uint32_t color);
+void sh_usb_icon(struct xz_canvas c, int x, int y, uint32_t color);
+void sh_info_icon(struct xz_canvas c, int cx, int cy, uint32_t color);
+/* Caption chip: 1 px outline, caps text, height 16. Returns its width. */
+int sh_chip(struct xz_canvas c, int x, int y, const char *s, uint32_t outline, uint32_t ink, int filled);
+/* Shell-wide placeholder page for screens later units draw. */
+void sh_placeholder(struct xz_canvas c, const char *title, const char *note);
+#endif

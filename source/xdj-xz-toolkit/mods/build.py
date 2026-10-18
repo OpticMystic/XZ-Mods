@@ -12,6 +12,7 @@ from capstone import Cs, CS_ARCH_ARM, CS_MODE_ARM
 
 from ui.ui_sources import UI_SOURCES
 from sdk.sdk_sources import SDK_SOURCES
+from shell.shell_sources import SHELL_SOURCES
 
 ROOT = pathlib.Path(__file__).resolve().parent
 
@@ -136,6 +137,10 @@ def main() -> None:
                str(ROOT / "ui/native_skin_runtime.c"),
                str(ROOT / "ui/native_raw_skin.c"),
                str(ROOT / "ui/native_window_keys.c"),
+               # FLAGSHIP shell; ui_draw.c already comes with UI_SOURCES.
+               *(str(ROOT / "shell" / name) for name in SHELL_SOURCES if name != "../ui/ui_draw.c"),
+               str(ROOT / "shell_model.c"), str(ROOT / "shell_runtime.c"), str(ROOT / "shell_runtime_core.c"),
+               str(ROOT / "shell_library.c"), str(ROOT / "pdb/pdb.c"),
                str(ROOT / "settings.c"), str(ROOT / "settings_internal.c"), str(ROOT / "usb_profile.c"),
                str(ROOT / "dj_profile.c"), str(ROOT / "dj_runtime.c"), str(ROOT / "dj_profile_write.c"), str(ROOT / "dj_folders.c"),
                str(ROOT / "ui/wave_viewport.c"),
@@ -177,6 +182,8 @@ def main() -> None:
                       str(ROOT / "audio/stem_mix.c"), str(ROOT / "audio/tests/test_stems.c"), "-lm"],
         "decode-test": ["-I" + str(ROOT / "audio"), str(ROOT / "audio/stem_decode.c"),
                         str(ROOT / "audio/tests/test_decode.c"), "-lm"],
+        "shell-runtime-test": [*(str(ROOT / "shell" / name) for name in SHELL_SOURCES), str(ROOT / "shell_runtime_core.c"),
+                               str(ROOT / "shell_library.c"), str(ROOT / "pdb/pdb.c"), str(ROOT / "test_shell_runtime.c")],
     }
     test_evidence = {}
     for name, sources in tests.items():

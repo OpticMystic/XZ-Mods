@@ -324,6 +324,8 @@ static void owner_epoch(void (*repaint)(void)){
 }
 /* Weak so skin tests link without the runtime. */
 extern void xz_ui_runtime_profile_usb(unsigned slot) __attribute__((weak));
+/* The FLAGSHIP shell runs its native-UI-thread commands from this owner (shell_runtime.c). */
+extern void xz_shell_runtime_owner_tick(void) __attribute__((weak));
 static void list_text_hook(unsigned column,unsigned row){
  /* Remote Link/PC libraries have their own key metadata. A local USB index
     must never label their same-named tracks. These getters are stock 1.26. */
@@ -351,7 +353,9 @@ static int event_hook(void *self){
   owner_thread=pthread_self();atomic_store_explicit(&owner_ready,1,memory_order_release);
  }
  if(!owner())return stock_event(self);
- event_depth++;INC(eventcalls);owner_epoch(native_repaint);
+ event_depth++;INC(eventcalls);
+ if(xz_shell_runtime_owner_tick)xz_shell_runtime_owner_tick();
+ owner_epoch(native_repaint);
  if(xz_key_browser_repaint())native_repaint();
  int result=stock_event(self);event_depth--;return result;
 }
