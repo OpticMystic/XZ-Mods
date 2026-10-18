@@ -17,6 +17,9 @@
 #define WINDOW XZ_OC_WINDOW_FRAMES
 #define CAPTURE 2048u
 #define SEARCH 8192
+/* At 44.1 kHz: <=2.90 ms fades; allow ordinary seek refill 1.5 s before fail-open. */
+#define STARVE_RAMP_FRAMES 128u
+#define STARVE_UNITY_AFTER_MS 1500u
 int xz_oc_worker_schedule(void){
 #if defined(__linux__) && defined(__arm__)
     if(sysconf(_SC_NPROCESSORS_ONLN)<4)return -1;
@@ -52,7 +55,10 @@ struct xz_oc_stream {
     struct window window[4];
     int loop_published;
     int32_t loop_start;
-    int starved;
+    int starved, starve_fallback; /* enum xz_oc_starvation, audio-thread writer */
+    uint32_t starve_frames, starve_last_frames, starve_max_frames, starve_runs;
+    float held_source, last_output[2];
+    int last_output_valid;
     double offset, scale;
     int confirmations, attempts;
     float score;
@@ -333,12 +339,27 @@ size_t xz_oc_stream_mix4_trace(struct xz_oc_stream *s,float *pcm,size_t frames,i
         requested=old;memcpy(applied,previous,sizeof(applied));
         if(out)out[3]|=2;
         if(plan_masks(&old)&&!w){
-            requested=(struct xz_oc_plan){.source=1};
-            old=requested;starved=1;
+            starved=1;
         }
     }
     int was_starved=__atomic_load_n(&s->starved,__ATOMIC_RELAXED);
-    if(!window_has(w,&old)||was_starved)old=(struct xz_oc_plan){.source=1};
+    float previous_source=was_starved==XZ_OC_STARVE_UNITY?1:s->held_source;
+    if(starved){
+        if(!was_starved){
+            s->starve_frames=0;s->held_source=old.source;
+            __atomic_fetch_add(&s->starve_runs,1,__ATOMIC_RELAXED);
+        }
+        s->starve_frames=frames>UINT32_MAX-s->starve_frames?UINT32_MAX:s->starve_frames+(uint32_t)frames;
+        starved=error||(uint64_t)s->starve_frames*1000>=(uint64_t)s->rate*STARVE_UNITY_AFTER_MS?
+            XZ_OC_STARVE_UNITY:XZ_OC_STARVE_HELD;
+        requested=(struct xz_oc_plan){.source=starved==XZ_OC_STARVE_UNITY?1:s->held_source};
+        __atomic_store_n(&s->starve_fallback,starved,__ATOMIC_RELAXED);
+        __atomic_store_n(&s->starve_last_frames,s->starve_frames,__ATOMIC_RELAXED);
+        if(s->starve_frames>__atomic_load_n(&s->starve_max_frames,__ATOMIC_RELAXED))
+            __atomic_store_n(&s->starve_max_frames,s->starve_frames,__ATOMIC_RELAXED);
+    }
+    if(was_starved)old=(struct xz_oc_plan){.source=previous_source};
+    else if(!window_has(w,&old))old=(struct xz_oc_plan){.source=old.source};
     if(out){
         out[1]=plan_masks(&requested);out[2]=plan_masks(&old);out[3]|=(starved?4u:0u)|(error?8u:0u);
         out[4]=w?(uint32_t)(w-s->window):UINT32_MAX;out[5]=w?w->masks:0;
@@ -347,7 +368,10 @@ size_t xz_oc_stream_mix4_trace(struct xz_oc_stream *s,float *pcm,size_t frames,i
     }
     int changed=was_starved!=starved;__atomic_store_n(&s->starved,starved,__ATOMIC_RELAXED);
     for(unsigned r=0;r<stem_count(s);r++){changed|=previous[r]!=applied[r];uint32_t bits;memcpy(&bits,applied+r,4);__atomic_store_n(&s->previous_levels[r],bits,__ATOMIC_RELAXED);}
-    if(requested.source==1&&!plan_masks(&requested)&&!changed){if(w)window_release(w);return 0;}
+    if(requested.source==1&&!plan_masks(&requested)&&!changed){
+        memcpy(s->last_output,pcm+(frames-1)*2,sizeof(s->last_output));s->last_output_valid=1;
+        if(w)window_release(w);return 0;
+    }
     double first=w?at-w->first:0;
     struct render_plan render=render_plan(s,w,&requested),previous_render=render_plan(s,w,&old);
     int cache=0;uint32_t unlocked=0;
@@ -360,7 +384,10 @@ size_t xz_oc_stream_mix4_trace(struct xz_oc_stream *s,float *pcm,size_t frames,i
             memcpy(s->mix_cache_levels,bits,sizeof(bits));
         }
     }
-    size_t ramp=frames<128?frames:128;
+    size_t ramp=frames<STARVE_RAMP_FRAMES?frames:STARVE_RAMP_FRAMES;
+    /* Decay only the last selected output sample into the held coefficient.
+     * No old timeline buffer or uncovered native mix is replayed on a seek. */
+    int entering=starved&&!was_starved&&s->last_output_valid;
     for(size_t i=0;i<frames;i++){
       int64_t absolute=position+(int64_t)i;
       struct mix_frame *entry=cache?&s->mix_cache[(uint64_t)absolute&(MIX_CACHE_FRAMES-1u)]:NULL;
@@ -371,12 +398,13 @@ size_t xz_oc_stream_mix4_trace(struct xz_oc_stream *s,float *pcm,size_t frames,i
       for(unsigned c=0;c<2;c++){
         float native=pcm[i*2+c];
         float value=hit?entry->raw[c]:planned_sample(w,&render,at,(int)c,native);
-        if(!hit&&changed&&i<ramp){float f=(float)(i+1)/(float)ramp;value=planned_sample(w,&previous_render,at,(int)c,native)*(1-f)+value*f;}
+        if(!hit&&changed&&i<ramp){float f=(float)(i+1)/(float)ramp;float from=entering?s->last_output[c]:planned_sample(w,&previous_render,at,(int)c,native);value=from*(1-f)+value*f;}
         if(out){float peak;memcpy(&peak,out+14,4);if(fabsf(value)>peak){peak=fabsf(value);memcpy(out+14,&peak,4);}out[12]+=value>1||value< -1;out[13]+=!isfinite(value);}
         raw[c]=value;mixed[c]=hit?entry->mixed[c]:(value>1?1:value< -1?-1:value);pcm[i*2+c]=mixed[c];
       }
       if(entry&&!hit){entry->position=absolute;entry->window_first=w->first;entry->epoch=s->mix_cache_epoch;memcpy(entry->native,original,sizeof(original));memcpy(entry->raw,raw,sizeof(raw));memcpy(entry->mixed,mixed,sizeof(mixed));}
     }
+    memcpy(s->last_output,pcm+(frames-1)*2,sizeof(s->last_output));s->last_output_valid=1;
     if(cache)__atomic_store_n(&s->mix_cache_busy,0,__ATOMIC_RELEASE);
     __atomic_fetch_add(&s->blocks,1,__ATOMIC_RELAXED);
     if(w)window_release(w);return frames;
@@ -386,6 +414,13 @@ void xz_oc_stream_status(struct xz_oc_stream *s,struct xz_oc_status *out){
     memset(out,0,sizeof(*out));if(!s){out->state=XZ_OC_ERROR;return;}
     out->state=__atomic_load_n(&s->state,__ATOMIC_ACQUIRE);
     if(__atomic_load_n(&s->capture_state,__ATOMIC_ACQUIRE)==3){out->lag=(int)lround(s->offset);out->correlation=s->score;}
+    out->starve_fallback=__atomic_load_n(&s->starve_fallback,__ATOMIC_RELAXED);
+    out->starvation=__atomic_load_n(&s->starved,__ATOMIC_RELAXED);
+    out->starve_runs=__atomic_load_n(&s->starve_runs,__ATOMIC_RELAXED);
+    out->starve_last_frames=__atomic_load_n(&s->starve_last_frames,__ATOMIC_RELAXED);
+    out->starve_max_frames=__atomic_load_n(&s->starve_max_frames,__ATOMIC_RELAXED);
+    if(s->rate){out->starve_last_ms=(uint32_t)((uint64_t)out->starve_last_frames*1000/s->rate);
+        out->starve_max_ms=(uint32_t)((uint64_t)out->starve_max_frames*1000/s->rate);}
     out->blocks=__atomic_load_n(&s->blocks,__ATOMIC_RELAXED);out->misses=__atomic_load_n(&s->misses,__ATOMIC_RELAXED);
 }
 int xz_oc_stream_neutral(const struct xz_oc_stream *s){

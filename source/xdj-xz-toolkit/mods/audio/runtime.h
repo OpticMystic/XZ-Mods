@@ -2,6 +2,7 @@
 #ifndef XZ_AUDIO_RUNTIME_H
 #define XZ_AUDIO_RUNTIME_H
 #include "stems.h"
+#include "overcue.h"
 #include <stdint.h>
 struct xz_audio_batch {void *previous,*deck,*publication;uint32_t generation;};
 void xz_audio_batch_begin(int deck,int32_t position,struct xz_audio_batch *);
@@ -28,6 +29,8 @@ struct xz_audio_status {
     float alignment_correlation;
     size_t retained_stems_bytes;
     unsigned stem_count;
+    uint32_t starve_runs, starve_last_frames, starve_max_frames, starve_last_ms, starve_max_ms;
+    enum xz_oc_starvation starvation, starve_fallback;
     char format_name[32], error[160];
 };
 int xz_audio_start(void);
