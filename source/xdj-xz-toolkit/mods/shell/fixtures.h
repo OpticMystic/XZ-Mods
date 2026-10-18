@@ -124,14 +124,22 @@ static void fx_deck_two(struct xz_shell_deck *d, const struct fx_track *t) {
  d->wave=(struct xz_shell_wave){t->lane,FX_LANE_COLUMNS,FX_TOTAL_MS};
  d->overview=(struct xz_shell_wave){t->overview,FX_OVERVIEW_COLUMNS,FX_TOTAL_MS};
 }
+/* Beat FX as the runtime reads it: no channel or level. */
+static inline void fx_beat_fx(struct xz_shell_fx *f, int on, const char *name, int num, int den, int32_t time_ms) {
+ memset(f,0,sizeof *f);
+ f->known=(1u<<XZ_SHELL_FX_F_ON)|(1u<<XZ_SHELL_FX_F_NAME)|(1u<<XZ_SHELL_FX_F_BPM)|(1u<<XZ_SHELL_FX_F_TAP);
+ f->on=on;f->name=name;f->bpm_x10=1297;f->tap=0;
+ if(num>0){f->known|=1u<<XZ_SHELL_FX_F_BEAT;f->beat_num=num;f->beat_den=den;}
+ if(time_ms>=0){f->known|=1u<<XZ_SHELL_FX_F_TIME;f->time_ms=time_ms;}
+}
 static void fx_model_full(struct xz_shell_model *m, const struct fx_track *t) {
  memset(m,0,sizeof *m);
  fx_deck_one(&m->deck[0],t);fx_deck_two(&m->deck[1],t);
  m->capabilities=XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_SET_SETTING|XZ_SHELL_CAP_GRID;
  m->settings.known=(1u<<XZ_SHELL_SETTING_COUNT)-1;
  m->settings.writable=((uint64_t)1<<XZ_SHELL_SETTING_COUNT)-1;
- m->settings.time_mode=XZ_SHELL_TIME_REMAIN;m->settings.wave_color=XZ_SHELL_WAVE_3BAND;
- m->settings.wave_position=XZ_SHELL_POSITION_CENTER;m->settings.play_mode=XZ_SHELL_PLAY_SINGLE;
+ m->settings.time_mode=XZ_SHELL_TIME_REMAIN;
+ m->settings.play_mode=XZ_SHELL_PLAY_SINGLE;
  m->settings.auto_cue=1;m->settings.hot_cue_auto_load=1;
  m->link_known=1;m->link_connected=0;
  m->clock_ms=123456;

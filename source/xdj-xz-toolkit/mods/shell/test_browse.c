@@ -148,6 +148,9 @@ static void test_touch_load_and_return(void) {
  assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,4))==0&&u.depth==2);
  /* Without LOAD capability the chip hands the list to the stock browser. */
  struct xz_shell_model noload=m;noload.capabilities&=~(uint32_t)XZ_SHELL_CAP_LOAD;
+ /* It stays on screen, greyed, reading LOAD OFF. */
+ render_checked(&u,&noload,buffer_a);
+ assert(at(frame(buffer_a),load.x+4,load.y+load.h/2)==rgb565(SH_RAIL));
  assert(down_at(&u,&noload,load)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_BROWSE&&u.depth==2);
  send(&u,&noload,XZ_SHELL_TOUCH_UP,0,0,0);
  /* LOAD goes to the active deck and returns to PLAY. */

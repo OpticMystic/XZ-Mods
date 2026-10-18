@@ -23,6 +23,7 @@ struct xz_shell_runtime_key { int valid; char text[8]; int matches_master, shift
 struct xz_shell_runtime_frame_input {
  int eligible, theme;
  struct xz_shell_runtime_key key[XZ_SHELL_DECKS];
+ int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
 };
 int xz_shell_runtime_start(void);
 void xz_shell_runtime_stop(void);
@@ -44,6 +45,13 @@ int xz_shell_runtime_encoder_turn(int eligible, int theme, int delta);
 int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint32_t state);
 /* The native event-loop hook (repaint owner thread): runs queued commands and the starvation pump. */
 void xz_shell_runtime_owner_tick(void);
+/* Header-button requests the shell cannot execute itself (they belong to ui_runtime.c's MODS panel and
+   STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
+   right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
+enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u };
+unsigned xz_shell_runtime_take_ui_requests(void);
+/* A header action ui_runtime.c took but could not carry out: shown as the shell's notice toast. */
+void xz_shell_runtime_notice(const char *text);
 
 /* ---- Pure core (shell_runtime_core.c) ---- */
 
@@ -58,7 +66,10 @@ enum xz_shrt_phase xz_shrt_phase_of(unsigned op);
 
 /* Decided once per key contact, at the press, so all three ops of a key are
    swallowed or none. PASS_HAND_OFF: the shell would hand this screen to stock,
-   so the key goes to stock untouched and the shell steps aside. */
+   so the key goes to stock untouched and the shell steps aside. PASS is only for
+   STOCK-rule deck keys: a browse-section key is never passed to a hidden stock
+   screen (an inert key, LOAD on anything but a loadable track, and BACK on PLAY
+   are swallowed). */
 enum xz_shrt_verdict { XZ_SHRT_PASS, XZ_SHRT_PASS_HAND_OFF, XZ_SHRT_SWALLOW };
 enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *, const struct xz_shell_model *, const struct xz_shrt_key_map *);
 /* The shell key for this phase of a swallowed contact, or -1. held: a hold was already delivered. */
@@ -78,6 +89,12 @@ struct xz_shrt_touch { enum xz_shrt_touch_owner owner; int x, y; };
 struct xz_shrt_touch_step { int to_stock, release_stock, event; /* event: -1 or enum xz_shell_event_kind */ int x, y; };
 struct xz_shrt_touch_step xz_shrt_touch_route(struct xz_shrt_touch *, int owns, int x, int y, int down, int stock_down);
 
+/* MENU follows the general probe: its hold opens the shell's own UTILITY, so the key is swallowed on
+   every screen that has it. A short MENU that would hand off to stock's menu popup (list screens) is
+   inert: there is no proven way to open that popup (stock's short MENU needs a native browse list and
+   Ui_EventTask), so the shell neither synthesises it nor steps aside. Should a probe ever give
+   PASS_HAND_OFF for MENU, the whole key goes to stock and the runtime steps aside only on the hold. */
+
 /* Encoder push from UiKey_EncoderPush entries: press phase = flags 1; hold = state 3. */
 struct xz_shrt_push { int down, held; };
 int xz_shrt_push_event(struct xz_shrt_push *, uint32_t flags, uint32_t state);
@@ -94,6 +111,19 @@ void xz_shrt_handoff_end(struct xz_shrt_handoff *);
 /* play: 1 stock shows its play screen, 0 it does not, -1 unknown (never resumes). Returns 1 on resume. */
 int xz_shrt_handoff_step(struct xz_shrt_handoff *, uint32_t now, int play);
 void xz_shrt_handoff_caution(struct xz_shrt_handoff *, uint32_t caution);
+/* Come back `remaining` ms from now instead of after the full grace if stock never leaves its play
+   screen (a short MENU on PLAY opens nothing in stock). */
+void xz_shrt_handoff_shorten(struct xz_shrt_handoff *, uint32_t now, uint32_t remaining);
+/* The caution read fails closed with UINT32_MAX. One failed read must not hand the screen to stock for a
+   frame (a full-screen flash plus a full stock repaint): UNKNOWN passes only after XZ_SHRT_CAUTION_RUNS
+   refreshes in a row; until then the last known value stands. A real caution id passes at once. */
+#define XZ_SHRT_CAUTION_RUNS 3
+struct xz_shrt_caution { uint32_t last, shown, ack; int unknown_run; };
+uint32_t xz_shrt_caution_filter(struct xz_shrt_caution *, uint32_t caution);
+/* BACK held while the shell yields to a caution: the user has seen it. That caution id (or the unknown
+   sentinel) no longer yields until the read value changes or clears, so a caution id that stays latched
+   in memory after the popup is gone cannot keep the shell away. */
+void xz_shrt_caution_ack(struct xz_shrt_caution *);
 int xz_shrt_handoff_yields(const struct xz_shrt_handoff *);
 
 /* Commands executed on the native UI thread. */
@@ -111,6 +141,10 @@ struct xz_shrt_queue { struct xz_shrt_command c[XZ_SHRT_QUEUE]; unsigned head, c
 /* A queued command of the same kind and deck takes the new value instead of queueing twice. */
 int xz_shrt_queue_push(struct xz_shrt_queue *, const struct xz_shrt_command *);
 int xz_shrt_queue_pop(struct xz_shrt_queue *, struct xz_shrt_command *);
+/* Shell-owned display settings (wave colour, wave position, key display, wave zoom): the shell already
+   applied them; the runtime only stores the value and restores it with xz_shell_restore_setting after
+   xz_shell_init. They are never stock commands. */
+int xz_shrt_shell_owned_setting(int id);
 /* SET_SETTING -> the C3 command it needs. 0 when no proven setter exists for that id or value. */
 int xz_shrt_setting_writable(int id, int time_mode, int quantize_beat);
 int xz_shrt_setting_command(const struct xz_shell_action *, uint32_t now, struct xz_shrt_command *);
@@ -118,6 +152,37 @@ int xz_shrt_setting_command(const struct xz_shell_action *, uint32_t now, struct
 extern const char *const xz_shrt_quantize_choices[4];
 int xz_shrt_quantize_index(int quantize_den);
 
-/* Frame period: 30 Hz on PLAY while a deck plays, 10 Hz otherwise (input redraws at once). */
+/* Frame period: every presenter tick (60 Hz) on PLAY while a deck moves, 10 Hz otherwise (input
+   redraws at once). 12 ms, not 16: a vsync-paced caller with a millisecond of jitter must still be due
+   on every tick, while a faster caller stays near 60 Hz. The model refreshes at most every
+   XZ_SHRT_REFRESH_MS; the renderer extrapolates the playhead in between. */
+#define XZ_SHRT_FRAME_LIVE_MS 12u
+#define XZ_SHRT_FRAME_IDLE_MS 100u
+#define XZ_SHRT_REFRESH_MS 33u
 uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen, int any_playing);
+
+/* Deck motion from the stat frame's elapsed time: moving while it changed within XZ_SHRT_MOTION_MS.
+   Used for PLAYING only when the native clock read gives no answer. */
+#define XZ_SHRT_MOTION_MS 300u
+struct xz_shrt_motion { int valid; int32_t last_ms; uint32_t changed_at; };
+int xz_shrt_motion_step(struct xz_shrt_motion *, int32_t elapsed_ms, uint32_t read_at);
+
+/* Playhead smoother. The stat frame's elapsed time is coarse and read at the refresh rate; extrapolating
+   from each raw reading makes the scrolling lane step back and forth by the reading's jitter. This keeps
+   one continuous estimate: it predicts with the tempo, moves toward each new reading by 1/8 of the error
+   (at most XZ_SHRT_POSITION_NUDGE_MS per reading) and snaps on a jump larger than
+   XZ_SHRT_POSITION_SNAP_MS (seek, cue, loop, scratch). Paused decks publish the raw reading.
+   Outputs xz_shell_deck elapsed_ms and elapsed_at_ms. */
+#define XZ_SHRT_POSITION_SNAP_MS 60
+#define XZ_SHRT_POSITION_NUDGE_MS 2
+struct xz_shrt_position { int valid; int64_t base_us; uint32_t base_at, read_at; int32_t read_ms; };
+void xz_shrt_position_reset(struct xz_shrt_position *);
+void xz_shrt_position_step(struct xz_shrt_position *, int playing, int32_t elapsed_ms, uint32_t read_at,
+                           int32_t tempo_x100, int32_t *out_ms, uint32_t *out_at);
+
+/* Presented-frame statistics in microseconds: frames, the largest gap between two frames and the gaps
+   longer than XZ_SHRT_LATE_US (a missed 60 Hz slot). Gaps of a second or more (idle screens) are ignored. */
+#define XZ_SHRT_LATE_US 20000u
+struct xz_shrt_frames { uint64_t last_us; uint32_t frames, gap_max_us, late; };
+void xz_shrt_frame_mark(struct xz_shrt_frames *, uint64_t now_us);
 #endif

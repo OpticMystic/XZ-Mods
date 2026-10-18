@@ -54,6 +54,8 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_key
 #pragma weak xz_shell_runtime_encoder_turn
 #pragma weak xz_shell_runtime_encoder_push
+#pragma weak xz_shell_runtime_take_ui_requests
+#pragma weak xz_shell_runtime_notice
 #pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
@@ -1244,6 +1246,7 @@ static void game_to_menu_locked(enum game g){
     else{xz_arcade_key(&arcade,0,XZ_ARCADE_PAUSE_KEY,xz_game_milliseconds());arcade_to_dj();}
 }
 
+static uint32_t shell_ui_refreshed_ms; /* last UI model refresh while the shell owned the screen */
 /* The shell may own the screen only while MODS, a game, Doom and the VJ takeover leave it free. */
 static int shell_eligible_locked(void){
     return !touch.visible&&game_locked()==GAME_NONE&&!xz_doom_running()&&!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE);
@@ -1251,6 +1254,7 @@ static int shell_eligible_locked(void){
 static int shell_owns_locked(void){return xz_shell_runtime_owns&&shell_eligible_locked()&&xz_shell_runtime_owns();}
 static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     memset(in,0,sizeof(*in));in->eligible=shell_eligible_locked();in->theme=model.theme;
+    in->stems_known=1;in->stems_on=model.stems_overlay!=XZ_STEM_LAYOUT_HIDDEN;
     for(int deck=0;deck<2;deck++){
         if(!key_valid[deck])continue;
         struct xz_shell_runtime_key *k=&in->key[deck];int other=1-deck,cents=0,other_cents=0;
@@ -1266,6 +1270,25 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
         }
     }
 }
+/* The shell's MODS and STEMS header buttons, run on the input thread under ui_mutex exactly as the
+   stock-mode badge (native_touch.c: visible=1) and STEMS button (XZ_UI_STEMS_OVERLAY) do. The rest of
+   an opening contact stays with the shell's touch owner, so the panel never sees it, as the badge's
+   opening_contact capture does. */
+static void shell_ui_requests_locked(void){
+    unsigned requests=xz_shell_runtime_take_ui_requests?xz_shell_runtime_take_ui_requests():0;
+    if(requests&XZ_SHELL_UI_TOGGLE_STEMS){
+        struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&act,1);
+        /* The layout changes as on the stock button, but rows only appear once stems are on. */
+        if(!requested_stems&&!pc_present&&xz_shell_runtime_notice)xz_shell_runtime_notice("STEM ROWS SHOW ONCE STEMS ARE ON IN MODS");
+    }
+    if((requests&XZ_SHELL_UI_OPEN_MODS)&&touch.visible&&xz_shell_runtime_notice)xz_shell_runtime_notice("THE MODS PANEL IS ALREADY OPEN");
+    if((requests&XZ_SHELL_UI_OPEN_MODS)&&!touch.visible){
+        touch.visible=1;
+        if(sdk_session.active&&ui.page!=XZ_UI_APPS_SETUP)xz_ui_navigate(&ui,XZ_UI_APPS);
+        __atomic_store_n(&visible,1,__ATOMIC_RELEASE);
+        inline_layout_publish();
+    }
+}
 static int shell_touch_locked(void *self,const struct xz_touch_status *status,const void *mode){
     if(!xz_shell_runtime_touch)return 0;
     struct xz_touch_status previous;memcpy(&previous,(const char *)self+4,sizeof(previous));
@@ -1273,6 +1296,7 @@ static int shell_touch_locked(void *self,const struct xz_touch_status *status,co
     if(route==XZ_SHELL_TOUCH_TO_STOCK)return 0;
     /* A stock gesture in progress ends before the shell takes the contact. */
     if(route==XZ_SHELL_TOUCH_TAKEN_RELEASE_STOCK){previous.down=0;stock_touch(self,&previous,mode);}
+    shell_ui_requests_locked();
     return 1;
 }
 static void (*stock_global_key)(void *,const void *);
@@ -1286,6 +1310,7 @@ static void menu_back_key_hook(void *self,const void *input){
     if(input&&xz_shell_runtime_key&&xz_shrt_key_lookup&&xz_shrt_key_lookup(key,channel)&&__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
         consumed=xz_shell_runtime_key(shell_eligible_locked(),model.theme,key,channel,operation);
+        shell_ui_requests_locked();
         pthread_mutex_unlock(&ui_mutex);
         if(consumed)return;
     }
@@ -1357,6 +1382,7 @@ static int encoder_rotate_hook(int delta) {
             int steps=delta<0?-delta:delta;if(steps>4)steps=4;
             for(int i=0;i<steps;i++)owned|=xz_doom_nav(delta>0?XZ_GAME_NAV_DOWN:XZ_GAME_NAV_UP);
         }
+        if(shell)shell_ui_requests_locked();
         pthread_mutex_unlock(&ui_mutex);
         /* The shell redraws itself; a stock repaint would only cost a full native redraw. */
         if(shell)return 1;
@@ -1383,6 +1409,7 @@ static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
             if(!shell)owned=xz_doom_nav(XZ_GAME_NAV_ENTER);
         }
         else if(!touch.visible)owned=xz_doom_nav(XZ_GAME_NAV_ENTER);
+        if(shell)shell_ui_requests_locked();
         pthread_mutex_unlock(&ui_mutex);
         if(shell)return 1;
         if(owned){xz_native_skin_request_repaint();return 1;}
@@ -1520,6 +1547,19 @@ static void refresh_local(void) {
                 if (s->prepared && s->state == XZ_AUDIO_EXPERIMENTAL_READY && reported_generation[deck] != s->generation) {
                     char line[160];snprintf(line,sizeof(line),"PREPARED_STEMS_READY: deck=%d rate=%u frames=%u lag=%d correlation=%.6f",deck+1,s->reader_rate,s->reader_frames,s->alignment_frames,s->alignment_correlation);
                     xz_log(line);reported_generation[deck] = s->generation;
+                }
+                /* UI refresh thread only. Immediate run/state changes, <=4 Hz duration updates. */
+                {
+                    static uint32_t generation[2],runs[2],last[2],mode[2],logged_at[2];
+                    uint32_t now=xz_game_milliseconds();
+                    if(generation[deck]!=s->generation){generation[deck]=s->generation;runs[deck]=last[deck]=mode[deck]=0;}
+                    if(s->starve_runs&&(runs[deck]!=s->starve_runs||mode[deck]!=s->starvation||
+                        (last[deck]!=s->starve_last_frames&&(uint32_t)(now-logged_at[deck])>=250))){
+                        char line[192];snprintf(line,sizeof(line),"STEM_STARVE: deck=%d runs=%u last_ms=%u max_ms=%u last_frames=%u max_frames=%u fallback=%s",
+                            deck+1,s->starve_runs,s->starve_last_ms,s->starve_max_ms,s->starve_last_frames,s->starve_max_frames,
+                            s->starve_fallback==XZ_OC_STARVE_UNITY?"unity":"held");
+                        xz_log(line);runs[deck]=s->starve_runs;last[deck]=s->starve_last_frames;mode[deck]=s->starvation;logged_at[deck]=now;
+                    }
                 }
                 const char *path = audio_status[deck].path;
                 const char *name = strrchr(path, '/');
@@ -1885,6 +1925,12 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
 __attribute__((visibility("default"))) int xz_mods_visible_v1(void) {
     return __atomic_load_n(&visible, __ATOMIC_ACQUIRE)||(xz_shell_runtime_owns&&xz_shell_runtime_owns());
 }
+/* Lock-free: the next xz_mods_render_v1 that draws writes every pixel (the shell owns the screen), so
+   the receiver can skip copying its base frame under it. */
+__attribute__((visibility("default"))) int xz_mods_full_frame_v1(void) {
+    return !__atomic_load_n(&visible, __ATOMIC_ACQUIRE)&&!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)&&
+        xz_shell_runtime_owns&&xz_shell_runtime_owns();
+}
 
 __attribute__((visibility("default"))) int xz_mods_native_touch_v1(void) {
     return __atomic_load_n(&started, __ATOMIC_ACQUIRE);
@@ -2058,8 +2104,14 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         return 0;
     }
     /* Between shell frames there is nothing to refresh or draw; the receiver keeps the last frame. */
-    if(xz_shell_runtime_idle&&shell_owns_locked()&&xz_shell_runtime_idle()){pthread_mutex_unlock(&ui_mutex);return 0;}
-    refresh();
+    int shell_path=xz_shell_runtime_frame&&shell_owns_locked();
+    if(shell_path&&xz_shell_runtime_idle&&xz_shell_runtime_idle()){pthread_mutex_unlock(&ui_mutex);return 0;}
+    /* The shell draws from its own model and reads only the key snapshots from this one, so while it
+       owns the screen the UI model refreshes at 10 Hz instead of on every 60 Hz frame. */
+    {
+        uint32_t now=xz_game_milliseconds();
+        if(!shell_path||!shell_ui_refreshed_ms||(uint32_t)(now-shell_ui_refreshed_ms)>=100u){refresh();shell_ui_refreshed_ms=now?now:1;}
+    }
     if (connection && connection->version == 1 && connection->size == sizeof(*connection)) {
         memcpy(device_ip, connection->ipv4, sizeof(device_ip)); device_ip[15] = 0;
         model.connection.ready = 1;
@@ -2074,6 +2126,15 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         model.connection.stats_valid = connection->stats_valid != 0;
         model.connection.frame_hz = connection->frame_hz_milli / 1000.0f;
         model.connection.status = "CONNECTION SERVICE CONFIGURED BY THE MOD LOADER";
+    }
+    if(shell_path){
+        /* The shell renders under its own mutex only: pads, keys, the encoder and touch never wait
+           on ui_mutex for a frame. 0 = it gave the screen up during this call; draw the usual way. */
+        struct xz_shell_runtime_frame_input in;shell_frame_input_locked(&in);
+        pthread_mutex_unlock(&ui_mutex);
+        int drawn=xz_shell_runtime_frame(pixels,stride,&in);
+        if(drawn)return drawn>0;
+        if(pthread_mutex_trylock(&ui_mutex)!=0)return 0;
     }
     int result,shell=0;
     key_frame_cache.enabled=0;

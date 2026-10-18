@@ -1,6 +1,7 @@
 """Compile and run the FLAGSHIP shell runtime's host test (pure core and library lists) with live assertions.
 
-Usage: python mods/verify_shell_runtime.py --zig PATH/zig.exe
+Usage: python mods/verify_shell_runtime.py --zig PATH/zig.exe [--bench]
+--bench also builds and runs bench_shell_frame.c (PLAY render cost and playhead smoothness, host -O2).
 The pdb fixture comes from mods/pdb/make_fixture.py; nothing touches a device.
 """
 import argparse
@@ -17,6 +18,7 @@ from make_fixture import make  # noqa: E402
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--zig', required=True)
+parser.add_argument('--bench', action='store_true')
 args = parser.parse_args()
 common = [str(Path(args.zig).resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror']
 sources = [ROOT / 'shell' / name for name in SHELL_SOURCES] + [ROOT / name for name in
@@ -32,4 +34,10 @@ with tempfile.TemporaryDirectory(prefix='xz-shell-runtime-') as folder:
                               capture_output=True, text=True)
     if negative.returncode == 0 or 'Shell runtime acceptance requires active assertions' not in negative.stderr:
         raise RuntimeError('Missing assertion rejection')
+    if args.bench:
+        bench = folder / 'bench-shell-frame.exe'
+        subprocess.run(common + [str(ROOT / 'shell' / name) for name in SHELL_SOURCES] +
+                       [str(ROOT / name) for name in ('shell_runtime_core.c', 'shell_library.c', 'pdb/pdb.c', 'bench_shell_frame.c')] +
+                       ['-o', str(bench)], check=True)
+        subprocess.run([str(bench), '600'], check=True)
 print('PASS assertion rejection')

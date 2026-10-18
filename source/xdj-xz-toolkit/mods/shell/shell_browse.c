@@ -15,7 +15,8 @@ enum {
  STRIP_Y=422, STRIP_H=XZ_SHELL_HEIGHT-STRIP_Y, HALF_W=W/2,
  KB_Y=232, KB_ROW=47, KB_KEY_H=44, KB_X=8, KB_W=W-16, KB_UNITS=24,
  INFO_W=264, TILE_W=84, BACK_X=68, BACK_S=32, TITLE_MIN=200, LOAD_W=56, LOAD_DECK_W=34,
- UP_DEPTH=8, SLOTS=4, DRAG_START=10, FLICK_STEP=12
+ UP_DEPTH=8, SLOTS=4, DRAG_START=10, FLICK_STEP=12,
+ HEAD_RIGHT=XZ_SHELL_HEADER_X-4   /* the mod header buttons own the bar right of this */
 };
 enum { SH_RAIL_SEL=XZ_FLAGSHIP_RAIL_SELECTED, SH_TILE=XZ_FLAGSHIP_TILE, SH_UNAVAILABLE=0x6a6a6a, SH_STAR_OFF=0x5a5a5a };
 
@@ -155,9 +156,9 @@ struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *u, const struct
  switch(r){
  case XZ_SHELL_BR_SOURCE:return (struct xz_shell_rect){0,0,SRC_W,HEAD_H};
  case XZ_SHELL_BR_BACK:return (struct xz_shell_rect){SRC_W,0,BACK_S+12,HEAD_HIT};
- case XZ_SHELL_BR_FIELD:return s==XZ_SHELL_SEARCH?(struct xz_shell_rect){112,0,W-2*TILE_W-2-8-112,HEAD_HIT}:none;
- case XZ_SHELL_BR_PREVIEW:return (struct xz_shell_rect){W-2*TILE_W-2,0,TILE_W,HEAD_HIT};
- case XZ_SHELL_BR_INFO:return (struct xz_shell_rect){W-TILE_W,0,TILE_W,HEAD_HIT};
+ case XZ_SHELL_BR_FIELD:return s==XZ_SHELL_SEARCH?(struct xz_shell_rect){112,0,HEAD_RIGHT-2*TILE_W-2-8-112,HEAD_HIT}:none;
+ case XZ_SHELL_BR_PREVIEW:return (struct xz_shell_rect){HEAD_RIGHT-2*TILE_W-2,0,TILE_W,HEAD_HIT};
+ case XZ_SHELL_BR_INFO:return (struct xz_shell_rect){HEAD_RIGHT-TILE_W,0,TILE_W,HEAD_HIT};
  case XZ_SHELL_BR_RAIL:
   if(s!=XZ_SHELL_BROWSE||index<0||index>=RAIL_SLOTS)return none;
   return (struct xz_shell_rect){0,HEAD_H+index*RAIL_ITEM,RAIL_W,RAIL_ITEM};
@@ -484,15 +485,18 @@ static void render_load_chip(const struct xz_shell *u, const struct xz_shell_mod
  struct xz_shell_rect l=xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,0);
  if(!l.w)return;
  int y=l.y+5,h=ROW_H-10;
- xz_rect(c,l.x,y,LOAD_W+2*LOAD_DECK_W,h,SH_WHITE);
- sh_text_center(c,l.x+LOAD_W/2,y+(h-SH_CAP_SMALL)/2,"LOAD",SH_SMALL,SH_BLUE);
+ /* Without the capability the chip still answers (the stock browser takes over), so it stays, greyed, saying so. */
+ int live=(m->capabilities&XZ_SHELL_CAP_LOAD)!=0;
+ uint32_t fill=live?SH_WHITE:SH_RAIL,ink=live?SH_BLUE:SH_DIM;
+ xz_rect(c,l.x,y,LOAD_W+2*LOAD_DECK_W,h,fill);
+ sh_text_center(c,l.x+LOAD_W/2,y+(h-SH_CAP_SMALL)/2,live?"LOAD":"LOAD OFF",SH_SMALL,ink);
  for(int d=0;d<XZ_SHELL_DECKS;d++){
   struct xz_shell_rect r=xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,d+1);
-  int target=u->deck==d;
-  xz_rect(c,r.x,y+2,1,h-4,SH_BLUE);
+  int target=live&&u->deck==d;
+  xz_rect(c,r.x,y+2,1,h-4,live?SH_BLUE:0x5a5a5a);
   if(target)xz_rect(c,r.x+3,y+3,r.w-6,h-6,SH_BLUE);
   char text[4];snprintf(text,sizeof text,"%d",d+1);
-  sh_text_center(c,r.x+r.w/2,y+(h-SH_CAP_TEXT)/2,text,SH_TEXT,target?SH_WHITE:SH_BLUE);
+  sh_text_center(c,r.x+r.w/2,y+(h-SH_CAP_TEXT)/2,text,SH_TEXT,target?SH_WHITE:ink);
  }
 }
 static void render_row(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, const struct col *cols, int n, int32_t index, int y, const struct sess *v) {
@@ -543,7 +547,7 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
    }
    break;
   case XZ_SHELL_COL_KEY:
-   if(rknown(r,XZ_SHELL_RF_KEY)&&r->key)sh_text_fit(c,x,ty,room,r->key,SH_TEXT,!selected&&r->key_matches_master?SH_GREEN:SH_WHITE);
+   if(rknown(r,XZ_SHELL_RF_KEY)&&r->key){char key[8];sh_text_fit(c,x,ty,room,sh_key_text(r->key,sh_key_display(u),key,sizeof key),SH_TEXT,!selected&&r->key_matches_master?SH_GREEN:SH_WHITE);}
    break;
   case XZ_SHELL_COL_RATING:
    if(rknown(r,XZ_SHELL_RF_RATING))for(int j=0;j<5;j++)star(c,x+j*12,y+15,j<r->rating?SH_WHITE:selected?xz_blend(SH_BLUE,SH_WHITE,90):SH_STAR_OFF);
@@ -589,7 +593,7 @@ static void render_info_pane(const struct xz_shell *u, const struct xz_shell_mod
   text[0]=0;
   switch(i){
   case 0:known=rknown(r,XZ_SHELL_RF_BPM)&&r->bpm_x100>0;if(known)snprintf(text,sizeof text,"%d.%02d",(int)(sh_min(r->bpm_x100,99999)/100),(int)(sh_min(r->bpm_x100,99999)%100));break;
-  case 1:known=rknown(r,XZ_SHELL_RF_KEY)&&r->key;if(known){snprintf(text,sizeof text,"%.20s",r->key);if(r->key_matches_master)ink=SH_GREEN;}break;
+  case 1:known=rknown(r,XZ_SHELL_RF_KEY)&&r->key;if(known){char key[8];snprintf(text,sizeof text,"%.20s",sh_key_text(r->key,sh_key_display(u),key,sizeof key));if(r->key_matches_master)ink=SH_GREEN;}break;
   case 2:known=rknown(r,XZ_SHELL_RF_DURATION)&&r->duration_ms>=0;if(known)snprintf(text,sizeof text,"%d:%02d",(int)sh_min(r->duration_ms/60000,999),(int)(r->duration_ms/1000%60));break;
   case 3:
    known=rknown(r,XZ_SHELL_RF_RATING);
@@ -692,29 +696,15 @@ static enum xz_shell_time_mode time_mode_of(const struct xz_shell_model *m, cons
  if(sh_setting(m,XZ_SHELL_SET_TIME_MODE))return m->settings.time_mode;
  return XZ_SHELL_TIME_REMAIN;
 }
-static void strip_overview(const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_deck *d, int x, int y, int w, int h) {
- int timed=sh_has(d,XZ_SHELL_F_ELAPSED)&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
- int ph=-1;
- if(timed){int32_t e=d->elapsed_ms<0?0:d->elapsed_ms>d->total_ms?d->total_ms:d->elapsed_ms;ph=x+(int)((int64_t)e*(w-1)/d->total_ms);}
+static void strip_overview(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck, int x, int y, int w, int h) {
+ const struct xz_shell_deck *d=&m->deck[deck];
+ int32_t e=xz_shell_elapsed_now(m,deck);
+ int timed=e>=0&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
+ int ph=timed?x+(int)((int64_t)e*(w-1)/d->total_ms):-1;
  xz_rect(c,x,y,w,h,SH_BLACK);
- if(sh_has(d,XZ_SHELL_F_OVERVIEW)&&d->overview.columns&&d->overview.count){
-  const struct xz_shell_wave *o=&d->overview;
-  int rgb=sh_setting(m,XZ_SHELL_SET_WAVE_COLOR)&&m->settings.wave_color==XZ_SHELL_WAVE_RGB;
-  int blue=sh_setting(m,XZ_SHELL_SET_WAVE_COLOR)&&m->settings.wave_color==XZ_SHELL_WAVE_BLUE;
-  const uint32_t color[3]={rgb?0xe03030:SH_WAVE_LOW_DEEP,rgb?0x30c040:blue?SH_WAVE_LOW_DEEP:SH_WAVE_MID,rgb?0x4080ff:SH_WHITE};
-  static const uint32_t played[3]={0x3c3c3c,0x6e6e6e,0xa0a0a0};
-  for(int i=0;i<w;i++){
-   uint32_t from=(uint32_t)((uint64_t)i*o->count/(uint32_t)w),to=(uint32_t)((uint64_t)(i+1)*o->count/(uint32_t)w);
-   if(to<=from)to=from+1;
-   int v[3]={0,0,0};
-   for(uint32_t j=from;j<to&&j<o->count;j++){v[0]=sh_max(v[0],o->columns[j].low);v[1]=sh_max(v[1],o->columns[j].mid);v[2]=sh_max(v[2],o->columns[j].high);}
-   int scale[3]={256,256,blue?128:256};
-   for(int k=0;k<3;k++){
-    int hh=v[k]*scale[k]/256*(h-1)/255;
-    if(hh>0)xz_rect(c,x+i,y+h-hh,1,hh,ph>=0&&x+i<ph?played[k]:color[k]);
-   }
-  }
- }else xz_rect(c,x,y+h-1,w,1,SH_RAIL);
+ if(sh_has(d,XZ_SHELL_F_OVERVIEW)&&d->overview.columns&&d->overview.count)
+  sh_wave_overview(c,(struct xz_shell_rect){x,y,w,h},&d->overview,sh_wave_color(u),ph);
+ else xz_rect(c,x,y+h-1,w,1,SH_RAIL);
  if(ph>=0){
   int remain=time_mode_of(m,d)==XZ_SHELL_TIME_REMAIN;
   xz_rect(c,x,y+h+1,ph-x,2,remain?SH_RED:SH_WHITE);
@@ -742,17 +732,17 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
   /* time */
   enum xz_shell_time_mode mode=time_mode_of(m,d);
   sh_text(c,tx,y+6,mode==XZ_SHELL_TIME_REMAIN?"REMAIN":"TIME",SH_SMALL,SH_DIM);
-  int32_t shown=-1;
-  if(loaded&&sh_has(d,XZ_SHELL_F_ELAPSED)){
-   if(mode==XZ_SHELL_TIME_ELAPSED)shown=d->elapsed_ms;
-   else if(sh_has(d,XZ_SHELL_F_TOTAL))shown=d->total_ms-d->elapsed_ms;
+  int32_t shown=-1,e=loaded?xz_shell_elapsed_now(m,deck):-1;
+  if(e>=0){
+   if(mode==XZ_SHELL_TIME_ELAPSED)shown=e;
+   else if(sh_has(d,XZ_SHELL_F_TOTAL))shown=d->total_ms-e;
   }
   if(shown>=0){int32_t sec=shown/1000;snprintf(text,sizeof text,"%02d:%02d",(int)sh_min(sec/60,99),(int)(sec%60));}
   else snprintf(text,sizeof text,"--:--");
   sh_num(c,tx,y+22,text,SH_NUM_MID,shown>=0?SH_WHITE:SH_DIM);
   /* overview */
   int ox=x0+130,ow=152;
-  if(loaded)strip_overview(m,c,d,ox,y+6,ow,36);
+  if(loaded)strip_overview(u,m,c,deck,ox,y+6,ow,36);
   else{xz_rect(c,ox,y+6,ow,36,SH_BLACK);xz_rect(c,ox,y+43,ow,2,SH_RAIL);}
   /* tempo range, tempo, key */
   int px=x0+290;
@@ -766,7 +756,8 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
    snprintf(text,sizeof text,"%s%d.%02d%%",t>0?"+":t<0?"-":"",(int)(a/100%1000),(int)(a%100));
    sh_text(c,px,y+23,text,SH_SMALL,SH_WHITE);
   }else sh_text(c,px,y+23,"--.--%",SH_SMALL,SH_DIM);
-  if(loaded&&sh_has(d,XZ_SHELL_F_KEY)&&d->key)sh_text_fit(c,px,y+37,44,d->key,SH_TEXT,d->key_matches_master?SH_GREEN:SH_WHITE);
+  char key[8];
+  if(loaded&&sh_has(d,XZ_SHELL_F_KEY)&&d->key)sh_text_fit(c,px,y+37,44,sh_key_text(d->key,sh_key_display(u),key,sizeof key),SH_TEXT,d->key_matches_master?SH_GREEN:SH_WHITE);
   else sh_text(c,px,y+37,"--",SH_TEXT,SH_DIM);
   /* BPM box */
   int qx=x0+w-62,qw=56,qy=y+4,qh=STRIP_H-10;

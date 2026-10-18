@@ -46,9 +46,24 @@ int main(int argc, char **argv) {
 
  u.grid_mode=1;shot(&u,&m,"play-grid-mode");u.grid_mode=0;
 
- fx_model_full(&m,&track);m.settings.wave_position=XZ_SHELL_POSITION_LEFT;shot(&u,&m,"play-left");
- fx_model_full(&m,&track);m.settings.wave_color=XZ_SHELL_WAVE_BLUE;shot(&u,&m,"play-blue");
- fx_model_full(&m,&track);m.settings.wave_color=XZ_SHELL_WAVE_RGB;shot(&u,&m,"play-rgb");
+ fx_model_full(&m,&track);u.display.wave_position=XZ_SHELL_POSITION_LEFT;shot(&u,&m,"play-left");u.display.wave_position=XZ_SHELL_POSITION_CENTER;
+ u.display.wave_color=XZ_SHELL_WAVE_BLUE;shot(&u,&m,"play-blue");
+ u.display.wave_color=XZ_SHELL_WAVE_RGB;shot(&u,&m,"play-rgb");
+ u.display.wave_color=XZ_SHELL_WAVE_3BAND;
+ u.display.key_display=XZ_SHELL_KEY_ALPHANUMERIC;shot(&u,&m,"play-key-alphanumeric");u.display.key_display=XZ_SHELL_KEY_AS_DECK;
+
+ /* BEAT FX: on, off, a beatless effect, and the runtime's first frames (nothing read). */
+ fx_beat_fx(&m.fx,1,"ECHO",1,2,234);shot(&u,&m,"play-fx-on");
+ fx_beat_fx(&m.fx,0,"PING PONG",3,4,351);shot(&u,&m,"play-fx-off");
+ fx_beat_fx(&m.fx,1,"REVERB",0,0,-1);shot(&u,&m,"play-fx-reverb");
+ fx_beat_fx(&m.fx,1,"VINYL BRAKE",64,1,29999);m.fx.tap=1;shot(&u,&m,"play-fx-long");
+ memset(&m.fx,0,sizeof m.fx);m.fx.known=1u<<XZ_SHELL_FX_F_NAME;shot(&u,&m,"play-fx-unknown");
+ m.stems_known=1;m.stems_on=1;shot(&u,&m,"play-stems-on");
+ /* Runtime notices: the two the runtime raises, and one too long for a line. */
+ m.notice="DECK 1 DID NOT LOAD THE TRACK";m.notice_at_ms=m.clock_ms;shot(&u,&m,"play-notice");
+ m.notice="THE TRACK ON USB 2 COULD NOT BE READ BECAUSE THE DEVICE WAS REMOVED WHILE IT WAS LOADING";shot(&u,&m,"play-notice-long");
+ m.notice_at_ms=m.clock_ms-XZ_SHELL_NOTICE_MS;shot(&u,&m,"play-notice-expired");
+ m.notice=NULL;
 
  fx_model_full(&m,&track);
  memset(&m.deck[1],0,sizeof m.deck[1]);m.deck[1].known=XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED)|XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO)|XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO_RANGE)|XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_QUANTIZE)|XZ_SHELL_KNOWN(XZ_SHELL_F_BEAT_JUMP)|XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER_TEMPO);
@@ -78,5 +93,27 @@ int main(int argc, char **argv) {
   shot(&u,&m,pages[i].name);
  }
  xz_shell_init(&u);u.popup.kind=XZ_SHELL_POPUP_RECENT;shot(&u,&m,"play-popup-slot");
+ /* SHORTCUT as the runtime fills it today: three items, TIME MODE and QUANTIZE writable. */
+ {
+  static const char *const time_c[]={"REMAIN","TIME"},*const q_c[]={"1/8","1/4","1/2","1"},*const off_on[]={"OFF","ON"};
+  static struct xz_shell_setting_item items[3];
+  items[0]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_TIME_MODE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"TIME MODE",time_c,2,0,1,1};
+  items[1]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_QUANTIZE_BEAT,XZ_SHELL_SETTING_CAT_DJ_SETTING,"QUANTIZE BEAT VALUE",q_c,4,3,1,1};
+  items[2]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_AUTO_CUE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on,2,1,1,0};
+  static struct xz_shell_settings_model runtime_table={3,items};
+  struct xz_shell_action out[XZ_SHELL_ACTIONS];
+  fx_model_full(&m,&track);m.settings_screen=&runtime_table;
+  m.settings.writable=((uint64_t)1<<XZ_SHELL_SET_TIME_MODE)|((uint64_t)1<<XZ_SHELL_ITEM_QUANTIZE_BEAT);
+  xz_shell_init(&u);
+  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_SHORTCUT,-1},out);
+  shot(&u,&m,"shortcut-runtime-table");
+  for(int i=0;i<6;i++)xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_ENCODER_TURN,0,0,1,0,-1},out);
+  u.display.wave_color=XZ_SHELL_WAVE_RGB;u.display.key_display=XZ_SHELL_KEY_ALPHANUMERIC;u.zoom=5;
+  shot(&u,&m,"shortcut-runtime-focus-display");
+  memset(&m.settings,0,sizeof m.settings);
+  xz_shell_init(&u);
+  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_SHORTCUT,-1},out);
+  shot(&u,&m,"shortcut-runtime-nothing-read");
+ }
  return 0;
 }

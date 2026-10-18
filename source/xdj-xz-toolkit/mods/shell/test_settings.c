@@ -99,11 +99,19 @@ static void test_empty_and_unknown(void) {
   for(int screen=0;screen<2;screen++){
    open_screen(&u,&m,screen?XZ_SHELL_KEY_MENU_HOLD:XZ_SHELL_KEY_SHORTCUT,screen?XZ_SHELL_UTILITY:XZ_SHELL_SHORTCUT);
    render(&u,&m);
-   assert(turn(&u,&m,3)==0&&push(&u,&m)==0&&hold(&u,&m)==0&&tap(&u,&m,400,200)==0);
+   /* An empty table still lists what the shell supplies: its display items and the play model's settings. */
+   assert(turn(&u,&m,3)==0);
+   size_t n=push(&u,&m);
+   assert(n<=1&&(n==0||out[0].kind==XZ_SHELL_ACT_HAND_OFF||out[0].kind==XZ_SHELL_ACT_SET_SETTING));
+   assert(hold(&u,&m)==0);
    render(&u,&m);
-   assert(xz_shell_settings_back(&u,&m)==0);
+   if(screen){while(xz_shell_settings_back(&u,&m));}
    assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
   }
+  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
+  turn(&u,&m,3);assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
+  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_BLUE);
+  assert(u.display.wave_color==XZ_SHELL_WAVE_BLUE);
  }
  /* Wild items: NULL strings, bad counts and categories, out-of-range current. */
  static const char *const holes[]={NULL,"ON",NULL};
@@ -207,9 +215,15 @@ static void test_utility_encoder(void) {
  /* So do writable items when the runtime cannot set settings. */
  struct xz_shell_model no_set=m;no_set.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;
  open_screen(&u,&no_set,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
+ push(&u,&no_set);turn(&u,&no_set,8);assert(cursor_id(&u)==XZ_SHELL_ITEM_PLAY_MODE);
+ push(&u,&no_set);turn(&u,&no_set,1);
+ assert(push(&u,&no_set)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ /* Shell-owned display items need no capability: the shell applies them itself. */
+ open_screen(&u,&no_set,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
  turn(&u,&no_set,1);push(&u,&no_set);assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
  push(&u,&no_set);turn(&u,&no_set,-1);
- assert(push(&u,&no_set)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ assert(push(&u,&no_set)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_RGB);
+ assert(u.display.wave_color==XZ_SHELL_WAVE_RGB);
  /* A known value draws the blue dot; an unknown one draws none. */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
  turn(&u,&m,1);push(&u,&m);turn(&u,&m,2);assert(cursor_id(&u)==XZ_SHELL_ITEM_LCD_BRIGHTNESS);
@@ -306,7 +320,7 @@ static void test_shortcut(void) {
  assert(at(f,slot_of(0,0).x+1,slot_of(0,0).y+20)==rgb565(SH_BLUE)&&at(f,slot_of(0,1).x+1,slot_of(0,1).y+20)!=rgb565(SH_BLUE));
  assert(turn(&u,&m,1)==0&&cursor_id(&u)==XZ_SHELL_ITEM_BEAT_JUMP_BEAT);
  turn(&u,&m,3);assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
- turn(&u,&m,100);assert(cursor_id(&u)==XZ_SHELL_ITEM_VINYL_SPEED_ADJUST);
+ turn(&u,&m,100);assert(cursor_id(&u)==XZ_SHELL_ITEM_AUTO_CUE_LEVEL);
  f=render(&u,&m);assert(at(f,slot_of(3,3).x+1,slot_of(3,3).y+20)==rgb565(SH_BLUE));
  turn(&u,&m,-100);assert(cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
  /* Push on a read-only item hands off; on a writable one it steps to the next value, wrapping. */
@@ -314,43 +328,54 @@ static void test_shortcut(void) {
  turn(&u,&m,4);
  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==0&&out[0].deck==-1);
  /* Chip taps set that value; the current chip writes nothing; the label line only focuses. */
+ assert(u.display.wave_color==XZ_SHELL_WAVE_BLUE);
  assert(tap(&u,&m,chip_x(2,1,1,2),chip_y(2,1))==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_POSITION&&out[0].value==1);
- assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_POSITION);
- assert(tap(&u,&m,chip_x(2,1,0,2),chip_y(2,1))==0);
+ assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_POSITION&&u.display.wave_position==XZ_SHELL_POSITION_LEFT);
+ assert(tap(&u,&m,chip_x(2,1,1,2),chip_y(2,1))==0);
+ /* KEY DISPLAY and ZOOM are shell-owned too; zoom goes out as the ZOOM action. */
+ assert(tap(&u,&m,chip_x(2,2,2,3),chip_y(2,2))==1&&out[0].id==XZ_SHELL_ITEM_KEY_DISPLAY&&out[0].value==XZ_SHELL_KEY_ALPHANUMERIC&&u.display.key_display==XZ_SHELL_KEY_ALPHANUMERIC);
+ assert(tap(&u,&m,chip_x(2,3,6,7),chip_y(2,3))==1&&out[0].kind==XZ_SHELL_ACT_ZOOM&&out[0].value==6&&u.zoom==6);
  assert(tap(&u,&m,chip_x(3,1,1,2),slot_of(3,1).y+5)==0&&cursor_id(&u)==XZ_SHELL_ITEM_PLAY_MODE);
  assert(tap(&u,&m,chip_x(0,2,0,3),chip_y(0,2))==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD&&out[0].value==0);
  assert(tap(&u,&m,chip_x(0,1,5,8),chip_y(0,1))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
- f=render(&u,&m);assert(chip_fill(f,2,0,2,3)==rgb565(SH_BLUE));                /* 3BAND, writable */
- assert(chip_fill(f,0,1,5,8)==rgb565(XZ_FLAGSHIP_RAIL_SELECTED));             /* 16, read-only */
+ f=render(&u,&m);assert(chip_fill(f,2,0,0,3)==rgb565(SH_BLUE));                /* BLUE, shell-owned */
+ assert(chip_fill(f,0,1,0,8)==rgb565(SH_ROW_ALT)&&chip_fill(f,0,1,5,8)!=rgb565(SH_BLUE)); /* read-only: a flat value box, no chips */
  /* Device information reads only. */
  uint32_t cursor_before=(uint32_t)u.stack[1].cursor;
  assert(tap(&u,&m,slot_of(1,1).x+200,slot_of(1,1).y+20)==0&&(uint32_t)u.stack[1].cursor==cursor_before);
  /* The stepper (too many choices for chips) steps one value and stops at the ends. */
  fxs_item(XZ_SHELL_ITEM_AUTO_CUE_LEVEL)->writable=1;
- struct xz_shell_rect s=slot_of(3,2);
- assert(tap(&u,&m,s.x+20,chip_y(3,2))==0);
- assert(tap(&u,&m,s.x+s.w-20,chip_y(3,2))==1&&out[0].id==XZ_SHELL_ITEM_AUTO_CUE_LEVEL&&out[0].value==1);
- assert(tap(&u,&m,s.x+s.w/2,chip_y(3,2))==0);
+ struct xz_shell_rect s=slot_of(3,3);
+ assert(tap(&u,&m,s.x+20,chip_y(3,3))==0);
+ assert(tap(&u,&m,s.x+s.w-20,chip_y(3,3))==1&&out[0].id==XZ_SHELL_ITEM_AUTO_CUE_LEVEL&&out[0].value==1);
+ assert(tap(&u,&m,s.x+s.w/2,chip_y(3,3))==0);
  fxs_item(XZ_SHELL_ITEM_AUTO_CUE_LEVEL)->current=8;
- assert(tap(&u,&m,s.x+s.w-20,chip_y(3,2))==0);
- assert(tap(&u,&m,s.x+20,chip_y(3,2))==1&&out[0].value==7);
+ assert(tap(&u,&m,s.x+s.w-20,chip_y(3,3))==0);
+ assert(tap(&u,&m,s.x+20,chip_y(3,3))==1&&out[0].value==7);
  /* Without the capability every chip hands off. */
  struct xz_shell_model no_set=m;no_set.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;
  assert(tap(&u,&no_set,chip_x(3,0,1,2),chip_y(3,0))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
- f=render(&u,&no_set);assert(chip_fill(f,2,0,2,3)==rgb565(XZ_FLAGSHIP_RAIL_SELECTED));
+ f=render(&u,&no_set);assert(chip_fill(f,2,0,0,3)==rgb565(SH_BLUE)&&chip_fill(f,3,0,0,2)==rgb565(SH_ROW_ALT));
  /* Unknown values: nothing is chosen, push picks the first value. */
  model(&m);
  for(int i=0;i<FXS_COUNT;i++)fxs_table[i].known=0;
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
- f=render(&u,&m);assert(chip_fill(f,2,0,2,3)==rgb565(SH_ROW_ALT));
- turn(&u,&m,4);assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].value==0);
+ f=render(&u,&m);assert(chip_fill(f,3,0,0,2)==rgb565(SH_ROW_ALT)&&chip_fill(f,3,0,1,2)==rgb565(SH_ROW_ALT));
+ turn(&u,&m,8);assert(cursor_id(&u)==XZ_SHELL_ITEM_TIME_MODE);
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_TIME_MODE&&out[0].value==0);
  /* Missing items close up; the quadrant keeps its order. */
+ model(&m);
+ fxs_item(XZ_SHELL_ITEM_AUTO_CUE_LEVEL)->id=XZ_SHELL_ITEM_ID_END+5;
+ open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
+ turn(&u,&m,100);assert(cursor_id(&u)==XZ_SHELL_ITEM_VINYL_SPEED_ADJUST);   /* moved up into slot 3 */
+ /* An item the shell can read from the play model fills in when the table lacks it: BEAT JUMP from the
+    active deck, read only because the runtime cannot write it. */
  model(&m);
  fxs_item(XZ_SHELL_ITEM_BEAT_JUMP_BEAT)->id=XZ_SHELL_ITEM_ID_END+5;
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
- turn(&u,&m,1);assert(cursor_id(&u)==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD);
- assert(tap(&u,&m,chip_x(0,1,2,3),chip_y(0,1))==0);   /* HOT CUE AUTO LOAD moved up into slot 1; ON is current */
- assert(tap(&u,&m,chip_x(0,1,1,3),chip_y(0,1))==1&&out[0].id==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD&&out[0].value==1);
+ turn(&u,&m,1);assert(cursor_id(&u)==XZ_SHELL_ITEM_BEAT_JUMP_BEAT);
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
+ assert(tap(&u,&m,chip_x(0,1,5,8),chip_y(0,1))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
  /* Closing: the back button and SHORTCUT both return to the screen below. */
  model(&m);
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);

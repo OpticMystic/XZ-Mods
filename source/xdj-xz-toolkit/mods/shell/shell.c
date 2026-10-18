@@ -38,7 +38,8 @@ static int available(const struct xz_shell_model *m, enum xz_shell_screen s) {
 /* Navigation: screen x key -> transition (spec section 3.1).
    OPEN replaces everything above PLAY (list keys toggle against PLAY),
    PUSH layers over the current screen (INFO, SHORTCUT, UTILITY), POP goes up
-   one level, HOME to the top. */
+   one level, HOME to the top. A short MENU on PLAY does nothing, as on the
+   stock deck (held MENU opens UTILITY); on lists it is the stock popup. */
 enum nav_kind { NAV_NONE, NAV_OPEN, NAV_PUSH, NAV_POP, NAV_HOME, NAV_HAND_OFF, NAV_SETTING, NAV_TAG };
 /* A transition packs its kind in the low nibble and its screen or setting above it. */
 #define NAV(kind,arg) ((uint16_t)((kind)|((arg)<<4)))
@@ -54,7 +55,7 @@ enum nav_kind { NAV_NONE, NAV_OPEN, NAV_PUSH, NAV_POP, NAV_HOME, NAV_HAND_OFF, N
 #define LISTS OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE)
 static const uint16_t nav[XZ_SHELL_SCREEN_COUNT][XZ_SHELL_KEY_COUNT]={
  /*                     browse                 taglist                 playlist                search                 source                 info                shortcut                utility                 menu      back */
- [XZ_SHELL_PLAY]    =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,NONE),
+ [XZ_SHELL_PLAY]    =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),NONE,    NONE),
  [XZ_SHELL_BROWSE]  =ROW(HOME,                 OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,POP),
  [XZ_SHELL_PLAYLIST]=ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),HOME,                   OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,POP),
  [XZ_SHELL_TAG_LIST]=ROW(OPEN(XZ_SHELL_BROWSE),HOME,                   OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),HAND_OFF,POP),
@@ -99,6 +100,37 @@ void xz_shell_init(struct xz_shell *u) {
  memset(u,0,sizeof *u);
  u->stack[0].screen=XZ_SHELL_PLAY;u->depth=1;
  u->zoom=XZ_SHELL_ZOOM_DEFAULT;
+ u->display=(struct xz_shell_display){XZ_SHELL_WAVE_3BAND,XZ_SHELL_POSITION_CENTER,XZ_SHELL_KEY_AS_DECK};
+}
+int xz_shell_restore_setting(struct xz_shell *u, int id, int value) {
+ if(!u)return 0;
+ switch(id){
+ case XZ_SHELL_SET_WAVE_COLOR:if(value<XZ_SHELL_WAVE_BLUE||value>XZ_SHELL_WAVE_3BAND)return 0;u->display.wave_color=(enum xz_shell_wave_color)value;return 1;
+ case XZ_SHELL_SET_WAVE_POSITION:if(value!=XZ_SHELL_POSITION_CENTER&&value!=XZ_SHELL_POSITION_LEFT)return 0;u->display.wave_position=(enum xz_shell_wave_position)value;return 1;
+ case XZ_SHELL_ITEM_KEY_DISPLAY:if(value<XZ_SHELL_KEY_AS_DECK||value>XZ_SHELL_KEY_ALPHANUMERIC)return 0;u->display.key_display=(enum xz_shell_key_display)value;return 1;
+ case XZ_SHELL_ITEM_WAVE_ZOOM:if(value<0||value>XZ_SHELL_ZOOM_MAX)return 0;u->zoom=value;return 1;
+ default:return 0;
+ }
+}
+
+/* ---- mod header buttons, over every screen ---- */
+enum xz_shell_action_kind sh_header_hit(int x, int y) {
+ if(y<0||y>=XZ_SHELL_HEADER_HIT_H||x<XZ_SHELL_STEMS_X||x>=XZ_SHELL_WIDTH)return XZ_SHELL_ACT_NONE;
+ /* The 2 px gap between the buttons splits between them. */
+ return x<XZ_SHELL_MODS_X-1?XZ_SHELL_ACT_TOGGLE_STEMS:XZ_SHELL_ACT_OPEN_MODS;
+}
+static void header_button(struct xz_canvas c, int x, int w, const char *label, int lit) {
+ int h=XZ_SHELL_HEADER_BUTTON_H;
+ xz_rect(c,x,0,w,h,lit?SH_BLUE:XZ_FLAGSHIP_TILE);
+ xz_rect(c,x,h-1,w,1,SH_BLACK);
+ /* The flagship's quick-menu tiles carry an indicator bar under the label. */
+ xz_rect(c,x+8,h-5,w-16,2,lit?SH_WHITE:XZ_FLAGSHIP_RAIL_SELECTED);
+ sh_text_center(c,x+w/2,5,label,SH_SMALL,SH_WHITE);
+}
+void sh_header_buttons(const struct xz_shell_model *m, struct xz_canvas c) {
+ xz_rect(c,XZ_SHELL_HEADER_X-2,0,XZ_SHELL_WIDTH-XZ_SHELL_HEADER_X+2,XZ_SHELL_HEADER_BUTTON_H,SH_CHROME);
+ header_button(c,XZ_SHELL_STEMS_X,XZ_SHELL_STEMS_W,"STEMS",m->stems_known&&m->stems_on);
+ header_button(c,XZ_SHELL_MODS_X,XZ_SHELL_MODS_W,"MODS",0);
 }
 enum xz_shell_screen xz_shell_screen(const struct xz_shell *u) { return u->stack[u->depth-1].screen; }
 
@@ -159,6 +191,18 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
 }
 size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  if(!u||!m||!e||!out)return 0;
+ /* The header buttons sit over every screen and popup; the rest of their touch stays with them. */
+ if(e->kind==XZ_SHELL_TOUCH_DOWN){
+  enum xz_shell_action_kind hit=sh_header_hit(e->x,e->y);
+  if(hit!=XZ_SHELL_ACT_NONE){
+   u->down=1;u->down_region=XZ_SHELL_TOUCH_HEADER;
+   return emit(out,0,(struct xz_shell_action){hit,-1,0,0});
+  }
+ }
+ if((e->kind==XZ_SHELL_TOUCH_MOVE||e->kind==XZ_SHELL_TOUCH_UP)&&u->down&&u->down_region==XZ_SHELL_TOUCH_HEADER){
+  if(e->kind==XZ_SHELL_TOUCH_UP){u->down=0;u->down_region=XZ_SHELL_TOUCH_NONE;}
+  return 0;
+ }
  /* LOAD belongs only to list input; all other screens leave it inert. */
  if(e->kind==XZ_SHELL_KEY&&e->key==XZ_SHELL_KEY_LOAD&&lists_back[xz_shell_screen(u)])
   return screen_of(u)->input(u,m,e,out);
@@ -183,5 +227,7 @@ int xz_shell_render(const struct xz_shell *u, const struct xz_shell_model *m, ui
   xz_rect(c,200,140,400,200,SH_CHROME);xz_border(c,200,140,400,200,SH_RAIL);
   sh_text_center(c,400,230,"POPUP: DRAWN BY A LATER UNIT",SH_SMALL,SH_DIM);
  }
+ sh_notice(m,c);
+ sh_header_buttons(m,c);
  return 1;
 }

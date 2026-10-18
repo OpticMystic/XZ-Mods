@@ -96,7 +96,6 @@ static SurfaceStringFn original_surface_string;
 __attribute__((visibility("default"))) uint32_t xz_native_surface_style_proof_v1[8]={1};
 static IDirectFBSurface *primary_surface;
 static IDirectFB *directfb_interface;
-static int directfb_suspended;
 static int logged_overlay;
 static int primary_poll_started;
 static int listener_started;
@@ -107,6 +106,11 @@ static volatile uint32_t tick_count;
 static volatile uint32_t preview_draw_count;
 static volatile uint32_t preview_frame_count;
 static volatile uint32_t framebuffer_present_count;
+enum { VSYNC_PROBING, VSYNC_LOCKED, VSYNC_UNAVAILABLE };
+static volatile uint32_t vsync_state = VSYNC_UNAVAILABLE;
+static volatile uint32_t vsync_count;            /* blanks in the current stats window */
+static volatile uint32_t present_late_count;     /* present intervals over 20 ms in the window */
+static volatile uint32_t present_timer_ticks;    /* presenter ticks paced by the timer, not a blank */
 static struct timeval stats_window_started;
 static int framebuffer_presenter_started;
 static int primary_60hz_presenter_started;
@@ -119,6 +123,7 @@ static xz_mods_takeover_fn_v1 mods_takeover;
 static xz_mods_native_color_fn_v1 mods_native_color;
 static xz_mods_native_surface_color_fn_v1 mods_native_surface_color;
 static xz_mods_native_style_fn_v1 mods_native_style;
+static xz_mods_full_frame_fn_v1 mods_full_frame;
 static int (*mods_game_active)(void);
 static uint32_t vj_listener_ready;
 static uint32_t vj_discovery_ready;
@@ -286,6 +291,7 @@ static void resolve_mods_bridge(void) {
     mods_native_color = (xz_mods_native_color_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_color_v1");
     mods_native_surface_color = (xz_mods_native_surface_color_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_surface_color_v1");
     mods_native_style = (xz_mods_native_style_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_style_v1");
+    mods_full_frame = (xz_mods_full_frame_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_full_frame_v1");
 }
 
 static int mods_panel_visible(void) {
@@ -499,7 +505,7 @@ static void write_runtime_stats_if_due(void) {
     length = snprintf(
         line,
         sizeof(line),
-        "window_ms=%ld flip_hz=%.1f framebuffer_present_hz=%.1f present_interval_min_ms=%.2f present_interval_max_ms=%.2f preview_draw_hz=%.1f preview_frame_hz=%.1f filmstrip_draw_hz=%.1f tick_hz=%.1f preview=%ux%u asset=%ux%u scroll=%.2f\n",
+        "window_ms=%ld flip_hz=%.1f framebuffer_present_hz=%.1f present_interval_min_ms=%.2f present_interval_max_ms=%.2f preview_draw_hz=%.1f preview_frame_hz=%.1f filmstrip_draw_hz=%.1f tick_hz=%.1f preview=%ux%u asset=%ux%u scroll=%.2f vsync=%s vsync_hz=%.1f present_late=%u timer_ticks=%u\n",
         elapsed_ms,
         (double)flip_count * 1000.0 / (double)elapsed_ms,
         (double)framebuffer_present_count * 1000.0 / (double)elapsed_ms,
@@ -513,7 +519,11 @@ static void write_runtime_stats_if_due(void) {
         preview_height,
         asset_width,
         asset_height,
-        latest_scroll_px_f
+        latest_scroll_px_f,
+        vsync_state == VSYNC_LOCKED ? "locked" : vsync_state == VSYNC_PROBING ? "probing" : "off",
+        (double)vsync_count * 1000.0 / (double)elapsed_ms,
+        present_late_count,
+        present_timer_ticks
     );
     if (length < 0) return;
     if ((size_t)length >= sizeof(line)) length = (int)sizeof(line) - 1;
@@ -528,6 +538,9 @@ static void write_runtime_stats_if_due(void) {
     preview_draw_count = 0;
     preview_frame_count = 0;
     framebuffer_present_count = 0;
+    vsync_count = 0;
+    present_late_count = 0;
+    present_timer_ticks = 0;
     present_interval_min_ms = 0.0f;
     present_interval_max_ms = 0.0f;
     stats_window_started = now;
@@ -634,6 +647,11 @@ static int render_mods(uint16_t *pixels, uint32_t width, uint32_t height, uint32
 
 static const uint8_t *composite_for_present(void) {
     if (mods_render) {
+        /* A full-frame renderer (the FLAGSHIP shell) overwrites every pixel: skip the 768 KB base copy. */
+        if (mods_full_frame && mods_full_frame()) {
+            if (render_mods(mods_present_frame, 800, 480, 800)) return (const uint8_t *)mods_present_frame;
+            if (mods_panel_visible()) return NULL;
+        }
         memcpy(mods_present_frame, composite_frame, sizeof(composite_frame));
         if (render_mods(mods_present_frame, 800, 480, 800))
             return (const uint8_t *)mods_present_frame;
@@ -850,6 +868,118 @@ static void draw_composite_frame(void) {
     }
 }
 
+/* ---- vertical blank ----
+ * The i.MX framebuffer driver answers MXCFB_WAIT_FOR_VSYNC (FBIO_WAITFORVSYNC) by sleeping until the
+ * display's next vertical blank and fails with a timeout when none comes. A helper thread sits in that
+ * call and publishes each blank; the presenter wakes on it. The helper proves the cadence before the
+ * presenter trusts it (30 intervals of 12-22 ms in a row), gives up on errors or on a call that returns
+ * without waiting, and the presenter falls back to a drift-free 16.667 ms timer whenever no blank
+ * arrives within 40 ms. XZ_PRESENT_VSYNC=0 keeps the timer only. */
+static pthread_mutex_t vsync_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t vsync_cond = PTHREAD_COND_INITIALIZER;
+static volatile uint32_t vsync_sequence;
+
+static uint64_t monotonic_us(void) {
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    return (uint64_t)now.tv_sec * 1000000u + (uint64_t)now.tv_usec;
+}
+
+static void *vsync_waiter(void *argument) {
+    int fd = (int)(intptr_t)argument;
+    int good = 0, failures = 0, instant = 0;
+    uint64_t last = 0;
+    {
+        struct sched_param scheduling = { .sched_priority = 21 };
+        cpu_set_t affinity;
+        CPU_ZERO(&affinity);
+        CPU_SET(3, &affinity);
+        pthread_setschedparam(pthread_self(), SCHED_FIFO, &scheduling);
+        pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
+    }
+    for (;;) {
+        uint32_t zero = 0;
+        int result = ioctl(fd, MXCFB_WAIT_FOR_VSYNC, &zero);
+        uint64_t now = monotonic_us();
+        if (result < 0) {
+            if (errno == EINTR) continue;
+            if (++failures >= 5) break;
+            good = 0;
+            last = 0;
+            continue;
+        }
+        failures = 0;
+        if (last) {
+            uint64_t interval = now - last;
+            if (interval < 4000u) {
+                /* A call that does not wait would spin; three in a row end the helper. */
+                if (++instant >= 3) break;
+            } else {
+                instant = 0;
+                if (interval >= 12000u && interval <= 22000u) {
+                    if (good < 30 && ++good == 30) {
+                        __atomic_store_n(&vsync_state, VSYNC_LOCKED, __ATOMIC_RELEASE);
+                        log_line("PRESENTER_VSYNC_LOCKED");
+                    }
+                }
+            }
+        }
+        last = now;
+        pthread_mutex_lock(&vsync_mutex);
+        vsync_sequence += 1;
+        vsync_count += 1;
+        pthread_cond_broadcast(&vsync_cond);
+        pthread_mutex_unlock(&vsync_mutex);
+    }
+    __atomic_store_n(&vsync_state, VSYNC_UNAVAILABLE, __ATOMIC_RELEASE);
+    log_line("PRESENTER_VSYNC_UNAVAILABLE timer pacing");
+    return NULL;
+}
+
+static void vsync_start(int fd) {
+    const char *setting = getenv("XZ_PRESENT_VSYNC");
+    pthread_t thread;
+    if (setting && strcmp(setting, "0") == 0) {
+        log_line("PRESENTER_VSYNC_DISABLED");
+        return;
+    }
+    __atomic_store_n(&vsync_state, VSYNC_PROBING, __ATOMIC_RELEASE);
+    if (pthread_create(&thread, NULL, vsync_waiter, (void *)(intptr_t)fd) == 0) pthread_detach(thread);
+    else __atomic_store_n(&vsync_state, VSYNC_UNAVAILABLE, __ATOMIC_RELEASE);
+}
+
+/* Returns at the next vertical blank when the blank is proven, else on a fixed 60 Hz timeline that
+ * does not drift with the work done in each tick. */
+static void presenter_wait(uint64_t *deadline_us) {
+    if (__atomic_load_n(&vsync_state, __ATOMIC_ACQUIRE) == VSYNC_LOCKED) {
+        uint32_t seen;
+        struct timeval now;
+        struct timespec until;
+        int woke = 0;
+        pthread_mutex_lock(&vsync_mutex);
+        seen = vsync_sequence;
+        gettimeofday(&now, NULL);
+        long ns = now.tv_usec * 1000L + 40000000L;
+        until.tv_sec = now.tv_sec + ns / 1000000000L;
+        until.tv_nsec = ns % 1000000000L;
+        while (vsync_sequence == seen) {
+            if (pthread_cond_timedwait(&vsync_cond, &vsync_mutex, &until) != 0) break;
+        }
+        woke = vsync_sequence != seen;
+        pthread_mutex_unlock(&vsync_mutex);
+        if (woke) {
+            *deadline_us = monotonic_us() + 16667u;
+            return;
+        }
+    }
+    present_timer_ticks += 1;
+    uint64_t now = monotonic_us();
+    /* Resynchronise after an overrun, and after a wall-clock step in either direction. */
+    if (!*deadline_us || now > *deadline_us + 16667u || *deadline_us > now + 2u * 16667u) *deadline_us = now;
+    *deadline_us += 16667u;
+    if (*deadline_us > now) usleep((useconds_t)(*deadline_us - now));
+}
+
 static void *framebuffer_presenter(void *unused) {
     int fd;
     struct fb_fix_screeninfo fix;
@@ -888,57 +1018,46 @@ static void *framebuffer_presenter(void *unused) {
         return NULL;
     }
     log_line("FRAMEBUFFER_BG_SCANOUT_PRESENTER_STARTED target_hz=60 mode=800x480x1");
+    vsync_start(fd);
+    /* Present, then prepare. Each tick copies the frame prepared on the previous tick into scanout right
+     * after the vertical blank (the copy outruns the beam, so it never tears), then composes and renders
+     * the next frame, which has until the next blank to finish. A frame's render time therefore never
+     * moves its present instant, and the renderer's clock is a fixed one-period ahead of what is shown. */
+    const uint8_t *prepared = NULL;
+    uint64_t deadline_us = 0;
     for (;;) {
-        struct timeval started;
-        struct timeval finished;
-        long elapsed_us;
-        gettimeofday(&started, NULL);
+        presenter_wait(&deadline_us);
         int overlay_enabled = overlay_is_active();
         if (overlay_enabled && diagnostic_background_begin(overlay_enabled)) {
-            if (0 && !directfb_suspended && directfb_interface) {
-                directfb_interface->WaitIdle(directfb_interface);
-                if (directfb_interface->Suspend(directfb_interface) == DFB_OK) {
-                    directfb_suspended = 1;
-                    log_line("DIRECTFB_SUSPENDED_FOR_EXCLUSIVE_SCANOUT");
-                } else {
-                    log_line("ERROR DirectFB suspend failed");
+            if (prepared) {
+                struct timeval started;
+                gettimeofday(&started, NULL);
+                if (last_present_started.tv_sec != 0) {
+                    float interval_ms = (float)((started.tv_sec - last_present_started.tv_sec) * 1000L) +
+                                        (float)(started.tv_usec - last_present_started.tv_usec) / 1000.0f;
+                    if (interval_ms >= 0.0f && interval_ms < 1000.0f) {
+                        if (present_interval_min_ms == 0.0f || interval_ms < present_interval_min_ms) present_interval_min_ms = interval_ms;
+                        if (interval_ms > present_interval_max_ms) present_interval_max_ms = interval_ms;
+                        if (interval_ms > 20.0f) present_late_count += 1;
+                    }
                 }
-            }
-            if (last_present_started.tv_sec != 0) {
-                float interval_ms = (float)((started.tv_sec - last_present_started.tv_sec) * 1000L) +
-                                    (float)(started.tv_usec - last_present_started.tv_usec) / 1000.0f;
-                if (interval_ms >= 0.0f && interval_ms < 1000.0f) {
-                    if (present_interval_min_ms == 0.0f || interval_ms < present_interval_min_ms) present_interval_min_ms = interval_ms;
-                    if (interval_ms > present_interval_max_ms) present_interval_max_ms = interval_ms;
-                }
-            }
-            last_present_started = started;
-            draw_composite_frame();
-            const uint8_t *present_frame = composite_for_present();
-            if (present_frame) {
+                last_present_started = started;
                 for (int row = 0; row < 480; ++row) {
                     memcpy(
                         mapping + (size_t)row * fix.line_length,
-                        present_frame + (size_t)row * 1600u,
+                        prepared + (size_t)row * 1600u,
                         1600u
                     );
                 }
                 framebuffer_present_count += 1;
             }
+            draw_composite_frame();
+            prepared = composite_for_present();
             write_runtime_stats_if_due();
             diagnostic_background_end();
-        } else if (0 && directfb_suspended && directfb_interface) {
-            if (directfb_interface->Resume(directfb_interface) == DFB_OK) {
-                directfb_suspended = 0;
-                log_line("DIRECTFB_RESUMED_AFTER_EXCLUSIVE_SCANOUT");
-            } else {
-                log_line("ERROR DirectFB resume failed");
-            }
+        } else {
+            prepared = NULL;
         }
-        gettimeofday(&finished, NULL);
-        elapsed_us = (finished.tv_sec - started.tv_sec) * 1000000L +
-                     (finished.tv_usec - started.tv_usec);
-        if (elapsed_us < 16667) usleep((useconds_t)(16667 - elapsed_us));
     }
     munmap(mapping, mapping_length);
     close(fd);
