@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.13",
+      "date": "2026-10-18",
+      "preview": true,
+      "features": [
+        "When the app finishes writing to your USB it offers Eject USB, so you can unplug it straight away.",
+        "Tick \"Eject the USB when writing finishes\" and the app ejects it by itself after every write. The choice is remembered on this computer."
+      ],
+      "fixes": [
+        "Choosing a USB now shows \"Reading the USB\" with a spinner the moment you click, instead of a pause with no sign anything happened."
+      ],
+      "requirements": [
+        "Same USB loader and runtime as Preview.12. Updating this app does not change the loader on your USB."
+      ]
+    },
+    {
       "version": "0.3.0-preview.12",
       "date": "2026-10-18",
       "preview": true,

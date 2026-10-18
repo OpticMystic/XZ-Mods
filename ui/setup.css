@@ -449,3 +449,17 @@ details.wz-custom[open]>summary{margin-bottom:0;border-bottom:1px solid #1f2324}
 .wz-build-option select{grid-column:2;padding:7px 8px;font-size:12px}
 .wz-build-pin{margin:0;font-size:12px;color:#c3c9c5}
 .wz-build-note{margin:0;color:#b6e2bb;font-size:12px}
+/* A chosen USB shows it is being read from the moment of the click; the other cards wait. */
+.wz-usb[data-state=opening]{border-color:var(--yellow);background:#14160f;cursor:progress}
+.wz-usb[data-state=waiting]{opacity:.45}
+.wz-usb:disabled{cursor:not-allowed}
+.wz-opening{color:#fff98a;font-size:13px;font-weight:550;white-space:nowrap}
+.wz-usb .wz-spinner.wz-go{justify-self:center;width:18px;height:18px}
+/* Eject: the remembered choice under the write button, the button and its outcome on the done step. */
+.wz-eject-auto{margin:4px 0 0;font-size:13px;color:#d5d9d6}
+.wz-eject-auto>span{display:grid;gap:2px}.wz-eject-auto small{color:var(--muted);font-size:12px}
+.wz-eject{display:inline-flex;align-items:center;gap:8px}.wz-eject .icon{width:16px;height:16px}
+.wz-spinner-dark{border-color:#6b6a1c;border-top-color:#181a02}
+.wz-ejected{display:flex;align-items:center;gap:8px;margin:0;padding:12px 14px;border:1px solid #2f6b3d;border-radius:8px;background:#121a14;color:#cfe9d5;font-weight:550}
+.wz-ejected .icon{width:18px;height:18px;color:#6fd389}
+.wz-eject-error{margin:0}
