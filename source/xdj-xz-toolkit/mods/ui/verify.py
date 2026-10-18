@@ -29,6 +29,7 @@ with tempfile.TemporaryDirectory(prefix='xz-ui-test-') as folder:
         'native-title-contrast': ['test_native_title_contrast.c'],
         'native-title-theme': ['test_native_title_theme.c'],
         'native-lcars-assets': ['test_native_lcars_assets.c'],
+        'native-flagship-assets': ['test_native_flagship_assets.c'],
         'native-window-keys': ['test_native_window_keys.c'],
         'native-led': ['native_led.c','test_native_led.c'],
         'pad-order': [*UI_SOURCES, 'stem_pads.c', 'test_pad_order.c'],

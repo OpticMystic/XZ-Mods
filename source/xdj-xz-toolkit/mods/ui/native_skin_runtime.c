@@ -3,6 +3,7 @@
 #include "../key/browser.h"
 #include "native_palette.h"
 #include "native_lcars_wave.h"
+#include "native_flagship_wave.h"
 #include "native_wave_style.h"
 #include "native_asset_theme.h"
 #include "native_asset_view.h"
@@ -169,6 +170,7 @@ void xz_native_skin_wave_pixels(uint16_t *pixels,unsigned width,unsigned height,
  if(!pixels||!((width==536&&height==268&&deck==-1)||(width==300&&height==34&&(deck==0||deck==1))))return;
  const uint16_t *lut=active_map();if(!lut)return;
  if(current_theme()==XZ_THEME_LCARS&&active_snapshot->wave_lut)xz_lcars_wave_mapped(pixels,width,height,width,deck,lut,active_snapshot->wave_lut);
+ else if(current_theme()==XZ_THEME_FLAGSHIP&&active_snapshot->wave_lut)xz_flagship_wave_mapped(pixels,width,height,width,deck,lut,active_snapshot->wave_lut);
  else if(active_snapshot->wave_lut){
   xz_native_wave_style_apply(pixels,width,height,width,deck,lut,active_snapshot->wave_lut,NULL);
   INC(pixels);
@@ -254,7 +256,7 @@ static uint32_t image_hook(void *core,const void *descriptor,const void *point){
   uint32_t asset_offset=xz_asset_u32((const unsigned char*)descriptor+12)-original_base;unsigned asset_id=0,asset_hi=PACK_COUNT;
   while(asset_id<asset_hi){unsigned mid=asset_id+(asset_hi-asset_id)/2;if(xz_asset_u32(original_pack+mid*44+32)<asset_offset)asset_id=mid+1;else asset_hi=mid;}
   if(xz_native_title_deck(asset_id,xz_asset_u16(local+4),xz_asset_u16(local+6))>=0)native_title_record_core(core,asset_id);
-  owned_mask=s->theme==XZ_THEME_LCARS&&xz_lcars_asset_owned(asset_id,xz_asset_u16(local+4),xz_asset_u16(local+6));
+  owned_mask=xz_native_asset_owned(s->theme,asset_id,xz_asset_u16(local+4),xz_asset_u16(local+6));
   int deck=s->theme==XZ_THEME_LCARS?native_title_deck_for_core(core):-1;
   if(s->theme==XZ_THEME_LCARS&&point){
    uint32_t cw,ch;memcpy(&cw,core,4);memcpy(&ch,(unsigned char*)core+4,4);memcpy(placed,point,8);
@@ -268,14 +270,14 @@ static uint32_t image_hook(void *core,const void *descriptor,const void *point){
    }
   }
   int state=xz_native_window_key(surface,&key);
-  if(state<0||(s->theme==XZ_THEME_LCARS&&xz_lcars_asset_owned(asset_id,xz_asset_u16(local+4),xz_asset_u16(local+6))&&!xz_lcars_mask_allowed(xz_asset_u32(local+24),state,key)))mapped=0;
+  if(state<0||(owned_mask&&!xz_lcars_mask_allowed(xz_asset_u32(local+24),state,key)))mapped=0;
   else if((state>0&&key!=0xf81f)||deck==1){
    unsigned width=xz_asset_u16(local+4),height=xz_asset_u16(local+6);size_t count=(size_t)width*height;
    if(count>800u*480u)mapped=0;
    else{
     uint32_t offset=xz_asset_u32((const unsigned char*)descriptor+12)-original_base;
     const uint16_t *source=(const uint16_t*)(original_pack+offset),*themed=(const uint16_t*)(s->pack+offset);
-    int owned=s->theme==XZ_THEME_LCARS&&xz_lcars_asset_owned(asset_id,(int)width,(int)height);
+    int owned=xz_native_asset_owned(s->theme,asset_id,(int)width,(int)height);
     for(size_t i=0;i<count;i++){
      uint16_t p=xz_lcars_deck_tint(themed[i],deck);
      keyed_image[i]=state>0&&source[i]==key&&!owned?key:state>0&&p==key&&themed[i]!=key?(uint16_t)(key^1):p;
@@ -398,6 +400,7 @@ static struct skin_snapshot *prepare(int theme,unsigned generation){
  s->lut=malloc(65536u*sizeof(*s->lut));s->pack=malloc(pack_size);
  if(!s->lut||!s->pack){free_snapshot(s);return NULL;}
  if(theme==XZ_THEME_LCARS){s->wave_lut=malloc(2u*65536u*sizeof(*s->wave_lut));if(!s->wave_lut){free_snapshot(s);return NULL;}xz_lcars_wave_maps(s->wave_lut);}
+ else if(theme==XZ_THEME_FLAGSHIP){s->wave_lut=malloc(65536u*sizeof(*s->wave_lut));if(!s->wave_lut){free_snapshot(s);return NULL;}xz_flagship_wave_maps(s->wave_lut);}
  else if(xz_native_wave_style_has_paper(theme)){
   s->wave_lut=malloc(65536u*sizeof(*s->wave_lut));
   if(!s->wave_lut){free_snapshot(s);return NULL;}

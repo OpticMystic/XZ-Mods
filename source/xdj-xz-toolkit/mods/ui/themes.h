@@ -6,10 +6,11 @@
 
 /* Theme ids are persisted on users' USB sticks as theme=N. Existing ids keep
    their meaning forever; new themes append. A light/dark pair shares a family. */
-#define XZ_THEME_COUNT 24
+#define XZ_THEME_COUNT 25
 #define XZ_THEME_LCARS 21
 #define XZ_THEME_MATRIX 22
 #define XZ_THEME_ANALOG 23
+#define XZ_THEME_FLAGSHIP 24
 struct xz_theme_palette { uint32_t bg,ink,accent,alarm,stem[3]; };
 enum xz_theme_chrome { XZ_CHROME_FLAT, XZ_CHROME_GB_LCD, XZ_CHROME_DMG_SHELL, XZ_CHROME_SNES_PAD, XZ_CHROME_RPG_WINDOW,
                        XZ_CHROME_WIN95, XZ_CHROME_GBC_BOX, XZ_CHROME_AQUA, XZ_CHROME_GLASS };
@@ -21,6 +22,7 @@ enum xz_theme_role { XZ_THEME_BUTTON, XZ_THEME_PANEL, XZ_THEME_HEADER, XZ_THEME_
 #include "theme_lcars.h"
 #include "theme_matrix.h"
 #include "theme_analog.h"
+#include "theme_flagship.h"
 struct xz_theme {
  const char *name;
  uint8_t family,dark;
@@ -94,7 +96,8 @@ static inline const struct xz_theme *xz_theme(int theme) {
   .tones={0x242338,0x172b40,0x183332,0x302333}},
  {XZ_THEME_LCARS_NAME,14,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,XZ_THEME_LCARS_PALETTE,.face=0},
  {XZ_THEME_MATRIX_NAME,15,1,XZ_CHROME_FLAT,XZ_FONT_PIXEL,XZ_PATTERN_NONE,XZ_MAP_RAMP,XZ_THEME_MATRIX_PALETTE,.face=0},
- {XZ_THEME_ANALOG_NAME,16,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,XZ_THEME_ANALOG_PALETTE,.face=0}
+ {XZ_THEME_ANALOG_NAME,16,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,XZ_THEME_ANALOG_PALETTE,.face=0},
+ {XZ_THEME_FLAGSHIP_NAME,17,1,XZ_CHROME_FLAT,XZ_FONT_ATLAS,XZ_PATTERN_NONE,XZ_MAP_RAMP,XZ_THEME_FLAGSHIP_PALETTE,.face=0}
  };
  return &table[xz_theme_id(theme)];
 }
@@ -300,6 +303,7 @@ static inline void xz_theme_frame(struct xz_theme_surface s,int theme,struct xz_
  if(theme==XZ_THEME_LCARS){xz_theme_lcars_frame(s,r,fill,selected,role);return;}
  if(theme==XZ_THEME_MATRIX){xz_theme_matrix_frame(s,r,fill,selected,role);return;}
  if(theme==XZ_THEME_ANALOG){xz_theme_analog_frame(s,r,fill,selected,role);return;}
+ if(theme==XZ_THEME_FLAGSHIP){xz_theme_flagship_frame(s,r,fill,selected,role);return;}
  switch(t->chrome){
  case XZ_CHROME_GB_LCD:xz_theme_frame_gb_lcd(s,t,r,selected,role);return;
  case XZ_CHROME_DMG_SHELL:xz_theme_frame_dmg(s,t,r,selected,role);return;

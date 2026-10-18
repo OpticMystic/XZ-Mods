@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Preview.12 adds theme 24, FLAGSHIP: the stock play screen restyled through the native asset, LUT, sprite and waveform-map hooks in the visual language of the current flagship club players (black page, `#191919` chrome, `#007de1` selection, `#ff4619` tempo/quantize, three-band blue/amber/cream waves, outlined caption boxes), plus a MODS skin modelled on their UTILITY and browse chrome (category rail, value rows, radio choices, DECK tags, hot-cue pad chips, beat-loop strip). Measured spec: VJToolsLibrary `docs/research/2026-10-18-cdj3000-xdj-az-ui.md`. Portable UI, native asset and ARM ABI checks pass; physical acceptance on the XZ is pending.
+
 - Live Streamer adds an experimental full-resolution 8-bit RGB332 mode: each controller frame is 384,000 bytes with a fixed 256-color palette and no RLE/delta work. The original 16-bit stream remains selectable, older loaders retain their working stream with an Update USB loader action, and the privacy logo recognizes the quantized screen. Hardware performance qualification remains separate from host tests.
 
 - Live Streamer allows busy controller captures to finish within a bounded five-second receive/stall budget. Its lag guard compares delivery with capture/encoding completion, so variable XZ processing time no longer forces a network reconnect. Closed sockets still clear the picture immediately.

@@ -4,11 +4,21 @@
 #include "native_asset_roles.h"
 #include "native_main_theme.h"
 #include "native_lcars_assets.h"
+#include "native_flagship_assets.h"
 #include "native_glass_theme.h"
 #include "native_retro_theme.h"
 #include <stdint.h>
 #include <stddef.h>
 
+/* Themes that replace a sprite's artwork and alpha mask together. The run-time
+   image hook keys these through the explicit magenta mask descriptor. */
+static inline int xz_native_asset_owned(int theme,unsigned id,int width,int height){
+ return (theme==XZ_THEME_LCARS&&xz_lcars_asset_owned(id,width,height))||
+  (theme==XZ_THEME_FLAGSHIP&&xz_flagship_asset_owned(id,width,height));
+}
+static inline int xz_native_asset_owned_draw(unsigned id,int theme,struct xz_theme_surface s){
+ return xz_lcars_asset_draw(id,theme,s)||xz_flagship_asset_draw(id,theme,s);
+}
 /* A caller-owned private RGB565 copy. Strides/capacity are measured in pixels.
    Source must cover its declared rows. Destination must not overlap source.
    The LUT belongs to the caller and must contain all 65536 entries.
@@ -45,8 +55,8 @@ static inline int xz_native_asset_theme_render(
    if(source[y*source_stride+x]==key565)dest[y*dest_stride+x]=key565;
   return 2;
  }
- if(theme==XZ_THEME_LCARS&&xz_lcars_asset_owned(asset_id,width,height)){
-  if(key_enabled&&key565==0xf81f){xz_lcars_asset_draw(asset_id,theme,main_surface);return 2;}
+ if(xz_native_asset_owned(theme,asset_id,width,height)){
+  if(key_enabled&&key565==0xf81f){xz_native_asset_owned_draw(asset_id,theme,main_surface);return 2;}
   return 1;
  }
  if(xz_native_main_art(asset_id,theme,role,main_surface,width,height)){
