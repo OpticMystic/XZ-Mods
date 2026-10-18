@@ -11,7 +11,7 @@ const FLOWS={
   games:{title:'Add games',loader:'keep'}
 };
 const POLL_MS=2000;
-const W={view:'find',flow:null,step:null,usbs:null,finding:false,usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,result:null,
+const W={view:'find',flow:null,step:null,usbs:null,finding:false,opening:null,eject:null,usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,result:null,
   changesOpen:false,changesAll:false,gamesOpen:false,filesOpen:false};
 const host=$('wiz'),listeners=[];
 // Every run started here reports beside this one node, which survives re-renders.
@@ -114,21 +114,30 @@ function shown(){
   render();
 }
 // A queued choice never pulls the DJ out of a write flow they started in the meantime.
+// W.opening marks the card busy from the click itself: the read may first wait for a background USB scan,
+// and the read is a quiet job, so without it nothing on screen would change for several seconds.
 async function chooseUsb(volume,origin=jobSlot){
-  await ready();
-  if(W.view==='flow')return;
-  const response=await run({method:'inspect_usb',volume},'Reading the USB',origin,()=>{});
-  if(!response?.ok){if(response&&!response.cancelled)showError('The USB could not be read. '+(response.error||'Reconnect it and choose it again.'),origin);return;}
-  if(W.view==='flow')return;
-  open(volume,response.result);
-  await followNewest();
+  if(W.opening)return;
+  W.opening=volume;render();
+  try{
+    await ready();
+    if(W.view==='flow')return;
+    const response=await run({method:'inspect_usb',volume},'Reading the USB',origin,()=>{});
+    if(!response?.ok){if(response&&!response.cancelled)showError('The USB could not be read. '+(response.error||'Reconnect it and choose it again.'),origin);return;}
+    if(W.view==='flow')return;
+    W.opening=null;
+    open(volume,response.result);
+    await followNewest();
+  }finally{
+    if(W.opening===volume){W.opening=null;render();}
+  }
 }
 function open(volume,inspection){
   if(W.flow?.steps.includes('profile'))window.djProfilePage?.discard();
   dismissed=null;
   startState(inspection);
   renderUsb(inspection);
-  go({view:'device',flow:null,step:null,usb:volume,inspection,loader:'auto',result:null,changesOpen:false,changesAll:false,gamesOpen:false,filesOpen:false});
+  go({view:'device',flow:null,step:null,usb:volume,inspection,loader:'auto',result:null,eject:null,changesOpen:false,changesAll:false,gamesOpen:false,filesOpen:false});
 }
 async function pickFolder(){
   if(!invoke){showError('Open the desktop app to choose a USB.',jobSlot);return;}
@@ -183,13 +192,19 @@ async function followNewest(){
 
 function usbCard(item){
   const chips=[item.loader?'XZ Mods installed':'No XZ Mods yet',item.rekordbox?'Rekordbox USB':null].filter(Boolean);
-  return el('button',{type:'button',class:'wz-usb',onclick:event=>chooseUsb(item.volume,host.contains(event.currentTarget)?jobSlot:event.currentTarget)},
+  const opening=W.opening===item.volume,waiting=Boolean(W.opening)&&!opening;
+  return el('button',{type:'button',class:'wz-usb',dataset:{state:opening?'opening':waiting?'waiting':null},'aria-busy':opening?'true':null,disabled:waiting?true:null,
+      onclick:event=>chooseUsb(item.volume,host.contains(event.currentTarget)?jobSlot:event.currentTarget)},
     el('span',{class:'wz-usb-icon'},icon('usb')),
     el('span',{class:'wz-usb-text'},el('strong',{text:item.label}),el('small',{text:item.volume+(item.removable?'':' · not a removable drive')})),
-    el('span',{class:'wz-chips'},...chips.map((text,index)=>el('span',{class:'wz-chip',dataset:{tone:index===0&&item.loader?'on':null},text}))),
-    icon('chevron','wz-go'));
+    opening?el('span',{class:'wz-opening',role:'status',text:'Reading the USB…'}):
+      el('span',{class:'wz-chips'},...chips.map((text,index)=>el('span',{class:'wz-chip',dataset:{tone:index===0&&item.loader?'on':null},text}))),
+    opening?el('span',{class:'wz-spinner wz-go','aria-hidden':'true'}):icon('chevron','wz-go'));
 }
 function quietActions(){
+  // A folder, or a USB not in the list, being opened has no card to show it on.
+  if(W.opening&&!W.usbs?.some(item=>item.volume===W.opening))
+    return el('div',{class:'wz-quiet'},el('span',{class:'wz-looking',role:'status'},el('span',{class:'wz-spinner','aria-hidden':'true'}),'Reading '+W.opening+'…'));
   return el('div',{class:'wz-quiet'},
     W.finding?el('span',{class:'wz-looking',role:'status'},el('span',{class:'wz-spinner','aria-hidden':'true'}),'Looking…'):
       el('button',{type:'button',class:'text-button',id:'wz-look',text:'Look again',onclick:()=>lookForUsbs(true)}),
@@ -289,6 +304,35 @@ function viewDevice(){
       el('summary',{text:'Show every file on this USB'}),tree()));
 }
 
+// --- eject ---
+
+// The choice to eject on finish is remembered on this computer; it starts off.
+const EJECT_KEY='xz-eject-after-write';
+function ejectAfterWrite(){try{return localStorage.getItem(EJECT_KEY)==='1';}catch{return false;}}
+function setEjectAfterWrite(on){try{localStorage.setItem(EJECT_KEY,on?'1':'0');}catch{}render();}
+// Only a real drive in the desktop app can be ejected; a chosen folder cannot.
+function canEject(){return Boolean(invoke)&&Boolean(W.usb)&&!W.inspection?.requires_copy_to_usb_root;}
+function ejectChoice(later=false){
+  if(!canEject())return null;
+  return el('label',{class:'check wz-eject-auto'},
+    el('input',{type:'checkbox',id:'wz-eject-auto',checked:ejectAfterWrite()?true:null,onchange:event=>setEjectAfterWrite(event.target.checked)}),
+    el('span',{},el('span',{text:later?'Eject the USB by itself next time':'Eject the USB when writing finishes'}),el('small',{text:'Then you can unplug it and take it straight to the XZ.'})));
+}
+async function ejectUsb(){
+  if(!canEject()||W.eject?.state==='ejecting'||W.eject?.state==='done')return;
+  await idle();
+  W.eject={state:'ejecting'};render();
+  try{await invoke('eject_volume',{volume:W.usb});W.eject={state:'done'};}
+  catch(error){W.eject={state:'error',message:String(error)};}
+  render();
+}
+// After an eject the USB is gone, so Done goes back to finding one.
+function afterEject(){
+  dismissed=null;
+  go({view:'find',usb:null,inspection:null,flow:null,step:null,result:null,eject:null,usbs:null});
+  lookForUsbs(false);
+}
+
 // --- flow ---
 
 function startFlow(kind,{profile=false,gamesOpen=false}={}){
@@ -381,16 +425,17 @@ function stepReview(){
     nothing?el('p',{class:'notice',role:'status',text:'Nothing to write yet. Add a game or a DJ profile, or cancel.'}):null,
     W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy the finished autoexec.bin to the USB afterward.'}):null,
     safeLine(),
+    ejectChoice(),
     el('div',{class:'actions wz-nav-write'},
       el('button',{type:'button',class:'primary',id:'wz-write',disabled:nothing?true:null,text:'Write to USB',onclick:startWrite}),
       el('button',{type:'button',class:'secondary',text:'Back',onclick:previous})),
     jobSlot];
 }
-function stepWriting(){return [el('h3',{text:'Writing to '+driveLabel()}),planList(),safeLine(),jobSlot];}
+function stepWriting(){return [el('h3',{text:'Writing to '+driveLabel()}),planList(),safeLine(),ejectChoice(),jobSlot];}
 async function startWrite(){
   if(W.step!=='review'||nothingToWrite())return;
   if(appUpdating){showError('XZ Mods is updating itself. Write to the USB once the update has finished.',jobSlot);return;}
-  W.step='writing';render();
+  W.step='writing';W.eject=null;render();
   try{
     await ready();
     await write(jobSlot);
@@ -437,7 +482,12 @@ async function write(origin){
   if(again?.ok){W.inspection=again.result;usbInspection=again.result;renderUsb(again.result);}
   showDone();
 }
-function showDone(){W.step='done';render();host.scrollIntoView({block:'start'});}
+// A finished write ejects by itself when asked to, unless the done screen offers a retry that needs the USB.
+function showDone(){
+  W.step='done';render();host.scrollIntoView({block:'start'});
+  if(ejectAfterWrite()&&canEject()&&!failedGames().length)ejectUsb();
+}
+function failedGames(){return (W.result?.games?.games||[]).filter(game=>!game.ok);}
 async function retryGames(failed){
   await ready();
   const response=await run({method:'prepare_games_usb',volume:W.usb,games:failed.map(game=>game.game)},'Retrying game downloads',jobSlot);
@@ -456,17 +506,30 @@ function stepDone(){
   if(r.settings)lines.push('Settings saved to the USB and read back.');
   if(r.profile?.ok)lines.push('DJ profile '+r.profile.name+' saved to the USB.');
   lines.push(...r.errors);
-  const trouble=Boolean(failed.length||r.errors.length);
+  const trouble=Boolean(failed.length||r.errors.length),ejected=W.eject?.state==='done',ejecting=W.eject?.state==='ejecting';
+  if(failed.length&&ejectAfterWrite()&&canEject()&&!W.eject)lines.push('The USB was not ejected, so you can retry the failed games first.');
+  const offerEject=canEject()&&!ejected&&!failed.length;
   return [el('div',{class:'wz-done-hero',dataset:{tone:trouble?'warn':'ok'}},el('span',{class:'wz-done-mark'},icon(trouble?'alert':'check')),
       el('h3',{text:trouble?'Finished, with something to check':'Your USB is ready'})),
     el('ul',{class:'wz-done'},...lines.map(text=>el('li',{text}))),
-    r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},el('li',{text:'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
+    ejectStatus(),
+    r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
+      el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
       el('li',{text:'Press the REKORDBOX key or touch MODS to open the menu. GENERAL is the first tab.'}),el('li',{text:'Test the loader before you use it in a set.'}))):null,
     el('div',{class:'actions'},
       failed.length?el('button',{type:'button',class:'primary',text:'Retry the failed games',onclick:()=>retryGames(failed)}):null,
-      el('button',{type:'button',class:failed.length?'secondary':'primary',id:'wz-done',text:'Done',onclick:backToDevice}),
+      offerEject?el('button',{type:'button',class:'primary wz-eject',id:'wz-eject',disabled:ejecting?true:null,'aria-busy':ejecting?'true':null,onclick:ejectUsb},
+        ejecting?el('span',{class:'wz-spinner wz-spinner-dark','aria-hidden':'true'}):icon('eject'),
+        el('span',{text:ejecting?'Ejecting…':W.eject?.state==='error'?'Try ejecting again':'Eject USB'})):null,
+      el('button',{type:'button',class:failed.length||offerEject?'secondary':'primary',id:'wz-done',disabled:ejecting?true:null,text:'Done',onclick:ejected?afterEject:backToDevice}),
       r.profile?.ok?el('button',{type:'button',class:'secondary',text:'Make the profile track',onclick:()=>showPage('dj-profile')}):null),
+    failed.length||ejected?null:ejectChoice(true),
     jobSlot];
+}
+function ejectStatus(){
+  if(W.eject?.state==='done')return el('p',{class:'wz-ejected',role:'status'},icon('check'),el('span',{text:'USB ejected. You can unplug it now.'}));
+  if(W.eject?.state==='error')return el('p',{class:'notice wz-eject-error',role:'alert',text:'The USB was not ejected. '+W.eject.message});
+  return null;
 }
 const STEPS={profile:stepProfile,review:stepReview,writing:stepWriting,done:stepDone};
 function viewFlow(){return el('section',{class:'wz-flow',dataset:{step:W.step}},flowHead(),el('div',{class:'wz-flow-body'},...STEPS[W.step]()));}

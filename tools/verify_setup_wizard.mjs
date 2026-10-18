@@ -59,7 +59,7 @@ function installMock() {
         if (fx.failDiscover) { fx.failDiscover--; return { running: false, ok: false, error: 'The drive list could not be read.' }; }
         return { running: false, ok: true, result: { format: 'xz-usbs/1', usbs: usbs() } };
       case 'download_game': return { running: false, ok: true, result: { format: 'xz-game-downloaded/1', name: 'Doom shareware' } };
-      case 'inspect_usb': return { running: false, ok: true, result: inspection(request.volume) };
+      case 'inspect_usb': if (fx.holdInspect) return { running: true }; return { running: false, ok: true, result: inspection(request.volume) };
       case 'inspect_mod_settings': return { running: false, ok: true, result: { format: 'xz-mod-settings/1', mod_version_id: 'v1', settings_change: null } };
       case 'prepare_usb': case 'update_usb': {
         if (fx.hold) return { running: true, message: 'Writing the loader…' };
@@ -90,6 +90,13 @@ function installMock() {
     if (command === 'job_status') return status(fx.requests[args.id - 1]);
     if (command === 'cancel_job') return {};
     if (command === 'pick_path') return 'F:\\';
+    if (command === 'eject_volume') {
+      (fx.ejects ||= []).push(args.volume);
+      if (fx.failEject) throw 'Another program is still using E: (Windows error 5). Close any window showing the USB, then eject again.';
+      if (fx.holdEject) await new Promise(done => { fx.releaseEject = done; });
+      fx.unplugged = true;
+      return null;
+    }
     throw Error('Unexpected command ' + command);
   } } };
   fx.csp = [];
@@ -266,6 +273,76 @@ try {
   await view('device');
   await waitFor(`fx.requests.some(r=>r.method==='download_game')&&activeJob===null`, 'download ran after the discover');
   await check(`since(window.__mark).split(',').sort().join()==='discover_usbs,download_game,inspect_usb'&&txt('.wz-drive h2')==='SANDISK'&&fx.requests.find(r=>r.method==='inspect_usb'&&fx.requests.indexOf(r)>=window.__mark).volume==='F:\\\\'`, 'clicks made while a quiet discover runs wait for it and then all run: the card opens that USB, the download starts');
+
+  await open('multi');
+  await waitFor(`document.querySelectorAll('#wiz .wz-usb').length===2&&activeJob===null`, 'two USB cards again');
+  await evaluate(`fx.holdQuiet=true;document.getElementById('wz-look').click()`);
+  await waitFor(`activeJob!==null&&setupWizard.state.finding`, 'a slow discover holds the job slot again');
+  await evaluate(`window.__mark=fx.requests.length;document.querySelectorAll('#wiz .wz-usb')[0].click()`);
+  await check(`(()=>{const cards=document.querySelectorAll('#wiz .wz-usb');return cards[0].dataset.state==='opening'&&cards[0].getAttribute('aria-busy')==='true'&&txt('#wiz .wz-opening')==='Reading the USB…'&&Boolean(cards[0].querySelector('.wz-spinner'))&&cards[1].disabled&&cards[1].dataset.state==='waiting';})()`, 'a click during a background scan shows Reading the USB with a spinner on that card at once; the other card waits');
+  await evaluate(`fx.holdInspect=true;fx.holdQuiet=false`);
+  await waitFor(`fx.requests.slice(window.__mark).some(r=>r.method==='inspect_usb')`, 'the read starts after the scan');
+  await check(`setupWizard.state.view==='find'&&document.querySelectorAll('#wiz .wz-usb')[0].dataset.state==='opening'`, 'the card keeps showing Reading the USB through a slow read');
+  await shot('01b-find-opening');
+  await evaluate(`document.querySelectorAll('#wiz .wz-usb')[0].click();document.querySelectorAll('#wiz .wz-usb')[1].click();fx.holdInspect=false`);
+  await view('device');
+  await check(`txt('.wz-drive h2')==='KINGSTON'&&fx.requests.slice(window.__mark).filter(r=>r.method==='inspect_usb').length===1&&setupWizard.state.opening===null`, 'repeat clicks while a USB opens read it once, and the clicked USB is the one that opens');
+
+  await open('fresh');
+  await view('device');
+  await click('Install XZ Mods');
+  await view('flow', 'profile');
+  await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
+  await click('Skip for now');
+  await view('flow', 'review');
+  await check(`(()=>{const box=document.getElementById('wz-eject-auto');return box&&!box.checked&&txt('.wz-eject-auto').startsWith('Eject the USB when writing finishes')&&(document.querySelector('.wz-eject-auto').compareDocumentPosition(document.getElementById('wz-write'))&Node.DOCUMENT_POSITION_FOLLOWING);})()`, 'the review offers Eject the USB when writing finishes, unticked by default, just above Write to USB');
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`button('Eject USB')?.classList.contains('primary')&&button('Done').classList.contains('secondary')&&!(fx.ejects||[]).length&&!document.getElementById('job-panel').checkVisibility()`, 'done offers Eject USB as the main action; with the box unticked nothing ejects by itself');
+  await shot('09-done-eject-offer');
+  await evaluate(`fx.failEject=true`);
+  await click('Eject USB');
+  await waitFor(`setupWizard.state.eject?.state==='error'`, 'refused eject');
+  await check(`txt('.wz-eject-error').startsWith('The USB was not ejected. Another program is still using E:')&&Boolean(button('Try ejecting again'))&&setupWizard.state.view==='flow'`, 'a refused eject says why in plain words and offers Try ejecting again');
+  await evaluate(`fx.failEject=false;fx.holdEject=true`);
+  await click('Try ejecting again');
+  await waitFor(`setupWizard.state.eject?.state==='ejecting'`, 'ejecting');
+  await check(`button('Ejecting…')?.disabled&&Boolean(button('Ejecting…').querySelector('.wz-spinner'))&&button('Done').disabled`, 'while ejecting the button reads Ejecting with a spinner, and Done waits');
+  await evaluate(`fx.releaseEject()`);
+  await waitFor(`setupWizard.state.eject?.state==='done'`, 'ejected');
+  await check(`fx.ejects.join('|')==='E:\\\\|E:\\\\'&&txt('.wz-ejected')==='USB ejected. You can unplug it now.'&&!button('Eject USB')&&button('Done').classList.contains('primary')&&txt('.wz-next li').startsWith('Unplug the USB')&&!document.getElementById('wz-eject-auto')`, 'after the eject: USB ejected line, the XZ steps say unplug, Done is the main action');
+  await check(fits, 'done with the eject outcome fits without horizontal scroll');
+  await shot('10-done-ejected');
+  await click('Done');
+  await waitFor(`setupWizard.state.view==='find'&&activeJob===null&&setupWizard.state.usbs!==null&&!setupWizard.state.finding`, 'back to finding a USB');
+  await check(`txt('.wz-find h2')==='Plug in your XZ USB'&&!setupWizard.state.usb`, 'Done after an eject goes back to finding a USB, because that one is gone');
+
+  await open('fresh');
+  await view('device');
+  await click('Install XZ Mods');
+  await view('flow', 'profile');
+  await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
+  await click('Skip for now');
+  await view('flow', 'review');
+  await evaluate(`document.getElementById('wz-eject-auto').click()`);
+  await check(`localStorage.getItem('xz-eject-after-write')==='1'&&document.getElementById('wz-eject-auto').checked`, 'ticking Eject the USB when writing finishes is remembered');
+  await click('Write to USB');
+  await waitFor(`setupWizard.state.step==='done'&&setupWizard.state.eject?.state==='done'&&activeJob===null`, 'automatic eject');
+  await check(`fx.ejects?.length===1&&fx.ejects[0]==='E:\\\\'&&txt('.wz-ejected')==='USB ejected. You can unplug it now.'&&!button('Eject USB')`, 'with the box ticked the USB ejects by itself once writing finishes');
+
+  await open('fresh');
+  await view('device');
+  await click('Install XZ Mods');
+  await view('flow', 'profile');
+  await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
+  await click('Skip for now');
+  await view('flow', 'review');
+  await check(`document.getElementById('wz-eject-auto').checked`, 'the remembered choice is ticked on the next write');
+  await evaluate(`fx.failGame='doom'`);
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`!(fx.ejects||[]).length&&txt('.wz-done').includes('The USB was not ejected, so you can retry the failed games first.')&&Boolean(button('Retry the failed games'))&&!button('Eject USB')`, 'a failed game download keeps the USB plugged in for the retry and says so');
+  await evaluate(`localStorage.removeItem('xz-eject-after-write')`);
 
   await open('loader');
   await view('device');

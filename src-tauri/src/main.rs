@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod app_updates;
+mod eject;
 mod host;
 mod live_stream;
 mod screen_protocol;
@@ -145,7 +146,7 @@ fn list_volumes()->Vec<String>{
 }
 fn main(){
     tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(Jobs::default()).manage(app_updates::Updates::default()).manage(live_stream::LiveStream::default())
-        .invoke_handler(tauri::generate_handler![start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
+        .invoke_handler(tauri::generate_handler![start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,eject::eject_volume,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
         .on_window_event(|window,event|{
             if matches!(event,tauri::WindowEvent::CloseRequested{..}) {
                 let _=live_stream::stop(&window.state::<live_stream::LiveStream>());
