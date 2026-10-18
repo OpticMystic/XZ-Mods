@@ -49,6 +49,7 @@ int main(int argc,char **argv){
     original(&assets,15000,pcm);memcpy(before,pcm,sizeof(pcm));assert(!xz_oc_stream_mix(s,pcm,2048,15000,unity));assert(!memcmp(pcm,before,sizeof(pcm)));
     for(unsigned i=0;i<4096;i++)pcm[i]=0.5f;
     const float no_vocals[3]={1,1,0};memcpy(before,pcm,sizeof(pcm));
+    /* A pending first selection retains the prior unity selection. */
     assert(!xz_oc_stream_mix(s,pcm,2048,1000000,no_vocals));assert(!memcmp(pcm,before,sizeof(pcm)));
     for(unsigned attempt=0;attempt<200;attempt++){
         original(&assets,15000,pcm);xz_oc_stream_mix(s,pcm,2048,15000,no_vocals);pause_worker();xz_oc_stream_status(s,&status);
@@ -94,5 +95,11 @@ int main(int argc,char **argv){
     }
     puts("PASS loop mix changes retain audible prior selection while replacement cache fills");
     puts("PASS loop return: first sample onward matches selected mix, no mute leak, silence or cache miss");
+    /* Once selected, an uncovered seek must hold the muted native coefficient. */
+    for(unsigned i=0;i<4096;i++)pcm[i]=0.5f;
+    assert(xz_oc_stream_mix(s,pcm,2048,1000000,no_vocals)==2048);
+    for(unsigned i=256;i<4096;i++)assert(pcm[i]==0);
+    xz_oc_stream_status(s,&status);assert(status.starvation==XZ_OC_STARVE_HELD&&status.starve_runs>0);
+    puts("PASS selected mute survives uncovered seek without transient native unity");
     xz_oc_stream_close(s);xz_oc_close(&assets);puts("PASS mix plans, measured alignment, bit-exact unity, selected mix and no silent loading gap");return 0;
 }

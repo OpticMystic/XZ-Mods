@@ -75,6 +75,11 @@ def main():
             str(ROOT / 'vendor/sha256/sha256.c'), str(ROOT / 'tests/test_overcue_file.c'), '-lm', '-o', str(binary)], check=True)
         if args.real_source:
             subprocess.run([str(binary), str(args.real_source), 'real'], check=True)
+        regression_args = ['--zig', args.zig] if args.zig else ['--cc', args.cc]
+        if args.sanitizer:
+            regression_args += ['--sanitizer', args.sanitizer]
+        subprocess.run([sys.executable, str(ROOT/'tests/verify_seek.py')] + regression_args, check=True)
+        subprocess.run([sys.executable, str(ROOT/'tests/verify_starved.py')] + regression_args, check=True)
         source, bundle, pages, table = fixture(root / 'usb')
         subprocess.run([str(binary), str(source), 'valid'], check=True)
         original = source.read_bytes()

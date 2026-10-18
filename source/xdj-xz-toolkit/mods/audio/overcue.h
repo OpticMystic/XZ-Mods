@@ -55,13 +55,21 @@ int xz_oc_worker_schedule(void);
 
 struct xz_oc_stream;
 enum xz_oc_state { XZ_OC_ALIGNING, XZ_OC_READY, XZ_OC_BUFFERING, XZ_OC_ERROR };
-struct xz_oc_status { enum xz_oc_state state; int lag; float correlation; uint32_t blocks, misses; };
+enum xz_oc_starvation { XZ_OC_STARVE_NONE, XZ_OC_STARVE_HELD, XZ_OC_STARVE_UNITY };
+struct xz_oc_status {
+    enum xz_oc_starvation starvation, starve_fallback;
+    /* Durations include the active run; frames count source callback work. */
+    uint32_t starve_runs, starve_last_frames, starve_max_frames, starve_last_ms, starve_max_ms;
+    enum xz_oc_state state;
+    int lag; float correlation; uint32_t blocks, misses;
+};
 struct xz_oc_stream *xz_oc_stream_open(const char *source, uint32_t rate, char *error, size_t capacity);
 void xz_oc_stream_close(struct xz_oc_stream *);
 /* Audio thread: no allocation, I/O, mutex or waiting. Stock unity is bit-exact.
  * An unverified timeline stays on stock audio. Pending selections retain the
- * current covered mix, or native audio after a seek; missing data never mutes
- * the whole output. Readiness remains buffering until the requested mix fits. */
+ * current covered mix. A seek miss holds its native coefficient with short
+ * entry/recovery fades; reader errors or 1500 ms of missing coverage ramp to
+ * native unity. Readiness remains buffering until the requested mix fits. */
 void xz_oc_stream_loop_start(struct xz_oc_stream *,int32_t position);
 size_t xz_oc_stream_mix(struct xz_oc_stream *, float *stereo, size_t frames, int64_t position, const float levels[3]);
 void xz_oc_stream_status(struct xz_oc_stream *, struct xz_oc_status *);

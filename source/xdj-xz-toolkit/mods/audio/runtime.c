@@ -665,6 +665,7 @@ int xz_audio_get_status(int index, struct xz_audio_status *out)
     *out = decks[index].status;
     out->generation=__atomic_load_n(&decks[index].generation,__ATOMIC_SEQ_CST);
     pthread_mutex_unlock(&control_mutex);
+    out->starve_fallback=out->starvation=out->starve_runs=out->starve_last_frames=out->starve_max_frames=out->starve_last_ms=out->starve_max_ms=0;
     out->retained_stems_bytes=0;
     out->mixed_blocks = __atomic_load_n(&decks[index].mixed, __ATOMIC_RELAXED);
     out->skipped_blocks = __atomic_load_n(&decks[index].skipped, __ATOMIC_RELAXED);
@@ -679,6 +680,9 @@ int xz_audio_get_status(int index, struct xz_audio_status *out)
             out->state = status.state == XZ_OC_READY ? XZ_AUDIO_EXPERIMENTAL_READY :
                 status.state == XZ_OC_ALIGNING ? XZ_AUDIO_PREPARED_ALIGNING :
                 status.state == XZ_OC_BUFFERING ? XZ_AUDIO_PREPARED_BUFFERING : XZ_AUDIO_PREPARED_ERROR;
+            out->starve_fallback=status.starve_fallback;out->starvation=status.starvation;out->starve_runs=status.starve_runs;
+            out->starve_last_frames=status.starve_last_frames;out->starve_max_frames=status.starve_max_frames;
+            out->starve_last_ms=status.starve_last_ms;out->starve_max_ms=status.starve_max_ms;
             out->alignment_frames = status.lag;
             out->alignment_correlation = status.correlation;
             out->skipped_blocks += status.misses;
