@@ -17,7 +17,8 @@ enum {
  NUM_Y=STRIP_Y+34, CHIP_ROW_Y=STRIP_Y+97, OVERVIEW_Y=STRIP_Y+112, OVERVIEW_H=44, TICK_H=10, EDGE=12,
  STEM_X=46, STEM_W=62, STEM_GAP=6, STEM_H=22, LAMP_W=14, LAMP_GAP=3,
  CHIP_Y=5, CHIP_H=16, CHIP_GAP=8,
- INFO_W=44, INFO_X=XZ_SHELL_HEADER_X-INFO_W-2, LINK_RIGHT=INFO_X-2, FX_Y=2, FX_H=22, FX_GAP=10
+ INFO_W=44, INFO_X=XZ_SHELL_HEADER_X-INFO_W-2, LINK_RIGHT=INFO_X-2, FX_Y=2, FX_H=22, FX_GAP=10,
+ ALERT_H=52, ALERT_BTN_W=150, GRID_BTN_W=78, GRID_BTN_GAP=4
 };
 static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256};
 static const char *const cue_letters[XZ_SHELL_HOT_CUES]={"A","B","C","D","E","F","G","H"};
@@ -54,6 +55,11 @@ struct xz_shell_rect xz_shell_play_rect(enum xz_shell_play_region r, int deck) {
  case XZ_SHELL_R_INFO_BUTTON:return (struct xz_shell_rect){INFO_X,0,INFO_W,TOP_H};
  case XZ_SHELL_R_FX:{int x=fx_left();return (struct xz_shell_rect){x,FX_Y,fx_right()-x,FX_H};}
  case XZ_SHELL_R_PAD_ROW:return (struct xz_shell_rect){sx,PAD_ROW_Y,HALF_W-4,PAD_ROW_H};
+ case XZ_SHELL_R_ALERT_BUTTON:return (struct xz_shell_rect){XZ_SHELL_WIDTH-2-ALERT_BTN_W-6,ly+LANE_H/2-22,ALERT_BTN_W,44};
+ case XZ_SHELL_R_GRID_RESET:case XZ_SHELL_R_GRID_SNAP:case XZ_SHELL_R_GRID_SHIFT:{
+  int i=(int)r-(int)XZ_SHELL_R_GRID_RESET,x0=XZ_SHELL_WIDTH-2-3*GRID_BTN_W-2*GRID_BTN_GAP-6;
+  return (struct xz_shell_rect){x0+i*(GRID_BTN_W+GRID_BTN_GAP),ly+TICK_H+18,GRID_BTN_W,44};
+ }
  }
  return (struct xz_shell_rect){0,0,0,0};
 }
@@ -94,6 +100,10 @@ static uint32_t ink_on(uint32_t fill) { return xz_theme_luma(fill)>150?SH_BLACK:
 
 /* ---- top bar ---- */
 static void render_fx(const struct xz_shell_model *m, struct xz_canvas c);
+static int alert_on(const struct xz_shell_deck *d);
+static void render_alert(struct xz_canvas c, const struct xz_shell_deck *d, int deck);
+static int grid_edit_shown(const struct xz_shell *u, const struct xz_shell_model *m, int deck);
+static void render_grid_buttons(struct xz_canvas c, int deck);
 static void render_top(const struct xz_shell_model *m, struct xz_canvas c) {
  struct chip chips[3];top_chips(chips);
  xz_rect(c,0,0,c.width,TOP_H,SH_CHROME);
@@ -110,6 +120,8 @@ static void render_top(const struct xz_shell_model *m, struct xz_canvas c) {
   enum xz_shell_setting s=chips[i].setting;
   int on=sh_setting(m,s)&&(s==XZ_SHELL_SET_AUTO_CUE?m->settings.auto_cue:m->settings.hot_cue_auto_load);
   uint32_t ink=on?(sh_writable(m,s)?SH_WHITE:0x8c8c8c):0x5a5a5a;
+  /* HOT CUE AUTO LOAD by the library's own setting lights red, as the XZ lamp does (manual p.70). */
+  if(on&&s==XZ_SHELL_SET_HOT_CUE_AUTO_LOAD&&m->settings.hot_cue_auto_load==XZ_SHELL_HCAL_LIBRARY)ink=SH_RED;
   sh_chip(c,chips[i].r.x,chips[i].r.y,i==1?"A. HOT CUE":"A. CUE",on?SH_DIM:0x5a5a5a,ink,0);
  }
  render_fx(m,c);
@@ -126,7 +138,9 @@ static void render_top(const struct xz_shell_model *m, struct xz_canvas c) {
 static int fx_has(const struct xz_shell_fx *f, enum xz_shell_fx_field b) { return (f->known>>b)&1; }
 static int fx_on(const struct xz_shell_fx *f) { return fx_has(f,XZ_SHELL_FX_F_ON)&&f->on; }
 static const char *fx_channel_text(enum xz_shell_fx_channel ch) {
- return ch==XZ_SHELL_FX_CH_MASTER?"MST":ch==XZ_SHELL_FX_CH_1?"CH1":ch==XZ_SHELL_FX_CH_2?"CH2":ch==XZ_SHELL_FX_CH_MIC?"MIC":NULL;
+ static const char *const names[]={[XZ_SHELL_FX_CH_MASTER]="MST",[XZ_SHELL_FX_CH_1]="CH1",[XZ_SHELL_FX_CH_2]="CH2",
+  [XZ_SHELL_FX_CH_MIC]="MIC",[XZ_SHELL_FX_CH_3]="CH3",[XZ_SHELL_FX_CH_4]="CH4",[XZ_SHELL_FX_CH_XF_A]="XF-A",[XZ_SHELL_FX_CH_XF_B]="XF-B"};
+ return (unsigned)ch<sizeof names/sizeof *names?names[ch]:NULL;
 }
 static void render_fx(const struct xz_shell_model *m, struct xz_canvas c) {
  const struct xz_shell_fx *f=&m->fx;
@@ -157,10 +171,18 @@ static void render_fx(const struct xz_shell_model *m, struct xz_canvas c) {
  }
  const char *ch=fx_has(f,XZ_SHELL_FX_F_CHANNEL)?fx_channel_text(f->channel):NULL;
  if(ch){
-  int cw=sh_text_width(c,"MST",SH_SMALL)+8;
+  int cw=sh_text_width(c,"XF-A",SH_SMALL)+8;
   xz_border(c,right-cw,r.y+4,cw,14,on?SH_WHITE:SH_DIM);
   sh_text_center(c,right-cw/2,ty,ch,SH_SMALL,ink);
   right-=cw+8;
+ }
+ /* BEAT FX QUANTIZE, its own lamp beside the target (XDJ-AZ manual p.41) */
+ if(fx_has(f,XZ_SHELL_FX_F_QUANTIZE)){
+  int qw=sh_text_width(c,"Q",SH_SMALL)+8;
+  if(f->quantize)xz_rect(c,right-qw,r.y+4,qw,14,on?SH_WHITE:SH_RED);
+  else xz_border(c,right-qw,r.y+4,qw,14,on?0xffc8b4:SH_RAIL);
+  sh_text_center(c,right-qw/2,ty,"Q",SH_SMALL,f->quantize?(on?SH_RED:SH_WHITE):dim);
+  right-=qw+8;
  }
  /* left end: the FX tag, then name, beat and time */
  sh_text(c,x,ty,"FX",SH_SMALL,on?SH_WHITE:SH_DIM);
@@ -356,9 +378,61 @@ static void render_lane(const struct xz_shell *u, const struct xz_shell_model *m
     lane_caption(c,sh_min(gx+4,WAVE_X+WAVE_W-34),ly+LANE_H/2-6,"SLIP",SH_KEY_AMBER);
    }
   }
+  /* A loop point under the jog: its line doubled in white and its time in a box (XZ manual pp.47-48). */
+  if(sh_has(d,XZ_SHELL_F_LOOP_EDIT)){
+   int ex=lane_x(&v,d->loop_edit.ms);
+   if(ex>=WAVE_X&&ex<WAVE_X+WAVE_W-1)xz_rect(c,ex,ly,2,LANE_H,SH_WHITE);
+   char t[40],clock[16],frac[8];
+   fmt_time(clock,sizeof clock,d->loop_edit.ms,frac,sizeof frac);
+   snprintf(t,sizeof t,"%s %s%s",d->loop_edit.endpoint?"LOOP OUT":"LOOP IN",clock,frac);
+   int tw=sh_text_width(c,t,SH_SMALL)+12,bx=WAVE_X+6,by=ly+LANE_H-TICK_H-24;
+   xz_rect(c,bx,by,tw,18,SH_LOOP);
+   sh_text(c,bx+6,by+4,t,SH_SMALL,SH_BLACK);
+  }
  }else if(sh_has(d,XZ_SHELL_F_LOADED)&&!d->loaded)
   sh_text_center(c,WAVE_X+WAVE_W/2,ly+LANE_H/2-7,"Not Loaded.",SH_TEXT,0x5a5a5a);
  xz_rect(c,v.ph_x,ly,1,LANE_H,SH_PLAYHEAD);
+ /* ON AIR: the channel is live on the master (XZ manual p.70), red on the lane's top right. */
+ if(sh_has(d,XZ_SHELL_F_ON_AIR)&&d->on_air){
+  int w=sh_text_width(c,"ON AIR",SH_SMALL)+12;
+  xz_rect(c,WAVE_X+WAVE_W-w-4,ly+3,w,16,SH_RED);
+  sh_text(c,WAVE_X+WAVE_W-w+2,ly+6,"ON AIR",SH_SMALL,SH_WHITE);
+ }
+ if(alert_on(d))render_alert(c,d,deck);
+ if(grid_edit_shown(u,m,deck))render_grid_buttons(c,deck);
+}
+/* ---- persistent deck conditions and GRID mode buttons ---- */
+static int alert_on(const struct xz_shell_deck *d) {
+ return sh_has(d,XZ_SHELL_F_ALERT)&&d->alert.kind>XZ_SHELL_ALERT_NONE&&d->alert.kind<=XZ_SHELL_ALERT_UNSUPPORTED_FILE;
+}
+static void render_alert(struct xz_canvas c, const struct xz_shell_deck *d, int deck) {
+ static const char *const title[]={"","EMERGENCY LOOP","CANNOT READ THE TRACK","UNSUPPORTED FILE"};
+ static const char *const line[]={"","THE DECK LOOPS UNTIL YOU LOAD A TRACK","THE MEDIUM DID NOT ANSWER","THIS FILE CANNOT PLAY HERE"};
+ int ly=lane_y(deck),y=ly+(LANE_H-ALERT_H)/2;
+ struct xz_shell_rect b=xz_shell_play_rect(XZ_SHELL_R_ALERT_BUTTON,deck);
+ xz_rect(c,WAVE_X,y,WAVE_W,ALERT_H,0x5a0c0c);
+ xz_rect(c,WAVE_X,y,4,ALERT_H,SH_RED);
+ int x=WAVE_X+14,room=b.x-x-10;
+ char head[64];
+ snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" · ":"",d->alert.code?d->alert.code:"");
+ sh_text_fit(c,x,y+8,room,head,SH_TEXT,SH_WHITE);
+ sh_text_fit(c,x,y+30,room,d->alert.text?d->alert.text:line[d->alert.kind],SH_SMALL,0xffc8b4);
+ xz_rect(c,b.x,b.y,b.w,b.h,SH_WHITE);
+ sh_text_center(c,b.x+b.w/2,b.y+(b.h-SH_CAP_TEXT)/2,"CHOOSE TRACK",SH_TEXT,0x5a0c0c);
+}
+static int grid_edit_shown(const struct xz_shell *u, const struct xz_shell_model *m, int deck) {
+ const struct xz_shell_deck *d=&m->deck[deck];
+ return u->grid_mode&&u->deck==deck&&(m->capabilities&XZ_SHELL_CAP_GRID_EDIT)&&(m->capabilities&XZ_SHELL_CAP_GRID)
+  &&sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded&&!alert_on(d);
+}
+static void render_grid_buttons(struct xz_canvas c, int deck) {
+ static const char *const label[3]={"RESET","SNAP","SHIFT"};
+ for(int i=0;i<3;i++){
+  struct xz_shell_rect r=xz_shell_play_rect((enum xz_shell_play_region)(XZ_SHELL_R_GRID_RESET+i),deck);
+  xz_rect(c,r.x,r.y,r.w,r.h,0x1c1c1c);
+  xz_border(c,r.x,r.y,r.w,r.h,SH_BLUE);
+  sh_text_center(c,r.x+r.w/2,r.y+(r.h-SH_CAP_SMALL)/2,label[i],SH_SMALL,SH_WHITE);
+ }
 }
 static void render_zoom(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  struct xz_shell_rect r=xz_shell_play_rect(XZ_SHELL_R_ZOOM,0);
@@ -410,6 +484,12 @@ static void render_overview(const struct xz_shell *u, const struct xz_shell_mode
   int32_t ghost=slip_now(m,d);
   if(ghost>=0)xz_rect(c,overview_x(ov,ghost,d->total_ms),ov.y,1,ov.h,SH_KEY_AMBER);
  }else xz_rect(c,ov.x,bar_y,ov.w,3,SH_RAIL);
+ /* NEEDLE LOCK holds while the deck plays: the overview says so where a finger would search. */
+ if(timed&&sh_needle_locked(m,d)){
+  int w=sh_text_width(c,"NEEDLE LOCK",SH_SMALL)+10;
+  xz_rect(c,ov.x+ov.w-w-2,ov.y+2,w,14,0x2a2a2a);
+  sh_text(c,ov.x+ov.w-w+3,ov.y+4,"NEEDLE LOCK",SH_SMALL,SH_DIM);
+ }
  /* minute scale */
  int scale_y=bar_y+5;
  if(timed){
@@ -584,6 +664,14 @@ static void render_pad_row(const struct xz_shell_model *m, struct xz_canvas c, i
  for(int i=0;i<XZ_SHELL_HOT_CUES;i++){
   int x=lx+i*(LAMP_W+LAMP_GAP),set=known&&d->hot_cue[i].set;
   uint32_t fill=set?cue_color(&d->hot_cue[i]):0x1c1c1c;
+  /* A stored cue not yet called onto its pad (manual call, XZ manual pp.54-55): an outline in its colour. */
+  int waiting=set&&sh_has(d,XZ_SHELL_F_HOT_CUE_CALL)&&!((d->hot_cue_called>>i)&1);
+  if(waiting){
+   xz_rect(c,x,ly,LAMP_W,LAMP_W,0x1c1c1c);
+   xz_border(c,x,ly,LAMP_W,LAMP_W,fill);
+   sh_text_center(c,x+LAMP_W/2+1,ly+2,cue_letters[i],SH_SMALL,fill);
+   continue;
+  }
   xz_rect(c,x,ly,LAMP_W,LAMP_W,fill);
   if(!set)xz_border(c,x,ly,LAMP_W,LAMP_W,0x3c3c3c);
   sh_text_center(c,x+LAMP_W/2+1,ly+2,cue_letters[i],SH_SMALL,set?ink_on(fill):0x5a5a5a);
@@ -615,10 +703,15 @@ static size_t activate(struct xz_shell *u, int deck, struct xz_shell_action out[
  u->deck=deck;
  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_ACTIVE_DECK,deck,0,0});
 }
-static size_t seek(const struct xz_shell_model *m, int deck, int x, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+/* NEEDLE LOCK (XZ manual p.123): while LOCK is set the overview searches only on a paused deck. */
+int sh_needle_locked(const struct xz_shell_model *m, const struct xz_shell_deck *d) {
+ return m->settings.needle_lock_known&&m->settings.needle_lock&&sh_has(d,XZ_SHELL_F_PLAYING)&&d->playing;
+}
+static size_t seek(struct xz_shell *u, const struct xz_shell_model *m, int deck, int x, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  const struct xz_shell_deck *d=&m->deck[deck];
  if(!(m->capabilities&XZ_SHELL_CAP_SEEK)||!sh_has(d,XZ_SHELL_F_TOTAL)||d->total_ms<=0)return n;
  if(!sh_has(d,XZ_SHELL_F_LOADED)||!d->loaded)return n;
+ if(sh_needle_locked(m,d)){u->notice="NEEDLE LOCK: PAUSE THE DECK TO SEARCH";u->notice_at_ms=m->clock_ms;return n;}
  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SEEK,deck,xz_shell_overview_ms(d->total_ms,x,deck),0});
 }
 /* Top-bar controls answer in their own column from y 0 down to XZ_SHELL_HEADER_HIT_H, so each is 44 px
@@ -634,7 +727,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
  for(int i=0;i<3;i++)if(header_band(x,y,chips[i].r)){
   if(!sh_writable(m,chips[i].setting)||!sh_setting(m,chips[i].setting))return 0;
   int value=chips[i].setting==XZ_SHELL_SET_PLAY_MODE?(m->settings.play_mode==XZ_SHELL_PLAY_SINGLE?XZ_SHELL_PLAY_CONTINUE:XZ_SHELL_PLAY_SINGLE):
-   chips[i].setting==XZ_SHELL_SET_AUTO_CUE?!m->settings.auto_cue:!m->settings.hot_cue_auto_load;
+   chips[i].setting==XZ_SHELL_SET_AUTO_CUE?!m->settings.auto_cue:(m->settings.hot_cue_auto_load+1)%3;
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,value,(int)chips[i].setting});
  }
  if(y<TOP_H)return 0;
@@ -642,6 +735,15 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   if(!sh_inside(xz_shell_stem_button(m,deck,stem),x,y))continue;
   int muted=(m->deck[deck].stem_muted>>stem)&1;
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_STEM_MUTE,deck,!muted,stem});
+ }
+ for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+  if(alert_on(&m->deck[deck])&&sh_inside(xz_shell_play_rect(XZ_SHELL_R_ALERT_BUTTON,deck),x,y)){
+   n=activate(u,deck,out,n);
+   return n+sh_key(u,m,XZ_SHELL_KEY_BROWSE,deck,out+n);
+  }
+  if(grid_edit_shown(u,m,deck))for(int i=0;i<3;i++)
+   if(sh_inside(xz_shell_play_rect((enum xz_shell_play_region)(XZ_SHELL_R_GRID_RESET+i),deck),x,y))
+    return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_GRID_EDIT,deck,0,i});
  }
  if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_ZOOM,0),x,y)){
   if(m->capabilities&XZ_SHELL_CAP_GRID)u->grid_mode=!u->grid_mode;
@@ -651,7 +753,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_LANE,deck),x,y))return activate(u,deck,out,n);
   if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,deck),x,y)){
    u->down_region=XZ_SHELL_TOUCH_OVERVIEW;u->down_deck=deck;
-   return seek(m,deck,x,out,n);
+   return seek(u,m,deck,x,out,n);
   }
   if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_TIME,deck),x,y)){
    if(!sh_writable(m,XZ_SHELL_SET_TIME_MODE))return 0;
@@ -665,7 +767,7 @@ static size_t play_input(struct xz_shell *u, const struct xz_shell_model *m, con
  switch(e->kind){
  case XZ_SHELL_TOUCH_DOWN:return touch_down(u,m,e->x,e->y,out);
  case XZ_SHELL_TOUCH_MOVE:
-  if(u->down&&u->down_region==XZ_SHELL_TOUCH_OVERVIEW)return seek(m,u->down_deck,e->x,out,0);
+  if(u->down&&u->down_region==XZ_SHELL_TOUCH_OVERVIEW&&!sh_needle_locked(m,&m->deck[u->down_deck]))return seek(u,m,u->down_deck,e->x,out,0);
   return 0;
  case XZ_SHELL_TOUCH_UP:u->down=0;u->down_region=XZ_SHELL_TOUCH_NONE;return 0;
  case XZ_SHELL_ENCODER_TURN:{

@@ -43,6 +43,7 @@ static void model(struct xz_shell_model *m) {
  m->mods=&fxm_model;
  m->my_settings=fxm_my_reset();
  m->settings_screen=fxs_reset();
+ m->deck[0].playing=0;   /* MY SETTINGS loads onto a paused deck */
 }
 /* USB 1 picked from PLAY: BROWSE with the category rail holding the encoder. */
 static void at_root(struct xz_shell *u, const struct xz_shell_model *m) {

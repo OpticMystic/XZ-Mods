@@ -32,6 +32,7 @@ size_t sh_back(struct xz_shell *, const struct xz_shell_model *, struct xz_shell
 /* A screen's own step up for BACK: sets *taken when it used the key (closed a panel, climbed a level). */
 size_t sh_browse_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
 size_t sh_settings_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
+size_t sh_source_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
 
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
 static inline int sh_setting(const struct xz_shell_model *m, enum xz_shell_setting s) { return (m->settings.known>>s)&1; }
@@ -100,6 +101,8 @@ static inline uint32_t sh_ink_on(uint32_t rgb) {
 struct xz_shell_setting_item;
 int sh_settings_item(const struct xz_shell *, const struct xz_shell_model *, int id, struct xz_shell_setting_item *out);
 size_t sh_settings_set(struct xz_shell *, int id, int index, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+/* NEEDLE LOCK holds for this deck now: set, and the deck plays (shell_play.c). */
+int sh_needle_locked(const struct xz_shell_model *, const struct xz_shell_deck *);
 /* BROWSE with its category rail holding the encoder (shell_browse.c). */
 int sh_browse_at_root(const struct xz_shell *);
 /* Waveforms (shell_wave.c). A lane is mirrored about the middle of r, amp px each way at full scale;

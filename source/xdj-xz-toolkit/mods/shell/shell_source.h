@@ -24,18 +24,37 @@ struct xz_shell_device {
  uint64_t free_bytes, total_bytes;
  int32_t tracks;
 };
+/* One medium in another LINK player (XZ manual pp.67, 114). */
+enum xz_shell_link_slot { XZ_SHELL_LINK_USB, XZ_SHELL_LINK_SD, XZ_SHELL_LINK_COMPUTER };
+struct xz_shell_link_media {
+ int player;                         /* player number on the network */
+ enum xz_shell_link_slot slot;
+ const char *name;                   /* volume name; NULL draws the slot */
+ uint32_t color;                     /* background colour, 0 = none */
+ int ready;                          /* browsable now */
+};
 struct xz_shell_source_model {
  struct xz_shell_device device[XZ_SHELL_SOURCE_TILES];  /* index = enum xz_shell_source - 1 */
  int current_known;
  enum xz_shell_source current;       /* the device BROWSE reads now */
+ const struct xz_shell_link_media *link_media;   /* the LINK tile's media; count 0 keeps the tile a device */
+ int link_media_count;
+ int link_current;                   /* index of the medium BROWSE reads when current is LINK, -1 none */
 };
 
 /* Action this screen adds to enum xz_shell_action_kind:
    SET_SOURCE  id = enum xz_shell_source (USB1..COMPUTER), deck = -1. The runtime
                makes that device the browse source. The shell follows it with the
                BROWSE navigation (OPEN, or HAND_OFF when BROWSE is unavailable).
-               Emitted only for a READY device. */
+               Emitted only for a READY device. For LINK with media listed, the LINK
+               tile opens a picker of player and medium; picking one emits
+               SET_SOURCE {id LINK, value = 1 + media index}. Rows then load onto
+               either deck with the row LOAD chips as for a local stick. */
 
 /* Tile n's rect (n = enum xz_shell_source - 1); the close button for n = -1. */
 struct xz_shell_rect xz_shell_source_rect(int tile);
+/* The LINK picker: visible row i (44 px tall). The picker is shell state (the view's scroll: 0 shut,
+   k = open with medium k-1 highlighted); BACK shuts it. */
+#define XZ_SHELL_LINK_ROWS 6
+struct xz_shell_rect xz_shell_source_link_rect(int row);
 #endif

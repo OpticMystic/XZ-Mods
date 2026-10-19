@@ -6,7 +6,8 @@
 
 enum {
  TILE_GAP=8, TILE_X=8, TILE_Y=SI_HEAD_H+8, TILE_W=(XZ_SHELL_WIDTH-2*TILE_X-3*TILE_GAP)/4, TILE_H=SI_STRIP_Y-8-TILE_Y,
- ICON_H=136, NAME_H=44, PAD=12
+ ICON_H=136, NAME_H=44, PAD=12,
+ LINK_X=TILE_X+TILE_W/2, LINK_W=XZ_SHELL_WIDTH-2*LINK_X, LINK_Y=TILE_Y, LINK_HEAD=40, LINK_ROW=48
 };
 
 struct xz_shell_rect xz_shell_source_rect(int tile) {
@@ -15,6 +16,10 @@ struct xz_shell_rect xz_shell_source_rect(int tile) {
  return (struct xz_shell_rect){TILE_X+tile*(TILE_W+TILE_GAP),TILE_Y,TILE_W,TILE_H};
 }
 
+struct xz_shell_rect xz_shell_source_link_rect(int row) {
+ if(row<0||row>=XZ_SHELL_LINK_ROWS)return (struct xz_shell_rect){0,0,0,0};
+ return (struct xz_shell_rect){LINK_X,LINK_Y+LINK_HEAD+row*LINK_ROW,LINK_W,LINK_ROW-4};
+}
 static int known(const struct xz_shell_device *d, enum xz_shell_device_field f) { return (d->known>>f)&1; }
 static int connected(const struct xz_shell_source_model *sm, int i) {
  const struct xz_shell_device *d=&sm->device[i];
@@ -164,6 +169,8 @@ static void render_tile(const struct xz_shell_model *m, struct xz_canvas c, int 
  }
  if(!any)sh_text(c,r.x+PAD,by+5,"ON NO DECK",SH_SMALL,0x6e6e6e);
 }
+static int picker_open(const struct xz_shell *u, const struct xz_shell_source_model *sm);
+static void render_picker(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
 static void source_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,0,0,c.width,c.height,SH_BLACK);
  si_header(c,"SOURCE");
@@ -184,9 +191,86 @@ static void source_render(const struct xz_shell *u, const struct xz_shell_model 
   struct xz_shell_rect r=xz_shell_source_rect(highlighted);
   xz_border(c,r.x,r.y,r.w,r.h,SH_BLUE);xz_border(c,r.x+1,r.y+1,r.w-2,r.h-2,SH_BLUE);
  }
+ if(picker_open(u,m->source))render_picker(u,m,c);
 }
 
+/* ---- LINK picker: the players on the network and their media (XZ manual pp.67, 114) ---- */
+static int link_count(const struct xz_shell_source_model *sm) {
+ return sm->link_media?sh_max(0,sh_min(sm->link_media_count,24)):0;
+}
+static int picker_open(const struct xz_shell *u, const struct xz_shell_source_model *sm) {
+ return sm&&link_count(sm)>0&&si_view(u)->scroll>0;
+}
+static int picker_cursor(const struct xz_shell *u, const struct xz_shell_source_model *sm) {
+ return sh_max(0,sh_min(si_view(u)->scroll-1,link_count(sm)-1));
+}
+static int picker_first(const struct xz_shell *u, const struct xz_shell_source_model *sm) {
+ return sh_max(0,picker_cursor(u,sm)-XZ_SHELL_LINK_ROWS+1);
+}
+static const char *slot_name(enum xz_shell_link_slot s) {
+ return s==XZ_SHELL_LINK_SD?"SD":s==XZ_SHELL_LINK_COMPUTER?"COMPUTER":"USB";
+}
+static void render_picker(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ const struct xz_shell_source_model *sm=m->source;
+ int n=link_count(sm),cur=picker_cursor(u,sm),first=picker_first(u,sm);
+ int h=LINK_HEAD+XZ_SHELL_LINK_ROWS*LINK_ROW+8;
+ xz_rect(c,LINK_X-2,LINK_Y-2,LINK_W+4,h+4,SH_BLUE);
+ xz_rect(c,LINK_X,LINK_Y,LINK_W,h,SH_CHROME);
+ sh_text(c,LINK_X+PAD,LINK_Y+13,"LINK: CHOOSE A PLAYER'S MEDIUM",SH_TEXT,SH_WHITE);
+ for(int row=0;row<XZ_SHELL_LINK_ROWS&&first+row<n;row++){
+  int i=first+row;
+  const struct xz_shell_link_media *q=&sm->link_media[i];
+  struct xz_shell_rect r=xz_shell_source_link_rect(row);
+  int on=i==cur;
+  xz_rect(c,r.x,r.y,r.w,r.h,on?SH_BLUE:SH_RAIL);
+  xz_rect(c,r.x+8,r.y+8,28,r.h-16,q->color?q->color&0xffffff:0x3c3c3c);
+  char text[64];
+  snprintf(text,sizeof text,"PLAYER %d  %s",sh_max(0,sh_min(q->player,99)),slot_name(q->slot));
+  sh_text(c,r.x+46,r.y+(r.h-SH_CAP_TEXT)/2,text,SH_TEXT,q->ready?SH_WHITE:SH_DIM);
+  int nx=r.x+46+sh_text_width(c,"PLAYER 00  COMPUTER",SH_TEXT)+16;
+  const char *state=q->ready?(sm->current_known&&sm->current==XZ_SHELL_SRC_LINK&&sm->link_current==i?"BROWSING":""):"LOADING";
+  int sw=sh_text_width(c,state,SH_SMALL);
+  if(q->name)sh_text_fit(c,nx,r.y+(r.h-SH_CAP_TEXT)/2,r.x+r.w-nx-sw-24,q->name,SH_TEXT,on?SH_WHITE:SH_DIM);
+  if(*state)sh_text_right(c,r.x+r.w-12,r.y+(r.h-SH_CAP_SMALL)/2,state,SH_SMALL,on?SH_WHITE:SH_DIM);
+ }
+}
+static size_t select_link(struct xz_shell *u, const struct xz_shell_model *m, int i, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ const struct xz_shell_source_model *sm=m->source;
+ if(i<0||i>=link_count(sm)||!sm->link_media[i].ready)return 0;
+ u->stack[u->depth-1].scroll=0;
+ size_t n=si_emit(out,0,(struct xz_shell_action){(enum xz_shell_action_kind)XZ_SHELL_ACT_SET_SOURCE,-1,i+1,XZ_SHELL_SRC_LINK});
+ return si_key(u,m,XZ_SHELL_KEY_BROWSE,out,n);
+}
+size_t sh_source_back_step(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken) {
+ (void)out;
+ *taken=picker_open(u,m->source);
+ if(*taken)u->stack[u->depth-1].scroll=0;
+ return 0;
+}
+static size_t picker_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ const struct xz_shell_source_model *sm=m->source;
+ struct xz_shell_view *v=&u->stack[u->depth-1];
+ int n=link_count(sm),cur=picker_cursor(u,sm),first=picker_first(u,sm);
+ switch(e->kind){
+ case XZ_SHELL_TOUCH_DOWN:
+  for(int row=0;row<XZ_SHELL_LINK_ROWS&&first+row<n;row++){
+   if(!sh_inside(xz_shell_source_link_rect(row),e->x,e->y))continue;
+   if(first+row!=cur){v->scroll=first+row+1;return 0;}   /* first touch highlights */
+   return select_link(u,m,cur,out);
+  }
+  return 0;
+ case XZ_SHELL_ENCODER_TURN:v->scroll=sh_max(0,sh_min(n-1,cur+e->delta))+1;return 0;
+ case XZ_SHELL_ENCODER_PUSH:return select_link(u,m,cur,out);
+ default:return 0;
+ }
+}
 static size_t select_tile(struct xz_shell *u, const struct xz_shell_model *m, int i, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ /* LINK with media listed opens the picker; the current medium is highlighted first. */
+ if(i==XZ_SHELL_SRC_LINK-1&&link_count(m->source)>0){
+  int at=m->source->link_current;
+  u->stack[u->depth-1].scroll=(at>=0&&at<link_count(m->source)?at:0)+1;
+  return 0;
+ }
  if(!ready(m->source,i))return 0;
  size_t n=si_emit(out,0,(struct xz_shell_action){(enum xz_shell_action_kind)XZ_SHELL_ACT_SET_SOURCE,-1,0,i+1});
  return si_key(u,m,XZ_SHELL_KEY_BROWSE,out,n);
@@ -196,6 +280,7 @@ static size_t source_input(struct xz_shell *u, const struct xz_shell_model *m, c
  struct xz_shell_view *v=&u->stack[u->depth-1];
  if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(si_close_rect(),e->x,e->y))return sh_back(u,m,out);
  if(!sm)return 0;
+ if(picker_open(u,sm))return picker_input(u,m,e,out);
  int at=cursor_tile(u,sm);
  switch(e->kind){
  case XZ_SHELL_TOUCH_DOWN:

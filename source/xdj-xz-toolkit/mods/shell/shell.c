@@ -59,7 +59,7 @@ enum nav_kind { NAV_NONE, NAV_OPEN, NAV_PUSH, NAV_POP, NAV_HOME, NAV_HAND_OFF, N
 #define MODS NAV(NAV_MODS,0)
 /* ROW re-scans its arguments so LISTS can stand for the five list keys. */
 #define ROW(...) ROW_(__VA_ARGS__)
-#define ROW_(browse,taglist,playlist,search,source,info,shortcut,utility,menu,back) {  [XZ_SHELL_KEY_BACK]=back, [XZ_SHELL_KEY_BACK_HOLD]=HOME, [XZ_SHELL_KEY_BROWSE]=browse,  [XZ_SHELL_KEY_TAG_LIST]=taglist, [XZ_SHELL_KEY_PLAYLIST]=playlist, [XZ_SHELL_KEY_SEARCH]=search,  [XZ_SHELL_KEY_MENU]=menu, [XZ_SHELL_KEY_MENU_HOLD]=utility, [XZ_SHELL_KEY_SHORTCUT]=shortcut,  [XZ_SHELL_KEY_INFO]=info, [XZ_SHELL_KEY_SOURCE]=source, [XZ_SHELL_KEY_TAG_TRACK]=NAV(NAV_TAG,0),  [XZ_SHELL_KEY_TIME_MODE]=NAV(NAV_SETTING,XZ_SHELL_SET_TIME_MODE), [XZ_SHELL_KEY_QUANTIZE]=NAV(NAV_SETTING,XZ_SHELL_SET_QUANTIZE),  [XZ_SHELL_KEY_SOURCE_USB1]=NAV(NAV_STICK,XZ_SHELL_SRC_USB1), [XZ_SHELL_KEY_SOURCE_USB2]=NAV(NAV_STICK,XZ_SHELL_SRC_USB2),  [XZ_SHELL_KEY_TRACK_FILTER]=NAV(NAV_FILTER,0), [XZ_SHELL_KEY_SOURCE_LINK]=NAV(NAV_STICK,XZ_SHELL_SRC_LINK),  [XZ_SHELL_KEY_SOURCE_COMPUTER]=NAV(NAV_STICK,XZ_SHELL_SRC_COMPUTER) }
+#define ROW_(browse,taglist,playlist,search,source,info,shortcut,utility,menu,back) {  [XZ_SHELL_KEY_BACK]=back, [XZ_SHELL_KEY_BACK_HOLD]=HOME, [XZ_SHELL_KEY_BROWSE]=browse,  [XZ_SHELL_KEY_TAG_LIST]=taglist, [XZ_SHELL_KEY_PLAYLIST]=playlist, [XZ_SHELL_KEY_SEARCH]=search,  [XZ_SHELL_KEY_MENU]=menu, [XZ_SHELL_KEY_MENU_HOLD]=utility, [XZ_SHELL_KEY_SHORTCUT]=shortcut,  [XZ_SHELL_KEY_INFO]=info, [XZ_SHELL_KEY_SOURCE]=source, [XZ_SHELL_KEY_TAG_TRACK]=NAV(NAV_TAG,0), [XZ_SHELL_KEY_TAG_TRACK_HOLD]=NAV(NAV_TAG,1),  [XZ_SHELL_KEY_TIME_MODE]=NAV(NAV_SETTING,XZ_SHELL_SET_TIME_MODE), [XZ_SHELL_KEY_QUANTIZE]=NAV(NAV_SETTING,XZ_SHELL_SET_QUANTIZE),  [XZ_SHELL_KEY_SOURCE_USB1]=NAV(NAV_STICK,XZ_SHELL_SRC_USB1), [XZ_SHELL_KEY_SOURCE_USB2]=NAV(NAV_STICK,XZ_SHELL_SRC_USB2),  [XZ_SHELL_KEY_TRACK_FILTER]=NAV(NAV_FILTER,0), [XZ_SHELL_KEY_SOURCE_LINK]=NAV(NAV_STICK,XZ_SHELL_SRC_LINK),  [XZ_SHELL_KEY_SOURCE_COMPUTER]=NAV(NAV_STICK,XZ_SHELL_SRC_COMPUTER) }
 #define LISTS OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE)
 static const uint16_t nav[XZ_SHELL_SCREEN_COUNT][XZ_SHELL_KEY_COUNT]={
  /*                     browse                 taglist                 playlist                search                 source                 info                shortcut                utility                 menu      back */
@@ -216,7 +216,8 @@ static size_t track_filter(struct xz_shell *u, const struct xz_shell_model *m, s
    BROWSE with the category rail focused is that stick's MY SETTINGS panel. */
 static int my_settings_here(const struct xz_shell *u, const struct xz_shell_model *m) {
  const struct xz_shell_my_settings_model *s=m->my_settings;
- return s&&(s->source==XZ_SHELL_SRC_USB1||s->source==XZ_SHELL_SRC_USB2)&&sh_browse_at_root(u);
+ return s&&(s->source==XZ_SHELL_SRC_USB1||s->source==XZ_SHELL_SRC_USB2||(s->source==XZ_SHELL_SRC_LINK&&s->link_player>0))
+  &&sh_browse_at_root(u);
 }
 static void toggle_panel(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_panel_kind k) {
  if(k==XZ_SHELL_PANEL_MENU&&(my_settings_here(u,m)||u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS))k=XZ_SHELL_PANEL_MY_SETTINGS;
@@ -274,11 +275,25 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
    return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,!on,XZ_SHELL_SET_QUANTIZE});
   }
   break;
- case NAV_TAG:
+ case NAV_TAG:{
+  /* On a list with tag editing the key acts on the highlighted track: added, or removed when it is
+     already on the TAG LIST; held on the TAG LIST it removes (XZ manual pp.86, 88). */
+  int hold=(int)(packed>>4);
+  enum xz_shell_screen here=xz_shell_screen(u);
+  if((m->capabilities&XZ_SHELL_CAP_TAG_EDIT)&&list_screen_of(here)){
+   const struct xz_shell_browse_row *r=xz_shell_browse_highlight(u,m);
+   if(r&&r->kind==XZ_SHELL_ROW_TRACK&&((r->known>>XZ_SHELL_RF_TAGGED)&1)){
+    if(hold&&here!=XZ_SHELL_TAG_LIST)break;
+    int remove=r->tagged||here==XZ_SHELL_TAG_LIST;
+    return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_TAG_LIST,-1,(int32_t)r->id,remove?XZ_SHELL_TAG_REMOVE:XZ_SHELL_TAG_ADD});
+   }
+  }
+  if(hold)break;
   if(m->capabilities&XZ_SHELL_CAP_TAG_TRACK)return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_TAG_TRACK,deck,0,0});
   /* No capability: no change here, so the runtime's key probe sees an inert key and decides (stock tags the
      loaded track from PLAY; on a list it swallows the key and says why). */
   break;
+ }
  }
  return n;
 }
@@ -288,7 +303,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
 static size_t (*const back_steps[XZ_SHELL_SCREEN_COUNT])(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken)={
  [XZ_SHELL_BROWSE]=sh_browse_back_step, [XZ_SHELL_PLAYLIST]=sh_browse_back_step,
  [XZ_SHELL_TAG_LIST]=sh_browse_back_step, [XZ_SHELL_SEARCH]=sh_browse_back_step,
- [XZ_SHELL_UTILITY]=sh_settings_back_step,
+ [XZ_SHELL_UTILITY]=sh_settings_back_step, [XZ_SHELL_SOURCE]=sh_source_back_step,
 };
 size_t sh_back(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  if(u->popup.kind!=XZ_SHELL_POPUP_NONE){u->popup.kind=XZ_SHELL_POPUP_NONE;return 0;}

@@ -88,6 +88,7 @@ enum xz_shell_item_id {
  XZ_SHELL_ITEM_KEY_DISPLAY,        /* shell-owned: enum xz_shell_key_display */
  XZ_SHELL_ITEM_WAVE_ZOOM,          /* shell-owned: zoom level 0..XZ_SHELL_ZOOM_MAX */
  XZ_SHELL_ITEM_USB_COLORS,         /* shell-owned: enum xz_shell_usb_colors */
+ XZ_SHELL_ITEM_NEEDLE_LOCK,        /* UNLOCK, LOCK (model.settings.needle_lock) */
  XZ_SHELL_ITEM_ID_END
 };
 
@@ -151,8 +152,13 @@ struct xz_shell_dj_profile {
  int has_accent; uint32_t accent_rgb;     /* the profile's colour, 0xRRGGBB */
  int damaged;                             /* listed but unreadable: shown, cannot load */
 };
+/* Where a LOAD stands (newer players load MY SETTINGS only onto a paused deck, XDJ-AZ manual p.150):
+   READY, NEEDS_PAUSE (LOAD shows "PAUSE DECK n TO LOAD" and asks nothing), APPLYING, DONE or FAILED
+   (result says what happened, e.g. "31 APPLIED, 7 NOT ON THIS DECK"). */
+enum xz_shell_my_state { XZ_SHELL_MY_READY, XZ_SHELL_MY_NEEDS_PAUSE, XZ_SHELL_MY_APPLYING, XZ_SHELL_MY_DONE,
+ XZ_SHELL_MY_FAILED };
 struct xz_shell_my_settings_model {
- enum xz_shell_source source;             /* the stick: XZ_SHELL_SRC_USB1 or USB2 (others: the panel stays shut) */
+ enum xz_shell_source source;             /* the medium: USB1, USB2, or LINK (link_player set; others: panel shut) */
  const char *source_name;                 /* "USB 1"; NULL draws the shell's name for source */
  int on_stick;                            /* the stick holds a MY SETTINGS file */
  int writable;                            /* the stick can be written (MY_SAVE, MY_SETTING_SET, PROFILE_SAVE) */
@@ -163,6 +169,9 @@ struct xz_shell_my_settings_model {
  int profiles_switchable;                 /* 0: a single legacy profile; it shows, it does not switch */
  const struct xz_shell_settings_model *waveform; /* the runtime's waveform items (stems row layout, ...) */
  int waveform_tab;                        /* their tab index in m->mods, for SET_MOD */
+ int link_player;                         /* LINK: the player whose medium this is (1..6) */
+ enum xz_shell_my_state state;            /* of the last LOAD */
+ const char *result;                      /* DONE / FAILED: one caps line */
 };
 
 /* BACK on UTILITY moves focus one pane left. Returns 1 when it did, 0 when

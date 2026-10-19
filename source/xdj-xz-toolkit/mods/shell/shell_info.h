@@ -49,10 +49,16 @@ struct xz_shell_info_track {
  int artwork_side;
 };
 
+/* A player on the LINK network besides this unit's two decks (XZ manual p.91): its player number and
+   loaded track. Shown read only, in its own tab; it never becomes the active deck. */
+#define XZ_SHELL_INFO_LINKED 2
+struct xz_shell_info_linked { int player; struct xz_shell_info_track track; };
 struct xz_shell_info_model {
  struct xz_shell_info_track deck[XZ_SHELL_DECKS];
  int has_highlight;                  /* a list is open and supplied its highlighted track */
  struct xz_shell_info_track highlight;
+ int linked_count;                   /* 0..XZ_SHELL_INFO_LINKED: tabs PLAYER n after LIST */
+ struct xz_shell_info_linked linked[XZ_SHELL_INFO_LINKED];
 };
 
 /* Actions this screen adds to enum xz_shell_action_kind (struct xz_shell_action fields):
@@ -67,7 +73,7 @@ struct xz_shell_info_model {
 
 /* INFO geometry, for the runtime's hit tests and the host tests. */
 enum xz_shell_info_region {
- XZ_SHELL_INFO_R_TAB,       /* index 0 = DECK 1, 1 = DECK 2, 2 = LIST (highlighted track) */
+ XZ_SHELL_INFO_R_TAB,       /* index 0 = DECK 1, 1 = DECK 2, 2 = LIST (highlighted track), 3.. = linked players */
  XZ_SHELL_INFO_R_CLOSE,
  XZ_SHELL_INFO_R_ARTWORK,
  XZ_SHELL_INFO_R_TITLE,

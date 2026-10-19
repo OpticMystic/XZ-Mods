@@ -45,6 +45,8 @@ static const char *const time_mode_choices[]={"REMAIN","TIME"};
 static const char *const play_mode_choices[]={"SINGLE","CONTINUE"};
 static const char *const off_on_choices[]={"OFF","ON"};
 static const char *const quantize_choices[]={"1/8","1/4","1/2","1"};
+/* enum xz_shell_hot_cue_auto_load order */
+static const char *const hot_cue_load_choices[]={"OFF","ON","LIBRARY SETTING"};
 static const char *const beat_jump_choices[]={"1/2","1","2","4","8","16","32","64"};
 static int deck_quantize_index(const struct xz_shell_deck *d) {
  if(!sh_has(d,XZ_SHELL_F_QUANTIZE)||d->quantize_num!=1)return -1;
@@ -74,7 +76,8 @@ static struct xz_shell_setting_item own_item(const struct xz_shell *u, const str
  case XZ_SHELL_ITEM_TIME_MODE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"TIME MODE",time_mode_choices,2,sh_setting(m,XZ_SHELL_SET_TIME_MODE)?(st->time_mode==XZ_SHELL_TIME_ELAPSED):-1);break;
  case XZ_SHELL_ITEM_PLAY_MODE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"PLAY MODE",play_mode_choices,2,sh_setting(m,XZ_SHELL_SET_PLAY_MODE)?(st->play_mode==XZ_SHELL_PLAY_CONTINUE):-1);break;
  case XZ_SHELL_ITEM_AUTO_CUE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on_choices,2,sh_setting(m,XZ_SHELL_SET_AUTO_CUE)?!!st->auto_cue:-1);break;
- case XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"HOT CUE AUTO LOAD",off_on_choices,2,sh_setting(m,XZ_SHELL_SET_HOT_CUE_AUTO_LOAD)?!!st->hot_cue_auto_load:-1);break;
+ case XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"HOT CUE AUTO LOAD",hot_cue_load_choices,3,
+  sh_setting(m,XZ_SHELL_SET_HOT_CUE_AUTO_LOAD)?sh_max(0,sh_min(st->hot_cue_auto_load,XZ_SHELL_HCAL_LIBRARY)):-1);break;
  case XZ_SHELL_ITEM_QUANTIZE_BEAT:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"QUANTIZE BEAT VALUE",quantize_choices,4,deck_quantize_index(d));break;
  case XZ_SHELL_ITEM_BEAT_JUMP_BEAT:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"BEAT JUMP BEAT VALUE",beat_jump_choices,8,deck_jump_index(d));break;
  default:return it;

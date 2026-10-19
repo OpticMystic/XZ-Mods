@@ -400,7 +400,7 @@ static void test_strip_and_targets(void) {
   assert(r.h>=44&&r.y>=SI_HEAD_H&&r.y+r.h<=SI_STRIP_Y&&r.x>=0&&r.x+r.w<=XZ_SHELL_WIDTH);
  }
  for(int s=0;s<XZ_SHELL_RATING_MAX;s++)assert(xz_shell_info_rect(XZ_SHELL_INFO_R_STAR,s).h>=44);
- assert(si_close_rect().h>=44&&xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,3).w==0&&xz_shell_info_rect(XZ_SHELL_INFO_R_VALUE,XZ_SHELL_I_TRACK_ID).w==0);
+ assert(si_close_rect().h>=44&&xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,3+XZ_SHELL_INFO_LINKED).w==0&&xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,2+XZ_SHELL_INFO_LINKED).x+xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,2+XZ_SHELL_INFO_LINKED).w<=XZ_SHELL_HEADER_X&&xz_shell_info_rect(XZ_SHELL_INFO_R_VALUE,XZ_SHELL_I_TRACK_ID).w==0);
  /* Rendering is deterministic and leaves the model alone. */
  struct xz_shell_info_model copy=im;
  open_screen(&u,&m,XZ_SHELL_KEY_INFO,XZ_SHELL_INFO);
