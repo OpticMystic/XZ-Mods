@@ -57,7 +57,8 @@ struct xz_shell_model_storage {
     struct deck_storage deck[XZ_SHELL_DECKS];
     uint32_t caution, guard_failures[4], fx_failures, holds;
     /* Code bytes never change once they matched, so a verified guard is not read again. */
-    unsigned guard_ok, fx_guard_ok;
+    unsigned guard_ok, fx_guard_ok, slip_guard_ok;
+    unsigned char fx_raw[12];int fx_raw_ok;
 };
 struct native_deck { unsigned char frame[FRAME_BYTES], total[TOTAL_BYTES]; };
 struct setting_pair { uint32_t id, value; };
@@ -155,6 +156,26 @@ static int setting(const struct setting_pair *list,uint32_t n,uint32_t id,uint32
     int found=0;
     for(uint32_t i=0;i<n;i++)if(list[i].id==id){if(found)return 0;*value=list[i].value;found=1;}
     return found;
+}
+/* SLIP and VINYL come from the same per-deck frame, at the bytes the stock getters read:
+   StatWatcher::getPlaySlipOn 0x2498a0 (+0x3c bit 2), getPlaySlipping 0x2498ec (+0x3c bit 3), getPlaySlipTime
+   0x249984 (+0x258, the ghost position; ComputePlayAddress 0xec614 scales it by UiGetPlayTotalTime, so it is in
+   the units of total_ms) and getPlayModeVinyl 0x249e2c (+0x2d bit 0). The guard is each getter's load. */
+static const struct { uint32_t at; unsigned char code[16]; } slip_loads[4]={
+    {0x2498d4,{0x3c,0x00,0xd3,0xe5,0x50,0x01,0xe0,0xe7,0x1e,0xff,0x2f,0xe1,0x3c,0x00,0xd0,0xe5}},
+    {0x249920,{0x3c,0x00,0xd3,0xe5,0xd0,0x01,0xe0,0xe7,0x1e,0xff,0x2f,0xe1,0x3c,0x00,0xd0,0xe5}},
+    {0x2499a0,{0x00,0x00,0x51,0xe3,0x58,0x02,0x93,0x05,0x1e,0xff,0x2f,0x01,0x01,0x00,0x51,0xe3}},
+    {0x249e60,{0x2d,0x00,0xd3,0xe5,0x01,0x00,0x00,0xe2,0x1e,0xff,0x2f,0xe1,0x2d,0x00,0xd0,0xe5}}};
+static int slip_guards(xz_shell_read_fn read){
+    unsigned char b[16];
+    for(unsigned i=0;i<4;i++)if(!bytes(read,slip_loads[i].at,b,16)||memcmp(b,slip_loads[i].code,16))return 0;
+    return 1;
+}
+static void slip_fields(struct xz_shell_deck *d,const struct native_deck *n,uint32_t now_ms){
+    const unsigned char *f=n->frame;
+    d->slip=!!(f[0x3c]&4);d->vinyl=f[0x2d]&1;d->known|=K(SLIP)|K(VINYL);
+    uint32_t ghost=u32(f+0x258);
+    if(d->slip&&(f[0x3c]&8)&&ghost<=INT32_MAX){d->slip_ms=(int32_t)ghost;d->slip_at_ms=now_ms?now_ms:1;d->known|=K(SLIP_POSITION);}
 }
 static void frame_fields(struct xz_shell_deck *d,struct deck_storage *storage,const struct native_deck *n,uint32_t now_ms){
     const unsigned char *f=n->frame;uint32_t value;
@@ -297,6 +318,7 @@ static void fx_fields(struct xz_shell_fx *f,struct xz_shell_model_storage *s,xz_
     if(!word(read,0x1c8981c,&mgr)||!pointer(mgr,0x54)||!word(read,mgr+0x50,&mixer)||!pointer(mixer,0x1a4)||
        !bytes(read,mixer+0x198,a,12)||!bytes(read,mixer+0x198,b,12)||memcmp(a,b,12)||
        !word(read,0x1c8981c,&again)||again!=mgr||!word(read,mgr+0x50,&again)||again!=mixer)return;
+    memcpy(s->fx_raw,a,12);s->fx_raw_ok=1;
     unsigned effect=a[2],beat=a[7];
     f->on=a[3]&1;f->known|=1u<<XZ_SHELL_FX_F_ON;
     /* BPM source: +6 zero AUTO, non-zero TAP. BPM x10 at +10 (102.2 BPM read live as 1022). The +5
@@ -313,6 +335,9 @@ static void fx_fields(struct xz_shell_fx *f,struct xz_shell_model_storage *s,xz_
 }
 uint32_t xz_shell_model_fx_failures(const struct xz_shell_model_storage *s){return s?s->fx_failures:0;}
 uint32_t xz_shell_model_holds(const struct xz_shell_model_storage *s){return s?s->holds:0;}
+int xz_shell_model_fx_raw(const struct xz_shell_model_storage *s,unsigned char out[12]){
+    if(!s||!s->fx_raw_ok||!out)return 0;memcpy(out,s->fx_raw,12);return 1;
+}
 unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_storage *s,xz_shell_read_fn read,uint32_t now_ms){
     static const unsigned char guards[4][16]={
         {0x0c,0x30,0x90,0xe5,0x00,0x00,0x53,0xe3,0x03,0x00,0xa0,0x01,0x1e,0xff,0x2f,0x01},
@@ -354,6 +379,8 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
                 have_native=0;d->known&=~K(TITLE);d->title=NULL;
             }else {
                 frame_fields(d,v,&n,now_ms);auto_known[deck]=1;auto_value[deck]=!!(n.frame[0x2e]&2);
+                if(!s->slip_guard_ok)s->slip_guard_ok=slip_guards(read);
+                if(s->slip_guard_ok)slip_fields(d,&n,now_ms);
             }
         }
         /* Identity must be settled, with a delivered title and sane total.

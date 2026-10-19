@@ -46,6 +46,10 @@ int xz_shana_stems_find(const struct xz_shana_stems *, const char *track, char *
    xz_wave_load_stems does). Reads only each file's PWV7 section. read_ms: per stem file, or NULL. */
 int xz_shana_stems_load(const char *folder, struct xz_wave_load *out, uint32_t read_ms[3]);
 
+/* The 3-band preview (PWV6, 1200 entries of LOW, MID, HIGH) from dir/ANLZ0000.2EX, read with seeks: only
+   the section headers and that payload. *bands is malloc'd (count * 3 bytes). 0 = found. */
+int xz_shana_preview(const char *dir, uint8_t **bands, uint32_t *count);
+
 /* Memory cues and memory loops from dir/ANLZ0000.DAT: the PCOB list of type 0 (memory), each PCPT entry
    {hot_cue 0, type 1 cue / 2 loop, time ms, loop end ms}. Sorted by time, at most XZ_SHELL_MEMORY_CUES.
    Returns the count, or -1 when the file or its cue list cannot be read. */

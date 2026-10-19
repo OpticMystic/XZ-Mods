@@ -49,6 +49,7 @@ struct xz_shlib_request {
  int sort_set, sort_column, sort_descending;
  struct xz_shlib_filter filter;
  const struct xz_shpl_set *edits;       /* playlist edits merged into PLAYLIST lists; NULL = none. Read only */
+ struct xz_shlib_filter matching;       /* MATCHING: the tracks it keeps (on = the master deck is known) */
 };
 struct xz_shlib_list {
  enum xz_shell_screen screen;
@@ -83,6 +84,8 @@ uint32_t xz_shlib_sort_keys(void);
 int xz_shlib_playlist_tracks(struct xz_shlib *, uint32_t id, uint32_t **tracks, uint32_t *count);
 /* A stick playlist's (or folder's) name, "" when unknown. */
 const char *xz_shlib_playlist_name(const struct xz_shlib *, uint32_t id);
+/* 1: a stick playlist folder, 0: a stick playlist, -1: not a stick playlist node (a shell-made one or unknown). */
+int xz_shlib_playlist_is_folder(const struct xz_shlib *, uint32_t id);
 /* Worker only: the playlists (not folders) merged with edits, for ADD TO PLAYLIST. Names are copied. */
 struct xz_shlib_playlist_ref { uint32_t id; char name[XZ_SHELL_NAME_MAX]; int32_t tracks; };
 int xz_shlib_playlist_refs(struct xz_shlib *, const struct xz_shpl_set *, struct xz_shlib_playlist_ref *out, int capacity);

@@ -58,6 +58,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_notice
 #pragma weak xz_shell_runtime_will_refresh
 #pragma weak xz_shell_runtime_take_stem_mute
+#pragma weak xz_shell_runtime_take_mods_page
 #pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
@@ -1302,10 +1303,14 @@ static void shell_ui_requests_locked(void){
             if(muted!=value){struct xz_ui_action act={.kind=XZ_UI_MUTE,.phase=XZ_UI_PRESS,.deck=deck,.index=stem};apply(NULL,&act,1);}
         }
     }
-    if((requests&XZ_SHELL_UI_OPEN_MODS)&&touch.visible&&xz_shell_runtime_notice)xz_shell_runtime_notice("THE MODS PANEL IS ALREADY OPEN");
+    /* The shell's MODS screen opens a panel page (a mod tab's button); the header asks for the panel itself. */
+    int mods_page=(requests&XZ_SHELL_UI_OPEN_MODS)&&xz_shell_runtime_take_mods_page?xz_shell_runtime_take_mods_page():-1;
+    if((requests&XZ_SHELL_UI_OPEN_MODS)&&touch.visible&&mods_page<0&&xz_shell_runtime_notice)xz_shell_runtime_notice("THE MODS PANEL IS ALREADY OPEN");
+    if((requests&XZ_SHELL_UI_OPEN_MODS)&&touch.visible&&mods_page>=0)xz_ui_navigate(&ui,(enum xz_ui_page)mods_page);
     if((requests&XZ_SHELL_UI_OPEN_MODS)&&!touch.visible){
         touch.visible=1;
-        if(sdk_session.active&&ui.page!=XZ_UI_APPS_SETUP)xz_ui_navigate(&ui,XZ_UI_APPS);
+        if(mods_page>=0)xz_ui_navigate(&ui,(enum xz_ui_page)mods_page);
+        else if(sdk_session.active&&ui.page!=XZ_UI_APPS_SETUP)xz_ui_navigate(&ui,XZ_UI_APPS);
         __atomic_store_n(&visible,1,__ATOMIC_RELEASE);
         inline_layout_publish();
     }

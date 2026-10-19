@@ -327,6 +327,26 @@ static void test_fx(void){
  put32(0x3100050,0x3300001);xz_shell_model_refresh(&m,s.storage,read_memory,8);assert(!m.fx.known);
  release(&s);puts("PASS BEAT FX: live record, names, beat table, REVERB/PITCH blanks, unknown effect, torn record, bad root, cached guard");
 }
+static void test_slip_vinyl(void){
+ fixture();struct guarded_storage s=allocate();struct xz_shell_model m={0};
+ xz_shell_model_refresh(&m,s.storage,read_memory,1);assert(!(m.deck[0].known&(K(SLIP)|K(VINYL)|K(SLIP_POSITION))));
+ static const struct { uint32_t at; unsigned char code[16]; } loads[4]={
+  {0x2498d4,{0x3c,0x00,0xd3,0xe5,0x50,0x01,0xe0,0xe7,0x1e,0xff,0x2f,0xe1,0x3c,0x00,0xd0,0xe5}},
+  {0x249920,{0x3c,0x00,0xd3,0xe5,0xd0,0x01,0xe0,0xe7,0x1e,0xff,0x2f,0xe1,0x3c,0x00,0xd0,0xe5}},
+  {0x2499a0,{0x00,0x00,0x51,0xe3,0x58,0x02,0x93,0x05,0x1e,0xff,0x2f,0x01,0x01,0x00,0x51,0xe3}},
+  {0x249e60,{0x2d,0x00,0xd3,0xe5,0x01,0x00,0x00,0xe2,0x1e,0xff,0x2f,0xe1,0x2d,0x00,0xd0,0xe5}}};
+ for(unsigned i=0;i<4;i++)memcpy(map(loads[i].at,16),loads[i].code,16);
+ /* Fixture: +0x2d = 0xc4 (VINYL bit clear). Deck 1: SLIP on and slipping, ghost at 12.5 s; deck 2: VINYL on. */
+ *at(frame(0)+0x3c,1)=0x0c;put32(frame(0)+0x258,12500);*at(frame(1)+0x2d,1)=0xc5;put32(frame(1)+0x258,9000);
+ xz_shell_model_refresh(&m,s.storage,read_memory,40);
+ assert((m.deck[0].known&(K(SLIP)|K(VINYL)|K(SLIP_POSITION)))==(K(SLIP)|K(VINYL)|K(SLIP_POSITION)));
+ assert(m.deck[0].slip&&!m.deck[0].vinyl&&m.deck[0].slip_ms==12500&&m.deck[0].slip_at_ms==40);
+ assert(!m.deck[1].slip&&m.deck[1].vinyl&&!(m.deck[1].known&K(SLIP_POSITION)));
+ /* SLIP on but not slipping: no ghost. */
+ *at(frame(0)+0x3c,1)=0x04;xz_shell_model_refresh(&m,s.storage,read_memory,41);
+ assert(m.deck[0].slip&&!(m.deck[0].known&K(SLIP_POSITION)));
+ release(&s);puts("PASS SLIP and VINYL: guarded getter bytes, slip on, slipping ghost position, vinyl mode");
+}
 static void test_settings_bulk(void){
  fixture();struct guarded_storage s=allocate();struct xz_shell_model m={0};
  map(0x3204000,0x8c*40);put32(0x3200164,0x3204000);put32(0x320016c,40);
@@ -343,6 +363,6 @@ static void test_settings_bulk(void){
 }
 int main(void){
  test_valid_and_input();test_guards();test_torn_and_pointers();test_identity_and_waves();test_flag_encodings();test_invalid_data();
- test_fx();test_settings_bulk();
+ test_fx();test_slip_vinyl();test_settings_bulk();
  puts("shell_model: all host acceptance tests passed; no hardware/device/network access");return 0;
 }

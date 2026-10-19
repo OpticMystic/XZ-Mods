@@ -52,6 +52,10 @@ void xz_shell_model_diagnostics(const struct xz_shell_model_storage *storage, ui
    last complete snapshot because a read was torn or unstable (at most 250 ms per snapshot). */
 uint32_t xz_shell_model_fx_failures(const struct xz_shell_model_storage *storage);
 uint32_t xz_shell_model_holds(const struct xz_shell_model_storage *storage);
+/* The last stable BEAT FX record (12 bytes, as getBfxState copies it). 0 when none was read yet. Debug: the
+   channel selector byte (+1) and LEVEL/DEPTH have no proven label mapping; the runtime logs the raw record
+   so a selector sweep on the deck can prove one. */
+int xz_shell_model_fx_raw(const struct xz_shell_model_storage *storage, unsigned char out[12]);
 
 /* Hot cue OUT time (loop hot cues); returns 0 when not known. */
 int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *storage, int deck, int cue, int32_t *out_ms);
