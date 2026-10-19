@@ -16,6 +16,7 @@
 struct fx_track {
  struct xz_shell_column lane[FX_LANE_COLUMNS];
  struct xz_shell_column overview[FX_OVERVIEW_COLUMNS];
+ struct xz_shell_column stems[FX_LANE_COLUMNS];   /* low = drums, mid = harmonics, high = vocal */
  struct xz_shell_beat grid[FX_GRID_BEATS];
  uint32_t grid_count;
 };
@@ -60,8 +61,24 @@ static struct xz_shell_column fx_column(int32_t ms, uint32_t seed) {
  struct xz_shell_column q={(uint8_t)(low>255?255:low),(uint8_t)(mid>255?255:mid),(uint8_t)(high>255?255:high)};
  return q;
 }
+/* Stems from the same arrangement: drums follow the kick and hats, harmonics the bass and pads,
+   and a vocal sings three bars in four through the break and the second drop. */
+static struct xz_shell_column fx_stem_column(int32_t ms, struct xz_shell_column band) {
+ int bar=(int)(ms/(FX_BEAT_MS*4/100)),section=(bar/8)%7;
+ int drums=band.low*3/4+band.high/3,harmonics=band.mid*9/10;
+ int vocal=0;
+ if((section==3||section==5)&&bar%4!=3){
+  int frac=(int)(((int64_t)ms*100%(FX_BEAT_MS*2))*256/(FX_BEAT_MS*2));    /* a two-beat phrase */
+  vocal=frac<200?150+frac/4:60;
+ }
+ struct xz_shell_column q={(uint8_t)(drums>255?255:drums),(uint8_t)(harmonics>255?255:harmonics),(uint8_t)vocal};
+ return q;
+}
 static void fx_track_build(struct fx_track *t, uint32_t seed) {
- for(int i=0;i<FX_LANE_COLUMNS;i++)t->lane[i]=fx_column((int32_t)((int64_t)i*FX_TOTAL_MS/FX_LANE_COLUMNS),seed);
+ for(int i=0;i<FX_LANE_COLUMNS;i++){
+  int32_t ms=(int32_t)((int64_t)i*FX_TOTAL_MS/FX_LANE_COLUMNS);
+  t->lane[i]=fx_column(ms,seed);t->stems[i]=fx_stem_column(ms,t->lane[i]);
+ }
  for(int i=0;i<FX_OVERVIEW_COLUMNS;i++){
   int from=i*FX_LANE_COLUMNS/FX_OVERVIEW_COLUMNS,to=(i+1)*FX_LANE_COLUMNS/FX_OVERVIEW_COLUMNS;
   struct xz_shell_column q={0,0,0};
@@ -103,6 +120,7 @@ static void fx_deck_one(struct xz_shell_deck *d, const struct fx_track *t) {
  d->grid=t->grid;d->grid_count=t->grid_count;d->bar_phase=(int)((d->elapsed_ms*100/FX_BEAT_MS)%4)+1;
  d->wave=(struct xz_shell_wave){t->lane,FX_LANE_COLUMNS,FX_TOTAL_MS};
  d->overview=(struct xz_shell_wave){t->overview,FX_OVERVIEW_COLUMNS,FX_TOTAL_MS};
+ d->stems=(struct xz_shell_wave){t->stems,FX_LANE_COLUMNS,FX_TOTAL_MS};
 }
 static void fx_deck_two(struct xz_shell_deck *d, const struct fx_track *t) {
  memset(d,0,sizeof *d);
@@ -123,6 +141,7 @@ static void fx_deck_two(struct xz_shell_deck *d, const struct fx_track *t) {
  d->grid=t->grid;d->grid_count=t->grid_count;d->bar_phase=(int)((d->elapsed_ms*100/FX_BEAT_MS)%4)+1;
  d->wave=(struct xz_shell_wave){t->lane,FX_LANE_COLUMNS,FX_TOTAL_MS};
  d->overview=(struct xz_shell_wave){t->overview,FX_OVERVIEW_COLUMNS,FX_TOTAL_MS};
+ d->stems=(struct xz_shell_wave){t->stems,FX_LANE_COLUMNS,FX_TOTAL_MS};
 }
 /* Beat FX as the runtime reads it: no channel or level. */
 static inline void fx_beat_fx(struct xz_shell_fx *f, int on, const char *name, int num, int den, int32_t time_ms) {

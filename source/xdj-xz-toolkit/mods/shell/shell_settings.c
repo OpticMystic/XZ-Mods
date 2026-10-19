@@ -31,7 +31,7 @@ struct table { const struct xz_shell_setting_item *items; int count; };
 static int shell_owned(int id) {
  return id==XZ_SHELL_ITEM_WAVE_COLOR||id==XZ_SHELL_ITEM_WAVE_POSITION||id==XZ_SHELL_ITEM_KEY_DISPLAY||id==XZ_SHELL_ITEM_WAVE_ZOOM;
 }
-static const char *const wave_color_choices[]={"BLUE","RGB","3BAND"};
+static const char *const wave_color_choices[]={"BLUE","RGB","3BAND","STEMS"};
 static const char *const position_choices[]={"CENTER","LEFT"};
 static const char *const key_display_choices[]={"AS DECK","CLASSIC","ALPHANUM."};
 static const char *const zoom_choices[XZ_SHELL_ZOOM_MAX+1]={"1","2","3","4","5","6","7"};
@@ -60,7 +60,7 @@ static struct xz_shell_setting_item own_item(const struct xz_shell *u, const str
  const struct xz_shell_deck *d=&m->deck[u->deck>=0&&u->deck<XZ_SHELL_DECKS?u->deck:0];
  struct xz_shell_setting_item it;memset(&it,0,sizeof it);it.id=-1;
  switch(id){
- case XZ_SHELL_ITEM_WAVE_COLOR:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM COLOR",wave_color_choices,3,(int)sh_wave_color(u));break;
+ case XZ_SHELL_ITEM_WAVE_COLOR:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM COLOR",wave_color_choices,4,(int)sh_wave_color(u));break;
  case XZ_SHELL_ITEM_WAVE_POSITION:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM CURRENT POSITION",position_choices,2,(int)sh_wave_position(u));break;
  case XZ_SHELL_ITEM_KEY_DISPLAY:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"KEY DISPLAY FORMAT",key_display_choices,3,(int)sh_key_display(u));break;
  case XZ_SHELL_ITEM_WAVE_ZOOM:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM ZOOM",zoom_choices,XZ_SHELL_ZOOM_MAX+1,sh_max(0,sh_min(u->zoom,XZ_SHELL_ZOOM_MAX)));break;
@@ -211,8 +211,7 @@ static void render_mini_overview(const struct xz_shell *u, const struct xz_shell
  int32_t e=loaded?xz_shell_elapsed_now(m,deck):-1;
  int ph=e>=0&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0?r.x+(int)((int64_t)e*(r.w-1)/d->total_ms):-1;
  xz_rect(c,r.x,r.y,r.w,r.h,SH_BLACK);
- if(loaded&&sh_has(d,XZ_SHELL_F_OVERVIEW)&&d->overview.columns&&d->overview.count)
-  sh_wave_overview(c,(struct xz_shell_rect){r.x,r.y,r.w,r.h-1},&d->overview,sh_wave_color(u),ph);
+ if(loaded)sh_deck_overview(c,(struct xz_shell_rect){r.x,r.y,r.w,r.h-1},u,m,d,ph);
  xz_rect(c,r.x,r.y+r.h-1,r.w,1,SH_RAIL);
  if(ph>=0)xz_rect(c,ph,r.y,1,r.h,SH_PLAYHEAD);
 }

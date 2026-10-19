@@ -232,7 +232,9 @@ static void render_column(const struct xz_shell *u, const struct xz_shell_model 
    waveform samples by, so markers never slide against the audio. */
 struct lane_view { int64_t head_px; int pps, ph_x; };
 static int64_t floor_div(int64_t a, int64_t b) { int64_t q=a/b;return (a%b!=0&&(a<0)!=(b<0))?q-1:q; }
-static int64_t track_px(int pps, int32_t ms) { return floor_div((int64_t)ms*pps,1000); }
+/* Rounded, not floored: a time lands on its nearest track pixel, the playhead included, so the
+   picture is never up to a whole pixel late. */
+static int64_t track_px(int pps, int32_t ms) { return floor_div((int64_t)ms*pps+500,1000); }
 static int lane_x(const struct lane_view *v, int32_t ms) {
  int64_t x=v->ph_x+track_px(v->pps,ms)-v->head_px;
  return x<-4096?-4096:x>4096?4096:(int)x;
@@ -260,14 +262,18 @@ static void render_lane(const struct xz_shell *u, const struct xz_shell_model *m
  struct lane_view v={0,zoom_pps[u->zoom<0?0:u->zoom>XZ_SHELL_ZOOM_MAX?XZ_SHELL_ZOOM_MAX:u->zoom],playhead_x(u)};
  if(elapsed>=0){
   v.head_px=track_px(v.pps,elapsed);
-  int32_t first=lane_ms(&v,WAVE_X)-1,last=lane_ms(&v,WAVE_X+WAVE_W)+1;
+  int32_t first=lane_ms(&v,WAVE_X)-50,last=lane_ms(&v,WAVE_X+WAVE_W)+50;
   struct xz_canvas lane=xz_sub(c,WAVE_X,ly,WAVE_W,LANE_H);
   if(sh_has(d,XZ_SHELL_F_LOOP)&&d->loop.active&&d->loop.out_ms>d->loop.in_ms){
    int x0=sh_max(WAVE_X,lane_x(&v,d->loop.in_ms)),x1=sh_min(WAVE_X+WAVE_W,lane_x(&v,d->loop.out_ms));
    if(x1>x0)xz_rect(c,x0,ly,x1-x0,LANE_H,xz_blend(SH_BLACK,SH_LOOP,48));
   }
-  if(sh_has(d,XZ_SHELL_F_WAVE))
-   sh_wave_lane(c,(struct xz_shell_rect){WAVE_X,ly,WAVE_W,LANE_H},LANE_H/2-EDGE,&d->wave,sh_wave_color(u),v.head_px-(v.ph_x-WAVE_X),v.pps);
+  sh_deck_lane(c,(struct xz_shell_rect){WAVE_X,ly,WAVE_W,LANE_H},LANE_H/2-EDGE,u,m,d,v.head_px-(v.ph_x-WAVE_X),v.pps);
+  /* STEMS with no stem layer yet draws 3BAND, and says so, quietly, in the lane corner. */
+  if(sh_wave_color(u)==XZ_SHELL_WAVE_STEMS&&!sh_stem_wave_ready(d)){
+   static const char hint[]="NO STEM WAVE YET \xc2\xb7 3BAND";
+   lane_caption(c,WAVE_X+WAVE_W-6-sh_text_width(c,hint,SH_SMALL),ly+LANE_H-TICK_H-SH_CAP_SMALL-6,hint,SH_DIM);
+  }
   if(sh_has(d,XZ_SHELL_F_GRID)&&d->grid){
    int bar=0;
    for(uint32_t i=0;i<d->grid_count;i++){
@@ -345,9 +351,8 @@ static void render_overview(const struct xz_shell *u, const struct xz_shell_mode
  int ph=timed?overview_x(ov,elapsed,d->total_ms):-1;
  char text[16];
  xz_rect(c,ov.x,ov.y,ov.w,ov.h,SH_BLACK);
- if(loaded&&sh_has(d,XZ_SHELL_F_OVERVIEW)&&d->overview.columns&&d->overview.count)
-  sh_wave_overview(c,(struct xz_shell_rect){ov.x,ov.y+1,ov.w,ov.h-1},&d->overview,sh_wave_color(u),ph);
- else xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);
+ xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);
+ if(loaded)sh_deck_overview(c,(struct xz_shell_rect){ov.x,ov.y+1,ov.w,ov.h-1},u,m,d,ph);
  /* marker row above: hot cue letter chips and memory cue marks */
  if(timed&&sh_has(d,XZ_SHELL_F_MEMORY_CUES))for(int i=0;i<d->memory_count&&i<XZ_SHELL_MEMORY_CUES;i++){
   const struct xz_shell_cue *q=&d->memory_cue[i];
