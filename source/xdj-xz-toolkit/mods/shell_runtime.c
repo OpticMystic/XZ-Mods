@@ -323,7 +323,7 @@ static const struct xz_shell_item_help help_items[]={
 #undef HELP
 static const struct xz_shell_help_model help_model={sizeof help_items/sizeof *help_items,help_items};
 static uint32_t look_classic_at; /* the first push of INTERFACE > CLASSIC: a second one within 4 s switches */
-static struct { int kind, index; float value; } ui_actions[8]; static int ui_action_count; /* under mutex */
+static struct { int kind, deck, index; float value; } ui_actions[8]; static int ui_action_count; /* under mutex */
 static void fill_look(void) {
  const struct xz_shell_runtime_frame_input *in=&last_input;int k=!!in->look_known;
 #define LOOK(n,id,cat,label,choices,count,current) look_items[n]=(struct xz_shell_setting_item){id,(enum xz_shell_setting_category)(cat),label,choices,count,k?(current):0,k,k}
@@ -342,9 +342,11 @@ static void fill_look(void) {
   k&&in->stems_overlay>=0&&in->stems_overlay<5?in->stems_overlay:0,k,k};
  wave_model=(struct xz_shell_settings_model){1,wave_items,NULL};
 }
-static void ui_action_locked(int kind, int index, float value, uint32_t now) {
+static void ui_action_locked(int kind, int deck, int index, float value, uint32_t now) {
+ /* A stem level slide replaces the same stem's unsent level instead of queueing every step. */
+ if(kind==XZ_UI_LEVEL)for(int i=0;i<ui_action_count;i++)if(ui_actions[i].kind==kind&&ui_actions[i].deck==deck&&ui_actions[i].index==index){ui_actions[i].value=value;return;}
  if(ui_action_count>=8){refuse();return;}
- ui_actions[ui_action_count].kind=kind;ui_actions[ui_action_count].index=index;ui_actions[ui_action_count].value=value;ui_action_count++;
+ ui_actions[ui_action_count].kind=kind;ui_actions[ui_action_count].deck=deck;ui_actions[ui_action_count].index=index;ui_actions[ui_action_count].value=value;ui_action_count++;
  __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_ACTION,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
 }
 /* SET_MOD on APPEARANCE: the panel action that item stands for. */
@@ -354,24 +356,24 @@ static void look_set_locked(int id, int choice, uint32_t now) {
   if(choice==1){
    /* CLASSIC replaces the whole screen and stops the shell: ask for a second push. */
    if(!look_classic_at||now-look_classic_at>4000u){look_classic_at=now?now:1;notice_locked(now,"PUSH AGAIN TO SWITCH TO CLASSIC");return;}
-   look_classic_at=0;ui_action_locked(XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC,0,now);
-  }else if(choice==0)ui_action_locked(XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,now);
+   look_classic_at=0;ui_action_locked(XZ_UI_SET_INTERFACE,-1,XZ_UI_INTERFACE_CLASSIC,0,now);
+  }else if(choice==0)ui_action_locked(XZ_UI_SET_INTERFACE,-1,XZ_UI_INTERFACE_MODERN,0,now);
   else refuse();
   return;
- case LOOK_THEME:if(choice==0)ui_action_locked(XZ_UI_SET_MODERN_THEME,choice,0,now);else refuse();return;
- case LOOK_WAVE:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_WAVE_MODE,choice,0,now);else refuse();return;
- case LOOK_KEY_FORMAT:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_KEY_FORMAT,choice,0,now);else refuse();return;
- case LOOK_KEY_FEEDBACK:ui_action_locked(XZ_UI_KEY_FEEDBACK,0,choice?1.f:0.f,now);return;
- case LOOK_TRAFFIC:ui_action_locked(XZ_UI_BROWSE_TRAFFIC,0,choice?1.f:0.f,now);return;
+ case LOOK_THEME:if(choice==0)ui_action_locked(XZ_UI_SET_MODERN_THEME,-1,choice,0,now);else refuse();return;
+ case LOOK_WAVE:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_WAVE_MODE,-1,choice,0,now);else refuse();return;
+ case LOOK_KEY_FORMAT:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_KEY_FORMAT,-1,choice,0,now);else refuse();return;
+ case LOOK_KEY_FEEDBACK:ui_action_locked(XZ_UI_KEY_FEEDBACK,-1,0,choice?1.f:0.f,now);return;
+ case LOOK_TRAFFIC:ui_action_locked(XZ_UI_BROWSE_TRAFFIC,-1,0,choice?1.f:0.f,now);return;
  case LOOK_STEM_LAYOUT:{
   /* The panel's layout control steps to the next layout: step from the current one to the choice. */
   int from=last_input.stems_overlay;
   if(choice<0||choice>=5||from<0||from>=5){refuse();return;}
-  for(int steps=(choice-from+5)%5;steps>0;steps--)ui_action_locked(XZ_UI_STEMS_OVERLAY,0,0,now);
+  for(int steps=(choice-from+5)%5;steps>0;steps--)ui_action_locked(XZ_UI_STEMS_OVERLAY,-1,0,0,now);
   return;
  }
  case LOOK_DRUMS:case LOOK_HARMONICS:case LOOK_VOCALS:
-  if(choice>=0&&choice<9)ui_action_locked(XZ_UI_STEM_COLOR,id-LOOK_DRUMS,(float)choice,now);else refuse();
+  if(choice>=0&&choice<9)ui_action_locked(XZ_UI_STEM_COLOR,-1,id-LOOK_DRUMS,(float)choice,now);else refuse();
   return;
  default:refuse();return;
  }
@@ -645,7 +647,7 @@ static void fill_slots_locked(void) {
  if(lib&&load_enabled&&has(G_LOAD))caps|=XZ_SHELL_CAP_LOAD;
  if(lib)caps|=XZ_SHELL_CAP_FILTER;
  if(lib&&!usb[browse_source].rdonly&&usb[browse_source].root[0])caps|=XZ_SHELL_CAP_PLAYLIST_EDIT|XZ_SHELL_CAP_TAG_EDIT|XZ_SHELL_CAP_HISTORY_EDIT;
- if(last_input.stem_muted_known[0]||last_input.stem_muted_known[1])caps|=XZ_SHELL_CAP_STEM_MUTE;
+ if(last_input.stem_muted_known[0]||last_input.stem_muted_known[1])caps|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN;
  model.capabilities=caps;
  model.settings.writable=0;
  for(int id=0;id<XZ_SHELL_SETTING_COUNT;id++)
@@ -1778,6 +1780,11 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    if(a->id==XZ_SHELL_PL_CREATE)pl_queue[(pl_head+pl_count)%PL_QUEUE].e.playlist=open_folder(browse_source);
    pl_count++;pthread_cond_signal(&wake);
    break;
+  case XZ_SHELL_ACT_STEM_GAIN:
+   /* The pads' own stem level (XZ_UI_LEVEL, 0..1); a level above 0 unmutes, as on the pads. */
+   if(!(model.capabilities&XZ_SHELL_CAP_STEM_GAIN)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<0||a->id>2||a->value<0||a->value>XZ_SHELL_STEM_GAIN_MAX){refuse();break;}
+   ui_action_locked(XZ_UI_LEVEL,a->deck,a->id,(float)a->value/(float)XZ_SHELL_STEM_GAIN_MAX,now);
+   break;
   case XZ_SHELL_ACT_STEM_MUTE:
    if(!(model.capabilities&XZ_SHELL_CAP_STEM_MUTE)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<0||a->id>2||stem_count>=8){refuse();break;}
    stem_queue[stem_count].deck=a->deck;stem_queue[stem_count].stem=a->id;stem_queue[stem_count].value=a->value!=0;stem_count++;
@@ -2027,6 +2034,16 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  /* Stem mute state and pad colours from the UI model (the deck's own refresh does not read them). */
  for(int d=0;d<XZ_SHELL_DECKS;d++)if(in->stem_muted_known[d]){model.deck[d].stem_muted=(uint8_t)(in->stem_muted[d]&7u);model.deck[d].known|=K(STEM_MUTE);}
  model.stem_rgb_known=in->stem_rgb_known;memcpy(model.stem_rgb,in->stem_rgb,sizeof model.stem_rgb);
+ /* The colours the DJ picked (not THEME DEFAULT); the rest draw the shell's own defaults. */
+ model.stem_rgb_custom=0;
+ if(in->look_known)for(int i=0;i<3;i++)if(in->stem_colors[i]>0)model.stem_rgb_custom|=(uint8_t)(1u<<i);
+ /* The stem row layout: the one stems_overlay setting classic uses too. */
+ model.stem_layout_known=in->look_known&&in->stems_overlay>=0&&in->stems_overlay<=XZ_SHELL_STEMS_OUTSIDE_HALF;
+ model.stem_layout=model.stem_layout_known?(enum xz_shell_stem_layout)in->stems_overlay:XZ_SHELL_STEMS_HIDDEN;
+ for(int d=0;d<XZ_SHELL_DECKS;d++)if(in->stem_level_known[d]){
+  for(int i=0;i<3;i++){float v=in->stem_level[d][i];int g=(int)(v*(float)XZ_SHELL_STEM_GAIN_MAX+.5f);model.deck[d].stem_gain[i]=(uint8_t)(g<0?0:g>XZ_SHELL_STEM_GAIN_MAX?XZ_SHELL_STEM_GAIN_MAX:g);}
+  model.deck[d].known|=K(STEM_GAIN);
+ }
  /* Header requests ui_runtime.c never took (its weak hook missing, or no input thread ran) cannot run. */
  if(ui_requests_at&&now-ui_requests_at>=500u){
   unsigned stale=__atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL);ui_requests_at=0;
@@ -2176,11 +2193,11 @@ int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value) {
  pthread_mutex_unlock(&mutex);
  return got;
 }
-int xz_shell_runtime_take_ui_action(int *kind, int *index, float *value) {
+int xz_shell_runtime_take_ui_action(int *kind, int *deck, int *index, float *value) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return 0;
  pthread_mutex_lock(&mutex);
  int got=ui_action_count>0;
- if(got){*kind=ui_actions[0].kind;*index=ui_actions[0].index;*value=ui_actions[0].value;
+ if(got){*kind=ui_actions[0].kind;*deck=ui_actions[0].deck;*index=ui_actions[0].index;*value=ui_actions[0].value;
   memmove(ui_actions,ui_actions+1,(size_t)(--ui_action_count)*sizeof *ui_actions);}
  pthread_mutex_unlock(&mutex);
  return got;

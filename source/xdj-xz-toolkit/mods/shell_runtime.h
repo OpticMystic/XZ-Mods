@@ -34,6 +34,7 @@ struct xz_shell_runtime_frame_input {
  /* The appearance settings the MODS > APPEARANCE tab shows (ui_runtime.c's model). */
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
  int stems_overlay;           /* enum xz_stem_layout: the stem row layout (MY SETTINGS > WAVEFORM) */
+ int stem_level_known[XZ_SHELL_DECKS]; float stem_level[XZ_SHELL_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
  struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
 };
 int xz_shell_runtime_start(void);
@@ -69,7 +70,7 @@ enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_M
 /* XZ_SHELL_UI_ACTION: MODS-panel actions the shell's item tabs asked for, oldest first (kind = enum
    xz_ui_action_kind, index, value as the panel sends them); 0 when none is left. ui_runtime.c runs them
    through apply(), so side effects and the settings save are the panel's own. */
-int xz_shell_runtime_take_ui_action(int *kind, int *index, float *value);
+int xz_shell_runtime_take_ui_action(int *kind, int *deck, int *index, float *value);
 /* XZ_SHELL_UI_DJ_PICK: the dj_runtime view entry the shell's DJ PROFILE row asked to make active, or -1. */
 int xz_shell_runtime_take_dj_pick(void);
 unsigned xz_shell_runtime_take_ui_requests(void);
