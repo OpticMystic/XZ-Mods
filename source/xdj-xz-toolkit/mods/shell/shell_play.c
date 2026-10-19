@@ -381,9 +381,11 @@ static void render_lane(const struct xz_shell *u, const struct xz_shell_model *m
     if(b->beat_in_bar==1)bar++;
     if(b->ms<first)continue;
     if(b->ms>last)break;
-    int x=lane_x(&v,b->ms),h=b->beat_in_bar==1?TICK_H:TICK_H/2;
+    /* The beat ruler on both edges: beats white, each bar's downbeat taller and red, as the stock lane marks them. */
+    int down=b->beat_in_bar==1,x=lane_x(&v,b->ms),h=down?TICK_H:TICK_H/2;
     if(x<WAVE_X||x>=WAVE_X+WAVE_W)continue;
-    xz_rect(c,x,ly,1,h,SH_WHITE);xz_rect(c,x,ly+lh-h,1,h,SH_WHITE);
+    uint32_t tick=down?SH_RED:SH_WHITE;
+    xz_rect(c,x,ly,1+down,h,tick);xz_rect(c,x,ly+lh-h,1+down,h,tick);
     if(b->beat_in_bar==1&&bar%4==0){snprintf(text,sizeof text,"%d",bar);lane_caption(lane,x-WAVE_X+3,lh-TICK_H-2,text,SH_DIM);}
    }
   }
