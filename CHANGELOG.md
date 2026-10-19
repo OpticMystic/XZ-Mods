@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Preview.15: one `interface` setting (MODERN/CLASSIC) decides who draws the screen; `classic_theme` and `modern_theme` keep a theme list per interface. Older `theme` values migrate (24 = MODERN). The shipped loader arms the shell runtime with the UI, so the setting alone switches it. MODS > APPEARANCE is regrouped: INTERFACE, THEME, WAVEFORM, KEYS AND STEMS. The setup wizard asks for the screen on install and update and writes only `interface`. Host tests pass; controller acceptance of the new loader is pending.
+
 - FLAGSHIP USB browsing starts with encoder focus on the sidebar. Push enters a category; BACK climbs nested folders, then returns to the sidebar before source selection. Holding physical BROWSE opens Search once; short release keeps the Browse toggle. Shell/render and runtime host checks pass, and the paired ARM build passes. Controller acceptance is pending.
 
 - Preview.14 limits eject to drives on a USB, SD or MMC bus (`IOCTL_STORAGE_QUERY_PROPERTY` BusType), checked before the volume is locked, and the app offers it only for drives the USB list marks removable. Preview.13 would have dismounted a fixed internal disk if one had been chosen.

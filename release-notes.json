@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.15",
+      "date": "2026-10-19",
+      "preview": true,
+      "features": [
+        "Installing or updating a USB now asks which screen the XZ shows: the new interface (beta, the default) or the standard XDJ-XZ interface. Each option shows the screen it gives, and a picture from the deck shows how to switch later in MODS > APPEARANCE > INTERFACE.",
+        "MODS > APPEARANCE starts with INTERFACE (MODERN or CLASSIC), then the themes for that interface, the waveform style, key display and stem colors."
+      ],
+      "fixes": [
+        "A fresh USB written with the screen choice gets its settings file, so the XZ does not fall back to the screen it remembered."
+      ],
+      "requirements": [
+        "New USB loader and runtime. Settings saved by older loaders keep their look: the FLAGSHIP theme becomes the new interface, any other theme the standard interface with that theme."
+      ]
+    },
+    {
       "version": "0.3.0-preview.14",
       "date": "2026-10-18",
       "preview": true,
