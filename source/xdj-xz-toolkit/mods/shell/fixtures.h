@@ -108,6 +108,7 @@ static void fx_deck_one(struct xz_shell_deck *d, const struct fx_track *t) {
  d->master_tempo=1;d->master=1;d->sync=0;d->playing=1;d->cue_standby=0;
  d->elapsed_ms=82523;d->total_ms=FX_TOTAL_MS;d->time_mode=XZ_SHELL_TIME_REMAIN;
  d->key="Fm";d->key_matches_master=1;d->key_shift=0;
+ d->key_original="Fm";d->key_cents=0;d->key_synced=0;     /* MASTER TEMPO on: the analysed key, on the semitone */
  d->quantize_on=1;d->quantize_num=1;d->quantize_den=1;d->beat_jump_num=16;d->beat_jump_den=1;
  d->loop.active=0;
  static const uint32_t colors[XZ_SHELL_HOT_CUES]={0xe02020,0x20c8ff,0xff8c1a,0x28e028,0x3c3cff,0x9b3cff,0xffe020,0xff50c8};
@@ -131,7 +132,10 @@ static void fx_deck_two(struct xz_shell_deck *d, const struct fx_track *t) {
  d->bpm_x100=13082;d->track_bpm_x100=FX_BPM_X100;d->tempo_x100=220;d->tempo_range=10;
  d->master_tempo=0;d->master=0;d->sync=1;d->playing=1;d->cue_standby=0;
  d->elapsed_ms=41088;d->total_ms=FX_TOTAL_MS;d->time_mode=XZ_SHELL_TIME_ELAPSED;
- d->key="Am";d->key_matches_master=0;d->key_shift=-1;
+ /* KEY SYNC moved this A minor track one semitone up to Bbm (3A), a wheel step from the master's Fm
+    (4A); the tempo change leaves it 12 cents sharp. */
+ d->key="Bbm";d->key_matches_master=0;d->key_shift=1;
+ d->key_original="Am";d->key_cents=12;d->key_synced=1;
  d->quantize_on=0;d->quantize_num=1;d->quantize_den=2;d->beat_jump_num=4;d->beat_jump_den=1;
  d->loop=(struct xz_shell_loop){1,4,1,fx_beat_ms(84),fx_beat_ms(88)};
  d->hot_cue[0]=(struct xz_shell_cue){1,fx_beat_ms(16),0x28e028,0};

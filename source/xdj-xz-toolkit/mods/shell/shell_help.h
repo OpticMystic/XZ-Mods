@@ -105,5 +105,10 @@ static const struct sh_help sh_help_table[]={
  {XZ_SHELL_ITEM_USB_COLORS,"USB COLORS","Whether each deck takes the colours saved on the USB stick its track came from.",
   {{"DECK + WAVE","The deck label takes the stick's colour and the waveform its waveform colour."},
    {"DECK ONLY","Only the deck label takes the stick's colour."},{"OFF","Every deck uses this unit's colours."}}},
+ /* p.70 elements 14-15, p.71-72 elements 24-25: indicators of the stock play screen */
+ {XZ_SHELL_ITEM_MODE_LAMPS,"MODE LAMPS","The top bar's lamps for PLAY MODE, HOT CUE AUTO LOAD and AUTO CUE.",
+  {{"SHOW","Each lamp lights while its mode is on."},{"HIDE","The lamps leave the screen; the modes keep working."}}},
+ {XZ_SHELL_ITEM_QUANTIZE_LAMP,"QUANTIZE LAMP","Each deck's QUANTIZE lamp and beat value, red while QUANTIZE is on.",
+  {{"SHOW","The lamp sits above the deck's time."},{"HIDE","Only the QUANTIZE button's own light shows the state."}}},
 };
 #endif

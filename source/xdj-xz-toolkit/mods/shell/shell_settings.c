@@ -34,13 +34,14 @@ static size_t emit_one(struct xz_shell_action out[XZ_SHELL_ACTIONS], struct xz_s
 struct table { const struct xz_shell_setting_item *items; int count; };
 static int shell_owned(int id) {
  return id==XZ_SHELL_ITEM_WAVE_COLOR||id==XZ_SHELL_ITEM_WAVE_POSITION||id==XZ_SHELL_ITEM_KEY_DISPLAY||id==XZ_SHELL_ITEM_WAVE_ZOOM
-  ||id==XZ_SHELL_ITEM_USB_COLORS;
+  ||id==XZ_SHELL_ITEM_USB_COLORS||id==XZ_SHELL_ITEM_MODE_LAMPS||id==XZ_SHELL_ITEM_QUANTIZE_LAMP;
 }
 static const char *const wave_color_choices[]={"BLUE","RGB","3BAND","STEMS"};
 static const char *const position_choices[]={"CENTER","LEFT"};
 static const char *const key_display_choices[]={"AS DECK","CLASSIC","ALPHANUM."};
 static const char *const zoom_choices[XZ_SHELL_ZOOM_MAX+1]={"1","2","3","4","5","6","7"};
 static const char *const usb_colors_choices[]={"DECK + WAVE","DECK ONLY","OFF"};
+static const char *const show_hide_choices[]={"SHOW","HIDE"};
 static const char *const time_mode_choices[]={"REMAIN","TIME"};
 static const char *const play_mode_choices[]={"SINGLE","CONTINUE"};
 static const char *const off_on_choices[]={"OFF","ON"};
@@ -73,6 +74,8 @@ static struct xz_shell_setting_item own_item(const struct xz_shell *u, const str
  case XZ_SHELL_ITEM_KEY_DISPLAY:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"KEY DISPLAY FORMAT",key_display_choices,3,(int)sh_key_display(u));break;
  case XZ_SHELL_ITEM_WAVE_ZOOM:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM ZOOM",zoom_choices,XZ_SHELL_ZOOM_MAX+1,sh_max(0,sh_min(u->zoom,XZ_SHELL_ZOOM_MAX)));break;
  case XZ_SHELL_ITEM_USB_COLORS:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"USB COLORS",usb_colors_choices,3,(int)sh_usb_colors(u));break;
+ case XZ_SHELL_ITEM_MODE_LAMPS:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"MODE LAMPS",show_hide_choices,2,!sh_indicator_shown(u,XZ_SHELL_IND_MODE_LAMPS));break;
+ case XZ_SHELL_ITEM_QUANTIZE_LAMP:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"QUANTIZE LAMP",show_hide_choices,2,!sh_indicator_shown(u,XZ_SHELL_IND_QUANTIZE));break;
  case XZ_SHELL_ITEM_TIME_MODE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"TIME MODE",time_mode_choices,2,sh_setting(m,XZ_SHELL_SET_TIME_MODE)?(st->time_mode==XZ_SHELL_TIME_ELAPSED):-1);break;
  case XZ_SHELL_ITEM_PLAY_MODE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"PLAY MODE",play_mode_choices,2,sh_setting(m,XZ_SHELL_SET_PLAY_MODE)?(st->play_mode==XZ_SHELL_PLAY_CONTINUE):-1);break;
  case XZ_SHELL_ITEM_AUTO_CUE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on_choices,2,sh_setting(m,XZ_SHELL_SET_AUTO_CUE)?!!st->auto_cue:-1);break;

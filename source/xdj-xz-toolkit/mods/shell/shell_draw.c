@@ -40,25 +40,37 @@ void sh_text_center(struct xz_canvas c, int cx, int y, const char *s, enum sh_fa
  sh_text(c,cx-sh_text_width(c,s,face)/2,y,s,face,color);
 }
 
-static const struct xz_shell_glyph *num_face(enum sh_num_face face) {
- return face==SH_NUM_BIG?xz_shell_font_big:face==SH_NUM_BPM?xz_shell_font_bpm:xz_shell_font_mid;
+struct num_table { const struct xz_shell_glyph *glyph; const char *charset; int count; };
+static struct num_table num_face(enum sh_num_face face) {
+ if(face==SH_NUM_KEY)return (struct num_table){xz_shell_font_key,XZ_SHELL_FONT_KEY_CHARSET,XZ_SHELL_FONT_KEY_GLYPHS};
+ return (struct num_table){face==SH_NUM_BIG?xz_shell_font_big:face==SH_NUM_BPM?xz_shell_font_bpm:xz_shell_font_mid,XZ_SHELL_FONT_CHARSET,XZ_SHELL_FONT_GLYPHS};
 }
 int sh_num_cap(enum sh_num_face face) {
- return face==SH_NUM_BIG?XZ_SHELL_FONT_BIG_CAP:face==SH_NUM_BPM?XZ_SHELL_FONT_BPM_CAP:XZ_SHELL_FONT_MID_CAP;
+ return face==SH_NUM_BIG?XZ_SHELL_FONT_BIG_CAP:face==SH_NUM_BPM?XZ_SHELL_FONT_BPM_CAP:face==SH_NUM_KEY?XZ_SHELL_FONT_KEY_CAP:XZ_SHELL_FONT_MID_CAP;
 }
-static const struct xz_shell_glyph *num_glyph(const struct xz_shell_glyph *table, unsigned char ch) {
- const char *at=ch?strchr(XZ_SHELL_FONT_CHARSET,ch):NULL;
- return at?&table[at-XZ_SHELL_FONT_CHARSET]:&table[XZ_SHELL_FONT_GLYPHS-1];
+/* NULL for a character outside the face: the numeral faces end in a space and draw that instead. */
+static const struct xz_shell_glyph *num_glyph(struct num_table t, unsigned char ch) {
+ const char *at=ch?strchr(t.charset,ch):NULL;
+ if(at)return &t.glyph[at-t.charset];
+ return t.charset[t.count-1]==' '?&t.glyph[t.count-1]:NULL;
+}
+int sh_num_drawable(enum sh_num_face face, const char *s) {
+ struct num_table t=num_face(face);
+ if(!s||!*s)return 0;
+ for(;*s;s++)if(*s==' '||!strchr(t.charset,*s))return 0;
+ return 1;
 }
 /* Digits advance like 0 and sit centred in that cell, so a ticking clock does not shiver. */
-static int num_advance(const struct xz_shell_glyph *table, const struct xz_shell_glyph *g, unsigned char ch, int *shift) {
- if(ch>='0'&&ch<='9'){int cell=table[0].advance;*shift=(cell-g->advance)/2;return cell;}
- *shift=0;return g->advance;
+static int num_advance(struct num_table t, const struct xz_shell_glyph *g, unsigned char ch, int *shift) {
+ *shift=0;
+ if(!g)return 0;
+ if(ch>='0'&&ch<='9'){int cell=t.glyph[0].advance;*shift=(cell-g->advance)/2;return cell;}
+ return g->advance;
 }
 int sh_num_width(enum sh_num_face face, const char *s) {
- const struct xz_shell_glyph *table=num_face(face);int x=0,shift;
+ struct num_table t=num_face(face);int x=0,shift;
  if(!s)return 0;
- for(;*s;s++)x+=num_advance(table,num_glyph(table,(unsigned char)*s),(unsigned char)*s,&shift);
+ for(;*s;s++)x+=num_advance(t,num_glyph(t,(unsigned char)*s),(unsigned char)*s,&shift);
  return x;
 }
 /* Coverage blend in RGB565 with shifts: the big clock and BPM digits are redrawn every frame. */
@@ -83,12 +95,12 @@ static void glyph(struct xz_canvas c, int x, int y, const struct xz_shell_glyph 
  }
 }
 void sh_num(struct xz_canvas c, int x, int y, const char *s, enum sh_num_face face, uint32_t color) {
- const struct xz_shell_glyph *table=num_face(face);
+ struct num_table t=num_face(face);
  if(!s||!c.p)return;
  for(;*s;s++){
-  const struct xz_shell_glyph *g=num_glyph(table,(unsigned char)*s);int shift;
-  int advance=num_advance(table,g,(unsigned char)*s,&shift);
-  glyph(c,x+shift,y,g,color);
+  const struct xz_shell_glyph *g=num_glyph(t,(unsigned char)*s);int shift;
+  int advance=num_advance(t,g,(unsigned char)*s,&shift);
+  if(g)glyph(c,x+shift,y,g,color);
   x+=advance;
  }
 }

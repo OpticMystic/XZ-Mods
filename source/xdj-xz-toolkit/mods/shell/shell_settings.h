@@ -53,6 +53,9 @@
    the table lacks them and overrides their current value with its own state
    when the table lists them. Setting one changes the shell at once and emits
    SET_SETTING for the runtime to store (WAVE_ZOOM emits XZ_SHELL_ACT_ZOOM).
+   MODE_LAMPS and QUANTIZE_LAMP are shell-owned too but not added: they
+   belong on the runtime's APPEARANCE tab, which applies a pick with
+   xz_shell_restore_setting and stores it like the others.
    The shell also adds PLAY MODE, HOT CUE AUTO LOAD (from model.settings)
    and BEAT JUMP and QUANTIZE BEAT VALUE (from the active deck) when the table
    lacks them, read only unless model.settings.writable says otherwise. */
@@ -92,6 +95,8 @@ enum xz_shell_item_id {
  XZ_SHELL_ITEM_WAVE_ZOOM,          /* shell-owned: zoom level 0..XZ_SHELL_ZOOM_MAX */
  XZ_SHELL_ITEM_USB_COLORS,         /* shell-owned: enum xz_shell_usb_colors */
  XZ_SHELL_ITEM_NEEDLE_LOCK,        /* UNLOCK, LOCK (model.settings.needle_lock) */
+ XZ_SHELL_ITEM_MODE_LAMPS,         /* shell-owned: SHOW, HIDE the top bar's mode lamps (shell.h XZ_SHELL_IND_MODE_LAMPS) */
+ XZ_SHELL_ITEM_QUANTIZE_LAMP,      /* shell-owned: SHOW, HIDE each deck's QUANTIZE lamp (XZ_SHELL_IND_QUANTIZE) */
  XZ_SHELL_ITEM_ID_END
 };
 /* Stock UTILITY items the runtime publishes under its own ids (assigned by the runtime, 2026-10-19). The
