@@ -63,6 +63,8 @@ static void model(struct xz_shell_model *m, struct xz_shell_browse_model *b) {
 static void open_screen(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, enum xz_shell_screen s) {
  xz_shell_init(u);xz_shell_browse_reset();
  assert(press(u,m,k)==0&&xz_shell_screen(u)==s);
+ /* List tests start after category confirmation; test_navigation_focus covers entry. */
+ if(s==XZ_SHELL_BROWSE)u->stack[u->depth-1].focus=1;
 }
 static int key_index(const char *label) {
  for(int i=0;i<XZ_SHELL_BROWSE_KEYS;i++)if(!strcmp(xz_shell_browse_key_label(i),label))return i;
@@ -158,8 +160,9 @@ static void test_touch_load_and_return(void) {
  assert(down_at(&u,&m,load)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==1&&out[0].id==(int)lib.tracks[4].id);
  assert(xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1);
  send(&u,&m,XZ_SHELL_TOUCH_UP,0,0,0);
- /* Reopening lands on the same row. */
+ /* Reopening focuses the rail; confirming the current category restores the same row. */
  assert(press(&u,&m,XZ_SHELL_KEY_BROWSE)==0&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
+ assert(send(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,0)==0);
  render_checked(&u,&m,buffer_a);
  struct xz_shell_rect row4=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,4);
  struct xz_shell_rect title=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_COLUMN,2);

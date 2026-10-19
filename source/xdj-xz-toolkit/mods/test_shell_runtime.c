@@ -21,7 +21,7 @@ static struct xz_shell_settings_model settings_slot;
 
 static void key_table(void) {
  static const struct { uint16_t code; unsigned channel; int rule, key, hold; } expect[]={
-  {0x209,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_BROWSE,-1},{0x20a,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_LIST,-1},
+  {0x209,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BROWSE,XZ_SHELL_KEY_BROWSE_HOLD},{0x20a,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_LIST,-1},
   {0x206,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_INFO,-1},{0x20b,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU_HOLD},
   {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1},{0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB1,-1},
   {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB2,-1},{0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1},
@@ -48,6 +48,11 @@ static void key_table(void) {
  assert(xz_shrt_key_for_phase(menu,XZ_SHRT_HOLD,0)==XZ_SHELL_KEY_MENU_HOLD&&xz_shrt_key_for_phase(menu,XZ_SHRT_HOLD,1)==-1);
  assert(xz_shrt_key_for_phase(menu,XZ_SHRT_RELEASE,0)==XZ_SHELL_KEY_MENU&&xz_shrt_key_for_phase(menu,XZ_SHRT_RELEASE,1)==-1);
  assert(xz_shrt_key_for_phase(info,XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_INFO&&xz_shrt_key_for_phase(info,XZ_SHRT_RELEASE,0)==-1);
+ const struct xz_shrt_key_map *browse=xz_shrt_key_lookup(0x209,0);
+ assert(xz_shrt_key_for_phase(browse,XZ_SHRT_PRESS,0)==-1);
+ assert(xz_shrt_key_for_phase(browse,XZ_SHRT_RELEASE,0)==XZ_SHELL_KEY_BROWSE);
+ assert(xz_shrt_key_for_phase(browse,XZ_SHRT_HOLD,0)==XZ_SHELL_KEY_BROWSE_HOLD);
+ assert(xz_shrt_key_for_phase(browse,XZ_SHRT_HOLD,1)==-1&&xz_shrt_key_for_phase(browse,XZ_SHRT_RELEASE,1)==-1);
  assert(xz_shrt_key_for_phase(xz_shrt_key_lookup(0x430f,1),XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_LOAD);
  assert(xz_shrt_key_lookup(0x430f,1)->deck==0&&xz_shrt_key_lookup(0x430f,2)->deck==1);
  puts("PASS R1 key table: codes, channels, stock keys, press/hold/release phases");
@@ -75,7 +80,7 @@ static void verdicts(void) {
  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430b,0))==XZ_SHRT_PASS); /* deck keys stay stock's */
  assert(!memcmp(&before,&u,sizeof u));                     /* probes never touch the shell */
  /* With BROWSE and the settings slot the shell keeps them; held MENU opens the shell's own UTILITY. */
- m.browse=&browse_slot;m.settings_screen=&settings_slot;m.capabilities=XZ_SHELL_CAP_BROWSE;
+ m.browse=&browse_slot;m.settings_screen=&settings_slot;m.capabilities=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
  assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_SWALLOW);
  assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
  struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_BROWSE,-1};struct xz_shell_action out[XZ_SHELL_ACTIONS];

@@ -116,6 +116,7 @@ static void test_back_chain(void) {
  assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.panel.kind==XZ_SHELL_PANEL_NONE&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK)==1&&is_op(&out[0],XZ_SHELL_BROWSE_UP));b.depth=1;
  assert(press(&u,&m,XZ_SHELL_KEY_BACK)==1&&is_op(&out[0],XZ_SHELL_BROWSE_UP));b.depth=0;
+ assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE&&u.depth==2);
  render_checked(&u,&m,buffer_a);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1);
@@ -126,6 +127,7 @@ static void test_back_chain(void) {
  assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_BACK,0))==0&&u.panel.kind==XZ_SHELL_PANEL_NONE);
  assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_BACK,0))==1&&is_op(&out[0],XZ_SHELL_BROWSE_UP));
  b.depth=0;
+ assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_BACK,0))==0&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_BACK,0))==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
  /* The same rule on every other screen: SHORTCUT, UTILITY panes, INFO, TAG LIST, SEARCH. */
  xz_shell_init(&u);
@@ -181,6 +183,7 @@ static void test_panel_keys_are_probe_safe(void) {
  struct xz_shell u,copy;struct xz_shell_model m;struct xz_shell_browse_model b;
  model(&m,&b);
  xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);
+ assert(push(&u,&m)==0); /* enter the current category before moving its INFO cursor */
  static const enum xz_shell_key keys[]={XZ_SHELL_KEY_INFO,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_INFO,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU};
  for(size_t i=0;i<sizeof keys/sizeof *keys;i++){
   copy=u;press(&copy,&m,keys[i]);   /* the probe */
@@ -208,6 +211,7 @@ static void test_menu_panel(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;
  model(&m,&b);
  xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);
+ assert(push(&u,&m)==0);
  press(&u,&m,XZ_SHELL_KEY_MENU);
  render_checked(&u,&m,buffer_a);
  /* The first row is SORT BY TRACK No.; the current sort (TITLE) flips direction when chosen again. */
@@ -241,7 +245,7 @@ static void test_playlist_editing(void) {
  model(&m,&b);
  /* The playlist list: NEW, RENAME, DELETE. */
  bx_folders(&b,&lib,XZ_SHELL_BROWSE);bx_panels(&b,&lib);b.known|=1u<<XZ_SHELL_BF_EDIT;b.edit=XZ_SHELL_EDIT_PLAYLISTS;
- xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);turn(&u,&m,2);
+ xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);push(&u,&m);turn(&u,&m,2);
  press(&u,&m,XZ_SHELL_KEY_MENU);
  run_to(&u,&m,"NEW");
  assert(u.panel.page==2&&!strcmp(u.name,"PLAYLIST 10"));
@@ -271,7 +275,7 @@ static void test_playlist_editing(void) {
  assert(push(&u,&m)==1&&out[0].id==XZ_SHELL_PL_DELETE&&u.edit.playlist==lib.folders[2].id);
  /* A playlist's tracks: ADD, REMOVE and MOVE. */
  bx_tracks(&b,&lib,XZ_SHELL_BROWSE);bx_panels(&b,&lib);b.edit=XZ_SHELL_EDIT_TRACKS;b.edit_playlist=7;b.depth=1;
- xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);turn(&u,&m,4);
+ xz_shell_init(&u);xz_shell_browse_reset();press(&u,&m,XZ_SHELL_KEY_BROWSE);push(&u,&m);turn(&u,&m,4);
  press(&u,&m,XZ_SHELL_KEY_MENU);run_to(&u,&m,"ADD");
  assert(u.panel.page==1);
  turn(&u,&m,2);

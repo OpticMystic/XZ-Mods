@@ -204,6 +204,7 @@ enum xz_shell_key {
  XZ_SHELL_KEY_SOURCE_USB1, XZ_SHELL_KEY_SOURCE_USB2, /* the two USB buttons: browse that stick, or the picker */
  XZ_SHELL_KEY_TRACK_FILTER,          /* opens the FILTER panel (over BROWSE when another screen is up) */
  XZ_SHELL_KEY_SOURCE_LINK, XZ_SHELL_KEY_SOURCE_COMPUTER, /* the LINK and computer source buttons: the picker at that slot */
+ XZ_SHELL_KEY_BROWSE_HOLD,           /* always open SEARCH, even when it is already visible */
  XZ_SHELL_KEY_COUNT
 };
 /* deck: the deck a per-deck key (TIME MODE, QUANTIZE, LOAD) belongs to, or -1 for the active deck. */
