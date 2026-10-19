@@ -59,7 +59,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zig", default=shutil.which("zig"))
     parser.add_argument("--output", type=pathlib.Path, required=True)
+    parser.add_argument("--host-checks-only", action="store_true",
+                        help="Run standalone settings host checks without building or deploying the runtime")
     args = parser.parse_args()
+    if args.host_checks_only:
+        from verify_my_settings import host_checks
+        host_checks(args.output)
+        return
     if not args.zig:
         parser.error("Supply --zig with a Zig executable supporting arm-linux-gnueabi.2.13")
     args.output.mkdir(parents=True, exist_ok=True)
@@ -177,6 +183,7 @@ def main() -> None:
         "beat-jump-test": [str(ROOT / "ui/beat_jump.c"),str(ROOT / "ui/test_beat_jump.c")],
         "cue-test": [str(ROOT / "cue/cue.c"), str(ROOT / "cue/test_cue.c")],
         "settings-test": [str(ROOT / "settings.c"), str(ROOT / "tests/test_settings.c")],
+        "my-settings-test": [str(ROOT / "my_settings.c"), str(ROOT / "test_my_settings.c")],
         "native-decode-test": [str(ROOT / "cue/native.c"), str(ROOT / "cue/test_native_decode.c")],
         "stem-test": ["-I" + str(ROOT / "audio"), str(ROOT / "audio/stem_cache.c"),
                       str(ROOT / "audio/stem_mix.c"), str(ROOT / "audio/tests/test_stems.c"), "-lm"],
