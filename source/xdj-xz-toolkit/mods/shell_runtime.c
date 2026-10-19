@@ -1225,12 +1225,12 @@ static void run_list_edit(const struct list_edit *j) {
  }
  pthread_mutex_unlock(&mutex);
  free(ids);
- if(!rc){saved=xz_shpl_save(&after,root);err=errno;xz_shpl_free(&after);}
+ if(!rc){if(mys_readonly){saved=-1;err=EPERM;}else{saved=xz_shpl_save(&after,root);err=errno;}xz_shpl_free(&after);}
  lock_as("worker");
  char text[48];text[0]=0;
  if(!rc&&saved){
   xz_shpl_free(&edits[j->slot]);edits[j->slot]=before;xz_shpl_init(&before);
-  snprintf(text,sizeof text,"%s",err==EROFS?"THIS STICK IS READ-ONLY: NOTHING CHANGES":err==ENOSPC?"THE STICK IS FULL: NOT SAVED":"NOT SAVED ON THE STICK");
+  snprintf(text,sizeof text,"%s",err==EPERM?"TRIAL RUN: NOTHING SAVED":err==EROFS?"THIS STICK IS READ-ONLY: NOTHING CHANGES":err==ENOSPC?"THE STICK IS FULL: NOT SAVED":"NOT SAVED ON THE STICK");
  }else if(rc)snprintf(text,sizeof text,"%s",full?"TAG LIST IS FULL: 100 TRACKS":"THAT CHANGE IS NOT APPLIED");
  else if(j->kind==LE_TAG&&j->op==XZ_SHELL_TAG_ADD_LIST)snprintf(text,sizeof text,full?"ADDED %d: TAG LIST IS FULL":"ADDED %d, %d ALREADY ON THE LIST",added,already);
  else if(j->kind==LE_TAG&&j->op==XZ_SHELL_TAG_ADD&&already)snprintf(text,sizeof text,"ALREADY ON THE TAG LIST");
@@ -1275,12 +1275,12 @@ static void run_playlist_edit(int slot, const struct xz_shell_playlist_edit *e) 
  }
  pthread_mutex_unlock(&mutex);
  free(base);
- if(!rc){saved=xz_shpl_save(&after,root);err=errno;xz_shpl_free(&after);}
+ if(!rc){if(mys_readonly){saved=-1;err=EPERM;}else{saved=xz_shpl_save(&after,root);err=errno;}xz_shpl_free(&after);}
  lock_as("worker");
  if(!rc&&saved){
   /* Not on the stick: the edit is undone so the shell never shows what a reboot would lose. */
   xz_shpl_free(&edits[slot]);edits[slot]=before;xz_shpl_init(&before);
-  notice_locked(now_ms(),err==EROFS?"THIS STICK IS READ-ONLY: PLAYLISTS CANNOT CHANGE":err==ENOSPC?"THE STICK IS FULL: PLAYLIST NOT SAVED":"PLAYLIST NOT SAVED");
+  notice_locked(now_ms(),err==EPERM?"TRIAL RUN: NOTHING SAVED":err==EROFS?"THIS STICK IS READ-ONLY: PLAYLISTS CANNOT CHANGE":err==ENOSPC?"THE STICK IS FULL: PLAYLIST NOT SAVED":"PLAYLIST NOT SAVED");
  }else if(rc)notice_locked(now_ms(),"PLAYLIST CHANGE NOT APPLIED");
  xz_shpl_free(&before);
  for(int k=0;k<L_COUNT;k++)if(lists[k].requested&&lists[k].source==slot)list_rebuild(&lists[k]);
