@@ -119,6 +119,12 @@ static inline uint32_t sh_stem_dark(uint32_t bright) {
  uint32_t r=(bright>>16)&255,g=(bright>>8)&255,b=bright&255;
  return ((r*3>>4)<<16)|((g*3>>4)<<8)|(b*3>>4);
 }
+/* The stem waveform's interior is lighter than the button's: 9/16 of the bright, about halfway
+   between the button interior and the outline, so the shape reads at a glance and the outline still shows. */
+static inline uint32_t sh_stem_wave_fill(uint32_t bright) {
+ uint32_t r=(bright>>16)&255,g=(bright>>8)&255,b=bright&255;
+ return ((r*9>>4)<<16)|((g*9>>4)<<8)|(b*9>>4);
+}
 /* NEEDLE LOCK holds for this deck now: set, and the deck plays (shell_play.c). */
 int sh_needle_locked(const struct xz_shell_model *, const struct xz_shell_deck *);
 /* BROWSE with its category rail holding the encoder (shell_browse.c). */
