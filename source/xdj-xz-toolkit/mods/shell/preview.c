@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
   items[0]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_TIME_MODE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"TIME MODE",time_c,2,0,1,1};
   items[1]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_QUANTIZE_BEAT,XZ_SHELL_SETTING_CAT_DJ_SETTING,"QUANTIZE BEAT VALUE",q_c,4,3,1,1};
   items[2]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_AUTO_CUE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on,2,1,1,0};
-  static struct xz_shell_settings_model runtime_table={3,items};
+  static struct xz_shell_settings_model runtime_table={3,items,NULL};
   struct xz_shell_action out[XZ_SHELL_ACTIONS];
   fx_model_full(&m,&track);m.settings_screen=&runtime_table;
   m.settings.writable=((uint64_t)1<<XZ_SHELL_SET_TIME_MODE)|((uint64_t)1<<XZ_SHELL_ITEM_QUANTIZE_BEAT);

@@ -71,11 +71,53 @@ static struct xz_shell_setting_item fxs_table[FXS_COUNT];
 static struct xz_shell_settings_model fxs_model;
 static const struct xz_shell_settings_model *fxs_reset(void) {
  memcpy(fxs_table,fxs_items,sizeof fxs_table);
- fxs_model.count=FXS_COUNT;fxs_model.items=fxs_table;
+ fxs_model.count=FXS_COUNT;fxs_model.items=fxs_table;fxs_model.notes=NULL;
  return &fxs_model;
 }
 static struct xz_shell_setting_item *fxs_item(int id) {
  for(int i=0;i<FXS_COUNT;i++)if(fxs_table[i].id==id)return &fxs_table[i];
  return NULL;
 }
+
+/* Mod tabs as the runtime builds them from the mod settings: item tabs with sections, and pages the
+   shell does not draw. Item ids are the runtime's own (here, the order of the mod settings file). */
+static const char *const fxm_page_modes[]={"HOT CUE","BEAT JUMP","SAMPLER","STEMS"};
+static const char *const fxm_layouts[]={"HIDDEN","BELOW","ABOVE","LEFT","RIGHT"};
+static const char *const fxm_order[]={"D H V","D V H","H D V","H V D","V D H","V H D"};
+static const char *const fxm_themes[]={"ORIGINAL","WHITE","CYBERPUNK","NEON","MOCHA","AURORA","SANDSTONE","FLAGSHIP"};
+static const char *const fxm_wave[]={"STOCK","3-BAND","STEMS"};
+static const char *const fxm_jump[]={"1/8","1/4","1/2","1","2","4","8","16","32","64"};
+static const struct xz_shell_setting_item fxm_stem_items[]={
+ {0,0,"STEM AUDIO",fxs_off_on,2,1,1,1},
+ {4,0,"STEM SHORTCUT PAD MODE",fxm_page_modes,4,3,1,1},
+ {5,0,"SHIFT + PAD MODES FOR STEMS",fxs_off_on,2,0,1,1},
+ {6,1,"STEM PAD LIGHTS",fxs_off_on,2,1,1,1},
+ {22,1,"STEM ROW LAYOUT",fxm_layouts,5,1,1,1},
+ {37,1,"STEM ORDER",fxm_order,6,0,1,0},
+};
+static const char *const fxm_stem_notes[]={NULL,NULL,NULL,NULL,NULL,"SET IN THE STEM BUILDER ON YOUR COMPUTER"};
+static const char *const fxm_stem_sections[]={"AUDIO","PADS"};
+static const struct xz_shell_setting_item fxm_look_items[]={
+ {3,0,"THEME",fxm_themes,8,7,1,1},
+ {23,0,"SCROLLING WAVEFORM",fxm_wave,3,1,1,1},
+ {33,1,"EFFECTIVE KEY DISPLAY",fxs_off_on,2,1,1,1},
+};
+static const char *const fxm_look_sections[]={"SCREEN","KEY"};
+static const struct xz_shell_setting_item fxm_jump_items[]={
+ {12,0,"CUSTOM BEAT JUMP",fxs_off_on,2,1,1,1},
+ {14,1,"PAGE 1: A/B",fxm_jump,10,3,1,1},{15,1,"PAGE 1: C/D",fxm_jump,10,5,1,1},
+ {16,1,"PAGE 1: E/F",fxm_jump,10,7,1,1},{17,1,"PAGE 1: G/H",fxm_jump,10,9,1,1},
+};
+static const char *const fxm_jump_sections[]={"BEAT JUMP","PAGE 1"};
+static const struct xz_shell_settings_model fxm_stems={sizeof fxm_stem_items/sizeof *fxm_stem_items,fxm_stem_items,fxm_stem_notes};
+static const struct xz_shell_settings_model fxm_look={sizeof fxm_look_items/sizeof *fxm_look_items,fxm_look_items,NULL};
+static const struct xz_shell_settings_model fxm_jump_model={sizeof fxm_jump_items/sizeof *fxm_jump_items,fxm_jump_items,NULL};
+static const struct xz_shell_mods_tab fxm_tabs[]={
+ {"STEMS",XZ_SHELL_TAB_ITEMS,&fxm_stems,fxm_stem_sections,2,0,NULL},
+ {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&fxm_look,fxm_look_sections,2,0,NULL},
+ {"BEAT JUMP",XZ_SHELL_TAB_ITEMS,&fxm_jump_model,fxm_jump_sections,2,0,NULL},
+ {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,24,"YOUR NAME, LOGO AND COLORS ON THE USB STICK"},
+ {"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,13,"ARCADE GAMES FOR THE BREAK"},
+};
+static const struct xz_shell_mods_model fxm_model={sizeof fxm_tabs/sizeof *fxm_tabs,fxm_tabs};
 #endif

@@ -68,7 +68,7 @@ static const uint16_t nav[XZ_SHELL_SCREEN_COUNT][XZ_SHELL_KEY_COUNT]={
  [XZ_SHELL_SOURCE]  =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),HOME,                 PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),NONE,    POP),
  [XZ_SHELL_INFO]    =ROW(LISTS,                                                                                                            POP,                PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),NONE,    POP),
  [XZ_SHELL_SHORTCUT]=ROW(LISTS,                                                                                                            PUSH(XZ_SHELL_INFO),POP,                    PUSH(XZ_SHELL_UTILITY),NONE,    POP),
- [XZ_SHELL_UTILITY] =ROW(LISTS,                                                                                                            PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),NONE,                  POP,     POP),
+ [XZ_SHELL_UTILITY] =ROW(LISTS,                                                                                                            PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),POP,     POP),
 };
 
 static void placeholder_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
@@ -157,6 +157,16 @@ static int on_stack(const struct xz_shell *u, enum xz_shell_screen s) {
  for(int i=0;i<u->depth;i++)if(u->stack[i].screen==s)return 1;
  return 0;
 }
+/* The MODS screen (XZ_SHELL_UTILITY) at a tab, with the encoder on the tab row. Already open, it
+   switches tab in place; lower in the stack, the screens above it close. */
+static void open_mods(struct xz_shell *u, int tab) {
+ int at=-1;
+ for(int i=0;i<u->depth;i++)if(u->stack[i].screen==XZ_SHELL_UTILITY)at=i;
+ if(at>=0)u->depth=at+1;else push(u,XZ_SHELL_UTILITY);
+ if(xz_shell_screen(u)!=XZ_SHELL_UTILITY)return;
+ if(u->mods_view.tab!=tab)u->stack[u->depth-1]=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
+ u->mods_view.tab=tab;u->mods_view.on_tabs=1;
+}
 static size_t emit(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n, struct xz_shell_action a) {
  if(n<XZ_SHELL_ACTIONS)out[n++]=a;
  return n;
@@ -223,6 +233,13 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
   if(!available(m,t.screen))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)t.screen});
   open_screen(u,m,t.screen);break;
  case NAV_PUSH:
+  /* Held MENU lands on MODS > UTILITY, the tab row holding the encoder; held there again it closes
+     MODS, as SHORTCUT does, so the key always has an effect and never reaches the stock menu. */
+  if(t.screen==XZ_SHELL_UTILITY&&available(m,t.screen)){
+   if(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.tab==0&&u->mods_view.on_tabs&&u->depth>1)u->depth--;
+   else open_mods(u,0);
+   return n;
+  }
   if(on_stack(u,t.screen))break;
   if(!available(m,t.screen))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)t.screen});
   push(u,t.screen);break;
@@ -277,6 +294,11 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
   enum xz_shell_action_kind hit=sh_header_hit(e->x,e->y);
   if(hit!=XZ_SHELL_ACT_NONE){
    u->down=1;u->down_region=XZ_SHELL_TOUCH_HEADER;
+   /* With mod tabs to show, MODS opens the shell's own MODS screen on the first of them. */
+   if(hit==XZ_SHELL_ACT_OPEN_MODS&&m->mods&&m->mods->count>0&&m->mods->tabs&&available(m,XZ_SHELL_UTILITY)){
+    close_panels(u);open_mods(u,1);
+    return 0;
+   }
    return emit(out,0,(struct xz_shell_action){hit,-1,0,0});
   }
  }

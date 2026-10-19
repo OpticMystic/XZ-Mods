@@ -1,6 +1,22 @@
 #ifndef XZ_SHELL_SETTINGS_H
 #define XZ_SHELL_SETTINGS_H
-/* SHORTCUT and UTILITY: the model behind the settings_screen slot.
+/* SHORTCUT, and the MODS screen with its UTILITY tab: the model behind the
+   settings_screen slot (UTILITY, the device's own menu) and the mods slot
+   (the mod tabs).
+
+   MODS screen (XZ_SHELL_UTILITY). A row of tabs under the title: UTILITY
+   first, then each tab of xz_shell_mods_model. Held MENU opens it on
+   UTILITY; the MODS header button opens it on the first mod tab. The encoder
+   starts on the tab row (turn picks a tab, push enters it); inside a tab it
+   works the panes (category rail, items, values) as before, BACK steps one
+   pane left, then back to the tab row, then closes the screen.
+
+   A TAB_ITEMS tab is an item table of its own, drawn and driven exactly like
+   UTILITY; setting one of its items emits XZ_SHELL_ACT_SET_MOD {deck = tab
+   index in the mods model, id = item id, value = choice index}. A TAB_PAGE
+   tab is a mod page the shell does not draw: one button opens it in the
+   runtime's mod panel (XZ_SHELL_ACT_OPEN_MODS, value = page).
+
 
    One table of setting items. The runtime lists the items it can read (or
    at least name) in any order; the screens group them by category for
@@ -15,10 +31,11 @@
    3BAND; WAVEFORM CURRENT POSITION: CENTER, LEFT; PLAY MODE: SINGLE,
    CONTINUE).
 
-   A read-only item (writable clear, or no XZ_SHELL_CAP_SET_SETTING) still
-   shows and moves like the others, with one sentence saying why it is read only;
-   applying a value on it emits HAND_OFF for the screen, so the stock menu can
-   make the change.
+   An item the runtime cannot write (writable clear, or no
+   XZ_SHELL_CAP_SET_SETTING) still shows its value and one line on how to
+   change it (notes, or the shell's line): pushing it hands the screen to the
+   stock deck (HAND_OFF, value = 1 + item id), where holding MENU opens the
+   stock UTILITY.
 
    Shell-owned display items (WAVE_COLOR, WAVE_POSITION, KEY_DISPLAY,
    WAVE_ZOOM) are always shown and always settable: the shell adds them when
@@ -82,11 +99,26 @@ struct xz_shell_setting_item {
  int writable;                        /* the runtime can set this item */
 };
 
-/* count comes first: a zeroed model reads nothing else. */
+/* count comes first: a zeroed model reads nothing else. notes, when set, is parallel to items: one caps
+   line saying how to change an item the runtime cannot write (NULL entries take the shell's line). */
 struct xz_shell_settings_model {
  uint32_t count;
  const struct xz_shell_setting_item *items;
+ const char *const *notes;
 };
+
+enum xz_shell_mods_tab_kind { XZ_SHELL_TAB_ITEMS, XZ_SHELL_TAB_PAGE };
+struct xz_shell_mods_tab {
+ const char *label;                       /* caps, short: "STEMS", "APPEARANCE" */
+ enum xz_shell_mods_tab_kind kind;
+ const struct xz_shell_settings_model *items; /* TAB_ITEMS: the tab's items; their categories are its sections */
+ const char *const *sections;             /* TAB_ITEMS: section names by category number; NULL = the UTILITY names */
+ int section_count;
+ int page;                                /* TAB_PAGE: the page OPEN_MODS opens */
+ const char *summary;                     /* TAB_PAGE: one line on what the page holds */
+};
+/* The mod tabs, in order. Built from the mod settings (no hard-coded list in the shell). */
+struct xz_shell_mods_model { uint32_t count; const struct xz_shell_mods_tab *tabs; };
 
 /* BACK on UTILITY moves focus one pane left. Returns 1 when it did, 0 when
    the navigation table should handle BACK (focus already on the rail, or any
@@ -99,7 +131,11 @@ enum xz_shell_settings_region {
  XZ_SHELL_SR_BACK_BUTTON, XZ_SHELL_SR_RAIL, XZ_SHELL_SR_ITEMS, XZ_SHELL_SR_VALUES, XZ_SHELL_SR_STATUS
 };
 struct xz_shell_rect xz_shell_settings_rect(enum xz_shell_settings_region);
-enum { XZ_SHELL_SETTINGS_ROW_H=38, XZ_SHELL_SETTINGS_ROWS=10, XZ_SHELL_SETTINGS_RAIL_H=54 };
+enum { XZ_SHELL_SETTINGS_ROW_H=38, XZ_SHELL_SETTINGS_ROWS=9, XZ_SHELL_SETTINGS_RAIL_H=48 };
+/* The MODS screen's tab row: tab i's rect (44 px touch target), -1 past the last tab. */
+struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell_model *, int tab);
+/* A TAB_PAGE tab's open button. */
+struct xz_shell_rect xz_shell_mods_page_button(void);
 /* SHORTCUT: quadrant 0..3 in reading order, and the chip row of slot 0..3 inside it. */
 struct xz_shell_rect xz_shell_shortcut_quadrant(int quadrant);
 struct xz_shell_rect xz_shell_shortcut_slot(int quadrant, int slot);

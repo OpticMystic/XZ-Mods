@@ -233,7 +233,7 @@ static void test_shortcut_items(void) {
  items[0]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_TIME_MODE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"TIME MODE",time_c,2,0,1,1};
  items[1]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_QUANTIZE_BEAT,XZ_SHELL_SETTING_CAT_DJ_SETTING,"QUANTIZE BEAT VALUE",q_c,4,3,1,1};
  items[2]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_AUTO_CUE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on,2,1,1,0};
- static struct xz_shell_settings_model table={3,items};
+ static struct xz_shell_settings_model table={3,items,NULL};
  fx_model_full(&m,&track);m.settings_screen=&table;
  m.settings.writable=((uint64_t)1<<XZ_SHELL_SET_TIME_MODE)|((uint64_t)1<<XZ_SHELL_ITEM_QUANTIZE_BEAT);
  xz_shell_init(&u);
@@ -343,8 +343,9 @@ static void test_notice(void) {
  sh_notice_rect(texts[2],&lines);assert(lines==2);
  puts("PASS notice toast: timing, wrap, every screen, inside its box, under the header");
 }
-/* Held MENU opens the shell's UTILITY wherever it is not already open; a short MENU on PLAY does
-   nothing. The runtime's key probe reads exactly this: an effect without HAND_OFF means SWALLOW. */
+/* Held MENU opens MODS > UTILITY wherever it is not already there, and closes it from there; a short
+   MENU on PLAY does nothing. The runtime's key probe reads exactly this: an effect without HAND_OFF
+   means SWALLOW, so a held MENU never reaches the stock menu while the shell draws. */
 static void test_menu_hold(void) {
  struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
  fx_model_full(&m,&track);enable_all_screens(&m);
@@ -354,8 +355,12 @@ static void test_menu_hold(void) {
   struct xz_shell before=u;
   size_t n=press(&u,&m,XZ_SHELL_KEY_MENU_HOLD,out);
   for(size_t i=0;i<n;i++)assert(out[i].kind!=XZ_SHELL_ACT_HAND_OFF);
-  if(screen==XZ_SHELL_UTILITY)assert(n==0&&!memcmp(&u,&before,sizeof u));
-  else assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==before.depth+1);
+  if(screen==XZ_SHELL_UTILITY){
+   assert(n==0&&memcmp(&u,&before,sizeof u)&&u.depth==2&&u.mods_view.tab==0&&u.mods_view.on_tabs);
+   struct xz_shell at_row=u;
+   assert(press(&u,&m,XZ_SHELL_KEY_MENU_HOLD,out)==0&&memcmp(&u,&at_row,sizeof u)&&u.depth==1);
+  }
+  else assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==before.depth+1&&u.mods_view.tab==0&&u.mods_view.on_tabs);
   render_checked(&u,&m,buffer_a);
  }
  struct xz_shell u;xz_shell_init(&u);struct xz_shell before=u;
