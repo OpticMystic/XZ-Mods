@@ -6,6 +6,44 @@ static uint32_t word(const unsigned char *p) {
 }
 static void put(unsigned char *p,uint32_t v) {memcpy(p,&v,sizeof(v));}
 
+/* One qualification entry. Zero keeps every status record byte-identical. */
+const struct xz_led_keysync_spec xz_led_keysync_mapping={0};
+__attribute__((visibility("default"))) struct xz_led_probe xz_mods_led_probe_v1={.version=1};
+/* One native input-thread writer. Fixed id slots retain latest words and change
+   counts; read only entries with the same even sequence before/after capture. */
+void xz_native_led_probe(const void *records,size_t bytes,unsigned count,unsigned channel){
+ const unsigned char *p=records;
+ if(!p||channel<1||channel>2||count>XZ_LED_MAX_RECORDS||bytes<(size_t)count*XZ_LED_RECORD_BYTES)return;
+ for(unsigned i=0;i<count;i++,p+=XZ_LED_RECORD_BYTES){
+  uint32_t id=word(p);if(word(p+4)!=channel||(id>=0x12&&id<=0x19))continue;
+  struct xz_led_probe_entry *slot=NULL;
+  for(unsigned j=0;j<XZ_LED_PROBE_IDS;j++){
+   struct xz_led_probe_entry *e=&xz_mods_led_probe_v1.entry[channel-1][j];
+   if(!e->seen||e->id==id){slot=e;break;}
+  }
+  if(!slot){__atomic_add_fetch(&xz_mods_led_probe_v1.overflow[channel-1],1,__ATOMIC_RELAXED);continue;}
+  __atomic_add_fetch(&slot->sequence,1,__ATOMIC_ACQ_REL);
+  int changed=0;slot->id=id;
+  for(unsigned j=0;j<8;j++){
+   uint32_t v=word(p+8+j*4);changed|=slot->words[j]!=v;
+   __atomic_store_n(&slot->words[j],v,__ATOMIC_RELAXED);
+  }
+  if(changed)slot->changes++;if(slot->seen!=UINT32_MAX)slot->seen++;
+  __atomic_add_fetch(&slot->sequence,1,__ATOMIC_RELEASE);
+ }
+}
+size_t xz_native_led_keysync(void *records,size_t bytes,unsigned count,unsigned channel,int synced,const struct xz_led_keysync_spec *spec){
+ unsigned char *p=records;size_t changed=0;
+ if(!p||!spec||!spec->enabled||!synced||channel<1||channel>2||count>XZ_LED_MAX_RECORDS||
+    bytes<(size_t)count*XZ_LED_RECORD_BYTES|| (spec->id>=0x12&&spec->id<=0x19))return 0;
+ for(unsigned i=0;i<count;i++,p+=XZ_LED_RECORD_BYTES){
+  if(word(p)!=spec->id||word(p+4)!=channel||p[0x18])continue;
+  for(unsigned j=0;j<8;j++)if(j!=4)put(p+8+j*4,(word(p+8+j*4)&~spec->mask[j])|(spec->blink[j]&spec->mask[j]));
+  changed++;
+ }
+ return changed;
+}
+
 size_t xz_native_led_apply(void *records,size_t bytes,unsigned count,
                            unsigned channel,xz_led_color_fn color) {
  unsigned char *p=records;size_t changed=0;
@@ -73,6 +111,9 @@ static void led_hook(void *player,void *packet) {
    if(word(entry+4)==channel) {TRACE(8);if(entry[0x18])TRACE(9);}
   }
  }
+ xz_native_led_probe((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel);
+ xz_native_led_keysync((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,
+                      xz_ui_runtime_key_synced((int)channel-1),&xz_led_keysync_mapping);
  size_t changed=xz_native_led_apply((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,
                       count,channel,
                       xz_ui_runtime_pad_color);
