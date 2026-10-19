@@ -1772,7 +1772,7 @@ static int run_command(const struct xz_shrt_command *c) {
  switch(c->kind){
  case XZ_SHRT_CMD_TIME_MODE:
   if(!code_is(0xca308,set_time_mode_code,16))return -1;
-  for(int ch=1;ch<=2;ch++)if(c->deck<0||c->deck==ch-1)((void(*)(int,int))(uintptr_t)0xca308)(ch,c->value?1:0);
+  for(int ch=1;ch<=2;ch++)if(c->deck<0||c->deck==ch-1)((void(*)(int,int))(uintptr_t)0xca308)(ch-1,c->value?1:0); /* UiSetKeyTimeMode: 0 = channel 1, else channel 2 */
   return 0;
  case XZ_SHRT_CMD_QUANTIZE_BEAT:
   if(c->value<0||c->value>3||!code_is(0xc9304,set_quantize_code,16))return -1;
