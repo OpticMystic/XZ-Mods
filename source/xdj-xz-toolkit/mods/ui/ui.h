@@ -15,7 +15,7 @@
 #define XZ_UI_WIDGETS 64
 #define XZ_UI_ACTIONS 4
 
-enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_CONNECTION, XZ_UI_CONTROLS, XZ_UI_BEAT_JUMP, XZ_UI_EXTRAS, XZ_UI_DOOM, XZ_UI_DOOM_SETUP, XZ_UI_DOOM_FILES, XZ_UI_UPDATES, XZ_UI_UPDATE_SETUP, XZ_UI_GAMES, XZ_UI_MYHOUSE_SETUP, XZ_UI_KEY_SETUP, XZ_UI_BROWSE_SETUP, XZ_UI_PC_STEMS, XZ_UI_STEM_COLORS, XZ_UI_APPS, XZ_UI_APPS_SETUP, XZ_UI_RAM_SETUP, XZ_UI_LOCAL_STEM_SETUP, XZ_UI_METRICS_SETUP, XZ_UI_PROFILE_SETUP, XZ_UI_PROFILE_EDIT, XZ_UI_GENERAL, XZ_UI_FEATURE_SETUP, XZ_UI_PAGE_COUNT };
+enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_CONNECTION, XZ_UI_CONTROLS, XZ_UI_BEAT_JUMP, XZ_UI_EXTRAS, XZ_UI_DOOM, XZ_UI_DOOM_SETUP, XZ_UI_DOOM_FILES, XZ_UI_UPDATES, XZ_UI_UPDATE_SETUP, XZ_UI_GAMES, XZ_UI_MYHOUSE_SETUP, XZ_UI_KEY_SETUP, XZ_UI_BROWSE_SETUP, XZ_UI_PC_STEMS, XZ_UI_STEM_COLORS, XZ_UI_APPS, XZ_UI_APPS_SETUP, XZ_UI_RAM_SETUP, XZ_UI_LOCAL_STEM_SETUP, XZ_UI_METRICS_SETUP, XZ_UI_PROFILE_SETUP, XZ_UI_PROFILE_EDIT, XZ_UI_GENERAL, XZ_UI_FEATURE_SETUP, XZ_UI_THEME_PICK, XZ_UI_PAGE_COUNT };
 enum xz_ui_cap {
     XZ_UI_GATE=1u, XZ_UI_SMART=2u, XZ_UI_PREVIEW=4u, XZ_UI_STEM=8u,
     XZ_UI_GROOVE=16u, XZ_UI_SAMPLE=32u, XZ_UI_THEME=64u, XZ_UI_SERVER=128u,
@@ -68,8 +68,13 @@ enum xz_ui_action_kind {
     /* Links retain the originating page even when their destination is a rail tab. */
     XZ_UI_FEATURE_LINK, XZ_UI_FEATURE_SETUP_OPEN, XZ_UI_FEATURE_SETUP_STEP,
     /* Push cycles the saved left-to-right stem order (xz_stem_orders). */
-    XZ_UI_STEM_ORDER
+    XZ_UI_STEM_ORDER,
+    /* APPEARANCE. SET_INTERFACE: index XZ_UI_INTERFACE_*; the one switch for who draws the
+     * player screen. SET_THEME: index = classic theme (0..XZ_THEME_FLAGSHIP-1).
+     * SET_MODERN_THEME: index = modern theme (STANDARD only for now). */
+    XZ_UI_SET_INTERFACE, XZ_UI_SET_MODERN_THEME
 };
+enum { XZ_UI_INTERFACE_CLASSIC=0, XZ_UI_INTERFACE_MODERN=1, XZ_UI_MODERN_THEMES=1 };
 enum xz_ui_kb_key { XZ_UI_KB_SHIFT=-1, XZ_UI_KB_SYMBOLS=-2, XZ_UI_KB_DELETE=-3 };
 enum xz_ui_edit_step { XZ_UI_EDIT_NAME, XZ_UI_EDIT_LOGO, XZ_UI_EDIT_TAGLINE, XZ_UI_EDIT_REVIEW };
 enum { XZ_UI_LOGO_KEEP=-1, XZ_UI_LOGO_NONE=-2 };
@@ -197,7 +202,8 @@ struct xz_ui_dj {
 struct xz_ui_model {
     struct xz_ui_deck deck[4];
     uint32_t enabled;
-    int theme, server_auto;
+    int theme, server_auto; /* theme: the look drawn now, xz_settings_look(ui_interface, classic_theme) */
+    int ui_interface, classic_theme, modern_theme; /* enum xz_interface and its theme lists (settings.h) */
     const char *server_address;
     unsigned blink;
     struct xz_ui_connection connection;

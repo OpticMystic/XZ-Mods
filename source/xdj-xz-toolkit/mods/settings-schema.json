@@ -16,7 +16,8 @@
     35,
     36,
     37,
-    38
+    38,
+    41
   ],
   "fields": [
     {
@@ -50,12 +51,32 @@
       "readonly": false
     },
     {
-      "key": "theme",
-      "label": "Theme",
+      "key": "interface",
+      "label": "Interface",
+      "group": "appearance",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 1,
+          "label": "MODERN"
+        },
+        {
+          "value": 0,
+          "label": "CLASSIC"
+        }
+      ]
+    },
+    {
+      "key": "classic_theme",
+      "label": "Classic theme",
       "group": "appearance",
       "default": 0,
       "min": 0,
-      "max": 24,
+      "max": 23,
       "kind": "choice",
       "readonly": false,
       "choices": [
@@ -154,10 +175,22 @@
         {
           "value": 23,
           "label": "ANALOG"
-        },
+        }
+      ]
+    },
+    {
+      "key": "modern_theme",
+      "label": "Modern theme",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 0,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
         {
-          "value": 24,
-          "label": "FLAGSHIP"
+          "value": 0,
+          "label": "STANDARD"
         }
       ]
     },
@@ -1112,7 +1145,10 @@
     "ram_debug",
     "rekordbox_menu",
     "metrics_enabled",
-    "stem_order"
+    "stem_order",
+    "interface",
+    "classic_theme",
+    "modern_theme"
   ],
   "retired_fields": {
     "jump_shift_page": {
@@ -1164,6 +1200,23 @@
       "max": 1,
       "kind": "boolean",
       "readonly": true
+    }
+  },
+  "derived_fields": {
+    "theme": {
+      "key": "theme",
+      "label": "Theme slot of older records",
+      "group": "appearance",
+      "default": 24,
+      "min": 0,
+      "max": 24,
+      "kind": "choice",
+      "readonly": true,
+      "derived": {
+        "modern_value": 24,
+        "interface": "interface",
+        "classic": "classic_theme"
+      }
     }
   }
 }

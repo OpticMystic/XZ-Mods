@@ -74,9 +74,9 @@ static size_t profile_bytes(const char *root,char out[2048]){
 int main(void){
  char a[]="/dev/shm/xz-runtime-profile-a-XXXXXX",b[]="/dev/shm/xz-runtime-profile-b-XXXXXX",internal[]="/dev/shm/xz-runtime-internal-XXXXXX";
  assert(mkdtemp(a)&&mkdtemp(b)&&mkdtemp(internal));xz_settings_internal_test_root(internal);
- struct xz_settings s;xz_settings_default(&s);s.theme=4;s.key_format=2;s.key_feedback=0;s.stems_overlay=XZ_STEM_LAYOUT_OUTER;s.metrics_enabled=1;
+ struct xz_settings s;xz_settings_default(&s);s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=4;s.theme=4;s.key_format=2;s.key_feedback=0;s.stems_overlay=XZ_STEM_LAYOUT_OUTER;s.metrics_enabled=1;
  assert(!xz_settings_save(a,&s));memset(&model,0,sizeof(model));profile_apply_locked(&s,"boot-xz");assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
- s.theme=2;s.key_format=1;s.key_feedback=1;s.stems_overlay=XZ_STEM_LAYOUT_BELOW;s.metrics_enabled=0;assert(!xz_settings_save(b,&s));
+ s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=2;s.theme=2;s.key_format=1;s.key_feedback=1;s.stems_overlay=XZ_STEM_LAYOUT_BELOW;s.metrics_enabled=0;assert(!xz_settings_save(b,&s));
  char original_b[2048],observed_b[2048];size_t original_b_size=profile_bytes(b,original_b);
  snprintf(fixture_usb[0],1024,"%s",a);snprintf(fixture_usb[1],1024,"%s",b);
  memset(&settings_profile,0,sizeof(settings_profile));settings_slot=0;settings_restore_usb_locked(a,1);assert(settings_owner_matches_locked());
@@ -90,28 +90,28 @@ int main(void){
   }
  }
  /* A browse notification can arrive before the worker updates its binding. */
- pthread_mutex_lock(&ui_mutex);xz_ui_runtime_profile_usb(1);model.theme=5;settings_queue();pthread_mutex_unlock(&ui_mutex);
+ pthread_mutex_lock(&ui_mutex);xz_ui_runtime_profile_usb(1);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=5;model.theme=5;settings_queue();pthread_mutex_unlock(&ui_mutex);
  wait_internal(5,2);wait_profile(b,5,2);assert(!xz_settings_load(a,&s)&&s.theme==4);assert(profile_bytes(b,observed_b)==original_b_size&&!memcmp(original_b,observed_b,original_b_size));
  xz_ui_runtime_profile_usb(0);wait_profile(a,5,2);
  /* A queued edit remains bound to its owner; a later edit on B stays local. */
- pthread_mutex_lock(&ui_mutex);model.theme=7;settings_queue();xz_ui_runtime_profile_usb(1);pthread_mutex_unlock(&ui_mutex);
+ pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=7;model.theme=7;settings_queue();xz_ui_runtime_profile_usb(1);pthread_mutex_unlock(&ui_mutex);
  wait_profile(b,7,2);wait_internal(7,2);wait_saved(a,7);
  assert(!xz_settings_load(a,&s)&&s.theme==7);assert(profile_bytes(b,observed_b)==original_b_size&&!memcmp(original_b,observed_b,original_b_size));
- pthread_mutex_lock(&ui_mutex);model.theme=8;settings_queue();pthread_mutex_unlock(&ui_mutex);
+ pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=8;model.theme=8;settings_queue();pthread_mutex_unlock(&ui_mutex);
  wait_internal(8,2);wait_status("SAVED ON THIS XZ / USB PROFILE KEPT");assert(!xz_settings_load(a,&s)&&s.theme==7);assert(profile_bytes(b,observed_b)==original_b_size&&!memcmp(original_b,observed_b,original_b_size));
  struct xz_usb_profile old;pthread_mutex_lock(&ui_mutex);old=settings_profile;pthread_mutex_unlock(&ui_mutex);
  xz_ui_runtime_profile_usb(0);wait_profile(a,8,2);
- pthread_mutex_lock(&ui_mutex);model.theme=9;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_saved(a,9);wait_internal(9,2);wait_status("SAVED TO USB 1");
- pthread_mutex_lock(&ui_mutex);settings_request.profile=old;xz_settings_default(&settings_request.values);settings_request.values.theme=11;settings_request.revision=0;settings_pending=1;pthread_cond_signal(&settings_changed);pthread_mutex_unlock(&ui_mutex);
+ pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=9;model.theme=9;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_saved(a,9);wait_internal(9,2);wait_status("SAVED TO USB 1");
+ pthread_mutex_lock(&ui_mutex);settings_request.profile=old;xz_settings_default(&settings_request.values);settings_request.values.ui_interface=XZ_INTERFACE_CLASSIC;settings_request.values.classic_theme=11;settings_request.values.theme=11;settings_request.revision=0;settings_pending=1;pthread_cond_signal(&settings_changed);pthread_mutex_unlock(&ui_mutex);
  profile_pause(100000000);assert(!xz_settings_load(a,&s)&&s.theme==9);assert(profile_bytes(b,observed_b)==original_b_size&&!memcmp(original_b,observed_b,original_b_size));wait_internal(9,2);
  /* Browsing a blank stick cannot move an established profile owner. */
  char blank[]="/dev/shm/xz-runtime-profile-blank-XXXXXX";assert(mkdtemp(blank));
  pthread_mutex_lock(&fixture_mutex);snprintf(fixture_usb[1],1024,"%s",blank);pthread_mutex_unlock(&fixture_mutex);
  xz_ui_runtime_profile_usb(1);wait_profile(blank,9,2);
- pthread_mutex_lock(&ui_mutex);model.theme=10;settings_queue();pthread_mutex_unlock(&ui_mutex);
+ pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=10;model.theme=10;settings_queue();pthread_mutex_unlock(&ui_mutex);
  wait_internal(10,2);wait_status("SAVED ON THIS XZ / USB PROFILE KEPT");assert(xz_settings_load(blank,&s)>0);
  xz_ui_runtime_profile_usb(0);wait_profile(a,10,2);
- pthread_mutex_lock(&ui_mutex);assert(settings_owner_matches_locked());model.theme=9;settings_queue();pthread_mutex_unlock(&ui_mutex);
+ pthread_mutex_lock(&ui_mutex);assert(settings_owner_matches_locked());model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=9;model.theme=9;settings_queue();pthread_mutex_unlock(&ui_mutex);
  wait_saved(a,9);wait_internal(9,2);wait_status("SAVED TO USB 1");
  pthread_mutex_lock(&fixture_mutex);snprintf(fixture_usb[1],1024,"%s",b);pthread_mutex_unlock(&fixture_mutex);clean(blank);
  /* A session-only app profile cannot discard the preceding durable layout edit. */
@@ -123,15 +123,15 @@ int main(void){
  assert(xz_settings_internal_load(&s,NULL)==XZ_INTERNAL_SETTINGS_OK&&s.stems_overlay==XZ_STEM_LAYOUT_OUTER_HALF&&s.theme==9);
  pthread_mutex_lock(&ui_mutex);assert(model.theme==6&&model.stems_overlay==XZ_STEM_LAYOUT_OUTER_HALF&&!strcmp(model.settings_status,"PROFILE APPLIED / NOT SAVED"));pthread_mutex_unlock(&ui_mutex);
  pthread_mutex_lock(&fixture_mutex);fixture_usb[0][0]=0;pthread_mutex_unlock(&fixture_mutex);pthread_cond_signal(&settings_changed);
- wait_profile("",6,2);wait_status("USB REMOVED: SETTINGS KEPT");pthread_mutex_lock(&ui_mutex);model.theme=10;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_internal(10,2);wait_status("SAVED ON THIS XZ / NO USB");
+ wait_profile("",6,2);wait_status("USB REMOVED: SETTINGS KEPT");pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=10;model.theme=10;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_internal(10,2);wait_status("SAVED ON THIS XZ / NO USB");
  clean(a);assert(!mkdir(a,0755));pthread_mutex_lock(&fixture_mutex);snprintf(fixture_usb[0],1024,"%s",a);pthread_mutex_unlock(&fixture_mutex);pthread_cond_signal(&settings_changed);
- wait_profile(a,10,2);wait_status("USB 1 HAS NO SETTINGS: KEPT CURRENT");pthread_mutex_lock(&ui_mutex);model.theme=11;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_saved(a,11);wait_internal(11,2);
+ wait_profile(a,10,2);wait_status("USB 1 HAS NO SETTINGS: KEPT CURRENT");pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=11;model.theme=11;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_saved(a,11);wait_internal(11,2);
  char cfg[1100];snprintf(cfg,sizeof(cfg),"%s/VJ.Tools/XZ-Mods.cfg",b);FILE *file=fopen(cfg,"w");assert(file);fputs("XZ_MODS_SETTINGS 1\nstems=7\n",file);fclose(file);
- xz_ui_runtime_profile_usb(1);wait_profile(b,11,2);wait_status("USB 2 SETTINGS INVALID: KEPT CURRENT");pthread_mutex_lock(&ui_mutex);model.theme=12;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_internal(12,2);wait_status("SAVED ON THIS XZ / USB PROFILE KEPT");assert(xz_settings_load(b,&s)<0);
+ xz_ui_runtime_profile_usb(1);wait_profile(b,11,2);wait_status("USB 2 SETTINGS INVALID: KEPT CURRENT");pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=12;model.theme=12;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_internal(12,2);wait_status("SAVED ON THIS XZ / USB PROFILE KEPT");assert(xz_settings_load(b,&s)<0);
  /* An explicit Apply+Save authorizes replacing the selected USB record. */
  const char *explicit_record="XZ_MODS_SETTINGS 1\nstems=1\ngate=0\nsmart=0\ntheme=3\nstem_page=0\nshift_pages=0\npad_feedback=1\nshift_keysync=0\n";
  pthread_mutex_lock(&ui_mutex);model.key_feedback=0;model.wave_mode=2;pthread_mutex_unlock(&ui_mutex);assert(!sdk_apply_profile(NULL,explicit_record,1));wait_saved(b,3);wait_internal(3,2);wait_status("SAVED TO USB 2");
- pthread_mutex_lock(&ui_mutex);assert(model.stems_overlay==XZ_STEM_LAYOUT_OUTER_HALF&&model.metrics_enabled&&model.key_feedback==0&&model.wave_mode==2);settings_readonly=1;model.theme=7;settings_queue();assert(!settings_pending);pthread_mutex_unlock(&ui_mutex);wait_internal(3,2);assert(!xz_settings_load(b,&s)&&s.theme==3);
+ pthread_mutex_lock(&ui_mutex);assert(model.stems_overlay==XZ_STEM_LAYOUT_OUTER_HALF&&model.metrics_enabled&&model.key_feedback==0&&model.wave_mode==2);settings_readonly=1;model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=7;model.theme=7;settings_queue();assert(!settings_pending);pthread_mutex_unlock(&ui_mutex);wait_internal(3,2);assert(!xz_settings_load(b,&s)&&s.theme==3);
  pthread_mutex_lock(&ui_mutex);settings_running=0;pthread_cond_signal(&settings_changed);pthread_mutex_unlock(&ui_mutex);pthread_join(settings_thread,NULL);
  /* Boot explicitly chooses the USB profile; browsing never chooses it. */
  assert(xz_settings_internal_load(&s,NULL)==XZ_INTERNAL_SETTINGS_OK);profile_apply_locked(&s,"boot-xz");settings_slot=0;settings_restore_usb_locked(a,1);

@@ -338,8 +338,10 @@ function afterEject(){
 
 function startFlow(kind,{profile=false,gamesOpen=false}={}){
   const ins=W.inspection,withProfile=profile||kind==='profile'||(kind==='install'&&!ins.dj_profiles?.count);
-  const steps=[...(withProfile?['profile']:[]),'review','writing','done'];
   startState(ins);
+  // The screen choice comes with a loader install or update, after the profile and before the review.
+  const withLook=(kind==='install'||kind==='update')&&lookAvailable();
+  const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),'review','writing','done'];
   if(kind==='profile')W.games=installedGames(ins);
   go({view:'flow',flow:{kind,steps},step:gamesOpen?'review':steps[0],loader:FLOWS[kind].loader,result:null,gamesOpen});
 }
@@ -354,7 +356,7 @@ function goto(step){
 }
 function previous(){const steps=W.flow.steps,index=steps.indexOf(W.step);if(index>0)goto(steps[index-1]);else backToDevice();}
 function flowHead(){
-  const steps=W.flow.steps,index=steps.indexOf(W.step),cancellable=W.step==='profile'||W.step==='review';
+  const steps=W.flow.steps,index=steps.indexOf(W.step),cancellable=W.step==='profile'||W.step==='look'||W.step==='review';
   return el('div',{class:'wz-flow-head'},
     el('div',{class:'wz-flow-title'},el('h2',{text:FLOWS[W.flow.kind].title}),el('span',{class:'wz-mono',text:driveLabel()===W.usb?W.usb:driveLabel()+' · '+W.usb})),
     el('div',{class:'wz-flow-progress'},
@@ -371,7 +373,8 @@ function navButtons(next,label,primary=true){
 function stepNav(){
   if(W.view!=='flow'||W.step!=='profile')return null;
   const profile=profilePlan()||W.inspection?.dj_profiles?.count;
-  return navButtons(()=>goto('review'),profile?'Next':'Skip for now',Boolean(profile));
+  const next=W.flow.steps[W.flow.steps.indexOf('profile')+1];
+  return navButtons(()=>goto(next),profile?'Next':'Skip for now',Boolean(profile));
 }
 function refreshNav(){const old=host.querySelector('.wz-nav'),next=stepNav();if(old&&next)old.replaceWith(next);}
 // dj-profile.js draws into the slot (and asks for refreshNav as the draft changes).
@@ -380,6 +383,76 @@ function stepProfile(){
     el('p',{class:'wz-lead',text:'Your name and logo on the XZ, and for VJ software on the same network. '+(W.inspection.dj_profiles?.count?'Edit it here, or go on.':'It takes a minute. Skip it if you like and add it later.')}),
     el('div',{id:'wz-djp-slot'}),
     stepNav()];
+}
+// --- the screen the XZ starts with ---
+// One setting decides it: interface (1 new, 0 standard), the same value MODS > APPEARANCE > INTERFACE
+// changes on the deck. Choosing the standard interface leaves classic_theme as the USB has it.
+const LOOK_NEW=1,LOOK_STANDARD=0;
+const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+function lookAvailable(){
+  return settingsEditable()&&Boolean(W.settings)&&'interface' in W.settings&&Boolean(W.inspection.settings.schema?.fields?.some(field=>field.key==='interface'));
+}
+const LOOKS=[
+  {value:LOOK_NEW,id:'new',title:'New interface',tag:'Beta',
+    text:'Replaces the whole screen: bigger waveforms, a browse sidebar and a stems row with mute buttons.',
+    deck:'MODERN',video:()=>WIZARD_MEDIA.newVideo,poster:()=>WIZARD_MEDIA.newPoster,
+    alt:'The new interface running on the XZ: two scrolling stem waveforms, a DRUMS, VOCAL and INST mute row, then the browse screen with its sidebar and track list.'},
+  {value:LOOK_STANDARD,id:'standard',title:'Standard XDJ-XZ interface',
+    text:'Keeps the deck\'s own screen layout, as it is now. Classic themes can still restyle it.',
+    deck:'CLASSIC',video:()=>WIZARD_MEDIA.standardVideo,poster:()=>WIZARD_MEDIA.standardPoster,
+    alt:'The XDJ-XZ\'s own player screen with a track on each deck, captured from the deck.'}
+];
+function lookMedia(look,selected){
+  const playing=selected&&look.video()&&!reducedMotion();
+  if(!playing)return el('img',{class:'wz-look-media',src:look.poster(),alt:look.alt,width:800,height:480});
+  const video=el('video',{class:'wz-look-media',src:look.video(),poster:look.poster(),muted:true,loop:true,autoplay:true,playsinline:true,
+    preload:'auto',width:800,height:480,'aria-label':look.alt});
+  video.muted=true;video.play?.().catch(()=>{});
+  return video;
+}
+// After install, the way back, drawn by the deck's own menus: the new interface's MODS button opens its MODS
+// screen, whose APPEARANCE tab opens the panel page; the standard screen's MODS button opens the panel directly.
+function lookLater(choice){
+  const fromNew=choice===LOOK_NEW,images=fromNew?WIZARD_MEDIA.switchFromNew:WIZARD_MEDIA.switchFromStandard,other=fromNew?'CLASSIC':'MODERN';
+  const first=fromNew?{w:560,h:336,alt:'The MODS screen of the new interface on its APPEARANCE tab, with the tab and the OPEN APPEARANCE button marked.',
+      text:'Tap MODS in the top right corner, then the APPEARANCE tab and OPEN APPEARANCE.'}:
+    {w:450,h:135,alt:'The top right of the standard screen with the MODS button marked.',text:'Tap MODS in the top right corner, then APPEARANCE.'};
+  return el('div',{class:'wz-later',dataset:{choice:fromNew?'new':'standard'}},
+    el('p',{class:'wz-later-line',text:'You can switch any time on the deck: tap MODS, then APPEARANCE → INTERFACE.'}),
+    el('ol',{class:'wz-later-steps'},
+      el('li',{},el('img',{src:images[0],width:first.w,height:first.h,alt:first.alt}),el('span',{},el('b',{text:'1'}),first.text)),
+      el('li',{},el('img',{src:images[1],width:560,height:336,alt:'The MODS menu on its APPEARANCE page, with INTERFACE marked: MODERN or CLASSIC.'}),
+        el('span',{},el('b',{text:'2'}),'Choose INTERFACE: '+other+'.'))));
+}
+function lookCard(look,choice){
+  const selected=look.value===choice;
+  return el('label',{class:'wz-look-card',dataset:{look:look.id,selected:selected?'1':null}},
+    el('span',{class:'wz-look-frame'},lookMedia(look,selected)),
+    el('span',{class:'wz-look-text'},
+      el('input',{type:'radio',name:'wz-look',value:String(look.value),checked:selected?true:null,onchange:event=>chooseLook(look.value,event.currentTarget.closest('.wz-look-step'))}),
+      el('span',{class:'wz-look-title'},el('strong',{text:look.title}),look.tag?el('span',{class:'wz-chip wz-look-tag',text:look.tag}):null),
+      el('span',{class:'wz-look-desc',text:look.text})));
+}
+// A choice updates the step in place, so the larger frame moves across smoothly instead of redrawing.
+function chooseLook(value,root){
+  W.settings={...W.settings,interface:value};
+  if(!root)return render();
+  root.dataset.choice=value===LOOK_NEW?'new':'standard';
+  for(const card of root.querySelectorAll('.wz-look-card')){
+    const look=LOOKS.find(item=>item.id===card.dataset.look),selected=look.value===value;
+    if(selected)card.dataset.selected='1';else delete card.dataset.selected;
+    card.querySelector('.wz-look-frame').replaceChildren(lookMedia(look,selected));
+  }
+  root.querySelector('.wz-later').replaceWith(lookLater(value));
+}
+function stepLook(){
+  const choice=W.settings.interface===LOOK_STANDARD?LOOK_STANDARD:LOOK_NEW;
+  return [el('h3',{text:'Choose the screen the XZ shows'}),
+    el('p',{class:'wz-lead',text:'XZ Mods can draw the whole player screen itself, or keep the deck\'s own screen.'}),
+    el('div',{class:'wz-look-step',dataset:{choice:choice===LOOK_NEW?'new':'standard'}},
+      el('div',{class:'wz-look',role:'radiogroup','aria-label':'Screen the XZ shows'},...LOOKS.map(look=>lookCard(look,choice))),
+      lookLater(choice)),
+    navButtons(()=>goto('review'),'Next')];
 }
 // The review lists what the write will do, from the same plan data the write uses.
 function planLines(){
@@ -394,8 +467,12 @@ function planLines(){
   const profile=profilePlan();
   if(profile?.plan)lines.push({icon:'profile',text:'Save DJ profile '+profile.name});
   else if(profile?.problem)lines.push({icon:'alert',tone:'warn',text:'DJ profile '+profile.name+' will not be saved',detail:profile.problem});
-  if(settingsChanges().length)lines.push({icon:'gear',text:'Change which games show in the GAMES menu'});
-  else if(ins.settings?.revision?.exists===false&&(writesLoader()||settingsEditable()))lines.push({icon:'gear',text:'Create the settings file'});
+  const changes=settingsChanges(),creates=ins.settings?.revision?.exists===false&&(writesLoader()||settingsEditable());
+  if(changes.includes('interface')||(creates&&W.flow?.steps.includes('look')))
+    lines.push({icon:'screen',text:W.settings.interface===LOOK_NEW?'Use the new interface on the XZ':'Use the standard XDJ-XZ interface on the XZ',
+      detail:'Switch any time in MODS → APPEARANCE → INTERFACE'});
+  if(changes.includes('games_menu'))lines.push({icon:'gear',text:'Change which games show in the GAMES menu'});
+  if(creates&&!changes.length)lines.push({icon:'gear',text:'Create the settings file'});
   return lines;
 }
 function planList(){
@@ -462,7 +539,9 @@ async function write(origin){
     const response=await run({method:'prepare_games_usb',volume,games},'Copying games to the USB',origin);
     if(!response?.ok)return;result.games=response.result;
   }
-  if(settingsChanges().length||(W.settings&&ins.settings.revision.exists===false&&choice==='keep')){
+  // A USB without a settings file gets one when nothing else writes it: a games or profile write that keeps the
+  // loader, or any write that asked for the screen. Without the file the XZ would keep its remembered screen.
+  if(settingsChanges().length||(W.settings&&ins.settings.revision.exists===false&&(choice==='keep'||W.flow?.steps.includes('look')))){
     const fresh=await run({method:'read_usb_settings',volume},'Reading the settings file again',origin,()=>{});
     if(!fresh?.ok){showError('The settings file could not be read back, so the settings were not written. '+(fresh?.error||''),origin);W.result=result;showDone();return;}
     const current=fresh.result.settings;
@@ -532,7 +611,7 @@ function ejectStatus(){
   if(W.eject?.state==='error')return el('p',{class:'notice wz-eject-error',role:'alert',text:'The USB was not ejected. '+W.eject.message});
   return null;
 }
-const STEPS={profile:stepProfile,review:stepReview,writing:stepWriting,done:stepDone};
+const STEPS={profile:stepProfile,look:stepLook,review:stepReview,writing:stepWriting,done:stepDone};
 function viewFlow(){return el('section',{class:'wz-flow',dataset:{step:W.step}},flowHead(),el('div',{class:'wz-flow-body'},...STEPS[W.step]()));}
 
 const VIEWS={find:viewFind,device:viewDevice,flow:viewFlow};

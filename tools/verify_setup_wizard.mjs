@@ -27,6 +27,10 @@ function installMock() {
   const fx = window.fx = { mode, calls: [], requests: [], saved: null, written: [], recorded, plugged: false, hold: false, profile: null,
     games: { doom: false, chex: hasLoader, freedoom: false, myhouse: false } };  // myhouse: an older backend may still list it; the UI must never offer it
   const usb = { loader: hasLoader, settings: hasLoader };
+  // A USB with older settings carried theme 2 (CYBERPUNK): it reads as the standard interface with that classic theme.
+  // A fresh USB has no settings file, so it reads the schema defaults: the new interface.
+  fx.values = null;
+  const settingsValues = () => fx.values || (hasLoader ? { ...defaults, interface: 0, classic_theme: 2 } : { ...defaults });
   const usbs = () => {
     if ((mode === 'nousb' && !fx.plugged) || fx.unplugged) return [];
     const one = { volume: 'E:\\', label: 'KINGSTON', removable: true, loader: usb.loader, settings: usb.settings, rekordbox: true, games: Object.values(fx.games).filter(Boolean).length };
@@ -36,7 +40,7 @@ function installMock() {
   const gamesOnUsb = () => Object.entries(fx.games).map(([id, installed]) => ({ id, name: { doom: 'Doom shareware', chex: 'Chex Quest', freedoom: 'Freedoom Phase 2', myhouse: 'My House' }[id], installed, folder: 'E:\\VJTOOLS\\Games\\' + id, requires_gzdoom: id === 'myhouse', bytes: 2450688 }));
   const inspection = volume => ({ format: 'xz-mods-usb/1', volume, identity: { serial: 1 }, loader: { exists: usb.loader, bytes: 4100000, sha256: 'abc' },
     recorded_mod_version: usb.loader ? fx.recorded : null, installed_version: null, runtime_sha256: 'newsha',
-    settings: { editable: true, values: { ...defaults, theme: 2 }, revision: { exists: usb.settings, bytes: 400 }, schema, path: volume + 'VJ.Tools\\XZ-Mods.cfg' }, backups: [], games: gamesOnUsb(), direct_usb_root: true, requires_copy_to_usb_root: false, filesystem: 'FAT32',
+    settings: { editable: true, values: settingsValues(), revision: { exists: usb.settings, bytes: 400 }, schema, path: volume + 'VJ.Tools\\XZ-Mods.cfg' }, backups: [], games: gamesOnUsb(), direct_usb_root: true, requires_copy_to_usb_root: false, filesystem: 'FAT32',
     space: { free_bytes: 29100000000, total_bytes: 32000000000 }, stems: { tracks: hasLoader ? 12 : 0, bytes: 734003200 }, rekordbox: true,
     dj_profiles: fx.profile ? { count: 1, active_name: fx.profile.dj_name } : { count: 0, active_name: null } });
   const profiles = () => ({ format: 'xz-dj-profiles/1', public_folder: fx.profile ? 'DJPROFILE' : null, revision: fx.profile ? 'r1' : null, active: fx.profile?.dj_id || null, stick_colour: '#f870f8', legacy: false, problems: [],
@@ -77,7 +81,7 @@ function installMock() {
         fx.profile = { dj_id: 'djp_' + request.profile.dj_name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), dj_name: request.profile.dj_name, accent: request.profile.accent };
         return { running: false, ok: true, result: { ...profiles(), saved: fx.profile.dj_id } };
       }
-      case 'save_usb_settings': fx.saved = request; if (!fx.written.includes(request)) fx.written.push(request); return { running: false, ok: true, result: { format: 'xz-mods-settings-saved/1', settings: { ...inspection(request.volume).settings, values: request.values } } };
+      case 'save_usb_settings': fx.saved = request; fx.values = { ...request.values }; if (!fx.written.includes(request)) fx.written.push(request); return { running: false, ok: true, result: { format: 'xz-mods-settings-saved/1', settings: { ...inspection(request.volume).settings, values: request.values } } };
     }
     throw Error('Unexpected method ' + request.method);
   };
@@ -111,7 +115,7 @@ function installMock() {
   window.since = mark => fx.requests.slice(mark).map(request => request.method).join();
 }
 
-const schema = JSON.parse(await readFile(resolve(app, process.env.XZ_SETTINGS_SCHEMA || '../VJToolsLibrary/packages/xdj-xz-toolkit/mods/settings-schema.json'), 'utf8'));
+const schema = JSON.parse(await readFile(resolve(app, process.env.XZ_SETTINGS_SCHEMA || 'source/xdj-xz-toolkit/mods/settings-schema.json'), 'utf8'));
 const server = await serveUi(app);
 const profile = await mkdtemp(join(tmpdir(), 'xz-wizard-'));
 const child = spawn(process.env.XZ_TEST_BROWSER || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -204,12 +208,39 @@ try {
   await click('Install XZ Mods');
   await view('flow', 'profile');
   await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ profile editor in the flow');
-  await check(`txt('.wz-flow-title h2')==='Install XZ Mods'&&txt('.wz-flow-count')==='Step 1 of 4'&&document.querySelectorAll('.wz-dots li').length===4&&document.querySelector('.wz-dots li[data-state=current]')===document.querySelector('.wz-dots li')&&Boolean(button('Cancel'))`, 'install flow: compact header, Step 1 of 4 with dots, Cancel');
+  await check(`txt('.wz-flow-title h2')==='Install XZ Mods'&&txt('.wz-flow-count')==='Step 1 of 5'&&document.querySelectorAll('.wz-dots li').length===5&&document.querySelector('.wz-dots li[data-state=current]')===document.querySelector('.wz-dots li')&&Boolean(button('Cancel'))`, 'install flow: compact header, Step 1 of 5 with dots, Cancel');
   await check(`Boolean(button('Skip for now'))&&button('Skip for now').classList.contains('secondary')&&Boolean(button('Back'))&&fx.requests.filter(r=>r.method==='read_dj_profiles').length===1`, 'a USB without a profile starts on the DJ profile step: Skip for now, Back');
   await shot('05-flow-profile');
   await click('Skip for now');
+  await view('flow', 'look');
+  await check(`txt('.wz-flow-count')==='Step 2 of 5'&&txt('.wz-flow-body h3')==='Choose the screen the XZ shows'&&document.querySelectorAll('.wz-look-card').length===2&&document.querySelector('.wz-look-card[data-look=new] input').checked&&!document.querySelector('.wz-look-card[data-look=standard] input').checked&&document.querySelector('.wz-look-step').dataset.choice==='new'&&Boolean(button('Cancel'))`, 'look step after the profile: the new interface is selected by default on a fresh USB');
+  await check(`txt('.wz-look-card[data-look=new] .wz-look-title')==='New interfaceBeta'&&txt('.wz-look-card[data-look=standard] .wz-look-title')==='Standard XDJ-XZ interface'`, 'cards: New interface (Beta) and Standard XDJ-XZ interface');
+  await check(`(()=>{const v=document.querySelector('.wz-look-card[data-look=new] video');return Boolean(v)&&v.muted&&v.loop&&v.autoplay&&v.playsInline&&v.getAttribute('src')==='assets/wizard/new-interface.mp4'&&v.getAttribute('aria-label').length>40;})()&&document.querySelector('.wz-look-card[data-look=standard] img').alt.length>20`, 'the chosen card plays the new interface muted and looping in place; the other shows a still with alt text');
+  await waitFor(`(()=>{const v=document.querySelector('.wz-look-card[data-look=new] video');return Boolean(v)&&v.readyState>=2&&v.videoWidth===800&&v.videoHeight===480;})()`, 'the new-interface video decodes under the app CSP');
+  await check(`(()=>{const c=[...document.querySelectorAll('.wz-look-card')].map(e=>e.getBoundingClientRect().width);return c[0]>c[1]*1.4;})()`, 'the selected card is the large one');
+  await check(`txt('.wz-later-line')==='You can switch any time on the deck: tap MODS, then APPEARANCE → INTERFACE.'&&txt('.wz-later-steps').includes('Tap MODS in the top right corner, then the APPEARANCE tab and OPEN APPEARANCE.')&&txt('.wz-later-steps').includes('Choose INTERFACE: CLASSIC.')`, 'one line on switching later, and two steps naming the deck labels');
+  await waitFor(`[...document.querySelectorAll('.wz-look-step img')].every(i=>i.complete&&i.naturalWidth>0&&i.alt)`, 'stills and switch-later graphics load, each with alt text');
+  await check(`!/\\b(CDJ|Pioneer|rekordbox|AlphaTheta)\\b/i.test(txt('.wz-look-step')+[...document.querySelectorAll('.wz-look-step [alt],.wz-look-step [aria-label]')].map(e=>e.getAttribute('alt')||e.getAttribute('aria-label')).join(' '))`, 'the step names no other brand');
+  await check(fits, 'look step fits without horizontal scroll');
+  await shot('05b-flow-look-new');
+  await evaluate(`document.querySelector('.wz-look-card[data-look=new] input').focus()`);
+  for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39 });
+  await waitFor(`document.querySelector('.wz-look-step').dataset.choice==='standard'`, 'the arrow key picks the standard interface');
+  await check(`setupWizard.state.settings.interface===0&&document.activeElement===document.querySelector('.wz-look-card[data-look=standard] input')&&getComputedStyle(document.querySelector('.wz-look-card[data-look=standard]')).outlineStyle==='solid'&&txt('.wz-later-steps').includes('Tap MODS in the top right corner, then APPEARANCE.')&&txt('.wz-later-steps').includes('Choose INTERFACE: MODERN.')`, 'keyboard: arrows move the choice, the focused card shows a ring, the switch-later graphic follows the choice');
+  await new Promise(done => setTimeout(done, 700));
+  await check(`(()=>{const c=[...document.querySelectorAll('.wz-look-card')].map(e=>e.getBoundingClientRect().width);return c[1]>c[0]*1.4;})()&&!document.querySelector('.wz-look-card[data-look=new] video')&&document.querySelector('.wz-look-card[data-look=new] img').getAttribute('src')==='assets/wizard/new-interface-poster.webp'`, 'the large frame moves to the standard card; the new interface stops and shows its poster');
+  await shot('05c-flow-look-standard');
+  await click('Back');
+  await view('flow', 'profile');
+  await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
+  await click('Skip for now');
+  await view('flow', 'look');
+  await check(`document.querySelector('.wz-look-card[data-look=standard] input').checked`, 'Back and forward keep the choice');
+  await evaluate(`document.querySelector('.wz-look-card[data-look=new] input').click()`);
+  await check(`setupWizard.state.settings.interface===1&&document.querySelector('.wz-look-step').dataset.choice==='new'`, 'a click picks the new interface again');
+  await click('Next');
   await view('flow', 'review');
-  await check(`plan().join('|')==='Add the XZ Mods loader (Fixture build)|Add 3 free games: Doom shareware, Chex Quest and Freedoom Phase 2|Create the settings file'&&txt('.wz-safe')==='Music, playlists and prepared stems are never touched.'&&txt('.wz-flow-count')==='Step 2 of 4'`, 'review: a plain checklist of what will happen, then the reassurance line');
+  await check(`plan().join('|')==='Add the XZ Mods loader (Fixture build)|Add 3 free games: Doom shareware, Chex Quest and Freedoom Phase 2|Use the new interface on the XZ|Create the settings file'&&txt('.wz-safe')==='Music, playlists and prepared stems are never touched.'&&txt('.wz-flow-count')==='Step 3 of 5'`, 'review: a plain checklist of what will happen, then the reassurance line');
   await check(`!document.querySelector('.wz-games-change .games')&&Boolean(button('Change games'))&&!button('Write to USB').disabled`, 'games stay folded behind Change games');
   await shot('06-flow-review');
   await click('Change games');
@@ -231,11 +262,12 @@ try {
   await evaluate(`fx.failWrite=false;fx.hold=true;window.__mark=fx.requests.length`);
   await click('Write to USB');
   await waitFor(`setupWizard.state.step==='writing'&&fx.requests.at(-1)?.method==='prepare_usb'&&document.getElementById('job-panel').checkVisibility()`, 'writing step with the job panel');
-  await check(`document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&txt('#job-title')==='Adding the XZ Mods loader'&&!button('Write to USB')&&!document.querySelector('.wz-cancel')&&txt('.wz-flow-count')==='Step 3 of 4'`, 'writing: the job panel shows inside the flow; no Write or Cancel to press twice');
+  await check(`document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&txt('#job-title')==='Adding the XZ Mods loader'&&!button('Write to USB')&&!document.querySelector('.wz-cancel')&&txt('.wz-flow-count')==='Step 4 of 5'`, 'writing: the job panel shows inside the flow; no Write or Cancel to press twice');
   await shot('07-flow-writing');
   await evaluate(`fx.hold=false`);
   await view('flow', 'done');
-  await check(`since(window.__mark)==='inspect_mod_settings,prepare_usb,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='prepare_usb'&&fx.written[0].volume==='E:\\\\'&&fx.written[0].experimental===true&&fx.written[0].mod_version_id==='v1'&&fx.written[0].pin_mod_version===true&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'&&!fx.saved`, 'Write issues the same requests as before: settings check, prepare_usb with the chosen games, then a fresh inspection');
+  await check(`since(window.__mark)==='inspect_mod_settings,prepare_usb,read_usb_settings,save_usb_settings,inspect_usb'&&fx.written.length===2&&fx.written[0].method==='prepare_usb'&&fx.written[0].volume==='E:\\\\'&&fx.written[0].experimental===true&&fx.written[0].mod_version_id==='v1'&&fx.written[0].pin_mod_version===true&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'`, 'Write: settings check, prepare_usb with the chosen games, the settings file, then a fresh inspection');
+  await check(`fx.written[1].method==='save_usb_settings'&&fx.saved.values.interface===1&&fx.saved.values.classic_theme===0&&!('theme' in fx.saved.values)`, 'the new interface is written as interface=1, the one setting MODS > APPEARANCE > INTERFACE reads');
   await check(`txt('.wz-done-hero h3')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')&&txt('.wz-next').includes('REKORDBOX')&&Boolean(button('Done'))&&!document.getElementById('job-panel').checkVisibility()`, 'done: success mark, result lines, the On the XZ steps, Done');
   await shot('08-flow-done');
   await click('Done');
@@ -294,6 +326,8 @@ try {
   await view('flow', 'profile');
   await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
   await click('Skip for now');
+  await view('flow', 'look');
+  await click('Next');
   await view('flow', 'review');
   await check(`(()=>{const box=document.getElementById('wz-eject-auto');return box&&!box.checked&&txt('.wz-eject-auto').startsWith('Eject the USB when writing finishes')&&(document.querySelector('.wz-eject-auto').compareDocumentPosition(document.getElementById('wz-write'))&Node.DOCUMENT_POSITION_FOLLOWING);})()`, 'the review offers Eject the USB when writing finishes, unticked by default, just above Write to USB');
   await click('Write to USB');
@@ -323,6 +357,8 @@ try {
   await view('flow', 'profile');
   await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
   await click('Skip for now');
+  await view('flow', 'look');
+  await click('Next');
   await view('flow', 'review');
   await evaluate(`document.getElementById('wz-eject-auto').click()`);
   await check(`localStorage.getItem('xz-eject-after-write')==='1'&&document.getElementById('wz-eject-auto').checked`, 'ticking Eject the USB when writing finishes is remembered');
@@ -336,6 +372,8 @@ try {
   await view('flow', 'profile');
   await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
   await click('Skip for now');
+  await view('flow', 'look');
+  await click('Next');
   await view('flow', 'review');
   await check(`document.getElementById('wz-eject-auto').checked`, 'the remembered choice is ticked on the next write');
   await evaluate(`fx.failGame='doom'`);
@@ -357,13 +395,55 @@ try {
   await check(fits, 'update view fits without horizontal scroll');
   await shot('03b-device-update-changes');
   await click('Update USB');
+  await view('flow', 'look');
+  await check(`txt('.wz-flow-title h2')==='Update USB'&&txt('.wz-flow-count')==='Step 1 of 4'&&document.querySelector('.wz-look-card[data-look=standard] input').checked&&!document.querySelector('.wz-look-card[data-look=new] input').checked&&!document.querySelector('.wz-look-card[data-look=new] video')`, 're-entry: a USB whose settings say the standard interface opens the step on Standard, not on the default');
+  await click('Next');
   await view('flow', 'review');
-  await check(`txt('.wz-flow-title h2')==='Update USB'&&txt('.wz-flow-count')==='Step 1 of 3'&&plan().join('|')==='Back up and update the loader'&&txt('.wz-plan small')==='Old build → Fixture build'`, 'update flow: no profile step; the review says it backs up and updates the loader');
+  await check(`txt('.wz-flow-count')==='Step 2 of 4'&&plan().join('|')==='Back up and update the loader'&&txt('.wz-plan small')==='Old build → Fixture build'`, 'update flow: no profile step; keeping the saved screen adds nothing to the review');
   await evaluate(`window.__mark=fx.requests.length`);
   await click('Write to USB');
   await view('flow', 'done');
   await check(`since(window.__mark)==='inspect_mod_settings,update_usb,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='update_usb'&&JSON.stringify(fx.written[0].expected_identity)==='{"serial":1}'&&fx.written[0].expected_loader.sha256==='abc'&&JSON.stringify(fx.written[0].games)==='[]'`, 'update writes update_usb with the inspected identity and loader, and adds no games');
-  await check(`txt('.wz-done').includes('Loader updated. The previous loader is backed up on the USB.')`, 'done says the old loader is backed up');
+  await check(`txt('.wz-done').includes('Loader updated. The previous loader is backed up on the USB.')&&!fx.saved`, 'done says the old loader is backed up; the unchanged screen choice writes nothing');
+  await click('Done');
+  await view('device');
+  await evaluate(`setupWizard.startFlow('update')`);
+  await view('flow', 'look');
+  await evaluate(`document.querySelector('.wz-look-card[data-look=new] input').click()`);
+  await click('Next');
+  await view('flow', 'review');
+  await check(`plan().includes('Use the new interface on the XZ')`, 'switching an existing USB to the new interface is listed in the review');
+  await evaluate(`window.__mark=fx.requests.length`);
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`since(window.__mark)==='read_usb_settings,save_usb_settings,inspect_usb'&&fx.saved.values.interface===1&&fx.saved.values.classic_theme===2`, 'the new interface writes interface=1 and keeps the classic theme the USB had');
+  await click('Done');
+  await view('device');
+  await evaluate(`setupWizard.startFlow('update')`);
+  await view('flow', 'look');
+  await check(`document.querySelector('.wz-look-card[data-look=new] input').checked&&document.querySelector('.wz-look-step').dataset.choice==='new'`, 're-entry after saving shows the saved new interface');
+  await evaluate(`document.querySelector('.wz-look-card[data-look=standard] input').click()`);
+  await click('Next');
+  await view('flow', 'review');
+  await evaluate(`window.__mark=fx.requests.length`);
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`fx.saved.values.interface===0&&fx.saved.values.classic_theme===2&&setupWizard.state.inspection.settings.values.interface===0`, 'the standard interface writes interface=0 and leaves the classic theme as it was');
+
+  await open('fresh');
+  await view('device');
+  await click('Install XZ Mods');
+  await view('flow', 'profile');
+  await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
+  await click('Skip for now');
+  await view('flow', 'look');
+  await evaluate(`document.querySelector('.wz-look-card[data-look=standard] input').click()`);
+  await click('Next');
+  await view('flow', 'review');
+  await check(`plan().includes('Use the standard XDJ-XZ interface on the XZ')&&!plan().includes('Create the settings file')`, 'a fresh USB with the standard interface: the review says so');
+  await click('Write to USB');
+  await view('flow', 'done');
+  await check(`fx.saved.values.interface===0&&fx.saved.values.classic_theme===0&&txt('.wz-done').includes('Settings saved to the USB and read back.')`, 'the standard interface on a fresh USB writes interface=0 with the default classic theme');
 
   await open('loader');
   await view('device');
@@ -407,7 +487,7 @@ try {
   await open('fresh');
   await view('device');
   await evaluate(`fx.failGame='chex'`);
-  await click('Install XZ Mods'); await view('flow', 'profile'); await click('Skip for now'); await view('flow', 'review');
+  await click('Install XZ Mods'); await view('flow', 'profile'); await click('Skip for now'); await view('flow', 'look'); await click('Next'); await view('flow', 'review');
   await click('Write to USB');
   await view('flow', 'done');
   await check(`txt('.wz-done-hero h3')==='Finished, with something to check'&&txt('.wz-done').includes('chex did not download: Download failed')&&Boolean(button('Retry the failed games'))`, 'a failed game download ends on Finished, with something to check and a Retry button');

@@ -8,6 +8,13 @@
 enum xz_browse_column { XZ_BROWSE_TITLE, XZ_BROWSE_ARTIST, XZ_BROWSE_KEY, XZ_BROWSE_BPM, XZ_BROWSE_COLUMN_COUNT };
 enum xz_key_format_preference { XZ_KEY_FORMAT_NATIVE, XZ_KEY_FORMAT_CLASSIC, XZ_KEY_FORMAT_CAMELOT };
 
+/* The interface decides who draws the player screen: MODERN is the FLAGSHIP
+   shell (its own look, modern_theme), CLASSIC is the stock layout restyled by
+   classic_theme. It is the one switch for screen ownership. */
+enum xz_interface { XZ_INTERFACE_CLASSIC = 0, XZ_INTERFACE_MODERN = 1 };
+#define XZ_CLASSIC_THEME_COUNT 24 /* ORIGINAL..ANALOG; theme 24 FLAGSHIP is the modern interface's look */
+#define XZ_MODERN_THEME_COUNT 1   /* STANDARD */
+
 enum xz_takeover_assign {
     XZ_TAKEOVER_LINK = 0,
     XZ_TAKEOVER_REKORDBOX = 1,
@@ -15,6 +22,8 @@ enum xz_takeover_assign {
     XZ_TAKEOVER_COUNT = 3
 };
 struct xz_settings {
+    /* theme is derived, never chosen: xz_settings_look(ui_interface, classic_theme).
+       It keeps its wire slot so older records migrate (24 = MODERN). */
     int stems, gate, smart, theme, stem_page, shift_pages, pad_feedback, shift_keysync;
     int fb_takeover, takeover_assign, spare_eq, stem_bank;
     struct xz_jump_settings jump;
@@ -27,7 +36,12 @@ struct xz_settings {
     int ram_debug; /* optional free-RAM box beside STEMS */
     int rekordbox_menu; /* 1: the REKORDBOX key opens and closes MODS, 0: stock action */
     int stem_order; /* xz_stem_orders index: left-to-right stems of the rows and pads A/B/C */
+    int ui_interface; /* enum xz_interface */
+    int classic_theme; /* 0..XZ_CLASSIC_THEME_COUNT-1, used while CLASSIC */
+    int modern_theme; /* 0..XZ_MODERN_THEME_COUNT-1, used while MODERN */
 };
+/* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
+int xz_settings_look(int ui_interface, int classic_theme);
 void xz_settings_default(struct xz_settings *);
 int xz_settings_parse(const char *, struct xz_settings *);
 /* Like parse; *present receives how many leading fields the record wrote.

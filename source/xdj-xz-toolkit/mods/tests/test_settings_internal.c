@@ -34,12 +34,12 @@ int main(void) {
     struct xz_settings s,loaded;xz_settings_default(&s);
 
     assert(xz_settings_internal_load(&loaded,NULL)==XZ_INTERNAL_SETTINGS_MISSING);
-    s.theme=5;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
+    s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=5;s.theme=5;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
     unsigned present=0;
-    assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==5&&present==38);
+    assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==5&&present==41);
     assert(generation(slot0)==1&&access(slot1,F_OK));
 
-    s.theme=6;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
+    s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=6;s.theme=6;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
     assert(generation(slot0)==1&&generation(slot1)==2);
     assert(xz_settings_internal_load(&loaded,NULL)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==6);
 
@@ -48,7 +48,7 @@ int main(void) {
 
     flip_last_byte(slot1);
     assert(xz_settings_internal_load(&loaded,NULL)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==5);
-    s.theme=7;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
+    s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=7;s.theme=7;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
     assert(generation(slot1)==2&&generation(slot0)==1);
     assert(xz_settings_internal_load(&loaded,NULL)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==7);
 

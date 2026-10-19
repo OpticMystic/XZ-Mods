@@ -92,7 +92,25 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  assert(xz_ui_render(u,m,frame,800*480,800));
  m->deck[0].ready=0x7ff;
  tap(u,m,XZ_UI_PANEL,XZ_UI_THEMES);
- for(i=0;i<XZ_THEME_COUNT;i++){result=tap(u,m,XZ_UI_SET_THEME,i);assert(result.kind==XZ_UI_SET_THEME&&result.value==i);}
+ /* APPEARANCE: INTERFACE first; THEME lists only the selected interface's themes. */
+ {int saved_interface=m->ui_interface;
+  m->ui_interface=XZ_UI_INTERFACE_MODERN;
+  result=tap(u,m,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC);assert(result.kind==XZ_UI_SET_INTERFACE&&result.value==XZ_UI_INTERFACE_CLASSIC);
+  assert(tap(u,m,XZ_UI_SET_MODERN_THEME,0).kind==XZ_UI_SET_MODERN_THEME);
+  {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);
+   for(size_t k=0;k<count;k++)assert(all[k].kind!=XZ_UI_SET_THEME&&!(all[k].kind==XZ_UI_PANEL&&all[k].index==XZ_UI_THEME_PICK));}
+  assert(xz_ui_render(u,m,frame,800*480,800));
+  m->ui_interface=XZ_UI_INTERFACE_CLASSIC;
+  result=tap(u,m,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN);assert(result.value==XZ_UI_INTERFACE_MODERN);
+  {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);
+   for(size_t k=0;k<count;k++)assert(all[k].kind!=XZ_UI_SET_MODERN_THEME);}
+  assert(tap(u,m,XZ_UI_PANEL,XZ_UI_THEME_PICK).value==XZ_UI_THEME_PICK&&u->page==XZ_UI_THEME_PICK);
+  {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);int tiles=0;
+   for(size_t k=0;k<count;k++)if(all[k].kind==XZ_UI_SET_THEME){tiles++;assert(all[k].index!=XZ_THEME_FLAGSHIP);}
+   assert(tiles==XZ_THEME_FLAGSHIP);}
+  for(i=0;i<XZ_THEME_FLAGSHIP;i++){result=tap(u,m,XZ_UI_SET_THEME,i);assert(result.kind==XZ_UI_SET_THEME&&result.value==i);}
+  assert(xz_ui_back(u,a)==1&&a[0].kind==XZ_UI_PANEL&&u->page==XZ_UI_THEMES);
+  m->ui_interface=saved_interface;}
  tap(u,m,XZ_UI_PANEL,XZ_UI_EXTRAS);
  assert(tap(u,m,XZ_UI_PANEL,XZ_UI_CONNECTION).value==XZ_UI_CONNECTION);
  assert(u->page==XZ_UI_CONNECTION);
@@ -335,7 +353,7 @@ static void encoder(void){
  assert(xz_ui_encoder_turn(&u,&m,1,a)==1&&a[0].kind==XZ_UI_VOLUME&&a[0].value>.5f&&a[0].value<.6f);
  assert(xz_ui_encoder_push(&u,&m,a)==0&&!u.adjusting);
  /* A touch moves focus to what was touched. */
- u.page=XZ_UI_SETTINGS;{struct xz_ui_widget t=find(&u,&m,XZ_UI_KEY_FEEDBACK,0);
+ u.page=XZ_UI_THEMES;{struct xz_ui_widget t=find(&u,&m,XZ_UI_KEY_FEEDBACK,0);
   xz_ui_touch(&u,&m,t.x+t.w/2,t.y+t.h/2,1,a);xz_ui_touch(&u,&m,0,0,0,a);
   assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_KEY_FEEDBACK);}
  /* The focus ring and info dock render in every theme. */

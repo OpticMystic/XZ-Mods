@@ -1,0 +1,83 @@
+{
+  "device_access": false,
+  "generator": "tools/build_wizard_media.py",
+  "new_interface": {
+    "renderer": "mods/shell (xz_shell_render), fixture decks",
+    "fps": 30,
+    "seconds": 9
+  },
+  "standard_interface": {
+    "kind": "still",
+    "source": "real /dev/fb0 capture, artifacts/xdj-xz-mods/native-layout-usb-ready/screen.png (VJToolsLibrary)",
+    "source_sha256": "8076cd6f2ffe4e044290923583f1b3ee1be9245e44f5b5621cce7521a702d06e"
+  },
+  "switch_later": {
+    "renderer": "mods/ui MODS panel (xz_ui_render) page APPEARANCE",
+    "path": "MODS > APPEARANCE > INTERFACE"
+  },
+  "source_sha256": {
+    "source/xdj-xz-toolkit/mods/shell/shell.c": "e8c48b1e3a8589cb358fef3dba2e25c49620a17a7073edb6034a03548aa2fc25",
+    "source/xdj-xz-toolkit/mods/shell/shell_draw.c": "cb25cf83b008943a66996ae564e041a1889f9077913a7ebe910823336df86b81",
+    "source/xdj-xz-toolkit/mods/shell/shell_play.c": "42580a0bc8b8b1cd85b3aae3c1a7769425067609d095cc1109208fad4e49e1dd",
+    "source/xdj-xz-toolkit/mods/shell/shell_wave.c": "e6480f50aeadc2bf843349eab3f0488553f95fa5471c6eb5cdc2fad7cbd08eb5",
+    "source/xdj-xz-toolkit/mods/shell/shell_browse.c": "e9ca6b51e299ca18650ad8e9d94274dacfc890e73644b5d95ae275b890e5d328",
+    "source/xdj-xz-toolkit/mods/shell/shell_settings.c": "a6e610b27eba2faa839fa73537a95e90f8c6ff1c0c6af610a01affa38fadd1a2",
+    "source/xdj-xz-toolkit/mods/shell/shell_info.c": "f1dd71521b14d2d64aaaeab68e17d685f402ba881d38fa434eca5491dc7d5aaf",
+    "source/xdj-xz-toolkit/mods/shell/shell_source.c": "5c70b265fd8593554d8916e26f0aa9eba625d8c238cd484af5805586d4dca1f9",
+    "source/xdj-xz-toolkit/mods/ui/ui_draw.c": "324573fb758206ad94dc99ebee7fc1010ac8eda212345a1bcbfc960a51119764",
+    "source/xdj-xz-toolkit/mods/ui/ui.c": "236d8081d02ae4cea013405700fafe3243d4a18a1c8f212ecd04089483aebe5d",
+    "source/xdj-xz-toolkit/mods/ui/ui_focus.c": "7f9691c99bd1aedf086584ac093488b052accaae8bbb252e4ae64a84dd1e6da0",
+    "source/xdj-xz-toolkit/mods/ui/ui_chrome.c": "6c61be7950a1aefadcc9349ea25acfabb25fe520d6bf55a53907beb0c58dc35d",
+    "source/xdj-xz-toolkit/mods/ui/ui_layout.c": "3ecbb807dd95047a37b6e4690d1696f9edc9ffc191c46da4f61fadeee927c8fc",
+    "source/xdj-xz-toolkit/mods/ui/ui_profile.c": "e6963c0bd002322bb3a2310b56703d21042f82d2150dce181c8268a766c57317",
+    "source/xdj-xz-toolkit/mods/ui/stem_rows.c": "849f45649ae15d3eb810da74b3242ae476cddb2e985a2593de4271b55881ff70",
+    "source/xdj-xz-toolkit/mods/ui/skin_classic.c": "9f2d77d5ff89b57a96209e154c3b60414b019d87ebf75229761533c57a7bc0c4",
+    "source/xdj-xz-toolkit/mods/ui/skin_lcars.c": "8dd064b4701bfca7934455cdc1ee84c6c5d2faf3afe50fcce6c9e0e80bf642a3",
+    "source/xdj-xz-toolkit/mods/ui/skin_matrix.c": "9e155ee53063318e26b08f4f87b95123429f2353b58dd0d6a1e52f66343c30f7",
+    "source/xdj-xz-toolkit/mods/ui/skin_analog.c": "8252adc213b2b38322ae2da8d86bc92357b07d5473d932ff2142d655b0ec259f",
+    "source/xdj-xz-toolkit/mods/ui/skin_flagship.c": "34f4306b115b00d6139e36fa9b68ebc900e3a41b4fbd0df22cbf7c44515e048f",
+    "source/xdj-xz-toolkit/mods/ui/shortcut_wave.c": "6abb1fd128affce83bed8fddc168c0384a93db1f81b497d3df07b782683513ef",
+    "source/xdj-xz-toolkit/mods/key/display.c": "4ff97e5ade4e17c97d501d49236df58d8bbefba9891415caf26f22cbd9d755c2",
+    "source/xdj-xz-toolkit/mods/ui/sdk_ui.c": "85cabfc144bdfeb78d3438736c71b59cbab0cf8011ee8e479d98773fd4cec790",
+    "source/xdj-xz-toolkit/mods/ui/key_strip.c": "27e15c6bd06a4dc52325c54dc8f1cb8a98a5f90b39751a318dc4bbd62f0d7054",
+    "source/xdj-xz-toolkit/mods/ui/metrics.c": "fd0b889fbe9ad5ac0de9d3b91a9bca2111038da6e655ebfcf34a865350217e57",
+    "source/xdj-xz-toolkit/mods/ui/metrics_draw.c": "f1ad901daac694dcb13b06a927c58c215b181ccd9e7e56b018f3c68a27dfa7ce",
+    "tools/wizard_media/shell_motion.c": "8f480bf187e30ad82389d67ea0a75efae792850e5c6c4c4e46c37b59081a7798",
+    "tools/wizard_media/shell_appearance.c": "fca912754b19b3883bb7b6b4798b7b682e8270559ff0248ce113b33019c35662",
+    "tools/wizard_media/menu_render.c": "caba1679d2b814820c075bb6d1f42156864ac565a5aad6f8138a060de1e4358c",
+    "source/xdj-xz-toolkit/mods/shell/fixtures.h": "e555ad98f067460012841c80efc5d14d818b3f722c01a99624e97690a0573697",
+    "source/xdj-xz-toolkit/mods/shell/browse_fixtures.h": "0f343f86bec67a46d5088351c3bfa7b8da9d5837272ef2129b559692307c3a7a",
+    "source/xdj-xz-toolkit/mods/shell/settings_fixtures.h": "3bef6b5cfba011510c931e5a33ace3a1c811ade093a53f0b975921b4d4691dfa",
+    "tools/build_wizard_media.py": "4510c508bad7779bc18fe40872ec75963f0feb1e799f3daebc3445bbdabad819"
+  },
+  "files": {
+    "new-interface-poster.webp": {
+      "bytes": 71616,
+      "sha256": "3db84f4b674c955ccaa906342b4f19e0c42a724181f74339784cbbfdc10cc262"
+    },
+    "new-interface.mp4": {
+      "bytes": 496062,
+      "sha256": "7313fae70afcf7e1d8382335fd8259e7f4b8c1dce8d492cd57c95d7a0ee52dab"
+    },
+    "standard-interface.webp": {
+      "bytes": 49658,
+      "sha256": "6482d5cf0bfbdfa5ba86d49a5281d4c3a7c97fa37c61c76c2b7c9afe76116390"
+    },
+    "switch-from-new-appearance.webp": {
+      "bytes": 17084,
+      "sha256": "a9921d7991f625f0a6f93bd12328c99a0f7ce5c2bf7470777d05425216bffa37"
+    },
+    "switch-from-new-mods.webp": {
+      "bytes": 14898,
+      "sha256": "fc28e29c9bb5e49618a9c34c20c6d3b57d7946d9203a8ab42867e2519e8ee319"
+    },
+    "switch-from-standard-appearance.webp": {
+      "bytes": 16330,
+      "sha256": "437dc40230ff3cc4541a0338c49b80b5117161d876e66c9754efdf46f7d24073"
+    },
+    "switch-from-standard-mods.webp": {
+      "bytes": 6810,
+      "sha256": "3a8d7dda1b849672652a3557629ace22e23cabdbf843d7a7ea2fdea1f955f1d8"
+    }
+  }
+}

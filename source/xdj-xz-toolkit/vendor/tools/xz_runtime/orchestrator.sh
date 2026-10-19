@@ -315,7 +315,7 @@ launch_runtime_rbp() {
             MODS_UI=1
             [ "$MODS_MODE" = observer ] && MODS_OBSERVE=1 && MODS_UI=0
             LD_PRELOAD="$HOOK_RAM:$MODS_RAM" XZ_MODS_ENABLE=1 XZ_MODS_OBSERVER="$MODS_OBSERVE" XZ_MODS_UI="$MODS_UI" XZ_MODS_STEMS=1 \
-                XZ_MODS_KEYSHIFT="$MODS_UI" XZ_MODS_NATIVE_VIEW="$MODS_UI" XZ_MODS_SETTINGS_READONLY=0 XZ_MODS_BOOT_RUNTIME="$MODS_EXPECTED:$MODS_MODE" \
+                XZ_MODS_KEYSHIFT="$MODS_UI" XZ_MODS_NATIVE_VIEW="$MODS_UI" XZ_MODS_SHELL="$MODS_UI" XZ_MODS_SETTINGS_READONLY=0 XZ_MODS_BOOT_RUNTIME="$MODS_EXPECTED:$MODS_MODE" \
                 ./rbp $tsc_option $joglcd_option $nfs_options >/tmp/xz_rbp.log 2>&1 &
         else
             LD_PRELOAD="$HOOK_RAM" ./rbp $tsc_option $joglcd_option $nfs_options >/tmp/xz_rbp.log 2>&1 &

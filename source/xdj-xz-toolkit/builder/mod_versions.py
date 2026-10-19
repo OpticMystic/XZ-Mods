@@ -336,7 +336,8 @@ def settings_change(volume, selected, current):
     except ValueError:
         pass
     source_schema = usb_settings.contract(current)
-    values = usb_settings.parse(original, source_schema)
+    # legacy_values adds the combined theme slot an older mod version reads.
+    values = usb_settings.legacy_values(usb_settings.parse(original, source_schema), source_schema)
     target = usb_settings.defaults(target_schema)
     changed = []
     for field in target_schema['fields']:

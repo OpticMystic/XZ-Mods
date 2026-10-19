@@ -19,7 +19,20 @@ def contract(resources):
 def wire_fields(schema):
     fields={f['key']:f for f in schema['fields']}
     fields.update(schema.get('retired_fields',{}))
+    fields.update(schema.get('derived_fields',{}))
     return [fields[key] for key in schema.get('wire_order',fields)]
+
+def _legacy_theme(schema):
+    """The older single theme slot, derived from the interface and classic theme (24 = modern)."""
+    field=schema.get('derived_fields',{}).get('theme')
+    return field['derived'] if field else None
+
+def legacy_values(values,schema):
+    """values plus the combined theme an older mod version's schema reads."""
+    rule=_legacy_theme(schema)
+    if not rule:return dict(values)
+    modern=values.get(rule['interface'])==1
+    return {**values,'theme':rule['modern_value'] if modern else values.get(rule['classic'],0)}
 
 
 def defaults(schema):return {field['key']:field['default'] for field in schema['fields']}
@@ -45,7 +58,7 @@ def parse(data,schema):
         raise ValueError('Unsupported settings header or line endings; original file was preserved')
     lines=text.split('\n')[1:-1]
     if len(lines) not in schema['accepted_field_counts']:raise ValueError('Incomplete or newer settings record; original file was preserved')
-    values=defaults(schema)
+    values=defaults(schema);derived=set(schema.get('derived_fields',{}));read={}
     for line,field in zip(lines,wire_fields(schema)):
         prefix=field['key']+'='
         if not line.startswith(prefix):raise ValueError('Unknown or out-of-order settings field; original file was preserved')
@@ -54,11 +67,19 @@ def parse(data,schema):
             raise ValueError('Invalid native settings integer')
         number=int(value)
         if not field['min']<=number<=field['max']:raise ValueError('Invalid native settings integer')
-        if field['key'] not in schema.get('retired_fields',{}):values[field['key']]=number
+        read[field['key']]=number
+        if field['key'] not in schema.get('retired_fields',{}) and field['key'] not in derived:values[field['key']]=number
+    rule=_legacy_theme(schema)
+    if rule and 'theme' in read and rule['interface'] not in read:
+        # An older record: its theme slot sets the interface, and the classic theme unless it named the modern look.
+        modern=read['theme']==rule['modern_value']
+        values[rule['interface']]=1 if modern else 0
+        if not modern:values[rule['classic']]=read['theme']
     return validate(values,schema)
 
 def serialize(values,schema):
     values=validate(values,schema)
-    data=(schema['header']+'\n'+''.join(f"{f['key']}={values.get(f['key'],f['default'])}\n" for f in wire_fields(schema))).encode('ascii')
+    wire=legacy_values(values,schema)
+    data=(schema['header']+'\n'+''.join(f"{f['key']}={wire.get(f['key'],f['default'])}\n" for f in wire_fields(schema))).encode('ascii')
     if parse(data,schema)!=values:raise ValueError('Settings round-trip failed')
     return data

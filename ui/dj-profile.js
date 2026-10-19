@@ -240,7 +240,9 @@ function banner(error,actions){
     el('div',{class:'actions'},error.kind==='conflict'?el('button',{type:'button',class:'primary',text:'Reload',onclick:()=>load(P.volume,P.phase==='editing'?'editing':'list')}):null,...(actions||[])));
 }
 function deviceTheme(){
-  const theme=DEVICE_THEMES[W.settings?.theme]||DEVICE_THEMES[0];
+  // The new interface draws in FLAGSHIP (24); the standard one in its classic theme. Older schemas carry theme.
+  const s=W.settings,look=s&&'interface' in s?(s.interface===1?24:s.classic_theme):s?.theme;
+  const theme=DEVICE_THEMES[look]||DEVICE_THEMES[0];
   return '--dv-bg:'+theme.bg+';--dv-ink:'+theme.ink+';--dv-accent:'+theme.accent+';--dv-alarm:'+theme.alarm;
 }
 
