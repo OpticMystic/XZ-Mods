@@ -8,6 +8,7 @@ struct xz_arcade_track_clock {
     uint32_t track,position_ms;
     float bpm,bar_phase;
     unsigned playing;
+    float speed;   /* playback speed multiplier (pitch, sync), as used for bpm */
 };
 int xz_arcade_native_clock_valid(xz_arcade_memory_read,void *);
 int xz_arcade_native_clock_read(xz_arcade_memory_read,void *,unsigned deck,struct xz_arcade_track_clock *);

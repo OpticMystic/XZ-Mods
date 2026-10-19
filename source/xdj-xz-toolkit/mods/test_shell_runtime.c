@@ -243,7 +243,7 @@ static void playhead(void) {
  /* Playing at +2.00 %: readings come every 33 ms but advance in 10 ms steps with up to 9 ms of lag.
     The published line must stay within 10 ms of the truth, never step back between frames, and every
     frame-to-frame advance must stay within 3 ms of the true 16.67 ms x 1.02. */
- const int32_t tempo=200;double truth=5000;int64_t last_shown=-1;double worst=0,worst_step=0;
+ const int32_t tempo=xz_shrt_rate_from_tempo(200);double truth=5000;int64_t last_shown=-1;double worst=0,worst_step=0;
  for(int frame=1;frame<=600;frame++){
   uint32_t now=100+(uint32_t)(frame*50/3);   /* 60 fps clock in ms */
   truth=5000+(now-100)*1.02;
@@ -366,6 +366,7 @@ static void library(const char *path) {
  assert(!strcmp(title_of(L,101),"Alpha Night"));
  const struct xz_shlib_track *t=xz_shlib_track(L,101);
  assert(t->bpm_x100==12800&&t->duration_ms==240000&&t->rating==5&&t->color_id==1&&!strcmp(xz_shlib_text(L,t->file_name),"Alpha Night.mp3"));
+ assert(!strcmp(xz_shlib_text(L,t->file_path),"/Contents/Alpha Night.mp3")); /* the wave prefetch resolves by it */
  assert(!strcmp(xz_shlib_text(L,t->artist),"Night Artist")&&!strcmp(xz_shlib_text(L,t->key),"8A"));
  /* TRACK: every track, title order, with an alphabet index; window rows carry the readouts. */
  struct xz_shlib_list *l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_TRACK,0,NULL,NULL);

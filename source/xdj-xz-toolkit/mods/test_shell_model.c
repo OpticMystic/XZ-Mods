@@ -236,6 +236,11 @@ static void test_identity_and_waves(void){
  struct xz_shell_column tiny={1,2,3};xz_shell_model_set_wave(s.storage,0,&tiny,SIZE_MAX,1,&tiny,SIZE_MAX,1);
  xz_shell_model_set_wave(s.storage,0,&tiny,1000001,1,&tiny,1000001,1);
  xz_shell_model_set_wave(s.storage,-1,&tiny,1,1,&tiny,1,1);xz_shell_model_set_wave(s.storage,2,&tiny,1,1,&tiny,1,1);
+ /* The stem layer is stored per deck and cleared with the other waves on a new track. */
+ {struct xz_shell_column st[3]={{9,8,7},{6,5,4},{3,2,1}};
+  xz_shell_model_set_stems(s.storage,0,st,3,240000);assert(xz_shell_model_has_stems(s.storage,0)&&!xz_shell_model_has_stems(s.storage,1));
+  put16(title_record(0)+0x22,'Q');assert(xz_shell_model_refresh(&m,s.storage,read_memory,18)==1);assert(!xz_shell_model_has_stems(s.storage,0));
+  xz_shell_model_set_stems(s.storage,0,NULL,0,0);assert(!xz_shell_model_has_stems(s.storage,0));}
  release(&s);puts("PASS title/total/track identity changes, load/unload, wave invalidation, copied/capped whole-span waves, storage guard words");
 }
 static void test_flag_encodings(void){

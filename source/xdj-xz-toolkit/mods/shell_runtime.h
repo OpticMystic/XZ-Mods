@@ -24,6 +24,9 @@ struct xz_shell_runtime_frame_input {
  int eligible, theme;
  struct xz_shell_runtime_key key[XZ_SHELL_DECKS];
  int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
+ int stem_muted_known[XZ_SHELL_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
+ unsigned stem_muted[XZ_SHELL_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
+ int stem_rgb_known; uint32_t stem_rgb[3]; /* stem pad colours 0xRRGGBB: drums, harmonics, vocal */
 };
 int xz_shell_runtime_start(void);
 void xz_shell_runtime_stop(void);
@@ -159,6 +162,9 @@ int xz_shrt_quantize_index(int quantize_den);
 #define XZ_SHRT_FRAME_LIVE_MS 12u
 #define XZ_SHRT_FRAME_IDLE_MS 100u
 #define XZ_SHRT_REFRESH_MS 33u
+/* model.clock_ms leads the render time by one presenter period: the receiver shows a frame on the vblank
+   after it was drawn (present-then-prepare, 61.6 Hz measured on the deck). */
+#define XZ_SHRT_PRESENT_LEAD_MS 16u
 uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen, int any_playing);
 
 /* Deck motion from the stat frame's elapsed time: moving while it changed within XZ_SHRT_MOTION_MS.
@@ -172,13 +178,16 @@ int xz_shrt_motion_step(struct xz_shrt_motion *, int32_t elapsed_ms, uint32_t re
    one continuous estimate: it predicts with the tempo, moves toward each new reading by 1/8 of the error
    (at most XZ_SHRT_POSITION_NUDGE_MS per reading) and snaps on a jump larger than
    XZ_SHRT_POSITION_SNAP_MS (seek, cue, loop, scratch). Paused decks publish the raw reading.
-   Outputs xz_shell_deck elapsed_ms and elapsed_at_ms. */
+   rate_ppm: playback speed in parts per million (1000000 = normal). Outputs xz_shell_deck elapsed_ms
+   and elapsed_at_ms. */
 #define XZ_SHRT_POSITION_SNAP_MS 60
 #define XZ_SHRT_POSITION_NUDGE_MS 2
 struct xz_shrt_position { int valid; int64_t base_us; uint32_t base_at, read_at; int32_t read_ms; };
 void xz_shrt_position_reset(struct xz_shrt_position *);
 void xz_shrt_position_step(struct xz_shrt_position *, int playing, int32_t elapsed_ms, uint32_t read_at,
-                           int32_t tempo_x100, int32_t *out_ms, uint32_t *out_at);
+                           int32_t rate_ppm, int32_t *out_ms, uint32_t *out_at);
+/* Speed in ppm from the stat frame's tempo (0.01 %), the fallback when the engine speed is not read. */
+int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100);
 
 /* Presented-frame statistics in microseconds: frames, the largest gap between two frames and the gaps
    longer than XZ_SHRT_LATE_US (a missed 60 Hz slot). Gaps of a second or more (idle screens) are ignored. */
