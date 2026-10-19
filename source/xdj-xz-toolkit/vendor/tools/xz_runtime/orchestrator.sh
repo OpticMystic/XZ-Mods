@@ -242,6 +242,70 @@ collect_rbp_options() {
     fi
 }
 
+# USB_COLDPLUG_BEGIN
+# Replay mount notifications, never block-device events or mount commands.
+usb_coldplug_watch() (
+    cd / || exit 1
+    cp_pid=$1
+    cp_proc=${2:-/proc}
+    cp_ram=${3:-/dev/shm}
+    cp_limit=${4:-45}
+    cp_interval=${5:-1}
+    case "$cp_pid" in ''|*[!0-9]*) exit 1;; esac
+    cp_birth=$(sed 's/.*) //' "$cp_proc/$cp_pid/stat" 2>/dev/null | awk '{print $20}')
+    [ -n "$cp_birth" ] || exit 1
+    cp_state="$cp_ram/usb-coldplug-$cp_pid-$cp_birth"
+    mkdir -p "$cp_state" || exit 1
+    mkdir "$cp_state/lock" 2>/dev/null || exit 0
+    trap 'rmdir "$cp_state/lock" 2>/dev/null' 0
+    cp_attempt=0
+    cp_start=$(awk '{printf "%.0f", $1 * 1000}' "$cp_proc/uptime")
+    while [ "$cp_attempt" -lt "$cp_limit" ]; do
+        cp_attempt=$((cp_attempt + 1))
+        cp_current=$(sed 's/.*) //' "$cp_proc/$cp_pid/stat" 2>/dev/null | awk '{print $20}')
+        if [ "$cp_current" != "$cp_birth" ]; then
+            echo "USB_COLDPLUG: pid=$cp_pid attempt=$cp_attempt result=process-exited"
+            exit 0
+        fi
+        cp_now=$(awk '{printf "%.0f", $1 * 1000}' "$cp_proc/uptime")
+        cp_elapsed=$((cp_now - cp_start))
+        cp_ready=$(ls -l "$cp_proc/$cp_pid/fd" 2>/dev/null | awk '
+            $NF == "/proc/udev_usb1" {printf "usb1 "}
+            $NF == "/proc/udev_usb2" {printf "usb2 "}')
+        echo "USB_COLDPLUG: pid=$cp_pid attempt=$cp_attempt ready=[$cp_ready] elapsed_ms=$cp_elapsed"
+        # Snapshot once per pass. Validate both names before any proc write.
+        sort -u "$cp_proc/mounts" | while read -r cp_source cp_mount cp_type cp_options cp_dump cp_pass; do
+            cp_dev=${cp_source#/dev/}
+            case "$cp_source" in /dev/sd*) ;; *) continue;; esac
+            case "$cp_dev" in *[!a-z0-9]*) continue;; esac
+            case "$cp_mount" in
+                /media/usb1/"$cp_dev") cp_slot=usb1;;
+                /media/usb2/"$cp_dev") cp_slot=usb2;;
+                *) continue;;
+            esac
+            case " $cp_ready " in *" $cp_slot "*) ;; *) continue;; esac
+            cp_notice="$cp_state/$cp_slot-$cp_dev"
+            [ ! -f "$cp_notice" ] || continue
+            # Redirection must never create a substitute for a missing proc node.
+            [ -e "$cp_proc/udev_$cp_slot" ] || continue
+            if printf 'mount %s' "$cp_mount" > "$cp_proc/udev_$cp_slot"; then
+                : > "$cp_notice"
+                echo "USB_COLDPLUG: dev=$cp_dev action=mount slot=$cp_slot result=notified mounted_after_ms=$cp_elapsed attempt=$cp_attempt"
+            else
+                echo "USB_COLDPLUG: dev=$cp_dev action=mount slot=$cp_slot result=write-failed mounted_after_ms=$cp_elapsed attempt=$cp_attempt"
+            fi
+        done
+        [ "$cp_attempt" -ge "$cp_limit" ] || sleep "$cp_interval"
+    done
+    echo "USB_COLDPLUG: pid=$cp_pid result=watch-complete attempts=$cp_attempt"
+)
+
+usb_coldplug_start() {
+    # Do not hold the udev RUN chain while waiting for later partition mounts.
+    (usb_coldplug_watch "$1") </dev/null >>/dev/shm/xz-usb-coldplug.log 2>&1 &
+}
+# USB_COLDPLUG_END
+
 launch_runtime_rbp() {
     collect_rbp_options
     cd /root/pdj || return 1
@@ -263,6 +327,7 @@ launch_runtime_rbp() {
         RBP_LAUNCH_PID=$!
         log "Launched candidate rbp PID=$RBP_LAUNCH_PID flags=[$tsc_option $joglcd_option $nfs_options]."
     fi
+    usb_coldplug_start "$RBP_LAUNCH_PID"
     return 0
 }
 
@@ -436,6 +501,7 @@ if [ -f "$APPLIED_FLAG" ]; then
     if [ -n "$CURRENT_PID" ] && [ -n "$REQUESTED_MODS" ] &&
        tr '\000' '\n' < "/proc/$CURRENT_PID/environ" | grep -q "^XZ_MODS_BOOT_RUNTIME=$REQUESTED_MODS:$REQUESTED_MODE$"; then
         log "Exact runtime already applied this boot: $REQUESTED_MODS"
+        usb_coldplug_start "$CURRENT_PID"
         verify_running_rbp "$CURRENT_PID" "$(cat "$APPLIED_FLAG" 2>/dev/null)"
         sync
         exit 0
@@ -555,6 +621,7 @@ if [ -z "$OLD_PID" ]; then
                 DELAYED_PID=""
             fi
         fi
+        usb_coldplug_start "$DELAYED_PID"
         verify_running_rbp "$DELAYED_PID" "$SOURCE_MD5"
         finish_ota_trial "$DELAYED_PID"
         network_snapshot
