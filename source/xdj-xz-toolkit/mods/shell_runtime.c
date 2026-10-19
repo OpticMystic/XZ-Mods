@@ -282,9 +282,10 @@ static struct xz_shell_info_model info_model;
    menu_pages). APPEARANCE is an item tab drawn by the shell (its sets run the panel's own actions); the
    others are TAB_PAGEs whose button opens that page in the panel (OPEN_MODS, value = page). */
 static void refuse(void);
+static void save_display(int id, int value);
 /* MODS > APPEARANCE in the shell's own style: an item tab whose sets run the MODS panel's own actions. */
 enum { LOOK_TAB=2, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
-       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT };
+       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP };
 static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
 static const char *const look_interface[2]={"MODERN","CLASSIC"};
 _Static_assert(XZ_UI_MODERN_THEMES==1,"one modern theme name below");
@@ -293,7 +294,8 @@ static const char *const look_wave[3]={"STOCK","3-BAND","STEMS"};
 static const char *const look_key_format[3]={"USB PREFERENCE","CLASSIC","WHEEL"};
 static const char *const look_off_on[2]={"OFF","ON"};
 static const char *const look_stem_color[9]={"THEME DEFAULT","BLUE","RED","GREEN","AMBER","PURPLE","CYAN","PINK","WHITE"};
-static struct xz_shell_setting_item look_items[9];
+static const char *const look_show_hide[2]={"SHOW","HIDE"};
+static struct xz_shell_setting_item look_items[11];
 static struct xz_shell_settings_model look_model;
 /* MY SETTINGS > WAVEFORM: the stem row layout, set through SET_MOD on the APPEARANCE tab (waveform_tab). */
 static const char *const look_stem_layout[5]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF"};
@@ -304,12 +306,16 @@ static const char *const help_interface[2]={"This full-screen interface.","The p
 static const char *const help_wave[3]={"The player's own waveform.","Lows, mids and highs layered in their own colours.",
  "Drums, harmonics and vocals in the stem colours; tracks without stems show 3-BAND."};
 static const char *const help_key_format[3]={"As the stick's library sets it.","Note names, like Am.","Wheel numbers, like 8A."};
+static const char *const help_mode_lamps[2]={"Each lamp lights while its mode is on.","The lamps leave the screen; the modes keep working."};
+static const char *const help_quantize_lamp[2]={"Red while QUANTIZE is on, grey while it is off.","The QUANTIZE button's own light still shows it."};
 static const char *const help_stem_color[9]={"Follows the theme.",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
 static const char *const help_stem_layout[5]={"Normal waveforms, no stem rows.","Stem rows under the waveforms, full height.",
  "Stem rows under the waveforms, half height.","Stem rows outside the waveforms, full height.","Stem rows outside the waveforms, half height."};
 #define HELP(id,text,count,choices) {LOOK_TAB+1,id,text,count,choices}
 static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_INTERFACE,"Who draws the player screen.",2,help_interface),
+ HELP(LOOK_MODE_LAMPS,"The top bar's PLAY MODE, A. HOT CUE and A. CUE lamps: whether the next track plays on, and whether hot cues and the cue point load with a track.",2,help_mode_lamps),
+ HELP(LOOK_QUANTIZE_LAMP,"Each deck's QUANTIZE lamp and beat value, above its time.",2,help_quantize_lamp),
  HELP(LOOK_THEME,"The look of the modern interface. More modern themes are coming.",0,NULL),
  HELP(LOOK_WAVE,"How the scrolling waveform is drawn.",3,help_wave),
  HELP(LOOK_KEY_FORMAT,"How keys are written.",3,help_key_format),
@@ -328,16 +334,21 @@ static void fill_look(void) {
  const struct xz_shell_runtime_frame_input *in=&last_input;int k=!!in->look_known;
 #define LOOK(n,id,cat,label,choices,count,current) look_items[n]=(struct xz_shell_setting_item){id,(enum xz_shell_setting_category)(cat),label,choices,count,k?(current):0,k,k}
  LOOK(0,LOOK_INTERFACE,0,"INTERFACE",look_interface,2,in->ui_interface==XZ_UI_INTERFACE_MODERN?0:1);
- LOOK(1,LOOK_THEME,1,"THEME",look_modern_theme,1,in->modern_theme>=0&&in->modern_theme<1?in->modern_theme:0);
- LOOK(2,LOOK_WAVE,2,"SCROLLING WAVEFORM",look_wave,3,in->wave_mode>=0&&in->wave_mode<3?in->wave_mode:0);
- LOOK(3,LOOK_KEY_FORMAT,3,"KEY NOTATION",look_key_format,3,in->key_format>=0&&in->key_format<3?in->key_format:0);
- LOOK(4,LOOK_KEY_FEEDBACK,3,"EFFECTIVE KEY DISPLAY",look_off_on,2,!!in->key_feedback);
- LOOK(5,LOOK_TRAFFIC,3,"COLOR COMPATIBLE KEYS",look_off_on,2,!!in->browse_traffic);
- LOOK(6,LOOK_DRUMS,3,"DRUMS COLOR",look_stem_color,9,in->stem_colors[0]>=0&&in->stem_colors[0]<9?in->stem_colors[0]:0);
- LOOK(7,LOOK_HARMONICS,3,"HARMONICS COLOR",look_stem_color,9,in->stem_colors[1]>=0&&in->stem_colors[1]<9?in->stem_colors[1]:0);
- LOOK(8,LOOK_VOCALS,3,"VOCALS COLOR",look_stem_color,9,in->stem_colors[2]>=0&&in->stem_colors[2]<9?in->stem_colors[2]:0);
+ /* Stock-screen indicators the DJ may hide: shell-owned, always known. */
+ look_items[1]=(struct xz_shell_setting_item){LOOK_MODE_LAMPS,(enum xz_shell_setting_category)0,"MODE LAMPS",look_show_hide,2,
+  (int)((shell.display.hidden>>XZ_SHELL_IND_MODE_LAMPS)&1),1,1};
+ look_items[2]=(struct xz_shell_setting_item){LOOK_QUANTIZE_LAMP,(enum xz_shell_setting_category)0,"QUANTIZE LAMP",look_show_hide,2,
+  (int)((shell.display.hidden>>XZ_SHELL_IND_QUANTIZE)&1),1,1};
+ LOOK(3,LOOK_THEME,1,"THEME",look_modern_theme,1,in->modern_theme>=0&&in->modern_theme<1?in->modern_theme:0);
+ LOOK(4,LOOK_WAVE,2,"SCROLLING WAVEFORM",look_wave,3,in->wave_mode>=0&&in->wave_mode<3?in->wave_mode:0);
+ LOOK(5,LOOK_KEY_FORMAT,3,"KEY NOTATION",look_key_format,3,in->key_format>=0&&in->key_format<3?in->key_format:0);
+ LOOK(6,LOOK_KEY_FEEDBACK,3,"EFFECTIVE KEY DISPLAY",look_off_on,2,!!in->key_feedback);
+ LOOK(7,LOOK_TRAFFIC,3,"COLOR COMPATIBLE KEYS",look_off_on,2,!!in->browse_traffic);
+ LOOK(8,LOOK_DRUMS,3,"DRUMS COLOR",look_stem_color,9,in->stem_colors[0]>=0&&in->stem_colors[0]<9?in->stem_colors[0]:0);
+ LOOK(9,LOOK_HARMONICS,3,"HARMONICS COLOR",look_stem_color,9,in->stem_colors[1]>=0&&in->stem_colors[1]<9?in->stem_colors[1]:0);
+ LOOK(10,LOOK_VOCALS,3,"VOCALS COLOR",look_stem_color,9,in->stem_colors[2]>=0&&in->stem_colors[2]<9?in->stem_colors[2]:0);
 #undef LOOK
- look_model=(struct xz_shell_settings_model){9,look_items,NULL};
+ look_model=(struct xz_shell_settings_model){11,look_items,NULL};
  wave_items[0]=(struct xz_shell_setting_item){LOOK_STEM_LAYOUT,(enum xz_shell_setting_category)2,"STEM ROW LAYOUT",look_stem_layout,5,
   k&&in->stems_overlay>=0&&in->stems_overlay<5?in->stems_overlay:0,k,k};
  wave_model=(struct xz_shell_settings_model){1,wave_items,NULL};
@@ -360,6 +371,10 @@ static void look_set_locked(int id, int choice, uint32_t now) {
   }else if(choice==0)ui_action_locked(XZ_UI_SET_INTERFACE,-1,XZ_UI_INTERFACE_MODERN,0,now);
   else refuse();
   return;
+ case LOOK_MODE_LAMPS:case LOOK_QUANTIZE_LAMP:{
+  int item=id==LOOK_MODE_LAMPS?XZ_SHELL_ITEM_MODE_LAMPS:XZ_SHELL_ITEM_QUANTIZE_LAMP;
+  if(choice==0||choice==1){xz_shell_restore_setting(&shell,item,choice);save_display(item,choice);}else refuse();
+  return;}
  case LOOK_THEME:if(choice==0)ui_action_locked(XZ_UI_SET_MODERN_THEME,-1,choice,0,now);else refuse();return;
  case LOOK_WAVE:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_WAVE_MODE,-1,choice,0,now);else refuse();return;
  case LOOK_KEY_FORMAT:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_KEY_FORMAT,-1,choice,0,now);else refuse();return;
@@ -1518,14 +1533,15 @@ static void roll_second(uint32_t now) {
 /* ---- shell-owned display settings ----
    Kept in RAM for the life of the process (across XZ_MODS_SHELL stop/start); a reboot starts from the
    shell's defaults. ids: XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_ITEM_KEY_DISPLAY,
-   XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level). */
-static struct { int id, value, set; } display_saved[4]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
- {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0}};
+   XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level), XZ_SHELL_ITEM_MODE_LAMPS and XZ_SHELL_ITEM_QUANTIZE_LAMP. */
+static struct { int id, value, set; } display_saved[6]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
+ {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0},{XZ_SHELL_ITEM_MODE_LAMPS,0,0},{XZ_SHELL_ITEM_QUANTIZE_LAMP,0,0}};
+#define DISPLAY_SAVED (int)(sizeof display_saved/sizeof *display_saved)
 static void save_display(int id, int value) {
- for(int i=0;i<4;i++)if(display_saved[i].id==id){display_saved[i].value=value;display_saved[i].set=1;}
+ for(int i=0;i<DISPLAY_SAVED;i++)if(display_saved[i].id==id){display_saved[i].value=value;display_saved[i].set=1;}
 }
 static void restore_display(void) {
- for(int i=0;i<4;i++)if(display_saved[i].set)xz_shell_restore_setting(&shell,display_saved[i].id,display_saved[i].value);
+ for(int i=0;i<DISPLAY_SAVED;i++)if(display_saved[i].set)xz_shell_restore_setting(&shell,display_saved[i].id,display_saved[i].value);
 }
 
 /* ---- feedback and logs ---- */

@@ -446,6 +446,150 @@ static void test_stem_wave(void) {
  for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++){u.zoom=zoom;render_checked(&u,&m,buffer_a);}
  puts("PASS STEMS: stem colours, runtime colours, muted grey, 3BAND fallback with a hint, overview, wild data");
 }
+/* Pixels that differ between two frames, and their bounding box. */
+static int diff_box(const uint16_t *a, const uint16_t *b, struct xz_shell_rect *box) {
+ int n=0,x0=XZ_SHELL_WIDTH,y0=XZ_SHELL_HEIGHT,x1=-1,y1=-1;
+ for(int y=0;y<XZ_SHELL_HEIGHT;y++)for(int x=0;x<XZ_SHELL_WIDTH;x++)if(at(a,x,y)!=at(b,x,y)){
+  n++;x0=x<x0?x:x0;y0=y<y0?y:y0;x1=x>x1?x:x1;y1=y>y1?y:y1;
+ }
+ *box=n?(struct xz_shell_rect){x0,y0,x1-x0+1,y1-y0+1}:(struct xz_shell_rect){0,0,0,0};
+ return n;
+}
+static int box_inside(struct xz_shell_rect in, struct xz_shell_rect out) {
+ return in.x>=out.x&&in.y>=out.y&&in.x+in.w<=out.x+out.w&&in.y+in.h<=out.y+out.h;
+}
+static int count_in(const uint16_t *f, struct xz_shell_rect r, uint32_t color) {
+ int n=0;
+ for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++)n+=at(f,x,y)==rgb565(color);
+ return n;
+}
+static int ink_in(const uint16_t *f, struct xz_shell_rect r) { return r.w*r.h-count_in(f,r,SH_CHROME); }
+/* The column's key block: everything under the source row. */
+static struct xz_shell_rect key_block(int deck) {
+ struct xz_shell_rect col=xz_shell_play_rect(XZ_SHELL_R_INFO_COLUMN,deck);
+ return (struct xz_shell_rect){col.x,col.y+47,col.w,col.h-47};
+}
+/* The XZ has a pad bank for beat jumps and its QUANTIZE lamp in each deck strip: the column draws
+   neither. The deck's live key takes their place, with cents, the analysed key and KEY SYNC. */
+static void test_live_key(void) {
+ struct xz_shell u;struct xz_shell_model m,other;
+ xz_shell_init(&u);fx_model_full(&m,&track);
+ /* Beat jump draws nowhere; quantize only in its strip, on the caption row over the time. */
+ render_checked(&u,&m,buffer_a);
+ other=m;for(int d=0;d<XZ_SHELL_DECKS;d++){other.deck[d].beat_jump_num=d?1:64;other.deck[d].beat_jump_den=d?2:1;}
+ render_checked(&u,&other,buffer_b);
+ assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
+ struct xz_shell_rect box;
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  other=m;other.deck[d].quantize_on=!m.deck[d].quantize_on;other.deck[d].quantize_den=8;
+  render_checked(&u,&other,buffer_b);
+  struct xz_shell_rect s=xz_shell_play_rect(XZ_SHELL_R_STRIP,d),row={s.x,s.y+30,s.w,16};
+  assert(diff_box(frame(buffer_a),frame(buffer_b),&box)>20&&box_inside(box,row));
+  assert(box.x>xz_shell_play_rect(XZ_SHELL_R_TIME,d).x+60);   /* right of REMAIN / TIME */
+ }
+ /* Deck 2 plays Bbm (KEY SYNC, from Am, +12 cents) against the master's Fm: amber, a wheel step away. */
+ struct xz_shell_rect k1=key_block(0),k2=key_block(1);
+ struct xz_shell_rect name2={k2.x,k2.y+22,60,20},name1={k1.x,k1.y+22,60,20};
+ assert(count_in(frame(buffer_a),name2,SH_KEY_AMBER)>40&&count_in(frame(buffer_a),name1,SH_WHITE)>40);
+ /* The KEY SYNC lamp replaces the KEY caption: blue on deck 2, none on deck 1. */
+ struct xz_shell_rect cap2={k2.x,k2.y,k2.w,19},cap1={k1.x,k1.y,k1.w,19};
+ assert(count_in(frame(buffer_a),cap2,SH_BLUE)>40&&count_in(frame(buffer_a),cap1,SH_BLUE)==0);
+ /* The analysed key shows under the playing key only once they differ. */
+ struct xz_shell_rect from2={k2.x,k2.y+50,k2.w,14},from1={k1.x,k1.y+50,k1.w,14};
+ assert(count_in(frame(buffer_a),from2,SH_CHROME)<from2.w*from2.h-20&&count_in(frame(buffer_a),from1,SH_CHROME)==from1.w*from1.h);
+ /* Every key change stays in the key block (KEY SYNC also blinks MASTER TEMPO, checked below). */
+ other=m;other.deck[1].key="F#m";other.deck[1].key_cents=-37;other.deck[1].key_original="Abmaj7/Eb";
+ render_checked(&u,&other,buffer_b);
+ assert(diff_box(frame(buffer_a),frame(buffer_b),&box)>0&&box_inside(box,k2));
+ /* Cents: the tail right of the name, gone on the semitone. */
+ struct xz_shell_rect tail={k2.x+62,k2.y+20,k2.w-62,14};
+ other=m;other.deck[1].key_cents=0;render_checked(&u,&other,buffer_b);
+ assert(ink_in(frame(buffer_a),tail)>10&&ink_in(frame(buffer_b),tail)==0);
+ /* A name the key face cannot draw, wild cents and a NULL analysed key stay in the column. */
+ other=m;other.deck[1].key="Abmaj7/Eb";other.deck[1].key_cents=-999;other.deck[1].key_original=NULL;other.deck[0].key="";
+ render_checked(&u,&other,buffer_b);
+ for(int d=0;d<XZ_SHELL_DECKS;d++){struct xz_shell_rect k=key_block(d),edge={k.x+k.w-5,k.y,5,k.h};assert(count_in(frame(buffer_b),edge,SH_CHROME)==edge.w*edge.h);}
+ /* An older runtime: no analysed key, no KEY SYNC. The key draws as before, with its key-shift step and
+    no cents; nothing reads key_original, key_cents or key_synced, and MASTER TEMPO is steady. */
+ struct xz_shell_model old=m;
+ for(int d=0;d<XZ_SHELL_DECKS;d++)old.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_SYNC));
+ render_checked(&u,&old,buffer_b);
+ assert(count_in(frame(buffer_b),name2,SH_KEY_AMBER)>40&&count_in(frame(buffer_b),cap2,SH_BLUE)==0);
+ assert(count_in(frame(buffer_b),from2,SH_CHROME)==from2.w*from2.h&&ink_in(frame(buffer_b),tail)>10);  /* the step, not cents */
+ other=old;for(int d=0;d<XZ_SHELL_DECKS;d++){other.deck[d].key_original=(const char *)1;other.deck[d].key_cents=77;other.deck[d].key_synced=1;}
+ render_checked(&u,&other,buffer_a);
+ assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
+ other.clock_ms+=500;render_checked(&u,&other,buffer_a);
+ assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
+ /* No key read: the blank, dim. */
+ other=m;other.deck[1].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_KEY);render_checked(&u,&other,buffer_b);
+ assert(count_in(frame(buffer_b),name2,SH_KEY_AMBER)==0&&count_in(frame(buffer_b),name2,0x5a5a5a)>10);
+ puts("PASS live key: no beat jump or quantize in the column, playing key, cents, analysed key, KEY SYNC, old runtime");
+}
+/* KEY SYNC blinks MASTER TEMPO from the model clock alone: 500 ms lit, 500 ms dark, only the chip changes. */
+static void test_key_sync_blink(void) {
+ assert(sh_key_sync_lit(0)&&sh_key_sync_lit(499)&&!sh_key_sync_lit(500)&&!sh_key_sync_lit(999)&&sh_key_sync_lit(1000));
+ assert(sh_key_sync_lit(123456)&&!sh_key_sync_lit(123999));
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_rect box;
+ xz_shell_init(&u);fx_model_full(&m,&track);
+ struct xz_shell_rect s=xz_shell_play_rect(XZ_SHELL_R_STRIP,1);
+ m.clock_ms=40000;render_checked(&u,&m,buffer_a);
+ m.clock_ms=40500;render_checked(&u,&m,buffer_b);
+ int n=diff_box(frame(buffer_a),frame(buffer_b),&box);
+ assert(n>20&&box_inside(box,s)&&box.w<=30&&box.h<=16);
+ assert(count_in(frame(buffer_a),box,SH_RED)>20&&count_in(frame(buffer_b),box,SH_RED)==0);
+ /* Every frame inside a phase is the same picture: the presenter redraws at 61.6 Hz without flicker. */
+ m.clock_ms=40016;render_checked(&u,&m,buffer_b);assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
+ m.clock_ms=40499;render_checked(&u,&m,buffer_b);assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
+ m.clock_ms=41000;render_checked(&u,&m,buffer_b);assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
+ /* KEY SYNC off: MASTER TEMPO shows its own state and the clock changes nothing. */
+ m.deck[1].key_synced=0;m.deck[1].master_tempo=1;
+ m.clock_ms=40000;render_checked(&u,&m,buffer_a);
+ m.clock_ms=40500;render_checked(&u,&m,buffer_b);
+ assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a)&&count_in(frame(buffer_a),box,SH_RED)>20);
+ m.deck[1].master_tempo=0;render_checked(&u,&m,buffer_b);assert(count_in(frame(buffer_b),box,SH_RED)==0);
+ /* KEY SYNC with MASTER TEMPO unread still blinks the chip. */
+ m.deck[1].key_synced=1;m.deck[1].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER_TEMPO);
+ m.clock_ms=40000;render_checked(&u,&m,buffer_a);
+ m.clock_ms=40500;render_checked(&u,&m,buffer_b);
+ assert(count_in(frame(buffer_a),box,SH_RED)>20&&count_in(frame(buffer_b),box,SH_RED)==0);
+ puts("PASS KEY SYNC blinks MASTER TEMPO on the model clock, 500 ms phases, nothing else moves");
+}
+/* The stock indicators the DJ may hide: the mode lamps (and their touch) and each deck's QUANTIZE lamp. */
+static void test_hidden_indicators(void) {
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];struct xz_shell_rect box;
+ xz_shell_init(&u);fx_model_full(&m,&track);
+ assert(u.display.hidden==0);
+ render_checked(&u,&m,buffer_a);
+ struct xz_shell_rect lamps={0,0,xz_shell_play_rect(XZ_SHELL_R_FX,0).x-2,24};
+ assert(count_in(frame(buffer_a),lamps,SH_RED)>20);   /* A. HOT CUE lights red for ON */
+ assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_MODE_LAMPS,1)==1&&u.display.hidden==1u<<XZ_SHELL_IND_MODE_LAMPS);
+ render_checked(&u,&m,buffer_b);
+ /* The FX strip takes the room; no lamp ink is left, and the lamps no longer answer touch. */
+ assert(count_in(frame(buffer_b),lamps,SH_RED)==0&&count_in(frame(buffer_b),lamps,SH_WHITE)==0);
+ assert(at(frame(buffer_b),8,12)==rgb565(SH_RAIL));
+ assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,20,12,out)==0);touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
+ assert(diff_box(frame(buffer_a),frame(buffer_b),&box)>0&&box_inside(box,xz_shell_play_rect(XZ_SHELL_R_TOP_BAR,0)));
+ /* QUANTIZE hidden: the strip draws as though quantize were unread. */
+ assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_QUANTIZE_LAMP,1)==1);
+ render_checked(&u,&m,buffer_a);
+ struct xz_shell_model unread=m;
+ for(int d=0;d<XZ_SHELL_DECKS;d++)unread.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_QUANTIZE);
+ render_checked(&u,&unread,buffer_b);
+ assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
+ /* Shown again, both come back; only 0 and 1 are values. */
+ assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_MODE_LAMPS,0)==1&&xz_shell_restore_setting(&u,XZ_SHELL_ITEM_QUANTIZE_LAMP,0)==1&&u.display.hidden==0);
+ assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_QUANTIZE_LAMP,2)==0&&xz_shell_restore_setting(&u,XZ_SHELL_ITEM_MODE_LAMPS,-1)==0&&u.display.hidden==0);
+ assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,20,12,out)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING);touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
+ /* The items read the shell's state, for the runtime's APPEARANCE tab and its store. */
+ struct xz_shell_setting_item it;
+ u.display.hidden=1u<<XZ_SHELL_IND_QUANTIZE;
+ assert(sh_settings_item(&u,&m,XZ_SHELL_ITEM_QUANTIZE_LAMP,&it)&&it.known&&it.current==1&&it.writable&&it.choice_count==2);
+ assert(sh_settings_item(&u,&m,XZ_SHELL_ITEM_MODE_LAMPS,&it)&&it.current==0);
+ assert(sh_settings_set(&u,XZ_SHELL_ITEM_MODE_LAMPS,1,out)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_MODE_LAMPS
+  &&out[0].value==1&&out[0].deck==-1&&!sh_indicator_shown(&u,XZ_SHELL_IND_MODE_LAMPS));
+ puts("PASS hidden indicators: mode lamps and their touch, QUANTIZE lamp, restore values, settings items");
+}
 int main(void) {
  fx_track_build(&track,7);
  test_header_buttons();
@@ -458,6 +602,9 @@ int main(void) {
  test_notice();
  test_menu_hold();
  test_stem_wave();
+ test_live_key();
+ test_key_sync_blink();
+ test_hidden_indicators();
  puts("PASS play header, FX, extrapolation and shortcut");
  return 0;
 }

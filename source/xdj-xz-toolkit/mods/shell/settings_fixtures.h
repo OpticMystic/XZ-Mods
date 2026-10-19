@@ -90,6 +90,7 @@ static const char *const fxm_wave[]={"STOCK","3-BAND","STEMS"};
 static const char *const fxm_interface[]={"MODERN","CLASSIC"};
 static const char *const fxm_modern_theme[]={"STANDARD"};
 static const char *const fxm_key_format[]={"USB PREFERENCE","CLASSIC","CAMELOT"};
+static const char *const fxm_show_hide[]={"SHOW","HIDE"};
 static const char *const fxm_stem_color[]={"THEME DEFAULT","BLUE","RED","GREEN","AMBER","PURPLE","CYAN","PINK","WHITE"};
 static const char *const fxm_jump[]={"1/8","1/4","1/2","1","2","4","8","16","32","64"};
 static const struct xz_shell_setting_item fxm_stem_items[]={
@@ -104,6 +105,10 @@ static const char *const fxm_stem_notes[]={NULL,NULL,NULL,NULL,NULL,"FIXED IN TH
 static const char *const fxm_stem_sections[]={"AUDIO","PADS"};
 static const struct xz_shell_setting_item fxm_look_items[]={
  {1,0,"INTERFACE",fxm_interface,2,0,1,1},
+ /* The stock indicators the modern interface can hide (shell.h XZ_SHELL_IND_*): the runtime applies a pick
+    with xz_shell_restore_setting(XZ_SHELL_ITEM_MODE_LAMPS / QUANTIZE_LAMP) and keeps it. */
+ {12,0,"MODE LAMPS",fxm_show_hide,2,0,1,1},
+ {13,0,"QUANTIZE LAMP",fxm_show_hide,2,0,1,1},
  {2,1,"THEME",fxm_modern_theme,1,0,1,1},
  {3,2,"SCROLLING WAVEFORM",fxm_wave,3,1,1,1},
  {4,3,"KEY NOTATION",fxm_key_format,3,0,1,1},
@@ -131,6 +136,14 @@ static const struct xz_shell_mods_tab fxm_tabs[]={
  {"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,13,"ARCADE GAMES FOR THE BREAK"},
 };
 static const struct xz_shell_mods_model fxm_model={sizeof fxm_tabs/sizeof *fxm_tabs,fxm_tabs};
+/* The runtime's descriptions for the two indicator items (scope: APPEARANCE's tab index + 1). */
+static const char *const fxm_help_lamps[]={"Each lamp lights while its mode is on.","The lamps leave the screen; the modes keep working."};
+static const char *const fxm_help_quantize[]={"Red while QUANTIZE is on, grey while it is off.","The QUANTIZE button's own light still shows it."};
+static const struct xz_shell_item_help fxm_look_help_items[]={
+ {2,12,"The top bar's PLAY MODE, A. HOT CUE and A. CUE lamps: whether the next track plays on, and whether hot cues and the cue point load with a track.",2,fxm_help_lamps},
+ {2,13,"Each deck's QUANTIZE lamp and beat value, above its time.",2,fxm_help_quantize},
+};
+static const struct xz_shell_help_model fxm_look_help={sizeof fxm_look_help_items/sizeof *fxm_look_help_items,fxm_look_help_items};
 
 /* A USB stick's MY SETTINGS as the runtime reads them, three DJ profiles (one damaged), and the
    runtime's waveform item from the STEMS tab. Item ids are the runtime's. */

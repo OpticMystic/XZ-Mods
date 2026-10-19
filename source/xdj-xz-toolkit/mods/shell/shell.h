@@ -339,11 +339,16 @@ enum xz_shell_touch_region { XZ_SHELL_TOUCH_NONE, XZ_SHELL_TOUCH_OVERVIEW, XZ_SH
 /* Whether a deck follows the colours of its track's stick (deck.look): tile and waveform, tile only, or
    neither. Setting WAVEFORM COLOR on this unit while it is ALL is a local override: it moves to TILE. */
 enum xz_shell_usb_colors { XZ_SHELL_USB_COLORS_ALL, XZ_SHELL_USB_COLORS_TILE, XZ_SHELL_USB_COLORS_OFF };
+/* Indicators of the stock play screen the DJ may hide (APPEARANCE; shown by default): MODE_LAMPS is the
+   top bar's PLAY MODE, A. HOT CUE and A. CUE lamps (XZ_SHELL_ITEM_MODE_LAMPS), QUANTIZE each deck's
+   QUANTIZE lamp and beat value (XZ_SHELL_ITEM_QUANTIZE_LAMP). Hidden lamps also stop answering touch. */
+enum xz_shell_indicator { XZ_SHELL_IND_MODE_LAMPS, XZ_SHELL_IND_QUANTIZE, XZ_SHELL_INDICATORS };
 struct xz_shell_display {
  enum xz_shell_wave_color wave_color;
  enum xz_shell_wave_position wave_position;
  enum xz_shell_key_display key_display;
  enum xz_shell_usb_colors usb_colors;  /* XZ_SHELL_ITEM_USB_COLORS */
+ uint32_t hidden;                      /* bit per enum xz_shell_indicator */
 };
 /* Slide-over panels on the list screens: INFO (the highlighted track), MENU (sort, columns, playlist
    edits) and FILTER. Shell state, kept in the struct so the runtime's key probe, which runs input on

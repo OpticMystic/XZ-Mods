@@ -188,7 +188,8 @@ int xz_shrt_queue_pop(struct xz_shrt_queue *q, struct xz_shrt_command *out) {
 const char *const xz_shrt_quantize_choices[4]={"1/8","1/4","1/2","1"};
 int xz_shrt_quantize_index(int den) { return den==8?0:den==4?1:den==2?2:den==1?3:-1; }
 int xz_shrt_shell_owned_setting(int id) {
- return id==XZ_SHELL_SET_WAVE_COLOR||id==XZ_SHELL_SET_WAVE_POSITION||id==XZ_SHELL_ITEM_KEY_DISPLAY||id==XZ_SHELL_ITEM_WAVE_ZOOM;
+ return id==XZ_SHELL_SET_WAVE_COLOR||id==XZ_SHELL_SET_WAVE_POSITION||id==XZ_SHELL_ITEM_KEY_DISPLAY||id==XZ_SHELL_ITEM_WAVE_ZOOM
+  ||id==XZ_SHELL_ITEM_MODE_LAMPS||id==XZ_SHELL_ITEM_QUANTIZE_LAMP;
 }
 int xz_shrt_setting_writable(int id, int time_mode, int quantize_beat) {
  return id==XZ_SHELL_SET_TIME_MODE?!!time_mode:id==XZ_SHELL_ITEM_QUANTIZE_BEAT?!!quantize_beat:0;

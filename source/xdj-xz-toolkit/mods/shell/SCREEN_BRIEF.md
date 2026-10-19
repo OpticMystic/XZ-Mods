@@ -72,3 +72,49 @@ club players, adapted to the XDJ-XZ.
 Reply with: the files you created, the model struct (short), the navigation and actions, the verify
 output tail, the preview directory, the images you inspected and what you changed, and any
 shared-file changes you need.
+
+## PLAY screen audit (2026-10-19)
+
+Rule, from the owner: remove only what was carried over from the stand-alone flagship player and does
+not apply to a two-deck unit; keep every indicator the stock XZ play screen shows, and let the DJ hide
+the ones that are reasonable to hide (APPEARANCE, shown by default). "Stock" means the 33 numbered
+elements of the normal playback screen in the XDJ-XZ operating instructions DRI1625-B, pp.69-73
+(`E:/Claude/xz-ui-manuals/XDJ-XZ_DRI1625B_manual.txt`, figure `xz-p69.png`;
+`docs/research/2026-10-19-player-ui-manual-map.md` lines 76-92).
+
+| Element | On the stock XZ screen? (source) | Decision | Why |
+|---|---|---|---|
+| Top bar: SINGLE \| CONTINUE | No; PLAY MODE is a MY SETTINGS value (`my_settings.c` play_mode) | Keep, hideable (MODE LAMPS) | Applies to the unit and is a touch toggle; grouped with the two lamps it sits beside |
+| Top bar: A. HOT CUE | Yes, element 15 (p.70) | Keep, hideable (MODE LAMPS) | Stock indicator |
+| Top bar: A. CUE | Yes, element 14 (p.70) | Keep, hideable (MODE LAMPS) | Stock indicator |
+| Top bar: BEAT FX strip (effect, beat or ms, FX BPM with AUTO/TAP, channel, FX QUANTIZE) | Yes, elements 29-33 (pp.72-73) | Keep; takes the lamps' room when they are hidden | Stock; the only on-screen BEAT FX readout |
+| Top bar: LINK | No (link state is only in the connection pages, pp.23-28) | Keep | Applies (the XZ links players); no evidence it is meaningless |
+| Top bar: INFO icon | No (INFO is a key, pp.81, 90) | Keep | Touch target into INFO |
+| Top bar: STEMS, MODS | Mod | Keep | Only touch route to the mod panel and stem layouts |
+| Column: DECK n tag | Yes, elements 4, 6 (pp.69-70) | Keep | Touch sets the active deck |
+| Column: bar phase dashes | No | Keep | Applies; downbeat at a glance |
+| Column: source (USB1) | Yes, element 5 (p.69) | Keep | Stock |
+| Column: KEY | Yes, element 7 (p.70), the track's key | Change: live key | Plays-now key large, traffic-light colour, cents off the semitone, ORIGINAL analysed key once they differ, KEY SYNC lamp. Old runtime: key and key-shift step as before |
+| Column: key-shift step (triangle and number) | No; KEY SHIFT is a mod pad bank | Change: folded into the live key | The playing key and ORIGINAL say the same thing more plainly; kept for a runtime without the analysed key |
+| Column: BEAT JUMP and its size | No (the column holds deck, device, key and countdown, p.69; beat jump is a pad bank, pp.56-57) | Remove | Separate-player readout; the XZ has a grid of beat-jump pads |
+| Column: Q and beat value | Duplicate of elements 24-25, which the XZ shows in the deck strip | Remove from the column | Shown once, where the stock screen has it |
+| Lane: waveforms, cue / memory / hot-cue marks | Yes, elements 1, 12-13 | Keep | Stock |
+| Lane: beat countdown (4.0) | Yes, element 8 (p.70) | Keep | Stock |
+| Lane: loop shading and "4 BEAT LOOP" | Yes, elements 21-22 (p.71) | Keep | Stock |
+| Lane: ON AIR | Yes, element 10 (p.70) | Keep | Stock; UTILITY ON AIR DISPLAY already hides it |
+| Lane: bar numbers every four bars | No | Keep | Applies; phrase counting |
+| Lane: SLIP ghost, loop-point box, alert banner, NO STEM WAVE YET | No (manual behaviours pp.47-50, 131; mod) | Keep | Applies; shown only while true |
+| Lane: ZOOM / GRID | Yes, element 28 (p.72) | Keep | Stock and a touch target |
+| Pad row: "HOT CUE" caption | No | Remove | A label restating the A-H lamps next to it |
+| Pad row: hot-cue lamps A-H | No (the pads light themselves) | Keep | Applies; shows CALL state and colours |
+| Pad row: MUTE and stem buttons | Mod | Keep | Touch targets |
+| Strip: DECK n, title, artist, artwork, TRACK and number | Yes, elements 6, 9, 11 | Keep | Stock |
+| Strip: QUANTIZE | Yes, elements 24-25 (pp.71-72): red on, grey off, beat value beside it; SHIFT + DECK QUANTIZE sets one side (p.116) | Change: moved up to the caption row between REMAIN / TIME and TEMPO, as the stock screen places it, with its beat value; hideable (QUANTIZE LAMP) | Stock indicator, now shown once per deck |
+| Strip: REMAIN / TIME and the time | Yes, elements 16-17 | Keep | Stock and a touch target |
+| Strip: TEMPO %, range | Yes, elements 20, 26 | Keep | Stock |
+| Strip: MT | No (MASTER TEMPO is a lit button, p.35) | Keep; blinks 500 ms / 500 ms while KEY SYNC holds the key | Owner request: the XZ has no KEY SYNC lamp |
+| Strip: SYNC, SLIP, VINYL | No (lit buttons) | Keep | Apply to the unit |
+| Strip: BPM and MASTER | Yes, element 23 | Keep | Stock |
+| Strip: overview, playing address, minute scale, cue chips | Yes, elements 12-13, 18-19 | Keep | Stock and the needle-search target |
+| Strip: NEEDLE LOCK tag | No (setting, p.63) | Keep | Says why a touch does not search |
+| Stock AUTO PLAY lamp (element 27) | Yes | Not drawn (unchanged) | The model carries no AUTO PLAY state yet |

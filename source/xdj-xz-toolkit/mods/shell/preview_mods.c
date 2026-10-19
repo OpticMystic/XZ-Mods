@@ -101,6 +101,10 @@ int main(int argc, char **argv) {
  /* APPEARANCE as the runtime publishes it: INTERFACE, THEME, WAVEFORM, KEYS AND STEMS. */
  m.mods=&fxm_model;
  open_item(&u,&m,2,3,7);shot(&u,&m,"mods-appearance-sections");
+ m.help=&fxm_look_help;
+ open_item(&u,&m,2,0,12);shot(&u,&m,"mods-appearance-mode-lamps");
+ open_item(&u,&m,2,0,13);shot(&u,&m,"mods-appearance-quantize-lamp");
+ m.help=NULL;
 
  /* MY SETTINGS on USB 1's browse root. */
  {

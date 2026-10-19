@@ -14,7 +14,8 @@ enum {
 };
 /* Atlas faces: 0 = 12 px (cap 9), 1 = 20 px (cap 14). Numeral faces are shell_font.h. */
 enum sh_face { SH_SMALL=1, SH_TEXT=2 };
-enum sh_num_face { SH_NUM_MID, SH_NUM_BPM, SH_NUM_BIG };
+/* SH_NUM_KEY is the MID size with key-name letters (shell_font.h XZ_SHELL_FONT_KEY_CHARSET) instead of signs. */
+enum sh_num_face { SH_NUM_MID, SH_NUM_BPM, SH_NUM_BIG, SH_NUM_KEY };
 enum { SH_CAP_SMALL=9, SH_CAP_TEXT=14 };
 
 struct sh_screen {
@@ -50,12 +51,14 @@ void sh_text(struct xz_canvas c, int x, int y, const char *s, enum sh_face face,
 void sh_text_fit(struct xz_canvas c, int x, int y, int width, const char *s, enum sh_face face, uint32_t color);
 void sh_text_right(struct xz_canvas c, int right, int y, const char *s, enum sh_face face, uint32_t color);
 void sh_text_center(struct xz_canvas c, int cx, int y, const char *s, enum sh_face face, uint32_t color);
-/* Numerals: digits are tabular (every digit takes the width of 0). Only
-   XZ_SHELL_FONT_CHARSET characters draw; others take a space. */
+/* Numerals: digits are tabular (every digit takes the width of 0). Only the
+   face's charset draws; others take a space (no width on SH_NUM_KEY). */
 int sh_num_width(enum sh_num_face face, const char *s);
 int sh_num_cap(enum sh_num_face face);
 void sh_num(struct xz_canvas c, int x, int y, const char *s, enum sh_num_face face, uint32_t color);
 void sh_num_right(struct xz_canvas c, int right, int y, const char *s, enum sh_num_face face, uint32_t color);
+/* Every character of s is in the face's charset (a key name the KEY face can draw). */
+int sh_num_drawable(enum sh_num_face face, const char *s);
 
 /* Small marks. */
 void sh_triangle(struct xz_canvas c, int cx, int y, int size, int down, uint32_t color);
@@ -80,6 +83,7 @@ static inline enum xz_shell_key_display sh_key_display(const struct xz_shell *u)
 static inline enum xz_shell_usb_colors sh_usb_colors(const struct xz_shell *u) {
  return (unsigned)u->display.usb_colors<=XZ_SHELL_USB_COLORS_OFF?u->display.usb_colors:XZ_SHELL_USB_COLORS_ALL;
 }
+static inline int sh_indicator_shown(const struct xz_shell *u, enum xz_shell_indicator i) { return !((u->display.hidden>>i)&1); }
 /* A deck's waveform colour: its stick's when the deck follows it (USB COLORS ALL), else the shell's. */
 static inline enum xz_shell_wave_color sh_deck_wave_color(const struct xz_shell *u, const struct xz_shell_deck *d) {
  if(sh_usb_colors(u)==XZ_SHELL_USB_COLORS_ALL&&sh_has(d,XZ_SHELL_F_SOURCE_LOOK)
@@ -125,6 +129,10 @@ static inline uint32_t sh_stem_wave_fill(uint32_t bright) {
  uint32_t r=(bright>>16)&255,g=(bright>>8)&255,b=bright&255;
  return ((r*9>>4)<<16)|((g*9>>4)<<8)|(b*9>>4);
 }
+/* KEY SYNC blinks the deck's MASTER TEMPO lamp: lit for the first half of each period of the model clock.
+   Pure in clock_ms, so a frame is the same however often it is drawn. */
+enum { SH_KEY_SYNC_BLINK_MS=500 };
+static inline int sh_key_sync_lit(uint32_t clock_ms) { return !((clock_ms/SH_KEY_SYNC_BLINK_MS)&1); }
 /* NEEDLE LOCK holds for this deck now: set, and the deck plays (shell_play.c). */
 int sh_needle_locked(const struct xz_shell_model *, const struct xz_shell_deck *);
 /* BROWSE with its category rail holding the encoder (shell_browse.c). */
