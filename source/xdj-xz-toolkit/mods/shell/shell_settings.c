@@ -9,6 +9,7 @@
    then onto the rail, then closes the screen (xz_shell_settings_back). */
 #include "shell_internal.h"
 #include "shell_settings.h"
+#include "shell_help.h"
 #include "shell_browse.h"
 #include <stdio.h>
 #include <string.h>
@@ -149,7 +150,7 @@ static int settable(const struct xz_shell_model *m, const struct xz_shell_settin
    the item hands the screen to the stock deck, where a held MENU opens its UTILITY. */
 static const char *read_only_note(const struct xz_shell_setting_item *it) {
  if(note_items&&it>=note_items&&it<note_items+note_count&&note_lines&&note_lines[it-note_items])return note_lines[it-note_items];
- return on_mod_tab?"THIS BUILD CANNOT CHANGE IT":"PUSH, THEN HOLD MENU ON THE STOCK SCREEN";
+ return NULL;
 }
 /* A shell-owned item changes the shell at once; the action lets the runtime store it. A waveform colour
    picked here while decks follow their stick's colours is a local override: decks keep the stick's tile
@@ -219,6 +220,132 @@ static void h_triangle(struct xz_canvas c, int x, int cy, int size, int right, u
 }
 static void lock_icon(struct xz_canvas c, int x, int y, uint32_t ink) {
  xz_ring(c,x+4,y+4,4,1,ink);xz_rect(c,x,y+4,9,7,ink);xz_rect(c,x+4,y+6,1,3,SH_CHROME);
+}
+
+/* ---- descriptions (shell_settings.h, shell_help.h) ---- */
+static int lower(int ch) { return ch>='A'&&ch<='Z'?ch-'A'+'a':ch; }
+static int same_text(const char *a, const char *b) {
+ if(!a||!b)return 0;
+ while(*a&&*b&&lower((unsigned char)*a)==lower((unsigned char)*b)){a++;b++;}
+ return !*a&&!*b;
+}
+static int has_text(const char *hay, const char *needle) {
+ if(!hay||!needle||!*needle)return 0;
+ for(;*hay;hay++){
+  const char *h=hay,*n=needle;
+  while(*h&&*n&&lower((unsigned char)*h)==lower((unsigned char)*n)){h++;n++;}
+  if(!*n)return 1;
+ }
+ return 0;
+}
+static const struct xz_shell_item_help *model_help(const struct xz_shell_model *m, int scope, int id) {
+ if(!m->help||!m->help->items)return NULL;
+ for(uint32_t i=0;i<m->help->count&&i<1024;i++)if(m->help->items[i].scope==scope&&m->help->items[i].id==id)return &m->help->items[i];
+ return NULL;
+}
+/* The shell's own text serves UTILITY, SHORTCUT and the stick's stored values: by id, then by label. */
+static const struct sh_help *table_help(int scope, const struct xz_shell_setting_item *it) {
+ if(scope!=XZ_SHELL_HELP_UTILITY&&scope!=XZ_SHELL_HELP_MY_SETTINGS)return NULL;
+ enum { N=sizeof sh_help_table/sizeof *sh_help_table };
+ if(scope==XZ_SHELL_HELP_UTILITY)for(int i=0;i<N;i++)if(sh_help_table[i].id==it->id)return &sh_help_table[i];
+ for(int i=0;i<N;i++)if(same_text(sh_help_table[i].label,it->label))return &sh_help_table[i];
+ return NULL;
+}
+const char *sh_item_help(const struct xz_shell_model *m, int scope, const struct xz_shell_setting_item *it) {
+ const struct xz_shell_item_help *h=model_help(m,scope,it->id);
+ if(h&&h->help&&*h->help)return h->help;
+ const struct sh_help *t=table_help(scope,it);
+ return t?t->text:NULL;
+}
+const char *sh_choice_help(const struct xz_shell_model *m, int scope, const struct xz_shell_setting_item *it, int index) {
+ if(index<0||index>=choice_count(it))return NULL;
+ const struct xz_shell_item_help *h=model_help(m,scope,it->id);
+ if(h&&h->choice_help&&index<h->choice_count&&h->choice_help[index])return h->choice_help[index];
+ const struct sh_help *t=table_help(scope,it);
+ const char *label=it->choices[index];
+ if(!t||!label)return NULL;
+ for(int i=0;i<6&&t->choices[i].label;i++)if(t->choices[i].label[0]!='*'&&same_text(t->choices[i].label,label))return t->choices[i].text;
+ for(int i=0;i<6&&t->choices[i].label;i++)if(t->choices[i].label[0]=='*'&&has_text(label,t->choices[i].label+1))return t->choices[i].text;
+ return NULL;
+}
+/* Words wrapped to width; a word wider than the line is cut. Returns the line count. */
+enum { DESC_LINE=14, DESC_PAD=10, DESC_CHARS=SH_WRAP_CHARS, DESC_LINES=8, HELP_LINES=4, CHOICE_LINES=2 };
+int sh_wrap(const char *text, int width, char out[][SH_WRAP_CHARS], int max) {
+ int n=0;
+ if(!text)return 0;
+ while(*text&&n<max){
+  while(*text==' ')text++;
+  if(!*text)break;
+  char line[DESC_CHARS];size_t len=0,keep=0;const char *after=text;
+  for(const char *p=text;;){
+   const char *w=p;while(*w&&*w!=' ')w++;
+   size_t add=(size_t)(w-p),need=len+(len?1:0)+add;
+   if(need>=DESC_CHARS)break;
+   char trial[DESC_CHARS];memcpy(trial,line,len);
+   size_t t=len;if(len)trial[t++]=' ';memcpy(trial+t,p,add);t+=add;trial[t]=0;
+   if(sh_text_width(measure,trial,SH_SMALL)>width&&len)break;
+   memcpy(line,trial,t+1);len=t;keep=len;after=w;
+   if(!*w)break;
+   p=w+1;
+  }
+  if(!keep){fit(text,SH_SMALL,width,line,sizeof line);keep=strlen(line);after=text+keep;}
+  line[keep]=0;
+  memcpy(out[n++],line,keep+1);
+  text=after;
+ }
+ return n;
+}
+/* What the panel holds for one item: its help, the line for one choice, and the runtime's note. */
+struct desc { char line[DESC_LINES][DESC_CHARS]; uint32_t ink[DESC_LINES]; int n, lock_line; };
+static void desc_of(const struct xz_shell_model *m, int scope, const struct xz_shell_setting_item *it, int choice, int width, struct desc *d) {
+ memset(d,0,sizeof *d);d->lock_line=-1;
+ int h=sh_wrap(sh_item_help(m,scope,it),width,d->line,HELP_LINES);
+ for(int i=0;i<h;i++)d->ink[i]=0xd8d8d8;
+ d->n=h;
+ const char *ch=sh_choice_help(m,scope,it,choice);
+ if(ch){
+  char joined[DESC_CHARS*2];
+  snprintf(joined,sizeof joined,"%s: %s",choice_text(it,choice),ch);
+  int k=sh_wrap(joined,width,d->line+d->n,CHOICE_LINES);
+  for(int i=0;i<k;i++)d->ink[d->n+i]=0x9ec8ff;
+  d->n+=k;
+ }
+ const char *note=selectable(it)&&!settable(m,it)?read_only_note(it):NULL;
+ if(note&&d->n<DESC_LINES){
+  d->lock_line=d->n;
+  d->n+=sh_wrap(note,width-16,d->line+d->n,1);
+  d->ink[d->lock_line]=SH_DIM;
+ }else if(selectable(it)&&settable(m,it)&&current_of(it)<0&&d->n<DESC_LINES){
+  snprintf(d->line[d->n],DESC_CHARS,"The current value has not been read yet.");
+  d->ink[d->n++]=SH_DIM;
+ }
+}
+/* Panel height in rows, the same whichever choice is lit so the values never jump. */
+static int desc_rows(const struct xz_shell_model *m, int scope, const struct xz_shell_setting_item *it, int width) {
+ struct desc d;
+ int lines=0,n=choice_count(it);
+ desc_of(m,scope,it,-1,width,&d);lines=d.n;
+ int most=0;
+ for(int i=0;i<n&&i<64;i++){
+  const char *ch=sh_choice_help(m,scope,it,i);
+  if(!ch)continue;
+  char joined[DESC_CHARS*2],tmp[CHOICE_LINES][DESC_CHARS];
+  snprintf(joined,sizeof joined,"%s: %s",choice_text(it,i),ch);
+  most=sh_max(most,sh_wrap(joined,width,tmp,CHOICE_LINES));
+ }
+ lines+=most;
+ if(!lines)return 0;
+ return (lines*DESC_LINE+2*DESC_PAD+ROW_H-1)/ROW_H;
+}
+static void render_desc(struct xz_canvas p, const struct desc *d, int y, int width) {
+ if(!d->n)return;
+ xz_rect(p,0,y,p.width,p.height-y,SH_BLACK);
+ xz_rect(p,12,y+4,width,1,SH_RAIL);
+ for(int i=0;i<d->n;i++){
+  int x=12,ty=y+DESC_PAD+i*DESC_LINE;
+  if(i==d->lock_line){lock_icon(p,x,ty,SH_DIM);x+=16;}
+  sh_text(p,x,ty,d->line[i],SH_SMALL,d->ink[i]);
+ }
 }
 
 /* ---- shared chrome ---- */
@@ -353,11 +480,10 @@ struct ulayout {
  int rows[LIST_MAX],n_rows,list_row;  /* the list, and the cursor item's row */
  int n_cats;
  int item;                            /* table index under the cursor, -1 when empty */
- int value_rows,footer;               /* value pane */
+ int value_rows,desc_rows;            /* value pane: choice rows, then the description panel */
+ int scope;                           /* whose descriptions: XZ_SHELL_HELP_UTILITY or the mod tab */
 };
-static int needs_footer(const struct xz_shell_model *m, const struct xz_shell_setting_item *it) {
- return selectable(it)&&(!settable(m,it)||current_of(it)<0);
-}
+enum { DESC_W=VALUE_W-28 };
 static struct ulayout ulayout_of(const struct xz_shell *u, const struct xz_shell_model *m, int item_id) {
  struct ulayout l;memset(&l,0,sizeof l);
  l.t=table_of(u,m);l.item=-1;
@@ -377,8 +503,9 @@ static struct ulayout ulayout_of(const struct xz_shell *u, const struct xz_shell
   }
  }
  l.item=at;
- l.footer=needs_footer(m,&l.t.items[at]);
- l.value_rows=ROWS-l.footer;
+ l.scope=mods_tab(u,m)?u->mods_view.tab:XZ_SHELL_HELP_UTILITY;
+ l.desc_rows=desc_rows(m,l.scope,&l.t.items[at],DESC_W);
+ l.value_rows=sh_max(1,ROWS-l.desc_rows);
  return l;
 }
 static int clamp(int v, int lo, int hi) { return v<lo?lo:v>hi?hi:v; }
@@ -521,8 +648,10 @@ static void render_values(const struct xz_shell_model *m, struct xz_canvas c, co
  for(int r=0;r<ROWS;r++)xz_rect(p,0,r*ROW_H,VALUE_W,ROW_H-2,r&1?SH_BLACK:SH_CHROME);
  if(!it)return;
  if(!selectable(it)){
-  /* Information: the value itself, large, no radio. */
+  /* Information: the value itself, large, no radio; what it means under it. */
   text_fit(p,16,12,VALUE_W-32,value_text(it),SH_TEXT,it->known?SH_WHITE:SH_DIM);
+  struct desc d;desc_of(m,l->scope,it,-1,DESC_W,&d);
+  render_desc(p,&d,ROW_H,DESC_W);
   return;
  }
  int n=choice_count(it),cur=current_of(it);
@@ -536,17 +665,10 @@ static void render_values(const struct xz_shell_model *m, struct xz_canvas c, co
   text_fit(p,40,y+12,VALUE_W-56,choice_text(it,index),SH_TEXT,SH_WHITE);
  }
  scrollbar(p,VALUE_W-5,2,l->value_rows*ROW_H-6,s.value_scroll,n,l->value_rows);
- if(l->footer){
-  int y=(ROWS-1)*ROW_H;
-  xz_rect(p,0,y,VALUE_W,ROW_H,SH_RAIL);
-  if(settable(m,it)){
-   int ww=sh_chip(p,12,y+11,"NOT READ",SH_DIM,SH_WHITE,0);
-   text_fit(p,12+ww+10,y+14,VALUE_W-ww-48,"PICK A VALUE TO SET IT",SH_SMALL,SH_DIM);
-  }else{
-   sh_text(p,12,y+5,"TO CHANGE IT",SH_SMALL,SH_DIM);
-   text_fit(p,12,y+20,VALUE_W-40,read_only_note(it),SH_SMALL,SH_WHITE);
-   if(!on_mod_tab)h_triangle(p,VALUE_W-18,y+18,5,1,SH_WHITE);
-  }
+ /* What the item does, and what the lit choice (or the current one) does, right under the choices. */
+ if(l->desc_rows){
+  struct desc d;desc_of(m,l->scope,it,s.pane==PANE_VALUES?s.value:cur,DESC_W,&d);
+  render_desc(p,&d,sh_min(n,l->value_rows)*ROW_H,DESC_W);
  }
 }
 static void render_empty_note(struct xz_canvas c, const char *text) {
@@ -657,30 +779,26 @@ static int pane_at(int x, int y) {
   if(sh_inside(xz_shell_settings_rect((enum xz_shell_settings_region)(XZ_SHELL_SR_RAIL+p)),x,y))return p;
  return -1;
 }
-static size_t utility_touch_down(struct xz_shell *u, const struct xz_shell_model *m, struct ustate *s, const struct ulayout *l, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+static void utility_touch_down(struct xz_shell *u, struct ustate *s, const struct ulayout *l, int x, int y) {
  int p=pane_at(x,y);
  s->touch_pane=p;s->armed=0;s->dragged=0;
  u->down=1;u->down_region=XZ_SHELL_TOUCH_OTHER;u->down_deck=y;
- if(p<0||l->item<0)return 0;
+ if(p<0||l->item<0)return;
  const struct xz_shell_setting_item *it=&l->t.items[l->item];
  int row=(y-U_Y)/ROW_H;
  if(p==PANE_ITEMS){
   int index=s->item_scroll+row;
-  if(index>=l->n_rows||l->rows[index]<0)return 0;
+  if(index>=l->n_rows||l->rows[index]<0)return;
   if(index==l->list_row&&s->pane==PANE_ITEMS)s->armed=1;
   else{if(index!=l->list_row)select_row(s,l,index);s->pane=PANE_ITEMS;}
-  return 0;
+  return;
  }
- if(!selectable(it))return 0;
- if(l->footer&&row==ROWS-1){
-  s->touch_pane=-1;
-  return settable(m,it)||on_mod_tab?0:hand_off_item(XZ_SHELL_UTILITY,it,out);
- }
+ if(!selectable(it)||row>=l->value_rows)return;
  int index=s->value_scroll+row;
- if(index>=choice_count(it))return 0;
+ if(index>=choice_count(it))return;
  if(index==s->value&&s->pane==PANE_VALUES)s->armed=1;
  else{s->value=index;s->pane=PANE_VALUES;}
- return 0;
+ return;
 }
 static void utility_drag(struct xz_shell *u, struct ustate *s, const struct ulayout *l, int y) {
  int dy=y-u->down_deck;
@@ -752,7 +870,7 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
  /* The slot went away while the screen was open: the stock menu takes over on the next push or touch. */
  if(!tab&&!m->settings_screen&&(e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_TOUCH_DOWN))return hand_off(XZ_SHELL_UTILITY,out);
  switch(e->kind){
- case XZ_SHELL_TOUCH_DOWN:n=utility_touch_down(u,m,&s,&l,e->x,e->y,out);break;
+ case XZ_SHELL_TOUCH_DOWN:utility_touch_down(u,&s,&l,e->x,e->y);break;
  case XZ_SHELL_TOUCH_MOVE:if(u->down)utility_drag(u,&s,&l,e->y);break;
  case XZ_SHELL_TOUCH_UP:
   if(u->down&&s.armed&&!s.dragged&&l.item>=0){
@@ -863,16 +981,18 @@ static struct xz_shell_rect chip_rect(const struct chips *k, int i) {
  return (struct xz_shell_rect){x,k->y,w,k->h};
 }
 enum { STEP_W=40 };
-/* A read-only item is not drawn as a control: its value in a flat box and why it cannot change here. */
+/* A read-only item is not drawn as a control: its value in a flat box with a lock, and the runtime's
+   note when it gives one. */
 static void render_read_only(struct xz_canvas c, const struct xz_shell_setting_item *it, struct xz_shell_rect slot) {
  int x=slot.x+CHIP_PAD,y=slot.y+CHIP_Y,cur=current_of(it);
  const char *value=cur>=0?choice_text(it,cur):"---";
  int w=sh_max(84,sh_min(150,sh_text_width(c,value,SH_TEXT)+24));
  xz_rect(c,x,y,w,CHIP_H,SH_ROW_ALT);
  text_fit_center(c,x+w/2,y+5,w-10,value,SH_TEXT,cur>=0?0xd8d8d8:SH_DIM);
- int nx=x+w+12,nw=slot.x+slot.w-CHIP_PAD-nx;
- sh_text(c,nx,y,"TO CHANGE IT",SH_SMALL,READ_ONLY_GREY);
- text_fit(c,nx,y+13,nw,read_only_note(it),SH_SMALL,GREY_TEXT);
+ int nx=x+w+10,nw=slot.x+slot.w-CHIP_PAD-nx-16;
+ lock_icon(c,nx,y+7,READ_ONLY_GREY);
+ const char *note=read_only_note(it);
+ if(note)text_fit(c,nx+16,y+7,nw,note,SH_SMALL,GREY_TEXT);
 }
 /* ---- graphic controls ---- */
 /* OFF / ON items draw as a switch: the whole row flips it. */
@@ -1078,8 +1198,16 @@ static void shortcut_render(const struct xz_shell *u, const struct xz_shell_mode
  int focus=focus_of(&l,u->stack[u->depth-1].cursor);
  xz_rect(c,0,0,W,H,SH_BLACK);
  render_title(c,"SHORTCUT");
- const char *hint=focus>=0?"TURN TO MOVE \xc2\xb7 PUSH TO CHANGE \xc2\xb7 SHORTCUT TO CLOSE":"SHORTCUT TO CLOSE";
- text_fit_right(c,TITLE_RIGHT,16,TITLE_RIGHT-200,hint,SH_SMALL,SH_DIM);
+ /* The title line says what the focused setting does: its first sentence. */
+ if(focus>=0){
+  const char *help=sh_item_help(m,XZ_SHELL_HELP_UTILITY,&l.t.items[l.order[focus]]);
+  if(help){
+   char first[160];size_t k=0;
+   while(help[k]&&k<sizeof first-1&&!(help[k]=='.'&&(help[k+1]==' '||!help[k+1]))){first[k]=help[k];k++;}
+   first[k]=0;
+   text_fit(c,190,16,TITLE_RIGHT-190,first,SH_SMALL,0xc8c8c8);
+  }
+ }
  for(int q=0;q<QUADS;q++)render_quadrant(m,c,&l,q,focus);
  render_status(u,m,c);
 }

@@ -99,6 +99,12 @@ static inline uint32_t sh_ink_on(uint32_t rgb) {
 /* Shell-owned settings for screens other than SHORTCUT / UTILITY (shell_settings.c): the item as those
    screens show it, and setting it there (same actions, same local-override rule). */
 struct xz_shell_setting_item;
+/* Descriptions (shell_settings.h): what an item does, and what choice index does; NULL when none. sh_wrap
+   breaks text into lines of the small face no wider than width; it returns the line count. */
+enum { SH_WRAP_CHARS=120 };
+int sh_wrap(const char *text, int width, char out[][SH_WRAP_CHARS], int max);
+const char *sh_item_help(const struct xz_shell_model *, int scope, const struct xz_shell_setting_item *);
+const char *sh_choice_help(const struct xz_shell_model *, int scope, const struct xz_shell_setting_item *, int index);
 int sh_settings_item(const struct xz_shell *, const struct xz_shell_model *, int id, struct xz_shell_setting_item *out);
 size_t sh_settings_set(struct xz_shell *, int id, int index, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 /* NEEDLE LOCK holds for this deck now: set, and the deck plays (shell_play.c). */

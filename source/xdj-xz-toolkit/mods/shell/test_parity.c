@@ -192,7 +192,7 @@ static void test_play_states(void) {
  m.deck[0].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUE_CALL);m.deck[0].hot_cue_called=0;
  render(&u,&m,other);
  assert(memcmp(pixels+pads.y*XZ_SHELL_WIDTH,other+pads.y*XZ_SHELL_WIDTH,sizeof(uint16_t)*XZ_SHELL_WIDTH*pads.h)!=0);
- /* HOT CUE AUTO LOAD: three values on the chip, LIBRARY in red. */
+ /* HOT CUE AUTO LOAD: three values on the chip; ON lights red, LIBRARY white (XZ manual p.55). */
  m.settings.writable|=1u<<XZ_SHELL_SET_HOT_CUE_AUTO_LOAD;
  m.settings.hot_cue_auto_load=XZ_SHELL_HCAL_ON;
  struct xz_shell_rect top=xz_shell_play_rect(XZ_SHELL_R_TOP_BAR,0);
@@ -206,7 +206,9 @@ static void test_play_states(void) {
  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,chip_x,10,0)==1&&out[0].value==XZ_SHELL_HCAL_OFF);
  send(&u,&m,XZ_SHELL_TOUCH_UP,chip_x,10,0);
  render(&u,&m,pixels);
- assert(count_color(pixels,top,SH_RED)>0);
+ int library_red=count_color(pixels,top,SH_RED);
+ m.settings.hot_cue_auto_load=XZ_SHELL_HCAL_ON;render(&u,&m,other);
+ assert(count_color(other,top,SH_RED)>library_red);
  /* NEEDLE LOCK: a playing deck refuses the overview search and says why; paused, it seeks. */
  m.settings.needle_lock_known=1;m.settings.needle_lock=1;
  struct xz_shell_rect ov=xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,0);

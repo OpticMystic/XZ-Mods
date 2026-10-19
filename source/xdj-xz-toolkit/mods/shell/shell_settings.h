@@ -94,6 +94,16 @@ enum xz_shell_item_id {
  XZ_SHELL_ITEM_NEEDLE_LOCK,        /* UNLOCK, LOCK (model.settings.needle_lock) */
  XZ_SHELL_ITEM_ID_END
 };
+/* Stock UTILITY items the runtime publishes under its own ids (assigned by the runtime, 2026-10-19). The
+   shell names them only to describe them in the description panel. */
+enum xz_shell_runtime_item {
+ XZ_SHELL_ITEM_RT_NEEDLE_LOCK=0x100, XZ_SHELL_ITEM_RT_JOG_DISPLAY_MODE, XZ_SHELL_ITEM_RT_JOG_RING_INDICATOR,
+ XZ_SHELL_ITEM_RT_AUTO_PLAY_MODE, XZ_SHELL_ITEM_RT_MASTER_EQUALIZER, XZ_SHELL_ITEM_RT_MASTER_ATTENUATOR,
+ XZ_SHELL_ITEM_RT_BOOTH_ATTENUATOR, XZ_SHELL_ITEM_RT_PEAK_LIMITER, XZ_SHELL_ITEM_RT_MIC_OUT_TO_BOOTH,
+ XZ_SHELL_ITEM_RT_TALK_OVER_MODE, XZ_SHELL_ITEM_RT_TALK_OVER_LEVEL, XZ_SHELL_ITEM_RT_USB_OUTPUT_LEVEL,
+ XZ_SHELL_ITEM_RT_CH3_CONTROL_TONE, XZ_SHELL_ITEM_RT_CH4_CONTROL_TONE, XZ_SHELL_ITEM_RT_MIXER_MIDI_MESSAGE,
+ XZ_SHELL_ITEM_RT_PAD_BRIGHTNESS, XZ_SHELL_ITEM_RT_TOUCH_CALIBRATION
+};
 
 /* The UTILITY rail, top to bottom. Empty categories are left off the rail. */
 enum xz_shell_setting_category {
@@ -133,6 +143,21 @@ struct xz_shell_mods_tab {
 /* The mod tabs, in order. Built from the mod settings (no hard-coded list in the shell). A TAB_ITEMS
    tab's sections become its rail; a long section name wraps to two lines. */
 struct xz_shell_mods_model { uint32_t count; const struct xz_shell_mods_tab *tabs; };
+
+/* Descriptions: what a setting does, shown under its values on MODS, as SHORTCUT's title line and at
+   the foot of the MY SETTINGS panel. The shell carries its own text for the UTILITY items (by item id,
+   then by label); m->help adds or replaces text per scope. scope: XZ_SHELL_HELP_UTILITY for the UTILITY
+   page and SHORTCUT, a mod tab's index in m->mods + 1 for that tab, XZ_SHELL_HELP_MY_SETTINGS for the
+   stick's stored values. help is 1-3 short plain sentences; choice_help[i] (NULL entries allowed) is one
+   line on what choice i does. An item with no text shows no panel. */
+enum { XZ_SHELL_HELP_MY_SETTINGS=-1, XZ_SHELL_HELP_UTILITY=0 };
+struct xz_shell_item_help {
+ int scope, id;
+ const char *help;
+ int choice_count;
+ const char *const *choice_help;
+};
+struct xz_shell_help_model { uint32_t count; const struct xz_shell_item_help *items; };
 
 /* MY SETTINGS: MENU on BROWSE while the category rail has the encoder (a USB stick picked, no category
    entered) opens a slide-over panel for that stick instead of the list MENU. Rows, top to bottom:

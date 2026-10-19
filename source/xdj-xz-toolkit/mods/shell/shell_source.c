@@ -179,7 +179,7 @@ static void source_render(const struct xz_shell *u, const struct xz_shell_model 
  int highlighted=cursor_tile(u,m->source);
  int any_known=0;
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++)any_known|=known(&m->source->device[i],XZ_SHELL_D_STATUS);
- const char *hint=highlighted>=0?"TOUCH AGAIN OR PUSH TO BROWSE":any_known?"NO DEVICE CONNECTED":"DEVICE STATUS NOT READ YET";
+ const char *hint=highlighted>=0?"OPENS ITS LIBRARY IN BROWSE":any_known?"NO DEVICE CONNECTED":"DEVICE STATUS NOT READ YET";
  char missing[40];
  if(highlighted>=0&&!connected(m->source,highlighted)){
   snprintf(missing,sizeof missing,"%s IS NOT CONNECTED",si_source_name((enum xz_shell_source)(highlighted+1)));

@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
  send_hold(&u,&m);shot(&u,&m,"mods-utility-next-category");
  open_item(&u,&m,0,0,XZ_SHELL_ITEM_HOT_CUE_COLOR);shot(&u,&m,"mods-utility-unwritable");
  static const char *notes[FXS_COUNT];
- notes[fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)-fxs_table]="SET IT IN THE COLOR MENU ON THE STOCK SCREEN";
+ notes[fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)-fxs_table]="FIXED IN THIS TEST BUILD";
  fxs_model.notes=notes;
  shot(&u,&m,"mods-utility-unwritable-note");
  fxs_model.notes=NULL;

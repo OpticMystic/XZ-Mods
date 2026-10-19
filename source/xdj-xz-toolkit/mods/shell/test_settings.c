@@ -246,18 +246,20 @@ static void test_utility_encoder(void) {
  f=render(&u,&m);
  int dot_x=R(XZ_SHELL_SR_VALUES).x+22;
  assert(at(f,dot_x,R(XZ_SHELL_SR_VALUES).y+2*ROW+18)==rgb565(SH_BLUE));
- /* Read-only: the footer row says how to change it. */
- assert(at(f,value_x(),row_top(ROWS-1))==rgb565(SH_RAIL));
+ /* Under the choices, the description panel on black: what the setting does. */
+ assert(at(f,value_x(),row_top(ROWS-1))==rgb565(SH_BLACK));
  turn(&u,&m,1);assert(cursor_id(&u)==XZ_SHELL_ITEM_JOG_LCD_BRIGHTNESS);
  f=render(&u,&m);
  for(int r=0;r<5;r++)assert(at(f,dot_x,R(XZ_SHELL_SR_VALUES).y+r*ROW+18)!=rgb565(SH_BLUE));
- /* Long value lists scroll and keep the cursor in view above the footer. */
+ /* Long value lists scroll and keep the cursor in view above the description panel. */
  turn(&u,&m,1);assert(cursor_id(&u)==XZ_SHELL_ITEM_LANGUAGE);
  push(&u,&m);assert(turn(&u,&m,13)==0);
  f=render(&u,&m);
- assert(at(f,value_x(),row_top(ROWS-2))==rgb565(SH_BLUE)&&at(f,value_x(),row_top(ROWS-1))==rgb565(SH_RAIL));
- assert(((u.stack[1].scroll>>12)&0xfff)==14-(ROWS-1));
- turn(&u,&m,100);f=render(&u,&m);assert(at(f,value_x(),row_top(ROWS-2))==rgb565(SH_BLUE));
+ int lit=-1;
+ for(int r=0;r<ROWS;r++)if(at(f,value_x(),row_top(r))==rgb565(SH_BLUE))lit=r;
+ assert(lit>0&&lit<ROWS-1&&at(f,value_x(),row_top(ROWS-1))==rgb565(SH_BLACK));
+ assert(((u.stack[1].scroll>>12)&0xfff)==14-(lit+1));
+ turn(&u,&m,100);f=render(&u,&m);assert(at(f,value_x(),row_top(lit))==rgb565(SH_BLUE));
  assert(hold(&u,&m)==0);f=render(&u,&m);assert(at(f,value_x(),row_top(0))==rgb565(SH_BLUE));
  /* Information items (one choice) stay in the item list. */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
@@ -297,8 +299,8 @@ static void test_utility_touch(void) {
  send(&u,&m,XZ_SHELL_TOUCH_MOVE,item_x()+100,list_row(1)-ROW*2-4,0);
  assert(send(&u,&m,XZ_SHELL_TOUCH_UP,item_x()+100,list_row(1),0)==0&&pane(&u)==1);
  assert((u.stack[1].scroll&0xfff)==2&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
- /* The read-only footer hands off to the stock menu. */
- assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,value_x()+60,list_row(ROWS-1),0)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_UTILITY);
+ /* The description panel under the values takes no touch. */
+ assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,value_x()+60,list_row(ROWS-1),0)==0);
  send(&u,&m,XZ_SHELL_TOUCH_UP,value_x()+60,list_row(ROWS-1),0);
  /* The back button steps focus left, then to the rail, then closes. */
  push(&u,&m);assert(pane(&u)==2);
@@ -309,7 +311,7 @@ static void test_utility_touch(void) {
  /* MENU closes UTILITY from any pane (navigation table). */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);push(&u,&m);
  assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&u.depth==1);
- puts("PASS UTILITY touch: rail entry, highlight then confirm, headers inert, drag scroll, footer hand-off, back button");
+ puts("PASS UTILITY touch: rail entry, highlight then confirm, headers inert, drag scroll, description panel inert, back button");
 }
 
 static struct xz_shell_rect slot_of(int q, int k) { return xz_shell_shortcut_slot(q,k); }
