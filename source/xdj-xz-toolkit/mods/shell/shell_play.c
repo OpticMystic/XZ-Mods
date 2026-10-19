@@ -17,7 +17,7 @@ enum {
  NUM_Y=STRIP_Y+34, CHIP_ROW_Y=STRIP_Y+97, OVERVIEW_Y=STRIP_Y+112, OVERVIEW_H=44, TICK_H=10, EDGE=12,
  STEM_X=46, STEM_W=62, STEM_GAP=6, STEM_H=22, LAMP_W=14, LAMP_GAP=3,
  CHIP_Y=5, CHIP_H=16, CHIP_GAP=8,
- INFO_W=44, INFO_X=XZ_SHELL_HEADER_X-INFO_W-2, LINK_RIGHT=INFO_X-2, FX_Y=2, FX_H=22, FX_GAP=10,
+ INFO_W=44, INFO_X=XZ_SHELL_HEADER_X-INFO_W-2, FX_Y=2, FX_H=22, FX_GAP=10,
  ALERT_H=52, ALERT_BTN_W=150, GRID_BTN_W=78, GRID_BTN_GAP=4,
  QUANTIZE_RIGHT=206   /* strip x where the QUANTIZE lamp ends, 10 px short of TEMPO */
 };
@@ -36,9 +36,8 @@ static void top_chips(struct chip out[3]) {
  int w2=sh_text_width(measure,"A. CUE",SH_SMALL)+12;
  out[2]=(struct chip){{x,CHIP_Y,w2,CHIP_H},XZ_SHELL_SET_AUTO_CUE};
 }
-static int link_width(void) { return sh_text_width(measure,"LINK",SH_SMALL)+12; }
 static int fx_left(void) { struct chip k[3];top_chips(k);return k[2].r.x+k[2].r.w+FX_GAP; }
-static int fx_right(void) { return LINK_RIGHT-link_width()-FX_GAP; }
+static int fx_right(void) { return INFO_X-FX_GAP; }
 static int mode_lamps(const struct xz_shell *u) { return sh_indicator_shown(u,XZ_SHELL_IND_MODE_LAMPS); }
 /* The BEAT FX strip as drawn: XZ_SHELL_R_FX, reaching to the bar's left edge while the mode lamps are hidden. */
 static struct xz_shell_rect fx_rect(const struct xz_shell *u) {
@@ -139,8 +138,6 @@ static void render_top(const struct xz_shell *u, const struct xz_shell_model *m,
  xz_rect(c,0,0,c.width,TOP_H,SH_CHROME);
  xz_rect(c,0,TOP_H-1,c.width,1,SH_BLACK);
  render_fx(m,c,fx_rect(u));
- int lw=link_width(),link=m->link_known&&m->link_connected;
- sh_chip(c,LINK_RIGHT-lw,CHIP_Y,"LINK",link?SH_BLUE:0x5a5a5a,link?SH_WHITE:SH_DIM,0);
  sh_info_icon(c,INFO_X+INFO_W/2,TOP_H/2,SH_WHITE);
  if(!mode_lamps(u))return;
  int mode_known=sh_setting(m,XZ_SHELL_SET_PLAY_MODE);
@@ -669,10 +666,6 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
   mx+=sh_chip(c,mx,NUM_Y+42,"MT",ink,ink,0)+4;
  }
  if(sh_has(d,XZ_SHELL_F_SYNC)&&d->sync)sh_chip(c,mx,NUM_Y+42,"SYNC",SH_BLUE,SH_WHITE,0);
- /* SLIP and the jog mode sit under the time, where the clock leaves room. */
- int vx=cx;
- if(sh_has(d,XZ_SHELL_F_SLIP))vx+=sh_chip(c,vx,NUM_Y+42,"SLIP",d->slip?SH_KEY_AMBER:0x5a5a5a,d->slip?SH_BLACK:0x8c8c8c,d->slip)+4;
- if(sh_has(d,XZ_SHELL_F_VINYL))sh_chip(c,vx,NUM_Y+42,"VINYL",d->vinyl?SH_WHITE:0x5a5a5a,d->vinyl?SH_WHITE:0x8c8c8c,0);
  /* BPM box */
  int bx=sx+298,bw=right-bx,by=NUM_Y-2,bh=52;
  int master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;

@@ -88,7 +88,7 @@ elements of the normal playback screen in the XDJ-XZ operating instructions DRI1
 | Top bar: A. HOT CUE | Yes, element 15 (p.70) | Keep, hideable (MODE LAMPS) | Stock indicator |
 | Top bar: A. CUE | Yes, element 14 (p.70) | Keep, hideable (MODE LAMPS) | Stock indicator |
 | Top bar: BEAT FX strip (effect, beat or ms, FX BPM with AUTO/TAP, channel, FX QUANTIZE) | Yes, elements 29-33 (pp.72-73) | Keep; takes the lamps' room when they are hidden | Stock; the only on-screen BEAT FX readout |
-| Top bar: LINK | No (link state is only in the connection pages, pp.23-28) | Keep | Applies (the XZ links players); no evidence it is meaningless |
+| Top bar: LINK | No (link state is only in the connection pages, pp.23-28); no newer player draws one on its playing screen either (CDJ-3000 pp.21-23) | Remove; BEAT FX takes the room | A port addition, not stock anywhere; SHORTCUT still shows the link lamp |
 | Top bar: INFO icon | No (INFO is a key, pp.81, 90) | Keep | Touch target into INFO |
 | Top bar: STEMS, MODS | Mod | Keep | Only touch route to the mod panel and stem layouts |
 | Column: DECK n tag | Yes, elements 4, 6 (pp.69-70) | Keep | Touch sets the active deck |
@@ -113,7 +113,8 @@ elements of the normal playback screen in the XDJ-XZ operating instructions DRI1
 | Strip: REMAIN / TIME and the time | Yes, elements 16-17 | Keep | Stock and a touch target |
 | Strip: TEMPO %, range | Yes, elements 20, 26 | Keep | Stock |
 | Strip: MT | No (MASTER TEMPO is a lit button, p.35) | Keep; blinks 500 ms / 500 ms while KEY SYNC holds the key | Owner request: the XZ has no KEY SYNC lamp |
-| Strip: SYNC, SLIP, VINYL | No (lit buttons) | Keep | Apply to the unit |
+| Strip: SYNC | No (lit button and jog display, pp.36-37); the newer players show it (CDJ-3000 element 23) | Keep | Beside MT and the BPM box's MASTER, as on the newer players |
+| Strip: SLIP, VINYL | No (lit buttons and the jog display, pp.36-37); the newer players do not show them either | Remove | Shown twice already; the lane's SLIP ghost stays |
 | Strip: BPM and MASTER | Yes, element 23 | Keep | Stock |
 | Strip: overview, playing address, minute scale, cue chips | Yes, elements 12-13, 18-19 | Keep | Stock and the needle-search target |
 | Strip: NEEDLE LOCK tag | No (setting, p.63) | Keep | Says why a touch does not search |
