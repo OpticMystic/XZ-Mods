@@ -388,7 +388,7 @@ static void wave_configure(void) {
 }
 /* The interface and classic theme decide the look; every renderer, the shell
    included, reads the derived model.theme. */
-_Static_assert(XZ_UI_INTERFACE_CLASSIC==XZ_INTERFACE_CLASSIC&&XZ_UI_INTERFACE_MODERN==XZ_INTERFACE_MODERN&&XZ_UI_MODERN_THEMES==XZ_MODERN_THEME_COUNT,"one interface numbering");
+_Static_assert((int)XZ_UI_INTERFACE_CLASSIC==(int)XZ_INTERFACE_CLASSIC&&(int)XZ_UI_INTERFACE_MODERN==(int)XZ_INTERFACE_MODERN&&(int)XZ_UI_MODERN_THEMES==(int)XZ_MODERN_THEME_COUNT,"one interface numbering");
 /* The FLAGSHIP shell runs only in the MODERN interface (nothing on CLASSIC: no thread, no USB scan). */
 static void shell_follow_interface_locked(void) {
     if(started&&xz_shell_runtime_follow_interface&&xz_shell_runtime_follow_interface(model.ui_interface==XZ_UI_INTERFACE_MODERN))
