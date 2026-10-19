@@ -239,7 +239,7 @@ static void playhead(void) {
  assert(xz_shrt_motion_step(&mo,1030,66)&&xz_shrt_motion_step(&mo,1030,300)&&!xz_shrt_motion_step(&mo,1030,366));
  struct xz_shrt_position p;xz_shrt_position_reset(&p);int32_t ms;uint32_t at;
  /* Paused: the raw reading. */
- xz_shrt_position_step(&p,0,5000,100,0,&ms,&at);assert(ms==5000&&at==100);
+ xz_shrt_position_step(&p,0,5000,100,0,0,&ms,&at);assert(ms==5000&&at==100);
  /* Playing at +2.00 %: readings come every 33 ms but advance in 10 ms steps with up to 9 ms of lag.
     The published line must stay within 10 ms of the truth, never step back between frames, and every
     frame-to-frame advance must stay within 3 ms of the true 16.67 ms x 1.02. */
@@ -249,7 +249,7 @@ static void playhead(void) {
   truth=5000+(now-100)*1.02;
   if(frame%2==0){                            /* the model refreshes every other frame */
    int32_t reading=(int32_t)(truth/10)*10;   /* coarse stat-frame value */
-   xz_shrt_position_step(&p,1,reading,now,tempo,&ms,&at);
+   xz_shrt_position_step(&p,1,reading,now,tempo,0,&ms,&at);
   }
   double shown=ms+(double)(int32_t)(now-at)*1.02;
   double error=shown-truth;if(error<0)error=-error;
@@ -263,12 +263,35 @@ static void playhead(void) {
  printf("  playhead: worst error %.1f ms, worst frame step deviation %.2f ms\n",worst,worst_step);
  assert(worst<10&&worst_step<3);
  /* A cue jump snaps at once; a held (repeated) reading changes nothing. */
- xz_shrt_position_step(&p,1,1000,20000,tempo,&ms,&at);assert(ms==1000&&at==20000);
- xz_shrt_position_step(&p,1,1000,20000,tempo,&ms,&at);assert(ms==1000&&at==20000);
+ xz_shrt_position_step(&p,1,1000,20000,tempo,0,&ms,&at);assert(ms==1000&&at==20000);
+ xz_shrt_position_step(&p,1,1000,20000,tempo,0,&ms,&at);assert(ms==1000&&at==20000);
+ /* Jog hold while the deck plays at -27 % pitch (the owner's log: the engine position stays at 374804
+    while the speed field says 730000 ppm). From the second frozen reading on, the published playhead is
+    the reading itself with elapsed_at_ms 0: no extrapolation, so no forward jitter and no snap back. */
+ xz_shrt_position_reset(&p);uint32_t t=1000;
+ for(int i=0;i<5;i++,t+=33){int32_t pos=374000+(int32_t)(i*33*73/100);xz_shrt_position_step(&p,1,pos,t,730000,1,&ms,&at);assert(at);}
+ int following=0;
+ for(int i=0;i<20;i++,t+=33){
+  following=xz_shrt_position_step(&p,1,374804,t,730000,1,&ms,&at);
+  if(i>=1)assert(following&&ms==374804&&at==0);
+ }
+ /* Released: two regular readings later it smooths and extrapolates again. */
+ int32_t pos=374804;
+ for(int i=0;i<3;i++){t+=33;pos+=24;following=xz_shrt_position_step(&p,1,pos,t,730000,1,&ms,&at);}
+ assert(!following&&at&&ms>=pos-2&&ms<=pos+2);
+ /* Scratch backwards and a vinyl-brake slowdown: the playhead follows the readings exactly. */
+ for(int i=0;i<10;i++){t+=33;pos-=20;following=xz_shrt_position_step(&p,1,pos,t,1000000,1,&ms,&at);if(i>=1)assert(following&&ms==pos&&at==0);}
+ for(int i=0;i<4;i++){t+=33;pos+=33;xz_shrt_position_step(&p,1,pos,t,1000000,1,&ms,&at);}
+ assert(at); /* normal speed again */
+ for(int i=0;i<6;i++){t+=33;pos+=33*(5-i)/10;following=xz_shrt_position_step(&p,1,pos,t,1000000,1,&ms,&at);if(i>=1)assert(following&&ms==pos&&!at);}
+ /* An imprecise source (the stat frame, 10 ms steps) never switches to following. */
+ xz_shrt_position_reset(&p);t=0;
+ for(int i=0;i<60;i++,t+=33)assert(!xz_shrt_position_step(&p,1,(int32_t)(t/10)*10,t,1000000,0,&ms,&at)&&at);
  struct xz_shrt_frames f;memset(&f,0,sizeof f);
  xz_shrt_frame_mark(&f,1000000);xz_shrt_frame_mark(&f,1016667);xz_shrt_frame_mark(&f,1050000);xz_shrt_frame_mark(&f,3000000);
  assert(f.frames==4&&f.gap_max_us==33333&&f.late==1);
- puts("PASS playhead: motion window, smoothed tempo-predicted position, snaps, held readings, frame gap statistics");
+ assert(f.hist[0]==0&&f.hist[1]==1&&f.hist[2]==0&&f.hist[3]==1&&f.hist[4]==0); /* the 1.95 s idle gap is not counted */
+ puts("PASS playhead: motion window, smoothed tempo-predicted position, snaps, held readings, jog hold, scratch, brake, frame gap statistics");
 }
 
 static void commands(void) {

@@ -111,6 +111,9 @@ static volatile uint32_t vsync_state = VSYNC_UNAVAILABLE;
 static volatile uint32_t vsync_count;            /* blanks in the current stats window */
 static volatile uint32_t present_late_count;     /* present intervals over 20 ms in the window */
 static volatile uint32_t present_timer_ticks;    /* presenter ticks paced by the timer, not a blank */
+static volatile uint32_t present_missed_vsync;   /* blanks that passed between two presents beyond the first */
+static volatile uint32_t present_skipped;        /* ticks with the overlay up but no new frame prepared */
+static volatile uint32_t present_hist[5];        /* present intervals: <14, 14-18, 18-26, 26-34, 34+ ms */
 static struct timeval stats_window_started;
 static int framebuffer_presenter_started;
 static int primary_60hz_presenter_started;
@@ -505,7 +508,7 @@ static void write_runtime_stats_if_due(void) {
     length = snprintf(
         line,
         sizeof(line),
-        "window_ms=%ld flip_hz=%.1f framebuffer_present_hz=%.1f present_interval_min_ms=%.2f present_interval_max_ms=%.2f preview_draw_hz=%.1f preview_frame_hz=%.1f filmstrip_draw_hz=%.1f tick_hz=%.1f preview=%ux%u asset=%ux%u scroll=%.2f vsync=%s vsync_hz=%.1f present_late=%u timer_ticks=%u\n",
+        "window_ms=%ld flip_hz=%.1f framebuffer_present_hz=%.1f present_interval_min_ms=%.2f present_interval_max_ms=%.2f preview_draw_hz=%.1f preview_frame_hz=%.1f filmstrip_draw_hz=%.1f tick_hz=%.1f preview=%ux%u asset=%ux%u scroll=%.2f vsync=%s vsync_hz=%.1f present_late=%u timer_ticks=%u missed_vsync=%u present_skipped=%u present_hist=%u/%u/%u/%u/%u\n",
         elapsed_ms,
         (double)flip_count * 1000.0 / (double)elapsed_ms,
         (double)framebuffer_present_count * 1000.0 / (double)elapsed_ms,
@@ -523,7 +526,10 @@ static void write_runtime_stats_if_due(void) {
         vsync_state == VSYNC_LOCKED ? "locked" : vsync_state == VSYNC_PROBING ? "probing" : "off",
         (double)vsync_count * 1000.0 / (double)elapsed_ms,
         present_late_count,
-        present_timer_ticks
+        present_timer_ticks,
+        present_missed_vsync,
+        present_skipped,
+        present_hist[0], present_hist[1], present_hist[2], present_hist[3], present_hist[4]
     );
     if (length < 0) return;
     if ((size_t)length >= sizeof(line)) length = (int)sizeof(line) - 1;
@@ -541,6 +547,9 @@ static void write_runtime_stats_if_due(void) {
     vsync_count = 0;
     present_late_count = 0;
     present_timer_ticks = 0;
+    present_missed_vsync = 0;
+    present_skipped = 0;
+    memset((void *)present_hist, 0, sizeof(present_hist));
     present_interval_min_ms = 0.0f;
     present_interval_max_ms = 0.0f;
     stats_window_started = now;
@@ -878,6 +887,8 @@ static void draw_composite_frame(void) {
 static pthread_mutex_t vsync_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t vsync_cond = PTHREAD_COND_INITIALIZER;
 static volatile uint32_t vsync_sequence;
+static uint64_t vsync_last_us, vsync_period_us = 16240u; /* under vsync_mutex; period: moving average */
+static uint64_t timer_next_us;                           /* presenter thread: the timer's next tick */
 
 static uint64_t monotonic_us(void) {
     struct timeval now;
@@ -924,8 +935,11 @@ static void *vsync_waiter(void *argument) {
                 }
             }
         }
-        last = now;
         pthread_mutex_lock(&vsync_mutex);
+        if (last && now - last >= 12000u && now - last <= 22000u)
+            vsync_period_us = (vsync_period_us * 15u + (now - last)) / 16u;
+        vsync_last_us = now;
+        last = now;
         vsync_sequence += 1;
         vsync_count += 1;
         pthread_cond_broadcast(&vsync_cond);
@@ -948,6 +962,22 @@ static void vsync_start(int fd) {
     else __atomic_store_n(&vsync_state, VSYNC_UNAVAILABLE, __ATOMIC_RELEASE);
 }
 
+/* Export for the mods: when the frame being rendered now will be shown (the presenter copies it at the
+ * next blank), in gettimeofday microseconds. 0 while the presenter has no timeline yet. */
+__attribute__((visibility("default"))) uint64_t xz_receiver_next_present_us_v1(void) {
+    uint64_t now = monotonic_us(), at = 0;
+    if (__atomic_load_n(&vsync_state, __ATOMIC_ACQUIRE) == VSYNC_LOCKED) {
+        pthread_mutex_lock(&vsync_mutex);
+        uint64_t period = vsync_period_us ? vsync_period_us : 16240u;
+        at = vsync_last_us;
+        pthread_mutex_unlock(&vsync_mutex);
+        if (at) while (at <= now) at += period;
+    } else {
+        at = timer_next_us;
+        if (at && at < now) at = now;
+    }
+    return at;
+}
 /* Returns at the next vertical blank when the blank is proven, else on a fixed 60 Hz timeline that
  * does not drift with the work done in each tick. */
 static void presenter_wait(uint64_t *deadline_us) {
@@ -977,6 +1007,7 @@ static void presenter_wait(uint64_t *deadline_us) {
     /* Resynchronise after an overrun, and after a wall-clock step in either direction. */
     if (!*deadline_us || now > *deadline_us + 16667u || *deadline_us > now + 2u * 16667u) *deadline_us = now;
     *deadline_us += 16667u;
+    timer_next_us = *deadline_us;
     if (*deadline_us > now) usleep((useconds_t)(*deadline_us - now));
 }
 
@@ -1025,11 +1056,18 @@ static void *framebuffer_presenter(void *unused) {
      * moves its present instant, and the renderer's clock is a fixed one-period ahead of what is shown. */
     const uint8_t *prepared = NULL;
     uint64_t deadline_us = 0;
+    uint32_t presented_sequence = 0;
     for (;;) {
         presenter_wait(&deadline_us);
         int overlay_enabled = overlay_is_active();
         if (overlay_enabled && diagnostic_background_begin(overlay_enabled)) {
+            if (!prepared) present_skipped += 1;
             if (prepared) {
+                uint32_t sequence = vsync_sequence;
+                if (presented_sequence && __atomic_load_n(&vsync_state, __ATOMIC_ACQUIRE) == VSYNC_LOCKED &&
+                    sequence - presented_sequence > 1u && sequence - presented_sequence < 120u)
+                    present_missed_vsync += sequence - presented_sequence - 1u;
+                presented_sequence = sequence;
                 struct timeval started;
                 gettimeofday(&started, NULL);
                 if (last_present_started.tv_sec != 0) {
@@ -1039,6 +1077,7 @@ static void *framebuffer_presenter(void *unused) {
                         if (present_interval_min_ms == 0.0f || interval_ms < present_interval_min_ms) present_interval_min_ms = interval_ms;
                         if (interval_ms > present_interval_max_ms) present_interval_max_ms = interval_ms;
                         if (interval_ms > 20.0f) present_late_count += 1;
+                        present_hist[interval_ms < 14.0f ? 0 : interval_ms < 18.0f ? 1 : interval_ms < 26.0f ? 2 : interval_ms < 34.0f ? 3 : 4] += 1;
                     }
                 }
                 last_present_started = started;

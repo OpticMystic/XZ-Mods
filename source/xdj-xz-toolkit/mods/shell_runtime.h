@@ -27,6 +27,7 @@ struct xz_shell_runtime_frame_input {
  int stem_muted_known[XZ_SHELL_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
  unsigned stem_muted[XZ_SHELL_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
  int stem_rgb_known; uint32_t stem_rgb[3]; /* stem pad colours 0xRRGGBB: drums, harmonics, vocal */
+ int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
 };
 int xz_shell_runtime_start(void);
 void xz_shell_runtime_stop(void);
@@ -34,6 +35,9 @@ void xz_shell_runtime_stop(void);
 int xz_shell_runtime_owns(void);
 /* Lock-free: owns the screen and no frame is due, so the caller can skip all work. */
 int xz_shell_runtime_idle(void);
+/* Lock-free: the next frame refreshes the model (native reads). ui_runtime.c moves its own 10 Hz refresh
+   off such frames so the two never land in the same 16 ms. */
+int xz_shell_runtime_will_refresh(void);
 /* Called for every xz_mods_render_v1 under the UI mutex. 1 = drew the whole
    frame, -1 = owns the screen but drew nothing (keep the last frame), 0 = not
    the owner (draw the usual badges). */
@@ -182,16 +186,25 @@ int xz_shrt_motion_step(struct xz_shrt_motion *, int32_t elapsed_ms, uint32_t re
    and elapsed_at_ms. */
 #define XZ_SHRT_POSITION_SNAP_MS 60
 #define XZ_SHRT_POSITION_NUDGE_MS 2
-struct xz_shrt_position { int valid; int64_t base_us; uint32_t base_at, read_at; int32_t read_ms; };
+/* measure (a precise source: the audio engine position): consecutive readings give the deck's observed
+   speed. When it is far from rate_ppm (a jog hold, a scratch, reverse, a brake) the deck is not moving
+   as its pitch says, so the smoother follows the readings exactly and publishes elapsed_at_ms = 0 (no
+   extrapolation, shell.h): the playhead never runs ahead of the last reading. It returns to smoothing
+   after XZ_SHRT_REGULAR_RUNS regular readings in a row. Returns 1 while following. */
+#define XZ_SHRT_RATE_TOLERANCE_PPM 250000 /* of the nominal rate, per million */
+#define XZ_SHRT_REGULAR_RUNS 2
+struct xz_shrt_position { int valid; int64_t base_us; uint32_t base_at, read_at; int32_t read_ms;
+ int have_last, following, regular_run; int32_t last_ms; uint32_t last_at; int32_t observed_ppm; };
 void xz_shrt_position_reset(struct xz_shrt_position *);
-void xz_shrt_position_step(struct xz_shrt_position *, int playing, int32_t elapsed_ms, uint32_t read_at,
-                           int32_t rate_ppm, int32_t *out_ms, uint32_t *out_at);
+int xz_shrt_position_step(struct xz_shrt_position *, int playing, int32_t elapsed_ms, uint32_t read_at,
+                          int32_t rate_ppm, int measure, int32_t *out_ms, uint32_t *out_at);
 /* Speed in ppm from the stat frame's tempo (0.01 %), the fallback when the engine speed is not read. */
 int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100);
 
 /* Presented-frame statistics in microseconds: frames, the largest gap between two frames and the gaps
    longer than XZ_SHRT_LATE_US (a missed 60 Hz slot). Gaps of a second or more (idle screens) are ignored. */
 #define XZ_SHRT_LATE_US 20000u
-struct xz_shrt_frames { uint64_t last_us; uint32_t frames, gap_max_us, late; };
+/* hist: frame-to-frame gaps under 14 ms, 14-18 (one 61.6 Hz vblank), 18-26, 26-34 (one missed), 34+ ms. */
+struct xz_shrt_frames { uint64_t last_us; uint32_t frames, gap_max_us, late, hist[5]; };
 void xz_shrt_frame_mark(struct xz_shrt_frames *, uint64_t now_us);
 #endif
