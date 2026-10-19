@@ -1,12 +1,12 @@
-/* SHORTCUT (2x2 quadrants) and the MODS screen (a tab row over rail / items /
-   values) at 800x480, after the flagship player's settings screens (the
+/* SHORTCUT (2x2 quadrants) and the MODS screen (a page rail, items, values)
+   at 800x480, after the flagship player's settings screens (the
    2026-10-18 flagship UI study in docs/research, sections 3.4-3.6 and 6.2).
    Both keep a compact two-deck status strip at the bottom, as every flagship
    non-play screen does.
 
-   MODS is the XZ_SHELL_UTILITY screen: its first tab is UTILITY, the device's
-   own menu, the others are the mod tabs. BACK steps one pane left, then onto
-   the tab row, then closes the screen (xz_shell_settings_back). */
+   MODS is the XZ_SHELL_UTILITY screen: its rail's first entry is UTILITY, the
+   device's own menu, the others are the mod pages. BACK steps one pane left,
+   then onto the rail, then closes the screen (xz_shell_settings_back). */
 #include "shell_internal.h"
 #include "shell_settings.h"
 #include "shell_browse.h"
@@ -16,9 +16,8 @@
 enum {
  W=XZ_SHELL_WIDTH, H=XZ_SHELL_HEIGHT, TITLE_H=40, BODY_Y=42,
  ROW_H=XZ_SHELL_SETTINGS_ROW_H, ROWS=XZ_SHELL_SETTINGS_ROWS, RAIL_H=XZ_SHELL_SETTINGS_RAIL_H,
- TABS_Y=XZ_SHELL_HEADER_HIT_H, TABS_H=40, TABS_HIT=44, U_Y=TABS_Y+TABS_HIT,
- STATUS_Y=U_Y+ROWS*ROW_H, STATUS_H=H-STATUS_Y,
- RAIL_W=76, LIST_X=RAIL_W+2, LIST_W=420, VALUE_X=LIST_X+LIST_W+2, VALUE_W=W-VALUE_X,
+ U_Y=BODY_Y, STATUS_Y=U_Y+ROWS*ROW_H+2, STATUS_H=H-STATUS_Y,
+ RAIL_W=88, LIST_X=RAIL_W+2, LIST_W=408, VALUE_X=LIST_X+LIST_W+2, VALUE_W=W-VALUE_X,
  QUAD_W=399, QUAD_H=190, QUAD_TITLE=18, SLOT_H=43, SLOTS=4, CHIP_PAD=12, CHIP_GAP=3, CHIP_Y=15, CHIP_H=25,
  MAX_ITEMS=128, DEEP_BLUE=XZ_FLAGSHIP_DEEP_BLUE, RAIL_SELECTED=XZ_FLAGSHIP_RAIL_SELECTED, GREY_TEXT=0x8c8c8c,
  READ_ONLY_GREY=0x6e6e6e,
@@ -325,12 +324,15 @@ static void render_status(const struct xz_shell *u, const struct xz_shell_model 
  for(int deck=0;deck<XZ_SHELL_DECKS;deck++)render_status_deck(u,m,c,deck);
 }
 
-/* ================= UTILITY ================= */
+/* ================= MODS (the XZ_SHELL_UTILITY screen) ================= */
 
-/* View state, packed into the shell's view slot:
+/* One rail on the left: UTILITY, the player's own menu, then each mod page. The open page fills the
+   right: an item list whose categories (or sections) are header rows, and the values pane, as the stock
+   UTILITY screen draws them. The rail is u->mods_view: tab = the open page, on_tabs = the rail has the
+   encoder. The content's state is packed into the shell's view slot:
    cursor = id+1 of the item under the item cursor (0 = first item);
    focus  = pane | value cursor<<4 | touch pane+1<<16 | armed<<20 | dragged<<21;
-   scroll = item scroll | value scroll<<12. */
+   scroll = item scroll (in list rows, headers included) | value scroll<<12. */
 enum pane { PANE_RAIL, PANE_ITEMS, PANE_VALUES };
 struct ustate { int pane, item, value, item_scroll, value_scroll, touch_pane, armed, dragged; };
 static struct ustate unpack(const struct xz_shell_view *v) {
@@ -343,43 +345,39 @@ static void pack(struct xz_shell_view *v, struct ustate s) {
  v->scroll=(s.item_scroll&0xfff)|((s.value_scroll&0xfff)<<12);
 }
 
-/* Derived layout for one model snapshot and one view. */
+/* Derived layout for one model snapshot and one view. A list row is a table index, or -1-category for a
+   header row. */
+enum { LIST_MAX=MAX_ITEMS+16+XZ_SHELL_SETTING_CAT_COUNT };
 struct ulayout {
  struct table t;
- int cats[XZ_SHELL_SETTING_CAT_COUNT],n_cats,cat_row;   /* rail rows */
- int list[MAX_ITEMS],n_list,list_row;           /* table indices of the shown category */
- int item;                                      /* table index under the cursor, -1 when empty */
- int value_rows,footer;                         /* value pane */
+ int rows[LIST_MAX],n_rows,list_row;  /* the list, and the cursor item's row */
+ int n_cats;
+ int item;                            /* table index under the cursor, -1 when empty */
+ int value_rows,footer;               /* value pane */
 };
-static int category_rows(struct table t, int out[XZ_SHELL_SETTING_CAT_COUNT]) {
- int n=0;
- for(int cat=0;cat<XZ_SHELL_SETTING_CAT_COUNT;cat++)
-  for(int i=0;i<t.count;i++)if(valid_category(&t.items[i])&&(int)t.items[i].category==cat){out[n++]=cat;break;}
- return n;
-}
-static int first_of_category(struct table t, int cat) {
- for(int i=0;i<t.count;i++)if(valid_category(&t.items[i])&&(int)t.items[i].category==cat)return i;
- return -1;
-}
 static int needs_footer(const struct xz_shell_model *m, const struct xz_shell_setting_item *it) {
  return selectable(it)&&(!settable(m,it)||current_of(it)<0);
 }
 static struct ulayout ulayout_of(const struct xz_shell *u, const struct xz_shell_model *m, int item_id) {
  struct ulayout l;memset(&l,0,sizeof l);
  l.t=table_of(u,m);l.item=-1;
- l.n_cats=category_rows(l.t,l.cats);
+ int present[XZ_SHELL_SETTING_CAT_COUNT]={0};
+ for(int i=0;i<l.t.count;i++)if(valid_category(&l.t.items[i]))present[l.t.items[i].category]=1;
+ for(int cat=0;cat<XZ_SHELL_SETTING_CAT_COUNT;cat++)l.n_cats+=present[cat];
  if(!l.n_cats)return l;
  int at=item_id>=0?find_id(l.t,item_id):-1;
- if(at<0||!valid_category(&l.t.items[at]))at=first_of_category(l.t,l.cats[0]);
- l.item=at;
- int cat=(int)l.t.items[at].category;
- for(int r=0;r<l.n_cats;r++)if(l.cats[r]==cat)l.cat_row=r;
- for(int i=0;i<l.t.count;i++)if(valid_category(&l.t.items[i])&&(int)l.t.items[i].category==cat){
-  if(i==at)l.list_row=l.n_list;
-  l.list[l.n_list++]=i;
+ if(at>=0&&!valid_category(&l.t.items[at]))at=-1;
+ for(int cat=0;cat<XZ_SHELL_SETTING_CAT_COUNT;cat++){
+  if(!present[cat])continue;
+  if(l.n_cats>1&&l.n_rows<LIST_MAX)l.rows[l.n_rows++]=-1-cat;
+  for(int i=0;i<l.t.count&&l.n_rows<LIST_MAX;i++)if(valid_category(&l.t.items[i])&&(int)l.t.items[i].category==cat){
+   if(at<0)at=i;
+   if(i==at)l.list_row=l.n_rows;
+   l.rows[l.n_rows++]=i;
+  }
  }
- const struct xz_shell_setting_item *it=&l.t.items[at];
- l.footer=needs_footer(m,it);
+ l.item=at;
+ l.footer=needs_footer(m,&l.t.items[at]);
  l.value_rows=ROWS-l.footer;
  return l;
 }
@@ -391,16 +389,22 @@ static int keep_visible(int scroll, int row, int count, int rows) {
  if(row>=scroll+rows)scroll=row-rows+1;
  return clamp(scroll,0,sh_max(0,count-rows));
 }
+/* The list scroll for the cursor row, with the header above a section's first item in view. */
+static int list_scroll(const struct ulayout *l, int scroll) {
+ scroll=keep_visible(scroll,l->list_row,l->n_rows,ROWS);
+ if(l->list_row>0&&l->rows[l->list_row-1]<0&&scroll==l->list_row)scroll--;
+ return scroll;
+}
 static int item_id_at(const struct ulayout *l, int table_index) { return table_index>=0?l->t.items[table_index].id:-1; }
 /* Re-derive everything from the stored ids after any change. */
 static struct ustate settle(const struct xz_shell *u, const struct xz_shell_model *m, struct ustate s, struct ulayout *l) {
  *l=ulayout_of(u,m,s.item);
  s.item=item_id_at(l,l->item);
- if(l->item<0){s.pane=PANE_RAIL;s.item_scroll=s.value_scroll=s.value=0;return s;}
+ if(l->item<0){s.pane=PANE_ITEMS;s.item_scroll=s.value_scroll=s.value=0;return s;}
  const struct xz_shell_setting_item *it=&l->t.items[l->item];
- s.pane=clamp(s.pane,PANE_RAIL,PANE_VALUES);
+ s.pane=clamp(s.pane,PANE_ITEMS,PANE_VALUES);
  if(s.pane==PANE_VALUES&&!selectable(it))s.pane=PANE_ITEMS;
- s.item_scroll=keep_visible(s.item_scroll,l->list_row,l->n_list,ROWS);
+ s.item_scroll=list_scroll(l,s.item_scroll);
  int n=choice_count(it);
  s.value=clamp(s.value,0,sh_max(0,n-1));
  s.value_scroll=keep_visible(s.value_scroll,s.value,n,l->value_rows);
@@ -414,12 +418,40 @@ static void scrollbar(struct xz_canvas c, int x, int y, int h, int scroll, int c
  int top=y+(count-rows>0?travel*scroll/(count-rows):0);
  xz_rect(c,x,top,3,thumb,0x8c8c8c);
 }
-static const char *const cat_lines[XZ_SHELL_SETTING_CAT_COUNT][2]={
- {"DJ","SETTING"},{"DISPLAY","(LCD)"},{"DISPLAY","(INDICATOR)"},{"PRO DJ","LINK"},{"MIXER",NULL},{"SYSTEM",NULL},{"INFO",NULL}
+/* UTILITY's categories, in the stock menu's words. */
+static const char *const cat_names[XZ_SHELL_SETTING_CAT_COUNT]={
+ "DJ SETTING","DISPLAY (LCD)","DISPLAY (INDICATOR)","PRO DJ LINK","MIXER","SYSTEM","INFO"
 };
-/* A section name in a rail cell: one line when it fits, else split at the space nearest the middle. */
+static const char *header_name(const struct xz_shell_mods_tab *tab, int cat) {
+ if(!tab)return cat_names[cat];
+ return tab->sections&&cat<tab->section_count&&tab->sections[cat]?tab->sections[cat]:"---";
+}
+
+/* ---- the page rail ---- */
+static int tab_count(const struct xz_shell_model *m) { return 1+(m->mods&&m->mods->tabs?(int)sh_min((int)m->mods->count,11):0); }
+static const char *tab_label(const struct xz_shell_model *m, int t) {
+ if(t==0)return "UTILITY";
+ const char *l=m->mods->tabs[t-1].label;
+ return l?l:"---";
+}
+static int open_tab(const struct xz_shell *u, const struct xz_shell_model *m) { return sh_max(0,sh_min(u->mods_view.tab,tab_count(m)-1)); }
+/* Entries that fit: UTILITY, the divider, then the mod pages; the mod pages scroll to keep the open one in view. */
+enum { RAIL_GAP=8, RAIL_FIT=(ROWS*ROW_H-RAIL_GAP)/RAIL_H };
+static int rail_first(const struct xz_shell *u, const struct xz_shell_model *m) {
+ int n=tab_count(m)-1,shown=RAIL_FIT-1,t=u?open_tab(u,m):0;
+ return n<=shown||t<1?0:clamp(t-shown,0,n-shown);
+}
+struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell *u, const struct xz_shell_model *m, int tab) {
+ if(!m||tab<0||tab>=tab_count(m))return (struct xz_shell_rect){0,0,0,0};
+ if(tab==0)return (struct xz_shell_rect){0,U_Y,RAIL_W,RAIL_H};
+ int slot=tab-1-rail_first(u,m);
+ if(slot<0||slot>=RAIL_FIT-1)return (struct xz_shell_rect){0,0,0,0};
+ return (struct xz_shell_rect){0,U_Y+RAIL_H+RAIL_GAP+slot*RAIL_H,RAIL_W,RAIL_H};
+}
+struct xz_shell_rect xz_shell_mods_page_button(void) { return (struct xz_shell_rect){LIST_X+(W-LIST_X)/2-150,U_Y+190,300,48}; }
+/* A page name in a rail cell: one line when it fits, else split at the space nearest the middle. */
 static void rail_label(struct xz_canvas c, int y, const char *name, uint32_t ink) {
- int room=RAIL_W-6;
+ int room=RAIL_W-8;
  if(sh_text_width(measure,name,SH_SMALL)<=room){text_fit_center(c,RAIL_W/2,y+RAIL_H/2-6,room,name,SH_SMALL,ink);return;}
  size_t len=strlen(name),best=0;
  for(size_t i=1;i<len&&i<63;i++)if(name[i]==' '&&(!best||(i>len/2?i-len/2:len/2-i)<(best>len/2?best-len/2:len/2-best)))best=i;
@@ -428,34 +460,49 @@ static void rail_label(struct xz_canvas c, int y, const char *name, uint32_t ink
  text_fit_center(c,RAIL_W/2,y+RAIL_H/2-13,room,first,SH_SMALL,ink);
  text_fit_center(c,RAIL_W/2,y+RAIL_H/2+1,room,name+best+1,SH_SMALL,ink);
 }
-static void render_rail(struct xz_canvas c, const struct ulayout *l, struct ustate s, const struct xz_shell_mods_tab *tab) {
- for(int r=0;r<7;r++){
-  int y=U_Y+r*RAIL_H;
-  int selected=r<l->n_cats&&r==l->cat_row&&l->item>=0;
-  uint32_t fill=selected?(s.pane==PANE_RAIL?SH_BLUE:RAIL_SELECTED):SH_CHROME;
-  xz_rect(c,0,y,RAIL_W,RAIL_H-2,fill);
-  if(r>=l->n_cats)continue;
-  const char *const *lines=cat_lines[l->cats[r]];
-  uint32_t ink=selected?SH_WHITE:SH_DIM;
-  if(tab&&tab->sections&&l->cats[r]<tab->section_count&&tab->sections[l->cats[r]]){
-   rail_label(c,y,tab->sections[l->cats[r]],ink);
-  }else if(lines[1]){
-   text_fit_center(c,RAIL_W/2,y+RAIL_H/2-13,RAIL_W-4,lines[0],SH_SMALL,ink);
-   text_fit_center(c,RAIL_W/2,y+RAIL_H/2+1,RAIL_W-4,lines[1],SH_SMALL,ink);
-  }else text_fit_center(c,RAIL_W/2,y+RAIL_H/2-6,RAIL_W-4,lines[0],SH_SMALL,ink);
+static void render_pages(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ int cur=open_tab(u,m),n=tab_count(m),first=rail_first(u,m);
+ xz_rect(c,0,U_Y,RAIL_W,ROWS*ROW_H,SH_CHROME);
+ for(int t=0;t<n;t++){
+  struct xz_shell_rect r=xz_shell_mods_tab_rect(u,m,t);
+  if(!r.w)continue;
+  int selected=t==cur;
+  uint32_t fill=selected?(u->mods_view.on_tabs?SH_BLUE:RAIL_SELECTED):SH_CHROME,ink=selected?SH_WHITE:SH_DIM;
+  xz_rect(c,r.x,r.y,r.w,r.h-2,fill);
+  xz_rect(c,r.x,r.y+r.h-2,r.w,2,SH_BLACK);   /* the stock rail's cell gap */
+  if(t==0){
+   /* The player's own menu, said in a caption under its name. */
+   text_fit_center(c,RAIL_W/2,r.y+10,RAIL_W-8,"UTILITY",SH_SMALL,ink);
+   text_fit_center(c,RAIL_W/2,r.y+26,RAIL_W-8,"STOCK",SH_SMALL,selected?0xc8dcff:0x8c8c8c);
+  }else rail_label(c,r.y,tab_label(m,t),ink);
  }
- xz_rect(c,0,U_Y+7*RAIL_H,RAIL_W,ROWS*ROW_H-7*RAIL_H,SH_CHROME);
+ /* The divider between the stock menu and the mod pages, labelled MODS when there are any. */
+ int dy=U_Y+RAIL_H;
+ xz_rect(c,0,dy,RAIL_W,RAIL_GAP,SH_BLACK);
+ if(n>1)xz_rect(c,6,dy+RAIL_GAP/2-1,RAIL_W-12,2,0x5a5a5a);
+ /* more mod pages above or below the ones shown */
+ if(first>0)sh_triangle(c,RAIL_W-10,dy+RAIL_GAP+4,4,0,SH_DIM);
+ if(n-1-first>RAIL_FIT-1)sh_triangle(c,RAIL_W-10,U_Y+ROWS*ROW_H-8,4,1,SH_DIM);
 }
-static void render_items(const struct xz_shell_model *m, struct xz_canvas c, const struct ulayout *l, struct ustate s) {
+
+/* ---- the open page ---- */
+static void render_items(const struct xz_shell_model *m, struct xz_canvas c, const struct ulayout *l, struct ustate s, const struct xz_shell_mods_tab *tab) {
  struct xz_canvas p=xz_sub(c,LIST_X,U_Y,LIST_W,ROWS*ROW_H);
  for(int r=0;r<ROWS;r++){
   int y=r*ROW_H,index=s.item_scroll+r;
-  int has=index<l->n_list;
-  int cursor=has&&l->list[index]==l->item;
+  if(index>=l->n_rows){xz_rect(p,0,y,LIST_W,ROW_H-2,SH_CHROME);continue;}
+  int at=l->rows[index];
+  if(at<0){
+   /* a category header, as the stock rail names it */
+   xz_rect(p,0,y,LIST_W,ROW_H-2,SH_BLACK);
+   text_fit(p,14,y+ROW_H-SH_CAP_SMALL-10,LIST_W-28,header_name(tab,-1-at),SH_SMALL,0x8c8c8c);
+   xz_rect(p,14,y+ROW_H-5,LIST_W-28,1,SH_RAIL);
+   continue;
+  }
+  int cursor=at==l->item;
   uint32_t fill=cursor?(s.pane==PANE_ITEMS?SH_BLUE:RAIL_SELECTED):SH_CHROME;
   xz_rect(p,0,y,LIST_W,ROW_H-2,fill);
-  if(!has)continue;
-  const struct xz_shell_setting_item *it=&l->t.items[l->list[index]];
+  const struct xz_shell_setting_item *it=&l->t.items[at];
   int ro=selectable(it)&&!settable(m,it);
   const char *value=value_text(it);
   uint32_t value_ink=!it->known||current_of(it)<0?(cursor?SH_WHITE:READ_ONLY_GREY):cursor?SH_WHITE:GREY_TEXT;
@@ -466,7 +513,7 @@ static void render_items(const struct xz_shell_model *m, struct xz_canvas c, con
   int name_w=right-vw-(ro?17:0)-16-14;
   text_fit(p,14,y+12,name_w,label_of(it),SH_TEXT,SH_WHITE);
  }
- scrollbar(p,LIST_W-4,2,ROWS*ROW_H-6,s.item_scroll,l->n_list,ROWS);
+ scrollbar(p,LIST_W-4,2,ROWS*ROW_H-6,s.item_scroll,l->n_rows,ROWS);
 }
 static void render_values(const struct xz_shell_model *m, struct xz_canvas c, const struct ulayout *l, struct ustate s) {
  struct xz_canvas p=xz_sub(c,VALUE_X,U_Y,VALUE_W,ROWS*ROW_H);
@@ -503,7 +550,8 @@ static void render_values(const struct xz_shell_model *m, struct xz_canvas c, co
  }
 }
 static void render_empty_note(struct xz_canvas c, const char *text) {
- sh_text_center(c,LIST_X+LIST_W/2,U_Y+ROW_H*4+12,text,SH_TEXT,SH_DIM);
+ xz_rect(c,LIST_X,U_Y,W-LIST_X,ROWS*ROW_H,SH_CHROME);
+ sh_text_center(c,LIST_X+(W-LIST_X)/2,U_Y+ROW_H*4+12,text,SH_TEXT,SH_DIM);
 }
 static void version_of(struct table t, char *out, size_t cap) {
  out[0]=0;
@@ -515,77 +563,12 @@ static void version_of(struct table t, char *out, size_t cap) {
  const char *v=it->choices[cur];
  snprintf(out,cap,"%s%s",v[0]=='V'||v[0]=='v'?"":"Ver.",v);
 }
-/* ---- MODS tab row ----
-   UTILITY is tab 0: the device's own menu, the name the deck's MENU button
-   and manual use for it. The mod tabs follow, as the runtime lists them. */
-static int tab_count(const struct xz_shell_model *m) { return 1+(m->mods&&m->mods->tabs?(int)sh_min((int)m->mods->count,11):0); }
-static const char *tab_label(const struct xz_shell_model *m, int t) {
- if(t==0)return "UTILITY";
- const char *l=m->mods->tabs[t-1].label;
- return l?l:"---";
-}
-/* The tab row in two labelled groups, STOCK (UTILITY) and MODS (the mod tabs). Tabs take their label's
-   width, the spare width shared out; when they do not fit, the row scrolls so the open tab shows whole. */
-enum { GROUP_PAD=10, TAB_PAD=28, TAB_MIN=72, TAB_EDGE=18, TABS_MAX=12 };
-struct tabrow { int n, x[TABS_MAX], w[TABS_MAX], group_x[2], group_w[2], offset; };
-static struct tabrow tabrow_of(const struct xz_shell *u, const struct xz_shell_model *m) {
- struct tabrow r;memset(&r,0,sizeof r);
- r.n=tab_count(m);
- int natural[TABS_MAX],sum=0;
- for(int t=0;t<r.n;t++){natural[t]=sh_max(TAB_MIN,sh_min(240,sh_text_width(measure,tab_label(m,t),SH_SMALL)+TAB_PAD));sum+=natural[t];}
- r.group_w[0]=sh_text_width(measure,"STOCK",SH_SMALL)+2*GROUP_PAD;
- r.group_w[1]=r.n>1?sh_text_width(measure,"MODS",SH_SMALL)+2*GROUP_PAD:0;
- int spare=sh_max(0,W-r.group_w[0]-r.group_w[1]-sum),x=r.group_w[0];
- for(int t=0;t<r.n;t++){
-  if(t==1){r.group_x[1]=x;x+=r.group_w[1];}
-  r.x[t]=x;r.w[t]=natural[t]+spare/r.n+(t<spare%r.n);x+=r.w[t];
- }
- if(x>W){
-  int cur=u?sh_max(0,sh_min(u->mods_view.tab,r.n-1)):0,right=r.x[cur]+r.w[cur];
-  if(right>W-TAB_EDGE)r.offset=right-(W-TAB_EDGE);
-  if(cur==r.n-1)r.offset=x-W;
-  r.offset=sh_max(0,sh_min(r.offset,x-W));
- }
- return r;
-}
-struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell *u, const struct xz_shell_model *m, int tab) {
- if(!m||tab<0||tab>=tab_count(m))return (struct xz_shell_rect){0,0,0,0};
- struct tabrow r=tabrow_of(u,m);
- int x0=r.x[tab]-r.offset,x1=x0+r.w[tab];
- if(x0<0||x1>W)return (struct xz_shell_rect){0,0,0,0};
- return (struct xz_shell_rect){x0,TABS_Y,r.w[tab],TABS_HIT};   /* under the back button and header buttons */
-}
-struct xz_shell_rect xz_shell_mods_page_button(void) { return (struct xz_shell_rect){W/2-150,U_Y+170,300,48}; }
-static int open_tab(const struct xz_shell *u, const struct xz_shell_model *m) { return sh_max(0,sh_min(u->mods_view.tab,tab_count(m)-1)); }
-static void render_tabs(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
- int cur=open_tab(u,m);
- struct tabrow r=tabrow_of(u,m);
- xz_rect(c,0,TITLE_H,W,U_Y-TITLE_H,SH_BLACK);
- struct xz_canvas row=xz_sub(c,0,TABS_Y,W,TABS_H);
- static const char *const groups[2]={"STOCK","MODS"};
- for(int g=0;g<2;g++)if(r.group_w[g]){
-  int gx=r.group_x[g]-r.offset;
-  if(g)xz_rect(row,gx,4,1,TABS_H-8,0x5a5a5a);
-  sh_text_center(row,gx+r.group_w[g]/2,(TABS_H-SH_CAP_SMALL)/2,groups[g],SH_SMALL,SH_DIM);
- }
- for(int t=0;t<r.n;t++){
-  int x=r.x[t]-r.offset,selected=t==cur;
-  if(x+r.w[t]<=0||x>=W)continue;
-  uint32_t fill=selected?(u->mods_view.on_tabs?SH_BLUE:RAIL_SELECTED):SH_RAIL;
-  xz_rect(row,x,0,r.w[t]-2,TABS_H,fill);
-  text_fit_center(row,x+(r.w[t]-2)/2,(TABS_H-SH_CAP_SMALL)/2,r.w[t]-12,tab_label(m,t),SH_SMALL,selected?SH_WHITE:0xd2d2d2);
-  if(selected&&!u->mods_view.on_tabs)xz_rect(row,x,TABS_H-3,r.w[t]-2,3,SH_BLUE);
- }
- /* Tabs out of view on a side: a fade and an arrow there. */
- int last=r.x[r.n-1]+r.w[r.n-1]-r.offset;
- if(r.offset>0){xz_rect(row,0,0,TAB_EDGE,TABS_H,SH_BLACK);h_triangle(row,TAB_EDGE/2-1,TABS_H/2,5,0,SH_WHITE);}
- if(last>W){xz_rect(row,W-TAB_EDGE,0,TAB_EDGE,TABS_H,SH_BLACK);h_triangle(row,W-TAB_EDGE/2+1,TABS_H/2,5,1,SH_WHITE);}
-}
 static void render_page_tab(const struct xz_shell *u, const struct xz_shell_mods_tab *tab, struct xz_canvas c) {
- xz_rect(c,0,U_Y,W,ROWS*ROW_H,SH_CHROME);
- text_fit_center(c,W/2,U_Y+60,W-80,tab->label?tab->label:"---",SH_TEXT,SH_WHITE);
- if(tab->summary)text_fit_center(c,W/2,U_Y+96,W-80,tab->summary,SH_SMALL,SH_DIM);
- text_fit_center(c,W/2,U_Y+120,W-80,"THIS PAGE OPENS IN THE MOD PANEL",SH_SMALL,SH_DIM);
+ int cx=LIST_X+(W-LIST_X)/2,cw=W-LIST_X-60;
+ xz_rect(c,LIST_X,U_Y,W-LIST_X,ROWS*ROW_H,SH_CHROME);
+ text_fit_center(c,cx,U_Y+80,cw,tab->label?tab->label:"---",SH_TEXT,SH_WHITE);
+ if(tab->summary)text_fit_center(c,cx,U_Y+116,cw,tab->summary,SH_SMALL,SH_DIM);
+ text_fit_center(c,cx,U_Y+140,cw,"THIS PAGE OPENS IN THE MOD PANEL",SH_SMALL,SH_DIM);
  struct xz_shell_rect b=xz_shell_mods_page_button();
  int focused=!u->mods_view.on_tabs;
  if(focused)xz_rect(c,b.x,b.y,b.w,b.h,SH_BLUE);else{xz_rect(c,b.x,b.y,b.w,b.h,SH_RAIL);xz_border(c,b.x,b.y,b.w,b.h,SH_BLUE);}
@@ -605,20 +588,19 @@ static void utility_render(const struct xz_shell *u, const struct xz_shell_model
  int vw=!tab&&version[0]?sh_min(160,sh_text_width(c,version,SH_TEXT)):0;
  text_fit(c,after,17,TITLE_RIGHT-after-vw-12,tab?"ADDED BY THE MOD, NOT PART OF THE PLAYER":"THE PLAYER'S OWN MENU",SH_SMALL,SH_DIM);
  if(vw)text_fit_right(c,TITLE_RIGHT,13,160,version,SH_TEXT,DEEP_BLUE);
- render_tabs(u,m,c);
+ render_pages(u,m,c);
  if(tab&&tab->kind==XZ_SHELL_TAB_PAGE)render_page_tab(u,tab,c);
+ else if(l.item<0)render_empty_note(c,tab?"NOTHING TO SET ON THIS PAGE":m->settings_screen?"NO SETTINGS READ YET":"SETTINGS NOT AVAILABLE HERE");
  else{
   struct ustate shown=s;
-  if(u->mods_view.on_tabs)shown.pane=-1;   /* the tab row has the encoder: no pane is lit */
-  render_rail(c,&l,shown,tab);
-  render_items(m,c,&l,shown);
+  if(u->mods_view.on_tabs)shown.pane=PANE_RAIL;   /* the rail has the encoder: no content row is lit */
+  render_items(m,c,&l,shown,tab);
   render_values(m,c,&l,shown);
-  if(l.item<0)render_empty_note(c,tab?"NOTHING TO SET ON THIS TAB":m->settings_screen?"NO SETTINGS READ YET":"SETTINGS NOT AVAILABLE HERE");
  }
  render_status(u,m,c);
 }
 
-/* ---- UTILITY input ---- */
+/* ---- MODS input ---- */
 static size_t hand_off(enum xz_shell_screen screen, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)screen});
 }
@@ -638,33 +620,40 @@ static void enter_values(struct ustate *s, const struct ulayout *l) {
  if(!selectable(it))return;
  s->pane=PANE_VALUES;s->value=value_start(it);s->value_scroll=keep_visible(0,s->value,choice_count(it),l->value_rows);
 }
-static void select_category(struct ustate *s, const struct ulayout *l, int row) {
- int at=first_of_category(l->t,l->cats[row]);
- s->item=item_id_at(l,at);s->item_scroll=0;s->value=0;s->value_scroll=0;
+static void select_row(struct ustate *s, const struct ulayout *l, int row) {
+ s->item=l->t.items[l->rows[row]].id;s->value=0;s->value_scroll=0;
 }
-static void select_item(struct ustate *s, const struct ulayout *l, int row) {
- s->item=l->t.items[l->list[row]].id;s->value=0;s->value_scroll=0;
+/* The item row delta items away from the cursor, past header rows; the cursor's own row at the ends. */
+static int item_row(const struct ulayout *l, int delta) {
+ int row=l->list_row,step=delta>0?1:-1;
+ for(int k=delta>0?delta:-delta;k>0;k--){
+  int next=row+step;
+  while(next>=0&&next<l->n_rows&&l->rows[next]<0)next+=step;
+  if(next<0||next>=l->n_rows)break;
+  row=next;
+ }
+ return row;
 }
 static void move(struct ustate *s, const struct ulayout *l, int delta) {
- const struct xz_shell_setting_item *it=&l->t.items[l->item];
- switch(s->pane){
- case PANE_RAIL:{int r=clamp(l->cat_row+delta,0,l->n_cats-1);if(r!=l->cat_row)select_category(s,l,r);break;}
- case PANE_ITEMS:{int r=clamp(l->list_row+delta,0,l->n_list-1);if(r!=l->list_row)select_item(s,l,r);break;}
- default:s->value=clamp(s->value+delta,0,choice_count(it)-1);break;
- }
+ if(s->pane==PANE_ITEMS){int r=item_row(l,delta);if(r!=l->list_row)select_row(s,l,r);return;}
+ s->value=clamp(s->value+delta,0,choice_count(&l->t.items[l->item])-1);
 }
+/* Encoder hold: the next category's first item (the stock rail's job), or the next page of values. */
 static void page_jump(struct ustate *s, const struct ulayout *l) {
  const struct xz_shell_setting_item *it=&l->t.items[l->item];
  if(s->pane==PANE_ITEMS){
-  int r=l->list_row>=l->n_list-1?0:sh_min(l->list_row+ROWS,l->n_list-1);
-  select_item(s,l,r);s->item_scroll=r;
+  int r=l->list_row+1;
+  while(r<l->n_rows&&l->rows[r]>=0)r++;
+  if(r>=l->n_rows)r=0;
+  while(r<l->n_rows&&l->rows[r]<0)r++;
+  if(r<l->n_rows){select_row(s,l,r);s->item_scroll=r>0&&l->rows[r-1]<0?r-1:r;}
  }else if(s->pane==PANE_VALUES){
   int n=choice_count(it);
   s->value=s->value>=n-1?0:sh_min(s->value+l->value_rows,n-1);s->value_scroll=s->value;
  }
 }
 static int pane_at(int x, int y) {
- for(int p=PANE_RAIL;p<=PANE_VALUES;p++)
+ for(int p=PANE_ITEMS;p<=PANE_VALUES;p++)
   if(sh_inside(xz_shell_settings_rect((enum xz_shell_settings_region)(XZ_SHELL_SR_RAIL+p)),x,y))return p;
  return -1;
 }
@@ -674,19 +663,12 @@ static size_t utility_touch_down(struct xz_shell *u, const struct xz_shell_model
  u->down=1;u->down_region=XZ_SHELL_TOUCH_OTHER;u->down_deck=y;
  if(p<0||l->item<0)return 0;
  const struct xz_shell_setting_item *it=&l->t.items[l->item];
- if(p==PANE_RAIL){
-  int r=(y-U_Y)/RAIL_H;
-  if(r>=l->n_cats)return 0;
-  if(r==l->cat_row&&s->pane==PANE_RAIL)s->armed=1;
-  else{if(r!=l->cat_row)select_category(s,l,r);s->pane=PANE_RAIL;}
-  return 0;
- }
  int row=(y-U_Y)/ROW_H;
  if(p==PANE_ITEMS){
   int index=s->item_scroll+row;
-  if(index>=l->n_list)return 0;
+  if(index>=l->n_rows||l->rows[index]<0)return 0;
   if(index==l->list_row&&s->pane==PANE_ITEMS)s->armed=1;
-  else{if(index!=l->list_row)select_item(s,l,index);s->pane=PANE_ITEMS;}
+  else{if(index!=l->list_row)select_row(s,l,index);s->pane=PANE_ITEMS;}
   return 0;
  }
  if(!selectable(it))return 0;
@@ -703,20 +685,31 @@ static size_t utility_touch_down(struct xz_shell *u, const struct xz_shell_model
 static void utility_drag(struct xz_shell *u, struct ustate *s, const struct ulayout *l, int y) {
  int dy=y-u->down_deck;
  if(!s->dragged&&(dy>=8||dy<=-8))s->dragged=1;
- if(!s->dragged||s->touch_pane==PANE_RAIL||s->touch_pane<0||l->item<0)return;
+ if(!s->dragged||s->touch_pane<PANE_ITEMS||l->item<0)return;
  int rows=dy/ROW_H;
  if(!rows)return;
  u->down_deck+=rows*ROW_H;
  const struct xz_shell_setting_item *it=&l->t.items[l->item];
  if(s->touch_pane==PANE_ITEMS){
-  s->item_scroll=clamp(s->item_scroll-rows,0,sh_max(0,l->n_list-ROWS));
+  s->item_scroll=clamp(s->item_scroll-rows,0,sh_max(0,l->n_rows-ROWS));
+  /* the cursor stays on an item row inside the window */
   int r=clamp(l->list_row,s->item_scroll,s->item_scroll+ROWS-1);
-  if(r!=l->list_row)select_item(s,l,r);
+  if(r!=l->list_row){
+   int down=r,up=r;
+   while(down<l->n_rows&&down<s->item_scroll+ROWS&&l->rows[down]<0)down++;
+   while(up>=s->item_scroll&&l->rows[up]<0)up--;
+   r=down<l->n_rows&&down<s->item_scroll+ROWS&&l->rows[down]>=0?down:up>=s->item_scroll?up:l->list_row;
+   if(r!=l->list_row)select_row(s,l,r);
+  }
  }else if(selectable(it)){
   int n=choice_count(it);
   s->value_scroll=clamp(s->value_scroll-rows,0,sh_max(0,n-l->value_rows));
   s->value=clamp(s->value,s->value_scroll,s->value_scroll+l->value_rows-1);
  }
+}
+static void open_page(struct xz_shell *u, struct xz_shell_view *v, int t) {
+ if(t!=u->mods_view.tab){u->mods_view.tab=t;*v=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};}
+ u->mods_view.on_tabs=1;
 }
 static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  struct xz_shell_view *v=&u->stack[u->depth-1];
@@ -728,39 +721,33 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
   return sh_back(u,m,out);
  }
  const struct xz_shell_mods_tab *tab=mods_tab(u,m);
- /* The tab row: a touch picks a tab; with the encoder on it, turn picks and push enters. */
- /* A scrolled row's edge arrows step one tab that way. */
- if(e->kind==XZ_SHELL_TOUCH_DOWN&&e->y>=TABS_Y&&e->y<U_Y){
-  struct tabrow r=tabrow_of(u,m);
-  int step=r.offset>0&&e->x<TAB_EDGE?-1:r.x[r.n-1]+r.w[r.n-1]-r.offset>W&&e->x>=W-TAB_EDGE?1:0;
-  if(step){
-   u->mods_view.tab=open_tab(u,m)+step;u->mods_view.on_tabs=1;
-   *v=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
-   return 0;
-  }
- }
+ /* The rail: a touch picks a page, a second touch on it enters; with the encoder on the rail, turn picks
+    and push enters. */
  if(e->kind==XZ_SHELL_TOUCH_DOWN)for(int t=0;t<tab_count(m);t++)if(sh_inside(xz_shell_mods_tab_rect(u,m,t),e->x,e->y)){
-  if(t!=open_tab(u,m)){u->mods_view.tab=t;*v=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};}
-  u->mods_view.on_tabs=1;
+  if(t==open_tab(u,m)&&u->mods_view.on_tabs){
+   u->mods_view.on_tabs=0;
+   if(!tab||tab->kind==XZ_SHELL_TAB_ITEMS){s.pane=PANE_ITEMS;pack(v,s);}
+  }else open_page(u,v,t);
   return 0;
  }
  if(u->mods_view.on_tabs&&(e->kind==XZ_SHELL_ENCODER_TURN||e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_ENCODER_HOLD)){
   if(e->kind==XZ_SHELL_ENCODER_TURN){
    int t=sh_max(0,sh_min(tab_count(m)-1,open_tab(u,m)+e->delta));
-   if(t!=open_tab(u,m)){u->mods_view.tab=t;*v=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};}
+   if(t!=open_tab(u,m))open_page(u,v,t);
    return 0;
   }
   if(e->kind==XZ_SHELL_ENCODER_PUSH){
    u->mods_view.on_tabs=0;
-   if(!tab||tab->kind==XZ_SHELL_TAB_ITEMS){s.pane=l.n_cats>1?PANE_RAIL:PANE_ITEMS;pack(v,s);}
+   if(!tab||tab->kind==XZ_SHELL_TAB_ITEMS){s.pane=PANE_ITEMS;pack(v,s);}
   }
   return 0;
  }
  if(tab&&tab->kind==XZ_SHELL_TAB_PAGE){
   int open=(e->kind==XZ_SHELL_ENCODER_PUSH)||(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(xz_shell_mods_page_button(),e->x,e->y));
+  if(e->kind==XZ_SHELL_TOUCH_DOWN&&open)u->mods_view.on_tabs=0;
   return open?emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_OPEN_MODS,-1,tab->page,0}):0;
  }
- /* A touch in the panes takes the encoder off the tab row. */
+ /* A touch in the content takes the encoder off the rail. */
  if(e->kind==XZ_SHELL_TOUCH_DOWN&&pane_at(e->x,e->y)>=0)u->mods_view.on_tabs=0;
  /* The slot went away while the screen was open: the stock menu takes over on the next push or touch. */
  if(!tab&&!m->settings_screen&&(e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_TOUCH_DOWN))return hand_off(XZ_SHELL_UTILITY,out);
@@ -769,8 +756,7 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
  case XZ_SHELL_TOUCH_MOVE:if(u->down)utility_drag(u,&s,&l,e->y);break;
  case XZ_SHELL_TOUCH_UP:
   if(u->down&&s.armed&&!s.dragged&&l.item>=0){
-   if(s.touch_pane==PANE_RAIL)s.pane=PANE_ITEMS;
-   else if(s.touch_pane==PANE_ITEMS)enter_values(&s,&l);
+   if(s.touch_pane==PANE_ITEMS)enter_values(&s,&l);
    else if(s.touch_pane==PANE_VALUES)n=apply(u,m,&s,&l,out);
   }
   u->down=0;u->down_region=XZ_SHELL_TOUCH_NONE;s.touch_pane=-1;s.armed=s.dragged=0;
@@ -778,8 +764,7 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
  case XZ_SHELL_ENCODER_TURN:if(l.item>=0&&e->delta)move(&s,&l,e->delta);break;
  case XZ_SHELL_ENCODER_PUSH:
   if(l.item<0)break;
-  if(s.pane==PANE_RAIL)s.pane=PANE_ITEMS;
-  else if(s.pane==PANE_ITEMS)enter_values(&s,&l);
+  if(s.pane==PANE_ITEMS)enter_values(&s,&l);
   else n=apply(u,m,&s,&l,out);
   break;
  case XZ_SHELL_ENCODER_HOLD:if(l.item>=0)page_jump(&s,&l);break;
@@ -802,8 +787,7 @@ int xz_shell_settings_back(struct xz_shell *u, const struct xz_shell_model *m) {
  struct ulayout l;
  struct ustate s=settle(u,m,unpack(v),&l);
  const struct xz_shell_mods_tab *tab=mods_tab(u,m);
- int lowest=l.n_cats>1?PANE_RAIL:PANE_ITEMS;
- if((tab&&tab->kind==XZ_SHELL_TAB_PAGE)||l.item<0||s.pane<=lowest){u->mods_view.on_tabs=1;return 1;}
+ if((tab&&tab->kind==XZ_SHELL_TAB_PAGE)||l.item<0||s.pane<=PANE_ITEMS){u->mods_view.on_tabs=1;return 1;}
  s.pane--;
  pack(v,s);
  return 1;

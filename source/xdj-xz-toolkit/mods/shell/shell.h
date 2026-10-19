@@ -370,8 +370,8 @@ struct xz_shell {
  struct xz_shell_playlist_edit edit;
  struct xz_shell_filter filter;
  char name[XZ_SHELL_NAME_MAX];       /* a playlist name being typed */
- /* The MODS screen (XZ_SHELL_UTILITY): the open tab (0 = UTILITY, the device's own menu; 1.. = the mod
-    tabs), and whether the encoder is on the tab row or inside the tab. */
+ /* The MODS screen (XZ_SHELL_UTILITY): the open page on its rail (0 = UTILITY, the device's own menu;
+    1.. = the mod tabs), and whether the encoder is on the rail (on_tabs) or inside the page. */
  struct { int tab, on_tabs; } mods_view;
  /* One line the shell raises itself when a key or control cannot act here (static text), shown like
     model.notice; the runtime may also read it as the reason for a hand-off. */

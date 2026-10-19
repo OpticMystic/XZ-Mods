@@ -63,19 +63,19 @@ static void hold_menu(struct xz_shell *u, const struct xz_shell_model *m) {
  assert(key(u,m,XZ_SHELL_KEY_MENU_HOLD)==0);
  assert(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.tab==TAB_UTILITY&&u->mods_view.on_tabs==1);
 }
-/* From the tab row: open tab t and push into it. */
+/* From the rail: open page t and push into it. */
 static void enter_tab(struct xz_shell *u, const struct xz_shell_model *m, int t) {
  assert(u->mods_view.on_tabs==1);
  turn(u,m,-TABS);turn(u,m,t);
  assert(u->mods_view.tab==t);
  assert(push(u,m)==0&&u->mods_view.on_tabs==0);
 }
-/* Inside an item tab, from the rail: put the item cursor on id (category cat, by rail row). */
-static void goto_item(struct xz_shell *u, const struct xz_shell_model *m, int rail_row, int id) {
- assert(pane(u)==RAIL_PANE);
- turn(u,m,-8);turn(u,m,rail_row);
- assert(push(u,m)==0&&pane(u)==ITEMS_PANE);
- turn(u,m,-40);
+/* Inside an item page: put the item cursor on id. Categories are header rows the cursor steps over;
+   section says which one id is in, for the reader. */
+static void goto_item(struct xz_shell *u, const struct xz_shell_model *m, int section, int id) {
+ (void)section;
+ assert(pane(u)==ITEMS_PANE&&!u->mods_view.on_tabs);
+ turn(u,m,-99);
  for(int i=0;i<40&&cursor_id(u)!=id;i++)turn(u,m,1);
  assert(cursor_id(u)==id);
 }
@@ -84,26 +84,26 @@ static void test_contract(void) {
  struct xz_shell_model m;model(&m);
  struct xz_shell u;xz_shell_init(&u);
  struct xz_shell_rect back=xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON),rail=xz_shell_settings_rect(XZ_SHELL_SR_RAIL);
+ struct xz_shell_rect items=xz_shell_settings_rect(XZ_SHELL_SR_ITEMS),values=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
  struct xz_shell_rect status=xz_shell_settings_rect(XZ_SHELL_SR_STATUS);
- /* Two groups: STOCK (UTILITY) and MODS; a label before each, so the first tab starts past x 0. */
- int right=0;
+ /* One rail on the left: UTILITY on top, a divider, then the mod pages, each a 48 px entry. */
+ int bottom=rail.y;
  for(int t=0;t<TABS;t++){
   struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,t);
-  assert(r.w>=44&&r.h>=44&&r.x>=right&&(t?1:r.x>0));
-  if(t==1)assert(r.x>right);   /* the MODS label sits between UTILITY and the first mod tab */
-  if(t>1)assert(r.x==right);
-  right=r.x+r.w;
-  /* Clear of the back button, the header buttons and the panes. */
-  assert(r.y>=back.y+back.h&&r.y>=XZ_SHELL_HEADER_HIT_H&&r.y+r.h<=rail.y);
+  assert(r.x==0&&r.w==rail.w&&r.h>=44&&r.y>=bottom&&r.y+r.h<=rail.y+rail.h);
+  if(t==1)assert(r.y>bottom);   /* the divider between the stock menu and the mod pages */
+  if(t>1)assert(r.y==bottom);
+  bottom=r.y+r.h;
  }
- assert(right==XZ_SHELL_WIDTH&&xz_shell_mods_tab_rect(&u,&m,TABS).w==0&&xz_shell_mods_tab_rect(&u,&m,-1).w==0);
- assert(rail.y+rail.h<=status.y&&status.y+status.h==XZ_SHELL_HEIGHT);
+ assert(xz_shell_mods_tab_rect(&u,&m,TABS).w==0&&xz_shell_mods_tab_rect(&u,&m,-1).w==0);
+ /* No top tab row: the panes start right under the title bar. */
+ assert(rail.y==back.y+back.h-2&&items.y==rail.y&&rail.x+rail.w<items.x&&items.x+items.w<values.x);
+ assert(rail.y+rail.h<=status.y&&status.y+status.h==XZ_SHELL_HEIGHT&&rail.h==XZ_SHELL_SETTINGS_ROWS*XZ_SHELL_SETTINGS_ROW_H);
  struct xz_shell_rect b=xz_shell_mods_page_button();
- assert(b.w>=44&&b.h>=44&&b.y>=rail.y&&b.y+b.h<=rail.y+rail.h);
+ assert(b.w>=44&&b.h>=44&&b.x>=items.x&&b.y>=rail.y&&b.y+b.h<=rail.y+rail.h);
  m.mods=NULL;
- struct xz_shell_rect only=xz_shell_mods_tab_rect(&u,&m,0);
- assert(only.x>0&&only.x+only.w==XZ_SHELL_WIDTH&&xz_shell_mods_tab_rect(&u,&m,1).w==0);
- /* Eleven long tabs do not fit: the row scrolls so the open tab is always whole, and some are out of view. */
+ assert(xz_shell_mods_tab_rect(&u,&m,0).h>=44&&xz_shell_mods_tab_rect(&u,&m,1).w==0);
+ /* Eleven mod pages do not fit: the mod entries scroll so the open one shows, UTILITY stays on top. */
  static const struct xz_shell_mods_tab many[11]={
   {"CLASSIC THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,NULL},{"MODERN THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL},
   {"INTERFACE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL},{"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL},
@@ -117,16 +117,15 @@ static void test_contract(void) {
  int hidden_seen=0;
  for(int open=0;open<12;open++){
   u.mods_view.tab=open;
-  struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,open);
-  assert(r.w>=44&&r.x>=0&&r.x+r.w<=XZ_SHELL_WIDTH);
+  assert(xz_shell_mods_tab_rect(&u,&m,open).w>0&&xz_shell_mods_tab_rect(&u,&m,0).w>0);
   for(int t=0;t<12;t++){
    struct xz_shell_rect o=xz_shell_mods_tab_rect(&u,&m,t);
-   if(!o.w)hidden_seen=1;else assert(o.x>=0&&o.x+o.w<=XZ_SHELL_WIDTH&&o.w>=44);
+   if(!o.w)hidden_seen=1;else assert(o.y>=rail.y&&o.y+o.h<=rail.y+rail.h);
   }
   render_into(buffer_a,&u,&m);
  }
  assert(hidden_seen);
- puts("PASS MODS contract: STOCK and MODS tab groups, 44 px tabs, a scrolling row, clear of back, header and panes");
+ puts("PASS MODS contract: one left rail, UTILITY then a divider then the mod pages, scrolling; no top tabs");
 }
 
 static void test_held_menu_and_back_chain(void) {
@@ -135,17 +134,15 @@ static void test_held_menu_and_back_chain(void) {
  hold_menu(&u,&m);
  assert(u.depth==2);
  render_into(buffer_a,&u,&m);
- /* Turn walks the tabs and clamps at both ends; the encoder stays on the row. */
+ /* Turn walks the rail and clamps at both ends; the encoder stays on the rail. */
  assert(turn(&u,&m,1)==0&&u.mods_view.tab==TAB_STEMS&&u.mods_view.on_tabs==1);
  turn(&u,&m,99);assert(u.mods_view.tab==TABS-1);
  turn(&u,&m,-99);assert(u.mods_view.tab==TAB_UTILITY);
- /* Push enters UTILITY at the category rail; push walks rail, items, values. */
- assert(push(&u,&m)==0&&u.mods_view.on_tabs==0&&pane(&u)==RAIL_PANE);
- assert(push(&u,&m)==0&&pane(&u)==ITEMS_PANE);
+ /* Push enters UTILITY at its first item; push opens its values. */
+ assert(push(&u,&m)==0&&u.mods_view.on_tabs==0&&pane(&u)==ITEMS_PANE);
  assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE);
- /* BACK: values, items, rail, tab row, closed. No BACK does anything else on the way. */
- assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&pane(&u)==ITEMS_PANE&&u.depth==2);
- assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&pane(&u)==RAIL_PANE&&u.depth==2&&!u.mods_view.on_tabs);
+ /* BACK: values, items, the rail, closed. No BACK does anything else on the way. */
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&pane(&u)==ITEMS_PANE&&u.depth==2&&!u.mods_view.on_tabs);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.mods_view.on_tabs==1&&u.depth==2&&u.mods_view.tab==TAB_UTILITY);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
  /* Held MENU always lands on UTILITY with the row focused, whatever tab was last open. */
@@ -169,7 +166,7 @@ static void test_held_menu_and_back_chain(void) {
  m.mods=&one_mods;
  enter_tab(&u,&m,1);assert(pane(&u)==ITEMS_PANE);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.mods_view.on_tabs==1&&u.depth==2);
- puts("PASS held MENU lands on MODS > UTILITY; turn picks a tab, push enters, BACK steps panes, row, close");
+ puts("PASS held MENU lands on MODS > UTILITY on the rail; turn picks a page, push enters, BACK steps values, items, rail, close");
 }
 
 static void test_header_mods(void) {
@@ -215,7 +212,7 @@ static void test_set_requests(void) {
  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_MOD&&out[0].deck==TAB_STEMS-1&&out[0].id==22&&out[0].value==3);
  assert(u.depth==2&&pane(&u)==ITEMS_PANE);
  /* The same through touch: highlight a value, then confirm it. */
- key(&u,&m,XZ_SHELL_KEY_BACK);key(&u,&m,XZ_SHELL_KEY_BACK);
+ key(&u,&m,XZ_SHELL_KEY_BACK);   /* items, then the rail */
  enter_tab(&u,&m,TAB_JUMP);
  goto_item(&u,&m,1,15);
  struct xz_shell_rect v=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
@@ -287,27 +284,29 @@ static void test_page_tabs(void) {
 
 static void test_tab_touch(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
- xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);push(&u,&m);
+ xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
  assert(!u.mods_view.on_tabs&&pane(&u)==ITEMS_PANE);
  for(int t=TABS-1;t>=0;t--){
   struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,t);
   assert(tap(&u,&m,r.x+r.w/2,r.y+r.h/2)==0&&u.mods_view.tab==t&&u.mods_view.on_tabs==1&&u.depth==2);
   render_into(buffer_a,&u,&m);
  }
- /* A changed tab starts at its top; a touch in a pane takes the encoder off the row. */
- assert(pane(&u)==RAIL_PANE&&u.stack[1].scroll==0);
- struct xz_shell_rect rail=xz_shell_settings_rect(XZ_SHELL_SR_RAIL);
- send(&u,&m,XZ_SHELL_TOUCH_DOWN,rail.x+10,rail.y+10,0);
+ /* A changed page starts at its top; touching the lit entry again enters it. */
+ assert(u.mods_view.on_tabs&&u.stack[1].scroll==0);
+ struct xz_shell_rect first=xz_shell_mods_tab_rect(&u,&m,0);
+ assert(tap(&u,&m,first.x+first.w/2,first.y+first.h/2)==0&&!u.mods_view.on_tabs&&pane(&u)==ITEMS_PANE);
+ /* A touch in the items takes the encoder off the rail too; BACK returns to it, the back button closes. */
+ key(&u,&m,XZ_SHELL_KEY_BACK);assert(u.mods_view.on_tabs);
+ struct xz_shell_rect items=xz_shell_settings_rect(XZ_SHELL_SR_ITEMS);
+ send(&u,&m,XZ_SHELL_TOUCH_DOWN,items.x+40,items.y+2*XZ_SHELL_SETTINGS_ROW_H+10,0);
  assert(!u.mods_view.on_tabs);
- send(&u,&m,XZ_SHELL_TOUCH_UP,rail.x+10,rail.y+10,0);
- /* The lit rail row was confirmed: items have the encoder. BACK twice reaches the row; the back button closes. */
- assert(pane(&u)==ITEMS_PANE);
- key(&u,&m,XZ_SHELL_KEY_BACK);key(&u,&m,XZ_SHELL_KEY_BACK);
+ send(&u,&m,XZ_SHELL_TOUCH_UP,items.x+40,items.y+2*XZ_SHELL_SETTINGS_ROW_H+10,0);
+ key(&u,&m,XZ_SHELL_KEY_BACK);
  assert(u.mods_view.on_tabs);
  struct xz_shell_rect back=xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON);
  tap(&u,&m,back.x+back.w/2,back.y+back.h/2);
  assert(u.depth==1);
- puts("PASS tab touch selects the tab, focuses the row; pane touch leaves it; back button closes");
+ puts("PASS rail touch picks a page, a second touch enters; a content touch leaves the rail; back button closes");
 }
 
 static void test_one_value(void) {
@@ -395,6 +394,7 @@ static void test_probe_and_wild(void) {
 }
 
 int main(void) {
+ setvbuf(stdout,NULL,_IONBF,0);   /* a failed assertion still shows which test got there */
  fx_track_build(&track,7);
  test_contract();
  test_held_menu_and_back_chain();

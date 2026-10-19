@@ -35,13 +35,16 @@ static void turn(struct xz_shell *u, const struct xz_shell_model *m, int delta) 
 static void push(struct xz_shell *u, const struct xz_shell_model *m) {
  xz_shell_input(u,m,&(struct xz_shell_event){XZ_SHELL_ENCODER_PUSH,0,0,0,0,-1},out);
 }
+static void send_hold(struct xz_shell *u, const struct xz_shell_model *m) {
+ xz_shell_input(u,m,&(struct xz_shell_event){XZ_SHELL_ENCODER_HOLD,0,0,0,0,-1},out);
+}
 static int cursor_id(const struct xz_shell *u) { return u->stack[u->depth-1].cursor-1; }
-/* Held MENU, then into tab t at rail row r, items cursor on id, values open. */
+/* Held MENU, then into page t, the item cursor on id, its values open (section r is for the reader). */
 static void open_item(struct xz_shell *u, const struct xz_shell_model *m, int t, int r, int id) {
+ (void)r;
  xz_shell_init(u);key(u,m,XZ_SHELL_KEY_MENU_HOLD);
  turn(u,m,t);push(u,m);
- turn(u,m,r);push(u,m);
- for(int i=0;i<40&&cursor_id(u)!=id;i++)turn(u,m,1);
+ for(int i=0;i<60&&cursor_id(u)!=id;i++)turn(u,m,1);
  push(u,m);
 }
 
@@ -55,9 +58,9 @@ int main(int argc, char **argv) {
  m.mods=&fxm_model;
  (void)bx_folders;
 
- xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"mods-utility-tab-row");
- push(&u,&m);shot(&u,&m,"mods-utility-rail");
+ xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"mods-utility-rail");
  push(&u,&m);shot(&u,&m,"mods-utility-items");
+ send_hold(&u,&m);shot(&u,&m,"mods-utility-next-category");
  open_item(&u,&m,0,0,XZ_SHELL_ITEM_HOT_CUE_COLOR);shot(&u,&m,"mods-utility-unwritable");
  static const char *notes[FXS_COUNT];
  notes[fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)-fxs_table]="SET IT IN THE COLOR MENU ON THE STOCK SCREEN";
@@ -66,13 +69,13 @@ int main(int argc, char **argv) {
  fxs_model.notes=NULL;
  open_item(&u,&m,0,1,XZ_SHELL_ITEM_WAVE_COLOR);shot(&u,&m,"mods-utility-wave-color");
 
- xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,1);shot(&u,&m,"mods-stems-tab-row");
+ xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,1);shot(&u,&m,"mods-stems-rail");
  open_item(&u,&m,1,1,22);shot(&u,&m,"mods-stems-values");
  open_item(&u,&m,1,1,37);shot(&u,&m,"mods-stems-unwritable");
  open_item(&u,&m,2,0,3);shot(&u,&m,"mods-appearance-theme");
  open_item(&u,&m,3,1,16);shot(&u,&m,"mods-beat-jump-page");
 
- xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,4);shot(&u,&m,"mods-page-tab-row");
+ xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,4);shot(&u,&m,"mods-page-rail");
  push(&u,&m);shot(&u,&m,"mods-page-entered");
 
  /* The MODS header button from PLAY: the first mod tab. */
@@ -81,7 +84,7 @@ int main(int argc, char **argv) {
  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_UP,XZ_SHELL_MODS_X+20,12,0,0,-1},out);
  shot(&u,&m,"mods-from-header");
 
- /* Many mod tabs: the row scrolls, arrows at the edges. */
+ /* Many mod pages: the rail scrolls, UTILITY stays on top. */
  static const struct xz_shell_mods_tab many[11]={
   {"CLASSIC THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,"THE THEMES THE MOD STARTED WITH"},{"MODERN THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL},
   {"INTERFACE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL},{"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL},
@@ -92,9 +95,9 @@ int main(int argc, char **argv) {
  };
  static const struct xz_shell_mods_model many_mods={11,many};
  m.mods=&many_mods;
- xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"mods-many-tabs-utility");
- turn(&u,&m,6);shot(&u,&m,"mods-many-tabs-middle");
- turn(&u,&m,10);shot(&u,&m,"mods-many-tabs-last");
+ xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"mods-many-pages-utility");
+ turn(&u,&m,6);shot(&u,&m,"mods-many-pages-middle");
+ turn(&u,&m,10);shot(&u,&m,"mods-many-pages-last");
  /* An APPEARANCE tab with grouped sections whose names need two lines. */
  static const char *const sections[]={"INTERFACE","CLASSIC THEMES","MODERN THEMES","GROUPED SETTINGS"};
  static const char *const iface[]={"MODERN","CLASSIC"};

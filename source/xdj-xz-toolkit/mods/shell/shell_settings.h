@@ -4,20 +4,23 @@
    settings_screen slot (UTILITY, the device's own menu) and the mods slot
    (the mod tabs).
 
-   MODS screen (XZ_SHELL_UTILITY). A row of tabs under the title in two
-   labelled groups: STOCK (the UTILITY tab, the player's own menu) and MODS
-   (each tab of xz_shell_mods_model). The tab row scrolls to keep the open
-   tab in view when the tabs do not fit. On UTILITY the title reads UTILITY
-   with the version at the right and the panes keep the stock menu's look;
-   on a mod tab it reads MODS.
+   MODS screen (XZ_SHELL_UTILITY). One rail on the left: UTILITY first, the
+   player's own menu (captioned STOCK, a divider under it), then one entry
+   per tab of xz_shell_mods_model. The open page fills the right: its items
+   in a list where each category (UTILITY's stock categories, or a tab's
+   sections) is a header row, and the values pane, as the stock UTILITY
+   screen draws them. On UTILITY the title reads UTILITY with the version at
+   the right; on a mod page it reads MODS. A TAB_PAGE entry shows a card with
+   its open button.
 
    Keys: short MENU on PLAY, SOURCE, INFO and SHORTCUT opens it on the first
    mod tab (UTILITY when there are none; the list screens keep their MENU
    panel); held MENU opens it on UTILITY, and held again there closes it;
    short MENU on it closes it. The MODS header button opens it on the first
-   mod tab. The encoder starts on the tab row (turn picks a tab, push enters
-   it); inside a tab it works the panes (category rail, items, values), BACK
-   steps one pane left, then back to the tab row, then closes the screen.
+   mod page. The encoder starts on the rail (turn picks a page, push enters
+   it); inside a page it works the items and values, encoder hold jumps to
+   the next category; BACK steps values, items, then back to the rail, then
+   closes the screen.
 
    A TAB_ITEMS tab is an item table of its own, drawn and driven exactly like
    UTILITY; setting one of its items emits XZ_SHELL_ACT_SET_MOD {deck = tab
@@ -185,9 +188,9 @@ enum xz_shell_settings_region {
  XZ_SHELL_SR_BACK_BUTTON, XZ_SHELL_SR_RAIL, XZ_SHELL_SR_ITEMS, XZ_SHELL_SR_VALUES, XZ_SHELL_SR_STATUS
 };
 struct xz_shell_rect xz_shell_settings_rect(enum xz_shell_settings_region);
-enum { XZ_SHELL_SETTINGS_ROW_H=38, XZ_SHELL_SETTINGS_ROWS=9, XZ_SHELL_SETTINGS_RAIL_H=48 };
-/* The MODS screen's tab row: tab i's rect (44 px touch target); zero width past the last tab or while
-   the row is scrolled so tab i is out of view. */
+enum { XZ_SHELL_SETTINGS_ROW_H=38, XZ_SHELL_SETTINGS_ROWS=10, XZ_SHELL_SETTINGS_RAIL_H=48 };
+/* The MODS screen's page rail: page i's entry (0 = UTILITY), 48 px tall; zero size past the last page
+   or while the rail is scrolled so page i is out of view. */
 struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell *, const struct xz_shell_model *, int tab);
 /* A TAB_PAGE tab's open button. */
 struct xz_shell_rect xz_shell_mods_page_button(void);
