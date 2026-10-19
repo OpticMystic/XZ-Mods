@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include "shell/shell_browse.h"
 #include "shell/shell_info.h"
+#include "shell_playlists.h"
 
 #define XZ_SHLIB_PATH_DEPTH 8
 struct xz_shlib;
@@ -22,6 +23,14 @@ struct xz_shlib_track {
  uint8_t rating, color_id;
  uint32_t title, artist, album, genre, label, key, file_name, date_added; /* offsets into the text pool */
  uint32_t file_path;   /* the full path below the USB root, e.g. /Contents/Artist/Album/track.mp3 */
+};
+/* The track filter, applied on the worker over the whole list (tracks only; folders stay). Zero = none. */
+struct xz_shlib_filter {
+ int on;
+ int32_t bpm_min_x100, bpm_max_x100;    /* both 0: no BPM limit */
+ int rating_min;                        /* 0: any */
+ uint32_t colors;                       /* bit (colour id - 1), shell_browse.h XZ_SHELL_TAG_COLOR_*; 0: any */
+ char master_key[32];                   /* non-empty: only keys xz_shell_key_match marks GREEN or AMBER */
 };
 /* arena_size: the reader arena for list builds (see shell_runtime.c for the deck size). */
 int xz_shlib_open(const char *path, size_t arena_size, struct xz_shlib **out);
@@ -38,6 +47,8 @@ struct xz_shlib_request {
  uint32_t path[XZ_SHLIB_PATH_DEPTH];
  char query[XZ_SHELL_BROWSE_QUERY];
  int sort_set, sort_column, sort_descending;
+ struct xz_shlib_filter filter;
+ const struct xz_shpl_set *edits;       /* playlist edits merged into PLAYLIST lists; NULL = none. Read only */
 };
 struct xz_shlib_list {
  enum xz_shell_screen screen;
@@ -66,4 +77,13 @@ int xz_shlib_window(const struct xz_shlib *, const struct xz_shlib_list *, int32
 /* INFO record for one track; returns 0 when the id is not in the library. */
 int xz_shlib_info(const struct xz_shlib *, uint32_t track_id, enum xz_shell_source source, struct xz_shell_info_track *out);
 uint32_t xz_shlib_color_rgb(unsigned color_id);
+/* Columns the rows carry and every list can sort by (bit per enum xz_shell_browse_column). */
+uint32_t xz_shlib_sort_keys(void);
+/* Worker only (uses the reader): a stick playlist's tracks in stick order, malloc'd (free it). */
+int xz_shlib_playlist_tracks(struct xz_shlib *, uint32_t id, uint32_t **tracks, uint32_t *count);
+/* A stick playlist's (or folder's) name, "" when unknown. */
+const char *xz_shlib_playlist_name(const struct xz_shlib *, uint32_t id);
+/* Worker only: the playlists (not folders) merged with edits, for ADD TO PLAYLIST. Names are copied. */
+struct xz_shlib_playlist_ref { uint32_t id; char name[XZ_SHELL_NAME_MAX]; int32_t tracks; };
+int xz_shlib_playlist_refs(struct xz_shlib *, const struct xz_shpl_set *, struct xz_shlib_playlist_ref *out, int capacity);
 #endif

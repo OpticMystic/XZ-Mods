@@ -12,6 +12,7 @@
 #include "shell_model.h"
 #include "shell_library.h"
 #include "shell_analysis.h"
+#include "shell_playlists.h"
 #include "shell/shell_browse.h"
 #include "shell/shell_info.h"
 #include "shell/shell_settings.h"
@@ -24,6 +25,7 @@
 #include "ui/native_skin_runtime.h"
 #include "ui/themes.h"
 #include <dirent.h>
+#include <errno.h>
 #include <dlfcn.h>
 #include <limits.h>
 #include <math.h>
@@ -201,7 +203,24 @@ static int stock_play(void) { return stock_play_parts(NULL); }
 
 /* ---- libraries ---- */
 enum { USB_NONE, USB_LOADING, USB_READY, USB_ERROR };
-static struct { struct xz_shlib *lib; int status, space_known; uint64_t free_bytes, total_bytes; uint32_t tracks; } usb[2];
+static struct { struct xz_shlib *lib; int status, space_known, rdonly; uint64_t free_bytes, total_bytes; uint32_t tracks; char root[1024]; } usb[2];
+/* Under mutex. The browse column choice (0 = the default columns), the active track filter, each stick's
+   playlist edits (authoritative; the worker builds from copies), queued edits, the merged playlists for
+   ADD TO PLAYLIST, and stem mutes waiting for ui_runtime.c. */
+static uint32_t column_mask;
+static struct xz_shlib_filter active_filter;
+static struct xz_shpl_set edits[2];
+#define PL_QUEUE 16
+static struct { int slot; struct xz_shell_playlist_edit e; } pl_queue[PL_QUEUE];
+static unsigned pl_head, pl_count;
+#define PL_REFS 128
+static struct xz_shlib_playlist_ref refs[2][PL_REFS];
+static int ref_count[2];
+static struct xz_shell_playlist_ref playlist_refs[PL_REFS];
+static struct { int deck, stem, value; } stem_queue[8];
+static unsigned stem_count;
+static void publish_refs(int slot);
+static void notice_locked(uint32_t now, const char *text);
 static int browse_source=-1;
 enum { L_BROWSE, L_PLAYLIST, L_SEARCH, L_COUNT };
 static struct list_slot {
@@ -314,6 +333,28 @@ static void fill_browse(struct xz_shlib *lib) {
   rows[i].played=played_has((uint8_t)(2+browse_source),rows[i].id);rows[i].known|=1u<<XZ_SHELL_RF_PLAYED;
  }
  browse.rows=rows;
+ /* Sort keys and column choices: every column the rows carry. Columns: the chosen mask in enum order. */
+ browse.sort_keys=browse.column_choices=xz_shlib_sort_keys();browse.known|=BF(SORT_KEYS)|BF(COLUMN_CHOICES);
+ if(column_mask&&!l->folders){
+  browse.column_count=0;
+  for(int c=0;c<XZ_SHELL_COL_COUNT&&browse.column_count<XZ_SHELL_BROWSE_COLUMNS;c++)
+   if(((column_mask|(1u<<XZ_SHELL_COL_TITLE))>>c)&1u)browse.columns[browse.column_count++]=(enum xz_shell_browse_column)c;
+ }
+ /* Playlist editing: what this list allows, the edited marks and the ADD TO PLAYLIST targets. */
+ if(model.capabilities&XZ_SHELL_CAP_PLAYLIST_EDIT&&l->category==XZ_SHELL_CAT_PLAYLIST&&ls->req.screen!=XZ_SHELL_SEARCH){
+  if(l->folders)browse.edit=XZ_SHELL_EDIT_PLAYLISTS;
+  else if(ls->req.depth>0){browse.edit=XZ_SHELL_EDIT_TRACKS;browse.edit_playlist=ls->req.path[ls->req.depth-1];}
+  if(browse.edit)browse.known|=BF(EDIT);
+ }
+ for(int i=0;i<browse.window_count;i++)if(rows[i].kind==XZ_SHELL_ROW_FOLDER&&l->category==XZ_SHELL_CAT_PLAYLIST){
+  const struct xz_shpl *e=xz_shpl_find(&edits[browse_source],rows[i].id);
+  if(e&&(e->created||e->renamed||e->has_tracks))rows[i].known|=1u<<XZ_SHELL_RF_EDITED;
+ }
+ if(model.capabilities&XZ_SHELL_CAP_PLAYLIST_EDIT){
+  int n=ref_count[browse_source];
+  for(int i=0;i<n;i++)playlist_refs[i]=(struct xz_shell_playlist_ref){refs[browse_source][i].id,refs[browse_source][i].name,refs[browse_source][i].tracks};
+  browse.playlists=playlist_refs;browse.playlist_count=n;browse.known|=BF(PLAYLISTS);
+ }
 }
 static void fill_info(void) {
  memset(&info_model,0,sizeof info_model);
@@ -377,6 +418,9 @@ static void fill_slots_locked(void) {
  if(has(G_TIME_MODE)||has(G_QUANTIZE))caps|=XZ_SHELL_CAP_SET_SETTING;
  if(lib)caps|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
  if(lib&&load_enabled&&has(G_LOAD))caps|=XZ_SHELL_CAP_LOAD;
+ if(lib)caps|=XZ_SHELL_CAP_FILTER;
+ if(lib&&!usb[browse_source].rdonly&&usb[browse_source].root[0])caps|=XZ_SHELL_CAP_PLAYLIST_EDIT;
+ if(last_input.stem_muted_known[0]||last_input.stem_muted_known[1])caps|=XZ_SHELL_CAP_STEM_MUTE;
  model.capabilities=caps;
  model.settings.writable=0;
  for(int id=0;id<XZ_SHELL_SETTING_COUNT;id++)
@@ -784,7 +828,7 @@ static void scan_usb(void) {
   }
   if(found&&!strcmp(path,seen_path[slot])&&same_file(&st,&seen[slot]))continue;
   if(!found&&!seen_path[slot][0])continue;
-  struct xz_shlib *next=NULL;uint64_t free_bytes=0,total_bytes=0;int space=0;char root[1024]="";
+  struct xz_shlib *next=NULL;uint64_t free_bytes=0,total_bytes=0;int space=0,rdonly=0;char root[1024]="";
   if(found){
    pthread_mutex_lock(&mutex);usb[slot].status=USB_LOADING;dirty_flag=1;pthread_mutex_unlock(&mutex);
    struct stat after;
@@ -794,13 +838,16 @@ static void scan_usb(void) {
    snprintf(root,sizeof root,"%s",path);
    char *cut=strstr(root,"/PIONEER/rekordbox/export.pdb");if(cut)*cut=0;
    struct statvfs vfs;
-   if(!statvfs(root,&vfs)){free_bytes=(uint64_t)vfs.f_bavail*vfs.f_frsize;total_bytes=(uint64_t)vfs.f_blocks*vfs.f_frsize;space=1;}
+   if(!statvfs(root,&vfs)){free_bytes=(uint64_t)vfs.f_bavail*vfs.f_frsize;total_bytes=(uint64_t)vfs.f_blocks*vfs.f_frsize;space=1;rdonly=!!(vfs.f_flag&ST_RDONLY);}
   }
   pthread_mutex_lock(&mutex);
   if(usb[slot].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[slot].lib;
   usb[slot].lib=next;usb[slot].status=next?USB_READY:found?USB_ERROR:USB_NONE;
   usb[slot].tracks=xz_shlib_track_count(next);usb[slot].space_known=space;
-  usb[slot].free_bytes=free_bytes;usb[slot].total_bytes=total_bytes;
+  usb[slot].free_bytes=free_bytes;usb[slot].total_bytes=total_bytes;usb[slot].rdonly=rdonly;
+  snprintf(usb[slot].root,sizeof usb[slot].root,"%s",next?root:"");
+  /* This stick's playlist edits: read from its sidecar below, or gone with it. */
+  xz_shpl_free(&edits[slot]);ref_count[slot]=0;
   xz_mods_shell_proof_v1.library_tracks[slot]=usb[slot].tracks;
   for(int k=0;k<L_COUNT;k++)if(lists[k].source==(int)slot){retire_list(lists[k].result);lists[k].result=NULL;lists[k].requested=0;}
   if(browse_source==(int)slot&&!next)browse_source=-1;
@@ -819,11 +866,71 @@ static void scan_usb(void) {
    forget_root(analysis[slot].root);analysis_drop((int)slot);
    snprintf(analysis[slot].root,sizeof analysis[slot].root,"%s",root);analysis_build((int)slot,why);
   }else{forget_root(analysis[slot].root);analysis_drop((int)slot);}
+  if(next){
+   struct xz_shpl_set loaded_edits;
+   int rc=xz_shpl_load(&loaded_edits,root);
+   pthread_mutex_lock(&mutex);
+   if(!rc&&usb[slot].lib==next){xz_shpl_free(&edits[slot]);edits[slot]=loaded_edits;xz_shpl_init(&loaded_edits);}
+   pthread_mutex_unlock(&mutex);
+   xz_shpl_free(&loaded_edits);
+   if(debug){char line[200];snprintf(line,sizeof line,"SHELL_PLAYLISTS: usb%u sidecar=%s edited=%u readonly=%d",slot+1,rc?"unreadable":"ok",edits[slot].n,rdonly);xz_log(line);}
+   publish_refs((int)slot);
+  }
   /* A failed open is retried when the file changes, not every second. */
   snprintf(seen_path[slot],sizeof seen_path[slot],"%s",found?path:"");seen[slot]=st;
   if(debug){char line[1400];snprintf(line,sizeof line,"SHELL_LIBRARY: usb%u %s tracks=%u mount=%d source=%s analysis=%s",slot+1,next?path:"none",
    usb[slot].tracks,mount,mount_source[0]?mount_source:"-",why);xz_log(line);}
  }
+}
+
+/* Worker: one playlist edit. The stick's own track order is read here (the reader is worker-only), the
+   edit applies to the authoritative set under the lock, the set is written to the stick atomically, and
+   on a refused write the set goes back to what is on the stick and the shell says why. */
+static void publish_refs(int slot) {
+ struct xz_shpl_set copy;struct xz_shlib_playlist_ref out[PL_REFS];int n=0;
+ pthread_mutex_lock(&mutex);struct xz_shlib *lib=usb[slot].lib;int ok=!xz_shpl_copy(&copy,&edits[slot]);pthread_mutex_unlock(&mutex);
+ if(!ok)return;
+ if(lib)n=xz_shlib_playlist_refs(lib,&copy,out,PL_REFS);
+ xz_shpl_free(&copy);
+ pthread_mutex_lock(&mutex);
+ if(usb[slot].lib==lib){memcpy(refs[slot],out,(size_t)n*sizeof *out);ref_count[slot]=n;if(refreshed)fill_slots_locked();dirty_flag=1;}
+ pthread_mutex_unlock(&mutex);
+}
+static void run_playlist_edit(int slot, const struct xz_shell_playlist_edit *e) {
+ struct xz_shlib *lib=usb[slot].lib;
+ if(!lib)return;
+ uint32_t *base=NULL,base_n=0;const char *base_name="";
+ int track_op=e->op==XZ_SHELL_PL_ADD_TRACK||e->op==XZ_SHELL_PL_REMOVE_TRACK||e->op==XZ_SHELL_PL_MOVE_TRACK;
+ pthread_mutex_lock(&mutex);
+ const struct xz_shpl *had=xz_shpl_find(&edits[slot],e->playlist);
+ int need_base=track_op&&!(had&&had->has_tracks)&&e->playlist<XZ_SHPL_FIRST_CREATED;
+ char root[1024];snprintf(root,sizeof root,"%s",usb[slot].root);
+ pthread_mutex_unlock(&mutex);
+ if(need_base){
+  if(xz_shlib_playlist_tracks(lib,e->playlist,&base,&base_n)){base=NULL;base_n=0;}
+  base_name=xz_shlib_playlist_name(lib,e->playlist);
+ }else if(e->op==XZ_SHELL_PL_RENAME)base_name=xz_shlib_playlist_name(lib,e->playlist);
+ struct xz_shpl_set before,after;int rc=-1,saved=-1,err=0;uint32_t created=0;
+ pthread_mutex_lock(&mutex);
+ if(!xz_shpl_copy(&before,&edits[slot])){
+  rc=xz_shpl_apply(&edits[slot],e,base,base_n,base_name,&created);
+  if(!rc&&xz_shpl_copy(&after,&edits[slot])){rc=-1;xz_shpl_free(&edits[slot]);edits[slot]=before;xz_shpl_init(&before);}
+ }
+ pthread_mutex_unlock(&mutex);
+ free(base);
+ if(!rc){saved=xz_shpl_save(&after,root);err=errno;xz_shpl_free(&after);}
+ pthread_mutex_lock(&mutex);
+ if(!rc&&saved){
+  /* Not on the stick: the edit is undone so the shell never shows what a reboot would lose. */
+  xz_shpl_free(&edits[slot]);edits[slot]=before;xz_shpl_init(&before);
+  notice_locked(now_ms(),err==EROFS?"THIS STICK IS READ-ONLY: PLAYLISTS CANNOT CHANGE":err==ENOSPC?"THE STICK IS FULL: PLAYLIST NOT SAVED":"PLAYLIST NOT SAVED");
+ }else if(rc)notice_locked(now_ms(),"PLAYLIST CHANGE NOT APPLIED");
+ xz_shpl_free(&before);
+ for(int k=0;k<L_COUNT;k++)if(lists[k].requested&&lists[k].source==slot)list_rebuild(&lists[k]);
+ pthread_mutex_unlock(&mutex);
+ if(debug){char line[200];snprintf(line,sizeof line,"SHELL_PLAYLIST: usb%d op=%d playlist=%u track=%u result=%d saved=%d errno=%d created=%u",
+  slot+1,(int)e->op,e->playlist,e->track,rc,rc?-1:saved,saved?err:0,created);xz_log(line);}
+ publish_refs(slot);
 }
 
 /* ---- worker ---- */
@@ -865,14 +972,27 @@ static void *worker(void *unused) {
    pthread_mutex_unlock(&mutex);scan_usb();pthread_mutex_lock(&mutex);
    last_scan=now_ms();continue;
   }
+  if(!worked&&pl_count){
+   int slot=pl_queue[pl_head].slot;struct xz_shell_playlist_edit e=pl_queue[pl_head].e;
+   pl_head=(pl_head+1)%PL_QUEUE;pl_count--;
+   pthread_mutex_unlock(&mutex);
+   run_playlist_edit(slot,&e);
+   pthread_mutex_lock(&mutex);
+   worked=1;
+  }
   for(int k=0;k<L_COUNT&&!worked;k++){
    struct list_slot *ls=&lists[k];
    if(!ls->requested||ls->built==ls->wanted||ls->source<0||!usb[ls->source].lib)continue;
    struct xz_shlib_request req=ls->req;uint32_t gen=ls->wanted;struct xz_shlib *lib=usb[ls->source].lib;
+   /* The build reads the filter and its own copy of the stick's playlist edits. */
+   struct xz_shpl_set snapshot;req.filter=active_filter;
+   if(xz_shpl_copy(&snapshot,&edits[ls->source]))xz_shpl_init(&snapshot);
+   req.edits=&snapshot;
    pthread_mutex_unlock(&mutex);
    /* Only this thread frees libraries, so lib stays valid without the lock. */
    uint32_t began=now_ms();struct xz_shlib_list *result=NULL;
    int rc=xz_shlib_build(lib,&req,&result);
+   xz_shpl_free(&snapshot);
    uint32_t took=now_ms()-began;
    pthread_mutex_lock(&mutex);
    xz_mods_shell_proof_v1.list_build_ms=took;
@@ -1019,12 +1139,41 @@ static void hand_off_locked(uint32_t now, const char *why, unsigned what) {
   xz_log(line);
  }
 }
+/* The FILTER panel's filter as the library applies it, with the master deck's BPM and key taken now.
+   Every list in use is rebuilt with it on the worker. */
+static void apply_filter(int on) {
+ memset(&active_filter,0,sizeof active_filter);
+ if(on){
+  const struct xz_shell_filter *f=&shell.filter;
+  const struct xz_shell_deck *master=NULL;
+  for(int d=0;d<XZ_SHELL_DECKS;d++)if((model.deck[d].known&K(MASTER))&&model.deck[d].master)master=&model.deck[d];
+  active_filter.on=1;
+  if(f->bpm==XZ_SHELL_FILTER_BPM_RANGE){active_filter.bpm_min_x100=f->bpm_min_x100;active_filter.bpm_max_x100=f->bpm_max_x100;}
+  else if(f->bpm==XZ_SHELL_FILTER_BPM_MASTER){
+   if(master&&(master->known&K(BPM))){
+    int32_t spread=f->bpm_spread*100;
+    active_filter.bpm_min_x100=master->bpm_x100-spread;active_filter.bpm_max_x100=master->bpm_x100+spread;
+    if(active_filter.bpm_min_x100<1)active_filter.bpm_min_x100=1;
+   }else notice_locked(now_ms(),"NO MASTER DECK: BPM FILTER OFF");
+  }
+  if(f->key_compatible){
+   if(master&&(master->known&K(KEY))&&master->key)snprintf(active_filter.master_key,sizeof active_filter.master_key,"%s",master->key);
+   else notice_locked(now_ms(),"NO MASTER KEY: KEY FILTER OFF");
+  }
+  active_filter.rating_min=f->rating_min;active_filter.colors=f->colors;
+  /* MY TAG needs the export's my-tag tables, which the reader does not parse yet. */
+  if(f->my_tags)notice_locked(now_ms(),"MY TAG FILTER IS NOT AVAILABLE YET");
+ }
+ for(int k=0;k<L_COUNT;k++)if(lists[k].requested)list_rebuild(&lists[k]);
+}
 static void browse_action(int32_t value, int op) {
  int k=list_index(xz_shell_screen(&shell));
  if(k<0)k=shown_list(NULL);
  struct list_slot *ls=&lists[k];
  struct xz_shlib_request *r=&ls->req;
  switch(op){
+ case XZ_SHELL_BROWSE_SET_COLUMNS:column_mask=(uint32_t)value|(1u<<XZ_SHELL_COL_TITLE);return;
+ case XZ_SHELL_BROWSE_FILTER:apply_filter(value!=0);return;
  case XZ_SHELL_BROWSE_REQUEST_WINDOW:ls->window_start=value<0?0:value;return;
  case XZ_SHELL_BROWSE_OPEN:if(r->depth>=XZ_SHLIB_PATH_DEPTH)return;r->path[r->depth++]=(uint32_t)value;r->sort_set=0;break;
  case XZ_SHELL_BROWSE_UP:if(r->depth>0)r->depth--;r->sort_set=0;break;
@@ -1081,6 +1230,9 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
       opens nothing, and UiKey_Menu belongs to Ui_EventTask. Stay on screen instead of showing an
       unchanged stock screen for the grace period. */
    if(a->id==XZ_SHELL_HAND_OFF_MENU){refuse();menu_inert=1;break;}
+   /* value = 1 + the stock item the shell's SHORTCUT/UTILITY row stands for. Opening stock at that item
+      (Util_EnterMenu_*) is not proven safe from these threads, so the hand-off stays plain and the item is logged. */
+   if(debug&&a->value>0){char line[120];snprintf(line,sizeof line,"SHELL_HANDOFF: stock_item=%d (opened at its top: Util_EnterMenu_* not called)",(int)a->value-1);xz_log(line);}
    hand_off_locked(now,"action_screen",(unsigned)a->id);break;
   case XZ_SHELL_ACT_OPEN_MODS:
    __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_OPEN_MODS,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;xz_mods_shell_proof_v1.ui_requests++;break;
@@ -1091,8 +1243,23 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   case XZ_SHELL_ACT_SET_SOURCE:
    if(a->id==XZ_SHELL_SRC_USB1||a->id==XZ_SHELL_SRC_USB2){
     int slot=a->id==XZ_SHELL_SRC_USB1?0:1;
-    if(usb[slot].lib)browse_source=slot;else refuse();
-   }else refuse();
+    if(usb[slot].lib)browse_source=slot;
+    else{refuse();notice_locked(now,slot?"USB2 IS NOT CONNECTED":"USB1 IS NOT CONNECTED");}
+   }else{refuse();notice_locked(now,a->id==XZ_SHELL_SRC_LINK?"LINK BROWSING IS NOT AVAILABLE YET":"COMPUTER BROWSING IS NOT AVAILABLE YET");}
+   break;
+  case XZ_SHELL_ACT_PLAYLIST:
+   if(!(model.capabilities&XZ_SHELL_CAP_PLAYLIST_EDIT)||browse_source<0||pl_count>=PL_QUEUE){
+    refuse();notice_locked(now,browse_source>=0&&usb[browse_source].rdonly?"THIS STICK IS READ-ONLY: PLAYLISTS CANNOT CHANGE":"PLAYLIST CHANGE NOT APPLIED");break;
+   }
+   pl_queue[(pl_head+pl_count)%PL_QUEUE].slot=browse_source;
+   pl_queue[(pl_head+pl_count)%PL_QUEUE].e=shell.edit;
+   pl_queue[(pl_head+pl_count)%PL_QUEUE].e.op=(enum xz_shell_playlist_op)a->id;
+   pl_count++;pthread_cond_signal(&wake);
+   break;
+  case XZ_SHELL_ACT_STEM_MUTE:
+   if(!(model.capabilities&XZ_SHELL_CAP_STEM_MUTE)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<0||a->id>2||stem_count>=8){refuse();break;}
+   stem_queue[stem_count].deck=a->deck;stem_queue[stem_count].stem=a->id;stem_queue[stem_count].value=a->value!=0;stem_count++;
+   __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_STEM_MUTE,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
    break;
   case XZ_SHELL_ACT_ZOOM:save_display(XZ_SHELL_ITEM_WAVE_ZOOM,a->value);break; /* shell state, kept */
   case XZ_SHELL_ACT_ACTIVE_DECK:case XZ_SHELL_ACT_NONE:break; /* shell state */
@@ -1395,6 +1562,13 @@ int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint3
  return owns;
 }
 
+int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value) {
+ pthread_mutex_lock(&mutex);
+ int got=stem_count>0;
+ if(got){*deck=stem_queue[0].deck;*stem=stem_queue[0].stem;*value=stem_queue[0].value;memmove(stem_queue,stem_queue+1,(--stem_count)*sizeof *stem_queue);}
+ pthread_mutex_unlock(&mutex);
+ return got;
+}
 unsigned xz_shell_runtime_take_ui_requests(void) { ui_requests_at=0;return __atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL); }
 /* ui_runtime.c reports a header action it took but could not carry out (one short caps sentence). */
 void xz_shell_runtime_notice(const char *text) {
