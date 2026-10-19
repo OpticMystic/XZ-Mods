@@ -341,11 +341,19 @@ static void test_rail_and_toggles(void) {
  send(&u,&m,XZ_SHELL_TOUCH_DOWN,r7.x+20,r7.y+10,0);
  send(&u,&m,XZ_SHELL_TOUCH_MOVE,r7.x+20,r7.y+10-400,0);
  assert(send(&u,&m,XZ_SHELL_TOUCH_UP,r7.x+20,r7.y+10-400,0)==0);
- /* first visible is now FOLDER-4 = entry 4; HISTORY is slot 6, MATCHING slot 7 */
- assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_RAIL,6))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_BROWSE);
- assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_RAIL,7))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
- assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_RAIL,4))==1&&is_op(&out[0],XZ_SHELL_BROWSE_CATEGORY)&&out[0].value==XZ_SHELL_CAT_PLAYLIST);
+ /* Thirteen entries with SEARCH at the end: the first visible is now entry 5 (GENRE); HISTORY is
+    slot 5, MATCHING slot 6, SEARCH slot 7. */
+ assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_RAIL,5))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_BROWSE);
+ assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_RAIL,6))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_RAIL,3))==1&&is_op(&out[0],XZ_SHELL_BROWSE_CATEGORY)&&out[0].value==XZ_SHELL_CAT_PLAYLIST);
  render_checked(&u,&m,buffer_a);
+ /* The XZ has no SEARCH key: the rail's last entry opens it. */
+ {
+  struct xz_shell keep=u;
+  tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_RAIL,7));
+  assert(xz_shell_screen(&u)==XZ_SHELL_SEARCH);
+  u=keep;
+ }
  /* Unknown categories are not drawn and not touchable. */
  b.category_known=1u<<XZ_SHELL_CAT_TRACK;
  assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_RAIL,3))==0);

@@ -11,9 +11,11 @@
 #include <string.h>
 
 enum {
- TOP_H=26, LANE_Y=26, LANE_H=124, LANE_GAP=3, COL_W=96, WAVE_X=98, WAVE_W=XZ_SHELL_WIDTH-WAVE_X-2,
- STRIP_Y=LANE_Y+2*LANE_H+LANE_GAP+3, STRIP_H=XZ_SHELL_HEIGHT-STRIP_Y, HALF_W=XZ_SHELL_WIDTH/2, PAD=8,
- NUM_Y=STRIP_Y+34, CHIP_ROW_Y=STRIP_Y+97, OVERVIEW_Y=STRIP_Y+112, OVERVIEW_H=56, TICK_H=10, EDGE=12,
+ TOP_H=26, LANE_Y=26, LANE_H=116, LANE_GAP=3, COL_W=96, WAVE_X=98, WAVE_W=XZ_SHELL_WIDTH-WAVE_X-2,
+ PAD_ROW_Y=LANE_Y+2*LANE_H+LANE_GAP+3, PAD_ROW_H=28,
+ STRIP_Y=PAD_ROW_Y+PAD_ROW_H, STRIP_H=XZ_SHELL_HEIGHT-STRIP_Y, HALF_W=XZ_SHELL_WIDTH/2, PAD=8,
+ NUM_Y=STRIP_Y+34, CHIP_ROW_Y=STRIP_Y+97, OVERVIEW_Y=STRIP_Y+112, OVERVIEW_H=44, TICK_H=10, EDGE=12,
+ STEM_X=46, STEM_W=62, STEM_GAP=6, STEM_H=22, LAMP_W=14, LAMP_GAP=3,
  CHIP_Y=5, CHIP_H=16, CHIP_GAP=8,
  INFO_W=44, INFO_X=XZ_SHELL_HEADER_X-INFO_W-2, LINK_RIGHT=INFO_X-2, FX_Y=2, FX_H=22, FX_GAP=10
 };
@@ -51,6 +53,7 @@ struct xz_shell_rect xz_shell_play_rect(enum xz_shell_play_region r, int deck) {
  case XZ_SHELL_R_ZOOM:return (struct xz_shell_rect){XZ_SHELL_WIDTH-84,lane_y(1)+LANE_H-17,82,15};
  case XZ_SHELL_R_INFO_BUTTON:return (struct xz_shell_rect){INFO_X,0,INFO_W,TOP_H};
  case XZ_SHELL_R_FX:{int x=fx_left();return (struct xz_shell_rect){x,FX_Y,fx_right()-x,FX_H};}
+ case XZ_SHELL_R_PAD_ROW:return (struct xz_shell_rect){sx,PAD_ROW_Y,HALF_W-4,PAD_ROW_H};
  }
  return (struct xz_shell_rect){0,0,0,0};
 }
@@ -191,7 +194,7 @@ static void render_column(const struct xz_shell *u, const struct xz_shell_model 
  sh_text(c,6,ly+4,text,SH_TEXT,SH_WHITE);
  if(sh_has(d,XZ_SHELL_F_BAR_PHASE))for(int b=0;b<4;b++)
   xz_rect(c,COL_W-30+b*7,ly+10,5,4,d->bar_phase==b+1?SH_WHITE:xz_blend(active?SH_BLUE:SH_RAIL,SH_WHITE,80));
- static const int rows[4]={24,50,76,102};
+ static const int rows[4]={24,47,70,93};
  for(int i=0;i<4;i++)xz_rect(c,0,ly+rows[i]-1,COL_W,1,SH_BLACK);
  /* source */
  const char *source=sh_has(d,XZ_SHELL_F_SOURCE)?
@@ -201,30 +204,32 @@ static void render_column(const struct xz_shell *u, const struct xz_shell_model 
  sh_usb_icon(c,7,ly+29,source_ink);
  sh_text(c,24,ly+28,source,SH_TEXT,source_ink);
  /* key */
- sh_text(c,6,ly+57,"KEY",SH_SMALL,SH_DIM);
+ sh_text(c,6,ly+54,"KEY",SH_SMALL,SH_DIM);
  if(sh_has(d,XZ_SHELL_F_KEY)&&d->key){
-  uint32_t ink=d->key_matches_master?SH_GREEN:SH_WHITE;
+  /* Traffic light against the master deck's key; the master's own key is the reference, so plain. */
+  int is_master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
+  uint32_t ink=is_master?SH_WHITE:sh_key_ink(m,d->key,d->key_matches_master,SH_WHITE);
   char key[8];const char *shown=sh_key_text(d->key,sh_key_display(u),key,sizeof key);
   int kw=sh_min(40,sh_text_width(c,shown,SH_TEXT));
-  sh_text_fit(c,32,ly+54,40,shown,SH_TEXT,ink);
+  sh_text_fit(c,32,ly+51,40,shown,SH_TEXT,ink);
   if(sh_has(d,XZ_SHELL_F_KEY_SHIFT)&&d->key_shift){
    int x=32+kw+5;
-   sh_triangle(c,x+3,ly+57,4,d->key_shift<0,SH_WHITE);
+   sh_triangle(c,x+3,ly+54,4,d->key_shift<0,SH_WHITE);
    snprintf(text,sizeof text,"%d",d->key_shift<0?-d->key_shift:d->key_shift);
-   sh_text(c,x+9,ly+57,text,SH_SMALL,SH_WHITE);
+   sh_text(c,x+9,ly+54,text,SH_SMALL,SH_WHITE);
   }
- }else sh_text(c,32,ly+54,"--",SH_TEXT,SH_DIM);
+ }else sh_text(c,32,ly+51,"--",SH_TEXT,SH_DIM);
  /* beat jump */
- sh_text(c,6,ly+78,"BEAT",SH_SMALL,SH_DIM);sh_text(c,6,ly+89,"JUMP",SH_SMALL,SH_DIM);
+ sh_text(c,6,ly+71,"BEAT",SH_SMALL,SH_DIM);sh_text(c,6,ly+81,"JUMP",SH_SMALL,SH_DIM);
  /* A zero jump is no jump size at all: the blank, not a number. */
- if(sh_has(d,XZ_SHELL_F_BEAT_JUMP)&&d->beat_jump_num>0){fmt_fraction(text,sizeof text,d->beat_jump_num,d->beat_jump_den);sh_text(c,44,ly+80,text,SH_TEXT,SH_WHITE);}
- else sh_text(c,44,ly+80,"--",SH_TEXT,SH_DIM);
+ if(sh_has(d,XZ_SHELL_F_BEAT_JUMP)&&d->beat_jump_num>0){fmt_fraction(text,sizeof text,d->beat_jump_num,d->beat_jump_den);sh_text(c,44,ly+73,text,SH_TEXT,SH_WHITE);}
+ else sh_text(c,44,ly+73,"--",SH_TEXT,SH_DIM);
  /* quantize */
  int qk=sh_has(d,XZ_SHELL_F_QUANTIZE);
  uint32_t q_ink=qk&&d->quantize_on?SH_RED:SH_DIM;
- sh_text(c,6,ly+105,"Q",SH_TEXT,q_ink);
- if(qk){fmt_fraction(text,sizeof text,d->quantize_num,d->quantize_den);sh_text(c,44,ly+105,text,SH_TEXT,d->quantize_on?SH_RED:SH_WHITE);}
- else sh_text(c,44,ly+105,"-",SH_TEXT,SH_DIM);
+ sh_text(c,6,ly+97,"Q",SH_TEXT,q_ink);
+ if(qk){fmt_fraction(text,sizeof text,d->quantize_num,d->quantize_den);sh_text(c,44,ly+97,text,SH_TEXT,d->quantize_on?SH_RED:SH_WHITE);}
+ else sh_text(c,44,ly+97,"-",SH_TEXT,SH_DIM);
 }
 
 /* ---- scrolling lane ----
@@ -249,6 +254,22 @@ static int fx_on_deck(const struct xz_shell_model *m, int deck) {
  const struct xz_shell_fx *f=&m->fx;
  if(!fx_on(f)||!fx_has(f,XZ_SHELL_FX_F_CHANNEL))return 0;
  return f->channel==XZ_SHELL_FX_CH_MASTER||(f->channel==XZ_SHELL_FX_CH_1&&deck==0)||(f->channel==XZ_SHELL_FX_CH_2&&deck==1);
+}
+/* Where the track would be without the slip move, advanced like elapsed; -1 when not shown. */
+static int32_t slip_now(const struct xz_shell_model *m, const struct xz_shell_deck *d) {
+ if(!sh_has(d,XZ_SHELL_F_SLIP)||!d->slip||!sh_has(d,XZ_SHELL_F_SLIP_POSITION))return -1;
+ int64_t e=d->slip_ms;
+ if(d->slip_at_ms&&sh_has(d,XZ_SHELL_F_PLAYING)&&d->playing){
+  uint32_t dt=m->clock_ms-d->slip_at_ms;
+  if(dt<=0x7fffffffu){
+   if(dt>XZ_SHELL_EXTRAPOLATE_MAX_MS)dt=XZ_SHELL_EXTRAPOLATE_MAX_MS;
+   int64_t rate=10000+(sh_has(d,XZ_SHELL_F_TEMPO)?d->tempo_x100:0);
+   e+=(int64_t)dt*(rate<0?0:rate)/10000;
+  }
+ }
+ if(e<0)e=0;
+ if(sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0&&e>d->total_ms)e=d->total_ms;
+ return (int32_t)e;
 }
 static void render_lane(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
@@ -323,6 +344,15 @@ static void render_lane(const struct xz_shell *u, const struct xz_shell_model *m
     if(beats<=64){snprintf(text,sizeof text,"%d.%d",beats/4,beats%4);lane_caption(c,v.ph_x+5,ly+TICK_H+3,text,SH_WHITE);}
    }
   }
+  /* The slip ghost: a dashed amber line where the track will land when SLIP lets go. */
+  int32_t ghost=slip_now(m,d);
+  if(ghost>=0){
+   int gx=lane_x(&v,ghost);
+   if(gx>=WAVE_X&&gx<WAVE_X+WAVE_W){
+    for(int y=ly;y<ly+LANE_H;y+=6)xz_rect(c,gx,y,1,3,SH_KEY_AMBER);
+    lane_caption(c,sh_min(gx+4,WAVE_X+WAVE_W-34),ly+LANE_H/2-6,"SLIP",SH_KEY_AMBER);
+   }
+  }
  }else if(sh_has(d,XZ_SHELL_F_LOADED)&&!d->loaded)
   sh_text_center(c,WAVE_X+WAVE_W/2,ly+LANE_H/2-7,"Not Loaded.",SH_TEXT,0x5a5a5a);
  xz_rect(c,v.ph_x,ly,1,LANE_H,SH_PLAYHEAD);
@@ -374,6 +404,8 @@ static void render_overview(const struct xz_shell *u, const struct xz_shell_mode
   if(flash)left=right=SH_RED;
   xz_rect(c,ov.x,bar_y,ph-ov.x,3,left);xz_rect(c,ph,bar_y,ov.x+ov.w-ph,3,right);
   xz_rect(c,ph,ov.y,1,ov.h,SH_PLAYHEAD);
+  int32_t ghost=slip_now(m,d);
+  if(ghost>=0)xz_rect(c,overview_x(ov,ghost,d->total_ms),ov.y,1,ov.h,SH_KEY_AMBER);
  }else xz_rect(c,ov.x,bar_y,ov.w,3,SH_RAIL);
  /* minute scale */
  int scale_y=bar_y+5;
@@ -417,8 +449,10 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
  else if(loaded){
   if(sh_has(d,XZ_SHELL_F_ARTWORK)&&d->artwork&&d->artwork_side>0){render_artwork(c,d,tx,s.y+5,20);tx+=26;}
   else{sh_note(c,tx,s.y+7,SH_WHITE);tx+=16;}
-  if(sh_has(d,XZ_SHELL_F_TITLE)&&d->title)sh_text_fit(c,tx,s.y+6,right-tx-22,d->title,SH_TEXT,SH_WHITE);
-  else sh_text(c,tx,s.y+6,"---",SH_TEXT,SH_DIM);
+  int artist=sh_has(d,XZ_SHELL_F_ARTIST)&&d->artist&&*d->artist;
+  if(sh_has(d,XZ_SHELL_F_TITLE)&&d->title)sh_text_fit(c,tx,artist?s.y+1:s.y+6,right-tx-22,d->title,SH_TEXT,SH_WHITE);
+  else sh_text(c,tx,artist?s.y+1:s.y+6,"---",SH_TEXT,SH_DIM);
+  if(artist)sh_text_fit(c,tx,s.y+19,right-tx-22,d->artist,SH_SMALL,SH_DIM);
  }else sh_text(c,tx,s.y+6,"---",SH_TEXT,SH_DIM);
  if(loaded&&sh_has(d,XZ_SHELL_F_PLAYING)){
   if(d->playing)sh_triangle(c,right-6,s.y+8,7,0,SH_WHITE);
@@ -470,6 +504,10 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
   mx+=sh_chip(c,mx,NUM_Y+42,"MT",ink,ink,0)+4;
  }
  if(sh_has(d,XZ_SHELL_F_SYNC)&&d->sync)sh_chip(c,mx,NUM_Y+42,"SYNC",SH_BLUE,SH_WHITE,0);
+ /* SLIP and the jog mode sit under the time, where the clock leaves room. */
+ int vx=cx;
+ if(sh_has(d,XZ_SHELL_F_SLIP))vx+=sh_chip(c,vx,NUM_Y+42,"SLIP",d->slip?SH_KEY_AMBER:0x5a5a5a,d->slip?SH_BLACK:0x8c8c8c,d->slip)+4;
+ if(sh_has(d,XZ_SHELL_F_VINYL))sh_chip(c,vx,NUM_Y+42,"VINYL",d->vinyl?SH_WHITE:0x5a5a5a,d->vinyl?SH_WHITE:0x8c8c8c,0);
  /* BPM box */
  int bx=sx+298,bw=right-bx,by=NUM_Y-2,bh=52;
  int master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
@@ -494,15 +532,69 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
  render_overview(u,m,c,d,deck,elapsed);
 }
 
+/* ---- pad row: stem mute buttons and hot-cue lamps ----
+   The stems follow the reference DJ software's look: a dark button with the
+   stem's colour as outline and label. A stem that plays is lit: tinted fill,
+   full-colour outline and label. A muted stem goes dark, its outline and label
+   dimmed, and the MUTE caption turns red while any stem is muted. */
+static const int stem_slot[3]={0,2,1};   /* screen order DRUMS, VOCAL, INST -> stem index */
+static const char *const stem_name[3]={"DRUMS","INST","VOCAL"};
+static const uint32_t stem_fallback[3]={0x2a6cf0,0xe8302c,0x28e028};
+static int stem_buttons(const struct xz_shell_model *m, int deck) {
+ const struct xz_shell_deck *d=&m->deck[deck];
+ return (m->capabilities&XZ_SHELL_CAP_STEM_MUTE)&&sh_has(d,XZ_SHELL_F_STEM_MUTE)&&(!sh_has(d,XZ_SHELL_F_LOADED)||d->loaded);
+}
+static uint32_t stem_rgb(const struct xz_shell_model *m, int stem) { return m->stem_rgb_known?m->stem_rgb[stem]&0xffffff:stem_fallback[stem]; }
+struct xz_shell_rect xz_shell_stem_button(const struct xz_shell_model *m, int deck, int stem) {
+ if(!m||deck<0||deck>=XZ_SHELL_DECKS||stem<0||stem>2||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
+ int slot=0;while(stem_slot[slot]!=stem)slot++;
+ int x=strip_x(deck)+STEM_X+slot*(STEM_W+STEM_GAP);
+ return (struct xz_shell_rect){x,PAD_ROW_Y+PAD_ROW_H/2-22,STEM_W,44};
+}
+static void render_pad_row(const struct xz_shell_model *m, struct xz_canvas c, int deck) {
+ const struct xz_shell_deck *d=&m->deck[deck];
+ struct xz_shell_rect r=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,deck);
+ xz_rect(c,r.x,r.y,r.w,r.h,SH_BLACK);
+ int ty=r.y+(r.h-SH_CAP_SMALL)/2;
+ if(stem_buttons(m,deck)){
+  sh_text(c,r.x+8,ty,"MUTE",SH_SMALL,d->stem_muted&7?SH_RED:SH_DIM);
+  for(int slot=0;slot<3;slot++){
+   int stem=stem_slot[slot],muted=(d->stem_muted>>stem)&1;
+   uint32_t rgb=stem_rgb(m,stem);
+   int x=r.x+STEM_X+slot*(STEM_W+STEM_GAP),y=r.y+(r.h-STEM_H)/2;
+   if(muted){
+    xz_rect(c,x,y,STEM_W,STEM_H,0x101010);
+    xz_border(c,x,y,STEM_W,STEM_H,xz_blend(0,rgb,90));
+    sh_text_center(c,x+STEM_W/2,y+(STEM_H-SH_CAP_SMALL)/2,stem_name[stem],SH_SMALL,xz_blend(0,rgb,110));
+   }else{
+    xz_rect(c,x,y,STEM_W,STEM_H,xz_blend(0,rgb,70));
+    xz_border(c,x,y,STEM_W,STEM_H,rgb);xz_border(c,x+1,y+1,STEM_W-2,STEM_H-2,rgb);
+    sh_text_center(c,x+STEM_W/2,y+(STEM_H-SH_CAP_SMALL)/2,stem_name[stem],SH_SMALL,xz_blend(rgb,SH_WHITE,90));
+   }
+  }
+ }else sh_text(c,r.x+8,ty,"HOT CUE",SH_SMALL,SH_DIM);
+ /* Hot-cue lamps A-H, as the pads show them. */
+ int lx=r.x+r.w-8-8*LAMP_W-7*LAMP_GAP,ly=r.y+(r.h-LAMP_W)/2;
+ int known=sh_has(d,XZ_SHELL_F_HOT_CUES)&&(!sh_has(d,XZ_SHELL_F_LOADED)||d->loaded);
+ for(int i=0;i<XZ_SHELL_HOT_CUES;i++){
+  int x=lx+i*(LAMP_W+LAMP_GAP),set=known&&d->hot_cue[i].set;
+  uint32_t fill=set?cue_color(&d->hot_cue[i]):0x1c1c1c;
+  xz_rect(c,x,ly,LAMP_W,LAMP_W,fill);
+  if(!set)xz_border(c,x,ly,LAMP_W,LAMP_W,0x3c3c3c);
+  sh_text_center(c,x+LAMP_W/2+1,ly+2,cue_letters[i],SH_SMALL,set?ink_on(fill):0x5a5a5a);
+ }
+}
+
 static void play_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  /* Regions tile the frame; only the seams between them are cleared here. */
  xz_rect(c,0,lane_y(0)+LANE_H,c.width,LANE_GAP,SH_BLACK);
- xz_rect(c,0,lane_y(1)+LANE_H,c.width,STRIP_Y-lane_y(1)-LANE_H,SH_BLACK);
- xz_rect(c,0,STRIP_Y,2,STRIP_H,SH_BLACK);xz_rect(c,HALF_W-2,STRIP_Y,4,STRIP_H,SH_BLACK);xz_rect(c,c.width-2,STRIP_Y,2,STRIP_H,SH_BLACK);
+ xz_rect(c,0,lane_y(1)+LANE_H,c.width,PAD_ROW_Y-lane_y(1)-LANE_H,SH_BLACK);
+ xz_rect(c,0,PAD_ROW_Y,2,c.height-PAD_ROW_Y,SH_BLACK);xz_rect(c,HALF_W-2,PAD_ROW_Y,4,c.height-PAD_ROW_Y,SH_BLACK);xz_rect(c,c.width-2,PAD_ROW_Y,2,c.height-PAD_ROW_Y,SH_BLACK);
  render_top(m,c);
  for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
   render_column(u,m,c,deck);
   render_lane(u,m,c,deck);
+  render_pad_row(m,c,deck);
   render_strip(u,m,c,deck);
  }
  render_zoom(u,m,c);
@@ -541,6 +633,11 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,value,(int)chips[i].setting});
  }
  if(y<TOP_H)return 0;
+ for(int deck=0;deck<XZ_SHELL_DECKS;deck++)for(int stem=0;stem<3;stem++){
+  if(!sh_inside(xz_shell_stem_button(m,deck,stem),x,y))continue;
+  int muted=(m->deck[deck].stem_muted>>stem)&1;
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_STEM_MUTE,deck,!muted,stem});
+ }
  if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_ZOOM,0),x,y)){
   if(m->capabilities&XZ_SHELL_CAP_GRID)u->grid_mode=!u->grid_mode;
   return 0;

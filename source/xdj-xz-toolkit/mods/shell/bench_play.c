@@ -23,6 +23,9 @@ int main(void) {
  fx_track_build(&track,7);
  fx_model_full(&m,&track);
  fx_beat_fx(&m.fx,1,"ECHO",1,2,234);
+ /* Both decks show their stem mute buttons, deck 2 with a stem muted, and deck 1 slips with a ghost. */
+ m.capabilities|=XZ_SHELL_CAP_STEM_MUTE;m.deck[1].stem_muted=4;
+ m.deck[0].slip=1;m.deck[0].slip_ms=m.deck[0].elapsed_ms+1500;
  xz_shell_init(&u);
  unsigned check=0;
  for(int mode=XZ_SHELL_WAVE_BLUE;mode<=XZ_SHELL_WAVE_STEMS;mode++){

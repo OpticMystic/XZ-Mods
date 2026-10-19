@@ -101,6 +101,23 @@ static void bx_tracks(struct xz_shell_browse_model *b, const struct bx_library *
  b->sort_column=XZ_SHELL_COL_TITLE;b->sort_descending=0;
  b->letters=L->letters;b->letter_count=L->letter_count;
 }
+/* What the runtime adds for the MENU and FILTER panels: sort keys, column choices, playlists to add to,
+   MY TAGs, and album, genre and date added on every track. */
+static const char *const bx_albums[]={"Night Shift EP","Signals LP","Club Tools Vol. 3","Orbit Remixes","Warehouse Sessions"};
+static const char *const bx_genres[]={"Techno","House","Melodic Techno","Tech House","Breaks","Electro"};
+static struct xz_shell_playlist_ref bx_refs[BX_FOLDERS];
+static const struct xz_shell_my_tag bx_tags[]={{1,"WARM UP"},{2,"PEAK"},{3,"VOCAL"},{4,"CLOSER"}};
+static inline void bx_panels(struct xz_shell_browse_model *b, struct bx_library *L) {
+ b->sort_keys=(1u<<XZ_SHELL_COL_COUNT)-1;
+ b->column_choices=(1u<<XZ_SHELL_COL_COUNT)-1;
+ for(int i=0;i<BX_FOLDERS;i++)bx_refs[i]=(struct xz_shell_playlist_ref){(uint32_t)(i+1),bx_playlists[i],10+i*7};
+ b->playlists=bx_refs;b->playlist_count=BX_FOLDERS;
+ b->my_tags=bx_tags;b->my_tag_count=4;
+ for(int i=0;i<BX_TRACKS;i++){
+  L->tracks[i].album=bx_albums[i%5];L->tracks[i].genre=bx_genres[(i*3)%6];
+  L->tracks[i].date_added=20260100+(i%12+1)*100+(i*7)%28+1;
+ }
+}
 /* The playlist tree's top level: folders only. */
 static void bx_folders(struct xz_shell_browse_model *b, const struct bx_library *L, enum xz_shell_screen s) {
  bx_tracks(b,L,s);
