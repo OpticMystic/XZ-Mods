@@ -64,6 +64,20 @@ static void cue_dat(const char *path,const char *track){
  be(o+list+8,(uint32_t)(n-list));
  be(o+8,(uint32_t)n);put(path,o,n);
 }
+/* An EXT with the extended memory list: a commented cue with a colour, a loop without a comment, a hot cue. */
+static size_t pcp2(uint8_t *o,uint32_t hot,uint8_t type,uint32_t ms,uint32_t end,const char *comment,uint32_t rgb){
+ size_t clen=comment?(strlen(comment)+1)*2:0,len=44+clen+4;memset(o,0,len);
+ memcpy(o,"PCP2",4);be(o+4,16);be(o+8,(uint32_t)len);be(o+12,hot);o[16]=type;be(o+20,ms);be(o+24,end);be(o+40,(uint32_t)clen);
+ for(size_t i=0;comment&&i<=strlen(comment);i++){o[44+2*i]=0;o[45+2*i]=(uint8_t)comment[i];}
+ uint8_t *k=o+44+clen;k[0]=rgb?1:0;k[1]=(uint8_t)(rgb>>16);k[2]=(uint8_t)(rgb>>8);k[3]=(uint8_t)rgb;
+ return len;
+}
+static void cue_ext(const char *path){
+ static uint8_t o[4096];size_t n=28;memcpy(o,"PMAI",4);be(o+4,28);memset(o+12,0,16);
+ size_t list=n;memcpy(o+n,"PCO2",4);be(o+n+4,20);be(o+n+12,0);memset(o+n+16,0,4);n+=20;
+ n+=pcp2(o+n,0,2,9000,13000,NULL,0);n+=pcp2(o+n,0,1,2500,0xffffffffu,"Drop 1",0x10a0ff);n+=pcp2(o+n,2,1,100,0xffffffffu,"hot",0);
+ be(o+list+8,(uint32_t)(n-list));be(o+8,(uint32_t)n);put(path,o,n);
+}
 static void text_file(const char *path, const char *text){put(path,(const uint8_t *)text,strlen(text));}
 static void stems_fixture(void){
  const char *root="shell-analysis-fixture";char p[512];
@@ -155,6 +169,17 @@ int main(void){
   assert(xz_shana_memory_cues(cue_dir,cues)==-1);
   assert(xz_shana_memory_cues("shell-analysis-fixture/none",cues)==-1);
   puts("PASS memory cues: PCOB memory list only, loops, hot cue entries skipped, time order");
+  /* CUE/LOOP LIST: from the DAT without comments, then from the EXT with comment and colour. */
+  struct xz_shana_cue list[8];
+  snprintf(cue_dir,sizeof cue_dir,"%s/PIONEER/USBANLZ/P001/0000AAAA",root);
+  n=xz_shana_cue_list(cue_dir,list,8);
+  assert(n==2&&!list[0].loop&&list[0].ms==2500&&!list[0].comment[0]&&list[1].loop&&list[1].ms==9000&&list[1].end_ms==13000);
+  snprintf(cue_file,sizeof cue_file,"%s/ANLZ0000.EXT",cue_dir);cue_ext(cue_file);
+  n=xz_shana_cue_list(cue_dir,list,8);
+  assert(n==2&&list[0].ms==2500&&!strcmp(list[0].comment,"Drop 1")&&list[0].rgb==0x10a0ff&&list[1].loop&&list[1].end_ms==13000&&!list[1].comment[0]);
+  assert(xz_shana_cue_list(cue_dir,list,1)==1);
+  assert(xz_shana_cue_list("shell-analysis-fixture/none",list,8)==-1);
+  puts("PASS CUE/LOOP LIST: EXT memory list with comments and colours, DAT fallback, cap, missing files");
  }
  /* A stick without USBANLZ gives an empty index, not an error. */
  assert(!xz_shana_build("shell-analysis-fixture/none",&a,&files)&&a&&!xz_shana_count(a)&&!files);xz_shana_free(a);

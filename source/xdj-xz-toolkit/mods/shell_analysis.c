@@ -312,6 +312,95 @@ done:
 }
 
 /* ---- memory cues ---- */
+/* UTF-16BE (bytes) to UTF-8, NUL or the end ending it; malformed pairs end it too. */
+static void utf16be(const uint8_t *p, uint32_t bytes, char *out, size_t cap) {
+ size_t at=0;
+ for(uint32_t i=0;i+1<bytes;i+=2){
+  uint32_t c=(uint32_t)p[i]<<8|p[i+1];
+  if(!c)break;
+  if(c>=0xd800&&c<=0xdbff){
+   if(i+3>=bytes)break;
+   uint32_t lo=(uint32_t)p[i+2]<<8|p[i+3];if(lo<0xdc00||lo>0xdfff)break;
+   c=0x10000+((c-0xd800)<<10)+(lo-0xdc00);i+=2;
+  }else if(c>=0xdc00&&c<=0xdfff)break;
+  char b[4];size_t n=0;
+  if(c<0x80)b[n++]=(char)c;
+  else if(c<0x800){b[n++]=(char)(0xc0|(c>>6));b[n++]=(char)(0x80|(c&63));}
+  else if(c<0x10000){b[n++]=(char)(0xe0|(c>>12));b[n++]=(char)(0x80|((c>>6)&63));b[n++]=(char)(0x80|(c&63));}
+  else{b[n++]=(char)(0xf0|(c>>18));b[n++]=(char)(0x80|((c>>12)&63));b[n++]=(char)(0x80|((c>>6)&63));b[n++]=(char)(0x80|(c&63));}
+  if(at+n+1>cap)break;
+  memcpy(out+at,b,n);at+=n;
+ }
+ out[at]=0;
+}
+static int cue_list_ext(const char *dir, struct xz_shana_cue *out, int cap) {
+ char path[PATH_CAP];size_t n=0;
+ if(snprintf(path,sizeof path,"%s/ANLZ0000.EXT",dir)>=(int)sizeof path)return -1;
+ uint8_t *f=read_all(path,ANALYSIS_CAP,&n);
+ if(!f)return -1;
+ int count=-1;
+ if(n>=12&&!memcmp(f,"PMAI",4)){
+  uint32_t at=be32(f+4),length=be32(f+8);if(length>n)length=(uint32_t)n;
+  while(at>=12&&(uint64_t)at+12<=length){
+   uint32_t head=be32(f+at+4),total=be32(f+at+8);
+   if(head<12||total<head||total>length-at)break;
+   if(!memcmp(f+at,"PCO2",4)&&head>=20&&be32(f+at+12)==0){
+    if(count<0)count=0;
+    for(uint32_t e=at+head;(uint64_t)e+44<=(uint64_t)at+total;){
+     uint32_t eh=be32(f+e+4),et=be32(f+e+8);
+     if(memcmp(f+e,"PCP2",4)||eh<16||et<44||et>at+total-e)break;
+     uint32_t hot=be32(f+e+12),ms=be32(f+e+20),end=be32(f+e+24),clen=be32(f+e+40);uint8_t type=f[e+16];
+     if(!hot&&(type==1||type==2)&&ms<=INT32_MAX&&count<cap){
+      struct xz_shana_cue *c=&out[count];memset(c,0,sizeof *c);
+      c->loop=type==2&&end!=0xffffffffu&&end>ms&&end<=INT32_MAX;c->ms=(int32_t)ms;c->end_ms=c->loop?(int32_t)end:(int32_t)ms;
+      if(clen&&clen<=et-44)utf16be(f+e+44,clen,c->comment,sizeof c->comment);
+      if(clen<=et-44&&(uint64_t)44+clen+4<=et){const uint8_t *k=f+e+44+clen;if(k[0])c->rgb=(uint32_t)k[1]<<16|(uint32_t)k[2]<<8|k[3];}
+      count++;
+     }
+     e+=et;
+    }
+   }
+   at+=total;
+  }
+ }
+ free(f);
+ return count;
+}
+int xz_shana_cue_list(const char *dir, struct xz_shana_cue *out, int cap) {
+ int count=cue_list_ext(dir,out,cap);
+ if(count<0){
+  /* The DAT's memory list: times and loop ends, no comments or colours. */
+  char path[PATH_CAP];size_t n=0;
+  if(snprintf(path,sizeof path,"%s/ANLZ0000.DAT",dir)>=(int)sizeof path)return -1;
+  uint8_t *f=read_all(path,ANALYSIS_CAP,&n);
+  if(!f)return -1;
+  if(n>=12&&!memcmp(f,"PMAI",4)){
+   uint32_t at=be32(f+4),length=be32(f+8);if(length>n)length=(uint32_t)n;
+   while(at>=12&&(uint64_t)at+12<=length){
+    uint32_t head=be32(f+at+4),total=be32(f+at+8);
+    if(head<12||total<head||total>length-at)break;
+    if(!memcmp(f+at,"PCOB",4)&&head>=24&&be32(f+at+12)==0){
+     if(count<0)count=0;
+     for(uint32_t e=at+head;e+40<=at+total;){
+      uint32_t eh=be32(f+e+4),et=be32(f+e+8);
+      if(memcmp(f+e,"PCPT",4)||eh<28||et<eh||et>at+total-e||et<40)break;
+      uint32_t hot=be32(f+e+12),ms=be32(f+e+32),end=be32(f+e+36);uint8_t type=f[e+28];
+      if(!hot&&(type==1||type==2)&&ms<=INT32_MAX&&count<cap){
+       struct xz_shana_cue *c=&out[count];memset(c,0,sizeof *c);
+       c->loop=type==2&&end!=0xffffffffu&&end>ms&&end<=INT32_MAX;c->ms=(int32_t)ms;c->end_ms=c->loop?(int32_t)end:(int32_t)ms;
+       count++;
+      }
+      e+=et;
+     }
+    }
+    at+=total;
+   }
+  }
+  free(f);
+ }
+ for(int i=1;i<count;i++){struct xz_shana_cue c=out[i];int j=i-1;while(j>=0&&out[j].ms>c.ms){out[j+1]=out[j];j--;}out[j+1]=c;}
+ return count;
+}
 int xz_shana_memory_cues(const char *dir, struct xz_shell_cue out[XZ_SHELL_MEMORY_CUES]) {
  char path[PATH_CAP];size_t n=0;
  if(snprintf(path,sizeof path,"%s/ANLZ0000.DAT",dir)>=(int)sizeof path)return -1;

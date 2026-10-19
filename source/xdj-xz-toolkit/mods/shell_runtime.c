@@ -423,6 +423,17 @@ static struct preview { int slot, state; uint32_t id, used, n; struct xz_shell_c
 static struct { int slot; uint32_t id[XZ_SHELL_BROWSE_WINDOW]; int n; } preview_want; /* under mutex */
 static uint32_t preview_clock;
 static uint32_t preview_reads;
+/* CUE/LOOP LIST of the highlighted track (BF_CUES): the analysis file's memory points with comments, kept
+   for the last CUE_CACHE tracks; the worker reads a missing one. Fixed storage under the mutex. */
+#define CUE_CACHE 4
+#define CUE_POINTS 32
+static struct cue_cache { int slot, state; uint32_t id, used; int n; struct xz_shana_cue c[CUE_POINTS]; } cue_cache[CUE_CACHE];
+static struct xz_shell_cue_entry cue_entries[CUE_POINTS];
+static struct { int pending, slot; uint32_t id; } cue_want;
+static struct cue_cache *cue_find(int slot, uint32_t id) {
+ for(int i=0;i<CUE_CACHE;i++)if(cue_cache[i].state&&cue_cache[i].slot==slot&&cue_cache[i].id==id)return &cue_cache[i];
+ return NULL;
+}
 static struct preview *preview_find(int slot, uint32_t id) {
  for(int i=0;i<PREVIEW_CACHE;i++)if(previews[i].state&&previews[i].slot==slot&&previews[i].id==id)return &previews[i];
  return NULL;
@@ -482,6 +493,19 @@ static void fill_browse(struct xz_shlib *lib) {
   if(p->state>0){rows[i].preview=p->col;rows[i].preview_count=p->n;rows[i].known|=1u<<XZ_SHELL_RF_PREVIEW;}
  }
  if(preview_want.n)pthread_cond_signal(&wake);
+ /* The highlighted track's memory points. */
+ {int cursor=view>=0?shell.stack[view].cursor:-1;
+  if(cursor>=0&&cursor<l->total&&l->kind[cursor]==XZ_SHELL_ROW_TRACK){
+   uint32_t id=l->id[cursor];struct cue_cache *c=cue_find(browse_source,id);
+   if(!c){if(!cue_want.pending||cue_want.id!=id||cue_want.slot!=browse_source){cue_want.pending=1;cue_want.slot=browse_source;cue_want.id=id;pthread_cond_signal(&wake);}}
+   else{
+    c->used=++preview_clock;
+    if(c->state>0){
+     for(int i=0;i<c->n;i++)cue_entries[i]=(struct xz_shell_cue_entry){c->c[i].loop,c->c[i].ms,c->c[i].end_ms,c->c[i].rgb,c->c[i].comment[0]?c->c[i].comment:NULL};
+     browse.cue_track=id;browse.cues=cue_entries;browse.cue_count=c->n;browse.known|=BF(CUES);
+    }
+   }
+  }}
  browse.rows=rows;
  /* Sort keys and column choices: every column the rows carry. Columns: the chosen mask in enum order. */
  browse.sort_keys=browse.column_choices=xz_shlib_sort_keys();browse.known|=BF(SORT_KEYS)|BF(COLUMN_CHOICES);
@@ -1029,6 +1053,8 @@ static void scan_usb(void) {
   if(usb[slot].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[slot].lib;
   usb[slot].lib=next;usb[slot].status=next?USB_READY:found?USB_ERROR:USB_NONE;
   for(int i=0;i<PREVIEW_CACHE;i++)if(previews[i].slot==(int)slot)previews[i].state=0; /* ids belong to the old export */
+  for(int i=0;i<CUE_CACHE;i++)if(cue_cache[i].slot==(int)slot)cue_cache[i].state=0;
+  if(cue_want.slot==(int)slot)cue_want.pending=0;
   memset(&mys[slot],0,sizeof mys[slot]);if(mys_job.slot==(int)slot)mys_job.pending=0;
   mys_state[slot]=XZ_SHELL_MY_READY;mys_result[slot][0]=0;
   usb[slot].tracks=xz_shlib_track_count(next);usb[slot].space_known=space;
@@ -1308,6 +1334,25 @@ static void *worker(void *unused) {
    }
    retire_list(result);
    pthread_mutex_unlock(&mutex);drain_retired();pthread_mutex_lock(&mutex);
+   worked=1;
+  }
+  if(!worked&&cue_want.pending&&cue_want.slot>=0&&usb[cue_want.slot].lib){
+   int slot=cue_want.slot;uint32_t id=cue_want.id;cue_want.pending=0;
+   if(!cue_find(slot,id)){
+    struct xz_shlib *lib=usb[slot].lib;const struct xz_shlib_track *t=xz_shlib_track(lib,id);
+    char track[1024];snprintf(track,sizeof track,"%s",t?xz_shlib_text(lib,t->file_path):"");
+    pthread_mutex_unlock(&mutex);
+    static struct xz_shana_cue got[CUE_POINTS];char dir[1024];int n=-1;
+    if(track[0]&&analysis[slot].index&&!xz_shana_find(analysis[slot].index,track,dir,sizeof dir))n=xz_shana_cue_list(dir,got,CUE_POINTS);
+    pthread_mutex_lock(&mutex);
+    if(usb[slot].lib==lib&&!cue_find(slot,id)){
+     struct cue_cache *c=&cue_cache[0];
+     for(int i=0;i<CUE_CACHE;i++){if(!cue_cache[i].state){c=&cue_cache[i];break;}if(cue_cache[i].used<c->used)c=&cue_cache[i];}
+     c->slot=slot;c->id=id;c->state=n>=0?1:-1;c->n=n>0?n:0;c->used=++preview_clock;if(n>0)memcpy(c->c,got,(size_t)n*sizeof *got);
+     if(refreshed)fill_slots_locked();
+     dirty_flag=1;
+    }
+   }
    worked=1;
   }
   if(!worked&&preview_want.n&&preview_want.slot>=0&&usb[preview_want.slot].lib){
@@ -2317,7 +2362,7 @@ static int start_locked(void) {
  ui_action_count=0;look_classic_at=0;
  le_count=0;
  memset(mys,0,sizeof mys);memset(&mys_job,0,sizeof mys_job);memset(mys_state,0,sizeof mys_state);memset(mys_result,0,sizeof mys_result);dj_pick=-1;mys_readonly=flag("XZ_MODS_SETTINGS_READONLY");
- memset(&util,0,sizeof util);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;
+ memset(&util,0,sizeof util);memset(cue_cache,0,sizeof cue_cache);memset(&cue_want,0,sizeof cue_want);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;
  util.trial=flag("XZ_MODS_SETTINGS_READONLY")&&!flag("XZ_MODS_SHELL_UTILITY_WRITES");util.poll_now=1;
  check_guards();
  running=1;

@@ -50,6 +50,14 @@ int xz_shana_stems_load(const char *folder, struct xz_wave_load *out, uint32_t r
    the section headers and that payload. *bands is malloc'd (count * 3 bytes). 0 = found. */
 int xz_shana_preview(const char *dir, uint8_t **bands, uint32_t *count);
 
+/* The CUE/LOOP LIST of a track: its memory points with end times, colours and comments. Read from
+   dir/ANLZ0000.EXT's extended memory list (PCO2 type 0, PCP2 entries: hot cue 0, type 1 cue / 2 loop, time
+   and loop end ms, comment as UTF-16BE, then a colour code and RGB), else from the DAT's PCOB memory list
+   without comments. Sorted by time; at most cap. Returns the count, or -1 when neither file has a list. */
+#define XZ_SHANA_COMMENT 64
+struct xz_shana_cue { int loop; int32_t ms, end_ms; uint32_t rgb; char comment[XZ_SHANA_COMMENT]; };
+int xz_shana_cue_list(const char *dir, struct xz_shana_cue *out, int cap);
+
 /* Memory cues and memory loops from dir/ANLZ0000.DAT: the PCOB list of type 0 (memory), each PCPT entry
    {hot_cue 0, type 1 cue / 2 loop, time ms, loop end ms}. Sorted by time, at most XZ_SHELL_MEMORY_CUES.
    Returns the count, or -1 when the file or its cue list cannot be read. */
