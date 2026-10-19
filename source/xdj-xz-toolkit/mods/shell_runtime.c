@@ -117,6 +117,7 @@ static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256}; /* she
 static uint32_t last_caution_logged;
 static unsigned ui_requests;
 static int menu_passed;
+static int quick_return; /* a key passed to stock that leaves stock on PLAY (TAG TRACK) */
 static struct { int pending, deck, tries; uint32_t id, before, at; uint8_t device_kind; } load_check;
 /* One-line feedback for actions the shell could not carry out (LOAD refused, not loaded, off). It is
    published to the renderer once shell.h has the notice fields (XZ_SHELL_NOTICE_MS), and logged. */
@@ -255,6 +256,19 @@ static void choose_source(void) {
  browse_source=usb[0].lib?0:usb[1].lib?1:-1;
 }
 
+/* Tracks loaded on either deck since the runtime started, per stick: the browse rows' PLAYED marks. */
+#define PLAYED_CAP 1024
+static struct { uint8_t kind; uint32_t id; } played[PLAYED_CAP];
+static unsigned played_n;
+static void played_add(uint8_t kind, uint32_t id) {
+ for(unsigned i=0;i<played_n;i++)if(played[i].kind==kind&&played[i].id==id)return;
+ if(played_n<PLAYED_CAP){played[played_n].kind=kind;played[played_n].id=id;played_n++;}
+}
+static int played_has(uint8_t kind, uint32_t id) {
+ for(unsigned i=0;i<played_n;i++)if(played[i].kind==kind&&played[i].id==id)return 1;
+ return 0;
+}
+
 /* ---- model slots ---- */
 #define BF(f) (1u<<XZ_SHELL_BF_##f)
 static void fill_browse(struct xz_shlib *lib) {
@@ -281,8 +295,8 @@ static void fill_browse(struct xz_shlib *lib) {
  browse.list_id=l->list_id;browse.total=l->total;
  if(l->folders){browse.columns[0]=XZ_SHELL_COL_TITLE;browse.column_count=1;}
  else{
-  static const enum xz_shell_browse_column track_columns[4]={XZ_SHELL_COL_NUMBER,XZ_SHELL_COL_TITLE,XZ_SHELL_COL_BPM,XZ_SHELL_COL_KEY};
-  memcpy(browse.columns,track_columns,sizeof track_columns);browse.column_count=4;
+  static const enum xz_shell_browse_column track_columns[5]={XZ_SHELL_COL_NUMBER,XZ_SHELL_COL_TITLE,XZ_SHELL_COL_ARTIST,XZ_SHELL_COL_BPM,XZ_SHELL_COL_KEY};
+  memcpy(browse.columns,track_columns,sizeof track_columns);browse.column_count=5;
  }
  browse.sort_column=(enum xz_shell_browse_column)l->sort_column;browse.sort_descending=l->sort_descending;
  if(l->letter_count){browse.letters=l->letters;browse.letter_count=l->letter_count;}
@@ -296,6 +310,9 @@ static void fill_browse(struct xz_shlib *lib) {
  }
  browse.window_start=start;
  browse.window_count=xz_shlib_window(lib,l,start,on_deck,on_known,rows);
+ for(int i=0;i<browse.window_count;i++)if(rows[i].kind==XZ_SHELL_ROW_TRACK){
+  rows[i].played=played_has((uint8_t)(2+browse_source),rows[i].id);rows[i].known|=1u<<XZ_SHELL_RF_PLAYED;
+ }
  browse.rows=rows;
 }
 static void fill_info(void) {
@@ -379,18 +396,22 @@ static void fill_slots_locked(void) {
 #define WAVE_GIVE_UP_MS 8000u
 #define GRID_RETRY_MS 250u
 #define GRID_GIVE_UP_MS 6000u
-enum { PART_WAVE=1u, PART_GRID=2u, PART_STEMS=4u };
+enum { PART_WAVE=1u, PART_GRID=2u, PART_STEMS=4u, PART_CUES=8u };
 static struct {
  uint32_t wanted, done, retry_at;   /* wanted is bumped by the model thread on a new track */
  uint64_t requested_us;             /* when wanted was bumped (the model saw the new track) */
  /* worker only */
- uint32_t running_gen; int stage, grid_done, stems_done; uint64_t ready_us;
+ uint32_t running_gen; int stage, grid_done, stems_done, cues_done; uint64_t ready_us;
 } wave_job[XZ_SHELL_DECKS];
 static struct {
  uint32_t gen; unsigned parts;
  struct xz_shell_column *scroll, *overview, *stems; uint32_t scroll_n, overview_n, span, stems_n, stems_span;
  struct xz_shell_beat *grid; uint32_t grid_n;
+ struct xz_shell_cue cues[XZ_SHELL_MEMORY_CUES]; int cues_n;
 } wave_ready[XZ_SHELL_DECKS];
+/* The deck's memory cues as published to the model (model thread); -1 = not read. */
+static struct xz_shell_cue memory_cache[XZ_SHELL_DECKS][XZ_SHELL_MEMORY_CUES];
+static int memory_count_cache[XZ_SHELL_DECKS]={-1,-1};
 static struct xz_shell_beat grid_cache[XZ_SHELL_DECKS][GRID_CAP];
 static uint32_t grid_count[XZ_SHELL_DECKS];
 static char wave_path[XZ_SHELL_DECKS][XZ126_READER_PATH_MAX]; /* worker only: the file whose wave is published */
@@ -412,9 +433,21 @@ static void apply_waves_locked(void) {
     }
    }
    if(p&PART_STEMS)xz_shell_model_set_stems(storage,d,wave_ready[d].stems,wave_ready[d].stems_n,wave_ready[d].stems_span);
+   if(p&PART_CUES){memcpy(memory_cache[d],wave_ready[d].cues,sizeof memory_cache[d]);memory_count_cache[d]=wave_ready[d].cues_n;}
   }
   free_wave(d);
  }
+}
+static int post_cues(int d, uint32_t gen, const struct xz_shell_cue *cues, int count) {
+ pthread_mutex_lock(&mutex);
+ int current=gen==wave_job[d].wanted;
+ if(current){
+  if(wave_ready[d].gen!=gen)free_wave(d);
+  wave_ready[d].gen=gen;memcpy(wave_ready[d].cues,cues,sizeof wave_ready[d].cues);wave_ready[d].cues_n=count;
+  wave_ready[d].parts|=PART_CUES;dirty_flag=1;
+ }
+ pthread_mutex_unlock(&mutex);
+ return current;
 }
 /* Worker: hands parts to the model thread, merging with parts it has not applied yet. Takes ownership
    of the arrays; returns 0 when the job is stale (a newer track) and the arrays were freed. */
@@ -615,7 +648,7 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry
  struct xz126_deck_source s,after;
  uint64_t now=mono_us();uint32_t age_ms=(uint32_t)((now-requested_us)/1000u);
  *retry_ms=WAVE_RETRY_MS;
- if(wave_job[d].running_gen!=gen){wave_job[d].running_gen=gen;wave_job[d].stage=0;wave_job[d].grid_done=wave_job[d].stems_done=0;}
+ if(wave_job[d].running_gen!=gen){wave_job[d].running_gen=gen;wave_job[d].stage=0;wave_job[d].grid_done=wave_job[d].stems_done=wave_job[d].cues_done=0;}
  if(!deck_source((unsigned)d,&s)||s.path[0]!='/')return age_ms>WAVE_GIVE_UP_MS;
  if(wave_job[d].stage==0){
   /* The reader can still hold the previous file for a moment after the model sees the new track. */
@@ -663,6 +696,16 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry
    wave_job[d].grid_done=1;
    if(debug){char line[80];snprintf(line,sizeof line,"SHELL_GRID: deck=%d unavailable after_ms=%u",d+1,age_ms);xz_log(line);}
   }
+ }
+ if(!wave_job[d].cues_done){
+  /* Memory cues from the same analysis folder the 3-band wave came from. */
+  char root[1024],dir[1024];const char *track;int slot,count=-1;struct xz_shell_cue cues[XZ_SHELL_MEMORY_CUES];
+  memset(cues,0,sizeof cues);
+  if(!xz_shana_split(s.path,root,sizeof root,&track)&&(slot=analysis_slot(root))>=0&&analysis[slot].index&&
+     !xz_shana_find(analysis[slot].index,track,dir,sizeof dir))count=xz_shana_memory_cues(dir,cues);
+  wave_job[d].cues_done=1;
+  if(count>=0&&!post_cues(d,gen,cues,count))return 1;
+  if(debug){char line[120];snprintf(line,sizeof line,"SHELL_CUES: deck=%d memory_cues=%d",d+1,count);xz_log(line);}
  }
  if(!wave_job[d].stems_done){
   uint64_t t0=mono_us();uint32_t n=0,span=0,split[4]={0,0,0,0};int prefetched=0;
@@ -1090,6 +1133,15 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
    sec.clock_reads++;
   }
   if(grid_count[d]){input.grid=grid_cache[d];input.grid_count=grid_count[d];input.known|=K(GRID);}
+  if(memory_count_cache[d]>=0){memcpy(input.memory_cue,memory_cache[d],sizeof input.memory_cue);input.memory_count=memory_count_cache[d];input.known|=K(MEMORY_CUES);}
+  /* The loaded track's artist from the export of the stick it came from (the stat frame has none). */
+  if(settled(&loaded[d])&&(loaded[d].device_kind==2||loaded[d].device_kind==3)&&usb[loaded[d].device_kind-2].lib){
+   const struct xz_shlib *lib=usb[loaded[d].device_kind-2].lib;
+   const struct xz_shlib_track *t=xz_shlib_track(lib,loaded[d].id);
+   const char *artist=t?xz_shlib_text(lib,t->artist):NULL;
+   if(artist&&artist[0]){input.artist=artist;input.known|=K(ARTIST);}
+   played_add(loaded[d].device_kind,loaded[d].id);
+  }
   unsigned kind=loaded[d].known?loaded[d].device_kind:0;
   if(kind==2||kind==3)input.known|=K(SOURCE);
   xz_shell_model_set_input(storage,d,&input,kind);
@@ -1097,6 +1149,7 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  apply_waves_locked();
  unsigned changed=xz_shell_model_refresh(&model,storage,model_read,now);
  for(int d=0;d<XZ_SHELL_DECKS;d++)if(changed>>d&1u){
+  memory_count_cache[d]=-1;
   /* A new track: drop the old grid now, load the new wave and grid on the worker. */
   wave_job[d].wanted++;wave_job[d].retry_at=0;wave_job[d].requested_us=mono_us();grid_count[d]=0;pthread_cond_signal(&wake);
   xz_shrt_position_reset(&position[d]);memset(&motion[d],0,sizeof motion[d]);
@@ -1248,11 +1301,17 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
    /* MENU goes to stock whole, but stock's short MENU on PLAY opens nothing: the shell steps aside only
       when the hold arrives (stock opens UTILITY then). */
    if(map->key==XZ_SHELL_KEY_MENU){menu_passed=1;xz_mods_shell_proof_v1.menu_passes++;}
-   else{hand_off_locked(now,"key",code);xz_mods_shell_proof_v1.key_hand_offs++;}
+   else{
+    hand_off_locked(now,"key",code);xz_mods_shell_proof_v1.key_hand_offs++;
+    /* TAG TRACK leaves stock on its play screen: come back soon after the release. */
+    if(map->key==XZ_SHELL_KEY_TAG_TRACK)quick_return=1;
+   }
   }
   if(swallow){
    uint32_t loads=load_actions;
    int key=xz_shrt_key_for_phase(map,phase,0);if(key>=0)deliver_key_locked(key,map->deck,now);
+   if(map->key==XZ_SHELL_KEY_TAG_TRACK&&!(model.capabilities&XZ_SHELL_CAP_TAG_TRACK))
+    notice_locked(now,"TAG TRACK WORKS FROM THE PLAY SCREEN");
    if(map->key==XZ_SHELL_KEY_LOAD&&loads==load_actions)
     notice_locked(now,list_index(xz_shell_screen(&shell))>=0?"SELECT A TRACK, THEN PRESS LOAD":"OPEN A TRACK LIST TO LOAD");
   }
@@ -1291,6 +1350,7 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
    xz_log(line);
   }
   if(phase==XZ_SHRT_RELEASE)menu_inert=0;
+  if(decision==0&&quick_return&&map->key==XZ_SHELL_KEY_TAG_TRACK&&phase==XZ_SHRT_RELEASE){xz_shrt_handoff_shorten(&handoff,now,300u);quick_return=0;}
  }
  if(swallow)xz_mods_shell_proof_v1.keys_swallowed++;else xz_mods_shell_proof_v1.keys_passed++;
  pthread_mutex_unlock(&mutex);
@@ -1478,7 +1538,8 @@ void xz_shell_runtime_owner_tick(void) {
 static int flag(const char *name) { const char *v=getenv(name);return v&&!strcmp(v,"1"); }
 int xz_shell_runtime_start(void) {
  if(__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!flag("XZ_MODS_SHELL"))return 0;
- load_enabled=flag("XZ_MODS_SHELL_LOAD_BY_ID");debug=flag("XZ_MODS_SHELL_DEBUG");
+ /* Load by id is on unless XZ_MODS_SHELL_LOAD_BY_ID=0 (proven on the deck for USB2; see SHELL_LOAD_CHECK). */
+ {const char *v=getenv("XZ_MODS_SHELL_LOAD_BY_ID");load_enabled=!(v&&!strcmp(v,"0"));}debug=flag("XZ_MODS_SHELL_DEBUG");
  next_present=(uint64_t(*)(void))dlsym(RTLD_DEFAULT,"xz_receiver_next_present_us_v1");
  /* calloc: shell_model.c requires zeroed storage. */
  storage=calloc(1,xz_shell_model_storage_size());

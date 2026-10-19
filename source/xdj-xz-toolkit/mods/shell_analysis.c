@@ -304,3 +304,37 @@ done:
  if(rc)xz_wave_load_free(out);
  return rc;
 }
+
+/* ---- memory cues ---- */
+int xz_shana_memory_cues(const char *dir, struct xz_shell_cue out[XZ_SHELL_MEMORY_CUES]) {
+ char path[PATH_CAP];size_t n=0;
+ if(snprintf(path,sizeof path,"%s/ANLZ0000.DAT",dir)>=(int)sizeof path)return -1;
+ uint8_t *f=read_all(path,ANALYSIS_CAP,&n);
+ if(!f)return -1;
+ int count=-1;
+ if(n>=12&&!memcmp(f,"PMAI",4)){
+  uint32_t at=be32(f+4),length=be32(f+8);if(length>n)length=(uint32_t)n;
+  while(at>=12&&(uint64_t)at+12<=length){
+   uint32_t head=be32(f+at+4),total=be32(f+at+8);
+   if(head<12||total<head||total>length-at)break;
+   if(!memcmp(f+at,"PCOB",4)&&head>=24&&be32(f+at+12)==0){
+    if(count<0)count=0;
+    for(uint32_t e=at+head;e+40<=at+total;){
+     uint32_t eh=be32(f+e+4),et=be32(f+e+8);
+     if(memcmp(f+e,"PCPT",4)||eh<28||et<eh||et>at+total-e||et<40)break;
+     uint32_t hot=be32(f+e+12),ms=be32(f+e+32),end=be32(f+e+36);uint8_t type=f[e+28];
+     if(!hot&&(type==1||type==2)&&ms<=INT32_MAX&&count<XZ_SHELL_MEMORY_CUES){
+      out[count]=(struct xz_shell_cue){1,(int32_t)ms,0,type==2&&end!=0xffffffffu&&end>ms};
+      count++;
+     }
+     e+=et;
+    }
+   }
+   at+=total;
+  }
+ }
+ free(f);
+ /* Sorted by time: the stock list order and what the lane expects. */
+ for(int i=1;i<count;i++){struct xz_shell_cue c=out[i];int j=i-1;while(j>=0&&out[j].ms>c.ms){out[j+1]=out[j];j--;}out[j+1]=c;}
+ return count;
+}

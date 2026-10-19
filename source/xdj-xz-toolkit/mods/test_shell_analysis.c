@@ -50,6 +50,20 @@ static void stem_file(const char *path, uint8_t level, uint32_t count){
  for(uint32_t i=0;i<count*3;i++)o[n++]=(uint8_t)(level+i%3);
  be(o+8,(uint32_t)n);put(path,o,n);
 }
+/* A DAT with PPTH, a hot cue list (type 1) and a memory list (type 0): a loop, a cue, a hot-cue-numbered
+   entry that must be skipped, all out of time order. */
+static size_t pcpt(uint8_t *o,uint32_t hot,uint8_t type,uint32_t ms,uint32_t end){
+ memset(o,0,56);memcpy(o,"PCPT",4);be(o+4,28);be(o+8,56);be(o+12,hot);be(o+16,1);o[28]=type;be(o+32,ms);be(o+36,end);return 56;
+}
+static void cue_dat(const char *path,const char *track){
+ static uint8_t o[4096];size_t n=dat(o,track);
+ size_t list=n;memcpy(o+n,"PCOB",4);be(o+n+4,24);be(o+n+12,1);memset(o+n+16,0,8);n+=24;
+ n+=pcpt(o+n,1,1,700,0xffffffffu);be(o+list+8,(uint32_t)(n-list));
+ list=n;memcpy(o+n,"PCOB",4);be(o+n+4,24);be(o+n+12,0);memset(o+n+16,0,8);n+=24;
+ n+=pcpt(o+n,0,2,9000,13000);n+=pcpt(o+n,0,1,2500,0xffffffffu);n+=pcpt(o+n,3,1,100,0xffffffffu);
+ be(o+list+8,(uint32_t)(n-list));
+ be(o+8,(uint32_t)n);put(path,o,n);
+}
 static void text_file(const char *path, const char *text){put(path,(const uint8_t *)text,strlen(text));}
 static void stems_fixture(void){
  const char *root="shell-analysis-fixture";char p[512];
@@ -113,6 +127,18 @@ int main(void){
  track(root,"P0A0","0002EEEE","/Contents/New.mp3",50,1);
  assert(xz_shana_signature(root)!=sig&&!xz_shana_signature("shell-analysis-fixture/none"));
  puts("PASS stems map: escaped paths, duplicates, missing tracks, PWV7-only reads; analysis signature");
+ {
+  char cue_dir[512],cue_file[600];snprintf(cue_dir,sizeof cue_dir,"%s/PIONEER/USBANLZ/P001/0000AAAA",root);
+  snprintf(cue_file,sizeof cue_file,"%s/ANLZ0000.DAT",cue_dir);cue_dat(cue_file,"/Contents/One.mp3");
+  struct xz_shell_cue cues[XZ_SHELL_MEMORY_CUES];
+  int n=xz_shana_memory_cues(cue_dir,cues);
+  assert(n==2&&cues[0].set&&cues[0].ms==2500&&!cues[0].is_loop&&cues[1].ms==9000&&cues[1].is_loop);
+  /* A DAT with no cue list at all stays unknown (rekordbox writes the lists even when empty). */
+  snprintf(cue_dir,sizeof cue_dir,"%s/PIONEER/USBANLZ/P001/0000BBBB",root);
+  assert(xz_shana_memory_cues(cue_dir,cues)==-1);
+  assert(xz_shana_memory_cues("shell-analysis-fixture/none",cues)==-1);
+  puts("PASS memory cues: PCOB memory list only, loops, hot cue entries skipped, time order");
+ }
  /* A stick without USBANLZ gives an empty index, not an error. */
  assert(!xz_shana_build("shell-analysis-fixture/none",&a,&files)&&a&&!xz_shana_count(a)&&!files);xz_shana_free(a);
  puts("PASS analysis index: one build per USB, PPTH-confirmed lookups, nested folders, misses, missing 2EX, path split");

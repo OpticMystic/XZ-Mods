@@ -32,7 +32,12 @@ static void key_table(void) {
   assert(k&&k->rule==expect[i].rule&&k->key==expect[i].key&&k->hold==expect[i].hold);
  }
  /* Deck keys, jog, LINK and REKORDBOX are not in the table; LOAD on a third channel is not either. */
- assert(!xz_shrt_key_lookup(0x4305,1)&&!xz_shrt_key_lookup(0x4101,1)&&!xz_shrt_key_lookup(0x205,0)&&!xz_shrt_key_lookup(0x202,0));
+ assert(!xz_shrt_key_lookup(0x4305,1)&&!xz_shrt_key_lookup(0x4101,1));
+ /* TRACK FILTER, LINK and computer: a visible hand-off, never a hidden stock key. */
+ for(unsigned i=0;i<3;i++){
+  static const uint16_t codes[3]={0x420d,0x205,0x202};const struct xz_shrt_key_map *k=xz_shrt_key_lookup(codes[i],0);
+  assert(k&&k->rule==XZ_SHRT_HAND_OFF&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==-1);
+ }
  assert(!xz_shrt_key_lookup(0x430f,3));
  assert(xz_shrt_phase_of(0)==XZ_SHRT_PRESS&&xz_shrt_phase_of(1)==XZ_SHRT_HOLD&&xz_shrt_phase_of(2)==XZ_SHRT_RELEASE&&xz_shrt_phase_of(3)==XZ_SHRT_RELEASE);
  const struct xz_shrt_key_map *menu=xz_shrt_key_lookup(0x20b,0),*info=xz_shrt_key_lookup(0x206,0);
@@ -59,7 +64,8 @@ static void verdicts(void) {
  assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_PASS_HAND_OFF);
  /* Inert keys are swallowed, never passed to the hidden stock screen: stock would act on its own
     browse cursor or deck state behind the shell. */
- assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_SWALLOW);  /* TAG TRACK without the capability */
+ assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_PASS_HAND_OFF); /* TAG TRACK on PLAY: stock tags the loaded track */
+ assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x420d,0))==XZ_SHRT_PASS_HAND_OFF);
  assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_SWALLOW); /* BACK on the bare PLAY screen */
  assert(xz_shrt_key_verdict(&u,&m,load)==XZ_SHRT_SWALLOW); /* LOAD on PLAY would load stock's cursor */
  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430b,0))==XZ_SHRT_PASS); /* deck keys stay stock's */
@@ -72,6 +78,7 @@ static void verdicts(void) {
  xz_shell_input(&u,&m,&e,out);
  assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_SWALLOW); /* BACK below PLAY belongs to the shell */
+ assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_SWALLOW);  /* TAG TRACK on a list: never stock's hidden row */
  /* On a list the short MENU asks for stock's menu popup (HAND_OFF_MENU, which the runtime keeps inert)
     while the hold opens the shell's UTILITY: the shell keeps the key. */
  assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
