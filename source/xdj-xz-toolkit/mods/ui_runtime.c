@@ -1132,9 +1132,9 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         case XZ_UI_STEM_PAGE:
             if (a->index >= 0 && a->index < 4) model.stem_page = a->index;
             break;
-        case XZ_UI_SHIFT_PAGES: model.shift_pages = a->value != 0; break;
+        case XZ_UI_SHIFT_PAGES: model.shift_pages = 1; break;
         case XZ_UI_PAD_FEEDBACK: model.pad_feedback = a->value != 0; break;
-        case XZ_UI_SHIFT_KEYSYNC: model.shift_keysync = a->value != 0; break;
+        case XZ_UI_SHIFT_KEYSYNC: model.shift_keysync = 1; break;
         case XZ_UI_KEY_CHECK:
             ui.notice[0]=0;
             if(key_available&&xz_key_native_snapshot(0,&key_snapshot[0])&&xz_key_native_snapshot(1,&key_snapshot[1])&&
@@ -1720,10 +1720,8 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
                 sync_owned |= bit; owned = 1;
                 /* The gesture enables key sync directly. An old saved checkbox
                    never gates a working track/master pair behind a setup page. */
-                int newly_enabled=!model.shift_keysync;
                 model.shift_keysync=1;
                 int done = sync_key(event->deck);
-                if(newly_enabled&&done)settings_queue();
                 /* A failure is shown inline on the deck strip. Only a missing key engine,
                    which no gesture can fix, opens its setup page. */
                 if (!done && !key_available) { xz_native_touch_visible(&touch,1); __atomic_store_n(&visible,1,__ATOMIC_RELEASE); }
@@ -1735,7 +1733,8 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
         (ui.deck == event->deck ? 8u : 0) | (model.enabled & XZ_UI_STEM ? 16u : 0) |
         (audio_available ? 32u : 0) | (event->hotcue_mode ? 64u : 0);
     int toggle,beats=0;
-    int active=stem_controls_active(event->deck);
+    int shifted_mode=event->shift&&event->mode_button>=0&&event->mode_button<3;
+    int active=stem_controls_active(event->deck)||(audio_available&&shifted_mode);
     int jump_mode=event->mode_button==3;
     if(jump_mode||((model.jump.enabled||(event->deck>=0&&event->deck<2&&jump_state.page[event->deck]))&&event->pad_page==3&&event->pad>=0))active=0;
     /* Both handlers see releases, including after settings change while held. */
@@ -1751,6 +1750,12 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
     if (toggle >= 0) *trace_flags |= 256u;
     if (toggle >= 0) {
         int deck = event->deck;
+        /* An explicit unused-combo action activates the same stem state. An
+           automatic-on-load preference must not silently defeat this gesture. */
+        if(!(model.enabled&XZ_UI_STEM)){
+            requested_stems=1;model.enabled|=XZ_UI_STEM;xz_audio_set_enabled(1);
+            levels(1-deck);settings_queue();
+        }
         model.deck[deck].muted = pads.muted[deck];
         if (toggle == XZ_STEM_PAD_BYPASS) model.deck[deck].bypass = !model.deck[deck].bypass;
         levels(deck);
@@ -2067,8 +2072,8 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     if(model.stems_overlay!=saved->stems_overlay){stem_layout_revision++;stem_layout_origin=origin;}
     model.jump = saved->jump; model.jump.shift_page=1; model.stems_overlay = saved->stems_overlay; model.wave_mode = saved->wave_mode;
     requested_stems = saved->stems; model.theme = saved->theme; model.stem_page = saved->stem_page;
-    model.shift_pages = saved->shift_pages; model.pad_feedback = saved->pad_feedback;
-    model.shift_keysync = saved->shift_keysync; model.takeover_assign = saved->takeover_assign;
+    model.shift_pages = 1; model.pad_feedback = saved->pad_feedback;
+    model.shift_keysync = 1; model.takeover_assign = saved->takeover_assign;
     model.rekordbox_menu = saved->rekordbox_menu;
     model.stem_bank = saved->stem_bank; pads.bank = saved->stem_bank;
     model.stem_order = (unsigned)saved->stem_order < XZ_STEM_ORDER_COUNT ? saved->stem_order : 0; pads.order = model.stem_order;
@@ -2232,6 +2237,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     model.jump=xz_jump_defaults();
     memset(&jump_state,0,sizeof(jump_state));
     model.pad_feedback = 1;
+    model.shift_pages=model.shift_keysync=1;
     model.stems_overlay = 1;
     model.wave_mode = XZ_WAVE_THREE_BAND;
     model.fb_takeover = 0;

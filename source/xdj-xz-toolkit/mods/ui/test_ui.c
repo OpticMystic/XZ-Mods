@@ -61,11 +61,12 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  }
  assert(tap(u,m,XZ_UI_HOLD,0).value==1);
  assert(tap(u,m,XZ_UI_OVERDUB,0).value==1);
+ m->enabled&=~XZ_UI_SAMPLE; /* Loaded samples on a ready new page need no master gate. */
  for(i=0;i<8;i++)assert(tap(u,m,XZ_UI_SAMPLE_PAD,i).index==i);
  m->deck[0].sample_loaded=1;
  assert(tap(u,m,XZ_UI_SAMPLE_PAD,7).kind==XZ_UI_UNAVAILABLE);
  tap(u,m,XZ_UI_PANEL,XZ_UI_GENERAL);
- for(i=0;i<4;i++){int flags[4]={XZ_UI_GATE,XZ_UI_SMART,XZ_UI_PREVIEW,XZ_UI_SAMPLE};assert(tap(u,m,XZ_UI_ENABLE,flags[i]).kind==XZ_UI_ENABLE);}
+ for(i=0;i<2;i++){int flags[2]={XZ_UI_GATE,XZ_UI_SMART};assert(tap(u,m,XZ_UI_ENABLE,flags[i]).kind==XZ_UI_ENABLE);}
  tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);
  assert(tap(u,m,XZ_UI_KEY_SHIFT,-1).value==-1);
  assert(tap(u,m,XZ_UI_KEY_SHIFT,0).value==0);
@@ -78,12 +79,12 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
   assert(result.kind==XZ_UI_STEM_PAGE&&result.index==i&&result.value==i);
  }
  assert(m->stem_page==0);
- tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);assert(tap(u,m,XZ_UI_SHIFT_PAGES,0).value==1);
- m->shift_pages=1;assert(tap(u,m,XZ_UI_SHIFT_PAGES,0).value==0);
+ tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);
+
  tap(u,m,XZ_UI_PANEL,XZ_UI_CONTROLS);assert(tap(u,m,XZ_UI_PAD_FEEDBACK,0).value==1);
  m->pad_feedback=1;assert(tap(u,m,XZ_UI_PAD_FEEDBACK,0).value==0);
- tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);assert(tap(u,m,XZ_UI_SHIFT_KEYSYNC,0).value==1);
- m->shift_keysync=1;assert(tap(u,m,XZ_UI_SHIFT_KEYSYNC,0).value==0);
+ tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);
+
  /* Settings stay editable with no loaded track, and never mutate the snapshot. */
  m->deck[0].ready=0;tap(u,m,XZ_UI_PANEL,XZ_UI_CONTROLS);
  assert(tap(u,m,XZ_UI_STEM_PAGE,2).value==2&&m->stem_page==0);

@@ -27,3 +27,8 @@ class CurrentSettingsTests(unittest.TestCase):
         for count in SCHEMA['accepted_field_counts']:
             with self.subTest(count=count):
                 self.assertEqual(usb_settings.parse(b''.join(lines[:count+1]),SCHEMA),values)
+
+    def test_shortcut_options_remain_editable(self):
+        values=usb_settings.defaults(SCHEMA)
+        values.update(stem_order=5,stem_page=2,stem_bank=1,jump_5=9)
+        self.assertEqual(usb_settings.parse(usb_settings.serialize(values,SCHEMA),SCHEMA),values)

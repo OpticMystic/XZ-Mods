@@ -53,14 +53,15 @@ appended after `ram_debug`; records without it load the default.
 
 `stem_page`: 0 Hot Cue, 1 Beat Loop, 2 Slip Loop, 3 Beat Jump. A/B/C toggle
 drums/harmonics/vocals; D toggles bypass while the STEMS controls own the deck.
-With `shift_pages=1`, Shift plus the four page buttons provides those four
-actions in the same order. Releases remain owned even if Shift is released
+Shift plus the mode buttons always provides the stem shortcuts in the saved
+order. SHIFT + BEAT JUMP is reserved for jump page 2. Old `shift_pages=0`
+values are ignored. Releases remain owned even if Shift is released
 first or the panel closes. Unmodified page buttons retain their native action.
 
 `pad_feedback=1` selects the UI theme's stem RGB colours, dimming muted pads.
-`shift_keysync=1` reserves Shift+Sync for Key Sync; matching requires verified track-key and master metadata. An explicit
-SHIFT + SYNC gesture sets the same preference on; it has no second engine
-switch. New USBs default that setting to 0. Per-track mute/bypass and temporary key shifts are
+SHIFT + SYNC is always available on a standalone USB deck; matching requires
+verified track-key and master metadata. Old `shift_keysync=0` values are ignored.
+There is no menu enable switch for either shortcut family. Per-track mute/bypass and temporary key shifts are
 performance state and are not restored on boot.
 
 Hardware acceptance still requires a saved preference readback and player
@@ -174,8 +175,8 @@ require enable switches. RAM appears in the metrics readout; the compact RAM
 box remains a fallback when a host does not draw metrics. Tap METRICS for
 setup and live verification. It no longer turns readings off.
 
-The active desktop schema omits `jump_shift_page`, `ram_debug` and
-`metrics_enabled`. Their old version-1 wire slots remain in `wire_order` and
+The active desktop schema omits `shift_pages`, `shift_keysync`,
+`jump_shift_page`, `ram_debug` and `metrics_enabled`. Their old version-1 wire slots remain in `wire_order` and
 `retired_fields` so positional files and older readers stay compatible.
 Disabled values are accepted and ignored by native parse and profile overlay.
 The desktop reader discards them, and its writer emits 1 in those slots.
@@ -186,5 +187,8 @@ Stock-altering settings retain one value owned by MODS. Desktop USB settings
 and USB profiles write that value, rather than an extra prerequisite.
 The last explicit profile application or menu edit wins. Performance actions
 such as mute, bypass, pitch adjustment, game launch and RAM-copy requests are
-session state, not additional saved feature switches. See
+additive MODS-page actions. They need no separate master enable. Classification
+depends on whether the trigger is inert on stock, even when its action changes
+audio. An explicit shift stem action activates the same audio state when needed;
+it is not defeated by the automatic stem-on-load preference. See
 [the complete decision table](../../../docs/feature-toggle-audit.md).
