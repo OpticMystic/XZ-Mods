@@ -37,7 +37,6 @@ static uint32_t milliseconds(void) {
  struct timespec t;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return 0;
  return (uint32_t)((uint64_t)t.tv_sec*1000+(uint32_t)t.tv_nsec/1000000);
 }
-static int opted_in(void) { const char *v=getenv("XZ_KART_CONTROLS");return v && !strcmp(v,"1"); }
 static int heartbeat_attributes(pthread_attr_t *attributes) {
  const char *v=getenv("XZ_KART_DIAGNOSTIC_HEARTBEAT_CPU");
  heartbeat_cpu=-1;
@@ -72,7 +71,7 @@ static int process_info(uint32_t pid,unsigned *parent,unsigned *group,char *stat
 }
 const char *xz_kart_runtime_sdk_test_root(void) {
  const char *root=getenv("XZ_KART_SDK_TEST_ROOT"),*prefix="/dev/shm/ool-sdk-source-";
- if(!opted_in() || !root || strncmp(root,prefix,strlen(prefix)) || strlen(root)>=96)return NULL;
+ if(!root || strncmp(root,prefix,strlen(prefix)) || strlen(root)>=96)return NULL;
  const char *tail=root+strlen(prefix);if(!*tail)return NULL;
  for(const char *p=tail;*p;p++)if(!((*p>='a'&&*p<='z') || (*p>='A'&&*p<='Z') || (*p>='0'&&*p<='9') || *p=='-'))return NULL;
  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if(fd<0)return NULL;
@@ -136,7 +135,6 @@ static void *heartbeat(void *unused) {
  return NULL;
 }
 int xz_kart_runtime_start(void) {
- if(!opted_in())return 0;
  pthread_mutex_lock(&mutex);
  if(ready){pthread_mutex_unlock(&mutex);return 0;}
  pthread_attr_t attributes;
@@ -206,7 +204,6 @@ int xz_kart_runtime_prepare(const char *id,unsigned kind,struct xz_kart_launch *
  memset(launch,0,sizeof(*launch));
  if(kind!=1 || strcmp(id,"org.vjtools.out-of-line"))return 0;
  snprintf(launch->display_env,sizeof(launch->display_env),"XZ_KART_SDK_DISPLAY=1");
- if(!opted_in())return 0;
  const char *mask=getenv("XZ_KART_CONTROL_DECK_MASK");
  if(mask && strcmp(mask,"1") && strcmp(mask,"2") && strcmp(mask,"3"))return -1;
  pthread_mutex_lock(&mutex);

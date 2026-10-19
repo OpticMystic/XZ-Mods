@@ -86,7 +86,7 @@ int main(void) {
     a.stems_overlay=0;
     a.jump.enabled=0;a.jump.shift_page=0;
     assert(xz_settings_format(&a,text,sizeof(text))>0);
-    assert(!xz_settings_parse(text,&b)&&!b.jump.enabled&&!b.jump.shift_page&&!b.stems_overlay);
+    assert(!xz_settings_parse(text,&b)&&!b.jump.enabled&&b.jump.shift_page&&!b.stems_overlay);
     a.jump.enabled=1;a.jump.shift_page=1;
     for(int size=0;size<XZ_JUMP_SIZES;size++){
         for(int pair=0;pair<8;pair++)a.jump.sizes[pair]=(pair+size)%XZ_JUMP_SIZES;

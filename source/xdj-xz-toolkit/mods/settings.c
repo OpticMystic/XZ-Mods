@@ -12,7 +12,7 @@
 #include <fcntl.h>
 #include <mntent.h>
 void xz_settings_default(struct xz_settings *s) {
-    *s = (struct xz_settings){.stems=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1,.browse_columns={XZ_BROWSE_TITLE,XZ_BROWSE_KEY,XZ_BROWSE_BPM},.browse_key_prefix=1,.browse_traffic=1,.key_feedback=1,.rekordbox_menu=1};
+    *s = (struct xz_settings){.stems=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1,.browse_columns={XZ_BROWSE_TITLE,XZ_BROWSE_KEY,XZ_BROWSE_BPM},.browse_key_prefix=1,.browse_traffic=1,.key_feedback=1,.rekordbox_menu=1,.ram_debug=1,.metrics_enabled=1};
 }
 static int valid(const struct xz_settings *s) {
     for (int i=0;i<8;i++) if ((unsigned)s->jump.sizes[i]>=XZ_JUMP_SIZES) return 0;
@@ -71,6 +71,7 @@ int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigne
         *values[i] = value;
     }
     if (*text || !valid(&s)) return -1;
+    s.jump.shift_page=1;s.ram_debug=1;s.metrics_enabled=1;
     *out = s; if (present) *present = i; return 0;
 }
 int xz_settings_overlay(struct xz_settings *current, const struct xz_settings *record, unsigned present) {
@@ -78,6 +79,7 @@ int xz_settings_overlay(struct xz_settings *current, const struct xz_settings *r
     int *to[FIELDS], *from[FIELDS];
     fields(&merged,to); fields(&source,from);
     for (unsigned i=0;i<present&&i<FIELDS;i++) *to[i] = *from[i];
+    merged.jump.shift_page=1;merged.ram_debug=1;merged.metrics_enabled=1;
     if (!valid(&merged)) return -1;
     *current = merged; return 0;
 }

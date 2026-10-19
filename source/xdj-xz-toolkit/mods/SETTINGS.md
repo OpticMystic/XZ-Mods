@@ -46,7 +46,7 @@ MODS, so every setting stays reachable with the browse encoder and BACK when the
 touchscreen does not respond. 0 restores the key's stock rekordbox action. It is
 appended after `ram_debug`; records without it load the default.
 
-`fb_takeover`: 1 (enabled, default), 0 (disabled). Controls whether the VJ.Tools video and composite frame takes over the hardware display framebuffer. When disabled, the native Pioneer XDJ-XZ playback/browse screen is displayed uninterrupted.
+`fb_takeover`: 1 (enabled), 0 (disabled, default). Controls whether the VJ.Tools video and composite frame takes over the hardware display framebuffer. When disabled, the native Pioneer XDJ-XZ playback/browse screen is displayed uninterrupted.
 
 `takeover_assign`: 0 (LINK physical button, default), 1 (REKORDBOX physical button), 2 (Onscreen VJ.Tools button in opposite corner from MODS). Selects which control toggles FB display takeover on and off. REKORDBOX only switches takeover while `rekordbox_menu=0`.
 
@@ -58,9 +58,9 @@ actions in the same order. Releases remain owned even if Shift is released
 first or the panel closes. Unmodified page buttons retain their native action.
 
 `pad_feedback=1` selects the UI theme's stem RGB colours, dimming muted pads.
-`shift_keysync=1` reserves Shift+Sync for Key Sync; automatic pitch matching is
-currently unavailable pending verified track-key/master metadata. New USBs
-default that setting to0. Per-track mute/bypass and temporary key shifts are
+`shift_keysync=1` reserves Shift+Sync for Key Sync; matching requires verified track-key and master metadata. An explicit
+SHIFT + SYNC gesture sets the same preference on; it has no second engine
+switch. New USBs default that setting to 0. Per-track mute/bypass and temporary key shifts are
 performance state and are not restored on boot.
 
 Hardware acceptance still requires a saved preference readback and player
@@ -71,7 +71,7 @@ removal, the real UBIFS mount or physical power-loss behaviour.
 
 ## Beat-jump pad assignments
 
-Open MODS > ADVANCED > BEAT JUMP SETUP. Enable CUSTOM BEAT JUMP, choose
+Open MODS > GENERAL > JUMP SETTINGS. Choose
 EDIT PAGE 1 or EDIT PAGE 2, then tap either pad in a pair. The editor mirrors
 the physical two rows of four pads. UP/DOWN or the browse encoder changes
 the selected pair's size; the selection stops at the smallest/largest size. A/B, C/D,
@@ -81,15 +81,15 @@ second jumps forward by the same amount. Assignments apply to both decks.
 Available sizes are 1, 2, 4, 8, 16, 32 and 64 beats, plus 16, 32 and 64 bars.
 A bar means four beats, so the bar choices send 64, 128 and 256 beats.
 
-Press BEAT JUMP to select page 1. With SHIFT + BEAT JUMP enabled in the menu,
-hold Shift and tap the physical Beat Jump mode button to select page 2.
+Press BEAT JUMP to select page 1. Hold Shift and tap the physical Beat Jump mode button to select page 2.
 Release Shift before pressing the pads. Selection is independent for each deck.
 Shifted pad presses keep their stock behavior.
 
-Custom jumps and Shift page selection default on. Page 1 starts at 1/2/4/8 beats; page 2 starts at
+Page 2 is always available, even when PAGE 1 CUSTOM JUMPS is off.
+That switch controls only page-1 remapping. Page 1 starts at 1/2/4/8 beats; page 2 starts at
 16/32/64/128 beats, equivalent to 4/8/16/32 bars. Custom jumps have priority over
 stem pads assigned to Beat Jump. The page-2 shortcut takes priority over the
-optional Shift + Beat Jump stem-bypass shortcut while enabled.
+optional Shift + Beat Jump stem-bypass shortcut. Page-2 selection always wins that combo.
 
 The version-1 record appends `jump_enabled`, `jump_shift_page` and
 `jump_1` through `jump_8`. The first four assignments belong to page 1;
@@ -132,7 +132,7 @@ values the PC transport does not report.
 scrolling waveform, 1 CDJ-3000 style layered 3-band (default, also for older
 records), 2 stem layers in the theme's drums/harmonics/vocals colours. Stems
 falls back to 3-band on tracks without an OverCue bundle. MODS > Settings >
-SCROLLING WAVEFORM changes it live. `XZ_MODS_WAVE_MODE` overrides it at start.
+SCROLLING WAVEFORM changes it live. Old `XZ_MODS_WAVE_MODE` overrides are ignored; the saved setting wins.
 See `ui/LAYERED_WAVE.md`.
 Stem-row visibility and the A-D/E-H pad bank now queue preference saves.
 Stem colors are configured in MODS > APPEARANCE > STEM COLORS. The existing
@@ -148,8 +148,8 @@ after `key_format`. Each is 0 theme default, 1 blue, 2 red, 3 green, 4 amber,
 5 purple, 6 cyan, 7 pink or 8 white. Older settings records default all three
 to 0. Fixed choices survive theme changes and save with the selected USB
 profile. These fields also appear in the desktop USB settings editor.
-The live launcher must omit XZ_MODS_THEME to respect the saved theme and set
-XZ_MODS_SETTINGS_READONLY=0 for durable USB preferences.
+Old theme, waveform, stems, key-engine and inline-view environment overrides
+are ignored. Set XZ_MODS_SETTINGS_READONLY=0 for durable USB preferences.
 
 `stem_order` appends after `metrics_enabled` as the 38th field. It stores
 the left-to-right order of the three stems on the play-screen stem rows,
@@ -166,3 +166,25 @@ to the selected USB.
 preferences. It takes precedence over `XZ_MODS_USB` for settings only; media
 and stem discovery retain their existing root. The live test uses the first
 partition because the second was remounted read-only after a FAT error.
+
+## Feature switches and old files
+
+SHIFT + BEAT JUMP page 2, top-bar metrics and free-RAM information do not
+require enable switches. RAM appears in the metrics readout; the compact RAM
+box remains a fallback when a host does not draw metrics. Tap METRICS for
+setup and live verification. It no longer turns readings off.
+
+The active desktop schema omits `jump_shift_page`, `ram_debug` and
+`metrics_enabled`. Their old version-1 wire slots remain in `wire_order` and
+`retired_fields` so positional files and older readers stay compatible.
+Disabled values are accepted and ignored by native parse and profile overlay.
+The desktop reader discards them, and its writer emits 1 in those slots.
+Records still accept every historical field count. USB and internal CRC slots
+use that same parser. Options such as page-2 lengths remain editable.
+
+Stock-altering settings retain one value owned by MODS. Desktop USB settings
+and USB profiles write that value, rather than an extra prerequisite.
+The last explicit profile application or menu edit wins. Performance actions
+such as mute, bypass, pitch adjustment, game launch and RAM-copy requests are
+session state, not additional saved feature switches. See
+[the complete decision table](../../../docs/feature-toggle-audit.md).

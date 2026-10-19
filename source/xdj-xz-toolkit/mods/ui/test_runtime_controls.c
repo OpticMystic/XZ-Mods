@@ -323,13 +323,14 @@ int main(void){
     je.operation=2;assert(xz_ui_runtime_pad(&je,&jf)&&jump_state.page[0]==1);
     je=(struct xz_cue_event){.deck=0,.pad=7,.pad_page=3,.mode_button=-1};
     assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==1&&jump_deck==0&&jump_beats==128);
+    {struct xz_ui_action off={.kind=XZ_UI_JUMP_ENABLE,.value=0};apply(NULL,&off,1);assert(jump_state.page[0]==1&&!model.jump.enabled);}
     assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==1);
     model.jump.enabled=0;je.operation=2;assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==1);
-    /* A stem press/release must not leave a stale held bit in the jump state. */
+    jump_state.page[0]=0; /* Page 1 can still use stem pads when custom jumps are off. */
     je.pad=0;je.operation=0;pads.bank=0;assert(xz_ui_runtime_pad(&je,&jf));
     je.operation=2;assert(xz_ui_runtime_pad(&je,&jf));
     model.jump.enabled=1;je.operation=0;
-    assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==2&&jump_beats==-16);
+    assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==2&&jump_beats==-1);
     je.operation=2;assert(xz_ui_runtime_pad(&je,&jf));
     model.jump.enabled=1;model.jump.shift_page=1;jump_state.page[0]=1;jump_state.page[1]=0;
     deck_page[0]=deck_page[1]=3;
@@ -338,7 +339,7 @@ int main(void){
         assert(!xz_ui_runtime_pad_color(1,pad,&rgb,&lit));
     }
     jump_state.page[0]=0;assert(!xz_ui_runtime_pad_color(0,0,&rgb,&lit));
-    jump_state.page[0]=1;model.jump.shift_page=0;assert(!xz_ui_runtime_pad_color(0,0,&rgb,&lit));
+    jump_state.page[0]=1;model.jump.shift_page=0;assert(xz_ui_runtime_pad_color(0,0,&rgb,&lit)==XZ_LED_HUE);
     model.jump.enabled=0;
     /* Utility/browser headings own the left title area. VJ remains reachable
        from its physical shortcut and MODS; hidden shortcut must not eat touch. */
