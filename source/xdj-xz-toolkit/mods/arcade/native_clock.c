@@ -65,7 +65,7 @@ int xz_arcade_native_clock_read(xz_arcade_memory_read read,void *ctx,unsigned de
     if(word(read,ctx,range[0],deck*4,&check)||check!=player||
        word(read,ctx,impl,0x6a0,&check)||check!=info||block(read,ctx,manager,0x10,again,8)||memcmp(again,cache+0x10,8))return 0;
     double phase=fmod(bar-1+fraction+4.,4.);
-    *out=(struct xz_arcade_track_clock){.track=info,.position_ms=(uint32_t)position_ms,.bpm=(float)bpm,.bar_phase=(float)phase,
+    *out=(struct xz_arcade_track_clock){.track=info,.position_ms=(uint32_t)position_ms,.bpm=(float)bpm,.bar_phase=(float)phase,.speed=(float)multiplier,
                                       .playing=!!state[0x13]&&!state[0x40]};
     return 1;
 }

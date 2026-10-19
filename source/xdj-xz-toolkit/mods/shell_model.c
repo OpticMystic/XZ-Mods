@@ -45,8 +45,8 @@ struct deck_storage {
     int identity_valid, identity_loaded, identity_track_known, identity_track;
     int32_t identity_total;
     struct xz_shell_model_input input;
-    struct xz_shell_column scroll[SCROLL_CAP], overview[OVERVIEW_CAP];
-    uint32_t scroll_count, scroll_span, overview_count, overview_span;
+    struct xz_shell_column scroll[SCROLL_CAP], overview[OVERVIEW_CAP], stems[SCROLL_CAP];
+    uint32_t scroll_count, scroll_span, overview_count, overview_span, stems_count, stems_span;
     int hot_out_known;int32_t hot_out[XZ_SHELL_HOT_CUES];
     /* Last complete native snapshot (before runtime inputs), for HOLD_MS. */
     struct xz_shell_deck held;char held_title[TITLE_BYTES];
@@ -377,12 +377,15 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
             }else if(!transient||(uint32_t)(now_ms-v->held_at)>=HOLD_MS)v->held_valid=0;
         }
         input_fields(d,&v->input);
-        if(identity(d,v)){changed|=1u<<deck;v->scroll_count=v->overview_count=0;}
+        if(identity(d,v)){changed|=1u<<deck;v->scroll_count=v->overview_count=v->stems_count=0;}
         /* Hide old data while identity is unreadable, without declaring a new
          * track on a transient failed/torn read. */
         int current=v->identity_valid&&v->identity_loaded&&(d->known&(K(LOADED)|K(TITLE)|K(TOTAL)))==(K(LOADED)|K(TITLE)|K(TOTAL))&&d->loaded;
         if(current&&v->scroll_count){d->wave=(struct xz_shell_wave){v->scroll,v->scroll_count,v->scroll_span};d->known|=K(WAVE);}
         if(current&&v->overview_count){d->overview=(struct xz_shell_wave){v->overview,v->overview_count,v->overview_span};d->known|=K(OVERVIEW);}
+#ifdef XZ_SHELL_HAS_STEM_WAVE
+        if(current&&v->stems_count){d->stems=(struct xz_shell_wave){v->stems,v->stems_count,v->stems_span};d->known|=K(STEM_WAVE);}
+#endif
     }
     if((m->deck[0].known&K(TIME_MODE))&&(m->deck[1].known&K(TIME_MODE))&&m->deck[0].time_mode==m->deck[1].time_mode){
         m->settings.time_mode=m->deck[0].time_mode;m->settings.known|=SET(TIME_MODE);
@@ -414,6 +417,14 @@ void xz_shell_model_set_wave(struct xz_shell_model_storage *s,int deck,const str
     struct deck_storage *d=s->deck+deck;
     d->scroll_count=copy_wave(d->scroll,SCROLL_CAP,scroll,scroll_count,scroll_span_ms);d->scroll_span=scroll_span_ms;
     d->overview_count=copy_wave(d->overview,OVERVIEW_CAP,overview,overview_count,overview_span_ms);d->overview_span=overview_span_ms;
+}
+void xz_shell_model_set_stems(struct xz_shell_model_storage *s,int deck,const struct xz_shell_column *stems,size_t count,uint32_t span_ms){
+    if(!s||deck<0||deck>=XZ_SHELL_DECKS)return;
+    struct deck_storage *d=s->deck+deck;
+    d->stems_count=copy_wave(d->stems,SCROLL_CAP,stems,count,span_ms);d->stems_span=span_ms;
+}
+int xz_shell_model_has_stems(const struct xz_shell_model_storage *s,int deck){
+    return s&&deck>=0&&deck<XZ_SHELL_DECKS&&s->deck[deck].stems_count;
 }
 uint32_t xz_shell_model_caution(const struct xz_shell_model_storage *s){return s?s->caution:UINT32_MAX;}
 

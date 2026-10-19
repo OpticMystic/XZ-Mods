@@ -29,6 +29,13 @@ void xz_shell_model_set_wave(struct xz_shell_model_storage *storage, int deck,
                              const struct xz_shell_column *scroll, size_t scroll_count, uint32_t scroll_span_ms,
                              const struct xz_shell_column *overview, size_t overview_count, uint32_t overview_span_ms);
 
+/* The deck's stem layer (columns low = drums, mid = harmonics, high = vocal, from its OverCue bundle;
+   NULL clears it). Published as xz_shell_deck.stems with XZ_SHELL_F_STEM_WAVE once shell.h defines
+   XZ_SHELL_HAS_STEM_WAVE; a new track clears it with the other waves. */
+void xz_shell_model_set_stems(struct xz_shell_model_storage *storage, int deck,
+                              const struct xz_shell_column *stems, size_t count, uint32_t span_ms);
+int xz_shell_model_has_stems(const struct xz_shell_model_storage *storage, int deck);
+
 /* The stock caution currently showing (0 = none); while non-zero the runtime gives the screen to stock. */
 uint32_t xz_shell_model_caution(const struct xz_shell_model_storage *storage);
 

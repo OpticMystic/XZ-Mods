@@ -56,6 +56,7 @@ static int on_track(void *user, const pdb_track *t) {
  const char *path=t->file_path.data;size_t n=path?t->file_path.len:0,base=0;
  for(size_t i=0;i<n;i++)if(path[i]=='/')base=i+1;
  r->file_name=text_add(L,path?path+base:NULL,n-base);
+ r->file_path=text_add(L,path,n);
  return L->failed;
 }
 static int add_node(struct xz_shlib *L, struct node **nodes, uint32_t *count, uint32_t *cap, const pdb_playlist *p) {

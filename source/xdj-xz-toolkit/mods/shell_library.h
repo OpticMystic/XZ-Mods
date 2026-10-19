@@ -21,6 +21,7 @@ struct xz_shlib_track {
  uint32_t id, artist_id, album_id, genre_id, key_id, bpm_x100, duration_ms, bitrate;
  uint8_t rating, color_id;
  uint32_t title, artist, album, genre, label, key, file_name, date_added; /* offsets into the text pool */
+ uint32_t file_path;   /* the full path below the USB root, e.g. /Contents/Artist/Album/track.mp3 */
 };
 /* arena_size: the reader arena for list builds (see shell_runtime.c for the deck size). */
 int xz_shlib_open(const char *path, size_t arena_size, struct xz_shlib **out);

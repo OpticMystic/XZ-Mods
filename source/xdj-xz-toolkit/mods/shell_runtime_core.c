@@ -207,10 +207,10 @@ int xz_shrt_motion_step(struct xz_shrt_motion *m, int32_t elapsed_ms, uint32_t r
 }
 
 void xz_shrt_position_reset(struct xz_shrt_position *p) { memset(p,0,sizeof *p); }
+int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100) { return 1000000+tempo_x100*100; }
 void xz_shrt_position_step(struct xz_shrt_position *p, int playing, int32_t elapsed_ms, uint32_t read_at,
-                           int32_t tempo_x100, int32_t *out_ms, uint32_t *out_at) {
- int64_t rate_ppm=1000000+(int64_t)tempo_x100*100; /* tempo is in 0.01 % */
- if(rate_ppm<250000)rate_ppm=250000;
+                           int32_t rate, int32_t *out_ms, uint32_t *out_at) {
+ int64_t rate_ppm=rate<250000?250000:rate>4000000?4000000:rate;
  if(!p->valid||!playing){
   p->valid=1;p->base_us=(int64_t)elapsed_ms*1000;p->base_at=read_at;
  }else if(read_at!=p->read_at||elapsed_ms!=p->read_ms){

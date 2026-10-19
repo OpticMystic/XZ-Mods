@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
   if(i%2==0){
    int32_t reading=(int32_t)(truth/10)*10;
    raw_ms=reading;raw_at=now;
-   xz_shrt_position_step(&p,1,reading,now,200,&smooth_ms,&smooth_at);
+   xz_shrt_position_step(&p,1,reading,now,xz_shrt_rate_from_tempo(200),&smooth_ms,&smooth_at);
   }
   double raw=raw_ms+(double)(now-raw_at)*1.02,smooth=smooth_ms+(double)(int32_t)(now-smooth_at)*1.02;
   if(i>120){
