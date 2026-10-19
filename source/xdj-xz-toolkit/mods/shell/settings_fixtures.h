@@ -139,7 +139,7 @@ static const struct xz_shell_settings_model fxm_wave_model={1,fxm_wave_items,NUL
 static const struct xz_shell_dj_profile fxm_profiles[]={{"ANNA",1,0xf870b8,0},{"DJ KOSMO",1,0x36c8d8,0},{"GUEST",0,0,1}};
 static struct xz_shell_my_settings_model fxm_my;
 static inline const struct xz_shell_my_settings_model *fxm_my_reset(void) {
- fxm_my=(struct xz_shell_my_settings_model){XZ_SHELL_SRC_USB1,"USB 1",1,1,&fxm_stored,3,fxm_profiles,0,1,&fxm_wave_model,0};
+ fxm_my=(struct xz_shell_my_settings_model){XZ_SHELL_SRC_USB1,"USB 1",1,1,&fxm_stored,3,fxm_profiles,0,1,&fxm_wave_model,0,0,XZ_SHELL_MY_READY,NULL};
  return &fxm_my;
 }
 #endif

@@ -618,6 +618,10 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
    else if(rknown(r,XZ_SHELL_RF_ON_DECK))for(int d=XZ_SHELL_DECKS-1;d>=0;d--)if((r->on_deck>>d)&1){
     right-=14;deck_badge(c,right,y+12,d,selected?SH_WHITE:SH_BLUE,selected?SH_BLUE:SH_WHITE);right-=4;
    }
+   /* On the TAG LIST: a check after the title, as the TAG LIST rows carry one before theirs. */
+   if(!touched&&s!=XZ_SHELL_TAG_LIST&&r->kind==XZ_SHELL_ROW_TRACK&&rknown(r,XZ_SHELL_RF_TAGGED)&&r->tagged){
+    right-=16;check_icon(c,right,y+12,selected?SH_WHITE:SH_KEY_AMBER);right-=4;
+   }
    if(r->kind==XZ_SHELL_ROW_FOLDER){
     folder_icon(c,x,y+12,SH_WHITE);
     /* An edited playlist carries a small pencil-blue dot: its contents come from the shell's edits. */
@@ -839,11 +843,14 @@ static size_t op(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n, enum xz
    leaves a sub-page, then closes the panel (sh_browse_back_step). Rows the
    model gives no data for are left out. */
 enum { PANEL_X=W-INFO_W, PANEL_HEAD=36, PANEL_ROW=34, PANEL_ROWS=(STRIP_Y-HEAD_H-PANEL_HEAD)/PANEL_ROW, MAX_PITEMS=72 };
-enum { PAGE_MAIN, PAGE_ADD, PAGE_NEW, PAGE_RENAME };
+/* PAGE_CUES + d: the CUE/LOOP LIST loading onto deck d. */
+enum { PAGE_MAIN, PAGE_ADD, PAGE_NEW, PAGE_RENAME, PAGE_TAG_PLAYLIST, PAGE_CUES };
 enum pk {
  PK_HEAD, PK_SORT, PK_COLUMN, PK_FILTER_OPEN, PK_NEW, PK_RENAME, PK_DELETE, PK_ADD_OPEN, PK_REMOVE, PK_MOVE, PK_ADD_TO, PK_SAVE,
  PK_F_BPM, PK_F_FROM, PK_F_TO, PK_F_KEY, PK_F_RATING, PK_F_COLOR, PK_F_TAG, PK_F_CLEAR, PK_NOTE, PK_SEARCH,
- PK_MY_LOAD, PK_MY_SAVE, PK_PROFILE, PK_PROFILE_SAVE, PK_MY_OWN, PK_MY_WAVE, PK_MY_STORED
+ PK_MY_LOAD, PK_MY_SAVE, PK_PROFILE, PK_PROFILE_SAVE, PK_MY_OWN, PK_MY_WAVE, PK_MY_STORED,
+ PK_TAG_TOGGLE, PK_TAG_ALL, PK_TAG_CLEAR, PK_TAG_PLAYLIST, PK_PLAYED, PK_HISTORY_DELETE, PK_HISTORY_ALL,
+ PK_CUES_OPEN, PK_CUE, PK_CUE_DECK, PK_MY_STATE
 };
 struct pitem { enum pk kind; int value; const char *label; char text[28]; int on; uint32_t swatch; };
 static const char *const sort_label[XZ_SHELL_COL_COUNT]={
@@ -885,6 +892,32 @@ static int add(struct pitem *out, int n, enum pk kind, int value, const char *la
  out[n]=(struct pitem){kind,value,label,"",0,0};
  return n+1;
 }
+static const struct xz_shell_browse_row *highlight_row(const struct xz_shell *u, const struct xz_shell_model *m);
+static void fmt_cue_time(char *out, size_t cap, int32_t ms) {
+ if(ms<0)ms=0;
+ int32_t s=ms/1000;
+ snprintf(out,cap,"%d:%02d.%d",(int)sh_min(s/60,999),(int)(s%60),(int)((ms%1000)/100));
+}
+/* CUE/LOOP LIST (XZ manual pp.81-82): the destination deck, then the points; push loads there. */
+static char cue_head[64],cue_deck[24];
+static int cue_items(const struct xz_shell *u, const struct xz_shell_model *m, struct pitem *out) {
+ const struct xz_shell_browse_model *b=m->browse;
+ const struct xz_shell_browse_row *r=highlight_row(u,m);
+ int n=0,deck=sh_max(0,sh_min(XZ_SHELL_DECKS-1,u->panel.page-PAGE_CUES));
+ if(!r||!bknown(b,XZ_SHELL_BF_CUES)||!b->cues||b->cue_track!=r->id)return add(out,n,PK_NOTE,0,"THE TRACK'S POINTS ARE NOT READ YET");
+ snprintf(cue_deck,sizeof cue_deck,"LOAD TO DECK %d",deck+1);
+ n=add(out,n,PK_CUE_DECK,deck,cue_deck);
+ snprintf(out[n-1].text,sizeof out[n-1].text,"CHANGE");
+ snprintf(cue_head,sizeof cue_head,"%s",rknown(r,XZ_SHELL_RF_TITLE)&&r->title?r->title:"POINTS");
+ n=add(out,n,PK_HEAD,0,cue_head);
+ for(int i=0;i<sh_min(b->cue_count,64);i++){
+  const struct xz_shell_cue_entry *q=&b->cues[i];
+  n=add(out,n,PK_CUE,i,q->comment&&*q->comment?q->comment:q->loop?"LOOP":"MEMORY CUE");
+  fmt_cue_time(out[n-1].text,sizeof out[n-1].text,q->ms);
+  out[n-1].swatch=q->color?q->color&0xffffff:q->loop?SH_LOOP:SH_MEMORY;
+ }
+ return n;
+}
 static int menu_items(const struct xz_shell *u, const struct xz_shell_model *m, struct pitem *out) {
  const struct xz_shell_browse_model *b=m->browse;
  enum xz_shell_screen s=xz_shell_screen(u);
@@ -899,7 +932,43 @@ static int menu_items(const struct xz_shell *u, const struct xz_shell_model *m, 
   }
   return n;
  }
- if(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME)return add(out,n,PK_SAVE,0,"SAVE");
+ if(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME||u->panel.page==PAGE_TAG_PLAYLIST)return add(out,n,PK_SAVE,0,"SAVE");
+ if(u->panel.page>=PAGE_CUES)return cue_items(u,m,out);
+ const int armed_at=u->panel.armed?u->panel.cursor:-1;
+ /* The highlighted track (newer players' track menu, XZ manual pp.81-84, 86) */
+ if(r&&r->kind==XZ_SHELL_ROW_TRACK){
+  int head=n;
+  n=add(out,n,PK_HEAD,0,"TRACK");
+  if((m->capabilities&XZ_SHELL_CAP_TAG_EDIT)&&rknown(r,XZ_SHELL_RF_TAGGED))
+   n=add(out,n,PK_TAG_TOGGLE,0,r->tagged||s==XZ_SHELL_TAG_LIST?"REMOVE FROM TAG LIST":"ADD TO TAG LIST");
+  if((m->capabilities&XZ_SHELL_CAP_CUE_LIST)&&bknown(b,XZ_SHELL_BF_CUES)&&b->cues&&b->cue_count>0&&b->cue_track==r->id){
+   n=add(out,n,PK_CUES_OPEN,0,"CUE/LOOP LIST");
+   snprintf(out[n-1].text,sizeof out[n-1].text,"%d",sh_min(b->cue_count,99));
+  }
+  if((m->capabilities&XZ_SHELL_CAP_HISTORY_EDIT)&&rknown(r,XZ_SHELL_RF_PLAYED))
+   n=add(out,n,PK_PLAYED,0,r->played?"MARK UNPLAYED":"MARK PLAYED");
+  if(n==head+1)n=head;
+ }
+ if(r&&r->kind==XZ_SHELL_ROW_FOLDER&&s!=XZ_SHELL_TAG_LIST&&(m->capabilities&XZ_SHELL_CAP_TAG_EDIT)){
+  n=add(out,n,PK_HEAD,0,"FOLDER");
+  n=add(out,n,PK_TAG_ALL,0,"ADD ALL TO TAG LIST");
+ }
+ if(s==XZ_SHELL_TAG_LIST&&(m->capabilities&XZ_SHELL_CAP_TAG_EDIT)&&bknown(b,XZ_SHELL_BF_TOTAL)&&b->total>0){
+  n=add(out,n,PK_HEAD,0,"TAG LIST");
+  n=add(out,n,PK_TAG_PLAYLIST,0,"CREATE PLAYLIST");
+  n=add(out,n,PK_TAG_CLEAR,0,armed_at==n?"PUSH AGAIN TO CLEAR IT":"REMOVE ALL TRACKS");
+  out[n-1].on=armed_at==n-1;
+ }
+ if(s==XZ_SHELL_BROWSE&&bknown(b,XZ_SHELL_BF_CATEGORY)&&b->category==XZ_SHELL_CAT_HISTORY&&depth_of(b)==0
+    &&(m->capabilities&XZ_SHELL_CAP_HISTORY_EDIT)&&bknown(b,XZ_SHELL_BF_TOTAL)&&b->total>0){
+  n=add(out,n,PK_HEAD,0,"HISTORY");
+  if(r&&r->kind==XZ_SHELL_ROW_FOLDER){
+   n=add(out,n,PK_HISTORY_DELETE,0,armed_at==n?"PUSH AGAIN TO DELETE":"DELETE HISTORY");
+   out[n-1].on=armed_at==n-1;
+  }
+  n=add(out,n,PK_HISTORY_ALL,0,armed_at==n?"PUSH AGAIN: DELETE ALL":"DELETE ALL HISTORIES");
+  out[n-1].on=armed_at==n-1;
+ }
  if(bknown(b,XZ_SHELL_BF_SORT_KEYS)&&b->sort_keys){
   n=add(out,n,PK_HEAD,0,"SORT BY");
   for(int k=0;k<XZ_SHELL_COL_COUNT;k++)if((b->sort_keys>>k)&1){
@@ -984,8 +1053,11 @@ static int filter_items(const struct xz_shell *u, const struct xz_shell_model *m
  return n;
 }
 /* ---- MY SETTINGS (shell_settings.h): the stick's settings, its DJ profiles, and the waveform look ---- */
+static char link_name[24];
 static const char *stick_name(const struct xz_shell_my_settings_model *s) {
- return s->source_name?s->source_name:s->source==XZ_SHELL_SRC_USB2?"USB 2":"USB 1";
+ if(s->source_name)return s->source_name;
+ if(s->source==XZ_SHELL_SRC_LINK){snprintf(link_name,sizeof link_name,"PLAYER %d",sh_max(0,sh_min(s->link_player,99)));return link_name;}
+ return s->source==XZ_SHELL_SRC_USB2?"USB 2":"USB 1";
 }
 static int item_count(const struct xz_shell_settings_model *t) { return t&&t->items?(int)sh_min((int)t->count,24):0; }
 static void choice_text(struct pitem *p, const struct xz_shell_setting_item *it) {
@@ -1000,7 +1072,14 @@ static int next_choice(const struct xz_shell_setting_item *it) {
 }
 static int my_open(const struct xz_shell_model *m) {
  const struct xz_shell_my_settings_model *s=m->my_settings;
- return s&&(s->source==XZ_SHELL_SRC_USB1||s->source==XZ_SHELL_SRC_USB2);
+ return s&&(s->source==XZ_SHELL_SRC_USB1||s->source==XZ_SHELL_SRC_USB2||(s->source==XZ_SHELL_SRC_LINK&&s->link_player>0));
+}
+/* LOAD waits for a paused deck (XDJ-AZ manual p.150) and for the last LOAD to finish. */
+static int my_load_blocked(const struct xz_shell *u, const struct xz_shell_model *m) {
+ const struct xz_shell_my_settings_model *s=m->my_settings;
+ const struct xz_shell_deck *d=&m->deck[u->deck>=0&&u->deck<XZ_SHELL_DECKS?u->deck:0];
+ if(s->state==XZ_SHELL_MY_APPLYING)return 2;
+ return s->state==XZ_SHELL_MY_NEEDS_PAUSE||(sh_has(d,XZ_SHELL_F_PLAYING)&&d->playing);
 }
 static int profile_valid(const struct xz_shell_my_settings_model *s, int i) {
  return s->profiles&&i>=0&&i<sh_min(s->profile_count,16);
@@ -1014,7 +1093,18 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
  const int armed_at=u->panel.armed?u->panel.cursor:-1;
  snprintf(my_head,sizeof my_head,"%s",stick_name(s));
  n=add(out,n,PK_HEAD,0,my_head);
- if(s->on_stick){snprintf(my_load,sizeof my_load,"LOAD TO DECK %d",u->deck+1);n=add(out,n,PK_MY_LOAD,0,my_load);}
+ if(s->on_stick){
+  int blocked=my_load_blocked(u,m);
+  if(blocked==2)snprintf(my_load,sizeof my_load,"LOADING...");
+  else if(blocked)snprintf(my_load,sizeof my_load,"PAUSE DECK %d TO LOAD",u->deck+1);
+  else snprintf(my_load,sizeof my_load,"LOAD TO DECK %d",u->deck+1);
+  n=add(out,n,PK_MY_LOAD,0,my_load);
+  if(blocked)out[n-1].on=-1;
+  if((s->state==XZ_SHELL_MY_DONE||s->state==XZ_SHELL_MY_FAILED)&&s->result){
+   n=add(out,n,PK_MY_STATE,0,s->result);
+   out[n-1].on=s->state==XZ_SHELL_MY_DONE;
+  }
+ }
  if(s->writable){
   snprintf(my_save,sizeof my_save,"SAVE TO %s",stick_name(s));
   n=add(out,n,PK_MY_SAVE,0,armed_at==n?"PUSH AGAIN TO SAVE":my_save);
@@ -1071,7 +1161,7 @@ static int panel_items(const struct xz_shell *u, const struct xz_shell_model *m,
  if(u->panel.kind==XZ_SHELL_PANEL_MENU)return menu_items(u,m,out);
  return 0;
 }
-static int selectable_item(const struct pitem *it) { return it->kind!=PK_HEAD&&it->kind!=PK_NOTE; }
+static int selectable_item(const struct pitem *it) { return it->kind!=PK_HEAD&&it->kind!=PK_NOTE&&it->kind!=PK_MY_STATE; }
 /* The panel cursor on a selectable row: the stored one, else the first. -1 when there is none. */
 static int panel_cursor(const struct xz_shell *u, const struct pitem *items, int n) {
  int c=u->panel.cursor;
@@ -1092,13 +1182,17 @@ static const char *panel_title(const struct xz_shell *u) {
  case PAGE_ADD:return "ADD TO PLAYLIST";
  case PAGE_NEW:return "NEW PLAYLIST";
  case PAGE_RENAME:return "RENAME PLAYLIST";
+ case PAGE_TAG_PLAYLIST:return "TAG LIST TO PLAYLIST";
+ case PAGE_CUES:case PAGE_CUES+1:return "CUE/LOOP LIST";
  default:return "MENU";
  }
 }
 static int panel_open(const struct xz_shell *u) {
  return u->panel.kind==XZ_SHELL_PANEL_MENU||u->panel.kind==XZ_SHELL_PANEL_FILTER||u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS;
 }
-static int naming(const struct xz_shell *u) { return u->panel.kind==XZ_SHELL_PANEL_MENU&&(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME); }
+static int naming(const struct xz_shell *u) {
+ return u->panel.kind==XZ_SHELL_PANEL_MENU&&(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME||u->panel.page==PAGE_TAG_PLAYLIST);
+}
 static void check_box(struct xz_canvas c, int x, int y, int on, uint32_t ink) {
  xz_border(c,x,y,14,14,ink);
  if(on)xz_rect(c,x+3,y+3,8,8,ink);
@@ -1140,6 +1234,10 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
    xz_rect(body,12,y+PANEL_ROW-4,w-24,1,SH_RAIL);
    continue;
   }
+  if(it->kind==PK_MY_STATE){
+   sh_text_fit(body,12,y+(PANEL_ROW-SH_CAP_SMALL)/2,w-24,it->label,SH_SMALL,it->on?SH_GREEN:SH_KEY_AMBER);
+   continue;
+  }
   if(it->kind==PK_NOTE){
    sh_text_fit(body,12,y+(PANEL_ROW-SH_CAP_SMALL)/2,w-24,it->label,SH_SMALL,SH_DIM);
    continue;
@@ -1149,6 +1247,7 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
   uint32_t bg=focused?(armed?SH_WHITE:SH_BLUE):SH_CHROME,ink=armed?SH_BLUE:it->on<0&&!focused?SH_DIM:SH_WHITE;
   if(it->kind==PK_DELETE&&it->on)bg=SH_RED;
   if((it->kind==PK_MY_SAVE||it->kind==PK_PROFILE_SAVE)&&it->on&&focused){bg=SH_WHITE;ink=SH_BLUE;}
+  if((it->kind==PK_TAG_CLEAR||it->kind==PK_HISTORY_DELETE||it->kind==PK_HISTORY_ALL)&&it->on)bg=SH_RED;
   xz_rect(body,0,y+1,w,PANEL_ROW-2,bg);
   int x=12,right=w-12;
   switch(it->kind){
@@ -1165,6 +1264,12 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
    x+=22;
    if(it->on)check_box(body,right-14,y+10,1,ink);
    break;
+  case PK_CUE:
+   xz_rect(body,x,y+11,4,12,it->swatch);
+   x+=12;break;
+  case PK_CUES_OPEN:
+   sh_triangle(body,right-4,y+11,6,0,ink);
+   right-=14;break;
   case PK_PROFILE:
    xz_rect(body,x,y+9,16,16,it->swatch);
    if(it->on)xz_border(body,x-2,y+7,20,20,ink);
@@ -1197,7 +1302,7 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
 /* ---- panel actions ---- */
 static size_t emit_playlist(struct xz_shell *u, enum xz_shell_playlist_op o, uint32_t playlist, uint32_t track, int32_t from, int32_t to, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  u->edit.op=o;u->edit.playlist=playlist;u->edit.track=track;u->edit.from=from;u->edit.to=to;
- if(o==XZ_SHELL_PL_CREATE||o==XZ_SHELL_PL_RENAME)snprintf(u->edit.name,sizeof u->edit.name,"%s",u->name);
+ if(o==XZ_SHELL_PL_CREATE||o==XZ_SHELL_PL_RENAME||o==XZ_SHELL_PL_FROM_TAG_LIST)snprintf(u->edit.name,sizeof u->edit.name,"%s",u->name);
  else u->edit.name[0]=0;
  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_PLAYLIST,-1,(int32_t)playlist,(int)o});
 }
@@ -1219,7 +1324,7 @@ static size_t my_activate(struct xz_shell *u, const struct xz_shell_model *m, co
  int stick=(int)s->source;
  switch(it->kind){
  case PK_MY_LOAD:
-  if(!s->on_stick)return n;
+  if(!s->on_stick||my_load_blocked(u,m))return n;
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_MY_SETTINGS,u->deck,stick,XZ_SHELL_MY_LOAD});
  case PK_MY_SAVE:
   if(!s->writable)return n;
@@ -1294,9 +1399,46 @@ static size_t activate_item(struct xz_shell *u, const struct xz_shell_model *m, 
   u->panel.page=PAGE_RENAME;u->panel.cursor=0;return n;
  case PK_SAVE:
   if(!u->name[0])return n;
-  if(u->panel.page==PAGE_NEW)n=emit_playlist(u,XZ_SHELL_PL_CREATE,0,0,-1,-1,out,n);
+  if(u->panel.page==PAGE_TAG_PLAYLIST)n=emit_playlist(u,XZ_SHELL_PL_FROM_TAG_LIST,0,0,-1,-1,out,n);
+  else if(u->panel.page==PAGE_NEW)n=emit_playlist(u,XZ_SHELL_PL_CREATE,0,0,-1,-1,out,n);
   else if(r)n=emit_playlist(u,XZ_SHELL_PL_RENAME,r->id,0,-1,-1,out,n);
   close_panel(u);return n;
+ case PK_TAG_TOGGLE:
+  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_TAG_LIST,-1,(int32_t)r->id,
+   r->tagged||xz_shell_screen(u)==XZ_SHELL_TAG_LIST?XZ_SHELL_TAG_REMOVE:XZ_SHELL_TAG_ADD});
+ case PK_TAG_ALL:
+  if(!r||r->kind!=XZ_SHELL_ROW_FOLDER)return n;
+  close_panel(u);
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_TAG_LIST,-1,(int32_t)r->id,XZ_SHELL_TAG_ADD_LIST});
+ case PK_TAG_CLEAR:
+  if(!was_armed){u->panel.armed=1;return n;}
+  close_panel(u);
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_TAG_LIST,-1,0,XZ_SHELL_TAG_CLEAR});
+ case PK_TAG_PLAYLIST:{
+  int count=bknown(b,XZ_SHELL_BF_TOTAL)?(int)b->total:0;
+  snprintf(u->name,sizeof u->name,"TAG LIST %d",count);
+  u->panel.page=PAGE_TAG_PLAYLIST;u->panel.cursor=0;return n;
+ }
+ case PK_PLAYED:
+  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HISTORY,-1,(int32_t)r->id,r->played?XZ_SHELL_HISTORY_UNPLAYED:XZ_SHELL_HISTORY_PLAYED});
+ case PK_HISTORY_DELETE:
+  if(!r||r->kind!=XZ_SHELL_ROW_FOLDER)return n;
+  if(!was_armed){u->panel.armed=1;return n;}
+  close_panel(u);
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HISTORY,-1,(int32_t)r->id,XZ_SHELL_HISTORY_DELETE});
+ case PK_HISTORY_ALL:
+  if(!was_armed){u->panel.armed=1;return n;}
+  close_panel(u);
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HISTORY,-1,0,XZ_SHELL_HISTORY_DELETE_ALL});
+ case PK_CUES_OPEN:
+  u->panel.page=PAGE_CUES+(u->deck>=0&&u->deck<XZ_SHELL_DECKS?u->deck:0);u->panel.cursor=u->panel.scroll=0;return n;
+ case PK_CUE_DECK:
+  u->panel.page=PAGE_CUES+(it->value+1)%XZ_SHELL_DECKS;return n;
+ case PK_CUE:
+  if(!r||!bknown(b,XZ_SHELL_BF_CUES)||b->cue_track!=r->id||it->value>=b->cue_count)return n;
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_LOAD_CUE,u->panel.page-PAGE_CUES,it->value,(int)r->id});
  case PK_DELETE:
   if(!r||r->kind!=XZ_SHELL_ROW_FOLDER)return n;
   if(!was_armed){u->panel.armed=1;return n;}

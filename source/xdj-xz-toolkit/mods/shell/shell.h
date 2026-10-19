@@ -70,6 +70,7 @@ enum xz_shell_field {
  XZ_SHELL_F_GRID, XZ_SHELL_F_BAR_PHASE, XZ_SHELL_F_WAVE, XZ_SHELL_F_OVERVIEW, XZ_SHELL_F_ARTWORK,
  XZ_SHELL_F_STEM_WAVE, XZ_SHELL_F_STEM_MUTE, XZ_SHELL_F_SLIP, XZ_SHELL_F_SLIP_POSITION, XZ_SHELL_F_VINYL,
  XZ_SHELL_F_SOURCE_LOOK,
+ XZ_SHELL_F_ON_AIR, XZ_SHELL_F_LOOP_EDIT, XZ_SHELL_F_HOT_CUE_CALL, XZ_SHELL_F_ALERT,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -77,6 +78,14 @@ enum xz_shell_field {
 #define XZ_SHELL_KNOWN(field) ((uint64_t)1<<(field))
 
 enum xz_shell_source { XZ_SHELL_SRC_NONE, XZ_SHELL_SRC_USB1, XZ_SHELL_SRC_USB2, XZ_SHELL_SRC_LINK, XZ_SHELL_SRC_COMPUTER };
+/* A deck condition that stays on screen until the runtime clears it (XZ manual p.50 emergency loop,
+   p.131 E-8302 / E-8304 / E-8305): the deck shows a banner with the code, one line, and one button into
+   BROWSE to choose another track. */
+enum xz_shell_alert_kind { XZ_SHELL_ALERT_NONE, XZ_SHELL_ALERT_EMERGENCY_LOOP, XZ_SHELL_ALERT_READ_ERROR,
+ XZ_SHELL_ALERT_UNSUPPORTED_FILE };
+/* HOT CUE AUTO LOAD (XZ manual pp.55, 123): ON loads every track's hot cues, LIBRARY loads them only for
+   tracks the library marks for it. The A. HOT CUE lamp reads white for ON, red for LIBRARY. */
+enum xz_shell_hot_cue_auto_load { XZ_SHELL_HCAL_OFF, XZ_SHELL_HCAL_ON, XZ_SHELL_HCAL_LIBRARY };
 enum xz_shell_time_mode { XZ_SHELL_TIME_REMAIN, XZ_SHELL_TIME_ELAPSED };
 /* STEMS draws the deck's stem layer; a deck without one draws 3BAND until it arrives. */
 enum xz_shell_wave_color { XZ_SHELL_WAVE_BLUE, XZ_SHELL_WAVE_RGB, XZ_SHELL_WAVE_3BAND, XZ_SHELL_WAVE_STEMS };
@@ -137,6 +146,16 @@ struct xz_shell_deck {
   int has_background; uint32_t background_rgb;   /* the stick's personal / background colour, 0xRRGGBB */
   int wave_color;                               /* enum xz_shell_wave_color; -1: the stick sets none */
  } look;
+ int on_air;                         /* XZ_SHELL_F_ON_AIR: the channel is live on the master output (the ON AIR
+                                        lamp, XZ manual p.70); the runtime leaves the bit clear while UTILITY
+                                        ON AIR DISPLAY is OFF */
+ /* XZ_SHELL_F_LOOP_EDIT: a loop IN (endpoint 0) or OUT (1) point being moved with the jog (XZ manual
+    pp.47-48), at ms. Clear the bit when the adjustment ends or times out. */
+ struct xz_shell_loop_edit { int endpoint; int32_t ms; } loop_edit;
+ uint8_t hot_cue_called;             /* XZ_SHELL_F_HOT_CUE_CALL: bit i: hot cue i is on its pad; a stored cue
+                                        whose bit is clear waits for CALL (XZ manual pp.54-55) */
+ struct xz_shell_alert { enum xz_shell_alert_kind kind; const char *code; const char *text; } alert; /* F_ALERT:
+                                        code e.g. "E-8302"; text one caps line; NULLs draw the kind's words */
  const uint16_t *artwork;            /* RGB565 square, or NULL */
  int artwork_side;
 };
@@ -148,7 +167,11 @@ enum xz_shell_cap {
  XZ_SHELL_CAP_TAG_TRACK=256u,
  XZ_SHELL_CAP_PLAYLIST_EDIT=512u, /* XZ_SHELL_ACT_PLAYLIST: the runtime keeps playlist edits in its sidecar */
  XZ_SHELL_CAP_STEM_MUTE=1024u,    /* XZ_SHELL_ACT_STEM_MUTE */
- XZ_SHELL_CAP_FILTER=2048u        /* XZ_SHELL_BROWSE_FILTER (shell_browse.h) */
+ XZ_SHELL_CAP_FILTER=2048u,       /* XZ_SHELL_BROWSE_FILTER (shell_browse.h) */
+ XZ_SHELL_CAP_TAG_EDIT=4096u,     /* XZ_SHELL_ACT_TAG_LIST and PL_FROM_TAG_LIST */
+ XZ_SHELL_CAP_HISTORY_EDIT=8192u, /* XZ_SHELL_ACT_HISTORY */
+ XZ_SHELL_CAP_CUE_LIST=16384u,    /* XZ_SHELL_ACT_LOAD_CUE */
+ XZ_SHELL_CAP_GRID_EDIT=32768u    /* XZ_SHELL_ACT_GRID_EDIT */
 };
 enum xz_shell_setting {
  XZ_SHELL_SET_TIME_MODE, XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_SET_PLAY_MODE,
@@ -162,13 +185,21 @@ struct xz_shell_settings {
  uint64_t writable;
  enum xz_shell_time_mode time_mode;
  enum xz_shell_play_mode play_mode;
- int auto_cue, hot_cue_auto_load;
+ int auto_cue;
+ int hot_cue_auto_load;              /* enum xz_shell_hot_cue_auto_load */
+ /* NEEDLE LOCK (XZ manual p.123; item XZ_SHELL_ITEM_NEEDLE_LOCK): 1 = LOCK, the overview searches only
+    on a paused deck. Its own known flag: the setting ids above are fixed by the item id space. */
+ int needle_lock_known, needle_lock;
 };
 /* BEAT FX section of the mixer. Bits of known are enum xz_shell_fx_field; a clear bit draws the
    flagship blank convention. Strings are runtime-owned. */
 enum xz_shell_fx_field { XZ_SHELL_FX_F_ON, XZ_SHELL_FX_F_NAME, XZ_SHELL_FX_F_BEAT, XZ_SHELL_FX_F_CHANNEL,
- XZ_SHELL_FX_F_LEVEL, XZ_SHELL_FX_F_TIME, XZ_SHELL_FX_F_BPM, XZ_SHELL_FX_F_TAP, XZ_SHELL_FX_FIELD_COUNT };
-enum xz_shell_fx_channel { XZ_SHELL_FX_CH_MASTER, XZ_SHELL_FX_CH_1, XZ_SHELL_FX_CH_2, XZ_SHELL_FX_CH_MIC };
+ XZ_SHELL_FX_F_LEVEL, XZ_SHELL_FX_F_TIME, XZ_SHELL_FX_F_BPM, XZ_SHELL_FX_F_TAP, XZ_SHELL_FX_F_QUANTIZE,
+ XZ_SHELL_FX_FIELD_COUNT };
+/* Every BEAT FX target the XZ mixer selects (XZ manual pp.73, 100): channels 1-4, MIC, crossfader A and B,
+   MASTER. A value past these draws no target, never MASTER. */
+enum xz_shell_fx_channel { XZ_SHELL_FX_CH_MASTER, XZ_SHELL_FX_CH_1, XZ_SHELL_FX_CH_2, XZ_SHELL_FX_CH_MIC,
+ XZ_SHELL_FX_CH_3, XZ_SHELL_FX_CH_4, XZ_SHELL_FX_CH_XF_A, XZ_SHELL_FX_CH_XF_B };
 struct xz_shell_fx {
  uint32_t known;
  int on;
@@ -179,6 +210,7 @@ struct xz_shell_fx {
  int32_t time_ms;                    /* effect time the beat value resolves to */
  int32_t bpm_x10;                    /* BEAT FX BPM, 0.1 BPM */
  int tap;                            /* BPM source: 1 = TAP, 0 = AUTO */
+ int quantize;                       /* XZ_SHELL_FX_F_QUANTIZE: BEAT FX QUANTIZE is on (its own lamp) */
 };
 /* Filled by later units; opaque here. NULL hands the screen to the stock UI. */
 struct xz_shell_browse_model; struct xz_shell_settings_model; struct xz_shell_source_model; struct xz_shell_info_model;
@@ -217,6 +249,7 @@ enum xz_shell_key {
  XZ_SHELL_KEY_TRACK_FILTER,          /* opens the FILTER panel (over BROWSE when another screen is up) */
  XZ_SHELL_KEY_SOURCE_LINK, XZ_SHELL_KEY_SOURCE_COMPUTER, /* the LINK and computer source buttons: the picker at that slot */
  XZ_SHELL_KEY_BROWSE_HOLD,           /* always open SEARCH, even when it is already visible */
+ XZ_SHELL_KEY_TAG_TRACK_HOLD,        /* held TAG TRACK/REMOVE: on TAG LIST, removes the highlighted track */
  XZ_SHELL_KEY_COUNT
 };
 /* deck: the deck a per-deck key (TIME MODE, QUANTIZE, LOAD) belongs to, or -1 for the active deck. */
@@ -249,8 +282,24 @@ enum xz_shell_action_kind {
                               deck = the deck LOAD applies to (shell_settings.h) */
  XZ_SHELL_ACT_MY_SETTING_SET, /* a value stored in the stick's MY SETTINGS: deck = the stick (enum xz_shell_source),
                               id = the item's id, value = choice index */
- XZ_SHELL_ACT_DJ_PROFILE   /* deck = the stick (enum xz_shell_source), id = enum xz_shell_profile_op, value = profile index */
+ XZ_SHELL_ACT_DJ_PROFILE,  /* deck = the stick (enum xz_shell_source), id = enum xz_shell_profile_op, value = profile index */
+ XZ_SHELL_ACT_TAG_LIST,    /* id = enum xz_shell_tag_op, value = the track id (ADD, REMOVE) or the folder or
+                              playlist row id (ADD_LIST); deck -1. Needs XZ_SHELL_CAP_TAG_EDIT */
+ XZ_SHELL_ACT_HISTORY,     /* id = enum xz_shell_history_op, value = the history list id (DELETE) or track id
+                              (PLAYED, UNPLAYED); deck -1. Needs XZ_SHELL_CAP_HISTORY_EDIT */
+ XZ_SHELL_ACT_LOAD_CUE,    /* deck, id = track id, value = index into the browse model's cues: load the track
+                              to deck at that memory point (CUE/LOOP LIST). Needs XZ_SHELL_CAP_CUE_LIST */
+ XZ_SHELL_ACT_GRID_EDIT    /* deck, id = enum xz_shell_grid_op. Needs XZ_SHELL_CAP_GRID_EDIT */
 };
+/* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
+   "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */
+enum xz_shell_tag_op { XZ_SHELL_TAG_ADD, XZ_SHELL_TAG_REMOVE, XZ_SHELL_TAG_ADD_LIST, XZ_SHELL_TAG_CLEAR };
+/* HISTORY edits (XZ manual pp.83-84). */
+enum xz_shell_history_op { XZ_SHELL_HISTORY_DELETE, XZ_SHELL_HISTORY_DELETE_ALL, XZ_SHELL_HISTORY_PLAYED,
+ XZ_SHELL_HISTORY_UNPLAYED };
+/* Beat grid commands (XZ manual p.72): RESET drops the edits, SNAP moves the grid's first beat to the cue,
+   SHIFT keeps the alignment the encoder made. */
+enum xz_shell_grid_op { XZ_SHELL_GRID_RESET, XZ_SHELL_GRID_SNAP_TO_CUE, XZ_SHELL_GRID_SHIFT };
 #define XZ_SHELL_HAND_OFF_MENU (-1)
 struct xz_shell_action { enum xz_shell_action_kind kind; int deck; int32_t value; int id; };
 
@@ -289,7 +338,8 @@ enum xz_shell_playlist_op {
  XZ_SHELL_PL_DELETE,       /* playlist */
  XZ_SHELL_PL_ADD_TRACK,    /* playlist, track: appended */
  XZ_SHELL_PL_REMOVE_TRACK, /* playlist, track, from = its row */
- XZ_SHELL_PL_MOVE_TRACK    /* playlist, track, from row, to row (the row it lands on) */
+ XZ_SHELL_PL_MOVE_TRACK,   /* playlist, track, from row, to row (the row it lands on) */
+ XZ_SHELL_PL_FROM_TAG_LIST /* name: a new playlist holding the tag list in its order (XZ manual p.89) */
 };
 struct xz_shell_playlist_edit { enum xz_shell_playlist_op op; uint32_t playlist, track; int32_t from, to; char name[XZ_SHELL_NAME_MAX]; };
 /* The track filter the lists ask for (XZ_SHELL_BROWSE_FILTER): the runtime filters, the list comes back
@@ -345,7 +395,9 @@ struct xz_shell_rect { int x, y, w, h; };
 enum xz_shell_play_region {
  XZ_SHELL_R_TOP_BAR, XZ_SHELL_R_INFO_COLUMN, XZ_SHELL_R_DECK_TAG, XZ_SHELL_R_LANE,
  XZ_SHELL_R_STRIP, XZ_SHELL_R_TIME, XZ_SHELL_R_OVERVIEW, XZ_SHELL_R_ZOOM, XZ_SHELL_R_INFO_BUTTON, XZ_SHELL_R_FX,
- XZ_SHELL_R_PAD_ROW   /* per deck, between the lanes and the strips: stem mute buttons and hot-cue lamps */
+ XZ_SHELL_R_PAD_ROW,  /* per deck, between the lanes and the strips: stem mute buttons and hot-cue lamps */
+ XZ_SHELL_R_ALERT_BUTTON, /* per deck, while F_ALERT holds: CHOOSE TRACK, into BROWSE */
+ XZ_SHELL_R_GRID_RESET, XZ_SHELL_R_GRID_SNAP, XZ_SHELL_R_GRID_SHIFT /* the active deck's lane in GRID mode */
 };
 struct xz_shell_rect xz_shell_play_rect(enum xz_shell_play_region, int deck);
 /* A stem mute button's touch target (44 px tall), stem 0 drums, 1 harmonics (INST), 2 vocal. Drawn

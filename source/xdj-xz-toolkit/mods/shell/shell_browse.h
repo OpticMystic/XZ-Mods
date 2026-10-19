@@ -68,6 +68,7 @@ enum xz_shell_browse_row_field {
  XZ_SHELL_RF_COLOR, XZ_SHELL_RF_DURATION, XZ_SHELL_RF_PLAYED, XZ_SHELL_RF_PREVIEW, XZ_SHELL_RF_ON_DECK,
  XZ_SHELL_RF_ALBUM, XZ_SHELL_RF_GENRE, XZ_SHELL_RF_DATE_ADDED,
  XZ_SHELL_RF_EDITED,                    /* the playlist (folder row) or its order comes from the shell's sidecar edits */
+ XZ_SHELL_RF_TAGGED,                    /* tagged: the track is on this device's TAG LIST */
  XZ_SHELL_RF_COUNT
 };
 struct xz_shell_browse_row {
@@ -86,6 +87,14 @@ struct xz_shell_browse_row {
  uint8_t on_deck;                       /* bit d: loaded on deck d */
  const char *album, *genre;
  int32_t date_added;                    /* yyyymmdd */
+ int tagged;                            /* RF_TAGGED */
+};
+/* One memory point of the highlighted track for the CUE/LOOP LIST (XZ manual pp.81-82). */
+struct xz_shell_cue_entry {
+ int loop;                              /* a stored loop: ms to end_ms */
+ int32_t ms, end_ms;
+ uint32_t color;                        /* 0xRRGGBB, 0 = none */
+ const char *comment;                   /* NULL: the time stands alone */
 };
 /* A playlist ADD TO PLAYLIST can put the highlighted track in (merged: stick playlists with sidecar edits). */
 struct xz_shell_playlist_ref { uint32_t id; const char *name; int32_t tracks; };
@@ -101,6 +110,7 @@ enum xz_shell_browse_field {
  XZ_SHELL_BF_SOURCE, XZ_SHELL_BF_SOURCE_COLOR, XZ_SHELL_BF_CATEGORY, XZ_SHELL_BF_LEVEL, XZ_SHELL_BF_PARENT,
  XZ_SHELL_BF_LIST, XZ_SHELL_BF_TOTAL, XZ_SHELL_BF_COLUMNS, XZ_SHELL_BF_SORT,
  XZ_SHELL_BF_SORT_KEYS, XZ_SHELL_BF_COLUMN_CHOICES, XZ_SHELL_BF_EDIT, XZ_SHELL_BF_PLAYLISTS, XZ_SHELL_BF_MY_TAGS,
+ XZ_SHELL_BF_CUES,                      /* cues: the highlighted track's memory points (cue_track says which) */
  XZ_SHELL_BF_COUNT
 };
 /* Alphabet jump index: the first row whose sort key starts with letter. */
@@ -135,7 +145,18 @@ struct xz_shell_browse_model {
  int playlist_count;
  const struct xz_shell_my_tag *my_tags; /* BF_MY_TAGS: FILTER > MY TAG */
  int my_tag_count;
+ uint32_t cue_track;                    /* BF_CUES: the track id the cues belong to */
+ const struct xz_shell_cue_entry *cues;
+ int cue_count;
 };
+/* The list MENU panel, by list (newer players' context menus, XZ manual pp.83-89):
+   any track row       ADD TO TAG LIST / REMOVE FROM TAG LIST (RF_TAGGED), CUE/LOOP LIST (BF_CUES for that
+                       track), MARK PLAYED / MARK UNPLAYED (RF_PLAYED, HISTORY_EDIT)
+   folder or playlist  ADD ALL TO TAG LIST (TAG_EDIT)
+   TAG LIST            CREATE PLAYLIST (names it, then PL_FROM_TAG_LIST), REMOVE ALL TRACKS (push twice)
+   HISTORY top level   DELETE HISTORY on a history row, DELETE ALL HISTORIES (each push twice)
+   On TAG LIST the TAG TRACK key held removes the highlighted track; TAG TRACK short on a list adds or
+   removes it by RF_TAGGED. */
 
 /* Geometry for the runtime's hit tests and the host tests. Some regions
    depend on the model (columns) and on shell state (PREVIEW, INFO, keyboard). */
