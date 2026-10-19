@@ -356,6 +356,7 @@ static int uikey_rekordbox_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
 static struct xz_settings settings_snapshot(void) {
     return (struct xz_settings){.stems=requested_stems,
         .gate=!!(model.enabled & XZ_UI_GATE), .smart=!!(model.enabled & XZ_UI_SMART), .theme=model.theme,
+        .ui_interface=model.ui_interface, .classic_theme=model.classic_theme, .modern_theme=model.modern_theme,
         .stem_page=model.stem_page, .shift_pages=model.shift_pages, .pad_feedback=model.pad_feedback, .shift_keysync=model.shift_keysync,
         .fb_takeover=xz_sdk_ui_saved_takeover(&sdk_session,model.fb_takeover), .takeover_assign=model.takeover_assign, .stem_bank=model.stem_bank, .jump=model.jump,
         .stems_overlay=model.stems_overlay, .wave_mode=model.wave_mode,
@@ -381,6 +382,14 @@ static void wave_configure(void) {
     uint32_t colors[3];
     for (int i = 0; i < 3; i++) colors[i] = xz_ui_model_stem_color(&model, i);
     xz_layered_wave_configure(model.wave_mode, colors);
+}
+/* The interface and classic theme decide the look; every renderer, the shell
+   included, reads the derived model.theme. */
+_Static_assert(XZ_UI_INTERFACE_CLASSIC==XZ_INTERFACE_CLASSIC&&XZ_UI_INTERFACE_MODERN==XZ_INTERFACE_MODERN&&XZ_UI_MODERN_THEMES==XZ_MODERN_THEME_COUNT,"one interface numbering");
+static void appearance_changed(void) {
+    int look = xz_settings_look(model.ui_interface, model.classic_theme);
+    if (look == model.theme) return;
+    model.theme = look; xz_native_skin_request(look); wave_configure();
 }
 /* The XZ owns applied settings. Browsing nominates a USB without applying it;
    boot restore and explicit profile actions choose settings. A queued edit
@@ -1109,7 +1118,16 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         case XZ_UI_STEM_COLORS_RESET:
             memset(model.stem_colors,0,sizeof(model.stem_colors));wave_configure();break;
         case XZ_UI_SET_THEME:
-            if (a->index >= 0 && a->index < XZ_THEME_COUNT) {model.theme = a->index;xz_native_skin_request(a->index);wave_configure();}
+            if (a->index >= 0 && a->index < XZ_CLASSIC_THEME_COUNT) {model.classic_theme = a->index;appearance_changed();}
+            break;
+        case XZ_UI_SET_INTERFACE:
+            if (a->index == XZ_INTERFACE_CLASSIC || a->index == XZ_INTERFACE_MODERN) {
+                model.ui_interface = a->index;appearance_changed();
+                snprintf(ui.notice, sizeof(ui.notice), "%s", a->index == XZ_INTERFACE_MODERN ? "INTERFACE: MODERN" : "INTERFACE: CLASSIC");
+            }
+            break;
+        case XZ_UI_SET_MODERN_THEME:
+            if (a->index >= 0 && a->index < XZ_MODERN_THEME_COUNT) model.modern_theme = a->index;
             break;
         case XZ_UI_WAVE_MODE:
             if (a->index >= 0 && a->index < XZ_WAVE_MODE_COUNT) {
@@ -1193,7 +1211,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         default:
             break; /* Unconnected capabilities remain disabled by the model. */
         }
-        if (a->kind == XZ_UI_METRICS_TOGGLE || a->kind == XZ_UI_METRICS_CHECK || a->kind == XZ_UI_STEM_ORDER || a->kind == XZ_UI_STEM_COLOR || a->kind == XZ_UI_STEM_COLORS_RESET || a->kind == XZ_UI_STEM_PAD_CONFIG || a->kind == XZ_UI_STEMS_OVERLAY || a->kind == XZ_UI_STEM_BANK || a->kind == XZ_UI_JUMP_STEP || a->kind == XZ_UI_JUMP_ENABLE || a->kind == XZ_UI_JUMP_SHIFT || a->kind == XZ_UI_JUMP_SIZE || a->kind == XZ_UI_ENABLE || a->kind == XZ_UI_SET_THEME || a->kind == XZ_UI_WAVE_MODE ||
+        if (a->kind == XZ_UI_METRICS_TOGGLE || a->kind == XZ_UI_METRICS_CHECK || a->kind == XZ_UI_STEM_ORDER || a->kind == XZ_UI_STEM_COLOR || a->kind == XZ_UI_STEM_COLORS_RESET || a->kind == XZ_UI_STEM_PAD_CONFIG || a->kind == XZ_UI_STEMS_OVERLAY || a->kind == XZ_UI_STEM_BANK || a->kind == XZ_UI_JUMP_STEP || a->kind == XZ_UI_JUMP_ENABLE || a->kind == XZ_UI_JUMP_SHIFT || a->kind == XZ_UI_JUMP_SIZE || a->kind == XZ_UI_ENABLE || a->kind == XZ_UI_SET_THEME || a->kind == XZ_UI_SET_INTERFACE || a->kind == XZ_UI_SET_MODERN_THEME || a->kind == XZ_UI_WAVE_MODE ||
             a->kind == XZ_UI_STEM_PAGE || a->kind == XZ_UI_SHIFT_PAGES ||
             a->kind == XZ_UI_PAD_FEEDBACK || a->kind == XZ_UI_SHIFT_KEYSYNC || a->kind == XZ_UI_KEY_CHECK ||
             a->kind == XZ_UI_TAKEOVER_TOGGLE || a->kind == XZ_UI_TAKEOVER_ASSIGN ||
@@ -2076,7 +2094,9 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     model.settings_status="PROFILE APPLIED / NOT SAVED";
     if(model.stems_overlay!=saved->stems_overlay){stem_layout_revision++;stem_layout_origin=origin;}
     model.jump = saved->jump; model.jump.shift_page=1; model.stems_overlay = saved->stems_overlay; model.wave_mode = saved->wave_mode;
-    requested_stems = saved->stems; model.theme = saved->theme; model.stem_page = saved->stem_page;
+    requested_stems = saved->stems; model.stem_page = saved->stem_page;
+    model.ui_interface = saved->ui_interface; model.classic_theme = saved->classic_theme; model.modern_theme = saved->modern_theme;
+    model.theme = xz_settings_look(model.ui_interface, model.classic_theme);
     model.shift_pages = 1; model.pad_feedback = saved->pad_feedback;
     model.shift_keysync = 1; model.takeover_assign = saved->takeover_assign;
     model.rekordbox_menu = saved->rekordbox_menu;
@@ -2253,7 +2273,9 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     __atomic_store_n(&network_connected, 0, __ATOMIC_RELEASE);
     requested_stems = !!stems_enabled;
     model.settings_status = xz_settings_internal_save ? "SETTINGS SAVE ON THIS XZ" : "SETTINGS NOT SAVED: START FROM USB";
-    { struct xz_settings defaults; xz_settings_default(&defaults); browse_settings(&defaults); }
+    { struct xz_settings defaults; xz_settings_default(&defaults); browse_settings(&defaults);
+      model.ui_interface = defaults.ui_interface; model.classic_theme = defaults.classic_theme; model.modern_theme = defaults.modern_theme;
+      model.theme = xz_settings_look(model.ui_interface, model.classic_theme); }
     memset(key_sync, 0, sizeof(key_sync));
     master_tempo_down=master_tempo_owned=0;
     model.enabled = xz_runtime_cue_flags();

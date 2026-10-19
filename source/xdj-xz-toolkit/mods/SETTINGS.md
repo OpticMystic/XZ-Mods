@@ -41,6 +41,35 @@ fb_takeover=1
 takeover_assign=0
 ```
 
+## Interface and themes
+
+`interface` is the one switch for who draws the player screen: 1 MODERN (the
+default) is the new full-screen interface (the FLAGSHIP shell), 0 CLASSIC is
+the XZ's own layout. `classic_theme` (0 ORIGINAL to 23 ANALOG) restyles the
+classic interface; `modern_theme` (0 STANDARD, the only one so far) is the
+modern interface's look. Both lists are kept, so switching back restores the
+theme the DJ had. MODS > APPEARANCE shows INTERFACE first, then THEME for the
+selected interface only, then WAVEFORM and KEYS AND STEMS. Classic themes open
+on their own CLASSIC THEMES page. The desktop setup wizard writes `interface`
+and never changes `classic_theme`.
+
+The three fields are appended after `stem_order` as one block; a record holds
+all three or none. The older `theme` slot stays at its place and is written as
+`xz_settings_look(interface, classic_theme)`: 24 (FLAGSHIP) while MODERN, else
+the classic theme. Every renderer, the shell's ownership check included, reads
+that derived look, so nothing else decides screen ownership. Records without
+the block migrate from their `theme`:
+
+| older `theme` | `interface` | `classic_theme` |
+|---|---|---|
+| 24 FLAGSHIP | 1 MODERN | 0, or the current classic theme when overlaid |
+| 0 to 23 | 0 CLASSIC | the same value |
+| no `theme` (records shorter than 4 fields) | unchanged | unchanged |
+
+A record with the block ignores the value in the `theme` slot. The shipped
+loader starts the runtime with the shell armed (`XZ_MODS_SHELL` follows
+`XZ_MODS_UI`, like the other UI attachments), so `interface` alone decides.
+
 `rekordbox_menu`: 1 (default) makes the physical REKORDBOX key open and close
 MODS, so every setting stays reachable with the browse encoder and BACK when the
 touchscreen does not respond. 0 restores the key's stock rekordbox action. It is

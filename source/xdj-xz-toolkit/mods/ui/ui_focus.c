@@ -112,7 +112,7 @@ static const char *page_title(int page){
  case XZ_UI_DOOM:return "DOOM";case XZ_UI_DOOM_SETUP:return "GAME SETUP";case XZ_UI_DOOM_FILES:return "USB WAD LOADER";
  case XZ_UI_UPDATES:return "NETWORK UPDATES";case XZ_UI_UPDATE_SETUP:return "UPDATE SETUP";case XZ_UI_MYHOUSE_SETUP:return "MY HOUSE";
  case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";case XZ_UI_PC_STEMS:return "PC STEMS";
- case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_APPS:return "APPLICATIONS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
+ case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";case XZ_UI_APPS:return "APPLICATIONS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
  case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";
  case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";default:return "MODS";}
 }
@@ -121,8 +121,9 @@ static const char *panel_body(int page){
  case XZ_UI_GENERAL:return "Enable mods here. Open the settings beside a feature to customize it.";
  case XZ_UI_FEATURE_SETUP:return "Detect the feature, choose a deck, enable it and test it on that deck.";
  case XZ_UI_CONTROLS:return "Stem shortcuts on the pads, custom beat jumps and rekordbox stems.";
- case XZ_UI_THEMES:return "Interface theme for the whole player screen, plus stem colors.";
- case XZ_UI_SETTINGS:return "Cue options, key shift and key sync, waveform style, RAM tracks and hardware keys.";
+ case XZ_UI_THEMES:return "Interface, theme, waveform style, key display and stem colors.";
+ case XZ_UI_THEME_PICK:return "Restyles the classic player screen and this menu.";
+ case XZ_UI_SETTINGS:return "Key shift and key sync, groove pads, X-PAD, RAM tracks and hardware keys.";
  case XZ_UI_EXTRAS:return "VJ.Tools link, games, USB apps and network updates.";
  case XZ_UI_STEMS:return "Play grooves that replace a stem. Unassigned pads keep their hot cues.";
  case XZ_UI_XPAD:return "Experimental X-PAD sampler: loop strip, hold, overdub and sample pads.";
@@ -180,7 +181,9 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
   "REKORDBOX keeps its stock action. Turn on to open this menu with it.";
  case XZ_UI_WAVE_MODE:return k==0?"The player's own waveform.":k==1?"Low, mid and high bands in three colors.":"Drums, harmonics and vocals layers. Falls back to 3-band without stems or on 4-stem tracks.";
  case XZ_UI_MUTE:return k==XZ_STEM_BASS?"Mutes the bass stem of this 4-stem track. Pad D (or H) does the same.":"Push to mute this stem. Drag sideways to set its level.";
- case XZ_UI_SET_THEME:return "Restyles the whole player screen and this menu.";
+ case XZ_UI_SET_THEME:return "Restyles the classic player screen and this menu.";
+ case XZ_UI_SET_INTERFACE:return k==XZ_UI_INTERFACE_MODERN?"A new full-screen layout: large waveforms, browse sidebar, stems row.":"The XZ's own screen layout, restyled by a classic theme.";
+ case XZ_UI_SET_MODERN_THEME:return "The modern interface's look. More modern themes are coming.";
  case XZ_UI_STEM_COLOR:return "Color for this stem on pads and waveforms.";
  case XZ_UI_STEM_COLORS_RESET:return "Puts every stem back to the theme's colors.";
  case XZ_UI_JUMP_ENABLE:return "Page 1 uses custom sizes instead of stock. SHIFT + BEAT JUMP page 2 is always available.";
@@ -272,7 +275,7 @@ int xz_ui_describe(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_u
  case XZ_UI_KEY_FEEDBACK:case XZ_UI_RAM_DEBUG:case XZ_UI_REKORDBOX_KEY:case XZ_UI_JUMP_ENABLE:case XZ_UI_JUMP_SHIFT:
  case XZ_UI_TAKEOVER_TOGGLE:case XZ_UI_CONNECTION_ENABLE:case XZ_UI_DISCOVERY:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_METRICS_TOGGLE:
   out->state=l.selected?"ON":"OFF";break;
- case XZ_UI_SET_THEME:case XZ_UI_STEM_PAGE:case XZ_UI_WAVE_MODE:case XZ_UI_KEY_FORMAT:case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_STEM_COLOR:
+ case XZ_UI_SET_THEME:case XZ_UI_SET_INTERFACE:case XZ_UI_SET_MODERN_THEME:case XZ_UI_STEM_PAGE:case XZ_UI_WAVE_MODE:case XZ_UI_KEY_FORMAT:case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_STEM_COLOR:
   out->state=l.selected?"SELECTED":"";break;
  case XZ_UI_PANEL:case XZ_UI_CONTROL_SECTION:out->state=l.selected?"OPEN":"";break;
  case XZ_UI_PROFILE_PICK:out->state=l.selected?"ACTIVE":"";break;

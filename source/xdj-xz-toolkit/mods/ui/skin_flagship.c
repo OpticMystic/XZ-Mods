@@ -47,7 +47,7 @@ enum { ALIGN_L, ALIGN_C, ALIGN_R };
 /* Every widget kind maps to one row style before anything is drawn. The
    table is the design: a kind not listed here is a plain UTILITY list row. */
 enum style { ROW, TOGGLE, CHOICE, PRIMARY, PAD, STRIP, SLIDER, THEME, DECK, KEY, RAIL_CELL, CARD, LINK, READOUT, SHARED };
-static const unsigned char kind_style[XZ_UI_STEM_ORDER+1]={
+static const unsigned char kind_style[XZ_UI_SET_MODERN_THEME+1]={
  [XZ_UI_PANEL]=LINK,[XZ_UI_FEATURE_LINK]=LINK,[XZ_UI_BACK]=KEY,[XZ_UI_CLOSE]=KEY,[XZ_UI_DECK]=DECK,
  [XZ_UI_SET_THEME]=THEME,[XZ_UI_GROOVE_PAD]=PAD,[XZ_UI_HOTCUE_PAD]=PAD,[XZ_UI_SAMPLE_PAD]=PAD,
  [XZ_UI_STRIP]=STRIP,[XZ_UI_VOLUME]=SLIDER,[XZ_UI_LEVEL]=SLIDER,
@@ -58,6 +58,7 @@ static const unsigned char kind_style[XZ_UI_STEM_ORDER+1]={
  [XZ_UI_STEM_PAGE]=CHOICE,[XZ_UI_WAVE_MODE]=CHOICE,[XZ_UI_KEY_FORMAT]=CHOICE,[XZ_UI_TAKEOVER_ASSIGN]=CHOICE,
  [XZ_UI_CONTROL_SECTION]=CHOICE,[XZ_UI_JUMP_EDIT_PAGE]=CHOICE,[XZ_UI_RAM_DECK]=CHOICE,[XZ_UI_SDK_STEP]=CHOICE,
  [XZ_UI_SDK_CHOICE]=CHOICE,[XZ_UI_WAD_SELECT]=CHOICE,[XZ_UI_STEM_BANK]=CHOICE,
+ [XZ_UI_SET_INTERFACE]=CHOICE,[XZ_UI_SET_MODERN_THEME]=CHOICE,
  [XZ_UI_DOOM_START]=PRIMARY,[XZ_UI_UPDATE_CHECK]=PRIMARY,[XZ_UI_RAM_REQUEST]=PRIMARY,[XZ_UI_PC_CHECK]=PRIMARY,
  [XZ_UI_PC_TEST]=PRIMARY,[XZ_UI_KEY_CHECK]=PRIMARY,[XZ_UI_LOCAL_STEM_SETUP_STEP]=PRIMARY,[XZ_UI_METRICS_CHECK]=PRIMARY,
  [XZ_UI_MYHOUSE_CHECK]=PRIMARY,[XZ_UI_DOOM_CHECK]=PRIMARY,[XZ_UI_FEATURE_SETUP_OPEN]=PRIMARY,
@@ -90,7 +91,7 @@ static const char *section_title(enum xz_ui_page page){
  switch(page){
  case XZ_UI_GENERAL:return "GENERAL";case XZ_UI_FEATURE_SETUP:return "FEATURE SETUP";
  case XZ_UI_CONTROLS:case XZ_UI_BEAT_JUMP:case XZ_UI_PC_STEMS:return "CONTROLS";
- case XZ_UI_THEMES:return "APPEARANCE";case XZ_UI_STEM_COLORS:return "STEM COLORS";
+ case XZ_UI_THEMES:return "APPEARANCE";case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";
  case XZ_UI_SETTINGS:return "ADVANCED";case XZ_UI_EXTRAS:return "EXTRAS";
  case XZ_UI_STEMS:return "GROOVE PADS";case XZ_UI_XPAD:return "X-PAD";
  case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";
@@ -104,7 +105,7 @@ static const char *section_title(enum xz_ui_page page){
  default:return "MODS";}
 }
 static enum style style_of(const struct xz_ui_widget *a){
- enum style s=(unsigned)a->kind<=(unsigned)XZ_UI_STEM_ORDER?(enum style)kind_style[a->kind]:ROW;
+ enum style s=(unsigned)a->kind<=(unsigned)XZ_UI_SET_MODERN_THEME?(enum style)kind_style[a->kind]:ROW;
  if(a->kind==XZ_UI_PANEL&&a->x<XZ_UI_RAIL_W)return RAIL_CELL;
  if(a->kind==XZ_UI_PC_CONFIRM&&a->index!=1)return ROW;
  if(a->kind==XZ_UI_KEY_SHIFT&&a->index==0)return READOUT;

@@ -164,9 +164,12 @@ class VersionTests(unittest.TestCase):
         self.assertTrue(plan['required'])
         self.assertEqual((volume / managed_usb.SETTINGS).read_bytes(), original)
         old = usb_settings.parse(plan['data'], usb_settings.contract(self.a))
-        current = usb_settings.parse(original, usb_settings.contract(self.b))
+        # An older build reads the combined theme slot the interface fields derive.
+        current = usb_settings.legacy_values(usb_settings.parse(original, usb_settings.contract(self.b)), usb_settings.contract(self.b))
         retired=usb_settings.contract(self.b).get('retired_fields',{})
-        self.assertTrue(all(old[key] == current[key] for key in old if key not in retired))
+        # The default modern interface (theme 24) does not exist in the older build: reported, then reset.
+        self.assertEqual(plan['reset_fields'], ['theme'])
+        self.assertTrue(all(old[key] == current[key] for key in old if key not in retired and key not in plan['reset_fields']))
         self.assertFalse(set(retired) & current.keys())
 
     def test_oversized_profile_is_preserved_before_switch(self):

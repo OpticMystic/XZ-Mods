@@ -139,7 +139,7 @@ int main(void){
     /* Profiles from the manager: parsed, applied under ui_mutex, saved only on request,
        and never drop the app's display; the profile's takeover returns afterwards. */
     {
-        struct xz_settings profile;char record[1024];xz_settings_default(&profile);profile.theme=5;profile.fb_takeover=1;
+        struct xz_settings profile;char record[1024];xz_settings_default(&profile);profile.ui_interface=XZ_INTERFACE_CLASSIC;profile.classic_theme=5;profile.theme=5;profile.fb_takeover=1;
         assert(xz_settings_format(&profile,record,sizeof(record))>0);
         settings_running=0;settings_pending=0;settings_readonly=0;
         assert(sdk_apply_profile(NULL,record,0)==0);

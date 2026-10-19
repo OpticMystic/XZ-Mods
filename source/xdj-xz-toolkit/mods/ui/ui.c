@@ -231,7 +231,7 @@ static enum xz_ui_page parent_page(enum xz_ui_page page){
  switch(page){
  case XZ_UI_STEMS:case XZ_UI_XPAD:case XZ_UI_KEY_SETUP:case XZ_UI_BROWSE_SETUP:case XZ_UI_RAM_SETUP:return XZ_UI_SETTINGS;
  case XZ_UI_BEAT_JUMP:case XZ_UI_PC_STEMS:case XZ_UI_LOCAL_STEM_SETUP:return XZ_UI_CONTROLS;
- case XZ_UI_STEM_COLORS:return XZ_UI_THEMES;
+ case XZ_UI_STEM_COLORS:case XZ_UI_THEME_PICK:return XZ_UI_THEMES;
  case XZ_UI_METRICS_SETUP:return XZ_UI_SETTINGS;
  case XZ_UI_PROFILE_SETUP:return XZ_UI_EXTRAS;
  case XZ_UI_PROFILE_EDIT:return XZ_UI_PROFILE_SETUP;
@@ -324,12 +324,8 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_KEY_SHIFT,1,XZ_UI_KEY,"KEY +");
   add(w,&n,XZ_UI_KEY_SYNC,0,XZ_UI_KEYSYNC,"KEY SYNC");
   add(w,&n,XZ_UI_PANEL,XZ_UI_KEY_SETUP,0,"KEY SETUP");
-  add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"KEY FEEDBACK");
   add(w,&n,XZ_UI_PANEL,XZ_UI_RAM_SETUP,0,"RAM TRACKS");
   add(w,&n,XZ_UI_REKORDBOX_KEY,0,0,"REKORDBOX KEY");
-  add(w,&n,XZ_UI_WAVE_MODE,0,0,"STOCK WAVE");
-  add(w,&n,XZ_UI_WAVE_MODE,1,0,"3-BAND");
-  add(w,&n,XZ_UI_WAVE_MODE,2,0,"STEMS");
  }else if(u->page==XZ_UI_LOCAL_STEM_SETUP){
   /* The button is the deck's next real step, so a prepared track never repeats DETECT.
      index stays the runtime step: 0 check engine, 1 turn on, 2 check the track.
@@ -412,8 +408,21 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
    add(w,&n,XZ_UI_STEM_COLOR,stem*XZ_STEM_COLOR_CHOICES+i,0,xz_stem_palette_name(i));
   add(w,&n,XZ_UI_STEM_COLORS_RESET,0,0,"RESET STEM COLORS");
  }else if(u->page==XZ_UI_THEMES){
+  /* APPEARANCE: the interface first, then its themes, then the other looks.
+     Section headers are drawn by xz_ui_appearance_details (ui_layout.c). */
+  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,"MODERN");
+  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC,0,"CLASSIC");
+  if(m->ui_interface==XZ_UI_INTERFACE_MODERN)add(w,&n,XZ_UI_SET_MODERN_THEME,0,0,"STANDARD");
+  else add(w,&n,XZ_UI_PANEL,XZ_UI_THEME_PICK,0,xz_theme_name(m->classic_theme>=0&&m->classic_theme<XZ_THEME_FLAGSHIP?m->classic_theme:0));
+  add(w,&n,XZ_UI_WAVE_MODE,0,0,"STOCK WAVE");
+  add(w,&n,XZ_UI_WAVE_MODE,1,0,"3-BAND");
+  add(w,&n,XZ_UI_WAVE_MODE,2,0,"STEMS");
+  add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"KEY FEEDBACK");
+  add(w,&n,XZ_UI_PANEL,XZ_UI_BROWSE_SETUP,0,"KEY FORMAT");
   add(w,&n,XZ_UI_PANEL,XZ_UI_STEM_COLORS,0,"STEM COLORS");
-  for(i=0;i<XZ_THEME_COUNT;i++)add(w,&n,XZ_UI_SET_THEME,i,0,xz_theme_name(i));
+ }else if(u->page==XZ_UI_THEME_PICK){
+  /* Classic themes only: FLAGSHIP is the modern interface's own look. */
+  for(i=0;i<XZ_THEME_FLAGSHIP;i++)add(w,&n,XZ_UI_SET_THEME,i,0,xz_theme_name(i));
  }else if(u->page==XZ_UI_CONNECTION){
   add(w,&n,XZ_UI_TAKEOVER_TOGGLE,0,0,"VJ.TOOLS VIEW");
   add(w,&n,XZ_UI_TAKEOVER_ASSIGN,0,0,"LINK");
@@ -489,7 +498,9 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
  case XZ_UI_PROFILE_PICK:l.selected=m->dj&&k>=0&&k<m->dj->count&&m->dj->entry[k].stick_active;
   if(l.selected&&m->dj->entry[k].has_accent)l.color=m->dj->entry[k].accent;break;
  case XZ_UI_PROFILE_CHECK:l.selected=1;break;
- case XZ_UI_SET_THEME:l.selected=k==m->theme;break;
+ case XZ_UI_SET_THEME:l.selected=k==m->classic_theme;break;
+ case XZ_UI_SET_INTERFACE:l.selected=k==m->ui_interface;break;
+ case XZ_UI_SET_MODERN_THEME:l.selected=k==m->modern_theme;break;
  case XZ_UI_STEM_COLOR:{int stem=k/XZ_STEM_COLOR_CHOICES,choice=k%XZ_STEM_COLOR_CHOICES;
   l.color=xz_stem_palette_color(choice,xz_ui_stem_color(m->theme,stem));
   l.selected=m->stem_colors[stem]==choice;break;}
@@ -551,7 +562,7 @@ const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m)
  if(m->settings_flash)return saved;
  if(m->dj&&m->dj->flash&&m->dj->status)return m->dj->status;
  if((u->profile_open||u->page==XZ_UI_PROFILE_SETUP||u->page==XZ_UI_PROFILE_EDIT)&&m->dj)return xz_ui_profile_footer(u,m);
- if(u->page==XZ_UI_THEMES&&m->theme_status)return m->theme_status;
+ if((u->page==XZ_UI_THEMES||u->page==XZ_UI_THEME_PICK)&&m->theme_status)return m->theme_status;
  if(u->page==XZ_UI_GENERAL||u->page==XZ_UI_CONTROLS||u->page==XZ_UI_STEM_COLORS)return saved;
  if(u->notice[0])return u->notice;
  if(u->page==XZ_UI_LOCAL_STEM_SETUP)return xz_ui_usb_reason_text(xz_ui_usb_blocked(m,u->deck<2?u->deck:0));
@@ -644,6 +655,7 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  struct xz_ui_scene skin=s;skin.w=skin_w;skin.look=skin_looks;skin.n=skin_n;
  skin_for(m->theme)->render(&skin);
  if(u->page==XZ_UI_STEM_COLORS)xz_ui_stem_colors(&s);
+ if(u->page==XZ_UI_THEMES)xz_ui_appearance_details(&s);
  xz_key_display_panel(pixels,stride,u,m);
  if(u->page>=XZ_UI_EXTRAS&&u->page!=XZ_UI_CONNECTION)xz_ui_page_details(&s);
  xz_ui_profile_render(&s);
@@ -824,7 +836,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   case XZ_UI_STEM_PAGE:value=(float)a.index;break;
   case XZ_UI_PC_CONFIRM:value=(float)a.index;break;
   case XZ_UI_WAVE_MODE:value=(float)a.index;break;
-  case XZ_UI_KEY_SHIFT:value=(float)a.index;break;case XZ_UI_SET_THEME:value=(float)a.index;break;default:break;}
+  case XZ_UI_KEY_SHIFT:value=(float)a.index;break;case XZ_UI_SET_THEME:case XZ_UI_SET_INTERFACE:case XZ_UI_SET_MODERN_THEME:value=(float)a.index;break;default:break;}
   out[n++]=action(a.kind,XZ_UI_PRESS,deck,a.index,value,
    (a.kind==XZ_UI_PC_TEST||a.kind==XZ_UI_PC_CONFIRM)?(float)d->pc_stems.target:0);
   if(a.kind==XZ_UI_PC_TEST||a.kind==XZ_UI_PC_CONFIRM){out[n-1].pc_epoch=d->pc_stems.epoch;out[n-1].pc_target=d->pc_stems.target;}

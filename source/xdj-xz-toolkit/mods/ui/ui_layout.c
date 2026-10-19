@@ -9,6 +9,12 @@ static void put(struct xz_ui_widget *a,int x,int y,int w,int h){a->x=x;a->y=y;a-
 static void grid(struct xz_ui_widget *a,int n,int i,int row,int rows){
  int pitch=CW+GAP;put(a,X0+i*pitch/n,XZ_UI_CY+row*ROW,pitch/n-GAP,rows*ROW-GAP);
 }
+/* APPEARANCE sections: a caption at APPEARANCE_HEAD(row), its controls below in equal columns. */
+enum { APPEARANCE_Y=50, APPEARANCE_PITCH=78, APPEARANCE_H=44 };
+#define APPEARANCE_HEAD(row) (APPEARANCE_Y+(row)*APPEARANCE_PITCH)
+static void appearance(struct xz_ui_widget *a,int row,int cols,int i){
+ int pitch=CW+GAP;put(a,X0+i*pitch/cols,APPEARANCE_HEAD(row)+16,pitch/cols-GAP,APPEARANCE_H);
+}
 static int root(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_THEMES||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS;}
 static int rail_slot(int page){return page==XZ_UI_GENERAL?0:page==XZ_UI_CONTROLS?1:page==XZ_UI_THEMES?2:page==XZ_UI_SETTINGS?3:4;}
 /* The DJ Profile list hangs from the header's right corner: rows of 52 on a 56 pitch,
@@ -23,6 +29,11 @@ static void pad(struct xz_ui_widget *a,int k){put(a,X0+(k%4)*96+((k%4)/2)*16,192
 static void place_panel(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *a){
  int k=a->index,page=u->page;
  if(root(k)){put(a,0,XZ_UI_CY+rail_slot(k)*72,XZ_UI_RAIL_W,68);return;}
+ if(page==XZ_UI_THEMES){
+  if(k==XZ_UI_THEME_PICK){appearance(a,1,2,0);return;}
+  if(k==XZ_UI_BROWSE_SETUP){appearance(a,3,3,1);return;}
+  if(k==XZ_UI_STEM_COLORS){appearance(a,3,3,2);return;}
+ }
  if(k==XZ_UI_PROFILE_SETUP&&u->profile_open){
   int y=profile_buttons_y(u,m);
   if(m->dj&&m->dj->count>XZ_UI_PROFILE_ROWS)put(a,XZ_UI_PROFILE_LIST_X+184,y,168,40);
@@ -101,11 +112,11 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_KEY_SHIFT:if(k<0)put(a,X0,144,96,40);else if(!k)put(a,240,144,124,40);else put(a,372,144,96,40);break;
   case XZ_UI_KEY_SYNC:put(a,476,144,150,40);break;
   case XZ_UI_SHIFT_KEYSYNC:if(page==XZ_UI_KEY_SETUP)grid(a,2,0,5,1);else put(a,634,144,158,40);break;
-  case XZ_UI_WAVE_MODE:grid(a,3,k,3,1);break;
+  case XZ_UI_WAVE_MODE:if(page==XZ_UI_THEMES)appearance(a,2,3,k);else grid(a,3,k,3,1);break;
   case XZ_UI_SHIFT_PAGES:grid(a,4,0,4,1);break;
-  case XZ_UI_KEY_FEEDBACK:if(page==XZ_UI_BROWSE_SETUP)grid(a,1,0,3,1);else grid(a,4,1,4,1);break;
+  case XZ_UI_KEY_FEEDBACK:if(page==XZ_UI_BROWSE_SETUP)grid(a,1,0,3,1);else if(page==XZ_UI_THEMES)appearance(a,3,3,0);else grid(a,4,1,4,1);break;
   case XZ_UI_RAM_DEBUG:if(page==XZ_UI_RAM_SETUP)grid(a,2,0,6,1);else grid(a,4,2,4,1);break;
-  case XZ_UI_REKORDBOX_KEY:grid(a,4,3,4,1);break;
+  case XZ_UI_REKORDBOX_KEY:grid(a,2,0,3,1);break;
   case XZ_UI_KEY_CHECK:grid(a,1,0,4,1);break;
   case XZ_UI_KEY_FORMAT:grid(a,3,k,2,1);break;
   case XZ_UI_BROWSE_COLUMN:put(a,236+(k%4)*139,96+(k/4)*52,131,44);break;
@@ -124,6 +135,8 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_SAMPLE_PAD:put(a,X0+k*82,304,76,72);break;
   /* APPEARANCE */
   case XZ_UI_SET_THEME:grid(a,4,k%4,k/4,1);break;
+  case XZ_UI_SET_INTERFACE:appearance(a,0,2,k==XZ_UI_INTERFACE_MODERN?0:1);break;
+  case XZ_UI_SET_MODERN_THEME:appearance(a,1,2,0);break;
   case XZ_UI_STEM_COLOR:{int stem=k/XZ_STEM_COLOR_CHOICES,choice=k%XZ_STEM_COLOR_CHOICES;
    put(a,X0+stem*221+(choice%3)*72,84+(choice/3)*70,64,62);break;}
   case XZ_UI_STEM_COLORS_RESET:put(a,X0,348,CW,40);break;
@@ -153,6 +166,21 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
  }
 }
 
+/* APPEARANCE section captions with a hairline to the right edge, in every skin's own colours. */
+void xz_ui_appearance_details(const struct xz_ui_scene *s){
+ uint32_t bg,ink,accent;xz_ui_chrome_colors(s->m,s->p,&bg,&ink,&accent);(void)accent;
+ uint32_t dim=xz_blend(bg,ink,150),rule=xz_blend(bg,ink,48);
+ static const char *const heads[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
+ for(int row=0;row<4;row++){
+  int y=APPEARANCE_HEAD(row),w=xz_text_width(s->c,heads[row],1,40);
+  xz_text(s->c,X0,y,heads[row],1,40,dim);
+  xz_rect(s->c,X0+w+10,y+5,CW-w-10,1,rule);
+ }
+ if(s->m->ui_interface==XZ_UI_INTERFACE_MODERN){
+  int pitch=CW+GAP,x=X0+pitch/2,y=APPEARANCE_HEAD(1)+16+(APPEARANCE_H-9)/2;
+  xz_text(s->c,x,y,"MORE MODERN THEMES ARE COMING",1,40,dim);
+ }
+}
 static void label(struct xz_canvas c,int x,int y,int width,const char *value,int scale,uint32_t color){
  struct xz_canvas box=xz_sub(c,x,y,width,c.height-y);
  if(xz_text_width(box,value,scale,200)>width)scale=1;

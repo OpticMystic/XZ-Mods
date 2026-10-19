@@ -27,7 +27,7 @@ int main(void) {
         current.key_feedback=1;current.wave_mode=2;
         assert(!xz_settings_overlay(&current,&record,present)&&current.key_feedback==1&&current.wave_mode==2);
         struct xz_settings off=current;off.key_feedback=0;off.wave_mode=0;
-        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==38);
+        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==41);
         assert(!xz_settings_overlay(&current,&record,present)&&!current.key_feedback&&!current.wave_mode);
         record=current;record.theme=XZ_THEME_COUNT;struct xz_settings kept=current;
         assert(xz_settings_overlay(&current,&record,38)<0&&!memcmp(&kept,&current,sizeof(kept)));
@@ -71,7 +71,7 @@ int main(void) {
     }
     { struct xz_settings w=a;w.wave_mode=3;assert(xz_settings_format(&w,text,sizeof(text))<0); }
     for (int page=0;page<4;page++) {
-        a.stems=1;a.stem_page=page;a.shift_pages=1;a.shift_keysync=1;a.theme=6;
+        a.stems=1;a.stem_page=page;a.shift_pages=1;a.shift_keysync=1;a.ui_interface=XZ_INTERFACE_CLASSIC;a.classic_theme=6;a.theme=6;
         a.fb_takeover=page%2;a.takeover_assign=page%3;
         a.spare_eq=page%2;
         a.stem_bank=page%2;
@@ -79,7 +79,7 @@ int main(void) {
         assert(!xz_settings_parse(text,&b) && !memcmp(&a,&b,sizeof(a)));
     }
     for(int theme=0;theme<XZ_THEME_COUNT;theme++){
-        a.theme=theme;assert(xz_settings_format(&a,text,sizeof(text))>0);
+        a.ui_interface=theme==XZ_THEME_FLAGSHIP?XZ_INTERFACE_MODERN:XZ_INTERFACE_CLASSIC;a.classic_theme=theme==XZ_THEME_FLAGSHIP?0:theme;a.theme=theme;assert(xz_settings_format(&a,text,sizeof(text))>0);
         assert(!xz_settings_parse(text,&b)&&b.theme==theme);
     }
     assert(b.jump.enabled&&b.jump.shift_page&&b.jump.sizes[7]==8);

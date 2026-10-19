@@ -26,7 +26,7 @@ void xz_ui_chrome_icon(struct xz_canvas c,enum xz_ui_page page,int cx,int cy,uin
   /* Performance pads: two rows of four, split into pairs like the hardware. */
   for(int k=0;k<8;k++){int x=cx-13+(k%4)*6+((k%4)/2)*2,y=cy-6+(k/4)*7;xz_round_rect(c,x,y,5,5,1,15,color);}
   break;
- case XZ_UI_THEMES:case XZ_UI_STEM_COLORS:
+ case XZ_UI_THEMES:case XZ_UI_STEM_COLORS:case XZ_UI_THEME_PICK:
   /* Contrast disc: one half solid. */
   xz_ring(c,cx,cy,11,2,color);
   for(int y=-9;y<=9;y++){int half=0;while(half*half+y*y<=81)half++;xz_rect(c,cx,cy+y,half,1,color);}
