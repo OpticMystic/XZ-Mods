@@ -72,6 +72,7 @@ enum xz_shell_field {
  XZ_SHELL_F_SOURCE_LOOK,
  XZ_SHELL_F_ON_AIR, XZ_SHELL_F_LOOP_EDIT, XZ_SHELL_F_HOT_CUE_CALL, XZ_SHELL_F_ALERT,
  XZ_SHELL_F_STEM_GAIN,
+ XZ_SHELL_F_KEY_ORIGINAL, XZ_SHELL_F_KEY_SYNC,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -125,6 +126,9 @@ struct xz_shell_deck {
  const char *key;                    /* the key as it plays now (key shift and tempo included), e.g. "Fm" or "4A" */
  int key_matches_master;             /* fallback only: the shell colours keys itself from the master deck's key */
  int key_shift;                      /* semitones */
+ const char *key_original;           /* XZ_SHELL_F_KEY_ORIGINAL: the track's analysed key, same format as key */
+ int key_cents;                      /* with XZ_SHELL_F_KEY_ORIGINAL: key's tuning offset in cents, -50..+50 */
+ int key_synced;                     /* XZ_SHELL_F_KEY_SYNC: KEY SYNC holds this deck's key; MASTER TEMPO blinks */
  int quantize_on, quantize_num, quantize_den;
  int beat_jump_num, beat_jump_den;   /* beats */
  struct xz_shell_loop loop;
