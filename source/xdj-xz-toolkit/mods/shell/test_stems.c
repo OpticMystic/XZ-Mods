@@ -1,0 +1,170 @@
+#ifdef NDEBUG
+#error Shell acceptance requires active assertions
+#endif
+/* Stem rows on PLAY: the five layouts shared with the classic interface, full rows as faders, the
+   header STEMS button, and the two-tone stem colours. */
+#include "fixtures.h"
+#include "shell_internal.h"
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+static struct fx_track track;
+static uint16_t pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT],other[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];
+static struct xz_shell_action out[XZ_SHELL_ACTIONS];
+
+static size_t send(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_event_kind kind, int x, int y) {
+ struct xz_shell_event e={kind,x,y,0,0,-1};
+ memset(out,0,sizeof out);
+ return xz_shell_input(u,m,&e,out);
+}
+static void render(const struct xz_shell *u, const struct xz_shell_model *m, uint16_t *f) { assert(xz_shell_render(u,m,f,XZ_SHELL_WIDTH)); }
+static uint16_t rgb565(uint32_t c) { return (uint16_t)(((c>>8)&0xf800)|((c>>5)&0x7e0)|((c>>3)&31)); }
+static int count(const uint16_t *f, struct xz_shell_rect r, uint32_t c) {
+ int n=0;
+ for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++)n+=f[y*XZ_SHELL_WIDTH+x]==rgb565(c);
+ return n;
+}
+static void model(struct xz_shell_model *m, enum xz_shell_stem_layout layout) {
+ fx_model_full(m,&track);
+ m->capabilities|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN;
+ m->stems_known=1;m->stems_on=layout!=XZ_SHELL_STEMS_HIDDEN;
+ m->stem_layout_known=1;m->stem_layout=layout;
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  m->deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_GAIN);
+  m->deck[d].stem_muted=0;m->deck[d].stem_gain[0]=80;m->deck[d].stem_gain[1]=50;m->deck[d].stem_gain[2]=100;
+ }
+}
+
+static void test_layouts(void) {
+ struct xz_shell u;xz_shell_init(&u);
+ struct xz_shell_model m;
+ struct xz_shell_rect lane[2]={xz_shell_play_rect(XZ_SHELL_R_LANE,0),xz_shell_play_rect(XZ_SHELL_R_LANE,1)};
+ static const int heights[XZ_SHELL_STEM_LAYOUTS]={0,48,24,48,24};
+ for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
+  model(&m,(enum xz_shell_stem_layout)layout);
+  for(int deck=0;deck<2;deck++){
+   struct xz_shell_rect row=xz_shell_stem_row(&m,deck);
+   assert(row.h==heights[layout]);
+   if(!row.h){for(int s=0;s<3;s++)assert(xz_shell_stem_button(&m,deck,s).w==0);continue;}
+   /* Inside the deck's lane: BELOW at the foot of each deck, OUTSIDE above deck 1 and below deck 2. */
+   int outside_top=deck==0&&(layout==XZ_SHELL_STEMS_OUTSIDE_FULL||layout==XZ_SHELL_STEMS_OUTSIDE_HALF);
+   assert(row.y==(outside_top?lane[deck].y:lane[deck].y+lane[deck].h-row.h)&&row.x>=lane[deck].x&&row.x+row.w<=lane[deck].x+lane[deck].w);
+   for(int s=0;s<3;s++){
+    struct xz_shell_rect b=xz_shell_stem_button(&m,deck,s);
+    assert(b.w>=150&&b.h>=44&&b.y>=lane[deck].y&&b.y+b.h<=lane[deck].y+lane[deck].h);
+   }
+   /* DRUMS, VOCAL, INST from the left, as the stock deck orders them. */
+   assert(xz_shell_stem_button(&m,deck,0).x<xz_shell_stem_button(&m,deck,2).x&&xz_shell_stem_button(&m,deck,2).x<xz_shell_stem_button(&m,deck,1).x);
+  }
+  render(&u,&m,pixels);
+  /* The pad row keeps only the hot-cue lamps once the layout is read. */
+  struct xz_shell_rect pad=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,0);
+  assert(count(pixels,pad,sh_stem_bright(&m,0))==0);
+ }
+ /* A deck without stems keeps its row and says so; a row never shows on a hidden layout. */
+ model(&m,XZ_SHELL_STEMS_BELOW_FULL);
+ m.deck[1].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE);
+ assert(xz_shell_stem_row(&m,1).h==48&&xz_shell_stem_button(&m,1,0).w==0);
+ render(&u,&m,pixels);
+ /* Not read: the pad row's small buttons, as before. */
+ model(&m,XZ_SHELL_STEMS_BELOW_FULL);m.stem_layout_known=0;
+ assert(xz_shell_stem_row(&m,0).h==0&&xz_shell_stem_button(&m,0,0).h==44&&xz_shell_stem_button(&m,0,0).y>=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,0).y-8);
+ m.stem_layout_known=1;m.stem_layout=(enum xz_shell_stem_layout)9;
+ assert(xz_shell_stem_row(&m,0).h==0);render(&u,&m,pixels);
+ puts("PASS stem rows: five layouts, rows inside each deck's lane, 44 px buttons, pad-row fallback");
+}
+
+static void test_faders_and_taps(void) {
+ struct xz_shell u;xz_shell_init(&u);
+ struct xz_shell_model m;model(&m,XZ_SHELL_STEMS_BELOW_FULL);
+ struct xz_shell_rect b=xz_shell_stem_button(&m,1,0);
+ int cy=b.y+b.h/2;
+ /* A tap toggles the mute on release, not on touch. */
+ assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,b.x+40,cy)==0);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_UP,b.x+40,cy)==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==1&&out[0].id==0&&out[0].value==1);
+ /* A slide sets the level: half the button's width is half the range; no mute on release. */
+ send(&u,&m,XZ_SHELL_TOUCH_DOWN,b.x+40,cy);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_MOVE,b.x+44,cy)==0);   /* under the slide threshold */
+ assert(send(&u,&m,XZ_SHELL_TOUCH_MOVE,b.x+40-b.w/2,cy)==1&&out[0].kind==XZ_SHELL_ACT_STEM_GAIN&&out[0].deck==1&&out[0].id==0);
+ assert(out[0].value>=28&&out[0].value<=32);
+ /* Mid-drag the probe sees the touch in the struct. */
+ struct xz_shell probe=u;
+ assert(probe.down_region==XZ_SHELL_TOUCH_STEM&&probe.stem_touch.slid);
+ m.deck[1].stem_gain[0]=(uint8_t)out[0].value;
+ render(&u,&m,pixels);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_MOVE,b.x+b.w*3,cy)==1&&out[0].value==XZ_SHELL_STEM_GAIN_MAX);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_MOVE,b.x-b.w*3,cy)==1&&out[0].value==0);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_UP,b.x-b.w*3,cy)==0);
+ /* The level shows as a lighter fill from the left: 100 fills more of the button than 30. */
+ uint32_t fill=xz_blend(sh_stem_dark(sh_stem_bright(&m,0)),sh_stem_bright(&m,0),90);
+ m.deck[1].stem_gain[0]=30;render(&u,&m,pixels);int low=count(pixels,b,fill);
+ m.deck[1].stem_gain[0]=100;render(&u,&m,other);int high=count(other,b,fill);
+ assert(high>low*2&&low>0);
+ /* Muted: grey, no level fill, no stem colour. */
+ m.deck[1].stem_muted=1;render(&u,&m,pixels);
+ assert(count(pixels,b,fill)==0&&count(pixels,b,sh_stem_bright(&m,0))==0);
+ m.deck[1].stem_muted=0;
+ /* Half rows are taps only; without the gain capability full rows are too. */
+ model(&m,XZ_SHELL_STEMS_OUTSIDE_HALF);
+ b=xz_shell_stem_button(&m,0,2);cy=b.y+b.h/2;
+ send(&u,&m,XZ_SHELL_TOUCH_DOWN,b.x+40,cy);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_MOVE,b.x+140,cy)==0);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_UP,b.x+140,cy)==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==0&&out[0].id==2);
+ model(&m,XZ_SHELL_STEMS_BELOW_FULL);m.capabilities&=~(uint32_t)XZ_SHELL_CAP_STEM_GAIN;
+ b=xz_shell_stem_button(&m,0,1);cy=b.y+b.h/2;
+ send(&u,&m,XZ_SHELL_TOUCH_DOWN,b.x+40,cy);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_MOVE,b.x+140,cy)==0);
+ send(&u,&m,XZ_SHELL_TOUCH_UP,b.x+140,cy);
+ /* The 44 px half-row targets and the ZOOM box do not overlap. */
+ for(int layout=1;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
+  model(&m,(enum xz_shell_stem_layout)layout);
+  render(&u,&m,pixels);
+ }
+ puts("PASS stem faders: tap mutes on release, full rows slide the level, fill shows it, muted grey, half rows tap only");
+}
+
+static void test_header_toggle(void) {
+ struct xz_shell u;xz_shell_init(&u);
+ struct xz_shell_model m;
+ struct xz_shell_rect marks={XZ_SHELL_STEMS_X,XZ_SHELL_HEADER_BUTTON_H-6,XZ_SHELL_STEMS_W,3};
+ int lit[XZ_SHELL_STEM_LAYOUTS];
+ for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
+  model(&m,(enum xz_shell_stem_layout)layout);
+  /* The header button asks the runtime to step the layout, as the classic STEMS button does. */
+  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,XZ_SHELL_STEMS_X+10,10)==1&&out[0].kind==XZ_SHELL_ACT_TOGGLE_STEMS);
+  send(&u,&m,XZ_SHELL_TOUCH_UP,XZ_SHELL_STEMS_X+10,10);
+  render(&u,&m,pixels);
+  /* Its five marks show the current choice: the white mark moves along. */
+  int first=-1;
+  for(int x=marks.x;x<marks.x+marks.w&&first<0;x++)for(int y=marks.y;y<marks.y+marks.h;y++)if(pixels[y*XZ_SHELL_WIDTH+x]==rgb565(SH_WHITE)){first=x;break;}
+  lit[layout]=first;
+  assert(first>=0);
+ }
+ for(int layout=1;layout<XZ_SHELL_STEM_LAYOUTS;layout++)assert(lit[layout]>lit[layout-1]);
+ puts("PASS header STEMS: TOGGLE_STEMS on touch, five marks follow the layout");
+}
+
+static void test_colours(void) {
+ struct xz_shell_model m;model(&m,XZ_SHELL_STEMS_BELOW_FULL);
+ /* The reference stem colours by default; the dark interior is 3/16 of the bright. */
+ assert(sh_stem_bright(&m,0)==0x4b4ace&&sh_stem_bright(&m,1)==0xac1f12&&sh_stem_bright(&m,2)==0x15b634);
+ assert(sh_stem_dark(0x4b4ace)==(((0x4b*3>>4)<<16)|((0x4a*3>>4)<<8)|(0xce*3>>4)));
+ /* A runtime colour counts only when the DJ picked it. */
+ m.stem_rgb_known=1;m.stem_rgb[1]=0x123456;
+ assert(sh_stem_bright(&m,1)==0xac1f12);
+ m.stem_rgb_custom=2;assert(sh_stem_bright(&m,1)==0x123456&&sh_stem_bright(&m,0)==0x4b4ace);
+ m.stem_rgb_known=0;assert(sh_stem_bright(&m,1)==0xac1f12);
+ assert(sh_stem_bright(&m,7)==SH_DIM);
+ puts("PASS stem colours: reference defaults, 3/16 interiors, the DJ's picks win");
+}
+
+int main(void) {
+ fx_track_build(&track,7);
+ test_layouts();
+ test_faders_and_taps();
+ test_header_toggle();
+ test_colours();
+ puts("PASS stems");
+ return 0;
+}

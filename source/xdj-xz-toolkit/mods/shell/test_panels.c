@@ -358,10 +358,10 @@ static void test_stem_buttons(void) {
  struct xz_shell_rect drums=xz_shell_stem_button(&m,1,0),inst=xz_shell_stem_button(&m,1,1);
  struct xz_shell_rect pad=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,1);
  drums.y=inst.y=pad.y;drums.h=inst.h=pad.h;
- assert(count(frame(buffer_a),drums,0x2a6cf0)>40);            /* lit: full-colour outline */
- assert(count(frame(buffer_a),inst,0xe8302c)==0);             /* muted: dimmed */
- /* Runtime colours win. */
- m.stem_rgb_known=1;m.stem_rgb[0]=0x00ffff;m.stem_rgb[1]=0xff00ff;m.stem_rgb[2]=0xffff00;
+ assert(count(frame(buffer_a),drums,sh_stem_bright(&m,0))>40);   /* lit: full-colour outline */
+ assert(count(frame(buffer_a),inst,sh_stem_bright(&m,1))==0);    /* muted: dimmed */
+ /* Colours the DJ picked win. */
+ m.stem_rgb_known=1;m.stem_rgb[0]=0x00ffff;m.stem_rgb[1]=0xff00ff;m.stem_rgb[2]=0xffff00;m.stem_rgb_custom=7;
  render_checked(&u,&m,buffer_a);assert(count(frame(buffer_a),drums,0x00ffff)>40);
  /* Touch flips that stem. */
  assert(tap(&u,&m,xz_shell_stem_button(&m,1,1))==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==1&&out[0].id==1&&out[0].value==0);

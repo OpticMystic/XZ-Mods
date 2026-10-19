@@ -135,6 +135,13 @@ static void header_button(struct xz_canvas c, int x, int w, const char *label, i
 void sh_header_buttons(const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,XZ_SHELL_HEADER_X-2,0,XZ_SHELL_WIDTH-XZ_SHELL_HEADER_X+2,XZ_SHELL_HEADER_BUTTON_H,SH_CHROME);
  header_button(c,XZ_SHELL_STEMS_X,XZ_SHELL_STEMS_W,"STEMS",m->stems_known&&m->stems_on);
+ /* Five marks under STEMS, one per stem row layout, as the classic STEMS button shows its choice. */
+ if(m->stem_layout_known&&(unsigned)m->stem_layout<XZ_SHELL_STEM_LAYOUTS){
+  int h=XZ_SHELL_HEADER_BUTTON_H,x=XZ_SHELL_STEMS_X+8,w=XZ_SHELL_STEMS_W-16,mw=(w-4*2)/5;
+  int lit=m->stems_known&&m->stems_on;
+  xz_rect(c,x,h-5,w,2,lit?SH_BLUE:XZ_FLAGSHIP_TILE);
+  for(int i=0;i<XZ_SHELL_STEM_LAYOUTS;i++)xz_rect(c,x+i*(mw+2),h-5,mw,2,i==(int)m->stem_layout?SH_WHITE:lit?0x6ea8e8:XZ_FLAGSHIP_RAIL_SELECTED);
+ }
  header_button(c,XZ_SHELL_MODS_X,XZ_SHELL_MODS_W,"MODS",0);
 }
 enum xz_shell_screen xz_shell_screen(const struct xz_shell *u) { return u->stack[u->depth-1].screen; }
