@@ -391,39 +391,39 @@ static void test_stem_wave(void) {
  u.display.wave_color=XZ_SHELL_WAVE_STEMS;
  render_checked(&u,&m,buffer_a);
  const uint16_t *f=frame(buffer_a);
- /* Two tones per layer, as the stem buttons: the dark interior fills, the bright colour outlines. */
+ /* Two tones per layer, as the stem buttons: a lighter interior fills, the bright colour outlines. */
  const uint32_t drums=sh_stem_bright(&m,0),harmonics=sh_stem_bright(&m,1),vocal=sh_stem_bright(&m,2);
  assert(drums==0x4b4ace&&harmonics==0xac1f12&&vocal==0x15b634);
- assert(lane_count(f,0,sh_stem_dark(drums))>200&&lane_count(f,0,drums)>40);
- assert(lane_count(f,0,sh_stem_dark(harmonics))>200&&lane_count(f,0,harmonics)>40);
- assert(lane_count(f,1,sh_stem_dark(vocal))>100&&lane_count(f,1,vocal)>20);
+ assert(lane_count(f,0,sh_stem_wave_fill(drums))>200&&lane_count(f,0,drums)>40);
+ assert(lane_count(f,0,sh_stem_wave_fill(harmonics))>200&&lane_count(f,0,harmonics)>40);
+ assert(lane_count(f,1,sh_stem_wave_fill(vocal))>100&&lane_count(f,1,vocal)>20);
  assert(lane_count(f,0,SH_WAVE_MID)==0&&lane_count(f,1,SH_WAVE_MID)==0);     /* not 3BAND */
  /* Colours the DJ picked win over the defaults; the runtime's other colours do not. */
  m.stem_rgb_known=1;m.stem_rgb[0]=0xffff00;m.stem_rgb[1]=0x00ffff;m.stem_rgb[2]=0xff00ff;
  render_checked(&u,&m,buffer_a);
- assert(lane_count(f,0,sh_stem_dark(drums))>200&&lane_count(f,0,0xffff00)==0);
+ assert(lane_count(f,0,sh_stem_wave_fill(drums))>200&&lane_count(f,0,0xffff00)==0);
  m.stem_rgb_custom=5;
  render_checked(&u,&m,buffer_a);
- assert(lane_count(f,0,0xffff00)>40&&lane_count(f,0,sh_stem_dark(0xffff00))>200&&lane_count(f,0,sh_stem_dark(drums))==0);
- assert(lane_count(f,0,sh_stem_dark(harmonics))>200&&lane_count(f,1,0xff00ff)>20);
+ assert(lane_count(f,0,0xffff00)>40&&lane_count(f,0,sh_stem_wave_fill(0xffff00))>200&&lane_count(f,0,sh_stem_wave_fill(drums))==0);
+ assert(lane_count(f,0,sh_stem_wave_fill(harmonics))>200&&lane_count(f,1,0xff00ff)>20);
  m.stem_rgb_known=0;m.stem_rgb_custom=0;
  /* Muted stems grey out; the mute bits mean nothing without their known bit. */
  m.deck[0].stem_muted=1;m.deck[1].stem_muted=4;
  struct xz_shell_model unknown_mute=m;
  for(int d=0;d<XZ_SHELL_DECKS;d++)unknown_mute.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE);
  render_checked(&u,&unknown_mute,buffer_b);
- assert(lane_count(frame(buffer_b),0,sh_stem_dark(drums))>200);
+ assert(lane_count(frame(buffer_b),0,sh_stem_wave_fill(drums))>200);
  render_checked(&u,&m,buffer_a);
  /* A muted layer is a dim grey with no outline. */
- assert(lane_count(f,0,sh_stem_dark(drums))==0&&lane_count(f,0,drums)==0&&lane_count(f,0,0x2a2a2a)>200);
- assert(lane_count(f,0,sh_stem_dark(harmonics))>200&&lane_count(f,1,vocal)==0&&lane_count(f,1,sh_stem_dark(vocal))==0);
+ assert(lane_count(f,0,sh_stem_wave_fill(drums))==0&&lane_count(f,0,drums)==0&&lane_count(f,0,0x2a2a2a)>200);
+ assert(lane_count(f,0,sh_stem_wave_fill(harmonics))>200&&lane_count(f,1,vocal)==0&&lane_count(f,1,sh_stem_wave_fill(vocal))==0);
  m.deck[0].stem_muted=m.deck[1].stem_muted=0;
  /* No stem layer: that deck draws 3BAND and says so; the other keeps its stems. */
  render_checked(&u,&m,buffer_a);
  int dim_with=lane_count(f,1,SH_DIM);
  struct xz_shell_model half=m;half.deck[1].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE);
  render_checked(&u,&half,buffer_a);
- assert(lane_count(f,1,SH_WAVE_MID)>200&&lane_count(f,1,SH_DIM)>dim_with+20&&lane_count(f,0,sh_stem_dark(drums))>200);
+ assert(lane_count(f,1,SH_WAVE_MID)>200&&lane_count(f,1,SH_DIM)>dim_with+20&&lane_count(f,0,sh_stem_wave_fill(drums))>200);
  half.deck[1].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE);half.deck[1].stems.columns=NULL;
  render_checked(&u,&half,buffer_b);
  assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
@@ -435,7 +435,7 @@ static void test_stem_wave(void) {
  render_checked(&u,&m,buffer_a);
  int stem=0,amber=0;
  for(int y=ov.y;y<ov.y+ov.h;y++)for(int x=ov.x;x<ov.x+ov.w;x++){
-  uint16_t p=at(f,x,y);stem+=p==rgb565(sh_stem_dark(drums))||p==rgb565(drums)||p==rgb565(sh_stem_dark(harmonics))||p==rgb565(harmonics);amber+=p==rgb565(SH_WAVE_MID);
+  uint16_t p=at(f,x,y);stem+=p==rgb565(sh_stem_wave_fill(drums))||p==rgb565(drums)||p==rgb565(sh_stem_wave_fill(harmonics))||p==rgb565(harmonics);amber+=p==rgb565(SH_WAVE_MID);
  }
  assert(stem>200&&amber==0);
  /* Wild stem data is tolerated: huge counts with a short span, all-zero columns, a one-column track. */

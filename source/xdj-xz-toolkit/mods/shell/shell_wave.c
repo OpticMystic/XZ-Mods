@@ -146,7 +146,7 @@ void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 /* ---- 3-stem layer ----
    Stacked as the stems mod draws it: drums outermost, harmonics, vocal at the core. The column is as
    tall as its loudest stem and each layer as thick as that stem's share. Each layer reads like its stem
-   button: the dark interior colour inside, a bright outline along its outer edge. The outline is the
+   button: a darker interior colour inside, a bright outline along its outer edge. The outline is the
    layer's edge row plus the climb from the previous column's edge, so it runs unbroken as the shape
    rises and falls, at a few pixels per column. A muted stem is a dim grey with no outline. */
 struct stem_ink { uint16_t fill[3], stroke[3]; int outline[3]; };
@@ -157,7 +157,7 @@ static void stem_inks(const struct xz_shell_model *m, const struct xz_shell_deck
   int muted=sh_has(d,XZ_SHELL_F_STEM_MUTE)&&((d->stem_muted>>stem)&1);
   if(played){k->fill[stem]=k->stroke[stem]=c565(played_rgb[stem]);k->outline[stem]=0;}
   else if(muted){k->fill[stem]=k->stroke[stem]=c565(0x2a2a2a);k->outline[stem]=0;}
-  else{k->fill[stem]=c565(sh_stem_dark(bright));k->stroke[stem]=c565(bright);k->outline[stem]=1;}
+  else{k->fill[stem]=c565(sh_stem_wave_fill(bright));k->stroke[stem]=c565(bright);k->outline[stem]=1;}
  }
 }
 /* 65536/sum for the sum of three stems, 1..765. */
