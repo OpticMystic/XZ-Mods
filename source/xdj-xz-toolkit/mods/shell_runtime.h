@@ -20,6 +20,7 @@
 
 /* ---- Device entry points (shell_runtime.c). Weak in ui_runtime.c. ---- */
 struct xz_shell_runtime_key { int valid; char text[8]; int matches_master, shift; };
+#define XZ_SHELL_RUNTIME_DJ 32
 struct xz_shell_runtime_frame_input {
  int eligible, theme;
  struct xz_shell_runtime_key key[XZ_SHELL_DECKS];
@@ -28,6 +29,9 @@ struct xz_shell_runtime_frame_input {
  unsigned stem_muted[XZ_SHELL_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
  int stem_rgb_known; uint32_t stem_rgb[3]; /* stem pad colours 0xRRGGBB: drums, harmonics, vocal */
  int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
+ /* DJ profiles on the sticks: dj_runtime's view, copied (entry i = view entry i). */
+ int dj_known, dj_count;
+ struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
 };
 int xz_shell_runtime_start(void);
 void xz_shell_runtime_stop(void);
@@ -55,7 +59,9 @@ void xz_shell_runtime_owner_tick(void);
 /* Header-button requests the shell cannot execute itself (they belong to ui_runtime.c's MODS panel and
    STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
    right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
-enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u };
+enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u };
+/* XZ_SHELL_UI_DJ_PICK: the dj_runtime view entry the shell's DJ PROFILE row asked to make active, or -1. */
+int xz_shell_runtime_take_dj_pick(void);
 unsigned xz_shell_runtime_take_ui_requests(void);
 /* XZ_SHELL_UI_STEM_MUTE: the stem mutes the shell asked for, oldest first; 0 when none is left.
    value 1 = muted, 0 = playing. ui_runtime.c runs them through its own stem mute path. */

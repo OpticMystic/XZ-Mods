@@ -59,6 +59,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_will_refresh
 #pragma weak xz_shell_runtime_take_stem_mute
 #pragma weak xz_shell_runtime_take_mods_page
+#pragma weak xz_shell_runtime_take_dj_pick
 #pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
@@ -1285,6 +1286,16 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
         in->stem_muted[d]=model.deck[d].muted;
     }
     in->stem_rgb_known=1;for(int i=0;i<3;i++)in->stem_rgb[i]=xz_ui_model_stem_color(&model,i);
+    /* DJ profiles for the shell's MY SETTINGS panel, copied (the view changes under this lock). */
+    if(model.dj){
+        in->dj_known=1;in->dj_count=model.dj->count<XZ_SHELL_RUNTIME_DJ?model.dj->count:XZ_SHELL_RUNTIME_DJ;
+        for(int i=0;i<in->dj_count;i++){
+            const struct xz_ui_dj_entry *e=&model.dj->entry[i];struct xz_shell_runtime_dj *o=&in->dj[i];
+            snprintf(o->name,sizeof(o->name),"%s",e->name?e->name:"");
+            o->usb=e->usb;o->stick_active=e->stick_active;o->locked=e->locked;o->damaged=e->damaged;
+            o->has_accent=e->has_accent;o->accent=e->accent;
+        }
+    }
     for(int deck=0;deck<2;deck++){
         if(!key_valid[deck])continue;
         struct xz_shell_runtime_key *k=&in->key[deck];int other=1-deck,cents=0,other_cents=0;
@@ -1313,6 +1324,11 @@ static void shell_ui_requests_locked(void){
     }
     /* The shell's stem mute buttons: through the pads' own mute toggle, so the stem engine and the
        hot cue mute preservation see exactly what a pad press does. */
+    /* The shell's DJ PROFILE row: the same pick the MODS panel's DJ PROFILE page makes. */
+    if((requests&XZ_SHELL_UI_DJ_PICK)&&xz_shell_runtime_take_dj_pick){
+        int entry=xz_shell_runtime_take_dj_pick();
+        if(entry>=0&&model.dj&&entry<model.dj->count&&xz_dj_runtime_pick)xz_dj_runtime_pick(entry);
+    }
     if((requests&XZ_SHELL_UI_STEM_MUTE)&&xz_shell_runtime_take_stem_mute){
         int deck,stem,value;
         while(xz_shell_runtime_take_stem_mute(&deck,&stem,&value)){

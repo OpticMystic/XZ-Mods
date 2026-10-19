@@ -230,7 +230,7 @@ void xz_shell_model_set_input(struct xz_shell_model_storage *s,int deck,const st
     if(!input){v->deck.known=0;return;}
     /* Stage before overwriting to permit a previous model deck as input. */
     struct xz_shell_deck d=*input;
-    d.known&=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST)|K(MEMORY_CUES);
+    d.known&=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST)|K(MEMORY_CUES)|K(SOURCE_LOOK);
     if(d.known&K(ARTIST)){
         size_t n=0;if(d.artist)while(n<TITLE_BYTES&&d.artist[n])++n;
         if(!n||n>=TITLE_BYTES)d.known&=~K(ARTIST);
@@ -268,6 +268,7 @@ static void input_fields(struct xz_shell_deck *d,struct xz_shell_model_input *v)
     if(i->known&K(BAR_PHASE))d->bar_phase=i->bar_phase;
     if(i->known&K(SOURCE))d->source=i->source;
     if(i->known&K(ARTIST))d->artist=i->artist;
+    if(i->known&K(SOURCE_LOOK))d->look=i->look;
     if(i->known&K(MEMORY_CUES)){memcpy(d->memory_cue,i->memory_cue,sizeof(d->memory_cue));d->memory_count=i->memory_count;}
     d->known|=i->known;v->deck.known=0;
 }
