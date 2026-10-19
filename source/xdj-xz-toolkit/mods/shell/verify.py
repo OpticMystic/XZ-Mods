@@ -20,3 +20,13 @@ with tempfile.TemporaryDirectory(prefix='xz-shell-test-') as folder:
     if negative.returncode == 0 or 'Shell acceptance requires active assertions' not in negative.stderr:
         raise RuntimeError('Missing assertion rejection')
 print('PASS assertion rejection')
+
+# The screens describe what a setting does; they never tell the DJ how to get somewhere.
+NAVIGATION = ['HOLD MENU', 'STOCK SCREEN', 'TO CHANGE IT', 'PUSH, THEN', 'TURN TO MOVE', 'SHORTCUT TO CLOSE',
+              'THIS BUILD CANNOT', 'TOUCH AGAIN OR PUSH', 'GO TO ']
+for path in sorted([*root.glob('shell*.c'), *root.glob('shell*.h'), *root.glob('*fixtures.h'), *root.glob('preview*.c')]):
+    text = path.read_text(encoding='utf-8').upper()
+    found = [phrase for phrase in NAVIGATION if '"' in text and any(phrase in line and '"' in line for line in text.splitlines())]
+    if found:
+        raise RuntimeError(f'{path.name}: navigation wording on screen: {found}')
+print('PASS no navigation instructions in screen text')

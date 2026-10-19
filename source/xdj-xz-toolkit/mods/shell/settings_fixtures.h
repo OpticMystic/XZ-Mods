@@ -100,7 +100,7 @@ static const struct xz_shell_setting_item fxm_stem_items[]={
  {22,1,"STEM ROW LAYOUT",fxm_layouts,5,1,1,1},
  {37,1,"STEM ORDER",fxm_order,6,0,1,0},
 };
-static const char *const fxm_stem_notes[]={NULL,NULL,NULL,NULL,NULL,"SET IN THE STEM BUILDER ON YOUR COMPUTER"};
+static const char *const fxm_stem_notes[]={NULL,NULL,NULL,NULL,NULL,"FIXED IN THIS TEST BUILD"};
 static const char *const fxm_stem_sections[]={"AUDIO","PADS"};
 static const struct xz_shell_setting_item fxm_look_items[]={
  {1,0,"INTERFACE",fxm_interface,2,0,1,1},

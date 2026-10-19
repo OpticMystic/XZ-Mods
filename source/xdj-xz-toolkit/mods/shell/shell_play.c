@@ -120,8 +120,8 @@ static void render_top(const struct xz_shell_model *m, struct xz_canvas c) {
   enum xz_shell_setting s=chips[i].setting;
   int on=sh_setting(m,s)&&(s==XZ_SHELL_SET_AUTO_CUE?m->settings.auto_cue:m->settings.hot_cue_auto_load);
   uint32_t ink=on?(sh_writable(m,s)?SH_WHITE:0x8c8c8c):0x5a5a5a;
-  /* HOT CUE AUTO LOAD by the library's own setting lights red, as the XZ lamp does (manual p.70). */
-  if(on&&s==XZ_SHELL_SET_HOT_CUE_AUTO_LOAD&&m->settings.hot_cue_auto_load==XZ_SHELL_HCAL_LIBRARY)ink=SH_RED;
+  /* HOT CUE AUTO LOAD ON lights red and the library's own setting white, as the XZ lamp does (manual p.55). */
+  if(on&&ink==SH_WHITE&&s==XZ_SHELL_SET_HOT_CUE_AUTO_LOAD&&m->settings.hot_cue_auto_load==XZ_SHELL_HCAL_ON)ink=SH_RED;
   sh_chip(c,chips[i].r.x,chips[i].r.y,i==1?"A. HOT CUE":"A. CUE",on?SH_DIM:0x5a5a5a,ink,0);
  }
  render_fx(m,c);

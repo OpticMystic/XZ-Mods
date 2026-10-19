@@ -84,7 +84,7 @@ enum xz_shell_source { XZ_SHELL_SRC_NONE, XZ_SHELL_SRC_USB1, XZ_SHELL_SRC_USB2, 
 enum xz_shell_alert_kind { XZ_SHELL_ALERT_NONE, XZ_SHELL_ALERT_EMERGENCY_LOOP, XZ_SHELL_ALERT_READ_ERROR,
  XZ_SHELL_ALERT_UNSUPPORTED_FILE };
 /* HOT CUE AUTO LOAD (XZ manual pp.55, 123): ON loads every track's hot cues, LIBRARY loads them only for
-   tracks the library marks for it. The A. HOT CUE lamp reads white for ON, red for LIBRARY. */
+   tracks the library marks for it. The A. HOT CUE lamp reads red for ON, white for LIBRARY. */
 enum xz_shell_hot_cue_auto_load { XZ_SHELL_HCAL_OFF, XZ_SHELL_HCAL_ON, XZ_SHELL_HCAL_LIBRARY };
 enum xz_shell_time_mode { XZ_SHELL_TIME_REMAIN, XZ_SHELL_TIME_ELAPSED };
 /* STEMS draws the deck's stem layer; a deck without one draws 3BAND until it arrives. */
@@ -214,7 +214,7 @@ struct xz_shell_fx {
 };
 /* Filled by later units; opaque here. NULL hands the screen to the stock UI. */
 struct xz_shell_browse_model; struct xz_shell_settings_model; struct xz_shell_source_model; struct xz_shell_info_model;
-struct xz_shell_mods_model; struct xz_shell_my_settings_model;
+struct xz_shell_mods_model; struct xz_shell_my_settings_model; struct xz_shell_help_model;
 struct xz_shell_model {
  struct xz_shell_deck deck[XZ_SHELL_DECKS];
  uint32_t capabilities;
@@ -235,6 +235,8 @@ struct xz_shell_model {
                                              button opens the runtime's own mod panel (XZ_SHELL_ACT_OPEN_MODS) */
  const struct xz_shell_my_settings_model *my_settings; /* the USB stick BROWSE shows (shell_settings.h); NULL
                                              while BROWSE is not on a USB stick: MENU keeps the list MENU */
+ const struct xz_shell_help_model *help;  /* descriptions for the runtime's items (shell_settings.h); NULL: the
+                                             shell's own UTILITY descriptions only */
 };
 
 enum xz_shell_event_kind {

@@ -852,7 +852,7 @@ enum pk {
  PK_TAG_TOGGLE, PK_TAG_ALL, PK_TAG_CLEAR, PK_TAG_PLAYLIST, PK_PLAYED, PK_HISTORY_DELETE, PK_HISTORY_ALL,
  PK_CUES_OPEN, PK_CUE, PK_CUE_DECK, PK_MY_STATE
 };
-struct pitem { enum pk kind; int value; const char *label; char text[28]; int on; uint32_t swatch; };
+struct pitem { enum pk kind; int value; const char *label; char text[28]; int on; uint32_t swatch; const char *help; };
 static const char *const sort_label[XZ_SHELL_COL_COUNT]={
  [XZ_SHELL_COL_NUMBER]="TRACK No.",[XZ_SHELL_COL_TITLE]="TITLE",[XZ_SHELL_COL_ARTIST]="ARTIST",[XZ_SHELL_COL_BPM]="BPM",
  [XZ_SHELL_COL_KEY]="KEY",[XZ_SHELL_COL_RATING]="RATING",[XZ_SHELL_COL_COLOR]="COLOR",[XZ_SHELL_COL_TIME]="TIME",
@@ -889,7 +889,7 @@ static int column_shown(const struct xz_shell_browse_model *b, int k) {
 }
 static int add(struct pitem *out, int n, enum pk kind, int value, const char *label) {
  if(n>=MAX_PITEMS)return n;
- out[n]=(struct pitem){kind,value,label,"",0,0};
+ out[n]=(struct pitem){kind,value,label,"",0,0,NULL};
  return n+1;
 }
 static const struct xz_shell_browse_row *highlight_row(const struct xz_shell *u, const struct xz_shell_model *m);
@@ -1099,6 +1099,7 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
   else if(blocked)snprintf(my_load,sizeof my_load,"PAUSE DECK %d TO LOAD",u->deck+1);
   else snprintf(my_load,sizeof my_load,"LOAD TO DECK %d",u->deck+1);
   n=add(out,n,PK_MY_LOAD,0,my_load);
+  out[n-1].help="Applies the settings saved here to the active deck. Settings load onto a paused deck.";
   if(blocked)out[n-1].on=-1;
   if((s->state==XZ_SHELL_MY_DONE||s->state==XZ_SHELL_MY_FAILED)&&s->result){
    n=add(out,n,PK_MY_STATE,0,s->result);
@@ -1108,6 +1109,7 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
  if(s->writable){
   snprintf(my_save,sizeof my_save,"SAVE TO %s",stick_name(s));
   n=add(out,n,PK_MY_SAVE,0,armed_at==n?"PUSH AGAIN TO SAVE":my_save);
+  out[n-1].help="Saves this unit's current settings here, replacing the ones saved before.";
   out[n-1].on=armed_at==n-1;
  }
  if(!s->on_stick&&!s->writable)n=add(out,n,PK_NOTE,0,"NOTHING SAVED ON IT, AND IT IS LOCKED");
@@ -1116,6 +1118,8 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
   for(int i=0;i<sh_min(s->profile_count,16);i++){
    const struct xz_shell_dj_profile *p=&s->profiles[i];
    n=add(out,n,PK_PROFILE,i,p->name?p->name:"---");
+   out[n-1].help=p->damaged?"This profile's files cannot be read.":i==s->profile_active?"The DJ whose settings and look are in use.":
+    "Makes this DJ the active profile and applies their settings and look.";
    out[n-1].on=i==s->profile_active;
    out[n-1].swatch=p->has_accent?p->accent_rgb&0xffffff:SH_RAIL;
    snprintf(out[n-1].text,sizeof out[n-1].text,"%s",p->damaged?"DAMAGED":i==s->profile_active?"ACTIVE":"");
@@ -1124,6 +1128,7 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
    const char *name=s->profiles[s->profile_active].name;
    snprintf(my_profile_save,sizeof my_profile_save,"SAVE SETTINGS TO %s",name?name:"PROFILE");
    n=add(out,n,PK_PROFILE_SAVE,s->profile_active,armed_at==n?"PUSH AGAIN TO SAVE":my_profile_save);
+   out[n-1].help="Saves the current settings into the active DJ's profile.";
    out[n-1].on=armed_at==n-1;
   }
  }
@@ -1135,11 +1140,13 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
   struct xz_shell_setting_item it;
   if(!sh_settings_item(u,m,own[k],&it))continue;
   n=add(out,n,PK_MY_OWN,own[k],own_label[k]);
+  out[n-1].help=sh_item_help(m,XZ_SHELL_HELP_UTILITY,&it);
   choice_text(&out[n-1],&it);
  }
  for(int i=0;i<item_count(s->waveform);i++){
   const struct xz_shell_setting_item *it=&s->waveform->items[i];
   n=add(out,n,PK_MY_WAVE,i,it->label?it->label:"---");
+  out[n-1].help=sh_item_help(m,s->waveform_tab+1,it);
   choice_text(&out[n-1],it);
   if(!it->writable)out[n-1].on=-1;   /* shown, greyed: nothing here changes it */
  }
@@ -1149,6 +1156,7 @@ static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, st
   for(int i=0;i<item_count(s->stored);i++){
    const struct xz_shell_setting_item *it=&s->stored->items[i];
    n=add(out,n,PK_MY_STORED,i,it->label?it->label:"---");
+   out[n-1].help=sh_item_help(m,XZ_SHELL_HELP_MY_SETTINGS,it);
    choice_text(&out[n-1],it);
    if(!it->writable||!s->writable)out[n-1].on=-1;
   }
@@ -1169,10 +1177,14 @@ static int panel_cursor(const struct xz_shell *u, const struct pitem *items, int
  for(int i=0;i<n;i++)if(selectable_item(&items[i]))return i;
  return -1;
 }
+/* MY SETTINGS keeps its foot for what the focused row does. */
+enum { HELP_ROWS=2 };
+static int panel_rows(const struct xz_shell *u) { return u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS?PANEL_ROWS-HELP_ROWS:PANEL_ROWS; }
 static int panel_scroll(const struct xz_shell *u, int cursor, int n) {
- int sc=sh_max(0,sh_min(u->panel.scroll,n-PANEL_ROWS));
+ int rows=panel_rows(u);
+ int sc=sh_max(0,sh_min(u->panel.scroll,n-rows));
  if(cursor>=0&&cursor<sc)sc=cursor;
- if(cursor>=sc+PANEL_ROWS)sc=cursor-PANEL_ROWS+1;
+ if(cursor>=sc+rows)sc=cursor-rows+1;
  return sh_max(0,sc);
 }
 static const char *panel_title(const struct xz_shell *u) {
@@ -1226,7 +1238,8 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
   return;
  }
  struct xz_canvas body=xz_sub(c,x0+1,y0+PANEL_HEAD,INFO_W-1,h-PANEL_HEAD);
- for(int row=0;row<PANEL_ROWS&&sc+row<n;row++){
+ int rows=panel_rows(u);
+ for(int row=0;row<rows&&sc+row<n;row++){
   const struct pitem *it=&items[sc+row];
   int y=row*PANEL_ROW,w=INFO_W-1;
   if(it->kind==PK_HEAD){
@@ -1293,8 +1306,17 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
   uint32_t value_ink=focused?ink:it->kind==PK_PROFILE?(it->on>0?SH_WHITE:SH_DIM):it->on>0?SH_KEY_AMBER:SH_DIM;
   if(tw)sh_text_fit(body,right-tw-(it->kind==PK_F_COLOR?20:0),y+(PANEL_ROW-(vface==SH_TEXT?SH_CAP_TEXT:SH_CAP_SMALL))/2-1,tw,it->text,vface,value_ink);
  }
- if(n>PANEL_ROWS){
-  int track=PANEL_ROWS*PANEL_ROW-8,thumb=sh_max(12,track*PANEL_ROWS/n),at=4+(track-thumb)*sc/(n-PANEL_ROWS);
+ if(rows<PANEL_ROWS&&cur>=0&&items[cur].help){
+  /* what the focused row does */
+  int hy=rows*PANEL_ROW;
+  char lines[4][SH_WRAP_CHARS];
+  int k=sh_wrap(items[cur].help,INFO_W-26,lines,4);
+  xz_rect(body,0,hy,INFO_W-1,HELP_ROWS*PANEL_ROW,SH_BLACK);
+  xz_rect(body,12,hy+3,INFO_W-25,1,SH_RAIL);
+  for(int i=0;i<k;i++)sh_text(body,12,hy+10+i*14,lines[i],SH_SMALL,0xd8d8d8);
+ }
+ if(n>rows){
+  int track=rows*PANEL_ROW-8,thumb=sh_max(12,track*rows/n),at=4+(track-thumb)*sc/(n-rows);
   xz_rect(body,INFO_W-5,at,3,thumb,SH_DIM);
  }
 }
@@ -1518,8 +1540,8 @@ static size_t panel_touch(struct xz_shell *u, const struct xz_shell_model *m, in
  if(naming(u))return 0;
  struct pitem items[MAX_PITEMS];
  int n=panel_items(u,m,items),cur=panel_cursor(u,items,n),sc=panel_scroll(u,cur,n);
- int i=sc+(y-HEAD_H-PANEL_HEAD)/PANEL_ROW;
- if(i<0||i>=n||!selectable_item(&items[i]))return 0;
+ int row=(y-HEAD_H-PANEL_HEAD)/PANEL_ROW,i=sc+row;
+ if(row>=panel_rows(u)||i<0||i>=n||!selectable_item(&items[i]))return 0;
  if(i!=cur)u->panel.armed=0;
  u->panel.cursor=i;
  return activate_item(u,m,&items[i],out,0);

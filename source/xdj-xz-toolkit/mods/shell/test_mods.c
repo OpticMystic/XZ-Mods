@@ -227,40 +227,96 @@ static void test_set_requests(void) {
  puts("PASS set requests: UTILITY item -> SET_SETTING, mod item -> SET_MOD {tab, id, choice} by encoder and touch");
 }
 
-static void test_unwritable(void) {
+static int count_ink(const uint16_t *f, struct xz_shell_rect r, uint32_t ink) {
+ int n=0;uint16_t want=(uint16_t)(((ink>>8)&0xf800)|((ink>>5)&0x7e0)|((ink>>3)&31));
+ for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++)n+=f[(size_t)y*STRIDE+(size_t)x]==want;
+ return n;
+}
+enum { HELP_INK=0xd8d8d8, CHOICE_INK=0x9ec8ff };
+static void test_descriptions(void) {
  struct xz_shell u,copy;struct xz_shell_model m;model(&m);
+ struct xz_shell_rect v=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
+ const int row=XZ_SHELL_SETTINGS_ROW_H;
  xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
- /* UTILITY: the value shows, push hands the screen to the stock deck at that item. */
+ /* UTILITY: what the highlighted item does sits under its two choices, and what the lit choice does. */
  goto_item(&u,&m,0,XZ_SHELL_ITEM_HOT_CUE_COLOR);
- assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE);
- const uint16_t *plain=render_into(buffer_a,&u,&m);
+ struct xz_shell_rect below={v.x,v.y+2*row,v.w,v.h-2*row};
+ const uint16_t *f=render_into(buffer_a,&u,&m);
+ assert(count_ink(f,below,HELP_INK)>40&&count_ink(f,below,CHOICE_INK)>20);   /* the current choice's line */
+ assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE&&value_cursor(&u)==1);
+ const uint16_t *on=render_into(buffer_a,&u,&m);
+ turn(&u,&m,-1);
+ const uint16_t *off=render_into(buffer_b,&u,&m);
+ /* The choice line follows the value cursor; the item's own text does not move. */
+ int differs_in=0,differs_out=0;
+ for(int y=0;y<XZ_SHELL_HEIGHT;y++)for(int x=0;x<XZ_SHELL_WIDTH;x++){
+  if(on[(size_t)y*STRIDE+(size_t)x]==off[(size_t)y*STRIDE+(size_t)x])continue;
+  if(x>=v.x&&y>=v.y)differs_in=1;else differs_out=1;
+ }
+ assert(differs_in&&!differs_out);
+ /* Push on an item the runtime cannot write still hands it to the stock deck at that item. */
  copy=u;
  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_UTILITY&&out[0].value==XZ_SHELL_ITEM_HOT_CUE_COLOR+1);
- /* The runtime's note replaces the shell's line in the footer, and only there. */
+ /* The runtime's note joins the panel with a lock, and only the panel changes. */
  static const char *notes[FXS_COUNT];
- notes[fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)-fxs_table]="SET IT IN THE COLOR MENU ON THE STOCK SCREEN";
+ notes[fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)-fxs_table]="FIXED IN THIS TEST BUILD";
+ const uint16_t *plain=render_into(buffer_a,&copy,&m);
  fxs_model.notes=notes;
  const uint16_t *noted=render_into(buffer_b,&copy,&m);
- struct xz_shell_rect v=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
- int footer=v.y+(XZ_SHELL_SETTINGS_ROWS-1)*XZ_SHELL_SETTINGS_ROW_H,differs_in=0,differs_out=0;
+ differs_in=differs_out=0;
  for(int y=0;y<XZ_SHELL_HEIGHT;y++)for(int x=0;x<XZ_SHELL_WIDTH;x++){
   if(plain[(size_t)y*STRIDE+(size_t)x]==noted[(size_t)y*STRIDE+(size_t)x])continue;
-  if(x>=v.x&&y>=footer&&y<footer+XZ_SHELL_SETTINGS_ROW_H)differs_in=1;else differs_out=1;
+  if(x>=v.x&&y>=v.y+2*row)differs_in=1;else differs_out=1;
  }
  assert(differs_in&&!differs_out);
  fxs_model.notes=NULL;
- /* The footer touch hands off too. */
+ /* A touch in the panel asks nothing. */
  u=copy;
- assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,v.x+60,footer+XZ_SHELL_SETTINGS_ROW_H/2,0)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].value==XZ_SHELL_ITEM_HOT_CUE_COLOR+1);
- send(&u,&m,XZ_SHELL_TOUCH_UP,v.x+60,footer+XZ_SHELL_SETTINGS_ROW_H/2,0);
- /* A mod item the runtime cannot write shows its value and note; nothing is asked of anyone. */
+ assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,v.x+60,v.y+v.h-10,0)==0);
+ send(&u,&m,XZ_SHELL_TOUCH_UP,v.x+60,v.y+v.h-10,0);
+ /* A mod item with no text has no panel: the value rows run to the bottom. */
  xz_shell_init(&u);hold_menu(&u,&m);enter_tab(&u,&m,TAB_STEMS);
- goto_item(&u,&m,1,37);
- assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE);
- render_into(buffer_a,&u,&m);
- turn(&u,&m,2);
- assert(push(&u,&m)==0&&send(&u,&m,XZ_SHELL_TOUCH_DOWN,v.x+60,footer+XZ_SHELL_SETTINGS_ROW_H/2,0)==0&&u.depth==2);
- puts("PASS unwritable items: value plus how to change it; UTILITY hands off at the item, mod tabs ask nothing");
+ goto_item(&u,&m,0,4);
+ f=render_into(buffer_a,&u,&m);
+ struct xz_shell_rect bottom={v.x,v.y+6*row,v.w,4*row};
+ assert(count_ink(f,bottom,HELP_INK)==0&&count_ink(f,bottom,CHOICE_INK)==0);
+ /* The runtime's text for a mod item shows once m->help carries it, with one line per choice. */
+ static const char *const pad_lines[]={"Pads play hot cues.","Pads jump by beats.","Pads trigger samples.","Pads mute stems."};
+ static const struct xz_shell_item_help help_items[]={{TAB_STEMS,4,"Which pad page the stem shortcut opens.",4,pad_lines}};
+ static const struct xz_shell_help_model help={1,help_items};
+ m.help=&help;
+ f=render_into(buffer_a,&u,&m);
+ struct xz_shell_rect under={v.x,v.y+4*row,v.w,v.h-4*row};
+ assert(count_ink(f,under,HELP_INK)>40&&count_ink(f,under,CHOICE_INK)>20);
+ /* Scope matters: the same id on another tab has no text. */
+ static const struct xz_shell_item_help other_items[]={{TAB_JUMP,4,"Not this tab.",0,NULL}};
+ static const struct xz_shell_help_model other={1,other_items};
+ m.help=&other;
+ f=render_into(buffer_a,&u,&m);
+ assert(count_ink(f,bottom,HELP_INK)==0);
+ m.help=NULL;
+ /* Every UTILITY item's text stays inside the values pane: nothing reaches its right edge. */
+ xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
+ struct xz_shell_rect edge={v.x+v.w-10,v.y,10,v.h};
+ int described=0;
+ for(int i=0;i<60;i++){
+  f=render_into(buffer_a,&u,&m);
+  assert(count_ink(f,edge,HELP_INK)==0&&count_ink(f,edge,CHOICE_INK)==0);
+  described+=count_ink(f,v,HELP_INK)>0;
+  int before=cursor_id(&u);turn(&u,&m,1);if(cursor_id(&u)==before)break;
+ }
+ assert(described>=30);
+ /* SHORTCUT's title line says what the focused setting does, and follows the focus. */
+ xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_SHORTCUT);
+ struct xz_shell_rect title={190,0,XZ_SHELL_HEADER_X-200,40};
+ const uint16_t *first=render_into(buffer_a,&u,&m);
+ assert(count_ink(first,title,0xc8c8c8)>40);
+ turn(&u,&m,1);
+ const uint16_t *second=render_into(buffer_b,&u,&m);
+ int title_changed=0;
+ for(int y=title.y;y<title.y+title.h;y++)for(int x=title.x;x<title.x+title.w;x++)title_changed|=first[(size_t)y*STRIDE+(size_t)x]!=second[(size_t)y*STRIDE+(size_t)x];
+ assert(title_changed);
+ puts("PASS descriptions: item text under the choices, choice line follows the cursor, runtime notes, m->help per scope, inside the pane; SHORTCUT title follows focus");
 }
 
 static void test_page_tabs(void) {
@@ -400,7 +456,7 @@ int main(void) {
  test_held_menu_and_back_chain();
  test_header_mods();
  test_set_requests();
- test_unwritable();
+ test_descriptions();
  test_page_tabs();
  test_tab_touch();
  test_one_value();
