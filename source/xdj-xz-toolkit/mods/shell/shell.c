@@ -207,6 +207,10 @@ static void toggle_panel(struct xz_shell *u, enum xz_shell_panel_kind k) {
 size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, int event_deck, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  size_t n=0;
  if((int)k<0||k>=XZ_SHELL_KEY_COUNT)return 0;
+ if(k==XZ_SHELL_KEY_BROWSE_HOLD){
+  if(xz_shell_screen(u)==XZ_SHELL_SEARCH)return 0;
+  k=XZ_SHELL_KEY_SEARCH;
+ }
  if(u->popup.kind!=XZ_SHELL_POPUP_NONE&&(k==XZ_SHELL_KEY_BACK||k==XZ_SHELL_KEY_BACK_HOLD||k==XZ_SHELL_KEY_MENU)){
   u->popup.kind=XZ_SHELL_POPUP_NONE;return 0;
  }

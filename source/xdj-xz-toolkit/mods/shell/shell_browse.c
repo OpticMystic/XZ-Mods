@@ -26,12 +26,13 @@ enum { SH_RAIL_SEL=XZ_FLAGSHIP_RAIL_SELECTED, SH_TILE=XZ_FLAGSHIP_TILE, SH_UNAVA
    this module has not started yet. Everything else a list needs between
    events is here: one shell drives these screens at a time. */
 enum target { T_NONE, T_LIST, T_RAIL, T_KEY, T_OTHER };
+enum { FOCUS_LIST=1, FOCUS_RAIL=2 };
 static struct {
  int touched, jump, pressed;
  int hide_preview, side_open, keyboard_hidden;
  char query[XZ_SHELL_BROWSE_QUERY];
  int32_t last_request;
- int rail_first;
+ int rail_first, rail_cursor;
  enum target target;
  int down_y, last_y, last_step, dragging, confirm, down_scroll, down_rail, down_rail_first, prev_cursor, prev_touched;
  struct { int valid; uint32_t list; int cursor, scroll; } memory[SLOTS];
@@ -361,12 +362,29 @@ static int rail_entries(const struct xz_shell_model *m, int out[RAIL_MAX]) {
  return n;
 }
 static int rail_first(int entries) { return sh_max(0,sh_min(st.rail_first,entries-RAIL_SLOTS)); }
-static void render_rail(const struct xz_shell_model *m, struct xz_canvas c) {
+static int rail_current(const struct xz_shell_browse_model *b, const int *entries, int n) {
+ for(int i=0;i<n;i++)if(bknown(b,XZ_SHELL_BF_CATEGORY)&&entries[i]==(int)b->category)return i;
+ return 0;
+}
+static int rail_focused(const struct xz_shell *u) {
+ return xz_shell_screen(u)==XZ_SHELL_BROWSE&&top_view(u)->focus!=FOCUS_LIST;
+}
+static void rail_follow(int n) {
+ st.rail_cursor=sh_max(0,sh_min(n-1,st.rail_cursor));
+ if(st.rail_cursor<st.rail_first)st.rail_first=st.rail_cursor;
+ if(st.rail_cursor>=st.rail_first+RAIL_SLOTS)st.rail_first=st.rail_cursor-RAIL_SLOTS+1;
+ st.rail_first=rail_first(n);
+}
+static void render_rail(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  const struct xz_shell_browse_model *b=m->browse;
  int entries[RAIL_MAX],n=rail_entries(m,entries),first=rail_first(n);
+ int focused=rail_focused(u),cursor=top_view(u)->focus?st.rail_cursor:rail_current(b,entries,n);
+ if(!top_view(u)->focus)first=sh_max(0,sh_min(cursor,n-RAIL_SLOTS));
  xz_rect(c,0,HEAD_H,RAIL_W,STRIP_Y-HEAD_H,SH_RAIL);
  for(int slot=0;slot<RAIL_SLOTS&&first+slot<n;slot++){
   int k=entries[first+slot],y=HEAD_H+slot*RAIL_ITEM;
+  int selected=focused&&first+slot==cursor;
+  if(selected)xz_rect(c,0,y,RAIL_W,RAIL_ITEM-1,SH_BLUE);
   if(k==RAIL_SEARCH){
    xz_ring(c,RAIL_W/2-2,y+12,6,1,0xe6e6e6);
    xz_line16(c,(RAIL_W/2+3)*16,(y+17)*16,(RAIL_W/2+8)*16,(y+22)*16,32,0xe6e6e6);
@@ -377,7 +395,7 @@ static void render_rail(const struct xz_shell_model *m, struct xz_canvas c) {
   int current=bknown(b,XZ_SHELL_BF_CATEGORY)&&(int)b->category==k;
   int available=(b->category_available>>k)&1;
   uint32_t ink=current?SH_WHITE:available?0xe6e6e6:SH_UNAVAILABLE;
-  if(current)xz_rect(c,0,y,RAIL_W,RAIL_ITEM-1,SH_RAIL_SEL);
+  if(current&&!selected)xz_rect(c,0,y,RAIL_W,RAIL_ITEM-1,SH_RAIL_SEL);
   rail_icon(c,(enum xz_shell_browse_category)k,RAIL_W/2,y+7,ink);
   sh_text_center(c,RAIL_W/2,y+29,category_label[k],SH_SMALL,ink);
   xz_rect(c,0,y+RAIL_ITEM-1,RAIL_W,1,SH_BLACK);
@@ -569,7 +587,7 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
  const struct xz_shell_browse_row *r=row_at(b,s,grab_source_row(u,index));
  int32_t limit=row_limit(b,s);
  int grabbed=u->grab.active&&index==u->grab.to;
- int selected=index<limit&&index==v->cursor&&r&&!grabbed;
+ int selected=!rail_focused(u)&&index<limit&&index==v->cursor&&r&&!grabbed;
  uint32_t bg=selected?SH_BLUE:grabbed?0x3a2a08:index%2?SH_ROW_ALT:SH_BLACK;
  xz_rect(c,list_x(s),y,list_w(s),ROW_H,bg);
  if(grabbed){xz_border(c,list_x(s),y,list_w(s),ROW_H,SH_KEY_AMBER);xz_border(c,list_x(s)+1,y+1,list_w(s)-2,ROW_H-2,SH_KEY_AMBER);}
@@ -1318,7 +1336,7 @@ static void list_render(const struct xz_shell *u, const struct xz_shell_model *m
  struct sess v=session(u,m->browse);
  xz_rect(c,0,0,c.width,c.height,SH_BLACK);
  render_header(u,m,c);
- if(s==XZ_SHELL_BROWSE)render_rail(m,c);
+ if(s==XZ_SHELL_BROWSE)render_rail(u,m,c);
  render_list(u,m,c,&v);
  if(keyboard_shown(u))render_keyboard(u,c,&v);
  render_strip(u,m,c);
@@ -1343,7 +1361,12 @@ static void remember(const struct xz_shell_browse_model *b, enum xz_shell_screen
  st.memory[k].cursor=v->cursor;st.memory[k].scroll=v->scroll;
 }
 static void begin(struct xz_shell_view *v, const struct xz_shell_browse_model *b, enum xz_shell_screen s) {
- v->focus=1;
+ v->focus=s==XZ_SHELL_BROWSE?FOCUS_RAIL:FOCUS_LIST;
+ if(s==XZ_SHELL_BROWSE){
+  int entries[RAIL_MAX],n=0;
+  if(b)for(int k=0;k<XZ_SHELL_CAT_COUNT;k++)if((b->category_known>>k)&1)entries[n++]=k;
+  st.rail_cursor=rail_current(b,entries,n);rail_follow(n);
+ }
  st.touched=-1;st.jump=0;st.pressed=-1;st.target=T_NONE;st.confirm=0;st.dragging=0;
  st.last_request=-1;st.keyboard_hidden=0;
  if(remembered(b,s)){v->cursor=st.memory[slot_of(s)].cursor;v->scroll=st.memory[slot_of(s)].scroll;}
@@ -1358,6 +1381,7 @@ static size_t enter(struct xz_shell_view *v, enum xz_shell_screen s, const struc
 }
 static size_t up(struct xz_shell_view *v, enum xz_shell_screen s, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  int k=slot_of(s);
+ v->focus=FOCUS_LIST;
  reset_view(v);
  if(st.up_n[k]>0){
   st.up_n[k]--;
@@ -1466,6 +1490,7 @@ static size_t drop(struct xz_shell *u, struct xz_shell_view *v, struct xz_shell_
 }
 static size_t category(struct xz_shell_view *v, const struct xz_shell_browse_model *b, enum xz_shell_screen s, int k, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  if(!((b->category_available>>k)&1))return hand_off(out,n,s);
+ v->focus=FOCUS_LIST;
  st.up_n[slot_of(s)]=0;reset_view(v);
  return op(out,n,XZ_SHELL_BROWSE_CATEGORY,k);
 }
@@ -1535,6 +1560,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   return load(u,m,r,i==0?u->deck:i-1,out,n);
  }
  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_LIST,0),x,y)){
+  v->focus=FOCUS_LIST;
   int row=v->scroll+(y-LIST_Y)/ROW_H;
   st.target=T_LIST;st.down_scroll=v->scroll;st.prev_cursor=v->cursor;st.prev_touched=st.touched;
   if(row<row_limit(b,s)&&row_at(b,s,row)){
@@ -1575,6 +1601,7 @@ static size_t touch_up(struct xz_shell *u, const struct xz_shell_model *m, struc
  st.target=T_NONE;st.pressed=-1;
  if(t==T_RAIL&&!st.dragging){
   int entries[RAIL_MAX],count=rail_entries(m,entries),i=rail_first(count)+st.down_rail;
+  if(i<count)st.rail_cursor=i;
   if(i<count&&entries[i]==RAIL_SEARCH)return sh_key(u,m,XZ_SHELL_KEY_SEARCH,-1,out);
   if(i<count)return category(v,b,s,entries[i],out,n);
   return n;
@@ -1621,6 +1648,12 @@ size_t sh_browse_back_step(struct xz_shell *u, const struct xz_shell_model *m, s
   if(!v->focus)begin(v,m->browse,s);
   return up(v,s,out,0);
  }
+ if(s==XZ_SHELL_BROWSE&&v->focus==FOCUS_LIST&&!source_absent(m,s)){
+  int entries[RAIL_MAX],n=rail_entries(m,entries);
+  v->focus=FOCUS_RAIL;st.touched=-1;
+  st.rail_cursor=rail_current(m->browse,entries,n);rail_follow(n);
+  return 0;
+ }
  *taken=0;
  return 0;
 }
@@ -1661,6 +1694,17 @@ static size_t list_input(struct xz_shell *u, const struct xz_shell_model *m, con
   return request_window(b,s,v,xz_shell_browse_rows_visible(u),out,0);
  }
  if(source_absent(m,s)&&e->kind!=XZ_SHELL_TOUCH_DOWN)return 0;
+ if(rail_focused(u)&&(e->kind==XZ_SHELL_ENCODER_TURN||e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_ENCODER_HOLD)){
+  int entries[RAIL_MAX],count=rail_entries(m,entries);
+  if(!count)return 0;
+  if(e->kind==XZ_SHELL_ENCODER_TURN){st.rail_cursor+=e->delta;rail_follow(count);return 0;}
+  if(e->kind==XZ_SHELL_ENCODER_HOLD)return 0;
+  rail_follow(count);
+  int k=entries[st.rail_cursor];
+  if(k==RAIL_SEARCH)return sh_key(u,m,XZ_SHELL_KEY_SEARCH,-1,out);
+  if(bknown(b,XZ_SHELL_BF_CATEGORY)&&k==(int)b->category){v->focus=FOCUS_LIST;return 0;}
+  return category(v,b,s,k,out,0);
+ }
  switch(e->kind){
  case XZ_SHELL_KEY:n=key_input(u,m,e->key,out);break;
  case XZ_SHELL_TOUCH_DOWN:n=touch_down(u,m,e->x,e->y,out);break;
