@@ -68,13 +68,17 @@ enum xz_shell_field {
  XZ_SHELL_F_TOTAL, XZ_SHELL_F_TIME_MODE, XZ_SHELL_F_KEY, XZ_SHELL_F_KEY_SHIFT, XZ_SHELL_F_QUANTIZE,
  XZ_SHELL_F_BEAT_JUMP, XZ_SHELL_F_LOOP, XZ_SHELL_F_HOT_CUES, XZ_SHELL_F_MEMORY_CUES, XZ_SHELL_F_CUE_POINT,
  XZ_SHELL_F_GRID, XZ_SHELL_F_BAR_PHASE, XZ_SHELL_F_WAVE, XZ_SHELL_F_OVERVIEW, XZ_SHELL_F_ARTWORK,
+ XZ_SHELL_F_STEM_WAVE, XZ_SHELL_F_STEM_MUTE,
  XZ_SHELL_FIELD_COUNT
 };
+/* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
+#define XZ_SHELL_HAS_STEM_WAVE 1
 #define XZ_SHELL_KNOWN(field) ((uint64_t)1<<(field))
 
 enum xz_shell_source { XZ_SHELL_SRC_NONE, XZ_SHELL_SRC_USB1, XZ_SHELL_SRC_USB2, XZ_SHELL_SRC_LINK, XZ_SHELL_SRC_COMPUTER };
 enum xz_shell_time_mode { XZ_SHELL_TIME_REMAIN, XZ_SHELL_TIME_ELAPSED };
-enum xz_shell_wave_color { XZ_SHELL_WAVE_BLUE, XZ_SHELL_WAVE_RGB, XZ_SHELL_WAVE_3BAND };
+/* STEMS draws the deck's stem layer; a deck without one draws 3BAND until it arrives. */
+enum xz_shell_wave_color { XZ_SHELL_WAVE_BLUE, XZ_SHELL_WAVE_RGB, XZ_SHELL_WAVE_3BAND, XZ_SHELL_WAVE_STEMS };
 enum xz_shell_wave_position { XZ_SHELL_POSITION_CENTER, XZ_SHELL_POSITION_LEFT };
 enum xz_shell_play_mode { XZ_SHELL_PLAY_SINGLE, XZ_SHELL_PLAY_CONTINUE };
 /* AS_DECK shows the key text as read; the others convert it (Fm <-> 4A). */
@@ -115,6 +119,10 @@ struct xz_shell_deck {
  uint32_t grid_count;
  int bar_phase;                      /* 1..4 */
  struct xz_shell_wave wave, overview;
+ /* 3-stem layer, covering the track from 0 like wave: low = drums, mid = harmonics, high = vocal, each
+    0..255 with the loudest stem's peaks at full height. It may arrive seconds after wave, or never. */
+ struct xz_shell_wave stems;
+ uint8_t stem_muted;                 /* XZ_SHELL_F_STEM_MUTE: bit 0 drums, 1 harmonics, 2 vocal */
  const uint16_t *artwork;            /* RGB565 square, or NULL */
  int artwork_side;
 };
@@ -164,6 +172,8 @@ struct xz_shell_model {
  int link_known, link_connected;
  struct xz_shell_fx fx;
  int stems_known, stems_on;          /* lights the STEMS header button */
+ int stem_rgb_known;
+ uint32_t stem_rgb[3];               /* stem pad colours: drums, harmonics, vocal (0xRRGGBB) */
  const char *notice;                 /* one short caps sentence, e.g. "DECK 1 DID NOT LOAD THE TRACK"; NULL = none */
  uint32_t notice_at_ms;              /* clock_ms when it was raised; shown while clock_ms - notice_at_ms < XZ_SHELL_NOTICE_MS */
  uint32_t clock_ms;                  /* animation and playhead extrapolation */

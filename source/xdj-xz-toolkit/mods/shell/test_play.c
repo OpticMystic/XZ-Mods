@@ -188,12 +188,12 @@ static void test_scroll_is_stable(void) {
  m.deck[0].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_GRID)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUES)|XZ_SHELL_KNOWN(XZ_SHELL_F_MEMORY_CUES)|
   XZ_SHELL_KNOWN(XZ_SHELL_F_CUE_POINT)|XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP));
  struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,0);
- for(int color=0;color<3;color++)for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++)for(int step=1;step<=9;step+=4){
+ for(int color=0;color<4;color++)for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++)for(int step=1;step<=9;step+=4){
   u.zoom=zoom;u.display.wave_color=(enum xz_shell_wave_color)color;
   int32_t from=90000+zoom*7;
   m.deck[0].elapsed_ms=from;render_checked(&u,&m,buffer_a);
   int32_t to=from+(step*1000+pps[zoom]/3)/pps[zoom];
-  int shift=(int)((int64_t)to*pps[zoom]/1000-(int64_t)from*pps[zoom]/1000);
+  int shift=(int)(((int64_t)to*pps[zoom]+500)/1000-((int64_t)from*pps[zoom]+500)/1000);
   m.deck[0].elapsed_ms=to;render_checked(&u,&m,buffer_b);
   int ph=-1;
   for(int x=lane.x;x<lane.x+lane.w;x++)if(at(frame(buffer_a),x,lane.y+1)==rgb565(SH_PLAYHEAD)){ph=x;break;}
@@ -251,7 +251,7 @@ static void test_shortcut_items(void) {
   switch(order[i]){
   case XZ_SHELL_ITEM_QUANTIZE_BEAT:assert(n==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==order[i]&&out[0].value==0);break;
   case XZ_SHELL_ITEM_TIME_MODE:assert(n==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].value==XZ_SHELL_TIME_ELAPSED);break;
-  case XZ_SHELL_ITEM_WAVE_COLOR:assert(n==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==order[i]&&u.display.wave_color==XZ_SHELL_WAVE_BLUE);break;
+  case XZ_SHELL_ITEM_WAVE_COLOR:assert(n==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==order[i]&&out[0].value==XZ_SHELL_WAVE_STEMS&&u.display.wave_color==XZ_SHELL_WAVE_STEMS);break;
   case XZ_SHELL_ITEM_WAVE_POSITION:assert(n==1&&out[0].id==order[i]&&u.display.wave_position==XZ_SHELL_POSITION_LEFT);break;
   case XZ_SHELL_ITEM_KEY_DISPLAY:assert(n==1&&out[0].id==order[i]&&u.display.key_display==XZ_SHELL_KEY_CLASSIC);break;
   case XZ_SHELL_ITEM_WAVE_ZOOM:assert(n==1&&out[0].kind==XZ_SHELL_ACT_ZOOM&&u.zoom==XZ_SHELL_ZOOM_DEFAULT+1);break;
@@ -278,7 +278,8 @@ static void test_shortcut_items(void) {
  assert(amber==0&&lit>1000);
  /* Restoring persisted values: only shell-owned ids, only in range. */
  assert(xz_shell_restore_setting(&u,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_RGB)==1&&u.display.wave_color==XZ_SHELL_WAVE_RGB);
- assert(xz_shell_restore_setting(&u,XZ_SHELL_SET_WAVE_COLOR,3)==0&&u.display.wave_color==XZ_SHELL_WAVE_RGB);
+ assert(xz_shell_restore_setting(&u,XZ_SHELL_SET_WAVE_COLOR,4)==0&&u.display.wave_color==XZ_SHELL_WAVE_RGB);
+ assert(xz_shell_restore_setting(&u,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_STEMS)==1&&u.display.wave_color==XZ_SHELL_WAVE_STEMS);
  assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_KEY_DISPLAY,XZ_SHELL_KEY_ALPHANUMERIC)==1&&u.display.key_display==XZ_SHELL_KEY_ALPHANUMERIC);
  assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_WAVE_ZOOM,XZ_SHELL_ZOOM_MAX)==1&&u.zoom==XZ_SHELL_ZOOM_MAX);
  assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_WAVE_ZOOM,-1)==0&&xz_shell_restore_setting(&u,XZ_SHELL_SET_TIME_MODE,0)==0);
@@ -364,6 +365,68 @@ static void test_menu_hold(void) {
  assert(press(&u,&m,XZ_SHELL_KEY_MENU_HOLD,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_UTILITY);
  puts("PASS held MENU opens the shell UTILITY on every screen; short MENU on PLAY is inert");
 }
+
+/* STEMS: the stem layer in the stem pad colours, muted stems grey, 3BAND while a deck has no layer. */
+static int lane_count(const uint16_t *f, int deck, uint32_t color) {
+ struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,deck);
+ int n=0;
+ for(int y=lane.y;y<lane.y+lane.h;y++)for(int x=lane.x+4;x<lane.x+lane.w;x++)n+=at(f,x,y)==rgb565(color);
+ return n;
+}
+static void test_stem_wave(void) {
+ struct xz_shell u;struct xz_shell_model m;
+ xz_shell_init(&u);fx_model_full(&m,&track);
+ for(int d=0;d<XZ_SHELL_DECKS;d++)m.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUES));
+ /* Deck 1 sits in a drop (drums, harmonics), deck 2 in the break, where the vocal sings. */
+ m.deck[1].elapsed_ms=FX_BEAT_MS*4*8*3/100+FX_BEAT_MS/100;
+ u.display.wave_color=XZ_SHELL_WAVE_STEMS;
+ render_checked(&u,&m,buffer_a);
+ const uint16_t *f=frame(buffer_a);
+ assert(lane_count(f,0,0x007de1)>200&&lane_count(f,0,0xff4619)>200);       /* drums, harmonics: theme stem colours */
+ assert(lane_count(f,1,0x28e028)>100);                                       /* vocal */
+ assert(lane_count(f,0,SH_WAVE_MID)==0&&lane_count(f,1,SH_WAVE_MID)==0);     /* not 3BAND */
+ /* The runtime's stem pad colours win over the theme defaults. */
+ m.stem_rgb_known=1;m.stem_rgb[0]=0xffff00;m.stem_rgb[1]=0x00ffff;m.stem_rgb[2]=0xff00ff;
+ render_checked(&u,&m,buffer_a);
+ assert(lane_count(f,0,0xffff00)>200&&lane_count(f,0,0x007de1)==0&&lane_count(f,1,0xff00ff)>100);
+ m.stem_rgb_known=0;
+ /* Muted stems grey out; the mute bits mean nothing without their known bit. */
+ m.deck[0].stem_muted=1;m.deck[1].stem_muted=4;
+ struct xz_shell_model unknown_mute=m;
+ for(int d=0;d<XZ_SHELL_DECKS;d++)unknown_mute.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE);
+ render_checked(&u,&unknown_mute,buffer_b);
+ assert(lane_count(frame(buffer_b),0,0x007de1)>200);
+ render_checked(&u,&m,buffer_a);
+ assert(lane_count(f,0,0x007de1)==0&&lane_count(f,0,0xff4619)>200&&lane_count(f,1,0x28e028)==0);
+ m.deck[0].stem_muted=m.deck[1].stem_muted=0;
+ /* No stem layer: that deck draws 3BAND and says so; the other keeps its stems. */
+ render_checked(&u,&m,buffer_a);
+ int dim_with=lane_count(f,1,SH_DIM);
+ struct xz_shell_model half=m;half.deck[1].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE);
+ render_checked(&u,&half,buffer_a);
+ assert(lane_count(f,1,SH_WAVE_MID)>200&&lane_count(f,1,SH_DIM)>dim_with+20&&lane_count(f,0,0x007de1)>200);
+ half.deck[1].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE);half.deck[1].stems.columns=NULL;
+ render_checked(&u,&half,buffer_b);
+ assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
+ /* With neither layer the lane is empty but the frame still draws. */
+ half.deck[1].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE);render_checked(&u,&half,buffer_b);
+ assert(lane_count(frame(buffer_b),1,SH_WAVE_MID)==0);
+ /* Overviews follow the mode: stem colours in the strip, played part grey. */
+ struct xz_shell_rect ov=xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,0);
+ render_checked(&u,&m,buffer_a);
+ int stem=0,amber=0;
+ for(int y=ov.y;y<ov.y+ov.h;y++)for(int x=ov.x;x<ov.x+ov.w;x++){
+  uint16_t p=at(f,x,y);stem+=p==rgb565(0x007de1)||p==rgb565(0xff4619);amber+=p==rgb565(SH_WAVE_MID);
+ }
+ assert(stem>200&&amber==0);
+ /* Wild stem data is tolerated: huge counts with a short span, all-zero columns, a one-column track. */
+ static struct xz_shell_column silent[3],loud[1]={{255,255,255}};
+ m.deck[0].stems=(struct xz_shell_wave){silent,3,FX_TOTAL_MS};m.deck[1].stems=(struct xz_shell_wave){loud,1,1};
+ render_checked(&u,&m,buffer_a);
+ m.deck[0].stems=(struct xz_shell_wave){track.stems,FX_LANE_COLUMNS,1};
+ for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++){u.zoom=zoom;render_checked(&u,&m,buffer_a);}
+ puts("PASS STEMS: stem colours, runtime colours, muted grey, 3BAND fallback with a hint, overview, wild data");
+}
 int main(void) {
  fx_track_build(&track,7);
  test_header_buttons();
@@ -375,6 +438,7 @@ int main(void) {
  test_shortcut_items();
  test_notice();
  test_menu_hold();
+ test_stem_wave();
  puts("PASS play header, FX, extrapolation and shortcut");
  return 0;
 }

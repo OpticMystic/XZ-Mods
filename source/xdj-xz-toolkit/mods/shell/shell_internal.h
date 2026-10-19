@@ -63,7 +63,7 @@ void sh_placeholder(struct xz_canvas c, const char *title, const char *note);
 
 /* Shell-owned display settings, clamped so a corrupt value draws the default. */
 static inline enum xz_shell_wave_color sh_wave_color(const struct xz_shell *u) {
- return (unsigned)u->display.wave_color<=XZ_SHELL_WAVE_3BAND?u->display.wave_color:XZ_SHELL_WAVE_3BAND;
+ return (unsigned)u->display.wave_color<=XZ_SHELL_WAVE_STEMS?u->display.wave_color:XZ_SHELL_WAVE_3BAND;
 }
 static inline enum xz_shell_wave_position sh_wave_position(const struct xz_shell *u) {
  return u->display.wave_position==XZ_SHELL_POSITION_LEFT?XZ_SHELL_POSITION_LEFT:XZ_SHELL_POSITION_CENTER;
@@ -76,6 +76,11 @@ static inline enum xz_shell_key_display sh_key_display(const struct xz_shell *u)
    bottom of r and greys out left of played_x (-1: nothing played). */
 void sh_wave_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int64_t first_px, int pps);
 void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int played_x);
+/* A deck's lane or overview in the shell's waveform colour, from the data the deck has: STEMS draws
+   the stem layer, or 3BAND while the deck has none (sh_stem_wave_ready). */
+int sh_stem_wave_ready(const struct xz_shell_deck *d);
+void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps);
+void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int played_x);
 /* The key in the chosen notation; key itself when it is NULL, already in it, or neither notation. */
 const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *buffer, size_t cap);
 /* Mod header buttons (shell.c): drawn over every screen; hit tests padded to XZ_SHELL_HEADER_HIT_H. */

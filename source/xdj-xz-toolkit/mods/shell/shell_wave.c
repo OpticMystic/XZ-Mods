@@ -103,18 +103,27 @@ static void column_bottom(const struct span_canvas *s, int x, int base, const in
  vspan(s,x,base-scale[peak],base,ink);
 }
 
+/* Columns per track pixel in 16.16, and the columns pixel p shows: the ones whose start falls
+   within half a pixel of p's centre, so a sound lands on the pixel its time rounds to, the same
+   rounding the playhead and every marker use. */
+static uint64_t lane_cpp(const struct xz_shell_wave *w, int pps) {
+ uint64_t cpp=((uint64_t)w->count*1000u<<16)/((uint64_t)w->span_ms*(uint64_t)pps);
+ return cpp?cpp:1;
+}
+static void lane_range(uint64_t cpp, int64_t p, uint64_t *from, uint64_t *to) {
+ uint64_t centre=(uint64_t)p*cpp,half=cpp/2;
+ *from=(centre>half?centre-half:0)>>16;*to=(centre+half)>>16;
+}
 void sh_wave_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int64_t first_px, int pps) {
  struct span_canvas s;
  if(!w->columns||!w->count||!w->span_ms||pps<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
  int16_t scale[256];scale_table(scale,amp);
  int cy=r.y+r.h/2;
- /* Columns per track pixel in 16.16. */
- uint64_t cpp=((uint64_t)w->count*1000u<<16)/((uint64_t)w->span_ms*(uint64_t)pps);
- if(!cpp)cpp=1;
+ uint64_t cpp=lane_cpp(w,pps);
  for(int x=s.x0;x<s.x1;x++){
   int64_t p=first_px+(x-r.x);
   if(p<0)continue;
-  uint64_t from=((uint64_t)p*cpp)>>16,to=((uint64_t)(p+1)*cpp)>>16;
+  uint64_t from,to;lane_range(cpp,p,&from,&to);
   if(from>=w->count)break;
   int band[3];band_max(w,(uint32_t)from,(uint32_t)to,band);
   column_centered(&s,x,cy,scale,band,mode);
@@ -132,6 +141,137 @@ void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
   int band[3];band_max(w,(uint32_t)from,(uint32_t)to,band);
   column_bottom(&s,x,r.y+r.h,scale,band,mode,x<played_x);
  }
+}
+
+/* ---- 3-stem layer ----
+   Stacked as the stems mod draws it: drums outermost, harmonics, vocal at the core. The column is as
+   tall as its loudest stem and each layer as thick as that stem's share. A layer darkens a little
+   toward its outer edge in four steps (to 84 %), so neighbours of similar brightness still part;
+   a muted stem turns a dim grey. */
+enum { STEM_STEPS=4 };
+struct stem_ink { uint16_t ink[3][STEM_STEPS]; };
+static const uint32_t stem_default_rgb[3]={0x007de1,0xff4619,0x28e028};   /* the FLAGSHIP theme stem colours */
+static void stem_inks(const struct xz_shell_model *m, const struct xz_shell_deck *d, int played, struct stem_ink *k) {
+ static const uint32_t played_rgb[3]={0x343434,0x5c5c5c,0x8c8c8c};
+ for(int stem=0;stem<3;stem++){
+  uint32_t base=played?played_rgb[stem]:m->stem_rgb_known?m->stem_rgb[stem]&0xffffff:stem_default_rgb[stem];
+  if(!played&&sh_has(d,XZ_SHELL_F_STEM_MUTE)&&((d->stem_muted>>stem)&1)){
+   unsigned grey=(((base>>16)&255)+((base>>8)&255)+(base&255))/3;
+   base=xz_blend(0,grey*0x010101u,110);
+  }
+  for(int step=0;step<STEM_STEPS;step++)k->ink[stem][step]=c565(xz_blend(base,0,(unsigned)(step*14)));
+ }
+}
+/* 65536/sum for the sum of three stems, 1..765. */
+static uint32_t stem_reciprocal(int sum) {
+ static uint32_t table[766];
+ if(!table[1])for(int i=1;i<766;i++)table[i]=65536u/(uint32_t)i;
+ return table[sum<1?1:sum>765?765:sum];
+}
+/* The loudest column of [from,to); a long range is sampled at 16 evenly spaced columns. */
+static const struct xz_shell_column *stem_pick(const struct xz_shell_wave *w, uint32_t from, uint32_t to) {
+ if(to<=from)to=from+1;
+ if(to>w->count)to=w->count;
+ uint32_t step=to-from>16?(to-from)/16:1;
+ const struct xz_shell_column *best=&w->columns[from];int loudest=-1;
+ for(uint32_t i=from;i<to;i+=step){
+  const struct xz_shell_column *q=&w->columns[i];
+  int sum=q->low+q->mid+q->high;
+  if(sum>loudest){loudest=sum;best=q;}
+ }
+ return best;
+}
+/* Layer boundaries, outward from the centre: vocal to core, harmonics to inner, drums to total. */
+static void stem_heights(const struct xz_shell_column *q, const int16_t *scale, int *core, int *inner, int *total) {
+ int sum=q->low+q->mid+q->high;
+ *total=scale[sh_max(q->low,sh_max(q->mid,q->high))];
+ uint32_t k=stem_reciprocal(sum)*(uint32_t)*total;
+ *core=sum?(int)(q->high*k>>16):0;
+ *inner=sum?(int)((q->mid+q->high)*k>>16):0;
+}
+/* One mirrored column in a single pass from the outer edge in: twelve bands (three layers, four
+   shades each, darker outward), each pixel written once, no clipping inside the loop. */
+static void stem_column_centered(const struct span_canvas *s, int x, int cy, int core, int inner, int total, const struct stem_ink *k) {
+ int edge=sh_min(cy-s->y0,s->y1-1-cy);
+ if(total>edge)total=edge;
+ if(inner>total)inner=total;
+ if(core>inner)core=inner;
+ /* from[i]: the lowest offset of band i, outermost band first. */
+ int from[3*STEM_STEPS];const uint16_t *ink[3*STEM_STEPS];int n=0;
+ const int bounds[4]={total,inner,core,0};
+ for(int layer=0;layer<3;layer++){
+  int b=bounds[layer],a=bounds[layer+1];
+  for(int step=STEM_STEPS-1;step>=0;step--){from[n]=a+((b-a)*step>>2)+1;ink[n]=&k->ink[layer][step];n++;}
+ }
+ uint16_t *top=s->p+(size_t)(cy-total)*s->stride+(size_t)x,*bottom=s->p+(size_t)(cy+total)*s->stride+(size_t)x;
+ int band=0;
+ for(int d=total;d>=1;d--){
+  while(band<n-1&&d<from[band])band++;
+  *top=*bottom=*ink[band];
+  top+=s->stride;bottom-=s->stride;
+ }
+}
+static void stem_lane(const struct xz_shell_model *m, const struct xz_shell_deck *d, struct xz_canvas c, struct xz_shell_rect r, int amp, int64_t first_px, int pps) {
+ const struct xz_shell_wave *w=&d->stems;
+ struct span_canvas s;
+ if(pps<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
+ struct stem_ink k;stem_inks(m,d,0,&k);
+ int16_t scale[256];scale_table(scale,amp);
+ int cy=r.y+r.h/2;
+ uint64_t cpp=lane_cpp(w,pps);
+ for(int x=s.x0;x<s.x1;x++){
+  int64_t p=first_px+(x-r.x);
+  if(p<0)continue;
+  uint64_t from,to;lane_range(cpp,p,&from,&to);
+  if(from>=w->count)break;
+  const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to);
+  if(!q->low&&!q->mid&&!q->high)continue;
+  int core,inner,total;stem_heights(q,scale,&core,&inner,&total);
+  stem_column_centered(&s,x,cy,core,inner,total,&k);
+  /* The centre row takes the innermost stem that sounds. */
+  vspan(&s,x,cy,cy+1,k.ink[q->high?2:q->mid?1:0][0]);
+ }
+}
+static void stem_overview(const struct xz_shell_model *m, const struct xz_shell_deck *d, struct xz_canvas c, struct xz_shell_rect r, int played_x) {
+ const struct xz_shell_wave *w=&d->stems;
+ struct span_canvas s;
+ if(r.w<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
+ struct stem_ink k[2];stem_inks(m,d,0,&k[0]);stem_inks(m,d,1,&k[1]);
+ int16_t scale[256];scale_table(scale,r.h);
+ uint64_t cpp=((uint64_t)w->count<<16)/(uint64_t)r.w;
+ if(!cpp)cpp=1;
+ int base=r.y+r.h;
+ for(int x=s.x0;x<s.x1;x++){
+  uint64_t from=((uint64_t)(x-r.x)*cpp)>>16,to=((uint64_t)(x-r.x+1)*cpp)>>16;
+  if(from>=w->count)break;
+  const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to);
+  int core,inner,total;stem_heights(q,scale,&core,&inner,&total);
+  const struct stem_ink *ink=&k[x<played_x];
+  if(total>inner)vspan(&s,x,base-total,base-inner,ink->ink[0][0]);
+  if(inner>core)vspan(&s,x,base-inner,base-core,ink->ink[1][0]);
+  if(core>0)vspan(&s,x,base-core,base,ink->ink[2][0]);
+ }
+}
+
+/* ---- a deck's waveforms in the chosen colour ---- */
+int sh_stem_wave_ready(const struct xz_shell_deck *d) {
+ return sh_has(d,XZ_SHELL_F_STEM_WAVE)&&d->stems.columns&&d->stems.count&&d->stems.span_ms;
+}
+void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps) {
+ enum xz_shell_wave_color mode=sh_wave_color(u);
+ if(mode==XZ_SHELL_WAVE_STEMS){
+  if(sh_stem_wave_ready(d)){stem_lane(m,d,c,r,amp,first_px,pps);return;}
+  mode=XZ_SHELL_WAVE_3BAND;
+ }
+ if(sh_has(d,XZ_SHELL_F_WAVE))sh_wave_lane(c,r,amp,&d->wave,mode,first_px,pps);
+}
+void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int played_x) {
+ enum xz_shell_wave_color mode=sh_wave_color(u);
+ if(mode==XZ_SHELL_WAVE_STEMS){
+  if(sh_stem_wave_ready(d)){stem_overview(m,d,c,r,played_x);return;}
+  mode=XZ_SHELL_WAVE_3BAND;
+ }
+ if(sh_has(d,XZ_SHELL_F_OVERVIEW))sh_wave_overview(c,r,&d->overview,mode,played_x);
 }
 
 int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {

@@ -702,9 +702,8 @@ static void strip_overview(const struct xz_shell *u, const struct xz_shell_model
  int timed=e>=0&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
  int ph=timed?x+(int)((int64_t)e*(w-1)/d->total_ms):-1;
  xz_rect(c,x,y,w,h,SH_BLACK);
- if(sh_has(d,XZ_SHELL_F_OVERVIEW)&&d->overview.columns&&d->overview.count)
-  sh_wave_overview(c,(struct xz_shell_rect){x,y,w,h},&d->overview,sh_wave_color(u),ph);
- else xz_rect(c,x,y+h-1,w,1,SH_RAIL);
+ xz_rect(c,x,y+h-1,w,1,SH_RAIL);
+ sh_deck_overview(c,(struct xz_shell_rect){x,y,w,h},u,m,d,ph);
  if(ph>=0){
   int remain=time_mode_of(m,d)==XZ_SHELL_TIME_REMAIN;
   xz_rect(c,x,y+h+1,ph-x,2,remain?SH_RED:SH_WHITE);

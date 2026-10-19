@@ -110,8 +110,8 @@ static void test_empty_and_unknown(void) {
   }
   open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
   turn(&u,&m,3);assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
-  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_BLUE);
-  assert(u.display.wave_color==XZ_SHELL_WAVE_BLUE);
+  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_STEMS);
+  assert(u.display.wave_color==XZ_SHELL_WAVE_STEMS);
  }
  /* Wild items: NULL strings, bad counts and categories, out-of-range current. */
  static const char *const holes[]={NULL,"ON",NULL};
@@ -326,9 +326,9 @@ static void test_shortcut(void) {
  /* Push on a read-only item hands off; on a writable one it steps to the next value, wrapping. */
  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
  turn(&u,&m,4);
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==0&&out[0].deck==-1);
+ assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_STEMS&&out[0].deck==-1);
  /* Chip taps set that value; the current chip writes nothing; the label line only focuses. */
- assert(u.display.wave_color==XZ_SHELL_WAVE_BLUE);
+ assert(u.display.wave_color==XZ_SHELL_WAVE_STEMS);
  assert(tap(&u,&m,chip_x(2,1,1,2),chip_y(2,1))==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_POSITION&&out[0].value==1);
  assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_POSITION&&u.display.wave_position==XZ_SHELL_POSITION_LEFT);
  assert(tap(&u,&m,chip_x(2,1,1,2),chip_y(2,1))==0);
@@ -338,7 +338,7 @@ static void test_shortcut(void) {
  assert(tap(&u,&m,chip_x(3,1,1,2),slot_of(3,1).y+5)==0&&cursor_id(&u)==XZ_SHELL_ITEM_PLAY_MODE);
  assert(tap(&u,&m,chip_x(0,2,0,3),chip_y(0,2))==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD&&out[0].value==0);
  assert(tap(&u,&m,chip_x(0,1,5,8),chip_y(0,1))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
- f=render(&u,&m);assert(chip_fill(f,2,0,0,3)==rgb565(SH_BLUE));                /* BLUE, shell-owned */
+ f=render(&u,&m);assert(chip_fill(f,2,0,3,4)==rgb565(SH_BLUE));                /* STEMS, shell-owned */
  assert(chip_fill(f,0,1,0,8)==rgb565(SH_ROW_ALT)&&chip_fill(f,0,1,5,8)!=rgb565(SH_BLUE)); /* read-only: a flat value box, no chips */
  /* Device information reads only. */
  uint32_t cursor_before=(uint32_t)u.stack[1].cursor;
@@ -355,7 +355,7 @@ static void test_shortcut(void) {
  /* Without the capability every chip hands off. */
  struct xz_shell_model no_set=m;no_set.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;
  assert(tap(&u,&no_set,chip_x(3,0,1,2),chip_y(3,0))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
- f=render(&u,&no_set);assert(chip_fill(f,2,0,0,3)==rgb565(SH_BLUE)&&chip_fill(f,3,0,0,2)==rgb565(SH_ROW_ALT));
+ f=render(&u,&no_set);assert(chip_fill(f,2,0,3,4)==rgb565(SH_BLUE)&&chip_fill(f,3,0,0,2)==rgb565(SH_ROW_ALT));
  /* Unknown values: nothing is chosen, push picks the first value. */
  model(&m);
  for(int i=0;i<FXS_COUNT;i++)fxs_table[i].known=0;

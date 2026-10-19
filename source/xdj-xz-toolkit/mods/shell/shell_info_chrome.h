@@ -86,11 +86,11 @@ static inline void si_header(struct xz_canvas c, const char *title) {
 }
 
 /* ---- compact deck strip ---- */
-static inline void si_mini_overview(const struct xz_shell *u, struct xz_canvas c, const struct xz_shell_deck *d, struct xz_shell_rect ov, int32_t elapsed) {
+static inline void si_mini_overview(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_deck *d, struct xz_shell_rect ov, int32_t elapsed) {
  int ph=elapsed>=0?ov.x+(int)((int64_t)sh_max(0,sh_min(elapsed,d->total_ms))*(ov.w-1)/d->total_ms):-1;
  xz_rect(c,ov.x,ov.y,ov.w,ov.h,SH_BLACK);
- if(sh_has(d,XZ_SHELL_F_OVERVIEW)&&d->overview.columns&&d->overview.count)sh_wave_overview(c,ov,&d->overview,sh_wave_color(u),ph);
- else xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);
+ xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);
+ sh_deck_overview(c,ov,u,m,d,ph);
  if(ph>=0)xz_rect(c,ph,ov.y,1,ov.h,SH_PLAYHEAD);
 }
 static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
@@ -144,7 +144,7 @@ static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell
  sh_text_right(c,tempo_right-pw-1,y+21,text,SH_TEXT,sh_has(d,XZ_SHELL_F_TEMPO)?SH_WHITE:SH_DIM);
  sh_text_right(c,tempo_right,y+26,"%",SH_SMALL,SH_DIM);
  int ox=tx+sh_num_width(SH_NUM_MID,"00:00")+10,ow=tempo_right-62-ox;
- if(ow>8)si_mini_overview(u,c,d,(struct xz_shell_rect){ox,y+8,ow,33},have_elapsed&&have_total?elapsed:-1);
+ if(ow>8)si_mini_overview(u,m,c,d,(struct xz_shell_rect){ox,y+8,ow,33},have_elapsed&&have_total?elapsed:-1);
 }
 static inline void si_strip(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,0,SI_STRIP_Y,c.width,SI_STRIP_H,SH_CHROME);

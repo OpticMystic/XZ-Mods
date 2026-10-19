@@ -1,7 +1,7 @@
 /* Host benchmark: microseconds per PLAY frame while both decks play with the
-   Beat FX on, at each zoom level, advancing the clock and the decks one 60 fps
-   frame per render. Reports the median frame (robust against a busy host)
-   and the mean. Host only. */
+   Beat FX on, for each waveform colour across every zoom level, advancing the
+   clock and the decks one 60 fps frame per render. Reports the median frame
+   (robust against a busy host) and the mean. Host only. */
 #include "fixtures.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,28 +18,32 @@ static double now_us(void) {
 }
 static int by_value(const void *a, const void *b) { double x=*(const double *)a,y=*(const double *)b;return x<y?-1:x>y; }
 int main(void) {
+ static const char *const names[]={"BLUE","RGB","3BAND","STEMS"};
  struct xz_shell u;struct xz_shell_model m;
  fx_track_build(&track,7);
  fx_model_full(&m,&track);
- m.fx.known=1u|2u|4u|32u;m.fx.on=1;m.fx.name="ECHO";m.fx.beat_num=1;m.fx.beat_den=2;m.fx.time_ms=234;
+ fx_beat_fx(&m.fx,1,"ECHO",1,2,234);
  xz_shell_init(&u);
- double median_sum=0,mean_sum=0;
  unsigned check=0;
- for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++){
-  u.zoom=zoom;
-  double sum=0;
-  for(int i=0;i<FRAMES;i++){
-   m.clock_ms+=16;
-   for(int d=0;d<XZ_SHELL_DECKS;d++){m.deck[d].elapsed_ms+=16;m.deck[d].elapsed_at_ms=m.clock_ms-8;}
-   double t0=now_us();
-   xz_shell_render(&u,&m,frame,XZ_SHELL_WIDTH);
-   took[i]=now_us()-t0;sum+=took[i];
-   check+=frame[(size_t)(i%480)*XZ_SHELL_WIDTH+(size_t)(i%800)];
+ for(int mode=XZ_SHELL_WAVE_BLUE;mode<=XZ_SHELL_WAVE_STEMS;mode++){
+  u.display.wave_color=(enum xz_shell_wave_color)mode;
+  double median_sum=0,mean_sum=0;
+  for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++){
+   u.zoom=zoom;
+   double sum=0;
+   for(int i=0;i<FRAMES;i++){
+    m.clock_ms+=16;
+    for(int d=0;d<XZ_SHELL_DECKS;d++){m.deck[d].elapsed_ms+=16;m.deck[d].elapsed_at_ms=m.clock_ms-8;}
+    double t0=now_us();
+    xz_shell_render(&u,&m,frame,XZ_SHELL_WIDTH);
+    took[i]=now_us()-t0;sum+=took[i];
+    check+=frame[(size_t)(i%480)*XZ_SHELL_WIDTH+(size_t)(i%800)];
+   }
+   qsort(took,FRAMES,sizeof *took,by_value);
+   median_sum+=took[FRAMES/2];mean_sum+=sum/FRAMES;
   }
-  qsort(took,FRAMES,sizeof *took,by_value);
-  printf("zoom %d: median %.0f us, mean %.0f us\n",zoom,took[FRAMES/2],sum/FRAMES);
-  median_sum+=took[FRAMES/2];mean_sum+=sum/FRAMES;
+  printf("PLAY %-5s median %.0f us/frame, mean %.0f us/frame\n",names[mode],median_sum/(XZ_SHELL_ZOOM_MAX+1),mean_sum/(XZ_SHELL_ZOOM_MAX+1));
  }
- printf("PLAY median %.0f us/frame, mean %.0f us/frame (checksum %u)\n",median_sum/(XZ_SHELL_ZOOM_MAX+1),mean_sum/(XZ_SHELL_ZOOM_MAX+1),check);
+ printf("checksum %u\n",check);
  return 0;
 }

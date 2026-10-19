@@ -105,7 +105,7 @@ void xz_shell_init(struct xz_shell *u) {
 int xz_shell_restore_setting(struct xz_shell *u, int id, int value) {
  if(!u)return 0;
  switch(id){
- case XZ_SHELL_SET_WAVE_COLOR:if(value<XZ_SHELL_WAVE_BLUE||value>XZ_SHELL_WAVE_3BAND)return 0;u->display.wave_color=(enum xz_shell_wave_color)value;return 1;
+ case XZ_SHELL_SET_WAVE_COLOR:if(value<XZ_SHELL_WAVE_BLUE||value>XZ_SHELL_WAVE_STEMS)return 0;u->display.wave_color=(enum xz_shell_wave_color)value;return 1;
  case XZ_SHELL_SET_WAVE_POSITION:if(value!=XZ_SHELL_POSITION_CENTER&&value!=XZ_SHELL_POSITION_LEFT)return 0;u->display.wave_position=(enum xz_shell_wave_position)value;return 1;
  case XZ_SHELL_ITEM_KEY_DISPLAY:if(value<XZ_SHELL_KEY_AS_DECK||value>XZ_SHELL_KEY_ALPHANUMERIC)return 0;u->display.key_display=(enum xz_shell_key_display)value;return 1;
  case XZ_SHELL_ITEM_WAVE_ZOOM:if(value<0||value>XZ_SHELL_ZOOM_MAX)return 0;u->zoom=value;return 1;

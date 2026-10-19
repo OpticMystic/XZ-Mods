@@ -49,6 +49,15 @@ int main(int argc, char **argv) {
  fx_model_full(&m,&track);u.display.wave_position=XZ_SHELL_POSITION_LEFT;shot(&u,&m,"play-left");u.display.wave_position=XZ_SHELL_POSITION_CENTER;
  u.display.wave_color=XZ_SHELL_WAVE_BLUE;shot(&u,&m,"play-blue");
  u.display.wave_color=XZ_SHELL_WAVE_RGB;shot(&u,&m,"play-rgb");
+ /* STEMS: deck 2 placed in the break so the vocal shows; then muted stems; then a deck still without its stem layer. */
+ u.display.wave_color=XZ_SHELL_WAVE_STEMS;
+ m.deck[1].elapsed_ms=FX_BEAT_MS*4*8*3/100+FX_BEAT_MS/100;shot(&u,&m,"play-stems");
+ m.deck[0].stem_muted=4;m.deck[1].stem_muted=1;shot(&u,&m,"play-stems-muted");
+ m.deck[0].stem_muted=m.deck[1].stem_muted=0;
+ m.deck[1].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE);shot(&u,&m,"play-stems-deck2-not-ready");
+ u.zoom=XZ_SHELL_ZOOM_MAX;m.deck[1].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE);shot(&u,&m,"play-stems-zoom-in");
+ u.zoom=XZ_SHELL_ZOOM_DEFAULT;
+ fx_model_full(&m,&track);
  u.display.wave_color=XZ_SHELL_WAVE_3BAND;
  u.display.key_display=XZ_SHELL_KEY_ALPHANUMERIC;shot(&u,&m,"play-key-alphanumeric");u.display.key_display=XZ_SHELL_KEY_AS_DECK;
 
@@ -110,6 +119,7 @@ int main(int argc, char **argv) {
   for(int i=0;i<6;i++)xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_ENCODER_TURN,0,0,1,0,-1},out);
   u.display.wave_color=XZ_SHELL_WAVE_RGB;u.display.key_display=XZ_SHELL_KEY_ALPHANUMERIC;u.zoom=5;
   shot(&u,&m,"shortcut-runtime-focus-display");
+  u.display.wave_color=XZ_SHELL_WAVE_STEMS;shot(&u,&m,"shortcut-runtime-stems");
   memset(&m.settings,0,sizeof m.settings);
   xz_shell_init(&u);
   xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_SHORTCUT,-1},out);
