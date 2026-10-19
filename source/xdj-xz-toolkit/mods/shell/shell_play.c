@@ -542,7 +542,9 @@ static void render_overview(const struct xz_shell *u, const struct xz_shell_mode
  /* playing address bar and position */
  int bar_y=ov.y+ov.h+1;
  if(timed){
-  int flash=mode==XZ_SHELL_TIME_REMAIN&&d->total_ms-elapsed<30000&&((m->clock_ms/250)&1);
+  /* The end warning (XZ manual p.71): slow flash in the last 30 seconds, fast in the last 15, in either time mode. */
+  int32_t left_ms=d->total_ms-elapsed;
+  int flash=left_ms<30000&&((m->clock_ms/(left_ms<15000?125u:250u))&1);
   uint32_t left=mode==XZ_SHELL_TIME_REMAIN?SH_RED:SH_WHITE,right=mode==XZ_SHELL_TIME_REMAIN?SH_WHITE:SH_RAIL;
   if(flash)left=right=SH_RED;
   xz_rect(c,ov.x,bar_y,ph-ov.x,3,left);xz_rect(c,ph,bar_y,ov.x+ov.w-ph,3,right);
@@ -612,7 +614,7 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
  xz_rect(c,s.x,s.y+29,s.w,1,SH_BLACK);
  /* TRACK */
  sh_text(c,sx,NUM_Y,"TRACK",SH_SMALL,SH_DIM);
- if(loaded&&sh_has(d,XZ_SHELL_F_TRACK_NO)){snprintf(text,sizeof text,"%02d",d->track_no%100);sh_num(c,sx,NUM_Y+13,text,SH_NUM_MID,SH_WHITE);}
+ if(loaded&&sh_has(d,XZ_SHELL_F_TRACK_NO)){snprintf(text,sizeof text,"%02d",d->track_no%1000);sh_num(c,sx,NUM_Y+13,text,SH_NUM_MID,SH_WHITE);}
  else sh_num(c,sx,NUM_Y+13,"--",SH_NUM_MID,SH_DIM);
  /* time */
  int tm_known;enum xz_shell_time_mode mode=time_mode_of(m,d,&tm_known);
