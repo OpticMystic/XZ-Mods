@@ -64,10 +64,14 @@ static void toggle_test(void){
     for(int deck=0;deck<2;deck++)for(int mt=0;mt<2;mt++){
         keys();self[0x26]=(unsigned char)(deck+1);fixture_keys[deck].master_tempo=mt;
         assert(sync_key(deck));fixture_key_apply(deck);int applied=fixture_key_applied[deck];
-        self[0x34]=1;input[11]=0;assert(master_tempo_key_hook(self,input));
+        /* SHIFT+MASTER TEMPO stays stock and leaves KEY SYNC on. */
+        int before=fixture_mt_stock_calls;self[0x34]=1;input[11]=0;master_tempo_key_hook(self,input);
+        assert(key_sync[deck].valid&&fixture_mt_stock_calls==before+1);input[11]=2;master_tempo_key_hook(self,input);
+        self[0x34]=0;input[11]=0;assert(master_tempo_key_hook(self,input));
         assert(!key_sync[deck].valid&&!fixture_key_cents[deck]&&fixture_keys[deck].master_tempo==mt);
         assert(fixture_key_applied[deck]==applied);
-        fixture_keys[deck].epoch++;fixture_key_cents[deck]=300;refresh();
+        /* A claimed press stays consumed through its repeats and release, even if SHIFT or the track changes. */
+        self[0x34]=1;fixture_keys[deck].epoch++;fixture_key_cents[deck]=300;refresh();
         int requests=fixture_key_requests,stock=fixture_mt_stock_calls;
         assert(master_tempo_key_hook(self,input));input[11]=2;assert(master_tempo_key_hook(self,input));
         assert(fixture_key_requests==requests&&fixture_key_cents[deck]==300&&fixture_mt_stock_calls==stock);
