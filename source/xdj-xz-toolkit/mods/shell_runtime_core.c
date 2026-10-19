@@ -55,6 +55,9 @@ enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *u, const struct 
  /* BACK never hands off (its table entries are POP, HOME or NONE) and a list screen's BACK runs
     screen input with state outside the shell struct, so it is not probed. */
  if(k->key==XZ_SHELL_KEY_BACK)return XZ_SHRT_SWALLOW;
+ /* MENU belongs to the shell on every screen: short opens its MODS screen (or a list's MENU panel), held
+    opens MODS on UTILITY. Stock's own MENU does nothing on PLAY, so it is never passed. */
+ if(k->key==XZ_SHELL_KEY_MENU)return XZ_SHRT_SWALLOW;
  struct probe a=probe(u,m,k->key),b=k->rule==XZ_SHRT_ON_RELEASE?probe(u,m,k->hold):(struct probe){0,0};
  /* TAG TRACK the shell cannot do: on the bare PLAY screen stock tags the loaded track, so the key goes
     there with a visible hand-off. On a list stock would tag its own hidden cursor row: swallowed, and the
