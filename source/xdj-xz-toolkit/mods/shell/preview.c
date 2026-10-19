@@ -36,6 +36,7 @@ int main(int argc, char **argv) {
  xz_shell_init(&u);
  fx_model_full(&m,&track);
  shot(&u,&m,"play-full");
+ m.deck[0].track_no=123;shot(&u,&m,"play-track-123");m.deck[0].track_no=1;
  m.settings.writable=(uint64_t)1<<XZ_SHELL_SET_TIME_MODE;
  shot(&u,&m,"play-time-mode-writable");
  fx_model_full(&m,&track);
