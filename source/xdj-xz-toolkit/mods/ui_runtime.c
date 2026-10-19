@@ -47,6 +47,7 @@ static uint32_t ram_debug_sample_ms;
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
 #pragma weak xz_shell_runtime_start
 #pragma weak xz_shell_runtime_stop
+#pragma weak xz_shell_runtime_follow_interface
 #pragma weak xz_shell_runtime_owns
 #pragma weak xz_shell_runtime_idle
 #pragma weak xz_shell_runtime_frame
@@ -60,6 +61,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_take_stem_mute
 #pragma weak xz_shell_runtime_take_mods_page
 #pragma weak xz_shell_runtime_take_dj_pick
+#pragma weak xz_shell_runtime_take_ui_action
 #pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
@@ -387,10 +389,16 @@ static void wave_configure(void) {
 /* The interface and classic theme decide the look; every renderer, the shell
    included, reads the derived model.theme. */
 _Static_assert(XZ_UI_INTERFACE_CLASSIC==XZ_INTERFACE_CLASSIC&&XZ_UI_INTERFACE_MODERN==XZ_INTERFACE_MODERN&&XZ_UI_MODERN_THEMES==XZ_MODERN_THEME_COUNT,"one interface numbering");
+/* The FLAGSHIP shell runs only in the MODERN interface (nothing on CLASSIC: no thread, no USB scan). */
+static void shell_follow_interface_locked(void) {
+    if(started&&xz_shell_runtime_follow_interface&&xz_shell_runtime_follow_interface(model.ui_interface==XZ_UI_INTERFACE_MODERN))
+        xz_log("FLAGSHIP shell unavailable; the restyled stock screen stays");
+}
 static void appearance_changed(void) {
     int look = xz_settings_look(model.ui_interface, model.classic_theme);
     if (look == model.theme) return;
     model.theme = look; xz_native_skin_request(look); wave_configure();
+    shell_follow_interface_locked();
 }
 /* The XZ owns applied settings. Browsing nominates a USB without applying it;
    boot restore and explicit profile actions choose settings. A queued edit
@@ -1286,6 +1294,9 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
         in->stem_muted[d]=model.deck[d].muted;
     }
     in->stem_rgb_known=1;for(int i=0;i<3;i++)in->stem_rgb[i]=xz_ui_model_stem_color(&model,i);
+    in->look_known=1;in->ui_interface=model.ui_interface;in->modern_theme=model.modern_theme;in->wave_mode=model.wave_mode;
+    in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
+    for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
     /* DJ profiles for the shell's MY SETTINGS panel, copied (the view changes under this lock). */
     if(model.dj){
         in->dj_known=1;in->dj_count=model.dj->count<XZ_SHELL_RUNTIME_DJ?model.dj->count:XZ_SHELL_RUNTIME_DJ;
@@ -1324,6 +1335,14 @@ static void shell_ui_requests_locked(void){
     }
     /* The shell's stem mute buttons: through the pads' own mute toggle, so the stem engine and the
        hot cue mute preservation see exactly what a pad press does. */
+    /* The shell's APPEARANCE tab: the MODS panel's own actions (side effects and settings save included).
+       An INTERFACE switch to CLASSIC stops the shell from inside apply(); nothing below needs it. */
+    if((requests&XZ_SHELL_UI_ACTION)&&xz_shell_runtime_take_ui_action){
+        int kind,index;float value;
+        while(xz_shell_runtime_take_ui_action(&kind,&index,&value)){
+            struct xz_ui_action act={.kind=(enum xz_ui_action_kind)kind,.phase=XZ_UI_PRESS,.index=index,.value=value};apply(NULL,&act,1);
+        }
+    }
     /* The shell's DJ PROFILE row: the same pick the MODS panel's DJ PROFILE page makes. */
     if((requests&XZ_SHELL_UI_DJ_PICK)&&xz_shell_runtime_take_dj_pick){
         int entry=xz_shell_runtime_take_dj_pick();
@@ -2113,6 +2132,7 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     requested_stems = saved->stems; model.stem_page = saved->stem_page;
     model.ui_interface = saved->ui_interface; model.classic_theme = saved->classic_theme; model.modern_theme = saved->modern_theme;
     model.theme = xz_settings_look(model.ui_interface, model.classic_theme);
+    shell_follow_interface_locked();
     model.shift_pages = 1; model.pad_feedback = saved->pad_feedback;
     model.shift_keysync = 1; model.takeover_assign = saved->takeover_assign;
     model.rekordbox_menu = saved->rekordbox_menu;
@@ -2362,7 +2382,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     if(xz_hook_arm(0xdec08,encoder_push_guard,(void*)encoder_push_hook,(void**)&stock_encoder_push))
         xz_log("MODS encoder push unavailable; touch controls remain available");
     __atomic_store_n(&started, 1, __ATOMIC_RELEASE);
-    if(xz_shell_runtime_start&&xz_shell_runtime_start())xz_log("FLAGSHIP shell unavailable; the restyled stock screen stays");
+    pthread_mutex_lock(&ui_mutex);shell_follow_interface_locked();pthread_mutex_unlock(&ui_mutex);
     sdk_start();
     if(!xz_metrics_start||xz_metrics_start())xz_log("Metrics sampler unavailable; top-bar setup remains available");
     if(model.metrics_enabled&&xz_metrics_enable)xz_metrics_enable(1);
