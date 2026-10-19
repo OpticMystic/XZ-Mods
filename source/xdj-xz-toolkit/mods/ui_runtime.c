@@ -1297,6 +1297,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     in->look_known=1;in->ui_interface=model.ui_interface;in->modern_theme=model.modern_theme;in->wave_mode=model.wave_mode;
     in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
     for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
+    in->stems_overlay=model.stems_overlay;
     /* DJ profiles for the shell's MY SETTINGS panel, copied (the view changes under this lock). */
     if(model.dj){
         in->dj_known=1;in->dj_count=model.dj->count<XZ_SHELL_RUNTIME_DJ?model.dj->count:XZ_SHELL_RUNTIME_DJ;

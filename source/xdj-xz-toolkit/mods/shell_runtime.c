@@ -281,17 +281,44 @@ static struct xz_shell_info_model info_model;
 static void refuse(void);
 /* MODS > APPEARANCE in the shell's own style: an item tab whose sets run the MODS panel's own actions. */
 enum { LOOK_TAB=2, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
-       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS };
+       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT };
 static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
 static const char *const look_interface[2]={"MODERN","CLASSIC"};
 _Static_assert(XZ_UI_MODERN_THEMES==1,"one modern theme name below");
 static const char *const look_modern_theme[1]={"STANDARD"};
 static const char *const look_wave[3]={"STOCK","3-BAND","STEMS"};
-static const char *const look_key_format[3]={"USB PREFERENCE","CLASSIC","CAMELOT"};
+static const char *const look_key_format[3]={"USB PREFERENCE","CLASSIC","WHEEL"};
 static const char *const look_off_on[2]={"OFF","ON"};
 static const char *const look_stem_color[9]={"THEME DEFAULT","BLUE","RED","GREEN","AMBER","PURPLE","CYAN","PINK","WHITE"};
 static struct xz_shell_setting_item look_items[9];
 static struct xz_shell_settings_model look_model;
+/* MY SETTINGS > WAVEFORM: the stem row layout, set through SET_MOD on the APPEARANCE tab (waveform_tab). */
+static const char *const look_stem_layout[5]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF"};
+static struct xz_shell_setting_item wave_items[1];
+static struct xz_shell_settings_model wave_model;
+/* Descriptions (shell_settings.h help): APPEARANCE is scope LOOK_TAB + 1; the WAVEFORM items share it. */
+static const char *const help_interface[2]={"This full-screen interface.","The player's own layout, restyled by the classic themes."};
+static const char *const help_wave[3]={"The player's own waveform.","Lows, mids and highs layered in their own colours.",
+ "Drums, harmonics and vocals in the stem colours; tracks without stems show 3-BAND."};
+static const char *const help_key_format[3]={"As the stick's library sets it.","Note names, like Am.","Wheel numbers, like 8A."};
+static const char *const help_stem_color[9]={"Follows the theme.",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
+static const char *const help_stem_layout[5]={"Normal waveforms, no stem rows.","Stem rows under the waveforms, full height.",
+ "Stem rows under the waveforms, half height.","Stem rows outside the waveforms, full height.","Stem rows outside the waveforms, half height."};
+#define HELP(id,text,count,choices) {LOOK_TAB+1,id,text,count,choices}
+static const struct xz_shell_item_help help_items[]={
+ HELP(LOOK_INTERFACE,"Who draws the player screen.",2,help_interface),
+ HELP(LOOK_THEME,"The look of the modern interface. More modern themes are coming.",0,NULL),
+ HELP(LOOK_WAVE,"How the scrolling waveform is drawn.",3,help_wave),
+ HELP(LOOK_KEY_FORMAT,"How keys are written.",3,help_key_format),
+ HELP(LOOK_KEY_FEEDBACK,"Shows the key a track plays in after tempo and key shift.",0,NULL),
+ HELP(LOOK_TRAFFIC,"Colours keys in the browser green or amber by how well they mix with the master deck.",0,NULL),
+ HELP(LOOK_DRUMS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
+ HELP(LOOK_HARMONICS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
+ HELP(LOOK_VOCALS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
+ HELP(LOOK_STEM_LAYOUT,"Where the stem rows sit next to the waveforms, and how tall they are.",5,help_stem_layout),
+};
+#undef HELP
+static const struct xz_shell_help_model help_model={sizeof help_items/sizeof *help_items,help_items};
 static uint32_t look_classic_at; /* the first push of INTERFACE > CLASSIC: a second one within 4 s switches */
 static struct { int kind, index; float value; } ui_actions[8]; static int ui_action_count; /* under mutex */
 static void fill_look(void) {
@@ -308,6 +335,9 @@ static void fill_look(void) {
  LOOK(8,LOOK_VOCALS,3,"VOCALS COLOR",look_stem_color,9,in->stem_colors[2]>=0&&in->stem_colors[2]<9?in->stem_colors[2]:0);
 #undef LOOK
  look_model=(struct xz_shell_settings_model){9,look_items,NULL};
+ wave_items[0]=(struct xz_shell_setting_item){LOOK_STEM_LAYOUT,(enum xz_shell_setting_category)2,"STEM ROW LAYOUT",look_stem_layout,5,
+  k&&in->stems_overlay>=0&&in->stems_overlay<5?in->stems_overlay:0,k,k};
+ wave_model=(struct xz_shell_settings_model){1,wave_items,NULL};
 }
 static void ui_action_locked(int kind, int index, float value, uint32_t now) {
  if(ui_action_count>=8){refuse();return;}
@@ -330,6 +360,13 @@ static void look_set_locked(int id, int choice, uint32_t now) {
  case LOOK_KEY_FORMAT:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_KEY_FORMAT,choice,0,now);else refuse();return;
  case LOOK_KEY_FEEDBACK:ui_action_locked(XZ_UI_KEY_FEEDBACK,0,choice?1.f:0.f,now);return;
  case LOOK_TRAFFIC:ui_action_locked(XZ_UI_BROWSE_TRAFFIC,0,choice?1.f:0.f,now);return;
+ case LOOK_STEM_LAYOUT:{
+  /* The panel's layout control steps to the next layout: step from the current one to the choice. */
+  int from=last_input.stems_overlay;
+  if(choice<0||choice>=5||from<0||from>=5){refuse();return;}
+  for(int steps=(choice-from+5)%5;steps>0;steps--)ui_action_locked(XZ_UI_STEMS_OVERLAY,0,0,now);
+  return;
+ }
  case LOOK_DRUMS:case LOOK_HARMONICS:case LOOK_VOCALS:
   if(choice>=0&&choice<9)ui_action_locked(XZ_UI_STEM_COLOR,id-LOOK_DRUMS,(float)choice,now);else refuse();
   return;
@@ -613,7 +650,7 @@ static void fill_slots_locked(void) {
  if(lib){fill_browse(lib);model.browse=&browse;}else model.browse=NULL;
  fill_source();model.source=&source_model;
  fill_settings();model.settings_screen=&settings_model;
- fill_look();model.mods=&mods_model;
+ fill_look();model.mods=&mods_model;model.help=&help_model;
  model.my_settings=NULL;
  if(lib&&browse_source>=0){
   const struct xz_shms_files *f=&mys[browse_source];
@@ -622,7 +659,7 @@ static void fill_slots_locked(void) {
   mys_stored=(struct xz_shell_settings_model){(uint32_t)mys_rows.count,mys_rows.item,NULL};
   mys_model=(struct xz_shell_my_settings_model){.source=browse_source?XZ_SHELL_SRC_USB2:XZ_SHELL_SRC_USB1,
    .source_name=browse_source?"USB 2":"USB 1",.on_stick=xz_shms_any(f),.writable=writable,.stored=&mys_stored,
-   .profile_active=-1,.state=mys_state[browse_source],.result=mys_result[browse_source][0]?mys_result[browse_source]:NULL};
+   .profile_active=-1,.waveform=&wave_model,.waveform_tab=LOOK_TAB,.state=mys_state[browse_source],.result=mys_result[browse_source][0]?mys_result[browse_source]:NULL};
   /* DJ profiles of this stick, from dj_runtime's view (last_input). */
   int pn=0;
   if(last_input.dj_known)for(int i=0;i<last_input.dj_count&&i<XZ_SHELL_RUNTIME_DJ;i++){
@@ -2384,7 +2421,7 @@ static void stop_locked(void) {
  if(worker_created){pthread_join(worker_thread,NULL);worker_created=0;}
  pthread_mutex_lock(&mutex);
  set_owns(0);
- model.browse=NULL;model.source=NULL;model.info=NULL;model.settings_screen=NULL;model.mods=NULL;model.my_settings=NULL;
+ model.browse=NULL;model.source=NULL;model.info=NULL;model.settings_screen=NULL;model.mods=NULL;model.my_settings=NULL;model.help=NULL;
  for(int k=0;k<L_COUNT;k++){retire_list(lists[k].result);lists[k].result=NULL;}
  for(int i=0;i<2;i++){if(usb[i].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[i].lib;usb[i].lib=NULL;}
  for(int d=0;d<XZ_SHELL_DECKS;d++){free_wave(d);prefetch_drop(d);}

@@ -33,6 +33,7 @@ struct xz_shell_runtime_frame_input {
  int dj_known, dj_count;
  /* The appearance settings the MODS > APPEARANCE tab shows (ui_runtime.c's model). */
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
+ int stems_overlay;           /* enum xz_stem_layout: the stem row layout (MY SETTINGS > WAVEFORM) */
  struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
 };
 int xz_shell_runtime_start(void);

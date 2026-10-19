@@ -40,9 +40,9 @@ int xz_shut_arg(const struct xz_shut_def *, int index, int32_t *arg);
 /* Why an item cannot be written (NULL: it can). getter_ok/setter_ok: the code guards passed.
    trial: a --ram-settings run (XZ_MODS_SETTINGS_READONLY=1) without the explicit opt-in. */
 const char *xz_shut_reason(const struct xz_shut_def *, int getter_ok, int setter_ok, int trial);
-#define XZ_SHUT_NOTE_TRIAL "TRIAL RUN: STOCK WOULD SAVE THIS AT ONCE"
+#define XZ_SHUT_NOTE_TRIAL "FIXED IN THIS TEST BUILD"
 #define XZ_SHUT_NOTE_FIRMWARE "NOT AVAILABLE ON THIS FIRMWARE"
-#define XZ_SHUT_NOTE_STOCK "OPENS IN THE STOCK UTILITY: PUSH IT"
+#define XZ_SHUT_NOTE_STOCK "THE PLAYER RUNS THIS ITSELF"
 
 /* One published row per def, in table order. raw/known: the last reading per def. */
 void xz_shut_items(const struct xz_shut_def *defs, int n, const int32_t *raw, const uint8_t *known,
