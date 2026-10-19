@@ -152,7 +152,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_FEATURE_SETUP_OPEN:return "Detect this feature and its USB track, choose a deck, then enable and test it.";
  case XZ_UI_FEATURE_SETUP_STEP:return u->feature_step==3?"Confirm only after testing the feature on the loaded deck.":"Run the next setup step. Missing support keeps its specific reason on screen.";
  case XZ_UI_LOCAL_STEM_SETUP_OPEN:return xz_ui_usb_next_step(xz_ui_usb_blocked(m,a->deck>=0?a->deck:u->deck<2?u->deck:0));
- case XZ_UI_METRICS_TOGGLE:return "Show or hide live CPU, RAM and temperature readings beside STEMS and MODS.";
+ case XZ_UI_METRICS_TOGGLE:return "Open setup and verify live CPU, RAM and temperature readings beside STEMS and MODS.";
  case XZ_UI_DECK:return u->page==XZ_UI_PC_STEMS?"Choose the deck this setup checks.":"Choose which deck these controls act on.";
  case XZ_UI_CONTROL_SECTION:return k==0?"Assign stem mutes to four pads in a pad mode.":k==1?"Edit custom beat jump sizes for the pads.":"Switch rekordbox stems on a computer linked by USB cable.";
  case XZ_UI_ENABLE:
@@ -183,7 +183,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_SET_THEME:return "Restyles the whole player screen and this menu.";
  case XZ_UI_STEM_COLOR:return "Color for this stem on pads and waveforms.";
  case XZ_UI_STEM_COLORS_RESET:return "Puts every stem back to the theme's colors.";
- case XZ_UI_JUMP_ENABLE:return "Beat jump pads use the sizes set here instead of stock.";
+ case XZ_UI_JUMP_ENABLE:return "Page 1 uses custom sizes instead of stock. SHIFT + BEAT JUMP page 2 is always available.";
  case XZ_UI_JUMP_SHIFT:return "SHIFT + BEAT JUMP selects page 2 sizes.";
  case XZ_UI_JUMP_EDIT_PAGE:return "Choose which page of sizes to edit.";
  case XZ_UI_JUMP_PAIR:return u->adjusting?"Turn to change the size. Push or BACK when done.":"Push, then turn to change this pair's jump size. The first pad jumps back.";

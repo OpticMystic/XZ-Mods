@@ -124,7 +124,7 @@ int xz_native_inline_start(int (*enabled)(void),xz_native_wave_render render,voi
     unsigned char actual[16];
     focus_verified=!xz_read_memory(0xf3cc4,actual,sizeof(actual))&&!memcmp(actual,focus_guard,sizeof(actual));
     requested=enabled;renderer=render;renderer_context=context;
-    const char *mode=getenv("XZ_MODS_INLINE");observe_only=mode&&!strcmp(mode,"observe");
+    observe_only=0; /* Persisted row layout is the sole visibility choice. */
     if(!stock_lock&&xz_hook_arm(0x156958,lock_guard,(void *)lock_hook,(void **)&stock_lock))return -1;
     if(!stock_unlock&&xz_hook_arm(0x1656c4,unlock_guard,(void *)unlock_hook,(void **)&stock_unlock))return -1;
     static const unsigned char gr_unlock_guard[8]={0x5c,0x30,0x9f,0xe5,0x10,0x40,0x2d,0xe9};

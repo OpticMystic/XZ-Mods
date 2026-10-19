@@ -285,17 +285,7 @@
     },
     {
       "key": "jump_enabled",
-      "label": "Custom Beat Jump",
-      "group": "beat_jump",
-      "default": 1,
-      "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
-    },
-    {
-      "key": "jump_shift_page",
-      "label": "Shift + Beat Jump page 2",
+      "label": "Page 1 custom Beat Jump",
       "group": "beat_jump",
       "default": 1,
       "min": 0,
@@ -1058,30 +1048,10 @@
       "readonly": false
     },
     {
-      "key": "ram_debug",
-      "label": "Free RAM box",
-      "group": "debug",
-      "default": 0,
-      "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
-    },
-    {
       "key": "rekordbox_menu",
       "label": "REKORDBOX key opens MODS",
       "group": "advanced",
       "default": 1,
-      "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
-    },
-    {
-      "key": "metrics_enabled",
-      "label": "On-device metrics",
-      "group": "debug",
-      "default": 0,
       "min": 0,
       "max": 1,
       "kind": "boolean",
@@ -1123,5 +1093,77 @@
         }
       ]
     }
-  ]
+  ],
+  "wire_order": [
+    "stems",
+    "gate",
+    "smart",
+    "theme",
+    "stem_page",
+    "shift_pages",
+    "pad_feedback",
+    "shift_keysync",
+    "fb_takeover",
+    "takeover_assign",
+    "spare_eq",
+    "stem_bank",
+    "jump_enabled",
+    "jump_shift_page",
+    "jump_1",
+    "jump_2",
+    "jump_3",
+    "jump_4",
+    "jump_5",
+    "jump_6",
+    "jump_7",
+    "jump_8",
+    "stems_overlay",
+    "wave_mode",
+    "browse_1",
+    "browse_2",
+    "browse_3",
+    "browse_key_prefix",
+    "browse_traffic",
+    "key_format",
+    "stem_drums_color",
+    "stem_harmonics_color",
+    "stem_vocals_color",
+    "key_feedback",
+    "ram_debug",
+    "rekordbox_menu",
+    "metrics_enabled",
+    "stem_order"
+  ],
+  "retired_fields": {
+    "jump_shift_page": {
+      "key": "jump_shift_page",
+      "label": "Shift + Beat Jump page 2",
+      "group": "beat_jump",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "ram_debug": {
+      "key": "ram_debug",
+      "label": "Free RAM box",
+      "group": "debug",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "metrics_enabled": {
+      "key": "metrics_enabled",
+      "label": "On-device metrics",
+      "group": "debug",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    }
+  }
 }

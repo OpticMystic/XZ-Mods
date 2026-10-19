@@ -109,13 +109,10 @@ static void ram_debug_box(void){
  for(unsigned i=0;i<800*480;i++)busy[i]=0x1234;
  pthread_mutex_lock(&ui_mutex);assert(xz_mods_render_v1(busy,800,480,800,NULL));pthread_mutex_unlock(&ui_mutex);
  for(unsigned y=0;y<24;y++)for(unsigned x=568;x<800;x++)if(normal[y*800+x])assert(normal[y*800+x]==busy[y*800+x]);
- toggle.value=0;apply(NULL,&toggle,1);assert(!settings_snapshot().ram_debug);samples=xz_mods_ram_debug_v1.samples;refresh();assert(samples==xz_mods_ram_debug_v1.samples);
- struct xz_ui_widget controls[XZ_UI_WIDGETS];ui.page=XZ_UI_RAM_SETUP;size_t count=xz_ui_layout(&ui,&model,controls);int found=0;
- for(size_t i=0;i<count;i++)if(controls[i].kind==XZ_UI_RAM_DEBUG){
-  struct xz_ui_action actions[XZ_UI_ACTIONS];int x=controls[i].x+controls[i].w/2,y=controls[i].y+controls[i].h/2;
-  assert(xz_ui_touch(&ui,&model,x,y,1,actions)==1&&actions[0].kind==XZ_UI_RAM_DEBUG&&actions[0].value==1);assert(!xz_ui_touch(&ui,&model,0,0,0,actions));found=1;
- }
- assert(found);puts("PASS optional RAM box: all themes, confined pixels, busy frame persistence, touch toggle, profile snapshot and one-second sampling");
+ toggle.value=0;apply(NULL,&toggle,1);assert(settings_snapshot().ram_debug);
+ struct xz_ui_widget controls[XZ_UI_WIDGETS];ui.page=XZ_UI_RAM_SETUP;size_t count=xz_ui_layout(&ui,&model,controls);
+ for(size_t i=0;i<count;i++)assert(controls[i].kind!=XZ_UI_RAM_DEBUG);
+ puts("PASS always-available RAM information, old disable ignored, no menu switch and one-second sampling");
 }
 static unsigned back_stock_calls;
 static void back_stock(void *self,const void *input){(void)self;(void)input;back_stock_calls++;}

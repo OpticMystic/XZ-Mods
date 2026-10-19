@@ -49,7 +49,7 @@ int main(void){
  struct xz_ui ui;struct xz_ui_model model={0};struct xz_native_touch touch;struct stock_solver solver={0};
  xz_ui_init(&ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);
  struct xz_touch_status s={1,{0,0,0},620,10};
- assert(xz_native_touch_dispatch(&touch,&solver,&s,NULL,stock));assert(action.kind==XZ_UI_METRICS_TOGGLE&&calls==1&&!touch.visible);
+ assert(xz_native_touch_dispatch(&touch,&solver,&s,NULL,stock));assert(action.kind==XZ_UI_METRICS_SETUP_OPEN&&calls==1&&!touch.visible);
  s.x=760;assert(xz_native_touch_dispatch(&touch,&solver,&s,NULL,stock));assert(calls==1&&!touch.visible);
  s.down=0;xz_native_touch_dispatch(&touch,&solver,&s,NULL,stock);
  model.metrics_enabled=1;s=(struct xz_touch_status){1,{0,0,0},400,10};assert(xz_native_touch_dispatch(&touch,&solver,&s,NULL,stock));assert(action.kind==XZ_UI_METRICS_SETUP_OPEN);

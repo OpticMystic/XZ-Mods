@@ -56,10 +56,7 @@ static int enabled(const char *name) {
     return value && strcmp(value, "1") == 0;
 }
 
-static int enabled_default(const char *name, int fallback) {
-    const char *value = getenv(name);
-    return value ? strcmp(value, "0") != 0 : fallback;
-}
+
 
 void xz_log(const char *message) {
     FILE *file = fopen("/dev/shm/xz-mods.log", "a");
@@ -319,7 +316,7 @@ __attribute__((constructor)) static void start(void) {
     observer = enabled("XZ_MODS_OBSERVER");
     xz_mods_pad_trace_v1.enabled = enabled("XZ_MODS_PAD_TRACE");
     xz_cue_init(&cues, xz_cue_native_api(&native));
-    xz_cue_settings(&cues, enabled("XZ_MODS_GATE_CUE"), enabled("XZ_MODS_SMART_CUE"));
+    xz_cue_settings(&cues, 0, 0);
     long page_size = sysconf(_SC_PAGESIZE);
     if (page_size <= 0) return;
     uintptr_t page = (uintptr_t)key_slot - (uintptr_t)key_slot % (uintptr_t)page_size;
@@ -347,13 +344,11 @@ __attribute__((constructor)) static void start(void) {
     (void)xz_audio_trace_start();
     if(memory_fd < 0 || xz_ram_start()) xz_log("RAM tracks: guarded adapter unavailable");
     int audio_ready = memory_fd >= 0 && xz_audio_start() == 0;
-    int stems_default = enabled_default("XZ_MODS_STEMS", 1);
-    int key_wanted=enabled_default("XZ_MODS_KEYSHIFT",0);
-    xz_key_runtime_observe(!key_wanted);
-    int key_hook=audio_ready && (key_wanted || stems_default || xz_audio_trace_enabled()) && xz_key_runtime_start()==0;
-    int key_ready=key_wanted && key_hook;
-    if (audio_ready && stems_default) xz_audio_set_enabled(1);
-    if (enabled("XZ_MODS_UI")) xz_ui_runtime_start(audio_ready, key_ready, stems_default);
+    /* Engines are available; persisted MODS settings own behavior. Neutral key
+       processing leaves audio unchanged until a performance action sets cents. */
+    xz_key_runtime_observe(0);
+    int key_ready = audio_ready && xz_key_runtime_start()==0;
+    if (enabled("XZ_MODS_UI")) xz_ui_runtime_start(audio_ready, key_ready, 1);
 }
 
 __attribute__((destructor)) static void stop(void) {

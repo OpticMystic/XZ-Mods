@@ -132,3 +132,9 @@ download from the manufacturer during preparation, or supply a local official
 The `builder/firmware.py::import_application` path accepts the official 1.26
 `.UPD` (or the outer ZIP containing exactly one `.UPD`); unknown versions fail
 closed. The GUI must not claim broader firmware support.
+
+Feature controls follow one rule: unused-input additions are available without
+an enable switch; changes to normal controls retain their MODS setting.
+SHIFT + BEAT JUMP page 2 works even with page-1 custom jumps off. Older disabled
+page-2 and information-display settings are accepted and ignored. See the
+[feature-toggle audit](docs/feature-toggle-audit.md) for the complete inventory.

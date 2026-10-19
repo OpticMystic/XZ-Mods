@@ -368,9 +368,9 @@ static void browse_settings(const struct xz_settings *saved) {
         memcpy(model.browse_columns, saved->browse_columns, sizeof(model.browse_columns));
     model.browse_key_prefix = !!saved->browse_key_prefix; model.browse_traffic = !!saved->browse_traffic;
     model.key_format = saved->key_format >= 0 && saved->key_format <= 2 ? saved->key_format : 0;
-    model.metrics_enabled=!!saved->metrics_enabled;
+    model.metrics_enabled=1;
     if(xz_metrics_enable)xz_metrics_enable(model.metrics_enabled);
-    model.ram_debug=!!saved->ram_debug;
+    model.ram_debug=1;
     __atomic_store_n(&xz_mods_ram_debug_v1.enabled,model.ram_debug,__ATOMIC_RELEASE);
     model.key_feedback = !!saved->key_feedback;
     __atomic_store_n(&xz_mods_key_feedback_proof_v1.enabled,model.key_feedback,__ATOMIC_RELEASE);
@@ -923,7 +923,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             if(xz_dj_runtime_save)xz_dj_runtime_save(&ui);
             break;
         case XZ_UI_METRICS_TOGGLE:
-            model.metrics_enabled=!model.metrics_enabled;
+            model.metrics_enabled=1;
             memset(&model.metrics,0,sizeof(model.metrics));
             if(xz_metrics_enable)xz_metrics_enable(model.metrics_enabled);
             break;
@@ -1118,9 +1118,8 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_JUMP_ENABLE:
             model.jump.enabled=a->value!=0;
-            jump_state.page[0]=jump_state.page[1]=0;
             break;
-        case XZ_UI_JUMP_SHIFT: model.jump.shift_page=a->value!=0; break;
+        case XZ_UI_JUMP_SHIFT: model.jump.shift_page=1; break;
         case XZ_UI_JUMP_STEP: {
             int slot=ui.jump_edit_page*4+ui.jump_edit_pair;
             model.jump.sizes[slot]=xz_jump_step_size(model.jump.sizes[slot],a->index);
@@ -1153,7 +1152,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         case XZ_UI_BROWSE_TRAFFIC: model.browse_traffic = a->value != 0; break;
         case XZ_UI_KEY_FORMAT: if (a->index >= 0 && a->index <= 2) model.key_format = a->index; break;
         case XZ_UI_RAM_DEBUG:
-            model.ram_debug=a->value!=0;
+            model.ram_debug=1;
             __atomic_store_n(&xz_mods_ram_debug_v1.enabled,model.ram_debug,__ATOMIC_RELEASE);
             xz_native_skin_request_repaint();
             break;
@@ -1737,8 +1736,8 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
         (audio_available ? 32u : 0) | (event->hotcue_mode ? 64u : 0);
     int toggle,beats=0;
     int active=stem_controls_active(event->deck);
-    int jump_mode=model.jump.enabled&&model.jump.shift_page&&event->mode_button==3;
-    if(jump_mode||(model.jump.enabled&&event->pad_page==3&&event->pad>=0))active=0;
+    int jump_mode=event->mode_button==3;
+    if(jump_mode||((model.jump.enabled||(event->deck>=0&&event->deck<2&&jump_state.page[event->deck]))&&event->pad_page==3&&event->pad>=0))active=0;
     /* Both handlers see releases, including after settings change while held. */
     int consumed=xz_stem_control_event(&pads,event,active,model.stem_page,model.shift_pages,&toggle);
     int stem_mode_press=consumed&&event->mode_button>=0&&event->operation==0;
@@ -1786,12 +1785,12 @@ int xz_ui_runtime_pad_color(int deck,int pad,unsigned *rgb,int *lit) {
     }
     struct xz_pc_stem_source pad_source;
     if(!pc_source((unsigned)deck,&pad_source)||pad_source.pc){pthread_mutex_unlock(&ui_mutex);return 0;}
-    if(model.jump.enabled&&model.jump.shift_page&&jump_state.page[deck]==1&&deck_page[deck]==3){
+    if(jump_state.page[deck]==1&&deck_page[deck]==3){
         *rgb=xz_jump_page2_color(pad);*lit=1;
         pthread_mutex_unlock(&ui_mutex);return XZ_LED_HUE;
     }
     int slot=pad-(model.stem_bank==1?4:0);
-    int active = !(model.jump.enabled&&deck_page[deck]==3) && slot>=0&&slot<4&&stem_controls_active(deck) && model.pad_feedback && deck_page[deck] == model.stem_page;
+    int active = !((model.jump.enabled||jump_state.page[deck])&&deck_page[deck]==3) && slot>=0&&slot<4&&stem_controls_active(deck) && model.pad_feedback && deck_page[deck] == model.stem_page;
     if (active) {
         int stem=xz_stem_pad_role(model.stem_order,model.deck[deck].stem_count,slot);
         xz_stem_pad_led(stem,model.stem_colors,model.deck[deck].muted,model.deck[deck].levels,model.deck[deck].bypass,rgb,lit);
@@ -2066,7 +2065,7 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     settings_revision++;settings_profile_applies++;settings_owner_valid=0;
     model.settings_status="PROFILE APPLIED / NOT SAVED";
     if(model.stems_overlay!=saved->stems_overlay){stem_layout_revision++;stem_layout_origin=origin;}
-    model.jump = saved->jump; model.stems_overlay = saved->stems_overlay; model.wave_mode = saved->wave_mode;
+    model.jump = saved->jump; model.jump.shift_page=1; model.stems_overlay = saved->stems_overlay; model.wave_mode = saved->wave_mode;
     requested_stems = saved->stems; model.theme = saved->theme; model.stem_page = saved->stem_page;
     model.shift_pages = saved->shift_pages; model.pad_feedback = saved->pad_feedback;
     model.shift_keysync = saved->shift_keysync; model.takeover_assign = saved->takeover_assign;
@@ -2260,24 +2259,11 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     const char *usb = getenv("XZ_MODS_SETTINGS_USB");
     if(!usb||!usb[0])usb=getenv("XZ_MODS_USB");
     if(usb&&usb[0])settings_restore_usb_locked(usb,restored);
-    const char *force_stems = getenv("XZ_MODS_STEMS_FORCE");
     const char *ram_settings = getenv("XZ_MODS_SETTINGS_READONLY");
     settings_readonly = ram_settings && !strcmp(ram_settings,"1");
     if (settings_readonly) model.settings_status = "CHANGES LAST UNTIL REBOOT";
-    const char *forced_theme=getenv("XZ_MODS_THEME");
-    if(forced_theme&&forced_theme[0]>='0'&&forced_theme[0]<='9'&&
-       (!forced_theme[1]||(forced_theme[1]>='0'&&forced_theme[1]<='9'&&!forced_theme[2]))){
-        int chosen=forced_theme[0]-'0';if(forced_theme[1])chosen=chosen*10+forced_theme[1]-'0';
-        if(chosen<XZ_THEME_COUNT)model.theme=chosen;
-    }
-    const char *forced_wave=getenv("XZ_MODS_WAVE_MODE");
-    if(forced_wave&&forced_wave[0]>='0'&&forced_wave[0]<'0'+XZ_WAVE_MODE_COUNT&&!forced_wave[1])model.wave_mode=forced_wave[0]-'0';
     wave_configure();
-    const char *native_view = getenv("XZ_MODS_NATIVE_VIEW");
-    if (native_view && !strcmp(native_view,"1")) { model.fb_takeover=0; __atomic_store_n(&fb_takeover_active,0,__ATOMIC_RELEASE); }
-    if (audio_ready && force_stems && !strcmp(force_stems,"1")) {
-        requested_stems=1;model.enabled|=XZ_UI_STEM;xz_audio_set_enabled(1);
-    }
+    if(audio_ready)xz_audio_set_enabled(requested_stems);
     for (int i = 0; i < 4; i++) {
         model.deck[i].groove_active = model.deck[i].sample_active = -1;
         for(unsigned r=0;r<4;r++)model.deck[i].levels[r]=1;

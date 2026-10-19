@@ -16,9 +16,17 @@ def contract(resources):
     if schema.get('format')!='xz-mods-settings-schema/1':raise ValueError('Unsupported bundled settings schema')
     return schema
 
+def wire_fields(schema):
+    fields={f['key']:f for f in schema['fields']}
+    fields.update(schema.get('retired_fields',{}))
+    return [fields[key] for key in schema.get('wire_order',fields)]
+
+
 def defaults(schema):return {field['key']:field['default'] for field in schema['fields']}
 
 def validate(values,schema):
+    if isinstance(values,dict):
+        values={k:v for k,v in values.items() if k not in schema.get('retired_fields',{})}
     if not isinstance(values,dict) or set(values)!={f['key'] for f in schema['fields']}:
         raise ValueError('Supply the complete settings form; missing or unknown fields are not allowed')
     for field in schema['fields']:
@@ -38,17 +46,19 @@ def parse(data,schema):
     lines=text.split('\n')[1:-1]
     if len(lines) not in schema['accepted_field_counts']:raise ValueError('Incomplete or newer settings record; original file was preserved')
     values=defaults(schema)
-    for line,field in zip(lines,schema['fields']):
+    for line,field in zip(lines,wire_fields(schema)):
         prefix=field['key']+'='
         if not line.startswith(prefix):raise ValueError('Unknown or out-of-order settings field; original file was preserved')
         value=line[len(prefix):]
         if not value.isascii() or not value.isdigit() or len(value)>2 or (len(value)>1 and value[0]=='0'):
             raise ValueError('Invalid native settings integer')
-        values[field['key']]=int(value)
+        number=int(value)
+        if not field['min']<=number<=field['max']:raise ValueError('Invalid native settings integer')
+        if field['key'] not in schema.get('retired_fields',{}):values[field['key']]=number
     return validate(values,schema)
 
 def serialize(values,schema):
     values=validate(values,schema)
-    data=(schema['header']+'\n'+''.join(f"{f['key']}={values[f['key']]}\n" for f in schema['fields'])).encode('ascii')
+    data=(schema['header']+'\n'+''.join(f"{f['key']}={values.get(f['key'],f['default'])}\n" for f in wire_fields(schema))).encode('ascii')
     if parse(data,schema)!=values:raise ValueError('Settings round-trip failed')
     return data

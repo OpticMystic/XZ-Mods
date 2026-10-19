@@ -44,7 +44,7 @@ int xz_native_touch_dispatch(struct xz_native_touch*t,void*self,const struct xz_
  if(t->vj_contact){t->vj_contact=!!s->down;return 0;}
  if(!t->visible&&!t->capture&&s->down&&!previous.down&&xz_metrics_hit((int)s->x,(int)s->y)) {
   t->capture=1;t->opening_contact=1;
-  struct xz_ui_action act={.kind=XZ_UI_METRICS_TOGGLE};
+  struct xz_ui_action act={.kind=XZ_UI_METRICS_SETUP_OPEN};
   if(t->apply)t->apply(t->context,&act,1);
  }
  if(!t->visible&&!t->capture&&s->down&&!previous.down&&t->model&&t->model->metrics_enabled&&s->x>=XZ_METRICS_READOUT_X&&s->x<XZ_METRICS_X&&s->y<24) {

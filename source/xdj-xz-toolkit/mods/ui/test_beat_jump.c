@@ -36,7 +36,7 @@ int main(void){
  assert(xz_jump_event(&state,&cfg,&e,&beats)&&!beats);
  cfg.enabled=1;e.operation=0;e.pad_page=3;assert(!xz_jump_event(&state,&cfg,&e,&beats)&&!beats);
  e.shift=0;assert(!xz_jump_event(&state,&cfg,&e,&beats));e.operation=2;xz_jump_event(&state,&cfg,&e,&beats);
- cfg.shift_page=0;cfg.sizes[0]=1;e.operation=0;assert(xz_jump_event(&state,&cfg,&e,&beats)&&beats==-2);
+ state.page[0]=0;cfg.shift_page=0;cfg.sizes[0]=1;e.operation=0;assert(xz_jump_event(&state,&cfg,&e,&beats)&&beats==-2);
  e.operation=2;xz_jump_event(&state,&cfg,&e,&beats);
  e.deck=2;e.operation=0;assert(!xz_jump_event(&state,&cfg,&e,&beats));
  puts("PASS both pages, decks, all pair sizes/directions, duplicate presses, repeat suppression, shift and release ownership");

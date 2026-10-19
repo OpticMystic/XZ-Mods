@@ -284,7 +284,7 @@ void xz_layered_overview_restore(uint16_t *pixels){
 }
 int xz_layered_wave_start(void){
  if(xz_layered_wave_enabled())return 0;
- const char *disabled=getenv("XZ_MODS_LAYERED_WAVE");if(disabled&&!strcmp(disabled,"0"))return 0;
+ /* wave_mode is the sole user choice; old launch overrides are ignored. */
  static const unsigned char guard[8]={0xf0,0x4f,0x2d,0xe9,0x80,0x52,0xa0,0xe1};
  if(xz_hook_arm(0x1fab28,guard,(void*)column,(void**)&stock_column))return -1;
  pthread_t thread;if(pthread_create(&thread,NULL,worker,NULL))return -1;

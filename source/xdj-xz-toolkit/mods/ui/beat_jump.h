@@ -2,6 +2,7 @@
 #define XZ_BEAT_JUMP_H
 #include "../cue/cue.h"
 #define XZ_JUMP_SIZES 10
+/* enabled controls page 1 only; shift_page is a retired version-1 wire slot. */
 struct xz_jump_settings { int enabled, shift_page, sizes[8]; };
 struct xz_jump_state { unsigned down[2], owned[2], mode_down[2]; int page[2]; };
 static inline struct xz_jump_settings xz_jump_defaults(void) {

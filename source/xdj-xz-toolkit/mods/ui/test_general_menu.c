@@ -57,7 +57,7 @@ int main(void){
    assert(!memcmp(&m,&saved,sizeof(m)));
   }
   assert(tap(&u,&m,XZ_UI_JUMP_ENABLE,0,a)==1&&a[0].value==1);
-  assert(tap(&u,&m,XZ_UI_METRICS_TOGGLE,0,a)==1&&a[0].kind==XZ_UI_METRICS_TOGGLE);
+  {struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&u,&m,w);for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_METRICS_TOGGLE&&w[i].kind!=XZ_UI_RAM_DEBUG&&w[i].kind!=XZ_UI_JUMP_SHIFT);}
   m.enabled=0x3fff;m.jump.enabled=1;m.metrics_enabled=1;
   capture(&u,&m,"general-on");
   for(size_t k=0;k<sizeof(links)/sizeof(*links);k++){

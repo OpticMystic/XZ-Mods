@@ -59,6 +59,7 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   switch(a->kind){
   case XZ_UI_FEATURE_LINK:
    /* PC STEMS sits beside the USB STEMS switch; stem settings join the bottom links. */
+   if(k==XZ_UI_METRICS_SETUP){grid(a,1,0,5,1);break;}
    grid(a,2,k==XZ_UI_STEM_COLORS||k==XZ_UI_CONTROLS?0:1,k==XZ_UI_PC_STEMS?0:k==XZ_UI_BEAT_JUMP?1:k==XZ_UI_STEM_COLORS||k==XZ_UI_XPAD?4:k==XZ_UI_METRICS_SETUP?5:6,1);break;
   case XZ_UI_FEATURE_SETUP_OPEN:
    grid(a,2,k==XZ_UI_GATE||k==XZ_UI_PREVIEW?0:1,k==XZ_UI_GATE||k==XZ_UI_SMART?2:3,1);break;
