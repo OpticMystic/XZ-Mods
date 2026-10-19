@@ -14,6 +14,7 @@
 #include "shell_analysis.h"
 #include "shell_playlists.h"
 #include "shell_utility_table.h"
+#include "shell_mysettings.h"
 #include "shell/shell_browse.h"
 #include "shell/shell_info.h"
 #include "shell/shell_settings.h"
@@ -151,6 +152,21 @@ static struct {
  int trial,version_ok,poll_now;uint32_t polled_ms;char version[24];const char *version_choice[1];
  uint32_t polls,sets,set_fails,changes;
 } util;
+/* MY SETTINGS per USB slot (shell_mysettings.h): read on the worker at mount, under the mutex here. A write
+   is one pending job the worker runs (the newest replaces an older one). readonly: --ram-settings, where
+   nothing is written to a stick. */
+static struct xz_shms_files mys[2];
+static int mys_readonly;
+static struct { int pending, slot; unsigned kinds; struct xz_shms_files f; char done[48]; } mys_job;
+static struct xz_shms_rows mys_rows;
+static struct xz_shell_settings_model mys_stored;
+static struct xz_shell_my_settings_model mys_model;
+static struct xz_shell_dj_profile mys_profiles[XZ_SHELL_RUNTIME_DJ];
+static int mys_profile_entry[XZ_SHELL_RUNTIME_DJ]; /* view entry of each published profile */
+static int dj_pick=-1; /* under mutex */
+/* The last LOAD per stick, for the panel: DONE or FAILED and its line. */
+static enum xz_shell_my_state mys_state[2];
+static char mys_result[2][48];
 static int model_read(uintptr_t a, void *out, size_t n) { return a>UINT32_MAX?-1:xz_read_memory((uint32_t)a,out,n); }
 static int plain_read(void *c, uint32_t a, void *out, size_t n) { (void)c;return xz_read_memory(a,out,n); }
 static int word(uint32_t a, uint32_t *v) { return !xz_read_memory(a,v,4); }
@@ -503,6 +519,29 @@ static void fill_slots_locked(void) {
  fill_source();model.source=&source_model;
  fill_settings();model.settings_screen=&settings_model;
  model.mods=&mods_model;
+ model.my_settings=NULL;
+ if(lib&&browse_source>=0){
+  const struct xz_shms_files *f=&mys[browse_source];
+  int writable=!mys_readonly&&!usb[browse_source].rdonly&&xz_shms_any(f);
+  xz_shms_rows(f,writable,&mys_rows);
+  mys_stored=(struct xz_shell_settings_model){(uint32_t)mys_rows.count,mys_rows.item,NULL};
+  mys_model=(struct xz_shell_my_settings_model){.source=browse_source?XZ_SHELL_SRC_USB2:XZ_SHELL_SRC_USB1,
+   .source_name=browse_source?"USB 2":"USB 1",.on_stick=xz_shms_any(f),.writable=writable,.stored=&mys_stored,
+   .profile_active=-1,.state=mys_state[browse_source],.result=mys_result[browse_source][0]?mys_result[browse_source]:NULL};
+  /* DJ profiles of this stick, from dj_runtime's view (last_input). */
+  int pn=0;
+  if(last_input.dj_known)for(int i=0;i<last_input.dj_count&&i<XZ_SHELL_RUNTIME_DJ;i++){
+   const struct xz_shell_runtime_dj *e=&last_input.dj[i];
+   if(e->usb!=browse_source)continue;
+   mys_profiles[pn]=(struct xz_shell_dj_profile){e->name,e->has_accent,e->accent,e->damaged};
+   if(e->stick_active)mys_model.profile_active=pn;
+   if(e->locked)mys_model.profiles_switchable=0;else mys_model.profiles_switchable=1;
+   mys_profile_entry[pn++]=i;
+  }
+  mys_model.profile_count=pn;mys_model.profiles=pn?mys_profiles:NULL;
+  if(!pn)mys_model.profile_active=-1;
+  model.my_settings=&mys_model;
+ }
  fill_info();model.info=&info_model;
  __atomic_store_n(&xz_mods_shell_proof_v1.capabilities,caps,__ATOMIC_RELAXED);
 }
@@ -919,6 +958,8 @@ static void scan_usb(void) {
   if(usb[slot].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[slot].lib;
   usb[slot].lib=next;usb[slot].status=next?USB_READY:found?USB_ERROR:USB_NONE;
   for(int i=0;i<PREVIEW_CACHE;i++)if(previews[i].slot==(int)slot)previews[i].state=0; /* ids belong to the old export */
+  memset(&mys[slot],0,sizeof mys[slot]);if(mys_job.slot==(int)slot)mys_job.pending=0;
+  mys_state[slot]=XZ_SHELL_MY_READY;mys_result[slot][0]=0;
   usb[slot].tracks=xz_shlib_track_count(next);usb[slot].space_known=space;
   usb[slot].free_bytes=free_bytes;usb[slot].total_bytes=total_bytes;usb[slot].rdonly=rdonly;
   snprintf(usb[slot].root,sizeof usb[slot].root,"%s",next?root:"");
@@ -947,6 +988,12 @@ static void scan_usb(void) {
    int rc=xz_shpl_load(&loaded_edits,root);
    pthread_mutex_lock(&mutex);
    if(!rc&&usb[slot].lib==next){xz_shpl_free(&edits[slot]);edits[slot]=loaded_edits;xz_shpl_init(&loaded_edits);}
+   pthread_mutex_unlock(&mutex);
+   static struct xz_shms_files read_back;int files=xz_shms_read(root,&read_back);
+   pthread_mutex_lock(&mutex);
+   if(usb[slot].lib==next){mys[slot]=read_back;if(refreshed)fill_slots_locked();dirty_flag=1;}
+   if(debug){char line[200];snprintf(line,sizeof line,"SHELL_MYSETTINGS: usb%u files=%d states=%d/%d/%d/%d readonly=%d",slot+1,files,
+    read_back.state[MS_PLAYER],read_back.state[MS_PLAYER2],read_back.state[MS_MIXER],read_back.state[MS_DEVICE],mys_readonly);xz_log(line);}
    pthread_mutex_unlock(&mutex);
    xz_shpl_free(&loaded_edits);
    if(debug){char line[200];snprintf(line,sizeof line,"SHELL_PLAYLISTS: usb%u sidecar=%s edited=%u readonly=%d",slot+1,rc?"unreadable":"ok",edits[slot].n,rdonly);xz_log(line);}
@@ -1047,6 +1094,28 @@ static void *worker(void *unused) {
    scan_soon=0;
    pthread_mutex_unlock(&mutex);scan_usb();pthread_mutex_lock(&mutex);
    last_scan=now_ms();continue;
+  }
+  if(!worked&&mys_job.pending){
+   int slot=mys_job.slot;unsigned kinds=mys_job.kinds;mys_job.pending=0;
+   static struct xz_shms_files job;job=mys_job.f;char done[48];snprintf(done,sizeof done,"%s",mys_job.done);
+   char root[1024];snprintf(root,sizeof root,"%s",usb[slot].root);struct xz_shlib *lib=usb[slot].lib;
+   pthread_mutex_unlock(&mutex);
+   int rc=MS_OK;
+   for(int k=0;k<MS_KIND_COUNT&&rc==MS_OK;k++)if((kinds>>k)&1u)rc=xz_shms_write(root,&job,(enum ms_kind)k);
+   pthread_mutex_lock(&mutex);
+   if(usb[slot].lib==lib){
+    /* DURABILITY: renamed, directory sync failed; the stick holds the new file. */
+    if(rc==MS_OK||rc==MS_ERR_DURABILITY){mys[slot]=job;notice_locked(now_ms(),done);}
+    else{
+     char text[48];
+     snprintf(text,sizeof text,rc==MS_ERR_READ_ONLY?"USB %d IS LOCKED: NOT SAVED":"USB %d: SETTINGS NOT SAVED",slot+1);
+     notice_locked(now_ms(),text);
+    }
+    if(refreshed)fill_slots_locked();
+    dirty_flag=1;
+   }
+   if(debug){char line[200];snprintf(line,sizeof line,"SHELL_MYSETTINGS: usb%d save kinds=0x%x result=%d (%s)",slot+1,kinds,rc,ms_error_string(rc));xz_log(line);}
+   worked=1;
   }
   if(!worked&&pl_count){
    int slot=pl_queue[pl_head].slot;struct xz_shell_playlist_edit e=pl_queue[pl_head].e;
@@ -1337,6 +1406,55 @@ static void info_jump(const struct xz_shell_action *a) {
  }
  refuse();
 }
+/* MY SETTINGS LOAD: the stick's files through the UTILITY setters (shell_mysettings.c), TIME MODE through its
+   command, on the owner tick. In a --ram-settings trial stock would save every UTILITY set to flash, so
+   LOAD is held back there like UTILITY writes (unless XZ_MODS_SHELL_UTILITY_WRITES=1). */
+static void my_settings_load(int source, int deck, uint32_t now) {
+ int slot=source==XZ_SHELL_SRC_USB1?0:source==XZ_SHELL_SRC_USB2?1:-1;char text[48];
+ if(slot<0||!usb[slot].lib){refuse();return;}
+ if(!xz_shms_any(&mys[slot])){snprintf(text,sizeof text,"NO MY SETTINGS ON USB %d",slot+1);notice_locked(now,text);return;}
+ if(util.trial){notice_locked(now,"TRIAL RUN: SETTINGS NOT LOADED");return;}
+ if(deck<0||deck>=XZ_SHELL_DECKS)deck=shell.deck>=0&&shell.deck<XZ_SHELL_DECKS?shell.deck:0;
+ struct xz_shms_step steps[MS_FIELD_COUNT];int not_applied=0,applied=0;
+ int n=xz_shms_plan(&mys[slot],xz_shut_defs,XZ_SHUT_DEFS,steps,MS_FIELD_COUNT,&not_applied);
+ for(int i=0;i<n;i++){
+  struct xz_shrt_command c;
+  if(steps[i].def==XZ_SHMS_STEP_TIME_MODE){
+   if(!has(G_TIME_MODE)){not_applied++;continue;}
+   c=(struct xz_shrt_command){XZ_SHRT_CMD_TIME_MODE,deck,steps[i].arg,0,0,now};
+  }else{
+   int u=steps[i].def;
+   if(xz_shut_reason(&xz_shut_defs[u],util.get_ok[u],util.set_ok[u],util.trial)){not_applied++;continue;}
+   c=(struct xz_shrt_command){XZ_SHRT_CMD_UTILITY,u,steps[i].arg,0,0,now};
+   util.raw[u]=steps[i].arg;util.known[u]=1;
+  }
+  queue_command(&c);applied++;
+ }
+ snprintf(text,sizeof text,"LOADED USB %d: %d APPLIED, %d NOT",slot+1,applied,not_applied);
+ notice_locked(now,text);
+ mys_state[slot]=applied?XZ_SHELL_MY_DONE:XZ_SHELL_MY_FAILED;snprintf(mys_result[slot],sizeof mys_result[slot],"%s",text);
+ if(debug){char line[160];snprintf(line,sizeof line,"SHELL_MYSETTINGS: usb%d load deck=%d applied=%d not_applied=%d",slot+1,deck+1,applied,not_applied);xz_log(line);}
+ dirty_flag=1;
+}
+/* MY SETTINGS SAVE (edited NULL: the deck's current values into the stick's files) and SET (edited: the
+   changed files). The worker writes them with my_settings' atomic write. */
+static void my_settings_save(int source, uint32_t now, const struct xz_shms_files *edited, unsigned kinds, const char *done) {
+ int slot=source==XZ_SHELL_SRC_USB1?0:source==XZ_SHELL_SRC_USB2?1:-1;char text[48];
+ if(slot<0||!usb[slot].lib){refuse();return;}
+ if(mys_readonly){notice_locked(now,"TRIAL RUN: NOTHING SAVED");return;}
+ if(usb[slot].rdonly){snprintf(text,sizeof text,"USB %d IS LOCKED: NOT SAVED",slot+1);notice_locked(now,text);return;}
+ if(!xz_shms_any(&mys[slot])){snprintf(text,sizeof text,"NO MY SETTINGS ON USB %d",slot+1);notice_locked(now,text);return;}
+ if(edited)mys_job.f=*edited;
+ else{
+  mys_job.f=mys[slot];
+  int d=shell.deck>=0&&shell.deck<XZ_SHELL_DECKS?shell.deck:0;
+  int time_known=!!(model.deck[d].known&K(TIME_MODE));
+  xz_shms_capture(&mys_job.f,xz_shut_defs,XZ_SHUT_DEFS,util.raw,util.known,time_known,model.deck[d].time_mode==XZ_SHELL_TIME_REMAIN);
+  kinds=0;for(int k=0;k<MS_KIND_COUNT;k++)if(mys_job.f.state[k]==XZ_SHMS_OK)kinds|=1u<<k;
+ }
+ mys_job.slot=slot;mys_job.kinds=kinds;snprintf(mys_job.done,sizeof mys_job.done,done,slot+1);mys_job.pending=1;
+ pthread_cond_signal(&wake);
+}
 static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t now) {
  for(size_t i=0;i<n;i++){
   const struct xz_shell_action *a=&out[i];struct xz_shrt_command c;
@@ -1413,6 +1531,42 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_STEM_MUTE,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
    break;
   case XZ_SHELL_ACT_ZOOM:save_display(XZ_SHELL_ITEM_WAVE_ZOOM,a->value);break; /* shell state, kept */
+  case XZ_SHELL_ACT_MY_SETTINGS:
+   if(a->id==XZ_SHELL_MY_LOAD)my_settings_load(a->value,a->deck,now);
+   else if(a->id==XZ_SHELL_MY_SAVE)my_settings_save(a->value,now,NULL,0,"SAVED TO USB %d");
+   else refuse();
+   break;
+  case XZ_SHELL_ACT_DJ_PROFILE:{
+   /* deck = the stick; value = the profile index in my_settings.profiles. */
+   int slot=a->deck==XZ_SHELL_SRC_USB1?0:a->deck==XZ_SHELL_SRC_USB2?1:-1;
+   if(slot!=browse_source||a->value<0||a->value>=mys_model.profile_count){refuse();break;}
+   const struct xz_shell_dj_profile *p=&mys_profiles[a->value];
+   char text[48];
+   if(a->id==XZ_SHELL_PROFILE_LOAD){
+    if(p->damaged){notice_locked(now,"THIS DJ PROFILE CANNOT BE READ");break;}
+    /* Active on its stick through dj_runtime (the MODS panel's own pick), then the stick's MY SETTINGS:
+       a profile carries no settings file of its own. */
+    if(mys_model.profiles_switchable&&a->value!=mys_model.profile_active){
+     dj_pick=mys_profile_entry[a->value];
+     __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_DJ_PICK,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
+    }
+    snprintf(text,sizeof text,"DJ PROFILE: %.30s",p->name?p->name:"---");notice_locked(now,text);
+    if(xz_shms_any(&mys[slot])&&!util.trial)my_settings_load(a->deck,shell.deck,now);
+   }else if(a->id==XZ_SHELL_PROFILE_SAVE){
+    snprintf(text,sizeof text,"SAVED TO %.30s",p->name?p->name:"USB");
+    my_settings_save(a->deck,now,NULL,0,text);
+   }else refuse();
+   break;
+  }
+  case XZ_SHELL_ACT_MY_SETTING_SET:{
+   int slot=a->deck==XZ_SHELL_SRC_USB1?0:a->deck==XZ_SHELL_SRC_USB2?1:-1;
+   static struct xz_shms_files edited;enum ms_kind kind;
+   if(slot<0||!usb[slot].lib){refuse();break;}
+   edited=mys[slot];
+   if(xz_shms_set(&edited,a->id,a->value,&kind)){refuse();notice_locked(now,"THAT SETTING CANNOT CHANGE HERE");break;}
+   my_settings_save(a->deck,now,&edited,1u<<kind,"USB %d: SETTING SAVED");
+   break;
+  }
   case XZ_SHELL_ACT_ACTIVE_DECK:case XZ_SHELL_ACT_NONE:break; /* shell state */
   default:refuse();break; /* SEEK, GRID_ADJUST, TAG_TRACK, SET_RATING, CLOSE_SHELL: capability off */
   }
@@ -1462,6 +1616,11 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   }
   unsigned kind=loaded[d].known?loaded[d].device_kind:0;
   if(kind==2||kind==3)input.known|=K(SOURCE);
+  /* The stick's MY SETTINGS colours. The background colour waits for proof of where stock reads it. */
+  if((kind==2||kind==3)&&settled(&loaded[d])&&xz_shms_any(&mys[kind-2])){
+   input.look.has_background=0;input.look.background_rgb=0;input.look.wave_color=xz_shms_wave_color(&mys[kind-2]);
+   input.known|=K(SOURCE_LOOK);
+  }
   xz_shell_model_set_input(storage,d,&input,kind);
  }
  apply_waves_locked();
@@ -1731,6 +1890,11 @@ int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value) {
  pthread_mutex_unlock(&mutex);
  return got;
 }
+int xz_shell_runtime_take_dj_pick(void) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
+ pthread_mutex_lock(&mutex);int entry=dj_pick;dj_pick=-1;pthread_mutex_unlock(&mutex);
+ return entry;
+}
 int xz_shell_runtime_take_mods_page(void) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
  pthread_mutex_lock(&mutex);int page=mods_page;mods_page=-1;pthread_mutex_unlock(&mutex);
@@ -1941,6 +2105,7 @@ int xz_shell_runtime_start(void) {
  memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
+ memset(mys,0,sizeof mys);memset(&mys_job,0,sizeof mys_job);memset(mys_state,0,sizeof mys_state);memset(mys_result,0,sizeof mys_result);dj_pick=-1;mys_readonly=flag("XZ_MODS_SETTINGS_READONLY");
  memset(&util,0,sizeof util);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;
  util.trial=flag("XZ_MODS_SETTINGS_READONLY")&&!flag("XZ_MODS_SHELL_UTILITY_WRITES");util.poll_now=1;
  check_guards();
@@ -1963,7 +2128,7 @@ void xz_shell_runtime_stop(void) {
  if(worker_created){pthread_join(worker_thread,NULL);worker_created=0;}
  pthread_mutex_lock(&mutex);
  set_owns(0);
- model.browse=NULL;model.source=NULL;model.info=NULL;model.settings_screen=NULL;model.mods=NULL;
+ model.browse=NULL;model.source=NULL;model.info=NULL;model.settings_screen=NULL;model.mods=NULL;model.my_settings=NULL;
  for(int k=0;k<L_COUNT;k++){retire_list(lists[k].result);lists[k].result=NULL;}
  for(int i=0;i<2;i++){if(usb[i].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[i].lib;usb[i].lib=NULL;}
  for(int d=0;d<XZ_SHELL_DECKS;d++){free_wave(d);prefetch_drop(d);}
