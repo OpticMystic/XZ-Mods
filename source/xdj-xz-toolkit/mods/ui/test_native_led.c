@@ -75,5 +75,23 @@ int main(void) {
  }
  memset(packet+0x28,0,3);assert(xz_native_led_apply(packet,XZ_LED_RECORD_BYTES,1,1,tint)==1);
  assert(!packet[0x28]&&!packet[0x29]&&!packet[0x2a]);
+ /* Hypothetical status id and encoding only, never a device mapping. */
+ unsigned char status[3*XZ_LED_RECORD_BYTES]={0},before[sizeof status];
+ for(unsigned i=0;i<3;i++){put(status+i*XZ_LED_RECORD_BYTES,0x70);put(status+i*XZ_LED_RECORD_BYTES+4,i==1?2:1);}
+ status[2*XZ_LED_RECORD_BYTES+0x18]=1;memcpy(before,status,sizeof status);
+ struct xz_led_keysync_spec spec={.enabled=1,.id=0x70,.mask={0xff,0xff},.blink={3,7}};
+ assert(!xz_native_led_keysync(status,sizeof status,3,1,1,&xz_led_keysync_mapping));
+ assert(!memcmp(status,before,sizeof status));
+ assert(!xz_native_led_keysync(status,sizeof status,3,1,0,&spec));
+ assert(xz_native_led_keysync(status,sizeof status,3,1,1,&spec)==1);
+ assert(word(status+8)==3&&word(status+12)==7);
+ assert(!memcmp(status+XZ_LED_RECORD_BYTES,before+XZ_LED_RECORD_BYTES,2*XZ_LED_RECORD_BYTES));
+ assert(!xz_native_led_keysync(status,sizeof status-1,3,1,1,&spec));
+ xz_native_led_probe(status,sizeof status,3,1);xz_native_led_probe(status,sizeof status,3,2);
+ assert(xz_mods_led_probe_v1.entry[0][0].id==0x70&&xz_mods_led_probe_v1.entry[0][0].seen==2);
+ assert(xz_mods_led_probe_v1.entry[1][0].seen==1);
+ assert(!(xz_mods_led_probe_v1.entry[0][0].sequence&1));
+ for(unsigned i=0;i<XZ_LED_PROBE_IDS+1;i++){put(status,0x100+i);xz_native_led_probe(status,XZ_LED_RECORD_BYTES,1,1);}
+ assert(xz_mods_led_probe_v1.overflow[0]==2);
  puts("PASS native LED packet bounds, colors, mute, stock ownership and channel isolation");
 }

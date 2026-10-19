@@ -38,6 +38,15 @@ static inline int xz_stem_pad_led(int role,const int stem_colors[3],unsigned mut
 /* Existing records only. REPLACE sets rgb and brightness; HUE changes only RGB, scaled by native intensity; on/off/blink stay native. */
 size_t xz_native_led_apply(void *records,size_t bytes,unsigned count,
                            unsigned channel,xz_led_color_fn color);
+/* Disabled until both the record id and native slow-blink words are captured. */
+struct xz_led_keysync_spec { uint32_t enabled,id,mask[8],blink[8]; };
+extern const struct xz_led_keysync_spec xz_led_keysync_mapping;
+size_t xz_native_led_keysync(void *,size_t,unsigned,unsigned,int,const struct xz_led_keysync_spec *);
+#define XZ_LED_PROBE_IDS 64u
+struct xz_led_probe_entry { uint32_t sequence,seen,id,changes,words[8]; };
+struct xz_led_probe { uint32_t version,overflow[2]; struct xz_led_probe_entry entry[2][XZ_LED_PROBE_IDS]; };
+extern struct xz_led_probe xz_mods_led_probe_v1;
+void xz_native_led_probe(const void *,size_t,unsigned,unsigned);
 int xz_native_led_start(void);
 void xz_native_led_stop(void);
 #endif
