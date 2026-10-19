@@ -19,7 +19,8 @@
  * int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *,
  *     int deck, int cue, int32_t *out_ms);
  * Input known bits accepted: LOADED, PLAYING, KEY (including match), KEY_SHIFT,
- * GRID, BAR_PHASE, SOURCE. SOURCE maps device_kind 2/3 to USB1/USB2 (inferred).
+ * GRID, BAR_PHASE, SOURCE, ARTIST (copied, from the export by the loaded id), MEMORY_CUES (from the
+ * track's analysis file). SOURCE maps device_kind 2/3 to USB1/USB2 (inferred).
  * The caller copies validated key/native-clock snapshots here before EVERY
  * refresh; inputs are consumed on refresh so a failed poll cannot reuse LIVE
  * bits. NULL clears input. All pointed-to data is copied, never borrowed.
@@ -37,7 +38,7 @@ enum { TITLE_BYTES=769, KEY_BYTES=32, GRID_CAP=4096, SCROLL_CAP=32768,
 #define SET(f) (1u<<XZ_SHELL_SET_##f)
 struct xz_shell_model_input {
     struct xz_shell_deck deck;
-    char key[KEY_BYTES];
+    char key[KEY_BYTES], artist[TITLE_BYTES];
     struct xz_shell_beat grid[GRID_CAP];
 };
 struct deck_storage {
@@ -162,6 +163,10 @@ static void frame_fields(struct xz_shell_deck *d,struct deck_storage *storage,co
     value=u32(f+0x14);if(value<=INT32_MAX){d->bpm_x100=(int32_t)value;d->known|=K(BPM);}
     value=u32(f+0x18);if(value<=INT32_MAX){d->track_bpm_x100=(int32_t)value;d->known|=K(TRACK_BPM);}
     unsigned rate=u16(f+0x22);d->tempo_x100=rate&0x8000?(int32_t)rate-65536:(int32_t)rate;
+    /* Tempo range, byte +0x20: ui::StatWatcher::getPlayTempoRange 0x249cc0 returns exactly this byte of
+     * the same per-deck frame, and SetPlayInfo 0xefe00 / setControllerDisplayData 0xf0da0 read it as
+     * 6, 10, 16 or 100 (WIDE): the range in percent. Anything else stays unknown. */
+    if(f[0x20]==6||f[0x20]==10||f[0x20]==16||f[0x20]==100){d->tempo_range=f[0x20];d->known|=K(TEMPO_RANGE);}
     d->master_tempo=!!(f[0x2d]&4);d->master=!!(f[0x2f]&4);d->sync=!!(f[0x2f]&8);
     d->known|=K(TEMPO)|K(MASTER_TEMPO)|K(MASTER)|K(SYNC);
     d->loop.active=!!(f[0x2d]&0x80)&&!(f[0x2f]&2);
@@ -192,8 +197,7 @@ static void frame_fields(struct xz_shell_deck *d,struct deck_storage *storage,co
     d->beat_jump_den=1;d->known|=K(BEAT_JUMP);
     value=u32(n->total+0x10);
     if(u32(n->total+0x24)&&u32(n->total)!=7&&value<=INT_MAX){d->track_no=(int)value;d->known|=K(TRACK_NO);}
-    /* f+0x20 range mapping and f+4 transport enum are explicitly unproven.
-     * Never set TEMPO_RANGE, PLAYING or CUE_STANDBY from those enum guesses. */
+    /* f+4 transport enum is unproven: never set PLAYING or CUE_STANDBY from it. */
 }
 size_t xz_shell_model_storage_size(void){return sizeof(struct xz_shell_model_storage);}
 void xz_shell_model_diagnostics(const struct xz_shell_model_storage *s,uint32_t out[4]){
@@ -205,7 +209,13 @@ void xz_shell_model_set_input(struct xz_shell_model_storage *s,int deck,const st
     if(!input){v->deck.known=0;return;}
     /* Stage before overwriting to permit a previous model deck as input. */
     struct xz_shell_deck d=*input;
-    d.known&=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(GRID)|K(BAR_PHASE)|K(SOURCE);
+    d.known&=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST)|K(MEMORY_CUES);
+    if(d.known&K(ARTIST)){
+        size_t n=0;if(d.artist)while(n<TITLE_BYTES&&d.artist[n])++n;
+        if(!n||n>=TITLE_BYTES)d.known&=~K(ARTIST);
+        else {memmove(v->artist,d.artist,n+1);d.artist=v->artist;}
+    }
+    if((d.known&K(MEMORY_CUES))&&(d.memory_count<0||d.memory_count>XZ_SHELL_MEMORY_CUES))d.known&=~K(MEMORY_CUES);
     if(d.known&K(KEY)){
         size_t n=0;if(d.key)while(n<KEY_BYTES&&d.key[n])++n;
         if(!n||n>=KEY_BYTES)d.known&=~K(KEY);
@@ -236,6 +246,8 @@ static void input_fields(struct xz_shell_deck *d,struct xz_shell_model_input *v)
     if(i->known&K(GRID)){d->grid=i->grid;d->grid_count=i->grid_count;}
     if(i->known&K(BAR_PHASE))d->bar_phase=i->bar_phase;
     if(i->known&K(SOURCE))d->source=i->source;
+    if(i->known&K(ARTIST))d->artist=i->artist;
+    if(i->known&K(MEMORY_CUES)){memcpy(d->memory_cue,i->memory_cue,sizeof(d->memory_cue));d->memory_count=i->memory_count;}
     d->known|=i->known;v->deck.known=0;
 }
 static int identity(struct xz_shell_deck *d,struct deck_storage *s){

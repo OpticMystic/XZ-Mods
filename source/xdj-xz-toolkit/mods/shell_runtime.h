@@ -65,7 +65,9 @@ void xz_shell_runtime_notice(const char *text);
 /* R1 key table. A key is delivered on its press, or (MENU, BACK) on its
    release with a separate event for the hold. STOCK entries are listed so the
    table documents every browse-section key the shell leaves alone. */
-enum xz_shrt_rule { XZ_SHRT_STOCK, XZ_SHRT_ON_PRESS, XZ_SHRT_ON_RELEASE };
+/* HAND_OFF: a browse key the shell has no screen for yet (TRACK FILTER, LINK, computer). While the shell
+   owns the screen the key goes to stock with a visible hand-off, never to a hidden stock screen. */
+enum xz_shrt_rule { XZ_SHRT_STOCK, XZ_SHRT_ON_PRESS, XZ_SHRT_ON_RELEASE, XZ_SHRT_HAND_OFF };
 struct xz_shrt_key_map { uint16_t code; uint8_t channel; uint8_t rule; int8_t key, hold, deck; };
 const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel);
 enum xz_shrt_phase { XZ_SHRT_PRESS, XZ_SHRT_HOLD, XZ_SHRT_RELEASE };

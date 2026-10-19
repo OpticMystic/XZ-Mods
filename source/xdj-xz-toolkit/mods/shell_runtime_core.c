@@ -12,8 +12,11 @@ static const struct xz_shrt_key_map keys[]={
  {0x206,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_INFO,-1,-1},
  {0x20b,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU_HOLD,-1},
  {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1,-1},
+ /* 0x203 USB1, 0x204 USB2: BrowseUiIfDpl::onKey sends 0x204 to kind 2 (UiKey_Usb2, 0x2aacb0). */
  {0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1,-1},
  {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1,-1},
+ /* TRACK FILTER, LINK and the computer key have no shell screen yet: a visible hand-off. */
+ {0x420d,0,XZ_SHRT_HAND_OFF,-1,-1,-1},{0x205,0,XZ_SHRT_HAND_OFF,-1,-1,-1},{0x202,0,XZ_SHRT_HAND_OFF,-1,-1,-1},
  {0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1,-1},
  {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD,-1},
  {0x430f,1,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1,0},{0x430f,2,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1,1},
@@ -43,6 +46,7 @@ static struct probe probe(const struct xz_shell *u, const struct xz_shell_model 
 }
 enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shrt_key_map *k) {
  if(!u||!m||!k||k->rule==XZ_SHRT_STOCK)return XZ_SHRT_PASS;
+ if(k->rule==XZ_SHRT_HAND_OFF)return XZ_SHRT_PASS_HAND_OFF;
  /* While the shell owns the screen, a browse-section key either acts in the shell (SWALLOW), is
     inert (SWALLOW too) or hands the screen to stock visibly (PASS_HAND_OFF). It is never passed to a
     hidden stock screen: stock would act on its own invisible browse cursor (LOAD would load a track
@@ -52,12 +56,17 @@ enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *u, const struct 
     screen input with state outside the shell struct, so it is not probed. */
  if(k->key==XZ_SHELL_KEY_BACK)return XZ_SHRT_SWALLOW;
  struct probe a=probe(u,m,k->key),b=k->rule==XZ_SHRT_ON_RELEASE?probe(u,m,k->hold):(struct probe){0,0};
+ /* TAG TRACK the shell cannot do: on the bare PLAY screen stock tags the loaded track, so the key goes
+    there with a visible hand-off. On a list stock would tag its own hidden cursor row: swallowed, and the
+    runtime says why. */
+ if(k->key==XZ_SHELL_KEY_TAG_TRACK&&!a.effect)
+  return u->depth==1&&xz_shell_screen(u)==XZ_SHELL_PLAY&&u->popup.kind==XZ_SHELL_POPUP_NONE?XZ_SHRT_PASS_HAND_OFF:XZ_SHRT_SWALLOW;
  if(!a.effect&&!b.effect)return XZ_SHRT_SWALLOW;
  if((a.hands_off||!a.effect)&&(b.hands_off||!b.effect))return XZ_SHRT_PASS_HAND_OFF;
  return XZ_SHRT_SWALLOW;
 }
 int xz_shrt_key_for_phase(const struct xz_shrt_key_map *k, enum xz_shrt_phase p, int held) {
- if(!k||k->rule==XZ_SHRT_STOCK)return -1;
+ if(!k||k->rule==XZ_SHRT_STOCK||k->rule==XZ_SHRT_HAND_OFF)return -1;
  if(k->rule==XZ_SHRT_ON_PRESS)return p==XZ_SHRT_PRESS?k->key:-1;
  if(p==XZ_SHRT_HOLD)return held?-1:k->hold;
  if(p==XZ_SHRT_RELEASE)return held?-1:k->key;

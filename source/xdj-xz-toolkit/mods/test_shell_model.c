@@ -149,8 +149,18 @@ static void test_valid_and_input(void){
  xz_shell_model_refresh(&m,s.storage,read_memory,128);
  assert(m.deck[0].grid_count==GRID_MAX&&m.deck[0].grid[GRID_MAX-1].ms==(GRID_MAX-1)*500);
  assert(strlen(m.deck[0].key)==31);
+ /* Artist and memory cues come in as inputs too, copied. */
+ {char artist[16]="Example";struct xz_shell_deck in2={0};
+  in2.known=K(ARTIST)|K(MEMORY_CUES);in2.artist=artist;in2.memory_count=2;
+  in2.memory_cue[0]=(struct xz_shell_cue){1,1000,0,0};in2.memory_cue[1]=(struct xz_shell_cue){1,5000,0,1};
+  xz_shell_model_set_input(s.storage,1,&in2,0);artist[0]='X';
+  xz_shell_model_refresh(&m,s.storage,read_memory,129);
+  assert((m.deck[1].known&(K(ARTIST)|K(MEMORY_CUES)))==(K(ARTIST)|K(MEMORY_CUES))&&!strcmp(m.deck[1].artist,"Example"));
+  assert(m.deck[1].memory_count==2&&m.deck[1].memory_cue[1].ms==5000&&m.deck[1].memory_cue[1].is_loop);
+  in2.memory_count=99;xz_shell_model_set_input(s.storage,1,&in2,0);xz_shell_model_refresh(&m,s.storage,read_memory,130);
+  assert(!(m.deck[1].known&K(MEMORY_CUES)));}
  xz_shell_model_set_input(s.storage,0,NULL,0);release(&s);
- puts("PASS native fields, every supported known bit, UTF-16, copied/consumed input, source mapping");
+ puts("PASS native fields, every supported known bit, UTF-16, copied/consumed input, source mapping, artist, memory cues");
 }
 static void test_guards(void){
  for(unsigned family=0;family<4;family++){
@@ -253,6 +263,13 @@ static void test_flag_encodings(void){
  xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(!m.deck[0].loop.active&&!m.deck[0].master_tempo&&!m.deck[0].master&&!m.deck[0].sync);
  assert(!(m.deck[0].known&K(CUE_POINT)));
  put16(frame(0)+0x22,0x8000);xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(m.deck[0].tempo_x100==-32768);
+ /* Tempo range byte: 6, 10, 16, 100 (WIDE) as stock reads it; any other value stays unknown. */
+ static const unsigned ranges[6]={6,10,16,100,2,0};
+ for(unsigned i=0;i<6;i++){
+  *at(frame(0)+0x20,1)=(unsigned char)ranges[i];xz_shell_model_refresh(&m,s.storage,read_memory,0);
+  if(i<4)assert((m.deck[0].known&K(TEMPO_RANGE))&&m.deck[0].tempo_range==(int)ranges[i]);
+  else assert(!(m.deck[0].known&K(TEMPO_RANGE)));
+ }
  put16(frame(0)+0x22,0x7fff);xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(m.deck[0].tempo_x100==32767);
  release(&s);puts("PASS quantize encoding, loop inhibit, cue-exist flag, signed tempo extrema");
 }
