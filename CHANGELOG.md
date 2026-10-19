@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- FLAGSHIP USB browsing starts with encoder focus on the sidebar. Push enters a category; BACK climbs nested folders, then returns to the sidebar before source selection. Holding physical BROWSE opens Search once; short release keeps the Browse toggle. Shell/render and runtime host checks pass, and the paired ARM build passes. Controller acceptance is pending.
+
 - Preview.14 limits eject to drives on a USB, SD or MMC bus (`IOCTL_STORAGE_QUERY_PROPERTY` BusType), checked before the volume is locked, and the app offers it only for drives the USB list marks removable. Preview.13 would have dismounted a fixed internal disk if one had been chosen.
 
 - Preview.13 offers to eject the USB when a write finishes and adds a remembered "Eject the USB when writing finishes" box (off by default; skipped when failed game downloads need the USB for a retry). The new `eject_volume` host command locks and dismounts the volume, then asks Windows to eject the device the way Safely Remove does (`diskutil eject` on macOS), and reports which program is holding the drive when Windows refuses. Choosing a USB marks that card "Reading the USB" with a spinner from the click itself, through any background scan and the read; other cards wait. `tools/verify_setup_wizard.mjs` 91 checks.
