@@ -1298,6 +1298,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
     for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
     in->stems_overlay=model.stems_overlay;
+    for(int d=0;d<2;d++){in->stem_level_known[d]=in->stem_muted_known[d];for(int i=0;i<3;i++)in->stem_level[d][i]=model.deck[d].levels[i];}
     /* DJ profiles for the shell's MY SETTINGS panel, copied (the view changes under this lock). */
     if(model.dj){
         in->dj_known=1;in->dj_count=model.dj->count<XZ_SHELL_RUNTIME_DJ?model.dj->count:XZ_SHELL_RUNTIME_DJ;
@@ -1339,9 +1340,9 @@ static void shell_ui_requests_locked(void){
     /* The shell's APPEARANCE tab: the MODS panel's own actions (side effects and settings save included).
        An INTERFACE switch to CLASSIC stops the shell from inside apply(); nothing below needs it. */
     if((requests&XZ_SHELL_UI_ACTION)&&xz_shell_runtime_take_ui_action){
-        int kind,index;float value;
-        while(xz_shell_runtime_take_ui_action(&kind,&index,&value)){
-            struct xz_ui_action act={.kind=(enum xz_ui_action_kind)kind,.phase=XZ_UI_PRESS,.index=index,.value=value};apply(NULL,&act,1);
+        int kind,deck,index;float value;
+        while(xz_shell_runtime_take_ui_action(&kind,&deck,&index,&value)){
+            struct xz_ui_action act={.kind=(enum xz_ui_action_kind)kind,.phase=XZ_UI_PRESS,.deck=deck,.index=index,.value=value};apply(NULL,&act,1);
         }
     }
     /* The shell's DJ PROFILE row: the same pick the MODS panel's DJ PROFILE page makes. */
