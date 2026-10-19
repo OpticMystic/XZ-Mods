@@ -31,10 +31,15 @@ struct xz_shell_runtime_frame_input {
  int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
  /* DJ profiles on the sticks: dj_runtime's view, copied (entry i = view entry i). */
  int dj_known, dj_count;
+ /* The appearance settings the MODS > APPEARANCE tab shows (ui_runtime.c's model). */
+ int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
  struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
 };
 int xz_shell_runtime_start(void);
 void xz_shell_runtime_stop(void);
+/* The shell runs only in the MODERN interface: starts it (thread, USB scan) on MODERN, stops it on
+   CLASSIC. The stop happens off the caller's thread; drawing ends at once. Safe under the UI lock. */
+int xz_shell_runtime_follow_interface(int modern);
 /* Lock-free: the shell owns the screen now. */
 int xz_shell_runtime_owns(void);
 /* Lock-free: owns the screen and no frame is due, so the caller can skip all work. */
@@ -59,7 +64,11 @@ void xz_shell_runtime_owner_tick(void);
 /* Header-button requests the shell cannot execute itself (they belong to ui_runtime.c's MODS panel and
    STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
    right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
-enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u };
+enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u };
+/* XZ_SHELL_UI_ACTION: MODS-panel actions the shell's item tabs asked for, oldest first (kind = enum
+   xz_ui_action_kind, index, value as the panel sends them); 0 when none is left. ui_runtime.c runs them
+   through apply(), so side effects and the settings save are the panel's own. */
+int xz_shell_runtime_take_ui_action(int *kind, int *index, float *value);
 /* XZ_SHELL_UI_DJ_PICK: the dj_runtime view entry the shell's DJ PROFILE row asked to make active, or -1. */
 int xz_shell_runtime_take_dj_pick(void);
 unsigned xz_shell_runtime_take_ui_requests(void);

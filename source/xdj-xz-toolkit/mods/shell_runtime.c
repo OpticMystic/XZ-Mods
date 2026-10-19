@@ -271,13 +271,70 @@ static struct xz_shell_browse_model browse;
 static struct xz_shell_source_model source_model;
 static struct xz_shell_info_model info_model;
 /* The MODS screen's mod tabs (shell_settings.h): the MODS panel's own top pages, in its order (ui/ui.c
-   menu_pages). Each is a TAB_PAGE: its button opens that page in the panel (OPEN_MODS, value = page), where
-   every mod setting already has its control and its side effects. Item tabs that set mod settings from the
-   shell wait for the settings rework (one setter per schema field). */
+   menu_pages). APPEARANCE is an item tab drawn by the shell (its sets run the panel's own actions); the
+   others are TAB_PAGEs whose button opens that page in the panel (OPEN_MODS, value = page). */
+static void refuse(void);
+/* MODS > APPEARANCE in the shell's own style: an item tab whose sets run the MODS panel's own actions. */
+enum { LOOK_TAB=2, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
+       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS };
+static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
+static const char *const look_interface[2]={"MODERN","CLASSIC"};
+_Static_assert(XZ_UI_MODERN_THEMES==1,"one modern theme name below");
+static const char *const look_modern_theme[1]={"STANDARD"};
+static const char *const look_wave[3]={"STOCK","3-BAND","STEMS"};
+static const char *const look_key_format[3]={"USB PREFERENCE","CLASSIC","CAMELOT"};
+static const char *const look_off_on[2]={"OFF","ON"};
+static const char *const look_stem_color[9]={"THEME DEFAULT","BLUE","RED","GREEN","AMBER","PURPLE","CYAN","PINK","WHITE"};
+static struct xz_shell_setting_item look_items[9];
+static struct xz_shell_settings_model look_model;
+static uint32_t look_classic_at; /* the first push of INTERFACE > CLASSIC: a second one within 4 s switches */
+static struct { int kind, index; float value; } ui_actions[8]; static int ui_action_count; /* under mutex */
+static void fill_look(void) {
+ const struct xz_shell_runtime_frame_input *in=&last_input;int k=!!in->look_known;
+#define LOOK(n,id,cat,label,choices,count,current) look_items[n]=(struct xz_shell_setting_item){id,(enum xz_shell_setting_category)(cat),label,choices,count,k?(current):0,k,k}
+ LOOK(0,LOOK_INTERFACE,0,"INTERFACE",look_interface,2,in->ui_interface==XZ_UI_INTERFACE_MODERN?0:1);
+ LOOK(1,LOOK_THEME,1,"THEME",look_modern_theme,1,in->modern_theme>=0&&in->modern_theme<1?in->modern_theme:0);
+ LOOK(2,LOOK_WAVE,2,"SCROLLING WAVEFORM",look_wave,3,in->wave_mode>=0&&in->wave_mode<3?in->wave_mode:0);
+ LOOK(3,LOOK_KEY_FORMAT,3,"KEY NOTATION",look_key_format,3,in->key_format>=0&&in->key_format<3?in->key_format:0);
+ LOOK(4,LOOK_KEY_FEEDBACK,3,"EFFECTIVE KEY DISPLAY",look_off_on,2,!!in->key_feedback);
+ LOOK(5,LOOK_TRAFFIC,3,"COLOR COMPATIBLE KEYS",look_off_on,2,!!in->browse_traffic);
+ LOOK(6,LOOK_DRUMS,3,"DRUMS COLOR",look_stem_color,9,in->stem_colors[0]>=0&&in->stem_colors[0]<9?in->stem_colors[0]:0);
+ LOOK(7,LOOK_HARMONICS,3,"HARMONICS COLOR",look_stem_color,9,in->stem_colors[1]>=0&&in->stem_colors[1]<9?in->stem_colors[1]:0);
+ LOOK(8,LOOK_VOCALS,3,"VOCALS COLOR",look_stem_color,9,in->stem_colors[2]>=0&&in->stem_colors[2]<9?in->stem_colors[2]:0);
+#undef LOOK
+ look_model=(struct xz_shell_settings_model){9,look_items,NULL};
+}
+static void ui_action_locked(int kind, int index, float value, uint32_t now) {
+ if(ui_action_count>=8){refuse();return;}
+ ui_actions[ui_action_count].kind=kind;ui_actions[ui_action_count].index=index;ui_actions[ui_action_count].value=value;ui_action_count++;
+ __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_ACTION,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
+}
+/* SET_MOD on APPEARANCE: the panel action that item stands for. */
+static void look_set_locked(int id, int choice, uint32_t now) {
+ switch(id){
+ case LOOK_INTERFACE:
+  if(choice==1){
+   /* CLASSIC replaces the whole screen and stops the shell: ask for a second push. */
+   if(!look_classic_at||now-look_classic_at>4000u){look_classic_at=now?now:1;notice_locked(now,"PUSH AGAIN TO SWITCH TO CLASSIC");return;}
+   look_classic_at=0;ui_action_locked(XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC,0,now);
+  }else if(choice==0)ui_action_locked(XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,now);
+  else refuse();
+  return;
+ case LOOK_THEME:if(choice==0)ui_action_locked(XZ_UI_SET_MODERN_THEME,choice,0,now);else refuse();return;
+ case LOOK_WAVE:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_WAVE_MODE,choice,0,now);else refuse();return;
+ case LOOK_KEY_FORMAT:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_KEY_FORMAT,choice,0,now);else refuse();return;
+ case LOOK_KEY_FEEDBACK:ui_action_locked(XZ_UI_KEY_FEEDBACK,0,choice?1.f:0.f,now);return;
+ case LOOK_TRAFFIC:ui_action_locked(XZ_UI_BROWSE_TRAFFIC,0,choice?1.f:0.f,now);return;
+ case LOOK_DRUMS:case LOOK_HARMONICS:case LOOK_VOCALS:
+  if(choice>=0&&choice<9)ui_action_locked(XZ_UI_STEM_COLOR,id-LOOK_DRUMS,(float)choice,now);else refuse();
+  return;
+ default:refuse();return;
+ }
+}
 static const struct xz_shell_mods_tab mod_tabs[5]={
  {"GENERAL",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_GENERAL,"TURN MODS ON AND OFF AND SET THEM UP"},
  {"CONTROLS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_CONTROLS,"STEM PAD SHORTCUTS AND CUSTOM BEAT JUMPS"},
- {"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_THEMES,"INTERFACE, THEME, WAVEFORM, KEYS AND STEM COLORS"},
+ {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,look_sections,4,XZ_UI_THEMES,NULL},
  {"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_SETTINGS,"KEY SHIFT, KEY SYNC, GROOVE PADS, X-PAD AND RAM TRACKS"},
  {"EXTRAS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_EXTRAS,"VJ.TOOLS LINK, GAMES, USB APPS AND UPDATES"}};
 static const struct xz_shell_mods_model mods_model={5,mod_tabs};
@@ -518,7 +575,7 @@ static void fill_slots_locked(void) {
  if(lib){fill_browse(lib);model.browse=&browse;}else model.browse=NULL;
  fill_source();model.source=&source_model;
  fill_settings();model.settings_screen=&settings_model;
- model.mods=&mods_model;
+ fill_look();model.mods=&mods_model;
  model.my_settings=NULL;
  if(lib&&browse_source>=0){
   const struct xz_shms_files *f=&mys[browse_source];
@@ -1536,6 +1593,10 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    else if(a->id==XZ_SHELL_MY_SAVE)my_settings_save(a->value,now,NULL,0,"SAVED TO USB %d");
    else refuse();
    break;
+  case XZ_SHELL_ACT_SET_MOD:
+   if(a->deck==LOOK_TAB)look_set_locked(a->id,a->value,now);
+   else refuse();
+   break;
   case XZ_SHELL_ACT_DJ_PROFILE:{
    /* deck = the stick; value = the profile index in my_settings.profiles. */
    int slot=a->deck==XZ_SHELL_SRC_USB1?0:a->deck==XZ_SHELL_SRC_USB2?1:-1;
@@ -1890,6 +1951,15 @@ int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value) {
  pthread_mutex_unlock(&mutex);
  return got;
 }
+int xz_shell_runtime_take_ui_action(int *kind, int *index, float *value) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return 0;
+ pthread_mutex_lock(&mutex);
+ int got=ui_action_count>0;
+ if(got){*kind=ui_actions[0].kind;*index=ui_actions[0].index;*value=ui_actions[0].value;
+  memmove(ui_actions,ui_actions+1,(size_t)(--ui_action_count)*sizeof *ui_actions);}
+ pthread_mutex_unlock(&mutex);
+ return got;
+}
 int xz_shell_runtime_take_dj_pick(void) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
  pthread_mutex_lock(&mutex);int entry=dj_pick;dj_pick=-1;pthread_mutex_unlock(&mutex);
@@ -2091,8 +2161,29 @@ void xz_shell_runtime_owner_tick(void) {
 }
 
 static int flag(const char *name) { const char *v=getenv(name);return v&&!strcmp(v,"1"); }
-int xz_shell_runtime_start(void) {
- if(__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!flag("XZ_MODS_SHELL"))return 0;
+/* Start and stop serialise on lifecycle: the interface switch stops on its own thread (the worker may
+   be inside a USB read for a while) and a quick switch back waits for that stop to finish. */
+static pthread_mutex_t lifecycle=PTHREAD_MUTEX_INITIALIZER;
+static int start_locked(void);
+static void stop_locked(void);
+int xz_shell_runtime_start(void) { pthread_mutex_lock(&lifecycle);int rc=start_locked();pthread_mutex_unlock(&lifecycle);return rc; }
+void xz_shell_runtime_stop(void) { pthread_mutex_lock(&lifecycle);stop_locked();pthread_mutex_unlock(&lifecycle); }
+static void *stop_thread(void *unused) { (void)unused;xz_shell_runtime_stop();return NULL; }
+int xz_shell_runtime_follow_interface(int modern) {
+ if(modern)return __atomic_load_n(&enabled,__ATOMIC_ACQUIRE)?0:xz_shell_runtime_start();
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return 0;
+ /* Stop drawing now; the worker joins on a thread of its own so the caller (the UI lock) never waits. */
+ pthread_t t;pthread_attr_t a;int started=0;
+ if(!pthread_attr_init(&a)){
+  if(!pthread_attr_setdetachstate(&a,PTHREAD_CREATE_DETACHED))started=!pthread_create(&t,&a,stop_thread,NULL);
+  pthread_attr_destroy(&a);
+ }
+ if(!started)xz_shell_runtime_stop();
+ xz_log("FLAGSHIP shell stopping: CLASSIC interface");
+ return 0;
+}
+static int start_locked(void) {
+ if(__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return 0;
  /* Load by id is on unless XZ_MODS_SHELL_LOAD_BY_ID=0 (proven on the deck for USB2; see SHELL_LOAD_CHECK). */
  {const char *v=getenv("XZ_MODS_SHELL_LOAD_BY_ID");load_enabled=!(v&&!strcmp(v,"0"));}debug=flag("XZ_MODS_SHELL_DEBUG");
  next_present=(uint64_t(*)(void))dlsym(RTLD_DEFAULT,"xz_receiver_next_present_us_v1");
@@ -2105,6 +2196,7 @@ int xz_shell_runtime_start(void) {
  memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
+ ui_action_count=0;look_classic_at=0;
  memset(mys,0,sizeof mys);memset(&mys_job,0,sizeof mys_job);memset(mys_state,0,sizeof mys_state);memset(mys_result,0,sizeof mys_result);dj_pick=-1;mys_readonly=flag("XZ_MODS_SETTINGS_READONLY");
  memset(&util,0,sizeof util);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;
  util.trial=flag("XZ_MODS_SETTINGS_READONLY")&&!flag("XZ_MODS_SHELL_UTILITY_WRITES");util.poll_now=1;
@@ -2122,7 +2214,7 @@ int xz_shell_runtime_start(void) {
  xz_log(line);
  return 0;
 }
-void xz_shell_runtime_stop(void) {
+static void stop_locked(void) {
  if(!__atomic_exchange_n(&enabled,0,__ATOMIC_ACQ_REL))return;
  pthread_mutex_lock(&mutex);running=0;pthread_cond_signal(&wake);pthread_mutex_unlock(&mutex);
  if(worker_created){pthread_join(worker_thread,NULL);worker_created=0;}
