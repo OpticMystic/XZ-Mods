@@ -175,6 +175,7 @@ struct xz_shell_fx {
 };
 /* Filled by later units; opaque here. NULL hands the screen to the stock UI. */
 struct xz_shell_browse_model; struct xz_shell_settings_model; struct xz_shell_source_model; struct xz_shell_info_model;
+struct xz_shell_mods_model;
 struct xz_shell_model {
  struct xz_shell_deck deck[XZ_SHELL_DECKS];
  uint32_t capabilities;
@@ -191,6 +192,8 @@ struct xz_shell_model {
  const struct xz_shell_settings_model *settings_screen;
  const struct xz_shell_source_model *source;
  const struct xz_shell_info_model *info;
+ const struct xz_shell_mods_model *mods;  /* the MODS screen's mod tabs (shell_settings.h); NULL: the MODS header
+                                             button opens the runtime's own mod panel (XZ_SHELL_ACT_OPEN_MODS) */
 };
 
 enum xz_shell_event_kind {
@@ -230,6 +233,8 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_OPEN_MODS,   /* the runtime opens the MODS panel (header button) */
  XZ_SHELL_ACT_TOGGLE_STEMS,/* the runtime toggles the STEMS overlay (header button) */
  XZ_SHELL_ACT_STEM_MUTE,   /* deck, id = stem (0 drums, 1 harmonics/INST, 2 vocal), value = 1 mute, 0 play */
+ XZ_SHELL_ACT_SET_MOD,     /* a MODS-tab item: deck = tab index in xz_shell_mods_model, id = the item's id, value =
+                              choice index (shell_settings.h). Native UTILITY items keep XZ_SHELL_ACT_SET_SETTING */
  XZ_SHELL_ACT_PLAYLIST     /* id = enum xz_shell_playlist_op; the rest is in xz_shell.edit (below) */
 };
 #define XZ_SHELL_HAND_OFF_MENU (-1)
@@ -296,6 +301,9 @@ struct xz_shell {
  struct xz_shell_playlist_edit edit;
  struct xz_shell_filter filter;
  char name[XZ_SHELL_NAME_MAX];       /* a playlist name being typed */
+ /* The MODS screen (XZ_SHELL_UTILITY): the open tab (0 = UTILITY, the device's own menu; 1.. = the mod
+    tabs), and whether the encoder is on the tab row or inside the tab. */
+ struct { int tab, on_tabs; } mods_view;
  /* One line the shell raises itself when a key or control cannot act here (static text), shown like
     model.notice; the runtime may also read it as the reason for a hand-off. */
  const char *notice;

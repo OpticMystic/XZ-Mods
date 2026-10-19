@@ -58,12 +58,21 @@ static void model(struct xz_shell_model *m) {
 static void open_screen(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, enum xz_shell_screen s) {
  xz_shell_init(u);
  assert(key(u,m,k)==0&&xz_shell_screen(u)==s&&u->depth==2);
+ /* Held MENU lands on MODS > UTILITY with the encoder on the tab row: push enters the tab. */
+ if(s==XZ_SHELL_UTILITY){
+  assert(u->mods_view.tab==0&&u->mods_view.on_tabs==1);
+  struct xz_shell_event e={XZ_SHELL_ENCODER_PUSH,0,0,0,0,-1};
+  struct xz_shell_action o[XZ_SHELL_ACTIONS];
+  assert(xz_shell_input(u,m,&e,o)==0&&u->mods_view.on_tabs==0);
+ }
 }
 /* Focus pane and cursor are packed into the view; see shell_settings.c. */
 static int pane(const struct xz_shell *u) { return u->stack[u->depth-1].focus&3; }
 static int cursor_id(const struct xz_shell *u) { return u->stack[u->depth-1].cursor-1; }
 
 enum { ROW=XZ_SHELL_SETTINGS_ROW_H, RAIL=XZ_SHELL_SETTINGS_RAIL_H, ROWS=XZ_SHELL_SETTINGS_ROWS };
+/* TIME MODE, the tenth of eleven DJ items, after a page jump: the list scrolls as far as it can (2). */
+enum { TIME_ROW=9-(11-ROWS) };
 static struct xz_shell_rect R(enum xz_shell_settings_region r) { return xz_shell_settings_rect(r); }
 static int rail_row(int r) { return R(XZ_SHELL_SR_RAIL).y+r*RAIL+RAIL/2; }
 static int list_row(int r) { return R(XZ_SHELL_SR_ITEMS).y+r*ROW+ROW/2; }
@@ -92,7 +101,7 @@ static void test_regions(void) {
 static void test_empty_and_unknown(void) {
  struct xz_shell u;struct xz_shell_model m;
  model(&m);
- static struct xz_shell_settings_model empty, no_items={5,NULL};   /* empty is what test_shell.c and preview.c pass */
+ static struct xz_shell_settings_model empty, no_items={5,NULL,NULL};   /* empty is what test_shell.c and preview.c pass */
  const struct xz_shell_settings_model *slots[]={&empty,&no_items};
  for(size_t i=0;i<sizeof slots/sizeof *slots;i++){
   m.settings_screen=slots[i];
@@ -122,7 +131,7 @@ static void test_empty_and_unknown(void) {
   {XZ_SHELL_ITEM_QUANTIZE_BEAT,XZ_SHELL_SETTING_CAT_DJ_SETTING,"NEGATIVE",holes,-4,-7,1,0},
   {XZ_SHELL_ITEM_TIME_MODE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"PAST END",holes,3,3,1,1},
  };
- static struct xz_shell_settings_model wild_model={sizeof wild/sizeof *wild,wild};
+ static struct xz_shell_settings_model wild_model={sizeof wild/sizeof *wild,wild,NULL};
  m.settings_screen=&wild_model;
  for(int screen=0;screen<2;screen++){
   open_screen(&u,&m,screen?XZ_SHELL_KEY_MENU_HOLD:XZ_SHELL_KEY_SHORTCUT,screen?XZ_SHELL_UTILITY:XZ_SHELL_SHORTCUT);
@@ -161,6 +170,7 @@ static void test_empty_and_unknown(void) {
   assert(push(&u,&gone)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==(screen?XZ_SHELL_UTILITY:XZ_SHELL_SHORTCUT));
   assert(send(&u,&gone,XZ_SHELL_TOUCH_DOWN,400,200,0)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
   send(&u,&gone,XZ_SHELL_TOUCH_UP,400,200,0);
+  if(screen)assert(tap(&u,&gone,20,20)==0&&u.depth==2&&u.mods_view.on_tabs);   /* MODS: back to the tab row first */
   assert(tap(&u,&gone,20,20)==0&&u.depth==1);   /* the back button still closes */
  }
  puts("PASS empty, NULL and wild settings render and hand off without reading garbage");
@@ -183,12 +193,13 @@ static void test_utility_encoder(void) {
  f=render(&u,&m);assert(at(f,item_x(),row_top(0))==rgb565(SH_BLUE)&&at(f,rail_x(),rail_row(0))==rgb565(XZ_FLAGSHIP_RAIL_SELECTED));
  assert(turn(&u,&m,100)==0&&cursor_id(&u)==XZ_SHELL_ITEM_WAVE_PHASE_METER);
  f=render(&u,&m);assert(at(f,item_x(),row_top(ROWS-1))==rgb565(SH_BLUE)&&at(f,item_x(),row_top(0))==rgb565(SH_CHROME));
- assert((u.stack[1].scroll&0xfff)==1);
+ assert((u.stack[1].scroll&0xfff)==11-ROWS);
  turn(&u,&m,-100);assert(cursor_id(&u)==XZ_SHELL_ITEM_LOAD_LOCK&&(u.stack[1].scroll&0xfff)==0);
  /* Hold pages: down one page, then from the end back to the top. */
- assert(hold(&u,&m)==0&&cursor_id(&u)==XZ_SHELL_ITEM_WAVE_PHASE_METER);
- f=render(&u,&m);assert(at(f,item_x(),row_top(ROWS-1))==rgb565(SH_BLUE));
- assert(hold(&u,&m)==0&&cursor_id(&u)==XZ_SHELL_ITEM_LOAD_LOCK);
+ assert(hold(&u,&m)==0&&cursor_id(&u)==XZ_SHELL_ITEM_TIME_MODE);          /* nine rows on */
+ f=render(&u,&m);assert(at(f,item_x(),row_top(TIME_ROW))==rgb565(SH_BLUE));
+ assert(hold(&u,&m)==0&&cursor_id(&u)==XZ_SHELL_ITEM_WAVE_PHASE_METER);  /* the end */
+ assert(hold(&u,&m)==0&&cursor_id(&u)==XZ_SHELL_ITEM_LOAD_LOCK);         /* then the top */
  /* Items -> values on a writable item: the value cursor starts on the current value. */
  turn(&u,&m,3);assert(cursor_id(&u)==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD);
  assert(push(&u,&m)==0&&pane(&u)==2);
@@ -204,6 +215,7 @@ static void test_utility_encoder(void) {
  push(&u,&m);assert(pane(&u)==2);
  assert(xz_shell_settings_back(&u,&m)==1&&pane(&u)==1);
  assert(xz_shell_settings_back(&u,&m)==1&&pane(&u)==0);
+ assert(xz_shell_settings_back(&u,&m)==1&&u.mods_view.on_tabs);   /* then the tab row */
  assert(xz_shell_settings_back(&u,&m)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
  assert(xz_shell_settings_back(&u,&m)==0);   /* not on UTILITY */
@@ -274,15 +286,15 @@ static void test_utility_touch(void) {
  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,item_x()+100,list_row(5),0)==0);
  assert(send(&u,&m,XZ_SHELL_TOUCH_MOVE,item_x()+100,list_row(5)-ROW*2-4,0)==0);
  assert(send(&u,&m,XZ_SHELL_TOUCH_UP,item_x()+100,list_row(3),0)==0&&pane(&u)==1);
- assert((u.stack[1].scroll&0xfff)==1);   /* clamped: 11 items, 10 rows */
+ assert((u.stack[1].scroll&0xfff)==2);   /* 11 items, 9 rows: the full two-row drag fits */
  const uint16_t *f=render(&u,&m);
- assert(at(f,item_x(),row_top(4))==rgb565(SH_BLUE));   /* same item, one row higher */
+ assert(at(f,item_x(),row_top(3))==rgb565(SH_BLUE));   /* same item, two rows higher */
  /* Dragging the cursor row out of view pulls the cursor along. */
  turn(&u,&m,-100);assert(cursor_id(&u)==XZ_SHELL_ITEM_LOAD_LOCK&&(u.stack[1].scroll&0xfff)==0);
  send(&u,&m,XZ_SHELL_TOUCH_DOWN,item_x()+100,list_row(0),0);
  send(&u,&m,XZ_SHELL_TOUCH_MOVE,item_x()+100,list_row(0)-ROW*2-4,0);
  assert(send(&u,&m,XZ_SHELL_TOUCH_UP,item_x()+100,list_row(0),0)==0&&pane(&u)==1);
- assert((u.stack[1].scroll&0xfff)==1&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
+ assert((u.stack[1].scroll&0xfff)==2&&cursor_id(&u)==XZ_SHELL_ITEM_BEAT_JUMP_BEAT);
  /* The read-only footer hands off to the stock menu. */
  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,value_x()+60,list_row(ROWS-1),0)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_UTILITY);
  send(&u,&m,XZ_SHELL_TOUCH_UP,value_x()+60,list_row(ROWS-1),0);
@@ -291,6 +303,7 @@ static void test_utility_touch(void) {
  struct xz_shell_rect back=R(XZ_SHELL_SR_BACK_BUTTON);
  assert(tap(&u,&m,back.x+10,back.y+10)==0&&pane(&u)==1&&u.depth==2);
  assert(tap(&u,&m,back.x+10,back.y+10)==0&&pane(&u)==0&&u.depth==2);
+ assert(tap(&u,&m,back.x+10,back.y+10)==0&&u.depth==2&&u.mods_view.on_tabs);
  assert(tap(&u,&m,back.x+10,back.y+10)==0&&u.depth==1);
  /* MENU closes UTILITY from any pane (navigation table). */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);push(&u,&m);push(&u,&m);
@@ -439,8 +452,10 @@ static void test_back_key_steps_panes(void) {
  key(&u,&m,XZ_SHELL_KEY_BACK);
  assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&pane(&u)==0);
  key(&u,&m,XZ_SHELL_KEY_BACK);
+ assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.mods_view.on_tabs);
+ key(&u,&m,XZ_SHELL_KEY_BACK);
  assert(xz_shell_screen(&u)==XZ_SHELL_PLAY);
- puts("PASS BACK key steps UTILITY panes left, then closes from the rail");
+ puts("PASS BACK key steps MODS > UTILITY panes left, onto the tab row, then closes");
 }
 int main(void) {
  fx_track_build(&track,7);
