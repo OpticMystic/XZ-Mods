@@ -55,8 +55,11 @@ void xz_shell_runtime_owner_tick(void);
 /* Header-button requests the shell cannot execute itself (they belong to ui_runtime.c's MODS panel and
    STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
    right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
-enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u };
+enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u };
 unsigned xz_shell_runtime_take_ui_requests(void);
+/* XZ_SHELL_UI_STEM_MUTE: the stem mutes the shell asked for, oldest first; 0 when none is left.
+   value 1 = muted, 0 = playing. ui_runtime.c runs them through its own stem mute path. */
+int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value);
 /* A header action ui_runtime.c took but could not carry out: shown as the shell's notice toast. */
 void xz_shell_runtime_notice(const char *text);
 
@@ -65,8 +68,8 @@ void xz_shell_runtime_notice(const char *text);
 /* R1 key table. A key is delivered on its press, or (MENU, BACK) on its
    release with a separate event for the hold. STOCK entries are listed so the
    table documents every browse-section key the shell leaves alone. */
-/* HAND_OFF: a browse key the shell has no screen for yet (TRACK FILTER, LINK, computer). While the shell
-   owns the screen the key goes to stock with a visible hand-off, never to a hidden stock screen. */
+/* HAND_OFF: a browse key the shell has no screen for: while the shell owns the screen it goes to stock
+   with a visible hand-off, never to a hidden stock screen. (No key uses it today.) */
 enum xz_shrt_rule { XZ_SHRT_STOCK, XZ_SHRT_ON_PRESS, XZ_SHRT_ON_RELEASE, XZ_SHRT_HAND_OFF };
 struct xz_shrt_key_map { uint16_t code; uint8_t channel; uint8_t rule; int8_t key, hold, deck; };
 const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel);

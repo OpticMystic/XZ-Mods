@@ -206,12 +206,24 @@ static int build_tree(struct xz_shlib *L, const struct xz_shlib_request *r, stru
  uint32_t count=history?L->history_count:L->playlist_count;
  uint32_t parent=r->depth?r->path[r->depth-1]:0;
  const struct node *open=r->depth?find_node(nodes,count,parent):NULL;
+ const struct xz_shpl *edited=!history&&r->depth?xz_shpl_find(r->edits,parent):NULL;
+ if(edited&&edited->deleted)return -1;
+ if(edited&&edited->created){
+  /* A playlist made in the shell: its own name and tracks. */
+  if((l->level_name=name_add(l,edited->name,strlen(edited->name)))==UINT32_MAX)return -1;
+  for(uint32_t i=0;i<edited->count;i++)if(row_add(l,cap,XZ_SHELL_ROW_TRACK,edited->tracks[i],NULL,0))return -1;
+  return 0;
+ }
  if(r->depth&&!open)return -1;
  if(open){
-  const char *n=xz_shlib_text(L,open->name);
+  const char *n=edited&&edited->renamed?edited->name:xz_shlib_text(L,open->name);
   if((l->level_name=name_add(l,n,strlen(n)))==UINT32_MAX)return -1;
  }
  if(open&&(!open->folder||history)){
+  if(edited&&edited->has_tracks){
+   for(uint32_t i=0;i<edited->count;i++)if(row_add(l,cap,XZ_SHELL_ROW_TRACK,edited->tracks[i],NULL,0))return -1;
+   return 0;
+  }
   const pdb_entry *entries;size_t n;
   if(pdb_playlist_entries(L->db,open->id,history,&entries,&n)!=PDB_OK)return -1;
   for(size_t i=0;i<n;i++)if(row_add(l,cap,XZ_SHELL_ROW_TRACK,entries[i].track_id,NULL,0))return -1;
@@ -224,10 +236,18 @@ static int build_tree(struct xz_shlib *L, const struct xz_shlib_request *r, stru
  sort_nodes_base=nodes;qsort(order,n,4,by_sort);
  l->folders=1;
  for(uint32_t i=0;i<n;i++){
-  const char *s=xz_shlib_text(L,nodes[order[i]].name);
+  const struct xz_shpl *e=history?NULL:xz_shpl_find(r->edits,nodes[order[i]].id);
+  if(e&&e->deleted)continue;
+  const char *s=e&&e->renamed?e->name:xz_shlib_text(L,nodes[order[i]].name);
   if(row_add(l,cap,XZ_SHELL_ROW_FOLDER,nodes[order[i]].id,s,strlen(s))){free(order);return -1;}
  }
- free(order);return 0;
+ free(order);
+ /* Playlists made in the shell follow the stick's own, in the order they were made. */
+ for(uint32_t i=0;!history&&r->edits&&i<r->edits->n;i++){
+  const struct xz_shpl *e=&r->edits->p[i];
+  if(e->created&&!e->deleted&&e->parent==parent&&row_add(l,cap,XZ_SHELL_ROW_FOLDER,e->id,e->name,strlen(e->name)))return -1;
+ }
+ return 0;
 }
 
 /* Sorting a track list by a column. qsort has no context argument; builds run on one thread. */
@@ -254,6 +274,9 @@ static int by_column(const void *a, const void *b) {
  case XZ_SHELL_COL_RATING:c=x->rating<y->rating?-1:x->rating>y->rating;break;
  case XZ_SHELL_COL_COLOR:c=x->color_id<y->color_id?-1:x->color_id>y->color_id;break;
  case XZ_SHELL_COL_TIME:c=x->duration_ms<y->duration_ms?-1:x->duration_ms>y->duration_ms;break;
+ case XZ_SHELL_COL_ALBUM:c=fold_compare(xz_shlib_text(sort_library,x->album),xz_shlib_text(sort_library,y->album));break;
+ case XZ_SHELL_COL_GENRE:c=fold_compare(xz_shlib_text(sort_library,x->genre),xz_shlib_text(sort_library,y->genre));break;
+ case XZ_SHELL_COL_DATE_ADDED:c=strcmp(xz_shlib_text(sort_library,x->date_added),xz_shlib_text(sort_library,y->date_added));break;
  default:break;
  }
  else c=(x!=NULL)-(y!=NULL);
@@ -288,6 +311,26 @@ static void letters(const struct xz_shlib *L, struct xz_shlib_list *l) {
   if(last&&c<last&&c!='#'){l->letter_count=0;return;}
   last=c;l->letters[l->letter_count++]=(struct xz_shell_browse_letter){c,i};
  }
+}
+/* Keeps the track rows the filter accepts, in place. */
+static int keep(const struct xz_shlib *L, uint32_t id, const struct xz_shlib_filter *f) {
+ const struct xz_shlib_track *t=xz_shlib_track(L,id);
+ if(!t)return 0;
+ if((f->bpm_min_x100||f->bpm_max_x100)&&((int32_t)t->bpm_x100<f->bpm_min_x100||(f->bpm_max_x100&&(int32_t)t->bpm_x100>f->bpm_max_x100)))return 0;
+ if(f->rating_min&&t->rating<f->rating_min)return 0;
+ if(f->colors&&(!t->color_id||!((f->colors>>(t->color_id-1u))&1u)))return 0;
+ if(f->master_key[0]){
+  enum xz_shell_key_match m=xz_shell_key_match(xz_shlib_text(L,t->key),f->master_key);
+  if(m!=XZ_SHELL_KEY_MATCH_GREEN&&m!=XZ_SHELL_KEY_MATCH_AMBER)return 0;
+ }
+ return 1;
+}
+static void filter_rows(const struct xz_shlib *L, struct xz_shlib_list *l, const struct xz_shlib_filter *f) {
+ int32_t n=0;
+ for(int32_t i=0;i<l->total;i++)if(l->kind[i]!=XZ_SHELL_ROW_TRACK||keep(L,l->id[i],f)){
+  l->kind[n]=l->kind[i];l->id[n]=l->id[i];l->name[n]=l->name[i];n++;
+ }
+ l->total=n;
 }
 int xz_shlib_build(struct xz_shlib *L, const struct xz_shlib_request *r, struct xz_shlib_list **out) {
  if(!out)return -1;
@@ -329,6 +372,7 @@ int xz_shlib_build(struct xz_shlib *L, const struct xz_shlib_request *r, struct 
   }
  }
  pdb_reset(L->db,L->mark);
+ if(!rc&&!l->folders&&r->filter.on)filter_rows(L,l,&r->filter);
  /* Default order: playlists and history in their own order, everything else by title (or name). */
  l->sort_column=l->folders?XZ_SHELL_COL_TITLE:ordered||r->screen==XZ_SHELL_SEARCH?XZ_SHELL_COL_NUMBER:XZ_SHELL_COL_TITLE;
  l->sort_descending=0;
@@ -345,6 +389,49 @@ int xz_shlib_build(struct xz_shlib *L, const struct xz_shlib_request *r, struct 
 void xz_shlib_list_free(struct xz_shlib_list *l) {
  if(!l)return;
  free(l->kind);free(l->id);free(l->name);free(l->names);free(l);
+}
+uint32_t xz_shlib_sort_keys(void) {
+ uint32_t k=0;
+ static const enum xz_shell_browse_column all[]={XZ_SHELL_COL_NUMBER,XZ_SHELL_COL_TITLE,XZ_SHELL_COL_ARTIST,XZ_SHELL_COL_BPM,
+  XZ_SHELL_COL_KEY,XZ_SHELL_COL_RATING,XZ_SHELL_COL_COLOR,XZ_SHELL_COL_TIME,XZ_SHELL_COL_ALBUM,XZ_SHELL_COL_GENRE,XZ_SHELL_COL_DATE_ADDED};
+ for(size_t i=0;i<sizeof all/sizeof *all;i++)k|=1u<<all[i];
+ return k;
+}
+int xz_shlib_playlist_tracks(struct xz_shlib *L, uint32_t id, uint32_t **tracks, uint32_t *count) {
+ *tracks=NULL;*count=0;
+ if(!L)return -1;
+ const pdb_entry *entries;size_t n;
+ pdb_reset(L->db,L->mark);
+ int rc=pdb_playlist_entries(L->db,id,0,&entries,&n)!=PDB_OK?-1:0;
+ if(!rc&&n){
+  if(!(*tracks=malloc(n*sizeof **tracks)))rc=-1;
+  else{for(size_t i=0;i<n;i++)(*tracks)[i]=entries[i].track_id;*count=(uint32_t)n;}
+ }
+ pdb_reset(L->db,L->mark);
+ return rc;
+}
+const char *xz_shlib_playlist_name(const struct xz_shlib *L, uint32_t id) {
+ const struct node *n=L?find_node(L->playlists,L->playlist_count,id):NULL;
+ return n?xz_shlib_text(L,n->name):"";
+}
+int xz_shlib_playlist_refs(struct xz_shlib *L, const struct xz_shpl_set *edits, struct xz_shlib_playlist_ref *out, int capacity) {
+ int n=0;
+ for(uint32_t i=0;L&&i<L->playlist_count&&n<capacity;i++){
+  const struct node *p=&L->playlists[i];
+  if(p->folder)continue;
+  const struct xz_shpl *e=xz_shpl_find(edits,p->id);
+  if(e&&e->deleted)continue;
+  out[n].id=p->id;snprintf(out[n].name,sizeof out[n].name,"%s",e&&e->renamed?e->name:xz_shlib_text(L,p->name));
+  if(e&&e->has_tracks)out[n].tracks=(int32_t)e->count;
+  else{uint32_t *t;uint32_t c;out[n].tracks=xz_shlib_playlist_tracks(L,p->id,&t,&c)?-1:(int32_t)c;free(t);}
+  n++;
+ }
+ for(uint32_t i=0;edits&&i<edits->n&&n<capacity;i++){
+  const struct xz_shpl *e=&edits->p[i];
+  if(!e->created||e->deleted)continue;
+  out[n].id=e->id;snprintf(out[n].name,sizeof out[n].name,"%s",e->name);out[n].tracks=(int32_t)e->count;n++;
+ }
+ return n;
 }
 uint32_t xz_shlib_color_rgb(unsigned c) {
  static const uint32_t rgb[9]={0,0xff3c78,0xe62828,0xff8c1a,0xffdc28,0x28e028,0x20c8ff,0x2050ff,0x9b3cff};
@@ -368,6 +455,13 @@ int xz_shlib_window(const struct xz_shlib *L, const struct xz_shlib_list *l, int
   if(t->key){r->key=xz_shlib_text(L,t->key);r->known|=RF(KEY);}
   if(t->bpm_x100&&t->bpm_x100<=INT32_MAX){r->bpm_x100=(int32_t)t->bpm_x100;r->known|=RF(BPM);}
   if(t->duration_ms){r->duration_ms=(int32_t)t->duration_ms;r->known|=RF(DURATION);}
+  r->album=xz_shlib_text(L,t->album);r->genre=xz_shlib_text(L,t->genre);r->known|=RF(ALBUM)|RF(GENRE);
+  {
+   /* The export stores YYYY-MM-DD. */
+   const char *d=xz_shlib_text(L,t->date_added);int32_t v=0,digits=0;
+   for(;*d&&digits<8;d++)if(*d>='0'&&*d<='9'){v=v*10+(*d-'0');digits++;}
+   if(digits==8){r->date_added=v;r->known|=RF(DATE_ADDED);}
+  }
   if(on_deck&&(on_deck_known&3u)==3u){
    for(int d=0;d<2;d++)if(on_deck[d]&&on_deck[d]==t->id)r->on_deck|=(uint8_t)(1u<<d);
    r->known|=RF(ON_DECK);

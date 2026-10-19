@@ -140,7 +140,7 @@ def main() -> None:
                # FLAGSHIP shell; ui_draw.c already comes with UI_SOURCES.
                *(str(ROOT / "shell" / name) for name in SHELL_SOURCES if name != "../ui/ui_draw.c"),
                str(ROOT / "shell_model.c"), str(ROOT / "shell_runtime.c"), str(ROOT / "shell_runtime_core.c"),
-               str(ROOT / "shell_library.c"), str(ROOT / "shell_analysis.c"), str(ROOT / "pdb/pdb.c"),
+               str(ROOT / "shell_library.c"), str(ROOT / "shell_analysis.c"), str(ROOT / "shell_playlists.c"), str(ROOT / "pdb/pdb.c"),
                str(ROOT / "settings.c"), str(ROOT / "settings_internal.c"), str(ROOT / "usb_profile.c"),
                str(ROOT / "dj_profile.c"), str(ROOT / "dj_runtime.c"), str(ROOT / "dj_profile_write.c"), str(ROOT / "dj_folders.c"),
                str(ROOT / "ui/wave_viewport.c"),
@@ -183,7 +183,7 @@ def main() -> None:
         "decode-test": ["-I" + str(ROOT / "audio"), str(ROOT / "audio/stem_decode.c"),
                         str(ROOT / "audio/tests/test_decode.c"), "-lm"],
         "shell-runtime-test": [*(str(ROOT / "shell" / name) for name in SHELL_SOURCES), str(ROOT / "shell_runtime_core.c"),
-                               str(ROOT / "shell_library.c"), str(ROOT / "pdb/pdb.c"), str(ROOT / "test_shell_runtime.c")],
+                               str(ROOT / "shell_library.c"), str(ROOT / "shell_playlists.c"), str(ROOT / "pdb/pdb.c"), str(ROOT / "test_shell_runtime.c")],
     }
     test_evidence = {}
     for name, sources in tests.items():

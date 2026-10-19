@@ -57,6 +57,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_take_ui_requests
 #pragma weak xz_shell_runtime_notice
 #pragma weak xz_shell_runtime_will_refresh
+#pragma weak xz_shell_runtime_take_stem_mute
 #pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
@@ -1291,6 +1292,16 @@ static void shell_ui_requests_locked(void){
         struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&act,1);
         /* The layout changes as on the stock button, but rows only appear once stems are on. */
         if(!requested_stems&&!pc_present&&xz_shell_runtime_notice)xz_shell_runtime_notice("STEM ROWS SHOW ONCE STEMS ARE ON IN MODS");
+    }
+    /* The shell's stem mute buttons: through the pads' own mute toggle, so the stem engine and the
+       hot cue mute preservation see exactly what a pad press does. */
+    if((requests&XZ_SHELL_UI_STEM_MUTE)&&xz_shell_runtime_take_stem_mute){
+        int deck,stem,value;
+        while(xz_shell_runtime_take_stem_mute(&deck,&stem,&value)){
+            if(deck<0||deck>1||stem<0||stem>2)continue;
+            int muted=(int)((model.deck[deck].muted>>stem)&1u);
+            if(muted!=value){struct xz_ui_action act={.kind=XZ_UI_MUTE,.phase=XZ_UI_PRESS,.deck=deck,.index=stem};apply(NULL,&act,1);}
+        }
     }
     if((requests&XZ_SHELL_UI_OPEN_MODS)&&touch.visible&&xz_shell_runtime_notice)xz_shell_runtime_notice("THE MODS PANEL IS ALREADY OPEN");
     if((requests&XZ_SHELL_UI_OPEN_MODS)&&!touch.visible){

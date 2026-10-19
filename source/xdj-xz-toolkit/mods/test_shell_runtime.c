@@ -12,6 +12,7 @@
 #include "shell/shell_settings.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static struct fx_track track;
@@ -22,8 +23,8 @@ static void key_table(void) {
  static const struct { uint16_t code; unsigned channel; int rule, key, hold; } expect[]={
   {0x209,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_BROWSE,-1},{0x20a,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_LIST,-1},
   {0x206,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_INFO,-1},{0x20b,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU_HOLD},
-  {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1},{0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1},
-  {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE,-1},{0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1},
+  {0x20e,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SHORTCUT,-1},{0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB1,-1},
+  {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB2,-1},{0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1},
   {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD},
   {0x430f,1,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1},{0x430f,2,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1},{0x430b,1,XZ_SHRT_STOCK,-1,-1},{0x430c,2,XZ_SHRT_STOCK,-1,-1},
  };
@@ -33,10 +34,12 @@ static void key_table(void) {
  }
  /* Deck keys, jog, LINK and REKORDBOX are not in the table; LOAD on a third channel is not either. */
  assert(!xz_shrt_key_lookup(0x4305,1)&&!xz_shrt_key_lookup(0x4101,1));
- /* TRACK FILTER, LINK and computer: a visible hand-off, never a hidden stock key. */
- for(unsigned i=0;i<3;i++){
-  static const uint16_t codes[3]={0x420d,0x205,0x202};const struct xz_shrt_key_map *k=xz_shrt_key_lookup(codes[i],0);
-  assert(k&&k->rule==XZ_SHRT_HAND_OFF&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==-1);
+ /* USB1/USB2 (0x204 is UiKey_Usb2 in the binary), TRACK FILTER, LINK and computer: shell keys on press. */
+ for(unsigned i=0;i<5;i++){
+  static const uint16_t codes[5]={0x203,0x204,0x420d,0x205,0x202};
+  static const int expect[5]={XZ_SHELL_KEY_SOURCE_USB1,XZ_SHELL_KEY_SOURCE_USB2,XZ_SHELL_KEY_TRACK_FILTER,XZ_SHELL_KEY_SOURCE_LINK,XZ_SHELL_KEY_SOURCE_COMPUTER};
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(codes[i],0);
+  assert(k&&k->rule==XZ_SHRT_ON_PRESS&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==expect[i]);
  }
  assert(!xz_shrt_key_lookup(0x430f,3));
  assert(xz_shrt_phase_of(0)==XZ_SHRT_PRESS&&xz_shrt_phase_of(1)==XZ_SHRT_HOLD&&xz_shrt_phase_of(2)==XZ_SHRT_RELEASE&&xz_shrt_phase_of(3)==XZ_SHRT_RELEASE);
@@ -65,7 +68,8 @@ static void verdicts(void) {
  /* Inert keys are swallowed, never passed to the hidden stock screen: stock would act on its own
     browse cursor or deck state behind the shell. */
  assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_PASS_HAND_OFF); /* TAG TRACK on PLAY: stock tags the loaded track */
- assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x420d,0))==XZ_SHRT_PASS_HAND_OFF);
+ /* TRACK FILTER opens the shell's FILTER panel: never stock's. */
+ assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x420d,0))!=XZ_SHRT_PASS);
  assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_SWALLOW); /* BACK on the bare PLAY screen */
  assert(xz_shrt_key_verdict(&u,&m,load)==XZ_SHRT_SWALLOW); /* LOAD on PLAY would load stock's cursor */
  assert(xz_shrt_key_verdict(&u,&m,xz_shrt_key_lookup(0x430b,0))==XZ_SHRT_PASS); /* deck keys stay stock's */
@@ -79,11 +83,10 @@ static void verdicts(void) {
  assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  assert(xz_shrt_key_verdict(&u,&m,back)==XZ_SHRT_SWALLOW); /* BACK below PLAY belongs to the shell */
  assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_SWALLOW);  /* TAG TRACK on a list: never stock's hidden row */
- /* On a list the short MENU asks for stock's menu popup (HAND_OFF_MENU, which the runtime keeps inert)
-    while the hold opens the shell's UTILITY: the shell keeps the key. */
+ /* On a list the short MENU opens the shell's MENU panel and the hold its UTILITY: the shell keeps the key. */
  assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
  {struct xz_shell copy=u;e.key=XZ_SHELL_KEY_MENU;size_t n=xz_shell_input(&copy,&m,&e,out);
-  assert(n==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_HAND_OFF_MENU);}
+  assert(n==0&&copy.panel.kind==XZ_SHELL_PANEL_MENU);} /* the shell's MENU panel (sort, columns) */
  e.key=XZ_SHELL_KEY_MENU_HOLD;xz_shell_input(&u,&m,&e,out);
  assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
  puts("PASS press-time verdicts: hand-off pass-through, inert keys swallowed, MENU to the shell's UTILITY, side-effect-free probes");
@@ -486,10 +489,74 @@ static void library(const char *path) {
  assert(!strcmp(info.file_name,"Alpha Night.mp3")&&(info.known&XZ_SHELL_KNOWN(XZ_SHELL_I_FILE_NAME)));
  assert(xz_shlib_info(L,404,XZ_SHELL_SRC_USB2,&info)&&!(info.links&XZ_SHELL_KNOWN(XZ_SHELL_I_ALBUM))&&!(info.known&XZ_SHELL_KNOWN(XZ_SHELL_I_KEY)));
  assert(!xz_shlib_info(L,1,XZ_SHELL_SRC_USB1,&info)&&!info.known);
+ /* Filter on the worker over the whole list: BPM range, rating, colour, key. */
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_TRACK;
+ r.filter.on=1;r.filter.bpm_min_x100=12000;r.filter.bpm_max_x100=13000;
+ assert(!xz_shlib_build(L,&r,&l)&&l->total==3);
+ for(int i=0;i<l->total;i++){uint32_t b=xz_shlib_track(L,l->id[i])->bpm_x100;assert(b>=12000&&b<=13000);}
+ xz_shlib_list_free(l);
+ r.filter.rating_min=4;assert(!xz_shlib_build(L,&r,&l)&&l->total==2);xz_shlib_list_free(l);
+ r.filter.rating_min=0;r.filter.colors=1u<<XZ_SHELL_TAG_COLOR_PINK;
+ assert(!xz_shlib_build(L,&r,&l)&&l->total==1&&l->id[0]==101);xz_shlib_list_free(l);
+ memset(&r.filter,0,sizeof r.filter);r.filter.on=1;snprintf(r.filter.master_key,sizeof r.filter.master_key,"8A");
+ assert(!xz_shlib_build(L,&r,&l));
+ {int has101=0,has404=0;for(int i=0;i<l->total;i++){has101|=l->id[i]==101;has404|=l->id[i]==404;}assert(has101&&!has404);}
+ xz_shlib_list_free(l);
+ /* Rows carry album, genre and date added; every column sorts. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_TRACK,0,NULL,NULL);
+ n=xz_shlib_window(L,l,0,NULL,0,rows);
+ for(int i=0;i<n;i++)if(rows[i].id==101)assert((rows[i].known&(1u<<XZ_SHELL_RF_ALBUM))&&!strcmp(rows[i].album,"First Album")&&
+  !strcmp(rows[i].genre,"House")&&(rows[i].known&(1u<<XZ_SHELL_RF_DATE_ADDED))&&rows[i].date_added==20261018);
+ xz_shlib_list_free(l);
+ for(int c=0;c<XZ_SHELL_COL_COUNT;c++)if((xz_shlib_sort_keys()>>c)&1u){
+  memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_TRACK;r.sort_set=1;r.sort_column=c;
+  assert(!xz_shlib_build(L,&r,&l)&&l->total==4);xz_shlib_list_free(l);
+ }
+ /* Playlist edits merged into the stick's tree: rename, delete, create with a track, a moved order. */
+ struct xz_shpl_set e;xz_shpl_init(&e);uint32_t made=0;
+ struct xz_shell_playlist_edit ed={XZ_SHELL_PL_RENAME,2000,0,0,0,"Warm Up"};
+ assert(!xz_shpl_apply(&e,&ed,NULL,0,"Opening",NULL));
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_CREATE,0,0,0,0,"New List"};
+ assert(!xz_shpl_apply(&e,&ed,NULL,0,NULL,&made)&&made==XZ_SHPL_FIRST_CREATED);
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_ADD_TRACK,made,404,0,0,""};assert(!xz_shpl_apply(&e,&ed,NULL,0,NULL,NULL));
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_DELETE,2002,0,0,0,""};assert(!xz_shpl_apply(&e,&ed,NULL,0,NULL,NULL));
+ uint32_t *base;uint32_t bn;assert(!xz_shlib_playlist_tracks(L,2000,&base,&bn)&&bn==4&&base[0]==202);
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_MOVE_TRACK,2000,101,3,0,""};
+ assert(!xz_shpl_apply(&e,&ed,base,bn,"Opening",NULL));free(base);
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_REMOVE_TRACK,2000,999,0,0,""};assert(xz_shpl_apply(&e,&ed,NULL,0,NULL,NULL));
+ ed=(struct xz_shell_playlist_edit){XZ_SHELL_PL_RENAME,2002,0,0,0,"Back"};assert(xz_shpl_apply(&e,&ed,NULL,0,NULL,NULL));
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_PLAYLIST;r.category=XZ_SHELL_CAT_PLAYLIST;r.edits=&e;
+ assert(!xz_shlib_build(L,&r,&l)&&l->total==2&&l->id[0]==1000&&l->id[1]==made&&!strcmp(l->names+l->name[1],"New List"));
+ xz_shlib_list_free(l);
+ r.depth=2;r.path[0]=1000;r.path[1]=2000;
+ assert(!xz_shlib_build(L,&r,&l)&&!strcmp(l->names+l->level_name,"Warm Up")&&l->total==4&&
+        l->id[0]==101&&l->id[1]==202&&l->id[2]==303&&l->id[3]==101);
+ xz_shlib_list_free(l);
+ r.depth=1;r.path[0]=made;assert(!xz_shlib_build(L,&r,&l)&&l->total==1&&l->id[0]==404);xz_shlib_list_free(l);
+ r.path[0]=2002;assert(xz_shlib_build(L,&r,&l)&&!l);
+ struct xz_shlib_playlist_ref refs[8];int nr=xz_shlib_playlist_refs(L,&e,refs,8);
+ assert(nr==3);
+ for(int i=0;i<nr;i++){
+  if(refs[i].id==2000)assert(!strcmp(refs[i].name,"Warm Up")&&refs[i].tracks==4);
+  else if(refs[i].id==made)assert(refs[i].tracks==1);
+  else assert(refs[i].id==2001);
+ }
+ /* The sidecar: text round trip, then an atomic save and load. */
+ size_t len=0;char *text=xz_shpl_serialize(&e,&len);
+ struct xz_shpl_set back;assert(text&&!xz_shpl_parse(&back,text,len)&&back.n==e.n&&back.next_id==e.next_id);
+ const struct xz_shpl *x=xz_shpl_find(&back,2000);
+ assert(x&&x->renamed&&x->has_tracks&&!strcmp(x->name,"Warm Up")&&x->count==4&&x->tracks[3]==101);
+ assert(xz_shpl_find(&back,2002)->deleted&&xz_shpl_find(&back,made)->created&&!strcmp(xz_shpl_find(&back,made)->name,"New List"));
+ free(text);xz_shpl_free(&back);
+ assert(!xz_shpl_save(&e,"."));
+ assert(!xz_shpl_load(&back,".")&&back.n==e.n&&xz_shpl_find(&back,made)->count==1);xz_shpl_free(&back);
+ assert(!xz_shpl_load(&back,"no-such-root")&&back.n==0);
+ xz_shpl_free(&e);
  /* A too-small arena fails cleanly rather than truncating. */
  struct xz_shlib *tiny=NULL;assert(xz_shlib_open(path,4096,&tiny)&&!tiny);
  xz_shlib_free(L);
  puts("PASS library: tracks, TRACK/ARTIST/BPM/PLAYLIST/HISTORY/SEARCH lists, windows, on-deck, sorting, INFO records, failures");
+ puts("PASS filter (BPM, rating, colour, key), album/genre/date rows, every sort key, merged playlist edits, sidecar save/load");
 }
 
 int main(int argc, char **argv) {

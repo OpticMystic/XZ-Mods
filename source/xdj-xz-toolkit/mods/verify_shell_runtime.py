@@ -22,7 +22,7 @@ parser.add_argument('--bench', action='store_true')
 args = parser.parse_args()
 common = [str(Path(args.zig).resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror']
 sources = [ROOT / 'shell' / name for name in SHELL_SOURCES] + [ROOT / name for name in
-           ('shell_runtime_core.c', 'shell_library.c', 'pdb/pdb.c', 'test_shell_runtime.c')]
+           ('shell_runtime_core.c', 'shell_library.c', 'shell_playlists.c', 'pdb/pdb.c', 'test_shell_runtime.c')]
 with tempfile.TemporaryDirectory(prefix='xz-shell-runtime-') as folder:
     folder = Path(folder)
     fixture = folder / 'fixture.pdb'
@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix='xz-shell-runtime-') as folder:
     if args.bench:
         bench = folder / 'bench-shell-frame.exe'
         subprocess.run(common + [str(ROOT / 'shell' / name) for name in SHELL_SOURCES] +
-                       [str(ROOT / name) for name in ('shell_runtime_core.c', 'shell_library.c', 'pdb/pdb.c', 'bench_shell_frame.c')] +
+                       [str(ROOT / name) for name in ('shell_runtime_core.c', 'shell_library.c', 'shell_playlists.c', 'pdb/pdb.c', 'bench_shell_frame.c')] +
                        ['-o', str(bench)], check=True)
         subprocess.run([str(bench), '600'], check=True)
 print('PASS assertion rejection')
