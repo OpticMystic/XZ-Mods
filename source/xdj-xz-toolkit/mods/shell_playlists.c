@@ -38,6 +38,39 @@ static struct xz_shpl *record(struct xz_shpl_set *s, uint32_t id) {
  }
  struct xz_shpl *r=&s->p[s->n++];memset(r,0,sizeof *r);r->id=id;return r;
 }
+int xz_shpl_reserved(uint32_t id) { return id>=XZ_SHPL_TAG_LIST&&id<=XZ_SHPL_HISTORY_DELETED; }
+int xz_shpl_list_has(const struct xz_shpl_set *s, uint32_t list, uint32_t item) {
+ const struct xz_shpl *r=xz_shpl_find(s,list);
+ for(uint32_t i=0;r&&i<r->count;i++)if(r->tracks[i]==item)return 1;
+ return 0;
+}
+int xz_shpl_list_add(struct xz_shpl_set *s, uint32_t list, uint32_t item, uint32_t limit) {
+ if(xz_shpl_list_has(s,list,item))return 0;
+ struct xz_shpl *r=record(s,list);
+ if(!r||r->count>=(limit?limit:XZ_SHPL_TRACKS_MAX)||reserve(&r->tracks,&r->cap,r->count+1))return -1;
+ r->has_tracks=1;r->tracks[r->count++]=item;return 1;
+}
+int xz_shpl_list_remove(struct xz_shpl_set *s, uint32_t list, uint32_t item) {
+ for(uint32_t i=0;i<s->n;i++)if(s->p[i].id==list){
+  struct xz_shpl *r=&s->p[i];
+  for(uint32_t k=0;k<r->count;k++)if(r->tracks[k]==item){memmove(r->tracks+k,r->tracks+k+1,(size_t)(r->count-k-1)*sizeof *r->tracks);r->count--;return 1;}
+ }
+ return 0;
+}
+void xz_shpl_list_clear(struct xz_shpl_set *s, uint32_t list) {
+ for(uint32_t i=0;i<s->n;i++)if(s->p[i].id==list)s->p[i].count=0;
+}
+const uint32_t *xz_shpl_list(const struct xz_shpl_set *s, uint32_t list, uint32_t *count) {
+ const struct xz_shpl *r=xz_shpl_find(s,list);
+ *count=r?r->count:0;return r&&r->count?r->tracks:NULL;
+}
+int xz_shpl_set_tracks(struct xz_shpl_set *s, uint32_t id, const uint32_t *tracks, uint32_t count) {
+ struct xz_shpl *r=NULL;
+ for(uint32_t i=0;i<s->n;i++)if(s->p[i].id==id)r=&s->p[i];
+ if(!r||!r->created||r->deleted||count>XZ_SHPL_TRACKS_MAX||(count&&reserve(&r->tracks,&r->cap,count)))return -1;
+ if(count)memcpy(r->tracks,tracks,(size_t)count*sizeof *tracks);
+ r->count=count;r->has_tracks=1;return 0;
+}
 const struct xz_shpl *xz_shpl_find(const struct xz_shpl_set *s, uint32_t id) {
  if(!s)return NULL;
  for(uint32_t i=0;i<s->n;i++)if(s->p[i].id==id)return &s->p[i];

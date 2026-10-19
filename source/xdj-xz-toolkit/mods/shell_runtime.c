@@ -245,6 +245,11 @@ static uint32_t column_mask;
 static struct xz_shlib_filter active_filter;
 static struct xz_shpl_set edits[2];
 #define PL_QUEUE 16
+/* TAG LIST and HISTORY edits, run on the worker into the stick's sidecar like playlist edits. ADD_LIST
+   carries the request that lists the folder's tracks. */
+enum list_edit_kind { LE_TAG, LE_HISTORY };
+static struct list_edit { int slot; enum list_edit_kind kind; int op; uint32_t value; struct xz_shlib_request req; } le_queue[8];
+static unsigned le_count;
 static struct { int slot; struct xz_shell_playlist_edit e; } pl_queue[PL_QUEUE];
 static unsigned pl_head, pl_count;
 #define PL_REFS 128
@@ -257,7 +262,7 @@ static void publish_refs(int slot);
 static void notice_locked(uint32_t now, const char *text);
 static void matching_filter(struct xz_shlib_filter *f);
 static int browse_source=-1;
-enum { L_BROWSE, L_PLAYLIST, L_SEARCH, L_COUNT };
+enum { L_BROWSE, L_PLAYLIST, L_SEARCH, L_TAG, L_COUNT };
 static struct list_slot {
  struct xz_shlib_request req;
  uint32_t wanted, built;
@@ -265,7 +270,7 @@ static struct list_slot {
  struct xz_shlib_list *result;
  int32_t window_start;
 } lists[L_COUNT];
-static const enum xz_shell_screen list_screen[L_COUNT]={XZ_SHELL_BROWSE,XZ_SHELL_PLAYLIST,XZ_SHELL_SEARCH};
+static const enum xz_shell_screen list_screen[L_COUNT]={XZ_SHELL_BROWSE,XZ_SHELL_PLAYLIST,XZ_SHELL_SEARCH,XZ_SHELL_TAG_LIST};
 static struct xz_shell_browse_row rows[XZ_SHELL_BROWSE_WINDOW];
 static struct xz_shell_browse_model browse;
 static struct xz_shell_source_model source_model;
@@ -362,7 +367,7 @@ static void drain_retired(void) {
  for(unsigned i=0;i<nk;i++)xz_shlib_list_free(list[i]);
  for(unsigned i=0;i<nl;i++)xz_shlib_free(lib[i]);
 }
-static int list_index(enum xz_shell_screen s) { return s==XZ_SHELL_BROWSE?L_BROWSE:s==XZ_SHELL_PLAYLIST?L_PLAYLIST:s==XZ_SHELL_SEARCH?L_SEARCH:-1; }
+static int list_index(enum xz_shell_screen s) { return s==XZ_SHELL_BROWSE?L_BROWSE:s==XZ_SHELL_PLAYLIST?L_PLAYLIST:s==XZ_SHELL_SEARCH?L_SEARCH:s==XZ_SHELL_TAG_LIST?L_TAG:-1; }
 /* The list the browse slot describes: the topmost list on the shell's stack, else BROWSE. */
 static int shown_list(int *view) {
  for(int i=shell.depth-1;i>=0;i--){int k=list_index(shell.stack[i].screen);if(k>=0){if(view)*view=i;return k;}}
@@ -462,7 +467,12 @@ static void fill_browse(struct xz_shlib *lib) {
  browse.window_start=start;
  browse.window_count=xz_shlib_window(lib,l,start,on_deck,on_known,rows);
  for(int i=0;i<browse.window_count;i++)if(rows[i].kind==XZ_SHELL_ROW_TRACK){
-  rows[i].played=played_has((uint8_t)(2+browse_source),rows[i].id);rows[i].known|=1u<<XZ_SHELL_RF_PLAYED;
+  /* PLAYED: loaded this session or marked PLAYED here, unless marked UNPLAYED here (sidecar). */
+  const struct xz_shpl_set *e=&edits[browse_source];
+  rows[i].played=(played_has((uint8_t)(2+browse_source),rows[i].id)||xz_shpl_list_has(e,XZ_SHPL_PLAYED,rows[i].id))&&
+   !xz_shpl_list_has(e,XZ_SHPL_UNPLAYED,rows[i].id);
+  rows[i].known|=1u<<XZ_SHELL_RF_PLAYED;
+  rows[i].tagged=xz_shpl_list_has(e,XZ_SHPL_TAG_LIST,rows[i].id);rows[i].known|=1u<<XZ_SHELL_RF_TAGGED;
  }
  preview_want.slot=browse_source;preview_want.n=0;
  for(int i=0;i<browse.window_count;i++)if(rows[i].kind==XZ_SHELL_ROW_TRACK){
@@ -570,7 +580,7 @@ static void fill_slots_locked(void) {
  if(lib)caps|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
  if(lib&&load_enabled&&has(G_LOAD))caps|=XZ_SHELL_CAP_LOAD;
  if(lib)caps|=XZ_SHELL_CAP_FILTER;
- if(lib&&!usb[browse_source].rdonly&&usb[browse_source].root[0])caps|=XZ_SHELL_CAP_PLAYLIST_EDIT;
+ if(lib&&!usb[browse_source].rdonly&&usb[browse_source].root[0])caps|=XZ_SHELL_CAP_PLAYLIST_EDIT|XZ_SHELL_CAP_TAG_EDIT|XZ_SHELL_CAP_HISTORY_EDIT;
  if(last_input.stem_muted_known[0]||last_input.stem_muted_known[1])caps|=XZ_SHELL_CAP_STEM_MUTE;
  model.capabilities=caps;
  model.settings.writable=0;
@@ -1080,6 +1090,80 @@ static void publish_refs(int slot) {
  if(usb[slot].lib==lib){memcpy(refs[slot],out,(size_t)n*sizeof *out);ref_count[slot]=n;if(refreshed)fill_slots_locked();dirty_flag=1;}
  pthread_mutex_unlock(&mutex);
 }
+/* TAG LIST and HISTORY edits: applied to a copy of the stick's sidecar set, saved, then swapped in (or
+   dropped with a notice when the stick refused the write). Worker only. */
+static void run_list_edit(const struct list_edit *j) {
+ struct xz_shlib *lib=usb[j->slot].lib;
+ if(!lib)return;
+ uint32_t *ids=NULL;uint32_t n=0;
+ if(j->kind==LE_TAG&&j->op==XZ_SHELL_TAG_ADD_LIST){
+  /* Only this thread builds lists and frees libraries, so lib stays valid without the lock. */
+  struct xz_shpl_set snapshot;struct xz_shlib_request req=j->req;struct xz_shlib_list *l=NULL;
+  pthread_mutex_lock(&mutex);if(xz_shpl_copy(&snapshot,&edits[j->slot]))xz_shpl_init(&snapshot);pthread_mutex_unlock(&mutex);
+  req.edits=&snapshot;
+  if(!xz_shlib_build(lib,&req,&l)&&l){
+   if((ids=malloc(((size_t)l->total+1)*sizeof *ids)))for(int32_t i=0;i<l->total;i++)if(l->kind[i]==XZ_SHELL_ROW_TRACK)ids[n++]=l->id[i];
+   xz_shlib_list_free(l);
+  }
+  xz_shpl_free(&snapshot);
+ }else if(j->kind==LE_HISTORY&&j->op==XZ_SHELL_HISTORY_DELETE_ALL){
+  if((ids=malloc(4096*sizeof *ids)))n=(uint32_t)xz_shlib_history_ids(lib,ids,4096);
+ }
+ pthread_mutex_lock(&mutex);
+ struct xz_shpl_set before,after;int rc=-1,added=0,already=0,full=0,saved=-1,err=0;
+ xz_shpl_init(&before);xz_shpl_init(&after);
+ char root[1024];snprintf(root,sizeof root,"%s",usb[j->slot].root);
+ if(!xz_shpl_copy(&before,&edits[j->slot])){
+  struct xz_shpl_set *s=&edits[j->slot];rc=0;
+  if(j->kind==LE_TAG)switch(j->op){
+  case XZ_SHELL_TAG_ADD:{int r=xz_shpl_list_add(s,XZ_SHPL_TAG_LIST,j->value,XZ_SHELL_TAG_LIST_MAX);added=r>0;already=!r;full=r<0;rc=r<0?-1:0;break;}
+  case XZ_SHELL_TAG_REMOVE:xz_shpl_list_remove(s,XZ_SHPL_TAG_LIST,j->value);break;
+  case XZ_SHELL_TAG_ADD_LIST:
+   for(uint32_t i=0;i<n;i++){int r=xz_shpl_list_add(s,XZ_SHPL_TAG_LIST,ids[i],XZ_SHELL_TAG_LIST_MAX);if(r>0)added++;else if(!r)already++;else{full=1;break;}}
+   if(!n)rc=-1;
+   break;
+  case XZ_SHELL_TAG_CLEAR:xz_shpl_list_clear(s,XZ_SHPL_TAG_LIST);break;
+  default:rc=-1;break;
+  }else switch(j->op){
+  case XZ_SHELL_HISTORY_DELETE:rc=xz_shpl_list_add(s,XZ_SHPL_HISTORY_DELETED,j->value,0)<0?-1:0;break;
+  case XZ_SHELL_HISTORY_DELETE_ALL:
+   for(uint32_t i=0;i<n&&!rc;i++)rc=xz_shpl_list_add(s,XZ_SHPL_HISTORY_DELETED,ids[i],0)<0?-1:0;
+   break;
+  case XZ_SHELL_HISTORY_PLAYED:
+   xz_shpl_list_remove(s,XZ_SHPL_UNPLAYED,j->value);rc=xz_shpl_list_add(s,XZ_SHPL_PLAYED,j->value,0)<0?-1:0;break;
+  case XZ_SHELL_HISTORY_UNPLAYED:
+   xz_shpl_list_remove(s,XZ_SHPL_PLAYED,j->value);rc=xz_shpl_list_add(s,XZ_SHPL_UNPLAYED,j->value,0)<0?-1:0;
+   for(unsigned i=0;i<played_n;i++)if(played[i].kind==2+j->slot&&played[i].id==j->value){played[i]=played[--played_n];break;}
+   break;
+  default:rc=-1;break;
+  }
+  if(!rc&&xz_shpl_copy(&after,&edits[j->slot])){rc=-1;}
+  if(rc){xz_shpl_free(&edits[j->slot]);edits[j->slot]=before;xz_shpl_init(&before);}
+ }
+ pthread_mutex_unlock(&mutex);
+ free(ids);
+ if(!rc){saved=xz_shpl_save(&after,root);err=errno;xz_shpl_free(&after);}
+ pthread_mutex_lock(&mutex);
+ char text[48];text[0]=0;
+ if(!rc&&saved){
+  xz_shpl_free(&edits[j->slot]);edits[j->slot]=before;xz_shpl_init(&before);
+  snprintf(text,sizeof text,"%s",err==EROFS?"THIS STICK IS READ-ONLY: NOTHING CHANGES":err==ENOSPC?"THE STICK IS FULL: NOT SAVED":"NOT SAVED ON THE STICK");
+ }else if(rc)snprintf(text,sizeof text,"%s",full?"TAG LIST IS FULL: 100 TRACKS":"THAT CHANGE IS NOT APPLIED");
+ else if(j->kind==LE_TAG&&j->op==XZ_SHELL_TAG_ADD_LIST)snprintf(text,sizeof text,full?"ADDED %d: TAG LIST IS FULL":"ADDED %d, %d ALREADY ON THE LIST",added,already);
+ else if(j->kind==LE_TAG&&j->op==XZ_SHELL_TAG_ADD&&already)snprintf(text,sizeof text,"ALREADY ON THE TAG LIST");
+ else if(j->kind==LE_TAG&&j->op==XZ_SHELL_TAG_CLEAR)snprintf(text,sizeof text,"TAG LIST CLEARED");
+ else if(j->kind==LE_HISTORY&&j->op==XZ_SHELL_HISTORY_DELETE_ALL)snprintf(text,sizeof text,"ALL HISTORIES DELETED");
+ else if(j->kind==LE_HISTORY&&j->op==XZ_SHELL_HISTORY_DELETE)snprintf(text,sizeof text,"HISTORY DELETED");
+ if(text[0])notice_locked(now_ms(),text);
+ xz_shpl_free(&before);
+ for(int k=0;k<L_COUNT;k++)if(lists[k].requested&&lists[k].source==j->slot)list_rebuild(&lists[k]);
+ if(refreshed)fill_slots_locked();
+ dirty_flag=1;
+ pthread_mutex_unlock(&mutex);
+ if(debug){char line[200];snprintf(line,sizeof line,"SHELL_LISTEDIT: usb%d kind=%s op=%d value=%u result=%d saved=%d added=%d already=%d full=%d",
+  j->slot+1,j->kind==LE_TAG?"tag":"history",j->op,j->value,rc,rc?-1:saved,added,already,full);xz_log(line);}
+ publish_refs(j->slot);
+}
 static void run_playlist_edit(int slot, const struct xz_shell_playlist_edit *e) {
  struct xz_shlib *lib=usb[slot].lib;
  if(!lib)return;
@@ -1097,7 +1181,13 @@ static void run_playlist_edit(int slot, const struct xz_shell_playlist_edit *e) 
  struct xz_shpl_set before,after;int rc=-1,saved=-1,err=0;uint32_t created=0;
  pthread_mutex_lock(&mutex);
  if(!xz_shpl_copy(&before,&edits[slot])){
-  rc=xz_shpl_apply(&edits[slot],e,base,base_n,base_name,&created);
+  if(e->op==XZ_SHELL_PL_FROM_TAG_LIST){
+   /* A new playlist holding the TAG LIST in its order. */
+   struct xz_shell_playlist_edit create=*e;create.op=XZ_SHELL_PL_CREATE;
+   rc=xz_shpl_apply(&edits[slot],&create,NULL,0,NULL,&created);
+   uint32_t tn=0;const uint32_t *tl=xz_shpl_list(&edits[slot],XZ_SHPL_TAG_LIST,&tn);
+   if(!rc&&(!tn||xz_shpl_set_tracks(&edits[slot],created,tl,tn)))rc=-1;
+  }else rc=xz_shpl_apply(&edits[slot],e,base,base_n,base_name,&created);
   if(!rc&&xz_shpl_copy(&after,&edits[slot])){rc=-1;xz_shpl_free(&edits[slot]);edits[slot]=before;xz_shpl_init(&before);}
  }
  pthread_mutex_unlock(&mutex);
@@ -1176,6 +1266,13 @@ static void *worker(void *unused) {
     dirty_flag=1;
    }
    if(debug){char line[200];snprintf(line,sizeof line,"SHELL_MYSETTINGS: usb%d save kinds=0x%x result=%d (%s)",slot+1,kinds,rc,ms_error_string(rc));xz_log(line);}
+   worked=1;
+  }
+  if(!worked&&le_count){
+   struct list_edit job=le_queue[0];memmove(le_queue,le_queue+1,(size_t)(--le_count)*sizeof *le_queue);
+   pthread_mutex_unlock(&mutex);
+   run_list_edit(&job);
+   pthread_mutex_lock(&mutex);
    worked=1;
   }
   if(!worked&&pl_count){
@@ -1597,6 +1694,23 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    else if(a->id==XZ_SHELL_MY_SAVE)my_settings_save(a->value,now,NULL,0,"SAVED TO USB %d");
    else refuse();
    break;
+  case XZ_SHELL_ACT_TAG_LIST:case XZ_SHELL_ACT_HISTORY:{
+   int cap=a->kind==XZ_SHELL_ACT_TAG_LIST?XZ_SHELL_CAP_TAG_EDIT:XZ_SHELL_CAP_HISTORY_EDIT;
+   if(!(model.capabilities&cap)||browse_source<0||le_count>=8){
+    refuse();notice_locked(now,browse_source>=0&&usb[browse_source].rdonly?"THIS STICK IS READ-ONLY: NOTHING CHANGES":"THAT CHANGE IS NOT APPLIED");break;
+   }
+   struct list_edit *q=&le_queue[le_count++];memset(q,0,sizeof *q);
+   q->slot=browse_source;q->kind=a->kind==XZ_SHELL_ACT_TAG_LIST?LE_TAG:LE_HISTORY;q->op=a->id;q->value=(uint32_t)a->value;
+   if(q->kind==LE_TAG&&a->id==XZ_SHELL_TAG_ADD_LIST){
+    /* The folder or playlist row of the shown list: its tracks are the list one level down. */
+    int k=shown_list(NULL);q->req=lists[k].req;
+    if(q->req.depth>=XZ_SHLIB_PATH_DEPTH){le_count--;refuse();break;}
+    q->req.path[q->req.depth++]=(uint32_t)a->value;q->req.sort_set=0;memset(&q->req.filter,0,sizeof q->req.filter);
+    if(q->req.screen==XZ_SHELL_SEARCH||q->req.screen==XZ_SHELL_TAG_LIST)q->req.screen=XZ_SHELL_BROWSE;
+   }
+   pthread_cond_signal(&wake);
+   break;
+  }
   case XZ_SHELL_ACT_SET_MOD:
    if(a->deck==LOOK_TAB)look_set_locked(a->id,a->value,now);
    else refuse();
@@ -2201,6 +2315,7 @@ static int start_locked(void) {
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
  ui_action_count=0;look_classic_at=0;
+ le_count=0;
  memset(mys,0,sizeof mys);memset(&mys_job,0,sizeof mys_job);memset(mys_state,0,sizeof mys_state);memset(mys_result,0,sizeof mys_result);dj_pick=-1;mys_readonly=flag("XZ_MODS_SETTINGS_READONLY");
  memset(&util,0,sizeof util);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;
  util.trial=flag("XZ_MODS_SETTINGS_READONLY")&&!flag("XZ_MODS_SHELL_UTILITY_WRITES");util.poll_now=1;

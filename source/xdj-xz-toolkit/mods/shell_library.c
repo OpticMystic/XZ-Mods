@@ -303,6 +303,7 @@ static int build_tree(struct xz_shlib *L, const struct xz_shlib_request *r, stru
   return 0;
  }
  if(r->depth&&!open)return -1;
+ if(history&&open&&xz_shpl_list_has(r->edits,XZ_SHPL_HISTORY_DELETED,open->id))return -1;
  if(open){
   const char *n=edited&&edited->renamed?edited->name:xz_shlib_text(L,open->name);
   if((l->level_name=name_add(l,n,strlen(n)))==UINT32_MAX)return -1;
@@ -320,7 +321,8 @@ static int build_tree(struct xz_shlib *L, const struct xz_shlib_request *r, stru
  /* History playlists are listed flat at the top; the playlist tree by parent. */
  uint32_t *order=malloc((size_t)(count?count:1)*4),n=0;
  if(!order)return -1;
- for(uint32_t i=0;i<count;i++)if(history||nodes[i].parent==parent)order[n++]=i;
+ /* History sessions deleted in the shell (sidecar) are left out. */
+ for(uint32_t i=0;i<count;i++)if((history||nodes[i].parent==parent)&&!(history&&xz_shpl_list_has(r->edits,XZ_SHPL_HISTORY_DELETED,nodes[i].id)))order[n++]=i;
  sort_nodes_base=nodes;qsort(order,n,4,by_sort);
  l->folders=1;
  for(uint32_t i=0;i<n;i++){
@@ -437,7 +439,13 @@ int xz_shlib_build(struct xz_shlib *L, const struct xz_shlib_request *r, struct 
  uint32_t cap=0;int rc=-1,ordered=0;
  /* Every build starts from the reader's state right after open. */
  pdb_reset(L->db,L->mark);
- if(r->screen==XZ_SHELL_SEARCH){
+ if(r->screen==XZ_SHELL_TAG_LIST){
+  /* The TAG LIST: the shell's own list from the sidecar, in its order; tracks the export lacks are left out. */
+  l->category=r->category;rc=0;uint32_t n=0;const uint32_t *ids=xz_shpl_list(r->edits,XZ_SHPL_TAG_LIST,&n);
+  for(uint32_t i=0;!rc&&i<n;i++)if(xz_shlib_track(L,ids[i]))rc=row_add(l,&cap,XZ_SHELL_ROW_TRACK,ids[i],NULL,0);
+  if(!rc&&(l->level_name=name_add(l,"TAG LIST",8))==UINT32_MAX)rc=-1;
+  ordered=1;
+ }else if(r->screen==XZ_SHELL_SEARCH){
   l->category=r->category;
   size_t n=strlen(r->query);const uint32_t *ids;size_t count=0;
   rc=0;
@@ -493,6 +501,10 @@ uint32_t xz_shlib_sort_keys(void) {
   XZ_SHELL_COL_KEY,XZ_SHELL_COL_RATING,XZ_SHELL_COL_COLOR,XZ_SHELL_COL_TIME,XZ_SHELL_COL_ALBUM,XZ_SHELL_COL_GENRE,XZ_SHELL_COL_DATE_ADDED};
  for(size_t i=0;i<sizeof all/sizeof *all;i++)k|=1u<<all[i];
  return k;
+}
+int xz_shlib_history_ids(const struct xz_shlib *L, uint32_t *out, int cap) {
+ int n=0;for(uint32_t i=0;L&&i<L->history_count&&n<cap;i++)out[n++]=L->history[i].id;
+ return n;
 }
 int xz_shlib_playlist_tracks(struct xz_shlib *L, uint32_t id, uint32_t **tracks, uint32_t *count) {
  *tracks=NULL;*count=0;
