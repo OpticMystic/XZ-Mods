@@ -251,7 +251,9 @@ static void test_shortcut_items(void) {
   switch(order[i]){
   case XZ_SHELL_ITEM_QUANTIZE_BEAT:assert(n==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==order[i]&&out[0].value==0);break;
   case XZ_SHELL_ITEM_TIME_MODE:assert(n==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].value==XZ_SHELL_TIME_ELAPSED);break;
-  case XZ_SHELL_ITEM_WAVE_COLOR:assert(n==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==order[i]&&out[0].value==XZ_SHELL_WAVE_STEMS&&u.display.wave_color==XZ_SHELL_WAVE_STEMS);break;
+  case XZ_SHELL_ITEM_WAVE_COLOR:   /* a local pick also stops the waveform following the sticks' colours */
+   assert(n==2&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==order[i]&&out[0].value==XZ_SHELL_WAVE_STEMS&&u.display.wave_color==XZ_SHELL_WAVE_STEMS);
+   assert(out[1].id==XZ_SHELL_ITEM_USB_COLORS&&out[1].value==XZ_SHELL_USB_COLORS_TILE);break;
   case XZ_SHELL_ITEM_WAVE_POSITION:assert(n==1&&out[0].id==order[i]&&u.display.wave_position==XZ_SHELL_POSITION_LEFT);break;
   case XZ_SHELL_ITEM_KEY_DISPLAY:assert(n==1&&out[0].id==order[i]&&u.display.key_display==XZ_SHELL_KEY_CLASSIC);break;
   case XZ_SHELL_ITEM_WAVE_ZOOM:assert(n==1&&out[0].kind==XZ_SHELL_ACT_ZOOM&&u.zoom==XZ_SHELL_ZOOM_DEFAULT+1);break;
@@ -268,7 +270,7 @@ static void test_shortcut_items(void) {
  struct xz_shell_event push={XZ_SHELL_ENCODER_PUSH,0,0,0,0,-1},three={XZ_SHELL_ENCODER_TURN,0,0,3,0,-1};
  assert(xz_shell_input(&u,&no_set,&push,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
  xz_shell_input(&u,&no_set,&three,out);
- assert(xz_shell_input(&u,&no_set,&push,out)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR);
+ assert(xz_shell_input(&u,&no_set,&push,out)==2&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR);
  /* The display settings drive the play screen: BLUE paints no amber in the lanes. */
  xz_shell_init(&u);u.display.wave_color=XZ_SHELL_WAVE_BLUE;
  render_checked(&u,&m,buffer_a);
@@ -363,12 +365,14 @@ static void test_menu_hold(void) {
   else assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==before.depth+1&&u.mods_view.tab==0&&u.mods_view.on_tabs);
   render_checked(&u,&m,buffer_a);
  }
- struct xz_shell u;xz_shell_init(&u);struct xz_shell before=u;
- assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&!memcmp(&u,&before,sizeof u));
+ /* Short MENU on PLAY opens MODS (UTILITY here: this model has no mod tabs); short MENU there closes it. */
+ struct xz_shell u;xz_shell_init(&u);
+ assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==2&&u.mods_view.tab==0&&u.mods_view.on_tabs);
+ assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.depth==1);
  /* Only without the settings slot does held MENU go to the stock UTILITY. */
  m.settings_screen=NULL;
  assert(press(&u,&m,XZ_SHELL_KEY_MENU_HOLD,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_UTILITY);
- puts("PASS held MENU opens the shell UTILITY on every screen; short MENU on PLAY is inert");
+ puts("PASS held MENU opens MODS > UTILITY on every screen; short MENU on PLAY opens MODS");
 }
 
 /* STEMS: the stem layer in the stem pad colours, muted stems grey, 3BAND while a deck has no layer. */

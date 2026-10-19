@@ -120,4 +120,26 @@ static const struct xz_shell_mods_tab fxm_tabs[]={
  {"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,13,"ARCADE GAMES FOR THE BREAK"},
 };
 static const struct xz_shell_mods_model fxm_model={sizeof fxm_tabs/sizeof *fxm_tabs,fxm_tabs};
+
+/* A USB stick's MY SETTINGS as the runtime reads them, three DJ profiles (one damaged), and the
+   runtime's waveform item from the STEMS tab. Item ids are the runtime's. */
+static const char *const fxm_colors[]={"NONE","PINK","RED","ORANGE","YELLOW","GREEN","AQUA","BLUE","PURPLE"};
+static const char *const fxm_wave3[]={"BLUE","RGB","3BAND"};
+static const struct xz_shell_setting_item fxm_stored_items[]={
+ {0x200,0,"BACKGROUND COLOR",fxm_colors,9,4,1,1},
+ {0x201,0,"WAVEFORM COLOR",fxm_wave3,3,1,1,1},
+ {0x202,0,"WAVEFORM CURRENT POSITION",fxs_position,2,0,1,1},
+ {0x203,0,"QUANTIZE BEAT VALUE",fxs_quantize,4,3,1,1},
+ {0x204,0,"AUTO CUE",fxs_off_on,2,1,1,1},
+ {0x205,0,"JOG RING BRIGHTNESS",fxs_ring,3,2,1,0},
+};
+static const struct xz_shell_settings_model fxm_stored={sizeof fxm_stored_items/sizeof *fxm_stored_items,fxm_stored_items,NULL};
+static const struct xz_shell_setting_item fxm_wave_items[]={{22,1,"STEM ROW LAYOUT",fxm_layouts,5,1,1,1}};
+static const struct xz_shell_settings_model fxm_wave_model={1,fxm_wave_items,NULL};
+static const struct xz_shell_dj_profile fxm_profiles[]={{"ANNA",1,0xf870b8,0},{"DJ KOSMO",1,0x36c8d8,0},{"GUEST",0,0,1}};
+static struct xz_shell_my_settings_model fxm_my;
+static inline const struct xz_shell_my_settings_model *fxm_my_reset(void) {
+ fxm_my=(struct xz_shell_my_settings_model){XZ_SHELL_SRC_USB1,"USB 1",1,1,&fxm_stored,3,fxm_profiles,0,1,&fxm_wave_model,0};
+ return &fxm_my;
+}
 #endif

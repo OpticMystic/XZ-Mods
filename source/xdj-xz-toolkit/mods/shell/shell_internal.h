@@ -76,6 +76,32 @@ static inline enum xz_shell_wave_position sh_wave_position(const struct xz_shell
 static inline enum xz_shell_key_display sh_key_display(const struct xz_shell *u) {
  return (unsigned)u->display.key_display<=XZ_SHELL_KEY_ALPHANUMERIC?u->display.key_display:XZ_SHELL_KEY_AS_DECK;
 }
+static inline enum xz_shell_usb_colors sh_usb_colors(const struct xz_shell *u) {
+ return (unsigned)u->display.usb_colors<=XZ_SHELL_USB_COLORS_OFF?u->display.usb_colors:XZ_SHELL_USB_COLORS_ALL;
+}
+/* A deck's waveform colour: its stick's when the deck follows it (USB COLORS ALL), else the shell's. */
+static inline enum xz_shell_wave_color sh_deck_wave_color(const struct xz_shell *u, const struct xz_shell_deck *d) {
+ if(sh_usb_colors(u)==XZ_SHELL_USB_COLORS_ALL&&sh_has(d,XZ_SHELL_F_SOURCE_LOOK)
+    &&d->look.wave_color>=XZ_SHELL_WAVE_BLUE&&d->look.wave_color<=XZ_SHELL_WAVE_STEMS)return (enum xz_shell_wave_color)d->look.wave_color;
+ return sh_wave_color(u);
+}
+/* A deck's tile colour: its stick's background colour unless USB COLORS is OFF, else fallback. */
+static inline uint32_t sh_deck_accent(const struct xz_shell *u, const struct xz_shell_deck *d, uint32_t fallback) {
+ if(sh_usb_colors(u)!=XZ_SHELL_USB_COLORS_OFF&&sh_has(d,XZ_SHELL_F_SOURCE_LOOK)&&d->look.has_background)return d->look.background_rgb&0xffffff;
+ return fallback;
+}
+/* Text on a coloured fill: black on light fills, white otherwise. */
+static inline uint32_t sh_ink_on(uint32_t rgb) {
+ unsigned r=(rgb>>16)&255,g=(rgb>>8)&255,b=rgb&255;
+ return r*299+g*587+b*114>=150000?SH_BLACK:SH_WHITE;
+}
+/* Shell-owned settings for screens other than SHORTCUT / UTILITY (shell_settings.c): the item as those
+   screens show it, and setting it there (same actions, same local-override rule). */
+struct xz_shell_setting_item;
+int sh_settings_item(const struct xz_shell *, const struct xz_shell_model *, int id, struct xz_shell_setting_item *out);
+size_t sh_settings_set(struct xz_shell *, int id, int index, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+/* BROWSE with its category rail holding the encoder (shell_browse.c). */
+int sh_browse_at_root(const struct xz_shell *);
 /* Waveforms (shell_wave.c). A lane is mirrored about the middle of r, amp px each way at full scale;
    first_px is the absolute track pixel (ms x pps / 1000) drawn at r.x. An overview rises from the
    bottom of r and greys out left of played_x (-1: nothing played). */

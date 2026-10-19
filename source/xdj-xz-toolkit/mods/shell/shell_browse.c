@@ -7,6 +7,7 @@
 #include "shell_internal.h"
 #include "shell_browse.h"
 #include "shell_source.h"
+#include "shell_settings.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -369,6 +370,7 @@ static int rail_current(const struct xz_shell_browse_model *b, const int *entrie
 static int rail_focused(const struct xz_shell *u) {
  return xz_shell_screen(u)==XZ_SHELL_BROWSE&&top_view(u)->focus!=FOCUS_LIST;
 }
+int sh_browse_at_root(const struct xz_shell *u) { return u->depth>=1&&u->depth<=XZ_SHELL_STACK&&rail_focused(u); }
 static void rail_follow(int n) {
  st.rail_cursor=sh_max(0,sh_min(n-1,st.rail_cursor));
  if(st.rail_cursor<st.rail_first)st.rail_first=st.rail_cursor;
@@ -840,7 +842,8 @@ enum { PANEL_X=W-INFO_W, PANEL_HEAD=36, PANEL_ROW=34, PANEL_ROWS=(STRIP_Y-HEAD_H
 enum { PAGE_MAIN, PAGE_ADD, PAGE_NEW, PAGE_RENAME };
 enum pk {
  PK_HEAD, PK_SORT, PK_COLUMN, PK_FILTER_OPEN, PK_NEW, PK_RENAME, PK_DELETE, PK_ADD_OPEN, PK_REMOVE, PK_MOVE, PK_ADD_TO, PK_SAVE,
- PK_F_BPM, PK_F_FROM, PK_F_TO, PK_F_KEY, PK_F_RATING, PK_F_COLOR, PK_F_TAG, PK_F_CLEAR, PK_NOTE, PK_SEARCH
+ PK_F_BPM, PK_F_FROM, PK_F_TO, PK_F_KEY, PK_F_RATING, PK_F_COLOR, PK_F_TAG, PK_F_CLEAR, PK_NOTE, PK_SEARCH,
+ PK_MY_LOAD, PK_MY_SAVE, PK_PROFILE, PK_PROFILE_SAVE, PK_MY_OWN, PK_MY_WAVE, PK_MY_STORED
 };
 struct pitem { enum pk kind; int value; const char *label; char text[28]; int on; uint32_t swatch; };
 static const char *const sort_label[XZ_SHELL_COL_COUNT]={
@@ -980,7 +983,90 @@ static int filter_items(const struct xz_shell *u, const struct xz_shell_model *m
  if(filter_active(f))n=add(out,n,PK_F_CLEAR,0,"CLEAR ALL FILTERS");
  return n;
 }
+/* ---- MY SETTINGS (shell_settings.h): the stick's settings, its DJ profiles, and the waveform look ---- */
+static const char *stick_name(const struct xz_shell_my_settings_model *s) {
+ return s->source_name?s->source_name:s->source==XZ_SHELL_SRC_USB2?"USB 2":"USB 1";
+}
+static int item_count(const struct xz_shell_settings_model *t) { return t&&t->items?(int)sh_min((int)t->count,24):0; }
+static void choice_text(struct pitem *p, const struct xz_shell_setting_item *it) {
+ int n=it->choices&&it->choice_count>0?it->choice_count:0;
+ const char *v=it->known&&it->current>=0&&it->current<n&&it->choices[it->current]?it->choices[it->current]:"---";
+ snprintf(p->text,sizeof p->text,"%s",v);
+}
+static int next_choice(const struct xz_shell_setting_item *it) {
+ int n=it->choices&&it->choice_count>0?sh_min(it->choice_count,255):0;
+ if(n<2)return -1;
+ return it->known&&it->current>=0&&it->current<n?(it->current+1)%n:0;
+}
+static int my_open(const struct xz_shell_model *m) {
+ const struct xz_shell_my_settings_model *s=m->my_settings;
+ return s&&(s->source==XZ_SHELL_SRC_USB1||s->source==XZ_SHELL_SRC_USB2);
+}
+static int profile_valid(const struct xz_shell_my_settings_model *s, int i) {
+ return s->profiles&&i>=0&&i<sh_min(s->profile_count,16);
+}
+/* Labels built per frame; one shell draws at a time (shell.h rule 4). */
+static char my_head[40],my_load[24],my_save[40],my_profile_save[48],my_stored_head[40];
+static int my_items(const struct xz_shell *u, const struct xz_shell_model *m, struct pitem *out) {
+ if(!my_open(m))return 0;
+ const struct xz_shell_my_settings_model *s=m->my_settings;
+ int n=0;
+ const int armed_at=u->panel.armed?u->panel.cursor:-1;
+ snprintf(my_head,sizeof my_head,"%s",stick_name(s));
+ n=add(out,n,PK_HEAD,0,my_head);
+ if(s->on_stick){snprintf(my_load,sizeof my_load,"LOAD TO DECK %d",u->deck+1);n=add(out,n,PK_MY_LOAD,0,my_load);}
+ if(s->writable){
+  snprintf(my_save,sizeof my_save,"SAVE TO %s",stick_name(s));
+  n=add(out,n,PK_MY_SAVE,0,armed_at==n?"PUSH AGAIN TO SAVE":my_save);
+  out[n-1].on=armed_at==n-1;
+ }
+ if(!s->on_stick&&!s->writable)n=add(out,n,PK_NOTE,0,"NOTHING SAVED ON IT, AND IT IS LOCKED");
+ if(s->profile_count>0&&s->profiles){
+  n=add(out,n,PK_HEAD,0,"DJ PROFILE");
+  for(int i=0;i<sh_min(s->profile_count,16);i++){
+   const struct xz_shell_dj_profile *p=&s->profiles[i];
+   n=add(out,n,PK_PROFILE,i,p->name?p->name:"---");
+   out[n-1].on=i==s->profile_active;
+   out[n-1].swatch=p->has_accent?p->accent_rgb&0xffffff:SH_RAIL;
+   snprintf(out[n-1].text,sizeof out[n-1].text,"%s",p->damaged?"DAMAGED":i==s->profile_active?"ACTIVE":"");
+  }
+  if(s->writable&&profile_valid(s,s->profile_active)&&!s->profiles[s->profile_active].damaged){
+   const char *name=s->profiles[s->profile_active].name;
+   snprintf(my_profile_save,sizeof my_profile_save,"SAVE SETTINGS TO %s",name?name:"PROFILE");
+   n=add(out,n,PK_PROFILE_SAVE,s->profile_active,armed_at==n?"PUSH AGAIN TO SAVE":my_profile_save);
+   out[n-1].on=armed_at==n-1;
+  }
+ }
+ n=add(out,n,PK_HEAD,0,"WAVEFORM");
+ /* Short names: the group head already says WAVEFORM, and the panel is narrow. */
+ static const int own[]={XZ_SHELL_ITEM_WAVE_COLOR,XZ_SHELL_ITEM_WAVE_POSITION,XZ_SHELL_ITEM_WAVE_ZOOM,XZ_SHELL_ITEM_USB_COLORS};
+ static const char *const own_label[]={"COLOR","POSITION","ZOOM","USB COLORS"};
+ for(size_t k=0;k<sizeof own/sizeof *own;k++){
+  struct xz_shell_setting_item it;
+  if(!sh_settings_item(u,m,own[k],&it))continue;
+  n=add(out,n,PK_MY_OWN,own[k],own_label[k]);
+  choice_text(&out[n-1],&it);
+ }
+ for(int i=0;i<item_count(s->waveform);i++){
+  const struct xz_shell_setting_item *it=&s->waveform->items[i];
+  n=add(out,n,PK_MY_WAVE,i,it->label?it->label:"---");
+  choice_text(&out[n-1],it);
+  if(!it->writable)out[n-1].on=-1;   /* shown, greyed: nothing here changes it */
+ }
+ if(item_count(s->stored)){
+  snprintf(my_stored_head,sizeof my_stored_head,"SAVED ON %s",stick_name(s));
+  n=add(out,n,PK_HEAD,0,my_stored_head);
+  for(int i=0;i<item_count(s->stored);i++){
+   const struct xz_shell_setting_item *it=&s->stored->items[i];
+   n=add(out,n,PK_MY_STORED,i,it->label?it->label:"---");
+   choice_text(&out[n-1],it);
+   if(!it->writable||!s->writable)out[n-1].on=-1;
+  }
+ }
+ return n;
+}
 static int panel_items(const struct xz_shell *u, const struct xz_shell_model *m, struct pitem *out) {
+ if(u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS)return my_items(u,m,out);
  if(u->panel.kind==XZ_SHELL_PANEL_FILTER)return filter_items(u,m,out);
  if(u->panel.kind==XZ_SHELL_PANEL_MENU)return menu_items(u,m,out);
  return 0;
@@ -1001,6 +1087,7 @@ static int panel_scroll(const struct xz_shell *u, int cursor, int n) {
 }
 static const char *panel_title(const struct xz_shell *u) {
  if(u->panel.kind==XZ_SHELL_PANEL_FILTER)return "TRACK FILTER";
+ if(u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS)return "MY SETTINGS";
  switch(u->panel.page){
  case PAGE_ADD:return "ADD TO PLAYLIST";
  case PAGE_NEW:return "NEW PLAYLIST";
@@ -1008,7 +1095,9 @@ static const char *panel_title(const struct xz_shell *u) {
  default:return "MENU";
  }
 }
-static int panel_open(const struct xz_shell *u) { return u->panel.kind==XZ_SHELL_PANEL_MENU||u->panel.kind==XZ_SHELL_PANEL_FILTER; }
+static int panel_open(const struct xz_shell *u) {
+ return u->panel.kind==XZ_SHELL_PANEL_MENU||u->panel.kind==XZ_SHELL_PANEL_FILTER||u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS;
+}
 static int naming(const struct xz_shell *u) { return u->panel.kind==XZ_SHELL_PANEL_MENU&&(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME); }
 static void check_box(struct xz_canvas c, int x, int y, int on, uint32_t ink) {
  xz_border(c,x,y,14,14,ink);
@@ -1039,7 +1128,7 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
   return;
  }
  if(!n){
-  sh_text_center(c,x0+INFO_W/2,y0+PANEL_HEAD+30,"NO OPTIONS FOR THIS LIST",SH_SMALL,SH_DIM);
+  sh_text_center(c,x0+INFO_W/2,y0+PANEL_HEAD+30,u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS?"THE STICK IS GONE":"NO OPTIONS FOR THIS LIST",SH_SMALL,SH_DIM);
   return;
  }
  struct xz_canvas body=xz_sub(c,x0+1,y0+PANEL_HEAD,INFO_W-1,h-PANEL_HEAD);
@@ -1051,10 +1140,15 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
    xz_rect(body,12,y+PANEL_ROW-4,w-24,1,SH_RAIL);
    continue;
   }
+  if(it->kind==PK_NOTE){
+   sh_text_fit(body,12,y+(PANEL_ROW-SH_CAP_SMALL)/2,w-24,it->label,SH_SMALL,SH_DIM);
+   continue;
+  }
   int focused=sc+row==cur;
   int armed=u->panel.armed&&focused&&(it->kind==PK_F_FROM||it->kind==PK_F_TO);
-  uint32_t bg=focused?(armed?SH_WHITE:SH_BLUE):SH_CHROME,ink=armed?SH_BLUE:SH_WHITE;
+  uint32_t bg=focused?(armed?SH_WHITE:SH_BLUE):SH_CHROME,ink=armed?SH_BLUE:it->on<0&&!focused?SH_DIM:SH_WHITE;
   if(it->kind==PK_DELETE&&it->on)bg=SH_RED;
+  if((it->kind==PK_MY_SAVE||it->kind==PK_PROFILE_SAVE)&&it->on&&focused){bg=SH_WHITE;ink=SH_BLUE;}
   xz_rect(body,0,y+1,w,PANEL_ROW-2,bg);
   int x=12,right=w-12;
   switch(it->kind){
@@ -1071,15 +1165,28 @@ static void render_panel(const struct xz_shell *u, const struct xz_shell_model *
    x+=22;
    if(it->on)check_box(body,right-14,y+10,1,ink);
    break;
+  case PK_PROFILE:
+   xz_rect(body,x,y+9,16,16,it->swatch);
+   if(it->on)xz_border(body,x-2,y+7,20,20,ink);
+   x+=24;break;
   case PK_ADD_OPEN:case PK_FILTER_OPEN:case PK_SEARCH:
    sh_triangle(body,right-4,y+11,6,0,ink);   /* points on into a sub-page */
    if(it->kind==PK_FILTER_OPEN&&it->on)xz_disc(body,right-20,y+PANEL_ROW/2,4,SH_KEY_AMBER);
    break;
   default:break;
   }
+  /* The value gives way to the label down to 56 px, in the small face when that fits it whole: names
+     are what tells the rows apart. */
+  enum sh_face vface=SH_TEXT;
   int tw=it->text[0]?sh_min(sh_text_width(body,it->text,SH_TEXT),110):0;
+  if(tw){
+   int room=sh_max(56,right-x-sh_text_width(body,it->label?it->label:"",SH_TEXT)-10);
+   if(tw>room&&sh_text_width(body,it->text,SH_SMALL)<=room){vface=SH_SMALL;tw=sh_text_width(body,it->text,SH_SMALL);}
+   tw=sh_min(tw,room);
+  }
   sh_text_fit(body,x,y+(PANEL_ROW-SH_CAP_TEXT)/2-1,right-x-tw-(tw?10:0),it->label,SH_TEXT,ink);
-  if(tw)sh_text_fit(body,right-tw-(it->kind==PK_F_COLOR?20:0),y+(PANEL_ROW-SH_CAP_TEXT)/2-1,110,it->text,SH_TEXT,focused?ink:it->on?SH_KEY_AMBER:SH_DIM);
+  uint32_t value_ink=focused?ink:it->kind==PK_PROFILE?(it->on>0?SH_WHITE:SH_DIM):it->on>0?SH_KEY_AMBER:SH_DIM;
+  if(tw)sh_text_fit(body,right-tw-(it->kind==PK_F_COLOR?20:0),y+(PANEL_ROW-(vface==SH_TEXT?SH_CAP_TEXT:SH_CAP_SMALL))/2-1,tw,it->text,vface,value_ink);
  }
  if(n>PANEL_ROWS){
   int track=PANEL_ROWS*PANEL_ROW-8,thumb=sh_max(12,track*PANEL_ROWS/n),at=4+(track-thumb)*sc/(n-PANEL_ROWS);
@@ -1105,6 +1212,53 @@ static int32_t master_bpm_x100(const struct xz_shell_model *m) {
  return 12000;
 }
 static void close_panel(struct xz_shell *u) { memset(&u->panel,0,sizeof u->panel); }
+/* MY SETTINGS rows. SAVE rows arm on the first push and write on the second. */
+static size_t my_activate(struct xz_shell *u, const struct xz_shell_model *m, const struct pitem *it, int was_armed, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+ if(!my_open(m))return n;
+ const struct xz_shell_my_settings_model *s=m->my_settings;
+ int stick=(int)s->source;
+ switch(it->kind){
+ case PK_MY_LOAD:
+  if(!s->on_stick)return n;
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_MY_SETTINGS,u->deck,stick,XZ_SHELL_MY_LOAD});
+ case PK_MY_SAVE:
+  if(!s->writable)return n;
+  if(!was_armed){u->panel.armed=1;return n;}
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_MY_SETTINGS,-1,stick,XZ_SHELL_MY_SAVE});
+ case PK_PROFILE:
+  if(!profile_valid(s,it->value)||!s->profiles_switchable||s->profiles[it->value].damaged||it->value==s->profile_active)return n;
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_DJ_PROFILE,stick,it->value,XZ_SHELL_PROFILE_LOAD});
+ case PK_PROFILE_SAVE:
+  if(!s->writable||!profile_valid(s,it->value))return n;
+  if(!was_armed){u->panel.armed=1;return n;}
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_DJ_PROFILE,stick,it->value,XZ_SHELL_PROFILE_SAVE});
+ case PK_MY_OWN:{
+  struct xz_shell_setting_item own;
+  if(!sh_settings_item(u,m,it->value,&own))return n;
+  int next=next_choice(&own);
+  if(next<0)return n;
+  struct xz_shell_action set[XZ_SHELL_ACTIONS];
+  size_t k=sh_settings_set(u,it->value,next,set);
+  for(size_t i=0;i<k;i++)n=emit(out,n,set[i]);
+  return n;
+ }
+ case PK_MY_WAVE:{
+  if(it->value>=item_count(s->waveform))return n;
+  const struct xz_shell_setting_item *w=&s->waveform->items[it->value];
+  int next=next_choice(w);
+  if(!w->writable||next<0)return n;
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_MOD,s->waveform_tab,next,w->id});
+ }
+ case PK_MY_STORED:{
+  if(it->value>=item_count(s->stored))return n;
+  const struct xz_shell_setting_item *w=&s->stored->items[it->value];
+  int next=next_choice(w);
+  if(!s->writable||!w->writable||next<0)return n;
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_MY_SETTING_SET,stick,next,w->id});
+ }
+ default:return n;
+ }
+}
 static size_t activate_item(struct xz_shell *u, const struct xz_shell_model *m, const struct pitem *it, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  const struct xz_shell_browse_model *b=m->browse;
  const struct xz_shell_browse_row *r=highlight_row(u,m);
@@ -1178,7 +1332,7 @@ static size_t activate_item(struct xz_shell *u, const struct xz_shell_model *m, 
  case PK_F_COLOR:f->colors^=1u<<it->value;return apply_filter(u,out,n);
  case PK_F_TAG:f->my_tags^=1u<<it->value;return apply_filter(u,out,n);
  case PK_F_CLEAR:memset(f,0,sizeof *f);return apply_filter(u,out,n);
- default:return n;
+ default:return my_activate(u,m,it,was_armed,out,n);
  }
 }
 /* A BPM bound being dialled: the encoder steps it 1 BPM, the other bound follows to stay ordered. */
@@ -1641,7 +1795,7 @@ size_t sh_browse_back_step(struct xz_shell *u, const struct xz_shell_model *m, s
   if(u->panel.armed)u->panel.armed=0;else{u->panel.page=PAGE_MAIN;u->panel.cursor=u->panel.scroll=0;}
   return 0;
  }
- if(u->panel.kind==XZ_SHELL_PANEL_FILTER&&u->panel.armed){u->panel.armed=0;return 0;}
+ if((u->panel.kind==XZ_SHELL_PANEL_FILTER||u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS)&&u->panel.armed){u->panel.armed=0;return 0;}
  if(u->panel.kind!=XZ_SHELL_PANEL_NONE){close_panel(u);return 0;}
  if(st.jump){st.jump=0;return 0;}
  if(list_screen(s)&&matches(m->browse,s)&&depth_of(m->browse)>0&&!source_absent(m,s)){

@@ -97,7 +97,7 @@ static void fx_track_build(struct fx_track *t, uint32_t seed) {
  }
 }
 static int32_t fx_beat_ms(int beat) { return (int32_t)((int64_t)beat*FX_BEAT_MS/100); }
-static uint64_t fx_all_known(void) { return (XZ_SHELL_KNOWN(XZ_SHELL_FIELD_COUNT)-1)&~XZ_SHELL_KNOWN(XZ_SHELL_F_ARTWORK); }
+static uint64_t fx_all_known(void) { return (XZ_SHELL_KNOWN(XZ_SHELL_FIELD_COUNT)-1)&~(XZ_SHELL_KNOWN(XZ_SHELL_F_ARTWORK)|XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE_LOOK)); }
 
 static void fx_deck_one(struct xz_shell_deck *d, const struct fx_track *t) {
  memset(d,0,sizeof *d);

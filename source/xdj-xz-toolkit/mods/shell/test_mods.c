@@ -82,23 +82,51 @@ static void goto_item(struct xz_shell *u, const struct xz_shell_model *m, int ra
 
 static void test_contract(void) {
  struct xz_shell_model m;model(&m);
+ struct xz_shell u;xz_shell_init(&u);
  struct xz_shell_rect back=xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON),rail=xz_shell_settings_rect(XZ_SHELL_SR_RAIL);
  struct xz_shell_rect status=xz_shell_settings_rect(XZ_SHELL_SR_STATUS);
+ /* Two groups: STOCK (UTILITY) and MODS; a label before each, so the first tab starts past x 0. */
  int right=0;
  for(int t=0;t<TABS;t++){
-  struct xz_shell_rect r=xz_shell_mods_tab_rect(&m,t);
-  assert(r.w>=44&&r.h>=44&&r.x==right);right=r.x+r.w;
+  struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,t);
+  assert(r.w>=44&&r.h>=44&&r.x>=right&&(t?1:r.x>0));
+  if(t==1)assert(r.x>right);   /* the MODS label sits between UTILITY and the first mod tab */
+  if(t>1)assert(r.x==right);
+  right=r.x+r.w;
   /* Clear of the back button, the header buttons and the panes. */
   assert(r.y>=back.y+back.h&&r.y>=XZ_SHELL_HEADER_HIT_H&&r.y+r.h<=rail.y);
  }
- assert(right==XZ_SHELL_WIDTH&&xz_shell_mods_tab_rect(&m,TABS).w==0&&xz_shell_mods_tab_rect(&m,-1).w==0);
+ assert(right==XZ_SHELL_WIDTH&&xz_shell_mods_tab_rect(&u,&m,TABS).w==0&&xz_shell_mods_tab_rect(&u,&m,-1).w==0);
  assert(rail.y+rail.h<=status.y&&status.y+status.h==XZ_SHELL_HEIGHT);
  struct xz_shell_rect b=xz_shell_mods_page_button();
  assert(b.w>=44&&b.h>=44&&b.y>=rail.y&&b.y+b.h<=rail.y+rail.h);
  m.mods=NULL;
- struct xz_shell_rect only=xz_shell_mods_tab_rect(&m,0);
- assert(only.x==0&&only.w==XZ_SHELL_WIDTH&&xz_shell_mods_tab_rect(&m,1).w==0);
- puts("PASS MODS contract: 44 px tabs edge to edge, clear of back, header and panes");
+ struct xz_shell_rect only=xz_shell_mods_tab_rect(&u,&m,0);
+ assert(only.x>0&&only.x+only.w==XZ_SHELL_WIDTH&&xz_shell_mods_tab_rect(&u,&m,1).w==0);
+ /* Eleven long tabs do not fit: the row scrolls so the open tab is always whole, and some are out of view. */
+ static const struct xz_shell_mods_tab many[11]={
+  {"CLASSIC THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,NULL},{"MODERN THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL},
+  {"INTERFACE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL},{"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL},
+  {"STEMS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,5,NULL},{"BEAT JUMP",XZ_SHELL_TAB_PAGE,NULL,NULL,0,6,NULL},
+  {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,7,NULL},{"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,8,NULL},
+  {"PERFORMANCE PADS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,9,NULL},{"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,10,NULL},
+  {"ABOUT THIS MOD",XZ_SHELL_TAB_PAGE,NULL,NULL,0,11,NULL},
+ };
+ static const struct xz_shell_mods_model many_mods={11,many};
+ m.mods=&many_mods;
+ int hidden_seen=0;
+ for(int open=0;open<12;open++){
+  u.mods_view.tab=open;
+  struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,open);
+  assert(r.w>=44&&r.x>=0&&r.x+r.w<=XZ_SHELL_WIDTH);
+  for(int t=0;t<12;t++){
+   struct xz_shell_rect o=xz_shell_mods_tab_rect(&u,&m,t);
+   if(!o.w)hidden_seen=1;else assert(o.x>=0&&o.x+o.w<=XZ_SHELL_WIDTH&&o.w>=44);
+  }
+  render_into(buffer_a,&u,&m);
+ }
+ assert(hidden_seen);
+ puts("PASS MODS contract: STOCK and MODS tab groups, 44 px tabs, a scrolling row, clear of back, header and panes");
 }
 
 static void test_held_menu_and_back_chain(void) {
@@ -262,7 +290,7 @@ static void test_tab_touch(void) {
  xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);push(&u,&m);
  assert(!u.mods_view.on_tabs&&pane(&u)==ITEMS_PANE);
  for(int t=TABS-1;t>=0;t--){
-  struct xz_shell_rect r=xz_shell_mods_tab_rect(&m,t);
+  struct xz_shell_rect r=xz_shell_mods_tab_rect(&u,&m,t);
   assert(tap(&u,&m,r.x+r.w/2,r.y+r.h/2)==0&&u.mods_view.tab==t&&u.mods_view.on_tabs==1&&u.depth==2);
   render_into(buffer_a,&u,&m);
  }
@@ -290,7 +318,11 @@ static void test_one_value(void) {
  for(int i=0;i<16&&cursor_id(&u)!=XZ_SHELL_ITEM_WAVE_COLOR;i++)turn(&u,&m,1);
  assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
  int before=(int)u.display.wave_color;
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR);
+ /* A local waveform colour overrides the sticks' colours: USB COLORS steps from ALL to DECK ONLY with it. */
+ assert(u.display.usb_colors==XZ_SHELL_USB_COLORS_ALL);
+ assert(push(&u,&m)==2&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR);
+ assert(out[1].kind==XZ_SHELL_ACT_SET_SETTING&&out[1].id==XZ_SHELL_ITEM_USB_COLORS&&out[1].value==XZ_SHELL_USB_COLORS_TILE);
+ assert(u.display.usb_colors==XZ_SHELL_USB_COLORS_TILE);
  int now=(int)u.display.wave_color;
  assert(now!=before&&out[0].value==now);
  key(&u,&m,XZ_SHELL_KEY_BACK);assert(u.depth==1);

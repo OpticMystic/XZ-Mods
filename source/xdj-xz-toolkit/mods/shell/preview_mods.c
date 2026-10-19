@@ -1,6 +1,7 @@
 /* Renders the MODS screen (UTILITY tab and mod tabs) to PPM files in argv[1]. Host only. */
-#include "fixtures.h"
+#include "browse_fixtures.h"
 #include "settings_fixtures.h"
+#include "shell_source.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -52,6 +53,7 @@ int main(int argc, char **argv) {
  fx_model_full(&m,&track);
  m.settings_screen=fxs_reset();
  m.mods=&fxm_model;
+ (void)bx_folders;
 
  xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"mods-utility-tab-row");
  push(&u,&m);shot(&u,&m,"mods-utility-rail");
@@ -78,6 +80,63 @@ int main(int argc, char **argv) {
  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_DOWN,XZ_SHELL_MODS_X+20,12,0,0,-1},out);
  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_UP,XZ_SHELL_MODS_X+20,12,0,0,-1},out);
  shot(&u,&m,"mods-from-header");
+
+ /* Many mod tabs: the row scrolls, arrows at the edges. */
+ static const struct xz_shell_mods_tab many[11]={
+  {"CLASSIC THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,"THE THEMES THE MOD STARTED WITH"},{"MODERN THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL},
+  {"INTERFACE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL},{"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL},
+  {"STEMS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,5,NULL},{"BEAT JUMP",XZ_SHELL_TAB_PAGE,NULL,NULL,0,6,NULL},
+  {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,7,NULL},{"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,8,NULL},
+  {"PERFORMANCE PADS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,9,NULL},{"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,10,NULL},
+  {"ABOUT THIS MOD",XZ_SHELL_TAB_PAGE,NULL,NULL,0,11,NULL},
+ };
+ static const struct xz_shell_mods_model many_mods={11,many};
+ m.mods=&many_mods;
+ xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"mods-many-tabs-utility");
+ turn(&u,&m,6);shot(&u,&m,"mods-many-tabs-middle");
+ turn(&u,&m,10);shot(&u,&m,"mods-many-tabs-last");
+ /* An APPEARANCE tab with grouped sections whose names need two lines. */
+ static const char *const sections[]={"INTERFACE","CLASSIC THEMES","MODERN THEMES","GROUPED SETTINGS"};
+ static const char *const iface[]={"MODERN","CLASSIC"};
+ static const struct xz_shell_setting_item look[]={
+  {40,0,"INTERFACE",iface,2,0,1,1},{3,1,"CLASSIC THEME",fxm_themes,8,0,1,1},{41,2,"MODERN THEME",fxm_themes,8,7,1,1},
+  {23,3,"SCROLLING WAVEFORM",fxm_wave,3,1,1,1},{33,3,"EFFECTIVE KEY DISPLAY",fxs_off_on,2,1,1,1}};
+ static const struct xz_shell_settings_model look_model={5,look,NULL};
+ static const struct xz_shell_mods_tab look_tabs[]={{"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,sections,4,0,NULL},fxm_tabs[0],fxm_tabs[3]};
+ static const struct xz_shell_mods_model look_mods={3,look_tabs};
+ m.mods=&look_mods;
+ open_item(&u,&m,1,1,3);shot(&u,&m,"mods-appearance-sections");
+ m.mods=&fxm_model;
+
+ /* MY SETTINGS on USB 1's browse root. */
+ {
+  static struct fx_track t2;static struct bx_library lib;static struct xz_shell_browse_model b;static struct xz_shell_source_model src;
+  (void)t2;bx_build(&lib);bx_tracks(&b,&lib,XZ_SHELL_BROWSE);
+  for(int i=0;i<2;i++){src.device[i].known=1u<<XZ_SHELL_D_STATUS;src.device[i].status=XZ_SHELL_DEVICE_READY;}
+  struct xz_shell_model bm=m;
+  bm.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH|XZ_SHELL_CAP_SOURCE|XZ_SHELL_CAP_LOAD;
+  bm.browse=&b;bm.source=&src;bm.my_settings=fxm_my_reset();
+  xz_shell_init(&u);xz_shell_browse_reset();key(&u,&bm,XZ_SHELL_KEY_SOURCE_USB1);key(&u,&bm,XZ_SHELL_KEY_MENU);
+  shot(&u,&bm,"my-settings-top");
+  turn(&u,&bm,1);push(&u,&bm);shot(&u,&bm,"my-settings-save-armed");
+  key(&u,&bm,XZ_SHELL_KEY_BACK);turn(&u,&bm,3);shot(&u,&bm,"my-settings-profiles");
+  turn(&u,&bm,6);shot(&u,&bm,"my-settings-waveform");
+  turn(&u,&bm,20);shot(&u,&bm,"my-settings-stored");
+  fxm_my.writable=0;fxm_my.on_stick=0;fxm_my.stored=NULL;fxm_my.profile_count=0;
+  xz_shell_init(&u);xz_shell_browse_reset();key(&u,&bm,XZ_SHELL_KEY_SOURCE_USB1);key(&u,&bm,XZ_SHELL_KEY_MENU);
+  shot(&u,&bm,"my-settings-locked-empty");
+  fxm_my_reset();
+ }
+
+ /* USB colours: deck 1 from a stick with a yellow background and RGB waveforms, deck 2 from a pink one. */
+ {
+  struct xz_shell_model cm=m;
+  cm.deck[0].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE_LOOK);cm.deck[0].look=(struct xz_shell_source_look){1,0xf2d42c,XZ_SHELL_WAVE_RGB};
+  cm.deck[1].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE_LOOK);cm.deck[1].look=(struct xz_shell_source_look){1,0xf870b8,-1};
+  xz_shell_init(&u);shot(&u,&cm,"usb-colors-play");
+  xz_shell_restore_setting(&u,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);shot(&u,&cm,"usb-colors-deck-only");
+  xz_shell_restore_setting(&u,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_OFF);shot(&u,&cm,"usb-colors-off");
+ }
 
  /* SHORTCUT without the set capability: every item says how to change it. */
  m.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;

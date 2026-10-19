@@ -42,9 +42,11 @@ static int available(const struct xz_shell_model *m, enum xz_shell_screen s) {
    list's top level lands on the picker. PUSH layers over the current screen
    (INFO, SHORTCUT, UTILITY), POP goes up one level, HOME to the top. STICK
    browses one USB stick. PANEL toggles a list screen's slide-over panel.
-   A short MENU on PLAY does nothing, as on the stock deck (held MENU opens
-   UTILITY). BACK runs sh_back: the top screen's own levels first, then POP. */
-enum nav_kind { NAV_NONE, NAV_OPEN, NAV_PUSH, NAV_POP, NAV_HOME, NAV_HAND_OFF, NAV_SETTING, NAV_TAG, NAV_STICK, NAV_PANEL, NAV_FILTER };
+   A short MENU opens MODS on the first mod tab wherever no MENU panel or
+   MODS itself takes it (the stock deck does nothing on PLAY); held MENU
+   opens it on UTILITY. BACK runs sh_back: the top
+   screen's own levels first, then POP. */
+enum nav_kind { NAV_NONE, NAV_OPEN, NAV_PUSH, NAV_POP, NAV_HOME, NAV_HAND_OFF, NAV_SETTING, NAV_TAG, NAV_STICK, NAV_PANEL, NAV_FILTER, NAV_MODS };
 /* A transition packs its kind in the low nibble and its screen or setting above it. */
 #define NAV(kind,arg) ((uint16_t)((kind)|((arg)<<4)))
 #define OPEN(s) NAV(NAV_OPEN,s)
@@ -54,20 +56,21 @@ enum nav_kind { NAV_NONE, NAV_OPEN, NAV_PUSH, NAV_POP, NAV_HOME, NAV_HAND_OFF, N
 #define NONE NAV(NAV_NONE,0)
 #define HAND_OFF NAV(NAV_HAND_OFF,0)
 #define PANEL(k) NAV(NAV_PANEL,k)
+#define MODS NAV(NAV_MODS,0)
 /* ROW re-scans its arguments so LISTS can stand for the five list keys. */
 #define ROW(...) ROW_(__VA_ARGS__)
 #define ROW_(browse,taglist,playlist,search,source,info,shortcut,utility,menu,back) {  [XZ_SHELL_KEY_BACK]=back, [XZ_SHELL_KEY_BACK_HOLD]=HOME, [XZ_SHELL_KEY_BROWSE]=browse,  [XZ_SHELL_KEY_TAG_LIST]=taglist, [XZ_SHELL_KEY_PLAYLIST]=playlist, [XZ_SHELL_KEY_SEARCH]=search,  [XZ_SHELL_KEY_MENU]=menu, [XZ_SHELL_KEY_MENU_HOLD]=utility, [XZ_SHELL_KEY_SHORTCUT]=shortcut,  [XZ_SHELL_KEY_INFO]=info, [XZ_SHELL_KEY_SOURCE]=source, [XZ_SHELL_KEY_TAG_TRACK]=NAV(NAV_TAG,0),  [XZ_SHELL_KEY_TIME_MODE]=NAV(NAV_SETTING,XZ_SHELL_SET_TIME_MODE), [XZ_SHELL_KEY_QUANTIZE]=NAV(NAV_SETTING,XZ_SHELL_SET_QUANTIZE),  [XZ_SHELL_KEY_SOURCE_USB1]=NAV(NAV_STICK,XZ_SHELL_SRC_USB1), [XZ_SHELL_KEY_SOURCE_USB2]=NAV(NAV_STICK,XZ_SHELL_SRC_USB2),  [XZ_SHELL_KEY_TRACK_FILTER]=NAV(NAV_FILTER,0), [XZ_SHELL_KEY_SOURCE_LINK]=NAV(NAV_STICK,XZ_SHELL_SRC_LINK),  [XZ_SHELL_KEY_SOURCE_COMPUTER]=NAV(NAV_STICK,XZ_SHELL_SRC_COMPUTER) }
 #define LISTS OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE)
 static const uint16_t nav[XZ_SHELL_SCREEN_COUNT][XZ_SHELL_KEY_COUNT]={
  /*                     browse                 taglist                 playlist                search                 source                 info                shortcut                utility                 menu      back */
- [XZ_SHELL_PLAY]    =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),NONE,    NONE),
+ [XZ_SHELL_PLAY]    =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),MODS,    NONE),
  [XZ_SHELL_BROWSE]  =ROW(HOME,                 OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PANEL(XZ_SHELL_PANEL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),PANEL(XZ_SHELL_PANEL_MENU),POP),
  [XZ_SHELL_PLAYLIST]=ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),HOME,                   OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PANEL(XZ_SHELL_PANEL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),PANEL(XZ_SHELL_PANEL_MENU),POP),
  [XZ_SHELL_TAG_LIST]=ROW(OPEN(XZ_SHELL_BROWSE),HOME,                   OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),OPEN(XZ_SHELL_SOURCE),PANEL(XZ_SHELL_PANEL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),PANEL(XZ_SHELL_PANEL_MENU),POP),
  [XZ_SHELL_SEARCH]  =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),HOME,                 OPEN(XZ_SHELL_SOURCE),PANEL(XZ_SHELL_PANEL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),PANEL(XZ_SHELL_PANEL_MENU),POP),
- [XZ_SHELL_SOURCE]  =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),HOME,                 PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),NONE,    POP),
- [XZ_SHELL_INFO]    =ROW(LISTS,                                                                                                            POP,                PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),NONE,    POP),
- [XZ_SHELL_SHORTCUT]=ROW(LISTS,                                                                                                            PUSH(XZ_SHELL_INFO),POP,                    PUSH(XZ_SHELL_UTILITY),NONE,    POP),
+ [XZ_SHELL_SOURCE]  =ROW(OPEN(XZ_SHELL_BROWSE),OPEN(XZ_SHELL_TAG_LIST),OPEN(XZ_SHELL_PLAYLIST),OPEN(XZ_SHELL_SEARCH),HOME,                 PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),MODS,    POP),
+ [XZ_SHELL_INFO]    =ROW(LISTS,                                                                                                            POP,                PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),MODS,    POP),
+ [XZ_SHELL_SHORTCUT]=ROW(LISTS,                                                                                                            PUSH(XZ_SHELL_INFO),POP,                    PUSH(XZ_SHELL_UTILITY),MODS,    POP),
  [XZ_SHELL_UTILITY] =ROW(LISTS,                                                                                                            PUSH(XZ_SHELL_INFO),PUSH(XZ_SHELL_SHORTCUT),PUSH(XZ_SHELL_UTILITY),POP,     POP),
 };
 
@@ -101,7 +104,7 @@ void xz_shell_init(struct xz_shell *u) {
  memset(u,0,sizeof *u);
  u->stack[0].screen=XZ_SHELL_PLAY;u->depth=1;
  u->zoom=XZ_SHELL_ZOOM_DEFAULT;
- u->display=(struct xz_shell_display){XZ_SHELL_WAVE_3BAND,XZ_SHELL_POSITION_CENTER,XZ_SHELL_KEY_AS_DECK};
+ u->display=(struct xz_shell_display){XZ_SHELL_WAVE_3BAND,XZ_SHELL_POSITION_CENTER,XZ_SHELL_KEY_AS_DECK,XZ_SHELL_USB_COLORS_ALL};
 }
 int xz_shell_restore_setting(struct xz_shell *u, int id, int value) {
  if(!u)return 0;
@@ -110,6 +113,7 @@ int xz_shell_restore_setting(struct xz_shell *u, int id, int value) {
  case XZ_SHELL_SET_WAVE_POSITION:if(value!=XZ_SHELL_POSITION_CENTER&&value!=XZ_SHELL_POSITION_LEFT)return 0;u->display.wave_position=(enum xz_shell_wave_position)value;return 1;
  case XZ_SHELL_ITEM_KEY_DISPLAY:if(value<XZ_SHELL_KEY_AS_DECK||value>XZ_SHELL_KEY_ALPHANUMERIC)return 0;u->display.key_display=(enum xz_shell_key_display)value;return 1;
  case XZ_SHELL_ITEM_WAVE_ZOOM:if(value<0||value>XZ_SHELL_ZOOM_MAX)return 0;u->zoom=value;return 1;
+ case XZ_SHELL_ITEM_USB_COLORS:if(value<XZ_SHELL_USB_COLORS_ALL||value>XZ_SHELL_USB_COLORS_OFF)return 0;u->display.usb_colors=(enum xz_shell_usb_colors)value;return 1;
  default:return 0;
  }
 }
@@ -208,8 +212,14 @@ static size_t track_filter(struct xz_shell *u, const struct xz_shell_model *m, s
  if(was!=XZ_SHELL_PANEL_FILTER)u->panel.kind=XZ_SHELL_PANEL_FILTER;
  return 0;
 }
-/* Panels belong to the list screens; the same key closes the panel it opened. */
-static void toggle_panel(struct xz_shell *u, enum xz_shell_panel_kind k) {
+/* Panels belong to the list screens; the same key closes the panel it opened. MENU on a USB stick's
+   BROWSE with the category rail focused is that stick's MY SETTINGS panel. */
+static int my_settings_here(const struct xz_shell *u, const struct xz_shell_model *m) {
+ const struct xz_shell_my_settings_model *s=m->my_settings;
+ return s&&(s->source==XZ_SHELL_SRC_USB1||s->source==XZ_SHELL_SRC_USB2)&&sh_browse_at_root(u);
+}
+static void toggle_panel(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_panel_kind k) {
+ if(k==XZ_SHELL_PANEL_MENU&&(my_settings_here(u,m)||u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS))k=XZ_SHELL_PANEL_MY_SETTINGS;
  enum xz_shell_panel_kind was=u->panel.kind;
  close_panels(u);
  if(was!=k)u->panel.kind=k;
@@ -246,7 +256,12 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  case NAV_POP:if(u->depth>1)u->depth--;close_panels(u);break;
  case NAV_HOME:u->depth=1;close_panels(u);break;
  case NAV_STICK:return stick(u,m,(int)(packed>>4),out);
- case NAV_PANEL:toggle_panel(u,(enum xz_shell_panel_kind)(packed>>4));break;
+ case NAV_PANEL:toggle_panel(u,m,(enum xz_shell_panel_kind)(packed>>4));break;
+ case NAV_MODS:
+  if(!available(m,XZ_SHELL_UTILITY))break;
+  close_panels(u);
+  open_mods(u,m->mods&&m->mods->tabs&&m->mods->count>0?1:0);
+  break;
  case NAV_FILTER:return track_filter(u,m,out);
  case NAV_HAND_OFF:return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_HAND_OFF_MENU});
  case NAV_SETTING:

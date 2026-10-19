@@ -33,12 +33,14 @@ static size_t emit_one(struct xz_shell_action out[XZ_SHELL_ACTIONS], struct xz_s
    name from the play model when the runtime's table lacks them. */
 struct table { const struct xz_shell_setting_item *items; int count; };
 static int shell_owned(int id) {
- return id==XZ_SHELL_ITEM_WAVE_COLOR||id==XZ_SHELL_ITEM_WAVE_POSITION||id==XZ_SHELL_ITEM_KEY_DISPLAY||id==XZ_SHELL_ITEM_WAVE_ZOOM;
+ return id==XZ_SHELL_ITEM_WAVE_COLOR||id==XZ_SHELL_ITEM_WAVE_POSITION||id==XZ_SHELL_ITEM_KEY_DISPLAY||id==XZ_SHELL_ITEM_WAVE_ZOOM
+  ||id==XZ_SHELL_ITEM_USB_COLORS;
 }
 static const char *const wave_color_choices[]={"BLUE","RGB","3BAND","STEMS"};
 static const char *const position_choices[]={"CENTER","LEFT"};
 static const char *const key_display_choices[]={"AS DECK","CLASSIC","ALPHANUM."};
 static const char *const zoom_choices[XZ_SHELL_ZOOM_MAX+1]={"1","2","3","4","5","6","7"};
+static const char *const usb_colors_choices[]={"DECK + WAVE","DECK ONLY","OFF"};
 static const char *const time_mode_choices[]={"REMAIN","TIME"};
 static const char *const play_mode_choices[]={"SINGLE","CONTINUE"};
 static const char *const off_on_choices[]={"OFF","ON"};
@@ -68,6 +70,7 @@ static struct xz_shell_setting_item own_item(const struct xz_shell *u, const str
  case XZ_SHELL_ITEM_WAVE_POSITION:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM CURRENT POSITION",position_choices,2,(int)sh_wave_position(u));break;
  case XZ_SHELL_ITEM_KEY_DISPLAY:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"KEY DISPLAY FORMAT",key_display_choices,3,(int)sh_key_display(u));break;
  case XZ_SHELL_ITEM_WAVE_ZOOM:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM ZOOM",zoom_choices,XZ_SHELL_ZOOM_MAX+1,sh_max(0,sh_min(u->zoom,XZ_SHELL_ZOOM_MAX)));break;
+ case XZ_SHELL_ITEM_USB_COLORS:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"USB COLORS",usb_colors_choices,3,(int)sh_usb_colors(u));break;
  case XZ_SHELL_ITEM_TIME_MODE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"TIME MODE",time_mode_choices,2,sh_setting(m,XZ_SHELL_SET_TIME_MODE)?(st->time_mode==XZ_SHELL_TIME_ELAPSED):-1);break;
  case XZ_SHELL_ITEM_PLAY_MODE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"PLAY MODE",play_mode_choices,2,sh_setting(m,XZ_SHELL_SET_PLAY_MODE)?(st->play_mode==XZ_SHELL_PLAY_CONTINUE):-1);break;
  case XZ_SHELL_ITEM_AUTO_CUE:it=make_item(id,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on_choices,2,sh_setting(m,XZ_SHELL_SET_AUTO_CUE)?!!st->auto_cue:-1);break;
@@ -80,7 +83,7 @@ static struct xz_shell_setting_item own_item(const struct xz_shell *u, const str
  return it;
 }
 static const int own_ids[]={XZ_SHELL_ITEM_TIME_MODE,XZ_SHELL_ITEM_QUANTIZE_BEAT,XZ_SHELL_ITEM_BEAT_JUMP_BEAT,XZ_SHELL_ITEM_PLAY_MODE,
- XZ_SHELL_ITEM_AUTO_CUE,XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD,XZ_SHELL_ITEM_WAVE_COLOR,XZ_SHELL_ITEM_WAVE_POSITION,XZ_SHELL_ITEM_KEY_DISPLAY,XZ_SHELL_ITEM_WAVE_ZOOM};
+ XZ_SHELL_ITEM_AUTO_CUE,XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD,XZ_SHELL_ITEM_WAVE_COLOR,XZ_SHELL_ITEM_WAVE_POSITION,XZ_SHELL_ITEM_KEY_DISPLAY,XZ_SHELL_ITEM_WAVE_ZOOM,XZ_SHELL_ITEM_USB_COLORS};
 enum { OWN_IDS=sizeof own_ids/sizeof *own_ids };
 /* One shell drives these screens on one thread (shell.h rule 4), so one merged table serves every call. */
 static struct xz_shell_setting_item merged[MAX_ITEMS+OWN_IDS];
@@ -146,12 +149,25 @@ static const char *read_only_note(const struct xz_shell_setting_item *it) {
  if(note_items&&it>=note_items&&it<note_items+note_count&&note_lines&&note_lines[it-note_items])return note_lines[it-note_items];
  return on_mod_tab?"THIS BUILD CANNOT CHANGE IT":"PUSH, THEN HOLD MENU ON THE STOCK SCREEN";
 }
-/* A shell-owned item changes the shell at once; the action lets the runtime store it. */
+/* A shell-owned item changes the shell at once; the action lets the runtime store it. A waveform colour
+   picked here while decks follow their stick's colours is a local override: decks keep the stick's tile
+   colour and draw this waveform colour. */
+size_t sh_settings_set(struct xz_shell *u, int id, int index, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ if(shell_owned(id)&&!xz_shell_restore_setting(u,id,index))return 0;
+ if(id==XZ_SHELL_ITEM_WAVE_ZOOM)return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_ZOOM,-1,index,0});
+ out[0]=(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,index,id};
+ if(id!=XZ_SHELL_ITEM_WAVE_COLOR||sh_usb_colors(u)!=XZ_SHELL_USB_COLORS_ALL)return 1;
+ xz_shell_restore_setting(u,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);
+ out[1]=(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,XZ_SHELL_USB_COLORS_TILE,XZ_SHELL_ITEM_USB_COLORS};
+ return 2;
+}
+int sh_settings_item(const struct xz_shell *u, const struct xz_shell_model *m, int id, struct xz_shell_setting_item *out) {
+ *out=own_item(u,m,id);
+ return out->id>=0;
+}
 static size_t set_value(struct xz_shell *u, const struct xz_shell_setting_item *it, int index, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  if(on_mod_tab)return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_SET_MOD,u->mods_view.tab-1,index,it->id});
- if(shell_owned(it->id)&&!xz_shell_restore_setting(u,it->id,index))return 0;
- if(it->id==XZ_SHELL_ITEM_WAVE_ZOOM)return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_ZOOM,-1,index,0});
- return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,index,it->id});
+ return sh_settings_set(u,it->id,index,out);
 }
 static const char *choice_text(const struct xz_shell_setting_item *it, int index) {
  if(index<0||index>=choice_count(it)||!it->choices[index])return "---";
@@ -398,6 +414,17 @@ static void scrollbar(struct xz_canvas c, int x, int y, int h, int scroll, int c
 static const char *const cat_lines[XZ_SHELL_SETTING_CAT_COUNT][2]={
  {"DJ","SETTING"},{"DISPLAY","(LCD)"},{"DISPLAY","(INDICATOR)"},{"PRO DJ","LINK"},{"MIXER",NULL},{"SYSTEM",NULL},{"INFO",NULL}
 };
+/* A section name in a rail cell: one line when it fits, else split at the space nearest the middle. */
+static void rail_label(struct xz_canvas c, int y, const char *name, uint32_t ink) {
+ int room=RAIL_W-6;
+ if(sh_text_width(measure,name,SH_SMALL)<=room){text_fit_center(c,RAIL_W/2,y+RAIL_H/2-6,room,name,SH_SMALL,ink);return;}
+ size_t len=strlen(name),best=0;
+ for(size_t i=1;i<len&&i<63;i++)if(name[i]==' '&&(!best||(i>len/2?i-len/2:len/2-i)<(best>len/2?best-len/2:len/2-best)))best=i;
+ if(!best){text_fit_center(c,RAIL_W/2,y+RAIL_H/2-6,room,name,SH_SMALL,ink);return;}
+ char first[64];memcpy(first,name,best);first[best]=0;
+ text_fit_center(c,RAIL_W/2,y+RAIL_H/2-13,room,first,SH_SMALL,ink);
+ text_fit_center(c,RAIL_W/2,y+RAIL_H/2+1,room,name+best+1,SH_SMALL,ink);
+}
 static void render_rail(struct xz_canvas c, const struct ulayout *l, struct ustate s, const struct xz_shell_mods_tab *tab) {
  for(int r=0;r<7;r++){
   int y=U_Y+r*RAIL_H;
@@ -408,7 +435,7 @@ static void render_rail(struct xz_canvas c, const struct ulayout *l, struct usta
   const char *const *lines=cat_lines[l->cats[r]];
   uint32_t ink=selected?SH_WHITE:SH_DIM;
   if(tab&&tab->sections&&l->cats[r]<tab->section_count&&tab->sections[l->cats[r]]){
-   text_fit_center(c,RAIL_W/2,y+RAIL_H/2-6,RAIL_W-4,tab->sections[l->cats[r]],SH_SMALL,ink);
+   rail_label(c,y,tab->sections[l->cats[r]],ink);
   }else if(lines[1]){
    text_fit_center(c,RAIL_W/2,y+RAIL_H/2-13,RAIL_W-4,lines[0],SH_SMALL,ink);
    text_fit_center(c,RAIL_W/2,y+RAIL_H/2+1,RAIL_W-4,lines[1],SH_SMALL,ink);
@@ -494,26 +521,62 @@ static const char *tab_label(const struct xz_shell_model *m, int t) {
  const char *l=m->mods->tabs[t-1].label;
  return l?l:"---";
 }
-struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell_model *m, int tab) {
- int n=m?tab_count(m):1;
- if(tab<0||tab>=n)return (struct xz_shell_rect){0,0,0,0};
- int w=W/n;
- return (struct xz_shell_rect){tab*w,TABS_Y,tab==n-1?W-tab*w:w,TABS_HIT};   /* under the back button and header buttons */
+/* The tab row in two labelled groups, STOCK (UTILITY) and MODS (the mod tabs). Tabs take their label's
+   width, the spare width shared out; when they do not fit, the row scrolls so the open tab shows whole. */
+enum { GROUP_PAD=10, TAB_PAD=28, TAB_MIN=72, TAB_EDGE=18, TABS_MAX=12 };
+struct tabrow { int n, x[TABS_MAX], w[TABS_MAX], group_x[2], group_w[2], offset; };
+static struct tabrow tabrow_of(const struct xz_shell *u, const struct xz_shell_model *m) {
+ struct tabrow r;memset(&r,0,sizeof r);
+ r.n=tab_count(m);
+ int natural[TABS_MAX],sum=0;
+ for(int t=0;t<r.n;t++){natural[t]=sh_max(TAB_MIN,sh_min(240,sh_text_width(measure,tab_label(m,t),SH_SMALL)+TAB_PAD));sum+=natural[t];}
+ r.group_w[0]=sh_text_width(measure,"STOCK",SH_SMALL)+2*GROUP_PAD;
+ r.group_w[1]=r.n>1?sh_text_width(measure,"MODS",SH_SMALL)+2*GROUP_PAD:0;
+ int spare=sh_max(0,W-r.group_w[0]-r.group_w[1]-sum),x=r.group_w[0];
+ for(int t=0;t<r.n;t++){
+  if(t==1){r.group_x[1]=x;x+=r.group_w[1];}
+  r.x[t]=x;r.w[t]=natural[t]+spare/r.n+(t<spare%r.n);x+=r.w[t];
+ }
+ if(x>W){
+  int cur=u?sh_max(0,sh_min(u->mods_view.tab,r.n-1)):0,right=r.x[cur]+r.w[cur];
+  if(right>W-TAB_EDGE)r.offset=right-(W-TAB_EDGE);
+  if(cur==r.n-1)r.offset=x-W;
+  r.offset=sh_max(0,sh_min(r.offset,x-W));
+ }
+ return r;
+}
+struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell *u, const struct xz_shell_model *m, int tab) {
+ if(!m||tab<0||tab>=tab_count(m))return (struct xz_shell_rect){0,0,0,0};
+ struct tabrow r=tabrow_of(u,m);
+ int x0=r.x[tab]-r.offset,x1=x0+r.w[tab];
+ if(x0<0||x1>W)return (struct xz_shell_rect){0,0,0,0};
+ return (struct xz_shell_rect){x0,TABS_Y,r.w[tab],TABS_HIT};   /* under the back button and header buttons */
 }
 struct xz_shell_rect xz_shell_mods_page_button(void) { return (struct xz_shell_rect){W/2-150,U_Y+170,300,48}; }
 static int open_tab(const struct xz_shell *u, const struct xz_shell_model *m) { return sh_max(0,sh_min(u->mods_view.tab,tab_count(m)-1)); }
 static void render_tabs(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
- int n=tab_count(m),cur=open_tab(u,m);
+ int cur=open_tab(u,m);
+ struct tabrow r=tabrow_of(u,m);
  xz_rect(c,0,TITLE_H,W,U_Y-TITLE_H,SH_BLACK);
- for(int t=0;t<n;t++){
-  struct xz_shell_rect r=xz_shell_mods_tab_rect(m,t);
-  r.y=TABS_Y;r.h=TABS_H;
-  int selected=t==cur;
-  uint32_t fill=selected?(u->mods_view.on_tabs?SH_BLUE:RAIL_SELECTED):SH_RAIL;
-  xz_rect(c,r.x,r.y,r.w-2,r.h,fill);
-  text_fit_center(c,r.x+(r.w-2)/2,r.y+(r.h-SH_CAP_SMALL)/2,r.w-10,tab_label(m,t),SH_SMALL,selected?SH_WHITE:0xd2d2d2);
-  if(selected&&!u->mods_view.on_tabs)xz_rect(c,r.x,r.y+r.h-3,r.w-2,3,SH_BLUE);
+ struct xz_canvas row=xz_sub(c,0,TABS_Y,W,TABS_H);
+ static const char *const groups[2]={"STOCK","MODS"};
+ for(int g=0;g<2;g++)if(r.group_w[g]){
+  int gx=r.group_x[g]-r.offset;
+  if(g)xz_rect(row,gx,4,1,TABS_H-8,0x5a5a5a);
+  sh_text_center(row,gx+r.group_w[g]/2,(TABS_H-SH_CAP_SMALL)/2,groups[g],SH_SMALL,SH_DIM);
  }
+ for(int t=0;t<r.n;t++){
+  int x=r.x[t]-r.offset,selected=t==cur;
+  if(x+r.w[t]<=0||x>=W)continue;
+  uint32_t fill=selected?(u->mods_view.on_tabs?SH_BLUE:RAIL_SELECTED):SH_RAIL;
+  xz_rect(row,x,0,r.w[t]-2,TABS_H,fill);
+  text_fit_center(row,x+(r.w[t]-2)/2,(TABS_H-SH_CAP_SMALL)/2,r.w[t]-12,tab_label(m,t),SH_SMALL,selected?SH_WHITE:0xd2d2d2);
+  if(selected&&!u->mods_view.on_tabs)xz_rect(row,x,TABS_H-3,r.w[t]-2,3,SH_BLUE);
+ }
+ /* Tabs out of view on a side: a fade and an arrow there. */
+ int last=r.x[r.n-1]+r.w[r.n-1]-r.offset;
+ if(r.offset>0){xz_rect(row,0,0,TAB_EDGE,TABS_H,SH_BLACK);h_triangle(row,TAB_EDGE/2-1,TABS_H/2,5,0,SH_WHITE);}
+ if(last>W){xz_rect(row,W-TAB_EDGE,0,TAB_EDGE,TABS_H,SH_BLACK);h_triangle(row,W-TAB_EDGE/2+1,TABS_H/2,5,1,SH_WHITE);}
 }
 static void render_page_tab(const struct xz_shell *u, const struct xz_shell_mods_tab *tab, struct xz_canvas c) {
  xz_rect(c,0,U_Y,W,ROWS*ROW_H,SH_CHROME);
@@ -531,9 +594,14 @@ static void utility_render(const struct xz_shell *u, const struct xz_shell_model
  struct ustate s=settle(u,m,unpack(&u->stack[u->depth-1]),&l);
  const struct xz_shell_mods_tab *tab=mods_tab(u,m);
  xz_rect(c,0,0,W,H,SH_BLACK);
- render_title(c,"MODS");
+ /* UTILITY reads as the player's own menu: its stock title and version, and one line saying so. */
+ const char *title=tab?"MODS":"UTILITY";
+ render_title(c,title);
+ int after=52+sh_text_width(c,title,SH_TEXT)+14;
  char version[64];version_of(l.t,version,sizeof version);
- if(!tab&&version[0])text_fit_right(c,TITLE_RIGHT,13,260,version,SH_TEXT,DEEP_BLUE);
+ int vw=!tab&&version[0]?sh_min(160,sh_text_width(c,version,SH_TEXT)):0;
+ text_fit(c,after,17,TITLE_RIGHT-after-vw-12,tab?"ADDED BY THE MOD, NOT PART OF THE PLAYER":"THE PLAYER'S OWN MENU",SH_SMALL,SH_DIM);
+ if(vw)text_fit_right(c,TITLE_RIGHT,13,160,version,SH_TEXT,DEEP_BLUE);
  render_tabs(u,m,c);
  if(tab&&tab->kind==XZ_SHELL_TAB_PAGE)render_page_tab(u,tab,c);
  else{
@@ -658,7 +726,17 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
  }
  const struct xz_shell_mods_tab *tab=mods_tab(u,m);
  /* The tab row: a touch picks a tab; with the encoder on it, turn picks and push enters. */
- if(e->kind==XZ_SHELL_TOUCH_DOWN)for(int t=0;t<tab_count(m);t++)if(sh_inside(xz_shell_mods_tab_rect(m,t),e->x,e->y)){
+ /* A scrolled row's edge arrows step one tab that way. */
+ if(e->kind==XZ_SHELL_TOUCH_DOWN&&e->y>=TABS_Y&&e->y<U_Y){
+  struct tabrow r=tabrow_of(u,m);
+  int step=r.offset>0&&e->x<TAB_EDGE?-1:r.x[r.n-1]+r.w[r.n-1]-r.offset>W&&e->x>=W-TAB_EDGE?1:0;
+  if(step){
+   u->mods_view.tab=open_tab(u,m)+step;u->mods_view.on_tabs=1;
+   *v=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
+   return 0;
+  }
+ }
+ if(e->kind==XZ_SHELL_TOUCH_DOWN)for(int t=0;t<tab_count(m);t++)if(sh_inside(xz_shell_mods_tab_rect(u,m,t),e->x,e->y)){
   if(t!=open_tab(u,m)){u->mods_view.tab=t;*v=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};}
   u->mods_view.on_tabs=1;
   return 0;

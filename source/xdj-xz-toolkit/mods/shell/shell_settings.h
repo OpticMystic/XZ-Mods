@@ -4,12 +4,20 @@
    settings_screen slot (UTILITY, the device's own menu) and the mods slot
    (the mod tabs).
 
-   MODS screen (XZ_SHELL_UTILITY). A row of tabs under the title: UTILITY
-   first, then each tab of xz_shell_mods_model. Held MENU opens it on
-   UTILITY; the MODS header button opens it on the first mod tab. The encoder
-   starts on the tab row (turn picks a tab, push enters it); inside a tab it
-   works the panes (category rail, items, values) as before, BACK steps one
-   pane left, then back to the tab row, then closes the screen.
+   MODS screen (XZ_SHELL_UTILITY). A row of tabs under the title in two
+   labelled groups: STOCK (the UTILITY tab, the player's own menu) and MODS
+   (each tab of xz_shell_mods_model). The tab row scrolls to keep the open
+   tab in view when the tabs do not fit. On UTILITY the title reads UTILITY
+   with the version at the right and the panes keep the stock menu's look;
+   on a mod tab it reads MODS.
+
+   Keys: short MENU on PLAY, SOURCE, INFO and SHORTCUT opens it on the first
+   mod tab (UTILITY when there are none; the list screens keep their MENU
+   panel); held MENU opens it on UTILITY, and held again there closes it;
+   short MENU on it closes it. The MODS header button opens it on the first
+   mod tab. The encoder starts on the tab row (turn picks a tab, push enters
+   it); inside a tab it works the panes (category rail, items, values), BACK
+   steps one pane left, then back to the tab row, then closes the screen.
 
    A TAB_ITEMS tab is an item table of its own, drawn and driven exactly like
    UTILITY; setting one of its items emits XZ_SHELL_ACT_SET_MOD {deck = tab
@@ -79,6 +87,7 @@ enum xz_shell_item_id {
  XZ_SHELL_ITEM_VERSION,            /* one choice: the version text */
  XZ_SHELL_ITEM_KEY_DISPLAY,        /* shell-owned: enum xz_shell_key_display */
  XZ_SHELL_ITEM_WAVE_ZOOM,          /* shell-owned: zoom level 0..XZ_SHELL_ZOOM_MAX */
+ XZ_SHELL_ITEM_USB_COLORS,         /* shell-owned: enum xz_shell_usb_colors */
  XZ_SHELL_ITEM_ID_END
 };
 
@@ -117,8 +126,44 @@ struct xz_shell_mods_tab {
  int page;                                /* TAB_PAGE: the page OPEN_MODS opens */
  const char *summary;                     /* TAB_PAGE: one line on what the page holds */
 };
-/* The mod tabs, in order. Built from the mod settings (no hard-coded list in the shell). */
+/* The mod tabs, in order. Built from the mod settings (no hard-coded list in the shell). A TAB_ITEMS
+   tab's sections become its rail; a long section name wraps to two lines. */
 struct xz_shell_mods_model { uint32_t count; const struct xz_shell_mods_tab *tabs; };
+
+/* MY SETTINGS: MENU on BROWSE while the category rail has the encoder (a USB stick picked, no category
+   entered) opens a slide-over panel for that stick instead of the list MENU. Rows, top to bottom:
+     LOAD TO DECK n     XZ_SHELL_ACT_MY_SETTINGS {id MY_LOAD, value stick, deck = the active deck}; only
+                        when the stick has a MY SETTINGS file (on_stick)
+     SAVE TO <STICK>    push twice: XZ_SHELL_ACT_MY_SETTINGS {id MY_SAVE, value stick}; only when writable
+     DJ PROFILE         one row per profile; push on another profile: DJ_PROFILE {id PROFILE_LOAD, value i};
+                        then SAVE TO <ACTIVE NAME>, push twice: DJ_PROFILE {id PROFILE_SAVE, value active}
+     WAVEFORM           the shell's own WAVEFORM COLOR, CURRENT POSITION, ZOOM and USB COLORS (the same
+                        values SHORTCUT and UTILITY show; push steps to the next choice, SET_SETTING / ZOOM),
+                        then the runtime's waveform items (push: SET_MOD {deck waveform_tab, id, value})
+     ON THIS STICK      the stick's stored MY SETTINGS with their real choices; push steps a writable one:
+                        MY_SETTING_SET {deck stick, id, value}; an unwritable one shows its value only
+   Results come back as m->notice: the runtime raises one caps sentence per request, e.g. "LOADED USB 1
+   SETTINGS TO DECK 1", "SAVED TO USB 1", "USB 1 IS LOCKED: NOT SAVED", "DJ PROFILE: ANNA". */
+enum xz_shell_my_op { XZ_SHELL_MY_LOAD, XZ_SHELL_MY_SAVE };
+enum xz_shell_profile_op { XZ_SHELL_PROFILE_LOAD, XZ_SHELL_PROFILE_SAVE };
+struct xz_shell_dj_profile {
+ const char *name;                        /* caps or mixed, UTF-8; NULL draws "---" */
+ int has_accent; uint32_t accent_rgb;     /* the profile's colour, 0xRRGGBB */
+ int damaged;                             /* listed but unreadable: shown, cannot load */
+};
+struct xz_shell_my_settings_model {
+ enum xz_shell_source source;             /* the stick: XZ_SHELL_SRC_USB1 or USB2 (others: the panel stays shut) */
+ const char *source_name;                 /* "USB 1"; NULL draws the shell's name for source */
+ int on_stick;                            /* the stick holds a MY SETTINGS file */
+ int writable;                            /* the stick can be written (MY_SAVE, MY_SETTING_SET, PROFILE_SAVE) */
+ const struct xz_shell_settings_model *stored; /* the stick's MY SETTINGS values; NULL or empty: none read */
+ int profile_count;                       /* DJ profiles on the stick (0: the DJ PROFILE group is left off) */
+ const struct xz_shell_dj_profile *profiles;
+ int profile_active;                      /* index, -1 none */
+ int profiles_switchable;                 /* 0: a single legacy profile; it shows, it does not switch */
+ const struct xz_shell_settings_model *waveform; /* the runtime's waveform items (stems row layout, ...) */
+ int waveform_tab;                        /* their tab index in m->mods, for SET_MOD */
+};
 
 /* BACK on UTILITY moves focus one pane left. Returns 1 when it did, 0 when
    the navigation table should handle BACK (focus already on the rail, or any
@@ -132,8 +177,9 @@ enum xz_shell_settings_region {
 };
 struct xz_shell_rect xz_shell_settings_rect(enum xz_shell_settings_region);
 enum { XZ_SHELL_SETTINGS_ROW_H=38, XZ_SHELL_SETTINGS_ROWS=9, XZ_SHELL_SETTINGS_RAIL_H=48 };
-/* The MODS screen's tab row: tab i's rect (44 px touch target), -1 past the last tab. */
-struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell_model *, int tab);
+/* The MODS screen's tab row: tab i's rect (44 px touch target); zero width past the last tab or while
+   the row is scrolled so tab i is out of view. */
+struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell *, const struct xz_shell_model *, int tab);
 /* A TAB_PAGE tab's open button. */
 struct xz_shell_rect xz_shell_mods_page_button(void);
 /* SHORTCUT: quadrant 0..3 in reading order, and the chip row of slot 0..3 inside it. */

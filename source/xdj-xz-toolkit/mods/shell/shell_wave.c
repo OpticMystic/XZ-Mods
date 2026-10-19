@@ -258,7 +258,7 @@ int sh_stem_wave_ready(const struct xz_shell_deck *d) {
  return sh_has(d,XZ_SHELL_F_STEM_WAVE)&&d->stems.columns&&d->stems.count&&d->stems.span_ms;
 }
 void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps) {
- enum xz_shell_wave_color mode=sh_wave_color(u);
+ enum xz_shell_wave_color mode=sh_deck_wave_color(u,d);
  if(mode==XZ_SHELL_WAVE_STEMS){
   if(sh_stem_wave_ready(d)){stem_lane(m,d,c,r,amp,first_px,pps);return;}
   mode=XZ_SHELL_WAVE_3BAND;
@@ -266,7 +266,7 @@ void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const str
  if(sh_has(d,XZ_SHELL_F_WAVE))sh_wave_lane(c,r,amp,&d->wave,mode,first_px,pps);
 }
 void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int played_x) {
- enum xz_shell_wave_color mode=sh_wave_color(u);
+ enum xz_shell_wave_color mode=sh_deck_wave_color(u,d);
  if(mode==XZ_SHELL_WAVE_STEMS){
   if(sh_stem_wave_ready(d)){stem_overview(m,d,c,r,played_x);return;}
   mode=XZ_SHELL_WAVE_3BAND;
