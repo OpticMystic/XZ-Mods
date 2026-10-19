@@ -248,7 +248,7 @@ while (words := descriptor(at)):
     apply = live_apply(words[7], args, count) if args is not None else 0
     mapped = bool(getter and setter and args is not None and getter_index(words[7], args, count) and
                   only_setter(words[11], setter) and apply is not None)
-    items.append(dict(item=item, label=label, choices=choices or ['STOCK MENU'], args=args or [0] * max(count, 1),
+    items.append(dict(item=item, label=label, choices=choices or ['BY THE PLAYER'], args=args or [0] * max(count, 1),
                       getter=getter, setter=setter, mapped=mapped, apply=apply or 0,
                       get=rbp.sym(getter) if getter else 0, set=rbp.sym(setter) if setter else 0))
 
