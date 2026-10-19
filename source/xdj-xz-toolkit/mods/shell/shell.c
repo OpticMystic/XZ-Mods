@@ -161,7 +161,7 @@ static int on_stack(const struct xz_shell *u, enum xz_shell_screen s) {
  for(int i=0;i<u->depth;i++)if(u->stack[i].screen==s)return 1;
  return 0;
 }
-/* The MODS screen (XZ_SHELL_UTILITY) at a tab, with the encoder on the tab row. Already open, it
+/* The MODS screen (XZ_SHELL_UTILITY) on a page, with the encoder on its rail. Already open, it
    switches tab in place; lower in the stack, the screens above it close. */
 static void open_mods(struct xz_shell *u, int tab) {
  int at=-1;
@@ -244,7 +244,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
   if(!available(m,t.screen))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)t.screen});
   open_screen(u,m,t.screen);break;
  case NAV_PUSH:
-  /* Held MENU lands on MODS > UTILITY, the tab row holding the encoder; held there again it closes
+  /* Held MENU lands on MODS > UTILITY, the rail holding the encoder; held there again it closes
      MODS, as SHORTCUT does, so the key always has an effect and never reaches the stock menu. */
   if(t.screen==XZ_SHELL_UTILITY&&available(m,t.screen)){
    if(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.tab==0&&u->mods_view.on_tabs&&u->depth>1)u->depth--;
