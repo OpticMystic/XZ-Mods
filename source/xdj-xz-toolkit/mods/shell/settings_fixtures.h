@@ -84,8 +84,13 @@ static struct xz_shell_setting_item *fxs_item(int id) {
 static const char *const fxm_page_modes[]={"HOT CUE","BEAT JUMP","SAMPLER","STEMS"};
 static const char *const fxm_layouts[]={"HIDDEN","BELOW","ABOVE","LEFT","RIGHT"};
 static const char *const fxm_order[]={"D H V","D V H","H D V","H V D","V D H","V H D"};
-static const char *const fxm_themes[]={"ORIGINAL","WHITE","CYBERPUNK","NEON","MOCHA","AURORA","SANDSTONE","FLAGSHIP"};
 static const char *const fxm_wave[]={"STOCK","3-BAND","STEMS"};
+/* APPEARANCE as the runtime publishes it (XZ-Mods shell_runtime.c fill_look, since the installer split):
+   the MODERN interface's one theme, STANDARD; the classic themes live in the CLASSIC interface, not here. */
+static const char *const fxm_interface[]={"MODERN","CLASSIC"};
+static const char *const fxm_modern_theme[]={"STANDARD"};
+static const char *const fxm_key_format[]={"USB PREFERENCE","CLASSIC","CAMELOT"};
+static const char *const fxm_stem_color[]={"THEME DEFAULT","BLUE","RED","GREEN","AMBER","PURPLE","CYAN","PINK","WHITE"};
 static const char *const fxm_jump[]={"1/8","1/4","1/2","1","2","4","8","16","32","64"};
 static const struct xz_shell_setting_item fxm_stem_items[]={
  {0,0,"STEM AUDIO",fxs_off_on,2,1,1,1},
@@ -98,11 +103,17 @@ static const struct xz_shell_setting_item fxm_stem_items[]={
 static const char *const fxm_stem_notes[]={NULL,NULL,NULL,NULL,NULL,"SET IN THE STEM BUILDER ON YOUR COMPUTER"};
 static const char *const fxm_stem_sections[]={"AUDIO","PADS"};
 static const struct xz_shell_setting_item fxm_look_items[]={
- {3,0,"THEME",fxm_themes,8,7,1,1},
- {23,0,"SCROLLING WAVEFORM",fxm_wave,3,1,1,1},
- {33,1,"EFFECTIVE KEY DISPLAY",fxs_off_on,2,1,1,1},
+ {1,0,"INTERFACE",fxm_interface,2,0,1,1},
+ {2,1,"THEME",fxm_modern_theme,1,0,1,1},
+ {3,2,"SCROLLING WAVEFORM",fxm_wave,3,1,1,1},
+ {4,3,"KEY NOTATION",fxm_key_format,3,0,1,1},
+ {5,3,"EFFECTIVE KEY DISPLAY",fxs_off_on,2,1,1,1},
+ {6,3,"COLOR COMPATIBLE KEYS",fxs_off_on,2,1,1,1},
+ {7,3,"DRUMS COLOR",fxm_stem_color,9,0,1,1},
+ {8,3,"HARMONICS COLOR",fxm_stem_color,9,0,1,1},
+ {9,3,"VOCALS COLOR",fxm_stem_color,9,0,1,1},
 };
-static const char *const fxm_look_sections[]={"SCREEN","KEY"};
+static const char *const fxm_look_sections[]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
 static const struct xz_shell_setting_item fxm_jump_items[]={
  {12,0,"CUSTOM BEAT JUMP",fxs_off_on,2,1,1,1},
  {14,1,"PAGE 1: A/B",fxm_jump,10,3,1,1},{15,1,"PAGE 1: C/D",fxm_jump,10,5,1,1},
@@ -114,7 +125,7 @@ static const struct xz_shell_settings_model fxm_look={sizeof fxm_look_items/size
 static const struct xz_shell_settings_model fxm_jump_model={sizeof fxm_jump_items/sizeof *fxm_jump_items,fxm_jump_items,NULL};
 static const struct xz_shell_mods_tab fxm_tabs[]={
  {"STEMS",XZ_SHELL_TAB_ITEMS,&fxm_stems,fxm_stem_sections,2,0,NULL},
- {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&fxm_look,fxm_look_sections,2,0,NULL},
+ {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&fxm_look,fxm_look_sections,4,0,NULL},
  {"BEAT JUMP",XZ_SHELL_TAB_ITEMS,&fxm_jump_model,fxm_jump_sections,2,0,NULL},
  {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,24,"YOUR NAME, LOGO AND COLORS ON THE USB STICK"},
  {"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,13,"ARCADE GAMES FOR THE BREAK"},

@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
  xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,1);shot(&u,&m,"mods-stems-rail");
  open_item(&u,&m,1,1,22);shot(&u,&m,"mods-stems-values");
  open_item(&u,&m,1,1,37);shot(&u,&m,"mods-stems-unwritable");
- open_item(&u,&m,2,0,3);shot(&u,&m,"mods-appearance-theme");
+ open_item(&u,&m,2,1,2);shot(&u,&m,"mods-appearance-theme");
  open_item(&u,&m,3,1,16);shot(&u,&m,"mods-beat-jump-page");
 
  xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,4);shot(&u,&m,"mods-page-rail");
@@ -86,11 +86,11 @@ int main(int argc, char **argv) {
 
  /* Many mod pages: the rail scrolls, UTILITY stays on top. */
  static const struct xz_shell_mods_tab many[11]={
-  {"CLASSIC THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,"THE THEMES THE MOD STARTED WITH"},{"MODERN THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL},
-  {"INTERFACE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL},{"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL},
+  {"GENERAL",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,"TURN MODS ON AND OFF AND SET THEM UP"},{"CONTROLS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL},
+  {"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL},{"EXTRAS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL},
   {"STEMS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,5,NULL},{"BEAT JUMP",XZ_SHELL_TAB_PAGE,NULL,NULL,0,6,NULL},
   {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,7,NULL},{"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,8,NULL},
-  {"PERFORMANCE PADS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,9,NULL},{"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,10,NULL},
+  {"PERFORMANCE PADS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,9,NULL},{"RAM TRACKS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,10,NULL},
   {"ABOUT THIS MOD",XZ_SHELL_TAB_PAGE,NULL,NULL,0,11,NULL},
  };
  static const struct xz_shell_mods_model many_mods={11,many};
@@ -98,18 +98,9 @@ int main(int argc, char **argv) {
  xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"mods-many-pages-utility");
  turn(&u,&m,6);shot(&u,&m,"mods-many-pages-middle");
  turn(&u,&m,10);shot(&u,&m,"mods-many-pages-last");
- /* An APPEARANCE tab with grouped sections whose names need two lines. */
- static const char *const sections[]={"INTERFACE","CLASSIC THEMES","MODERN THEMES","GROUPED SETTINGS"};
- static const char *const iface[]={"MODERN","CLASSIC"};
- static const struct xz_shell_setting_item look[]={
-  {40,0,"INTERFACE",iface,2,0,1,1},{3,1,"CLASSIC THEME",fxm_themes,8,0,1,1},{41,2,"MODERN THEME",fxm_themes,8,7,1,1},
-  {23,3,"SCROLLING WAVEFORM",fxm_wave,3,1,1,1},{33,3,"EFFECTIVE KEY DISPLAY",fxs_off_on,2,1,1,1}};
- static const struct xz_shell_settings_model look_model={5,look,NULL};
- static const struct xz_shell_mods_tab look_tabs[]={{"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,sections,4,0,NULL},fxm_tabs[0],fxm_tabs[3]};
- static const struct xz_shell_mods_model look_mods={3,look_tabs};
- m.mods=&look_mods;
- open_item(&u,&m,1,1,3);shot(&u,&m,"mods-appearance-sections");
+ /* APPEARANCE as the runtime publishes it: INTERFACE, THEME, WAVEFORM, KEYS AND STEMS. */
  m.mods=&fxm_model;
+ open_item(&u,&m,2,3,7);shot(&u,&m,"mods-appearance-sections");
 
  /* MY SETTINGS on USB 1's browse root. */
  {
