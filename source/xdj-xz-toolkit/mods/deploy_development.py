@@ -25,6 +25,7 @@ def main():
     parser.add_argument("--previous-evidence", type=Path, help="Verified live receipt when replacing an earlier development pair")
     parser.add_argument("--previous-bundle", type=Path, help="Verified bundle used by the normal combined USB loader")
     parser.add_argument("--fast-transfer", action="store_true", help="Use the already installed private RAM transfer helper")
+    parser.add_argument("--push-port", type=int, help="Upload outbound only: the deck listens with busybox nc on this port and the PC connects (no inbound connection to the PC)")
     parser.add_argument("--pad-trace", action="store_true", help="Enable bounded in-memory physical-key diagnostics")
     parser.add_argument("--native-view", action="store_true", help="Start this RAM trial on the native deck view; the visible VJ.Tools button can reopen the stream")
     parser.add_argument("--stems", action="store_true", help="Enable prepared-stem discovery with native-audio alignment")
@@ -36,6 +37,10 @@ def main():
     parser.add_argument("--inline-observe", action="store_true", help="Observe the exact native wave lock without drawing")
     parser.add_argument("--settings-usb", help="Existing mounted XZ USB volume for persistent preferences")
     args = parser.parse_args()
+    if args.push_port:
+        import os
+        os.environ["XZ_NC_PUSH_PORT"] = str(args.push_port)
+        os.environ.pop("XZ_HTTP_SERVE", None)
     if args.settings_usb:
         if not re.fullmatch(r"/media/usb[12]/[A-Za-z0-9_-]+",args.settings_usb):
             raise ValueError("Expected an explicit XZ USB mount")

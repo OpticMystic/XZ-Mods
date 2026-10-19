@@ -68,8 +68,8 @@ static void verdicts(void) {
  /* Nothing the shell can open: the keys go to stock, which opens its own screens. */
  assert(xz_shrt_key_verdict(&u,&m,browse_key)==XZ_SHRT_PASS_HAND_OFF);
  assert(xz_shrt_key_verdict(&u,&m,info)==XZ_SHRT_PASS_HAND_OFF);
- /* Without the settings slot the held MENU hands UTILITY to stock: the whole key goes there. */
- assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_PASS_HAND_OFF);
+ /* MENU stays with the shell even without its settings slot (the runtime always publishes UTILITY). */
+ assert(xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
  /* Inert keys are swallowed, never passed to the hidden stock screen: stock would act on its own
     browse cursor or deck state behind the shell. */
  assert(xz_shrt_key_verdict(&u,&m,tag)==XZ_SHRT_PASS_HAND_OFF); /* TAG TRACK on PLAY: stock tags the loaded track */
@@ -94,6 +94,9 @@ static void verdicts(void) {
   assert(n==0&&copy.panel.kind==XZ_SHELL_PANEL_MENU);} /* the shell's MENU panel (sort, columns) */
  e.key=XZ_SHELL_KEY_MENU_HOLD;xz_shell_input(&u,&m,&e,out);
  assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&xz_shrt_key_verdict(&u,&m,menu)==XZ_SHRT_SWALLOW);
+ /* MENU is never passed to stock, whatever the shell's probe says. */
+ {struct xz_shell copy;xz_shell_init(&copy);struct xz_shell_model empty;memset(&empty,0,sizeof empty);
+  assert(xz_shrt_key_verdict(&copy,&empty,menu)==XZ_SHRT_SWALLOW);}
  puts("PASS press-time verdicts: hand-off pass-through, inert keys swallowed, MENU to the shell's UTILITY, side-effect-free probes");
 }
 
