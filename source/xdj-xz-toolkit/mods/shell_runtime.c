@@ -1873,7 +1873,8 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   struct xz_shell_deck input;memset(&input,0,sizeof input);
   if(in->key[d].valid){
    input.key=in->key[d].text;input.key_matches_master=in->key[d].matches_master;input.key_shift=in->key[d].shift;
-   input.known|=K(KEY)|K(KEY_SHIFT);
+   input.key_original=in->key[d].original;input.key_cents=in->key[d].cents;input.key_synced=in->key[d].synced;
+   input.known|=K(KEY)|K(KEY_SHIFT)|K(KEY_ORIGINAL)|K(KEY_SYNC);
   }
   struct xz_arcade_track_clock clock;
   engine[d].ok=0;

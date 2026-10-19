@@ -38,7 +38,7 @@ enum { TITLE_BYTES=769, KEY_BYTES=32, GRID_CAP=4096, SCROLL_CAP=32768,
 #define SET(f) (1u<<XZ_SHELL_SET_##f)
 struct xz_shell_model_input {
     struct xz_shell_deck deck;
-    char key[KEY_BYTES], artist[TITLE_BYTES];
+    char key[KEY_BYTES], key_original[KEY_BYTES], artist[TITLE_BYTES];
     struct xz_shell_beat grid[GRID_CAP];
 };
 struct deck_storage {
@@ -230,7 +230,7 @@ void xz_shell_model_set_input(struct xz_shell_model_storage *s,int deck,const st
     if(!input){v->deck.known=0;return;}
     /* Stage before overwriting to permit a previous model deck as input. */
     struct xz_shell_deck d=*input;
-    d.known&=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST)|K(MEMORY_CUES)|K(SOURCE_LOOK);
+    d.known&=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(KEY_ORIGINAL)|K(KEY_SYNC)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST)|K(MEMORY_CUES)|K(SOURCE_LOOK);
     if(d.known&K(ARTIST)){
         size_t n=0;if(d.artist)while(n<TITLE_BYTES&&d.artist[n])++n;
         if(!n||n>=TITLE_BYTES)d.known&=~K(ARTIST);
@@ -241,6 +241,11 @@ void xz_shell_model_set_input(struct xz_shell_model_storage *s,int deck,const st
         size_t n=0;if(d.key)while(n<KEY_BYTES&&d.key[n])++n;
         if(!n||n>=KEY_BYTES)d.known&=~K(KEY);
         else {memmove(v->key,d.key,n+1);d.key=v->key;}
+    }
+    if(d.known&K(KEY_ORIGINAL)){
+        size_t n=0;if(d.key_original)while(n<KEY_BYTES&&d.key_original[n])++n;
+        if(!n||n>=KEY_BYTES||d.key_cents < -50||d.key_cents>50)d.known&=~K(KEY_ORIGINAL);
+        else {memmove(v->key_original,d.key_original,n+1);d.key_original=v->key_original;}
     }
     if(d.known&K(GRID)){
         if(!d.grid||!d.grid_count||d.grid_count>GRID_CAP)d.known&=~K(GRID);
@@ -263,6 +268,8 @@ static void input_fields(struct xz_shell_deck *d,struct xz_shell_model_input *v)
     if(i->known&K(LOADED))d->loaded=!!i->loaded;
     if(i->known&K(PLAYING))d->playing=!!i->playing;
     if(i->known&K(KEY)){d->key=i->key;d->key_matches_master=!!i->key_matches_master;}
+    if(i->known&K(KEY_ORIGINAL)){d->key_original=i->key_original;d->key_cents=i->key_cents;}
+    if(i->known&K(KEY_SYNC))d->key_synced=!!i->key_synced;
     if(i->known&K(KEY_SHIFT))d->key_shift=i->key_shift;
     if(i->known&K(GRID)){d->grid=i->grid;d->grid_count=i->grid_count;}
     if(i->known&K(BAR_PHASE))d->bar_phase=i->bar_phase;

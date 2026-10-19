@@ -19,7 +19,7 @@
 #include "shell/shell.h"
 
 /* ---- Device entry points (shell_runtime.c). Weak in ui_runtime.c. ---- */
-struct xz_shell_runtime_key { int valid; char text[8]; int matches_master, shift; };
+struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cents, synced; int matches_master, shift; };
 #define XZ_SHELL_RUNTIME_DJ 32
 struct xz_shell_runtime_frame_input {
  int eligible, theme;
