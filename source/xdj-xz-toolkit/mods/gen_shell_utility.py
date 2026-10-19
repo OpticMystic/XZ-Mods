@@ -44,6 +44,7 @@ out = Path(sys.argv[2])
 # Shell item ids (shell/shell_settings.h) for the items the shell already names; the rest get stable
 # runtime ids XZ_SHRT_UTIL_ID(n) (shell_utility.h). Never renumber an existing entry.
 SHELL_IDS = {
+    'NeedleLock': 'XZ_SHELL_ITEM_NEEDLE_LOCK',  # was XZ_SHRT_UTIL_ID(0), which stays reserved
     'EjectLoadLock': 'XZ_SHELL_ITEM_LOAD_LOCK', 'QuantizeValue': 'XZ_SHELL_ITEM_QUANTIZE_BEAT',
     'HotCueAutoLoad': 'XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD', 'HotCueColor': 'XZ_SHELL_ITEM_HOT_CUE_COLOR',
     'AutoCueLevel': 'XZ_SHELL_ITEM_AUTO_CUE_LEVEL', 'SlipFlashing': 'XZ_SHELL_ITEM_SLIP_FLASHING',

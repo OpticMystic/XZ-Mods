@@ -54,7 +54,7 @@ int main(void) {
  assert(lock->id==XZ_SHELL_ITEM_LOAD_LOCK&&lock->args[1]==1&&!lock->apply);
  assert(fader->apply&&fader->apply_code[0]|fader->apply_code[1]);
  assert(touch->id==XZ_SHRT_UTIL_ID(16)&&!touch->get&&!touch->set&&touch->count==1);
- assert(by_key("NeedleLock")->id==XZ_SHRT_UTIL_ID(0));
+ assert(by_key("NeedleLock")->id==XZ_SHELL_ITEM_NEEDLE_LOCK); /* the shell item; runtime id 0 stays reserved */
 
  /* Reasons: stock-only, guards, trial. */
  assert(xz_shut_reason(touch,1,1,0)&&!strcmp(xz_shut_reason(touch,1,1,0),XZ_SHUT_NOTE_STOCK));
