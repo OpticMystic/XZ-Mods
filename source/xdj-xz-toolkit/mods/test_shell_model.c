@@ -125,19 +125,20 @@ static void test_valid_and_input(void){
   int32_t out=-1;assert(xz_shell_model_hot_cue_out(s.storage,deck,cue,&out));assert(out==(cue&1?500+cue*1000:0));
  }
  assert(xz_shell_model_refresh(&m,s.storage,read_memory,124)==0);
- char key[]="8A";struct xz_shell_beat grid[2]={{0,1},{500,2}};
- struct xz_shell_deck input={.known=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST),
-  .loaded=1,.playing=1,.key=key,.key_matches_master=1,.key_shift=-2,.grid=grid,.grid_count=2,.bar_phase=3};
+ char original[]="9A";char key[]="8A";struct xz_shell_beat grid[2]={{0,1},{500,2}};
+ struct xz_shell_deck input={.known=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(KEY_ORIGINAL)|K(KEY_SYNC)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST),
+  .loaded=1,.playing=1,.key_original=original,.key_cents=-23,.key_synced=1,.key=key,.key_matches_master=1,.key_shift=-2,.grid=grid,.grid_count=2,.bar_phase=3};
  xz_shell_model_set_input(s.storage,0,&input,2);xz_shell_model_set_input(s.storage,1,&input,3);
- key[0]='9';grid[0].ms=999;
+ key[0]='9';original[0]='1';grid[0].ms=999;
  assert(!xz_shell_model_refresh(&m,s.storage,read_memory,125));
  for(int deck=0;deck<2;deck++){
   const struct xz_shell_deck *d=m.deck+deck;assert((d->known&input.known)==(input.known&~K(ARTIST)));
   assert(d->loaded&&d->playing&&!strcmp(d->key,"8A")&&d->key_matches_master&&d->key_shift==-2);
+  assert(!strcmp(d->key_original,"9A")&&d->key_cents==-23&&d->key_synced);
   assert(d->grid_count==2&&d->grid[0].ms==0&&d->grid[1].beat_in_bar==2&&d->bar_phase==3);
   assert(d->source==(deck?XZ_SHELL_SRC_USB2:XZ_SHELL_SRC_USB1));
  }
- assert(!xz_shell_model_refresh(&m,s.storage,read_memory,126));assert_native(&m);
+ assert(!xz_shell_model_refresh(&m,s.storage,read_memory,126));assert_native(&m);assert(!(m.deck[0].known&(K(KEY_ORIGINAL)|K(KEY_SYNC))));
  input.grid_count=GRID_MAX+1;input.bar_phase=5;input.key=NULL;
  xz_shell_model_set_input(s.storage,0,&input,99);assert(!xz_shell_model_refresh(&m,s.storage,read_memory,127));
  assert(!(m.deck[0].known&(K(KEY)|K(GRID)|K(BAR_PHASE)|K(SOURCE))));
