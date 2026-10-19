@@ -551,6 +551,10 @@ static void fill_settings(void) {
   setting_notes[n++]=NULL;
  }
  settings_model=(struct xz_shell_settings_model){(uint32_t)n,setting_items,setting_notes};
+ /* NEEDLE LOCK for the play screen (an overview touch does not seek while it is set and the deck plays). */
+ int nl=xz_shut_find(xz_shut_defs,XZ_SHUT_DEFS,XZ_SHELL_ITEM_NEEDLE_LOCK);
+ model.settings.needle_lock_known=nl>=0&&util.known[nl];
+ model.settings.needle_lock=nl>=0&&util.known[nl]&&util.raw[nl]==1;
 }
 static int util_writable_any(void) {
  for(int i=0;i<XZ_SHUT_DEFS;i++)if(!xz_shut_reason(&xz_shut_defs[i],util.get_ok[i],util.set_ok[i],util.trial))return 1;
