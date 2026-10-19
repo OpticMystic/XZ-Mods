@@ -24,6 +24,7 @@
 #include "ui/native_skin_runtime.h"
 #include "ui/themes.h"
 #include <dirent.h>
+#include <dlfcn.h>
 #include <limits.h>
 #include <math.h>
 #include <pthread.h>
@@ -92,7 +93,8 @@ static struct xz_shrt_push push_state;
 static struct xz_shrt_queue queue;
 static struct xz_shell_runtime_frame_input last_input;
 static uint32_t last_call_ms, last_refresh_ms, last_pump_ms;
-static struct { uint32_t start, frames, calls, flips, skipped, busy, pump, ticks, tick_busy, render_max, refresh_max, refreshes, clock_reads, moving;
+static struct { uint32_t start, frames, calls, flips, skipped, busy, pump, ticks, tick_busy, render_max, refresh_max, refreshes, clock_reads, moving, following, lock_waits, ui_cached,
+ jitter_us_max, jitter_frames;
  uint64_t render_us, refresh_us; struct xz_shrt_frames shown; } sec;
 /* Playhead and motion per deck (model thread), the caution debounce, header-button requests for
    ui_runtime.c, the MENU key passed to stock, and the LOAD confirmation read a second later. */
@@ -103,6 +105,15 @@ static struct xz_shrt_caution caution_state;
 #define ENGINE_AGREE_MS 1500
 static struct { int ok; uint32_t position_ms; float speed; } engine[XZ_SHELL_DECKS];
 static uint32_t sync_logged[XZ_SHELL_DECKS];
+static unsigned follow_bits; /* decks whose playhead follows the engine readings (jog hold, scratch) */
+#define FRAME_LOCK_US 4000u
+/* The receiver's next vblank in gettimeofday microseconds (xz_directfb_hook.c), found at start. */
+static uint64_t (*next_present)(void);
+/* About half a frame from the vblank to the beam reaching the lanes (middle rows of 525 lines). */
+#define SCANOUT_MID_US 8000u
+/* Per-frame playhead step against the ideal (render clock delta x tempo), for the SHELL line. */
+static struct { int32_t last[XZ_SHELL_DECKS]; uint32_t last_clock; int valid; } step;
+static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256}; /* shell_play.c lane pixels per second */
 static uint32_t last_caution_logged;
 static unsigned ui_requests;
 static int menu_passed;
@@ -484,33 +495,74 @@ static int read_grid(unsigned deck, struct xz_shell_beat **out, uint32_t *count)
  *out=beats;*count=n;return 1;
 }
 /* ---- analysis lookup (worker only) ----
-   One index per mounted USB (shell_analysis.c), built when the USB's export appears and kept until it
-   changes. A miss rebuilds that USB's index at most every XZ_SHANA_MISS_REBUILD_MS. */
-static struct { struct xz_shana *index; char root[1024]; uint64_t built_us, build_us; uint32_t files; } analysis[2];
-static void analysis_build(int slot) {
- uint64_t t=mono_us();struct xz_shana *next=NULL;uint32_t files=0;
+   Per mounted USB (shell_analysis.c): the track -> analysis folder index and the track -> stem bundle map,
+   built when the stick appears. They are rebuilt only when the stick's analysis signature changes (its
+   USBANLZ folders or stem index), never because export.pdb changed (the deck writes its history there)
+   and never on a plain miss: a miss checks the signature at most every SIGNATURE_CHECK_MS. */
+#define SIGNATURE_CHECK_MS 5000u
+static struct {
+ struct xz_shana *index; struct xz_shana_stems *stems; char root[1024]; uint64_t signature;
+ uint64_t built_us, build_us, stems_us, checked_us; uint32_t files, builds;
+} analysis[2];
+static void analysis_build(int slot, const char *why) {
+ uint64_t t=mono_us();struct xz_shana *next=NULL;struct xz_shana_stems *stems=NULL;uint32_t files=0;
+ analysis[slot].signature=xz_shana_signature(analysis[slot].root);
  if(!analysis[slot].root[0]||xz_shana_build(analysis[slot].root,&next,&files))next=NULL;
+ uint64_t t1=mono_us();
+ if(analysis[slot].root[0]&&xz_shana_stems_build(analysis[slot].root,&stems))stems=NULL;
  xz_shana_free(analysis[slot].index);analysis[slot].index=next;
- analysis[slot].built_us=mono_us();analysis[slot].build_us=analysis[slot].built_us-t;analysis[slot].files=files;
- if(debug){char line[1200];snprintf(line,sizeof line,"SHELL_ANALYSIS: usb%d root=%s entries=%u files=%u build_ms=%u",slot+1,
-  analysis[slot].root,xz_shana_count(next),files,(unsigned)(analysis[slot].build_us/1000u));xz_log(line);}
+ xz_shana_stems_free(analysis[slot].stems);analysis[slot].stems=stems;
+ analysis[slot].built_us=analysis[slot].checked_us=mono_us();analysis[slot].build_us=t1-t;analysis[slot].stems_us=analysis[slot].built_us-t1;
+ analysis[slot].files=files;analysis[slot].builds++;
+ if(debug){char line[1200];snprintf(line,sizeof line,"SHELL_ANALYSIS: usb%d reason=%s root=%s entries=%u files=%u build_ms=%u stem_bundles=%u stem_index_ms=%u builds=%u",
+  slot+1,why,analysis[slot].root,xz_shana_count(next),files,(unsigned)(analysis[slot].build_us/1000u),xz_shana_stems_count(stems),
+  (unsigned)(analysis[slot].stems_us/1000u),analysis[slot].builds);xz_log(line);}
 }
-static void analysis_drop(int slot) { xz_shana_free(analysis[slot].index);memset(&analysis[slot],0,sizeof analysis[slot]); }
+static void analysis_drop(int slot) {
+ xz_shana_free(analysis[slot].index);xz_shana_stems_free(analysis[slot].stems);memset(&analysis[slot],0,sizeof analysis[slot]);
+}
+/* After a miss: rebuild only if the stick's analysis really changed. Returns 1 when it rebuilt. */
+static int analysis_recheck(int slot) {
+ uint64_t now=mono_us();
+ if(now-analysis[slot].checked_us<(uint64_t)SIGNATURE_CHECK_MS*1000u)return 0;
+ analysis[slot].checked_us=now;
+ if(xz_shana_signature(analysis[slot].root)==analysis[slot].signature)return 0;
+ analysis_build(slot,"analysis_changed");return 1;
+}
+static int analysis_slot(const char *root) {
+ for(int i=0;i<2;i++)if(analysis[i].root[0]&&!strcmp(analysis[i].root,root))return i;
+ return -1;
+}
 /* 0 and the 3-band data for an absolute track path. *built_ms: index build time spent in this call. */
 static int resolve_three_band(const char *source, struct xz_wave_load *w, uint32_t *built_ms, int *slot_out) {
  char root[1024],dir[1024];const char *track;*built_ms=0;*slot_out=-1;
  if(xz_shana_split(source,root,sizeof root,&track))return -1;
- int slot=-1;
- for(int i=0;i<2;i++)if(analysis[i].root[0]&&!strcmp(analysis[i].root,root))slot=i;
+ int slot=analysis_slot(root);
  *slot_out=slot;
  if(slot<0)return xz_wave_load_three_band(source,w); /* not a mounted rekordbox USB we index: the old path */
- for(int pass=0;pass<2;pass++){
-  if(!analysis[slot].index||(pass&&mono_us()-analysis[slot].built_us>=(uint64_t)XZ_SHANA_MISS_REBUILD_MS*1000u)){
-   analysis_build(slot);*built_ms+=(uint32_t)(analysis[slot].build_us/1000u);
-  }else if(pass)break;
+ if(!analysis[slot].index){analysis_build(slot,"first_use");*built_ms+=(uint32_t)(analysis[slot].build_us/1000u);}
+ if(!xz_shana_find(analysis[slot].index,track,dir,sizeof dir))return xz_shana_three_band(dir,w);
+ if(analysis_recheck(slot)){
+  *built_ms+=(uint32_t)(analysis[slot].build_us/1000u);
   if(!xz_shana_find(analysis[slot].index,track,dir,sizeof dir))return xz_shana_three_band(dir,w);
  }
  return -1;
+}
+/* The stem layer for an absolute track path: the stick's stem map, then only the three PWV7 sections.
+   Falls back to the stem loader in layered_wave_source.c for a root this module does not index.
+   split_ms: [0] bundle lookup, [1..3] drums, harmonics, vocal reads. */
+static int resolve_stems(const char *source, struct xz_wave_load *w, uint32_t split_ms[4]) {
+ char root[1024],folder[1024];const char *track;memset(split_ms,0,4*sizeof *split_ms);
+ if(xz_shana_split(source,root,sizeof root,&track))return -1;
+ int slot=analysis_slot(root);
+ if(slot<0){uint64_t t=mono_us();int rc=xz_wave_load_stems(source,w);split_ms[0]=(uint32_t)((mono_us()-t)/1000u);return rc;}
+ if(!analysis[slot].index)analysis_build(slot,"first_use");
+ uint64_t t=mono_us();
+ int found=!xz_shana_stems_find(analysis[slot].stems,track,folder,sizeof folder);
+ if(!found&&analysis_recheck(slot))found=!xz_shana_stems_find(analysis[slot].stems,track,folder,sizeof folder);
+ split_ms[0]=(uint32_t)((mono_us()-t)/1000u);
+ if(!found)return -1;
+ return xz_shana_stems_load(folder,w,split_ms+1);
 }
 /* 3-band columns from a load, binned for the lane and the overview. */
 struct binned { struct xz_shell_column *scroll, *overview; uint32_t scroll_n, overview_n, span; };
@@ -525,8 +577,13 @@ static int bin_three_band(const struct xz_wave_load *w, struct binned *b) {
 /* LOAD prefetch: the shell knows the track before stock loads it, so the worker reads its 3-band wave
    while the deck loads. It is used only once the deck's reader holds exactly that file. */
 static struct { int pending, slot, deck; uint32_t id; uint64_t posted_us; } hint[XZ_SHELL_DECKS]; /* under mutex */
-static struct { char path[XZ126_READER_PATH_MAX]; struct binned b; uint64_t posted_us; uint32_t read_ms; } prefetch[XZ_SHELL_DECKS]; /* worker */
-static void prefetch_drop(int d) { free(prefetch[d].b.scroll);free(prefetch[d].b.overview);memset(&prefetch[d],0,sizeof prefetch[d]); }
+static int scan_soon; /* under mutex: a LOAD did not land; check the sticks now, not in a second */
+static struct {
+ char path[XZ126_READER_PATH_MAX]; struct binned b; uint64_t posted_us; uint32_t read_ms;
+ char stems_path[XZ126_READER_PATH_MAX]; struct xz_shell_column *stems; uint32_t stems_n, stems_span, stems_split[4];
+} prefetch[XZ_SHELL_DECKS]; /* worker */
+static void prefetch_drop(int d) { free(prefetch[d].b.scroll);free(prefetch[d].b.overview);free(prefetch[d].stems);memset(&prefetch[d],0,sizeof prefetch[d]); }
+static struct xz_shell_column *stem_columns(const char *source, uint32_t *n, uint32_t *span, uint32_t split_ms[4]);
 static void run_prefetch(int d, int slot, uint32_t id, uint64_t posted_us) {
  prefetch_drop(d);
  struct xz_shlib *lib=usb[slot].lib; /* only this thread frees libraries */
@@ -541,10 +598,13 @@ static void run_prefetch(int d, int slot, uint32_t id, uint64_t posted_us) {
  if(!ok)return;
  snprintf(prefetch[d].path,sizeof prefetch[d].path,"%s",source);
  prefetch[d].posted_us=posted_us;prefetch[d].read_ms=(uint32_t)((mono_us()-t0)/1000u);
+ /* The stem layer too, while the deck is still loading. */
+ prefetch[d].stems=stem_columns(source,&prefetch[d].stems_n,&prefetch[d].stems_span,prefetch[d].stems_split);
+ if(prefetch[d].stems)snprintf(prefetch[d].stems_path,sizeof prefetch[d].stems_path,"%s",source);
 }
-static struct xz_shell_column *stem_columns(const char *source, uint32_t *n, uint32_t *span) {
+static struct xz_shell_column *stem_columns(const char *source, uint32_t *n, uint32_t *span, uint32_t split_ms[4]) {
  struct xz_wave_load w;*n=0;*span=0;
- if(xz_wave_load_stems(source,&w))return NULL;
+ if(resolve_stems(source,&w,split_ms))return NULL;
  uint32_t peak=band_peak(w.bands,w.count);
  struct xz_shell_column *c=bin_columns(w.bands,w.count,WAVE_SCROLL_CAP,peak,n);
  *span=(uint32_t)((uint64_t)w.count*1000u/PWV7_PER_SECOND);
@@ -574,7 +634,7 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry
    int ok=!bin_three_band(&w,&b);xz_wave_load_free(&w);read_ms=(uint32_t)((mono_us()-t1)/1000u);
    if(!ok)return 1;
   }
-  prefetch_drop(d);
+  free(prefetch[d].b.scroll);free(prefetch[d].b.overview);memset(&prefetch[d].b,0,sizeof prefetch[d].b);prefetch[d].path[0]=0;
   if(!deck_source((unsigned)d,&after)||strcmp(after.path,s.path)){free(b.scroll);free(b.overview);return 0;}
   uint32_t cols=b.scroll_n,span=b.span;
   if(!post_parts(d,gen,PART_WAVE,b.scroll,b.overview,b.scroll_n,b.overview_n,b.span,NULL,0,NULL,0,0))return 1;
@@ -605,12 +665,17 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry
   }
  }
  if(!wave_job[d].stems_done){
-  uint64_t t0=mono_us();uint32_t n=0,span=0;
-  struct xz_shell_column *stems=stem_columns(s.path,&n,&span);
+  uint64_t t0=mono_us();uint32_t n=0,span=0,split[4]={0,0,0,0};int prefetched=0;
+  struct xz_shell_column *stems=NULL;
+  if(prefetch[d].stems_path[0]&&!strcmp(prefetch[d].stems_path,s.path)){
+   stems=prefetch[d].stems;n=prefetch[d].stems_n;span=prefetch[d].stems_span;memcpy(split,prefetch[d].stems_split,sizeof split);
+   prefetch[d].stems=NULL;prefetch[d].stems_path[0]=0;prefetched=1;
+  }else stems=stem_columns(s.path,&n,&span,split);
   wave_job[d].stems_done=1;
   if(stems&&!post_parts(d,gen,PART_STEMS,NULL,NULL,0,0,0,NULL,0,stems,n,span))return 1;
-  if(debug){char line[160];snprintf(line,sizeof line,"SHELL_STEM_WAVE: deck=%d present=%d columns=%u read_ms=%u request_to_ready_ms=%u",
-   d+1,stems!=NULL,n,(unsigned)((mono_us()-t0)/1000u),(unsigned)((mono_us()-requested_us)/1000u));xz_log(line);}
+  if(debug){char line[240];snprintf(line,sizeof line,"SHELL_STEM_WAVE: deck=%d present=%d columns=%u read_ms=%u lookup_ms=%u drums_ms=%u harmonics_ms=%u vocal_ms=%u "
+   "prefetched=%d request_to_ready_ms=%u",d+1,stems!=NULL,n,(unsigned)((mono_us()-t0)/1000u),split[0],split[1],split[2],split[3],prefetched,
+   (unsigned)((mono_us()-requested_us)/1000u));xz_log(line);}
  }
  if(!wave_job[d].grid_done){*retry_ms=GRID_RETRY_MS;return 0;}
  return 1;
@@ -635,11 +700,45 @@ static int find_database(unsigned slot, char out[1024], struct stat *st) {
  closedir(dir);return found;
 }
 static int same_file(const struct stat *a, const struct stat *b) { return a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&a->st_size==b->st_size&&a->st_mtime==b->st_mtime; }
+/* The export must sit on a mounted filesystem under /media/usbN, per /proc/mounts: a stick that is gone
+   must never keep serving a list, even if something is left under the mount point. Writes the mount
+   source (e.g. /dev/sda1). 1 = mounted, 0 = not, -1 = /proc/mounts unreadable (then trusted). */
+static int mounted(const char *root, char *source, size_t cap) {
+ FILE *f=fopen("/proc/mounts","r");
+ if(!f)return -1;
+ char line[1024],dev[512],point[512];size_t best=0;int found=0;
+ if(cap)source[0]=0;
+ while(fgets(line,sizeof line,f)){
+  /* Two space-separated fields (no sscanf: it binds __isoc99_sscanf, GLIBC_2.7, above the deck's ceiling). */
+  char *s=line,*e=strchr(s,' ');if(!e||(size_t)(e-s)>=sizeof dev)continue;
+  memcpy(dev,s,(size_t)(e-s));dev[e-s]=0;s=e+1;e=strchr(s,' ');if(!e||(size_t)(e-s)>=sizeof point)continue;
+  memcpy(point,s,(size_t)(e-s));point[e-s]=0;
+  size_t n=strlen(point);
+  if(n<=7||strncmp(point,"/media/",7)||strncmp(root,point,n)||(root[n]&&root[n]!='/'))continue;
+  if(n>best){best=n;found=1;if(cap)snprintf(source,cap,"%s",dev);}
+ }
+ fclose(f);
+ return found;
+}
+/* Everything the worker holds for a stick that went away: prefetched waves for decks that came from it. */
+static void forget_root(const char *root) {
+ size_t n=strlen(root);
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  if(!n)continue;
+  if((prefetch[d].path[0]&&!strncmp(prefetch[d].path,root,n))||(prefetch[d].stems_path[0]&&!strncmp(prefetch[d].stems_path,root,n)))prefetch_drop(d);
+ }
+}
 static void scan_usb(void) {
  static char seen_path[2][1024];static struct stat seen[2];
  for(unsigned slot=0;slot<2;slot++){
-  char path[1024]={0};struct stat st;memset(&st,0,sizeof st);
-  int found=find_database(slot,path,&st);
+  char path[1024]={0},mount_source[256]="";struct stat st;memset(&st,0,sizeof st);
+  int found=find_database(slot,path,&st),mount=-1;
+  if(found){
+   char at[1024];snprintf(at,sizeof at,"%s",path);
+   char *cut=strstr(at,"/PIONEER/rekordbox/export.pdb");if(cut)*cut=0;
+   mount=mounted(at,mount_source,sizeof mount_source);
+   if(!mount)found=0; /* not a mounted stick: treated exactly as absent */
+  }
   if(found&&!strcmp(path,seen_path[slot])&&same_file(&st,&seen[slot]))continue;
   if(!found&&!seen_path[slot][0])continue;
   struct xz_shlib *next=NULL;uint64_t free_bytes=0,total_bytes=0;int space=0;char root[1024]="";
@@ -662,16 +761,25 @@ static void scan_usb(void) {
   xz_mods_shell_proof_v1.library_tracks[slot]=usb[slot].tracks;
   for(int k=0;k<L_COUNT;k++)if(lists[k].source==(int)slot){retire_list(lists[k].result);lists[k].result=NULL;lists[k].requested=0;}
   if(browse_source==(int)slot&&!next)browse_source=-1;
+  for(int d=0;d<XZ_SHELL_DECKS;d++)if(!next&&hint[d].pending&&hint[d].slot==(int)slot)hint[d].pending=0;
   if(refreshed)fill_slots_locked();
   dirty_flag=1;
   pthread_mutex_unlock(&mutex);
   drain_retired();
-  /* The analysis index belongs to this export: rebuild it now, at mount, not on the first wave. */
-  analysis_drop((int)slot);
-  if(next){snprintf(analysis[slot].root,sizeof analysis[slot].root,"%s",root);analysis_build((int)slot);}
+  /* The analysis index and stem map belong to the stick, not to export.pdb (the deck writes its history
+     there): keep them while the same stick stays mounted with the same analysis, rebuild on a new
+     mount or changed analysis, drop them when it is gone. */
+  const char *why="unmounted";
+  if(next&&!strcmp(analysis[slot].root,root)&&analysis[slot].index&&xz_shana_signature(root)==analysis[slot].signature)why="kept";
+  else if(next){
+   why=analysis[slot].root[0]&&!strcmp(analysis[slot].root,root)?"analysis_changed":"mounted";
+   forget_root(analysis[slot].root);analysis_drop((int)slot);
+   snprintf(analysis[slot].root,sizeof analysis[slot].root,"%s",root);analysis_build((int)slot,why);
+  }else{forget_root(analysis[slot].root);analysis_drop((int)slot);}
   /* A failed open is retried when the file changes, not every second. */
   snprintf(seen_path[slot],sizeof seen_path[slot],"%s",found?path:"");seen[slot]=st;
-  if(debug){char line[1200];snprintf(line,sizeof line,"SHELL_LIBRARY: usb%u %s tracks=%u",slot+1,next?path:"none",usb[slot].tracks);xz_log(line);}
+  if(debug){char line[1400];snprintf(line,sizeof line,"SHELL_LIBRARY: usb%u %s tracks=%u mount=%d source=%s analysis=%s",slot+1,next?path:"none",
+   usb[slot].tracks,mount,mount_source[0]?mount_source:"-",why);xz_log(line);}
  }
 }
 
@@ -709,7 +817,8 @@ static void *worker(void *unused) {
    pthread_mutex_lock(&mutex);
    worked=1;
   }
-  if(!worked&&now-last_scan>=1000u){
+  if(!worked&&(scan_soon||now-last_scan>=1000u)){
+   scan_soon=0;
    pthread_mutex_unlock(&mutex);scan_usb();pthread_mutex_lock(&mutex);
    last_scan=now_ms();continue;
   }
@@ -757,6 +866,24 @@ static void set_owns(int owns) {
  if(!was&&owns)dirty_flag=1;
  xz_mods_shell_proof_v1.owns=(uint32_t)owns;
 }
+/* The playhead's advance this frame against the ideal for a deck that plays smoothly (not following). */
+static void step_jitter_locked(void) {
+ uint32_t clock=model.clock_ms;int counted=0;
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  const struct xz_shell_deck *k=&model.deck[d];
+  int32_t e=xz_shell_elapsed_now(&model,d);
+  int live=e>=0&&(k->known&XZ_SHELL_KNOWN(XZ_SHELL_F_PLAYING))&&k->playing&&!((follow_bits>>d)&1u);
+  if(live&&step.valid&&step.last[d]>=0&&clock!=step.last_clock){
+   int64_t rate=10000+(k->known&K(TEMPO)?k->tempo_x100:0);
+   int64_t ideal_us=(int64_t)(int32_t)(clock-step.last_clock)*rate/10;
+   int64_t off=(int64_t)(e-step.last[d])*1000-ideal_us;if(off<0)off=-off;
+   if(off<1000000){if((uint32_t)off>sec.jitter_us_max)sec.jitter_us_max=(uint32_t)off;counted=1;}
+  }
+  step.last[d]=live?e:-1;
+ }
+ if(counted)sec.jitter_frames++;
+ step.last_clock=clock;step.valid=1;
+}
 static void roll_second(uint32_t now) {
  if(!sec.start){sec.start=now;return;}
  if(now-sec.start<1000u)return;
@@ -773,17 +900,21 @@ static void roll_second(uint32_t now) {
  if(storage)xz_shell_model_diagnostics(storage,p->model_guard_failures);
  __atomic_add_fetch(&p->sequence,1,__ATOMIC_RELEASE);
  if(debug){
-  char line[640];struct stock_parts stock;int stock_now=stock_play_parts(&stock);
+  char line[900];struct stock_parts stock;int stock_now=stock_play_parts(&stock);
   /* fps: frames the shell drew in the last second (each one is presented on the next vsync);
      gap_max_ms/late: the longest frame-to-frame gap and the gaps over 20 ms (missed 60 Hz slots);
      clock: native clock reads that succeeded (two decks per refresh); moving: deck bits playing or moving;
      tick_busy: owner ticks skipped because a frame held the lock; holds: torn reads covered by the
      last snapshot (cumulative). */
-  snprintf(line,sizeof line,"SHELL: fps=%u gap_max_ms=%u.%u late=%u calls=%u stock_flips=%u skipped=%u busy=%u render_avg_us=%u render_max_us=%u "
-   "refreshes=%u refresh_avg_us=%u refresh_max_us=%u clock=%u moving=0x%x period_ms=%u pump=%u ticks=%u tick_busy=%u owns=%u handed=%u caution=%u "
+  int pps=zoom_pps[shell.zoom<0?0:shell.zoom>XZ_SHELL_ZOOM_MAX?XZ_SHELL_ZOOM_MAX:shell.zoom];
+  unsigned jitter_px100=(unsigned)((uint64_t)sec.jitter_us_max*(unsigned)pps/10000u);
+  snprintf(line,sizeof line,"SHELL: fps=%u gap_max_ms=%u.%u late=%u hist=%u/%u/%u/%u/%u step_jitter_ms=%u.%u step_jitter_px=%u.%02u lock_waits=%u ui_cached=%u calls=%u stock_flips=%u skipped=%u busy=%u render_avg_us=%u render_max_us=%u "
+   "refreshes=%u refresh_avg_us=%u refresh_max_us=%u clock=%u moving=0x%x following=0x%x period_ms=%u pump=%u ticks=%u tick_busy=%u owns=%u handed=%u caution=%u "
    "holds=%u wave_loads=%u fx_guard=%u stock_play=%d flag=%u mode=%u menu=%u caution_ack=0x%x keys_dropped=%u screen=%s caps=0x%x",
-   sec.frames,sec.shown.gap_max_us/1000u,sec.shown.gap_max_us/100u%10u,sec.shown.late,sec.calls,sec.flips,sec.skipped,sec.busy,
-   p->second_render_avg_us,sec.render_max,sec.refreshes,p->second_refresh_avg_us,sec.refresh_max,sec.clock_reads,sec.moving,
+   sec.frames,sec.shown.gap_max_us/1000u,sec.shown.gap_max_us/100u%10u,sec.shown.late,
+   sec.shown.hist[0],sec.shown.hist[1],sec.shown.hist[2],sec.shown.hist[3],sec.shown.hist[4],
+   sec.jitter_us_max/1000u,sec.jitter_us_max/100u%10u,jitter_px100/100u,jitter_px100%100u,sec.lock_waits,sec.ui_cached,sec.calls,sec.flips,sec.skipped,sec.busy,
+   p->second_render_avg_us,sec.render_max,sec.refreshes,p->second_refresh_avg_us,sec.refresh_max,sec.clock_reads,sec.moving,sec.following,
    (unsigned)period_ms,sec.pump,sec.ticks,sec.tick_busy,(unsigned)owns_flag,(unsigned)handoff.handed,p->caution,
    p->model_holds,p->wave_loads,p->fx_guard_failures,stock_now,stock.flag,stock.mode,stock.menu,caution_state.ack,key_log.dropped,
    xz_shell_screen_name(xz_shell_screen(&shell)),model.capabilities);
@@ -893,7 +1024,7 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    queue_command(&c);break;
   case XZ_SHELL_ACT_LOAD:
    load_actions++;
-   if(!(model.capabilities&XZ_SHELL_CAP_LOAD)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<=0||browse_source<0){
+   if(!(model.capabilities&XZ_SHELL_CAP_LOAD)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<=0||browse_source<0||!usb[browse_source].lib){
     refuse();
     notice_locked(now,!load_enabled?"LOAD FROM THIS LIST IS OFF":!has(G_LOAD)?"LOAD IS NOT AVAILABLE ON THIS FIRMWARE":
      browse_source<0?"NO USB TRACK LIST TO LOAD FROM":"THIS ROW CANNOT BE LOADED");
@@ -976,7 +1107,7 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
     understand, e.g. a sample rate other than the 44.1 kHz the clock assumes). PLAYING comes from the
     native clock; without it, a stat-frame elapsed time that keeps changing is the proof of motion. The
     published elapsed time is the smoothed line the renderer extrapolates per frame (elapsed_at_ms). */
- unsigned moving=0;
+ unsigned moving=0,following=0;
  for(int d=0;d<XZ_SHELL_DECKS;d++){
   struct xz_shell_deck *k=&model.deck[d];
   if(!(k->known&K(ELAPSED))||!(k->known&K(LOADED))||!k->loaded){xz_shrt_position_reset(&position[d]);memset(&motion[d],0,sizeof motion[d]);continue;}
@@ -992,17 +1123,20 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
    diff=(int32_t)((int64_t)engine[d].position_ms-ui_now);
    if(diff<ENGINE_AGREE_MS&&diff> -ENGINE_AGREE_MS){source_ms=(int32_t)engine[d].position_ms;source_at=now?now:1;rate=engine_rate;from_engine=1;}
   }
-  xz_shrt_position_step(&position[d],k->playing,source_ms,source_at,rate,&k->elapsed_ms,&k->elapsed_at_ms);
+  /* A jog hold, scratch or brake moves the engine position at a speed other than the pitch speed: the
+     playhead then follows each engine reading with no extrapolation (and the model refreshes every frame). */
+  if(xz_shrt_position_step(&position[d],k->playing,source_ms,source_at,rate,from_engine,&k->elapsed_ms,&k->elapsed_at_ms))following|=1u<<d;
   if(k->playing)moving|=1u<<d;
   if(debug&&k->playing&&now-sync_logged[d]>=1000u){
    sync_logged[d]=now;char line[220];
-   snprintf(line,sizeof line,"SHELL_SYNC: deck=%d source=%s engine_ms=%d ui_ms=%d diff_ms=%d published_ms=%d rate_ppm=%d engine_rate_ppm=%d tempo_x100=%d",
+   snprintf(line,sizeof line,"SHELL_SYNC: deck=%d source=%s engine_ms=%d ui_ms=%d diff_ms=%d published_ms=%d rate_ppm=%d engine_rate_ppm=%d tempo_x100=%d "
+    "observed_ppm=%d following=%d",
     d+1,from_engine?"engine":"stat_frame",engine[d].ok?(int)engine[d].position_ms:-1,(int)ui_ms,engine[d].ok?(int)diff:0,(int)k->elapsed_ms,
-    (int)rate,(int)engine_rate,k->known&K(TEMPO)?(int)k->tempo_x100:0);
+    (int)rate,(int)engine_rate,k->known&K(TEMPO)?(int)k->tempo_x100:0,(int)position[d].observed_ppm,(int)((following>>d)&1u));
    xz_log(line);
   }
  }
- sec.moving|=moving;
+ sec.moving|=moving;follow_bits=following;sec.following|=following;
  uint32_t raw_caution=xz_shell_model_caution(storage),caution=xz_shrt_caution_filter(&caution_state,raw_caution);
  if(caution!=raw_caution)xz_mods_shell_proof_v1.caution_filtered++;
  xz_shrt_handoff_caution(&handoff,caution);
@@ -1030,6 +1164,9 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
 
 /* ---- entry points ---- */
 int xz_shell_runtime_owns(void) { return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE); }
+int xz_shell_runtime_will_refresh(void) {
+ return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)&&now_ms()-__atomic_load_n(&last_refresh_ms,__ATOMIC_RELAXED)>=XZ_SHRT_REFRESH_MS-XZ_SHRT_PRESENT_LEAD_MS;
+}
 int xz_shell_runtime_idle(void) {
  if(!__atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)||__atomic_load_n(&dirty_flag,__ATOMIC_ACQUIRE))return 0;
  return now_ms()-__atomic_load_n(&last_drawn_ms,__ATOMIC_ACQUIRE)<__atomic_load_n(&period_ms,__ATOMIC_RELAXED);
@@ -1038,11 +1175,18 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!in||!pixels||stride<XZ_SHELL_WIDTH)return 0;
  uint64_t began_us=now_us();
  uint32_t now=(uint32_t)(began_us/1000u);
+ /* Input threads, the owner tick and the worker hold the lock only briefly. Waiting up to FRAME_LOCK_US
+    still leaves the frame time to render; giving up at once skipped a whole vsync. */
  if(pthread_mutex_trylock(&mutex)){
-  __atomic_add_fetch(&sec.busy,1,__ATOMIC_RELAXED);
-  return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)?-1:0;
+  struct timespec until;uint64_t at=began_us+FRAME_LOCK_US;until.tv_sec=(time_t)(at/1000000u);until.tv_nsec=(long)(at%1000000u)*1000L;
+  if(pthread_mutex_timedlock(&mutex,&until)){
+   __atomic_add_fetch(&sec.busy,1,__ATOMIC_RELAXED);
+   return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)?-1:0;
+  }
+  sec.lock_waits++;
  }
  sec.calls++;xz_mods_shell_proof_v1.render_calls++;
+ if(in->cached)sec.ui_cached++;
  if(xz_native_skin_on_owner_thread()){sec.flips++;xz_mods_shell_proof_v1.stock_flips++;}
  last_call_ms=now;last_input=*in;
  int result=0;
@@ -1054,7 +1198,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  /* The model refreshes at most every XZ_SHRT_REFRESH_MS (the native reads cost more than a frame can
     spare); frames in between redraw the same model with a newer clock, and the renderer advances the
     playhead from elapsed_at_ms. */
- if(!owned||!refreshed||now-last_refresh_ms>=XZ_SHRT_REFRESH_MS)refresh_locked(now,in);
+ if(!owned||!refreshed||follow_bits||now-last_refresh_ms>=XZ_SHRT_REFRESH_MS)refresh_locked(now,in);
  if(!owns_now(in->eligible,in->theme)){set_owns(0);goto done;}
  set_owns(1);
  model.stems_known=in->stems_known;model.stems_on=in->stems_on;
@@ -1066,9 +1210,13 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
   unsigned stale=__atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL);ui_requests_at=0;
   if(stale)notice_locked(now,stale&XZ_SHELL_UI_OPEN_MODS?"THE MODS PANEL DID NOT OPEN":"THE STEMS ROW DID NOT CHANGE");
  }
- /* The frame's clock is taken last, after any refresh, and leads by one presenter period: the receiver
-    shows this frame on its next vblank. Audio output latency is not known and is not applied. */
- model.clock_ms=now_ms()+XZ_SHRT_PRESENT_LEAD_MS;
+ /* The frame's clock is the moment it is scanned out: the receiver's next vblank (it shows this frame
+    then), plus the time the beam takes to reach the middle of the screen. Without the receiver's clock,
+    one presenter period ahead. Audio output latency is not known and is not applied. */
+ {
+  uint64_t present=next_present?next_present():0,t=now_us();
+  model.clock_ms=present>t&&present-t<100000u?(uint32_t)((present+SCANOUT_MID_US)/1000u):(uint32_t)(t/1000u)+XZ_SHRT_PRESENT_LEAD_MS;
+ }
  publish_notice_locked();
  uint64_t began=now_us();
  result=xz_shell_render(&shell,&model,pixels,stride)?1:-1;
@@ -1077,6 +1225,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  /* The receiver presents what this call drew on its next vsync, so the start of the call is the frame's phase. */
  xz_shrt_frame_mark(&sec.shown,began_us);
  xz_mods_shell_proof_v1.frames++;
+ step_jitter_locked();
  __atomic_store_n(&last_drawn_ms,now,__ATOMIC_RELEASE);__atomic_store_n(&dirty_flag,0,__ATOMIC_RELEASE);
 done:
  roll_second(now);
@@ -1109,8 +1258,9 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
   }
   if(key_log_allowed(now)){
    char line[200];
-   snprintf(line,sizeof line,"SHELL_KEY: code=0x%x channel=%u op=%u phase=press verdict=%s owns=%d screen=%s dropped=%u",
-    code,channel,op,verdict_names[v],owns,xz_shell_screen_name(xz_shell_screen(&shell)),key_log.dropped);
+   snprintf(line,sizeof line,"SHELL_KEY: code=0x%x channel=%u op=%u phase=press verdict=%s owns=%d shown=%d handed=%d caution=0x%x eligible=%d screen=%s dropped=%u",
+    code,channel,op,verdict_names[v],owns,(int)__atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE),handoff.handed,(unsigned)caution_state.shown,
+    candidate(eligible,theme),xz_shell_screen_name(xz_shell_screen(&shell)),key_log.dropped);
    key_log.dropped=0;xz_log(line);
   }
  }else{
@@ -1317,6 +1467,8 @@ void xz_shell_runtime_owner_tick(void) {
    load_check.before=check_before;load_check.at=now_ms()+1000u;load_check.tries=check_tries+1;
   }else if(!match){
    char text[48];snprintf(text,sizeof text,"DECK %d DID NOT LOAD THE TRACK",check_deck+1);notice_locked(now_ms(),text);
+   /* The stick may be gone or not ready on the deck: look at the mounts now. */
+   scan_soon=1;pthread_cond_signal(&wake);
   }
   pthread_mutex_unlock(&mutex);
  }
@@ -1327,6 +1479,7 @@ static int flag(const char *name) { const char *v=getenv(name);return v&&!strcmp
 int xz_shell_runtime_start(void) {
  if(__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!flag("XZ_MODS_SHELL"))return 0;
  load_enabled=flag("XZ_MODS_SHELL_LOAD_BY_ID");debug=flag("XZ_MODS_SHELL_DEBUG");
+ next_present=(uint64_t(*)(void))dlsym(RTLD_DEFAULT,"xz_receiver_next_present_us_v1");
  /* calloc: shell_model.c requires zeroed storage. */
  storage=calloc(1,xz_shell_model_storage_size());
  if(!storage){xz_log("FLAGSHIP shell unavailable: no memory for the model");return -1;}

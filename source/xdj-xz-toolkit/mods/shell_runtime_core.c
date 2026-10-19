@@ -208,12 +208,35 @@ int xz_shrt_motion_step(struct xz_shrt_motion *m, int32_t elapsed_ms, uint32_t r
 
 void xz_shrt_position_reset(struct xz_shrt_position *p) { memset(p,0,sizeof *p); }
 int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100) { return 1000000+tempo_x100*100; }
-void xz_shrt_position_step(struct xz_shrt_position *p, int playing, int32_t elapsed_ms, uint32_t read_at,
-                           int32_t rate, int32_t *out_ms, uint32_t *out_at) {
+int xz_shrt_position_step(struct xz_shrt_position *p, int playing, int32_t elapsed_ms, uint32_t read_at,
+                          int32_t rate, int measure, int32_t *out_ms, uint32_t *out_at) {
  int64_t rate_ppm=rate<250000?250000:rate>4000000?4000000:rate;
+ int fresh=read_at!=p->read_at||elapsed_ms!=p->read_ms;
+ /* Observed speed from two readings of a precise source. */
+ if(fresh&&measure&&playing&&p->have_last&&read_at!=p->last_at){
+  int32_t dt=(int32_t)(read_at-p->last_at);
+  if(dt>0&&dt<=250){
+   int64_t observed=((int64_t)elapsed_ms-p->last_ms)*1000000/dt;
+   p->observed_ppm=observed>INT32_MAX?INT32_MAX:observed<INT32_MIN?INT32_MIN:(int32_t)observed;
+   int64_t off=observed-rate_ppm;if(off<0)off=-off;
+   int regular=off*1000000<=(int64_t)XZ_SHRT_RATE_TOLERANCE_PPM*rate_ppm;
+   if(!regular){p->following=1;p->regular_run=0;}
+   else if(p->following&&++p->regular_run>=XZ_SHRT_REGULAR_RUNS){
+    p->following=0;p->regular_run=0;p->base_us=(int64_t)elapsed_ms*1000;p->base_at=read_at;
+    p->read_at=read_at;p->read_ms=elapsed_ms;p->last_ms=elapsed_ms;p->last_at=read_at;
+    *out_ms=elapsed_ms<0?0:elapsed_ms;*out_at=read_at;return 0;
+   }
+  }
+ }
+ if(fresh&&measure){p->have_last=1;p->last_ms=elapsed_ms;p->last_at=read_at;}
+ if(!measure||!playing){p->following=0;p->regular_run=0;}
+ if(p->following){
+  p->valid=1;p->base_us=(int64_t)elapsed_ms*1000;p->base_at=read_at;p->read_at=read_at;p->read_ms=elapsed_ms;
+  *out_ms=elapsed_ms<0?0:elapsed_ms;*out_at=0;return 1;
+ }
  if(!p->valid||!playing){
   p->valid=1;p->base_us=(int64_t)elapsed_ms*1000;p->base_at=read_at;
- }else if(read_at!=p->read_at||elapsed_ms!=p->read_ms){
+ }else if(fresh){
   /* A repeated reading (a held snapshot) carries no information and changes nothing. */
   int64_t predicted=p->base_us+(int64_t)(int32_t)(read_at-p->base_at)*rate_ppm/1000;
   int64_t error=(int64_t)elapsed_ms*1000-predicted;
@@ -228,7 +251,8 @@ void xz_shrt_position_step(struct xz_shrt_position *p, int playing, int32_t elap
  }
  p->read_at=read_at;p->read_ms=elapsed_ms;
  int64_t ms=(p->base_us+500)/1000;
- *out_ms=ms<0?0:ms>INT32_MAX?INT32_MAX:(int32_t)ms;*out_at=p->base_at;
+ *out_ms=ms<0?0:ms>INT32_MAX?INT32_MAX:(int32_t)ms;*out_at=p->base_at?p->base_at:1;
+ return 0;
 }
 
 void xz_shrt_frame_mark(struct xz_shrt_frames *f, uint64_t now_us) {
@@ -237,6 +261,7 @@ void xz_shrt_frame_mark(struct xz_shrt_frames *f, uint64_t now_us) {
   if(gap<1000000u){
    if(gap>f->gap_max_us)f->gap_max_us=(uint32_t)gap;
    if(gap>XZ_SHRT_LATE_US)f->late++;
+   f->hist[gap<14000u?0:gap<18000u?1:gap<26000u?2:gap<34000u?3:4]++;
   }
  }
  f->last_us=now_us;f->frames++;

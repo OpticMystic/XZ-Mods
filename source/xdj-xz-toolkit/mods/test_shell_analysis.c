@@ -42,6 +42,31 @@ static void track(const char *root,const char *group,const char *name,const char
  for(int i=0;i<300;i++)bands[i]=(uint8_t)(level+i%3);
  if(with_ex){snprintf(file,sizeof file,"%s/ANLZ0000.2EX",dir);put(file,buffer,two_ex(buffer,path,bands,100));}
 }
+/* A stem waveform file: a decoy section before PWV7, as the real files carry several. */
+static void stem_file(const char *path, uint8_t level, uint32_t count){
+ static uint8_t o[65536];size_t n=28;memcpy(o,"PMAI",4);be(o+4,28);memset(o+12,0,16);
+ memcpy(o+n,"PWV5",4);be(o+n+4,24);be(o+n+8,24+40);be(o+n+12,2);be(o+n+16,20);be(o+n+20,0);n+=24;memset(o+n,0x77,40);n+=40;
+ memcpy(o+n,"PWV7",4);be(o+n+4,24);be(o+n+8,24+count*3);be(o+n+12,3);be(o+n+16,count);be(o+n+20,0);n+=24;
+ for(uint32_t i=0;i<count*3;i++)o[n++]=(uint8_t)(level+i%3);
+ be(o+8,(uint32_t)n);put(path,o,n);
+}
+static void text_file(const char *path, const char *text){put(path,(const uint8_t *)text,strlen(text));}
+static void stems_fixture(void){
+ const char *root="shell-analysis-fixture";char p[512];
+ snprintf(p,sizeof p,"%s/CDJMODS",root);make_dir(p);snprintf(p,sizeof p,"%s/CDJMODS/stems",root);make_dir(p);
+ snprintf(p,sizeof p,"%s/CDJMODS/stems/0123456789abcdef",root);make_dir(p);
+ static const char *const names[3]={"drums","harmonics","vocal"};
+ for(int s=0;s<3;s++){snprintf(p,sizeof p,"%s/CDJMODS/stems/0123456789abcdef/stems-%s-waveform.2EX",root,names[s]);stem_file(p,(uint8_t)(10*(s+1)),50);}
+ /* "/Contents/Été.mp3" written with a \u escape, a duplicate that agrees, and a contradictory duplicate. */
+ char json[1024];const char bs=92;
+ snprintf(json,sizeof json,"{\"schema\":\"overcue-index/1\",\"tracks\":{"
+  "\"a\":{\"file_path\":\"/Contents/%cu00c9t%cu00e9.mp3\",\"bundle\":\"0123456789abcdef\",\"frames\":1},"
+  "\"b\":{\"file_path\":\"/Contents/One.mp3\",\"bundle\":\"0123456789abcdef\"},"
+  "\"c\":{\"file_path\":\"/Contents/Two.flac\",\"bundle\":\"0123456789abcdef\"}},"
+  "\"tracks_onelibrary\":{\"d\":{\"file_path\":\"/Contents/One.mp3\",\"bundle\":\"0123456789abcdef\"},"
+  "\"e\":{\"file_path\":\"/Contents/Two.flac\",\"bundle\":\"fedcba9876543210\"}}}",bs,bs);
+ snprintf(p,sizeof p,"%s/CDJMODS/index.json",root);text_file(p,json);
+}
 int main(void){
  const char *root="shell-analysis-fixture";
  char p[256];make_dir(root);snprintf(p,sizeof p,"%s/PIONEER",root);make_dir(p);snprintf(p,sizeof p,"%s/PIONEER/USBANLZ",root);make_dir(p);
@@ -68,6 +93,26 @@ int main(void){
         !strcmp(split_root,"/media/usb2/sda2")&&!strcmp(rel,"/Contents/Folder/Three.wav"));
  assert(xz_shana_split("/media/usb2/sda2/Music/x.mp3",split_root,sizeof split_root,&rel));
  xz_shana_free(a);
+ /* Stems: one parse of the stick's stem index, then only the PWV7 sections of the three files. */
+ stems_fixture();
+ struct xz_shana_stems *st=NULL;
+ assert(!xz_shana_stems_build(root,&st)&&st&&xz_shana_stems_count(st)==3);
+ assert(!xz_shana_stems_find(st,"/Contents/\xc3\x89t\xc3\xa9.mp3",dir,sizeof dir)&&strstr(dir,"CDJMODS/stems/0123456789abcdef"));
+ assert(!xz_shana_stems_find(st,"/Contents/One.mp3",dir,sizeof dir));        /* agreeing duplicate */
+ assert(xz_shana_stems_find(st,"/Contents/Two.flac",dir,sizeof dir));        /* contradictory duplicate: refused */
+ assert(xz_shana_stems_find(st,"/Contents/Folder/Three.wav",dir,sizeof dir)); /* not in the index */
+ uint32_t split[3];
+ assert(!xz_shana_stems_find(st,"/Contents/One.mp3",dir,sizeof dir)&&!xz_shana_stems_load(dir,&w,split));
+ /* drums 10+11+12, harmonics 20+21+22, vocal 30+31+32 per column, in that order. */
+ assert(w.count==50&&w.bands[0]==33&&w.bands[1]==63&&w.bands[2]==93);
+ xz_wave_load_free(&w);xz_shana_stems_free(st);
+ /* No stem index: an empty map. A malformed one: empty too. */
+ assert(!xz_shana_stems_build("shell-analysis-fixture/none",&st)&&st&&!xz_shana_stems_count(st));xz_shana_stems_free(st);
+ /* The signature changes when analysis is added, not when nothing changed. */
+ uint64_t sig=xz_shana_signature(root);assert(sig&&sig==xz_shana_signature(root));
+ track(root,"P0A0","0002EEEE","/Contents/New.mp3",50,1);
+ assert(xz_shana_signature(root)!=sig&&!xz_shana_signature("shell-analysis-fixture/none"));
+ puts("PASS stems map: escaped paths, duplicates, missing tracks, PWV7-only reads; analysis signature");
  /* A stick without USBANLZ gives an empty index, not an error. */
  assert(!xz_shana_build("shell-analysis-fixture/none",&a,&files)&&a&&!xz_shana_count(a)&&!files);xz_shana_free(a);
  puts("PASS analysis index: one build per USB, PPTH-confirmed lookups, nested folders, misses, missing 2EX, path split");

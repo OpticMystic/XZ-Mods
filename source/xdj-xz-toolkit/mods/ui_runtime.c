@@ -56,6 +56,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_encoder_push
 #pragma weak xz_shell_runtime_take_ui_requests
 #pragma weak xz_shell_runtime_notice
+#pragma weak xz_shell_runtime_will_refresh
 #pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
@@ -1247,6 +1248,10 @@ static void game_to_menu_locked(enum game g){
 }
 
 static uint32_t shell_ui_refreshed_ms; /* last UI model refresh while the shell owned the screen */
+/* The last frame input built under ui_mutex. Only the presenter thread renders, so it alone reads and
+   writes this: a frame whose UI lock is busy reuses it instead of skipping a vblank. */
+static struct xz_shell_runtime_frame_input shell_input_cache;
+static int shell_input_cached;
 /* The shell may own the screen only while MODS, a game, Doom and the VJ takeover leave it free. */
 static int shell_eligible_locked(void){
     return !touch.visible&&game_locked()==GAME_NONE&&!xz_doom_running()&&!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE);
@@ -2089,6 +2094,12 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         return 0;
     if (pthread_mutex_trylock(&ui_mutex) != 0) {
         __atomic_add_fetch(&xz_mods_key_present_proof_v1.busy,1,__ATOMIC_RELAXED);
+        /* The shell needs nothing from the UI model for one frame: draw it from the previous input. */
+        if(shell_input_cached&&xz_shell_runtime_frame&&xz_shell_runtime_owns&&xz_shell_runtime_owns()&&
+           !__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)){
+            shell_input_cache.cached=1;
+            return xz_shell_runtime_frame(pixels,stride,&shell_input_cache)>0;
+        }
         if(!__atomic_load_n(&visible,__ATOMIC_ACQUIRE)&&
            !__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)&&!(xz_shell_runtime_owns&&xz_shell_runtime_owns())) {
             int drawn=0;
@@ -2116,7 +2127,11 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
        owns the screen the UI model refreshes at 10 Hz instead of on every 60 Hz frame. */
     {
         uint32_t now=xz_game_milliseconds();
-        if(!shell_path||!shell_ui_refreshed_ms||(uint32_t)(now-shell_ui_refreshed_ms)>=100u){refresh();shell_ui_refreshed_ms=now?now:1;}
+        /* While the shell owns the screen: 10 Hz, and not in a frame where the shell refreshes its model
+           (both together could outlast a vblank); never more than 200 ms apart. */
+        uint32_t age=now-shell_ui_refreshed_ms;
+        int due=!shell_ui_refreshed_ms||age>=200u||(age>=100u&&!(xz_shell_runtime_will_refresh&&xz_shell_runtime_will_refresh()));
+        if(!shell_path||due){refresh();shell_ui_refreshed_ms=now?now:1;}
     }
     if (connection && connection->version == 1 && connection->size == sizeof(*connection)) {
         memcpy(device_ip, connection->ipv4, sizeof(device_ip)); device_ip[15] = 0;
@@ -2137,6 +2152,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         /* The shell renders under its own mutex only: pads, keys, the encoder and touch never wait
            on ui_mutex for a frame. 0 = it gave the screen up during this call; draw the usual way. */
         struct xz_shell_runtime_frame_input in;shell_frame_input_locked(&in);
+        shell_input_cache=in;shell_input_cached=1;
         pthread_mutex_unlock(&ui_mutex);
         int drawn=xz_shell_runtime_frame(pixels,stride,&in);
         if(drawn)return drawn>0;

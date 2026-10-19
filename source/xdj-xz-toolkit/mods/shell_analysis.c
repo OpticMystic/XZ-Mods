@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#define JSMN_STATIC
+#include "audio/vendor/jsmn/jsmn.h"
 
 #define ANALYSIS_CAP (8u*1024u*1024u)
 #define PATH_CAP 1024
@@ -95,4 +99,208 @@ int xz_shana_split(const char *source, char *root, size_t cap, const char **trac
  const char *rel=source?strstr(source,"/Contents/"):NULL;
  if(!rel||(size_t)(rel-source)>=cap)return -1;
  memcpy(root,source,(size_t)(rel-source));root[rel-source]=0;*track=rel;return 0;
+}
+
+/* ---- signature ---- */
+static uint64_t mix(uint64_t h, uint64_t v) { h^=v+0x9e3779b97f4a7c15ull+(h<<6)+(h>>2);return h; }
+uint64_t xz_shana_signature(const char *root) {
+ char base[PATH_CAP],group[PATH_CAP];struct stat st;uint64_t h=0,groups=0;int any=0;
+ if(snprintf(base,sizeof base,"%s/PIONEER/USBANLZ",root)<(int)sizeof base&&!stat(base,&st)){
+  any=1;h=mix(h,(uint64_t)st.st_dev);h=mix(h,(uint64_t)st.st_mtime);
+  DIR *top=opendir(base);
+  for(struct dirent *g;top&&(g=readdir(top));){
+   if(g->d_name[0]=='.'||snprintf(group,sizeof group,"%s/%s",base,g->d_name)>=(int)sizeof group||stat(group,&st))continue;
+   /* Order-independent: readdir order is not guaranteed to repeat. */
+   groups+=mix(xz_layered_path_hash(g->d_name),(uint64_t)st.st_mtime);
+  }
+  if(top)closedir(top);
+  h=mix(h,groups);
+ }
+ if(snprintf(base,sizeof base,"%s/CDJMODS/index.json",root)<(int)sizeof base&&!stat(base,&st)){
+  any=1;h=mix(h,(uint64_t)st.st_mtime);h=mix(h,(uint64_t)st.st_size);
+ }
+ return any?(h?h:1):0;
+}
+
+/* ---- stems ---- */
+#define INDEX_CAP (4u*1024u*1024u)
+struct stem_entry { uint64_t hash; char bundle[17]; };
+struct xz_shana_stems { char root[PATH_CAP]; struct stem_entry *e; uint32_t n, cap; };
+static uint8_t *read_all(const char *path, size_t cap, size_t *size) {
+ FILE *f=fopen(path,"rb");if(!f)return NULL;
+ uint8_t *data=NULL;long n=-1;
+ if(!fseek(f,0,SEEK_END))n=ftell(f);
+ if(n>0&&(unsigned long)n<=cap&&!fseek(f,0,SEEK_SET)&&(data=malloc((size_t)n+1))){
+  if(fread(data,1,(size_t)n,f)!=(size_t)n){free(data);data=NULL;}else{data[n]=0;*size=(size_t)n;}
+ }
+ fclose(f);return data;
+}
+static int token_is(const char *text, const jsmntok_t *t, const char *s) {
+ size_t n=strlen(s);return t->type==JSMN_STRING&&(size_t)(t->end-t->start)==n&&!memcmp(text+t->start,s,n);
+}
+static int skip_token(const jsmntok_t *t, int i, int count) { int end=t[i].end;while(++i<count&&t[i].start<end){}return i; }
+static size_t utf8(char *out, size_t at, size_t cap, uint32_t c) {
+ if(c<0x80){if(at+1>=cap)return 0;out[at++]=(char)c;}
+ else if(c<0x800){if(at+2>=cap)return 0;out[at++]=(char)(0xc0|c>>6);out[at++]=(char)(0x80|(c&63));}
+ else if(c<0x10000){if(at+3>=cap)return 0;out[at++]=(char)(0xe0|c>>12);out[at++]=(char)(0x80|((c>>6)&63));out[at++]=(char)(0x80|(c&63));}
+ else{if(at+4>=cap)return 0;out[at++]=(char)(0xf0|c>>18);out[at++]=(char)(0x80|((c>>12)&63));out[at++]=(char)(0x80|((c>>6)&63));out[at++]=(char)(0x80|(c&63));}
+ return at;
+}
+static int hex4(const char *p, uint32_t *v) {
+ *v=0;
+ for(int i=0;i<4;i++){
+  char c=p[i];*v<<=4;
+  if(c>='0'&&c<='9')*v|=(uint32_t)(c-'0');else if(c>='a'&&c<='f')*v|=(uint32_t)(c-'a'+10);
+  else if(c>='A'&&c<='F')*v|=(uint32_t)(c-'A'+10);else return -1;
+ }
+ return 0;
+}
+/* A JSON string token as UTF-8, escapes decoded. */
+static int json_string(const char *text, const jsmntok_t *t, char *out, size_t cap) {
+ if(t->type!=JSMN_STRING||!cap)return -1;
+ size_t at=0;const char backslash=92;
+ for(int p=t->start;p<t->end;){
+  char c=text[p++];uint32_t cp=(unsigned char)c;
+  if(c==backslash){
+   if(p>=t->end)return -1;
+   char e=text[p++];
+   switch(e){
+   case '"':cp='"';break;case '/':cp='/';break;case 'b':cp=8;break;case 'f':cp=12;break;
+   case 'n':cp=10;break;case 'r':cp=13;break;case 't':cp=9;break;
+   case 'u':
+    if(p+4>t->end||hex4(text+p,&cp))return -1;
+    p+=4;
+    if(cp>=0xd800&&cp<0xdc00){
+     uint32_t lo;
+     if(p+6>t->end||text[p]!=backslash||text[p+1]!='u'||hex4(text+p+2,&lo)||lo<0xdc00||lo>0xdfff)return -1;
+     p+=6;cp=0x10000+((cp-0xd800)<<10)+(lo-0xdc00);
+    }
+    break;
+   default:
+    if(e!=backslash)return -1;
+    cp=(uint32_t)backslash;break;
+   }
+   if(!(at=utf8(out,at,cap,cp)))return -1;
+  }else{if(at+1>=cap)return -1;out[at++]=c;}
+ }
+ out[at]=0;return 0;
+}
+static int stems_add(struct xz_shana_stems *s, uint64_t hash, const char *bundle) {
+ for(uint32_t i=0;i<s->n;i++)if(s->e[i].hash==hash){
+  if(strcmp(s->e[i].bundle,bundle))s->e[i].bundle[0]=0; /* contradictory duplicate */
+  return 0;
+ }
+ if(s->n==s->cap){
+  uint32_t next=s->cap?s->cap*2:256;struct stem_entry *grown=realloc(s->e,(size_t)next*sizeof *grown);
+  if(!grown)return -1;
+  s->e=grown;s->cap=next;
+ }
+ s->e[s->n].hash=hash;memcpy(s->e[s->n].bundle,bundle,17);s->n++;return 0;
+}
+int xz_shana_stems_build(const char *root, struct xz_shana_stems **out) {
+ *out=NULL;
+ struct xz_shana_stems *s=calloc(1,sizeof *s);
+ if(!s||snprintf(s->root,sizeof s->root,"%s",root)>=(int)sizeof s->root){free(s);return -1;}
+ char path[PATH_CAP];size_t n=0;
+ uint8_t *text=snprintf(path,sizeof path,"%s/CDJMODS/index.json",root)<(int)sizeof path?read_all(path,INDEX_CAP,&n):NULL;
+ if(!text){*out=s;return 0;} /* no stems on this stick */
+ jsmn_parser parser;jsmn_init(&parser);
+ const char *c=(const char *)text;
+ /* Count first, so the token array is exactly as large as the index needs. */
+ int count=jsmn_parse(&parser,c,n,NULL,0);
+ jsmntok_t *t=count>0?malloc((size_t)count*sizeof *t):NULL;
+ if(t){jsmn_init(&parser);if(jsmn_parse(&parser,c,n,t,(unsigned)count)!=count){free(t);t=NULL;}}
+ int ok=t&&t[0].type==JSMN_OBJECT,schema=0;
+ /* {"schema": "overcue-index/1", "tracks": {key: {"file_path": ..., "bundle": ...}}, "tracks_onelibrary": {...}} */
+ for(int i=1;ok&&i<count&&t[i].start<t[0].end;){
+  int v=i+1;if(v>=count)break;
+  if(token_is(c,&t[i],"schema")&&token_is(c,&t[v],"overcue-index/1"))schema=1;
+  if((token_is(c,&t[i],"tracks")||token_is(c,&t[i],"tracks_onelibrary"))&&t[v].type==JSMN_OBJECT){
+   for(int k=v+1;k<count&&t[k].start<t[v].end;){
+    int entry=k+1;if(entry>=count)break;
+    if(t[entry].type==JSMN_OBJECT){
+     char track[PATH_CAP]="",bundle[32]="";
+     for(int f=entry+1;f<count&&t[f].start<t[entry].end;){
+      int fv=f+1;if(fv>=count)break;
+      if(token_is(c,&t[f],"file_path")&&json_string(c,&t[fv],track,sizeof track))track[0]=0;
+      if(token_is(c,&t[f],"bundle")&&json_string(c,&t[fv],bundle,sizeof bundle))bundle[0]=0;
+      f=skip_token(t,fv,count);
+     }
+     int hex=strlen(bundle)==16;
+     for(int b=0;hex&&b<16;b++)hex=(bundle[b]>='0'&&bundle[b]<='9')||(bundle[b]>='a'&&bundle[b]<='f');
+     if(track[0]&&hex&&stems_add(s,xz_layered_path_hash(track),bundle)){ok=0;break;}
+    }
+    k=skip_token(t,entry,count);
+   }
+  }
+  i=skip_token(t,v,count);
+ }
+ free(t);free(text);
+ if(!ok||!schema)s->n=0;
+ *out=s;return 0;
+}
+void xz_shana_stems_free(struct xz_shana_stems *s) { if(s){free(s->e);free(s);} }
+uint32_t xz_shana_stems_count(const struct xz_shana_stems *s) { return s?s->n:0; }
+int xz_shana_stems_find(const struct xz_shana_stems *s, const char *track, char *folder, size_t cap) {
+ if(!s||!track)return -1;
+ uint64_t hash=xz_layered_path_hash(track);
+ for(uint32_t i=0;i<s->n;i++)if(s->e[i].hash==hash){
+  if(!s->e[i].bundle[0])return -1;
+  return snprintf(folder,cap,"%s/CDJMODS/stems/%s",s->root,s->e[i].bundle)<(int)cap?0:-1;
+ }
+ return -1;
+}
+static uint32_t be32(const uint8_t *b) { return (uint32_t)b[0]<<24|(uint32_t)b[1]<<16|(uint32_t)b[2]<<8|b[3]; }
+/* PWV7 only: walk the section headers with seeks and read just that payload. */
+static uint8_t *read_pwv7(const char *path, uint32_t *count) {
+ FILE *f=fopen(path,"rb");if(!f)return NULL;
+ uint8_t head[24],*out=NULL;
+ if(fread(head,1,12,f)!=12||memcmp(head,"PMAI",4)){fclose(f);return NULL;}
+ uint32_t at=be32(head+4),length=be32(head+8);
+ while(at>=12&&at+12<=length){
+  if(fseek(f,(long)at,SEEK_SET)||fread(head,1,12,f)!=12)break;
+  uint32_t h=be32(head+4),total=be32(head+8);
+  if(h<12||total<h||total>length-at)break;
+  if(!memcmp(head,"PWV7",4)){
+   if(h<20||fread(head+12,1,8,f)!=8||be32(head+12)!=3)break;
+   uint32_t c=be32(head+16);
+   if(!c||c>1000000u||(uint64_t)c*3>total-h||fseek(f,(long)(at+h),SEEK_SET))break;
+   out=malloc((size_t)c*3);
+   if(out&&fread(out,1,(size_t)c*3,f)!=(size_t)c*3){free(out);out=NULL;}
+   if(out)*count=c;
+   break;
+  }
+  at+=total;
+ }
+ fclose(f);return out;
+}
+/* gettimeofday: timespec_get and clock_gettime are newer than the deck's GLIBC_2.4 ceiling. */
+static uint32_t since_ms(struct timeval a) {
+ struct timeval b;gettimeofday(&b,NULL);
+ return (uint32_t)((b.tv_sec-a.tv_sec)*1000+(b.tv_usec-a.tv_usec)/1000);
+}
+int xz_shana_stems_load(const char *folder, struct xz_wave_load *out, uint32_t read_ms[3]) {
+ memset(out,0,sizeof *out);
+ static const char *const names[3]={"drums","harmonics","vocal"}; /* the stem runtime's and the pads' order */
+ uint8_t *parts[3]={0};uint32_t counts[3]={0},count=0;char path[PATH_CAP];int rc=-1;
+ for(int s=0;s<3;s++){
+  struct timeval t;gettimeofday(&t,NULL);
+  if(snprintf(path,sizeof path,"%s/stems-%s-waveform.2EX",folder,names[s])>=(int)sizeof path)goto done;
+  uint8_t *bands=read_pwv7(path,&counts[s]);
+  if(read_ms)read_ms[s]=since_ms(t);
+  if(!bands)goto done;
+  /* One amplitude per stem: its three bands at equal weight. */
+  if(!(parts[s]=malloc(counts[s]))){free(bands);goto done;}
+  for(uint32_t i=0;i<counts[s];i++){unsigned e=bands[i*3]+bands[i*3+1]+bands[i*3+2];parts[s][i]=(uint8_t)(e>255?255:e);}
+  free(bands);
+  if(counts[s]>count)count=counts[s];
+ }
+ if(!(out->bands=calloc(count,3)))goto done;
+ for(int s=0;s<3;s++)for(uint32_t i=0;i<counts[s];i++)out->bands[i*3+(uint32_t)s]=parts[s][i];
+ out->count=count;out->kind=XZ_LAYERED_STEMS;
+ out->normalization=xz_wave_normalization(out->bands,count,out->kind);rc=0;
+done:
+ for(int s=0;s<3;s++)free(parts[s]);
+ if(rc)xz_wave_load_free(out);
+ return rc;
 }
