@@ -39,5 +39,23 @@ int xz_shpl_parse(struct xz_shpl_set *, const char *text, size_t length);
 /* root/XZMODS/playlists.txt. load: 0 also when the file is absent (an empty set). save: temp file, fsync,
    rename; -1 with errno set (EROFS, ENOSPC...) when the stick refused it. */
 int xz_shpl_load(struct xz_shpl_set *, const char *root);
+
+/* Shell lists kept in the same set as reserved records (never shown as playlists): the TAG LIST, tracks
+   marked PLAYED and UNPLAYED here, and HISTORY sessions deleted here. Ids sit between the stick's ids
+   and XZ_SHPL_FIRST_CREATED. Each is an ordered list of ids without duplicates. */
+#define XZ_SHPL_TAG_LIST        0x7eff0001u
+#define XZ_SHPL_PLAYED          0x7eff0002u
+#define XZ_SHPL_UNPLAYED        0x7eff0003u
+#define XZ_SHPL_HISTORY_DELETED 0x7eff0004u
+int xz_shpl_reserved(uint32_t id);
+int xz_shpl_list_has(const struct xz_shpl_set *, uint32_t list, uint32_t item);
+/* 1 added (appended), 0 already there, -1 no memory or the list holds limit items (0: XZ_SHPL_TRACKS_MAX). */
+int xz_shpl_list_add(struct xz_shpl_set *, uint32_t list, uint32_t item, uint32_t limit);
+/* 1 removed, 0 not there. */
+int xz_shpl_list_remove(struct xz_shpl_set *, uint32_t list, uint32_t item);
+void xz_shpl_list_clear(struct xz_shpl_set *, uint32_t list);
+const uint32_t *xz_shpl_list(const struct xz_shpl_set *, uint32_t list, uint32_t *count);
+/* Gives a created playlist exactly these tracks, in order. 0, or -1 (not a live created playlist, memory). */
+int xz_shpl_set_tracks(struct xz_shpl_set *, uint32_t id, const uint32_t *tracks, uint32_t count);
 int xz_shpl_save(const struct xz_shpl_set *, const char *root);
 #endif

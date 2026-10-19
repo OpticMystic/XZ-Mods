@@ -82,6 +82,8 @@ uint32_t xz_shlib_color_rgb(unsigned color_id);
 uint32_t xz_shlib_sort_keys(void);
 /* Worker only (uses the reader): a stick playlist's tracks in stick order, malloc'd (free it). */
 int xz_shlib_playlist_tracks(struct xz_shlib *, uint32_t id, uint32_t **tracks, uint32_t *count);
+/* The stick's HISTORY session ids (up to cap). Returns how many. */
+int xz_shlib_history_ids(const struct xz_shlib *, uint32_t *out, int cap);
 /* A stick playlist's (or folder's) name, "" when unknown. */
 const char *xz_shlib_playlist_name(const struct xz_shlib *, uint32_t id);
 /* 1: a stick playlist folder, 0: a stick playlist, -1: not a stick playlist node (a shell-made one or unknown). */

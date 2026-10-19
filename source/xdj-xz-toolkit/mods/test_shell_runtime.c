@@ -587,12 +587,41 @@ static void library(const char *path) {
  assert(!xz_shpl_save(&e,"."));
  assert(!xz_shpl_load(&back,".")&&back.n==e.n&&xz_shpl_find(&back,made)->count==1);xz_shpl_free(&back);
  assert(!xz_shpl_load(&back,"no-such-root")&&back.n==0);
+ /* Reserved shell lists in the same set: TAG LIST order, no duplicates, the 100-track limit, played marks,
+    deleted histories; never listed as playlists; round trip through the sidecar text. */
+ assert(xz_shpl_reserved(XZ_SHPL_TAG_LIST)&&!xz_shpl_reserved(made)&&!xz_shpl_reserved(2000));
+ assert(xz_shpl_list_add(&e,XZ_SHPL_TAG_LIST,303,100)==1&&xz_shpl_list_add(&e,XZ_SHPL_TAG_LIST,101,100)==1);
+ assert(xz_shpl_list_add(&e,XZ_SHPL_TAG_LIST,303,100)==0&&xz_shpl_list_has(&e,XZ_SHPL_TAG_LIST,101));
+ assert(xz_shpl_list_add(&e,XZ_SHPL_TAG_LIST,404,2)==-1);
+ {uint32_t n;const uint32_t *t=xz_shpl_list(&e,XZ_SHPL_TAG_LIST,&n);assert(n==2&&t[0]==303&&t[1]==101);}
+ assert(xz_shpl_list_add(&e,XZ_SHPL_HISTORY_DELETED,3000,0)==1&&xz_shpl_list_add(&e,XZ_SHPL_UNPLAYED,202,0)==1);
+ nr=xz_shlib_playlist_refs(L,&e,refs,8);for(int i=0;i<nr;i++)assert(!xz_shpl_reserved(refs[i].id));
+ /* The TAG LIST screen lists it in order; deleted histories drop out of HISTORY. */
+ r.edits=&e;
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_TAG_LIST;r.edits=&e;l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l&&l->total==2&&l->id[0]==303&&l->id[1]==101&&!strcmp(l->names+l->level_name,"TAG LIST"));xz_shlib_list_free(l);
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_HISTORY;r.edits=&e;l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l&&l->total==0);xz_shlib_list_free(l);
+ r.depth=1;r.path[0]=3000;l=NULL;assert(xz_shlib_build(L,&r,&l)&&!l);
+ {uint32_t h[4];assert(xz_shlib_history_ids(L,h,4)==1&&h[0]==3000);}
+ /* A playlist from the TAG LIST: the created playlist takes exactly those tracks. */
+ {uint32_t pl=0;struct xz_shell_playlist_edit c={XZ_SHELL_PL_CREATE,0,0,0,0,"From Tags"};assert(!xz_shpl_apply(&e,&c,NULL,0,NULL,&pl));
+  uint32_t n;const uint32_t *t=xz_shpl_list(&e,XZ_SHPL_TAG_LIST,&n);assert(!xz_shpl_set_tracks(&e,pl,t,n));
+  assert(xz_shpl_find(&e,pl)->count==2&&xz_shpl_find(&e,pl)->tracks[0]==303);
+  assert(xz_shpl_set_tracks(&e,2000,t,n));}
+ xz_shpl_list_remove(&e,XZ_SHPL_TAG_LIST,303);
+ {uint32_t n;const uint32_t *t=xz_shpl_list(&e,XZ_SHPL_TAG_LIST,&n);assert(n==1&&t[0]==101);}
+ text=xz_shpl_serialize(&e,&len);assert(text&&!xz_shpl_parse(&back,text,len));
+ assert(xz_shpl_list_has(&back,XZ_SHPL_TAG_LIST,101)&&xz_shpl_list_has(&back,XZ_SHPL_HISTORY_DELETED,3000)&&xz_shpl_list_has(&back,XZ_SHPL_UNPLAYED,202));
+ free(text);xz_shpl_free(&back);
+ xz_shpl_list_clear(&e,XZ_SHPL_TAG_LIST);{uint32_t n;assert(!xz_shpl_list(&e,XZ_SHPL_TAG_LIST,&n)&&!n);}
  xz_shpl_free(&e);
  /* A too-small arena fails cleanly rather than truncating. */
  struct xz_shlib *tiny=NULL;assert(xz_shlib_open(path,4096,&tiny)&&!tiny);
  xz_shlib_free(L);
  puts("PASS library: tracks, TRACK/ARTIST/BPM/PLAYLIST/HISTORY/SEARCH lists, windows, on-deck, sorting, INFO records, failures");
  puts("PASS filter (BPM, rating, colour, key), album/genre/date rows, every sort key, merged playlist edits, sidecar save/load");
+ puts("PASS TAG LIST, played marks and deleted histories in the sidecar; TAG LIST screen, HISTORY filtering, playlist from tags");
 }
 
 int main(int argc, char **argv) {
