@@ -335,7 +335,7 @@ static size_t confirm(struct xz_shell *u, const struct xz_shell_model *m, const 
 static size_t info_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  const struct xz_shell_info_model *im=m->info;
  struct xz_shell_view *v=&u->stack[u->depth-1];
- if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(si_close_rect(),e->x,e->y))return sh_key(u,m,XZ_SHELL_KEY_BACK,-1,out);
+ if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(si_close_rect(),e->x,e->y))return sh_back(u,m,out);
  if(!im)return 0;
  int tab=shown_tab(u,im);
  const struct xz_shell_info_track *t=track_of(im,tab);

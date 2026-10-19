@@ -6,6 +6,7 @@
    and the two-deck status strip at the bottom. */
 #include "shell_internal.h"
 #include "shell_browse.h"
+#include "shell_source.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -14,7 +15,7 @@ enum {
  COL_Y=44, COL_H=36, LIST_Y=80, ROW_H=38, ROWS=9, SEARCH_ROWS=4,
  STRIP_Y=422, STRIP_H=XZ_SHELL_HEIGHT-STRIP_Y, HALF_W=W/2,
  KB_Y=232, KB_ROW=47, KB_KEY_H=44, KB_X=8, KB_W=W-16, KB_UNITS=24,
- INFO_W=264, TILE_W=84, BACK_X=68, BACK_S=32, TITLE_MIN=200, LOAD_W=56, LOAD_DECK_W=34,
+ INFO_W=264, TILE_W=70, BACK_X=68, BACK_S=32, TITLE_MIN=200, LOAD_W=56, LOAD_DECK_W=34,
  UP_DEPTH=8, SLOTS=4, DRAG_START=10, FLICK_STEP=12,
  HEAD_RIGHT=XZ_SHELL_HEADER_X-4   /* the mod header buttons own the bar right of this */
 };
@@ -27,7 +28,7 @@ enum { SH_RAIL_SEL=XZ_FLAGSHIP_RAIL_SELECTED, SH_TILE=XZ_FLAGSHIP_TILE, SH_UNAVA
 enum target { T_NONE, T_LIST, T_RAIL, T_KEY, T_OTHER };
 static struct {
  int touched, jump, pressed;
- int hide_preview, info_open, keyboard_hidden;
+ int hide_preview, side_open, keyboard_hidden;
  char query[XZ_SHELL_BROWSE_QUERY];
  int32_t last_request;
  int rail_first;
@@ -43,6 +44,15 @@ const char *xz_shell_browse_query(void) { return st.query; }
 int xz_shell_browse_touched(void) { return st.touched; }
 
 static int list_screen(enum xz_shell_screen s) { return s>=XZ_SHELL_BROWSE&&s<=XZ_SHELL_SEARCH; }
+/* The list narrows while a panel is open; the panel lives in the shell struct, this mirror serves the
+   geometry helpers that see only the screen. Set at every entry point. */
+static void sync(const struct xz_shell *u) {
+ st.side_open=u&&u->depth>=1&&u->depth<=XZ_SHELL_STACK&&list_screen(xz_shell_screen(u))&&u->panel.kind!=XZ_SHELL_PANEL_NONE;
+}
+static int naming(const struct xz_shell *u);
+static int panel_open(const struct xz_shell *u);
+static int32_t grab_source_row(const struct xz_shell *u, int32_t shown);
+static void render_panel(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
 static int slot_of(enum xz_shell_screen s) { return list_screen(s)?(int)s-(int)XZ_SHELL_BROWSE:0; }
 static int bknown(const struct xz_shell_browse_model *b, enum xz_shell_browse_field f) { return b&&((b->known>>f)&1); }
 static int rknown(const struct xz_shell_browse_row *r, enum xz_shell_browse_row_field f) { return (r->known>>f)&1; }
@@ -63,20 +73,22 @@ static int depth_of(const struct xz_shell_browse_model *b) { return bknown(b,XZ_
 /* ---- geometry ---- */
 static const struct xz_shell_view *top_view(const struct xz_shell *u) { return &u->stack[u->depth-1]; }
 static int keyboard_shown(const struct xz_shell *u) {
- return xz_shell_screen(u)==XZ_SHELL_SEARCH&&(top_view(u)->focus?!st.keyboard_hidden:1);
+ return naming(u)||(xz_shell_screen(u)==XZ_SHELL_SEARCH&&(top_view(u)->focus?!st.keyboard_hidden:1));
 }
 int xz_shell_browse_rows_visible(const struct xz_shell *u) { return keyboard_shown(u)?SEARCH_ROWS:ROWS; }
 static int list_x(enum xz_shell_screen s) { return s==XZ_SHELL_BROWSE?RAIL_W:0; }
-static int list_w(enum xz_shell_screen s) { return W-list_x(s)-(st.info_open?INFO_W:0); }
+static int list_w(enum xz_shell_screen s) { return W-list_x(s)-(st.side_open?INFO_W:0); }
 
 enum { COL_PREVIEW=XZ_SHELL_COL_COUNT, COL_KINDS };
 struct col { int kind, x, w; };
 static const int col_width[COL_KINDS]={
  [XZ_SHELL_COL_NUMBER]=60,[XZ_SHELL_COL_TITLE]=0,[XZ_SHELL_COL_ARTIST]=170,[XZ_SHELL_COL_BPM]=76,
- [XZ_SHELL_COL_KEY]=60,[XZ_SHELL_COL_RATING]=78,[XZ_SHELL_COL_COLOR]=72,[XZ_SHELL_COL_TIME]=64,[COL_PREVIEW]=112
+ [XZ_SHELL_COL_KEY]=60,[XZ_SHELL_COL_RATING]=78,[XZ_SHELL_COL_COLOR]=72,[XZ_SHELL_COL_TIME]=64,
+ [XZ_SHELL_COL_ALBUM]=150,[XZ_SHELL_COL_GENRE]=110,[XZ_SHELL_COL_DATE_ADDED]=104,[COL_PREVIEW]=112
 };
 /* Least useful first; TITLE always stays. */
-static const int drop_order[]={XZ_SHELL_COL_COLOR,XZ_SHELL_COL_RATING,XZ_SHELL_COL_TIME,XZ_SHELL_COL_ARTIST,COL_PREVIEW,XZ_SHELL_COL_NUMBER,XZ_SHELL_COL_BPM,XZ_SHELL_COL_KEY};
+static const int drop_order[]={XZ_SHELL_COL_DATE_ADDED,XZ_SHELL_COL_GENRE,XZ_SHELL_COL_ALBUM,XZ_SHELL_COL_COLOR,XZ_SHELL_COL_RATING,
+ XZ_SHELL_COL_TIME,XZ_SHELL_COL_ARTIST,COL_PREVIEW,XZ_SHELL_COL_NUMBER,XZ_SHELL_COL_BPM,XZ_SHELL_COL_KEY};
 #define MAX_COLS (XZ_SHELL_BROWSE_COLUMNS+2)
 /* PREVIEW only over tracks: a folder level has nothing to preview. */
 static int window_has_tracks(const struct xz_shell_browse_model *b, enum xz_shell_screen s) {
@@ -147,18 +159,38 @@ static struct xz_shell_rect key_rect(int i) {
  return (struct xz_shell_rect){x0,KB_Y+2+keys[i].row*KB_ROW,x1-x0,KB_KEY_H};
 }
 
+static int filter_active(const struct xz_shell_filter *f);
+static void filter_summary(const struct xz_shell_filter *f, char *out, size_t cap);
 struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_browse_region r, int index) {
  static const struct xz_shell_rect none={0,0,0,0};
  if(!u||u->depth<1||u->depth>XZ_SHELL_STACK)return none;
+ sync(u);
  enum xz_shell_screen s=xz_shell_screen(u);
+ int filters=m&&(m->capabilities&XZ_SHELL_CAP_FILTER);
+ int tiles_x=HEAD_RIGHT-(filters?3:2)*(TILE_W+2)+2;
  const struct xz_shell_browse_model *b=m?m->browse:NULL;
  int rows=xz_shell_browse_rows_visible(u);
  switch(r){
  case XZ_SHELL_BR_SOURCE:return (struct xz_shell_rect){0,0,SRC_W,HEAD_H};
  case XZ_SHELL_BR_BACK:return (struct xz_shell_rect){SRC_W,0,BACK_S+12,HEAD_HIT};
- case XZ_SHELL_BR_FIELD:return s==XZ_SHELL_SEARCH?(struct xz_shell_rect){112,0,HEAD_RIGHT-2*TILE_W-2-8-112,HEAD_HIT}:none;
+ case XZ_SHELL_BR_FIELD:{
+  if(s!=XZ_SHELL_SEARCH)return none;
+  struct xz_shell_rect chip=xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER_CHIP,0);
+  return (struct xz_shell_rect){112,0,(chip.w?chip.x:tiles_x)-8-112,HEAD_HIT};
+ }
  case XZ_SHELL_BR_PREVIEW:return (struct xz_shell_rect){HEAD_RIGHT-2*TILE_W-2,0,TILE_W,HEAD_HIT};
  case XZ_SHELL_BR_INFO:return (struct xz_shell_rect){HEAD_RIGHT-TILE_W,0,TILE_W,HEAD_HIT};
+ case XZ_SHELL_BR_FILTER:return filters?(struct xz_shell_rect){HEAD_RIGHT-3*TILE_W-4,0,TILE_W,HEAD_HIT}:none;
+ case XZ_SHELL_BR_FILTER_CHIP:{
+  if(!filters||!filter_active(&u->filter))return none;
+  char text[48];filter_summary(&u->filter,text,sizeof text);
+  int w=sh_min(200,sh_text_width((struct xz_canvas){NULL,W,W,XZ_SHELL_HEIGHT,XZ_THEME_FLAGSHIP},text,SH_SMALL)+38);
+  return (struct xz_shell_rect){tiles_x-8-w,4,w,HEAD_HIT-8};
+ }
+ case XZ_SHELL_BR_PANEL:return st.side_open&&u->panel.kind!=XZ_SHELL_PANEL_INFO?(struct xz_shell_rect){W-INFO_W,HEAD_H,INFO_W,STRIP_Y-HEAD_H}:none;
+ case XZ_SHELL_BR_PANEL_ROW:
+  if(!st.side_open||u->panel.kind==XZ_SHELL_PANEL_INFO||index<0)return none;
+  return (struct xz_shell_rect){W-INFO_W,HEAD_H+36+index*34,INFO_W,34};
  case XZ_SHELL_BR_RAIL:
   if(s!=XZ_SHELL_BROWSE||index<0||index>=RAIL_SLOTS)return none;
   return (struct xz_shell_rect){0,HEAD_H+index*RAIL_ITEM,RAIL_W,RAIL_ITEM};
@@ -184,7 +216,7 @@ struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *u, const struct
   if(index==0)return (struct xz_shell_rect){x,y,LOAD_W,ROW_H};
   return (struct xz_shell_rect){x+LOAD_W+(index-1)*LOAD_DECK_W,y,LOAD_DECK_W,ROW_H};
  }
- case XZ_SHELL_BR_INFO_PANE:return st.info_open?(struct xz_shell_rect){W-INFO_W,HEAD_H,INFO_W,STRIP_Y-HEAD_H}:none;
+ case XZ_SHELL_BR_INFO_PANE:return u->panel.kind==XZ_SHELL_PANEL_INFO?(struct xz_shell_rect){W-INFO_W,HEAD_H,INFO_W,STRIP_Y-HEAD_H}:none;
  case XZ_SHELL_BR_KEY:return keyboard_shown(u)&&index>=0&&index<XZ_SHELL_BROWSE_KEYS?key_rect(index):none;
  case XZ_SHELL_BR_STRIP:return index>=0&&index<XZ_SHELL_DECKS?(struct xz_shell_rect){index*HALF_W,STRIP_Y,HALF_W,STRIP_H}:none;
  }
@@ -318,17 +350,30 @@ static void rail_icon(struct xz_canvas c, enum xz_shell_browse_category k, int c
  default:break;
  }
 }
-static int rail_entries(const struct xz_shell_browse_model *b, int out[XZ_SHELL_CAT_COUNT]) {
+/* The rail's last entry opens SEARCH: the XZ has no SEARCH key. */
+enum { RAIL_SEARCH=XZ_SHELL_CAT_COUNT, RAIL_MAX=XZ_SHELL_CAT_COUNT+1 };
+static int search_reachable(const struct xz_shell_model *m) { return m->browse&&(m->capabilities&XZ_SHELL_CAP_SEARCH); }
+static int rail_entries(const struct xz_shell_model *m, int out[RAIL_MAX]) {
+ const struct xz_shell_browse_model *b=m->browse;
  int n=0;
  if(b)for(int k=0;k<XZ_SHELL_CAT_COUNT;k++)if((b->category_known>>k)&1)out[n++]=k;
+ if(search_reachable(m))out[n++]=RAIL_SEARCH;
  return n;
 }
 static int rail_first(int entries) { return sh_max(0,sh_min(st.rail_first,entries-RAIL_SLOTS)); }
-static void render_rail(const struct xz_shell_browse_model *b, struct xz_canvas c) {
- int entries[XZ_SHELL_CAT_COUNT],n=rail_entries(b,entries),first=rail_first(n);
+static void render_rail(const struct xz_shell_model *m, struct xz_canvas c) {
+ const struct xz_shell_browse_model *b=m->browse;
+ int entries[RAIL_MAX],n=rail_entries(m,entries),first=rail_first(n);
  xz_rect(c,0,HEAD_H,RAIL_W,STRIP_Y-HEAD_H,SH_RAIL);
  for(int slot=0;slot<RAIL_SLOTS&&first+slot<n;slot++){
   int k=entries[first+slot],y=HEAD_H+slot*RAIL_ITEM;
+  if(k==RAIL_SEARCH){
+   xz_ring(c,RAIL_W/2-2,y+12,6,1,0xe6e6e6);
+   xz_line16(c,(RAIL_W/2+3)*16,(y+17)*16,(RAIL_W/2+8)*16,(y+22)*16,32,0xe6e6e6);
+   sh_text_center(c,RAIL_W/2,y+29,"SEARCH",SH_SMALL,0xe6e6e6);
+   xz_rect(c,0,y+RAIL_ITEM-1,RAIL_W,1,SH_BLACK);
+   continue;
+  }
   int current=bknown(b,XZ_SHELL_BF_CATEGORY)&&(int)b->category==k;
   int available=(b->category_available>>k)&1;
   uint32_t ink=current?SH_WHITE:available?0xe6e6e6:SH_UNAVAILABLE;
@@ -388,11 +433,27 @@ static void render_header(const struct xz_shell *u, const struct xz_shell_model 
  render_source(b,c);
  back_arrow(c,BACK_X+4,2,SH_WHITE);
  struct xz_shell_rect pv=xz_shell_browse_rect(u,m,XZ_SHELL_BR_PREVIEW,0),in=xz_shell_browse_rect(u,m,XZ_SHELL_BR_INFO,0);
+ struct xz_shell_rect fl=xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER,0),chip=xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER_CHIP,0);
  tile(c,pv,"PREVIEW",!st.hide_preview);
- tile(c,in,"INFO",st.info_open);
- for(int i=0;i<5;i++)xz_rect(c,in.x+16-i,in.y+13+i,1,9-2*i,SH_WHITE);
+ tile(c,in,"INFO",u->panel.kind==XZ_SHELL_PANEL_INFO);
+ for(int i=0;i<5;i++)xz_rect(c,in.x+12-i,in.y+13+i,1,9-2*i,SH_WHITE);
+ if(fl.w){
+  tile(c,fl,"FILTER",u->panel.kind==XZ_SHELL_PANEL_FILTER);
+  /* a small funnel, lit amber while a filter applies */
+  uint32_t ink=filter_active(&u->filter)?SH_KEY_AMBER:SH_WHITE;
+  for(int i=0;i<5;i++)xz_rect(c,fl.x+6+i,fl.y+9+i,10-2*i,1,ink);
+  xz_rect(c,fl.x+10,fl.y+14,2,5,ink);
+ }
+ if(chip.w){
+  char text[48];filter_summary(&u->filter,text,sizeof text);
+  xz_rect(c,chip.x,chip.y,chip.w,chip.h,SH_KEY_AMBER);
+  sh_text_fit(c,chip.x+8,chip.y+(chip.h-SH_CAP_SMALL)/2,chip.w-34,text,SH_SMALL,SH_BLACK);
+  int cx=chip.x+chip.w-14,cy=chip.y+chip.h/2;
+  xz_line16(c,(cx-5)*16,(cy-5)*16,(cx+5)*16,(cy+5)*16,28,SH_BLACK);
+  xz_line16(c,(cx+5)*16,(cy-5)*16,(cx-5)*16,(cy+5)*16,28,SH_BLACK);
+ }
  if(s==XZ_SHELL_SEARCH){render_field(u,m,c);return;}
- int right=pv.x-10;
+ int right=(chip.w?chip.x:fl.w?fl.x:pv.x)-10;
  if(s==XZ_SHELL_TAG_LIST){
   char text[24];
   if(matches(b,s)&&bknown(b,XZ_SHELL_BF_TOTAL))snprintf(text,sizeof text,"%d/%d",(int)sh_min(b->total,99999),XZ_SHELL_TAG_LIST_MAX);
@@ -422,6 +483,9 @@ static const char *column_label(int kind, const struct xz_shell_browse_model *b,
   return r&&r->kind==XZ_SHELL_ROW_FOLDER?"NAME":"TRACK";
  }
  case XZ_SHELL_COL_ARTIST:return "ARTIST";
+ case XZ_SHELL_COL_ALBUM:return "ALBUM";
+ case XZ_SHELL_COL_GENRE:return "GENRE";
+ case XZ_SHELL_COL_DATE_ADDED:return "ADDED";
  case XZ_SHELL_COL_BPM:return "BPM";
  case XZ_SHELL_COL_KEY:return "KEY";
  case XZ_SHELL_COL_RATING:return "RATING";
@@ -502,16 +566,20 @@ static void render_load_chip(const struct xz_shell *u, const struct xz_shell_mod
 static void render_row(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, const struct col *cols, int n, int32_t index, int y, const struct sess *v) {
  enum xz_shell_screen s=xz_shell_screen(u);
  const struct xz_shell_browse_model *b=m->browse;
- const struct xz_shell_browse_row *r=row_at(b,s,index);
+ const struct xz_shell_browse_row *r=row_at(b,s,grab_source_row(u,index));
  int32_t limit=row_limit(b,s);
- int selected=index<limit&&index==v->cursor&&r;
- uint32_t bg=selected?SH_BLUE:index%2?SH_ROW_ALT:SH_BLACK;
+ int grabbed=u->grab.active&&index==u->grab.to;
+ int selected=index<limit&&index==v->cursor&&r&&!grabbed;
+ uint32_t bg=selected?SH_BLUE:grabbed?0x3a2a08:index%2?SH_ROW_ALT:SH_BLACK;
  xz_rect(c,list_x(s),y,list_w(s),ROW_H,bg);
+ if(grabbed){xz_border(c,list_x(s),y,list_w(s),ROW_H,SH_KEY_AMBER);xz_border(c,list_x(s)+1,y+1,list_w(s)-2,ROW_H-2,SH_KEY_AMBER);}
  for(int i=1;i<n;i++)if(!selected||cols[i-1].kind==COL_PREVIEW)xz_rect(c,cols[i].x,y,1,ROW_H,selected?SH_BLACK:SH_RAIL);
  if(!r)return;
  char text[32];
  int ty=y+(ROW_H-SH_CAP_TEXT)/2;
  int touched=v->touched==index&&r->kind==XZ_SHELL_ROW_TRACK;
+ int artist_column=0;
+ for(int i=0;i<n;i++)artist_column|=cols[i].kind==XZ_SHELL_COL_ARTIST;
  for(int i=0;i<n;i++){
   const struct col *k=&cols[i];
   int x=k->x+10,room=k->w-18;
@@ -530,10 +598,16 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
    else if(rknown(r,XZ_SHELL_RF_ON_DECK))for(int d=XZ_SHELL_DECKS-1;d>=0;d--)if((r->on_deck>>d)&1){
     right-=14;deck_badge(c,right,y+12,d,selected?SH_WHITE:SH_BLUE,selected?SH_BLUE:SH_WHITE);right-=4;
    }
-   if(r->kind==XZ_SHELL_ROW_FOLDER)folder_icon(c,x,y+12,SH_WHITE);
+   if(r->kind==XZ_SHELL_ROW_FOLDER){
+    folder_icon(c,x,y+12,SH_WHITE);
+    /* An edited playlist carries a small pencil-blue dot: its contents come from the shell's edits. */
+    if(rknown(r,XZ_SHELL_RF_EDITED))xz_disc(c,x+16,y+12,3,selected?SH_WHITE:SH_KEY_AMBER);
+   }
    else if(s==XZ_SHELL_TAG_LIST)check_icon(c,x-1,y+12,SH_WHITE);
    else sh_note(c,x+1,y+11,!selected&&rknown(r,XZ_SHELL_RF_PLAYED)&&r->played?SH_GREEN:SH_WHITE);
-   if(rknown(r,XZ_SHELL_RF_TITLE)&&r->title)sh_text_fit(c,x+22,ty,right-(x+22),r->title,SH_TEXT,SH_WHITE);
+   int artist_below=r->kind==XZ_SHELL_ROW_TRACK&&rknown(r,XZ_SHELL_RF_ARTIST)&&r->artist&&*r->artist&&!artist_column;
+   if(rknown(r,XZ_SHELL_RF_TITLE)&&r->title)sh_text_fit(c,x+22,artist_below?y+4:ty,right-(x+22),r->title,SH_TEXT,SH_WHITE);
+   if(artist_below)sh_text_fit(c,x+22,y+24,right-(x+22),r->artist,SH_SMALL,selected?0xd8e8ff:SH_DIM);
    break;
   }
   case XZ_SHELL_COL_ARTIST:
@@ -547,7 +621,25 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
    }
    break;
   case XZ_SHELL_COL_KEY:
-   if(rknown(r,XZ_SHELL_RF_KEY)&&r->key){char key[8];sh_text_fit(c,x,ty,room,sh_key_text(r->key,sh_key_display(u),key,sizeof key),SH_TEXT,!selected&&r->key_matches_master?SH_GREEN:SH_WHITE);}
+   if(rknown(r,XZ_SHELL_RF_KEY)&&r->key){
+    char key[8];uint32_t ink=sh_key_ink(m,r->key,r->key_matches_master,SH_WHITE);
+    /* On the blue cursor row the light moves into a bar beside the key, where it still reads. */
+    if(selected&&ink!=SH_WHITE){xz_rect(c,x-6,y+10,3,ROW_H-20,ink);ink=SH_WHITE;}
+    sh_text_fit(c,x,ty,room,sh_key_text(r->key,sh_key_display(u),key,sizeof key),SH_TEXT,ink);
+   }
+   break;
+  case XZ_SHELL_COL_ALBUM:
+   if(rknown(r,XZ_SHELL_RF_ALBUM)&&r->album)sh_text_fit(c,x,ty,room,r->album,SH_TEXT,SH_WHITE);
+   break;
+  case XZ_SHELL_COL_GENRE:
+   if(rknown(r,XZ_SHELL_RF_GENRE)&&r->genre)sh_text_fit(c,x,ty,room,r->genre,SH_TEXT,SH_WHITE);
+   break;
+  case XZ_SHELL_COL_DATE_ADDED:
+   if(rknown(r,XZ_SHELL_RF_DATE_ADDED)&&r->date_added>0){
+    int32_t d=r->date_added;
+    snprintf(text,sizeof text,"%04d-%02d-%02d",(int)(d/10000%10000),(int)(d/100%100),(int)(d%100));
+    sh_text_fit(c,x,ty,room,text,SH_SMALL,SH_WHITE);
+   }
    break;
   case XZ_SHELL_COL_RATING:
    if(rknown(r,XZ_SHELL_RF_RATING))for(int j=0;j<5;j++)star(c,x+j*12,y+15,j<r->rating?SH_WHITE:selected?xz_blend(SH_BLUE,SH_WHITE,90):SH_STAR_OFF);
@@ -593,7 +685,7 @@ static void render_info_pane(const struct xz_shell *u, const struct xz_shell_mod
   text[0]=0;
   switch(i){
   case 0:known=rknown(r,XZ_SHELL_RF_BPM)&&r->bpm_x100>0;if(known)snprintf(text,sizeof text,"%d.%02d",(int)(sh_min(r->bpm_x100,99999)/100),(int)(sh_min(r->bpm_x100,99999)%100));break;
-  case 1:known=rknown(r,XZ_SHELL_RF_KEY)&&r->key;if(known){char key[8];snprintf(text,sizeof text,"%.20s",sh_key_text(r->key,sh_key_display(u),key,sizeof key));if(r->key_matches_master)ink=SH_GREEN;}break;
+  case 1:known=rknown(r,XZ_SHELL_RF_KEY)&&r->key;if(known){char key[8];snprintf(text,sizeof text,"%.20s",sh_key_text(r->key,sh_key_display(u),key,sizeof key));ink=sh_key_ink(m,r->key,r->key_matches_master,SH_WHITE);}break;
   case 2:known=rknown(r,XZ_SHELL_RF_DURATION)&&r->duration_ms>=0;if(known)snprintf(text,sizeof text,"%d:%02d",(int)sh_min(r->duration_ms/60000,999),(int)(r->duration_ms/1000%60));break;
   case 3:
    known=rknown(r,XZ_SHELL_RF_RATING);
@@ -649,9 +741,52 @@ static void render_jump(const struct xz_shell *u, const struct xz_shell_model *m
   }
  }
 }
+/* The device the list reads is known to be gone: no stale rows, one line and a way to the picker. */
+static int source_absent(const struct xz_shell_model *m, enum xz_shell_screen s) {
+ const struct xz_shell_source_model *sm=m->source;
+ if(s==XZ_SHELL_TAG_LIST||!sm||!sm->current_known)return 0;
+ int i=(int)sm->current-1;
+ if(i<0||i>=XZ_SHELL_SOURCE_TILES)return 0;
+ const struct xz_shell_device *d=&sm->device[i];
+ return ((d->known>>XZ_SHELL_D_STATUS)&1)&&d->status==XZ_SHELL_DEVICE_NOT_CONNECTED;
+}
+static struct xz_shell_rect picker_button(enum xz_shell_screen s) {
+ return (struct xz_shell_rect){list_x(s)+list_w(s)/2-110,LIST_Y+ROW_H*3,220,44};
+}
+static void render_absent(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ enum xz_shell_screen s=xz_shell_screen(u);
+ char text[48];
+ int slot=(int)m->source->current;
+ snprintf(text,sizeof text,"%s IS NOT CONNECTED",slot==XZ_SHELL_SRC_USB2?"USB 2":slot==XZ_SHELL_SRC_USB1?"USB 1":slot==XZ_SHELL_SRC_LINK?"LINK":"THE DEVICE");
+ xz_rect(c,list_x(s),COL_Y,list_w(s),STRIP_Y-COL_Y,SH_BLACK);
+ sh_text_center(c,list_x(s)+list_w(s)/2,LIST_Y+ROW_H+8,text,SH_TEXT,SH_DIM);
+ struct xz_shell_rect b=picker_button(s);
+ xz_rect(c,b.x,b.y,b.w,b.h,SH_BLUE);
+ sh_text_center(c,b.x+b.w/2,b.y+(b.h-SH_CAP_TEXT)/2,"CHOOSE A SOURCE",SH_TEXT,SH_WHITE);
+}
+/* The picked-up track: its row under the cursor, the rest closed up around it, a hint bar below. */
+static int32_t grab_source_row(const struct xz_shell *u, int32_t shown) {
+ const struct xz_shell_grab *g=&u->grab;
+ if(!g->active)return shown;
+ if(shown==g->to)return g->from;
+ if(g->from<g->to&&shown>=g->from&&shown<g->to)return shown+1;
+ if(g->from>g->to&&shown>g->to&&shown<=g->from)return shown-1;
+ return shown;
+}
+static void render_grab_bar(const struct xz_shell *u, struct xz_canvas c) {
+ enum xz_shell_screen s=xz_shell_screen(u);
+ int y=STRIP_Y-ROW_H;   /* over the last row exactly, so no half row shows above it */
+ xz_rect(c,list_x(s),y,list_w(s),ROW_H,SH_KEY_AMBER);
+ sh_text_fit(c,list_x(s)+12,y+(ROW_H-SH_CAP_SMALL)/2,list_w(s)-24,"MOVING TRACK: TURN OR TOUCH A ROW, PUSH OR TOUCH AGAIN TO DROP, BACK TO CANCEL",SH_SMALL,SH_BLACK);
+}
 static void render_list(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, const struct sess *v) {
  enum xz_shell_screen s=xz_shell_screen(u);
  const struct xz_shell_browse_model *b=m->browse;
+ if(source_absent(m,s)){
+  render_absent(u,m,c);
+  if(panel_open(u))render_panel(u,m,c);
+  return;
+ }
  struct col cols[MAX_COLS];int n=layout_columns(b,s,cols);
  int rows=xz_shell_browse_rows_visible(u);
  render_columns(u,m,c,cols,n);
@@ -671,11 +806,412 @@ static void render_list(const struct xz_shell *u, const struct xz_shell_model *m
   int at=LIST_Y+4+(int)((int64_t)(track-thumb)*v->scroll/(limit-rows));
   xz_rect(c,list_x(s)+list_w(s)-4,at,3,thumb,SH_DIM);
  }
- if(st.info_open)render_info_pane(u,m,c,v);
+ if(u->panel.kind==XZ_SHELL_PANEL_INFO)render_info_pane(u,m,c,v);
+ else if(panel_open(u))render_panel(u,m,c);
+ if(u->grab.active)render_grab_bar(u,c);
  if(v->jump)render_jump(u,m,c,v);
 }
+static size_t emit(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n, struct xz_shell_action a);
+static size_t op(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n, enum xz_shell_browse_op o, int32_t value);
+/* ---- slide-over panels: MENU (sort, columns, playlist edits) and FILTER ----
+   Same chrome as the INFO pane, over the list's right side. The encoder moves
+   the row cursor and pushes the row; a touch acts on the row at once; BACK
+   leaves a sub-page, then closes the panel (sh_browse_back_step). Rows the
+   model gives no data for are left out. */
+enum { PANEL_X=W-INFO_W, PANEL_HEAD=36, PANEL_ROW=34, PANEL_ROWS=(STRIP_Y-HEAD_H-PANEL_HEAD)/PANEL_ROW, MAX_PITEMS=72 };
+enum { PAGE_MAIN, PAGE_ADD, PAGE_NEW, PAGE_RENAME };
+enum pk {
+ PK_HEAD, PK_SORT, PK_COLUMN, PK_FILTER_OPEN, PK_NEW, PK_RENAME, PK_DELETE, PK_ADD_OPEN, PK_REMOVE, PK_MOVE, PK_ADD_TO, PK_SAVE,
+ PK_F_BPM, PK_F_FROM, PK_F_TO, PK_F_KEY, PK_F_RATING, PK_F_COLOR, PK_F_TAG, PK_F_CLEAR, PK_NOTE, PK_SEARCH
+};
+struct pitem { enum pk kind; int value; const char *label; char text[28]; int on; uint32_t swatch; };
+static const char *const sort_label[XZ_SHELL_COL_COUNT]={
+ [XZ_SHELL_COL_NUMBER]="TRACK No.",[XZ_SHELL_COL_TITLE]="TITLE",[XZ_SHELL_COL_ARTIST]="ARTIST",[XZ_SHELL_COL_BPM]="BPM",
+ [XZ_SHELL_COL_KEY]="KEY",[XZ_SHELL_COL_RATING]="RATING",[XZ_SHELL_COL_COLOR]="COLOR",[XZ_SHELL_COL_TIME]="TIME",
+ [XZ_SHELL_COL_ALBUM]="ALBUM",[XZ_SHELL_COL_GENRE]="GENRE",[XZ_SHELL_COL_DATE_ADDED]="DATE ADDED"
+};
+static const struct { const char *name; uint32_t rgb; } tag_colors[XZ_SHELL_TAG_COLOR_COUNT]={
+ {"PINK",0xf870b8},{"RED",0xe8302c},{"ORANGE",0xf08a24},{"YELLOW",0xf2d42c},
+ {"GREEN",0x42c84a},{"AQUA",0x36c8d8},{"BLUE",0x2a6cf0},{"PURPLE",0x9a54e0}
+};
+static const int bpm_spreads[]={2,4,6,10};
+static int filter_active(const struct xz_shell_filter *f) {
+ return f->bpm!=XZ_SHELL_FILTER_BPM_OFF||f->key_compatible||f->rating_min>0||f->colors||f->my_tags;
+}
+/* The active-filter chip's words, most telling first. */
+static void filter_summary(const struct xz_shell_filter *f, char *out, size_t cap) {
+ size_t used=0;out[0]=0;
+#define PART(...) do{ if(used&&used+3<cap){memcpy(out+used," \xc2\xb7 ",4);used+=4;} \
+  int written_=snprintf(out+used,cap>used?cap-used:0,__VA_ARGS__);if(written_>0)used=(size_t)sh_min((int)cap-1,(int)(used+(size_t)written_)); }while(0)
+ if(f->bpm==XZ_SHELL_FILTER_BPM_MASTER)PART("BPM \xb1%d",f->bpm_spread);
+ else if(f->bpm==XZ_SHELL_FILTER_BPM_RANGE)PART("BPM %d-%d",(int)(f->bpm_min_x100/100),(int)(f->bpm_max_x100/100));
+ if(f->key_compatible)PART("KEY");
+ if(f->rating_min>0)PART("%d+ STARS",f->rating_min);
+ if(f->colors){int k=0;for(int i=0;i<XZ_SHELL_TAG_COLOR_COUNT;i++)k+=(f->colors>>i)&1;PART(k==1?"1 COLOR":"%d COLORS",k);}
+ if(f->my_tags)PART("MY TAG");
+#undef PART
+}
+static const struct xz_shell_browse_row *highlight_row(const struct xz_shell *u, const struct xz_shell_model *m) {
+ return xz_shell_browse_highlight(u,m);
+}
+static int column_shown(const struct xz_shell_browse_model *b, int k) {
+ if(!bknown(b,XZ_SHELL_BF_COLUMNS))return 0;
+ for(int i=0;i<b->column_count&&i<XZ_SHELL_BROWSE_COLUMNS;i++)if((int)b->columns[i]==k)return 1;
+ return 0;
+}
+static int add(struct pitem *out, int n, enum pk kind, int value, const char *label) {
+ if(n>=MAX_PITEMS)return n;
+ out[n]=(struct pitem){kind,value,label,"",0,0};
+ return n+1;
+}
+static int menu_items(const struct xz_shell *u, const struct xz_shell_model *m, struct pitem *out) {
+ const struct xz_shell_browse_model *b=m->browse;
+ enum xz_shell_screen s=xz_shell_screen(u);
+ int n=0;
+ if(!matches(b,s))return 0;
+ const struct xz_shell_browse_row *r=highlight_row(u,m);
+ if(u->panel.page==PAGE_ADD){
+  n=add(out,n,PK_HEAD,0,"ADD TO PLAYLIST");
+  if(bknown(b,XZ_SHELL_BF_PLAYLISTS)&&b->playlists)for(int i=0;i<b->playlist_count&&n<MAX_PITEMS;i++){
+   n=add(out,n,PK_ADD_TO,i,b->playlists[i].name?b->playlists[i].name:"---");
+   if(b->playlists[i].tracks>=0)snprintf(out[n-1].text,sizeof out[n-1].text,"%d",(int)sh_min(b->playlists[i].tracks,99999));
+  }
+  return n;
+ }
+ if(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME)return add(out,n,PK_SAVE,0,"SAVE");
+ if(bknown(b,XZ_SHELL_BF_SORT_KEYS)&&b->sort_keys){
+  n=add(out,n,PK_HEAD,0,"SORT BY");
+  for(int k=0;k<XZ_SHELL_COL_COUNT;k++)if((b->sort_keys>>k)&1){
+   n=add(out,n,PK_SORT,k,sort_label[k]);
+   out[n-1].on=bknown(b,XZ_SHELL_BF_SORT)&&(int)b->sort_column==k;
+  }
+ }
+ if(bknown(b,XZ_SHELL_BF_COLUMN_CHOICES)&&b->column_choices){
+  n=add(out,n,PK_HEAD,0,"COLUMNS");
+  for(int k=0;k<XZ_SHELL_COL_COUNT;k++)if(k!=XZ_SHELL_COL_TITLE&&((b->column_choices>>k)&1)){
+   n=add(out,n,PK_COLUMN,k,sort_label[k]);
+   out[n-1].on=column_shown(b,k);
+  }
+ }
+ if(m->capabilities&XZ_SHELL_CAP_PLAYLIST_EDIT){
+  int edit=bknown(b,XZ_SHELL_BF_EDIT)?(int)b->edit:0,head=n;
+  n=add(out,n,PK_HEAD,0,"PLAYLIST");
+  if(edit&XZ_SHELL_EDIT_PLAYLISTS){
+   n=add(out,n,PK_NEW,0,"NEW PLAYLIST");
+   if(r&&r->kind==XZ_SHELL_ROW_FOLDER){
+    n=add(out,n,PK_RENAME,0,"RENAME");
+    n=add(out,n,PK_DELETE,0,u->panel.armed?"PUSH AGAIN TO DELETE":"DELETE");
+    out[n-1].on=u->panel.armed;
+   }
+  }
+  if((edit&XZ_SHELL_EDIT_TRACKS)&&r&&r->kind==XZ_SHELL_ROW_TRACK){
+   n=add(out,n,PK_MOVE,0,"MOVE TRACK");
+   n=add(out,n,PK_REMOVE,0,"REMOVE FROM PLAYLIST");
+  }
+  if(r&&r->kind==XZ_SHELL_ROW_TRACK&&bknown(b,XZ_SHELL_BF_PLAYLISTS)&&b->playlist_count>0)n=add(out,n,PK_ADD_OPEN,0,"ADD TO PLAYLIST");
+  if(n==head+1)n=head;
+ }
+ if((m->capabilities&XZ_SHELL_CAP_FILTER)||(s!=XZ_SHELL_SEARCH&&search_reachable(m))){
+  n=add(out,n,PK_HEAD,0,"FIND");
+  if(m->capabilities&XZ_SHELL_CAP_FILTER){n=add(out,n,PK_FILTER_OPEN,0,"TRACK FILTER");out[n-1].on=filter_active(&u->filter);}
+  if(s!=XZ_SHELL_SEARCH&&search_reachable(m))n=add(out,n,PK_SEARCH,0,"SEARCH");
+ }
+ return n;
+}
+static void stars_text(char *out, size_t cap, int count) {
+ if(count<=0){snprintf(out,cap,"ANY");return;}
+ snprintf(out,cap,"%d+ STARS",count);
+}
+static int filter_items(const struct xz_shell *u, const struct xz_shell_model *m, struct pitem *out) {
+ const struct xz_shell_filter *f=&u->filter;
+ const struct xz_shell_browse_model *b=m->browse;
+ int n=0;
+ n=add(out,n,PK_HEAD,0,"BPM");
+ n=add(out,n,PK_F_BPM,0,"BPM");
+ if(f->bpm==XZ_SHELL_FILTER_BPM_OFF)snprintf(out[n-1].text,sizeof out[n-1].text,"OFF");
+ else if(f->bpm==XZ_SHELL_FILTER_BPM_MASTER)snprintf(out[n-1].text,sizeof out[n-1].text,"MASTER \xb1%d",f->bpm_spread);
+ else snprintf(out[n-1].text,sizeof out[n-1].text,"RANGE");
+ out[n-1].on=f->bpm!=XZ_SHELL_FILTER_BPM_OFF;
+ if(f->bpm==XZ_SHELL_FILTER_BPM_RANGE){
+  n=add(out,n,PK_F_FROM,0,"FROM");
+  snprintf(out[n-1].text,sizeof out[n-1].text,"%d.%d",(int)(f->bpm_min_x100/100),(int)(f->bpm_min_x100/10%10));
+  n=add(out,n,PK_F_TO,0,"TO");
+  snprintf(out[n-1].text,sizeof out[n-1].text,"%d.%d",(int)(f->bpm_max_x100/100),(int)(f->bpm_max_x100/10%10));
+ }
+ n=add(out,n,PK_HEAD,0,"KEY");
+ n=add(out,n,PK_F_KEY,0,"MATCH MASTER KEY");
+ out[n-1].on=f->key_compatible;
+ const char *master=xz_shell_master_key(m);
+ if(master){char key[8];snprintf(out[n-1].text,sizeof out[n-1].text,"%s",sh_key_text(master,sh_key_display(u),key,sizeof key));}
+ n=add(out,n,PK_HEAD,0,"RATING");
+ n=add(out,n,PK_F_RATING,0,"AT LEAST");
+ stars_text(out[n-1].text,sizeof out[n-1].text,f->rating_min);
+ out[n-1].on=f->rating_min>0;
+ n=add(out,n,PK_HEAD,0,"COLOR");
+ for(int i=0;i<XZ_SHELL_TAG_COLOR_COUNT;i++){
+  n=add(out,n,PK_F_COLOR,i,tag_colors[i].name);
+  out[n-1].on=(f->colors>>i)&1;out[n-1].swatch=tag_colors[i].rgb;
+ }
+ if(bknown(b,XZ_SHELL_BF_MY_TAGS)&&b&&b->my_tags&&b->my_tag_count>0){
+  n=add(out,n,PK_HEAD,0,"MY TAG");
+  for(int i=0;i<b->my_tag_count&&i<32;i++){
+   n=add(out,n,PK_F_TAG,i,b->my_tags[i].name?b->my_tags[i].name:"---");
+   out[n-1].on=(f->my_tags>>i)&1;
+  }
+ }
+ if(filter_active(f))n=add(out,n,PK_F_CLEAR,0,"CLEAR ALL FILTERS");
+ return n;
+}
+static int panel_items(const struct xz_shell *u, const struct xz_shell_model *m, struct pitem *out) {
+ if(u->panel.kind==XZ_SHELL_PANEL_FILTER)return filter_items(u,m,out);
+ if(u->panel.kind==XZ_SHELL_PANEL_MENU)return menu_items(u,m,out);
+ return 0;
+}
+static int selectable_item(const struct pitem *it) { return it->kind!=PK_HEAD&&it->kind!=PK_NOTE; }
+/* The panel cursor on a selectable row: the stored one, else the first. -1 when there is none. */
+static int panel_cursor(const struct xz_shell *u, const struct pitem *items, int n) {
+ int c=u->panel.cursor;
+ if(c>=0&&c<n&&selectable_item(&items[c]))return c;
+ for(int i=0;i<n;i++)if(selectable_item(&items[i]))return i;
+ return -1;
+}
+static int panel_scroll(const struct xz_shell *u, int cursor, int n) {
+ int sc=sh_max(0,sh_min(u->panel.scroll,n-PANEL_ROWS));
+ if(cursor>=0&&cursor<sc)sc=cursor;
+ if(cursor>=sc+PANEL_ROWS)sc=cursor-PANEL_ROWS+1;
+ return sh_max(0,sc);
+}
+static const char *panel_title(const struct xz_shell *u) {
+ if(u->panel.kind==XZ_SHELL_PANEL_FILTER)return "TRACK FILTER";
+ switch(u->panel.page){
+ case PAGE_ADD:return "ADD TO PLAYLIST";
+ case PAGE_NEW:return "NEW PLAYLIST";
+ case PAGE_RENAME:return "RENAME PLAYLIST";
+ default:return "MENU";
+ }
+}
+static int panel_open(const struct xz_shell *u) { return u->panel.kind==XZ_SHELL_PANEL_MENU||u->panel.kind==XZ_SHELL_PANEL_FILTER; }
+static int naming(const struct xz_shell *u) { return u->panel.kind==XZ_SHELL_PANEL_MENU&&(u->panel.page==PAGE_NEW||u->panel.page==PAGE_RENAME); }
+static void check_box(struct xz_canvas c, int x, int y, int on, uint32_t ink) {
+ xz_border(c,x,y,14,14,ink);
+ if(on)xz_rect(c,x+3,y+3,8,8,ink);
+}
+static void render_panel(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ struct pitem items[MAX_PITEMS];
+ int n=panel_items(u,m,items),cur=panel_cursor(u,items,n),sc=panel_scroll(u,cur,n);
+ int x0=PANEL_X,y0=HEAD_H,h=STRIP_Y-HEAD_H;
+ xz_rect(c,x0,y0,INFO_W,h,SH_CHROME);
+ xz_rect(c,x0,y0,1,h,SH_BLACK);
+ /* title bar with a close cross */
+ xz_rect(c,x0+1,y0,INFO_W-1,PANEL_HEAD,SH_RAIL);
+ sh_text_fit(c,x0+14,y0+(PANEL_HEAD-SH_CAP_TEXT)/2,INFO_W-60,panel_title(u),SH_TEXT,SH_WHITE);
+ int cx=x0+INFO_W-20,cy=y0+PANEL_HEAD/2;
+ xz_line16(c,(cx-6)*16,(cy-6)*16,(cx+6)*16,(cy+6)*16,24,SH_WHITE);
+ xz_line16(c,(cx+6)*16,(cy-6)*16,(cx-6)*16,(cy+6)*16,24,SH_WHITE);
+ if(naming(u)){
+  /* the name being typed, with the keyboard below the panel */
+  int fy=y0+PANEL_HEAD+12;
+  sh_text(c,x0+14,fy,"NAME",SH_SMALL,SH_DIM);
+  xz_rect(c,x0+12,fy+14,INFO_W-24,32,SH_BLACK);xz_border(c,x0+12,fy+14,INFO_W-24,32,SH_BLUE);
+  const char *t=u->name;int room=INFO_W-40;
+  while(*t&&sh_text_width(c,t,SH_TEXT)>room)t++;
+  sh_text(c,x0+20,fy+23,t,SH_TEXT,SH_WHITE);
+  if(((m->clock_ms/500)&1)==0)xz_rect(c,x0+21+sh_text_width(c,t,SH_TEXT),fy+20,2,20,SH_BLUE);
+  sh_text_fit(c,x0+14,fy+56,INFO_W-28,"TYPE, THEN SAVE OR PUSH",SH_SMALL,SH_DIM);
+  return;
+ }
+ if(!n){
+  sh_text_center(c,x0+INFO_W/2,y0+PANEL_HEAD+30,"NO OPTIONS FOR THIS LIST",SH_SMALL,SH_DIM);
+  return;
+ }
+ struct xz_canvas body=xz_sub(c,x0+1,y0+PANEL_HEAD,INFO_W-1,h-PANEL_HEAD);
+ for(int row=0;row<PANEL_ROWS&&sc+row<n;row++){
+  const struct pitem *it=&items[sc+row];
+  int y=row*PANEL_ROW,w=INFO_W-1;
+  if(it->kind==PK_HEAD){
+   sh_text_fit(body,12,y+16,w-24,it->label,SH_SMALL,SH_DIM);
+   xz_rect(body,12,y+PANEL_ROW-4,w-24,1,SH_RAIL);
+   continue;
+  }
+  int focused=sc+row==cur;
+  int armed=u->panel.armed&&focused&&(it->kind==PK_F_FROM||it->kind==PK_F_TO);
+  uint32_t bg=focused?(armed?SH_WHITE:SH_BLUE):SH_CHROME,ink=armed?SH_BLUE:SH_WHITE;
+  if(it->kind==PK_DELETE&&it->on)bg=SH_RED;
+  xz_rect(body,0,y+1,w,PANEL_ROW-2,bg);
+  int x=12,right=w-12;
+  switch(it->kind){
+  case PK_SORT:
+   xz_ring(body,x+7,y+PANEL_ROW/2,6,1,ink);
+   if(it->on)xz_disc(body,x+7,y+PANEL_ROW/2,3,ink);
+   if(it->on)sh_triangle(body,right-6,y+12,6,matches(m->browse,xz_shell_screen(u))&&m->browse->sort_descending,ink);
+   x+=22;break;
+  case PK_COLUMN:case PK_F_KEY:case PK_F_TAG:
+   check_box(body,x,y+10,it->on,ink);x+=22;break;
+  case PK_F_COLOR:
+   xz_rect(body,x,y+10,14,14,it->swatch);
+   if(it->on)xz_border(body,x-2,y+8,18,18,ink);
+   x+=22;
+   if(it->on)check_box(body,right-14,y+10,1,ink);
+   break;
+  case PK_ADD_OPEN:case PK_FILTER_OPEN:case PK_SEARCH:
+   sh_triangle(body,right-4,y+11,6,0,ink);   /* points on into a sub-page */
+   if(it->kind==PK_FILTER_OPEN&&it->on)xz_disc(body,right-20,y+PANEL_ROW/2,4,SH_KEY_AMBER);
+   break;
+  default:break;
+  }
+  int tw=it->text[0]?sh_min(sh_text_width(body,it->text,SH_TEXT),110):0;
+  sh_text_fit(body,x,y+(PANEL_ROW-SH_CAP_TEXT)/2-1,right-x-tw-(tw?10:0),it->label,SH_TEXT,ink);
+  if(tw)sh_text_fit(body,right-tw-(it->kind==PK_F_COLOR?20:0),y+(PANEL_ROW-SH_CAP_TEXT)/2-1,110,it->text,SH_TEXT,focused?ink:it->on?SH_KEY_AMBER:SH_DIM);
+ }
+ if(n>PANEL_ROWS){
+  int track=PANEL_ROWS*PANEL_ROW-8,thumb=sh_max(12,track*PANEL_ROWS/n),at=4+(track-thumb)*sc/(n-PANEL_ROWS);
+  xz_rect(body,INFO_W-5,at,3,thumb,SH_DIM);
+ }
+}
+
+/* ---- panel actions ---- */
+static size_t emit_playlist(struct xz_shell *u, enum xz_shell_playlist_op o, uint32_t playlist, uint32_t track, int32_t from, int32_t to, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+ u->edit.op=o;u->edit.playlist=playlist;u->edit.track=track;u->edit.from=from;u->edit.to=to;
+ if(o==XZ_SHELL_PL_CREATE||o==XZ_SHELL_PL_RENAME)snprintf(u->edit.name,sizeof u->edit.name,"%s",u->name);
+ else u->edit.name[0]=0;
+ return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_PLAYLIST,-1,(int32_t)playlist,(int)o});
+}
+static size_t apply_filter(struct xz_shell *u, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+ return op(out,n,XZ_SHELL_BROWSE_FILTER,filter_active(&u->filter));
+}
+static int32_t master_bpm_x100(const struct xz_shell_model *m) {
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  const struct xz_shell_deck *k=&m->deck[d];
+  if(sh_has(k,XZ_SHELL_F_MASTER)&&k->master&&sh_has(k,XZ_SHELL_F_BPM)&&k->bpm_x100>0)return k->bpm_x100;
+ }
+ return 12000;
+}
+static void close_panel(struct xz_shell *u) { memset(&u->panel,0,sizeof u->panel); }
+static size_t activate_item(struct xz_shell *u, const struct xz_shell_model *m, const struct pitem *it, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+ const struct xz_shell_browse_model *b=m->browse;
+ const struct xz_shell_browse_row *r=highlight_row(u,m);
+ struct xz_shell_filter *f=&u->filter;
+ int was_armed=u->panel.armed;
+ u->panel.armed=0;
+ switch(it->kind){
+ case PK_SORT:{
+  int desc=it->on?!b->sort_descending:0;
+  return op(out,n,XZ_SHELL_BROWSE_SORT,it->value|desc<<8);
+ }
+ case PK_COLUMN:{
+  uint32_t mask=1u<<XZ_SHELL_COL_TITLE;
+  for(int k=0;k<XZ_SHELL_COL_COUNT;k++)if(column_shown(b,k))mask|=1u<<k;
+  mask^=1u<<it->value;
+  return op(out,n,XZ_SHELL_BROWSE_SET_COLUMNS,(int32_t)mask);
+ }
+ case PK_FILTER_OPEN:close_panel(u);u->panel.kind=XZ_SHELL_PANEL_FILTER;return n;
+ case PK_SEARCH:close_panel(u);return n+sh_key(u,m,XZ_SHELL_KEY_SEARCH,-1,out+n);
+ case PK_ADD_OPEN:u->panel.page=PAGE_ADD;u->panel.cursor=u->panel.scroll=0;return n;
+ case PK_ADD_TO:
+  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
+  n=emit_playlist(u,XZ_SHELL_PL_ADD_TRACK,b->playlists[it->value].id,r->id,-1,-1,out,n);
+  close_panel(u);return n;
+ case PK_NEW:{
+  int count=bknown(b,XZ_SHELL_BF_TOTAL)?(int)b->total:0;
+  snprintf(u->name,sizeof u->name,"PLAYLIST %d",count+1);
+  u->panel.page=PAGE_NEW;u->panel.cursor=0;return n;
+ }
+ case PK_RENAME:
+  if(!r)return n;
+  snprintf(u->name,sizeof u->name,"%s",rknown(r,XZ_SHELL_RF_TITLE)&&r->title?r->title:"");
+  u->panel.page=PAGE_RENAME;u->panel.cursor=0;return n;
+ case PK_SAVE:
+  if(!u->name[0])return n;
+  if(u->panel.page==PAGE_NEW)n=emit_playlist(u,XZ_SHELL_PL_CREATE,0,0,-1,-1,out,n);
+  else if(r)n=emit_playlist(u,XZ_SHELL_PL_RENAME,r->id,0,-1,-1,out,n);
+  close_panel(u);return n;
+ case PK_DELETE:
+  if(!r||r->kind!=XZ_SHELL_ROW_FOLDER)return n;
+  if(!was_armed){u->panel.armed=1;return n;}
+  n=emit_playlist(u,XZ_SHELL_PL_DELETE,r->id,0,-1,-1,out,n);
+  close_panel(u);return n;
+ case PK_REMOVE:{
+  if(!r)return n;
+  const struct xz_shell_view *v=top_view(u);
+  n=emit_playlist(u,XZ_SHELL_PL_REMOVE_TRACK,b->edit_playlist,r->id,v->cursor,-1,out,n);
+  close_panel(u);return n;
+ }
+ case PK_MOVE:{
+  if(!r)return n;
+  const struct xz_shell_view *v=top_view(u);
+  close_panel(u);
+  u->grab=(struct xz_shell_grab){1,b->edit_playlist,r->id,v->cursor,v->cursor};
+  return n;
+ }
+ case PK_F_BPM:
+  if(f->bpm==XZ_SHELL_FILTER_BPM_OFF){f->bpm=XZ_SHELL_FILTER_BPM_MASTER;f->bpm_spread=bpm_spreads[0];}
+  else if(f->bpm==XZ_SHELL_FILTER_BPM_MASTER){
+   int i=0;while(i<4&&bpm_spreads[i]!=f->bpm_spread)i++;
+   if(i+1<4)f->bpm_spread=bpm_spreads[i+1];
+   else{
+    int32_t mid=master_bpm_x100(m)/100*100;
+    f->bpm=XZ_SHELL_FILTER_BPM_RANGE;f->bpm_min_x100=mid-500;f->bpm_max_x100=mid+500;
+   }
+  }else f->bpm=XZ_SHELL_FILTER_BPM_OFF;
+  return apply_filter(u,out,n);
+ case PK_F_FROM:case PK_F_TO:u->panel.armed=!was_armed;return n;
+ case PK_F_KEY:f->key_compatible=!f->key_compatible;return apply_filter(u,out,n);
+ case PK_F_RATING:f->rating_min=(f->rating_min+1)%6;return apply_filter(u,out,n);
+ case PK_F_COLOR:f->colors^=1u<<it->value;return apply_filter(u,out,n);
+ case PK_F_TAG:f->my_tags^=1u<<it->value;return apply_filter(u,out,n);
+ case PK_F_CLEAR:memset(f,0,sizeof *f);return apply_filter(u,out,n);
+ default:return n;
+ }
+}
+/* A BPM bound being dialled: the encoder steps it 1 BPM, the other bound follows to stay ordered. */
+static size_t dial_bound(struct xz_shell *u, int to, int delta, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+ struct xz_shell_filter *f=&u->filter;
+ int32_t *v=to?&f->bpm_max_x100:&f->bpm_min_x100;
+ *v=sh_max(2000,sh_min(30000,*v+delta*100));
+ if(f->bpm_min_x100>f->bpm_max_x100){if(to)f->bpm_min_x100=f->bpm_max_x100;else f->bpm_max_x100=f->bpm_min_x100;}
+ return apply_filter(u,out,n);
+}
+static size_t panel_turn(struct xz_shell *u, const struct xz_shell_model *m, int delta, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ struct pitem items[MAX_PITEMS];
+ int n=panel_items(u,m,items),cur=panel_cursor(u,items,n);
+ if(cur<0)return 0;
+ if(u->panel.armed&&(items[cur].kind==PK_F_FROM||items[cur].kind==PK_F_TO))return dial_bound(u,items[cur].kind==PK_F_TO,delta,out,0);
+ int step=delta>0?1:-1;
+ for(int k=delta>0?delta:-delta;k>0;k--){
+  int next=cur+step;
+  while(next>=0&&next<n&&!selectable_item(&items[next]))next+=step;
+  if(next<0||next>=n)break;
+  cur=next;
+ }
+ if(cur!=u->panel.cursor)u->panel.armed=0;
+ u->panel.cursor=cur;
+ u->panel.scroll=panel_scroll(u,cur,n);
+ if(cur>0&&u->panel.scroll==cur&&!selectable_item(&items[cur-1]))u->panel.scroll=cur-1;
+ return 0;
+}
+static size_t panel_push(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ struct pitem items[MAX_PITEMS];
+ int n=panel_items(u,m,items),cur=panel_cursor(u,items,n);
+ if(cur<0)return 0;
+ u->panel.cursor=cur;
+ return activate_item(u,m,&items[cur],out,0);
+}
+static size_t panel_touch(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ if(y<HEAD_H+PANEL_HEAD){
+  if(x>=PANEL_X+INFO_W-44)close_panel(u);
+  return 0;
+ }
+ if(naming(u))return 0;
+ struct pitem items[MAX_PITEMS];
+ int n=panel_items(u,m,items),cur=panel_cursor(u,items,n),sc=panel_scroll(u,cur,n);
+ int i=sc+(y-HEAD_H-PANEL_HEAD)/PANEL_ROW;
+ if(i<0||i>=n||!selectable_item(&items[i]))return 0;
+ if(i!=cur)u->panel.armed=0;
+ u->panel.cursor=i;
+ return activate_item(u,m,&items[i],out,0);
+}
+
 static void render_keyboard(const struct xz_shell *u, struct xz_canvas c, const struct sess *v) {
- (void)u;
  xz_rect(c,0,KB_Y,W,STRIP_Y-KB_Y,SH_CHROME);
  xz_rect(c,0,KB_Y,W,1,SH_BLACK);
  for(int i=0;i<XZ_SHELL_BROWSE_KEYS;i++){
@@ -685,7 +1221,8 @@ static void render_keyboard(const struct xz_shell *u, struct xz_canvas c, const 
   if(v->pressed==i&&keys[i].code==KB_SEARCH)fill=SH_WHITE;
   xz_rect(c,r.x,r.y,r.w,r.h,fill);
   uint32_t ink=fill==SH_WHITE?SH_BLUE:SH_WHITE;
-  if(special)sh_text_center(c,r.x+r.w/2,r.y+(r.h-SH_CAP_SMALL)/2,keys[i].label,SH_SMALL,ink);
+  const char *label=keys[i].code==KB_SEARCH&&naming(u)?"SAVE":keys[i].label;
+  if(special)sh_text_center(c,r.x+r.w/2,r.y+(r.h-SH_CAP_SMALL)/2,label,SH_SMALL,ink);
   else sh_text_center(c,r.x+r.w/2,r.y+(r.h-SH_CAP_TEXT)/2,keys[i].label,SH_TEXT,ink);
  }
 }
@@ -756,7 +1293,8 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
    sh_text(c,px,y+23,text,SH_SMALL,SH_WHITE);
   }else sh_text(c,px,y+23,"--.--%",SH_SMALL,SH_DIM);
   char key[8];
-  if(loaded&&sh_has(d,XZ_SHELL_F_KEY)&&d->key)sh_text_fit(c,px,y+37,44,sh_key_text(d->key,sh_key_display(u),key,sizeof key),SH_TEXT,d->key_matches_master?SH_GREEN:SH_WHITE);
+  if(loaded&&sh_has(d,XZ_SHELL_F_KEY)&&d->key)sh_text_fit(c,px,y+37,44,sh_key_text(d->key,sh_key_display(u),key,sizeof key),SH_TEXT,
+   sh_has(d,XZ_SHELL_F_MASTER)&&d->master?SH_WHITE:sh_key_ink(m,d->key,d->key_matches_master,SH_WHITE));
   else sh_text(c,px,y+37,"--",SH_TEXT,SH_DIM);
   /* BPM box */
   int qx=x0+w-62,qw=56,qy=y+4,qh=STRIP_H-10;
@@ -775,11 +1313,12 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
 }
 
 static void list_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ sync(u);
  enum xz_shell_screen s=xz_shell_screen(u);
  struct sess v=session(u,m->browse);
  xz_rect(c,0,0,c.width,c.height,SH_BLACK);
  render_header(u,m,c);
- if(s==XZ_SHELL_BROWSE)render_rail(m->browse,c);
+ if(s==XZ_SHELL_BROWSE)render_rail(m,c);
  render_list(u,m,c,&v);
  if(keyboard_shown(u))render_keyboard(u,c,&v);
  render_strip(u,m,c);
@@ -907,6 +1446,24 @@ static size_t type_key(struct xz_shell_view *v, int i, struct xz_shell_action ou
  reset_view(v);
  return op(out,n,XZ_SHELL_BROWSE_SEARCH_QUERY,(int32_t)strlen(st.query));
 }
+static size_t type_name(struct xz_shell *u, const struct xz_shell_model *m, int i, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+ size_t len=strlen(u->name);
+ switch(keys[i].code){
+ case KB_DEL:if(len)u->name[len-1]=0;return n;
+ case KB_CLEAR:u->name[0]=0;return n;
+ case KB_SEARCH:return n+panel_push(u,m,out+n);
+ default:
+  if(len+1<sizeof u->name){u->name[len]=keys[i].code;u->name[len+1]=0;}
+  return n;
+ }
+}
+static size_t drop(struct xz_shell *u, struct xz_shell_view *v, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+ struct xz_shell_grab g=u->grab;
+ u->grab.active=0;v->cursor=g.to;
+ if(g.to==g.from)return n;
+ u->edit=(struct xz_shell_playlist_edit){XZ_SHELL_PL_MOVE_TRACK,g.playlist,g.track,g.from,g.to,""};
+ return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_PLAYLIST,-1,(int32_t)g.playlist,XZ_SHELL_PL_MOVE_TRACK});
+}
 static size_t category(struct xz_shell_view *v, const struct xz_shell_browse_model *b, enum xz_shell_screen s, int k, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  if(!((b->category_available>>k)&1))return hand_off(out,n,s);
  st.up_n[slot_of(s)]=0;reset_view(v);
@@ -920,12 +1477,16 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
  st.jump=0;st.target=T_OTHER;st.down_y=st.last_y=y;st.last_step=0;st.dragging=0;st.confirm=0;
  if(y<HEAD_HIT||(y<HEAD_H&&x<SRC_W)){
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_SOURCE,0),x,y))return sh_key(u,m,XZ_SHELL_KEY_SOURCE,-1,out);
-  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_BACK,0),x,y)){
-   if(matches(b,s)&&depth_of(b)>0)return up(v,s,out,n);
-   return sh_key(u,m,XZ_SHELL_KEY_BACK,-1,out);
-  }
+  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_BACK,0),x,y))return sh_back(u,m,out);
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_PREVIEW,0),x,y)){st.hide_preview=!st.hide_preview;return n;}
-  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_INFO,0),x,y)){st.info_open=!st.info_open;return n;}
+  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_INFO,0),x,y))return sh_key(u,m,XZ_SHELL_KEY_INFO,-1,out);
+  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER,0),x,y)){
+   enum xz_shell_panel_kind was=u->panel.kind;
+   close_panel(u);u->grab.active=0;
+   if(was!=XZ_SHELL_PANEL_FILTER)u->panel.kind=XZ_SHELL_PANEL_FILTER;
+   return n;
+  }
+  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER_CHIP,0),x,y)){memset(&u->filter,0,sizeof u->filter);return apply_filter(u,out,n);}
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_FIELD,0),x,y)){st.keyboard_hidden=!st.keyboard_hidden;follow_cursor(v,xz_shell_browse_rows_visible(u));return n;}
   return n;
  }
@@ -939,10 +1500,30 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   return n;
  }
  if(keyboard_shown(u)&&y>=KB_Y){
-  for(int i=0;i<XZ_SHELL_BROWSE_KEYS;i++)if(sh_inside(key_rect(i),x,y)){st.target=T_KEY;st.pressed=i;return type_key(v,i,out,n);}
+  for(int i=0;i<XZ_SHELL_BROWSE_KEYS;i++)if(sh_inside(key_rect(i),x,y)){
+   st.target=T_KEY;st.pressed=i;
+   return naming(u)?type_name(u,m,i,out,n):type_key(v,i,out,n);
+  }
+  return n;
+ }
+ if(panel_open(u)){
+  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_PANEL,0),x,y))return panel_touch(u,m,x,y,out);
+  close_panel(u);   /* a touch beside an open panel puts it away */
+  return n;
+ }
+ if(source_absent(m,s)){
+  if(sh_inside(picker_button(s),x,y))return sh_key(u,m,XZ_SHELL_KEY_SOURCE,-1,out);
   return n;
  }
  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_INFO_PANE,0),x,y))return n;
+ if(u->grab.active){
+  if(!sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_LIST,0),x,y))return n;
+  int row=v->scroll+(y-LIST_Y)/ROW_H;
+  if(row>=row_limit(b,s))return n;
+  if(row==u->grab.to)return drop(u,v,out,n);
+  u->grab.to=row;v->cursor=row;
+  return n;
+ }
  struct col cols[MAX_COLS];int count=layout_columns(b,s,cols);
  for(int i=0;i<count;i++)if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_COLUMN,i),x,y)){
   if(cols[i].kind==COL_PREVIEW||!matches(b,s))return n;
@@ -976,7 +1557,7 @@ static size_t touch_move(struct xz_shell *u, const struct xz_shell_model *m, int
  }
  if(!st.dragging)return 0;
  if(st.target==T_RAIL){
-  int entries[XZ_SHELL_CAT_COUNT],count=rail_entries(m->browse,entries);
+  int entries[RAIL_MAX],count=rail_entries(m,entries);
   st.rail_first=sh_max(0,sh_min(count-RAIL_SLOTS,st.down_rail_first-rounded_steps(dy,RAIL_ITEM)));
   return 0;
  }
@@ -993,7 +1574,8 @@ static size_t touch_up(struct xz_shell *u, const struct xz_shell_model *m, struc
  enum target t=st.target;
  st.target=T_NONE;st.pressed=-1;
  if(t==T_RAIL&&!st.dragging){
-  int entries[XZ_SHELL_CAT_COUNT],count=rail_entries(b,entries),i=rail_first(count)+st.down_rail;
+  int entries[RAIL_MAX],count=rail_entries(m,entries),i=rail_first(count)+st.down_rail;
+  if(i<count&&entries[i]==RAIL_SEARCH)return sh_key(u,m,XZ_SHELL_KEY_SEARCH,-1,out);
   if(i<count)return category(v,b,s,entries[i],out,n);
   return n;
  }
@@ -1022,6 +1604,26 @@ static size_t key_input(struct xz_shell *u, const struct xz_shell_model *m, enum
  if(k==XZ_SHELL_KEY_BACK_HOLD)return to_top(v,s,out,0);
  return 0;
 }
+/* BACK on a list: put away a grab, a sub-page, a panel or the jump overlay, else climb one level. */
+size_t sh_browse_back_step(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken) {
+ enum xz_shell_screen s=xz_shell_screen(u);
+ struct xz_shell_view *v=&u->stack[u->depth-1];
+ *taken=1;
+ if(u->grab.active){v->cursor=u->grab.from;u->grab.active=0;return 0;}
+ if(u->panel.kind==XZ_SHELL_PANEL_MENU&&(u->panel.page!=PAGE_MAIN||u->panel.armed)){
+  if(u->panel.armed)u->panel.armed=0;else{u->panel.page=PAGE_MAIN;u->panel.cursor=u->panel.scroll=0;}
+  return 0;
+ }
+ if(u->panel.kind==XZ_SHELL_PANEL_FILTER&&u->panel.armed){u->panel.armed=0;return 0;}
+ if(u->panel.kind!=XZ_SHELL_PANEL_NONE){close_panel(u);return 0;}
+ if(st.jump){st.jump=0;return 0;}
+ if(list_screen(s)&&matches(m->browse,s)&&depth_of(m->browse)>0&&!source_absent(m,s)){
+  if(!v->focus)begin(v,m->browse,s);
+  return up(v,s,out,0);
+ }
+ *taken=0;
+ return 0;
+}
 int xz_shell_browse_back(struct xz_shell *u, const struct xz_shell_model *m) {
  if(!u||!m||u->depth<1||u->depth>XZ_SHELL_STACK)return 0;
  enum xz_shell_screen s=xz_shell_screen(u);
@@ -1041,8 +1643,24 @@ static size_t list_input(struct xz_shell *u, const struct xz_shell_model *m, con
   return load(u,m,r,e->deck,out,0);
  }
  int depth=u->depth;
+ sync(u);
  if(!v->focus)begin(v,b,s);
  size_t n=0;
+ /* An open panel or a picked-up track takes the encoder. */
+ if(panel_open(u)&&(e->kind==XZ_SHELL_ENCODER_TURN||e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_ENCODER_HOLD)){
+  if(e->kind==XZ_SHELL_ENCODER_TURN)return panel_turn(u,m,e->delta,out);
+  if(e->kind==XZ_SHELL_ENCODER_PUSH)return panel_push(u,m,out);
+  return 0;
+ }
+ if(u->grab.active&&(e->kind==XZ_SHELL_ENCODER_TURN||e->kind==XZ_SHELL_ENCODER_PUSH)){
+  if(e->kind==XZ_SHELL_ENCODER_PUSH)return drop(u,v,out,0);
+  int32_t limit=row_limit(b,s);
+  u->grab.to=sh_max(0,sh_min((int)limit-1,u->grab.to+e->delta));
+  v->cursor=u->grab.to;
+  follow_cursor(v,xz_shell_browse_rows_visible(u));
+  return request_window(b,s,v,xz_shell_browse_rows_visible(u),out,0);
+ }
+ if(source_absent(m,s)&&e->kind!=XZ_SHELL_TOUCH_DOWN)return 0;
  switch(e->kind){
  case XZ_SHELL_KEY:n=key_input(u,m,e->key,out);break;
  case XZ_SHELL_TOUCH_DOWN:n=touch_down(u,m,e->x,e->y,out);break;

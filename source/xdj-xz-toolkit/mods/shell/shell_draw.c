@@ -173,8 +173,18 @@ struct xz_shell_rect sh_notice_rect(const char *text, int *lines) {
  int h=(cut<0?1:2)*NOTICE_LINE+20;
  return (struct xz_shell_rect){(XZ_SHELL_WIDTH-w)/2,NOTICE_TOP-(cut<0?0:NOTICE_LINE/2),w,h};
 }
-void sh_notice(const struct xz_shell_model *m, struct xz_canvas c) {
- if(!sh_notice_shown(m))return;
+/* The runtime's notice, or the shell's own when that is the newer one. */
+static const char *notice_text(const struct xz_shell *u, const struct xz_shell_model *m) {
+ int shell_live=u->notice&&m->clock_ms-u->notice_at_ms<(uint32_t)XZ_SHELL_NOTICE_MS&&*u->notice;
+ int model_live=sh_notice_shown(m);
+ if(shell_live&&(!model_live||(int32_t)(u->notice_at_ms-m->notice_at_ms)>=0))return u->notice;
+ return model_live?m->notice:NULL;
+}
+void sh_notice(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ const char *text=notice_text(u,m);
+ if(!text)return;
+ struct xz_shell_model shown=*m;shown.notice=text;
+ m=&shown;
  int lines;
  struct xz_shell_rect r=sh_notice_rect(m->notice,&lines);
  xz_rect(c,r.x-1,r.y-1,r.w+2,r.h+2,SH_BLACK);

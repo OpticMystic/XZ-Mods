@@ -74,7 +74,9 @@ static void model(struct xz_shell_model *m, struct xz_shell_info_model *im, stru
 static void open_screen(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, enum xz_shell_screen s) {
  struct xz_shell_action out[XZ_SHELL_ACTIONS];
  xz_shell_init(u);
- assert(press(u,m,k,out)==0&&xz_shell_screen(u)==s&&u->depth==2);
+ /* BROWSE and PLAYLIST open over the SOURCE picker when there is one. */
+ int over_source=(s==XZ_SHELL_BROWSE||s==XZ_SHELL_PLAYLIST)&&m->source&&(m->capabilities&XZ_SHELL_CAP_SOURCE);
+ assert(press(u,m,k,out)==0&&xz_shell_screen(u)==s&&u->depth==(over_source?3:2));
 }
 
 static void test_info_navigation(void) {
@@ -88,10 +90,13 @@ static void test_info_navigation(void) {
  assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
  open_screen(&u,&m,XZ_SHELL_KEY_INFO,XZ_SHELL_INFO);
  assert(tap(&u,&m,xz_shell_info_rect(XZ_SHELL_INFO_R_CLOSE,0),out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
- /* INFO layers over a list and BACK returns to it. */
+ /* On a list INFO slides the info panel over it instead; INFO again or BACK puts it away. */
  open_screen(&u,&m,XZ_SHELL_KEY_BROWSE,XZ_SHELL_BROWSE);
- assert(press(&u,&m,XZ_SHELL_KEY_INFO,out)==0&&xz_shell_screen(&u)==XZ_SHELL_INFO&&u.depth==3);
- assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
+ int depth=u.depth;
+ assert(press(&u,&m,XZ_SHELL_KEY_INFO,out)==0&&xz_shell_screen(&u)==XZ_SHELL_BROWSE&&u.depth==depth&&u.panel.kind==XZ_SHELL_PANEL_INFO);
+ assert(press(&u,&m,XZ_SHELL_KEY_INFO,out)==0&&u.panel.kind==XZ_SHELL_PANEL_NONE);
+ press(&u,&m,XZ_SHELL_KEY_INFO,out);
+ assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_BROWSE&&u.panel.kind==XZ_SHELL_PANEL_NONE);
  /* No info slot: the stock screen takes over. */
  struct xz_shell_model bare=m;bare.info=NULL;
  xz_shell_init(&u);
@@ -145,7 +150,7 @@ static void test_info_jump(void) {
  assert(count_color(frame(buffer_a),value_rect(XZ_SHELL_I_ARTIST),SH_BLUE)>1000);
  assert(tap(&u,&m,value_rect(XZ_SHELL_I_ARTIST),out)==1);
  assert(out[0].kind==(enum xz_shell_action_kind)XZ_SHELL_ACT_INFO_JUMP&&out[0].id==XZ_SHELL_I_ARTIST&&out[0].value==11&&out[0].deck==0);
- assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE&&u.depth==2);
+ assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE&&u.depth==3&&u.stack[1].screen==XZ_SHELL_SOURCE);   /* over the picker */
  /* Touching another link moves the highlight instead of confirming. */
  open_screen(&u,&m,XZ_SHELL_KEY_INFO,XZ_SHELL_INFO);
  assert(tap(&u,&m,value_rect(XZ_SHELL_I_ARTIST),out)==0&&tap(&u,&m,value_rect(XZ_SHELL_I_BPM),out)==0&&u.stack[1].cursor==4);
@@ -294,7 +299,7 @@ static void test_source(void) {
  /* The cursor starts on the current browse source; push selects it and opens BROWSE. */
  open_screen(&u,&m,XZ_SHELL_KEY_SOURCE,XZ_SHELL_SOURCE);
  assert(push(&u,&m,out)==1&&out[0].kind==(enum xz_shell_action_kind)XZ_SHELL_ACT_SET_SOURCE&&out[0].id==XZ_SHELL_SRC_USB1&&out[0].deck==-1);
- assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE&&u.depth==2);
+ assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE&&u.depth==3&&u.stack[1].screen==XZ_SHELL_SOURCE);   /* over the picker */
  /* Turning walks connected tiles only, skipping NOT CONNECTED, and clamps. */
  open_screen(&u,&m,XZ_SHELL_KEY_SOURCE,XZ_SHELL_SOURCE);
  assert(turn(&u,&m,1,out)==0&&u.stack[1].cursor==2);

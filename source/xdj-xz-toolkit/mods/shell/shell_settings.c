@@ -7,6 +7,7 @@
    from the rail it falls through to the navigation table, which closes UTILITY. */
 #include "shell_internal.h"
 #include "shell_settings.h"
+#include "shell_browse.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -468,9 +469,13 @@ static void utility_render(const struct xz_shell *u, const struct xz_shell_model
 static size_t hand_off(enum xz_shell_screen screen, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)screen});
 }
+/* A read-only item: the stock screen takes over at that item (value = 1 + its id, shell.h). */
+static size_t hand_off_item(enum xz_shell_screen screen, const struct xz_shell_setting_item *it, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,it->id+1,(int)screen});
+}
 static size_t apply(struct xz_shell *u, const struct xz_shell_model *m, struct ustate *s, const struct ulayout *l, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  const struct xz_shell_setting_item *it=&l->t.items[l->item];
- if(!settable(m,it))return hand_off(XZ_SHELL_UTILITY,out);
+ if(!settable(m,it))return hand_off_item(XZ_SHELL_UTILITY,it,out);
  s->pane=PANE_ITEMS;
  if(s->value==current_of(it))return 0;
  return set_value(u,it,s->value,out);
@@ -534,7 +539,7 @@ static size_t utility_touch_down(struct xz_shell *u, const struct xz_shell_model
  if(!selectable(it))return 0;
  if(l->footer&&row==ROWS-1){
   s->touch_pane=-1;
-  return settable(m,it)?0:hand_off(XZ_SHELL_UTILITY,out);
+  return settable(m,it)?0:hand_off_item(XZ_SHELL_UTILITY,it,out);
  }
  int index=s->value_scroll+row;
  if(index>=choice_count(it))return 0;
@@ -567,7 +572,7 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
  size_t n=0;
  if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON),e->x,e->y)){
   pack(v,s);
-  return xz_shell_settings_back(u,m)?0:sh_key(u,m,XZ_SHELL_KEY_BACK,-1,out);
+  return sh_back(u,m,out);
  }
  /* The slot went away while the screen was open: the stock menu takes over on the next push or touch. */
  if(!m->settings_screen&&(e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_TOUCH_DOWN))return hand_off(XZ_SHELL_UTILITY,out);
@@ -597,6 +602,11 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
  pack(v,s);
  return n;
 }
+size_t sh_settings_back_step(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken) {
+ (void)out;
+ *taken=xz_shell_settings_back(u,m);
+ return 0;
+}
 int xz_shell_settings_back(struct xz_shell *u, const struct xz_shell_model *m) {
  if(!u||!m||u->depth<1||u->depth>XZ_SHELL_STACK||xz_shell_screen(u)!=XZ_SHELL_UTILITY)return 0;
  struct xz_shell_view *v=&u->stack[u->depth-1];
@@ -611,7 +621,7 @@ int xz_shell_settings_back(struct xz_shell *u, const struct xz_shell_model *m) {
 /* ================= SHORTCUT ================= */
 
 enum { Q_PLAYER, Q_DEVICE_INFO, Q_DEVICE, Q_MY, QUADS };
-static const char *const quad_titles[QUADS]={"PLAYER SETTINGS","DEVICE INFORMATION","DEVICE SETTINGS","MY SETTINGS"};
+static const char *const quad_titles[QUADS]={"PLAYER SETTINGS","DECK STATUS","DEVICE SETTINGS","MY SETTINGS"};
 /* Where each item sits on SHORTCUT: the first SLOTS candidates the table holds, in order.
    DEVICE INFORMATION lists table items after the rows the shell reads from the play model. */
 enum { CANDIDATES=6 };
@@ -689,10 +699,64 @@ static void render_read_only(struct xz_canvas c, const struct xz_shell_setting_i
  text_fit(c,nx,y,nw,read_only_note(it),SH_SMALL,GREY_TEXT);
  text_fit(c,nx,y+13,nw,"PUSH TO OPEN IT",SH_SMALL,READ_ONLY_GREY);
 }
+/* ---- graphic controls ---- */
+/* OFF / ON items draw as a switch: the whole row flips it. */
+static int is_toggle(const struct xz_shell_setting_item *it) {
+ return choice_count(it)==2&&it->choices[0]&&it->choices[1]&&!strcmp(it->choices[0],"OFF")&&!strcmp(it->choices[1],"ON");
+}
+static void render_switch(struct xz_canvas c, struct xz_shell_rect r, int on, int known) {
+ int w=58,h=r.h,x=r.x,y=r.y;
+ xz_round_rect(c,x,y,w,h,h/2,15,!known?SH_ROW_ALT:on?SH_BLUE:SH_RAIL);
+ int knob=h/2-3,kx=on?x+w-h/2:x+h/2;
+ if(known)xz_disc(c,kx,y+h/2,knob,SH_WHITE);
+ sh_text(c,x+w+12,y+5,!known?"---":on?"ON":"OFF",SH_TEXT,!known?SH_DIM:on?SH_WHITE:0xd8d8d8);
+}
+/* A few columns that read as music, for the waveform colour swatches. */
+static const struct xz_shell_column swatch_columns[40]={
+ {250,120,90},{160,90,70},{90,100,120},{60,80,150},{240,130,80},{150,100,70},{80,150,200},{50,110,170},
+ {230,140,90},{140,110,80},{70,160,210},{40,90,120},{220,120,70},{130,170,110},{60,190,230},{50,120,160},
+ {250,150,100},{170,110,80},{100,130,200},{60,90,140},{240,130,90},{150,160,90},{80,170,220},{40,110,150},
+ {230,150,80},{140,120,70},{70,140,210},{50,100,130},{220,130,90},{160,150,100},{90,180,230},{60,120,160},
+ {250,140,90},{170,110,80},{100,140,200},{50,90,140},{240,120,80},{150,130,90},{80,160,220},{40,100,150}};
+static void render_swatch(const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect r, enum xz_shell_wave_color mode) {
+ struct xz_shell sw;memset(&sw,0,sizeof sw);sw.display.wave_color=mode;
+ struct xz_shell_deck d;memset(&d,0,sizeof d);
+ d.known=XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE);
+ d.wave=d.stems=(struct xz_shell_wave){swatch_columns,40,1000};
+ xz_rect(c,r.x,r.y,r.w,r.h,SH_BLACK);
+ sh_deck_lane(c,r,r.h/2-1,&sw,m,&d,0,40);
+}
+/* WAVEFORM CURRENT POSITION: a small lane with its playhead where the choice puts it. */
+static void render_position_icon(struct xz_canvas c, int x, int y, int left, uint32_t ink) {
+ xz_border(c,x,y,30,14,ink);
+ for(int i=0;i<26;i+=3)xz_rect(c,x+2+i,y+7-(i*7%5),1,1+2*(i*7%5),ink);
+ xz_rect(c,x+(left?8:15),y-2,2,18,SH_PLAYHEAD);
+}
+/* TIME MODE: a bar that counts down (REMAIN) or up (TIME). */
+static void render_time_icon(struct xz_canvas c, int x, int y, int remain, uint32_t ink) {
+ xz_border(c,x,y,24,8,ink);
+ if(remain)xz_rect(c,x+10,y+2,12,4,SH_RED);else xz_rect(c,x+2,y+2,12,4,ink);
+}
 static void render_chip_row(const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_setting_item *it, struct xz_shell_rect slot) {
  struct chips k=chips_of(it,slot);
  int cur=current_of(it),live=settable(m,it);
  if(!live){render_read_only(c,it,slot);return;}
+ if(is_toggle(it)){render_switch(c,(struct xz_shell_rect){k.x,k.y,k.w,k.h},cur==1,cur>=0);return;}
+ if(it->id==XZ_SHELL_ITEM_WAVE_COLOR||it->id==XZ_SHELL_ITEM_WAVE_POSITION||it->id==XZ_SHELL_ITEM_TIME_MODE){
+  for(int i=0;i<k.n;i++){
+   struct xz_shell_rect r=chip_rect(&k,i);
+   int selected=i==cur;
+   xz_rect(c,r.x,r.y,r.w,r.h,selected?SH_BLUE:SH_ROW_ALT);
+   if(!selected)xz_border(c,r.x,r.y,r.w,r.h,SH_RAIL);
+   uint32_t ink=selected?SH_WHITE:0xd8d8d8;
+   int tx=r.x+8;
+   if(it->id==XZ_SHELL_ITEM_WAVE_COLOR){render_swatch(m,c,(struct xz_shell_rect){r.x+3,r.y+3,36,r.h-6},(enum xz_shell_wave_color)i);tx=r.x+44;}
+   else if(it->id==XZ_SHELL_ITEM_WAVE_POSITION){render_position_icon(c,r.x+10,r.y+6,i==1,ink);tx=r.x+50;}
+   else{render_time_icon(c,r.x+10,r.y+9,i==0,ink);tx=r.x+44;}
+   text_fit(c,tx,r.y+8,r.x+r.w-tx-4,choice_text(it,i),SH_SMALL,ink);
+  }
+  return;
+ }
  uint32_t on=live?SH_BLUE:RAIL_SELECTED,off_ink=live?0xd8d8d8:GREY_TEXT;
  if(k.mode==CHIPS_STEPPER){
   struct xz_shell_rect r={k.x,k.y,k.w,k.h};
@@ -714,36 +778,97 @@ static void render_chip_row(const struct xz_shell_model *m, struct xz_canvas c, 
   text_fit_center(c,r.x+r.w/2,ty,r.w-6,choice_text(it,i),face,selected?SH_WHITE:off_ink);
  }
 }
-static void render_info_row(struct xz_canvas c, const char *label, const char *value, int known, struct xz_shell_rect slot) {
- text_fit(c,slot.x+CHIP_PAD,slot.y+17,150,label,SH_SMALL,SH_DIM);
- text_fit_right(c,slot.x+slot.w-CHIP_PAD,slot.y+13,slot.w-CHIP_PAD*2-160,value,SH_TEXT,known?SH_WHITE:SH_DIM);
+/* ---- DECK STATUS lamps ---- */
+enum { LAMP_W=64, LAMP_H=30, LAMP_GAP=6, LAMP_ROW=50 };
+struct xz_shell_rect xz_shell_shortcut_lamp(int deck, int lamp) {
+ struct xz_shell_rect q=xz_shell_shortcut_quadrant(Q_DEVICE_INFO);
+ if(deck<0||deck>=XZ_SHELL_DECKS||lamp<0||lamp>=XZ_SHELL_LAMP_COUNT)return (struct xz_shell_rect){0,0,0,0};
+ return (struct xz_shell_rect){q.x+CHIP_PAD+lamp*(LAMP_W+LAMP_GAP),q.y+QUAD_TITLE+18+deck*LAMP_ROW,LAMP_W,LAMP_H};
 }
-/* DEVICE INFORMATION rows the shell reads from the play model. */
-static const char *deck_set(const struct xz_shell_model *m, enum xz_shell_field f, int (*on)(const struct xz_shell_deck *), int *known) {
- int k0=sh_has(&m->deck[0],f),k1=sh_has(&m->deck[1],f);
- int a=k0&&on(&m->deck[0]),b=k1&&on(&m->deck[1]);
- *known=k0||k1;
- if(a&&b)return "DECK 1 + 2";
- if(a)return "DECK 1";
- if(b)return "DECK 2";
- return !*known?"UNKNOWN":k0&&k1?"NONE":"---";
+static void lamp(struct xz_canvas c, struct xz_shell_rect r, const char *label, int known, int on, uint32_t lit) {
+ int ty=r.y+(r.h-SH_CAP_SMALL)/2;
+ if(!known){xz_rect(c,r.x,r.y,r.w,r.h,0x141414);xz_border(c,r.x,r.y,r.w,r.h,0x2c2c2c);text_fit_center(c,r.x+r.w/2,ty,r.w-6,label,SH_SMALL,0x4a4a4a);return;}
+ if(on){xz_rect(c,r.x,r.y,r.w,r.h,lit);text_fit_center(c,r.x+r.w/2,ty,r.w-6,label,SH_SMALL,xz_theme_luma(lit)>150?SH_BLACK:SH_WHITE);return;}
+ xz_rect(c,r.x,r.y,r.w,r.h,0x141414);xz_border(c,r.x,r.y,r.w,r.h,xz_blend(0,lit,110));
+ text_fit_center(c,r.x+r.w/2,ty,r.w-6,label,SH_SMALL,0x8c8c8c);
 }
-static int is_master(const struct xz_shell_deck *d) { return d->master; }
-static int is_sync(const struct xz_shell_deck *d) { return d->sync; }
-static int render_model_info(const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect r, int k) {
- int known;
- const char *master=deck_set(m,XZ_SHELL_F_MASTER,is_master,&known);
- struct { const char *label, *value; int known; } rows[3]={
-  {"MASTER",master,known},{"SYNC",NULL,0},
-  {"PRO DJ LINK",!m->link_known?"UNKNOWN":m->link_connected?"CONNECTED":"NOT CONNECTED",m->link_known}};
- rows[1].value=deck_set(m,XZ_SHELL_F_SYNC,is_sync,&rows[1].known);
- if(rows[1].known&&!strcmp(rows[1].value,"NONE"))rows[1].value="OFF";
- for(int i=0;i<3&&k<SLOTS;i++,k++){
-  struct xz_shell_rect slot=xz_shell_shortcut_slot(Q_DEVICE_INFO,k);slot.h=SLOT_H;
-  render_info_row(c,rows[i].label,rows[i].value,rows[i].known,slot);
-  if(k<SLOTS-1)xz_rect(c,r.x+CHIP_PAD,slot.y+SLOT_H-1,r.w-2*CHIP_PAD,1,SH_ROW_ALT);
+static void render_deck_status(const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect q) {
+ char text[16];
+ for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+  const struct xz_shell_deck *d=&m->deck[deck];
+  struct xz_shell_rect first=xz_shell_shortcut_lamp(deck,0);
+  snprintf(text,sizeof text,"DECK %d",deck+1);
+  sh_text(c,first.x,first.y-14,text,SH_SMALL,SH_DIM);
+  if(sh_has(d,XZ_SHELL_F_QUANTIZE)&&d->quantize_on)snprintf(text,sizeof text,"Q %d%s%d",d->quantize_num,d->quantize_den>1?"/":"",d->quantize_den>1?d->quantize_den:0);
+  else snprintf(text,sizeof text,"QUANTIZE");
+  if(sh_has(d,XZ_SHELL_F_QUANTIZE)&&d->quantize_on&&d->quantize_den<=1)snprintf(text,sizeof text,"Q %d",d->quantize_num);
+  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_QUANTIZE),text,sh_has(d,XZ_SHELL_F_QUANTIZE),d->quantize_on,SH_RED);
+  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_SYNC),"SYNC",sh_has(d,XZ_SHELL_F_SYNC),d->sync,SH_BLUE);
+  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_SLIP),"SLIP",sh_has(d,XZ_SHELL_F_SLIP),d->slip,0xffbd59);
+  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_MASTER),"MASTER",sh_has(d,XZ_SHELL_F_MASTER),d->master,0xff8c1a);
+  int tm_known=sh_has(d,XZ_SHELL_F_TIME_MODE)||sh_setting(m,XZ_SHELL_SET_TIME_MODE);
+  enum xz_shell_time_mode mode=sh_has(d,XZ_SHELL_F_TIME_MODE)?d->time_mode:m->settings.time_mode;
+  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_TIME),mode==XZ_SHELL_TIME_REMAIN?"REMAIN":"TIME",tm_known,1,0x3c3c3c);
  }
- return k;
+ /* LINK beside the quadrant title */
+ lamp(c,(struct xz_shell_rect){q.x+q.w-CHIP_PAD-72,q.y+1,72,15},m->link_known&&m->link_connected?"LINK":"LINK OFF",m->link_known,m->link_known&&m->link_connected,SH_BLUE);
+ /* jump tiles */
+ static const char *const labels[XZ_SHELL_JUMP_COUNT]={"TRACK","PLAYLIST","SEARCH","MATCHING"};
+ for(int j=0;j<XZ_SHELL_JUMP_COUNT;j++){
+  struct xz_shell_rect r=xz_shell_shortcut_jump(j);
+  xz_rect(c,r.x,r.y,r.w,r.h,XZ_FLAGSHIP_TILE);
+  int cx=r.x+r.w/2,iy=r.y+6;
+  switch(j){
+  case XZ_SHELL_JUMP_TRACK:sh_note(c,cx-5,iy,SH_WHITE);break;
+  case XZ_SHELL_JUMP_PLAYLIST:
+   xz_border(c,cx-8,iy,16,14,SH_WHITE);
+   for(int i=0;i<3;i++){xz_rect(c,cx-5,iy+3+i*3,2,2,SH_WHITE);xz_rect(c,cx-2,iy+3+i*3,7,1,SH_WHITE);}
+   break;
+  case XZ_SHELL_JUMP_SEARCH:xz_ring(c,cx-2,iy+6,5,1,SH_WHITE);xz_line16(c,(cx+2)*16,(iy+10)*16,(cx+7)*16,(iy+15)*16,32,SH_WHITE);break;
+  default:xz_ring(c,cx-4,iy+7,6,1,SH_WHITE);xz_ring(c,cx+4,iy+7,6,1,SH_WHITE);break;
+  }
+  sh_text_center(c,cx,r.y+r.h-14,labels[j],SH_SMALL,SH_WHITE);
+ }
+}
+struct xz_shell_rect xz_shell_shortcut_jump(int jump) {
+ struct xz_shell_rect q=xz_shell_shortcut_quadrant(Q_DEVICE_INFO);
+ if(jump<0||jump>=XZ_SHELL_JUMP_COUNT)return (struct xz_shell_rect){0,0,0,0};
+ int w=(q.w-2*CHIP_PAD-3*6)/4,y=q.y+QUAD_TITLE+18+2*LAMP_ROW-4;
+ return (struct xz_shell_rect){q.x+CHIP_PAD+jump*(w+6),y,w,q.y+q.h-y-4};
+}
+/* A jump opens that list as the stock SHORTCUT does; MATCHING needs the runtime's matching list. */
+static size_t jump_to(struct xz_shell *u, const struct xz_shell_model *m, int jump, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ switch(jump){
+ case XZ_SHELL_JUMP_PLAYLIST:return sh_key(u,m,XZ_SHELL_KEY_PLAYLIST,-1,out);
+ case XZ_SHELL_JUMP_SEARCH:return sh_key(u,m,XZ_SHELL_KEY_SEARCH,-1,out);
+ default:{
+  enum xz_shell_browse_category k=jump==XZ_SHELL_JUMP_TRACK?XZ_SHELL_CAT_TRACK:XZ_SHELL_CAT_MATCHING;
+  const struct xz_shell_browse_model *b=m->browse;
+  size_t n=sh_key(u,m,XZ_SHELL_KEY_BROWSE,-1,out);
+  if(xz_shell_screen(u)!=XZ_SHELL_BROWSE)return n;
+  if(!b||!((b->category_available>>k)&1)){
+   u->notice="MATCHING OPENS IN THE DECK'S OWN BROWSER";u->notice_at_ms=m->clock_ms;
+   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_BROWSE});
+  }
+  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_BROWSE,-1,(int32_t)k,XZ_SHELL_BROWSE_CATEGORY});
+ }
+ }
+}
+static size_t jump_to(struct xz_shell *u, const struct xz_shell_model *m, int jump, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+static size_t lamp_touch(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ for(int j=0;j<XZ_SHELL_JUMP_COUNT;j++)if(sh_inside(xz_shell_shortcut_jump(j),x,y))return jump_to(u,m,j,out);
+ for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+  const struct xz_shell_deck *d=&m->deck[deck];
+  struct xz_shell_rect qz=xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_QUANTIZE),tm=xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_TIME);
+  qz.y-=7;qz.h+=14;tm.y-=7;tm.h+=14;   /* 44 px targets */
+  if(sh_inside(qz,x,y)&&sh_writable(m,XZ_SHELL_SET_QUANTIZE)&&sh_has(d,XZ_SHELL_F_QUANTIZE))
+   return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,!d->quantize_on,XZ_SHELL_SET_QUANTIZE});
+  if(sh_inside(tm,x,y)&&sh_writable(m,XZ_SHELL_SET_TIME_MODE)){
+   enum xz_shell_time_mode mode=sh_has(d,XZ_SHELL_F_TIME_MODE)?d->time_mode:m->settings.time_mode;
+   return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,mode==XZ_SHELL_TIME_REMAIN?XZ_SHELL_TIME_ELAPSED:XZ_SHELL_TIME_REMAIN,XZ_SHELL_SET_TIME_MODE});
+  }
+ }
+ return 0;
 }
 static void render_quadrant(const struct xz_shell_model *m, struct xz_canvas c, const struct slayout *l, int q, int focus_index) {
  struct xz_shell_rect r=xz_shell_shortcut_quadrant(q);
@@ -758,9 +883,8 @@ static void render_quadrant(const struct xz_shell_model *m, struct xz_canvas c, 
   const struct xz_shell_setting_item *it=&l->t.items[at];
   struct xz_shell_rect slot=xz_shell_shortcut_slot(q,k);slot.h=SLOT_H;
   if(q==Q_DEVICE_INFO){
-   if(k==0){shown=render_model_info(m,c,r,1);xz_rect(c,r.x+CHIP_PAD,slot.y+SLOT_H-1,r.w-2*CHIP_PAD,1,SH_ROW_ALT);}
-   if(k>0)break;
-   render_info_row(c,label_of(it),value_text(it),it->known&&current_of(it)>=0,slot);
+   /* The table's VERSION reads at the foot, beside LINK. */
+   if(k==0)text_fit_right(c,r.x+r.w-CHIP_PAD-82,r.y+5,140,value_text(it),SH_SMALL,SH_DIM);
    continue;
   }
   int focused=focus_index>=0&&l->order[focus_index]==at;
@@ -771,7 +895,7 @@ static void render_quadrant(const struct xz_shell_model *m, struct xz_canvas c, 
   text_fit(c,slot.x+CHIP_PAD,slot.y+3,slot.w-2*CHIP_PAD-ww-10,label_of(it),SH_SMALL,focused?SH_WHITE:SH_DIM);
   render_chip_row(m,c,it,slot);
  }
- if(q==Q_DEVICE_INFO&&l->slots[q][0]<0)shown=render_model_info(m,c,r,0);
+ if(q==Q_DEVICE_INFO){render_deck_status(m,c,r);shown=1;}
  if(!shown)sh_text_center(c,r.x+r.w/2,r.y+r.h/2-6,"NOT READ ON THIS DECK YET",SH_SMALL,SH_DIM);
 }
 static void shortcut_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
@@ -787,13 +911,14 @@ static void shortcut_render(const struct xz_shell *u, const struct xz_shell_mode
 
 /* ---- SHORTCUT input ---- */
 static size_t set_or_hand_off(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_setting_item *it, int index, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
- if(!settable(m,it))return hand_off(XZ_SHELL_SHORTCUT,out);
+ if(!settable(m,it))return hand_off_item(XZ_SHELL_SHORTCUT,it,out);
  if(index<0||index>=choice_count(it)||index==current_of(it))return 0;
  return set_value(u,it,index,out);
 }
 static size_t shortcut_touch(struct xz_shell *u, const struct xz_shell_model *m, const struct slayout *l, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  struct xz_shell_view *v=&u->stack[u->depth-1];
- if(sh_inside(xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON),x,y))return sh_key(u,m,XZ_SHELL_KEY_BACK,-1,out);
+ if(sh_inside(xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON),x,y))return sh_back(u,m,out);
+ if(sh_inside(xz_shell_shortcut_quadrant(Q_DEVICE_INFO),x,y))return lamp_touch(u,m,x,y,out);
  for(int q=0;q<QUADS;q++){
   if(q==Q_DEVICE_INFO)continue;
   for(int k=0;k<SLOTS;k++){
@@ -804,8 +929,9 @@ static size_t shortcut_touch(struct xz_shell *u, const struct xz_shell_model *m,
    v->cursor=it->id+1;
    struct chips c=chips_of(it,slot);
    if(c.n<1||y<c.y-6)return 0;     /* the label line only moves focus */
-   if(!settable(m,it))return hand_off(XZ_SHELL_SHORTCUT,out);
+   if(!settable(m,it))return hand_off_item(XZ_SHELL_SHORTCUT,it,out);
    int cur=current_of(it);
+   if(is_toggle(it))return set_or_hand_off(u,m,it,cur==1?0:1,out);
    if(c.mode==CHIPS_STEPPER){
     if(x<c.x+STEP_W+CHIP_GAP)return set_or_hand_off(u,m,it,cur<0?0:sh_max(0,cur-1),out);
     if(x>=c.x+c.w-STEP_W-CHIP_GAP)return set_or_hand_off(u,m,it,cur<0?0:sh_min(c.n-1,cur+1),out);

@@ -338,3 +338,32 @@ const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *b
  buffer[i++]=minor?'A':'B';buffer[i]=0;
  return buffer;
 }
+
+/* ---- key traffic light ----
+   On the key wheel (1A..12B) a key sits one number from its neighbours and
+   shares its number with its relative. */
+enum xz_shell_key_match xz_shell_key_match(const char *key, const char *master_key) {
+ int pc,minor,mpc,mminor;
+ if(!parse_key(key,&pc,&minor)||!parse_key(master_key,&mpc,&mminor))return XZ_SHELL_KEY_MATCH_UNKNOWN;
+ int n=(pc*7+(minor?4:7))%12,mn=(mpc*7+(mminor?4:7))%12;
+ if(n==mn)return XZ_SHELL_KEY_MATCH_GREEN;
+ if(minor==mminor&&((n+1)%12==mn||(mn+1)%12==n))return XZ_SHELL_KEY_MATCH_AMBER;
+ return XZ_SHELL_KEY_MATCH_NONE;
+}
+const char *xz_shell_master_key(const struct xz_shell_model *m) {
+ if(!m)return NULL;
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  const struct xz_shell_deck *k=&m->deck[d];
+  if(sh_has(k,XZ_SHELL_F_MASTER)&&k->master&&sh_has(k,XZ_SHELL_F_KEY)&&k->key&&(!sh_has(k,XZ_SHELL_F_LOADED)||k->loaded))return k->key;
+ }
+ return NULL;
+}
+uint32_t sh_key_ink(const struct xz_shell_model *m, const char *key, int matches_master, uint32_t plain) {
+ const char *master=xz_shell_master_key(m);
+ if(!master)return matches_master?SH_GREEN:plain;
+ switch(xz_shell_key_match(key,master)){
+ case XZ_SHELL_KEY_MATCH_GREEN:return SH_KEY_GREEN;
+ case XZ_SHELL_KEY_MATCH_AMBER:return SH_KEY_AMBER;
+ default:return plain;
+ }
+}

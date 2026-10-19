@@ -30,7 +30,7 @@
 #define XZ_SHELL_HEIGHT 480
 #define XZ_SHELL_DECKS 2
 #define XZ_SHELL_ACTIONS 4
-#define XZ_SHELL_STACK 4
+#define XZ_SHELL_STACK 6
 #define XZ_SHELL_HOT_CUES 8
 #define XZ_SHELL_MEMORY_CUES 16
 #define XZ_SHELL_ZOOM_MAX 6
@@ -68,7 +68,7 @@ enum xz_shell_field {
  XZ_SHELL_F_TOTAL, XZ_SHELL_F_TIME_MODE, XZ_SHELL_F_KEY, XZ_SHELL_F_KEY_SHIFT, XZ_SHELL_F_QUANTIZE,
  XZ_SHELL_F_BEAT_JUMP, XZ_SHELL_F_LOOP, XZ_SHELL_F_HOT_CUES, XZ_SHELL_F_MEMORY_CUES, XZ_SHELL_F_CUE_POINT,
  XZ_SHELL_F_GRID, XZ_SHELL_F_BAR_PHASE, XZ_SHELL_F_WAVE, XZ_SHELL_F_OVERVIEW, XZ_SHELL_F_ARTWORK,
- XZ_SHELL_F_STEM_WAVE, XZ_SHELL_F_STEM_MUTE,
+ XZ_SHELL_F_STEM_WAVE, XZ_SHELL_F_STEM_MUTE, XZ_SHELL_F_SLIP, XZ_SHELL_F_SLIP_POSITION, XZ_SHELL_F_VINYL,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -105,8 +105,8 @@ struct xz_shell_deck {
  uint32_t elapsed_at_ms;             /* model clock_ms when elapsed_ms was read; 0 = not stamped, no
                                         extrapolation. See XZ_SHELL_EXTRAPOLATE_MAX_MS */
  enum xz_shell_time_mode time_mode;  /* per-deck override of settings.time_mode */
- const char *key;
- int key_matches_master;
+ const char *key;                    /* the key as it plays now (key shift and tempo included), e.g. "Fm" or "4A" */
+ int key_matches_master;             /* fallback only: the shell colours keys itself from the master deck's key */
  int key_shift;                      /* semitones */
  int quantize_on, quantize_num, quantize_den;
  int beat_jump_num, beat_jump_den;   /* beats */
@@ -122,7 +122,14 @@ struct xz_shell_deck {
  /* 3-stem layer, covering the track from 0 like wave: low = drums, mid = harmonics, high = vocal, each
     0..255 with the loudest stem's peaks at full height. It may arrive seconds after wave, or never. */
  struct xz_shell_wave stems;
- uint8_t stem_muted;                 /* XZ_SHELL_F_STEM_MUTE: bit 0 drums, 1 harmonics, 2 vocal */
+ uint8_t stem_muted;                 /* XZ_SHELL_F_STEM_MUTE: bit 0 drums, 1 harmonics (INST), 2 vocal. Known
+                                        only while the deck plays 3 local stems: then the PLAY screen shows
+                                        its DRUMS / VOCAL / INST mute buttons */
+ int slip;                           /* XZ_SHELL_F_SLIP: SLIP is on */
+ int32_t slip_ms;                    /* XZ_SHELL_F_SLIP_POSITION: where the track would be without the slip
+                                        move (the ghost playhead), read at slip_at_ms like elapsed_ms */
+ uint32_t slip_at_ms;
+ int vinyl;                          /* XZ_SHELL_F_VINYL: the jog is in VINYL mode */
  const uint16_t *artwork;            /* RGB565 square, or NULL */
  int artwork_side;
 };
@@ -131,7 +138,10 @@ struct xz_shell_deck {
 enum xz_shell_cap {
  XZ_SHELL_CAP_SEEK=1u, XZ_SHELL_CAP_LOAD=2u, XZ_SHELL_CAP_SET_SETTING=4u, XZ_SHELL_CAP_BROWSE=8u,
  XZ_SHELL_CAP_TAG_LIST=16u, XZ_SHELL_CAP_SEARCH=32u, XZ_SHELL_CAP_SOURCE=64u, XZ_SHELL_CAP_GRID=128u,
- XZ_SHELL_CAP_TAG_TRACK=256u
+ XZ_SHELL_CAP_TAG_TRACK=256u,
+ XZ_SHELL_CAP_PLAYLIST_EDIT=512u, /* XZ_SHELL_ACT_PLAYLIST: the runtime keeps playlist edits in its sidecar */
+ XZ_SHELL_CAP_STEM_MUTE=1024u,    /* XZ_SHELL_ACT_STEM_MUTE */
+ XZ_SHELL_CAP_FILTER=2048u        /* XZ_SHELL_BROWSE_FILTER (shell_browse.h) */
 };
 enum xz_shell_setting {
  XZ_SHELL_SET_TIME_MODE, XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_SET_PLAY_MODE,
@@ -190,7 +200,11 @@ enum xz_shell_event_kind {
 enum xz_shell_key {
  XZ_SHELL_KEY_BACK, XZ_SHELL_KEY_BACK_HOLD, XZ_SHELL_KEY_BROWSE, XZ_SHELL_KEY_TAG_LIST, XZ_SHELL_KEY_PLAYLIST,
  XZ_SHELL_KEY_SEARCH, XZ_SHELL_KEY_MENU, XZ_SHELL_KEY_MENU_HOLD, XZ_SHELL_KEY_SHORTCUT, XZ_SHELL_KEY_INFO,
- XZ_SHELL_KEY_SOURCE, XZ_SHELL_KEY_TAG_TRACK, XZ_SHELL_KEY_TIME_MODE, XZ_SHELL_KEY_QUANTIZE, XZ_SHELL_KEY_LOAD, XZ_SHELL_KEY_COUNT
+ XZ_SHELL_KEY_SOURCE, XZ_SHELL_KEY_TAG_TRACK, XZ_SHELL_KEY_TIME_MODE, XZ_SHELL_KEY_QUANTIZE, XZ_SHELL_KEY_LOAD,
+ XZ_SHELL_KEY_SOURCE_USB1, XZ_SHELL_KEY_SOURCE_USB2, /* the two USB buttons: browse that stick, or the picker */
+ XZ_SHELL_KEY_TRACK_FILTER,          /* opens the FILTER panel (over BROWSE when another screen is up) */
+ XZ_SHELL_KEY_SOURCE_LINK, XZ_SHELL_KEY_SOURCE_COMPUTER, /* the LINK and computer source buttons: the picker at that slot */
+ XZ_SHELL_KEY_COUNT
 };
 /* deck: the deck a per-deck key (TIME MODE, QUANTIZE, LOAD) belongs to, or -1 for the active deck. */
 struct xz_shell_event { enum xz_shell_event_kind kind; int x, y, delta; enum xz_shell_key key; int deck; };
@@ -202,7 +216,9 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_GRID_ADJUST, /* deck, value = encoder delta */
  XZ_SHELL_ACT_SET_SETTING, /* id = enum xz_shell_setting, value, deck (-1 = device) */
  XZ_SHELL_ACT_LOAD,        /* deck, id = track id from the browse model */
- XZ_SHELL_ACT_HAND_OFF,    /* id = enum xz_shell_screen, or XZ_SHELL_HAND_OFF_MENU for the stock menu popup */
+ XZ_SHELL_ACT_HAND_OFF,    /* id = enum xz_shell_screen, or XZ_SHELL_HAND_OFF_MENU for the stock menu popup;
+                              value = 1 + the setting item (shell_settings.h enum xz_shell_item_id) the stock
+                              screen should open at, from SHORTCUT and UTILITY; 0 = no item */
  XZ_SHELL_ACT_CLOSE_SHELL,
  XZ_SHELL_ACT_TAG_TRACK,   /* deck */
  XZ_SHELL_ACT_ACTIVE_DECK, /* deck = the new active deck */
@@ -211,7 +227,9 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_SET_RATING,  /* deck, id = track id, value = 0..5 */
  XZ_SHELL_ACT_SET_SOURCE,  /* id = enum xz_shell_source; the runtime makes it the browse source */
  XZ_SHELL_ACT_OPEN_MODS,   /* the runtime opens the MODS panel (header button) */
- XZ_SHELL_ACT_TOGGLE_STEMS /* the runtime toggles the STEMS overlay (header button) */
+ XZ_SHELL_ACT_TOGGLE_STEMS,/* the runtime toggles the STEMS overlay (header button) */
+ XZ_SHELL_ACT_STEM_MUTE,   /* deck, id = stem (0 drums, 1 harmonics/INST, 2 vocal), value = 1 mute, 0 play */
+ XZ_SHELL_ACT_PLAYLIST     /* id = enum xz_shell_playlist_op; the rest is in xz_shell.edit (below) */
 };
 #define XZ_SHELL_HAND_OFF_MENU (-1)
 struct xz_shell_action { enum xz_shell_action_kind kind; int deck; int32_t value; int id; };
@@ -229,6 +247,38 @@ struct xz_shell_display {
  enum xz_shell_wave_position wave_position;
  enum xz_shell_key_display key_display;
 };
+/* Slide-over panels on the list screens: INFO (the highlighted track), MENU (sort, columns, playlist
+   edits) and FILTER. Shell state, kept in the struct so the runtime's key probe, which runs input on
+   a copy of the struct, sees what a key would change. */
+enum xz_shell_panel_kind { XZ_SHELL_PANEL_NONE, XZ_SHELL_PANEL_INFO, XZ_SHELL_PANEL_MENU, XZ_SHELL_PANEL_FILTER };
+struct xz_shell_panel { enum xz_shell_panel_kind kind; int page, cursor, scroll, armed; };
+/* A track picked up to move inside an edited playlist: it travels from row from to row to. */
+struct xz_shell_grab { int active; uint32_t playlist, track; int32_t from, to; };
+#define XZ_SHELL_NAME_MAX 48
+/* The playlist edit an XZ_SHELL_ACT_PLAYLIST asks for. The runtime stores edits in a shell-owned
+   sidecar file on the same USB stick, never in the stick's export database, and publishes the merged
+   playlists. Valid while the runtime executes the action. */
+enum xz_shell_playlist_op {
+ XZ_SHELL_PL_CREATE=1,     /* name */
+ XZ_SHELL_PL_RENAME,       /* playlist, name */
+ XZ_SHELL_PL_DELETE,       /* playlist */
+ XZ_SHELL_PL_ADD_TRACK,    /* playlist, track: appended */
+ XZ_SHELL_PL_REMOVE_TRACK, /* playlist, track, from = its row */
+ XZ_SHELL_PL_MOVE_TRACK    /* playlist, track, from row, to row (the row it lands on) */
+};
+struct xz_shell_playlist_edit { enum xz_shell_playlist_op op; uint32_t playlist, track; int32_t from, to; char name[XZ_SHELL_NAME_MAX]; };
+/* The track filter the lists ask for (XZ_SHELL_BROWSE_FILTER): the runtime filters, the list comes back
+   filtered. Zero filters nothing. */
+enum xz_shell_filter_bpm { XZ_SHELL_FILTER_BPM_OFF, XZ_SHELL_FILTER_BPM_MASTER, XZ_SHELL_FILTER_BPM_RANGE };
+struct xz_shell_filter {
+ enum xz_shell_filter_bpm bpm;
+ int bpm_spread;                     /* BPM_MASTER: within this many BPM of the master deck's BPM */
+ int32_t bpm_min_x100, bpm_max_x100; /* BPM_RANGE, inclusive */
+ int key_compatible;                 /* keys the traffic light marks green or amber against the master key */
+ int rating_min;                     /* 0 = any, else at least this many stars */
+ uint32_t colors;                    /* bit i = colour tag i (shell_browse.h XZ_SHELL_TAG_COLOR_*); 0 = any */
+ uint32_t my_tags;                   /* bit i = browse model my_tags[i]; 0 = any */
+};
 struct xz_shell {
  struct xz_shell_view stack[XZ_SHELL_STACK];
  int depth;
@@ -240,6 +290,15 @@ struct xz_shell {
  enum xz_shell_touch_region down_region;
  int down_deck;
  struct xz_shell_display display;
+ struct xz_shell_panel panel;
+ struct xz_shell_grab grab;
+ struct xz_shell_playlist_edit edit;
+ struct xz_shell_filter filter;
+ char name[XZ_SHELL_NAME_MAX];       /* a playlist name being typed */
+ /* One line the shell raises itself when a key or control cannot act here (static text), shown like
+    model.notice; the runtime may also read it as the reason for a hand-off. */
+ const char *notice;
+ uint32_t notice_at_ms;
 };
 
 void xz_shell_init(struct xz_shell *);
@@ -257,12 +316,23 @@ int xz_shell_restore_setting(struct xz_shell *, int id, int value);
 struct xz_shell_rect { int x, y, w, h; };
 enum xz_shell_play_region {
  XZ_SHELL_R_TOP_BAR, XZ_SHELL_R_INFO_COLUMN, XZ_SHELL_R_DECK_TAG, XZ_SHELL_R_LANE,
- XZ_SHELL_R_STRIP, XZ_SHELL_R_TIME, XZ_SHELL_R_OVERVIEW, XZ_SHELL_R_ZOOM, XZ_SHELL_R_INFO_BUTTON, XZ_SHELL_R_FX
+ XZ_SHELL_R_STRIP, XZ_SHELL_R_TIME, XZ_SHELL_R_OVERVIEW, XZ_SHELL_R_ZOOM, XZ_SHELL_R_INFO_BUTTON, XZ_SHELL_R_FX,
+ XZ_SHELL_R_PAD_ROW   /* per deck, between the lanes and the strips: stem mute buttons and hot-cue lamps */
 };
 struct xz_shell_rect xz_shell_play_rect(enum xz_shell_play_region, int deck);
+/* A stem mute button's touch target (44 px tall), stem 0 drums, 1 harmonics (INST), 2 vocal. Drawn
+   DRUMS, VOCAL, INST from the left as on the stock deck. Zero size while the deck shows none. */
+struct xz_shell_rect xz_shell_stem_button(const struct xz_shell_model *, int deck, int stem);
 /* Track position under x on the deck's overview, clamped to 0..total. */
 int32_t xz_shell_overview_ms(int32_t total_ms, int x, int deck);
 /* The deck's position this frame: elapsed_ms, advanced while playing as XZ_SHELL_EXTRAPOLATE_MAX_MS
    describes and clamped to 0..total_ms when the total is known. -1 when elapsed is not known. */
 int32_t xz_shell_elapsed_now(const struct xz_shell_model *, int deck);
+/* Key traffic light against the master deck's key: GREEN same key or its relative, AMBER one step on
+   the key wheel either way, NONE anything else, UNKNOWN when either key is unread or unparsed. The
+   master is the deck with XZ_SHELL_F_MASTER and master set; its key is deck.key with XZ_SHELL_F_KEY. */
+enum xz_shell_key_match { XZ_SHELL_KEY_MATCH_UNKNOWN, XZ_SHELL_KEY_MATCH_NONE, XZ_SHELL_KEY_MATCH_AMBER, XZ_SHELL_KEY_MATCH_GREEN };
+enum xz_shell_key_match xz_shell_key_match(const char *key, const char *master_key);
+/* The master deck's key text, or NULL. */
+const char *xz_shell_master_key(const struct xz_shell_model *);
 #endif

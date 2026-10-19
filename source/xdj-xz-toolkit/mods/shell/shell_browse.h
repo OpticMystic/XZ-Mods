@@ -16,8 +16,16 @@
                           stock browser takes over). The shell returns to PLAY.
    - XZ_SHELL_ACT_BROWSE id = enum xz_shell_browse_op, value as listed there.
    - XZ_SHELL_ACT_HAND_OFF id = the list screen, for blocked categories.
+   - XZ_SHELL_ACT_PLAYLIST id = enum xz_shell_playlist_op, details in xz_shell.edit
+                          (shell.h); only with XZ_SHELL_CAP_PLAYLIST_EDIT.
    The search text lives in the shell (xz_shell_browse_query); SEARCH_QUERY
-   says it changed. */
+   says it changed.
+
+   Panels (shell.h struct xz_shell_panel) slide over the list's right side:
+   INFO follows the highlighted row; MENU sorts (SORT, by the keys in
+   sort_keys), picks the columns (COLUMNS, from column_choices) and edits
+   playlists; FILTER builds xz_shell.filter. A panel row the model gives no
+   data for is left out, never drawn dead. */
 #include "shell.h"
 
 #define XZ_SHELL_BROWSE_WINDOW 32   /* rows a REQUEST_WINDOW asks for, and the most a snapshot needs */
@@ -32,7 +40,9 @@ enum xz_shell_browse_op {
  XZ_SHELL_BROWSE_TOP,              /* to the current category's top level */
  XZ_SHELL_BROWSE_CATEGORY,         /* value = enum xz_shell_browse_category */
  XZ_SHELL_BROWSE_SORT,             /* value = enum xz_shell_browse_column | descending<<8 */
- XZ_SHELL_BROWSE_SEARCH_QUERY      /* value = byte length of xz_shell_browse_query() */
+ XZ_SHELL_BROWSE_SEARCH_QUERY,     /* value = byte length of xz_shell_browse_query() */
+ XZ_SHELL_BROWSE_SET_COLUMNS,      /* value = bit per enum xz_shell_browse_column to show, in enum order; TITLE always */
+ XZ_SHELL_BROWSE_FILTER            /* value = 1 apply xz_shell.filter (shell.h), 0 clear it; needs XZ_SHELL_CAP_FILTER */
 };
 
 enum xz_shell_browse_category {
@@ -42,13 +52,22 @@ enum xz_shell_browse_category {
 };
 enum xz_shell_browse_column {
  XZ_SHELL_COL_NUMBER, XZ_SHELL_COL_TITLE, XZ_SHELL_COL_ARTIST, XZ_SHELL_COL_BPM, XZ_SHELL_COL_KEY,
- XZ_SHELL_COL_RATING, XZ_SHELL_COL_COLOR, XZ_SHELL_COL_TIME, XZ_SHELL_COL_COUNT
+ XZ_SHELL_COL_RATING, XZ_SHELL_COL_COLOR, XZ_SHELL_COL_TIME, XZ_SHELL_COL_ALBUM, XZ_SHELL_COL_GENRE,
+ XZ_SHELL_COL_DATE_ADDED, XZ_SHELL_COL_COUNT
+};
+/* Colour tags in their stock order, for xz_shell_filter.colors bits and the colour rows. */
+enum xz_shell_tag_color {
+ XZ_SHELL_TAG_COLOR_PINK, XZ_SHELL_TAG_COLOR_RED, XZ_SHELL_TAG_COLOR_ORANGE, XZ_SHELL_TAG_COLOR_YELLOW,
+ XZ_SHELL_TAG_COLOR_GREEN, XZ_SHELL_TAG_COLOR_AQUA, XZ_SHELL_TAG_COLOR_BLUE, XZ_SHELL_TAG_COLOR_PURPLE,
+ XZ_SHELL_TAG_COLOR_COUNT
 };
 enum xz_shell_browse_row_kind { XZ_SHELL_ROW_FOLDER, XZ_SHELL_ROW_TRACK };
 /* One bit per row readout. kind and id are always valid for a row in the window. */
 enum xz_shell_browse_row_field {
  XZ_SHELL_RF_TITLE, XZ_SHELL_RF_ARTIST, XZ_SHELL_RF_BPM, XZ_SHELL_RF_KEY, XZ_SHELL_RF_RATING,
  XZ_SHELL_RF_COLOR, XZ_SHELL_RF_DURATION, XZ_SHELL_RF_PLAYED, XZ_SHELL_RF_PREVIEW, XZ_SHELL_RF_ON_DECK,
+ XZ_SHELL_RF_ALBUM, XZ_SHELL_RF_GENRE, XZ_SHELL_RF_DATE_ADDED,
+ XZ_SHELL_RF_EDITED,                    /* the playlist (folder row) or its order comes from the shell's sidecar edits */
  XZ_SHELL_RF_COUNT
 };
 struct xz_shell_browse_row {
@@ -65,11 +84,24 @@ struct xz_shell_browse_row {
  const struct xz_shell_column *preview; /* small overview, bands 0..255 */
  uint32_t preview_count;
  uint8_t on_deck;                       /* bit d: loaded on deck d */
+ const char *album, *genre;
+ int32_t date_added;                    /* yyyymmdd */
+};
+/* A playlist ADD TO PLAYLIST can put the highlighted track in (merged: stick playlists with sidecar edits). */
+struct xz_shell_playlist_ref { uint32_t id; const char *name; int32_t tracks; };
+/* A MY TAG the FILTER panel offers. */
+struct xz_shell_my_tag { uint32_t id; const char *name; };
+/* What the shown list lets the shell edit (BF_EDIT). */
+enum xz_shell_browse_edit {
+ XZ_SHELL_EDIT_PLAYLISTS=1u, /* the rows are playlists: NEW, RENAME and DELETE apply */
+ XZ_SHELL_EDIT_TRACKS=2u     /* the rows are the tracks of playlist edit_playlist: REMOVE and MOVE apply */
 };
 
 enum xz_shell_browse_field {
  XZ_SHELL_BF_SOURCE, XZ_SHELL_BF_SOURCE_COLOR, XZ_SHELL_BF_CATEGORY, XZ_SHELL_BF_LEVEL, XZ_SHELL_BF_PARENT,
- XZ_SHELL_BF_LIST, XZ_SHELL_BF_TOTAL, XZ_SHELL_BF_COLUMNS, XZ_SHELL_BF_SORT, XZ_SHELL_BF_COUNT
+ XZ_SHELL_BF_LIST, XZ_SHELL_BF_TOTAL, XZ_SHELL_BF_COLUMNS, XZ_SHELL_BF_SORT,
+ XZ_SHELL_BF_SORT_KEYS, XZ_SHELL_BF_COLUMN_CHOICES, XZ_SHELL_BF_EDIT, XZ_SHELL_BF_PLAYLISTS, XZ_SHELL_BF_MY_TAGS,
+ XZ_SHELL_BF_COUNT
 };
 /* Alphabet jump index: the first row whose sort key starts with letter. */
 struct xz_shell_browse_letter { char letter; int32_t row; };
@@ -95,6 +127,14 @@ struct xz_shell_browse_model {
  int sort_descending;
  const struct xz_shell_browse_letter *letters; /* NULL: encoder hold jumps by page */
  int letter_count;
+ uint32_t sort_keys;                    /* BF_SORT_KEYS: bit per column this list can sort by (MENU > SORT) */
+ uint32_t column_choices;               /* BF_COLUMN_CHOICES: bit per column the rows can show (MENU > COLUMNS) */
+ uint32_t edit;                         /* BF_EDIT: enum xz_shell_browse_edit bits */
+ uint32_t edit_playlist;                /* BF_EDIT with XZ_SHELL_EDIT_TRACKS: the playlist shown */
+ const struct xz_shell_playlist_ref *playlists; /* BF_PLAYLISTS: ADD TO PLAYLIST targets */
+ int playlist_count;
+ const struct xz_shell_my_tag *my_tags; /* BF_MY_TAGS: FILTER > MY TAG */
+ int my_tag_count;
 };
 
 /* Geometry for the runtime's hit tests and the host tests. Some regions
@@ -108,7 +148,11 @@ enum xz_shell_browse_region {
  XZ_SHELL_BR_LOAD,      /* in the touched row; index 0 = LOAD (active deck), 1/2 = deck 1/2 */
  XZ_SHELL_BR_INFO_PANE,
  XZ_SHELL_BR_KEY,       /* index = keyboard key */
- XZ_SHELL_BR_STRIP      /* index = deck */
+ XZ_SHELL_BR_STRIP,     /* index = deck */
+ XZ_SHELL_BR_FILTER,    /* the FILTER header tile */
+ XZ_SHELL_BR_FILTER_CHIP, /* the active-filter chip; a touch clears the filter */
+ XZ_SHELL_BR_PANEL,     /* the open slide-over panel */
+ XZ_SHELL_BR_PANEL_ROW  /* index = visible panel row */
 };
 struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *, const struct xz_shell_model *, enum xz_shell_browse_region, int index);
 int xz_shell_browse_rows_visible(const struct xz_shell *);

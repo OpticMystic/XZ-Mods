@@ -115,31 +115,36 @@ static void test_navigation(void) {
   {XZ_SHELL_KEY_SEARCH,XZ_SHELL_SEARCH},{XZ_SHELL_KEY_SOURCE,XZ_SHELL_SOURCE},{XZ_SHELL_KEY_INFO,XZ_SHELL_INFO},
   {XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT},{XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY}};
  for(size_t i=0;i<sizeof lists/sizeof *lists;i++){
+  /* BROWSE and PLAYLIST open over the SOURCE picker; BACK from their top reaches it, then PLAY. */
+  int rooted=lists[i].screen==XZ_SHELL_BROWSE||lists[i].screen==XZ_SHELL_PLAYLIST;
   xz_shell_init(&u);
-  assert(press(&u,&m,lists[i].key,out)==0&&xz_shell_screen(&u)==lists[i].screen&&u.depth==2);
+  assert(press(&u,&m,lists[i].key,out)==0&&xz_shell_screen(&u)==lists[i].screen&&u.depth==(rooted?3:2));
   render_checked(&u,&m,buffer_a);
   enum xz_shell_key again=lists[i].key==XZ_SHELL_KEY_MENU_HOLD?XZ_SHELL_KEY_MENU:lists[i].key;
   assert(press(&u,&m,again,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1);
   assert(press(&u,&m,lists[i].key,out)==0&&xz_shell_screen(&u)==lists[i].screen);
+  if(rooted)assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
   assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
  }
- /* One list at a time: a second list key swaps, BACK still returns to PLAY. */
+ /* One list at a time: a second list key swaps. */
  xz_shell_init(&u);
  press(&u,&m,XZ_SHELL_KEY_BROWSE,out);press(&u,&m,XZ_SHELL_KEY_PLAYLIST,out);
- assert(xz_shell_screen(&u)==XZ_SHELL_PLAYLIST&&u.depth==2);
+ assert(xz_shell_screen(&u)==XZ_SHELL_PLAYLIST&&u.depth==3);
  /* Overlays stack; BACK goes up one level, BACK_HOLD to the top. */
  press(&u,&m,XZ_SHELL_KEY_SHORTCUT,out);press(&u,&m,XZ_SHELL_KEY_MENU_HOLD,out);
- assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==4);
- assert(press(&u,&m,XZ_SHELL_KEY_SHORTCUT,out)==0&&u.depth==4); /* already on the stack: no change */
- assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT&&u.depth==3);
- assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAYLIST&&u.depth==2);
- press(&u,&m,XZ_SHELL_KEY_INFO,out);assert(u.depth==3);
- assert(press(&u,&m,XZ_SHELL_KEY_BACK_HOLD,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1);
+ assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==5);
+ assert(press(&u,&m,XZ_SHELL_KEY_SHORTCUT,out)==0&&u.depth==5); /* already on the stack: no change */
+ assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT&&u.depth==4);
+ assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAYLIST&&u.depth==3);
+ /* On a list INFO slides out the info panel instead of a screen. */
+ press(&u,&m,XZ_SHELL_KEY_INFO,out);assert(u.depth==3&&u.panel.kind==XZ_SHELL_PANEL_INFO);
+ assert(press(&u,&m,XZ_SHELL_KEY_BACK_HOLD,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1&&u.panel.kind==XZ_SHELL_PANEL_NONE);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&u.depth==1);
- /* A short MENU on PLAY does nothing, as on the stock deck; on lists it is the stock popup; on UTILITY it closes. */
+ /* A short MENU on PLAY does nothing, as on the stock deck; on lists it opens the MENU panel; on UTILITY it closes. */
  assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.depth==1);
  press(&u,&m,XZ_SHELL_KEY_BROWSE,out);
- assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
+ assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.panel.kind==XZ_SHELL_PANEL_MENU&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
+ assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.panel.kind==XZ_SHELL_PANEL_NONE);
  /* HAND_OFF when a slot is NULL or a capability is missing; the stack does not move. */
  struct xz_shell_model bare;fx_model_full(&bare,&track);
  xz_shell_init(&u);

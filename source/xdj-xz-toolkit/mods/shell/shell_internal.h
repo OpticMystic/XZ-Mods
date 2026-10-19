@@ -27,6 +27,11 @@ extern const struct sh_screen xz_shell_browse_screen, xz_shell_playlist_screen, 
 extern const struct sh_screen xz_shell_shortcut_screen, xz_shell_utility_screen, xz_shell_info_screen, xz_shell_source_screen;
 /* The navigation table applied to one key (shell.c); screens use it for on-screen buttons. */
 size_t sh_key(struct xz_shell *, const struct xz_shell_model *, enum xz_shell_key, int deck, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+/* BACK, for the key and every on-screen back control alike (shell.c). */
+size_t sh_back(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+/* A screen's own step up for BACK: sets *taken when it used the key (closed a panel, climbed a level). */
+size_t sh_browse_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
+size_t sh_settings_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
 
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
 static inline int sh_setting(const struct xz_shell_model *m, enum xz_shell_setting s) { return (m->settings.known>>s)&1; }
@@ -81,6 +86,10 @@ void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 int sh_stem_wave_ready(const struct xz_shell_deck *d);
 void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps);
 void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int played_x);
+/* Traffic-light ink for a key against the master deck's key (shell_wave.c): green, amber or plain. With
+   no master key read it falls back to the runtime's matches_master flag. */
+enum { SH_KEY_GREEN=0x52d794, SH_KEY_AMBER=0xffbd59 };
+uint32_t sh_key_ink(const struct xz_shell_model *m, const char *key, int matches_master, uint32_t plain);
 /* The key in the chosen notation; key itself when it is NULL, already in it, or neither notation. */
 const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *buffer, size_t cap);
 /* Mod header buttons (shell.c): drawn over every screen; hit tests padded to XZ_SHELL_HEADER_HIT_H. */
@@ -89,5 +98,5 @@ enum xz_shell_action_kind sh_header_hit(int x, int y);
 /* Runtime notice toast (shell_draw.c): shown, its box, and how many lines it wraps to (1 or 2). */
 int sh_notice_shown(const struct xz_shell_model *m);
 struct xz_shell_rect sh_notice_rect(const char *text, int *lines);
-void sh_notice(const struct xz_shell_model *m, struct xz_canvas c);
+void sh_notice(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
 #endif

@@ -28,11 +28,12 @@ static int current_tile(const struct xz_shell_source_model *sm) {
  int i=(int)sm->current-1;
  return sm->current_known&&i>=0&&i<XZ_SHELL_SOURCE_TILES?i:-1;
 }
-/* The highlighted tile: the view's cursor when it names a connected tile, else
-   the current browse source, else the first connected device; -1 when none is. */
+/* The highlighted tile: the view's cursor when it names a connected tile (or a slot a USB button
+   asked for, pinned by the view's focus, connected or not), else the current browse source, else
+   the first connected device; -1 when none is. */
 static int cursor_tile(const struct xz_shell *u, const struct xz_shell_source_model *sm) {
  int c=si_view(u)->cursor-1;
- if(c>=0&&c<XZ_SHELL_SOURCE_TILES&&connected(sm,c))return c;
+ if(c>=0&&c<XZ_SHELL_SOURCE_TILES&&(connected(sm,c)||si_view(u)->focus))return c;
  int cur=current_tile(sm);
  if(cur>=0&&connected(sm,cur))return cur;
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++)if(connected(sm,i))return i;
@@ -171,7 +172,13 @@ static void source_render(const struct xz_shell *u, const struct xz_shell_model 
  int highlighted=cursor_tile(u,m->source);
  int any_known=0;
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++)any_known|=known(&m->source->device[i],XZ_SHELL_D_STATUS);
- sh_text_right(c,si_close_rect().x-14,17,highlighted>=0?"TOUCH AGAIN OR PUSH TO BROWSE":any_known?"NO DEVICE CONNECTED":"DEVICE STATUS NOT READ YET",SH_SMALL,SH_DIM);
+ const char *hint=highlighted>=0?"TOUCH AGAIN OR PUSH TO BROWSE":any_known?"NO DEVICE CONNECTED":"DEVICE STATUS NOT READ YET";
+ char missing[40];
+ if(highlighted>=0&&!connected(m->source,highlighted)){
+  snprintf(missing,sizeof missing,"%s IS NOT CONNECTED",si_source_name((enum xz_shell_source)(highlighted+1)));
+  hint=missing;
+ }
+ sh_text_right(c,si_close_rect().x-14,17,hint,SH_SMALL,highlighted>=0&&!connected(m->source,highlighted)?SH_KEY_AMBER:SH_DIM);
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++)render_tile(m,c,i,i==highlighted);
  if(highlighted>=0){
   struct xz_shell_rect r=xz_shell_source_rect(highlighted);
@@ -187,7 +194,7 @@ static size_t select_tile(struct xz_shell *u, const struct xz_shell_model *m, in
 static size_t source_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  const struct xz_shell_source_model *sm=m->source;
  struct xz_shell_view *v=&u->stack[u->depth-1];
- if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(si_close_rect(),e->x,e->y))return sh_key(u,m,XZ_SHELL_KEY_BACK,-1,out);
+ if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(si_close_rect(),e->x,e->y))return sh_back(u,m,out);
  if(!sm)return 0;
  int at=cursor_tile(u,sm);
  switch(e->kind){
@@ -195,13 +202,14 @@ static size_t source_input(struct xz_shell *u, const struct xz_shell_model *m, c
   for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++){
    if(!sh_inside(xz_shell_source_rect(i),e->x,e->y))continue;
    if(!connected(sm,i))return 0;
-   if(v->cursor!=i+1){v->cursor=i+1;return 0;}  /* first touch highlights */
+   if(v->cursor!=i+1||v->focus){v->cursor=i+1;v->focus=0;return 0;}  /* first touch highlights */
    return select_tile(u,m,i,out);
   }
   return 0;
  case XZ_SHELL_ENCODER_TURN:{
   if(at<0)return 0;
   int step=e->delta>0?1:-1;
+  v->focus=0;
   for(int k=e->delta>0?e->delta:-e->delta;k>0;k--){
    int next=at+step;
    while(next>=0&&next<XZ_SHELL_SOURCE_TILES&&!connected(sm,next))next+=step;
