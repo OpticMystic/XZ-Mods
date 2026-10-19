@@ -13,6 +13,7 @@
 #include "shell_library.h"
 #include "shell_analysis.h"
 #include "shell_playlists.h"
+#include "shell_utility_table.h"
 #include "shell/shell_browse.h"
 #include "shell/shell_info.h"
 #include "shell/shell_settings.h"
@@ -141,12 +142,20 @@ static uint64_t mono_us(void) {
  if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return now_us();
  return (uint64_t)t.tv_sec*1000000u+(uint64_t)t.tv_nsec/1000u;
 }
+/* The stock UTILITY items (shell_utility.h). raw/known are written on the owner tick under the mutex.
+   trial: a --ram-settings run; stock saves every UTILITY set to flash within 20 ms, so there the items
+   are read only unless XZ_MODS_SHELL_UTILITY_WRITES=1 says the owner accepts that. */
+static struct {
+ int32_t raw[XZ_SHUT_DEFS];uint8_t known[XZ_SHUT_DEFS],get_ok[XZ_SHUT_DEFS],set_ok[XZ_SHUT_DEFS],apply_ok[XZ_SHUT_DEFS];
+ int trial,version_ok,poll_now;uint32_t polled_ms;char version[24];const char *version_choice[1];
+ uint32_t polls,sets,set_fails,changes;
+} util;
 static int model_read(uintptr_t a, void *out, size_t n) { return a>UINT32_MAX?-1:xz_read_memory((uint32_t)a,out,n); }
 static int plain_read(void *c, uint32_t a, void *out, size_t n) { (void)c;return xz_read_memory(a,out,n); }
 static int word(uint32_t a, uint32_t *v) { return !xz_read_memory(a,v,4); }
 static int pointer(uint32_t p, size_t n) { return p>=0x10000u&&!(p&3u)&&(uint64_t)p+n<=UINT32_MAX; }
 static int code_is(uint32_t a, const unsigned char *expected, size_t n) {
- unsigned char b[16];return n<=16&&!xz_read_memory(a,b,n)&&!memcmp(b,expected,n);
+ unsigned char b[32];return n<=32&&!xz_read_memory(a,b,n)&&!memcmp(b,expected,n);
 }
 /* Prologues from docs/research/2026-10-18-xz-shell-abi/q7_prologues.py on the verified rbp. */
 static const unsigned char set_time_mode_code[16]={0x01,0x20,0xa0,0xe1,0x30,0x10,0x9f,0xe5,0x00,0x00,0x50,0xe3,0x00,0x10,0x91,0xe5};
@@ -168,6 +177,14 @@ static void check_guards(void) {
  if(xz_arcade_native_clock_valid(plain_read,NULL))g|=1u<<G_CLOCK;
  if(code_is(0x2508dc,settings_code,16))g|=1u<<G_SETTINGS;
  guards=g;xz_mods_shell_proof_v1.guards=g;
+ for(int i=0;i<XZ_SHUT_DEFS;i++){
+  const struct xz_shut_def *d=&xz_shut_defs[i];
+  util.get_ok[i]=d->get&&code_is(d->get,d->get_code,32);
+  util.set_ok[i]=d->set&&code_is(d->set,d->set_code,32);
+  util.apply_ok[i]=!d->apply||code_is(d->apply,d->apply_code,32);
+  if(!util.apply_ok[i])util.set_ok[i]=0; /* stock applies before it stores: never store without the apply */
+ }
+ util.version_ok=code_is(XZ_SHUT_VERSION_GET,xz_shut_version_code,32);
 }
 static int has(enum guard g) { return (guards>>g)&1u; }
 
@@ -235,7 +252,10 @@ static struct xz_shell_browse_row rows[XZ_SHELL_BROWSE_WINDOW];
 static struct xz_shell_browse_model browse;
 static struct xz_shell_source_model source_model;
 static struct xz_shell_info_model info_model;
-static struct xz_shell_setting_item setting_items[3];
+/* TIME MODE, AUTO CUE, the stock UTILITY items and VERSION. */
+#define SETTING_ROWS (2+XZ_SHUT_DEFS+1)
+static struct xz_shell_setting_item setting_items[SETTING_ROWS];
+static const char *setting_notes[SETTING_ROWS];
 static struct xz_shell_settings_model settings_model;
 static const char *const time_choices[2]={"REMAIN","TIME"};
 static const char *const off_on[2]={"OFF","ON"};
@@ -397,17 +417,24 @@ static void fill_source(void) {
 }
 static void fill_settings(void) {
  const struct xz_shell_settings *s=&model.settings;
- const struct xz_shell_deck *d=&model.deck[0];
- int quantize=d->known&K(QUANTIZE)?xz_shrt_quantize_index(d->quantize_den):-1;
  setting_items[0]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_TIME_MODE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"TIME MODE",time_choices,2,
-  s->time_mode==XZ_SHELL_TIME_ELAPSED,(s->known>>XZ_SHELL_SET_TIME_MODE)&1,0};
- setting_items[1]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_QUANTIZE_BEAT,XZ_SHELL_SETTING_CAT_DJ_SETTING,"QUANTIZE BEAT VALUE",xz_shrt_quantize_choices,4,
-  quantize<0?0:quantize,quantize>=0,0};
- setting_items[2]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_AUTO_CUE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on,2,
+  s->time_mode==XZ_SHELL_TIME_ELAPSED,(s->known>>XZ_SHELL_SET_TIME_MODE)&1,xz_shrt_setting_writable(XZ_SHELL_SET_TIME_MODE,has(G_TIME_MODE),0)};
+ setting_items[1]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_AUTO_CUE,XZ_SHELL_SETTING_CAT_DJ_SETTING,"AUTO CUE",off_on,2,
   !!s->auto_cue,(s->known>>XZ_SHELL_SET_AUTO_CUE)&1,0};
- settings_model=(struct xz_shell_settings_model){3,setting_items};
- for(uint32_t i=0;i<settings_model.count;i++)
-  setting_items[i].writable=xz_shrt_setting_writable(setting_items[i].id,has(G_TIME_MODE),has(G_QUANTIZE));
+ setting_notes[0]=NULL;setting_notes[1]=NULL;
+ /* The stock UTILITY items in stock's order. QUANTIZE BEAT VALUE is one of them now (same id as before). */
+ xz_shut_items(xz_shut_defs,XZ_SHUT_DEFS,util.raw,util.known,util.get_ok,util.set_ok,util.trial,setting_items+2,setting_notes+2);
+ int n=2+XZ_SHUT_DEFS;
+ if(util.version[0]){
+  util.version_choice[0]=util.version;
+  setting_items[n]=(struct xz_shell_setting_item){XZ_SHELL_ITEM_VERSION,XZ_SHELL_SETTING_CAT_INFO,"VERSION No.",util.version_choice,1,0,1,0};
+  setting_notes[n++]=NULL;
+ }
+ settings_model=(struct xz_shell_settings_model){(uint32_t)n,setting_items,setting_notes};
+}
+static int util_writable_any(void) {
+ for(int i=0;i<XZ_SHUT_DEFS;i++)if(!xz_shut_reason(&xz_shut_defs[i],util.get_ok[i],util.set_ok[i],util.trial))return 1;
+ return 0;
 }
 /* Rebuilds every slot the runtime owns. Called after each refresh and after any swap, so the model
    never points at retired memory. */
@@ -415,7 +442,7 @@ static void fill_slots_locked(void) {
  choose_source();
  struct xz_shlib *lib=browse_source>=0?usb[browse_source].lib:NULL;
  uint32_t caps=XZ_SHELL_CAP_SOURCE;
- if(has(G_TIME_MODE)||has(G_QUANTIZE))caps|=XZ_SHELL_CAP_SET_SETTING;
+ if(has(G_TIME_MODE)||has(G_QUANTIZE)||util_writable_any())caps|=XZ_SHELL_CAP_SET_SETTING;
  if(lib)caps|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
  if(lib&&load_enabled&&has(G_LOAD))caps|=XZ_SHELL_CAP_LOAD;
  if(lib)caps|=XZ_SHELL_CAP_FILTER;
@@ -1211,6 +1238,19 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   case XZ_SHELL_ACT_SET_SETTING:
    /* Shell-owned display settings are already applied in the shell: keep them for the next start. */
    if(xz_shrt_shell_owned_setting(a->id)){save_display(a->id,a->value);break;}
+   {
+    int u=xz_shut_find(xz_shut_defs,XZ_SHUT_DEFS,a->id);
+    if(u>=0){
+     /* A stock UTILITY item: the firmware's own setter on the owner tick. */
+     const struct xz_shut_def *d=&xz_shut_defs[u];int32_t arg;
+     const char *why=xz_shut_reason(d,util.get_ok[u],util.set_ok[u],util.trial);
+     if(why||!xz_shut_arg(d,a->value,&arg)){refuse();notice_locked(now,why?why:"THAT CHOICE IS NOT ON THIS ITEM");break;}
+     c=(struct xz_shrt_command){XZ_SHRT_CMD_UTILITY,u,arg,0,0,now};
+     queue_command(&c);
+     util.raw[u]=arg;util.known[u]=1; /* shown at once; the next reading confirms or corrects it */
+     dirty_flag=1;break;
+    }
+   }
    if(!xz_shrt_setting_writable(a->id,has(G_TIME_MODE),has(G_QUANTIZE))||
       !xz_shrt_setting_command(a,now,&c)){refuse();break;}
    queue_command(&c);break;
@@ -1612,6 +1652,16 @@ static int run_command(const struct xz_shrt_command *c) {
   ((void(*)(int))(uintptr_t)0xc9304)(c->value);
   return 0;
  /* XZ_SHRT_CMD_STOCK_MENU is never queued: the physical MENU key goes to stock instead. */
+ case XZ_SHRT_CMD_UTILITY:{
+  if(c->deck<0||c->deck>=XZ_SHUT_DEFS)return -1;
+  const struct xz_shut_def *d=&xz_shut_defs[c->deck];
+  if(!d->set||!code_is(d->set,d->set_code,32)||(d->apply&&!code_is(d->apply,d->apply_code,32)))return -1;
+  /* Stock's menu applies the highlighted choice live (Pub_GuiCom_Change<item>) and then stores it
+     (UiSetUtil<item>, which starts stock's own save). Same order, same argument. */
+  if(d->apply)((void(*)(int))(uintptr_t)d->apply)((int)c->value);
+  ((void(*)(int))(uintptr_t)d->set)((int)c->value);
+  return 0;
+ }
  case XZ_SHRT_CMD_LOAD:{
   if(c->deck<0||c->deck>=XZ_SHELL_DECKS||!code_is(0x135728,load_code,16)||!code_is(0x13ba38,music_id_code,8))return LOAD_GUARD;
   int refused=load_refused(c);
@@ -1624,6 +1674,36 @@ static int run_command(const struct xz_shrt_command *c) {
  }
  default:return -1;
  }
+}
+/* Reads every stock UTILITY item through its getter, on the owner tick (the getters read stock's settings
+   set; the same thread runs the setters). Every 250 ms while the shell is up, every 2 s otherwise, and at
+   once after a set. */
+static void poll_utility(uint32_t now) {
+ int shown=__atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE);
+ if(!util.poll_now&&now-util.polled_ms<(shown?250u:2000u))return;
+ int32_t raw[XZ_SHUT_DEFS];uint8_t known[XZ_SHUT_DEFS];char version[24]={0};
+ for(int i=0;i<XZ_SHUT_DEFS;i++){
+  const struct xz_shut_def *d=&xz_shut_defs[i];known[i]=0;raw[i]=0;
+  if(util.get_ok[i]){raw[i]=((int(*)(void))(uintptr_t)d->get)();known[i]=1;}
+ }
+ if(util.version_ok&&!util.version[0]){
+  /* UiGetUtilVersion returns the version text stock prints after "Ver ". */
+  uint32_t text=(uint32_t)(uintptr_t)((const char *(*)(void))(uintptr_t)XZ_SHUT_VERSION_GET)();
+  char b[16];
+  if(pointer(text,sizeof b)&&!xz_read_memory(text,b,sizeof b)){
+   b[sizeof b-1]=0;int ok=b[0]!=0;
+   for(int k=0;b[k];k++)if(b[k]<32||b[k]>126)ok=0;
+   if(ok)snprintf(version,sizeof version,"VER %s",b);
+  }
+ }
+ pthread_mutex_lock(&mutex);
+ int changed=0;
+ for(int i=0;i<XZ_SHUT_DEFS;i++)if(known[i]!=util.known[i]||(known[i]&&raw[i]!=util.raw[i])){changed=1;util.changes++;}
+ memcpy(util.raw,raw,sizeof raw);memcpy(util.known,known,sizeof known);
+ if(version[0]){memcpy(util.version,version,sizeof version);changed=1;}
+ util.polled_ms=now;util.poll_now=0;util.polls++;
+ if(changed){fill_settings();dirty_flag=1;}
+ pthread_mutex_unlock(&mutex);
 }
 void xz_shell_runtime_owner_tick(void) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return;
@@ -1666,6 +1746,9 @@ void xz_shell_runtime_owner_tick(void) {
     hint[c->deck].pending=1;hint[c->deck].slot=c->device_kind-2;hint[c->deck].id=c->track_id;hint[c->deck].posted_us=mono_us();
     pthread_cond_signal(&wake);
    }
+  }else if(c->kind==XZ_SHRT_CMD_UTILITY){
+   if(rc){util.set_fails++;notice_locked(now_ms(),XZ_SHUT_NOTE_FIRMWARE);}else util.sets++;
+   util.poll_now=1;
   }else if(c->kind==XZ_SHRT_CMD_LOAD){
    char text[48];
    snprintf(text,sizeof text,rc==LOAD_DECK_LOADING?"DECK %d IS STILL LOADING":"DECK %d DID NOT ACCEPT THE LOAD",c->deck+1);
@@ -1679,6 +1762,12 @@ void xz_shell_runtime_owner_tick(void) {
     snprintf(line,sizeof line,"SHELL_COMMAND: kind=%d deck=%d track_id=%u device_kind=%u result=%d reason=%s state_word=%u loaded_before=%u "
      "load_lock_raw=0x%x latency_ms=%u",(int)c->kind,c->deck,c->track_id,(unsigned)c->device_kind,rc,load_reason(rc),
      before.known?before.state:UINT32_MAX,before.known?before.id:UINT32_MAX,debug_load_lock(),latency);
+   else if(c->kind==XZ_SHRT_CMD_UTILITY&&c->deck>=0&&c->deck<XZ_SHUT_DEFS){
+    const struct xz_shut_def *d=&xz_shut_defs[c->deck];
+    int32_t back=d->get&&code_is(d->get,d->get_code,32)?((int(*)(void))(uintptr_t)d->get)():INT32_MIN;
+    snprintf(line,sizeof line,"SHELL_UTILITY: item=%s arg=%d index=%d result=%d readback=%d applied_live=%d trial=%d latency_ms=%u",
+     d->key,(int)c->value,xz_shut_index(d,c->value),rc,(int)back,d->apply!=0,util.trial,latency);
+   }
    else snprintf(line,sizeof line,"SHELL_COMMAND: kind=%d deck=%d value=%d result=%d latency_ms=%u",(int)c->kind,c->deck,(int)c->value,rc,latency);
    xz_log(line);
   }
@@ -1706,6 +1795,7 @@ void xz_shell_runtime_owner_tick(void) {
   }
   pthread_mutex_unlock(&mutex);
  }
+ poll_utility(now_ms());
  if(pump)xz_native_skin_request_repaint();
 }
 
@@ -1724,6 +1814,8 @@ int xz_shell_runtime_start(void) {
  memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
+ memset(&util,0,sizeof util);
+ util.trial=flag("XZ_MODS_SETTINGS_READONLY")&&!flag("XZ_MODS_SHELL_UTILITY_WRITES");util.poll_now=1;
  check_guards();
  running=1;
  if(pthread_create(&worker_thread,NULL,worker,NULL)){running=0;free(storage);storage=NULL;xz_log("FLAGSHIP shell unavailable: worker thread");return -1;}
@@ -1731,7 +1823,10 @@ int xz_shell_runtime_start(void) {
  xz_mods_shell_proof_v1.enabled=1;xz_mods_shell_proof_v1.load_enabled=(uint32_t)load_enabled;
  __atomic_store_n(&enabled,1,__ATOMIC_RELEASE);
  char line[200];
- snprintf(line,sizeof line,"FLAGSHIP shell runtime armed: guards=0x%x load_by_id=%d debug=%d (theme 24 shows it)",guards,load_enabled,debug);
+ int util_get=0,util_set=0;
+ for(int i=0;i<XZ_SHUT_DEFS;i++){util_get+=util.get_ok[i];util_set+=!xz_shut_reason(&xz_shut_defs[i],util.get_ok[i],util.set_ok[i],0);}
+ snprintf(line,sizeof line,"FLAGSHIP shell runtime armed: guards=0x%x load_by_id=%d debug=%d utility=%d/%d read %d writable trial=%d (theme 24 shows it)",
+  guards,load_enabled,debug,util_get,XZ_SHUT_DEFS,util_set,util.trial);
  xz_log(line);
  return 0;
 }

@@ -34,6 +34,15 @@ with tempfile.TemporaryDirectory(prefix='xz-shell-runtime-') as folder:
                               capture_output=True, text=True)
     if negative.returncode == 0 or 'Shell runtime acceptance requires active assertions' not in negative.stderr:
         raise RuntimeError('Missing assertion rejection')
+    utility = folder / 'test-shell-utility.exe'
+    subprocess.run(common + ['-UNDEBUG'] + [str(ROOT / 'shell' / name) for name in SHELL_SOURCES] +
+                   [str(ROOT / name) for name in ('shell_runtime_core.c', 'shell_utility.c', 'test_shell_utility.c')] +
+                   ['-o', str(utility)], check=True)
+    subprocess.run([str(utility)], check=True, cwd=folder)
+    negative = subprocess.run(common + ['-DNDEBUG', '-c', str(ROOT / 'test_shell_utility.c'), '-o', str(folder / 'negative-utility.o')],
+                              capture_output=True, text=True)
+    if negative.returncode == 0 or 'Shell utility acceptance requires active assertions' not in negative.stderr:
+        raise RuntimeError('Missing utility assertion rejection')
     analysis = folder / 'test-shell-analysis.exe'
     subprocess.run(common + ['-UNDEBUG'] + [str(ROOT / name) for name in
                    ('shell_analysis.c', 'ui/layered_wave_source.c', 'ui/layered_wave.c', 'test_shell_analysis.c')] +
