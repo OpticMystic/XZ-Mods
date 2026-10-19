@@ -789,7 +789,8 @@ static int master_tempo_key_hook(void *self,const void *input) {
     pthread_mutex_lock(&ui_mutex);
     if(operation==0&&!(master_tempo_down&bit)) {
         master_tempo_down|=bit;
-        if(started&&key_available&&key_sync[deck].valid&&native_master_tempo_on) {
+        /* +0x34 is SHIFT: SHIFT+MASTER TEMPO keeps its stock function and leaves KEY SYNC on. */
+        if(started&&key_available&&!player[0x34]&&key_sync[deck].valid&&native_master_tempo_on) {
             struct xz_key_snapshot current;
             uint32_t epoch=key_sync[deck].epoch;
             int same=xz_key_native_snapshot((unsigned)deck,&current)&&current.epoch==epoch;
