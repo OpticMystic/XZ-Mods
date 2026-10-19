@@ -25,7 +25,10 @@ int main(int argc, char **argv) {
  m.fx.on=1;m.fx.name="SPIRAL";m.fx.beat_num=1;m.fx.beat_den=1;m.fx.time_ms=500;m.fx.bpm_x10=1022;
  m.stems_known=1;m.stems_on=1;
  unsigned check=0;double all=0,worst=0;
- printf("render (host -O2), both decks playing, clock +16.67 ms per frame:\n");
+ for(int pass=0;pass<2;pass++){
+ /* Pass 0: the theme's 3-band lanes; pass 1: the STEMS waveform (WAVEFORM COLOR = STEMS). */
+ u.display.wave_color=pass?XZ_SHELL_WAVE_STEMS:XZ_SHELL_WAVE_3BAND;all=0;worst=0;
+ printf("render (host -O2), %s, both decks playing, clock +16.67 ms per frame:\n",pass?"STEMS waveform":"3-BAND waveform");
  for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++){
   u.zoom=zoom;
   uint32_t clock=100000;int32_t base[2]={m.deck[0].elapsed_ms,m.deck[1].elapsed_ms};
@@ -43,6 +46,7 @@ int main(int argc, char **argv) {
   all+=samples[frames/2];if(samples[frames-1]>worst)worst=samples[frames-1];
  }
  printf("  all zooms: median of medians %.0f us, worst frame %.0f us (checksum %u)\n",all/(XZ_SHELL_ZOOM_MAX+1),worst,check);
+ }
 
  /* Playhead: true position advances 1.02 ms per ms; the reading is truncated to 10 ms and taken every
     second frame. Raw: extrapolate from the latest reading. Smoothed: xz_shrt_position_step. */
