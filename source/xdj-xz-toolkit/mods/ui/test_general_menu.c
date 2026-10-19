@@ -51,13 +51,18 @@ int main(void){
   xz_ui_init(&u);assert(u.page==XZ_UI_GENERAL);m.theme=theme;
   m.deck[0].ready=m.deck[1].ready=0x3fff;m.enabled=0;m.metrics_enabled=0;m.jump.enabled=0;
   geometry(&u,&m);capture(&u,&m,"general-off");
-  for(size_t k=0;k<sizeof(caps)/sizeof(*caps);k++){
+  for(size_t k=0;k<3;k++){
    struct xz_ui_model saved=m;
    assert(tap(&u,&m,XZ_UI_ENABLE,caps[k],a)==1&&a[0].kind==XZ_UI_ENABLE&&a[0].index==caps[k]&&a[0].value==1);
    assert(!memcmp(&m,&saved,sizeof(m)));
   }
+  /* MODS-only actions have no master switch, even when engine bits are off. */
+  for(size_t k=3;k<5;k++){
+   struct xz_ui_widget w=find(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,caps[k]);
+   assert(w.kind==XZ_UI_FEATURE_SETUP_OPEN);
+  }
   assert(tap(&u,&m,XZ_UI_JUMP_ENABLE,0,a)==1&&a[0].value==1);
-  {struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&u,&m,w);for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_METRICS_TOGGLE&&w[i].kind!=XZ_UI_RAM_DEBUG&&w[i].kind!=XZ_UI_JUMP_SHIFT);}
+  {struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&u,&m,w);for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_METRICS_TOGGLE&&w[i].kind!=XZ_UI_RAM_DEBUG&&w[i].kind!=XZ_UI_JUMP_SHIFT&&w[i].kind!=XZ_UI_SHIFT_PAGES&&w[i].kind!=XZ_UI_SHIFT_KEYSYNC);}
   m.enabled=0x3fff;m.jump.enabled=1;m.metrics_enabled=1;
   capture(&u,&m,"general-on");
   for(size_t k=0;k<sizeof(links)/sizeof(*links);k++){
@@ -96,6 +101,7 @@ int main(void){
   xz_ui_init(&u);memset(&m,0,sizeof(m));
   assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,caps[k],a)==1&&u.page==XZ_UI_FEATURE_SETUP&&u.feature_cap==caps[k]);
   assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_STEP,0,a)==0&&u.feature_step==0&&u.notice[0]);
+  if(caps[k]==XZ_UI_PREVIEW||caps[k]==XZ_UI_SAMPLE)continue;
   m.deck[1].ready=(uint32_t)caps[k];
   assert(tap(&u,&m,XZ_UI_DECK,1,a)==1&&u.deck==1);
   assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_STEP,0,a)==0&&u.feature_step==1);
@@ -104,6 +110,12 @@ int main(void){
   assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_STEP,3,a)==0&&u.page==XZ_UI_FEATURE_SETUP);
   m.enabled=(uint32_t)caps[k];m.deck[1].track="LOADED USB TRACK";
   assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_STEP,3,a)==1&&u.page==XZ_UI_GENERAL);
+ }
+ for(size_t k=3;k<5;k++){
+  xz_ui_init(&u);memset(&m,0,sizeof(m));m.deck[0].ready=(uint32_t)caps[k];m.deck[0].track="READY ACTION TRACK";
+  assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,caps[k],a)==1);
+  for(int step=0;step<3;step++)assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_STEP,step,a)==0&&u.feature_step==step+1);
+  assert(!m.enabled&&tap(&u,&m,XZ_UI_FEATURE_SETUP_STEP,3,a)==1&&u.page==XZ_UI_GENERAL);
  }
  puts("PASS General: feature actions, setup gates, fixed touch bounds, encoder and Back history in every theme");
  return 0;

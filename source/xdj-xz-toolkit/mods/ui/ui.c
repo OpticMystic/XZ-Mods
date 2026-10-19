@@ -291,7 +291,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   static const int caps[4]={XZ_UI_GATE,XZ_UI_SMART,XZ_UI_PREVIEW,XZ_UI_SAMPLE};
   static const char *names[4]={"GATE CUE","SMART CUE","HOT-CUE PREVIEW","X-PAD ENGINE"};
   static const char *setups[4]={"SET UP GATE CUE","SET UP SMART CUE","SET UP CUE PREVIEW","SET UP X-PAD"};
-  for(i=0;i<4;i++)add(w,&n,available&(uint32_t)caps[i]?XZ_UI_ENABLE:XZ_UI_FEATURE_SETUP_OPEN,caps[i],available&(uint32_t)caps[i]?(uint32_t)caps[i]:0,available&(uint32_t)caps[i]?names[i]:setups[i]);
+  for(i=0;i<4;i++){int toggle=i<2&&(available&(uint32_t)caps[i]);add(w,&n,toggle?XZ_UI_ENABLE:XZ_UI_FEATURE_SETUP_OPEN,caps[i],toggle?(uint32_t)caps[i]:0,toggle?names[i]:setups[i]);}
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,"STEM COLORS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_XPAD,0,"X-PAD SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,m->metrics.valid?"METRICS SETTINGS >":"SET UP METRICS >");
@@ -299,7 +299,8 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS,0,"KEYS / DISPLAY / RAM >");
  }else if(u->page==XZ_UI_FEATURE_SETUP){
   static const char *steps[4]={"DETECT FEATURE","USE SELECTED DECK","ENABLE FEATURE","I TESTED IT / DONE"};
-  add(w,&n,XZ_UI_FEATURE_SETUP_STEP,u->feature_step,0,steps[u->feature_step>=0&&u->feature_step<4?u->feature_step:0]);
+  int additive=u->feature_cap==XZ_UI_PREVIEW||u->feature_cap==XZ_UI_SAMPLE;
+  add(w,&n,XZ_UI_FEATURE_SETUP_STEP,u->feature_step,0,additive&&u->feature_step==2?"VERIFY FEATURE":steps[u->feature_step>=0&&u->feature_step<4?u->feature_step:0]);
  }else if(u->page==XZ_UI_METRICS_SETUP){
   static const char *steps[]={"DETECT METRICS","USE ON-DEVICE SENSORS","CONNECT READINGS","LIVE VERIFY"};
   int step=u->metrics_step>=0&&u->metrics_step<4?u->metrics_step:0;
@@ -322,11 +323,9 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_KEY_SHIFT,0,XZ_UI_KEY,"RESET");
   add(w,&n,XZ_UI_KEY_SHIFT,1,XZ_UI_KEY,"KEY +");
   add(w,&n,XZ_UI_KEY_SYNC,0,XZ_UI_KEYSYNC,"KEY SYNC");
-  add(w,&n,XZ_UI_SHIFT_KEYSYNC,0,0,"SHIFT + SYNC");
   add(w,&n,XZ_UI_PANEL,XZ_UI_KEY_SETUP,0,"KEY SETUP");
   add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"KEY FEEDBACK");
   add(w,&n,XZ_UI_PANEL,XZ_UI_RAM_SETUP,0,"RAM TRACKS");
-  add(w,&n,XZ_UI_SHIFT_PAGES,0,0,"SHIFT + PAD MODES");
   add(w,&n,XZ_UI_REKORDBOX_KEY,0,0,"REKORDBOX KEY");
   add(w,&n,XZ_UI_WAVE_MODE,0,0,"STOCK WAVE");
   add(w,&n,XZ_UI_WAVE_MODE,1,0,"3-BAND");
@@ -342,7 +341,6 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
    why==XZ_UI_USB_WHY_NONE?"STEMS READY / BACK TO PLAY":"CHECK THIS DECK AGAIN");
  }else if(u->page==XZ_UI_KEY_SETUP){
   add(w,&n,XZ_UI_KEY_CHECK,0,0,"DETECT + VERIFY KEYS");
-  add(w,&n,XZ_UI_SHIFT_KEYSYNC,0,0,"SHIFT + SYNC");
   add(w,&n,XZ_UI_PANEL,XZ_UI_BROWSE_SETUP,0,"KEY FORMAT");
  }else if(u->page==XZ_UI_BROWSE_SETUP){
   add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"KEY FEEDBACK");
@@ -469,8 +467,8 @@ static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,cons
  case XZ_UI_PC_TEST:return xz_ui_pc_blocked(m,deck)!=XZ_UI_PC_WHY_SOURCE&&xz_ui_pc_blocked(m,deck)!=XZ_UI_PC_WHY_LINK&&!(d->pc_stems.pending&(1u<<XZ_UI_PC_DRUMS));
  case XZ_UI_PC_CONFIRM:return xz_ui_pc_blocked(m,deck)!=XZ_UI_PC_WHY_SOURCE&&xz_ui_pc_blocked(m,deck)!=XZ_UI_PC_WHY_LINK;
  case XZ_UI_GROOVE_PAD:return (m->enabled&XZ_UI_STEM)&&(d->groove_loaded&(1u<<w->index));
- case XZ_UI_SAMPLE_PAD:return (m->enabled&XZ_UI_SAMPLE)&&(d->sample_loaded&(1u<<w->index));
- case XZ_UI_STRIP:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_VOLUME:return (m->enabled&XZ_UI_SAMPLE)!=0;
+ case XZ_UI_SAMPLE_PAD:return (d->sample_loaded&(1u<<w->index));
+ case XZ_UI_STRIP:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_VOLUME:return 1;
  default:return 1;}
 }
 static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,const struct xz_ui_widget *a){
@@ -792,9 +790,9 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   if(!(d->ready&cap)){
    snprintf(u->notice,sizeof(u->notice),u->feature_cap==XZ_UI_SAMPLE?"X-PAD ENGINE MISSING / REBUILD USB LOADER IN XZ MODS":"CUE FEATURE NOT READY / LOAD A USB TRACK OR UPDATE THE USB LOADER");return 0;
   }
-  if(u->feature_step==2){u->feature_step=3;out[0]=action(XZ_UI_ENABLE,XZ_UI_PRESS,deck,u->feature_cap,1,0);return 1;}
+  if(u->feature_step==2){u->feature_step=3;if(cap==XZ_UI_PREVIEW||cap==XZ_UI_SAMPLE)return 0;out[0]=action(XZ_UI_ENABLE,XZ_UI_PRESS,deck,u->feature_cap,1,0);return 1;}
   if(u->feature_step==3){
-   if(!(m->enabled&cap)||!d->track||!*d->track){snprintf(u->notice,sizeof(u->notice),"LOAD A TRACK ON THIS DECK, ENABLE THE FEATURE, THEN TEST IT");return 0;}
+   if((cap!=XZ_UI_PREVIEW&&cap!=XZ_UI_SAMPLE&&!(m->enabled&cap))||!d->track||!*d->track){snprintf(u->notice,sizeof(u->notice),cap==XZ_UI_PREVIEW||cap==XZ_UI_SAMPLE?"LOAD A TRACK ON THIS DECK, THEN TEST THE ACTION":"LOAD A TRACK ON THIS DECK, ENABLE THE FEATURE, THEN TEST IT");return 0;}
    return xz_ui_back(u,out);
   }
   u->feature_step++;return 0;

@@ -165,7 +165,9 @@ class VersionTests(unittest.TestCase):
         self.assertEqual((volume / managed_usb.SETTINGS).read_bytes(), original)
         old = usb_settings.parse(plan['data'], usb_settings.contract(self.a))
         current = usb_settings.parse(original, usb_settings.contract(self.b))
-        self.assertTrue(all(old[key] == current[key] for key in old))
+        retired=usb_settings.contract(self.b).get('retired_fields',{})
+        self.assertTrue(all(old[key] == current[key] for key in old if key not in retired))
+        self.assertFalse(set(retired) & current.keys())
 
     def test_oversized_profile_is_preserved_before_switch(self):
         volume, _ = self.profile()

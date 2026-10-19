@@ -61,7 +61,7 @@ is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resou
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
 
-Plug in a FAT/FAT32 USB and choose **Prepare USB → Choose USB and prepare loader**.
+Plug in a FAT/FAT32 USB and choose **Prepare USB â†’ Choose USB and prepare loader**.
 The app downloads the official 1.26 firmware and the boot support it needs, checks
 their hashes, then writes and verifies `autoexec.bin` in the USB root. It never
 formats the drive or replaces an existing loader. Firmware and boot support stay
@@ -126,7 +126,7 @@ model execution matrix still need acceptance. A successful file check does not
 prove playback alignment.
 
 Public package inputs are allowlisted. Firmware application binaries, boot
-keys, private boot images and firmware-extracted graphics are not shipped —
+keys, private boot images and firmware-extracted graphics are not shipped â€”
 download from the manufacturer during preparation, or supply a local official
 1.26 ZIP or UPD under Advanced options (see `BUILDING.md`).
 The `builder/firmware.py::import_application` path accepts the official 1.26
@@ -135,6 +135,7 @@ closed. The GUI must not claim broader firmware support.
 
 Feature controls follow one rule: unused-input additions are available without
 an enable switch; changes to normal controls retain their MODS setting.
-SHIFT + BEAT JUMP page 2 works even with page-1 custom jumps off. Older disabled
-page-2 and information-display settings are accepted and ignored. See the
+SHIFT shortcuts use otherwise unused standalone combinations and need no enable,
+even when their action changes audio. SHIFT + BEAT JUMP page 2 works with page-1
+custom jumps off. Old disabled shortcut and information settings are ignored. See the
 [feature-toggle audit](docs/feature-toggle-audit.md) for the complete inventory.

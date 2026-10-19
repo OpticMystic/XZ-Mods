@@ -10,7 +10,7 @@ void xz_key_display_panel(uint16_t *pixels,size_t stride,const struct xz_ui *ui,
         xz_text(c,136,52,"KEY SYNC SETUP",2,45,p->ink);
         xz_text(c,136,84,"1  LOAD TWO USB TRACKS WITH ANALYZED KEYS",1,100,p->ink);
         xz_text(c,136,104,"2  SELECT THE OTHER DECK AS MASTER",1,100,p->ink);
-        xz_text(c,136,124,"3  DETECT BELOW ENABLES SHIFT + SYNC",1,100,p->ink);
+        xz_text(c,136,124,"3  DETECT BELOW VERIFIES TRACK KEYS",1,100,p->ink);
         xz_text(c,136,144,"4  PRESS SHIFT + SYNC; WATCH ORIGINAL > PLAYING KEY",1,100,p->ink);
         xz_text(c,136,164,"MASTER TEMPO HOLDS KEY; OTHERWISE TEMPO CHANGES IT",1,100,xz_blend(p->bg,p->ink,170));
         if(model->key_browser_status)xz_text(c,136,184,model->key_browser_status,1,108,p->ink);

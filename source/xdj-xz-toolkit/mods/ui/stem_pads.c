@@ -1,6 +1,7 @@
 #include "stem_pads.h"
 int xz_stem_control_event(struct xz_stem_pads *s, const struct xz_cue_event *e, int active,
         int selected_page, int shift_pages, int *toggle) {
+    (void)shift_pages; /* Retired preference: shifted mode triggers are always available. */
     *toggle = -1;
     if (e->deck < 0 || e->deck > 1) return 0;
     int action = e->pad;
@@ -19,7 +20,7 @@ int xz_stem_control_event(struct xz_stem_pads *s, const struct xz_cue_event *e, 
     if (*down & bit) return consumed;
     *down |= bit;
     if (action < 0 || action > 3) return 0;
-    if (!active || (is_page ? !shift_pages || !e->shift : e->pad_page != selected_page || e->shift)) return 0;
+    if (!active || (is_page ? !e->shift : e->pad_page != selected_page || e->shift)) return 0;
     *owned |= bit;
     *toggle = xz_stem_pad_role(s->order, s->count[e->deck], action);
     if (*toggle >= 0 && *toggle != XZ_STEM_PAD_BYPASS) s->muted[e->deck] ^= 1u << *toggle;

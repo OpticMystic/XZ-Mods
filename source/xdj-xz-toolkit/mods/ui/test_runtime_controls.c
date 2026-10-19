@@ -312,6 +312,12 @@ int main(void){
     model.rekordbox_menu=0;assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==0&&!touch.visible);
     model.rekordbox_menu=1;
     settings_readonly=0;ui.page=XZ_UI_CONTROLS;model.theme=0;
+    /* An explicit unused shortcut enables the same audio state, even when an
+       old profile disabled both automatic stems and shift shortcuts. */
+    memset(&pads,0,sizeof(pads));model.enabled=0;requested_stems=0;model.shift_pages=0;
+    {struct xz_cue_event shortcut={.deck=0,.pad=-1,.mode_button=0,.shift=1};unsigned proof;
+     assert(xz_ui_runtime_pad(&shortcut,&proof)&&requested_stems&&(model.enabled&XZ_UI_STEM));
+     shortcut.operation=2;shortcut.shift=0;assert(xz_ui_runtime_pad(&shortcut,&proof));}
     /* Custom beat jump owns all four pairs even when stems use this page. */
     memset(&pads,0,sizeof(pads));memset(&jump_state,0,sizeof(jump_state));
     model.jump=xz_jump_defaults();model.jump.enabled=1;model.stem_page=3;model.shift_pages=1;

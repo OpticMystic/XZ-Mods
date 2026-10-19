@@ -108,7 +108,7 @@ int main(void){
     /* No master key: the error is inline on deck 2's strip, nothing pops up. */
     refresh();assert(!strcmp(key_strip[1].error,"LOAD A KEYED TRACK ON DECK 1")&&xz_mods_key_strip_proof_v1.errors[1]==1);
     event.operation=2;model.shift_keysync=0;assert(xz_ui_runtime_pad(&event,&trace));
-    /* Old saved preference off: the gesture syncs directly (no setup page), is consumed
+    /* Retired preference off: the always-available gesture syncs directly, is consumed
        with its repeat and release, and never reaches the firmware beat-sync toggle. */
     keys();model.shift_keysync=0;ui.page=XZ_UI_STEMS;event=(struct xz_cue_event){.deck=1,.sync=1,.shift=1,.operation=0};
     assert(xz_ui_runtime_pad(&event,&trace)&&ui.page==XZ_UI_STEMS&&!touch.visible&&fixture_key_requests==1&&model.shift_keysync);

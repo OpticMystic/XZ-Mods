@@ -10,13 +10,13 @@ def main():
  parser.add_argument('--zig',required=True,type=Path)
  args=parser.parse_args()
  schema=json.loads((ROOT/'settings-schema.json').read_text())
- retired={'jump_shift_page','ram_debug','metrics_enabled'}
+ retired={'jump_shift_page','ram_debug','metrics_enabled','shift_pages','shift_keysync'}
  assert set(schema['retired_fields'])==retired
  assert not retired & {f['key'] for f in schema['fields']}
  # Every remaining saved boolean belongs to one distinct behavior. Adding a
  # second gate requires updating this audited inventory instead of slipping in.
  switches={f['key'] for f in schema['fields'] if f['kind']=='boolean' and not f['readonly']}
- assert switches=={'stems','gate','smart','shift_pages','pad_feedback','shift_keysync',
+ assert switches=={'stems','gate','smart','pad_feedback',
    'fb_takeover','jump_enabled','browse_key_prefix','browse_traffic','key_feedback','rekordbox_menu'}
 
  values=usb_settings.defaults(schema)
@@ -29,7 +29,7 @@ def main():
   old=b''.join(wire.splitlines(keepends=True)[:count+1])
   assert usb_settings.parse(old,schema)==values
  ui=(ROOT/'ui/ui.c').read_text()
- for action in ('JUMP_SHIFT','RAM_DEBUG','METRICS_TOGGLE'):
+ for action in ('JUMP_SHIFT','RAM_DEBUG','METRICS_TOGGLE','SHIFT_PAGES','SHIFT_KEYSYNC'):
   assert 'add(w,&n,XZ_UI_'+action+',' not in ui
  runtime=(ROOT/'runtime.c').read_text()+(ROOT/'ui_runtime.c').read_text()
  for flag in ('STEMS','STEMS_FORCE','GATE_CUE','SMART_CUE','KEYSHIFT','THEME','WAVE_MODE','NATIVE_VIEW'):
@@ -49,7 +49,7 @@ def main():
   out=Path(folder);native=out/'settings-parser.c';native.write_text(source)
   exe=out/'toggles.exe'
   subprocess.run([str(args.zig.resolve()),'cc','-std=c11','-O2','-UNDEBUG','-Wall','-Wextra','-Werror',
-    '-I',str(ROOT),str(native),str(ROOT/'ui/beat_jump.c'),str(ROOT/'tests/test_feature_toggles.c'),'-o',str(exe)],check=True)
+    '-I',str(ROOT),str(native),str(ROOT/'ui/beat_jump.c'),str(ROOT/'ui/stem_pads.c'),str(ROOT/'tests/test_feature_toggles.c'),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True)
  print('PASS active schema, legacy desktop forms, all historical record lengths and independent gate inventory')
 

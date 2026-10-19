@@ -190,30 +190,10 @@
       ]
     },
     {
-      "key": "shift_pages",
-      "label": "Shift + pad modes for stems",
-      "group": "stems",
-      "default": 0,
-      "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
-    },
-    {
       "key": "pad_feedback",
       "label": "Stem pad lights",
       "group": "stems",
       "default": 1,
-      "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
-    },
-    {
-      "key": "shift_keysync",
-      "label": "Shift + Sync",
-      "group": "advanced",
-      "default": 0,
       "min": 0,
       "max": 1,
       "kind": "boolean",
@@ -1159,6 +1139,26 @@
       "key": "metrics_enabled",
       "label": "On-device metrics",
       "group": "debug",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "shift_pages": {
+      "key": "shift_pages",
+      "label": "Shift + pad modes for stems",
+      "group": "stems",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "shift_keysync": {
+      "key": "shift_keysync",
+      "label": "Shift + Sync",
+      "group": "advanced",
       "default": 1,
       "min": 0,
       "max": 1,

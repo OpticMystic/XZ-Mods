@@ -56,8 +56,9 @@ accepts at most 131,072 tracks per USB and rejects an incomplete/malformed index
 Green means an equal, adjacent-wheel, or relative key within 25 cents of the
 master. Amber means a harmonically related key outside that tuning tolerance.
 Other keys retain neutral coloring. Missing metadata or an ambiguous master
-opens Key Sync Setup; Detect verifies the two tracks and enables the shortcut.
-An existing saved `shift_keysync=0` preference is retained until that action.
+reports the missing prerequisite. Detect verifies the two tracks. The shortcut
+is always available on the standalone deck; old `shift_keysync=0` values are
+ignored on read. Computer-controlled sources retain their own stock mappings.
 
 Host tones, native-shaped input/control replays, export parsing, text-wrapper
 tests, and ARM ABI builds verify software behavior. Controller key metadata,
