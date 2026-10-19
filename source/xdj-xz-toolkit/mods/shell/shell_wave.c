@@ -145,21 +145,19 @@ void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 
 /* ---- 3-stem layer ----
    Stacked as the stems mod draws it: drums outermost, harmonics, vocal at the core. The column is as
-   tall as its loudest stem and each layer as thick as that stem's share. A layer darkens a little
-   toward its outer edge in four steps (to 84 %), so neighbours of similar brightness still part;
-   a muted stem turns a dim grey. */
-enum { STEM_STEPS=4 };
-struct stem_ink { uint16_t ink[3][STEM_STEPS]; };
-static const uint32_t stem_default_rgb[3]={0x007de1,0xff4619,0x28e028};   /* the FLAGSHIP theme stem colours */
+   tall as its loudest stem and each layer as thick as that stem's share. Each layer reads like its stem
+   button: the dark interior colour inside, a bright outline along its outer edge. The outline is the
+   layer's edge row plus the climb from the previous column's edge, so it runs unbroken as the shape
+   rises and falls, at a few pixels per column. A muted stem is a dim grey with no outline. */
+struct stem_ink { uint16_t fill[3], stroke[3]; int outline[3]; };
 static void stem_inks(const struct xz_shell_model *m, const struct xz_shell_deck *d, int played, struct stem_ink *k) {
  static const uint32_t played_rgb[3]={0x343434,0x5c5c5c,0x8c8c8c};
  for(int stem=0;stem<3;stem++){
-  uint32_t base=played?played_rgb[stem]:m->stem_rgb_known?m->stem_rgb[stem]&0xffffff:stem_default_rgb[stem];
-  if(!played&&sh_has(d,XZ_SHELL_F_STEM_MUTE)&&((d->stem_muted>>stem)&1)){
-   unsigned grey=(((base>>16)&255)+((base>>8)&255)+(base&255))/3;
-   base=xz_blend(0,grey*0x010101u,110);
-  }
-  for(int step=0;step<STEM_STEPS;step++)k->ink[stem][step]=c565(xz_blend(base,0,(unsigned)(step*14)));
+  uint32_t bright=sh_stem_bright(m,stem);
+  int muted=sh_has(d,XZ_SHELL_F_STEM_MUTE)&&((d->stem_muted>>stem)&1);
+  if(played){k->fill[stem]=k->stroke[stem]=c565(played_rgb[stem]);k->outline[stem]=0;}
+  else if(muted){k->fill[stem]=k->stroke[stem]=c565(0x2a2a2a);k->outline[stem]=0;}
+  else{k->fill[stem]=c565(sh_stem_dark(bright));k->stroke[stem]=c565(bright);k->outline[stem]=1;}
  }
 }
 /* 65536/sum for the sum of three stems, 1..765. */
@@ -189,26 +187,31 @@ static void stem_heights(const struct xz_shell_column *q, const int16_t *scale, 
  *core=sum?(int)(q->high*k>>16):0;
  *inner=sum?(int)((q->mid+q->high)*k>>16):0;
 }
-/* One mirrored column in a single pass from the outer edge in: twelve bands (three layers, four
-   shades each, darker outward), each pixel written once, no clipping inside the loop. */
-static void stem_column_centered(const struct span_canvas *s, int x, int cy, int core, int inner, int total, const struct stem_ink *k) {
+/* One mirrored column: three fill spans each side, then each layer's outline from its edge to the
+   previous column's edge (prev[layer], -1 when that layer was absent there). */
+static void stem_column_centered(const struct span_canvas *s, int x, int cy, int core, int inner, int total, const struct stem_ink *k, int prev[3]) {
  int edge=sh_min(cy-s->y0,s->y1-1-cy);
  if(total>edge)total=edge;
  if(inner>total)inner=total;
  if(core>inner)core=inner;
- /* from[i]: the lowest offset of band i, outermost band first. */
- int from[3*STEM_STEPS];const uint16_t *ink[3*STEM_STEPS];int n=0;
- const int bounds[4]={total,inner,core,0};
+ const int bound[4]={total,inner,core,0};
  for(int layer=0;layer<3;layer++){
-  int b=bounds[layer],a=bounds[layer+1];
-  for(int step=STEM_STEPS-1;step>=0;step--){from[n]=a+((b-a)*step>>2)+1;ink[n]=&k->ink[layer][step];n++;}
+  int outer=bound[layer],in=bound[layer+1];
+  if(outer<=in){prev[layer]=-1;continue;}
+  vspan(s,x,cy-outer,cy-in,k->fill[layer]);
+  vspan(s,x,cy+in+1,cy+outer+1,k->fill[layer]);
  }
- uint16_t *top=s->p+(size_t)(cy-total)*s->stride+(size_t)x,*bottom=s->p+(size_t)(cy+total)*s->stride+(size_t)x;
- int band=0;
- for(int d=total;d>=1;d--){
-  while(band<n-1&&d<from[band])band++;
-  *top=*bottom=*ink[band];
-  top+=s->stride;bottom-=s->stride;
+ for(int layer=0;layer<3;layer++){
+  int outer=bound[layer],in=bound[layer+1];
+  if(outer<=in)continue;
+  int was=prev[layer];prev[layer]=outer;
+  if(!k->outline[layer])continue;
+  int lo=outer-1,hi=outer;
+  if(was>=0){lo=sh_min(lo,was);hi=sh_max(hi,was);}
+  lo=sh_max(lo,in+1);hi=sh_min(hi,edge);
+  if(hi<lo)continue;
+  vspan(s,x,cy-hi,cy-lo+1,k->stroke[layer]);
+  vspan(s,x,cy+lo,cy+hi+1,k->stroke[layer]);
  }
 }
 static void stem_lane(const struct xz_shell_model *m, const struct xz_shell_deck *d, struct xz_canvas c, struct xz_shell_rect r, int amp, int64_t first_px, int pps) {
@@ -217,7 +220,7 @@ static void stem_lane(const struct xz_shell_model *m, const struct xz_shell_deck
  if(pps<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
  struct stem_ink k;stem_inks(m,d,0,&k);
  int16_t scale[256];scale_table(scale,amp);
- int cy=r.y+r.h/2;
+ int cy=r.y+r.h/2,prev[3]={-1,-1,-1};
  uint64_t cpp=lane_cpp(w,pps);
  for(int x=s.x0;x<s.x1;x++){
   int64_t p=first_px+(x-r.x);
@@ -225,13 +228,15 @@ static void stem_lane(const struct xz_shell_model *m, const struct xz_shell_deck
   uint64_t from,to;lane_range(cpp,p,&from,&to);
   if(from>=w->count)break;
   const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to);
-  if(!q->low&&!q->mid&&!q->high)continue;
+  if(!q->low&&!q->mid&&!q->high){prev[0]=prev[1]=prev[2]=-1;continue;}
   int core,inner,total;stem_heights(q,scale,&core,&inner,&total);
-  stem_column_centered(&s,x,cy,core,inner,total,&k);
+  stem_column_centered(&s,x,cy,core,inner,total,&k,prev);
   /* The centre row takes the innermost stem that sounds. */
-  vspan(&s,x,cy,cy+1,k.ink[q->high?2:q->mid?1:0][0]);
+  int centre=q->high?2:q->mid?1:0;
+  vspan(&s,x,cy,cy+1,k.outline[centre]&&total<=1?k.stroke[centre]:k.fill[centre]);
  }
 }
+/* The overview rises from the bottom: three fill spans and a one-pixel outline on each layer's top. */
 static void stem_overview(const struct xz_shell_model *m, const struct xz_shell_deck *d, struct xz_canvas c, struct xz_shell_rect r, int played_x) {
  const struct xz_shell_wave *w=&d->stems;
  struct span_canvas s;
@@ -240,16 +245,25 @@ static void stem_overview(const struct xz_shell_model *m, const struct xz_shell_
  int16_t scale[256];scale_table(scale,r.h);
  uint64_t cpp=((uint64_t)w->count<<16)/(uint64_t)r.w;
  if(!cpp)cpp=1;
- int base=r.y+r.h;
+ int base=r.y+r.h,prev[3]={-1,-1,-1};
  for(int x=s.x0;x<s.x1;x++){
   uint64_t from=((uint64_t)(x-r.x)*cpp)>>16,to=((uint64_t)(x-r.x+1)*cpp)>>16;
   if(from>=w->count)break;
   const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to);
   int core,inner,total;stem_heights(q,scale,&core,&inner,&total);
   const struct stem_ink *ink=&k[x<played_x];
-  if(total>inner)vspan(&s,x,base-total,base-inner,ink->ink[0][0]);
-  if(inner>core)vspan(&s,x,base-inner,base-core,ink->ink[1][0]);
-  if(core>0)vspan(&s,x,base-core,base,ink->ink[2][0]);
+  const int bound[4]={total,inner,core,0};
+  for(int layer=0;layer<3;layer++){
+   int outer=bound[layer],in=bound[layer+1];
+   if(outer<=in){prev[layer]=-1;continue;}
+   vspan(&s,x,base-outer,base-in,ink->fill[layer]);
+   int was=prev[layer];prev[layer]=outer;
+   if(!ink->outline[layer])continue;
+   int lo=outer,hi=outer;
+   if(was>=0){lo=sh_min(lo,was);hi=sh_max(hi,was);}
+   lo=sh_max(lo,in+1);
+   if(hi>=lo)vspan(&s,x,base-hi,base-lo+1,ink->stroke[layer]);
+  }
  }
 }
 

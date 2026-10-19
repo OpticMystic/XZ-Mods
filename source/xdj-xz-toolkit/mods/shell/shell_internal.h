@@ -107,6 +107,18 @@ const char *sh_item_help(const struct xz_shell_model *, int scope, const struct 
 const char *sh_choice_help(const struct xz_shell_model *, int scope, const struct xz_shell_setting_item *, int index);
 int sh_settings_item(const struct xz_shell *, const struct xz_shell_model *, int id, struct xz_shell_setting_item *out);
 size_t sh_settings_set(struct xz_shell *, int id, int index, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+/* Stem colours, two tones as the stem buttons draw them: the bright outline and label, and the dark
+   interior (3/16 of the bright, the ratio the reference stem buttons use). A colour the DJ picked
+   (stem_rgb_custom) replaces the default. Stems: 0 drums, 1 harmonics, 2 vocal. */
+static inline uint32_t sh_stem_bright(const struct xz_shell_model *m, int stem) {
+ static const uint32_t fallback[3]={0x4b4ace,0xac1f12,0x15b634};
+ if(stem<0||stem>2)return SH_DIM;
+ return m->stem_rgb_known&&((m->stem_rgb_custom>>stem)&1)?m->stem_rgb[stem]&0xffffff:fallback[stem];
+}
+static inline uint32_t sh_stem_dark(uint32_t bright) {
+ uint32_t r=(bright>>16)&255,g=(bright>>8)&255,b=bright&255;
+ return ((r*3>>4)<<16)|((g*3>>4)<<8)|(b*3>>4);
+}
 /* NEEDLE LOCK holds for this deck now: set, and the deck plays (shell_play.c). */
 int sh_needle_locked(const struct xz_shell_model *, const struct xz_shell_deck *);
 /* BROWSE with its category rail holding the encoder (shell_browse.c). */
