@@ -189,11 +189,14 @@ static void render_column(const struct xz_shell *u, const struct xz_shell_model 
  int ly=lane_y(deck),active=u->deck==deck;
  char text[32];
  xz_rect(c,0,ly,COL_W,LANE_H,SH_CHROME);
- xz_rect(c,0,ly,COL_W,23,active?SH_BLUE:SH_RAIL);
+ /* The deck tile takes the colour of the stick its track came from (USB COLORS); inactive, a stripe. */
+ uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=active?accent:SH_RAIL,ink=sh_ink_on(tile);
+ xz_rect(c,0,ly,COL_W,23,tile);
+ if(!active&&accent!=SH_BLUE)xz_rect(c,0,ly,4,23,accent);
  snprintf(text,sizeof text,"DECK %d",deck+1);
- sh_text(c,6,ly+4,text,SH_TEXT,SH_WHITE);
+ sh_text(c,6+(!active&&accent!=SH_BLUE?2:0),ly+4,text,SH_TEXT,ink);
  if(sh_has(d,XZ_SHELL_F_BAR_PHASE))for(int b=0;b<4;b++)
-  xz_rect(c,COL_W-30+b*7,ly+10,5,4,d->bar_phase==b+1?SH_WHITE:xz_blend(active?SH_BLUE:SH_RAIL,SH_WHITE,80));
+  xz_rect(c,COL_W-30+b*7,ly+10,5,4,d->bar_phase==b+1?ink:xz_blend(tile,ink,80));
  static const int rows[4]={24,47,70,93};
  for(int i=0;i<4;i++)xz_rect(c,0,ly+rows[i]-1,COL_W,1,SH_BLACK);
  /* source */
@@ -291,7 +294,7 @@ static void render_lane(const struct xz_shell *u, const struct xz_shell_model *m
   }
   sh_deck_lane(c,(struct xz_shell_rect){WAVE_X,ly,WAVE_W,LANE_H},LANE_H/2-EDGE,u,m,d,v.head_px-(v.ph_x-WAVE_X),v.pps);
   /* STEMS with no stem layer yet draws 3BAND, and says so, quietly, in the lane corner. */
-  if(sh_wave_color(u)==XZ_SHELL_WAVE_STEMS&&!sh_stem_wave_ready(d)){
+  if(sh_deck_wave_color(u,d)==XZ_SHELL_WAVE_STEMS&&!sh_stem_wave_ready(d)){
    static const char hint[]="NO STEM WAVE YET \xc2\xb7 3BAND";
    lane_caption(c,WAVE_X+WAVE_W-6-sh_text_width(c,hint,SH_SMALL),ly+LANE_H-TICK_H-SH_CAP_SMALL-6,hint,SH_DIM);
   }
@@ -441,9 +444,11 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
  char text[48],frac[16];
  xz_rect(c,s.x,s.y,s.w,s.h,SH_CHROME);
  /* title row */
- xz_rect(c,sx,s.y+5,44,20,u->deck==deck?SH_BLUE:SH_RAIL);
+ uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=u->deck==deck?accent:SH_RAIL;
+ xz_rect(c,sx,s.y+5,44,20,tile);
+ if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,sx,s.y+5,3,20,accent);
  snprintf(text,sizeof text,"DECK %d",deck+1);
- sh_text(c,sx+5,s.y+8,text,SH_SMALL,SH_WHITE);
+ sh_text(c,sx+5,s.y+8,text,SH_SMALL,sh_ink_on(tile));
  int tx=sx+52;
  if(loaded_known&&!loaded)sh_text(c,tx,s.y+6,"Not Loaded.",SH_TEXT,SH_RED);
  else if(loaded){

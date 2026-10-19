@@ -111,7 +111,7 @@ static void test_empty_and_unknown(void) {
    /* An empty table still lists what the shell supplies: its display items and the play model's settings. */
    assert(turn(&u,&m,3)==0);
    size_t n=push(&u,&m);
-   assert(n<=1&&(n==0||out[0].kind==XZ_SHELL_ACT_HAND_OFF||out[0].kind==XZ_SHELL_ACT_SET_SETTING));
+   assert(n<=2&&(n==0||out[0].kind==XZ_SHELL_ACT_HAND_OFF||out[0].kind==XZ_SHELL_ACT_SET_SETTING));
    assert(hold(&u,&m)==0);
    render(&u,&m);
    if(screen){while(xz_shell_settings_back(&u,&m));}
@@ -119,7 +119,7 @@ static void test_empty_and_unknown(void) {
   }
   open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
   turn(&u,&m,3);assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
-  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_STEMS);
+  assert(push(&u,&m)>=1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_STEMS);
   assert(u.display.wave_color==XZ_SHELL_WAVE_STEMS);
  }
  /* Wild items: NULL strings, bad counts and categories, out-of-range current. */
@@ -234,7 +234,7 @@ static void test_utility_encoder(void) {
  open_screen(&u,&no_set,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
  turn(&u,&no_set,1);push(&u,&no_set);assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
  push(&u,&no_set);turn(&u,&no_set,-1);
- assert(push(&u,&no_set)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_RGB);
+ assert(push(&u,&no_set)>=1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_RGB);
  assert(u.display.wave_color==XZ_SHELL_WAVE_RGB);
  /* A known value draws the blue dot; an unknown one draws none. */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
@@ -265,6 +265,7 @@ static void test_utility_encoder(void) {
 static void test_utility_touch(void) {
  struct xz_shell u;struct xz_shell_model m;
  model(&m);
+ fxs_item(XZ_SHELL_ITEM_SCREEN_SAVER)->category=XZ_SHELL_SETTING_CAT_DISPLAY_INDICATOR;   /* DISPLAY (LCD) one row short: row 8 is empty */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
  /* Rail: touch picks the category; a second touch on it moves into the list. */
  assert(tap(&u,&m,rail_x(),rail_row(1))==0&&pane(&u)==0&&cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
@@ -278,7 +279,7 @@ static void test_utility_touch(void) {
  /* Values: touch highlights, a second touch on the same row applies on release. */
  assert(tap(&u,&m,value_x()+60,list_row(0))==0&&pane(&u)==2);
  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,value_x()+60,list_row(0),0)==0);
- assert(send(&u,&m,XZ_SHELL_TOUCH_UP,value_x()+60,list_row(0),0)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==0);
+ assert(send(&u,&m,XZ_SHELL_TOUCH_UP,value_x()+60,list_row(0),0)>=1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==0);
  assert(pane(&u)==1);
  /* A drag scrolls instead of confirming. */
  tap(&u,&m,rail_x(),rail_row(0));tap(&u,&m,item_x()+100,list_row(5));
@@ -339,7 +340,7 @@ static void test_shortcut(void) {
  /* Push on a read-only item hands off; on a writable one it steps to the next value, wrapping. */
  assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
  turn(&u,&m,4);
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_STEMS&&out[0].deck==-1);
+ assert(push(&u,&m)>=1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_STEMS&&out[0].deck==-1);
  /* Chip taps set that value; the current chip writes nothing; the label line only focuses. */
  assert(u.display.wave_color==XZ_SHELL_WAVE_STEMS);
  assert(tap(&u,&m,chip_x(2,1,1,2),chip_y(2,1))==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_POSITION&&out[0].value==1);

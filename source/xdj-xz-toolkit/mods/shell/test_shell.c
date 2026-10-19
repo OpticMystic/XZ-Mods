@@ -140,7 +140,9 @@ static void test_navigation(void) {
  press(&u,&m,XZ_SHELL_KEY_INFO,out);assert(u.depth==3&&u.panel.kind==XZ_SHELL_PANEL_INFO);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK_HOLD,out)==0&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1&&u.panel.kind==XZ_SHELL_PANEL_NONE);
  assert(press(&u,&m,XZ_SHELL_KEY_BACK,out)==0&&u.depth==1);
- /* A short MENU on PLAY does nothing, as on the stock deck; on lists it opens the MENU panel; on UTILITY it closes. */
+ /* A short MENU on PLAY opens MODS (the stock deck does nothing there); on lists it opens the MENU panel;
+    on MODS it closes. */
+ assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.depth==2&&xz_shell_screen(&u)==XZ_SHELL_UTILITY);
  assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.depth==1);
  press(&u,&m,XZ_SHELL_KEY_BROWSE,out);
  assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.panel.kind==XZ_SHELL_PANEL_MENU&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);

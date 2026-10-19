@@ -69,6 +69,7 @@ enum xz_shell_field {
  XZ_SHELL_F_BEAT_JUMP, XZ_SHELL_F_LOOP, XZ_SHELL_F_HOT_CUES, XZ_SHELL_F_MEMORY_CUES, XZ_SHELL_F_CUE_POINT,
  XZ_SHELL_F_GRID, XZ_SHELL_F_BAR_PHASE, XZ_SHELL_F_WAVE, XZ_SHELL_F_OVERVIEW, XZ_SHELL_F_ARTWORK,
  XZ_SHELL_F_STEM_WAVE, XZ_SHELL_F_STEM_MUTE, XZ_SHELL_F_SLIP, XZ_SHELL_F_SLIP_POSITION, XZ_SHELL_F_VINYL,
+ XZ_SHELL_F_SOURCE_LOOK,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -130,6 +131,12 @@ struct xz_shell_deck {
                                         move (the ghost playhead), read at slip_at_ms like elapsed_ms */
  uint32_t slip_at_ms;
  int vinyl;                          /* XZ_SHELL_F_VINYL: the jog is in VINYL mode */
+ /* XZ_SHELL_F_SOURCE_LOOK: the MY SETTINGS colours of the stick the loaded track came from. While
+    display.usb_colors allows, the deck's tile takes background_rgb and its waveforms take wave_color. */
+ struct xz_shell_source_look {
+  int has_background; uint32_t background_rgb;   /* the stick's personal / background colour, 0xRRGGBB */
+  int wave_color;                               /* enum xz_shell_wave_color; -1: the stick sets none */
+ } look;
  const uint16_t *artwork;            /* RGB565 square, or NULL */
  int artwork_side;
 };
@@ -175,7 +182,7 @@ struct xz_shell_fx {
 };
 /* Filled by later units; opaque here. NULL hands the screen to the stock UI. */
 struct xz_shell_browse_model; struct xz_shell_settings_model; struct xz_shell_source_model; struct xz_shell_info_model;
-struct xz_shell_mods_model;
+struct xz_shell_mods_model; struct xz_shell_my_settings_model;
 struct xz_shell_model {
  struct xz_shell_deck deck[XZ_SHELL_DECKS];
  uint32_t capabilities;
@@ -194,6 +201,8 @@ struct xz_shell_model {
  const struct xz_shell_info_model *info;
  const struct xz_shell_mods_model *mods;  /* the MODS screen's mod tabs (shell_settings.h); NULL: the MODS header
                                              button opens the runtime's own mod panel (XZ_SHELL_ACT_OPEN_MODS) */
+ const struct xz_shell_my_settings_model *my_settings; /* the USB stick BROWSE shows (shell_settings.h); NULL
+                                             while BROWSE is not on a USB stick: MENU keeps the list MENU */
 };
 
 enum xz_shell_event_kind {
@@ -235,7 +244,12 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_STEM_MUTE,   /* deck, id = stem (0 drums, 1 harmonics/INST, 2 vocal), value = 1 mute, 0 play */
  XZ_SHELL_ACT_SET_MOD,     /* a MODS-tab item: deck = tab index in xz_shell_mods_model, id = the item's id, value =
                               choice index (shell_settings.h). Native UTILITY items keep XZ_SHELL_ACT_SET_SETTING */
- XZ_SHELL_ACT_PLAYLIST     /* id = enum xz_shell_playlist_op; the rest is in xz_shell.edit (below) */
+ XZ_SHELL_ACT_PLAYLIST,    /* id = enum xz_shell_playlist_op; the rest is in xz_shell.edit (below) */
+ XZ_SHELL_ACT_MY_SETTINGS, /* MY SETTINGS panel: id = enum xz_shell_my_op, value = the stick (enum xz_shell_source),
+                              deck = the deck LOAD applies to (shell_settings.h) */
+ XZ_SHELL_ACT_MY_SETTING_SET, /* a value stored in the stick's MY SETTINGS: deck = the stick (enum xz_shell_source),
+                              id = the item's id, value = choice index */
+ XZ_SHELL_ACT_DJ_PROFILE   /* deck = the stick (enum xz_shell_source), id = enum xz_shell_profile_op, value = profile index */
 };
 #define XZ_SHELL_HAND_OFF_MENU (-1)
 struct xz_shell_action { enum xz_shell_action_kind kind; int deck; int32_t value; int id; };
@@ -248,15 +262,20 @@ enum xz_shell_touch_region { XZ_SHELL_TOUCH_NONE, XZ_SHELL_TOUCH_OVERVIEW, XZ_SH
    state like zoom: a change applies at once and is mirrored as SET_SETTING {deck -1, id, value} (ids
    XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION and the shell_settings.h display items) for the
    runtime to persist. The runtime restores saved values with xz_shell_restore_setting after init. */
+/* Whether a deck follows the colours of its track's stick (deck.look): tile and waveform, tile only, or
+   neither. Setting WAVEFORM COLOR on this unit while it is ALL is a local override: it moves to TILE. */
+enum xz_shell_usb_colors { XZ_SHELL_USB_COLORS_ALL, XZ_SHELL_USB_COLORS_TILE, XZ_SHELL_USB_COLORS_OFF };
 struct xz_shell_display {
  enum xz_shell_wave_color wave_color;
  enum xz_shell_wave_position wave_position;
  enum xz_shell_key_display key_display;
+ enum xz_shell_usb_colors usb_colors;  /* XZ_SHELL_ITEM_USB_COLORS */
 };
 /* Slide-over panels on the list screens: INFO (the highlighted track), MENU (sort, columns, playlist
    edits) and FILTER. Shell state, kept in the struct so the runtime's key probe, which runs input on
    a copy of the struct, sees what a key would change. */
-enum xz_shell_panel_kind { XZ_SHELL_PANEL_NONE, XZ_SHELL_PANEL_INFO, XZ_SHELL_PANEL_MENU, XZ_SHELL_PANEL_FILTER };
+enum xz_shell_panel_kind { XZ_SHELL_PANEL_NONE, XZ_SHELL_PANEL_INFO, XZ_SHELL_PANEL_MENU, XZ_SHELL_PANEL_FILTER,
+ XZ_SHELL_PANEL_MY_SETTINGS };
 struct xz_shell_panel { enum xz_shell_panel_kind kind; int page, cursor, scroll, armed; };
 /* A track picked up to move inside an edited playlist: it travels from row from to row to. */
 struct xz_shell_grab { int active; uint32_t playlist, track; int32_t from, to; };
