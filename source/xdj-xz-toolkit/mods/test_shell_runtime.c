@@ -479,12 +479,40 @@ static void library(const char *path) {
  l=build(L,XZ_SHELL_SEARCH,XZ_SHELL_CAT_TRACK,0,NULL,"alpha");assert(l->total==1&&l->id[0]==101);xz_shlib_list_free(l);
  l=build(L,XZ_SHELL_SEARCH,XZ_SHELL_CAT_TRACK,0,NULL,"strasse");assert(l->total==1&&l->id[0]==404);xz_shlib_list_free(l);
  l=build(L,XZ_SHELL_SEARCH,XZ_SHELL_CAT_TRACK,0,NULL,"");assert(l->total==0);xz_shlib_list_free(l);
- /* Unsupported categories and paths fail without a list. */
- memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_FOLDER;l=NULL;
- assert(xz_shlib_build(L,&r,&l)&&!l);
+ /* FOLDER: the stick's folders that hold library tracks; subfolders first, then the folder's tracks by title. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_FOLDER,0,NULL,NULL);
+ assert(l->folders&&l->total==1&&l->kind[0]==XZ_SHELL_ROW_FOLDER&&!strcmp(l->names+l->name[0],"Contents"));
+ uint32_t folder[3]={l->id[0],0,0};xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_FOLDER,1,folder,NULL);
+ assert(l->folders&&l->total==4&&l->kind[0]==XZ_SHELL_ROW_FOLDER&&!strcmp(l->names+l->name[0],"Deep"));
+ assert(!strcmp(l->names+l->level_name,"Contents")&&l->has_parent&&!strcmp(l->names+l->parent_name,"FOLDER"));
+ for(int i=1;i<4;i++)assert(l->kind[i]==XZ_SHELL_ROW_TRACK&&l->id[i]!=404);
+ folder[1]=l->id[0];xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_FOLDER,2,folder,NULL);
+ assert(l->total==1&&!strcmp(l->names+l->name[0],"Cuts")&&!strcmp(l->names+l->parent_name,"Contents"));
+ folder[2]=l->id[0];xz_shlib_list_free(l);
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_FOLDER,3,folder,NULL);
+ assert(!l->folders&&l->total==1&&l->id[0]==404&&!strcmp(l->names+l->level_name,"Cuts")&&!strcmp(l->names+l->parent_name,"Deep"));
+ xz_shlib_list_free(l);
+ /* A folder that is not inside the one before it fails. */
+ {uint32_t bad[2]={folder[0],folder[2]};memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_FOLDER;r.depth=2;
+  r.path[0]=bad[0];r.path[1]=bad[1];l=NULL;assert(xz_shlib_build(L,&r,&l)&&!l);
+  r.depth=1;r.path[0]=0;assert(xz_shlib_build(L,&r,&l)&&!l);r.path[0]=999;assert(xz_shlib_build(L,&r,&l)&&!l);}
+ /* MATCHING: empty without a master deck; else BPM within the range and a compatible key. */
+ l=build(L,XZ_SHELL_BROWSE,XZ_SHELL_CAT_MATCHING,0,NULL,NULL);assert(l->total==0&&!strcmp(l->names+l->level_name,"MATCHING"));xz_shlib_list_free(l);
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;r.category=XZ_SHELL_CAT_MATCHING;r.matching.on=1;
+ r.matching.bpm_min_x100=12032;r.matching.bpm_max_x100=13568;l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l&&l->total==3);for(int i=0;i<3;i++)assert(l->id[i]!=303);xz_shlib_list_free(l);
+ snprintf(r.matching.master_key,sizeof r.matching.master_key,"%s","8A");l=NULL;
+ assert(!xz_shlib_build(L,&r,&l)&&l&&l->total==1&&l->id[0]==101);xz_shlib_list_free(l);
+ /* Unsupported paths fail without a list. */
+ memset(&r,0,sizeof r);r.screen=XZ_SHELL_BROWSE;l=NULL;
  r.category=XZ_SHELL_CAT_TRACK;r.depth=1;assert(xz_shlib_build(L,&r,&l)&&!l);
+ r.category=XZ_SHELL_CAT_MATCHING;r.depth=1;assert(xz_shlib_build(L,&r,&l)&&!l);
  r.category=XZ_SHELL_CAT_PLAYLIST;r.depth=1;r.path[0]=77;assert(xz_shlib_build(L,&r,&l)&&!l);
- assert(!(xz_shlib_categories()&(1u<<XZ_SHELL_CAT_FOLDER))&&(xz_shlib_categories()&(1u<<XZ_SHELL_CAT_PLAYLIST)));
+ assert(xz_shlib_categories()==(1u<<XZ_SHELL_CAT_COUNT)-1u);
+ /* NEW lands in an open folder: folder nodes are told from playlists. */
+ assert(xz_shlib_playlist_is_folder(L,1000)==1&&xz_shlib_playlist_is_folder(L,2000)==0&&xz_shlib_playlist_is_folder(L,77)==-1);
  /* INFO: the full record, with jump links for the catalog fields. */
  struct xz_shell_info_track info;
  assert(xz_shlib_info(L,101,XZ_SHELL_SRC_USB1,&info));

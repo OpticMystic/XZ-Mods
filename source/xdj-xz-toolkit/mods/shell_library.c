@@ -14,6 +14,11 @@ struct xz_shlib {
  char *text; size_t text_used, text_cap;
  struct node *playlists, *history; uint32_t playlist_count, playlist_cap, history_count, history_cap;
  int failed;
+ /* FOLDER: the stick's folders that hold library tracks, built on the first FOLDER list (worker only).
+    Folder id = index + 1, 0 = the stick's root; names live in their own buffer (the text pool is read
+    by other threads and must not move). track_dir: per track index, its folder id. */
+ struct dir { uint32_t parent, name; } *dirs; uint32_t dir_count, dir_cap, *track_dir;
+ char *dir_names; size_t dir_names_used, dir_names_cap; int dirs_state; /* 0 not built, 1 built, -1 failed */
 };
 
 static int read_file(void *user, uint64_t offset, void *bytes, size_t length) {
@@ -94,7 +99,8 @@ int xz_shlib_open(const char *path, size_t arena_size, struct xz_shlib **out) {
 void xz_shlib_free(struct xz_shlib *L) {
  if(!L)return;
  if(L->file)fclose(L->file);
- free(L->arena);free(L->tracks);free(L->text);free(L->playlists);free(L->history);free(L);
+ free(L->arena);free(L->tracks);free(L->text);free(L->playlists);free(L->history);
+ free(L->dirs);free(L->track_dir);free(L->dir_names);free(L);
 }
 uint32_t xz_shlib_track_count(const struct xz_shlib *L) { return L?L->count:0; }
 const struct xz_shlib_track *xz_shlib_track(const struct xz_shlib *L, uint32_t id) {
@@ -114,7 +120,7 @@ static const char *const category_names[XZ_SHELL_CAT_COUNT]={
  "ARTIST","ALBUM","TRACK","KEY","BPM","GENRE","RATING","COLOR","PLAYLIST","FOLDER","HISTORY","MATCHING"
 };
 uint32_t xz_shlib_categories(void) {
- return (1u<<XZ_SHELL_CAT_COUNT)-1u&~(1u<<XZ_SHELL_CAT_FOLDER)&~(1u<<XZ_SHELL_CAT_MATCHING);
+ return (1u<<XZ_SHELL_CAT_COUNT)-1u;
 }
 static uint32_t name_add(struct xz_shlib_list *l, const char *s, size_t n) {
  if(l->names_used+n+1>l->names_cap){
@@ -196,6 +202,88 @@ static int build_index(struct xz_shlib *L, const struct xz_shlib_request *r, str
  if(!found&&(l->level_name=name_add(l,"",0))==UINT32_MAX)return -1;
  return 0;
 }
+/* ---- FOLDER ---- */
+static uint32_t dir_name_add(struct xz_shlib *L, const char *s, size_t n) {
+ if(L->dir_names_used+n+1>L->dir_names_cap){
+  size_t next=L->dir_names_cap?L->dir_names_cap:4096;
+  while(next<L->dir_names_used+n+1){if(next>(size_t)UINT32_MAX/2)return UINT32_MAX;next*=2;}
+  char *q=realloc(L->dir_names,next);if(!q)return UINT32_MAX;
+  L->dir_names=q;L->dir_names_cap=next;
+ }
+ uint32_t at=(uint32_t)L->dir_names_used;memcpy(L->dir_names+at,s,n);L->dir_names[at+n]=0;L->dir_names_used+=n+1;
+ return at;
+}
+static const char *dir_name(const struct xz_shlib *L, uint32_t id) {
+ return id&&id<=L->dir_count?L->dir_names+L->dirs[id-1].name:"";
+}
+/* The child folder of parent called s[0..n), made when missing. 0 on failure (0 is never a child). */
+static uint32_t dir_child(struct xz_shlib *L, uint32_t parent, const char *s, size_t n) {
+ for(uint32_t i=0;i<L->dir_count;i++)
+  if(L->dirs[i].parent==parent&&!strncmp(L->dir_names+L->dirs[i].name,s,n)&&!L->dir_names[L->dirs[i].name+n])return i+1;
+ if(grow((void **)&L->dirs,&L->dir_cap,L->dir_count+1,sizeof *L->dirs))return 0;
+ uint32_t name=dir_name_add(L,s,n);
+ if(name==UINT32_MAX)return 0;
+ L->dirs[L->dir_count]=(struct dir){parent,name};
+ return ++L->dir_count;
+}
+static int build_dirs(struct xz_shlib *L) {
+ if(L->dirs_state)return L->dirs_state>0?0:-1;
+ L->dirs_state=-1;
+ if(!(L->track_dir=calloc(L->count?L->count:1,sizeof *L->track_dir)))return -1;
+ /* Tracks of one folder usually follow each other: reuse the last folder while the prefix matches. */
+ const char *last=NULL;size_t last_n=0;uint32_t last_dir=0;
+ for(uint32_t i=0;i<L->count;i++){
+  const char *p=xz_shlib_text(L,L->tracks[i].file_path);
+  const char *slash=strrchr(p,'/');
+  size_t n=slash?(size_t)(slash-p):0;
+  if(last&&n==last_n&&!strncmp(p,last,n)){L->track_dir[i]=last_dir;continue;}
+  uint32_t dir=0;
+  for(size_t at=0;at<n;){
+   while(at<n&&p[at]=='/')at++;
+   size_t end=at;while(end<n&&p[end]!='/')end++;
+   if(end>at&&!(dir=dir_child(L,dir,p+at,end-at)))return -1;
+   at=end;
+  }
+  L->track_dir[i]=dir;last=p;last_n=n;last_dir=dir;
+ }
+ L->dirs_state=1;return 0;
+}
+static int by_dir_name(const void *a, const void *b);
+static const struct xz_shlib *dir_library;
+static int build_folder(struct xz_shlib *L, const struct xz_shlib_request *r, struct xz_shlib_list *l, uint32_t *cap) {
+ if(build_dirs(L))return -1;
+ uint32_t parent=r->depth?r->path[r->depth-1]:0;
+ /* Every level of the path is a folder inside the one before it. */
+ for(int d=0;d<r->depth;d++)
+  if(!r->path[d]||r->path[d]>L->dir_count||L->dirs[r->path[d]-1].parent!=(d?r->path[d-1]:0))return -1;
+ if(r->depth){const char *n=dir_name(L,parent);if((l->level_name=name_add(l,n,strlen(n)))==UINT32_MAX)return -1;}
+ uint32_t *order=malloc((size_t)(L->dir_count?L->dir_count:1)*4),n=0;
+ if(!order)return -1;
+ for(uint32_t i=0;i<L->dir_count;i++)if(L->dirs[i].parent==parent)order[n++]=i+1;
+ dir_library=L;qsort(order,n,4,by_dir_name);
+ for(uint32_t i=0;i<n;i++){const char *s=dir_name(L,order[i]);if(row_add(l,cap,XZ_SHELL_ROW_FOLDER,order[i],s,strlen(s))){free(order);return -1;}}
+ free(order);
+ if(n)l->folders=1;
+ /* The folder's tracks in TRACK order (by title). */
+ pdb_index index;
+ if(pdb_build_index(L->db,PDB_TRACK,&index)!=PDB_OK)return -1;
+ for(size_t i=0;i<index.count;i++){
+  const struct xz_shlib_track *t=xz_shlib_track(L,index.entries[i].track_id);
+  if(t&&L->track_dir[t-L->tracks]==parent&&row_add(l,cap,XZ_SHELL_ROW_TRACK,t->id,NULL,0))return -1;
+ }
+ return 0;
+}
+/* MATCHING: every track the matching filter keeps (the master deck's BPM range and compatible keys), by title. */
+static int keep(const struct xz_shlib *L, uint32_t id, const struct xz_shlib_filter *f);
+static int build_matching(struct xz_shlib *L, const struct xz_shlib_request *r, struct xz_shlib_list *l, uint32_t *cap) {
+ if(r->depth)return -1;
+ if(!r->matching.on)return 0;
+ pdb_index index;
+ if(pdb_build_index(L->db,PDB_TRACK,&index)!=PDB_OK)return -1;
+ for(size_t i=0;i<index.count;i++)
+  if(keep(L,index.entries[i].track_id,&r->matching)&&row_add(l,cap,XZ_SHELL_ROW_TRACK,index.entries[i].track_id,NULL,0))return -1;
+ return 0;
+}
 static const struct node *sort_nodes_base;
 static int by_sort(const void *a, const void *b) {
  const struct node *x=&sort_nodes_base[*(const uint32_t *)a],*y=&sort_nodes_base[*(const uint32_t *)b];
@@ -254,6 +342,12 @@ static int build_tree(struct xz_shlib *L, const struct xz_shlib_request *r, stru
 static const struct xz_shlib *sort_library;
 static const struct xz_shlib_list *sort_list;
 static int sort_column, sort_descending;
+static int fold_compare(const char *a, const char *b);
+static int by_dir_name(const void *a, const void *b) {
+ uint32_t x=*(const uint32_t *)a,y=*(const uint32_t *)b;
+ int c=fold_compare(dir_name(dir_library,x),dir_name(dir_library,y));
+ return c?c:x<y?-1:x>y;
+}
 static int fold_compare(const char *a, const char *b) {
  for(;;a++,b++){
   int x=(unsigned char)*a,y=(unsigned char)*b;
@@ -356,7 +450,9 @@ int xz_shlib_build(struct xz_shlib *L, const struct xz_shlib_request *r, struct 
   switch(l->category){
   case XZ_SHELL_CAT_PLAYLIST:rc=build_tree(L,r,l,&cap,0);ordered=1;break;
   case XZ_SHELL_CAT_HISTORY:rc=build_tree(L,r,l,&cap,1);ordered=1;break;
-  case XZ_SHELL_CAT_FOLDER:case XZ_SHELL_CAT_MATCHING:case XZ_SHELL_CAT_COUNT:rc=-1;break;
+  case XZ_SHELL_CAT_FOLDER:rc=build_folder(L,r,l,&cap);break;
+  case XZ_SHELL_CAT_MATCHING:rc=build_matching(L,r,l,&cap);break;
+  case XZ_SHELL_CAT_COUNT:rc=-1;break;
   default:rc=build_index(L,r,l,&cap);break;
   }
   const char *top=category_names[l->category];
@@ -367,6 +463,7 @@ int xz_shlib_build(struct xz_shlib *L, const struct xz_shlib_request *r, struct 
    const struct node *p=l->depth>1?find_node(l->category==XZ_SHELL_CAT_HISTORY?L->history:L->playlists,
      l->category==XZ_SHELL_CAT_HISTORY?L->history_count:L->playlist_count,r->path[l->depth-2]):NULL;
    if(p)parent=xz_shlib_text(L,p->name);
+   if(l->category==XZ_SHELL_CAT_FOLDER&&l->depth>1)parent=dir_name(L,r->path[l->depth-2]);
    if((l->parent_name=name_add(l,parent,strlen(parent)))==UINT32_MAX)rc=-1;
    else l->has_parent=1;
   }
@@ -409,6 +506,10 @@ int xz_shlib_playlist_tracks(struct xz_shlib *L, uint32_t id, uint32_t **tracks,
  }
  pdb_reset(L->db,L->mark);
  return rc;
+}
+int xz_shlib_playlist_is_folder(const struct xz_shlib *L, uint32_t id) {
+ const struct node *n=L&&id?find_node(L->playlists,L->playlist_count,id):NULL;
+ return n?!!n->folder:-1;
 }
 const char *xz_shlib_playlist_name(const struct xz_shlib *L, uint32_t id) {
  const struct node *n=L?find_node(L->playlists,L->playlist_count,id):NULL;

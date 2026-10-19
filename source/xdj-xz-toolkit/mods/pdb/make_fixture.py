@@ -42,7 +42,7 @@ TRACKS = [
     dict(id=303, title="beta " + "extended mix " * 12, artist=1, album=10, genre=20, key=30, color=1,
          path="/Contents/beta.wav", bpm=9000, duration=99, rating=0, number=3, artwork=0),
     dict(id=404, title="Straße", artist=999, album=0, genre=0, key=0, color=0,
-         path="/Contents/strasse.mp3", bpm=12800, duration=180, rating=4, number=4, artwork=0),
+         path="/Contents/Deep/Cuts/strasse.mp3", bpm=12800, duration=180, rating=4, number=4, artwork=0),
 ]
 
 def track(t):

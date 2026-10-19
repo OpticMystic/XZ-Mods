@@ -60,6 +60,9 @@ unsigned xz_shell_runtime_take_ui_requests(void);
 /* XZ_SHELL_UI_STEM_MUTE: the stem mutes the shell asked for, oldest first; 0 when none is left.
    value 1 = muted, 0 = playing. ui_runtime.c runs them through its own stem mute path. */
 int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value);
+/* XZ_SHELL_UI_OPEN_MODS: the MODS panel page the shell's MODS screen asked for (enum xz_ui_page), or -1 for
+   the panel's own start page. Taken once. */
+int xz_shell_runtime_take_mods_page(void);
 /* A header action ui_runtime.c took but could not carry out: shown as the shell's notice toast. */
 void xz_shell_runtime_notice(const char *text);
 

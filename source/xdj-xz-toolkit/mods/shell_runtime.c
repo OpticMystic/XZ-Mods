@@ -25,6 +25,7 @@
 #include "ui/layered_wave_source.h"
 #include "ui/native_skin_runtime.h"
 #include "ui/themes.h"
+#include "ui/ui.h"
 #include <dirent.h>
 #include <errno.h>
 #include <dlfcn.h>
@@ -238,6 +239,7 @@ static struct { int deck, stem, value; } stem_queue[8];
 static unsigned stem_count;
 static void publish_refs(int slot);
 static void notice_locked(uint32_t now, const char *text);
+static void matching_filter(struct xz_shlib_filter *f);
 static int browse_source=-1;
 enum { L_BROWSE, L_PLAYLIST, L_SEARCH, L_COUNT };
 static struct list_slot {
@@ -252,6 +254,18 @@ static struct xz_shell_browse_row rows[XZ_SHELL_BROWSE_WINDOW];
 static struct xz_shell_browse_model browse;
 static struct xz_shell_source_model source_model;
 static struct xz_shell_info_model info_model;
+/* The MODS screen's mod tabs (shell_settings.h): the MODS panel's own top pages, in its order (ui/ui.c
+   menu_pages). Each is a TAB_PAGE: its button opens that page in the panel (OPEN_MODS, value = page), where
+   every mod setting already has its control and its side effects. Item tabs that set mod settings from the
+   shell wait for the settings rework (one setter per schema field). */
+static const struct xz_shell_mods_tab mod_tabs[5]={
+ {"GENERAL",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_GENERAL,"TURN MODS ON AND OFF AND SET THEM UP"},
+ {"CONTROLS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_CONTROLS,"STEM PAD SHORTCUTS AND CUSTOM BEAT JUMPS"},
+ {"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_THEMES,"THE PLAYER THEME AND STEM COLORS"},
+ {"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_SETTINGS,"CUE, KEY AND WAVEFORM OPTIONS AND RAM TRACKS"},
+ {"EXTRAS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_EXTRAS,"VJ.TOOLS LINK, GAMES, USB APPS AND UPDATES"}};
+static const struct xz_shell_mods_model mods_model={5,mod_tabs};
+static int mods_page=-1; /* under mutex: the page OPEN_MODS asked for */
 /* TIME MODE, AUTO CUE, the stock UTILITY items and VERSION. */
 #define SETTING_ROWS (2+XZ_SHUT_DEFS+1)
 static struct xz_shell_setting_item setting_items[SETTING_ROWS];
@@ -289,6 +303,18 @@ static void list_reset(struct list_slot *ls, int k) {
  ls->req.category=k==L_PLAYLIST?XZ_SHELL_CAT_PLAYLIST:XZ_SHELL_CAT_TRACK;
  ls->source=-1;
 }
+/* The playlist folder the shown PLAYLIST list is in: the open level when it is a folder, else the level
+   above it (an open playlist's folder); 0 = the top. */
+static uint32_t open_folder(int slot) {
+ int k=shown_list(NULL);const struct xz_shlib_request *r=&lists[k].req;
+ if(slot<0||!usb[slot].lib||lists[k].source!=slot||r->category!=XZ_SHELL_CAT_PLAYLIST)return 0;
+ for(int d=r->depth;d>0;d--){
+  uint32_t id=r->path[d-1];
+  if(xz_shlib_playlist_is_folder(usb[slot].lib,id)==1)return id;
+  /* A shell-made playlist folder does not exist (NEW makes playlists): keep walking up. */
+ }
+ return 0;
+}
 static void list_rebuild(struct list_slot *ls) { ls->wanted++;ls->window_start=0;pthread_cond_signal(&wake); }
 static void choose_source(void) {
  if(browse_source>=0&&usb[browse_source].lib)return;
@@ -310,6 +336,19 @@ static int played_has(uint8_t kind, uint32_t id) {
 
 /* ---- model slots ---- */
 #define BF(f) (1u<<XZ_SHELL_BF_##f)
+/* Row previews (BROWSE PREVIEW column): each track's PWV6 binned to PREVIEW_COLS, kept for the last
+   PREVIEW_CACHE tracks shown. fill_browse lists the window's tracks that have none; the worker reads them one
+   per pass. Entries are fixed storage under the mutex, so a row never points at freed memory. */
+#define PREVIEW_COLS 96
+#define PREVIEW_CACHE 96
+static struct preview { int slot, state; uint32_t id, used, n; struct xz_shell_column col[PREVIEW_COLS]; } previews[PREVIEW_CACHE];
+static struct { int slot; uint32_t id[XZ_SHELL_BROWSE_WINDOW]; int n; } preview_want; /* under mutex */
+static uint32_t preview_clock;
+static uint32_t preview_reads;
+static struct preview *preview_find(int slot, uint32_t id) {
+ for(int i=0;i<PREVIEW_CACHE;i++)if(previews[i].state&&previews[i].slot==slot&&previews[i].id==id)return &previews[i];
+ return NULL;
+}
 static void fill_browse(struct xz_shlib *lib) {
  int view,k=shown_list(&view);
  struct list_slot *ls=&lists[k];
@@ -352,6 +391,14 @@ static void fill_browse(struct xz_shlib *lib) {
  for(int i=0;i<browse.window_count;i++)if(rows[i].kind==XZ_SHELL_ROW_TRACK){
   rows[i].played=played_has((uint8_t)(2+browse_source),rows[i].id);rows[i].known|=1u<<XZ_SHELL_RF_PLAYED;
  }
+ preview_want.slot=browse_source;preview_want.n=0;
+ for(int i=0;i<browse.window_count;i++)if(rows[i].kind==XZ_SHELL_ROW_TRACK){
+  struct preview *p=preview_find(browse_source,rows[i].id);
+  if(!p){if(preview_want.n<XZ_SHELL_BROWSE_WINDOW)preview_want.id[preview_want.n++]=rows[i].id;continue;}
+  p->used=++preview_clock;
+  if(p->state>0){rows[i].preview=p->col;rows[i].preview_count=p->n;rows[i].known|=1u<<XZ_SHELL_RF_PREVIEW;}
+ }
+ if(preview_want.n)pthread_cond_signal(&wake);
  browse.rows=rows;
  /* Sort keys and column choices: every column the rows carry. Columns: the chosen mask in enum order. */
  browse.sort_keys=browse.column_choices=xz_shlib_sort_keys();browse.known|=BF(SORT_KEYS)|BF(COLUMN_CHOICES);
@@ -455,6 +502,7 @@ static void fill_slots_locked(void) {
  if(lib){fill_browse(lib);model.browse=&browse;}else model.browse=NULL;
  fill_source();model.source=&source_model;
  fill_settings();model.settings_screen=&settings_model;
+ model.mods=&mods_model;
  fill_info();model.info=&info_model;
  __atomic_store_n(&xz_mods_shell_proof_v1.capabilities,caps,__ATOMIC_RELAXED);
 }
@@ -870,6 +918,7 @@ static void scan_usb(void) {
   pthread_mutex_lock(&mutex);
   if(usb[slot].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[slot].lib;
   usb[slot].lib=next;usb[slot].status=next?USB_READY:found?USB_ERROR:USB_NONE;
+  for(int i=0;i<PREVIEW_CACHE;i++)if(previews[i].slot==(int)slot)previews[i].state=0; /* ids belong to the old export */
   usb[slot].tracks=xz_shlib_track_count(next);usb[slot].space_known=space;
   usb[slot].free_bytes=free_bytes;usb[slot].total_bytes=total_bytes;usb[slot].rdonly=rdonly;
   snprintf(usb[slot].root,sizeof usb[slot].root,"%s",next?root:"");
@@ -1013,6 +1062,7 @@ static void *worker(void *unused) {
    struct xz_shlib_request req=ls->req;uint32_t gen=ls->wanted;struct xz_shlib *lib=usb[ls->source].lib;
    /* The build reads the filter and its own copy of the stick's playlist edits. */
    struct xz_shpl_set snapshot;req.filter=active_filter;
+   if(req.category==XZ_SHELL_CAT_MATCHING)matching_filter(&req.matching);
    if(xz_shpl_copy(&snapshot,&edits[ls->source]))xz_shpl_init(&snapshot);
    req.edits=&snapshot;
    pthread_mutex_unlock(&mutex);
@@ -1031,6 +1081,33 @@ static void *worker(void *unused) {
    }
    retire_list(result);
    pthread_mutex_unlock(&mutex);drain_retired();pthread_mutex_lock(&mutex);
+   worked=1;
+  }
+  if(!worked&&preview_want.n&&preview_want.slot>=0&&usb[preview_want.slot].lib){
+   int slot=preview_want.slot;uint32_t id=preview_want.id[--preview_want.n];
+   if(!preview_find(slot,id)){
+    struct xz_shlib *lib=usb[slot].lib;
+    const struct xz_shlib_track *t=xz_shlib_track(lib,id);
+    char track[1024];snprintf(track,sizeof track,"%s",t?xz_shlib_text(lib,t->file_path):"");
+    pthread_mutex_unlock(&mutex);
+    /* Only this thread changes the analysis index and frees libraries. */
+    struct xz_shell_column col[PREVIEW_COLS];uint32_t n=0;char dir[1024];uint8_t *bands=NULL;uint32_t count=0;
+    if(track[0]&&analysis[slot].index&&!xz_shana_find(analysis[slot].index,track,dir,sizeof dir)&&!xz_shana_preview(dir,&bands,&count)){
+     struct xz_shell_column *binned=bin_columns(bands,count,PREVIEW_COLS,band_peak(bands,count),&n);
+     if(binned&&n<=PREVIEW_COLS)memcpy(col,binned,(size_t)n*sizeof *col);else n=0;
+     free(binned);
+    }
+    free(bands);
+    pthread_mutex_lock(&mutex);
+    if(usb[slot].lib==lib&&!preview_find(slot,id)){
+     struct preview *p=&previews[0];
+     for(int i=0;i<PREVIEW_CACHE;i++){if(!previews[i].state){p=&previews[i];break;}if(previews[i].used<p->used)p=&previews[i];}
+     p->slot=slot;p->id=id;p->state=n?1:-1;p->n=n;p->used=++preview_clock;memcpy(p->col,col,(size_t)n*sizeof *col);
+     preview_reads++;
+     if(refreshed)fill_slots_locked();
+     dirty_flag=1;
+    }
+   }
    worked=1;
   }
   if(!worked){
@@ -1168,6 +1245,34 @@ static void hand_off_locked(uint32_t now, const char *why, unsigned what) {
 }
 /* The FILTER panel's filter as the library applies it, with the master deck's BPM and key taken now.
    Every list in use is rebuilt with it on the worker. */
+/* The master deck, or NULL. */
+static const struct xz_shell_deck *master_deck(int *index) {
+ for(int d=0;d<XZ_SHELL_DECKS;d++)if((model.deck[d].known&K(MASTER))&&model.deck[d].master){if(index)*index=d;return &model.deck[d];}
+ if(index)*index=-1;
+ return NULL;
+}
+/* MATCHING keeps the tracks within 6% of the master deck's BPM whose key the traffic light marks green or
+   amber against the master key; either part alone when only one is known. Rebuilt when the master deck or
+   its track changes, not on every tempo move. */
+#define MATCHING_BPM_PERCENT 6
+static uint32_t matching_signature;
+static void matching_filter(struct xz_shlib_filter *f) {
+ memset(f,0,sizeof *f);
+ const struct xz_shell_deck *m=master_deck(NULL);
+ if(!m)return;
+ if((m->known&K(BPM))&&m->bpm_x100>0){
+  int32_t spread=m->bpm_x100*MATCHING_BPM_PERCENT/100;
+  f->bpm_min_x100=m->bpm_x100-spread;f->bpm_max_x100=m->bpm_x100+spread;f->on=1;
+ }
+ if((m->known&K(KEY))&&m->key&&m->key[0]){snprintf(f->master_key,sizeof f->master_key,"%s",m->key);f->on=1;}
+}
+static void matching_follow(void) {
+ int d;const struct xz_shell_deck *m=master_deck(&d);
+ uint32_t sig=m?(uint32_t)(d+1)<<28^(m->known&K(KEY)?1u<<27:0)^(loaded[d].known?loaded[d].id&0x7ffffffu:0):0;
+ if(sig==matching_signature)return;
+ matching_signature=sig;
+ for(int k=0;k<L_COUNT;k++)if(lists[k].requested&&lists[k].req.category==XZ_SHELL_CAT_MATCHING)list_rebuild(&lists[k]);
+}
 static void apply_filter(int on) {
  memset(&active_filter,0,sizeof active_filter);
  if(on){
@@ -1207,7 +1312,9 @@ static void browse_action(int32_t value, int op) {
  case XZ_SHELL_BROWSE_TOP:r->depth=0;r->sort_set=0;break;
  case XZ_SHELL_BROWSE_CATEGORY:
   if(value<0||value>=XZ_SHELL_CAT_COUNT||!((xz_shlib_categories()>>value)&1u)){refuse();return;}
-  r->category=(enum xz_shell_browse_category)value;r->depth=0;r->sort_set=0;break;
+  r->category=(enum xz_shell_browse_category)value;r->depth=0;r->sort_set=0;
+  if(value==XZ_SHELL_CAT_MATCHING&&!master_deck(NULL))notice_locked(now_ms(),"MATCHING NEEDS A MASTER DECK");
+  break;
  case XZ_SHELL_BROWSE_SORT:r->sort_set=1;r->sort_column=value&255;r->sort_descending=(value>>8)&1;break;
  case XZ_SHELL_BROWSE_SEARCH_QUERY:snprintf(r->query,sizeof r->query,"%s",xz_shell_browse_query());break;
  default:refuse();return;
@@ -1275,6 +1382,8 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    if(debug&&a->value>0){char line[120];snprintf(line,sizeof line,"SHELL_HANDOFF: stock_item=%d (opened at its top: Util_EnterMenu_* not called)",(int)a->value-1);xz_log(line);}
    hand_off_locked(now,"action_screen",(unsigned)a->id);break;
   case XZ_SHELL_ACT_OPEN_MODS:
+   mods_page=-1;
+   for(int t=0;t<(int)mods_model.count;t++)if(mod_tabs[t].page==a->value)mods_page=a->value;
    __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_OPEN_MODS,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;xz_mods_shell_proof_v1.ui_requests++;break;
   case XZ_SHELL_ACT_TOGGLE_STEMS:
    __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_TOGGLE_STEMS,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;xz_mods_shell_proof_v1.ui_requests++;break;
@@ -1294,6 +1403,8 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    pl_queue[(pl_head+pl_count)%PL_QUEUE].slot=browse_source;
    pl_queue[(pl_head+pl_count)%PL_QUEUE].e=shell.edit;
    pl_queue[(pl_head+pl_count)%PL_QUEUE].e.op=(enum xz_shell_playlist_op)a->id;
+   /* NEW lands in the playlist folder that is open (the shell sends no parent). */
+   if(a->id==XZ_SHELL_PL_CREATE)pl_queue[(pl_head+pl_count)%PL_QUEUE].e.playlist=open_folder(browse_source);
    pl_count++;pthread_cond_signal(&wake);
    break;
   case XZ_SHELL_ACT_STEM_MUTE:
@@ -1355,6 +1466,17 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  }
  apply_waves_locked();
  unsigned changed=xz_shell_model_refresh(&model,storage,model_read,now);
+ matching_follow();
+ if(debug){
+  /* BEAT FX channel selector and the rest of the record, raw, on change: the channel label mapping is not
+     proven statically (E:/Claude/xz-fx-research-20261018/contracts.md); a selector sweep proves it. */
+  static unsigned char last_fx[12];static int last_fx_ok;unsigned char fx[12];
+  if(xz_shell_model_fx_raw(storage,fx)&&(!last_fx_ok||memcmp(fx,last_fx,12))){
+   char line[120];int at=snprintf(line,sizeof line,"SHELL_FX_RAW: channel_raw=%u record=",fx[1]);
+   for(int k=0;k<12&&at>0&&at<(int)sizeof line-3;k++)at+=snprintf(line+at,sizeof line-(size_t)at,"%02x",fx[k]);
+   xz_log(line);memcpy(last_fx,fx,12);last_fx_ok=1;
+  }
+ }
  for(int d=0;d<XZ_SHELL_DECKS;d++)if(changed>>d&1u){
   memory_count_cache[d]=-1;
   /* A new track: drop the old grid now, load the new wave and grid on the worker. */
@@ -1609,6 +1731,11 @@ int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value) {
  pthread_mutex_unlock(&mutex);
  return got;
 }
+int xz_shell_runtime_take_mods_page(void) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
+ pthread_mutex_lock(&mutex);int page=mods_page;mods_page=-1;pthread_mutex_unlock(&mutex);
+ return page;
+}
 unsigned xz_shell_runtime_take_ui_requests(void) { ui_requests_at=0;return __atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL); }
 /* ui_runtime.c reports a header action it took but could not carry out (one short caps sentence). */
 void xz_shell_runtime_notice(const char *text) {
@@ -1814,7 +1941,7 @@ int xz_shell_runtime_start(void) {
  memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
- memset(&util,0,sizeof util);
+ memset(&util,0,sizeof util);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;
  util.trial=flag("XZ_MODS_SETTINGS_READONLY")&&!flag("XZ_MODS_SHELL_UTILITY_WRITES");util.poll_now=1;
  check_guards();
  running=1;
@@ -1836,7 +1963,7 @@ void xz_shell_runtime_stop(void) {
  if(worker_created){pthread_join(worker_thread,NULL);worker_created=0;}
  pthread_mutex_lock(&mutex);
  set_owns(0);
- model.browse=NULL;model.source=NULL;model.info=NULL;model.settings_screen=NULL;
+ model.browse=NULL;model.source=NULL;model.info=NULL;model.settings_screen=NULL;model.mods=NULL;
  for(int k=0;k<L_COUNT;k++){retire_list(lists[k].result);lists[k].result=NULL;}
  for(int i=0;i<2;i++){if(usb[i].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[i].lib;usb[i].lib=NULL;}
  for(int d=0;d<XZ_SHELL_DECKS;d++){free_wave(d);prefetch_drop(d);}

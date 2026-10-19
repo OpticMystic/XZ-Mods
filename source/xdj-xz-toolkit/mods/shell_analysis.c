@@ -251,8 +251,8 @@ int xz_shana_stems_find(const struct xz_shana_stems *s, const char *track, char 
  return -1;
 }
 static uint32_t be32(const uint8_t *b) { return (uint32_t)b[0]<<24|(uint32_t)b[1]<<16|(uint32_t)b[2]<<8|b[3]; }
-/* PWV7 only: walk the section headers with seeks and read just that payload. */
-static uint8_t *read_pwv7(const char *path, uint32_t *count) {
+/* One 3-byte-entry section (PWV7, PWV6): walk the section headers with seeks and read just that payload. */
+static uint8_t *read_section(const char *path, const char tag[4], uint32_t limit, uint32_t *count) {
  FILE *f=fopen(path,"rb");if(!f)return NULL;
  uint8_t head[24],*out=NULL;
  if(fread(head,1,12,f)!=12||memcmp(head,"PMAI",4)){fclose(f);return NULL;}
@@ -261,10 +261,10 @@ static uint8_t *read_pwv7(const char *path, uint32_t *count) {
   if(fseek(f,(long)at,SEEK_SET)||fread(head,1,12,f)!=12)break;
   uint32_t h=be32(head+4),total=be32(head+8);
   if(h<12||total<h||total>length-at)break;
-  if(!memcmp(head,"PWV7",4)){
+  if(!memcmp(head,tag,4)){
    if(h<20||fread(head+12,1,8,f)!=8||be32(head+12)!=3)break;
    uint32_t c=be32(head+16);
-   if(!c||c>1000000u||(uint64_t)c*3>total-h||fseek(f,(long)(at+h),SEEK_SET))break;
+   if(!c||c>limit||(uint64_t)c*3>total-h||fseek(f,(long)(at+h),SEEK_SET))break;
    out=malloc((size_t)c*3);
    if(out&&fread(out,1,(size_t)c*3,f)!=(size_t)c*3){free(out);out=NULL;}
    if(out)*count=c;
@@ -273,6 +273,12 @@ static uint8_t *read_pwv7(const char *path, uint32_t *count) {
   at+=total;
  }
  fclose(f);return out;
+}
+static uint8_t *read_pwv7(const char *path, uint32_t *count) { return read_section(path,"PWV7",1000000u,count); }
+int xz_shana_preview(const char *dir, uint8_t **bands, uint32_t *count) {
+ char path[PATH_CAP];*bands=NULL;*count=0;
+ if(snprintf(path,sizeof path,"%s/ANLZ0000.2EX",dir)>=(int)sizeof path)return -1;
+ return (*bands=read_section(path,"PWV6",65536u,count))?0:-1;
 }
 /* gettimeofday: timespec_get and clock_gettime are newer than the deck's GLIBC_2.4 ceiling. */
 static uint32_t since_ms(struct timeval a) {

@@ -128,6 +128,23 @@ int main(void){
  assert(xz_shana_signature(root)!=sig&&!xz_shana_signature("shell-analysis-fixture/none"));
  puts("PASS stems map: escaped paths, duplicates, missing tracks, PWV7-only reads; analysis signature");
  {
+  /* Row preview: PWV6 read past a PWV7 section; a 2EX without PWV6 has none. */
+  char pv_dir[512],pv_file[600];snprintf(pv_dir,sizeof pv_dir,"%s/PIONEER/USBANLZ/P07F/0001CCCC",root);
+  snprintf(pv_file,sizeof pv_file,"%s/ANLZ0000.2EX",pv_dir);
+  static uint8_t o[8192];size_t n=dat(o,"/Contents/Folder/Three.wav");
+  memcpy(o+n,"PWV7",4);be(o+n+4,24);be(o+n+8,24+30);be(o+n+12,3);be(o+n+16,10);be(o+n+20,0);n+=24;memset(o+n,0x11,30);n+=30;
+  memcpy(o+n,"PWV6",4);be(o+n+4,20);be(o+n+8,20+1200*3);be(o+n+12,3);be(o+n+16,1200);n+=20;
+  for(int i=0;i<1200*3;i++)o[n++]=(uint8_t)(i%3==0?i/3%200:i%3==1?7:9);
+  be(o+8,(uint32_t)n);put(pv_file,o,n);
+  uint8_t *bands=NULL;uint32_t count=0;
+  assert(!xz_shana_preview(pv_dir,&bands,&count)&&bands&&count==1200&&bands[0]==0&&bands[1]==7&&bands[2]==9&&bands[3*199]==199);
+  free(bands);
+  snprintf(pv_dir,sizeof pv_dir,"%s/PIONEER/USBANLZ/P001/0000AAAA",root);
+  assert(xz_shana_preview(pv_dir,&bands,&count)&&!bands&&!count);
+  assert(xz_shana_preview("shell-analysis-fixture/none",&bands,&count));
+  puts("PASS row preview: PWV6 behind other sections, missing section, missing file");
+ }
+ {
   char cue_dir[512],cue_file[600];snprintf(cue_dir,sizeof cue_dir,"%s/PIONEER/USBANLZ/P001/0000AAAA",root);
   snprintf(cue_file,sizeof cue_file,"%s/ANLZ0000.DAT",cue_dir);cue_dat(cue_file,"/Contents/One.mp3");
   struct xz_shell_cue cues[XZ_SHELL_MEMORY_CUES];
