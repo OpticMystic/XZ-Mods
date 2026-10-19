@@ -32,14 +32,19 @@ static void key_table(void) {
   const struct xz_shrt_key_map *k=xz_shrt_key_lookup(expect[i].code,expect[i].channel);
   assert(k&&k->rule==expect[i].rule&&k->key==expect[i].key&&k->hold==expect[i].hold);
  }
- /* Deck keys, jog, LINK and REKORDBOX are not in the table; LOAD on a third channel is not either. */
+ /* Deck keys and the jog are not in the table; LOAD on a third channel is not either. */
  assert(!xz_shrt_key_lookup(0x4305,1)&&!xz_shrt_key_lookup(0x4101,1));
- /* USB1/USB2 (0x204 is UiKey_Usb2 in the binary), TRACK FILTER, LINK and computer: shell keys on press. */
- for(unsigned i=0;i<5;i++){
-  static const uint16_t codes[5]={0x203,0x204,0x420d,0x205,0x202};
-  static const int expect[5]={XZ_SHELL_KEY_SOURCE_USB1,XZ_SHELL_KEY_SOURCE_USB2,XZ_SHELL_KEY_TRACK_FILTER,XZ_SHELL_KEY_SOURCE_LINK,XZ_SHELL_KEY_SOURCE_COMPUTER};
+ /* USB1/USB2 (0x204 is UiKey_Usb2 in the binary) and TRACK FILTER: shell keys on press. */
+ for(unsigned i=0;i<3;i++){
+  static const uint16_t codes[3]={0x203,0x204,0x420d};
+  static const int expect[3]={XZ_SHELL_KEY_SOURCE_USB1,XZ_SHELL_KEY_SOURCE_USB2,XZ_SHELL_KEY_TRACK_FILTER};
   const struct xz_shrt_key_map *k=xz_shrt_key_lookup(codes[i],0);
   assert(k&&k->rule==XZ_SHRT_ON_PRESS&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==expect[i]);
+ }
+ /* LINK and rekordbox hand the screen to stock's media and connection screen (CONTROL MODE). */
+ for(unsigned i=0;i<2;i++){
+  const struct xz_shrt_key_map *k=xz_shrt_key_lookup(i?0x202:0x205,0);
+  assert(k&&k->rule==XZ_SHRT_HAND_OFF&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==-1);
  }
  assert(!xz_shrt_key_lookup(0x430f,3));
  assert(xz_shrt_phase_of(0)==XZ_SHRT_PRESS&&xz_shrt_phase_of(1)==XZ_SHRT_HOLD&&xz_shrt_phase_of(2)==XZ_SHRT_RELEASE&&xz_shrt_phase_of(3)==XZ_SHRT_RELEASE);
