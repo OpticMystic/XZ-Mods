@@ -139,7 +139,10 @@ void xz_shrt_caution_ack(struct xz_shrt_caution *);
 int xz_shrt_handoff_yields(const struct xz_shrt_handoff *);
 
 /* Commands executed on the native UI thread. */
-enum xz_shrt_command_kind { XZ_SHRT_CMD_NONE, XZ_SHRT_CMD_TIME_MODE, XZ_SHRT_CMD_QUANTIZE_BEAT, XZ_SHRT_CMD_LOAD, XZ_SHRT_CMD_STOCK_MENU };
+/* UTILITY: one stock UTILITY item (shell_utility.h); deck = its row in the generated table, so sets of one
+   item coalesce and different items do not; value = the setter argument. */
+enum xz_shrt_command_kind { XZ_SHRT_CMD_NONE, XZ_SHRT_CMD_TIME_MODE, XZ_SHRT_CMD_QUANTIZE_BEAT, XZ_SHRT_CMD_LOAD, XZ_SHRT_CMD_STOCK_MENU,
+ XZ_SHRT_CMD_UTILITY };
 struct xz_shrt_command {
  enum xz_shrt_command_kind kind;
  int deck;            /* 0/1, or -1 for both decks (TIME_MODE) */
