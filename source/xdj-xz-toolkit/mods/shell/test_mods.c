@@ -222,8 +222,8 @@ static void test_set_requests(void) {
  assert(tap(&u,&m,v.x+40,ty)==0&&value_cursor(&u)==2);
  assert(tap(&u,&m,v.x+40,ty)==1&&out[0].kind==XZ_SHELL_ACT_SET_MOD&&out[0].deck==TAB_JUMP-1&&out[0].id==15&&out[0].value==2);
  /* Picking the value already set asks for nothing. */
- hold_menu(&u,&m);enter_tab(&u,&m,TAB_LOOK);goto_item(&u,&m,0,3);
- push(&u,&m);assert(value_cursor(&u)==7&&push(&u,&m)==0);
+ hold_menu(&u,&m);enter_tab(&u,&m,TAB_LOOK);goto_item(&u,&m,2,3);
+ push(&u,&m);assert(value_cursor(&u)==1&&push(&u,&m)==0);
  puts("PASS set requests: UTILITY item -> SET_SETTING, mod item -> SET_MOD {tab, id, choice} by encoder and touch");
 }
 
