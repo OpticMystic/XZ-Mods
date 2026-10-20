@@ -410,26 +410,6 @@ def _level0_logo(report: Report, where: str, folder: Path) -> str | None:
     return None
 
 
-def _legacy(report: Report, stick: Path, top: Path | None) -> tuple[list[dict], str | None]:
-    """Section 12: VJTOOLS index profiles, then the VJ.Tools/Branding card. Only ids, names and active."""
-    found, active = [], None
-    home = next((p for p in _visible(top) if p.is_dir() and ascii_fold(p.name) == 'vjtools'), None) if top else None
-    index_path = _fixed(home, 'index.json') if home else None
-    if index_path:
-        index = _parse_json(report, 'VJTOOLS/index.json', index_path, MAX_JSON)
-        if isinstance(index, dict) and isinstance(index.get('profiles'), list):
-            active = index.get('active') if isinstance(index.get('active'), str) else None
-            for entry in index['profiles']:
-                if isinstance(entry, dict) and isinstance(entry.get('dj_id'), str) and _valid_name(entry.get('dj_name')):
-                    found.append({'id': entry['dj_id'], 'name': entry['dj_name'], 'source': 'VJTOOLS'})
-    card = stick / 'VJ.Tools' / 'Branding' / 'profile.json'
-    if card.is_file():
-        document = _parse_json(report, 'VJ.Tools/Branding/profile.json', card, MAX_JSON)
-        if isinstance(document, dict) and isinstance(document.get('dj_id'), str) and _valid_name(document.get('dj_name')):
-            found.append({'id': document['dj_id'], 'name': document['dj_name'], 'source': 'VJ.Tools/Branding'})
-    return found, active
-
-
 def check(stick: Path) -> Report:
     report = Report()
     tops = sorted((p for p in _visible(stick) if p.is_dir() and ascii_fold(p.name) in TOP_NAMES),
@@ -439,7 +419,7 @@ def check(stick: Path) -> Report:
     folders: dict[str, Path] = {}
     for top in tops:
         for entry in sorted(_visible(top), key=lambda p: sort_key(p.name)):
-            if entry.is_dir() and ascii_fold(entry.name) != 'vjtools':
+            if entry.is_dir():
                 folders.setdefault(name_key(entry.name), entry)
     stick_file = None
     if tops and (path := _fixed(tops[0], 'djprofile.json')):
@@ -488,43 +468,44 @@ def check(stick: Path) -> Report:
         key = name_key(reference)
         return by_id or next((p for p in pool if p['folder'] and name_key(p['folder']) == key), None)
 
+    entries = (stick_file or {}).get('profiles', [])
+    if not isinstance(entries, list) or len(entries) > MAX_PROFILES:
+        report.fail('DJPROFILE.json', '6', 'profiles must be a list of at most 16')
+        entries = []
     ordered, seen = [], set()
-    for reference in (stick_file or {}).get('order', []):
-        profile = resolve(reference, candidates)
-        if profile and id(profile) not in seen:
+    for i, entry in enumerate(entries):
+        if not (isinstance(entry, dict) and isinstance(entry.get('folder'), str) and _valid_folder_name(entry['folder'])):
+            report.fail(f'DJPROFILE.json profiles[{i}]', '6', 'an entry is {folder, id} with a valid folder name')
+            continue
+        if 'id' in entry:
+            profile = next((p for p in candidates if p['id'] == entry['id']), None)
+        else:
+            profile = next((p for p in candidates if name_key(p['folder']) == name_key(entry['folder'])), None)
+        if profile is None:
+            report.warn(f'DJPROFILE.json profiles[{i}]', '6', f'{entry["folder"]!r} is not a profile here; skipped')
+        elif id(profile) not in seen:
+            if name_key(profile['folder']) != name_key(entry['folder']):
+                report.warn(f'DJPROFILE.json profiles[{i}]', '6', f'lists {entry["folder"]!r}, found by id as {profile["folder"]!r}')
             ordered.append(profile)
             seen.add(id(profile))
     ordered += [p for p in candidates if id(p) not in seen]
 
-    documents, level0, ids = [], [], set()
+    ids = set()
     for profile in ordered:
-        if profile['id'] is None:
-            level0.append(profile)
-        elif profile['id'] in ids:
+        if profile['id'] is not None and profile['id'] in ids:
             report.warn(profile['folder'], '5', 'same id as an earlier profile; skipped')
-        else:
+            continue
+        if profile['id'] is not None:
             ids.add(profile['id'])
-            documents.append(profile)
-    legacy = []
-    found_legacy, legacy_active = _legacy(report, stick, tops[0] if tops else None)
-    for profile in found_legacy:
-        if profile['id'] not in ids:
-            ids.add(profile['id'])
-            legacy.append(profile)
-    legacy_names = {name_key(p['name']) for p in legacy}
-    level0 = [p for p in level0 if name_key(p['folder']) not in legacy_names]
-    for p in legacy:
-        p.update(folder=None, level='legacy', logo=None)
-    report.profiles = (documents + legacy + level0)[:MAX_PROFILES]
+        report.profiles.append(profile)
+    report.profiles = report.profiles[:MAX_PROFILES]
 
     active = resolve((stick_file or {}).get('active'), report.profiles)
     if stick_file and stick_file.get('active') is not None and active is None:
         report.fail('DJPROFILE.json', '6', f'active {stick_file["active"]!r} names no profile here')
-    if active is None and legacy_active:
-        active = next((p for p in report.profiles if p['id'] == legacy_active), None)
     active = active or (report.profiles[0] if report.profiles else None)
-    report.active = (active['folder'] or active['name']) if active else None
-    if not tops and not legacy:
+    report.active = active['folder'] if active else None
+    if not tops:
         report.fail(str(stick), '3', 'no DJPROFILE folder at the root')
     return report
 
@@ -543,12 +524,12 @@ def main(argv: list[str] | None = None) -> int:
                           'warnings': report.warnings}, indent=2, ensure_ascii=False))
     else:
         for p in report.profiles:
-            mark = ' (active)' if (p['folder'] or p['name']) == report.active else ''
+            mark = ' (active)' if p['folder'] == report.active else ''
             extra = ''
             if p.get('marker'):
                 extra = f'  track in {p["track_library"]}' if p.get('track_library') else \
                     '  track made, not found in export.pdb (OneLibrary cannot be checked here)'
-            print(f'level {p["level"]}  {p["folder"] or p["name"]}{mark}{extra}')
+            print(f'level {p["level"]}  {p["folder"]}{mark}{extra}')
         for kind, items in (('problem', report.problems), ('warning', report.warnings)):
             for item in items:
                 print(f'{kind}  section {item["section"]}  {item["where"]}: {item["problem"]}')

@@ -1,6 +1,6 @@
 # DJ Profile 1.0
 
-Status: **draft 2** (2026-10-19). Open for comment. The format string is
+Status: **draft 3** (2026-10-19). Open for comment. The format string is
 `djprofile/1`. Once published it will not change in a way that breaks a
 conforming reader.
 
@@ -76,14 +76,14 @@ Rules:
   is in both counts once, from `DJPROFILE`.
 - Every fixed name in this specification (`DJPROFILE`, `DJPROFILES`,
   `DJPROFILE.json`, `profile.json`, `profile.previous.json`, `logo.png`,
-  `logo.jpg`, `logo.jpeg`, `VJTOOLS`) is matched with ASCII case folding:
+  `logo.jpg`, `logo.jpeg`) is matched with ASCII case folding:
   `A` to `Z` equal `a` to `z`, every other character must match exactly.
 - Readers MUST skip every file and folder whose name starts with `.` at every
   level. That covers temporary files and the `._` files macOS writes on FAT
   sticks.
 - Every other directory directly inside the top folder is a candidate profile
-  folder, except the legacy name `VJTOOLS` (section 12). Readers MUST ignore
-  symbolic links and anything that is not a directory.
+  folder. Readers MUST ignore symbolic links and anything that is not a
+  directory.
 - A candidate is a profile only if it has a usable logo (section 4 or 5).
   A stick shows at most 16 profiles: the first 16 profiles in profile order
   (section 6), counted after candidates without a logo are dropped.
@@ -234,22 +234,35 @@ logo entries and links.
   "format": "djprofile-stick/1",
   "revision": "2026-10-19T15-02-11Z-3f1c",
   "active": "5f1d6f0e-2b7a-4c55-9a43-1d1f0b7c9e21",
-  "order": ["5f1d6f0e-2b7a-4c55-9a43-1d1f0b7c9e21", "Lena B"]
+  "profiles": [
+    { "folder": "DJ Kai", "id": "5f1d6f0e-2b7a-4c55-9a43-1d1f0b7c9e21" },
+    { "folder": "Lena B" }
+  ]
 }
 ```
 
-A **profile reference** is a profile's `id` when it has one, and its folder
-name otherwise. A reader resolves a reference by matching it against `id`s
-exactly first, then against folder name keys. Writers write the `id` whenever
-the profile has one, so renaming the folder does not lose the choice.
+`profiles` lists profile folders in the order the DJ wants them shown, with
+each one's `id` when it has a `profile.json`. It is at most 16 entries. It
+lets a reader that cannot list folders, such as a network reader with only
+fixed-path file access, open `DJPROFILE/<folder>/profile.json` directly.
 
-- **Profile order** is the profiles named in `order`, in that order, then the
-  rest by folder name key. References that do not resolve are skipped.
+A **profile reference** is a profile's `id` when it has one, and its folder
+name otherwise. `active` is a profile reference. A reader resolves a reference
+by matching it against `id`s exactly first, then against folder name keys.
+Writers write the `id` whenever the profile has one.
+
+- An entry of `profiles` resolves through its `id` if it has one, else through
+  its `folder`. Entries that do not resolve are skipped. If a folder was
+  renamed by hand, a reader that can list folders still finds it through its
+  `id`.
+- **Profile order** is the profiles named in `profiles`, in that order, then
+  the rest by folder name key.
 - **The active profile** is the one `active` resolves to, else the first in
-  profile order. Section 12 adds the legacy rules.
+  profile order.
 - A device that lets the DJ switch profiles rewrites only `active` and
   `revision`, keeps every other member, and replaces the file as in section 7.
-- Writers that add a profile set `active` only when there was none.
+- Writers that add, rename or remove a profile folder keep `profiles` in step,
+  and set `active` only when there was none.
 
 **Who is playing.** On a DJ network, the current DJ is the active profile of
 the stick that the master deck's track was loaded from. A reader that cannot
@@ -270,6 +283,9 @@ see the master deck uses the on-air deck.
 5. Then delete the files the previous document listed that the new one does
    not. Delete nothing else.
 
+When the DJ name changes, a writer SHOULD rename the profile folder to match,
+so level 0 readers show the new name, then update `DJPROFILE.json`.
+
 FAT has no atomic rename. If the stick is pulled mid-write, readers recover
 through `profile.previous.json` and level 0 (section 5), and ignore the
 dot-named temporary file.
@@ -282,7 +298,7 @@ store a profile in a device's internal memory. A profile belongs to the stick.
 | Level | The stick has | A reader at this level |
 |---|---|---|
 | 0 | a profile folder with a logo | lists profile folders, shows name and logo |
-| 1 | a valid `profile.json` | also reads the document, `DJPROFILE.json`, the active profile and the legacy stores |
+| 1 | a valid `profile.json` | also reads the document, `DJPROFILE.json` and the active profile |
 | 2 | the profile track in a DJ library on the stick | also finds profiles from track metadata |
 
 [`tools/check_djprofile.py`](tools/check_djprofile.py) checks a stick (or a
@@ -404,7 +420,7 @@ Vendor data goes in `ext`, keyed by a name the vendor controls (a domain or a
 project name):
 
 ```json
-"ext": { "vj.tools": { "visual_pack": "visuals/pack.json" } }
+"ext": { "example.org": { "visual_pack": "visuals/pack.json" } }
 ```
 
 An extension MUST NOT change the meaning of a standard member. Files an
@@ -434,54 +450,13 @@ software's own colour names):
 - In OneLibrary `exportLibrary.db`, the `property` table's
   `backGroundColorType` column, whose numbering has not been checked.
 
-## 12. Legacy stores
+## 12. Profiles stored before 1.0
 
-Profiles written before 1.0 by XZ Mods, VJ.Tools Wingman and VJ.Tools Library
-live in `DJPROFILE/VJTOOLS/` (an `index.json` with `active` and a `profiles`
-list naming `profiles/<dj_id>/profile.json` documents) or in
-`VJ.Tools/Branding/profile.json`. Their documents use the schema name
-`vj.tools.dj-profile`. Level 1 readers MUST read them as follows.
-
-**Collecting profiles**, in this order:
-
-1. Profile folders with a valid `profile.json`, in profile order.
-2. `VJTOOLS` profiles, in `index.json` order, skipping any whose `dj_id`
-   equals the `id` of a profile from step 1.
-3. The `VJ.Tools/Branding` profile, unless its `dj_id` was already seen.
-4. Level 0 profile folders in profile order, skipping any whose name key
-   equals the name key of a `dj_name` from steps 2 or 3. Legacy editors left
-   the DJ's hand-made folder beside their saved copy; this keeps the DJ listed
-   once.
-
-The first 16 are the stick's profiles.
-
-**The active profile.** If `DJPROFILE.json` exists and its `active` resolves,
-that is it. Otherwise, if the `VJTOOLS` index names an `active` that was
-collected, that is it, matched through `dj_id` to a migrated profile when one
-exists. Otherwise it is the first profile.
-
-**Writers.** Writers MUST NOT create new legacy stores. Until legacy readers
-are gone, a writer that changes the active profile on a stick that has a
-`VJTOOLS/index.json` also rewrites that index's `active` (in place, keeping
-everything else) when the chosen profile's `id` is listed there. A writer that
-edits a legacy profile migrates it:
-
-1. Copy the assets into a new profile folder named after `dj_name`: the
-   preferred logo to `logo.png` or `logo.jpg`, the others beside it under
-   their own names, the `xz_tile` to the top of the folder. A logo over the
-   limits of section 5.2 is scaled down as it is copied.
-2. Write `profile.json` with the same id, as in section 7.
-3. Write `DJPROFILE.json` with `active` set to the profile that was active
-   before the migration.
-4. Leave the legacy files in place.
-
-**Field mapping.** `dj_id` to `id`. `revision` to `revision`. `dj_name` to
-`name`. `tagline`, `accent`, `aliases`, `links` and `note` unchanged.
-`preferred_logo` to the `primary` logo and `secondary_logos` to `alternate`
-logos, keeping `label` and `note`. `page_url` to a link of kind `page`.
-`xz_tile` to a rendition with `format` `rgb565le` and `for` `xdj-xz`.
-`profile_track` to `track`, computing the marker from the migrated document.
-Members the mapping does not name go to `ext["vj.tools"]`.
+Software that kept profiles somewhere else on the stick before 1.0 MAY go on
+reading that store, and then follows three rules. It maps what it reads into
+the model of section 5, keeping each DJ's `id`. On its next write it moves
+those profiles into profile folders, so the stick holds only the 1.0 layout.
+Its old store never outranks a profile folder with the same `id`.
 
 ## 13. Reading safely
 
@@ -503,10 +478,11 @@ Everything on a stick is untrusted input.
 A network reader tries, in order:
 
 1. **Files**, where the player shares them (on Pro DJ Link players, the NFS
-   export of the stick). Read `DJPROFILE/DJPROFILE.json` and the profile
-   folders. Level 0 profiles need a directory listing. Player makers have said
-   file sharing is being restricted for security, so this path may close on
-   some firmware.
+   export of the stick). Read `DJPROFILE/DJPROFILE.json`, then
+   `DJPROFILE/<folder>/profile.json` for each entry of its `profiles`. Only
+   profile folders it does not list, such as hand-made level 0 ones, need a
+   directory listing. Player makers have said file sharing is being restricted
+   for security, so this path may close on some firmware.
 2. **The profile track through the player's database server.** Browse the
    `DJ PROFILE` playlist and read title, comment and artwork.
 3. **The profile track through the stick's library file**, on players with no
