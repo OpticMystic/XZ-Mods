@@ -90,16 +90,16 @@ static void test_bounds_and_long_text(void) {
  for(int i=0;i<XZ_SHELL_HOT_CUES;i++)m.deck[1].hot_cue[i]=(struct xz_shell_cue){1,FX_TOTAL_MS-i,0xffffff,0};
  render_checked(&u,&m,buffer_a);
  /* The title stops before the transport glyph zone at the strip's right edge. */
- struct xz_shell_rect s=xz_shell_play_rect(XZ_SHELL_R_STRIP,0);
+ struct xz_shell_rect s=xz_shell_play_rect(&m,XZ_SHELL_R_STRIP,0);
  for(int y=s.y+5;y<s.y+26;y++)for(int x=s.x+s.w-8-21;x<s.x+s.w-8-13;x++)assert(at(frame(buffer_a),x,y)==rgb565(SH_CHROME));
  /* Every region lies inside the frame and the lanes never overlap the strips. */
  for(int d=0;d<2;d++)for(int r=XZ_SHELL_R_TOP_BAR;r<=XZ_SHELL_R_FX;r++){
-  struct xz_shell_rect q=xz_shell_play_rect((enum xz_shell_play_region)r,d);
+  struct xz_shell_rect q=xz_shell_play_rect(&m,(enum xz_shell_play_region)r,d);
   assert(q.w>0&&q.h>0&&q.x>=0&&q.y>=0&&q.x+q.w<=XZ_SHELL_WIDTH&&q.y+q.h<=XZ_SHELL_HEIGHT);
  }
- struct xz_shell_rect lane1=xz_shell_play_rect(XZ_SHELL_R_LANE,1),strip0=xz_shell_play_rect(XZ_SHELL_R_STRIP,0),strip1=xz_shell_play_rect(XZ_SHELL_R_STRIP,1);
+ struct xz_shell_rect lane1=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,1),strip0=xz_shell_play_rect(&m,XZ_SHELL_R_STRIP,0),strip1=xz_shell_play_rect(&m,XZ_SHELL_R_STRIP,1);
  assert(lane1.y+lane1.h<=strip0.y&&strip0.x+strip0.w<=strip1.x);
- struct xz_shell_rect ov=xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,1),time=xz_shell_play_rect(XZ_SHELL_R_TIME,1);
+ struct xz_shell_rect ov=xz_shell_play_rect(&m,XZ_SHELL_R_OVERVIEW,1),time=xz_shell_play_rect(&m,XZ_SHELL_R_TIME,1);
  assert(ov.x>=strip1.x&&ov.x+ov.w<=strip1.x+strip1.w&&time.y+time.h<=ov.y);
  /* Overlong zoom and a stale stack depth are refused, not drawn. */
  assert(!xz_shell_render(&u,&m,NULL,STRIDE));
@@ -159,7 +159,7 @@ static void test_navigation(void) {
  assert(press(&u,&partial,XZ_SHELL_KEY_BROWSE,out)==0&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  /* The (i) button follows the same table as the INFO key. */
  xz_shell_init(&u);
- struct xz_shell_rect ib=xz_shell_play_rect(XZ_SHELL_R_INFO_BUTTON,0);
+ struct xz_shell_rect ib=xz_shell_play_rect(&m,XZ_SHELL_R_INFO_BUTTON,0);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,ib.x+ib.w/2,ib.y+ib.h/2,out)==0&&xz_shell_screen(&u)==XZ_SHELL_INFO);
  xz_shell_init(&u);
  assert(touch(&u,&bare,XZ_SHELL_TOUCH_DOWN,ib.x+ib.w/2,ib.y+ib.h/2,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_INFO);
@@ -177,7 +177,7 @@ static void test_seek_zoom_and_deck(void) {
  fx_model_full(&m,&track);
  xz_shell_init(&u);
  for(int d=0;d<2;d++){
-  struct xz_shell_rect ov=xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,d);
+  struct xz_shell_rect ov=xz_shell_play_rect(&m,XZ_SHELL_R_OVERVIEW,d);
   int cy=ov.y+ov.h/2;
   assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,ov.x,cy,out)==1&&out[0].kind==XZ_SHELL_ACT_SEEK&&out[0].deck==d&&out[0].value==0);
   assert(touch(&u,&m,XZ_SHELL_TOUCH_MOVE,ov.x+ov.w-1,cy,out)==1&&out[0].kind==XZ_SHELL_ACT_SEEK&&out[0].value==FX_TOTAL_MS);
@@ -186,10 +186,10 @@ static void test_seek_zoom_and_deck(void) {
   assert(touch(&u,&m,XZ_SHELL_TOUCH_MOVE,ov.x+(ov.w-1)/2,cy,out)==1&&abs(out[0].value-FX_TOTAL_MS/2)<=FX_TOTAL_MS/(ov.w-1)+1);
   assert(touch(&u,&m,XZ_SHELL_TOUCH_UP,ov.x,cy,out)==0);
   assert(touch(&u,&m,XZ_SHELL_TOUCH_MOVE,ov.x,cy,out)==0); /* nothing held */
-  assert(xz_shell_overview_ms(FX_TOTAL_MS,ov.x+ov.w-1,d)==FX_TOTAL_MS&&xz_shell_overview_ms(FX_TOTAL_MS,ov.x,d)==0&&xz_shell_overview_ms(0,ov.x+10,d)==0);
+  assert(xz_shell_overview_ms(&m,FX_TOTAL_MS,ov.x+ov.w-1,d)==FX_TOTAL_MS&&xz_shell_overview_ms(&m,FX_TOTAL_MS,ov.x,d)==0&&xz_shell_overview_ms(&m,0,ov.x+10,d)==0);
  }
  /* No SEEK capability, no track length, or no track: nothing. */
- struct xz_shell_rect ov=xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,0);
+ struct xz_shell_rect ov=xz_shell_play_rect(&m,XZ_SHELL_R_OVERVIEW,0);
  struct xz_shell_model no=m;no.capabilities&=~(uint32_t)XZ_SHELL_CAP_SEEK;
  assert(touch(&u,&no,XZ_SHELL_TOUCH_DOWN,ov.x+10,ov.y+10,out)==0);
  touch(&u,&no,XZ_SHELL_TOUCH_UP,0,0,out);
@@ -219,12 +219,12 @@ static void test_seek_zoom_and_deck(void) {
  u.grid_mode=1;assert(turn(&u,&nogrid,1,out)==1&&out[0].kind==XZ_SHELL_ACT_ZOOM);u.grid_mode=0;
  /* Touching a lane, tag or info column makes that deck active, once. */
  u.deck=0;
- struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,1);
+ struct xz_shell_rect lane=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,1);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,lane.x+lane.w/2,lane.y+lane.h/2,out)==1&&out[0].kind==XZ_SHELL_ACT_ACTIVE_DECK&&out[0].deck==1&&u.deck==1);
  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,lane.x+5,lane.y+5,out)==0&&u.deck==1);
  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
- struct xz_shell_rect tag=xz_shell_play_rect(XZ_SHELL_R_DECK_TAG,0);
+ struct xz_shell_rect tag=xz_shell_play_rect(&m,XZ_SHELL_R_DECK_TAG,0);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,tag.x+5,tag.y+5,out)==1&&out[0].deck==0&&u.deck==0);
  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
  /* TIME MODE flips the shown mode only through an action; the shell itself holds no mode. */
@@ -232,7 +232,7 @@ static void test_seek_zoom_and_deck(void) {
  assert(xz_shell_input(&u,&m,&tm,out)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_SET_TIME_MODE&&out[0].deck==1&&out[0].value==XZ_SHELL_TIME_REMAIN);
  tm.deck=0;
  assert(xz_shell_input(&u,&m,&tm,out)==1&&out[0].deck==0&&out[0].value==XZ_SHELL_TIME_ELAPSED);
- struct xz_shell_rect time=xz_shell_play_rect(XZ_SHELL_R_TIME,0);
+ struct xz_shell_rect time=xz_shell_play_rect(&m,XZ_SHELL_R_TIME,0);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,time.x+10,time.y+10,out)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_SET_TIME_MODE&&out[0].value==XZ_SHELL_TIME_ELAPSED);
  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
  struct xz_shell_model readonly=m;readonly.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;
@@ -242,7 +242,7 @@ static void test_seek_zoom_and_deck(void) {
  struct xz_shell_event q={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_QUANTIZE,1};
  assert(xz_shell_input(&u,&m,&q,out)==1&&out[0].id==XZ_SHELL_SET_QUANTIZE&&out[0].deck==1&&out[0].value==1);
  /* Top-bar chips toggle device settings when the runtime can set them. */
- struct xz_shell_rect bar=xz_shell_play_rect(XZ_SHELL_R_TOP_BAR,0);
+ struct xz_shell_rect bar=xz_shell_play_rect(&m,XZ_SHELL_R_TOP_BAR,0);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,bar.x+20,bar.y+12,out)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_SET_PLAY_MODE&&out[0].value==XZ_SHELL_PLAY_CONTINUE);
  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
  assert(touch(&u,&readonly,XZ_SHELL_TOUCH_DOWN,bar.x+20,bar.y+12,out)==0);
@@ -280,7 +280,7 @@ static void test_writable_settings(void) {
   x+=widths[i]+8;
  }
  struct xz_shell_event tm={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_TIME_MODE,1};
- struct xz_shell_rect time=xz_shell_play_rect(XZ_SHELL_R_TIME,1);
+ struct xz_shell_rect time=xz_shell_play_rect(&m,XZ_SHELL_R_TIME,1);
  assert(xz_shell_input(&u,&m,&tm,out)==1&&out[0].deck==1);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,time.x+10,time.y+10,out)==1&&out[0].id==XZ_SHELL_SET_TIME_MODE);
  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
@@ -323,7 +323,7 @@ static void test_deterministic(void) {
  u.display.wave_position=XZ_SHELL_POSITION_LEFT;render_checked(&u,&m,buffer_b);u.display.wave_position=XZ_SHELL_POSITION_CENTER;
  assert(memcmp(buffer_a,buffer_b,sizeof buffer_a));
  /* The playhead sits where the setting says. */
- struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,0);
+ struct xz_shell_rect lane=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,0);
  int found=0;
  for(int x=lane.x;x<lane.x+lane.w;x++)if(at(frame(buffer_b),x,lane.y+lane.h/2)==rgb565(SH_PLAYHEAD)){found=x;break;}
  assert(found>lane.x&&found<lane.x+lane.w/3);
