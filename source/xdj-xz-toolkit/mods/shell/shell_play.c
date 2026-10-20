@@ -361,9 +361,6 @@ static void render_key(const struct play_layout *L, const struct xz_shell *u, co
   sh_text_fit(c,6+w,ly+L->key_original_y,KEY_RIGHT-6-w,sh_key_text(d->key_original,sh_key_display(u),from,sizeof from),SH_SMALL,SH_WHITE);
  }
 }
-static void quantize_beat(char *out, size_t cap, const struct xz_shell_deck *d) {
- fmt_fraction(out,cap,d->quantize_num>99?99:d->quantize_num,d->quantize_den>99?99:d->quantize_den);
-}
 static void render_column(const struct play_layout *L, const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
  int ly=lane_y(L,deck),active=u->deck==deck;
@@ -726,7 +723,7 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  /* QUANTIZE and its beat value between the time and tempo captions, where the stock screen has them
    (XZ manual pp.71-72, elements 24-25): red on, grey off. */
  if(S->quantize_right&&sh_has(d,XZ_SHELL_F_QUANTIZE)&&sh_indicator_shown(u,XZ_SHELL_IND_QUANTIZE)){
-  char beat[12];quantize_beat(beat,sizeof beat,d);
+  char beat[12];fmt_fraction(beat,sizeof beat,d->quantize_num>99?99:d->quantize_num,d->quantize_den>99?99:d->quantize_den);
   uint32_t q_ink=d->quantize_on?SH_RED:0x5a5a5a;
   int bw=sh_text_width(c,beat,SH_SMALL),qx=sx+S->quantize_right-bw-4-sh_text_width(c,"QUANTIZE",SH_SMALL);
   sh_text(c,qx,num_y,"QUANTIZE",SH_SMALL,q_ink);
