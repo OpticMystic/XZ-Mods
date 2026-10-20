@@ -428,6 +428,7 @@ __attribute__((constructor)) static void start(void) {
     installed = 1;
     xz_log(observer ? "OBSERVER installed; stock dispatch retained" : "EXPERIMENTAL gate/smart cue adapter installed");
     if (observer) return;
+    if (xz_extra_decks_start()) xz_log("DECK 3/4 players unavailable");
     if(xz_doom_bridge_start()) xz_log("Doom: native input bridge unavailable");
     xz_kart_runtime_display_probe(kart_display_ready);
     if(xz_kart_runtime_start()) xz_log("Kart: explicit physical-input bridge unavailable");
@@ -443,6 +444,7 @@ __attribute__((constructor)) static void start(void) {
 }
 
 __attribute__((destructor)) static void stop(void) {
+    xz_extra_decks_stop();
     xz_audio_trace_stop();
     xz_ui_runtime_stop();
     xz_kart_runtime_stop();
