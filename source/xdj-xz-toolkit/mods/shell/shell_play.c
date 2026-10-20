@@ -53,10 +53,12 @@ enum { STEM_ROW_FULL=48, STEM_ROW_HALF=24, STEM_ROW_GAP=6, STEM_SLIDE=8 };
 static int stem_layout(const struct xz_shell_model *m) {
  return m->stem_layout_known&&(unsigned)m->stem_layout<XZ_SHELL_STEM_LAYOUTS?(int)m->stem_layout:-1;
 }
+/* The small buttons in the pad row: the PADS layout, and an unread layout (an older runtime). */
+static int pad_row(const struct xz_shell_model *m) { int layout=stem_layout(m);return layout<0||layout==XZ_SHELL_STEMS_PADS; }
 static int stem_row_full(int layout) { return layout==XZ_SHELL_STEMS_BELOW_FULL||layout==XZ_SHELL_STEMS_OUTSIDE_FULL; }
 struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *m, int deck) {
  int layout=m&&deck>=0&&deck<XZ_SHELL_DECKS?stem_layout(m):-1;
- if(layout<=XZ_SHELL_STEMS_HIDDEN)return (struct xz_shell_rect){0,0,0,0};
+ if(layout<=XZ_SHELL_STEMS_HIDDEN||layout==XZ_SHELL_STEMS_PADS)return (struct xz_shell_rect){0,0,0,0};
  int h=stem_row_full(layout)?STEM_ROW_FULL:STEM_ROW_HALF;
  int top=deck==0&&(layout==XZ_SHELL_STEMS_OUTSIDE_FULL||layout==XZ_SHELL_STEMS_OUTSIDE_HALF);
  return (struct xz_shell_rect){WAVE_X,top?lane_y(deck):lane_y(deck)+LANE_H-h,WAVE_W,h};
@@ -701,7 +703,7 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
    stem button goes dark, as the pads do; the mutes come back on its release. */
 static const int stem_slot[3]={0,2,1};   /* screen order DRUMS, VOCAL, INST -> stem index */
 static const char *const stem_name[3]={"DRUMS","INST","VOCAL"};
-enum { BYPASS_ROW_W=96, PAD_STEM_W=56, PAD_STEM_GAP=5, PAD_BYPASS_GAP=8 };
+enum { BYPASS_ROW_W=96, PAD_STEM_W=54, PAD_STEM_GAP=5, PAD_BYPASS_GAP=8 };
 static int stem_buttons(const struct xz_shell_model *m, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
  return (m->capabilities&XZ_SHELL_CAP_STEM_MUTE)&&sh_has(d,XZ_SHELL_F_STEM_MUTE)&&(!sh_has(d,XZ_SHELL_F_LOADED)||d->loaded);
@@ -735,13 +737,13 @@ static struct xz_shell_rect pad_button(const struct xz_shell *u, const struct xz
 /* A drawn button's touch target: 44 px tall, a half row's 22 px reaching into the waveform beside it. */
 static struct xz_shell_rect button_target(const struct xz_shell_model *m, int deck, struct xz_shell_rect b) {
  if(!b.h||b.h>=44)return b;
- if(stem_layout(m)<0)return (struct xz_shell_rect){b.x,PAD_ROW_Y+PAD_ROW_H/2-22,b.w,44};
+ if(pad_row(m))return (struct xz_shell_rect){b.x,PAD_ROW_Y+PAD_ROW_H/2-22,b.w,44};
  struct xz_shell_rect row=xz_shell_stem_row(m,deck);
  int top=row.y==lane_y(deck);b.y=top?row.y:row.y+row.h-44;b.h=44;
  return b;
 }
 static struct xz_shell_rect drawn_button(const struct xz_shell *u, const struct xz_shell_model *m, int deck, int slot) {
- return stem_layout(m)<0?pad_button(u,m,deck,slot):row_button(u,m,deck,slot);
+ return pad_row(m)?pad_button(u,m,deck,slot):row_button(u,m,deck,slot);
 }
 struct xz_shell_rect xz_shell_stem_button(const struct xz_shell *u, const struct xz_shell_model *m, int deck, int stem) {
  if(!m||deck<0||deck>=XZ_SHELL_DECKS||stem<0||stem>2||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
@@ -800,7 +802,7 @@ static void render_pad_row(const struct xz_shell *u, const struct xz_shell_model
  struct xz_shell_rect r=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,deck);
  xz_rect(c,r.x,r.y,r.w,r.h,SH_BLACK);
  int ty=r.y+(r.h-SH_CAP_SMALL)/2;
- if(stem_layout(m)<0&&stem_buttons(m,deck)){
+ if(pad_row(m)&&stem_buttons(m,deck)){
   int by=bypassed(u,m,deck);
   if(!bypass_shown(u,m,deck))sh_text(c,r.x+8,ty,"MUTE",SH_SMALL,d->stem_muted&7?SH_RED:SH_DIM);
   for(int slot=0;slot<3;slot++){
@@ -896,7 +898,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_STEM_BYPASS,deck,!m->deck[deck].stem_bypass,0});
  for(int deck=0;deck<XZ_SHELL_DECKS;deck++)for(int stem=0;stem<3;stem++){
   if(!sh_inside(xz_shell_stem_button(u,m,deck,stem),x,y))continue;
-  if(stem_layout(m)>=0){
+  if(!pad_row(m)){
    /* A row button decides on release: a slide set the level, a tap toggles the mute. */
    const struct xz_shell_deck *d=&m->deck[deck];
    u->down_region=XZ_SHELL_TOUCH_STEM;u->down_deck=deck;

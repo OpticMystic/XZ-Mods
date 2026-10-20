@@ -192,6 +192,12 @@ fill while retaining the stored percentage in the label. PC controls retain
 their confirmed on/off feedback and setup button; they do not invent volume
 values the PC transport does not report.
 
+`modern_stems` is the MODERN interface's own stem layout, so CLASSIC keeps
+`stems_overlay`. It takes the five values above plus 5, small stem buttons in
+the pad row beside the hot-cue lamps (the default, also for records without
+it). The header STEMS button, a REKORDBOX button set to STEMS and MODS step it
+5, 1, 2, 3, 4, 0, then 5. It is the optional 44th field.
+
 `wave_mode` is an optional trailing field after `stems_overlay`: 0 stock
 scrolling waveform, 1 CDJ-3000 style layered 3-band (default, also for older
 records), 2 stem layers in the theme's drums/harmonics/vocals colours. Stems

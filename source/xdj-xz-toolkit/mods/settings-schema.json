@@ -18,7 +18,8 @@
     37,
     38,
     41,
-    43
+    43,
+    44
   ],
   "fields": [
     {
@@ -752,6 +753,42 @@
       ]
     },
     {
+      "key": "modern_stems",
+      "label": "Stem buttons (modern interface)",
+      "group": "stems",
+      "default": 5,
+      "min": 0,
+      "max": 5,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Hidden / normal waveforms"
+        },
+        {
+          "value": 1,
+          "label": "Full rows below each deck"
+        },
+        {
+          "value": 2,
+          "label": "Half rows below each deck"
+        },
+        {
+          "value": 3,
+          "label": "Full rows at the outer edges"
+        },
+        {
+          "value": 4,
+          "label": "Half rows at the outer edges"
+        },
+        {
+          "value": 5,
+          "label": "Small buttons beside the hot cues"
+        }
+      ]
+    },
+    {
       "key": "wave_mode",
       "label": "Scrolling waveform",
       "group": "appearance",
@@ -1209,7 +1246,8 @@
     "classic_theme",
     "modern_theme",
     "rekordbox_press",
-    "rekordbox_shift"
+    "rekordbox_shift",
+    "modern_stems"
   ],
   "retired_fields": {
     "jump_shift_page": {

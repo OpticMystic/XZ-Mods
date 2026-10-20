@@ -308,7 +308,9 @@ static const char *const look_show_hide[2]={"SHOW","HIDE"};
 static struct xz_shell_setting_item look_items[12];
 static struct xz_shell_settings_model look_model;
 /* MY SETTINGS > WAVEFORM: the stem row layout, set through SET_MOD on the APPEARANCE tab (waveform_tab). */
-static const char *const look_stem_layout[5]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF"};
+/* In the STEMS button's order (xz_shell_stem_cycle): choice i is layout xz_shell_stem_cycle[i]. */
+static const char *const look_stem_layout[XZ_SHELL_STEM_LAYOUTS]={"PAD ROW / SMALL","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF","HIDDEN"};
+_Static_assert(XZ_SHELL_STEMS_PADS==5&&XZ_SHELL_STEM_LAYOUTS==6,"modern_stems values (ui/wave_viewport.h XZ_MODERN_STEMS_PADS)");
 static struct xz_shell_setting_item wave_items[1];
 static struct xz_shell_settings_model wave_model;
 /* Descriptions (shell_settings.h help): APPEARANCE is scope LOOK_TAB + 1; the WAVEFORM items share it. */
@@ -320,8 +322,13 @@ static const char *const help_mode_lamps[2]={"Each lamp lights while its mode is
 static const char *const help_quantize_lamp[2]={"Red while QUANTIZE is on, grey while it is off.","The QUANTIZE button's own light still shows it."};
 static const char *const help_bypass[2]={"Touch it to hear the whole track; touch again for the stems as you left them.","The stem buttons take its room."};
 static const char *const help_stem_color[9]={"Follows the theme.",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
-static const char *const help_stem_layout[5]={"Normal waveforms, no stem rows.","Stem rows under the waveforms, full height.",
- "Stem rows under the waveforms, half height.","Stem rows outside the waveforms, full height.","Stem rows outside the waveforms, half height."};
+static const char *const help_stem_layout[XZ_SHELL_STEM_LAYOUTS]={"Small stem buttons beside each deck's hot cues; the waveforms keep their height.",
+ "Stem rows under the waveforms, full height.","Stem rows under the waveforms, half height.","Stem rows outside the waveforms, full height.",
+ "Stem rows outside the waveforms, half height.","Normal waveforms, no stem buttons."};
+static int stem_cycle_position(int layout) {
+ for(int i=0;i<XZ_SHELL_STEM_LAYOUTS;i++)if((int)xz_shell_stem_cycle[i]==layout)return i;
+ return -1;
+}
 #define HELP(id,text,count,choices) {LOOK_TAB+1,id,text,count,choices}
 static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_INTERFACE,"Who draws the player screen.",2,help_interface),
@@ -336,7 +343,7 @@ static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_HARMONICS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
  HELP(LOOK_VOCALS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
  HELP(LOOK_BYPASS,"The BYPASS button after each deck's stem buttons: lit, the original track plays over the stems.",2,help_bypass),
- HELP(LOOK_STEM_LAYOUT,"Where the stem rows sit next to the waveforms, and how tall they are.",5,help_stem_layout),
+ HELP(LOOK_STEM_LAYOUT,"Where the stem buttons sit on the play screen. The STEMS button steps through these in this order.",XZ_SHELL_STEM_LAYOUTS,help_stem_layout),
 };
 #undef HELP
 /* MODS > BUTTONS: the REKORDBOX button's two slots, the same rows as the panel's CONTROLS > BUTTONS. Item id =
@@ -391,8 +398,9 @@ static void fill_look(void) {
  look_items[11]=(struct xz_shell_setting_item){LOOK_BYPASS,(enum xz_shell_setting_category)3,"BYPASS BUTTON",look_show_hide,2,
   (int)((shell.display.hidden>>XZ_SHELL_IND_BYPASS)&1),1,1};
  look_model=(struct xz_shell_settings_model){12,look_items,NULL};
- wave_items[0]=(struct xz_shell_setting_item){LOOK_STEM_LAYOUT,(enum xz_shell_setting_category)2,"STEM ROW LAYOUT",look_stem_layout,5,
-  k&&in->stems_overlay>=0&&in->stems_overlay<5?in->stems_overlay:0,k,k};
+ int at=k?stem_cycle_position(in->stems_overlay):-1;
+ wave_items[0]=(struct xz_shell_setting_item){LOOK_STEM_LAYOUT,(enum xz_shell_setting_category)2,"STEM BUTTONS",look_stem_layout,XZ_SHELL_STEM_LAYOUTS,
+  at<0?0:at,k&&at>=0,k&&at>=0};
  wave_model=(struct xz_shell_settings_model){1,wave_items,NULL};
 }
 static void ui_action_locked(int kind, int deck, int index, float value, uint32_t now) {
@@ -423,10 +431,10 @@ static void look_set_locked(int id, int choice, uint32_t now) {
  case LOOK_KEY_FEEDBACK:ui_action_locked(XZ_UI_KEY_FEEDBACK,-1,0,choice?1.f:0.f,now);return;
  case LOOK_TRAFFIC:ui_action_locked(XZ_UI_BROWSE_TRAFFIC,-1,0,choice?1.f:0.f,now);return;
  case LOOK_STEM_LAYOUT:{
-  /* The panel's layout control steps to the next layout: step from the current one to the choice. */
-  int from=last_input.stems_overlay;
-  if(choice<0||choice>=5||from<0||from>=5){refuse();return;}
-  for(int steps=(choice-from+5)%5;steps>0;steps--)ui_action_locked(XZ_UI_STEMS_OVERLAY,-1,0,0,now);
+  /* The STEMS action steps to the next layout in the cycle: step from the current one to the choice. */
+  int from=stem_cycle_position(last_input.stems_overlay);
+  if(choice<0||choice>=XZ_SHELL_STEM_LAYOUTS||from<0){refuse();return;}
+  for(int steps=(choice-from+XZ_SHELL_STEM_LAYOUTS)%XZ_SHELL_STEM_LAYOUTS;steps>0;steps--)ui_action_locked(XZ_UI_STEMS_OVERLAY,-1,0,0,now);
   return;
  }
  case LOOK_DRUMS:case LOOK_HARMONICS:case LOOK_VOCALS:
@@ -2171,8 +2179,8 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  /* The colours the DJ picked (not THEME DEFAULT); the rest draw the shell's own defaults. */
  model.stem_rgb_custom=0;
  if(in->look_known)for(int i=0;i<3;i++)if(in->stem_colors[i]>0)model.stem_rgb_custom|=(uint8_t)(1u<<i);
- /* The stem row layout: the one stems_overlay setting classic uses too. */
- model.stem_layout_known=in->look_known&&in->stems_overlay>=0&&in->stems_overlay<=XZ_SHELL_STEMS_OUTSIDE_HALF;
+ /* The stem buttons' layout: MODERN's own modern_stems (ui_runtime.c sends it as stems_overlay). */
+ model.stem_layout_known=in->look_known&&in->stems_overlay>=0&&in->stems_overlay<XZ_SHELL_STEM_LAYOUTS;
  model.stem_layout=model.stem_layout_known?(enum xz_shell_stem_layout)in->stems_overlay:XZ_SHELL_STEMS_HIDDEN;
  for(int d=0;d<XZ_SHELL_DECKS;d++)if(in->stem_level_known[d]){
   for(int i=0;i<3;i++){float v=in->stem_level[d][i];int g=(int)(v*(float)XZ_SHELL_STEM_GAIN_MAX+.5f);model.deck[d].stem_gain[i]=(uint8_t)(g<0?0:g>XZ_SHELL_STEM_GAIN_MAX?XZ_SHELL_STEM_GAIN_MAX:g);}

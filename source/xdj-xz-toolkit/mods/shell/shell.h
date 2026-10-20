@@ -89,11 +89,15 @@ enum xz_shell_alert_kind { XZ_SHELL_ALERT_NONE, XZ_SHELL_ALERT_EMERGENCY_LOOP, X
 /* HOT CUE AUTO LOAD (XZ manual pp.55, 123): ON loads every track's hot cues, LIBRARY loads them only for
    tracks the library marks for it. The A. HOT CUE lamp reads red for ON, white for LIBRARY. */
 enum xz_shell_hot_cue_auto_load { XZ_SHELL_HCAL_OFF, XZ_SHELL_HCAL_ON, XZ_SHELL_HCAL_LIBRARY };
-/* The stem rows on PLAY, one setting shared with the classic interface (stems_overlay): HIDDEN, rows
+/* The stem buttons on PLAY, the MODERN interface's own setting (modern_stems; CLASSIC keeps stems_overlay):
+   HIDDEN, rows
    below each deck's waveform (full 48 px, half 24 px), or rows at the outside edges (above deck 1,
    below deck 2). Full rows are faders: slide a stem button sideways to set its level. */
 enum xz_shell_stem_layout { XZ_SHELL_STEMS_HIDDEN, XZ_SHELL_STEMS_BELOW_FULL, XZ_SHELL_STEMS_BELOW_HALF,
- XZ_SHELL_STEMS_OUTSIDE_FULL, XZ_SHELL_STEMS_OUTSIDE_HALF, XZ_SHELL_STEM_LAYOUTS };
+ XZ_SHELL_STEMS_OUTSIDE_FULL, XZ_SHELL_STEMS_OUTSIDE_HALF, XZ_SHELL_STEMS_PADS, XZ_SHELL_STEM_LAYOUTS };
+/* PADS: small stem buttons in each deck's pad row beside its hot-cue lamps, no rows. The STEMS button steps
+   PADS, BELOW_FULL, BELOW_HALF, OUTSIDE_FULL, OUTSIDE_HALF, HIDDEN; its marks follow that order. */
+extern const enum xz_shell_stem_layout xz_shell_stem_cycle[XZ_SHELL_STEM_LAYOUTS];
 #define XZ_SHELL_STEM_GAIN_MAX 100
 enum xz_shell_time_mode { XZ_SHELL_TIME_REMAIN, XZ_SHELL_TIME_ELAPSED };
 /* STEMS draws the deck's stem layer; a deck without one draws 3BAND until it arrives. */
@@ -245,7 +249,7 @@ struct xz_shell_model {
  uint8_t stem_rgb_custom;            /* bit per stem: stem_rgb holds a colour the DJ picked; clear bits draw the
                                         shell's default stem colours (sh_stem_bright) */
  int stem_layout_known;
- enum xz_shell_stem_layout stem_layout; /* stems_overlay; the header STEMS button asks the runtime to step it
+ enum xz_shell_stem_layout stem_layout; /* modern_stems; the header STEMS button asks the runtime to step it
                                         (XZ_SHELL_ACT_TOGGLE_STEMS: 1, 2, 3, 4, 0, then 1, as the classic
                                         STEMS button does) */
  const char *notice;                 /* one short caps sentence, e.g. "DECK 1 DID NOT LOAD THE TRACK"; NULL = none */

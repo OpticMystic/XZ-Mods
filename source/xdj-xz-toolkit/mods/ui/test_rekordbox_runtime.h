@@ -61,7 +61,7 @@ static void rekordbox_reset(int interface, int press, int shift) {
 }
 static void rekordbox_runtime_check(void) {
     stock_uikey_rekordbox=fake_stock_rekordbox;stock_global_key=fake_global;rekordbox_shift_held=fake_shift_held;
-    int saved_overlay=model.stems_overlay,stems;
+    int saved_overlay=model.stems_overlay,saved_modern=model.modern_stems,stems;
     /* CLASSIC: the shell is stopped; only the handler hook acts. */
     rekordbox_reset(XZ_UI_INTERFACE_CLASSIC,XZ_REKORDBOX_MODS,XZ_REKORDBOX_NOTHING);
     assert(rekordbox_contact(0,0)==1&&touch.visible&&!fake_stock_calls);
@@ -94,8 +94,9 @@ static void rekordbox_runtime_check(void) {
     int global=fake_global_calls;
     assert(rekordbox_contact(0,0)==-1&&fake_action==XZ_REKORDBOX_MODS&&fake_mods_keys==1&&!fake_mods_calls&&!touch.visible);
     assert(fake_global_calls==global&&!rekordbox_latch.valid&&!fake_stock_calls);
-    model.stems_overlay=XZ_STEM_LAYOUT_BELOW;
-    assert(rekordbox_contact(1,1)==-1&&fake_action==XZ_REKORDBOX_STEMS&&model.stems_overlay!=XZ_STEM_LAYOUT_BELOW&&!fake_stock_calls);
+    /* MODERN steps its own layout (modern_stems): PADS -> BELOW; CLASSIC's stems_overlay stays. */
+    model.stems_overlay=XZ_STEM_LAYOUT_BELOW;model.modern_stems=XZ_MODERN_STEMS_PADS;
+    assert(rekordbox_contact(1,1)==-1&&fake_action==XZ_REKORDBOX_STEMS&&model.modern_stems==XZ_STEM_LAYOUT_BELOW&&model.stems_overlay==XZ_STEM_LAYOUT_BELOW&&!fake_stock_calls);
     assert(fake_global_calls==global);
     /* The stock action hands off visibly and runs stock once. */
     rekordbox_reset(XZ_UI_INTERFACE_MODERN,XZ_REKORDBOX_STOCK,XZ_REKORDBOX_NOTHING);
@@ -145,6 +146,6 @@ static void rekordbox_runtime_check(void) {
     assert(model.rekordbox_assign[0]==XZ_REKORDBOX_INTERFACE&&model.rekordbox_assign[1]==XZ_REKORDBOX_STOCK);
     (void)stems;
     rekordbox_reset(XZ_UI_INTERFACE_CLASSIC,XZ_REKORDBOX_INTERFACE,XZ_REKORDBOX_STOCK);fake_shell_running=0;
-    model.stems_overlay=saved_overlay;stock_uikey_rekordbox=NULL;stock_global_key=NULL;rekordbox_shift_held=rekordbox_shift_native;
+    model.stems_overlay=saved_overlay;model.modern_stems=saved_modern;stock_uikey_rekordbox=NULL;stock_global_key=NULL;rekordbox_shift_held=rekordbox_shift_native;
     puts("PASS REKORDBOX button: CLASSIC handler only, MODERN shell swallows MODS/STEMS, stock hands off once, others run once, SHIFT slot latched at the press");
 }

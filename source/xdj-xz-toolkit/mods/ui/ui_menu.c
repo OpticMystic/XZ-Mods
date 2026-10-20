@@ -319,15 +319,18 @@ static void stem_pad_row(struct build *b, const struct xz_ui_widget *w) {
  if(is_focus(b,w))b->focus_key=r->key;
 }
 static void cycle_row(struct build *b, const struct xz_ui_widget *w) {
- int layout=w->kind==XZ_UI_STEMS_OVERLAY,count=layout?XZ_STEM_LAYOUT_COUNT:XZ_STEM_ORDER_COUNT;
- struct xz_shell_menu_row *r=control_row(b,w,XZ_SHELL_MENU_CHOICE,layout?"STEM ROW LAYOUT":"STEM ORDER");
+ /* This menu is MODERN's, so the layout row is MODERN's own (modern_stems), in the STEMS button's order. */
+ int layout=w->kind==XZ_UI_STEMS_OVERLAY,count=layout?XZ_MODERN_STEMS_COUNT:XZ_STEM_ORDER_COUNT;
+ struct xz_shell_menu_row *r=control_row(b,w,XZ_SHELL_MENU_CHOICE,layout?"STEM BUTTONS":"STEM ORDER");
  if(!r)return;
  for(int i=0;i<count;i++){
-  struct xz_shell_menu_target t={(int16_t)w->kind,(int16_t)i,-1,XZ_UI_MENU_CYCLE,0};
-  add_choice(b,r,layout?xz_wave_layout_name(i):xz_stem_order_name(i),t,r->available);
+  int value=layout?xz_modern_stems_order[i]:i;
+  struct xz_shell_menu_target t={(int16_t)w->kind,(int16_t)value,-1,XZ_UI_MENU_CYCLE,0};
+  add_choice(b,r,layout?xz_modern_stems_name(value):xz_stem_order_name(i),t,r->available);
  }
- int now=layout?b->m->stems_overlay:b->m->stem_order;
+ int now=layout?xz_modern_stems_position(b->m->modern_stems):b->m->stem_order;
  r->current=(int16_t)(now>=0&&now<count?now:-1);
+ if(layout)copy(r->help,sizeof r->help,"Where the stem buttons sit on the play screen: small beside the hot cues, rows by the waveforms, or hidden. STEMS steps through them.");
  if(!layout)copy(r->help,sizeof r->help,"The left-to-right stem order of the play screen rows and pads A, B and C. Bass stays on pad D or H.");
 }
 static void volume_row(struct build *b, const struct xz_ui_widget *w) {
@@ -750,10 +753,10 @@ size_t xz_ui_menu_run(struct xz_ui *u, const struct xz_ui_model *m, const struct
    .value=t->how==XZ_UI_MENU_SLIDE?(float)t->value/100.f:(float)t->value,.pc_target=-1};
   return total;
  case XZ_UI_MENU_CYCLE:{
-  int layout=t->kind==XZ_UI_STEMS_OVERLAY,now=layout?m->stems_overlay:m->stem_order;
-  for(int step=0;step<XZ_STEM_ORDER_COUNT&&now!=t->index&&total<XZ_UI_MENU_ACTIONS;step++){
+  int layout=t->kind==XZ_UI_STEMS_OVERLAY,now=layout?m->modern_stems:m->stem_order;
+  for(int step=0;step<(layout?XZ_MODERN_STEMS_COUNT:XZ_STEM_ORDER_COUNT)&&now!=t->index&&total<XZ_UI_MENU_ACTIONS;step++){
    out[total++]=(struct xz_ui_action){.kind=(enum xz_ui_action_kind)t->kind,.phase=XZ_UI_PRESS,.deck=u->deck,.pc_target=-1};
-   now=layout?xz_wave_layout_next(now):(now+1)%XZ_STEM_ORDER_COUNT;
+   now=layout?xz_modern_stems_next(now):(now+1)%XZ_STEM_ORDER_COUNT;
   }
   return total;}
  case XZ_UI_MENU_PAGE:{

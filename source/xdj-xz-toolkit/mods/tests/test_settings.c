@@ -18,7 +18,7 @@ static void rekordbox_buttons(void) {
     for(int press=0;press<XZ_REKORDBOX_ACTIONS;press++)for(int shift=0;shift<XZ_REKORDBOX_ACTIONS;shift++){
         struct xz_settings w=a;w.rekordbox_press=press;w.rekordbox_shift=shift;w.rekordbox_menu=press==XZ_REKORDBOX_MODS;
         assert(xz_settings_format(&w,text,sizeof(text))>0&&strstr(text,press==XZ_REKORDBOX_MODS?"rekordbox_menu=1\n":"rekordbox_menu=0\n"));
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==43&&!memcmp(&w,&b,sizeof(w)));
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==44&&!memcmp(&w,&b,sizeof(w)));
     }
     { struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_ACTIONS;assert(xz_settings_format(&w,text,sizeof(text))<0);
       w=a;w.rekordbox_shift=-1;assert(xz_settings_format(&w,text,sizeof(text))<0); }
@@ -26,6 +26,18 @@ static void rekordbox_buttons(void) {
     { char bad[1024];strcpy(bad,text);field(bad,"rekordbox_shift=",'6');assert(xz_settings_parse(bad,&b)<0);
       /* The pair is all or nothing. */
       strcpy(bad,text);cut(bad,"rekordbox_shift=");assert(xz_settings_parse(bad,&b)<0); }
+    /* modern_stems: MODERN's own stem layout, PADS by default; a record without it keeps PADS; 0..5 only. */
+    { char bad[1024];assert(a.modern_stems==XZ_MODERN_STEMS_PADS&&a.stems_overlay==XZ_STEM_LAYOUT_BELOW);
+      for(int mode=0;mode<XZ_MODERN_STEMS_COUNT;mode++){struct xz_settings w=a;w.modern_stems=mode;
+        assert(xz_settings_format(&w,bad,sizeof(bad))>0&&!xz_settings_parse_present(bad,&b,&present)&&present==44&&b.modern_stems==mode);}
+      strcpy(bad,text);field(bad,"modern_stems=",'6');assert(xz_settings_parse(bad,&b)<0);
+      strcpy(bad,text);field(bad,"modern_stems=",'0');cut(bad,"modern_stems=");
+      assert(!xz_settings_parse_present(bad,&b,&present)&&present==43&&b.modern_stems==XZ_MODERN_STEMS_PADS);
+      /* The STEMS cycle: PADS, the four rows, HIDDEN, PADS. */
+      int mode=XZ_MODERN_STEMS_PADS;static const int order[7]={XZ_MODERN_STEMS_PADS,XZ_STEM_LAYOUT_BELOW,XZ_STEM_LAYOUT_BELOW_HALF,
+        XZ_STEM_LAYOUT_OUTER,XZ_STEM_LAYOUT_OUTER_HALF,XZ_STEM_LAYOUT_HIDDEN,XZ_MODERN_STEMS_PADS};
+      for(int i=1;i<7;i++){mode=xz_modern_stems_next(mode);assert(mode==order[i]);}
+      assert(xz_modern_stems_next(99)==XZ_MODERN_STEMS_PADS&&!strcmp(xz_modern_stems_name(XZ_MODERN_STEMS_PADS),"PAD ROW / SMALL")); }
     /* Records older than the pair migrate from rekordbox_menu and takeover_assign. */
     static const struct { char menu, takeover; int press, assign; } cases[]={
         {'1','0',XZ_REKORDBOX_INTERFACE,XZ_TAKEOVER_LINK},{'0','0',XZ_REKORDBOX_STOCK,XZ_TAKEOVER_LINK},
@@ -82,7 +94,7 @@ int main(void) {
         current.key_feedback=1;current.wave_mode=2;
         assert(!xz_settings_overlay(&current,&record,present)&&current.key_feedback==1&&current.wave_mode==2);
         struct xz_settings off=current;off.key_feedback=0;off.wave_mode=0;
-        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==43);
+        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==44);
         assert(!xz_settings_overlay(&current,&record,present)&&!current.key_feedback&&!current.wave_mode);
         record=current;record.theme=XZ_THEME_COUNT;struct xz_settings kept=current;
         assert(xz_settings_overlay(&current,&record,38)<0&&!memcmp(&kept,&current,sizeof(kept)));

@@ -220,6 +220,7 @@ struct xz_ui_model {
     struct xz_ui_connection connection;
     int stem_page, shift_pages, pad_feedback, shift_keysync;
     int fb_takeover, takeover_assign, stems_overlay; /* stems_overlay: enum xz_stem_layout */
+    int modern_stems; /* MODERN's stem layout: stems_overlay's values or XZ_MODERN_STEMS_PADS */
     int stem_bank;
     int wave_mode; /* 0 stock, 1 3-band, 2 stems */
     int browse_columns[3], browse_key_prefix, browse_traffic;

@@ -381,7 +381,7 @@ static struct xz_settings settings_snapshot(void) {
         .ui_interface=model.ui_interface, .classic_theme=model.classic_theme, .modern_theme=model.modern_theme,
         .stem_page=model.stem_page, .shift_pages=model.shift_pages, .pad_feedback=model.pad_feedback, .shift_keysync=model.shift_keysync,
         .fb_takeover=xz_sdk_ui_saved_takeover(&sdk_session,model.fb_takeover), .takeover_assign=model.takeover_assign, .stem_bank=model.stem_bank, .jump=model.jump,
-        .stems_overlay=model.stems_overlay, .wave_mode=model.wave_mode,
+        .stems_overlay=model.stems_overlay, .modern_stems=model.modern_stems, .wave_mode=model.wave_mode,
         .browse_columns={model.browse_columns[0],model.browse_columns[1],model.browse_columns[2]},
         .browse_key_prefix=model.browse_key_prefix, .browse_traffic=model.browse_traffic, .key_format=model.key_format,
         .stem_colors={model.stem_colors[0],model.stem_colors[1],model.stem_colors[2]},.stem_order=model.stem_order,.key_feedback=model.key_feedback,.ram_debug=model.ram_debug,
@@ -1125,6 +1125,8 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             xz_native_touch_visible(&touch,0); __atomic_store_n(&visible,0,__ATOMIC_RELEASE);
             break;
         case XZ_UI_STEMS_OVERLAY:
+            /* MODERN has its own layout (the shell draws it); CLASSIC's native rows keep stems_overlay. */
+            if(model.ui_interface==XZ_UI_INTERFACE_MODERN){model.modern_stems=xz_modern_stems_next(model.modern_stems);break;}
             model.stems_overlay=xz_wave_layout_next(model.stems_overlay);
             stem_layout_actions++;stem_layout_revision++;stem_layout_origin="layout-control";
             inline_redraw_pending=1;
@@ -1372,7 +1374,7 @@ static int shell_eligible_locked(void){
 static int shell_owns_locked(void){return xz_shell_runtime_owns&&shell_eligible_locked()&&xz_shell_runtime_owns();}
 static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     memset(in,0,sizeof(*in));in->eligible=shell_eligible_locked();in->theme=model.theme;
-    in->stems_known=1;in->stems_on=model.stems_overlay!=XZ_STEM_LAYOUT_HIDDEN;
+    in->stems_known=1;in->stems_on=model.modern_stems!=XZ_STEM_LAYOUT_HIDDEN;
     for(int d=0;d<2;d++){
         /* 3-stem local playback only: with four stems or PC stems the bits mean something else. */
         in->stem_muted_known[d]=(model.deck[d].ready&XZ_UI_STEM)&&model.deck[d].pc_stems.source==XZ_UI_SOURCE_LOCAL&&model.deck[d].stem_count!=4;
@@ -1382,7 +1384,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     in->look_known=1;in->ui_interface=model.ui_interface;in->modern_theme=model.modern_theme;in->wave_mode=model.wave_mode;
     in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
     for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
-    in->stems_overlay=model.stems_overlay;
+    in->stems_overlay=model.modern_stems;
     in->rekordbox_known=1;in->rekordbox_assign[0]=model.rekordbox_assign[0];in->rekordbox_assign[1]=model.rekordbox_assign[1];
     /* The MODS screen's MENU tab shows the panel's open page: published while the shell shows one. */
     if(xz_shell_runtime_menu_wanted&&xz_shell_runtime_menu_wanted())menu_publish_locked();
@@ -2350,6 +2352,7 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     model.settings_status="PROFILE APPLIED / NOT SAVED";
     if(model.stems_overlay!=saved->stems_overlay){stem_layout_revision++;stem_layout_origin=origin;}
     model.jump = saved->jump; model.jump.shift_page=1; model.stems_overlay = saved->stems_overlay; model.wave_mode = saved->wave_mode;
+    model.modern_stems = (unsigned)saved->modern_stems < XZ_MODERN_STEMS_COUNT ? saved->modern_stems : XZ_MODERN_STEMS_PADS;
     requested_stems = saved->stems; model.stem_page = saved->stem_page;
     model.ui_interface = saved->ui_interface; model.classic_theme = saved->classic_theme; model.modern_theme = saved->modern_theme;
     model.theme = xz_settings_look(model.ui_interface, model.classic_theme);
@@ -2521,7 +2524,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     memset(&jump_state,0,sizeof(jump_state));
     model.pad_feedback = 1;
     model.shift_pages=model.shift_keysync=1;
-    model.stems_overlay = 1;
+    model.stems_overlay = 1;model.modern_stems = XZ_MODERN_STEMS_PADS;
     model.wave_mode = XZ_WAVE_THREE_BAND;
     model.fb_takeover = 0;
     model.takeover_assign = XZ_TAKEOVER_LINK;

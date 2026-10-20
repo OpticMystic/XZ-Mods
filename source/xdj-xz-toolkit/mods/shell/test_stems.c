@@ -41,13 +41,23 @@ static void test_layouts(void) {
  struct xz_shell u;xz_shell_init(&u);
  struct xz_shell_model m;
  struct xz_shell_rect lane[2]={xz_shell_play_rect(XZ_SHELL_R_LANE,0),xz_shell_play_rect(XZ_SHELL_R_LANE,1)};
- static const int heights[XZ_SHELL_STEM_LAYOUTS]={0,48,24,48,24};
+ static const int heights[XZ_SHELL_STEM_LAYOUTS]={0,48,24,48,24,0};
  for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
   model(&m,(enum xz_shell_stem_layout)layout);
   for(int deck=0;deck<2;deck++){
    struct xz_shell_rect row=xz_shell_stem_row(&m,deck);
    assert(row.h==heights[layout]);
-   if(!row.h){for(int s=0;s<3;s++)assert(xz_shell_stem_button(NULL,&m,deck,s).w==0);continue;}
+   if(!row.h){
+    /* PADS: the small buttons in the pad row, 44 px targets, DRUMS, VOCAL, INST from the left; HIDDEN: none. */
+    struct xz_shell_rect pad=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,deck);
+    for(int s=0;s<3;s++){
+     struct xz_shell_rect b=xz_shell_stem_button(NULL,&m,deck,s);
+     if(layout==XZ_SHELL_STEMS_PADS)assert(b.h==44&&b.x>=pad.x&&b.x+b.w<=pad.x+pad.w&&b.y<=pad.y&&b.y+b.h>=pad.y+pad.h);
+     else assert(b.w==0);
+    }
+    if(layout==XZ_SHELL_STEMS_PADS)assert(xz_shell_stem_button(NULL,&m,deck,0).x<xz_shell_stem_button(NULL,&m,deck,2).x);
+    continue;
+   }
    /* Inside the deck's lane: BELOW at the foot of each deck, OUTSIDE above deck 1 and below deck 2. */
    int outside_top=deck==0&&(layout==XZ_SHELL_STEMS_OUTSIDE_FULL||layout==XZ_SHELL_STEMS_OUTSIDE_HALF);
    assert(row.y==(outside_top?lane[deck].y:lane[deck].y+lane[deck].h-row.h)&&row.x>=lane[deck].x&&row.x+row.w<=lane[deck].x+lane[deck].w);
@@ -59,9 +69,9 @@ static void test_layouts(void) {
    assert(xz_shell_stem_button(NULL,&m,deck,0).x<xz_shell_stem_button(NULL,&m,deck,2).x&&xz_shell_stem_button(NULL,&m,deck,2).x<xz_shell_stem_button(NULL,&m,deck,1).x);
   }
   render(&u,&m,pixels);
-  /* The pad row keeps only the hot-cue lamps once the layout is read. */
+  /* The pad row keeps only the hot-cue lamps unless the layout is PADS. */
   struct xz_shell_rect pad=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,0);
-  assert(count(pixels,pad,sh_stem_bright(&m,0))==0);
+  assert((count(pixels,pad,sh_stem_bright(&m,0))==0)==(layout!=XZ_SHELL_STEMS_PADS));
  }
  /* A deck without stems keeps its row and says so; a row never shows on a hidden layout. */
  model(&m,XZ_SHELL_STEMS_BELOW_FULL);
@@ -73,7 +83,7 @@ static void test_layouts(void) {
  assert(xz_shell_stem_row(&m,0).h==0&&xz_shell_stem_button(NULL,&m,0,0).h==44&&xz_shell_stem_button(NULL,&m,0,0).y>=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,0).y-8);
  m.stem_layout_known=1;m.stem_layout=(enum xz_shell_stem_layout)9;
  assert(xz_shell_stem_row(&m,0).h==0);render(&u,&m,pixels);
- puts("PASS stem rows: five layouts, rows inside each deck's lane, 44 px buttons, pad-row fallback");
+ puts("PASS stem rows: six layouts, rows inside each deck's lane, PADS in the pad row, 44 px buttons, pad-row fallback");
 }
 
 static void test_faders_and_taps(void) {
@@ -130,20 +140,23 @@ static void test_header_toggle(void) {
  struct xz_shell_model m;
  struct xz_shell_rect marks={XZ_SHELL_STEMS_X,XZ_SHELL_HEADER_BUTTON_H-6,XZ_SHELL_STEMS_W,3};
  int lit[XZ_SHELL_STEM_LAYOUTS];
- for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
-  model(&m,(enum xz_shell_stem_layout)layout);
+ /* In the order the runtime steps them: PADS, the four row layouts, HIDDEN. */
+ assert(xz_shell_stem_cycle[0]==XZ_SHELL_STEMS_PADS&&xz_shell_stem_cycle[XZ_SHELL_STEM_LAYOUTS-1]==XZ_SHELL_STEMS_HIDDEN);
+ for(int i=0;i<XZ_SHELL_STEM_LAYOUTS;i++){
+  enum xz_shell_stem_layout layout=xz_shell_stem_cycle[i];
+  model(&m,layout);
   /* The header button asks the runtime to step the layout, as the classic STEMS button does. */
   assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,XZ_SHELL_STEMS_X+10,10)==1&&out[0].kind==XZ_SHELL_ACT_TOGGLE_STEMS);
   send(&u,&m,XZ_SHELL_TOUCH_UP,XZ_SHELL_STEMS_X+10,10);
   render(&u,&m,pixels);
-  /* Its five marks show the current choice: the white mark moves along. */
+  /* Its six marks show the current choice: the white mark moves along. */
   int first=-1;
   for(int x=marks.x;x<marks.x+marks.w&&first<0;x++)for(int y=marks.y;y<marks.y+marks.h;y++)if(pixels[y*XZ_SHELL_WIDTH+x]==rgb565(SH_WHITE)){first=x;break;}
-  lit[layout]=first;
+  lit[i]=first;
   assert(first>=0);
  }
- for(int layout=1;layout<XZ_SHELL_STEM_LAYOUTS;layout++)assert(lit[layout]>lit[layout-1]);
- puts("PASS header STEMS: TOGGLE_STEMS on touch, five marks follow the layout");
+ for(int i=1;i<XZ_SHELL_STEM_LAYOUTS;i++)assert(lit[i]>lit[i-1]);
+ puts("PASS header STEMS: TOGGLE_STEMS on touch, six marks follow the layout in its cycle");
 }
 
 static void test_colours(void) {
@@ -178,9 +191,9 @@ static void test_bypass(void) {
    if(layout==XZ_SHELL_STEMS_HIDDEN&&!pad){assert(b.w==0);continue;}
    /* After INST, 44 px tall, clear of every stem button and, in the pad row, of the hot-cue lamps. */
    struct xz_shell_rect inst=xz_shell_stem_button(&u,&m,deck,1);
-   assert(b.h>=44&&b.w>=56&&b.x>inst.x+inst.w);
+   assert(b.h>=44&&b.w>=54&&b.x>inst.x+inst.w);
    for(int s=0;s<3;s++)assert(!overlap(b,xz_shell_stem_button(&u,&m,deck,s)));
-   if(pad){struct xz_shell_rect r=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,deck);assert(b.x+b.w<=r.x+r.w-8-8*14-7*3-4);}
+   if(pad||layout==XZ_SHELL_STEMS_PADS){struct xz_shell_rect r=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,deck);assert(b.x+b.w<=r.x+r.w-8-8*14-7*3-10);}
    else{struct xz_shell_rect row=xz_shell_stem_row(&m,deck);assert(b.x+b.w==row.x+row.w);}
   }
   render(&u,&m,pixels);
