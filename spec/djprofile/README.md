@@ -12,7 +12,7 @@ whatever the stick is plugged into can show who is playing.
 - **For mod authors and DJ software.** Write `profile.json` and the optional
   silent profile track, and never touch anything else on the stick.
 
-Status: **draft 2, 2026-10-19.** Levels 0 and 1 are ready to implement. The
+Status: **draft 3, 2026-10-19.** Levels 0 and 1 are ready to implement. The
 profile track (level 2) is provisional until the export checks in section 9
 of the specification have been run. Comments and proposals are welcome as
 issues.
@@ -51,7 +51,7 @@ def profiles(stick: Path):
     folders = {}
     for top in tops:
         for folder in visible(top):
-            if folder.is_dir() and key(folder.name) != 'vjtools':
+            if folder.is_dir():
                 folders.setdefault(key(folder.name), folder)
     found = []
     for name_key in sorted(folders, key=lambda k: k.encode('utf-8')):
@@ -64,8 +64,8 @@ def profiles(stick: Path):
     return found[:16]
 ```
 
-A level 1 reader adds `profile.json`, `DJPROFILE.json`, the active profile, the
-legacy stores and the size, path and image limits of the specification.
+A level 1 reader adds `profile.json`, `DJPROFILE.json`, the active profile and
+the size, path and image limits of the specification.
 `tools/check_djprofile.py` does all of that and is public domain, so it can be
 copied.
 
@@ -73,7 +73,7 @@ copied.
 
 | Project | Reads | Writes |
 |---|---|---|
-| XZ Mods (desktop app and XDJ-XZ mods) | legacy layout; 1.0 in progress | legacy layout; 1.0 in progress |
-| VJ.Tools Wingman and Library | legacy layout | legacy layout |
+| XZ Mods (desktop app and XDJ-XZ mods) | 1.0 in progress | 1.0 in progress |
+| VJ.Tools Wingman and Library | 1.0 in progress | 1.0 in progress |
 
 To add yours, open an issue or a pull request.

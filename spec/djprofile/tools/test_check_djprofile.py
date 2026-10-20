@@ -215,29 +215,36 @@ class Folders(Stick):
         self.assertIn('writers name the folder exactly DJPROFILE', problems(report))
 
 
-class Legacy(Stick):
-    example = 'level0'
+class StickFile(Stick):
+    def write(self, value):
+        (self.top / 'DJPROFILE.json').write_text(json.dumps({'format': 'djprofile-stick/1', **value}), encoding='utf-8')
 
-    def setUp(self):
-        super().setUp()
-        home = self.top / 'VJTOOLS'
-        home.mkdir()
-        (home / 'index.json').write_text(json.dumps({
-            'schema': 'vjtools.dj-profile-index', 'version': 1, 'active': 'djp_lena',
-            'profiles': [{'dj_id': 'djp_kai', 'dj_name': 'DJ Kai'}, {'dj_id': 'djp_lena', 'dj_name': 'Lena B'}]}),
-            encoding='utf-8')
-
-    def test_handmade_folder_merges_into_legacy_profile(self):
+    def test_profiles_list_sets_order(self):
+        self.write({'profiles': [{'folder': 'Lena B'}, {'folder': 'DJ Kai', 'id': KAI_ID}]})
         report = checker.check(self.root)
-        self.assertEqual([(p['name'], p['level']) for p in report.profiles], [('DJ Kai', 'legacy'), ('Lena B', 'legacy')])
+        self.assertEqual([p['folder'] for p in report.profiles], ['Lena B', 'DJ Kai'])
+        self.assertEqual(report.active, 'Lena B')
 
-    def test_legacy_active_wins_without_stick_file(self):
-        self.assertEqual(checker.check(self.root).active, 'Lena B')
+    def test_hand_renamed_folder_found_by_id(self):
+        self.kai.rename(self.top / 'Kai Renamed')
+        report = checker.check(self.root)
+        self.assertEqual(report.profiles[0]['folder'], 'Kai Renamed')
+        self.assertIn("lists 'DJ Kai', found by id as 'Kai Renamed'", warnings(report))
 
-    def test_stick_file_overrides_legacy_active(self):
-        (self.top / 'DJPROFILE.json').write_text(json.dumps({'format': 'djprofile-stick/1', 'active': 'djp_kai'}),
-                                                 encoding='utf-8')
-        self.assertEqual(checker.check(self.root).active, 'DJ Kai')
+    def test_listed_id_does_not_match_another_dj_with_that_folder_name(self):
+        self.write({'profiles': [{'folder': 'Lena B', 'id': 'someone-else'}]})
+        report = checker.check(self.root)
+        self.assertIn("'Lena B' is not a profile here; skipped", warnings(report))
+
+    def test_bad_entry(self):
+        self.write({'profiles': [{'folder': '../escape'}]})
+        self.assertTrue(any('valid folder name' in p for p in problems(checker.check(self.root))))
+
+    def test_folder_with_only_subfolders_is_not_a_profile(self):
+        nested = self.top / 'Old Store' / 'profiles' / 'kai'
+        nested.mkdir(parents=True)
+        shutil.copy(self.kai / 'logo.png', nested / 'logo.png')
+        self.assertEqual([p['folder'] for p in checker.check(self.root).profiles], ['DJ Kai', 'Lena B'])
 
 
 if __name__ == '__main__':

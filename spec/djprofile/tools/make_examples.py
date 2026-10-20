@@ -111,7 +111,8 @@ def main() -> None:
             document['track'] = {**entry(kai, 'DJ PROFILE - DJ Kai.mp3', track), 'marker': marker}
         write_json(kai / 'profile.json', document)
         write_json(top / 'DJPROFILE.json', {'format': 'djprofile-stick/1', 'revision': '2026-10-19T15-02-11Z-3f1c',
-                                            'active': document['id'], 'order': [document['id'], 'Lena B']})
+                                            'active': document['id'],
+                                            'profiles': [{'folder': 'DJ Kai', 'id': document['id']}, {'folder': 'Lena B'}]})
 
 
 if __name__ == '__main__':
