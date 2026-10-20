@@ -20,7 +20,7 @@ import zlib
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_dj_profile import OLD_FIXTURES, SPEC, WRITER, build, checker  # noqa: E402
 
-EXPORTED = ('created', 'migrated', 'adopted', 'unknown', 'full', 'errors', 'large')
+EXPORTED = ('created', 'migrated', 'adopted', 'unknown', 'full', 'errors', 'large', 'heavy')
 # 16x16 JPEG of rgb(40,200,90), quality 95, 4:4:4 (Pillow 12.3).
 JPEG = bytes.fromhex(
     'ffd8ffe000104a46494600010100000100010000ffdb0043000201010101010201010102020202020403020202020504040304060506060605060606'
@@ -91,6 +91,12 @@ def prepare(work):
     (images / 'wide4100.png').write_bytes(solid_png(4100, 100, (250, 160, 100)))
     (images / 'square2100.png').write_bytes(solid_png(2100, 2100, (16, 228, 220)))
     good = png(64, 64, lambda x, y: (x * 4, y * 4, 128))
+    # 1600x1600 of noise, stored: a logo just under 8 MiB.
+    row = 1 + 1600 * 3
+    noise = bytearray(os.urandom(row * 1600))
+    noise[::row] = bytes(1600)
+    (images / 'noise.png').write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1600, 1600, 8, 2, 0, 0, 0))
+                                       + chunk(b'IDAT', zlib.compress(bytes(noise), 0)) + chunk(b'IEND', b''))
     (images / 'truncated.png').write_bytes(good[:len(good) // 2])
     (images / 'notimage.png').write_bytes(b'this is not an image, only text\n')
     (images / 'empty.png').write_bytes(b'')
@@ -123,6 +129,22 @@ def prepare(work):
     write_json(old / 'profile.json', value)
     (sticks / 'adopted' / 'DJPROFILE' / 'Zed').mkdir()
     (sticks / 'adopted' / 'DJPROFILE' / 'Zed' / 'flyer.png').write_bytes(png(12, 12, lambda x, y: (200, 20, 20)))
+    # Three 6 MiB alternates: a near-8 MiB primary would pass the 24 MiB of section 5.1.
+    heavy = sticks / 'heavy' / 'DJPROFILE' / 'Heavy'
+    heavy.mkdir(parents=True)
+    small = png(16, 16, lambda x, y: (9, 9, 9))
+    (heavy / 'logo.png').write_bytes(small)
+    logos = [{'file': 'logo.png', 'bytes': len(small), 'sha256': hashlib.sha256(small).hexdigest(), 'role': 'primary'}]
+    for k in range(3):
+        data = header_only(64, 64) + bytes(6 * 1024 * 1024)
+        (heavy / f'big-{k}.png').write_bytes(data)
+        logos.append({'file': f'big-{k}.png', 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(), 'role': 'alternate'})
+    write_json(heavy / 'profile.json', {'format': 'djprofile/1', 'id': 'heavy', 'revision': 'r1', 'name': 'Heavy', 'logos': logos})
+    # A pre-1.0 member 1.0 cannot hold (a non-ASCII member name): that profile cannot move, the others still do.
+    stuck = sticks / 'errors' / 'DJPROFILE' / 'VJTOOLS' / 'profiles' / 'djp_kai' / 'profile.json'
+    value = json.loads(stuck.read_text(encoding='utf-8'))
+    value['\u00e9tiquette'] = 1
+    write_json(stuck, value)
     unknown = sticks / 'unknown'
     shutil.copytree(SPEC / 'examples' / 'level1-track', unknown)
     document = unknown / 'DJPROFILE' / 'DJ Kai' / 'profile.json'
@@ -130,6 +152,9 @@ def prepare(work):
     value['logos'][1]['x-entry'] = [1, 2]
     value['links'][0]['x-link'] = True
     value['x-root'] = {'a': 1, 'b': ['c']}
+    # An alternate stored as logo.jpg, the name a JPEG primary takes.
+    (unknown / 'DJPROFILE' / 'DJ Kai' / 'logo.jpg').write_bytes(JPEG)
+    value['logos'].append({'file': 'logo.jpg', 'bytes': len(JPEG), 'sha256': hashlib.sha256(JPEG).hexdigest(), 'role': 'alternate'})
     write_json(document, value)
     stick_file = unknown / 'DJPROFILE' / 'DJPROFILE.json'
     value = json.loads(stick_file.read_text(encoding='utf-8'))
