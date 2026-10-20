@@ -89,7 +89,8 @@ elif (runtime/'doom1.wad').is_file():
     'prepared_formats':['overcue-stems/4','stemd-cache/1'],
     'prepared_containers':['OVPGZ001','OVPGZ003','OVPGZ004'], 'stem_page_codecs':['zlib','flac-96k','flac-44k1'],
     # The app removes a stick's pre-1.0 DJ profile store only when the runtime on it reads DJ Profile 1.0.
-    'capabilities':(bundle_manifest.get('capabilities',[]) if bundle_manifest else
+    # A paired bundle that predates capability lists says nothing; read its verified native source instead.
+    'capabilities':(bundle_manifest['capabilities'] if bundle_manifest and 'capabilities' in bundle_manifest else
         ['djprofile/1'] if '"djprofile/1"' in (RUNTIME_SOURCE/'mods/dj_profile.c').read_text(encoding='utf8',errors='replace') else []),
     'bundle_manifest_sha256':digest(a.runtime_bundle/'manifest.json') if a.runtime_bundle else None,
     'source_repository':bundle_manifest.get('source_repository') if bundle_manifest else 'https://github.com/OpticMystic/xdj-xz-toolkit',
