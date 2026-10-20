@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "stem_colors.h"
 #include "stem_pads.h"
+#include "../extra_decks.h"
 
 #define XZ_LED_RECORD_BYTES 0x2cu
 #define XZ_LED_MAX_RECORDS 256u
@@ -47,6 +48,10 @@ struct xz_led_probe_entry { uint32_t sequence,seen,id,changes,words[8]; };
 struct xz_led_probe { uint32_t version,overflow[2]; struct xz_led_probe_entry entry[2][XZ_LED_PROBE_IDS]; };
 extern struct xz_led_probe xz_mods_led_probe_v1;
 void xz_native_led_probe(const void *,size_t,unsigned,unsigned);
+/* A DECK 3 / DECK 4 hot-cue pad (pad 0..7 = A..H): a stored cue lit in its colour, an empty pad or
+   unknown cues off. Always XZ_LED_REPLACE so no native pad state shows through. */
+#define XZ_EXTRA_PAD_DEFAULT_RGB 0x00ff00u
+int xz_extra_pad_led(const struct xz_extra_deck *deck,int pad,uint32_t *rgb,int *enabled);
 int xz_native_led_start(void);
 void xz_native_led_stop(void);
 #endif
