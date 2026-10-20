@@ -14,8 +14,8 @@ int xz_layered_wave_active(void);
 void xz_layered_wave_configure(int mode,const uint32_t stem_rgb[3]);
 void xz_layered_wave_begin(uint16_t *pixels);
 void xz_layered_wave_end(void);
-/* The native lanes' zoom (audio microseconds per column) and column background mode, from the last
-   frame that drew both ends of a lane; 0 before any. Any thread. */
+/* The native lanes' zoom (audio microseconds per column, 0 before any lane is drawn) and column
+   background mode. Any thread. */
 void xz_layered_wave_view(uint32_t *column_us,unsigned *background);
 /* Draw thread, after _end: native deck's layer columns this frame drew (536), or NULL. */
 struct xz_layered_data;struct xz_layered_col;

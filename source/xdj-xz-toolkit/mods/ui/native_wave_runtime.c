@@ -112,7 +112,6 @@ static void draw_extra(uint16_t *pixels,uint32_t count){
  struct xz_four_layout g;xz_four_layout_get(XZ_FOUR_ORDER,&g);
  struct xz_extra_lane_view view={monotonic_ms(),0,1,0};
  xz_layered_wave_view(&view.column_us,&view.background);
- if(!view.column_us)view.background=1;
  for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
   view.lit=i?extra.right_on_4:extra.left_on_3;
   xz_extra_lane_draw(pixels,536,count,g.lane_y[2+i],3+i,&extra.deck[i],&view,&extra_marks[i]);
