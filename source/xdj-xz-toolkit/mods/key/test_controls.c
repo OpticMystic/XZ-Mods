@@ -96,6 +96,26 @@ static void toggle_test(void){
     keys();fixture_key_valid[0]=0;assert(!sync_key(1));
     puts("PASS two-deck toggle, relative target, MT restore both ways, consumed press, stock next press, load reset and live shell key fields");
 }
+static void metadata_gap_test(void){
+    for(int deck=0;deck<2;deck++)for(int mt=0;mt<2;mt++)for(int button=0;button<2;button++){
+        keys();native_master_tempo_on=fixture_master_tempo_on;stock_master_tempo_key=fixture_master_tempo_stock;
+        fixture_keys[deck].master_tempo=mt;
+        assert(sync_key(deck));fixture_key_apply(deck);
+        fixture_key_valid[deck]=0;refresh();
+        assert(key_sync[deck].valid); /* The toggle still owns a request during a metadata gap. */
+        if(button){
+            unsigned char self[0x138]={0},input[16]={0};self[0x26]=(unsigned char)(deck+1);
+            assert(master_tempo_key_hook(self,input));input[11]=2;assert(master_tempo_key_hook(self,input));
+        }else assert(sync_key(deck));
+        assert(!key_sync[deck].valid&&!fixture_key_cents[deck]&&fixture_keys[deck].master_tempo==mt);
+        fixture_key_valid[deck]=1;
+        assert(sync_key(deck));fixture_keys[deck].epoch++;fixture_key_cents[deck]=300;
+        assert(sync_key(deck)&&!key_sync[deck].valid&&fixture_key_cents[deck]==300);
+        assert(sync_key(deck));fixture_key_cents[deck]=700;
+        assert(sync_key(deck)&&!key_sync[deck].valid&&fixture_key_cents[deck]==700);
+    }
+    puts("PASS Key Sync off through metadata gaps, original MT restored, newer epoch and manual requests preserved");
+}
 static void badge_test(void){
     /* The MODS badge keeps its own page on browse screens too: columns are chosen from the
        table header, never by repurposing the badge. */
@@ -110,4 +130,4 @@ static void badge_test(void){
         touch.visible=0;native_play=1;
     }
 }
-int main(void){existing_controls_test();toggle_test();badge_test();return 0;}
+int main(void){existing_controls_test();toggle_test();metadata_gap_test();badge_test();return 0;}

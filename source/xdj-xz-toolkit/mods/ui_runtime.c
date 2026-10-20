@@ -790,7 +790,8 @@ static void *key_player(int deck) {
 static int key_sync_end(int deck,void *player,int reset) {
     if(!key_sync[deck].valid)return 1;
     if(!player||!native_master_tempo_on)return 0;
-    if(reset&&xz_key_set_desired_cents(deck,key_sync[deck].epoch,0))return 0;
+    /* Clear only this toggle's request, including while key metadata is temporarily unavailable. */
+    if(reset)(void)xz_key_clear_desired_cents(deck,key_sync[deck].epoch,key_sync[deck].cents);
     /* 1.26 boolean setter at 0x289790 forwards 0 and 1 unchanged. */
     native_master_tempo_on(player,key_sync[deck].mt_before);
     __atomic_fetch_and(&key_sync_led_mask,~(1u<<deck),__ATOMIC_RELEASE);
@@ -807,9 +808,7 @@ static int sync_key(int deck) {
     void *player=key_player(deck);
     if(!player||!native_master_tempo_on)return key_sync_fail(deck,XZ_KEY_SYNC_NO_ENGINE);
     if(key_sync[deck].valid){
-        struct xz_key_snapshot current;
-        int same=xz_key_native_snapshot((unsigned)deck,&current)&&current.epoch==key_sync[deck].epoch;
-        return key_sync_end(deck,player,same);
+        return key_sync_end(deck,player,1);
     }
     /* Each failure says on that deck's own key strip what to do; nothing pops up. */
     if(!xz_key_native_snapshot((unsigned)deck,&source))return key_sync_fail(deck,XZ_KEY_SYNC_NO_KEY);
@@ -844,10 +843,7 @@ static int master_tempo_key_hook(void *self,const void *input) {
         master_tempo_down|=bit;
         /* +0x34 is SHIFT: SHIFT+MASTER TEMPO keeps its stock function and leaves KEY SYNC on. */
         if(started&&key_available&&!player[0x34]&&key_sync[deck].valid&&native_master_tempo_on) {
-            struct xz_key_snapshot current;
-            uint32_t epoch=key_sync[deck].epoch;
-            int same=xz_key_native_snapshot((unsigned)deck,&current)&&current.epoch==epoch;
-            if(key_sync_end(deck,self,same)) {
+            if(key_sync_end(deck,self,1)) {
                 master_tempo_owned|=bit;
             }
         }
@@ -1802,7 +1798,7 @@ static void refresh_local(void) {
         model.deck[deck].ready = XZ_UI_GATE | XZ_UI_SMART | XZ_UI_THEME;
         model.deck[deck].usb_reason = XZ_UI_USB_WHY_ENGINE;
         key_valid[deck]=xz_key_native_snapshot((unsigned)deck,&key_snapshot[deck]);
-        if(key_sync[deck].valid&&(!key_valid[deck]||key_snapshot[deck].epoch!=key_sync[deck].epoch)){
+        if(key_sync[deck].valid&&key_valid[deck]&&key_snapshot[deck].epoch!=key_sync[deck].epoch){
             /* The new epoch already resets audio cents; never reset a new track's request. */
             if(key_sync_end(deck,key_player(deck),0)&&key_valid[deck])
                 key_valid[deck]=xz_key_native_snapshot((unsigned)deck,&key_snapshot[deck]);
