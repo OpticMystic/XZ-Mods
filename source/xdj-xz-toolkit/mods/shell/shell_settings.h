@@ -227,8 +227,10 @@ struct xz_shell_rect xz_shell_mods_page_button(void);
 /* SHORTCUT: quadrant 0..3 in reading order, and the chip row of slot 0..3 inside it. */
 struct xz_shell_rect xz_shell_shortcut_quadrant(int quadrant);
 struct xz_shell_rect xz_shell_shortcut_slot(int quadrant, int slot);
-/* SHORTCUT's DECK STATUS lamps (top right): deck 0..1, lamp per enum xz_shell_shortcut_lamp. QUANTIZE
-   and TIME toggle that deck's setting when the runtime can set it; the others only show. */
+/* SHORTCUT's DECK STATUS lamps (top right): deck 0..XZ_SHELL_SHORTCUT_DECKS-1, lamp per enum
+   xz_shell_shortcut_lamp. QUANTIZE and TIME toggle that deck's setting when the runtime can set it; the
+   others only show. The quadrant holds two decks' rows above the jump tiles. */
+#define XZ_SHELL_SHORTCUT_DECKS 2
 enum xz_shell_shortcut_lamp { XZ_SHELL_LAMP_QUANTIZE, XZ_SHELL_LAMP_SYNC, XZ_SHELL_LAMP_SLIP, XZ_SHELL_LAMP_MASTER, XZ_SHELL_LAMP_TIME, XZ_SHELL_LAMP_COUNT };
 struct xz_shell_rect xz_shell_shortcut_lamp(int deck, int lamp);
 /* SHORTCUT jump tiles under the lamps, as the stock SHORTCUT offers them. */

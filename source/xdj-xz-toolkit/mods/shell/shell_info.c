@@ -34,7 +34,7 @@ struct xz_shell_rect xz_shell_info_rect(enum xz_shell_info_region r, int i) {
   if(i<0||i>=XZ_SHELL_RATING_MAX)break;
   return (struct xz_shell_rect){LEFT_X-4+i*STAR_W,RATING_Y+8,STAR_W,LEFT_ROW_H};
  case XZ_SHELL_INFO_R_STRIP:
-  if(i<0||i>=XZ_SHELL_DECKS)break;
+  if(i<0||i>=XZ_SHELL_INFO_DECKS)break;
   return si_strip_rect(i);
  case XZ_SHELL_INFO_R_VALUE:
   switch(i){
@@ -72,7 +72,7 @@ static int shown_tab(const struct xz_shell *u, const struct xz_shell_info_model 
  if(f>=TAB_LINKED&&f<TAB_LINKED+linked_count(im))return f;
  if(f==1||f==2)return f;
  if(im->has_highlight)return TAB_HIGHLIGHT;
- return u->deck>=0&&u->deck<XZ_SHELL_DECKS?u->deck+1:1;
+ return u->deck>=0&&u->deck<XZ_SHELL_INFO_DECKS?u->deck+1:1;
 }
 static const struct xz_shell_info_track *track_of(const struct xz_shell_info_model *im, int tab) {
  return tab>=TAB_LINKED?&im->linked[tab-TAB_LINKED].track:tab==TAB_HIGHLIGHT?&im->highlight:&im->deck[tab-1];
@@ -361,7 +361,7 @@ static size_t info_input(struct xz_shell *u, const struct xz_shell_model *m, con
  case XZ_SHELL_TOUCH_DOWN:{
   int order[TABS_MAX],tabs=tab_order(im,order);
   for(int i=0;i<tabs;i++)if(sh_inside(xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,i),e->x,e->y)){v->focus=order[i];v->cursor=0;return 0;}
-  for(int d=0;d<XZ_SHELL_DECKS;d++)if(sh_inside(si_strip_rect(d),e->x,e->y)){v->focus=d+1;v->cursor=0;return 0;}
+  for(int d=0;d<XZ_SHELL_INFO_DECKS;d++)if(sh_inside(si_strip_rect(d),e->x,e->y)){v->focus=d+1;v->cursor=0;return 0;}
   for(int i=0;i<count;i++){
    if(!sh_inside(xz_shell_info_rect(XZ_SHELL_INFO_R_VALUE,list[i]),e->x,e->y))continue;
    if(v->cursor!=i+1){v->cursor=i+1;return 0;}      /* first touch highlights */

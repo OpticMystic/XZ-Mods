@@ -36,7 +36,7 @@ int main(void) {
    double sum=0;
    for(int i=0;i<FRAMES;i++){
     m.clock_ms+=16;
-    for(int d=0;d<XZ_SHELL_DECKS;d++){m.deck[d].elapsed_ms+=16;m.deck[d].elapsed_at_ms=m.clock_ms-8;}
+    for(int d=0;d<2;d++){m.deck[d].elapsed_ms+=16;m.deck[d].elapsed_at_ms=m.clock_ms-8;}
     double t0=now_us();
     xz_shell_render(&u,&m,frame,XZ_SHELL_WIDTH);
     took[i]=now_us()-t0;sum+=took[i];
@@ -50,7 +50,7 @@ int main(void) {
  printf("checksum %u\n",check);
  /* STEMS with full stem rows as faders on both decks: the layout the deck is measured with. */
  m.capabilities|=XZ_SHELL_CAP_STEM_GAIN;m.stem_layout_known=1;m.stem_layout=XZ_SHELL_STEMS_BELOW_FULL;
- for(int d=0;d<XZ_SHELL_DECKS;d++){m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_GAIN);m.deck[d].stem_gain[0]=80;m.deck[d].stem_gain[1]=55;m.deck[d].stem_gain[2]=100;}
+ for(int d=0;d<2;d++){m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_GAIN);m.deck[d].stem_gain[0]=80;m.deck[d].stem_gain[1]=55;m.deck[d].stem_gain[2]=100;}
  u.display.wave_color=XZ_SHELL_WAVE_STEMS;
  double median_sum=0,mean_sum=0;
  for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++){
@@ -58,7 +58,7 @@ int main(void) {
   double sum=0;
   for(int i=0;i<FRAMES;i++){
    m.clock_ms+=16;
-   for(int d=0;d<XZ_SHELL_DECKS;d++){m.deck[d].elapsed_ms+=16;m.deck[d].elapsed_at_ms=m.clock_ms-8;}
+   for(int d=0;d<2;d++){m.deck[d].elapsed_ms+=16;m.deck[d].elapsed_at_ms=m.clock_ms-8;}
    double t0=now_us();
    xz_shell_render(&u,&m,frame,XZ_SHELL_WIDTH);
    took[i]=now_us()-t0;sum+=took[i];

@@ -258,7 +258,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  }
  uint16_t packed=nav[xz_shell_screen(u)][k];
  struct { enum nav_kind kind; enum xz_shell_screen screen; enum xz_shell_setting setting; } t={(enum nav_kind)(packed&15),(enum xz_shell_screen)(packed>>4),(enum xz_shell_setting)(packed>>4)};
- int deck=event_deck>=0&&event_deck<XZ_SHELL_DECKS?event_deck:u->deck;
+ int deck=event_deck>=0&&event_deck<sh_deck_count(m)?event_deck:sh_active_deck(u,m);
  switch(t.kind){
  case NAV_NONE:break;
  case NAV_OPEN:

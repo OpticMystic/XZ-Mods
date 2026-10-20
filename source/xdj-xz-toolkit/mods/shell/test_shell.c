@@ -57,7 +57,7 @@ static void test_unknown_fields_read_nothing(void) {
  struct xz_shell u;struct xz_shell_model m,zero;
  xz_shell_init(&u);
  memset(&m,0xa5,sizeof m);                /* garbage everywhere ... */
- for(int d=0;d<XZ_SHELL_DECKS;d++){
+ for(int d=0;d<2;d++){
   m.deck[d].known=0;                      /* ... but nothing is known ... */
   m.deck[d].title=m.deck[d].artist=m.deck[d].key=NULL;  /* ... and every pointer is NULL */
   m.deck[d].grid=NULL;m.deck[d].wave.columns=NULL;m.deck[d].overview.columns=NULL;m.deck[d].artwork=NULL;
@@ -69,10 +69,10 @@ static void test_unknown_fields_read_nothing(void) {
  render_checked(&u,&zero,buffer_b);
  assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
  /* A loaded deck whose other fields are unknown must not read them either. */
- for(int d=0;d<XZ_SHELL_DECKS;d++){m.deck[d].known=XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED);m.deck[d].loaded=1;}
+ for(int d=0;d<2;d++){m.deck[d].known=XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED);m.deck[d].loaded=1;}
  render_checked(&u,&m,buffer_a);
  /* Known fields with NULL pointers and wild counts are tolerated too. */
- for(int d=0;d<XZ_SHELL_DECKS;d++){m.deck[d].known=fx_all_known();m.deck[d].total_ms=300000;m.deck[d].elapsed_ms=1000;m.deck[d].grid_count=99999;m.deck[d].wave.count=99999;m.deck[d].wave.span_ms=300000;m.deck[d].overview.count=5;m.deck[d].memory_count=-7;}
+ for(int d=0;d<2;d++){m.deck[d].known=fx_all_known();m.deck[d].total_ms=300000;m.deck[d].elapsed_ms=1000;m.deck[d].grid_count=99999;m.deck[d].wave.count=99999;m.deck[d].wave.span_ms=300000;m.deck[d].overview.count=5;m.deck[d].memory_count=-7;}
  render_checked(&u,&m,buffer_a);
  puts("PASS unknown fields render without reading their data");
 }
@@ -93,7 +93,7 @@ static void test_bounds_and_long_text(void) {
  struct xz_shell_rect s=xz_shell_play_rect(XZ_SHELL_R_STRIP,0);
  for(int y=s.y+5;y<s.y+26;y++)for(int x=s.x+s.w-8-21;x<s.x+s.w-8-13;x++)assert(at(frame(buffer_a),x,y)==rgb565(SH_CHROME));
  /* Every region lies inside the frame and the lanes never overlap the strips. */
- for(int d=0;d<XZ_SHELL_DECKS;d++)for(int r=XZ_SHELL_R_TOP_BAR;r<=XZ_SHELL_R_FX;r++){
+ for(int d=0;d<2;d++)for(int r=XZ_SHELL_R_TOP_BAR;r<=XZ_SHELL_R_FX;r++){
   struct xz_shell_rect q=xz_shell_play_rect((enum xz_shell_play_region)r,d);
   assert(q.w>0&&q.h>0&&q.x>=0&&q.y>=0&&q.x+q.w<=XZ_SHELL_WIDTH&&q.y+q.h<=XZ_SHELL_HEIGHT);
  }
@@ -176,7 +176,7 @@ static void test_seek_zoom_and_deck(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
  fx_model_full(&m,&track);
  xz_shell_init(&u);
- for(int d=0;d<XZ_SHELL_DECKS;d++){
+ for(int d=0;d<2;d++){
   struct xz_shell_rect ov=xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,d);
   int cy=ov.y+ov.h/2;
   assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,ov.x,cy,out)==1&&out[0].kind==XZ_SHELL_ACT_SEEK&&out[0].deck==d&&out[0].value==0);

@@ -150,6 +150,6 @@ static inline void si_strip(const struct xz_shell *u, const struct xz_shell_mode
  xz_rect(c,0,SI_STRIP_Y,c.width,SI_STRIP_H,SH_CHROME);
  xz_rect(c,0,SI_STRIP_Y,c.width,1,SH_BLACK);
  xz_rect(c,SI_HALF-1,SI_STRIP_Y,2,SI_STRIP_H,SH_BLACK);
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++)si_strip_deck(u,m,c,deck);
+ for(int deck=0;deck<sh_deck_count(m);deck++)si_strip_deck(u,m,c,deck);
 }
 #endif

@@ -385,7 +385,7 @@ static int lane_count(const uint16_t *f, int deck, uint32_t color) {
 static void test_stem_wave(void) {
  struct xz_shell u;struct xz_shell_model m;
  xz_shell_init(&u);fx_model_full(&m,&track);
- for(int d=0;d<XZ_SHELL_DECKS;d++)m.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUES));
+ for(int d=0;d<2;d++)m.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUES));
  /* Deck 1 sits in a drop (drums, harmonics), deck 2 in the break, where the vocal sings. */
  m.deck[1].elapsed_ms=FX_BEAT_MS*4*8*3/100+FX_BEAT_MS/100;
  u.display.wave_color=XZ_SHELL_WAVE_STEMS;
@@ -410,7 +410,7 @@ static void test_stem_wave(void) {
  /* Muted stems grey out; the mute bits mean nothing without their known bit. */
  m.deck[0].stem_muted=1;m.deck[1].stem_muted=4;
  struct xz_shell_model unknown_mute=m;
- for(int d=0;d<XZ_SHELL_DECKS;d++)unknown_mute.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE);
+ for(int d=0;d<2;d++)unknown_mute.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE);
  render_checked(&u,&unknown_mute,buffer_b);
  assert(lane_count(frame(buffer_b),0,sh_stem_wave_fill(drums))>200);
  render_checked(&u,&m,buffer_a);
@@ -476,11 +476,11 @@ static void test_live_key(void) {
  xz_shell_init(&u);fx_model_full(&m,&track);
  /* Beat jump draws nowhere; quantize only in its strip, on the caption row over the time. */
  render_checked(&u,&m,buffer_a);
- other=m;for(int d=0;d<XZ_SHELL_DECKS;d++){other.deck[d].beat_jump_num=d?1:64;other.deck[d].beat_jump_den=d?2:1;}
+ other=m;for(int d=0;d<2;d++){other.deck[d].beat_jump_num=d?1:64;other.deck[d].beat_jump_den=d?2:1;}
  render_checked(&u,&other,buffer_b);
  assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
  struct xz_shell_rect box;
- for(int d=0;d<XZ_SHELL_DECKS;d++){
+ for(int d=0;d<2;d++){
   other=m;other.deck[d].quantize_on=!m.deck[d].quantize_on;other.deck[d].quantize_den=8;
   render_checked(&u,&other,buffer_b);
   struct xz_shell_rect s=xz_shell_play_rect(XZ_SHELL_R_STRIP,d),row={s.x,s.y+30,s.w,16};
@@ -508,15 +508,15 @@ static void test_live_key(void) {
  /* A name the key face cannot draw, wild cents and a NULL analysed key stay in the column. */
  other=m;other.deck[1].key="Abmaj7/Eb";other.deck[1].key_cents=-999;other.deck[1].key_original=NULL;other.deck[0].key="";
  render_checked(&u,&other,buffer_b);
- for(int d=0;d<XZ_SHELL_DECKS;d++){struct xz_shell_rect k=key_block(d),edge={k.x+k.w-5,k.y,5,k.h};assert(count_in(frame(buffer_b),edge,SH_CHROME)==edge.w*edge.h);}
+ for(int d=0;d<2;d++){struct xz_shell_rect k=key_block(d),edge={k.x+k.w-5,k.y,5,k.h};assert(count_in(frame(buffer_b),edge,SH_CHROME)==edge.w*edge.h);}
  /* An older runtime: no analysed key, no KEY SYNC. The key draws as before, with its key-shift step and
     no cents; nothing reads key_original, key_cents or key_synced, and MASTER TEMPO is steady. */
  struct xz_shell_model old=m;
- for(int d=0;d<XZ_SHELL_DECKS;d++)old.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_SYNC));
+ for(int d=0;d<2;d++)old.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_SYNC));
  render_checked(&u,&old,buffer_b);
  assert(count_in(frame(buffer_b),name2,SH_KEY_AMBER)>40&&count_in(frame(buffer_b),cap2,SH_BLUE)==0);
  assert(count_in(frame(buffer_b),from2,SH_CHROME)==from2.w*from2.h&&ink_in(frame(buffer_b),tail)>10);  /* the step, not cents */
- other=old;for(int d=0;d<XZ_SHELL_DECKS;d++){other.deck[d].key_original=(const char *)1;other.deck[d].key_cents=77;other.deck[d].key_synced=1;}
+ other=old;for(int d=0;d<2;d++){other.deck[d].key_original=(const char *)1;other.deck[d].key_cents=77;other.deck[d].key_synced=1;}
  render_checked(&u,&other,buffer_a);
  assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
  other.clock_ms+=500;render_checked(&u,&other,buffer_a);
@@ -574,7 +574,7 @@ static void test_hidden_indicators(void) {
  assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_QUANTIZE_LAMP,1)==1);
  render_checked(&u,&m,buffer_a);
  struct xz_shell_model unread=m;
- for(int d=0;d<XZ_SHELL_DECKS;d++)unread.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_QUANTIZE);
+ for(int d=0;d<2;d++)unread.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_QUANTIZE);
  render_checked(&u,&unread,buffer_b);
  assert(!memcmp(buffer_a,buffer_b,sizeof buffer_a));
  /* Shown again, both come back; only 0 and 1 are values. */

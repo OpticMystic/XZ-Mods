@@ -179,7 +179,7 @@ static void render_tile(const struct xz_shell_model *m, struct xz_canvas c, int 
  int by=r.y+r.h-30;
  xz_rect(c,r.x+PAD,by-8,r.w-2*PAD,1,SH_ROW_ALT);
  int x=r.x+PAD,any=0;
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+ for(int deck=0;deck<sh_deck_count(m);deck++){
   const struct xz_shell_deck *dk=&m->deck[deck];
   if(!sh_has(dk,XZ_SHELL_F_SOURCE)||dk->source!=slot)continue;
   if(sh_has(dk,XZ_SHELL_F_LOADED)&&!dk->loaded)continue;

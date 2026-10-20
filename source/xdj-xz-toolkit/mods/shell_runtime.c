@@ -2547,6 +2547,7 @@ static int start_locked(void) {
  xz_shell_init(&shell);
  restore_display();
  memset(&model,0,sizeof model);memset(&handoff,0,sizeof handoff);memset(&queue,0,sizeof queue);
+ model.deck_count=XZ_SHELL_NATIVE_DECKS;
  memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
