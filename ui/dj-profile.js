@@ -1,7 +1,7 @@
 // DJ Profile page: the profiles on the selected USB, an editor with a live device preview, and the profile track
 // wizard. One state object P moves through the phases below; each phase has one view. Errors are data on P.
 //   no-usb  -> loading -> list <-> editing -> saving -> list
-//                         list  -> track (where -> create -> rekordbox) -> list
+//                         list  -> track (where -> create -> rekordbox, ending on a live USB check) -> list
 // The USB is the wizard's (setupWizard.state): choosing it on any page is enough.
 // The same state draws the DJ profile step of the USB page's write flow. There the draft is not saved on its own:
 // the write saves it (pending / writePending), with the loader, games and settings.
@@ -15,6 +15,7 @@ const IMAGE_FILE=/\.(png|jpe?g)$/i;
 const CONFLICT=/changed since they were loaded|changed while its track was written/;
 const CONFLICT_TEXT="This USB's profiles changed since you opened them. Reload and try again.";
 const TRACK_STEPS=[['where','Where'],['create','Create'],['rekordbox','Add it to rekordbox']];
+const TRACK_LIBRARIES=[['device_library','rekordbox device library'],['onelibrary','OneLibrary']];
 const TRACK_LEAD='Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through rekordbox like any other track.';
 const W=setupWizard.state,pageHost=$('djp-host');
 const P={phase:'no-usb',volume:null,data:null,error:null,saved:null,draft:null,track:null};
@@ -203,7 +204,7 @@ function onDragDrop(event){
   if(images.length)addLogoPaths(images);
   else{P.draft.logoError='Drop a PNG or JPEG image.';refreshEditor();}
 }
-function openTrack(profile){set({phase:'track',error:null,track:{dj_id:profile.dj_id,name:profile.dj_name,links:profile.links||[],step:'where',folder:null,usbCopy:false,running:false,result:null,usb:null,error:null}});}
+function openTrack(profile){set({phase:'track',error:null,track:{dj_id:profile.dj_id,name:profile.dj_name,links:profile.links||[],step:'where',folder:null,usbCopy:false,running:false,result:null,usb:null,error:null,check:null}});}
 async function writeTrack(){
   const t=P.track;
   Object.assign(t,{step:'create',running:true,error:null,result:null,usb:null});render();
@@ -493,17 +494,54 @@ function trackCreate(t){
     banner(t.error),
     el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-next',text:'Next: add it to rekordbox',onclick:()=>{t.step='rekordbox';render();}}))];
 }
+// One line per library, from dj_profile_track_status. A stick may carry either library or both.
+function libraryLine(entry){
+  if(entry.library==='absent')return ['off','Not on this USB.'];
+  if(entry.library==='unreadable')return ['warn','Could not be read. Export the USB again from rekordbox.'];
+  if(entry.track==='missing')return ['off','Your track is not in it yet.'];
+  // The wizard has just made a current track, so an older one on the USB means it was not exported again.
+  if(entry.track==='stale')return ['warn','Found, but made before your last edit. Export the new track to this USB.'];
+  if(!entry.in_profile_playlist)return ['warn','Found, but not in a playlist named DJ PROFILE.'];
+  return ['ok','Found in DJ PROFILE.'];
+}
+async function checkTrack(){
+  const t=P.track;
+  t.check={running:true};render();
+  const response=await call({method:'dj_profile_track_status',volume:P.volume});
+  if(P.track!==t)return;
+  if(!response?.ok){t.check={error:failure(response,'The USB could not be checked.')};render();return;}
+  const {libraries,profiles}=response.result,profile=profiles.find(item=>item.dj_id===t.dj_id);
+  const entries=TRACK_LIBRARIES.map(([key])=>profile?.[key]||{library:libraries[key].state,track:'missing'});
+  t.check={entries,found:entries.some(entry=>entry.track==='found')};
+  render();
+}
+function trackCheck(c){
+  if(!c)return null;
+  if(c.running)return el('p',{class:'wz-lead',role:'status',text:'Reading the rekordbox libraries on '+driveName()+'…'});
+  if(c.error)return banner(c.error);
+  return el('div',{class:'djp-dest djp-check',role:'status'},...TRACK_LIBRARIES.map(([key,label],i)=>{
+    const [tone,text]=libraryLine(c.entries[i]);
+    return el('div',{class:'djp-dest-row',dataset:{library:key,tone}},el('span',{class:'tree-dot',dataset:{tone},'aria-hidden':'true'}),
+      el('span',{class:'djp-dest-text'},el('strong',{text:label}),el('small',{text})));
+  }));
+}
 function trackRekordbox(t){
-  const file=baseName(t.result.path);
+  const file=baseName(t.result.path),c=t.check,finish=()=>{P.track=null;P.saved=null;load(P.volume);};
+  const actions=c?.running?[]:c?.found
+    ?[el('button',{type:'button',class:'primary',id:'djp-track-done',text:'Done',onclick:finish}),el('button',{type:'button',class:'secondary',text:'Check again',onclick:checkTrack})]
+    :[el('button',{type:'button',class:'primary',id:'djp-track-check',text:'Check the USB',onclick:checkTrack}),
+      el('button',{type:'button',class:'secondary',text:'Check later',onclick:finish})];
   return [el('p',{class:'wz-lead',text:'rekordbox puts the track on the USB like any other song. Players that block extra files still read your name, logo and links from it.'}),
     el('ol',{class:'djp-howto'},
       el('li',{text:'Open rekordbox on this computer.'}),
       el('li',{},'Drag ',el('b',{text:file}),' into Collection.'),
       el('li',{},'Make a playlist named ',el('b',{text:'DJ PROFILE'}),' and put the track in it.'),
       el('li',{text:'Export the DJ PROFILE playlist to this USB ('+driveName()+').'}),
-      el('li',{text:'Done. Eject the USB and plug it into the player.'})),
+      el('li',{text:'Leave the USB plugged in and check it here.'})),
+    el('p',{class:'djp-caption',text:'djay and other apps that export OneLibrary can put the track on the USB too.'}),
     pathLine(t.result.path),
-    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-done',text:'Done',onclick:()=>{P.track=null;P.saved=null;load(P.volume);}}))];
+    trackCheck(c),
+    el('div',{class:'actions'},...actions)];
 }
 function viewTrack(){
   const t=P.track,body=t.step==='where'?trackWhere(t):t.step==='create'?trackCreate(t):trackRekordbox(t);
