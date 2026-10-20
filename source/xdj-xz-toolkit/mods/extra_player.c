@@ -461,7 +461,8 @@ static void *worker(void *arg) {
  const struct worker *w = arg;
  while (!atomic_load(&w->p->quit)) {
   xz_xp_step(w->p, w->index);
-  pause_ms(streaming(w->p->deck[w->index].state) ? 2 : 5);
+  /* Without the route a deck only waits for it; a cable-less XZ should not pay for the players. */
+  pause_ms(streaming(w->p->deck[w->index].state) ? 2 : w->p->env.sink.link(w->p->env.sink.ctx) ? 5 : 20);
  }
  return NULL;
 }
