@@ -76,22 +76,32 @@ int main(int argc,char **argv){
  fill_deck(&full.deck[1],&b,"Liquid Steps",120200,17400,-120,0);
  full.deck[0].master=1;
  if(argc>3){
-  int frames=atoi(argv[3]);double t0=seconds();
-  for(int i=0;i<frames;i++){memcpy(surface,native,sizeof(surface));}
-  double copy=seconds()-t0;t0=seconds();
-  for(int i=0;i<frames;i++){memcpy(surface,native,sizeof(surface));xz_four_layout_pixels(surface,PIXELS,XZ_WAVE_WIDTH,XZ_FOUR_ORDER);}
-  double layout=seconds()-t0;struct xz_four_layout g;xz_four_layout_get(XZ_FOUR_ORDER,&g);t0=seconds();
-  for(int i=0;i<frames;i++)for(int k=0;k<2;k++){
-   struct xz_extra_lane_view view={1000+(uint32_t)i*16,XZ_EXTRA_LANE_COLUMN_US,1,0};
-   xz_extra_lane_draw(surface,XZ_WAVE_WIDTH,PIXELS,g.lane_y[2+k],3+(unsigned)k,&full.deck[k],&view,&marks[k]);
+  /* Best of five rounds per step, so a busy host does not inflate one number. */
+  int frames=atoi(argv[3]);double best[5]={1e9,1e9,1e9,1e9,1e9};
+  struct xz_four_layout g;xz_four_layout_get(XZ_FOUR_ORDER,&g);
+  struct xz_four_marks two={0},four={0};
+  for(int round=0;round<5;round++){
+   double t0=seconds();
+   for(int i=0;i<frames;i++)memcpy(surface,native,sizeof(surface));
+   double copy=seconds()-t0;t0=seconds();
+   for(int i=0;i<frames;i++){memcpy(surface,native,sizeof(surface));xz_four_layout_pixels(surface,PIXELS,XZ_WAVE_WIDTH,XZ_FOUR_ORDER);}
+   double step[5]={copy,seconds()-t0-copy,0,0,0};t0=seconds();
+   for(int i=0;i<frames;i++)for(int k=0;k<2;k++){
+    struct xz_extra_lane_view view={1000+(uint32_t)i*16,XZ_EXTRA_LANE_COLUMN_US,1,0};
+    xz_extra_lane_draw(surface,XZ_WAVE_WIDTH,PIXELS,g.lane_y[2+k],3+(unsigned)k,&full.deck[k],&view,&marks[k]);
+   }
+   step[2]=seconds()-t0;
+   for(int i=0;i<2;i++){two.look[2+i]=four.look[2+i]=four.look[i]=marks[i].look;two.col[2+i]=four.col[2+i]=four.col[i]=marks[i].col;}
+   t0=seconds();
+   for(int i=0;i<frames;i++){xz_four_protect(&g,&two,surface,keep);xz_four_restore(&g,&two,surface,keep);}
+   step[3]=seconds()-t0;t0=seconds();
+   for(int i=0;i<frames;i++){xz_four_protect(&g,&four,surface,keep);xz_four_restore(&g,&four,surface,keep);}
+   step[4]=seconds()-t0;
+   for(int s=0;s<5;s++)if(step[s]<best[s])best[s]=step[s];
   }
-  double lanes=seconds()-t0;struct xz_four_marks m={0};
-  for(int i=0;i<2;i++){m.look[2+i]=marks[i].look;m.col[2+i]=marks[i].col;}
-  t0=seconds();
-  for(int i=0;i<frames;i++){xz_four_protect(&g,&m,surface,keep);xz_four_restore(&g,&m,surface,keep);}
-  double theme=seconds()-t0;
-  printf("host us/frame over %d frames: copy %.1f, four layout %.1f, two extra lanes %.1f, protect+restore (two lanes) %.1f\n",
-   frames,copy*1e6/frames,(layout-copy)*1e6/frames,lanes*1e6/frames,theme*1e6/frames);
+  printf("host us/frame, best of 5 x %d frames: surface copy %.1f, four layout %.1f, two extra lanes %.1f, "
+   "theme protect+restore DECK 3/4 %.1f, all four lanes layered %.1f\n",frames,
+   best[0]*1e6/frames,best[1]*1e6/frames,best[2]*1e6/frames,best[3]*1e6/frames,best[4]*1e6/frames);
   return 0;
  }
  render(&full,XZ_FOUR_INTERLEAVED);save(argv[2],"01-full-interleaved");
