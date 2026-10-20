@@ -139,6 +139,7 @@ def main() -> None:
                str(ROOT / "ui/native_led.c"),
                str(ROOT / "ui/native_wave.c"),
                str(ROOT / "ui/native_wave_runtime.c"),
+               str(ROOT / "extra_decks.c"),
                str(ROOT / "ui/layered_wave.c"), str(ROOT / "ui/layered_wave_source.c"), str(layered_object),
                str(ROOT / "ui/native_skin_runtime.c"),
                str(ROOT / "ui/native_raw_skin.c"),
