@@ -215,7 +215,7 @@ int xz_shrt_setting_writable(int id, int time_mode, int quantize_beat) {
 int xz_shrt_setting_command(const struct xz_shell_action *a, uint32_t now, struct xz_shrt_command *out) {
  if(!a||!out||a->kind!=XZ_SHELL_ACT_SET_SETTING)return 0;
  memset(out,0,sizeof *out);out->at_ms=now;
- int deck=a->deck>=0&&a->deck<XZ_SHELL_DECKS?a->deck:-1;
+ int deck=a->deck>=0&&a->deck<XZ_SHELL_NATIVE_DECKS?a->deck:-1;
  switch(a->id){
  case XZ_SHELL_SET_TIME_MODE: /* UiSetKeyTimeMode(channel, remain) */
   if(a->value!=XZ_SHELL_TIME_REMAIN&&a->value!=XZ_SHELL_TIME_ELAPSED)return 0;

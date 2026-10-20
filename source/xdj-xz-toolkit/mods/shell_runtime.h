@@ -17,16 +17,17 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "shell/shell.h"
+#include "shell_model.h"
 
 /* ---- Device entry points (shell_runtime.c). Weak in ui_runtime.c. ---- */
 struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cents, synced; int matches_master, shift; };
 #define XZ_SHELL_RUNTIME_DJ 32
 struct xz_shell_runtime_frame_input {
  int eligible, theme;
- struct xz_shell_runtime_key key[XZ_SHELL_DECKS];
+ struct xz_shell_runtime_key key[XZ_SHELL_NATIVE_DECKS];
  int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
- int stem_muted_known[XZ_SHELL_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
- unsigned stem_muted[XZ_SHELL_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
+ int stem_muted_known[XZ_SHELL_NATIVE_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
+ unsigned stem_muted[XZ_SHELL_NATIVE_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
  int stem_rgb_known; uint32_t stem_rgb[3]; /* stem pad colours 0xRRGGBB: drums, harmonics, vocal */
  int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
  /* DJ profiles on the sticks: dj_runtime's view, copied (entry i = view entry i). */
@@ -35,7 +36,7 @@ struct xz_shell_runtime_frame_input {
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
  int stems_overlay;           /* enum xz_stem_layout: the stem row layout (MY SETTINGS > WAVEFORM) */
  int rekordbox_known, rekordbox_assign[2]; /* the REKORDBOX button's press and SHIFT + press (enum xz_rekordbox_action) */
- int stem_level_known[XZ_SHELL_DECKS]; float stem_level[XZ_SHELL_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
+ int stem_level_known[XZ_SHELL_NATIVE_DECKS]; float stem_level[XZ_SHELL_NATIVE_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
  struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
 };
 int xz_shell_runtime_start(void);
