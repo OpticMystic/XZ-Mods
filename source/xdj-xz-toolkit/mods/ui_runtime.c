@@ -1595,7 +1595,10 @@ static int rekordbox_run_locked(int action){
     switch(action){
     case XZ_REKORDBOX_MODS:
         /* MODERN: the shell's own MODS screen, as its MENU key opens it; the panel when the shell cannot show it. */
-        if(modern&&!touch.visible&&shell_eligible_locked()&&xz_shell_runtime_mods_key&&xz_shell_runtime_mods_key(1,model.theme))return 0;
+        if(modern&&!touch.visible&&shell_eligible_locked()&&xz_shell_runtime_mods_key&&xz_shell_runtime_mods_key(1,model.theme)){
+            shell_ui_requests_locked();   /* the MENU tab's page, before the next input */
+            return 0;
+        }
         mods_panel_toggle_locked();return 0;
     case XZ_REKORDBOX_INTERFACE:{
         struct xz_ui_action act={.kind=XZ_UI_SET_INTERFACE,.phase=XZ_UI_PRESS,.deck=-1,
