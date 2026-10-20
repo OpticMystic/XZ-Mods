@@ -305,6 +305,14 @@ int xz_ui_focused(const struct xz_ui *, const struct xz_ui_model *, struct xz_ui
 /* What the info box says about the focused control. Strings are static or point into the model. */
 struct xz_ui_info { const char *title, *body, *state; int available, selected; };
 int xz_ui_describe(const struct xz_ui *, const struct xz_ui_model *, struct xz_ui_info *out);
+/* The same for any control of the current layout, focused or not. */
+int xz_ui_describe_widget(const struct xz_ui *, const struct xz_ui_model *, const struct xz_ui_widget *, struct xz_ui_info *out);
+/* A page's name ("FEATURE SETUP") and one sentence on what it holds. */
+const char *xz_ui_page_title(int page);
+/* 1 for the five top pages; a page's parent (a top page is its own). */
+int xz_ui_page_is_top(int page);
+int xz_ui_page_parent(int page);
+const char *xz_ui_page_body(int page);
 /* 1 when the page shows deck pickers in the header. */
 int xz_ui_header_decks(enum xz_ui_page);
 /* Profile list rows: first entry shown and how many (at most XZ_UI_PROFILE_ROWS). */
