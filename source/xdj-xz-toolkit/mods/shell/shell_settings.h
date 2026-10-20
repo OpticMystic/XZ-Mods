@@ -97,6 +97,7 @@ enum xz_shell_item_id {
  XZ_SHELL_ITEM_NEEDLE_LOCK,        /* UNLOCK, LOCK (model.settings.needle_lock) */
  XZ_SHELL_ITEM_MODE_LAMPS,         /* shell-owned: SHOW, HIDE the top bar's mode lamps (shell.h XZ_SHELL_IND_MODE_LAMPS) */
  XZ_SHELL_ITEM_QUANTIZE_LAMP,      /* shell-owned: SHOW, HIDE each deck's QUANTIZE lamp (XZ_SHELL_IND_QUANTIZE) */
+ XZ_SHELL_ITEM_BYPASS_BUTTON,      /* shell-owned: SHOW, HIDE the stem rows' BYPASS button (XZ_SHELL_IND_BYPASS) */
  XZ_SHELL_ITEM_ID_END
 };
 /* Stock UTILITY items the runtime publishes under its own ids (assigned by the runtime, 2026-10-19). The

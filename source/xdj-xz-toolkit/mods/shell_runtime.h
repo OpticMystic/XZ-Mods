@@ -27,6 +27,7 @@ struct xz_shell_runtime_frame_input {
  int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
  int stem_muted_known[XZ_SHELL_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
  unsigned stem_muted[XZ_SHELL_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
+ int stem_bypass[XZ_SHELL_DECKS];       /* the deck's BYPASS is on (meaningful with stem_muted_known) */
  int stem_rgb_known; uint32_t stem_rgb[3]; /* stem pad colours 0xRRGGBB: drums, harmonics, vocal */
  int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
  /* DJ profiles on the sticks: dj_runtime's view, copied (entry i = view entry i). */

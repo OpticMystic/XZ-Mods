@@ -2,6 +2,7 @@
    waveform and the header STEMS marks to PPM files in argv[1]. Host only. */
 #include "fixtures.h"
 #include "shell_internal.h"
+#include "shell_settings.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -50,7 +51,7 @@ int main(int argc, char **argv) {
  /* A fader mid-slide: deck 1 DRUMS dragged down to 35 %, deck 2 INST muted. */
  xz_shell_init(&u);u.display.wave_color=XZ_SHELL_WAVE_STEMS;
  model(&m,XZ_SHELL_STEMS_BELOW_FULL);
- struct xz_shell_rect b=xz_shell_stem_button(&m,0,0);
+ struct xz_shell_rect b=xz_shell_stem_button(NULL,&m,0,0);
  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_DOWN,b.x+b.w-30,b.y+b.h/2,0,0,-1},out);
  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_MOVE,b.x+b.w-30-b.w/2,b.y+b.h/2,0,0,-1},out);
  if(out[0].kind==XZ_SHELL_ACT_STEM_GAIN)m.deck[0].stem_gain[0]=(uint8_t)out[0].value;
@@ -77,5 +78,23 @@ int main(int argc, char **argv) {
  model(&m,XZ_SHELL_STEMS_BELOW_HALF);
  m.stem_rgb_known=1;m.stem_rgb_custom=7;m.stem_rgb[0]=0xe8b000;m.stem_rgb[1]=0x00b4c8;m.stem_rgb[2]=0xe040c0;
  shot(&u,&m,"stems-custom-colours");
+ /* BYPASS after the stems: deck 1 playing its stems (INST muted), deck 2 bypassed, in each layout and the
+    pad row's fallback. */
+ static const char *const bypass[XZ_SHELL_STEM_LAYOUTS+1]={"stems-bypass-pad-row","stems-bypass-below-full","stems-bypass-below-half",
+  "stems-bypass-outside-full","stems-bypass-outside-half","stems-bypass-hidden-setting"};
+ for(int i=1;i<=XZ_SHELL_STEM_LAYOUTS;i++){
+  xz_shell_init(&u);u.display.wave_color=XZ_SHELL_WAVE_STEMS;
+  model(&m,i<XZ_SHELL_STEM_LAYOUTS?(enum xz_shell_stem_layout)i:XZ_SHELL_STEMS_BELOW_FULL);
+  if(i==XZ_SHELL_STEM_LAYOUTS)xz_shell_restore_setting(&u,XZ_SHELL_ITEM_BYPASS_BUTTON,1);
+  m.capabilities|=XZ_SHELL_CAP_STEM_BYPASS;
+  for(int d=0;d<XZ_SHELL_DECKS;d++)m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_BYPASS);
+  m.deck[0].stem_muted=2;m.deck[1].stem_bypass=1;m.deck[1].stem_muted=1;
+  shot(&u,&m,bypass[i]);
+ }
+ xz_shell_init(&u);model(&m,XZ_SHELL_STEMS_BELOW_FULL);m.stem_layout_known=0;
+ m.capabilities|=XZ_SHELL_CAP_STEM_BYPASS;
+ for(int d=0;d<XZ_SHELL_DECKS;d++)m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_BYPASS);
+ m.deck[0].stem_muted=2;m.deck[1].stem_bypass=1;
+ shot(&u,&m,bypass[0]);
  return 0;
 }

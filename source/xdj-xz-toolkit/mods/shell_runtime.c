@@ -295,7 +295,7 @@ static void refuse(void);
 static void save_display(int id, int value);
 /* MODS > APPEARANCE in the shell's own style: an item tab whose sets run the MODS panel's own actions. */
 enum { LOOK_TAB=3, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
-       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP };
+       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP, LOOK_BYPASS };
 static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
 static const char *const look_interface[2]={"MODERN","CLASSIC"};
 _Static_assert(XZ_UI_MODERN_THEMES==1,"one modern theme name below");
@@ -305,7 +305,7 @@ static const char *const look_key_format[3]={"USB PREFERENCE","CLASSIC","WHEEL"}
 static const char *const look_off_on[2]={"OFF","ON"};
 static const char *const look_stem_color[9]={"THEME DEFAULT","BLUE","RED","GREEN","AMBER","PURPLE","CYAN","PINK","WHITE"};
 static const char *const look_show_hide[2]={"SHOW","HIDE"};
-static struct xz_shell_setting_item look_items[11];
+static struct xz_shell_setting_item look_items[12];
 static struct xz_shell_settings_model look_model;
 /* MY SETTINGS > WAVEFORM: the stem row layout, set through SET_MOD on the APPEARANCE tab (waveform_tab). */
 static const char *const look_stem_layout[5]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF"};
@@ -318,6 +318,7 @@ static const char *const help_wave[3]={"The player's own waveform.","Lows, mids 
 static const char *const help_key_format[3]={"As the stick's library sets it.","Note names, like Am.","Wheel numbers, like 8A."};
 static const char *const help_mode_lamps[2]={"Each lamp lights while its mode is on.","The lamps leave the screen; the modes keep working."};
 static const char *const help_quantize_lamp[2]={"Red while QUANTIZE is on, grey while it is off.","The QUANTIZE button's own light still shows it."};
+static const char *const help_bypass[2]={"Touch it to hear the whole track; touch again for the stems as you left them.","The stem buttons take its room."};
 static const char *const help_stem_color[9]={"Follows the theme.",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
 static const char *const help_stem_layout[5]={"Normal waveforms, no stem rows.","Stem rows under the waveforms, full height.",
  "Stem rows under the waveforms, half height.","Stem rows outside the waveforms, full height.","Stem rows outside the waveforms, half height."};
@@ -334,6 +335,7 @@ static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_DRUMS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
  HELP(LOOK_HARMONICS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
  HELP(LOOK_VOCALS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
+ HELP(LOOK_BYPASS,"The BYPASS button after each deck's stem buttons: lit, the original track plays over the stems.",2,help_bypass),
  HELP(LOOK_STEM_LAYOUT,"Where the stem rows sit next to the waveforms, and how tall they are.",5,help_stem_layout),
 };
 #undef HELP
@@ -386,7 +388,9 @@ static void fill_look(void) {
  LOOK(9,LOOK_HARMONICS,3,"HARMONICS COLOR",look_stem_color,9,in->stem_colors[1]>=0&&in->stem_colors[1]<9?in->stem_colors[1]:0);
  LOOK(10,LOOK_VOCALS,3,"VOCALS COLOR",look_stem_color,9,in->stem_colors[2]>=0&&in->stem_colors[2]<9?in->stem_colors[2]:0);
 #undef LOOK
- look_model=(struct xz_shell_settings_model){11,look_items,NULL};
+ look_items[11]=(struct xz_shell_setting_item){LOOK_BYPASS,(enum xz_shell_setting_category)3,"BYPASS BUTTON",look_show_hide,2,
+  (int)((shell.display.hidden>>XZ_SHELL_IND_BYPASS)&1),1,1};
+ look_model=(struct xz_shell_settings_model){12,look_items,NULL};
  wave_items[0]=(struct xz_shell_setting_item){LOOK_STEM_LAYOUT,(enum xz_shell_setting_category)2,"STEM ROW LAYOUT",look_stem_layout,5,
   k&&in->stems_overlay>=0&&in->stems_overlay<5?in->stems_overlay:0,k,k};
  wave_model=(struct xz_shell_settings_model){1,wave_items,NULL};
@@ -409,8 +413,8 @@ static void look_set_locked(int id, int choice, uint32_t now) {
   }else if(choice==0)ui_action_locked(XZ_UI_SET_INTERFACE,-1,XZ_UI_INTERFACE_MODERN,0,now);
   else refuse();
   return;
- case LOOK_MODE_LAMPS:case LOOK_QUANTIZE_LAMP:{
-  int item=id==LOOK_MODE_LAMPS?XZ_SHELL_ITEM_MODE_LAMPS:XZ_SHELL_ITEM_QUANTIZE_LAMP;
+ case LOOK_MODE_LAMPS:case LOOK_QUANTIZE_LAMP:case LOOK_BYPASS:{
+  int item=id==LOOK_MODE_LAMPS?XZ_SHELL_ITEM_MODE_LAMPS:id==LOOK_QUANTIZE_LAMP?XZ_SHELL_ITEM_QUANTIZE_LAMP:XZ_SHELL_ITEM_BYPASS_BUTTON;
   if(choice==0||choice==1){xz_shell_restore_setting(&shell,item,choice);save_display(item,choice);}else refuse();
   return;}
  case LOOK_THEME:if(choice==0)ui_action_locked(XZ_UI_SET_MODERN_THEME,-1,choice,0,now);else refuse();return;
@@ -707,7 +711,7 @@ static void fill_slots_locked(void) {
  if(lib&&load_enabled&&has(G_LOAD))caps|=XZ_SHELL_CAP_LOAD;
  if(lib)caps|=XZ_SHELL_CAP_FILTER;
  if(lib&&!usb[browse_source].rdonly&&usb[browse_source].root[0])caps|=XZ_SHELL_CAP_PLAYLIST_EDIT|XZ_SHELL_CAP_TAG_EDIT|XZ_SHELL_CAP_HISTORY_EDIT;
- if(last_input.stem_muted_known[0]||last_input.stem_muted_known[1])caps|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN;
+ if(last_input.stem_muted_known[0]||last_input.stem_muted_known[1])caps|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_STEM_BYPASS;
  model.capabilities=caps;
  model.settings.writable=0;
  for(int id=0;id<XZ_SHELL_SETTING_COUNT;id++)
@@ -1578,9 +1582,11 @@ static void roll_second(uint32_t now) {
 /* ---- shell-owned display settings ----
    Kept in RAM for the life of the process (across XZ_MODS_SHELL stop/start); a reboot starts from the
    shell's defaults. ids: XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_ITEM_KEY_DISPLAY,
-   XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level), XZ_SHELL_ITEM_MODE_LAMPS and XZ_SHELL_ITEM_QUANTIZE_LAMP. */
-static struct { int id, value, set; } display_saved[6]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
- {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0},{XZ_SHELL_ITEM_MODE_LAMPS,0,0},{XZ_SHELL_ITEM_QUANTIZE_LAMP,0,0}};
+   XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level), XZ_SHELL_ITEM_MODE_LAMPS, XZ_SHELL_ITEM_QUANTIZE_LAMP and
+   XZ_SHELL_ITEM_BYPASS_BUTTON. */
+static struct { int id, value, set; } display_saved[7]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
+ {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0},{XZ_SHELL_ITEM_MODE_LAMPS,0,0},{XZ_SHELL_ITEM_QUANTIZE_LAMP,0,0},
+ {XZ_SHELL_ITEM_BYPASS_BUTTON,0,0}};
 #define DISPLAY_SAVED (int)(sizeof display_saved/sizeof *display_saved)
 static void save_display(int id, int value) {
  for(int i=0;i<DISPLAY_SAVED;i++)if(display_saved[i].id==id){display_saved[i].value=value;display_saved[i].set=1;}
@@ -1852,6 +1858,11 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    if(!(model.capabilities&XZ_SHELL_CAP_STEM_GAIN)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<0||a->id>2||a->value<0||a->value>XZ_SHELL_STEM_GAIN_MAX){refuse();break;}
    ui_action_locked(XZ_UI_LEVEL,a->deck,a->id,(float)a->value/(float)XZ_SHELL_STEM_GAIN_MAX,now);
    break;
+  case XZ_SHELL_ACT_STEM_BYPASS:
+   /* The panel's own BYPASS (XZ_UI_BYPASS): the stem levels and pad lamps follow as on a pad press. */
+   if(!(model.capabilities&XZ_SHELL_CAP_STEM_BYPASS)||a->deck<0||a->deck>=XZ_SHELL_DECKS){refuse();break;}
+   ui_action_locked(XZ_UI_BYPASS,a->deck,0,a->value?1.f:0.f,now);
+   break;
   case XZ_SHELL_ACT_STEM_MUTE:
    if(!(model.capabilities&XZ_SHELL_CAP_STEM_MUTE)||a->deck<0||a->deck>=XZ_SHELL_DECKS||a->id<0||a->id>2||stem_count>=8){refuse();break;}
    stem_queue[stem_count].deck=a->deck;stem_queue[stem_count].stem=a->id;stem_queue[stem_count].value=a->value!=0;stem_count++;
@@ -2102,7 +2113,10 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  set_owns(1);
  model.stems_known=in->stems_known;model.stems_on=in->stems_on;
  /* Stem mute state and pad colours from the UI model (the deck's own refresh does not read them). */
- for(int d=0;d<XZ_SHELL_DECKS;d++)if(in->stem_muted_known[d]){model.deck[d].stem_muted=(uint8_t)(in->stem_muted[d]&7u);model.deck[d].known|=K(STEM_MUTE);}
+ for(int d=0;d<XZ_SHELL_DECKS;d++)if(in->stem_muted_known[d]){
+  model.deck[d].stem_muted=(uint8_t)(in->stem_muted[d]&7u);model.deck[d].stem_bypass=in->stem_bypass[d]!=0;
+  model.deck[d].known|=K(STEM_MUTE)|K(STEM_BYPASS);
+ }
  model.stem_rgb_known=in->stem_rgb_known;memcpy(model.stem_rgb,in->stem_rgb,sizeof model.stem_rgb);
  /* The colours the DJ picked (not THEME DEFAULT); the rest draw the shell's own defaults. */
  model.stem_rgb_custom=0;

@@ -73,6 +73,7 @@ enum xz_shell_field {
  XZ_SHELL_F_ON_AIR, XZ_SHELL_F_LOOP_EDIT, XZ_SHELL_F_HOT_CUE_CALL, XZ_SHELL_F_ALERT,
  XZ_SHELL_F_STEM_GAIN,
  XZ_SHELL_F_KEY_ORIGINAL, XZ_SHELL_F_KEY_SYNC,
+ XZ_SHELL_F_STEM_BYPASS,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -146,6 +147,8 @@ struct xz_shell_deck {
  uint8_t stem_muted;                 /* XZ_SHELL_F_STEM_MUTE: bit 0 drums, 1 harmonics (INST), 2 vocal. Known
                                         only while the deck plays 3 local stems: then the PLAY screen shows
                                         its DRUMS / VOCAL / INST mute buttons */
+ uint8_t stem_bypass;                /* XZ_SHELL_F_STEM_BYPASS: 1 while the deck plays the original track over
+                                        its stems (the BYPASS button lit; the mutes are kept for its release) */
  int slip;                           /* XZ_SHELL_F_SLIP: SLIP is on */
  int32_t slip_ms;                    /* XZ_SHELL_F_SLIP_POSITION: where the track would be without the slip
                                         move (the ghost playhead), read at slip_at_ms like elapsed_ms */
@@ -185,7 +188,8 @@ enum xz_shell_cap {
  XZ_SHELL_CAP_HISTORY_EDIT=8192u, /* XZ_SHELL_ACT_HISTORY */
  XZ_SHELL_CAP_CUE_LIST=16384u,    /* XZ_SHELL_ACT_LOAD_CUE */
  XZ_SHELL_CAP_GRID_EDIT=32768u,   /* XZ_SHELL_ACT_GRID_EDIT */
- XZ_SHELL_CAP_STEM_GAIN=65536u    /* XZ_SHELL_ACT_STEM_GAIN */
+ XZ_SHELL_CAP_STEM_GAIN=65536u,   /* XZ_SHELL_ACT_STEM_GAIN */
+ XZ_SHELL_CAP_STEM_BYPASS=131072u /* XZ_SHELL_ACT_STEM_BYPASS */
 };
 enum xz_shell_setting {
  XZ_SHELL_SET_TIME_MODE, XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_SET_PLAY_MODE,
@@ -316,8 +320,10 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_LOAD_CUE,    /* deck, id = track id, value = index into the browse model's cues: load the track
                               to deck at that memory point (CUE/LOOP LIST). Needs XZ_SHELL_CAP_CUE_LIST */
  XZ_SHELL_ACT_GRID_EDIT,   /* deck, id = enum xz_shell_grid_op. Needs XZ_SHELL_CAP_GRID_EDIT */
- XZ_SHELL_ACT_STEM_GAIN    /* deck, id = stem (0 drums, 1 harmonics, 2 vocal), value = 0..XZ_SHELL_STEM_GAIN_MAX.
+ XZ_SHELL_ACT_STEM_GAIN,   /* deck, id = stem (0 drums, 1 harmonics, 2 vocal), value = 0..XZ_SHELL_STEM_GAIN_MAX.
                               Sent while a full-row stem button is slid; needs XZ_SHELL_CAP_STEM_GAIN */
+ XZ_SHELL_ACT_STEM_BYPASS  /* deck, value = 1 bypass (the original track plays), 0 the stems play. Needs
+                              XZ_SHELL_CAP_STEM_BYPASS */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */
@@ -345,8 +351,9 @@ enum xz_shell_touch_region { XZ_SHELL_TOUCH_NONE, XZ_SHELL_TOUCH_OVERVIEW, XZ_SH
 enum xz_shell_usb_colors { XZ_SHELL_USB_COLORS_ALL, XZ_SHELL_USB_COLORS_TILE, XZ_SHELL_USB_COLORS_OFF };
 /* Indicators of the stock play screen the DJ may hide (APPEARANCE; shown by default): MODE_LAMPS is the
    top bar's PLAY MODE, A. HOT CUE and A. CUE lamps (XZ_SHELL_ITEM_MODE_LAMPS), QUANTIZE each deck's
-   QUANTIZE lamp and beat value (XZ_SHELL_ITEM_QUANTIZE_LAMP). Hidden lamps also stop answering touch. */
-enum xz_shell_indicator { XZ_SHELL_IND_MODE_LAMPS, XZ_SHELL_IND_QUANTIZE, XZ_SHELL_INDICATORS };
+   QUANTIZE lamp and beat value (XZ_SHELL_ITEM_QUANTIZE_LAMP), BYPASS the stem rows' BYPASS button
+   (XZ_SHELL_ITEM_BYPASS_BUTTON). Hidden lamps and buttons also stop answering touch. */
+enum xz_shell_indicator { XZ_SHELL_IND_MODE_LAMPS, XZ_SHELL_IND_QUANTIZE, XZ_SHELL_IND_BYPASS, XZ_SHELL_INDICATORS };
 struct xz_shell_display {
  enum xz_shell_wave_color wave_color;
  enum xz_shell_wave_position wave_position;
@@ -440,9 +447,12 @@ struct xz_shell_rect xz_shell_play_rect(enum xz_shell_play_region, int deck);
 /* A deck's stem row on PLAY for the model's stem layout (zero size when hidden or not read); the
    waveform takes the rest of the deck's lane. ZOOM/GRID and the GRID buttons move clear of it. */
 struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *, int deck);
+/* A deck's BYPASS button's touch target (44 px tall), at the right end of its stem buttons; zero size
+   while the deck shows no stem buttons, the runtime cannot bypass, or APPEARANCE hides it. */
+struct xz_shell_rect xz_shell_bypass_button(const struct xz_shell *, const struct xz_shell_model *, int deck);
 /* A stem mute button's touch target (44 px tall), stem 0 drums, 1 harmonics (INST), 2 vocal. Drawn
    DRUMS, VOCAL, INST from the left as on the stock deck. Zero size while the deck shows none. */
-struct xz_shell_rect xz_shell_stem_button(const struct xz_shell_model *, int deck, int stem);
+struct xz_shell_rect xz_shell_stem_button(const struct xz_shell *, const struct xz_shell_model *, int deck, int stem);
 /* Track position under x on the deck's overview, clamped to 0..total. */
 int32_t xz_shell_overview_ms(int32_t total_ms, int x, int deck);
 /* The deck's position this frame: elapsed_ms, advanced while playing as XZ_SHELL_EXTRAPOLATE_MAX_MS
