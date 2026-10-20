@@ -133,8 +133,6 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  assert(result.kind==XZ_UI_TAKEOVER_TOGGLE);
  result=tap(u,m,XZ_UI_TAKEOVER_ASSIGN,0);
  assert(result.kind==XZ_UI_TAKEOVER_ASSIGN&&result.index==0);
- result=tap(u,m,XZ_UI_TAKEOVER_ASSIGN,1);
- assert(result.kind==XZ_UI_TAKEOVER_ASSIGN&&result.index==1);
  result=tap(u,m,XZ_UI_TAKEOVER_ASSIGN,2);
  assert(result.kind==XZ_UI_TAKEOVER_ASSIGN&&result.index==2);
  xz_ui_render_vj_button(frame,800,1);
@@ -303,7 +301,7 @@ static void encoder(void){
  struct xz_ui u;struct xz_ui_model m;struct xz_ui_action a[XZ_UI_ACTIONS];struct xz_ui_widget f,w[XZ_UI_WIDGETS];struct xz_ui_info info;
  memset(&m,0,sizeof(m));xz_ui_init(&u);
  for(int d=0;d<4;d++){m.deck[d].groove_active=m.deck[d].sample_active=-1;m.deck[d].sample_volume=.5f;for(int k=0;k<3;k++)m.deck[d].levels[k]=1;}
- m.enabled=XZ_UI_STEM;m.deck[0].ready=m.deck[1].ready=0x3fff;m.rekordbox_menu=1;
+ m.enabled=XZ_UI_STEM;m.deck[0].ready=m.deck[1].ready=0x3fff;m.rekordbox_assign[0]=XZ_UI_RB_INTERFACE;m.rekordbox_assign[1]=XZ_UI_RB_STOCK;
  /* General starts on its first feature. */
  assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_ENABLE&&f.index==XZ_UI_STEM);
  for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
@@ -321,10 +319,11 @@ static void encoder(void){
   assert(xz_ui_encoder_turn(&u,&m,-1,a)==0&&xz_ui_encoder_turn(&u,&m,1,a)==0);
   assert(xz_ui_focused(&u,&m,&f)&&f.kind==start.kind&&f.index==start.index);
  }
- /* Push equals tap: a toggle reports the same action and value. */
- xz_ui_init(&u);u.page=XZ_UI_SETTINGS;u.focus_kind=XZ_UI_REKORDBOX_KEY;u.focus_index=0;u.focus_deck=-1;
- assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].kind==XZ_UI_REKORDBOX_KEY&&a[0].value==0&&!u.down);
- m.rekordbox_menu=0;assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].value==1);m.rekordbox_menu=1;
+ /* Push equals tap: a choice reports its slot and value. */
+ xz_ui_init(&u);u.page=XZ_UI_BUTTONS;u.focus_kind=XZ_UI_REKORDBOX_ASSIGN;u.focus_index=XZ_UI_RB_CHOICES+XZ_UI_RB_STEMS;u.focus_deck=-1;
+ assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].kind==XZ_UI_REKORDBOX_ASSIGN&&a[0].index==1&&a[0].value==XZ_UI_RB_STEMS&&!u.down);
+ u.focus_index=XZ_UI_RB_NOTHING;assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].index==0&&a[0].value==XZ_UI_RB_NOTHING);
+ xz_ui_init(&u);u.page=XZ_UI_SETTINGS;u.focus_deck=-1;
  /* A link opens its page; BACK returns to the link so push re-enters it. */
  u.focus_kind=XZ_UI_PANEL;u.focus_index=XZ_UI_KEY_SETUP;
  assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].kind==XZ_UI_PANEL&&u.page==XZ_UI_KEY_SETUP);
@@ -566,6 +565,51 @@ static void editor(void){
  assert(press(&u,&m,XZ_UI_PROFILE_EDIT_OPEN,1,a)==1&&a[0].kind==XZ_UI_PROFILE_EDIT_OPEN);
  assert(u.page==XZ_UI_PROFILE_EDIT&&u.edit_entry==1&&!u.edit_id[0]&&!strcmp(u.edit_name,"LENA B")&&u.edit_logo==XZ_UI_LOGO_KEEP);
 }
+static int rb_overlap(struct xz_ui_widget a,struct xz_ui_widget b){return a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;}
+/* CONTROLS > BUTTONS: two slots of six choices, reachable from every CONTROLS section, no overlap in any
+   theme, labels that fit, one help line per slot; ADVANCED and VJ.TOOLS no longer offer the old switches. */
+static void rekordbox_buttons(void){
+ struct xz_ui u;struct xz_ui_model m;struct xz_ui_widget w[XZ_UI_WIDGETS];struct xz_ui_info info;
+ memset(&m,0,sizeof(m));xz_ui_init(&u);m.rekordbox_assign[0]=XZ_UI_RB_INTERFACE;m.rekordbox_assign[1]=XZ_UI_RB_STOCK;
+ static const char *const names[XZ_UI_RB_CHOICES]={"MODS MENU","EXPORT MODE PLAYBACK","INTERFACE","VJ.TOOLS SCREEN","STEMS","NOTHING"};
+ for(int k=0;k<XZ_UI_RB_CHOICES;k++)assert(!strcmp(xz_ui_rekordbox_choice_name(k),names[k])&&xz_ui_rekordbox_choice_help(k)[0]);
+ assert(!xz_ui_rekordbox_choice_name(XZ_UI_RB_CHOICES)&&!xz_ui_rekordbox_choice_help(-1));
+ static const enum xz_ui_page family[4]={XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ_UI_PC_STEMS,XZ_UI_BUTTONS};
+ for(int f=0;f<4;f++){u.page=family[f];struct xz_ui_action a=tap(&u,&m,XZ_UI_CONTROL_SECTION,3);assert(a.kind==XZ_UI_CONTROL_SECTION&&u.page==XZ_UI_BUTTONS);}
+ struct xz_ui_action back[XZ_UI_ACTIONS];u.history_count=0;assert(xz_ui_back(&u,back)==1&&u.page==XZ_UI_CONTROLS);
+ u.page=XZ_UI_BUTTONS;
+ for(int theme=0;theme<XZ_THEME_COUNT;theme++){
+  m.theme=theme;size_t n=xz_ui_layout(&u,&m,w);int choices=0;
+  for(size_t i=0;i<n;i++){
+   for(size_t j=i+1;j<n;j++)assert(!rb_overlap(w[i],w[j]));
+   if(w[i].kind!=XZ_UI_REKORDBOX_ASSIGN)continue;
+   choices++;
+   assert(w[i].x>=XZ_UI_CX&&w[i].x+w[i].w<=XZ_UI_CX+XZ_UI_CW&&w[i].y>=XZ_UI_HEAD+48&&w[i].y+w[i].h<=XZ_UI_CB-48&&w[i].h>=40);
+   struct xz_canvas c={frame,800,800,480,theme};
+   assert(xz_text_width(c,w[i].label,1,100)<=w[i].w-24);
+   assert(xz_ui_widget_look(&u,&m,&w[i]).selected==(m.rekordbox_assign[w[i].index/XZ_UI_RB_CHOICES]==w[i].index%XZ_UI_RB_CHOICES));
+  }
+  assert(choices==2*XZ_UI_RB_CHOICES);
+  assert(xz_ui_render(&u,&m,frame,800*480,800));
+ }
+ /* A tap sets that slot: index = slot, value = choice. */
+ for(int slot=0;slot<2;slot++)for(int k=0;k<XZ_UI_RB_CHOICES;k++){
+  struct xz_ui_action a=tap(&u,&m,XZ_UI_REKORDBOX_ASSIGN,slot*XZ_UI_RB_CHOICES+k);
+  assert(a.kind==XZ_UI_REKORDBOX_ASSIGN&&a.index==slot&&(int)a.value==k&&u.page==XZ_UI_BUTTONS);
+ }
+ /* The info box names the slot and says what the button will do. */
+ u.focus_kind=XZ_UI_REKORDBOX_ASSIGN;u.focus_index=XZ_UI_RB_CHOICES+XZ_UI_RB_STOCK;u.focus_deck=-1;
+ assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.title,"SHIFT + REKORDBOX: EXPORT MODE PLAYBACK")&&!strcmp(info.state,"SELECTED"));
+ assert(!strcmp(info.body,xz_ui_rekordbox_choice_help(XZ_UI_RB_STOCK)));
+ u.focus_index=XZ_UI_RB_MODS;assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.title,"REKORDBOX: MODS MENU")&&!info.state[0]);
+ /* The retired switches are gone from ADVANCED and VJ.TOOLS. */
+ u.page=XZ_UI_SETTINGS;{size_t n=xz_ui_layout(&u,&m,w);for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_REKORDBOX_KEY);}
+ u.page=XZ_UI_CONNECTION;{size_t n=xz_ui_layout(&u,&m,w);int assign=0;
+  for(size_t i=0;i<n;i++)if(w[i].kind==XZ_UI_TAKEOVER_ASSIGN){assert(w[i].index!=1);assign++;
+   for(size_t j=0;j<n;j++)if(j!=i)assert(!rb_overlap(w[i],w[j]));}
+  assert(assign==2);}
+ puts("PASS CONTROLS > BUTTONS: 2 x 6 REKORDBOX choices, 4 section tabs, 25 themes without overlap, slot/value taps, help, retired switches gone");
+}
 int main(int argc,char **argv){
  struct xz_ui u;struct xz_ui_model m;int i,j;
  if(argc>1&&strcmp(argv[1],"--prove-assertions")==0){assert(!"assertions-active");return 1;}
@@ -575,6 +619,7 @@ int main(int argc,char **argv){
  pc_setup();
  ram();
  encoder();
+ rekordbox_buttons();
  profile();
  editor();
  assert(!xz_ui_render(&u,&m,frame,10,800));assert(!xz_ui_render(&u,&m,frame,800*480,799));

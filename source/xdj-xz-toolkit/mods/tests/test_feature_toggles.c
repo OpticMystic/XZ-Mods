@@ -11,12 +11,12 @@ int main(void) {
  assert(xz_settings_format(&old,text,sizeof(text))>0);
  assert(strstr(text,"shift_pages=0\n")&&strstr(text,"shift_keysync=0\n"));
  assert(strstr(text,"jump_shift_page=0\n")&&strstr(text,"ram_debug=0\n")&&strstr(text,"metrics_enabled=0\n"));
- assert(!xz_settings_parse_present(text,&loaded,&present)&&present==41);
+ assert(!xz_settings_parse_present(text,&loaded,&present)&&present==43);
  assert(loaded.shift_pages&&loaded.shift_keysync&&loaded.jump.shift_page&&loaded.ram_debug&&loaded.metrics_enabled&&!loaded.jump.enabled);
- current=old;assert(!xz_settings_overlay(&current,&old,41));
+ current=old;assert(!xz_settings_overlay(&current,&old,43));
  assert(current.shift_pages&&current.shift_keysync&&current.jump.shift_page&&current.ram_debug&&current.metrics_enabled&&!current.jump.enabled);
  /* Partial older records cannot disable an additive feature through overlay. */
- for(unsigned n=0;n<=41;n++){
+ for(unsigned n=0;n<=43;n++){
   current=old;assert(!xz_settings_overlay(&current,&old,n));
   assert(current.shift_pages&&current.shift_keysync&&current.jump.shift_page&&current.ram_debug&&current.metrics_enabled);
  }

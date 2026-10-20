@@ -11,7 +11,12 @@
 #include "shell.h"
 
 #define XZ_SHELL_SOURCE_TILES 4
-enum xz_shell_device_status { XZ_SHELL_DEVICE_NOT_CONNECTED, XZ_SHELL_DEVICE_LOADING, XZ_SHELL_DEVICE_READY };
+/* STOCK: the slot is browsed in the stock screen (LINK: linked players' media and DJ software control;
+   COMPUTER: export mode playback, a laptop's or phone's library over the network). Selecting it emits
+   SET_SOURCE {id = the slot, value 0} and nothing else: the runtime hands the screen to stock and runs the
+   stock key for that slot, so stock opens it at once. */
+enum xz_shell_device_status { XZ_SHELL_DEVICE_NOT_CONNECTED, XZ_SHELL_DEVICE_LOADING, XZ_SHELL_DEVICE_READY,
+ XZ_SHELL_DEVICE_STOCK };
 enum xz_shell_device_field {
  XZ_SHELL_D_STATUS, XZ_SHELL_D_NAME, XZ_SHELL_D_COLOR, XZ_SHELL_D_FREE, XZ_SHELL_D_TOTAL, XZ_SHELL_D_TRACKS,
  XZ_SHELL_DEVICE_FIELD_COUNT
@@ -46,7 +51,8 @@ struct xz_shell_source_model {
    SET_SOURCE  id = enum xz_shell_source (USB1..COMPUTER), deck = -1. The runtime
                makes that device the browse source. The shell follows it with the
                BROWSE navigation (OPEN, or HAND_OFF when BROWSE is unavailable).
-               Emitted only for a READY device. For LINK with media listed, the LINK
+               Emitted only for a READY device, or alone (no BROWSE) for a STOCK slot.
+               For LINK with media listed, the LINK
                tile opens a picker of player and medium; picking one emits
                SET_SOURCE {id LINK, value = 1 + media index}. Rows then load onto
                either deck with the row LOAD chips as for a local stick. */

@@ -26,6 +26,8 @@ void xz_ui_stem_rows(const struct xz_ui_scene *);
 void xz_ui_stem_colors(const struct xz_ui_scene *);
 void xz_ui_page_details(const struct xz_ui_scene *);
 void xz_ui_appearance_details(const struct xz_ui_scene *);
+/* CONTROLS > BUTTONS: each slot's caption and the line on what its chosen action does. */
+void xz_ui_buttons_details(const struct xz_ui_scene *);
 extern const struct xz_ui_skin xz_skin_classic, xz_skin_lcars, xz_skin_matrix, xz_skin_analog, xz_skin_flagship;
 
 /* Shared screen grid. Header 0..HEAD, section rail 0..RAIL_W, content

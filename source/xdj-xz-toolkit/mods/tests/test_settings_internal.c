@@ -36,7 +36,7 @@ int main(void) {
     assert(xz_settings_internal_load(&loaded,NULL)==XZ_INTERNAL_SETTINGS_MISSING);
     s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=5;s.theme=5;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
     unsigned present=0;
-    assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==5&&present==41);
+    assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==5&&present==43);
     assert(generation(slot0)==1&&access(slot1,F_OK));
 
     s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=6;s.theme=6;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);

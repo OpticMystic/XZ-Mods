@@ -194,6 +194,34 @@ static void test_header_mods(void) {
  puts("PASS MODS header button opens the first mod tab; without mod tabs it hands MODS to the runtime");
 }
 
+/* A key assigned to MODS (the REKORDBOX button): opens MODS on its first mod tab from any screen, list
+   screens included, and closes it again; encoder and BACK then drive it as usual. */
+static void test_mods_key(void) {
+ struct xz_shell u;struct xz_shell_model m;model(&m);
+ xz_shell_init(&u);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==2);
+ assert(u.mods_view.tab==TAB_STEMS&&u.mods_view.on_tabs==1);
+ render_into(buffer_a,&u,&m);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.depth==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
+ /* Over another screen it opens on top and closes back to it. */
+ assert(key(&u,&m,XZ_SHELL_KEY_SHORTCUT)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==3);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&xz_shell_screen(&u)==XZ_SHELL_SHORTCUT&&u.depth==2);
+ /* Open on UTILITY deep in a pane: it closes MODS (as short MENU there), never just switches tab. */
+ xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.depth==1);
+ /* Hardware only: MODS key, encoder into a tab, BACK out to the rail, BACK closes. */
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.mods_view.on_tabs==1);
+ enter_tab(&u,&m,TAB_LOOK);
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.mods_view.on_tabs==1);
+ assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
+ /* No mod tabs: UTILITY; nothing to show: inert. */
+ m.mods=NULL;xz_shell_init(&u);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.mods_view.tab==TAB_UTILITY);
+ m.settings_screen=NULL;xz_shell_init(&u);
+ assert(key(&u,&m,XZ_SHELL_KEY_MODS)==0&&u.depth==1);
+ puts("PASS MODS key: opens the first mod tab from any screen, closes it, encoder and BACK drive it");
+}
 static void test_set_requests(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
  xz_shell_init(&u);hold_menu(&u,&m);
@@ -455,6 +483,7 @@ int main(void) {
  test_contract();
  test_held_menu_and_back_chain();
  test_header_mods();
+ test_mods_key();
  test_set_requests();
  test_descriptions();
  test_page_tabs();

@@ -15,6 +15,15 @@ enum { APPEARANCE_Y=50, APPEARANCE_PITCH=78, APPEARANCE_H=44 };
 static void appearance(struct xz_ui_widget *a,int row,int cols,int i){
  int pitch=CW+GAP;put(a,X0+i*pitch/cols,APPEARANCE_HEAD(row)+16,pitch/cols-GAP,APPEARANCE_H);
 }
+/* CONTROLS > BUTTONS: per slot a caption at BUTTONS_HEAD(slot), its six choices in two rows of three
+   below, then one help line at BUTTONS_HELP(slot). */
+enum { BUTTONS_Y=98, BUTTONS_PITCH=140, BUTTONS_H=40 };
+#define BUTTONS_HEAD(slot) (BUTTONS_Y+(slot)*BUTTONS_PITCH)
+#define BUTTONS_HELP(slot) (BUTTONS_HEAD(slot)+16+2*ROW+2)
+static void buttons(struct xz_ui_widget *a,int k){
+ int slot=k/XZ_UI_RB_CHOICES,choice=k%XZ_UI_RB_CHOICES,pitch=CW+GAP;
+ put(a,X0+(choice%3)*pitch/3,BUTTONS_HEAD(slot)+16+(choice/3)*ROW,pitch/3-GAP,BUTTONS_H);
+}
 static int root(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_THEMES||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS;}
 static int rail_slot(int page){return page==XZ_UI_GENERAL?0:page==XZ_UI_CONTROLS?1:page==XZ_UI_THEMES?2:page==XZ_UI_SETTINGS?3:4;}
 /* The DJ Profile list hangs from the header's right corner: rows of 52 on a 56 pitch,
@@ -87,7 +96,8 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_PROFILE_PICK:{int first;xz_ui_profile_window(u,m,&first);
    put(a,XZ_UI_PROFILE_LIST_X+8,XZ_UI_PROFILE_LIST_Y+28+(k-first)*56,XZ_UI_PROFILE_LIST_W-16,52);break;}
   case XZ_UI_PROFILE_PAGE:put(a,XZ_UI_PROFILE_LIST_X+8+(k<0?0:88),profile_buttons_y(u,m),80,40);break;
-  case XZ_UI_CONTROL_SECTION:grid(a,3,k,0,1);break;
+  case XZ_UI_CONTROL_SECTION:grid(a,4,k,0,1);break;
+  case XZ_UI_REKORDBOX_ASSIGN:buttons(a,k);break;
   /* CONTROLS: stem shortcuts */
   case XZ_UI_ENABLE:
    if(k==XZ_UI_STEM)grid(a,2,0,0,1);
@@ -142,7 +152,7 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_STEM_COLORS_RESET:put(a,X0,348,CW,40);break;
   /* VJ.TOOLS: controls on the right, live status on the left */
   case XZ_UI_TAKEOVER_TOGGLE:put(a,468,XZ_UI_CY,324,44);break;
-  case XZ_UI_TAKEOVER_ASSIGN:put(a,468+k*110,114,104,40);break;
+  case XZ_UI_TAKEOVER_ASSIGN:put(a,468+(k?165:0),114,159,40);break; /* LINK, ONSCREEN (REKORDBOX retired) */
   case XZ_UI_CONNECTION_ENABLE:put(a,468,184,324,44);break;
   case XZ_UI_DISCOVERY:put(a,468,236,324,44);break;
   /* GAMES */
@@ -185,6 +195,18 @@ static void label(struct xz_canvas c,int x,int y,int width,const char *value,int
  struct xz_canvas box=xz_sub(c,x,y,width,c.height-y);
  if(xz_text_width(box,value,scale,200)>width)scale=1;
  xz_text(box,0,0,value,scale,200,color);
+}
+void xz_ui_buttons_details(const struct xz_ui_scene *s){
+ uint32_t bg,ink,accent;xz_ui_chrome_colors(s->m,s->p,&bg,&ink,&accent);(void)accent;
+ uint32_t dim=xz_blend(bg,ink,150),rule=xz_blend(bg,ink,48);
+ static const char *const heads[2]={"REKORDBOX BUTTON","SHIFT + REKORDBOX"};
+ for(int slot=0;slot<2;slot++){
+  int y=BUTTONS_HEAD(slot),w=xz_text_width(s->c,heads[slot],1,40);
+  xz_text(s->c,X0,y,heads[slot],1,40,dim);
+  xz_rect(s->c,X0+w+10,y+5,CW-w-10,1,rule);
+  const char *help=xz_ui_rekordbox_choice_help(s->m->rekordbox_assign[slot]);
+  label(s->c,X0,BUTTONS_HELP(slot),CW,help?help:"",1,ink);
+ }
 }
 /* Live state only. What a control does is the info dock's job. */
 void xz_ui_page_details(const struct xz_ui_scene *s){

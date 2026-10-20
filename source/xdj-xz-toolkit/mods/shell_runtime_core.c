@@ -3,6 +3,7 @@
 #include "shell_runtime.h"
 #include "shell/shell_settings.h"
 #include "shell/shell_browse.h"
+#include "settings.h"
 #include <string.h>
 
 /* Codes from VJToolsLibrary docs/research/2026-10-18-xz-shell-abi.md R1. */
@@ -16,9 +17,10 @@ static const struct xz_shrt_key_map keys[]={
  {0x203,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB1,-1,-1},
  {0x204,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_SOURCE_USB2,-1,-1},
  {0x420d,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TRACK_FILTER,-1,-1},
- /* LINK and rekordbox open stock's media and connection screen (linked players' media, CONTROL MODE
-    for LOAD 1/2): the shell steps aside until stock is back on PLAY. */
- {0x205,0,XZ_SHRT_HAND_OFF,-1,-1,-1},{0x202,0,XZ_SHRT_HAND_OFF,-1,-1,-1},
+ /* LINK opens stock's media and connection screen (linked players' media, CONTROL MODE for LOAD 1/2): the
+    shell steps aside until stock is back on PLAY. REKORDBOX does what MODS > CONTROLS > BUTTONS assigns
+    (xz_shrt_rekordbox_verdict); its stock action hands off the same way. */
+ {0x205,0,XZ_SHRT_HAND_OFF,-1,-1,-1},{0x202,0,XZ_SHRT_ASSIGNED,-1,-1,-1},
  {0x420c,0,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_TAG_TRACK,-1,-1},
  {0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD,-1},
  {0x430f,1,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1,0},{0x430f,2,XZ_SHRT_ON_PRESS,XZ_SHELL_KEY_LOAD,-1,1},
@@ -48,7 +50,8 @@ static struct probe probe(const struct xz_shell *u, const struct xz_shell_model 
 }
 enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shrt_key_map *k) {
  if(!u||!m||!k||k->rule==XZ_SHRT_STOCK)return XZ_SHRT_PASS;
- if(k->rule==XZ_SHRT_HAND_OFF)return XZ_SHRT_PASS_HAND_OFF;
+ /* An ASSIGNED key without its assignment behaves as its stock action. */
+ if(k->rule==XZ_SHRT_HAND_OFF||k->rule==XZ_SHRT_ASSIGNED)return XZ_SHRT_PASS_HAND_OFF;
  /* While the shell owns the screen, a browse-section key either acts in the shell (SWALLOW), is
     inert (SWALLOW too) or hands the screen to stock visibly (PASS_HAND_OFF). It is never passed to a
     hidden stock screen: stock would act on its own invisible browse cursor (LOAD would load a track
@@ -70,8 +73,21 @@ enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *u, const struct 
  if((a.hands_off||!a.effect)&&(b.hands_off||!b.effect))return XZ_SHRT_PASS_HAND_OFF;
  return XZ_SHRT_SWALLOW;
 }
+enum xz_shrt_verdict xz_shrt_rekordbox_verdict(int action, enum xz_shrt_rb_effect *effect) {
+ enum xz_shrt_rb_effect e=XZ_SHRT_RB_NONE;enum xz_shrt_verdict v;
+ switch(action){
+ case XZ_REKORDBOX_MODS:e=XZ_SHRT_RB_SHELL_MODS;v=XZ_SHRT_SWALLOW;break;
+ case XZ_REKORDBOX_STEMS:e=XZ_SHRT_RB_STEMS;v=XZ_SHRT_SWALLOW;break;
+ /* INTERFACE, VJ.TOOLS SCREEN and NOTHING run once in ui_runtime.c's REKORDBOX handler hook, which
+    never calls stock for them: the key passes without a hand-off. */
+ case XZ_REKORDBOX_INTERFACE:case XZ_REKORDBOX_VJ_SCREEN:case XZ_REKORDBOX_NOTHING:v=XZ_SHRT_PASS;break;
+ default:v=XZ_SHRT_PASS_HAND_OFF;break; /* STOCK, and anything unknown: stock's own action, seen */
+ }
+ if(effect)*effect=e;
+ return v;
+}
 int xz_shrt_key_for_phase(const struct xz_shrt_key_map *k, enum xz_shrt_phase p, int held) {
- if(!k||k->rule==XZ_SHRT_STOCK||k->rule==XZ_SHRT_HAND_OFF)return -1;
+ if(!k||k->rule==XZ_SHRT_STOCK||k->rule==XZ_SHRT_HAND_OFF||k->rule==XZ_SHRT_ASSIGNED)return -1;
  if(k->rule==XZ_SHRT_ON_PRESS)return p==XZ_SHRT_PRESS?k->key:-1;
  if(p==XZ_SHRT_HOLD)return held?-1:k->hold;
  if(p==XZ_SHRT_RELEASE)return held?-1:k->key;

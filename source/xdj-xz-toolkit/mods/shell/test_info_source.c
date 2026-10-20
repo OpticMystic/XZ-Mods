@@ -336,6 +336,33 @@ static void test_source(void) {
  assert(press(&u,&bare,XZ_SHELL_KEY_SOURCE,out)==1&&out[0].id==XZ_SHELL_SOURCE&&u.depth==1);
  puts("PASS source: default cursor, skip not connected, highlight then select, BROWSE or hand-off");
 }
+/* LINK and COMPUTER browsed in the stock screen: selectable by encoder and touch, one select emits
+   SET_SOURCE {slot, 0} alone (no BROWSE, no hand-off of its own: the runtime hands off and runs stock's key). */
+static void test_source_stock(void) {
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_info_model im;struct xz_shell_source_model sm;
+ struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ model(&m,&im,&sm);
+ for(int i=2;i<4;i++){sm.device[i].known=1u<<XZ_SHELL_D_STATUS;sm.device[i].status=XZ_SHELL_DEVICE_STOCK;}
+ open_screen(&u,&m,XZ_SHELL_KEY_SOURCE,XZ_SHELL_SOURCE);
+ render_checked(&u,&m,buffer_a);
+ assert(turn(&u,&m,1,out)==0&&u.stack[1].cursor==2);
+ assert(turn(&u,&m,1,out)==0&&u.stack[1].cursor==3);                   /* LINK is selectable now */
+ render_checked(&u,&m,buffer_b);
+ assert(count_color(frame(buffer_b),xz_shell_source_rect(2),SH_BLUE)>count_color(frame(buffer_a),xz_shell_source_rect(2),SH_BLUE));
+ assert(push(&u,&m,out)==1&&out[0].kind==(enum xz_shell_action_kind)XZ_SHELL_ACT_SET_SOURCE&&out[0].id==XZ_SHELL_SRC_LINK&&
+  out[0].value==0&&out[0].deck==-1&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+ assert(turn(&u,&m,1,out)==0&&u.stack[1].cursor==4);
+ assert(push(&u,&m,out)==1&&out[0].id==XZ_SHELL_SRC_COMPUTER&&out[0].value==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+ /* Touch: first highlights, second selects, as on the USB tiles. */
+ assert(tap(&u,&m,xz_shell_source_rect(2),out)==0&&u.stack[1].cursor==3);
+ assert(tap(&u,&m,xz_shell_source_rect(2),out)==1&&out[0].id==XZ_SHELL_SRC_LINK&&out[0].value==0&&xz_shell_screen(&u)==XZ_SHELL_SOURCE);
+ /* With no stick, the cursor starts on the first stock tile. */
+ sm.device[0].status=sm.device[1].status=XZ_SHELL_DEVICE_NOT_CONNECTED;sm.current_known=0;
+ open_screen(&u,&m,XZ_SHELL_KEY_SOURCE,XZ_SHELL_SOURCE);
+ assert(push(&u,&m,out)==1&&out[0].id==XZ_SHELL_SRC_LINK);
+ render_checked(&u,&m,buffer_a);
+ puts("PASS source stock tiles: LINK and EXPORT MODE selectable, one select emits SET_SOURCE alone");
+}
 static void test_source_unknown_and_bounds(void) {
  struct xz_shell u;struct xz_shell_model m,z;struct xz_shell_info_model im;struct xz_shell_source_model sm,zero;
  struct xz_shell_action out[XZ_SHELL_ACTIONS];
@@ -417,6 +444,7 @@ int main(void) {
  test_info_rating();
  test_info_unknown_and_bounds();
  test_source();
+ test_source_stock();
  test_source_unknown_and_bounds();
  test_strip_and_targets();
  puts("PASS info and source");

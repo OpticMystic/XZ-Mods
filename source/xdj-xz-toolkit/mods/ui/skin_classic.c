@@ -28,7 +28,7 @@ static int is_toggle(enum xz_ui_action_kind k){
 static int is_choice(enum xz_ui_action_kind k){
  return k==XZ_UI_STEM_PAGE||k==XZ_UI_WAVE_MODE||k==XZ_UI_KEY_FORMAT||k==XZ_UI_TAKEOVER_ASSIGN||k==XZ_UI_CONTROL_SECTION||
   k==XZ_UI_JUMP_EDIT_PAGE||k==XZ_UI_RAM_DECK||k==XZ_UI_SDK_STEP||k==XZ_UI_SDK_CHOICE||k==XZ_UI_WAD_SELECT||
-  k==XZ_UI_SET_INTERFACE||k==XZ_UI_SET_MODERN_THEME;
+  k==XZ_UI_SET_INTERFACE||k==XZ_UI_SET_MODERN_THEME||k==XZ_UI_REKORDBOX_ASSIGN;
 }
 /* The one thing to do next on a setup or launch page. */
 static int is_primary(enum xz_ui_action_kind k,int index){
@@ -68,7 +68,7 @@ static void fit_text(struct xz_canvas c,int x,int y,int w,const char *s,uint32_t
 static const char *section_title(enum xz_ui_page page){
  switch(page){
  case XZ_UI_GENERAL:return "GENERAL";case XZ_UI_FEATURE_SETUP:return "FEATURE SETUP";
- case XZ_UI_CONTROLS:case XZ_UI_BEAT_JUMP:case XZ_UI_PC_STEMS:return "CONTROLS";
+ case XZ_UI_CONTROLS:case XZ_UI_BEAT_JUMP:case XZ_UI_PC_STEMS:case XZ_UI_BUTTONS:return "CONTROLS";
  case XZ_UI_THEMES:return "APPEARANCE";case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";
  case XZ_UI_SETTINGS:return "ADVANCED";case XZ_UI_EXTRAS:return "EXTRAS";
  case XZ_UI_STEMS:return "GROOVE PADS";case XZ_UI_XPAD:return "X-PAD";

@@ -7,7 +7,62 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+/* Sets a one-digit field of a formatted record, or cuts the record just before it. */
+static void field(char *text, const char *key, char digit) { char *at=strstr(text,key);assert(at);at[strlen(key)]=digit; }
+static void cut(char *text, const char *key) { char *at=strstr(text,key);assert(at);*at=0; }
+static void rekordbox_buttons(void) {
+    struct xz_settings a,b;char text[1024];unsigned present=0;
+    xz_settings_default(&a);
+    assert(a.rekordbox_press==XZ_REKORDBOX_INTERFACE&&a.rekordbox_shift==XZ_REKORDBOX_STOCK&&!a.rekordbox_menu);
+    /* Every pair round-trips; rekordbox_menu is written as press == MODS for older runtimes. */
+    for(int press=0;press<XZ_REKORDBOX_ACTIONS;press++)for(int shift=0;shift<XZ_REKORDBOX_ACTIONS;shift++){
+        struct xz_settings w=a;w.rekordbox_press=press;w.rekordbox_shift=shift;w.rekordbox_menu=press==XZ_REKORDBOX_MODS;
+        assert(xz_settings_format(&w,text,sizeof(text))>0&&strstr(text,press==XZ_REKORDBOX_MODS?"rekordbox_menu=1\n":"rekordbox_menu=0\n"));
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==43&&!memcmp(&w,&b,sizeof(w)));
+    }
+    { struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_ACTIONS;assert(xz_settings_format(&w,text,sizeof(text))<0);
+      w=a;w.rekordbox_shift=-1;assert(xz_settings_format(&w,text,sizeof(text))<0); }
+    assert(xz_settings_format(&a,text,sizeof(text))>0);
+    { char bad[1024];strcpy(bad,text);field(bad,"rekordbox_shift=",'6');assert(xz_settings_parse(bad,&b)<0);
+      /* The pair is all or nothing. */
+      strcpy(bad,text);cut(bad,"rekordbox_shift=");assert(xz_settings_parse(bad,&b)<0); }
+    /* Records older than the pair migrate from rekordbox_menu and takeover_assign. */
+    static const struct { char menu, takeover; int press, assign; } cases[]={
+        {'1','0',XZ_REKORDBOX_INTERFACE,XZ_TAKEOVER_LINK},{'0','0',XZ_REKORDBOX_STOCK,XZ_TAKEOVER_LINK},
+        {'0','1',XZ_REKORDBOX_VJ_SCREEN,XZ_TAKEOVER_LINK},{'1','1',XZ_REKORDBOX_INTERFACE,XZ_TAKEOVER_LINK},
+        {'0','2',XZ_REKORDBOX_STOCK,XZ_TAKEOVER_ONSCREEN}};
+    for(size_t k=0;k<sizeof(cases)/sizeof(cases[0]);k++){
+        char old[1024];strcpy(old,text);field(old,"rekordbox_menu=",cases[k].menu);field(old,"takeover_assign=",cases[k].takeover);
+        cut(old,"rekordbox_press=");
+        assert(!xz_settings_parse_present(old,&b,&present)&&present==41);
+        assert(b.rekordbox_press==cases[k].press&&b.rekordbox_shift==XZ_REKORDBOX_STOCK&&b.takeover_assign==cases[k].assign);
+        assert(b.rekordbox_menu==(cases[k].press==XZ_REKORDBOX_MODS));
+        /* Saved again, the record carries the pair and reads back the same. */
+        struct xz_settings again;assert(xz_settings_format(&b,old,sizeof(old))>0&&!xz_settings_parse(old,&again)&&!memcmp(&b,&again,sizeof(b)));
+    }
+    /* Before rekordbox_menu existed its default was 1: INTERFACE. */
+    { char old[1024];strcpy(old,text);cut(old,"rekordbox_menu=");
+      assert(!xz_settings_parse_present(old,&b,&present)&&present==35&&b.rekordbox_press==XZ_REKORDBOX_INTERFACE&&b.rekordbox_shift==XZ_REKORDBOX_STOCK); }
+    /* A current record naming the retired REKORDBOX takeover key loads as LINK and keeps its pair. */
+    { char now[1024];struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_NOTHING;assert(xz_settings_format(&w,now,sizeof(now))>0);
+      field(now,"takeover_assign=",'1');assert(!xz_settings_parse(now,&b)&&b.takeover_assign==XZ_TAKEOVER_LINK&&b.rekordbox_press==XZ_REKORDBOX_NOTHING); }
+    /* Overlay: an older record brings its migrated press; the SHIFT slot it never named is kept. */
+    { char old[1024];strcpy(old,text);field(old,"rekordbox_menu=",'0');field(old,"takeover_assign=",'1');cut(old,"rekordbox_press=");
+      struct xz_settings current=a,record;current.rekordbox_press=XZ_REKORDBOX_NOTHING;current.rekordbox_shift=XZ_REKORDBOX_MODS;current.rekordbox_menu=0;
+      assert(!xz_settings_parse_present(old,&record,&present)&&!xz_settings_overlay(&current,&record,present));
+      assert(current.rekordbox_press==XZ_REKORDBOX_VJ_SCREEN&&current.rekordbox_shift==XZ_REKORDBOX_MODS&&current.takeover_assign==XZ_TAKEOVER_LINK&&!current.rekordbox_menu);
+      /* A record from before rekordbox_menu leaves both slots as they are. */
+      strcpy(old,text);cut(old,"rekordbox_menu=");current.rekordbox_press=XZ_REKORDBOX_MODS;
+      assert(!xz_settings_parse_present(old,&record,&present)&&!xz_settings_overlay(&current,&record,present));
+      assert(current.rekordbox_press==XZ_REKORDBOX_MODS&&current.rekordbox_shift==XZ_REKORDBOX_MODS&&current.rekordbox_menu);
+      /* A current record sets both. */
+      struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_STEMS;w.rekordbox_shift=XZ_REKORDBOX_NOTHING;assert(xz_settings_format(&w,old,sizeof(old))>0);
+      assert(!xz_settings_parse_present(old,&record,&present)&&!xz_settings_overlay(&current,&record,present));
+      assert(current.rekordbox_press==XZ_REKORDBOX_STEMS&&current.rekordbox_shift==XZ_REKORDBOX_NOTHING&&!current.rekordbox_menu); }
+    puts("PASS REKORDBOX buttons: 36 pairs round-trip, derived rekordbox_menu, range and pair refusal, migration from rekordbox_menu/takeover_assign, overlay");
+}
 int main(void) {
+    rekordbox_buttons();
     struct xz_settings a,b;
     char text[1024], root[]="/dev/shm/xz-settings-XXXXXX",path[1024];
     xz_settings_default(&a);
@@ -27,7 +82,7 @@ int main(void) {
         current.key_feedback=1;current.wave_mode=2;
         assert(!xz_settings_overlay(&current,&record,present)&&current.key_feedback==1&&current.wave_mode==2);
         struct xz_settings off=current;off.key_feedback=0;off.wave_mode=0;
-        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==41);
+        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==43);
         assert(!xz_settings_overlay(&current,&record,present)&&!current.key_feedback&&!current.wave_mode);
         record=current;record.theme=XZ_THEME_COUNT;struct xz_settings kept=current;
         assert(xz_settings_overlay(&current,&record,38)<0&&!memcmp(&kept,&current,sizeof(kept)));
@@ -72,7 +127,7 @@ int main(void) {
     { struct xz_settings w=a;w.wave_mode=3;assert(xz_settings_format(&w,text,sizeof(text))<0); }
     for (int page=0;page<4;page++) {
         a.stems=1;a.stem_page=page;a.shift_pages=1;a.shift_keysync=1;a.ui_interface=XZ_INTERFACE_CLASSIC;a.classic_theme=6;a.theme=6;
-        a.fb_takeover=page%2;a.takeover_assign=page%3;
+        a.fb_takeover=page%2;a.takeover_assign=page%2?XZ_TAKEOVER_ONSCREEN:XZ_TAKEOVER_LINK;
         a.spare_eq=page%2;
         a.stem_bank=page%2;
         assert(xz_settings_format(&a,text,sizeof(text))>0);

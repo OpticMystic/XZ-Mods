@@ -15,7 +15,7 @@
 #define XZ_UI_WIDGETS 64
 #define XZ_UI_ACTIONS 4
 
-enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_CONNECTION, XZ_UI_CONTROLS, XZ_UI_BEAT_JUMP, XZ_UI_EXTRAS, XZ_UI_DOOM, XZ_UI_DOOM_SETUP, XZ_UI_DOOM_FILES, XZ_UI_UPDATES, XZ_UI_UPDATE_SETUP, XZ_UI_GAMES, XZ_UI_MYHOUSE_SETUP, XZ_UI_KEY_SETUP, XZ_UI_BROWSE_SETUP, XZ_UI_PC_STEMS, XZ_UI_STEM_COLORS, XZ_UI_APPS, XZ_UI_APPS_SETUP, XZ_UI_RAM_SETUP, XZ_UI_LOCAL_STEM_SETUP, XZ_UI_METRICS_SETUP, XZ_UI_PROFILE_SETUP, XZ_UI_PROFILE_EDIT, XZ_UI_GENERAL, XZ_UI_FEATURE_SETUP, XZ_UI_THEME_PICK, XZ_UI_PAGE_COUNT };
+enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_CONNECTION, XZ_UI_CONTROLS, XZ_UI_BEAT_JUMP, XZ_UI_EXTRAS, XZ_UI_DOOM, XZ_UI_DOOM_SETUP, XZ_UI_DOOM_FILES, XZ_UI_UPDATES, XZ_UI_UPDATE_SETUP, XZ_UI_GAMES, XZ_UI_MYHOUSE_SETUP, XZ_UI_KEY_SETUP, XZ_UI_BROWSE_SETUP, XZ_UI_PC_STEMS, XZ_UI_STEM_COLORS, XZ_UI_APPS, XZ_UI_APPS_SETUP, XZ_UI_RAM_SETUP, XZ_UI_LOCAL_STEM_SETUP, XZ_UI_METRICS_SETUP, XZ_UI_PROFILE_SETUP, XZ_UI_PROFILE_EDIT, XZ_UI_GENERAL, XZ_UI_FEATURE_SETUP, XZ_UI_THEME_PICK, XZ_UI_BUTTONS, XZ_UI_PAGE_COUNT };
 enum xz_ui_cap {
     XZ_UI_GATE=1u, XZ_UI_SMART=2u, XZ_UI_PREVIEW=4u, XZ_UI_STEM=8u,
     XZ_UI_GROOVE=16u, XZ_UI_SAMPLE=32u, XZ_UI_THEME=64u, XZ_UI_SERVER=128u,
@@ -50,7 +50,8 @@ enum xz_ui_action_kind {
      * snapshot row, wizard step or page direction; sdk_generation pins rows. */
     XZ_UI_SDK_RUN, XZ_UI_SDK_SAVE, XZ_UI_SDK_STOP, XZ_UI_SDK_FIX, XZ_UI_SDK_PAGE, XZ_UI_SDK_SCAN, XZ_UI_SDK_AUTOLOAD,
     XZ_UI_SDK_SETUP, XZ_UI_SDK_STEP, XZ_UI_SDK_GOTO, XZ_UI_SDK_CHOICE, XZ_UI_SDK_DONE, XZ_UI_KEY_FEEDBACK, XZ_UI_RAM_DECK, XZ_UI_RAM_REQUEST, XZ_UI_RAM_CANCEL, XZ_UI_RAM_RELEASE, XZ_UI_LOCAL_STEM_SETUP_OPEN, XZ_UI_LOCAL_STEM_SETUP_STEP, XZ_UI_RAM_DEBUG, XZ_UI_BACK,
-    /* value 1 = the physical REKORDBOX key opens MODS, 0 = it keeps its stock action. */
+    /* Retired switch (REKORDBOX_ASSIGN replaced it; nothing lays it out): value 1 sets the REKORDBOX
+     * key's press to MODS MENU, 0 to its stock action. */
     XZ_UI_REKORDBOX_KEY, XZ_UI_METRICS_TOGGLE, XZ_UI_METRICS_SETUP_OPEN, XZ_UI_METRICS_CHECK,
     /* DJ Profile. PROFILE is the header chip and opens or closes the list.
      * PROFILE_PICK: index = xz_ui_dj entry; the runtime makes it its stick's active profile.
@@ -72,8 +73,18 @@ enum xz_ui_action_kind {
     /* APPEARANCE. SET_INTERFACE: index XZ_UI_INTERFACE_*; the one switch for who draws the
      * player screen. SET_THEME: index = classic theme (0..XZ_THEME_FLAGSHIP-1).
      * SET_MODERN_THEME: index = modern theme (STANDARD only for now). */
-    XZ_UI_SET_INTERFACE, XZ_UI_SET_MODERN_THEME
+    XZ_UI_SET_INTERFACE, XZ_UI_SET_MODERN_THEME,
+    /* CONTROLS > BUTTONS. What the physical REKORDBOX key does. Widget index = slot *
+     * XZ_UI_RB_CHOICES + choice; the action carries index = slot (0 press, 1 SHIFT + press) and
+     * value = choice (enum xz_ui_rekordbox). */
+    XZ_UI_REKORDBOX_ASSIGN
 };
+/* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
+enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
+    XZ_UI_RB_NOTHING, XZ_UI_RB_CHOICES };
+/* Short caps label and one line on what the button then does; NULL outside 0..XZ_UI_RB_CHOICES-1. */
+const char *xz_ui_rekordbox_choice_name(int choice);
+const char *xz_ui_rekordbox_choice_help(int choice);
 enum { XZ_UI_INTERFACE_CLASSIC=0, XZ_UI_INTERFACE_MODERN=1, XZ_UI_MODERN_THEMES=1 };
 enum xz_ui_kb_key { XZ_UI_KB_SHIFT=-1, XZ_UI_KB_SYMBOLS=-2, XZ_UI_KB_DELETE=-3 };
 enum xz_ui_edit_step { XZ_UI_EDIT_NAME, XZ_UI_EDIT_LOGO, XZ_UI_EDIT_TAGLINE, XZ_UI_EDIT_REVIEW };
@@ -216,7 +227,7 @@ struct xz_ui_model {
     int stem_order; /* xz_stem_orders index for the rows and pads A/B/C */
     int key_format; /* 0 stock browser setting, 1 classic, 2 Camelot */
     int key_feedback;
-    int rekordbox_menu; /* 1: the REKORDBOX key opens and closes MODS */
+    int rekordbox_assign[2]; /* enum xz_ui_rekordbox: [0] a plain press, [1] with either deck's SHIFT held */
     struct xz_jump_settings jump;
     int jump_encoder;
     const char *settings_status;

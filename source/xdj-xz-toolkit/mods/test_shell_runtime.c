@@ -6,6 +6,7 @@
 #error Shell runtime acceptance requires active assertions
 #endif
 #include "shell_runtime.h"
+#include "settings.h"
 #include "shell_library.h"
 #include "shell/fixtures.h"
 #include "shell/shell_browse.h"
@@ -41,11 +42,24 @@ static void key_table(void) {
   const struct xz_shrt_key_map *k=xz_shrt_key_lookup(codes[i],0);
   assert(k&&k->rule==XZ_SHRT_ON_PRESS&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==expect[i]);
  }
- /* LINK and rekordbox hand the screen to stock's media and connection screen (CONTROL MODE). */
+ /* LINK hands the screen to stock's media and connection screen (CONTROL MODE); REKORDBOX does what it is
+    assigned. Neither delivers a table key in any phase. */
  for(unsigned i=0;i<2;i++){
   const struct xz_shrt_key_map *k=xz_shrt_key_lookup(i?0x202:0x205,0);
-  assert(k&&k->rule==XZ_SHRT_HAND_OFF&&xz_shrt_key_for_phase(k,XZ_SHRT_PRESS,0)==-1);
+  assert(k&&k->rule==(i?XZ_SHRT_ASSIGNED:XZ_SHRT_HAND_OFF));
+  for(int p=XZ_SHRT_PRESS;p<=XZ_SHRT_RELEASE;p++)assert(xz_shrt_key_for_phase(k,(enum xz_shrt_phase)p,0)==-1);
  }
+ /* REKORDBOX by assignment: the shell keeps only its own actions; stock's own is a visible hand-off. */
+ static const struct { int action; enum xz_shrt_verdict v; enum xz_shrt_rb_effect e; } rb[]={
+  {XZ_REKORDBOX_MODS,XZ_SHRT_SWALLOW,XZ_SHRT_RB_SHELL_MODS},{XZ_REKORDBOX_STOCK,XZ_SHRT_PASS_HAND_OFF,XZ_SHRT_RB_NONE},
+  {XZ_REKORDBOX_INTERFACE,XZ_SHRT_PASS,XZ_SHRT_RB_NONE},{XZ_REKORDBOX_VJ_SCREEN,XZ_SHRT_PASS,XZ_SHRT_RB_NONE},
+  {XZ_REKORDBOX_STEMS,XZ_SHRT_SWALLOW,XZ_SHRT_RB_STEMS},{XZ_REKORDBOX_NOTHING,XZ_SHRT_PASS,XZ_SHRT_RB_NONE},
+  {XZ_REKORDBOX_ACTIONS,XZ_SHRT_PASS_HAND_OFF,XZ_SHRT_RB_NONE},{-1,XZ_SHRT_PASS_HAND_OFF,XZ_SHRT_RB_NONE}};
+ for(size_t i=0;i<sizeof rb/sizeof *rb;i++){
+  enum xz_shrt_rb_effect e=(enum xz_shrt_rb_effect)99;
+  assert(xz_shrt_rekordbox_verdict(rb[i].action,&e)==rb[i].v&&e==rb[i].e);
+ }
+ assert(xz_shrt_rekordbox_verdict(XZ_REKORDBOX_MODS,NULL)==XZ_SHRT_SWALLOW);
  assert(!xz_shrt_key_lookup(0x430f,3));
  assert(xz_shrt_phase_of(0)==XZ_SHRT_PRESS&&xz_shrt_phase_of(1)==XZ_SHRT_HOLD&&xz_shrt_phase_of(2)==XZ_SHRT_RELEASE&&xz_shrt_phase_of(3)==XZ_SHRT_RELEASE);
  const struct xz_shrt_key_map *menu=xz_shrt_key_lookup(0x20b,0),*info=xz_shrt_key_lookup(0x206,0);
@@ -60,7 +74,7 @@ static void key_table(void) {
  assert(xz_shrt_key_for_phase(browse,XZ_SHRT_HOLD,1)==-1&&xz_shrt_key_for_phase(browse,XZ_SHRT_RELEASE,1)==-1);
  assert(xz_shrt_key_for_phase(xz_shrt_key_lookup(0x430f,1),XZ_SHRT_PRESS,0)==XZ_SHELL_KEY_LOAD);
  assert(xz_shrt_key_lookup(0x430f,1)->deck==0&&xz_shrt_key_lookup(0x430f,2)->deck==1);
- puts("PASS R1 key table: codes, channels, stock keys, press/hold/release phases");
+ puts("PASS R1 key table: codes, channels, stock keys, press/hold/release phases, REKORDBOX by assignment");
 }
 
 static void verdicts(void) {

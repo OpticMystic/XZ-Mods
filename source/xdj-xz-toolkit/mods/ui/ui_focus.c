@@ -114,7 +114,7 @@ static const char *page_title(int page){
  case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";case XZ_UI_PC_STEMS:return "PC STEMS";
  case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";case XZ_UI_APPS:return "APPLICATIONS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
  case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";
- case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";default:return "MODS";}
+ case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_BUTTONS:return "BUTTONS";default:return "MODS";}
 }
 static const char *panel_body(int page){
  switch(page){
@@ -144,6 +144,7 @@ static const char *panel_body(int page){
  case XZ_UI_BEAT_JUMP:return "Custom beat jump sizes for the pads.";
  case XZ_UI_PC_STEMS:return "Switch rekordbox stems on a computer linked by USB cable.";
  case XZ_UI_PROFILE_SETUP:return "Your profile's name, logo and tagline, and creating or editing a profile on the USB.";
+ case XZ_UI_BUTTONS:return "What the REKORDBOX button does, alone and with SHIFT.";
  default:return "Opens this page.";}
 }
 static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const struct xz_ui_widget *a){
@@ -155,7 +156,8 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_LOCAL_STEM_SETUP_OPEN:return xz_ui_usb_next_step(xz_ui_usb_blocked(m,a->deck>=0?a->deck:u->deck<2?u->deck:0));
  case XZ_UI_METRICS_TOGGLE:return "Open setup and verify live CPU, RAM and temperature readings beside STEMS and MODS.";
  case XZ_UI_DECK:return u->page==XZ_UI_PC_STEMS?"Choose the deck this setup checks.":"Choose which deck these controls act on.";
- case XZ_UI_CONTROL_SECTION:return k==0?"Assign stem mutes to four pads in a pad mode.":k==1?"Edit custom beat jump sizes for the pads.":"Switch rekordbox stems on a computer linked by USB cable.";
+ case XZ_UI_CONTROL_SECTION:return k==0?"Assign stem mutes to four pads in a pad mode.":k==1?"Edit custom beat jump sizes for the pads.":
+  k==2?"Switch rekordbox stems on a computer linked by USB cable.":"Choose what the REKORDBOX button does, alone and with SHIFT.";
  case XZ_UI_ENABLE:
   if(k==XZ_UI_STEM)return "Plays prepared stems from the USB on every deck. Off plays the normal track audio.";
   if(k==XZ_UI_GATE)return "Hot cue pads play only while held and jump back when released.";
@@ -177,8 +179,8 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_KEY_FEEDBACK:return "Shows the playing key where the countdown sits. Off restores the countdown.";
  case XZ_UI_KEY_FORMAT:return k==0?"Use the format set in the player's own settings.":k==1?"Musical keys such as Am and F#.":"Camelot wheel keys such as 8A and 2B.";
  case XZ_UI_RAM_DEBUG:return "Shows free memory beside the STEMS button.";
- case XZ_UI_REKORDBOX_KEY:return m->rekordbox_menu?"REKORDBOX opens and closes this menu. Turn off to use it for rekordbox PC mode.":
-  "REKORDBOX keeps its stock action. Turn on to open this menu with it.";
+ case XZ_UI_REKORDBOX_KEY:return xz_ui_rekordbox_choice_help(m->rekordbox_assign[0]);
+ case XZ_UI_REKORDBOX_ASSIGN:return xz_ui_rekordbox_choice_help(k%XZ_UI_RB_CHOICES);
  case XZ_UI_WAVE_MODE:return k==0?"The player's own waveform.":k==1?"Low, mid and high bands in three colors.":"Drums, harmonics and vocals layers. Falls back to 3-band without stems or on 4-stem tracks.";
  case XZ_UI_MUTE:return k==XZ_STEM_BASS?"Mutes the bass stem of this 4-stem track. Pad D (or H) does the same.":"Push to mute this stem. Drag sideways to set its level.";
  case XZ_UI_SET_THEME:return "Restyles the classic player screen and this menu.";
@@ -192,7 +194,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_JUMP_PAIR:return u->adjusting?"Turn to change the size. Push or BACK when done.":"Push, then turn to change this pair's jump size. The first pad jumps back.";
  case XZ_UI_JUMP_STEP:return k>0?"Next larger jump size for the selected pair.":"Next smaller jump size for the selected pair.";
  case XZ_UI_TAKEOVER_TOGGLE:return "Shows the computer's VJ.Tools screen instead of the player screen.";
- case XZ_UI_TAKEOVER_ASSIGN:return k==0?"The LINK key switches the VJ.Tools screen.":k==1?"The REKORDBOX key switches the VJ.Tools screen while it is not opening this menu.":"An onscreen button switches the VJ.Tools screen.";
+ case XZ_UI_TAKEOVER_ASSIGN:return k==0?"The LINK key switches the VJ.Tools screen.":k==1?"CONTROLS > BUTTONS sets the REKORDBOX button to switch the VJ.Tools screen.":"An onscreen button switches the VJ.Tools screen.";
  case XZ_UI_CONNECTION_ENABLE:return "Lets VJ.Tools on a computer connect to this player.";
  case XZ_UI_DISCOVERY:return "Announces this player so VJ.Tools finds it on the network.";
  case XZ_UI_GROOVE_PAD:return "Plays the assigned groove in place of its stem.";
@@ -256,6 +258,11 @@ int xz_ui_describe(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_u
  else if(a.kind==XZ_UI_JUMP_PAIR)out->title="JUMP PAIR";
  else if(a.kind==XZ_UI_VOLUME)out->title="SAMPLE VOLUME";
  else if(a.kind==XZ_UI_STRIP)out->title="LOOP STRIP";
+ else if(a.kind==XZ_UI_REKORDBOX_ASSIGN){
+  static char title[48];
+  snprintf(title,sizeof(title),"%s: %s",a.index<XZ_UI_RB_CHOICES?"REKORDBOX":"SHIFT + REKORDBOX",a.label?a.label:"");
+  out->title=title;
+ }
  out->body=body(u,m,&a);
  if(xz_ui_profile_owns(a.kind)){const char *title=NULL,*text=xz_ui_profile_describe(u,m,&a,&title);if(text)out->body=text;if(title)out->title=title;}
  /* Locked stems name their reason instead of a bare NOT READY. */
@@ -275,7 +282,7 @@ int xz_ui_describe(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_u
  case XZ_UI_KEY_FEEDBACK:case XZ_UI_RAM_DEBUG:case XZ_UI_REKORDBOX_KEY:case XZ_UI_JUMP_ENABLE:case XZ_UI_JUMP_SHIFT:
  case XZ_UI_TAKEOVER_TOGGLE:case XZ_UI_CONNECTION_ENABLE:case XZ_UI_DISCOVERY:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_METRICS_TOGGLE:
   out->state=l.selected?"ON":"OFF";break;
- case XZ_UI_SET_THEME:case XZ_UI_SET_INTERFACE:case XZ_UI_SET_MODERN_THEME:case XZ_UI_STEM_PAGE:case XZ_UI_WAVE_MODE:case XZ_UI_KEY_FORMAT:case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_STEM_COLOR:
+ case XZ_UI_SET_THEME:case XZ_UI_SET_INTERFACE:case XZ_UI_SET_MODERN_THEME:case XZ_UI_STEM_PAGE:case XZ_UI_WAVE_MODE:case XZ_UI_KEY_FORMAT:case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_STEM_COLOR:case XZ_UI_REKORDBOX_ASSIGN:
   out->state=l.selected?"SELECTED":"";break;
  case XZ_UI_PANEL:case XZ_UI_CONTROL_SECTION:out->state=l.selected?"OPEN":"";break;
  case XZ_UI_PROFILE_PICK:out->state=l.selected?"ACTIVE":"";break;

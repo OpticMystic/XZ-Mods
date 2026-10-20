@@ -17,9 +17,21 @@ enum xz_interface { XZ_INTERFACE_CLASSIC = 0, XZ_INTERFACE_MODERN = 1 };
 
 enum xz_takeover_assign {
     XZ_TAKEOVER_LINK = 0,
-    XZ_TAKEOVER_REKORDBOX = 1,
+    XZ_TAKEOVER_REKORDBOX = 1, /* retired: the REKORDBOX key's VJ.TOOLS SCREEN choice replaced it; loads as LINK */
     XZ_TAKEOVER_ONSCREEN = 2,
     XZ_TAKEOVER_COUNT = 3
+};
+/* What the physical REKORDBOX key does: rekordbox_press for a plain press, rekordbox_shift with either
+   deck's SHIFT held. Stored numbers: append, never renumber. STOCK is the key's own action (export mode
+   playback over the network). */
+enum xz_rekordbox_action {
+    XZ_REKORDBOX_MODS = 0,      /* opens and closes MODS (the shell's own MODS screen in MODERN) */
+    XZ_REKORDBOX_STOCK = 1,
+    XZ_REKORDBOX_INTERFACE = 2, /* switches MODERN <-> CLASSIC */
+    XZ_REKORDBOX_VJ_SCREEN = 3, /* switches the VJ.Tools screen */
+    XZ_REKORDBOX_STEMS = 4,     /* shows or hides the stem rows */
+    XZ_REKORDBOX_NOTHING = 5,
+    XZ_REKORDBOX_ACTIONS = 6
 };
 struct xz_settings {
     /* theme is derived, never chosen: xz_settings_look(ui_interface, classic_theme).
@@ -34,11 +46,12 @@ struct xz_settings {
     int key_feedback; /* 0 stock countdown, 1 effective-key display */
     int metrics_enabled; /* optional on-device CPU/RAM/SoC top bar */
     int ram_debug; /* optional free-RAM box beside STEMS */
-    int rekordbox_menu; /* 1: the REKORDBOX key opens and closes MODS, 0: stock action */
+    int rekordbox_menu; /* derived on every write: rekordbox_press == MODS, for older runtimes */
     int stem_order; /* xz_stem_orders index: left-to-right stems of the rows and pads A/B/C */
     int ui_interface; /* enum xz_interface */
     int classic_theme; /* 0..XZ_CLASSIC_THEME_COUNT-1, used while CLASSIC */
     int modern_theme; /* 0..XZ_MODERN_THEME_COUNT-1, used while MODERN */
+    int rekordbox_press, rekordbox_shift; /* enum xz_rekordbox_action; a record without them migrates (SETTINGS.md) */
 };
 /* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
 int xz_settings_look(int ui_interface, int classic_theme);

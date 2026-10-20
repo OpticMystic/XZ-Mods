@@ -249,6 +249,13 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  if(u->popup.kind!=XZ_SHELL_POPUP_NONE&&(k==XZ_SHELL_KEY_BACK||k==XZ_SHELL_KEY_BACK_HOLD||k==XZ_SHELL_KEY_MENU)){
   u->popup.kind=XZ_SHELL_POPUP_NONE;return 0;
  }
+ if(k==XZ_SHELL_KEY_MODS){
+  if(!available(m,XZ_SHELL_UTILITY))return 0;
+  u->popup.kind=XZ_SHELL_POPUP_NONE;close_panels(u);
+  if(xz_shell_screen(u)==XZ_SHELL_UTILITY){if(u->depth>1)u->depth--;return 0;}
+  open_mods(u,m->mods&&m->mods->tabs&&m->mods->count>0?1:0);
+  return 0;
+ }
  uint16_t packed=nav[xz_shell_screen(u)][k];
  struct { enum nav_kind kind; enum xz_shell_screen screen; enum xz_shell_setting setting; } t={(enum nav_kind)(packed&15),(enum xz_shell_screen)(packed>>4),(enum xz_shell_setting)(packed>>4)};
  int deck=event_deck>=0&&event_deck<XZ_SHELL_DECKS?event_deck:u->deck;

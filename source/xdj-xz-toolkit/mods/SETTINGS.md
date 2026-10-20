@@ -70,14 +70,48 @@ A record with the block ignores the value in the `theme` slot. The shipped
 loader starts the runtime with the shell armed (`XZ_MODS_SHELL` follows
 `XZ_MODS_UI`, like the other UI attachments), so `interface` alone decides.
 
-`rekordbox_menu`: 1 (default) makes the physical REKORDBOX key open and close
-MODS, so every setting stays reachable with the browse encoder and BACK when the
-touchscreen does not respond. 0 restores the key's stock rekordbox action. It is
-appended after `ram_debug`; records without it load the default.
+## REKORDBOX button
+
+The physical REKORDBOX key has two slots: `rekordbox_press` for a plain press and
+`rekordbox_shift` for a press while either deck's SHIFT is held. Each holds one
+of these (stored numbers never change):
+
+| value | MODS label | the key |
+|---|---|---|
+| 0 | MODS MENU | opens and closes MODS: the shell's own MODS screen in MODERN (as a short MENU press there), the MODS panel in CLASSIC; both work with the browse encoder and BACK |
+| 1 | EXPORT MODE PLAYBACK | the key's stock action: the stock screen for a laptop's or phone's library over the network (or USB). In MODERN the shell steps aside visibly until stock is back on its play screen |
+| 2 | INTERFACE | switches MODERN and CLASSIC, with the same notice as MODS > APPEARANCE |
+| 3 | VJ.TOOLS SCREEN | switches the VJ.Tools screen; without an enabled, connected VJ.Tools link it says so instead |
+| 4 | STEMS | shows or hides the stem rows (the shell's STEMS header button in MODERN, the STEMS button's layout toggle in CLASSIC) |
+| 5 | NOTHING | the key does nothing; stock never sees it |
+
+Defaults: `rekordbox_press=2` (INTERFACE), `rekordbox_shift=1` (stock). MODS >
+CONTROLS > BUTTONS sets both; the shell's MODS screen has the same two rows on its
+BUTTONS tab.
+
+Recovery without a touchscreen: in CLASSIC, REKORDBOX (INTERFACE) switches to
+MODERN, where the hardware MENU key opens the shell's MODS screen, and MODS is
+driven with the browse encoder and BACK. So MODS stays reachable by hardware
+alone with the default assignment.
+
+The pair is appended after `modern_theme` as one block; a record holds both or
+neither. `rekordbox_menu` keeps its slot and is always written as
+`rekordbox_press == 0`, so an older runtime reading the stick sees REKORDBOX
+open MODS exactly when MODS MENU is chosen. A record without the pair migrates:
+
+| older record | `rekordbox_press` | `rekordbox_shift` |
+|---|---|---|
+| `rekordbox_menu=1`, or no `rekordbox_menu` (its default was 1) | 2 INTERFACE | 1 stock |
+| `rekordbox_menu=0`, `takeover_assign=1` (REKORDBOX switched the VJ.Tools screen) | 3 VJ.TOOLS SCREEN | 1 stock |
+| `rekordbox_menu=0`, any other `takeover_assign` | 1 stock | 1 stock |
+
+Overlaid on the applied settings (boot restore), an older record that names
+`rekordbox_menu` brings its migrated press; its SHIFT slot was never chosen and
+keeps the applied value.
 
 `fb_takeover`: 1 (enabled), 0 (disabled, default). Controls whether the VJ.Tools video and composite frame takes over the hardware display framebuffer. When disabled, the native Pioneer XDJ-XZ playback/browse screen is displayed uninterrupted.
 
-`takeover_assign`: 0 (LINK physical button, default), 1 (REKORDBOX physical button), 2 (Onscreen VJ.Tools button in opposite corner from MODS). Selects which control toggles FB display takeover on and off. REKORDBOX only switches takeover while `rekordbox_menu=0`.
+`takeover_assign`: 0 (LINK physical button, default), 2 (Onscreen VJ.Tools button in opposite corner from MODS). Selects which control toggles FB display takeover on and off. 1 (REKORDBOX) is retired: the REKORDBOX button's VJ.TOOLS SCREEN choice replaced it. A record with 1 loads as 0 (LINK) and, without the REKORDBOX pair, migrates the press to VJ.TOOLS SCREEN (above); MODS no longer offers it.
 
 
 `stem_page`: 0 Hot Cue, 1 Beat Loop, 2 Slip Loop, 3 Beat Jump. A/B/C toggle

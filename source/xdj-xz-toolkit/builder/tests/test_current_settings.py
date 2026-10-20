@@ -26,7 +26,28 @@ class CurrentSettingsTests(unittest.TestCase):
         lines=usb_settings.serialize(values,SCHEMA).splitlines(keepends=True)
         for count in SCHEMA['accepted_field_counts']:
             with self.subTest(count=count):
-                self.assertEqual(usb_settings.parse(b''.join(lines[:count+1]),SCHEMA),values)
+                # Records from rekordbox_menu on but before the REKORDBOX buttons migrate from its value
+                # (written 0 here, as the default press is INTERFACE): the stock action.
+                expected=values if count<=35 or count>=43 else {**values,'rekordbox_press':1}
+                self.assertEqual(usb_settings.parse(b''.join(lines[:count+1]),SCHEMA),expected)
+
+    def test_rekordbox_buttons(self):
+        values=usb_settings.defaults(SCHEMA)
+        self.assertEqual((values['rekordbox_press'],values['rekordbox_shift']),(2,1))
+        self.assertNotIn('rekordbox_menu',values)
+        for press in range(6):
+            record=usb_settings.serialize({**values,'rekordbox_press':press,'rekordbox_shift':5-press},SCHEMA)
+            self.assertIn(('rekordbox_menu=%d\n'%(press==0)).encode(),record)
+            self.assertEqual(usb_settings.parse(record,SCHEMA),{**values,'rekordbox_press':press,'rekordbox_shift':5-press})
+        lines=usb_settings.serialize(values,SCHEMA).splitlines(keepends=True)
+        old=b''.join(lines[:42])
+        for menu,takeover,press,assign in ((1,0,2,0),(0,0,1,0),(0,1,3,0),(1,1,2,0),(0,2,1,2)):
+            record=old.replace(b'rekordbox_menu=0\n',b'rekordbox_menu=%d\n'%menu).replace(b'takeover_assign=0\n',b'takeover_assign=%d\n'%takeover)
+            with self.subTest(menu=menu,takeover=takeover):
+                parsed=usb_settings.parse(record,SCHEMA)
+                self.assertEqual((parsed['rekordbox_press'],parsed['rekordbox_shift'],parsed['takeover_assign']),(press,1,assign))
+        # The retired REKORDBOX screen switch choice saves as LINK.
+        self.assertIn(b'takeover_assign=0\n',usb_settings.serialize({**values,'takeover_assign':1},SCHEMA))
 
     def test_shortcut_options_remain_editable(self):
         values=usb_settings.defaults(SCHEMA)
