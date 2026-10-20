@@ -314,7 +314,9 @@ static int physical_key(void *self, const void *input) {
         __atomic_add_fetch(&t->sequence,1,__ATOMIC_SEQ_CST);
         t->records[t->count%64]=(struct pad_trace_record){key,((const unsigned char *)input)[11],
             ((const unsigned char *)self)[0x26],mode,(uint32_t)decoded,(uint32_t)event.deck,
-            (uint32_t)event.pad,(uint32_t)event.operation,(uint32_t)event.hotcue_mode,flags};
+            (uint32_t)event.pad,(uint32_t)event.operation,(uint32_t)event.hotcue_mode,
+            /* bit 30: SHIFT held (+0x34), bit 31: deck select took the key */
+            flags|(((const unsigned char *)self)[0x34]?1u<<30:0u)|(routed?1u<<31:0u)};
         t->count++;
         __atomic_add_fetch(&t->sequence,1,__ATOMIC_SEQ_CST);
         pthread_mutex_unlock(&cue_mutex);
