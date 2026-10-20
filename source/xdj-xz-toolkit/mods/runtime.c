@@ -11,7 +11,9 @@
 #include "doom/native_bridge.h"
 #include "kart/xz_kart_runtime.h"
 #include "sdk/xz_sdk_host.h"
+#include "deck_select.h"
 extern int xz_mods_takeover_v1(void);
+extern void xz_shell_runtime_notice(const char *text) __attribute__((weak));
 static int kart_display_ready(void) { return xz_sdk_host_foreground() && xz_mods_takeover_v1(); }
 #include <fcntl.h>
 #include <pthread.h>
@@ -245,6 +247,53 @@ int xz_runtime_beat_jump(int deck,int beats) {
     return result;
 }
 
+/* DECK 3 / DECK 4 (deck_select.h). The firmware's key task and the global key hook both route here. */
+static struct xz_deck_select deck_select;
+static pthread_mutex_t deck_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* Publishes the sides and carries out one outcome with no lock held. 1: stock must not see the key. */
+static int deck_outcome(const struct xz_ds_outcome *outcome, int left, int right, int available, uint16_t code) {
+    xz_extra_decks_publish_sides(left, right);
+    if (outcome->notice == XZ_DS_NOTICE_NO_ROUTE && available) {
+        static const char text[] = "DECK 3 AND 4 NEED THE CH3/CH4 ROUTE";
+        xz_log(text);
+        if (xz_shell_runtime_notice) xz_shell_runtime_notice(text);
+    }
+    if (outcome->unknown_first) {
+        char line[96];
+        snprintf(line, sizeof(line), "Deck select: unknown key 0x%04x swallowed on a side driving DECK 3/4", code);
+        xz_log(line);
+    }
+    if (outcome->verdict == XZ_DS_DELIVER) (void)xz_extra_deck_input(&outcome->event);
+    return outcome->verdict != XZ_DS_PASS;
+}
+
+static int deck_route(void *self, const void *input) {
+    struct xz_ds_key key;
+    if (!xz_ds_key_decode(self, input, &key)) return 0;
+    struct xz_extra_route route = xz_extra_decks_route();
+    pthread_mutex_lock(&deck_mutex);
+    xz_deck_select_route(&deck_select, route.route_up);
+    struct xz_ds_outcome outcome = xz_deck_select_key(&deck_select, &key, xz_game_milliseconds());
+    int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
+    pthread_mutex_unlock(&deck_mutex);
+    return deck_outcome(&outcome, left, right, route.available, key.code);
+}
+
+int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operation) {
+    if (!installed || observer || (channel != 1 && channel != 2)) return 0;
+    /* Every key passes the global hook: only SHIFT and the GLOBAL-path rows take the lock. */
+    const struct xz_ds_row *row = code == XZ_DS_KEY_SHIFT ? NULL : xz_ds_row_for(code, NULL);
+    if (code != XZ_DS_KEY_SHIFT && (!row || row->path != XZ_DS_PATH_GLOBAL)) return 0;
+    struct xz_extra_route route = xz_extra_decks_route();
+    pthread_mutex_lock(&deck_mutex);
+    xz_deck_select_route(&deck_select, route.route_up);
+    struct xz_ds_outcome outcome = xz_deck_select_global_key(&deck_select, channel, code, operation, xz_game_milliseconds());
+    int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
+    pthread_mutex_unlock(&deck_mutex);
+    return deck_outcome(&outcome, left, right, route.available, code);
+}
+
 static int physical_key(void *self, const void *input) {
     if(!observer && xz_kart_runtime_physical(self,input)) return 1;
     if(!observer && xz_ui_runtime_arcade_key(self,input)) return 1;
@@ -253,8 +302,9 @@ static int physical_key(void *self, const void *input) {
     pthread_mutex_lock(&cue_mutex);
     int decoded = xz_cue_native_decode(&native, self, input, &event);
     pthread_mutex_unlock(&cue_mutex);
+    int routed = !observer && deck_route(self, input);
     unsigned flags = 0;
-    int pad_consumed = decoded && !observer && xz_ui_runtime_pad(&event, &flags);
+    int pad_consumed = !routed && decoded && !observer && xz_ui_runtime_pad(&event, &flags);
     if (xz_mods_pad_trace_v1.enabled && self && input) {
         uint16_t key; uint32_t mode;
         memcpy(&key,(const unsigned char *)input+8,2);
@@ -269,7 +319,7 @@ static int physical_key(void *self, const void *input) {
         __atomic_add_fetch(&t->sequence,1,__ATOMIC_SEQ_CST);
         pthread_mutex_unlock(&cue_mutex);
     }
-    if (pad_consumed) return 1;
+    if (routed || pad_consumed) return 1;
     pthread_mutex_lock(&cue_mutex);
     int consumed = decoded && !observer && xz_cue_before(&cues, &event);
     pthread_mutex_unlock(&cue_mutex);
@@ -317,6 +367,7 @@ __attribute__((constructor)) static void start(void) {
     xz_mods_pad_trace_v1.enabled = enabled("XZ_MODS_PAD_TRACE");
     xz_cue_init(&cues, xz_cue_native_api(&native));
     xz_cue_settings(&cues, 0, 0);
+    xz_deck_select_init(&deck_select);
     long page_size = sysconf(_SC_PAGESIZE);
     if (page_size <= 0) return;
     uintptr_t page = (uintptr_t)key_slot - (uintptr_t)key_slot % (uintptr_t)page_size;

@@ -44,6 +44,8 @@ static uint32_t ram_debug_sample_ms;
 #include "usb_profile.h"
 #include "dj_runtime.h"
 #include "shell_runtime.h"
+/* Deck select (runtime.c). Weak so UI harnesses link without it. */
+#pragma weak xz_runtime_deck_global_key
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
 #pragma weak xz_shell_runtime_start
 #pragma weak xz_shell_runtime_stop
@@ -1454,6 +1456,8 @@ static void menu_back_key_hook(void *self,const void *input){
     int consumed=0;
     /* Every key passes here (jog included), so only keys in the shell's table take the lock. */
     unsigned channel=input?((const unsigned char *)input)[10]:0;
+    /* A side driving DECK 3 / 4: its LOAD, TIME MODE and QUANTIZE reach neither the shell nor stock. */
+    if(input&&xz_runtime_deck_global_key&&xz_runtime_deck_global_key(key,channel,operation))return;
     /* REKORDBOX: decided once, here at the press (SHIFT read now), for both the shell and the handler hook. */
     int rekordbox_press=input&&key==REKORDBOX_KEY_CODE&&operation==0&&__atomic_load_n(&started,__ATOMIC_ACQUIRE);
     if(rekordbox_press){
