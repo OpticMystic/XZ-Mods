@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.17",
+      "date": "2026-10-19",
+      "preview": true,
+      "features": [
+        "DJ Profile 1.0: each DJ's profile lives in its own folder under DJPROFILE on the USB, following the open DJ Profile standard. The first save on an older USB moves its profiles to the new layout; a copy of the old files stays on this computer. The XZ reads and writes the new layout and shows the USB colour set in rekordbox."
+      ],
+      "fixes": [],
+      "requirements": [
+        "New USB runtime. Update the loader on your USB so the XZ reads and writes the DJ Profile 1.0 layout; updating this app alone does not change the USB."
+      ]
+    },
+    {
       "version": "0.3.0-preview.16",
       "date": "2026-10-19",
       "preview": true,
