@@ -1674,20 +1674,27 @@ static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
     if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
         int owned=menu_owns_keys_locked(),shell=0;
+        /* Stock calls this for the press, the hold, the release and again on later key passes while the
+           entry's state stays set: the panel, games and Doom act on the press phase (flags 1) only, and
+           still swallow the rest, or one click activates the focused control twice. */
+        uint32_t flags=1;if(arg0)memcpy(&flags,arg0,sizeof(flags));
+        int press=flags==1;
         if(owned){
-            struct xz_ui_action actions[XZ_UI_ACTIONS];
-            size_t n=xz_ui_encoder_push(&ui,&model,actions);
-            if(n)apply(NULL,actions,n);
-            inline_layout_publish();
+            if(press){
+                struct xz_ui_action actions[XZ_UI_ACTIONS];
+                size_t n=xz_ui_encoder_push(&ui,&model,actions);
+                if(n)apply(NULL,actions,n);
+                inline_layout_publish();
+            }
         }
-        else if(game_locked()!=GAME_NONE){owned=1;game_push_locked(game_locked());}
+        else if(game_locked()!=GAME_NONE){owned=1;if(press)game_push_locked(game_locked());}
         else if(!touch.visible&&arg0&&xz_shell_runtime_encoder_push&&shell_eligible_locked()){
             /* pushKey entry {flags, 0, state, handler}: the shell reads the press and hold phases from it. */
             uint32_t entry[3];memcpy(entry,arg0,sizeof(entry));
             shell=xz_shell_runtime_encoder_push(1,model.theme,entry[0],entry[2]);
-            if(!shell)owned=xz_doom_nav(XZ_GAME_NAV_ENTER);
+            if(!shell)owned=press?xz_doom_nav(XZ_GAME_NAV_ENTER):xz_doom_running();
         }
-        else if(!touch.visible)owned=xz_doom_nav(XZ_GAME_NAV_ENTER);
+        else if(!touch.visible)owned=press?xz_doom_nav(XZ_GAME_NAV_ENTER):xz_doom_running();
         if(shell)shell_ui_requests_locked();
         pthread_mutex_unlock(&ui_mutex);
         if(shell){
