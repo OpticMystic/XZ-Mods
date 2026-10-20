@@ -26,19 +26,21 @@ static const struct xz_ds_row rows[] = {
  /* Pad mode buttons: they set the software deck's pad mode (HOT CUE alone, without SHIFT, is HOT CUE)
     and never change the native deck's. */
  ROW(0x4114, 0x4118, SWALLOW, PLAYER, NONE),
- /* Per-deck keys the software deck has no input for yet. Swallowed so the native deck never moves:
-    VINYL, TEMPO RANGE, TEMPO RESET; LOOP IN, LOOP OUT, RELOOP/EXIT; REVERSE, SLIP. */
- ROW(0x4104, 0x4104, SWALLOW, PLAYER, NONE),
- ROW(0x4107, 0x4107, SWALLOW, PLAYER, NONE),
- ROW(0x4109, 0x4109, SWALLOW, PLAYER, NONE),
- ROW(0x410d, 0x410f, SWALLOW, PLAYER, NONE),
+ ROW(0x4104, 0x4104, DELIVER, PLAYER, XZ_EXTRA_IN_VINYL),
+ ROW(0x4107, 0x4107, DELIVER, PLAYER, XZ_EXTRA_IN_TEMPO_RANGE),
+ ROW(0x4109, 0x4109, DELIVER, PLAYER, XZ_EXTRA_IN_TEMPO_RESET),
+ ROW(0x410d, 0x410d, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_IN),
+ ROW(0x410e, 0x410e, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_OUT),
+ ROW(0x410f, 0x410f, DELIVER, PLAYER, XZ_EXTRA_IN_RELOOP),
+ /* REVERSE and SLIP remain owned by the software side but have no input yet. */
  ROW(0x4110, 0x4111, SWALLOW, PLAYER, NONE),
  /* SEARCH FWD/REV, CUE/LOOP DELETE and MEMORY, NEEDLE SEARCH, MASTER, CUE/LOOP CALL NEXT/PREV,
     TRACK SEARCH FWD/REV (beat jump with SHIFT): all move or change the deck they reach. */
  ROW(0x4121, 0x4122, SWALLOW, PLAYER, NONE),
  ROW(0x4126, 0x4128, SWALLOW, PLAYER, NONE),
  ROW(0x4312, 0x4312, SWALLOW, PLAYER, NONE),
- ROW(0x4324, 0x4325, SWALLOW, PLAYER, NONE),
+ ROW(0x4324, 0x4324, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_DOUBLE), /* CALL NEXT / 2X */
+ ROW(0x4325, 0x4325, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_HALF),   /* CALL PREV / 1/2X */
  ROW(0x4212, 0x4213, SWALLOW, PLAYER, NONE),
  /* LOAD 1 / LOAD 2 (channel 1/2): the track comes from the browser on screen, so the press is the
     caller's (XZ_DS_LOAD): the FLAGSHIP shell loads its highlighted row to the side's software deck, or the
@@ -108,6 +110,22 @@ static void switch_to(struct xz_ds_side *s, enum xz_ds_target target) {
 void xz_deck_select_route(struct xz_deck_select *d, int route_up) {
  d->route_up = !!route_up;
  if(!d->route_up) for(int i = 0; i < 2; i++) switch_to(&d->side[i], XZ_DS_NATIVE);
+}
+void xz_deck_select_feedback(struct xz_deck_select *d,const struct xz_extra_decks *extra) {
+ if(!d||!extra||!extra->route_up)return;
+ for(int i=0;i<2;i++){
+  const struct xz_extra_deck *deck=&extra->deck[i];
+  struct xz_ds_side *side=&d->side[i];
+  uint32_t needed=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TEMPO)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_TEMPO_RANGE);
+  if((deck->known&needed)!=needed||(deck->tempo_range!=6&&deck->tempo_range!=10&&
+     deck->tempo_range!=16&&deck->tempo_range!=100))continue;
+  if(side->extra_revision_known&&side->extra_revision==deck->tempo_revision)continue;
+  int64_t position=(int64_t)deck->tempo_x100*XZ_EXTRA_TEMPO_SPAN/(deck->tempo_range*100);
+  if(position< -XZ_EXTRA_TEMPO_SPAN||position>XZ_EXTRA_TEMPO_SPAN)continue;
+  side->extra_revision=deck->tempo_revision;side->extra_revision_known=1;
+  side->held[XZ_DS_EXTRA]=(int32_t)position;side->held_known[XZ_DS_EXTRA]=1;
+  if(side->target==XZ_DS_EXTRA)xz_ds_pickup_arm(&side->pickup,(int32_t)position,side->physical_known,side->physical);
+ }
 }
 
 void xz_deck_select_shift(struct xz_deck_select *d, int side, int down, uint32_t now, struct xz_ds_outcome *out) {
@@ -199,6 +217,11 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
  int release = k->op == 2 || k->op == 3;
  if(s->owner[XZ_DS_NATIVE] & bit) { if(release) s->owner[XZ_DS_NATIVE] &= ~bit; return; }
  if(s->owner[XZ_DS_EXTRA] & bit) {
+  if(k->op == 1 && row->kind == XZ_EXTRA_IN_LOOP_IN) {
+   deliver(out, side, XZ_EXTRA_IN_LOOP_IN, k);
+   out->event.pressed = out->event.held = 1;
+   return;
+  }
   if(!release) { out->verdict = XZ_DS_SWALLOW; return; }
   s->owner[XZ_DS_EXTRA] &= ~bit;
   deliver(out, side, (enum xz_extra_input)row->kind, k);

@@ -32,6 +32,7 @@ static struct {
  uint64_t last_after[2]; uint32_t last_frames[2];
  double credit[2];
  float peak[2];
+ int capture[2]; uint32_t captured_frames[2]; float captured[2][XZ_USB_BLOCK_FRAMES*2];
 } f;
 /* ui/layered_wave_source.c links the stem loader; the players read no stems. */
 int xz_oc_bundle(const char *source, char *folder, size_t capacity) { (void)source; (void)folder; (void)capacity; return -1; }
@@ -53,6 +54,9 @@ static xz_usb_result fake_submit(void *ctx, int d, uint32_t generation, const fl
    if (fabsf(pcm[i]) > f.peak[d]) f.peak[d] = fabsf(pcm[i]);
   }
   f.queue[d][f.write[d]++ % FAKE_BLOCKS] = (struct block){generation, frames, after};
+  if(f.capture[d]){
+   memcpy(f.captured[d],pcm,frames*2*sizeof(float));f.captured_frames[d]=frames;f.capture[d]=0;
+  }
   f.submits[d]++; f.last_after[d] = after; f.last_frames[d] = frames;
  }
  pthread_mutex_unlock(&f.lock);
@@ -133,6 +137,11 @@ static int resolve(int source, uint32_t id, struct xz_extra_track *out) {
  case 3:
   snprintf(out->path, sizeof out->path, "%s/missing.wav", fixtures);
   snprintf(out->title, sizeof out->title, "Missing");
+  return 0;
+ case 4:
+  snprintf(out->path, sizeof out->path, "%s/44100.aiff", fixtures);
+  snprintf(out->title, sizeof out->title, "AIFF");
+  out->track_bpm_x100 = 12000;
   return 0;
  default: return -1;
  }
@@ -420,8 +429,10 @@ static void test_players(void) {
  assert(input(event(0, XZ_EXTRA_IN_SYNC, 1))); step();
  expect_notice("SYNC OUT OF RANGE", &seq);
  assert(view.deck[0].tempo_x100 == 500);
- assert(!input(event(0, XZ_EXTRA_IN_MASTER_TEMPO, 1)));
- expect_notice("MASTER TEMPO IS NOT AVAILABLE ON DECK 3/4", &seq);
+ assert(input(event(0, XZ_EXTRA_IN_MASTER_TEMPO, 1))); step();
+ assert(view.deck[0].master_tempo);
+ assert(input(event(0, XZ_EXTRA_IN_MASTER_TEMPO, 1))); step();
+ assert(!view.deck[0].master_tempo);
  tempo(0, 0);
 
  /* SEEK keeps the play state */
@@ -507,6 +518,132 @@ static void test_players(void) {
  xz_xp_destroy(p); p = NULL;
 }
 
+static void test_loop_and_range(void) {
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position}, now_ms, resolve, master_bpm};
+ p = xz_xp_create(&env); assert(p);
+ fake_route(7); step(); load(0, 1); load(1, 2);
+ seek(0, 500); hold(0, XZ_EXTRA_IN_LOOP_IN, 1); hold(0, XZ_EXTRA_IN_LOOP_IN, 0);
+ seek(0, 1000); hold(0, XZ_EXTRA_IN_LOOP_OUT, 1);
+ assert(debug(0).loop_active && debug(0).loop_in == ms_frames(0, 500) && debug(0).loop_out == ms_frames(0, 1000));
+ hold(1, XZ_EXTRA_IN_PLAY, 1);
+ unsigned generation = debug(0).generation;
+ for (int i = 0; i < 50; ++i) {
+  advance(100);
+  assert(debug(0).state == XZ_XP_PLAYING && debug(0).generation == generation);
+  assert(debug(0).position >= debug(0).loop_in && debug(0).position < debug(0).loop_out);
+  assert(view.deck[0].loop.active && view.deck[0].loop.in_ms == 500 && view.deck[0].loop.out_ms == 1000);
+ }
+ assert(debug(1).state == XZ_XP_ENDED);
+ hold(0, XZ_EXTRA_IN_LOOP_HALF, 1);
+ assert(debug(0).loop_out - debug(0).loop_in == ms_frames(0, 250));
+ hold(0, XZ_EXTRA_IN_LOOP_DOUBLE, 1);
+ assert(debug(0).loop_out - debug(0).loop_in == ms_frames(0, 500));
+ hold(0, XZ_EXTRA_IN_LOOP_IN, 1);
+ assert(debug(0).loop_edit == 1);
+ hold(0, XZ_EXTRA_IN_LOOP_IN, 0);
+ jog(0, -100000); step();
+ assert(debug(0).loop_in == ms_frames(0, 100)); /* IN adjustment is bounded to 30 CD frames. */
+ advance(10001);
+ assert(!debug(0).loop_edit);
+ hold(0, XZ_EXTRA_IN_RELOOP, 1); assert(!debug(0).loop_active);
+ advance(2200); assert(debug(0).state == XZ_XP_ENDED);
+ hold(0, XZ_EXTRA_IN_RELOOP, 1); assert(debug(0).loop_active && debug(0).state == XZ_XP_PLAYING);
+ hold(0, XZ_EXTRA_IN_CUE, 1); assert(!debug(0).loop_active && debug(0).state == XZ_XP_CUED);
+ seek(0, 0); hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_LOOP_IN, 1);
+ struct xz_extra_deck_event held = event(0, XZ_EXTRA_IN_LOOP_IN, 1); held.held = 1;
+ assert(input(held)); step(); assert(!debug(0).loop_active);
+ advance(990); assert(!debug(0).loop_active);
+ advance(10);
+ assert(debug(0).loop_active && debug(0).loop_in == 0 && debug(0).loop_out == ms_frames(0, 2000));
+ generation = debug(0).generation;
+ assert(input(held)); step(); assert(debug(0).generation == generation);
+ hold(0, XZ_EXTRA_IN_LOOP_IN, 0);
+ advance(4100); assert(debug(0).loop_active && debug(0).state == XZ_XP_PLAYING);
+ hold(0, XZ_EXTRA_IN_MASTER_TEMPO, 1); tempo(0, XZ_EXTRA_TEMPO_SPAN);
+ advance(3100); assert(debug(0).loop_active && debug(0).state == XZ_XP_PLAYING && view.deck[0].master_tempo);
+ hold(0, XZ_EXTRA_IN_MASTER_TEMPO, 1);
+ load(0, 1); assert(!debug(0).loop_active);
+ hold(0, XZ_EXTRA_IN_RELOOP, 1); assert(!debug(0).loop_active);
+ tempo(0, XZ_EXTRA_TEMPO_SPAN);
+ const int ranges[] = {16, 100, 6, 10};
+ for (unsigned i = 0; i < sizeof ranges / sizeof *ranges; ++i) {
+  hold(0, XZ_EXTRA_IN_TEMPO_RANGE, 1);
+  assert(view.deck[0].tempo_range == ranges[i] && view.deck[0].tempo_x100 == ranges[i] * 100);
+  hold(0, XZ_EXTRA_IN_TEMPO_RANGE, 0);
+ }
+ hold(0, XZ_EXTRA_IN_TEMPO_RESET, 1); tempo(0, -XZ_EXTRA_TEMPO_SPAN / 2);
+ assert(view.deck[0].tempo_x100 == 0 && debug(0).tempo_reset);
+ hold(0, XZ_EXTRA_IN_TEMPO_RESET, 1);
+ assert(view.deck[0].tempo_x100 == -500 && !debug(0).tempo_reset);
+ hold(0, XZ_EXTRA_IN_TEMPO_RANGE, 1); hold(0, XZ_EXTRA_IN_TEMPO_RANGE, 1);
+ tempo(0, -XZ_EXTRA_TEMPO_SPAN);
+ assert(debug(0).tempo_range == 100 && debug(0).speed == 0.0);
+ unsigned submits = f.submits[0];
+ hold(0, XZ_EXTRA_IN_PLAY, 1); advance(200);
+ assert(f.submits[0] == submits && debug(0).state == XZ_XP_PLAYING);
+ tempo(0, XZ_EXTRA_TEMPO_SPAN); advance(1000);
+ assert(debug(0).state == XZ_XP_ENDED);
+ xz_xp_destroy(p); p = NULL;
+ puts("PASS loop IN/OUT, bounded adjust, hold auto-loop, reloop, half/double, continuous wraps, per-deck isolation, tempo ranges/reset/WIDE zero");
+}
+
+static void test_vinyl(void) {
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position}, now_ms, resolve, master_bpm};
+ p=xz_xp_create(&env);assert(p);
+ fake_route(8);step();load(0,4);load(1,2);
+ assert(debug(0).source_rate==44100&&view.deck[0].total_ms==2000);
+ seek(0,500);
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,1);assert(debug(0).state==XZ_XP_CUED); /* CDJ mode ignores touch. */
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,0);
+ tempo(0,XZ_EXTRA_TEMPO_SPAN);hold(0,XZ_EXTRA_IN_MASTER_TEMPO,1);
+ f.capture[0]=1;hold(0,XZ_EXTRA_IN_PLAY,1);
+ assert(f.captured_frames[0]>=32);
+ for(unsigned n=0;n<32;n++)for(unsigned ch=0;ch<2;ch++)
+  assert(fabs(f.captured[0][n*2+ch]-.5*sin(6.283185307179586*440*(ms_frames(0,500)+n)/44100.0))<.001);
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_MASTER_TEMPO,1);tempo(0,0);seek(0,500);
+ hold(0,XZ_EXTRA_IN_VINYL,1);assert(view.deck[0].vinyl);
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(1,XZ_EXTRA_IN_PLAY,1);advance(200);
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,1);
+ assert(debug(0).state==XZ_XP_SCRATCHING&&!view.deck[0].playing);
+ uint64_t at=debug(0).position;
+ unsigned submits=f.submits[0],generation=debug(0).generation;
+ advance(500);
+ assert(f.submits[0]==submits&&debug(0).position==at&&view.deck[1].playing);
+ f.capture[0]=1;jog(0,8);step();advance(80);
+ assert(f.captured_frames[0]>=32);
+ for(unsigned n=0;n<32;n++)
+  assert(fabs(f.captured[0][n*2]-.5*sin(6.283185307179586*440*(at+2.5*n)/44100.0))<.001);
+ assert(debug(0).position>at&&debug(0).position==debug(0).scratch_target);
+ assert(debug(0).generation==generation);
+ at=debug(0).position;
+ jog(0,8);step();advance(100);assert(debug(0).position>at&&debug(0).generation==generation);
+ at=debug(0).position;
+ f.capture[0]=1;jog(0,-4);step();advance(100);
+ assert(f.captured_frames[0]>=32);
+ for(unsigned n=0;n<32;n++)
+  assert(fabs(f.captured[0][n*2]-.5*sin(6.283185307179586*440*(at-1.25*n)/44100.0))<.001);
+ assert(debug(0).position<at&&debug(0).generation==generation+1);
+ at=debug(0).position;submits=f.submits[0];advance(100);
+ assert(debug(0).position==at&&f.submits[0]==submits);
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,0);advance(100);
+ assert(debug(0).state==XZ_XP_PLAYING&&debug(0).position>at&&view.deck[0].playing);
+ hold(0,XZ_EXTRA_IN_PLAY,1);
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,1);at=debug(0).position;
+ jog(0,6);step();advance(100);
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,0);
+ assert(debug(0).state==XZ_XP_CUED&&debug(0).position>at);
+ seek(0,2000);assert(debug(0).state==XZ_XP_ENDED);
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,1);jog(0,-20);step();advance(200);
+ assert(debug(0).position<ms_frames(0,2000));
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,0);assert(debug(0).state==XZ_XP_CUED);
+ hold(0,XZ_EXTRA_IN_PLAY,1);advance(20);
+ hold(0,XZ_EXTRA_IN_JOG_TOUCH,1);hold(0,XZ_EXTRA_IN_VINYL,1);
+ assert(debug(0).state==XZ_XP_PLAYING&&!view.deck[0].vinyl);
+ assert(f.stale==0);
+ xz_xp_destroy(p);p=NULL;
+ puts("PASS AIFF through player, vinyl hold/silence, forward/reverse scratch, reversal flush, paused/play resume, end clamp and native-side independence");
+}
+
 /* Two consumers snapshot while loads alternate: every snapshot is one load's data, never torn, and
    arrays stay readable for the frame that holds them. */
 static int stop_readers;
@@ -560,6 +697,11 @@ static void test_threads(void) {
    while (!xz_xp_input(p, &e)) { struct timespec t = {0, 1000000}; nanosleep(&t, NULL); }
    struct xz_extra_deck_event play = event(d, XZ_EXTRA_IN_PLAY, 1);
    (void)xz_xp_input(p, &play);
+   struct xz_extra_deck_event mt = event(d, XZ_EXTRA_IN_MASTER_TEMPO, 1);
+   (void)xz_xp_input(p, &mt);
+   struct xz_extra_deck_event pitch = event(d, XZ_EXTRA_IN_TEMPO, 1);
+   pitch.tempo_position = (i & 1) ? 5000 : -5000;
+   (void)xz_xp_input(p, &pitch);
   }
   struct timespec t = {0, 40000000}; nanosleep(&t, NULL);
  }
@@ -583,6 +725,8 @@ int main(int argc, char **argv) {
  build_analysis();
  test_parsers();
  test_players();
+ test_loop_and_range();
+ test_vinyl();
  test_threads();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
         "tempo rate, jog bend decay and search, SYNC, MASTER TEMPO, SEEK, EOF, 44.1/48 kHz, load while playing, "

@@ -40,6 +40,7 @@ static void fill_deck(struct xz_extra_deck *d,const struct track *t,const char *
  snprintf(d->title,sizeof(d->title),"%s",title);snprintf(d->artist,sizeof(d->artist),"Fixture");
  d->source=1;d->elapsed_ms=elapsed;d->total_ms=(int32_t)t->span_ms;d->elapsed_at_ms=1000;d->playing=playing;
  d->bpm_x100=bpm*(10000+tempo)/10000;d->track_bpm_x100=bpm;d->tempo_x100=tempo;
+ d->tempo_range=10;d->master_tempo=1;d->vinyl=1;
  snprintf(d->key,sizeof(d->key),"8A");
  d->cue_ms=elapsed-900;
  static const uint32_t colors[3]={0x30d050,0xe03040,0x3080ff};
@@ -60,6 +61,7 @@ static void render(const struct xz_extra_decks *decks,int order){
  for(int i=0;i<2;i++){m.look[2+i]=marks[i].look;m.col[2+i]=marks[i].col;}
  xz_four_protect(&g,&m,surface,keep);
  xz_four_restore(&g,&m,surface,keep);
+ xz_extra_notice_draw(surface,XZ_WAVE_WIDTH,PIXELS,decks,1000);
 }
 static void save(const char *folder,const char *name){
  char path[512];snprintf(path,sizeof(path),"%s/%s.raw",folder,name);
@@ -71,7 +73,7 @@ int main(int argc,char **argv){
  if(argc<3){fprintf(stderr,"usage: %s native.raw out-folder [bench-frames]\n",argv[0]);return 2;}
  FILE *f=fopen(argv[1],"rb");if(!f||fread(native,2,PIXELS,f)!=PIXELS){perror(argv[1]);return 1;}fclose(f);
  struct track a,b;make_track(&a,128.0,312000,7);make_track(&b,174.0,268000,11);
- struct xz_extra_decks full={1,0,0,{{0}}};
+ struct xz_extra_decks full={.route_up=1};
  fill_deck(&full.deck[0],&a,"Night Drive (Extended Mix)",61500,12800,250,1);
  fill_deck(&full.deck[1],&b,"Liquid Steps",120200,17400,-120,0);
  full.deck[0].master=1;
@@ -106,7 +108,7 @@ int main(int argc,char **argv){
  }
  render(&full,XZ_FOUR_INTERLEAVED);save(argv[2],"01-full-interleaved");
  render(&full,XZ_FOUR_STACKED);save(argv[2],"02-full-stacked");
- struct xz_extra_decks empty={1,0,0,{{0}}};
+ struct xz_extra_decks empty={.route_up=1};
  render(&empty,XZ_FOUR_INTERLEAVED);save(argv[2],"03-unloaded-interleaved");
  struct xz_extra_decks loop=full;
  loop.deck[0].master=0;loop.deck[1].master=1;loop.deck[1].playing=1;
@@ -123,6 +125,13 @@ int main(int argc,char **argv){
  render(&unknown,XZ_FOUR_INTERLEAVED);save(argv[2],"07-unknown-fields");
  struct xz_extra_decks bothlit=loop;bothlit.left_on_3=bothlit.right_on_4=1;
  render(&bothlit,XZ_FOUR_STACKED);save(argv[2],"08-stacked-master-loop-lit");
- puts("wrote 8 scenarios");
+ struct xz_extra_decks notice=lit;notice.notice_seq=1;notice.notice_at_ms=1000;
+ snprintf(notice.notice,sizeof notice.notice,"LOOP IN ADJUST");
+ render(&notice,XZ_FOUR_INTERLEAVED);save(argv[2],"09-loop-adjust-notice");
+ memcpy(surface,native,sizeof(surface));
+ snprintf(notice.notice,sizeof notice.notice,"DECK 3/4 ROUTE LOST");notice.route_up=0;
+ xz_extra_notice_draw(surface,XZ_WAVE_WIDTH,PIXELS,&notice,1000);
+ save(argv[2],"10-route-lost-two-native-decks");
+ puts("wrote 10 scenarios");
  return 0;
 }

@@ -19,6 +19,7 @@ enum xz_extra_field {
  XZ_EXTRA_F_TITLE, XZ_EXTRA_F_ARTIST, XZ_EXTRA_F_SOURCE, XZ_EXTRA_F_ELAPSED, XZ_EXTRA_F_TOTAL,
  XZ_EXTRA_F_PLAYING, XZ_EXTRA_F_BPM, XZ_EXTRA_F_TEMPO, XZ_EXTRA_F_MASTER, XZ_EXTRA_F_KEY,
  XZ_EXTRA_F_CUE, XZ_EXTRA_F_HOT_CUES, XZ_EXTRA_F_GRID, XZ_EXTRA_F_WAVE, XZ_EXTRA_F_LOOP,
+ XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL,
  XZ_EXTRA_FIELD_COUNT
 };
 #define XZ_EXTRA_KNOWN(field) ((uint32_t)1<<(field))
@@ -43,6 +44,8 @@ struct xz_extra_deck {
  int playing;
  int32_t bpm_x100, track_bpm_x100;     /* playing BPM, the track's analysed BPM */
  int32_t tempo_x100;                   /* 0.01 % */
+ int tempo_range, master_tempo, vinyl;
+ uint32_t tempo_revision;             /* changes when SYNC sets a tempo away from the fader */
  int master;
  char key[8];                          /* as the library writes it, e.g. "Fm" or "4A" */
  int32_t cue_ms;
@@ -81,6 +84,9 @@ enum xz_extra_input {
  XZ_EXTRA_IN_PLAY, XZ_EXTRA_IN_CUE, XZ_EXTRA_IN_JOG_TURN, XZ_EXTRA_IN_JOG_TOUCH, XZ_EXTRA_IN_TEMPO,
  XZ_EXTRA_IN_SYNC, XZ_EXTRA_IN_MASTER_TEMPO, XZ_EXTRA_IN_HOT_CUE, XZ_EXTRA_IN_LOAD,
  XZ_EXTRA_IN_SEEK,                  /* needle search from a screen: seek_ms */
+ XZ_EXTRA_IN_TEMPO_RANGE, XZ_EXTRA_IN_TEMPO_RESET, XZ_EXTRA_IN_VINYL,
+ XZ_EXTRA_IN_LOOP_IN, XZ_EXTRA_IN_LOOP_OUT, XZ_EXTRA_IN_RELOOP,
+ XZ_EXTRA_IN_LOOP_HALF, XZ_EXTRA_IN_LOOP_DOUBLE,
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */
@@ -89,6 +95,7 @@ struct xz_extra_deck_event {
  enum xz_extra_input kind;
  int pressed;                       /* buttons and JOG_TOUCH: 1 down, 0 up; every down gets its up */
  int shift;                         /* SHIFT was held: the player applies the documented SHIFT meaning */
+ int held;                          /* one native hold notification; the player suppresses repeats */
  union {
   /* Jog ticks, clockwise positive. speed is the platter speed when the producer reports one. */
   struct { int32_t delta; float speed; int speed_known; } jog;

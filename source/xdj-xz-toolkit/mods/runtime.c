@@ -277,7 +277,10 @@ static int deck_route(void *self, const void *input) {
     struct xz_ds_key key;
     if (!xz_ds_key_decode(self, input, &key)) return 0;
     struct xz_extra_route route = xz_extra_decks_route();
+    struct xz_extra_decks feedback;
+    int have_feedback=route.route_up&&(key.code==XZ_DS_KEY_SHIFT||key.code==XZ_DS_KEY_TEMPO)&&xz_extra_decks_snapshot(&feedback);
     pthread_mutex_lock(&deck_mutex);
+    if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
     xz_deck_select_route(&deck_select, route.route_up);
     struct xz_ds_outcome outcome = xz_deck_select_key(&deck_select, &key, xz_game_milliseconds());
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
@@ -291,7 +294,10 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
     const struct xz_ds_row *row = code == XZ_DS_KEY_SHIFT ? NULL : xz_ds_row_for(code, NULL);
     if (code != XZ_DS_KEY_SHIFT && (!row || row->path != XZ_DS_PATH_GLOBAL)) return 0;
     struct xz_extra_route route = xz_extra_decks_route();
+    struct xz_extra_decks feedback;
+    int have_feedback=route.route_up&&code==XZ_DS_KEY_SHIFT&&xz_extra_decks_snapshot(&feedback);
     pthread_mutex_lock(&deck_mutex);
+    if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
     xz_deck_select_route(&deck_select, route.route_up);
     struct xz_ds_outcome outcome = xz_deck_select_global_key(&deck_select, channel, code, operation, xz_game_milliseconds());
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
@@ -319,9 +325,12 @@ int xz_runtime_deck_select_toggle(int side) {
     if (!installed || observer || side < 0 || side > 1) return -1;
     struct xz_extra_route route = xz_extra_decks_route();
     if (!route.available) return -1;
+    struct xz_extra_decks feedback;
+    int have_feedback=route.route_up&&xz_extra_decks_snapshot(&feedback);
     struct xz_ds_outcome outcome;
     memset(&outcome, 0, sizeof(outcome));
     pthread_mutex_lock(&deck_mutex);
+    if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
     xz_deck_select_route(&deck_select, route.route_up);
     xz_deck_select_toggle(&deck_select, side, &outcome);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
