@@ -782,8 +782,7 @@ class TrackStatusTests(Stick):
                                                'onelibrary': {'state': 'present', 'error': None}})
         self.assertEqual(profiles['djp_kai']['device_library'], {'library': 'present', 'track': 'found', 'in_profile_playlist': True,
                                                                  'playlists': ['Friday', 'dj profile ']})
-        # The OneLibrary fixture was made with the marker hash of the old store, so it is a track from before 1.0.
-        self.assertEqual(profiles['djp_kai']['onelibrary'], {'library': 'present', 'track': 'stale', 'in_profile_playlist': True,
+        self.assertEqual(profiles['djp_kai']['onelibrary'], {'library': 'present', 'track': 'found', 'in_profile_playlist': True,
                                                              'playlists': ['DJ PROFILE']})
         self.assertEqual(profiles['djp_lena']['device_library']['track'], 'stale')
         self.assertEqual(profiles['djp_lena']['onelibrary'], {'library': 'present', 'track': 'stale', 'in_profile_playlist': False,

@@ -10,8 +10,6 @@ The profile markers are built from the shared stick-two-profiles fixture: DJ Kai
 current hash, Lena B's an old one. The script ends by reading both copies back with SQLCipher
 and with builder.onelibrary and checking they agree.
 
-The committed fixture was made before DJ Profile 1.0, so DJ Kai's marker carries the old store's hash and
-test_dj_profile reports it stale. Regenerating gives the 1.0 hash; update TrackStatusTests to 'found' then.
 """
 from __future__ import annotations
 
