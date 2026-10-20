@@ -14,6 +14,12 @@ int xz_layered_wave_active(void);
 void xz_layered_wave_configure(int mode,const uint32_t stem_rgb[3]);
 void xz_layered_wave_begin(uint16_t *pixels);
 void xz_layered_wave_end(void);
+/* The native lanes' zoom (audio microseconds per column, 0 before any lane is drawn) and column
+   background mode. Any thread. */
+void xz_layered_wave_view(uint32_t *column_us,unsigned *background);
+/* Draw thread, after _end: native deck's layer columns this frame drew (536), or NULL. */
+struct xz_layered_data;struct xz_layered_col;
+const struct xz_layered_col *xz_layered_wave_drawn(unsigned deck,struct xz_layered_data *look);
 /* Around a theme recolour of the 536x268 surface: keep drawn layer pixels exact
  * while cue, beat and playhead marks the stock drew over them stay themed. */
 void xz_layered_wave_protect(const uint16_t *pixels);

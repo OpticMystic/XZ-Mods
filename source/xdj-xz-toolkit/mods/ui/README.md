@@ -272,6 +272,10 @@ inline rows does not change active stem levels or physical pad assignments.
 The dual-row layout has portable render and touch checks; hardware audio and
 screen acceptance must be recorded separately.
 
+While software DECK 3 and DECK 4 are routed to CH3 and CH4, the same window
+shows four 64-row lanes instead and the stem rows wait for the route to go
+down. See `FOUR_DECK.md`.
+
 ## Streamlined menu and themes
 
 MODS opens to Controls, with Appearance and Advanced as its other main pages.
