@@ -97,4 +97,22 @@ struct xz_extra_deck_event {
 };
 /* 1 when the player took the event, 0 when it refused (no player, deck not ready). Never blocks. */
 int xz_extra_deck_input(const struct xz_extra_deck_event *event);
+
+/* What a load needs, filled by the resolver below on the players' worker (IO allowed there). */
+struct xz_extra_track {
+ int source; uint32_t track_id;        /* as in the LOAD event */
+ char path[1024];                      /* absolute path of the audio file on the stick */
+ char anlz_dir[512];                   /* the track's ANLZ folder, "" when the stick has none */
+ char title[XZ_EXTRA_TEXT], artist[XZ_EXTRA_TEXT], key[8];
+ int32_t track_bpm_x100;               /* 0 when the library has none */
+};
+/* Track id to file, implemented once (shell_runtime.c) for every producer of LOAD, FLAGSHIP and classic
+   alike. Called only on the players' worker. 0 on success. Weak: without it every LOAD is refused. */
+int xz_extra_resolve_track(int source, uint32_t track_id, struct xz_extra_track *out);
+/* The master deck's playing BPM x100 for SYNC, from the native decks; 0 when no native deck is master
+   or it is unknown. Implemented by shell_runtime.c; weak: SYNC on DECK 3/4 is refused without it. */
+int32_t xz_extra_native_master_bpm(void);
+/* The RAM character node of the CH3/CH4 USB route. The host bridge creates it after binding the hub;
+   the players open it when it appears. XZ_MODS_EXTRA_USB_NODE overrides the default. */
+#define XZ_EXTRA_USB_NODE_DEFAULT "/dev/shm/xz-four-deck/usb-audio"
 #endif
