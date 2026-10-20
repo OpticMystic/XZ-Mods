@@ -35,6 +35,13 @@ size_t sh_browse_back_step(struct xz_shell *, const struct xz_shell_model *, str
 size_t sh_settings_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
 size_t sh_source_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
 
+/* The only reader of model.deck_count (shell.h). The screens have no four-deck layout yet, so every
+   model draws as two decks. */
+static inline int sh_deck_count(const struct xz_shell_model *m) { (void)m;return 2; }
+/* The active deck, or deck 1 when the shell's choice is past the decks the model plays now. */
+static inline int sh_active_deck(const struct xz_shell *u, const struct xz_shell_model *m) {
+ return u->deck>=0&&u->deck<sh_deck_count(m)?u->deck:0;
+}
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
 static inline int sh_setting(const struct xz_shell_model *m, enum xz_shell_setting s) { return (m->settings.known>>s)&1; }
 static inline int sh_writable(const struct xz_shell_model *m, enum xz_shell_setting s) {

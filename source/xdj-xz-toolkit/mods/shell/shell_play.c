@@ -55,7 +55,7 @@ static int stem_layout(const struct xz_shell_model *m) {
 }
 static int stem_row_full(int layout) { return layout==XZ_SHELL_STEMS_BELOW_FULL||layout==XZ_SHELL_STEMS_OUTSIDE_FULL; }
 struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *m, int deck) {
- int layout=m&&deck>=0&&deck<XZ_SHELL_DECKS?stem_layout(m):-1;
+ int layout=m&&deck>=0&&deck<sh_deck_count(m)?stem_layout(m):-1;
  if(layout<=XZ_SHELL_STEMS_HIDDEN)return (struct xz_shell_rect){0,0,0,0};
  int h=stem_row_full(layout)?STEM_ROW_FULL:STEM_ROW_HALF;
  int top=deck==0&&(layout==XZ_SHELL_STEMS_OUTSIDE_FULL||layout==XZ_SHELL_STEMS_OUTSIDE_HALF);
@@ -712,7 +712,7 @@ static struct xz_shell_rect row_button(const struct xz_shell_model *m, int deck,
  return (struct xz_shell_rect){row.x+slot*(w+STEM_ROW_GAP),row.y+inset,slot==2?row.x+row.w-(row.x+2*(w+STEM_ROW_GAP)):w,row.h-2*inset};
 }
 struct xz_shell_rect xz_shell_stem_button(const struct xz_shell_model *m, int deck, int stem) {
- if(!m||deck<0||deck>=XZ_SHELL_DECKS||stem<0||stem>2||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
+ if(!m||deck<0||deck>=sh_deck_count(m)||stem<0||stem>2||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
  int slot=0;while(stem_slot[slot]!=stem)slot++;
  int layout=stem_layout(m);
  if(layout<0){
@@ -806,7 +806,7 @@ static void play_render(const struct xz_shell *u, const struct xz_shell_model *m
  xz_rect(c,0,lane_y(1)+LANE_H,c.width,PAD_ROW_Y-lane_y(1)-LANE_H,SH_BLACK);
  xz_rect(c,0,PAD_ROW_Y,2,c.height-PAD_ROW_Y,SH_BLACK);xz_rect(c,HALF_W-2,PAD_ROW_Y,4,c.height-PAD_ROW_Y,SH_BLACK);xz_rect(c,c.width-2,PAD_ROW_Y,2,c.height-PAD_ROW_Y,SH_BLACK);
  render_top(u,m,c);
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+ for(int deck=0;deck<sh_deck_count(m);deck++){
   render_column(u,m,c,deck);
   render_lane(u,m,c,deck);
   render_pad_row(m,c,deck);
@@ -842,7 +842,7 @@ static int header_band(int x, int y, struct xz_shell_rect r) { return x>=r.x&&x<
 static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  size_t n=0;
  u->down=1;u->down_region=XZ_SHELL_TOUCH_OTHER;u->down_deck=u->deck;
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++)
+ for(int deck=0;deck<sh_deck_count(m);deck++)
   if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_INFO_COLUMN,deck),x,y))return activate(u,deck,out,n);
  if(header_band(x,y,xz_shell_play_rect(XZ_SHELL_R_INFO_BUTTON,0)))return sh_key(u,m,XZ_SHELL_KEY_INFO,-1,out);
  struct chip chips[3];top_chips(chips);
@@ -853,7 +853,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,-1,value,(int)chips[i].setting});
  }
  if(y<TOP_H)return 0;
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++)for(int stem=0;stem<3;stem++){
+ for(int deck=0;deck<sh_deck_count(m);deck++)for(int stem=0;stem<3;stem++){
   if(!sh_inside(xz_shell_stem_button(m,deck,stem),x,y))continue;
   if(stem_layout(m)>=0){
    /* A row button decides on release: a slide set the level, a tap toggles the mute. */
@@ -866,7 +866,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   int muted=(m->deck[deck].stem_muted>>stem)&1;
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_STEM_MUTE,deck,!muted,stem});
  }
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+ for(int deck=0;deck<sh_deck_count(m);deck++){
   if(alert_on(&m->deck[deck])&&sh_inside(xz_shell_play_rect(XZ_SHELL_R_ALERT_BUTTON,deck),x,y)){
    n=activate(u,deck,out,n);
    return n+sh_key(u,m,XZ_SHELL_KEY_BROWSE,deck,out+n);
@@ -879,7 +879,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   if(m->capabilities&XZ_SHELL_CAP_GRID)u->grid_mode=!u->grid_mode;
   return 0;
  }
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+ for(int deck=0;deck<sh_deck_count(m);deck++){
   if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_LANE,deck),x,y))return activate(u,deck,out,n);
   if(sh_inside(xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,deck),x,y)){
    u->down_region=XZ_SHELL_TOUCH_OVERVIEW;u->down_deck=deck;
@@ -896,7 +896,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
 /* Sliding a full-row stem button: the level follows the finger, a button's width for the whole range. */
 static size_t stem_slide(struct xz_shell *u, const struct xz_shell_model *m, int x, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  int deck=u->down_deck,stem=u->stem_touch.stem;
- if(deck<0||deck>=XZ_SHELL_DECKS||stem<0||stem>2||!stem_fader(m,deck))return 0;
+ if(deck<0||deck>=sh_deck_count(m)||stem<0||stem>2||!stem_fader(m,deck))return 0;
  int dx=x-u->stem_touch.x0;
  if(!u->stem_touch.slid&&dx<STEM_SLIDE&&dx>-STEM_SLIDE)return 0;
  u->stem_touch.slid=1;
@@ -917,7 +917,7 @@ static size_t play_input(struct xz_shell *u, const struct xz_shell_model *m, con
   size_t n=0;
   if(u->down&&u->down_region==XZ_SHELL_TOUCH_STEM&&!u->stem_touch.slid){
    int deck=u->down_deck,stem=u->stem_touch.stem;
-   if(deck>=0&&deck<XZ_SHELL_DECKS&&stem>=0&&stem<3&&stem_buttons(m,deck)){
+   if(deck>=0&&deck<sh_deck_count(m)&&stem>=0&&stem<3&&stem_buttons(m,deck)){
     int muted=(m->deck[deck].stem_muted>>stem)&1;
     n=emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_STEM_MUTE,deck,!muted,stem});
    }
@@ -927,7 +927,7 @@ static size_t play_input(struct xz_shell *u, const struct xz_shell_model *m, con
  }
  case XZ_SHELL_ENCODER_TURN:{
   if(u->grid_mode&&(m->capabilities&XZ_SHELL_CAP_GRID))
-   return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_GRID_ADJUST,u->deck,e->delta,0});
+   return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_GRID_ADJUST,sh_active_deck(u,m),e->delta,0});
   int zoom=u->zoom+e->delta;
   if(zoom<0)zoom=0;if(zoom>XZ_SHELL_ZOOM_MAX)zoom=XZ_SHELL_ZOOM_MAX;
   if(zoom==u->zoom)return 0;

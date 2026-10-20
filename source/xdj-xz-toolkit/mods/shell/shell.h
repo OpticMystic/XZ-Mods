@@ -28,7 +28,8 @@
 
 #define XZ_SHELL_WIDTH 800
 #define XZ_SHELL_HEIGHT 480
-#define XZ_SHELL_DECKS 2
+/* The model's capacity. model.deck_count says how many decks the unit plays now. */
+#define XZ_SHELL_DECKS 4
 #define XZ_SHELL_ACTIONS 4
 #define XZ_SHELL_STACK 6
 #define XZ_SHELL_HOT_CUES 8
@@ -231,6 +232,9 @@ struct xz_shell_browse_model; struct xz_shell_settings_model; struct xz_shell_so
 struct xz_shell_mods_model; struct xz_shell_my_settings_model; struct xz_shell_help_model;
 struct xz_shell_model {
  struct xz_shell_deck deck[XZ_SHELL_DECKS];
+ int deck_count;                     /* decks the unit plays now: 4 while the runtime's extra deck route is up;
+                                        any other value means 2, so a zero-initialised model has two decks. The
+                                        screens draw and accept decks 0..count-1 only */
  uint32_t capabilities;
  struct xz_shell_settings settings;
  int link_known, link_connected;

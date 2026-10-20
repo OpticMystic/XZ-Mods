@@ -66,7 +66,7 @@ static struct xz_shell_setting_item make_item(int id, enum xz_shell_setting_cate
 /* The item as the shell supplies it from its own state or the play model; id -1 when it cannot. */
 static struct xz_shell_setting_item own_item(const struct xz_shell *u, const struct xz_shell_model *m, int id) {
  const struct xz_shell_settings *st=&m->settings;
- const struct xz_shell_deck *d=&m->deck[u->deck>=0&&u->deck<XZ_SHELL_DECKS?u->deck:0];
+ const struct xz_shell_deck *d=&m->deck[sh_active_deck(u,m)];
  struct xz_shell_setting_item it;memset(&it,0,sizeof it);it.id=-1;
  switch(id){
  case XZ_SHELL_ITEM_WAVE_COLOR:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM COLOR",wave_color_choices,4,(int)sh_wave_color(u));break;
@@ -451,7 +451,7 @@ static void render_status_deck(const struct xz_shell *u, const struct xz_shell_m
 }
 static void render_status(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,0,STATUS_Y-2,W,STATUS_H+2,SH_BLACK);
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++)render_status_deck(u,m,c,deck);
+ for(int deck=0;deck<sh_deck_count(m);deck++)render_status_deck(u,m,c,deck);
 }
 
 /* ================= MODS (the XZ_SHELL_UTILITY screen) ================= */
@@ -1080,7 +1080,7 @@ static void render_chip_row(const struct xz_shell_model *m, struct xz_canvas c, 
 enum { LAMP_W=64, LAMP_H=30, LAMP_GAP=6, LAMP_ROW=50 };
 struct xz_shell_rect xz_shell_shortcut_lamp(int deck, int lamp) {
  struct xz_shell_rect q=xz_shell_shortcut_quadrant(Q_DEVICE_INFO);
- if(deck<0||deck>=XZ_SHELL_DECKS||lamp<0||lamp>=XZ_SHELL_LAMP_COUNT)return (struct xz_shell_rect){0,0,0,0};
+ if(deck<0||deck>=XZ_SHELL_SHORTCUT_DECKS||lamp<0||lamp>=XZ_SHELL_LAMP_COUNT)return (struct xz_shell_rect){0,0,0,0};
  return (struct xz_shell_rect){q.x+CHIP_PAD+lamp*(LAMP_W+LAMP_GAP),q.y+QUAD_TITLE+18+deck*LAMP_ROW,LAMP_W,LAMP_H};
 }
 static void lamp(struct xz_canvas c, struct xz_shell_rect r, const char *label, int known, int on, uint32_t lit) {
@@ -1092,7 +1092,7 @@ static void lamp(struct xz_canvas c, struct xz_shell_rect r, const char *label, 
 }
 static void render_deck_status(const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect q) {
  char text[16];
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+ for(int deck=0;deck<XZ_SHELL_SHORTCUT_DECKS;deck++){
   const struct xz_shell_deck *d=&m->deck[deck];
   struct xz_shell_rect first=xz_shell_shortcut_lamp(deck,0);
   snprintf(text,sizeof text,"DECK %d",deck+1);
@@ -1155,7 +1155,7 @@ static size_t jump_to(struct xz_shell *u, const struct xz_shell_model *m, int ju
 static size_t jump_to(struct xz_shell *u, const struct xz_shell_model *m, int jump, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 static size_t lamp_touch(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  for(int j=0;j<XZ_SHELL_JUMP_COUNT;j++)if(sh_inside(xz_shell_shortcut_jump(j),x,y))return jump_to(u,m,j,out);
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+ for(int deck=0;deck<XZ_SHELL_SHORTCUT_DECKS;deck++){
   const struct xz_shell_deck *d=&m->deck[deck];
   struct xz_shell_rect qz=xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_QUANTIZE),tm=xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_TIME);
   qz.y-=7;qz.h+=14;tm.y-=7;tm.h+=14;   /* 44 px targets */

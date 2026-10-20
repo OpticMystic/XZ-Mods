@@ -289,7 +289,7 @@ void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 }
 
 int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
- if(!m||deck<0||deck>=XZ_SHELL_DECKS)return -1;
+ if(!m||deck<0||deck>=sh_deck_count(m))return -1;
  const struct xz_shell_deck *d=&m->deck[deck];
  if(!sh_has(d,XZ_SHELL_F_ELAPSED))return -1;
  int64_t e=d->elapsed_ms;
@@ -366,7 +366,7 @@ enum xz_shell_key_match xz_shell_key_match(const char *key, const char *master_k
 }
 const char *xz_shell_master_key(const struct xz_shell_model *m) {
  if(!m)return NULL;
- for(int d=0;d<XZ_SHELL_DECKS;d++){
+ for(int d=0;d<sh_deck_count(m);d++){
   const struct xz_shell_deck *k=&m->deck[d];
   if(sh_has(k,XZ_SHELL_F_MASTER)&&k->master&&sh_has(k,XZ_SHELL_F_KEY)&&k->key&&(!sh_has(k,XZ_SHELL_F_LOADED)||k->loaded))return k->key;
  }

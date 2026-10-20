@@ -220,7 +220,7 @@ struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *u, const struct
  }
  case XZ_SHELL_BR_INFO_PANE:return u->panel.kind==XZ_SHELL_PANEL_INFO?(struct xz_shell_rect){W-INFO_W,HEAD_H,INFO_W,STRIP_Y-HEAD_H}:none;
  case XZ_SHELL_BR_KEY:return keyboard_shown(u)&&index>=0&&index<XZ_SHELL_BROWSE_KEYS?key_rect(index):none;
- case XZ_SHELL_BR_STRIP:return index>=0&&index<XZ_SHELL_DECKS?(struct xz_shell_rect){index*HALF_W,STRIP_Y,HALF_W,STRIP_H}:none;
+ case XZ_SHELL_BR_STRIP:return index>=0&&index<sh_deck_count(m)?(struct xz_shell_rect){index*HALF_W,STRIP_Y,HALF_W,STRIP_H}:none;
  }
  return none;
 }
@@ -574,7 +574,7 @@ static void render_load_chip(const struct xz_shell *u, const struct xz_shell_mod
  uint32_t fill=live?SH_WHITE:SH_RAIL,ink=live?SH_BLUE:SH_DIM;
  xz_rect(c,l.x,y,LOAD_W+2*LOAD_DECK_W,h,fill);
  sh_text_center(c,l.x+LOAD_W/2,y+(h-SH_CAP_SMALL)/2,live?"LOAD":"LOAD OFF",SH_SMALL,ink);
- for(int d=0;d<XZ_SHELL_DECKS;d++){
+ for(int d=0;d<sh_deck_count(m);d++){
   struct xz_shell_rect r=xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,d+1);
   int target=live&&u->deck==d;
   xz_rect(c,r.x,y+2,1,h-4,live?SH_BLUE:0x5a5a5a);
@@ -615,7 +615,7 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
   case XZ_SHELL_COL_TITLE:{
    int right=k->x+k->w-8;
    if(touched)right=k->x+k->w-6-LOAD_W-2*LOAD_DECK_W-8;
-   else if(rknown(r,XZ_SHELL_RF_ON_DECK))for(int d=XZ_SHELL_DECKS-1;d>=0;d--)if((r->on_deck>>d)&1){
+   else if(rknown(r,XZ_SHELL_RF_ON_DECK))for(int d=sh_deck_count(m)-1;d>=0;d--)if((r->on_deck>>d)&1){
     right-=14;deck_badge(c,right,y+12,d,selected?SH_WHITE:SH_BLUE,selected?SH_BLUE:SH_WHITE);right-=4;
    }
    /* On the TAG LIST: a check after the title, as the TAG LIST rows carry one before theirs. */
@@ -724,7 +724,7 @@ static void render_info_pane(const struct xz_shell *u, const struct xz_shell_mod
   case 6:
    known=rknown(r,XZ_SHELL_RF_ON_DECK);
    if(known&&(r->on_deck&3)){
-    for(int d=XZ_SHELL_DECKS-1;d>=0;d--)if((r->on_deck>>d)&1){right-=14;deck_badge(c,right,y+1,d,SH_BLUE,SH_WHITE);right-=4;}
+    for(int d=sh_deck_count(m)-1;d>=0;d--)if((r->on_deck>>d)&1){right-=14;deck_badge(c,right,y+1,d,SH_BLUE,SH_WHITE);right-=4;}
     continue;
    }
    if(known)snprintf(text,sizeof text,"NO");
@@ -903,7 +903,7 @@ static char cue_head[64],cue_deck[24];
 static int cue_items(const struct xz_shell *u, const struct xz_shell_model *m, struct pitem *out) {
  const struct xz_shell_browse_model *b=m->browse;
  const struct xz_shell_browse_row *r=highlight_row(u,m);
- int n=0,deck=sh_max(0,sh_min(XZ_SHELL_DECKS-1,u->panel.page-PAGE_CUES));
+ int n=0,deck=sh_max(0,sh_min(sh_deck_count(m)-1,u->panel.page-PAGE_CUES));
  if(!r||!bknown(b,XZ_SHELL_BF_CUES)||!b->cues||b->cue_track!=r->id)return add(out,n,PK_NOTE,0,"THE TRACK'S POINTS ARE NOT READ YET");
  snprintf(cue_deck,sizeof cue_deck,"LOAD TO DECK %d",deck+1);
  n=add(out,n,PK_CUE_DECK,deck,cue_deck);
@@ -1077,7 +1077,7 @@ static int my_open(const struct xz_shell_model *m) {
 /* LOAD waits for a paused deck (XDJ-AZ manual p.150) and for the last LOAD to finish. */
 static int my_load_blocked(const struct xz_shell *u, const struct xz_shell_model *m) {
  const struct xz_shell_my_settings_model *s=m->my_settings;
- const struct xz_shell_deck *d=&m->deck[u->deck>=0&&u->deck<XZ_SHELL_DECKS?u->deck:0];
+ const struct xz_shell_deck *d=&m->deck[sh_active_deck(u,m)];
  if(s->state==XZ_SHELL_MY_APPLYING)return 2;
  return s->state==XZ_SHELL_MY_NEEDS_PAUSE||(sh_has(d,XZ_SHELL_F_PLAYING)&&d->playing);
 }
@@ -1195,7 +1195,7 @@ static const char *panel_title(const struct xz_shell *u) {
  case PAGE_NEW:return "NEW PLAYLIST";
  case PAGE_RENAME:return "RENAME PLAYLIST";
  case PAGE_TAG_PLAYLIST:return "TAG LIST TO PLAYLIST";
- case PAGE_CUES:case PAGE_CUES+1:return "CUE/LOOP LIST";
+ case PAGE_CUES:case PAGE_CUES+1:case PAGE_CUES+2:case PAGE_CUES+3:return "CUE/LOOP LIST";
  default:return "MENU";
  }
 }
@@ -1332,7 +1332,7 @@ static size_t apply_filter(struct xz_shell *u, struct xz_shell_action out[XZ_SHE
  return op(out,n,XZ_SHELL_BROWSE_FILTER,filter_active(&u->filter));
 }
 static int32_t master_bpm_x100(const struct xz_shell_model *m) {
- for(int d=0;d<XZ_SHELL_DECKS;d++){
+ for(int d=0;d<sh_deck_count(m);d++){
   const struct xz_shell_deck *k=&m->deck[d];
   if(sh_has(k,XZ_SHELL_F_MASTER)&&k->master&&sh_has(k,XZ_SHELL_F_BPM)&&k->bpm_x100>0)return k->bpm_x100;
  }
@@ -1455,9 +1455,9 @@ static size_t activate_item(struct xz_shell *u, const struct xz_shell_model *m, 
   close_panel(u);
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HISTORY,-1,0,XZ_SHELL_HISTORY_DELETE_ALL});
  case PK_CUES_OPEN:
-  u->panel.page=PAGE_CUES+(u->deck>=0&&u->deck<XZ_SHELL_DECKS?u->deck:0);u->panel.cursor=u->panel.scroll=0;return n;
+  u->panel.page=PAGE_CUES+sh_active_deck(u,m);u->panel.cursor=u->panel.scroll=0;return n;
  case PK_CUE_DECK:
-  u->panel.page=PAGE_CUES+(it->value+1)%XZ_SHELL_DECKS;return n;
+  u->panel.page=PAGE_CUES+(it->value+1)%sh_deck_count(m);return n;
  case PK_CUE:
   if(!r||!bknown(b,XZ_SHELL_BF_CUES)||b->cue_track!=r->id||it->value>=b->cue_count)return n;
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_LOAD_CUE,u->panel.page-PAGE_CUES,it->value,(int)r->id});
@@ -1586,7 +1586,7 @@ static void strip_overview(const struct xz_shell *u, const struct xz_shell_model
 }
 static void render_strip(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,0,STRIP_Y,W,STRIP_H,SH_BLACK);
- for(int deck=0;deck<XZ_SHELL_DECKS;deck++){
+ for(int deck=0;deck<sh_deck_count(m);deck++){
   const struct xz_shell_deck *d=&m->deck[deck];
   int x0=deck*HALF_W+(deck?1:0),w=HALF_W-1,y=STRIP_Y+1;
   char text[24],frac[8];
@@ -1833,7 +1833,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_FIELD,0),x,y)){st.keyboard_hidden=!st.keyboard_hidden;follow_cursor(v,xz_shell_browse_rows_visible(u));return n;}
   return n;
  }
- for(int d=0;d<XZ_SHELL_DECKS;d++)if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_STRIP,d),x,y)){
+ for(int d=0;d<sh_deck_count(m);d++)if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_STRIP,d),x,y)){
   if(u->deck==d)return n;
   u->deck=d;
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_ACTIVE_DECK,d,0,0});
@@ -1989,7 +1989,7 @@ static size_t list_input(struct xz_shell *u, const struct xz_shell_model *m, con
  struct xz_shell_view *v=&u->stack[u->depth-1];
  if(e->kind==XZ_SHELL_KEY&&e->key==XZ_SHELL_KEY_LOAD){
   const struct xz_shell_browse_row *r=xz_shell_browse_highlight(u,m);
-  if(!r||r->kind!=XZ_SHELL_ROW_TRACK||e->deck<0||e->deck>=XZ_SHELL_DECKS)return 0;
+  if(!r||r->kind!=XZ_SHELL_ROW_TRACK||e->deck<0||e->deck>=sh_deck_count(m))return 0;
   if((m->capabilities&XZ_SHELL_CAP_LOAD)&&!v->focus)begin(v,b,s);
   return load(u,m,r,e->deck,out,0);
  }
