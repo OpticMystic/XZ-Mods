@@ -110,6 +110,17 @@ int sh_wrap(const char *text, int width, char out[][SH_WRAP_CHARS], int max);
 const char *sh_item_help(const struct xz_shell_model *, int scope, const struct xz_shell_setting_item *);
 const char *sh_choice_help(const struct xz_shell_model *, int scope, const struct xz_shell_setting_item *, int index);
 int sh_settings_item(const struct xz_shell *, const struct xz_shell_model *, int id, struct xz_shell_setting_item *out);
+/* The MODS screen's MENU tabs (shell_menu.c), called by shell_settings.c once the rail has been handled:
+   the page's title-bar path between x and right, its panes, entering it from the rail, its input, and its
+   share of BACK (the values pane, one page up, then the rail; always taken). sh_mods_opened sends OPEN
+   when the open tab is a MENU tab (after shell.c opens MODS); sh_mods_tab is the open mod tab or NULL. */
+struct xz_shell_mods_tab;
+void sh_menu_render(const struct xz_shell *, const struct xz_shell_model *, struct xz_canvas, const struct xz_shell_mods_tab *, int x, int right);
+size_t sh_menu_enter(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+size_t sh_menu_input(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+size_t sh_menu_back(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
+size_t sh_mods_opened(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n);
+const struct xz_shell_mods_tab *sh_mods_tab(const struct xz_shell *, const struct xz_shell_model *);
 size_t sh_settings_set(struct xz_shell *, int id, int index, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 /* Stem colours, two tones as the stem buttons draw them: the bright outline and label, and the dark
    interior (3/16 of the bright, the ratio the reference stem buttons use). A colour the DJ picked

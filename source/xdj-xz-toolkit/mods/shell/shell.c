@@ -254,7 +254,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
   u->popup.kind=XZ_SHELL_POPUP_NONE;close_panels(u);
   if(xz_shell_screen(u)==XZ_SHELL_UTILITY){if(u->depth>1)u->depth--;return 0;}
   open_mods(u,m->mods&&m->mods->tabs&&m->mods->count>0?1:0);
-  return 0;
+  return sh_mods_opened(u,m,out,0);
  }
  uint16_t packed=nav[xz_shell_screen(u)][k];
  struct { enum nav_kind kind; enum xz_shell_screen screen; enum xz_shell_setting setting; } t={(enum nav_kind)(packed&15),(enum xz_shell_screen)(packed>>4),(enum xz_shell_setting)(packed>>4)};
@@ -269,7 +269,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
      MODS, as SHORTCUT does, so the key always has an effect and never reaches the stock menu. */
   if(t.screen==XZ_SHELL_UTILITY&&available(m,t.screen)){
    if(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.tab==0&&u->mods_view.on_tabs&&u->depth>1)u->depth--;
-   else open_mods(u,0);
+   else{open_mods(u,0);n=sh_mods_opened(u,m,out,n);}
    return n;
   }
   if(on_stack(u,t.screen))break;
@@ -283,6 +283,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
   if(!available(m,XZ_SHELL_UTILITY))break;
   close_panels(u);
   open_mods(u,m->mods&&m->mods->tabs&&m->mods->count>0?1:0);
+  n=sh_mods_opened(u,m,out,n);
   break;
  case NAV_FILTER:return track_filter(u,m,out);
  case NAV_HAND_OFF:return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_HAND_OFF_MENU});
@@ -348,7 +349,7 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
    /* With mod tabs to show, MODS opens the shell's own MODS screen on the first of them. */
    if(hit==XZ_SHELL_ACT_OPEN_MODS&&m->mods&&m->mods->count>0&&m->mods->tabs&&available(m,XZ_SHELL_UTILITY)){
     close_panels(u);open_mods(u,1);
-    return 0;
+    return sh_mods_opened(u,m,out,0);
    }
    return emit(out,0,(struct xz_shell_action){hit,-1,0,0});
   }
