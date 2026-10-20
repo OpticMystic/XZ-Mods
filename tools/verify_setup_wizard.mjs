@@ -43,8 +43,9 @@ function installMock() {
     settings: { editable: true, values: settingsValues(), revision: { exists: usb.settings, bytes: 400 }, schema, path: volume + 'VJ.Tools\\XZ-Mods.cfg' }, backups: [], games: gamesOnUsb(), direct_usb_root: true, requires_copy_to_usb_root: false, filesystem: 'FAT32',
     space: { free_bytes: 29100000000, total_bytes: 32000000000 }, stems: { tracks: hasLoader ? 12 : 0, bytes: 734003200 }, rekordbox: true,
     dj_profiles: fx.profile ? { count: 1, active_name: fx.profile.dj_name } : { count: 0, active_name: null } });
-  const profiles = () => ({ format: 'xz-dj-profiles/1', public_folder: fx.profile ? 'DJPROFILE' : null, revision: fx.profile ? 'r1' : null, active: fx.profile?.dj_id || null, stick_colour: '#f870f8', legacy: false, problems: [],
-    profiles: fx.profile ? [{ source: 'vjtools', editable: true, active: true, tagline: '', aliases: [], links: [], page_url: null, note: '', logos: [], tile: null, track: null, ...fx.profile }] : [] });
+  const profiles = () => ({ format: 'xz-dj-profiles/1', public_folder: fx.profile ? 'DJPROFILE' : null, revision: fx.profile ? 'r1' : null, active: fx.profile?.dj_id || null, stick_colour: '#f870f8', old_store: false, problems: [],
+    summary: fx.profile ? { count: 1, active_name: fx.profile.dj_name } : { count: 0, active_name: null },
+    profiles: fx.profile ? [{ source: '1.0', editable: true, active: true, folder: fx.profile.dj_name, tagline: '', aliases: [], links: [], page_url: null, note: '', logos: [], tile: null, track: null, ...fx.profile }] : [] });
   // mode 'builds': several archived builds, saved choice an older included build.
   const builds = mode === 'builds' ? [
     { id: 'v1', label: 'Included development build newsha12', runtime_sha256: 'newsha12', hardware_qualified: false, source_commit: savedCommit, archived_at: '2026-10-12T09:54:00Z' },
@@ -79,8 +80,10 @@ function installMock() {
       case 'save_dj_profile': {
         if (!fx.written.includes(request)) fx.written.push(request);
         fx.profile = { dj_id: 'djp_' + request.profile.dj_name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), dj_name: request.profile.dj_name, accent: request.profile.accent };
-        return { running: false, ok: true, result: { ...profiles(), saved: fx.profile.dj_id } };
+        // This USB still had profiles from before DJ Profile 1.0, so the save moved them (builder/dj_profile.py result.moved).
+        return { running: false, ok: true, result: { ...profiles(), saved: fx.profile.dj_id, moved: { profiles: 1, backup: 'C:' + '\\' + 'backup', old_kept: false, failed: [] } } };
       }
+      case 'read_logo': return { running: false, ok: true, result: { path: request.path, width: 400, height: 400, bytes: 1000, format: 'png', preview: null } };
       case 'save_usb_settings': fx.saved = request; fx.values = { ...request.values }; if (!fx.written.includes(request)) fx.written.push(request); return { running: false, ok: true, result: { format: 'xz-mods-settings-saved/1', settings: { ...inspection(request.volume).settings, values: request.values } } };
     }
     throw Error('Unexpected method ' + request.method);
@@ -472,6 +475,8 @@ try {
   await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ profile editor again');
   await evaluate(`const f=document.querySelector('#wz-djp-slot #djp-name');f.value='DJ Test';f.dispatchEvent(new Event('input',{bubbles:true}))`);
   await check(`Boolean(button('Next'))&&button('Next').classList.contains('primary')&&!button('Skip for now')`, 'a name turns Skip for now into Next');
+  await evaluate(`djProfilePage.addLogoPaths(['C:\\\\Logos\\\\test.png'])`);
+  await waitFor(`djProfilePage.state.draft.logos.length===1&&activeJob===null`, 'the draft has a logo');
   await click('Next');
   await view('flow', 'review');
   await check(`plan().join('|')==='Save DJ profile DJ Test'`, 'the review lists only the profile');
@@ -480,6 +485,7 @@ try {
   await view('flow', 'done');
   await check(`since(window.__mark)==='save_dj_profile,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='save_dj_profile'&&fx.written[0].profile.dj_name==='DJ Test'&&fx.written[0].volume==='E:\\\\'`, 'a DJ-profile-only write saves the profile and nothing else');
   await check(`txt('.wz-done').includes('DJ profile DJ Test saved to the USB.')&&!document.querySelector('.wz-next')&&Boolean(button('Make the profile track'))`, 'done lists the profile; the loader steps only show after a loader write');
+  await check(`txt('.wz-done').includes('Moved your profiles to the new DJ Profile layout. A copy of the old files is on this computer.')`, 'done says once that the profiles moved to the new layout');
   await click('Done');
   await view('device');
   await check(`txt('.wz-tile[data-tile=profile] .wz-tile-value')==='DJ Test'&&txt('.wz-tile[data-tile=profile] .wz-tile-action')==='Edit'`, 'the DJ profile tile shows the saved name');

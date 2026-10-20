@@ -6,7 +6,9 @@
 // The same state draws the DJ profile step of the USB page's write flow. There the draft is not saved on its own:
 // the write saves it (pending / writePending), with the loader, games and settings.
 (function(){
-const LIMITS={name:160,tagline:80,aliases:8,alias:80,links:12,url:2048,logos:8,logoBytes:8*1048576,totalBytes:24*1048576,noteBytes:8192};
+// Text limits follow DJ Profile 1.0 (spec/djprofile/DJPROFILE.md section 5), which counts UTF-8 bytes; the editor also keeps
+// taglines and other names short enough for the XZ screen.
+const LIMITS={nameBytes:160,tagline:80,taglineBytes:240,aliases:8,alias:80,aliasBytes:160,links:12,url:2048,logos:8,logoBytes:8*1048576,totalBytes:24*1048576,noteBytes:8192};
 const LINK_KINDS=[['media-kit','EPK'],['files','Files'],['website','Website'],['instagram','Instagram'],['soundcloud','SoundCloud'],['mixcloud','Mixcloud'],['bandcamp','Bandcamp'],['link','Other']];
 const DEFAULT_ACCENT='#2997ff',BUDGET_SHOWN_FROM=16*1048576;
 // rekordbox's eight USB colours, as builder/dj_profile.py STICK_COLOURS reads them from export.pdb.
@@ -18,7 +20,7 @@ const TRACK_STEPS=[['where','Where'],['create','Create'],['rekordbox','Add it to
 const TRACK_LIBRARIES=[['device_library','rekordbox device library'],['onelibrary','OneLibrary']];
 const TRACK_LEAD='Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through rekordbox like any other track.';
 const W=setupWizard.state,pageHost=$('djp-host');
-const P={phase:'no-usb',volume:null,data:null,error:null,saved:null,draft:null,track:null};
+const P={phase:'no-usb',volume:null,data:null,error:null,saved:null,draft:null,track:null,notes:[]};
 
 const mb=bytes=>(bytes/1048576).toFixed(bytes>=10485760?0:1)+' MB';
 const kb=bytes=>bytes<1048576?Math.max(1,Math.round(bytes/1024))+' KB':mb(bytes);
@@ -41,15 +43,17 @@ function call(request){return run(request,'DJ profile',null,()=>{});}
 
 // --- reading and the wizard's USB ---
 
-function summarise(data){
-  if(!data.revision)return {count:0,active_name:null};
-  const listed=data.profiles.filter(profile=>profile.source==='vjtools'),broken=data.problems.filter(problem=>problem.dj_id&&!problem.dj_id.startsWith('folder:'));
-  const active=listed.find(profile=>profile.active)||broken.find(problem=>problem.dj_id===data.active);
-  return {count:listed.length+broken.length,active_name:active?.dj_name||null};
+// The first write on a USB from before DJ Profile 1.0 moves its profiles to the new layout (result.moved).
+// The DJ sees one line about it, plus a line for any profile that stayed behind.
+function movedNotes(moved){
+  if(!moved)return [];
+  const notes=moved.backup&&!moved.old_kept?['Moved your profiles to the new DJ Profile layout. A copy of the old files is on this computer.']:[];
+  return notes.concat((moved.failed||[]).map(item=>(item.dj_name||'A profile')+' stayed in the old layout. '+item.error));
 }
+function noteMoved(result){const notes=movedNotes(result?.moved);if(notes.length)P.notes=notes;return notes;}
 function publish(data){
   if(!W.inspection||W.usb!==P.volume)return;
-  const next=summarise(data);
+  const next=data.summary||{count:0,active_name:null};
   if(JSON.stringify(next)===JSON.stringify(W.inspection.dj_profiles))return;
   W.inspection.dj_profiles=next;setupWizard.render();
 }
@@ -72,7 +76,7 @@ const visible=()=>!$('dj-profile').classList.contains('hidden')||inWizard();
 function sync(){
   const usb=W.inspection?W.usb:null;
   if(usb!==P.volume){
-    Object.assign(P,{phase:usb?'loading':'no-usb',volume:usb,data:null,error:null,saved:null,draft:null,track:null});
+    Object.assign(P,{phase:usb?'loading':'no-usb',volume:usb,data:null,error:null,saved:null,draft:null,track:null,notes:[]});
     if(visible())usb?load(usb):render();
     return;
   }
@@ -86,7 +90,7 @@ function show(){if(P.phase==='loading'&&!reading&&P.volume)load(P.volume);else r
 
 function draftFrom(profile){
   const folder=profile?.source==='folder',first=!savedProfiles().length;
-  return {dj_id:profile&&!folder?profile.dj_id:null,source:profile?.source||'new',original:profile?.dj_name||'',
+  return {dj_id:profile?.dj_id||null,source:profile?.source||'new',original:profile?.dj_name||'',
     dj_name:profile?.dj_name||'',tagline:profile?.tagline||'',accent:profile?.accent||P.data?.stick_colour||DEFAULT_ACCENT,
     aliases:(profile?.aliases||[]).join('\n'),note:profile?.note||'',page_url:profile?.page_url||null,
     links:profile?.links?.length?profile.links.map(link=>({...link})):[{kind:'media-kit',url:''}],
@@ -111,17 +115,19 @@ function logoBytes(d){return d.logos.reduce((sum,logo)=>sum+(logo.bytes||0),0);}
 // Field -> message for every problem; save is the first one, shown beside the disabled Save button.
 function validate(d){
   const name=d.dj_name.trim(),aliases=aliasList(d),problems={};
-  if(name.length>LIMITS.name)problems.name='Use at most '+LIMITS.name+' characters.';
+  if(bytesOf(name)>LIMITS.nameBytes)problems.name='This name is too long. Use a shorter one.';
   else if(control(name))problems.name='Use letters, numbers and symbols only.';
   if(d.tagline.trim().length>LIMITS.tagline)problems.tagline='Use at most '+LIMITS.tagline+' characters.';
+  else if(bytesOf(d.tagline.trim())>LIMITS.taglineBytes)problems.tagline='This tagline is too long. Use a shorter one.';
   if(!/^#[0-9a-fA-F]{6}$/.test(d.accent))problems.accent='Use a colour like #2997ff.';
   d.links.forEach((link,index)=>{const problem=urlProblem(link.url);if(problem)problems['link-'+index]=problem;});
   if(d.links.filter(link=>link.url.trim()).length>LIMITS.links)problems.links='A profile holds at most '+LIMITS.links+' links.';
   if(aliases.length>LIMITS.aliases)problems.aliases='Use at most '+LIMITS.aliases+' other names.';
-  else if(aliases.some(alias=>alias.length>LIMITS.alias||control(alias)))problems.aliases='Each name can be at most '+LIMITS.alias+' characters.';
+  else if(aliases.some(alias=>alias.length>LIMITS.alias||bytesOf(alias)>LIMITS.aliasBytes||control(alias)))problems.aliases='Each name can be at most '+LIMITS.alias+' characters.';
   if(bytesOf(d.note)>LIMITS.noteBytes||noteControl(d.note))problems.note='Keep the note under 8 KB of plain text.';
   if(logoBytes(d)>LIMITS.totalBytes)problems.logos='These logos add up to more than 24 MB. Remove one or use smaller files.';
-  const save=!name?'Add your DJ name to save.':Object.values(problems)[0]||'';
+  // In DJ Profile 1.0 a folder is a profile only when it has a logo, so a draft without one cannot be saved.
+  const save=!name?'Add your DJ name to save.':!d.logos.length?'Add your logo to save.':Object.values(problems)[0]||'';
   return {problems,save};
 }
 function saveRequest(d){
@@ -147,28 +153,29 @@ async function writePending(origin){
   const response=await run(saveRequest(P.draft),'Saving your DJ profile',origin);
   if(!response?.ok){set({phase:'editing',error:failure(response,'The profile was not saved.')});return {ok:false,name:want.name,error:P.error.message};}
   P.data=response.result;publish(P.data);
+  const notes=noteMoved(response.result);
   set({phase:'list',draft:null,saved:response.result.saved});
-  return {ok:true,name:want.name,dj_id:response.result.saved};
+  return {ok:true,name:want.name,dj_id:response.result.saved,notes};
 }
 
 // --- actions ---
 
 // Cancelling the write flow drops its unsaved draft, so a later write cannot carry it.
 function discard(){if(P.phase==='editing')set({phase:'list',draft:null,error:null});}
-function edit(profile){const draft=draftFrom(profile);draft.start=draftKey(draft);set({phase:'editing',draft,error:null,saved:null});}
+function edit(profile){const draft=draftFrom(profile);draft.start=draftKey(draft);set({phase:'editing',draft,error:null,saved:null,notes:[]});}
 async function save(){
   const d=P.draft;if(validate(d).save)return;
   set({phase:'saving',error:null});
   const response=await call(saveRequest(d));
   if(!response?.ok){set({phase:'editing',error:failure(response,'The profile was not saved.')});return;}
-  P.data=response.result;publish(P.data);
+  P.data=response.result;publish(P.data);noteMoved(response.result);
   set({phase:'list',draft:null,saved:response.result.saved});
 }
 async function makeActive(profile){
   set({error:null});
   const response=await call({method:'set_active_dj_profile',volume:P.volume,dj_id:profile.dj_id,expected_revision:P.data.revision});
   if(!response?.ok){set({error:failure(response,profile.dj_name+' was not made active.')});return;}
-  P.data=response.result;publish(P.data);
+  P.data=response.result;publish(P.data);noteMoved(response.result);
   set({saved:null});
 }
 async function addLogo(){
@@ -212,7 +219,7 @@ async function writeTrack(){
   if(t.folder)request.folder=t.folder;
   const response=await call(request);
   if(!response?.ok){Object.assign(t,{running:false,error:failure(response,'The profile track was not made.')});render();return;}
-  t.result=response.result;
+  t.result=response.result;noteMoved(response.result);
   if(t.usbCopy){
     const copy=await call({method:'write_profile_track',volume:P.volume,dj_id:t.dj_id,destination:'usb'});
     if(copy?.ok)t.usb=copy.result;else t.error=failure(copy,'The copy on the USB was not made.');
@@ -262,11 +269,11 @@ function viewLoading(){
   return el('section',{class:'wz-pane'},el('h2',{text:'DJ profiles on '+driveName()}),el('p',{class:'wz-lead',role:'status',text:'Reading the profiles on this USB…'}));
 }
 function card(profile){
-  const folder=profile.source==='folder',canActivate=profile.source==='vjtools'&&!profile.active;
+  const folder=profile.source==='folder',canActivate=!profile.active;
   return el('article',{class:'djp-card',role:'listitem',dataset:{id:profile.dj_id,source:profile.source,active:profile.active?'1':null,highlight:profile.dj_id===P.saved?'1':null}},
     tile(tileImage(profile),profile.dj_name,profile.accent,{fit:!profile.tile}),
     el('div',{class:'djp-card-text'},el('strong',{text:profile.dj_name}),profile.tagline?el('span',{text:profile.tagline}):null,
-      folder?el('small',{class:'djp-hand',text:'Made by hand · Save to edit'}):null,
+      folder?el('small',{class:'djp-hand',text:'Made by hand on the USB'}):null,
       profile.track?el('small',{text:'Profile track on this USB · '+kb(profile.track.bytes)}):null),
     el('div',{class:'djp-card-foot'},
       profile.active?el('span',{class:'djp-active'},el('span',{class:'tree-dot',dataset:{tone:'ok'},'aria-hidden':'true'}),'Active on the XZ'):null,
@@ -292,6 +299,7 @@ function viewList(){
   return el('section',{class:'wz-pane djp-list'},
     el('h2',{text:'DJ profiles on '+driveName()}),
     banner(P.error),
+    P.notes.length?el('div',{class:'djp-moved',role:'status'},...P.notes.map(text=>el('p',{class:'djp-hint',text}))):null,
     saved?el('div',{class:'djp-saved',role:'status'},el('p',{text:'Saved '+saved.dj_name+' to the USB.'+(saved.active?' It is the active profile on the XZ.':'')+' Next, make its profile track for newer players.'}),
       el('div',{class:'actions'},el('button',{type:'button',class:'primary',text:'Create profile track',onclick:()=>openTrack(saved)}))):null,
     empty?el('p',{class:'wz-lead',text:'No DJ profile on this USB yet. A profile puts your name and logo on the XZ and lets VJ software on the same network pick them up.'}):
@@ -315,7 +323,7 @@ function logoRow(logo,index){
     el('div',{class:'djp-logo-text'},
       el('span',{class:'djp-logo-head'},main?el('span',{class:'djp-main',text:'Main logo'}):el('button',{type:'button',class:'text-button',text:'Make main',onclick:()=>{d.logos.unshift(...d.logos.splice(index,1));render();}}),
         el('small',{text:(logo.width&&logo.height?logo.width+' × '+logo.height+' px · ':'')+kb(logo.bytes||0)})),
-      el('input',{type:'text',class:'djp-logo-label',placeholder:'Label (optional)',value:logo.label,maxlength:String(LIMITS.name),'aria-label':'Logo label',oninput:event=>{logo.label=event.target.value;}})),
+      el('input',{type:'text',class:'djp-logo-label',placeholder:'Label (optional)',value:logo.label,maxlength:String(LIMITS.nameBytes),'aria-label':'Logo label',oninput:event=>{logo.label=event.target.value;}})),
     el('button',{type:'button',class:'djp-remove','aria-label':'Remove this logo',title:'Remove',onclick:()=>{d.logos.splice(index,1);d.logoError='';render();}},'×'));
 }
 function linkRow(link,index){
@@ -413,7 +421,7 @@ function editorPane({wizard}){
     return pane;
   }
   const title=d.source==='folder'?'Save '+d.original+' as a profile':d.dj_id?'Edit '+d.original:'New DJ profile';
-  const lead=d.source==='folder'?'Made by hand on the USB. Saving keeps your folder and adds a profile the XZ and VJ software can read.':
+  const lead=d.source==='folder'?'Made by hand on the USB. Saving keeps your folder and your logo, and adds the details you fill in.':
     d.dj_id?'Saved on the USB only. Nothing is uploaded.':'Your name and logo on the XZ, and for VJ software on the same network. Saved on the USB only, nothing is uploaded.';
   const saveButton=el('button',{type:'button',class:'primary',id:'djp-save',text:saving?'Saving…':'Save to USB',onclick:save});
   const pane=el('section',{class:'wz-pane djp-edit',dataset:{busy:saving?'1':null}},
@@ -474,7 +482,7 @@ function trackWhere(t){
         el('span',{class:'djp-dest-text'},el('strong',{text:'Save to this computer for rekordbox'}),el('small',{id:'djp-track-folder',text:t.folder||'Music › DJ Profile in your user folder'})),
         el('button',{type:'button',class:'text-button',text:'Choose folder',onclick:pickTrackFolder})),
       el('label',{class:'djp-dest-row'},el('input',{type:'checkbox',id:'djp-usb-copy',checked:t.usbCopy?true:null,onchange:event=>{t.usbCopy=event.target.checked;}}),
-        el('span',{class:'djp-dest-text'},el('strong',{text:'Also put a copy on this USB'}),el('small',{text:'In DJPROFILE, next to the profile. VJ software on the network can read it from there.'})))),
+        el('span',{class:'djp-dest-text'},el('strong',{text:'Also put a copy on this USB'}),el('small',{text:'In your profile folder in DJPROFILE. VJ software on the network can read it from there.'})))),
     el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-create',text:'Create profile track',onclick:writeTrack}),
       el('button',{type:'button',class:'secondary',text:'Cancel',onclick:()=>set({phase:'list',track:null})}))];
 }
@@ -526,7 +534,7 @@ function trackCheck(c){
   }));
 }
 function trackRekordbox(t){
-  const file=baseName(t.result.path),c=t.check,finish=()=>{P.track=null;P.saved=null;load(P.volume);};
+  const file=baseName(t.result.path),c=t.check,finish=()=>{P.track=null;P.saved=null;P.notes=[];load(P.volume);};
   const actions=c?.running?[]:c?.found
     ?[el('button',{type:'button',class:'primary',id:'djp-track-done',text:'Done',onclick:finish}),el('button',{type:'button',class:'secondary',text:'Check again',onclick:checkTrack})]
     :[el('button',{type:'button',class:'primary',id:'djp-track-check',text:'Check the USB',onclick:checkTrack}),

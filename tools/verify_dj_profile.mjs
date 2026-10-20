@@ -33,6 +33,12 @@ function installMock() {
   ['C:\\Logos\\kai-wordmark.png', 'C:\\Logos\\kai-square.png', 'C:\\Logos\\l3.png', 'C:\\Logos\\l4.png', 'C:\\Logos\\l5.png', 'C:\\Logos\\l6.png', 'C:\\Logos\\l7.png', 'C:\\Logos\\l8.png', 'C:\\Logos\\l9.png']
     .forEach((path, i) => logoFile(path, i, i === 0 ? 1600 : 1000, i === 0 ? 600 : 1000, i === 0 ? 412000 : 2500000));
   const preview = path => { const logo = fx.logos.get(path); if (!logo.preview) logo.preview = art(...logo.art); return logo.preview; };
+  if (mode === 'old') {
+    fx.oldStore = true;
+    fx.docs.set('djp_kai', { dj_id: 'djp_kai', dj_name: 'DJ Kai', tagline: '', accent: '#e0664f', aliases: [], links: [], page_url: null, note: '', logos: [{ path: 'C:\\Logos\\kai-square.png', label: '', note: '' }] });
+    fx.docs.set('djp_lena', { dj_id: 'djp_lena', dj_name: 'Lena B', tagline: '', accent: '#1e50f0', aliases: [], links: [], page_url: null, note: '', logos: [{ path: 'C:\\Logos\\l3.png', label: '', note: '' }] });
+    fx.index = { revision: '2026-10-08T15-00-00Z-0001', active: 'djp_lena', profiles: ['djp_kai', 'djp_lena'] };
+  }
   if (mode === 'folder') {
     logoFile('E:\\DJPROFILE\\DJ Mara\\logo.png', 4, 800, 800, 90000);
     fx.folders.push({ name: 'DJ Mara', logo: 'E:\\DJPROFILE\\DJ Mara\\logo.png' });
@@ -40,25 +46,28 @@ function installMock() {
   }
   const newRevision = () => '2026-10-12T10-00-0' + (++fx.revisions) + 'Z-ab' + fx.revisions;
   fx.bump = () => { fx.index.revision = newRevision(); };
-  const view = (doc, active) => ({ dj_id: doc.dj_id, source: 'vjtools', editable: true, active, dj_name: doc.dj_name, tagline: doc.tagline, accent: doc.accent, aliases: doc.aliases, links: doc.links,
-    page_url: doc.page_url, note: doc.note,
-    logos: doc.logos.map(logo => ({ path: 'E:\\DJPROFILE\\VJTOOLS\\profiles\\' + doc.dj_id + '\\bundles\\b\\assets\\' + logo.path.split('\\').pop(), stick_path: 'DJPROFILE/VJTOOLS/profiles/' + doc.dj_id + '/bundles/b/assets/x.png',
-      label: logo.label, note: logo.note, width: fx.logos.get(logo.path).width, height: fx.logos.get(logo.path).height, bytes: fx.logos.get(logo.path).bytes, sha256: 'a'.repeat(64), format: 'png', preview: preview(logo.path) })),
-    tile: doc.logos.length ? { path: 'E:\\tile', stick_path: 'DJPROFILE/VJTOOLS/profiles/' + doc.dj_id + '/bundles/b/renditions/xz-tile-160.rgb565', preview: preview(doc.logos[0].path) } : null,
+  const view = (doc, active) => ({ dj_id: doc.dj_id, source: fx.oldStore ? 'old' : '1.0', editable: true, active, dj_name: doc.dj_name, folder: fx.oldStore ? null : doc.dj_name,
+    tagline: doc.tagline, accent: doc.accent, aliases: doc.aliases, links: doc.links, page_url: doc.page_url, note: doc.note,
+    logos: doc.logos.map(logo => ({ path: 'E:\\DJPROFILE\\' + doc.dj_name + '\\' + logo.path.split('\\').pop(), stick_path: 'DJPROFILE/' + doc.dj_name + '/' + logo.path.split('\\').pop(),
+      label: logo.label, note: logo.note, width: fx.logos.get(logo.path).width, height: fx.logos.get(logo.path).height, bytes: fx.logos.get(logo.path).bytes, sha256: 'a'.repeat(64), format: 'png', background: 'any', preview: preview(logo.path) })),
+    tile: doc.logos.length ? { path: 'E:\\tile', stick_path: 'DJPROFILE/' + doc.dj_name + '/tile-160.rgb565', preview: preview(doc.logos[0].path) } : null,
     track: fx.tracks.get(doc.dj_id) || null });
   const read = () => {
     const profiles = fx.index ? fx.index.profiles.map(id => view(fx.docs.get(id), id === fx.index.active)) : [];
     const taken = new Set(profiles.map(profile => profile.dj_name.toLowerCase()));
     for (const folder of fx.folders) if (!taken.has(folder.name.toLowerCase())) {
       const logo = fx.logos.get(folder.logo);
-      profiles.push({ dj_id: 'folder:' + folder.name, source: 'folder', editable: false, active: false, dj_name: folder.name, tagline: '', accent: '#9828f0', aliases: [], links: [], page_url: null, note: '',
+      profiles.push({ dj_id: 'folder:' + folder.name, source: 'folder', editable: false, active: false, dj_name: folder.name, folder: folder.name, tagline: '', accent: '#9828f0', aliases: [], links: [], page_url: null, note: '',
         logos: [{ path: folder.logo, stick_path: 'DJPROFILE/' + folder.name + '/logo.png', label: 'logo', note: '', width: logo.width, height: logo.height, bytes: logo.bytes, sha256: 'b'.repeat(64), format: 'png', preview: preview(folder.logo) }], tile: null, track: null });
     }
-    const active = fx.index ? fx.index.active : profiles.find(profile => profile.source === 'folder')?.dj_id || null;
+    const active = fx.index ? fx.index.active : profiles[0]?.dj_id || null;
     for (const profile of profiles) profile.active = profile.dj_id === active;
-    return { format: 'xz-dj-profiles/1', public_folder: fx.index || fx.folders.length ? 'DJPROFILE' : null, revision: fx.index ? fx.index.revision : null, active, stick_colour: '#9828f0', legacy: false, profiles, problems: fx.problems };
+    return { format: 'xz-dj-profiles/1', public_folder: fx.index || fx.folders.length ? 'DJPROFILE' : null, revision: fx.index ? fx.index.revision : null, active, stick_colour: '#9828f0',
+      old_store: Boolean(fx.oldStore), profiles, problems: fx.problems, summary: { count: profiles.length, active_name: profiles.find(profile => profile.active)?.dj_name || null } };
   };
-  const summary = () => fx.index ? { count: fx.index.profiles.length, active_name: fx.docs.get(fx.index.active).dj_name } : { count: 0, active_name: null };
+  // The first write on a USB from before 1.0 moves its profiles and reports it, as builder/dj_profile.py does.
+  const moved = () => { if (!fx.oldStore) return null; fx.oldStore = false; return { profiles: fx.index.profiles.length, backup: 'C:\\Users\\dj\\AppData\\Local\\XZ Mods\\dj-profile-backups\\0CAA-BE10-20261019T150000Z', old_kept: false, failed: [] }; };
+  const summary = () => read().summary;
   const fail = error => ({ running: false, ok: false, error });
   const check = request => (fx.index ? fx.index.revision : null) === request.expected_revision;
   const save = request => {
@@ -67,14 +76,17 @@ function installMock() {
     if (!fields.dj_name?.trim()) return fail('DJ name must contain 1 to 160 printable characters');
     for (const link of links) if (!link.url.startsWith('https://')) return fail('Links must start with https:// (' + link.url + ' uses http://)');
     if ((request.logos || []).length > 8) return fail('A profile may list at most 8 logos');
+    if (!(request.logos || []).length) return fail('Add a logo to save this profile. Players show a profile only when it has one.');
     for (const logo of request.logos || []) if (!fx.logos.has(logo.path) && !fx.logos.has('C:\\Logos\\' + logo.path.split('\\').pop())) return fail('Logo not found: ' + logo.path);
     let id = fields.dj_id && !fields.dj_id.startsWith('folder:') ? fields.dj_id : null;
+    if (fields.dj_id?.startsWith('folder:')) fx.folders = fx.folders.filter(folder => 'folder:' + folder.name !== fields.dj_id);
     if (!id) { id = 'djp_' + fields.dj_name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); while (fx.docs.has(id)) id += '_2'; }
+    const note = moved();
     const logos = request.logos.map(logo => ({ ...logo, path: fx.logos.has(logo.path) ? logo.path : 'C:\\Logos\\' + logo.path.split('\\').pop() }));
     fx.docs.set(id, { dj_id: id, dj_name: fields.dj_name, tagline: fields.tagline, accent: fields.accent, aliases: fields.aliases, links, page_url: fields.page_url, note: fields.note, logos });
     if (!fx.index) fx.index = { revision: newRevision(), active: id, profiles: [id] };
     else { if (!fx.index.profiles.includes(id)) fx.index.profiles.push(id); if (request.make_active) fx.index.active = id; fx.index.revision = newRevision(); }
-    return { running: false, ok: true, result: { ...read(), saved: id } };
+    return { running: false, ok: true, result: { ...read(), saved: id, moved: note } };
   };
   const status = request => {
     switch (request.method) {
@@ -95,17 +107,18 @@ function installMock() {
       case 'set_active_dj_profile': {
         if (!check(request)) return fail(CONFLICT);
         if (!fx.index?.profiles.includes(request.dj_id)) return fail('Save this DJ profile to the USB before making it active');
+        const note = moved();
         if (fx.index.active !== request.dj_id) { fx.index.active = request.dj_id; fx.index.revision = newRevision(); }
-        return { running: false, ok: true, result: read() };
+        return { running: false, ok: true, result: { ...read(), moved: note } };
       }
       case 'write_profile_track': {
         const doc = fx.docs.get(request.dj_id);
         if (!doc) return fail('Save this DJ profile to the USB before making its track');
         if (!['folder', 'usb'].includes(request.destination)) return fail("Choose where the track goes: 'folder' or 'usb'");
         const name = 'DJ PROFILE - ' + doc.dj_name + '.mp3', bytes = 365000 + doc.logos.reduce((sum, logo) => sum + fx.logos.get(logo.path).bytes, 0);
-        const path = request.destination === 'usb' ? 'E:\\DJPROFILE\\VJTOOLS\\profiles\\' + doc.dj_id + '\\track\\' + name : (request.folder || 'C:\\Users\\dj\\Music\\DJ Profile') + '\\' + name;
-        if (request.destination === 'usb') fx.tracks.set(doc.dj_id, { path, stick_path: 'DJPROFILE/VJTOOLS/profiles/' + doc.dj_id + '/track/' + name, bytes });
-        return { running: false, ok: true, result: { format: 'xz-dj-profile-track/1', destination: request.destination, path, bytes, sha256: 'c'.repeat(64), duration_seconds: 20.035,
+        const path = request.destination === 'usb' ? 'E:\\DJPROFILE\\' + doc.dj_name + '\\' + name : (request.folder || 'C:\\Users\\dj\\Music\\DJ Profile') + '\\' + name;
+        if (request.destination === 'usb') fx.tracks.set(doc.dj_id, { path, stick_path: 'DJPROFILE/' + doc.dj_name + '/' + name, bytes });
+        return { running: false, ok: true, result: { format: 'xz-dj-profile-track/1', destination: request.destination, moved: null, path, bytes, sha256: 'c'.repeat(64), duration_seconds: 10.005,
           logos_embedded: doc.logos.length, logos_skipped: [], verified_silent: true, ffmpeg_verified: true } };
       }
       case 'dj_profile_track_status': {
@@ -236,12 +249,12 @@ try {
   await evaluate(`type('#djp-name','   ')`);
   await check(`document.getElementById('djp-save').disabled`, 'a blank name still cannot be saved');
   await evaluate(`type('#djp-name','DJ Kai')`);
-  await check(`!document.getElementById('djp-save').disabled&&txt('.djp-save-why')===''`, 'a name enables Save');
+  await check(`document.getElementById('djp-save').disabled&&txt('.djp-save-why')==='Add your logo to save.'`, 'with a name, Save waits for a logo and says so');
   await check(`txt('.djp-dev-head .dv-profile strong')==='DJ Kai'&&txt('.djp-dev-head .dv-avatar')==='DK'&&txt('.djp-dev-text strong')==='DJ Kai'`, 'preview chip and tile follow the typed name (monogram before a logo)');
   await evaluate(`type('.djp-link input[type=url]','http://drive.google.com/kai')`);
   await check(`err('link-0')==='Use an https:// address. This one starts with http://.'&&document.getElementById('djp-save').disabled`, 'http:// link rejected inline and blocks Save');
   await evaluate(`type('.djp-link input[type=url]','https://drive.google.com/drive/folders/kai-epk')`);
-  await check(`err('link-0')===''&&!document.getElementById('djp-save').disabled`, 'https:// link accepted');
+  await check(`err('link-0')===''`, 'https:// link accepted');
   await evaluate(`type('#djp-tagline','x'.repeat(81))`);
   await check(`err('tagline')==='Use at most 80 characters.'&&document.getElementById('djp-save').disabled`, 'tagline over 80 characters rejected inline');
   await evaluate(`type('#djp-tagline','Techno all night long')`);
@@ -257,6 +270,7 @@ try {
   await evaluate(`fx.pickQueue.push('C:\\\\Logos\\\\kai-wordmark.png','C:\\\\Logos\\\\kai-square.png')`);
   await click('Choose file');
   await check(`txt('.djp-drop strong')==='Drop another logo here'&&button('Choose file').classList.contains('secondary')`, 'after the first logo the drop target asks for alternates');
+  await check(`!document.getElementById('djp-save').disabled&&txt('.djp-save-why')===''`, 'a name and a logo enable Save');
   await click('Choose file');
   await check(`fx.picks.filter(k=>k==='image').length===2&&fx.requests.filter(r=>r.method==='read_logo').map(r=>r.path).join('|')==='C:\\\\Logos\\\\kai-wordmark.png|C:\\\\Logos\\\\kai-square.png'`, 'Choose file uses pick_path kind image, then read_logo');
   await evaluate(`fx.drag('enter',['C:\\\\Logos\\\\l3.png'])`);
@@ -325,7 +339,7 @@ try {
   await click('Create profile track');
   await waitFor(`djProfilePage.state.track.result`, 'track written');
   await check(`(()=>{const writes=fx.requests.filter(r=>r.method==='write_profile_track');return writes.length===2&&writes[0].dj_id==='djp_dj_kai'&&writes[0].destination==='folder'&&!('folder' in writes[0])&&writes[1].destination==='usb'&&writes[1].dj_id==='djp_dj_kai';})()`, 'write_profile_track: the saved dj_id, backend default folder, then the USB copy');
-  await check(`txt('.djp-facts').includes('2 logos embedded at full resolution')&&txt('.djp-facts').includes('Every sample is silent. Checked.')&&txt('.djp-facts').includes('20 seconds of silence')&&txt('.djp-facts').includes('EPK, Website')&&txt('.djp-facts').includes('A copy is in DJPROFILE on KINGSTON.')`, 'result: logos embedded, verified silent, length, links, USB copy');
+  await check(`txt('.djp-facts').includes('2 logos embedded at full resolution')&&txt('.djp-facts').includes('Every sample is silent. Checked.')&&txt('.djp-facts').includes('10 seconds of silence')&&txt('.djp-facts').includes('EPK, Website')&&txt('.djp-facts').includes('A copy is in DJPROFILE on KINGSTON.')`, 'result: logos embedded, verified silent, length, links, USB copy');
   await check(`page().querySelector('.djp-path input').value==='C:\\\\Users\\\\dj\\\\Music\\\\DJ Profile\\\\DJ PROFILE - DJ Kai.mp3'&&Boolean(button('Copy path'))`, 'no open-folder command: the path with a Copy button');
   await shot('06-track-done');
   await click('Next: add it to rekordbox');
@@ -355,6 +369,8 @@ try {
 
   await click('New DJ profile');
   await evaluate(`type('#djp-name','Lena B')`);
+  await evaluate(`fx.drag('drop',['C:\\\\Logos\\\\l3.png'])`);
+  await waitFor(`djProfilePage.state.draft.logos.length===1&&activeJob===null`, 'Lena B has a logo');
   await check(`document.getElementById('djp-make-active')&&!document.getElementById('djp-make-active').checked`, 'second profile: an unticked Make this the active profile box');
   await click('Save to USB');
   await waitFor(`djProfilePage.state.phase==='list'`, 'list after second save');
@@ -409,9 +425,10 @@ try {
   await check(`wiz().querySelector('.djp-swatch[data-hex="#9828f0"]').getAttribute('aria-pressed')==='true'&&!wiz().querySelector('#djp-save')&&wiz().querySelector('.djp-drop[data-empty="1"]')`, 'step editor: USB colour preselected, a drop target, no separate Save button');
   await shot('10-step-empty');
   await evaluate(`const f=wiz().querySelector('#djp-name');f.value='DJ Nova';f.dispatchEvent(new Event('input',{bubbles:true}))`);
-  await check(`Boolean(button('Next',wiz()))&&!button('Skip for now',wiz())&&txt('.djp-save-why',wiz())==='Saved to the USB when you write.'&&djProfilePage.pending().plan==='add'&&wiz().querySelector('#djp-name').value==='DJ Nova'`, 'a name turns Skip for now into Next and says when it is written');
+  await check(`Boolean(button('Next',wiz()))&&!button('Skip for now',wiz())&&txt('.djp-save-why',wiz())==='Add your logo to save.'&&djProfilePage.pending().plan===null&&wiz().querySelector('#djp-name').value==='DJ Nova'`, 'a name turns Skip for now into Next and asks for the logo');
   await evaluate(`fx.drag('drop',['C:\\\\Logos\\\\kai-square.png'])`);
   await waitFor(`djProfilePage.state.draft.logos.length===1&&activeJob===null`, 'dropped logo in the step');
+  await check(`txt('.djp-save-why',wiz())==='Saved to the USB when you write.'&&djProfilePage.pending().plan==='add'`, 'with a logo the step says when it is written');
   await check(`wiz().querySelector('.djp-dev-body .djp-tile img')&&wiz().querySelector('#djp-name').value==='DJ Nova'`, 'a logo dropped on the step shows in the preview');
   await shot('11-step-filled');
   await evaluate(`button('Next',wiz()).click()`); await waitFor(`setupWizard.state.step==='review'`, 'review');
@@ -428,14 +445,27 @@ try {
   await open('folder');
   await showDj();
   await waitFor(`djProfilePage.state.phase==='list'`, 'folder list');
-  await check(`txt('.djp-hand',cardOf('folder:DJ Mara'))==='Made by hand · Save to edit'&&cardOf('folder:DJ Mara').dataset.active==='1'&&!button('Make active',cardOf('folder:DJ Mara'))`, 'folder profile: Made by hand, active by the folder rule, no Make active');
+  await check(`txt('.djp-hand',cardOf('folder:DJ Mara'))==='Made by hand on the USB'&&cardOf('folder:DJ Mara').dataset.active==='1'&&!button('Make active',cardOf('folder:DJ Mara'))`, 'folder profile: made by hand, active as the first profile, no Make active');
   await check(`txt('.djp-problems')==='Broken could not be read: DJPROFILE/Broken/logo.png: This logo file is empty or damaged.'&&Boolean(button('New DJ profile'))`, 'a broken profile is one quiet line and does not block the page');
   await check(`!page().querySelector('.djp-track-panel')`, 'no track section until a profile is saved');
   await evaluate(`cardOf('folder:DJ Mara').querySelector('.djp-edit').click()`);
   await check(`txt('#dj-profile h2')==='Save DJ Mara as a profile'&&document.getElementById('djp-name').value==='DJ Mara'&&djProfilePage.state.draft.logos.length===1&&djProfilePage.state.draft.logos[0].path==='E:\\\\DJPROFILE\\\\DJ Mara\\\\logo.png'&&!document.getElementById('djp-save').disabled`, 'Edit on a folder profile opens a new profile prefilled with its name and logo');
   await click('Save to USB');
   await waitFor(`djProfilePage.state.phase==='list'`, 'folder saved');
-  await check(`last('save_dj_profile').profile.dj_id===null&&last('save_dj_profile').logos[0].path==='E:\\\\DJPROFILE\\\\DJ Mara\\\\logo.png'&&cardOf('djp_dj_mara').dataset.source==='vjtools'&&!cardOf('folder:DJ Mara')`, 'saving it writes a VJTOOLS profile that replaces the folder card');
+  await check(`last('save_dj_profile').profile.dj_id==='folder:DJ Mara'&&last('save_dj_profile').logos[0].path==='E:\\\\DJPROFILE\\\\DJ Mara\\\\logo.png'&&cardOf('djp_dj_mara').dataset.source==='1.0'&&!cardOf('folder:DJ Mara')`, 'saving it names the folder, so the backend adopts it in place');
+  await check(`!page().querySelector('.djp-moved')`, 'a USB already in the new layout shows no move note');
+
+  await open('old');
+  await showDj();
+  await waitFor(`djProfilePage.state.phase==='list'`, 'old store list');
+  await check(`cardOf('djp_kai').dataset.source==='old'&&cardOf('djp_lena').dataset.active==='1'&&Boolean(button('Make active',cardOf('djp_kai')))&&!page().querySelector('.djp-moved')`, 'old store: profiles listed as usual, nothing said about the layout before a write');
+  await click('Make active', `cardOf('djp_kai')`);
+  await check(`txt('.djp-moved')==='Moved your profiles to the new DJ Profile layout. A copy of the old files is on this computer.'&&cardOf('djp_kai').dataset.active==='1'&&cardOf('djp_kai').dataset.source==='1.0'`, 'the first write moves the profiles and says so in one line');
+  await shot('14-moved-note');
+  await click('Make active', `cardOf('djp_lena')`);
+  await check(`page().querySelectorAll('.djp-moved p').length===1`, 'a later write does not repeat it');
+  await evaluate(`page().querySelector('.djp-card[data-id="djp_lena"] .djp-edit').click()`);
+  await check(`!page().querySelector('.djp-moved')`, 'the note goes once the DJ moves on');
 
   await open('nousb');
   await waitFor(`setupWizard.state.usbs!==null&&activeJob===null`, 'first look finished');
