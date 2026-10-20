@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- Private Preview.18 combines the current interface, profiles, loader, four-deck controls, MP3 VFP decoder and beta-update work. Hardware audio acceptance remains pending.
+
 - DJ Profile 1.0: each DJ's profile lives in its own folder under DJPROFILE on the USB, following the open DJ Profile standard. The first save on an older USB moves its profiles to the new layout; a copy of the old files stays on this computer. The XZ reads and writes the new layout and shows the USB colour set in rekordbox.
 
 - DJ Profile: the profile track wizard checks the USB and reports whether the track reached the rekordbox device library and OneLibrary. XZ Mods can read OneLibrary (exportLibrary.db). Open DJ Profile 1.0 specification draft in spec/djprofile.

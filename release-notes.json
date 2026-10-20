@@ -1,6 +1,26 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.18",
+      "date": "2026-10-20",
+      "preview": true,
+      "features": [
+        "One combined private build: current MODERN and CLASSIC interfaces, DJ Profile 1.0, OneLibrary support, and the latest USB loader and display bridge.",
+        "MODERN has one MODS menu, small stem buttons beside hot cues, independent stem layouts, and a BYPASS button. Four-deck layouts retain these controls for the native stem players.",
+        "Experimental USB-loopback decks 3 and 4 include loops, tempo ranges and pickup, pitch-preserving Master Tempo, bidirectional vinyl playback, AIFF, and both interface layouts."
+      ],
+      "fixes": [
+        "MP3 decoding now uses ARM hardware floating point. On the controller, the isolated decoder benchmark produced identical PCM at about 14 times the previous wall-clock speed. Full four-deck playback acceptance is pending.",
+        "Key Sync can turn off through a temporary metadata gap without clearing a newer track or manual pitch request, and restores the prior Master Tempo setting.",
+        "Preview builds check the beta update channel at launch and reject downgrades."
+      ],
+      "requirements": [
+        "Private local test build. Update the USB loader to use this runtime; updating the desktop app alone does not update the controller.",
+        "Four-deck audio still requires the supervised RAM bridge and a USB loopback cable. Stutter-free audio, route stability, and endurance are not yet verified.",
+        "Native LOAD behavior and slow waveform loading remain under investigation. Extra-deck AAC/M4A, jog displays, PLAY/CUE LED follow, phase sync, reverse, slip, quantize and memory cues remain incomplete."
+      ]
+    },
+    {
       "version": "0.3.0-preview.17",
       "date": "2026-10-19",
       "preview": true,
@@ -228,7 +248,7 @@
       "preview": true,
       "features": [
         "MP3 stems are prepared on the player's timeline. The decoder now keeps every MP3 frame, the way the XDJ-XZ does, instead of trimming the LAME encoder delay; the same fix OverCue Desktop 2.2.5 shipped today.",
-        "The stems page marks MP3 bundles made before this build with \"Prepare again Ãƒâ€šÃ‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
+        "The stems page marks MP3 bundles made before this build with \"Prepare again ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
       ],
       "fixes": [
         "Bundles from LAME-tagged MP3s (most MP3s) started 25 ms (1,105 frames) early against the player's full mix. Untagged MP3s, WAV and FLAC were never affected.",
