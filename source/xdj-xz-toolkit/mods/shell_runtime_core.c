@@ -4,6 +4,7 @@
 #include "shell/shell_settings.h"
 #include "shell/shell_browse.h"
 #include "settings.h"
+#include <stdint.h>
 #include <string.h>
 
 /* Codes from VJToolsLibrary docs/research/2026-10-18-xz-shell-abi.md R1. */
@@ -296,4 +297,153 @@ void xz_shrt_frame_mark(struct xz_shrt_frames *f, uint64_t now_us) {
   }
  }
  f->last_us=now_us;f->frames++;
+}
+
+/* ---- DECK 3 / DECK 4 ---- */
+_Static_assert(sizeof(struct xz_extra_column)==3&&sizeof(struct xz_shell_column)==3,"three bytes a column");
+_Static_assert(XZ_EXTRA_HOT_CUES==XZ_SHELL_HOT_CUES,"one hot cue per pad");
+#define EK(f) (s->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_##f))
+#define SK(f) XZ_SHELL_KNOWN(XZ_SHELL_F_##f)
+/* The loop length in beats at the track's BPM: whole beats, or 1/2..1/32. 0 when the BPM is unknown. */
+static void loop_beats(struct xz_shell_loop *l, int32_t ms, int32_t bpm_x100) {
+ l->beats_num=l->beats_den=0;
+ if(ms<=0||bpm_x100<=0)return;
+ int64_t milli=(int64_t)ms*bpm_x100/6000;       /* beats x 1000 */
+ if(milli>=750){l->beats_num=(int)((milli+500)/1000);l->beats_den=1;return;}
+ int den=2;
+ while(den<32&&milli*den<750)den*=2;
+ l->beats_num=1;l->beats_den=den;
+}
+static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, const struct xz_shrt_extra_parts *p,
+                     uint32_t model_now, uint32_t mono_now) {
+ memset(d,0,sizeof *d);
+ d->known=SK(LOADED);d->loaded=!!s->loaded;
+ if(EK(TITLE)){d->title=s->title;d->known|=SK(TITLE);}
+ if(EK(ARTIST)&&s->artist[0]){d->artist=s->artist;d->known|=SK(ARTIST);}
+ if(EK(SOURCE)&&(s->source==1||s->source==2)){d->source=s->source==1?XZ_SHELL_SRC_USB1:XZ_SHELL_SRC_USB2;d->known|=SK(SOURCE);}
+ if(EK(ELAPSED)){
+  d->elapsed_ms=s->elapsed_ms;d->known|=SK(ELAPSED);
+  uint32_t age=mono_now-s->elapsed_at_ms;
+  if(s->elapsed_at_ms&&(int32_t)age>=0&&age<60000u){d->elapsed_at_ms=model_now-age;if(!d->elapsed_at_ms)d->elapsed_at_ms=1;}
+ }
+ if(EK(TOTAL)){d->total_ms=s->total_ms;d->known|=SK(TOTAL);}
+ if(EK(PLAYING)){d->playing=!!s->playing;d->known|=SK(PLAYING);}
+ if(EK(BPM)){
+  d->bpm_x100=s->bpm_x100;d->known|=SK(BPM);
+  if(s->track_bpm_x100>0){d->track_bpm_x100=s->track_bpm_x100;d->known|=SK(TRACK_BPM);}
+ }
+ if(EK(TEMPO)){d->tempo_x100=s->tempo_x100;d->known|=SK(TEMPO);}
+ if(EK(MASTER)){d->master=!!s->master;d->known|=SK(MASTER);}
+ if(EK(KEY)&&s->key[0]){d->key=s->key;d->known|=SK(KEY);}
+ if(EK(CUE)){d->cue_ms=s->cue_ms;d->known|=SK(CUE_POINT);}
+ if(EK(HOT_CUES)){
+  for(int i=0;i<XZ_SHELL_HOT_CUES;i++)d->hot_cue[i]=(struct xz_shell_cue){!!s->hot_cue[i].set,s->hot_cue[i].ms,s->hot_cue[i].rgb,0};
+  d->known|=SK(HOT_CUES);
+ }
+ if(EK(LOOP)){
+  d->loop.active=!!s->loop.active;d->loop.in_ms=s->loop.in_ms;d->loop.out_ms=s->loop.out_ms;
+  if(EK(BPM))loop_beats(&d->loop,s->loop.out_ms-s->loop.in_ms,s->track_bpm_x100);
+  d->known|=SK(LOOP);
+ }
+ if(EK(GRID)&&p->grid&&p->grid_n){d->grid=p->grid;d->grid_count=p->grid_n;d->known|=SK(GRID);}
+ if(EK(WAVE)&&p->scroll&&p->scroll_n&&p->span_ms){
+  d->wave=(struct xz_shell_wave){p->scroll,p->scroll_n,p->span_ms};d->known|=SK(WAVE);
+  if(p->overview&&p->overview_n){d->overview=(struct xz_shell_wave){p->overview,p->overview_n,p->span_ms};d->known|=SK(OVERVIEW);}
+ }
+}
+#undef EK
+#undef SK
+void xz_shrt_extra_map(struct xz_shell_model *m, const struct xz_extra_decks *s, const struct xz_shrt_extra_parts parts[XZ_EXTRA_DECKS],
+                       uint32_t model_now, uint32_t mono_now) {
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)memset(&m->deck[XZ_EXTRA_FIRST_DECK+i],0,sizeof m->deck[0]);
+ m->sides_extra=0;
+ if(!s||!s->route_up){m->deck_count=XZ_SHELL_NATIVE_DECKS;return;}
+ m->deck_count=XZ_SHELL_NATIVE_DECKS+XZ_EXTRA_DECKS;
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)map_deck(&m->deck[XZ_EXTRA_FIRST_DECK+i],&s->deck[i],&parts[i],model_now,mono_now);
+ m->sides_extra=(uint8_t)((s->left_on_3?1u:0u)|(s->right_on_4?2u:0u));
+}
+uint32_t xz_shrt_extra_caps(struct xz_shell_model *m, uint32_t caps, int native_load, int extra_load, int deck_select) {
+ caps&=~(uint32_t)(XZ_SHELL_CAP_LOAD|XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_DECK_SELECT);
+ for(int d=0;d<XZ_SHELL_DECKS;d++)m->deck[d].caps_off=0;
+ if(m->deck_count!=XZ_SHELL_NATIVE_DECKS+XZ_EXTRA_DECKS){
+  if(native_load)caps|=XZ_SHELL_CAP_LOAD;
+  return m->capabilities=caps;
+ }
+ caps|=XZ_SHELL_CAP_SEEK;
+ if(native_load||extra_load)caps|=XZ_SHELL_CAP_LOAD;
+ if(deck_select)caps|=XZ_SHELL_CAP_DECK_SELECT;
+ for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)m->deck[d].caps_off=XZ_SHELL_CAP_SEEK|(native_load?0u:(uint32_t)XZ_SHELL_CAP_LOAD);
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)
+  m->deck[XZ_EXTRA_FIRST_DECK+i].caps_off=(XZ_SHRT_DECK_CAPS&~(uint32_t)XZ_SHRT_EXTRA_CAPS)|(extra_load?0u:(uint32_t)XZ_SHELL_CAP_LOAD);
+ return m->capabilities=caps;
+}
+enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *m, const struct xz_shell_action *a, int browse_slot,
+                                              struct xz_extra_deck_event *e) {
+ switch(a->kind){
+ case XZ_SHELL_ACT_SEEK:case XZ_SHELL_ACT_GRID_ADJUST:case XZ_SHELL_ACT_SET_SETTING:case XZ_SHELL_ACT_LOAD:
+ case XZ_SHELL_ACT_TAG_TRACK:case XZ_SHELL_ACT_STEM_MUTE:case XZ_SHELL_ACT_STEM_GAIN:case XZ_SHELL_ACT_LOAD_CUE:
+ case XZ_SHELL_ACT_GRID_EDIT:break;
+ default:return XZ_SHRT_EXTRA_NONE;
+ }
+ int i=a->deck-XZ_EXTRA_FIRST_DECK;
+ if(i<0||i>=XZ_EXTRA_DECKS)return XZ_SHRT_EXTRA_NONE;
+ if(m->deck_count!=XZ_SHELL_NATIVE_DECKS+XZ_EXTRA_DECKS)return XZ_SHRT_EXTRA_REFUSE;
+ uint32_t caps=m->capabilities&~m->deck[a->deck].caps_off;
+ memset(e,0,sizeof *e);e->deck=i;e->pressed=1;
+ if(a->kind==XZ_SHELL_ACT_LOAD&&(caps&XZ_SHELL_CAP_LOAD)&&a->id>0&&(browse_slot==0||browse_slot==1)){
+  e->kind=XZ_EXTRA_IN_LOAD;e->load.source=browse_slot+1;e->load.track_id=(uint32_t)a->id;
+  return XZ_SHRT_EXTRA_INPUT;
+ }
+ if(a->kind==XZ_SHELL_ACT_SEEK&&(caps&XZ_SHELL_CAP_SEEK)&&a->value>=0){e->kind=XZ_EXTRA_IN_SEEK;e->seek_ms=a->value;return XZ_SHRT_EXTRA_INPUT;}
+ return XZ_SHRT_EXTRA_REFUSE;
+}
+int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now) {
+ if(!s||s->notice_seq==*seen)return 0;
+ *seen=s->notice_seq;
+ return s->notice[0]&&mono_now-s->notice_at_ms<(uint32_t)XZ_SHELL_NOTICE_MS;
+}
+int xz_shrt_extra_active_deck(int active, unsigned was, unsigned now) {
+ unsigned changed=(was^now)&3u;
+ if(!changed)return active;
+ int side=active>=0?active&1:0;
+ if(!((changed>>side)&1u))side^=1;
+ return side+((now>>side)&1u?XZ_EXTRA_FIRST_DECK:0);
+}
+static void copy_text(char *out, size_t cap, const char *in) {
+ size_t full=in?strlen(in):0,n=full<cap?full:cap-1;
+ /* A cut never ends inside a UTF-8 sequence. */
+ if(n<full)while(n>0&&((unsigned char)in[n]&0xc0u)==0x80u)n--;
+ if(n)memcpy(out,in,n);
+ out[n]=0;
+}
+int xz_shrt_extra_track(struct xz_extra_track *out, int source, uint32_t track_id, const char *root, const char *rel,
+                        const char *title, const char *artist, const char *key, uint32_t bpm_x100) {
+ memset(out,0,sizeof *out);
+ out->source=source;out->track_id=track_id;
+ size_t r=root?strlen(root):0,n=rel?strlen(rel):0;
+ if(!n||r+n>=sizeof out->path)return -1;
+ memcpy(out->path,root,r);memcpy(out->path+r,rel,n+1);
+ copy_text(out->title,sizeof out->title,title);copy_text(out->artist,sizeof out->artist,artist);copy_text(out->key,sizeof out->key,key);
+ out->track_bpm_x100=bpm_x100<=(uint32_t)INT32_MAX?(int32_t)bpm_x100:0;
+ return 0;
+}
+uint32_t xz_shrt_band_peak(const uint8_t *bands, uint32_t count) {
+ uint32_t histogram[256]={0};
+ for(uint32_t i=0;i<count;i++){unsigned m=bands[i*3];if(bands[i*3+1]>m)m=bands[i*3+1];if(bands[i*3+2]>m)m=bands[i*3+2];histogram[m]++;}
+ uint64_t target=((uint64_t)count*995+999)/1000,seen=0;
+ for(unsigned v=0;v<256;v++){seen+=histogram[v];if(seen>=target)return v?v:1;}
+ return 255;
+}
+uint32_t xz_shrt_bin_columns(const uint8_t *bands, uint32_t count, uint32_t peak, struct xz_shell_column *out, uint32_t bins) {
+ uint32_t n=count<bins?count:bins;
+ if(!peak)peak=1;
+ for(uint32_t i=0;i<n;i++){
+  uint32_t first=(uint32_t)((uint64_t)i*count/n),end=(uint32_t)((uint64_t)(i+1)*count/n);
+  unsigned v[3]={0,0,0};
+  for(uint32_t j=first;j<end;j++)for(int b=0;b<3;b++)if(bands[j*3+b]>v[b])v[b]=bands[j*3+b];
+  unsigned s[3];
+  for(int b=0;b<3;b++){s[b]=v[b]*255u/peak;if(s[b]>255)s[b]=255;}
+  out[i]=(struct xz_shell_column){(uint8_t)s[0],(uint8_t)s[1],(uint8_t)s[2]};
+ }
+ return n;
 }
