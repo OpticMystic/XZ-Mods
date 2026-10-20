@@ -99,12 +99,12 @@ static void test_layout(void) {
   m.stem_layout=(enum xz_shell_stem_layout)layout;
   for(int d=0;d<4;d++){
    struct xz_shell_rect row=xz_shell_stem_row(&m,d),lane=rect(&m,XZ_SHELL_R_LANE,d);
-   if(d==2){assert(row.h==0&&xz_shell_stem_button(&m,d,0).h==0);continue;}
+   if(d==2){assert(row.h==0&&xz_shell_stem_button(NULL,&m,d,0).h==0);continue;}
    assert(row.h==24&&within(row,lane)&&row.y+row.h==lane.y+lane.h);
    for(int s=0;s<3;s++){
-    struct xz_shell_rect b=xz_shell_stem_button(&m,d,s);
+    struct xz_shell_rect b=xz_shell_stem_button(NULL,&m,d,s);
     assert(b.h==44&&within(b,lane));
-    for(int t=s+1;t<3;t++)assert(!overlap(b,xz_shell_stem_button(&m,d,t)));
+    for(int t=s+1;t<3;t++)assert(!overlap(b,xz_shell_stem_button(NULL,&m,d,t)));
    }
   }
   /* ZOOM/GRID moves up by the lowest deck's stem row. */
@@ -113,11 +113,47 @@ static void test_layout(void) {
   assert(!overlap(zoom,row3)&&within(zoom,rect(&m,XZ_SHELL_R_LANE,3)));
  }
  m.stem_layout=XZ_SHELL_STEMS_HIDDEN;
- for(int d=0;d<4;d++)assert(xz_shell_stem_row(&m,d).h==0&&xz_shell_stem_button(&m,d,1).h==0);
+ for(int d=0;d<4;d++)assert(xz_shell_stem_row(&m,d).h==0&&xz_shell_stem_button(NULL,&m,d,1).h==0);
  /* An unread layout still shows the buttons: the four-deck view has no pad row to hold them. */
  m.stem_layout_known=0;
- assert(xz_shell_stem_row(&m,0).h==24&&xz_shell_stem_button(&m,0,0).h==44);
+ assert(xz_shell_stem_row(&m,0).h==24&&xz_shell_stem_button(NULL,&m,0,0).h==44);
  puts("PASS four-deck layout: lanes, quarter strips, 44 px targets, stem rows");
+}
+
+static void test_bypass_four(void) {
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ xz_shell_init(&u);fx_model_four(&m,&track);stems_on(&m);
+ assert(!(XZ_SHELL_CAP_DECK_SELECT&XZ_SHELL_CAP_STEM_BYPASS));
+ m.capabilities|=XZ_SHELL_CAP_STEM_BYPASS;
+ for(int d=0;d<4;d++)m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_BYPASS);
+ for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
+  m.stem_layout=(enum xz_shell_stem_layout)layout;
+  for(int d=0;d<4;d++){
+   struct xz_shell_rect b=xz_shell_bypass_button(&u,&m,d);
+   if(layout==XZ_SHELL_STEMS_HIDDEN){assert(b.h==0);continue;}
+   assert(b.h==44&&within(b,rect(&m,XZ_SHELL_R_LANE,d)));
+   for(int s=0;s<3;s++)assert(!overlap(b,xz_shell_stem_button(&u,&m,d,s)));
+   assert(tap_rect(&u,&m,b,out)==1&&out[0].kind==XZ_SHELL_ACT_STEM_BYPASS&&out[0].deck==d);
+  }
+  if(layout!=XZ_SHELL_STEMS_HIDDEN){
+   struct xz_shell_rect zoom=rect(&m,XZ_SHELL_R_ZOOM,0);zoom.y-=44;
+   assert(!overlap(zoom,xz_shell_bypass_button(&u,&m,3)));
+   u.deck=3;
+   assert(tap_rect(&u,&m,zoom,out)==0&&u.grid_mode);
+   u.grid_mode=0;
+  }
+  render_both(&u,&m);
+ }
+ /* An unsupported deck cannot expose BYPASS, even with stale known state. */
+ m.deck[2].caps_off|=XZ_SHELL_CAP_STEM_BYPASS;
+ assert(xz_shell_bypass_button(&u,&m,2).h==0);
+ /* GRID owns its row while visible; touching the hidden BYPASS cannot toggle audio. */
+ u.deck=3;u.grid_mode=1;m.capabilities|=XZ_SHELL_CAP_GRID_EDIT;
+ struct xz_shell_rect b=xz_shell_bypass_button(&u,&m,3);
+ size_t n=tap_rect(&u,&m,b,out);
+ for(size_t i=0;i<n;i++)assert(out[i].kind!=XZ_SHELL_ACT_STEM_BYPASS);
+ render_both(&u,&m);
+ puts("PASS four-deck BYPASS: unique capability, half-row targets, PADS fallback, grid priority");
 }
 
 static void test_deck_input(void) {
@@ -164,14 +200,14 @@ static void test_deck_input(void) {
  stems_on(&m);
  for(int d=2;d<4;d++)for(int s=0;s<3;s++){
   xz_shell_init(&u);
-  assert(tap_rect(&u,&m,xz_shell_stem_button(&m,d,s),out)==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==d&&out[0].id==s&&out[0].value==1);
+  assert(tap_rect(&u,&m,xz_shell_stem_button(NULL,&m,d,s),out)==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==d&&out[0].id==s&&out[0].value==1);
  }
  /* GRID edit takes the active deck's stem row: its buttons answer where the stems were. */
  xz_shell_init(&u);u.deck=3;u.grid_mode=1;
  struct xz_shell_rect snap=rect(&m,XZ_SHELL_R_GRID_SNAP,3);
- assert(overlap(snap,xz_shell_stem_button(&m,3,2)));
+ assert(overlap(snap,xz_shell_stem_button(NULL,&m,3,2)));
  assert(tap_rect(&u,&m,snap,out)==1&&out[0].kind==XZ_SHELL_ACT_GRID_EDIT&&out[0].deck==3);
- assert(tap_rect(&u,&m,xz_shell_stem_button(&m,2,0),out)==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==2);
+ assert(tap_rect(&u,&m,xz_shell_stem_button(NULL,&m,2,0),out)==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==2);
  puts("PASS four-deck input: tag, time, needle search, keys, GRID, alert and stems on decks 3 and 4");
 }
 
@@ -236,7 +272,7 @@ static void test_refusal(void) {
  stems_on(&two);
  for(int d=2;d<XZ_SHELL_DECKS;d++){
   assert(xz_shell_elapsed_now(&two,d)==-1&&xz_shell_elapsed_now(&four,d)>=0);
-  assert(xz_shell_stem_row(&two,d).h==0&&xz_shell_stem_button(&two,d,0).h==0);
+  assert(xz_shell_stem_row(&two,d).h==0&&xz_shell_stem_button(NULL,&two,d,0).h==0);
  }
  assert(xz_shell_elapsed_now(&four,4)==-1&&xz_shell_elapsed_now(&four,-1)==-1);
  /* A key for deck 3 on a two-deck model acts on the active deck, as a key for deck 9 always has. */
@@ -310,7 +346,7 @@ static void test_players(void) {
  stems_on(&m);m.capabilities|=XZ_SHELL_CAP_STEM_GAIN;
  for(int d=2;d<4;d++){
   m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_GAIN);
-  assert(xz_shell_stem_button(&m,d,0).h==0);
+  assert(xz_shell_stem_button(NULL,&m,d,0).h==0);
  }
  render_both(&u,&m);
  fx_model_four_players(&m,&track);
@@ -423,6 +459,7 @@ int main(void) {
  bx_build(&lib);
  (void)bx_folders;(void)fxs_item;
  test_layout();
+ test_bypass_four();
  test_deck_input();
  test_strips();
  test_refusal();

@@ -19,6 +19,7 @@
 #include "shell/shell.h"
 #include "shell_model.h"
 #include "extra_decks.h"
+#include "shell/shell_settings.h"
 
 /* ---- Device entry points (shell_runtime.c). Weak in ui_runtime.c. ---- */
 struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cents, synced; int matches_master, shift; };
@@ -29,13 +30,14 @@ struct xz_shell_runtime_frame_input {
  int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
  int stem_muted_known[XZ_SHELL_NATIVE_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
  unsigned stem_muted[XZ_SHELL_NATIVE_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
+ int stem_bypass[XZ_SHELL_NATIVE_DECKS]; /* Native stem BYPASS state. */
  int stem_rgb_known; uint32_t stem_rgb[3]; /* stem pad colours 0xRRGGBB: drums, harmonics, vocal */
  int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
  /* DJ profiles on the sticks: dj_runtime's view, copied (entry i = view entry i). */
  int dj_known, dj_count;
  /* The appearance settings the MODS > APPEARANCE tab shows (ui_runtime.c's model). */
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
- int stems_overlay;           /* enum xz_stem_layout: the stem row layout (MY SETTINGS > WAVEFORM) */
+ int stems_overlay;           /* MODERN's stem layout (settings modern_stems): enum xz_shell_stem_layout */
  int rekordbox_known, rekordbox_assign[2]; /* the REKORDBOX button's press and SHIFT + press (enum xz_rekordbox_action) */
  int stem_level_known[XZ_SHELL_NATIVE_DECKS]; float stem_level[XZ_SHELL_NATIVE_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
  struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
@@ -72,7 +74,26 @@ void xz_shell_runtime_owner_tick(void);
 /* Header-button requests the shell cannot execute itself (they belong to ui_runtime.c's MODS panel and
    STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
    right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
-enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u };
+enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u,
+ XZ_SHELL_UI_MENU=32u };
+/* The MODS screen's MENU tabs (GENERAL, CONTROLS, ADVANCED, EXTRAS) are the MODS panel's own pages, drawn by
+   the shell (ui/ui_menu.h describes them). ui_runtime.c publishes the panel's open page whenever menu_wanted
+   says the shell shows a MENU tab (every frame, and right after it runs a command, so the next input already
+   sees the page a push opened). XZ_SHELL_UI_MENU: the commands a push asked for, oldest first; ui_runtime.c
+   runs them on the panel state under its UI lock. */
+struct xz_shell_menu;
+int xz_shell_runtime_menu_wanted(void);
+void xz_shell_runtime_menu(const struct xz_shell_menu *);
+/* op: enum xz_shell_menu_op. OPEN: root; ACTIVATE: target; BACK; PRESS/MOVE/RELEASE: target, x, y (0..1000). */
+struct xz_shell_runtime_menu_command { int op, root, x, y; struct xz_shell_menu_target target; };
+int xz_shell_runtime_take_menu_command(struct xz_shell_runtime_menu_command *);
+/* A panel control led to a mod page (a setup the runtime opens itself): MODS opens on the MENU tab whose
+   root holds it, inside the page. 0 when the shell cannot show it (no such tab, not running). close: MODS
+   leaves the screen (a setup finished with "back to play"). */
+int xz_shell_runtime_show_mods(int root);
+void xz_shell_runtime_close_mods(void);
+/* MODS is the shell's top screen (it then draws over the VJ takeover, as the panel does in CLASSIC). */
+int xz_shell_runtime_mods_open(void);
 /* XZ_SHELL_UI_ACTION: MODS-panel actions the shell's item tabs asked for, oldest first (kind = enum
    xz_ui_action_kind, index, value as the panel sends them); 0 when none is left. ui_runtime.c runs them
    through apply(), so side effects and the settings save are the panel's own. */
@@ -266,7 +287,7 @@ int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100);
 /* Every per-deck action of enum xz_shell_cap, and the ones the players take. The native decks have no
    seek input. */
 #define XZ_SHRT_DECK_CAPS (XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_LOAD|XZ_SHELL_CAP_SET_SETTING|XZ_SHELL_CAP_GRID|\
- XZ_SHELL_CAP_GRID_EDIT|XZ_SHELL_CAP_TAG_TRACK|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_CUE_LIST)
+ XZ_SHELL_CAP_GRID_EDIT|XZ_SHELL_CAP_TAG_TRACK|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_STEM_BYPASS|XZ_SHELL_CAP_CUE_LIST)
 #define XZ_SHRT_EXTRA_CAPS (XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_LOAD)
 /* A player's wave (lane and overview columns) and beat grid, converted by the runtime into memory it keeps
    (the snapshot's arrays are the players'). */

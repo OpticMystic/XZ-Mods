@@ -114,10 +114,10 @@ int xz_shell_restore_setting(struct xz_shell *u, int id, int value) {
  case XZ_SHELL_ITEM_KEY_DISPLAY:if(value<XZ_SHELL_KEY_AS_DECK||value>XZ_SHELL_KEY_ALPHANUMERIC)return 0;u->display.key_display=(enum xz_shell_key_display)value;return 1;
  case XZ_SHELL_ITEM_WAVE_ZOOM:if(value<0||value>XZ_SHELL_ZOOM_MAX)return 0;u->zoom=value;return 1;
  case XZ_SHELL_ITEM_USB_COLORS:if(value<XZ_SHELL_USB_COLORS_ALL||value>XZ_SHELL_USB_COLORS_OFF)return 0;u->display.usb_colors=(enum xz_shell_usb_colors)value;return 1;
- case XZ_SHELL_ITEM_MODE_LAMPS:case XZ_SHELL_ITEM_QUANTIZE_LAMP:{
+ case XZ_SHELL_ITEM_MODE_LAMPS:case XZ_SHELL_ITEM_QUANTIZE_LAMP:case XZ_SHELL_ITEM_BYPASS_BUTTON:{
   /* value 0 SHOW, 1 HIDE */
   if(value!=0&&value!=1)return 0;
-  uint32_t bit=1u<<(id==XZ_SHELL_ITEM_MODE_LAMPS?XZ_SHELL_IND_MODE_LAMPS:XZ_SHELL_IND_QUANTIZE);
+  uint32_t bit=1u<<(id==XZ_SHELL_ITEM_MODE_LAMPS?XZ_SHELL_IND_MODE_LAMPS:id==XZ_SHELL_ITEM_QUANTIZE_LAMP?XZ_SHELL_IND_QUANTIZE:XZ_SHELL_IND_BYPASS);
   u->display.hidden=value?u->display.hidden|bit:u->display.hidden&~bit;
   return 1;
  }
@@ -139,15 +139,18 @@ static void header_button(struct xz_canvas c, int x, int w, const char *label, i
  xz_rect(c,x+8,h-5,w-16,2,lit?SH_WHITE:XZ_FLAGSHIP_RAIL_SELECTED);
  sh_text_center(c,x+w/2,5,label,SH_SMALL,SH_WHITE);
 }
+const enum xz_shell_stem_layout xz_shell_stem_cycle[XZ_SHELL_STEM_LAYOUTS]={XZ_SHELL_STEMS_PADS,XZ_SHELL_STEMS_BELOW_FULL,
+ XZ_SHELL_STEMS_BELOW_HALF,XZ_SHELL_STEMS_OUTSIDE_FULL,XZ_SHELL_STEMS_OUTSIDE_HALF,XZ_SHELL_STEMS_HIDDEN};
 void sh_header_buttons(const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,XZ_SHELL_HEADER_X-2,0,XZ_SHELL_WIDTH-XZ_SHELL_HEADER_X+2,XZ_SHELL_HEADER_BUTTON_H,SH_CHROME);
  header_button(c,XZ_SHELL_STEMS_X,XZ_SHELL_STEMS_W,"STEMS",m->stems_known&&m->stems_on);
- /* Five marks under STEMS, one per stem row layout, as the classic STEMS button shows its choice. */
+ /* One mark under STEMS per layout, in the order the button steps them, as the classic STEMS button shows its
+    choice. */
  if(m->stem_layout_known&&(unsigned)m->stem_layout<XZ_SHELL_STEM_LAYOUTS){
-  int h=XZ_SHELL_HEADER_BUTTON_H,x=XZ_SHELL_STEMS_X+8,w=XZ_SHELL_STEMS_W-16,mw=(w-4*2)/5;
+  int h=XZ_SHELL_HEADER_BUTTON_H,x=XZ_SHELL_STEMS_X+8,w=XZ_SHELL_STEMS_W-16,mw=(w-(XZ_SHELL_STEM_LAYOUTS-1)*2)/XZ_SHELL_STEM_LAYOUTS;
   int lit=m->stems_known&&m->stems_on;
   xz_rect(c,x,h-5,w,2,lit?SH_BLUE:XZ_FLAGSHIP_TILE);
-  for(int i=0;i<XZ_SHELL_STEM_LAYOUTS;i++)xz_rect(c,x+i*(mw+2),h-5,mw,2,i==(int)m->stem_layout?SH_WHITE:lit?0x6ea8e8:XZ_FLAGSHIP_RAIL_SELECTED);
+  for(int i=0;i<XZ_SHELL_STEM_LAYOUTS;i++)xz_rect(c,x+i*(mw+2),h-5,mw,2,xz_shell_stem_cycle[i]==m->stem_layout?SH_WHITE:lit?0x6ea8e8:XZ_FLAGSHIP_RAIL_SELECTED);
  }
  header_button(c,XZ_SHELL_MODS_X,XZ_SHELL_MODS_W,"MODS",0);
 }
@@ -254,7 +257,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
   u->popup.kind=XZ_SHELL_POPUP_NONE;close_panels(u);
   if(xz_shell_screen(u)==XZ_SHELL_UTILITY){if(u->depth>1)u->depth--;return 0;}
   open_mods(u,m->mods&&m->mods->tabs&&m->mods->count>0?1:0);
-  return 0;
+  return sh_mods_opened(u,m,out,0);
  }
  uint16_t packed=nav[xz_shell_screen(u)][k];
  struct { enum nav_kind kind; enum xz_shell_screen screen; enum xz_shell_setting setting; } t={(enum nav_kind)(packed&15),(enum xz_shell_screen)(packed>>4),(enum xz_shell_setting)(packed>>4)};
@@ -269,7 +272,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
      MODS, as SHORTCUT does, so the key always has an effect and never reaches the stock menu. */
   if(t.screen==XZ_SHELL_UTILITY&&available(m,t.screen)){
    if(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.tab==0&&u->mods_view.on_tabs&&u->depth>1)u->depth--;
-   else open_mods(u,0);
+   else{open_mods(u,0);n=sh_mods_opened(u,m,out,n);}
    return n;
   }
   if(on_stack(u,t.screen))break;
@@ -283,6 +286,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
   if(!available(m,XZ_SHELL_UTILITY))break;
   close_panels(u);
   open_mods(u,m->mods&&m->mods->tabs&&m->mods->count>0?1:0);
+  n=sh_mods_opened(u,m,out,n);
   break;
  case NAV_FILTER:return track_filter(u,m,out);
  case NAV_HAND_OFF:return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_HAND_OFF_MENU});
@@ -348,7 +352,7 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
    /* With mod tabs to show, MODS opens the shell's own MODS screen on the first of them. */
    if(hit==XZ_SHELL_ACT_OPEN_MODS&&m->mods&&m->mods->count>0&&m->mods->tabs&&available(m,XZ_SHELL_UTILITY)){
     close_panels(u);open_mods(u,1);
-    return 0;
+    return sh_mods_opened(u,m,out,0);
    }
    return emit(out,0,(struct xz_shell_action){hit,-1,0,0});
   }

@@ -33,6 +33,24 @@ static inline int xz_wave_layout_get(int mode,struct xz_wave_layout *out) {
 static inline int xz_wave_layout_next(int mode) {
  return (unsigned)mode<XZ_STEM_LAYOUT_COUNT?(mode+1)%XZ_STEM_LAYOUT_COUNT:XZ_STEM_LAYOUT_BELOW;
 }
+/* MODERN keeps its own layout (settings modern_stems): the five above plus PADS, small stem buttons in the
+   pad row beside the hot-cue lamps, which the classic screen has no room for. */
+enum { XZ_MODERN_STEMS_PADS=XZ_STEM_LAYOUT_COUNT, XZ_MODERN_STEMS_COUNT };
+/* The STEMS button's order in MODERN: PADS, the four row layouts, HIDDEN, then PADS again. */
+static const int xz_modern_stems_order[XZ_MODERN_STEMS_COUNT]={XZ_MODERN_STEMS_PADS,XZ_STEM_LAYOUT_BELOW,XZ_STEM_LAYOUT_BELOW_HALF,
+ XZ_STEM_LAYOUT_OUTER,XZ_STEM_LAYOUT_OUTER_HALF,XZ_STEM_LAYOUT_HIDDEN};
+static inline int xz_modern_stems_position(int mode) {
+ for(int i=0;i<XZ_MODERN_STEMS_COUNT;i++)if(xz_modern_stems_order[i]==mode)return i;
+ return -1;
+}
+static inline int xz_modern_stems_next(int mode) {
+ int i=xz_modern_stems_position(mode);
+ return xz_modern_stems_order[i<0?0:(i+1)%XZ_MODERN_STEMS_COUNT];
+}
+static inline const char *xz_wave_layout_name(int mode);
+static inline const char *xz_modern_stems_name(int mode) {
+ return mode==XZ_MODERN_STEMS_PADS?"PAD ROW / SMALL":xz_wave_layout_name(mode);
+}
 static inline const char *xz_wave_layout_name(int mode) {
  static const char *const names[XZ_STEM_LAYOUT_COUNT]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF"};
  return names[(unsigned)mode<XZ_STEM_LAYOUT_COUNT?mode:0];

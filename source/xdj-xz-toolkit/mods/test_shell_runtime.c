@@ -728,7 +728,7 @@ static void extra_decks(void) {
  for(int d=0;d<4;d++)assert(!m.deck[d].caps_off);
  assert(xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,0,1,1)==XZ_SHELL_CAP_BROWSE);
  extra_snapshot(&s);xz_shrt_extra_map(&m,&s,parts,500000,10000);
- uint32_t caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_GRID|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_SET_SETTING,1,1,1);
+ uint32_t caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_GRID|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_BYPASS|XZ_SHELL_CAP_SET_SETTING,1,1,1);
  assert(caps&XZ_SHELL_CAP_SEEK&&caps&XZ_SHELL_CAP_LOAD&&caps&XZ_SHELL_CAP_DECK_SELECT&&m.capabilities==caps);
  assert(m.deck[0].caps_off==XZ_SHELL_CAP_SEEK&&m.deck[1].caps_off==XZ_SHELL_CAP_SEEK);
  for(int d=2;d<4;d++){
@@ -752,7 +752,7 @@ static void extra_decks(void) {
  a.value=-1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
  a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,0,1000,0};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
  static const enum xz_shell_action_kind refused[]={XZ_SHELL_ACT_GRID_ADJUST,XZ_SHELL_ACT_SET_SETTING,XZ_SHELL_ACT_TAG_TRACK,
-  XZ_SHELL_ACT_STEM_MUTE,XZ_SHELL_ACT_STEM_GAIN,XZ_SHELL_ACT_LOAD_CUE,XZ_SHELL_ACT_GRID_EDIT};
+  XZ_SHELL_ACT_STEM_MUTE,XZ_SHELL_ACT_STEM_GAIN,XZ_SHELL_ACT_STEM_BYPASS,XZ_SHELL_ACT_LOAD_CUE,XZ_SHELL_ACT_GRID_EDIT};
  for(size_t i=0;i<sizeof refused/sizeof *refused;i++)for(int d=2;d<4;d++){
   a=(struct xz_shell_action){refused[i],d,1,1};
   assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);

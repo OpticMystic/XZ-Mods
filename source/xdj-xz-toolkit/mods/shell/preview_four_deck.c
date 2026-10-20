@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
  fx_model_four(&m,&track);
 
  /* Stems on decks 1 and 2 in every stem layout: the four-deck view draws each as a half row. */
- static const char *const layouts[XZ_SHELL_STEM_LAYOUTS]={"hidden","below-full","below-half","outside-full","outside-half"};
+ static const char *const layouts[XZ_SHELL_STEM_LAYOUTS]={"hidden","below-full","below-half","outside-full","outside-half","pads"};
  m.capabilities|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN;
  m.stems_known=1;m.stems_on=1;m.stem_layout_known=1;
  stems_on(&m,0,0);stems_on(&m,1,4);
@@ -76,6 +76,10 @@ int main(int argc, char **argv) {
   m.stem_layout=(enum xz_shell_stem_layout)l;shot(&u,&m,name);
  }
  m.stem_layout_known=0;shot(&u,&m,"play-4deck-stems-layout-unread");
+ m.stem_layout_known=1;m.stem_layout=XZ_SHELL_STEMS_PADS;
+ m.capabilities|=XZ_SHELL_CAP_STEM_BYPASS;
+ for(int d=0;d<2;d++)m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_BYPASS);
+ m.deck[1].stem_bypass=1;shot(&u,&m,"play-4deck-stems-pads-bypass");
  m.stem_layout_known=1;m.stem_layout=XZ_SHELL_STEMS_BELOW_HALF;
 
  /* GRID on deck 4: its buttons take deck 4's stem row while they show. */

@@ -237,6 +237,9 @@ static size_t profile_controls(const struct xz_ui *u,const struct xz_ui_model *m
  add(w,&n,XZ_UI_PANEL,XZ_UI_PROFILE_SETUP,0,m->dj->count?"OPEN DJ PROFILE":"SET UP DJ PROFILE");
  return n;
 }
+int xz_ui_page_is_top(int page){return root_page((enum xz_ui_page)page);}
+static enum xz_ui_page parent_page(enum xz_ui_page page);
+int xz_ui_page_parent(int page){return (unsigned)page<XZ_UI_PAGE_COUNT?(int)parent_page((enum xz_ui_page)page):page;}
 static enum xz_ui_page parent_page(enum xz_ui_page page){
  switch(page){
  case XZ_UI_STEMS:case XZ_UI_XPAD:case XZ_UI_KEY_SETUP:case XZ_UI_BROWSE_SETUP:case XZ_UI_RAM_SETUP:return XZ_UI_SETTINGS;

@@ -298,7 +298,7 @@ static void refuse(void);
 static void save_display(int id, int value);
 /* MODS > APPEARANCE in the shell's own style: an item tab whose sets run the MODS panel's own actions. */
 enum { LOOK_TAB=3, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
-       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP };
+       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP, LOOK_BYPASS };
 static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
 static const char *const look_interface[2]={"MODERN","CLASSIC"};
 _Static_assert(XZ_UI_MODERN_THEMES==1,"one modern theme name below");
@@ -308,10 +308,12 @@ static const char *const look_key_format[3]={"USB PREFERENCE","CLASSIC","WHEEL"}
 static const char *const look_off_on[2]={"OFF","ON"};
 static const char *const look_stem_color[9]={"THEME DEFAULT","BLUE","RED","GREEN","AMBER","PURPLE","CYAN","PINK","WHITE"};
 static const char *const look_show_hide[2]={"SHOW","HIDE"};
-static struct xz_shell_setting_item look_items[11];
+static struct xz_shell_setting_item look_items[12];
 static struct xz_shell_settings_model look_model;
 /* MY SETTINGS > WAVEFORM: the stem row layout, set through SET_MOD on the APPEARANCE tab (waveform_tab). */
-static const char *const look_stem_layout[5]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF"};
+/* In the STEMS button's order (xz_shell_stem_cycle): choice i is layout xz_shell_stem_cycle[i]. */
+static const char *const look_stem_layout[XZ_SHELL_STEM_LAYOUTS]={"PAD ROW / SMALL","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF","HIDDEN"};
+_Static_assert(XZ_SHELL_STEMS_PADS==5&&XZ_SHELL_STEM_LAYOUTS==6,"modern_stems values (ui/wave_viewport.h XZ_MODERN_STEMS_PADS)");
 static struct xz_shell_setting_item wave_items[1];
 static struct xz_shell_settings_model wave_model;
 /* Descriptions (shell_settings.h help): APPEARANCE is scope LOOK_TAB + 1; the WAVEFORM items share it. */
@@ -321,9 +323,15 @@ static const char *const help_wave[3]={"The player's own waveform.","Lows, mids 
 static const char *const help_key_format[3]={"As the stick's library sets it.","Note names, like Am.","Wheel numbers, like 8A."};
 static const char *const help_mode_lamps[2]={"Each lamp lights while its mode is on.","The lamps leave the screen; the modes keep working."};
 static const char *const help_quantize_lamp[2]={"Red while QUANTIZE is on, grey while it is off.","The QUANTIZE button's own light still shows it."};
+static const char *const help_bypass[2]={"Touch it to hear the whole track; touch again for the stems as you left them.","The stem buttons take its room."};
 static const char *const help_stem_color[9]={"Follows the theme.",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
-static const char *const help_stem_layout[5]={"Normal waveforms, no stem rows.","Stem rows under the waveforms, full height.",
- "Stem rows under the waveforms, half height.","Stem rows outside the waveforms, full height.","Stem rows outside the waveforms, half height."};
+static const char *const help_stem_layout[XZ_SHELL_STEM_LAYOUTS]={"Small stem buttons beside each deck's hot cues; the waveforms keep their height.",
+ "Stem rows under the waveforms, full height.","Stem rows under the waveforms, half height.","Stem rows outside the waveforms, full height.",
+ "Stem rows outside the waveforms, half height.","Normal waveforms, no stem buttons."};
+static int stem_cycle_position(int layout) {
+ for(int i=0;i<XZ_SHELL_STEM_LAYOUTS;i++)if((int)xz_shell_stem_cycle[i]==layout)return i;
+ return -1;
+}
 #define HELP(id,text,count,choices) {LOOK_TAB+1,id,text,count,choices}
 static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_INTERFACE,"Who draws the player screen.",2,help_interface),
@@ -337,7 +345,8 @@ static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_DRUMS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
  HELP(LOOK_HARMONICS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
  HELP(LOOK_VOCALS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
- HELP(LOOK_STEM_LAYOUT,"Where the stem rows sit next to the waveforms, and how tall they are.",5,help_stem_layout),
+ HELP(LOOK_BYPASS,"The BYPASS button after each deck's stem buttons: lit, the original track plays over the stems.",2,help_bypass),
+ HELP(LOOK_STEM_LAYOUT,"Where the stem buttons sit on the play screen. The STEMS button steps through these in this order.",XZ_SHELL_STEM_LAYOUTS,help_stem_layout),
 };
 #undef HELP
 /* MODS > BUTTONS: the REKORDBOX button's two slots, the same rows as the panel's CONTROLS > BUTTONS. Item id =
@@ -389,9 +398,12 @@ static void fill_look(void) {
  LOOK(9,LOOK_HARMONICS,3,"HARMONICS COLOR",look_stem_color,9,in->stem_colors[1]>=0&&in->stem_colors[1]<9?in->stem_colors[1]:0);
  LOOK(10,LOOK_VOCALS,3,"VOCALS COLOR",look_stem_color,9,in->stem_colors[2]>=0&&in->stem_colors[2]<9?in->stem_colors[2]:0);
 #undef LOOK
- look_model=(struct xz_shell_settings_model){11,look_items,NULL};
- wave_items[0]=(struct xz_shell_setting_item){LOOK_STEM_LAYOUT,(enum xz_shell_setting_category)2,"STEM ROW LAYOUT",look_stem_layout,5,
-  k&&in->stems_overlay>=0&&in->stems_overlay<5?in->stems_overlay:0,k,k};
+ look_items[11]=(struct xz_shell_setting_item){LOOK_BYPASS,(enum xz_shell_setting_category)3,"BYPASS BUTTON",look_show_hide,2,
+  (int)((shell.display.hidden>>XZ_SHELL_IND_BYPASS)&1),1,1};
+ look_model=(struct xz_shell_settings_model){12,look_items,NULL};
+ int at=k?stem_cycle_position(in->stems_overlay):-1;
+ wave_items[0]=(struct xz_shell_setting_item){LOOK_STEM_LAYOUT,(enum xz_shell_setting_category)2,"STEM BUTTONS",look_stem_layout,XZ_SHELL_STEM_LAYOUTS,
+  at<0?0:at,k&&at>=0,k&&at>=0};
  wave_model=(struct xz_shell_settings_model){1,wave_items,NULL};
 }
 static void ui_action_locked(int kind, int deck, int index, float value, uint32_t now) {
@@ -412,8 +424,8 @@ static void look_set_locked(int id, int choice, uint32_t now) {
   }else if(choice==0)ui_action_locked(XZ_UI_SET_INTERFACE,-1,XZ_UI_INTERFACE_MODERN,0,now);
   else refuse();
   return;
- case LOOK_MODE_LAMPS:case LOOK_QUANTIZE_LAMP:{
-  int item=id==LOOK_MODE_LAMPS?XZ_SHELL_ITEM_MODE_LAMPS:XZ_SHELL_ITEM_QUANTIZE_LAMP;
+ case LOOK_MODE_LAMPS:case LOOK_QUANTIZE_LAMP:case LOOK_BYPASS:{
+  int item=id==LOOK_MODE_LAMPS?XZ_SHELL_ITEM_MODE_LAMPS:id==LOOK_QUANTIZE_LAMP?XZ_SHELL_ITEM_QUANTIZE_LAMP:XZ_SHELL_ITEM_BYPASS_BUTTON;
   if(choice==0||choice==1){xz_shell_restore_setting(&shell,item,choice);save_display(item,choice);}else refuse();
   return;}
  case LOOK_THEME:if(choice==0)ui_action_locked(XZ_UI_SET_MODERN_THEME,-1,choice,0,now);else refuse();return;
@@ -422,10 +434,10 @@ static void look_set_locked(int id, int choice, uint32_t now) {
  case LOOK_KEY_FEEDBACK:ui_action_locked(XZ_UI_KEY_FEEDBACK,-1,0,choice?1.f:0.f,now);return;
  case LOOK_TRAFFIC:ui_action_locked(XZ_UI_BROWSE_TRAFFIC,-1,0,choice?1.f:0.f,now);return;
  case LOOK_STEM_LAYOUT:{
-  /* The panel's layout control steps to the next layout: step from the current one to the choice. */
-  int from=last_input.stems_overlay;
-  if(choice<0||choice>=5||from<0||from>=5){refuse();return;}
-  for(int steps=(choice-from+5)%5;steps>0;steps--)ui_action_locked(XZ_UI_STEMS_OVERLAY,-1,0,0,now);
+  /* The STEMS action steps to the next layout in the cycle: step from the current one to the choice. */
+  int from=stem_cycle_position(last_input.stems_overlay);
+  if(choice<0||choice>=XZ_SHELL_STEM_LAYOUTS||from<0){refuse();return;}
+  for(int steps=(choice-from+XZ_SHELL_STEM_LAYOUTS)%XZ_SHELL_STEM_LAYOUTS;steps>0;steps--)ui_action_locked(XZ_UI_STEMS_OVERLAY,-1,0,0,now);
   return;
  }
  case LOOK_DRUMS:case LOOK_HARMONICS:case LOOK_VOCALS:
@@ -434,16 +446,26 @@ static void look_set_locked(int id, int choice, uint32_t now) {
  default:refuse();return;
  }
 }
+/* GENERAL, CONTROLS, ADVANCED and EXTRAS are the MODS panel's own top pages as MENU tabs: ui_runtime.c
+   publishes the panel's open page (ui/ui_menu.h) and runs what a push asks for, so the shell draws every
+   page and sub-page and the panel never opens over it. */
 static const struct xz_shell_mods_tab mod_tabs[6]={
- {"GENERAL",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_GENERAL,"TURN MODS ON AND OFF AND SET THEM UP"},
- {"CONTROLS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_CONTROLS,"STEM PAD SHORTCUTS AND CUSTOM BEAT JUMPS"},
+ {"GENERAL",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_GENERAL,NULL},
+ {"CONTROLS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_CONTROLS,NULL},
  {"BUTTONS",XZ_SHELL_TAB_ITEMS,&buttons_model,buttons_sections,1,XZ_UI_BUTTONS,NULL},
  {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,look_sections,4,XZ_UI_THEMES,NULL},
- {"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_SETTINGS,"KEY SHIFT, KEY SYNC, GROOVE PADS, X-PAD AND RAM TRACKS"},
- {"EXTRAS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_EXTRAS,"VJ.TOOLS LINK, GAMES, USB APPS AND UPDATES"}};
+ {"ADVANCED",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_SETTINGS,NULL},
+ {"EXTRAS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_EXTRAS,NULL}};
 _Static_assert(BUTTONS_TAB==2&&LOOK_TAB==3,"tab indexes follow mod_tabs");
 static const struct xz_shell_mods_model mods_model={6,mod_tabs};
 static int mods_page=-1; /* under mutex: the page OPEN_MODS asked for */
+/* The MENU tabs' page as ui_runtime.c last published it, and the commands a push asked for. Under mutex. */
+static struct xz_shell_menu menu_page;
+static int menu_valid;
+static int menu_wanted_flag, mods_open_flag;
+#define MENU_QUEUE 8
+static struct xz_shell_runtime_menu_command menu_queue[MENU_QUEUE];
+static unsigned menu_count;
 /* TIME MODE, AUTO CUE, the stock UTILITY items and VERSION. */
 #define SETTING_ROWS (2+XZ_SHUT_DEFS+1)
 static struct xz_shell_setting_item setting_items[SETTING_ROWS];
@@ -709,7 +731,7 @@ static void fill_slots_locked(void) {
  if(lib)caps|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEARCH;
  if(lib)caps|=XZ_SHELL_CAP_FILTER;
  if(lib&&!usb[browse_source].rdonly&&usb[browse_source].root[0])caps|=XZ_SHELL_CAP_PLAYLIST_EDIT|XZ_SHELL_CAP_TAG_EDIT|XZ_SHELL_CAP_HISTORY_EDIT;
- if(last_input.stem_muted_known[0]||last_input.stem_muted_known[1])caps|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN;
+ if(last_input.stem_muted_known[0]||last_input.stem_muted_known[1])caps|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_STEM_BYPASS;
  caps=xz_shrt_extra_caps(&model,caps,lib&&load_enabled&&has(G_LOAD),lib!=NULL,xz_runtime_deck_select_toggle!=NULL);
  model.settings.writable=0;
  for(int id=0;id<XZ_SHELL_SETTING_COUNT;id++)
@@ -718,6 +740,7 @@ static void fill_slots_locked(void) {
  fill_source();model.source=&source_model;
  fill_settings();model.settings_screen=&settings_model;
  fill_look();fill_buttons();model.mods=&mods_model;model.help=&help_model;
+ model.menu=menu_valid?&menu_page:NULL;
  model.my_settings=NULL;
  if(lib&&browse_source>=0){
   const struct xz_shms_files *f=&mys[browse_source];
@@ -1667,9 +1690,11 @@ static void roll_second(uint32_t now) {
 /* ---- shell-owned display settings ----
    Kept in RAM for the life of the process (across XZ_MODS_SHELL stop/start); a reboot starts from the
    shell's defaults. ids: XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_ITEM_KEY_DISPLAY,
-   XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level), XZ_SHELL_ITEM_MODE_LAMPS and XZ_SHELL_ITEM_QUANTIZE_LAMP. */
-static struct { int id, value, set; } display_saved[6]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
- {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0},{XZ_SHELL_ITEM_MODE_LAMPS,0,0},{XZ_SHELL_ITEM_QUANTIZE_LAMP,0,0}};
+   XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level), XZ_SHELL_ITEM_MODE_LAMPS, XZ_SHELL_ITEM_QUANTIZE_LAMP and
+   XZ_SHELL_ITEM_BYPASS_BUTTON. */
+static struct { int id, value, set; } display_saved[7]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
+ {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0},{XZ_SHELL_ITEM_MODE_LAMPS,0,0},{XZ_SHELL_ITEM_QUANTIZE_LAMP,0,0},
+ {XZ_SHELL_ITEM_BYPASS_BUTTON,0,0}};
 #define DISPLAY_SAVED (int)(sizeof display_saved/sizeof *display_saved)
 static void save_display(int id, int value) {
  for(int i=0;i<DISPLAY_SAVED;i++)if(display_saved[i].id==id){display_saved[i].value=value;display_saved[i].set=1;}
@@ -1860,6 +1885,36 @@ static void my_settings_save(int source, uint32_t now, const struct xz_shms_file
  mys_job.slot=slot;mys_job.kinds=kinds;snprintf(mys_job.done,sizeof mys_job.done,done,slot+1);mys_job.pending=1;
  pthread_cond_signal(&wake);
 }
+/* A MENU tab push: the row or choice it names in the page the shell showed (menu_page, the same snapshot
+   the input read), queued for ui_runtime.c. */
+static void menu_command_locked(const struct xz_shell_action *a, uint32_t now) {
+ struct xz_shell_runtime_menu_command c;memset(&c,0,sizeof c);c.op=a->id;
+ const struct xz_shell_menu *p=&menu_page;
+ int row=a->value;
+ switch(a->id){
+ case XZ_SHELL_MENU_OPEN:c.root=a->value;break;
+ case XZ_SHELL_MENU_BACK:break;
+ case XZ_SHELL_MENU_ACTIVATE:case XZ_SHELL_MENU_PRESS:case XZ_SHELL_MENU_MOVE:case XZ_SHELL_MENU_RELEASE:{
+  if(!menu_valid||row<0||row>=p->row_count||row>=XZ_SHELL_MENU_ROWS){refuse();return;}
+  const struct xz_shell_menu_row *r=&p->row[row];
+  c.target=r->target;
+  if(a->id==XZ_SHELL_MENU_ACTIVATE&&a->deck>=0){
+   int k=r->first_choice+a->deck;
+   if(a->deck>=r->choice_count||k<0||k>=p->choice_count||k>=XZ_SHELL_MENU_CHOICES){refuse();return;}
+   c.target=p->choice[k].target;
+  }
+  if(a->id!=XZ_SHELL_MENU_ACTIVATE){c.x=(a->deck>>10)&2047;c.y=a->deck&1023;}
+  break;}
+ default:refuse();return;
+ }
+ if(menu_count>=MENU_QUEUE){
+  /* A held pad's moves may coalesce; anything else waits for room it never gets: say so. */
+  if(c.op==XZ_SHELL_MENU_MOVE&&menu_queue[menu_count-1].op==XZ_SHELL_MENU_MOVE){menu_queue[menu_count-1]=c;return;}
+  refuse();notice_locked(now,"MODS IS BUSY: PUSH AGAIN");return;
+ }
+ menu_queue[menu_count++]=c;
+ __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_MENU,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
+}
 static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t now) {
  for(size_t i=0;i<n;i++){
   const struct xz_shell_action *a=&out[i];struct xz_shrt_command c;
@@ -1964,6 +2019,11 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    if(!(model.capabilities&XZ_SHELL_CAP_STEM_GAIN)||a->deck<0||a->deck>=XZ_SHELL_NATIVE_DECKS||a->id<0||a->id>2||a->value<0||a->value>XZ_SHELL_STEM_GAIN_MAX){refuse();break;}
    ui_action_locked(XZ_UI_LEVEL,a->deck,a->id,(float)a->value/(float)XZ_SHELL_STEM_GAIN_MAX,now);
    break;
+  case XZ_SHELL_ACT_STEM_BYPASS:
+   /* The panel's own BYPASS (XZ_UI_BYPASS): the stem levels and pad lamps follow as on a pad press. */
+   if(!(model.capabilities&XZ_SHELL_CAP_STEM_BYPASS)||a->deck<0||a->deck>=XZ_SHELL_NATIVE_DECKS){refuse();break;}
+   ui_action_locked(XZ_UI_BYPASS,a->deck,0,a->value?1.f:0.f,now);
+   break;
   case XZ_SHELL_ACT_STEM_MUTE:
    if(!(model.capabilities&XZ_SHELL_CAP_STEM_MUTE)||a->deck<0||a->deck>=XZ_SHELL_NATIVE_DECKS||a->id<0||a->id>2||stem_count>=8){refuse();break;}
    stem_queue[stem_count].deck=a->deck;stem_queue[stem_count].stem=a->id;stem_queue[stem_count].value=a->value!=0;stem_count++;
@@ -1998,6 +2058,7 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
     ui_action_locked(XZ_UI_REKORDBOX_ASSIGN,-1,a->id-BUTTONS_PRESS,(float)a->value,now);
    else refuse();
    break;
+  case XZ_SHELL_ACT_MOD_MENU:menu_command_locked(a,now);break;
   case XZ_SHELL_ACT_DJ_PROFILE:{
    /* deck = the stick; value = the profile index in my_settings.profiles. */
    int slot=a->deck==XZ_SHELL_SRC_USB1?0:a->deck==XZ_SHELL_SRC_USB2?1:-1;
@@ -2036,10 +2097,18 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
  if(n)fill_slots_locked();
  dirty_flag=1;
 }
+/* ui_runtime.c publishes the MENU page only while the shell shows a MENU tab. */
+static void note_menu_locked(void) {
+ const struct xz_shell_mods_tab *tab=NULL;int t=shell.mods_view.tab;
+ if(xz_shell_screen(&shell)==XZ_SHELL_UTILITY&&t>=1&&t<=(int)mods_model.count)tab=&mod_tabs[t-1];
+ __atomic_store_n(&menu_wanted_flag,tab&&tab->kind==XZ_SHELL_TAB_MENU,__ATOMIC_RELEASE);
+ __atomic_store_n(&mods_open_flag,xz_shell_screen(&shell)==XZ_SHELL_UTILITY,__ATOMIC_RELEASE);
+}
 static void deliver_locked(const struct xz_shell_event *e, uint32_t now) {
  struct xz_shell_action out[XZ_SHELL_ACTIONS];
  size_t n=xz_shell_input(&shell,&model,e,out);
  execute_locked(out,n,now);
+ note_menu_locked();
 }
 static void deliver_key_locked(int key, int deck, uint32_t now) {
  struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,(enum xz_shell_key)key,deck};
@@ -2263,13 +2332,16 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  set_owns(1);
  model.stems_known=in->stems_known;model.stems_on=in->stems_on;
  /* Stem mute state and pad colours from the UI model (the deck's own refresh does not read them). */
- for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)if(in->stem_muted_known[d]){model.deck[d].stem_muted=(uint8_t)(in->stem_muted[d]&7u);model.deck[d].known|=K(STEM_MUTE);}
+ for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)if(in->stem_muted_known[d]){
+  model.deck[d].stem_muted=(uint8_t)(in->stem_muted[d]&7u);model.deck[d].stem_bypass=in->stem_bypass[d]!=0;
+  model.deck[d].known|=K(STEM_MUTE)|K(STEM_BYPASS);
+ }
  model.stem_rgb_known=in->stem_rgb_known;memcpy(model.stem_rgb,in->stem_rgb,sizeof model.stem_rgb);
  /* The colours the DJ picked (not THEME DEFAULT); the rest draw the shell's own defaults. */
  model.stem_rgb_custom=0;
  if(in->look_known)for(int i=0;i<3;i++)if(in->stem_colors[i]>0)model.stem_rgb_custom|=(uint8_t)(1u<<i);
- /* The stem row layout: the one stems_overlay setting classic uses too. */
- model.stem_layout_known=in->look_known&&in->stems_overlay>=0&&in->stems_overlay<=XZ_SHELL_STEMS_OUTSIDE_HALF;
+ /* The stem buttons' layout: MODERN's own modern_stems (ui_runtime.c sends it as stems_overlay). */
+ model.stem_layout_known=in->look_known&&in->stems_overlay>=0&&in->stems_overlay<XZ_SHELL_STEM_LAYOUTS;
  model.stem_layout=model.stem_layout_known?(enum xz_shell_stem_layout)in->stems_overlay:XZ_SHELL_STEMS_HIDDEN;
  for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)if(in->stem_level_known[d]){
   for(int i=0;i<3;i++){float v=in->stem_level[d][i];int g=(int)(v*(float)XZ_SHELL_STEM_GAIN_MAX+.5f);model.deck[d].stem_gain[i]=(uint8_t)(g<0?0:g>XZ_SHELL_STEM_GAIN_MAX?XZ_SHELL_STEM_GAIN_MAX:g);}
@@ -2278,7 +2350,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  /* Header requests ui_runtime.c never took (its weak hook missing, or no input thread ran) cannot run. */
  if(ui_requests_at&&now-ui_requests_at>=500u){
   unsigned stale=__atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL);ui_requests_at=0;
-  if(stale)notice_locked(now,stale&XZ_SHELL_UI_OPEN_MODS?"THE MODS PANEL DID NOT OPEN":"THE STEMS ROW DID NOT CHANGE");
+  if(stale)notice_locked(now,stale&XZ_SHELL_UI_OPEN_MODS?"THE MODS PANEL DID NOT OPEN":stale&XZ_SHELL_UI_MENU?"MODS DID NOT ANSWER: PUSH AGAIN":"THE STEMS ROW DID NOT CHANGE");
  }
  /* The frame's clock is the moment it is scanned out: the receiver's next vblank (it shows this frame
     then), plus the time the beam takes to reach the middle of the screen. Without the receiver's clock,
@@ -2459,6 +2531,47 @@ int xz_shell_runtime_take_dj_pick(void) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
  pthread_mutex_lock(&mutex);int entry=dj_pick;dj_pick=-1;pthread_mutex_unlock(&mutex);
  return entry;
+}
+int xz_shell_runtime_mods_open(void) {
+ return __atomic_load_n(&enabled,__ATOMIC_ACQUIRE)&&__atomic_load_n(&mods_open_flag,__ATOMIC_ACQUIRE);
+}
+int xz_shell_runtime_menu_wanted(void) {
+ return __atomic_load_n(&enabled,__ATOMIC_ACQUIRE)&&__atomic_load_n(&menu_wanted_flag,__ATOMIC_ACQUIRE);
+}
+void xz_shell_runtime_menu(const struct xz_shell_menu *p) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!p)return;
+ lock_as("menu");
+ if(!menu_valid||memcmp(&menu_page,p,sizeof menu_page)){
+  menu_page=*p;menu_valid=1;model.menu=&menu_page;dirty_flag=1;
+ }
+ pthread_mutex_unlock(&mutex);
+}
+int xz_shell_runtime_take_menu_command(struct xz_shell_runtime_menu_command *c) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!c)return 0;
+ pthread_mutex_lock(&mutex);
+ int got=menu_count>0;
+ if(got){*c=menu_queue[0];memmove(menu_queue,menu_queue+1,(--menu_count)*sizeof *menu_queue);}
+ pthread_mutex_unlock(&mutex);
+ return got;
+}
+int xz_shell_runtime_show_mods(int root) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return 0;
+ lock_as("show_mods");
+ int tab=-1;
+ for(int t=0;t<(int)mods_model.count;t++)if(mod_tabs[t].kind==XZ_SHELL_TAB_MENU&&mod_tabs[t].page==root)tab=t+1;
+ int ok=tab>0&&storage;
+ if(ok){
+  if(handoff.handed)xz_shrt_handoff_end(&handoff);
+  xz_shell_mods_show(&shell,&model,tab);note_menu_locked();dirty_flag=1;
+ }
+ pthread_mutex_unlock(&mutex);
+ return ok;
+}
+void xz_shell_runtime_close_mods(void) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return;
+ lock_as("close_mods");
+ xz_shell_mods_close(&shell);note_menu_locked();dirty_flag=1;
+ pthread_mutex_unlock(&mutex);
 }
 int xz_shell_runtime_take_mods_page(void) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
