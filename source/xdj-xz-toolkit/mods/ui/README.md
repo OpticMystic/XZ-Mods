@@ -109,6 +109,24 @@ host-tested; the runtime hooks `UiKey_EncoderRotate` (0xe15b0),
 `UiKey_EncoderPush` (0xdec08) and `UiKey_rekordbox` (0xe0a50) behind their
 prologue guards.
 
+In the MODERN interface this panel never opens. The FLAGSHIP shell's MODS screen
+is the one MODS menu: its GENERAL, CONTROLS, ADVANCED and EXTRAS tabs are this
+panel's pages, described row by row by `ui_menu.c` from `xz_ui_layout` and
+`xz_ui_describe_widget`, and each push runs the row's control exactly as the
+panel's encoder push does (a press and a release at that control), so the
+panel's state, actions and settings save stay the only ones. Every place that
+would show a panel page in MODERN (a setup the runtime opens, a game handing
+back, MODS over the VJ view) shows it in the shell instead; CLASSIC keeps the
+panel unchanged. `shell/test_menu.c` and `verify_menu_runtime.py` cover it.
+
+Stock delivers every phase to `UiKey_EncoderPush` (press, hold and release,
+and again on later key passes while the entry state it never clears stays
+set). The shell's path filters them (`xz_shrt_push_event`); `encoder_push_hook`
+lets the panel, games and Doom act on the press phase only (`entry.flags == 1`)
+and swallows the rest. Before that, one click in CLASSIC's panel activated the
+focused control two or more times; after a link the second activation landed on
+the new page's first control.
+
 ### REKORDBOX button
 
 CONTROLS > BUTTONS assigns the physical REKORDBOX key twice: a plain press and

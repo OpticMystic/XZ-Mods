@@ -385,7 +385,7 @@ enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *m, co
  switch(a->kind){
  case XZ_SHELL_ACT_SEEK:case XZ_SHELL_ACT_GRID_ADJUST:case XZ_SHELL_ACT_SET_SETTING:case XZ_SHELL_ACT_LOAD:
  case XZ_SHELL_ACT_TAG_TRACK:case XZ_SHELL_ACT_STEM_MUTE:case XZ_SHELL_ACT_STEM_GAIN:case XZ_SHELL_ACT_LOAD_CUE:
- case XZ_SHELL_ACT_GRID_EDIT:break;
+ case XZ_SHELL_ACT_GRID_EDIT:case XZ_SHELL_ACT_STEM_BYPASS:break;
  default:return XZ_SHRT_EXTRA_NONE;
  }
  int i=a->deck-XZ_EXTRA_FIRST_DECK;

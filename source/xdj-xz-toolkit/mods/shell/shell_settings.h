@@ -26,7 +26,11 @@
    UTILITY; setting one of its items emits XZ_SHELL_ACT_SET_MOD {deck = tab
    index in the mods model, id = item id, value = choice index}. A TAB_PAGE
    tab is a mod page the shell does not draw: one button opens it in the
-   runtime's mod panel (XZ_SHELL_ACT_OPEN_MODS, value = page).
+   runtime's mod panel (XZ_SHELL_ACT_OPEN_MODS, value = page); the runtime
+   no longer publishes any. A TAB_MENU tab is a mod page the runtime
+   describes as a menu (model.menu, below): the shell draws it in the same
+   three panes and every push becomes XZ_SHELL_ACT_MOD_MENU, so the MODS
+   screen is the only menu and the encoder never leaves it.
 
 
    One table of setting items. The runtime lists the items it can read (or
@@ -97,6 +101,7 @@ enum xz_shell_item_id {
  XZ_SHELL_ITEM_NEEDLE_LOCK,        /* UNLOCK, LOCK (model.settings.needle_lock) */
  XZ_SHELL_ITEM_MODE_LAMPS,         /* shell-owned: SHOW, HIDE the top bar's mode lamps (shell.h XZ_SHELL_IND_MODE_LAMPS) */
  XZ_SHELL_ITEM_QUANTIZE_LAMP,      /* shell-owned: SHOW, HIDE each deck's QUANTIZE lamp (XZ_SHELL_IND_QUANTIZE) */
+ XZ_SHELL_ITEM_BYPASS_BUTTON,      /* shell-owned: SHOW, HIDE the stem rows' BYPASS button (XZ_SHELL_IND_BYPASS) */
  XZ_SHELL_ITEM_ID_END
 };
 /* Stock UTILITY items the runtime publishes under its own ids (assigned by the runtime, 2026-10-19). The
@@ -135,7 +140,9 @@ struct xz_shell_settings_model {
  const char *const *notes;
 };
 
-enum xz_shell_mods_tab_kind { XZ_SHELL_TAB_ITEMS, XZ_SHELL_TAB_PAGE };
+/* TAB_MENU: a mod page the runtime describes as a menu (struct xz_shell_menu below), drawn and driven by
+   the shell; page is its root page id. */
+enum xz_shell_mods_tab_kind { XZ_SHELL_TAB_ITEMS, XZ_SHELL_TAB_PAGE, XZ_SHELL_TAB_MENU };
 struct xz_shell_mods_tab {
  const char *label;                       /* caps, short: "STEMS", "APPEARANCE" */
  enum xz_shell_mods_tab_kind kind;
@@ -148,6 +155,87 @@ struct xz_shell_mods_tab {
 /* The mod tabs, in order. Built from the mod settings (no hard-coded list in the shell). A TAB_ITEMS
    tab's sections become its rail; a long section name wraps to two lines. */
 struct xz_shell_mods_model { uint32_t count; const struct xz_shell_mods_tab *tabs; };
+
+/* MENU tabs. model.menu is the one mod page the runtime has open: its rows, their choices and the
+   page's live lines, all copied into the struct (no pointers). It belongs to the MENU tab whose page
+   equals menu.root; any other MENU tab shows an empty page until the runtime opens it.
+
+   Rows, in the list with section header rows between them:
+     CHOICE  push opens the values pane; push there picks a choice (ACTIVATE row, choice)
+     TOGGLE  two choices; push picks the one that is not lit, so one push flips it
+     ACTION  push runs it (ACTIVATE row, -1): a setup step, a check, a game, a key shift
+     LINK    push opens a deeper page (ACTIVATE); the runtime publishes that page with depth + 1
+     PAD     a performance pad: push taps it; on its pad area a touch holds it (PRESS, MOVE, RELEASE)
+     KEY     a keyboard key (layout KEYBOARD): drawn as a key grid, push or a tap types it
+   An unavailable row still takes the cursor and shows its reason; push asks the runtime anyway (it
+   answers with its setup page or a notice), so a missing capability is never a dead control.
+   The values pane shows a CHOICE or TOGGLE row's choices, the row's help, then the page's status and
+   lines; for the other rows the status, the lines, then the help. A setup flow names its steps
+   (steps, step) and the shell draws them as a strip above the list.
+
+   Encoder: on the rail turn picks a tab (a MENU tab sends OPEN), push enters the page on its focus row;
+   in the list turn moves, push acts as above, hold jumps to the next section; in the values pane turn
+   moves, push picks and returns to the list. BACK: values pane, then one page up (BACK while depth > 0),
+   then the rail, then MODS closes. Nothing in a MENU tab hands the screen to another menu. */
+enum xz_shell_menu_op {
+ XZ_SHELL_MENU_OPEN,      /* value = the tab's root page: open it, history cleared */
+ XZ_SHELL_MENU_ACTIVATE,  /* value = row, deck = choice index or -1 */
+ XZ_SHELL_MENU_BACK,      /* one page up */
+ XZ_SHELL_MENU_PRESS, XZ_SHELL_MENU_MOVE, XZ_SHELL_MENU_RELEASE /* PAD touch: value = row, deck = x * 1024 + y,
+                                                                 each 0..1000 across the pad area */
+};
+enum xz_shell_menu_kind { XZ_SHELL_MENU_CHOICE, XZ_SHELL_MENU_TOGGLE, XZ_SHELL_MENU_ACTION, XZ_SHELL_MENU_LINK,
+ XZ_SHELL_MENU_PAD, XZ_SHELL_MENU_KEY };
+enum xz_shell_menu_tone { XZ_SHELL_TONE_PLAIN, XZ_SHELL_TONE_DIM, XZ_SHELL_TONE_GOOD, XZ_SHELL_TONE_ALERT, XZ_SHELL_TONE_HEAD };
+enum xz_shell_menu_layout { XZ_SHELL_MENU_LIST, XZ_SHELL_MENU_KEYBOARD };
+enum { XZ_SHELL_MENU_ROWS=48, XZ_SHELL_MENU_CHOICES=96, XZ_SHELL_MENU_SECTIONS=8, XZ_SHELL_MENU_LINES=10,
+ XZ_SHELL_MENU_STEPS=6 };
+/* What a row or choice runs, in the runtime's own terms; the shell never reads it. */
+struct xz_shell_menu_target { int16_t kind, index; int8_t deck, how; int16_t value; };
+struct xz_shell_menu_choice {
+ char label[28];
+ uint8_t available, has_rgb;
+ uint32_t rgb;                            /* a colour swatch beside the label (0xRRGGBB) when has_rgb */
+ struct xz_shell_menu_target target;
+};
+struct xz_shell_menu_row {
+ uint8_t kind, section, available, choice_count;  /* section indexes sections[] */
+ int16_t first_choice, current;                   /* choices first_choice..+count; current: the lit one, -1 none */
+ int32_t key;                                     /* the same control keeps its key across refreshes */
+ char label[40];                                  /* caps */
+ char value[28];                                  /* right of the label: the lit choice, ON / OFF, a state */
+ char help[176];                                  /* what it does, 1-3 short sentences */
+ char reason[88];                                 /* unavailable: why, one line */
+ struct xz_shell_menu_target target;
+};
+struct xz_shell_menu_line { char text[160]; uint8_t tone; };
+struct xz_shell_menu {
+ int32_t page, root;                      /* the open page and the top page (a MENU tab's page) it lives under */
+ uint8_t depth, layout, row_count, choice_count, section_count, line_count, step_count, step;
+ int16_t focus_row;                       /* where the cursor starts on this page; -1: the first row */
+ uint8_t status_tone;
+ char title[32];                          /* the page's name */
+ char path[64];                           /* the pages above it, "GENERAL" or "EXTRAS / GAMES" */
+ char status[100];                        /* the last result or what the page waits for; empty: none */
+ char field[100];                         /* KEYBOARD: the text typed so far */
+ char field_label[24];
+ char sections[XZ_SHELL_MENU_SECTIONS][28];
+ char steps[XZ_SHELL_MENU_STEPS][20];
+ struct xz_shell_menu_line line[XZ_SHELL_MENU_LINES];
+ struct xz_shell_menu_row row[XZ_SHELL_MENU_ROWS];
+ struct xz_shell_menu_choice choice[XZ_SHELL_MENU_CHOICES];
+};
+/* Opens MODS on tab (an index into the rail: 0 UTILITY, 1.. the mod tabs) with the encoder inside its
+   page, as the runtime asks when one of its own controls led to a mod page. Sends nothing. */
+void xz_shell_mods_show(struct xz_shell *, const struct xz_shell_model *, int tab);
+/* Closes MODS when it is open (the screen under it shows again). */
+void xz_shell_mods_close(struct xz_shell *);
+/* MENU tab geometry: list row slot i (0 = the top slot under the steps strip), a KEYBOARD row's key or
+   button, and the PAD area in the values pane. Zero size when not shown. */
+struct xz_shell_rect xz_shell_menu_row_rect(const struct xz_shell *, const struct xz_shell_model *, int row);
+struct xz_shell_rect xz_shell_menu_pad_rect(void);
+/* The MENU tab row the cursor is on (an index into model.menu rows), -1 when no MENU page shows. */
+int xz_shell_menu_cursor(const struct xz_shell *, const struct xz_shell_model *);
 
 /* Descriptions: what a setting does, shown under its values on MODS, as SHORTCUT's title line and at
    the foot of the MY SETTINGS panel. The shell carries its own text for the UTILITY items (by item id,

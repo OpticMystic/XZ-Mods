@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 from PIL import Image
-from shell_sources import SHELL_SOURCES, SHELL_HEADERS
+from shell_sources import SHELL_SOURCES, SHELL_HEADERS, MENU_SOURCES
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--zig', required=True)
@@ -16,10 +16,15 @@ root = Path(__file__).resolve().parent
 a.output.mkdir(parents=True, exist_ok=False)
 with tempfile.TemporaryDirectory(prefix='xz-shell-preview-') as temporary:
     # preview.c and every preview_*.c are separate programs writing PPMs into the same folder.
-    for program in [root / 'preview.c', *sorted(root.glob('preview_*.c'))]:
+    # The monorepo's ../ui predates the page adapter: the MENU previews draw where ui_menu.c is (XZ-Mods source/).
+    menu = (root.parent / 'ui' / 'ui_menu.c').is_file()
+    for program in [root / 'preview.c', *(p for p in sorted(root.glob('preview_*.c')) if menu or not p.stem.startswith('preview_menu'))]:
         exe = Path(temporary) / (program.stem + '.exe')
         subprocess.run([str(Path(a.zig).resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                        *(str(root / name) for name in SHELL_SOURCES), str(program), '-o', str(exe)], check=True)
+                        *(str(root / name) for name in SHELL_SOURCES),
+                        # the MENU tab previews draw the MODS panel's real pages through its page adapter
+                        *(str(root / name) for name in (MENU_SOURCES if program.stem.startswith('preview_menu') else [])),
+                        str(program), '-o', str(exe)], check=True)
         subprocess.run([str(exe), str(a.output.resolve())], check=True)
 for path in sorted(a.output.glob('*.ppm')):
     Image.open(path).save(path.with_suffix('.png'))

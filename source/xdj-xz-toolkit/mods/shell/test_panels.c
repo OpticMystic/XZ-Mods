@@ -346,16 +346,16 @@ static void test_stem_buttons(void) {
  model(&m,&b);
  xz_shell_init(&u);
  for(int d=0;d<2;d++)m.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE);
- for(int d=0;d<2;d++)for(int s=0;s<3;s++)assert(xz_shell_stem_button(&m,d,s).w==0);   /* mute state not read: no buttons */
+ for(int d=0;d<2;d++)for(int s=0;s<3;s++)assert(xz_shell_stem_button(NULL,&m,d,s).w==0);   /* mute state not read: no buttons */
  m.deck[1].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE);m.deck[1].stem_muted=2;           /* INST muted */
  for(int s=0;s<3;s++){
-  struct xz_shell_rect r=xz_shell_stem_button(&m,1,s);
-  assert(r.w>=44&&r.h>=44&&xz_shell_stem_button(&m,0,s).w==0);
+  struct xz_shell_rect r=xz_shell_stem_button(NULL,&m,1,s);
+  assert(r.w>=44&&r.h>=44&&xz_shell_stem_button(NULL,&m,0,s).w==0);
  }
  /* DRUMS, VOCAL, INST from the left. */
- assert(xz_shell_stem_button(&m,1,0).x<xz_shell_stem_button(&m,1,2).x&&xz_shell_stem_button(&m,1,2).x<xz_shell_stem_button(&m,1,1).x);
+ assert(xz_shell_stem_button(NULL,&m,1,0).x<xz_shell_stem_button(NULL,&m,1,2).x&&xz_shell_stem_button(NULL,&m,1,2).x<xz_shell_stem_button(NULL,&m,1,1).x);
  render_checked(&u,&m,buffer_a);
- struct xz_shell_rect drums=xz_shell_stem_button(&m,1,0),inst=xz_shell_stem_button(&m,1,1);
+ struct xz_shell_rect drums=xz_shell_stem_button(NULL,&m,1,0),inst=xz_shell_stem_button(NULL,&m,1,1);
  struct xz_shell_rect pad=xz_shell_play_rect(&m,XZ_SHELL_R_PAD_ROW,1);
  drums.y=inst.y=pad.y;drums.h=inst.h=pad.h;
  assert(count(frame(buffer_a),drums,sh_stem_bright(&m,0))>40);   /* lit: full-colour outline */
@@ -364,14 +364,14 @@ static void test_stem_buttons(void) {
  m.stem_rgb_known=1;m.stem_rgb[0]=0x00ffff;m.stem_rgb[1]=0xff00ff;m.stem_rgb[2]=0xffff00;m.stem_rgb_custom=7;
  render_checked(&u,&m,buffer_a);assert(count(frame(buffer_a),drums,0x00ffff)>40);
  /* Touch flips that stem. */
- assert(tap(&u,&m,xz_shell_stem_button(&m,1,1))==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==1&&out[0].id==1&&out[0].value==0);
- assert(tap(&u,&m,xz_shell_stem_button(&m,1,2))==1&&out[0].id==2&&out[0].value==1);
+ assert(tap(&u,&m,xz_shell_stem_button(NULL,&m,1,1))==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==1&&out[0].id==1&&out[0].value==0);
+ assert(tap(&u,&m,xz_shell_stem_button(NULL,&m,1,2))==1&&out[0].id==2&&out[0].value==1);
  /* The padded target does not steal the ZOOM/GRID toggle. */
  struct xz_shell_rect zoom=xz_shell_play_rect(&m,XZ_SHELL_R_ZOOM,0);
- for(int s=0;s<3;s++){struct xz_shell_rect r=xz_shell_stem_button(&m,1,s);assert(r.x+r.w<=zoom.x||r.y>=zoom.y+zoom.h);}
+ for(int s=0;s<3;s++){struct xz_shell_rect r=xz_shell_stem_button(NULL,&m,1,s);assert(r.x+r.w<=zoom.x||r.y>=zoom.y+zoom.h);}
  /* No capability: no buttons, the row shows the hot-cue lamps only. */
  m.capabilities&=~(uint32_t)XZ_SHELL_CAP_STEM_MUTE;
- assert(xz_shell_stem_button(&m,1,0).w==0);
+ assert(xz_shell_stem_button(NULL,&m,1,0).w==0);
  render_checked(&u,&m,buffer_a);
  puts("PASS stem mute buttons: shown only when they work, lit and muted looks, runtime colours, touch flips");
 }

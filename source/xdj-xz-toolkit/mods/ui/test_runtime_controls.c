@@ -319,6 +319,14 @@ int main(void){
     /* Encoder: pushing a pair starts a size edit; turning steps it; a closed menu forwards. */
     touch.visible=1;ui.jump_edit_page=1;ui.jump_edit_pair=0;model.jump.sizes[7]=4;
     ui.focus_kind=XZ_UI_JUMP_PAIR;ui.focus_index=7;ui.focus_deck=-1;ui.adjusting=0;
+    /* Only the press phase acts: a release, a hold or a later pass of the same click is swallowed and
+       leaves focus alone (one click once activated the control twice). */
+    {uint32_t release[4]={0,0,2,0},hold[4]={0,0,3,0},press[4]={1,0,2,0};
+     assert(encoder_push_hook(release,NULL,NULL,NULL)==1&&!ui.adjusting&&ui.jump_edit_pair==0);
+     assert(encoder_push_hook(hold,NULL,NULL,NULL)==1&&!ui.adjusting&&ui.jump_edit_pair==0);
+     assert(encoder_push_hook(press,NULL,NULL,NULL)==1&&ui.jump_edit_pair==3&&ui.adjusting);
+     assert(encoder_push_hook(release,NULL,NULL,NULL)==1&&ui.jump_edit_pair==3&&ui.adjusting);
+     ui.jump_edit_pair=0;ui.adjusting=0;}
     assert(encoder_push_hook(NULL,NULL,NULL,NULL)==1&&ui.jump_edit_pair==3&&ui.adjusting);
     assert(encoder_rotate_hook(1)==1&&model.jump.sizes[7]==5);
     assert(encoder_rotate_hook(-1)==1&&model.jump.sizes[7]==4);

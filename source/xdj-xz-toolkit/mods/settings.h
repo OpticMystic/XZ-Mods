@@ -52,6 +52,7 @@ struct xz_settings {
     int classic_theme; /* 0..XZ_CLASSIC_THEME_COUNT-1, used while CLASSIC */
     int modern_theme; /* 0..XZ_MODERN_THEME_COUNT-1, used while MODERN */
     int rekordbox_press, rekordbox_shift; /* enum xz_rekordbox_action; a record without them migrates (SETTINGS.md) */
+    int modern_stems; /* MODERN's stem layout: enum xz_stem_layout or XZ_MODERN_STEMS_PADS (ui/wave_viewport.h) */
 };
 /* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
 int xz_settings_look(int ui_interface, int classic_theme);
