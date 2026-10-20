@@ -185,6 +185,8 @@ Full rows are 48 pixels high; half rows are 24. Each half-height choice
 returns 24 pixels to each waveform, raising its height from 84 to 108.
 Hidden restores both 132-pixel native lanes. Cue bands and x coordinates
 retain their original size; waveform touches map back to the original rows.
+While four decks show (`ui/FOUR_DECK.md`) no stem rows are drawn; the saved
+value is kept and returns when the CH3/CH4 route goes down.
 
 Local stem buttons fill from left to right by their effective level. Sliding
 right raises the level and fill; sliding left lowers both. Muting clears the

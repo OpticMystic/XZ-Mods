@@ -362,8 +362,27 @@ static void test_settings_bulk(void){
  torn_address=0x3204000+35*0x8c+0x88;xz_shell_model_refresh(&m,s.storage,read_memory,2);assert(!(m.deck[0].known&(K(TIME_MODE)|K(QUANTIZE))));
  release(&s);puts("PASS settings list read in bulk across chunk boundaries, torn chunk fails closed");
 }
+/* DECK 3 / 4 SYNC reads the native master's playing BPM without a model. */
+static void test_master_bpm(void){
+    fixture();
+    assert(xz_shell_model_master_bpm(read_memory)==12500);
+    *at(frame(0)+0x2f,1)=0;*at(frame(1)+0x2f,1)=4;
+    assert(xz_shell_model_master_bpm(read_memory)==12600);
+    *at(frame(1)+0x2f,1)=8;
+    assert(xz_shell_model_master_bpm(read_memory)==0);
+    fixture();
+    put32(frame(0)+0x14,0x80000000u);assert(xz_shell_model_master_bpm(read_memory)==0);
+    fixture();
+    at(guard_address[0],16)[3]^=1;assert(xz_shell_model_master_bpm(read_memory)==0);
+    fixture();
+    torn_address=frame(0)+0x14;{int32_t v=xz_shell_model_master_bpm(read_memory);assert(v==0||v==12500);}
+    fixture();
+    fail_address=frame(0)+0x14;*at(frame(1)+0x2f,1)=4;assert(xz_shell_model_master_bpm(read_memory)==12600);
+    assert(xz_shell_model_master_bpm(NULL)==0);
+    puts("PASS master BPM for DECK 3 / 4 SYNC: master deck, none, implausible, guard, torn and failed reads");
+}
 int main(void){
  test_valid_and_input();test_guards();test_torn_and_pointers();test_identity_and_waves();test_flag_encodings();test_invalid_data();
- test_fx();test_slip_vinyl();test_settings_bulk();
+ test_fx();test_slip_vinyl();test_settings_bulk();test_master_bpm();
  puts("shell_model: all host acceptance tests passed; no hardware/device/network access");return 0;
 }

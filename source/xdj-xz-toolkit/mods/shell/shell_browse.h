@@ -166,10 +166,10 @@ enum xz_shell_browse_region {
  XZ_SHELL_BR_COLUMN,    /* index = column slot, left to right */
  XZ_SHELL_BR_LIST,
  XZ_SHELL_BR_ROW,       /* index = visible row */
- XZ_SHELL_BR_LOAD,      /* in the touched row; index 0 = LOAD (active deck), 1/2 = deck 1/2 */
+ XZ_SHELL_BR_LOAD,      /* in the touched row; index 0 = LOAD (active deck), 1.. = deck 1 to the model's deck count */
  XZ_SHELL_BR_INFO_PANE,
  XZ_SHELL_BR_KEY,       /* index = keyboard key */
- XZ_SHELL_BR_STRIP,     /* index = deck */
+ XZ_SHELL_BR_STRIP,     /* index = deck: its half of the status strip, or its quarter in the four-deck view */
  XZ_SHELL_BR_FILTER,    /* the FILTER header tile */
  XZ_SHELL_BR_FILTER_CHIP, /* the active-filter chip; a touch clears the filter */
  XZ_SHELL_BR_PANEL,     /* the open slide-over panel */

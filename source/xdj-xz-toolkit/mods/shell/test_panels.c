@@ -356,7 +356,7 @@ static void test_stem_buttons(void) {
  assert(xz_shell_stem_button(&m,1,0).x<xz_shell_stem_button(&m,1,2).x&&xz_shell_stem_button(&m,1,2).x<xz_shell_stem_button(&m,1,1).x);
  render_checked(&u,&m,buffer_a);
  struct xz_shell_rect drums=xz_shell_stem_button(&m,1,0),inst=xz_shell_stem_button(&m,1,1);
- struct xz_shell_rect pad=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,1);
+ struct xz_shell_rect pad=xz_shell_play_rect(&m,XZ_SHELL_R_PAD_ROW,1);
  drums.y=inst.y=pad.y;drums.h=inst.h=pad.h;
  assert(count(frame(buffer_a),drums,sh_stem_bright(&m,0))>40);   /* lit: full-colour outline */
  assert(count(frame(buffer_a),inst,sh_stem_bright(&m,1))==0);    /* muted: dimmed */
@@ -367,7 +367,7 @@ static void test_stem_buttons(void) {
  assert(tap(&u,&m,xz_shell_stem_button(&m,1,1))==1&&out[0].kind==XZ_SHELL_ACT_STEM_MUTE&&out[0].deck==1&&out[0].id==1&&out[0].value==0);
  assert(tap(&u,&m,xz_shell_stem_button(&m,1,2))==1&&out[0].id==2&&out[0].value==1);
  /* The padded target does not steal the ZOOM/GRID toggle. */
- struct xz_shell_rect zoom=xz_shell_play_rect(XZ_SHELL_R_ZOOM,0);
+ struct xz_shell_rect zoom=xz_shell_play_rect(&m,XZ_SHELL_R_ZOOM,0);
  for(int s=0;s<3;s++){struct xz_shell_rect r=xz_shell_stem_button(&m,1,s);assert(r.x+r.w<=zoom.x||r.y>=zoom.y+zoom.h);}
  /* No capability: no buttons, the row shows the hot-cue lamps only. */
  m.capabilities&=~(uint32_t)XZ_SHELL_CAP_STEM_MUTE;
@@ -470,7 +470,7 @@ static void test_play_readouts(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;
  model(&m,&b);
  xz_shell_init(&u);
- struct xz_shell_rect strip=xz_shell_play_rect(XZ_SHELL_R_STRIP,0),title={strip.x+60,strip.y+18,200,11};
+ struct xz_shell_rect strip=xz_shell_play_rect(&m,XZ_SHELL_R_STRIP,0),title={strip.x+60,strip.y+18,200,11};
  render_checked(&u,&m,buffer_a);
  int with_artist=count(frame(buffer_a),title,SH_DIM);
  m.deck[0].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_ARTIST);
@@ -480,7 +480,7 @@ static void test_play_readouts(void) {
  /* SLIP on with a known position: an amber ghost in the lane, ahead of the playhead. */
  m.deck[0].slip=1;m.deck[0].slip_ms=m.deck[0].elapsed_ms+2000;m.deck[0].slip_at_ms=0;
  render_checked(&u,&m,buffer_a);
- struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,0);
+ struct xz_shell_rect lane=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,0);
  assert(count(frame(buffer_a),lane,SH_KEY_AMBER)>30);
  m.deck[0].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_SLIP_POSITION);
  render_checked(&u,&m,buffer_b);

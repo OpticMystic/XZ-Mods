@@ -73,6 +73,15 @@ size_t xz_native_led_apply(void *records,size_t bytes,unsigned count,
  return changed;
 }
 
+int xz_extra_pad_led(const struct xz_extra_deck *deck,int pad,uint32_t *rgb,int *enabled){
+ if(!deck||!rgb||!enabled||pad<0||pad>=XZ_EXTRA_HOT_CUES)return XZ_LED_STOCK;
+ const struct xz_extra_cue *cue=&deck->hot_cue[pad];
+ int lit=deck->loaded&&(deck->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES))&&cue->set;
+ uint32_t color=cue->rgb&0xffffffu;
+ *enabled=lit;*rgb=!lit?0:color?color:XZ_EXTRA_PAD_DEFAULT_RGB;
+ return XZ_LED_REPLACE;
+}
+
 #ifndef XZ_LED_PORTABLE_TEST
 #include "../runtime.h"
 #include "../ui_runtime.h"
@@ -86,6 +95,12 @@ static int enabled;
 /* Bounded diagnostic counters; no input-thread logging or packet retention. */
 __attribute__((visibility("default"))) uint32_t xz_mods_led_trace_v1[12] = {1};
 #define TRACE(i) __atomic_fetch_add(&xz_mods_led_trace_v1[i],1,__ATOMIC_RELAXED)
+
+/* The LED hook runs on one native input thread, so the snapshot is private to it. */
+static struct xz_extra_decks extra;static int extra_side;
+static int extra_pad_color(int deck,int pad,uint32_t *rgb,int *lit){
+ (void)deck;return xz_extra_pad_led(&extra.deck[extra_side],pad,rgb,lit);
+}
 
 static void led_hook(void *player,void *packet) {
  unsigned char *p=packet;uint16_t count;uint32_t pointer,innards,mode;unsigned channel;
@@ -114,9 +129,11 @@ static void led_hook(void *player,void *packet) {
  xz_native_led_probe((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel);
  xz_native_led_keysync((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,
                       xz_ui_runtime_key_synced((int)channel-1),&xz_led_keysync_mapping);
+ xz_led_color_fn color=xz_ui_runtime_pad_color;
+ if(xz_extra_decks_route().route_up&&xz_extra_decks_snapshot(&extra)&&
+    (channel==1?extra.left_on_3:extra.right_on_4)){extra_side=(int)channel-1;color=extra_pad_color;}
  size_t changed=xz_native_led_apply((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,
-                      count,channel,
-                      xz_ui_runtime_pad_color);
+                      count,channel,color);
  __atomic_fetch_add(&xz_mods_led_trace_v1[10],(uint32_t)changed,__ATOMIC_RELAXED);
 }
 

@@ -161,7 +161,7 @@ static int count_color(const uint16_t *f, struct xz_shell_rect r, uint32_t color
 static void test_usb_colors(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
  xz_shell_init(&u);
- struct xz_shell_rect tag=xz_shell_play_rect(XZ_SHELL_R_DECK_TAG,0),lane=xz_shell_play_rect(XZ_SHELL_R_LANE,0);
+ struct xz_shell_rect tag=xz_shell_play_rect(&m,XZ_SHELL_R_DECK_TAG,0),lane=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,0);
  render(&u,&m,other);
  assert(count_color(other,tag,SH_BLUE)>100);
  /* Deck 1's track comes from a stick that sets a yellow background and RGB waveforms. */

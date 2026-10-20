@@ -9,6 +9,10 @@
 #include <stdint.h>
 #include "shell/shell.h"
 
+/* The unit's own players. The native reads, the runtime's per-deck state and its frame input cover
+   these; the shell model holds up to XZ_SHELL_DECKS. */
+#define XZ_SHELL_NATIVE_DECKS 2
+
 /* Everything the model points into lives here, so the model never points at native memory. */
 struct xz_shell_model_storage;
 size_t xz_shell_model_storage_size(void);
@@ -56,6 +60,11 @@ uint32_t xz_shell_model_holds(const struct xz_shell_model_storage *storage);
    channel selector byte (+1) and LEVEL/DEPTH have no proven label mapping; the runtime logs the raw record
    so a selector sweep on the deck can prove one. */
 int xz_shell_model_fx_raw(const struct xz_shell_model_storage *storage, unsigned char out[12]);
+
+/* The playing BPM x100 of the native deck that is MASTER, from the same stat frames and guard as the refresh,
+   for DECK 3 / 4 SYNC. 0 when neither deck is master or a read fails. Reads only and keeps no state, so any
+   thread may call it, with or without the shell running. */
+int32_t xz_shell_model_master_bpm(xz_shell_read_fn read);
 
 /* Hot cue OUT time (loop hot cues); returns 0 when not known. */
 int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *storage, int deck, int cue, int32_t *out_ms);

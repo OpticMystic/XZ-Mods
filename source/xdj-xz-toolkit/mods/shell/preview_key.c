@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
  u.display.key_display=XZ_SHELL_KEY_AS_DECK;
  /* An older runtime: no analysed key and no KEY SYNC bit. The key and its key-shift step, as before. */
  fx_model_full(&m,&track);
- for(int d=0;d<XZ_SHELL_DECKS;d++)m.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_SYNC));
+ for(int d=0;d<2;d++)m.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_SYNC));
  shot(&u,&m,"old-runtime");
  /* Nothing about the key read, and a key name the key face cannot draw. */
  fx_model_full(&m,&track);

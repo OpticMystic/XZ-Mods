@@ -48,6 +48,23 @@ static _Thread_local uint8_t keep[2][WIDTH][(2*EXTENT+7)/8];
  * [10] overview fills seen, [11] overview fills drawn */
 __attribute__((visibility("default"))) uint32_t xz_layered_wave_proof_v1[12]={2};
 static _Thread_local long frame_began;
+/* Native zoom: the first sample a frame drew at columns 0, 268 (the playhead) and 535, per deck.
+   Near a track's start or end the stock clamps one side, which only shortens that side's span, so
+   the zoom is the longer side. Background mode 1 (grey) until a frame is seen. */
+static const unsigned zoom_x[3]={0,268,WIDTH-1};
+static _Thread_local struct {uint32_t first[2][3];uint8_t seen[2];} zoom;
+static uint32_t zoom_column_us,zoom_background=1;
+static void zoom_fold(void){
+ for(unsigned d=0;d<2;d++){
+  const uint32_t *f=zoom.first[d];
+  if(zoom.seen[d]!=7||f[1]<f[0]||f[2]<f[1]||f[2]-f[0]>150u*600u)continue;
+  uint32_t a=(uint32_t)((uint64_t)(f[1]-f[0])*1000000u/150u/(zoom_x[1]-zoom_x[0]));
+  uint32_t b=(uint32_t)((uint64_t)(f[2]-f[1])*1000000u/150u/(zoom_x[2]-zoom_x[1]));
+  if(a<b)a=b;
+  if(a)__atomic_store_n(&zoom_column_us,a,__ATOMIC_RELAXED);
+ }
+ memset(&zoom,0,sizeof(zoom));
+}
 static long now_us(void){struct timeval t;gettimeofday(&t,NULL);return t.tv_sec*1000000L+t.tv_usec;}
 
 static int read_mem(void *c,uint32_t a,void *b,size_t n){(void)c;return xz_read_memory(a,b,n);}
@@ -173,6 +190,7 @@ void xz_layered_wave_configure(int requested,const uint32_t stem_rgb[3]){
  __atomic_store_n(&xz_layered_wave_proof_v1[5],(uint32_t)requested,__ATOMIC_RELAXED);
 }
 void xz_layered_wave_end(void){
+ zoom_fold();
  if(frame_began){
   long took=now_us()-frame_began;frame_began=0;
   if(took>=0&&took<1000000){
@@ -182,6 +200,15 @@ void xz_layered_wave_end(void){
   }
  }
  memset(&frame,0,sizeof(frame));
+}
+void xz_layered_wave_view(uint32_t *column_us,unsigned *background){
+ if(column_us)*column_us=__atomic_load_n(&zoom_column_us,__ATOMIC_RELAXED);
+ if(background)*background=__atomic_load_n(&zoom_background,__ATOMIC_RELAXED);
+}
+const struct xz_layered_col *xz_layered_wave_drawn(unsigned deck,struct xz_layered_data *look){
+ if(deck>=2||!drawn.any)return NULL;
+ if(look)*look=drawn.look[deck];
+ return drawn.col[deck];
 }
 void xz_layered_wave_begin(uint16_t *pixels){
  xz_layered_wave_end();
@@ -208,6 +235,10 @@ void xz_layered_wave_begin(uint16_t *pixels){
 }
 static void XZ_WAVE_ABI column(unsigned deck,unsigned x,unsigned first,unsigned end,unsigned bg,float scale){
  stock_column(deck,x,first,end,bg,scale);
+ if(deck<2)for(unsigned k=0;k<3;k++)if(x==zoom_x[k]){
+  zoom.first[deck][k]=first;zoom.seen[deck]|=(uint8_t)(1u<<k);
+  __atomic_store_n(&zoom_background,bg,__ATOMIC_RELAXED);
+ }
  if(!frame.active||deck>=2||!frame.deck[deck]||x>=WIDTH)return;
  const struct prepared *p=frame.deck[deck];
  if(first>=p->data.count||first>UINT32_MAX/16||frame.flags[deck]>UINT32_MAX-first*16-12)return;

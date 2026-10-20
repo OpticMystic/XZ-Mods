@@ -17,16 +17,18 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "shell/shell.h"
+#include "shell_model.h"
+#include "extra_decks.h"
 
 /* ---- Device entry points (shell_runtime.c). Weak in ui_runtime.c. ---- */
 struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cents, synced; int matches_master, shift; };
 #define XZ_SHELL_RUNTIME_DJ 32
 struct xz_shell_runtime_frame_input {
  int eligible, theme;
- struct xz_shell_runtime_key key[XZ_SHELL_DECKS];
+ struct xz_shell_runtime_key key[XZ_SHELL_NATIVE_DECKS];
  int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
- int stem_muted_known[XZ_SHELL_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
- unsigned stem_muted[XZ_SHELL_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
+ int stem_muted_known[XZ_SHELL_NATIVE_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
+ unsigned stem_muted[XZ_SHELL_NATIVE_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
  int stem_rgb_known; uint32_t stem_rgb[3]; /* stem pad colours 0xRRGGBB: drums, harmonics, vocal */
  int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
  /* DJ profiles on the sticks: dj_runtime's view, copied (entry i = view entry i). */
@@ -35,7 +37,7 @@ struct xz_shell_runtime_frame_input {
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
  int stems_overlay;           /* enum xz_stem_layout: the stem row layout (MY SETTINGS > WAVEFORM) */
  int rekordbox_known, rekordbox_assign[2]; /* the REKORDBOX button's press and SHIFT + press (enum xz_rekordbox_action) */
- int stem_level_known[XZ_SHELL_DECKS]; float stem_level[XZ_SHELL_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
+ int stem_level_known[XZ_SHELL_NATIVE_DECKS]; float stem_level[XZ_SHELL_NATIVE_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
  struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
 };
 int xz_shell_runtime_start(void);
@@ -59,6 +61,9 @@ enum xz_shell_touch_result { XZ_SHELL_TOUCH_TO_STOCK, XZ_SHELL_TOUCH_TAKEN, XZ_S
 int xz_shell_runtime_touch(int eligible, int theme, int x, int y, int down, int stock_down);
 /* IKeyManager::onKey input: code at +8, channel at +0xa, op = low nibble of +0xb. 1 = swallow. */
 int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channel, unsigned op);
+/* LOAD of a side whose controls drive DECK 3 / 4 (side 0 left, 1 right), decided by runtime.c's deck select:
+   the press loads the highlighted row to that player. 1 when the shell owns the screen and took it. */
+int xz_shell_runtime_extra_load_key(int eligible, int theme, int side);
 int xz_shell_runtime_encoder_turn(int eligible, int theme, int delta);
 /* UiKey_EncoderPush entry words: flags (+0) and state (+8). */
 int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint32_t state);
@@ -254,6 +259,53 @@ int xz_shrt_position_step(struct xz_shrt_position *, int playing, int32_t elapse
                           int32_t rate_ppm, int measure, int32_t *out_ms, uint32_t *out_at);
 /* Speed in ppm from the stat frame's tempo (0.01 %), the fallback when the engine speed is not read. */
 int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100);
+
+/* ---- DECK 3 / DECK 4 (extra_decks.h): the software players in the shell model ----
+   The model's decks 2 and 3 while the CH3/CH4 route is up. Pure: the runtime takes the snapshot, converts
+   its arrays and executes what these decide. */
+/* Every per-deck action of enum xz_shell_cap, and the ones the players take. The native decks have no
+   seek input. */
+#define XZ_SHRT_DECK_CAPS (XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_LOAD|XZ_SHELL_CAP_SET_SETTING|XZ_SHELL_CAP_GRID|\
+ XZ_SHELL_CAP_GRID_EDIT|XZ_SHELL_CAP_TAG_TRACK|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_CUE_LIST)
+#define XZ_SHRT_EXTRA_CAPS (XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_LOAD)
+/* A player's wave (lane and overview columns) and beat grid, converted by the runtime into memory it keeps
+   (the snapshot's arrays are the players'). */
+struct xz_shrt_extra_parts {
+ const struct xz_shell_column *scroll, *overview; uint32_t scroll_n, overview_n, span_ms;
+ const struct xz_shell_beat *grid; uint32_t grid_n;
+};
+/* After the native refresh: deck_count, decks 2 and 3 and sides_extra from one snapshot. Route down leaves
+   exactly the two-deck model. Title, artist and key point into s, so s must outlive the frame. model_now is
+   this refresh's model clock; mono_now the monotonic ms that s->deck[].elapsed_at_ms counts in. */
+void xz_shrt_extra_map(struct xz_shell_model *, const struct xz_extra_decks *s, const struct xz_shrt_extra_parts parts[XZ_EXTRA_DECKS],
+                       uint32_t model_now, uint32_t mono_now);
+/* The model's capabilities and every deck's caps_off for its deck count. caps: the runtime's capabilities
+   without LOAD; native_load / extra_load: LOAD works for the native decks / the players; deck_select: the
+   runtime can switch the sides (XZ_SHELL_ACT_DECK_SELECT). Two decks: caps (with LOAD when native_load) and
+   no caps_off. Returns the capabilities, also stored in the model. */
+uint32_t xz_shrt_extra_caps(struct xz_shell_model *, uint32_t caps, int native_load, int extra_load, int deck_select);
+/* A shell action for DECK 3 or 4. INPUT: *event is the player input (LOAD from the browse stick
+   browse_slot 0/1, SEEK); REFUSE: a per-deck action no player takes, or one the deck's capabilities do not
+   allow; NONE: not a player's action, the native path runs it. */
+enum xz_shrt_extra_route { XZ_SHRT_EXTRA_NONE, XZ_SHRT_EXTRA_INPUT, XZ_SHRT_EXTRA_REFUSE };
+enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *, const struct xz_shell_action *, int browse_slot,
+                                              struct xz_extra_deck_event *event);
+/* 1 when s carries a notice not shown yet and still fresh (raised less than XZ_SHELL_NOTICE_MS before
+   mono_now). *seen keeps the last notice_seq looked at. */
+int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now);
+/* The shell's active deck after the sides changed from was to now (bits as model.sides_extra): a side that
+   switched makes the deck it now drives active, the active deck's own side first. Unchanged sides keep it. */
+int xz_shrt_extra_active_deck(int active, unsigned was, unsigned now);
+/* The resolver's answer from a library row: path = root + rel (rel starts "/Contents/"), the text fields
+   truncated to their arrays on a character boundary. anlz_dir is left empty. 0, or -1 when rel is empty or
+   the path does not fit. */
+int xz_shrt_extra_track(struct xz_extra_track *out, int source, uint32_t track_id, const char *root, const char *rel,
+                        const char *title, const char *artist, const char *key, uint32_t bpm_x100);
+/* Three-band columns (low, mid, high bytes per column) for the lanes: band_peak is the 99.5th percentile of
+   each column's loudest band; bin_columns writes up to bins columns, each band's peak over its bin scaled so
+   that peak is full height, and returns how many. */
+uint32_t xz_shrt_band_peak(const uint8_t *bands, uint32_t count);
+uint32_t xz_shrt_bin_columns(const uint8_t *bands, uint32_t count, uint32_t peak, struct xz_shell_column *out, uint32_t bins);
 
 /* Presented-frame statistics in microseconds: frames, the largest gap between two frames and the gaps
    longer than XZ_SHRT_LATE_US (a missed 60 Hz slot). Gaps of a second or more (idle screens) are ignored. */

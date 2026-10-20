@@ -11,7 +11,12 @@
 #include "doom/native_bridge.h"
 #include "kart/xz_kart_runtime.h"
 #include "sdk/xz_sdk_host.h"
+#include "deck_select.h"
 extern int xz_mods_takeover_v1(void);
+extern void xz_shell_runtime_notice(const char *text) __attribute__((weak));
+extern int xz_shell_runtime_owns(void) __attribute__((weak));
+/* classic_load.c: arms a one-shot divert of stock's next load for that side to DECK 3 / 4. 1 when armed. */
+extern int xz_classic_load_divert_arm(int side) __attribute__((weak));
 static int kart_display_ready(void) { return xz_sdk_host_foreground() && xz_mods_takeover_v1(); }
 #include <fcntl.h>
 #include <pthread.h>
@@ -190,6 +195,9 @@ int xz_hook_arm(uint32_t address, const unsigned char expected[8],
     if(address==0x17c58c)guard=key_traffic_guard;
     static const unsigned char layered_wave_guard[8] = {0xf0,0x4f,0x2d,0xe9,0x80,0x52,0xa0,0xe1};
     if(address==0x1fab28)guard=layered_wave_guard;
+    /* Total_MainLoadMessageProc (classic LOAD into DECK 3/4): movw r3,#0x712; cmp r0,r3. No PC-relative operand. */
+    static const unsigned char total_load_guard[8]={0x12,0x37,0x00,0xe3,0x03,0x00,0x50,0xe1};
+    if(address==0xbe400)guard=total_load_guard;
     static const unsigned char pc_receive_guard[8]={0xf0,0x4f,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     static const unsigned char pc_wave_clear_guard[8]={0x03,0x00,0x50,0xe3,0xf0,0x41,0x2d,0xe9};
     static const unsigned char pc_wave_discard_guard[8]={0x03,0x00,0x50,0xe3,0xf0,0x47,0x2d,0xe9};
@@ -245,6 +253,93 @@ int xz_runtime_beat_jump(int deck,int beats) {
     return result;
 }
 
+/* DECK 3 / DECK 4 (deck_select.h). The firmware's key task and the global key hook both route here. */
+static struct xz_deck_select deck_select;
+static pthread_mutex_t deck_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* Publishes the sides and carries out one outcome with no lock held. 1: stock must not see the key. */
+static int deck_outcome(const struct xz_ds_outcome *outcome, int left, int right, int available, uint16_t code) {
+    xz_extra_decks_publish_sides(left, right);
+    if (outcome->notice == XZ_DS_NOTICE_NO_ROUTE && available) {
+        xz_log(XZ_DS_NO_ROUTE_TEXT);
+        if (xz_shell_runtime_notice) xz_shell_runtime_notice(XZ_DS_NO_ROUTE_TEXT);
+    }
+    if (outcome->unknown_first) {
+        char line[96];
+        snprintf(line, sizeof(line), "Deck select: unknown key 0x%04x swallowed on a side driving DECK 3/4", code);
+        xz_log(line);
+    }
+    if (outcome->verdict == XZ_DS_DELIVER) (void)xz_extra_deck_input(&outcome->event);
+    return outcome->verdict != XZ_DS_PASS;
+}
+
+static int deck_route(void *self, const void *input) {
+    struct xz_ds_key key;
+    if (!xz_ds_key_decode(self, input, &key)) return 0;
+    struct xz_extra_route route = xz_extra_decks_route();
+    struct xz_extra_decks feedback;
+    int have_feedback=route.route_up&&(key.code==XZ_DS_KEY_SHIFT||key.code==XZ_DS_KEY_TEMPO)&&xz_extra_decks_snapshot(&feedback);
+    pthread_mutex_lock(&deck_mutex);
+    if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
+    xz_deck_select_route(&deck_select, route.route_up);
+    struct xz_ds_outcome outcome = xz_deck_select_key(&deck_select, &key, xz_game_milliseconds());
+    int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
+    pthread_mutex_unlock(&deck_mutex);
+    return deck_outcome(&outcome, left, right, route.available, key.code);
+}
+
+int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operation) {
+    if (!installed || observer || (channel != 1 && channel != 2)) return 0;
+    /* Every key passes the global hook: only SHIFT and the GLOBAL-path rows take the lock. */
+    const struct xz_ds_row *row = code == XZ_DS_KEY_SHIFT ? NULL : xz_ds_row_for(code, NULL);
+    if (code != XZ_DS_KEY_SHIFT && (!row || row->path != XZ_DS_PATH_GLOBAL)) return 0;
+    struct xz_extra_route route = xz_extra_decks_route();
+    struct xz_extra_decks feedback;
+    int have_feedback=route.route_up&&code==XZ_DS_KEY_SHIFT&&xz_extra_decks_snapshot(&feedback);
+    pthread_mutex_lock(&deck_mutex);
+    if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
+    xz_deck_select_route(&deck_select, route.route_up);
+    struct xz_ds_outcome outcome = xz_deck_select_global_key(&deck_select, channel, code, operation, xz_game_milliseconds());
+    int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
+    pthread_mutex_unlock(&deck_mutex);
+    if (outcome.verdict == XZ_DS_LOAD) {
+        /* The interface on screen owns the browser cursor, so it decides where the track comes from. */
+        int side = outcome.event.deck;
+        enum xz_ds_load_route to = XZ_DS_LOAD_SWALLOW;
+        if (xz_shell_runtime_owns && xz_shell_runtime_owns()) to = XZ_DS_LOAD_SHELL;
+        else if (xz_classic_load_divert_arm && xz_classic_load_divert_arm(side)) to = XZ_DS_LOAD_STOCK;
+        pthread_mutex_lock(&deck_mutex);
+        xz_deck_select_load_route(&deck_select, side, to);
+        pthread_mutex_unlock(&deck_mutex);
+        xz_extra_decks_publish_sides(left, right);
+        if (to == XZ_DS_LOAD_SWALLOW) {
+            xz_log(XZ_DS_LOAD_REFUSED_TEXT);
+            if (xz_shell_runtime_notice) xz_shell_runtime_notice(XZ_DS_LOAD_REFUSED_TEXT);
+        }
+        return to == XZ_DS_LOAD_SHELL ? XZ_RUNTIME_KEY_SHELL_LOAD + side : to == XZ_DS_LOAD_SWALLOW;
+    }
+    return deck_outcome(&outcome, left, right, route.available, code);
+}
+
+int xz_runtime_deck_select_toggle(int side) {
+    if (!installed || observer || side < 0 || side > 1) return -1;
+    struct xz_extra_route route = xz_extra_decks_route();
+    if (!route.available) return -1;
+    struct xz_extra_decks feedback;
+    int have_feedback=route.route_up&&xz_extra_decks_snapshot(&feedback);
+    struct xz_ds_outcome outcome;
+    memset(&outcome, 0, sizeof(outcome));
+    pthread_mutex_lock(&deck_mutex);
+    if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
+    xz_deck_select_route(&deck_select, route.route_up);
+    xz_deck_select_toggle(&deck_select, side, &outcome);
+    int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
+    pthread_mutex_unlock(&deck_mutex);
+    xz_extra_decks_publish_sides(left, right);
+    if (outcome.notice == XZ_DS_NOTICE_NO_ROUTE) { xz_log(XZ_DS_NO_ROUTE_TEXT); return 0; }
+    return outcome.toggled ? 1 : -1;
+}
+
 static int physical_key(void *self, const void *input) {
     if(!observer && xz_kart_runtime_physical(self,input)) return 1;
     if(!observer && xz_ui_runtime_arcade_key(self,input)) return 1;
@@ -253,8 +348,9 @@ static int physical_key(void *self, const void *input) {
     pthread_mutex_lock(&cue_mutex);
     int decoded = xz_cue_native_decode(&native, self, input, &event);
     pthread_mutex_unlock(&cue_mutex);
+    int routed = !observer && deck_route(self, input);
     unsigned flags = 0;
-    int pad_consumed = decoded && !observer && xz_ui_runtime_pad(&event, &flags);
+    int pad_consumed = !routed && decoded && !observer && xz_ui_runtime_pad(&event, &flags);
     if (xz_mods_pad_trace_v1.enabled && self && input) {
         uint16_t key; uint32_t mode;
         memcpy(&key,(const unsigned char *)input+8,2);
@@ -264,12 +360,14 @@ static int physical_key(void *self, const void *input) {
         __atomic_add_fetch(&t->sequence,1,__ATOMIC_SEQ_CST);
         t->records[t->count%64]=(struct pad_trace_record){key,((const unsigned char *)input)[11],
             ((const unsigned char *)self)[0x26],mode,(uint32_t)decoded,(uint32_t)event.deck,
-            (uint32_t)event.pad,(uint32_t)event.operation,(uint32_t)event.hotcue_mode,flags};
+            (uint32_t)event.pad,(uint32_t)event.operation,(uint32_t)event.hotcue_mode,
+            /* bit 30: SHIFT held (+0x34), bit 31: deck select took the key */
+            flags|(((const unsigned char *)self)[0x34]?1u<<30:0u)|(routed?1u<<31:0u)};
         t->count++;
         __atomic_add_fetch(&t->sequence,1,__ATOMIC_SEQ_CST);
         pthread_mutex_unlock(&cue_mutex);
     }
-    if (pad_consumed) return 1;
+    if (routed || pad_consumed) return 1;
     pthread_mutex_lock(&cue_mutex);
     int consumed = decoded && !observer && xz_cue_before(&cues, &event);
     pthread_mutex_unlock(&cue_mutex);
@@ -317,6 +415,7 @@ __attribute__((constructor)) static void start(void) {
     xz_mods_pad_trace_v1.enabled = enabled("XZ_MODS_PAD_TRACE");
     xz_cue_init(&cues, xz_cue_native_api(&native));
     xz_cue_settings(&cues, 0, 0);
+    xz_deck_select_init(&deck_select);
     long page_size = sysconf(_SC_PAGESIZE);
     if (page_size <= 0) return;
     uintptr_t page = (uintptr_t)key_slot - (uintptr_t)key_slot % (uintptr_t)page_size;
@@ -338,6 +437,7 @@ __attribute__((constructor)) static void start(void) {
     installed = 1;
     xz_log(observer ? "OBSERVER installed; stock dispatch retained" : "EXPERIMENTAL gate/smart cue adapter installed");
     if (observer) return;
+    if (xz_extra_decks_start()) xz_log("DECK 3/4 players unavailable");
     if(xz_doom_bridge_start()) xz_log("Doom: native input bridge unavailable");
     xz_kart_runtime_display_probe(kart_display_ready);
     if(xz_kart_runtime_start()) xz_log("Kart: explicit physical-input bridge unavailable");
@@ -349,9 +449,11 @@ __attribute__((constructor)) static void start(void) {
     xz_key_runtime_observe(0);
     int key_ready = audio_ready && xz_key_runtime_start()==0;
     if (enabled("XZ_MODS_UI")) xz_ui_runtime_start(audio_ready, key_ready, 1);
+    { extern int xz_classic_load_start(void); if (xz_classic_load_start()) xz_log("Classic LOAD into DECK 3/4 unavailable: guard or hook slot refused"); }
 }
 
 __attribute__((destructor)) static void stop(void) {
+    xz_extra_decks_stop();
     xz_audio_trace_stop();
     xz_ui_runtime_stop();
     xz_kart_runtime_stop();

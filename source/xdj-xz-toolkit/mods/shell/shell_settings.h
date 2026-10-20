@@ -227,10 +227,18 @@ struct xz_shell_rect xz_shell_mods_page_button(void);
 /* SHORTCUT: quadrant 0..3 in reading order, and the chip row of slot 0..3 inside it. */
 struct xz_shell_rect xz_shell_shortcut_quadrant(int quadrant);
 struct xz_shell_rect xz_shell_shortcut_slot(int quadrant, int slot);
-/* SHORTCUT's DECK STATUS lamps (top right): deck 0..1, lamp per enum xz_shell_shortcut_lamp. QUANTIZE
-   and TIME toggle that deck's setting when the runtime can set it; the others only show. */
+/* SHORTCUT's DECK STATUS lamps (top right): deck 0..XZ_SHELL_SHORTCUT_DECKS-1, lamp per enum
+   xz_shell_shortcut_lamp. QUANTIZE and TIME toggle that deck's setting when the runtime can set it; the
+   others only show. The quadrant holds two decks' rows above the jump tiles. A four-deck model with
+   XZ_SHELL_CAP_DECK_SELECT ends each row in a DECK SELECT tile, and the lamps narrow to make room;
+   a NULL model is the two-deck view. */
+#define XZ_SHELL_SHORTCUT_DECKS 2
 enum xz_shell_shortcut_lamp { XZ_SHELL_LAMP_QUANTIZE, XZ_SHELL_LAMP_SYNC, XZ_SHELL_LAMP_SLIP, XZ_SHELL_LAMP_MASTER, XZ_SHELL_LAMP_TIME, XZ_SHELL_LAMP_COUNT };
-struct xz_shell_rect xz_shell_shortcut_lamp(int deck, int lamp);
+struct xz_shell_rect xz_shell_shortcut_lamp(const struct xz_shell_model *, int deck, int lamp);
+/* DECK SELECT, as stock SHORTCUT offers it while a unit plays four decks: one tile per side (0: DECK 1 / 3,
+   1: DECK 2 / 4) showing the deck that side's controls drive. A touch emits XZ_SHELL_ACT_DECK_SELECT
+   {deck = side}. Zero size unless the model plays four decks with XZ_SHELL_CAP_DECK_SELECT. */
+struct xz_shell_rect xz_shell_shortcut_deck_select(const struct xz_shell_model *, int side);
 /* SHORTCUT jump tiles under the lamps, as the stock SHORTCUT offers them. */
 enum xz_shell_shortcut_jump { XZ_SHELL_JUMP_TRACK, XZ_SHELL_JUMP_PLAYLIST, XZ_SHELL_JUMP_SEARCH, XZ_SHELL_JUMP_MATCHING, XZ_SHELL_JUMP_COUNT };
 struct xz_shell_rect xz_shell_shortcut_jump(int jump);

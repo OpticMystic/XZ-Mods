@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: MIT */
 /* Host benchmark for the FLAGSHIP shell's 60 Hz PLAY frame (never touches a device).
-   1. Render cost: both decks playing, the clock advanced one 60 Hz frame per render as the runtime
-      does (model refreshed every second frame, elapsed_at_ms stamped), at every zoom level.
+   1. Render cost: every deck playing, the clock advanced one 60 Hz frame per render as the runtime
+      does (model refreshed every second frame, elapsed_at_ms stamped), at every zoom level, for the
+      two-deck view and the four-deck view.
    2. Playhead smoothness: the frame-to-frame advance of the published playhead for raw per-reading
       extrapolation versus the runtime's smoother, from a coarse 10 ms stat-frame reading refreshed at
       30 Hz. Usage: bench_shell_frame [frames-per-zoom] */
 #include "shell_runtime.h"
-#include "shell/fixtures.h"
+#include "shell/four_deck_fixtures.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -25,16 +26,24 @@ int main(int argc, char **argv) {
  m.fx.on=1;m.fx.name="SPIRAL";m.fx.beat_num=1;m.fx.beat_den=1;m.fx.time_ms=500;m.fx.bpm_x10=1022;
  m.stems_known=1;m.stems_on=1;
  unsigned check=0;double all=0,worst=0;
- for(int pass=0;pass<2;pass++){
- /* Pass 0: the theme's 3-band lanes; pass 1: the STEMS waveform (WAVEFORM COLOR = STEMS). */
- u.display.wave_color=pass?XZ_SHELL_WAVE_STEMS:XZ_SHELL_WAVE_3BAND;all=0;worst=0;
- printf("render (host -O2), %s, both decks playing, clock +16.67 ms per frame:\n",pass?"STEMS waveform":"3-BAND waveform");
+ for(int pass=0;pass<4;pass++){
+ /* Even passes: the theme's 3-band lanes; odd: the STEMS waveform (WAVEFORM COLOR = STEMS). Passes 2
+    and 3 draw the four-deck view with all four decks playing. */
+ int decks=pass<2?2:4;
+ if(decks==4){
+  struct xz_shell_fx fx=m.fx;
+  fx_model_four(&m,&track);
+  m.fx=fx;m.stems_known=1;m.stems_on=1;m.deck[2].playing=1;
+ }
+ u.display.wave_color=pass&1?XZ_SHELL_WAVE_STEMS:XZ_SHELL_WAVE_3BAND;all=0;worst=0;
+ printf("render (host -O2), %s, %d decks playing, clock +16.67 ms per frame:\n",pass&1?"STEMS waveform":"3-BAND waveform",decks);
  for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++){
   u.zoom=zoom;
-  uint32_t clock=100000;int32_t base[2]={m.deck[0].elapsed_ms,m.deck[1].elapsed_ms};
+  uint32_t clock=100000;int32_t base[4];
+  for(int d=0;d<decks;d++)base[d]=m.deck[d].elapsed_ms;
   for(int i=0;i<frames;i++){
    clock=100000+(uint32_t)((int64_t)i*50/3);
-   if(i%2==0)for(int d=0;d<2;d++){m.deck[d].elapsed_ms=base[d]+(int32_t)(clock-100000);m.deck[d].elapsed_at_ms=clock;}
+   if(i%2==0)for(int d=0;d<decks;d++){m.deck[d].elapsed_ms=base[d]+(int32_t)(clock-100000);m.deck[d].elapsed_at_ms=clock;}
    m.clock_ms=clock;
    double t0=now_us();xz_shell_render(&u,&m,frame,XZ_SHELL_WIDTH);samples[i]=now_us()-t0;
    check+=frame[(size_t)(i%480)*XZ_SHELL_WIDTH+(size_t)(i%800)];

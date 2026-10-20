@@ -54,7 +54,7 @@ struct deck_storage {
     int held_valid;uint32_t held_at,held_id;
 };
 struct xz_shell_model_storage {
-    struct deck_storage deck[XZ_SHELL_DECKS];
+    struct deck_storage deck[XZ_SHELL_NATIVE_DECKS];
     uint32_t caution, guard_failures[4], fx_failures, holds;
     /* Code bytes never change once they matched, so a verified guard is not read again. */
     unsigned guard_ok, fx_guard_ok, slip_guard_ok;
@@ -225,7 +225,7 @@ void xz_shell_model_diagnostics(const struct xz_shell_model_storage *s,uint32_t 
     if(out){if(s)memcpy(out,s->guard_failures,sizeof(s->guard_failures));else memset(out,0,4*sizeof(*out));}
 }
 void xz_shell_model_set_input(struct xz_shell_model_storage *s,int deck,const struct xz_shell_deck *input,unsigned device_kind){
-    if(!s||deck<0||deck>=XZ_SHELL_DECKS)return;
+    if(!s||deck<0||deck>=XZ_SHELL_NATIVE_DECKS)return;
     struct xz_shell_model_input *v=&s->deck[deck].input;
     if(!input){v->deck.known=0;return;}
     /* Stage before overwriting to permit a previous model deck as input. */
@@ -346,13 +346,24 @@ uint32_t xz_shell_model_holds(const struct xz_shell_model_storage *s){return s?s
 int xz_shell_model_fx_raw(const struct xz_shell_model_storage *s,unsigned char out[12]){
     if(!s||!s->fx_raw_ok||!out)return 0;memcpy(out,s->fx_raw,12);return 1;
 }
+static const unsigned char guards[4][16]={
+    {0x0c,0x30,0x90,0xe5,0x00,0x00,0x53,0xe3,0x03,0x00,0xa0,0x01,0x1e,0xff,0x2f,0x01},
+    {0x08,0x31,0x9f,0xe5,0x01,0x00,0x51,0xe3,0xf0,0x05,0x2d,0xe9,0x41,0x12,0xa0,0x13},
+    {0x4c,0x3d,0x0d,0xe3,0x24,0x32,0x40,0xe3,0x89,0x2f,0xa0,0xe3,0x92,0x30,0x20,0xe0},
+    {0x7c,0x3f,0x0f,0xe3,0xea,0x33,0x40,0xe3,0x00,0x00,0x93,0xe5,0x1e,0xff,0x2f,0xe1}};
+static const uint32_t addresses[4]={0x249820,0x2508dc,0xd9310,0x18ca44};
+int32_t xz_shell_model_master_bpm(xz_shell_read_fn read){
+    uint32_t failures=0;
+    if(!read||!guard(read,addresses[0],guards[0],&failures))return 0;
+    for(unsigned deck=0;deck<XZ_SHELL_NATIVE_DECKS;deck++){
+        struct native_deck n;
+        if(!native_deck(read,deck,&n)||!(n.frame[0x2f]&4))continue;
+        uint32_t bpm=u32(n.frame+0x14);
+        return bpm<=INT32_MAX?(int32_t)bpm:0;
+    }
+    return 0;
+}
 unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_storage *s,xz_shell_read_fn read,uint32_t now_ms){
-    static const unsigned char guards[4][16]={
-        {0x0c,0x30,0x90,0xe5,0x00,0x00,0x53,0xe3,0x03,0x00,0xa0,0x01,0x1e,0xff,0x2f,0x01},
-        {0x08,0x31,0x9f,0xe5,0x01,0x00,0x51,0xe3,0xf0,0x05,0x2d,0xe9,0x41,0x12,0xa0,0x13},
-        {0x4c,0x3d,0x0d,0xe3,0x24,0x32,0x40,0xe3,0x89,0x2f,0xa0,0xe3,0x92,0x30,0x20,0xe0},
-        {0x7c,0x3f,0x0f,0xe3,0xea,0x33,0x40,0xe3,0x00,0x00,0x93,0xe5,0x1e,0xff,0x2f,0xe1}};
-    static const uint32_t addresses[4]={0x249820,0x2508dc,0xd9310,0x18ca44};
     int ok[4],auto_known[2]={0,0},auto_value[2]={0,0};unsigned changed=0;
     struct setting_pair list[SETTINGS_CAP];uint32_t count=0;
     if(!m||!s)return 0;
@@ -368,7 +379,7 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
     s->caution=UINT32_MAX;
     if(ok[3]&&stable(read,0x3eaff7c,caution,again,4))s->caution=u32(caution)&0xffff;
     if(ok[1])ok[1]=settings(read,list,&count);
-    for(unsigned deck=0;deck<XZ_SHELL_DECKS;deck++){
+    for(unsigned deck=0;deck<XZ_SHELL_NATIVE_DECKS;deck++){
         struct xz_shell_deck *d=m->deck+deck;struct deck_storage *v=s->deck+deck;struct native_deck n;
         int have_native=ok[0]&&native_deck(read,deck,&n),title_state=0;
         v->hot_out_known=0;
@@ -460,22 +471,22 @@ static uint32_t copy_wave(struct xz_shell_column *out,size_t cap,const struct xz
     return (uint32_t)n;
 }
 void xz_shell_model_set_wave(struct xz_shell_model_storage *s,int deck,const struct xz_shell_column *scroll,size_t scroll_count,uint32_t scroll_span_ms,const struct xz_shell_column *overview,size_t overview_count,uint32_t overview_span_ms){
-    if(!s||deck<0||deck>=XZ_SHELL_DECKS)return;
+    if(!s||deck<0||deck>=XZ_SHELL_NATIVE_DECKS)return;
     struct deck_storage *d=s->deck+deck;
     d->scroll_count=copy_wave(d->scroll,SCROLL_CAP,scroll,scroll_count,scroll_span_ms);d->scroll_span=scroll_span_ms;
     d->overview_count=copy_wave(d->overview,OVERVIEW_CAP,overview,overview_count,overview_span_ms);d->overview_span=overview_span_ms;
 }
 void xz_shell_model_set_stems(struct xz_shell_model_storage *s,int deck,const struct xz_shell_column *stems,size_t count,uint32_t span_ms){
-    if(!s||deck<0||deck>=XZ_SHELL_DECKS)return;
+    if(!s||deck<0||deck>=XZ_SHELL_NATIVE_DECKS)return;
     struct deck_storage *d=s->deck+deck;
     d->stems_count=copy_wave(d->stems,SCROLL_CAP,stems,count,span_ms);d->stems_span=span_ms;
 }
 int xz_shell_model_has_stems(const struct xz_shell_model_storage *s,int deck){
-    return s&&deck>=0&&deck<XZ_SHELL_DECKS&&s->deck[deck].stems_count;
+    return s&&deck>=0&&deck<XZ_SHELL_NATIVE_DECKS&&s->deck[deck].stems_count;
 }
 uint32_t xz_shell_model_caution(const struct xz_shell_model_storage *s){return s?s->caution:UINT32_MAX;}
 
 int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *s,int deck,int cue,int32_t *out_ms){
-    if(!s||!out_ms||deck<0||deck>=XZ_SHELL_DECKS||cue<0||cue>=XZ_SHELL_HOT_CUES||!s->deck[deck].hot_out_known)return 0;
+    if(!s||!out_ms||deck<0||deck>=XZ_SHELL_NATIVE_DECKS||cue<0||cue>=XZ_SHELL_HOT_CUES||!s->deck[deck].hot_out_known)return 0;
     *out_ms=s->deck[deck].hot_out[cue];return 1;
 }
