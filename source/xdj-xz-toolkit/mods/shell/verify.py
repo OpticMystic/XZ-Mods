@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import subprocess
 import tempfile
-from shell_sources import SHELL_SOURCES
+from shell_sources import SHELL_SOURCES, MENU_SOURCES
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--zig', required=True)
@@ -12,7 +12,8 @@ root = Path(__file__).resolve().parent
 common = [str(Path(args.zig).resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror']
 with tempfile.TemporaryDirectory(prefix='xz-shell-test-') as folder:
     # Every test_*.c is its own program over the whole shell, so a screen family adds a test without editing this file.
-    for name, sources in {test.stem: [*SHELL_SOURCES, test.name] for test in sorted(root.glob('test_*.c'))}.items():
+    # test_menu*.c also link the MODS panel and its page adapter (ui/ui_menu.c).
+    for name, sources in {test.stem: [*SHELL_SOURCES, *(MENU_SOURCES if test.stem.startswith('test_menu') else []), test.name] for test in sorted(root.glob('test_*.c'))}.items():
         output = Path(folder) / (name + '.exe')
         subprocess.run(common + ['-UNDEBUG'] + [str(root / p) for p in sources] + ['-o', str(output)], check=True)
         subprocess.run([str(output)], check=True, cwd=folder)
