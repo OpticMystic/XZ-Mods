@@ -15,7 +15,10 @@ enum {
 
 /* Left of the mod header buttons, which own the bar's right end. */
 static inline struct xz_shell_rect si_close_rect(void) { return (struct xz_shell_rect){XZ_SHELL_HEADER_X-4-SI_CLOSE_W,0,SI_CLOSE_W,SI_HEAD_H}; }
-static inline struct xz_shell_rect si_strip_rect(int deck) { return (struct xz_shell_rect){deck*SI_HALF,SI_STRIP_Y,SI_HALF,SI_STRIP_H}; }
+/* A deck's part of the status strip; NULL is the two-deck view. */
+static inline struct xz_shell_rect si_strip_rect(const struct xz_shell_model *m, int deck) {
+ return sh_strip_cell(m,(struct xz_shell_rect){0,SI_STRIP_Y,XZ_SHELL_WIDTH,SI_STRIP_H},deck);
+}
 static inline const struct xz_shell_view *si_view(const struct xz_shell *u) { return &u->stack[u->depth-1]; }
 static inline size_t si_emit(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n, struct xz_shell_action a) {
  if(n<XZ_SHELL_ACTIONS)out[n++]=a;
@@ -95,7 +98,7 @@ static inline void si_mini_overview(const struct xz_shell *u, const struct xz_sh
 }
 static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
- struct xz_shell_rect s=si_strip_rect(deck);
+ struct xz_shell_rect s=si_strip_rect(m,deck);
  int y=s.y+1,right=s.x+s.w-6;
  char text[24],frac[8];
  /* deck badge */
@@ -147,6 +150,7 @@ static inline void si_strip_deck(const struct xz_shell *u, const struct xz_shell
  if(ow>8)si_mini_overview(u,m,c,d,(struct xz_shell_rect){ox,y+8,ow,33},have_elapsed&&have_total?elapsed:-1);
 }
 static inline void si_strip(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ if(sh_deck_quarters(u,m,c,(struct xz_shell_rect){0,SI_STRIP_Y,c.width,SI_STRIP_H}))return;
  xz_rect(c,0,SI_STRIP_Y,c.width,SI_STRIP_H,SH_CHROME);
  xz_rect(c,0,SI_STRIP_Y,c.width,1,SH_BLACK);
  xz_rect(c,SI_HALF-1,SI_STRIP_Y,2,SI_STRIP_H,SH_BLACK);

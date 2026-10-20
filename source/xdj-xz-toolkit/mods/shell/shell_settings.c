@@ -451,6 +451,7 @@ static void render_status_deck(const struct xz_shell *u, const struct xz_shell_m
 }
 static void render_status(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,0,STATUS_Y-2,W,STATUS_H+2,SH_BLACK);
+ if(sh_deck_quarters(u,m,c,(struct xz_shell_rect){0,STATUS_Y-1,W,STATUS_H+1}))return;
  for(int deck=0;deck<sh_deck_count(m);deck++)render_status_deck(u,m,c,deck);
 }
 

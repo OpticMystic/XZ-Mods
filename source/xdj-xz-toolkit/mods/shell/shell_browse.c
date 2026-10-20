@@ -209,18 +209,18 @@ struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *u, const struct
  case XZ_SHELL_BR_LOAD:{
   const struct xz_shell_view *v=top_view(u);
   int i=v->focus?st.touched-v->scroll:-1;
-  if(index<0||index>2||!v->focus||st.touched<0||st.touched!=v->cursor||i<0||i>=rows)return none;
+  if(index<0||index>sh_deck_count(m)||!v->focus||st.touched<0||st.touched!=v->cursor||i<0||i>=rows)return none;
   const struct xz_shell_browse_row *t_row=row_at(b,s,st.touched);
   if(!t_row||t_row->kind!=XZ_SHELL_ROW_TRACK)return none;
   struct col t=title_col(b,s);
-  int right=t.x+t.w-6,x=right-LOAD_W-2*LOAD_DECK_W;
+  int right=t.x+t.w-6,x=right-LOAD_W-sh_deck_count(m)*LOAD_DECK_W;
   int y=LIST_Y+i*ROW_H;
   if(index==0)return (struct xz_shell_rect){x,y,LOAD_W,ROW_H};
   return (struct xz_shell_rect){x+LOAD_W+(index-1)*LOAD_DECK_W,y,LOAD_DECK_W,ROW_H};
  }
  case XZ_SHELL_BR_INFO_PANE:return u->panel.kind==XZ_SHELL_PANEL_INFO?(struct xz_shell_rect){W-INFO_W,HEAD_H,INFO_W,STRIP_Y-HEAD_H}:none;
  case XZ_SHELL_BR_KEY:return keyboard_shown(u)&&index>=0&&index<XZ_SHELL_BROWSE_KEYS?key_rect(index):none;
- case XZ_SHELL_BR_STRIP:return index>=0&&index<sh_deck_count(m)?(struct xz_shell_rect){index*HALF_W,STRIP_Y,HALF_W,STRIP_H}:none;
+ case XZ_SHELL_BR_STRIP:return index>=0&&index<sh_deck_count(m)?sh_strip_cell(m,(struct xz_shell_rect){0,STRIP_Y,W,STRIP_H},index):none;
  }
  return none;
 }
@@ -572,7 +572,7 @@ static void render_load_chip(const struct xz_shell *u, const struct xz_shell_mod
  /* Without the capability the chip still answers (the stock browser takes over), so it stays, greyed, saying so. */
  int live=(m->capabilities&XZ_SHELL_CAP_LOAD)!=0;
  uint32_t fill=live?SH_WHITE:SH_RAIL,ink=live?SH_BLUE:SH_DIM;
- xz_rect(c,l.x,y,LOAD_W+2*LOAD_DECK_W,h,fill);
+ xz_rect(c,l.x,y,LOAD_W+sh_deck_count(m)*LOAD_DECK_W,h,fill);
  sh_text_center(c,l.x+LOAD_W/2,y+(h-SH_CAP_SMALL)/2,live?"LOAD":"LOAD OFF",SH_SMALL,ink);
  for(int d=0;d<sh_deck_count(m);d++){
   struct xz_shell_rect r=xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,d+1);
@@ -614,7 +614,7 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
    break;
   case XZ_SHELL_COL_TITLE:{
    int right=k->x+k->w-8;
-   if(touched)right=k->x+k->w-6-LOAD_W-2*LOAD_DECK_W-8;
+   if(touched)right=k->x+k->w-6-LOAD_W-sh_deck_count(m)*LOAD_DECK_W-8;
    else if(rknown(r,XZ_SHELL_RF_ON_DECK))for(int d=sh_deck_count(m)-1;d>=0;d--)if((r->on_deck>>d)&1){
     right-=14;deck_badge(c,right,y+12,d,selected?SH_WHITE:SH_BLUE,selected?SH_BLUE:SH_WHITE);right-=4;
    }
@@ -1585,6 +1585,7 @@ static void strip_overview(const struct xz_shell *u, const struct xz_shell_model
  }else xz_rect(c,x,y+h+1,w,2,SH_RAIL);
 }
 static void render_strip(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ if(sh_deck_quarters(u,m,c,(struct xz_shell_rect){0,STRIP_Y,W,STRIP_H}))return;
  xz_rect(c,0,STRIP_Y,W,STRIP_H,SH_BLACK);
  for(int deck=0;deck<sh_deck_count(m);deck++){
   const struct xz_shell_deck *d=&m->deck[deck];
@@ -1873,7 +1874,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   int desc=bknown(b,XZ_SHELL_BF_SORT)&&(int)b->sort_column==cols[i].kind?!b->sort_descending:0;
   return op(out,n,XZ_SHELL_BROWSE_SORT,cols[i].kind|desc<<8);
  }
- for(int i=0;i<3;i++)if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,i),x,y)){
+ for(int i=0;i<=sh_deck_count(m);i++)if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,i),x,y)){
   const struct xz_shell_browse_row *r=row_at(b,s,st.touched);
   return load(u,m,r,i==0?u->deck:i-1,out,n);
  }
