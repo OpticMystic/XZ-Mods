@@ -182,6 +182,7 @@ def main() -> None:
         "runtime-smoke": [str(ROOT / "runtime_smoke.c"), "-ldl"],
         "beat-jump-test": [str(ROOT / "ui/beat_jump.c"),str(ROOT / "ui/test_beat_jump.c")],
         "cue-test": [str(ROOT / "cue/cue.c"), str(ROOT / "cue/test_cue.c")],
+        "deck-select-test": [str(ROOT / "deck_select.c"), str(ROOT / "test_deck_select.c")],
         "settings-test": [str(ROOT / "settings.c"), str(ROOT / "tests/test_settings.c")],
         "my-settings-test": [str(ROOT / "my_settings.c"), str(ROOT / "test_my_settings.c")],
         "native-decode-test": [str(ROOT / "cue/native.c"), str(ROOT / "cue/test_native_decode.c")],
