@@ -402,6 +402,7 @@ __attribute__((constructor)) static void start(void) {
     xz_key_runtime_observe(0);
     int key_ready = audio_ready && xz_key_runtime_start()==0;
     if (enabled("XZ_MODS_UI")) xz_ui_runtime_start(audio_ready, key_ready, 1);
+    { extern int xz_classic_load_start(void); if (xz_classic_load_start()) xz_log("Classic LOAD into DECK 3/4 unavailable: guard or hook slot refused"); }
 }
 
 __attribute__((destructor)) static void stop(void) {
