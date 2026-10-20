@@ -1337,7 +1337,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     for(int d=0;d<2;d++){
         /* 3-stem local playback only: with four stems or PC stems the bits mean something else. */
         in->stem_muted_known[d]=(model.deck[d].ready&XZ_UI_STEM)&&model.deck[d].pc_stems.source==XZ_UI_SOURCE_LOCAL&&model.deck[d].stem_count!=4;
-        in->stem_muted[d]=model.deck[d].muted;
+        in->stem_muted[d]=model.deck[d].muted;in->stem_bypass[d]=model.deck[d].bypass!=0;
     }
     in->stem_rgb_known=1;for(int i=0;i<3;i++)in->stem_rgb[i]=xz_ui_model_stem_color(&model,i);
     in->look_known=1;in->ui_interface=model.ui_interface;in->modern_theme=model.modern_theme;in->wave_mode=model.wave_mode;

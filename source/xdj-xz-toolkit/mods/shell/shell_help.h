@@ -110,5 +110,7 @@ static const struct sh_help sh_help_table[]={
   {{"SHOW","Each lamp lights while its mode is on."},{"HIDE","The lamps leave the screen; the modes keep working."}}},
  {XZ_SHELL_ITEM_QUANTIZE_LAMP,"QUANTIZE LAMP","Each deck's QUANTIZE lamp and beat value, red while QUANTIZE is on.",
   {{"SHOW","The lamp sits above the deck's time."},{"HIDE","Only the QUANTIZE button's own light shows the state."}}},
+ {XZ_SHELL_ITEM_BYPASS_BUTTON,"BYPASS BUTTON","The BYPASS button at the end of each deck's stem buttons: lit, the original track plays.",
+  {{"SHOW","Touch it to hear the whole track; touch again for the stems as you left them."},{"HIDE","The stem buttons take its room."}}},
 };
 #endif
