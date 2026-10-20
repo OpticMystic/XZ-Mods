@@ -333,6 +333,9 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
   if(s->track_bpm_x100>0){d->track_bpm_x100=s->track_bpm_x100;d->known|=SK(TRACK_BPM);}
  }
  if(EK(TEMPO)){d->tempo_x100=s->tempo_x100;d->known|=SK(TEMPO);}
+ if(EK(TEMPO_RANGE)){d->tempo_range=s->tempo_range;d->known|=SK(TEMPO_RANGE);}
+ if(EK(MASTER_TEMPO)){d->master_tempo=!!s->master_tempo;d->known|=SK(MASTER_TEMPO);}
+ if(EK(VINYL)){d->vinyl=!!s->vinyl;d->known|=SK(VINYL);}
  if(EK(MASTER)){d->master=!!s->master;d->known|=SK(MASTER);}
  if(EK(KEY)&&s->key[0]){d->key=s->key;d->known|=SK(KEY);}
  if(EK(CUE)){d->cue_ms=s->cue_ms;d->known|=SK(CUE_POINT);}

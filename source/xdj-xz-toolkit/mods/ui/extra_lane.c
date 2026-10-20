@@ -17,6 +17,20 @@ _Static_assert(sizeof(struct xz_extra_column)==3,"PWV7 columns are three packed 
 #define BEAT_TICK 0xce59
 #define BAR_TICK 0xf800
 
+int xz_extra_notice_active(const struct xz_extra_decks *s,uint32_t now_ms) {
+ return s&&s->notice_seq&&s->notice[0]&&(uint32_t)(now_ms-s->notice_at_ms)<3500u;
+}
+int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *s,uint32_t now_ms) {
+ if(!pixels||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||count<stride*XZ_WAVE_HEIGHT||
+    !xz_extra_notice_active(s,now_ms))return 0;
+ char text[sizeof s->notice];memcpy(text,s->notice,sizeof text);text[sizeof text-1]=0;
+ struct xz_canvas c={pixels,stride,WIDTH,XZ_WAVE_HEIGHT,0};
+ xz_rect(c,6,244,WIDTH-12,22,0x151515);
+ xz_border(c,6,244,WIDTH-12,22,0xff9a30);
+ xz_text(c,14,251,text,1,63,0xffffff);
+ return 1;
+}
+
 static uint16_t rgb(unsigned r,unsigned g,unsigned b){return (uint16_t)(((r>>3)<<11)|((g>>2)<<5)|(b>>3));}
 /* Rows above the centre line for a native lane row, or -1 outside the body. */
 static int body_d(unsigned s){
@@ -45,6 +59,8 @@ int xz_extra_lane_position_ms(const struct xz_extra_deck *d,uint32_t now_ms,int3
   if(speed>0)p+=(int64_t)age*speed/10000;
  }
  if(p<0)p=0;
+ if((d->known&K(LOOP))&&d->loop.active&&d->loop.out_ms>d->loop.in_ms&&p>=d->loop.out_ms)
+  p=d->loop.in_ms+(p-d->loop.in_ms)%(d->loop.out_ms-d->loop.in_ms);
  if((d->known&K(TOTAL))&&d->total_ms>0&&p>d->total_ms)p=d->total_ms;
  *out=(int32_t)p;return 1;
 }
@@ -101,6 +117,16 @@ static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_dec
  if((d->known&K(MASTER))&&d->master){
   int w=xz_text_width(c,"MASTER",1,12)+8;
   xz_rect(c,3+tag+4,2,w,13,0xff6a00);xz_text(c,3+tag+8,4,"MASTER",1,12,0xffffff);
+ }else{
+  char range[8]="";
+  if(d->known&K(TEMPO_RANGE)){
+   if(d->tempo_range==100)snprintf(range,sizeof range,"WIDE");
+   else if(d->tempo_range==6||d->tempo_range==10||d->tempo_range==16)snprintf(range,sizeof range,"%d%%",d->tempo_range);
+  }
+  snprintf(text,sizeof text,"%s%s%s",range,
+           (d->known&K(MASTER_TEMPO))&&d->master_tempo?" MT":"",
+           (d->known&K(VINYL))&&d->vinyl?" V":"");
+  xz_text(c,3+tag+4,4,text,1,10,0xffc070);
  }
  int timed=placed&&(d->known&K(TOTAL))&&d->total_ms>0;
  clock_text(text,sizeof(text),timed,timed?d->total_ms-pos:0);

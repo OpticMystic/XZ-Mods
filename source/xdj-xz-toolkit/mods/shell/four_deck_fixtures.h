@@ -41,9 +41,8 @@ static inline void fx_model_four(struct xz_shell_model *m, const struct fx_track
  m->deck_count=4;
  fx_deck_three(&m->deck[2],t);fx_deck_four(&m->deck[3],t);
 }
-/* Decks 3 and 4 as the runtime publishes the software players: they take LOAD and SEEK only, carry no
-   time mode, tempo range, sync, quantize or memory cues, and their loop has no beat count; the native
-   decks have no needle search. The left controls drive DECK 3. */
+/* Software players: LOAD/SEEK on screen, physical performance controls, and known range/MT/vinyl state.
+   Time mode, sync latch, quantize and memory-cue controls remain native-only. */
 #define FX_EXTRA_DECK_CAPS (XZ_SHELL_CAP_SET_SETTING|XZ_SHELL_CAP_GRID|XZ_SHELL_CAP_GRID_EDIT|XZ_SHELL_CAP_TAG_TRACK\
  |XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_CUE_LIST)
 static inline void fx_model_four_players(struct xz_shell_model *m, const struct fx_track *t) {
@@ -53,10 +52,11 @@ static inline void fx_model_four_players(struct xz_shell_model *m, const struct 
  for(int d=2;d<4;d++){
   struct xz_shell_deck *k=&m->deck[d];
   k->caps_off=FX_EXTRA_DECK_CAPS;
-  k->known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_TIME_MODE)|XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO_RANGE)|XZ_SHELL_KNOWN(XZ_SHELL_F_SYNC)
-   |XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER_TEMPO)|XZ_SHELL_KNOWN(XZ_SHELL_F_QUANTIZE)|XZ_SHELL_KNOWN(XZ_SHELL_F_MEMORY_CUES)
+  k->known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_TIME_MODE)|XZ_SHELL_KNOWN(XZ_SHELL_F_SYNC)
+   |XZ_SHELL_KNOWN(XZ_SHELL_F_QUANTIZE)|XZ_SHELL_KNOWN(XZ_SHELL_F_MEMORY_CUES)
    |XZ_SHELL_KNOWN(XZ_SHELL_F_TRACK_NO)|XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_ARTWORK));
-  k->loop.beats_num=k->loop.beats_den=0;
+  k->known|=XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO_RANGE)|XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER_TEMPO)|XZ_SHELL_KNOWN(XZ_SHELL_F_VINYL);
+  k->tempo_range=d==2?10:16;k->master_tempo=d==2;k->vinyl=1;
  }
  m->sides_extra=1;
 }

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "aiff_reader.h"
 #define DR_FLAC_NO_OGG
 #include "vendor/dr_libs/dr_flac.h"
 #include "vendor/dr_libs/dr_wav.h"
@@ -23,8 +24,8 @@
 #endif
 
 struct xz_stem_media {
-    enum { MEDIA_WAV, MEDIA_FLAC, MEDIA_MP3, MEDIA_VORBIS } kind;
-    union { drwav wav; drflac *flac; drmp3 mp3; stb_vorbis *vorbis; } decoder;
+    enum { MEDIA_WAV, MEDIA_FLAC, MEDIA_MP3, MEDIA_VORBIS, MEDIA_AIFF } kind;
+    union { drwav wav; drflac *flac; drmp3 mp3; stb_vorbis *vorbis; struct xz_aiff aiff; } decoder;
     uint32_t rate;
     uint64_t frames, position;
 };
@@ -36,6 +37,7 @@ void xz_stem_media_close(struct xz_stem_media *m) {
     case MEDIA_FLAC: drflac_close(m->decoder.flac); break;
     case MEDIA_MP3: drmp3_uninit(&m->decoder.mp3); break;
     case MEDIA_VORBIS: stb_vorbis_close(m->decoder.vorbis); break;
+    case MEDIA_AIFF: if (m->decoder.aiff.file) fclose(m->decoder.aiff.file); break;
     }
     free(m);
 }
@@ -66,6 +68,11 @@ struct xz_stem_media *xz_stem_media_open(const char *path, int untrimmed) {
         if (!drwav_init_file(&m->decoder.wav, path, NULL)) { free(m); return NULL; }
         m->rate = m->decoder.wav.sampleRate; channels = m->decoder.wav.channels;
         m->frames = m->decoder.wav.totalPCMFrameCount;
+    } else if (!memcmp(magic, "FORM", 4)) {
+        m->kind = MEDIA_AIFF;
+        if (!xz_aiff_open(&m->decoder.aiff, path)) { xz_stem_media_close(m); return NULL; }
+        m->rate = m->decoder.aiff.rate; channels = m->decoder.aiff.channels;
+        m->frames = m->decoder.aiff.frames;
     } else if (!memcmp(magic, "ID3", 3) || (magic[0] == 255 && (magic[1] & 224) == 224)) {
         m->kind = MEDIA_MP3;
         if (!drmp3_init_file(&m->decoder.mp3, path, NULL)) { free(m); return NULL; }
@@ -98,8 +105,20 @@ int xz_stem_media_read(struct xz_stem_media *m, int64_t first, size_t frames, fl
         switch (m->kind) {
         case MEDIA_WAV: ok = drwav_seek_to_pcm_frame(&m->decoder.wav, (uint64_t)first); break;
         case MEDIA_FLAC: ok = drflac_seek_to_pcm_frame(m->decoder.flac, (uint64_t)first); break;
-        case MEDIA_MP3: ok = drmp3_seek_to_pcm_frame(&m->decoder.mp3, (uint64_t)first); break;
+        case MEDIA_MP3: {
+            /* dr_mp3's internal currentPCMFrame includes encoder delay, while
+             * read counts and this API use trimmed PCM. Discard a logical delta;
+             * its absolute forward seek mixes those two coordinate systems. */
+            uint64_t from = m->position;
+            ok = 1;
+            if ((uint64_t)first < from) { ok = drmp3_seek_to_pcm_frame(&m->decoder.mp3, 0); from = 0; }
+            uint64_t skip = (uint64_t)first - from;
+            /* stem_mp3.c uses the decoder's s16 output; this is its discard path. */
+            if (ok && drmp3_read_pcm_frames_s16(&m->decoder.mp3, skip, NULL) != skip) ok = 0;
+            break;
+        }
         case MEDIA_VORBIS: ok = stb_vorbis_seek(m->decoder.vorbis, (unsigned)first); break;
+        case MEDIA_AIFF: ok = xz_aiff_seek(&m->decoder.aiff, (uint64_t)first); break;
         }
         if (!ok) return -1;
     }
@@ -109,6 +128,7 @@ int xz_stem_media_read(struct xz_stem_media *m, int64_t first, size_t frames, fl
     case MEDIA_FLAC: got = drflac_read_pcm_frames_f32(m->decoder.flac, frames, out); break;
     case MEDIA_MP3: got = drmp3_read_pcm_frames_f32(&m->decoder.mp3, frames, out); break;
     case MEDIA_VORBIS: got = (unsigned)stb_vorbis_get_samples_float_interleaved(m->decoder.vorbis, 2, out, (int)frames * 2); break;
+    case MEDIA_AIFF: got = xz_aiff_read(&m->decoder.aiff, frames, out); break;
     }
     m->position = (uint64_t)first + got;
     if (got != frames) return -1;

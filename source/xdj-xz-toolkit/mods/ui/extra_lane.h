@@ -32,6 +32,9 @@ int xz_extra_lane_position_ms(const struct xz_extra_deck *,uint32_t now_ms,int32
    pixel is written. NULL deck draws as unloaded. marks may be NULL. */
 int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
  const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
+/* A transient player/route notice on the existing Classic play surface, including after route loss. */
+int xz_extra_notice_active(const struct xz_extra_decks *,uint32_t now_ms);
+int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *,uint32_t now_ms);
 
 /* Theme pass over the four-deck surface (stride 536), the LAYERED_WAVE.md rule for four lanes:
    protect marks pixels that still hold the layer colour this frame drew for a deck (cue, beat and

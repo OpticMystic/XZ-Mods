@@ -658,6 +658,7 @@ static void extra_snapshot(struct xz_extra_decks *s) {
   d->loaded=1;snprintf(d->title,sizeof d->title,"Extra %d",i+3);snprintf(d->artist,sizeof d->artist,"Artist %d",i+3);
   d->source=i+1;d->elapsed_ms=60000;d->total_ms=300000;d->elapsed_at_ms=9900;d->playing=i==1;
   d->bpm_x100=12000;d->track_bpm_x100=12000;d->tempo_x100=0;d->master=0;snprintf(d->key,sizeof d->key,"%s",i?"8A":"Fm");
+  d->tempo_range=i?100:16;d->master_tempo=!i;d->vinyl=i;
   d->cue_ms=1000;d->hot_cue[2]=(struct xz_extra_cue){1,4000,0x20c8ff};
   d->loop.active=1;d->loop.in_ms=8000;d->loop.out_ms=12000;   /* 8 beats at 120 BPM */
   d->grid=extra_beats;d->grid_count=16;
@@ -689,13 +690,15 @@ static void extra_decks(void) {
    XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_ELAPSED)|XZ_SHELL_KNOWN(XZ_SHELL_F_TOTAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_PLAYING)|
    XZ_SHELL_KNOWN(XZ_SHELL_F_BPM)|XZ_SHELL_KNOWN(XZ_SHELL_F_TRACK_BPM)|XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO)|XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER)|
    XZ_SHELL_KNOWN(XZ_SHELL_F_KEY)|XZ_SHELL_KNOWN(XZ_SHELL_F_CUE_POINT)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUES)|XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)|
-   XZ_SHELL_KNOWN(XZ_SHELL_F_GRID)|XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_OVERVIEW);
+   XZ_SHELL_KNOWN(XZ_SHELL_F_GRID)|XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_OVERVIEW)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO_RANGE)|XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER_TEMPO)|XZ_SHELL_KNOWN(XZ_SHELL_F_VINYL);
   assert(k->known==want);
   assert(k->title==s.deck[d-2].title&&!strcmp(k->title,d==2?"Extra 3":"Extra 4")&&k->artist==s.deck[d-2].artist&&k->key==s.deck[d-2].key);
   assert(k->source==(d==2?XZ_SHELL_SRC_USB1:XZ_SHELL_SRC_USB2)&&k->loaded&&k->playing==(d==3));
   /* elapsed_at_ms: 100 ms before mono_now becomes 100 ms before the model clock. */
   assert(k->elapsed_ms==60000&&k->elapsed_at_ms==499900&&k->total_ms==300000);
   assert(k->bpm_x100==12000&&k->track_bpm_x100==12000&&k->cue_ms==1000);
+  assert(k->tempo_range==(d==2?16:100)&&k->master_tempo==(d==2)&&k->vinyl==(d==3));
   assert(k->hot_cue[2].set&&k->hot_cue[2].ms==4000&&k->hot_cue[2].rgb==0x20c8ff&&!k->hot_cue[2].is_loop&&!k->hot_cue[0].set);
   assert(k->grid==extra_grid&&k->grid_count==16&&k->wave.columns==extra_scroll&&k->wave.count==300&&k->wave.span_ms==2000);
   assert(k->overview.columns==extra_overview&&k->overview.count==64&&!k->caps_off);

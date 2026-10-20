@@ -154,9 +154,24 @@ static void test_routing(void) {
  key(LEFT, 0x4114, 0); key(LEFT, 0x4114, 2);
  assert(key(LEFT, 0x4120, 0).event.hot_cue == 7);
  key(LEFT, 0x4120, 2);
- /* Loop, beat jump and the other per-deck keys never reach the native deck. */
- static const uint16_t swallowed[] = {0x410d, 0x410e, 0x410f, 0x4110, 0x4111, 0x4104, 0x4107, 0x4109,
-  0x4121, 0x4122, 0x4126, 0x4127, 0x4128, 0x4312, 0x4324, 0x4325, 0x4212, 0x4213, 0x430f, 0x430b, 0x430c};
+ static const struct { uint16_t key; enum xz_extra_input kind; } controls[] = {
+  {0x410d, XZ_EXTRA_IN_LOOP_IN}, {0x410e, XZ_EXTRA_IN_LOOP_OUT}, {0x410f, XZ_EXTRA_IN_RELOOP},
+  {0x4104, XZ_EXTRA_IN_VINYL}, {0x4107, XZ_EXTRA_IN_TEMPO_RANGE}, {0x4109, XZ_EXTRA_IN_TEMPO_RESET},
+  {0x4324, XZ_EXTRA_IN_LOOP_DOUBLE}, {0x4325, XZ_EXTRA_IN_LOOP_HALF}
+ };
+ for (unsigned i = 0; i < sizeof controls / sizeof *controls; ++i) {
+  o = key(LEFT, controls[i].key, 0);
+  assert(o.verdict == XZ_DS_DELIVER && o.event.kind == controls[i].kind && o.event.pressed);
+  o = key(LEFT, controls[i].key, 1);
+  if (controls[i].kind == XZ_EXTRA_IN_LOOP_IN) assert(o.verdict == XZ_DS_DELIVER && o.event.held);
+  else assert(o.verdict == XZ_DS_SWALLOW);
+  assert(key(LEFT, controls[i].key, 2).verdict == XZ_DS_DELIVER);
+  assert(key(RIGHT, controls[i].key, 0).verdict == XZ_DS_PASS);
+  assert(key(RIGHT, controls[i].key, 2).verdict == XZ_DS_PASS);
+ }
+ /* Unsupported per-deck keys never reach the native deck. */
+ static const uint16_t swallowed[] = {0x4110, 0x4111,
+  0x4121, 0x4122, 0x4126, 0x4127, 0x4128, 0x4312, 0x4212, 0x4213, 0x430f, 0x430b, 0x430c};
  for(size_t i = 0; i < sizeof swallowed / sizeof *swallowed; i++) {
   assert(key(LEFT, swallowed[i], 0).verdict == XZ_DS_SWALLOW);
   assert(key(LEFT, swallowed[i], 2).verdict == XZ_DS_SWALLOW);
@@ -245,6 +260,23 @@ static void test_tempo_pickup(void) {
  assert(!p.armed && xz_ds_pickup_feed(&p, 5000));
  xz_ds_pickup_arm(&p, 1000, 0, 0);
  assert(!xz_ds_pickup_feed(&p, 3000) && !xz_ds_pickup_feed(&p, 2000) && xz_ds_pickup_feed(&p, 999));
+ /* A software SYNC moves the target even though no fader event occurred. */
+ reset(1);fader(LEFT,0);double_press(LEFT);
+ struct xz_extra_decks extra={0};extra.route_up=1;
+ extra.deck[0].known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TEMPO)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_TEMPO_RANGE);
+ extra.deck[0].tempo_range=10;extra.deck[0].tempo_x100=500;extra.deck[0].tempo_revision=1;
+ xz_deck_select_feedback(&d,&extra);
+ assert(fader(LEFT,.2f).verdict==XZ_DS_SWALLOW);
+ assert(fader(LEFT,.51f).verdict==XZ_DS_DELIVER);
+ /* A late snapshot with the same revision must not undo a newer physical move. */
+ xz_deck_select_feedback(&d,&extra);
+ assert(fader(LEFT,.6f).verdict==XZ_DS_DELIVER);
+ double_press(LEFT);
+ extra.deck[0].tempo_x100=-300;extra.deck[0].tempo_revision++;
+ xz_deck_select_feedback(&d,&extra);
+ double_press(LEFT);
+ assert(fader(LEFT,0).verdict==XZ_DS_SWALLOW);
+ assert(fader(LEFT,-.31f).verdict==XZ_DS_DELIVER);
 }
 
 static void test_unknown(void) {

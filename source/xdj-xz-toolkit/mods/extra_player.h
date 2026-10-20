@@ -12,9 +12,9 @@
 #include "extra_decks.h"
 #include "audio/usb_transport/usb_transport.h"
 
-enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_SAMPLING, XZ_XP_ENDED, XZ_XP_ERROR };
+enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_SAMPLING, XZ_XP_ENDED, XZ_XP_ERROR, XZ_XP_SCRATCHING };
 
-#define XZ_XP_TEMPO_RANGE_X100 1000    /* +-10 %; TEMPO RANGE is not wired yet */
+#define XZ_XP_TEMPO_RANGE_X100 1000    /* initial +-10 % */
 #define XZ_XP_GAIN 1.0f                /* level against the native decks: one line to match on the deck */
 #define XZ_XP_AHEAD_FRAMES 2048u       /* output frames queued in the transport before USB staging takes them */
 #define XZ_XP_BEND_PER_TICK 0.004f     /* playing jog: speed added per tick, decaying */
@@ -65,6 +65,9 @@ struct xz_xp_debug {
  uint32_t generation, source_rate;
  unsigned retired;
  double speed;
+ uint64_t loop_in, loop_out;
+ int loop_active, loop_edit, tempo_range, tempo_reset;
+ uint64_t scratch_target;
 };
 void xz_xp_debug(struct xz_xp_players *, int deck, struct xz_xp_debug *out);
 #endif

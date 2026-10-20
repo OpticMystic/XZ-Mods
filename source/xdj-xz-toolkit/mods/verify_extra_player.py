@@ -7,13 +7,11 @@ UndefinedBehaviorSanitizer, and ThreadSanitizer, over the same test, the route c
 rule must make the test fail. Pure host code with a fake transport; nothing touches a device.
 """
 import argparse
-import math
 from pathlib import Path
 import shutil
-import struct
 import subprocess
 import tempfile
-import wave
+from extra_player_fixtures import fixtures
 
 ROOT = Path(__file__).resolve().parent
 SOURCES = ['extra_player.c', 'anlz_extra.c', 'shell_analysis.c', 'ui/layered_wave_source.c', 'ui/layered_wave.c',
@@ -26,20 +24,12 @@ parser.add_argument('--zig', required=True)
 parser.add_argument('--no-wsl', action='store_true')
 args = parser.parse_args()
 common = [str(Path(args.zig).resolve()), 'cc', '-O1', '-std=c11', '-Wall', '-Wextra', '-Werror', '-I' + str(ROOT)]
+tsan_unavailable = None
 
 
 def linux(path):
     p = Path(path).resolve().as_posix()
     return '/mnt/' + p[0].lower() + p[2:]
-
-
-def fixtures(folder):
-    for rate in (44100, 48000):
-        with wave.open(str(folder / f'{rate}.wav'), 'wb') as f:
-            f.setnchannels(2); f.setsampwidth(2); f.setframerate(rate)
-            f.writeframes(b''.join(struct.pack('<hh', *(2 * [round(16384 * math.sin(2 * math.pi * 440 * n / rate))]))
-                                   for n in range(2 * rate)))
-    (folder / 'anlz').mkdir()
 
 
 with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
@@ -91,9 +81,19 @@ with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
         subprocess.run(gcc[:gcc.index('-fsanitize=address,undefined')] + ['-fsanitize=thread', '-fno-pie', '-no-pie',
                        '-I' + linux(ROOT), *(linux(ROOT / s) for s in SOURCES), linux(ROOT / 'test_extra_player.c'),
                        '-lm', '-o', linux(tsan)], check=True)
-        # Without ASLR: WSL kernels map memory where ThreadSanitizer refuses to start.
-        subprocess.run(['wsl', '-d', 'Ubuntu', '--', 'setarch', 'x86_64', '-R', linux(tsan), linux(folder)], check=True)
-        print('PASS WSL gcc ThreadSanitizer')
+        for attempt in range(3):
+            checked = subprocess.run(['wsl', '-d', 'Ubuntu', '--', linux(tsan), linux(folder)],
+                                     capture_output=True, text=True)
+            if checked.returncode == 0:
+                print(checked.stdout.strip())
+                print('PASS WSL gcc ThreadSanitizer')
+                break
+            if 'FATAL: ThreadSanitizer: unexpected memory mapping' not in checked.stderr:
+                print(checked.stderr)
+                checked.check_returncode()
+            print(f'TSan startup mapping collision, unmodified execution {attempt+1}/3: {checked.stderr.strip()}')
+        else:
+            tsan_unavailable = checked.stderr.strip()
         connector = folder / 'test-extra-decks'
         subprocess.run(gcc + ['-DUSB_MAJOR=1', '-DPOLL_DOWN_MS=50', '-DPOLL_UP_MS=5', linux(ROOT / 'extra_decks.c'),
                               *(linux(ROOT / s) for s in SOURCES), linux(ROOT / 'test_extra_decks.c'), '-lm',
@@ -105,4 +105,6 @@ with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
                        check=True)
         subprocess.run(['wsl', '-d', 'Ubuntu', '--', linux(transport)], check=True)
         print('PASS copied USB transport test under AddressSanitizer')
+if tsan_unavailable:
+    raise RuntimeError('Other player/connector/transport checks passed, but ThreadSanitizer could not start: ' + tsan_unavailable)
 print('PASS extra player')

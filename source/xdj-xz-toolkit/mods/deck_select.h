@@ -51,6 +51,7 @@ struct xz_ds_side {
  int physical_known; int32_t physical; /* where the DJ's hand left the tempo fader */
  int held_known[2]; int32_t held[2];  /* by target: the tempo position that deck keeps */
  struct xz_ds_pickup pickup;          /* toward held[target] */
+ uint32_t extra_revision; int extra_revision_known;
  uint64_t owner[2];                   /* by target: buttons down whose press that deck received */
  int load_down;                       /* a LOAD press went to the software deck; hold and release follow load */
  enum xz_ds_load_route load;
@@ -103,6 +104,8 @@ const struct xz_ds_row *xz_ds_row_for(uint16_t code, unsigned *slot);
 void xz_deck_select_init(struct xz_deck_select *);
 /* Call before each event with the route as it is now. A drop returns both sides to DECK 1 / DECK 2. */
 void xz_deck_select_route(struct xz_deck_select *, int route_up);
+/* A new software SYNC revision rearms pickup. Ordinary fader snapshots never rearm it. */
+void xz_deck_select_feedback(struct xz_deck_select *,const struct xz_extra_decks *);
 /* A SHIFT edge from any source: the SHIFT key code, or a poll of the +0x34 flag. Repeats are ignored. */
 void xz_deck_select_shift(struct xz_deck_select *, int side, int down, uint32_t now_ms, struct xz_ds_outcome *);
 struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *, const struct xz_ds_key *, uint32_t now_ms);
