@@ -47,7 +47,8 @@ the 132-row lane geometry (body around row 65, beat ticks in rows 4..13 and
   unloaded deck draws NO TRACK.
 
 Zoom matches the native lanes: the layered column hook records the first
-sample the stock drew at column 0 and at column 535 each frame
+sample the stock drew at columns 0, 268 and 535 each frame and takes the longer
+side of the playhead, since a clamped track start or end only shortens one side
 (`xz_layered_wave_view`). Before any native column is seen the lanes use one
 PWV7 sample per column, the zoom measured on the device capture. The position
 is `elapsed_ms` moved on by the time since `elapsed_at_ms` at the tempo, at
