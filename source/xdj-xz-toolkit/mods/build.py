@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -15,6 +16,56 @@ from sdk.sdk_sources import SDK_SOURCES
 from shell.shell_sources import SHELL_SOURCES
 
 ROOT = pathlib.Path(__file__).resolve().parent
+
+
+def build_mp3_vfp(output: pathlib.Path, arm_gcc: str | None, wsl_distro: str) -> dict:
+    """Keep the base ARM ABI while compiling MP3 arithmetic to VFP instructions."""
+    source = ROOT / "audio/stem_mp3.c"
+    target = output / "stem-mp3-vfp.o"
+    compiler = arm_gcc or shutil.which("arm-linux-gnueabi-gcc")
+    if compiler:
+        command = [compiler]
+        source_arg, target_arg = str(source), str(target)
+    elif os.name == "nt":
+        command = ["wsl", "-d", wsl_distro, "--", "arm-linux-gnueabi-gcc"]
+        def linux(path: pathlib.Path) -> str:
+            value = str(path.resolve()).replace("\\", "/")
+            if len(value) < 3 or value[1:3] != ":/":
+                raise ValueError("The WSL MP3 compiler requires a local drive path")
+            return "/mnt/" + value[0].lower() + value[2:]
+        source_arg, target_arg = linux(source), linux(target)
+    else:
+        raise ValueError("MP3 needs arm-linux-gnueabi-gcc; pass --arm-gcc with its executable")
+    version = subprocess.run(command + ["--version"], check=True, capture_output=True,
+                             text=True).stdout.splitlines()[0]
+    subprocess.run(command + [
+        "-mcpu=cortex-a9", "-marm", "-mfpu=vfpv3", "-mfloat-abi=softfp",
+        "-O2", "-std=c11", "-fPIC", "-fvisibility=hidden", "-ffp-contract=off",
+        "-c", source_arg, "-o", target_arg], check=True)
+    with target.open("rb") as stream:
+        elf = ELFFile(stream)
+        if elf.elfclass != 32 or elf["e_machine"] != "EM_ARM" or elf["e_flags"] & 0x400:
+            raise ValueError("MP3 object must use the ARM32 base calling convention")
+        symbols = elf.get_section_by_name(".symtab")
+        undefined = {s.name for s in symbols.iter_symbols() if s["st_shndx"] == "SHN_UNDEF"}
+        if undefined & {"__aeabi_fadd", "__aeabi_fsub", "__aeabi_fmul", "__aeabi_fdiv"}:
+            raise ValueError("MP3 arithmetic fell back to software floating point")
+        decoder = Cs(CS_ARCH_ARM, CS_MODE_ARM)
+        floating = 0
+        for symbol in symbols.iter_symbols():
+            if symbol["st_info"]["type"] != "STT_FUNC" or not isinstance(symbol["st_shndx"], int):
+                continue
+            section = elf.get_section(symbol["st_shndx"])
+            start = symbol["st_value"] - section["sh_addr"]
+            for instruction in decoder.disasm(section.data()[start:start + symbol["st_size"]], symbol["st_value"]):
+                floating += instruction.mnemonic.startswith(("vadd.f32", "vsub.f32", "vmul.f32", "vmla.f32"))
+        if not floating:
+            raise ValueError("MP3 object contains no verified VFP arithmetic")
+    return {"object": target.name, "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+            "compiler": version, "vfp_arithmetic_instructions": floating,
+            "calling_convention": "ARM base ABI", "floating_point": "VFPv3",
+            "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "decoder_header_sha256": hashlib.sha256((ROOT / "audio/vendor/dr_libs/dr_mp3.h").read_bytes()).hexdigest()}
 
 
 def inspect(path: pathlib.Path) -> dict:
@@ -59,6 +110,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zig", default=shutil.which("zig"))
     parser.add_argument("--output", type=pathlib.Path, required=True)
+    parser.add_argument("--arm-gcc", help="ARM EABI GCC executable for the VFP MP3 decoder")
+    parser.add_argument("--wsl-distro", default="Ubuntu", help="WSL distribution used for ARM GCC on Windows")
     parser.add_argument("--host-checks-only", action="store_true",
                         help="Run standalone settings host checks without building or deploying the runtime")
     args = parser.parse_args()
@@ -71,6 +124,8 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     destination = args.output.resolve() / "libxz-mods-development.so"
     compiler = shutil.which(args.zig) or str(pathlib.Path(args.zig).resolve())
+    mp3_build = build_mp3_vfp(args.output.resolve(), args.arm_gcc, args.wsl_distro)
+    mp3_object = args.output.resolve() / mp3_build["object"]
     # Keep the qualified legacy decoder compilation unchanged. LLVM 21 crashes
     # when compiling its dr_libs paths with softfp. Only the new streaming math
     # needs VFP; softfp retains the same function-call ABI as the legacy objects.
@@ -174,13 +229,14 @@ def main() -> None:
                str(ROOT / "ram/cache.c"), str(ROOT / "ram/runtime.c"), str(ROOT / "ram/removal.c"), str(ROOT / "ram/presentation.c"), str(ROOT / "ram/pin.c"),
                str(ROOT / "audio/stem_cache.c"), str(ROOT / "audio/stem_mix.c"), str(ROOT / "audio/stem_decode.c"),
                str(ROOT / "audio/overcue_file.c"), str(ROOT / "audio/foreign_stems.c"),
-               str(ROOT / "audio/stem_mp3.c"), str(media_object), str(stream_object),
+               str(mp3_object), str(media_object), str(stream_object),
                str(ROOT / "audio/vendor/miniz/miniz_tinfl.c"), str(ROOT / "audio/vendor/sha256/sha256.c"),
                "-DMINIZ_NO_ARCHIVE_APIS", "-DMINIZ_NO_DEFLATE_APIS",
                "-pthread", "-lm", "-ldl",
                "-o", str(destination)]
     subprocess.run(command, check=True)
     result = inspect(destination)
+    result["mp3_decoder"] = mp3_build
     vendor = ROOT.parent / "vendor"
     receiver = args.output.resolve() / "libxz-directfb-mods-test.so"
     subprocess.run([compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
@@ -201,7 +257,7 @@ def main() -> None:
         "deck-select-test": [str(ROOT / "deck_select.c"), str(ROOT / "test_deck_select.c")],
         "extra-player-test": ["-pthread", *(str(ROOT / name) for name in (
             "extra_player.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c", "ui/layered_wave.c",
-            "audio/stem_media.c", "audio/stem_mp3.c", "audio/stem_decode.c", "test_extra_player.c")), "-lm"],
+            "audio/stem_media.c", "audio/stem_decode.c", "test_extra_player.c")), str(mp3_object), "-lm"],
         "settings-test": [str(ROOT / "settings.c"), str(ROOT / "tests/test_settings.c")],
         "my-settings-test": [str(ROOT / "my_settings.c"), str(ROOT / "test_my_settings.c")],
         "native-decode-test": [str(ROOT / "cue/native.c"), str(ROOT / "cue/test_native_decode.c")],
