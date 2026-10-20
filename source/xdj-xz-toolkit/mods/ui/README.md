@@ -119,13 +119,13 @@ would show a panel page in MODERN (a setup the runtime opens, a game handing
 back, MODS over the VJ view) shows it in the shell instead; CLASSIC keeps the
 panel unchanged. `shell/test_menu.c` and `verify_menu_runtime.py` cover it.
 
-Known fault, CLASSIC only: `encoder_push_hook` runs `xz_ui_encoder_push` for
-every phase stock delivers to `UiKey_EncoderPush` (press, hold and release,
+Stock delivers every phase to `UiKey_EncoderPush` (press, hold and release,
 and again on later key passes while the entry state it never clears stays
-set), so one click activates the focused control two or more times. After a
-link the second activation lands on the new page's first control. The shell's
-path filters the phases (`xz_shrt_push_event`); the panel path should take the
-press phase only (`entry.flags == 1`).
+set). The shell's path filters them (`xz_shrt_push_event`); `encoder_push_hook`
+lets the panel, games and Doom act on the press phase only (`entry.flags == 1`)
+and swallows the rest. Before that, one click in CLASSIC's panel activated the
+focused control two or more times; after a link the second activation landed on
+the new page's first control.
 
 ### REKORDBOX button
 
