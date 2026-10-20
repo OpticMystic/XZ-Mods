@@ -11,7 +11,9 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import struct
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -235,18 +237,20 @@ class MigrationTests(Stick):
         old_files = {str(p.relative_to(home)).replace('\\', '/'): sha(p.read_bytes()) for p in home.rglob('*') if p.is_file()}
         before = call('read_dj_profiles', volume=str(self.volume))
         checked = []
-        real_rmtree = shutil.rmtree
+        real_delete = dj_profile._delete_tree
 
-        def rmtree(path, *args, **kwargs):
+        def delete(path):
             backup, = (self.data / dj_profile.BACKUPS).iterdir()
             copied = {str(p.relative_to(backup / 'VJTOOLS')).replace('\\', '/'): sha(p.read_bytes())
                       for p in (backup / 'VJTOOLS').rglob('*') if p.is_file()}
             self.assertEqual(copied, old_files, 'the backup matches the stick before the old folder is deleted')
-            self.assertTrue(Path(path).exists())
+            self.assertEqual(Path(path), self.volume / 'DJPROFILE' / (dj_profile.REMOVING_PREFIX + backup.name),
+                             'the old folder was first renamed to a dot name readers skip')
+            self.assertFalse(home.exists())
             checked.append(path)
-            return real_rmtree(path, *args, **kwargs)
+            return real_delete(path)
 
-        with patch.object(dj_profile.shutil, 'rmtree', rmtree):
+        with patch.object(dj_profile, '_delete_tree', delete):
             after = call('set_active_dj_profile', volume=str(self.volume), dj_id='djp_lena', expected_revision=before['revision'])
         self.assertEqual(len(checked), 1)
         self.assertEqual(self.listing(after), self.listing(before), 'the DJ sees the same profiles after the move')
@@ -368,6 +372,297 @@ class MigrationTests(Stick):
         call('set_active_dj_profile', volume=str(self.volume), dj_id='djp_lena',
              expected_revision=call('read_dj_profiles', volume=str(self.volume))['revision'])
         self.assertEqual(self.document('DJ Kai')['ext'], {'vj.tools': {'booking_region': {'country': 'DE'}}})
+        self.assert_conforms()
+
+
+    def old_track(self, comment):
+        old = self.volume / 'DJPROFILE/VJTOOLS/profiles/djp_kai'
+        track = dj_profile.id3_tag([('TIT2', b'\x03DJ Kai'), ('COMM', b'\x03eng\0' + comment.encode())]) + dj_profile.SILENT_FRAME * 40
+        (old / 'track').mkdir()
+        (old / 'track/DJ PROFILE - DJ Kai.mp3').write_bytes(track)
+        document = json.loads((old / 'profile.json').read_text(encoding='utf-8'))
+        document['profile_track'] = {'path': 'DJPROFILE/VJTOOLS/profiles/djp_kai/track/DJ PROFILE - DJ Kai.mp3',
+                                     'bytes': len(track), 'sha256': sha(track)}
+        (old / 'profile.json').write_text(json.dumps(document, indent=2), encoding='utf-8')
+        return document['profile_track']
+
+    def test_a_moved_track_names_only_the_marker_its_old_file_carries(self):
+        self.old_stick()
+        marker = 'djprofile:1:djp_kai:abcdef012345'
+        self.old_track('8A ' + marker + ' https://vj.tools/dj#p1.fixture')
+        before = call('read_dj_profiles', volume=str(self.volume))
+        call('set_active_dj_profile', volume=str(self.volume), dj_id='djp_kai', expected_revision=before['revision'])
+        self.assertEqual(self.document('DJ Kai')['track'], {'marker': marker}, 'the marker the track carries, never a recomputed one')
+        self.assertEqual([p.name for p in self.volume.rglob('*.mp3')], [], 'the old MP3 stays in the backup only')
+        backup, = (self.data / dj_profile.BACKUPS).iterdir()
+        self.assertTrue((backup / 'VJTOOLS/profiles/djp_kai/track/DJ PROFILE - DJ Kai.mp3').is_file())
+        report = self.assert_conforms()
+        self.assertTrue(any('made before the last edit' in w['problem'] for w in report.warnings))
+
+    def test_a_track_whose_file_carries_no_marker_is_kept_in_ext(self):
+        self.old_stick()
+        record = self.old_track('no marker in here')
+        call('set_active_dj_profile', volume=str(self.volume), dj_id='djp_kai',
+             expected_revision=call('read_dj_profiles', volume=str(self.volume))['revision'])
+        document = self.document('DJ Kai')
+        self.assertNotIn('track', document)
+        self.assertEqual(json.loads(document['ext']['vj.tools']['profile_track']), record)
+        self.assert_conforms()
+
+
+class ReviewTests(Stick):
+    """Data-loss cases from the review of the first 1.0 commit; each reproduces one probe."""
+
+    def write(self, dj_id='djp_lena'):
+        return call('set_active_dj_profile', volume=str(self.volume), dj_id=dj_id,
+                    expected_revision=call('read_dj_profiles', volume=str(self.volume))['revision'])
+
+    def add_old(self, dj_id, name):
+        source = self.volume / 'DJPROFILE/VJTOOLS/profiles/djp_kai'
+        target = self.volume / f'DJPROFILE/VJTOOLS/profiles/{dj_id}'
+        shutil.copytree(source, target)
+        document = json.loads((target / 'profile.json').read_text(encoding='utf-8').replace('djp_kai', dj_id))
+        document['dj_name'] = name
+        (target / 'profile.json').write_text(json.dumps(document), encoding='utf-8')
+        path = self.volume / dj_profile.OLD_INDEX_PATH
+        index = json.loads(path.read_text(encoding='utf-8'))
+        index['profiles'].append({'dj_id': dj_id, 'dj_name': name})
+        path.write_text(json.dumps(index), encoding='utf-8')
+
+    def edit_old(self, dj_id, change):
+        path = self.volume / f'DJPROFILE/VJTOOLS/profiles/{dj_id}/profile.json'
+        document = json.loads(path.read_text(encoding='utf-8'))
+        change(document)
+        path.write_text(json.dumps(document, ensure_ascii=False), encoding='utf-8')
+        return path
+
+    def old_index(self):
+        return json.loads((self.volume / dj_profile.OLD_INDEX_PATH).read_text(encoding='utf-8'))
+
+    def names(self):
+        return [p['dj_name'] for p in call('read_dj_profiles', volume=str(self.volume))['profiles']]
+
+    def test_p10_an_older_xz_runtime_keeps_the_old_folder_and_its_active_in_step(self):
+        self.old_stick()
+        (self.volume / 'autoexec.bin').write_bytes(b'a loader this computer did not write')
+        self.assertEqual(dj_profile.stick_runtime_capabilities(self.volume), set(), 'an unknown runtime counts as old')
+        moved = self.write('djp_kai')['moved']
+        self.assertEqual((moved['old_kept'], moved['reason'], moved['backup']), (True, 'runtime', None))
+        self.assertTrue((self.volume / dj_profile.OLD_INDEX_PATH).exists())
+        self.assertEqual(self.old_index()['active'], 'djp_kai', 'the older runtime shows the same DJ')
+        result = call('read_dj_profiles', volume=str(self.volume))
+        self.assertTrue(result['runtime_update_needed'])
+        self.assertEqual([p['source'] for p in result['profiles']], ['1.0', '1.0'])
+        self.write('djp_lena')
+        self.assertEqual(self.old_index()['active'], 'djp_lena')
+        result = call('read_dj_profiles', volume=str(self.volume))
+        kai = next(p for p in result['profiles'] if p['dj_id'] == 'djp_kai')
+        call('save_dj_profile', volume=str(self.volume), expected_revision=result['revision'], make_active=True,
+             profile={key: kai[key] for key in ('dj_id', 'dj_name', 'tagline', 'accent', 'aliases', 'links', 'page_url', 'note')},
+             logos=[{'path': logo['path'], 'label': logo['label'], 'note': logo['note']} for logo in kai['logos']])
+        self.assertEqual(self.old_index()['active'], 'djp_kai', 'a save that makes a profile active syncs the old index too')
+        self.assert_conforms()
+        with patch.object(dj_profile, 'stick_runtime_capabilities', return_value={'djprofile/1'}):
+            moved = self.write('djp_lena')['moved']
+        self.assertFalse(moved['old_kept'])
+        self.assertFalse((self.volume / 'DJPROFILE/VJTOOLS').exists(), 'once the runtime reads 1.0 the old folder goes')
+        self.assertFalse(call('read_dj_profiles', volume=str(self.volume))['runtime_update_needed'])
+
+    def test_runtime_capabilities_come_from_the_recorded_mod_version(self):
+        self.assertIsNone(dj_profile.stick_runtime_capabilities(self.volume), 'no autoexec.bin: no XZ runtime')
+        loader = b'a loader written by this computer'
+        (self.volume / 'autoexec.bin').write_bytes(loader)
+        version = 'a' * 64
+        records = self.data / 'mod-versions'
+        (records / 'loaders').mkdir(parents=True)
+        (records / 'loaders' / (sha(loader) + '.json')).write_text(json.dumps({'loader_sha256': sha(loader), 'mod_version': {'id': version}}))
+        manifest = records / version / 'runtime' / 'manifest.json'
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(json.dumps({'firmware': 'XDJ-XZ 1.26'}))
+        self.assertEqual(dj_profile.stick_runtime_capabilities(self.volume), set(), 'a runtime that lists no capabilities is old')
+        manifest.write_text(json.dumps({'capabilities': ['djprofile/1', 'stems/4']}))
+        self.assertEqual(dj_profile.stick_runtime_capabilities(self.volume), {'djprofile/1', 'stems/4'})
+
+    def test_p3_names_that_differ_only_in_non_ascii_case_never_share_a_folder(self):
+        first = self.save(dj_name='\u00c9mile')
+        before = stick_files(self.volume)
+        second = self.save(expected_revision=first['revision'], dj_name='\u00e9mile', logos=[{'path': str(self.square), 'label': '', 'note': ''}])
+        self.assertNotEqual(first['saved'], second['saved'])
+        self.assertTrue(all(stick_files(self.volume).get(path) == digest for path, digest in before.items()
+                            if path.startswith('DJPROFILE/\u00c9mile/')), "the first DJ's folder is untouched")
+        self.assertEqual([p['dj_name'] for p in second['profiles']], ['\u00c9mile', '\u00e9mile'])
+        self.assertEqual(self.stick_file()['profiles'][1]['folder'], '\u00e9mile 2')
+        self.assert_conforms()
+
+    def test_p2_old_members_the_spec_json_rules_reject_go_to_ext_as_strings(self):
+        self.old_stick()
+        deep = {'a': {'b': {'c': {'d': {'e': {'f': {'g': 1}}}}}}}
+        self.edit_old('djp_kai', lambda d: d.update(crop={'x': 0.5}, deep=deep, **{'\u043a\u043b\u044e\u0447': 1}))
+        for _ in range(3):
+            self.write()
+        self.assertEqual(sorted(p.name for p in (self.volume / 'DJPROFILE').iterdir() if p.is_dir()), ['DJ Kai', 'Lena B'],
+                         'the move happens once, not again on every write')
+        vendor = self.document('DJ Kai')['ext']['vj.tools']
+        self.assertEqual(json.loads(vendor['crop']), {'x': 0.5})
+        self.assertEqual(json.loads(vendor['deep']), deep)
+        self.assertEqual(vendor['\\u043a\\u043b\\u044e\\u0447'], 1)
+        self.assert_conforms()
+        with self.assertRaisesRegex(ValueError, 'whole number'):
+            dj_profile.validate_profile({**self.document('DJ Kai'), 'crop': 0.5})
+
+    def test_p4_a_read_only_file_in_the_old_folder_is_still_removed_and_later_writes_work(self):
+        self.old_stick()
+        manifest = next((self.volume / 'DJPROFILE/VJTOOLS/profiles/djp_lena').rglob('manifest.json'))
+        os.chmod(manifest, stat.S_IREAD)
+        first = self.write('djp_kai')['moved']
+        self.assertEqual((first['old_kept'], first['cleanup_pending']), (False, False))
+        self.assertEqual(sorted(p.name for p in (self.volume / 'DJPROFILE').iterdir()), ['.xzmods-write.lock', 'DJ Kai', 'DJPROFILE.json', 'Lena B'])
+        self.write('djp_lena')
+        self.assertEqual(self.names(), ['DJ Kai', 'Lena B'])
+        self.assert_conforms()
+
+    def test_an_interrupted_delete_leaves_a_hidden_folder_the_next_write_finishes(self):
+        self.old_stick()
+        real = dj_profile._remove_path
+        with patch.object(dj_profile, '_remove_path', lambda action, path: False if path.endswith('index.json') else real(action, path)):
+            moved = self.write('djp_kai')['moved']
+        self.assertTrue(moved['cleanup_pending'])
+        left, = [p for p in (self.volume / 'DJPROFILE').iterdir() if p.name.startswith(dj_profile.REMOVING_PREFIX)]
+        self.assertEqual(self.names(), ['DJ Kai', 'Lena B'], 'readers skip the dot-named leftover')
+        self.assertFalse(call('read_dj_profiles', volume=str(self.volume))['old_store'])
+        self.write('djp_lena')
+        self.assertFalse(left.exists())
+        self.assert_conforms()
+
+    @unittest.skipUnless(os.name == 'nt', 'directory junctions are a Windows feature')
+    def test_p12_a_junction_in_the_old_folder_keeps_it_and_what_it_points_to(self):
+        self.old_stick()
+        outside = self.root / 'outside'
+        outside.mkdir()
+        (outside / 'precious.txt').write_text('mine', encoding='utf-8')
+        junction = self.volume / 'DJPROFILE/VJTOOLS/profiles/djp_kai/linked'
+        subprocess.run(['cmd', '/c', 'mklink', '/J', str(junction), str(outside)], check=True, capture_output=True)
+        moved = self.write('djp_kai')['moved']
+        self.assertEqual((moved['old_kept'], moved['reason']), (True, 'backup'))
+        self.assertTrue((outside / 'precious.txt').exists())
+        self.assertTrue((self.volume / dj_profile.OLD_INDEX_PATH).exists())
+
+    def test_p6_old_text_over_the_byte_limits_is_cut_and_kept_in_ext(self):
+        self.old_stick()
+        long_name = '\u6771\u4eac' * 40
+        kind = '\u0421\u0441\u044b\u043b\u043a\u0430 \u043d\u0430 \u043c\u043e\u0439 \u0441\u0430\u0439\u0442 \u0438 \u0432\u0441\u0435'
+
+        def kai(document):
+            document['dj_name'] = long_name
+            document['links'] = [{'kind': 'website', 'url': f'https://e.example/{i}'} for i in range(12)]
+            document['tagline'] = '\U0001f3a7' * 61
+        self.edit_old('djp_kai', kai)
+        index = self.old_index()
+        index['profiles'][0]['dj_name'] = long_name
+        (self.volume / dj_profile.OLD_INDEX_PATH).write_text(json.dumps(index, ensure_ascii=False), encoding='utf-8')
+        self.edit_old('djp_lena', lambda d: d.update(links=[{'kind': kind, 'url': 'https://e.example/'}]))
+        before = call('read_dj_profiles', volume=str(self.volume))
+        self.assertEqual((len(before['profiles']), before['problems']), (2, []), 'no profile vanishes for a byte limit')
+        self.write('djp_kai')
+        folder = next(entry['folder'] for entry in self.stick_file()['profiles'] if entry['id'] == 'djp_kai')
+        document = self.document(folder)
+        vendor = document['ext']['vj.tools']
+        self.assertEqual((vendor['dj_name'], vendor['tagline']), (long_name, '\U0001f3a7' * 61))
+        self.assertTrue(long_name.startswith(document['name']) and len(document['name'].encode()) <= 160)
+        self.assertEqual(json.loads(vendor['dropped_links']), [{'kind': 'website', 'url': 'https://e.example/11'}])
+        self.assertEqual(self.document('Lena B')['ext']['vj.tools']['links[0].kind'], kind)
+        self.assert_conforms()
+
+    def test_p1_an_interrupted_move_keeps_the_order_the_stick_showed(self):
+        self.old_stick()
+        self.add_old('djp_zed', 'Zed')
+        before = self.names()
+        real, calls = dj_profile._migrate_one, []
+
+        def flaky(*args):
+            calls.append(1)
+            if len(calls) == 2:
+                raise KeyboardInterrupt('pulled')
+            return real(*args)
+        with patch.object(dj_profile, '_migrate_one', flaky), self.assertRaises(KeyboardInterrupt):
+            self.write()
+        self.assertEqual(self.names(), before)
+        self.write()
+        self.assertEqual(self.names(), before)
+        self.assertEqual([entry['folder'] for entry in self.stick_file()['profiles']], before)
+        self.assert_conforms()
+
+    def test_p8_hand_made_folders_keep_their_place_and_nothing_visible_drops_out(self):
+        self.old_stick()
+        (self.volume / 'DJPROFILE/Aaron').mkdir()
+        (self.volume / 'DJPROFILE/Aaron/logo.png').write_bytes(png(20, 20))
+        before = self.names()
+        self.assertEqual(before, ['Aaron', 'DJ Kai', 'Lena B'])
+        self.write()
+        self.assertEqual(self.names(), before)
+        self.assert_conforms()
+        shutil.rmtree(self.volume)
+        self.volume.mkdir()
+        self.old_stick()
+        self.add_old('djp_zed', 'Zed')
+        for i in range(14):
+            (self.volume / f'DJPROFILE/Hand {i:02}').mkdir()
+            (self.volume / f'DJPROFILE/Hand {i:02}/logo.png').write_bytes(png(20, 20, (i * 10, 0, 0, 255)))
+        before = self.names()
+        self.assertEqual(len(before), 16)
+        self.write()
+        self.assertEqual(self.names(), before)
+        self.assert_conforms()
+
+    def test_p11_a_newer_old_store_edit_after_the_move_is_moved_again_not_deleted(self):
+        self.old_stick()
+        with patch.object(dj_profile, '_remove_old_store', side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+            self.write('djp_kai')
+        moved_at = (self.volume / 'DJPROFILE/DJ Kai/profile.json').stat().st_mtime
+        path = self.edit_old('djp_kai', lambda d: d.update(tagline='Edited in an older Library', revision='rev-newer'))
+        os.utime(path, (moved_at + 10, moved_at + 10))
+        self.write('djp_lena')
+        self.assertEqual(self.document('DJ Kai')['tagline'], 'Edited in an older Library')
+        self.assertEqual(self.document('DJ Kai')['revision'], 'rev-newer')
+        self.assertTrue((self.volume / 'DJPROFILE/DJ Kai/profile.previous.json').exists())
+        self.assertFalse((self.volume / 'DJPROFILE/VJTOOLS').exists())
+        self.assert_conforms()
+
+    def test_an_older_old_store_copy_does_not_undo_an_edit_made_after_the_move(self):
+        self.old_stick()
+        with patch.object(dj_profile, '_remove_old_store', side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+            self.write('djp_kai')
+        result = call('read_dj_profiles', volume=str(self.volume))
+        kai = next(p for p in result['profiles'] if p['dj_id'] == 'djp_kai')
+        old = self.volume / 'DJPROFILE/VJTOOLS/profiles/djp_kai/profile.json'
+        os.utime(old, (1_000_000, 1_000_000))
+        self.resave(result, kai, tagline='Edited in XZ Mods')
+        self.assertEqual(self.document('DJ Kai')['tagline'], 'Edited in XZ Mods')
+        self.assertFalse((self.volume / 'DJPROFILE/VJTOOLS').exists())
+
+    def test_p13_a_move_stopped_after_the_logo_rename_still_lists_the_djs_logo(self):
+        self.old_stick()
+        hand = self.volume / 'DJPROFILE/DJ Kai'
+        hand.mkdir()
+        own = png(30, 30, (1, 2, 3, 255))
+        (hand / 'logo.png').write_bytes(own)
+        with patch.object(dj_profile, '_publish_document', side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+            self.write('djp_kai')
+        self.assertEqual((hand / 'logo-original.png').read_bytes(), own)
+        self.write('djp_kai')
+        logos = self.document('DJ Kai')['logos']
+        self.assertIn(('logo-original.png', sha(own)), [(e['file'], e['sha256']) for e in logos])
+        self.assert_conforms()
+
+    def test_a_top_folder_rename_stopped_half_way_is_read_and_finished(self):
+        self.save()
+        hidden = self.volume / (dj_profile.TOP_RENAME_PREFIX + '0a1b2c3d')
+        os.rename(self.volume / 'DJPROFILE', hidden)
+        result = call('read_dj_profiles', volume=str(self.volume))
+        self.assertEqual([p['dj_name'] for p in result['profiles']], ['DJ Nova'], 'the profiles are still found')
+        call('set_active_dj_profile', volume=str(self.volume), dj_id=result['profiles'][0]['dj_id'], expected_revision=result['revision'])
+        self.assertTrue((self.volume / 'DJPROFILE/DJ Nova/profile.json').exists())
+        self.assertFalse(hidden.exists())
         self.assert_conforms()
 
 

@@ -26,6 +26,7 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import stat
 import struct
 import subprocess
 import unicodedata
@@ -50,6 +51,10 @@ BACKUPS = 'dj-profile-backups'
 BACKUP_FORMAT = 'xz-dj-profile-backup/1'
 
 OLD_HOME = 'VJTOOLS'
+# DJPROFILE/VJTOOLS is renamed to this dot name (readers skip it) once its backup checks, then deleted.
+REMOVING_PREFIX = '.vjtools-removed-'
+TOP_RENAME_PREFIX = '.DJPROFILE-rename-'
+RUNTIME_CAPABILITY = 'djprofile/1'
 OLD_INDEX_PATH = 'DJPROFILE/VJTOOLS/index.json'
 OLD_CARD_PATH = 'VJ.Tools/Branding/profile.json'
 OLD_INDEX_SCHEMA = 'vjtools.dj-profile-index'
@@ -172,10 +177,24 @@ def folder_name(dj_name):
     return text.rstrip(' .') or 'DJ'
 
 
+def _collision_key(name):
+    """How NTFS, FAT and exFAT compare names: case-insensitive beyond ASCII too, so Emile with an acute accent
+    and its lowercase spelling are one folder. Used only to avoid collisions; name_key stays the spec's key."""
+    return unicodedata.normalize('NFC', name).casefold()
+
+
+def _taken(folder):
+    """The collision keys of every entry in folder, dot names included."""
+    try:
+        return {_collision_key(entry.name) for entry in os.scandir(folder)}
+    except OSError:
+        return set()
+
+
 def _unique_folder(name, taken):
-    """name, or name with ' 2', ' 3' ... so its name key is not in taken."""
+    """name, or name with ' 2', ' 3' ... so its collision key is not in taken."""
     candidate, n = name, 2
-    while name_key(candidate) in taken or name_key(candidate) == _fold(OLD_HOME):
+    while _collision_key(candidate) in taken or _collision_key(candidate) == _collision_key(OLD_HOME):
         suffix = f' {n}'
         base = name
         while _utf16_units(base + suffix) > MAX_FOLDER_UNITS or _utf8_len(base + suffix) > MAX_NAME:
@@ -356,6 +375,7 @@ def _file_entry(entry, label, limit):
 def validate_profile(document):
     """A 1.0 profile document checked against every MUST of spec section 5. Returns it unchanged."""
     _need(isinstance(document, dict), 'A profile must be a JSON object')
+    _json_rules(document)
     _need(document.get('format') == FORMAT, 'format must be "djprofile/1"')
     _need(isinstance(document.get('id'), str) and _ID.fullmatch(document['id']), 'id must be 1 to 128 of A-Z a-z 0-9 _ -')
     _need(isinstance(document.get('revision'), str) and _REVISION.fullmatch(document['revision']),
@@ -585,10 +605,47 @@ def parse_json(data, label='Profile'):
         raise ProfileError(f'{label} JSON is not valid: {exc}') from None
 
 
-def from_old(document):
+def _conforms(value, level):
+    try:
+        _json_rules(value, level)
+    except ProfileError:
+        return False
+    return True
+
+
+def _ext_key(key):
+    """An old member name as an ASCII member name: non-ASCII characters escaped as JSON does."""
+    return key if key.isascii() else json.dumps(key)[1:-1]
+
+
+def _split_members(item, standard, where, kept):
+    """item's non-standard members that keep the 1.0 JSON rules, the rest stored in kept[where] as a JSON string."""
+    good, bad = {}, {}
+    for key, value in item.items():
+        if key in standard:
+            continue
+        if key.isascii() and _conforms(value, 4):
+            good[key] = copy.deepcopy(value)
+        else:
+            bad[key] = value
+    if bad:
+        kept[where] = json.dumps(bad, ensure_ascii=False)
+    return good
+
+
+def from_old(document, carried_marker=None):
     """An old-store document in the 1.0 model (contract 0.2), and where each of its files sits on the stick now.
-    File names are the ones a migration gives them in a fresh folder."""
-    files, logos = {}, []
+    File names are the ones a migration gives them in a fresh folder. Text over a 1.0 byte limit is cut at a
+    character boundary, and anything cut or dropped is kept as a string in ext["vj.tools"] so nothing is lost.
+    carried_marker is the marker the old profile track file carries, the only marker a migrated track may name."""
+    files, logos, kept = {}, [], {}
+
+    def cut(where, text, limit):
+        if _utf8_len(text) <= limit:
+            return text
+        kept[where] = text
+        return _cut(text, limit)
+
     used = {_fold(name) for name in LOGO_NAMES + (PROFILE_FILE, PREVIOUS_FILE, TILE_FILE)}
     for i, reference in enumerate(_old_logos(document)):
         base = reference['path'].rsplit('/', 1)[1]
@@ -601,22 +658,28 @@ def from_old(document):
         entry = {'file': name, 'bytes': reference['bytes'], 'sha256': reference['sha256'].lower(),
                  'role': 'primary' if i == 0 else 'alternate', 'background': 'any'}
         if reference.get('label'):
-            entry['label'] = _cut(reference['label'], MAX_NAME)
+            entry['label'] = cut(f'logos[{i}].label', reference['label'], MAX_NAME)
         if reference.get('note'):
             entry['note'] = reference['note']
-        entry.update({key: value for key, value in reference.items() if key not in ('path', 'bytes', 'sha256', 'label', 'note')})
+        entry.update(_split_members(reference, ('path', 'bytes', 'sha256', 'label', 'note'), f'logos[{i}]', kept))
         logos.append(entry)
     mapped = {'format': FORMAT, 'id': document['dj_id'], 'revision': document['revision'],
-              'name': _cut(document['dj_name'], MAX_NAME)}
+              'name': cut('dj_name', document['dj_name'], MAX_NAME)}
     if document.get('tagline'):
-        mapped['tagline'] = _cut(document['tagline'], MAX_TAGLINE)
+        mapped['tagline'] = cut('tagline', document['tagline'], MAX_TAGLINE)
     if document.get('accent'):
         mapped['accent'] = document['accent']
     if document.get('aliases'):
-        mapped['aliases'] = [_cut(alias, MAX_NAME) for alias in document['aliases']]
-    links = [copy.deepcopy(link) for link in document.get('links', [])]
-    if document.get('page_url'):
-        links = [{'kind': 'page', 'url': document['page_url']}] + links
+        mapped['aliases'] = [cut(f'aliases[{i}]', alias, MAX_NAME) for i, alias in enumerate(document['aliases'])]
+    links = [{'kind': 'page', 'url': document['page_url']}] if document.get('page_url') else []
+    for i, link in enumerate(document.get('links', [])):
+        if _utf8_len(link['url']) > MAX_URL:
+            kept[f'links[{i}]'] = json.dumps(link, ensure_ascii=False)
+            continue
+        links.append({'kind': cut(f'links[{i}].kind', link['kind'], MAX_LINK_KIND), 'url': link['url'],
+                      **_split_members(link, ('kind', 'url'), f'links[{i}].members', kept)})
+    if links[MAX_LINKS:]:
+        kept['dropped_links'] = json.dumps(links[MAX_LINKS:], ensure_ascii=False)
     if links:
         mapped['links'] = links[:MAX_LINKS]
     if document.get('note'):
@@ -628,11 +691,17 @@ def from_old(document):
         files[TILE_FILE] = tile['path']
         mapped['renditions'] = [{'file': TILE_FILE, 'bytes': tile['bytes'], 'sha256': tile['sha256'].lower(),
                                  'width': TILE_SIDE, 'height': TILE_SIDE, 'format': TILE_FORMAT, 'for': TILE_FOR}]
-    unknown = {key: copy.deepcopy(value) for key, value in document.items() if key not in OLD_KNOWN}
-    if unknown:
-        mapped['ext'] = {VENDOR: unknown}
     if 'profile_track' in document:
-        mapped['track'] = {'marker': track_marker(mapped)}
+        if carried_marker:
+            mapped['track'] = {'marker': carried_marker}
+        else:
+            kept['profile_track'] = json.dumps(document['profile_track'], ensure_ascii=False)
+    unknown = {}
+    for key, value in document.items():
+        if key not in OLD_KNOWN:
+            unknown[_ext_key(key)] = copy.deepcopy(value) if _conforms(value, 4) else json.dumps(value, ensure_ascii=False)
+    if unknown or kept:
+        mapped['ext'] = {VENDOR: {**unknown, **kept}}
     return mapped, files
 
 
@@ -979,6 +1048,7 @@ class Found:
     raw: bytes | None = None
     old: dict | None = None
     old_files: dict = field(default_factory=dict)
+    refresh: 'Found | None' = None   # for 'old': the 1.0 copy this newer old-store edit replaces
 
     @property
     def ref(self):
@@ -999,6 +1069,7 @@ class Stick:
     ordered: list                # every 1.0 and level 0 profile, in profile order, duplicate ids dropped
     profiles: list               # what the stick shows: at most 16, 1.0 first, then the old store
     olds: list                   # every old-store profile no profile folder has taken over yet
+    refresh: list                # old-store profiles edited after their move, newer than their 1.0 copy
     active: Found | None
     stick_active: Found | None   # what DJPROFILE.json's active resolves to
     old_index: dict | None
@@ -1013,7 +1084,12 @@ class Stick:
 
 def _tops(root):
     found = {_fold(entry.name): entry.name for entry in _visible(root) if entry.is_dir() and _fold(entry.name) in TOP_NAMES}
-    return [found[name] for name in TOP_NAMES if name in found]
+    tops = [found[name] for name in TOP_NAMES if name in found]
+    if not tops:
+        # A rename of the top folder to its exact name was interrupted half way (_writable_top); read it where it is.
+        tops = [entry.name for entry in os.scandir(root) if entry.is_dir(follow_symlinks=False)
+                and entry.name.startswith(TOP_RENAME_PREFIX)][:1]
+    return tops
 
 
 def _candidate_folders(root, tops):
@@ -1146,14 +1222,56 @@ def _old_profile_path(dj_id):
     return f'DJPROFILE/VJTOOLS/profiles/{dj_id}/profile.json'
 
 
-def _read_old(root, taken_ids):
-    """(old profiles not yet in a profile folder, read problems, the old index). VJTOOLS comes in index order, then the
-    Branding card. A profile whose id a profile folder already holds is skipped (contract 0.1 step 2)."""
+def _carried_marker(root, document):
+    """The marker the old profile track file carries in its comment, naming this profile, or None. Only the tag is
+    read; the audio is not needed."""
+    record = document.get('profile_track')
+    try:
+        path = _regular(_confined(root, record['path']))
+        with path.open('rb') as stream:
+            head = stream.read(10)
+            size = _unsynchsafe(head[6:10]) if len(head) == 10 and head[:3] == b'ID3' else 0
+            _need(0 < size <= MAX_TAG_BYTES, 'no ID3 tag')
+            frames, _ = read_id3(head + stream.read(size))
+        comments = [decode_frame(frame_id, payload)['text'] for frame_id, payload in frames if frame_id == 'COMM']
+    except (OSError, ValueError, KeyError, TypeError, UnicodeDecodeError, IndexError):
+        return None
+    prefix = f'djprofile:1:{document["dj_id"]}:'
+    return next((token for text in comments for token in MARKER_TOKEN.findall(text) if token.startswith(prefix)), None)
+
+
+def _logo_hashes(document):
+    """The SHA-256 of each logo as the old store had it: a logo the move scaled down is recorded under its original."""
+    originals = ((document.get('ext') or {}).get(VENDOR) or {}).get('original_sha256') or {}
+    return sorted(str(originals.get(entry['file'], entry['sha256'])).lower() for entry in document.get('logos', [])
+                  if not _fold(entry['file']).startswith(ORIGINAL_STEM))
+
+
+def _same_content(old, new):
+    """Whether a 1.0 profile still holds what its old-store copy holds (contract 0.3 step 4a)."""
+    return (old['revision'] == new['revision'] and _logo_hashes(old) == _logo_hashes(new)
+            and (_our_tile(old) or {}).get('sha256') == (_our_tile(new) or {}).get('sha256'))
+
+
+def _modified(path):
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0
+
+
+def _read_old(root, moved):
+    """(old profiles not yet in a profile folder, old profiles edited after their move, read problems, the old index).
+
+    VJTOOLS comes in index order, then the Branding card. A profile whose id a profile folder already holds is
+    not listed again (contract 0.1 step 2). When its old copy differs and was written after the 1.0 copy, an
+    older editor changed it there, so it is returned to refresh the 1.0 copy instead of being lost.
+    moved maps ids to the 1.0 profiles already read."""
     index = _load_old_index(root)
     sources = [(_old_profile_path(entry['dj_id']), entry['dj_id'], entry['dj_name']) for entry in index['profiles']] if index else []
     if _exists(root, OLD_CARD_PATH):
         sources.append((OLD_CARD_PATH, None, None))
-    found, problems, seen = [], [], set(taken_ids)
+    found, refresh, problems, seen = [], [], [], set()
     for relative, dj_id, dj_name in sources:
         if dj_id in seen:
             continue
@@ -1161,16 +1279,24 @@ def _read_old(root, taken_ids):
             document = validate_old_document(parse_json(_read(root, relative, MAX_JSON)))
             if dj_id and document['dj_id'] != dj_id:
                 raise ProfileError('profile.json names a different DJ ID than the index')
-            mapped, files = from_old(document)
+            mapped, files = from_old(document, _carried_marker(root, document))
             validate_profile(mapped)
         except (OSError, ValueError) as exc:
-            problems.append({'dj_id': dj_id, 'dj_name': dj_name, 'error': str(exc) if dj_id else f'{relative}: {exc}'})
+            if dj_id not in moved:
+                problems.append({'dj_id': dj_id, 'dj_name': dj_name, 'error': str(exc) if dj_id else f'{relative}: {exc}'})
             continue
         if document['dj_id'] in seen:
             continue
         seen.add(document['dj_id'])
-        found.append(Found('old', document['dj_id'], mapped['name'], mapped, old=document, old_files=files))
-    return found, problems, index
+        profile = Found('old', document['dj_id'], mapped['name'], mapped, old=document, old_files=files)
+        current = moved.get(document['dj_id'])
+        if current is None:
+            found.append(profile)
+        elif not _same_content(mapped, current.document) and current.raw is not None and (
+                _modified(_confined(root, relative)) > _modified(current.folder.path / PROFILE_FILE)):
+            profile.refresh = current
+            refresh.append(profile)
+    return found, refresh, problems, index
 
 
 def _scan(root):
@@ -1185,14 +1311,14 @@ def _scan(root):
         if problem:
             problems.append(problem)
     ordered = _profile_order(candidates, stick_file)
-    olds, old_problems, index = _read_old(root, {p.id for p in ordered if p.id})
+    olds, refresh, old_problems, index = _read_old(root, {p.id: p for p in ordered if p.id and p.document})
     old_names = {name_key(p.name) for p in olds}
     shown = [p for p in ordered if not (p.source == 'folder' and name_key(p.folder.name) in old_names)][:MAX_PROFILES]
     profiles = (shown + olds)[:MAX_PROFILES]
     stick_active = _resolve((stick_file or {}).get('active'), shown)
     by_old_index = next((p for p in profiles if index and p.id == index['active']), None)
     active = stick_active or by_old_index or (profiles[0] if profiles else None)
-    return Stick(folders, stick_file, stick_raw, stick_path, ordered, profiles, olds, active, stick_active, index,
+    return Stick(folders, stick_file, stick_raw, stick_path, ordered, profiles, olds, refresh, active, stick_active, index,
                  old_problems, problems + old_problems)
 
 
@@ -1328,7 +1454,13 @@ def read(volume):
     return {'format': 'xz-dj-profiles/1', 'public_folder': tops[0] if tops else None, 'revision': stick.revision,
             'active': _view_id(stick.active) if stick.active else None, 'stick_colour': colour,
             'old_store': bool(stick.olds) or _old_home(root) is not None, 'profiles': profiles, 'problems': problems,
-            'summary': _summary(stick)}
+            'runtime_update_needed': _runtime_update_needed(root, stick), 'summary': _summary(stick)}
+
+
+def _runtime_update_needed(root, stick):
+    """Every profile is in the 1.0 layout and the old folder stays only because the stick's XZ runtime is older."""
+    return (_old_home(root) is not None and stick.old_index is not None and not stick.olds and not stick.refresh
+            and not _runtime_reads_v1(root))
 
 
 def summary(volume):
@@ -1339,15 +1471,23 @@ def summary(volume):
 # --- writing (spec section 7) ---
 
 def _writable_top(root):
-    """DJPROFILE at the root with exactly that name, made or renamed if needed (spec section 3)."""
+    """DJPROFILE at the root with exactly that name, made or renamed if needed (spec section 3). A rename that
+    stopped between its two steps (a pulled stick) is finished here, so nothing stays in a hidden folder."""
     for entry in _visible(root):
         if _fold(entry.name) == 'djprofile':
             _need(entry.is_dir(), 'DJPROFILE on this USB is a file, not a folder. Rename it and try again.')
             if entry.name != TOP:
-                temporary = root / f'.{TOP}-{secrets.token_hex(4)}'
-                os.rename(entry.path, temporary)
-                os.rename(temporary, root / TOP)
+                os.rename(entry.path, root / TOP)
+                if TOP not in os.listdir(root):
+                    temporary = root / f'{TOP_RENAME_PREFIX}{secrets.token_hex(4)}'
+                    os.rename(next(root / name for name in os.listdir(root) if _fold(name) == 'djprofile'), temporary)
+                    os.rename(temporary, root / TOP)
             return root / TOP
+    interrupted = next((Path(entry.path) for entry in os.scandir(root) if entry.is_dir(follow_symlinks=False)
+                        and entry.name.startswith(TOP_RENAME_PREFIX)), None)
+    if interrupted is not None:
+        os.rename(interrupted, root / TOP)
+        return root / TOP
     path = _safe_path(root / TOP)
     path.mkdir()
     return path
@@ -1443,7 +1583,8 @@ def _folder_entries(profiles):
 
 def _adopt_hand_made(folder, primary_file, primary_sha):
     """In a folder the DJ made by hand, a top-level logo.png / logo.jpg / logo.jpeg that differs from the new
-    primary logo is renamed logo-original.<ext> (contract 0.3 step 2). Returns [(name, bytes, sha256)]."""
+    primary logo is renamed logo-original.<ext> (contract 0.3 step 2). Returns [(name, bytes, sha256)] for those
+    and for any logo-original.* already there, so a move stopped after the rename still lists the DJ's logo."""
     originals = []
     used = {_fold(entry.name) for entry in _visible(folder)} | {_fold(primary_file)}
     for entry in _visible(folder):
@@ -1456,7 +1597,26 @@ def _adopt_hand_made(folder, primary_file, primary_sha):
         used.add(_fold(name))
         os.rename(entry.path, folder / name)
         originals.append((name, len(data), _sha(data)))
+    for entry in _visible(folder):
+        if (entry.is_file() and _fold(entry.name).startswith(ORIGINAL_STEM)
+                and _fold(os.path.splitext(entry.name)[1]) in IMAGE_SUFFIXES and all(entry.name != name for name, _, _ in originals)):
+            data = _read_file(entry.path, MAX_LOGO_BYTES + 1)
+            if _stick_image(data) and _sha(data) != primary_sha:
+                originals.append((entry.name, len(data), _sha(data)))
     return originals
+
+
+def _new_folder(top, want, taken):
+    """(name, path) of a folder made now for a profile, unique among the names the filesystem already holds.
+    mkdir without exist_ok, so a folder that belongs to another DJ is never written into."""
+    while True:
+        name = _unique_folder(want, taken)
+        taken.add(_collision_key(name))
+        try:
+            (top / name).mkdir()
+        except FileExistsError:
+            continue
+        return name, top / name
 
 
 def _original_entry(name, size, digest):
@@ -1495,47 +1655,89 @@ def _old_assets(root, found):
 
 
 def _migrate_one(root, top, found, adoptable, taken):
-    """One old profile written to a profile folder (contract 0.3 steps 1 to 3). Returns the folder name."""
+    """One old profile written to a profile folder (contract 0.3 steps 1 to 3). Returns the folder name.
+    found.refresh, when set, is the 1.0 copy of a profile an older editor changed in the old store afterwards;
+    the newer old content is then written over it as an edit, keeping what only the 1.0 copy has."""
     document = copy.deepcopy(found.document)
     assets = _old_assets(root, found)
+    scaled = {}
     for entry in document['logos']:
         data = assets.pop(entry['file'])
         image, kind = _decode(data)
-        data, _, kind = fit_stick_limits(data, image, kind)
+        fitted, _, kind = fit_stick_limits(data, image, kind)
         if entry['role'] == 'primary':
             entry['file'] = 'logo.jpg' if kind == 'jpeg' else 'logo.png'
         elif kind == 'png' and not _fold(entry['file']).endswith('.png'):
             entry['file'] = os.path.splitext(entry['file'])[0] + '.png'
-        entry.update(bytes=len(data), sha256=_sha(data))
-        assets[entry['file']] = data
+        if fitted is not data:
+            scaled[id(entry)] = entry['sha256']
+        entry.update(bytes=len(fitted), sha256=_sha(fitted))
+        assets[entry['file']] = fitted
     primary = _primary(document)
-    folder = adoptable.pop(name_key(found.name), None)
+    current, previous, raw = found.refresh, None, None
+    folder = current.folder if current else adoptable.pop(name_key(found.name), None)
     if folder is not None:
+        _need(folder.top == TOP, f'{folder.top}/{folder.name} is outside DJPROFILE, so it is left as it is')
         path, name = folder.path, folder.name
-        originals = _adopt_hand_made(path, primary['file'], primary['sha256'])
+        if current:
+            previous, raw = current.document, current.raw
+            for key, value in previous.items():
+                if key not in document and key != 'track':
+                    document[key] = copy.deepcopy(value)
+            originals = []
+        else:
+            originals = _adopt_hand_made(path, primary['file'], primary['sha256'])
+        used = {_fold(primary['file'])}
         for entry in document['logos'] + document.get('renditions', []):
             if entry is primary:
                 continue
             data = assets.pop(entry['file'])
-            entry['file'] = _free_name(entry['file'], data, path, set())
+            entry['file'] = _free_name(entry['file'], data, path, used)
+            used.add(_fold(entry['file']))
             assets[entry['file']] = data
         listed = {entry['sha256'] for entry in document['logos']}
         for original, size, digest in originals:
             if digest not in listed and len(document['logos']) < MAX_LOGOS:
                 document['logos'].append(_original_entry(original, size, digest))
     else:
-        name = _unique_folder(folder_name(found.name), taken)
-        path = top / name
-        path.mkdir()
-    taken.add(name_key(name))
+        name, path = _new_folder(top, folder_name(found.name), taken)
+    if scaled:
+        vendor = document.setdefault('ext', {}).setdefault(VENDOR, {})
+        vendor['original_sha256'] = {entry['file']: scaled[id(entry)] for entry in document['logos'] if id(entry) in scaled}
+    validate_profile(document)
     for file, data in assets.items():
         if file != primary['file']:
             _write_asset(path, file, data)
     _write_asset(path, primary['file'], assets[primary['file']])
-    if 'track' in document:
-        document['track'] = {**document['track'], 'marker': track_marker(document)}
-    _publish_document(path, document, None)
+    _publish_document(path, document, raw)
+    if previous is not None:
+        _delete_unlisted(path, previous, document)
     return name
+
+
+def stick_runtime_capabilities(root):
+    """What the XZ runtime on this stick can read, as capability names, or None when the stick has no XZ runtime.
+
+    Today the runtime is the stick's autoexec.bin. The app knows a loader by its SHA-256 through the mod version it
+    recorded when it wrote that loader (mod_versions.lookup_loader). That version's runtime/manifest.json lists
+    the capabilities. A loader this computer did not write, or a manifest without a capabilities list, gives an
+    empty set: an unknown runtime counts as one from before DJ Profile 1.0."""
+    loader = root / 'autoexec.bin'
+    if not loader.is_file():
+        return None
+    try:
+        from . import managed_usb, mod_versions
+        recorded = mod_versions.lookup_loader(managed_usb.revision(loader))
+        manifest = json.loads((mod_versions._root() / recorded['id'] / 'runtime' / 'manifest.json').read_text(encoding='utf-8'))
+    except Exception:
+        return set()
+    listed = manifest.get('capabilities')
+    return {item for item in listed if isinstance(item, str)} if isinstance(listed, list) else set()
+
+
+def _runtime_reads_v1(root):
+    capabilities = stick_runtime_capabilities(root)
+    return capabilities is None or RUNTIME_CAPABILITY in capabilities
 
 
 def _backup_label(root):
@@ -1555,9 +1757,56 @@ def backup_root():
     return _safe_path(data_root() / BACKUPS)
 
 
+def _long(path):
+    """path in the Windows extended-length form, so files past 260 characters are copied and deleted too."""
+    text = os.path.abspath(str(path))
+    if os.name != 'nt' or text.startswith('\\\\?\\'):
+        return text
+    return '\\\\?\\UNC\\' + text[2:] if text.startswith('\\\\') else '\\\\?\\' + text
+
+
+_is_junction = getattr(os.path, 'isjunction', lambda path: False)
+
+
+def _hash_file(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _walk_files(folder):
+    """[(relative path, full path)] of every file under folder. A walk error, a link or a junction raises, so no
+    file is ever skipped without notice."""
+    base = _long(folder)
+
+    def fail(error):
+        raise error
+
+    files = []
+    for current, folders, names in os.walk(base, onerror=fail):
+        for name in folders + names:
+            full = os.path.join(current, name)
+            _need(not os.path.islink(full) and not _is_junction(full), f'{name} in the old profile folder is a link; the old folder was kept.')
+        files += [(os.path.relpath(os.path.join(current, name), base).replace(os.sep, '/'), os.path.join(current, name)) for name in names]
+    return files
+
+
+def _tree_hashes(folder):
+    return {relative: _hash_file(full) for relative, full in _walk_files(folder)}
+
+
+def _write_flushed(path, data):
+    with open(path, 'wb') as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
 def _back_up(root, home):
-    """Copies home (DJPROFILE/VJTOOLS) into the app data folder and returns the backup folder after every copied
-    file's SHA-256 matched the stick. Raises before anything is deleted if any file does not."""
+    """Copies home (DJPROFILE/VJTOOLS) into the app data folder and returns (backup folder, {file: record}) once
+    every copy, flushed and read back, matches the stick, and backup.json reads back as written."""
     base = backup_root()
     base.mkdir(parents=True, exist_ok=True)
     _need(not _safe_path(base).is_relative_to(_safe_path(root)), 'The DJ profile backup folder must be on this computer, not on the USB.')
@@ -1568,75 +1817,155 @@ def _back_up(root, home):
     copy_root = destination / OLD_HOME
     copy_root.mkdir(parents=True)
     files = {}
-    for folder, folders, names in os.walk(home):
-        for name in folders + names:
-            _need(not os.path.islink(os.path.join(folder, name)), f'{name} in DJPROFILE/VJTOOLS is a link; the old folder was kept.')
-        for name in names:
-            source = Path(folder) / name
-            relative = source.relative_to(home).as_posix()
-            target = copy_root / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            data = source.read_bytes()
-            target.write_bytes(data)
-            digest = _sha(data)
-            _need(_sha(target.read_bytes()) == digest and _sha(source.read_bytes()) == digest,
-                  f'The backup copy of {relative} does not match the USB; the old folder was kept.')
-            files[relative] = {'bytes': len(data), 'sha256': digest}
-    (destination / 'backup.json').write_bytes(pretty({'format': BACKUP_FORMAT, 'source': f'{TOP}/{home.name}',
-                                                      'volume': str(root), 'created': datetime.now(timezone.utc).isoformat(),
-                                                      'files': files}))
+    for relative, full in _walk_files(home):
+        target = _long(copy_root.joinpath(*relative.split('/')))
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        digest, size = hashlib.sha256(), 0
+        with open(full, 'rb') as source, open(target, 'wb') as copied:
+            for chunk in iter(lambda: source.read(1 << 20), b''):
+                digest.update(chunk)
+                size += len(chunk)
+                copied.write(chunk)
+            copied.flush()
+            os.fsync(copied.fileno())
+        files[relative] = {'bytes': size, 'sha256': digest.hexdigest()}
+    record = {'format': BACKUP_FORMAT, 'source': f'{TOP}/{home.name}', 'volume': str(root),
+              'created': datetime.now(timezone.utc).isoformat(), 'files': files}
+    _write_flushed(destination / 'backup.json', pretty(record))
+    _need(json.loads((destination / 'backup.json').read_text(encoding='utf-8')) == record, 'backup.json did not read back as written')
+    _need(_tree_hashes(copy_root) == {relative: entry['sha256'] for relative, entry in files.items()},
+          'The backup copy does not match the USB; the old folder was kept.')
     return destination, files
 
 
-def _remove_old_store(root, stick, failed):
-    """Backs up DJPROFILE/VJTOOLS and deletes it, only when every profile its index lists is now in a profile
-    folder. Returns (backup folder or None, kept)."""
+def _remove_path(action, path):
+    try:
+        action(path)
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError:
+        try:
+            os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+            action(path)
+            return True
+        except OSError:
+            return False
+
+
+def _delete_tree(folder):
+    """Deletes folder, clearing read-only flags on the way. Returns False when anything could not be deleted; what
+    is left stays for the next write to finish."""
+    base, done = _long(folder), True
+    for current, folders, names in os.walk(base, topdown=False, onerror=lambda error: None):
+        for name in names:
+            done = _remove_path(os.unlink, os.path.join(current, name)) and done
+        for name in folders:
+            done = _remove_path(os.rmdir, os.path.join(current, name)) and done
+    return _remove_path(os.rmdir, base) and done
+
+
+def _finish_removals(top):
+    """Deletes what an interrupted removal left in a dot-named folder, once every file left matches its backup."""
+    for entry in os.scandir(top):
+        if not entry.is_dir(follow_symlinks=False) or not entry.name.startswith(REMOVING_PREFIX):
+            continue
+        try:
+            record = json.loads((backup_root() / entry.name[len(REMOVING_PREFIX):] / 'backup.json').read_text(encoding='utf-8'))
+            if all(record['files'].get(relative, {}).get('sha256') == digest for relative, digest in _tree_hashes(entry.path).items()):
+                _delete_tree(entry.path)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            continue
+
+
+def _remove_old_store(root, top, failed):
+    """Removes DJPROFILE/VJTOOLS behind a checked backup (contract 0.3 step 4).
+
+    Only when every profile it holds has a 1.0 folder with the same content and the stick's XZ runtime reads 1.0
+    (or there is none). The folder is first renamed to a dot name that readers skip, its files are checked against
+    the backup once more, and only then deleted. Returns what the UI reports."""
+    result = {'backup': None, 'old_kept': False, 'reason': None, 'cleanup_pending': False}
     home = _old_home(root)
     if home is None:
-        return None, False
-    ids = {p.id for p in _scan(root).ordered if p.id}
-    if failed or stick.old_index is None or any(entry['dj_id'] not in ids for entry in stick.old_index['profiles']):
-        return None, True
+        return result
+    stick = _scan(root)
+    ids = {p.id for p in stick.ordered if p.id}
+    if (failed or stick.old_index is None or stick.olds or stick.refresh
+            or any(entry['dj_id'] not in ids for entry in stick.old_index['profiles'])):
+        return {**result, 'old_kept': True, 'reason': 'profiles'}
+    if not _runtime_reads_v1(root):
+        return {**result, 'old_kept': True, 'reason': 'runtime'}
     try:
         destination, files = _back_up(root, home)
     except (OSError, ValueError):
-        return None, True
-    for relative, record in files.items():
-        if _sha((home / relative).read_bytes()) != record['sha256']:
-            return str(destination), True
-    shutil.rmtree(home)
-    return str(destination), False
+        return {**result, 'old_kept': True, 'reason': 'backup'}
+    result['backup'] = str(destination)
+    removing = top / (REMOVING_PREFIX + destination.name)
+    try:
+        os.rename(home, removing)
+    except OSError:
+        return {**result, 'old_kept': True, 'reason': 'busy'}
+    try:
+        unchanged = _tree_hashes(removing) == {relative: entry['sha256'] for relative, entry in files.items()}
+    except (OSError, ValueError):
+        unchanged = False
+    if not unchanged:
+        try:
+            os.rename(removing, home)
+        except OSError:
+            pass
+        return {**result, 'old_kept': True, 'reason': 'changed'}
+    result['cleanup_pending'] = not _delete_tree(removing)
+    return result
 
 
 def _migrate(root, top, stick):
     """Moves every old-store profile to a profile folder in one pass, then removes DJPROFILE/VJTOOLS behind a
-    verified backup. Returns what happened for the UI, or None when the stick was already 1.0 only."""
-    if not stick.olds and _old_home(root) is None:
+    verified backup. DJPROFILE.json lists the profiles in the order the stick showed them before (contract
+    0.1 step 4). Returns what happened for the UI, or None when the stick was already 1.0 only."""
+    _finish_removals(top)
+    if not stick.olds and not stick.refresh and _old_home(root) is None:
         return None
     adoptable = {name_key(f.name): f for f in stick.folders if f.top == TOP and _fixed(f.path, PROFILE_FILE) is None}
-    taken = {name_key(e.name) for e in _visible(top)}
-    moved, failed = [], []
-    for found in stick.olds:
+    taken = _taken(top)
+    moved, failed = {}, []
+    for found in stick.olds + stick.refresh:
         try:
-            moved.append((_migrate_one(root, top, found, adoptable, taken), found.id))
+            moved[found.id] = _migrate_one(root, top, found, adoptable, taken)
         except (OSError, ValueError) as exc:
             failed.append({'dj_id': found.id, 'dj_name': found.name, 'error': str(exc)})
-    if moved:
-        adopted = {name_key(name) for name, _ in moved}
-        rest = [(name, dj_id) for name, dj_id in _folder_entries(stick.profiles) if name_key(name) not in adopted]
-        moved_ids = {dj_id for _, dj_id in moved}
+    created = {dj_id: name for dj_id, name in moved.items() if all(p.id != dj_id for p in stick.refresh)}
+    if created:
+        entries = []
+        for p in stick.profiles:
+            if p.source != 'old':
+                entries.append((p.folder.name, p.id))
+            elif p.id in created:
+                entries.append((created[p.id], p.id))
+        entries += [(name, dj_id) for dj_id, name in created.items() if all(dj_id != listed for _, listed in entries)]
         before = stick.active
-        active = before.ref if before and (before.source != 'old' or before.id in moved_ids) else None
-        _write_stick_file(stick, top, moved + rest, active)
-    backup, kept = _remove_old_store(root, stick, failed)
-    return {'profiles': len(moved), 'backup': backup, 'old_kept': kept, 'failed': failed}
+        active = before.ref if before and (before.source != 'old' or before.id in created) else None
+        _write_stick_file(stick, top, entries, active)
+    return {'profiles': len(moved), 'failed': failed, **_remove_old_store(root, top, failed)}
 
 
 def _merge_moved(first, second):
     if not first or not second:
         return first or second
-    return {'profiles': first['profiles'] + second['profiles'], 'backup': second['backup'] or first['backup'],
-            'old_kept': second['old_kept'], 'failed': second['failed']}
+    return {**second, 'profiles': first['profiles'] + second['profiles'], 'backup': second['backup'] or first['backup']}
+
+
+def _sync_old_active(root):
+    """While an old index remains, its active follows the stick's active profile when the index lists it, so an XZ
+    on an older runtime shows the same DJ (contract 0.3 step 5). The index keeps its other members."""
+    stick = _scan(root)
+    index, active = stick.old_index, stick.active
+    if (not index or not active or not active.id or index['active'] == active.id
+            or all(entry['dj_id'] != active.id for entry in index['profiles'])):
+        return
+    index['active'] = active.id
+    index['revision'] = _stick_revision()
+    _replace(_confined(root, OLD_INDEX_PATH), pretty(validate_old_index(index)))
 
 
 # --- saving from the editor ---
@@ -1850,17 +2179,14 @@ def _save_profile(root, top, stick, draft, prepared):
                        and _fixed(f.path, PROFILE_FILE) is None), None)
     adopted = (editing.source == 'folder') if in_place else folder is not None
     slot = next((p for p in stick.ordered if folder and p.folder and p.folder.path == folder.path), None)
-    taken = {name_key(e.name) for e in _visible(top)}
-    if folder is None:
-        name = _unique_folder(want, taken)
-        path = top / name
-    else:
-        path, name = folder.path, folder.name
     replaces = [p for p in (editing, slot) if p is not None]
     _need(any(p in stick.profiles for p in replaces) or len(stick.profiles) < MAX_PROFILES,
           f'This USB already holds {MAX_PROFILES} DJ profiles')
+    if folder is None:
+        name, path = _new_folder(top, want, _taken(top))
+    else:
+        path, name = folder.path, folder.name
     dj_id = editing.id if editing and editing.id else _new_id(stick)
-    path.mkdir(exist_ok=True)
     document, assets = _build_document(draft, dj_id, prepared, previous, path, in_place, adopted)
     if in_place and _stripped(document) == _stripped(previous):
         document = previous
@@ -1874,7 +2200,7 @@ def _save_profile(root, top, stick, draft, prepared):
     _write_asset(path, primary, assets[primary])
     _publish_document(path, document, editing.raw if in_place else None)
     if want != name:
-        target = _unique_folder(want, taken - {name_key(name)})
+        target = _unique_folder(want, {_collision_key(entry.name) for entry in os.scandir(top) if entry.name != name})
         os.rename(path, top / target)
         path, name = top / target, target
     entries, placed = [], False
@@ -1910,6 +2236,7 @@ def save(volume, request):
         dj_id = _save_profile(root, top, stick, draft, prepared)
         if _old_home(root) is not None or any(p.source == 'old' for p in _scan(root).profiles):
             moved = _merge_moved(moved, _migrate(root, top, _scan(root)))
+        _sync_old_active(root)
     result = read(root)
     result['saved'] = dj_id
     result['moved'] = moved
@@ -1933,11 +2260,7 @@ def set_active(volume, dj_id, expected_revision):
         if all(name_key(name) != name_key(found.folder.name) for name, _ in entries):
             entries.append((found.folder.name, found.id))
         _write_stick_file(stick, top, entries, found.ref)
-        index = stick.old_index
-        if index and found.id and index['active'] != found.id and any(entry['dj_id'] == found.id for entry in index['profiles']):
-            index['active'] = found.id
-            index['revision'] = _stick_revision()
-            _replace(_confined(root, OLD_INDEX_PATH), pretty(validate_old_index(index)))
+        _sync_old_active(root)
     result = read(root)
     result['moved'] = moved
     return result

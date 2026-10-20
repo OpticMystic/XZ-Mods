@@ -485,7 +485,7 @@ try {
   await view('flow', 'done');
   await check(`since(window.__mark)==='save_dj_profile,inspect_usb'&&fx.written.length===1&&fx.written[0].method==='save_dj_profile'&&fx.written[0].profile.dj_name==='DJ Test'&&fx.written[0].volume==='E:\\\\'`, 'a DJ-profile-only write saves the profile and nothing else');
   await check(`txt('.wz-done').includes('DJ profile DJ Test saved to the USB.')&&!document.querySelector('.wz-next')&&Boolean(button('Make the profile track'))`, 'done lists the profile; the loader steps only show after a loader write');
-  await check(`txt('.wz-done').includes('Moved your profiles to the new DJ Profile layout. A copy of the old files is on this computer.')`, 'done says once that the profiles moved to the new layout');
+  await check(`txt('.wz-done').includes('Moved your profiles to the new DJ Profile layout. A copy of the old files is in C:\\\\backup.')`, 'done says once that the profiles moved, and where the copy is');
   await click('Done');
   await view('device');
   await check(`txt('.wz-tile[data-tile=profile] .wz-tile-value')==='DJ Test'&&txt('.wz-tile[data-tile=profile] .wz-tile-action')==='Edit'`, 'the DJ profile tile shows the saved name');
