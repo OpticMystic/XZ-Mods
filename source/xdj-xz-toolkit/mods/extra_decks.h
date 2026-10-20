@@ -57,6 +57,9 @@ struct xz_extra_decks {
  int left_on_3, right_on_4;            /* the left deck controls drive DECK 3 instead of DECK 1; the
                                           right ones DECK 4 instead of DECK 2 */
  struct xz_extra_deck deck[XZ_EXTRA_DECKS];
+ /* One short caps line from the players (a refused control, a load error, the route going down), raised
+    at notice_at_ms (monotonic); notice_seq changes with every new notice. Empty when none. */
+ char notice[64]; uint32_t notice_at_ms, notice_seq;
 };
 
 /* Copies the published state. Returns route_up; with no players running it clears out and returns 0,
@@ -77,6 +80,7 @@ void xz_extra_decks_publish_sides(int left_on_3, int right_on_4);
 enum xz_extra_input {
  XZ_EXTRA_IN_PLAY, XZ_EXTRA_IN_CUE, XZ_EXTRA_IN_JOG_TURN, XZ_EXTRA_IN_JOG_TOUCH, XZ_EXTRA_IN_TEMPO,
  XZ_EXTRA_IN_SYNC, XZ_EXTRA_IN_MASTER_TEMPO, XZ_EXTRA_IN_HOT_CUE, XZ_EXTRA_IN_LOAD,
+ XZ_EXTRA_IN_SEEK,                  /* needle search from a screen: seek_ms */
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */
@@ -93,6 +97,7 @@ struct xz_extra_deck_event {
   int32_t tempo_position;
   int hot_cue;                      /* 0..7, pads A..H */
   struct { int source; uint32_t track_id; } load;  /* source 1 USB1, 2 USB2; id in that USB's library */
+  int32_t seek_ms;
  };
 };
 /* 1 when the player took the event, 0 when it refused (no player, deck not ready). Never blocks. */
