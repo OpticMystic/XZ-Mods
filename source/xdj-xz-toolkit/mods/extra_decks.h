@@ -26,8 +26,10 @@ enum xz_extra_field {
 /* One waveform column, the rekordbox three-band analysis (PWV7 low, mid, high), 0..255 each.
    Same layout as struct xz_shell_column. */
 struct xz_extra_column { uint8_t low, mid, high; };
-/* count columns cover span_ms of audio from the track start, evenly. */
-struct xz_extra_wave { const struct xz_extra_column *columns; uint32_t count; uint32_t span_ms; };
+/* count columns cover span_ms of audio from the track start, evenly. normalization is the
+   low+mid+high sum drawn at full height, ui/layered_wave_source.c xz_wave_normalization() (the 99.5th
+   percentile), computed once by the player so the draw thread never ranks a whole track; 0 = 765. */
+struct xz_extra_wave { const struct xz_extra_column *columns; uint32_t count; uint32_t span_ms; uint32_t normalization; };
 struct xz_extra_beat { int32_t ms; uint8_t beat_in_bar; };   /* 1..4 */
 struct xz_extra_cue { int set; int32_t ms; uint32_t rgb; };
 
