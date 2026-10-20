@@ -1,7 +1,6 @@
 """Explicitly restart the XZ application into a reviewed private RAM test image."""
 from __future__ import annotations
 import argparse
-import base64
 import hashlib
 import json
 from pathlib import Path
@@ -85,9 +84,13 @@ def main():
         if old_mod not in tokens or old_receiver not in tokens:
             raise ValueError("Previous development pair is not in the active preload")
         # Verify the current files against the locally retained, reviewed image hashes.
+        local = {hashlib.sha256(f.read_bytes()).hexdigest(): f
+                 for f in (ROOT.parent / "builds").rglob("*.so")}
         for path, expected in ((old_mod, previous["runtime_sha256"]), (old_receiver, previous["receiver_sha256"])):
-            data = base64.b64decode("".join(command(args.host, "base64 " + shlex.quote(path)).splitlines()), validate=True)
-            if hashlib.sha256(data).hexdigest() != expected:
+            if expected not in local:
+                raise ValueError("No local copy of the previous development library")
+            remote_md5 = command(args.host, "md5sum " + shlex.quote(path)).split()[0]
+            if remote_md5 != hashlib.md5(local[expected].read_bytes()).hexdigest():
                 raise ValueError("Previous development library differs from its receipt")
         old_enabled = 1
         old_observer = int(previous["mode"] == "observer")
@@ -100,8 +103,11 @@ def main():
         if old_receiver not in tokens:
             raise ValueError("Combined USB runtime has no matching receiver")
         for remote_file, name in ((old_mod, "libxz-mods.so"), (old_receiver, "libxz-receiver.so")):
-            data = base64.b64decode("".join(command(args.host, "base64 " + shlex.quote(remote_file)).splitlines()), validate=True)
+            data = (args.previous_bundle / name).read_bytes()
             if hashlib.sha256(data).hexdigest() != previous["files"][name]:
+                raise ValueError("Local previous bundle differs from its manifest")
+            remote_md5 = command(args.host, "md5sum " + shlex.quote(remote_file)).split()[0]
+            if remote_md5 != hashlib.md5(data).hexdigest():
                 raise ValueError("Running USB library differs from the previous bundle")
         old_enabled = old_ui = 1
     elif old_receiver not in tokens:
