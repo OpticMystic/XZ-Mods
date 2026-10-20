@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/OpticMystic/XZ-Mods/main/spec/djprofile/schema/profile.schema.json",
+  "title": "DJ Profile document (DJPROFILE/<folder>/profile.json)",
+  "description": "DJ Profile 1.0, section 5. Text limits in DJPROFILE.md are UTF-8 bytes; maxLength here counts characters, so it is a looser bound and tools/check_djprofile.py enforces the byte limits. JSON Schema cannot express duplicate-member, depth or whole-number-only rules either; the checker does. Unknown members are allowed everywhere and writers must keep them.",
+  "type": "object",
+  "required": [
+    "format",
+    "id",
+    "revision",
+    "name"
+  ],
+  "properties": {
+    "format": {
+      "const": "djprofile/1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[\\x21-\\x7e]{1,64}$"
+    },
+    "name": {
+      "$ref": "#/$defs/name"
+    },
+    "tagline": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "accent": {
+      "$ref": "#/$defs/colour"
+    },
+    "aliases": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    },
+    "logos": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/logo"
+      },
+      "contains": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "const": "primary"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "links": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/link"
+      }
+    },
+    "track": {
+      "$ref": "#/$defs/track"
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 8192
+    },
+    "renditions": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/rendition"
+      }
+    },
+    "ext": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      }
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*\\S[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+    },
+    "colour": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?!.*\\x5c)[^/.][^/]*(/[^/.][^/]*)?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "file": {
+      "type": "object",
+      "required": [
+        "file",
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/path"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "logo": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/file"
+        }
+      ],
+      "required": [
+        "role"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 8388608
+        },
+        "role": {
+          "enum": [
+            "primary",
+            "alternate"
+          ]
+        },
+        "background": {
+          "enum": [
+            "dark",
+            "light",
+            "any"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      },
+      "if": {
+        "properties": {
+          "role": {
+            "const": "primary"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "then": {
+        "properties": {
+          "file": {
+            "pattern": "^[Ll][Oo][Gg][Oo]\\.([Pp][Nn][Gg]|[Jj][Pp][Gg])$"
+          }
+        }
+      }
+    },
+    "link": {
+      "type": "object",
+      "required": [
+        "kind",
+        "url"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://",
+          "maxLength": 2048
+        }
+      }
+    },
+    "track": {
+      "type": "object",
+      "required": [
+        "marker"
+      ],
+      "properties": {
+        "marker": {
+          "type": "string",
+          "pattern": "^djprofile:1:[A-Za-z0-9_-]{1,128}:[0-9a-f]{12}$"
+        },
+        "file": {
+          "$ref": "#/$defs/path"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "dependentRequired": {
+        "file": [
+          "bytes",
+          "sha256"
+        ]
+      }
+    },
+    "rendition": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/file"
+        }
+      ],
+      "required": [
+        "width",
+        "height",
+        "format",
+        "for"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "format": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "for": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4194304
+        }
+      }
+    }
+  }
+}
