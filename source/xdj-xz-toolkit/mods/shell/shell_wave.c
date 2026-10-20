@@ -6,6 +6,7 @@
    pixel (track_px = ms x pps / 1000), so an audio column lands on the same
    pixel phase every frame while the lane scrolls and nothing shimmers. */
 #include "shell_internal.h"
+#include <stdio.h>
 #include <string.h>
 
 #define C565(c) ((uint16_t)((((c)>>8)&0xf800)|(((c)>>5)&0x7e0)|(((c)>>3)&31)))
@@ -289,7 +290,7 @@ void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 }
 
 int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
- if(!m||deck<0||deck>=XZ_SHELL_DECKS)return -1;
+ if(!m||deck<0||deck>=sh_deck_count(m))return -1;
  const struct xz_shell_deck *d=&m->deck[deck];
  if(!sh_has(d,XZ_SHELL_F_ELAPSED))return -1;
  int64_t e=d->elapsed_ms;
@@ -310,6 +311,70 @@ int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
  if(e<0)e=0;
  if(sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0&&e>d->total_ms)e=d->total_ms;
  return (int32_t)e;
+}
+
+/* ---- four-deck status strip ----
+   Under the non-play screens of the four-deck view each deck gets a quarter: the player badge, REMAIN
+   or TIME with the time, a mini overview under them, and the BPM box (orange digits and MASTER for
+   the master deck). Numerals use the text face; a quarter has no room for the numeral faces. */
+enum { Q_BADGE_W=30, Q_TEXT_X=40, Q_BPM_W=52 };
+struct xz_shell_rect sh_strip_cell(const struct xz_shell_model *m, struct xz_shell_rect band, int deck) {
+ int w=band.w/(m?sh_deck_count(m):2);
+ return (struct xz_shell_rect){band.x+deck*w,band.y,w,band.h};
+}
+static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect q, int deck) {
+ const struct xz_shell_deck *d=&m->deck[deck];
+ int x=q.x+(deck?1:0),w=q.w-(deck?1:0)-1,y=q.y+1,h=q.h-1;
+ char text[24];
+ xz_rect(c,x,y,w,h,SH_CHROME);
+ int bx=x+4,by=y+3,bh=h-6;
+ xz_rect(c,bx,by,Q_BADGE_W,bh,u->deck==deck?SH_BLUE:SH_RAIL);
+ sh_text_center(c,bx+Q_BADGE_W/2,by+bh/2-16,"DECK",SH_SMALL,SH_WHITE);
+ snprintf(text,sizeof text,"%d",deck+1);
+ sh_text_center(c,bx+Q_BADGE_W/2,by+bh/2-3,text,SH_TEXT,SH_WHITE);
+ int loaded_known=sh_has(d,XZ_SHELL_F_LOADED),loaded=loaded_known&&d->loaded;
+ if(loaded_known&&!loaded){sh_text_center(c,(x+Q_TEXT_X+x+w-4)/2,y+(h-SH_CAP_TEXT)/2-3,"Not Loaded.",SH_TEXT,SH_RED);return;}
+ /* REMAIN / TIME and the time on one line */
+ int mode_known=1;enum xz_shell_time_mode mode=XZ_SHELL_TIME_REMAIN;
+ if(sh_has(d,XZ_SHELL_F_TIME_MODE))mode=d->time_mode;
+ else if(sh_setting(m,XZ_SHELL_SET_TIME_MODE))mode=m->settings.time_mode;
+ else mode_known=0;
+ const char *caption=mode==XZ_SHELL_TIME_ELAPSED?"TIME":"REMAIN";
+ int tx=x+Q_TEXT_X;
+ sh_text(c,tx,y+9,caption,SH_SMALL,mode_known?SH_WHITE:SH_DIM);
+ int32_t e=loaded?xz_shell_elapsed_now(m,deck):-1,shown=-1;
+ int timed=e>=0&&sh_has(d,XZ_SHELL_F_TOTAL)&&d->total_ms>0;
+ if(mode==XZ_SHELL_TIME_ELAPSED&&e>=0)shown=e;
+ else if(mode==XZ_SHELL_TIME_REMAIN&&timed)shown=sh_max(0,d->total_ms-e);
+ if(shown>=0){
+  int32_t s=shown/1000,min=s/60,sec=s%60;
+  if(min>99){min=99;sec=59;}
+  snprintf(text,sizeof text,"%02d:%02d",(int)min,(int)sec);
+ }
+ else snprintf(text,sizeof text,"--:--");
+ sh_text(c,tx+sh_text_width(c,"REMAIN",SH_SMALL)+5,y+4,text,SH_TEXT,shown>=0?SH_WHITE:SH_DIM);
+ /* BPM box at the right edge, the mini overview under the time */
+ int px=x+w-4-Q_BPM_W,master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
+ uint32_t ink=master?SH_RED:SH_WHITE;
+ xz_border(c,px,by,Q_BPM_W,bh,master?SH_RED:SH_WHITE);
+ sh_text(c,px+4,by+3,master?"MASTER":"BPM",SH_SMALL,ink);
+ if(loaded&&sh_has(d,XZ_SHELL_F_BPM)){
+  int32_t b=sh_max(0,sh_min(d->bpm_x100,99999));
+  snprintf(text,sizeof text,"%d.%d",(int)(b/100),(int)((b/10)%10));
+  sh_text_right(c,px+Q_BPM_W-4,by+bh-18,text,SH_TEXT,ink);
+ }else sh_text_right(c,px+Q_BPM_W-4,by+bh-18,"---.-",SH_TEXT,SH_DIM);
+ struct xz_shell_rect ov={tx,y+24,px-6-tx,h-28};
+ int ph=timed?ov.x+(int)((int64_t)sh_min(e,d->total_ms)*(ov.w-1)/d->total_ms):-1;
+ xz_rect(c,ov.x,ov.y,ov.w,ov.h,SH_BLACK);
+ if(loaded)sh_deck_overview(c,(struct xz_shell_rect){ov.x,ov.y,ov.w,ov.h-1},u,m,d,ph);
+ xz_rect(c,ov.x,ov.y+ov.h-1,ov.w,1,SH_RAIL);
+ if(ph>=0)xz_rect(c,ph,ov.y,1,ov.h,SH_PLAYHEAD);
+}
+int sh_deck_quarters(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect band) {
+ if(sh_deck_count(m)!=4)return 0;
+ xz_rect(c,band.x,band.y,band.w,band.h,SH_BLACK);
+ for(int deck=0;deck<4;deck++)quarter(u,m,c,sh_strip_cell(m,band,deck),deck);
+ return 1;
 }
 
 /* Key notation. Alphanumeric numbers step a fifth (7 semitones) per number;
@@ -366,7 +431,7 @@ enum xz_shell_key_match xz_shell_key_match(const char *key, const char *master_k
 }
 const char *xz_shell_master_key(const struct xz_shell_model *m) {
  if(!m)return NULL;
- for(int d=0;d<XZ_SHELL_DECKS;d++){
+ for(int d=0;d<sh_deck_count(m);d++){
   const struct xz_shell_deck *k=&m->deck[d];
   if(sh_has(k,XZ_SHELL_F_MASTER)&&k->master&&sh_has(k,XZ_SHELL_F_KEY)&&k->key&&(!sh_has(k,XZ_SHELL_F_LOADED)||k->loaded))return k->key;
  }

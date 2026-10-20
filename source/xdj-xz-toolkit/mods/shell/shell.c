@@ -258,7 +258,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  }
  uint16_t packed=nav[xz_shell_screen(u)][k];
  struct { enum nav_kind kind; enum xz_shell_screen screen; enum xz_shell_setting setting; } t={(enum nav_kind)(packed&15),(enum xz_shell_screen)(packed>>4),(enum xz_shell_setting)(packed>>4)};
- int deck=event_deck>=0&&event_deck<XZ_SHELL_DECKS?event_deck:u->deck;
+ int deck=event_deck>=0&&event_deck<sh_deck_count(m)?event_deck:sh_active_deck(u,m);
  switch(t.kind){
  case NAV_NONE:break;
  case NAV_OPEN:
@@ -287,7 +287,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  case NAV_FILTER:return track_filter(u,m,out);
  case NAV_HAND_OFF:return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_HAND_OFF_MENU});
  case NAV_SETTING:
-  if(!sh_writable(m,t.setting))break;
+  if(!sh_writable(m,t.setting)||!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_SET_SETTING))break;
   if(t.setting==XZ_SHELL_SET_TIME_MODE)
    return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,shown_time_mode(m,deck)==XZ_SHELL_TIME_REMAIN?XZ_SHELL_TIME_ELAPSED:XZ_SHELL_TIME_REMAIN,XZ_SHELL_SET_TIME_MODE});
   if(t.setting==XZ_SHELL_SET_QUANTIZE){
@@ -310,7 +310,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
    }
   }
   if(hold)break;
-  if(m->capabilities&XZ_SHELL_CAP_TAG_TRACK)return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_TAG_TRACK,deck,0,0});
+  if(sh_deck_caps(m,deck)&XZ_SHELL_CAP_TAG_TRACK)return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_TAG_TRACK,deck,0,0});
   /* No capability: no change here, so the runtime's key probe sees an inert key and decides (stock tags the
      loaded track from PLAY; on a list it swallows the key and says why). */
   break;

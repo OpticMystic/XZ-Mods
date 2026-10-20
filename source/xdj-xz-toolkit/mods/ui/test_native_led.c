@@ -20,6 +20,8 @@ static int stem_color(int deck,int pad,uint32_t *rgb,int *enabled) {
  *rgb=xz_stem_hardware_color(pad<3?2-pad:3);*enabled=1;return 1;
 }
 static int tint(int deck,int pad,uint32_t *rgb,int *enabled){(void)deck;(void)pad;*rgb=xz_jump_page2_color(pad);*enabled=1;return XZ_LED_HUE;}
+static struct xz_extra_deck extra;
+static int extra_color(int deck,int pad,uint32_t *rgb,int *enabled){assert(deck==0);return xz_extra_pad_led(&extra,pad,rgb,enabled);}
 int main(void) {
  unsigned char packet[8*XZ_LED_RECORD_BYTES],saved[sizeof(packet)];
  memset(packet,0,sizeof(packet));
@@ -75,6 +77,34 @@ int main(void) {
  }
  memset(packet+0x28,0,3);assert(xz_native_led_apply(packet,XZ_LED_RECORD_BYTES,1,1,tint)==1);
  assert(!packet[0x28]&&!packet[0x29]&&!packet[0x2a]);
+ /* DECK 3 on the left: stored cues lit in their colour (black falls back to green), empty pads and
+    unknown cues off, the stock-forced pad C untouched, channel 2 untouched. */
+ memcpy(packet,saved,sizeof(packet));
+ extra.loaded=1;extra.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES);
+ extra.hot_cue[0]=(struct xz_extra_cue){1,1000,0xff0000};
+ extra.hot_cue[3]=(struct xz_extra_cue){1,2000,0};
+ extra.hot_cue[2]=(struct xz_extra_cue){1,3000,0x0000ff};
+ extra.hot_cue[7]=(struct xz_extra_cue){1,4000,0x123456};
+ assert(xz_native_led_apply(packet,sizeof(packet),8,1,extra_color)==7);
+ const uint32_t expect_rgb[8]={0xff0000,0,0,0x00ff00,0,0,0,0x123456};
+ for(unsigned i=0;i<8;i++){
+  unsigned char *p=packet+i*XZ_LED_RECORD_BYTES;
+  if(i==2){assert(!memcmp(p,saved+i*XZ_LED_RECORD_BYTES,XZ_LED_RECORD_BYTES));continue;}
+  int lit=expect_rgb[i]!=0;
+  assert(word(p+0x10)==1&&word(p+0x14)==(lit?0u:1u)&&word(p+0x1c)==0);
+  assert(p[0x28]==(expect_rgb[i]>>16&255)&&p[0x29]==(expect_rgb[i]>>8&255)&&p[0x2a]==(expect_rgb[i]&255));
+ }
+ memcpy(packet,saved,sizeof(packet));
+ assert(!xz_native_led_apply(packet,sizeof(packet),8,2,extra_color));
+ assert(!memcmp(packet,saved,sizeof(packet)));
+ extra.known=0;
+ assert(xz_native_led_apply(packet,sizeof(packet),8,1,extra_color)==7);
+ for(unsigned i=0;i<8;i++)if(i!=2)assert(word(packet+i*XZ_LED_RECORD_BYTES+0x14)==1&&!packet[i*XZ_LED_RECORD_BYTES+0x28]);
+ extra.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES);extra.loaded=0;memcpy(packet,saved,sizeof(packet));
+ assert(xz_native_led_apply(packet,sizeof(packet),8,1,extra_color)==7);
+ assert(word(packet+0x14)==1);
+ uint32_t rgb=1;int lit=1;
+ assert(xz_extra_pad_led(&extra,8,&rgb,&lit)==XZ_LED_STOCK&&xz_extra_pad_led(NULL,0,&rgb,&lit)==XZ_LED_STOCK);
  /* Hypothetical status id and encoding only, never a device mapping. */
  unsigned char status[3*XZ_LED_RECORD_BYTES]={0},before[sizeof status];
  for(unsigned i=0;i<3;i++){put(status+i*XZ_LED_RECORD_BYTES,0x70);put(status+i*XZ_LED_RECORD_BYTES+4,i==1?2:1);}
@@ -93,5 +123,5 @@ int main(void) {
  assert(!(xz_mods_led_probe_v1.entry[0][0].sequence&1));
  for(unsigned i=0;i<XZ_LED_PROBE_IDS+1;i++){put(status,0x100+i);xz_native_led_probe(status,XZ_LED_RECORD_BYTES,1,1);}
  assert(xz_mods_led_probe_v1.overflow[0]==2);
- puts("PASS native LED packet bounds, colors, mute, stock ownership and channel isolation");
+ puts("PASS native LED packet bounds, colors, mute, DECK 3/4 hot cues, stock ownership and channel isolation");
 }

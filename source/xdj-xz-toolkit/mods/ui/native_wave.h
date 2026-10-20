@@ -48,4 +48,11 @@ int xz_native_wave_finish(struct xz_native_wave_pair *,const struct xz_native_wa
 int xz_native_wave_finish_styled(struct xz_native_wave_pair *,const struct xz_native_wave_scene *,
                          uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,
                          xz_native_wave_render,void *context,xz_native_wave_style,int stem_layout);
+/* Four decks (wave_viewport.h): the native lanes shrink into the four-deck layout, extra draws
+   DECK 3 and DECK 4 into their lanes, then style themes the whole surface. Stem rows are not drawn;
+   the saved stem layout returns on the first frame after the route goes down. Same pairing,
+   identity and transactional rules as finish_styled. */
+int xz_native_wave_finish_four(struct xz_native_wave_pair *,const struct xz_native_wave_scene *,
+                         uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,int order,
+                         xz_native_wave_style extra,xz_native_wave_style style);
 #endif

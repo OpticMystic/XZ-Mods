@@ -35,7 +35,17 @@ size_t sh_browse_back_step(struct xz_shell *, const struct xz_shell_model *, str
 size_t sh_settings_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
 size_t sh_source_back_step(struct xz_shell *, const struct xz_shell_model *, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken);
 
+/* The only reader of model.deck_count (shell.h). */
+static inline int sh_deck_count(const struct xz_shell_model *m) { return m->deck_count==4?4:2; }
+/* The active deck, or deck 1 when the shell's choice is past the decks the model plays now. */
+static inline int sh_active_deck(const struct xz_shell *u, const struct xz_shell_model *m) {
+ return u->deck>=0&&u->deck<sh_deck_count(m)?u->deck:0;
+}
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
+/* The model's capabilities this deck takes (xz_shell_deck.caps_off). */
+static inline uint32_t sh_deck_caps(const struct xz_shell_model *m, int deck) {
+ return deck>=0&&deck<XZ_SHELL_DECKS?m->capabilities&~m->deck[deck].caps_off:0;
+}
 static inline int sh_setting(const struct xz_shell_model *m, enum xz_shell_setting s) { return (m->settings.known>>s)&1; }
 static inline int sh_writable(const struct xz_shell_model *m, enum xz_shell_setting s) {
  return (m->capabilities&XZ_SHELL_CAP_SET_SETTING)&&((m->settings.writable>>s)&1);
@@ -147,6 +157,12 @@ void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 int sh_stem_wave_ready(const struct xz_shell_deck *d);
 void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps);
 void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int played_x);
+/* The four-deck view's status strip under the non-play screens (shell_wave.c): four compact quarters in
+   band. Returns 0 and draws nothing for a two-deck model, whose screens draw their own halves.
+   sh_strip_cell is a deck's touch target in the strip: a half of band for two decks (a NULL model), a
+   quarter for four. */
+int sh_deck_quarters(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect band);
+struct xz_shell_rect sh_strip_cell(const struct xz_shell_model *m, struct xz_shell_rect band, int deck);
 /* Traffic-light ink for a key against the master deck's key (shell_wave.c): green, amber or plain. With
    no master key read it falls back to the runtime's matches_master flag. */
 enum { SH_KEY_GREEN=0x52d794, SH_KEY_AMBER=0xffbd59 };

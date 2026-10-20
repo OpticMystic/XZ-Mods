@@ -27,7 +27,7 @@ static void model(struct xz_shell_model *m, enum xz_shell_stem_layout layout) {
  m->capabilities|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN;
  m->stems_known=1;m->stems_on=layout!=XZ_SHELL_STEMS_HIDDEN;
  m->stem_layout_known=1;m->stem_layout=layout;
- for(int d=0;d<XZ_SHELL_DECKS;d++){
+ for(int d=0;d<2;d++){
   m->deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_GAIN);
   m->deck[d].stem_gain[0]=85;m->deck[d].stem_gain[1]=60;m->deck[d].stem_gain[2]=100;
  }

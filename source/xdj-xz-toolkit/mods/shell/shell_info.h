@@ -53,8 +53,10 @@ struct xz_shell_info_track {
    loaded track. Shown read only, in its own tab; it never becomes the active deck. */
 #define XZ_SHELL_INFO_LINKED 2
 struct xz_shell_info_linked { int player; struct xz_shell_info_track track; };
+/* Decks with an INFO tab: the unit's own two players. Decks 3 and 4 have no track record yet. */
+#define XZ_SHELL_INFO_DECKS 2
 struct xz_shell_info_model {
- struct xz_shell_info_track deck[XZ_SHELL_DECKS];
+ struct xz_shell_info_track deck[XZ_SHELL_INFO_DECKS];
  int has_highlight;                  /* a list is open and supplied its highlighted track */
  struct xz_shell_info_track highlight;
  int linked_count;                   /* 0..XZ_SHELL_INFO_LINKED: tabs PLAYER n after LIST */
@@ -79,7 +81,7 @@ enum xz_shell_info_region {
  XZ_SHELL_INFO_R_TITLE,
  XZ_SHELL_INFO_R_VALUE,     /* index = enum xz_shell_info_field */
  XZ_SHELL_INFO_R_STAR,      /* index 0..XZ_SHELL_RATING_MAX-1 */
- XZ_SHELL_INFO_R_STRIP      /* index = deck */
+ XZ_SHELL_INFO_R_STRIP      /* index = deck 0..XZ_SHELL_INFO_DECKS-1, in the two-deck view; a touch shows its tab */
 };
 /* An empty rect for a field the screen does not draw as its own cell. */
 struct xz_shell_rect xz_shell_info_rect(enum xz_shell_info_region, int index);
