@@ -9,6 +9,10 @@
 #include <stdint.h>
 #include "shell/shell.h"
 
+/* The unit's own players. The native reads, the runtime's per-deck state and its frame input cover
+   these; the shell model holds up to XZ_SHELL_DECKS. */
+#define XZ_SHELL_NATIVE_DECKS 2
+
 /* Everything the model points into lives here, so the model never points at native memory. */
 struct xz_shell_model_storage;
 size_t xz_shell_model_storage_size(void);
