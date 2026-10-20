@@ -1,8 +1,9 @@
-/* Two-deck PLAY screen at 800x480, dark mode, after the two-deck flagship
-   layout (the 2026-10-18 flagship UI study in docs/research, sections 4.4, 5
-   and 6.2): a slim top bar of global chips and the BEAT FX readout, two
-   stacked waveform lanes with a narrow deck-info column each, and two bottom
-   deck strips. The mod header buttons are drawn over the bar's right end by
+/* PLAY screen at 800x480, dark mode, after the flagship's two- and four-deck
+   views (the 2026-10-18 flagship UI study in docs/research, sections 4.4, 5
+   and 6.2): a slim top bar of global chips and the BEAT FX readout, one
+   waveform lane per deck stacked under one zoom with a narrow deck-info column
+   each, and one bottom deck strip per deck (halves for two decks, quarters for
+   four). The mod header buttons are drawn over the bar's right end by
    shell.c. Positions are extrapolated to this frame (xz_shell_elapsed_now)
    and lanes scroll in whole track pixels, so the picture moves every frame
    without shimmer. */
@@ -41,7 +42,7 @@ struct play_layout {
  int lane_y, lane_h, lane_gap;
  int tag_h, tag_text_dy, phase_dy, source_y;
  int key_rule_y, key_caption_y, key_name_y, key_original_y; /* key_caption_y < 0: no KEY caption or KEY SYNC chip */
- int q_x;                            /* Q lamp in the source row; < 0: QUANTIZE shows in the strip */
+ int column_q;                       /* the QUANTIZE lamp ends the source row instead of the strip's caption row */
  int tick_h, edge, alert_h;
  int grid_dy, grid_h, grid_right;    /* GRID buttons: drawn grid_h tall, answering HIT_H tall */
  int grid_in_stem_row;               /* GRID edit takes the active deck's stem row while it shows */
@@ -52,7 +53,7 @@ struct play_layout {
 static const struct play_layout two_deck={
  .lane_y=26, .lane_h=116, .lane_gap=3,
  .tag_h=23, .tag_text_dy=4, .phase_dy=10, .source_y=28,
- .key_rule_y=46, .key_caption_y=47, .key_name_y=69, .key_original_y=99, .q_x=-1,
+ .key_rule_y=46, .key_caption_y=47, .key_name_y=69, .key_original_y=99, .column_q=0,
  .tick_h=10, .edge=12, .alert_h=52,
  .grid_dy=28, .grid_h=44, .grid_right=XZ_SHELL_WIDTH-8, .grid_in_stem_row=0,
  .pad_row_y=264, .pad_row_h=28, .stem_rows_half=0,
@@ -63,7 +64,24 @@ static const struct play_layout two_deck={
   .tempo_dx=216, .tempo_dy=34, .tempo_value_dy=18, .lamps_dx=216, .lamps_dy=76,
   .bpm_dx=298, .bpm_dy=32, .bpm_h=52, .chip_dy=97, .overview_dy=112, .overview_h=44, .scale=1}
 };
-static const struct play_layout *layout_of(const struct xz_shell_model *m) { (void)m;return &two_deck; }
+/* Four lanes of 76 px share the zoom; four quarter strips keep the numbers a DJ reads mid-mix. Left
+   out: the pad row, the strip's artist, artwork, TRACK, .ms digits and minute scale, and the column's
+   KEY caption and KEY SYNC chip (MT blinks while KEY SYNC holds). */
+static const struct play_layout four_deck={
+ .lane_y=26, .lane_h=76, .lane_gap=2,
+ .tag_h=20, .tag_text_dy=2, .phase_dy=8, .source_y=23,
+ .key_rule_y=41, .key_caption_y=-1, .key_name_y=44, .key_original_y=65, .column_q=1,
+ .tick_h=8, .edge=9, .alert_h=48,
+ .grid_dy=52, .grid_h=24, .grid_right=710, .grid_in_stem_row=1,
+ .pad_row_y=0, .pad_row_h=0, .stem_rows_half=1,
+ .strip={.y=339, .h=141, .x0=2, .pitch=XZ_SHELL_WIDTH/4, .w=XZ_SHELL_WIDTH/4-4, .pad=6,
+  .badge_y=3, .badge_w=44, .badge_h=18, .title_y=3, .title_artist_y=3, .artist_y=-1, .artwork=0, .rule_y=24,
+  .track=0, .num_y=28, .time_dx=0, .time_value_dy=12, .time_face=SH_NUM_MID, .time_frac=0,
+  .time_hit={6,26,84,44}, .quantize_right=0,
+  .tempo_dx=0, .tempo_dy=64, .tempo_value_dy=12, .lamps_dx=90, .lamps_dy=80,
+  .bpm_dx=90, .bpm_dy=27, .bpm_h=50, .chip_dy=100, .overview_dy=113, .overview_h=24, .scale=0}
+};
+static const struct play_layout *layout_of(const struct xz_shell_model *m) { return m&&sh_deck_count(m)==4?&four_deck:&two_deck; }
 static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256};
 static const char *const cue_letters[XZ_SHELL_HOT_CUES]={"A","B","C","D","E","F","G","H"};
 static const struct xz_canvas measure={NULL,XZ_SHELL_WIDTH,XZ_SHELL_WIDTH,XZ_SHELL_HEIGHT,XZ_THEME_FLAGSHIP};
@@ -299,8 +317,9 @@ static void render_fx(const struct xz_shell_model *m, struct xz_canvas c, struct
    the KEY caption. Without the analysed key (an older runtime, no
    XZ_SHELL_F_KEY_ORIGINAL) the key and its key-shift step draw as before.
    The XZ has a pad bank for beat jumps and its QUANTIZE lamp sits in the deck
-   strip, so neither takes a row here. */
-enum { KEY_RIGHT=COL_W-6 };
+   strip (in the four-deck view, at the end of the source row), so neither
+   takes a row here. */
+enum { KEY_RIGHT=COL_W-6, Q_LAMP=15 };
 static int same_key(const char *a, const char *b) {
  char x[8],y[8];
  a=sh_key_text(a,XZ_SHELL_KEY_CLASSIC,x,sizeof x);b=sh_key_text(b,XZ_SHELL_KEY_CLASSIC,y,sizeof y);
@@ -364,15 +383,17 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
   (d->source==XZ_SHELL_SRC_USB1?"USB1":d->source==XZ_SHELL_SRC_USB2?"USB2":d->source==XZ_SHELL_SRC_LINK?"LINK":
    d->source==XZ_SHELL_SRC_COMPUTER?"PC":"NONE"):"---";
  uint32_t source_ink=sh_has(d,XZ_SHELL_F_SOURCE)&&d->source!=XZ_SHELL_SRC_NONE?SH_WHITE:SH_DIM;
- sh_usb_icon(c,7,ly+L->source_y+1,source_ink);
- sh_text(c,24,ly+L->source_y,source,SH_TEXT,source_ink);
- /* Where the strip has no room for QUANTIZE, its lamp and beat end the source row: red on, grey off. */
- if(L->q_x>=0&&sh_has(d,XZ_SHELL_F_QUANTIZE)&&sh_indicator_shown(u,XZ_SHELL_IND_QUANTIZE)){
-  char beat[12];quantize_beat(beat,sizeof beat,d);
-  uint32_t q_ink=d->quantize_on?SH_RED:0x5a5a5a;
-  snprintf(text,sizeof text,"Q %s",beat);
-  sh_text_fit(c,L->q_x,ly+L->source_y+3,KEY_RIGHT-L->q_x,text,SH_SMALL,q_ink);
+ /* Where the strip has no room for QUANTIZE, its lamp ends the source row: red on, grey off. The beat
+    value is one device setting, read on SHORTCUT and UTILITY. */
+ int q_w=0;
+ if(L->column_q&&sh_has(d,XZ_SHELL_F_QUANTIZE)&&sh_indicator_shown(u,XZ_SHELL_IND_QUANTIZE)){
+  int y=ly+L->source_y+1,x=KEY_RIGHT-Q_LAMP;
+  if(d->quantize_on)xz_rect(c,x,y,Q_LAMP,Q_LAMP,SH_RED);else xz_border(c,x,y,Q_LAMP,Q_LAMP,0x5a5a5a);
+  sh_text_center(c,x+Q_LAMP/2+1,y+3,"Q",SH_SMALL,d->quantize_on?SH_WHITE:0x5a5a5a);
+  q_w=Q_LAMP+4;
  }
+ sh_usb_icon(c,7,ly+L->source_y+1,source_ink);
+ sh_text_fit(c,24,ly+L->source_y,KEY_RIGHT-24-q_w,source,SH_TEXT,source_ink);
  render_key(L,u,m,c,d,ly);
 }
 
