@@ -26,6 +26,7 @@ int xz_wave_load_stems(const char *path,struct xz_wave_load *out){(void)path;(vo
 void xz_wave_load_free(struct xz_wave_load *out){if(out->bands){free(out->bands);frees++;}memset(out,0,sizeof(*out));}
 void xz_log(const char *line){(void)line;}
 int xz_hook_arm(uint32_t a,const unsigned char guard[8],void *fn,void **old){(void)a;(void)guard;(void)fn;(void)old;return -1;}
+static void fixture_column(unsigned d,unsigned x,unsigned f,unsigned e,unsigned bg,float zoom){(void)d;(void)x;(void)f;(void)e;(void)bg;(void)zoom;}
 int main(void){
  struct prepared *local=calloc(1,sizeof(*local));assert(local);local->physical=0;local->mode=XZ_WAVE_THREE_BAND;strcpy(local->path,"/media/usb1/Contents/local.wav");live[0]=local;
  assert(!still_current(local));source.linked=0;deck_tick(0,XZ_WAVE_THREE_BAND,0);assert(!live[0]&&loads==0&&usb_reads==0&&usb_loads==0);
@@ -41,5 +42,15 @@ int main(void){
  stamp.busy=1;assert(!still_current(live[0]));stamp.busy=0;
  unsigned before=loads;deck_tick(0,XZ_WAVE_STOCK,2507);assert(!live[0]&&loads==before);
  assert(usb_reads==0&&usb_loads==0);sweep(now_ms()+RETIRE_MS+1);assert(frees==5);
+ /* Native zoom for the four-deck lanes: the longer side of the playhead wins, so a clamped track
+    start or end cannot shrink it; a frame missing a probe column changes nothing. */
+ stock_column=fixture_column;uint32_t us;unsigned bg;
+ xz_layered_wave_view(&us,&bg);assert(us==0&&bg==1);
+ column(0,0,0,1,1,1.0f);column(0,268,268,269,1,1.0f);column(0,535,535,536,1,1.0f);xz_layered_wave_end();
+ xz_layered_wave_view(&us,&bg);assert(us==6666&&bg==1);
+ column(1,535,1070,1072,0,1.0f);column(1,268,536,538,0,1.0f);column(1,0,100,101,0,1.0f);xz_layered_wave_end();
+ xz_layered_wave_view(&us,&bg);assert(us==13333&&bg==0);
+ column(0,0,5,6,1,1.0f);column(0,535,9,10,1,1.0f);xz_layered_wave_end();
+ xz_layered_wave_view(&us,NULL);assert(us==13333);
  puts("PASS PC renderer source isolation, stock toggle, mode reload, native invalidation and retry acceptance");return 0;
 }

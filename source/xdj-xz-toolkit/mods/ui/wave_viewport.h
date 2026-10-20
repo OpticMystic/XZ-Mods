@@ -46,6 +46,37 @@ static inline int xz_wave_layout_control_at(const struct xz_wave_layout *g,int r
  return -1;
 }
 unsigned xz_wave_layout_source_row(const struct xz_wave_layout *,unsigned row);
+/* Row of a native 132-row lane shown at row of a lane height rows tall: the ten cue rows at each
+   edge keep their size, the 112 interior rows are resampled. */
+unsigned xz_wave_lane_row(unsigned row,unsigned height);
 /* Native draw lock only. Directional moves preserve source rows while shrinking. */
 int xz_wave_layout_pixels(uint16_t *,size_t count,size_t stride,int mode);
+
+/* Four decks (../extra_decks.h). DECK 3 and DECK 4 have no native lane: the 268 rows hold four 64-row
+   lanes with 4-row gaps, and native DECK 1 and DECK 2 shrink into theirs as the stem layouts do.
+   Interleaved puts DECK 3 under DECK 1 beside the native DECK 1 column and DECK 4 under DECK 2,
+   as the controller's left (1/3) and right (2/4) sides; stacked is 1, 2, 3, 4. Decks are
+   zero-based here: 0 and 1 native, 2 and 3 the software players. */
+enum xz_four_order { XZ_FOUR_INTERLEAVED=0, XZ_FOUR_STACKED=1, XZ_FOUR_ORDER_COUNT=2 };
+#define XZ_FOUR_ORDER XZ_FOUR_INTERLEAVED
+#define XZ_FOUR_DECKS 4
+#define XZ_FOUR_LANE_HEIGHT 64
+#define XZ_FOUR_GAP 4
+struct xz_four_layout { unsigned lane_y[XZ_FOUR_DECKS]; };
+static inline int xz_four_layout_get(int order,struct xz_four_layout *out) {
+ static const unsigned char slot[XZ_FOUR_ORDER_COUNT][XZ_FOUR_DECKS]={{0,2,1,3},{0,1,2,3}};
+ if(!out||(unsigned)order>=XZ_FOUR_ORDER_COUNT)return 0;
+ for(int d=0;d<XZ_FOUR_DECKS;d++)out->lane_y[d]=slot[order][d]*(XZ_FOUR_LANE_HEIGHT+XZ_FOUR_GAP);
+ return 1;
+}
+static inline int xz_four_layout_lane_at(const struct xz_four_layout *g,int row) {
+ for(int d=0;d<XZ_FOUR_DECKS;d++)if(row>=(int)g->lane_y[d]&&row<(int)(g->lane_y[d]+XZ_FOUR_LANE_HEIGHT))return d;
+ return -1;
+}
+/* The deck at row and, in *lane_row, the native lane row it shows (0..131); -1 in a gap. */
+int xz_four_layout_row(const struct xz_four_layout *,unsigned row,unsigned *lane_row);
+/* Native source row for touches on DECK 1 or 2; 132 (the separator) elsewhere. */
+unsigned xz_four_layout_source_row(const struct xz_four_layout *,unsigned row);
+/* Native draw lock only: shrink both native lanes into place, clear the gaps and the DECK 3/4 lanes. */
+int xz_four_layout_pixels(uint16_t *,size_t count,size_t stride,int order);
 #endif
