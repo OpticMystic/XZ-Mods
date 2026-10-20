@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.16",
+      "date": "2026-10-19",
+      "preview": true,
+      "features": [
+        "DJ Profile: the profile track wizard checks the USB and reports whether the track reached the rekordbox device library and OneLibrary. XZ Mods can read OneLibrary (exportLibrary.db). Open DJ Profile 1.0 specification draft in spec/djprofile."
+      ],
+      "fixes": [],
+      "requirements": [
+        "New USB runtime. Updating this app does not change the loader on your USB."
+      ]
+    },
+    {
       "version": "0.3.0-preview.15",
       "date": "2026-10-19",
       "preview": true,
