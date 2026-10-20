@@ -43,6 +43,7 @@ with tempfile.TemporaryDirectory(prefix='xz-ui-test-') as folder:
         'skin-states': [*UI_SOURCES, 'test_skin_states.c'],
         'touch': [*UI_SOURCES, 'native_touch.c', 'test_native_touch.c'],
         'wave': ['wave_viewport.c', 'test_wave_viewport.c'],
+        'four-layout': ['wave_viewport.c', 'test_four_layout.c'],
         'native-wave': ['native_wave.c', 'wave_viewport.c', 'test_native_wave.c'],
         'inline': [*UI_SOURCES, 'test_inline_stems.c'],
         'font': [*UI_SOURCES, 'test_font.c'],
