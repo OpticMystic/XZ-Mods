@@ -210,6 +210,12 @@ static void group_row(struct build *b, const struct xz_ui_widget *w, size_t n, i
  if(w[at].kind==XZ_UI_STEM_COLOR)copy(r->help,sizeof r->help,"The colour for this stem on the pads, the stem rows and the STEMS waveform.");
  else if(w[at].kind==XZ_UI_DECK&&b->u->page!=XZ_UI_PC_STEMS)copy(r->help,sizeof r->help,"The deck the controls on this page act on.");
  else if(w[at].kind==XZ_UI_REKORDBOX_ASSIGN)copy(r->help,sizeof r->help,w[at].index<XZ_UI_RB_CHOICES?"What the REKORDBOX button does.":"What the REKORDBOX button does while SHIFT is held on either deck.");
+ /* the panel describes each choice of these; the row says what the choice is about */
+ else if(w[at].kind==XZ_UI_KEY_FORMAT)copy(r->help,sizeof r->help,"How the deck key strips write keys: as the player's own setting, as note names, or as wheel numbers.");
+ else if(w[at].kind==XZ_UI_TAKEOVER_ASSIGN)copy(r->help,sizeof r->help,"Which control switches between the play screen and the VJ.Tools screen.");
+ else if(w[at].kind==XZ_UI_WAVE_MODE)copy(r->help,sizeof r->help,"How the scrolling waveform is drawn.");
+ else if(w[at].kind==XZ_UI_SET_INTERFACE)copy(r->help,sizeof r->help,"Who draws the player screen.");
+ else if(w[at].kind==XZ_UI_SDK_CHOICE)copy(r->help,sizeof r->help,"How the apps on a USB start.");
  else copy(r->help,sizeof r->help,info.body);
  int any=0;
  for(size_t i=at;i<n;i++){
