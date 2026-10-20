@@ -84,12 +84,12 @@ static void test_header_buttons(void) {
  struct xz_shell u;xz_shell_init(&u);m.stems_known=0;m.stems_on=1;
  render_checked(&u,&m,buffer_a);assert(at(frame(buffer_a),XZ_SHELL_STEMS_X+2,2)==rgb565(XZ_FLAGSHIP_TILE));
  /* On PLAY, the header controls left of the buttons are padded the same way; deck 1's tag keeps its touch. */
- struct xz_shell_rect info=xz_shell_play_rect(XZ_SHELL_R_INFO_BUTTON,0);
+ struct xz_shell_rect info=xz_shell_play_rect(&m,XZ_SHELL_R_INFO_BUTTON,0);
  assert(info.x+info.w<=XZ_SHELL_HEADER_X&&info.w>=44);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,info.x+info.w/2,XZ_SHELL_HEADER_HIT_H-2,out)==0&&xz_shell_screen(&u)==XZ_SHELL_INFO);
  touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
  xz_shell_init(&u);u.deck=1;
- struct xz_shell_rect tag=xz_shell_play_rect(XZ_SHELL_R_DECK_TAG,0);
+ struct xz_shell_rect tag=xz_shell_play_rect(&m,XZ_SHELL_R_DECK_TAG,0);
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,tag.x+20,tag.y+4,out)==1&&out[0].kind==XZ_SHELL_ACT_ACTIVE_DECK&&out[0].deck==0);
  puts("PASS header MODS and STEMS: every screen and popup, 44 px band, drawn on top");
 }
@@ -103,7 +103,7 @@ static void test_full_coverage(void) {
  puts("PASS play frame covers every pixel");
 }
 static int fx_strip_count(const uint16_t *f, uint32_t color) {
- struct xz_shell_rect r=xz_shell_play_rect(XZ_SHELL_R_FX,0);
+ struct xz_shell_rect r=xz_shell_play_rect(NULL,XZ_SHELL_R_FX,0);
  int n=0;
  for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++)n+=at(f,x,y)==rgb565(color);
  return n;
@@ -111,8 +111,8 @@ static int fx_strip_count(const uint16_t *f, uint32_t color) {
 static void test_fx_readout(void) {
  struct xz_shell u;struct xz_shell_model m;
  xz_shell_init(&u);fx_model_full(&m,&track);
- struct xz_shell_rect r=xz_shell_play_rect(XZ_SHELL_R_FX,0),info=xz_shell_play_rect(XZ_SHELL_R_INFO_BUTTON,0);
- assert(r.w>=240&&r.y>=0&&r.y+r.h<=xz_shell_play_rect(XZ_SHELL_R_TOP_BAR,0).h&&r.x+r.w<info.x);
+ struct xz_shell_rect r=xz_shell_play_rect(&m,XZ_SHELL_R_FX,0),info=xz_shell_play_rect(&m,XZ_SHELL_R_INFO_BUTTON,0);
+ assert(r.w>=240&&r.y>=0&&r.y+r.h<=xz_shell_play_rect(&m,XZ_SHELL_R_TOP_BAR,0).h&&r.x+r.w<info.x);
  /* Nothing read: a quiet strip, no red. */
  render_checked(&u,&m,buffer_a);
  assert(fx_strip_count(frame(buffer_a),SH_RED)==0);
@@ -187,7 +187,7 @@ static void test_scroll_is_stable(void) {
  xz_shell_init(&u);fx_model_full(&m,&track);
  m.deck[0].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_GRID)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUES)|XZ_SHELL_KNOWN(XZ_SHELL_F_MEMORY_CUES)|
   XZ_SHELL_KNOWN(XZ_SHELL_F_CUE_POINT)|XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP));
- struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,0);
+ struct xz_shell_rect lane=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,0);
  for(int color=0;color<4;color++)for(int zoom=0;zoom<=XZ_SHELL_ZOOM_MAX;zoom++)for(int step=1;step<=9;step+=4){
   u.zoom=zoom;u.display.wave_color=(enum xz_shell_wave_color)color;
   int32_t from=90000+zoom*7;
@@ -274,7 +274,7 @@ static void test_shortcut_items(void) {
  /* The display settings drive the play screen: BLUE paints no amber in the lanes. */
  xz_shell_init(&u);u.display.wave_color=XZ_SHELL_WAVE_BLUE;
  render_checked(&u,&m,buffer_a);
- struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,0);
+ struct xz_shell_rect lane=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,0);
  int amber=0,lit=0;
  for(int y=lane.y;y<lane.y+lane.h;y++)for(int x=lane.x+4;x<lane.x+lane.w;x++){amber+=at(frame(buffer_a),x,y)==rgb565(SH_WAVE_MID);lit+=at(frame(buffer_a),x,y)!=0;}
  assert(amber==0&&lit>1000);
@@ -377,7 +377,7 @@ static void test_menu_hold(void) {
 
 /* STEMS: the stem layer in the stem pad colours, muted stems grey, 3BAND while a deck has no layer. */
 static int lane_count(const uint16_t *f, int deck, uint32_t color) {
- struct xz_shell_rect lane=xz_shell_play_rect(XZ_SHELL_R_LANE,deck);
+ struct xz_shell_rect lane=xz_shell_play_rect(NULL,XZ_SHELL_R_LANE,deck);
  int n=0;
  for(int y=lane.y;y<lane.y+lane.h;y++)for(int x=lane.x+4;x<lane.x+lane.w;x++)n+=at(f,x,y)==rgb565(color);
  return n;
@@ -431,7 +431,7 @@ static void test_stem_wave(void) {
  half.deck[1].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE);render_checked(&u,&half,buffer_b);
  assert(lane_count(frame(buffer_b),1,SH_WAVE_MID)==0);
  /* Overviews follow the mode: stem colours in the strip, played part grey. */
- struct xz_shell_rect ov=xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,0);
+ struct xz_shell_rect ov=xz_shell_play_rect(&m,XZ_SHELL_R_OVERVIEW,0);
  render_checked(&u,&m,buffer_a);
  int stem=0,amber=0;
  for(int y=ov.y;y<ov.y+ov.h;y++)for(int x=ov.x;x<ov.x+ov.w;x++){
@@ -466,7 +466,7 @@ static int count_in(const uint16_t *f, struct xz_shell_rect r, uint32_t color) {
 static int ink_in(const uint16_t *f, struct xz_shell_rect r) { return r.w*r.h-count_in(f,r,SH_CHROME); }
 /* The column's key block: everything under the source row. */
 static struct xz_shell_rect key_block(int deck) {
- struct xz_shell_rect col=xz_shell_play_rect(XZ_SHELL_R_INFO_COLUMN,deck);
+ struct xz_shell_rect col=xz_shell_play_rect(NULL,XZ_SHELL_R_INFO_COLUMN,deck);
  return (struct xz_shell_rect){col.x,col.y+47,col.w,col.h-47};
 }
 /* The XZ has a pad bank for beat jumps and its QUANTIZE lamp in each deck strip: the column draws
@@ -483,9 +483,9 @@ static void test_live_key(void) {
  for(int d=0;d<2;d++){
   other=m;other.deck[d].quantize_on=!m.deck[d].quantize_on;other.deck[d].quantize_den=8;
   render_checked(&u,&other,buffer_b);
-  struct xz_shell_rect s=xz_shell_play_rect(XZ_SHELL_R_STRIP,d),row={s.x,s.y+30,s.w,16};
+  struct xz_shell_rect s=xz_shell_play_rect(&m,XZ_SHELL_R_STRIP,d),row={s.x,s.y+30,s.w,16};
   assert(diff_box(frame(buffer_a),frame(buffer_b),&box)>20&&box_inside(box,row));
-  assert(box.x>xz_shell_play_rect(XZ_SHELL_R_TIME,d).x+60);   /* right of REMAIN / TIME */
+  assert(box.x>xz_shell_play_rect(&m,XZ_SHELL_R_TIME,d).x+60);   /* right of REMAIN / TIME */
  }
  /* Deck 2 plays Bbm (KEY SYNC, from Am, +12 cents) against the master's Fm: amber, a wheel step away. */
  struct xz_shell_rect k1=key_block(0),k2=key_block(1);
@@ -532,7 +532,7 @@ static void test_key_sync_blink(void) {
  assert(sh_key_sync_lit(123456)&&!sh_key_sync_lit(123999));
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_rect box;
  xz_shell_init(&u);fx_model_full(&m,&track);
- struct xz_shell_rect s=xz_shell_play_rect(XZ_SHELL_R_STRIP,1);
+ struct xz_shell_rect s=xz_shell_play_rect(&m,XZ_SHELL_R_STRIP,1);
  m.clock_ms=40000;render_checked(&u,&m,buffer_a);
  m.clock_ms=40500;render_checked(&u,&m,buffer_b);
  int n=diff_box(frame(buffer_a),frame(buffer_b),&box);
@@ -561,7 +561,7 @@ static void test_hidden_indicators(void) {
  xz_shell_init(&u);fx_model_full(&m,&track);
  assert(u.display.hidden==0);
  render_checked(&u,&m,buffer_a);
- struct xz_shell_rect lamps={0,0,xz_shell_play_rect(XZ_SHELL_R_FX,0).x-2,24};
+ struct xz_shell_rect lamps={0,0,xz_shell_play_rect(&m,XZ_SHELL_R_FX,0).x-2,24};
  assert(count_in(frame(buffer_a),lamps,SH_RED)>20);   /* A. HOT CUE lights red for ON */
  assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_MODE_LAMPS,1)==1&&u.display.hidden==1u<<XZ_SHELL_IND_MODE_LAMPS);
  render_checked(&u,&m,buffer_b);
@@ -569,7 +569,7 @@ static void test_hidden_indicators(void) {
  assert(count_in(frame(buffer_b),lamps,SH_RED)==0&&count_in(frame(buffer_b),lamps,SH_WHITE)==0);
  assert(at(frame(buffer_b),8,12)==rgb565(SH_RAIL));
  assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,20,12,out)==0);touch(&u,&m,XZ_SHELL_TOUCH_UP,0,0,out);
- assert(diff_box(frame(buffer_a),frame(buffer_b),&box)>0&&box_inside(box,xz_shell_play_rect(XZ_SHELL_R_TOP_BAR,0)));
+ assert(diff_box(frame(buffer_a),frame(buffer_b),&box)>0&&box_inside(box,xz_shell_play_rect(&m,XZ_SHELL_R_TOP_BAR,0)));
  /* QUANTIZE hidden: the strip draws as though quantize were unread. */
  assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_QUANTIZE_LAMP,1)==1);
  render_checked(&u,&m,buffer_a);

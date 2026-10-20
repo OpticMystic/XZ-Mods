@@ -431,24 +431,29 @@ const char *xz_shell_screen_name(enum xz_shell_screen);
    the zoom level). Returns 0 and changes nothing for any other id or an out-of-range value. */
 int xz_shell_restore_setting(struct xz_shell *, int id, int value);
 
-/* Play-screen geometry, for the runtime's hit tests and the host tests. */
+/* Play-screen geometry for the model's deck count, for the runtime's hit tests and the host tests. A
+   NULL model is the two-deck view. Touch targets are at least 44 px tall: the overview answers a touch
+   padded upwards to that height when it is drawn shorter. */
 struct xz_shell_rect { int x, y, w, h; };
 enum xz_shell_play_region {
  XZ_SHELL_R_TOP_BAR, XZ_SHELL_R_INFO_COLUMN, XZ_SHELL_R_DECK_TAG, XZ_SHELL_R_LANE,
  XZ_SHELL_R_STRIP, XZ_SHELL_R_TIME, XZ_SHELL_R_OVERVIEW, XZ_SHELL_R_ZOOM, XZ_SHELL_R_INFO_BUTTON, XZ_SHELL_R_FX,
- XZ_SHELL_R_PAD_ROW,  /* per deck, between the lanes and the strips: stem mute buttons and hot-cue lamps */
+ XZ_SHELL_R_PAD_ROW,  /* per deck, between the lanes and the strips: stem mute buttons and hot-cue lamps.
+                         The four-deck view has none (zero size) */
  XZ_SHELL_R_ALERT_BUTTON, /* per deck, while F_ALERT holds: CHOOSE TRACK, into BROWSE */
  XZ_SHELL_R_GRID_RESET, XZ_SHELL_R_GRID_SNAP, XZ_SHELL_R_GRID_SHIFT /* the active deck's lane in GRID mode */
 };
-struct xz_shell_rect xz_shell_play_rect(enum xz_shell_play_region, int deck);
+struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *, enum xz_shell_play_region, int deck);
 /* A deck's stem row on PLAY for the model's stem layout (zero size when hidden or not read); the
-   waveform takes the rest of the deck's lane. ZOOM/GRID and the GRID buttons move clear of it. */
+   waveform takes the rest of the deck's lane. ZOOM/GRID and the GRID buttons move clear of it. In the
+   four-deck view every layout draws as a half row below the lane, and only for a deck whose stem mute
+   buttons show; the row is not read there, and GRID edit takes the active deck's row while it shows. */
 struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *, int deck);
 /* A stem mute button's touch target (44 px tall), stem 0 drums, 1 harmonics (INST), 2 vocal. Drawn
    DRUMS, VOCAL, INST from the left as on the stock deck. Zero size while the deck shows none. */
 struct xz_shell_rect xz_shell_stem_button(const struct xz_shell_model *, int deck, int stem);
 /* Track position under x on the deck's overview, clamped to 0..total. */
-int32_t xz_shell_overview_ms(int32_t total_ms, int x, int deck);
+int32_t xz_shell_overview_ms(const struct xz_shell_model *, int32_t total_ms, int x, int deck);
 /* The deck's position this frame: elapsed_ms, advanced while playing as XZ_SHELL_EXTRAPOLATE_MAX_MS
    describes and clamped to 0..total_ms when the total is known. -1 when elapsed is not known. */
 int32_t xz_shell_elapsed_now(const struct xz_shell_model *, int deck);

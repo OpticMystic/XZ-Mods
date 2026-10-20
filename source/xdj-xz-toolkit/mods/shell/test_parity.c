@@ -175,7 +175,7 @@ static void test_cue_list(void) {
 static void test_play_states(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
  xz_shell_init(&u);
- struct xz_shell_rect lane0=xz_shell_play_rect(XZ_SHELL_R_LANE,0);
+ struct xz_shell_rect lane0=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,0);
  /* ON AIR */
  render(&u,&m,other);
  m.deck[0].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_ON_AIR);m.deck[0].on_air=1;
@@ -187,7 +187,7 @@ static void test_play_states(void) {
  render(&u,&m,other);
  assert(count_color(other,lane0,SH_LOOP)>count_color(pixels,lane0,SH_LOOP));
  /* Hot cues waiting for CALL draw as outlines. */
- struct xz_shell_rect pads=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,0);
+ struct xz_shell_rect pads=xz_shell_play_rect(&m,XZ_SHELL_R_PAD_ROW,0);
  render(&u,&m,pixels);
  m.deck[0].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUE_CALL);m.deck[0].hot_cue_called=0;
  render(&u,&m,other);
@@ -195,7 +195,7 @@ static void test_play_states(void) {
  /* HOT CUE AUTO LOAD: three values on the chip; ON lights red, LIBRARY white (XZ manual p.55). */
  m.settings.writable|=1u<<XZ_SHELL_SET_HOT_CUE_AUTO_LOAD;
  m.settings.hot_cue_auto_load=XZ_SHELL_HCAL_ON;
- struct xz_shell_rect top=xz_shell_play_rect(XZ_SHELL_R_TOP_BAR,0);
+ struct xz_shell_rect top=xz_shell_play_rect(&m,XZ_SHELL_R_TOP_BAR,0);
  int chip_x=-1;
  for(int x=0;x<300&&chip_x<0;x+=2){
   struct xz_shell probe=u;
@@ -211,7 +211,7 @@ static void test_play_states(void) {
  assert(count_color(other,top,SH_RED)>library_red);
  /* NEEDLE LOCK: a playing deck refuses the overview search and says why; paused, it seeks. */
  m.settings.needle_lock_known=1;m.settings.needle_lock=1;
- struct xz_shell_rect ov=xz_shell_play_rect(XZ_SHELL_R_OVERVIEW,0);
+ struct xz_shell_rect ov=xz_shell_play_rect(&m,XZ_SHELL_R_OVERVIEW,0);
  assert(sh_needle_locked(&m,&m.deck[0]));
  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,ov.x+ov.w/2,ov.y+ov.h/2,0)==0&&u.notice);
  assert(send(&u,&m,XZ_SHELL_TOUCH_MOVE,ov.x+ov.w/3,ov.y+ov.h/2,0)==0);
@@ -225,12 +225,12 @@ static void test_play_states(void) {
  send(&u,&m,XZ_SHELL_ENCODER_HOLD,0,0,0);assert(u.grid_mode);
  render(&u,&m,pixels);
  for(int i=0;i<3;i++){
-  struct xz_shell_rect r=xz_shell_play_rect((enum xz_shell_play_region)(XZ_SHELL_R_GRID_RESET+i),u.deck);
+  struct xz_shell_rect r=xz_shell_play_rect(&m,(enum xz_shell_play_region)(XZ_SHELL_R_GRID_RESET+i),u.deck);
   assert(r.w>=44&&r.h>=44&&r.y>=lane0.y&&r.y+r.h<=lane0.y+lane0.h);
   assert(tap(&u,&m,r)==1&&out[0].kind==XZ_SHELL_ACT_GRID_EDIT&&out[0].id==i&&out[0].deck==u.deck);
  }
  m.capabilities&=~(uint32_t)XZ_SHELL_CAP_GRID_EDIT;
- struct xz_shell_rect r=xz_shell_play_rect(XZ_SHELL_R_GRID_RESET,u.deck);
+ struct xz_shell_rect r=xz_shell_play_rect(&m,XZ_SHELL_R_GRID_RESET,u.deck);
  size_t n=tap(&u,&m,r);
  for(size_t i=0;i<n;i++)assert(out[i].kind!=XZ_SHELL_ACT_GRID_EDIT);
  send(&u,&m,XZ_SHELL_ENCODER_HOLD,0,0,0);
@@ -239,9 +239,9 @@ static void test_play_states(void) {
  m.deck[1].alert=(struct xz_shell_alert){XZ_SHELL_ALERT_READ_ERROR,"E-8302",NULL};
  m.clock_ms+=60000;
  render(&u,&m,pixels);
- struct xz_shell_rect lane1=xz_shell_play_rect(XZ_SHELL_R_LANE,1);
+ struct xz_shell_rect lane1=xz_shell_play_rect(&m,XZ_SHELL_R_LANE,1);
  assert(count_color(pixels,lane1,SH_RED)>100);
- struct xz_shell_rect btn=xz_shell_play_rect(XZ_SHELL_R_ALERT_BUTTON,1);
+ struct xz_shell_rect btn=xz_shell_play_rect(&m,XZ_SHELL_R_ALERT_BUTTON,1);
  assert(btn.w>=44&&btn.h>=44);
  tap(&u,&m,btn);
  assert(u.deck==1&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
@@ -252,7 +252,7 @@ static void test_play_states(void) {
 static void test_fx(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
  xz_shell_init(&u);
- struct xz_shell_rect fx=xz_shell_play_rect(XZ_SHELL_R_FX,0);
+ struct xz_shell_rect fx=xz_shell_play_rect(&m,XZ_SHELL_R_FX,0);
  m.fx.known|=1u<<XZ_SHELL_FX_F_CHANNEL;
  for(int ch=0;ch<=XZ_SHELL_FX_CH_XF_B+3;ch++){m.fx.channel=(enum xz_shell_fx_channel)ch;render(&u,&m,pixels);}
  m.fx.channel=XZ_SHELL_FX_CH_XF_A;render(&u,&m,other);

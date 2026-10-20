@@ -39,7 +39,7 @@ static void model(struct xz_shell_model *m, enum xz_shell_stem_layout layout) {
 static void test_layouts(void) {
  struct xz_shell u;xz_shell_init(&u);
  struct xz_shell_model m;
- struct xz_shell_rect lane[2]={xz_shell_play_rect(XZ_SHELL_R_LANE,0),xz_shell_play_rect(XZ_SHELL_R_LANE,1)};
+ struct xz_shell_rect lane[2]={xz_shell_play_rect(NULL,XZ_SHELL_R_LANE,0),xz_shell_play_rect(NULL,XZ_SHELL_R_LANE,1)};
  static const int heights[XZ_SHELL_STEM_LAYOUTS]={0,48,24,48,24};
  for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
   model(&m,(enum xz_shell_stem_layout)layout);
@@ -59,7 +59,7 @@ static void test_layouts(void) {
   }
   render(&u,&m,pixels);
   /* The pad row keeps only the hot-cue lamps once the layout is read. */
-  struct xz_shell_rect pad=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,0);
+  struct xz_shell_rect pad=xz_shell_play_rect(&m,XZ_SHELL_R_PAD_ROW,0);
   assert(count(pixels,pad,sh_stem_bright(&m,0))==0);
  }
  /* A deck without stems keeps its row and says so; a row never shows on a hidden layout. */
@@ -69,7 +69,7 @@ static void test_layouts(void) {
  render(&u,&m,pixels);
  /* Not read: the pad row's small buttons, as before. */
  model(&m,XZ_SHELL_STEMS_BELOW_FULL);m.stem_layout_known=0;
- assert(xz_shell_stem_row(&m,0).h==0&&xz_shell_stem_button(&m,0,0).h==44&&xz_shell_stem_button(&m,0,0).y>=xz_shell_play_rect(XZ_SHELL_R_PAD_ROW,0).y-8);
+ assert(xz_shell_stem_row(&m,0).h==0&&xz_shell_stem_button(&m,0,0).h==44&&xz_shell_stem_button(&m,0,0).y>=xz_shell_play_rect(&m,XZ_SHELL_R_PAD_ROW,0).y-8);
  m.stem_layout_known=1;m.stem_layout=(enum xz_shell_stem_layout)9;
  assert(xz_shell_stem_row(&m,0).h==0);render(&u,&m,pixels);
  puts("PASS stem rows: five layouts, rows inside each deck's lane, 44 px buttons, pad-row fallback");
