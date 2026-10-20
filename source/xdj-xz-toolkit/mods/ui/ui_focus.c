@@ -103,7 +103,7 @@ size_t xz_ui_encoder_push(struct xz_ui *u,const struct xz_ui_model *m,struct xz_
 }
 
 /* Info box text. Titles name the control; bodies say what it changes. */
-static const char *page_title(int page){
+const char *xz_ui_page_title(int page){
  switch(page){
  case XZ_UI_GENERAL:return "GENERAL";case XZ_UI_FEATURE_SETUP:return "FEATURE SETUP";
  case XZ_UI_CONTROLS:return "CONTROLS";case XZ_UI_THEMES:return "APPEARANCE";case XZ_UI_SETTINGS:return "ADVANCED";
@@ -116,7 +116,7 @@ static const char *page_title(int page){
  case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";
  case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_BUTTONS:return "BUTTONS";default:return "MODS";}
 }
-static const char *panel_body(int page){
+const char *xz_ui_page_body(int page){
  switch(page){
  case XZ_UI_GENERAL:return "Enable mods here. Open the settings beside a feature to customize it.";
  case XZ_UI_FEATURE_SETUP:return "Detect the feature, choose a deck, enable it and test it on that deck.";
@@ -150,7 +150,7 @@ static const char *panel_body(int page){
 static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const struct xz_ui_widget *a){
  int k=a->index;
  switch(a->kind){
- case XZ_UI_PANEL:case XZ_UI_FEATURE_LINK:return panel_body(k);
+ case XZ_UI_PANEL:case XZ_UI_FEATURE_LINK:return xz_ui_page_body(k);
  case XZ_UI_FEATURE_SETUP_OPEN:return "Detect this feature and its USB track, choose a deck, then enable and test it.";
  case XZ_UI_FEATURE_SETUP_STEP:return u->feature_step==3?"Confirm only after testing the feature on the loaded deck.":"Run the next setup step. Missing support keeps its specific reason on screen.";
  case XZ_UI_LOCAL_STEM_SETUP_OPEN:return xz_ui_usb_next_step(xz_ui_usb_blocked(m,a->deck>=0?a->deck:u->deck<2?u->deck:0));
@@ -248,10 +248,15 @@ int xz_ui_describe(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_u
  struct xz_ui_widget a;
  if(!out)return 0;
  memset(out,0,sizeof(*out));
- if(!xz_ui_focused(u,m,&a)){out->title=page_title(u?u->page:0);out->body="";out->state="";return 0;}
+ if(!xz_ui_focused(u,m,&a)){out->title=xz_ui_page_title(u?u->page:0);out->body="";out->state="";return 0;}
+ return xz_ui_describe_widget(u,m,&a,out);
+}
+int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,const struct xz_ui_widget *w,struct xz_ui_info *out){
+ struct xz_ui_widget a=*w;
+ memset(out,0,sizeof(*out));
  struct xz_ui_look l=xz_ui_widget_look(u,m,&a);
  out->available=l.available;out->selected=l.selected;
- out->title=a.kind==XZ_UI_PANEL||a.kind==XZ_UI_FEATURE_LINK?page_title(a.index):a.label&&a.label[0]?a.label:page_title(u->page);
+ out->title=a.kind==XZ_UI_PANEL||a.kind==XZ_UI_FEATURE_LINK?xz_ui_page_title(a.index):a.label&&a.label[0]?a.label:xz_ui_page_title(u->page);
  if(a.kind==XZ_UI_DECK)out->title=a.index?"DECK 2":"DECK 1";
  else if(a.kind==XZ_UI_PROFILE&&m->dj&&m->dj->current>=0&&m->dj->entry[m->dj->current].name)out->title=m->dj->entry[m->dj->current].name;
  else if(a.kind==XZ_UI_STEM_PAD_CONFIG)out->title="STEM PADS";
