@@ -36,13 +36,13 @@ static void fx_deck_four(struct xz_shell_deck *d, const struct fx_track *t) {
  d->cue_ms=fx_beat_ms(64);
  d->bar_phase=(int)((d->elapsed_ms*100/FX_BEAT_MS)%4)+1;
 }
-static void fx_model_four(struct xz_shell_model *m, const struct fx_track *t) {
+static inline void fx_model_four(struct xz_shell_model *m, const struct fx_track *t) {
  fx_model_full(m,t);
  m->deck_count=4;
  fx_deck_three(&m->deck[2],t);fx_deck_four(&m->deck[3],t);
 }
 /* A deck with a stick in it and nothing loaded, as the runtime reports one. */
-static void fx_deck_unloaded(struct xz_shell_deck *d, enum xz_shell_source source) {
+static inline void fx_deck_unloaded(struct xz_shell_deck *d, enum xz_shell_source source) {
  memset(d,0,sizeof *d);
  d->known=XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED)|XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO)
   |XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO_RANGE)|XZ_SHELL_KNOWN(XZ_SHELL_F_QUANTIZE)|XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER_TEMPO);
