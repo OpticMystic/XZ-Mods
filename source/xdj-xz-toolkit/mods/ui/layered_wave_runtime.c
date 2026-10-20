@@ -48,6 +48,9 @@ static _Thread_local uint8_t keep[2][WIDTH][(2*EXTENT+7)/8];
  * [10] overview fills seen, [11] overview fills drawn */
 __attribute__((visibility("default"))) uint32_t xz_layered_wave_proof_v1[12]={2};
 static _Thread_local long frame_began;
+/* Native zoom: the first sample a frame drew at column 0 and at the last column, per deck. */
+static _Thread_local struct {uint32_t first[2];uint8_t seen[2];} zoom;
+static uint32_t zoom_column_us,zoom_background;
 static long now_us(void){struct timeval t;gettimeofday(&t,NULL);return t.tv_sec*1000000L+t.tv_usec;}
 
 static int read_mem(void *c,uint32_t a,void *b,size_t n){(void)c;return xz_read_memory(a,b,n);}
@@ -183,10 +186,19 @@ void xz_layered_wave_end(void){
  }
  memset(&frame,0,sizeof(frame));
 }
+void xz_layered_wave_view(uint32_t *column_us,unsigned *background){
+ if(column_us)*column_us=__atomic_load_n(&zoom_column_us,__ATOMIC_RELAXED);
+ if(background)*background=__atomic_load_n(&zoom_background,__ATOMIC_RELAXED);
+}
+const struct xz_layered_col *xz_layered_wave_drawn(unsigned deck,struct xz_layered_data *look){
+ if(deck>=2||!drawn.any)return NULL;
+ if(look)*look=drawn.look[deck];
+ return drawn.col[deck];
+}
 void xz_layered_wave_begin(uint16_t *pixels){
  xz_layered_wave_end();
  if(xz_layered_wave_enabled())frame_began=now_us();
- drawn.any=0;memset(drawn.col,0,sizeof(drawn.col));
+ drawn.any=0;memset(drawn.col,0,sizeof(drawn.col));memset(&zoom,0,sizeof(zoom));
  if(!xz_layered_wave_active()||!pixels)return;
  frame.active=1;frame.pixels=pixels;
  int wanted=__atomic_load_n(&mode,__ATOMIC_ACQUIRE);
@@ -208,6 +220,11 @@ void xz_layered_wave_begin(uint16_t *pixels){
 }
 static void XZ_WAVE_ABI column(unsigned deck,unsigned x,unsigned first,unsigned end,unsigned bg,float scale){
  stock_column(deck,x,first,end,bg,scale);
+ if(deck<2&&x==0){zoom.first[deck]=first;zoom.seen[deck]=1;}
+ else if(deck<2&&x==WIDTH-1&&zoom.seen[deck]&&first>zoom.first[deck]&&first-zoom.first[deck]<150u*600u){
+  __atomic_store_n(&zoom_column_us,(uint32_t)((uint64_t)(first-zoom.first[deck])*1000000u/150u/(WIDTH-1)),__ATOMIC_RELAXED);
+  __atomic_store_n(&zoom_background,bg,__ATOMIC_RELAXED);
+ }
  if(!frame.active||deck>=2||!frame.deck[deck]||x>=WIDTH)return;
  const struct prepared *p=frame.deck[deck];
  if(first>=p->data.count||first>UINT32_MAX/16||frame.flags[deck]>UINT32_MAX-first*16-12)return;
