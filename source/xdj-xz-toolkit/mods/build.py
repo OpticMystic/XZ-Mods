@@ -89,6 +89,18 @@ def main() -> None:
                     "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
                     "-fPIC","-fvisibility=hidden","-c",str(ROOT/"audio/stem_media.c"),
                     "-o",str(media_object)],check=True)
+    # DECK 3/4: the resampler runs per output frame, so VFP like the stem decoder. The transport copy stays
+    # byte-identical; glibc 2.13 keeps clock_gettime in librt, so it calls extra_decks.c's syscall instead.
+    player_object=args.output.resolve()/"extra-player-vfp.o"
+    subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
+                    "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
+                    "-fPIC","-fvisibility=hidden","-c",str(ROOT/"extra_player.c"),
+                    "-o",str(player_object)],check=True)
+    transport_object=args.output.resolve()/"usb-transport.o"
+    subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
+                    "-O2","-std=c11","-Wall","-Wextra","-Werror","-fPIC","-fvisibility=hidden",
+                    "-Dclock_gettime=xz_usb_clock_gettime","-c",str(ROOT/"audio/usb_transport/usb_transport.c"),
+                    "-o",str(transport_object)],check=True)
     # The native column drawer passes its zoom float in s0. Enable VFP so the
     # per-function aapcs-vfp attribute is honored; the library stays soft-float.
     layered_object = args.output.resolve() / "layered-wave-runtime.o"
@@ -126,6 +138,7 @@ def main() -> None:
                "-Wl,-T," + str(ROOT / "xz-relocations.ld"),
                str(ROOT / "runtime.c"), str(ROOT / "cue/cue.c"), str(ROOT / "cue/native.c"),
                str(ROOT / "deck_select.c"), str(ROOT / "extra_decks.c"),
+               str(player_object), str(ROOT / "anlz_extra.c"), str(transport_object),
                str(ROOT / "doom/native_bridge.c"),
                str(ROOT / "kart/xz_kart_input.c"), str(ROOT / "kart/xz_kart_runtime.c"),
                *(str(ROOT / "sdk" / name) for name in SDK_SOURCES),
@@ -185,6 +198,9 @@ def main() -> None:
         "beat-jump-test": [str(ROOT / "ui/beat_jump.c"),str(ROOT / "ui/test_beat_jump.c")],
         "cue-test": [str(ROOT / "cue/cue.c"), str(ROOT / "cue/test_cue.c")],
         "deck-select-test": [str(ROOT / "deck_select.c"), str(ROOT / "test_deck_select.c")],
+        "extra-player-test": ["-pthread", *(str(ROOT / name) for name in (
+            "extra_player.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c", "ui/layered_wave.c",
+            "audio/stem_media.c", "audio/stem_mp3.c", "audio/stem_decode.c", "test_extra_player.c")), "-lm"],
         "settings-test": [str(ROOT / "settings.c"), str(ROOT / "tests/test_settings.c")],
         "my-settings-test": [str(ROOT / "my_settings.c"), str(ROOT / "test_my_settings.c")],
         "native-decode-test": [str(ROOT / "cue/native.c"), str(ROOT / "cue/test_native_decode.c")],

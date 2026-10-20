@@ -120,4 +120,8 @@ int32_t xz_extra_native_master_bpm(void);
 /* The RAM character node of the CH3/CH4 USB route. The host bridge creates it after binding the hub;
    the players open it when it appears. XZ_MODS_EXTRA_USB_NODE overrides the default. */
 #define XZ_EXTRA_USB_NODE_DEFAULT "/dev/shm/xz-four-deck/usb-audio"
+/* Starts the players and the route connector from the runtime's init path; XZ_MODS_FOUR_DECK=0 keeps them
+   off (route().available stays 0). 0 on success or when disabled. Stop runs from the destructor. */
+int xz_extra_decks_start(void);
+void xz_extra_decks_stop(void);
 #endif
