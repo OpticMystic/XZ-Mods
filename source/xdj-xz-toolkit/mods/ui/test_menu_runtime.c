@@ -159,6 +159,16 @@ static void back_one_level(void){
     puts("PASS menu BACK: one panel page up, nothing on a top page, never a close");
 }
 
+/* REKORDBOX set to MODS, reaching the native handler: the shell opens MODS and its tab's page is read at
+   once, not on the next input. */
+static void rekordbox_mods_reads_page(void){
+    modern();xz_ui_navigate(&ui,XZ_UI_DOOM_FILES);
+    fake_queue[fake_queued++]=(struct xz_shell_runtime_menu_command){.op=XZ_SHELL_MENU_OPEN,.root=XZ_UI_GENERAL};
+    fake_requests|=XZ_SHELL_UI_MENU;
+    pthread_mutex_lock(&ui_mutex);int stock=rekordbox_run_locked(XZ_REKORDBOX_MODS);pthread_mutex_unlock(&ui_mutex);
+    assert(!stock&&fake_mods_calls==1&&!fake_queued&&ui.page==XZ_UI_GENERAL&&panel_shut());
+    puts("PASS REKORDBOX = MODS: the shell's MODS opens with its page read in the same press");
+}
 /* CLASSIC keeps its panel exactly: the same setup opens the panel, and nothing goes to the shell. */
 static void classic_keeps_panel(void){
     rekordbox_reset(XZ_UI_INTERFACE_CLASSIC,XZ_REKORDBOX_MODS,XZ_REKORDBOX_STOCK);
@@ -176,6 +186,7 @@ int main(void){
     setups_open_in_shell();
     games_return();
     back_one_level();
+    rekordbox_mods_reads_page();
     classic_keeps_panel();
     puts("PASS menu runtime");
     return 0;
