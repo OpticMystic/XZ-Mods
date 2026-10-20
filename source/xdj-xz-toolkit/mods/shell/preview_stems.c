@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
  out_dir=argv[1];
  fx_track_build(&track,7);
  static const char *const names[XZ_SHELL_STEM_LAYOUTS]={"stems-layout-hidden","stems-layout-below-full","stems-layout-below-half",
-  "stems-layout-outside-full","stems-layout-outside-half"};
+  "stems-layout-outside-full","stems-layout-outside-half","stems-layout-pad-row"};
  for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
   xz_shell_init(&u);u.display.wave_color=XZ_SHELL_WAVE_STEMS;
   model(&m,(enum xz_shell_stem_layout)layout);
@@ -67,11 +67,11 @@ int main(int argc, char **argv) {
  model(&m,XZ_SHELL_STEMS_HIDDEN);
  u.zoom=1;shot(&u,&m,"stems-waveform-two-tone-wide");
  u.zoom=5;shot(&u,&m,"stems-waveform-two-tone-close");
- /* The header marks through the cycle the runtime steps: 1, 2, 3, 4, 0. */
- static const char *const header[XZ_SHELL_STEM_LAYOUTS]={"stems-header-0-hidden","stems-header-1","stems-header-2","stems-header-3","stems-header-4"};
- for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
-  xz_shell_init(&u);model(&m,(enum xz_shell_stem_layout)layout);
-  shot(&u,&m,header[layout]);
+ /* The header marks through the cycle the runtime steps: PADS, the four rows, HIDDEN. */
+ static const char *const header[XZ_SHELL_STEM_LAYOUTS]={"stems-header-0-pads","stems-header-1","stems-header-2","stems-header-3","stems-header-4","stems-header-5-hidden"};
+ for(int i=0;i<XZ_SHELL_STEM_LAYOUTS;i++){
+  xz_shell_init(&u);model(&m,xz_shell_stem_cycle[i]);
+  shot(&u,&m,header[i]);
  }
  /* A DJ's own stem colours win. */
  xz_shell_init(&u);u.display.wave_color=XZ_SHELL_WAVE_STEMS;
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
  /* BYPASS after the stems: deck 1 playing its stems (INST muted), deck 2 bypassed, in each layout and the
     pad row's fallback. */
  static const char *const bypass[XZ_SHELL_STEM_LAYOUTS+1]={"stems-bypass-pad-row","stems-bypass-below-full","stems-bypass-below-half",
-  "stems-bypass-outside-full","stems-bypass-outside-half","stems-bypass-hidden-setting"};
+  "stems-bypass-outside-full","stems-bypass-outside-half","stems-bypass-pads","stems-bypass-hidden-setting"};
  for(int i=1;i<=XZ_SHELL_STEM_LAYOUTS;i++){
   xz_shell_init(&u);u.display.wave_color=XZ_SHELL_WAVE_STEMS;
   model(&m,i<XZ_SHELL_STEM_LAYOUTS?(enum xz_shell_stem_layout)i:XZ_SHELL_STEMS_BELOW_FULL);
