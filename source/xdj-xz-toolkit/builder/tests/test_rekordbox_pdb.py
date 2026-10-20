@@ -30,6 +30,8 @@ CORPUS = {
             1: "/Contents/Andreas Gehm/The Worst of Gehm/9840607_My_So_Called_Robot_Life_Part_2_Origi.mp3",
             3: "/Contents/DJ Plant Texture/1ØPILLS003 MASTER MP3s/1ØPILLS003_mastered_04.mp3",
         },
+        "commented": {"Purchased at Beatport.com": {
+            9: ["1.1 BEATDOWN ACID MOOOODY ", "BEATdown  (done) 2", "House SCHOOL OLD 1"]}},
     },
     "27d5a84d7688244357c467680b7e62a36a0e6f3f7eb0ab4c37b26aa312e7f8aa": {
         "url": "https://raw.githubusercontent.com/Holzhaus/rekordcrate/"
@@ -41,6 +43,7 @@ CORPUS = {
             1: "/Contents/Loopmasters/UnknownAlbum/Demo Track 1.mp3",
             2: "/Contents/Loopmasters/UnknownAlbum/Demo Track 2.mp3",
         },
+        "commented": {"Tracks by www.loopmasters.com": {1: [], 2: []}},
     },
     "e85c387e95f1069c3ad5b39cbdaf50e6dd390ed00a47966146c5488ae740366e": {
         "url": "https://raw.githubusercontent.com/dylanljones/pyrekordbox/"
@@ -51,6 +54,7 @@ CORPUS = {
             3: "/Contents/UnknownArtist/UnknownAlbum/HORN.wav",
             6: "/Contents/UnknownArtist/UnknownAlbum/SIREN.wav",
         },
+        "commented": {"Tracks by": {1: ["Playlist 1", "Sub Playlist"], 2: ["Playlist 1", "Sub Playlist"]}},
     },
 }
 DEFAULT_CORPUS = "63597e1c1db011ddcd0ef5552eca121ad23cb8366b215574ae7a49b6887e8c6e"
@@ -180,6 +184,66 @@ class RekordboxPdbTests(unittest.TestCase):
             except ValueError as error:
                 self.assertIn("unreadable", str(error))
 
+    def write_library(self, **extra):
+        mapping = tracks(30)
+        mapping[31] = "/Contents/DJ Kai/DJ PROFILE - DJ Kai.mp3"
+        mapping[32] = "/Contents/DJ Lena/DJ PROFILE - Lena.mp3"
+        comments = {31: "djprofile:1:djp_kai:0123456789ab https://kai.example", 32: "djprofile:1:djp_lena:ba9876543210",
+                    5: "Purchased at Beatport.com"}
+        playlists = [(1, 0, "Gigs", True, []), (2, 1, "Friday", False, list(range(1, 31))),
+                     (3, 0, "dj profile", False, [31]), (4, 1, "Ünïcode set", False, [31, 5])]
+        return pdb_fixture.write_export(self.pdb, mapping, comments=comments, titles={31: "DJ Kai"},
+                                        artists={7: "DJ Kai"}, track_artists={31: 7}, playlists=playlists, **extra)
+
+    def test_comment_prefix_with_artist_and_playlists(self):
+        self.write_library()
+        found = rekordbox_pdb.tracks_with_comment_containing(self.pdb, "djprofile:1:")
+        self.assertEqual(sorted(track["id"] for track in found), [31, 32])
+        kai = next(track for track in found if track["id"] == 31)
+        self.assertEqual(kai, {"id": 31, "title": "DJ Kai", "artist": "DJ Kai", "path": "/Contents/DJ Kai/DJ PROFILE - DJ Kai.mp3",
+                               "comment": "djprofile:1:djp_kai:0123456789ab https://kai.example", "image_path": None,
+                               "playlists": ["dj profile", "Ünïcode set"]})
+        self.assertEqual(next(track for track in found if track["id"] == 32)["playlists"], [])
+        self.assertEqual(rekordbox_pdb.tracks_with_comment_containing(self.pdb, "djprofile:2:"), [])
+        self.assertEqual(rekordbox_pdb.track_paths(self.pdb)[31], "/Contents/DJ Kai/DJ PROFILE - DJ Kai.mp3")
+
+    def test_entries_across_pages_and_folders_are_not_playlists(self):
+        self.write_library()
+        everything = {track["id"]: track for track in rekordbox_pdb.tracks_with_comment_containing(self.pdb, "")}
+        self.assertEqual(len(everything), 32)
+        self.assertEqual(everything[5]["playlists"], ["Friday", "Ünïcode set"])
+        self.assertEqual(everything[30]["playlists"], ["Friday"])
+        self.assertNotIn("Gigs", {name for track in everything.values() for name in track["playlists"]})
+
+    def test_export_without_playlist_tables(self):
+        self.write({1: "/Contents/A.mp3"})
+        self.assertEqual(rekordbox_pdb.tracks_with_comment_containing(self.pdb, ""),
+                         [{"id": 1, "title": "", "artist": "", "path": "/Contents/A.mp3", "comment": "",
+                           "image_path": None, "playlists": []}])
+
+    def test_broken_playlist_chain_is_unreadable(self):
+        self.write_library()
+        data = self.pdb.read_bytes()
+        tables = [struct.unpack_from("<IIII", data, 0x1C + 16 * i) for i in range(struct.unpack_from("<I", data, 8)[0])]
+        tree = next(i for i, table in enumerate(tables) if table[0] == 7)
+        self.patch_bytes(0x1C + 16 * tree + 8, "<I", 0)
+        with self.assertRaisesRegex(ValueError, "unreadable"):
+            rekordbox_pdb.tracks_with_comment_containing(self.pdb, "djprofile:1:")
+
+    def test_corrupted_library_bytes_only_raise_value_error(self):
+        self.write_library()
+        original = self.pdb.read_bytes()
+        rng = random.Random(0xC0FFEE)
+        for _ in range(300):
+            data = bytearray(original)
+            for _ in range(rng.randint(1, 8)):
+                data[rng.randrange(len(data))] = rng.randrange(256)
+            self.pdb.write_bytes(data)
+            try:
+                rekordbox_pdb.tracks_with_comment_containing(self.pdb, "")
+            except ValueError as error:
+                self.assertIn("unreadable", str(error))
+
     @unittest.skipUnless(os.environ.get("XZ_PDB_CORPUS"), "set XZ_PDB_CORPUS to a real export.pdb path")
     def test_real_export_corpus(self):
         path = Path(os.environ["XZ_PDB_CORPUS"])
@@ -196,6 +260,12 @@ class RekordboxPdbTests(unittest.TestCase):
         for track_id, stored in expected["spot"].items():
             self.assertEqual(mapping[track_id], stored)
         self.assertEqual(mapping_digest(mapping), expected["mapping_sha256"])
+        for prefix, spots in expected["commented"].items():
+            found = {track["id"]: track for track in rekordbox_pdb.tracks_with_comment_containing(path, prefix)}
+            for track_id, playlists in spots.items():
+                self.assertTrue(found[track_id]["comment"].startswith(prefix))
+                self.assertEqual(found[track_id]["path"], mapping[track_id])
+                self.assertEqual(found[track_id]["playlists"], playlists)
 
 
 if __name__ == "__main__":

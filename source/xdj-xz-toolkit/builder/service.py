@@ -192,12 +192,13 @@ def _dispatch(request,job,loader_resources=None,settings_change=None):
         if method=='inspect_device_library':return library_repair.inspect(request['volume'])
         if method=='save_device_library_report':return library_repair.save_report(request['volume'])
         return library_repair.mutate(request,job,restore=method=='restore_device_library')
-    if method in ('read_dj_profiles','read_logo','save_dj_profile','set_active_dj_profile','write_profile_track'):
+    if method in ('read_dj_profiles','read_logo','save_dj_profile','set_active_dj_profile','write_profile_track','dj_profile_track_status'):
         from . import dj_profile
         if method=='read_dj_profiles':return dj_profile.read(request['volume'])
         if method=='read_logo':return dj_profile.read_logo(request['path'])
         if method=='save_dj_profile':return dj_profile.save(request['volume'],request)
         if method=='set_active_dj_profile':return dj_profile.set_active(request['volume'],request['dj_id'],request.get('expected_revision'))
+        if method=='dj_profile_track_status':return dj_profile.profile_track_status(request['volume'])
         return dj_profile.write_profile_track(request['volume'],request['dj_id'],request.get('destination'),request.get('folder'))
     if method=='games_status':return games.status()
     if method=='download_game':return games.obtain(request['game'],job)

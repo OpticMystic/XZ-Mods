@@ -8,7 +8,8 @@ import { serveUi } from './csp_server.mjs';
 import { killBrowser } from './kill_browser.mjs';
 
 // Drives the DJ Profile page in headless Edge over CDP, served with the app's real CSP, against a mocked backend
-// that follows the read_dj_profiles / read_logo / save_dj_profile / set_active_dj_profile / write_profile_track
+// that follows the read_dj_profiles / read_logo / save_dj_profile / set_active_dj_profile / write_profile_track /
+// dj_profile_track_status
 // contract (xdj-xz-toolkit builder/dj_profile.py), including revision conflicts and unreadable profiles.
 // Run: node tools/verify_dj_profile.mjs   (XZ_DJP_SHOTS=<dir> saves screenshots, XZ_TEST_BROWSER overrides the browser)
 const app = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -106,6 +107,14 @@ function installMock() {
         if (request.destination === 'usb') fx.tracks.set(doc.dj_id, { path, stick_path: 'DJPROFILE/VJTOOLS/profiles/' + doc.dj_id + '/track/' + name, bytes });
         return { running: false, ok: true, result: { format: 'xz-dj-profile-track/1', destination: request.destination, path, bytes, sha256: 'c'.repeat(64), duration_seconds: 20.035,
           logos_embedded: doc.logos.length, logos_skipped: [], verified_silent: true, ffmpeg_verified: true } };
+      }
+      case 'dj_profile_track_status': {
+        const entry = key => ({ library: 'absent', track: null, in_profile_playlist: false, playlists: [], ...fx.trackStatus?.[key] });
+        const keys = ['device_library', 'onelibrary'];
+        return { running: false, ok: true, result: { format: 'xz-dj-profile-track-status/1',
+          libraries: Object.fromEntries(keys.map(key => [key, { state: entry(key).library, error: entry(key).library === 'unreadable' ? 'The OneLibrary database on this USB is damaged.' : null }])),
+          profiles: (fx.index?.profiles || []).map(id => ({ dj_id: id, dj_name: fx.docs.get(id).dj_name, marker: 'djprofile:1:' + id + ':0123456789ab',
+            ...Object.fromEntries(keys.map(key => [key, entry(key)])) })) } };
       }
     }
     throw Error('Unexpected method ' + request.method);
@@ -320,8 +329,26 @@ try {
   await check(`page().querySelector('.djp-path input').value==='C:\\\\Users\\\\dj\\\\Music\\\\DJ Profile\\\\DJ PROFILE - DJ Kai.mp3'&&Boolean(button('Copy path'))`, 'no open-folder command: the path with a Copy button');
   await shot('06-track-done');
   await click('Next: add it to rekordbox');
-  await check(`(()=>{const steps=[...page().querySelectorAll('.djp-howto li')].map(li=>li.textContent);return steps.length===5&&steps[0]==='Open rekordbox on this computer.'&&steps[1].includes('DJ PROFILE - DJ Kai.mp3')&&steps[1].includes('Collection')&&steps[2]==='Make a playlist named DJ PROFILE and put the track in it.'&&steps[3].includes('Export the DJ PROFILE playlist to this USB');})()`, 'rekordbox steps: drag into Collection, DJ PROFILE playlist, export to this USB');
+  await check(`(()=>{const steps=[...page().querySelectorAll('.djp-howto li')].map(li=>li.textContent);return steps.length===5&&steps[0]==='Open rekordbox on this computer.'&&steps[1].includes('DJ PROFILE - DJ Kai.mp3')&&steps[1].includes('Collection')&&steps[2]==='Make a playlist named DJ PROFILE and put the track in it.'&&steps[3].includes('Export the DJ PROFILE playlist to this USB')&&steps[4]==='Leave the USB plugged in and check it here.';})()`, 'rekordbox steps: drag into Collection, DJ PROFILE playlist, export to this USB, then check it here');
+  await check(`txt('.djp-track .djp-caption')==='djay and other apps that export OneLibrary can put the track on the USB too.'`, 'one sentence names djay and other OneLibrary software');
+  await check(`button('Check the USB').classList.contains('primary')&&!button('Done')&&Boolean(button('Check later'))&&!page().querySelector('.djp-check')`, 'the last step ends on a primary Check the USB, not a bare Done');
   await shot('07-track-rekordbox');
+  const lines = `[...page().querySelectorAll('.djp-check .djp-dest-row')].map(row=>row.dataset.library+'|'+row.dataset.tone+'|'+txt('strong',row)+'|'+txt('small',row)).join(' / ')`;
+  await evaluate(`fx.trackStatus={device_library:{library:'present',track:'missing'}}`);
+  await click('Check the USB');
+  await check(`last('dj_profile_track_status').volume==='E:\\\\'&&count('dj_profile_track_status')===1`, 'Check the USB asks the backend about this USB');
+  await check(`${lines}==='device_library|off|rekordbox device library|Your track is not in it yet. / onelibrary|off|OneLibrary|Not on this USB.'`, 'missing: one plain line per library, OneLibrary not on this USB');
+  await check(`button('Check the USB').classList.contains('primary')&&!button('Done')`, 'missing: still no Done, Check the USB stays primary');
+  await evaluate(`fx.trackStatus={device_library:{library:'present',track:'stale',playlists:['DJ PROFILE'],in_profile_playlist:true},onelibrary:{library:'unreadable'}}`);
+  await click('Check the USB');
+  await check(`${lines}==='device_library|warn|rekordbox device library|Found, but made before your last edit. Export the new track to this USB. / onelibrary|warn|OneLibrary|Could not be read. Export the USB again from rekordbox.'`, 'stale: made before the last edit; an unreadable OneLibrary says so on its own line');
+  await check(`!button('Done')`, 'stale: not done yet');
+  await shot('08-track-check-stale');
+  await evaluate(`fx.trackStatus={device_library:{library:'present',track:'found',playlists:['DJ PROFILE'],in_profile_playlist:true},onelibrary:{library:'present',track:'found',playlists:['Friday']}}`);
+  await click('Check the USB');
+  await check(`${lines}==='device_library|ok|rekordbox device library|Found in DJ PROFILE. / onelibrary|warn|OneLibrary|Found, but not in a playlist named DJ PROFILE.'`, 'found: found in DJ PROFILE, and a track outside the playlist is flagged');
+  await check(`button('Done').classList.contains('primary')&&Boolean(button('Check again'))&&!button('Check the USB')&&count('dj_profile_track_status')===3`, 'found: Done is the primary action, with Check again');
+  await shot('09-track-check-found');
   await click('Done');
   await waitFor(`djProfilePage.state.phase==='list'`, 'list after Done');
   await check(`txt('.djp-card-text',cardOf('djp_dj_kai')).includes('Profile track on this USB')&&button('Make a new profile track')`, 'a track on the USB shows on the card and renames the button');

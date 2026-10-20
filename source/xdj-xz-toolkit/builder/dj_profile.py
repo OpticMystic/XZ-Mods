@@ -5,7 +5,7 @@ Layout, JSON documents and writing order follow the VJ.Tools DJ Profile
 standard (docs/architecture/dj-profile-standard.md). The validation rules
 mirror the Rust reader (dj-profiles/src/profile.rs) and the shared fixtures,
 so a stick written here reads the same in Wingman, the Library and on the XZ.
-Profiles live only on the stick; nothing here touches PIONEER/ or the XZ.
+Profiles live only on the stick; nothing here writes to PIONEER/ or the XZ.
 """
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ import unicodedata
 from urllib.parse import quote
 import uuid
 
+from . import onelibrary, rekordbox_pdb
 from .cache import _regular, _safe_path
 from .jobs import exclusive_lock
 
@@ -977,6 +978,10 @@ MAX_TAG_BYTES = 32 * 1024 * 1024
 FAT_FORBIDDEN = '<>:"/\\|?*'
 APIC_FRONT_COVER = 3
 APIC_ARTIST_LOGOTYPE = 0x13
+TRACK_MARKER = 'djprofile:1:'
+MARKER_HASH = 12
+PROFILE_PLAYLIST = 'dj profile'
+MARKER_TOKEN = re.compile(r'(?<!\S)djprofile:1:[A-Za-z0-9_-]{1,128}:[0-9a-f]{12}(?!\S)')
 
 
 def _synchsafe(value):
@@ -1026,6 +1031,11 @@ def track_payload(document):
     return compact({key: value for key, value in document.items() if key != 'profile_track'})
 
 
+def track_marker(document):
+    """The comment marker naming the profile and a hash of the content the track was made from."""
+    return f'{TRACK_MARKER}{document["dj_id"]}:{_sha(track_payload(document))[:MARKER_HASH]}'
+
+
 def track_frames(document, logos):
     """The ID3 frames for the profile track, in order, and the labels of logos that did not fit."""
     links = document.get('links', [])
@@ -1033,7 +1043,7 @@ def track_frames(document, logos):
     website = next((link['url'] for link in links if link['kind'].lower() == 'website'), None)
     page = document.get('page_url')
     payload = track_payload(document)
-    marker = f'djprofile:1:{document["dj_id"]}:{_sha(payload)[:12]}'
+    marker = track_marker(document)
     shared = page or (epk and epk['url'])
     name = document['dj_name']
     frames = [_text_frame('TIT2', name), _text_frame('TPE1', name), _text_frame('TALB', 'DJ PROFILE'),
@@ -1214,3 +1224,78 @@ def write_profile_track(volume, dj_id, destination, folder=None):
             # Only the track record changes, so profile.previous.json keeps the last real edit.
             _publish(root, relative, pretty({**document, 'profile_track': record}))
     return {'format': 'xz-dj-profile-track/1', 'destination': destination, **result}
+
+
+# --- is the profile track on the stick (read-only) ---
+
+def _device_library_tracks(root):
+    path = root.joinpath(*rekordbox_pdb.EXPORT_PDB)
+    if not path.is_file():
+        return None
+    return rekordbox_pdb.tracks_with_comment_containing(path, TRACK_MARKER)
+
+
+def _onelibrary_tracks(root):
+    if not onelibrary.present(root):
+        return None
+    with onelibrary.open_library(root) as connection:
+        return [{**track, 'comment': track['djComment']} for track in onelibrary.tracks_with_comment_containing(connection, TRACK_MARKER)]
+
+
+# Each reader returns the tracks whose comment carries a profile marker, or None when the stick has no such library.
+LIBRARY_READERS = {'device_library': _device_library_tracks, 'onelibrary': _onelibrary_tracks}
+
+
+def _scan_library(reader, root):
+    try:
+        tracks = reader(root)
+    except (OSError, ValueError) as exc:
+        return {'state': 'unreadable', 'error': str(exc)}, []
+    if tracks is None:
+        return {'state': 'absent', 'error': None}, []
+    return {'state': 'present', 'error': None}, tracks
+
+
+def _track_in_library(library, tracks, document):
+    """found / stale / missing for one profile in one library, and whether it sits in a DJ PROFILE playlist."""
+    if library['state'] != 'present':
+        return {'library': library['state'], 'track': None, 'in_profile_playlist': False, 'playlists': []}
+    marker = track_marker(document)
+    # The marker is a token anywhere in the comment: some tools prepend text such as a key or energy rating.
+    profile = marker[:-MARKER_HASH]
+    mine = [track for track in tracks if any(token.startswith(profile) for token in MARKER_TOKEN.findall(track['comment']))]
+    current = [track for track in mine if marker in MARKER_TOKEN.findall(track['comment'])]
+    chosen = current or mine
+    playlists = sorted({name for track in chosen for name in track['playlists']})
+    return {'library': 'present', 'track': 'found' if current else 'stale' if mine else 'missing',
+            'in_profile_playlist': any(name.strip().casefold() == PROFILE_PLAYLIST for name in playlists),
+            'playlists': playlists}
+
+
+def _saved_documents(root):
+    index = _load_index(root)
+    if index:
+        paths = [_profile_path(entry['dj_id']) for entry in index['profiles']]
+    else:
+        paths = [LEGACY_PATH] if _exists(root, LEGACY_PATH) else []
+    documents = []
+    for relative in paths:
+        try:
+            documents.append(_load_document(root, relative)[0])
+        except (OSError, ValueError):
+            continue
+    return documents
+
+
+def profile_track_status(volume):
+    """For every saved profile, whether its profile track reached each rekordbox library on the stick.
+
+    Tracks are matched by the comment marker the track carries (track_marker). Nothing is written.
+    """
+    root = _volume(volume)
+    scans = {name: _scan_library(reader, root) for name, reader in LIBRARY_READERS.items()}
+    profiles = [{'dj_id': document['dj_id'], 'dj_name': document['dj_name'], 'marker': track_marker(document),
+                 **{name: _track_in_library(library, tracks, document) for name, (library, tracks) in scans.items()}}
+                for document in _saved_documents(root)]
+    return {'format': 'xz-dj-profile-track-status/1', 'libraries': {name: library for name, (library, _) in scans.items()},
+            'profiles': profiles}

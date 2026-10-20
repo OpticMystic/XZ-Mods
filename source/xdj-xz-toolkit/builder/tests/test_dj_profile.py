@@ -17,8 +17,10 @@ from PIL import Image
 
 from builder import dj_profile, service
 from builder.jobs import Job
+from builder.tests import pdb_fixture
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'dj-profile'
+ONELIBRARY = Path(__file__).parent / 'fixtures' / 'onelibrary'
 
 
 def call(method, **request):
@@ -372,6 +374,113 @@ class TrackTests(Stick):
                 {'data': b'x' * 1000, 'mime': 'image/png', 'label': 'small'},
                 {'data': b'x' * 30000, 'mime': 'image/png', 'label': 'big'}])
         self.assertEqual((embedded, skipped), (1, ['big']))
+
+
+class TrackStatusTests(Stick):
+    """profile_track_status reads export.pdb and OneLibrary and never writes to the stick."""
+
+    def two_profile_stick(self, onelibrary_fixture='wal-profile'):
+        shutil.copytree(FIXTURES / 'stick-two-profiles', self.volume, dirs_exist_ok=True)
+        if onelibrary_fixture:
+            source = ONELIBRARY / onelibrary_fixture
+            for name in ('exportLibrary.db', 'exportLibrary.db-wal'):
+                if (source / name).exists():
+                    shutil.copyfile(source / name, self.volume / 'PIONEER/rekordbox' / name)
+
+    def export(self, comments, playlists):
+        tracks = {i: f'/Contents/DJ/Track {i}.mp3' for i in range(1, 6)}
+        pdb_fixture.write_export(self.volume / 'PIONEER/rekordbox/export.pdb', tracks, comments=comments, playlists=playlists)
+
+    def status(self):
+        before = stick_files(self.volume)
+        result = call('dj_profile_track_status', volume=str(self.volume))
+        self.assertEqual(stick_files(self.volume), before, 'the status check writes nothing')
+        self.assertEqual(result['format'], 'xz-dj-profile-track-status/1')
+        return result, {profile['dj_id']: profile for profile in result['profiles']}
+
+    def marker(self, dj_id):
+        document = json.loads((self.volume / f'DJPROFILE/VJTOOLS/profiles/{dj_id}/profile.json').read_text(encoding='utf-8'))
+        return dj_profile.track_marker(document)
+
+    def test_found_in_both_libraries_and_stale_elsewhere(self):
+        self.two_profile_stick()
+        kai = self.marker('djp_kai')
+        self.assertEqual(kai, 'djprofile:1:djp_kai:21f157d13096', 'the OneLibrary fixture was built from this profile')
+        self.export({1: kai + ' https://vj.tools/dj#p1.fixture', 2: 'djprofile:1:djp_lena:000000000000',
+                     3: 'djprofile:1:djp_kai:21f157d13096x', 4: 'djprofile:1:djp_kai_2:21f157d13096'},
+                    [(1, 0, 'Sets', True, []), (2, 1, 'dj profile ', False, [1, 2]), (3, 0, 'Friday', False, [1])])
+        result, profiles = self.status()
+        self.assertEqual(result['libraries'], {'device_library': {'state': 'present', 'error': None},
+                                               'onelibrary': {'state': 'present', 'error': None}})
+        self.assertEqual(profiles['djp_kai']['device_library'], {'library': 'present', 'track': 'found', 'in_profile_playlist': True,
+                                                                 'playlists': ['Friday', 'dj profile ']})
+        self.assertEqual(profiles['djp_kai']['onelibrary'], {'library': 'present', 'track': 'found', 'in_profile_playlist': True,
+                                                             'playlists': ['DJ PROFILE']})
+        self.assertEqual(profiles['djp_lena']['device_library']['track'], 'stale')
+        self.assertEqual(profiles['djp_lena']['onelibrary'], {'library': 'present', 'track': 'stale', 'in_profile_playlist': False,
+                                                              'playlists': ['Friday']})
+        self.assertEqual((profiles['djp_kai']['dj_name'], profiles['djp_kai']['marker']), ('DJ Kai', kai))
+
+    def test_missing_track_absent_onelibrary_and_no_playlist(self):
+        self.two_profile_stick(onelibrary_fixture=None)
+        self.export({5: self.marker('djp_lena')}, [(1, 0, 'Friday', False, [5])])
+        result, profiles = self.status()
+        self.assertEqual(result['libraries']['onelibrary'], {'state': 'absent', 'error': None})
+        self.assertEqual(profiles['djp_kai']['device_library'], {'library': 'present', 'track': 'missing', 'in_profile_playlist': False,
+                                                                 'playlists': []})
+        self.assertEqual(profiles['djp_kai']['onelibrary'], {'library': 'absent', 'track': None, 'in_profile_playlist': False,
+                                                             'playlists': []})
+        self.assertEqual(profiles['djp_lena']['device_library'], {'library': 'present', 'track': 'found', 'in_profile_playlist': False,
+                                                                  'playlists': ['Friday']})
+
+    def test_a_onelibrary_without_markers_reports_missing(self):
+        self.two_profile_stick(onelibrary_fixture='rekordbox7-sample')
+        self.export({}, [])
+        _, profiles = self.status()
+        self.assertEqual(profiles['djp_kai']['onelibrary']['track'], 'missing')
+
+    def test_unreadable_libraries_are_reported_separately(self):
+        self.two_profile_stick()
+        database = self.volume / 'PIONEER/rekordbox/exportLibrary.db'
+        damaged = bytearray(database.read_bytes())
+        damaged[3 * 4096 + 50] ^= 0xFF
+        database.write_bytes(damaged)
+        result, profiles = self.status()
+        self.assertEqual(result['libraries']['device_library']['state'], 'unreadable')
+        self.assertIn('Rekordbox export on this USB is unreadable', result['libraries']['device_library']['error'])
+        self.assertEqual(result['libraries']['onelibrary']['state'], 'unreadable')
+        self.assertIn('page 4 failed its check', result['libraries']['onelibrary']['error'])
+        self.assertEqual(profiles['djp_kai']['onelibrary']['library'], 'unreadable')
+        self.assertIsNone(profiles['djp_kai']['onelibrary']['track'])
+
+    def test_the_written_track_comment_matches_until_the_profile_is_edited(self):
+        saved = self.save()
+        dj_id = saved['saved']
+        path = call('write_profile_track', volume=str(self.volume), dj_id=dj_id, destination='folder', folder=str(self.pc))['path']
+        frames, _ = dj_profile.read_id3(Path(path).read_bytes())
+        comment, = [dj_profile.decode_frame(frame_id, payload)['text'] for frame_id, payload in frames if frame_id == 'COMM']
+        self.export({1: comment}, [(1, 0, 'DJ PROFILE', False, [1])])
+        _, profiles = self.status()
+        self.assertEqual(profiles[dj_id]['device_library']['track'], 'found')
+        self.assertTrue(profiles[dj_id]['device_library']['in_profile_playlist'])
+        self.save(expected_revision=saved['revision'], dj_id=dj_id, tagline='Now in Lisbon')
+        _, profiles = self.status()
+        self.assertEqual(profiles[dj_id]['device_library']['track'], 'stale')
+
+    def test_marker_after_text_another_tool_prepended(self):
+        self.two_profile_stick(onelibrary_fixture=None)
+        self.export({1: '8A - Energy 7 ' + self.marker('djp_kai'), 2: 'xdjprofile:1:djp_lena:' + self.marker('djp_lena')[-12:]},
+                    [(1, 0, 'DJ PROFILE', False, [1, 2])])
+        _, profiles = self.status()
+        self.assertEqual(profiles['djp_kai']['device_library']['track'], 'found')
+        self.assertEqual(profiles['djp_lena']['device_library']['track'], 'missing')
+
+    def test_a_stick_without_rekordbox(self):
+        self.save()
+        result, profiles = self.status()
+        self.assertEqual({name: library['state'] for name, library in result['libraries'].items()},
+                         {'device_library': 'absent', 'onelibrary': 'absent'})
+        self.assertEqual(len(profiles), 1)
 
 
 if __name__ == '__main__':
