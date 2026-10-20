@@ -153,6 +153,12 @@ void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 int sh_stem_wave_ready(const struct xz_shell_deck *d);
 void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps);
 void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int played_x);
+/* The four-deck view's status strip under the non-play screens (shell_wave.c): four compact quarters in
+   band. Returns 0 and draws nothing for a two-deck model, whose screens draw their own halves.
+   sh_strip_cell is a deck's touch target in the strip: a half of band for two decks (a NULL model), a
+   quarter for four. */
+int sh_deck_quarters(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect band);
+struct xz_shell_rect sh_strip_cell(const struct xz_shell_model *m, struct xz_shell_rect band, int deck);
 /* Traffic-light ink for a key against the master deck's key (shell_wave.c): green, amber or plain. With
    no master key read it falls back to the runtime's matches_master flag. */
 enum { SH_KEY_GREEN=0x52d794, SH_KEY_AMBER=0xffbd59 };

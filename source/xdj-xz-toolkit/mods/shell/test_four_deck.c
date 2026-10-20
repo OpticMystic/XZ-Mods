@@ -1,10 +1,14 @@
 #ifdef NDEBUG
 #error Shell acceptance requires active assertions
 #endif
-/* The four-deck view: PLAY geometry, every per-deck input for decks 3 and 4, refusal past the deck
-   count, deck counts other than 2 and 4, and the frame's guard words. */
+/* The four-deck view: PLAY geometry, every per-deck input for decks 3 and 4, the status strips under
+   the other screens, refusal past the deck count, deck counts other than 2 and 4, and the frame's
+   guard words. */
 #include "four_deck_fixtures.h"
-#include "shell_browse.h"
+#include "browse_fixtures.h"
+#include "shell_info.h"
+#include "shell_source.h"
+#include "shell_settings.h"
 #include "shell_internal.h"
 #include <assert.h>
 #include <stdio.h>
@@ -15,6 +19,7 @@
 #define PIXELS (STRIDE*(XZ_SHELL_HEIGHT+2))
 static uint16_t buffer_a[GUARD+PIXELS+GUARD], buffer_b[GUARD+PIXELS+GUARD];
 static struct fx_track track;
+static struct bx_library lib;
 
 static uint16_t *frame(uint16_t *buffer) { return buffer+GUARD+STRIDE; }
 static void fill(uint16_t *buffer, uint16_t inside) {
@@ -169,6 +174,60 @@ static void test_deck_input(void) {
  puts("PASS four-deck input: tag, time, needle search, keys, GRID, alert and stems on decks 3 and 4");
 }
 
+/* Under BROWSE, INFO, SOURCE, SHORTCUT and UTILITY the strip holds four quarters; on BROWSE a quarter
+   is that deck's LOAD target and the LOAD chip carries a cell per deck. */
+static void test_strips(void) {
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ static struct xz_shell_info_model im;static struct xz_shell_source_model sm;static struct xz_shell_settings_model sets;
+ fx_model_four(&m,&track);bx_tracks(&b,&lib,XZ_SHELL_BROWSE);
+ m.browse=&b;m.info=&im;m.source=&sm;m.settings_screen=&sets;
+ m.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD|XZ_SHELL_CAP_SOURCE;
+ xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
+ assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE);
+ for(int d=0;d<4;d++){
+  struct xz_shell_rect q=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_STRIP,d);
+  assert(q.x==d*XZ_SHELL_WIDTH/4&&q.w==XZ_SHELL_WIDTH/4&&q.h>=44&&q.y+q.h==XZ_SHELL_HEIGHT);
+  int was=u.deck;size_t n=tap_rect(&u,&m,q,out);
+  assert(u.deck==d&&(was==d?n==0:n==1&&out[0].kind==XZ_SHELL_ACT_ACTIVE_DECK&&out[0].deck==d));
+ }
+ assert(xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_STRIP,4).w==0);
+ for(int d=0;d<4;d++){
+  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
+  tap_rect(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,2),out);
+  struct xz_shell_rect cell=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_LOAD,d+1),load=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_LOAD,0);
+  assert(cell.w>0&&cell.x>=load.x+load.w&&xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_LOAD,5).w==0);
+  assert(tap_rect(&u,&m,cell,out)>=1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==(int)lib.tracks[2].id);
+ }
+ render_both(&u,&m);
+ /* A two-deck model keeps its halves and two LOAD cells. */
+ struct xz_shell_model two=m;two.deck_count=2;
+ xz_shell_init(&u);deck_key(&u,&two,XZ_SHELL_KEY_BROWSE,-1,out);
+ tap_rect(&u,&two,xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_ROW,2),out);
+ assert(xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_LOAD,2).w>0&&xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_LOAD,3).w==0);
+ assert(xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_STRIP,1).w==XZ_SHELL_WIDTH/2&&xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_STRIP,2).w==0);
+ /* INFO: a quarter of deck 1 or 2 shows its tab; decks 3 and 4 have no tab yet and take no touch. */
+ xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_INFO,-1,out);
+ assert(xz_shell_screen(&u)==XZ_SHELL_INFO);
+ struct xz_shell_rect strip=xz_shell_info_rect(XZ_SHELL_INFO_R_STRIP,0);
+ int y=strip.y+strip.h/2;
+ tap(&u,&m,XZ_SHELL_WIDTH/4+20,y,out);assert(u.stack[1].focus==2);
+ tap(&u,&m,20,y,out);assert(u.stack[1].focus==1);
+ assert(tap(&u,&m,XZ_SHELL_WIDTH/2+20,y,out)==0&&tap(&u,&m,XZ_SHELL_WIDTH*3/4+20,y,out)==0&&u.stack[1].focus==1);
+ render_both(&u,&m);
+ static const enum xz_shell_key screens[]={XZ_SHELL_KEY_SOURCE,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_KEY_MENU_HOLD};
+ for(size_t i=0;i<sizeof screens/sizeof *screens;i++){xz_shell_init(&u);deck_key(&u,&m,screens[i],-1,out);render_both(&u,&m);}
+ /* Every quarter carries its deck: an unloaded deck says so in its own quarter only. */
+ xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);render_both(&u,&m);
+ static uint16_t loaded[GUARD+PIXELS+GUARD];memcpy(loaded,buffer_a,sizeof loaded);
+ fx_deck_unloaded(&m.deck[3],XZ_SHELL_SRC_NONE);render_both(&u,&m);
+ struct xz_shell_rect q3=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_STRIP,3);
+ for(int yy=0;yy<XZ_SHELL_HEIGHT;yy++)for(int x=0;x<XZ_SHELL_WIDTH;x++){
+  int changed=frame(loaded)[yy*STRIDE+x]!=frame(buffer_a)[yy*STRIDE+x];
+  assert(!changed||(x>=q3.x&&yy>=q3.y));
+ }
+ puts("PASS four-deck status strips: quarters, LOAD target and cells, INFO tabs");
+}
+
 /* A deck past deck_count is refused as an index past the model is today. */
 static void test_refusal(void) {
  struct xz_shell u;struct xz_shell_model two,four;struct xz_shell_action out[XZ_SHELL_ACTIONS];
@@ -264,8 +323,11 @@ static void test_frames(void) {
 
 int main(void) {
  fx_track_build(&track,7);
+ bx_build(&lib);
+ (void)bx_folders;
  test_layout();
  test_deck_input();
+ test_strips();
  test_refusal();
  test_other_counts();
  test_frames();

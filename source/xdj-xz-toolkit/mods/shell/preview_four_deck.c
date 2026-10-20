@@ -2,14 +2,14 @@
 #include "four_deck_fixtures.h"
 #include "browse_fixtures.h"
 #include "settings_fixtures.h"
-#include "shell_info.h"
-#include "shell_source.h"
+#include "shell_info_fixtures.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 static struct fx_track track;
 static struct bx_library lib;
 static uint16_t frame[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];
+static uint16_t art[FXI_ART_SIDE*FXI_ART_SIDE];
 static const char *out_dir;
 static struct xz_shell_action out[XZ_SHELL_ACTIONS];
 
@@ -102,9 +102,18 @@ int main(int argc, char **argv) {
  bx_build(&lib);bx_tracks(&b,&lib,XZ_SHELL_BROWSE);
  m.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD;m.browse=&b;
  open_screen(&u,&m,XZ_SHELL_KEY_BROWSE);u.deck=2;shot(&u,&m,"browse-4deck");
+ struct xz_shell_rect row=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,3);
+ xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_DOWN,row.x+row.w/2,row.y+row.h/2,0,0,-1},out);
+ xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_UP,row.x+row.w/2,row.y+row.h/2,0,0,-1},out);
+ shot(&u,&m,"browse-4deck-load-cells");
  m.settings_screen=fxs_reset();
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"utility-4deck");
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT);shot(&u,&m,"shortcut-4deck");
+ struct xz_shell_info_model im;struct xz_shell_source_model sm;
+ fxi_artwork(art);fxi_info_full(&im,art);fxi_source_full(&sm);
+ m.info=&im;m.source=&sm;m.capabilities|=XZ_SHELL_CAP_SOURCE;
+ open_screen(&u,&m,XZ_SHELL_KEY_INFO);shot(&u,&m,"info-4deck");
+ open_screen(&u,&m,XZ_SHELL_KEY_SOURCE);shot(&u,&m,"source-4deck");
  fx_deck_unloaded(&m.deck[3],XZ_SHELL_SRC_NONE);
  open_screen(&u,&m,XZ_SHELL_KEY_BROWSE);shot(&u,&m,"browse-4deck-deck4-unloaded");
  return 0;
