@@ -47,10 +47,22 @@ function call(request){return run(request,'DJ profile',null,()=>{});}
 // The DJ sees one line about it, plus a line for any profile that stayed behind.
 function movedNotes(moved){
   if(!moved)return [];
-  const notes=moved.backup&&!moved.old_kept?['Moved your profiles to the new DJ Profile layout. A copy of the old files is on this computer.']:[];
+  const notes=moved.backup&&!moved.old_kept?['Moved your profiles to the new DJ Profile layout. A copy of the old files is in '+moved.backup+'.']:[];
   return notes.concat((moved.failed||[]).map(item=>(item.dj_name||'A profile')+' stayed in the old layout. '+item.error));
 }
 function noteMoved(result){const notes=movedNotes(result?.moved);if(notes.length)P.notes=notes;return notes;}
+// The old profile folder stays while the USB's XZ Mods runtime predates DJ Profile 1.0. One button opens the USB
+// page, straight into its update when one is offered.
+function openUsbUpdate(){
+  showPage('setup');
+  if(W.inspection&&setupWizard.loaderChoice()==='update')setupWizard.startFlow('update');
+}
+function runtimeNotice(){
+  if(!P.data?.runtime_update_needed)return null;
+  return el('div',{class:'djp-moved djp-runtime',role:'status'},
+    el('p',{class:'djp-hint',text:'Your USB still has an older XZ Mods runtime. Update the USB to finish moving your profiles.'}),
+    el('div',{class:'actions'},el('button',{type:'button',class:'secondary',id:'djp-update-usb',text:'Update the USB',onclick:openUsbUpdate})));
+}
 function publish(data){
   if(!W.inspection||W.usb!==P.volume)return;
   const next=data.summary||{count:0,active_name:null};
@@ -300,6 +312,7 @@ function viewList(){
     el('h2',{text:'DJ profiles on '+driveName()}),
     banner(P.error),
     P.notes.length?el('div',{class:'djp-moved',role:'status'},...P.notes.map(text=>el('p',{class:'djp-hint',text}))):null,
+    runtimeNotice(),
     saved?el('div',{class:'djp-saved',role:'status'},el('p',{text:'Saved '+saved.dj_name+' to the USB.'+(saved.active?' It is the active profile on the XZ.':'')+' Next, make its profile track for newer players.'}),
       el('div',{class:'actions'},el('button',{type:'button',class:'primary',text:'Create profile track',onclick:()=>openTrack(saved)}))):null,
     empty?el('p',{class:'wz-lead',text:'No DJ profile on this USB yet. A profile puts your name and logo on the XZ and lets VJ software on the same network pick them up.'}):

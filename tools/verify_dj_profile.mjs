@@ -33,7 +33,7 @@ function installMock() {
   ['C:\\Logos\\kai-wordmark.png', 'C:\\Logos\\kai-square.png', 'C:\\Logos\\l3.png', 'C:\\Logos\\l4.png', 'C:\\Logos\\l5.png', 'C:\\Logos\\l6.png', 'C:\\Logos\\l7.png', 'C:\\Logos\\l8.png', 'C:\\Logos\\l9.png']
     .forEach((path, i) => logoFile(path, i, i === 0 ? 1600 : 1000, i === 0 ? 600 : 1000, i === 0 ? 412000 : 2500000));
   const preview = path => { const logo = fx.logos.get(path); if (!logo.preview) logo.preview = art(...logo.art); return logo.preview; };
-  if (mode === 'old') {
+  if (mode === 'old' || mode === 'oldruntime') {
     fx.oldStore = true;
     fx.docs.set('djp_kai', { dj_id: 'djp_kai', dj_name: 'DJ Kai', tagline: '', accent: '#e0664f', aliases: [], links: [], page_url: null, note: '', logos: [{ path: 'C:\\Logos\\kai-square.png', label: '', note: '' }] });
     fx.docs.set('djp_lena', { dj_id: 'djp_lena', dj_name: 'Lena B', tagline: '', accent: '#1e50f0', aliases: [], links: [], page_url: null, note: '', logos: [{ path: 'C:\\Logos\\l3.png', label: '', note: '' }] });
@@ -63,10 +63,15 @@ function installMock() {
     const active = fx.index ? fx.index.active : profiles[0]?.dj_id || null;
     for (const profile of profiles) profile.active = profile.dj_id === active;
     return { format: 'xz-dj-profiles/1', public_folder: fx.index || fx.folders.length ? 'DJPROFILE' : null, revision: fx.index ? fx.index.revision : null, active, stick_colour: '#9828f0',
-      old_store: Boolean(fx.oldStore), profiles, problems: fx.problems, summary: { count: profiles.length, active_name: profiles.find(profile => profile.active)?.dj_name || null } };
+      old_store: Boolean(fx.oldStore || fx.waiting), runtime_update_needed: Boolean(fx.waiting), profiles, problems: fx.problems, summary: { count: profiles.length, active_name: profiles.find(profile => profile.active)?.dj_name || null } };
   };
   // The first write on a USB from before 1.0 moves its profiles and reports it, as builder/dj_profile.py does.
-  const moved = () => { if (!fx.oldStore) return null; fx.oldStore = false; return { profiles: fx.index.profiles.length, backup: 'C:\\Users\\dj\\AppData\\Local\\XZ Mods\\dj-profile-backups\\0CAA-BE10-20261019T150000Z', old_kept: false, failed: [] }; };
+  const moved = () => {
+    if (!fx.oldStore) return null;
+    fx.oldStore = false;
+    if (mode === 'oldruntime') { fx.waiting = true; return { profiles: fx.index.profiles.length, backup: null, old_kept: true, reason: 'runtime', cleanup_pending: false, failed: [] }; }
+    return { profiles: fx.index.profiles.length, backup: 'C:\\Users\\dj\\AppData\\Local\\XZ Mods\\dj-profile-backups\\0CAA-BE10-20261019T150000Z', old_kept: false, reason: null, cleanup_pending: false, failed: [] };
+  };
   const summary = () => read().summary;
   const fail = error => ({ running: false, ok: false, error });
   const check = request => (fx.index ? fx.index.revision : null) === request.expected_revision;
@@ -460,12 +465,22 @@ try {
   await waitFor(`djProfilePage.state.phase==='list'`, 'old store list');
   await check(`cardOf('djp_kai').dataset.source==='old'&&cardOf('djp_lena').dataset.active==='1'&&Boolean(button('Make active',cardOf('djp_kai')))&&!page().querySelector('.djp-moved')`, 'old store: profiles listed as usual, nothing said about the layout before a write');
   await click('Make active', `cardOf('djp_kai')`);
-  await check(`txt('.djp-moved')==='Moved your profiles to the new DJ Profile layout. A copy of the old files is on this computer.'&&cardOf('djp_kai').dataset.active==='1'&&cardOf('djp_kai').dataset.source==='1.0'`, 'the first write moves the profiles and says so in one line');
+  await check(`txt('.djp-moved')==='Moved your profiles to the new DJ Profile layout. A copy of the old files is in C:\\\\Users\\\\dj\\\\AppData\\\\Local\\\\XZ Mods\\\\dj-profile-backups\\\\0CAA-BE10-20261019T150000Z.'&&cardOf('djp_kai').dataset.active==='1'&&cardOf('djp_kai').dataset.source==='1.0'&&!page().querySelector('.djp-runtime')`, 'the first write moves the profiles and says in one line where the copy is');
   await shot('14-moved-note');
   await click('Make active', `cardOf('djp_lena')`);
   await check(`page().querySelectorAll('.djp-moved p').length===1`, 'a later write does not repeat it');
   await evaluate(`page().querySelector('.djp-card[data-id="djp_lena"] .djp-edit').click()`);
   await check(`!page().querySelector('.djp-moved')`, 'the note goes once the DJ moves on');
+
+  await open('oldruntime');
+  await showDj();
+  await waitFor(`djProfilePage.state.phase==='list'`, 'old store list, older runtime');
+  await check(`!page().querySelector('.djp-runtime')`, 'nothing to update before the profiles move');
+  await click('Make active', `cardOf('djp_kai')`);
+  await check(`txt('.djp-runtime p')==='Your USB still has an older XZ Mods runtime. Update the USB to finish moving your profiles.'&&page().querySelectorAll('.djp-runtime button').length===1&&Boolean(button('Update the USB'))&&!txt('.djp-moved').includes('Moved your profiles')`, 'an older runtime: one line and one Update the USB button, no claim that the move finished');
+  await shot('15-runtime-update');
+  await evaluate(`button('Update the USB').click()`);
+  await check(`!document.getElementById('setup').classList.contains('hidden')&&document.querySelector('nav button.selected').dataset.page==='setup'`, 'Update the USB opens the USB page and its write flow');
 
   await open('nousb');
   await waitFor(`setupWizard.state.usbs!==null&&activeJob===null`, 'first look finished');
