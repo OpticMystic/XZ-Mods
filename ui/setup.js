@@ -584,7 +584,7 @@ function stepDone(){
   if(copied.length)lines.push('Games on USB: '+copied.join(', ')+'.');
   for(const game of failed)lines.push(game.name+' did not download: '+game.error);
   if(r.settings)lines.push('Settings saved to the USB and read back.');
-  if(r.profile?.ok)lines.push('DJ profile '+r.profile.name+' saved to the USB.');
+  if(r.profile?.ok)lines.push('DJ profile '+r.profile.name+' saved to the USB.',...(r.profile.notes||[]));
   lines.push(...r.errors);
   const trouble=Boolean(failed.length||r.errors.length),ejected=W.eject?.state==='done',ejecting=W.eject?.state==='ejecting';
   if(failed.length&&ejectAfterWrite()&&canEject()&&!W.eject)lines.push('The USB was not ejected, so you can retry the failed games first.');

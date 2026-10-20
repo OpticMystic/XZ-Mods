@@ -9,6 +9,9 @@ Generation needs SQLCipher; the reader under test does not.
 The profile markers are built from the shared stick-two-profiles fixture: DJ Kai's carries the
 current hash, Lena B's an old one. The script ends by reading both copies back with SQLCipher
 and with builder.onelibrary and checking they agree.
+
+The committed fixture was made before DJ Profile 1.0, so DJ Kai's marker carries the old store's hash and
+test_dj_profile reports it stale. Regenerating gives the 1.0 hash; update TrackStatusTests to 'found' then.
 """
 from __future__ import annotations
 
@@ -38,9 +41,8 @@ FILLER = 120
 
 
 def marker(dj_id: str, current: bool) -> str:
-    document = dj_profile.validate_document(json.loads((PROFILES / dj_id / "profile.json").read_text(encoding="utf-8")))
-    digest = dj_profile._sha(dj_profile.track_payload(document))[:12] if current else "000000000000"
-    return f"djprofile:1:{dj_id}:{digest}"
+    document = dj_profile.validate_old_document(json.loads((PROFILES / dj_id / "profile.json").read_text(encoding="utf-8")))
+    return dj_profile.track_marker(dj_profile.from_old(document)[0]) if current else f"djprofile:1:{dj_id}:000000000000"
 
 
 def track(db, content_id, title, artist_id, path, comment, image_id=None):
