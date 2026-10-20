@@ -232,7 +232,7 @@ struct xz_shell_fx {
 };
 /* Filled by later units; opaque here. NULL hands the screen to the stock UI. */
 struct xz_shell_browse_model; struct xz_shell_settings_model; struct xz_shell_source_model; struct xz_shell_info_model;
-struct xz_shell_mods_model; struct xz_shell_my_settings_model; struct xz_shell_help_model;
+struct xz_shell_mods_model; struct xz_shell_my_settings_model; struct xz_shell_help_model; struct xz_shell_menu;
 struct xz_shell_model {
  struct xz_shell_deck deck[XZ_SHELL_DECKS];
  uint32_t capabilities;
@@ -261,6 +261,7 @@ struct xz_shell_model {
                                              while BROWSE is not on a USB stick: MENU keeps the list MENU */
  const struct xz_shell_help_model *help;  /* descriptions for the runtime's items (shell_settings.h); NULL: the
                                              shell's own UTILITY descriptions only */
+ const struct xz_shell_menu *menu;        /* the mod page a MENU tab shows (shell_settings.h); NULL: none read yet */
 };
 
 enum xz_shell_event_kind {
@@ -322,8 +323,10 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_GRID_EDIT,   /* deck, id = enum xz_shell_grid_op. Needs XZ_SHELL_CAP_GRID_EDIT */
  XZ_SHELL_ACT_STEM_GAIN,   /* deck, id = stem (0 drums, 1 harmonics, 2 vocal), value = 0..XZ_SHELL_STEM_GAIN_MAX.
                               Sent while a full-row stem button is slid; needs XZ_SHELL_CAP_STEM_GAIN */
- XZ_SHELL_ACT_STEM_BYPASS  /* deck, value = 1 bypass (the original track plays), 0 the stems play. Needs
+ XZ_SHELL_ACT_STEM_BYPASS, /* deck, value = 1 bypass (the original track plays), 0 the stems play. Needs
                               XZ_SHELL_CAP_STEM_BYPASS */
+ XZ_SHELL_ACT_MOD_MENU     /* a MODS menu page (shell_settings.h XZ_SHELL_TAB_MENU): id = enum xz_shell_menu_op,
+                              value = the root page (OPEN) or a row of model.menu, deck = the choice or the touch */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */
@@ -414,6 +417,10 @@ struct xz_shell {
  /* The MODS screen (XZ_SHELL_UTILITY): the open page on its rail (0 = UTILITY, the device's own menu;
     1.. = the mod tabs), and whether the encoder is on the rail (on_tabs) or inside the page. */
  struct { int tab, on_tabs; } mods_view;
+ /* On a MENU tab: the model.menu page the content cursor belongs to; a different page in the model starts
+    the cursor on that page's focus row, or, for a page this view left by a push, on the row it left from
+    (trail[depth]), so BACK lands on the control that led away. */
+ struct { int page, trail_count; struct { int page, key; } trail[XZ_SHELL_STACK]; } menu_view;
  /* A stem button under the finger (XZ_SHELL_TOUCH_STEM, down_deck): which stem, where the touch began,
     the level then, and whether it has slid (a slide sets the level, a tap toggles the mute on release). */
  struct { int stem, x0, gain0, slid; } stem_touch;

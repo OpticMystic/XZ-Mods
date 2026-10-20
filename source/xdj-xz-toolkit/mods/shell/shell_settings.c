@@ -710,11 +710,17 @@ static void utility_render(const struct xz_shell *u, const struct xz_shell_model
  const char *title=tab?"MODS":"UTILITY";
  render_title(c,title);
  int after=52+sh_text_width(c,title,SH_TEXT)+14;
+ render_pages(u,m,c);
+ if(tab&&tab->kind==XZ_SHELL_TAB_MENU){
+  /* A mod page the runtime describes: the shell draws its path in the title and the page itself. */
+  sh_menu_render(u,m,c,tab,after,TITLE_RIGHT);
+  render_status(u,m,c);
+  return;
+ }
  char version[64];version_of(l.t,version,sizeof version);
  int vw=!tab&&version[0]?sh_min(160,sh_text_width(c,version,SH_TEXT)):0;
  text_fit(c,after,17,TITLE_RIGHT-after-vw-12,tab?"ADDED BY THE MOD, NOT PART OF THE PLAYER":"THE PLAYER'S OWN MENU",SH_SMALL,SH_DIM);
  if(vw)text_fit_right(c,TITLE_RIGHT,13,160,version,SH_TEXT,DEEP_BLUE);
- render_pages(u,m,c);
  if(tab&&tab->kind==XZ_SHELL_TAB_PAGE)render_page_tab(u,tab,c);
  else if(l.item<0)render_empty_note(c,tab?"NOTHING TO SET ON THIS PAGE":m->settings_screen?"NO SETTINGS READ YET":"SETTINGS NOT AVAILABLE HERE");
  else{
@@ -829,41 +835,69 @@ static void utility_drag(struct xz_shell *u, struct ustate *s, const struct ulay
   s->value=clamp(s->value,s->value_scroll,s->value_scroll+l->value_rows-1);
  }
 }
-static void open_page(struct xz_shell *u, struct xz_shell_view *v, int t) {
- if(t!=u->mods_view.tab){u->mods_view.tab=t;*v=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};}
+/* A MENU tab asks the runtime for its root page whenever it becomes the open tab. */
+size_t sh_mods_opened(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
+ const struct xz_shell_mods_tab *tab=mods_tab(u,m);
+ u->menu_view.page=-1;
+ if(!tab||tab->kind!=XZ_SHELL_TAB_MENU)return n;
+ return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_MOD_MENU,-1,tab->page,XZ_SHELL_MENU_OPEN});
+}
+static size_t open_page(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_view *v, int t, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  u->mods_view.on_tabs=1;
+ if(t==u->mods_view.tab)return 0;
+ u->mods_view.tab=t;*v=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
+ return sh_mods_opened(u,m,out,0);
+}
+const struct xz_shell_mods_tab *sh_mods_tab(const struct xz_shell *u, const struct xz_shell_model *m) { return mods_tab(u,m); }
+void xz_shell_mods_show(struct xz_shell *u, const struct xz_shell_model *m, int tab) {
+ if(!u||!m||tab<0||tab>=tab_count(m)||u->depth<1||u->depth>XZ_SHELL_STACK)return;
+ int at=-1;
+ for(int i=0;i<u->depth;i++)if(u->stack[i].screen==XZ_SHELL_UTILITY)at=i;
+ memset(&u->panel,0,sizeof u->panel);u->grab.active=0;u->popup.kind=XZ_SHELL_POPUP_NONE;
+ if(at>=0)u->depth=at+1;
+ else{if(u->depth>=XZ_SHELL_STACK)return;u->depth++;}
+ u->stack[u->depth-1]=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
+ u->mods_view.tab=tab;u->mods_view.on_tabs=0;
+ u->menu_view.page=-1;
+}
+void xz_shell_mods_close(struct xz_shell *u) {
+ if(!u||u->depth<1||u->depth>XZ_SHELL_STACK)return;
+ for(int i=1;i<u->depth;i++)if(u->stack[i].screen==XZ_SHELL_UTILITY){u->depth=i;return;}
 }
 static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  struct xz_shell_view *v=&u->stack[u->depth-1];
  struct ulayout l;
  struct ustate s=settle(u,m,unpack(v),&l);
  size_t n=0;
+ const struct xz_shell_mods_tab *tab=mods_tab(u,m);
  if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON),e->x,e->y)){
-  pack(v,s);
+  if(!tab||tab->kind!=XZ_SHELL_TAB_MENU)pack(v,s);
   return sh_back(u,m,out);
  }
- const struct xz_shell_mods_tab *tab=mods_tab(u,m);
  /* The rail: a touch picks a page, a second touch on it enters; with the encoder on the rail, turn picks
     and push enters. */
  if(e->kind==XZ_SHELL_TOUCH_DOWN)for(int t=0;t<tab_count(m);t++)if(sh_inside(xz_shell_mods_tab_rect(u,m,t),e->x,e->y)){
   if(t==open_tab(u,m)&&u->mods_view.on_tabs){
    u->mods_view.on_tabs=0;
    if(!tab||tab->kind==XZ_SHELL_TAB_ITEMS){s.pane=PANE_ITEMS;pack(v,s);}
-  }else open_page(u,v,t);
-  return 0;
+   if(tab&&tab->kind==XZ_SHELL_TAB_MENU)return sh_menu_enter(u,m,tab,out);
+   return 0;
+  }
+  return open_page(u,m,v,t,out);
  }
  if(u->mods_view.on_tabs&&(e->kind==XZ_SHELL_ENCODER_TURN||e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_ENCODER_HOLD)){
   if(e->kind==XZ_SHELL_ENCODER_TURN){
    int t=sh_max(0,sh_min(tab_count(m)-1,open_tab(u,m)+e->delta));
-   if(t!=open_tab(u,m))open_page(u,v,t);
-   return 0;
+   return t!=open_tab(u,m)?open_page(u,m,v,t,out):0;
   }
   if(e->kind==XZ_SHELL_ENCODER_PUSH){
    u->mods_view.on_tabs=0;
    if(!tab||tab->kind==XZ_SHELL_TAB_ITEMS){s.pane=PANE_ITEMS;pack(v,s);}
+   if(tab&&tab->kind==XZ_SHELL_TAB_MENU)return sh_menu_enter(u,m,tab,out);
   }
   return 0;
  }
+ if(tab&&tab->kind==XZ_SHELL_TAB_MENU)return sh_menu_input(u,m,tab,e,out);
  if(tab&&tab->kind==XZ_SHELL_TAB_PAGE){
   int open=(e->kind==XZ_SHELL_ENCODER_PUSH)||(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(xz_shell_mods_page_button(),e->x,e->y));
   if(e->kind==XZ_SHELL_TOUCH_DOWN&&open)u->mods_view.on_tabs=0;
@@ -898,7 +932,11 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
  return n;
 }
 size_t sh_settings_back_step(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken) {
- (void)out;
+ *taken=0;
+ if(u->depth>=1&&u->depth<=XZ_SHELL_STACK&&xz_shell_screen(u)==XZ_SHELL_UTILITY&&!u->mods_view.on_tabs){
+  const struct xz_shell_mods_tab *tab=mods_tab(u,m);
+  if(tab&&tab->kind==XZ_SHELL_TAB_MENU){*taken=1;return sh_menu_back(u,m,tab,out);}
+ }
  *taken=xz_shell_settings_back(u,m);
  return 0;
 }
@@ -909,6 +947,7 @@ int xz_shell_settings_back(struct xz_shell *u, const struct xz_shell_model *m) {
  struct ulayout l;
  struct ustate s=settle(u,m,unpack(v),&l);
  const struct xz_shell_mods_tab *tab=mods_tab(u,m);
+ if(tab&&tab->kind==XZ_SHELL_TAB_MENU){struct xz_shell_action dropped[XZ_SHELL_ACTIONS];return sh_menu_back(u,m,tab,dropped),1;}
  if((tab&&tab->kind==XZ_SHELL_TAB_PAGE)||l.item<0||s.pane<=PANE_ITEMS){u->mods_view.on_tabs=1;return 1;}
  s.pane--;
  pack(v,s);
