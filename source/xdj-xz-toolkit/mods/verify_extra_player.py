@@ -2,7 +2,8 @@
 
 Usage: python mods/verify_extra_player.py --zig PATH/zig.exe [--no-wsl]
 Zig host build with UndefinedBehaviorSanitizer; then, when WSL is present, gcc with AddressSanitizer and
-UndefinedBehaviorSanitizer, and ThreadSanitizer, over the same test, and the copied USB transport test. A mutated back-cue
+UndefinedBehaviorSanitizer, and ThreadSanitizer, over the same test, the route connector test
+(test_extra_decks.c) and the copied USB transport test. A mutated back-cue
 rule must make the test fail. Pure host code with a fake transport; nothing touches a device.
 """
 import argparse
@@ -76,7 +77,7 @@ with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
     print('PASS assertion rejection')
 
     if args.no_wsl or not shutil.which('wsl'):
-        print('NOT RUN WSL AddressSanitizer (no WSL)')
+        print('NOT RUN WSL sanitizers and transport test (--no-wsl or no WSL)')
     else:
         gcc = ['wsl', '-d', 'Ubuntu', '--', 'gcc', '-O1', '-g', '-std=c11', '-Wall', '-Wextra', '-Werror',
                '-Wno-misleading-indentation', '-pthread', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
@@ -93,6 +94,12 @@ with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
         # Without ASLR: WSL kernels map memory where ThreadSanitizer refuses to start.
         subprocess.run(['wsl', '-d', 'Ubuntu', '--', 'setarch', 'x86_64', '-R', linux(tsan), linux(folder)], check=True)
         print('PASS WSL gcc ThreadSanitizer')
+        connector = folder / 'test-extra-decks'
+        subprocess.run(gcc + ['-DUSB_MAJOR=1', '-DPOLL_DOWN_MS=50', '-DPOLL_UP_MS=5', linux(ROOT / 'extra_decks.c'),
+                              *(linux(ROOT / s) for s in SOURCES), linux(ROOT / 'test_extra_decks.c'), '-lm',
+                              '-o', linux(connector)], check=True)
+        subprocess.run(['wsl', '-d', 'Ubuntu', '--', linux(connector)], check=True)
+        print('PASS route connector under AddressSanitizer')
         transport = folder / 'test-usb-transport'
         subprocess.run(gcc + [linux(ROOT / 'audio/usb_transport/tests/test_usb_transport.c'), '-o', linux(transport)],
                        check=True)
