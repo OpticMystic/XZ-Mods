@@ -173,6 +173,8 @@ static uint32_t followed_generation;
 static int inline_gesture_layout=XZ_STEM_LAYOUT_BELOW;
 static int inline_redraw_pending;
 static int inline_requested, inline_contact, inline_contact_deck, inline_wave_contact, inline_wave_deck, inline_cancelled;
+/* A contact that began on the four-deck surface keeps the lane order and lane it began on. */
+static int four_contact, four_contact_order, four_contact_deck;
 static uint32_t displayed_generation[2], reported_generation[2];
 static unsigned char overview[2][192];
 struct prepared_proof_deck { uint32_t state,rate,frames,mixed,missed; int32_t lag; float correlation; };
@@ -2086,7 +2088,11 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         if(status->y>=18&&status->y<159)ui.deck=inline_ui.deck=0;
         else if(status->y>=161&&status->y<302)ui.deck=inline_ui.deck=1;
     }
-    int active=!touch.visible&&!(model.fb_takeover&&model.connection.connected)&&xz_native_inline_active();
+    int stock_screen=!touch.visible&&!(model.fb_takeover&&model.connection.connected);
+    int active=stock_screen&&xz_native_inline_active();
+    int four=stock_screen?xz_native_four_order():-1;
+    /* A revoked layout retires native-lane mapping; a contact the mod owns stays owned until release. */
+    if(four<0&&four_contact&&four_contact_deck>=0&&four_contact_deck<2)four_contact=0;
     /* A resized/modal/browse scene owns raw coordinates. Retire only the wave
      * mapping; a captured mod control consumes its cancelled up event. */
     if(!active){
@@ -2099,7 +2105,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     struct xz_wave_layout geometry;
     if(!xz_wave_layout_get(model.stems_overlay,&geometry))xz_wave_layout_get(XZ_STEM_LAYOUT_HIDDEN,&geometry);
     int pressed_deck=xz_wave_layout_control_at(&geometry,(int)status->y-18);
-    if(active&&!inline_contact&&!previous_down&&status->down&&status->x>=131&&status->x<667&&pressed_deck>=0){
+    if(active&&four<0&&!inline_contact&&!previous_down&&status->down&&status->x>=131&&status->x<667&&pressed_deck>=0){
         inline_contact=1;inline_contact_deck=pressed_deck;inline_cancelled=0;inline_gesture_layout=model.stems_overlay;
     }
     int owned,pc_redraw=inline_contact&&model.deck[inline_contact_deck].pc_stems.source==XZ_UI_SOURCE_PC;
@@ -2116,24 +2122,40 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         if(!status->down){inline_contact=0;inline_cancelled=0;}
         owned=1;
     }else{
+        struct xz_four_layout four_geometry;
+        /* Stock never sees an owned contact, so its previous-down byte stays clear: four_contact,
+           not previous_down, says whether this contact already began. */
+        if(!previous_down&&status->down&&!four_contact){
+            four_contact=four>=0&&status->x>=131&&status->x<667&&status->y>=18&&status->y<18+XZ_WAVE_HEIGHT&&
+                xz_four_layout_get(four,&four_geometry);
+            four_contact_order=four;
+            if(four_contact)four_contact_deck=xz_four_layout_lane_at(&four_geometry,(int)status->y-18);
+        }
         if(!previous_down&&status->down){
             inline_wave_deck=xz_wave_layout_lane_at(&geometry,(int)status->y-18);
             inline_gesture_layout=model.stems_overlay;
-            inline_wave_contact=active&&status->x>=131&&status->x<667&&inline_wave_deck>=0;
+            inline_wave_contact=!four_contact&&active&&status->x>=131&&status->x<667&&inline_wave_deck>=0;
         }
         struct xz_touch_status mapped=*status;
-        if(inline_wave_contact&&(status->down||status->x||status->y)){
+        /* DECK 3/4 lanes and the gaps between lanes are mod surface: never a native deck touch. */
+        int four_owned=four_contact&&(four_contact_deck<0||four_contact_deck>=2);
+        if(four_contact&&!four_owned&&(status->down||status->x||status->y)&&xz_four_layout_get(four_contact_order,&four_geometry)){
+            int row=(int)mapped.y-18-(int)four_geometry.lane_y[four_contact_deck];
+            if(row<0)row=0;else if(row>=XZ_FOUR_LANE_HEIGHT)row=XZ_FOUR_LANE_HEIGHT-1;
+            mapped.y=18+xz_four_layout_source_row(&four_geometry,(unsigned)row+four_geometry.lane_y[four_contact_deck]);
+        }
+        else if(inline_wave_contact&&(status->down||status->x||status->y)){
             struct xz_wave_layout captured;xz_wave_layout_get(inline_gesture_layout,&captured);
             int row=(int)mapped.y-18-(int)captured.lane_y[inline_wave_deck];
             if(row<0)row=0;else if(row>=(int)captured.lane_height)row=(int)captured.lane_height-1;
             mapped.y=18+xz_wave_layout_source_row(&captured,(unsigned)row+captured.lane_y[inline_wave_deck]);
         }
         int was_visible=touch.visible;
-        owned=xz_native_touch_dispatch(&touch,self,&mapped,mode,stock_touch);
+        owned=four_owned||xz_native_touch_dispatch(&touch,self,&mapped,mode,stock_touch);
         /* Keep SDK app-session navigation; table editing stays in the browse header. */
         if(!was_visible&&touch.visible&&sdk_session.active&&ui.page!=XZ_UI_APPS_SETUP)
             xz_ui_navigate(&ui,XZ_UI_APPS);
-        if(!status->down)inline_wave_contact=0;
+        if(!status->down)inline_wave_contact=four_contact=0;
     }
     __atomic_store_n(&visible, touch.visible, __ATOMIC_RELEASE);
     inline_layout_publish();

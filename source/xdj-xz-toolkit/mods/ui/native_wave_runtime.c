@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: MIT */
+#define _GNU_SOURCE
 #include "native_wave_runtime.h"
+#include "extra_lane.h"
 #include "native_skin_runtime.h"
 #include "native_raw_skin.h"
 #include "layered_wave_runtime.h"
@@ -8,6 +10,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syscall.h>
+#include <time.h>
+#include <unistd.h>
 
 static int (*stock_lock)(void *,void **,int *);
 static int (*stock_unlock)(void *);
@@ -20,6 +25,12 @@ static _Thread_local struct {uintptr_t gr,hw,thread;uint16_t *pixels;int pitch,d
 static _Thread_local uint16_t footer_scratch[300*34];
 __attribute__((visibility("default"))) uint32_t xz_native_wave_skin_v1[4]={1};
 static int transformed, drawn_layout, observed, observe_only, focus_verified;
+/* Four decks: route_up from the draw thread's snapshot at the wave lock; four_drawn is the drawn
+   lane order + 1 after a successful four-deck frame, the geometry touches map against. */
+static int route_up, four_drawn;
+static _Thread_local struct xz_extra_decks extra;
+static _Thread_local struct xz_extra_lane_marks extra_marks[XZ_EXTRA_DECKS];
+static _Thread_local uint8_t four_keep[XZ_FOUR_KEEP_BYTES];
 struct xz_inline_proof { uint32_t version,captures,frames,skipped; };
 __attribute__((visibility("default"))) struct xz_inline_proof xz_inline_proof_v1={1,0,0,0};
 
@@ -40,12 +51,18 @@ static int play_scene(struct xz_native_wave_scene *s){
     return xz_native_wave_scene_valid(s);
 }
 static int scene(struct xz_native_wave_scene *s){
- return ((requested&&requested())||xz_mods_native_style_v1()||xz_layered_wave_active())&&play_scene(s);
+ return ((requested&&requested())||xz_mods_native_style_v1()||xz_layered_wave_active()||
+         __atomic_load_n(&route_up,__ATOMIC_ACQUIRE))&&play_scene(s);
 }
 int xz_native_play_visible(void){
  uint32_t table,controls,index;
  return !word(0x3eba54c,&table)&&table==0x4d200c&&!word(0x3eba548,&controls)&&controls==0x4d1f30&&
         !word(0x3c6fc7c,&index)&&index==2;
+}
+int xz_native_four_order(void){
+    struct xz_native_wave_scene current;
+    if(!scene(&current)){__atomic_store_n(&four_drawn,0,__ATOMIC_RELEASE);return -1;}
+    return __atomic_load_n(&four_drawn,__ATOMIC_ACQUIRE)-1;
 }
 int xz_native_focus_deck(void){
     uint32_t deck;
@@ -69,6 +86,7 @@ static int lock_hook(void *window,void **pixels,int *pitch){
             footer.gr=(uintptr_t)window;footer.hw=values[7];footer.thread=(uintptr_t)pthread_self();footer.pixels=*pixels;footer.pitch=*pitch;footer.deck=(int32_t)values[12]>=400;
         }else __atomic_fetch_add(&xz_native_wave_skin_v1[3],1,__ATOMIC_RELAXED);
     }
+    if(result==0&&caller==0x1fd058)__atomic_store_n(&route_up,xz_extra_decks_snapshot(&extra)!=0,__ATOMIC_RELEASE);
     struct xz_native_wave_scene current;
     if(result==0&&caller==0x1fd058&&scene(&current)&&current.gr==(uintptr_t)window&&pixels&&pitch&&
        xz_native_wave_capture(&pair,&current,caller,(uintptr_t)pthread_self(),*pixels,*pitch)){
@@ -84,6 +102,31 @@ static void style_main_wave(uint16_t *pixels,uint32_t count){
  xz_layered_wave_protect(pixels);
  xz_native_skin_wave_pixels(pixels,536,268,-1);
  xz_layered_wave_restore(pixels);
+}
+/* The raw syscall, as shell_runtime.c: clock_gettime is GLIBC_2.17 and librt is not an allowed dependency. */
+static uint32_t monotonic_ms(void){
+ struct timespec t;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return 0;
+ return (uint32_t)((uint64_t)t.tv_sec*1000u+(uint64_t)t.tv_nsec/1000000u);
+}
+static void draw_extra(uint16_t *pixels,uint32_t count){
+ struct xz_four_layout g;xz_four_layout_get(XZ_FOUR_ORDER,&g);
+ struct xz_extra_lane_view view={monotonic_ms(),0,1,0};
+ xz_layered_wave_view(&view.column_us,&view.background);
+ if(!view.column_us)view.background=1;
+ for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
+  view.lit=i?extra.right_on_4:extra.left_on_3;
+  xz_extra_lane_draw(pixels,536,count,g.lane_y[2+i],3+i,&extra.deck[i],&view,&extra_marks[i]);
+ }
+}
+static void style_four(uint16_t *pixels,uint32_t count){
+ if(count!=XZ_NATIVE_WAVE_PIXELS)return;
+ struct xz_four_layout g;xz_four_layout_get(XZ_FOUR_ORDER,&g);
+ struct xz_four_marks m;memset(&m,0,sizeof(m));
+ for(unsigned d=0;d<2;d++)m.col[d]=xz_layered_wave_drawn(d,&m.look[d]);
+ for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){m.look[2+i]=extra_marks[i].look;m.col[2+i]=extra_marks[i].col;}
+ xz_four_protect(&g,&m,pixels,four_keep);
+ xz_native_skin_wave_pixels(pixels,536,268,-1);
+ xz_four_restore(&g,&m,pixels,four_keep);
 }
 static int unlock_hook(void *window){
     xz_native_raw_skin_before_unlock(window);
@@ -103,14 +146,19 @@ static int unlock_hook(void *window){
     if(pair.captured&&pair.scene.hw==(uintptr_t)window){
         xz_layered_wave_end();
         struct xz_native_wave_scene current;int drawn=0;
-        int inline_rows=requested?requested():XZ_STEM_LAYOUT_HIDDEN;
+        /* Four decks hide the stem rows; the saved layout returns on the first frame after. */
+        int four=__atomic_load_n(&route_up,__ATOMIC_ACQUIRE);
+        int inline_rows=four||!requested?XZ_STEM_LAYOUT_HIDDEN:requested();
         if(scene(&current)&&!observe_only){
-            drawn=xz_native_wave_finish_styled(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
+            if(four)drawn=xz_native_wave_finish_four(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
+                scratch,XZ_NATIVE_WAVE_PIXELS,XZ_FOUR_ORDER,draw_extra,xz_mods_native_style_v1()?style_four:NULL);
+            else drawn=xz_native_wave_finish_styled(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,xz_mods_native_style_v1()?style_main_wave:NULL,inline_rows);
             if(drawn&&xz_mods_native_style_v1())__atomic_fetch_add(&xz_native_wave_skin_v1[1],1,__ATOMIC_RELAXED);
         }
         else xz_native_wave_reset(&pair);
         __atomic_store_n(&drawn_layout,drawn?inline_rows:0,__ATOMIC_RELEASE);
+        __atomic_store_n(&four_drawn,drawn&&four?XZ_FOUR_ORDER+1:0,__ATOMIC_RELEASE);
         __atomic_store_n(&transformed,drawn&&inline_rows,__ATOMIC_RELEASE);
         if(drawn)__atomic_fetch_add(&xz_inline_proof_v1.frames,1,__ATOMIC_RELAXED);
         else __atomic_fetch_add(&xz_inline_proof_v1.skipped,1,__ATOMIC_RELAXED);

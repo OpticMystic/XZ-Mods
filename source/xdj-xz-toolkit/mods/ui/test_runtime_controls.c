@@ -32,6 +32,8 @@ void xz_native_skin_stop(void){}
 int xz_native_focus_deck(void){return fixture_focus;}
 int xz_native_play_visible(void){return native_play;}
 int xz_native_inline_active(void){return native_active;}
+static int native_four=-1;
+int xz_native_four_order(void){return native_four;}
 int xz_native_inline_start(int(*on)(void),xz_native_wave_render draw,void *context){(void)on;(void)draw;(void)context;return 0;}
 int xz_hook_arm(uint32_t a,const unsigned char g[8],void *r,void **o){(void)a;(void)g;(void)r;(void)o;return 0;}
 int xz_native_led_start(void){return 0;}
@@ -200,6 +202,25 @@ int main(void){
     contact(self,200,180,1);assert(last_stock.y==18+xz_wave_layout_source_row(&default_geometry,83));contact(self,200,180,0);
     contact(self,200,180,1);assert(last_stock.y==18+xz_wave_layout_source_row(&default_geometry,162));
     contact(self,200,130,1);assert(last_stock.y==18+xz_wave_layout_source_row(&default_geometry,132));contact(self,200,130,0);
+    {
+        /* Four decks: native lanes map back to their own rows; DECK 3/4 lanes and gaps never reach stock. */
+        struct xz_four_layout fg;assert(xz_four_layout_get(XZ_FOUR_INTERLEAVED,&fg));
+        native_active=0;native_four=XZ_FOUR_INTERLEAVED;int before=stock_calls;
+        contact(self,300,18+fg.lane_y[0]+30,1);
+        assert(stock_calls==before+1&&last_stock.x==300&&last_stock.y==18+xz_four_layout_source_row(&fg,fg.lane_y[0]+30));
+        contact(self,320,18+fg.lane_y[2]+5,1);
+        assert(last_stock.x==320&&last_stock.y==18+xz_four_layout_source_row(&fg,fg.lane_y[0]+XZ_FOUR_LANE_HEIGHT-1));
+        contact(self,320,18+fg.lane_y[2]+5,0);
+        contact(self,300,18+fg.lane_y[1]+40,1);assert(last_stock.y==18+xz_four_layout_source_row(&fg,fg.lane_y[1]+40)&&last_stock.y>=18+136);
+        contact(self,300,18+fg.lane_y[1]+40,0);
+        before=stock_calls;
+        contact(self,300,18+fg.lane_y[2]+20,1);contact(self,300,18+fg.lane_y[0]+20,1);contact(self,300,18+fg.lane_y[0]+20,0);
+        contact(self,300,18+XZ_FOUR_LANE_HEIGHT+1,1);contact(self,300,18+XZ_FOUR_LANE_HEIGHT+1,0);
+        contact(self,300,18+fg.lane_y[3]+10,1);native_four=-1;contact(self,300,18+fg.lane_y[3]+10,0);
+        assert(stock_calls==before);
+        native_four=XZ_FOUR_INTERLEAVED;contact(self,700,200,1);assert(stock_calls==before+1&&last_stock.y==200);contact(self,700,200,0);
+        native_four=-1;native_active=1;
+    }
     contact(self,200,260,1);fixture_generation++;contact(self,650,260,1);
     assert(model.deck[1].levels[2]==1&&inline_cancelled&&!inline_ui.down);
     contact(self,650,260,0);assert(!inline_contact);
