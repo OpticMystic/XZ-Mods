@@ -61,6 +61,9 @@ enum xz_shell_touch_result { XZ_SHELL_TOUCH_TO_STOCK, XZ_SHELL_TOUCH_TAKEN, XZ_S
 int xz_shell_runtime_touch(int eligible, int theme, int x, int y, int down, int stock_down);
 /* IKeyManager::onKey input: code at +8, channel at +0xa, op = low nibble of +0xb. 1 = swallow. */
 int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channel, unsigned op);
+/* LOAD of a side whose controls drive DECK 3 / 4 (side 0 left, 1 right), decided by runtime.c's deck select:
+   the press loads the highlighted row to that player. 1 when the shell owns the screen and took it. */
+int xz_shell_runtime_extra_load_key(int eligible, int theme, int side);
 int xz_shell_runtime_encoder_turn(int eligible, int theme, int delta);
 /* UiKey_EncoderPush entry words: flags (+0) and state (+8). */
 int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint32_t state);
