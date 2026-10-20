@@ -20,6 +20,7 @@
 #define XZ_DS_PICKUP_SLACK 50       /* tempo positions (0.5 % of half travel) that count as reached */
 #define XZ_DS_KEY_SHIFT 0x4103u
 #define XZ_DS_KEY_TEMPO 0x410au
+#define XZ_DS_KEY_LOAD 0x430fu
 #define XZ_DS_OP_JOG 4u
 #define XZ_DS_OP_FADER 5u
 
@@ -33,6 +34,10 @@ enum xz_ds_phase {
 enum xz_ds_target { XZ_DS_NATIVE, XZ_DS_EXTRA };
 
 struct xz_ds_pickup { int armed, have_prev; int32_t target, prev; };
+/* Where a LOAD pressed on a switched side went, decided by the caller at the press (xz_deck_select_load_route):
+   swallowed, to the FLAGSHIP shell (it loads its highlighted row to the side's software deck), or on to stock
+   (the classic interface's one-shot divert sends stock's own load to the software deck). */
+enum xz_ds_load_route { XZ_DS_LOAD_SWALLOW, XZ_DS_LOAD_SHELL, XZ_DS_LOAD_STOCK };
 /* Arms a pickup toward target from where the fader is now (if known). Already there: not armed. */
 void xz_ds_pickup_arm(struct xz_ds_pickup *, int32_t target, int physical_known, int32_t physical);
 /* One fader position. 1 once the fader has reached the target: deliver this and every later position. */
@@ -47,6 +52,8 @@ struct xz_ds_side {
  int held_known[2]; int32_t held[2];  /* by target: the tempo position that deck keeps */
  struct xz_ds_pickup pickup;          /* toward held[target] */
  uint64_t owner[2];                   /* by target: buttons down whose press that deck received */
+ int load_down;                       /* a LOAD press went to the software deck; hold and release follow load */
+ enum xz_ds_load_route load;
 };
 struct xz_deck_select {
  int route_up;
@@ -70,8 +77,13 @@ enum xz_ds_verdict {
  XZ_DS_PASS,                          /* stock handles it, as without this module */
  XZ_DS_DELIVER,                       /* taken from stock; event goes to the side's software deck */
  XZ_DS_SWALLOW,                       /* taken from stock; nothing receives it */
+ XZ_DS_LOAD,                          /* LOAD press of a switched side (GLOBAL path): event.deck is the side. The caller
+                                         answers with xz_deck_select_load_route; until it does the press is swallowed */
 };
 enum xz_ds_notice { XZ_DS_NOTICE_NONE, XZ_DS_NOTICE_NO_ROUTE };
+#define XZ_DS_NO_ROUTE_TEXT "DECK 3 AND 4 NEED THE CH3/CH4 ROUTE"
+/* LOAD on a switched side that neither the FLAGSHIP shell nor the classic divert can take. */
+#define XZ_DS_LOAD_REFUSED_TEXT "LOAD DECK 3/4 FROM THE FLAGSHIP SCREEN"
 struct xz_ds_outcome {
  enum xz_ds_verdict verdict;
  struct xz_extra_deck_event event;    /* when DELIVER */
@@ -95,7 +107,12 @@ void xz_deck_select_route(struct xz_deck_select *, int route_up);
 void xz_deck_select_shift(struct xz_deck_select *, int side, int down, uint32_t now_ms, struct xz_ds_outcome *);
 struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *, const struct xz_ds_key *, uint32_t now_ms);
 /* A key at the IKeyManager::onKey hook (channel +0xa, 1/2 for the deck sections). Feeds SHIFT edges and
-   takes GLOBAL-path keys of a switched side; everything else passes untouched. */
+   takes GLOBAL-path keys of a switched side; everything else passes untouched. LOAD's press on a switched
+   side is XZ_DS_LOAD; its hold and release follow the route the caller gave the press (SHELL and SWALLOW:
+   swallowed, STOCK: passed). A LOAD whose press reached stock keeps reaching stock to its release. */
 struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *, unsigned channel, uint16_t code,
  unsigned op, uint32_t now_ms);
+void xz_deck_select_load_route(struct xz_deck_select *, int side, enum xz_ds_load_route);
+/* SHORTCUT DECK SELECT: the same switch as SHIFT pressed twice, with the same notice while the route is down. */
+void xz_deck_select_toggle(struct xz_deck_select *, int side, struct xz_ds_outcome *);
 #endif

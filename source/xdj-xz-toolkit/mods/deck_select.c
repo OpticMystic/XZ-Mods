@@ -40,10 +40,12 @@ static const struct xz_ds_row rows[] = {
  ROW(0x4312, 0x4312, SWALLOW, PLAYER, NONE),
  ROW(0x4324, 0x4325, SWALLOW, PLAYER, NONE),
  ROW(0x4212, 0x4213, SWALLOW, PLAYER, NONE),
- /* LOAD 1 / LOAD 2 (channel 1/2): the track comes from the browser, which delivers XZ_EXTRA_IN_LOAD
-    itself. Stock and the shell's native load never see it, or DECK 1 would load what was meant for 3.
+ /* LOAD 1 / LOAD 2 (channel 1/2): the track comes from the browser on screen, so the press is the
+    caller's (XZ_DS_LOAD): the FLAGSHIP shell loads its highlighted row to the side's software deck, or the
+    classic interface arms its one-shot divert and the key goes on to stock, whose own load the divert
+    sends to DECK 3 / 4. Neither: swallowed, or DECK 1 would load what was meant for 3.
     TIME MODE / AUTO CUE and QUANTIZE: native deck display and quantize state. */
- ROW(0x430f, 0x430f, SWALLOW, GLOBAL, NONE),
+ ROW(0x430f, 0x430f, SWALLOW, GLOBAL, XZ_EXTRA_IN_LOAD),
  ROW(0x430b, 0x430c, SWALLOW, GLOBAL, NONE),
 };
 
@@ -125,6 +127,18 @@ void xz_deck_select_shift(struct xz_deck_select *d, int side, int down, uint32_t
  }
  /* Idle, or released too long ago: this press starts a new count. A press already down repeats. */
  if(s->phase == XZ_DS_IDLE || s->phase == XZ_DS_RELEASED) { s->phase = XZ_DS_DOWN_ONCE; s->first_down_ms = now; }
+}
+
+void xz_deck_select_toggle(struct xz_deck_select *d, int side, struct xz_ds_outcome *out) {
+ if(!d||side<0||side>1)return;
+ if(!d->route_up){if(out)out->notice=XZ_DS_NOTICE_NO_ROUTE;return;}
+ struct xz_ds_side *s=&d->side[side];
+ switch_to(s, s->target == XZ_DS_NATIVE ? XZ_DS_EXTRA : XZ_DS_NATIVE);
+ if(out)out->toggled=1;
+}
+
+void xz_deck_select_load_route(struct xz_deck_select *d, int side, enum xz_ds_load_route route) {
+ if(d&&side>=0&&side<=1&&d->side[side].load_down)d->side[side].load=route;
 }
 
 /* Any other event on the side: SHIFT held is now a modifier; a pending double press is broken. */
@@ -243,8 +257,26 @@ struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *d, unsigne
   return out;
  }
  const struct xz_ds_row *row = xz_ds_row_for(code, NULL);
- if(row && row->path == XZ_DS_PATH_GLOBAL && d->side[side].target == XZ_DS_EXTRA) {
-  other_key(&d->side[side]);
+ struct xz_ds_side *s = &d->side[side];
+ if(row && row->kind == XZ_EXTRA_IN_LOAD) {
+  if(op == 0) {
+   s->load_down = s->target == XZ_DS_EXTRA;
+   s->load = XZ_DS_LOAD_SWALLOW;
+   if(!s->load_down) return out;
+   other_key(s);
+   out.verdict = XZ_DS_LOAD;
+   out.event.deck = side;
+   out.event.kind = XZ_EXTRA_IN_LOAD;
+   out.event.pressed = 1;
+   return out;
+  }
+  if(!s->load_down) return out;
+  out.verdict = s->load == XZ_DS_LOAD_STOCK ? XZ_DS_PASS : XZ_DS_SWALLOW;
+  if(op == 2 || op == 3) s->load_down = 0;
+  return out;
+ }
+ if(row && row->path == XZ_DS_PATH_GLOBAL && s->target == XZ_DS_EXTRA) {
+  other_key(s);
   out.verdict = XZ_DS_SWALLOW;
  }
  return out;
