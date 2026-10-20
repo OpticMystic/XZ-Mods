@@ -643,10 +643,188 @@ static void library(const char *path) {
  puts("PASS TAG LIST, played marks and deleted histories in the sidecar; TAG LIST screen, HISTORY filtering, playlist from tags");
 }
 
+/* DECK 3 / DECK 4: snapshot -> model, capabilities, action routing, notices, the active deck after a side
+   switch, the resolver's row copy and the column binning. */
+static struct xz_extra_column extra_cols[300];
+static struct xz_extra_beat extra_beats[16];
+static struct xz_shell_column extra_scroll[300], extra_overview[64];
+static struct xz_shell_beat extra_grid[16];
+static void extra_snapshot(struct xz_extra_decks *s) {
+ memset(s,0,sizeof *s);
+ s->route_up=1;s->left_on_3=1;
+ for(int i=0;i<XZ_EXTRA_DECKS;i++){
+  struct xz_extra_deck *d=&s->deck[i];
+  d->known=(1u<<XZ_EXTRA_FIELD_COUNT)-1u;
+  d->loaded=1;snprintf(d->title,sizeof d->title,"Extra %d",i+3);snprintf(d->artist,sizeof d->artist,"Artist %d",i+3);
+  d->source=i+1;d->elapsed_ms=60000;d->total_ms=300000;d->elapsed_at_ms=9900;d->playing=i==1;
+  d->bpm_x100=12000;d->track_bpm_x100=12000;d->tempo_x100=0;d->master=0;snprintf(d->key,sizeof d->key,"%s",i?"8A":"Fm");
+  d->cue_ms=1000;d->hot_cue[2]=(struct xz_extra_cue){1,4000,0x20c8ff};
+  d->loop.active=1;d->loop.in_ms=8000;d->loop.out_ms=12000;   /* 8 beats at 120 BPM */
+  d->grid=extra_beats;d->grid_count=16;
+  d->wave=(struct xz_extra_wave){extra_cols,300,2000,0};
+ }
+ s->deck[1].loop.out_ms=8125;                                 /* a quarter beat */
+}
+static void extra_decks(void) {
+ struct xz_shell_model m;struct xz_extra_decks s;struct xz_extra_deck_event e;
+ struct xz_shrt_extra_parts parts[XZ_EXTRA_DECKS];memset(parts,0,sizeof parts);
+ fx_model_full(&m,&track);
+ /* Route down: exactly the two-deck model, whatever was in decks 2 and 3. */
+ struct xz_shell_model two=m;
+ memset(&m.deck[2],0x5a,sizeof m.deck[2]);m.deck_count=4;m.sides_extra=3;
+ memset(&s,0,sizeof s);
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ two.deck_count=XZ_SHELL_NATIVE_DECKS;
+ assert(!memcmp(&m,&two,sizeof m));
+ xz_shrt_extra_map(&m,NULL,parts,500000,10000);
+ assert(!memcmp(&m,&two,sizeof m));
+ /* Route up. */
+ extra_snapshot(&s);
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)parts[i]=(struct xz_shrt_extra_parts){extra_scroll,extra_overview,300,64,2000,extra_grid,16};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck_count==4&&m.sides_extra==1&&!memcmp(&m.deck[0],&two.deck[0],sizeof m.deck[0]));
+ for(int d=2;d<4;d++){
+  const struct xz_shell_deck *k=&m.deck[d];
+  uint64_t want=XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED)|XZ_SHELL_KNOWN(XZ_SHELL_F_TITLE)|XZ_SHELL_KNOWN(XZ_SHELL_F_ARTIST)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_ELAPSED)|XZ_SHELL_KNOWN(XZ_SHELL_F_TOTAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_PLAYING)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_BPM)|XZ_SHELL_KNOWN(XZ_SHELL_F_TRACK_BPM)|XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO)|XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_KEY)|XZ_SHELL_KNOWN(XZ_SHELL_F_CUE_POINT)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUES)|XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)|
+   XZ_SHELL_KNOWN(XZ_SHELL_F_GRID)|XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_OVERVIEW);
+  assert(k->known==want);
+  assert(k->title==s.deck[d-2].title&&!strcmp(k->title,d==2?"Extra 3":"Extra 4")&&k->artist==s.deck[d-2].artist&&k->key==s.deck[d-2].key);
+  assert(k->source==(d==2?XZ_SHELL_SRC_USB1:XZ_SHELL_SRC_USB2)&&k->loaded&&k->playing==(d==3));
+  /* elapsed_at_ms: 100 ms before mono_now becomes 100 ms before the model clock. */
+  assert(k->elapsed_ms==60000&&k->elapsed_at_ms==499900&&k->total_ms==300000);
+  assert(k->bpm_x100==12000&&k->track_bpm_x100==12000&&k->cue_ms==1000);
+  assert(k->hot_cue[2].set&&k->hot_cue[2].ms==4000&&k->hot_cue[2].rgb==0x20c8ff&&!k->hot_cue[2].is_loop&&!k->hot_cue[0].set);
+  assert(k->grid==extra_grid&&k->grid_count==16&&k->wave.columns==extra_scroll&&k->wave.count==300&&k->wave.span_ms==2000);
+  assert(k->overview.columns==extra_overview&&k->overview.count==64&&!k->caps_off);
+ }
+ assert(m.deck[2].loop.active&&m.deck[2].loop.beats_num==8&&m.deck[2].loop.beats_den==1);
+ assert(m.deck[3].loop.beats_num==1&&m.deck[3].loop.beats_den==4);
+ /* Unknown bits stay clear; a stale, future or missing stamp is not extrapolated; no parts, no wave. */
+ s.deck[0].known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_ELAPSED)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_LOOP);s.deck[0].elapsed_at_ms=10001;
+ s.deck[1].elapsed_at_ms=0;s.deck[1].source=7;
+ memset(&parts[1],0,sizeof parts[1]);
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].known==(XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED)|XZ_SHELL_KNOWN(XZ_SHELL_F_ELAPSED)|XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)));
+ assert(m.deck[2].elapsed_at_ms==0&&m.deck[2].loop.beats_num==0&&!m.deck[2].title);
+ assert(m.deck[3].elapsed_at_ms==0&&!(m.deck[3].known&(XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_GRID))));
+ s.deck[0].elapsed_at_ms=10000-61000;xz_shrt_extra_map(&m,&s,parts,500000,10000);assert(m.deck[2].elapsed_at_ms==0);
+ s.deck[0].elapsed_at_ms=10000;xz_shrt_extra_map(&m,&s,parts,0,10000);assert(m.deck[2].elapsed_at_ms==1);
+ /* Up, down, up again: down is the two-deck model each time. */
+ extra_snapshot(&s);
+ for(int flip=0;flip<4;flip++){
+  s.route_up=flip&1?0:1;
+  xz_shrt_extra_map(&m,&s,parts,500000,10000);
+  assert(m.deck_count==(s.route_up?4:2)&&(s.route_up||(!m.deck[2].known&&!m.deck[3].known&&!m.sides_extra)));
+ }
+ /* Capabilities. Two decks: LOAD when the native decks load, nothing off. */
+ fx_model_full(&m,&track);m.deck_count=2;
+ assert(xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SEEK,1,1,1)==(XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD));
+ for(int d=0;d<4;d++)assert(!m.deck[d].caps_off);
+ assert(xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,0,1,1)==XZ_SHELL_CAP_BROWSE);
+ extra_snapshot(&s);xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ uint32_t caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_GRID|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_SET_SETTING,1,1,1);
+ assert(caps&XZ_SHELL_CAP_SEEK&&caps&XZ_SHELL_CAP_LOAD&&caps&XZ_SHELL_CAP_DECK_SELECT&&m.capabilities==caps);
+ assert(m.deck[0].caps_off==XZ_SHELL_CAP_SEEK&&m.deck[1].caps_off==XZ_SHELL_CAP_SEEK);
+ for(int d=2;d<4;d++){
+  uint32_t on=caps&~m.deck[d].caps_off;
+  assert(on&XZ_SHELL_CAP_LOAD&&on&XZ_SHELL_CAP_SEEK&&!(on&(XZ_SHRT_DECK_CAPS&~(uint32_t)XZ_SHRT_EXTRA_CAPS))&&on&XZ_SHELL_CAP_BROWSE);
+ }
+ caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,0,1,0);
+ assert(caps&XZ_SHELL_CAP_LOAD&&!(caps&XZ_SHELL_CAP_DECK_SELECT)&&m.deck[0].caps_off&XZ_SHELL_CAP_LOAD&&!(m.deck[2].caps_off&XZ_SHELL_CAP_LOAD));
+ caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,1,0,1);
+ assert(caps&XZ_SHELL_CAP_LOAD&&m.deck[3].caps_off&XZ_SHELL_CAP_LOAD&&!(m.deck[1].caps_off&XZ_SHELL_CAP_LOAD));
+ caps=xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,0,0,1);assert(!(caps&XZ_SHELL_CAP_LOAD));
+ /* Actions. */
+ xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_GRID|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_SET_SETTING,1,1,1);
+ struct xz_shell_action a={XZ_SHELL_ACT_LOAD,2,0,77};
+ assert(xz_shrt_extra_action(&m,&a,1,&e)==XZ_SHRT_EXTRA_INPUT&&e.deck==0&&e.kind==XZ_EXTRA_IN_LOAD&&e.pressed&&e.load.source==2&&e.load.track_id==77);
+ assert(xz_shrt_extra_action(&m,&a,-1,&e)==XZ_SHRT_EXTRA_REFUSE);
+ a.id=0;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);a.id=77;
+ a.deck=1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
+ a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,3,123456,0};
+ assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_INPUT&&e.deck==1&&e.kind==XZ_EXTRA_IN_SEEK&&e.seek_ms==123456);
+ a.value=-1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+ a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,0,1000,0};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
+ static const enum xz_shell_action_kind refused[]={XZ_SHELL_ACT_GRID_ADJUST,XZ_SHELL_ACT_SET_SETTING,XZ_SHELL_ACT_TAG_TRACK,
+  XZ_SHELL_ACT_STEM_MUTE,XZ_SHELL_ACT_STEM_GAIN,XZ_SHELL_ACT_LOAD_CUE,XZ_SHELL_ACT_GRID_EDIT};
+ for(size_t i=0;i<sizeof refused/sizeof *refused;i++)for(int d=2;d<4;d++){
+  a=(struct xz_shell_action){refused[i],d,1,1};
+  assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+  a.deck=d-2;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
+ }
+ static const enum xz_shell_action_kind other[]={XZ_SHELL_ACT_ZOOM,XZ_SHELL_ACT_ACTIVE_DECK,XZ_SHELL_ACT_INFO_JUMP,XZ_SHELL_ACT_DECK_SELECT,XZ_SHELL_ACT_BROWSE};
+ for(size_t i=0;i<sizeof other/sizeof *other;i++){a=(struct xz_shell_action){other[i],2,0,0};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);}
+ /* LOAD switched off for the players, or a two-deck model: refused. */
+ xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,1,0,1);
+ a=(struct xz_shell_action){XZ_SHELL_ACT_LOAD,2,0,77};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+ m.deck_count=2;xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,1,1,1);assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+ /* End to end through the shell: the mapped model's needle search on DECK 4 becomes a player SEEK, DECK 1's
+    overview stays dark, and LOAD from a list reaches DECK 3. */
+ extra_snapshot(&s);
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)parts[i]=(struct xz_shrt_extra_parts){extra_scroll,extra_overview,300,64,2000,extra_grid,16};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ xz_shrt_extra_caps(&m,XZ_SHELL_CAP_BROWSE,1,1,1);
+ {
+  struct xz_shell u;struct xz_shell_action out[XZ_SHELL_ACTIONS];xz_shell_init(&u);
+  for(int d=0;d<4;d++){
+   struct xz_shell_rect ov=xz_shell_play_rect(&m,XZ_SHELL_R_OVERVIEW,d);
+   struct xz_shell_event down={XZ_SHELL_TOUCH_DOWN,ov.x+ov.w/2,ov.y+ov.h/2,0,0,-1},up=down;up.kind=XZ_SHELL_TOUCH_UP;
+   size_t n=xz_shell_input(&u,&m,&down,out);xz_shell_input(&u,&m,&up,out+n);
+   if(d<2)assert(n==0);
+   else{
+    assert(n==1&&out[0].kind==XZ_SHELL_ACT_SEEK&&out[0].deck==d);
+    assert(xz_shrt_extra_action(&m,&out[0],0,&e)==XZ_SHRT_EXTRA_INPUT&&e.kind==XZ_EXTRA_IN_SEEK&&e.deck==d-2&&e.seek_ms==out[0].value);
+   }
+  }
+  static uint16_t pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];
+  assert(xz_shell_render(&u,&m,pixels,XZ_SHELL_WIDTH));
+ }
+ /* Notices: once per notice_seq, only while fresh, never empty. */
+ uint32_t seen=0;memset(&s,0,sizeof s);
+ assert(!xz_shrt_extra_notice(&seen,&s,5000));
+ snprintf(s.notice,sizeof s.notice,"TRACK NOT FOUND");s.notice_seq=1;s.notice_at_ms=4000;
+ assert(xz_shrt_extra_notice(&seen,&s,5000)&&seen==1&&!xz_shrt_extra_notice(&seen,&s,5000));
+ s.notice_seq=2;s.notice_at_ms=1000;assert(!xz_shrt_extra_notice(&seen,&s,1000+XZ_SHELL_NOTICE_MS)&&seen==2);
+ s.notice_seq=3;s.notice[0]=0;assert(!xz_shrt_extra_notice(&seen,&s,1000));
+ assert(!xz_shrt_extra_notice(&seen,NULL,1000));
+ /* The active deck follows a side that switched. */
+ assert(xz_shrt_extra_active_deck(0,0,1)==2&&xz_shrt_extra_active_deck(2,1,0)==0);
+ assert(xz_shrt_extra_active_deck(1,0,2)==3&&xz_shrt_extra_active_deck(3,2,0)==1);
+ assert(xz_shrt_extra_active_deck(0,0,2)==3&&xz_shrt_extra_active_deck(1,1,0)==0);
+ assert(xz_shrt_extra_active_deck(3,3,0)==1&&xz_shrt_extra_active_deck(2,3,0)==0&&xz_shrt_extra_active_deck(0,0,3)==2);
+ assert(xz_shrt_extra_active_deck(2,1,1)==2&&xz_shrt_extra_active_deck(1,0,0)==1);
+ /* The resolver's row copy. */
+ struct xz_extra_track t;
+ assert(!xz_shrt_extra_track(&t,2,99,"/media/usb2/sda1","/Contents/A/b.mp3","Title","Artist","Fm",12850));
+ assert(t.source==2&&t.track_id==99&&!strcmp(t.path,"/media/usb2/sda1/Contents/A/b.mp3")&&!strcmp(t.title,"Title")&&
+  !strcmp(t.artist,"Artist")&&!strcmp(t.key,"Fm")&&t.track_bpm_x100==12850&&!t.anlz_dir[0]);
+ assert(!xz_shrt_extra_track(&t,1,1,"/r","/x",NULL,NULL,"10Am-long",0xffffffffu)&&!t.title[0]&&!strcmp(t.key,"10Am-lo")&&t.track_bpm_x100==0);
+ char longer[200];memset(longer,'a',sizeof longer);
+ for(int i=0;i<60;i++){longer[i*2+4]=(char)0xc3;longer[i*2+5]=(char)0xa9;}
+ longer[sizeof longer-1]=0;
+ assert(!xz_shrt_extra_track(&t,1,1,"/r","/x",longer,NULL,NULL,0)&&strlen(t.title)==XZ_EXTRA_TEXT-2&&((unsigned char)t.title[XZ_EXTRA_TEXT-3]==0xa9));
+ assert(xz_shrt_extra_track(&t,1,1,"/r","",NULL,NULL,NULL,0)==-1&&xz_shrt_extra_track(&t,1,1,"/r",NULL,NULL,NULL,NULL,0)==-1);
+ char deep[1100];memset(deep,'d',sizeof deep);deep[0]='/';deep[sizeof deep-1]=0;
+ assert(xz_shrt_extra_track(&t,1,1,"/r",deep,NULL,NULL,NULL,0)==-1);
+ /* Columns: the percentile peak becomes full height, bins keep each band's peak. */
+ static uint8_t bands[1000*3];
+ for(int i=0;i<1000;i++){bands[i*3]=(uint8_t)(i%100);bands[i*3+1]=10;bands[i*3+2]=(uint8_t)(i==500?255:0);}
+ uint32_t peak=xz_shrt_band_peak(bands,1000);assert(peak==99);
+ struct xz_shell_column cols[64];
+ assert(xz_shrt_bin_columns(bands,1000,peak,cols,64)==64);
+ assert(cols[6].low==255&&cols[0].mid==10*255/99&&cols[32].high==255&&cols[1].high==0);
+ assert(xz_shrt_bin_columns(bands,10,0,cols,64)==10&&cols[9].low==255);
+ assert(xz_shrt_band_peak(bands,0)==1);
+ puts("PASS four decks: snapshot mapping, route flips, capabilities, LOAD/SEEK routing, refusals, notices, active deck, row copy, columns");
+}
+
 int main(int argc, char **argv) {
  assert(argc==2);
  fx_track_build(&track,1);
- key_table();verdicts();load_verdicts();contacts();touches();pushes();hand_off();playhead();commands();writable_settings();library(argv[1]);
+ key_table();verdicts();load_verdicts();contacts();touches();pushes();hand_off();playhead();commands();writable_settings();extra_decks();library(argv[1]);
  puts("PASS shell runtime");
  return 0;
 }

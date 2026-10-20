@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include "shell/shell.h"
 #include "shell_model.h"
+#include "extra_decks.h"
 
 /* ---- Device entry points (shell_runtime.c). Weak in ui_runtime.c. ---- */
 struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cents, synced; int matches_master, shift; };
@@ -255,6 +256,53 @@ int xz_shrt_position_step(struct xz_shrt_position *, int playing, int32_t elapse
                           int32_t rate_ppm, int measure, int32_t *out_ms, uint32_t *out_at);
 /* Speed in ppm from the stat frame's tempo (0.01 %), the fallback when the engine speed is not read. */
 int32_t xz_shrt_rate_from_tempo(int32_t tempo_x100);
+
+/* ---- DECK 3 / DECK 4 (extra_decks.h): the software players in the shell model ----
+   The model's decks 2 and 3 while the CH3/CH4 route is up. Pure: the runtime takes the snapshot, converts
+   its arrays and executes what these decide. */
+/* Every per-deck action of enum xz_shell_cap, and the ones the players take. The native decks have no
+   seek input. */
+#define XZ_SHRT_DECK_CAPS (XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_LOAD|XZ_SHELL_CAP_SET_SETTING|XZ_SHELL_CAP_GRID|\
+ XZ_SHELL_CAP_GRID_EDIT|XZ_SHELL_CAP_TAG_TRACK|XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN|XZ_SHELL_CAP_CUE_LIST)
+#define XZ_SHRT_EXTRA_CAPS (XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_LOAD)
+/* A player's wave (lane and overview columns) and beat grid, converted by the runtime into memory it keeps
+   (the snapshot's arrays are the players'). */
+struct xz_shrt_extra_parts {
+ const struct xz_shell_column *scroll, *overview; uint32_t scroll_n, overview_n, span_ms;
+ const struct xz_shell_beat *grid; uint32_t grid_n;
+};
+/* After the native refresh: deck_count, decks 2 and 3 and sides_extra from one snapshot. Route down leaves
+   exactly the two-deck model. Title, artist and key point into s, so s must outlive the frame. model_now is
+   this refresh's model clock; mono_now the monotonic ms that s->deck[].elapsed_at_ms counts in. */
+void xz_shrt_extra_map(struct xz_shell_model *, const struct xz_extra_decks *s, const struct xz_shrt_extra_parts parts[XZ_EXTRA_DECKS],
+                       uint32_t model_now, uint32_t mono_now);
+/* The model's capabilities and every deck's caps_off for its deck count. caps: the runtime's capabilities
+   without LOAD; native_load / extra_load: LOAD works for the native decks / the players; deck_select: the
+   runtime can switch the sides (XZ_SHELL_ACT_DECK_SELECT). Two decks: caps (with LOAD when native_load) and
+   no caps_off. Returns the capabilities, also stored in the model. */
+uint32_t xz_shrt_extra_caps(struct xz_shell_model *, uint32_t caps, int native_load, int extra_load, int deck_select);
+/* A shell action for DECK 3 or 4. INPUT: *event is the player input (LOAD from the browse stick
+   browse_slot 0/1, SEEK); REFUSE: a per-deck action no player takes, or one the deck's capabilities do not
+   allow; NONE: not a player's action, the native path runs it. */
+enum xz_shrt_extra_route { XZ_SHRT_EXTRA_NONE, XZ_SHRT_EXTRA_INPUT, XZ_SHRT_EXTRA_REFUSE };
+enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *, const struct xz_shell_action *, int browse_slot,
+                                              struct xz_extra_deck_event *event);
+/* 1 when s carries a notice not shown yet and still fresh (raised less than XZ_SHELL_NOTICE_MS before
+   mono_now). *seen keeps the last notice_seq looked at. */
+int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now);
+/* The shell's active deck after the sides changed from was to now (bits as model.sides_extra): a side that
+   switched makes the deck it now drives active, the active deck's own side first. Unchanged sides keep it. */
+int xz_shrt_extra_active_deck(int active, unsigned was, unsigned now);
+/* The resolver's answer from a library row: path = root + rel (rel starts "/Contents/"), the text fields
+   truncated to their arrays on a character boundary. anlz_dir is left empty. 0, or -1 when rel is empty or
+   the path does not fit. */
+int xz_shrt_extra_track(struct xz_extra_track *out, int source, uint32_t track_id, const char *root, const char *rel,
+                        const char *title, const char *artist, const char *key, uint32_t bpm_x100);
+/* Three-band columns (low, mid, high bytes per column) for the lanes: band_peak is the 99.5th percentile of
+   each column's loudest band; bin_columns writes up to bins columns, each band's peak over its bin scaled so
+   that peak is full height, and returns how many. */
+uint32_t xz_shrt_band_peak(const uint8_t *bands, uint32_t count);
+uint32_t xz_shrt_bin_columns(const uint8_t *bands, uint32_t count, uint32_t peak, struct xz_shell_column *out, uint32_t bins);
 
 /* Presented-frame statistics in microseconds: frames, the largest gap between two frames and the gaps
    longer than XZ_SHRT_LATE_US (a missed 60 Hz slot). Gaps of a second or more (idle screens) are ignored. */
