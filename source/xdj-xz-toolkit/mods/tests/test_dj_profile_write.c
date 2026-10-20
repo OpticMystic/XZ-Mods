@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: MIT */
 /* Writer and logo decoder cases. Run by tests/verify_dj_profile_write.py, which prepares <work>:
-   sticks/{created,fixture-edited,logo-removed,full,errors,conflict}, images/ and list/. */
+   sticks/{created,migrated,adopted,unknown,full,errors,large,switch}, images/ and list/, then checks every
+   stick with spec/djprofile/tools/check_djprofile.py. */
 #define _FILE_OFFSET_BITS 64
 #define _POSIX_C_SOURCE 200809L
 #include "dj_profile_write.h"
+#include "dj_folders.h"
 #include "audio/vendor/sha256/sha256.h"
 #include <dirent.h>
 #include <stdio.h>
@@ -17,7 +19,7 @@ static int failures;
 
 static char *slurp(const char *path,size_t *n){
     FILE *f=fopen(path,"rb");if(!f)return NULL;
-    size_t cap=1<<20;char *data=malloc(cap+1);*n=data?fread(data,1,cap+1,f):0;fclose(f);
+    size_t cap=16u<<20;char *data=malloc(cap+1);*n=data?fread(data,1,cap+1,f):0;fclose(f);
     if(!data||*n>cap){free(data);return NULL;}data[*n]=0;return data;
 }
 static const char *at(const char *root,const char *relative){
@@ -25,23 +27,21 @@ static const char *at(const char *root,const char *relative){
     snprintf(out,4096,"%s/%s",root,relative);return out;
 }
 static int exists(const char *path){struct stat st;return !lstat(path,&st);}
+static int same_file(const char *a,const char *b){
+    size_t x,y;char *p=slurp(a,&x),*q=slurp(b,&y);int same=p&&q&&x==y&&!memcmp(p,q,x);free(p);free(q);return same;
+}
+static int contains(const char *path,const char *needle){size_t n;char *t=slurp(path,&n);int found=t&&strstr(t,needle);free(t);return found;}
 static uint16_t rgb565(unsigned r,unsigned g,unsigned b){return (uint16_t)((r>>3)<<11|(g>>2)<<5|b>>3);}
 static int solid(const uint16_t *px,int n,uint16_t v){for(int i=0;i<n;i++)if(px[i]!=v)return 0;return 1;}
 static int near(uint16_t v,unsigned r,unsigned g,unsigned b,int tolerance){
     int r5=v>>11,g6=v>>5&63,b5=v&31;
     return abs((r5<<3|r5>>2)-(int)r)<=tolerance&&abs((g6<<2|g6>>4)-(int)g)<=tolerance&&abs((b5<<3|b5>>2)-(int)b)<=tolerance;
 }
-static int count_entries(const char *path){
-    DIR *d=opendir(path);int n=0;struct dirent *e;if(!d)return -1;
-    while((e=readdir(d)))if(e->d_name[0]!='.')n++;
-    closedir(d);return n;
-}
 static struct xz_dj_draft draft(const char *id,const char *name,const char *tagline,const char *logo,int remove){
     struct xz_dj_draft d;memset(&d,0,sizeof(d));
     snprintf(d.dj_id,sizeof(d.dj_id),"%s",id);snprintf(d.name,sizeof(d.name),"%s",name);
     snprintf(d.tagline,sizeof(d.tagline),"%s",tagline);snprintf(d.logo,sizeof(d.logo),"%s",logo);d.remove_logo=remove;return d;
 }
-
 /* SHA-256 over every path, type and file content below root, in sorted order. */
 struct entries { char **path; int n,cap; };
 static void collect(const char *root,const char *relative,struct entries *e){
@@ -70,128 +70,201 @@ static void tree_hash(const char *root,unsigned char out[32]){
     }
     free(e.path);sha256_final(&c,out);
 }
-
-#define KAI_JSON "DJPROFILE/VJTOOLS/profiles/djp_kai/profile.json"
-#define KAI_PREVIOUS "DJPROFILE/VJTOOLS/profiles/djp_kai/profile.previous.json"
-#define KAI_OLD_BUNDLE "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de"
-#define LENA_JSON "DJPROFILE/VJTOOLS/profiles/djp_lena/profile.json"
-#define INDEX_JSON "DJPROFILE/VJTOOLS/index.json"
-#define MUSIC "PIONEER/rekordbox/export.pdb"
-static char images[4096];
-static const char *image(const char *name){return at(images,name);}
-static struct xz_dj_stick s;
-
+static int unchanged_since(const char *root,const unsigned char before[32]){unsigned char now[32];tree_hash(root,now);return !memcmp(before,now,32);}
 static int is_uuid4(const char *id){
     if(strlen(id)!=36||id[8]!='-'||id[13]!='-'||id[18]!='-'||id[23]!='-'||id[14]!='4'||!strchr("89ab",id[19]))return 0;
     for(int i=0;i<36;i++)if(id[i]!='-'&&!((id[i]>='0'&&id[i]<='9')||(id[i]>='a'&&id[i]<='f')))return 0;
     return 1;
 }
-static char *profile_json(const char *root,const char *id,size_t *n){
-    char relative[256];snprintf(relative,sizeof(relative),"DJPROFILE/VJTOOLS/profiles/%s/profile.json",id);return slurp(at(root,relative),n);
-}
+static int find(const struct xz_dj_stick *s,const char *name){for(int i=0;i<s->count;i++)if(!strcmp(s->profile[i].name,name))return i;return -1;}
 
-/* 1. An empty stick. */
+#define OLD_INDEX "DJPROFILE/VJTOOLS/index.json"
+#define OLD_KAI "DJPROFILE/VJTOOLS/profiles/djp_kai/profile.json"
+#define OLD_KAI_LOGO "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/assets/001-logo.png"
+#define OLD_KAI_TILE "DJPROFILE/VJTOOLS/profiles/djp_kai/bundles/0b7c1f2e-0000-4000-8000-00000000c0de/renditions/xz-tile-160.rgb565"
+#define OLD_LENA_LOGO "DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00/assets/001-logo.png"
+#define MUSIC "PIONEER/rekordbox/export.pdb"
+#define STICK_FILE "DJPROFILE/DJPROFILE.json"
+static char images[4096];
+static const char *image(const char *name){return at(images,name);}
+static struct xz_dj_stick s;
+
+/* 1. An empty stick: create, read back, write again (nothing changes), a second profile without a logo. */
 static void created(const char *root){
-    char id[XZ_DJ_ID_MAX]="x";size_t n,m;
+    int before=failures;char id[XZ_DJ_ID_MAX]="x";unsigned char hash[32];
     static const char name[]="Ada \"Countess\" \\ Lov\xc3\xa9lace";
     struct xz_dj_draft d=draft("",name,"Analytical\t? no: tab refused","",0);
-    CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_INVALID);CHECK(!*id);CHECK(count_entries(root)==0);
-    d=draft("",name,"Analytical engines","",0);snprintf(d.logo,sizeof(d.logo),"%s",image("green.png"));
+    CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_INVALID);CHECK(!*id);CHECK(!exists(at(root,"DJPROFILE")));
+    d=draft("",name,"Analytical engines",image("green.png"),0);
     CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_OK);CHECK(is_uuid4(id));
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==1);CHECK(s.active==0);CHECK(!s.legacy);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==1);CHECK(s.active==0);CHECK(s.profile[0].kind==XZ_DJ_LEVEL1);
     CHECK(!strcmp(s.profile[0].dj_id,id));CHECK(!strcmp(s.profile[0].name,name));CHECK(!strcmp(s.profile[0].tagline,"Analytical engines"));
+    CHECK(!strcmp(s.profile[0].dir,"DJPROFILE/Ada Countess  Lov\xc3\xa9lace"));
     CHECK(s.profile[0].has_thumb&&solid(s.profile[0].thumb,XZ_DJ_THUMB*XZ_DJ_THUMB,rgb565(30,220,60)));
-    char *index=slurp(at(root,INDEX_JSON),&n);CHECK(index&&!xz_dj_index_valid(index,n));
-    char *doc=profile_json(root,id,&m);CHECK(doc&&!xz_dj_profile_valid(doc,m));
-    if(doc){
-        CHECK(strstr(doc,"\"dj_name\": \"Ada \\\"Countess\\\" \\\\ Lov\xc3\xa9lace\""));
-        CHECK(strstr(doc,"/assets/001-Preferred_logo.png\""));CHECK(strstr(doc,"\"label\": \"Preferred logo\""));
-        CHECK(strstr(doc,"\"format\": \"rgb565le\""));CHECK(!strstr(doc,"accent"));CHECK(!strstr(doc,"aliases"));
-    }
-    char relative[256];snprintf(relative,sizeof(relative),"DJPROFILE/VJTOOLS/profiles/%s/profile.previous.json",id);
-    CHECK(!exists(at(root,relative)));
-    snprintf(relative,sizeof(relative),"DJPROFILE/VJTOOLS/profiles/%s/bundles",id);CHECK(count_entries(at(root,relative))==1);
-    /* The same content again: same bundle, verified, nothing new; draft_load round trip. */
+    const char *dir="DJPROFILE/Ada Countess  Lov\xc3\xa9lace";char path[512];
+    snprintf(path,sizeof(path),"%s/logo.png",dir);CHECK(same_file(at(root,path),image("green.png")));
+    snprintf(path,sizeof(path),"%s/" "tile-160.rgb565",dir);CHECK(exists(at(root,path)));
+    snprintf(path,sizeof(path),"%s/profile.previous.json",dir);CHECK(!exists(at(root,path)));
+    snprintf(path,sizeof(path),"%s/profile.json",dir);
+    CHECK(contains(at(root,path),"\"format\": \"djprofile/1\"")&&contains(at(root,path),"\"name\": \"Ada \\\"Countess\\\" \\\\ Lov\xc3\xa9lace\""));
+    CHECK(contains(at(root,STICK_FILE),"\"format\": \"djprofile-stick/1\"")&&contains(at(root,STICK_FILE),id));
+    /* The same content again writes nothing. */
     struct xz_dj_draft back;CHECK(xz_dj_draft_load(root,id,&back)==0);
     CHECK(!strcmp(back.dj_id,id)&&!strcmp(back.name,name)&&!strcmp(back.tagline,"Analytical engines")&&!*back.logo&&!back.remove_logo);
+    tree_hash(root,hash);
     char again[XZ_DJ_ID_MAX];CHECK(xz_dj_profile_write(root,&back,again)==XZ_DJ_WRITE_OK);CHECK(!strcmp(again,id));
-    CHECK(count_entries(at(root,relative))==1);
-    snprintf(relative,sizeof(relative),"DJPROFILE/VJTOOLS/profiles/%s/profile.previous.json",id);CHECK(!exists(at(root,relative)));
-    size_t k;char *same=profile_json(root,id,&k);CHECK(same&&doc&&k==m&&!memcmp(same,doc,m));free(same);
-    char *index2=slurp(at(root,INDEX_JSON),&k);CHECK(index2&&index&&k==n&&!memcmp(index2,index,n));free(index2);
-    CHECK(xz_dj_draft_load(root,"nobody",&back)==-1);CHECK(xz_dj_draft_load(root,"../x",&back)==-1);
-    /* 160 two-byte characters fit the name; a second profile leaves active alone. */
-    char wide[641]={0};for(int i=0;i<160;i++){wide[i*2]=(char)0xc3;wide[i*2+1]=(char)0xa9;}
-    d=draft("",wide,"","",0);CHECK(xz_dj_profile_write(root,&d,again)==XZ_DJ_WRITE_OK);
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==2);CHECK(s.active==0);CHECK(!strcmp(s.profile[1].name,wide));CHECK(!s.profile[1].has_thumb);
-    free(index);free(doc);
-    printf("created: %s\n",failures?"FAIL":"ok");
+    CHECK(unchanged_since(root,hash));
+    snprintf(d.dj_id,sizeof(d.dj_id),"%s",id);CHECK(xz_dj_profile_write(root,&d,again)==XZ_DJ_WRITE_OK);CHECK(unchanged_since(root,hash));
+    CHECK(xz_dj_draft_load(root,"nobody",&back)==-1);CHECK(xz_dj_draft_load(root,"",&back)==-1);
+    /* 160 bytes fit a name, 161 do not; a profile without a logo gets its initial; active stays. */
+    char wide[400]={0};for(int i=0;i<81;i++){wide[i*2]=(char)0xc3;wide[i*2+1]=(char)0xa9;}
+    d=draft("",wide,"","",0);CHECK(xz_dj_profile_write(root,&d,again)==XZ_DJ_WRITE_INVALID);
+    wide[160]=0;d=draft("",wide,"","",0);CHECK(xz_dj_profile_write(root,&d,again)==XZ_DJ_WRITE_OK);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==2);CHECK(s.active==0);
+    int k=find(&s,wide);CHECK(k==1);
+    if(k>=0){CHECK(s.profile[k].has_thumb&&!solid(s.profile[k].thumb,XZ_DJ_THUMB*XZ_DJ_THUMB,s.profile[k].thumb[0]));snprintf(path,sizeof(path),"%s/logo.png",s.profile[k].dir);CHECK(exists(at(root,path)));}
+    /* NO LOGO replaces the logo with the initial; the alternate-free profile keeps its tagline. */
+    d=draft(id,name,"Analytical engines","",1);CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);
+    snprintf(path,sizeof(path),"%s/logo.png",dir);CHECK(!same_file(at(root,path),image("green.png")));
+    snprintf(path,sizeof(path),"%s/profile.previous.json",dir);CHECK(exists(at(root,path)));
+    printf("created: %s\n",failures>before?"FAIL":"ok");
 }
 
-/* 2-4 and 10. The shared fixture: add, rename keeping the logo, replace the logo with a JPEG. */
-static void fixture_edited(const char *root){
-    size_t n,m;int before=failures;
-    char *music=slurp(at(root,MUSIC),&n),*kai=slurp(at(root,KAI_JSON),&m);CHECK(music&&kai);
-    char mira[XZ_DJ_ID_MAX];struct xz_dj_draft d=draft("","Mira","","",0);snprintf(d.logo,sizeof(d.logo),"%s",image("red_blue.png"));
-    CHECK(xz_dj_profile_write(root,&d,mira)==XZ_DJ_WRITE_OK);
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==3);CHECK(s.active==1);
-    CHECK(!strcmp(s.profile[2].dj_id,mira));CHECK(!strcmp(s.profile[2].name,"Mira"));CHECK(s.profile[2].has_thumb);
-    /* Rename DJ Kai, logo kept. */
-    struct xz_dj_draft k;CHECK(xz_dj_draft_load(root,"djp_kai",&k)==0);
-    CHECK(!strcmp(k.name,"DJ Kai")&&!strcmp(k.tagline,"Deep tech, Berlin"));
-    snprintf(k.name,sizeof(k.name),"DJ Kai Moreno");snprintf(k.tagline,sizeof(k.tagline),"Techno, Berlin");
-    char id[XZ_DJ_ID_MAX];CHECK(xz_dj_profile_write(root,&k,id)==XZ_DJ_WRITE_OK);CHECK(!strcmp(id,"djp_kai"));
-    size_t q;char *doc=slurp(at(root,KAI_JSON),&q),*previous=slurp(at(root,KAI_PREVIOUS),&n);
-    CHECK(doc&&!xz_dj_profile_valid(doc,q));CHECK(previous&&kai&&n==m&&!memcmp(previous,kai,m));
-    if(doc){
-        static const char *const kept[]={"\"accent\": \"#ff2a6d\"","\"KAI\"","\"Kai Moreno\"","\"url\": \"https://example.com/kai\"",
-            "\"kind\": \"media-kit\"","\"url\": \"https://example.com/kai/press.zip\"","\"page_url\": \"https://vj.tools/dj#p1.fixture\"",
-            "\"dj_name\": \"DJ Kai Moreno\"","\"tagline\": \"Techno, Berlin\"","/assets/001-Preferred_logo.png\"",
-            "\"sha256\": \"fcfa43c4535e2da5368c911731a9b468c15d1344f34115eddc242bb437a8904b\"",
-            "\"sha256\": \"d8f6e024917b25fbf77719fa7f8cd6a0105c421c97e260d302a1cf1a9465b1c0\""};
-        for(size_t i=0;i<sizeof(kept)/sizeof(kept[0]);i++)if(!strstr(doc,kept[i])){fprintf(stderr,"missing %s\n",kept[i]);failures++;}
-        CHECK(!strstr(doc,"0b7c1f2e"));
-        const char *b=strstr(doc,"\"bundle\": \"");char manifest[512];
-        if(b){b+=11;snprintf(manifest,sizeof(manifest),"%.*s/manifest.json",(int)(strchr(b,'"')-b),b);
-            char *text=slurp(at(root,manifest),&n);CHECK(text&&strstr(text,"\"name\": \"logo.png\"")&&strstr(text,"\"website\": null")&&strstr(text,"\"artist\": \"DJ Kai Moreno\""));free(text);}
+/* 2. The shared pre-1.0 fixture: the first write moves both profiles to folders; the old store stays. */
+struct view { char name[641],tagline[321],page[512]; uint32_t accent; int has_accent,has_thumb; uint16_t thumb[XZ_DJ_THUMB*XZ_DJ_THUMB]; };
+static void snapshot(const struct xz_dj_stick *x,struct view *v,int *active){
+    for(int i=0;i<x->count;i++){
+        snprintf(v[i].name,sizeof(v[i].name),"%s",x->profile[i].name);snprintf(v[i].tagline,sizeof(v[i].tagline),"%s",x->profile[i].tagline);
+        snprintf(v[i].page,sizeof(v[i].page),"%s",x->profile[i].page_url);v[i].accent=x->profile[i].accent;v[i].has_accent=x->profile[i].has_accent;
+        v[i].has_thumb=x->profile[i].has_thumb;memcpy(v[i].thumb,x->profile[i].thumb,sizeof(v[i].thumb));
     }
-    CHECK(exists(at(root,KAI_OLD_BUNDLE "/manifest.json")));
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==3);CHECK(s.active==1);
-    CHECK(!strcmp(s.profile[0].name,"DJ Kai Moreno"));CHECK(s.profile[0].has_thumb&&solid(s.profile[0].thumb,XZ_DJ_THUMB*XZ_DJ_THUMB,rgb565(255,42,109)));
-    char *index=slurp(at(root,INDEX_JSON),&n);
-    CHECK(index&&strstr(index,"\"dj_name\": \"DJ Kai Moreno\"")&&strstr(index,"\"active\": \"djp_lena\"")&&!strstr(index,"2026-10-08T15-00-00Z-0001"));
-    free(index);free(doc);free(previous);
-    /* Lena gets a JPEG logo: a new tile from it. */
-    size_t ln;char *lena=slurp(at(root,LENA_JSON),&ln);
-    d=draft("djp_lena","Lena B","","",0);snprintf(d.logo,sizeof(d.logo),"%s",image("logo.jpg"));
+    *active=x->active;
+}
+static int same_view(const struct view *a,const struct view *b,int n){
+    for(int i=0;i<n;i++)if(strcmp(a[i].name,b[i].name)||strcmp(a[i].tagline,b[i].tagline)||strcmp(a[i].page,b[i].page)||a[i].accent!=b[i].accent||
+        a[i].has_accent!=b[i].has_accent||a[i].has_thumb!=b[i].has_thumb||memcmp(a[i].thumb,b[i].thumb,sizeof(a[i].thumb))){fprintf(stderr,"profile %d differs\n",i);return 0;}
+    return 1;
+}
+static void migrated(const char *root){
+    int before=failures;size_t n,m;static struct view was[16],now[16];int was_active,now_active;
+    char *music=slurp(at(root,MUSIC),&n),*index=slurp(at(root,OLD_INDEX),&m);CHECK(music&&index);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==2&&s.profile[0].kind==XZ_DJ_OLD);snapshot(&s,was,&was_active);
+    /* Already active: nothing switches, but the stick moves to 1.0 (contract 0.3) and reads the same. */
+    CHECK(xz_dj_stick_set_active(root,"djp_lena")==1);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==2);
+    CHECK(s.profile[0].kind==XZ_DJ_LEVEL1&&s.profile[1].kind==XZ_DJ_LEVEL1);
+    CHECK(!strcmp(s.profile[0].dir,"DJPROFILE/DJ Kai")&&!strcmp(s.profile[1].dir,"DJPROFILE/Lena B"));
+    snapshot(&s,now,&now_active);CHECK(same_view(was,now,2));CHECK(was_active==now_active&&now_active==1);
+    CHECK(same_file(at(root,"DJPROFILE/DJ Kai/logo.png"),at(root,OLD_KAI_LOGO)));
+    CHECK(same_file(at(root,"DJPROFILE/DJ Kai/tile-160.rgb565"),at(root,OLD_KAI_TILE)));
+    CHECK(same_file(at(root,"DJPROFILE/Lena B/logo.png"),at(root,OLD_LENA_LOGO)));
+    const char *kai="DJPROFILE/DJ Kai/profile.json";
+    static const char *const mapped[]={"\"id\": \"djp_kai\"","\"revision\": \"0b7c1f2e-0000-4000-8000-00000000c0de\"","\"accent\": \"#ff2a6d\"",
+        "\"Kai Moreno\"","\"kind\": \"page\"","\"url\": \"https://vj.tools/dj#p1.fixture\"","\"kind\": \"media-kit\"","\"role\": \"primary\"",
+        "\"label\": \"Preferred logo\"","\"for\": \"xdj-xz\""};
+    for(size_t i=0;i<sizeof(mapped)/sizeof(mapped[0]);i++)if(!contains(at(root,kai),mapped[i])){fprintf(stderr,"migrated profile.json lacks %s\n",mapped[i]);failures++;}
+    CHECK(!contains(at(root,kai),"page_url")&&!contains(at(root,kai),"VJTOOLS")&&!contains(at(root,kai),"\"ext\""));
+    CHECK(contains(at(root,STICK_FILE),"\"active\": \"djp_lena\""));
+    /* The old store is never deleted, and its index is untouched by a move. */
+    size_t k;char *index_now=slurp(at(root,OLD_INDEX),&k);CHECK(index_now&&k==m&&!memcmp(index_now,index,m));free(index_now);
+    CHECK(exists(at(root,OLD_KAI))&&exists(at(root,OLD_KAI_LOGO)));
+    /* A second move finds nothing to move. */
+    unsigned char hash[32];tree_hash(root,hash);
+    CHECK(xz_dj_stick_set_active(root,"djp_lena")==1);CHECK(unchanged_since(root,hash));
+    /* A new profile is added after the moved ones and does not change the active one. */
+    char mira[XZ_DJ_ID_MAX];struct xz_dj_draft d=draft("","Mira","",image("red_blue.png"),0);
+    CHECK(xz_dj_profile_write(root,&d,mira)==XZ_DJ_WRITE_OK);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==3);CHECK(s.active==1);CHECK(find(&s,"Mira")==2&&s.profile[2].has_thumb);
+    /* Rename DJ Kai keeping the logo: the folder follows, profile.previous.json keeps the document it replaced. */
+    char *kai_doc=slurp(at(root,kai),&m);
+    struct xz_dj_draft e;CHECK(xz_dj_draft_load(root,"djp_kai",&e)==0);CHECK(!strcmp(e.name,"DJ Kai")&&!strcmp(e.tagline,"Deep tech, Berlin"));
+    snprintf(e.name,sizeof(e.name),"DJ Kai Moreno");snprintf(e.tagline,sizeof(e.tagline),"Techno, Berlin");
+    char id[XZ_DJ_ID_MAX];CHECK(xz_dj_profile_write(root,&e,id)==XZ_DJ_WRITE_OK);CHECK(!strcmp(id,"djp_kai"));
+    CHECK(!exists(at(root,"DJPROFILE/DJ Kai"))&&exists(at(root,"DJPROFILE/DJ Kai Moreno/profile.json")));
+    CHECK(same_file(at(root,"DJPROFILE/DJ Kai Moreno/profile.previous.json"),at(root,"DJPROFILE/DJ Kai Moreno/profile.previous.json")));
+    size_t q;char *prev=slurp(at(root,"DJPROFILE/DJ Kai Moreno/profile.previous.json"),&q);CHECK(prev&&kai_doc&&q==m&&!memcmp(prev,kai_doc,m));free(prev);free(kai_doc);
+    CHECK(contains(at(root,"DJPROFILE/DJ Kai Moreno/profile.json"),"\"Kai Moreno\"")&&contains(at(root,"DJPROFILE/DJ Kai Moreno/profile.json"),"press.zip"));
+    CHECK(contains(at(root,STICK_FILE),"\"folder\": \"DJ Kai Moreno\""));
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==3);CHECK(!strcmp(s.profile[0].name,"DJ Kai Moreno"));CHECK(s.profile[0].has_thumb&&solid(s.profile[0].thumb,XZ_DJ_THUMB*XZ_DJ_THUMB,rgb565(255,42,109)));
+    /* Lena gets a JPEG: logo.jpg and a new tile; the files the old document listed go. */
+    d=draft("djp_lena","Lena B","",image("logo.jpg"),0);
     CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);
-    doc=slurp(at(root,LENA_JSON),&q);CHECK(doc&&strstr(doc,"/assets/001-Preferred_logo.jpg\"")&&!strstr(doc,"1973be00f56f"));
-    previous=slurp(at(root,"DJPROFILE/VJTOOLS/profiles/djp_lena/profile.previous.json"),&n);CHECK(previous&&lena&&n==ln&&!memcmp(previous,lena,ln));
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.profile[1].has_thumb);
-    int close_enough=1;for(int i=0;i<XZ_DJ_THUMB*XZ_DJ_THUMB;i++)if(!near(s.profile[1].thumb[i],40,200,90,12))close_enough=0;
+    CHECK(exists(at(root,"DJPROFILE/Lena B/logo.jpg"))&&!exists(at(root,"DJPROFILE/Lena B/logo.png")));
+    CHECK(!exists(at(root,"DJPROFILE/Lena B/tile-160.rgb565")));
+    CHECK(xz_dj_stick_read(root,&s)==0);int lena=find(&s,"Lena B");CHECK(lena>=0&&s.profile[lena].has_thumb);
+    int close_enough=1;for(int i=0;lena>=0&&i<XZ_DJ_THUMB*XZ_DJ_THUMB;i++)if(!near(s.profile[lena].thumb[i],40,200,90,12))close_enough=0;
     CHECK(close_enough);
-    free(doc);free(previous);free(lena);
-    size_t n2;char *music2=slurp(at(root,MUSIC),&n2);CHECK(music&&music2&&n2==strlen(music)&&!memcmp(music,music2,n2));
-    free(music);free(music2);free(kai);
-    printf("fixture-edited: %s\n",failures>before?"FAIL":"ok");
+    /* The same save again writes nothing; back to a PNG: the replaced primary goes, nothing is set aside. */
+    unsigned char lena_hash[32];tree_hash(root,lena_hash);
+    CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);CHECK(unchanged_since(root,lena_hash));
+    d=draft("djp_lena","Lena B","",image("green.png"),0);CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);
+    CHECK(same_file(at(root,"DJPROFILE/Lena B/logo.png"),image("green.png"))&&!exists(at(root,"DJPROFILE/Lena B/logo.jpg")));
+    CHECK(!exists(at(root,"DJPROFILE/Lena B/logo-original.jpg"))&&!exists(at(root,"DJPROFILE/Lena B/logo-original.png")));
+    /* Switching: DJPROFILE.json and the old index both name the profile; only active and revision move there. */
+    CHECK(xz_dj_stick_set_active(root,"djp_kai")==0);
+    CHECK(contains(at(root,STICK_FILE),"\"active\": \"djp_kai\""));
+    char *index_after=slurp(at(root,OLD_INDEX),&k);CHECK(index_after&&k+1==strlen(index)&&strstr(index_after,"\"active\": \"djp_kai\""));
+    CHECK(index_after&&strstr(index_after,"\"dj_name\": \"Lena B\"")&&!strstr(index_after,"2026-10-08T15-00-00Z-0001"));free(index_after);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.active==find(&s,"DJ Kai Moreno"));
+    CHECK(xz_dj_stick_set_active(root,"djp_kai")==1);CHECK(xz_dj_stick_set_active(root,"nobody")==-1);
+    /* A profile only DJPROFILE.json knows switches without touching the index. */
+    index_after=slurp(at(root,OLD_INDEX),&k);
+    CHECK(xz_dj_stick_set_active(root,mira)==0);
+    size_t k2;char *index_same=slurp(at(root,OLD_INDEX),&k2);CHECK(index_after&&index_same&&k2==k&&!memcmp(index_after,index_same,k));free(index_same);free(index_after);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.active==find(&s,"Mira"));
+    size_t n2;char *music2=slurp(at(root,MUSIC),&n2);CHECK(music&&music2&&n2==n&&!memcmp(music,music2,n));
+    free(music);free(music2);free(index);
+    printf("migrated: %s\n",failures>before?"FAIL":"ok");
 }
 
-/* 4b. Remove every logo. */
-static void logo_removed(const char *root){
-    int before=failures;size_t n,q;char *music=slurp(at(root,MUSIC),&n);
-    struct xz_dj_draft k;CHECK(xz_dj_draft_load(root,"djp_kai",&k)==0);k.remove_logo=1;
-    CHECK(xz_dj_profile_write(root,&k,NULL)==XZ_DJ_WRITE_OK);
-    char *doc=slurp(at(root,KAI_JSON),&q);
-    CHECK(doc&&!xz_dj_profile_valid(doc,q)&&strstr(doc,"\"preferred_logo\": null")&&strstr(doc,"\"secondary_logos\": []")&&!strstr(doc,"xz_tile"));
-    CHECK(doc&&strstr(doc,"\"Kai Moreno\"")&&strstr(doc,"\"tagline\": \"Deep tech, Berlin\""));
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==2);CHECK(!s.profile[0].has_thumb);CHECK(!s.profile[0].damaged);CHECK(!strcmp(s.profile[0].name,"DJ Kai"));
-    /* The index did not need to change: same name. */
-    char *index=slurp(at(root,INDEX_JSON),&q);CHECK(index&&strstr(index,"2026-10-08T15-00-00Z-0001"));free(index);
-    /* A logo cannot be both new and removed. */
-    k.remove_logo=1;snprintf(k.logo,sizeof(k.logo),"%s",image("green.png"));CHECK(xz_dj_profile_write(root,&k,NULL)==XZ_DJ_WRITE_INVALID);
-    size_t n2;char *music2=slurp(at(root,MUSIC),&n2);CHECK(music&&music2&&n2==n&&!memcmp(music,music2,n));
-    free(music);free(music2);free(doc);
-    printf("logo-removed: %s\n",failures>before?"FAIL":"ok");
+/* 3. Hand-made folders: the move adopts the DJ's folder and keeps their logos; a device edit adopts a level 0 folder. */
+static void adopted(const char *root){
+    int before=failures;
+    CHECK(xz_dj_stick_read(root,&s)==0);
+    /* Contract 0.1 step 3: the hand-made "DJ Kai" folder is listed once, as the old profile. */
+    CHECK(s.count==3);CHECK(find(&s,"DJ Kai")==1&&s.profile[1].kind==XZ_DJ_OLD);CHECK(find(&s,"Zed")==0&&s.profile[0].kind==XZ_DJ_LEVEL0);
+    CHECK(xz_dj_stick_set_active(root,"Zed")==0);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==3);
+    int kai=find(&s,"DJ Kai");CHECK(kai>=0&&s.profile[kai].kind==XZ_DJ_LEVEL1&&!strcmp(s.profile[kai].dir,"DJPROFILE/DJ Kai"));
+    CHECK(!strcmp(s.profile[s.active].name,"Zed"));
+    CHECK(same_file(at(root,"DJPROFILE/DJ Kai/logo.png"),at(root,OLD_KAI_LOGO)));
+    CHECK(same_file(at(root,"DJPROFILE/DJ Kai/logo-original.png"),image("green.png")));
+    CHECK(same_file(at(root,"DJPROFILE/DJ Kai/logo-original.jpeg"),image("logo.jpg")));
+    CHECK(exists(at(root,"DJPROFILE/DJ Kai/flyer.png"))&&!exists(at(root,"DJPROFILE/DJ Kai/Logo.PNG")));
+    CHECK(contains(at(root,"DJPROFILE/DJ Kai/profile.json"),"\"file\": \"logo-original.png\"")&&contains(at(root,"DJPROFILE/DJ Kai/profile.json"),"\"role\": \"alternate\""));
+    CHECK(contains(at(root,STICK_FILE),"\"active\": \"Zed\""));
+    /* Editing the level 0 folder: its logo becomes logo.png beside the DJ's file, the folder gets an id. */
+    int zed=find(&s,"Zed");struct xz_dj_draft d=draft("","Zed","Live","",0);
+    snprintf(d.folder,sizeof(d.folder),"%s",s.profile[zed].dir);snprintf(d.accent,sizeof(d.accent),"#1e50f0");
+    char id[XZ_DJ_ID_MAX];CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_OK);CHECK(is_uuid4(id));
+    CHECK(same_file(at(root,"DJPROFILE/Zed/logo.png"),at(root,"DJPROFILE/Zed/flyer.png")));
+    CHECK(contains(at(root,"DJPROFILE/Zed/profile.json"),"\"accent\": \"#1e50f0\""));
+    CHECK(contains(at(root,STICK_FILE),id));CHECK(!contains(at(root,STICK_FILE),"\"active\": \"Zed\""));
+    CHECK(xz_dj_stick_read(root,&s)==0);zed=find(&s,"Zed");CHECK(zed>=0&&s.profile[zed].kind==XZ_DJ_LEVEL1&&s.active==zed);
+    printf("adopted: %s\n",failures>before?"FAIL":"ok");
+}
+
+/* 4. A 1.0 stick made by other software: every member the XZ does not change survives, at every level. */
+static void unknown(const char *root){
+    int before=failures;const char *doc="DJPROFILE/DJ Kai/profile.json";
+    CHECK(xz_dj_stick_read(root,&s)==0);
+    struct xz_dj_draft d;CHECK(xz_dj_draft_load(root,"5f1d6f0e-2b7a-4c55-9a43-1d1f0b7c9e21",&d)==0);
+    snprintf(d.tagline,sizeof(d.tagline),"Garage, Leeds");
+    CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);
+    static const char *const kept[]={"\"readers ignore this, writers keep it\"","\"x-entry\"","\"x-link\": true","\"x-root\"",
+        "\"background\": \"light\"","\"file\": \"DJ PROFILE - DJ Kai.mp3\"","\"marker\": \"djprofile:1:5f1d6f0e-2b7a-4c55-9a43-1d1f0b7c9e21:76f3571a0e8c\"",
+        "\"tagline\": \"Garage, Leeds\"","\"aliases\""};
+    for(size_t i=0;i<sizeof(kept)/sizeof(kept[0]);i++)if(!contains(at(root,doc),kept[i])){fprintf(stderr,"lost %s\n",kept[i]);failures++;}
+    CHECK(contains(at(root,STICK_FILE),"\"x-stick\": \"kept\""));
+    /* A rename: the track copy's tags name the old name, so only its marker stays and the copy goes. */
+    snprintf(d.name,sizeof(d.name),"DJ Kai Live");
+    CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);
+    const char *moved="DJPROFILE/DJ Kai Live/profile.json";
+    CHECK(contains(at(root,moved),"\"marker\": \"djprofile:1:5f1d6f0e")&&!contains(at(root,moved),".mp3"));
+    CHECK(!exists(at(root,"DJPROFILE/DJ Kai Live/DJ PROFILE - DJ Kai.mp3"))&&contains(at(root,moved),"\"x-root\""));
+    CHECK(contains(at(root,STICK_FILE),"\"x-stick\": \"kept\"")&&contains(at(root,STICK_FILE),"\"folder\": \"DJ Kai Live\""));
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(find(&s,"DJ Kai Live")>=0&&find(&s,"Lena B")>=0);
+    printf("unknown: %s\n",failures>before?"FAIL":"ok");
 }
 
 /* 5. Sixteen profiles, then a refused 17th that writes nothing. */
@@ -202,22 +275,21 @@ static void full(const char *root){
         CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_OK);if(!i)strcpy(first,id);
     }
     CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==16);CHECK(s.active==0);CHECK(!strcmp(s.profile[0].dj_id,first));
-    unsigned char a[32],b[32];tree_hash(root,a);
-    struct xz_dj_draft d=draft("","One too many","","",0);snprintf(d.logo,sizeof(d.logo),"%s",image("green.png"));
+    unsigned char a[32];tree_hash(root,a);
+    struct xz_dj_draft d=draft("","One too many","",image("green.png"),0);
     strcpy(id,"x");CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_FULL);CHECK(!*id);
-    d=draft("djp_new","One too many","","",0);CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_FULL);
-    tree_hash(root,b);CHECK(!memcmp(a,b,32));
-    /* Renaming one of the sixteen still works. */
+    CHECK(unchanged_since(root,a));
     d=draft(first,"DJ 01 renamed","","",0);CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);
     CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==16);CHECK(!strcmp(s.profile[0].name,"DJ 01 renamed"));
+    CHECK(exists(at(root,"DJPROFILE/DJ 01 renamed/logo.png"))&&!exists(at(root,"DJPROFILE/DJ 01")));
     printf("full: %s\n",failures>before?"FAIL":"ok");
 }
 
-/* 6-7. Refusals that leave the stick untouched. */
+/* 6. Refusals that leave the stick untouched. */
 static void errors(const char *root){
-    int before=failures;unsigned char a[32],b[32];tree_hash(root,a);
+    int before=failures;unsigned char a[32];tree_hash(root,a);
     char long_name[200];memset(long_name,'a',161);long_name[161]=0;
-    char long_tag[100];memset(long_tag,'t',81);long_tag[81]=0;
+    char long_tag[300];memset(long_tag,'t',241);long_tag[241]=0;
     struct { const char *id,*name,*tagline,*logo; int remove; } bad[]={
         {"","","","",0},{""," \t ","","",0},{"",long_name,"","",0},{"","a\x01" "b","","",0},{"","a\x7f","","",0},
         {"","\xc3(","","",0},{"","\xef\xbb\xbf","","",0},{"","\xe3\x80\x80","","",0},{"","A",long_tag,"",0},{"","A","a\nb","",0},
@@ -232,11 +304,13 @@ static void errors(const char *root){
     struct xz_dj_draft unterminated;memset(&unterminated,'a',sizeof(unterminated));CHECK(xz_dj_profile_write(root,&unterminated,NULL)==XZ_DJ_WRITE_INVALID);
     static const char *const images_bad[]={"notimage.png","truncated.png","huge.png","link.png","big.png","empty.png","missing.png"};
     for(size_t i=0;i<sizeof(images_bad)/sizeof(images_bad[0]);i++){
-        struct xz_dj_draft d=draft("djp_kai","DJ Kai","","",0);snprintf(d.logo,sizeof(d.logo),"%s",image(images_bad[i]));
+        struct xz_dj_draft d=draft("djp_kai","DJ Kai","",image(images_bad[i]),0);
         int got=xz_dj_profile_write(root,&d,NULL);
         if(got!=XZ_DJ_WRITE_IMAGE){fprintf(stderr,"bad image %s: got %d\n",images_bad[i],got);failures++;}
     }
-    tree_hash(root,b);CHECK(!memcmp(a,b,32));
+    CHECK(unchanged_since(root,a));
+    /* An unknown id moves the old store first, then refuses. */
+    struct xz_dj_draft d=draft("djp_nobody","Nobody","","",0);CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_CHANGED);
     static uint16_t tile[XZ_DJ_TILE_SIDE*XZ_DJ_TILE_SIDE];int w,h;
     CHECK(xz_dj_image_tile(image("notimage.png"),tile,&w,&h)==XZ_DJ_IMAGE_NOT_IMAGE);
     CHECK(xz_dj_image_tile(image("truncated.png"),tile,&w,&h)==XZ_DJ_IMAGE_NOT_IMAGE);
@@ -251,38 +325,26 @@ static void errors(const char *root){
     printf("errors: %s\n",failures>before?"FAIL":"ok");
 }
 
-/* An existing bundle with the same id but different bytes is verified, refused, and nothing else moves. */
-static void conflict(const char *root){
-    int before=failures;char id[XZ_DJ_ID_MAX];size_t n,m;
-    struct xz_dj_draft d=draft("djp_c","C","","",0);snprintf(d.logo,sizeof(d.logo),"%s",image("green.png"));
-    CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_OK);
-    char *doc=profile_json(root,"djp_c",&n),*index=slurp(at(root,INDEX_JSON),&m);
-    const char *t=doc?strstr(doc,"\"path\": \""):NULL;char asset[512]="";
-    if(t){t+=9;snprintf(asset,sizeof(asset),"%.*s",(int)(strchr(t,'"')-t),t);}
-    char *bytes=slurp(at(root,asset),&n);CHECK(bytes!=NULL);
-    if(bytes){bytes[n-1]^=1;FILE *f=fopen(at(root,asset),"wb");fwrite(bytes,1,n,f);fclose(f);}
-    d.tagline[0]=0;CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_IO);
-    size_t k;char *now=profile_json(root,"djp_c",&k);CHECK(now&&doc&&!strcmp(now,doc));free(now);
-    now=slurp(at(root,INDEX_JSON),&k);CHECK(now&&index&&!strcmp(now,index));free(now);
-    if(bytes){bytes[n-1]^=1;FILE *f=fopen(at(root,asset),"wb");fwrite(bytes,1,n,f);fclose(f);}
-    /* A new name makes a new bundle; the stage directory never stays behind. */
-    d=draft("djp_c","C2","","",0);CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_OK);
-    DIR *dir=opendir(at(root,"DJPROFILE/VJTOOLS/profiles/djp_c/bundles"));struct dirent *e;int stray=0,bundles=0;
-    while(dir&&(e=readdir(dir))){if(!strncmp(e->d_name,".stage-",7))stray++;else if(e->d_name[0]!='.')bundles++;}
-    if(dir)closedir(dir);
-    CHECK(!stray);CHECK(bundles==2);
-    dir=opendir(at(root,"DJPROFILE/VJTOOLS"));stray=0;
-    while(dir&&(e=readdir(dir)))if(!strncmp(e->d_name,".profile-",9))stray++;
-    if(dir)closedir(dir);
-    CHECK(!stray);
-    free(doc);free(index);free(bytes);
-    printf("conflict: %s\n",failures>before?"FAIL":"ok");
+/* 7. Logos over 4096 px a side or 4 MP are scaled down and written as PNG. */
+static void large(const char *root){
+    int before=failures;char id[XZ_DJ_ID_MAX];
+    struct xz_dj_draft d=draft("","Wide","",image("wide4100.png"),0);CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_OK);
+    d=draft("","Square","",image("square2100.png"),0);CHECK(xz_dj_profile_write(root,&d,id)==XZ_DJ_WRITE_OK);
+    static const char *const logos[]={"DJPROFILE/Wide/logo.png","DJPROFILE/Square/logo.png"};
+    for(int i=0;i<2;i++){
+        size_t n;unsigned char *data=(unsigned char *)slurp(at(root,logos[i]),&n);struct xz_dj_image_info info;
+        CHECK(data&&!xz_dj_image_usable(data,n,&info)&&info.kind==XZ_DJ_IMAGE_PNG);
+        if(data)printf("large: %s is %ux%u\n",logos[i],info.width,info.height);
+        CHECK(!i?info.width==4096&&info.height<=100:info.width==info.height&&(uint64_t)info.width*info.height<=4u*1024u*1024u&&info.width>=2040);
+        free(data);
+    }
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==2&&s.profile[0].has_thumb&&s.profile[1].has_thumb);
+    printf("large: %s\n",failures>before?"FAIL":"ok");
 }
 
 /* 8. Picking a logo file on a stick. */
 static void list(const char *root){
     int before=failures;static char out[XZ_DJ_IMAGE_LIST_MAX][XZ_DJ_IMAGE_PATH];
-    /* Logos in DJ folders come first, then the rest of the stick. */
     static const char *const want[]={"DJPROFILE/DJ Kai/logo.png","DJPROFILES/Mia/m.jpg",
         "a.jpg","Alpha.png","b.PNG","c.JpEg","l1/l2/l3/deep.png","l1/one.jpeg","Zed.png"};
     int n=xz_dj_image_list(root,out,XZ_DJ_IMAGE_LIST_MAX);CHECK(n==9);
@@ -311,7 +373,6 @@ static void tiles(void){
     good=1;
     for(int y=0;y<160;y++)for(int x=0;x<160;x++)if(tile[y*160+x]!=(x>=40&&x<120?0xffff:0))good=0;
     CHECK(good);
-    /* 3x1 shrink of a black-white-black stripe pattern: exact area averages. */
     CHECK(xz_dj_image_tile(image("stripes.png"),tile,&w,&h)==XZ_DJ_IMAGE_OK);CHECK(w==480&&h==480);
     CHECK(solid(tile,160*160,rgb565(85,85,85)));
     printf("tiles: %s\n",failures>before?"FAIL":"ok");
@@ -321,12 +382,11 @@ int main(int argc,char **argv){
     if(argc!=2){fprintf(stderr,"usage: %s <work>\n",argv[0]);return 2;}
     const char *work=argv[1];char sticks[4000];
     snprintf(images,sizeof(images),"%s/images",work);snprintf(sticks,sizeof(sticks),"%s/sticks",work);
-    /* at() reuses its buffers; every root gets its own copy. */
-    char root[7][4096];
-    static const char *const names[]={"created","fixture-edited","logo-removed","full","errors","conflict"};
-    for(int i=0;i<6;i++)snprintf(root[i],sizeof(root[i]),"%s/%s",sticks,names[i]);
-    snprintf(root[6],sizeof(root[6]),"%s/list",work);
-    created(root[0]);fixture_edited(root[1]);logo_removed(root[2]);full(root[3]);errors(root[4]);conflict(root[5]);list(root[6]);
+    static const char *const names[]={"created","migrated","adopted","unknown","full","errors","large"};
+    char root[8][4096];
+    for(int i=0;i<7;i++)snprintf(root[i],sizeof(root[i]),"%s/%s",sticks,names[i]);
+    snprintf(root[7],sizeof(root[7]),"%s/list",work);
+    created(root[0]);migrated(root[1]);adopted(root[2]);unknown(root[3]);full(root[4]);errors(root[5]);large(root[6]);list(root[7]);
     tiles();
     printf("test_dj_profile_write: %s (%d failures)\n",failures?"FAIL":"ok",failures);
     return failures?1:0;

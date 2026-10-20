@@ -406,7 +406,7 @@ static void review(const struct xz_ui_scene *s,const struct look *l){
  label(c,328,96,464,u->edit_tagline[0]?u->edit_tagline:"NO TAGLINE",1,u->edit_tagline[0]?l->ink:l->dim);
  snprintf(line,sizeof(line),u->edit_entry<0?"NEW PROFILE / BECOMES ACTIVE ON ITS USB":"EDITING THE PROFILE ON USB %d",u->edit_usb+1);
  label(c,328,124,464,line,1,l->dim);
- label(c,328,144,464,"ONLY DJPROFILE/VJTOOLS ON THE USB IS WRITTEN",1,l->dim);
+ label(c,328,144,464,"ONLY THE DJPROFILE FOLDER ON THE USB IS WRITTEN",1,l->dim);
  if(u->edit_logo>=0&&dj->preview==u->edit_logo&&dj->preview_state==XZ_UI_PREVIEW_FAILED)
   label(c,328,164,464,"THIS LOGO CANNOT BE USED: CHANGE LOGO",1,l->alarm);
 }

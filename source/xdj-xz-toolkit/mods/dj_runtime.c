@@ -15,7 +15,8 @@
 #include <sys/time.h>
 
 /* What the worker last saw on a port; any change rereads the stick. */
-struct seen { char root[1024]; unsigned long mount; struct stat index, legacy; int has_index, has_legacy; };
+enum { SEEN_TOP, SEEN_TOPS, SEEN_STICK_FILE, SEEN_INDEX, SEEN_CARD, SEEN_FILES };
+struct seen { char root[1024]; unsigned long mount; struct stat file[SEEN_FILES]; int has[SEEN_FILES]; };
 
 static pthread_mutex_t *lock;
 static struct xz_ui_dj *view;
@@ -24,15 +25,15 @@ static pthread_cond_t wake = PTHREAD_COND_INITIALIZER;
 static int running, created, rescan;
 static struct xz_dj_stick *stick[2], *scratch;
 static int present[2], reading;
-/* A pick waits here until the worker writes it. A folder profile is saved as a profile first. */
-static int pick_slot = -1, pick_entry = -1, pick_folder;
-static char pick_id[XZ_DJ_ID_MAX], pick_name[641], pick_logo[512];
+/* A pick waits here until the worker writes it: the profile reference (an id, or a level 0 folder name). */
+static int pick_slot = -1, pick_entry = -1;
+static char pick_ref[512];
 /* Each stick's rekordbox colour as 0xRRGGBB, 0 when it has none. */
 static uint32_t stick_color[2];
 static uint16_t folder_tile[XZ_DJ_TILE_SIDE * XZ_DJ_TILE_SIDE];
 static char status[160];
 /* Requests for the DJ PROFILE page and editor, each served once by the worker. */
-struct detail_job { int wanted, entry, usb; char id[XZ_DJ_ID_MAX], tile[512], logo[512]; };
+struct detail_job { int wanted, entry, usb; char id[XZ_DJ_ID_MAX], tile[1024], logo[1024]; };
 static struct detail_job detail_request;
 static uint16_t detail_tile[2][XZ_DJ_TILE_SIDE * XZ_DJ_TILE_SIDE];
 static int detail_buffer;
@@ -77,8 +78,8 @@ static void publish_locked(void) {
         if (!present[slot] || !s) continue;
         for (int i = 0; i < s->count && n < XZ_UI_DJ_ENTRIES; i++, n++) {
             const struct xz_dj_profile *p = &s->profile[i];
-            view->entry[n] = (struct xz_ui_dj_entry){ p->name, p->tagline, p->dj_id, slot, i == s->active, s->legacy && !p->folder,
-                p->damaged, p->accent, p->has_accent, p->has_thumb ? p->thumb : NULL, p->folder };
+            view->entry[n] = (struct xz_ui_dj_entry){ p->name, p->tagline, p->dj_id, slot, i == s->active, 0,
+                p->damaged, p->accent, p->has_accent, p->has_thumb ? p->thumb : NULL, p->kind == XZ_DJ_LEVEL0 };
         }
     }
     view->count = n;
@@ -116,10 +117,7 @@ void xz_dj_runtime_pick(int entry) {
     for (int i = 0, n = 0; i <= entry && n < XZ_UI_DJ_ENTRIES; i++) if (view->entry[i].usb == e->usb) { if (i == entry) index = n; n++; }
     if (!s || index < 0 || index >= s->count) return;
     const struct xz_dj_profile *p = &s->profile[index];
-    snprintf(pick_id, sizeof(pick_id), "%s", p->dj_id);
-    snprintf(pick_name, sizeof(pick_name), "%s", p->name);
-    snprintf(pick_logo, sizeof(pick_logo), "%s", p->logo_path);
-    pick_folder = p->folder;
+    snprintf(pick_ref, sizeof(pick_ref), "%s", xz_dj_profile_ref(p));
     pick_slot = e->usb; pick_entry = entry; view->pending = entry;
     pthread_cond_signal(&wake);
 }
@@ -167,14 +165,13 @@ void xz_dj_runtime_save(const struct xz_ui *edit) {
         if (view->images_reading || edit->edit_logo >= view->image_count) { say("THE LOGO LIST CHANGED: PICK THE LOGO AGAIN"); return; }
         snprintf(save_request.logo, sizeof(save_request.logo), "%s", view->images[edit->edit_logo]);
         save_request.logo_usb = view->images_usb;
-    } else if (edit->edit_logo == XZ_UI_LOGO_KEEP) {
-        /* A folder profile keeps the logo in its folder. */
-        const struct xz_dj_profile *p = profile_of(edit->edit_entry);
-        if (p && p->folder) { snprintf(save_request.logo, sizeof(save_request.logo), "%s", p->logo_path); save_request.logo_usb = view->entry[edit->edit_entry].usb; }
     }
-    /* A new profile adopts the stick's rekordbox colour. */
+    /* A hand-made folder is written in place: it becomes a profile with an id, its logo kept. */
+    const struct xz_dj_profile *p = edit->edit_id[0] ? NULL : profile_of(edit->edit_entry);
+    if (p && p->kind == XZ_DJ_LEVEL0 && view->entry[edit->edit_entry].usb == edit->edit_usb) snprintf(d->folder, sizeof(d->folder), "%s", p->dir);
+    /* A profile made on the XZ takes the stick's rekordbox colour (spec section 11). */
     if (!edit->edit_id[0] && stick_color[edit->edit_usb]) hex_rgb(d->accent, stick_color[edit->edit_usb]);
-    d->remove_logo = edit->edit_logo == XZ_UI_LOGO_NONE && edit->edit_id[0];
+    d->remove_logo = edit->edit_logo == XZ_UI_LOGO_NONE;
     save_request.entry_usb = edit->edit_usb; save_request.wanted = 1; view->saving = 1;
     pthread_cond_signal(&wake);
 }
@@ -235,7 +232,7 @@ static void serve_detail(void) {
     if (!xz_settings_find_usb((unsigned)job.usb, root)) {
         tile_ok = job.tile[0] && !read_file(root, job.tile, detail_tile[buffer], XZ_DJ_TILE_BYTES, &got) && got == XZ_DJ_TILE_BYTES;
         char path[1400];
-        /* A folder profile's tile is rendered from its logo. */
+        /* A profile without a tile rendition is drawn from its logo. */
         if (!tile_ok && job.logo[0] && snprintf(path, sizeof(path), "%s/%s", root, job.logo) < (int)sizeof(path))
             tile_ok = xz_dj_image_tile(path, detail_tile[buffer], NULL, NULL) == XZ_DJ_IMAGE_OK ? 2 : 0;
         /* The file is little-endian RGB565. */
@@ -301,15 +298,14 @@ static void thumb_of(const uint16_t *tile, uint16_t *thumb) {
         thumb[y * XZ_DJ_THUMB + x] = (uint16_t)((r >> 3) << 11 | (g >> 2) << 5 | b >> 3);
     }
 }
-/* Adds the stick's folder profiles, renders their logos, and gives every profile without an accent
-   the stick's rekordbox colour. Returns the colour, 0 for none; *rc becomes 0 when folders add a profile. */
-static uint32_t add_folders(const char *root, struct xz_dj_stick *s, int *rc) {
+/* Renders the logo of every profile without a tile rendition and gives every profile without an
+   accent the stick's rekordbox colour (spec section 11). Returns the colour, 0 for none. */
+static uint32_t finish_stick(const char *root, struct xz_dj_stick *s) {
     uint32_t rgb = 0;
-    if (xz_dj_folder_profiles(root, s) && *rc == 1) *rc = 0;
     if (xz_dj_stick_color(root, &rgb)) rgb = 0;
     for (int i = 0; i < s->count; i++) {
         struct xz_dj_profile *p = &s->profile[i]; char path[1400];
-        if (p->folder && snprintf(path, sizeof(path), "%s/%s", root, p->logo_path) < (int)sizeof(path) &&
+        if (!p->has_thumb && p->logo_path[0] && snprintf(path, sizeof(path), "%s/%s", root, p->logo_path) < (int)sizeof(path) &&
             xz_dj_image_tile(path, folder_tile, NULL, NULL) == XZ_DJ_IMAGE_OK) { thumb_of(folder_tile, p->thumb); p->has_thumb = 1; }
         if (!p->has_accent && rgb) { p->accent = rgb; p->has_accent = 1; }
     }
@@ -319,18 +315,21 @@ static uint32_t add_folders(const char *root, struct xz_dj_stick *s, int *rc) {
 static int look(int slot, struct seen *now, const struct seen *before) {
     memset(now, 0, sizeof(*now));
     if (xz_settings_find_usb((unsigned)slot, now->root)) now->root[0] = 0;
+    /* FAT looks names up without case, so the fixed spellings find any spelling on the stick. Folders
+       added or removed change the top folder; edits inside a profile folder wait for CHECK. */
+    static const char *const watched[SEEN_FILES] = { "DJPROFILE", "DJPROFILES", "DJPROFILE/DJPROFILE.json",
+        "DJPROFILE/VJTOOLS/index.json", "VJ.Tools/Branding/profile.json" };
+    int changed = strcmp(now->root, before->root) != 0;
     if (now->root[0]) {
-        char path[1100];
         now->mount = xz_settings_mount_id(now->root);
-        snprintf(path, sizeof(path), "%s/DJPROFILE/VJTOOLS/index.json", now->root);
-        now->has_index = !lstat(path, &now->index);
-        snprintf(path, sizeof(path), "%s/VJ.Tools/Branding/profile.json", now->root);
-        now->has_legacy = !lstat(path, &now->legacy);
+        changed = changed || now->mount != before->mount;
+        for (int k = 0; k < SEEN_FILES; k++) {
+            char path[1100]; snprintf(path, sizeof(path), "%s/%s", now->root, watched[k]);
+            now->has[k] = !lstat(path, &now->file[k]);
+            changed = changed || now->has[k] != before->has[k] || (now->has[k] && !same_stat(&now->file[k], &before->file[k]));
+        }
     }
-    return strcmp(now->root, before->root) || now->mount != before->mount ||
-        now->has_index != before->has_index || now->has_legacy != before->has_legacy ||
-        (now->has_index && !same_stat(&now->index, &before->index)) ||
-        (now->has_legacy && !same_stat(&now->legacy, &before->legacy));
+    return changed;
 }
 static void *worker(void *unused) {
     (void)unused;
@@ -339,24 +338,13 @@ static void *worker(void *unused) {
     while (running) {
         serve_requests();
         int force = rescan, slot_pick = pick_slot, entry_pick = pick_entry; rescan = 0;
-        char id[XZ_DJ_ID_MAX]; snprintf(id, sizeof(id), "%s", pick_id);
-        struct xz_dj_draft draft = { .dj_id = "" }; int folder = pick_folder;
-        if (folder) {
-            snprintf(draft.name, sizeof(draft.name), "%s", pick_name);
-            if (slot_pick >= 0 && stick_color[slot_pick]) hex_rgb(draft.accent, stick_color[slot_pick]);
-        }
-        char logo[512]; snprintf(logo, sizeof(logo), "%s", pick_logo);
-        pick_slot = -1; pick_entry = -1; pick_folder = 0;
+        char ref[512]; snprintf(ref, sizeof(ref), "%s", pick_ref);
+        pick_slot = -1; pick_entry = -1;
         pthread_mutex_unlock(lock);
         int wrote = 2;
         if (slot_pick >= 0) {
             char root[1024];
-            if (xz_settings_find_usb((unsigned)slot_pick, root)) wrote = -1;
-            else if (folder) {
-                /* A folder profile becomes a profile on its stick, with the folder's logo, then active. */
-                wrote = snprintf(draft.logo, sizeof(draft.logo), "%s/%s", root, logo) < (int)sizeof(draft.logo) &&
-                    xz_dj_profile_write(root, &draft, id) == XZ_DJ_WRITE_OK ? xz_dj_stick_set_active(root, id) : -1;
-            } else wrote = xz_dj_stick_set_active(root, id);
+            wrote = xz_settings_find_usb((unsigned)slot_pick, root) ? -1 : xz_dj_stick_set_active(root, ref);
         }
         for (int slot = 0; slot < 2; slot++) {
             int changed = look(slot, &now, &seen[slot]) || force || slot == slot_pick;
@@ -366,7 +354,7 @@ static void *worker(void *unused) {
                 pthread_mutex_lock(lock); reading = 1; view->reading = 1; pthread_mutex_unlock(lock);
                 rc = xz_dj_stick_read(now.root, scratch);
             }
-            uint32_t rgb = rc >= 0 && now.root[0] ? add_folders(now.root, scratch, &rc) : 0;
+            uint32_t rgb = rc >= 0 && now.root[0] ? finish_stick(now.root, scratch) : 0;
             pthread_mutex_lock(lock);
             /* A read error keeps what was shown and tries again next poll. */
             if (rc >= 0) {
