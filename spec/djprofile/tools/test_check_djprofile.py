@@ -158,7 +158,16 @@ class Documents(Stick):
         import hashlib
         self.edit(lambda d: d.update(renditions=[{'file': 'tile.rgb565', 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
                                                   'width': 10, 'height': 10, 'format': 'rgb565le', 'for': 'xdj-xz'}]))
-        self.assertIn('rgb565le 10x10 must be 200 bytes', problems(checker.check(self.root)))
+        report = checker.check(self.root)
+        self.assertEqual(problems(report), [])
+        self.assertIn('ignored: rgb565le 10x10 must be 200 bytes', warnings(report))
+        self.assertEqual(report.profiles[0]['level'], 1)
+
+    def test_null_ext_and_long_logo_note(self):
+        self.edit(lambda d: d.update(ext=None))
+        self.assertIn('ext maps vendor names to objects', problems(checker.check(self.root)))
+        self.edit(lambda d: (d.update(ext={}), d['logos'][0].update(note='x' * 1025)))
+        self.assertIn('note must be at most 1024 bytes', problems(checker.check(self.root)))
 
 
 class Folders(Stick):

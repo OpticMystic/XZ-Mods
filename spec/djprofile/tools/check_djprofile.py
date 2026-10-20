@@ -331,8 +331,8 @@ def _check_document(report: Report, where: str, folder: Path, document: object) 
             report.fail(f'{where} links[{i}]', '5.3', 'a link is {kind, url} with an https:// url')
     if 'note' in document and not _text_ok(document['note'], 8192):
         report.fail(where, '5', 'note must be text of at most 8192 bytes')
-    ext = document.get('ext')
-    if ext is not None and not (isinstance(ext, dict) and all(isinstance(v, dict) for v in ext.values())):
+    ext = document.get('ext', {})
+    if not (isinstance(ext, dict) and all(isinstance(v, dict) for v in ext.values())):
         report.fail(where, '10', 'ext maps vendor names to objects')
     logo = None
     if 'logos' in document:
@@ -355,6 +355,8 @@ def _check_document(report: Report, where: str, folder: Path, document: object) 
                     report.fail(label, '5.1', 'background must be "dark", "light" or "any"')
                 if 'label' in entry and not _text_ok(entry['label'], 160):
                     report.fail(label, '5.1', 'label must be at most 160 bytes')
+                if 'note' in entry and not _text_ok(entry['note'], 1024):
+                    report.fail(label, '5.1', 'note must be at most 1024 bytes')
             data = _read_entry(report, label, folder, entry, '5.1', MAX_LOGO)
             if data is not None:
                 total += len(data)
@@ -367,15 +369,17 @@ def _check_document(report: Report, where: str, folder: Path, document: object) 
         report.fail(where, '5.4', 'renditions must be a list of at most 8')
         renditions = []
     for i, rendition in enumerate(renditions):
-        label = f'{where} renditions[{i}]'
-        data = _read_entry(report, label, folder, rendition, '5.4', MAX_RENDITION)
+        # Section 5.4: readers ignore a broken rendition, so it is a warning and the profile still counts.
+        label, own = f'{where} renditions[{i}]', Report()
+        data = _read_entry(own, label, folder, rendition, '5.4', MAX_RENDITION)
         if data is not None:
             w, h, fmt = rendition.get('width'), rendition.get('height'), rendition.get('format')
             if not (isinstance(w, int) and isinstance(h, int) and 0 < w <= MAX_SIDE and 0 < h <= MAX_SIDE
                     and _text_ok(fmt, 40, 1) and _text_ok(rendition.get('for'), 80, 1)):
-                report.fail(label, '5.4', 'needs width, height (1 to 4096), format and for')
+                own.fail(label, '5.4', 'needs width, height (1 to 4096), format and for')
             elif fmt in RAW_BYTES_PER_PIXEL and len(data) != w * h * RAW_BYTES_PER_PIXEL[fmt]:
-                report.fail(label, '5.4', f'{fmt} {w}x{h} must be {w * h * RAW_BYTES_PER_PIXEL[fmt]} bytes')
+                own.fail(label, '5.4', f'{fmt} {w}x{h} must be {w * h * RAW_BYTES_PER_PIXEL[fmt]} bytes')
+        report.warnings += [{**item, 'problem': 'ignored: ' + item['problem']} for item in own.problems]
     track = None
     if 'track' in document:
         track = document['track']
