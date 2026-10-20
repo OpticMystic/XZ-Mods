@@ -125,7 +125,7 @@ def main() -> None:
                "-fvisibility=hidden", "-Wl,--no-undefined", "-Wl,-z,nodelete",
                "-Wl,-T," + str(ROOT / "xz-relocations.ld"),
                str(ROOT / "runtime.c"), str(ROOT / "cue/cue.c"), str(ROOT / "cue/native.c"),
-               str(ROOT / "deck_select.c"), str(ROOT / "extra_decks.c"),
+               str(ROOT / "deck_select.c"), str(ROOT / "extra_decks.c"), str(ROOT / "classic_load.c"),
                str(ROOT / "doom/native_bridge.c"),
                str(ROOT / "kart/xz_kart_input.c"), str(ROOT / "kart/xz_kart_runtime.c"),
                *(str(ROOT / "sdk" / name) for name in SDK_SOURCES),
