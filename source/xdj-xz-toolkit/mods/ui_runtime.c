@@ -44,6 +44,7 @@ static uint32_t ram_debug_sample_ms;
 #include "usb_profile.h"
 #include "dj_runtime.h"
 #include "shell_runtime.h"
+#include "ui/ui_menu.h"
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
 #pragma weak xz_shell_runtime_start
 #pragma weak xz_shell_runtime_stop
@@ -66,6 +67,12 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_mods_key
 #pragma weak xz_shell_runtime_take_stock_key
 #pragma weak xz_shell_runtime_stock_key_ran
+#pragma weak xz_shell_runtime_menu_wanted
+#pragma weak xz_shell_runtime_menu
+#pragma weak xz_shell_runtime_take_menu_command
+#pragma weak xz_shell_runtime_show_mods
+#pragma weak xz_shell_runtime_close_mods
+#pragma weak xz_shell_runtime_mods_open
 #pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
@@ -563,6 +570,36 @@ static void inline_layout_publish(void) {
     int layout=(unsigned)model.stems_overlay<XZ_STEM_LAYOUT_COUNT?model.stems_overlay:XZ_STEM_LAYOUT_HIDDEN;
     __atomic_store_n(&inline_requested,(requested_stems||pc_present)&&!touch.visible?layout:XZ_STEM_LAYOUT_HIDDEN,__ATOMIC_RELEASE);
 }
+/* ---- MODS in the MODERN interface ----
+   The shell draws MODS (its MENU tabs are this panel's pages, ui/ui_menu.h), so in MODERN the panel never
+   opens: every place that would show a panel page shows it in the shell's MODS screen instead. CLASSIC, or a
+   build without the shell, keeps the panel. */
+static int menu_in_shell_locked(void){
+    return model.ui_interface==XZ_UI_INTERFACE_MODERN&&xz_shell_runtime_show_mods&&xz_shell_runtime_menu;
+}
+static struct xz_shell_menu menu_scratch; /* under ui_mutex */
+static void menu_publish_locked(void){
+    if(xz_shell_runtime_menu&&xz_ui_menu_build(&ui,&model,&menu_scratch))xz_shell_runtime_menu(&menu_scratch);
+}
+/* The page ui.page sits under must be a MENU tab (GENERAL, CONTROLS, ADVANCED, EXTRAS); a page reached from
+   the two item tabs (APPEARANCE, BUTTONS) is filed under GENERAL, which links to it too. */
+static int menu_top(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS;}
+static void panel_show_locked(void){
+    if(menu_in_shell_locked()){
+        /* Opened from outside MODS: the page sits under its own parents, not wherever the panel was. */
+        if(!(xz_shell_runtime_menu_wanted&&xz_shell_runtime_menu_wanted()))ui.history_count=0;
+        if(!menu_top(xz_ui_menu_root(&ui,NULL))&&ui.history_count<16){
+            memmove(ui.history+1,ui.history,ui.history_count*sizeof(*ui.history));ui.history[0]=XZ_UI_GENERAL;ui.history_count++;
+        }
+        if(xz_shell_runtime_show_mods(xz_ui_menu_root(&ui,NULL))){menu_publish_locked();return;}
+    }
+    xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
+}
+/* A setup that ends back on the play screen (to_play) closes MODS; others stay on their page in MODERN. */
+static void panel_hide_locked(int to_play){
+    if(menu_in_shell_locked()&&!touch.visible){if(to_play&&xz_shell_runtime_close_mods)xz_shell_runtime_close_mods();return;}
+    xz_native_touch_visible(&touch,0);__atomic_store_n(&visible,0,__ATOMIC_RELEASE);
+}
 static uint32_t pc_link_epoch=1;
 static unsigned pc_available_roles;
 static struct {int valid,target;uint32_t epoch;unsigned known,active;} pc_test[2];
@@ -652,7 +689,7 @@ static void pc_apply(const struct xz_ui_action *a){
     if(a->kind==XZ_UI_PC_SETUP){
         xz_ui_navigate(&ui,XZ_UI_PC_STEMS);ui.deck=d;
         snprintf(ui.notice,sizeof(ui.notice),"%s",xz_ui_pc_reason_text((enum xz_ui_pc_reason)a->index));
-        xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
+        panel_show_locked();
         pc_setup_step[d]=XZ_UI_PC_STEP_DETECT;pc_refresh_locked();return;
     }
     if(a->kind==XZ_UI_PC_CHECK){
@@ -988,7 +1025,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_METRICS_SETUP_OPEN:
             xz_ui_navigate(&ui,XZ_UI_METRICS_SETUP);ui.metrics_step=0;
-            xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);break;
+            panel_show_locked();break;
         case XZ_UI_METRICS_CHECK:
             if(!xz_metrics_start||xz_metrics_start()){
                 snprintf(ui.notice,sizeof(ui.notice),"SAMPLER MISSING: REBUILD USB LOADER WITH CURRENT XZ MODS");break;
@@ -998,13 +1035,13 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             if(xz_metrics_snapshot)xz_metrics_snapshot(&model.metrics);
             if(xz_metrics_fresh(&model.metrics,xz_game_milliseconds())&&(model.metrics.valid&3)==3){
                 snprintf(ui.notice,sizeof(ui.notice),model.metrics.valid&4?"CPU / RAM / SOC SENSOR LIVE":"CPU / RAM LIVE; SOC SENSOR NOT EXPOSED");
-                xz_native_touch_visible(&touch,0);__atomic_store_n(&visible,0,__ATOMIC_RELEASE);
+                panel_hide_locked(0);
             }else snprintf(ui.notice,sizeof(ui.notice),"WAIT ONE SECOND, THEN LIVE VERIFY AGAIN");
             break;
         case XZ_UI_LOCAL_STEM_SETUP_OPEN:
             xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);ui.deck=a->deck>=0&&a->deck<2?a->deck:0;
             refresh_local();ui.stem_setup_step=!audio_available?0:(model.enabled&XZ_UI_STEM)?2:1;
-            xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);inline_layout_publish();break;
+            panel_show_locked();inline_layout_publish();break;
         case XZ_UI_LOCAL_STEM_SETUP_STEP: {
             int deck=ui.deck>=0&&ui.deck<2?ui.deck:0;
             if(model.deck[deck].pc_stems.source!=XZ_UI_SOURCE_LOCAL){xz_ui_navigate(&ui,XZ_UI_PC_STEMS);break;}
@@ -1013,13 +1050,13 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             if(a->index==0){ui.stem_setup_step=(model.enabled&XZ_UI_STEM)?2:1;snprintf(ui.notice,sizeof(ui.notice),"%s",xz_ui_usb_next_step(xz_ui_usb_blocked(&model,deck)));}
             else if(a->index==1){requested_stems=1;model.enabled|=XZ_UI_STEM;xz_audio_set_enabled(1);levels(0);levels(1);ui.stem_setup_step=2;settings_queue();refresh_local();}
             /* Live verify means a prepared track is actually playing stems, not just an engine present. */
-            else if((model.deck[deck].ready&XZ_UI_STEM)&&audio_status[deck].prepared&&audio_status[deck].state==XZ_AUDIO_EXPERIMENTAL_READY){xz_native_touch_visible(&touch,0);__atomic_store_n(&visible,0,__ATOMIC_RELEASE);inline_redraw_pending=1;}
+            else if((model.deck[deck].ready&XZ_UI_STEM)&&audio_status[deck].prepared&&audio_status[deck].state==XZ_AUDIO_EXPERIMENTAL_READY){panel_hide_locked(1);inline_redraw_pending=1;}
             else snprintf(ui.notice,sizeof(ui.notice),"%s",model.deck[deck].stem_error&&*model.deck[deck].stem_error?
                 model.deck[deck].stem_error:xz_ui_usb_next_step(xz_ui_usb_blocked(&model,deck)));
             inline_layout_publish();break;
         }
         case XZ_UI_UNAVAILABLE:
-            if(a->index==XZ_UI_STEM){xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);ui.stem_setup_step=0;xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);inline_layout_publish();}
+            if(a->index==XZ_UI_STEM){xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);ui.stem_setup_step=0;panel_show_locked();inline_layout_publish();}
             if(a->index&(XZ_UI_KEY|XZ_UI_KEYSYNC))xz_ui_navigate(&ui,XZ_UI_KEY_SETUP);
             break;
         case XZ_UI_GAME_SELECT:
@@ -1328,7 +1365,9 @@ static struct xz_shell_runtime_frame_input shell_input_cache;
 static int shell_input_cached;
 /* The shell may own the screen only while MODS, a game, Doom and the VJ takeover leave it free. */
 static int shell_eligible_locked(void){
-    return !touch.visible&&game_locked()==GAME_NONE&&!xz_doom_running()&&!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE);
+    /* MODS (the shell's own in MODERN) opens over the VJ takeover, as the panel does in CLASSIC. */
+    return !touch.visible&&game_locked()==GAME_NONE&&!xz_doom_running()&&
+        (!__atomic_load_n(&fb_takeover_active,__ATOMIC_ACQUIRE)||(xz_shell_runtime_mods_open&&xz_shell_runtime_mods_open()));
 }
 static int shell_owns_locked(void){return xz_shell_runtime_owns&&shell_eligible_locked()&&xz_shell_runtime_owns();}
 static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
@@ -1345,6 +1384,8 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
     in->stems_overlay=model.stems_overlay;
     in->rekordbox_known=1;in->rekordbox_assign[0]=model.rekordbox_assign[0];in->rekordbox_assign[1]=model.rekordbox_assign[1];
+    /* The MODS screen's MENU tab shows the panel's open page: published while the shell shows one. */
+    if(xz_shell_runtime_menu_wanted&&xz_shell_runtime_menu_wanted())menu_publish_locked();
     for(int d=0;d<2;d++){in->stem_level_known[d]=in->stem_muted_known[d];for(int i=0;i<3;i++)in->stem_level[d][i]=model.deck[d].levels[i];}
     /* DJ profiles for the shell's MY SETTINGS panel, copied (the view changes under this lock). */
     if(model.dj){
@@ -1378,6 +1419,23 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
    stock-mode badge (native_touch.c: visible=1) and STEMS button (XZ_UI_STEMS_OVERLAY) do. The rest of
    an opening contact stays with the shell's touch owner, so the panel never sees it, as the badge's
    opening_contact capture does. */
+static void menu_command_locked(const struct xz_shell_runtime_menu_command *c){
+    struct xz_ui_action actions[XZ_UI_MENU_ACTIONS];size_t n=0;
+    switch(c->op){
+    case XZ_SHELL_MENU_OPEN:
+        if(!menu_top(c->root))return;
+        n=xz_ui_cancel(&ui,actions);apply(NULL,actions,n);n=0;
+        refresh_local();sdk_refresh();
+        xz_ui_menu_open(&ui,(enum xz_ui_page)c->root);
+        break;
+    case XZ_SHELL_MENU_ACTIVATE:n=xz_ui_menu_run(&ui,&model,&c->target,actions);break;
+    case XZ_SHELL_MENU_BACK:n=xz_ui_menu_back(&ui,actions);break;
+    case XZ_SHELL_MENU_PRESS:case XZ_SHELL_MENU_MOVE:n=xz_ui_menu_pad(&ui,&model,&c->target,c->x,c->y,1,actions);break;
+    case XZ_SHELL_MENU_RELEASE:n=xz_ui_menu_pad(&ui,&model,&c->target,c->x,c->y,0,actions);break;
+    default:return;
+    }
+    if(n)apply(NULL,actions,n);
+}
 static void shell_ui_requests_locked(void){
     unsigned requests=xz_shell_runtime_take_ui_requests?xz_shell_runtime_take_ui_requests():0;
     if(requests&XZ_SHELL_UI_TOGGLE_STEMS){
@@ -1407,6 +1465,14 @@ static void shell_ui_requests_locked(void){
             int muted=(int)((model.deck[deck].muted>>stem)&1u);
             if(muted!=value){struct xz_ui_action act={.kind=XZ_UI_MUTE,.phase=XZ_UI_PRESS,.deck=deck,.index=stem};apply(NULL,&act,1);}
         }
+    }
+    /* The shell's MENU tabs: each push, run on the panel's own state and actions, then the page it leads to
+       published before the next input. */
+    if((requests&XZ_SHELL_UI_MENU)&&xz_shell_runtime_take_menu_command){
+        struct xz_shell_runtime_menu_command c;
+        while(xz_shell_runtime_take_menu_command(&c))menu_command_locked(&c);
+        inline_layout_publish();
+        menu_publish_locked();
     }
     /* The shell's MODS screen opens a panel page (a mod tab's button); the header asks for the panel itself. */
     int mods_page=(requests&XZ_SHELL_UI_OPEN_MODS)&&xz_shell_runtime_take_mods_page?xz_shell_runtime_take_mods_page():-1;
@@ -1499,7 +1565,7 @@ static int menu_owns_keys_locked(void){
    next press), an open panel closes, otherwise it opens. */
 static void mods_panel_open_locked(void){
     refresh_local();sdk_refresh();
-    xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
+    panel_show_locked();
 }
 static void mods_panel_toggle_locked(void){
     enum game game=game_locked();
@@ -1542,8 +1608,10 @@ static int rekordbox_run_locked(int action){
             const char *why=!v->ready||!v->enabled?"VJ.TOOLS LINK IS OFF":"VJ.TOOLS IS NOT CONNECTED";
             if(modern&&!touch.visible&&shell_owns_locked()&&xz_shell_runtime_notice)xz_shell_runtime_notice(why);
             else{
+                if(menu_in_shell_locked())xz_ui_menu_open(&ui,XZ_UI_EXTRAS);
+                xz_ui_navigate(&ui,XZ_UI_CONNECTION);
                 if(!touch.visible)mods_panel_open_locked();
-                xz_ui_navigate(&ui,XZ_UI_CONNECTION);snprintf(ui.notice,sizeof(ui.notice),"%s",why);
+                snprintf(ui.notice,sizeof(ui.notice),"%s",why);
                 inline_layout_publish();xz_native_skin_request_repaint();
             }
             return 0;
@@ -1925,7 +1993,7 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
                 int done = sync_key(event->deck);
                 /* A failure is shown inline on the deck strip. Only a missing key engine,
                    which no gesture can fix, opens its setup page. */
-                if (!done && !key_available) { xz_native_touch_visible(&touch,1); __atomic_store_n(&visible,1,__ATOMIC_RELEASE); }
+                if (!done && !key_available) panel_show_locked();
             }
         }
         pthread_mutex_unlock(&ui_mutex); return owned;

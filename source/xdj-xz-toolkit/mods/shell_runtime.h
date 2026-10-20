@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "shell/shell.h"
+#include "shell/shell_settings.h"
 
 /* ---- Device entry points (shell_runtime.c). Weak in ui_runtime.c. ---- */
 struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cents, synced; int matches_master, shift; };
@@ -68,7 +69,26 @@ void xz_shell_runtime_owner_tick(void);
 /* Header-button requests the shell cannot execute itself (they belong to ui_runtime.c's MODS panel and
    STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
    right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
-enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u };
+enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u,
+ XZ_SHELL_UI_MENU=32u };
+/* The MODS screen's MENU tabs (GENERAL, CONTROLS, ADVANCED, EXTRAS) are the MODS panel's own pages, drawn by
+   the shell (ui/ui_menu.h describes them). ui_runtime.c publishes the panel's open page whenever menu_wanted
+   says the shell shows a MENU tab (every frame, and right after it runs a command, so the next input already
+   sees the page a push opened). XZ_SHELL_UI_MENU: the commands a push asked for, oldest first; ui_runtime.c
+   runs them on the panel state under its UI lock. */
+struct xz_shell_menu;
+int xz_shell_runtime_menu_wanted(void);
+void xz_shell_runtime_menu(const struct xz_shell_menu *);
+/* op: enum xz_shell_menu_op. OPEN: root; ACTIVATE: target; BACK; PRESS/MOVE/RELEASE: target, x, y (0..1000). */
+struct xz_shell_runtime_menu_command { int op, root, x, y; struct xz_shell_menu_target target; };
+int xz_shell_runtime_take_menu_command(struct xz_shell_runtime_menu_command *);
+/* A panel control led to a mod page (a setup the runtime opens itself): MODS opens on the MENU tab whose
+   root holds it, inside the page. 0 when the shell cannot show it (no such tab, not running). close: MODS
+   leaves the screen (a setup finished with "back to play"). */
+int xz_shell_runtime_show_mods(int root);
+void xz_shell_runtime_close_mods(void);
+/* MODS is the shell's top screen (it then draws over the VJ takeover, as the panel does in CLASSIC). */
+int xz_shell_runtime_mods_open(void);
 /* XZ_SHELL_UI_ACTION: MODS-panel actions the shell's item tabs asked for, oldest first (kind = enum
    xz_ui_action_kind, index, value as the panel sends them); 0 when none is left. ui_runtime.c runs them
    through apply(), so side effects and the settings save are the panel's own. */
