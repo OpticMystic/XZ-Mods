@@ -13,7 +13,12 @@ common = [str(Path(args.zig).resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wex
 with tempfile.TemporaryDirectory(prefix='xz-shell-test-') as folder:
     # Every test_*.c is its own program over the whole shell, so a screen family adds a test without editing this file.
     # test_menu*.c also link the MODS panel and its page adapter (ui/ui_menu.c).
-    for name, sources in {test.stem: [*SHELL_SOURCES, *(MENU_SOURCES if test.stem.startswith('test_menu') else []), test.name] for test in sorted(root.glob('test_*.c'))}.items():
+    # The monorepo's ../ui predates the page adapter: the MENU tests run where ui_menu.c is (XZ-Mods source/).
+    menu = (root.parent / 'ui' / 'ui_menu.c').is_file()
+    if not menu:
+        print('SKIP test_menu*: ../ui/ui_menu.c is not in this tree')
+    tests = [test for test in sorted(root.glob('test_*.c')) if menu or not test.stem.startswith('test_menu')]
+    for name, sources in {test.stem: [*SHELL_SOURCES, *(MENU_SOURCES if test.stem.startswith('test_menu') else []), test.name] for test in tests}.items():
         output = Path(folder) / (name + '.exe')
         subprocess.run(common + ['-UNDEBUG'] + [str(root / p) for p in sources] + ['-o', str(output)], check=True)
         subprocess.run([str(output)], check=True, cwd=folder)

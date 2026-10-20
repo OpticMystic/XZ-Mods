@@ -16,7 +16,9 @@ root = Path(__file__).resolve().parent
 a.output.mkdir(parents=True, exist_ok=False)
 with tempfile.TemporaryDirectory(prefix='xz-shell-preview-') as temporary:
     # preview.c and every preview_*.c are separate programs writing PPMs into the same folder.
-    for program in [root / 'preview.c', *sorted(root.glob('preview_*.c'))]:
+    # The monorepo's ../ui predates the page adapter: the MENU previews draw where ui_menu.c is (XZ-Mods source/).
+    menu = (root.parent / 'ui' / 'ui_menu.c').is_file()
+    for program in [root / 'preview.c', *(p for p in sorted(root.glob('preview_*.c')) if menu or not p.stem.startswith('preview_menu'))]:
         exe = Path(temporary) / (program.stem + '.exe')
         subprocess.run([str(Path(a.zig).resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
                         *(str(root / name) for name in SHELL_SOURCES),
