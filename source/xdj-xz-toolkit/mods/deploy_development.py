@@ -137,6 +137,7 @@ def main():
         new_env += " XZ_MODS_STEMS_FORCE=1"
     if args.ram_settings:
         new_env += " XZ_MODS_SETTINGS_READONLY=1"
+        old_env += " XZ_MODS_SETTINGS_READONLY=1"
     if args.theme is not None:
         new_env += " XZ_MODS_THEME=" + str(args.theme)
     if args.settings_usb:
