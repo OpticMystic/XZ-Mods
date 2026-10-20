@@ -62,6 +62,10 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_take_mods_page
 #pragma weak xz_shell_runtime_take_dj_pick
 #pragma weak xz_shell_runtime_take_ui_action
+#pragma weak xz_shell_runtime_rekordbox_action
+#pragma weak xz_shell_runtime_mods_key
+#pragma weak xz_shell_runtime_take_stock_key
+#pragma weak xz_shell_runtime_stock_key_ran
 #pragma weak xz_shrt_key_lookup
 /* The device build links the internal store. Host fixtures that do not test
    it leave these unset, so the XZ simply forgets settings between boots there. */
@@ -250,7 +254,11 @@ static char sdk_usb_root[XZ_SDK_PATH];
 static int (*stock_uikey_link)(void *);
 /* UiKey handlers get their arguments in r0-r3; forwarding all four keeps the stock call exact. */
 static int (*stock_uikey_rekordbox)(void *,void *,void *,void *);
-static int menu_key_toggle(void);
+static int uikey_rekordbox_hook(void *,void *,void *,void *);
+static void *key_player(int deck);
+_Static_assert((int)XZ_UI_RB_MODS==(int)XZ_REKORDBOX_MODS&&(int)XZ_UI_RB_STOCK==(int)XZ_REKORDBOX_STOCK&&(int)XZ_UI_RB_INTERFACE==(int)XZ_REKORDBOX_INTERFACE&&
+    (int)XZ_UI_RB_VJ_SCREEN==(int)XZ_REKORDBOX_VJ_SCREEN&&(int)XZ_UI_RB_STEMS==(int)XZ_REKORDBOX_STEMS&&(int)XZ_UI_RB_NOTHING==(int)XZ_REKORDBOX_NOTHING&&
+    (int)XZ_UI_RB_CHOICES==(int)XZ_REKORDBOX_ACTIONS,"one REKORDBOX action numbering");
 
 static void rhythm_lab_to_dj(void) {
     xz_rhythm_lab_close();xz_native_touch_visible(&touch,0);
@@ -350,12 +358,14 @@ static int uikey_link_hook(void *arg0) {
     return stock_uikey_link ? stock_uikey_link(arg0) : 0;
 }
 
-static int uikey_rekordbox_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
-    /* By default REKORDBOX is the hardware MODS key, so a broken touchscreen still
-       reaches every setting. The ADVANCED page hands it back to the stock action. */
-    if (menu_key_toggle()) return 1;
-    xz_ui_runtime_on_source_key(1);
-    return stock_uikey_rekordbox ? stock_uikey_rekordbox(arg0,arg1,arg2,arg3) : 0;
+int xz_ui_runtime_stock_source_key(int which, int run) {
+    if (!run) return which ? stock_uikey_rekordbox != NULL : stock_uikey_link != NULL;
+    /* Both handlers read only the entry's flags word and may clear its state (rbp 1.26: UiKey_rekordbox
+       0xe0a50, UiKey_Link 0xdf994); r1-r3 are unused. */
+    uint32_t entry[4] = {1, 0, 2, which ? 0xe0a50u : 0xdf994u};
+    if (which) { if (!stock_uikey_rekordbox) return -1; stock_uikey_rekordbox(entry, NULL, NULL, NULL); }
+    else { if (!stock_uikey_link) return -1; stock_uikey_link(entry); }
+    return 0;
 }
 
 static struct xz_settings settings_snapshot(void) {
@@ -367,7 +377,8 @@ static struct xz_settings settings_snapshot(void) {
         .stems_overlay=model.stems_overlay, .wave_mode=model.wave_mode,
         .browse_columns={model.browse_columns[0],model.browse_columns[1],model.browse_columns[2]},
         .browse_key_prefix=model.browse_key_prefix, .browse_traffic=model.browse_traffic, .key_format=model.key_format,
-        .stem_colors={model.stem_colors[0],model.stem_colors[1],model.stem_colors[2]},.stem_order=model.stem_order,.key_feedback=model.key_feedback,.ram_debug=model.ram_debug,.rekordbox_menu=model.rekordbox_menu,.metrics_enabled=model.metrics_enabled};
+        .stem_colors={model.stem_colors[0],model.stem_colors[1],model.stem_colors[2]},.stem_order=model.stem_order,.key_feedback=model.key_feedback,.ram_debug=model.ram_debug,
+        .rekordbox_menu=model.rekordbox_assign[0]==XZ_REKORDBOX_MODS,.rekordbox_press=model.rekordbox_assign[0],.rekordbox_shift=model.rekordbox_assign[1],.metrics_enabled=model.metrics_enabled};
 }
 /* Profile values that only the UI owns. The backend already rejects invalid profiles. */
 static void browse_settings(const struct xz_settings *saved) {
@@ -1212,11 +1223,18 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             __atomic_store_n(&xz_mods_ram_debug_v1.enabled,model.ram_debug,__ATOMIC_RELEASE);
             xz_native_skin_request_repaint();
             break;
-        case XZ_UI_REKORDBOX_KEY:
-            model.rekordbox_menu = a->value != 0;
-            snprintf(ui.notice, sizeof(ui.notice), "%s", model.rekordbox_menu ?
-                "REKORDBOX KEY OPENS MODS" : "REKORDBOX KEY: STOCK / OPEN MODS FROM THE SCREEN");
+        case XZ_UI_REKORDBOX_KEY: /* the retired switch: on = MODS MENU, off = the stock action */
+            model.rekordbox_assign[0] = a->value != 0 ? XZ_REKORDBOX_MODS : XZ_REKORDBOX_STOCK;
+            snprintf(ui.notice, sizeof(ui.notice), "REKORDBOX BUTTON: %s", xz_ui_rekordbox_choice_name(model.rekordbox_assign[0]));
             break;
+        case XZ_UI_REKORDBOX_ASSIGN: {
+            int choice = (int)a->value;
+            if ((a->index == 0 || a->index == 1) && choice >= 0 && choice < XZ_REKORDBOX_ACTIONS && (float)choice == a->value) {
+                model.rekordbox_assign[a->index] = choice;
+                snprintf(ui.notice, sizeof(ui.notice), "%s: %s", a->index ? "SHIFT + REKORDBOX" : "REKORDBOX BUTTON", xz_ui_rekordbox_choice_name(choice));
+            }
+            break;
+        }
         case XZ_UI_KEY_FEEDBACK:
             model.key_feedback = a->value != 0;
             __atomic_store_n(&xz_mods_key_feedback_proof_v1.enabled,model.key_feedback,__ATOMIC_RELEASE);
@@ -1239,10 +1257,10 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             snprintf(ui.notice, sizeof(ui.notice), "VJ.TOOLS VIEW %s", model.fb_takeover ? "ENABLED" : "DISABLED");
             break;
         case XZ_UI_TAKEOVER_ASSIGN:
-            if (a->index >= 0 && a->index <= 2) {
+            /* REKORDBOX (1) is retired: CONTROLS > BUTTONS gives that key VJ.TOOLS SCREEN. */
+            if (a->index == XZ_TAKEOVER_LINK || a->index == XZ_TAKEOVER_ONSCREEN) {
                 model.takeover_assign = a->index;
-                snprintf(ui.notice, sizeof(ui.notice), "TAKEOVER KEY: %s",
-                    model.takeover_assign == 0 ? "LINK" : (model.takeover_assign == 1 ? "REKORDBOX" : "ONSCREEN"));
+                snprintf(ui.notice, sizeof(ui.notice), "TAKEOVER KEY: %s", model.takeover_assign == XZ_TAKEOVER_LINK ? "LINK" : "ONSCREEN");
             }
             break;
         default:
@@ -1254,7 +1272,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             a->kind == XZ_UI_TAKEOVER_TOGGLE || a->kind == XZ_UI_TAKEOVER_ASSIGN ||
             a->kind == XZ_UI_BROWSE_COLUMN || a->kind == XZ_UI_BROWSE_KEY_PREFIX || a->kind == XZ_UI_BROWSE_TRAFFIC ||
             a->kind == XZ_UI_KEY_FORMAT || a->kind == XZ_UI_KEY_FEEDBACK || a->kind == XZ_UI_RAM_DEBUG ||
-            a->kind == XZ_UI_REKORDBOX_KEY) settings_queue();
+            a->kind == XZ_UI_REKORDBOX_KEY || a->kind == XZ_UI_REKORDBOX_ASSIGN) settings_queue();
     }
 }
 
@@ -1326,6 +1344,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
     for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
     in->stems_overlay=model.stems_overlay;
+    in->rekordbox_known=1;in->rekordbox_assign[0]=model.rekordbox_assign[0];in->rekordbox_assign[1]=model.rekordbox_assign[1];
     for(int d=0;d<2;d++){in->stem_level_known[d]=in->stem_muted_known[d];for(int i=0;i<3;i++)in->stem_level[d][i]=model.deck[d].levels[i];}
     /* DJ profiles for the shell's MY SETTINGS panel, copied (the view changes under this lock). */
     if(model.dj){
@@ -1412,6 +1431,22 @@ static int shell_touch_locked(void *self,const struct xz_touch_status *status,co
     return 1;
 }
 static void (*stock_global_key)(void *,const void *);
+/* REKORDBOX (key code 0x202): the press decided at the onKey hook, for the handler hook that follows it. */
+#define REKORDBOX_KEY_CODE 0x202u
+static struct { int valid, action; uint32_t at; } rekordbox_latch;
+static int rekordbox_shift_native(void){
+    for(int deck=0;deck<2;deck++){
+        /* PlayerInnards +0x34 is SHIFT, as SHIFT + MASTER TEMPO reads it. */
+        const unsigned char *innards=key_player(deck);unsigned char shift=0;
+        if(innards&&!xz_read_memory((uint32_t)(uintptr_t)innards+0x34,&shift,1)&&shift)return 1;
+    }
+    return 0;
+}
+static int (*rekordbox_shift_held)(void)=rekordbox_shift_native;
+static int rekordbox_decide_locked(void){
+    int action=model.rekordbox_assign[rekordbox_shift_held()?1:0];
+    return action>=0&&action<XZ_REKORDBOX_ACTIONS?action:XZ_REKORDBOX_STOCK;
+}
 static int menu_back_contact;
 static void menu_back_key_hook(void *self,const void *input){
     uint16_t key=0;unsigned operation=0;
@@ -1419,9 +1454,19 @@ static void menu_back_key_hook(void *self,const void *input){
     int consumed=0;
     /* Every key passes here (jog included), so only keys in the shell's table take the lock. */
     unsigned channel=input?((const unsigned char *)input)[10]:0;
+    /* REKORDBOX: decided once, here at the press (SHIFT read now), for both the shell and the handler hook. */
+    int rekordbox_press=input&&key==REKORDBOX_KEY_CODE&&operation==0&&__atomic_load_n(&started,__ATOMIC_ACQUIRE);
+    if(rekordbox_press){
+        pthread_mutex_lock(&ui_mutex);
+        rekordbox_latch.action=rekordbox_decide_locked();rekordbox_latch.at=xz_game_milliseconds();rekordbox_latch.valid=1;
+        if(xz_shell_runtime_rekordbox_action)xz_shell_runtime_rekordbox_action(rekordbox_latch.action);
+        pthread_mutex_unlock(&ui_mutex);
+    }
     if(input&&xz_shell_runtime_key&&xz_shrt_key_lookup&&xz_shrt_key_lookup(key,channel)&&__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
         consumed=xz_shell_runtime_key(shell_eligible_locked(),model.theme,key,channel,operation);
+        /* The shell ran this press itself (MODS, STEMS): stock and the handler hook never see it. */
+        if(consumed&&rekordbox_press)rekordbox_latch.valid=0;
         shell_ui_requests_locked();
         pthread_mutex_unlock(&ui_mutex);
         if(consumed)return;
@@ -1450,30 +1495,81 @@ static void menu_back_key_hook(void *self,const void *input){
 static int menu_owns_keys_locked(void){
     return touch.visible&&game_locked()==GAME_NONE;
 }
-static int menu_key_toggle(void){
-    if(!__atomic_load_n(&started,__ATOMIC_ACQUIRE))return 0;
-    pthread_mutex_lock(&ui_mutex);
-    int owned=model.rekordbox_menu;
+/* The MODS panel by hardware: a running game or Doom is left first (Doom exits on its own; MODS opens on the
+   next press), an open panel closes, otherwise it opens. */
+static void mods_panel_open_locked(void){
+    refresh_local();sdk_refresh();
+    xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
+}
+static void mods_panel_toggle_locked(void){
     enum game game=game_locked();
-    /* Doom exits on its own; MODS opens on the next press. */
-    if(owned&&!touch.visible&&game==GAME_NONE&&xz_doom_nav(XZ_GAME_NAV_QUIT)){}
-    else if(owned){
-        if(game!=GAME_NONE){
-            game_to_menu_locked(game);refresh_local();sdk_refresh();
-            xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
-            inline_layout_publish();
-        }
-        else if(touch.visible){struct xz_ui_action close={.kind=XZ_UI_CLOSE};apply(NULL,&close,1);}
-        else{
-            refresh_local();sdk_refresh();
-            xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
-            if(sdk_session.active&&ui.page!=XZ_UI_APPS_SETUP)xz_ui_navigate(&ui,XZ_UI_APPS);
-            inline_layout_publish();
-        }
-        xz_native_skin_request_repaint();
+    if(!touch.visible&&game==GAME_NONE&&xz_doom_nav(XZ_GAME_NAV_QUIT)){}
+    else if(game!=GAME_NONE){game_to_menu_locked(game);mods_panel_open_locked();inline_layout_publish();}
+    else if(touch.visible){struct xz_ui_action close={.kind=XZ_UI_CLOSE};apply(NULL,&close,1);}
+    else{
+        mods_panel_open_locked();
+        if(sdk_session.active&&ui.page!=XZ_UI_APPS_SETUP)xz_ui_navigate(&ui,XZ_UI_APPS);
+        inline_layout_publish();
     }
-    pthread_mutex_unlock(&ui_mutex);
-    return owned;
+    xz_native_skin_request_repaint();
+}
+/* ---- REKORDBOX button: one decider ----
+   rekordbox_decide_locked picks the slot (either deck's SHIFT held: SHIFT + PRESS) and its action. The onKey
+   hook decides at the press and latches it; in MODERN it gives that action to the shell first, which
+   swallows only its own actions (MODS, STEMS: they run there and nothing else sees the key) and hands the
+   screen to stock visibly for the stock action. Every other press reaches UiKey_rekordbox, whose hook runs
+   the latched action once and calls stock only for the stock action. In CLASSIC the shell is stopped, so the
+   hook alone acts. Without the onKey hook (or a stale latch) the handler hook decides itself. */
+/* Runs one REKORDBOX action under ui_mutex; 1 = the caller runs stock's own handler. */
+static int rekordbox_run_locked(int action){
+    if(action==XZ_REKORDBOX_NOTHING)return 0;
+    /* A full-screen game or Doom owns the screen: the key leaves it for MODS, as it always has. */
+    if(game_locked()!=GAME_NONE||(!touch.visible&&xz_doom_running())){mods_panel_toggle_locked();return 0;}
+    int modern=model.ui_interface==XZ_UI_INTERFACE_MODERN;
+    switch(action){
+    case XZ_REKORDBOX_MODS:
+        /* MODERN: the shell's own MODS screen, as its MENU key opens it; the panel when the shell cannot show it. */
+        if(modern&&!touch.visible&&shell_eligible_locked()&&xz_shell_runtime_mods_key&&xz_shell_runtime_mods_key(1,model.theme))return 0;
+        mods_panel_toggle_locked();return 0;
+    case XZ_REKORDBOX_INTERFACE:{
+        struct xz_ui_action act={.kind=XZ_UI_SET_INTERFACE,.phase=XZ_UI_PRESS,.deck=-1,
+            .index=modern?XZ_UI_INTERFACE_CLASSIC:XZ_UI_INTERFACE_MODERN};
+        apply(NULL,&act,1);xz_native_skin_request_repaint();return 0;}
+    case XZ_REKORDBOX_VJ_SCREEN:{
+        const struct xz_ui_connection *v=&model.connection;
+        if(!model.fb_takeover&&!(v->ready&&v->enabled&&v->connected)){
+            /* Nothing to show: say so where the DJ is looking; on the classic screen, on the VJ.TOOLS page. */
+            const char *why=!v->ready||!v->enabled?"VJ.TOOLS LINK IS OFF":"VJ.TOOLS IS NOT CONNECTED";
+            if(modern&&!touch.visible&&shell_owns_locked()&&xz_shell_runtime_notice)xz_shell_runtime_notice(why);
+            else{
+                if(!touch.visible)mods_panel_open_locked();
+                xz_ui_navigate(&ui,XZ_UI_CONNECTION);snprintf(ui.notice,sizeof(ui.notice),"%s",why);
+                inline_layout_publish();xz_native_skin_request_repaint();
+            }
+            return 0;
+        }
+        struct xz_ui_action act={.kind=XZ_UI_TAKEOVER_TOGGLE,.phase=XZ_UI_PRESS,.deck=-1};
+        apply(NULL,&act,1);xz_native_skin_request_repaint();return 0;}
+    case XZ_REKORDBOX_STEMS:{
+        /* The STEMS button's own layout step, and the shell header's note when rows cannot show yet. */
+        struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&act,1);
+        if(modern&&!requested_stems&&!pc_present&&xz_shell_runtime_notice)xz_shell_runtime_notice("STEM ROWS SHOW ONCE STEMS ARE ON IN MODS");
+        xz_native_skin_request_repaint();return 0;}
+    default:return 1; /* the stock action */
+    }
+}
+static int uikey_rekordbox_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
+    int stock=1;
+    if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
+        pthread_mutex_lock(&ui_mutex);
+        int fresh=rekordbox_latch.valid&&(uint32_t)(xz_game_milliseconds()-rekordbox_latch.at)<2000u;
+        int action=fresh?rekordbox_latch.action:rekordbox_decide_locked();
+        rekordbox_latch.valid=0;
+        stock=rekordbox_run_locked(action);
+        pthread_mutex_unlock(&ui_mutex);
+    }
+    if(!stock)return 1;
+    return stock_uikey_rekordbox ? stock_uikey_rekordbox(arg0,arg1,arg2,arg3) : 0;
 }
 static int (*stock_encoder_rotate)(int);
 static int encoder_rotate_hook(int delta) {
@@ -1523,7 +1619,13 @@ static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
         else if(!touch.visible)owned=xz_doom_nav(XZ_GAME_NAV_ENTER);
         if(shell)shell_ui_requests_locked();
         pthread_mutex_unlock(&ui_mutex);
-        if(shell)return 1;
+        if(shell){
+            /* A SOURCE LINK / EXPORT MODE select: stock's key for it, here on the native key task (this
+               handler runs from BrowseKeyProcessing), with no lock held. */
+            int which=xz_shell_runtime_take_stock_key?xz_shell_runtime_take_stock_key():-1;
+            if(which>=0){int ran=xz_ui_runtime_stock_source_key(which,1);if(xz_shell_runtime_stock_key_ran)xz_shell_runtime_stock_key_ran(which,ran);}
+            return 1;
+        }
         if(owned){xz_native_skin_request_repaint();return 1;}
     }
     return stock_encoder_push?stock_encoder_push(arg0,arg1,arg2,arg3):0;
@@ -2175,8 +2277,9 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     model.theme = xz_settings_look(model.ui_interface, model.classic_theme);
     shell_follow_interface_locked();
     model.shift_pages = 1; model.pad_feedback = saved->pad_feedback;
-    model.shift_keysync = 1; model.takeover_assign = saved->takeover_assign;
-    model.rekordbox_menu = saved->rekordbox_menu;
+    model.shift_keysync = 1; model.takeover_assign = saved->takeover_assign == XZ_TAKEOVER_REKORDBOX ? XZ_TAKEOVER_LINK : saved->takeover_assign;
+    model.rekordbox_assign[0] = (unsigned)saved->rekordbox_press < XZ_REKORDBOX_ACTIONS ? saved->rekordbox_press : XZ_REKORDBOX_INTERFACE;
+    model.rekordbox_assign[1] = (unsigned)saved->rekordbox_shift < XZ_REKORDBOX_ACTIONS ? saved->rekordbox_shift : XZ_REKORDBOX_STOCK;
     model.stem_bank = saved->stem_bank; pads.bank = saved->stem_bank;
     model.stem_order = (unsigned)saved->stem_order < XZ_STEM_ORDER_COUNT ? saved->stem_order : 0; pads.order = model.stem_order;
     browse_settings(saved);
@@ -2344,7 +2447,8 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     model.wave_mode = XZ_WAVE_THREE_BAND;
     model.fb_takeover = 0;
     model.takeover_assign = XZ_TAKEOVER_LINK;
-    model.rekordbox_menu = 1;
+    model.rekordbox_assign[0] = XZ_REKORDBOX_INTERFACE; model.rekordbox_assign[1] = XZ_REKORDBOX_STOCK;
+    memset(&rekordbox_latch, 0, sizeof(rekordbox_latch));
     __atomic_store_n(&fb_takeover_active, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&network_enabled, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&network_connected, 0, __ATOMIC_RELEASE);

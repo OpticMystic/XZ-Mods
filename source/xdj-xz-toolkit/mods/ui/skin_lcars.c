@@ -136,7 +136,7 @@ static void render(const struct xz_ui_scene *s){
    else capped(c,a.x,a.y,a.w,a.h,ink,1,a.label,ink,1,"OFF");
    break;
   case XZ_UI_STEM_BANK:case XZ_UI_STEM_PAGE:case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_WAVE_MODE:case XZ_UI_RAM_DECK:
-  case XZ_UI_SET_INTERFACE:case XZ_UI_SET_MODERN_THEME:
+  case XZ_UI_SET_INTERFACE:case XZ_UI_SET_MODERN_THEME:case XZ_UI_REKORDBOX_ASSIGN:
    block(c,a.x,a.y,a.w,a.h,a.h/2,ALL,selected?sun:violet,0,a.label,fit(c,a.label,a.w-a.h),ALIGN_C,a.h/2-4);
    break;
   case XZ_UI_KEY_SHIFT:case XZ_UI_KEY_SYNC:

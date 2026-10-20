@@ -16,7 +16,7 @@ def python_side():
     values = usb_settings.defaults(schema)
     assert values['interface'] == 1 and values['classic_theme'] == 0 and values['modern_theme'] == 0
     wire = usb_settings.serialize(values, schema)
-    assert b'\ntheme=24\n' in wire and wire.endswith(b'interface=1\nclassic_theme=0\nmodern_theme=0\n')
+    assert b'\ntheme=24\n' in wire and b'\ninterface=1\nclassic_theme=0\nmodern_theme=0\n' in wire and wire.endswith(b'modern_theme=0\nrekordbox_press=2\nrekordbox_shift=1\n')
     classic = {**values, 'interface': 0, 'classic_theme': 11}
     wire = usb_settings.serialize(classic, schema)
     assert b'\ntheme=11\n' in wire and usb_settings.parse(wire, schema) == classic

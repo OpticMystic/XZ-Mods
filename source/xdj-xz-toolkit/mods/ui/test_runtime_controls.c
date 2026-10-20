@@ -128,6 +128,7 @@ static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_s
 #include "test_pc_runtime_refresh.h"
 #include "test_stem_layout_runtime.h"
 #include "test_usb_stem_reason_runtime.h"
+#include "test_rekordbox_runtime.h"
 static void generation_pad_consistency(void){
     started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;fixture_prepared=1;
     model.jump.enabled=0;model.stem_page=0;model.shift_pages=0;model.stem_order=0;
@@ -306,11 +307,11 @@ int main(void){
     ui.adjusting=0;assert(encoder_rotate_hook(1)==1&&!model.jump.sizes[7]&&!(ui.focus_kind==XZ_UI_JUMP_PAIR&&ui.focus_index==7));
     touch.visible=0;assert(!encoder_rotate_hook(1)&&!model.jump.sizes[7]);
     assert(!encoder_push_hook(NULL,NULL,NULL,NULL));
-    /* REKORDBOX is the hardware MODS key by default and toggles the panel. */
-    model.rekordbox_menu=1;assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==1&&touch.visible);
+    /* REKORDBOX assigned to MODS toggles the panel; the stock action leaves it to stock (no hook armed here). */
+    model.rekordbox_assign[0]=XZ_REKORDBOX_MODS;assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==1&&touch.visible);
     assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==1&&!touch.visible);
-    model.rekordbox_menu=0;assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==0&&!touch.visible);
-    model.rekordbox_menu=1;
+    model.rekordbox_assign[0]=XZ_REKORDBOX_STOCK;assert(uikey_rekordbox_hook(NULL,NULL,NULL,NULL)==0&&!touch.visible);
+    model.rekordbox_assign[0]=XZ_REKORDBOX_MODS;
     settings_readonly=0;ui.page=XZ_UI_CONTROLS;model.theme=0;
     /* An explicit unused shortcut enables the same audio state, even when an
        old profile disabled both automatic stems and shift shortcuts. */
@@ -402,5 +403,6 @@ int main(void){
     generation_pad_consistency();
     stem_layout_runtime_check();
     usb_stem_reason_runtime_check();
+    rekordbox_runtime_check();
     puts("PASS two-deck stem controls, waveform gestures, VJ view, all theme/page/bank LEDs and touch ownership");return 0;
 }

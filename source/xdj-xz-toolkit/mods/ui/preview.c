@@ -33,7 +33,8 @@ int main(int argc,char **argv){
  model.connection.device_ip="169.254.0.2";model.connection.port=50005;
  model.connection.protocol="VJFS / VJVP / VJTE + VJXZ";
  model.connection.status="WAITING FOR VJ.Tools";
- static const char *names[]={"stems","xpad","settings","themes","connection","controls","beat-jump","extras","doom","doom-setup","wad-loader","network-updates","update-setup","games","myhouse-setup","key-setup","browse-setup","pc-stems","stem-colors","applications","applications-setup","ram-setup","stem-setup","metrics-setup","profile-setup","profile-edit","general","feature-setup","theme-pick"};
+ model.rekordbox_assign[0]=XZ_UI_RB_INTERFACE;model.rekordbox_assign[1]=XZ_UI_RB_STOCK; /* the defaults */
+ static const char *names[]={"stems","xpad","settings","themes","connection","controls","beat-jump","extras","doom","doom-setup","wad-loader","network-updates","update-setup","games","myhouse-setup","key-setup","browse-setup","pc-stems","stem-colors","applications","applications-setup","ram-setup","stem-setup","metrics-setup","profile-setup","profile-edit","general","feature-setup","theme-pick","buttons"};
  _Static_assert(sizeof(names)/sizeof(*names)==XZ_UI_PAGE_COUNT,"preview names every page");
  char name[80];
  for(int theme=0;theme<XZ_THEME_COUNT;theme++){

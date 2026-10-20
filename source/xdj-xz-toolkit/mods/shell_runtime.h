@@ -34,6 +34,7 @@ struct xz_shell_runtime_frame_input {
  /* The appearance settings the MODS > APPEARANCE tab shows (ui_runtime.c's model). */
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
  int stems_overlay;           /* enum xz_stem_layout: the stem row layout (MY SETTINGS > WAVEFORM) */
+ int rekordbox_known, rekordbox_assign[2]; /* the REKORDBOX button's press and SHIFT + press (enum xz_rekordbox_action) */
  int stem_level_known[XZ_SHELL_DECKS]; float stem_level[XZ_SHELL_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
  struct xz_shell_runtime_dj { char name[48]; int usb, stick_active, locked, damaged, has_accent; uint32_t accent; } dj[XZ_SHELL_RUNTIME_DJ];
 };
@@ -82,6 +83,21 @@ int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value);
 int xz_shell_runtime_take_mods_page(void);
 /* A header action ui_runtime.c took but could not carry out: shown as the shell's notice toast. */
 void xz_shell_runtime_notice(const char *text);
+/* REKORDBOX button (ui_runtime.c decides; see xz_shrt_rekordbox_verdict).
+   rekordbox_action: the action of the press about to reach xz_shell_runtime_key, set under the UI lock on the
+   same input thread just before it. mods_key: the MODS action outside the key path (the shell yielded to
+   stock, or the press reached the native handler): ends a hand-off and opens or closes the shell's MODS
+   screen as XZ_SHELL_KEY_MODS does. 0 when the shell cannot show it (not running, not eligible). */
+void xz_shell_runtime_rekordbox_action(int action);
+int xz_shell_runtime_mods_key(int eligible, int theme);
+/* SOURCE screen LINK and EXPORT MODE tiles. A select queues the slot's stock key (0 LINK, 1 REKORDBOX); it
+   runs only on the native key task, where stock's own key handlers run: ui_runtime.c takes it right after
+   the encoder push that selected it (UiKey_EncoderPush runs on Ui_EventTask) and calls the stock handler.
+   A touch select cannot run it (the touch thread is not that task): the shell says so. Returns -1 when
+   nothing is queued. ran: what the stock call returned (0 ran, -1 the handler hook is not armed); the shell
+   hands the screen to stock when it ran and says why when it did not. */
+int xz_shell_runtime_take_stock_key(void);
+void xz_shell_runtime_stock_key_ran(int which, int ran);
 
 /* ---- Pure core (shell_runtime_core.c) ---- */
 
@@ -89,8 +105,10 @@ void xz_shell_runtime_notice(const char *text);
    release with a separate event for the hold. STOCK entries are listed so the
    table documents every browse-section key the shell leaves alone. */
 /* HAND_OFF: a browse key the shell has no screen for: while the shell owns the screen it goes to stock
-   with a visible hand-off, never to a hidden stock screen. (No key uses it today.) */
-enum xz_shrt_rule { XZ_SHRT_STOCK, XZ_SHRT_ON_PRESS, XZ_SHRT_ON_RELEASE, XZ_SHRT_HAND_OFF };
+   with a visible hand-off, never to a hidden stock screen (LINK).
+   ASSIGNED: the key does what the DJ assigned (REKORDBOX, settings.h enum xz_rekordbox_action); the runtime
+   decides its press with xz_shrt_rekordbox_verdict. */
+enum xz_shrt_rule { XZ_SHRT_STOCK, XZ_SHRT_ON_PRESS, XZ_SHRT_ON_RELEASE, XZ_SHRT_HAND_OFF, XZ_SHRT_ASSIGNED };
 struct xz_shrt_key_map { uint16_t code; uint8_t channel; uint8_t rule; int8_t key, hold, deck; };
 const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel);
 enum xz_shrt_phase { XZ_SHRT_PRESS, XZ_SHRT_HOLD, XZ_SHRT_RELEASE };
@@ -106,6 +124,14 @@ enum xz_shrt_verdict { XZ_SHRT_PASS, XZ_SHRT_PASS_HAND_OFF, XZ_SHRT_SWALLOW };
 enum xz_shrt_verdict xz_shrt_key_verdict(const struct xz_shell *, const struct xz_shell_model *, const struct xz_shrt_key_map *);
 /* The shell key for this phase of a swallowed contact, or -1. held: a hold was already delivered. */
 int xz_shrt_key_for_phase(const struct xz_shrt_key_map *, enum xz_shrt_phase, int held);
+/* REKORDBOX while the shell owns the screen. action: what ui_runtime.c decided for this press (enum
+   xz_rekordbox_action, the SHIFT slot already picked). Only the shell's own actions are swallowed: MODS
+   (effect SHELL_MODS: the shell key XZ_SHELL_KEY_MODS) and STEMS (effect STEMS: the header STEMS request).
+   STOCK passes with a visible hand-off; INTERFACE, VJ.TOOLS SCREEN and NOTHING pass untouched, and
+   ui_runtime.c's REKORDBOX handler hook runs them once without stock. One decider: the same action reaches
+   that hook, so nothing runs twice. */
+enum xz_shrt_rb_effect { XZ_SHRT_RB_NONE, XZ_SHRT_RB_SHELL_MODS, XZ_SHRT_RB_STEMS };
+enum xz_shrt_verdict xz_shrt_rekordbox_verdict(int action, enum xz_shrt_rb_effect *effect);
 
 #define XZ_SHRT_CONTACTS 8
 struct xz_shrt_contacts { struct { uint16_t code; uint8_t channel, used, swallow, held; } c[XZ_SHRT_CONTACTS]; };

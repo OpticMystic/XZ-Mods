@@ -272,6 +272,10 @@ enum xz_shell_key {
  XZ_SHELL_KEY_SOURCE_LINK, XZ_SHELL_KEY_SOURCE_COMPUTER, /* the LINK and computer source buttons: the picker at that slot */
  XZ_SHELL_KEY_BROWSE_HOLD,           /* always open SEARCH, even when it is already visible */
  XZ_SHELL_KEY_TAG_TRACK_HOLD,        /* held TAG TRACK/REMOVE: on TAG LIST, removes the highlighted track */
+ XZ_SHELL_KEY_MODS,                  /* a key assigned to MODS (the runtime's REKORDBOX button): on the MODS
+                                        screen it closes it as a short MENU does there; anywhere else it opens
+                                        MODS on its first mod tab, as a short MENU on PLAY does, list screens
+                                        included */
  XZ_SHELL_KEY_COUNT
 };
 /* deck: the deck a per-deck key (TIME MODE, QUANTIZE, LOAD) belongs to, or -1 for the active deck. */

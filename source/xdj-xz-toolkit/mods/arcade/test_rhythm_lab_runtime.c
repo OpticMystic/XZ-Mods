@@ -98,7 +98,7 @@ int main(void){
     tap(400,225);assert(!xz_rhythm_lab_present());
     puts("PASS Static Surfer native menu, independent remapped jumps during practice, bounded jog, duo toggle, Buttons and song-end return to deck");
     unsigned char back[24]={0};uint16_t back_key=0x4208;memcpy(back+8,&back_key,2);
-    model.rekordbox_menu=1;open_lab();
+    model.rekordbox_assign[0]=XZ_REKORDBOX_MODS;open_lab();
     assert(encoder_rotate_hook(1)==1&&encoder_rotate_hook(1)==1);draw();
     assert(game_nav.visible&&game_nav.focus>=0&&game_nav.shown.at[game_nav.focus].y==156);
     assert(encoder_push_hook(NULL,NULL,NULL,NULL)==1);draw();assert(proof.phase==LAB_BRIEF&&proof.mode==1);

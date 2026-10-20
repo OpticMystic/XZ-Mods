@@ -25,6 +25,13 @@ static int connected(const struct xz_shell_source_model *sm, int i) {
  const struct xz_shell_device *d=&sm->device[i];
  return known(d,XZ_SHELL_D_STATUS)&&(d->status==XZ_SHELL_DEVICE_LOADING||d->status==XZ_SHELL_DEVICE_READY);
 }
+/* A slot that opens in the stock screen. */
+static int stock(const struct xz_shell_source_model *sm, int i) {
+ const struct xz_shell_device *d=&sm->device[i];
+ return known(d,XZ_SHELL_D_STATUS)&&d->status==XZ_SHELL_DEVICE_STOCK;
+}
+/* A tile the cursor can rest on and a push or second touch can select. */
+static int selectable(const struct xz_shell_source_model *sm, int i) { return connected(sm,i)||stock(sm,i); }
 static int ready(const struct xz_shell_source_model *sm, int i) {
  const struct xz_shell_device *d=&sm->device[i];
  return known(d,XZ_SHELL_D_STATUS)&&d->status==XZ_SHELL_DEVICE_READY;
@@ -38,10 +45,11 @@ static int current_tile(const struct xz_shell_source_model *sm) {
    the first connected device; -1 when none is. */
 static int cursor_tile(const struct xz_shell *u, const struct xz_shell_source_model *sm) {
  int c=si_view(u)->cursor-1;
- if(c>=0&&c<XZ_SHELL_SOURCE_TILES&&(connected(sm,c)||si_view(u)->focus))return c;
+ if(c>=0&&c<XZ_SHELL_SOURCE_TILES&&(selectable(sm,c)||si_view(u)->focus))return c;
  int cur=current_tile(sm);
  if(cur>=0&&connected(sm,cur))return cur;
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++)if(connected(sm,i))return i;
+ for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++)if(stock(sm,i))return i;
  return -1;
 }
 
@@ -87,7 +95,7 @@ static void render_tile(const struct xz_shell_model *m, struct xz_canvas c, int 
  const struct xz_shell_device *d=&sm->device[i];
  struct xz_shell_rect r=xz_shell_source_rect(i);
  enum xz_shell_source slot=(enum xz_shell_source)(i+1);
- int status_known=known(d,XZ_SHELL_D_STATUS),live=connected(sm,i);
+ int status_known=known(d,XZ_SHELL_D_STATUS),live=connected(sm,i)||stock(sm,i);
  char text[32];
  xz_rect(c,r.x,r.y,r.w,r.h,SH_CHROME);
  /* icon block on the device's colour */
@@ -104,13 +112,15 @@ static void render_tile(const struct xz_shell_model *m, struct xz_canvas c, int 
  /* name bar */
  int ny=r.y+ICON_H;
  xz_rect(c,r.x,ny,r.w,NAME_H,highlighted?SH_BLUE:SH_RAIL);
- sh_text(c,r.x+PAD,ny+15,si_source_name(slot),SH_TEXT,live?SH_WHITE:SH_DIM);
+ /* Export mode playback is what the stock key behind this slot opens. */
+ sh_text(c,r.x+PAD,ny+15,slot==XZ_SHELL_SRC_COMPUTER&&stock(sm,i)?"EXPORT MODE":si_source_name(slot),SH_TEXT,live?SH_WHITE:SH_DIM);
  /* status */
  int y=ny+NAME_H+10;
  const char *word="--";uint32_t word_ink=SH_DIM;
  if(status_known)switch(d->status){
  case XZ_SHELL_DEVICE_READY:word="READY";word_ink=SH_GREEN;break;
  case XZ_SHELL_DEVICE_LOADING:word="LOADING";word_ink=SH_WHITE;break;
+ case XZ_SHELL_DEVICE_STOCK:word="DECK'S OWN SCREEN";word_ink=SH_WHITE;break;
  default:word="NOT CONNECTED";word_ink=SH_DIM;break;
  }
  sh_text(c,r.x+PAD,y,word,SH_TEXT,word_ink);
@@ -119,6 +129,15 @@ static void render_tile(const struct xz_shell_model *m, struct xz_canvas c, int 
   for(int k=0;k<3;k++)xz_rect(c,x+k*7,y+11,3,3,k<dots?SH_WHITE:SH_RAIL);
  }
  y+=24;
+ if(stock(sm,i)){
+  /* What the deck's own screen opens for this slot. */
+  static const char *const what[XZ_SHELL_SOURCE_TILES]={NULL,NULL,"LINKED PLAYERS' MEDIA. DJ SOFTWARE CONTROL.",
+   "A LAPTOP'S OR PHONE'S LIBRARY OVER THE NETWORK."};
+  char lines[4][SH_WRAP_CHARS];
+  int n=sh_wrap(what[i],r.w-2*PAD,lines,4);
+  for(int k=0;k<n;k++)sh_text(c,r.x+PAD,y+k*18,lines[k],SH_SMALL,SH_DIM);
+  return;
+ }
  if(!live){
   static const char *const hints[XZ_SHELL_SOURCE_TILES]={"Insert a USB device.","Insert a USB device.","No player on LINK.","No computer on LINK."};
   sh_text_fit(c,r.x+PAD,y,r.w-2*PAD,status_known?hints[i]:"Status not read yet.",SH_SMALL,SH_DIM);
@@ -179,13 +198,14 @@ static void source_render(const struct xz_shell *u, const struct xz_shell_model 
  int highlighted=cursor_tile(u,m->source);
  int any_known=0;
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++)any_known|=known(&m->source->device[i],XZ_SHELL_D_STATUS);
- const char *hint=highlighted>=0?"OPENS ITS LIBRARY IN BROWSE":any_known?"NO DEVICE CONNECTED":"DEVICE STATUS NOT READ YET";
+ const char *hint=highlighted>=0?(stock(m->source,highlighted)?"OPENS IN THE DECK'S OWN SCREEN":"OPENS ITS LIBRARY IN BROWSE"):
+  any_known?"NO DEVICE CONNECTED":"DEVICE STATUS NOT READ YET";
  char missing[40];
- if(highlighted>=0&&!connected(m->source,highlighted)){
+ if(highlighted>=0&&!selectable(m->source,highlighted)){
   snprintf(missing,sizeof missing,"%s IS NOT CONNECTED",si_source_name((enum xz_shell_source)(highlighted+1)));
   hint=missing;
  }
- sh_text_right(c,si_close_rect().x-14,17,hint,SH_SMALL,highlighted>=0&&!connected(m->source,highlighted)?SH_KEY_AMBER:SH_DIM);
+ sh_text_right(c,si_close_rect().x-14,17,hint,SH_SMALL,highlighted>=0&&!selectable(m->source,highlighted)?SH_KEY_AMBER:SH_DIM);
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++)render_tile(m,c,i,i==highlighted);
  if(highlighted>=0){
   struct xz_shell_rect r=xz_shell_source_rect(highlighted);
@@ -271,6 +291,8 @@ static size_t select_tile(struct xz_shell *u, const struct xz_shell_model *m, in
   u->stack[u->depth-1].scroll=(at>=0&&at<link_count(m->source)?at:0)+1;
   return 0;
  }
+ /* A stock slot: the runtime hands the screen to stock, which opens it; the shell stays where it is. */
+ if(stock(m->source,i))return si_emit(out,0,(struct xz_shell_action){(enum xz_shell_action_kind)XZ_SHELL_ACT_SET_SOURCE,-1,0,i+1});
  if(!ready(m->source,i))return 0;
  size_t n=si_emit(out,0,(struct xz_shell_action){(enum xz_shell_action_kind)XZ_SHELL_ACT_SET_SOURCE,-1,0,i+1});
  return si_key(u,m,XZ_SHELL_KEY_BROWSE,out,n);
@@ -286,7 +308,7 @@ static size_t source_input(struct xz_shell *u, const struct xz_shell_model *m, c
  case XZ_SHELL_TOUCH_DOWN:
   for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++){
    if(!sh_inside(xz_shell_source_rect(i),e->x,e->y))continue;
-   if(!connected(sm,i))return 0;
+   if(!selectable(sm,i))return 0;
    if(v->cursor!=i+1||v->focus){v->cursor=i+1;v->focus=0;return 0;}  /* first touch highlights */
    return select_tile(u,m,i,out);
   }
@@ -297,7 +319,7 @@ static size_t source_input(struct xz_shell *u, const struct xz_shell_model *m, c
   v->focus=0;
   for(int k=e->delta>0?e->delta:-e->delta;k>0;k--){
    int next=at+step;
-   while(next>=0&&next<XZ_SHELL_SOURCE_TILES&&!connected(sm,next))next+=step;
+   while(next>=0&&next<XZ_SHELL_SOURCE_TILES&&!selectable(sm,next))next+=step;
    if(next<0||next>=XZ_SHELL_SOURCE_TILES)break;
    at=next;
   }

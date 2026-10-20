@@ -17,7 +17,9 @@ def main():
  # second gate requires updating this audited inventory instead of slipping in.
  switches={f['key'] for f in schema['fields'] if f['kind']=='boolean' and not f['readonly']}
  assert switches=={'stems','gate','smart','pad_feedback',
-   'fb_takeover','jump_enabled','browse_key_prefix','browse_traffic','key_feedback','rekordbox_menu'}
+   'fb_takeover','jump_enabled','browse_key_prefix','browse_traffic','key_feedback'}
+ # rekordbox_menu is derived from the REKORDBOX button's press choice, written for older runtimes.
+ assert 'rekordbox_menu' in schema['derived_fields']
 
  values=usb_settings.defaults(schema)
  wire=usb_settings.serialize(values,schema)
@@ -27,7 +29,9 @@ def main():
   assert usb_settings.serialize({**values,key:0},schema)==wire
  for count in schema['accepted_field_counts']:
   old=b''.join(wire.splitlines(keepends=True)[:count+1])
-  assert usb_settings.parse(old,schema)==values
+  # Between rekordbox_menu (written 0: the default press is INTERFACE) and the REKORDBOX buttons the
+  # press migrates to the stock action.
+  assert usb_settings.parse(old,schema)==(values if count<=35 or count>=43 else {**values,'rekordbox_press':1})
  ui=(ROOT/'ui/ui.c').read_text()
  for action in ('JUMP_SHIFT','RAM_DEBUG','METRICS_TOGGLE','SHIFT_PAGES','SHIFT_KEYSYNC'):
   assert 'add(w,&n,XZ_UI_'+action+',' not in ui

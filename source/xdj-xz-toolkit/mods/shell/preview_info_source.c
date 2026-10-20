@@ -92,6 +92,11 @@ int main(int argc, char **argv) {
  memset(&sm,0,sizeof sm);memset(&m.deck,0,sizeof m.deck);m.settings.known=0;
  open_screen(&u,&m,XZ_SHELL_KEY_SOURCE);shot(&u,&m,"source-unknown");
 
+ /* LINK and EXPORT MODE open in the deck's own screen (the runtime runs the stock key). */
+ model(&m,&im,&sm);
+ for(int i=2;i<4;i++){sm.device[i].known=1u<<XZ_SHELL_D_STATUS;sm.device[i].status=XZ_SHELL_DEVICE_STOCK;}
+ open_screen(&u,&m,XZ_SHELL_KEY_SOURCE);turn(&u,&m,2);shot(&u,&m,"source-stock-link");turn(&u,&m,1);shot(&u,&m,"source-stock-export");
+
  model(&m,&im,&sm);
  for(int i=0;i<XZ_SHELL_SOURCE_TILES;i++){
   sm.device[i].known=(1u<<XZ_SHELL_DEVICE_FIELD_COUNT)-1;sm.device[i].status=XZ_SHELL_DEVICE_READY;sm.device[i].name=wide;

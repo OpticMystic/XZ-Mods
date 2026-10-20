@@ -9,6 +9,11 @@ int xz_ui_runtime_key_synced(int deck);
 int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled);
 void xz_ui_runtime_stop(void);
 void xz_ui_runtime_on_source_key(int source);
+/* The stock LINK (0) or REKORDBOX (1) key handler, through its hook's trampoline so no assignment runs.
+   run 0: 1 when the handler can be called. run 1: calls it with a press-phase entry ({flags 1, 0, state 2},
+   as BrowseKeyProcessing passes it) and returns 0, or -1 when its hook is not armed. Call run 1 only on the
+   native key task (Ui_EventTask, where stock's own key handlers run), with no lock held. */
+int xz_ui_runtime_stock_source_key(int which, int run);
 int xz_ui_runtime_arcade_key(void *self,const void *input);
 /* Profile worker contract. profile_usb is called from the native list text hook for
    the selected local USB (0/1) only; it stores a value and never does I/O. */

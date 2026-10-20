@@ -20,6 +20,7 @@
 #include "shell/shell_settings.h"
 #include "shell/shell_source.h"
 #include "runtime.h"
+#include "settings.h"
 #include "audio/native_reader.h"
 #include "arcade/native_clock.h"
 #include "key/native_browse.h"
@@ -132,6 +133,15 @@ static int notice_pending;     /* raised since the last frame: stamped with that
 static int menu_inert;         /* a short MENU asked for stock's menu popup and was kept inert (SHELL_KEY note) */
 static uint32_t ui_requests_at;/* when header requests were raised; untaken after 500 ms they report a notice */
 static uint32_t load_actions; /* LOAD actions the shell input produced (queued or refused) */
+/* REKORDBOX: the action ui_runtime.c decided for the press now in the key path (enum xz_rekordbox_action). */
+static int rekordbox_action=XZ_REKORDBOX_STOCK;
+/* SOURCE LINK / EXPORT MODE: the stock key a select queued (0 LINK, 1 REKORDBOX, -1 none; under mutex), and
+   whether the input being delivered is an encoder push (the native key task, where it can run). */
+static int stock_key_pending=-1;
+static int push_input;
+/* ui_runtime.c: the stock LINK (0) or REKORDBOX (1) key handler. run 0: 1 when it can be called; run 1: calls
+   it as a press and returns 0, or -1 when its hook is not armed. Weak: host fixtures have no ui_runtime.c. */
+extern int xz_ui_runtime_stock_source_key(int which, int run) __attribute__((weak));
 static struct { uint32_t second, lines, dropped; } key_log;
 
 /* ---- clocks and reads ---- */
@@ -284,7 +294,7 @@ static struct xz_shell_info_model info_model;
 static void refuse(void);
 static void save_display(int id, int value);
 /* MODS > APPEARANCE in the shell's own style: an item tab whose sets run the MODS panel's own actions. */
-enum { LOOK_TAB=2, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
+enum { LOOK_TAB=3, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
        LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP };
 static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
 static const char *const look_interface[2]={"MODERN","CLASSIC"};
@@ -327,7 +337,35 @@ static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_STEM_LAYOUT,"Where the stem rows sit next to the waveforms, and how tall they are.",5,help_stem_layout),
 };
 #undef HELP
-static const struct xz_shell_help_model help_model={sizeof help_items/sizeof *help_items,help_items};
+/* MODS > BUTTONS: the REKORDBOX button's two slots, the same rows as the panel's CONTROLS > BUTTONS. Item id =
+   slot + 1; a set runs the panel's own XZ_UI_REKORDBOX_ASSIGN. */
+enum { BUTTONS_TAB=2, BUTTONS_PRESS=1, BUTTONS_SHIFT };
+static const char *const buttons_sections[1]={"REKORDBOX BUTTON"};
+static const char *buttons_choices[XZ_UI_RB_CHOICES],*buttons_help[XZ_UI_RB_CHOICES];
+static struct xz_shell_setting_item buttons_items[2];
+static struct xz_shell_settings_model buttons_model;
+static const struct xz_shell_item_help help_all[]={
+ {BUTTONS_TAB+1,BUTTONS_PRESS,"What the REKORDBOX button does.",XZ_UI_RB_CHOICES,buttons_help},
+ {BUTTONS_TAB+1,BUTTONS_SHIFT,"What the REKORDBOX button does while SHIFT is held on either deck.",XZ_UI_RB_CHOICES,buttons_help},
+};
+static struct xz_shell_item_help help_list[sizeof help_items/sizeof *help_items+sizeof help_all/sizeof *help_all];
+static struct xz_shell_help_model help_model;
+static void fill_buttons(void) {
+ const struct xz_shell_runtime_frame_input *in=&last_input;int k=!!in->rekordbox_known;
+ if(!help_model.count){
+  for(int i=0;i<XZ_UI_RB_CHOICES;i++){buttons_choices[i]=xz_ui_rekordbox_choice_name(i);buttons_help[i]=xz_ui_rekordbox_choice_help(i);}
+  size_t n=0;
+  for(size_t i=0;i<sizeof help_items/sizeof *help_items;i++)help_list[n++]=help_items[i];
+  for(size_t i=0;i<sizeof help_all/sizeof *help_all;i++)help_list[n++]=help_all[i];
+  help_model=(struct xz_shell_help_model){(uint32_t)n,help_list};
+ }
+ for(int slot=0;slot<2;slot++){
+  int v=k?in->rekordbox_assign[slot]:0;if(v<0||v>=XZ_UI_RB_CHOICES){v=0;k=0;}
+  buttons_items[slot]=(struct xz_shell_setting_item){BUTTONS_PRESS+slot,(enum xz_shell_setting_category)0,
+   slot?"SHIFT + REKORDBOX":"REKORDBOX BUTTON",buttons_choices,XZ_UI_RB_CHOICES,v,k,k};
+ }
+ buttons_model=(struct xz_shell_settings_model){2,buttons_items,NULL};
+}
 static uint32_t look_classic_at; /* the first push of INTERFACE > CLASSIC: a second one within 4 s switches */
 static struct { int kind, deck, index; float value; } ui_actions[8]; static int ui_action_count; /* under mutex */
 static void fill_look(void) {
@@ -393,13 +431,15 @@ static void look_set_locked(int id, int choice, uint32_t now) {
  default:refuse();return;
  }
 }
-static const struct xz_shell_mods_tab mod_tabs[5]={
+static const struct xz_shell_mods_tab mod_tabs[6]={
  {"GENERAL",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_GENERAL,"TURN MODS ON AND OFF AND SET THEM UP"},
  {"CONTROLS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_CONTROLS,"STEM PAD SHORTCUTS AND CUSTOM BEAT JUMPS"},
+ {"BUTTONS",XZ_SHELL_TAB_ITEMS,&buttons_model,buttons_sections,1,XZ_UI_BUTTONS,NULL},
  {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,look_sections,4,XZ_UI_THEMES,NULL},
  {"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_SETTINGS,"KEY SHIFT, KEY SYNC, GROOVE PADS, X-PAD AND RAM TRACKS"},
  {"EXTRAS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_EXTRAS,"VJ.TOOLS LINK, GAMES, USB APPS AND UPDATES"}};
-static const struct xz_shell_mods_model mods_model={5,mod_tabs};
+_Static_assert(BUTTONS_TAB==2&&LOOK_TAB==3,"tab indexes follow mod_tabs");
+static const struct xz_shell_mods_model mods_model={6,mod_tabs};
 static int mods_page=-1; /* under mutex: the page OPEN_MODS asked for */
 /* TIME MODE, AUTO CUE, the stock UTILITY items and VERSION. */
 #define SETTING_ROWS (2+XZ_SHUT_DEFS+1)
@@ -623,7 +663,12 @@ static void fill_source(void) {
   if(usb[i].lib){d->tracks=(int32_t)usb[i].tracks;d->known|=1u<<XZ_SHELL_D_TRACKS;}
   if(usb[i].space_known){d->free_bytes=usb[i].free_bytes;d->total_bytes=usb[i].total_bytes;d->known|=(1u<<XZ_SHELL_D_FREE)|(1u<<XZ_SHELL_D_TOTAL);}
  }
- /* LINK and COMPUTER are not read: their tiles stay unknown. */
+ /* LINK and COMPUTER are not browsed here: they open in the deck's own screen through the stock key, when
+    ui_runtime.c holds its handler. */
+ for(int which=0;which<2;which++)if(xz_ui_runtime_stock_source_key&&xz_ui_runtime_stock_source_key(which,0)==1){
+  struct xz_shell_device *d=&source_model.device[which?XZ_SHELL_SRC_COMPUTER-1:XZ_SHELL_SRC_LINK-1];
+  d->known=1u<<XZ_SHELL_D_STATUS;d->status=XZ_SHELL_DEVICE_STOCK;
+ }
  if(browse_source>=0){source_model.current_known=1;source_model.current=browse_source?XZ_SHELL_SRC_USB2:XZ_SHELL_SRC_USB1;}
 }
 static void fill_settings(void) {
@@ -670,7 +715,7 @@ static void fill_slots_locked(void) {
  if(lib){fill_browse(lib);model.browse=&browse;}else model.browse=NULL;
  fill_source();model.source=&source_model;
  fill_settings();model.settings_screen=&settings_model;
- fill_look();model.mods=&mods_model;model.help=&help_model;
+ fill_look();fill_buttons();model.mods=&mods_model;model.help=&help_model;
  model.my_settings=NULL;
  if(lib&&browse_source>=0){
   const struct xz_shms_files *f=&mys[browse_source];
@@ -1783,6 +1828,12 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
     int slot=a->id==XZ_SHELL_SRC_USB1?0:1;
     if(usb[slot].lib)browse_source=slot;
     else{refuse();notice_locked(now,slot?"USB2 IS NOT CONNECTED":"USB1 IS NOT CONNECTED");}
+   }else if((a->id==XZ_SHELL_SRC_LINK||a->id==XZ_SHELL_SRC_COMPUTER)&&source_model.device[a->id-1].status==XZ_SHELL_DEVICE_STOCK&&
+            ((source_model.device[a->id-1].known>>XZ_SHELL_D_STATUS)&1)){
+    /* Stock's own key for that slot, as one press would: queued for the native key task (ui_runtime.c runs
+       it after this encoder push). A touch runs on another thread, where stock's key handlers never run. */
+    if(push_input)stock_key_pending=a->id==XZ_SHELL_SRC_COMPUTER;
+    else{refuse();notice_locked(now,"TOUCH CANNOT OPEN THIS YET: PUSH THE ENCODER");}
    }else{refuse();notice_locked(now,a->id==XZ_SHELL_SRC_LINK?"LINK BROWSING IS NOT AVAILABLE YET":"COMPUTER BROWSING IS NOT AVAILABLE YET");}
    break;
   case XZ_SHELL_ACT_PLAYLIST:
@@ -1831,6 +1882,8 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   }
   case XZ_SHELL_ACT_SET_MOD:
    if(a->deck==LOOK_TAB)look_set_locked(a->id,a->value,now);
+   else if(a->deck==BUTTONS_TAB&&(a->id==BUTTONS_PRESS||a->id==BUTTONS_SHIFT)&&a->value>=0&&a->value<XZ_UI_RB_CHOICES)
+    ui_action_locked(XZ_UI_REKORDBOX_ASSIGN,-1,a->id-BUTTONS_PRESS,(float)a->value,now);
    else refuse();
    break;
   case XZ_SHELL_ACT_DJ_PROFILE:{
@@ -2102,7 +2155,9 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
  lock_as("key");
  int owns=owns_now(eligible,theme);
  if(phase==XZ_SHRT_PRESS){
-  enum xz_shrt_verdict v=owns?xz_shrt_key_verdict(&shell,&model,map):XZ_SHRT_PASS;
+  enum xz_shrt_rb_effect effect=XZ_SHRT_RB_NONE;
+  enum xz_shrt_verdict v=!owns?XZ_SHRT_PASS:map->rule==XZ_SHRT_ASSIGNED?
+   xz_shrt_rekordbox_verdict(__atomic_load_n(&rekordbox_action,__ATOMIC_ACQUIRE),&effect):xz_shrt_key_verdict(&shell,&model,map);
   swallow=v==XZ_SHRT_SWALLOW;
   xz_shrt_contact_press(&contacts,code,channel,swallow);
   if(v==XZ_SHRT_PASS_HAND_OFF){
@@ -2118,6 +2173,9 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
   if(swallow){
    uint32_t loads=load_actions;
    int key=xz_shrt_key_for_phase(map,phase,0);if(key>=0)deliver_key_locked(key,map->deck,now);
+   /* REKORDBOX assigned to a shell action: MODS as the MODS key, STEMS as the header STEMS button. */
+   if(effect==XZ_SHRT_RB_SHELL_MODS)deliver_key_locked(XZ_SHELL_KEY_MODS,-1,now);
+   else if(effect==XZ_SHRT_RB_STEMS){struct xz_shell_action stems={XZ_SHELL_ACT_TOGGLE_STEMS,-1,0,0};execute_locked(&stems,1,now);}
    if(map->key==XZ_SHELL_KEY_TAG_TRACK&&!(model.capabilities&XZ_SHELL_CAP_TAG_TRACK))
     notice_locked(now,"TAG TRACK WORKS FROM THE PLAY SCREEN");
    if(map->key==XZ_SHELL_KEY_LOAD&&loads==load_actions)
@@ -2196,7 +2254,7 @@ int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint3
   int kind=xz_shrt_push_event(&push_state,flags,state);
   if(kind>=0){
    struct xz_shell_event e={(enum xz_shell_event_kind)kind,0,0,0,XZ_SHELL_KEY_COUNT,-1};
-   deliver_locked(&e,now_ms());xz_mods_shell_proof_v1.encoder_events++;
+   push_input=1;deliver_locked(&e,now_ms());push_input=0;xz_mods_shell_proof_v1.encoder_events++;
   }
  }
  pthread_mutex_unlock(&mutex);
@@ -2228,6 +2286,42 @@ int xz_shell_runtime_take_mods_page(void) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
  pthread_mutex_lock(&mutex);int page=mods_page;mods_page=-1;pthread_mutex_unlock(&mutex);
  return page;
+}
+void xz_shell_runtime_rekordbox_action(int action) { __atomic_store_n(&rekordbox_action,action,__ATOMIC_RELEASE); }
+int xz_shell_runtime_mods_key(int eligible, int theme) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return 0;
+ uint32_t now=now_ms();
+ lock_as("mods_key");
+ int ok=candidate(eligible,theme)&&refreshed&&storage;
+ if(ok){
+  /* Over a hand-off the DJ asked for MODS: the shell comes back with it (a caution still yields). */
+  if(handoff.handed)xz_shrt_handoff_end(&handoff);
+  deliver_key_locked(XZ_SHELL_KEY_MODS,-1,now);dirty_flag=1;
+ }
+ pthread_mutex_unlock(&mutex);
+ return ok;
+}
+int xz_shell_runtime_take_stock_key(void) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
+ uint32_t now=now_ms();
+ lock_as("stock_key");
+ int which=stock_key_pending;stock_key_pending=-1;
+ /* Step aside first, so the stock screen is what the DJ sees the moment stock opens it. */
+ if(which>=0){hand_off_locked(now,"source_tile",which?0x202u:0x205u);xz_mods_shell_proof_v1.key_hand_offs++;}
+ pthread_mutex_unlock(&mutex);
+ return which;
+}
+void xz_shell_runtime_stock_key_ran(int which, int ran) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return;
+ uint32_t now=now_ms();
+ lock_as("stock_key");
+ if(ran){
+  /* No handler to call: come back and say so. */
+  xz_shrt_handoff_end(&handoff);dirty_flag=1;refuse();
+  notice_locked(now,which?"EXPORT MODE DID NOT OPEN":"LINK DID NOT OPEN");
+ }
+ if(debug){char line[96];snprintf(line,sizeof line,"SHELL_STOCK_KEY: %s ran=%d",which?"rekordbox":"link",ran);xz_log(line);}
+ pthread_mutex_unlock(&mutex);
 }
 unsigned xz_shell_runtime_take_ui_requests(void) { ui_requests_at=0;return __atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL); }
 /* ui_runtime.c reports a header action it took but could not carry out (one short caps sentence). */
@@ -2456,7 +2550,7 @@ static int start_locked(void) {
  memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
- ui_action_count=0;look_classic_at=0;
+ ui_action_count=0;look_classic_at=0;stock_key_pending=-1;push_input=0;
  le_count=0;
  memset(mys,0,sizeof mys);memset(&mys_job,0,sizeof mys_job);memset(mys_state,0,sizeof mys_state);memset(mys_result,0,sizeof mys_result);dj_pick=-1;mys_readonly=flag("XZ_MODS_SETTINGS_READONLY");
  memset(&util,0,sizeof util);memset(cue_cache,0,sizeof cue_cache);memset(&cue_want,0,sizeof cue_want);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;

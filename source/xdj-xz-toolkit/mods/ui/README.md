@@ -74,7 +74,7 @@ digitizer keeps the whole MODS menu:
 
 | Key | While MODS is open | While MODS is closed |
 |---|---|---|
-| REKORDBOX | closes MODS | opens MODS (ADVANCED > REKORDBOX KEY off restores the stock action) |
+| REKORDBOX | what CONTROLS > BUTTONS assigns (below); MODS MENU closes MODS | what CONTROLS > BUTTONS assigns; MODS MENU opens MODS |
 | Browse encoder turn | moves focus: content in reading order, then deck pickers, then the section rail, wrapping | stock |
 | Browse encoder push | activates the focused control exactly like a tap | stock |
 | BACK | leaves a value edit, else goes up one page, else closes | stock |
@@ -88,6 +88,30 @@ host-tested; the runtime hooks `UiKey_EncoderRotate` (0xe15b0),
 `UiKey_EncoderPush` (0xdec08) and `UiKey_rekordbox` (0xe0a50) behind their
 prologue guards.
 
+### REKORDBOX button
+
+CONTROLS > BUTTONS assigns the physical REKORDBOX key twice: a plain press and
+SHIFT + press (either deck's SHIFT). Each slot is one of MODS MENU, EXPORT MODE
+PLAYBACK (the key's stock action), INTERFACE, VJ.TOOLS SCREEN, STEMS or NOTHING;
+the defaults are INTERFACE and EXPORT MODE PLAYBACK (`../SETTINGS.md`). The
+FLAGSHIP shell's MODS screen shows the same two rows on its BUTTONS tab.
+
+One decision per press. `ui_runtime.c`'s onKey hook reads SHIFT at the press,
+picks the action and latches it. In MODERN it gives the action to the shell
+first (`xz_shell_runtime_rekordbox_action`), whose key verdict
+(`xz_shrt_rekordbox_verdict`) swallows only its own actions: MODS opens or
+closes the shell's MODS screen (`XZ_SHELL_KEY_MODS`, as a short MENU there)
+and STEMS runs the header STEMS request. The stock action passes with a
+visible hand-off; INTERFACE, VJ.TOOLS SCREEN and NOTHING pass untouched.
+Whatever passes reaches `UiKey_rekordbox`, whose hook runs the latched action
+once and calls stock only for the stock action. In CLASSIC the shell is
+stopped and the hook alone acts. MODS stays reachable by hardware with the
+default assignment: REKORDBOX switches CLASSIC to MODERN, where MENU opens the
+shell's MODS screen. With MODS MENU assigned and the shell unable to show its
+screen, the MODS panel opens instead. VJ.TOOLS SCREEN without a connected link
+says so (the shell's notice in MODERN, the VJ.TOOLS page with the reason in
+CLASSIC).
+
 The games launched from MODS take the same keys, so they need no touch either:
 
 | Key | Wave Rider, Rhythm Lab, Glyph Run, Beat Arcade | Doom |
@@ -95,7 +119,7 @@ The games launched from MODS take the same keys, so they need no touch either:
 | Browse encoder turn | first detent shows a focus ring on the screen's main control, later detents move it through every on-screen control | menu up / down |
 | Browse encoder push | taps the focused control | Enter |
 | BACK | one screen back (setup step, sub-screen, menu); from a game's first screen, leaves it; ignored mid-round | Escape (game menu) |
-| REKORDBOX | leaves the game and opens MODS on the page it was launched from | quits Doom; the next press opens MODS |
+| REKORDBOX (any assignment but NOTHING) | leaves the game and opens MODS on the page it was launched from | quits Doom; the next press opens MODS |
 
 Each game renderer records the controls it draws that frame
 (`arcade/game_nav.h`). The encoder moves over that list and a push replays a
@@ -107,7 +131,7 @@ stray push mid-round does nothing. Touching the screen hides the ring.
 drives Wave Rider setup with the encoder alone. Doom receives these keys
 through a tap queue in the shared input page (protocol version 2).
 SDK applications, including the kart preview, keep their own controls;
-REKORDBOX opens MODS over them, where APPS can stop them.
+REKORDBOX assigned to MODS MENU opens MODS over them, where APPS can stop them.
 
 ## Runtime contract
 

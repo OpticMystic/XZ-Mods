@@ -16,7 +16,7 @@ int xz_settings_look(int ui_interface, int classic_theme) {
     return ui_interface==XZ_INTERFACE_MODERN?XZ_THEME_FLAGSHIP:classic_theme;
 }
 void xz_settings_default(struct xz_settings *s) {
-    *s = (struct xz_settings){.stems=1,.ui_interface=XZ_INTERFACE_MODERN,.theme=XZ_THEME_FLAGSHIP,.shift_pages=1,.shift_keysync=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1,.browse_columns={XZ_BROWSE_TITLE,XZ_BROWSE_KEY,XZ_BROWSE_BPM},.browse_key_prefix=1,.browse_traffic=1,.key_feedback=1,.rekordbox_menu=1,.ram_debug=1,.metrics_enabled=1};
+    *s = (struct xz_settings){.stems=1,.ui_interface=XZ_INTERFACE_MODERN,.theme=XZ_THEME_FLAGSHIP,.shift_pages=1,.shift_keysync=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1,.browse_columns={XZ_BROWSE_TITLE,XZ_BROWSE_KEY,XZ_BROWSE_BPM},.browse_key_prefix=1,.browse_traffic=1,.key_feedback=1,.rekordbox_menu=0,.ram_debug=1,.metrics_enabled=1,.rekordbox_press=XZ_REKORDBOX_INTERFACE,.rekordbox_shift=XZ_REKORDBOX_STOCK};
 }
 static int valid(const struct xz_settings *s) {
     for (int i=0;i<8;i++) if ((unsigned)s->jump.sizes[i]>=XZ_JUMP_SIZES) return 0;
@@ -26,7 +26,7 @@ static int valid(const struct xz_settings *s) {
         for (int j=0;j<i;j++) if(s->browse_columns[i]==s->browse_columns[j]) return 0;
     }
     return (unsigned)s->ui_interface<=XZ_INTERFACE_MODERN && (unsigned)s->classic_theme<XZ_CLASSIC_THEME_COUNT && (unsigned)s->modern_theme<XZ_MODERN_THEME_COUNT &&
-        (unsigned)s->stem_order<XZ_STEM_ORDER_COUNT && (unsigned)s->metrics_enabled<=1 && (unsigned)s->rekordbox_menu<=1 && (unsigned)s->ram_debug<=1 && (unsigned)s->key_feedback<=1 && (unsigned)s->browse_key_prefix<=1 && (unsigned)s->browse_traffic<=1 && (unsigned)s->key_format<=XZ_KEY_FORMAT_CAMELOT && (unsigned)s->stems_overlay<XZ_STEM_LAYOUT_COUNT && (unsigned)s->wave_mode<=2 && (unsigned)s->jump.enabled<=1 && (unsigned)s->jump.shift_page<=1 && (unsigned)s->stems <= 1 && (unsigned)s->gate <= 1 &&
+        (unsigned)s->stem_order<XZ_STEM_ORDER_COUNT && (unsigned)s->metrics_enabled<=1 && (unsigned)s->rekordbox_menu<=1 && (unsigned)s->rekordbox_press<XZ_REKORDBOX_ACTIONS && (unsigned)s->rekordbox_shift<XZ_REKORDBOX_ACTIONS && (unsigned)s->ram_debug<=1 && (unsigned)s->key_feedback<=1 && (unsigned)s->browse_key_prefix<=1 && (unsigned)s->browse_traffic<=1 && (unsigned)s->key_format<=XZ_KEY_FORMAT_CAMELOT && (unsigned)s->stems_overlay<XZ_STEM_LAYOUT_COUNT && (unsigned)s->wave_mode<=2 && (unsigned)s->jump.enabled<=1 && (unsigned)s->jump.shift_page<=1 && (unsigned)s->stems <= 1 && (unsigned)s->gate <= 1 &&
         (unsigned)s->smart <= 1 && (unsigned)s->theme < XZ_THEME_COUNT &&
         (unsigned)s->stem_page <= 3 && (unsigned)s->shift_pages <= 1 &&
         (unsigned)s->pad_feedback <= 1 && (unsigned)s->shift_keysync <= 1 &&
@@ -34,15 +34,26 @@ static int valid(const struct xz_settings *s) {
 }
 /* Field order is the file order; a record may stop at a version boundary.
    The appearance block (interface, classic_theme, modern_theme) is all or
-   nothing. A record without it is older: its theme slot decides the rest. */
-#define FIELDS 41
+   nothing. A record without it is older: its theme slot decides the rest.
+   The REKORDBOX block (rekordbox_press, rekordbox_shift) is all or nothing too;
+   a record without it migrates from rekordbox_menu (rekordbox_migrate). */
+#define FIELDS 43
 #define APPEARANCE_BLOCK 38
+#define REKORDBOX_MENU 35
+#define REKORDBOX_BLOCK 41
+/* Older records named one REKORDBOX choice: rekordbox_menu 1 (its default, also when the record
+   predates it) or 0 (the stock action, or the VJ.Tools screen switch when takeover_assign chose the
+   key). MODS opens from the MODERN interface's MENU key, so 1 becomes INTERFACE. */
+static int rekordbox_migrate(int menu, int takeover_assign) {
+    return menu ? XZ_REKORDBOX_INTERFACE : takeover_assign == XZ_TAKEOVER_REKORDBOX ? XZ_REKORDBOX_VJ_SCREEN : XZ_REKORDBOX_STOCK;
+}
 static void fields(struct xz_settings *s, int *values[FIELDS]) {
     int *all[FIELDS] = {
         &s->stems,&s->gate,&s->smart,&s->theme,&s->stem_page,
         &s->shift_pages,&s->pad_feedback,&s->shift_keysync,
         &s->fb_takeover,&s->takeover_assign,&s->spare_eq,&s->stem_bank,
-        &s->jump.enabled,&s->jump.shift_page,&s->jump.sizes[0],&s->jump.sizes[1],&s->jump.sizes[2],&s->jump.sizes[3],&s->jump.sizes[4],&s->jump.sizes[5],&s->jump.sizes[6],&s->jump.sizes[7],&s->stems_overlay,&s->wave_mode,&s->browse_columns[0],&s->browse_columns[1],&s->browse_columns[2],&s->browse_key_prefix,&s->browse_traffic,&s->key_format,&s->stem_colors[0],&s->stem_colors[1],&s->stem_colors[2],&s->key_feedback,&s->ram_debug,&s->rekordbox_menu,&s->metrics_enabled,&s->stem_order,&s->ui_interface,&s->classic_theme,&s->modern_theme
+        &s->jump.enabled,&s->jump.shift_page,&s->jump.sizes[0],&s->jump.sizes[1],&s->jump.sizes[2],&s->jump.sizes[3],&s->jump.sizes[4],&s->jump.sizes[5],&s->jump.sizes[6],&s->jump.sizes[7],&s->stems_overlay,&s->wave_mode,&s->browse_columns[0],&s->browse_columns[1],&s->browse_columns[2],&s->browse_key_prefix,&s->browse_traffic,&s->key_format,&s->stem_colors[0],&s->stem_colors[1],&s->stem_colors[2],&s->key_feedback,&s->ram_debug,&s->rekordbox_menu,&s->metrics_enabled,&s->stem_order,&s->ui_interface,&s->classic_theme,&s->modern_theme,
+        &s->rekordbox_press,&s->rekordbox_shift
     };
     memcpy(values,all,sizeof(all));
 }
@@ -56,7 +67,7 @@ int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigne
         "stems=","gate=","smart=","theme=","stem_page=",
         "shift_pages=","pad_feedback=","shift_keysync=",
         "fb_takeover=","takeover_assign=","spare_eq=","stem_bank=",
-        "jump_enabled=","jump_shift_page=","jump_1=","jump_2=","jump_3=","jump_4=","jump_5=","jump_6=","jump_7=","jump_8=","stems_overlay=","wave_mode=","browse_1=","browse_2=","browse_3=","browse_key_prefix=","browse_traffic=","key_format=","stem_drums_color=","stem_harmonics_color=","stem_vocals_color=","key_feedback=","ram_debug=","rekordbox_menu=","metrics_enabled=","stem_order=","interface=","classic_theme=","modern_theme="
+        "jump_enabled=","jump_shift_page=","jump_1=","jump_2=","jump_3=","jump_4=","jump_5=","jump_6=","jump_7=","jump_8=","stems_overlay=","wave_mode=","browse_1=","browse_2=","browse_3=","browse_key_prefix=","browse_traffic=","key_format=","stem_drums_color=","stem_harmonics_color=","stem_vocals_color=","key_feedback=","ram_debug=","rekordbox_menu=","metrics_enabled=","stem_order=","interface=","classic_theme=","modern_theme=","rekordbox_press=","rekordbox_shift="
     };
     int *values[FIELDS];
     fields(&s,values);
@@ -65,7 +76,7 @@ int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigne
     xz_settings_default(&s);
     unsigned i;
     for (i=0;i<FIELDS;i++) {
-        if (((i >= 8 && i <= 12)||i==22||i==23||i==24||i==30||i==33||i==34||i==35||i==36||i==37||i==APPEARANCE_BLOCK) && *text == '\0') break;
+        if (((i >= 8 && i <= 12)||i==22||i==23||i==24||i==30||i==33||i==34||i==35||i==36||i==37||i==APPEARANCE_BLOCK||i==REKORDBOX_BLOCK) && *text == '\0') break;
         size_t size = strlen(keys[i]);
         if (strncmp(text,keys[i],size)) return -1;
         text += size;
@@ -85,6 +96,12 @@ int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigne
         s.classic_theme = s.theme == XZ_THEME_FLAGSHIP ? 0 : s.theme;
         s.modern_theme = 0;
     }
+    if (i < REKORDBOX_BLOCK+1) {
+        s.rekordbox_press = rekordbox_migrate(i > REKORDBOX_MENU ? s.rekordbox_menu : 1, s.takeover_assign);
+        s.rekordbox_shift = XZ_REKORDBOX_STOCK;
+    }
+    if (s.takeover_assign == XZ_TAKEOVER_REKORDBOX) s.takeover_assign = XZ_TAKEOVER_LINK;
+    s.rekordbox_menu = s.rekordbox_press == XZ_REKORDBOX_MODS;
     s.theme = xz_settings_look(s.ui_interface,s.classic_theme);
     s.jump.shift_page=1;s.ram_debug=1;s.metrics_enabled=1;s.shift_pages=1;s.shift_keysync=1;
     *out = s; if (present) *present = i; return 0;
@@ -100,6 +117,11 @@ int xz_settings_overlay(struct xz_settings *current, const struct xz_settings *r
         merged.ui_interface = source.theme == XZ_THEME_FLAGSHIP ? XZ_INTERFACE_MODERN : XZ_INTERFACE_CLASSIC;
         merged.classic_theme = source.theme == XZ_THEME_FLAGSHIP ? current->classic_theme : source.theme;
     }
+    /* A record that names rekordbox_menu but predates the REKORDBOX block brings its migrated press;
+       its SHIFT slot was never chosen and stays as it is. */
+    if (present > REKORDBOX_MENU && present <= REKORDBOX_BLOCK) merged.rekordbox_press = source.rekordbox_press;
+    if (merged.takeover_assign == XZ_TAKEOVER_REKORDBOX) merged.takeover_assign = XZ_TAKEOVER_LINK;
+    merged.rekordbox_menu = merged.rekordbox_press == XZ_REKORDBOX_MODS;
     merged.theme = xz_settings_look(merged.ui_interface,merged.classic_theme);
     merged.jump.shift_page=1;merged.ram_debug=1;merged.metrics_enabled=1;merged.shift_pages=1;merged.shift_keysync=1;
     if (!valid(&merged)) return -1;
@@ -108,9 +130,10 @@ int xz_settings_overlay(struct xz_settings *current, const struct xz_settings *r
 int xz_settings_format(const struct xz_settings *s, char *out, size_t size) {
     if (!valid(s)) return -1;
     int look = xz_settings_look(s->ui_interface,s->classic_theme);
-    int n = snprintf(out,size,"XZ_MODS_SETTINGS 1\nstems=%d\ngate=%d\nsmart=%d\ntheme=%d\nstem_page=%d\nshift_pages=%d\npad_feedback=%d\nshift_keysync=%d\nfb_takeover=%d\ntakeover_assign=%d\nspare_eq=%d\nstem_bank=%d\njump_enabled=%d\njump_shift_page=%d\njump_1=%d\njump_2=%d\njump_3=%d\njump_4=%d\njump_5=%d\njump_6=%d\njump_7=%d\njump_8=%d\nstems_overlay=%d\nwave_mode=%d\nbrowse_1=%d\nbrowse_2=%d\nbrowse_3=%d\nbrowse_key_prefix=%d\nbrowse_traffic=%d\nkey_format=%d\nstem_drums_color=%d\nstem_harmonics_color=%d\nstem_vocals_color=%d\nkey_feedback=%d\nram_debug=%d\nrekordbox_menu=%d\nmetrics_enabled=%d\nstem_order=%d\ninterface=%d\nclassic_theme=%d\nmodern_theme=%d\n",
+    int n = snprintf(out,size,"XZ_MODS_SETTINGS 1\nstems=%d\ngate=%d\nsmart=%d\ntheme=%d\nstem_page=%d\nshift_pages=%d\npad_feedback=%d\nshift_keysync=%d\nfb_takeover=%d\ntakeover_assign=%d\nspare_eq=%d\nstem_bank=%d\njump_enabled=%d\njump_shift_page=%d\njump_1=%d\njump_2=%d\njump_3=%d\njump_4=%d\njump_5=%d\njump_6=%d\njump_7=%d\njump_8=%d\nstems_overlay=%d\nwave_mode=%d\nbrowse_1=%d\nbrowse_2=%d\nbrowse_3=%d\nbrowse_key_prefix=%d\nbrowse_traffic=%d\nkey_format=%d\nstem_drums_color=%d\nstem_harmonics_color=%d\nstem_vocals_color=%d\nkey_feedback=%d\nram_debug=%d\nrekordbox_menu=%d\nmetrics_enabled=%d\nstem_order=%d\ninterface=%d\nclassic_theme=%d\nmodern_theme=%d\nrekordbox_press=%d\nrekordbox_shift=%d\n",
         s->stems,s->gate,s->smart,look,s->stem_page,s->shift_pages,s->pad_feedback,s->shift_keysync,s->fb_takeover,s->takeover_assign,s->spare_eq,s->stem_bank,s->jump.enabled,s->jump.shift_page,
-        s->jump.sizes[0],s->jump.sizes[1],s->jump.sizes[2],s->jump.sizes[3],s->jump.sizes[4],s->jump.sizes[5],s->jump.sizes[6],s->jump.sizes[7],s->stems_overlay,s->wave_mode,s->browse_columns[0],s->browse_columns[1],s->browse_columns[2],s->browse_key_prefix,s->browse_traffic,s->key_format,s->stem_colors[0],s->stem_colors[1],s->stem_colors[2],s->key_feedback,s->ram_debug,s->rekordbox_menu,s->metrics_enabled,s->stem_order,s->ui_interface,s->classic_theme,s->modern_theme);
+        s->jump.sizes[0],s->jump.sizes[1],s->jump.sizes[2],s->jump.sizes[3],s->jump.sizes[4],s->jump.sizes[5],s->jump.sizes[6],s->jump.sizes[7],s->stems_overlay,s->wave_mode,s->browse_columns[0],s->browse_columns[1],s->browse_columns[2],s->browse_key_prefix,s->browse_traffic,s->key_format,s->stem_colors[0],s->stem_colors[1],s->stem_colors[2],s->key_feedback,s->ram_debug,s->rekordbox_press==XZ_REKORDBOX_MODS,s->metrics_enabled,s->stem_order,s->ui_interface,s->classic_theme,s->modern_theme,
+        s->rekordbox_press,s->rekordbox_shift);
     return n < 0 || (size_t)n >= size ? -1 : n;
 }
 static int paths(const char *usb, char *dir, char *file) {

@@ -38,7 +38,7 @@ int main(void){
 
     static uint16_t screen[800*480];
     unsigned char back[24]={0};uint16_t back_key=0x4208;memcpy(back+8,&back_key,2);
-    model.rekordbox_menu=1;touch.visible=1;arcade.phase=XZ_ARCADE_MENU;arcade.mode=XZ_ARCADE_BREAK_SOLO;
+    model.rekordbox_assign[0]=XZ_REKORDBOX_MODS;touch.visible=1;arcade.phase=XZ_ARCADE_MENU;arcade.mode=XZ_ARCADE_BREAK_SOLO;
     apply(NULL,&open,1);assert(arcade_present&&arcade_opening_touch);
     assert(xz_mods_render_v1(screen,800,480,800,NULL)==1&&game_frame.count>=7);
     assert(encoder_rotate_hook(1)==1&&game_nav.visible&&game_nav.shown.at[game_nav.focus].y==208);

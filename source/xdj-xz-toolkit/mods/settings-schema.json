@@ -17,7 +17,8 @@
     36,
     37,
     38,
-    41
+    41,
+    43
   ],
   "fields": [
     {
@@ -255,10 +256,6 @@
         {
           "value": 0,
           "label": "Link"
-        },
-        {
-          "value": 1,
-          "label": "Rekordbox"
         },
         {
           "value": 2,
@@ -1061,14 +1058,76 @@
       "readonly": false
     },
     {
-      "key": "rekordbox_menu",
-      "label": "REKORDBOX key opens MODS",
+      "key": "rekordbox_press",
+      "label": "REKORDBOX button",
+      "group": "advanced",
+      "default": 2,
+      "min": 0,
+      "max": 5,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "MODS MENU"
+        },
+        {
+          "value": 1,
+          "label": "EXPORT MODE PLAYBACK"
+        },
+        {
+          "value": 2,
+          "label": "INTERFACE"
+        },
+        {
+          "value": 3,
+          "label": "VJ.TOOLS SCREEN"
+        },
+        {
+          "value": 4,
+          "label": "STEMS"
+        },
+        {
+          "value": 5,
+          "label": "NOTHING"
+        }
+      ]
+    },
+    {
+      "key": "rekordbox_shift",
+      "label": "SHIFT + REKORDBOX button",
       "group": "advanced",
       "default": 1,
       "min": 0,
-      "max": 1,
-      "kind": "boolean",
-      "readonly": false
+      "max": 5,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "MODS MENU"
+        },
+        {
+          "value": 1,
+          "label": "EXPORT MODE PLAYBACK"
+        },
+        {
+          "value": 2,
+          "label": "INTERFACE"
+        },
+        {
+          "value": 3,
+          "label": "VJ.TOOLS SCREEN"
+        },
+        {
+          "value": 4,
+          "label": "STEMS"
+        },
+        {
+          "value": 5,
+          "label": "NOTHING"
+        }
+      ]
     },
     {
       "key": "stem_order",
@@ -1148,7 +1207,9 @@
     "stem_order",
     "interface",
     "classic_theme",
-    "modern_theme"
+    "modern_theme",
+    "rekordbox_press",
+    "rekordbox_shift"
   ],
   "retired_fields": {
     "jump_shift_page": {
@@ -1216,6 +1277,28 @@
         "modern_value": 24,
         "interface": "interface",
         "classic": "classic_theme"
+      }
+    },
+    "rekordbox_menu": {
+      "key": "rekordbox_menu",
+      "label": "REKORDBOX key opens MODS (read by older runtimes)",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true,
+      "derived": {
+        "press": "rekordbox_press",
+        "shift": "rekordbox_shift",
+        "mods_value": 0,
+        "menu_on_press": 2,
+        "menu_off_press": 1,
+        "shift_default": 1,
+        "takeover": "takeover_assign",
+        "takeover_retired": 1,
+        "takeover_press": 3,
+        "takeover_replacement": 0
       }
     }
   }

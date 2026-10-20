@@ -27,12 +27,26 @@ def _legacy_theme(schema):
     field=schema.get('derived_fields',{}).get('theme')
     return field['derived'] if field else None
 
+def _legacy_rekordbox(schema):
+    """The older rekordbox_menu switch, derived from the REKORDBOX button's press choice."""
+    field=schema.get('derived_fields',{}).get('rekordbox_menu')
+    return field['derived'] if field and 'press' in field.get('derived',{}) else None
+
+def _retire_takeover(values,rule):
+    """The REKORDBOX choice of the screen switch button is retired: it loads as its replacement."""
+    if rule and values.get(rule['takeover'])==rule['takeover_retired']:
+        values[rule['takeover']]=rule['takeover_replacement']
+
 def legacy_values(values,schema):
-    """values plus the combined theme an older mod version's schema reads."""
+    """values plus the combined theme and the REKORDBOX switch an older mod version's schema reads."""
+    values=dict(values)
     rule=_legacy_theme(schema)
-    if not rule:return dict(values)
-    modern=values.get(rule['interface'])==1
-    return {**values,'theme':rule['modern_value'] if modern else values.get(rule['classic'],0)}
+    if rule:
+        modern=values.get(rule['interface'])==1
+        values['theme']=rule['modern_value'] if modern else values.get(rule['classic'],0)
+    button=_legacy_rekordbox(schema)
+    if button:values['rekordbox_menu']=1 if values.get(button['press'])==button['mods_value'] else 0
+    return values
 
 
 def defaults(schema):return {field['key']:field['default'] for field in schema['fields']}
@@ -40,6 +54,7 @@ def defaults(schema):return {field['key']:field['default'] for field in schema['
 def validate(values,schema):
     if isinstance(values,dict):
         values={k:v for k,v in values.items() if k not in schema.get('retired_fields',{})}
+        _retire_takeover(values,_legacy_rekordbox(schema))
     if not isinstance(values,dict) or set(values)!={f['key'] for f in schema['fields']}:
         raise ValueError('Supply the complete settings form; missing or unknown fields are not allowed')
     for field in schema['fields']:
@@ -75,6 +90,13 @@ def parse(data,schema):
         modern=read['theme']==rule['modern_value']
         values[rule['interface']]=1 if modern else 0
         if not modern:values[rule['classic']]=read['theme']
+    button=_legacy_rekordbox(schema)
+    if button and button['press'] not in read:
+        # An older record: rekordbox_menu (default on before it existed) and the takeover key decide the press.
+        if read.get('rekordbox_menu',1):values[button['press']]=button['menu_on_press']
+        elif read.get(button['takeover'])==button['takeover_retired']:values[button['press']]=button['takeover_press']
+        else:values[button['press']]=button['menu_off_press']
+        values[button['shift']]=button['shift_default']
     return validate(values,schema)
 
 def serialize(values,schema):
