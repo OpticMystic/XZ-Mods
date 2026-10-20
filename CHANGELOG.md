@@ -2,6 +2,8 @@
 
 ## Unreleased local changes
 
+- DJ Profile 1.0: each DJ's profile lives in its own folder under DJPROFILE on the USB, following the open DJ Profile standard. The first save on an older USB moves its profiles to the new layout; a copy of the old files stays on this computer. The XZ reads and writes the new layout and shows the USB colour set in rekordbox.
+
 - DJ Profile: the profile track wizard checks the USB and reports whether the track reached the rekordbox device library and OneLibrary. XZ Mods can read OneLibrary (exportLibrary.db). Open DJ Profile 1.0 specification draft in spec/djprofile.
 
 - Preview.15: one `interface` setting (MODERN/CLASSIC) decides who draws the screen; `classic_theme` and `modern_theme` keep a theme list per interface. Older `theme` values migrate (24 = MODERN). The shipped loader arms the shell runtime with the UI, so the setting alone switches it. MODS > APPEARANCE is regrouped: INTERFACE, THEME, WAVEFORM, KEYS AND STEMS. The setup wizard asks for the screen on install and update and writes only `interface`. Host tests pass; controller acceptance of the new loader is pending.
