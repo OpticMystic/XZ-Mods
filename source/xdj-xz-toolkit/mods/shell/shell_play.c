@@ -494,7 +494,7 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
    if(x0>=WAVE_X&&x0<WAVE_X+WAVE_W)xz_rect(c,x0,ly,1,lh,SH_LOOP);
    if(x1>=WAVE_X&&x1<WAVE_X+WAVE_W)xz_rect(c,x1,ly,1,lh,SH_LOOP);
    char beats[16];fmt_fraction(beats,sizeof beats,d->loop.beats_num,d->loop.beats_den);
-   snprintf(text,sizeof text,"%s BEAT LOOP",beats);
+   if(d->loop.beats_num>0)snprintf(text,sizeof text,"%s BEAT LOOP",beats);else snprintf(text,sizeof text,"LOOP");
    lane_caption(c,WAVE_X+6,ly+tick_h+3,text,SH_LOOP);
   }
   /* beat countdown to the next cue ahead of the playhead, in bars.beats */
@@ -564,7 +564,8 @@ static void render_alert(const struct play_layout *L, const struct xz_shell_mode
 }
 static int grid_edit_shown(const struct xz_shell *u, const struct xz_shell_model *m, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
- return u->grid_mode&&u->deck==deck&&(m->capabilities&XZ_SHELL_CAP_GRID_EDIT)&&(m->capabilities&XZ_SHELL_CAP_GRID)
+ uint32_t caps=sh_deck_caps(m,deck);
+ return u->grid_mode&&u->deck==deck&&(caps&XZ_SHELL_CAP_GRID_EDIT)&&(caps&XZ_SHELL_CAP_GRID)
   &&sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded&&!alert_on(d);
 }
 /* A GRID button's touch target, below a stem row at the top of the band. */
@@ -591,7 +592,7 @@ static struct xz_shell_rect zoom_box(const struct xz_shell_model *m) {
 }
 static void render_zoom(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  struct xz_shell_rect r=zoom_box(m);
- int grid=(m->capabilities&XZ_SHELL_CAP_GRID)!=0;
+ int grid=(sh_deck_caps(m,sh_active_deck(u,m))&XZ_SHELL_CAP_GRID)!=0;
  int zw=sh_text_width(c,"ZOOM",SH_SMALL)+8,gw=sh_text_width(c,"GRID",SH_SMALL)+8;
  int x=grid?r.x:r.x+r.w-zw;
  xz_rect(c,r.x,r.y,r.w,r.h,SH_BLACK);
@@ -798,7 +799,7 @@ static const int stem_slot[3]={0,2,1};   /* screen order DRUMS, VOCAL, INST -> s
 static const char *const stem_name[3]={"DRUMS","INST","VOCAL"};
 static int stem_buttons(const struct xz_shell_model *m, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
- return (m->capabilities&XZ_SHELL_CAP_STEM_MUTE)&&sh_has(d,XZ_SHELL_F_STEM_MUTE)&&(!sh_has(d,XZ_SHELL_F_LOADED)||d->loaded);
+ return (sh_deck_caps(m,deck)&XZ_SHELL_CAP_STEM_MUTE)&&sh_has(d,XZ_SHELL_F_STEM_MUTE)&&(!sh_has(d,XZ_SHELL_F_LOADED)||d->loaded);
 }
 static uint32_t stem_rgb(const struct xz_shell_model *m, int stem) { return sh_stem_bright(m,stem); }
 /* A row button as drawn: three across the row, the row's height less a 2 px margin (1 on half rows). */
@@ -826,7 +827,7 @@ struct xz_shell_rect xz_shell_stem_button(const struct xz_shell_model *m, int de
 }
 /* Full rows are faders: a stem's level fills its button from the left. */
 static int stem_fader(const struct xz_shell_model *m, int deck) {
- return xz_shell_stem_row(m,deck).h>=STEM_ROW_FULL&&(m->capabilities&XZ_SHELL_CAP_STEM_GAIN)&&sh_has(&m->deck[deck],XZ_SHELL_F_STEM_GAIN);
+ return xz_shell_stem_row(m,deck).h>=STEM_ROW_FULL&&(sh_deck_caps(m,deck)&XZ_SHELL_CAP_STEM_GAIN)&&sh_has(&m->deck[deck],XZ_SHELL_F_STEM_GAIN);
 }
 static void render_stem_row(const struct xz_shell_model *m, struct xz_canvas c, int deck) {
  struct xz_shell_rect row=xz_shell_stem_row(m,deck);
@@ -935,7 +936,7 @@ int sh_needle_locked(const struct xz_shell_model *m, const struct xz_shell_deck 
 }
 static size_t seek(struct xz_shell *u, const struct xz_shell_model *m, int deck, int x, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  const struct xz_shell_deck *d=&m->deck[deck];
- if(!(m->capabilities&XZ_SHELL_CAP_SEEK)||!sh_has(d,XZ_SHELL_F_TOTAL)||d->total_ms<=0)return n;
+ if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_SEEK)||!sh_has(d,XZ_SHELL_F_TOTAL)||d->total_ms<=0)return n;
  if(!sh_has(d,XZ_SHELL_F_LOADED)||!d->loaded)return n;
  if(sh_needle_locked(m,d)){u->notice="NEEDLE LOCK: PAUSE THE DECK TO SEARCH";u->notice_at_ms=m->clock_ms;return n;}
  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SEEK,deck,xz_shell_overview_ms(m,d->total_ms,x,deck),0});
@@ -982,7 +983,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
     return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_GRID_EDIT,deck,0,i});
  }
  if(sh_inside(zoom_box(m),x,y)){
-  if(m->capabilities&XZ_SHELL_CAP_GRID)u->grid_mode=!u->grid_mode;
+  if(sh_deck_caps(m,sh_active_deck(u,m))&XZ_SHELL_CAP_GRID)u->grid_mode=!u->grid_mode;
   return 0;
  }
  for(int deck=0;deck<sh_deck_count(m);deck++){
@@ -992,7 +993,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
    return seek(u,m,deck,x,out,n);
   }
   if(sh_inside(xz_shell_play_rect(m,XZ_SHELL_R_TIME,deck),x,y)){
-   if(!sh_writable(m,XZ_SHELL_SET_TIME_MODE))return 0;
+   if(!sh_writable(m,XZ_SHELL_SET_TIME_MODE)||!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_SET_SETTING))return 0;
    int known;enum xz_shell_time_mode mode=time_mode_of(m,&m->deck[deck],&known);
    return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,mode==XZ_SHELL_TIME_REMAIN?XZ_SHELL_TIME_ELAPSED:XZ_SHELL_TIME_REMAIN,XZ_SHELL_SET_TIME_MODE});
   }
@@ -1032,7 +1033,7 @@ static size_t play_input(struct xz_shell *u, const struct xz_shell_model *m, con
   return n;
  }
  case XZ_SHELL_ENCODER_TURN:{
-  if(u->grid_mode&&(m->capabilities&XZ_SHELL_CAP_GRID))
+  if(u->grid_mode&&(sh_deck_caps(m,sh_active_deck(u,m))&XZ_SHELL_CAP_GRID))
    return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_GRID_ADJUST,sh_active_deck(u,m),e->delta,0});
   int zoom=u->zoom+e->delta;
   if(zoom<0)zoom=0;if(zoom>XZ_SHELL_ZOOM_MAX)zoom=XZ_SHELL_ZOOM_MAX;
@@ -1041,7 +1042,7 @@ static size_t play_input(struct xz_shell *u, const struct xz_shell_model *m, con
   return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_ZOOM,-1,zoom,0});
  }
  case XZ_SHELL_ENCODER_HOLD:
-  if(m->capabilities&XZ_SHELL_CAP_GRID)u->grid_mode=!u->grid_mode;
+  if(sh_deck_caps(m,sh_active_deck(u,m))&XZ_SHELL_CAP_GRID)u->grid_mode=!u->grid_mode;
   return 0;
  default:return 0;
  }

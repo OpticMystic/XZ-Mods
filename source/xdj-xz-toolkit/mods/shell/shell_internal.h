@@ -42,6 +42,10 @@ static inline int sh_active_deck(const struct xz_shell *u, const struct xz_shell
  return u->deck>=0&&u->deck<sh_deck_count(m)?u->deck:0;
 }
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
+/* The model's capabilities this deck takes (xz_shell_deck.caps_off). */
+static inline uint32_t sh_deck_caps(const struct xz_shell_model *m, int deck) {
+ return deck>=0&&deck<XZ_SHELL_DECKS?m->capabilities&~m->deck[deck].caps_off:0;
+}
 static inline int sh_setting(const struct xz_shell_model *m, enum xz_shell_setting s) { return (m->settings.known>>s)&1; }
 static inline int sh_writable(const struct xz_shell_model *m, enum xz_shell_setting s) {
  return (m->capabilities&XZ_SHELL_CAP_SET_SETTING)&&((m->settings.writable>>s)&1);

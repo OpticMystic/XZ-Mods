@@ -109,6 +109,16 @@ int main(int argc, char **argv) {
  m.settings_screen=fxs_reset();
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"utility-4deck");
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT);shot(&u,&m,"shortcut-4deck");
+ /* The software players: DECK SELECT on SHORTCUT, the left side on DECK 3. */
+ {
+  struct xz_shell_model p;fx_model_four_players(&p,&track);
+  p.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD;p.browse=&b;p.settings_screen=m.settings_screen;
+  open_screen(&u,&p,XZ_SHELL_KEY_SHORTCUT);shot(&u,&p,"shortcut-4deck-deck-select-left-3");
+  p.sides_extra=3;shot(&u,&p,"shortcut-4deck-deck-select-both");
+  p.sides_extra=0;shot(&u,&p,"shortcut-4deck-deck-select-native");
+  xz_shell_init(&u);u.deck=2;p.sides_extra=1;shot(&u,&p,"play-4deck-players-left-3");
+  open_screen(&u,&p,XZ_SHELL_KEY_BROWSE);u.deck=2;shot(&u,&p,"browse-4deck-players");
+ }
  struct xz_shell_info_model im;struct xz_shell_source_model sm;
  fxi_artwork(art);fxi_info_full(&im,art);fxi_source_full(&sm);
  m.info=&im;m.source=&sm;m.capabilities|=XZ_SHELL_CAP_SOURCE;

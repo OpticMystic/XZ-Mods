@@ -1078,11 +1078,35 @@ static void render_chip_row(const struct xz_shell_model *m, struct xz_canvas c, 
  }
 }
 /* ---- DECK STATUS lamps ---- */
-enum { LAMP_W=64, LAMP_H=30, LAMP_GAP=6, LAMP_ROW=50 };
-struct xz_shell_rect xz_shell_shortcut_lamp(int deck, int lamp) {
+enum { LAMP_W=64, LAMP_H=30, LAMP_GAP=6, LAMP_ROW=50, SELECT_LAMP_W=54, SELECT_GAP=8 };
+static int deck_select_shown(const struct xz_shell_model *m) {
+ return m&&sh_deck_count(m)==4&&(m->capabilities&XZ_SHELL_CAP_DECK_SELECT);
+}
+struct xz_shell_rect xz_shell_shortcut_lamp(const struct xz_shell_model *m, int deck, int lamp) {
  struct xz_shell_rect q=xz_shell_shortcut_quadrant(Q_DEVICE_INFO);
  if(deck<0||deck>=XZ_SHELL_SHORTCUT_DECKS||lamp<0||lamp>=XZ_SHELL_LAMP_COUNT)return (struct xz_shell_rect){0,0,0,0};
- return (struct xz_shell_rect){q.x+CHIP_PAD+lamp*(LAMP_W+LAMP_GAP),q.y+QUAD_TITLE+18+deck*LAMP_ROW,LAMP_W,LAMP_H};
+ int w=deck_select_shown(m)?SELECT_LAMP_W:LAMP_W;
+ return (struct xz_shell_rect){q.x+CHIP_PAD+lamp*(w+LAMP_GAP),q.y+QUAD_TITLE+18+deck*LAMP_ROW,w,LAMP_H};
+}
+struct xz_shell_rect xz_shell_shortcut_deck_select(const struct xz_shell_model *m, int side) {
+ if(!deck_select_shown(m)||side<0||side>=XZ_SHELL_SHORTCUT_DECKS)return (struct xz_shell_rect){0,0,0,0};
+ struct xz_shell_rect q=xz_shell_shortcut_quadrant(Q_DEVICE_INFO),last=xz_shell_shortcut_lamp(m,side,XZ_SHELL_LAMP_COUNT-1);
+ int x=last.x+last.w+SELECT_GAP;
+ return (struct xz_shell_rect){x,last.y,q.x+q.w-CHIP_PAD-x,LAMP_H};
+}
+/* The side's two decks as one control: the deck its controls drive now is the lit half. */
+static void render_deck_select(const struct xz_shell_model *m, struct xz_canvas c, int side) {
+ struct xz_shell_rect r=xz_shell_shortcut_deck_select(m,side);
+ if(!r.w)return;
+ sh_text_right(c,r.x+r.w,r.y-14,"DECK SELECT",SH_SMALL,SH_DIM);
+ int extra=(m->sides_extra>>side)&1,half=r.w/2;
+ xz_rect(c,r.x,r.y,r.w,r.h,XZ_FLAGSHIP_TILE);
+ for(int i=0;i<2;i++){
+  int x=r.x+i*half,w=i?r.w-half:half,lit=i==extra;
+  char text[4];snprintf(text,sizeof text,"%d",side+1+2*i);
+  if(lit)xz_rect(c,x+2,r.y+2,w-4,r.h-4,SH_BLUE);
+  sh_text_center(c,x+w/2,r.y+(r.h-SH_CAP_TEXT)/2,text,SH_TEXT,lit?SH_WHITE:GREY_TEXT);
+ }
 }
 static void lamp(struct xz_canvas c, struct xz_shell_rect r, const char *label, int known, int on, uint32_t lit) {
  int ty=r.y+(r.h-SH_CAP_SMALL)/2;
@@ -1095,19 +1119,20 @@ static void render_deck_status(const struct xz_shell_model *m, struct xz_canvas 
  char text[16];
  for(int deck=0;deck<XZ_SHELL_SHORTCUT_DECKS;deck++){
   const struct xz_shell_deck *d=&m->deck[deck];
-  struct xz_shell_rect first=xz_shell_shortcut_lamp(deck,0);
+  struct xz_shell_rect first=xz_shell_shortcut_lamp(m,deck,0);
   snprintf(text,sizeof text,"DECK %d",deck+1);
   sh_text(c,first.x,first.y-14,text,SH_SMALL,SH_DIM);
   if(sh_has(d,XZ_SHELL_F_QUANTIZE)&&d->quantize_on)snprintf(text,sizeof text,"Q %d%s%d",d->quantize_num,d->quantize_den>1?"/":"",d->quantize_den>1?d->quantize_den:0);
   else snprintf(text,sizeof text,"QUANTIZE");
   if(sh_has(d,XZ_SHELL_F_QUANTIZE)&&d->quantize_on&&d->quantize_den<=1)snprintf(text,sizeof text,"Q %d",d->quantize_num);
-  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_QUANTIZE),text,sh_has(d,XZ_SHELL_F_QUANTIZE),d->quantize_on,SH_RED);
-  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_SYNC),"SYNC",sh_has(d,XZ_SHELL_F_SYNC),d->sync,SH_BLUE);
-  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_SLIP),"SLIP",sh_has(d,XZ_SHELL_F_SLIP),d->slip,0xffbd59);
-  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_MASTER),"MASTER",sh_has(d,XZ_SHELL_F_MASTER),d->master,0xff8c1a);
+  lamp(c,xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_QUANTIZE),text,sh_has(d,XZ_SHELL_F_QUANTIZE),d->quantize_on,SH_RED);
+  lamp(c,xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_SYNC),"SYNC",sh_has(d,XZ_SHELL_F_SYNC),d->sync,SH_BLUE);
+  lamp(c,xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_SLIP),"SLIP",sh_has(d,XZ_SHELL_F_SLIP),d->slip,0xffbd59);
+  lamp(c,xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_MASTER),"MASTER",sh_has(d,XZ_SHELL_F_MASTER),d->master,0xff8c1a);
   int tm_known=sh_has(d,XZ_SHELL_F_TIME_MODE)||sh_setting(m,XZ_SHELL_SET_TIME_MODE);
   enum xz_shell_time_mode mode=sh_has(d,XZ_SHELL_F_TIME_MODE)?d->time_mode:m->settings.time_mode;
-  lamp(c,xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_TIME),mode==XZ_SHELL_TIME_REMAIN?"REMAIN":"TIME",tm_known,1,0x3c3c3c);
+  lamp(c,xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_TIME),mode==XZ_SHELL_TIME_REMAIN?"REMAIN":"TIME",tm_known,1,0x3c3c3c);
+  render_deck_select(m,c,deck);
  }
  /* LINK beside the quadrant title */
  lamp(c,(struct xz_shell_rect){q.x+q.w-CHIP_PAD-72,q.y+1,72,15},m->link_known&&m->link_connected?"LINK":"LINK OFF",m->link_known,m->link_known&&m->link_connected,SH_BLUE);
@@ -1158,8 +1183,10 @@ static size_t lamp_touch(struct xz_shell *u, const struct xz_shell_model *m, int
  for(int j=0;j<XZ_SHELL_JUMP_COUNT;j++)if(sh_inside(xz_shell_shortcut_jump(j),x,y))return jump_to(u,m,j,out);
  for(int deck=0;deck<XZ_SHELL_SHORTCUT_DECKS;deck++){
   const struct xz_shell_deck *d=&m->deck[deck];
-  struct xz_shell_rect qz=xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_QUANTIZE),tm=xz_shell_shortcut_lamp(deck,XZ_SHELL_LAMP_TIME);
-  qz.y-=7;qz.h+=14;tm.y-=7;tm.h+=14;   /* 44 px targets */
+  struct xz_shell_rect qz=xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_QUANTIZE),tm=xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_TIME);
+  struct xz_shell_rect ds=xz_shell_shortcut_deck_select(m,deck);
+  qz.y-=7;qz.h+=14;tm.y-=7;tm.h+=14;ds.y-=7;ds.h+=14;   /* 44 px targets */
+  if(ds.w&&sh_inside(ds,x,y))return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_DECK_SELECT,deck,0,0});
   if(sh_inside(qz,x,y)&&sh_writable(m,XZ_SHELL_SET_QUANTIZE)&&sh_has(d,XZ_SHELL_F_QUANTIZE))
    return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_SET_SETTING,deck,!d->quantize_on,XZ_SHELL_SET_QUANTIZE});
   if(sh_inside(tm,x,y)&&sh_writable(m,XZ_SHELL_SET_TIME_MODE)){

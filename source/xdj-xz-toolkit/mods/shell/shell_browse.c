@@ -576,11 +576,11 @@ static void render_load_chip(const struct xz_shell *u, const struct xz_shell_mod
  sh_text_center(c,l.x+LOAD_W/2,y+(h-SH_CAP_SMALL)/2,live?"LOAD":"LOAD OFF",SH_SMALL,ink);
  for(int d=0;d<sh_deck_count(m);d++){
   struct xz_shell_rect r=xz_shell_browse_rect(u,m,XZ_SHELL_BR_LOAD,d+1);
-  int target=live&&u->deck==d;
+  int takes=live&&(sh_deck_caps(m,d)&XZ_SHELL_CAP_LOAD),target=takes&&u->deck==d;
   xz_rect(c,r.x,y+2,1,h-4,live?SH_BLUE:0x5a5a5a);
   if(target)xz_rect(c,r.x+3,y+3,r.w-6,h-6,SH_BLUE);
   char text[4];snprintf(text,sizeof text,"%d",d+1);
-  sh_text_center(c,r.x+r.w/2,y+(h-SH_CAP_TEXT)/2,text,SH_TEXT,target?SH_WHITE:ink);
+  sh_text_center(c,r.x+r.w/2,y+(h-SH_CAP_TEXT)/2,text,SH_TEXT,target?SH_WHITE:takes||!live?ink:SH_DIM);
  }
 }
 static void render_row(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, const struct col *cols, int n, int32_t index, int y, const struct sess *v) {
@@ -1460,6 +1460,7 @@ static size_t activate_item(struct xz_shell *u, const struct xz_shell_model *m, 
   u->panel.page=PAGE_CUES+(it->value+1)%sh_deck_count(m);return n;
  case PK_CUE:
   if(!r||!bknown(b,XZ_SHELL_BF_CUES)||b->cue_track!=r->id||it->value>=b->cue_count)return n;
+  if(!(sh_deck_caps(m,u->panel.page-PAGE_CUES)&XZ_SHELL_CAP_CUE_LIST)){u->notice="DECK 3 AND 4 CANNOT LOAD AT A MEMORY POINT";u->notice_at_ms=m->clock_ms;return n;}
   return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_LOAD_CUE,u->panel.page-PAGE_CUES,it->value,(int)r->id});
  case PK_DELETE:
   if(!r||r->kind!=XZ_SHELL_ROW_FOLDER)return n;
@@ -1716,7 +1717,7 @@ static size_t to_top(struct xz_shell_view *v, enum xz_shell_screen s, struct xz_
 static size_t load(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_browse_row *r, int deck, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  enum xz_shell_screen s=xz_shell_screen(u);
  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
- if(!(m->capabilities&XZ_SHELL_CAP_LOAD))return hand_off(out,n,s);
+ if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD))return hand_off(out,n,s);
  remember(m->browse,s,top_view(u));
  st.touched=-1;
  u->depth=1;
