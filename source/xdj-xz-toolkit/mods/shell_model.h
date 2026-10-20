@@ -61,6 +61,11 @@ uint32_t xz_shell_model_holds(const struct xz_shell_model_storage *storage);
    so a selector sweep on the deck can prove one. */
 int xz_shell_model_fx_raw(const struct xz_shell_model_storage *storage, unsigned char out[12]);
 
+/* The playing BPM x100 of the native deck that is MASTER, from the same stat frames and guard as the refresh,
+   for DECK 3 / 4 SYNC. 0 when neither deck is master or a read fails. Reads only and keeps no state, so any
+   thread may call it, with or without the shell running. */
+int32_t xz_shell_model_master_bpm(xz_shell_read_fn read);
+
 /* Hot cue OUT time (loop hot cues); returns 0 when not known. */
 int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *storage, int deck, int cue, int32_t *out_ms);
 #endif
