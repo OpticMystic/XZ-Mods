@@ -50,6 +50,8 @@ for i in range(max(0,count-64),count):
     row=dict(zip(names,struct.unpack_from('<10I',blob,16+(i%64)*40)))
     row['key']=hex(row['key'])
     row['gates']=[name for bit,name in enumerate(flags) if row['ui_flags']&(1<<bit)]
+    row['shift_held']=bool(row['ui_flags']>>30&1)
+    row['deck_select_taken']=bool(row['ui_flags']>>31&1)
     row['ordinal']=i
     records.append(row)
 result={'pid':int(pid),'runtime_sha256':receipt['runtime_sha256'],'enabled':bool(enabled),'count':count,'records':records}

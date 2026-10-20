@@ -60,6 +60,41 @@ struct xz_extra_decks {
 };
 
 /* Copies the published state. Returns route_up; with no players running it clears out and returns 0,
-   and every interface keeps its two-deck screen. Never blocks the caller on IO. */
+   and every interface keeps its two-deck screen. Never blocks the caller on IO. left_on_3 and
+   right_on_4 are only ever set while route_up is. */
 int xz_extra_decks_snapshot(struct xz_extra_decks *out);
+
+/* The cheap read the input layer makes on every key: whether the players run at all, and whether the
+   CH3/CH4 route is live. Lock-free. */
+struct xz_extra_route { int available, route_up; };
+struct xz_extra_route xz_extra_decks_route(void);
+/* The input layer says which decks the controls drive; the snapshot carries it to both interfaces. */
+void xz_extra_decks_publish_sides(int left_on_3, int right_on_4);
+
+/* What the DJ asks of DECK 3 or DECK 4. Independent of the producer: the onPhysicalKey router
+   (deck_select.c) is one, a reader of the documented XDJ-XZ MIDI messages can be another, and the
+   browser (LOAD) a third. Each producer converts to these units. */
+enum xz_extra_input {
+ XZ_EXTRA_IN_PLAY, XZ_EXTRA_IN_CUE, XZ_EXTRA_IN_JOG_TURN, XZ_EXTRA_IN_JOG_TOUCH, XZ_EXTRA_IN_TEMPO,
+ XZ_EXTRA_IN_SYNC, XZ_EXTRA_IN_MASTER_TEMPO, XZ_EXTRA_IN_HOT_CUE, XZ_EXTRA_IN_LOAD,
+ XZ_EXTRA_INPUT_COUNT
+};
+#define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */
+struct xz_extra_deck_event {
+ int deck;                          /* 0 DECK 3, 1 DECK 4 */
+ enum xz_extra_input kind;
+ int pressed;                       /* buttons and JOG_TOUCH: 1 down, 0 up; every down gets its up */
+ int shift;                         /* SHIFT was held: the player applies the documented SHIFT meaning */
+ union {
+  /* Jog ticks, clockwise positive. speed is the platter speed when the producer reports one. */
+  struct { int32_t delta; float speed; int speed_known; } jog;
+  /* Fader position, -XZ_EXTRA_TEMPO_SPAN at the minus end to +XZ_EXTRA_TEMPO_SPAN at the plus end;
+     the player applies its own tempo range. Already past pickup when it arrives. */
+  int32_t tempo_position;
+  int hot_cue;                      /* 0..7, pads A..H */
+  struct { int source; uint32_t track_id; } load;  /* source 1 USB1, 2 USB2; id in that USB's library */
+ };
+};
+/* 1 when the player took the event, 0 when it refused (no player, deck not ready). Never blocks. */
+int xz_extra_deck_input(const struct xz_extra_deck_event *event);
 #endif
