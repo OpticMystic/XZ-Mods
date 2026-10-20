@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/OpticMystic/XZ-Mods/main/spec/djprofile/schema/stick.schema.json",
+  "title": "DJ Profile stick file (DJPROFILE/DJPROFILE.json)",
+  "description": "DJ Profile 1.0, section 6. Optional, at most 16 KiB. active and order hold profile references: a profile's id, or its folder name when it has none. Unknown members are allowed and writers must keep them.",
+  "type": "object",
+  "required": [
+    "format"
+  ],
+  "properties": {
+    "format": {
+      "const": "djprofile-stick/1"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[\\x21-\\x7e]{1,64}$"
+    },
+    "active": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "order": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "format": "djprofile/1",
+  "id": "5f1d6f0e-2b7a-4c55-9a43-1d1f0b7c9e21",
+  "revision": "2026-10-19T15-02-11Z-3f1c",
+  "name": "DJ Kai",
+  "tagline": "House and garage, Leeds",
+  "accent": "#ffa064",
+  "aliases": [
+    "Kai"
+  ],
+  "logos": [
+    {
+      "file": "logo.png",
+      "bytes": 136,
+      "sha256": "22ef9623a4ce839d74c8d32ae3a70050b0fcb681aff144b71226581acf605159",
+      "role": "primary",
+      "background": "dark"
+    },
+    {
+      "file": "logo-light.png",
+      "bytes": 138,
+      "sha256": "ddeabaf3006c6500e909a5703f8ff63a10002aa2c0bd59d120c6ff723d1eb685",
+      "role": "alternate",
+      "background": "light"
+    }
+  ],
+  "links": [
+    {
+      "kind": "website",
+      "url": "https://djkai.example"
+    },
+    {
+      "kind": "instagram",
+      "url": "https://instagram.com/djkai.example"
+    }
+  ],
+  "ext": {
+    "example.org": {
+      "note": "readers ignore this, writers keep it"
+    }
+  }
+}
