@@ -32,10 +32,10 @@ Tapping the chip (or pushing it with the encoder) opens a list under the
 corner, over the dimmed page: every profile on both USBs with its logo,
 name, USB and tagline, a check on each USB's active profile, pages of five,
 and PROFILE SETUP (SET UP DJ PROFILE when there is none, as the primary
-button). Picking a profile rewrites only that USB's
-`DJPROFILE/VJTOOLS/index.json`; the footer shows the result on every page
-for three seconds. A damaged profile stays listed under its index name and
-cannot be picked. While the list is open it is the only thing touch and the
+button). Picking a profile sets `active` in that USB's
+`DJPROFILE/DJPROFILE.json` (DJ Profile 1.0, XZ-Mods `spec/djprofile`); the
+footer shows the result on every page for three seconds. A damaged pre-1.0
+profile stays listed under its index name and cannot be picked. While the list is open it is the only thing touch and the
 encoder reach. A tap outside or BACK closes it, and focus returns to the chip.
 The list's last button opens the DJ PROFILE page (`ui_profile.c`). It shows
 one profile at a time: the full 160 px logo, name, tagline, USB and whether
@@ -58,16 +58,37 @@ the one button, when the stick has no image at all, otherwise above a
 four-row list with RESCAN. The page with no profile leads with the same
 folder: make `DJPROFILE`, a folder with your DJ name inside, the logo in it.
 
-Hand-made folder profiles (`dj_folders.c`, standard §1.1) appear in the
-header and on the page in the stick's rekordbox colour. MAKE ACTIVE or EDIT
-on one saves it as a `VJTOOLS` profile with the folder's logo. A new profile walks the steps
+Hand-made folders (level 0: a folder and a logo) appear in the header and on
+the page in the stick's rekordbox colour. MAKE ACTIVE names the folder as
+active; EDIT writes `profile.json` into that same folder, keeping its logo (as
+`logo.png` or `logo.jpg` beside the DJ's own file). A new profile walks the steps
 in order; EDIT opens on REVIEW and each CHANGE button returns there. BACK goes
 one step back before it leaves. Every key is focusable, so the encoder alone
 can type. Typing stays in `xz_ui`; SAVE hands the draft to the worker, which
-writes only `DJPROFILE/VJTOOLS` on that USB (`dj_profile_write.c`, mirroring
-Rust `publish_profile`) and makes a new profile active there. Profiles are
-never stored on the XZ. `model.dj` is NULL when the runtime has no reader,
-which hides the chip, the page's buttons and the editor.
+writes only below `DJPROFILE/` on that USB (`dj_profile_write.c`, spec section
+7) and makes a new profile active there. Profiles are never stored on the XZ.
+`model.dj` is NULL when the runtime has no reader, which hides the chip, the
+page's buttons and the editor.
+
+The stick layout is DJ Profile 1.0: one folder per DJ under `DJPROFILE/` with
+`logo.png` or `logo.jpg`, an optional `profile.json`, and the optional
+`DJPROFILE/DJPROFILE.json` with the profile order and the active profile.
+`dj_profile.c` reads it as the reference reader
+`spec/djprofile/tools/check_djprofile.py` does (tested on every example stick
+and a set of edge cases), except that it never lists `DJPROFILE/VJTOOLS` and
+does not open the ID3 tag of a profile track copy (only its size and SHA-256).
+The tile rendition (`rgb565le`, `for` `xdj-xz`, 160 x 160) is the fast path for
+the header chip; without one the worker decodes the primary logo. Name keys
+are full Unicode NFC plus ASCII case folding (`dj_name_key.c`, tables generated
+from Python's `unicodedata` by `gen_dj_name_key.py`), so `Beyonce` + U+0301
+written on a Mac equals `Beyoncé` typed on the XZ. Sticks written before 1.0
+(`DJPROFILE/VJTOOLS`, `VJ.Tools/Branding`) are still read; the first write on
+such a stick (a save, an edit or MAKE ACTIVE) moves every old profile into a
+profile folder and leaves the old store in place, since the XZ has nowhere to
+back it up (VJToolsLibrary `docs/architecture/dj-profile-standard.md` section
+0). A profile without a logo gets its initial on its accent colour as
+`logo.png`, matching what the header draws. Logos over 4096 px a side or
+4 megapixels are scaled down and written as PNG (`vendor/stb/stb_image_write.h`).
 
 Every control is reachable without the touchscreen, so a player with a broken
 digitizer keeps the whole MODS menu:

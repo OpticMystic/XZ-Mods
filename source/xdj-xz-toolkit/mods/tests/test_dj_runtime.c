@@ -99,7 +99,10 @@ int main(int argc, char **argv) {
     assert(dj.entry[0].stick_active && !dj.entry[1].stick_active && named(find_name("DJ Kai"), "DJ Kai"));
     xz_dj_runtime_current(0, -1, -1); assert(dj.current == 0);
     pthread_mutex_unlock(&ui_lock);
+    /* The pick moved USB 1 to DJ Profile 1.0 first; an older runtime still reads the old index. */
+    assert(contains(usb1, "DJPROFILE/DJPROFILE.json", "\"active\": \"djp_kai\""));
     assert(contains(usb1, "DJPROFILE/VJTOOLS/index.json", "\"active\": \"djp_kai\""));
+    assert(file_size(usb1, "DJPROFILE/DJ Kai/profile.json") > 0 && file_size(usb1, "DJPROFILE/VJTOOLS/profiles/djp_kai/profile.json") > 0);
     assert(file_size(usb1, "PIONEER/rekordbox/export.pdb") == pdb);
     assert(file_size(usb1, "DJPROFILE/VJTOOLS/index.json.tmp") < 0);
 
@@ -108,14 +111,14 @@ int main(int argc, char **argv) {
     pthread_mutex_lock(&ui_lock); xz_dj_runtime_rescan(); pthread_mutex_unlock(&ui_lock);
     WAIT(dj.count == 4 && dj.entry[3].stick_active);
 
-    /* A damaged profile file stays listed under its index name and cannot be picked. */
-    char path[1200]; snprintf(path, sizeof(path), "%s/DJPROFILE/VJTOOLS/profiles/djp_lena/profile.json", usb2);
+    /* A damaged profile.json with no profile.previous.json: the old store, still on the stick, lists Lena again
+       (contract 0.1) and her hand-made-looking folder is not listed twice. */
+    char path[1200]; snprintf(path, sizeof(path), "%s/DJPROFILE/Lena B/profile.json", usb2);
     FILE *f = fopen(path, "wb"); assert(f); fputs("{not json", f); fclose(f);
     pthread_mutex_lock(&ui_lock); xz_dj_runtime_rescan(); pthread_mutex_unlock(&ui_lock);
-    WAIT(dj.count == 4 && dj.entry[3].damaged);
+    WAIT(dj.count == 4 && !dj.reading && !strcmp(dj.entry[3].dj_id, "djp_lena"));
     pthread_mutex_lock(&ui_lock);
-    assert(named(3, "Lena B") && !dj.entry[3].thumb);
-    xz_dj_runtime_pick(3); assert(dj.pending == -1);
+    assert(named(3, "Lena B") && dj.entry[3].thumb && !dj.entry[3].damaged && !dj.entry[3].folder);
     pthread_mutex_unlock(&ui_lock);
 
     /* Pulling USB 1 drops its profiles; the header follows what is left. */
@@ -127,7 +130,7 @@ int main(int argc, char **argv) {
     pthread_mutex_unlock(&ui_lock);
 
     /* A stick with no profile shows as present with nothing listed. */
-    snprintf(path, sizeof(path), "%s/DJPROFILE/VJTOOLS/index.json", usb2); assert(!unlink(path));
+    char away[1200]; snprintf(path, sizeof(path), "%s/DJPROFILE", usb2); snprintf(away, sizeof(away), "%s/PUTAWAY", usb2); assert(!rename(path, away));
     pthread_mutex_lock(&ui_lock); xz_dj_runtime_rescan(); pthread_mutex_unlock(&ui_lock);
     WAIT(dj.count == 0 && dj.usb_present == 2 && !dj.reading);
 
@@ -149,19 +152,21 @@ int main(int argc, char **argv) {
     pthread_mutex_unlock(&ui_lock);
     WAIT(!dj.images_reading);
     pthread_mutex_lock(&ui_lock);
-    assert(dj.images_usb == 0 && dj.image_count == 2 && !strcmp(dj.images[0], "Logos/me.png") && !strcmp(dj.images[1], "not-a-logo.jpg"));
-    xz_dj_runtime_preview(1); assert(dj.preview_state == XZ_UI_PREVIEW_LOADING);
+    /* The profile folders' own logos come first. */
+    assert(dj.images_usb == 0 && dj.image_count == 4 && !strcmp(dj.images[0], "DJPROFILE/DJ Kai/logo.png") &&
+        !strcmp(dj.images[2], "Logos/me.png") && !strcmp(dj.images[3], "not-a-logo.jpg"));
+    xz_dj_runtime_preview(3); assert(dj.preview_state == XZ_UI_PREVIEW_LOADING);
     pthread_mutex_unlock(&ui_lock);
     WAIT(dj.preview_state != XZ_UI_PREVIEW_LOADING);
     pthread_mutex_lock(&ui_lock);
     assert(dj.preview_state == XZ_UI_PREVIEW_FAILED && dj.preview_error && strstr(dj.preview_error, "PNG OR JPEG"));
-    xz_dj_runtime_preview(0);
+    xz_dj_runtime_preview(2);
     pthread_mutex_unlock(&ui_lock);
-    WAIT(dj.preview == 0 && dj.preview_state == XZ_UI_PREVIEW_READY);
+    WAIT(dj.preview == 2 && dj.preview_state == XZ_UI_PREVIEW_READY);
     /* A new profile made on the XZ with that logo becomes active on USB 1. */
     static struct xz_ui edit; memset(&edit, 0, sizeof(edit));
     snprintf(edit.edit_name, sizeof(edit.edit_name), "NEW DJ"); snprintf(edit.edit_tagline, sizeof(edit.edit_tagline), "Made on the XZ");
-    edit.edit_logo = 0; edit.edit_usb = 0;
+    edit.edit_logo = 2; edit.edit_usb = 0; edit.edit_entry = -1;
     pthread_mutex_lock(&ui_lock); xz_dj_runtime_save(&edit); assert(dj.saving); pthread_mutex_unlock(&ui_lock);
     WAIT(!dj.saving && dj.count == 3);
     pthread_mutex_lock(&ui_lock);
@@ -182,12 +187,12 @@ int main(int argc, char **argv) {
     xz_dj_runtime_detail(live);
     pthread_mutex_unlock(&ui_lock);
     WAIT(dj.detail == live);
-    assert(contains(usb1, "DJPROFILE/VJTOOLS/profiles/djp_kai/profile.json", "https://example.com/kai/press.zip"));
-    assert(contains(usb1, "DJPROFILE/VJTOOLS/index.json", "\"DJ Kai Live\""));
+    assert(contains(usb1, "DJPROFILE/DJ Kai Live/profile.json", "https://example.com/kai/press.zip"));
+    assert(contains(usb1, "DJPROFILE/DJPROFILE.json", "\"DJ Kai Live\""));
     assert(file_size(usb1, "PIONEER/rekordbox/export.pdb") == pdb);
     /* A blank name is refused by the writer and nothing changes. */
     pthread_mutex_lock(&ui_lock);
-    memset(&edit, 0, sizeof(edit)); snprintf(edit.edit_name, sizeof(edit.edit_name), "   "); edit.edit_logo = XZ_UI_LOGO_NONE;
+    memset(&edit, 0, sizeof(edit)); snprintf(edit.edit_name, sizeof(edit.edit_name), "   "); edit.edit_logo = XZ_UI_LOGO_NONE; edit.edit_entry = -1;
     xz_dj_runtime_save(&edit);
     pthread_mutex_unlock(&ui_lock);
     WAIT(!dj.saving && dj.status && strstr(dj.status, "NOT ALLOWED"));
@@ -205,7 +210,10 @@ int main(int argc, char **argv) {
         pdb_bytes[5] = 0x10; pdb_bytes[8] = 1; pdb_bytes[0x1c] = 19; pdb_bytes[0x1c + 8] = 1; pdb_bytes[0x1c + 12] = 2;
         pdb_bytes[4096 + 4] = 1; pdb_bytes[4096 + 8] = 19; pdb_bytes[4096 + 12] = 2; pdb_bytes[4096 + 0x1b] = 0x64;
         pdb_bytes[8192 + 4] = 2; pdb_bytes[8192 + 8] = 19; pdb_bytes[8192 + 0x1b] = 0x34;
-        pdb_bytes[8192 + 0x28] = 0x80; pdb_bytes[8192 + 0x29] = 0x02; pdb_bytes[8192 + 0x28 + 8] = 7;
+        /* A stale row (Green) then the live one (Blue); only the live row's present bit is set. */
+        pdb_bytes[8192 + 0x18] = 2; pdb_bytes[8192 + 4096 - 4] = 2; pdb_bytes[8192 + 4096 - 6] = 0; pdb_bytes[8192 + 4096 - 8] = 12;
+        pdb_bytes[8192 + 0x28] = 0x80; pdb_bytes[8192 + 0x29] = 0x02; pdb_bytes[8192 + 0x28 + 9] = 5;
+        pdb_bytes[8192 + 0x28 + 12] = 0x80; pdb_bytes[8192 + 0x28 + 13] = 0x02; pdb_bytes[8192 + 0x28 + 12 + 9] = 7;
         snprintf(path, sizeof(path), "%s/PIONEER/rekordbox/export.pdb", usb2); f = fopen(path, "wb"); assert(f);
         fwrite(pdb_bytes, 1, sizeof(pdb_bytes), f); fclose(f); }
     pthread_mutex_lock(&ui_lock); xz_dj_runtime_rescan(); pthread_mutex_unlock(&ui_lock);
@@ -221,17 +229,15 @@ int main(int argc, char **argv) {
     xz_dj_runtime_detail(mia);
     pthread_mutex_unlock(&ui_lock);
     WAIT(dj.detail == mia && dj.detail_tile);
-    /* Picking a folder makes it a profile on its stick, with its logo and the stick colour, and active. */
+    /* Picking a folder makes it active by its folder name; it stays a folder. */
     pthread_mutex_lock(&ui_lock); xz_dj_runtime_pick(zed); assert(dj.pending == zed); pthread_mutex_unlock(&ui_lock);
     WAIT(dj.pending == -1);
     pthread_mutex_lock(&ui_lock);
     assert(dj.status && !strcmp(dj.status, "Zed IS ACTIVE ON USB 2"));
     zed = find_name("Zed"); mia = find_name("Mia Moon");
-    assert(dj.count == 5 && !dj.entry[zed].folder && dj.entry[zed].stick_active && dj.entry[zed].thumb && dj.entry[mia].folder && !dj.entry[mia].stick_active);
+    assert(dj.count == 5 && dj.entry[zed].folder && dj.entry[zed].stick_active && dj.entry[zed].thumb && dj.entry[mia].folder && !dj.entry[mia].stick_active);
     pthread_mutex_unlock(&ui_lock);
-    assert(contains(usb2, "DJPROFILE/VJTOOLS/index.json", "\"Zed\""));
-    snprintf(path, sizeof(path), "DJPROFILE/VJTOOLS/profiles/%s/profile.json", dj.entry[zed].dj_id);
-    assert(contains(usb2, path, "\"#1e50f0\""));
+    assert(contains(usb2, "DJPROFILE/DJPROFILE.json", "\"active\": \"Zed\""));
     /* Editing a folder profile saves a new profile with the folder's logo; the folder then steps aside. */
     pthread_mutex_lock(&ui_lock);
     memset(&edit, 0, sizeof(edit)); snprintf(edit.edit_name, sizeof(edit.edit_name), "Mia Moon");
@@ -243,9 +249,20 @@ int main(int argc, char **argv) {
     mia = find_name("Mia Moon");
     assert(dj.count == 5 && !strcmp(dj.entry[mia].tagline, "Disco") && dj.entry[mia].thumb && dj.entry[mia].accent == 0x1e50f0);
     pthread_mutex_unlock(&ui_lock);
+    /* The DJ's folder became the profile in place, with the stick colour stored as its accent. */
+    assert(contains(usb2, "DJPROFILES/Mia Moon/profile.json", "\"accent\": \"#1e50f0\"") && file_size(usb2, "DJPROFILES/Mia Moon/logo.png") > 0);
+    /* No logo: the initial on the accent colour replaces it. */
+    pthread_mutex_lock(&ui_lock);
+    memset(&edit, 0, sizeof(edit)); snprintf(edit.edit_id, sizeof(edit.edit_id), "%s", dj.entry[mia].dj_id); snprintf(edit.edit_name, sizeof(edit.edit_name), "Mia Moon");
+    edit.edit_entry = mia; edit.edit_logo = XZ_UI_LOGO_NONE; edit.edit_usb = 1;
+    long before_logo = file_size(usb2, "DJPROFILES/Mia Moon/logo.png");
+    xz_dj_runtime_save(&edit);
+    pthread_mutex_unlock(&ui_lock);
+    WAIT(!dj.saving);
+    assert(file_size(usb2, "DJPROFILES/Mia Moon/logo.png") != before_logo);
 
     xz_dj_runtime_stop();
     assert(dj.count == 0 && dj.current == -1);
-    puts("PASS DJ runtime: discovery on two ports, master-deck rule, pick writes only that stick, refusal while busy, external change, damaged profile, removal, empty stick, full logo, image list + preview, create with a logo, edit keeping links, blank name refused, folder profiles in the stick colour, pick and edit save a folder as a profile");
+    puts("PASS DJ runtime: discovery on two ports, master-deck rule, pick moves the old store to 1.0 and writes only that stick, refusal while busy, external change, damaged profile.json falls back to the old store, removal, empty stick, full logo, image list + preview, create with a logo, edit keeping links, blank name refused, folder profiles in the live-row stick colour, pick a folder by name, edit adopts the folder, no logo draws the initial");
     return 0;
 }

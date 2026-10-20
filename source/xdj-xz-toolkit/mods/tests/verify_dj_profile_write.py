@@ -1,14 +1,13 @@
-"""Check the C DJ Profile writer, then cross-check the sticks it writes with the TypeScript and Rust readers.
+"""Check the C DJ Profile writer, then check every stick it wrote with the reference reader
+spec/djprofile/tools/check_djprofile.py: no problems, every profile found.
 
-Linux (gcc 13, ASan/UBSan):  python3 tests/verify_dj_profile_write.py [--export DIR]
-    Builds tests/test_dj_profile_write.c, runs every case, validates the produced sticks with the C reader,
-    and with node when node is on PATH. --export copies the produced sticks to DIR.
-Anywhere with node and cargo:  python tests/verify_dj_profile_write.py --cross-check DIR
-    Validates every index.json / profile.json under DIR with packages/creative-graph (dist) and loads every
-    listed profile with the Rust reader (native/rust-app/crates/dj-profiles/tests/external_stick.rs).
+Linux (gcc, ASan/UBSan):  python3 tests/verify_dj_profile_write.py [--export DIR]
+    Builds tests/test_dj_profile_write.c, runs every case and checks the sticks it produced.
+    --export copies the produced sticks to DIR for other readers (the Rust and TypeScript 1.0 readers).
 """
 from pathlib import Path
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -18,10 +17,10 @@ import sys
 import tempfile
 import zlib
 
-ROOT = Path(__file__).resolve().parents[1]
-REPO = ROOT.parents[2]
-FIXTURES = ROOT.parents[1] / 'creative-graph' / 'fixtures' / 'dj-profile'
-EXPORTED = ('created', 'fixture-edited', 'logo-removed', 'full', 'conflict')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from verify_dj_profile import OLD_FIXTURES, SPEC, WRITER, build, checker  # noqa: E402
+
+EXPORTED = ('created', 'migrated', 'adopted', 'unknown', 'full', 'errors', 'large')
 # 16x16 JPEG of rgb(40,200,90), quality 95, 4:4:4 (Pillow 12.3).
 JPEG = bytes.fromhex(
     'ffd8ffe000104a46494600010100000100010000ffdb0043000201010101010201010102020202020403020202020504040304060506060605060606'
@@ -48,14 +47,39 @@ def png(width, height, pixel, color_type=2):
     return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header) + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b'')
 
 
+def solid_png(width, height, rgb):
+    row = b'\0' + bytes(rgb) * width
+    header = struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header) + chunk(b'IDAT', zlib.compress(row * height)) + chunk(b'IEND', b'')
+
+
 def header_only(width, height):
     return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)) + chunk(b'IEND', b'')
+
+
+OLD_MARKER = 'djprofile:1:djp_lena:0123456789ab'
+LONG_TAGLINE = '\U0001F3B5' * 80
+
+
+def id3_track(comment):
+    """An ID3v2.4 tag with a UTF-8 COMM frame, then one silent MPEG frame."""
+    def synchsafe(n):
+        return bytes((n >> 21 & 127, n >> 14 & 127, n >> 7 & 127, n & 127))
+    frames = b''
+    for frame_id, payload in ((b'TIT2', b'\x03Lena B'), (b'COMM', b'\x03eng\0' + comment.encode())):
+        frames += frame_id + synchsafe(len(payload)) + b'\0\0' + payload
+    return b'ID3\x04\0\0' + synchsafe(len(frames)) + frames + b'\xff\xfb\x90\x40' + bytes(413)
+
+
+def write_json(path, value):
+    path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding='utf-8')
 
 
 def prepare(work):
     images = work / 'images'
     images.mkdir()
-    (images / 'green.png').write_bytes(png(40, 40, lambda x, y: (30, 220, 60)))
+    green = png(40, 40, lambda x, y: (30, 220, 60))
+    (images / 'green.png').write_bytes(green)
     (images / 'red_blue.png').write_bytes(png(320, 160, lambda x, y: (255, 0, 0) if x < 160 else (0, 0, 255)))
     (images / 'half_alpha.png').write_bytes(png(16, 16, lambda x, y: (255, 0, 0, 128), 6))
     (images / 'gray_alpha.png').write_bytes(png(8, 8, lambda x, y: (200, 255), 4))
@@ -64,6 +88,8 @@ def prepare(work):
     (images / 'logo.jpg').write_bytes(JPEG)
     (images / 'huge.png').write_bytes(header_only(5000, 5000))
     (images / 'wide.png').write_bytes(header_only(9000, 1))
+    (images / 'wide4100.png').write_bytes(solid_png(4100, 100, (250, 160, 100)))
+    (images / 'square2100.png').write_bytes(solid_png(2100, 2100, (16, 228, 220)))
     good = png(64, 64, lambda x, y: (x * 4, y * 4, 128))
     (images / 'truncated.png').write_bytes(good[:len(good) // 2])
     (images / 'notimage.png').write_bytes(b'this is not an image, only text\n')
@@ -75,10 +101,40 @@ def prepare(work):
 
     sticks = work / 'sticks'
     sticks.mkdir()
-    for name in ('created', 'full', 'conflict'):
+    for name in ('created', 'full', 'large'):
         (sticks / name).mkdir()
-    for name in ('fixture-edited', 'logo-removed', 'errors'):
-        shutil.copytree(FIXTURES / 'stick-two-profiles', sticks / name)
+    for name in ('migrated', 'adopted', 'errors'):
+        shutil.copytree(OLD_FIXTURES / 'stick-two-profiles', sticks / name)
+    kai = sticks / 'adopted' / 'DJPROFILE' / 'DJ Kai'
+    kai.mkdir()
+    (kai / 'Logo.PNG').write_bytes(green)
+    (kai / 'logo.jpeg').write_bytes(JPEG)
+    (kai / 'flyer.png').write_bytes(png(8, 8, lambda x, y: (1, 2, 3)))
+    # A pre-1.0 document with a profile track, a member 1.0 does not know and a tagline over 240 bytes.
+    old = sticks / 'adopted' / 'DJPROFILE' / 'VJTOOLS' / 'profiles' / 'djp_lena'
+    track = id3_track(OLD_MARKER + ' https://vj.tools/dj')
+    (old / 'track').mkdir()
+    (old / 'track' / 'DJ PROFILE - Lena B.mp3').write_bytes(track)
+    value = json.loads((old / 'profile.json').read_text(encoding='utf-8'))
+    value['profile_track'] = {'path': 'DJPROFILE/VJTOOLS/profiles/djp_lena/track/DJ PROFILE - Lena B.mp3', 'bytes': len(track),
+                              'sha256': hashlib.sha256(track).hexdigest()}
+    value['x_future'] = {'n': 1.5, 'list': [1, 'two']}
+    value['tagline'] = LONG_TAGLINE
+    write_json(old / 'profile.json', value)
+    (sticks / 'adopted' / 'DJPROFILE' / 'Zed').mkdir()
+    (sticks / 'adopted' / 'DJPROFILE' / 'Zed' / 'flyer.png').write_bytes(png(12, 12, lambda x, y: (200, 20, 20)))
+    unknown = sticks / 'unknown'
+    shutil.copytree(SPEC / 'examples' / 'level1-track', unknown)
+    document = unknown / 'DJPROFILE' / 'DJ Kai' / 'profile.json'
+    value = json.loads(document.read_text(encoding='utf-8'))
+    value['logos'][1]['x-entry'] = [1, 2]
+    value['links'][0]['x-link'] = True
+    value['x-root'] = {'a': 1, 'b': ['c']}
+    write_json(document, value)
+    stick_file = unknown / 'DJPROFILE' / 'DJPROFILE.json'
+    value = json.loads(stick_file.read_text(encoding='utf-8'))
+    value['x-stick'] = 'kept'
+    write_json(stick_file, value)
 
     tree = work / 'list'
     files = ['a.jpg', 'Alpha.png', 'b.PNG', 'c.JpEg', 'Zed.png', 'x.gif', '.hidden.png', 'pioneer/p.png', 'DJPROFILE/d.png',
@@ -97,92 +153,65 @@ def prepare(work):
     os.symlink(tree / 'l1', tree / 'linkdir')
 
 
-def sticks_under(directory):
-    return sorted(path for path in Path(directory).iterdir() if (path / 'DJPROFILE').is_dir())
+def check_sticks(directory):
+    """check_djprofile.py on every stick: no problem, and the profiles it finds."""
+    check = checker()
+    failed = 0
+    for name in EXPORTED:
+        report = check.check(directory / name)
+        profiles = ', '.join(f'{p["folder"]} (level {p["level"]})' for p in report.profiles)
+        print(f'check_djprofile {name}: {len(report.problems)} problems, {len(report.warnings)} warnings; {profiles or "no profiles"}; active {report.active}')
+        for kind, items in (('problem', report.problems), ('warning', report.warnings)):
+            for item in items:
+                print(f'  {kind} section {item["section"]} {item["where"]}: {item["problem"]}')
+        if report.problems:
+            failed = 1
+    return failed
 
 
-def node_check(directory):
-    """Every index.json, profile.json and profile.previous.json through the TypeScript validator."""
-    dist = REPO / 'packages' / 'creative-graph' / 'dist' / 'dj-profile.js'
-    script = r'''
-import fs from 'node:fs'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-const [dist, root] = process.argv.slice(1)
-const { parseProfileIndex, parseProfileDocument } = await import(pathToFileURL(dist).href)
-let bad = 0, checked = 0
-for (const stick of fs.readdirSync(root).sort()) {
-  const home = path.join(root, stick, 'DJPROFILE', 'VJTOOLS')
-  if (!fs.existsSync(home)) continue
-  const index = parseProfileIndex(JSON.parse(fs.readFileSync(path.join(home, 'index.json'), 'utf8')))
-  checked++
-  if (!index.ok) { bad++; console.log(`${stick}/index.json: ${index.error}`); continue }
-  for (const { dj_id } of index.value.profiles) {
-    for (const file of ['profile.json', 'profile.previous.json']) {
-      const where = path.join(home, 'profiles', dj_id, file)
-      if (!fs.existsSync(where)) { if (file === 'profile.json') { bad++; console.log(`${stick}: missing ${dj_id}/${file}`) } continue }
-      const result = parseProfileDocument(JSON.parse(fs.readFileSync(where, 'utf8')))
-      checked++
-      if (!result.ok) { bad++; console.log(`${stick}/${dj_id}/${file}: ${result.error}`) }
-      else if (file === 'profile.json' && result.value.dj_id !== dj_id) { bad++; console.log(`${stick}/${dj_id}: dj_id mismatch`) }
+def check_migrated(sticks):
+    """Contract 0.2 on the adopted stick: track is {marker} from the old MP3, nothing the limits cut is lost."""
+    document = json.loads((sticks / 'adopted' / 'DJPROFILE' / 'Lena B' / 'profile.json').read_text(encoding='utf-8'))
+    vendor = document.get('ext', {}).get('vj.tools', {})
+    checks = {
+        'track is the old marker only': document.get('track') == {'marker': OLD_MARKER},
+        'old MP3 not copied': not any(p.suffix == '.mp3' for p in (sticks / 'adopted' / 'DJPROFILE' / 'Lena B').iterdir()),
+        'unknown member kept, numbers whole': vendor.get('x_future') == {'n': '1.5', 'list': [1, 'two']},
+        'cut tagline kept whole': vendor.get('tagline') == LONG_TAGLINE and len(document['tagline'].encode()) <= 240,
+        'tile rendition for the XZ': any(r.get('for') == 'xdj-xz' for r in document.get('renditions', [])),
     }
-  }
-}
-console.log(`typescript: ${checked - bad}/${checked} documents valid`)
-process.exit(bad ? 1 : 0)
-'''
-    return subprocess.run(['node', '--input-type=module', '-e', script, str(dist), str(directory)]).returncode
-
-
-def cross_check(directory):
-    directory = Path(directory).resolve()
-    sticks = sticks_under(directory)
-    if not sticks:
-        print(f'no sticks under {directory}')
-        return 1
-    failed = node_check(directory)
-    env = dict(os.environ, DJ_PROFILE_EXTERNAL_STICKS=os.pathsep.join(map(str, sticks)))
-    env.pop('ELECTRON_RUN_AS_NODE', None)
-    rust = subprocess.run(['cargo', 'test', '-p', 'vjtools-dj-profiles', '--test', 'external_stick', '--', '--nocapture'],
-                          cwd=REPO / 'native' / 'rust-app', env=env).returncode
-    print('rust:', 'FAIL' if rust else f'ok ({len(sticks)} sticks)')
-    return 1 if failed or rust else 0
+    for name, ok in checks.items():
+        print(f'migration {name}: {"ok" if ok else "FAIL"}')
+    return 0 if all(checks.values()) else 1
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--export', help='copy the produced sticks here (replaced)')
-    parser.add_argument('--cross-check', help='validate the sticks in this directory with TypeScript and Rust')
     args = parser.parse_args()
-    if args.cross_check:
-        sys.exit(cross_check(args.cross_check))
+    if not OLD_FIXTURES or not SPEC:
+        print(f'fixtures not found (pre-1.0: {OLD_FIXTURES}, spec: {SPEC})')
+        return 1
     with tempfile.TemporaryDirectory(prefix='xz-dj-write-') as temporary:
         temporary = Path(temporary)
         work = temporary / 'work'
         work.mkdir()
         prepare(work)
-        binary = temporary / 'test_dj_profile_write'
-        subprocess.run(['gcc', '-std=c11', '-O1', '-g', '-UNDEBUG', '-Wall', '-Wextra', '-Werror',
-                        '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-I', str(ROOT),
-                        str(ROOT / 'tests/test_dj_profile_write.c'), str(ROOT / 'dj_profile_write.c'), str(ROOT / 'dj_profile.c'),
-                        str(ROOT / 'audio/vendor/sha256/sha256.c'), '-o', str(binary)], check=True)
+        binary = build('test_dj_profile_write', ['tests/test_dj_profile_write.c', *WRITER], temporary, ['-lm'])
         failed = subprocess.run([str(binary), str(work)]).returncode
-        produced = work / 'sticks'
-        if shutil.which('node'):
-            failed = node_check(produced) or failed
-        else:
-            print('typescript: node not on PATH here; run --cross-check on the exported sticks')
+        failed = check_sticks(work / 'sticks') or failed
+        failed = check_migrated(work / 'sticks') or failed
         if args.export:
             target = Path(args.export)
             if target.exists():
                 shutil.rmtree(target)
             target.mkdir(parents=True)
             for name in EXPORTED:
-                shutil.copytree(produced / name, target / name)
+                shutil.copytree(work / 'sticks' / name, target / name, symlinks=True)
             print(f'exported {len(EXPORTED)} sticks to {target}')
-        print('verify_dj_profile_write:', 'FAIL' if failed else 'ok')
-        sys.exit(1 if failed else 0)
+    print('verify_dj_profile_write:', 'FAIL' if failed else 'ok')
+    return 1 if failed else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

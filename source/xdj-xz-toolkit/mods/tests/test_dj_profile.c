@@ -2,6 +2,7 @@
 #define _FILE_OFFSET_BITS 64
 #define _POSIX_C_SOURCE 200809L
 #include "dj_profile.h"
+#include "dj_profile_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +37,7 @@ static int solid(const struct xz_dj_profile *p,uint16_t value){
 #define MUSIC "PIONEER/rekordbox/export.pdb"
 
 static void check_fixture(const struct xz_dj_stick *s){
-    CHECK(s->count==2);CHECK(s->active==1);CHECK(!s->legacy);
+    CHECK(s->count==2);CHECK(s->active==1);CHECK(s->profile[0].kind==XZ_DJ_OLD&&s->profile[1].kind==XZ_DJ_OLD);
     const struct xz_dj_profile *kai=s->profile,*lena=s->profile+1;
     CHECK(!strcmp(kai->dj_id,"djp_kai"));CHECK(!strcmp(kai->name,"DJ Kai"));CHECK(!strcmp(kai->tagline,"Deep tech, Berlin"));
     CHECK(kai->has_accent&&kai->accent==0xff2a6d);CHECK(!strcmp(kai->page_url,"https://vj.tools/dj#p1.fixture"));
@@ -48,37 +49,9 @@ static void check_fixture(const struct xz_dj_stick *s){
     CHECK(!strcmp(lena->tile_path,"DJPROFILE/VJTOOLS/profiles/djp_lena/bundles/5e1a9d40-0000-4000-8000-0000000b2b00/renditions/xz-tile-160.rgb565"));
 }
 static int stick(const char *root){
-    static struct xz_dj_stick s;size_t n,m;
+    static struct xz_dj_stick s;size_t n,k;
     char *music=slurp(at(root,MUSIC),&n);CHECK(music!=NULL);
     CHECK(xz_dj_stick_read(root,&s)==0);check_fixture(&s);
-
-    /* Switch, then confirm only active/revision changed and the result still validates. */
-    char *before=slurp(at(root,INDEX_JSON),&m);CHECK(before!=NULL);
-    CHECK(xz_dj_stick_set_active(root,"djp_kai")==0);
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==2);CHECK(s.active==0);
-    size_t k;char *after=slurp(at(root,INDEX_JSON),&k);CHECK(after!=NULL);
-    if(after){
-        CHECK(xz_dj_index_valid(after,k)==0);
-        CHECK(strstr(after,"\"profiles\"")&&strstr(after,"\"dj_id\": \"djp_lena\"")&&strstr(after,"\"dj_name\": \"Lena B\""));
-        CHECK(strstr(after,"\"active\": \"djp_kai\""));CHECK(!strstr(after,"2026-10-08T15-00-00Z-0001"));
-        CHECK(k+1==m);/* "djp_lena" -> "djp_kai", revision same length: nothing else moved */
-        const char *r=strstr(after,"\"revision\": \"");CHECK(r!=NULL);
-        if(r){
-            r+=13;int good=strlen(r)>25&&r[25]=='"'&&r[4]=='-'&&r[7]=='-'&&r[10]=='T'&&r[13]=='-'&&r[16]=='-'&&r[19]=='Z'&&r[20]=='-';
-            for(int i=21;i<25;i++)good=good&&((r[i]>='0'&&r[i]<='9')||(r[i]>='a'&&r[i]<='f'));
-            CHECK(good);
-        }
-    }
-    CHECK(access(at(root,INDEX_JSON ".tmp"),F_OK)!=0);
-    CHECK(xz_dj_stick_set_active(root,"djp_kai")==1);
-    size_t k2;char *same=slurp(at(root,INDEX_JSON),&k2);CHECK(same&&k2==k&&!memcmp(same,after,k));free(same);
-    CHECK(xz_dj_stick_set_active(root,"nobody")==-1);
-    CHECK(xz_dj_stick_set_active(root,"../x")==-1);
-    CHECK(xz_dj_stick_set_active(root,"")==-1);
-    same=slurp(at(root,INDEX_JSON),&k2);CHECK(same&&k2==k&&!memcmp(same,after,k));free(same);
-    CHECK(xz_dj_stick_set_active(root,"djp_lena")==0);
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.active==1);
-    free(before);free(after);
 
     /* A tile with the wrong bytes: monogram, not damaged. */
     char *tile=slurp(at(root,KAI_TILE),&n);CHECK(tile!=NULL);
@@ -111,10 +84,8 @@ static int stick(const char *root){
     char *index=slurp(at(root,INDEX_JSON),&n);CHECK(index!=NULL);
     CHECK(spit(at(root,INDEX_JSON),"{\"schema\":\"x\"}",14)==0);
     CHECK(xz_dj_stick_read(root,&s)==1);CHECK(s.count==0);CHECK(s.active==-1);
-    CHECK(xz_dj_stick_set_active(root,"djp_kai")==-1);
     CHECK(unlink(at(root,INDEX_JSON))==0);
     CHECK(xz_dj_stick_read(root,&s)==1);CHECK(s.count==0);CHECK(s.active==-1);
-    CHECK(xz_dj_stick_set_active(root,"djp_kai")==-1);
     CHECK(access(at(root,INDEX_JSON),F_OK)!=0);
 
     /* Legacy card. */
@@ -123,10 +94,9 @@ static int stick(const char *root){
         "\"revision\":\"5e1a9d40-0000-4000-8000-0000000b2b00\",\"dj_name\":\"Lena B\",\"note\":\"\",\"bundle\":\"\",\"secondary_logos\":[]}";
     CHECK(xz_dj_profile_valid(legacy,sizeof(legacy)-1)==0);
     CHECK(spit(at(root,"VJ.Tools/Branding/profile.json"),legacy,sizeof(legacy)-1)==0);
-    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==1);CHECK(s.legacy==1);CHECK(s.active==0);
+    CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==1);CHECK(s.profile[0].kind==XZ_DJ_OLD);CHECK(s.active==0);
     CHECK(!strcmp(s.profile[0].name,"Lena B"));CHECK(!s.profile[0].has_thumb);CHECK(!s.profile[0].damaged);
     CHECK(!strcmp(s.profile[0].document_path,"VJ.Tools/Branding/profile.json"));
-    CHECK(xz_dj_stick_set_active(root,"djp_lena")==-1);
 
     /* Names and taglines are copied whole: 160 two-byte characters; an over-long page_url is dropped. */
     char wide[2048];int w=snprintf(wide,sizeof(wide),"{\"schema\":\"vj.tools.dj-profile\",\"version\":1,\"dj_id\":\"w\",\"revision\":\"r\",\"dj_name\":\"");
@@ -142,6 +112,9 @@ static int stick(const char *root){
     /* Index back, a symlinked profile is not followed. */
     if(index){
         CHECK(spit(at(root,INDEX_JSON),index,n)==0);
+        /* Contract 0.1 step 2: the card follows the index's profiles. */
+        CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==3);CHECK(s.active==1);CHECK(!strcmp(s.profile[2].dj_id,"w"));
+        CHECK(spit(at(root,"VJ.Tools/Branding/profile.json"),legacy,sizeof(legacy)-1)==0);
         CHECK(xz_dj_stick_read(root,&s)==0);check_fixture(&s);
         CHECK(rename(at(root,KAI_JSON),at(root,"kai.json"))==0);
         CHECK(symlink(at(root,"kai.json"),at(root,KAI_JSON))==0);
@@ -268,6 +241,37 @@ static int syntax(void){
     return bad?1:0;
 }
 
+
+/* The 1.0 view (check_djprofile.py's profiles and active) and the merged list, as JSON. */
+static void quoted(const char *s){
+    putchar('"');
+    for(;*s;s++){unsigned char c=(unsigned char)*s;if(c=='"'||c=='\\')printf("\\%c",c);else if(c<0x20)printf("\\u%04x",c);else putchar(c);}
+    putchar('"');
+}
+static int scan(const char *root){
+    static struct xz_djp_scan s;unsigned char *buf=malloc(XZ_DJ_LOGO_MAX_BYTES+65536+2);
+    if(!buf||xz_djp_scan(root,&s,buf)){free(buf);puts("{\"error\":\"io\"}");return 1;}
+    printf("{\"active\":");
+    if(s.active>=0)quoted(s.folder[s.order[s.active]].c.name);else printf("null");
+    printf(",\"profiles\":[");
+    for(int i=0;i<s.shown;i++){
+        const struct xz_djp_folder *f=&s.folder[s.order[i]];
+        printf("%s{\"folder\":",i?",":"");quoted(f->c.name);
+        printf(",\"id\":");if(f->level==1)quoted(f->view.dj_id);else printf("null");
+        printf(",\"name\":");quoted(f->view.name);
+        printf(",\"level\":%d,\"logo\":",f->level);quoted(f->view.logo_path+strlen(f->c.dir)+1);
+        printf(",\"thumb\":%d}",f->view.has_thumb);
+    }
+    printf("],\"list\":[");
+    for(int i=0;i<s.list.count;i++){
+        const struct xz_dj_profile *p=&s.list.profile[i];
+        printf("%s{\"kind\":%d,\"id\":",i?",":"",(int)p->kind);quoted(p->dj_id);printf(",\"name\":");quoted(p->name);
+        printf(",\"dir\":");quoted(p->dir);printf(",\"thumb\":%d,\"damaged\":%d}",p->has_thumb,p->damaged);
+    }
+    printf("],\"list_active\":%d}\n",s.list.active);
+    xz_djp_scan_free(&s);free(buf);return 0;
+}
+
 int main(int argc,char **argv){
     if(argc==4&&!strcmp(argv[1],"case")){
         size_t n;char *json=slurp(argv[3],&n);if(!json){fprintf(stderr,"cannot read %s\n",argv[3]);return 2;}
@@ -276,6 +280,7 @@ int main(int argc,char **argv){
         puts(rc?"invalid":"valid");return 0;
     }
     if(argc==3&&!strcmp(argv[1],"stick"))return stick(argv[2]);
+    if(argc==3&&!strcmp(argv[1],"scan"))return scan(argv[2]);
     if(argc==2&&!strcmp(argv[1],"syntax"))return syntax();
-    fprintf(stderr,"usage: %s case index|profile <file> | stick <root> | syntax\n",argv[0]);return 2;
+    fprintf(stderr,"usage: %s case index|profile <file> | stick <root> | scan <root> | syntax\n",argv[0]);return 2;
 }

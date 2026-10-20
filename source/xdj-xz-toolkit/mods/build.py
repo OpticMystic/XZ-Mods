@@ -149,6 +149,7 @@ def main() -> None:
                str(ROOT / "shell_library.c"), str(ROOT / "shell_analysis.c"), str(ROOT / "shell_playlists.c"), str(ROOT / "shell_utility.c"), str(ROOT / "shell_mysettings.c"), str(ROOT / "my_settings.c"), str(ROOT / "pdb/pdb.c"),
                str(ROOT / "settings.c"), str(ROOT / "settings_internal.c"), str(ROOT / "usb_profile.c"),
                str(ROOT / "dj_profile.c"), str(ROOT / "dj_runtime.c"), str(ROOT / "dj_profile_write.c"), str(ROOT / "dj_folders.c"),
+               str(ROOT / "dj_json.c"), str(ROOT / "dj_name_key.c"),
                str(ROOT / "ui/wave_viewport.c"),
                str(key_object), str(ROOT / "key/runtime.c"),
                str(ROOT / "key/music.c"), str(ROOT / "key/native.c"), str(ROOT / "key/native_browse.c"), str(ROOT / "key/traffic.c"),

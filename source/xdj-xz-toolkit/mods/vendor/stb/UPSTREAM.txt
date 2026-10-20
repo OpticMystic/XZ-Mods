@@ -7,3 +7,12 @@ sha256(stb_image.h) 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f42
 License: MIT or public domain (LICENSE, from the same repository)
 Used only by dj_profile_write.c: STBI_ONLY_PNG, STBI_ONLY_JPEG, STBI_NO_STDIO, STBI_NO_LINEAR, STBI_NO_HDR,
 STBI_NO_FAILURE_STRINGS, STBI_NO_THREAD_LOCALS, STB_IMAGE_STATIC, STBI_MAX_DIMENSIONS 8192. Unmodified.
+
+File: stb_image_write.h, version line "stb_image_write - v1.16 - public domain"
+Downloaded 2026-10-19 from https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h
+Master at download: a7d4c2175630e1ea5b6f8dd00ab96fed0b97b96d
+Last commit touching stb_image_write.h: 1ee679ca2ef753a528db5ba6801e1067b40481b8 (2021-07-12)
+sha256(stb_image_write.h) cbd5f0ad7a9cf4468affb36354a1d2338034f2c12473cf1a8e32053cb6914a05
+License: MIT or public domain (LICENSE, from the same repository; the same text ends the header)
+Used only by dj_profile_write.c to write PNG logos (downscaled or monogram): STB_IMAGE_WRITE_STATIC,
+STBI_WRITE_NO_STDIO, stbi_write_png_to_func only. Unmodified.

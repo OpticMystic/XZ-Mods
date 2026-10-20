@@ -4,10 +4,10 @@
 #include "ui/ui.h"
 #include <pthread.h>
 /* DJ Profiles on the two USB ports, published into the MODS model.
- * One worker thread does all USB I/O. It reads fixed paths only, rereads a
- * stick when its index or legacy card changes, and writes nothing but a
- * stick's DJPROFILE/VJTOOLS/index.json when the DJ picks a profile.
- * Nothing is stored on the XZ.
+ * One worker thread does all USB I/O. It rereads a stick when its DJPROFILE
+ * folders, DJPROFILE.json or the old store change, and writes only below the
+ * stick's DJPROFILE/ (DJ Profile 1.0): DJPROFILE.json when the DJ picks a
+ * profile, a profile folder when the DJ saves one. Nothing is stored on the XZ.
  *
  * lock is the UI lock. view is written only while it is held, so the
  * renderer reads it under the same lock as the rest of the model. */

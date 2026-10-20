@@ -15,14 +15,15 @@
 #include "audio/vendor/jsmn/jsmn.h"
 #include "audio/vendor/sha256/sha256.h"
 #include "dj_profile_internal.h"
+#include "dj_json.h"
 
-/* Rules mirror native/rust-app/crates/dj-profiles/src/profile.rs. JSON acceptance mirrors
+/* The store written before 1.0 (contract section 0.1). Rules mirror native/rust-app/crates/dj-profiles/src/profile.rs. JSON acceptance mirrors
    serde_json 1.0.151 from_slice into the derived structs: strict grammar, no trailing bytes,
    duplicate known fields rejected, unknown fields ignored (their strings are not UTF-8 checked),
    known strings decoded with paired surrogates and valid UTF-8. */
 #define MAX_JSON 65536
-#define INDEX_PATH "DJPROFILE/VJTOOLS/index.json"
-#define LEGACY_PATH "VJ.Tools/Branding/profile.json"
+#define INDEX_PATH XZ_DJP_OLD_INDEX
+#define LEGACY_PATH XZ_DJP_OLD_CARD
 
 struct str { const char *s; size_t n; };
 struct doc { const char *text; size_t n; jsmntok_t *tok; int count; char *arena; size_t used; int *off; size_t *len; };
@@ -258,7 +259,7 @@ static int logo_parse(struct doc *d,int t,struct logo *o){
        s_def(d,f[3],&o->label)||s_def(d,f[4],&o->note))return -1;
     return 0;
 }
-struct parsed_profile { struct str dj_id,name,tagline,accent,page_url,tile_path,tile_sha; int has_accent,has_page,has_tile; };
+struct parsed_profile { struct str dj_id,name,tagline,accent,page_url,tile_path,tile_sha,logo_path; int has_accent,has_page,has_tile; };
 static int profile_parse(struct doc *d,struct parsed_profile *o){
     static const char *const names[]={"schema","version","dj_id","revision","dj_name","note","bundle","preferred_logo",
         "secondary_logos","xz_tile","tagline","accent","aliases","links","page_url"};
@@ -271,6 +272,7 @@ static int profile_parse(struct doc *d,struct parsed_profile *o){
     /* Logos: preferred first, then the secondaries, as in validate_document. */
     struct logo logos[8];int nlogos=0,has_preferred=f[PREFERRED]>=0&&!is_null(d,f[PREFERRED]);
     if(has_preferred&&logo_parse(d,f[PREFERRED],&logos[nlogos++]))return -1;
+    if(has_preferred)o->logo_path=logos[0].path;
     int secondaries=v_def(d,f[SECONDARY]);if(secondaries<0)return -1;
     if(nlogos+secondaries>8)return -1;
     for(int i=0,t=f[SECONDARY]+1;i<secondaries;i++,t=skip(d,t))if(logo_parse(d,t,&logos[nlogos++]))return -1;
@@ -400,7 +402,8 @@ static int confined_read(const char *root,const char *relative,size_t max,unsign
 static void display_copy(char *out,size_t cap,struct str v){
     size_t n=v.n<cap?v.n:cap-1;
     if(n<v.n)while(n&&((unsigned char)v.s[n]&0xc0)==0x80)n--;
-    memcpy(out,v.s,n);out[n]=0;
+    if(n)memcpy(out,v.s,n);
+    out[n]=0;
 }
 static void hash(const void *data,size_t n,unsigned char out[32]){SHA256_CTX c;sha256_init(&c);sha256_update(&c,data,n);sha256_final(&c,out);}
 static int digest_matches(const unsigned char sum[32],struct str hexstr){
@@ -408,26 +411,36 @@ static int digest_matches(const unsigned char sum[32],struct str hexstr){
     for(unsigned i=0;i<32;i++)if(sum[i]!=(unsigned)(hexv((unsigned char)hexstr.s[i*2])*16+hexv((unsigned char)hexstr.s[i*2+1])))return 0;
     return 1;
 }
+/* out = a + "/" + b; -1 (out "") when it does not fit. */
+static int cat(char *out,size_t cap,const char *a,const char *b){
+    size_t x=strlen(a),y=strlen(b);
+    if(x+1+y>=cap){out[0]=0;return -1;}
+    memmove(out,a,x);out[x]='/';memcpy(out+x+1,b,y+1);return 0;
+}
+static void thumb_from_tile(const unsigned char *bytes,uint16_t *thumb){
+    const int scale=XZ_DJ_TILE_SIDE/XZ_DJ_THUMB;
+    for(int y=0;y<XZ_DJ_THUMB;y++)for(int x=0;x<XZ_DJ_THUMB;x++){
+        unsigned r=0,g=0,b=0;
+        for(int dy=0;dy<scale;dy++)for(int dx=0;dx<scale;dx++){
+            size_t at=((size_t)(y*scale+dy)*XZ_DJ_TILE_SIDE+(size_t)(x*scale+dx))*2;
+            unsigned v=bytes[at]|(unsigned)bytes[at+1]<<8,r5=v>>11,g6=v>>5&63,b5=v&31;
+            r+=r5<<3|r5>>2;g+=g6<<2|g6>>4;b+=b5<<3|b5>>2;
+        }
+        unsigned cells=(unsigned)(scale*scale);r=(r+cells/2)/cells;g=(g+cells/2)/cells;b=(b+cells/2)/cells;
+        thumb[y*XZ_DJ_THUMB+x]=(uint16_t)((r>>3)<<11|(g>>2)<<5|b>>3);
+    }
+}
 static void load_thumb(const char *root,const struct parsed_profile *p,struct xz_dj_profile *out,unsigned char *buf){
     char relative[1100];size_t n;unsigned char sum[32];
     if(!p->has_tile||p->tile_path.n>=sizeof(relative)||p->tile_path.n>=sizeof(out->tile_path))return;
     memcpy(relative,p->tile_path.s,p->tile_path.n);relative[p->tile_path.n]=0;
     if(confined_read(root,relative,XZ_DJ_TILE_BYTES,buf,&n)!=READ_OK||n!=XZ_DJ_TILE_BYTES)return;
     hash(buf,n,sum);if(!digest_matches(sum,p->tile_sha))return;
-    const int scale=XZ_DJ_TILE_SIDE/XZ_DJ_THUMB;
-    for(int y=0;y<XZ_DJ_THUMB;y++)for(int x=0;x<XZ_DJ_THUMB;x++){
-        unsigned r=0,g=0,b=0;
-        for(int dy=0;dy<scale;dy++)for(int dx=0;dx<scale;dx++){
-            size_t at=((size_t)(y*scale+dy)*XZ_DJ_TILE_SIDE+(size_t)(x*scale+dx))*2;
-            unsigned v=buf[at]|(unsigned)buf[at+1]<<8,r5=v>>11,g6=v>>5&63,b5=v&31;
-            r+=r5<<3|r5>>2;g+=g6<<2|g6>>4;b+=b5<<3|b5>>2;
-        }
-        unsigned cells=(unsigned)(scale*scale);r=(r+cells/2)/cells;g=(g+cells/2)/cells;b=(b+cells/2)/cells;
-        out->thumb[y*XZ_DJ_THUMB+x]=(uint16_t)((r>>3)<<11|(g>>2)<<5|b>>3);
-    }
+    thumb_from_tile(buf,out->thumb);
     out->has_thumb=1;memcpy(out->tile_path,relative,p->tile_path.n+1);
 }
 static void fill(struct xz_dj_profile *out,const struct parsed_profile *p){
+    out->kind=XZ_DJ_OLD;
     display_copy(out->dj_id,sizeof(out->dj_id),p->dj_id);
     display_copy(out->name,sizeof(out->name),p->name);
     display_copy(out->tagline,sizeof(out->tagline),p->tagline);
@@ -436,6 +449,7 @@ static void fill(struct xz_dj_profile *out,const struct parsed_profile *p){
         uint32_t v=0;for(int i=1;i<7;i++)v=v*16+(uint32_t)hexv((unsigned char)p->accent.s[i]);
         out->accent=v;out->has_accent=1;
     }
+    if(p->logo_path.n<sizeof(out->logo_path))display_copy(out->logo_path,sizeof(out->logo_path),p->logo_path);
 }
 /* Reads one JSON file into a parsed profile. READ_OK only when it parsed and validated. */
 static int read_profile(const char *root,const char *relative,unsigned char *buf,struct doc *d,struct parsed_profile *p){
@@ -444,46 +458,368 @@ static int read_profile(const char *root,const char *relative,unsigned char *buf
     if(doc_open(d,(const char *)buf,n)||profile_parse(d,p)){doc_close(d);return READ_INVALID;}
     return READ_OK;
 }
+static int has_id(const char *const *ids,int n,const char *id){for(int i=0;i<n;i++)if(!strcmp(ids[i],id))return 1;return 0;}
+/* Contract 0.1 step 2: the VJTOOLS profiles in index order, then the VJ.Tools/Branding card, skipping ids
+   a profile folder already holds. buf holds MAX_JSON + 1 + XZ_DJ_TILE_BYTES. 0, or -1 on an I/O error. */
+static int read_old(const char *root,struct xz_djp_scan *s,const char *const *ids,int nids,unsigned char *buf){
+    size_t n;struct doc index;struct parsed_index list;
+    unsigned char *text=malloc(MAX_JSON+1),*tile=buf+MAX_JSON+1;
+    s->old=calloc(XZ_DJ_MAX_PROFILES+1,sizeof(*s->old));
+    if(!s->old||!text){free(text);return -1;}
+    int rc=confined_read(root,INDEX_PATH,MAX_JSON,buf,&n);
+    if(rc==READ_IO){free(text);return -1;}
+    memset(&index,0,sizeof(index));
+    if(rc==READ_OK&&!doc_open(&index,(const char *)buf,n)&&!index_parse(&index,&list)){
+        s->old_index_valid=1;display_copy(s->old_active,sizeof(s->old_active),list.active_id);
+        for(int i=0;i<list.count;i++){
+            struct xz_dj_profile *card=&s->old[s->olds];char relative[256];struct doc d;struct parsed_profile p;
+            memset(card,0,sizeof(*card));card->kind=XZ_DJ_OLD;
+            display_copy(card->dj_id,sizeof(card->dj_id),list.id[i]);
+            if(has_id(ids,nids,card->dj_id))continue;
+            snprintf(relative,sizeof(relative),"DJPROFILE/VJTOOLS/profiles/%s/profile.json",card->dj_id);
+            rc=read_profile(root,relative,text,&d,&p);
+            if(rc==READ_IO){doc_close(&d);doc_close(&index);free(text);return -1;}
+            if(rc==READ_OK&&same(p.dj_id,list.id[i])){
+                fill(card,&p);load_thumb(root,&p,card,tile);snprintf(card->document_path,sizeof(card->document_path),"%s",relative);
+            }else{card->damaged=1;display_copy(card->name,sizeof(card->name),list.name[i]);}
+            doc_close(&d);s->olds++;
+        }
+    }
+    doc_close(&index);
+    struct doc d;struct parsed_profile p;
+    rc=read_profile(root,LEGACY_PATH,text,&d,&p);
+    if(rc==READ_IO){doc_close(&d);free(text);return -1;}
+    if(rc==READ_OK){
+        struct xz_dj_profile *card=&s->old[s->olds];int dup=0;
+        memset(card,0,sizeof(*card));fill(card,&p);
+        for(int i=0;i<s->olds;i++)if(!strcmp(s->old[i].dj_id,card->dj_id))dup=1;
+        if(!dup&&!has_id(ids,nids,card->dj_id)){
+            load_thumb(root,&p,card,tile);snprintf(card->document_path,sizeof(card->document_path),"%s",LEGACY_PATH);s->olds++;
+        }
+    }
+    doc_close(&d);free(text);
+    return 0;
+}
+
+/* --- DJ Profile 1.0, as tools/check_djprofile.py judges a stick --- */
+typedef struct xz_dj_jv jv;
+static int is_object(const jv *v){return v&&v->type==XZ_DJ_JOBJ;}
+static int is_text(const jv *v,size_t min,size_t max){return v&&v->type==XZ_DJ_JSTR&&v->n>=min&&v->n<=max;}
+/* Every byte in set, or in lo..hi when set is NULL. */
+static int all_of(const jv *v,size_t min,size_t max,const char *set,int lo,int hi){
+    if(!is_text(v,min,max))return 0;
+    for(size_t i=0;i<v->n;i++){unsigned char c=(unsigned char)v->s[i];if(set?!(c&&strchr(set,c)):(c<lo||c>hi))return 0;}
+    return 1;
+}
+#define ID_CHARS "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+#define HEX_CHARS "0123456789abcdefABCDEF"
+static int valid_id(const jv *v){return all_of(v,1,128,ID_CHARS,0,0);}
+static int valid_name(const jv *v){return v&&v->type==XZ_DJ_JSTR&&!xz_dj_valid_name(v->s,v->n,160);}
+static int valid_colour(const jv *v){return is_text(v,7,7)&&v->s[0]=='#'&&strspn(v->s+1,HEX_CHARS)==6;}
+/* Section 5.1 paths: at most one subfolder, no segment starting with '.', no leading '/', drive letter or backslash. */
+static int safe_relative(const jv *v){
+    if(!is_text(v,1,512)||memchr(v->s,0,v->n)||v->s[0]=='/'||memchr(v->s,'\\',v->n))return 0;
+    if(v->n>=2&&v->s[1]==':'&&((v->s[0]|32)>='a'&&(v->s[0]|32)<='z'))return 0;
+    const char *slash=memchr(v->s,'/',v->n);
+    if(!slash)return v->s[0]!='.';
+    size_t rest=v->n-(size_t)(slash-v->s)-1;
+    return slash>v->s&&v->s[0]!='.'&&rest&&slash[1]!='.'&&!memchr(slash+1,'/',rest);
+}
+enum { ENTRY_OK=0, ENTRY_BAD=-1, ENTRY_IO=-2 };
+/* _read_entry: {file, bytes, sha256} names a file of exactly that size and digest. keep, which holds
+   cap + 1 bytes, receives the content when it fits; *got its size. */
+static int read_entry(const char *root,const char *dir,const jv *entry,uint64_t limit,unsigned char *keep,size_t cap,size_t *got){
+    const jv *file=xz_dj_json_get(entry,"file"),*size=xz_dj_json_get(entry,"bytes"),*digest=xz_dj_json_get(entry,"sha256");
+    int64_t bytes;char relative[2048];unsigned char sum[32];
+    if(got)*got=0;
+    if(!is_object(entry)||!safe_relative(file)||xz_dj_json_whole(size,&bytes)||bytes<0||(uint64_t)bytes>limit||!all_of(digest,64,64,HEX_CHARS,0,0))return ENTRY_BAD;
+    if(snprintf(relative,sizeof(relative),"%s/%s",dir,file->s)>=(int)sizeof(relative))return ENTRY_BAD;
+    if(keep&&(uint64_t)bytes<=cap){
+        size_t n;int rc=confined_read(root,relative,(size_t)bytes,keep,&n);
+        if(rc==READ_IO)return ENTRY_IO;
+        if(rc!=READ_OK||n!=(size_t)bytes)return ENTRY_BAD;
+        hash(keep,n,sum);
+    }else{
+        int fd;uint64_t actual,total=0;unsigned char chunk[16384];SHA256_CTX c;
+        int rc=confined_open(root,relative,(uint64_t)bytes,&fd,&actual);
+        if(rc==READ_IO)return ENTRY_IO;
+        if(rc!=READ_OK)return ENTRY_BAD;
+        sha256_init(&c);
+        for(;;){
+            ssize_t r=read(fd,chunk,sizeof(chunk));
+            if(r<0){if(errno==EINTR)continue;close(fd);return ENTRY_IO;}
+            if(!r)break;
+            sha256_update(&c,chunk,(size_t)r);total+=(uint64_t)r;
+        }
+        close(fd);sha256_final(&c,sum);
+        if(total!=(uint64_t)bytes)return ENTRY_BAD;
+    }
+    struct str want={digest->s,digest->n};
+    if(!digest_matches(sum,want))return ENTRY_BAD;
+    if(got)*got=(size_t)bytes;
+    return ENTRY_OK;
+}
+static int marker_ok(const jv *v,const jv *id){
+    static const char head[]="djprofile:1:";const size_t h=sizeof(head)-1;
+    if(!is_text(v,h+1+1+12,h+128+1+12)||memcmp(v->s,head,h))return 0;
+    const char *rest=v->s+h;size_t n=v->n-h,idn=n-13;
+    if(rest[idn]!=':')return 0;
+    for(size_t i=idn+1;i<n;i++)if(!((rest[i]>='0'&&rest[i]<='9')||(rest[i]>='a'&&rest[i]<='f')))return 0;
+    for(size_t i=0;i<idn;i++)if(!strchr(ID_CHARS,rest[i]))return 0;
+    return id&&id->type==XZ_DJ_JSTR&&id->n==idn&&!memcmp(id->s,rest,idn);
+}
+static int raw_bytes_per_pixel(const jv *format){
+    static const struct{const char *name;int bytes;}raw[]={{"rgb565le",2},{"rgb565be",2},{"rgb888",3},{"rgba8888",4},{"bgra8888",4}};
+    for(size_t i=0;i<sizeof(raw)/sizeof(raw[0]);i++)if(xz_dj_json_is(format,raw[i].name))return raw[i].bytes;
+    return 0;
+}
+int xz_djp_check_document(const char *root,const char *dir,const jv *d,char logo[1024],char tile_file[1024],unsigned char *tile,unsigned char *buf){
+    logo[0]=0;if(tile_file)tile_file[0]=0;
+    if(!is_object(d)||!xz_dj_json_is(xz_dj_json_get(d,"format"),"djprofile/1"))return ENTRY_BAD;
+    const jv *id=xz_dj_json_get(d,"id"),*v;
+    if(!valid_id(id)||!all_of(xz_dj_json_get(d,"revision"),1,64,NULL,0x21,0x7e)||!valid_name(xz_dj_json_get(d,"name")))return ENTRY_BAD;
+    if((v=xz_dj_json_get(d,"tagline"))&&!is_text(v,0,240))return ENTRY_BAD;
+    if((v=xz_dj_json_get(d,"accent"))&&!valid_colour(v))return ENTRY_BAD;
+    if((v=xz_dj_json_get(d,"aliases"))){
+        if(v->type!=XZ_DJ_JARR||v->count>8)return ENTRY_BAD;
+        for(const jv *a=v->child;a;a=a->next)if(!valid_name(a))return ENTRY_BAD;
+    }
+    if((v=xz_dj_json_get(d,"links"))){
+        if(v->type!=XZ_DJ_JARR||v->count>12)return ENTRY_BAD;
+        for(const jv *l=v->child;l;l=l->next){
+            const jv *url=xz_dj_json_get(l,"url");
+            if(!is_object(l)||!is_text(xz_dj_json_get(l,"kind"),1,40)||!is_text(url,0,2048)||url->n<8||memcmp(url->s,"https://",8))return ENTRY_BAD;
+        }
+    }
+    if((v=xz_dj_json_get(d,"note"))&&!is_text(v,0,8192))return ENTRY_BAD;
+    if((v=xz_dj_json_get(d,"ext"))){
+        if(v->type!=XZ_DJ_JOBJ)return ENTRY_BAD;
+        for(const jv *e=v->child;e;e=e->next)if(!is_object(e))return ENTRY_BAD;
+    }
+    if((v=xz_dj_json_get(d,"logos"))){
+        if(v->type!=XZ_DJ_JARR||v->count<1||v->count>8)return ENTRY_BAD;
+        const jv *primary=NULL;int primaries=0;uint64_t total=0;
+        for(const jv *e=v->child;e;e=e->next)if(is_object(e)&&xz_dj_json_is(xz_dj_json_get(e,"role"),"primary")){if(!primaries)primary=e;primaries++;}
+        if(primaries!=1)return ENTRY_BAD;
+        const jv *file=xz_dj_json_get(primary,"file");
+        if(!file||file->type!=XZ_DJ_JSTR||memchr(file->s,0,file->n)||!(xz_dj_fold_equal(file->s,"logo.png")||xz_dj_fold_equal(file->s,"logo.jpg")))return ENTRY_BAD;
+        for(const jv *e=v->child;e;e=e->next){
+            if(is_object(e)){
+                const jv *role=xz_dj_json_get(e,"role"),*back=xz_dj_json_get(e,"background"),*label=xz_dj_json_get(e,"label");
+                if(!xz_dj_json_is(role,"primary")&&!xz_dj_json_is(role,"alternate"))return ENTRY_BAD;
+                if(back&&!xz_dj_json_is(back,"dark")&&!xz_dj_json_is(back,"light")&&!xz_dj_json_is(back,"any"))return ENTRY_BAD;
+                if(label&&!is_text(label,0,160))return ENTRY_BAD;
+                if(xz_dj_json_get(e,"note")&&!is_text(xz_dj_json_get(e,"note"),0,1024))return ENTRY_BAD;
+            }
+            size_t got;int rc=read_entry(root,dir,e,XZ_DJ_LOGO_MAX_BYTES,buf,XZ_DJ_LOGO_MAX_BYTES,&got);
+            if(rc)return rc;
+            if(xz_dj_image_usable(buf,got,NULL))return ENTRY_BAD;
+            total+=got;
+        }
+        if(total>24u*1024u*1024u)return ENTRY_BAD;
+        snprintf(logo,1024,"%s",file->s);
+    }
+    if((v=xz_dj_json_get(d,"renditions"))){
+        if(v->type!=XZ_DJ_JARR||v->count>8)return ENTRY_BAD;
+        for(const jv *r=v->child;r;r=r->next){
+            const jv *format=xz_dj_json_get(r,"format"),*target=xz_dj_json_get(r,"for");
+            int64_t width,height,bytes;size_t got=0;
+            int wanted=tile&&tile_file&&!tile_file[0]&&xz_dj_json_is(format,"rgb565le")&&xz_dj_json_is(target,"xdj-xz");
+            /* Section 5.4: a broken rendition is ignored; the document still counts. */
+            int rc=read_entry(root,dir,r,4u*1024u*1024u,wanted?tile:NULL,XZ_DJ_TILE_BYTES,&got);
+            if(rc==ENTRY_IO)return rc;
+            if(rc)continue;
+            if(xz_dj_json_whole(xz_dj_json_get(r,"width"),&width)||xz_dj_json_whole(xz_dj_json_get(r,"height"),&height)||width<1||width>4096||
+               height<1||height>4096||!is_text(format,1,40)||!is_text(target,1,80))continue;
+            int per=raw_bytes_per_pixel(format);
+            xz_dj_json_whole(xz_dj_json_get(r,"bytes"),&bytes);
+            if(per&&(uint64_t)bytes!=(uint64_t)width*(uint64_t)height*(uint64_t)per)continue;
+            if(wanted&&width==XZ_DJ_TILE_SIDE&&height==XZ_DJ_TILE_SIDE&&got==XZ_DJ_TILE_BYTES)snprintf(tile_file,1024,"%s",xz_dj_json_get(r,"file")->s);
+        }
+    }
+    if((v=xz_dj_json_get(d,"track"))){
+        if(!is_object(v)||!marker_ok(xz_dj_json_get(v,"marker"),id))return ENTRY_BAD;
+        if(xz_dj_json_get(v,"file")){int rc=read_entry(root,dir,v,64u*1024u*1024u,NULL,0,NULL);if(rc)return rc;}
+    }
+    return ENTRY_OK;
+}
+static void folder_id(const char *name,char out[XZ_DJ_ID_MAX]){
+    unsigned char sum[32];static const char digits[]="0123456789abcdef";
+    hash(name,strlen(name),sum);
+    size_t n=strlen(XZ_DJ_FOLDER_ID);memcpy(out,XZ_DJ_FOLDER_ID,n);
+    for(int i=0;i<8;i++){out[n+i*2]=digits[sum[i]>>4];out[n+i*2+1]=digits[sum[i]&15];}
+    out[n+16]=0;
+}
+static void copy_text(char *out,size_t cap,const jv *v){
+    if(!v||v->type!=XZ_DJ_JSTR){out[0]=0;return;}
+    struct str s={v->s,v->n};display_copy(out,cap,s);
+}
+/* f->view at level 1, from a valid document. */
+static void show_document(struct xz_djp_folder *f,const jv *d,const char *file,const char *logo,const char *tile_file,const unsigned char *tile){
+    struct xz_dj_profile *p=&f->view;const jv *v;
+    p->kind=XZ_DJ_LEVEL1;
+    copy_text(p->dj_id,sizeof(p->dj_id),xz_dj_json_get(d,"id"));
+    copy_text(p->name,sizeof(p->name),xz_dj_json_get(d,"name"));
+    copy_text(p->tagline,sizeof(p->tagline),xz_dj_json_get(d,"tagline"));
+    if((v=xz_dj_json_get(d,"accent"))){uint32_t c=0;for(int i=1;i<7;i++)c=c*16+(uint32_t)hexv((unsigned char)v->s[i]);p->accent=c;p->has_accent=1;}
+    if((v=xz_dj_json_get(d,"links")))for(const jv *l=v->child;l;l=l->next){
+        const jv *url=xz_dj_json_get(l,"url");
+        if(xz_dj_json_is(xz_dj_json_get(l,"kind"),"page")){if(url->n<sizeof(p->page_url))copy_text(p->page_url,sizeof(p->page_url),url);break;}
+    }
+    cat(p->logo_path,sizeof(p->logo_path),f->c.dir,logo);
+    cat(p->document_path,sizeof(p->document_path),f->c.dir,file);
+    if(tile_file[0]&&!cat(p->tile_path,sizeof(p->tile_path),f->c.dir,tile_file)){thumb_from_tile(tile,p->thumb);p->has_thumb=1;}
+}
+/* check_djprofile.py check() for one folder: profile.json, then profile.previous.json, then level 0. */
+static int judge(const char *root,struct xz_djp_folder *f,unsigned char *buf){
+    static const char *const names[2]={"profile.json","profile.previous.json"};
+    unsigned char tile[XZ_DJ_TILE_BYTES+1];
+    f->level=-1;memset(&f->view,0,sizeof(f->view));
+    memcpy(f->view.dir,f->c.dir,sizeof(f->view.dir));
+    for(int k=0;k<2;k++){
+        char file[XZ_DJ_NAME_MAX],relative[1024];size_t n;
+        if(xz_dj_fixed(root,f->c.dir,names[k],file))continue;
+        if(!k)snprintf(f->json,sizeof(f->json),"%s",file);
+        if(cat(relative,sizeof(relative),f->c.dir,file))continue;
+        int rc=confined_read(root,relative,MAX_JSON,buf,&n);
+        if(rc==READ_IO)return -1;
+        jv *d;struct xz_dj_json *j=rc==READ_OK?xz_dj_json_parse((const char *)buf,n,XZ_DJ_JSON_PROFILE,&d):NULL;
+        if(!j)continue;
+        char logo[1024],tile_file[1024];
+        rc=xz_djp_check_document(root,f->c.dir,d,logo,tile_file,tile,buf);
+        if(rc==ENTRY_IO){xz_dj_json_free(j);return -1;}
+        if(rc!=ENTRY_OK){xz_dj_json_free(j);continue;}
+        if(!k)f->json_valid=1;
+        int found=logo[0]?0:xz_dj_json_get(d,"logos")?1:xz_dj_level0_logo(root,f->c.dir,logo,buf);
+        if(found<0){xz_dj_json_free(j);return -1;}
+        if(!found){f->level=1;snprintf(f->used,sizeof(f->used),"%s",file);show_document(f,d,file,logo,tile_file,tile);}
+        xz_dj_json_free(j);
+        break;
+    }
+    if(f->level<0){
+        char logo[XZ_DJ_NAME_MAX];int found=xz_dj_level0_logo(root,f->c.dir,logo,buf);
+        if(found<0)return -1;
+        if(!found){
+            struct xz_dj_profile *p=&f->view;f->level=0;p->kind=XZ_DJ_LEVEL0;
+            snprintf(p->name,sizeof(p->name),"%s",f->c.name);folder_id(f->c.name,p->dj_id);
+            cat(p->logo_path,sizeof(p->logo_path),f->c.dir,logo);
+        }
+    }
+    return 0;
+}
+static int key_equal(const char *a,size_t an,const char *b){
+    char x[XZ_DJ_NAME_KEY_CAP(640)],y[XZ_DJ_NAME_KEY_CAP(640)];size_t bn=strlen(b);
+    if(an>640||bn>640)return 0;
+    return xz_dj_name_key(a,an,x,sizeof(x))>=0&&xz_dj_name_key(b,bn,y,sizeof(y))>=0&&!strcmp(x,y);
+}
+const char *xz_dj_profile_ref(const struct xz_dj_profile *p){
+    if(p->kind!=XZ_DJ_LEVEL0)return p->dj_id;
+    const char *slash=strchr(p->dir,'/');return slash?slash+1:p->dir;
+}
+/* A profile reference resolved as section 6 says: ids first, then folder name keys. -1 when nothing matches. */
+static int resolve(const struct xz_dj_stick *list,const char *ref,size_t n){
+    for(int i=0;i<list->count;i++)if(list->profile[i].kind!=XZ_DJ_LEVEL0&&strlen(list->profile[i].dj_id)==n&&!memcmp(list->profile[i].dj_id,ref,n))return i;
+    for(int i=0;i<list->count;i++){
+        const char *slash=strchr(list->profile[i].dir,'/');
+        if(slash&&key_equal(ref,n,slash+1))return i;
+    }
+    return -1;
+}
+void xz_djp_scan_free(struct xz_djp_scan *s){free(s->folder);free(s->old);s->folder=NULL;s->old=NULL;}
+static int scan(const char *root,struct xz_djp_scan *s,unsigned char *buf,struct xz_dj_json **sj){
+    jv *stick=NULL;
+    xz_dj_tops(root,s->tops);
+    /* The stick file sits in the first top folder there is. */
+    const char *top=s->tops[0][0]?s->tops[0]:s->tops[1];
+    char name[XZ_DJ_NAME_MAX];
+    if(top[0]&&!xz_dj_fixed(root,top,XZ_DJP_STICK_FILE,name)){
+        char relative[1024];size_t n;
+        cat(relative,sizeof(relative),top,name);s->stick_file_present=1;
+        int rc=confined_read(root,relative,XZ_DJP_MAX_STICK_JSON,buf,&n);
+        if(rc==READ_IO)return -1;
+        if(rc==READ_OK&&(*sj=xz_dj_json_parse((const char *)buf,n,XZ_DJ_JSON_PROFILE,&stick))&&
+           is_object(stick)&&xz_dj_json_is(xz_dj_json_get(stick,"format"),"djprofile-stick/1"))memcpy(s->stick_file,relative,strlen(relative)+1);
+        else{xz_dj_json_free(*sj);*sj=NULL;stick=NULL;}
+    }
+    int count=0;
+    struct xz_dj_candidate *c=xz_dj_candidates(root,&count);
+    if(count&&!(s->folder=calloc((size_t)count,sizeof(*s->folder)))){free(c);return -1;}
+    s->folders=count;
+    for(int i=0;i<count;i++)s->folder[i].c=c[i],s->folder[i].c.name=strchr(s->folder[i].c.dir,'/')+1;
+    free(c);
+    for(int i=0;i<count;i++)if(judge(root,&s->folder[i],buf))return -1;
+    /* Profile order: the stick file's profiles, then the rest; a repeated id counts once; 16 at most. */
+    int *ordered=malloc(sizeof(int)*((size_t)count+1)),n=0;char *taken=calloc((size_t)count+1,1);
+    if(!ordered||!taken){free(ordered);free(taken);return -1;}
+    const jv *entries=xz_dj_json_get(stick,"profiles");
+    if(entries&&entries->type==XZ_DJ_JARR&&entries->count<=XZ_DJ_MAX_PROFILES)for(const jv *e=entries->child;e;e=e->next){
+        const jv *folder=xz_dj_json_get(e,"folder"),*id=xz_dj_json_get(e,"id");
+        if(!is_object(e)||!folder||folder->type!=XZ_DJ_JSTR||xz_dj_valid_folder_name(folder->s,folder->n))continue;
+        for(int i=0;i<count;i++){
+            const struct xz_djp_folder *f=&s->folder[i];
+            if(f->level<0)continue;
+            int match=id?f->level==1&&id->type==XZ_DJ_JSTR&&strlen(f->view.dj_id)==id->n&&!memcmp(f->view.dj_id,id->s,id->n):key_equal(folder->s,folder->n,f->c.name);
+            if(!match)continue;
+            if(!taken[i]){taken[i]=1;ordered[n++]=i;}
+            break;
+        }
+    }
+    for(int i=0;i<count;i++)if(s->folder[i].level>=0&&!taken[i])ordered[n++]=i;
+    free(taken);
+    for(int i=0;i<n&&s->shown<XZ_DJ_MAX_PROFILES;i++){
+        const struct xz_djp_folder *f=&s->folder[ordered[i]];int dup=0;
+        for(int k=0;k<s->shown&&f->level==1;k++){const struct xz_djp_folder *g=&s->folder[s->order[k]];if(g->level==1&&!strcmp(g->view.dj_id,f->view.dj_id))dup=1;}
+        if(!dup)s->order[s->shown++]=ordered[i];
+    }
+    free(ordered);
+    /* The old store, then the merged list (contract 0.1 steps 2 to 5). */
+    const char **ids=malloc(sizeof(char *)*((size_t)count+1));int nids=0;
+    if(!ids)return -1;
+    for(int i=0;i<count;i++)if(s->folder[i].level==1)ids[nids++]=s->folder[i].view.dj_id;
+    int rc=read_old(root,s,ids,nids,buf);
+    free(ids);
+    if(rc)return -1;
+    struct xz_dj_stick *list=&s->list;
+    for(int i=0;i<s->shown;i++){
+        const struct xz_djp_folder *f=&s->folder[s->order[i]];int dropped=0;
+        for(int k=0;k<s->olds&&f->level==0;k++)if(key_equal(f->c.name,strlen(f->c.name),s->old[k].name))dropped=1;
+        if(!dropped)list->profile[list->count++]=f->view;
+    }
+    for(int k=0;k<s->olds&&list->count<XZ_DJ_MAX_PROFILES;k++)list->profile[list->count++]=s->old[k];
+    const jv *active=xz_dj_json_get(stick,"active");
+    if(active&&active->type==XZ_DJ_JSTR)list->active=resolve(list,active->s,active->n);
+    if(list->active<0&&s->old_index_valid)for(int i=0;i<list->count&&list->active<0;i++)if(list->profile[i].kind!=XZ_DJ_LEVEL0&&!strcmp(list->profile[i].dj_id,s->old_active))list->active=i;
+    if(list->active<0&&list->count)list->active=0;
+    /* The 1.0 active profile alone, as check_djprofile.py reports it. */
+    struct xz_dj_stick *ten=malloc(sizeof(*ten));
+    if(!ten)return -1;
+    ten->count=0;
+    for(int i=0;i<s->shown;i++)ten->profile[ten->count++]=s->folder[s->order[i]].view;
+    s->active=active&&active->type==XZ_DJ_JSTR?resolve(ten,active->s,active->n):-1;
+    if(s->active<0&&s->shown)s->active=0;
+    free(ten);
+    return 0;
+}
+int xz_djp_scan(const char *root,struct xz_djp_scan *s,unsigned char *buf){
+    memset(s,0,sizeof(*s));s->active=-1;s->list.active=-1;
+    if(!root||!*root||!buf)return -1;
+    struct xz_dj_json *sj=NULL;
+    int rc=scan(root,s,buf,&sj);
+    xz_dj_json_free(sj);
+    if(rc){xz_djp_scan_free(s);memset(&s->list,0,sizeof(s->list));s->list.active=-1;}
+    return rc;
+}
 int xz_dj_stick_read(const char *root,struct xz_dj_stick *out){
     if(!out)return -1;
     memset(out,0,sizeof(*out));out->active=-1;
-    if(!root||!*root)return -1;
-    unsigned char *index_buf=malloc(MAX_JSON+1),*buf=malloc(MAX_JSON+1),*tile=malloc(XZ_DJ_TILE_BYTES+1);
-    int result=-1;size_t n;
-    if(!index_buf||!buf||!tile)goto done;
-    int rc=confined_read(root,INDEX_PATH,MAX_JSON,index_buf,&n);
-    if(rc==READ_IO)goto done;
-    if(rc==READ_OK){
-        struct doc index;struct parsed_index list;
-        if(!doc_open(&index,(const char *)index_buf,n)&&!index_parse(&index,&list)){
-            for(int i=0;i<list.count;i++){
-                struct xz_dj_profile *card=out->profile+i;char relative[256];struct doc d;struct parsed_profile p;
-                display_copy(card->dj_id,sizeof(card->dj_id),list.id[i]);
-                snprintf(relative,sizeof(relative),"DJPROFILE/VJTOOLS/profiles/%s/profile.json",card->dj_id);
-                if(read_profile(root,relative,buf,&d,&p)==READ_OK&&same(p.dj_id,list.id[i])){
-                    fill(card,&p);load_thumb(root,&p,card,tile);snprintf(card->document_path,sizeof(card->document_path),"%s",relative);
-                }
-                else{card->damaged=1;display_copy(card->name,sizeof(card->name),list.name[i]);}
-                doc_close(&d);
-            }
-            out->count=list.count;out->active=list.active;result=0;
-        }
-        doc_close(&index);
-        if(!result)goto done;
-    }
-    {
-        struct doc d;struct parsed_profile p;
-        rc=read_profile(root,LEGACY_PATH,buf,&d,&p);
-        if(rc==READ_OK){fill(out->profile,&p);load_thumb(root,&p,out->profile,tile);snprintf(out->profile->document_path,sizeof(out->profile->document_path),"%s",LEGACY_PATH);out->count=1;out->active=0;out->legacy=1;result=0;}
-        else result=rc==READ_IO?-1:1;
-        doc_close(&d);
-    }
-done:
-    free(index_buf);free(buf);free(tile);
-    if(result){memset(out,0,sizeof(*out));out->active=-1;}
+    unsigned char *buf=malloc(XZ_DJ_LOGO_MAX_BYTES+MAX_JSON+2);
+    struct xz_djp_scan *s=calloc(1,sizeof(*s));int result=-1;
+    if(buf&&s&&!xz_djp_scan(root,s,buf)){*out=s->list;result=out->count?0:1;xz_djp_scan_free(s);}
+    free(buf);free(s);
     return result;
 }
 
+/* Contract 0.3 step 5: the old index.json's "active" rewritten in place for an older runtime. */
 static void revision(char out[64]){
     static unsigned counter;unsigned char sum[32];char seed[128];
     time_t now=time(NULL);struct tm tm;
@@ -496,7 +832,7 @@ static int write_all(int fd,const char *data,size_t n){
     while(n){ssize_t w=write(fd,data,n);if(w<0){if(errno==EINTR)continue;return -1;}data+=w;n-=(size_t)w;}
     return 0;
 }
-int xz_dj_stick_set_active(const char *root,const char *dj_id){
+int xz_djp_old_index_set_active(const char *root,const char *dj_id){
     if(!root||!*root||!dj_id)return -1;
     struct str wanted={dj_id,strlen(dj_id)};
     if(v_id(wanted))return -1;
@@ -507,7 +843,7 @@ int xz_dj_stick_set_active(const char *root,const char *dj_id){
     if(confined_read(root,INDEX_PATH,MAX_JSON,(unsigned char *)old,&n)!=READ_OK)goto done;
     if(doc_open(&d,old,n)||index_parse(&d,&list))goto done;
     int listed=0;for(int i=0;i<list.count;i++)if(same(list.id[i],wanted))listed=1;
-    if(!listed)goto done;
+    if(!listed){result=2;goto done;}
     if(same(list.active_id,wanted)){result=1;goto done;}
     char stamp[64];revision(stamp);
     /* Splice the raw bytes between the quotes of "active" and "revision", later offset first. */
@@ -541,28 +877,8 @@ done:
     return result;
 }
 
-/* --- Shared with dj_profile_write.c through dj_profile_internal.h --- */
-struct xz_djp_json { struct doc d; };
-struct xz_djp_json *xz_djp_json_open(const char *text,size_t n){
-    struct xz_djp_json *j=calloc(1,sizeof(*j));
-    if(j&&doc_open(&j->d,text,n)){doc_close(&j->d);free(j);j=NULL;}
-    return j;
-}
-void xz_djp_json_close(struct xz_djp_json *j){if(j){doc_close(&j->d);free(j);}}
-int xz_djp_json_fields(struct xz_djp_json *j,int object,const char *const *names,int k,int *out){return fields(&j->d,object,names,k,out);}
-int xz_djp_json_string(struct xz_djp_json *j,int t,struct xz_djp_str *o){
-    struct str v;if(t<0){o->s="";o->n=0;return 0;}
-    if(is_null(&j->d,t)||str_get(&j->d,t,&v))return -1;
-    o->s=v.s;o->n=v.n;return 0;
-}
-int xz_djp_json_null(struct xz_djp_json *j,int t){return t<0||is_null(&j->d,t);}
-int xz_djp_json_u64(struct xz_djp_json *j,int t,uint64_t *o){return u_req(&j->d,t,UINT64_MAX,o);}
-int xz_djp_json_array(struct xz_djp_json *j,int t){return v_def(&j->d,t);}
-int xz_djp_json_next(struct xz_djp_json *j,int t){return skip(&j->d,t);}
-static struct str S(struct xz_djp_str v){struct str o={v.s,v.n};return o;}
+/* --- Shared with dj_profile_write.c and dj_folders.c through dj_profile_internal.h --- */
 int xz_djp_utf8_valid(struct xz_djp_str v){return utf8_valid((const unsigned char *)v.s,v.n);}
-int xz_djp_valid_id(struct xz_djp_str v){return v_id(S(v));}
-int xz_djp_valid_label(struct xz_djp_str v,size_t max){return utf8_valid((const unsigned char *)v.s,v.n)?-1:v_label(S(v),max);}
-int xz_djp_valid_text(struct xz_djp_str v,size_t max){return utf8_valid((const unsigned char *)v.s,v.n)||chars(S(v))>max||any_control(S(v))?-1:0;}
 int xz_djp_confined_open(const char *root,const char *relative,uint64_t max,int *fd,uint64_t *size){return confined_open(root,relative,max,fd,size);}
 int xz_djp_confined_read(const char *root,const char *relative,size_t max,unsigned char *buf,size_t *len){return confined_read(root,relative,max,buf,len);}
+int xz_djp_resolve(const struct xz_dj_stick *list,const char *ref,size_t n){return resolve(list,ref,n);}
