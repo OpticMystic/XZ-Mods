@@ -216,8 +216,8 @@ static void serve_save(void) {
     }
     if (found) {
         r = xz_dj_profile_write(root, &job.draft, id);
-        /* A profile made on the XZ is the one the DJ wants: it becomes active on its stick. */
-        if (r == XZ_DJ_WRITE_OK && !job.draft.dj_id[0] && xz_dj_stick_set_active(root, id) < 0) r = XZ_DJ_WRITE_IO;
+        /* A new profile made on the XZ is the one the DJ wants: it becomes active on its stick. */
+        if (r == XZ_DJ_WRITE_OK && !job.draft.dj_id[0] && !job.draft.folder[0] && xz_dj_stick_set_active(root, id) < 0) r = XZ_DJ_WRITE_IO;
     }
     if (r == XZ_DJ_WRITE_OK) snprintf(line, sizeof(line), "SAVED %.100s TO USB %d", job.draft.name, job.entry_usb + 1);
     else write_error(line, sizeof(line), r, job.entry_usb + 1);

@@ -123,6 +123,20 @@ static void created(const char *root){
     CHECK(xz_dj_stick_read(root,&s)==0);CHECK(s.count==2);CHECK(s.active==0);
     int k=find(&s,wide);CHECK(k==1);
     if(k>=0){CHECK(s.profile[k].has_thumb&&!solid(s.profile[k].thumb,XZ_DJ_THUMB*XZ_DJ_THUMB,s.profile[k].thumb[0]));snprintf(path,sizeof(path),"%s/logo.png",s.profile[k].dir);CHECK(exists(at(root,path)));}
+    /* A profile.json the reader cannot use (its logo no longer matches) is still that DJ: an edit keeps the id. */
+    if(k>=0){
+        char doc[1200],folder[512],keep_id[XZ_DJ_ID_MAX];size_t dn;snprintf(keep_id,sizeof(keep_id),"%s",s.profile[k].dj_id);
+        snprintf(folder,sizeof(folder),"%s",s.profile[k].dir);snprintf(doc,sizeof(doc),"%s/profile.json",folder);
+        char *text=slurp(at(root,doc),&dn);char *sha=text?strstr(text,"\"sha256\": \""):NULL;
+        if(sha){sha[14]=sha[14]=='0'?'1':'0';FILE *f=fopen(at(root,doc),"wb");fwrite(text,1,dn,f);fclose(f);}
+        CHECK(xz_dj_stick_read(root,&s)==0);k=-1;for(int i=0;i<s.count;i++)if(!strcmp(s.profile[i].dir,folder))k=i;
+        CHECK(k>=0&&s.profile[k].kind==XZ_DJ_LEVEL0);
+        d=draft("",wide,"Fixed","",0);snprintf(d.folder,sizeof(d.folder),"%s",folder);
+        CHECK(xz_dj_profile_write(root,&d,again)==XZ_DJ_WRITE_OK);CHECK(!strcmp(again,keep_id));
+        snprintf(doc,sizeof(doc),"%s/profile.previous.json",folder);CHECK(exists(at(root,doc)));
+        CHECK(xz_dj_stick_read(root,&s)==0);k=find(&s,wide);CHECK(k>=0&&s.profile[k].kind==XZ_DJ_LEVEL1&&!strcmp(s.profile[k].tagline,"Fixed"));
+        free(text);
+    }
     /* NO LOGO replaces the logo with the initial; the alternate-free profile keeps its tagline. */
     d=draft(id,name,"Analytical engines","",1);CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);
     snprintf(path,sizeof(path),"%s/logo.png",dir);CHECK(!same_file(at(root,path),image("green.png")));
@@ -264,7 +278,24 @@ static void unknown(const char *root){
     CHECK(!exists(at(root,"DJPROFILE/DJ Kai Live/DJ PROFILE - DJ Kai.mp3"))&&contains(at(root,moved),"\"x-root\""));
     CHECK(contains(at(root,STICK_FILE),"\"x-stick\": \"kept\"")&&contains(at(root,STICK_FILE),"\"folder\": \"DJ Kai Live\""));
     CHECK(xz_dj_stick_read(root,&s)==0);CHECK(find(&s,"DJ Kai Live")>=0&&find(&s,"Lena B")>=0);
+    /* A JPEG primary takes logo.jpg: the alternate stored under that name moves aside, its bytes kept and listed. */
+    d=draft("5f1d6f0e-2b7a-4c55-9a43-1d1f0b7c9e21","DJ Kai Live","Garage, Leeds",image("logo.jpg"),0);
+    CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_OK);
+    CHECK(same_file(at(root,"DJPROFILE/DJ Kai Live/logo.jpg"),image("logo.jpg"))&&!exists(at(root,"DJPROFILE/DJ Kai Live/logo.png")));
+    DIR *folder=opendir(at(root,"DJPROFILE/DJ Kai Live"));struct dirent *e;int aside=0;
+    while(folder&&(e=readdir(folder)))if(!strncmp(e->d_name,"logo-",5)&&strstr(e->d_name,".jpg")){char rel[600];snprintf(rel,sizeof(rel),"DJPROFILE/DJ Kai Live/%s",e->d_name);aside=same_file(at(root,rel),image("logo.jpg"))&&contains(at(root,moved),e->d_name);}
+    if(folder)closedir(folder);
+    CHECK(aside);
     printf("unknown: %s\n",failures>before?"FAIL":"ok");
+}
+
+/* A logo that would pass 24 MiB of logos is refused before the primary logo is touched. */
+static void heavy(const char *root){
+    int before=failures;unsigned char a[32];tree_hash(root,a);
+    struct xz_dj_draft d=draft("heavy","Heavy","",image("noise.png"),0);
+    CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_INVALID);CHECK(unchanged_since(root,a));
+    CHECK(xz_dj_stick_read(root,&s)==0&&s.count==1&&s.profile[0].kind==XZ_DJ_LEVEL1);
+    printf("heavy: %s\n",failures>before?"FAIL":"ok");
 }
 
 /* 5. Sixteen profiles, then a refused 17th that writes nothing. */
@@ -311,6 +342,11 @@ static void errors(const char *root){
     CHECK(unchanged_since(root,a));
     /* An unknown id moves the old store first, then refuses. */
     struct xz_dj_draft d=draft("djp_nobody","Nobody","","",0);CHECK(xz_dj_profile_write(root,&d,NULL)==XZ_DJ_WRITE_CHANGED);
+    /* DJ Kai's old document holds a member 1.0 cannot (a non-ASCII name): it stays in the old store, Lena moved. */
+    CHECK(xz_dj_stick_read(root,&s)==0);int kai=find(&s,"DJ Kai"),lena=find(&s,"Lena B");
+    CHECK(kai>=0&&s.profile[kai].kind==XZ_DJ_OLD&&lena>=0&&s.profile[lena].kind==XZ_DJ_LEVEL1);
+    CHECK(xz_dj_stick_set_active(root,"djp_kai")==0);CHECK(xz_dj_stick_read(root,&s)==0&&!strcmp(s.profile[s.active].name,"DJ Kai"));
+    CHECK(!contains(at(root,"DJPROFILE/DJPROFILE.json"),"\"active\""));
     static uint16_t tile[XZ_DJ_TILE_SIDE*XZ_DJ_TILE_SIDE];int w,h;
     CHECK(xz_dj_image_tile(image("notimage.png"),tile,&w,&h)==XZ_DJ_IMAGE_NOT_IMAGE);
     CHECK(xz_dj_image_tile(image("truncated.png"),tile,&w,&h)==XZ_DJ_IMAGE_NOT_IMAGE);
@@ -382,11 +418,11 @@ int main(int argc,char **argv){
     if(argc!=2){fprintf(stderr,"usage: %s <work>\n",argv[0]);return 2;}
     const char *work=argv[1];char sticks[4000];
     snprintf(images,sizeof(images),"%s/images",work);snprintf(sticks,sizeof(sticks),"%s/sticks",work);
-    static const char *const names[]={"created","migrated","adopted","unknown","full","errors","large"};
-    char root[8][4096];
-    for(int i=0;i<7;i++)snprintf(root[i],sizeof(root[i]),"%s/%s",sticks,names[i]);
-    snprintf(root[7],sizeof(root[7]),"%s/list",work);
-    created(root[0]);migrated(root[1]);adopted(root[2]);unknown(root[3]);full(root[4]);errors(root[5]);large(root[6]);list(root[7]);
+    static const char *const names[]={"created","migrated","adopted","unknown","full","errors","large","heavy"};
+    char root[9][4096];
+    for(int i=0;i<8;i++)snprintf(root[i],sizeof(root[i]),"%s/%s",sticks,names[i]);
+    snprintf(root[8],sizeof(root[8]),"%s/list",work);
+    created(root[0]);migrated(root[1]);adopted(root[2]);unknown(root[3]);full(root[4]);errors(root[5]);large(root[6]);heavy(root[7]);list(root[8]);
     tiles();
     printf("test_dj_profile_write: %s (%d failures)\n",failures?"FAIL":"ok",failures);
     return failures?1:0;

@@ -49,8 +49,8 @@ enum xz_dj_write_result {
    deleted. Every member the writer does not change is kept. A profile without a logo gets its initial on
    its accent colour as logo.png. A hand-made logo.png/jpg/jpeg that differs from the new primary logo
    becomes logo-original.<ext>. Writing what the stick already holds writes nothing. `out_dj_id`
-   (optional, XZ_DJ_ID_MAX bytes) receives the id. Writes only below DJPROFILE/ (DJPROFILES/ when that is
-   the stick's only top folder). Not thread-safe against another writer on the same stick. */
+   (optional, XZ_DJ_ID_MAX bytes) receives the id. Writes only below DJPROFILE/ (made when missing) and in
+   the profile's own folder. Not thread-safe against another writer on the same stick. */
 enum xz_dj_write_result xz_dj_profile_write(const char *root, const struct xz_dj_draft *draft, char *out_dj_id);
 /* The editable fields of the profile `reference` (an id, or a level 0 folder name) into a draft
    (logo = "", remove_logo = 0). 0 ok, -1 not found or unreadable. */

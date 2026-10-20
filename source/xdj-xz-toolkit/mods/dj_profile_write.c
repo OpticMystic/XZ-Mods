@@ -142,32 +142,55 @@ static int name_taken(const char *root,const char *dir,const char *name){
 static int holds(const char *root,const char *dir,const char *name,const unsigned char *data,size_t n,unsigned char *buf){
     size_t got;return rel_read(root,dir,name,XZ_DJ_LOGO_MAX_BYTES,buf,&got)==XZ_DJP_READ_OK&&got==n&&!memcmp(buf,data,n);
 }
-/* What a write did, so a profile that cannot be finished is taken back. */
-struct undo { int n; struct { char path[4096], from[4096]; int dir; } item[24]; };
-static void undo_add(struct undo *u,const char *path,const char *from,int dir){
-    if(u->n>=24)return;
-    snprintf(u->item[u->n].path,4096,"%s",path);snprintf(u->item[u->n].from,4096,"%s",from?from:"");u->item[u->n].dir=dir;u->n++;
+/* What a write did, so a profile that cannot be finished is taken back: a file or folder made (removed
+   again), a file renamed (renamed back) or a file replaced in place (its old bytes written back). */
+struct undo_item { char *path, *from; unsigned char *data; size_t n; int dir; };
+struct undo { int n, full; struct undo_item item[32]; };
+static struct undo_item *undo_push(struct undo *u,const char *path){
+    if(u->n>=32||!(u->item[u->n].path=strdup(path))){u->full=1;return NULL;}
+    struct undo_item *i=&u->item[u->n++];i->from=NULL;i->data=NULL;i->n=0;i->dir=0;return i;
 }
-static void undo_all(struct undo *u){
-    for(int i=u->n-1;i>=0;i--){
-        if(u->item[i].from[0])(void)rename(u->item[i].path,u->item[i].from);
-        else if(u->item[i].dir)(void)rmdir(u->item[i].path);
-        else (void)unlink(u->item[i].path);
-    }
+static void undo_add(struct undo *u,const char *path,const char *from,int dir){
+    struct undo_item *i=undo_push(u,path);
+    if(i){i->dir=dir;if(from&&!(i->from=strdup(from)))u->full=1;}
+}
+/* Forgets the steps once the document that needs them is published. */
+static void undo_keep(struct undo *u){
+    for(int i=0;i<u->n;i++){free(u->item[i].path);free(u->item[i].from);free(u->item[i].data);}
     u->n=0;
 }
+static void undo_all(struct undo *u){
+    for(int k=u->n-1;k>=0;k--){
+        struct undo_item *i=&u->item[k];
+        if(i->data){
+            char folder[4096],temporary[4096+32];snprintf(folder,sizeof(folder),"%s",i->path);
+            char *slash=strrchr(folder,'/');if(slash)*slash=0;
+            snprintf(temporary,sizeof(temporary),"%s/.djprofile-undo",folder);unlink(temporary);
+            if(!write_new(temporary,i->data,i->n)&&rename(temporary,i->path))unlink(temporary);
+        }
+        else if(i->from)(void)rename(i->path,i->from);
+        else if(i->dir)(void)rmdir(i->path);
+        else (void)unlink(i->path);
+    }
+    undo_keep(u);
+}
 /* Puts bytes at dir/name. An identical file is kept; a missing one is written; an existing different
-   one is replaced in place only when replace is set. */
+   one is replaced in place (temporary file and rename) only when replace is set. */
 static int put_file(const char *root,const char *dir,const char *name,const unsigned char *data,size_t n,int replace,struct undo *u,unsigned char *buf){
-    char path[4096];struct stat st;
+    char path[4096];struct stat st;size_t old_n;
     if(rel_path(path,root,dir,name))return -1;
     if(!lstat(path,&st)){
         if(S_ISREG(st.st_mode)&&holds(root,dir,name,data,n,buf))return 0;
-        if(!replace||!S_ISREG(st.st_mode))return -1;
-        return publish(root,dir,name,data,n);
+        if(!replace||!S_ISREG(st.st_mode)||rel_read(root,dir,name,XZ_DJ_LOGO_MAX_BYTES,buf,&old_n)!=XZ_DJP_READ_OK)return -1;
+        unsigned char *old=malloc(old_n?old_n:1);struct undo_item *i=old?undo_push(u,path):NULL;
+        if(!i){free(old);return -1;}
+        memcpy(old,buf,old_n);
+        if(publish(root,dir,name,data,n)){free(i->path);u->n--;free(old);return -1;}
+        i->data=old;i->n=old_n;
+        return 0;
     }
     if(errno!=ENOENT||write_new(path,data,n))return -1;
-    if(u)undo_add(u,path,NULL,0);
+    undo_add(u,path,NULL,0);
     return 0;
 }
 static int is_reserved(const char *name){
@@ -537,7 +560,7 @@ static void logo_free(struct logo *l){free(l->data);l->data=NULL;l->n=0;}
 static enum xz_dj_image_result logo_prepare(unsigned char *data,size_t n,struct logo *o){
     struct xz_dj_image_info info;int w,h,c;
     memset(o,0,sizeof(*o));
-    if(!xz_dj_image_usable(data,n,&info)){
+    if(!xz_dj_image_usable(data,n,&info)&&info.plain){
         /* The header alone is not enough to write it: it must decode. */
         enum xz_dj_image_result rc=tile_from_memory(data,n,o->tile,NULL,NULL);
         if(rc!=XZ_DJ_IMAGE_OK){free(data);return rc;}
@@ -773,26 +796,29 @@ static int keep_originals(struct ctx *x,struct xz_dj_json *j,jv *logos,const cha
     }
     return 0;
 }
-/* Serialises d, checks it as a reader would with the files in place, and publishes profile.json
-   (profile.previous.json first when the folder has a valid profile.json). */
-static int publish_document(struct ctx *x,const char *dir,const jv *d,const char *json,int json_valid){
-    size_t n,old_n;char *text=xz_dj_json_write(d,XZ_DJ_JSON_PRETTY,&n),logo[1024];jv *check;
-    struct xz_dj_json *p=text&&n<=MAX_JSON?xz_dj_json_parse(text,n,XZ_DJ_JSON_PROFILE,&check):NULL;
-    int rc=-1;unsigned char *old=malloc(MAX_JSON+1);
-    if(p&&old&&!xz_djp_check_document(x->root,dir,check,logo,NULL,NULL,x->buf)){
-        rc=0;
-        if(json[0]&&json_valid){
-            if(rel_read(x->root,dir,json,MAX_JSON,old,&old_n)!=XZ_DJP_READ_OK)rc=-1;
-            else if(old_n!=n||memcmp(old,text,n)){
-                char previous[XZ_DJ_NAME_MAX];
-                if(xz_dj_fixed(x->root,dir,"profile.previous.json",previous))strcpy(previous,"profile.previous.json");
-                if(publish(x->root,dir,previous,old,old_n))rc=-1;
-            }
+/* Serialises d, checks it as a reader would with the files in place, and publishes it as dir/json
+   (profile.json when json is ""), copying the current file to profile.previous.json first when
+   save_previous is set. 0 published, -3 when d is not a valid document (over 64 KiB, against section 5,
+   or its files do not check), -1 on an I/O or memory failure. */
+static int publish_document(struct ctx *x,const char *dir,const jv *d,const char *json,int save_previous){
+    size_t n,old_n;char logo[1024];jv *check;
+    char *text=xz_dj_json_write(d,XZ_DJ_JSON_PRETTY,&n);
+    if(!text)return -1;
+    struct xz_dj_json *p=n<=MAX_JSON?xz_dj_json_parse(text,n,XZ_DJ_JSON_PROFILE,&check):NULL;
+    int rc=!p?-3:xz_djp_check_document(x->root,dir,check,logo,NULL,NULL,x->buf);
+    rc=rc==-2?-1:rc?-3:0;
+    unsigned char *old=rc?NULL:malloc(MAX_JSON+1);
+    const char *name=json[0]?json:"profile.json";
+    if(!rc&&!old)rc=-1;
+    if(!rc&&json[0]&&save_previous){
+        if(rel_read(x->root,dir,json,MAX_JSON,old,&old_n)!=XZ_DJP_READ_OK)rc=-1;
+        else if(old_n!=n||memcmp(old,text,n)){
+            char previous[XZ_DJ_NAME_MAX];
+            if(xz_dj_fixed(x->root,dir,"profile.previous.json",previous))strcpy(previous,"profile.previous.json");
+            if(publish(x->root,dir,previous,old,old_n))rc=-1;
         }
-        if(!rc&&(publish(x->root,dir,json[0]?json:"profile.json",text,n)||rel_read(x->root,dir,json[0]?json:"profile.json",MAX_JSON,old,&old_n)!=XZ_DJP_READ_OK||old_n!=n||memcmp(old,text,n)))rc=-1;
     }
-    else if(!p||!old)rc=-1;
-    else rc=-3;
+    if(!rc&&(publish(x->root,dir,name,text,n)||rel_read(x->root,dir,name,MAX_JSON,old,&old_n)!=XZ_DJP_READ_OK||old_n!=n||memcmp(old,text,n)))rc=-1;
     xz_dj_json_free(p);free(text);free(old);return rc;
 }
 /* contract 0.2: the marker already in the old profile track's comment (an ID3v2.3/2.4 COMM frame),
@@ -832,10 +858,9 @@ struct moved { char id[XZ_DJ_ID_MAX]; char folder[XZ_DJ_NAME_MAX]; };
 /* Contract 0.2 and 0.3 for one old-store profile. 0 moved, 1 not moved (its assets do not check or the
    result would not be a valid document; it stays readable from the old store), -1 I/O error. */
 static int migrate_one(struct ctx *x,const struct xz_dj_profile *old,struct moved *out){
-    struct xz_dj_json *j=xz_dj_json_new(),*src=NULL;jv *o=NULL,*v;struct undo u;struct logo primary={0},alt={0};
+    struct xz_dj_json *j=xz_dj_json_new(),*src=NULL;jv *o=NULL,*v;struct undo u={0};struct logo *primary=calloc(1,sizeof(struct logo)),*alt=calloc(1,sizeof(struct logo));
     char dir[1024],used[24][XZ_DJ_NAME_MAX];int nused=0,result=1;uint64_t total=0;size_t n;
-    u.n=0;
-    if(!j)return -1;
+    if(!j||!primary||!alt){free(primary);free(alt);xz_dj_json_free(j);return -1;}
     int rc=xz_djp_confined_read(x->root,old->document_path,MAX_JSON,x->buf,&n);
     if(rc==XZ_DJP_READ_IO){result=-1;goto done;}
     if(rc!=XZ_DJP_READ_OK||!(src=xz_dj_json_parse((const char *)x->buf,n,0,&o))||o->type!=XZ_DJ_JOBJ)goto done;
@@ -854,9 +879,9 @@ static int migrate_one(struct ctx *x,const struct xz_dj_profile *old,struct move
     if(preferred&&preferred->type==XZ_DJ_JOBJ){
         rc=read_verified(x,preferred,"path",XZ_DJ_LOGO_MAX_BYTES,&data,&n);
         if(rc){result=rc<0?-1:1;goto done;}
-        if(logo_prepare(data,n,&primary))goto done;
-    }else if(logo_monogram(name,accent_of(o,NULL),&primary))goto done;
-    const char *primary_name=primary.png?"logo.png":"logo.jpg";
+        if(logo_prepare(data,n,primary))goto done;
+    }else if(logo_monogram(name,accent_of(o,NULL),primary))goto done;
+    const char *primary_name=primary->png?"logo.png":"logo.jpg";
     strcpy(used[nused++],primary_name);
     jv *d=xz_dj_json_value(j,XZ_DJ_JOBJ),*logos;char rev[64];
     put_text(j,d,"format","djprofile/1");put_text(j,d,"id",old->dj_id);
@@ -875,31 +900,31 @@ static int migrate_one(struct ctx *x,const struct xz_dj_profile *old,struct move
     }
     logos=put_array(j,d,"logos");
     static const char *const ref_known[]={"path","bytes","sha256","label","note"};
-    jv *entry=logo_entry(j,primary_name,primary.data,primary.n,"primary");
+    jv *entry=logo_entry(j,primary_name,primary->data,primary->n,"primary");
     if(preferred&&preferred->type==XZ_DJ_JOBJ){
         if((v=xz_dj_json_get(preferred,"label"))&&v->type==XZ_DJ_JSTR&&v->n){put_bytes(j,entry,"label",v->s,fit_bytes(v->s,v->n,160));if(v->n>160)LOST("preferred_logo");}
         if((v=xz_dj_json_get(preferred,"note"))&&v->type==XZ_DJ_JSTR&&v->n){put_bytes(j,entry,"note",v->s,fit_bytes(v->s,v->n,1024));if(v->n>1024)LOST("preferred_logo");}
         keep_unknown(j,entry,preferred,ref_known,5);
     }
-    xz_dj_json_push(logos,entry);total+=primary.n;
-    if(adopt&&keep_originals(x,j,logos,dir,&primary,NULL,used,&nused,&total,&u)){result=-1;goto done;}
-    if(put_file(x->root,dir,primary_name,primary.data,primary.n,0,&u,x->buf))goto done;
+    xz_dj_json_push(logos,entry);total+=primary->n;
+    if(adopt&&keep_originals(x,j,logos,dir,primary,NULL,used,&nused,&total,&u)){result=-1;goto done;}
+    if(put_file(x->root,dir,primary_name,primary->data,primary->n,0,&u,x->buf))goto done;
     const jv *secondary=xz_dj_json_get(o,"secondary_logos");
     for(const jv *s=secondary&&secondary->type==XZ_DJ_JARR?secondary->child:NULL;s;s=s->next){
         rc=read_verified(x,s,"path",XZ_DJ_LOGO_MAX_BYTES,&data,&n);
         if(rc){result=rc<0?-1:1;goto done;}
-        if(logo_prepare(data,n,&alt))goto done;
+        if(logo_prepare(data,n,alt))goto done;
         const char *path=text_of(xz_dj_json_get(s,"path")),*base=strrchr(path,'/')?strrchr(path,'/')+1:path;char want[XZ_DJ_NAME_MAX],file[XZ_DJ_NAME_MAX];
         snprintf(want,sizeof(want),"%s",base);
-        if(alt.png&&!ends_with_fold(want,".png")){char *dot=strrchr(want,'.');if(dot)*dot=0;if(strlen(want)<200)strcat(want,".png");}
-        if(logos->count>=8||total+alt.n>MAX_TOTAL_LOGO_BYTES||asset_name(x->root,dir,want,alt.data,alt.n,used,nused,file,x->buf)||
-           put_file(x->root,dir,file,alt.data,alt.n,0,&u,x->buf))goto done;
-        strcpy(used[nused++],file);total+=alt.n;
-        entry=logo_entry(j,file,alt.data,alt.n,"alternate");
+        if(alt->png&&!ends_with_fold(want,".png")){char *dot=strrchr(want,'.');if(dot)*dot=0;if(strlen(want)<200)strcat(want,".png");}
+        if(logos->count>=8||total+alt->n>MAX_TOTAL_LOGO_BYTES||asset_name(x->root,dir,want,alt->data,alt->n,used,nused,file,x->buf)||
+           put_file(x->root,dir,file,alt->data,alt->n,0,&u,x->buf))goto done;
+        strcpy(used[nused++],file);total+=alt->n;
+        entry=logo_entry(j,file,alt->data,alt->n,"alternate");
         if((v=xz_dj_json_get(s,"label"))&&v->type==XZ_DJ_JSTR&&v->n){put_bytes(j,entry,"label",v->s,fit_bytes(v->s,v->n,160));if(v->n>160)LOST("secondary_logos");}
         if((v=xz_dj_json_get(s,"note"))&&v->type==XZ_DJ_JSTR&&v->n){put_bytes(j,entry,"note",v->s,fit_bytes(v->s,v->n,1024));if(v->n>1024)LOST("secondary_logos");}
         keep_unknown(j,entry,s,ref_known,5);
-        xz_dj_json_push(logos,entry);logo_free(&alt);
+        xz_dj_json_push(logos,entry);logo_free(alt);
     }
     jv *links=xz_dj_json_value(j,XZ_DJ_JARR);
     if((v=xz_dj_json_get(o,"page_url"))&&v->type==XZ_DJ_JSTR){
@@ -926,7 +951,7 @@ static int migrate_one(struct ctx *x,const struct xz_dj_profile *old,struct move
         strcpy(used[nused++],file);
         entry=tile_entry(j,file,data);keep_unknown(j,entry,xz_tile,tile_known,6);
         xz_dj_json_push(put_array(j,d,"renditions"),entry);free(data);
-    }else if(primary.has_tile&&add_tile(x,j,d,dir,primary.tile,used,&nused,&u))goto done;
+    }else if(primary->has_tile&&add_tile(x,j,d,dir,primary->tile,used,&nused,&u))goto done;
     /* profile_track: {marker} with the marker the old MP3 carries; the MP3 itself stays in the old store. */
     const jv *track=xz_dj_json_get(o,"profile_track");char mark[200];
     if(track&&track->type==XZ_DJ_JOBJ){
@@ -945,8 +970,8 @@ static int migrate_one(struct ctx *x,const struct xz_dj_profile *old,struct move
     snprintf(out->id,sizeof(out->id),"%s",old->dj_id);snprintf(out->folder,sizeof(out->folder),"%s",strchr(dir,'/')+1);
     result=0;
 done:
-    if(result)undo_all(&u);
-    logo_free(&primary);logo_free(&alt);xz_dj_json_free(src);xz_dj_json_free(j);
+    if(result)undo_all(&u);else undo_keep(&u);
+    logo_free(primary);logo_free(alt);free(primary);free(alt);xz_dj_json_free(src);xz_dj_json_free(j);
     return result;
 }
 /* Contract 0.3: any write on a stick that still has old-store profiles first moves all of them to profile
@@ -959,6 +984,8 @@ static int migrate(struct ctx *x){
     struct moved moved[XZ_DJ_MAX_PROFILES+1];int nmoved=0;
     char active[XZ_DJ_ID_MAX+XZ_DJ_NAME_MAX]="";
     if(x->s.list.active>=0)snprintf(active,sizeof(active),"%s",xz_dj_profile_ref(&x->s.list.profile[x->s.list.active]));
+    /* DJPROFILE.json names profile folders only: an old profile that does not move stays named by the old index. */
+    int active_old=x->s.list.active>=0&&x->s.list.profile[x->s.list.active].kind==XZ_DJ_OLD;
     struct { char folder[XZ_DJ_NAME_MAX], id[XZ_DJ_ID_MAX]; } before[XZ_DJ_MAX_PROFILES];int nbefore=0;
     for(int i=0;i<x->s.shown;i++){
         const struct xz_djp_folder *f=&x->s.folder[x->s.order[i]];
@@ -990,7 +1017,7 @@ static int migrate(struct ctx *x){
         jv *e=entry_of(old,moved[i].id,moved[i].folder);
         if(e){xz_dj_json_unlink(old,e);put_text(j,e,"folder",moved[i].folder);put_text(j,e,"id",moved[i].id);}else e=new_entry(j,moved[i].folder,moved[i].id);
         xz_dj_json_push(profiles,e);
-        if(!strcmp(active,moved[i].id)||same_key(active,moved[i].folder))memcpy(active,moved[i].id,strlen(moved[i].id)+1);
+        if(!strcmp(active,moved[i].id)||same_key(active,moved[i].folder)){memcpy(active,moved[i].id,strlen(moved[i].id)+1);active_old=0;}
     }
     for(int i=0;i<nbefore&&profiles->count<XZ_DJ_MAX_PROFILES;i++){
         int adopted=0;
@@ -1001,7 +1028,7 @@ static int migrate(struct ctx *x){
         xz_dj_json_push(profiles,e);
     }
     xz_dj_json_put(j,tree,"profiles",profiles);
-    if(*active)put_text(j,tree,"active",active);
+    if(*active&&!active_old)put_text(j,tree,"active",active);
     int rc=write_stick(x,j,tree);
     xz_dj_json_free(j);
     return rc||rescan(x)?-1:0;
@@ -1009,6 +1036,41 @@ static int migrate(struct ctx *x){
 
 /* --- device saves --- */
 static enum xz_dj_write_result image_failure(enum xz_dj_image_result r){return r==XZ_DJ_IMAGE_NO_MEMORY?XZ_DJ_WRITE_IO:XZ_DJ_WRITE_IMAGE;}
+/* Section 5.1 limits over every logo the document lists: 8 entries, 24 MiB. */
+static int logos_fit(const jv *logos){
+    uint64_t total=0;int64_t b;
+    for(const jv *e=logos?logos->child:NULL;e;e=e->next)if(!xz_dj_json_whole(xz_dj_json_get(e,"bytes"),&b)&&b>0)total+=(uint64_t)b;
+    return total<=MAX_TOTAL_LOGO_BYTES&&(!logos||logos->count<=8);
+}
+/* The ref a stick file may name as active: a profile folder's, never an old-store profile's. */
+static const char *active_ref(const struct xz_djp_scan *s){
+    const struct xz_dj_profile *p=s->list.active>=0?&s->list.profile[s->list.active]:NULL;
+    return p&&p->kind!=XZ_DJ_OLD?xz_dj_profile_ref(p):NULL;
+}
+/* What survives of a profile.json the reader could not use (a logo that no longer matches, a broken
+   member): its id for life, and the members that do not name files. */
+static jv *salvage(struct xz_dj_json *j,const char *root,const struct xz_djp_folder *t,unsigned char *buf){
+    size_t n;jv *old;struct xz_dj_json *p;
+    if(!t->json[0]||rel_read(root,t->c.dir,t->json,MAX_JSON,buf,&n)!=XZ_DJP_READ_OK||!(p=xz_dj_json_parse((const char *)buf,n,0,&old)))return NULL;
+    const jv *id=xz_dj_json_get(old,"id");jv *d=NULL;
+    if(old->type==XZ_DJ_JOBJ&&xz_dj_json_is(xz_dj_json_get(old,"format"),"djprofile/1")&&id&&id->type==XZ_DJ_JSTR&&id->n&&id->n<=128&&
+       strspn(id->s,"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")==id->n&&(d=xz_dj_json_copy(j,old))){
+        xz_dj_json_remove(d,"logos");xz_dj_json_remove(d,"renditions");
+        jv *track=xz_dj_json_get(d,"track");
+        if(track){xz_dj_json_remove(track,"file");xz_dj_json_remove(track,"bytes");xz_dj_json_remove(track,"sha256");}
+        whole_numbers(d);
+    }
+    xz_dj_json_free(p);return d;
+}
+/* Only the members this writer checks itself, when a salvaged document still does not pass. */
+static void strip_to_known(jv *d){
+    static const char *const known[]={"format","id","revision","name","tagline","accent","logos","renditions"};
+    for(jv *m=d->child,*next;m;m=next){
+        next=m->next;int keep=0;
+        for(size_t k=0;k<sizeof(known)/sizeof(known[0]);k++)if(m->key&&!strcmp(m->key,known[k]))keep=1;
+        if(!keep)xz_dj_json_unlink(d,m);
+    }
+}
 enum xz_dj_write_result xz_dj_profile_write(const char *root,const struct xz_dj_draft *draft,char *out_dj_id){
     if(out_dj_id)*out_dj_id=0;
     if(!root||!*root||!draft||!bounded(draft->dj_id,sizeof(draft->dj_id))||!bounded(draft->name,sizeof(draft->name))||!bounded(draft->folder,sizeof(draft->folder))||
@@ -1019,35 +1081,42 @@ enum xz_dj_write_result xz_dj_profile_write(const char *root,const struct xz_dj_
     if(*draft->logo&&(draft->remove_logo||draft->logo[0]!='/'))return XZ_DJ_WRITE_INVALID;
     struct stat st;
     if(stat(root,&st)||!S_ISDIR(st.st_mode))return XZ_DJ_WRITE_IO;
+    struct ctx *x=calloc(1,sizeof(*x));struct logo *fresh=calloc(1,sizeof(*fresh)),*kept=calloc(1,sizeof(*kept));
+    struct xz_dj_json *j=xz_dj_json_new(),*base_tree=NULL;struct undo u={0};
+    enum xz_dj_write_result result=XZ_DJ_WRITE_IO;
+    char dir[1024],folder[XZ_DJ_NAME_MAX],id[XZ_DJ_ID_MAX],rev[64],used[24][XZ_DJ_NAME_MAX],json[XZ_DJ_NAME_MAX]="";
+    int nused=0,save_previous=0,salvaged=0;unsigned char *data=NULL;size_t n;uint64_t ignored=0;
+    if(!x||!fresh||!kept||!j)goto done;
     /* A new logo is read before anything is written. */
-    struct logo fresh={0};unsigned char *data=NULL;size_t n;
     if(*draft->logo){
         enum xz_dj_image_result image=read_image(draft->logo,&data,&n);
-        if(image==XZ_DJ_IMAGE_OK)image=logo_prepare(data,n,&fresh);
+        if(image==XZ_DJ_IMAGE_OK)image=logo_prepare(data,n,fresh);
         else free(data);
-        if(image!=XZ_DJ_IMAGE_OK)return image_failure(image);
+        data=NULL;
+        if(image!=XZ_DJ_IMAGE_OK){result=image_failure(image);goto done;}
     }
-    struct ctx x;struct xz_dj_json *j=xz_dj_json_new(),*base_tree=NULL;struct undo u;u.n=0;
-    enum xz_dj_write_result result=XZ_DJ_WRITE_IO;
-    char dir[1024],folder[XZ_DJ_NAME_MAX],id[XZ_DJ_ID_MAX],rev[64],used[24][XZ_DJ_NAME_MAX],json[XZ_DJ_NAME_MAX]="";int nused=0,json_valid=0;
-    struct logo kept={0};
-    if(!j||ctx_open(&x,root)||migrate(&x))goto done;
-    /* The profile being written: by id, else by folder, else a new one. */
+    if(ctx_open(x,root)||migrate(x))goto done;
+    /* The profile being written: by id (the one shown first), else by folder, else a new one. */
     const struct xz_djp_folder *t=NULL;
-    for(int i=0;i<x.s.folders&&!t&&*draft->dj_id;i++)if(x.s.folder[i].level==1&&!strcmp(x.s.folder[i].view.dj_id,draft->dj_id))t=&x.s.folder[i];
+    for(int i=0;i<x->s.shown&&!t&&*draft->dj_id;i++){const struct xz_djp_folder *f=&x->s.folder[x->s.order[i]];if(f->level==1&&!strcmp(f->view.dj_id,draft->dj_id))t=f;}
+    for(int i=0;i<x->s.folders&&!t&&*draft->dj_id;i++)if(x->s.folder[i].level==1&&!strcmp(x->s.folder[i].view.dj_id,draft->dj_id))t=&x->s.folder[i];
     if(*draft->dj_id&&!t){result=XZ_DJ_WRITE_CHANGED;goto done;}
-    for(int i=0;i<x.s.folders&&!t&&*draft->folder;i++)if(!strcmp(x.s.folder[i].c.dir,draft->folder))t=&x.s.folder[i];
+    for(int i=0;i<x->s.folders&&!t&&*draft->folder;i++)if(!strcmp(x->s.folder[i].c.dir,draft->folder))t=&x->s.folder[i];
     if(*draft->folder&&!t){result=XZ_DJ_WRITE_CHANGED;goto done;}
     int shown=0;
-    for(int i=0;i<x.s.shown;i++)if(&x.s.folder[x.s.order[i]]==t)shown=1;
-    if(!shown&&x.s.shown>=XZ_DJ_MAX_PROFILES){result=XZ_DJ_WRITE_FULL;goto done;}
+    for(int i=0;i<x->s.shown;i++)if(&x->s.folder[x->s.order[i]]==t)shown=1;
+    if(!shown&&x->s.shown>=XZ_DJ_MAX_PROFILES){result=XZ_DJ_WRITE_FULL;goto done;}
     /* The document it replaces, kept member by member. */
     jv *d=NULL,*base=NULL;
     if(t&&t->level==1){
-        if(rel_read(root,t->c.dir,t->used,MAX_JSON,x.buf,&n)!=XZ_DJP_READ_OK||!(base_tree=xz_dj_json_parse((const char *)x.buf,n,XZ_DJ_JSON_PROFILE,&base)))goto done;
+        if(rel_read(root,t->c.dir,t->used,MAX_JSON,x->buf,&n)!=XZ_DJP_READ_OK||!(base_tree=xz_dj_json_parse((const char *)x->buf,n,XZ_DJ_JSON_PROFILE,&base)))goto done;
         d=xz_dj_json_copy(j,base);
+    }else if(t&&(d=salvage(j,root,t,x->buf)))salvaged=1;
+    if(t){
+        snprintf(json,sizeof(json),"%s",t->json);
+        /* A good profile.previous.json is never replaced by a profile.json the reader could not use. */
+        save_previous=t->json[0]&&!(t->level==1&&strcmp(t->used,t->json));
     }
-    if(t){snprintf(json,sizeof(json),"%s",t->json);json_valid=t->json_valid;}
     if(!d){
         char made[37];uuid4(made);d=xz_dj_json_value(j,XZ_DJ_JOBJ);
         put_text(j,d,"format","djprofile/1");put_text(j,d,"id",made);put_text(j,d,"revision","");put_text(j,d,"name","");
@@ -1063,30 +1132,31 @@ enum xz_dj_write_result xz_dj_profile_write(const char *root,const struct xz_dj_
     if(t)snprintf(dir,sizeof(dir),"%s",t->c.dir);
     else{
         char path[4096];
-        if(home(&x,top)||unique_folder(&x,top,draft->name,NULL,folder)||cat(dir,sizeof(dir),top,folder)||join(path,root,dir)||mkdir(path,0755))goto done;
+        if(home(x,top)||unique_folder(x,top,draft->name,NULL,folder)||cat(dir,sizeof(dir),top,folder)||join(path,root,dir)||mkdir(path,0755))goto done;
         undo_add(&u,path,NULL,1);
     }
     /* Logos. */
     jv *logos=xz_dj_json_get(d,"logos"),*primary_entry=NULL;
     for(jv *e=logos?logos->child:NULL;e;e=e->next)if(xz_dj_json_is(xz_dj_json_get(e,"role"),"primary"))primary_entry=e;
-    uint64_t total=0;const struct logo *change=NULL;
-    if(*draft->logo)change=&fresh;
-    else if(draft->remove_logo||!t||t->level<0){
-        if(logo_monogram(draft->name,accent_of(d,draft->accent),&kept))goto done;
-        change=&kept;
+    const struct logo *change=NULL;
+    if(*draft->logo)change=fresh;
+    else if(draft->remove_logo||!t||t->level<0||(!primary_entry&&!t->view.logo_path[0])){
+        if(logo_monogram(draft->name,accent_of(d,draft->accent),kept))goto done;
+        change=kept;
     }else if(!primary_entry){
         /* Level 0, or a document without logos: the folder's own logo becomes the primary logo. */
         const char *file=t->view.logo_path+strlen(t->c.dir)+1;
-        if(rel_read(root,t->c.dir,file,XZ_DJ_LOGO_MAX_BYTES,x.buf,&n)!=XZ_DJP_READ_OK||!(data=malloc(n)))goto done;
-        memcpy(data,x.buf,n);
-        if(logo_prepare(data,n,&kept)){result=XZ_DJ_WRITE_IMAGE;goto done;}
-        change=&kept;
+        if(rel_read(root,t->c.dir,file,XZ_DJ_LOGO_MAX_BYTES,x->buf,&n)!=XZ_DJP_READ_OK||!(data=malloc(n?n:1)))goto done;
+        memcpy(data,x->buf,n);
+        enum xz_dj_image_result image=logo_prepare(data,n,kept);data=NULL;
+        if(image){result=image_failure(image);goto done;}
+        change=kept;
     }
     if(change){
         char name[XZ_DJ_NAME_MAX];snprintf(name,sizeof(name),"%s",change->png?"logo.png":"logo.jpg");
         /* The stick's own spelling of an identical file (Logo.PNG on a case-sensitive file system). */
         char spelled[XZ_DJ_NAME_MAX];
-        if(!xz_dj_fixed(root,dir,name,spelled)&&holds(root,dir,spelled,change->data,change->n,x.buf))snprintf(name,sizeof(name),"%s",spelled);
+        if(!xz_dj_fixed(root,dir,name,spelled)&&holds(root,dir,spelled,change->data,change->n,x->buf))snprintf(name,sizeof(name),"%s",spelled);
         if(!logos)logos=put_array(j,d,"logos");
         if(!primary_entry){primary_entry=xz_dj_json_value(j,XZ_DJ_JOBJ);xz_dj_json_push_front(logos,primary_entry);put_text(j,primary_entry,"role","primary");}
         char digest[65];sha_hex(change->data,change->n,digest);
@@ -1101,12 +1171,24 @@ enum xz_dj_write_result xz_dj_profile_write(const char *root,const struct xz_dj_
         for(jv *e=logos->child;e;e=e->next)if(e!=primary_entry&&xz_dj_json_get(e,"file")&&nused<20)snprintf(used[nused++],XZ_DJ_NAME_MAX,"%s",text_of(xz_dj_json_get(e,"file")));
         if(!same){
             /* A logo file this profile never listed is the DJ's: it moves aside, it is not overwritten. */
-            if(t&&keep_originals(&x,j,logos,dir,change,base,used,&nused,&total,&u))goto done;
-            if(put_file(root,dir,name,change->data,change->n,1,&u,x.buf))goto done;
+            if(t&&keep_originals(x,j,logos,dir,change,base,used,&nused,&ignored,&u))goto done;
+            /* An alternate the document lists under the primary's name moves to a name of its own. */
+            for(jv *e=logos->child;e;e=e->next){
+                const char *file=text_of(xz_dj_json_get(e,"file"));char aside[XZ_DJ_NAME_MAX],from[4096],to[4096];
+                if(e==primary_entry||!xz_dj_fold_equal(file,name))continue;
+                if(rel_read(root,dir,file,XZ_DJ_LOGO_MAX_BYTES,x->buf,&n)!=XZ_DJP_READ_OK||!(data=malloc(n?n:1)))goto done;
+                memcpy(data,x->buf,n);
+                int bad=asset_name(root,dir,file,data,n,used,nused,aside,x->buf)||rel_path(from,root,dir,file)||rel_path(to,root,dir,aside)||rename(from,to);
+                free(data);data=NULL;
+                if(bad)goto done;
+                undo_add(&u,to,from,0);put_text(j,e,"file",aside);
+                if(nused<24)strcpy(used[nused++],aside);
+            }
+            if(!logos_fit(logos)){result=XZ_DJ_WRITE_INVALID;goto done;}
+            if(put_file(root,dir,name,change->data,change->n,1,&u,x->buf))goto done;
         }
     }
-    for(const jv *e=logos?logos->child:NULL;e;e=e->next){int64_t b;if(!xz_dj_json_whole(xz_dj_json_get(e,"bytes"),&b))total+=(uint64_t)b;}
-    if(total>MAX_TOTAL_LOGO_BYTES||(logos&&logos->count>8)){result=XZ_DJ_WRITE_INVALID;goto done;}
+    if(!logos_fit(logos)){result=XZ_DJ_WRITE_INVALID;goto done;}
     /* The tile the MODS header draws from; one the reader could not use is replaced. */
     jv *renditions=xz_dj_json_get(d,"renditions");
     if(!change&&tile_listed(d)&&!(t&&t->level==1&&t->view.has_thumb))
@@ -1118,14 +1200,19 @@ enum xz_dj_write_result xz_dj_profile_write(const char *root,const struct xz_dj_
         const struct logo *source=change;
         if(!source){
             const char *file=text_of(xz_dj_json_get(primary_entry,"file"));
-            if(rel_read(root,dir,file,XZ_DJ_LOGO_MAX_BYTES,x.buf,&n)==XZ_DJP_READ_OK&&(data=malloc(n))){memcpy(data,x.buf,n);if(!logo_prepare(data,n,&kept))source=&kept;}
+            if(rel_read(root,dir,file,XZ_DJ_LOGO_MAX_BYTES,x->buf,&n)==XZ_DJP_READ_OK&&(data=malloc(n?n:1))){
+                memcpy(data,x->buf,n);
+                if(!logo_prepare(data,n,kept))source=kept;
+                data=NULL;
+            }
         }
         for(const jv *e=xz_dj_json_get(d,"renditions")?xz_dj_json_get(d,"renditions")->child:NULL;e&&nused<20;e=e->next)snprintf(used[nused++],XZ_DJ_NAME_MAX,"%s",text_of(xz_dj_json_get(e,"file")));
-        if(source&&source->has_tile&&add_tile(&x,j,d,dir,source->tile,used,&nused,&u))goto done;
+        if(source&&source->has_tile&&add_tile(x,j,d,dir,source->tile,used,&nused,&u))goto done;
     }
     /* A track copy names the DJ in its tags: after a rename it no longer matches, so only the marker stays. */
     jv *track=xz_dj_json_get(d,"track");
     if(track&&renamed&&xz_dj_json_get(track,"file")){xz_dj_json_remove(track,"file");xz_dj_json_remove(track,"bytes");xz_dj_json_remove(track,"sha256");}
+    if(u.full)goto done;
     /* Nothing to do when the document is what the stick holds. */
     if(base){
         put_text(j,d,"revision",text_of(xz_dj_json_get(base,"revision")));
@@ -1133,39 +1220,43 @@ enum xz_dj_write_result xz_dj_profile_write(const char *root,const struct xz_dj_
     }
     new_revision(rev);put_text(j,d,"revision",rev);
     if(xz_dj_json_failed(j))goto done;
-    int published=publish_document(&x,dir,d,json,json_valid);
+    int published=publish_document(x,dir,d,json,save_previous);
+    if(published==-3&&salvaged){strip_to_known(d);published=publish_document(x,dir,d,json,save_previous);}
     if(published==-3){result=XZ_DJ_WRITE_INVALID;goto done;}
     if(published)goto done;
-    u.n=0;
-    /* The folder follows the name (section 7), then the files the old document listed and this one does not go. */
-stick:;
+    /* The folder follows the name (section 7), then DJPROFILE.json, then the files the old document listed
+       and this one does not go. */
+stick:
+    undo_keep(&u);
     char old_folder[XZ_DJ_NAME_MAX];snprintf(old_folder,sizeof(old_folder),"%s",strchr(dir,'/')+1);
     snprintf(folder,sizeof(folder),"%s",old_folder);
     if(t&&renamed){
         char top_of[XZ_DJ_NAME_MAX];snprintf(top_of,sizeof(top_of),"%.*s",(int)(strchr(dir,'/')-dir),dir);
-        if(!unique_folder(&x,top_of,draft->name,t,folder)&&strcmp(folder,old_folder)){
+        if(!unique_folder(x,top_of,draft->name,t,folder)&&strcmp(folder,old_folder)){
             char from[4096],to[4096],moved[1024];
             if(cat(moved,sizeof(moved),top_of,folder)||join(from,root,dir)||join(to,root,moved)||rename(from,to))snprintf(folder,sizeof(folder),"%s",old_folder);
             else{char parent[4096];snprintf(dir,sizeof(dir),"%s",moved);if(!join(parent,root,top_of))fsync_dir(parent);}
         }
     }
     {
-        struct xz_dj_json *sj=xz_dj_json_new();jv *tree=sj?stick_tree(&x,sj):NULL;
+        struct xz_dj_json *sj=xz_dj_json_new();jv *tree=sj?stick_tree(x,sj):NULL;
         if(!tree){xz_dj_json_free(sj);goto done;}
-        int had=x.s.stick_file[0]!=0,changed=0;
+        int had=x->s.stick_file[0]!=0,changed=0;
         jv *profiles=xz_dj_json_get(tree,"profiles");
-        if(!profiles||profiles->type!=XZ_DJ_JARR){profiles=profiles_of(&x,sj,tree);changed=1;}
+        if(!profiles||profiles->type!=XZ_DJ_JARR){profiles=profiles_of(x,sj,tree);changed=1;}
         jv *e=entry_of(profiles,t&&t->level==1?id:NULL,old_folder);
         if(!e&&profiles->count<XZ_DJ_MAX_PROFILES){xz_dj_json_push(profiles,e=new_entry(sj,folder,id));changed=1;}
         if(e&&(!xz_dj_json_is(xz_dj_json_get(e,"folder"),folder)||!xz_dj_json_is(xz_dj_json_get(e,"id"),id))){put_text(sj,e,"folder",folder);put_text(sj,e,"id",id);changed=1;}
         const jv *active=xz_dj_json_get(tree,"active");
         if(!active||active->type!=XZ_DJ_JSTR){
-            const char *current=x.s.list.active>=0?xz_dj_profile_ref(&x.s.list.profile[x.s.list.active]):id;
-            put_text(sj,tree,"active",t&&x.s.list.active>=0&&!strcmp(x.s.list.profile[x.s.list.active].dir,t->c.dir)?id:current);changed=1;
+            /* Section 6: set only when there was none, to the profile the stick showed as active. */
+            const char *current=active_ref(&x->s);
+            int was_this=t&&x->s.list.active>=0&&!strcmp(x->s.list.profile[x->s.list.active].dir,t->c.dir);
+            put_text(sj,tree,"active",was_this||!current?id:current);changed=1;
         }else if(t&&!xz_dj_json_is(active,id)&&same_key(active->s,old_folder)){put_text(sj,tree,"active",id);changed=1;}
-        int wrote=changed||!had?write_stick(&x,sj,tree):0;
-        if(wrote){xz_dj_json_free(sj);result=wrote==-2?XZ_DJ_WRITE_CHANGED:XZ_DJ_WRITE_IO;goto done;}
+        int wrote=changed||!had?write_stick(x,sj,tree):0;
         xz_dj_json_free(sj);
+        if(wrote){result=wrote==-2?XZ_DJ_WRITE_CHANGED:XZ_DJ_WRITE_IO;goto done;}
     }
     if(base&&result!=XZ_DJ_WRITE_OK){
         const char *before[24],*now[24];int nb=listed(base,before),nn=listed(d,now);
@@ -1179,28 +1270,35 @@ stick:;
     result=XZ_DJ_WRITE_OK;
 done:
     undo_all(&u);
-    logo_free(&fresh);logo_free(&kept);xz_dj_json_free(base_tree);xz_dj_json_free(j);ctx_close(&x);
+    if(fresh)logo_free(fresh);
+    if(kept)logo_free(kept);
+    if(x)ctx_close(x);
+    free(data);free(fresh);free(kept);free(x);xz_dj_json_free(base_tree);xz_dj_json_free(j);
     return result;
 }
 
 int xz_dj_stick_set_active(const char *root,const char *reference){
     if(!root||!*root||!reference||!*reference||strlen(reference)>=XZ_DJ_NAME_MAX)return -1;
-    struct ctx x;int result=-1;struct xz_dj_json *j=NULL;
-    if(ctx_open(&x,root)||migrate(&x))goto done;
-    int i=xz_djp_resolve(&x.s.list,reference,strlen(reference));
+    struct ctx *x=calloc(1,sizeof(*x));int result=-1;struct xz_dj_json *j=NULL;
+    if(!x||ctx_open(x,root)||migrate(x))goto done;
+    int i=xz_djp_resolve(&x->s.list,reference,strlen(reference));
     if(i<0)goto done;
-    if(i==x.s.list.active){result=1;goto done;}
-    const struct xz_dj_profile *p=&x.s.list.profile[i];
-    jv *tree=(j=xz_dj_json_new())?stick_tree(&x,j):NULL;
+    if(i==x->s.list.active){result=1;goto done;}
+    const struct xz_dj_profile *p=&x->s.list.profile[i];
+    jv *tree=(j=xz_dj_json_new())?stick_tree(x,j):NULL;
     if(!tree)goto done;
-    if(!x.s.stick_file[0])profiles_of(&x,j,tree);
-    put_text(j,tree,"active",xz_dj_profile_ref(p));
-    if(write_stick(&x,j,tree))goto done;
+    if(!x->s.stick_file[0])profiles_of(x,j,tree);
+    /* An old-store profile that could not move is named by the old index alone (section 6 names folders). */
+    if(p->kind==XZ_DJ_OLD)xz_dj_json_remove(tree,"active");
+    else put_text(j,tree,"active",xz_dj_profile_ref(p));
+    if((x->s.stick_file[0]||p->kind!=XZ_DJ_OLD)&&write_stick(x,j,tree))goto done;
     /* Contract 0.3 step 5: an older runtime reads the old index. */
-    if(p->kind!=XZ_DJ_LEVEL0&&x.s.old_index_valid&&xz_djp_old_index_set_active(root,p->dj_id)<0)goto done;
+    if(p->kind!=XZ_DJ_LEVEL0&&x->s.old_index_valid&&xz_djp_old_index_set_active(root,p->dj_id)<0)goto done;
     result=0;
 done:
-    xz_dj_json_free(j);ctx_close(&x);return result;
+    xz_dj_json_free(j);
+    if(x)ctx_close(x);
+    free(x);return result;
 }
 
 int xz_dj_draft_load(const char *root,const char *reference,struct xz_dj_draft *out){
