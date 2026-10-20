@@ -162,9 +162,13 @@ static void test_routing(void) {
   assert(key(LEFT, swallowed[i], 2).verdict == XZ_DS_SWALLOW);
   assert(key(RIGHT, swallowed[i], 0).verdict == XZ_DS_PASS && key(RIGHT, swallowed[i], 2).verdict == XZ_DS_PASS);
  }
- /* LOAD, TIME MODE and QUANTIZE at the global hook: taken on the switched side only. */
- assert(xz_deck_select_global_key(&d, 1, 0x430f, 0, now).verdict == XZ_DS_SWALLOW);
+ /* LOAD, TIME MODE and QUANTIZE at the global hook: taken on the switched side only. LOAD's press asks the
+    caller where it goes. */
+ o = xz_deck_select_global_key(&d, 1, 0x430f, 0, now);
+ assert(o.verdict == XZ_DS_LOAD && o.event.deck == LEFT && o.event.kind == XZ_EXTRA_IN_LOAD && o.event.pressed);
+ assert(xz_deck_select_global_key(&d, 1, 0x430f, 2, now).verdict == XZ_DS_SWALLOW);
  assert(xz_deck_select_global_key(&d, 2, 0x430f, 0, now).verdict == XZ_DS_PASS);
+ assert(xz_deck_select_global_key(&d, 2, 0x430f, 2, now).verdict == XZ_DS_PASS);
  assert(xz_deck_select_global_key(&d, 1, 0x430b, 2, now).verdict == XZ_DS_SWALLOW);
  /* Browse and the other global keys pass at the global hook, whatever the side. */
  assert(xz_deck_select_global_key(&d, 0, 0x4208, 0, now).verdict == XZ_DS_PASS);
@@ -314,6 +318,62 @@ static void test_decode_and_table(void) {
  assert(xz_ds_row_for(0x4119, &slot) && xz_ds_row_for(0x4120, &slot) && !xz_ds_row_for(0x4121 + 0x100, NULL));
 }
 
+/* LOAD on a switched side: the press asks, hold and release follow the answer, a native press keeps going
+   to stock, and SHORTCUT DECK SELECT switches as SHIFT twice does. */
+static void test_load_routes(void) {
+ static const enum xz_ds_load_route routes[] = {XZ_DS_LOAD_SWALLOW, XZ_DS_LOAD_SHELL, XZ_DS_LOAD_STOCK};
+ for(int r = 0; r < 3; r++) {
+  reset(1);
+  assert(double_press(RIGHT) && away(RIGHT));
+  struct xz_ds_outcome o = xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 0, now);
+  assert(o.verdict == XZ_DS_LOAD && o.event.deck == RIGHT);
+  xz_deck_select_load_route(&d, RIGHT, routes[r]);
+  enum xz_ds_verdict follow = routes[r] == XZ_DS_LOAD_STOCK ? XZ_DS_PASS : XZ_DS_SWALLOW;
+  assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 1, now).verdict == follow);
+  /* The other side's LOAD is its own contact. */
+  assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_LOAD, 0, now).verdict == XZ_DS_PASS);
+  assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_LOAD, 2, now).verdict == XZ_DS_PASS);
+  assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 2, now).verdict == follow);
+  /* After the release the contact is over: a stray release passes. */
+  assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 2, now).verdict == XZ_DS_PASS);
+ }
+ /* A route given with no LOAD down changes nothing. */
+ reset(1);
+ assert(double_press(LEFT));
+ xz_deck_select_load_route(&d, LEFT, XZ_DS_LOAD_STOCK);
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_LOAD, 0, now).verdict == XZ_DS_LOAD);
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_LOAD, 2, now).verdict == XZ_DS_SWALLOW);
+ /* A press that reached stock on the native deck keeps reaching stock, even if the side switches before
+    its release. */
+ reset(1);
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_LOAD, 0, now).verdict == XZ_DS_PASS);
+ xz_deck_select_toggle(&d, LEFT, NULL);
+ assert(away(LEFT));
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_LOAD, 1, now).verdict == XZ_DS_PASS);
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_LOAD, 2, now).verdict == XZ_DS_PASS);
+ /* LOAD reaching the PLAYER path on a switched side is still never stock's. */
+ assert(key(LEFT, XZ_DS_KEY_LOAD, 0).verdict == XZ_DS_SWALLOW);
+ /* SHORTCUT DECK SELECT. */
+ reset(1);
+ struct xz_ds_outcome o;
+ memset(&o, 0, sizeof o); xz_deck_select_toggle(&d, RIGHT, &o);
+ assert(o.toggled && !o.notice && away(RIGHT) && !away(LEFT));
+ memset(&o, 0, sizeof o); xz_deck_select_toggle(&d, RIGHT, &o);
+ assert(o.toggled && !away(RIGHT));
+ /* Tempo pickup follows the tile's switch as it follows SHIFT twice. */
+ fader(RIGHT, 0.5f);
+ xz_deck_select_toggle(&d, RIGHT, NULL);
+ assert(fader(RIGHT, 0.4f).verdict == XZ_DS_SWALLOW);
+ o = fader(RIGHT, -0.1f);
+ assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_TEMPO);
+ /* Route down: the notice, no switch. */
+ reset(0);
+ memset(&o, 0, sizeof o); xz_deck_select_toggle(&d, LEFT, &o);
+ assert(!o.toggled && o.notice == XZ_DS_NOTICE_NO_ROUTE && !away(LEFT));
+ xz_deck_select_toggle(&d, 2, &o); xz_deck_select_toggle(NULL, 0, &o);
+ puts("PASS LOAD routes on a switched side and SHORTCUT DECK SELECT");
+}
+
 int main(void) {
  test_double_press();
  test_slow_presses();
@@ -328,6 +388,7 @@ int main(void) {
  test_stock_unchanged();
  test_duplicate_edges();
  test_decode_and_table();
+ test_load_routes();
  puts("deck select: all checks passed");
  return 0;
 }
