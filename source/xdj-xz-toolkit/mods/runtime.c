@@ -14,6 +14,9 @@
 #include "deck_select.h"
 extern int xz_mods_takeover_v1(void);
 extern void xz_shell_runtime_notice(const char *text) __attribute__((weak));
+extern int xz_shell_runtime_owns(void) __attribute__((weak));
+/* classic_load.c: arms a one-shot divert of stock's next load for that side to DECK 3 / 4. 1 when armed. */
+extern int xz_classic_load_divert_arm(int side) __attribute__((weak));
 static int kart_display_ready(void) { return xz_sdk_host_foreground() && xz_mods_takeover_v1(); }
 #include <fcntl.h>
 #include <pthread.h>
@@ -255,9 +258,8 @@ static pthread_mutex_t deck_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int deck_outcome(const struct xz_ds_outcome *outcome, int left, int right, int available, uint16_t code) {
     xz_extra_decks_publish_sides(left, right);
     if (outcome->notice == XZ_DS_NOTICE_NO_ROUTE && available) {
-        static const char text[] = "DECK 3 AND 4 NEED THE CH3/CH4 ROUTE";
-        xz_log(text);
-        if (xz_shell_runtime_notice) xz_shell_runtime_notice(text);
+        xz_log(XZ_DS_NO_ROUTE_TEXT);
+        if (xz_shell_runtime_notice) xz_shell_runtime_notice(XZ_DS_NO_ROUTE_TEXT);
     }
     if (outcome->unknown_first) {
         char line[96];
@@ -291,7 +293,39 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
     struct xz_ds_outcome outcome = xz_deck_select_global_key(&deck_select, channel, code, operation, xz_game_milliseconds());
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
+    if (outcome.verdict == XZ_DS_LOAD) {
+        /* The interface on screen owns the browser cursor, so it decides where the track comes from. */
+        int side = outcome.event.deck;
+        enum xz_ds_load_route to = XZ_DS_LOAD_SWALLOW;
+        if (xz_shell_runtime_owns && xz_shell_runtime_owns()) to = XZ_DS_LOAD_SHELL;
+        else if (xz_classic_load_divert_arm && xz_classic_load_divert_arm(side)) to = XZ_DS_LOAD_STOCK;
+        pthread_mutex_lock(&deck_mutex);
+        xz_deck_select_load_route(&deck_select, side, to);
+        pthread_mutex_unlock(&deck_mutex);
+        xz_extra_decks_publish_sides(left, right);
+        if (to == XZ_DS_LOAD_SWALLOW) {
+            xz_log(XZ_DS_LOAD_REFUSED_TEXT);
+            if (xz_shell_runtime_notice) xz_shell_runtime_notice(XZ_DS_LOAD_REFUSED_TEXT);
+        }
+        return to == XZ_DS_LOAD_SHELL ? XZ_RUNTIME_KEY_SHELL_LOAD + side : to == XZ_DS_LOAD_SWALLOW;
+    }
     return deck_outcome(&outcome, left, right, route.available, code);
+}
+
+int xz_runtime_deck_select_toggle(int side) {
+    if (!installed || observer || side < 0 || side > 1) return -1;
+    struct xz_extra_route route = xz_extra_decks_route();
+    if (!route.available) return -1;
+    struct xz_ds_outcome outcome;
+    memset(&outcome, 0, sizeof(outcome));
+    pthread_mutex_lock(&deck_mutex);
+    xz_deck_select_route(&deck_select, route.route_up);
+    xz_deck_select_toggle(&deck_select, side, &outcome);
+    int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
+    pthread_mutex_unlock(&deck_mutex);
+    xz_extra_decks_publish_sides(left, right);
+    if (outcome.notice == XZ_DS_NOTICE_NO_ROUTE) { xz_log(XZ_DS_NO_ROUTE_TEXT); return 0; }
+    return outcome.toggled ? 1 : -1;
 }
 
 static int physical_key(void *self, const void *input) {
