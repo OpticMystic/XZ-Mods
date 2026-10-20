@@ -195,6 +195,9 @@ int xz_hook_arm(uint32_t address, const unsigned char expected[8],
     if(address==0x17c58c)guard=key_traffic_guard;
     static const unsigned char layered_wave_guard[8] = {0xf0,0x4f,0x2d,0xe9,0x80,0x52,0xa0,0xe1};
     if(address==0x1fab28)guard=layered_wave_guard;
+    /* Total_MainLoadMessageProc (classic LOAD into DECK 3/4): movw r3,#0x712; cmp r0,r3. No PC-relative operand. */
+    static const unsigned char total_load_guard[8]={0x12,0x37,0x00,0xe3,0x03,0x00,0x50,0xe1};
+    if(address==0xbe400)guard=total_load_guard;
     static const unsigned char pc_receive_guard[8]={0xf0,0x4f,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     static const unsigned char pc_wave_clear_guard[8]={0x03,0x00,0x50,0xe3,0xf0,0x41,0x2d,0xe9};
     static const unsigned char pc_wave_discard_guard[8]={0x03,0x00,0x50,0xe3,0xf0,0x47,0x2d,0xe9};
@@ -436,6 +439,7 @@ __attribute__((constructor)) static void start(void) {
     xz_key_runtime_observe(0);
     int key_ready = audio_ready && xz_key_runtime_start()==0;
     if (enabled("XZ_MODS_UI")) xz_ui_runtime_start(audio_ready, key_ready, 1);
+    { extern int xz_classic_load_start(void); if (xz_classic_load_start()) xz_log("Classic LOAD into DECK 3/4 unavailable: guard or hook slot refused"); }
 }
 
 __attribute__((destructor)) static void stop(void) {
