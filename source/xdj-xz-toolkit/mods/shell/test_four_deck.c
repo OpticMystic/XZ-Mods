@@ -6,6 +6,7 @@
    guard words. */
 #include "four_deck_fixtures.h"
 #include "browse_fixtures.h"
+#include "settings_fixtures.h"
 #include "shell_info.h"
 #include "shell_source.h"
 #include "shell_settings.h"
@@ -271,6 +272,102 @@ static void test_refusal(void) {
  puts("PASS decks past deck_count are refused");
 }
 
+/* The software players (DECK 3, 4): per-deck capabilities keep their controls dark, LOAD and needle
+   search answer, and SHORTCUT carries a DECK SELECT tile per side. */
+static void test_players(void) {
+ struct xz_shell u;struct xz_shell_model m,two;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ fx_model_four_players(&m,&track);
+ for(int d=0;d<4;d++){
+  xz_shell_init(&u);m.deck[d].playing=0;
+  struct xz_shell_rect ov=rect(&m,XZ_SHELL_R_OVERVIEW,d);
+  size_t n=tap(&u,&m,ov.x+ov.w/2,ov.y+ov.h/2,out);
+  assert(d>=2?n==1&&out[0].kind==XZ_SHELL_ACT_SEEK&&out[0].deck==d:n==0);
+ }
+ fx_model_four_players(&m,&track);
+ m.capabilities|=XZ_SHELL_CAP_TAG_TRACK|XZ_SHELL_CAP_GRID_EDIT;
+ for(int d=2;d<4;d++){
+  xz_shell_init(&u);
+  assert(tap_rect(&u,&m,rect(&m,XZ_SHELL_R_TIME,d),out)==0);
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_TIME_MODE,d,out)==0&&deck_key(&u,&m,XZ_SHELL_KEY_QUANTIZE,d,out)==0);
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_TAG_TRACK,d,out)==0);
+  u.deck=d;
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_TAG_TRACK,-1,out)==0);
+  struct xz_shell_event hold={XZ_SHELL_ENCODER_HOLD,0,0,0,0,-1};
+  xz_shell_input(&u,&m,&hold,out);assert(!u.grid_mode);
+  u.grid_mode=1;
+  struct xz_shell_event turn={XZ_SHELL_ENCODER_TURN,0,0,1,0,-1};
+  assert(xz_shell_input(&u,&m,&turn,out)==1&&out[0].kind==XZ_SHELL_ACT_ZOOM);
+  for(int g=0;g<3;g++){
+   size_t n=tap_rect(&u,&m,rect(&m,(enum xz_shell_play_region)(XZ_SHELL_R_GRID_RESET+g),d),out);
+   for(size_t i=0;i<n;i++)assert(out[i].kind!=XZ_SHELL_ACT_GRID_EDIT);
+  }
+  u.grid_mode=0;
+  /* The same keys still reach the native deck on that side. */
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_TIME_MODE,d-2,out)==1&&out[0].deck==d-2);
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_TAG_TRACK,d-2,out)==1&&out[0].kind==XZ_SHELL_ACT_TAG_TRACK&&out[0].deck==d-2);
+ }
+ /* Stem buttons stay dark on a player even with mute bits set. */
+ stems_on(&m);m.capabilities|=XZ_SHELL_CAP_STEM_GAIN;
+ for(int d=2;d<4;d++){
+  m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_GAIN);
+  assert(xz_shell_stem_button(&m,d,0).h==0);
+ }
+ render_both(&u,&m);
+ fx_model_four_players(&m,&track);
+ /* LOAD reaches every deck from the list. */
+ struct xz_shell_browse_model b;memset(&b,0,sizeof b);
+ static struct xz_shell_browse_row row;row.kind=XZ_SHELL_ROW_TRACK;row.id=42;
+ b.known=1u<<XZ_SHELL_BF_TOTAL;b.screen=XZ_SHELL_BROWSE;b.total=1;b.rows=&row;b.window_count=1;
+ m.browse=&b;m.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD;
+ for(int d=0;d<4;d++){
+  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,d,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==42);
+ }
+ /* A native deck without LOAD of its own hands the list to stock, as without the capability. */
+ m.deck[0].caps_off|=XZ_SHELL_CAP_LOAD;
+ xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
+ assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,0,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ render_both(&u,&m);
+ m.deck[0].caps_off&=~XZ_SHELL_CAP_LOAD;
+ /* DECK SELECT: a tile per side, only in a four-deck model with the capability. */
+ two=m;two.deck_count=2;
+ for(int side=0;side<2;side++){
+  struct xz_shell_rect t=xz_shell_shortcut_deck_select(&m,side),q=xz_shell_shortcut_quadrant(1);
+  assert(xz_shell_shortcut_deck_select(&two,side).w==0&&xz_shell_shortcut_deck_select(NULL,side).w==0);
+  assert(t.w>=60&&t.h>=30&&within(t,q));
+  for(int l=0;l<XZ_SHELL_LAMP_COUNT;l++){
+   struct xz_shell_rect a=xz_shell_shortcut_lamp(&m,side,l),plain=xz_shell_shortcut_lamp(&two,side,l),none=xz_shell_shortcut_lamp(NULL,side,l);
+   assert(within(a,q)&&!overlap(a,t)&&a.w<plain.w&&!memcmp(&plain,&none,sizeof plain));
+  }
+  for(int j=0;j<XZ_SHELL_JUMP_COUNT;j++)assert(!overlap(t,xz_shell_shortcut_jump(j)));
+  m.capabilities&=~XZ_SHELL_CAP_DECK_SELECT;assert(xz_shell_shortcut_deck_select(&m,side).w==0);
+  m.capabilities|=XZ_SHELL_CAP_DECK_SELECT;
+ }
+ m.settings_screen=fxs_reset();
+ for(int side=0;side<2;side++){
+  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_SHORTCUT,-1,out);
+  assert(xz_shell_screen(&u)==XZ_SHELL_SHORTCUT);
+  struct xz_shell_rect t=xz_shell_shortcut_deck_select(&m,side);
+  uint8_t sides=m.sides_extra;
+  /* The tile asks; the runtime publishes the switch in the next model. */
+  assert(tap_rect(&u,&m,t,out)==1&&out[0].kind==XZ_SHELL_ACT_DECK_SELECT&&out[0].deck==side&&m.sides_extra==sides);
+  /* A 44 px touch target. */
+  assert(tap(&u,&m,t.x+t.w/2,t.y-7,out)==1&&out[0].kind==XZ_SHELL_ACT_DECK_SELECT);
+  assert(tap(&u,&m,t.x+t.w/2,t.y+t.h+6,out)==1&&out[0].kind==XZ_SHELL_ACT_DECK_SELECT);
+  for(m.sides_extra=0;m.sides_extra<4;m.sides_extra++)render_both(&u,&m);
+  m.sides_extra=sides;
+ }
+ /* Without the capability that place answers nothing. */
+ m.capabilities&=~XZ_SHELL_CAP_DECK_SELECT;
+ {
+  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_SHORTCUT,-1,out);
+  struct xz_shell_rect plain=xz_shell_shortcut_lamp(&m,0,XZ_SHELL_LAMP_TIME);
+  size_t n=tap(&u,&m,plain.x+plain.w+20,plain.y+plain.h/2,out);
+  for(size_t i=0;i<n;i++)assert(out[i].kind!=XZ_SHELL_ACT_DECK_SELECT);
+ }
+ puts("PASS players: per-deck capabilities, LOAD and needle search, SHORTCUT DECK SELECT");
+}
+
 /* Only 4 means four decks; every other count draws and answers as two. */
 static void test_other_counts(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_action a[XZ_SHELL_ACTIONS],b[XZ_SHELL_ACTIONS];
@@ -324,11 +421,12 @@ static void test_frames(void) {
 int main(void) {
  fx_track_build(&track,7);
  bx_build(&lib);
- (void)bx_folders;
+ (void)bx_folders;(void)fxs_item;
  test_layout();
  test_deck_input();
  test_strips();
  test_refusal();
+ test_players();
  test_other_counts();
  test_frames();
  puts("PASS four decks");
