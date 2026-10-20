@@ -254,10 +254,11 @@ function renderAppUpdate(status){
 $('about-updates').onclick=()=>showPage('updates');
 $('review-app-update').onclick=()=>showPage('updates');
 $('open-licenses').onclick=async()=>{try{await invoke('open_licenses');}catch(error){showError(String(error),$('open-licenses'));}};
-$('check-app-update').onclick=async()=>{
+async function checkForAppUpdates(){
   if(updateChecking||appUpdating)return;updateChecking=true;$('available-notes').classList.add('hidden');renderAppUpdate({phase:'checking',message:'Checking for updates...'});
   try{renderAppUpdate(await invoke('check_app_update'));}catch(error){renderAppUpdate({phase:'error',message:String(error)});}finally{updateChecking=false;$('check-app-update').disabled=!invoke||appUpdating;}
-};
+}
+$('check-app-update').onclick=checkForAppUpdates;
 $('install-app-update').onclick=async()=>{
   if(activeJob!==null||appUpdating)return;appUpdating=true;busy(true);renderAppUpdate({phase:'downloading',message:'Downloading the installer...'});
   const timer=setInterval(async()=>{try{renderAppUpdate(await invoke('app_update_status'));}catch{}},400);
@@ -270,10 +271,14 @@ async function loadAppInformation(){
     const info=await invoke('app_information');document.querySelectorAll('[data-app-version]').forEach(item=>item.textContent=info.version);
     // The Mac build ships no signed updater files, so in-app update cannot work there; .win-only/.mac-only follow this.
     document.documentElement.dataset.platform=info.platform;
+    document.documentElement.dataset.updateChannel=info.update_channel||'stable';
+    $('update-channel-note').textContent=(info.update_channel==='beta'?'Beta channel. Checks for beta updates automatically at launch.':'Stable channel. Checks for updates automatically at launch.');
+    if(info.release_page)$('app-downloads').href=info.release_page;
+    if(info.portable_url)$('portable-downloads').href=info.portable_url;
     $('update-install-note').textContent=info.installed?'The Windows installer updates the app and reopens it when finished.':'You are using the portable app. Updating here installs the Windows version; it does not replace this portable folder. After installing, open XZ Mods from the desktop shortcut. To stay portable, download the current ZIP below and replace the old folder.';
     $('release-notes').replaceChildren();for(const release of info.release_notes.releases)renderReleaseNotes($('release-notes'),release,release.version);
     if(info.show_release_notes){showPage('updates');$('updated-message').classList.remove('hidden');await invoke('acknowledge_release_notes');}
-    if(info.platform!=='macos')$('check-app-update').click();
+    if(info.platform!=='macos')void checkForAppUpdates();
   }catch(error){$('update-status').textContent=String(error);}
 }
 loadAppInformation();

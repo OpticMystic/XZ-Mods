@@ -11,6 +11,8 @@ int xz_key_get_desired_semitones(int deck, int *semitones_out);
 /* Bind UI requests to the loaded output epoch. New tracks start at unity. */
 int xz_key_set_desired_cents(int deck, uint32_t epoch, int cents);
 int xz_key_get_desired_cents(int deck, uint32_t epoch, int *cents);
+/* Clear only the request owned by this Key Sync action; preserve newer/manual requests. */
+int xz_key_clear_desired_cents(int deck, uint32_t epoch, int expected_cents);
 /* Last pitch ratio actually processed for this loaded track; pending requests
  * and another track's proof must never change the displayed playing key. */
 int xz_key_get_applied_cents(int deck, uint32_t epoch, int *cents);

@@ -174,6 +174,15 @@ int main(void)
     assert(xz_key_get_desired_cents(0,generations[0],&desired)==0&&desired==0);
     fill(a,512,0.51f);memcpy(original_a,a,sizeof(a));
     assert(installed(&managers[0],1000,a,512,900)==1037&&!memcmp(a,original_a,sizeof(a)));
+    assert(xz_key_set_desired_cents(0,generations[0],200)==0);
+    assert(xz_key_clear_desired_cents(0,generations[0]-1,200)==-1);
+    assert(xz_key_clear_desired_cents(0,generations[0],100)==-1);
+    assert(xz_key_get_desired_cents(0,generations[0],&desired)==0&&desired==200);
+    assert(xz_key_clear_desired_cents(0,generations[0],200)==0);
+    assert(xz_key_get_desired_cents(0,generations[0],&desired)==0&&desired==0);
+    assert(xz_key_set_desired_cents(0,generations[0],300)==0);
+    assert(xz_key_clear_desired_cents(0,generations[0],200)==-1);
+    assert(xz_key_get_desired_cents(0,generations[0],&desired)==0&&desired==300);
     assert(xz_key_set_desired_cents(0,0,100)==-1&&xz_key_set_desired_cents(0,generations[0],1201)==-1);
     xz_key_runtime_stop();
     assert(xz_key_runtime_start()==0);
