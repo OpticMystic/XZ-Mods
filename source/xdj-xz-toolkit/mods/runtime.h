@@ -13,4 +13,7 @@ void xz_log(const char *message);
 int xz_runtime_set_cues(int gate, int smart);
 unsigned xz_runtime_cue_flags(void);
 int xz_runtime_beat_jump(int deck, int beats);
+/* IKeyManager::onKey hook, before the shell: SHIFT edges and the LOAD / TIME MODE / QUANTIZE keys of a
+   side driving DECK 3 / 4 (deck_select.h). 1: the key is taken; neither the shell nor stock sees it. */
+int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operation);
 #endif
