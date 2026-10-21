@@ -112,5 +112,7 @@ static const struct sh_help sh_help_table[]={
   {{"SHOW","The lamp sits above the deck's time."},{"HIDE","Only the QUANTIZE button's own light shows the state."}}},
  {XZ_SHELL_ITEM_BYPASS_BUTTON,"BYPASS BUTTON","The BYPASS button at the end of each deck's stem buttons: lit, the original track plays.",
   {{"SHOW","Touch it to hear the whole track; touch again for the stems as you left them."},{"HIDE","The stem buttons take its room."}}},
+  {XZ_SHELL_ITEM_WAVE_TITLES,"WAVEFORM TITLES","Track titles in the waveform lanes.",
+    {{"SHOW","Track titles above the waveforms, with beat markers behind them."},{"HIDE","The waveforms use the title space; bottom track titles stay visible."}}},
 };
 #endif

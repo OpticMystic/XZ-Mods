@@ -386,8 +386,8 @@ enum xz_shell_usb_colors { XZ_SHELL_USB_COLORS_ALL, XZ_SHELL_USB_COLORS_TILE, XZ
 /* Indicators of the stock play screen the DJ may hide (APPEARANCE; shown by default): MODE_LAMPS is the
    top bar's PLAY MODE, A. HOT CUE and A. CUE lamps (XZ_SHELL_ITEM_MODE_LAMPS), QUANTIZE each deck's
    QUANTIZE lamp and beat value (XZ_SHELL_ITEM_QUANTIZE_LAMP), BYPASS the stem rows' BYPASS button
-   (XZ_SHELL_ITEM_BYPASS_BUTTON). Hidden lamps and buttons also stop answering touch. */
-enum xz_shell_indicator { XZ_SHELL_IND_MODE_LAMPS, XZ_SHELL_IND_QUANTIZE, XZ_SHELL_IND_BYPASS, XZ_SHELL_INDICATORS };
+   (XZ_SHELL_ITEM_BYPASS_BUTTON), WAVE_TITLES the waveform track titles. Hidden lamps and buttons also stop answering touch. */
+enum xz_shell_indicator { XZ_SHELL_IND_MODE_LAMPS, XZ_SHELL_IND_QUANTIZE, XZ_SHELL_IND_BYPASS, XZ_SHELL_IND_WAVE_TITLES, XZ_SHELL_INDICATORS };
 struct xz_shell_display {
  enum xz_shell_wave_color wave_color;
  enum xz_shell_wave_position wave_position;

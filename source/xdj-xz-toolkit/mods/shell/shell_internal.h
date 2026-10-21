@@ -67,9 +67,16 @@ static inline int sh_play_active_deck(const struct xz_shell *u, const struct xz_
  return sh_play_deck_count(m)==2&&sh_deck_count(m)==4?sh_play_deck(m,deck&1):deck;
 }
 /* Physical control assignment is independent of the shell's browse/grid focus. */
-static inline const char *sh_control_side(const struct xz_shell_model *m, int deck) {
- if(sh_deck_count(m)!=4||!(m->capabilities&XZ_SHELL_CAP_DECK_SELECT)||(unsigned)deck>=4)return NULL;
- return deck==(deck&1)+2*((m->sides_extra>>(deck&1))&1)?((deck&1)?"RIGHT":"LEFT"):NULL;
+static inline int sh_control_active(const struct xz_shell_model *m, int deck) {
+ if(sh_deck_count(m)!=4||!(m->capabilities&XZ_SHELL_CAP_DECK_SELECT)||(unsigned)deck>=4)return 0;
+ return deck==(deck&1)+2*((m->sides_extra>>(deck&1))&1);
+}
+/* First circle: native 1/2. Second circle: software 3/4. A selected deck fills its circle. */
+static inline void sh_control_pair(struct xz_canvas c,int x,int y,int extra,uint32_t ink) {
+ for(int i=0;i<2;i++){
+  if(i==!!extra)xz_disc(c,x+4+i*12,y+4,4,ink);
+  else xz_ring(c,x+4+i*12,y+4,4,1,ink);
+ }
 }
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
 /* The model's capabilities this deck takes (xz_shell_deck.caps_off). */

@@ -357,7 +357,7 @@ static void refuse(void);
 static void save_display(int id, int value);
 /* MODS > APPEARANCE in the shell's own style: an item tab whose sets run the MODS panel's own actions. */
 enum { LOOK_TAB=3, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
-       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP, LOOK_BYPASS };
+       LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP, LOOK_BYPASS, LOOK_WAVE_TITLES };
 static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
 static const char *const look_interface[2]={"MODERN","CLASSIC"};
 _Static_assert(XZ_UI_MODERN_THEMES==1,"one modern theme name below");
@@ -367,13 +367,13 @@ static const char *const look_key_format[3]={"USB PREFERENCE","CLASSIC","WHEEL"}
 static const char *const look_off_on[2]={"OFF","ON"};
 static const char *const look_stem_color[9]={"THEME DEFAULT","BLUE","RED","GREEN","AMBER","PURPLE","CYAN","PINK","WHITE"};
 static const char *const look_show_hide[2]={"SHOW","HIDE"};
-static struct xz_shell_setting_item look_items[12];
+static struct xz_shell_setting_item look_items[13];
 static struct xz_shell_settings_model look_model;
 /* MY SETTINGS > WAVEFORM: the stem row layout, set through SET_MOD on the APPEARANCE tab (waveform_tab). */
 /* In the STEMS button's order (xz_shell_stem_cycle): choice i is layout xz_shell_stem_cycle[i]. */
 static const char *const look_stem_layout[XZ_SHELL_STEM_LAYOUTS]={"PAD ROW / SMALL","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF","HIDDEN"};
 _Static_assert(XZ_SHELL_STEMS_PADS==5&&XZ_SHELL_STEM_LAYOUTS==6,"modern_stems values (ui/wave_viewport.h XZ_MODERN_STEMS_PADS)");
-static struct xz_shell_setting_item wave_items[1];
+static struct xz_shell_setting_item wave_items[2];
 static struct xz_shell_settings_model wave_model;
 /* Descriptions (shell_settings.h help): APPEARANCE is scope LOOK_TAB + 1; the WAVEFORM items share it. */
 static const char *const help_interface[2]={"This full-screen interface.","The player's own layout, restyled by the classic themes."};
@@ -383,6 +383,7 @@ static const char *const help_key_format[3]={"As the stick's library sets it.","
 static const char *const help_mode_lamps[2]={"Each lamp lights while its mode is on.","The lamps leave the screen; the modes keep working."};
 static const char *const help_quantize_lamp[2]={"Red while QUANTIZE is on, grey while it is off.","The QUANTIZE button's own light still shows it."};
 static const char *const help_bypass[2]={"Touch it to hear the whole track; touch again for the stems as you left them.","The stem buttons take its room."};
+static const char *const help_wave_titles[2]={"Track titles above the waveforms, with beat markers behind them.","The waveforms use the title space; bottom track titles stay visible."};
 static const char *const help_stem_color[9]={"Follows the theme.",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
 static const char *const help_stem_layout[XZ_SHELL_STEM_LAYOUTS]={"Small stem buttons beside each deck's hot cues; the waveforms keep their height.",
  "Stem rows under the waveforms, full height.","Stem rows under the waveforms, half height.","Stem rows outside the waveforms, full height.",
@@ -398,6 +399,7 @@ static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_QUANTIZE_LAMP,"Each deck's QUANTIZE lamp and beat value, above its time.",2,help_quantize_lamp),
  HELP(LOOK_THEME,"The look of the modern interface. More modern themes are coming.",0,NULL),
  HELP(LOOK_WAVE,"How the scrolling waveform is drawn.",3,help_wave),
+ HELP(LOOK_WAVE_TITLES,"Track titles in the waveform lanes.",2,help_wave_titles),
  HELP(LOOK_KEY_FORMAT,"How keys are written.",3,help_key_format),
  HELP(LOOK_KEY_FEEDBACK,"Shows the key a track plays in after tempo and key shift.",0,NULL),
  HELP(LOOK_TRAFFIC,"Colours keys in the browser green or amber by how well they mix with the master deck.",0,NULL),
@@ -459,11 +461,14 @@ static void fill_look(void) {
 #undef LOOK
  look_items[11]=(struct xz_shell_setting_item){LOOK_BYPASS,(enum xz_shell_setting_category)3,"BYPASS BUTTON",look_show_hide,2,
   (int)((shell.display.hidden>>XZ_SHELL_IND_BYPASS)&1),1,1};
- look_model=(struct xz_shell_settings_model){12,look_items,NULL};
+ look_items[12]=(struct xz_shell_setting_item){LOOK_WAVE_TITLES,(enum xz_shell_setting_category)2,"WAVEFORM TITLES",look_show_hide,2,
+  (int)((shell.display.hidden>>XZ_SHELL_IND_WAVE_TITLES)&1),1,1};
+ look_model=(struct xz_shell_settings_model){13,look_items,NULL};
  int at=k?stem_cycle_position(in->stems_overlay):-1;
  wave_items[0]=(struct xz_shell_setting_item){LOOK_STEM_LAYOUT,(enum xz_shell_setting_category)2,"STEM BUTTONS",look_stem_layout,XZ_SHELL_STEM_LAYOUTS,
   at<0?0:at,k&&at>=0,k&&at>=0};
- wave_model=(struct xz_shell_settings_model){1,wave_items,NULL};
+ wave_items[1]=look_items[12];
+ wave_model=(struct xz_shell_settings_model){2,wave_items,NULL};
 }
 static void ui_action_locked(int kind, int deck, int index, float value, uint32_t now) {
  /* A stem level slide replaces the same stem's unsent level instead of queueing every step. */
@@ -483,8 +488,9 @@ static void look_set_locked(int id, int choice, uint32_t now) {
   }else if(choice==0)ui_action_locked(XZ_UI_SET_INTERFACE,-1,XZ_UI_INTERFACE_MODERN,0,now);
   else refuse();
   return;
- case LOOK_MODE_LAMPS:case LOOK_QUANTIZE_LAMP:case LOOK_BYPASS:{
-  int item=id==LOOK_MODE_LAMPS?XZ_SHELL_ITEM_MODE_LAMPS:id==LOOK_QUANTIZE_LAMP?XZ_SHELL_ITEM_QUANTIZE_LAMP:XZ_SHELL_ITEM_BYPASS_BUTTON;
+ case LOOK_MODE_LAMPS:case LOOK_QUANTIZE_LAMP:case LOOK_BYPASS:case LOOK_WAVE_TITLES:{
+  int item=id==LOOK_MODE_LAMPS?XZ_SHELL_ITEM_MODE_LAMPS:id==LOOK_QUANTIZE_LAMP?XZ_SHELL_ITEM_QUANTIZE_LAMP:
+   id==LOOK_BYPASS?XZ_SHELL_ITEM_BYPASS_BUTTON:XZ_SHELL_ITEM_WAVE_TITLES;
   if(choice==0||choice==1){xz_shell_restore_setting(&shell,item,choice);save_display(item,choice);}else refuse();
   return;}
  case LOOK_THEME:if(choice==0)ui_action_locked(XZ_UI_SET_MODERN_THEME,-1,choice,0,now);else refuse();return;
@@ -1804,10 +1810,10 @@ static void roll_second(uint32_t now) {
    Kept in RAM for the life of the process (across XZ_MODS_SHELL stop/start); a reboot starts from the
    shell's defaults. ids: XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_ITEM_KEY_DISPLAY,
    XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level), XZ_SHELL_ITEM_MODE_LAMPS, XZ_SHELL_ITEM_QUANTIZE_LAMP and
-   XZ_SHELL_ITEM_BYPASS_BUTTON. */
-static struct { int id, value, set; } display_saved[7]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
+   XZ_SHELL_ITEM_BYPASS_BUTTON and XZ_SHELL_ITEM_WAVE_TITLES. */
+static struct { int id, value, set; } display_saved[]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
  {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0},{XZ_SHELL_ITEM_MODE_LAMPS,0,0},{XZ_SHELL_ITEM_QUANTIZE_LAMP,0,0},
- {XZ_SHELL_ITEM_BYPASS_BUTTON,0,0}};
+ {XZ_SHELL_ITEM_BYPASS_BUTTON,0,0},{XZ_SHELL_ITEM_WAVE_TITLES,0,0}};
 #define DISPLAY_SAVED (int)(sizeof display_saved/sizeof *display_saved)
 static void save_display(int id, int value) {
  for(int i=0;i<DISPLAY_SAVED;i++)if(display_saved[i].id==id){display_saved[i].value=value;display_saved[i].set=1;}
