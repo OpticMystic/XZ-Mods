@@ -218,6 +218,7 @@ int xz_doom_launch(void) {
     return result?-1:0;
 }
 int xz_doom_running(void) { return xz_game_active(bridge.input,xz_game_milliseconds()); }
+int xz_doom_input_pending(void){return xz_doom_running()||bridge.owned[0]||bridge.owned[1];}
 int xz_game_nav_send(struct xz_game_input *s,enum xz_game_nav_key key,uint32_t now) {
     if(!xz_game_active(s,now)) return 0;
     uint32_t head=__atomic_load_n(&s->nav_head,__ATOMIC_RELAXED);

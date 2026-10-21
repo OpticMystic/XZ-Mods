@@ -164,6 +164,7 @@ static void close_panels(struct xz_shell *u) { memset(&u->panel,0,sizeof u->pane
 /* A source-rooted list opens over the SOURCE picker, when there is one, so BACK reaches it. */
 static int source_rooted(enum xz_shell_screen s) { return s==XZ_SHELL_BROWSE||s==XZ_SHELL_PLAYLIST; }
 static void open_screen(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_screen s) {
+ if(s==XZ_SHELL_BROWSE&&xz_shell_screen(u)==XZ_SHELL_PLAY&&sh_browse_restore_return(u,m))return;
  u->depth=1;close_panels(u);
  if(source_rooted(s)&&available(m,XZ_SHELL_SOURCE))push(u,XZ_SHELL_SOURCE);
  push(u,s);
@@ -279,7 +280,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
   if(!available(m,t.screen))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)t.screen});
   push(u,t.screen);break;
  case NAV_POP:if(u->depth>1)u->depth--;close_panels(u);break;
- case NAV_HOME:u->depth=1;close_panels(u);break;
+ case NAV_HOME:sh_browse_remember_return(u,m,0);u->depth=1;close_panels(u);break;
  case NAV_STICK:return stick(u,m,(int)(packed>>4),out);
  case NAV_PANEL:toggle_panel(u,m,(enum xz_shell_panel_kind)(packed>>4));break;
  case NAV_MODS:
@@ -333,6 +334,7 @@ static size_t (*const back_steps[XZ_SHELL_SCREEN_COUNT])(struct xz_shell *, cons
 size_t sh_back(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  if(u->popup.kind!=XZ_SHELL_POPUP_NONE){u->popup.kind=XZ_SHELL_POPUP_NONE;return 0;}
  enum xz_shell_screen s=xz_shell_screen(u);
+ if(s==XZ_SHELL_PLAY&&sh_browse_restore_return(u,m))return 0;
  if(back_steps[s]){
   int taken=0;
   size_t n=back_steps[s](u,m,out,&taken);

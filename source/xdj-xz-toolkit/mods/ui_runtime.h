@@ -17,6 +17,7 @@ void xz_ui_runtime_on_source_key(int source);
    as BrowseKeyProcessing passes it) and returns 0, or -1 when its hook is not armed. Call run 1 only on the
    native key task (Ui_EventTask, where stock's own key handlers run), with no lock held. */
 int xz_ui_runtime_stock_source_key(int which, int run);
+int xz_ui_runtime_arcade_input_pending(void);
 int xz_ui_runtime_arcade_key(void *self,const void *input);
 /* Profile worker contract. profile_usb is called from the native list text hook for
    the selected local USB (0/1) only; it stores a value and never does I/O. */

@@ -309,6 +309,7 @@ static struct list_slot {
  uint32_t wanted, built;
  int source, requested;
  struct xz_shlib_list *result;
+ struct xz_extra_order *order; /* worker-built; LOAD retains only this immutable snapshot */
  int32_t window_start;
 } lists[L_COUNT];
 static const enum xz_shell_screen list_screen[L_COUNT]={XZ_SHELL_BROWSE,XZ_SHELL_PLAYLIST,XZ_SHELL_SEARCH,XZ_SHELL_TAG_LIST};
@@ -519,10 +520,17 @@ static int list_index(enum xz_shell_screen s) { return s==XZ_SHELL_BROWSE?L_BROW
 static int shown_list(int *view) {
  for(int i=shell.depth-1;i>=0;i--){int k=list_index(shell.stack[i].screen);if(k>=0){if(view)*view=i;return k;}}
  if(view)*view=-1;
+ if(shell.browse_return.depth>=2&&shell.browse_return.depth<=XZ_SHELL_STACK&&browse_source>=0&&
+    shell.browse_return.media_generation==usb[browse_source].generation&&
+    !strcmp(shell.browse_return.source,browse_source?"USB2":"USB1")){
+  int k=list_index(shell.browse_return.stack[shell.browse_return.depth-1].screen);
+  if(k>=0)return k;
+ }
  return L_BROWSE;
 }
 static void list_reset(struct list_slot *ls, int k) {
  retire_list(ls->result);
+ xz_extra_order_release(ls->order);
  memset(ls,0,sizeof *ls);
  ls->req.screen=list_screen[k];
  ls->req.category=k==L_PLAYLIST?XZ_SHELL_CAT_PLAYLIST:XZ_SHELL_CAT_TRACK;
@@ -590,7 +598,7 @@ static void fill_browse(struct xz_shlib *lib) {
  struct list_slot *ls=&lists[k];
  if(ls->source!=browse_source){
   /* Another USB: keep the category and query, start at its top level. */
-  retire_list(ls->result);ls->result=NULL;ls->source=browse_source;ls->req.depth=0;ls->requested=0;
+  retire_list(ls->result);xz_extra_order_release(ls->order);ls->order=NULL;ls->result=NULL;ls->source=browse_source;ls->req.depth=0;ls->requested=0;
  }
  if(!ls->requested){ls->requested=1;list_rebuild(ls);}
  memset(&browse,0,sizeof browse);
@@ -1181,7 +1189,7 @@ static void scan_usb(void) {
   xz_shpl_free(&edits[slot]);ref_count[slot]=0;
   if(!same_mount){for(unsigned i=0;i<played_n;)if(played[i].kind==2+slot)played[i]=played[--played_n];else i++;}
   xz_mods_shell_proof_v1.library_tracks[slot]=usb[slot].tracks;
-  for(int k=0;k<L_COUNT;k++)if(lists[k].source==(int)slot){retire_list(lists[k].result);lists[k].result=NULL;lists[k].requested=0;}
+  for(int k=0;k<L_COUNT;k++)if(lists[k].source==(int)slot){retire_list(lists[k].result);xz_extra_order_release(lists[k].order);lists[k].order=NULL;lists[k].result=NULL;lists[k].requested=0;}
   if(browse_source==(int)slot&&!next)browse_source=-1;
   for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)if(!next&&hint[d].pending&&hint[d].slot==(int)slot)hint[d].pending=0;
   if(refreshed)fill_slots_locked();
@@ -1540,6 +1548,7 @@ static void *worker(void *unused) {
    struct list_slot *ls=&lists[k];
    if(!ls->requested||ls->built==ls->wanted||ls->source<0||!usb[ls->source].lib)continue;
    int slot=ls->source;struct xz_shmedia media=usb[slot].media;
+   uint64_t media_generation=usb[slot].generation;
    struct xz_shlib_request req=ls->req;uint32_t gen=ls->wanted;struct xz_shlib *lib=usb[slot].lib;
    /* The build reads the filter and its own copy of the stick's playlist edits. */
    struct xz_shpl_set snapshot;req.filter=active_filter;
@@ -1550,6 +1559,8 @@ static void *worker(void *unused) {
    /* Only this thread frees libraries, so lib stays valid without the lock. */
    uint32_t began=now_ms();struct xz_shlib_list *result=NULL;
    int rc=xz_shlib_build(lib,&req,&result);
+   struct xz_extra_order *order=!rc&&result&&result->total>0?xz_extra_order_create(slot+1,media_generation,
+    result->id,result->kind,(uint32_t)result->total,XZ_SHELL_ROW_TRACK):NULL;
    xz_shpl_free(&snapshot);
    uint32_t took=now_ms()-began;
    int live=media_still_current(slot,&media);
@@ -1558,12 +1569,13 @@ static void *worker(void *unused) {
    if(rc)xz_mods_shell_proof_v1.list_errors++;else xz_mods_shell_proof_v1.list_builds++;
    if(!live)scan_soon=1;
    if(live&&gen==ls->wanted&&ls->source==slot&&usb[slot].lib==lib){
-    retire_list(ls->result);ls->result=result;ls->built=gen;result=NULL;
+    retire_list(ls->result);xz_extra_order_release(ls->order);ls->order=order;order=NULL;
+    ls->result=result;ls->built=gen;result=NULL;
     if(refreshed)fill_slots_locked();
     dirty_flag=1;
    }
    retire_list(result);
-   pthread_mutex_unlock(&mutex);drain_retired();lock_as("worker");
+   pthread_mutex_unlock(&mutex);xz_extra_order_release(order);drain_retired();lock_as("worker");
    worked=1;
   }
   if(!worked&&cue_want.pending&&cue_want.slot>=0&&usb[cue_want.slot].lib){
@@ -1856,7 +1868,7 @@ static void info_jump(const struct xz_shell_action *a) {
  for(size_t i=0;i<sizeof map/sizeof *map;i++)if(map[i].field==a->id){
   browse_source=slot;
   struct list_slot *ls=&lists[L_BROWSE];
-  if(ls->source!=slot){retire_list(ls->result);ls->result=NULL;ls->source=slot;}
+  if(ls->source!=slot){retire_list(ls->result);xz_extra_order_release(ls->order);ls->order=NULL;ls->result=NULL;ls->source=slot;}
   ls->req.category=map[i].category;ls->req.depth=1;ls->req.path[0]=(uint32_t)a->value;ls->req.sort_set=0;
   ls->requested=1;list_rebuild(ls);return;
  }
@@ -1941,6 +1953,17 @@ static void menu_command_locked(const struct xz_shell_action *a, uint32_t now) {
  menu_queue[menu_count++]=c;
  __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_MENU,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
 }
+/* Only immutable pointer/ordinal selection under the UI mutex. The worker already copied IDs. */
+static void extra_load_order_locked(const struct xz_shell_action *a,struct xz_extra_deck_event *player){
+ player->load.media_generation=usb[browse_source].generation;
+ player->load.route_epoch=xz_extra_decks_epoch();
+ struct list_slot *ls=&lists[shown_list(NULL)];
+ uint32_t row=a->value>0?(uint32_t)a->value-1:UINT32_MAX;
+ if(ls->built==ls->wanted&&ls->source==browse_source&&
+    xz_extra_order_matches(ls->order,player->load.source,player->load.media_generation,row,player->load.track_id)){
+  player->load.order=ls->order;player->load.order_index=row;
+ }
+}
 static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t now) {
  for(size_t i=0;i<n;i++){
   const struct xz_shell_action *a=&out[i];struct xz_shrt_command c;
@@ -1950,7 +1973,9 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   }
   struct xz_extra_deck_event player;
   enum xz_shrt_extra_route route=xz_shrt_extra_action(&model,a,browse_source,&player);
-  if(route==XZ_SHRT_EXTRA_INPUT&&a->kind==XZ_SHELL_ACT_LOAD&&browse_source>=0)player.load.media_generation=usb[browse_source].generation;
+  if(route==XZ_SHRT_EXTRA_INPUT&&a->kind==XZ_SHELL_ACT_LOAD&&browse_source>=0){
+   extra_load_order_locked(a,&player);
+  }
   if(route!=XZ_SHRT_EXTRA_NONE){
    char text[48];
    if(a->kind==XZ_SHELL_ACT_LOAD)load_actions++;
@@ -2906,7 +2931,7 @@ static void stop_locked(void) {
  pthread_mutex_lock(&mutex);
  set_owns(0);
  model.browse=NULL;model.source=NULL;model.info=NULL;model.settings_screen=NULL;model.mods=NULL;model.my_settings=NULL;model.help=NULL;
- for(int k=0;k<L_COUNT;k++){retire_list(lists[k].result);lists[k].result=NULL;}
+ for(int k=0;k<L_COUNT;k++){retire_list(lists[k].result);xz_extra_order_release(lists[k].order);lists[k].order=NULL;lists[k].result=NULL;}
  for(int i=0;i<2;i++){if(usb[i].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[i].lib;usb[i].lib=NULL;}
  for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++){free_wave(d);prefetch_drop(d);}
  for(int i=0;i<2;i++)analysis_drop(i); /* the worker has stopped: nothing else uses them */

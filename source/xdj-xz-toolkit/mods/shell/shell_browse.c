@@ -36,7 +36,7 @@ static struct {
  int rail_first, rail_cursor;
  enum target target;
  int down_y, last_y, last_step, dragging, confirm, down_scroll, down_rail, down_rail_first, prev_cursor, prev_touched;
- struct { int valid; uint32_t list; int cursor, scroll; } memory[SLOTS];
+ struct { int valid; uint32_t list; uint64_t media_generation; char source[64]; int cursor, scroll; } memory[SLOTS];
  struct { int cursor, scroll; } up[SLOTS][UP_DEPTH];
  int up_n[SLOTS];
 } st;
@@ -54,6 +54,7 @@ static void sync(const struct xz_shell *u) {
 static int naming(const struct xz_shell *u);
 static void render_load_choice(const struct xz_shell *,const struct xz_shell_model *,struct xz_canvas);
 static int panel_open(const struct xz_shell *u);
+static int different_media(const struct xz_shell *u,const struct xz_shell_browse_model *b);
 static int32_t grab_source_row(const struct xz_shell *u, int32_t shown);
 static void render_panel(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
 static int slot_of(enum xz_shell_screen s) { return list_screen(s)?(int)s-(int)XZ_SHELL_BROWSE:0; }
@@ -210,7 +211,7 @@ struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *u, const struct
  case XZ_SHELL_BR_LOAD:{
   const struct xz_shell_view *v=top_view(u);
   int i=v->focus?st.touched-v->scroll:-1;
-  if(index<0||index>sh_deck_count(m)||!v->focus||st.touched<0||st.touched!=v->cursor||i<0||i>=rows)return none;
+  if(u->browse_resume||different_media(u,b)||index<0||index>sh_deck_count(m)||!v->focus||st.touched<0||st.touched!=v->cursor||i<0||i>=rows)return none;
   const struct xz_shell_browse_row *t_row=row_at(b,s,st.touched);
   if(!t_row||t_row->kind!=XZ_SHELL_ROW_TRACK)return none;
   struct col t=title_col(b,s);
@@ -237,15 +238,21 @@ static void clamp_view(int *cursor, int *scroll, int32_t limit, int rows) {
 }
 static int remembered(const struct xz_shell_browse_model *b, enum xz_shell_screen s) {
  int k=slot_of(s);
- return st.memory[k].valid&&bknown(b,XZ_SHELL_BF_LIST)&&matches(b,s)&&st.memory[k].list==b->list_id;
+ return st.memory[k].valid&&bknown(b,XZ_SHELL_BF_LIST)&&matches(b,s)&&st.memory[k].list==b->list_id&&st.memory[k].media_generation==b->media_generation
+  &&!strcmp(st.memory[k].source,b->source_name?b->source_name:"");
+}
+static int different_media(const struct xz_shell *u,const struct xz_shell_browse_model *b) {
+ return b&&b->media_generation&&u->browse_media_generation&&
+  (b->media_generation!=u->browse_media_generation||strcmp(u->browse_media_source,b->source_name?b->source_name:""));
 }
 /* What render shows: the view, or for a view not started yet the remembered position. */
 static struct sess session(const struct xz_shell *u, const struct xz_shell_browse_model *b) {
  enum xz_shell_screen s=xz_shell_screen(u);
  const struct xz_shell_view *v=top_view(u);
  struct sess r={v->cursor,v->scroll,-1,0,-1};
- if(v->focus){r.touched=st.touched;r.jump=st.jump;r.pressed=st.pressed;}
+ if(v->focus){if(!u->browse_resume){r.touched=st.touched;r.jump=st.jump;r.pressed=st.pressed;}}
  else if(remembered(b,s)){r.cursor=st.memory[slot_of(s)].cursor;r.scroll=st.memory[slot_of(s)].scroll;}
+ if(different_media(u,b)){r.cursor=r.scroll=0;r.touched=r.pressed=-1;r.jump=0;}
  clamp_view(&r.cursor,&r.scroll,row_limit(b,s),xz_shell_browse_rows_visible(u));
  return r;
 }
@@ -1679,7 +1686,8 @@ static void remember(const struct xz_shell_browse_model *b, enum xz_shell_screen
  int k=slot_of(s);
  if(!bknown(b,XZ_SHELL_BF_LIST)||!matches(b,s))return;
  st.memory[k].valid=1;
- st.memory[k].list=b->list_id;
+ st.memory[k].list=b->list_id;st.memory[k].media_generation=b->media_generation;
+ snprintf(st.memory[k].source,sizeof st.memory[k].source,"%s",b->source_name?b->source_name:"");
  st.memory[k].cursor=v->cursor;st.memory[k].scroll=v->scroll;
 }
 static void begin(struct xz_shell_view *v, const struct xz_shell_browse_model *b, enum xz_shell_screen s) {
@@ -1715,15 +1723,57 @@ static size_t to_top(struct xz_shell_view *v, enum xz_shell_screen s, struct xz_
  st.up_n[slot_of(s)]=0;reset_view(v);
  return op(out,n,XZ_SHELL_BROWSE_TOP,0);
 }
+void sh_browse_remember_return(struct xz_shell *u,const struct xz_shell_model *m,int track_focus) {
+ const struct xz_shell_browse_model *b=m->browse;
+ if(u->depth<2||u->depth>XZ_SHELL_STACK||!list_screen(xz_shell_screen(u))||
+    !matches(b,xz_shell_screen(u))||!bknown(b,XZ_SHELL_BF_LIST)||!b->media_generation)return;
+ struct xz_shell_browse_return *saved=&u->browse_return;
+ memcpy(saved->stack,u->stack,sizeof saved->stack);saved->depth=u->depth;
+ if(track_focus)saved->stack[saved->depth-1].focus=FOCUS_LIST;
+ saved->list_id=b->list_id;saved->media_generation=b->media_generation;
+ snprintf(saved->source,sizeof saved->source,"%s",b->source_name?b->source_name:"");
+}
+int sh_browse_restore_return(struct xz_shell *u,const struct xz_shell_model *m) {
+ struct xz_shell_browse_return *saved=&u->browse_return;
+ const struct xz_shell_browse_model *b=m->browse;
+ if(saved->depth<2||saved->depth>XZ_SHELL_STACK)return 0;
+ enum xz_shell_screen screen=saved->stack[saved->depth-1].screen;
+ uint32_t cap=screen==XZ_SHELL_SEARCH?XZ_SHELL_CAP_SEARCH:screen==XZ_SHELL_TAG_LIST?XZ_SHELL_CAP_TAG_LIST:XZ_SHELL_CAP_BROWSE;
+ if(!list_screen(screen)||!(m->capabilities&cap)||!matches(b,screen)||!bknown(b,XZ_SHELL_BF_LIST)||
+    b->list_id!=saved->list_id||b->media_generation!=saved->media_generation||
+    strcmp(saved->source,b->source_name?b->source_name:"")){saved->depth=0;return 0;}
+ memcpy(u->stack,saved->stack,sizeof u->stack);u->depth=saved->depth;
+ memset(&u->panel,0,sizeof u->panel);u->grab.active=0;u->down=0;u->down_region=XZ_SHELL_TOUCH_NONE;
+ u->browse_resume=1;
+ return 1;
+}
+static void resume_list_input(struct xz_shell *u,const struct xz_shell_browse_model *b) {
+ if(b&&matches(b,xz_shell_screen(u))&&b->media_generation){
+  if(different_media(u,b)){
+   u->stack[u->depth-1].cursor=u->stack[u->depth-1].scroll=0;
+   u->browse_return.depth=0;u->browse_resume=1;
+   memset(st.up_n,0,sizeof st.up_n);
+  }
+  u->browse_media_generation=b->media_generation;
+  snprintf(u->browse_media_source,sizeof u->browse_media_source,"%s",b->source_name?b->source_name:"");
+ }
+ if(!u->browse_resume)return;
+ u->browse_resume=0;
+ st.touched=-1;st.jump=0;st.pressed=-1;st.target=T_NONE;st.confirm=0;st.dragging=0;st.last_request=-1;
+}
 /* LOAD returns to PLAY, like the flagship. Without the capability the stock browser takes over. */
 static size_t load(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_browse_row *r, int deck, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  enum xz_shell_screen s=xz_shell_screen(u);
  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
  if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD))return hand_off(out,n,s);
+ struct sess selected=session(u,m->browse);
+ u->stack[u->depth-1].cursor=selected.cursor;u->stack[u->depth-1].scroll=selected.scroll;
  remember(m->browse,s,top_view(u));
+ sh_browse_remember_return(u,m,1);
+ int row=top_view(u)->cursor;
  st.touched=-1;
  u->depth=1;
- return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_LOAD,deck,0,(int)r->id});
+ return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_LOAD,deck,row+1,(int)r->id});
 }
 int sh_browse_load_pending(const struct xz_shell *u) { return u&&u->load_choice.mode!=0; }
 static int load_choice_valid(const struct xz_shell *u,const struct xz_shell_model *m) {
@@ -1792,6 +1842,7 @@ size_t sh_browse_load_input(struct xz_shell *u,const struct xz_shell_model *m,co
   int deck=chosen.mode==1?chosen.first+2*selected:selected;
   if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD)){u->notice="THAT DECK CANNOT LOAD THIS TRACK";u->notice_at_ms=m->clock_ms;return 0;}
   struct xz_shell_browse_row track={0};track.kind=XZ_SHELL_ROW_TRACK;track.id=chosen.track;
+  u->stack[u->depth-1].cursor=chosen.row;
   return load(u,m,&track,deck,out,0);
  }
  if(chosen.has_cues&&selected==decks&&(sh_deck_caps(m,chosen.first)&XZ_SHELL_CAP_CUE_LIST)&&bknown(m->browse,XZ_SHELL_BF_CUES)&&m->browse->cue_track==chosen.track){
@@ -2032,6 +2083,7 @@ static size_t key_input(struct xz_shell *u, const struct xz_shell_model *m, enum
 size_t sh_browse_back_step(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken) {
  enum xz_shell_screen s=xz_shell_screen(u);
  struct xz_shell_view *v=&u->stack[u->depth-1];
+ resume_list_input(u,m->browse);
  *taken=1;
  if(u->grab.active){v->cursor=u->grab.from;u->grab.active=0;return 0;}
  if(u->panel.kind==XZ_SHELL_PANEL_MENU&&(u->panel.page!=PAGE_MAIN||u->panel.armed)){
@@ -2064,6 +2116,7 @@ static size_t list_input(struct xz_shell *u, const struct xz_shell_model *m, con
  enum xz_shell_screen s=xz_shell_screen(u);
  const struct xz_shell_browse_model *b=m->browse;
  if(!list_screen(s))return 0;
+ resume_list_input(u,b);
  if(!b)return e->kind==XZ_SHELL_KEY?0:hand_off(out,0,s);
  struct xz_shell_view *v=&u->stack[u->depth-1];
  if(e->kind==XZ_SHELL_KEY&&e->key==XZ_SHELL_KEY_LOAD){

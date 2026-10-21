@@ -448,7 +448,35 @@ static void test_physical_jog_matrix(void) {
  }
 }
 
+static void test_global_track_restart(void) {
+ for(int side=0;side<2;side++) {
+  reset(1);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,0,now).verdict==XZ_DS_PASS);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,2,now).verdict==XZ_DS_PASS);
+  assert(double_press(side));
+  struct xz_ds_outcome o=xz_deck_select_global_key(&d,side+1,0x4213,0,now);
+  assert(o.verdict==XZ_DS_DELIVER&&o.event.deck==side&&o.event.kind==XZ_EXTRA_IN_SEEK&&o.event.seek_ms==0);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,0,now).verdict==XZ_DS_SWALLOW);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,1,now).verdict==XZ_DS_SWALLOW);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,2,now).verdict==XZ_DS_SWALLOW);
+  o=xz_deck_select_global_key(&d,side+1,0x4212,0,now);
+  assert(o.verdict==XZ_DS_DELIVER&&o.event.kind==XZ_EXTRA_IN_TRACK_NEXT&&o.event.deck==side&&o.event.pressed);
+  assert(xz_deck_select_global_key(&d,side+1,0x4212,0,now).verdict==XZ_DS_SWALLOW);
+  xz_deck_select_global_key(&d,side+1,0x4212,2,now);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,0,now).verdict==XZ_DS_DELIVER);
+  xz_deck_select_toggle(&d,side,NULL);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,2,now).verdict==XZ_DS_SWALLOW);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,0,now).verdict==XZ_DS_PASS);
+  xz_deck_select_toggle(&d,side,NULL);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,2,now).verdict==XZ_DS_PASS);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,0,now).verdict==XZ_DS_DELIVER);
+  xz_deck_select_route(&d,0);
+  assert(xz_deck_select_global_key(&d,side+1,0x4213,2,now).verdict==XZ_DS_SWALLOW);
+ }
+}
+
 int main(void) {
+ test_global_track_restart();
  test_double_press();
  test_slow_presses();
  test_modifier();

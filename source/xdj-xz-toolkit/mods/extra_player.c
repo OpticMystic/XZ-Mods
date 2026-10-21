@@ -17,6 +17,26 @@
 #define PWV7_PER_SECOND 150u
 #define ONE ((uint64_t)1 << 32)
 
+struct xz_extra_order { atomic_uint refs; int source; uint64_t media_generation; uint32_t count; uint32_t id[]; };
+static atomic_uint order_live;
+unsigned xz_extra_order_live(void){return atomic_load(&order_live);}
+struct xz_extra_order *xz_extra_order_create(int source,uint64_t media_generation,
+ const uint32_t *ids,const uint8_t *kinds,uint32_t count,uint8_t track_kind){
+ if(source<1||source>2||!media_generation||!ids||!kinds||!count||count>XZ_EXTRA_ORDER_ROWS)return NULL;
+ unsigned live=atomic_load(&order_live);
+ do {if(live>=XZ_EXTRA_ORDER_SLOTS)return NULL;}while(!atomic_compare_exchange_weak(&order_live,&live,live+1));
+ struct xz_extra_order *o=malloc(sizeof *o+(size_t)count*sizeof *ids);
+ if(!o){atomic_fetch_sub(&order_live,1);return NULL;}
+ atomic_init(&o->refs,1);o->source=source;o->media_generation=media_generation;o->count=count;
+ for(uint32_t i=0;i<count;i++)o->id[i]=kinds[i]==track_kind?ids[i]:0;
+ return o;
+}
+void xz_extra_order_retain(struct xz_extra_order *o){if(o)atomic_fetch_add(&o->refs,1);}
+void xz_extra_order_release(struct xz_extra_order *o){if(o&&atomic_fetch_sub(&o->refs,1)==1){free(o);atomic_fetch_sub(&order_live,1);}}
+int xz_extra_order_matches(const struct xz_extra_order *o,int source,uint64_t generation,uint32_t row,uint32_t id){
+ return o&&o->source==source&&o->media_generation==generation&&row<o->count&&o->id[row]&&o->id[row]==id;
+}
+
 struct reader {
  struct xz_stem_media *media;
  uint32_t rate;
@@ -64,6 +84,8 @@ struct deck {
  uint32_t pending; uint64_t pending_after, block_start; float pcm[XZ_USB_BLOCK_FRAMES * 2];
  uint64_t heard; uint32_t heard_at; /* last completed source tag, or the position a jump set */
  struct xz_extra_track track;
+ struct xz_extra_order *order;
+ uint32_t order_index, order_epoch;
  struct analysis *analysis;
  struct { struct analysis *a; uint32_t at; } retired[XZ_XP_RETIRE_SLOTS];
  unsigned retired_count;
@@ -371,19 +393,33 @@ static struct analysis *load_analysis(const char *dir, struct xz_anlz_extra *ext
  return a;
 }
 
-static void load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now) {
+static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, int next) {
  struct xz_extra_track t;
- if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return; }
+ if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return 0; }
  memset(&t, 0, sizeof t);
  int resolved;
  if (e->load.media_generation)
   resolved = p->env.resolve_checked ? p->env.resolve_checked(e->load.source, e->load.track_id, e->load.media_generation, &t) : -1;
  else resolved = p->env.resolve ? p->env.resolve(e->load.source, e->load.track_id, &t) : -1;
- if (resolved) { xz_xp_notice(p, e->load.media_generation ? "SOURCE CHANGED / LOAD REFUSED" : "TRACK NOT FOUND"); return; }
- if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return; }
+ if (resolved) { xz_xp_notice(p, e->load.media_generation ? "SOURCE CHANGED / LOAD REFUSED" : "TRACK NOT FOUND"); return 0; }
+ if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return 0; }
  t.path[sizeof t.path - 1] = t.anlz_dir[sizeof t.anlz_dir - 1] = t.title[sizeof t.title - 1] = 0;
  t.artist[sizeof t.artist - 1] = t.key[sizeof t.key - 1] = 0;
- if (d->r->media) { jump(d, 0, now); flush(p, d); }
+ struct xz_stem_media *prepared=NULL;
+ if(next){
+  prepared=xz_stem_media_open(t.path,0);
+  if(!prepared){xz_xp_notice(p,"NEXT TRACK CANNOT BE READ");return 0;}
+  float first[XZ_USB_BLOCK_FRAMES*2];
+  if(!xz_stem_media_frames(prepared)||xz_stem_media_read(prepared,0,XZ_USB_BLOCK_FRAMES,first)){
+   xz_stem_media_close(prepared);xz_xp_notice(p,"NEXT TRACK CANNOT BE READ");return 0;
+  }
+  struct xz_extra_track verify;
+  int stale=!p->env.resolve_checked||p->env.resolve_checked(e->load.source,e->load.track_id,e->load.media_generation,&verify);
+  if(stale||e->load.route_epoch!=p->env.sink.link(p->env.sink.ctx)){
+   xz_stem_media_close(prepared);xz_xp_notice(p,stale?"SOURCE CHANGED / NEXT REFUSED":"ROUTE CHANGED / NEXT REFUSED");return 0;
+  }
+ }
+ if (d->r->media&&!next) { jump(d, 0, now); flush(p, d); }
  d->state = XZ_XP_LOADING; d->track = t;
  memset(&d->loop, 0, sizeof d->loop);
  memset(d->hot, 0, sizeof d->hot);
@@ -391,8 +427,8 @@ static void load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_
  xz_stem_media_close(d->r->media);
  d->r->media = NULL; d->r->cached = 0;
  retire(d, now);
- struct xz_stem_media *media = xz_stem_media_open(t.path, 0);
- if (!media) { d->state = XZ_XP_ERROR; xz_xp_notice(p, "TRACK CANNOT BE READ"); return; }
+ struct xz_stem_media *media = prepared?prepared:xz_stem_media_open(t.path, 0);
+ if (!media) { xz_extra_order_release(d->order);d->order=NULL;d->state = XZ_XP_ERROR; xz_xp_notice(p, "TRACK CANNOT BE READ"); return 0; }
  d->r->media = media; d->r->rate = xz_stem_media_rate(media); d->r->frames = xz_stem_media_frames(media);
  struct xz_anlz_extra extra;
  d->analysis = load_analysis(t.anlz_dir, &extra);
@@ -404,6 +440,10 @@ static void load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_
  d->cue = t.anlz_dir[0] && xz_shana_memory_cues(t.anlz_dir, memory) > 0 ? to_frames(d, memory[0].ms) : 0;
  jump(d, d->cue, now);
  d->state = XZ_XP_CUED;
+ struct xz_extra_order *order=xz_extra_order_matches(e->load.order,e->load.source,e->load.media_generation,e->load.order_index,e->load.track_id)?e->load.order:NULL;
+ xz_extra_order_retain(order);xz_extra_order_release(d->order);d->order=order;
+ d->order_index=e->load.order_index;d->order_epoch=e->load.route_epoch;
+ return 1;
 }
 
 static void cue_button(struct deck *d, int pressed, uint32_t now) {
@@ -561,7 +601,22 @@ static void loop_button(struct xz_xp_players *p, struct deck *d, const struct xz
 }
 
 static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now) {
- if (e->kind == XZ_EXTRA_IN_LOAD) { load(p, d, e, now); return; }
+ if (e->kind == XZ_EXTRA_IN_LOAD) { load(p, d, e, now, 0); return; }
+ if(e->kind==XZ_EXTRA_IN_TRACK_NEXT){
+  if(!e->pressed)return;
+  if(!d->order){xz_xp_notice(p,"NO SAVED TRACK ORDER / NEXT UNAVAILABLE");return;}
+  if(!d->order_epoch||d->order_epoch!=p->env.sink.link(p->env.sink.ctx)){xz_xp_notice(p,"ROUTE CHANGED / NEXT REFUSED");return;}
+  if(d->retired_count>=XZ_XP_RETIRE_SLOTS){xz_xp_notice(p,"PLAYER BUSY / NEXT REFUSED");return;}
+  uint32_t row=d->order_index+1;
+  while(row<d->order->count&&!d->order->id[row])row++;
+  if(row>=d->order->count){xz_xp_notice(p,"END OF TRACK LIST");return;}
+  struct xz_extra_deck_event next={.kind=XZ_EXTRA_IN_LOAD,.deck=d->index};
+  next.load.source=d->order->source;next.load.media_generation=d->order->media_generation;
+  next.load.route_epoch=d->order_epoch;next.load.track_id=d->order->id[row];next.load.order=d->order;next.load.order_index=row;
+  int playing=d->state==XZ_XP_PLAYING||d->state==XZ_XP_SAMPLING||(d->state==XZ_XP_SCRATCHING&&streaming(d->scratch.resume));
+  if(load(p,d,&next,now,1)){jump(d,0,now);if(playing)start(d,now);}
+  return;
+ }
  if (e->kind == XZ_EXTRA_IN_TEMPO) {
   int32_t at = e->tempo_position;
   if (at > XZ_EXTRA_TEMPO_SPAN) at = XZ_EXTRA_TEMPO_SPAN;
@@ -691,7 +746,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   d->loop.in_down=d->loop.held=0;
  }
  struct xz_extra_deck_event e;
- while (take(d, &e)) command(p, d, &e, now);
+ while (take(d, &e)) {command(p, d, &e, now);if(e.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(e.load.order);}
  if(link&&d->loop.in_down&&!d->loop.held&&now-d->loop.in_at>=1000u){
   struct xz_extra_deck_event held={.kind=XZ_EXTRA_IN_LOOP_IN,.pressed=1,.held=1};
   if(loaded(d->state))loop_button(p,d,&held,now);
@@ -727,7 +782,7 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
   return 0;
  pthread_mutex_lock(&d->queue_lock);
  int taken = d->count < XZ_XP_QUEUE;
- if (taken) { d->queue[(d->head + d->count) % XZ_XP_QUEUE] = *e; d->count++; }
+ if (taken) { if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_retain(e->load.order); d->queue[(d->head + d->count) % XZ_XP_QUEUE] = *e; d->count++; }
  pthread_mutex_unlock(&d->queue_lock);
  return taken;
 }
@@ -805,6 +860,8 @@ void xz_xp_destroy(struct xz_xp_players *p) {
  xz_xp_stop(p);
  for (int i = 0; i < XZ_EXTRA_DECKS; ++i) {
   struct deck *d = &p->deck[i];
+  xz_extra_order_release(d->order);
+  for(unsigned q=0;q<d->count;q++){struct xz_extra_deck_event *e=&d->queue[(d->head+q)%XZ_XP_QUEUE];if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(e->load.order);}
   xz_stem_media_close(d->r->media);
   free_analysis(d->analysis);
   for (unsigned k = 0; k < d->retired_count; ++k) free_analysis(d->retired[k].a);

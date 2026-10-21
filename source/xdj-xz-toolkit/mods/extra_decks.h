@@ -80,6 +80,18 @@ void xz_extra_decks_publish_sides(int left_on_3, int right_on_4);
 /* What the DJ asks of DECK 3 or DECK 4. Independent of the producer: the onPhysicalKey router
    (deck_select.c) is one, a reader of the documented XDJ-XZ MIDI messages can be another, and the
    browser (LOAD) a third. Each producer converts to these units. */
+/* Worker-built immutable displayed order. At most 8 live orders of 65536 rows (2 MiB IDs).
+   Zero IDs represent non-track rows. UI code only retains/releases pointers; no list copy. */
+#define XZ_EXTRA_ORDER_ROWS 65536u
+#define XZ_EXTRA_ORDER_SLOTS 8u
+struct xz_extra_order;
+struct xz_extra_order *xz_extra_order_create(int source, uint64_t media_generation,
+ const uint32_t *ids, const uint8_t *kinds, uint32_t count, uint8_t track_kind);
+void xz_extra_order_retain(struct xz_extra_order *);
+void xz_extra_order_release(struct xz_extra_order *);
+int xz_extra_order_matches(const struct xz_extra_order *, int source, uint64_t media_generation,
+ uint32_t row, uint32_t track_id);
+unsigned xz_extra_order_live(void); /* live allocation count, for bounded-ownership tests */
 enum xz_extra_input {
  XZ_EXTRA_IN_PLAY, XZ_EXTRA_IN_CUE, XZ_EXTRA_IN_JOG_TURN, XZ_EXTRA_IN_JOG_TOUCH, XZ_EXTRA_IN_TEMPO,
  XZ_EXTRA_IN_SYNC, XZ_EXTRA_IN_MASTER_TEMPO, XZ_EXTRA_IN_HOT_CUE, XZ_EXTRA_IN_LOAD,
@@ -87,6 +99,7 @@ enum xz_extra_input {
  XZ_EXTRA_IN_TEMPO_RANGE, XZ_EXTRA_IN_TEMPO_RESET, XZ_EXTRA_IN_VINYL,
  XZ_EXTRA_IN_LOOP_IN, XZ_EXTRA_IN_LOOP_OUT, XZ_EXTRA_IN_RELOOP,
  XZ_EXTRA_IN_LOOP_HALF, XZ_EXTRA_IN_LOOP_DOUBLE,
+ XZ_EXTRA_IN_TRACK_NEXT,             /* next TRACK occurrence in the captured FLAGSHIP order */
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */
@@ -103,7 +116,9 @@ struct xz_extra_deck_event {
      the player applies its own tempo range. Already past pickup when it arrives. */
   int32_t tempo_position;
   int hot_cue;                      /* 0..7, pads A..H */
-  struct { int source; uint32_t track_id; uint64_t media_generation; uint32_t route_epoch; } load;  /* source 1 USB1, 2 USB2; id in that USB's library */
+  /* Caller keeps its reference; accepted queue and loaded deck each retain their own. */
+  struct { int source; uint32_t track_id; uint64_t media_generation; uint32_t route_epoch;
+           struct xz_extra_order *order; uint32_t order_index; } load;
   int32_t seek_ms;
  };
 };
