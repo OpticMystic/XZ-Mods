@@ -245,7 +245,7 @@ static const char *section_for(const struct build *b, const struct xz_ui_widget 
   if(w->kind==XZ_UI_FEATURE_LINK&&(k==XZ_UI_METRICS_SETUP||k==XZ_UI_SETTINGS))return "SYSTEM";
   return "CUES AND PADS";
  case XZ_UI_CONTROLS:
-  if(w->kind==XZ_UI_STEMS_OVERLAY)return "PLAY SCREEN";
+  if(w->kind==XZ_UI_STEMS_OVERLAY||w->kind==XZ_UI_FOUR_WAVE_ORDER)return "PLAY SCREEN";
   if(w->kind==XZ_UI_CONTROL_SECTION)return "MORE CONTROLS";
   return "STEM SHORTCUTS";
  case XZ_UI_SETTINGS:
@@ -577,6 +577,16 @@ static void control(struct build *b, const struct xz_ui_widget *w, size_t n, int
  case XZ_UI_ENABLE:
   toggle_row(b,a,a->index==XZ_UI_STEM?"USB STEMS":a->label);return;
  case XZ_UI_JUMP_ENABLE:toggle_row(b,a,"CUSTOM JUMPS ON PAGE 1");return;
+ case XZ_UI_FOUR_WAVE_ORDER:{
+  struct xz_shell_menu_row *r=control_row(b,a,XZ_SHELL_MENU_CHOICE,"FOUR-DECK WAVE ORDER");
+  if(r){
+   add_choice(b,r,"1 2 3 4 / NUMERIC",direct(XZ_UI_FOUR_WAVE_ORDER,0,0),1);
+   add_choice(b,r,"3 1 2 4 / MIXER",direct(XZ_UI_FOUR_WAVE_ORDER,0,1),1);
+   r->current=(int16_t)!!b->m->four_wave_mixer;
+   copy(r->help,sizeof r->help,"Shared waveform order in Classic and Modern, until reboot. Audio channels and jog control sides stay unchanged.");
+  }
+  return;
+ }
  case XZ_UI_PAD_FEEDBACK:case XZ_UI_KEY_FEEDBACK:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_TAKEOVER_TOGGLE:
  case XZ_UI_CONNECTION_ENABLE:case XZ_UI_DISCOVERY:case XZ_UI_BROWSE_KEY_PREFIX:case XZ_UI_BROWSE_TRAFFIC:
  case XZ_UI_SHIFT_KEYSYNC:case XZ_UI_KEY_SYNC:case XZ_UI_METRICS_TOGGLE:

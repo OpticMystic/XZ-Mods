@@ -103,7 +103,8 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
    if(k==XZ_UI_STEM)grid(a,2,0,0,1);
    else grid(a,2,k==XZ_UI_GATE||k==XZ_UI_PREVIEW?0:1,k==XZ_UI_GATE||k==XZ_UI_SMART?2:3,1);
    break;
-  case XZ_UI_STEMS_OVERLAY:grid(a,1,0,1,1);break;
+  case XZ_UI_STEMS_OVERLAY:grid(a,2,0,1,1);break;
+  case XZ_UI_FOUR_WAVE_ORDER:grid(a,2,1,1,1);break;
   case XZ_UI_STEM_PAGE:grid(a,4,k,2,1);break;
   case XZ_UI_STEM_PAD_CONFIG:pad(a,k);break;
   case XZ_UI_PAD_FEEDBACK:put(a,552,192,240,40);break;

@@ -116,6 +116,7 @@ enum xz_shell_browse_field {
 /* Alphabet jump index: the first row whose sort key starts with letter. */
 struct xz_shell_browse_letter { char letter; int32_t row; };
 struct xz_shell_browse_model {
+ uint64_t media_generation;             /* Source incarnation; changes on replacement/removal, not cursor movement. */
  uint32_t known;                        /* bit per enum xz_shell_browse_field */
  enum xz_shell_screen screen;           /* the list this snapshot describes */
  const char *source_name;               /* BF_SOURCE, e.g. "USB1" */

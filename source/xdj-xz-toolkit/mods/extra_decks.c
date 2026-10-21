@@ -20,6 +20,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#pragma weak xz_extra_resolve_track_checked
 #pragma weak xz_extra_resolve_track
 #pragma weak xz_extra_native_master_bpm
 
@@ -84,6 +85,7 @@ int xz_extra_deck_input(const struct xz_extra_deck_event *event) {
 
 /* ---- the sink the players submit into; never waits on the connector ---- */
 static xz_usb_deck usb_deck(int deck) { return deck ? XZ_USB_DECK_4 : XZ_USB_DECK_3; }
+uint32_t xz_extra_decks_epoch(void) { return __atomic_load_n(&link_epoch, __ATOMIC_ACQUIRE); }
 static uint32_t sink_link(void *ctx) { (void)ctx; return __atomic_load_n(&link_epoch, __ATOMIC_ACQUIRE); }
 static xz_usb_result sink_submit(void *ctx, uint32_t epoch, int deck, uint32_t generation, const float *stereo, uint32_t frames, uint64_t after) {
  (void)ctx;
@@ -224,7 +226,7 @@ int xz_extra_decks_start(void) {
  const char *enabled = getenv("XZ_MODS_FOUR_DECK");
  if (route.started || (enabled && !strcmp(enabled, "0"))) return 0;
  struct xz_xp_env env = {{NULL, sink_link, sink_submit, sink_flush, sink_position, sink_transition}, now_ms,
-                         xz_extra_resolve_track, xz_extra_native_master_bpm, deck_worker_enter};
+                         xz_extra_resolve_track, xz_extra_native_master_bpm, deck_worker_enter, xz_extra_resolve_track_checked};
  struct xz_xp_players *p = xz_xp_create(&env);
  if (!p) return -1;
  if (xz_xp_start(p)) { xz_xp_destroy(p); return -1; }

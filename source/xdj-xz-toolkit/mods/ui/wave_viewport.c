@@ -44,13 +44,20 @@ int xz_four_layout_pixels(uint16_t *pixels,size_t count,size_t stride,int order)
  struct xz_four_layout g;
  if(!pixels||!xz_four_layout_get(order,&g)||stride<XZ_WAVE_WIDTH||
     stride>SIZE_MAX/sizeof(*pixels)/XZ_WAVE_HEIGHT||count<stride*XZ_WAVE_HEIGHT)return 0;
- /* Every native row lands at or above its source, so one top-down pass reads each source row
-    before anything overwrites it. No extra full-frame buffer. */
+ /* Copy each native lane in its own direction before clearing software lanes.
+    Mixer order moves DECK 1 down into rows68..131; clearing that source first
+    or copying top-down corrupts its remaining source samples. */
+ for(int deck=0;deck<2;deck++){
+  int downward=g.lane_y[deck]>(unsigned)deck*136u;
+  for(unsigned i=0;i<XZ_FOUR_LANE_HEIGHT;i++){
+   unsigned y=g.lane_y[deck]+(downward?XZ_FOUR_LANE_HEIGHT-1-i:i);
+   unsigned src=xz_four_layout_source_row(&g,y);
+   if(src!=y)memmove(pixels+y*stride,pixels+src*stride,XZ_WAVE_WIDTH*sizeof(*pixels));
+  }
+ }
  for(unsigned y=0;y<XZ_WAVE_HEIGHT;y++){
-  uint16_t *row=pixels+y*stride;
-  unsigned src=xz_four_layout_source_row(&g,y);
-  if(src==132)memset(row,0,XZ_WAVE_WIDTH*sizeof(*pixels));
-  else if(src!=y)memmove(row,pixels+src*stride,XZ_WAVE_WIDTH*sizeof(*pixels));
+  int deck=xz_four_layout_lane_at(&g,(int)y);
+  if(deck<0||deck>=2)memset(pixels+y*stride,0,XZ_WAVE_WIDTH*sizeof(*pixels));
  }
  return 1;
 }

@@ -364,12 +364,12 @@ static void commands(void) {
   assert(xz_shell_restore_setting(&s,XZ_SHELL_ITEM_WAVE_ZOOM,5)&&s.zoom==5&&!xz_shell_restore_setting(&s,XZ_SHELL_SET_TIME_MODE,0));
  }
  /* Queue: FIFO, a repeated setting replaces its queued value, LOADs never merge, overflow drops. */
- c=(struct xz_shrt_command){XZ_SHRT_CMD_TIME_MODE,0,1,0,0,1};assert(xz_shrt_queue_push(&q,&c));
+ c=(struct xz_shrt_command){XZ_SHRT_CMD_TIME_MODE,0,1,0,0,1,0};assert(xz_shrt_queue_push(&q,&c));
  c.value=0;assert(xz_shrt_queue_push(&q,&c)&&q.count==1&&q.coalesced==1);
- c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,0,0,101,2,2};assert(xz_shrt_queue_push(&q,&c)&&xz_shrt_queue_push(&q,&c)&&q.count==3);
+ c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,0,0,101,2,2,1};assert(xz_shrt_queue_push(&q,&c)&&xz_shrt_queue_push(&q,&c)&&q.count==3);
  assert(xz_shrt_queue_pop(&q,&out)&&out.kind==XZ_SHRT_CMD_TIME_MODE&&out.value==0);
  assert(xz_shrt_queue_pop(&q,&out)&&out.kind==XZ_SHRT_CMD_LOAD&&xz_shrt_queue_pop(&q,&out)&&!xz_shrt_queue_pop(&q,&out));
- for(int i=0;i<XZ_SHRT_QUEUE;i++){c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,0,0,(uint32_t)i,2,0};assert(xz_shrt_queue_push(&q,&c));}
+ for(int i=0;i<XZ_SHRT_QUEUE;i++){c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,0,0,(uint32_t)i,2,0,1};assert(xz_shrt_queue_push(&q,&c));}
  assert(!xz_shrt_queue_push(&q,&c)&&q.dropped==1);
  for(int i=0;i<XZ_SHRT_QUEUE;i++){assert(xz_shrt_queue_pop(&q,&out)&&out.track_id==(uint32_t)i);}
  assert(xz_shrt_frame_period_ms(XZ_SHELL_PLAY,1)==12&&xz_shrt_frame_period_ms(XZ_SHELL_PLAY,0)==100&&xz_shrt_frame_period_ms(XZ_SHELL_BROWSE,1)==100);

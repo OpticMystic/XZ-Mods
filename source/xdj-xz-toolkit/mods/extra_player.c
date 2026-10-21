@@ -373,8 +373,14 @@ static struct analysis *load_analysis(const char *dir, struct xz_anlz_extra *ext
 
 static void load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now) {
  struct xz_extra_track t;
+ if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return; }
  memset(&t, 0, sizeof t);
- if (!p->env.resolve || p->env.resolve(e->load.source, e->load.track_id, &t)) { xz_xp_notice(p, "TRACK NOT FOUND"); return; }
+ int resolved;
+ if (e->load.media_generation)
+  resolved = p->env.resolve_checked ? p->env.resolve_checked(e->load.source, e->load.track_id, e->load.media_generation, &t) : -1;
+ else resolved = p->env.resolve ? p->env.resolve(e->load.source, e->load.track_id, &t) : -1;
+ if (resolved) { xz_xp_notice(p, e->load.media_generation ? "SOURCE CHANGED / LOAD REFUSED" : "TRACK NOT FOUND"); return; }
+ if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return; }
  t.path[sizeof t.path - 1] = t.anlz_dir[sizeof t.anlz_dir - 1] = t.title[sizeof t.title - 1] = 0;
  t.artist[sizeof t.artist - 1] = t.key[sizeof t.key - 1] = 0;
  if (d->r->media) { jump(d, 0, now); flush(p, d); }

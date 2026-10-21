@@ -52,14 +52,14 @@ int main(void) {
 
  xz_classic_load_arm(&state, 1, 2000);
  message(XZ_CL_MSG_LOAD_ROW, 1, 0, 0, 2000 + XZ_CLASSIC_LOAD_MS);
- assert(stock_calls == 9 && asks == 1);
+ assert(stock_calls == 8 && asks == 1 && refusals == 1);
  message(XZ_CL_MSG_LOAD_ROW, 1, 0, 0, 2000 + XZ_CLASSIC_LOAD_MS + 1);
- assert(stock_calls == 10);
+ assert(stock_calls == 9);
 
  xz_classic_load_arm(&state, 1, 3000);
  message(XZ_CL_MSG_LOAD_ROW, 1, 0, 0, 3500);
  message(XZ_CL_MSG_ROW_TRACK, 1, USB2, 9, 3500 + XZ_CLASSIC_LOAD_MS);
- assert(asks == 2 && loads == 1 && stock_calls == 11);
+ assert(asks == 2 && loads == 1 && stock_calls == 10);
 
  xz_classic_load_arm(&state, 1, 0xfffffe00u);
  message(XZ_CL_MSG_LOAD_ROW, 1, 0, 0, 0x100u);
@@ -71,7 +71,7 @@ int main(void) {
   xz_classic_load_arm(&state, 0, 5000);
   message(XZ_CL_MSG_LOAD_ROW, 0, 0, 0, 5001);
   message(XZ_CL_MSG_ROW_TRACK, 0, refused[i][0], refused[i][1], 5002);
-  assert(refusals == i + 1 && loads == 2);
+  assert(refusals == i + 2 && loads == 2);
  }
  unsigned before = stock_calls;
  message(XZ_CL_MSG_LOAD_ROW, 0, 0, 0, 5003);

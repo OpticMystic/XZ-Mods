@@ -8,6 +8,9 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags);
 int xz_ui_runtime_key_synced(int deck);
 int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled);
 void xz_ui_runtime_stop(void);
+/* Async LOAD failure: bounded text plus a finite MODS-button alert.
+   Its existing touch target opens the full message; no automatic panel takeover. */
+void xz_ui_runtime_notice(const char *text);
 void xz_ui_runtime_on_source_key(int source);
 /* The stock LINK (0) or REKORDBOX (1) key handler, through its hook's trampoline so no assignment runs.
    run 0: 1 when the handler can be called. run 1: calls it with a press-phase entry ({flags 1, 0, state 2},

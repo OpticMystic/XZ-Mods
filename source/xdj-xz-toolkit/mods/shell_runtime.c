@@ -11,6 +11,7 @@
 #include "shell_runtime.h"
 #include "shell_model.h"
 #include "shell_library.h"
+#include "shell_media.h"
 #include "shell_analysis.h"
 #include "shell_playlists.h"
 #include "shell_utility_table.h"
@@ -27,6 +28,7 @@
 #include "key/native_browse.h"
 #include "ui/layered_wave_source.h"
 #include "ui/native_skin_runtime.h"
+#include "ui/native_wave_runtime.h"
 #include "ui/themes.h"
 #include "ui/ui.h"
 #include <dirent.h>
@@ -253,7 +255,30 @@ static int stock_play(void) { return stock_play_parts(NULL); }
 
 /* ---- libraries ---- */
 enum { USB_NONE, USB_LOADING, USB_READY, USB_ERROR };
-static struct { struct xz_shlib *lib; int status, space_known, rdonly; uint64_t free_bytes, total_bytes; uint32_t tracks; char root[1024]; } usb[2];
+static struct { struct xz_shlib *lib; int status, space_known, rdonly; uint64_t free_bytes, total_bytes; uint32_t tracks, generation; char root[1024]; struct xz_shmedia media; } usb[2];
+/* Only control workers enter this lock; render/audio paths never probe media.
+ * Shared between shell scan and extra-player resolver so neither can rebind a
+ * stale FUSE mount to a recycled device name after the other observed it. */
+static pthread_mutex_t media_lock=PTHREAD_MUTEX_INITIALIZER;
+static struct xz_shmedia_guard media_guard[2];
+static struct xz_shmedia observed_media[2];
+static uint32_t media_counter[2],media_published[2];
+uint64_t xz_extra_source_generation(int source) {
+ return source>=1&&source<=2?__atomic_load_n(&media_published[source-1],__ATOMIC_ACQUIRE):0;
+}
+static int current_media(int slot,struct xz_shmedia *out) {
+ pthread_mutex_lock(&media_lock);
+ int found=xz_shmedia_refresh(&xz_shmedia_system,slot,&media_guard[slot],out);
+ uint32_t generation=__atomic_load_n(&media_published[slot],__ATOMIC_RELAXED);
+ if(found&&(!generation||!xz_shmedia_same(&observed_media[slot],out))){
+  if(media_counter[slot]==UINT32_MAX){found=0;out->probe_error=2;}
+  else generation=++media_counter[slot];
+ }
+ if(found)observed_media[slot]=*out;else generation=0;
+ __atomic_store_n(&media_published[slot],generation,__ATOMIC_RELEASE);
+ out->generation=generation;
+ pthread_mutex_unlock(&media_lock);return found;
+}
 /* Under mutex. The browse column choice (0 = the default columns), the active track filter, each stick's
    playlist edits (authoritative; the worker builds from copies), queued edits, the merged playlists for
    ADD TO PLAYLIST, and stem mutes waiting for ui_runtime.c. */
@@ -569,6 +594,7 @@ static void fill_browse(struct xz_shlib *lib) {
  }
  if(!ls->requested){ls->requested=1;list_rebuild(ls);}
  memset(&browse,0,sizeof browse);
+ browse.media_generation=browse_source>=0?usb[browse_source].generation:0;
  browse.screen=list_screen[k];
  browse.source_name=browse_source?"USB2":"USB1";
  browse.known=BF(SOURCE)|BF(CATEGORY);
@@ -1100,42 +1126,9 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry
 
 /* ---- USB scan (worker) ---- */
 static int safe_file(const char *path, struct stat *out) { return !lstat(path,out)&&S_ISREG(out->st_mode); }
-/* Same search as mods/key/browser.c: the mount root, then one folder below it. */
-static int find_database(unsigned slot, char out[1024], struct stat *st) {
- char root[32];snprintf(root,sizeof root,"/media/usb%u",slot+1);
- snprintf(out,1024,"%s/PIONEER/rekordbox/export.pdb",root);
- if(safe_file(out,st))return 1;
- DIR *dir=opendir(root);if(!dir)return 0;
- struct dirent *e;int found=0;
- while(!found&&(e=readdir(dir))){
-  if(e->d_name[0]=='.')continue;
-  char folder[1024];struct stat fs;int n=snprintf(folder,sizeof folder,"%s/%s",root,e->d_name);
-  if(n<0||(size_t)n>=sizeof folder||lstat(folder,&fs)||!S_ISDIR(fs.st_mode))continue;
-  n=snprintf(out,1024,"%s/PIONEER/rekordbox/export.pdb",folder);
-  if(n>0&&n<1024&&safe_file(out,st))found=1;
- }
- closedir(dir);return found;
-}
-static int same_file(const struct stat *a, const struct stat *b) { return a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&a->st_size==b->st_size&&a->st_mtime==b->st_mtime; }
-/* The export must sit on a mounted filesystem under /media/usbN, per /proc/mounts: a stick that is gone
-   must never keep serving a list, even if something is left under the mount point. Writes the mount
-   source (e.g. /dev/sda1). 1 = mounted, 0 = not, -1 = /proc/mounts unreadable (then trusted). */
-static int mounted(const char *root, char *source, size_t cap) {
- FILE *f=fopen("/proc/mounts","r");
- if(!f)return -1;
- char line[1024],dev[512],point[512];size_t best=0;int found=0;
- if(cap)source[0]=0;
- while(fgets(line,sizeof line,f)){
-  /* Two space-separated fields (no sscanf: it binds __isoc99_sscanf, GLIBC_2.7, above the deck's ceiling). */
-  char *s=line,*e=strchr(s,' ');if(!e||(size_t)(e-s)>=sizeof dev)continue;
-  memcpy(dev,s,(size_t)(e-s));dev[e-s]=0;s=e+1;e=strchr(s,' ');if(!e||(size_t)(e-s)>=sizeof point)continue;
-  memcpy(point,s,(size_t)(e-s));point[e-s]=0;
-  size_t n=strlen(point);
-  if(n<=7||strncmp(point,"/media/",7)||strncmp(root,point,n)||(root[n]&&root[n]!='/'))continue;
-  if(n>best){best=n;found=1;if(cap)snprintf(source,cap,"%s",dev);}
- }
- fclose(f);
- return found;
+static int same_file(const struct stat *a,const struct stat *b) { return xz_shmedia_same_file(a,b); }
+static int media_still_current(int slot,const struct xz_shmedia *expected) {
+ struct xz_shmedia now;return current_media(slot,&now)&&expected->generation==now.generation&&xz_shmedia_same(expected,&now);
 }
 /* Everything the worker holds for a stick that went away: prefetched waves for decks that came from it. */
 static void forget_root(const char *root) {
@@ -1146,23 +1139,18 @@ static void forget_root(const char *root) {
  }
 }
 static void scan_usb(void) {
- static char seen_path[2][1024];static struct stat seen[2];
+ static struct xz_shmedia seen[2];
  for(unsigned slot=0;slot<2;slot++){
-  char path[1024]={0},mount_source[256]="";struct stat st;memset(&st,0,sizeof st);
-  int found=find_database(slot,path,&st),mount=-1;
-  if(found){
-   char at[1024];snprintf(at,sizeof at,"%s",path);
-   char *cut=strstr(at,"/PIONEER/rekordbox/export.pdb");if(cut)*cut=0;
-   mount=mounted(at,mount_source,sizeof mount_source);
-   if(!mount)found=0; /* not a mounted stick: treated exactly as absent */
-  }
-  if(found&&!strcmp(path,seen_path[slot])&&same_file(&st,&seen[slot]))continue;
-  if(!found&&!seen_path[slot][0])continue;
+  struct xz_shmedia media;int found=current_media((int)slot,&media);
+  const char *path=media.database;struct stat st=media.file;
+  int same_mount=found&&xz_shmedia_same_mount(&seen[slot],&media);
+  if(found&&xz_shmedia_same(&seen[slot],&media)&&usb[slot].generation==xz_extra_source_generation((int)slot+1)&&(usb[slot].lib||usb[slot].status==USB_ERROR))continue;
+  if(!found&&!seen[slot].mount_id)continue;
   struct xz_shlib *next=NULL;uint64_t free_bytes=0,total_bytes=0;int space=0,rdonly=0;char root[1024]="";
   if(found){
    pthread_mutex_lock(&mutex);usb[slot].status=USB_LOADING;dirty_flag=1;pthread_mutex_unlock(&mutex);
    struct stat after;
-   if(xz_shlib_open(path,LIBRARY_ARENA,&next)||!safe_file(path,&after)||!same_file(&st,&after)){
+   if(xz_shlib_open(path,LIBRARY_ARENA,&next)||!safe_file(path,&after)||!same_file(&st,&after)||!media_still_current((int)slot,&media)){
     xz_shlib_free(next);next=NULL;__atomic_add_fetch(&xz_mods_shell_proof_v1.library_errors,1,__ATOMIC_RELAXED);
    }
    snprintf(root,sizeof root,"%s",path);
@@ -1172,10 +1160,18 @@ static void scan_usb(void) {
   }
   pthread_mutex_lock(&mutex);
   if(usb[slot].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[slot].lib;
-  usb[slot].lib=next;usb[slot].status=next?USB_READY:found?USB_ERROR:USB_NONE;
+  usb[slot].lib=next;usb[slot].status=next?USB_READY:found||media.probe_error?USB_ERROR:USB_NONE;
+  usb[slot].media=media;
+  usb[slot].generation=found?media.generation:0;
+  xz_shrt_queue_drop_source(&queue,(uint8_t)(2+slot));
+  if(shell.load_choice.mode&&!strcmp(shell.load_choice.source,slot?"USB2":"USB1")&&shell.load_choice.media_generation!=usb[slot].generation)shell.load_choice.mode=0;
   for(int i=0;i<PREVIEW_CACHE;i++)if(previews[i].slot==(int)slot)previews[i].state=0; /* ids belong to the old export */
   for(int i=0;i<CUE_CACHE;i++)if(cue_cache[i].slot==(int)slot)cue_cache[i].state=0;
   if(cue_want.slot==(int)slot)cue_want.pending=0;
+  if(preview_want.slot==(int)slot)preview_want.n=0;
+  for(unsigned i=0;i<le_count;)if(le_queue[i].slot==(int)slot){memmove(le_queue+i,le_queue+i+1,(size_t)(--le_count-i)*sizeof *le_queue);}else i++;
+  /* A queued playlist edit must never transfer to a replacement stick. */
+  for(unsigned i=0;i<pl_count;){unsigned at=(pl_head+i)%PL_QUEUE;if(pl_queue[at].slot==(int)slot){for(unsigned j=i;j<pl_count-1;j++)pl_queue[(pl_head+j)%PL_QUEUE]=pl_queue[(pl_head+j+1)%PL_QUEUE];pl_count--;}else i++;}
   memset(&mys[slot],0,sizeof mys[slot]);if(mys_job.slot==(int)slot)mys_job.pending=0;
   mys_state[slot]=XZ_SHELL_MY_READY;mys_result[slot][0]=0;
   usb[slot].tracks=xz_shlib_track_count(next);usb[slot].space_known=space;
@@ -1183,6 +1179,7 @@ static void scan_usb(void) {
   snprintf(usb[slot].root,sizeof usb[slot].root,"%s",next?root:"");
   /* This stick's playlist edits: read from its sidecar below, or gone with it. */
   xz_shpl_free(&edits[slot]);ref_count[slot]=0;
+  if(!same_mount){for(unsigned i=0;i<played_n;)if(played[i].kind==2+slot)played[i]=played[--played_n];else i++;}
   xz_mods_shell_proof_v1.library_tracks[slot]=usb[slot].tracks;
   for(int k=0;k<L_COUNT;k++)if(lists[k].source==(int)slot){retire_list(lists[k].result);lists[k].result=NULL;lists[k].requested=0;}
   if(browse_source==(int)slot&&!next)browse_source=-1;
@@ -1195,7 +1192,7 @@ static void scan_usb(void) {
      there): keep them while the same stick stays mounted with the same analysis, rebuild on a new
      mount or changed analysis, drop them when it is gone. */
   const char *why="unmounted";
-  if(next&&!strcmp(analysis[slot].root,root)&&analysis[slot].index&&xz_shana_signature(root)==analysis[slot].signature)why="kept";
+  if(next&&same_mount&&!strcmp(analysis[slot].root,root)&&analysis[slot].index&&xz_shana_signature(root)==analysis[slot].signature)why="kept";
   else if(next){
    why=analysis[slot].root[0]&&!strcmp(analysis[slot].root,root)?"analysis_changed":"mounted";
    forget_root(analysis[slot].root);analysis_drop((int)slot);
@@ -1205,23 +1202,27 @@ static void scan_usb(void) {
   if(next){
    struct xz_shpl_set loaded_edits;
    int rc=xz_shpl_load(&loaded_edits,root);
+   int live=media_still_current((int)slot,&media);
    pthread_mutex_lock(&mutex);
-   if(!rc&&usb[slot].lib==next){xz_shpl_free(&edits[slot]);edits[slot]=loaded_edits;xz_shpl_init(&loaded_edits);}
+   if(!live)scan_soon=1;
+   if(live&&!rc&&usb[slot].lib==next){xz_shpl_free(&edits[slot]);edits[slot]=loaded_edits;xz_shpl_init(&loaded_edits);}
    pthread_mutex_unlock(&mutex);
    static struct xz_shms_files read_back;int files=xz_shms_read(root,&read_back);
+   live=media_still_current((int)slot,&media);
    pthread_mutex_lock(&mutex);
-   if(usb[slot].lib==next){mys[slot]=read_back;if(refreshed)fill_slots_locked();dirty_flag=1;}
+   if(!live)scan_soon=1;
+   if(live&&usb[slot].lib==next){mys[slot]=read_back;if(refreshed)fill_slots_locked();dirty_flag=1;}
    if(debug){char line[200];snprintf(line,sizeof line,"SHELL_MYSETTINGS: usb%u files=%d states=%d/%d/%d/%d readonly=%d",slot+1,files,
     read_back.state[MS_PLAYER],read_back.state[MS_PLAYER2],read_back.state[MS_MIXER],read_back.state[MS_DEVICE],mys_readonly);xz_log(line);}
    pthread_mutex_unlock(&mutex);
    xz_shpl_free(&loaded_edits);
    if(debug){char line[200];snprintf(line,sizeof line,"SHELL_PLAYLISTS: usb%u sidecar=%s edited=%u readonly=%d",slot+1,rc?"unreadable":"ok",edits[slot].n,rdonly);xz_log(line);}
-   publish_refs((int)slot);
+   if(live)publish_refs((int)slot);
   }
   /* A failed open is retried when the file changes, not every second. */
-  snprintf(seen_path[slot],sizeof seen_path[slot],"%s",found?path:"");seen[slot]=st;
-  if(debug){char line[1400];snprintf(line,sizeof line,"SHELL_LIBRARY: usb%u %s tracks=%u mount=%d source=%s analysis=%s",slot+1,next?path:"none",
-   usb[slot].tracks,mount,mount_source[0]?mount_source:"-",why);xz_log(line);}
+  seen[slot]=media;
+  if(debug){char line[1400];snprintf(line,sizeof line,"SHELL_LIBRARY: usb%u %s tracks=%u mount=%d source=%s analysis=%s mount_error=%d",slot+1,next?path:"none",
+   usb[slot].tracks,found,media.source[0]?media.source:"-",why,media.probe_error);xz_log(line);}
  }
 }
 
@@ -1233,22 +1234,20 @@ static void scan_usb(void) {
    analysis_lock; resolver_lock is never held with either. */
 #define RESOLVER_ARENA ((size_t)1u<<20)  /* the reader only: no list is built from this copy */
 static pthread_mutex_t resolver_lock=PTHREAD_MUTEX_INITIALIZER;
-static struct { char db[1024], root[1024]; struct stat st; struct xz_shlib *lib; struct xz_shana *index; uint64_t signature, checked_us; } own[2];
+static struct { char db[1024], root[1024]; struct stat st; struct xz_shmedia media; struct xz_shlib *lib; struct xz_shana *index; uint64_t signature, checked_us; } own[2];
 static void own_drop_index(int slot) { xz_shana_free(own[slot].index);own[slot].index=NULL;own[slot].signature=0; }
 static void own_drop(int slot) { xz_shlib_free(own[slot].lib);own_drop_index(slot);memset(&own[slot],0,sizeof own[slot]); }
 /* The stick's export as mounted now, or NULL. resolver_lock held. */
 static struct xz_shlib *own_library(int slot) {
- char path[1024],root[1024];struct stat st;
- int found=find_database((unsigned)slot,path,&st);
- if(found){snprintf(root,sizeof root,"%s",path);char *cut=strstr(root,"/PIONEER/rekordbox/export.pdb");if(cut)*cut=0;}
- if(found&&!mounted(root,NULL,0))found=0;
+ struct xz_shmedia media;int found=current_media(slot,&media);
+ const char *path=media.database,*root=media.root;struct stat st=media.file;
  if(!found){if(own[slot].lib||own[slot].index)own_drop(slot);return NULL;}
- if(own[slot].lib&&!strcmp(own[slot].db,path)&&same_file(&st,&own[slot].st))return own[slot].lib;
- if(strcmp(own[slot].root,root))own_drop_index(slot);
+ if(own[slot].lib&&xz_shmedia_same(&own[slot].media,&media))return own[slot].lib;
+ if(!xz_shmedia_same_mount(&own[slot].media,&media))own_drop_index(slot);
  xz_shlib_free(own[slot].lib);own[slot].lib=NULL;
  struct xz_shlib *lib=NULL;struct stat after;
- if(xz_shlib_open(path,RESOLVER_ARENA,&lib)||!safe_file(path,&after)||!same_file(&st,&after)){xz_shlib_free(lib);return NULL;}
- own[slot].lib=lib;own[slot].st=st;
+ if(xz_shlib_open(path,RESOLVER_ARENA,&lib)||!safe_file(path,&after)||!same_file(&st,&after)||!media_still_current(slot,&media)){xz_shlib_free(lib);return NULL;}
+ own[slot].lib=lib;own[slot].st=st;own[slot].media=media;
  snprintf(own[slot].db,sizeof own[slot].db,"%s",path);snprintf(own[slot].root,sizeof own[slot].root,"%s",root);
  return lib;
 }
@@ -1277,9 +1276,13 @@ int xz_extra_resolve_track(int source, uint32_t track_id, struct xz_extra_track 
  memset(out,0,sizeof *out);
  if((source!=1&&source!=2)||!track_id)return -1;
  int slot=source-1,rc=-1,shell_lib=0;
+ struct xz_shmedia current;if(!current_media(slot,&current)){
+  pthread_mutex_lock(&mutex);scan_soon=1;pthread_cond_signal(&wake);pthread_mutex_unlock(&mutex);return -1;
+ }
  char track[1024]="",root[1024]="",dir[1024];
  pthread_mutex_lock(&mutex);
  struct xz_shlib *lib=usb[slot].lib;
+ if(lib&&(!xz_shmedia_same(&usb[slot].media,&current)||usb[slot].generation!=current.generation)){lib=NULL;scan_soon=1;pthread_cond_signal(&wake);}
  if(lib){
   shell_lib=1;
   const struct xz_shlib_track *t=xz_shlib_track(lib,track_id);
@@ -1316,6 +1319,18 @@ int xz_extra_resolve_track(int source, uint32_t track_id, struct xz_extra_track 
  return rc;
 }
 int32_t xz_extra_native_master_bpm(void) { return xz_shell_model_master_bpm(model_read); }
+int xz_extra_resolve_track_checked(int source,uint32_t id,uint64_t generation,struct xz_extra_track *out) {
+ if(!out)return -1;
+ memset(out,0,sizeof *out);
+ if(source<1||source>2||!generation)return -1;
+ struct xz_shmedia before,after;
+ if(!current_media(source-1,&before)||before.generation!=generation)return -1;
+ int rc=xz_extra_resolve_track(source,id,out);
+ if(rc||!current_media(source-1,&after)||!xz_shmedia_same(&before,&after)||after.generation!=generation){
+  memset(out,0,sizeof *out);return -1;
+ }
+ return 0;
+}
 
 /* Worker: one playlist edit. The stick's own track order is read here (the reader is worker-only), the
    edit applies to the authoritative set under the lock, the set is written to the stick atomically, and
@@ -1454,7 +1469,10 @@ static void *worker(void *unused) {
  lock_as("worker");
  while(running){
   uint32_t now=now_ms();
-  if(first){
+  /* Removal detection cannot starve behind wave retries or repeated prefetch.
+   * Only the worker probes mounts/sysfs, never render/audio callbacks. */
+  if(first||scan_soon||now-last_scan>=1000u){
+   scan_soon=0;
    pthread_mutex_unlock(&mutex);scan_usb();lock_as("worker");
    last_scan=now;first=0;continue;
   }
@@ -1480,11 +1498,6 @@ static void *worker(void *unused) {
    if(slot>=0&&slot<2)run_prefetch(d,slot,id,posted);
    lock_as("worker");
    worked=1;
-  }
-  if(!worked&&(scan_soon||now-last_scan>=1000u)){
-   scan_soon=0;
-   pthread_mutex_unlock(&mutex);scan_usb();lock_as("worker");
-   last_scan=now_ms();continue;
   }
   if(!worked&&mys_job.pending){
    int slot=mys_job.slot;unsigned kinds=mys_job.kinds;mys_job.pending=0;
@@ -1526,7 +1539,8 @@ static void *worker(void *unused) {
   for(int k=0;k<L_COUNT&&!worked;k++){
    struct list_slot *ls=&lists[k];
    if(!ls->requested||ls->built==ls->wanted||ls->source<0||!usb[ls->source].lib)continue;
-   struct xz_shlib_request req=ls->req;uint32_t gen=ls->wanted;struct xz_shlib *lib=usb[ls->source].lib;
+   int slot=ls->source;struct xz_shmedia media=usb[slot].media;
+   struct xz_shlib_request req=ls->req;uint32_t gen=ls->wanted;struct xz_shlib *lib=usb[slot].lib;
    /* The build reads the filter and its own copy of the stick's playlist edits. */
    struct xz_shpl_set snapshot;req.filter=active_filter;
    if(req.category==XZ_SHELL_CAT_MATCHING)matching_filter(&req.matching);
@@ -1538,10 +1552,12 @@ static void *worker(void *unused) {
    int rc=xz_shlib_build(lib,&req,&result);
    xz_shpl_free(&snapshot);
    uint32_t took=now_ms()-began;
+   int live=media_still_current(slot,&media);
    lock_as("worker");
    xz_mods_shell_proof_v1.list_build_ms=took;
    if(rc)xz_mods_shell_proof_v1.list_errors++;else xz_mods_shell_proof_v1.list_builds++;
-   if(gen==ls->wanted&&usb[ls->source].lib==lib){
+   if(!live)scan_soon=1;
+   if(live&&gen==ls->wanted&&ls->source==slot&&usb[slot].lib==lib){
     retire_list(ls->result);ls->result=result;ls->built=gen;result=NULL;
     if(refreshed)fill_slots_locked();
     dirty_flag=1;
@@ -1553,13 +1569,16 @@ static void *worker(void *unused) {
   if(!worked&&cue_want.pending&&cue_want.slot>=0&&usb[cue_want.slot].lib){
    int slot=cue_want.slot;uint32_t id=cue_want.id;cue_want.pending=0;
    if(!cue_find(slot,id)){
+    struct xz_shmedia media=usb[slot].media;
     struct xz_shlib *lib=usb[slot].lib;const struct xz_shlib_track *t=xz_shlib_track(lib,id);
     char track[1024];snprintf(track,sizeof track,"%s",t?xz_shlib_text(lib,t->file_path):"");
     pthread_mutex_unlock(&mutex);
     static struct xz_shana_cue got[CUE_POINTS];char dir[1024];int n=-1;
     if(track[0]&&analysis[slot].index&&!xz_shana_find(analysis[slot].index,track,dir,sizeof dir))n=xz_shana_cue_list(dir,got,CUE_POINTS);
+    int live=media_still_current(slot,&media);
     lock_as("worker");
-    if(usb[slot].lib==lib&&!cue_find(slot,id)){
+    if(!live)scan_soon=1;
+    if(live&&usb[slot].lib==lib&&!cue_find(slot,id)){
      struct cue_cache *c=&cue_cache[0];
      for(int i=0;i<CUE_CACHE;i++){if(!cue_cache[i].state){c=&cue_cache[i];break;}if(cue_cache[i].used<c->used)c=&cue_cache[i];}
      c->slot=slot;c->id=id;c->state=n>=0?1:-1;c->n=n>0?n:0;c->used=++preview_clock;if(n>0)memcpy(c->c,got,(size_t)n*sizeof *got);
@@ -1572,6 +1591,7 @@ static void *worker(void *unused) {
   if(!worked&&preview_want.n&&preview_want.slot>=0&&usb[preview_want.slot].lib){
    int slot=preview_want.slot;uint32_t id=preview_want.id[--preview_want.n];
    if(!preview_find(slot,id)){
+    struct xz_shmedia media=usb[slot].media;
     struct xz_shlib *lib=usb[slot].lib;
     const struct xz_shlib_track *t=xz_shlib_track(lib,id);
     char track[1024];snprintf(track,sizeof track,"%s",t?xz_shlib_text(lib,t->file_path):"");
@@ -1584,8 +1604,10 @@ static void *worker(void *unused) {
      free(binned);
     }
     free(bands);
+    int live=media_still_current(slot,&media);
     lock_as("worker");
-    if(usb[slot].lib==lib&&!preview_find(slot,id)){
+    if(!live)scan_soon=1;
+    if(live&&usb[slot].lib==lib&&!preview_find(slot,id)){
      struct preview *p=&previews[0];
      for(int i=0;i<PREVIEW_CACHE;i++){if(!previews[i].state){p=&previews[i];break;}if(previews[i].used<p->used)p=&previews[i];}
      p->slot=slot;p->id=id;p->state=n?1:-1;p->n=n;p->used=++preview_clock;memcpy(p->col,col,(size_t)n*sizeof *col);
@@ -1729,6 +1751,10 @@ static const char *const phase_names[3]={"press","hold","release"};
 
 /* ---- actions ---- */
 static void queue_command(const struct xz_shrt_command *c) {
+ if(c->kind==XZ_SHRT_CMD_LOAD&&!xz_shrt_load_generation_current(c,(uint32_t)xz_extra_source_generation((int)c->device_kind-1))){
+  xz_mods_shell_proof_v1.commands_dropped=++queue.dropped;
+  notice_locked(c->at_ms,"USB SOURCE CHANGED: SELECT TRACK AGAIN");return;
+ }
  if(!xz_shrt_queue_push(&queue,c))xz_mods_shell_proof_v1.commands_dropped=queue.dropped;
 }
 static void refuse(void) { xz_mods_shell_proof_v1.commands_refused++; }
@@ -1851,11 +1877,11 @@ static void my_settings_load(int source, int deck, uint32_t now) {
   struct xz_shrt_command c;
   if(steps[i].def==XZ_SHMS_STEP_TIME_MODE){
    if(!has(G_TIME_MODE)){not_applied++;continue;}
-   c=(struct xz_shrt_command){XZ_SHRT_CMD_TIME_MODE,deck,steps[i].arg,0,0,now};
+   c=(struct xz_shrt_command){XZ_SHRT_CMD_TIME_MODE,deck,steps[i].arg,0,0,now,0};
   }else{
    int u=steps[i].def;
    if(xz_shut_reason(&xz_shut_defs[u],util.get_ok[u],util.set_ok[u],util.trial)){not_applied++;continue;}
-   c=(struct xz_shrt_command){XZ_SHRT_CMD_UTILITY,u,steps[i].arg,0,0,now};
+   c=(struct xz_shrt_command){XZ_SHRT_CMD_UTILITY,u,steps[i].arg,0,0,now,0};
    util.raw[u]=steps[i].arg;util.known[u]=1;
   }
   queue_command(&c);applied++;
@@ -1919,8 +1945,12 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
  for(size_t i=0;i<n;i++){
   const struct xz_shell_action *a=&out[i];struct xz_shrt_command c;
   xz_mods_shell_proof_v1.actions++;
+  if(a->kind==XZ_SHELL_ACT_LOAD&&browse_source>=0&&(!usb[browse_source].generation||usb[browse_source].generation!=xz_extra_source_generation(browse_source+1))){
+   load_actions++;refuse();notice_locked(now,"USB SOURCE CHANGED: SELECT TRACK AGAIN");continue;
+  }
   struct xz_extra_deck_event player;
   enum xz_shrt_extra_route route=xz_shrt_extra_action(&model,a,browse_source,&player);
+  if(route==XZ_SHRT_EXTRA_INPUT&&a->kind==XZ_SHELL_ACT_LOAD&&browse_source>=0)player.load.media_generation=usb[browse_source].generation;
   if(route!=XZ_SHRT_EXTRA_NONE){
    char text[48];
    if(a->kind==XZ_SHELL_ACT_LOAD)load_actions++;
@@ -1936,6 +1966,9 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    continue;
   }
   switch(a->kind){
+  case XZ_SHELL_ACT_WAVE_ORDER:
+   if(model.deck_count==4&&(a->value==0||a->value==1)){xz_native_four_set_mixer_order(a->value);model.wave_order=a->value;dirty_flag=1;}
+   break;
   case XZ_SHELL_ACT_DECK_SELECT:{
    int rc=xz_runtime_deck_select_toggle?xz_runtime_deck_select_toggle(a->deck):-1;
    if(rc>0)break;
@@ -1953,7 +1986,7 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
      const struct xz_shut_def *d=&xz_shut_defs[u];int32_t arg;
      const char *why=xz_shut_reason(d,util.get_ok[u],util.set_ok[u],util.trial);
      if(why||!xz_shut_arg(d,a->value,&arg)){refuse();notice_locked(now,why?why:"THAT CHOICE IS NOT ON THIS ITEM");break;}
-     c=(struct xz_shrt_command){XZ_SHRT_CMD_UTILITY,u,arg,0,0,now};
+     c=(struct xz_shrt_command){XZ_SHRT_CMD_UTILITY,u,arg,0,0,now,0};
      queue_command(&c);
      util.raw[u]=arg;util.known[u]=1; /* shown at once; the next reading confirms or corrects it */
      dirty_flag=1;break;
@@ -1970,7 +2003,7 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
      browse_source<0?"NO USB TRACK LIST TO LOAD FROM":"THIS ROW CANNOT BE LOADED");
     break;
    }
-   c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,a->deck,0,(uint32_t)a->id,(uint8_t)(2+browse_source),now};
+   c=(struct xz_shrt_command){XZ_SHRT_CMD_LOAD,a->deck,0,(uint32_t)a->id,(uint8_t)(2+browse_source),now,usb[browse_source].generation};
    queue_command(&c);break;
   case XZ_SHELL_ACT_HAND_OFF:
    /* The stock menu is reached only by passing the physical MENU key to stock (xz_shrt_key_verdict).
@@ -2151,6 +2184,7 @@ static void extra_parts_of(int i, const struct xz_extra_deck *d) {
  }
 }
 static void extra_refresh_locked(uint32_t now) {
+ model.wave_order=xz_native_four_mixer_order();
  uint32_t mono=(uint32_t)(mono_us()/1000u);
  if(xz_extra_decks_snapshot(&extra))for(int i=0;i<XZ_EXTRA_DECKS;i++)extra_parts_of(i,&extra.deck[i]);
  else{memset(extra_seen,0,sizeof extra_seen);memset(extra_parts,0,sizeof extra_parts);}
@@ -2387,7 +2421,9 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
  uint32_t now=now_ms();int swallow=0;
  lock_as("key");
  int owns=owns_now(eligible,theme);
- if(phase==XZ_SHRT_PRESS){
+ int duplicate=xz_shrt_load_duplicate(&contacts,map,phase);
+ if(duplicate>=0)swallow=duplicate;
+ else if(phase==XZ_SHRT_PRESS){
   enum xz_shrt_rb_effect effect=XZ_SHRT_RB_NONE;
   enum xz_shrt_verdict v=!owns?XZ_SHRT_PASS:map->rule==XZ_SHRT_ASSIGNED?
    xz_shrt_rekordbox_verdict(__atomic_load_n(&rekordbox_action,__ATOMIC_ACQUIRE),&effect):xz_shrt_key_verdict(&shell,&model,map);
@@ -2404,14 +2440,14 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
    }
   }
   if(swallow){
-   uint32_t loads=load_actions;
+   uint32_t loads=load_actions;int choosing=shell.load_choice.mode;
    int key=xz_shrt_key_for_phase(map,phase,0);if(key>=0)deliver_key_locked(key,map->deck,now);
    /* REKORDBOX assigned to a shell action: MODS as the MODS key, STEMS as the header STEMS button. */
    if(effect==XZ_SHRT_RB_SHELL_MODS)deliver_key_locked(XZ_SHELL_KEY_MODS,-1,now);
    else if(effect==XZ_SHRT_RB_STEMS){struct xz_shell_action stems={XZ_SHELL_ACT_TOGGLE_STEMS,-1,0,0};execute_locked(&stems,1,now);}
    if(map->key==XZ_SHELL_KEY_TAG_TRACK&&!(model.capabilities&XZ_SHELL_CAP_TAG_TRACK))
     notice_locked(now,"TAG TRACK WORKS FROM THE PLAY SCREEN");
-   if(map->key==XZ_SHELL_KEY_LOAD&&loads==load_actions)
+   if(map->key==XZ_SHELL_KEY_LOAD&&loads==load_actions&&!choosing&&!shell.load_choice.mode)
     notice_locked(now,list_index(xz_shell_screen(&shell))>=0?"SELECT A TRACK, THEN PRESS LOAD":"OPEN A TRACK LIST TO LOAD");
   }
   if(key_log_allowed(now)){
@@ -2463,9 +2499,9 @@ int xz_shell_runtime_extra_load_key(int eligible, int theme, int side) {
  lock_as("key");
  int owns=owns_now(eligible,theme);
  if(owns){
-  uint32_t loads=load_actions;
+  uint32_t loads=load_actions;int choosing=shell.load_choice.mode;
   deliver_key_locked(XZ_SHELL_KEY_LOAD,XZ_EXTRA_FIRST_DECK+side,now);
-  if(loads==load_actions)
+  if(loads==load_actions&&!choosing&&!shell.load_choice.mode)
    notice_locked(now,list_index(xz_shell_screen(&shell))>=0?"SELECT A TRACK, THEN PRESS LOAD":"OPEN A TRACK LIST TO LOAD");
   xz_mods_shell_proof_v1.keys_swallowed++;
  }
@@ -2625,10 +2661,10 @@ void xz_shell_runtime_notice(const char *text) {
 /* LOAD LOCK and every other stock refusal (Total_Main_CheckLoadExec, CheckLoadLock: a playing deck under
    LOAD LOCK, a track search, a jog touch) are decided by stock's own receiver, which shows its caution
    0x145. The shell only declines a deck whose load is already in progress or unreadable. */
-enum { LOAD_OK=0, LOAD_GUARD=-1, LOAD_NOT_POSTED=-2, LOAD_STATE_UNREADABLE=-3, LOAD_DECK_LOADING=-4 };
+enum { LOAD_OK=0, LOAD_GUARD=-1, LOAD_NOT_POSTED=-2, LOAD_STATE_UNREADABLE=-3, LOAD_DECK_LOADING=-4, LOAD_SOURCE_CHANGED=-5 };
 static const char *load_reason(int rc) {
  return rc==LOAD_OK?"posted":rc==LOAD_GUARD?"code_guard":rc==LOAD_NOT_POSTED?"native_returned_0":
-  rc==LOAD_STATE_UNREADABLE?"deck_state_unreadable":rc==LOAD_DECK_LOADING?"deck_loading":"unknown";
+  rc==LOAD_STATE_UNREADABLE?"deck_state_unreadable":rc==LOAD_DECK_LOADING?"deck_loading":rc==LOAD_SOURCE_CHANGED?"source_changed":"unknown";
 }
 static int load_refused(const struct xz_shrt_command *c) {
  uint32_t state;
@@ -2668,6 +2704,7 @@ static int run_command(const struct xz_shrt_command *c) {
   return 0;
  }
  case XZ_SHRT_CMD_LOAD:{
+  if(!xz_shrt_load_generation_current(c,(uint32_t)xz_extra_source_generation((int)c->device_kind-1)))return LOAD_SOURCE_CHANGED;
   if(c->deck<0||c->deck>=XZ_SHELL_NATIVE_DECKS||!code_is(0x135728,load_code,16)||!code_is(0x13ba38,music_id_code,8))return LOAD_GUARD;
   int refused=load_refused(c);
   if(refused)return refused;
@@ -2737,7 +2774,8 @@ void xz_shell_runtime_owner_tick(void) {
   const struct xz_shrt_command *c=&commands[i];
   struct loaded before={0,0,0,0};
   if(c->kind==XZ_SHRT_CMD_LOAD&&c->deck>=0&&c->deck<XZ_SHELL_NATIVE_DECKS)before=read_loaded(c->deck);
-  int rc=run_command(c);
+  int rc=c->kind==XZ_SHRT_CMD_LOAD&&!xz_shrt_load_generation_current(c,(uint32_t)xz_extra_source_generation((int)c->device_kind-1))?
+   LOAD_SOURCE_CHANGED:run_command(c);
   uint32_t latency=now-c->at_ms;
   lock_as("tick");
   struct xz_shell_proof *p=&xz_mods_shell_proof_v1;

@@ -162,6 +162,9 @@ enum xz_shrt_verdict xz_shrt_rekordbox_verdict(int action, enum xz_shrt_rb_effec
 #define XZ_SHRT_CONTACTS 8
 struct xz_shrt_contacts { struct { uint16_t code; uint8_t channel, used, swallow, held; } c[XZ_SHRT_CONTACTS]; };
 void xz_shrt_contact_press(struct xz_shrt_contacts *, uint16_t code, unsigned channel, int swallow);
+/* LOAD-only duplicate PRESS: -1 new/non-LOAD, 0 repeats a passed contact,
+ * 1 repeats a swallowed contact. Never changes contact or hold state. */
+int xz_shrt_load_duplicate(const struct xz_shrt_contacts *,const struct xz_shrt_key_map *,enum xz_shrt_phase);
 /* Hold/release follow the press. Returns the press decision (1 swallow, 0 pass)
    or -1 when no press was seen; *held says whether a hold came before. A
    release forgets the contact; a hold marks it. */
@@ -222,12 +225,15 @@ struct xz_shrt_command {
  uint32_t track_id;   /* LOAD */
  uint8_t device_kind; /* LOAD: 2 USB1, 3 USB2 (inferred) */
  uint32_t at_ms;
+ uint32_t media_generation; /* LOAD: nonzero source incarnation captured at admission. */
 };
 #define XZ_SHRT_QUEUE 16
 struct xz_shrt_queue { struct xz_shrt_command c[XZ_SHRT_QUEUE]; unsigned head, count; uint32_t dropped, coalesced; };
 /* A queued command of the same kind and deck takes the new value instead of queueing twice. */
 int xz_shrt_queue_push(struct xz_shrt_queue *, const struct xz_shrt_command *);
 int xz_shrt_queue_pop(struct xz_shrt_queue *, struct xz_shrt_command *);
+unsigned xz_shrt_queue_drop_source(struct xz_shrt_queue *,uint8_t device_kind);
+int xz_shrt_load_generation_current(const struct xz_shrt_command *,uint32_t observed_generation);
 /* Shell-owned display settings (wave colour, wave position, key display, wave zoom): the shell already
    applied them; the runtime only stores the value and restores it with xz_shell_restore_setting after
    xz_shell_init. They are never stock commands. */

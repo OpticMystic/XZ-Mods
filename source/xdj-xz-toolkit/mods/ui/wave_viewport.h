@@ -73,16 +73,16 @@ int xz_wave_layout_pixels(uint16_t *,size_t count,size_t stride,int mode);
 /* Four decks (../extra_decks.h). DECK 3 and DECK 4 have no native lane: the 268 rows hold four 64-row
    lanes with 4-row gaps, and native DECK 1 and DECK 2 shrink into theirs as the stem layouts do.
    Interleaved puts DECK 3 under DECK 1 beside the native DECK 1 column and DECK 4 under DECK 2,
-   as the controller's left (1/3) and right (2/4) sides; stacked is 1, 2, 3, 4. Decks are
+   as the controller's left (1/3) and right (2/4) sides; stacked is 1, 2, 3, 4. Mixer order is 3, 1, 2, 4. Decks are
    zero-based here: 0 and 1 native, 2 and 3 the software players. */
-enum xz_four_order { XZ_FOUR_INTERLEAVED=0, XZ_FOUR_STACKED=1, XZ_FOUR_ORDER_COUNT=2 };
-#define XZ_FOUR_ORDER XZ_FOUR_INTERLEAVED
+enum xz_four_order { XZ_FOUR_INTERLEAVED=0, XZ_FOUR_STACKED=1, XZ_FOUR_MIXER=2, XZ_FOUR_ORDER_COUNT=3 };
+#define XZ_FOUR_ORDER XZ_FOUR_STACKED
 #define XZ_FOUR_DECKS 4
 #define XZ_FOUR_LANE_HEIGHT 64
 #define XZ_FOUR_GAP 4
 struct xz_four_layout { unsigned lane_y[XZ_FOUR_DECKS]; };
 static inline int xz_four_layout_get(int order,struct xz_four_layout *out) {
- static const unsigned char slot[XZ_FOUR_ORDER_COUNT][XZ_FOUR_DECKS]={{0,2,1,3},{0,1,2,3}};
+ static const unsigned char slot[XZ_FOUR_ORDER_COUNT][XZ_FOUR_DECKS]={{0,2,1,3},{0,1,2,3},{1,2,0,3}};
  if(!out||(unsigned)order>=XZ_FOUR_ORDER_COUNT)return 0;
  for(int d=0;d<XZ_FOUR_DECKS;d++)out->lane_y[d]=slot[order][d]*(XZ_FOUR_LANE_HEIGHT+XZ_FOUR_GAP);
  return 1;

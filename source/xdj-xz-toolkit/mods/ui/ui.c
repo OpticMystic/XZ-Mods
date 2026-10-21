@@ -405,6 +405,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_PANEL,XZ_UI_UPDATES,0,"BACK TO UPDATES");
  }else if(u->page==XZ_UI_CONTROLS){
   add(w,&n,XZ_UI_STEMS_OVERLAY,0,0,"STEM ROW LAYOUT");
+  add(w,&n,XZ_UI_FOUR_WAVE_ORDER,0,0,m->four_wave_mixer?"WAVE ORDER: 3 1 2 4":"WAVE ORDER: 1 2 3 4");
   for(i=0;i<8;i++)add(w,&n,XZ_UI_STEM_PAD_CONFIG,i,0,"");
   add(w,&n,XZ_UI_PAD_FEEDBACK,0,0,"PAD LIGHTS");
   add(w,&n,XZ_UI_STEM_ORDER,0,0,"STEM ORDER");
@@ -530,6 +531,7 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
  case XZ_UI_WAVE_MODE:l.selected=k==m->wave_mode;break;
  case XZ_UI_SHIFT_PAGES:l.selected=m->shift_pages;break;
  case XZ_UI_PAD_FEEDBACK:l.selected=m->pad_feedback;break;
+ case XZ_UI_FOUR_WAVE_ORDER:l.selected=!!m->four_wave_mixer;break;
  case XZ_UI_STEMS_OVERLAY:l.selected=m->stems_overlay;break;
  case XZ_UI_STEM_ORDER:l.selected=0;break;
  case XZ_UI_SHIFT_KEYSYNC:l.selected=m->shift_keysync;break;
@@ -846,6 +848,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   case XZ_UI_SHIFT_KEYSYNC:value=m->shift_keysync?0:1;break;
   case XZ_UI_RAM_DEBUG:value=m->ram_debug?0:1;break;
   case XZ_UI_KEY_FEEDBACK:value=m->key_feedback?0:1;break;
+  case XZ_UI_FOUR_WAVE_ORDER:value=m->four_wave_mixer?0:1;break;
   case XZ_UI_REKORDBOX_KEY:value=m->rekordbox_assign[0]==XZ_UI_RB_MODS?0:1;break;
   case XZ_UI_BROWSE_KEY_PREFIX:value=m->browse_key_prefix?0:1;break;
   case XZ_UI_BROWSE_TRAFFIC:value=m->browse_traffic?0:1;break;

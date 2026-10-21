@@ -3,12 +3,12 @@ from pathlib import Path
 import argparse,hashlib,json,os,re,subprocess
 from elftools.elf.elffile import ELFFile
 here=Path(__file__).resolve().parent
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',type=Path,required=True);args=parser.parse_args();out=args.output.resolve();out.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--firmware',type=Path,default=here.parent/'vendor/decrypted_iso/pdj/extracted/pdj/rbp');args=parser.parse_args();out=args.output.resolve();out.mkdir(parents=True,exist_ok=True)
 source=(here/'runtime.c').read_text();start=source.index('int xz_hook_arm(');end=source.index('int xz_runtime_beat_jump(',start);hook=source[start:end]
 structure=source[source.index('struct code_hook {'):source.index('struct pad_trace_record')]
 protection=source[source.index('static int range_protection('):source.index('static int known_application(')]
-addresses=set(int(a,16) for a in re.findall(r'address\s*==\s*(0x[0-9a-f]+)',hook));addresses.update(int(a,16) for a in re.findall(r'\{(0x[0-9a-f]+),\{',(here/'ram/abi.h').read_text()))
-firmware=here.parent/'vendor/decrypted_iso/pdj/extracted/pdj/rbp';assert hashlib.sha256(firmware.read_bytes()).hexdigest()=='6571c40b0523954d4091a4649f8200c4c615492fc37bae7f86cc89c6289510d2'
+addresses=set(int(a,16) for a in re.findall(r'address\s*==\s*(0x[0-9a-f]+)',hook));addresses.update(int(a,16) for a in re.findall(r'\{(0x[0-9a-f]+),\{',hook));addresses.update(int(a,16) for a in re.findall(r'\{(0x[0-9a-f]+),\{',(here/'ram/abi.h').read_text()))
+firmware=args.firmware;assert hashlib.sha256(firmware.read_bytes()).hexdigest() in {'6571c40b0523954d4091a4649f8200c4c615492fc37bae7f86cc89c6289510d2','3a7c6c507ea67b2484d0cbc58136a495374c8ede5eeef1ffdffcfe86c7a3dae3'}
 with firmware.open('rb') as f:
  elf=ELFFile(f);text=elf.get_section_by_name('.text');data=text.data();base=text['sh_addr']
 entries=','.join('{'+hex(a)+',{'+','.join(hex(b) for b in data[a-base:a-base+8])+'}}' for a in sorted(addresses))
@@ -43,7 +43,8 @@ int main(void){
 (out/'allocator-test.c').write_text(c)
 def linux(p):return '/mnt/'+p.drive[0].lower()+p.as_posix()[2:] if os.name=='nt' else str(p)
 prefix=['wsl.exe','-d','Ubuntu','--'] if os.name=='nt' else []
-subprocess.run(prefix+['cc','-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-omit-frame-pointer',linux(out/'allocator-test.c'),'-o',linux(out/'allocator-test')],check=True)
+(out/'gcc-tmp').mkdir(exist_ok=True)
+subprocess.run(prefix+['env','TMPDIR='+linux(out/'gcc-tmp'),'cc','-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-omit-frame-pointer',linux(out/'allocator-test.c'),'-o',linux(out/'allocator-test')],check=True)
 result=subprocess.run(prefix+[linux(out/'allocator-test')],capture_output=True,text=True);print(result.stdout+result.stderr,end='')
 (out/'hook-capacity-proof.json').write_text(json.dumps(dict(passed=result.returncode==0,exit_code=result.returncode,qualified_hooks=len(addresses),source_sha256=hashlib.sha256((here/'runtime.c').read_bytes()).hexdigest(),stdout=result.stdout,stderr=result.stderr,hardware_touched=False),indent=2)+'\n')
 raise SystemExit(result.returncode)

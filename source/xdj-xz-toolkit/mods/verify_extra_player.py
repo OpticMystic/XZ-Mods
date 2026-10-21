@@ -22,6 +22,7 @@ MUTATION = ('if (d->state == XZ_XP_PLAYING || d->state == XZ_XP_ENDED) { jump(d,
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--zig', required=True)
 parser.add_argument('--no-wsl', action='store_true')
+parser.add_argument('--tsan-no-aslr', action='store_true', help='Use setarch -R for the TSan child only, for host mapping collisions')
 args = parser.parse_args()
 common = [str(Path(args.zig).resolve()), 'cc', '-O1', '-DXZ_XP_TEST_RENDER_HOOK', '-std=c11', '-Wall', '-Wextra', '-Werror', '-I' + str(ROOT)]
 tsan_unavailable = None
@@ -92,7 +93,7 @@ with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
                        '-I' + linux(ROOT), *(linux(ROOT / s) for s in SOURCES), linux(ROOT / 'test_extra_player.c'),
                        '-lm', '-o', linux(tsan)], check=True)
         for attempt in range(3):
-            checked = subprocess.run(['wsl', '-d', 'Ubuntu', '--', linux(tsan), linux(folder)],
+            checked = subprocess.run(['wsl', '-d', 'Ubuntu', '--', *(['setarch','x86_64','-R'] if args.tsan_no_aslr else []), linux(tsan), linux(folder)],
                                      capture_output=True, text=True)
             if checked.returncode == 0:
                 print(checked.stdout.strip())

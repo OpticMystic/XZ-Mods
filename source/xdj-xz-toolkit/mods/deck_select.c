@@ -283,6 +283,9 @@ struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *d, unsigne
  struct xz_ds_side *s = &d->side[side];
  if(row && row->kind == XZ_EXTRA_IN_LOAD) {
   if(op == 0) {
+   /* A repeated press packet is still the opening contact, not a second
+      numbered choice in the LOAD popup. Only a release arms another press. */
+   if(s->load_down){out.verdict=XZ_DS_SWALLOW;return out;}
    s->load_down = s->target == XZ_DS_EXTRA;
    s->load = XZ_DS_LOAD_SWALLOW;
    if(!s->load_down) return out;

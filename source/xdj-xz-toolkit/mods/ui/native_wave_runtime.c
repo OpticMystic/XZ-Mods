@@ -27,7 +27,8 @@ __attribute__((visibility("default"))) uint32_t xz_native_wave_skin_v1[4]={1};
 static int transformed, drawn_layout, observed, observe_only, focus_verified;
 /* Four decks: route_up from the draw thread's snapshot at the wave lock; four_drawn is the drawn
    lane order + 1 after a successful four-deck frame, the geometry touches map against. */
-static int route_up, four_drawn, notice_up;
+static int route_up, four_drawn, notice_up, mixer_order;
+static _Thread_local int four_frame_order;
 static uint32_t monotonic_ms(void);
 static _Thread_local struct xz_extra_decks extra;
 static _Thread_local struct xz_extra_lane_marks extra_marks[XZ_EXTRA_DECKS];
@@ -65,6 +66,8 @@ int xz_native_four_order(void){
     if(!scene(&current)){__atomic_store_n(&four_drawn,0,__ATOMIC_RELEASE);return -1;}
     return __atomic_load_n(&four_drawn,__ATOMIC_ACQUIRE)-1;
 }
+int xz_native_four_mixer_order(void){return __atomic_load_n(&mixer_order,__ATOMIC_ACQUIRE);}
+void xz_native_four_set_mixer_order(int mixer){__atomic_store_n(&mixer_order,!!mixer,__ATOMIC_RELEASE);}
 int xz_native_focus_deck(void){
     uint32_t deck;
     if(!focus_verified||word(0x02205d10,&deck)||deck<1||deck>2)return -1;
@@ -95,6 +98,7 @@ static int lock_hook(void *window,void **pixels,int *pitch){
     if(result==0&&caller==0x1fd058&&scene(&current)&&current.gr==(uintptr_t)window&&pixels&&pitch&&
        xz_native_wave_capture(&pair,&current,caller,(uintptr_t)pthread_self(),*pixels,*pitch)){
         __atomic_fetch_add(&xz_inline_proof_v1.captures,1,__ATOMIC_RELAXED);
+        four_frame_order=xz_native_four_mixer_order()?XZ_FOUR_MIXER:XZ_FOUR_STACKED;
         xz_layered_wave_begin(*pixels);
         if(!__atomic_exchange_n(&observed,1,__ATOMIC_ACQ_REL))
             xz_log("INLINE_WAVE_PROOF: native play scene=2 window=536x268 at=131,18 pitch=1072 caller=1fd058");
@@ -117,7 +121,7 @@ static uint32_t monotonic_ms(void){
  return (uint32_t)((uint64_t)t.tv_sec*1000u+(uint64_t)t.tv_nsec/1000000u);
 }
 static void draw_extra(uint16_t *pixels,uint32_t count){
- struct xz_four_layout g;xz_four_layout_get(XZ_FOUR_ORDER,&g);
+ struct xz_four_layout g;xz_four_layout_get(four_frame_order,&g);
  struct xz_extra_lane_view view={monotonic_ms(),0,1,0};
  xz_layered_wave_view(&view.column_us,&view.background);
  for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
@@ -128,7 +132,7 @@ static void draw_extra(uint16_t *pixels,uint32_t count){
 static void style_four(uint16_t *pixels,uint32_t count){
  if(count!=XZ_NATIVE_WAVE_PIXELS)return;
  if(!xz_mods_native_style_v1()){xz_extra_notice_draw(pixels,536,count,&extra,monotonic_ms());return;}
- struct xz_four_layout g;xz_four_layout_get(XZ_FOUR_ORDER,&g);
+ struct xz_four_layout g;xz_four_layout_get(four_frame_order,&g);
  struct xz_four_marks m;memset(&m,0,sizeof(m));
  for(unsigned d=0;d<2;d++)m.col[d]=xz_layered_wave_drawn(d,&m.look[d]);
  for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){m.look[2+i]=extra_marks[i].look;m.col[2+i]=extra_marks[i].col;}
@@ -160,7 +164,7 @@ static int unlock_hook(void *window){
         int inline_rows=four||!requested?XZ_STEM_LAYOUT_HIDDEN:requested();
         if(scene(&current)&&!observe_only){
             if(four)drawn=xz_native_wave_finish_four(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
-                scratch,XZ_NATIVE_WAVE_PIXELS,XZ_FOUR_ORDER,draw_extra,style_four);
+                scratch,XZ_NATIVE_WAVE_PIXELS,four_frame_order,draw_extra,style_four);
             else drawn=xz_native_wave_finish_styled(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,
                 (xz_mods_native_style_v1()||__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE))?style_main_notice:NULL,inline_rows);
@@ -168,7 +172,7 @@ static int unlock_hook(void *window){
         }
         else xz_native_wave_reset(&pair);
         __atomic_store_n(&drawn_layout,drawn?inline_rows:0,__ATOMIC_RELEASE);
-        __atomic_store_n(&four_drawn,drawn&&four?XZ_FOUR_ORDER+1:0,__ATOMIC_RELEASE);
+        __atomic_store_n(&four_drawn,drawn&&four?four_frame_order+1:0,__ATOMIC_RELEASE);
         __atomic_store_n(&transformed,drawn&&inline_rows,__ATOMIC_RELEASE);
         if(drawn)__atomic_fetch_add(&xz_inline_proof_v1.frames,1,__ATOMIC_RELAXED);
         else __atomic_fetch_add(&xz_inline_proof_v1.skipped,1,__ATOMIC_RELAXED);

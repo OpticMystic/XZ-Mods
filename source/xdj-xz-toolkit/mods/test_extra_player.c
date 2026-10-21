@@ -314,7 +314,7 @@ static void expect_notice(const char *text, uint32_t *seq) {
 }
 
 static void test_players(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
  p = xz_xp_create(&env); assert(p);
  uint32_t seq = 0;
  fake_route(0);
@@ -551,7 +551,7 @@ static void test_players(void) {
 }
 
 static void test_loop_and_range(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
  p = xz_xp_create(&env); assert(p);
  fake_route(7); step(); load(0, 1); load(1, 2);
  seek(0, 500); hold(0, XZ_EXTRA_IN_LOOP_IN, 1); hold(0, XZ_EXTRA_IN_LOOP_IN, 0);
@@ -620,7 +620,7 @@ static void test_loop_and_range(void) {
 }
 
 static void test_vinyl(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
  p=xz_xp_create(&env);assert(p);
  fake_route(8);step();load(0,4);load(1,2);
  assert(debug(0).source_rate==44100&&view.deck[0].total_ms==2000);
@@ -711,8 +711,51 @@ static void *usb(void *arg) {
  }
  return NULL;
 }
+static unsigned ordinary_resolves, checked_resolves;
+static uint32_t reconnect_in_resolver;
+static int ordinary_counted(int source,uint32_t id,struct xz_extra_track *out) {
+ ordinary_resolves++;return resolve(source,id,out);
+}
+static int checked_counted(int source,uint32_t id,uint64_t generation,struct xz_extra_track *out) {
+ checked_resolves++;
+ if(reconnect_in_resolver){uint32_t epoch=reconnect_in_resolver;reconnect_in_resolver=0;fake_route(epoch);}
+ return generation==42?resolve(source,id,out):-1;
+}
+static void test_checked_resolver(void) {
+ for(int missing=0;missing<2;missing++) {
+  ordinary_resolves=checked_resolves=0;fake_route(300+missing);
+  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,ordinary_counted,master_bpm,NULL,missing?NULL:checked_counted};
+  p=xz_xp_create(&env);assert(p);step();load(0,1);press(0,XZ_EXTRA_IN_PLAY);
+  assert(ordinary_resolves==1&&debug(0).source_rate==44100&&debug(0).state==XZ_XP_PLAYING);
+  struct xz_extra_deck_event e=event(0,XZ_EXTRA_IN_LOAD,1);e.load.source=1;e.load.track_id=2;e.load.media_generation=41;
+  e.load.route_epoch=999;assert(input(e));step();
+  assert(ordinary_resolves==1&&!checked_resolves&&debug(0).source_rate==44100&&debug(0).state==XZ_XP_PLAYING);
+  e.load.route_epoch=0;assert(input(e));step();
+  assert(ordinary_resolves==1&&checked_resolves==(unsigned)!missing);
+  assert(debug(0).source_rate==44100&&debug(0).state==XZ_XP_PLAYING);
+  if(!missing) {
+   e.load.media_generation=42;assert(input(e));step();
+   assert(checked_resolves==2&&ordinary_resolves==1&&debug(0).source_rate==48000);
+  }
+  e.load.media_generation=0;e.load.track_id=1;assert(input(e));step();
+  assert(ordinary_resolves==2&&checked_resolves==(missing?0u:2u)&&debug(0).source_rate==44100);
+  xz_xp_destroy(p);p=NULL;
+ }
+ /* A valid resolution from a replaced route cannot retire the current track. */
+ ordinary_resolves=checked_resolves=0;fake_route(400);
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,ordinary_counted,master_bpm,NULL,checked_counted};
+ p=xz_xp_create(&env);assert(p);step();load(0,1);press(0,XZ_EXTRA_IN_PLAY);
+ unsigned flushes=f.flushes[0];
+ struct xz_extra_deck_event e=event(0,XZ_EXTRA_IN_LOAD,1);e.load.source=1;e.load.track_id=2;e.load.media_generation=42;e.load.route_epoch=400;
+ reconnect_in_resolver=401;assert(input(e));step();
+ assert(!reconnect_in_resolver&&checked_resolves==1&&ordinary_resolves==1);
+ assert(debug(0).state==XZ_XP_PLAYING&&debug(0).source_rate==44100&&f.flushes[0]==flushes);
+ xz_xp_destroy(p);p=NULL;
+ puts("PASS checked resolver exact dispatch, no unchecked fallback, missing callback refusal, playing track preserved, legacy zero-token path");
+}
+
 static void test_reconnect_during_render(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
  for (int mode = 0; mode < 2; ++mode) {
   fake_route(100 + mode * 2);
   p = xz_xp_create(&env); assert(p); step();
@@ -743,7 +786,7 @@ static void test_threads(void) {
  threaded_clock = 1;
  memset(&f.submits, 0, sizeof f.submits);
  fake_route(3);
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
  env.worker_enter = worker_enter_test;
  p = xz_xp_create(&env); assert(p);
  xz_xp_step(p, 0); assert(!entered_worker[0] && !entered_worker[1]);
@@ -790,6 +833,7 @@ int main(int argc, char **argv) {
  test_players();
  test_loop_and_range();
  test_vinyl();
+ test_checked_resolver();
  test_reconnect_during_render();
  test_threads();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
