@@ -50,6 +50,17 @@ xz_usb_result xz_usb_transport_open(const char *ram_usb_node, xz_usb_transport *
 xz_usb_result xz_usb_transport_submit(xz_usb_transport *, xz_usb_deck, uint32_t generation,
                                       const float *stereo, uint32_t frames, uint64_t source_after);
 
+/* Atomically discard pending old PCM and publish its first replacement block.
+ * The new block is queued before the new requested generation is released.
+ * expected_generation must match the current route/deck generation.
+ * AGAIN (starting/full), BUSY, STALE, INVALID and STOPPED publish no block and leave the
+ * requested generation unchanged; *generation changes only on OK. Full queues
+ * drain normally before retry. No allocation or consumer lock is added.
+ * Already staged USB audio retains the ordinary flush tail contract below. */
+xz_usb_result xz_usb_transport_flush_and_submit(xz_usb_transport *, xz_usb_deck,
+                                      uint32_t expected_generation, const float *stereo, uint32_t frames,
+                                      uint64_t source_after, uint32_t *generation);
+
 /* Nonblocking asynchronous discard of this deck's pending PCM. Returns a new
  * generation for future submits. May return BUSY: retry without submitting old
  * PCM. Applied generation in position acknowledges the discard. Already staged

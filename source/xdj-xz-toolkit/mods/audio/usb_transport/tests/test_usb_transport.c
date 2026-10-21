@@ -278,6 +278,99 @@ static void test_close_timeout_retains_worker(void) {
     assert(xz_usb_transport_close(&t) == XZ_USB_OK && !t);
     assert(f.closed == 1 && f.alt_zero == 1 && f.released == 1);
 }
+static void test_atomic_verify_slot(const struct slot *s,unsigned d,int32_t value) {
+ unsigned frames=(unsigned)s->u.buffer_length/OUT_BYTES;
+ for(unsigned i=0;i<frames;i++)for(unsigned ch=0;ch<12;ch++) {
+  int32_t got=unpack(s->data+i*OUT_BYTES+ch*3);
+  if(ch==4+2*d||ch==5+2*d)assert(got==value);
+  else if(ch<4||ch>7)assert(!got);
+ }
+}
+
+void test_atomic_packing_and_first_block(void) {
+ xz_usb_transport *t=fixture();store32(&t->state,XZ_USB_RUNNING);
+ float pcm[512];constant(pcm,256,.25f);uint32_t gen=999;
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,1234,&gen)==XZ_USB_OK&&gen==2);
+ assert(load32(&t->queue[0].generation)==2&&load32(&t->queue[0].write)==1);
+ struct slot *s=&t->output[0];prepare(t,s,0,1);assert(s->deck[0].generation==2&&s->deck[0].frames==(unsigned)s->u.buffer_length/OUT_BYTES);test_atomic_verify_slot(s,0,2097152);
+ assert(load32(&t->queue[1].generation)==1&&load32(&t->queue[1].write)==0);
+ dispose(t);
+}
+void test_atomic_failures_and_full(void) {
+ xz_usb_transport *t=fixture();float pcm[512];constant(pcm,256,.25f);uint32_t out=777;
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,256,&out)==XZ_USB_AGAIN&&out==777);
+ store32(&t->state,XZ_USB_RUNNING);store32(&t->queue[0].producer,1);
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,256,&out)==XZ_USB_BUSY&&out==777);
+ store32(&t->queue[0].producer,0);
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,2,pcm,256,256,&out)==XZ_USB_STALE&&out==777);
+ pcm[8]=NAN;assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,256,&out)==XZ_USB_INVALID&&out==777);pcm[8]=.25f;
+ assert(load32(&t->queue[0].generation)==1&&load32(&t->queue[0].write)==0);
+ dispose(t);
+}
+void test_atomic_full_queue_retry(void) {
+ xz_usb_transport *t=fixture();store32(&t->state,XZ_USB_RUNNING);float pcm[512];constant(pcm,256,.25f);uint32_t out=777;
+ for(unsigned i=0;i<BLOCKS;i++)assert(xz_usb_transport_submit(t,XZ_USB_DECK_3,1,pcm,256,256)==XZ_USB_OK);
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,9999,&out)==XZ_USB_AGAIN&&out==777);
+ assert(load32(&t->queue[0].generation)==1&&load32(&t->queue[0].write)==32);
+ for(unsigned i=0;i<3;i++)prepare(t,&t->output[0],0,1);
+ constant(pcm,256,.5f);assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,9999,&out)==XZ_USB_OK&&out==2);
+ prepare(t,&t->output[0],0,1);test_atomic_verify_slot(&t->output[0],0,4194304);assert(t->output[0].deck[0].frames==(unsigned)t->output[0].u.buffer_length/OUT_BYTES);
+ dispose(t);
+}
+void test_atomic_wrap_cancel_and_loss(void) {
+ xz_usb_transport *t=fixture();store32(&t->state,XZ_USB_RUNNING);float pcm[512];constant(pcm,256,.25f);uint32_t gen=0;
+ store32(&t->queue[0].read,UINT32_MAX);store32(&t->queue[0].write,UINT32_MAX);
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,256,&gen)==XZ_USB_OK&&gen==2&&load32(&t->queue[0].write)==0);
+ assert(xz_usb_transport_flush(t,XZ_USB_DECK_3,&gen)==XZ_USB_OK&&gen==3);
+ constant(pcm,256,.5f);assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,3,pcm,256,512,&gen)==XZ_USB_OK&&gen==4);
+ prepare(t,&t->output[0],0,1);test_atomic_verify_slot(&t->output[0],0,4194304);
+ store32(&t->state,XZ_USB_FAULTED);unsigned write=load32(&t->queue[0].write);uint32_t out=777;
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,4,pcm,256,512,&out)==XZ_USB_STOPPED&&out==777&&load32(&t->queue[0].write)==write);
+ store32(&t->state,XZ_USB_RUNNING);store32(&t->queue[0].generation,UINT32_MAX);
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,UINT32_MAX,pcm,256,512,&out)==XZ_USB_INVALID&&out==777);
+ dispose(t);
+}
+void test_atomic_old_generation_in_progress(void) {
+ xz_usb_transport *t=fixture();store32(&t->state,XZ_USB_RUNNING);float pcm[512];constant(pcm,256,.25f);uint32_t gen;
+ assert(xz_usb_transport_submit(t,XZ_USB_DECK_3,1,pcm,256,256)==XZ_USB_OK);
+ struct contribution old={1,0,0,0};uint8_t wire[OUT_BYTES*512]={0};take_frames(t,0,&old,wire,11);assert(old.frames==11);
+ constant(pcm,256,.5f);assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,1000,&gen)==XZ_USB_OK);
+ take_frames(t,0,&old,wire+11*OUT_BYTES,300);assert(old.frames==256&&load32(&t->queue[0].read)==1);
+ assert(t->queue[0].block[1].generation==2&&t->queue[0].offset==0);
+ for(unsigned i=0;i<256;i++)assert(unpack(wire+i*OUT_BYTES+12)==2097152);
+ prepare(t,&t->output[0],0,1);test_atomic_verify_slot(&t->output[0],0,4194304);assert(t->live.deck[0].applied_generation==2);
+ dispose(t);
+}
+void test_atomic_completed_prefix_and_other_deck(void) {
+ xz_usb_transport *t=fixture();assert(setup(t,"fake")==XZ_USB_OK);step(t,32);
+ float pcm[512];constant(pcm,256,.25f);
+ assert(xz_usb_transport_submit(t,XZ_USB_DECK_3,1,pcm,256,1000)==XZ_USB_OK);
+ assert(xz_usb_transport_submit(t,XZ_USB_DECK_4,1,pcm,256,2000)==XZ_USB_OK);step(t,8);
+ uint64_t boundary=t->live.wire_submitted_frames;uint32_t gen=0;constant(pcm,256,.5f);
+ assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,9999,&gen)==XZ_USB_OK&&gen==2);
+ step(t,2);assert(t->live.deck[0].applied_generation==2&&t->live.deck[0].completed_frames==0);
+ assert(t->live.deck[0].prior_audio_through_wire_frame==boundary);
+ step(t,80);assert(t->live.deck[0].staged_frames==256&&t->live.deck[0].completed_frames==256);
+ assert(t->live.deck[0].source_after_completed==9999&&t->live.deck[0].source_valid==3);
+ assert(t->live.deck[1].applied_generation==1&&t->live.deck[1].completed_frames==256&&t->live.deck[1].source_after_completed==2000);
+ assert(t->live.deck[0].underrun_frames>0); /* Producer stopped: silence counters remain honest. */
+ dispose(t);
+}
+void test_atomic_concurrent_transitions(void) {
+ memset(&f,0,sizeof f);f.time=1000000;f.verify_generation=1;xz_usb_transport *t=NULL;
+ assert(open_with_io("fake",&t,&fake_io)==XZ_USB_OK);
+ store32(&producer_done,0);pthread_t producer;assert(!pthread_create(&producer,NULL,racing_producer,t));
+ uint32_t generation=1;unsigned again=0,busy=0;
+ for(unsigned i=0;i<2000;) {
+  float pcm[512];constant(pcm,256,(float)(generation+1)/8388608.0f);uint32_t next=777;
+  xz_usb_result r=xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,generation,pcm,256,generation+1,&next);
+  if(r==XZ_USB_OK){generation=next;i++;}else{assert(next==777);assert(r==XZ_USB_AGAIN||r==XZ_USB_BUSY);if(r==XZ_USB_AGAIN)again++;else busy++;sched_yield();}
+  xz_usb_position pos;if(xz_usb_transport_position(t,&pos)==XZ_USB_OK){assert(pos.deck[0].completed_frames<=pos.deck[0].staged_frames);assert(pos.deck[0].staged_frames<=pos.wire_submitted_frames);}
+ }
+ store32(&producer_done,1);assert(!pthread_join(producer,NULL));assert(xz_usb_transport_close(&t)==XZ_USB_OK&&!t);
+ printf("{\"case\":\"concurrent_2000_atomic_transitions\",\"generation\":%u,\"again\":%u,\"busy\":%u}\n",generation,again,busy);
+}
+
 int main(void) {
     atomic_init(&hang_reap, 0); atomic_init(&entered_reap, 0); atomic_init(&producer_done, 0);
     test_packing_and_backpressure(); test_flush_and_future_generation(); test_cursor_wrap();
@@ -285,6 +378,8 @@ int main(void) {
     test_concurrent_seek(); test_close_timeout_retains_worker();
     xz_usb_transport *t = NULL;
     assert(xz_usb_transport_open("/tmp/not-a-ram-node", &t) == XZ_USB_INVALID && !t);
+    test_atomic_packing_and_first_block();test_atomic_failures_and_full();test_atomic_full_queue_retry();
+    test_atomic_wrap_cancel_and_loss();test_atomic_old_generation_in_progress();test_atomic_completed_prefix_and_other_deck();test_atomic_concurrent_transitions();
     puts("PASS packing, isolation, queue pressure, generations, wrap, setup rollback, feedback, position, failures, 512000-frame stream, 2000 concurrent seeks, close timeout/retry");
     return 0;
 }

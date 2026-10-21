@@ -84,28 +84,46 @@ int xz_extra_deck_input(const struct xz_extra_deck_event *event) {
 /* ---- the sink the players submit into; never waits on the connector ---- */
 static xz_usb_deck usb_deck(int deck) { return deck ? XZ_USB_DECK_4 : XZ_USB_DECK_3; }
 static uint32_t sink_link(void *ctx) { (void)ctx; return __atomic_load_n(&link_epoch, __ATOMIC_ACQUIRE); }
-static xz_usb_result sink_submit(void *ctx, int deck, uint32_t generation, const float *stereo, uint32_t frames, uint64_t after) {
+static xz_usb_result sink_submit(void *ctx, uint32_t epoch, int deck, uint32_t generation, const float *stereo, uint32_t frames, uint64_t after) {
  (void)ctx;
  if (pthread_rwlock_tryrdlock(&route.lock)) return XZ_USB_BUSY;
- xz_usb_result r = route.usb && !route.closing ? xz_usb_transport_submit(route.usb, usb_deck(deck), generation, stereo, frames, after)
+ xz_usb_result r = epoch && epoch == sink_link(NULL) && route.usb && !route.closing ? xz_usb_transport_submit(route.usb, usb_deck(deck), generation, stereo, frames, after)
                                                 : XZ_USB_STOPPED;
  pthread_rwlock_unlock(&route.lock);
  return r;
 }
-static xz_usb_result sink_flush(void *ctx, int deck, uint32_t *generation) {
+static xz_usb_result sink_flush(void *ctx, uint32_t epoch, int deck, uint32_t *generation) {
  (void)ctx;
  if (pthread_rwlock_tryrdlock(&route.lock)) return XZ_USB_BUSY;
- xz_usb_result r = route.usb && !route.closing ? xz_usb_transport_flush(route.usb, usb_deck(deck), generation) : XZ_USB_STOPPED;
+ xz_usb_result r = epoch && epoch == sink_link(NULL) && route.usb && !route.closing ? xz_usb_transport_flush(route.usb, usb_deck(deck), generation) : XZ_USB_STOPPED;
  pthread_rwlock_unlock(&route.lock);
  return r;
 }
-static xz_usb_result sink_position(void *ctx, xz_usb_position *out) {
+static xz_usb_result sink_transition(void *ctx, uint32_t epoch, int deck, uint32_t expected_generation,
+                                           const float *stereo, uint32_t frames, uint64_t after,
+                                           uint32_t *generation) {
+ (void)ctx;
+ if (pthread_rwlock_tryrdlock(&route.lock)) return XZ_USB_BUSY;
+ xz_usb_result r = epoch && epoch == sink_link(NULL) && route.usb && !route.closing
+  ? xz_usb_transport_flush_and_submit(route.usb, usb_deck(deck), expected_generation, stereo, frames, after, generation)
+  : XZ_USB_STOPPED;
+ pthread_rwlock_unlock(&route.lock);
+ return r;
+}
+static xz_usb_result sink_position(void *ctx, uint32_t epoch, xz_usb_position *out) {
  (void)ctx;
  if (pthread_rwlock_tryrdlock(&route.lock)) return XZ_USB_AGAIN;
- xz_usb_result r = route.usb && !route.closing ? xz_usb_transport_position(route.usb, out) : XZ_USB_STOPPED;
+ xz_usb_result r = epoch && epoch == sink_link(NULL) && route.usb && !route.closing ? xz_usb_transport_position(route.usb, out) : XZ_USB_STOPPED;
  pthread_rwlock_unlock(&route.lock);
  return r;
 }
+
+#ifdef XZ_XP_TEST_RENDER_HOOK
+const struct xz_xp_sink *xz_extra_decks_test_sink(void) {
+ static const struct xz_xp_sink sink = {NULL, sink_link, sink_submit, sink_flush, sink_position, sink_transition};
+ return &sink;
+}
+#endif
 
 /* ---- connector ---- */
 static int usb_node(const char *path) {
@@ -131,8 +149,10 @@ static void say(const char *text) {
  xz_xp_notice(players, text);
 }
 static void set_link(uint32_t epoch) {
+ pthread_rwlock_wrlock(&route.lock);
  __atomic_store_n(&link_epoch, epoch, __ATOMIC_RELEASE);
  __atomic_store_n(&route_up, epoch != 0, __ATOMIC_RELEASE);
+ pthread_rwlock_unlock(&route.lock);
 }
 /* 0 when closed. On TIMEOUT the transport keeps its handle and its worker; retry later, never free it. */
 static int close_route(void) {
@@ -199,7 +219,7 @@ static void *connector(void *unused) {
 int xz_extra_decks_start(void) {
  const char *enabled = getenv("XZ_MODS_FOUR_DECK");
  if (route.started || (enabled && !strcmp(enabled, "0"))) return 0;
- struct xz_xp_env env = {{NULL, sink_link, sink_submit, sink_flush, sink_position}, now_ms,
+ struct xz_xp_env env = {{NULL, sink_link, sink_submit, sink_flush, sink_position, sink_transition}, now_ms,
                          xz_extra_resolve_track, xz_extra_native_master_bpm};
  struct xz_xp_players *p = xz_xp_create(&env);
  if (!p) return -1;

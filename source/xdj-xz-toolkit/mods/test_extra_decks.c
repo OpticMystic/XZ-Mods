@@ -6,7 +6,7 @@
 #ifdef NDEBUG
 #error "Extra decks acceptance requires active assertions"
 #endif
-#include "extra_decks.h"
+#include "extra_player.h"
 #include "audio/usb_transport/usb_transport.h"
 #include <assert.h>
 #include <pthread.h>
@@ -15,6 +15,8 @@
 #include <string.h>
 #include <time.h>
 
+void xz_xp_test_render_hook(void) {}
+extern const struct xz_xp_sink *xz_extra_decks_test_sink(void);
 void xz_log(const char *message) { (void)message; }
 int xz_oc_bundle(const char *source, char *folder, size_t capacity) { (void)source; (void)folder; (void)capacity; return -1; }
 
@@ -38,6 +40,13 @@ xz_usb_result xz_usb_transport_open(const char *node, xz_usb_transport **out) {
 xz_usb_result xz_usb_transport_submit(xz_usb_transport *u, xz_usb_deck d, uint32_t g, const float *pcm, uint32_t n, uint64_t after) {
  (void)d; (void)g; (void)pcm; (void)n; (void)after;
  assert(u == &handle && t.open_handles == 1);
+ return XZ_USB_OK;
+}
+xz_usb_result xz_usb_transport_flush_and_submit(xz_usb_transport *u, xz_usb_deck d, uint32_t expected, const float *pcm, uint32_t n, uint64_t after, uint32_t *generation) {
+ (void)pcm; (void)n; (void)after;
+ assert(u == &handle && t.open_handles == 1);
+ if (expected != t.generation[d == XZ_USB_DECK_4]) return XZ_USB_STALE;
+ *generation = ++t.generation[d == XZ_USB_DECK_4];
  return XZ_USB_OK;
 }
 xz_usb_result xz_usb_transport_flush(xz_usb_transport *u, xz_usb_deck d, uint32_t *g) {
@@ -103,6 +112,8 @@ int main(void) {
  assert(read_int(&t.open_handles) == 1 && !xz_extra_decks_route().route_up);   /* STARTING is not up */
  set(XZ_USB_OK, XZ_USB_RUNNING);
  assert(until_route(1) && tempo());
+ const struct xz_xp_sink *sink = xz_extra_decks_test_sink();
+ uint32_t old_epoch = sink->link(NULL); assert(old_epoch);
  xz_extra_decks_publish_sides(1, 0);
  assert(xz_extra_decks_snapshot(&view) && view.left_on_3 && !view.right_on_4);
 
@@ -113,6 +124,18 @@ int main(void) {
  assert(!view.left_on_3 && !tempo() && read_int(&t.closes) == 1);
  set(XZ_USB_OK, XZ_USB_RUNNING);
  assert(until_route(1) && read_int(&t.opens) >= 5 && tempo());
+
+ assert(sink->link(NULL) != old_epoch);
+ float pcm[2] = {0}; uint32_t generation = 777;
+ xz_usb_position untouched; memset(&untouched, 0x5a, sizeof untouched);
+ xz_usb_position position = untouched;
+ assert(sink->submit(NULL, old_epoch, 0, 1, pcm, 1, 1) == XZ_USB_STOPPED);
+ assert(sink->transition(NULL, old_epoch, 0, 1, pcm, 1, 1, &generation) == XZ_USB_STOPPED);
+ assert(sink->flush(NULL, old_epoch, 0, &generation) == XZ_USB_STOPPED);
+ assert(sink->position(NULL, old_epoch, &position) == XZ_USB_STOPPED);
+ assert(generation == 777 && !memcmp(&position, &untouched, sizeof position));
+ pthread_mutex_lock(&lock); assert(t.generation[0] == XZ_USB_INITIAL_GENERATION); pthread_mutex_unlock(&lock);
+ puts("PASS actual connector rejects old epoch for submit, transition, flush and position after reconnect");
 
  pthread_mutex_lock(&lock); t.close_timeouts = 2; pthread_mutex_unlock(&lock);
  int opens = read_int(&t.opens);
