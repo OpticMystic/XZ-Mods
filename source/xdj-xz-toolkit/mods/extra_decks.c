@@ -8,6 +8,7 @@
 #include "extra_decks.h"
 #include "extra_player.h"
 #include "runtime.h"
+#include "extra_thread_placement.h"
 #include <dirent.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -170,6 +171,7 @@ static void rest(unsigned ms) {
 }
 static void *connector(void *unused) {
  (void)unused;
+ xz_extra_thread_place("connector");
  uint32_t epoch = 0;
  xz_usb_result refused = XZ_USB_OK;
  while (!__atomic_load_n(&route.quit, __ATOMIC_ACQUIRE)) {
@@ -216,11 +218,13 @@ static void *connector(void *unused) {
  return NULL;
 }
 
+static void deck_worker_enter(int deck) { xz_extra_thread_place(deck ? "deck4" : "deck3"); }
+
 int xz_extra_decks_start(void) {
  const char *enabled = getenv("XZ_MODS_FOUR_DECK");
  if (route.started || (enabled && !strcmp(enabled, "0"))) return 0;
  struct xz_xp_env env = {{NULL, sink_link, sink_submit, sink_flush, sink_position, sink_transition}, now_ms,
-                         xz_extra_resolve_track, xz_extra_native_master_bpm};
+                         xz_extra_resolve_track, xz_extra_native_master_bpm, deck_worker_enter};
  struct xz_xp_players *p = xz_xp_create(&env);
  if (!p) return -1;
  if (xz_xp_start(p)) { xz_xp_destroy(p); return -1; }

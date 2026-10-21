@@ -46,6 +46,7 @@ struct xz_xp_env {
  uint32_t (*now_ms)(void);                                         /* monotonic */
  int (*resolve)(int source, uint32_t track_id, struct xz_extra_track *out);  /* NULL: LOAD refused */
  int32_t (*master_bpm)(void);                                      /* NULL: SYNC has no master */
+ void (*worker_enter)(int deck); /* Optional; called once inside each owned worker, never by step/input. */
 };
 
 struct xz_xp_players;

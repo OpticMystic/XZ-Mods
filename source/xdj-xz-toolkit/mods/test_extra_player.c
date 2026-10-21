@@ -39,6 +39,12 @@ int xz_oc_bundle(const char *source, char *folder, size_t capacity) { (void)sour
 static uint32_t clock_ms = 1000;
 static int threaded_clock;
 static int hold_flush;
+static unsigned entered_worker[2];
+static pthread_t owner_thread;
+static void worker_enter_test(int deck) {
+ assert(!pthread_equal(pthread_self(), owner_thread));
+ __atomic_fetch_add(&entered_worker[deck], 1, __ATOMIC_RELAXED);
+}
 
 static uint32_t fake_link(void *ctx) { (void)ctx; return __atomic_load_n(&f.link, __ATOMIC_ACQUIRE); }
 static xz_usb_result fake_submit_locked(void *ctx, int d, uint32_t generation, const float *pcm, uint32_t frames, uint64_t after) {
@@ -308,7 +314,7 @@ static void expect_notice(const char *text, uint32_t *seq) {
 }
 
 static void test_players(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
  p = xz_xp_create(&env); assert(p);
  uint32_t seq = 0;
  fake_route(0);
@@ -545,7 +551,7 @@ static void test_players(void) {
 }
 
 static void test_loop_and_range(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
  p = xz_xp_create(&env); assert(p);
  fake_route(7); step(); load(0, 1); load(1, 2);
  seek(0, 500); hold(0, XZ_EXTRA_IN_LOOP_IN, 1); hold(0, XZ_EXTRA_IN_LOOP_IN, 0);
@@ -614,7 +620,7 @@ static void test_loop_and_range(void) {
 }
 
 static void test_vinyl(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
  p=xz_xp_create(&env);assert(p);
  fake_route(8);step();load(0,4);load(1,2);
  assert(debug(0).source_rate==44100&&view.deck[0].total_ms==2000);
@@ -706,7 +712,7 @@ static void *usb(void *arg) {
  return NULL;
 }
 static void test_reconnect_during_render(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
  for (int mode = 0; mode < 2; ++mode) {
   fake_route(100 + mode * 2);
   p = xz_xp_create(&env); assert(p); step();
@@ -733,11 +739,14 @@ static void test_reconnect_during_render(void) {
 }
 
 static void test_threads(void) {
+ owner_thread = pthread_self();
  threaded_clock = 1;
  memset(&f.submits, 0, sizeof f.submits);
  fake_route(3);
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL};
+ env.worker_enter = worker_enter_test;
  p = xz_xp_create(&env); assert(p);
+ xz_xp_step(p, 0); assert(!entered_worker[0] && !entered_worker[1]);
  assert(!xz_xp_start(p));
  pthread_t readers[2], u;
  for (int i = 0; i < 2; ++i) assert(!pthread_create(&readers[i], NULL, reader, NULL));
@@ -764,6 +773,7 @@ static void test_threads(void) {
  __atomic_store_n(&stop_usb, 1, __ATOMIC_RELEASE);
  pthread_join(u, NULL);
  xz_xp_stop(p);
+ assert(entered_worker[0] == 1 && entered_worker[1] == 1);
  assert(snapshots > 1000 && with_wave > 100 && with_b > 100 && f.submits[0] > 0 && f.submits[1] > 0 && f.stale == 0);
  struct xz_xp_debug d0, d1; xz_xp_debug(p, 0, &d0); xz_xp_debug(p, 1, &d1);
  assert(d0.state != XZ_XP_EMPTY && d0.state != XZ_XP_ERROR && d1.state != XZ_XP_EMPTY && d1.state != XZ_XP_ERROR);

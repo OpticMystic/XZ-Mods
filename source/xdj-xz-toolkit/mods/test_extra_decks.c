@@ -15,6 +15,14 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef XZ_PLACEMENT_CONNECTOR_TEST
+static _Thread_local int entered_connector;
+static pthread_t test_parent;
+void xz_extra_thread_place(const char *role) {
+ assert(!pthread_equal(test_parent, pthread_self()));
+ if (!strcmp(role, "connector")) entered_connector = 1;
+}
+#endif
 void xz_xp_test_render_hook(void) {}
 extern const struct xz_xp_sink *xz_extra_decks_test_sink(void);
 void xz_log(const char *message) { (void)message; }
@@ -26,6 +34,9 @@ static struct { xz_usb_result open_result; int opens, closes, close_timeouts, op
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 xz_usb_result xz_usb_transport_open(const char *node, xz_usb_transport **out) {
  assert(!strcmp(node, "/dev/null"));
+#ifdef XZ_PLACEMENT_CONNECTOR_TEST
+ assert(entered_connector);
+#endif
  pthread_mutex_lock(&lock);
  t.opens++;
  xz_usb_result r = t.open_result;
@@ -93,6 +104,9 @@ static int tempo(void) {
 }
 
 int main(void) {
+#ifdef XZ_PLACEMENT_CONNECTOR_TEST
+ test_parent = pthread_self();
+#endif
  setenv("XZ_MODS_EXTRA_USB_NODE", "/dev/null", 1);
  setenv("XZ_MODS_FOUR_DECK", "0", 1);
  assert(!xz_extra_decks_start());
