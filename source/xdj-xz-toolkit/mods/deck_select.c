@@ -35,13 +35,15 @@ static const struct xz_ds_row rows[] = {
  /* REVERSE and SLIP remain owned by the software side but have no input yet. */
  ROW(0x4110, 0x4111, SWALLOW, PLAYER, NONE),
  /* SEARCH FWD/REV, CUE/LOOP DELETE and MEMORY, NEEDLE SEARCH, MASTER, CUE/LOOP CALL NEXT/PREV,
-    TRACK SEARCH FWD/REV (beat jump with SHIFT): all move or change the deck they reach. */
+    all move or change the deck they reach. */
  ROW(0x4121, 0x4122, SWALLOW, PLAYER, NONE),
  ROW(0x4126, 0x4128, SWALLOW, PLAYER, NONE),
  ROW(0x4312, 0x4312, SWALLOW, PLAYER, NONE),
  ROW(0x4324, 0x4324, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_DOUBLE), /* CALL NEXT / 2X */
  ROW(0x4325, 0x4325, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_HALF),   /* CALL PREV / 1/2X */
- ROW(0x4212, 0x4213, SWALLOW, PLAYER, NONE),
+ /* TotalMainIfUi consumes TRACK SEARCH globally before the physical-player hook. */
+ ROW(0x4212, 0x4212, DELIVER, GLOBAL, XZ_EXTRA_IN_TRACK_NEXT),
+ ROW(0x4213, 0x4213, DELIVER, GLOBAL, XZ_EXTRA_IN_SEEK),
  /* LOAD 1 / LOAD 2 (channel 1/2): the track comes from the browser on screen, so the press is the
     caller's (XZ_DS_LOAD): the FLAGSHIP shell loads its highlighted row to the side's software deck, or the
     classic interface arms its one-shot divert and the key goes on to stock, whose own load the divert
@@ -63,16 +65,19 @@ const struct xz_ds_row *xz_ds_row_for(uint16_t code, unsigned *slot) {
  return NULL;
 }
 
+static void decode_packet(const unsigned char *p,struct xz_ds_key *k){
+ memcpy(&k->code,p+8,2);k->op=p[11]&15u;
+ if(k->op==XZ_DS_OP_JOG||k->op==XZ_DS_OP_FADER){memcpy(&k->delta,p+12,4);memcpy(&k->value,p+16,4);}
+}
+int xz_ds_key_decode_global(const void *input,struct xz_ds_key *k){
+ const unsigned char *p=input;if(!p||!k||p[10]<1||p[10]>2)return 0;
+ memset(k,0,sizeof *k);k->side=(int)p[10]-1;decode_packet(p,k);return 1;
+}
 int xz_ds_key_decode(const void *innards, const void *input, struct xz_ds_key *k) {
  const unsigned char *self = innards, *p = input;
  if(!self || !p || !k || (self[0x26] != 1 && self[0x26] != 2)) return 0;
- memset(k, 0, sizeof *k);
- k->side = (int)self[0x26] - 1;
- memcpy(&k->code, p + 8, 2);
- k->op = p[11] & 15u;
- k->shift = self[0x34] != 0;
- if(k->op == XZ_DS_OP_JOG || k->op == XZ_DS_OP_FADER) { memcpy(&k->delta, p + 12, 4); memcpy(&k->value, p + 16, 4); }
- return 1;
+ memset(k,0,sizeof *k);k->side=(int)self[0x26]-1;k->shift=self[0x34]!=0;
+ decode_packet(p,k);return 1;
 }
 
 static int within_slack(int32_t a, int32_t b) { return a - b <= XZ_DS_PICKUP_SLACK && b - a <= XZ_DS_PICKUP_SLACK; }
@@ -253,6 +258,7 @@ struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *d, const struct x
   return out;
  }
  if(row->cls == XZ_DS_ROW_STOCK) return out;
+ if(row->path==XZ_DS_PATH_GLOBAL){if(away)out.verdict=XZ_DS_SWALLOW;return out;}
  int stream = row->kind == XZ_EXTRA_IN_JOG_TURN || row->kind == XZ_EXTRA_IN_TEMPO;
  if(stream || k->op == XZ_DS_OP_JOG || k->op == XZ_DS_OP_FADER) {
   if(!away) return out;
@@ -268,6 +274,24 @@ struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *d, const struct x
  return out;
 }
 
+/* Native contacts are recorded once by the physical callback. Software contacts finish
+   before native PC listeners, including releases after selection or route changes. */
+struct xz_ds_outcome xz_deck_select_global_player(struct xz_deck_select *d,const struct xz_ds_key *k,uint32_t now){
+ struct xz_ds_outcome pass={0};
+ if(!d||!k||k->side<0||k->side>1)return pass;
+ unsigned slot=0;const struct xz_ds_row *row=xz_ds_row_for(k->code,&slot);
+ if(!row||row->path!=XZ_DS_PATH_PLAYER||row->cls==XZ_DS_ROW_STOCK)return pass;
+ struct xz_ds_side *s=&d->side[k->side];other_key(s);
+ int stream=row->kind==XZ_EXTRA_IN_JOG_TURN||row->kind==XZ_EXTRA_IN_TEMPO;
+ if(!stream){
+  uint64_t bit=(uint64_t)1<<slot;
+  if(s->owner[XZ_DS_NATIVE]&bit)return pass;
+  if(k->op==0&&(s->owner[XZ_DS_EXTRA]&bit)){pass.verdict=XZ_DS_SWALLOW;return pass;}
+  if(s->target!=XZ_DS_EXTRA&&!(s->owner[XZ_DS_EXTRA]&bit))return pass;
+ }else if(s->target!=XZ_DS_EXTRA)return pass;
+ return xz_deck_select_key(d,k,now);
+}
+
 struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *d, unsigned channel, uint16_t code,
  unsigned op, uint32_t now) {
  struct xz_ds_outcome out;
@@ -281,6 +305,21 @@ struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *d, unsigne
  }
  const struct xz_ds_row *row = xz_ds_row_for(code, NULL);
  struct xz_ds_side *s = &d->side[side];
+ if(code==0x4212||code==0x4213) {
+  unsigned slot=0;xz_ds_row_for(code,&slot);
+  uint64_t bit=(uint64_t)1<<slot;
+  int release=op==2||op==3;
+  if(s->owner[XZ_DS_NATIVE]&bit){if(release)s->owner[XZ_DS_NATIVE]&=~bit;return out;}
+  if(s->owner[XZ_DS_EXTRA]&bit){if(release)s->owner[XZ_DS_EXTRA]&=~bit;out.verdict=XZ_DS_SWALLOW;return out;}
+  if(s->target==XZ_DS_NATIVE){if(op==0)s->owner[XZ_DS_NATIVE]|=bit;return out;}
+  int shift=s->phase==XZ_DS_DOWN_ONCE||s->phase==XZ_DS_DOWN_TWICE||s->phase==XZ_DS_MODIFIER;
+  other_key(s);out.verdict=XZ_DS_SWALLOW;
+  if(op==0){
+   s->owner[XZ_DS_EXTRA]|=bit;
+   if(!shift){out.verdict=XZ_DS_DELIVER;out.event.deck=side;out.event.kind=code==0x4213?XZ_EXTRA_IN_SEEK:XZ_EXTRA_IN_TRACK_NEXT;out.event.pressed=1;out.event.seek_ms=0;}
+  }
+  return out;
+ }
  if(row && row->kind == XZ_EXTRA_IN_LOAD) {
   if(op == 0) {
    /* A repeated press packet is still the opening contact, not a second

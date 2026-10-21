@@ -72,6 +72,7 @@ struct xz_ds_key {
 };
 /* PlayerInnards self (channel byte +0x26 = 1/2, SHIFT flag +0x34) and the key input (code u16 +8,
    operation low nibble of +11). 0 for any other channel. */
+int xz_ds_key_decode_global(const void *input, struct xz_ds_key *);
 int xz_ds_key_decode(const void *innards, const void *input, struct xz_ds_key *);
 
 enum xz_ds_verdict {
@@ -108,6 +109,8 @@ void xz_deck_select_route(struct xz_deck_select *, int route_up);
 void xz_deck_select_feedback(struct xz_deck_select *,const struct xz_extra_decks *);
 /* A SHIFT edge from any source: the SHIFT key code, or a poll of the +0x34 flag. Repeats are ignored. */
 void xz_deck_select_shift(struct xz_deck_select *, int side, int down, uint32_t now_ms, struct xz_ds_outcome *);
+/* Early jog ownership: native contacts remain untouched for the physical fallback. */
+struct xz_ds_outcome xz_deck_select_global_player(struct xz_deck_select *, const struct xz_ds_key *, uint32_t now);
 struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *, const struct xz_ds_key *, uint32_t now_ms);
 /* A key at the IKeyManager::onKey hook (channel +0xa, 1/2 for the deck sections). Feeds SHIFT edges and
    takes GLOBAL-path keys of a switched side; everything else passes untouched. LOAD's press on a switched

@@ -6,6 +6,8 @@ struct xz_kart_launch { uint32_t epoch;unsigned mask;char epoch_env[64],mask_env
 int xz_kart_runtime_start(void);
 void xz_kart_runtime_stop(void);
 void xz_kart_runtime_display_probe(int (*probe)(void));
+int xz_kart_runtime_input_pending(void);
+int xz_kart_runtime_observe_key(unsigned channel,const void *event);
 int xz_kart_runtime_physical(void *self,const void *event);
 /* Only the existing SDK worker may prepare/attach after display arbitration. */
 int xz_kart_runtime_prepare(const char *package_id,unsigned kind,struct xz_kart_launch *);

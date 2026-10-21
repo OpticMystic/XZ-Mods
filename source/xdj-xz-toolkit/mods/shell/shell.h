@@ -309,7 +309,7 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_ZOOM,        /* value = shell zoom level 0..XZ_SHELL_ZOOM_MAX */
  XZ_SHELL_ACT_GRID_ADJUST, /* deck, value = encoder delta */
  XZ_SHELL_ACT_SET_SETTING, /* id = enum xz_shell_setting, value, deck (-1 = device) */
- XZ_SHELL_ACT_LOAD,        /* deck, id = track id from the browse model */
+ XZ_SHELL_ACT_LOAD,        /* deck, id = track id; value = displayed row + 1, or 0 when unknown */
  XZ_SHELL_ACT_HAND_OFF,    /* id = enum xz_shell_screen, or XZ_SHELL_HAND_OFF_MENU for the stock menu popup;
                               value = 1 + the setting item (shell_settings.h enum xz_shell_item_id) the stock
                               screen should open at, from SHORTCUT and UTILITY; 0 = no item */
@@ -427,6 +427,13 @@ struct xz_shell_load_choice {
  uint32_t track, list;
  char source[64], title[96];
 };
+struct xz_shell_browse_return {
+ struct xz_shell_view stack[XZ_SHELL_STACK];
+ int depth;
+ uint64_t media_generation;
+ uint32_t list_id;
+ char source[64];
+};
 struct xz_shell {
  struct xz_shell_view stack[XZ_SHELL_STACK];
  int depth;
@@ -440,6 +447,10 @@ struct xz_shell {
  struct xz_shell_display display;
  struct xz_shell_panel panel;
  struct xz_shell_load_choice load_choice;
+ struct xz_shell_browse_return browse_return;
+ int browse_resume; /* transient browser state resets on the next real list input */
+ uint64_t browse_media_generation;
+ char browse_media_source[64];
  struct xz_shell_grab grab;
  struct xz_shell_playlist_edit edit;
  struct xz_shell_filter filter;

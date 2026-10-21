@@ -47,6 +47,9 @@ static uint32_t ram_debug_sample_ms;
 #include "shell_runtime.h"
 /* Deck select (runtime.c). Weak so UI harnesses link without it. */
 #pragma weak xz_runtime_deck_global_key
+#pragma weak xz_runtime_deck_global_input
+#pragma weak xz_runtime_deck_early_key
+#pragma weak xz_runtime_deck_games_pending
 #pragma weak xz_shell_runtime_extra_load_key
 #include "ui/ui_menu.h"
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
@@ -150,6 +153,9 @@ static int doom_phase,doom_previous_takeover;
 static uint32_t doom_launched_at;
 static struct xz_arcade arcade;
 static struct xz_arcade_input arcade_input;
+static int arcade_input_pending;
+static unsigned arcade_contact_count;
+static uint16_t arcade_contacts[2][64];
 static int arcade_present,arcade_opening_touch,arcade_touch_owned,arcade_previous_takeover;
 /* Encoder focus over the on-screen controls of the game being drawn. */
 static struct xz_game_nav game_nav;
@@ -273,13 +279,26 @@ _Static_assert((int)XZ_UI_RB_MODS==(int)XZ_REKORDBOX_MODS&&(int)XZ_UI_RB_STOCK==
     (int)XZ_UI_RB_VJ_SCREEN==(int)XZ_REKORDBOX_VJ_SCREEN&&(int)XZ_UI_RB_STEMS==(int)XZ_REKORDBOX_STEMS&&(int)XZ_UI_RB_NOTHING==(int)XZ_REKORDBOX_NOTHING&&
     (int)XZ_UI_RB_CHOICES==(int)XZ_REKORDBOX_ACTIONS,"one REKORDBOX action numbering");
 
+static void arcade_contact_update_locked(unsigned channel,uint16_t key,unsigned op,int consumed){
+ if(!key||channel<1||channel>2||(op!=0&&op!=2&&op!=3))return;
+ uint16_t *contacts=arcade_contacts[channel-1];int empty=-1;
+ for(int i=0;i<64;i++){
+  if(contacts[i]==key){if(op==2||op==3){contacts[i]=0;if(arcade_contact_count)arcade_contact_count--;}return;}
+  if(!contacts[i]&&empty<0)empty=i;
+ }
+ if(op==0&&consumed&&empty>=0){contacts[empty]=key;arcade_contact_count++;}
+}
+static void arcade_input_publish_locked(void){
+ __atomic_store_n(&arcade_input_pending,arcade_present||xz_wave_rider_present()||xz_rhythm_lab_present()||arcade_contact_count,__ATOMIC_RELEASE);
+}
+int xz_ui_runtime_arcade_input_pending(void){return __atomic_load_n(&started,__ATOMIC_ACQUIRE)&&__atomic_load_n(&arcade_input_pending,__ATOMIC_ACQUIRE);}
 static void rhythm_lab_to_dj(void) {
-    xz_rhythm_lab_close();xz_native_touch_visible(&touch,0);
+    xz_rhythm_lab_close();arcade_input_publish_locked();xz_native_touch_visible(&touch,0);
     __atomic_store_n(&visible,0,__ATOMIC_RELEASE);model.fb_takeover=lab_previous_takeover;
     __atomic_store_n(&fb_takeover_active,model.fb_takeover,__ATOMIC_RELEASE);xz_ui_navigate(&ui,XZ_UI_GAMES);
 }
 static void wave_rider_to_dj(void) {
-    xz_wave_rider_close();
+    xz_wave_rider_close();arcade_input_publish_locked();
     xz_native_touch_visible(&touch,0);
     __atomic_store_n(&visible,0,__ATOMIC_RELEASE);
     model.fb_takeover=wave_rider_previous_takeover;
@@ -287,7 +306,7 @@ static void wave_rider_to_dj(void) {
     xz_ui_navigate(&ui,XZ_UI_GAMES);
 }
 static void arcade_to_dj(void) {
-    arcade_present=0;arcade.leave=0;
+    arcade_present=0;arcade.leave=0;arcade_input_publish_locked();
     xz_native_touch_visible(&touch,0);
     __atomic_store_n(&visible,0,__ATOMIC_RELEASE);
     model.fb_takeover=arcade_previous_takeover;
@@ -348,21 +367,26 @@ int xz_ui_runtime_arcade_key(void *self,const void *input) {
     if(!__atomic_load_n(&started,__ATOMIC_ACQUIRE)||!self||!input)return 0;
     uint16_t key;memcpy(&key,(const unsigned char *)input+8,2);
     if(key==0x4101||(key>=0x4103&&key<=0x4113))return 0;
+    if((key==0x4305||key==0x4306)&&!xz_ui_runtime_arcade_input_pending())return 0;
     unsigned channel=((const unsigned char *)self)[0x26];
     if(channel<1||channel>2)return 0;
     pthread_mutex_lock(&ui_mutex);
     int was_music=arcade.phase==XZ_ARCADE_MUSIC;
     if(xz_rhythm_lab_input((int)channel-1,input,xz_game_milliseconds())) {
         if(xz_rhythm_lab_leave_requested())rhythm_lab_to_dj();
+        arcade_contact_update_locked(channel,key,((const unsigned char *)input)[11]&15u,1);arcade_input_publish_locked();
         pthread_mutex_unlock(&ui_mutex);return 1;
     }
     if(xz_wave_rider_input((int)channel-1,input,xz_game_milliseconds())) {
         if(xz_wave_rider_leave_requested())wave_rider_to_dj();
+        arcade_contact_update_locked(channel,key,((const unsigned char *)input)[11]&15u,1);arcade_input_publish_locked();
         pthread_mutex_unlock(&ui_mutex);return 1;
     }
     int consumed=xz_arcade_input_event(&arcade_input,&arcade,arcade_present,(int)channel-1,input,xz_game_milliseconds());
     if(consumed)xz_arcade_proof_v1.inputs++;
+    arcade_contact_update_locked(channel,key,((const unsigned char *)input)[11]&15u,consumed);
     if(arcade_leaving(was_music))arcade_to_dj();
+    arcade_input_publish_locked();
     pthread_mutex_unlock(&ui_mutex);return consumed;
 }
 
@@ -1087,12 +1111,12 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             if(xz_doom_running()){snprintf(ui.notice,sizeof(ui.notice),"EXIT DOOM BEFORE RHYTHM LAB");break;}
             lab_previous_takeover=model.fb_takeover;model.fb_takeover=0;
             __atomic_store_n(&fb_takeover_active,0,__ATOMIC_RELEASE);xz_game_nav_reset(&game_nav);if(a->kind==XZ_UI_GLYPH_RUN_OPEN)xz_rhythm_lab_open_glyph(xz_game_milliseconds());else xz_rhythm_lab_open(xz_game_milliseconds());
-            xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);break;
+            arcade_input_publish_locked();xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);break;
         case XZ_UI_WAVE_RIDER_OPEN:
             if(xz_doom_running()){snprintf(ui.notice,sizeof(ui.notice),"EXIT DOOM BEFORE STARTING WAVE RIDER");break;}
             wave_rider_previous_takeover=model.fb_takeover;model.fb_takeover=0;
             __atomic_store_n(&fb_takeover_active,0,__ATOMIC_RELEASE);
-            xz_game_nav_reset(&game_nav);xz_wave_rider_open(xz_game_milliseconds());
+            xz_game_nav_reset(&game_nav);xz_wave_rider_open(xz_game_milliseconds());arcade_input_publish_locked();
             xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
             break;
         case XZ_UI_ARCADE_OPEN:
@@ -1101,7 +1125,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             arcade.last_ms=xz_game_milliseconds();
             arcade_previous_takeover=model.fb_takeover;model.fb_takeover=0;
             __atomic_store_n(&fb_takeover_active,0,__ATOMIC_RELEASE);
-            arcade_present=1;arcade_opening_touch=1;arcade.touch_down=1;xz_game_nav_reset(&game_nav);
+            arcade_present=1;arcade_input_publish_locked();arcade_opening_touch=1;arcade.touch_down=1;xz_game_nav_reset(&game_nav);
             xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
             break;
         case XZ_UI_PANEL:
@@ -1542,6 +1566,8 @@ static void menu_back_key_hook(void *self,const void *input){
     int consumed=0;
     /* Every key passes here (jog included), so only keys in the shell's table take the lock. */
     unsigned channel=input?((const unsigned char *)input)[10]:0;
+    if(input && channel>=1 && channel<=2 && xz_runtime_deck_early_key && xz_runtime_deck_early_key(key) && xz_runtime_deck_global_input &&
+       xz_runtime_deck_global_input(xz_runtime_deck_games_pending&&xz_runtime_deck_games_pending()?key_player((int)channel-1):NULL,input)) return;
     /* A side driving DECK 3 / 4: its TIME MODE and QUANTIZE reach neither the shell nor stock; its LOAD goes to
        the software deck through the shell (here) or the classic divert (passed on to stock). */
     int deck_key=input&&xz_runtime_deck_global_key?xz_runtime_deck_global_key(key,channel,operation):0;
@@ -2700,9 +2726,9 @@ void xz_ui_runtime_stop(void) {
     __atomic_store_n(&started, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&visible, 0, __ATOMIC_RELEASE);
     pthread_mutex_lock(&ui_mutex);
-    arcade_present=0;memset(&arcade_input,0,sizeof(arcade_input));
-    xz_wave_rider_close();
-    xz_rhythm_lab_close();
+    arcade_present=0;arcade_contact_count=0;memset(arcade_contacts,0,sizeof arcade_contacts);arcade_input_publish_locked();memset(&arcade_input,0,sizeof(arcade_input));
+    xz_wave_rider_close();arcade_input_publish_locked();
+    xz_rhythm_lab_close();arcade_input_publish_locked();
     int join = settings_created; settings_created=0;
     settings_running = 0; pthread_cond_signal(&settings_changed);
     int dj = model.dj!=NULL; model.dj=NULL; ui.profile_open=0;
@@ -2710,3 +2736,4 @@ void xz_ui_runtime_stop(void) {
     if (join) pthread_join(settings_thread,NULL);
     if (dj && xz_dj_runtime_stop) xz_dj_runtime_stop();
 }
+

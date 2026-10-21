@@ -23,7 +23,21 @@ static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static struct xz_kart_host host;
 static struct xz_kart_wire inert;
 static pthread_t worker;
-static int descriptor=-1,ready,stopping,dispatch_enabled;
+static int descriptor=-1,ready,stopping,dispatch_enabled,input_pending;
+static uint32_t milliseconds(void);
+/* Publish while host.wire is protected against stop/unmap. */
+static void unlock_published(void) {
+ int pending=host.owned[0]||host.owned[1]||(host.wire&&__atomic_load_n(&host.wire->owner,__ATOMIC_ACQUIRE));
+ __atomic_store_n(&input_pending,!!pending,__ATOMIC_RELEASE);
+ pthread_mutex_unlock(&mutex);
+}
+int xz_kart_runtime_input_pending(void){return __atomic_load_n(&input_pending,__ATOMIC_ACQUIRE);}
+int xz_kart_runtime_observe_key(unsigned channel,const void *event){
+ if(channel<1||channel>2||!event||!__atomic_load_n(&dispatch_enabled,__ATOMIC_ACQUIRE))return 0;
+ pthread_mutex_lock(&mutex);
+ int taken=host.wire?xz_kart_host_event(&host,channel-1,event,24,milliseconds()):0;
+ unlock_published();return taken;
+}
 static int heartbeat_cpu=-1,heartbeat_verified,heartbeat_start_gate;
 static uint32_t next_epoch;
 static uint32_t launcher_pid;
@@ -31,7 +45,7 @@ static uint32_t launcher_epoch;
 static unsigned long long launcher_start;
 static int (*display_probe)(void);
 void xz_kart_runtime_display_probe(int (*probe)(void)) {
- pthread_mutex_lock(&mutex);display_probe=probe;pthread_mutex_unlock(&mutex);
+ pthread_mutex_lock(&mutex);display_probe=probe;unlock_published();
 }
 static uint32_t milliseconds(void) {
  struct timespec t;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return 0;
@@ -128,7 +142,7 @@ static void *heartbeat(void *unused) {
    xz_kart_host_tick(&host,milliseconds());
    if(heartbeat_cpu>=0 && pid && !__atomic_load_n(&host.wire->owner,__ATOMIC_ACQUIRE))revocation="client_stale";
   }
-  pthread_mutex_unlock(&mutex);
+  unlock_published();
   if(heartbeat_cpu>=0 && revocation)fprintf(stderr,"OOL_KART_REVOKED owner=%u reason=%s client_age_ms=%u host_age_ms=%u lease_ms=%u\n",previous_owner,revocation,client_age,host_age,XZ_KART_LEASE_MS);
   struct timespec delay={0,50000000};nanosleep(&delay,NULL);
  }
@@ -136,10 +150,10 @@ static void *heartbeat(void *unused) {
 }
 int xz_kart_runtime_start(void) {
  pthread_mutex_lock(&mutex);
- if(ready){pthread_mutex_unlock(&mutex);return 0;}
+ if(ready){unlock_published();return 0;}
  pthread_attr_t attributes;
  int custom=heartbeat_attributes(&attributes);
- if(custom<0){pthread_mutex_unlock(&mutex);return -1;}
+ if(custom<0){unlock_published();return -1;}
  int fd=open(XZ_KART_INPUT_PATH,O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC,0600);
  struct stat st;
  if(fd<0 || flock(fd,LOCK_EX|LOCK_NB) || fstat(fd,&st) || !S_ISREG(st.st_mode)
@@ -147,10 +161,10 @@ int xz_kart_runtime_start(void) {
   || ftruncate(fd,sizeof(inert))) {
   if(fd>=0)close(fd);
   if(custom)pthread_attr_destroy(&attributes);
-  pthread_mutex_unlock(&mutex);return -1;
+  unlock_published();return -1;
  }
  void *memory=mmap(NULL,sizeof(inert),PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
- if(memory==MAP_FAILED){close(fd);if(custom)pthread_attr_destroy(&attributes);pthread_mutex_unlock(&mutex);return -1;}
+ if(memory==MAP_FAILED){close(fd);if(custom)pthread_attr_destroy(&attributes);unlock_published();return -1;}
  descriptor=fd;xz_kart_host_init(&host,memory);next_epoch=milliseconds();
  xz_kart_host_display(&host,0);
  __atomic_store_n(&stopping,0,__ATOMIC_RELEASE);
@@ -161,7 +175,7 @@ int xz_kart_runtime_start(void) {
  if(create_result) {
   errno=create_result;perror("kart heartbeat creation");
   munmap(memory,sizeof(inert));close(fd);descriptor=-1;host.wire=NULL;
-  pthread_mutex_unlock(&mutex);return -1;
+  unlock_published();return -1;
  }
  if(custom) {
   uint32_t started=milliseconds();unsigned attempts=0;
@@ -173,24 +187,24 @@ int xz_kart_runtime_start(void) {
    pthread_join(worker,NULL);
    munmap(memory,sizeof(inert));close(fd);descriptor=-1;host.wire=NULL;
    fputs("kart heartbeat affinity verification failed\n",stderr);
-   pthread_mutex_unlock(&mutex);return -1;
+   unlock_published();return -1;
   }
   __atomic_store_n(&heartbeat_start_gate,1,__ATOMIC_RELEASE);
  }
- ready=1;__atomic_store_n(&dispatch_enabled,1,__ATOMIC_RELEASE);pthread_mutex_unlock(&mutex);return 0;
+ ready=1;__atomic_store_n(&dispatch_enabled,1,__ATOMIC_RELEASE);unlock_published();return 0;
 }
 void xz_kart_runtime_stop(void) {
  pthread_mutex_lock(&mutex);
- if(!ready){pthread_mutex_unlock(&mutex);return;}
- if(launcher_pid){xz_kart_host_revoke(&host);pthread_mutex_unlock(&mutex);return;}
- ready=0;__atomic_store_n(&stopping,1,__ATOMIC_RELEASE);pthread_mutex_unlock(&mutex);
+ if(!ready){unlock_published();return;}
+ if(launcher_pid){xz_kart_host_revoke(&host);unlock_published();return;}
+ ready=0;__atomic_store_n(&stopping,1,__ATOMIC_RELEASE);unlock_published();
  pthread_join(worker,NULL);
  pthread_mutex_lock(&mutex);
  uint32_t owned[2]={host.owned[0],host.owned[1]};
  xz_kart_host_revoke(&host);munmap(host.wire,sizeof(inert));close(descriptor);descriptor=-1;
  xz_kart_host_init(&host,&inert);host.owned[0]=owned[0];host.owned[1]=owned[1];
  if(!owned[0] && !owned[1])__atomic_store_n(&dispatch_enabled,0,__ATOMIC_RELEASE);
- pthread_mutex_unlock(&mutex);
+ unlock_published();
 }
 int xz_kart_runtime_physical(void *self,const void *event) {
  if(!__atomic_load_n(&dispatch_enabled,__ATOMIC_ACQUIRE))return 0;
@@ -198,7 +212,7 @@ int xz_kart_runtime_physical(void *self,const void *event) {
  if(host.wire)xz_kart_host_display(&host,display_probe && display_probe());
  int result=host.wire?xz_kart_host_player_event(&host,self,0x27,event,24,milliseconds()):0;
  if(!ready && !host.owned[0] && !host.owned[1])__atomic_store_n(&dispatch_enabled,0,__ATOMIC_RELEASE);
- pthread_mutex_unlock(&mutex);return result;
+ unlock_published();return result;
 }
 int xz_kart_runtime_prepare(const char *id,unsigned kind,struct xz_kart_launch *launch) {
  memset(launch,0,sizeof(*launch));
@@ -207,10 +221,10 @@ int xz_kart_runtime_prepare(const char *id,unsigned kind,struct xz_kart_launch *
  const char *mask=getenv("XZ_KART_CONTROL_DECK_MASK");
  if(mask && strcmp(mask,"1") && strcmp(mask,"2") && strcmp(mask,"3"))return -1;
  pthread_mutex_lock(&mutex);
- if(!ready || launcher_pid || __atomic_load_n(&host.wire->owner,__ATOMIC_ACQUIRE)) {pthread_mutex_unlock(&mutex);return -1;}
+ if(!ready || launcher_pid || __atomic_load_n(&host.wire->owner,__ATOMIC_ACQUIRE)) {unlock_published();return -1;}
  if(!++next_epoch)++next_epoch;
  launch->epoch=next_epoch;launch->mask=mask?(unsigned)(mask[0]-'0'):1;
- pthread_mutex_unlock(&mutex);
+ unlock_published();
  snprintf(launch->epoch_env,sizeof(launch->epoch_env),"XZ_KART_INPUT_EPOCH=%u",launch->epoch);
  snprintf(launch->mask_env,sizeof(launch->mask_env),"XZ_KART_INPUT_DECK_MASK=%u",launch->mask);
  return 1;
@@ -224,22 +238,22 @@ int xz_kart_runtime_attach(uint32_t pid,const struct xz_kart_launch *launch) {
  if(!result){
   launcher_pid=pid;launcher_epoch=launch->epoch;launcher_start=start;
  }
- pthread_mutex_unlock(&mutex);return result;
+ unlock_published();return result;
 }
 void xz_kart_runtime_release(uint32_t pid) {
  pthread_mutex_lock(&mutex);
  if(host.wire && launcher_pid==pid)xz_kart_host_revoke(&host);
- pthread_mutex_unlock(&mutex);
+ unlock_published();
 }
 int xz_kart_runtime_signal_target(int pid) {
  pthread_mutex_lock(&mutex);int result=launcher_pid==(uint32_t)pid?-pid:pid;
- pthread_mutex_unlock(&mutex);return result;
+ unlock_published();return result;
 }
 void xz_kart_runtime_forget(uint32_t pid) {
  uint32_t epoch=0;
  pthread_mutex_lock(&mutex);
  if(host.wire && launcher_pid==pid){xz_kart_host_revoke(&host);launcher_pid=0;epoch=launcher_epoch;launcher_epoch=0;}
- pthread_mutex_unlock(&mutex);
+ unlock_published();
  if(epoch)xz_kart_runtime_cleanup_profile(pid,epoch);
 }
 static int group_alive(uint32_t pid,unsigned long long expected_start) {
@@ -265,12 +279,12 @@ static int group_alive(uint32_t pid,unsigned long long expected_start) {
  closedir(dir);return found;
 }
 int xz_kart_runtime_group_pending(void) {
- pthread_mutex_lock(&mutex);int result=launcher_pid!=0;pthread_mutex_unlock(&mutex);return result;
+ pthread_mutex_lock(&mutex);int result=launcher_pid!=0;unlock_published();return result;
 }
 int xz_kart_runtime_drain(uint32_t pid) {
  pthread_mutex_lock(&mutex);
  int ours=launcher_pid==pid;unsigned long long start=launcher_start;
- pthread_mutex_unlock(&mutex);
+ unlock_published();
  if(!ours)return 0;
  xz_kart_runtime_release(pid);
  for(unsigned phase=0;phase<2;phase++) {

@@ -18,6 +18,11 @@ int xz_runtime_beat_jump(int deck, int beats);
    neither sees it; XZ_RUNTIME_KEY_SHELL_LOAD + side: the press of LOAD on that side while the FLAGSHIP
    shell owns the screen, which the caller hands to xz_shell_runtime_extra_load_key (the key is taken). */
 #define XZ_RUNTIME_KEY_SHELL_LOAD 2
+/* Raw PLAYER packet before native listeners; self is NULL for music or the verified physical PlayerInnards for a game.
+   0 passes to stock, 1 consumes. The normal physical callback remains the fallback. */
+int xz_runtime_deck_early_key(uint16_t code);
+int xz_runtime_deck_games_pending(void);
+int xz_runtime_deck_global_input(void *self, const void *input);
 int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operation);
 /* SHORTCUT DECK SELECT: switches a side (0 left, 1 right) as SHIFT pressed twice does. 1 switched, 0 the CH3/CH4
    route is down (the caller shows XZ_DS_NO_ROUTE_TEXT), -1 no players or no adapter. Takes only deck select's

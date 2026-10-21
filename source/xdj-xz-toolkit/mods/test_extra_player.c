@@ -754,6 +754,60 @@ static void test_checked_resolver(void) {
  puts("PASS checked resolver exact dispatch, no unchecked fallback, missing callback refusal, playing track preserved, legacy zero-token path");
 }
 
+static int order_stale;
+static int order_resolve(int source,uint32_t id,uint64_t generation,struct xz_extra_track *out){
+ return order_stale?-1:checked_counted(source,id,generation,out);
+}
+static void test_ordered_next(void){
+ uint32_t ids[]={1,2,2,3};uint8_t kinds[]={1,1,1,1};
+ for(int side=0;side<2;side++)for(int playing=0;playing<2;playing++){
+  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,order_resolve};
+  p=xz_xp_create(&env);assert(p);fake_route(500);step();
+  struct xz_extra_order *order=xz_extra_order_create(1,42,ids,kinds,4,1);assert(order);
+  struct xz_extra_deck_event e=event(side,XZ_EXTRA_IN_LOAD,1);e.load.source=1;e.load.track_id=1;
+  e.load.media_generation=42;e.load.route_epoch=500;e.load.order=order;e.load.order_index=0;
+  assert(input(e));xz_extra_order_release(order);step();
+  assert(xz_extra_order_live()==1);
+  if(playing)press(side,XZ_EXTRA_IN_PLAY);
+  f.capture[side]=1;f.captured_frames[side]=0;
+  press(side,XZ_EXTRA_IN_TRACK_NEXT);
+  assert(debug(side).source_rate==48000&&!strcmp(view.deck[side].title,"Track B"));
+  assert(debug(side).state==(playing?XZ_XP_PLAYING:XZ_XP_CUED));
+  if(playing){assert(f.captured_frames[side]>=32);for(int n=0;n<32;n++)assert(fabs(f.captured[side][n*2]-.5*sin(6.283185307179586*440*n/44100.0))<.001);}
+  unsigned keep_flush=f.flushes[side];order_stale=1;
+  press(side,XZ_EXTRA_IN_TRACK_NEXT);order_stale=0;
+  assert(!strcmp(view.deck[side].title,"Track B")&&f.flushes[side]==keep_flush);
+  /* Duplicate ID is a separate occurrence: NEXT must still be track 2. */
+  unsigned duplicate_before=f.flushes[side];
+  press(side,XZ_EXTRA_IN_TRACK_NEXT);assert(!strcmp(view.deck[side].title,"Track B")&&f.flushes[side]>duplicate_before);
+  unsigned flush_before=f.flushes[side];uint64_t at=debug(side).position;
+  press(side,XZ_EXTRA_IN_TRACK_NEXT); /* missing.wav: preserve current audio */
+  assert(!strcmp(view.deck[side].title,"Track B")&&debug(side).position==at&&f.flushes[side]==flush_before);
+  order_stale=1;press(side,XZ_EXTRA_IN_TRACK_NEXT);order_stale=0;
+  assert(!strcmp(view.deck[side].title,"Track B")&&f.flushes[side]==flush_before);
+  fake_route(501);step();press(side,XZ_EXTRA_IN_TRACK_NEXT);assert(!strcmp(view.deck[side].title,"Track B"));
+  xz_xp_destroy(p);p=NULL;assert(!xz_extra_order_live());
+ }
+ /* End of list, missing context, rejected queue and shutdown ownership. */
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,order_resolve};
+ p=xz_xp_create(&env);assert(p);fake_route(510);step();load(0,1);press(0,XZ_EXTRA_IN_PLAY);
+ unsigned before=f.flushes[0];press(0,XZ_EXTRA_IN_TRACK_NEXT);assert(f.flushes[0]==before&&debug(0).state==XZ_XP_PLAYING);
+ struct xz_extra_order *o=xz_extra_order_create(1,42,ids,kinds,1,1);assert(o);
+ struct xz_extra_deck_event e=event(0,XZ_EXTRA_IN_LOAD,1);e.load.source=1;e.load.track_id=1;e.load.media_generation=42;e.load.route_epoch=510;e.load.order=o;
+ assert(input(e));step();xz_extra_order_release(o);before=f.flushes[0];press(0,XZ_EXTRA_IN_TRACK_NEXT);assert(f.flushes[0]==before);
+ /* Queued loads hold their references until the queue is drained or destroyed. */
+ o=xz_extra_order_create(1,42,ids,kinds,4,1);assert(o);e.load.order=o;
+ for(unsigned q=0;q<XZ_XP_QUEUE;q++)assert(input(e));
+ assert(!input(e));xz_extra_order_release(o);assert(xz_extra_order_live()==2);
+ xz_xp_destroy(p);p=NULL;assert(!xz_extra_order_live());
+ struct xz_extra_order *slots[XZ_EXTRA_ORDER_SLOTS];
+ for(unsigned i=0;i<XZ_EXTRA_ORDER_SLOTS;i++){slots[i]=xz_extra_order_create(1,42,ids,kinds,4,1);assert(slots[i]);}
+ assert(!xz_extra_order_create(1,42,ids,kinds,4,1));
+ assert(!xz_extra_order_create(1,42,ids,kinds,XZ_EXTRA_ORDER_ROWS+1,1));
+ for(unsigned i=0;i<XZ_EXTRA_ORDER_SLOTS;i++)xz_extra_order_release(slots[i]);assert(!xz_extra_order_live());
+ puts("PASS ordered NEXT duplicate occurrence, both decks/states, unreadable/stale/route refusal and reference cleanup");
+}
+
 static void test_reconnect_during_render(void) {
  struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
  for (int mode = 0; mode < 2; ++mode) {
@@ -834,6 +888,7 @@ int main(int argc, char **argv) {
  test_loop_and_range();
  test_vinyl();
  test_checked_resolver();
+ test_ordered_next();
  test_reconnect_during_render();
  test_threads();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
@@ -841,3 +896,4 @@ int main(int argc, char **argv) {
         "retire grace, resolver and read failures, route down, full queue, threaded snapshots (%lu)\n", snapshots);
  return 0;
 }
+

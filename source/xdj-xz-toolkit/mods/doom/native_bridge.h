@@ -25,6 +25,7 @@ int xz_doom_physical_key(void *self,const void *input);
 int xz_doom_ready(void);
 int xz_doom_launch(void);
 int xz_doom_running(void);
+int xz_doom_input_pending(void);
 /* Queues one navigation tap for a running game; 0 when none is running. */
 int xz_game_nav_send(struct xz_game_input *,enum xz_game_nav_key,uint32_t now);
 int xz_doom_nav(enum xz_game_nav_key);

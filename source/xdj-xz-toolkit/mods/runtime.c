@@ -351,10 +351,55 @@ int xz_runtime_deck_select_toggle(int side) {
     return outcome.toggled ? 1 : -1;
 }
 
+static int physical_priority(void *self, const void *input) {
+    return xz_kart_runtime_physical(self,input) || xz_ui_runtime_arcade_key(self,input) || xz_doom_physical_key(self,input);
+}
+
+int xz_runtime_deck_early_key(uint16_t code){
+ const struct xz_ds_row *row=xz_ds_row_for(code,NULL);
+ return row&&row->path==XZ_DS_PATH_PLAYER&&row->cls!=XZ_DS_ROW_STOCK;
+}
+int xz_runtime_deck_games_pending(void){
+ return xz_kart_runtime_input_pending()||xz_ui_runtime_arcade_input_pending()||xz_doom_input_pending();
+}
+static int owned_player_release(const struct xz_ds_key *key){
+ if(key->op!=2&&key->op!=3)return 0;
+ unsigned slot=0;(void)xz_ds_row_for(key->code,&slot);uint64_t bit=(uint64_t)1<<slot;
+ return !!((deck_select.side[key->side].owner[XZ_DS_EXTRA]|deck_select.side[key->side].owner[XZ_DS_NATIVE])&bit);
+}
+int xz_runtime_deck_global_input(void *self, const void *input) {
+    if (!installed || observer || !input) return 0;
+    const unsigned char *packet=input;
+    struct xz_ds_key key;
+    if(!xz_ds_key_decode_global(input,&key)||!xz_runtime_deck_early_key(key.code)||
+       (self&&((const unsigned char *)self)[0x26]!=packet[10]))return 0;
+    pthread_mutex_lock(&deck_mutex);
+    int release=owned_player_release(&key);
+    key.shift=deck_select.side[key.side].phase!=XZ_DS_IDLE&&deck_select.side[key.side].phase!=XZ_DS_RELEASED;
+    pthread_mutex_unlock(&deck_mutex);
+    /* Kart must observe contacts even while inactive so a later grant cannot take a held contact. */
+    if(key.op<=3&&(release||!xz_kart_runtime_input_pending())&&xz_kart_runtime_observe_key(packet[10],input)&&!release)return 1;
+    if(!release&&xz_runtime_deck_games_pending()){
+     if(!self)return 0;
+     if(physical_priority(self,input))return 1;
+    }
+    struct xz_extra_route route=xz_extra_decks_route();
+    pthread_mutex_lock(&deck_mutex);
+    xz_deck_select_route(&deck_select,route.route_up);
+    struct xz_ds_outcome outcome=xz_deck_select_global_player(&deck_select,&key,xz_game_milliseconds());
+    int left=deck_select.side[0].target==XZ_DS_EXTRA,right=deck_select.side[1].target==XZ_DS_EXTRA;
+    pthread_mutex_unlock(&deck_mutex);
+    return deck_outcome(&outcome,left,right,route.available,key.code);
+}
+
 static int physical_key(void *self, const void *input) {
-    if(!observer && xz_kart_runtime_physical(self,input)) return 1;
-    if(!observer && xz_ui_runtime_arcade_key(self,input)) return 1;
-    if(!observer && xz_doom_physical_key(self,input)) return 1;
+    struct xz_ds_key contact;
+    int release=0;uint16_t code=0;unsigned op=0;
+    if(input){memcpy(&code,(const unsigned char *)input+8,2);op=((const unsigned char *)input)[11]&15u;}
+    if(xz_runtime_deck_early_key(code)&&(op==2||op==3)&&xz_ds_key_decode(self,input,&contact)){
+     pthread_mutex_lock(&deck_mutex);release=owned_player_release(&contact);pthread_mutex_unlock(&deck_mutex);
+    }
+    if(!observer && !release && physical_priority(self,input)) return 1;
     struct xz_cue_event event = {0};
     pthread_mutex_lock(&cue_mutex);
     int decoded = xz_cue_native_decode(&native, self, input, &event);
