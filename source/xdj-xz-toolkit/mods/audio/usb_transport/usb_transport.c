@@ -45,7 +45,7 @@ struct deck_queue {
     uint32_t offset; /* consumer only, within the read block */
     struct block block[BLOCKS];
 };
-struct contribution { uint32_t generation, frames, source_valid; uint64_t source_after; };
+struct contribution { uint32_t generation, frames, source_valid, source_frames; uint64_t source_after, source_wire_frame; };
 struct slot {
     struct urb u; struct iso iso[PACKETS]; uint8_t data[PACKETS * 1024];
     unsigned busy, clock[PACKETS], clock_generation, used_generation;
@@ -214,7 +214,7 @@ static void apply_generation(xz_usb_transport *t, unsigned d, unsigned generatio
     p->applied_generation = generation;
     p->prior_audio_through_wire_frame = t->live.wire_submitted_frames;
 }
-static void take_frames(xz_usb_transport *t, unsigned d, struct contribution *c, uint8_t *out, unsigned frames) {
+static void take_frames(xz_usb_transport *t, unsigned d, struct contribution *c, uint8_t *out, unsigned frames, uint64_t wire_start) {
     struct deck_queue *q = &t->queue[d];
     unsigned filled = 0, scanned = 0;
     while (filled < frames && scanned < BLOCKS) {
@@ -232,6 +232,7 @@ static void take_frames(xz_usb_transport *t, unsigned d, struct contribution *c,
         filled += count; c->frames += count; q->offset += count;
         if (q->offset == b->frames) {
             c->source_after = b->source_after; c->source_valid = 1;
+            c->source_frames=c->frames;c->source_wire_frame=wire_start+filled;
             q->offset = 0; store32(&q->read, read + 1); ++scanned;
         }
     }
@@ -254,7 +255,8 @@ static void prepare(xz_usb_transport *t, struct slot *s, int input, int consume)
             else ++t->live.fallback_packets;
             s->iso[i].length = count * OUT_BYTES;
             memset(s->data + offset, 0, s->iso[i].length);
-            if (consume) for (unsigned d = 0; d < 2; ++d) take_frames(t, d, &s->deck[d], s->data + offset, count);
+            if (consume) for (unsigned d = 0; d < 2; ++d) take_frames(t, d, &s->deck[d], s->data + offset, count,
+                t->live.wire_submitted_frames+offset/OUT_BYTES);
         }
         offset += s->iso[i].length;
     }
@@ -272,7 +274,11 @@ static int submit_slot(xz_usb_transport *t, struct slot *s, int input) {
             xz_usb_deck_position *p = &t->live.deck[d];
             p->staged_frames += s->deck[d].frames;
             p->underrun_frames += frames - s->deck[d].frames;
-            if (s->deck[d].source_valid) { p->source_after_staged = s->deck[d].source_after; p->source_valid |= 1; }
+            if (s->deck[d].source_valid) {
+                p->source_after_staged = s->deck[d].source_after; p->source_valid |= 1;
+                p->source_staged_output_frames=p->staged_frames-s->deck[d].frames+s->deck[d].source_frames;
+                p->source_staged_wire_frame=s->deck[d].source_wire_frame;
+            }
         }
     }
     return 1;
@@ -359,7 +365,11 @@ static int service(xz_usb_transport *t) {
             xz_usb_deck_position *p = &t->live.deck[d];
             if (s->deck[d].generation != p->applied_generation) continue;
             p->completed_frames += s->deck[d].frames;
-            if (s->deck[d].source_valid) { p->source_after_completed = s->deck[d].source_after; p->source_valid |= 2; }
+            if (s->deck[d].source_valid) {
+                p->source_after_completed = s->deck[d].source_after; p->source_valid |= 2;
+                p->source_completed_output_frames=p->completed_frames-s->deck[d].frames+s->deck[d].source_frames;
+                p->source_completed_wire_frame=s->deck[d].source_wire_frame;
+            }
         }
         ++t->live.output_urbs; t->last_output = tick;
     }

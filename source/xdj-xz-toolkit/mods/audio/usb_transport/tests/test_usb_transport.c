@@ -132,8 +132,8 @@ static void test_flush_and_future_generation(void) {
     assert(xz_usb_transport_flush(t, XZ_USB_DECK_3, &generation) == XZ_USB_OK && generation == 3);
     assert(xz_usb_transport_submit(t, XZ_USB_DECK_3, 3, pcm, 1, 3000) == XZ_USB_OK);
     uint8_t wire[OUT_BYTES * 12] = {0};
-    struct contribution old = {2, 0, 0, 0};
-    take_frames(t, 0, &old, wire, 12);
+    struct contribution old = {.generation=2};
+    take_frames(t, 0, &old, wire, 12,0);
     assert(old.frames == 1 && old.source_after == 2000);
     assert(load32(&t->queue[0].read) == 2); /* future block remains queued */
     prepare(t, s, 0, 1);
@@ -333,9 +333,9 @@ void test_atomic_wrap_cancel_and_loss(void) {
 void test_atomic_old_generation_in_progress(void) {
  xz_usb_transport *t=fixture();store32(&t->state,XZ_USB_RUNNING);float pcm[512];constant(pcm,256,.25f);uint32_t gen;
  assert(xz_usb_transport_submit(t,XZ_USB_DECK_3,1,pcm,256,256)==XZ_USB_OK);
- struct contribution old={1,0,0,0};uint8_t wire[OUT_BYTES*512]={0};take_frames(t,0,&old,wire,11);assert(old.frames==11);
+ struct contribution old={.generation=1};uint8_t wire[OUT_BYTES*512]={0};take_frames(t,0,&old,wire,11,0);assert(old.frames==11);
  constant(pcm,256,.5f);assert(xz_usb_transport_flush_and_submit(t,XZ_USB_DECK_3,1,pcm,256,1000,&gen)==XZ_USB_OK);
- take_frames(t,0,&old,wire+11*OUT_BYTES,300);assert(old.frames==256&&load32(&t->queue[0].read)==1);
+ take_frames(t,0,&old,wire+11*OUT_BYTES,300,11);assert(old.frames==256&&load32(&t->queue[0].read)==1);
  assert(t->queue[0].block[1].generation==2&&t->queue[0].offset==0);
  for(unsigned i=0;i<256;i++)assert(unpack(wire+i*OUT_BYTES+12)==2097152);
  prepare(t,&t->output[0],0,1);test_atomic_verify_slot(&t->output[0],0,4194304);assert(t->live.deck[0].applied_generation==2);
@@ -371,8 +371,41 @@ void test_atomic_concurrent_transitions(void) {
  printf("{\"case\":\"concurrent_2000_atomic_transitions\",\"generation\":%u,\"again\":%u,\"busy\":%u}\n",generation,again,busy);
 }
 
+static void test_exact_source_coordinates(void){
+ xz_usb_transport *t=fixture();t->fd=17;store32(&t->state,XZ_USB_RUNNING);
+ t->last_input=t->last_output=f.time;t->live.wire_submitted_frames=t->live.wire_completed_frames=10000;
+ float pcm[512];constant(pcm,256,.25f);
+ assert(xz_usb_transport_submit(t,XZ_USB_DECK_3,1,pcm,17,1000)==XZ_USB_OK);
+ assert(xz_usb_transport_submit(t,XZ_USB_DECK_3,1,pcm,29,2000)==XZ_USB_OK);
+ assert(xz_usb_transport_submit(t,XZ_USB_DECK_3,1,pcm,256,9000)==XZ_USB_OK);
+ assert(xz_usb_transport_submit(t,XZ_USB_DECK_4,1,pcm,11,3000)==XZ_USB_OK);
+ assert(xz_usb_transport_submit(t,XZ_USB_DECK_4,1,pcm,19,4000)==XZ_USB_OK);
+ struct slot *s=&t->output[0];s->clock_generation=1;
+ for(unsigned i=0;i<PACKETS;i++)s->clock[i]=i%2?14:8;
+ prepare(t,s,0,1);
+ assert(s->deck[0].frames>46&&s->deck[0].source_frames==46&&s->deck[0].source_wire_frame==10046);
+ assert(s->deck[1].frames==30&&s->deck[1].source_frames==30&&s->deck[1].source_wire_frame==10030);
+ assert(submit_slot(t,s,0));
+ assert(t->live.deck[0].source_staged_output_frames==46&&t->live.deck[0].source_staged_wire_frame==10046);
+ assert(!t->live.deck[0].source_completed_output_frames);
+ step(t,1);
+ assert(t->live.deck[0].source_after_completed==2000&&t->live.deck[0].source_completed_output_frames==46);
+ assert(t->live.deck[0].source_completed_wire_frame==10046&&t->live.wire_completed_frames>10046);
+ assert(t->live.deck[1].source_after_completed==4000&&t->live.deck[1].source_completed_output_frames==30);
+ assert(t->live.deck[1].source_completed_wire_frame==10030);
+ /* Silence may advance wire time, but never retimestamps the last tagged source boundary. */
+ step(t,8);uint64_t final_tag=t->live.deck[0].source_after_completed;
+ uint64_t final_wire=t->live.deck[0].source_completed_wire_frame;
+ step(t,8);assert(t->live.deck[0].source_after_completed==final_tag&&t->live.deck[0].source_completed_wire_frame==final_wire);
+ assert(t->live.wire_completed_frames>final_wire);
+ uint32_t next;assert(xz_usb_transport_flush(t,XZ_USB_DECK_3,&next)==XZ_USB_OK);
+ step(t,1);assert(t->live.deck[0].applied_generation==next&&!t->live.deck[0].source_valid&&!t->live.deck[0].source_completed_wire_frame);
+ dispose(t);
+ puts("PASS exact source-tag wire/output coordinates: variable packets, partial block, both decks, underrun and generation reset");
+}
 int main(void) {
     atomic_init(&hang_reap, 0); atomic_init(&entered_reap, 0); atomic_init(&producer_done, 0);
+    test_exact_source_coordinates();
     test_packing_and_backpressure(); test_flush_and_future_generation(); test_cursor_wrap();
     test_setup_rollback(); test_clock_position_and_failure(); test_threaded_stream();
     test_concurrent_seek(); test_close_timeout_retains_worker();

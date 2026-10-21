@@ -19,7 +19,7 @@ enum xz_extra_field {
  XZ_EXTRA_F_TITLE, XZ_EXTRA_F_ARTIST, XZ_EXTRA_F_SOURCE, XZ_EXTRA_F_ELAPSED, XZ_EXTRA_F_TOTAL,
  XZ_EXTRA_F_PLAYING, XZ_EXTRA_F_BPM, XZ_EXTRA_F_TEMPO, XZ_EXTRA_F_MASTER, XZ_EXTRA_F_KEY,
  XZ_EXTRA_F_CUE, XZ_EXTRA_F_HOT_CUES, XZ_EXTRA_F_GRID, XZ_EXTRA_F_WAVE, XZ_EXTRA_F_LOOP,
- XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL,
+ XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL, XZ_EXTRA_F_TIMELINE,
  XZ_EXTRA_FIELD_COUNT
 };
 #define XZ_EXTRA_KNOWN(field) ((uint32_t)1<<(field))
@@ -33,6 +33,23 @@ struct xz_extra_column { uint8_t low, mid, high; };
 struct xz_extra_wave { const struct xz_extra_column *columns; uint32_t count; uint32_t span_ms; uint32_t normalization; };
 struct xz_extra_beat { int32_t ms; uint8_t beat_in_bar; };   /* 1..4 */
 struct xz_extra_cue { int set; int32_t ms; uint32_t rgb; };
+enum xz_extra_timeline_flag {
+ XZ_EXTRA_TIMELINE_ANCHOR=1u, XZ_EXTRA_TIMELINE_RATE=2u,
+ XZ_EXTRA_TIMELINE_MOTION=4u, XZ_EXTRA_TIMELINE_SINK_FRAME=8u
+};
+/* Completed-PCM source tag observed at at_ms, with slope measured against completed output frames.
+   This is a USB transport-boundary proxy, not an audible-position/DAC timestamp measurement.
+   sink_frame, when SINK_FRAME is set, is the transport's exact matching tagged-block wire coordinate;
+   a contemporaneous wire_completed_frames counter must not be substituted. flags separately qualify
+   anchor, signed rate, motion and exact sink coordinate. Stale/future timestamps or ambiguous slope
+   clear RATE/ANCHOR as appropriate; MOTION still permits live refresh while extrapolation is held.
+   moving remains useful for refresh cadence while queued scratch PCM finishes. */
+struct xz_extra_timeline {
+ uint64_t source_frame, sink_frame, media_generation;
+ uint32_t source_rate, at_ms, revision, route_epoch, load_revision, transport_generation, flags;
+ int32_t rate_ppm;                   /* signed source seconds / output second, millionths */
+ int moving;
+};
 
 struct xz_extra_deck {
  uint32_t known;
@@ -53,6 +70,7 @@ struct xz_extra_deck {
  struct { int active; int32_t in_ms, out_ms; } loop;
  const struct xz_extra_beat *grid; uint32_t grid_count;
  struct xz_extra_wave wave;
+ struct xz_extra_timeline timeline;
 };
 
 struct xz_extra_decks {
@@ -63,12 +81,14 @@ struct xz_extra_decks {
  /* One short caps line from the players (a refused control, a load error, the route going down), raised
     at notice_at_ms (monotonic); notice_seq changes with every new notice. Empty when none. */
  char notice[64]; uint32_t notice_at_ms, notice_seq;
+ uint32_t snapshot_revision; /* exact player revision represented by the locked deck/notice copy */
 };
 
 /* Copies the published state. Returns route_up; with no players running it clears out and returns 0,
    and every interface keeps its two-deck screen. Never blocks the caller on IO. left_on_3 and
    right_on_4 are only ever set while route_up is. */
 int xz_extra_decks_snapshot(struct xz_extra_decks *out);
+uint32_t xz_extra_decks_revision(void); /* atomic player visible-state revision, no snapshot copy */
 
 /* The cheap read the input layer makes on every key: whether the players run at all, and whether the
    CH3/CH4 route is live. Lock-free. */
@@ -100,6 +120,7 @@ enum xz_extra_input {
  XZ_EXTRA_IN_LOOP_IN, XZ_EXTRA_IN_LOOP_OUT, XZ_EXTRA_IN_RELOOP,
  XZ_EXTRA_IN_LOOP_HALF, XZ_EXTRA_IN_LOOP_DOUBLE,
  XZ_EXTRA_IN_TRACK_NEXT,             /* next TRACK occurrence in the captured FLAGSHIP order */
+ XZ_EXTRA_IN_MASTER,                 /* explicit software clock-master request */
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */

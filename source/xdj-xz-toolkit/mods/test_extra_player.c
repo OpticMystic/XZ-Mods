@@ -31,6 +31,7 @@ static struct {
  unsigned submits[2], flushes[2], stale;
  uint64_t last_after[2]; uint32_t last_frames[2];
  double credit[2];
+ double wire[2];
  float peak[2];
  int capture[2]; uint32_t captured_frames[2]; float captured[2][XZ_USB_BLOCK_FRAMES*2];
 } f;
@@ -108,6 +109,7 @@ static void consume(int d, double frames) {
   memset(p, 0, sizeof *p); p->applied_generation = f.queue_generation[d];
  }
  f.credit[d] += frames;
+ f.wire[d]+=frames;f.position.wire_completed_frames=(uint64_t)f.wire[d];
  while (f.read[d] != f.write[d]) {
   struct block *b = &f.queue[d][f.read[d] % FAKE_BLOCKS];
   if (b->generation < p->applied_generation) { f.read[d]++; continue; }
@@ -115,6 +117,8 @@ static void consume(int d, double frames) {
   f.credit[d] -= b->frames; f.read[d]++;
   p->staged_frames += b->frames; p->completed_frames += b->frames;
   p->source_after_staged = p->source_after_completed = b->after; p->source_valid = 3;
+  p->source_staged_output_frames=p->source_completed_output_frames=p->completed_frames;
+  p->source_staged_wire_frame=p->source_completed_wire_frame=(uint64_t)(f.wire[d]-f.credit[d]+.00001);
  }
  if (f.read[d] == f.write[d]) f.credit[d] = 0;
  pthread_mutex_unlock(&f.lock);
@@ -123,7 +127,7 @@ static void fake_route(uint32_t link) {
  pthread_mutex_lock(&f.lock);
  f.link = link;
  for (int d = 0; d < 2; ++d) {
-  f.queue_generation[d] = XZ_USB_INITIAL_GENERATION; f.read[d] = f.write[d] = 0; f.credit[d] = 0;
+  f.queue_generation[d] = XZ_USB_INITIAL_GENERATION; f.read[d] = f.write[d] = 0; f.credit[d] = f.wire[d] = 0;
   memset(&f.position.deck[d], 0, sizeof f.position.deck[d]); f.position.deck[d].applied_generation = XZ_USB_INITIAL_GENERATION;
  }
  pthread_mutex_unlock(&f.lock);
@@ -754,6 +758,57 @@ static void test_checked_resolver(void) {
  puts("PASS checked resolver exact dispatch, no unchecked fallback, missing callback refusal, playing track preserved, legacy zero-token path");
 }
 
+static void test_completed_timeline(void){
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL};
+ for(int side=0;side<2;side++){
+  p=xz_xp_create(&env);assert(p);fake_route(900);step();load(side,4);seek(side,700);
+  assert((view.deck[side].known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE))&&!view.deck[side].timeline.moving);
+  uint32_t idle_revision=xz_xp_revision(p);advance(50);assert(xz_xp_revision(p)==idle_revision&&view.snapshot_revision==idle_revision);
+  press(side,XZ_EXTRA_IN_PLAY);advance(30);
+  assert(view.deck[side].known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE));
+  assert(abs(view.deck[side].timeline.rate_ppm-1000000)<5000);
+  uint32_t revision=view.deck[side].timeline.revision;
+  jog(side,20);step();advance(70);
+  assert(view.deck[side].timeline.rate_ppm>1005000);
+  hold(side,XZ_EXTRA_IN_PLAY,1);seek(side,700);hold(side,XZ_EXTRA_IN_VINYL,1);
+  hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);jog(side,-8);step();
+  advance(6);
+  assert(view.deck[side].timeline.moving&&view.deck[side].timeline.rate_ppm<0);
+  assert(debug(side).position==debug(side).scratch_target); /* render complete, queued PCM still moving */
+  uint32_t queued_revision=xz_xp_revision(p);advance(6);assert(xz_xp_revision(p)!=queued_revision);
+  assert(view.deck[side].timeline.revision!=revision);
+  advance(100);assert(!view.deck[side].timeline.moving);
+  hold(side,XZ_EXTRA_IN_JOG_TOUCH,0);assert(!view.deck[side].timeline.moving);
+  uint32_t before=view.deck[side].timeline.revision;seek(side,400);
+  assert(view.deck[side].timeline.revision!=before&&view.deck[side].timeline.source_frame==ms_frames(side,400));
+  fake_route(901);step();assert(view.deck[side].timeline.route_epoch==901&&!view.deck[side].timeline.moving);
+  hold(side,XZ_EXTRA_IN_VINYL,1);seek(side,400);press(side,XZ_EXTRA_IN_PLAY);advance(20);
+  assert(view.deck[side].known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE));
+  uint32_t observed=view.deck[side].timeline.at_ms,clock_before=clock_ms;
+  clock_ms=observed-1;step();assert(!(view.deck[side].timeline.flags&XZ_EXTRA_TIMELINE_RATE));
+  clock_ms=observed+151;step();assert(!(view.deck[side].timeline.flags&XZ_EXTRA_TIMELINE_RATE));
+  clock_ms=clock_before;
+  uint64_t verified=view.deck[side].timeline.source_frame;
+  f.position.deck[side].completed_frames+=256;f.position.deck[side].source_completed_output_frames=f.position.deck[side].completed_frames;f.position.deck[side].source_after_completed=UINT64_C(10000000);step();
+  assert(!(view.deck[side].timeline.flags&XZ_EXTRA_TIMELINE_RATE)&&view.deck[side].timeline.source_frame==verified);
+  xz_xp_destroy(p);p=NULL;
+  p=xz_xp_create(&env);assert(p);fake_route(910);step();load(side,4);seek(side,500);
+  press(side,XZ_EXTRA_IN_LOOP_IN);seek(side,1000);press(side,XZ_EXTRA_IN_LOOP_OUT);
+  uint32_t wrap_revision=view.deck[side].timeline.revision;advance(600);
+  assert(view.deck[side].timeline.revision!=wrap_revision);
+  assert(view.deck[side].timeline.flags&XZ_EXTRA_TIMELINE_RATE);
+  assert(abs(view.deck[side].timeline.rate_ppm-1000000)<5000);
+  assert(view.deck[side].timeline.source_frame>=ms_frames(side,500)&&view.deck[side].timeline.source_frame<ms_frames(side,1000));
+  /* The same end tag after many output frames admits multiple windings: hold slope unknown. */
+  f.position.deck[side].completed_frames+=30000;f.position.deck[side].source_completed_output_frames=f.position.deck[side].completed_frames;step();
+  assert(!(view.deck[side].timeline.flags&XZ_EXTRA_TIMELINE_RATE));
+  assert(view.deck[side].timeline.flags&XZ_EXTRA_TIMELINE_ANCHOR);
+  assert(view.deck[side].timeline.flags&XZ_EXTRA_TIMELINE_MOTION);
+  assert(view.deck[side].timeline.flags&XZ_EXTRA_TIMELINE_SINK_FRAME);
+  xz_xp_destroy(p);p=NULL;
+ }
+ puts("PASS completed PCM timeline signed bend/scratch, queued motion, pauses, discontinuity and route anchors");
+}
 static int order_stale;
 static int order_resolve(int source,uint32_t id,uint64_t generation,struct xz_extra_track *out){
  return order_stale?-1:checked_counted(source,id,generation,out);
@@ -888,6 +943,7 @@ int main(int argc, char **argv) {
  test_loop_and_range();
  test_vinyl();
  test_checked_resolver();
+ test_completed_timeline();
  test_ordered_next();
  test_reconnect_during_render();
  test_threads();

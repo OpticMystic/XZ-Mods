@@ -82,6 +82,9 @@ int xz_extra_deck_input(const struct xz_extra_deck_event *event) {
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);
  return p ? xz_xp_input(p, event) : 0;
 }
+uint32_t xz_extra_decks_revision(void){
+ return xz_xp_revision(__atomic_load_n(&players,__ATOMIC_ACQUIRE));
+}
 
 /* ---- the sink the players submit into; never waits on the connector ---- */
 static xz_usb_deck usb_deck(int deck) { return deck ? XZ_USB_DECK_4 : XZ_USB_DECK_3; }
