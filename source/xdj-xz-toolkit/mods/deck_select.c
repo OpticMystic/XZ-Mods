@@ -76,6 +76,8 @@ int xz_ds_key_decode_global(const void *input,struct xz_ds_key *k){
 int xz_ds_key_decode(const void *innards, const void *input, struct xz_ds_key *k) {
  const unsigned char *self = innards, *p = input;
  if(!self || !p || !k || (self[0x26] != 1 && self[0x26] != 2)) return 0;
+ /* Explicit physical channels must agree before a fallback can change ownership. */
+ if(p[10]>=1 && p[10]<=2 && p[10]!=self[0x26]) return 0;
  memset(k,0,sizeof *k);k->side=(int)self[0x26]-1;k->shift=self[0x34]!=0;
  decode_packet(p,k);return 1;
 }
@@ -170,6 +172,12 @@ static void other_key(struct xz_ds_side *s) {
  else if(s->phase == XZ_DS_RELEASED) s->phase = XZ_DS_IDLE;
 }
 
+static void player_activity(struct xz_ds_side *s,const struct xz_ds_key *k) {
+ /* Idle speed updates do not mean the platter was used with SHIFT. */
+ if(k->code==0x4305 && k->op==XZ_DS_OP_JOG && !k->delta) return;
+ other_key(s);
+}
+
 static int remember_unknown(struct xz_deck_select *d, uint16_t code) {
  for(unsigned i = 0; i < d->logged_count; i++) if(d->logged[i] == code) return 0;
  if(d->logged_count < sizeof d->logged / sizeof *d->logged) d->logged[d->logged_count++] = code;
@@ -252,7 +260,7 @@ struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *d, const struct x
   else if(k->op == 2 || k->op == 3) xz_deck_select_shift(d, k->side, 0, now, &out);
   return out;
  }
- other_key(s);
+ player_activity(s,k);
  if(k->code == XZ_DS_KEY_TEMPO && k->op == XZ_DS_OP_FADER) { tempo(s, k->side, k, &out); return out; }
  int away = s->target == XZ_DS_EXTRA;
  unsigned slot = 0;
@@ -296,7 +304,7 @@ struct xz_ds_outcome xz_deck_select_global_player(struct xz_deck_select *d,const
  if(!d||!k||k->side<0||k->side>1)return pass;
  unsigned slot=0;const struct xz_ds_row *row=xz_ds_row_for(k->code,&slot);
  if(!row||row->path!=XZ_DS_PATH_PLAYER||row->cls==XZ_DS_ROW_STOCK)return pass;
- struct xz_ds_side *s=&d->side[k->side];other_key(s);
+ struct xz_ds_side *s=&d->side[k->side];player_activity(s,k);
  int stream=row->kind==XZ_EXTRA_IN_JOG_TURN||row->kind==XZ_EXTRA_IN_TEMPO;
  if(!stream){
   uint64_t bit=(uint64_t)1<<slot;int release=k->op==2||k->op==3;

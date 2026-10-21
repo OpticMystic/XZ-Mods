@@ -350,6 +350,24 @@ static void test_decode_and_table(void) {
  assert(xz_ds_row_for(0x4119, &slot) && xz_ds_row_for(0x4120, &slot) && !xz_ds_row_for(0x4121 + 0x100, NULL));
 }
 
+static void test_fallback_channel_boundary(void) {
+ static const uint16_t codes[]={XZ_DS_KEY_SHIFT,0x4306,0x4305,0x4101,0x4102};
+ for(unsigned side=0;side<2;side++)for(unsigned n=0;n<sizeof codes/sizeof *codes;n++)
+  for(unsigned op=0;op<=4;op++){
+   unsigned char self[0x90]={0},input[24]={0};struct xz_ds_key k;
+   self[0x26]=(unsigned char)(side+1);memcpy(input+8,&codes[n],2);input[11]=(unsigned char)op;
+   /* An unspecified channel keeps the established physical-callback contract. */
+   assert(xz_ds_key_decode(self,input,&k)&&k.side==(int)side);
+   input[10]=(unsigned char)(side+1);
+   assert(xz_ds_key_decode(self,input,&k)&&k.side==(int)side);
+   input[10]=(unsigned char)(2-side);
+   memset(&k,0x55,sizeof k);struct xz_ds_key untouched=k;
+   assert(!xz_ds_key_decode(self,input,&k));
+   assert(!memcmp(&k,&untouched,sizeof k));
+   assert(xz_ds_key_decode_global(input,&k)&&k.side==(int)(1-side));
+  }
+}
+
 /* LOAD on a switched side: the press asks, hold and release follow the answer, a native press keeps going
    to stock, and SHORTCUT DECK SELECT switches as SHIFT twice does. */
 static void test_load_routes(void) {
@@ -491,6 +509,7 @@ int main(void) {
  test_stock_unchanged();
  test_duplicate_edges();
  test_decode_and_table();
+ test_fallback_channel_boundary();
  test_load_routes();
  puts("deck select: all checks passed");
  return 0;

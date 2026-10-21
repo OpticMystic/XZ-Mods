@@ -9,7 +9,7 @@
 
    Shell state, not model: which tab is shown (the stack view's focus:
    0 = the highlighted track when there is one, else the active deck;
-   1 = DECK 1, 2 = DECK 2, 3 = the highlighted track) and the focused value
+   1..4 = DECK 1..4, XZ_SHELL_INFO_LIST_TAB = the highlighted track) and the focused value
    (view cursor: 0 = none, n = the nth focusable value). The DECK tabs only
    change what INFO shows; they never move the active deck. */
 #include "shell.h"
@@ -53,8 +53,10 @@ struct xz_shell_info_track {
    loaded track. Shown read only, in its own tab; it never becomes the active deck. */
 #define XZ_SHELL_INFO_LINKED 2
 struct xz_shell_info_linked { int player; struct xz_shell_info_track track; };
-/* Decks with an INFO tab: the unit's own two players. Decks 3 and 4 have no track record yet. */
-#define XZ_SHELL_INFO_DECKS 2
+/* Playback availability, independent of the PLAY screen's chosen display density. */
+#define XZ_SHELL_INFO_DECKS XZ_SHELL_DECKS
+#define XZ_SHELL_INFO_LIST_TAB (XZ_SHELL_INFO_DECKS+1)
+#define XZ_SHELL_INFO_LINKED_TAB (XZ_SHELL_INFO_LIST_TAB+1)
 struct xz_shell_info_model {
  struct xz_shell_info_track deck[XZ_SHELL_INFO_DECKS];
  int has_highlight;                  /* a list is open and supplied its highlighted track */
@@ -62,6 +64,9 @@ struct xz_shell_info_model {
  int linked_count;                   /* 0..XZ_SHELL_INFO_LINKED: tabs PLAYER n after LIST */
  struct xz_shell_info_linked linked[XZ_SHELL_INFO_LINKED];
 };
+/* Read-only INFO from the confirmed player fields. No catalog identity or writable rating
+   is inferred from a title; unavailable metadata retains a clear known bit. */
+void xz_shell_info_player(struct xz_shell_info_track *, const struct xz_shell_deck *);
 
 /* Actions this screen adds to enum xz_shell_action_kind (struct xz_shell_action fields):
    INFO_JUMP   deck = the shown track's deck, or -1 for the highlighted track;
@@ -75,7 +80,7 @@ struct xz_shell_info_model {
 
 /* INFO geometry, for the runtime's hit tests and the host tests. */
 enum xz_shell_info_region {
- XZ_SHELL_INFO_R_TAB,       /* index 0 = DECK 1, 1 = DECK 2, 2 = LIST (highlighted track), 3.. = linked players */
+ XZ_SHELL_INFO_R_TAB,       /* displayed tab index: available decks, LIST, linked players */
  XZ_SHELL_INFO_R_CLOSE,
  XZ_SHELL_INFO_R_ARTWORK,
  XZ_SHELL_INFO_R_TITLE,

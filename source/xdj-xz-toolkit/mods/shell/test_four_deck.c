@@ -243,14 +243,15 @@ static void test_strips(void) {
  tap_rect(&u,&two,xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_ROW,2),out);
  assert(xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_LOAD,2).w>0&&xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_LOAD,3).w==0);
  assert(xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_STRIP,1).w==XZ_SHELL_WIDTH/2&&xz_shell_browse_rect(&u,&two,XZ_SHELL_BR_STRIP,2).w==0);
- /* INFO: a quarter of deck 1 or 2 shows its tab; decks 3 and 4 have no tab yet and take no touch. */
+ /* INFO: every mixer quarter shows the same logical deck's tab. */
  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_INFO,-1,out);
  assert(xz_shell_screen(&u)==XZ_SHELL_INFO);
  struct xz_shell_rect strip=xz_shell_info_rect(XZ_SHELL_INFO_R_STRIP,0);
  int y=strip.y+strip.h/2;
  tap(&u,&m,XZ_SHELL_WIDTH/2+20,y,out);assert(u.stack[1].focus==2);
  tap(&u,&m,XZ_SHELL_WIDTH/4+20,y,out);assert(u.stack[1].focus==1);
- assert(tap(&u,&m,20,y,out)==0&&tap(&u,&m,XZ_SHELL_WIDTH*3/4+20,y,out)==0&&u.stack[1].focus==1);
+ assert(tap(&u,&m,20,y,out)==0&&u.stack[1].focus==3);
+ assert(tap(&u,&m,XZ_SHELL_WIDTH*3/4+20,y,out)==0&&u.stack[1].focus==4);
  render_both(&u,&m);
  static const enum xz_shell_key screens[]={XZ_SHELL_KEY_SOURCE,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_KEY_MENU_HOLD};
  for(size_t i=0;i<sizeof screens/sizeof *screens;i++){xz_shell_init(&u);deck_key(&u,&m,screens[i],-1,out);render_both(&u,&m);}

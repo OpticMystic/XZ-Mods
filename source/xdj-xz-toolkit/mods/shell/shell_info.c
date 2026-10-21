@@ -7,7 +7,7 @@
 #include "shell_info_chrome.h"
 
 enum {
- TAB_X=104, TAB_W=104, TAB_GAP=6,
+ TAB_X=104, TAB_W=68, TAB_GAP=6,
  LEFT_X=20, ART_Y=54, ART_SIDE=188, LEFT_W=200,
  RATING_Y=248, COLOR_Y=300, SOURCE_Y=344, DATE_Y=388, LEFT_ROW_H=44,
  STAR_W=40, STAR_R=13,
@@ -15,12 +15,28 @@ enum {
  TITLE_Y=48, TITLE_H=54, ROW_H=46, ARTIST_Y=TITLE_Y+TITLE_H, ALBUM_Y=ARTIST_Y+ROW_H,
  STAT_Y=ALBUM_Y+ROW_H+6, STAT_H=62, STAT_GAP=8, STAT_W=(RIGHT_W-3*STAT_GAP)/4,
  GENRE_Y=STAT_Y+STAT_H+6, COMMENT_Y=GENRE_Y+ROW_H, FILE_Y=COMMENT_Y+ROW_H,
- TAB_HIGHLIGHT=3, TAB_LINKED=4, TABS_MAX=3+XZ_SHELL_INFO_LINKED
+ TAB_HIGHLIGHT=XZ_SHELL_INFO_LIST_TAB, TAB_LINKED=XZ_SHELL_INFO_LINKED_TAB,
+ TABS_MAX=XZ_SHELL_INFO_DECKS+1+XZ_SHELL_INFO_LINKED
 };
 static const struct { const char *name; uint32_t rgb; } color_tags[XZ_SHELL_COLOR_COUNT]={
  {"NO COLOR",0},{"PINK",0xff64c8},{"RED",0xff3c3c},{"ORANGE",0xff8c1a},{"YELLOW",0xffe020},
  {"GREEN",0x28e028},{"AQUA",0x20c8ff},{"BLUE",0x3c64ff},{"PURPLE",0x9b3cff}
 };
+
+void xz_shell_info_player(struct xz_shell_info_track *t,const struct xz_shell_deck *d) {
+ memset(t,0,sizeof *t);
+ if(!sh_has(d,XZ_SHELL_F_LOADED))return;
+ t->known=XZ_SHELL_KNOWN(XZ_SHELL_I_LOADED);t->loaded=!!d->loaded;
+ if(!t->loaded)return;
+ if(sh_has(d,XZ_SHELL_F_TITLE)&&d->title){t->title=d->title;t->known|=XZ_SHELL_KNOWN(XZ_SHELL_I_TITLE);}
+ if(sh_has(d,XZ_SHELL_F_ARTIST)&&d->artist){t->artist=d->artist;t->known|=XZ_SHELL_KNOWN(XZ_SHELL_I_ARTIST);}
+ if(sh_has(d,XZ_SHELL_F_SOURCE)){t->source=d->source;t->known|=XZ_SHELL_KNOWN(XZ_SHELL_I_SOURCE);}
+ if(sh_has(d,XZ_SHELL_F_TOTAL)){t->duration_ms=d->total_ms;t->known|=XZ_SHELL_KNOWN(XZ_SHELL_I_DURATION);}
+ if(sh_has(d,XZ_SHELL_F_TRACK_BPM)){t->bpm_x100=d->track_bpm_x100;t->known|=XZ_SHELL_KNOWN(XZ_SHELL_I_BPM);}
+ if(sh_has(d,XZ_SHELL_F_KEY_ORIGINAL)&&d->key_original)t->key=d->key_original;
+ else if(sh_has(d,XZ_SHELL_F_KEY)&&d->key)t->key=d->key;
+ if(t->key)t->known|=XZ_SHELL_KNOWN(XZ_SHELL_I_KEY);
+}
 
 struct xz_shell_rect xz_shell_info_rect(enum xz_shell_info_region r, int i) {
  switch(r){
@@ -66,22 +82,22 @@ static int has(const struct xz_shell_info_track *t, enum xz_shell_info_field f) 
 static const char *text_of(const struct xz_shell_info_track *t, enum xz_shell_info_field f, const char *s) { return has(t,f)?s:NULL; }
 /* 1..2 = DECK 1..2, TAB_HIGHLIGHT = the highlighted list track, TAB_LINKED + i = linked player i. */
 static int linked_count(const struct xz_shell_info_model *im) { return sh_max(0,sh_min(im->linked_count,XZ_SHELL_INFO_LINKED)); }
-static int shown_tab(const struct xz_shell *u, const struct xz_shell_info_model *im) {
+static int shown_tab(const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_info_model *im) {
  int f=si_view(u)->focus;
  if(f==TAB_HIGHLIGHT&&im->has_highlight)return TAB_HIGHLIGHT;
  if(f>=TAB_LINKED&&f<TAB_LINKED+linked_count(im))return f;
- if(f==1||f==2)return f;
+ if(f>=1&&f<=sh_deck_count(m))return f;
  if(im->has_highlight)return TAB_HIGHLIGHT;
- return u->deck>=0&&u->deck<XZ_SHELL_INFO_DECKS?u->deck+1:1;
+ return sh_active_deck(u,m)+1;
 }
 static const struct xz_shell_info_track *track_of(const struct xz_shell_info_model *im, int tab) {
  return tab>=TAB_LINKED?&im->linked[tab-TAB_LINKED].track:tab==TAB_HIGHLIGHT?&im->highlight:&im->deck[tab-1];
 }
 static int tab_deck(int tab) { return tab>=TAB_HIGHLIGHT?-1:tab-1; }
 /* The tabs left to right: the decks, LIST while a list is open, then the linked players. */
-static int tab_order(const struct xz_shell_info_model *im, int out[TABS_MAX]) {
+static int tab_order(const struct xz_shell_model *m,const struct xz_shell_info_model *im, int out[TABS_MAX]) {
  int n=0;
- out[n++]=1;out[n++]=2;
+ for(int d=0;d<sh_deck_count(m);d++)out[n++]=d+1;
  if(im->has_highlight)out[n++]=TAB_HIGHLIGHT;
  for(int i=0;i<linked_count(im);i++)out[n++]=TAB_LINKED+i;
  return n;
@@ -272,20 +288,20 @@ static void render_left(struct xz_canvas c, const struct xz_shell_info_track *t,
  if(date)sh_text_fit(c,LEFT_X,r.y+20,LEFT_W,date,SH_TEXT,SH_WHITE);
  else sh_text(c,LEFT_X,r.y+20,"--",SH_TEXT,SH_DIM);
 }
-static void render_tabs(const struct xz_shell *u, const struct xz_shell_info_model *im, struct xz_canvas c, int tab) {
+static void render_tabs(const struct xz_shell *u,const struct xz_shell_model *m, const struct xz_shell_info_model *im, struct xz_canvas c, int tab) {
  sh_info_icon(c,22,SI_HEAD_H/2,SH_WHITE);
  sh_text(c,36,15,"INFO",SH_TEXT,SH_WHITE);
- int order[TABS_MAX],tabs=tab_order(im,order);
+ int order[TABS_MAX],tabs=tab_order(m,im,order);
  for(int i=0;i<tabs;i++){
   struct xz_shell_rect r=xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,i);
   int id=order[i],on=tab==id;
   xz_rect(c,r.x,7,r.w,30,on?SH_BLUE:SH_RAIL);
   char label[16];
-  if(id<=2)snprintf(label,sizeof label,"DECK %d",id);
+  if(id<TAB_HIGHLIGHT)snprintf(label,sizeof label,"DECK %d",id);
   else if(id==TAB_HIGHLIGHT)snprintf(label,sizeof label,"LIST");
   else snprintf(label,sizeof label,"PLAYER %d",sh_max(0,sh_min(im->linked[id-TAB_LINKED].player,99)));
-  sh_text_center(c,r.x+r.w/2,15,label,SH_TEXT,on?SH_WHITE:SH_DIM);
-  if(id<=2&&u->deck==id-1&&!on)xz_rect(c,r.x,34,r.w,3,SH_BLUE);  /* the active deck */
+  sh_text_center(c,r.x+r.w/2,15,label,id>=TAB_LINKED?SH_SMALL:SH_TEXT,on?SH_WHITE:SH_DIM);
+  if(id<TAB_HIGHLIGHT&&u->deck==id-1&&!on)xz_rect(c,r.x,34,r.w,3,SH_BLUE);  /* the focused deck */
  }
 }
 static void info_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
@@ -294,9 +310,9 @@ static void info_render(const struct xz_shell *u, const struct xz_shell_model *m
  si_header(c,"");
  si_strip(u,m,c);
  if(!im){sh_text_center(c,c.width/2,220,"No track information.",SH_TEXT,SH_DIM);return;}
- int tab=shown_tab(u,im);
+ int tab=shown_tab(u,m,im);
  const struct xz_shell_info_track *t=track_of(im,tab);
- render_tabs(u,im,c,tab);
+ render_tabs(u,m,im,c,tab);
  int state=loaded_state(m,t,tab_deck(tab));
  if(state==0){
   char hint[64];
@@ -352,16 +368,16 @@ static size_t info_input(struct xz_shell *u, const struct xz_shell_model *m, con
  struct xz_shell_view *v=&u->stack[u->depth-1];
  if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(si_close_rect(),e->x,e->y))return sh_back(u,m,out);
  if(!im)return 0;
- int tab=shown_tab(u,im);
+ int tab=shown_tab(u,m,im);
  const struct xz_shell_info_track *t=track_of(im,tab);
  enum xz_shell_info_field list[FOCUS_MAX];
  int count=info_focusable(m,t,loaded_state(m,t,tab_deck(tab)),list,tab);
  if(v->cursor<0||v->cursor>count)v->cursor=0;
  switch(e->kind){
  case XZ_SHELL_TOUCH_DOWN:{
-  int order[TABS_MAX],tabs=tab_order(im,order);
+  int order[TABS_MAX],tabs=tab_order(m,im,order);
   for(int i=0;i<tabs;i++)if(sh_inside(xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,i),e->x,e->y)){v->focus=order[i];v->cursor=0;return 0;}
-  for(int d=0;d<XZ_SHELL_INFO_DECKS;d++)if(sh_inside(si_strip_rect(m,d),e->x,e->y)){v->focus=d+1;v->cursor=0;return 0;}
+  for(int d=0;d<sh_deck_count(m);d++)if(sh_inside(si_strip_rect(m,d),e->x,e->y)){v->focus=d+1;v->cursor=0;return 0;}
   for(int i=0;i<count;i++){
    if(!sh_inside(xz_shell_info_rect(XZ_SHELL_INFO_R_VALUE,list[i]),e->x,e->y))continue;
    if(v->cursor!=i+1){v->cursor=i+1;return 0;}      /* first touch highlights */

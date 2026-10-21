@@ -831,12 +831,6 @@ static void extra_decks(void) {
  s.notice_seq=2;s.notice_at_ms=1000;assert(!xz_shrt_extra_notice(&seen,&s,1000+XZ_SHELL_NOTICE_MS)&&seen==2);
  s.notice_seq=3;s.notice[0]=0;assert(!xz_shrt_extra_notice(&seen,&s,1000));
  assert(!xz_shrt_extra_notice(&seen,NULL,1000));
- /* The active deck follows a side that switched. */
- assert(xz_shrt_extra_active_deck(0,0,1)==2&&xz_shrt_extra_active_deck(2,1,0)==0);
- assert(xz_shrt_extra_active_deck(1,0,2)==3&&xz_shrt_extra_active_deck(3,2,0)==1);
- assert(xz_shrt_extra_active_deck(0,0,2)==3&&xz_shrt_extra_active_deck(1,1,0)==0);
- assert(xz_shrt_extra_active_deck(3,3,0)==1&&xz_shrt_extra_active_deck(2,3,0)==0&&xz_shrt_extra_active_deck(0,0,3)==2);
- assert(xz_shrt_extra_active_deck(2,1,1)==2&&xz_shrt_extra_active_deck(1,0,0)==1);
  /* The resolver's row copy. */
  struct xz_extra_track t;
  assert(!xz_shrt_extra_track(&t,2,99,"/media/usb2/sda1","/Contents/A/b.mp3","Title","Artist","Fm",12850));

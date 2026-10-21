@@ -257,6 +257,7 @@ struct xz_shell_model {
  int deck_count;                     /* decks the unit plays now: 4 while the runtime's extra deck route is up;
                                         any other value means 2, so a zero-initialised model has two decks. The
                                         screens draw and accept decks 0..count-1 only */
+ int play_view_count;                /* transient PLAY projection only: 2 or 4; deck_count remains audio availability */
  uint32_t capabilities;
  struct xz_shell_settings settings;
  int link_known, link_connected;
@@ -448,6 +449,7 @@ struct xz_shell {
  int depth;
  int zoom;        /* shared by both lanes */
  int grid_mode;   /* encoder adjusts the active deck's grid instead of zoom */
+ int play_decks;                       /* PLAY only: 2 = selected left/right pair, 0/4 = all available decks */
  int deck;        /* active deck */
  struct xz_shell_popup popup;
  int down;        /* a touch is in progress */
@@ -501,8 +503,11 @@ enum xz_shell_play_region {
  XZ_SHELL_R_PAD_ROW,  /* per deck, between the lanes and the strips: stem mute buttons and hot-cue lamps.
                          The four-deck view has none (zero size) */
  XZ_SHELL_R_ALERT_BUTTON, /* per deck, while F_ALERT holds: CHOOSE TRACK, into BROWSE */
- XZ_SHELL_R_GRID_RESET, XZ_SHELL_R_GRID_SNAP, XZ_SHELL_R_GRID_SHIFT /* the active deck's lane in GRID mode */
+ XZ_SHELL_R_GRID_RESET, XZ_SHELL_R_GRID_SNAP, XZ_SHELL_R_GRID_SHIFT, XZ_SHELL_R_VIEW_TWO, XZ_SHELL_R_VIEW_FOUR /* the active deck's lane in GRID mode */
 };
+/* Build the same immutable PLAY projection used by rendering and input. Logical deck IDs and
+   deck_count remain unchanged; only play_view_count selects geometry. */
+void xz_shell_play_projection(const struct xz_shell *, const struct xz_shell_model *, struct xz_shell_model *);
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *, enum xz_shell_play_region, int deck);
 /* A deck's stem row on PLAY for the model's stem layout (zero size when hidden or not read); the
    waveform takes the rest of the deck's lane. ZOOM/GRID and the GRID buttons move clear of it. In the

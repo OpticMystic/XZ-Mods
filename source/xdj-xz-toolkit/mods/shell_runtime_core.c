@@ -456,13 +456,6 @@ int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_
  *seen=s->notice_seq;
  return s->notice[0]&&mono_now-s->notice_at_ms<(uint32_t)XZ_SHELL_NOTICE_MS;
 }
-int xz_shrt_extra_active_deck(int active, unsigned was, unsigned now) {
- unsigned changed=(was^now)&3u;
- if(!changed)return active;
- int side=active>=0?active&1:0;
- if(!((changed>>side)&1u))side^=1;
- return side+((now>>side)&1u?XZ_EXTRA_FIRST_DECK:0);
-}
 static void copy_text(char *out, size_t cap, const char *in) {
  size_t full=in?strlen(in):0,n=full<cap?full:cap-1;
  /* A cut never ends inside a UTF-8 sequence. */

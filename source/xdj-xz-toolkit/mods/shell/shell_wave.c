@@ -344,7 +344,7 @@ int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
    Under the non-play screens of the four-deck view each deck gets a quarter: the player badge, REMAIN
    or TIME with the time, a mini overview under them, and the BPM box (orange digits and MASTER for
    the master deck). Numerals use the text face; a quarter has no room for the numeral faces. */
-enum { Q_BADGE_W=30, Q_TEXT_X=40, Q_BPM_W=52 };
+enum { Q_BADGE_W=48, Q_TEXT_X=58, Q_BPM_W=52 };
 struct xz_shell_rect sh_strip_cell(const struct xz_shell_model *m, struct xz_shell_rect band, int deck) {
  int count=m?sh_deck_count(m):2,w=band.w/count;
  return (struct xz_shell_rect){band.x+sh_strip_column(count,deck)*w,band.y,w,band.h};
@@ -356,10 +356,17 @@ static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, st
  char text[24];
  xz_rect(c,x,y,w,h,SH_CHROME);
  int bx=x+4,by=y+3,bh=h-6;
- xz_rect(c,bx,by,Q_BADGE_W,bh,u->deck==deck?SH_BLUE:SH_RAIL);
- sh_text_center(c,bx+Q_BADGE_W/2,by+bh/2-16,"DECK",SH_SMALL,SH_WHITE);
+ const char *control=sh_control_side(m,deck);
+ uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=control?accent:SH_RAIL,badge_ink=sh_ink_on(tile);
+ xz_rect(c,bx,by,Q_BADGE_W,bh,tile);
+ if(!control&&accent!=SH_BLUE)xz_rect(c,bx,by,3,bh,accent);
  snprintf(text,sizeof text,"%d",deck+1);
- sh_text_center(c,bx+Q_BADGE_W/2,by+bh/2-3,text,SH_TEXT,SH_WHITE);
+ sh_num(c,bx+(Q_BADGE_W-sh_num_width(SH_NUM_MID,text))/2,by+1,text,SH_NUM_MID,badge_ink);
+ if(control){
+  sh_text_center(c,bx+Q_BADGE_W/2,by+bh-20,control,SH_SMALL,badge_ink);
+  sh_text_center(c,bx+Q_BADGE_W/2,by+bh-10,"CONTROL",SH_SMALL,badge_ink);
+ }
+ if(u->deck==deck)xz_border(c,bx,by,Q_BADGE_W,bh,SH_WHITE);
  int loaded_known=sh_has(d,XZ_SHELL_F_LOADED),loaded=loaded_known&&d->loaded;
  if(loaded_known&&!loaded){sh_text_center(c,(x+Q_TEXT_X+x+w-4)/2,y+(h-SH_CAP_TEXT)/2-3,"Not Loaded.",SH_TEXT,SH_RED);return;}
  /* REMAIN / TIME and the time on one line */
@@ -380,7 +387,7 @@ static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, st
   snprintf(text,sizeof text,"%02d:%02d",(int)min,(int)sec);
  }
  else snprintf(text,sizeof text,"--:--");
- sh_text(c,tx+sh_text_width(c,"REMAIN",SH_SMALL)+5,y+4,text,SH_TEXT,shown>=0?SH_WHITE:SH_DIM);
+ sh_text(c,tx+sh_text_width(c,"REMAIN",SH_SMALL)+3,y+4,text,SH_TEXT,shown>=0?SH_WHITE:SH_DIM);
  /* BPM box at the right edge, the mini overview under the time */
  int px=x+w-4-Q_BPM_W,master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
  uint32_t ink=master?SH_RED:SH_WHITE;

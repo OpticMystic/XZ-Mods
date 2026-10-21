@@ -3,6 +3,7 @@
 #endif
 #include "shell_info_fixtures.h"
 #include "shell_info_chrome.h"
+#include "shell_browse.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +14,7 @@
 static uint16_t buffer_a[GUARD+PIXELS+GUARD], buffer_b[GUARD+PIXELS+GUARD];
 static struct fx_track track;
 static uint16_t art[FXI_ART_SIDE*FXI_ART_SIDE];
-static int browse_slot;
+static struct xz_shell_browse_model browse_slot;
 
 static uint16_t *frame(uint16_t *buffer) { return buffer+GUARD+STRIDE; }
 static void fill(uint16_t *buffer) { for(size_t i=0;i<GUARD+PIXELS+GUARD;i++)buffer[i]=0xa55a; }
@@ -68,7 +69,7 @@ static void model(struct xz_shell_model *m, struct xz_shell_info_model *im, stru
  fxi_info_full(im,art);
  fxi_source_full(sm);
  m->info=im;m->source=sm;
- m->browse=(const struct xz_shell_browse_model *)&browse_slot;
+ m->browse=&browse_slot;
  m->capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_SOURCE;
 }
 static void open_screen(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, enum xz_shell_screen s) {
@@ -130,13 +131,13 @@ static void test_info_tabs(void) {
  assert(tap(&u,&m,xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,0),out)==0);
  render_checked(&u,&m,buffer_b);
  assert(!rows_equal(frame(buffer_a),frame(buffer_b),SI_HEAD_H,SI_STRIP_Y));
- assert(tap(&u,&m,xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,2),out)==0&&u.stack[1].focus==3);
+ assert(tap(&u,&m,xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,2),out)==0&&u.stack[1].focus==XZ_SHELL_INFO_LIST_TAB);
  render_checked(&u,&m,buffer_b);
  assert(rows_equal(frame(buffer_a),frame(buffer_b),0,XZ_SHELL_HEIGHT));
  /* The LIST tab is not there without a highlighted track. */
  im.has_highlight=0;
- render_checked(&u,&m,buffer_b);   /* focus 3 falls back to the active deck */
- assert(tap(&u,&m,xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,2),out)==0&&u.stack[1].focus==3);
+ render_checked(&u,&m,buffer_b);   /* the missing LIST falls back to the active deck */
+ assert(tap(&u,&m,xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,2),out)==0&&u.stack[1].focus==XZ_SHELL_INFO_LIST_TAB);
  puts("PASS info tabs: default deck or highlighted track, local tab state, strip touch");
 }
 static void test_info_jump(void) {
@@ -427,7 +428,9 @@ static void test_strip_and_targets(void) {
   assert(r.h>=44&&r.y>=SI_HEAD_H&&r.y+r.h<=SI_STRIP_Y&&r.x>=0&&r.x+r.w<=XZ_SHELL_WIDTH);
  }
  for(int s=0;s<XZ_SHELL_RATING_MAX;s++)assert(xz_shell_info_rect(XZ_SHELL_INFO_R_STAR,s).h>=44);
- assert(si_close_rect().h>=44&&xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,3+XZ_SHELL_INFO_LINKED).w==0&&xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,2+XZ_SHELL_INFO_LINKED).x+xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,2+XZ_SHELL_INFO_LINKED).w<=XZ_SHELL_HEADER_X&&xz_shell_info_rect(XZ_SHELL_INFO_R_VALUE,XZ_SHELL_I_TRACK_ID).w==0);
+ int tabs=XZ_SHELL_INFO_DECKS+1+XZ_SHELL_INFO_LINKED;
+ struct xz_shell_rect last=xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,tabs-1);
+ assert(si_close_rect().h>=44&&xz_shell_info_rect(XZ_SHELL_INFO_R_TAB,tabs).w==0&&last.x+last.w<=si_close_rect().x&&xz_shell_info_rect(XZ_SHELL_INFO_R_VALUE,XZ_SHELL_I_TRACK_ID).w==0);
  /* Rendering is deterministic and leaves the model alone. */
  struct xz_shell_info_model copy=im;
  open_screen(&u,&m,XZ_SHELL_KEY_INFO,XZ_SHELL_INFO);

@@ -72,7 +72,9 @@ struct xz_ds_key {
  int32_t delta; float value;          /* op 4: delta i32 +12, speed f32 +16; op 5: position f32 +16 */
 };
 /* PlayerInnards self (channel byte +0x26 = 1/2, SHIFT flag +0x34) and the key input (code u16 +8,
-   operation low nibble of +11). 0 for any other channel. */
+   operation low nibble of +11). A specified input channel +10 of 1/2 must match self;
+   an unspecified input channel retains the physical callback's channel. Returns 0 for
+   another self channel or an explicit mismatch, without modifying the decoded key. */
 int xz_ds_key_decode_global(const void *input, struct xz_ds_key *);
 int xz_ds_key_decode(const void *innards, const void *input, struct xz_ds_key *);
 
