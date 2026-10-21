@@ -363,7 +363,7 @@ static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, st
  snprintf(text,sizeof text,"%d",deck+1);
  sh_num(c,bx+(Q_BADGE_W-sh_num_width(SH_NUM_MID,text))/2,by+1,text,SH_NUM_MID,badge_ink);
  if(control){
-  sh_control_pair(c,bx+(Q_BADGE_W-21)/2,by+bh-20,deck>=2,badge_ink);
+  sh_control_pair(c,bx+(Q_BADGE_W-27)/2,by+bh-20,deck&1,badge_ink);
   sh_text_center(c,bx+Q_BADGE_W/2,by+bh-10,"CONTROL",SH_SMALL,badge_ink);
  }
  if(u->deck==deck)xz_border(c,bx,by,Q_BADGE_W,bh,SH_WHITE);

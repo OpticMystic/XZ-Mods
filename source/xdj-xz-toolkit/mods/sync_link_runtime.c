@@ -1,0 +1,691 @@
+/* SPDX-License-Identifier: MIT */
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <time.h>
+#include "sync_link_runtime.h"
+#include "runtime.h"
+#include "clock_compat.h"
+#include <limits.h>
+#include <math.h>
+#include <pthread.h>
+#include <string.h>
+
+#define XZ_VA_WRITER UINT32_MAX
+
+static void va_copy(void *to,const void *from,unsigned n){
+ unsigned char *d=to;const unsigned char *s=from;
+ for(unsigned i=0;i<n;i++)d[i]=s[i];
+}
+static void put_le32(unsigned char *p,uint32_t v){
+ p[0]=(unsigned char)v;p[1]=(unsigned char)(v>>8);
+ p[2]=(unsigned char)(v>>16);p[3]=(unsigned char)(v>>24);
+}
+static uint32_t get_le32(const unsigned char *p){
+ return (uint32_t)p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;
+}
+static uint32_t get_be32(const unsigned char *p){
+ return (uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|(uint32_t)p[3];
+}
+
+void xz_va_init(struct xz_va *s){
+ atomic_init(&s->foreign_epoch[0],1);atomic_init(&s->foreign_epoch[1],1);
+ atomic_init(&s->operator_epoch,1);atomic_init(&s->active,0);
+ atomic_init(&s->pending,0);atomic_init(&s->published,0);
+ atomic_init(&s->source_id,0);atomic_init(&s->claim_foreign,0);
+ atomic_init(&s->claim_operator,0);atomic_init(&s->lease_generation,0);
+ atomic_init(&s->valid_generation,0);
+ atomic_init(&s->producer_guard,0);
+ for(unsigned i=0;i<3;i++){
+  atomic_init(&s->slots[i].refs,0);
+  memset(&s->slots[i].value,0,sizeof s->slots[i].value);
+ }
+}
+uint32_t xz_va_probe_epoch(struct xz_va *s,uint32_t id){
+ return id<3||id>4?0:atomic_load(&s->foreign_epoch[id-3]);
+}
+static int producer_enter(struct xz_va *s){
+ uint32_t zero=0;
+ return atomic_compare_exchange_strong(&s->producer_guard,&zero,1);
+}
+static int producer_leave(struct xz_va *s,int result){
+ atomic_store_explicit(&s->producer_guard,0,memory_order_release);
+ return result;
+}
+int xz_va_claim(struct xz_va *s,uint32_t id,int absent,uint32_t probed){
+ if(!producer_enter(s))return 0;
+ if(!absent||id<3||id>4||atomic_load(&s->active))return producer_leave(s,0);
+ uint32_t f=xz_va_probe_epoch(s,id),o=atomic_load(&s->operator_epoch);
+ uint32_t generation=atomic_load(&s->lease_generation);
+ if(!f||!o||f!=probed||generation==UINT32_MAX)return producer_leave(s,0);
+ generation++;
+ atomic_store(&s->source_id,id);atomic_store(&s->claim_foreign,f);
+ atomic_store(&s->claim_operator,o);atomic_store(&s->pending,0);
+ atomic_store(&s->published,0);atomic_store(&s->lease_generation,generation);
+ atomic_store(&s->valid_generation,generation);
+ atomic_store(&s->active,1);
+ if(xz_va_probe_epoch(s,id)==f&&atomic_load(&s->operator_epoch)==o)return producer_leave(s,1);
+ atomic_store(&s->active,0);return producer_leave(s,0);
+}
+static int va_live(struct xz_va *s){
+ return atomic_load(&s->active)&&
+  atomic_load(&s->valid_generation)==atomic_load(&s->lease_generation)&&
+  atomic_load(&s->claim_foreign)==xz_va_probe_epoch(s,atomic_load(&s->source_id))&&
+  atomic_load(&s->claim_operator)==atomic_load(&s->operator_epoch);
+}
+uint32_t xz_va_ticket(struct xz_va *s){
+ return va_live(s)?atomic_load(&s->lease_generation):0;
+}
+int xz_va_offer(struct xz_va *s,const struct xz_va_bundle *v,uint32_t prepared){
+ if(!producer_enter(s))return 0;
+ uint32_t generation=atomic_load(&s->lease_generation),id=atomic_load(&s->source_id);
+ uint32_t foreign=atomic_load(&s->claim_foreign),op=atomic_load(&s->claim_operator);
+ uint32_t status_id=get_le32(v->status);
+ if(!prepared||prepared!=generation||!va_live(s)||v->source_id!=id||status_id!=v->source_id)
+  return producer_leave(s,0);
+ uint32_t pub=atomic_load_explicit(&s->published,memory_order_acquire);
+ if(pub>UINT32_MAX-4)return producer_leave(s,0);
+ for(unsigned i=0;i<3;i++){
+  if(pub&&(pub&3)==i+1)continue;
+  uint32_t expected=0;
+  if(!atomic_compare_exchange_strong(&s->slots[i].refs,&expected,XZ_VA_WRITER))continue;
+  va_copy(&s->slots[i].value,v,sizeof *v);
+  atomic_store_explicit(&s->slots[i].refs,0,memory_order_release);
+  if(!va_live(s)||generation!=atomic_load(&s->lease_generation)||id!=atomic_load(&s->source_id)||
+     foreign!=atomic_load(&s->claim_foreign)||op!=atomic_load(&s->claim_operator))
+   return producer_leave(s,0);
+  uint32_t expected_pub=pub;
+  int accepted=atomic_compare_exchange_strong_explicit(&s->published,&expected_pub,((pub&~3u)+4)|(i+1),
+   memory_order_release,memory_order_relaxed);
+  return producer_leave(s,accepted);
+ }
+ return producer_leave(s,0);
+}
+void xz_va_explicit_request(struct xz_va *s){
+ uint32_t generation=atomic_load(&s->lease_generation),expected=atomic_load(&s->pending);
+ for(unsigned n=0;n<2;n++){
+  if(!va_live(s)||generation!=atomic_load(&s->lease_generation))return;
+  if(atomic_compare_exchange_strong(&s->pending,&expected,generation))return;
+ }
+}
+static void va_advance(_Atomic uint32_t *p){
+ uint32_t old=atomic_load(p);
+ while(old&&!atomic_compare_exchange_weak(p,&old,old==UINT32_MAX?0:old+1)){}
+}
+void xz_va_foreign(struct xz_va *s,uint32_t id){
+ if(id<3||id>4)return;
+ va_advance(&s->foreign_epoch[id-3]);
+ if(id!=atomic_load(&s->source_id))return;
+ atomic_store(&s->pending,0);atomic_store(&s->active,0);
+}
+void xz_va_operator(struct xz_va *s){
+ va_advance(&s->operator_epoch);
+ atomic_store(&s->pending,0);atomic_store(&s->active,0);
+}
+int xz_va_begin(struct xz_va *s,struct xz_va_frame *f){
+ if(f->depth==UINT32_MAX)return -1;
+ if(f->depth){f->depth++;return (int)f->mode;}
+ f->depth=1;f->mode=0;f->source_id=atomic_load(&s->source_id);
+ f->foreign_epoch=atomic_load(&s->claim_foreign);
+ f->operator_epoch=atomic_load(&s->claim_operator);
+ f->lease_generation=atomic_load(&s->lease_generation);
+ f->expected_link_mgr=NULL;f->draining_sync_master=NULL;f->probing_original=0;
+ if(!f->source_id||f->operator_epoch!=atomic_load(&s->operator_epoch))return 0;
+ if(f->foreign_epoch!=xz_va_probe_epoch(s,atomic_load(&s->source_id))){f->mode=2;return 2;}
+ if(!va_live(s)){f->mode=f->operator_epoch==atomic_load(&s->operator_epoch)?2:0;return (int)f->mode;}
+ for(unsigned attempt=0;attempt<2;attempt++){
+  uint32_t pub=atomic_load_explicit(&s->published,memory_order_acquire);
+  if(!(pub&3))return 0;
+  unsigned i=(pub&3)-1;uint32_t refs=atomic_load(&s->slots[i].refs);
+  if(refs>=XZ_VA_WRITER-1||!atomic_compare_exchange_strong(&s->slots[i].refs,&refs,refs+1))continue;
+  if(pub==atomic_load_explicit(&s->published,memory_order_acquire)&&va_live(s)&&
+     f->source_id==atomic_load(&s->source_id)&&f->foreign_epoch==atomic_load(&s->claim_foreign)&&
+     f->operator_epoch==atomic_load(&s->claim_operator)&&f->lease_generation==atomic_load(&s->lease_generation)){
+   f->slot=i;f->mode=1;return 1;
+  }
+  atomic_fetch_sub(&s->slots[i].refs,1);
+ }
+ f->mode=2;return 2;
+}
+int xz_va_take_request(struct xz_va *s,struct xz_va_frame *f){
+ if(!f->depth||f->mode!=1||!va_live(s)||f->source_id!=atomic_load(&s->source_id)||
+    f->foreign_epoch!=atomic_load(&s->claim_foreign)||f->operator_epoch!=atomic_load(&s->claim_operator)||
+    f->lease_generation!=atomic_load(&s->lease_generation))return 0;
+ uint32_t expected=f->lease_generation;
+ return atomic_compare_exchange_strong(&s->pending,&expected,0)?(int)f->source_id:0;
+}
+int xz_va_get(struct xz_va *s,struct xz_va_frame *f,unsigned kind,void *out){
+ if(!f->depth||!f->mode)return 0;
+ if(f->mode==2)return -1;
+ if(!va_live(s)||f->lease_generation!=atomic_load(&s->lease_generation))return -1;
+ if(kind>1)return -1;
+ const struct xz_va_bundle *v=&s->slots[f->slot].value;
+ va_copy(out,kind?v->beat:v->status,kind?44:56);
+ return 1;
+}
+void xz_va_end(struct xz_va *s,struct xz_va_frame *f){
+ if(!f->depth)return;
+ if(--f->depth)return;
+ if(f->mode==1)atomic_fetch_sub(&s->slots[f->slot].refs,1);
+ f->mode=0;f->expected_link_mgr=NULL;f->draining_sync_master=NULL;f->probing_original=0;
+}
+void xz_va_registry_init(struct xz_va_registry *r){
+ for(unsigned i=0;i<4;i++){
+  memset(&r->slots[i].frame,0,sizeof r->slots[i].frame);
+  atomic_init(&r->slots[i].owner,0);
+ }
+}
+struct xz_va_frame *xz_va_registry_lookup(struct xz_va_registry *r,uintptr_t key){
+ if(!key||key==UINTPTR_MAX)return NULL;
+ for(unsigned i=0;i<4;i++)
+  if(atomic_load_explicit(&r->slots[i].owner,memory_order_acquire)==key)return &r->slots[i].frame;
+ return NULL;
+}
+struct xz_va_frame *xz_va_registry_enter(struct xz_va *s,struct xz_va_registry *r,uintptr_t key){
+ if(!key||key==UINTPTR_MAX)return NULL;
+ struct xz_va_frame *f=xz_va_registry_lookup(r,key);
+ if(f)return xz_va_begin(s,f)<0?NULL:f;
+ for(unsigned i=0;i<4;i++){
+  uintptr_t expected=0;
+  if(!atomic_compare_exchange_strong(&r->slots[i].owner,&expected,UINTPTR_MAX))continue;
+  f=&r->slots[i].frame;f->depth=0;
+  atomic_store_explicit(&r->slots[i].owner,key,memory_order_release);
+  xz_va_begin(s,f);
+  return f;
+ }
+ return NULL;
+}
+void xz_va_registry_leave(struct xz_va *s,struct xz_va_registry *r,uintptr_t key){
+ for(unsigned i=0;i<4;i++)if(atomic_load_explicit(&r->slots[i].owner,memory_order_acquire)==key){
+  xz_va_end(s,&r->slots[i].frame);
+  if(!r->slots[i].frame.depth)atomic_store_explicit(&r->slots[i].owner,0,memory_order_release);
+  return;
+ }
+}
+
+void xz_sync_link_bundle_from_plan(const struct xz_sync_link_plan *p,struct xz_va_bundle *b){
+ if(!p||!b)return;
+ memset(b,0,sizeof *b);
+ b->source_id=p->source_id;
+ put_le32(b->status+0x00,p->source_id);
+ b->status[0x04]=0xa4;b->status[0x05]=0x01;b->status[0x06]=0;b->status[0x07]=0;
+ memcpy(b->status+0x10,p->music_id,8);
+ b->status[0x18]=1;
+ put_le32(b->status+0x1c,p->bpm100);
+ put_le32(b->status+0x20,p->q20_speed);
+ put_le32(b->status+0x24,p->q20_speed);
+ b->status[0x28]=1;
+ put_le32(b->status+0x2c,p->bpm100);
+ put_le32(b->status+0x30,p->q20_speed);
+ put_le32(b->status+0x34,p->q20_speed);
+ for(unsigned i=0;i<6;i++)put_le32(b->beat+i*4,get_be32(p->beat_packet+i*4));
+ put_le32(b->beat+0x18,p->q20_speed);
+ put_le32(b->beat+0x1c,p->bpm100);
+ b->beat[0x20]=p->beat_packet[0x38];
+ b->beat[0x21]=p->beat_packet[0x39];
+ b->beat[0x22]=p->beat_packet[0x3b];
+ b->beat[0x23]=0;
+ memcpy(b->beat+0x24,&p->beat_sec,4);
+ memcpy(b->beat+0x28,&p->beat_usec,4);
+}
+
+static void derive_music_id(int deck_index,const struct xz_extra_deck *d,unsigned char out[8]){
+ uint32_t lo=d->timeline.load_revision^((uint32_t)(deck_index+3)<<24)^((uint32_t)(d->source&0xff)<<16);
+ uint32_t hi=(uint32_t)d->timeline.media_generation^(d->timeline.route_epoch<<8)^0x585a4d44u;
+ if(!lo&&!hi)lo=1;
+ put_le32(out,lo);put_le32(out+4,hi);
+}
+
+int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,uint64_t now_mono_us,struct xz_sync_link_pcm_anchor *out){
+ if(!d||!out||deck_index<0||deck_index>=XZ_EXTRA_DECKS)return 0;
+ memset(out,0,sizeof *out);
+ const uint32_t req_flags=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_RATE|XZ_EXTRA_TIMELINE_SINK_FRAME;
+ if(!d->loaded||!d->playing||!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE))||
+    !(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_GRID))||!d->grid||d->grid_count<2||
+    (d->timeline.flags&req_flags)!=req_flags||d->timeline.source_rate<8000||d->timeline.rate_ppm<=0||
+    !d->timeline.route_epoch||!d->timeline.load_revision||!d->timeline.transport_generation||!d->timeline.sink_frame)
+  return 0;
+ uint32_t now_ms=(uint32_t)(now_mono_us/1000u);
+ uint32_t age_ms=now_ms-d->timeline.at_ms;
+ if((int32_t)age_ms<0||age_ms>90u)return 0;
+ uint64_t cap_us=(uint64_t)d->timeline.at_ms*1000u+(now_mono_us%1000u);
+ if(cap_us>now_mono_us)cap_us=now_mono_us;
+ double ms=(double)d->timeline.source_frame*1000./(double)d->timeline.source_rate;
+ unsigned lo=0,hi=d->grid_count;
+ while(lo<hi){unsigned mid=lo+(hi-lo)/2;if((double)d->grid[mid].ms<=ms)lo=mid+1;else hi=mid;}
+ if(!lo)return 0;
+ unsigned idx=lo-1;
+ int32_t period_ms=idx+1<d->grid_count?d->grid[idx+1].ms-d->grid[idx].ms:d->grid[idx].ms-d->grid[idx-1].ms;
+ if(period_ms<250||period_ms>1500||d->grid[idx].beat_in_bar<1||d->grid[idx].beat_in_bar>4)return 0;
+ double beat_frame=(double)d->grid[idx].ms*(double)d->timeline.source_rate/1000.;
+ double src_frame=(double)d->timeline.source_frame;
+ if(src_frame<beat_frame)beat_frame=src_frame;
+ for(unsigned k=0;k<8;k++){
+  if(!d->loop.active&&idx+1+k<d->grid_count&&d->grid[idx+1+k].ms>d->grid[idx].ms){
+   uint32_t delta=(uint32_t)(d->grid[idx+1+k].ms-d->grid[idx].ms);
+   if(k&&delta<=out->future_beat_ms[k-1])delta=out->future_beat_ms[k-1]+(uint32_t)period_ms;
+   out->future_beat_ms[k]=delta;
+  }else{
+   out->future_beat_ms[k]=(k?out->future_beat_ms[k-1]:0u)+(uint32_t)period_ms;
+  }
+ }
+ out->route_epoch=d->timeline.route_epoch;
+ out->source_revision=d->timeline.load_revision;
+ out->playback_epoch=d->timeline.transport_generation;
+ out->completed_output_frame=d->timeline.sink_frame;
+ out->captured_mono_us=cap_us;
+ derive_music_id(deck_index,d,out->music_id);
+ out->completed_pcm=1;
+ out->clock_domain_mapped=1;
+ out->playing=1;
+ out->phase_eligible=1;
+ out->source_rate=d->timeline.source_rate;
+ out->bpm100=d->track_bpm_x100>0?(uint32_t)d->track_bpm_x100:(uint32_t)llround(6000000./(double)period_ms);
+ out->uncertainty_us=250;
+ out->source_frame=src_frame;
+ out->beat_source_frame=beat_frame;
+ out->effective_speed=(double)d->timeline.rate_ppm/1000000.;
+ out->beat_in_bar=d->grid[idx].beat_in_bar;
+ out->lane=(unsigned)deck_index;
+ return 1;
+}
+
+static struct xz_va rt_va;
+static struct xz_va_registry rt_registry;
+static pthread_mutex_t rt_pub_mutex=PTHREAD_MUTEX_INITIALIZER;
+static struct xz_sync_link_lease rt_lease;
+static struct xz_sync_link_clock rt_clock;
+static _Atomic int rt_installed;
+static _Atomic int rt_slot_absent[2];
+static _Atomic uint32_t rt_slot_probed_epoch[2];
+static _Atomic int32_t rt_observed_master_id;
+static _Atomic int rt_observed_ready;
+static _Atomic int rt_committed_deck;
+
+static _Atomic int rt_restore_pending;
+static _Atomic int rt_restore_input_id;
+static _Atomic int32_t rt_restore_expected_master;
+static _Atomic uint32_t rt_restore_operator_epoch;
+static _Atomic uint32_t rt_restore_foreign_epoch;
+static _Atomic uint32_t rt_restore_source_id;
+
+static int (*orig_sync_mgr_sync)(void *);
+static int (*orig_get_player_info)(void *,const int *,void *);
+static int (*orig_get_beat_info)(void *,const int *,const uint8_t *,void *);
+static int (*orig_set_player_info)(void *,const int *,const void *,const void *,const void *,
+                                   const void *,const void *,const void *,const void *,const void *,
+                                   const void *,const void *,const void *,const void *);
+static int (*orig_set_beat_info)(void *,const int *,const void *,const void *);
+static int (*orig_set_master_on)(void *,const int *);
+static int (*test_set_link_master)(void *,const int *);
+static void (*test_on_use_native_master)(void);
+static int (*test_monotonic_us)(uint64_t *);
+
+static int runtime_monotonic_us(uint64_t *out){
+ if(test_monotonic_us)return test_monotonic_us(out);
+ struct timespec now;
+ if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&now)||now.tv_sec<0)return -1;
+ *out=(uint64_t)now.tv_sec*1000000ULL+(uint64_t)(now.tv_nsec/1000L);
+ return 0;
+}
+/* Only revoke the generation borrowed by this frame. A newer claim cannot be
+   cancelled by a consumer finishing an old frame. Slots remain reader-pinned. */
+static int runtime_frame_fresh(struct xz_va_frame *f){
+ if(!f||f->mode!=1||!va_live(&rt_va)||
+    f->lease_generation!=atomic_load(&rt_va.lease_generation))return 0;
+ uint64_t now,captured=rt_va.slots[f->slot].value.captured_mono_us;
+ if(!runtime_monotonic_us(&now)&&now>=captured&&now-captured<=XZ_SYNC_LINK_MAX_AGE_US)return 1;
+ uint32_t generation=f->lease_generation;
+ if(atomic_compare_exchange_strong(&rt_va.valid_generation,&generation,0)){
+  generation=f->lease_generation;
+  (void)atomic_compare_exchange_strong(&rt_va.pending,&generation,0);
+  atomic_store(&rt_committed_deck,-1);
+ }
+ return 0;
+}
+
+static uintptr_t current_thread_key(void){
+ uintptr_t k=(uintptr_t)pthread_self();
+ if(!k||k==UINTPTR_MAX)k=1;
+ return k;
+}
+static int call_set_link_master(void *sm,const int *input_id){
+ if(test_set_link_master)return test_set_link_master(sm,input_id);
+#ifdef __arm__
+ return ((int (*)(void *,const int *))(uintptr_t)0x5984c)(sm,input_id);
+#else
+ (void)sm;(void)input_id;return 0;
+#endif
+}
+static void notify_use_native_master(void){
+ if(test_on_use_native_master){test_on_use_native_master();return;}
+ (void)xz_extra_decks_use_native_master();
+}
+
+static int hook_sync_mgr_sync(void *sync_mgr){
+ if(!atomic_load(&rt_installed)||!sync_mgr)return orig_sync_mgr_sync?orig_sync_mgr_sync(sync_mgr):0;
+ void *sm=NULL,*link_mgr=NULL;
+ memcpy(&sm,(const unsigned char *)sync_mgr+4,sizeof sm);
+ if(sm)memcpy(&link_mgr,(const unsigned char *)sm+0x30,sizeof link_mgr);
+ uintptr_t key=current_thread_key();
+ struct xz_va_frame *f=xz_va_registry_enter(&rt_va,&rt_registry,key);
+ if(!f)return 0;
+ if(f->depth==1){
+  f->expected_link_mgr=link_mgr;
+  if(link_mgr&&orig_get_player_info){
+   for(int id=3;id<=4;id++){
+    uint32_t p_epoch=xz_va_probe_epoch(&rt_va,(uint32_t)id);
+    unsigned char raw[56];memset(raw,0,sizeof raw);
+    f->probing_original=1;
+    int prc=orig_get_player_info(link_mgr,&id,raw);
+    f->probing_original=0;
+    int absent=(prc==0&&get_le32(raw)==0&&get_le32(raw+0x1c)==0x7fffffffu);
+    atomic_store(&rt_slot_probed_epoch[id-3],p_epoch);
+    atomic_store(&rt_slot_absent[id-3],absent);
+   }
+  }
+  int32_t cur_master=-2;
+  if(sm){
+   uint8_t dummy=((const uint8_t *)sm)[0x15];
+   memcpy(&cur_master,(const unsigned char *)sm+(dummy?0x18:0x08),4);
+  }
+  atomic_store(&rt_observed_master_id,cur_master);
+  atomic_store(&rt_observed_ready,sm&&link_mgr?1:0);
+  int req_id=runtime_frame_fresh(f)?xz_va_take_request(&rt_va,f):0;
+  if((req_id==3||req_id==4)&&sm){
+   atomic_store(&rt_restore_pending,0);
+   f->draining_sync_master=sm;
+   (void)call_set_link_master(sm,&req_id);
+   f->draining_sync_master=NULL;
+  }else if(sm&&atomic_exchange(&rt_restore_pending,0)){
+   int32_t exp_master=atomic_load(&rt_restore_expected_master);
+   uint32_t exp_op=atomic_load(&rt_restore_operator_epoch);
+   uint32_t exp_for=atomic_load(&rt_restore_foreign_epoch);
+   uint32_t src_id=atomic_load(&rt_restore_source_id);
+   int restore_id=atomic_load(&rt_restore_input_id);
+   if(cur_master==exp_master&&atomic_load(&rt_va.operator_epoch)==exp_op&&
+      xz_va_probe_epoch(&rt_va,src_id)==exp_for){
+    f->draining_sync_master=sm;
+    if(restore_id>0)(void)call_set_link_master(sm,&restore_id);
+    else if(orig_set_master_on){int none=-1;(void)orig_set_master_on(sm,&none);}
+    f->draining_sync_master=NULL;
+   }
+  }
+ }
+ int rc=orig_sync_mgr_sync?orig_sync_mgr_sync(sync_mgr):0;
+ if(f->depth==1&&sm){
+  int32_t after_master=-2;
+  uint8_t dummy=((const uint8_t *)sm)[0x15];
+  memcpy(&after_master,(const unsigned char *)sm+(dummy?0x18:0x08),4);
+  atomic_store(&rt_observed_master_id,after_master);
+ }
+ xz_va_registry_leave(&rt_va,&rt_registry,key);
+ return rc;
+}
+
+static int hook_get_player_info(void *link_mgr,const int *id_ptr,void *out){
+ if(atomic_load(&rt_installed)&&id_ptr&&(*id_ptr==3||*id_ptr==4)&&out){
+  struct xz_va_frame *f=xz_va_registry_lookup(&rt_registry,current_thread_key());
+  if(f&&f->depth>0&&!f->probing_original&&f->expected_link_mgr==link_mgr&&f->source_id==(uint32_t)*id_ptr){
+   int vrc=f->mode==1&&!runtime_frame_fresh(f)?-1:xz_va_get(&rt_va,f,0,out);
+   if(vrc==1)return 0;
+   if(vrc<0)return -1;
+  }
+ }
+ return orig_get_player_info?orig_get_player_info(link_mgr,id_ptr,out):-1;
+}
+
+static int hook_get_beat_info(void *link_mgr,const int *id_ptr,const uint8_t *lane_ptr,void *out){
+ if(atomic_load(&rt_installed)&&id_ptr&&(*id_ptr==3||*id_ptr==4)&&out){
+  struct xz_va_frame *f=xz_va_registry_lookup(&rt_registry,current_thread_key());
+  if(f&&f->depth>0&&!f->probing_original&&f->expected_link_mgr==link_mgr&&f->source_id==(uint32_t)*id_ptr){
+   int vrc=f->mode==1&&!runtime_frame_fresh(f)?-1:xz_va_get(&rt_va,f,1,out);
+   if(vrc==1)return 0;
+   if(vrc<0)return -1;
+  }
+ }
+ return orig_get_beat_info?orig_get_beat_info(link_mgr,id_ptr,lane_ptr,out):-1;
+}
+
+static int hook_set_player_info(void *link_mgr,const int *id_ptr,const void *a2,const void *a3,const void *a4,
+                                const void *a5,const void *a6,const void *a7,const void *a8,const void *a9,
+                                const void *a10,const void *a11,const void *a12,const void *a13){
+ if(atomic_load(&rt_installed)&&id_ptr&&(*id_ptr==3||*id_ptr==4)){
+  xz_va_foreign(&rt_va,(uint32_t)*id_ptr);
+  atomic_store(&rt_slot_absent[*id_ptr-3],0);
+  atomic_store(&rt_committed_deck,-1);
+ }
+ return orig_set_player_info?orig_set_player_info(link_mgr,id_ptr,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13):0;
+}
+
+static int hook_set_beat_info(void *link_mgr,const int *id_ptr,const void *lane_ptr,const void *packet){
+ if(atomic_load(&rt_installed)&&id_ptr&&(*id_ptr==3||*id_ptr==4)){
+  xz_va_foreign(&rt_va,(uint32_t)*id_ptr);
+  atomic_store(&rt_slot_absent[*id_ptr-3],0);
+  atomic_store(&rt_committed_deck,-1);
+ }
+ return orig_set_beat_info?orig_set_beat_info(link_mgr,id_ptr,lane_ptr,packet):0;
+}
+
+static int hook_set_master_on(void *sync_master,const int *master_id){
+ if(atomic_load(&rt_installed)&&sync_master){
+  struct xz_va_frame *f=xz_va_registry_lookup(&rt_registry,current_thread_key());
+  int internal=(f&&f->depth>0&&f->draining_sync_master==sync_master);
+  int dummy=((const uint8_t *)sync_master)[0x15]!=0;
+  if(!internal&&!dummy){
+   xz_va_operator(&rt_va);
+   atomic_store(&rt_restore_pending,0);
+   atomic_store(&rt_committed_deck,-1);
+   notify_use_native_master();
+  }
+ }
+ return orig_set_master_on?orig_set_master_on(sync_master,master_id):0;
+}
+
+static void apply_cleanup(const struct xz_sync_link_cleanup *clean,uint32_t leased_id,const struct xz_sync_link_observation *obs){
+ if(!clean)return;
+ if(clean->inhibit_phase){
+  atomic_store(&rt_va.valid_generation,0);
+  atomic_store(&rt_va.pending,0);
+  atomic_store(&rt_va.active,0);
+ }
+ if(clean->restore_master&&obs){
+  atomic_store(&rt_restore_input_id,clean->restore_input_id);
+  atomic_store(&rt_restore_expected_master,(int32_t)leased_id-1);
+  atomic_store(&rt_restore_operator_epoch,obs->master_choice_epoch);
+  atomic_store(&rt_restore_foreign_epoch,obs->external_writer_epoch);
+  atomic_store(&rt_restore_source_id,leased_id);
+  atomic_store(&rt_restore_pending,1);
+ }
+ atomic_store(&rt_committed_deck,-1);
+}
+
+static struct xz_sync_link_observation runtime_observation(uint32_t leased_id){
+ return (struct xz_sync_link_observation){
+  .external_writer_epoch=xz_va_probe_epoch(&rt_va,leased_id),
+  .master_choice_epoch=atomic_load(&rt_va.operator_epoch),
+  .foreign_present=!atomic_load(&rt_slot_absent[leased_id-3])||xz_va_probe_epoch(&rt_va,leased_id)!=rt_lease.claim.external_writer_epoch,
+  .payload_still_ours=atomic_load(&rt_va.active)&&atomic_load(&rt_va.source_id)==leased_id,
+  .current_master_id=atomic_load(&rt_observed_master_id)
+ };
+}
+static void release_runtime_lease(void){
+ if(!rt_lease.active)return;
+ uint32_t id=rt_lease.claim.source_id;
+ struct xz_sync_link_observation obs=runtime_observation(id);
+ struct xz_sync_link_cleanup clean={0};
+ xz_sync_link_lease_release(&rt_lease,&obs,&clean);
+ apply_cleanup(&clean,id,&obs);
+}
+
+void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct xz_sync_link_clock_pair *clock_pair){
+ if(!atomic_load(&rt_installed))return;
+ pthread_mutex_lock(&rt_pub_mutex);
+ if(rt_clock.stepped&&!rt_lease.active)memset(&rt_clock,0,sizeof rt_clock);
+ int clock_ok=xz_sync_link_clock_update(&rt_clock,clock_pair)==XZ_SYNC_LINK_OK;
+ int selected=-1;
+ if(decks&&decks->route_up){
+  for(int i=0;i<XZ_EXTRA_DECKS;i++)if(decks->deck[i].loaded&&decks->deck[i].master){selected=i;break;}
+ }
+ struct xz_sync_link_pcm_anchor anchor;
+ int anchor_ok=clock_ok&&selected>=0&&
+  xz_sync_link_anchor_from_deck(selected,&decks->deck[selected],clock_pair->mono_us,&anchor);
+ if(rt_lease.active){
+  uint32_t leased_id=rt_lease.claim.source_id;
+  struct xz_sync_link_observation obs=runtime_observation(leased_id);
+  struct xz_sync_link_cleanup clean={0};
+  int keep=anchor_ok&&va_live(&rt_va)&&(uint32_t)(selected+3)==leased_id&&
+   decks->deck[selected].timeline.route_epoch==rt_lease.claim.route_epoch&&
+   decks->deck[selected].timeline.load_revision==rt_lease.claim.source_revision&&
+   decks->deck[selected].timeline.transport_generation==rt_lease.claim.playback_epoch;
+  if(!keep){
+   xz_sync_link_lease_release(&rt_lease,&obs,&clean);
+   apply_cleanup(&clean,leased_id,&obs);
+   pthread_mutex_unlock(&rt_pub_mutex);
+   return;
+  }else if(xz_sync_link_lease_observe(&rt_lease,&obs,&clean)==XZ_SYNC_LINK_LEASE_LOST){
+   apply_cleanup(&clean,leased_id,&obs);
+   if(obs.master_choice_epoch!=rt_lease.claim.master_choice_epoch||
+      (obs.current_master_id>=0&&obs.current_master_id<2)){
+    notify_use_native_master();
+   }
+   pthread_mutex_unlock(&rt_pub_mutex);
+   return;
+  }
+ }
+ if(anchor_ok){
+   uint32_t src_id=(uint32_t)(selected+3);
+   if(!rt_lease.active&&atomic_load(&rt_observed_ready)&&atomic_load(&rt_slot_absent[selected])){
+    uint32_t probed_f=atomic_load(&rt_slot_probed_epoch[selected]);
+    uint32_t op_epoch=atomic_load(&rt_va.operator_epoch);
+    int32_t prev_master=atomic_load(&rt_observed_master_id);
+    if(prev_master>=-1&&prev_master<=5&&prev_master!=(int32_t)src_id-1){
+     struct xz_sync_link_claim claim={
+      .source_id=src_id,.owner=1,.route_epoch=anchor.route_epoch,
+      .source_revision=anchor.source_revision,.playback_epoch=anchor.playback_epoch,
+      .external_writer_epoch=probed_f,.master_choice_epoch=op_epoch,
+      .music_id_known=1,.foreign_present=0,.previous_master_id=prev_master
+     };
+     memcpy(claim.music_id,anchor.music_id,8);
+     if(xz_sync_link_lease_claim(&rt_lease,&claim)==XZ_SYNC_LINK_OK){
+      if(!xz_va_claim(&rt_va,src_id,1,probed_f))memset(&rt_lease,0,sizeof rt_lease);
+     }
+    }
+   }
+   if(rt_lease.active){
+    uint32_t ticket=xz_va_ticket(&rt_va);
+    struct xz_sync_link_plan plan;
+    if(ticket&&xz_sync_link_build(&rt_lease,&rt_clock,&anchor,clock_pair->mono_us,&plan)){
+     struct xz_va_bundle bundle;
+     xz_sync_link_bundle_from_plan(&plan,&bundle);
+     bundle.captured_mono_us=anchor.captured_mono_us;
+     if(xz_va_offer(&rt_va,&bundle,ticket)){
+      if(plan.request_master)xz_va_explicit_request(&rt_va);
+     }else release_runtime_lease();
+    }else release_runtime_lease();
+   }
+ }
+ atomic_store(&rt_committed_deck,rt_lease.active&&rt_lease.master_committed?(int)rt_lease.claim.source_id-3:-1);
+ pthread_mutex_unlock(&rt_pub_mutex);
+}
+
+void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks){
+ if(!atomic_load(&rt_installed)||!decks)return;
+#ifdef __linux__
+ struct timespec m0,rt,m1;
+ if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&m0)||
+    xz_clock_gettime_compat(CLOCK_REALTIME,&rt)||
+    xz_clock_gettime_compat(CLOCK_MONOTONIC,&m1)){
+  xz_sync_link_runtime_step(decks,NULL);return;
+ }
+ uint64_t u0=(uint64_t)m0.tv_sec*1000000ULL+(uint64_t)(m0.tv_nsec/1000L);
+ uint64_t u1=(uint64_t)m1.tv_sec*1000000ULL+(uint64_t)(m1.tv_nsec/1000L);
+ if(u1<u0||rt.tv_sec<=0||u1-u0>2ULL*XZ_SYNC_LINK_MAX_UNCERTAINTY_US){
+  xz_sync_link_runtime_step(decks,NULL);return;
+ }
+ struct xz_sync_link_clock_pair pair={
+  .mono_us=u0+(u1-u0)/2ULL,
+  .realtime_us=(uint64_t)rt.tv_sec*1000000ULL+(uint64_t)(rt.tv_nsec/1000L),
+  .uncertainty_us=(uint32_t)((u1-u0)/2ULL+1ULL)
+ };
+ xz_sync_link_runtime_step(decks,&pair);
+#else
+ (void)decks;
+#endif
+}
+
+int xz_sync_link_runtime_master_committed(int deck_index){
+ if(deck_index<0||deck_index>=XZ_EXTRA_DECKS||atomic_load(&rt_committed_deck)!=deck_index)return 0;
+ struct xz_va_frame frame={0};
+ xz_va_begin(&rt_va,&frame);
+ int fresh=runtime_frame_fresh(&frame);
+ xz_va_end(&rt_va,&frame);
+ return fresh&&atomic_load(&rt_committed_deck)==deck_index;
+}
+
+static void reset_runtime_state(void){
+ xz_va_init(&rt_va);
+ xz_va_registry_init(&rt_registry);
+ memset(&rt_lease,0,sizeof rt_lease);
+ memset(&rt_clock,0,sizeof rt_clock);
+ atomic_init(&rt_slot_absent[0],0);atomic_init(&rt_slot_absent[1],0);
+ atomic_init(&rt_slot_probed_epoch[0],0);atomic_init(&rt_slot_probed_epoch[1],0);
+ atomic_init(&rt_observed_master_id,-2);
+ atomic_init(&rt_observed_ready,0);
+ atomic_init(&rt_committed_deck,-1);
+ atomic_init(&rt_restore_pending,0);
+ atomic_init(&rt_restore_input_id,0);
+ atomic_init(&rt_restore_expected_master,-2);
+ atomic_init(&rt_restore_operator_epoch,0);
+ atomic_init(&rt_restore_foreign_epoch,0);
+ atomic_init(&rt_restore_source_id,0);
+}
+
+int xz_sync_link_runtime_start(void){
+ if(atomic_load(&rt_installed))return 0;
+ reset_runtime_state();
+ static const unsigned char g_sync_mgr[8]={0xf8,0x40,0x2d,0xe9,0x14,0x50,0x80,0xe2};
+ static const unsigned char g_get_player[8]={0x00,0x30,0x91,0xe5,0x01,0x10,0x43,0xe2};
+ static const unsigned char g_get_beat[8]={0x00,0xc0,0x91,0xe5,0x04,0x40,0x2d,0xe5};
+ static const unsigned char g_set_player[8]={0x00,0xc0,0x91,0xe5,0x10,0x40,0x2d,0xe9};
+ static const unsigned char g_set_beat[8]={0x00,0x00,0x53,0xe3,0x30,0x00,0x2d,0xe9};
+ static const unsigned char g_set_master[8]={0x00,0x20,0x91,0xe5,0x08,0x40,0x2d,0xe9};
+ if(xz_hook_arm(0x59f70,g_sync_mgr,(void *)(uintptr_t)hook_sync_mgr_sync,(void **)&orig_sync_mgr_sync))return -1;
+ if(xz_hook_arm(0x532c0,g_get_player,(void *)(uintptr_t)hook_get_player_info,(void **)&orig_get_player_info))return -1;
+ if(xz_hook_arm(0x53140,g_get_beat,(void *)(uintptr_t)hook_get_beat_info,(void **)&orig_get_beat_info))return -1;
+ if(xz_hook_arm(0x531d8,g_set_player,(void *)(uintptr_t)hook_set_player_info,(void **)&orig_set_player_info))return -1;
+ if(xz_hook_arm(0x53090,g_set_beat,(void *)(uintptr_t)hook_set_beat_info,(void **)&orig_set_beat_info))return -1;
+ if(xz_hook_arm(0x597c8,g_set_master,(void *)(uintptr_t)hook_set_master_on,(void **)&orig_set_master_on))return -1;
+ atomic_store(&rt_installed,1);
+ return 0;
+}
+
+void xz_sync_link_runtime_stop(void){
+ atomic_store(&rt_installed,0);
+ atomic_store(&rt_committed_deck,-1);
+}
+
+void xz_sync_link_runtime_test_install(const struct xz_sync_link_test_ops *originals,struct xz_sync_link_test_ops *hooks_out){
+ atomic_store(&rt_installed,0);
+ reset_runtime_state();
+ orig_sync_mgr_sync=originals?originals->sync_mgr_sync:NULL;
+ orig_get_player_info=originals?originals->get_player_info:NULL;
+ orig_get_beat_info=originals?originals->get_beat_info:NULL;
+ orig_set_player_info=originals?originals->set_player_info:NULL;
+ orig_set_beat_info=originals?originals->set_beat_info:NULL;
+ orig_set_master_on=originals?originals->set_master_on:NULL;
+ test_set_link_master=originals?originals->set_link_master:NULL;
+ test_on_use_native_master=originals?originals->on_use_native_master:NULL;
+ test_monotonic_us=originals?originals->monotonic_us:NULL;
+ atomic_store(&rt_installed,1);
+ if(hooks_out){
+  hooks_out->sync_mgr_sync=hook_sync_mgr_sync;
+  hooks_out->get_player_info=hook_get_player_info;
+  hooks_out->get_beat_info=hook_get_beat_info;
+  hooks_out->set_player_info=hook_set_player_info;
+  hooks_out->set_beat_info=hook_set_beat_info;
+  hooks_out->set_master_on=hook_set_master_on;
+  hooks_out->set_link_master=call_set_link_master;
+  hooks_out->on_use_native_master=notify_use_native_master;
+  hooks_out->monotonic_us=runtime_monotonic_us;
+ }
+}

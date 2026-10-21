@@ -55,10 +55,13 @@ static int track_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,s
     int32_t position=(int32_t)(current==pause_state[4]?pause_state[5]:u32(state+(state[0x18]?0x1c:0x14)));
     int32_t offset=(int32_t)u32(grid+0x28);
     if(position<0||offset < -3600000||offset>3600000)return 0;
-    double multiplier=1+(speed[0x45]||!speed[0x60]?f64(speed+0x30):f64(speed+0x50)+f64(speed+0x58))+f64(speed+0x38);
+    double bend=f64(speed+0x38);
+    if(!isfinite(bend))return 0;
+    double multiplier=1+(speed[0x45]||!speed[0x60]?f64(speed+0x30):f64(speed+0x50)+f64(speed+0x58))+bend;
     if(!isfinite(multiplier)||multiplier<=0||multiplier>FLT_MAX||
        (!music&&(multiplier<.25||multiplier>4)))return 0;
-    double bpm=bpm100*.01*multiplier;
+    double nominal_bpm=bpm100*.01;
+    double bpm=nominal_bpm*multiplier;
     double position_ms=position*(1000./44100.);
     double fraction=(position_ms-(double)u32(unit+4)-offset)*bpm100/6000000.;
     /* Cached previous beat can straddle a boundary, but a distant record is
@@ -68,8 +71,9 @@ static int track_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,s
     if(word(read,ctx,range[0],deck*4,&check)||check!=player||
        word(read,ctx,impl,0x6a0,&check)||check!=info||block(read,ctx,manager,0x10,again,8)||memcmp(again,cache+0x10,8))return 0;
     double phase=fmod(bar-1+fraction+4.,4.);
-    *out=(struct xz_arcade_track_clock){.track=info,.position_ms=(uint32_t)position_ms,.bpm=(float)bpm,.bar_phase=(float)phase,.speed=(float)multiplier,
-                                      .playing=!!state[0x13]&&!state[0x40]};
+    *out=(struct xz_arcade_track_clock){.track=info,.position_ms=(uint32_t)position_ms,.position_frames=(uint32_t)position,
+                                      .bpm=(float)bpm,.nominal_bpm=(float)nominal_bpm,.bar_phase=(float)phase,.speed=(float)multiplier,
+                                      .playing=!!state[0x13]&&!state[0x40],.manual=!!state[0x40]||fabs(bend)>1e-6,.phase_valid=1};
     return 1;
 }
 

@@ -71,11 +71,13 @@ static inline int sh_control_active(const struct xz_shell_model *m, int deck) {
  if(sh_deck_count(m)!=4||!(m->capabilities&XZ_SHELL_CAP_DECK_SELECT)||(unsigned)deck>=4)return 0;
  return deck==(deck&1)+2*((m->sides_extra>>(deck&1))&1);
 }
-/* First circle: native 1/2. Second circle: software 3/4. A selected deck fills its circle. */
-static inline void sh_control_pair(struct xz_canvas c,int x,int y,int extra,uint32_t ink) {
+/* First circle: physical left controls (1/3). Second: physical right controls (2/4). */
+static inline void sh_control_pair(struct xz_canvas c,int x,int y,int right,uint32_t ink) {
+ xz_rect(c,x,y,1,9,ink);xz_rect(c,x,y,3,1,ink);xz_rect(c,x,y+8,3,1,ink);
+ xz_rect(c,x+26,y,1,9,ink);xz_rect(c,x+24,y,3,1,ink);xz_rect(c,x+24,y+8,3,1,ink);
  for(int i=0;i<2;i++){
-  if(i==!!extra)xz_disc(c,x+4+i*12,y+4,4,ink);
-  else xz_ring(c,x+4+i*12,y+4,4,1,ink);
+  if(i==!!right)xz_disc(c,x+7+i*12,y+4,3,ink);
+  else xz_ring(c,x+7+i*12,y+4,3,1,ink);
  }
 }
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
