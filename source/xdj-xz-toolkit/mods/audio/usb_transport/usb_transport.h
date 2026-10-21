@@ -22,6 +22,12 @@ typedef struct {
     uint64_t staged_frames, completed_frames, underrun_frames;
     uint64_t source_after_staged, source_after_completed;
     uint64_t prior_audio_through_wire_frame;
+    /* Exact coordinates paired with the opaque source tags above, not simultaneous counters.
+     * output_frames are this deck's contributed-frame prefix in the applied generation;
+     * wire_frame is the common USB output stream prefix at that tagged block's end.
+     * Completion means USB boundary, not a measured audible/DAC presentation time. */
+    uint64_t source_staged_output_frames, source_completed_output_frames;
+    uint64_t source_staged_wire_frame, source_completed_wire_frame;
 } xz_usb_deck_position;
 typedef struct {
     xz_usb_state state;

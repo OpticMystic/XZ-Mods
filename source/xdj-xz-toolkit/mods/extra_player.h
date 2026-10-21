@@ -63,6 +63,7 @@ void xz_xp_step(struct xz_xp_players *, int deck);
 int xz_xp_input(struct xz_xp_players *, const struct xz_extra_deck_event *);
 /* Fills deck[] and the notice of *out; route and sides are the caller's. */
 void xz_xp_read(struct xz_xp_players *, struct xz_extra_decks *out);
+uint32_t xz_xp_revision(const struct xz_xp_players *); /* atomic, no locks/IO */
 void xz_xp_notice(struct xz_xp_players *, const char *text);
 
 /* Worker-private state for tests; only while no worker runs. */

@@ -7,6 +7,7 @@
 #include "audio/stem_media.h"
 #include "audio/stretch.h"
 #include <pthread.h>
+#include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,6 +84,11 @@ struct deck {
  uint64_t completed;
  uint32_t pending; uint64_t pending_after, block_start; float pcm[XZ_USB_BLOCK_FRAMES * 2];
  uint64_t heard; uint32_t heard_at; /* last completed source tag, or the position a jump set */
+ double heard_rate;
+ int timeline_valid, timeline_anchor_valid;
+ uint32_t timeline_revision, load_revision;
+ uint64_t media_generation;
+ uint64_t timeline_output_frames, timeline_sink_frame;
  struct xz_extra_track track;
  struct xz_extra_order *order;
  uint32_t order_index, order_epoch;
@@ -101,7 +107,9 @@ struct xz_xp_players {
  struct worker { struct xz_xp_players *p; int index; } worker[XZ_EXTRA_DECKS];
  int threads;
  atomic_int quit;
+ atomic_uint revision;
 };
+uint32_t xz_xp_revision(const struct xz_xp_players *p){return p?atomic_load_explicit(&p->revision,memory_order_acquire):0;}
 
 static int streaming(enum xz_xp_state s) { return s == XZ_XP_PLAYING || s == XZ_XP_SAMPLING || s == XZ_XP_SCRATCHING; }
 static int loaded(enum xz_xp_state s) { return s == XZ_XP_CUED || streaming(s) || s == XZ_XP_ENDED; }
@@ -138,6 +146,7 @@ void xz_xp_notice(struct xz_xp_players *p, const char *text) {
  pthread_mutex_lock(&p->publish_lock);
  snprintf(p->notice, sizeof p->notice, "%s", text);
  p->notice_at = p->env.now_ms(); p->notice_seq++;
+ atomic_fetch_add_explicit(&p->revision,1,memory_order_release);
  pthread_mutex_unlock(&p->publish_lock);
 }
 
@@ -245,17 +254,25 @@ static int render(struct deck *d, double rate) {
 /* ---- the deck machine ---- */
 static uint64_t heard_now(const struct deck *d, uint32_t now) {
  uint64_t head = d->pos >> 32;
- if(d->state==XZ_XP_SCRATCHING)return d->heard;
  if (!streaming(d->state)) return head;
- uint64_t h = d->heard + (uint64_t)((double)(uint32_t)(now - d->heard_at) * nominal(d) * d->r->rate / 1000.0);
- if (d->loop.active) return loop_frame(d, h);
- return h > head ? head : h;
+ if(!d->timeline_valid)return d->heard;
+ uint32_t age=now-d->heard_at;
+ if(age>150)return d->heard; /* stale or future/wrapped observation: hold its verified tag */
+ double rate=d->heard_rate;
+ double at=(double)d->heard+(double)age*rate*d->r->rate/1000.;
+ if(at<0)at=0;
+ if(d->state!=XZ_XP_SCRATCHING&&d->loop.active)return loop_frame(d,(uint64_t)at);
+ if(rate<0&&at<head)at=(double)head;
+ if(rate>=0&&at>head)at=(double)head;
+ return (uint64_t)at;
 }
 /* Every jump discards what the transport holds and starts a new generation before the next submit. */
 static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  if (frame > d->r->frames) frame = d->r->frames;
  d->pos = frame << 32; d->need_flush = 1; d->pending = 0; d->submitted = d->completed = 0;
  d->heard = frame; d->heard_at = now;
+ d->heard_rate=0;d->timeline_valid=d->timeline_anchor_valid=0;d->timeline_revision++;
+ d->timeline_output_frames=d->timeline_sink_frame=0;
  if(d->state==XZ_XP_SCRATCHING){
   d->scratch.target=d->pos;d->scratch.rate=0;d->scratch.at=0;d->scratch.ticks=0;
  }
@@ -267,6 +284,7 @@ static void pause_at_heard(struct deck *d, uint32_t now) {
 }
 static void start(struct deck *d, uint32_t now) {
  d->heard = d->pos >> 32; d->heard_at = now;
+ d->timeline_valid=0;
  d->state = XZ_XP_PLAYING;
 }
 static void scratch_release(struct deck *d,uint32_t now){
@@ -361,6 +379,20 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   v.loop.active = d->loop.active;
   v.loop.in_ms = to_ms(d, d->loop.in);
   v.loop.out_ms = to_ms(d, d->loop.out);
+  v.timeline=(struct xz_extra_timeline){.source_frame=streaming(s)?d->heard:d->pos>>32,.sink_frame=d->timeline_sink_frame,
+   .source_rate=d->r->rate,.at_ms=streaming(s)?d->heard_at:now,.revision=d->timeline_revision,
+   .route_epoch=d->epoch,.load_revision=d->load_revision,.transport_generation=d->generation,
+   .media_generation=d->media_generation,.rate_ppm=(int32_t)llround(d->heard_rate*1000000.),
+   .moving=streaming(s)&&(d->submitted>d->completed||d->pending)};
+  if(!v.timeline.moving)v.timeline.rate_ppm=0;
+  v.timeline.flags=XZ_EXTRA_TIMELINE_MOTION;
+  if(!streaming(s))v.timeline.flags|=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_RATE;
+  else if(!d->need_flush&&d->timeline_anchor_valid&&(uint32_t)(now-d->heard_at)<=150u){
+   v.timeline.flags|=XZ_EXTRA_TIMELINE_ANCHOR;
+   if(d->timeline_valid)v.timeline.flags|=XZ_EXTRA_TIMELINE_RATE;
+   if(d->timeline_sink_frame)v.timeline.flags|=XZ_EXTRA_TIMELINE_SINK_FRAME;
+  }
+  v.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE);
   v.known |= XZ_EXTRA_KNOWN(XZ_EXTRA_F_ELAPSED) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_TOTAL) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_CUE) |
              XZ_EXTRA_KNOWN(XZ_EXTRA_F_LOOP);
   const struct analysis *a = d->analysis;
@@ -371,7 +403,14 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   }
  }
  pthread_mutex_lock(&p->publish_lock);
- p->view[d->index] = v;
+ const struct xz_extra_deck *before=&p->view[d->index];
+ if(!v.timeline.moving&&!before->timeline.moving&&v.elapsed_ms==before->elapsed_ms&&
+    v.timeline.source_frame==before->timeline.source_frame&&v.timeline.revision==before->timeline.revision){
+  v.elapsed_at_ms=before->elapsed_at_ms;v.timeline.at_ms=before->timeline.at_ms;
+ }
+ if(memcmp(before,&v,sizeof v)){
+  p->view[d->index]=v;atomic_fetch_add_explicit(&p->revision,1,memory_order_release);
+ }
  pthread_mutex_unlock(&p->publish_lock);
  atomic_store(&d->published_state, (int)s);
 }
@@ -440,6 +479,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  d->cue = t.anlz_dir[0] && xz_shana_memory_cues(t.anlz_dir, memory) > 0 ? to_frames(d, memory[0].ms) : 0;
  jump(d, d->cue, now);
  d->state = XZ_XP_CUED;
+ d->load_revision++;d->media_generation=e->load.media_generation;
  struct xz_extra_order *order=xz_extra_order_matches(e->load.order,e->load.source,e->load.media_generation,e->load.order_index,e->load.track_id)?e->load.order:NULL;
  xz_extra_order_retain(order);xz_extra_order_release(d->order);d->order=order;
  d->order_index=e->load.order_index;d->order_epoch=e->load.route_epoch;
@@ -693,6 +733,28 @@ static int take(struct deck *d, struct xz_extra_deck_event *e) {
  return got;
 }
 
+/* Source tags are a USB completion-boundary proxy, not an exact DAC-time observation. */
+static void completed_timeline(struct deck *d,const xz_usb_deck_position *q,uint64_t wire_completed,uint32_t now){
+ d->completed=q->completed_frames;
+ if(!q->source_completed_output_frames||q->source_completed_output_frames==d->timeline_output_frames)return;
+ uint64_t frames=q->source_completed_output_frames-d->timeline_output_frames;
+ int valid=q->source_completed_output_frames>d->timeline_output_frames&&
+  q->source_completed_output_frames<=q->completed_frames&&q->source_after_completed<=d->r->frames&&d->r->rate;
+ double distance=(double)q->source_after_completed-(double)d->heard;
+ double max_rate=d->state==XZ_XP_SCRATCHING?8.1:3.1;
+ if(valid&&d->state!=XZ_XP_SCRATCHING&&d->loop.active){
+  double length=(double)(d->loop.out-d->loop.in);
+  /* More than one possible winding cannot be recovered from an opaque end tag. */
+  if(!length||(double)frames*d->r->rate/XZ_USB_RATE*max_rate>=length)valid=0;
+  else if(distance<0){distance+=length;d->timeline_revision++;}
+ }
+ double rate=valid?distance*XZ_USB_RATE/((double)frames*d->r->rate):0;
+ if(!isfinite(rate)||fabs(rate)>max_rate||(d->state!=XZ_XP_SCRATCHING&&rate<0))valid=0;
+ d->heard_rate=valid?rate:0;d->timeline_valid=valid;
+ if(q->source_after_completed<=d->r->frames){d->heard=q->source_after_completed;d->heard_at=now;d->timeline_anchor_valid=1;}
+ d->timeline_output_frames=q->source_completed_output_frames;
+ d->timeline_sink_frame=q->source_completed_wire_frame<=wire_completed?q->source_completed_wire_frame:0;
+}
 static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  const struct xz_xp_sink *s = &p->env.sink;
  xz_usb_position position;
@@ -704,7 +766,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   if (applied) {
    staged = q->staged_frames;
    if ((q->source_valid & 2) && q->completed_frames != d->completed) {
-    d->heard = q->source_after_completed; d->heard_at = now; d->completed = q->completed_frames;
+    completed_timeline(d,q,position.wire_completed_frames,now);
    }
    if (d->state!=XZ_XP_SCRATCHING && !d->loop.active && !d->pending && d->pos >> 32 >= d->r->frames && q->completed_frames >= d->submitted) {
     d->state = XZ_XP_ENDED; d->pos = d->r->frames << 32; d->heard = d->r->frames;
@@ -742,6 +804,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   /* A new route instance starts its queues at the initial generation; a lost one took the audio. */
   if (streaming(d->state)) pause_at_heard(d, now);
   d->epoch = link; d->generation = XZ_USB_INITIAL_GENERATION;
+  d->timeline_revision++;d->timeline_valid=d->timeline_anchor_valid=0;d->heard_rate=0;
   d->need_flush = 0; d->pending = 0; d->submitted = d->completed = 0;
   d->loop.in_down=d->loop.held=0;
  }
@@ -793,6 +856,7 @@ void xz_xp_read(struct xz_xp_players *p, struct xz_extra_decks *out) {
  memcpy(out->deck, p->view, sizeof out->deck);
  memcpy(out->notice, p->notice, sizeof out->notice);
  out->notice_at_ms = p->notice_at; out->notice_seq = p->notice_seq;
+ out->snapshot_revision=atomic_load_explicit(&p->revision,memory_order_acquire);
  pthread_mutex_unlock(&p->publish_lock);
 }
 
@@ -823,6 +887,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
   pthread_mutex_destroy(&p->publish_lock); free(p); return NULL;
  }
  atomic_init(&p->quit, 0);
+ atomic_init(&p->revision,0);
  return p;
 }
 
