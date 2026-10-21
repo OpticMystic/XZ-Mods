@@ -468,8 +468,8 @@ static void test_players(void) {
  uint64_t at = debug(0).position;
  before = flushes(0);
  jog(0, XZ_XP_JOG_TICKS_PER_REV / 2); jog(0, XZ_XP_JOG_TICKS_PER_REV / 2); step();
- int64_t per_tick = 44100 * XZ_XP_SEARCH_MS_PER_REV / 1000 / XZ_XP_JOG_TICKS_PER_REV;
- assert(debug(0).position == at + (uint64_t)(per_tick * XZ_XP_JOG_TICKS_PER_REV) && debug(0).state == XZ_XP_CUED);
+ uint64_t per_rev = (uint64_t)44100 * XZ_XP_SEARCH_MS_PER_REV / 1000;
+ assert(debug(0).position == at + per_rev && debug(0).state == XZ_XP_CUED);
  expect_jump(0, before);
  jog(0, -100000); step();
  assert(debug(0).position == 0);
@@ -684,7 +684,7 @@ static void test_vinyl(void) {
  f.capture[0]=1;jog(0,-4);step();advance(100);
  assert(f.captured_frames[0]>=32);
  for(unsigned n=0;n<32;n++)
-  assert(fabs(f.captured[0][n*2]-.5*sin(6.283185307179586*440*(at-1.25*n)/44100.0))<.001);
+  assert(fabs(f.captured[0][n*2]-.5*sin(6.283185307179586*440*(at-.2*n)/44100.0))<.001);
  assert(debug(0).position<at&&debug(0).generation==generation+1);
  at=debug(0).position;submits=f.submits[0];advance(100);
  assert(debug(0).position==at&&f.submits[0]==submits);
@@ -1148,6 +1148,8 @@ static void test_threads(void) {
  xz_xp_destroy(p); p = NULL;
 }
 
+#include "test_extra_player_recovery.h"
+
 int main(int argc, char **argv) {
  assert(argc == 2);
  assert(!pthread_mutex_init(&f.lock, NULL));
@@ -1166,6 +1168,7 @@ int main(int argc, char **argv) {
  test_sync_nonzero_loop();
  test_sync_concurrent_groups();
  test_ordered_next();
+ test_player_recovery();
  test_reconnect_during_render();
  test_threads();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "

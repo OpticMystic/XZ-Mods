@@ -323,9 +323,6 @@ enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *, con
 /* 1 when s carries a notice not shown yet and still fresh (raised less than XZ_SHELL_NOTICE_MS before
    mono_now). *seen keeps the last notice_seq looked at. */
 int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now);
-/* The shell's active deck after the sides changed from was to now (bits as model.sides_extra): a side that
-   switched makes the deck it now drives active, the active deck's own side first. Unchanged sides keep it. */
-int xz_shrt_extra_active_deck(int active, unsigned was, unsigned now);
 /* The resolver's answer from a library row: path = root + rel (rel starts "/Contents/"), the text fields
    truncated to their arrays on a character boundary. anlz_dir is left empty. 0, or -1 when rel is empty or
    the path does not fit. */

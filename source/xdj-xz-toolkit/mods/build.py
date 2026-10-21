@@ -255,7 +255,8 @@ def main() -> None:
         "beat-jump-test": [str(ROOT / "ui/beat_jump.c"),str(ROOT / "ui/test_beat_jump.c")],
         "cue-test": [str(ROOT / "cue/cue.c"), str(ROOT / "cue/test_cue.c")],
         "deck-select-test": [str(ROOT / "deck_select.c"), str(ROOT / "test_deck_select.c")],
-        "extra-player-test": ["-pthread", *(str(ROOT / name) for name in (
+        "deck-switch-idle-test": [str(ROOT / "deck_select.c"), str(ROOT / "tests/test_idle_jog_shift.c")],
+        "extra-player-test": ["-DXZ_XP_TEST_RENDER_HOOK", "-pthread", *(str(ROOT / name) for name in (
             "extra_player.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c", "ui/layered_wave.c",
             "audio/stem_media.c", "audio/stem_decode.c", "test_extra_player.c")), str(mp3_object), "-lm"],
         "settings-test": [str(ROOT / "settings.c"), str(ROOT / "tests/test_settings.c")],

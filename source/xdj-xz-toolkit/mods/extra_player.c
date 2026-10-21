@@ -61,11 +61,22 @@ struct sync_clock {
  struct sync_segment segment[SYNC_SEGMENTS];
 };
 
+/* Only accepted stateful holds reserve an extra slot for their matching release.
+   Ordinary traffic cannot consume these slots. All entries still use one FIFO. */
+#define RELEASE_SLOTS 3u
+#define QUEUE_SLOTS (XZ_XP_QUEUE + RELEASE_SLOTS)
+struct queued_control { struct xz_extra_deck_event event; uint32_t epoch, at; };
+static unsigned release_bit(enum xz_extra_input kind) {
+ return kind==XZ_EXTRA_IN_CUE?1u:kind==XZ_EXTRA_IN_JOG_TOUCH?2u:kind==XZ_EXTRA_IN_LOOP_IN?4u:0u;
+}
+static unsigned release_count(unsigned mask) { return !!(mask&1u)+!!(mask&2u)+!!(mask&4u); }
+
 struct deck {
  int index;
  pthread_mutex_t queue_lock;
- struct xz_extra_deck_event queue[XZ_XP_QUEUE];
- unsigned head, count;
+ struct queued_control queue[QUEUE_SLOTS];
+ unsigned head, count, release_owed;
+ uint32_t queue_epoch;
  atomic_int published_state;
  /* Worker only below. */
  enum xz_xp_state state;
@@ -83,6 +94,7 @@ struct deck {
   uint64_t target;
   double rate;
   uint32_t at, interval;
+  int at_valid;
   int64_t ticks;
  } scratch;
  struct {
@@ -361,7 +373,7 @@ static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  d->heard_rate=0;d->timeline_valid=d->timeline_anchor_valid=0;d->timeline_revision++;
  d->timeline_output_frames=d->timeline_sink_frame=0;
  if(d->state==XZ_XP_SCRATCHING){
-  d->scratch.target=d->pos;d->scratch.rate=0;d->scratch.at=0;d->scratch.ticks=0;
+  d->scratch.target=d->pos;d->scratch.rate=0;d->scratch.at_valid=0;d->scratch.ticks=0;
  }
  xz_stretch_reset(&d->stretch);
 }
@@ -667,7 +679,15 @@ static void hot_cue(struct deck *d, const struct xz_extra_deck_event *e, uint32_
  start(d, now);
 }
 
-static void jog(struct deck *d, int32_t delta, uint32_t now) {
+static uint64_t jog_target(const struct deck *d,uint64_t from,int32_t delta) {
+ double target=(double)from/(double)ONE+(double)delta*d->r->rate*XZ_XP_SEARCH_MS_PER_REV/
+               (1000.0*XZ_XP_JOG_TICKS_PER_REV);
+ if(target<=0)return 0;
+ if(target>=(double)d->r->frames)return d->r->frames<<32;
+ return (uint64_t)(target*(double)ONE);
+}
+static void jog(struct deck *d, int32_t delta, uint32_t now, uint32_t arrived) {
+ if(!delta)return;
  if (d->loop.edit && d->loop.active) {
   int64_t value = (int64_t)(d->loop.edit == 1 ? d->loop.in : d->loop.out);
   value += (int64_t)delta * d->r->rate / 150;
@@ -690,37 +710,34 @@ static void jog(struct deck *d, int32_t delta, uint32_t now) {
  if(d->state==XZ_XP_SCRATCHING){
   if(!delta)return;
   if(d->scratch.rate*(double)delta<0){
+   uint32_t at=d->scratch.at,interval=d->scratch.interval;int valid=d->scratch.at_valid;
    jump(d,heard_now(d,now),now);d->scratch.target=d->pos;
-   d->scratch.at=0;d->scratch.ticks=0;
+   d->scratch.at=at;d->scratch.interval=interval;d->scratch.at_valid=valid;
   }
-  if(d->scratch.at!=now){
-   uint32_t elapsed=now-d->scratch.at;
-   d->scratch.interval=d->scratch.at&&elapsed<=100?elapsed:16;
+  if(!d->scratch.at_valid||d->scratch.at!=arrived){
+   d->scratch.interval=d->scratch.at_valid?arrived-d->scratch.at:16u;
    if(!d->scratch.interval)d->scratch.interval=1;
-   d->scratch.at=now;d->scratch.ticks=0;
+   d->scratch.at=arrived;d->scratch.at_valid=1;d->scratch.ticks=0;
   }
-  d->scratch.ticks+=delta;
-  double move=(double)delta*d->r->rate*XZ_XP_SEARCH_MS_PER_REV/(1000.0*XZ_XP_JOG_TICKS_PER_REV);
-  double target=(double)d->scratch.target/(double)ONE+move;
-  if(target<0)target=0;
-  if(target>(double)d->r->frames)target=(double)d->r->frames;
-  d->scratch.target=(uint64_t)(target*(double)ONE);
+  if(delta>0&&d->scratch.ticks>INT64_MAX-delta)d->scratch.ticks=INT64_MAX;
+  else if(delta<0&&d->scratch.ticks<INT64_MIN-delta)d->scratch.ticks=INT64_MIN;
+  else d->scratch.ticks+=delta;
+  d->scratch.target=jog_target(d,d->scratch.target,delta);
   double rate=(double)d->scratch.ticks*XZ_XP_SEARCH_MS_PER_REV/
               ((double)XZ_XP_JOG_TICKS_PER_REV*d->scratch.interval);
   d->scratch.rate=rate>8?8:rate< -8?-8:rate;
   return;
  }
  if (streaming(d->state)) {
-  float b = bend_now(d, now) + (float)delta * XZ_XP_BEND_PER_TICK;
+  float b = bend_now(d, arrived) + (float)delta * XZ_XP_BEND_PER_TICK;
   d->bend = b > XZ_XP_BEND_MAX ? XZ_XP_BEND_MAX : b < -XZ_XP_BEND_MAX ? -XZ_XP_BEND_MAX : b;
-  d->bend_at = now;
+  d->bend_at = arrived;
   return;
  }
- int64_t per_tick = (int64_t)d->r->rate * XZ_XP_SEARCH_MS_PER_REV / 1000 / XZ_XP_JOG_TICKS_PER_REV;
- int64_t to = (int64_t)(d->pos >> 32) + (int64_t)delta * per_tick;
- if (to < 0) to = 0;
- jump(d, (uint64_t)to, now);
- d->state = (uint64_t)to >= d->r->frames ? XZ_XP_ENDED : XZ_XP_CUED;
+ uint64_t to=jog_target(d,d->pos,delta);
+ jump(d,to>>32,now);
+ d->pos=to; /* Keep sub-frame displacement across paused packets, as scratch does. */
+ d->state = to >= (d->r->frames<<32) ? XZ_XP_ENDED : XZ_XP_CUED;
 }
 
 static void sync_request(struct xz_xp_players *p,struct deck *d,int on){
@@ -914,7 +931,7 @@ static void loop_button(struct xz_xp_players *p, struct deck *d, const struct xz
  } else xz_xp_notice(p, "SET A LOOP FIRST");
 }
 
-static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now) {
+static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, uint32_t arrived) {
  if (e->kind == XZ_EXTRA_IN_LOAD) { load(p, d, e, now, 0); return; }
  if(e->kind==XZ_EXTRA_IN_MASTER){
   if(e->pressed&&loaded(d->state)){
@@ -992,7 +1009,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   break;
  case XZ_EXTRA_IN_CUE: cue_button(d, e->pressed, now); break;
  case XZ_EXTRA_IN_HOT_CUE: hot_cue(d, e, now); break;
- case XZ_EXTRA_IN_JOG_TURN: jog(d, e->jog.delta, now); break;
+ case XZ_EXTRA_IN_JOG_TURN: jog(d, e->jog.delta, now, arrived); break;
  case XZ_EXTRA_IN_JOG_TOUCH: scratch_touch(d,e->pressed,now); break;
  case XZ_EXTRA_IN_SYNC: if (e->pressed) sync_request(p,d,!d->sync.requested); break;
  case XZ_EXTRA_IN_LOOP_IN: case XZ_EXTRA_IN_LOOP_OUT: case XZ_EXTRA_IN_RELOOP:
@@ -1009,14 +1026,18 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
  }
 }
 
-static int take(struct deck *d, struct xz_extra_deck_event *e) {
+static int take(struct xz_xp_players *p,struct deck *d, struct queued_control *q) {
  pthread_mutex_lock(&d->queue_lock);
  int got = d->count > 0;
  if (got) {
-  *e = d->queue[d->head];
-  /* A load needs a free retire slot; it waits at the head until the oldest arrays expire. */
-  if (e->kind == XZ_EXTRA_IN_LOAD && d->retired_count >= XZ_XP_RETIRE_SLOTS) got = 0;
-  else { d->head = (d->head + 1) % XZ_XP_QUEUE; d->count--; }
+  *q = d->queue[d->head];
+  /* A producer can observe recovery after this worker sampled the old route.
+     Leave that fresh command queued until the next step reconciles the route. */
+  if(q->epoch!=d->epoch && q->epoch==p->env.sink.link(p->env.sink.ctx))got=0;
+  /* Stale loads must release their references even while current loads wait for retire slots. */
+  else if (q->epoch==d->epoch && q->event.kind == XZ_EXTRA_IN_LOAD &&
+      d->retired_count >= XZ_XP_RETIRE_SLOTS) got = 0;
+  else { d->head = (d->head + 1) % QUEUE_SLOTS; d->count--; }
  }
  pthread_mutex_unlock(&d->queue_lock);
  return got;
@@ -1167,8 +1188,13 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   d->need_flush = 0; d->pending = 0; d->submitted = d->completed = 0;
   d->loop.in_down=d->loop.held=0;
  }
- struct xz_extra_deck_event e;
- while (take(d, &e)) {command(p, d, &e, now);if(e.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(e.load.order);}
+ struct queued_control q;
+ while (take(p,d, &q)) {
+  /* Keep the captured route gate across LOAD's potentially blocking resolver. */
+  if(q.event.kind==XZ_EXTRA_IN_LOAD&&!q.event.load.route_epoch)q.event.load.route_epoch=q.epoch;
+  if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx))command(p,d,&q.event,now,q.at);
+  if(q.event.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(q.event.load.order);
+ }
  d->sync_capture=atomic_load(&p->sync_requests)!=0&&atomic_load(&p->sync_master)>=0;
  if(!streaming(d->state)&&d->sync.requested){xz_usb_position none={0};sync_update(p,d,&none,now);}
  if(link&&d->loop.in_down&&!d->loop.held&&now-d->loop.in_at>=1000u){
@@ -1192,7 +1218,8 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
 
 int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
  if (!p || !e || e->deck < 0 || e->deck >= XZ_EXTRA_DECKS || (unsigned)e->kind >= XZ_EXTRA_INPUT_COUNT) return 0;
- if (!p->env.sink.link(p->env.sink.ctx)) return 0;
+ uint32_t epoch=p->env.sink.link(p->env.sink.ctx);
+ if (!epoch) return 0;
  if (e->kind == XZ_EXTRA_IN_LOAD && !p->env.resolve) { xz_xp_notice(p, "TRACK NOT FOUND"); return 0; }
  struct deck *d = &p->deck[e->deck];
  int state = atomic_load(&d->published_state);
@@ -1205,8 +1232,17 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
  if ((state == XZ_XP_EMPTY || state == XZ_XP_ERROR) && !release && e->kind != XZ_EXTRA_IN_LOAD && !setting)
   return 0;
  pthread_mutex_lock(&d->queue_lock);
- int taken = d->count < XZ_XP_QUEUE;
- if (taken) { if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_retain(e->load.order); d->queue[(d->head + d->count) % XZ_XP_QUEUE] = *e; d->count++; }
+ if(epoch!=p->env.sink.link(p->env.sink.ctx)){pthread_mutex_unlock(&d->queue_lock);return 0;}
+ if(d->queue_epoch!=epoch){d->queue_epoch=epoch;d->release_owed=0;}
+ unsigned bit=release_bit(e->kind),owed=d->release_owed;
+ int completing=release && (owed&bit);
+ if(bit){if(e->pressed)owed|=bit;else owed&=~bit;}
+ int taken=(d->count<XZ_XP_QUEUE || completing) && d->count+1+release_count(owed)<=QUEUE_SLOTS;
+ if (taken) {
+  if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_retain(e->load.order);
+  d->queue[(d->head+d->count)%QUEUE_SLOTS]=(struct queued_control){*e,epoch,p->env.now_ms()};
+  d->count++;d->release_owed=owed;
+ }
  pthread_mutex_unlock(&d->queue_lock);
  return taken;
 }
@@ -1290,7 +1326,7 @@ void xz_xp_destroy(struct xz_xp_players *p) {
  for (int i = 0; i < XZ_EXTRA_DECKS; ++i) {
   struct deck *d = &p->deck[i];
   xz_extra_order_release(d->order);
-  for(unsigned q=0;q<d->count;q++){struct xz_extra_deck_event *e=&d->queue[(d->head+q)%XZ_XP_QUEUE];if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(e->load.order);}
+  for(unsigned q=0;q<d->count;q++){struct xz_extra_deck_event *e=&d->queue[(d->head+q)%QUEUE_SLOTS].event;if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(e->load.order);}
   xz_stem_media_close(d->r->media);
   free_analysis(d->analysis);
   for (unsigned k = 0; k < d->retired_count; ++k) free_analysis(d->retired[k].a);

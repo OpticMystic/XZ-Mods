@@ -719,6 +719,12 @@ static void fill_browse(struct xz_shlib *lib) {
   browse.playlists=playlist_refs;browse.playlist_count=n;browse.known|=BF(PLAYLISTS);
  }
 }
+static void fill_extra_info(void) {
+ for(int d=XZ_SHELL_NATIVE_DECKS;d<XZ_SHELL_INFO_DECKS;d++){
+  if(model.deck_count==XZ_SHELL_DECKS)xz_shell_info_player(&info_model.deck[d],&model.deck[d]);
+  else memset(&info_model.deck[d],0,sizeof info_model.deck[d]);
+ }
+}
 static void fill_info(void) {
  memset(&info_model,0,sizeof info_model);
  for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++){
@@ -735,6 +741,7 @@ static void fill_info(void) {
    if(!(model.capabilities&XZ_SHELL_CAP_BROWSE))t->links=0;
   }
  }
+ fill_extra_info();
  /* The highlighted row of the list under INFO. */
  int view,k=shown_list(&view);
  const struct list_slot *ls=&lists[k];
@@ -2255,9 +2262,8 @@ static struct xz_shell_column extra_scroll[XZ_EXTRA_DECKS][WAVE_SCROLL_CAP], ext
 static struct xz_shell_beat extra_grid[XZ_EXTRA_DECKS][GRID_CAP];
 static struct xz_shrt_extra_parts extra_parts[XZ_EXTRA_DECKS];
 static uint32_t extra_notice_seen;
-static unsigned extra_sides;
 static void extra_reset(void) {
- memset(extra_seen,0,sizeof extra_seen);memset(extra_parts,0,sizeof extra_parts);memset(&extra,0,sizeof extra);extra_sides=0;
+ memset(extra_seen,0,sizeof extra_seen);memset(extra_parts,0,sizeof extra_parts);memset(&extra,0,sizeof extra);
 }
 static void extra_parts_of(int i, const struct xz_extra_deck *d) {
  struct xz_shrt_extra_parts *p=&extra_parts[i];
@@ -2286,11 +2292,13 @@ static void extra_refresh_locked(uint32_t now) {
  if(xz_extra_decks_snapshot(&extra))for(int i=0;i<XZ_EXTRA_DECKS;i++)extra_parts_of(i,&extra.deck[i]);
  else{memset(extra_seen,0,sizeof extra_seen);memset(extra_parts,0,sizeof extra_parts);}
  xz_shrt_extra_map(&model,&extra,extra_parts,now,mono);
+ fill_extra_info();
  if(xz_shrt_extra_notice(&extra_notice_seen,&extra,mono))notice_locked(now,extra.notice);
- /* The deck a side's controls now drive becomes the active deck, so its tag reads lit. */
- int active=xz_shrt_extra_active_deck(shell.deck,extra_sides,model.sides_extra);
- if(active!=shell.deck){shell.deck=active;dirty_flag=1;}
- extra_sides=model.sides_extra;
+ /* Physical assignments have their own indicators; preserve independent browse/grid focus.
+    Only losing a deck's availability returns that focus to its native partner. */
+ if(model.deck_count!=XZ_SHELL_DECKS&&shell.deck>=XZ_SHELL_NATIVE_DECKS&&shell.deck<XZ_SHELL_DECKS){
+  shell.deck&=1;dirty_flag=1;
+ }
 }
 
 /* Native SYNC consumers copy this cache. Only the existing UI publisher reads native memory. */

@@ -37,6 +37,17 @@ size_t sh_source_back_step(struct xz_shell *, const struct xz_shell_model *, str
 
 /* The only reader of model.deck_count (shell.h). */
 static inline int sh_deck_count(const struct xz_shell_model *m) { return m->deck_count==4?4:2; }
+/* PLAY geometry can show two slots while four logical audio decks remain available. */
+static inline int sh_play_deck_count(const struct xz_shell_model *m) {
+ return m&&m->play_view_count==2?2:m?sh_deck_count(m):2;
+}
+static inline int sh_play_deck(const struct xz_shell_model *m, int slot) {
+ return sh_deck_count(m)==4&&sh_play_deck_count(m)==2?slot+2*((m->sides_extra>>slot)&1):slot;
+}
+static inline int sh_play_visible(const struct xz_shell_model *m, int deck) {
+ return (unsigned)deck<(unsigned)sh_deck_count(m)&&
+  (sh_play_deck_count(m)==4||sh_deck_count(m)==2||deck==sh_play_deck(m,deck&1));
+}
 /* Logical deck to horizontal mixer column: DECK 3, 1, 2, 4. */
 static inline int sh_strip_column(int count, int deck) {
  static const unsigned char columns[4]={1,2,0,3};
@@ -49,6 +60,16 @@ size_t sh_browse_load_input(struct xz_shell *, const struct xz_shell_model *, co
 /* The active deck, or deck 1 when the shell's choice is past the decks the model plays now. */
 static inline int sh_active_deck(const struct xz_shell *u, const struct xz_shell_model *m) {
  return u->deck>=0&&u->deck<sh_deck_count(m)?u->deck:0;
+}
+/* PLAY edits use the visible equivalent of the stored focus, without changing browse focus. */
+static inline int sh_play_active_deck(const struct xz_shell *u, const struct xz_shell_model *m) {
+ int deck=sh_active_deck(u,m);
+ return sh_play_deck_count(m)==2&&sh_deck_count(m)==4?sh_play_deck(m,deck&1):deck;
+}
+/* Physical control assignment is independent of the shell's browse/grid focus. */
+static inline const char *sh_control_side(const struct xz_shell_model *m, int deck) {
+ if(sh_deck_count(m)!=4||!(m->capabilities&XZ_SHELL_CAP_DECK_SELECT)||(unsigned)deck>=4)return NULL;
+ return deck==(deck&1)+2*((m->sides_extra>>(deck&1))&1)?((deck&1)?"RIGHT":"LEFT"):NULL;
 }
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }
 /* The model's capabilities this deck takes (xz_shell_deck.caps_off). */

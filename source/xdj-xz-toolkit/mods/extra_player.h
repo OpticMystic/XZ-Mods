@@ -24,7 +24,7 @@ enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_
 #define XZ_XP_SEARCH_MS_PER_REV 1800   /* paused jog: audio one platter turn moves through */
 #define XZ_XP_RETIRE_MS 2000u          /* wave and grid arrays outlive the load that replaced them */
 #define XZ_XP_RETIRE_SLOTS 8
-#define XZ_XP_QUEUE 64
+#define XZ_XP_QUEUE 64                 /* ordinary FIFO slots;3 private slots reserve accepted hold releases */
 
 /* Where the audio goes: the USB transport in the runtime, a fake in host tests. deck 0 = DECK 3. */
 struct xz_xp_sink {
@@ -59,7 +59,9 @@ void xz_xp_stop(struct xz_xp_players *);
 /* One worker pass for one deck: commands, flush, render and submit, publish. */
 void xz_xp_step(struct xz_xp_players *, int deck);
 
-/* xz_extra_deck_input: 1 taken, 0 refused (route down, deck empty, queue full, not available). */
+/* 1 accepted,0 refused. Every accepted TOUCH/CUE/LOOP_IN hold reserves its ordered release
+   while the route survives, including under a full ordinary queue. Queued work captures the
+   route epoch and arrival time privately; a new route discards stale work and resets holds. */
 int xz_xp_input(struct xz_xp_players *, const struct xz_extra_deck_event *);
 /* Fills deck[] and the notice of *out; route and sides are the caller's. */
 void xz_xp_read(struct xz_xp_players *, struct xz_extra_decks *out);
