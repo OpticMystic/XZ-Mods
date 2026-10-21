@@ -141,10 +141,13 @@ struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *m, int deck)
  return (struct xz_shell_rect){WAVE_X,top?lane_y(L,m,deck):lane_y(L,m,deck)+L->lane_h-h,WAVE_W,h};
 }
 /* The waveform's part of a deck's band: all of it, less the stem row. */
-static struct xz_shell_rect wave_band(const struct play_layout *L, const struct xz_shell_model *m, int deck) {
+static int wave_title_shown(const struct xz_shell *u,const struct xz_shell_model *m) {
+ return sh_deck_count(m)==4&&sh_indicator_shown(u,XZ_SHELL_IND_WAVE_TITLES);
+}
+static struct xz_shell_rect wave_band(const struct play_layout *L,const struct xz_shell *u, const struct xz_shell_model *m, int deck) {
  struct xz_shell_rect row=xz_shell_stem_row(m,deck),w={WAVE_X,lane_y(L,m,deck),WAVE_W,L->lane_h};
  if(row.h){w.h-=row.h;if(row.y==w.y)w.y+=row.h;}
- if(sh_deck_count(m)==4){w.y+=20;w.h-=20;}
+ if(wave_title_shown(u,m)){w.y+=20;w.h-=20;}
  return w;
 }
 static int strip_x(const struct play_layout *L, int deck) { return L->strip.x0+(L==&four_deck?sh_strip_column(4,deck):(deck&1))*L->strip.pitch; }
@@ -389,15 +392,16 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  char text[32];
  xz_rect(c,0,ly,COL_W,L->lane_h,SH_CHROME);
  /* The deck tile takes the colour of the stick its track came from (USB COLORS); inactive, a stripe. */
- const char *control=sh_control_side(m,deck);
- int filled=sh_deck_count(m)==4?control!=NULL:active;
+ int control=sh_control_active(m,deck);
+ int filled=sh_deck_count(m)==4?control:active;
  uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=filled?accent:SH_RAIL,ink=sh_ink_on(tile);
  xz_rect(c,0,ly,COL_W,L->tag_h,tile);
  if(!filled&&accent!=SH_BLUE)xz_rect(c,0,ly,4,L->tag_h,accent);
  snprintf(text,sizeof text,"DECK %d",deck+1);
  if(sh_deck_count(m)==4){
   snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,ink);
-  sh_text(c,30,ly+(control?1:5),control?control:"DECK",SH_SMALL,ink);
+  if(control)sh_control_pair(c,30,ly+1,deck>=2,ink);
+  else sh_text(c,30,ly+5,"DECK",SH_SMALL,ink);
   if(control)sh_text(c,30,ly+10,"CONTROL",SH_SMALL,ink);
  }else sh_text(c,6+(!filled&&accent!=SH_BLUE?2:0),ly+L->tag_text_dy,text,SH_TEXT,ink);
  if(sh_has(d,XZ_SHELL_F_BAR_PHASE))for(int b=0;b<4;b++)
@@ -465,14 +469,11 @@ static int32_t slip_now(const struct xz_shell_model *m, const struct xz_shell_de
 }
 static void render_lane(const struct play_layout *L, const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
- struct xz_shell_rect band=wave_band(L,m,deck);
+ struct xz_shell_rect band=wave_band(L,u,m,deck);
  int ly=band.y,lh=band.h,tick_h=L->tick_h;
+ int title_h=wave_title_shown(u,m)?20:0,ruler_top=ly-title_h;
  char text[32];
  xz_rect(c,COL_W,lane_y(L,m,deck),c.width-COL_W,L->lane_h,SH_BLACK);
- if(sh_deck_count(m)==4){
-  const char *title=sh_has(d,XZ_SHELL_F_TITLE)&&d->title?d->title:"---";
-  sh_text_fit(c,WAVE_X+6,lane_y(L,m,deck)+2,WAVE_W-12,title,SH_TEXT,SH_WHITE);
- }
  /* The deck the Beat FX is applied to carries the FX red on its lane edge. */
  if(fx_on_deck(m,deck))xz_rect(c,COL_W,lane_y(L,m,deck),2,L->lane_h,SH_RED);
  int loaded=sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded;
@@ -504,6 +505,8 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
     int down=b->beat_in_bar==1,x=lane_x(&v,b->ms),h=down?tick_h:tick_h/2;
     if(x<WAVE_X||x>=WAVE_X+WAVE_W)continue;
     uint32_t ink=down?SH_RED:SH_WHITE;
+    /* Continue the same beat coordinate behind the title; text is painted last. */
+    if(title_h)xz_rect(c,x,ruler_top,1+down,title_h,xz_blend(SH_BLACK,ink,112));
     xz_rect(c,x,ly,1+down,h,ink);xz_rect(c,x,ly+lh-h,1+down,h,ink);
     if(b->beat_in_bar==1&&bar%4==0){snprintf(text,sizeof text,"%d",bar);lane_caption(lane,x-WAVE_X+3,lh-tick_h-2,text,SH_DIM);}
    }
@@ -566,12 +569,16 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
   }
  }else if(sh_has(d,XZ_SHELL_F_LOADED)&&!d->loaded)
   sh_text_center(c,WAVE_X+WAVE_W/2,ly+lh/2-7,"Not Loaded.",SH_TEXT,0x5a5a5a);
- xz_rect(c,v.ph_x,ly,1,lh,SH_PLAYHEAD);
+ xz_rect(c,v.ph_x,ruler_top,1,lh+title_h,SH_PLAYHEAD);
  /* ON AIR: the channel is live on the master (XZ manual p.70), red on the lane's top right. */
  if(sh_has(d,XZ_SHELL_F_ON_AIR)&&d->on_air){
   int w=sh_text_width(c,"ON AIR",SH_SMALL)+12;
   xz_rect(c,WAVE_X+WAVE_W-w-4,ly+3,w,16,SH_RED);
   sh_text(c,WAVE_X+WAVE_W-w+2,ly+6,"ON AIR",SH_SMALL,SH_WHITE);
+ }
+ if(title_h){
+  const char *title=sh_has(d,XZ_SHELL_F_TITLE)&&d->title?d->title:"---";
+  sh_text_fit(c,WAVE_X+6,ruler_top+2,WAVE_W-12,title,SH_TEXT,SH_WHITE);
  }
  if(alert_on(d))render_alert(L,m,c,d,deck);
  int grid=grid_edit_shown(u,m,deck);
@@ -720,8 +727,8 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  char text[48],frac[16];
  xz_rect(c,s.x,s.y,s.w,s.h,SH_CHROME);
  /* title row */
- const char *control=sh_control_side(m,deck);
- uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=(sh_deck_count(m)==4?control!=NULL:u->deck==deck)?accent:SH_RAIL;
+ int control=sh_control_active(m,deck);
+ uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=(sh_deck_count(m)==4?control:u->deck==deck)?accent:SH_RAIL;
  int badge_w=sh_deck_count(m)==4&&L==&two_deck?64:S->badge_w;
  int badge_h=sh_deck_count(m)==4?22:S->badge_h;
  int by0=s.y+S->badge_y,ty=s.y+S->title_y;
@@ -731,7 +738,7 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
   snprintf(text,sizeof text,"%d",deck+1);
   int nx=control?sx+5:sx+(badge_w-sh_num_width(SH_NUM_MID,text))/2;
   sh_num(c,nx,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
-  if(control)sh_text_center(c,sx+badge_w-18,by0+5,control,SH_SMALL,sh_ink_on(tile));
+  if(control)sh_control_pair(c,sx+badge_w-27,by0+6,deck>=2,sh_ink_on(tile));
   if(u->deck==deck)xz_border(c,sx,by0,badge_w,badge_h,SH_WHITE);
  }else{snprintf(text,sizeof text,"DECK %d",deck+1);sh_text(c,sx+5,by0+3,text,SH_SMALL,sh_ink_on(tile));}
  int tx=sx+badge_w+8;

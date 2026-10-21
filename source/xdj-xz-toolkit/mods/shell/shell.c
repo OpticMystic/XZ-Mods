@@ -114,10 +114,12 @@ int xz_shell_restore_setting(struct xz_shell *u, int id, int value) {
  case XZ_SHELL_ITEM_KEY_DISPLAY:if(value<XZ_SHELL_KEY_AS_DECK||value>XZ_SHELL_KEY_ALPHANUMERIC)return 0;u->display.key_display=(enum xz_shell_key_display)value;return 1;
  case XZ_SHELL_ITEM_WAVE_ZOOM:if(value<0||value>XZ_SHELL_ZOOM_MAX)return 0;u->zoom=value;return 1;
  case XZ_SHELL_ITEM_USB_COLORS:if(value<XZ_SHELL_USB_COLORS_ALL||value>XZ_SHELL_USB_COLORS_OFF)return 0;u->display.usb_colors=(enum xz_shell_usb_colors)value;return 1;
- case XZ_SHELL_ITEM_MODE_LAMPS:case XZ_SHELL_ITEM_QUANTIZE_LAMP:case XZ_SHELL_ITEM_BYPASS_BUTTON:{
+ case XZ_SHELL_ITEM_MODE_LAMPS:case XZ_SHELL_ITEM_QUANTIZE_LAMP:case XZ_SHELL_ITEM_BYPASS_BUTTON:case XZ_SHELL_ITEM_WAVE_TITLES:{
   /* value 0 SHOW, 1 HIDE */
   if(value!=0&&value!=1)return 0;
-  uint32_t bit=1u<<(id==XZ_SHELL_ITEM_MODE_LAMPS?XZ_SHELL_IND_MODE_LAMPS:id==XZ_SHELL_ITEM_QUANTIZE_LAMP?XZ_SHELL_IND_QUANTIZE:XZ_SHELL_IND_BYPASS);
+  unsigned indicator=id==XZ_SHELL_ITEM_MODE_LAMPS?XZ_SHELL_IND_MODE_LAMPS:id==XZ_SHELL_ITEM_QUANTIZE_LAMP?XZ_SHELL_IND_QUANTIZE:
+   id==XZ_SHELL_ITEM_BYPASS_BUTTON?XZ_SHELL_IND_BYPASS:XZ_SHELL_IND_WAVE_TITLES;
+  uint32_t bit=1u<<indicator;
   u->display.hidden=value?u->display.hidden|bit:u->display.hidden&~bit;
   return 1;
  }

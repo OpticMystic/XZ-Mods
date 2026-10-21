@@ -356,14 +356,14 @@ static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, st
  char text[24];
  xz_rect(c,x,y,w,h,SH_CHROME);
  int bx=x+4,by=y+3,bh=h-6;
- const char *control=sh_control_side(m,deck);
+ int control=sh_control_active(m,deck);
  uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=control?accent:SH_RAIL,badge_ink=sh_ink_on(tile);
  xz_rect(c,bx,by,Q_BADGE_W,bh,tile);
  if(!control&&accent!=SH_BLUE)xz_rect(c,bx,by,3,bh,accent);
  snprintf(text,sizeof text,"%d",deck+1);
  sh_num(c,bx+(Q_BADGE_W-sh_num_width(SH_NUM_MID,text))/2,by+1,text,SH_NUM_MID,badge_ink);
  if(control){
-  sh_text_center(c,bx+Q_BADGE_W/2,by+bh-20,control,SH_SMALL,badge_ink);
+  sh_control_pair(c,bx+(Q_BADGE_W-21)/2,by+bh-20,deck>=2,badge_ink);
   sh_text_center(c,bx+Q_BADGE_W/2,by+bh-10,"CONTROL",SH_SMALL,badge_ink);
  }
  if(u->deck==deck)xz_border(c,bx,by,Q_BADGE_W,bh,SH_WHITE);

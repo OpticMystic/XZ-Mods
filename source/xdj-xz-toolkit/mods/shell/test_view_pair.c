@@ -44,7 +44,8 @@ static void number_at(int x,int y,int deck,uint32_t background){
 static void title_at(int y,const char *title){
  memset(mask,0,sizeof mask);struct xz_canvas c={mask,800,800,480,XZ_THEME_FLAGSHIP};
  sh_text(c,104,y+2,title,SH_TEXT,SH_WHITE);int ink=0;
- for(int yy=y+2;yy<y+20;yy++)for(int x=104;x<780;x++)if(mask[yy*800+x]){
+ /* Beat markers now sit behind the title; its solid glyph cores still draw last. */
+ for(int yy=y+2;yy<y+20;yy++)for(int x=104;x<780;x++)if(mask[yy*800+x]==rgb565(SH_WHITE)){
   ink++;assert(frame(a)[yy*STRIDE+x]==mask[yy*800+x]);
  }
  assert(ink>0);
