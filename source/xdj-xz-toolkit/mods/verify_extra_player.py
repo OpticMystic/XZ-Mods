@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--zig', required=True)
 parser.add_argument('--no-wsl', action='store_true')
 args = parser.parse_args()
-common = [str(Path(args.zig).resolve()), 'cc', '-O1', '-std=c11', '-Wall', '-Wextra', '-Werror', '-I' + str(ROOT)]
+common = [str(Path(args.zig).resolve()), 'cc', '-O1', '-DXZ_XP_TEST_RENDER_HOOK', '-std=c11', '-Wall', '-Wextra', '-Werror', '-I' + str(ROOT)]
 tsan_unavailable = None
 
 
@@ -60,6 +60,16 @@ with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
         raise RuntimeError('A back cue that does not pause passed the test: the assertions are not live')
     print('PASS mutated back-cue rule fails: ' + (failed.stderr.strip().splitlines() or ['?'])[0][:160])
 
+    epoch_mutant = folder / 'epoch-mutant.c'
+    epoch_mutant.write_text(source.replace('s->ctx, d->epoch, ', 's->ctx, s->link(s->ctx), '), encoding='utf-8')
+    epoch_broken = folder / 'epoch-broken.exe'
+    subprocess.run(common + ['-UNDEBUG', str(epoch_mutant), *(str(ROOT / s) for s in SOURCES[1:]),
+                             str(ROOT / 'test_extra_player.c'), '-lm', '-o', str(epoch_broken)], check=True)
+    failed_epoch = subprocess.run([str(epoch_broken), str(folder)], cwd=folder, capture_output=True, text=True)
+    if failed_epoch.returncode == 0 or 'f.submits[0] == before' not in failed_epoch.stderr:
+        raise RuntimeError('Reconnect render regression did not reject current-epoch mutant: ' + failed_epoch.stderr)
+    print('PASS reconnect during render fails when captured epoch is replaced by current link')
+
     negative = subprocess.run(common + ['-DNDEBUG', '-c', str(ROOT / 'test_extra_player.c'), '-o', str(folder / 'n.o')],
                               capture_output=True, text=True)
     if negative.returncode == 0 or 'Extra player acceptance requires active assertions' not in negative.stderr:
@@ -69,7 +79,7 @@ with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
     if args.no_wsl or not shutil.which('wsl'):
         print('NOT RUN WSL sanitizers and transport test (--no-wsl or no WSL)')
     else:
-        gcc = ['wsl', '-d', 'Ubuntu', '--', 'gcc', '-O1', '-g', '-std=c11', '-Wall', '-Wextra', '-Werror',
+        gcc = ['wsl', '-d', 'Ubuntu', '--', 'gcc', '-O1', '-DXZ_XP_TEST_RENDER_HOOK', '-g', '-std=c11', '-Wall', '-Wextra', '-Werror',
                '-Wno-misleading-indentation', '-pthread', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                '-I' + linux(ROOT)]
         asan = folder / 'test-extra-player-asan'

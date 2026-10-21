@@ -264,6 +264,7 @@ Low Level Push API
 typedef struct
 {
     int frame_bytes, channels, sample_rate, layer, bitrate_kbps;
+    int frame_samples; /* XZ: validated located-header duration, zero for junk. */
 } drmp3dec_frame_info;
 
 typedef struct
@@ -409,6 +410,9 @@ typedef struct
     drmp3_uint32 mp3FrameChannels;      /* The number of channels in the currently loaded MP3 frame. Internal use only. */
     drmp3_uint32 mp3FrameSampleRate;    /* The sample rate of the currently loaded MP3 frame. Internal use only. */
     drmp3_uint32 pcmFramesConsumedInMP3Frame;
+    /* XZ local patch: successful preroll decodes may skip reservoir-starved
+       source frames. Keep their raw PCM duration for exact seek coordinates. */
+    drmp3_uint64 skippedPCMFrames;
     drmp3_uint32 pcmFramesRemainingInMP3Frame;
     drmp3_uint8 pcmFrames[sizeof(float)*DRMP3_MAX_SAMPLES_PER_FRAME];  /* <-- Multipled by sizeof(float) to ensure there's enough room for DR_MP3_FLOAT_OUTPUT. */
     drmp3_uint64 currentPCMFrame;       /* The current PCM frame, globally. */
@@ -2313,6 +2317,7 @@ DRMP3_API void drmp3dec_init(drmp3dec *dec)
 DRMP3_API int drmp3dec_decode_frame(drmp3dec *dec, const drmp3_uint8 *mp3, int mp3_bytes, void *pcm, drmp3dec_frame_info *info)
 {
     int i = 0, igr, frame_size = 0, success = 1;
+    info->frame_samples = 0;
     const drmp3_uint8 *hdr;
     drmp3_bs bs_frame[1];
 
@@ -2338,6 +2343,7 @@ DRMP3_API int drmp3dec_decode_frame(drmp3dec *dec, const drmp3_uint8 *mp3, int m
     hdr = mp3 + i;
     DRMP3_COPY_MEMORY(dec->header, hdr, DRMP3_HDR_SIZE);
     info->frame_bytes = i + frame_size;
+    info->frame_samples = drmp3_hdr_frame_samples(hdr);
     info->channels = DRMP3_HDR_IS_MONO(hdr) ? 1 : 2;
     info->sample_rate = drmp3_hdr_sample_rate_hz(hdr);
     info->layer = 4 - DRMP3_HDR_GET_LAYER(hdr);
@@ -2798,6 +2804,8 @@ static drmp3_uint32 drmp3_decode_next_frame_ex__callbacks(drmp3* pMP3, drmp3d_sa
 
         pcmFramesRead = drmp3dec_decode_frame(&pMP3->decoder, pMP3->pData + pMP3->dataConsumed, (int)pMP3->dataSize, pPCMFrames, &info);    /* <-- Safe size_t -> int conversion thanks to the check above. */
 
+        if (pcmFramesRead == 0 && info.frame_samples > 0 && pPCMFrames != NULL)
+            pMP3->skippedPCMFrames += (drmp3_uint32)info.frame_samples;
         /* Consume the data. */
         pMP3->dataConsumed += (size_t)info.frame_bytes;
         pMP3->dataSize     -= (size_t)info.frame_bytes;
@@ -2888,6 +2896,8 @@ static drmp3_uint32 drmp3_decode_next_frame_ex__memory(drmp3* pMP3, drmp3d_sampl
 
             break;
         } else if (info.frame_bytes > 0) {
+            if (info.frame_samples > 0 && pPCMFrames != NULL)
+                pMP3->skippedPCMFrames += (drmp3_uint32)info.frame_samples;
             /* No frames were read, but it looks like we skipped past one. Read the next MP3 frame. */
             pMP3->memory.currentReadPos += (size_t)info.frame_bytes;
             pMP3->streamCursor          += (size_t)info.frame_bytes;
@@ -3010,37 +3020,54 @@ static drmp3_bool32 drmp3_init_internal(drmp3* pMP3, drmp3_read_proc onRead, drm
 
                 /* APE */
                 if (streamLen > 32) {
-                    char ape[32];   /* The footer. */
+                    drmp3_uint8 ape[32];   /* The footer. */
                     if (onSeek(pUserData, streamEndOffset - 32, DRMP3_SEEK_END)) {
                         if (onRead(pUserData, ape, 32) == 32 && ape[0] == 'A' && ape[1] == 'P' && ape[2] == 'E' && ape[3] == 'T' && ape[4] == 'A' && ape[5] == 'G' && ape[6] == 'E' && ape[7] == 'X') {
-                            /* We have an APE tag. */
-                            drmp3_uint32 tagSize =
-                                ((drmp3_uint32)ape[24] << 0)  |
-                                ((drmp3_uint32)ape[25] << 8)  |
-                                ((drmp3_uint32)ape[26] << 16) |
-                                ((drmp3_uint32)ape[27] << 24);
-
-                            if (32 + tagSize < streamLen) {
-                                streamEndOffset -= 32 + tagSize;
-                                streamLen       -= 32 + tagSize;
-                                
-                                /* Fire a metadata callback for the APE data. Must include both the main content and footer. */
-                                if (onMeta != NULL) {
-                                    /* We first need to seek to the start of the APE tag. */
-                                    if (onSeek(pUserData, streamEndOffset, DRMP3_SEEK_END)) {
-                                        size_t apeTagSize = (size_t)tagSize + 32;
-                                        drmp3_uint8* pTagData = (drmp3_uint8*)drmp3_malloc(apeTagSize, pAllocationCallbacks);
-                                        if (pTagData != NULL) {
-                                            if (onRead(pUserData, pTagData, apeTagSize) == apeTagSize) {
-                                                drmp3__on_meta(pMP3, DRMP3_METADATA_TYPE_APE, pTagData, apeTagSize);
-                                            }
-
-                                            drmp3_free(pTagData, pAllocationCallbacks);
-                                        }
+                            /* XZ local patch: the size is at bytes 12..15. It
+                               includes the footer, but excludes an optional header. */
+                            drmp3_uint32 tagSize = (drmp3_uint32)ape[12] |
+                                ((drmp3_uint32)ape[13] << 8) |
+                                ((drmp3_uint32)ape[14] << 16) |
+                                ((drmp3_uint32)ape[15] << 24);
+                            drmp3_uint32 itemCount = (drmp3_uint32)ape[16] |
+                                ((drmp3_uint32)ape[17] << 8) |
+                                ((drmp3_uint32)ape[18] << 16) |
+                                ((drmp3_uint32)ape[19] << 24);
+                            drmp3_uint32 version = (drmp3_uint32)ape[8] |
+                                ((drmp3_uint32)ape[9] << 8) |
+                                ((drmp3_uint32)ape[10] << 16) |
+                                ((drmp3_uint32)ape[11] << 24);
+                            drmp3_bool32 hasHeader = (ape[23] & 0x80) != 0;
+                            drmp3_uint64 tagBytes = (drmp3_uint64)tagSize + (hasHeader ? 32u : 0u);
+                            drmp3_bool32 valid = (version == 1000 || version == 2000) && tagSize >= 32 &&
+                                itemCount <= (tagSize - 32) / 8 &&
+                                tagBytes < (drmp3_uint64)streamLen && tagBytes <= (drmp3_uint64)(0x7FFFFFFF + streamEndOffset) &&
+                                !ape[20] && !ape[21] && !ape[22] && (ape[23] == 0 || ape[23] == 0x80);
+                            int i;
+                            for (i = 24; i < 32; ++i) if (ape[i]) valid = DRMP3_FALSE;
+                            if (valid && hasHeader) {
+                                drmp3_uint8 header[32];
+                                if (version != 2000 ||
+                                    !onSeek(pUserData, streamEndOffset - (int)tagBytes, DRMP3_SEEK_END) ||
+                                    onRead(pUserData, header, 32) != 32) valid = DRMP3_FALSE;
+                                else {
+                                    for (i = 0; i < 23; ++i) if (header[i] != ape[i]) valid = DRMP3_FALSE;
+                                    if (header[23] != 0xA0) valid = DRMP3_FALSE;
+                                    for (i = 24; i < 32; ++i) if (header[i]) valid = DRMP3_FALSE;
+                                }
+                            }
+                            if (valid) {
+                                streamEndOffset -= (int)tagBytes;
+                                streamLen -= (drmp3_int64)tagBytes;
+                                if (onMeta != NULL && onSeek(pUserData, streamEndOffset, DRMP3_SEEK_END)) {
+                                    size_t apeTagSize = (size_t)tagBytes;
+                                    drmp3_uint8* pTagData = (drmp3_uint8*)drmp3_malloc(apeTagSize, pAllocationCallbacks);
+                                    if (pTagData != NULL) {
+                                        if (onRead(pUserData, pTagData, apeTagSize) == apeTagSize)
+                                            drmp3__on_meta(pMP3, DRMP3_METADATA_TYPE_APE, pTagData, apeTagSize);
+                                        drmp3_free(pTagData, pAllocationCallbacks);
                                     }
                                 }
-                            } else {
-                                /* The tag size is larger than the stream. Invalid APE tag. */
                             }
                         }
                     }
@@ -4357,6 +4384,7 @@ static void drmp3_reset(drmp3* pMP3)
 
     pMP3->pcmFramesConsumedInMP3Frame = 0;
     pMP3->pcmFramesRemainingInMP3Frame = 0;
+    pMP3->skippedPCMFrames = 0;
     pMP3->currentPCMFrame = 0;
     pMP3->dataSize = 0;
     pMP3->atEnd = DRMP3_FALSE;
@@ -4460,6 +4488,9 @@ static drmp3_bool32 drmp3_seek_to_pcm_frame__seek_table(drmp3* pMP3, drmp3_uint6
 
     /* If there is no prior seekpoint it means the target PCM frame comes before the first seek point. Just assume a seekpoint at the start of the file in this case. */
     if (drmp3_find_closest_seek_point(pMP3, frameIndex, &priorSeekPointIndex)) {
+        /* Leave one complete index interval for reservoir recovery before the
+           requested frame. Exact fallback remains available for damaged input. */
+        if (priorSeekPointIndex > 0) priorSeekPointIndex -= 1;
         seekPoint = pMP3->pSeekPoints[priorSeekPointIndex];
     } else {
         seekPoint.seekPosInBytes     = 0;
@@ -4482,10 +4513,8 @@ static drmp3_bool32 drmp3_seek_to_pcm_frame__seek_table(drmp3* pMP3, drmp3_uint6
         drmp3d_sample_t* pPCMFrames;
 
         /* Pass in non-null for the last frame because we want to ensure the sample rate converter is preloaded correctly. */
-        pPCMFrames = NULL;
-        if (iMP3Frame == seekPoint.mp3FramesToDiscard-1) {
-            pPCMFrames = (drmp3d_sample_t*)pMP3->pcmFrames;
-        }
+        /* XZ local patch: every preroll frame must populate synthesis history. */
+        pPCMFrames = (drmp3d_sample_t*)pMP3->pcmFrames;
 
         /* We first need to decode the next frame. */
         pcmFramesRead = drmp3_decode_next_frame_ex(pMP3, pPCMFrames, NULL, NULL);
@@ -4495,12 +4524,15 @@ static drmp3_bool32 drmp3_seek_to_pcm_frame__seek_table(drmp3* pMP3, drmp3_uint6
     }
 
     /* We seeked to an MP3 frame in the raw stream so we need to make sure the current PCM frame is set correctly. */
-    pMP3->currentPCMFrame = seekPoint.pcmFrameIndex - seekPoint.pcmFramesToDiscard;
+    pMP3->currentPCMFrame = seekPoint.pcmFrameIndex - seekPoint.pcmFramesToDiscard + pMP3->skippedPCMFrames;
 
     /*
     Now at this point we can follow the same process as the brute force technique where we just skip over unnecessary MP3 frames and then
     read-and-discard at least 2 whole MP3 frames.
     */
+    if (frameIndex < pMP3->currentPCMFrame) {
+        return DRMP3_FALSE; /* Damaged/reservoir-starved preroll crossed the target. */
+    }
     leftoverFrames = frameIndex - pMP3->currentPCMFrame;
     return drmp3_seek_forward_by_pcm_frames__brute_force(pMP3, leftoverFrames);
 }

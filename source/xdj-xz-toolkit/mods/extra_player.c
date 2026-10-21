@@ -177,6 +177,10 @@ static uint64_t advance_position(const struct deck *d,uint64_t position,uint64_t
  return position+(step>end-position?end-position:step);
 }
 static int render(struct deck *d, double rate) {
+#ifdef XZ_XP_TEST_RENDER_HOOK
+ extern void xz_xp_test_render_hook(void);
+ xz_xp_test_render_hook();
+#endif
  struct reader *r = d->r;
  uint64_t end = r->frames << 32;
  unsigned n = 0;
@@ -265,10 +269,21 @@ static void flush(struct xz_xp_players *p, struct deck *d) {
  const struct xz_xp_sink *s = &p->env.sink;
  if (!d->need_flush) return;
  uint32_t next;
- xz_usb_result r = s->link(s->ctx) ? s->flush(s->ctx, d->index, &next) : XZ_USB_STOPPED;
- if (r == XZ_USB_OK) { d->generation = next; d->submitted = d->completed = 0; }
- /* BUSY: retry next pass and submit nothing old meanwhile. Down: the next route restarts generations. */
- if (r != XZ_USB_BUSY) d->need_flush = 0;
+ int first = streaming(d->state) && d->pending;
+ xz_usb_result r = !s->link(s->ctx) ? XZ_USB_STOPPED : first
+  ? s->transition(s->ctx, d->epoch, d->index, d->generation, d->pcm, d->pending, d->pending_after, &next)
+  : s->flush(s->ctx, d->epoch, d->index, &next);
+ if (r == XZ_USB_OK) {
+  d->generation = next; d->submitted = d->completed = 0;
+  if (first) { d->submitted = d->pending; d->pending = 0; }
+ }
+ /* Busy/full retries keep the prepared target private. A newer command can replace it. */
+ if (r != XZ_USB_BUSY && r != XZ_USB_AGAIN && r != XZ_USB_STALE) d->need_flush = 0;
+ if (r == XZ_USB_STALE) {
+  xz_usb_position position;
+  if (s->position(s->ctx, d->epoch, &position) == XZ_USB_OK && position.requested_generation[d->index])
+   d->generation = position.requested_generation[d->index];
+ }
 }
 
 static void retire(struct deck *d, uint32_t now) {
@@ -622,7 +637,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  xz_usb_position position;
  uint64_t staged = 0;
  int applied = 0;
- if (s->position(s->ctx, &position) == XZ_USB_OK) {
+ if (s->position(s->ctx, d->epoch, &position) == XZ_USB_OK) {
   const xz_usb_deck_position *q = &position.deck[d->index];
   applied = q->applied_generation == d->generation;
   if (applied) {
@@ -646,7 +661,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
    }
    if (!d->pending) return;
   }
-  xz_usb_result r = s->submit(s->ctx, d->index, d->generation, d->pcm, d->pending, d->pending_after);
+  xz_usb_result r = s->submit(s->ctx, d->epoch, d->index, d->generation, d->pcm, d->pending, d->pending_after);
   if (r == XZ_USB_OK) { d->submitted += d->pending; d->pending = 0; continue; }
   if (r == XZ_USB_STALE) { d->pos = d->block_start; d->pending = 0; d->need_flush = 1; }
   else if (r != XZ_USB_AGAIN && r != XZ_USB_BUSY) { d->pos = d->block_start; d->pending = 0; }
@@ -674,6 +689,16 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
  if(link&&d->loop.in_down&&!d->loop.held&&now-d->loop.in_at>=1000u){
   struct xz_extra_deck_event held={.kind=XZ_EXTRA_IN_LOOP_IN,.pressed=1,.held=1};
   if(loaded(d->state))loop_button(p,d,&held,now);
+ }
+ /* Prepare the first sample block at the new position before retiring the old
+    generation. A cold read after flush would otherwise stage silence while the
+    decoder catches up. Pausing still flushes immediately; queued old USB audio
+    keeps the transport's existing bounded tail. */
+ if (d->need_flush && streaming(d->state) && link && !d->pending &&
+     (d->state == XZ_XP_SCRATCHING || d->pos >> 32 < d->r->frames)) {
+  if (!render(d, speed(d, now))) {
+   pause_at_heard(d, now); xz_xp_notice(p, "TRACK CANNOT BE READ");
+  }
  }
  flush(p, d);
  if (streaming(d->state) && link && !d->need_flush) stream(p, d, now);
@@ -718,7 +743,7 @@ void xz_xp_debug(struct xz_xp_players *p, int index, struct xz_xp_debug *out) {
 }
 
 struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
- if (!env || !env->sink.link || !env->sink.submit || !env->sink.flush || !env->sink.position || !env->now_ms) return NULL;
+ if (!env || !env->sink.link || !env->sink.submit || !env->sink.flush || !env->sink.position || !env->sink.transition || !env->now_ms) return NULL;
  struct xz_xp_players *p = calloc(1, sizeof *p);
  if (!p) return NULL;
  p->env = *env;

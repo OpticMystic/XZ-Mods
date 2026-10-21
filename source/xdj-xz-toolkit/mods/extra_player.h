@@ -31,10 +31,15 @@ struct xz_xp_sink {
  void *ctx;
  /* A running route's instance number, 0 while it is down. Lock-free: input calls it on every key. */
  uint32_t (*link)(void *ctx);
- xz_usb_result (*submit)(void *ctx, int deck, uint32_t generation, const float *stereo, uint32_t frames,
+ xz_usb_result (*submit)(void *ctx, uint32_t epoch, int deck, uint32_t generation, const float *stereo, uint32_t frames,
                          uint64_t source_after);
- xz_usb_result (*flush)(void *ctx, int deck, uint32_t *generation);
- xz_usb_result (*position)(void *ctx, xz_usb_position *out);
+ xz_usb_result (*flush)(void *ctx, uint32_t epoch, int deck, uint32_t *generation);
+ xz_usb_result (*position)(void *ctx, uint32_t epoch, xz_usb_position *out);
+ /* All operations require the captured route epoch; reject mismatches without mutation. */
+ /* First block and generation are published as one transition. Required. */
+ xz_usb_result (*transition)(void *ctx, uint32_t epoch, int deck, uint32_t expected_generation,
+                            const float *stereo, uint32_t frames, uint64_t source_after,
+                            uint32_t *generation);
 };
 struct xz_xp_env {
  struct xz_xp_sink sink;

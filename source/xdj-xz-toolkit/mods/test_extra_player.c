@@ -38,11 +38,11 @@ static struct {
 int xz_oc_bundle(const char *source, char *folder, size_t capacity) { (void)source; (void)folder; (void)capacity; return -1; }
 static uint32_t clock_ms = 1000;
 static int threaded_clock;
+static int hold_flush;
 
 static uint32_t fake_link(void *ctx) { (void)ctx; return __atomic_load_n(&f.link, __ATOMIC_ACQUIRE); }
-static xz_usb_result fake_submit(void *ctx, int d, uint32_t generation, const float *pcm, uint32_t frames, uint64_t after) {
+static xz_usb_result fake_submit_locked(void *ctx, int d, uint32_t generation, const float *pcm, uint32_t frames, uint64_t after) {
  (void)ctx;
- pthread_mutex_lock(&f.lock);
  xz_usb_result r = XZ_USB_OK;
  assert(frames >= 1 && frames <= XZ_USB_BLOCK_FRAMES);
  if (!f.link) r = XZ_USB_STOPPED;
@@ -59,20 +59,38 @@ static xz_usb_result fake_submit(void *ctx, int d, uint32_t generation, const fl
   }
   f.submits[d]++; f.last_after[d] = after; f.last_frames[d] = frames;
  }
- pthread_mutex_unlock(&f.lock);
  return r;
 }
-static xz_usb_result fake_flush(void *ctx, int d, uint32_t *generation) {
+static xz_usb_result fake_submit(void *ctx, uint32_t epoch, int d, uint32_t generation, const float *pcm, uint32_t frames, uint64_t after) {
+ pthread_mutex_lock(&f.lock);
+ xz_usb_result result = epoch && epoch == f.link ? fake_submit_locked(ctx,d,generation,pcm,frames,after) : XZ_USB_STOPPED;
+ pthread_mutex_unlock(&f.lock);return result;
+}
+static xz_usb_result fake_transition(void *ctx,uint32_t epoch,int d,uint32_t expected,const float *pcm,uint32_t frames,uint64_t after,uint32_t *generation) {
+ pthread_mutex_lock(&f.lock);
+ xz_usb_result result = !epoch || epoch != f.link ? XZ_USB_STOPPED : expected != f.queue_generation[d] ? XZ_USB_STALE
+  : f.write[d]-f.read[d]>=FAKE_BLOCKS ? XZ_USB_AGAIN : XZ_USB_OK;
+ if(result==XZ_USB_OK) {
+  uint32_t next=expected+1;f.queue_generation[d]=next;
+  result=fake_submit_locked(ctx,d,next,pcm,frames,after);assert(result==XZ_USB_OK);
+  f.flushes[d]++;*generation=next;
+ }
+ pthread_mutex_unlock(&f.lock);return result;
+}
+static xz_usb_result fake_flush(void *ctx, uint32_t epoch, int d, uint32_t *generation) {
+ if (hold_flush) return XZ_USB_BUSY;
  (void)ctx;
  pthread_mutex_lock(&f.lock);
+ if (!epoch || epoch != f.link) { pthread_mutex_unlock(&f.lock); return XZ_USB_STOPPED; }
  *generation = ++f.queue_generation[d]; f.flushes[d]++;
  pthread_mutex_unlock(&f.lock);
  return XZ_USB_OK;
 }
-static xz_usb_result fake_position(void *ctx, xz_usb_position *out) {
+static xz_usb_result fake_position(void *ctx, uint32_t epoch, xz_usb_position *out) {
  (void)ctx;
  pthread_mutex_lock(&f.lock);
- *out = f.position; out->state = XZ_USB_RUNNING;
+ if (!epoch || epoch != f.link) { pthread_mutex_unlock(&f.lock); return XZ_USB_STOPPED; }
+ *out = f.position; out->state = XZ_USB_RUNNING;out->requested_generation[0]=f.queue_generation[0];out->requested_generation[1]=f.queue_generation[1];
  pthread_mutex_unlock(&f.lock);
  return XZ_USB_OK;
 }
@@ -103,6 +121,14 @@ static void fake_route(uint32_t link) {
   memset(&f.position.deck[d], 0, sizeof f.position.deck[d]); f.position.deck[d].applied_generation = XZ_USB_INITIAL_GENERATION;
  }
  pthread_mutex_unlock(&f.lock);
+}
+
+static uint32_t reconnect_on_render;
+void xz_xp_test_render_hook(void) {
+ if (reconnect_on_render) {
+  uint32_t epoch = reconnect_on_render; reconnect_on_render = 0;
+  fake_route(epoch);
+ }
 }
 
 static uint32_t real_ms(void) {
@@ -282,7 +308,7 @@ static void expect_notice(const char *text, uint32_t *seq) {
 }
 
 static void test_players(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
  p = xz_xp_create(&env); assert(p);
  uint32_t seq = 0;
  fake_route(0);
@@ -519,7 +545,7 @@ static void test_players(void) {
 }
 
 static void test_loop_and_range(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
  p = xz_xp_create(&env); assert(p);
  fake_route(7); step(); load(0, 1); load(1, 2);
  seek(0, 500); hold(0, XZ_EXTRA_IN_LOOP_IN, 1); hold(0, XZ_EXTRA_IN_LOOP_IN, 0);
@@ -588,7 +614,7 @@ static void test_loop_and_range(void) {
 }
 
 static void test_vinyl(void) {
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
  p=xz_xp_create(&env);assert(p);
  fake_route(8);step();load(0,4);load(1,2);
  assert(debug(0).source_rate==44100&&view.deck[0].total_ms==2000);
@@ -679,11 +705,38 @@ static void *usb(void *arg) {
  }
  return NULL;
 }
+static void test_reconnect_during_render(void) {
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
+ for (int mode = 0; mode < 2; ++mode) {
+  fake_route(100 + mode * 2);
+  p = xz_xp_create(&env); assert(p); step();
+  if (mode == 0) {
+   hold_flush = 1; load(0, 1); hold_flush = 0;
+   assert(input(event(0, XZ_EXTRA_IN_PLAY, 1)));
+  } else {
+   load(0, 1); press(0, XZ_EXTRA_IN_PLAY);
+   /* Reconnect handling resumes paused at generation 1; PLAY needs no jump. */
+   fake_route(200); step(); press(0, XZ_EXTRA_IN_PLAY);
+  }
+  unsigned before = f.submits[0], flushes = f.flushes[0];
+  reconnect_on_render = 101 + mode * 2;
+  if (mode == 0) step(); /* first transition after an initially busy flush */
+  else { consume(0, 10000); step(); } /* ordinary render/submit */
+  assert(!reconnect_on_render);
+  assert(f.submits[0] == before && f.flushes[0] == flushes);
+  assert(f.write[0] == 0 && f.queue_generation[0] == XZ_USB_INITIAL_GENERATION);
+  step(); assert(debug(0).state == XZ_XP_CUED);
+  assert(f.submits[0] == before && f.write[0] == 0);
+  xz_xp_destroy(p); p = NULL;
+ }
+ puts("PASS reconnect during transition and ordinary render rejects old-route PCM");
+}
+
 static void test_threads(void) {
  threaded_clock = 1;
  memset(&f.submits, 0, sizeof f.submits);
  fake_route(3);
- struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position}, now_ms, resolve, master_bpm};
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm};
  p = xz_xp_create(&env); assert(p);
  assert(!xz_xp_start(p));
  pthread_t readers[2], u;
@@ -727,6 +780,7 @@ int main(int argc, char **argv) {
  test_players();
  test_loop_and_range();
  test_vinyl();
+ test_reconnect_during_render();
  test_threads();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
         "tempo rate, jog bend decay and search, SYNC, MASTER TEMPO, SEEK, EOF, 44.1/48 kHz, load while playing, "

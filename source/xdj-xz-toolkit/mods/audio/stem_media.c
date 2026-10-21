@@ -23,11 +23,25 @@
 #pragma clang diagnostic pop
 #endif
 
+#ifndef MP3_CACHE_FRAMES
+#define MP3_CACHE_FRAMES 4096u
+#endif
+#ifndef MP3_CACHE_TILES
+#define MP3_CACHE_TILES 16u
+#endif
+_Static_assert(MP3_CACHE_TILES * MP3_CACHE_FRAMES <= 65536u, "MP3 PCM cache must stay at or below 512 KiB");
 struct xz_stem_media {
     enum { MEDIA_WAV, MEDIA_FLAC, MEDIA_MP3, MEDIA_VORBIS, MEDIA_AIFF } kind;
     union { drwav wav; drflac *flac; drmp3 mp3; stb_vorbis *vorbis; struct xz_aiff aiff; } decoder;
     uint32_t rate;
     uint64_t frames, position;
+    /* Approximately 100 ms between seek points, at most 192 KiB per decoder. */
+    drmp3_seek_point *seek_points;
+    /* Fixed source-PCM tiles, at most 512 KiB, allocated on first read. */
+    float *pcm_cache;
+    uint64_t cache_first[MP3_CACHE_TILES];
+    size_t cache_frames[MP3_CACHE_TILES];
+    unsigned cache_next, cache_attempted;
 };
 
 void xz_stem_media_close(struct xz_stem_media *m) {
@@ -39,6 +53,8 @@ void xz_stem_media_close(struct xz_stem_media *m) {
     case MEDIA_VORBIS: stb_vorbis_close(m->decoder.vorbis); break;
     case MEDIA_AIFF: if (m->decoder.aiff.file) fclose(m->decoder.aiff.file); break;
     }
+    free(m->pcm_cache);
+    free(m->seek_points);
     free(m);
 }
 
@@ -79,6 +95,12 @@ struct xz_stem_media *xz_stem_media_open(const char *path, int untrimmed) {
         if (untrimmed) m->decoder.mp3.delayInPCMFrames = m->decoder.mp3.paddingInPCMFrames = 0;
         m->rate = m->decoder.mp3.sampleRate; channels = m->decoder.mp3.channels;
         m->frames = drmp3_get_pcm_frame_count(&m->decoder.mp3);
+        uint64_t desired = m->frames / (m->rate / 10u);
+        uint32_t count = desired > 8192u ? 8192u : desired < 2048u ? 2048u : (uint32_t)desired;
+        m->seek_points = calloc(count, sizeof(*m->seek_points));
+        if (m->seek_points && drmp3_calculate_seek_points(&m->decoder.mp3, &count, m->seek_points))
+            drmp3_bind_seek_table(&m->decoder.mp3, count, m->seek_points);
+        else { free(m->seek_points); m->seek_points = NULL; }
         if (!drmp3_seek_to_pcm_frame(&m->decoder.mp3, 0)) { xz_stem_media_close(m); return NULL; }
     } else { free(m); return NULL; }
     if (channels != 2 || m->rate < 32000 || m->rate > 96000 || !m->frames || m->frames > UINT32_MAX) {
@@ -90,7 +112,7 @@ struct xz_stem_media *xz_stem_media_open(const char *path, int untrimmed) {
 uint32_t xz_stem_media_rate(const struct xz_stem_media *m) { return m ? m->rate : 0; }
 uint64_t xz_stem_media_frames(const struct xz_stem_media *m) { return m ? m->frames : 0; }
 
-int xz_stem_media_read(struct xz_stem_media *m, int64_t first, size_t frames, float *out) {
+static int media_read_uncached(struct xz_stem_media *m, int64_t first, size_t frames, float *out) {
     if (!m || !out || frames > 262144) return -1;
     memset(out, 0, frames * 2 * sizeof(*out));
     if (first < 0) {
@@ -109,6 +131,16 @@ int xz_stem_media_read(struct xz_stem_media *m, int64_t first, size_t frames, fl
             /* dr_mp3's internal currentPCMFrame includes encoder delay, while
              * read counts and this API use trimmed PCM. Discard a logical delta;
              * its absolute forward seek mixes those two coordinate systems. */
+            uint64_t raw_target = (uint64_t)first + m->decoder.mp3.delayInPCMFrames;
+            if (m->seek_points && raw_target >= m->seek_points[0].pcmFrameIndex) {
+                ok = drmp3_seek_to_pcm_frame(&m->decoder.mp3, raw_target);
+                if (ok) break;
+                /* A damaged frame can defeat indexed preroll. Reset before the
+                 * exact sequential fallback, including after a partial seek. */
+                if (!drmp3_seek_to_pcm_frame(&m->decoder.mp3, 0)) break;
+                ok = drmp3_read_pcm_frames_s16(&m->decoder.mp3, (uint64_t)first, NULL) == (uint64_t)first;
+                break;
+            }
             uint64_t from = m->position;
             ok = 1;
             if ((uint64_t)first < from) { ok = drmp3_seek_to_pcm_frame(&m->decoder.mp3, 0); from = 0; }
@@ -120,7 +152,7 @@ int xz_stem_media_read(struct xz_stem_media *m, int64_t first, size_t frames, fl
         case MEDIA_VORBIS: ok = stb_vorbis_seek(m->decoder.vorbis, (unsigned)first); break;
         case MEDIA_AIFF: ok = xz_aiff_seek(&m->decoder.aiff, (uint64_t)first); break;
         }
-        if (!ok) return -1;
+        if (!ok) { m->position = UINT64_MAX; return -1; }
     }
     uint64_t got = 0;
     switch (m->kind) {
@@ -131,7 +163,50 @@ int xz_stem_media_read(struct xz_stem_media *m, int64_t first, size_t frames, fl
     case MEDIA_AIFF: got = xz_aiff_read(&m->decoder.aiff, frames, out); break;
     }
     m->position = (uint64_t)first + got;
-    if (got != frames) return -1;
-    for (size_t i = 0; i < frames * 2; ++i) if (!isfinite(out[i])) return -1;
+    if (got != frames) { m->position = UINT64_MAX; return -1; }
+    for (size_t i = 0; i < frames * 2; ++i) if (!isfinite(out[i])) {
+        m->position = UINT64_MAX; return -1;
+    }
+    return 0;
+}
+
+int xz_stem_media_read(struct xz_stem_media *m, int64_t first, size_t frames, float *out) {
+    if (!m || !out || frames > 262144) return -1;
+    if (m->kind == MEDIA_MP3 && !m->cache_attempted) {
+        m->cache_attempted = 1;
+        m->pcm_cache = malloc(MP3_CACHE_TILES * MP3_CACHE_FRAMES * 2u * sizeof(float));
+    }
+    if (!m->pcm_cache) return media_read_uncached(m, first, frames, out);
+    memset(out, 0, frames * 2 * sizeof(*out));
+    if (first < 0) {
+        uint64_t skip = (uint64_t)(-(first + 1)) + 1;
+        if (skip >= frames) return 0;
+        out += (size_t)skip * 2; frames -= (size_t)skip; first = 0;
+    }
+    if ((uint64_t)first >= m->frames) return 0;
+    if (frames > m->frames - (uint64_t)first) frames = (size_t)(m->frames - (uint64_t)first);
+    while (frames) {
+        uint64_t tile = (uint64_t)first / MP3_CACHE_FRAMES * MP3_CACHE_FRAMES;
+        unsigned slot;
+        for (slot = 0; slot < MP3_CACHE_TILES; ++slot)
+            if (m->cache_frames[slot] && m->cache_first[slot] == tile) break;
+        if (slot == MP3_CACHE_TILES) {
+            slot = m->cache_next;
+            m->cache_next = (m->cache_next + 1u) % MP3_CACHE_TILES;
+            m->cache_frames[slot] = 0;
+            size_t count = (size_t)(m->frames - tile);
+            if (count > MP3_CACHE_FRAMES) count = MP3_CACHE_FRAMES;
+            if (media_read_uncached(m, (int64_t)tile, count,
+                    m->pcm_cache + slot * MP3_CACHE_FRAMES * 2u)) return -1;
+            m->cache_first[slot] = tile;
+            m->cache_frames[slot] = count;
+        }
+        size_t offset = (size_t)((uint64_t)first - tile);
+        size_t count = m->cache_frames[slot] - offset;
+        if (count > frames) count = frames;
+        memcpy(out, m->pcm_cache + (slot * MP3_CACHE_FRAMES + offset) * 2u,
+               count * 2u * sizeof(*out));
+        first += (int64_t)count; frames -= count; out += count * 2u;
+    }
     return 0;
 }

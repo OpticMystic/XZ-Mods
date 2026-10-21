@@ -150,6 +150,37 @@ xz_usb_result xz_usb_transport_submit(xz_usb_transport *t, xz_usb_deck deck, uin
     store32(&q->producer, 0);
     return result;
 }
+xz_usb_result xz_usb_transport_flush_and_submit(xz_usb_transport *t, xz_usb_deck deck,
+                                      uint32_t expected_generation, const float *pcm, uint32_t frames,
+                                      uint64_t source_after, uint32_t *generation) {
+    int d = deck_index(deck);
+    if (!t || d < 0 || !pcm || !frames || frames > XZ_USB_BLOCK_FRAMES || !expected_generation || !generation)
+        return XZ_USB_INVALID;
+    unsigned state = load32(&t->state);
+    if (state == XZ_USB_STARTING) return XZ_USB_AGAIN;
+    if (state != XZ_USB_RUNNING || load32(&t->stop)) return XZ_USB_STOPPED;
+    struct deck_queue *q = &t->queue[d];
+    if (!take_producer(q)) return XZ_USB_BUSY;
+    xz_usb_result result = XZ_USB_OK;
+    unsigned current = load32(&q->generation), write = load32(&q->write), read = load32(&q->read);
+    if (current != expected_generation) result = XZ_USB_STALE;
+    else if (current == UINT32_MAX) result = XZ_USB_INVALID;
+    else if ((unsigned)(write - read) >= BLOCKS) result = XZ_USB_AGAIN;
+    else {
+        struct block *b = &q->block[write % BLOCKS];
+        if (!pack_block(b, pcm, frames)) result = XZ_USB_INVALID;
+        else {
+            unsigned next = current + 1;
+            b->frames = frames; b->generation = next; b->source_after = source_after;
+            store32(&q->write, write + 1);
+            /* An acquire of this generation also observes the queued first block. */
+            store32(&q->generation, next);
+            *generation = next;
+        }
+    }
+    store32(&q->producer, 0);
+    return result;
+}
 xz_usb_result xz_usb_transport_flush(xz_usb_transport *t, xz_usb_deck deck, uint32_t *generation) {
     int d = deck_index(deck);
     if (!t || d < 0 || !generation) return XZ_USB_INVALID;
