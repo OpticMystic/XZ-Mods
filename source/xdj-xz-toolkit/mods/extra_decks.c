@@ -25,6 +25,9 @@
 #pragma weak xz_extra_resolve_track
 #pragma weak xz_extra_native_master_bpm
 #pragma weak xz_extra_native_sync_clock
+extern void xz_jog_display_runtime_publish(const struct xz_extra_decks *decks,uint32_t now_ms) __attribute__((weak));
+extern void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks) __attribute__((weak));
+extern int xz_sync_link_runtime_master_committed(int deck_index) __attribute__((weak));
 
 /* Overridable so the host test can use a node it may stat and poll fast. */
 #ifndef USB_MAJOR
@@ -82,6 +85,17 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
  unsigned c=xz_extra_decks_control_revision();out->control_revision=c;
  out->route_up=!!(c&CONTROL_ROUTE);out->left_on_3=out->route_up&&!!(c&CONTROL_LEFT);
  out->right_on_4=out->route_up&&!!(c&CONTROL_RIGHT);
+ if(xz_jog_display_runtime_publish)xz_jog_display_runtime_publish(out,now_ms());
+ if(xz_sync_link_runtime_poll)xz_sync_link_runtime_poll(out);
+ if(xz_sync_link_runtime_master_committed){
+  for(int i=0;i<XZ_EXTRA_DECKS;i++){
+   if(out->deck[i].master&&xz_sync_link_runtime_master_committed(i)){
+    out->deck[i].master_scope|=XZ_EXTRA_MASTER_SCOPE_NATIVE;
+    for(int j=0;j<XZ_EXTRA_DECKS;j++)
+     if(out->deck[j].sync.master_deck==i+XZ_EXTRA_FIRST_DECK)out->deck[j].sync.master_scope|=XZ_EXTRA_MASTER_SCOPE_NATIVE;
+   }
+  }
+ }
  return out->route_up;
 }
 
@@ -229,6 +243,10 @@ static void *connector(void *unused) {
    if (!++epoch) epoch = 1;
    set_link(epoch);
    xz_log("DECK 3/4 route up");
+  }
+  if (p.state == XZ_USB_RUNNING) {
+   struct xz_extra_decks snap;
+   (void)xz_extra_decks_snapshot(&snap);
   }
   rest(POLL_UP_MS);
  }

@@ -2318,8 +2318,8 @@ int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *out) {
  uint64_t now=mono_checked_us();
  uint32_t age=(uint32_t)(now/1000u)-out->captured_ms;
  if(!out->available)return 0;
- if(!out->source_revision){out->available=0;out->reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;return 0;}
- if(!now||(int32_t)age<0||age>150u){out->available=0;out->reason=XZ_SYNC_NATIVE_TIME_INVALID;return 0;}
+ if(!out->source_revision){out->available=0;out->phase_available=0;out->reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;return 0;}
+ if(!now||(int32_t)age<0||age>150u){out->available=0;out->phase_available=0;out->reason=XZ_SYNC_NATIVE_TIME_INVALID;return 0;}
  return 1;
 }
 static uint64_t native_sync_now(void *unused) { (void)unused;return mono_checked_us(); }
@@ -2349,7 +2349,7 @@ static void native_sync_refresh_locked(void) {
      request->track_id!=after.id||request->device_kind!=after.device_kind||
      (slot>=0&&(!request->media.generation||request->media.generation!=usb[slot].generation||
        !xz_shmedia_same(&request->media,&usb[slot].media)))){
-   next.available=0;next.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
+   next.available=0;next.phase_available=0;next.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
   }else next.source_revision=wave_job[d].wanted;
  }
  pthread_mutex_lock(&native_sync_mutex);native_sync_cache=next;pthread_mutex_unlock(&native_sync_mutex);

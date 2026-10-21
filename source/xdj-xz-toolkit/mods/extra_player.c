@@ -116,7 +116,7 @@ struct deck {
  int timeline_valid, timeline_anchor_valid;
  uint32_t timeline_revision, load_revision;
  uint64_t media_generation;
- uint64_t timeline_output_frames, timeline_sink_frame;
+ uint64_t timeline_output_frames, timeline_sink_frame, timeline_wire_completed;
  struct xz_extra_sync sync;
  int sync_initial,sync_hold,sync_rate_active,sync_have_master,sync_lock_count;
  int sync_master_id;
@@ -126,6 +126,9 @@ struct deck {
  uint64_t sync_wire_submitted;
  int32_t sync_legacy_bpm;
  uint32_t sync_native_identity,sync_native_source_revision;
+ uint64_t sync_native_captured_us;
+ double sync_native_bar_phase,sync_native_bpm;
+ int sync_native_discontinuous;
  uint32_t sync_choice_seen;
  double sync_rate,sync_trim;
  struct sync_clock sync_master_clock;
@@ -371,7 +374,7 @@ static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  d->segment_count=0;
  d->heard = frame; d->heard_at = now;
  d->heard_rate=0;d->timeline_valid=d->timeline_anchor_valid=0;d->timeline_revision++;
- d->timeline_output_frames=d->timeline_sink_frame=0;
+ d->timeline_output_frames=d->timeline_sink_frame=d->timeline_wire_completed=0;
  if(d->state==XZ_XP_SCRATCHING){
   d->scratch.target=d->pos;d->scratch.rate=0;d->scratch.at_valid=0;d->scratch.ticks=0;
  }
@@ -743,6 +746,7 @@ static void jog(struct deck *d, int32_t delta, uint32_t now, uint32_t arrived) {
 static void sync_request(struct xz_xp_players *p,struct deck *d,int on){
  d->sync=(struct xz_extra_sync){.requested=!!on,.master_deck=-1,.reason=on?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OFF};
  d->sync_initial=!!on;d->sync_hold=d->sync_have_master=d->sync_lock_count=0;
+ d->sync_native_captured_us=0;d->sync_native_discontinuous=0;
  d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;
  d->sync_trim=0;d->sync_rate_active=0;
  if(on)atomic_fetch_or(&p->sync_requests,1u<<d->index);else atomic_fetch_and(&p->sync_requests,~(1u<<d->index));
@@ -755,6 +759,9 @@ static int sync_base(struct deck *d,double rate){
  if(tempo!=d->tempo_x100){d->tempo_x100=tempo;d->tempo_revision++;}
  d->tempo_reset=0;d->tempo_position=(int32_t)((int64_t)tempo*XZ_EXTRA_TEMPO_SPAN/(d->tempo_range*100));
  d->sync_rate=rate;d->sync_rate_active=1;return 1;
+}
+static void sync_set_trim(struct deck *d,double trim){
+ d->sync_trim=trim;d->sync.correction_ppm=(int32_t)llround(trim*1000000.);
 }
 static int sync_apply_base(struct xz_xp_players *p,struct deck *d,int selected,uint32_t choice,double rate){
  pthread_mutex_lock(&p->publish_lock);
@@ -770,6 +777,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  if(selected<0){
   if(d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE){
    d->sync_hold=d->sync_have_master=0;d->sync.master_scope=0;d->sync.master_deck=-1;
+   d->sync_native_captured_us=0;d->sync_native_discontinuous=0;
   }
   struct xz_sync_native_snapshot native={0};
   int32_t bpm=d->sync_legacy_bpm;
@@ -779,19 +787,119 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    if(!copied||!native.available||native.native_deck<0||native.native_deck>1||
       !native.source_revision||!native.track_identity||!isfinite(native.bpm)||native.bpm<=0||native.bpm>(double)INT32_MAX/100.||
       (uint32_t)(now-native.captured_ms)>150u){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
-   if(d->sync_native_identity!=native.track_identity||d->sync_native_source_revision!=native.source_revision){
+   if(d->sync_native_identity!=native.track_identity||d->sync_native_source_revision!=native.source_revision||
+      (d->sync_have_master&&d->sync_master_id!=native.native_deck)){
+    if(d->sync_have_master&&native.phase_available){
+     d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
+    }
     d->sync_have_master=d->sync_lock_count=0;
+    d->sync_native_captured_us=0;d->sync_native_discontinuous=0;
     d->sync_native_identity=native.track_identity;d->sync_native_source_revision=native.source_revision;
    }
    bpm=(int32_t)llround(native.bpm*100);d->sync.master_deck=native.native_deck;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE;
   }
   if(bpm<=0){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
-  if(d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
-  if(!d->sync_hold){
-   int applied=sync_apply_base(p,d,selected,choice,(double)bpm/d->track.track_bpm_x100);
-   if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
+  if(!native.phase_available){
+   if(d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
+   if(!d->sync_hold){
+    int applied=sync_apply_base(p,d,selected,choice,(double)bpm/d->track.track_bpm_x100);
+    if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
+   }
+   d->sync.reason=d->sync_hold?(d->sync_hold_reason?d->sync_hold_reason:XZ_EXTRA_SYNC_MANUAL):XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;
   }
-  d->sync.reason=d->sync_hold?XZ_EXTRA_SYNC_MANUAL:XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;
+  if(d->sync_hold){d->sync.reason=d->sync_hold_reason?d->sync_hold_reason:XZ_EXTRA_SYNC_DISCONTINUITY;return;}
+  struct sync_clock slave=sync_clock(d,now);
+  if(!native.playing){
+   if(d->sync_have_master)d->sync_native_discontinuous=1;
+   d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;
+  }
+  uint64_t cur_us=native.captured_us?native.captured_us:(uint64_t)native.captured_ms*1000u;
+  if(d->sync_have_master&&d->sync_native_captured_us){
+   if(d->sync_native_discontinuous||cur_us<d->sync_native_captured_us||cur_us-d->sync_native_captured_us>150000u){
+    d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
+   }
+   double dt_obs=(double)(cur_us-d->sync_native_captured_us)/1000000.;
+   double min_step=dt_obs*(fmin(d->sync_native_bpm,(double)native.bpm)/60.);
+   double max_step=dt_obs*(fmax(d->sync_native_bpm,(double)native.bpm)/60.);
+   double mid_step=.5*(min_step+max_step),tol=.5*(max_step-min_step)+.06;
+   double phase_jump=wrapped_beat((double)native.bar_phase-(d->sync_native_bar_phase+mid_step)+.5)-.5;
+   if(fabs(phase_jump)>tol){
+    d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
+   }
+  }
+  d->sync_native_captured_us=cur_us;d->sync_native_bar_phase=native.bar_phase;d->sync_native_bpm=native.bpm;
+  if(!slave.period_frames){
+   d->sync.reason=d->track.track_bpm_x100<=0?XZ_EXTRA_SYNC_NO_SOURCE_BPM:XZ_EXTRA_SYNC_NO_GRID;return;
+  }
+  if(!slave.loop_aligned){d->sync.reason=XZ_EXTRA_SYNC_LOOP_UNALIGNED;return;}
+  if(!isfinite(native.bar_phase)||native.bar_phase<0.f||native.bar_phase>=4.f||
+     native.uncertainty_us>XZ_SYNC_NATIVE_MAX_PHASE_UNCERTAINTY_US){
+   d->sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;
+  }
+  double master_bps=(double)native.bpm/60.;
+  int base_applied=sync_apply_base(p,d,selected,choice,master_bps*slave.period_frames/d->r->rate);
+  if(base_applied<=0){
+   d->sync.reason=base_applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;
+  }
+  if(native.manual||d->state!=XZ_XP_PLAYING||slave.manual){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
+  if(!slave.available){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
+  if(d->sync_have_master&&(d->epoch!=d->sync_master_clock.route||d->load_revision!=d->sync_master_clock.load||
+     d->sync_choice_seen!=choice||d->underrun!=d->sync_slave_underrun)){
+   d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
+  }
+  int64_t sub_ms_us=native.captured_us?(int64_t)(native.captured_us-(uint64_t)native.captured_ms*1000u):0;
+  if(sub_ms_us<-1000||sub_ms_us>1000)sub_ms_us=0;
+  int64_t dt_us=(int64_t)(int32_t)(slave.at_ms-native.captured_ms)*1000-sub_ms_us-(int64_t)native.output_latency_us;
+  double block_age_sec=d->timeline_wire_completed>=slave.wire_frame
+   ?(double)(d->timeline_wire_completed-slave.wire_frame)/(double)XZ_USB_RATE:0.;
+  double dt_sec=(double)dt_us/1000000.-block_age_sec;
+  if(fabs(dt_sec)>.25){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
+  double target_phase=wrapped_beat((double)native.bar_phase+dt_sec*master_bps);
+  double error=wrapped_beat(slave.phase-target_phase+.5)-.5;
+  double error_seconds=error/master_bps;
+  d->sync.phase_error_us=(int32_t)llround(error_seconds*1000000.);
+  d->sync_master_clock=(struct sync_clock){.route=d->epoch,.load=d->load_revision,.generation=d->generation};
+  d->sync_have_master=1;d->sync_master_id=native.native_deck;d->sync_slave_underrun=d->underrun;d->sync_choice_seen=choice;
+  if(d->sync_initial){
+   uint64_t wire=position->wire_submitted_frames>slave.wire_frame?position->wire_submitted_frames:slave.wire_frame;
+   double horizon_sec=(double)(wire-slave.wire_frame)/(double)XZ_USB_RATE;
+   double desired=wrapped_beat(target_phase+horizon_sec*master_bps);
+   double delta=wrapped_beat(slave.phase-desired+.5)-.5;
+   double to=(double)d->heard-delta*slave.period_frames;
+   if(d->loop.active){
+    double span=(double)(d->loop.out-d->loop.in),relative=fmod(to-d->loop.in,span);
+    if(relative<0)relative+=span;
+    to=d->loop.in+relative;
+   }else{
+    if(to<0)to+=slave.period_frames;
+    if(to>=d->r->frames)to-=slave.period_frames;
+    if(to<0||to>=d->r->frames){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
+   }
+   uint64_t target=(uint64_t)llround(to);
+   if(d->loop.active)target=loop_frame(d,target);
+   else if(target>=d->r->frames)target=d->r->frames-1;
+   pthread_mutex_lock(&p->publish_lock);
+   int current=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+   if(current){d->sync_initial=0;d->sync_lock_count=d->sync_have_master=0;jump(d,target,now);}
+   pthread_mutex_unlock(&p->publish_lock);
+   if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
+   d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;return;
+  }
+  double trim=fabs(error_seconds)<=2./XZ_USB_RATE?0:-error_seconds*d->sync_rate/.25;
+  double limit=.01*d->sync_rate;
+  if(trim>limit)trim=limit;
+  if(trim< -limit)trim=-limit;
+  pthread_mutex_lock(&p->publish_lock);
+  int current=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+  if(current)sync_set_trim(d,trim);
+  pthread_mutex_unlock(&p->publish_lock);
+  if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
+  if(slave.wire_frame!=d->sync_last_wire){
+   d->sync_lock_count=fabs(error_seconds)<=.001?(d->sync_lock_count<3?d->sync_lock_count+1:3):0;d->sync_last_wire=slave.wire_frame;
+  }
+  d->sync.locked=d->sync_lock_count>=3;
+  d->sync.reason=d->sync.locked?XZ_EXTRA_SYNC_LOCKED:XZ_EXTRA_SYNC_ACQUIRING;
+  return;
  }
  d->sync.master_deck=selected+XZ_EXTRA_FIRST_DECK;
  d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
@@ -859,7 +967,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  if(trim< -limit)trim=-limit;
  pthread_mutex_lock(&p->publish_lock);
  int current=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
- if(current){d->sync_trim=trim;d->sync.correction_ppm=(int32_t)llround(trim*1000000.);}
+ if(current)sync_set_trim(d,trim);
  pthread_mutex_unlock(&p->publish_lock);
  if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
  if(slave.wire_frame!=d->sync_last_wire){
@@ -1064,6 +1172,7 @@ static void completed_timeline(struct deck *d,const xz_usb_deck_position *q,uint
  if(q->source_after_completed<=d->r->frames){d->heard=q->source_after_completed;d->heard_at=now;d->timeline_anchor_valid=1;}
  d->timeline_output_frames=q->source_completed_output_frames;
  d->timeline_sink_frame=q->source_completed_wire_frame<=wire_completed?q->source_completed_wire_frame:0;
+ d->timeline_wire_completed=wire_completed;
 }
 static int shared_position(struct xz_xp_players *p,uint32_t route,xz_usb_position *position,uint32_t *at,int observed){
  pthread_mutex_lock(&p->publish_lock);
@@ -1156,6 +1265,22 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
     d->render_limit=remaining>XZ_USB_BLOCK_FRAMES?XZ_USB_BLOCK_FRAMES:(unsigned)remaining;
+   }else if(d->sync.requested&&d->sync_have_master&&!d->sync_initial&&!d->sync_hold&&d->timeline_anchor_valid&&
+            d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_NATIVE&&d->state==XZ_XP_PLAYING&&d->sync_native_bpm>0){
+    double own_phase,period;
+    if(!grid_phase(d,d->pos>>32,&own_phase,&period)){
+     d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;
+     d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
+    }
+    int selected=atomic_load(&p->sync_master);uint32_t choice=atomic_load(&p->sync_choice_epoch);
+    if(selected>=0||choice!=d->sync_choice_seen){
+     d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
+     d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
+    }
+    if(sync_apply_base(p,d,selected,choice,(d->sync_native_bpm/60.)*period/d->r->rate)<=0){
+     d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE;
+     d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
+    }
    }
 render_ready:
    if (!render(d, speed(d, now))) {
@@ -1195,7 +1320,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx))command(p,d,&q.event,now,q.at);
   if(q.event.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(q.event.load.order);
  }
- d->sync_capture=atomic_load(&p->sync_requests)!=0&&atomic_load(&p->sync_master)>=0;
+ d->sync_capture=atomic_load(&p->sync_requests)!=0;
  if(!streaming(d->state)&&d->sync.requested){xz_usb_position none={0};sync_update(p,d,&none,now);}
  if(link&&d->loop.in_down&&!d->loop.held&&now-d->loop.in_at>=1000u){
   struct xz_extra_deck_event held={.kind=XZ_EXTRA_IN_LOOP_IN,.pressed=1,.held=1};

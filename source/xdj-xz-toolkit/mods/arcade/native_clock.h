@@ -5,9 +5,9 @@
 #include <stdint.h>
 typedef int (*xz_arcade_memory_read)(void *,uint32_t,void *,size_t);
 struct xz_arcade_track_clock {
-    uint32_t track,position_ms;
-    float bpm,bar_phase;
-    unsigned playing;
+    uint32_t track,position_ms,position_frames;
+    float bpm,nominal_bpm,bar_phase;
+    unsigned playing,manual,phase_valid;
     float speed;   /* playback speed multiplier (pitch, sync), as used for bpm */
 };
 int xz_arcade_native_clock_valid(xz_arcade_memory_read,void *);

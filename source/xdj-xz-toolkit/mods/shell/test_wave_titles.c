@@ -46,9 +46,10 @@ static void test_ruler_and_icons(void){
    assert(pixels[(tag.y+1)*804+x]==rgb565(xz_blend(SH_BLACK,SH_WHITE,112)));
    assert(pixels[(tag.y+20)*804+x]==rgb565(SH_WHITE));
    if(sh_control_active(&m,d)){
-    int extra=d>=2,filled=30+4+extra*12,hollow=30+4+(!extra)*12;
+    int right=d&1,filled=30+7+right*12,hollow=30+7+(!right)*12;
     assert(pixels[(tag.y+5)*804+filled]==rgb565(SH_WHITE));
     assert(pixels[(tag.y+5)*804+hollow]==rgb565(SH_BLUE));
+    assert(pixels[(tag.y+1)*804+30]==rgb565(SH_WHITE)&&pixels[(tag.y+1)*804+56]==rgb565(SH_WHITE));
    }
   }
   assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_WAVE_TITLES,1));render(&u,&m);
@@ -61,4 +62,24 @@ static void test_ruler_and_icons(void){
   assert(changed>0&&u.deck==1&&m.sides_extra==sides&&m.deck_count==4);
  }
 }
-int main(void){fx_track_build(&track,7);test_setting();test_ruler_and_icons();puts("PASS title SHOW/HIDE, full upper beat alignment, selected pairs/orders and two-circle control icons");}
+static void test_title_clip(void){
+ for(int count=2;count<=4;count+=2)for(int sides=0;sides<4;sides++)for(int position=0;position<2;position++){
+  struct xz_shell u;struct xz_shell_model m,view;xz_shell_init(&u);fx_model_four_players(&m,&track);
+  u.play_decks=count;m.sides_extra=(uint8_t)sides;u.display.wave_position=(enum xz_shell_wave_position)position;
+  for(int d=0;d<4;d++)m.deck[d].title="A very long track title that must stop before the playhead [Extended Club Mix]";
+  xz_shell_play_projection(&u,&m,&view);render(&u,&m);memcpy(shown,pixels,sizeof shown);
+  for(int d=0;d<4;d++)m.deck[d].title="";
+  render(&u,&m);
+  int head=98+(position==XZ_SHELL_POSITION_LEFT?700*27/100:700/2);
+  for(int d=0;d<4;d++)if(sh_play_visible(&view,d)){
+   struct xz_shell_rect tag=xz_shell_play_rect(&view,XZ_SHELL_R_DECK_TAG,d);int changed=0;
+   for(int y=tag.y;y<tag.y+20;y++)for(int x=104;x<798;x++){
+    if(x>=head-10)assert(shown[y*804+x]==pixels[y*804+x]);
+    else changed+=shown[y*804+x]!=pixels[y*804+x];
+   }
+   assert(changed>0);
+  }
+ }
+ puts("PASS long waveform titles leave playhead and future beats clear in both positions/views");
+}
+int main(void){fx_track_build(&track,7);test_setting();test_ruler_and_icons();test_title_clip();puts("PASS title SHOW/HIDE, full upper beat alignment, selected pairs/orders and bracketed single-filled control icons");}

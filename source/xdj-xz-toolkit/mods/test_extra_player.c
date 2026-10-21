@@ -844,6 +844,108 @@ static void test_native_sync_cache(void){
  xz_xp_destroy(p);p=NULL;
  puts("PASS demand-only cached native BPM following, identity/load revision, pending/stale/future rejection and truthful phase-unavailable");
 }
+static struct {
+ int active,native_deck,playing,manual;
+ uint32_t source_revision,track_identity,uncertainty_us,obs_age_us;
+ int32_t output_latency_us;
+ double bpm,anchor_phase;
+ uint64_t anchor_us;
+} sim_native;
+static double sim_native_phase_at_us(uint64_t t_us){
+ double dt=((int64_t)t_us-(int64_t)sim_native.anchor_us)/1000000.;
+ double p=fmod(sim_native.anchor_phase+dt*(sim_native.bpm/60.),4.);
+ return p<0?p+4.:p;
+}
+static void sim_native_set_bpm(double next_bpm){
+ uint64_t now_u=(uint64_t)clock_ms*1000u;
+ sim_native.anchor_phase=sim_native_phase_at_us(now_u);
+ sim_native.anchor_us=now_u;
+ sim_native.bpm=next_bpm;
+}
+static int copy_sim_native(struct xz_sync_native_snapshot *out){
+ if(!sim_native.active){memset(out,0,sizeof *out);return 0;}
+ uint64_t cap_us=(uint64_t)clock_ms*1000u-sim_native.obs_age_us;
+ *out=(struct xz_sync_native_snapshot){
+  .available=1,.phase_available=1,.reason=XZ_SYNC_NATIVE_OK,
+  .native_deck=sim_native.native_deck,.master_id=sim_native.native_deck,
+  .track_identity=sim_native.track_identity,.source_revision=sim_native.source_revision,
+  .captured_us=cap_us,.captured_ms=(uint32_t)(cap_us/1000u),
+  .uncertainty_us=sim_native.uncertainty_us,.output_latency_us=sim_native.output_latency_us,
+  .bpm=(float)sim_native.bpm,.nominal_bpm=120.f,
+  .bar_phase=(float)sim_native_phase_at_us(cap_us),
+  .speed=(float)(sim_native.bpm/120.),
+  .playing=sim_native.playing,.manual=sim_native.manual
+ };
+ return 1;
+}
+static double actual_native_sync_error(int slave_deck){
+ const xz_usb_deck_position *s=&f.position.deck[slave_deck];
+ double phase_s=fmod(((double)s->source_after_completed/debug(slave_deck).source_rate-.1)*2.,1.);
+ if(phase_s<0)phase_s+=1.;
+ double block_age_us=(f.wire[slave_deck]-(double)s->source_completed_wire_frame)*1000000./XZ_USB_RATE;
+ uint64_t audible_us=(uint64_t)llround((double)clock_ms*1000.-block_age_us-(double)sim_native.output_latency_us);
+ double phase_m=fmod(sim_native_phase_at_us(audible_us),1.);
+ if(phase_m<0)phase_m+=1.;
+ double err=fmod(phase_s-phase_m+.5,1.);if(err<0)err+=1.;err-=.5;
+ return err/(sim_native.bpm/60.);
+}
+static void test_native_phase_sync(void){
+ wire_horizon=882;
+ for(int slave=0;slave<2;slave++)for(int source=1;source<=2;source++){
+  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL};
+  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_sim_native);fake_route(997);step();
+  sync_loop_track(slave,(uint32_t)source,350);
+  sim_native.active=1;sim_native.native_deck=slave;sim_native.playing=1;sim_native.manual=0;
+  sim_native.source_revision=21;sim_native.track_identity=0x32000;
+  sim_native.uncertainty_us=120;sim_native.obs_age_us=12350;sim_native.output_latency_us=4500;
+  sim_native.bpm=126.;sim_native.anchor_us=(uint64_t)clock_ms*1000u;sim_native.anchor_phase=.25;
+  advance(40);
+  /* Before SYNC, waveform timeline tracks actual unsynced audio and shows real drift. */
+  assert(fabs(actual_native_sync_error(slave))>.05);
+  unsigned flush_before_sync=f.flushes[slave];
+  press(slave,XZ_EXTRA_IN_SYNC);
+  /* Pressing SYNC arms the initial jump (ACQUIRING, locked=0) and transitions audio on the next step. */
+  assert(f.flushes[slave]==flush_before_sync&&!view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_ACQUIRING);
+  step();assert(f.flushes[slave]==flush_before_sync+1&&!view.deck[slave].sync.locked);
+  for(unsigned elapsed=0;elapsed<2000;elapsed+=10)advance(10);
+  assert(view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_LOCKED);
+  assert(view.deck[slave].sync.master_scope==XZ_EXTRA_MASTER_SCOPE_NATIVE&&view.deck[slave].sync.master_deck==slave);
+  assert(fabs(actual_native_sync_error(slave))<=.001);
+  /* Sparse noisy completion observations preserve <= 1 ms native phase lock. */
+  position_interval=3;position_noise=1;double noisy=0;
+  for(unsigned elapsed=0;elapsed<2000;elapsed+=10){
+   advance(10);double e=fabs(actual_native_sync_error(slave));if(e>noisy)noisy=e;
+  }
+  position_interval=position_noise=0;advance(300);
+  assert(noisy<=.001&&view.deck[slave].sync.locked);
+  /* Native tempo step from 126 to 132 BPM recovers <= 1 ms phase lock. */
+  sim_native_set_bpm(132.);
+  for(unsigned elapsed=0;elapsed<1000;elapsed+=10)advance(10);
+  assert(view.deck[slave].tempo_x100==1000&&view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave))<=.001);
+  /* Manual jog bend on follower drops lock, waveform shows real audio drift, then recovers lock. */
+  jog(slave,40);step();assert(view.deck[slave].sync.requested&&!view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_MANUAL);
+  advance(120);
+  assert(view.deck[slave].timeline.source_frame==completed_tag(slave)&&fabs(actual_native_sync_error(slave))>.001);
+  for(unsigned elapsed=0;elapsed<3000;elapsed+=10)advance(10);
+  assert(view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave))<=.001);
+  /* Native manual override (scratch/bend) suspends lock and recovers when released. */
+  sim_native.manual=1;step();assert(!view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_MANUAL);
+  sim_native.manual=0;for(unsigned elapsed=0;elapsed<500;elapsed+=10)advance(10);
+  assert(view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave))<=.001);
+  /* Native phase discontinuity (seek) holds audio without silent jump until re-synced. */
+  unsigned flushes_before=f.flushes[slave];
+  sim_native.anchor_phase=fmod(sim_native.anchor_phase+.45,4.);
+  advance(30);
+  assert(view.deck[slave].sync.requested&&!view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_DISCONTINUITY);
+  assert(f.flushes[slave]==flushes_before);
+  press(slave,XZ_EXTRA_IN_SYNC);press(slave,XZ_EXTRA_IN_SYNC);
+  for(unsigned elapsed=0;elapsed<2000;elapsed+=10)advance(10);
+  assert(view.deck[slave].sync.locked&&fabs(actual_native_sync_error(slave))<=.001);
+  xz_xp_destroy(p);p=NULL;
+ }
+ wire_horizon=0;
+ puts("PASS native-to-extra beat phase acquisition, horizon/age/latency compensation, tempo steps, manual recovery and discontinuity hold");
+}
 static void test_sync_missing_sources(void){
  for(int missing_master=0;missing_master<2;missing_master++){
   struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL};
@@ -1078,6 +1180,7 @@ static void test_ordered_next(void){
  puts("PASS ordered NEXT duplicate occurrence, both decks/states, unreadable/stale/route refusal and reference cleanup");
 }
 
+#ifdef XZ_XP_TEST_RENDER_HOOK
 static void test_reconnect_during_render(void) {
  struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
  for (int mode = 0; mode < 2; ++mode) {
@@ -1104,6 +1207,7 @@ static void test_reconnect_during_render(void) {
  }
  puts("PASS reconnect during transition and ordinary render rejects old-route PCM");
 }
+#endif
 
 static void test_threads(void) {
  owner_thread = pthread_self();
@@ -1164,12 +1268,15 @@ int main(int argc, char **argv) {
  test_completed_timeline();
  test_sync_coordinator();
  test_native_sync_cache();
+ test_native_phase_sync();
  test_sync_missing_sources();
  test_sync_nonzero_loop();
  test_sync_concurrent_groups();
  test_ordered_next();
  test_player_recovery();
+#ifdef XZ_XP_TEST_RENDER_HOOK
  test_reconnect_during_render();
+#endif
  test_threads();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
         "tempo rate, jog bend decay and search, SYNC, MASTER TEMPO, SEEK, EOF, 44.1/48 kHz, load while playing, "

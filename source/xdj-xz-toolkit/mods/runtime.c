@@ -12,6 +12,8 @@
 #include "kart/xz_kart_runtime.h"
 #include "sdk/xz_sdk_host.h"
 #include "deck_select.h"
+#include "sync_link_runtime.h"
+#include "jog_display_runtime.h"
 extern int xz_mods_takeover_v1(void);
 extern void xz_shell_runtime_notice(const char *text) __attribute__((weak));
 extern int xz_shell_runtime_owns(void) __attribute__((weak));
@@ -51,7 +53,7 @@ struct code_hook {
 /* Qualified audio, UI, and RAM-track entrypoints share this bounded table.
  * The complete guarded set currently contains 51 entrypoints; keep room for
  * every enabled adapter so later UI hooks cannot lose their repaint owner. */
-static struct code_hook code_hooks[64];
+static struct code_hook code_hooks[96];
 static unsigned code_hook_count;
 struct pad_trace_record { uint32_t key,operation_byte,channel,mode,decoded,deck,pad,operation,hotcue,ui_flags; };
 struct pad_trace { uint32_t version,sequence,count,enabled;struct pad_trace_record records[64]; };
@@ -218,6 +220,17 @@ int xz_hook_arm(uint32_t address, const unsigned char expected[8],
     if(address==0xe8194)guard=pc_wave_clear_guard;
     if(address==0xe8604)guard=pc_wave_discard_guard;
     if(address==0x27a3f4)guard=pc_midi_feedback_guard;
+    static const struct {uint32_t address;unsigned char guard[8];} four_deck_runtime_guards[]={
+        {0x59f70,{0xf8,0x40,0x2d,0xe9,0x14,0x50,0x80,0xe2}},
+        {0x532c0,{0x00,0x30,0x91,0xe5,0x01,0x10,0x43,0xe2}},
+        {0x53140,{0x00,0xc0,0x91,0xe5,0x04,0x40,0x2d,0xe5}},
+        {0x531d8,{0x00,0xc0,0x91,0xe5,0x10,0x40,0x2d,0xe9}},
+        {0x53090,{0x00,0x00,0x53,0xe3,0x30,0x00,0x2d,0xe9}},
+        {0x597c8,{0x00,0x20,0x91,0xe5,0x08,0x40,0x2d,0xe9}},
+        {0x2591e0,{0xf0,0x4f,0x2d,0xe9,0x00,0x40,0xa0,0xe1}}
+    };
+    for(unsigned i=0;i<sizeof(four_deck_runtime_guards)/sizeof(four_deck_runtime_guards[0]);i++)
+        if(address==four_deck_runtime_guards[i].address)guard=four_deck_runtime_guards[i].guard;
     if(!guard)guard=xz_ram_hook_guard(address);
     if (!application_verified || !guard || !expected || !replacement || !original ||
         code_hook_count >= sizeof(code_hooks)/sizeof(code_hooks[0]) || memcmp(expected, guard, 8) != 0) return -1;
@@ -508,6 +521,8 @@ __attribute__((constructor)) static void start(void) {
     xz_log(observer ? "OBSERVER installed; stock dispatch retained" : "EXPERIMENTAL gate/smart cue adapter installed");
     if (observer) return;
     if (xz_extra_decks_start()) xz_log("DECK 3/4 players unavailable");
+    if (xz_sync_link_runtime_start()) xz_log("DECK 3/4 Link master bridge unavailable");
+    if (xz_jog_display_runtime_start()) xz_log("DECK 3/4 Jog LCD bridge unavailable");
     if(xz_doom_bridge_start()) xz_log("Doom: native input bridge unavailable");
     xz_kart_runtime_display_probe(kart_display_ready);
     if(xz_kart_runtime_start()) xz_log("Kart: explicit physical-input bridge unavailable");
@@ -523,6 +538,8 @@ __attribute__((constructor)) static void start(void) {
 }
 
 __attribute__((destructor)) static void stop(void) {
+    xz_jog_display_runtime_stop();
+    xz_sync_link_runtime_stop();
     xz_extra_decks_stop();
     xz_audio_trace_stop();
     xz_ui_runtime_stop();
