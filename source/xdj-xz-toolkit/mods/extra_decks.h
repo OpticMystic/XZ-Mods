@@ -103,7 +103,7 @@ struct xz_extra_deck_event {
      the player applies its own tempo range. Already past pickup when it arrives. */
   int32_t tempo_position;
   int hot_cue;                      /* 0..7, pads A..H */
-  struct { int source; uint32_t track_id; } load;  /* source 1 USB1, 2 USB2; id in that USB's library */
+  struct { int source; uint32_t track_id; uint64_t media_generation; uint32_t route_epoch; } load;  /* source 1 USB1, 2 USB2; id in that USB's library */
   int32_t seek_ms;
  };
 };
@@ -121,6 +121,9 @@ struct xz_extra_track {
 /* Track id to file, implemented once (shell_runtime.c) for every producer of LOAD, FLAGSHIP and classic
    alike. Called only on the players' worker. 0 on success. Weak: without it every LOAD is refused. */
 int xz_extra_resolve_track(int source, uint32_t track_id, struct xz_extra_track *out);
+uint64_t xz_extra_source_generation(int source);
+int xz_extra_resolve_track_checked(int source, uint32_t track_id, uint64_t media_generation, struct xz_extra_track *out);
+uint32_t xz_extra_decks_epoch(void);
 /* The master deck's playing BPM x100 for SYNC, from the native decks; 0 when no native deck is master
    or it is unknown. Implemented by shell_runtime.c; weak: SYNC on DECK 3/4 is refused without it. */
 int32_t xz_extra_native_master_bpm(void);

@@ -34,6 +34,9 @@ int xz_native_play_visible(void){return native_play;}
 int xz_native_inline_active(void){return native_active;}
 static int native_four=-1;
 int xz_native_four_order(void){return native_four;}
+static int fixture_mixer_order;
+int xz_native_four_mixer_order(void){return fixture_mixer_order;}
+void xz_native_four_set_mixer_order(int mixer){fixture_mixer_order=!!mixer;}
 int xz_native_inline_start(int(*on)(void),xz_native_wave_render draw,void *context){(void)on;(void)draw;(void)context;return 0;}
 int xz_hook_arm(uint32_t a,const unsigned char g[8],void *r,void **o){(void)a;(void)g;(void)r;(void)o;return 0;}
 int xz_native_led_start(void){return 0;}
@@ -159,6 +162,10 @@ static void generation_pad_consistency(void){
 int main(void){
     unsigned char self[32]={0};started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;model.stems_overlay=1;
     xz_ui_init(&ui);xz_ui_init(&inline_ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);stock_touch=stock;
+    struct xz_ui_action order_action={.kind=XZ_UI_FOUR_WAVE_ORDER,.value=1};
+    apply(NULL,&order_action,1);assert(fixture_mixer_order==1&&model.four_wave_mixer==1);
+    order_action.value=2;apply(NULL,&order_action,1);assert(fixture_mixer_order==1);
+    order_action.value=0;apply(NULL,&order_action,1);assert(fixture_mixer_order==0&&model.four_wave_mixer==0);
     struct xz_ui_action color_action={.kind=XZ_UI_STEM_COLOR,.index=0,.value=4};apply(NULL,&color_action,1);
     assert(model.stem_colors[0]==4&&xz_ui_model_stem_color(&model,0)==0xff9f0a);
 #ifdef XZ_STEM_COLOR_CAPTURE_TEST

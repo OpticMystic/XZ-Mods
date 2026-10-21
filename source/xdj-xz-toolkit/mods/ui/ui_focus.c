@@ -165,6 +165,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
   if(k==XZ_UI_PREVIEW)return "Hold a hot cue pad to hear it while the deck is paused.";
   if(k==XZ_UI_SAMPLE)return "Turns on the experimental X-PAD sample engine.";
   return "Turns this feature on or off.";
+ case XZ_UI_FOUR_WAVE_ORDER:return "Four-deck waveforms: numeric 1 2 3 4 or physical mixer 3 1 2 4. Shared across interfaces until reboot.";
  case XZ_UI_STEMS_OVERLAY:return "Push to cycle where the stem mute row sits on the play screen.";
  case XZ_UI_STEM_ORDER:return "Push to cycle the left-to-right stem order of the play screen rows and pads A, B and C.";
  case XZ_UI_STEM_PAGE:return "Pad mode that holds the stem shortcuts. Shortcuts replace that mode's pads.";
@@ -283,6 +284,7 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
   static char order[32];
   snprintf(order,sizeof(order),"%s%s",xz_stem_order_name(m->stem_order),xz_ui_stem_count(m,0)==4||xz_ui_stem_count(m,1)==4?" +BASS":"");
   out->state=order;break;}
+ case XZ_UI_FOUR_WAVE_ORDER:out->state=m->four_wave_mixer?"3 1 2 4 / MIXER":"1 2 3 4 / NUMERIC";break;
  case XZ_UI_ENABLE:case XZ_UI_STEMS_OVERLAY:case XZ_UI_PAD_FEEDBACK:case XZ_UI_SHIFT_PAGES:case XZ_UI_SHIFT_KEYSYNC:
  case XZ_UI_KEY_FEEDBACK:case XZ_UI_RAM_DEBUG:case XZ_UI_REKORDBOX_KEY:case XZ_UI_JUMP_ENABLE:case XZ_UI_JUMP_SHIFT:
  case XZ_UI_TAKEOVER_TOGGLE:case XZ_UI_CONNECTION_ENABLE:case XZ_UI_DISCOVERY:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_METRICS_TOGGLE:

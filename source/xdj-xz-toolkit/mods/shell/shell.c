@@ -344,6 +344,9 @@ size_t sh_back(struct xz_shell *u, const struct xz_shell_model *m, struct xz_she
 }
 size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  if(!u||!m||!e||!out)return 0;
+ /* A pending browse LOAD consumes its own physical/encoder/touch choice before
+  * global navigation. State is per shell so press-time copy probes are inert. */
+ if(sh_browse_load_pending(u))return sh_browse_load_input(u,m,e,out);
  /* The header buttons sit over every screen and popup; the rest of their touch stays with them. */
  if(e->kind==XZ_SHELL_TOUCH_DOWN){
   enum xz_shell_action_kind hit=sh_header_hit(e->x,e->y);

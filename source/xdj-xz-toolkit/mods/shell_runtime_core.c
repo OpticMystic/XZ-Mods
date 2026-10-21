@@ -105,6 +105,11 @@ void xz_shrt_contact_press(struct xz_shrt_contacts *c, uint16_t code, unsigned c
  c->c[slot].code=code;c->c[slot].channel=(uint8_t)channel;c->c[slot].used=1;
  c->c[slot].swallow=(uint8_t)!!swallow;c->c[slot].held=0;
 }
+int xz_shrt_load_duplicate(const struct xz_shrt_contacts *c,const struct xz_shrt_key_map *map,enum xz_shrt_phase phase) {
+ if(!c||!map||map->key!=XZ_SHELL_KEY_LOAD||phase!=XZ_SHRT_PRESS)return -1;
+ for(unsigned i=0;i<XZ_SHRT_CONTACTS;i++)if(c->c[i].used&&c->c[i].code==map->code&&c->c[i].channel==map->channel)return c->c[i].swallow;
+ return -1;
+}
 int xz_shrt_contact_follow(struct xz_shrt_contacts *c, uint16_t code, unsigned channel, enum xz_shrt_phase p, int *held) {
  if(held)*held=0;
  for(int i=0;i<XZ_SHRT_CONTACTS;i++){
@@ -190,6 +195,7 @@ void xz_shrt_caution_ack(struct xz_shrt_caution *c) { if(c->shown)c->ack=c->show
 int xz_shrt_handoff_yields(const struct xz_shrt_handoff *h) { return h->handed||h->caution; }
 
 int xz_shrt_queue_push(struct xz_shrt_queue *q, const struct xz_shrt_command *c) {
+ if(c->kind==XZ_SHRT_CMD_LOAD&&(!c->media_generation||(c->device_kind!=2&&c->device_kind!=3))){q->dropped++;return 0;}
  for(unsigned i=0;i<q->count;i++){
   struct xz_shrt_command *e=&q->c[(q->head+i)%XZ_SHRT_QUEUE];
   if(e->kind==c->kind&&e->deck==c->deck&&c->kind!=XZ_SHRT_CMD_LOAD){*e=*c;q->coalesced++;return 1;}
@@ -202,6 +208,19 @@ int xz_shrt_queue_pop(struct xz_shrt_queue *q, struct xz_shrt_command *out) {
  if(!q->count)return 0;
  *out=q->c[q->head];q->head=(q->head+1)%XZ_SHRT_QUEUE;q->count--;
  return 1;
+}
+int xz_shrt_load_generation_current(const struct xz_shrt_command *c,uint32_t observed) {
+ return c&&c->kind==XZ_SHRT_CMD_LOAD&&(c->device_kind==2||c->device_kind==3)&&
+        c->media_generation&&observed&&c->media_generation==observed;
+}
+unsigned xz_shrt_queue_drop_source(struct xz_shrt_queue *q,uint8_t device_kind) {
+ unsigned kept=0,before=q->count;
+ for(unsigned i=0;i<before;i++){
+  struct xz_shrt_command c=q->c[(q->head+i)%XZ_SHRT_QUEUE];
+  if(c.kind==XZ_SHRT_CMD_LOAD&&c.device_kind==device_kind)continue;
+  q->c[(q->head+kept++)%XZ_SHRT_QUEUE]=c;
+ }
+ q->count=kept;q->dropped+=before-kept;return before-kept;
 }
 
 const char *const xz_shrt_quantize_choices[4]={"1/8","1/4","1/2","1"};

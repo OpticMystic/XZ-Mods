@@ -277,6 +277,7 @@ struct xz_shell_model {
  /* With XZ_SHELL_CAP_DECK_SELECT: which deck each side's deck controls drive. Bit 0: the left side drives
     DECK 3 instead of DECK 1; bit 1: the right side DECK 4 instead of DECK 2. */
  uint8_t sides_extra;
+ int wave_order; /* 0: numeric 1/2/3/4, 1: mixer 3/1/2/4; logical deck IDs never move */
  const struct xz_shell_menu *menu;        /* the mod page a MENU tab shows (shell_settings.h); NULL: none read yet */
 };
 
@@ -345,7 +346,8 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_STEM_BYPASS, /* deck, value = 1 bypass (the original track plays), 0 the stems play. Needs
                               XZ_SHELL_CAP_STEM_BYPASS */
  XZ_SHELL_ACT_MOD_MENU     /* a MODS menu page (shell_settings.h XZ_SHELL_TAB_MENU): id = enum xz_shell_menu_op,
-                              value = the root page (OPEN) or a row of model.menu, deck = the choice or the touch */
+                              value = the root page (OPEN) or a row of model.menu, deck = the choice or the touch */,
+ XZ_SHELL_ACT_WAVE_ORDER /* value 0 numeric or 1 mixer, session display preference */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */
@@ -417,6 +419,14 @@ struct xz_shell_filter {
  uint32_t colors;                    /* bit i = colour tag i (shell_browse.h XZ_SHELL_TAG_COLOR_*); 0 = any */
  uint32_t my_tags;                   /* bit i = browse model my_tags[i]; 0 = any */
 };
+/* Pending browse choice is value-owned so key probes can safely copy the shell. */
+struct xz_shell_load_choice {
+ int mode, first, cursor, deck_count, row, has_cues;
+ enum xz_shell_screen screen;
+ uint64_t media_generation;
+ uint32_t track, list;
+ char source[64], title[96];
+};
 struct xz_shell {
  struct xz_shell_view stack[XZ_SHELL_STACK];
  int depth;
@@ -429,6 +439,7 @@ struct xz_shell {
  int down_deck;
  struct xz_shell_display display;
  struct xz_shell_panel panel;
+ struct xz_shell_load_choice load_choice;
  struct xz_shell_grab grab;
  struct xz_shell_playlist_edit edit;
  struct xz_shell_filter filter;

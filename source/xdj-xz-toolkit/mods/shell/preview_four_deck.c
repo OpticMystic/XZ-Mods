@@ -48,6 +48,7 @@ int main(int argc, char **argv) {
  xz_shell_init(&u);
  fx_model_four(&m,&track);
  shot(&u,&m,"play-4deck-full");
+ m.wave_order=1;shot(&u,&m,"play-4deck-mixer-waves");m.wave_order=0;
  u.deck=2;shot(&u,&m,"play-4deck-active-3");u.deck=0;
 
  fx_deck_unloaded(&m.deck[2],XZ_SHELL_SRC_USB2);fx_deck_unloaded(&m.deck[3],XZ_SHELL_SRC_NONE);
@@ -110,6 +111,12 @@ int main(int argc, char **argv) {
  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_DOWN,row.x+row.w/2,row.y+row.h/2,0,0,-1},out);
  xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_TOUCH_UP,row.x+row.w/2,row.y+row.h/2,0,0,-1},out);
  shot(&u,&m,"browse-4deck-load-cells");
+ xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_LOAD,0},out);
+ shot(&u,&m,"browse-4deck-load-pair-1-3");key(&u,&m,XZ_SHELL_KEY_BACK);
+ xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_LOAD,1},out);
+ shot(&u,&m,"browse-4deck-load-pair-2-4");key(&u,&m,XZ_SHELL_KEY_BACK);
+ xz_shell_input(&u,&m,&(struct xz_shell_event){XZ_SHELL_ENCODER_PUSH,0,0,0,0,-1},out);
+ shot(&u,&m,"browse-4deck-load-all");key(&u,&m,XZ_SHELL_KEY_BACK);
  m.settings_screen=fxs_reset();
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"utility-4deck");
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT);shot(&u,&m,"shortcut-4deck");

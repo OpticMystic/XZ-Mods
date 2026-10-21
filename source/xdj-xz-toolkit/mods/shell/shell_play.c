@@ -107,7 +107,10 @@ static struct xz_shell_rect fx_rect(const struct xz_shell *u) {
  return r;
 }
 
-static int lane_y(const struct play_layout *L, int deck) { return L->lane_y+deck*(L->lane_h+L->lane_gap); }
+static int lane_y(const struct play_layout *L, const struct xz_shell_model *m, int deck) {
+ int row=m&&L==&four_deck&&m->wave_order==1?sh_strip_column(4,deck):deck;
+ return L->lane_y+row*(L->lane_h+L->lane_gap);
+}
 /* The stem rows (shell.h enum xz_shell_stem_layout): -1 while the layout is not read, which keeps the
    small mute buttons in the pad row. */
 enum { STEM_ROW_FULL=48, STEM_ROW_HALF=24, STEM_ROW_GAP=6, STEM_SLIDE=8 };
@@ -124,20 +127,20 @@ struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *m, int deck)
  int layout=stem_layout(m);
  if(L->stem_rows_half){
   if(layout==XZ_SHELL_STEMS_HIDDEN||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
-  return (struct xz_shell_rect){WAVE_X,lane_y(L,deck)+L->lane_h-STEM_ROW_HALF,WAVE_W,STEM_ROW_HALF};
+  return (struct xz_shell_rect){WAVE_X,lane_y(L,m,deck)+L->lane_h-STEM_ROW_HALF,WAVE_W,STEM_ROW_HALF};
  }
  if(layout<=XZ_SHELL_STEMS_HIDDEN||layout==XZ_SHELL_STEMS_PADS)return (struct xz_shell_rect){0,0,0,0};
  int h=stem_row_full(layout)?STEM_ROW_FULL:STEM_ROW_HALF;
  int top=deck==0&&(layout==XZ_SHELL_STEMS_OUTSIDE_FULL||layout==XZ_SHELL_STEMS_OUTSIDE_HALF);
- return (struct xz_shell_rect){WAVE_X,top?lane_y(L,deck):lane_y(L,deck)+L->lane_h-h,WAVE_W,h};
+ return (struct xz_shell_rect){WAVE_X,top?lane_y(L,m,deck):lane_y(L,m,deck)+L->lane_h-h,WAVE_W,h};
 }
 /* The waveform's part of a deck's band: all of it, less the stem row. */
 static struct xz_shell_rect wave_band(const struct play_layout *L, const struct xz_shell_model *m, int deck) {
- struct xz_shell_rect row=xz_shell_stem_row(m,deck),w={WAVE_X,lane_y(L,deck),WAVE_W,L->lane_h};
+ struct xz_shell_rect row=xz_shell_stem_row(m,deck),w={WAVE_X,lane_y(L,m,deck),WAVE_W,L->lane_h};
  if(row.h){w.h-=row.h;if(row.y==w.y)w.y+=row.h;}
  return w;
 }
-static int strip_x(const struct play_layout *L, int deck) { return L->strip.x0+deck*L->strip.pitch; }
+static int strip_x(const struct play_layout *L, int deck) { return L->strip.x0+sh_strip_column(L==&four_deck?4:2,deck)*L->strip.pitch; }
 /* A touch target padded upwards to HIT_H. */
 static struct xz_shell_rect hit_up(struct xz_shell_rect r) {
  if(r.h<HIT_H){r.y-=HIT_H-r.h;r.h=HIT_H;}
@@ -146,7 +149,7 @@ static struct xz_shell_rect hit_up(struct xz_shell_rect r) {
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_shell_play_region r, int deck) {
  const struct play_layout *L=layout_of(m);
  const struct strip_layout *S=&L->strip;
- int ly=lane_y(L,deck),sx=strip_x(L,deck),last=m?sh_deck_count(m)-1:1;
+ int ly=lane_y(L,m,deck),sx=strip_x(L,deck),last=m?sh_deck_count(m)-1:1;
  switch(r){
  case XZ_SHELL_R_TOP_BAR:return (struct xz_shell_rect){0,0,XZ_SHELL_WIDTH,TOP_H};
  case XZ_SHELL_R_INFO_COLUMN:return (struct xz_shell_rect){0,ly,COL_W,L->lane_h};
@@ -155,7 +158,7 @@ struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_
  case XZ_SHELL_R_STRIP:return (struct xz_shell_rect){sx,S->y,S->w,S->h};
  case XZ_SHELL_R_TIME:return (struct xz_shell_rect){sx+S->time_hit.x,S->y+S->time_hit.y,S->time_hit.w,S->time_hit.h};
  case XZ_SHELL_R_OVERVIEW:return (struct xz_shell_rect){sx+S->pad,S->y+S->overview_dy,S->w-2*S->pad,S->overview_h};
- case XZ_SHELL_R_ZOOM:return (struct xz_shell_rect){XZ_SHELL_WIDTH-84,lane_y(L,last)+L->lane_h-17,82,15};
+ case XZ_SHELL_R_ZOOM:return (struct xz_shell_rect){XZ_SHELL_WIDTH-84,lane_y(L,m,last)+L->lane_h-17,82,15};
  case XZ_SHELL_R_INFO_BUTTON:return (struct xz_shell_rect){INFO_X,0,INFO_W,TOP_H};
  case XZ_SHELL_R_FX:{int x=fx_left();return (struct xz_shell_rect){x,FX_Y,fx_right()-x,FX_H};}
  case XZ_SHELL_R_PAD_ROW:return L->pad_row_h?(struct xz_shell_rect){sx,L->pad_row_y,S->w,L->pad_row_h}:(struct xz_shell_rect){0,0,0,0};
@@ -365,7 +368,7 @@ static void render_key(const struct play_layout *L, const struct xz_shell *u, co
 }
 static void render_column(const struct play_layout *L, const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
- int ly=lane_y(L,deck),active=u->deck==deck;
+ int ly=lane_y(L,m,deck),active=u->deck==deck;
  char text[32];
  xz_rect(c,0,ly,COL_W,L->lane_h,SH_CHROME);
  /* The deck tile takes the colour of the stick its track came from (USB COLORS); inactive, a stripe. */
@@ -440,9 +443,9 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
  struct xz_shell_rect band=wave_band(L,m,deck);
  int ly=band.y,lh=band.h,tick_h=L->tick_h;
  char text[32];
- xz_rect(c,COL_W,lane_y(L,deck),c.width-COL_W,L->lane_h,SH_BLACK);
+ xz_rect(c,COL_W,lane_y(L,m,deck),c.width-COL_W,L->lane_h,SH_BLACK);
  /* The deck the Beat FX is applied to carries the FX red on its lane edge. */
- if(fx_on_deck(m,deck))xz_rect(c,COL_W,lane_y(L,deck),2,L->lane_h,SH_RED);
+ if(fx_on_deck(m,deck))xz_rect(c,COL_W,lane_y(L,m,deck),2,L->lane_h,SH_RED);
  int loaded=sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded;
  int32_t elapsed=loaded?xz_shell_elapsed_now(m,deck):-1;
  struct lane_view v={0,zoom_pps[u->zoom<0?0:u->zoom>XZ_SHELL_ZOOM_MAX?XZ_SHELL_ZOOM_MAX:u->zoom],playhead_x(u)};
@@ -552,7 +555,7 @@ static int alert_on(const struct xz_shell_deck *d) {
 static void render_alert(const struct play_layout *L, const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_deck *d, int deck) {
  static const char *const title[]={"","EMERGENCY LOOP","CANNOT READ THE TRACK","UNSUPPORTED FILE"};
  static const char *const line[]={"","THE DECK LOOPS UNTIL YOU LOAD A TRACK","THE MEDIUM DID NOT ANSWER","THIS FILE CANNOT PLAY HERE"};
- int ly=lane_y(L,deck),y=ly+(L->lane_h-L->alert_h)/2;
+ int ly=lane_y(L,m,deck),y=ly+(L->lane_h-L->alert_h)/2;
  struct xz_shell_rect b=xz_shell_play_rect(m,XZ_SHELL_R_ALERT_BUTTON,deck);
  xz_rect(c,WAVE_X,y,WAVE_W,L->alert_h,0x5a0c0c);
  xz_rect(c,WAVE_X,y,4,L->alert_h,SH_RED);
@@ -573,7 +576,7 @@ static int grid_edit_shown(const struct xz_shell *u, const struct xz_shell_model
 /* A GRID button's touch target, below a stem row at the top of the band. */
 static struct xz_shell_rect grid_button(const struct play_layout *L, const struct xz_shell_model *m, int deck, int i) {
  struct xz_shell_rect r=xz_shell_play_rect(m,(enum xz_shell_play_region)(XZ_SHELL_R_GRID_RESET+i),deck),row=xz_shell_stem_row(m,deck);
- if(row.h&&row.y==lane_y(L,deck))r.y+=row.h;
+ if(row.h&&row.y==lane_y(L,m,deck))r.y+=row.h;
  return r;
 }
 static void render_grid_buttons(const struct play_layout *L, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
@@ -692,7 +695,10 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  xz_rect(c,sx,by0,S->badge_w,S->badge_h,tile);
  if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,sx,by0,3,S->badge_h,accent);
  snprintf(text,sizeof text,"DECK %d",deck+1);
- sh_text(c,sx+5,by0+3,text,SH_SMALL,sh_ink_on(tile));
+ int control=sh_deck_count(m)==4&&(m->capabilities&XZ_SHELL_CAP_DECK_SELECT)&&
+  deck==(deck&1)+2*((m->sides_extra>>(deck&1))&1);
+ sh_text(c,sx+5,by0+(control?0:3),text,SH_SMALL,sh_ink_on(tile));
+ if(control)sh_text_center(c,sx+S->badge_w/2,by0+9,(deck&1)?"RIGHT":"LEFT",SH_SMALL,sh_ink_on(tile));
  int tx=sx+S->badge_w+8;
  if(loaded_known&&!loaded)sh_text(c,tx,ty,"Not Loaded.",SH_TEXT,SH_RED);
  else if(loaded){
@@ -838,7 +844,7 @@ static struct xz_shell_rect button_target(const struct xz_shell_model *m, int de
  const struct play_layout *L=layout_of(m);
  if(pad_row(m))return (struct xz_shell_rect){b.x,L->pad_row_y+L->pad_row_h/2-22,b.w,44};
  struct xz_shell_rect row=xz_shell_stem_row(m,deck);
- int top=row.y==lane_y(L,deck);b.y=top?row.y:row.y+row.h-44;b.h=44;
+ int top=row.y==lane_y(L,m,deck);b.y=top?row.y:row.y+row.h-44;b.h=44;
  return b;
 }
 static struct xz_shell_rect drawn_button(const struct xz_shell *u, const struct xz_shell_model *m, int deck, int slot) {
@@ -943,9 +949,9 @@ static void render_pad_row(const struct xz_shell *u, const struct xz_shell_model
 
 static void play_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  const struct play_layout *L=layout_of(m);
- int decks=sh_deck_count(m),last=lane_y(L,decks-1)+L->lane_h,below=L->pad_row_h?L->pad_row_y:L->strip.y;
+ int decks=sh_deck_count(m),last=lane_y(L,m,decks-1)+L->lane_h,below=L->pad_row_h?L->pad_row_y:L->strip.y;
  /* Regions tile the frame; only the seams between them are cleared here. */
- for(int deck=0;deck+1<decks;deck++)xz_rect(c,0,lane_y(L,deck)+L->lane_h,c.width,L->lane_gap,SH_BLACK);
+ for(int deck=0;deck+1<decks;deck++)xz_rect(c,0,lane_y(L,NULL,deck)+L->lane_h,c.width,L->lane_gap,SH_BLACK);
  xz_rect(c,0,last,c.width,below-last,SH_BLACK);
  xz_rect(c,0,below,2,c.height-below,SH_BLACK);
  for(int deck=1;deck<decks;deck++)xz_rect(c,deck*L->strip.pitch-2,below,4,c.height-below,SH_BLACK);

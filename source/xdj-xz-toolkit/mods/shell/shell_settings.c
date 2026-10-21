@@ -1264,6 +1264,9 @@ static void render_quadrant(const struct xz_shell_model *m, struct xz_canvas c, 
  if(q==Q_DEVICE_INFO){render_deck_status(m,c,r);shown=1;}
  if(!shown)sh_text_center(c,r.x+r.w/2,r.y+r.h/2-6,"NOT READ ON THIS DECK YET",SH_SMALL,SH_DIM);
 }
+static struct xz_shell_rect wave_order_button(const struct xz_shell_model *m) {
+ return sh_deck_count(m)==4?(struct xz_shell_rect){442,0,220,40}:(struct xz_shell_rect){0,0,0,0};
+}
 static void shortcut_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  struct slayout l=slayout_of(u,m);
  int focus=focus_of(&l,u->stack[u->depth-1].cursor);
@@ -1276,8 +1279,15 @@ static void shortcut_render(const struct xz_shell *u, const struct xz_shell_mode
    char first[160];size_t k=0;
    while(help[k]&&k<sizeof first-1&&!(help[k]=='.'&&(help[k+1]==' '||!help[k+1]))){first[k]=help[k];k++;}
    first[k]=0;
-   text_fit(c,190,16,TITLE_RIGHT-190,first,SH_SMALL,0xc8c8c8);
+   text_fit(c,190,16,(sh_deck_count(m)==4?430:TITLE_RIGHT)-190,first,SH_SMALL,0xc8c8c8);
   }
+ }
+ struct xz_shell_rect order=wave_order_button(m);
+ if(order.w){
+  xz_rect(c,order.x,order.y+2,order.w,order.h-4,XZ_FLAGSHIP_TILE);
+  xz_border(c,order.x,order.y+2,order.w,order.h-4,SH_BLUE);
+  sh_text_center(c,order.x+order.w/2,6,"WAVE ORDER",SH_SMALL,SH_DIM);
+  sh_text_center(c,order.x+order.w/2,21,m->wave_order==1?"3  1  2  4":"1  2  3  4",SH_TEXT,SH_WHITE);
  }
  for(int q=0;q<QUADS;q++)render_quadrant(m,c,&l,q,focus);
  render_status(u,m,c);
@@ -1321,6 +1331,9 @@ static size_t shortcut_touch(struct xz_shell *u, const struct xz_shell_model *m,
  return 0;
 }
 static size_t shortcut_input(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ struct xz_shell_rect order=wave_order_button(m);if(order.w)order.h=44;
+ if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(order,e->x,e->y))
+  return emit_one(out,(struct xz_shell_action){XZ_SHELL_ACT_WAVE_ORDER,-1,m->wave_order!=1,0});
  struct xz_shell_view *v=&u->stack[u->depth-1];
  struct slayout l=slayout_of(u,m);
  int focus=focus_of(&l,v->cursor);

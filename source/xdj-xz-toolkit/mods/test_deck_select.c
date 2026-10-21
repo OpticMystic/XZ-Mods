@@ -360,6 +360,7 @@ static void test_load_routes(void) {
   struct xz_ds_outcome o = xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 0, now);
   assert(o.verdict == XZ_DS_LOAD && o.event.deck == RIGHT);
   xz_deck_select_load_route(&d, RIGHT, routes[r]);
+  assert(xz_deck_select_global_key(&d,2,XZ_DS_KEY_LOAD,0,now).verdict==XZ_DS_SWALLOW);
   enum xz_ds_verdict follow = routes[r] == XZ_DS_LOAD_STOCK ? XZ_DS_PASS : XZ_DS_SWALLOW;
   assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 1, now).verdict == follow);
   /* The other side's LOAD is its own contact. */
@@ -368,6 +369,8 @@ static void test_load_routes(void) {
   assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 2, now).verdict == follow);
   /* After the release the contact is over: a stray release passes. */
   assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 2, now).verdict == XZ_DS_PASS);
+  assert(xz_deck_select_global_key(&d,2,XZ_DS_KEY_LOAD,0,now).verdict==XZ_DS_LOAD);
+  xz_deck_select_global_key(&d,2,XZ_DS_KEY_LOAD,2,now);
  }
  /* A route given with no LOAD down changes nothing. */
  reset(1);
@@ -406,6 +409,45 @@ static void test_load_routes(void) {
  puts("PASS LOAD routes on a switched side and SHORTCUT DECK SELECT");
 }
 
+static void test_physical_jog_matrix(void) {
+ static const int32_t deltas[]={-31,0,31,INT32_MIN,INT32_MAX};
+ for(unsigned mask=0;mask<4;mask++)for(int side=0;side<2;side++){
+  reset(1);
+  for(int selected=0;selected<2;selected++)if(mask&(1u<<selected))xz_deck_select_toggle(&d,selected,NULL);
+  unsigned char self[0x88]={0},input[24]={0};self[0x26]=(unsigned char)(side+1);
+  uint16_t code=0x4305;memcpy(input+8,&code,2);input[11]=0x34;
+  for(unsigned n=0;n<sizeof(deltas)/sizeof(*deltas);n++){
+   float speed=-.75f;memcpy(input+12,&deltas[n],4);memcpy(input+16,&speed,4);
+   struct xz_ds_key decoded;assert(xz_ds_key_decode(self,input,&decoded));
+   struct xz_ds_outcome o=xz_deck_select_key(&d,&decoded,now++);
+   if(mask&(1u<<side)){
+    assert(o.verdict==XZ_DS_DELIVER&&o.event.deck==side&&o.event.kind==XZ_EXTRA_IN_JOG_TURN);
+    assert(o.event.jog.delta==deltas[n]&&o.event.jog.speed_known&&o.event.jog.speed==speed);
+   }else assert(o.verdict==XZ_DS_PASS);
+  }
+ }
+ for(int side=0;side<2;side++){
+  reset(1);xz_deck_select_toggle(&d,side,NULL);
+  assert(key(side,0x4306,0).verdict==XZ_DS_DELIVER);
+  xz_deck_select_toggle(&d,side,NULL);
+  struct xz_ds_outcome o=key(side,0x4306,2);
+  assert(o.verdict==XZ_DS_DELIVER&&o.event.deck==side&&!o.event.pressed);
+  assert(key(side,0x4306,2).verdict==XZ_DS_PASS);
+  reset(1);assert(key(side,0x4306,0).verdict==XZ_DS_PASS);
+  xz_deck_select_toggle(&d,side,NULL);
+  assert(key(side,0x4306,2).verdict==XZ_DS_PASS);
+  reset(1);xz_deck_select_toggle(&d,side,NULL);
+  assert(key(side,0x4306,0).verdict==XZ_DS_DELIVER);
+  xz_deck_select_route(&d,0);
+  o=key(side,0x4306,3);
+  assert(o.verdict==XZ_DS_DELIVER&&o.event.deck==side&&!o.event.pressed);
+  assert(key(side,0x4306,3).verdict==XZ_DS_PASS);
+  xz_deck_select_route(&d,1);xz_deck_select_toggle(&d,side,NULL);
+  assert(key(side,0x4306,0).event.pressed);
+  assert(!key(side,0x4306,2).event.pressed);
+ }
+}
+
 int main(void) {
  test_double_press();
  test_slow_presses();
@@ -414,6 +456,7 @@ int main(void) {
  test_sides_independent();
  test_route();
  test_routing();
+ test_physical_jog_matrix();
  test_ownership();
  test_tempo_pickup();
  test_unknown();

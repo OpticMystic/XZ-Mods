@@ -52,6 +52,7 @@ static void sync(const struct xz_shell *u) {
  st.side_open=u&&u->depth>=1&&u->depth<=XZ_SHELL_STACK&&list_screen(xz_shell_screen(u))&&u->panel.kind!=XZ_SHELL_PANEL_NONE;
 }
 static int naming(const struct xz_shell *u);
+static void render_load_choice(const struct xz_shell *,const struct xz_shell_model *,struct xz_canvas);
 static int panel_open(const struct xz_shell *u);
 static int32_t grab_source_row(const struct xz_shell *u, int32_t shown);
 static void render_panel(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
@@ -1660,6 +1661,7 @@ static void list_render(const struct xz_shell *u, const struct xz_shell_model *m
  render_list(u,m,c,&v);
  if(keyboard_shown(u))render_keyboard(u,c,&v);
  render_strip(u,m,c);
+ render_load_choice(u,m,c);
 }
 
 /* ---- input ---- */
@@ -1723,6 +1725,81 @@ static size_t load(struct xz_shell *u, const struct xz_shell_model *m, const str
  u->depth=1;
  return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_LOAD,deck,0,(int)r->id});
 }
+int sh_browse_load_pending(const struct xz_shell *u) { return u&&u->load_choice.mode!=0; }
+static int load_choice_valid(const struct xz_shell *u,const struct xz_shell_model *m) {
+ const struct xz_shell_load_choice *p=&u->load_choice;
+ const struct xz_shell_browse_model *b=m->browse;
+ if(!p->mode||sh_deck_count(m)!=p->deck_count||xz_shell_screen(u)!=p->screen||
+    !(m->capabilities&XZ_SHELL_CAP_LOAD)||!matches(b,(enum xz_shell_screen)p->screen)||
+    !bknown(b,XZ_SHELL_BF_LIST)||b->list_id!=p->list||b->media_generation!=p->media_generation||
+    strcmp(b->source_name?b->source_name:"",p->source))return 0;
+ const struct xz_shell_browse_row *r=row_at(b,(enum xz_shell_screen)p->screen,p->row);
+ return r&&r->kind==XZ_SHELL_ROW_TRACK&&r->id==p->track;
+}
+static size_t choose_load(struct xz_shell *u,const struct xz_shell_model *m,
+                         const struct xz_shell_browse_row *r,int pair,struct xz_shell_action out[XZ_SHELL_ACTIONS],size_t n) {
+ if(sh_deck_count(m)!=4)return load(u,m,r,pair>=0?pair:sh_active_deck(u,m),out,n);
+ if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
+ if(!(m->capabilities&XZ_SHELL_CAP_LOAD))return hand_off(out,n,xz_shell_screen(u));
+ if(!bknown(m->browse,XZ_SHELL_BF_LIST))return n;
+ struct xz_shell_load_choice *p=&u->load_choice;memset(p,0,sizeof *p);
+ p->mode=pair>=0?1:2;p->first=pair>=0?pair:sh_active_deck(u,m);p->deck_count=4;p->screen=xz_shell_screen(u);
+ p->row=top_view(u)->cursor;p->track=r->id;p->list=m->browse->list_id;
+ p->media_generation=m->browse->media_generation;
+ p->has_cues=pair<0&&(sh_deck_caps(m,sh_active_deck(u,m))&XZ_SHELL_CAP_CUE_LIST)&&
+  bknown(m->browse,XZ_SHELL_BF_CUES)&&m->browse->cues&&m->browse->cue_count>0&&m->browse->cue_track==r->id;
+ snprintf(p->source,sizeof p->source,"%s",m->browse->source_name?m->browse->source_name:"");
+ snprintf(p->title,sizeof p->title,"%s",r->title?r->title:"SELECTED TRACK");
+ return n;
+}
+static int load_choice_decks(const struct xz_shell_load_choice *p) { return p->mode==1?2:4; }
+static struct xz_shell_rect load_choice_rect(int row) { return (struct xz_shell_rect){190,150+row*44,420,40}; }
+static void render_load_choice(const struct xz_shell *u,const struct xz_shell_model *m,struct xz_canvas c) {
+ if(!load_choice_valid(u,m))return;
+ const struct xz_shell_load_choice *p=&u->load_choice;int decks=load_choice_decks(p),count=decks+p->has_cues+1;
+ xz_rect(c,180,88,440,64+count*44,SH_CHROME);xz_border(c,180,88,440,64+count*44,SH_BLUE);
+ sh_text_center(c,400,101,"LOAD TRACK",SH_TEXT,SH_WHITE);sh_text_fit(c,194,126,412,p->title,SH_SMALL,SH_DIM);
+ for(int i=0;i<count;i++){
+  struct xz_shell_rect r=load_choice_rect(i);char label[48];int enabled=1;
+  if(i<decks){int deck=p->mode==1?p->first+2*i:i;
+   if(p->mode==1)snprintf(label,sizeof label,"%d  LOAD TO DECK %d",i+1,deck+1);
+   else snprintf(label,sizeof label,"LOAD TO DECK %d",deck+1);
+   enabled=!!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD);}
+  else snprintf(label,sizeof label,"%s",p->has_cues&&i==decks?"CUE / LOOP LIST":"CANCEL");
+  if(i==p->cursor)xz_rect(c,r.x,r.y,r.w,r.h,SH_BLUE);
+  sh_text_center(c,400,r.y+13,label,SH_TEXT,enabled?SH_WHITE:SH_DIM);
+ }
+}
+size_t sh_browse_load_input(struct xz_shell *u,const struct xz_shell_model *m,const struct xz_shell_event *e,struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ struct xz_shell_load_choice *p=&u->load_choice;
+ if(!load_choice_valid(u,m)){p->mode=0;u->notice="LOAD CHOICE EXPIRED: SELECT TRACK AGAIN";u->notice_at_ms=m->clock_ms;return 0;}
+ int decks=load_choice_decks(p),count=decks+p->has_cues+1,selected=-1;
+ if(e->kind==XZ_SHELL_KEY){
+  if(e->key==XZ_SHELL_KEY_LOAD&&e->deck>=0&&e->deck<4){
+   if(p->mode==1)selected=e->deck&1;
+   else{p->mode=1;p->first=e->deck&1;p->cursor=0;p->has_cues=0;return 0;}
+  }else{p->mode=0;return 0;}
+ }else if(e->kind==XZ_SHELL_ENCODER_TURN){
+  int64_t at=(int64_t)p->cursor+e->delta;p->cursor=at<0?0:at>=count?count-1:(int)at;return 0;
+ }else if(e->kind==XZ_SHELL_ENCODER_PUSH)selected=p->cursor;
+ else if(e->kind==XZ_SHELL_TOUCH_DOWN){
+  for(int i=0;i<count;i++)if(sh_inside(load_choice_rect(i),e->x,e->y))selected=i;
+  if(selected<0){p->mode=0;return 0;}
+ }else return 0;
+ if(selected<0||selected>=count)return 0;
+ struct xz_shell_load_choice chosen=*p;p->mode=0;u->down=0;
+ if(selected<decks){
+  int deck=chosen.mode==1?chosen.first+2*selected:selected;
+  if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD)){u->notice="THAT DECK CANNOT LOAD THIS TRACK";u->notice_at_ms=m->clock_ms;return 0;}
+  struct xz_shell_browse_row track={0};track.kind=XZ_SHELL_ROW_TRACK;track.id=chosen.track;
+  return load(u,m,&track,deck,out,0);
+ }
+ if(chosen.has_cues&&selected==decks&&(sh_deck_caps(m,chosen.first)&XZ_SHELL_CAP_CUE_LIST)&&bknown(m->browse,XZ_SHELL_BF_CUES)&&m->browse->cue_track==chosen.track){
+  u->stack[u->depth-1].cursor=chosen.row;
+  u->panel.kind=XZ_SHELL_PANEL_MENU;u->panel.page=PAGE_CUES+chosen.first;u->panel.cursor=u->panel.scroll=0;
+ }
+ return 0;
+}
 static void follow_cursor(struct xz_shell_view *v, int rows) {
  if(v->cursor<v->scroll)v->scroll=v->cursor;
  if(v->cursor>=v->scroll+rows)v->scroll=v->cursor-rows+1;
@@ -1774,7 +1851,7 @@ static size_t push(struct xz_shell *u, const struct xz_shell_model *m, struct xz
  const struct xz_shell_browse_row *r=row_at(m->browse,s,v->cursor);
  if(!r)return n;
  if(r->kind==XZ_SHELL_ROW_FOLDER)return enter(v,s,r,out,n);
- return load(u,m,r,u->deck,out,n);
+ return choose_load(u,m,r,-1,out,n);
 }
 static size_t type_key(struct xz_shell_view *v, int i, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n) {
  size_t len=strlen(st.query);
@@ -1993,7 +2070,7 @@ static size_t list_input(struct xz_shell *u, const struct xz_shell_model *m, con
   const struct xz_shell_browse_row *r=xz_shell_browse_highlight(u,m);
   if(!r||r->kind!=XZ_SHELL_ROW_TRACK||e->deck<0||e->deck>=sh_deck_count(m))return 0;
   if((m->capabilities&XZ_SHELL_CAP_LOAD)&&!v->focus)begin(v,b,s);
-  return load(u,m,r,e->deck,out,0);
+  return choose_load(u,m,r,sh_deck_count(m)==4?(e->deck&1):e->deck,out,0);
  }
  int depth=u->depth;
  sync(u);

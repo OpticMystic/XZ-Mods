@@ -37,6 +37,13 @@ size_t sh_source_back_step(struct xz_shell *, const struct xz_shell_model *, str
 
 /* The only reader of model.deck_count (shell.h). */
 static inline int sh_deck_count(const struct xz_shell_model *m) { return m->deck_count==4?4:2; }
+/* Logical deck to horizontal mixer column: DECK 3, 1, 2, 4. */
+static inline int sh_strip_column(int count, int deck) {
+ static const unsigned char columns[4]={1,2,0,3};
+ return count==4&&(unsigned)deck<4?columns[deck]:deck;
+}
+int sh_browse_load_pending(const struct xz_shell *);
+size_t sh_browse_load_input(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 /* The active deck, or deck 1 when the shell's choice is past the decks the model plays now. */
 static inline int sh_active_deck(const struct xz_shell *u, const struct xz_shell_model *m) {
  return u->deck>=0&&u->deck<sh_deck_count(m)?u->deck:0;

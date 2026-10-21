@@ -319,12 +319,13 @@ int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
    the master deck). Numerals use the text face; a quarter has no room for the numeral faces. */
 enum { Q_BADGE_W=30, Q_TEXT_X=40, Q_BPM_W=52 };
 struct xz_shell_rect sh_strip_cell(const struct xz_shell_model *m, struct xz_shell_rect band, int deck) {
- int w=band.w/(m?sh_deck_count(m):2);
- return (struct xz_shell_rect){band.x+deck*w,band.y,w,band.h};
+ int count=m?sh_deck_count(m):2,w=band.w/count;
+ return (struct xz_shell_rect){band.x+sh_strip_column(count,deck)*w,band.y,w,band.h};
 }
 static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect q, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
- int x=q.x+(deck?1:0),w=q.w-(deck?1:0)-1,y=q.y+1,h=q.h-1;
+ int seam=sh_strip_column(4,deck)?1:0;
+ int x=q.x+seam,w=q.w-seam-1,y=q.y+1,h=q.h-1;
  char text[24];
  xz_rect(c,x,y,w,h,SH_CHROME);
  int bx=x+4,by=y+3,bh=h-6;

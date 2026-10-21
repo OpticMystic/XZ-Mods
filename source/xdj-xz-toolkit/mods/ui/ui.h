@@ -77,7 +77,8 @@ enum xz_ui_action_kind {
     /* CONTROLS > BUTTONS. What the physical REKORDBOX key does. Widget index = slot *
      * XZ_UI_RB_CHOICES + choice; the action carries index = slot (0 press, 1 SHIFT + press) and
      * value = choice (enum xz_ui_rekordbox). */
-    XZ_UI_REKORDBOX_ASSIGN
+    XZ_UI_REKORDBOX_ASSIGN,
+    XZ_UI_FOUR_WAVE_ORDER /* Session-only shared display order; value 0 numeric / 1 mixer. */
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
@@ -244,6 +245,7 @@ struct xz_ui_model {
     int metrics_enabled;
     struct xz_metrics_sample metrics;
     const struct xz_ui_dj *dj; /* NULL: this runtime has no DJ Profile support, so no header chip */
+    int four_wave_mixer; /* Session preference; never persisted in settings. */
 };
 struct xz_ui {
     enum xz_ui_page page;

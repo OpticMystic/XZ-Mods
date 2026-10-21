@@ -21,6 +21,7 @@
 static uint16_t buffer_a[GUARD+PIXELS+GUARD], buffer_b[GUARD+PIXELS+GUARD];
 static struct fx_track track;
 static struct bx_library lib;
+static const int mixer_column[4]={1,2,0,3};
 
 static uint16_t *frame(uint16_t *buffer) { return buffer+GUARD+STRIDE; }
 static void fill(uint16_t *buffer, uint16_t inside) {
@@ -73,8 +74,8 @@ static void test_layout(void) {
   struct xz_shell_rect lane=rect(&m,XZ_SHELL_R_LANE,d),col=rect(&m,XZ_SHELL_R_INFO_COLUMN,d),strip=rect(&m,XZ_SHELL_R_STRIP,d);
   assert(lane.h>=76&&lane.y>=rect(&m,XZ_SHELL_R_TOP_BAR,0).h&&col.y==lane.y&&col.h==lane.h&&col.x+col.w<=lane.x);
   assert(within(rect(&m,XZ_SHELL_R_DECK_TAG,d),col));
-  /* Quarter strips, deck 1 to 4 from the left, all below the lanes. */
-  assert(strip.x==d*XZ_SHELL_WIDTH/4+2&&strip.w==XZ_SHELL_WIDTH/4-4&&strip.y>=rect(&m,XZ_SHELL_R_LANE,3).y+rect(&m,XZ_SHELL_R_LANE,3).h);
+  /* The horizontal strips follow the XZ mixer: 3, 1, 2, 4. */
+  assert(strip.x==mixer_column[d]*XZ_SHELL_WIDTH/4+2&&strip.w==XZ_SHELL_WIDTH/4-4&&strip.y>=rect(&m,XZ_SHELL_R_LANE,3).y+rect(&m,XZ_SHELL_R_LANE,3).h);
   struct xz_shell_rect time=rect(&m,XZ_SHELL_R_TIME,d),ov=rect(&m,XZ_SHELL_R_OVERVIEW,d);
   assert(within(time,strip)&&within(ov,strip)&&time.h>=44&&!overlap(time,ov));
   /* The overview answers 44 px tall without reaching the time toggle. */
@@ -223,7 +224,7 @@ static void test_strips(void) {
  assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE);
  for(int d=0;d<4;d++){
   struct xz_shell_rect q=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_STRIP,d);
-  assert(q.x==d*XZ_SHELL_WIDTH/4&&q.w==XZ_SHELL_WIDTH/4&&q.h>=44&&q.y+q.h==XZ_SHELL_HEIGHT);
+  assert(q.x==mixer_column[d]*XZ_SHELL_WIDTH/4&&q.w==XZ_SHELL_WIDTH/4&&q.h>=44&&q.y+q.h==XZ_SHELL_HEIGHT);
   int was=u.deck;size_t n=tap_rect(&u,&m,q,out);
   assert(u.deck==d&&(was==d?n==0:n==1&&out[0].kind==XZ_SHELL_ACT_ACTIVE_DECK&&out[0].deck==d));
  }
@@ -247,22 +248,75 @@ static void test_strips(void) {
  assert(xz_shell_screen(&u)==XZ_SHELL_INFO);
  struct xz_shell_rect strip=xz_shell_info_rect(XZ_SHELL_INFO_R_STRIP,0);
  int y=strip.y+strip.h/2;
- tap(&u,&m,XZ_SHELL_WIDTH/4+20,y,out);assert(u.stack[1].focus==2);
- tap(&u,&m,20,y,out);assert(u.stack[1].focus==1);
- assert(tap(&u,&m,XZ_SHELL_WIDTH/2+20,y,out)==0&&tap(&u,&m,XZ_SHELL_WIDTH*3/4+20,y,out)==0&&u.stack[1].focus==1);
+ tap(&u,&m,XZ_SHELL_WIDTH/2+20,y,out);assert(u.stack[1].focus==2);
+ tap(&u,&m,XZ_SHELL_WIDTH/4+20,y,out);assert(u.stack[1].focus==1);
+ assert(tap(&u,&m,20,y,out)==0&&tap(&u,&m,XZ_SHELL_WIDTH*3/4+20,y,out)==0&&u.stack[1].focus==1);
  render_both(&u,&m);
  static const enum xz_shell_key screens[]={XZ_SHELL_KEY_SOURCE,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_KEY_MENU_HOLD};
  for(size_t i=0;i<sizeof screens/sizeof *screens;i++){xz_shell_init(&u);deck_key(&u,&m,screens[i],-1,out);render_both(&u,&m);}
  /* Every quarter carries its deck: an unloaded deck says so in its own quarter only. */
  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);render_both(&u,&m);
  static uint16_t loaded[GUARD+PIXELS+GUARD];memcpy(loaded,buffer_a,sizeof loaded);
- fx_deck_unloaded(&m.deck[3],XZ_SHELL_SRC_NONE);render_both(&u,&m);
- struct xz_shell_rect q3=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_STRIP,3);
- for(int yy=0;yy<XZ_SHELL_HEIGHT;yy++)for(int x=0;x<XZ_SHELL_WIDTH;x++){
-  int changed=frame(loaded)[yy*STRIDE+x]!=frame(buffer_a)[yy*STRIDE+x];
-  assert(!changed||(x>=q3.x&&yy>=q3.y));
+ for(int d=0;d<4;d++){
+  struct xz_shell_model one=m;fx_deck_unloaded(&one.deck[d],XZ_SHELL_SRC_NONE);render_both(&u,&one);
+  struct xz_shell_rect q=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_STRIP,d);int changes=0;
+  for(int yy=0;yy<XZ_SHELL_HEIGHT;yy++)for(int x=0;x<XZ_SHELL_WIDTH;x++){
+   int changed=frame(loaded)[yy*STRIDE+x]!=frame(buffer_a)[yy*STRIDE+x];changes+=changed&&yy>=q.y;
+   assert(!changed||yy<q.y||sh_inside(q,x,yy));
+  }
+  assert(changes>0);
  }
  puts("PASS four-deck status strips: quarters, LOAD target and cells, INFO tabs");
+}
+
+static void test_wave_order(void) {
+ static const int numeric[4]={0,1,2,3},mixer[4]={2,0,1,3};
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ fx_model_four(&m,&track);m.settings_screen=fxs_reset();xz_shell_init(&u);
+ for(int order=0;order<2;order++){
+  m.wave_order=order;
+  const int *decks=order?mixer:numeric;
+  for(int row=0;row<4;row++){
+   int d=decks[row];struct xz_shell_rect lane=rect(&m,XZ_SHELL_R_LANE,d);
+   assert(lane.y==26+row*78);
+   assert(rect(&m,XZ_SHELL_R_STRIP,d).x==mixer_column[d]*200+2);
+   tap(&u,&m,50,26+row*78+38,out);assert(u.deck==d);
+   stems_on(&m);
+   struct xz_shell_rect stem=xz_shell_stem_row(&m,d);
+   assert(stem.y+stem.h==lane.y+lane.h);
+  }
+  render_both(&u,&m);
+  deck_key(&u,&m,XZ_SHELL_KEY_SHORTCUT,-1,out);
+  render_both(&u,&m);
+  size_t n=tap(&u,&m,550,20,out);
+  assert(n==1&&out[0].kind==XZ_SHELL_ACT_WAVE_ORDER&&out[0].value==!order&&out[0].deck==-1);
+  deck_key(&u,&m,XZ_SHELL_KEY_BACK,-1,out);
+ }
+ m.deck_count=2;m.wave_order=1;
+ assert(rect(&m,XZ_SHELL_R_LANE,0).y==26&&rect(&m,XZ_SHELL_R_LANE,1).y==145);
+ assert(rect(&m,XZ_SHELL_R_STRIP,0).x==2&&rect(&m,XZ_SHELL_R_STRIP,1).x==402);
+ puts("PASS waveform order switches lanes and touches; mixer strips stay 3/1/2/4; two-deck view unchanged");
+}
+
+static void test_mixer_column_actions(void) {
+ static const int deck_at_column[4]={2,0,1,3};
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;
+ struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ fx_model_four(&m,&track);bx_tracks(&b,&lib,XZ_SHELL_BROWSE);m.browse=&b;
+ m.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD;
+ for(int column=0;column<4;column++){
+  int deck=deck_at_column[column];xz_shell_init(&u);
+  size_t n=tap(&u,&m,column*200+50,380,out);
+  assert(n==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].deck==deck&&out[0].id==XZ_SHELL_SET_TIME_MODE);
+  n=tap(&u,&m,column*200+100,460,out);
+  assert(n>=1&&out[0].kind==XZ_SHELL_ACT_SEEK&&out[0].deck==deck);
+  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
+  tap_rect(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,2),out);
+  tap(&u,&m,column*200+100,450,out);assert(u.deck==deck);
+  n=tap_rect(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_LOAD,deck+1),out);
+  assert(n>=1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==deck&&out[0].id==(int)lib.tracks[2].id);
+ }
+ puts("PASS fixed mixer columns 3/1/2/4 route TIME, SEEK and BROWSE LOAD to the labelled deck");
 }
 
 /* A deck past deck_count is refused as an index past the model is today. */
@@ -289,11 +343,12 @@ static void test_refusal(void) {
  /* LOAD for a deck past the count loads nothing. */
  struct xz_shell_browse_model b;memset(&b,0,sizeof b);
  static struct xz_shell_browse_row row;row.kind=XZ_SHELL_ROW_TRACK;row.id=42;
- b.known=1u<<XZ_SHELL_BF_TOTAL;b.screen=XZ_SHELL_BROWSE;b.total=1;b.rows=&row;b.window_count=1;
+ b.known=(1u<<XZ_SHELL_BF_TOTAL)|(1u<<XZ_SHELL_BF_LIST);b.screen=XZ_SHELL_BROWSE;b.total=1;b.rows=&row;b.window_count=1;
  two.browse=four.browse=&b;two.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD;four.capabilities=two.capabilities;
  for(int d=0;d<4;d++){
   xz_shell_init(&u);deck_key(&u,&four,XZ_SHELL_KEY_BROWSE,-1,out);
-  size_t n=deck_key(&u,&four,XZ_SHELL_KEY_LOAD,d,out);
+  size_t n=deck_key(&u,&four,XZ_SHELL_KEY_LOAD,d&1,out);assert(n==0&&u.load_choice.mode);
+  n=deck_key(&u,&four,XZ_SHELL_KEY_LOAD,d>=2,out);
   assert(n==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==42);
   xz_shell_init(&u);deck_key(&u,&two,XZ_SHELL_KEY_BROWSE,-1,out);
   n=deck_key(&u,&two,XZ_SHELL_KEY_LOAD,d,out);
@@ -353,16 +408,18 @@ static void test_players(void) {
  /* LOAD reaches every deck from the list. */
  struct xz_shell_browse_model b;memset(&b,0,sizeof b);
  static struct xz_shell_browse_row row;row.kind=XZ_SHELL_ROW_TRACK;row.id=42;
- b.known=1u<<XZ_SHELL_BF_TOTAL;b.screen=XZ_SHELL_BROWSE;b.total=1;b.rows=&row;b.window_count=1;
+ b.known=(1u<<XZ_SHELL_BF_TOTAL)|(1u<<XZ_SHELL_BF_LIST);b.screen=XZ_SHELL_BROWSE;b.total=1;b.rows=&row;b.window_count=1;
  m.browse=&b;m.capabilities|=XZ_SHELL_CAP_BROWSE|XZ_SHELL_CAP_LOAD;
  for(int d=0;d<4;d++){
   xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
-  assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,d,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==42);
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,d&1,out)==0&&u.load_choice.mode);
+  assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,d>=2,out)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==d&&out[0].id==42);
  }
- /* A native deck without LOAD of its own hands the list to stock, as without the capability. */
+ /* An unavailable native target stays disabled while its extra partner remains selectable. */
  m.deck[0].caps_off|=XZ_SHELL_CAP_LOAD;
  xz_shell_init(&u);deck_key(&u,&m,XZ_SHELL_KEY_BROWSE,-1,out);
- assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,0,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,0,out)==0&&u.load_choice.mode);
+ assert(deck_key(&u,&m,XZ_SHELL_KEY_LOAD,0,out)==0&&!u.load_choice.mode);
  render_both(&u,&m);
  m.deck[0].caps_off&=~XZ_SHELL_CAP_LOAD;
  /* DECK SELECT: a tile per side, only in a four-deck model with the capability. */
@@ -462,6 +519,7 @@ int main(void) {
  test_bypass_four();
  test_deck_input();
  test_strips();
+ test_mixer_column_actions();test_wave_order();
  test_refusal();
  test_players();
  test_other_counts();

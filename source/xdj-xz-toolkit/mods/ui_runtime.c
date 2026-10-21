@@ -16,6 +16,7 @@
 #include "key/native_browse.h"
 #include "ui/key_strip.h"
 #include "ui/key_frame_cache.h"
+#include "ui/transient_notice.h"
 /* Root's native browse operations. Weak so UI tests link without the stock ABI. */
 extern int xz_native_browse_open_sort(void) __attribute__((weak));
 extern unsigned xz_native_browse_mode(void) __attribute__((weak));
@@ -763,7 +764,17 @@ static _Thread_local struct {
     uint32_t ram_free_mib;
     int metrics_enabled;struct xz_metrics_sample metrics;
     uint32_t scene,colors[3];
+    struct xz_ui_transient_notice notice;
 } badge_frame_cache;
+static struct xz_ui_transient_notice async_notice;
+static _Thread_local struct xz_ui_notice_pixels notice_pixels;
+void xz_ui_runtime_notice(const char *text){
+    pthread_mutex_lock(&ui_mutex);
+    xz_ui_notice_set(&async_notice,text,xz_game_milliseconds());
+    snprintf(ui.notice,sizeof ui.notice,"%s",async_notice.text);
+    pthread_mutex_unlock(&ui_mutex);
+    xz_native_skin_request_repaint();
+}
 __attribute__((visibility("default"))) struct {
     uint32_t version,busy,cached;
 } xz_mods_key_present_proof_v1={.version=1};
@@ -1217,6 +1228,14 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_SET_MODERN_THEME:
             if (a->index >= 0 && a->index < XZ_MODERN_THEME_COUNT) model.modern_theme = a->index;
+            break;
+        case XZ_UI_FOUR_WAVE_ORDER:
+            if(a->value==0||a->value==1){
+                xz_native_four_set_mixer_order(a->value!=0);
+                model.four_wave_mixer=xz_native_four_mixer_order();
+                snprintf(ui.notice,sizeof(ui.notice),"WAVE ORDER: %s",model.four_wave_mixer?"3 1 2 4 / MIXER":"1 2 3 4 / NUMERIC");
+                xz_native_skin_request_repaint();
+            }
             break;
         case XZ_UI_WAVE_MODE:
             if (a->index >= 0 && a->index < XZ_WAVE_MODE_COUNT) {
@@ -1751,6 +1770,7 @@ static void stem_generation_sync_locked(int deck,const struct xz_audio_status *s
 }
 
 static void refresh_local(void) {
+    model.four_wave_mixer=xz_native_four_mixer_order();
     model.settings_flash=settings_flash_at&&(uint32_t)(xz_game_milliseconds()-settings_flash_at)<3000u;
     model.doom_ready=xz_doom_ready();
     xz_doom_browser_read(ui.wad_offset,&model.doom);ui.wad_offset=model.doom.offset;
@@ -2363,8 +2383,11 @@ static void badge(uint16_t *pixels, uint32_t stride) {
         }
     }else head_shown=0;
     if(!model.fb_takeover)xz_ui_render_ram_debug(pixels,stride,model.theme,model.ram_debug&&!model.metrics_enabled,model.ram_debug_valid,model.ram_free_mib);
+    xz_ui_notice_restore(&notice_pixels,pixels,stride);
     xz_ui_render_native_buttons(pixels,stride,model.theme,model.stems_overlay,
         model.connection.enabled&&model.connection.connected&&(model.fb_takeover||play),model.fb_takeover);
+    badge_frame_cache.notice=async_notice;
+    if(!model.fb_takeover)xz_ui_notice_badge(pixels,stride,model.theme,&async_notice,xz_game_milliseconds(),&notice_pixels);
     xz_metrics_draw(pixels,stride,model.theme,model.metrics_enabled,&model.metrics,xz_game_milliseconds());
 }
 
@@ -2442,8 +2465,10 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
             if(badge_frame_cache.valid&&!xz_read_memory(0x3c6fc7c,&scene,4)&&scene==badge_frame_cache.scene) {
                 if(badge_frame_cache.shortcut)
                     xz_ui_render_shortcut_wave(pixels,stride,badge_frame_cache.selected,badge_frame_cache.colors);
+                xz_ui_notice_restore(&notice_pixels,pixels,stride);
                 xz_ui_render_native_buttons(pixels,stride,badge_frame_cache.theme,badge_frame_cache.layout,
                     badge_frame_cache.vj,badge_frame_cache.takeover);
+                xz_ui_notice_badge(pixels,stride,badge_frame_cache.theme,&badge_frame_cache.notice,xz_game_milliseconds(),&notice_pixels);
                 xz_metrics_draw(pixels,stride,badge_frame_cache.theme,badge_frame_cache.metrics_enabled,&badge_frame_cache.metrics,xz_game_milliseconds());
                 if(__atomic_load_n(&xz_mods_ram_debug_v1.enabled,__ATOMIC_ACQUIRE))
                     xz_ui_render_ram_debug(pixels,stride,badge_frame_cache.theme,badge_frame_cache.ram_debug&&!badge_frame_cache.metrics_enabled,badge_frame_cache.ram_valid,badge_frame_cache.ram_free_mib);

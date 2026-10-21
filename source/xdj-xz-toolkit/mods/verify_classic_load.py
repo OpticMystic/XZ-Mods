@@ -13,6 +13,10 @@ with tempfile.TemporaryDirectory(prefix='xz-classic-load-') as folder:
     subprocess.run([
         str(Path(args.zig).resolve()), 'cc', '-DXZ_CLASSIC_LOAD_PORTABLE_TEST', '-UNDEBUG',
         '-std=c11', '-Wall', '-Wextra', '-Werror',
-        str(root / 'classic_load.c'), str(root / 'test_classic_load.c'), '-o', str(binary),
+        str(root / 'classic_load.c'), str(root / 'classic_popup.c'), str(root / 'test_classic_load.c'), '-o', str(binary),
     ], check=True)
     subprocess.run([str(binary)], check=True)
+    popup = Path(folder) / 'popup.exe'
+    subprocess.run([str(Path(args.zig).resolve()), 'cc', '-UNDEBUG', '-std=c11', '-Wall', '-Wextra', '-Werror',
+                    str(root / 'classic_popup.c'), str(root / 'test_classic_popup.c'), '-o', str(popup)], check=True)
+    subprocess.run([str(popup)], check=True)
