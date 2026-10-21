@@ -768,6 +768,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
 static void pause_ms(unsigned ms) { struct timespec t = {0, (long)ms * 1000000L}; nanosleep(&t, NULL); }
 static void *worker(void *arg) {
  const struct worker *w = arg;
+ if (w->p->env.worker_enter) w->p->env.worker_enter(w->index);
  while (!atomic_load(&w->p->quit)) {
   xz_xp_step(w->p, w->index);
   /* Without the route a deck only waits for it; a cable-less XZ should not pay for the players. */
