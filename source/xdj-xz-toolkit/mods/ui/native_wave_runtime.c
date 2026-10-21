@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <time.h>
 #include <unistd.h>
 
@@ -117,7 +118,7 @@ static void style_main_notice(uint16_t *pixels,uint32_t count){
 }
 /* The raw syscall, as shell_runtime.c: clock_gettime is GLIBC_2.17 and librt is not an allowed dependency. */
 static uint32_t monotonic_ms(void){
- struct timespec t;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return 0;
+ struct timespec t;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;
  return (uint32_t)((uint64_t)t.tv_sec*1000u+(uint64_t)t.tv_nsec/1000000u);
 }
 static void draw_extra(uint16_t *pixels,uint32_t count){

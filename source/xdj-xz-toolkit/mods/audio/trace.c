@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <fcntl.h>
 #include <errno.h>
 
@@ -30,7 +31,7 @@ static _Thread_local uint32_t source_calls;
 uint64_t xz_audio_trace_time(void){
     struct timespec t;
     /* Direct syscall preserves compatibility with the controller's old libc. */
-    if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return 0;
+    if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;
     return (uint64_t)t.tv_sec*1000000u+(uint32_t)t.tv_nsec/1000u;
 }
 int xz_audio_trace_enabled(void){return __atomic_load_n(&xz_audio_trace_v1.enabled,__ATOMIC_ACQUIRE)!=0;}

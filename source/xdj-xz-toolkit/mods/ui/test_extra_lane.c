@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define STRIDE 540
-#define ALL ((1u<<XZ_EXTRA_FIELD_COUNT)-1)
+#define ALL ((1u<<(XZ_EXTRA_F_VINYL+1))-1) /* legacy fully populated fixture */
 static uint16_t pixels[STRIDE*268+8],copy[STRIDE*268+8];
 static struct xz_extra_column columns[3000];
 static struct xz_extra_beat grid[64];
@@ -125,6 +125,26 @@ int main(void){
  unsigned changed=0;
  for(unsigned r=0;r<64;r++)for(unsigned x=0;x<536;x++)if(at(0,r,x)!=copy[r*STRIDE+x]){assert(x<XZ_EXTRA_LANE_READOUT_W&&r<16);changed++;}
  assert(changed>50);
+
+ /* Sync status changes the readout only; it must not align or move the waveform. */
+ d=deck();d.master=0;d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
+ fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,3,&d,&view,&marks));memcpy(copy,pixels,sizeof pixels);
+ uint32_t status_hash[3]={0};
+ for(int state=0;state<3;state++){
+  d.sync=(struct xz_extra_sync){.requested=1,.locked=state==0,.master_deck=state==1?0:3,
+   .reason=state==0?XZ_EXTRA_SYNC_LOCKED:state==1?XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:XZ_EXTRA_SYNC_WAIT_MASTER};
+  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,3,&d,&view,&marks));assert(guards_intact(0));
+  unsigned differences=0;uint32_t hash=2166136261u;
+  for(unsigned r=0;r<64;r++)for(unsigned x=0;x<536;x++){
+   uint16_t pixel=at(0,r,x);hash=(hash^pixel)*16777619u;
+   if(pixel!=copy[r*STRIDE+x]){assert(x<XZ_EXTRA_LANE_READOUT_W&&r<16);differences++;}
+  }
+  assert(differences>0);status_hash[state]=hash;
+ }
+ assert(status_hash[0]!=status_hash[1]&&status_hash[1]!=status_hash[2]&&status_hash[0]!=status_hash[2]);
+ d.master=1;d.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
+ fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,3,&d,&view,&marks));assert(guards_intact(0));
+ puts("PASS Classic SYNC/BPM/WAIT status and3/4master bounds; changingstatus cannotmove waveforms");
 
  /* Theme pass: layer pixels come back exactly; background, marks and readout stay themed. */
  static uint16_t surface[536*268];static uint8_t keep[XZ_FOUR_KEEP_BYTES];

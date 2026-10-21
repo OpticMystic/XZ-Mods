@@ -20,6 +20,7 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <time.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -123,7 +124,7 @@ static int worker_should_stop(void);
 static uint64_t milliseconds_now(void)
 {
     struct timespec value;
-    if (syscall(SYS_clock_gettime, CLOCK_MONOTONIC, &value) != 0) {
+    if (xz_clock_gettime_compat(CLOCK_MONOTONIC, &value) != 0) {
         return 0;
     }
     return (uint64_t)value.tv_sec * 1000u + (uint64_t)value.tv_nsec / 1000000u;

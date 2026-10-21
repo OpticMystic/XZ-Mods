@@ -39,6 +39,20 @@ int main(void){
     double pitch=.10;memcpy(tempo+0x30,&pitch,8);
     assert(xz_arcade_native_clock_valid(read_memory,NULL));struct xz_arcade_track_clock out;
     assert(xz_arcade_native_clock_read(read_memory,NULL,0,&out));assert(fabsf(out.bpm-132)<.001f&&fabsf(out.bar_phase-.75f)<.001f&&out.playing);
+    for(unsigned i=0;i<4;i++){units[i*8+2]=0x50;units[i*8+3]=0x46;put(units,i*8+4,1000+i*333);}
+    pitch=.5;memcpy(tempo+0x30,&pitch,8);put(player,0xe78,55125);
+    assert(!xz_arcade_native_clock_read(read_memory,NULL,0,&out));
+    assert(xz_music_native_clock_read(read_memory,NULL,0,&out)&&fabsf(out.bpm-270)<.001f);
+    pitch=-.9;memcpy(tempo+0x30,&pitch,8);
+    assert(!xz_arcade_native_clock_read(read_memory,NULL,0,&out));
+    assert(xz_music_native_clock_read(read_memory,NULL,0,&out)&&out.speed>0&&out.speed<.25f);
+    pitch=4.;memcpy(tempo+0x30,&pitch,8);
+    assert(!xz_arcade_native_clock_read(read_memory,NULL,0,&out));
+    assert(xz_music_native_clock_read(read_memory,NULL,0,&out)&&out.speed==5);
+    double invalid[]={NAN,INFINITY,-1.,-2.,1e300};
+    for(unsigned i=0;i<sizeof invalid/sizeof invalid[0];i++){memcpy(tempo+0x30,&invalid[i],8);assert(!xz_music_native_clock_read(read_memory,NULL,0,&out));}
+    for(unsigned i=0;i<4;i++){units[i*8+2]=0xe0;units[i*8+3]=0x2e;put(units,i*8+4,1000+i*500);}
+    pitch=.1;memcpy(tempo+0x30,&pitch,8);put(player,0xe78,60637);
     player[0xe77]=0;put(pause_queue,8,4);
     assert(xz_arcade_native_clock_read(read_memory,NULL,0,&out));assert(!out.playing&&fabsf(out.bar_phase-.5f)<.001f);
     assert(!xz_arcade_native_clock_read(read_memory,NULL,1,&out));

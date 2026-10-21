@@ -6,12 +6,13 @@
 #include <string.h>
 #include <time.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <unistd.h>
 static struct xz_rhythm_lab lab;
 static int present,opening_touch,touch_owned,source_deck=-1,source_ready;
 static uint32_t owned[2];static uint8_t owner_player[2][10],owner_action[2][10];
 __attribute__((visibility("default"))) struct xz_rhythm_lab_proof xz_rhythm_lab_proof_v1={.version=1};
-static uint64_t micros(void){struct timespec t;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return 0;return(uint64_t)t.tv_sec*1000000+(uint64_t)t.tv_nsec/1000;}
+static uint64_t micros(void){struct timespec t;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;return(uint64_t)t.tv_sec*1000000+(uint64_t)t.tv_nsec/1000;}
 static void select_deck(void){
     if(source_deck==(int)lab.deck)return;
     source_deck=(int)lab.deck;lab.valid=0;lab.wave.valid=0;lab.wave.loading=1;lab.wave.error=XZ_WAVE_RIDER_SOURCE_OK;

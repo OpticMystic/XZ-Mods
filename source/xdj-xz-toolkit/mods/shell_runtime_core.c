@@ -249,7 +249,18 @@ int xz_shrt_setting_command(const struct xz_shell_action *a, uint32_t now, struc
  }
 }
 
-uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen s, int any_playing) { return s==XZ_SHELL_PLAY&&any_playing?XZ_SHRT_FRAME_LIVE_MS:XZ_SHRT_FRAME_IDLE_MS; }
+uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen s, int any_moving) { return s==XZ_SHELL_PLAY&&any_moving?XZ_SHRT_FRAME_LIVE_MS:XZ_SHRT_FRAME_IDLE_MS; }
+unsigned xz_shrt_moving_decks(const struct xz_shell_model *m) {
+ unsigned bits=0;int count=m->deck_count==4?4:2;
+ for(int i=0;i<count;i++){
+  const struct xz_shell_deck *d=&m->deck[i];
+  if(!(d->known&XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED))||!d->loaded)continue;
+  if(d->known&XZ_SHELL_KNOWN(XZ_SHELL_F_MOTION)){
+   if(d->moving)bits|=1u<<i;
+  }else if((d->known&XZ_SHELL_KNOWN(XZ_SHELL_F_PLAYING))&&d->playing)bits|=1u<<i;
+ }
+ return bits;
+}
 
 int xz_shrt_motion_step(struct xz_shrt_motion *m, int32_t elapsed_ms, uint32_t read_at) {
  if(!m->valid){m->valid=1;m->last_ms=elapsed_ms;m->changed_at=read_at-XZ_SHRT_MOTION_MS;return 0;} /* one reading proves nothing */
@@ -345,6 +356,20 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
   uint32_t age=mono_now-s->elapsed_at_ms;
   if(s->elapsed_at_ms&&(int32_t)age>=0&&age<60000u){d->elapsed_at_ms=model_now-age;if(!d->elapsed_at_ms)d->elapsed_at_ms=1;}
  }
+ if(EK(TIMELINE)){
+  const struct xz_extra_timeline *t=&s->timeline;
+  d->elapsed_at_ms=0; /* unknown observed rate must not fall back to the nominal fader */
+  if(t->flags&XZ_EXTRA_TIMELINE_MOTION){d->moving=!!t->moving;d->known|=SK(MOTION);}
+  uint32_t age=mono_now-t->at_ms;
+  if((t->flags&XZ_EXTRA_TIMELINE_ANCHOR)&&t->source_rate&&t->at_ms&&(int32_t)age>=0&&age<=250u&&
+     t->source_frame<=(uint64_t)INT32_MAX*t->source_rate/1000u){
+   d->elapsed_ms=(int32_t)(t->source_frame*1000u/t->source_rate);d->known|=SK(ELAPSED);
+   if(t->flags&XZ_EXTRA_TIMELINE_RATE){
+    d->elapsed_at_ms=model_now-age;if(!d->elapsed_at_ms)d->elapsed_at_ms=1;
+    d->playback_rate_ppm=t->rate_ppm;d->known|=SK(PLAYBACK_RATE);
+   }
+  }
+ }
  if(EK(TOTAL)){d->total_ms=s->total_ms;d->known|=SK(TOTAL);}
  if(EK(PLAYING)){d->playing=!!s->playing;d->known|=SK(PLAYING);}
  if(EK(BPM)){
@@ -355,7 +380,14 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
  if(EK(TEMPO_RANGE)){d->tempo_range=s->tempo_range;d->known|=SK(TEMPO_RANGE);}
  if(EK(MASTER_TEMPO)){d->master_tempo=!!s->master_tempo;d->known|=SK(MASTER_TEMPO);}
  if(EK(VINYL)){d->vinyl=!!s->vinyl;d->known|=SK(VINYL);}
- if(EK(MASTER)){d->master=!!s->master;d->known|=SK(MASTER);}
+ if(EK(MASTER)){d->master=!!s->master;d->master_scope=s->master_scope;d->known|=SK(MASTER);}
+ if(EK(SYNC)){
+  d->sync=!!s->sync.requested;d->sync_master_deck=s->sync.master_deck;
+  d->sync_status=!s->sync.requested?XZ_SHELL_SYNC_OFF:s->sync.locked?XZ_SHELL_SYNC_LOCKED:
+   s->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE?XZ_SHELL_SYNC_TEMPO_ONLY:
+   s->sync.reason==XZ_EXTRA_SYNC_MASTER_CLOCK?XZ_SHELL_SYNC_MASTER:XZ_SHELL_SYNC_WAITING;
+  d->known|=SK(SYNC)|SK(SYNC_STATUS);
+ }
  if(EK(KEY)&&s->key[0]){d->key=s->key;d->known|=SK(KEY);}
  if(EK(CUE)){d->cue_ms=s->cue_ms;d->known|=SK(CUE_POINT);}
  if(EK(HOT_CUES)){

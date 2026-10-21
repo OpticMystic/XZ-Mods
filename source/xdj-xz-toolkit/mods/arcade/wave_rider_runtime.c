@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <unistd.h>
 
 static struct xz_rider rider;
@@ -14,7 +15,7 @@ static uint32_t owned[2];
 static uint8_t owner_player[2][10];
 __attribute__((visibility("default"))) struct xz_wave_rider_runtime_proof xz_wave_rider_proof_v2={.version=2};
 static uint64_t micros(void){
-    struct timespec t;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return 0;
+    struct timespec t;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;
     return (uint64_t)t.tv_sec*1000000+(uint64_t)t.tv_nsec/1000;
 }
 static void select_deck(void){

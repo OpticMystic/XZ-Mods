@@ -12,5 +12,8 @@ struct xz_arcade_track_clock {
 };
 int xz_arcade_native_clock_valid(xz_arcade_memory_read,void *);
 int xz_arcade_native_clock_read(xz_arcade_memory_read,void *,unsigned deck,struct xz_arcade_track_clock *);
+/* Same structural/source guards and raw grid limits; no arcade effective-tempo policy.
+   Positive finite representable outputs do not assert a hardware-supported tempo range. */
+int xz_music_native_clock_read(xz_arcade_memory_read,void *,unsigned deck,struct xz_arcade_track_clock *);
 int xz_arcade_mixer_clock_read(xz_arcade_memory_read,void *,float *bpm,unsigned *tap_mode);
 #endif

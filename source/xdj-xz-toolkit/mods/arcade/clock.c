@@ -17,6 +17,7 @@ int xz_arcade_decode_beat(const void *data,size_t n,struct xz_arcade_beat *out){
 #include <pthread.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <time.h>
 #include <unistd.h>
 static struct xz_arcade_beat mailbox[2];
@@ -28,7 +29,7 @@ static void resolve(void){stock_sendto=dlsym(RTLD_NEXT,"sendto");stock_recvfrom=
 static void observe(const void *p,size_t n){
     struct xz_arcade_beat beat;
     if(!xz_arcade_decode_beat(p,n,&beat))return;
-    struct timespec t;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return;
+    struct timespec t;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return;
     beat.at=(uint32_t)((uint64_t)t.tv_sec*1000+(uint32_t)t.tv_nsec/1000000);
     uint32_t zero=0;
     if(!__atomic_compare_exchange_n(&mailbox_lock[beat.deck],&zero,1,0,__ATOMIC_ACQUIRE,__ATOMIC_RELAXED))return;

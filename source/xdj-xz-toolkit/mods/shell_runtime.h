@@ -51,6 +51,8 @@ int xz_shell_runtime_follow_interface(int modern);
 int xz_shell_runtime_owns(void);
 /* Lock-free: owns the screen and no frame is due, so the caller can skip all work. */
 int xz_shell_runtime_idle(void);
+/* Scheduling hint only; position and motion still come from native observations. */
+void xz_shell_runtime_native_input(int side,uint32_t monotonic_ms);
 /* Lock-free: the next frame refreshes the model (native reads). ui_runtime.c moves its own 10 Hz refresh
    off such frames so the two never land in the same 16 ms. */
 int xz_shell_runtime_will_refresh(void);
@@ -255,7 +257,8 @@ int xz_shrt_quantize_index(int quantize_den);
 /* model.clock_ms leads the render time by one presenter period: the receiver shows a frame on the vblank
    after it was drawn (present-then-prepare, 61.6 Hz measured on the deck). */
 #define XZ_SHRT_PRESENT_LEAD_MS 16u
-uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen, int any_playing);
+uint32_t xz_shrt_frame_period_ms(enum xz_shell_screen, int any_moving);
+unsigned xz_shrt_moving_decks(const struct xz_shell_model *);
 
 /* Deck motion from the stat frame's elapsed time: moving while it changed within XZ_SHRT_MOTION_MS.
    Used for PLAYING only when the native clock read gives no answer. */

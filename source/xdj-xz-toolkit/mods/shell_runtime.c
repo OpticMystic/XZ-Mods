@@ -10,6 +10,8 @@
 #define _GNU_SOURCE
 #include "shell_runtime.h"
 #include "shell_model.h"
+#include "sync_native.h"
+#include "clock_compat.h"
 #include "shell_library.h"
 #include "shell_media.h"
 #include "shell_analysis.h"
@@ -91,6 +93,8 @@ static int worker_created, running, enabled, load_enabled, debug;
 static unsigned guards;
 static int owns_flag, dirty_flag;
 static uint32_t last_drawn_ms, period_ms=100;
+static uint32_t shown_extra_revision, shown_extra_control;
+static uint32_t native_input_at[2],native_input_revision,shown_native_input;
 static struct xz_shell shell;
 static struct xz_shell_model model;
 static struct xz_shell_model_storage *storage;
@@ -154,10 +158,39 @@ static uint64_t now_us(void) { struct timeval t;gettimeofday(&t,NULL);return (ui
 static uint32_t now_ms(void) { return (uint32_t)(now_us()/1000u); }
 /* Monotonic clock through the raw syscall: clock_gettime is GLIBC_2.17 in libc and librt is not a
    dependency the deck build allows. Falls back to the wall clock if the call fails. */
-static uint64_t mono_us(void) {
+static uint64_t mono_checked_us(void) {
  struct timespec t;
- if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return now_us();
+ if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t)||t.tv_sec<0)return 0;
  return (uint64_t)t.tv_sec*1000000u+(uint64_t)t.tv_nsec/1000u;
+}
+static uint64_t mono_us(void) { uint64_t t=mono_checked_us();return t?t:now_us(); }
+void xz_shell_runtime_native_input(int side,uint32_t at) {
+ if((unsigned)side>=2||!at||!__atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE))return;
+ uint32_t previous=__atomic_load_n(&native_input_at[side],__ATOMIC_ACQUIRE);
+ for(unsigned attempt=0;attempt<4;attempt++){
+  if(previous&&(int32_t)(at-previous)<=0)return;
+  if(__atomic_compare_exchange_n(&native_input_at[side],&previous,at,0,__ATOMIC_RELEASE,__ATOMIC_RELAXED)){
+   __atomic_add_fetch(&native_input_revision,1u,__ATOMIC_RELEASE);return;
+  }
+ }
+}
+static unsigned native_input_mask_at(uint32_t at) {
+ unsigned bits=0;
+ for(unsigned d=0;d<2;d++){
+  uint32_t observed=__atomic_load_n(&native_input_at[d],__ATOMIC_ACQUIRE);
+  if(!observed)continue;
+  if((uint32_t)(at-observed)<=120u)bits|=1u<<d;
+  else __atomic_compare_exchange_n(&native_input_at[d],&observed,0u,0,__ATOMIC_RELAXED,__ATOMIC_RELAXED);
+ }
+ return bits;
+}
+static unsigned native_input_mask(void) {
+ if(!__atomic_load_n(&native_input_at[0],__ATOMIC_ACQUIRE)&&!__atomic_load_n(&native_input_at[1],__ATOMIC_ACQUIRE))return 0;
+ uint64_t at=mono_checked_us();return at?native_input_mask_at((uint32_t)(at/1000u)):0;
+}
+static void native_observed_position(int d,struct xz_shell_deck *deck,int32_t source_ms) {
+ xz_shrt_position_reset(&position[d]);
+ deck->elapsed_ms=source_ms<0?0:source_ms;deck->elapsed_at_ms=0;
 }
 /* The stock UTILITY items (shell_utility.h). raw/known are written on the owner tick under the mutex.
    trial: a --ram-settings run; stock saves every UTILITY set to flash within 20 ms, so there the items
@@ -811,9 +844,15 @@ static void fill_slots_locked(void) {
 #define GRID_RETRY_MS 250u
 #define GRID_GIVE_UP_MS 6000u
 enum { PART_WAVE=1u, PART_GRID=2u, PART_STEMS=4u, PART_CUES=8u };
+struct wave_request {
+ uint32_t track_id;
+ uint8_t device_kind;
+ struct xz_shmedia media;
+};
 static struct {
  uint32_t wanted, done, retry_at;   /* wanted is bumped by the model thread on a new track */
  uint64_t requested_us;             /* when wanted was bumped (the model saw the new track) */
+ struct wave_request request;       /* captured with wanted under mutex; worker takes a copy */
  /* worker only */
  uint32_t running_gen; int stage, grid_done, stems_done, cues_done; uint64_t ready_us;
 } wave_job[XZ_SHELL_NATIVE_DECKS];
@@ -1017,16 +1056,17 @@ static int bin_three_band(const struct xz_wave_load *w, struct binned *b) {
 }
 /* LOAD prefetch: the shell knows the track before stock loads it, so the worker reads its 3-band wave
    while the deck loads. It is used only once the deck's reader holds exactly that file. */
-static struct { int pending, slot, deck; uint32_t id; uint64_t posted_us; } hint[XZ_SHELL_NATIVE_DECKS]; /* under mutex */
+static struct { int pending, slot, deck; uint32_t id; uint64_t posted_us; struct xz_shmedia media; } hint[XZ_SHELL_NATIVE_DECKS]; /* under mutex */
 static int scan_soon; /* under mutex: a LOAD did not land; check the sticks now, not in a second */
 static struct {
  char path[XZ126_READER_PATH_MAX]; struct binned b; uint64_t posted_us; uint32_t read_ms;
- char stems_path[XZ126_READER_PATH_MAX]; struct xz_shell_column *stems; uint32_t stems_n, stems_span, stems_split[4];
+ uint32_t track_id; int slot; uint64_t signature; struct xz_shmedia media;
 } prefetch[XZ_SHELL_NATIVE_DECKS]; /* worker */
-static void prefetch_drop(int d) { free(prefetch[d].b.scroll);free(prefetch[d].b.overview);free(prefetch[d].stems);memset(&prefetch[d],0,sizeof prefetch[d]); }
-static struct xz_shell_column *stem_columns(const char *source, uint32_t *n, uint32_t *span, uint32_t split_ms[4]);
-static void run_prefetch(int d, int slot, uint32_t id, uint64_t posted_us) {
+static void prefetch_drop(int d) { free(prefetch[d].b.scroll);free(prefetch[d].b.overview);memset(&prefetch[d],0,sizeof prefetch[d]); }
+static int media_still_current(int slot,const struct xz_shmedia *expected);
+static void run_prefetch(int d, int slot, uint32_t id, uint64_t posted_us, const struct xz_shmedia *media) {
  prefetch_drop(d);
+ if(!media->generation||usb[slot].generation!=media->generation||!xz_shmedia_same(&usb[slot].media,media)||!media_still_current(slot,media))return;
  struct xz_shlib *lib=usb[slot].lib; /* only this thread frees libraries */
  const struct xz_shlib_track *t=lib?xz_shlib_track(lib,id):NULL;
  const char *rel=t?xz_shlib_text(lib,t->file_path):NULL;
@@ -1037,11 +1077,11 @@ static void run_prefetch(int d, int slot, uint32_t id, uint64_t posted_us) {
  if(resolve_three_band(source,&w,&built,&s))return;
  int ok=!bin_three_band(&w,&prefetch[d].b);xz_wave_load_free(&w);
  if(!ok)return;
+ if(!media_still_current(slot,media)){prefetch_drop(d);return;}
  snprintf(prefetch[d].path,sizeof prefetch[d].path,"%s",source);
  prefetch[d].posted_us=posted_us;prefetch[d].read_ms=(uint32_t)((mono_us()-t0)/1000u);
- /* The stem layer too, while the deck is still loading. */
- prefetch[d].stems=stem_columns(source,&prefetch[d].stems_n,&prefetch[d].stems_span,prefetch[d].stems_split);
- if(prefetch[d].stems)snprintf(prefetch[d].stems_path,sizeof prefetch[d].stems_path,"%s",source);
+ prefetch[d].track_id=id;prefetch[d].slot=slot;prefetch[d].media=*media;prefetch[d].signature=analysis[slot].signature;
+ /* Optional stems are stage 1, after the first wave is posted. */
 }
 static struct xz_shell_column *stem_columns(const char *source, uint32_t *n, uint32_t *span, uint32_t split_ms[4]) {
  struct xz_wave_load w;*n=0;*span=0;
@@ -1051,19 +1091,42 @@ static struct xz_shell_column *stem_columns(const char *source, uint32_t *n, uin
  *span=(uint32_t)((uint64_t)w.count*1000u/PWV7_PER_SECOND);
  xz_wave_load_free(&w);return c;
 }
+/* Worker only: USB libraries are replaced by this thread, never the renderer.
+ * A reader path alone cannot identify the requested track or a replacement USB. */
+static int wave_expected_path(const struct wave_request *request,char *path,size_t capacity) {
+ int slot=request->device_kind==2?0:request->device_kind==3?1:-1;
+ if(slot<0||!request->track_id||request->track_id==UINT32_MAX||!request->media.generation||
+    usb[slot].generation!=request->media.generation||!usb[slot].lib||!xz_shmedia_same(&usb[slot].media,&request->media))return -1;
+ const struct xz_shlib_track *t=xz_shlib_track(usb[slot].lib,request->track_id);
+ const char *rel=t?xz_shlib_text(usb[slot].lib,t->file_path):NULL;
+ if(!rel||strncmp(rel,"/Contents/",10)||snprintf(path,capacity,"%s%s",request->media.root,rel)>=(int)capacity)return -1;
+ return slot;
+}
+static int wave_source_matches(int d,const struct wave_request *request,const char *path,struct xz126_deck_source *source) {
+ struct loaded current=read_loaded(d);
+ return settled(&current)&&current.id==request->track_id&&current.device_kind==request->device_kind&&
+        deck_source((unsigned)d,source)&&!strcmp(source->path,path);
+}
+static int wave_generation_current(int d,uint32_t gen) {
+ pthread_mutex_lock(&mutex);int current=wave_job[d].wanted==gen;pthread_mutex_unlock(&mutex);return current;
+}
 /* Worker. One step of deck d's job; returns 1 when the job is finished, 0 to come back at retry_at. */
-static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry_ms) {
+static int wave_step(int d, uint32_t gen, uint64_t requested_us, const struct wave_request *request, uint32_t *retry_ms) {
  struct xz126_deck_source s,after;
  uint64_t now=mono_us();uint32_t age_ms=(uint32_t)((now-requested_us)/1000u);
  *retry_ms=WAVE_RETRY_MS;
+ if(!wave_generation_current(d,gen))return 1;
  if(wave_job[d].running_gen!=gen){wave_job[d].running_gen=gen;wave_job[d].stage=0;wave_job[d].grid_done=wave_job[d].stems_done=wave_job[d].cues_done=0;}
- if(!deck_source((unsigned)d,&s)||s.path[0]!='/')return age_ms>WAVE_GIVE_UP_MS;
+ char expected[XZ126_READER_PATH_MAX];int expected_slot=wave_expected_path(request,expected,sizeof expected);
+ if(expected_slot<0||!wave_source_matches(d,request,expected,&s)||!media_still_current(expected_slot,&request->media))return age_ms>WAVE_GIVE_UP_MS;
  if(wave_job[d].stage==0){
-  /* The reader can still hold the previous file for a moment after the model sees the new track. */
-  if(!strcmp(s.path,wave_path[d])&&age_ms<5000u)return 0;
-  struct binned b;memset(&b,0,sizeof b);uint32_t resolve_ms=0,read_ms=0,built=0;int used_prefetch=0,slot=-1;
+  /* Exact requested identity permits same-track reload immediately. A previous
+   * reader for a different requested track is never admitted by a timeout. */
+  struct binned b;memset(&b,0,sizeof b);uint32_t resolve_ms=0,read_ms=0,built=0;int used_prefetch=0,slot=expected_slot;
   uint64_t posted_us=0;
-  if(prefetch[d].path[0]&&!strcmp(prefetch[d].path,s.path)){
+  if(prefetch[d].path[0]&&!strcmp(prefetch[d].path,s.path)&&prefetch[d].track_id==request->track_id&&
+     prefetch[d].slot==expected_slot&&xz_shmedia_same(&prefetch[d].media,&request->media)&&
+     prefetch[d].media.generation==request->media.generation&&prefetch[d].signature==analysis[expected_slot].signature){
    b=prefetch[d].b;memset(&prefetch[d].b,0,sizeof prefetch[d].b);used_prefetch=1;read_ms=prefetch[d].read_ms;posted_us=prefetch[d].posted_us;
   }else{
    uint64_t t0=mono_us();struct xz_wave_load w;
@@ -1076,7 +1139,7 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry
    if(!ok)return 1;
   }
   free(prefetch[d].b.scroll);free(prefetch[d].b.overview);memset(&prefetch[d].b,0,sizeof prefetch[d].b);prefetch[d].path[0]=0;
-  if(!deck_source((unsigned)d,&after)||strcmp(after.path,s.path)){free(b.scroll);free(b.overview);return 0;}
+  if(!wave_source_matches(d,request,expected,&after)||!media_still_current(expected_slot,&request->media)){free(b.scroll);free(b.overview);return 0;}
   uint32_t cols=b.scroll_n,span=b.span;
   if(!post_parts(d,gen,PART_WAVE,b.scroll,b.overview,b.scroll_n,b.overview_n,b.span,NULL,0,NULL,0,0))return 1;
   memcpy(wave_path[d],s.path,sizeof wave_path[d]);
@@ -1096,6 +1159,7 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry
  if(!wave_job[d].grid_done){
   struct xz_shell_beat *grid=NULL;uint32_t grid_n=0;
   if(read_grid((unsigned)d,&grid,&grid_n)){
+   if(!wave_source_matches(d,request,expected,&after)||!media_still_current(expected_slot,&request->media)){free(grid);return 0;}
    __atomic_add_fetch(&xz_mods_shell_proof_v1.grid_loads,1,__ATOMIC_RELAXED);
    if(!post_parts(d,gen,PART_GRID,NULL,NULL,0,0,0,grid,grid_n,NULL,0,0))return 1;
    wave_job[d].grid_done=1;
@@ -1112,18 +1176,21 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, uint32_t *retry
   if(!xz_shana_split(s.path,root,sizeof root,&track)&&(slot=analysis_slot(root))>=0&&analysis[slot].index&&
      !xz_shana_find(analysis[slot].index,track,dir,sizeof dir))count=xz_shana_memory_cues(dir,cues);
   wave_job[d].cues_done=1;
-  if(count>=0&&!post_cues(d,gen,cues,count))return 1;
+  if(count>=0){
+   if(!wave_source_matches(d,request,expected,&after)||!media_still_current(expected_slot,&request->media))return 0;
+   if(!post_cues(d,gen,cues,count))return 1;
+  }
   if(debug){char line[120];snprintf(line,sizeof line,"SHELL_CUES: deck=%d memory_cues=%d",d+1,count);xz_log(line);}
  }
  if(!wave_job[d].stems_done){
   uint64_t t0=mono_us();uint32_t n=0,span=0,split[4]={0,0,0,0};int prefetched=0;
   struct xz_shell_column *stems=NULL;
-  if(prefetch[d].stems_path[0]&&!strcmp(prefetch[d].stems_path,s.path)){
-   stems=prefetch[d].stems;n=prefetch[d].stems_n;span=prefetch[d].stems_span;memcpy(split,prefetch[d].stems_split,sizeof split);
-   prefetch[d].stems=NULL;prefetch[d].stems_path[0]=0;prefetched=1;
-  }else stems=stem_columns(s.path,&n,&span,split);
+  stems=stem_columns(s.path,&n,&span,split);
   wave_job[d].stems_done=1;
-  if(stems&&!post_parts(d,gen,PART_STEMS,NULL,NULL,0,0,0,NULL,0,stems,n,span))return 1;
+  if(stems){
+   if(!wave_source_matches(d,request,expected,&after)||!media_still_current(expected_slot,&request->media)){free(stems);return 0;}
+   if(!post_parts(d,gen,PART_STEMS,NULL,NULL,0,0,0,NULL,0,stems,n,span))return 1;
+  }
   if(debug){char line[240];snprintf(line,sizeof line,"SHELL_STEM_WAVE: deck=%d present=%d columns=%u read_ms=%u lookup_ms=%u drums_ms=%u harmonics_ms=%u vocal_ms=%u "
    "prefetched=%d request_to_ready_ms=%u",d+1,stems!=NULL,n,(unsigned)((mono_us()-t0)/1000u),split[0],split[1],split[2],split[3],prefetched,
    (unsigned)((mono_us()-requested_us)/1000u));xz_log(line);}
@@ -1143,7 +1210,7 @@ static void forget_root(const char *root) {
  size_t n=strlen(root);
  for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++){
   if(!n)continue;
-  if((prefetch[d].path[0]&&!strncmp(prefetch[d].path,root,n))||(prefetch[d].stems_path[0]&&!strncmp(prefetch[d].stems_path,root,n)))prefetch_drop(d);
+  if(prefetch[d].path[0]&&!strncmp(prefetch[d].path,root,n))prefetch_drop(d);
  }
 }
 static void scan_usb(void) {
@@ -1485,27 +1552,32 @@ static void *worker(void *unused) {
    last_scan=now;first=0;continue;
   }
   int worked=0;uint32_t wait_ms=250u;
-  /* Priority: a deck's wave (what the owner is looking at), then a LOAD prefetch, then lists, then the
-     once-a-second USB check. */
-  for(int d=0;d<XZ_SHELL_NATIVE_DECKS&&!worked;d++){
-   if(wave_job[d].done==wave_job[d].wanted)continue;
-   if((int32_t)(now-wave_job[d].retry_at)<0){uint32_t left=wave_job[d].retry_at-now;if(left<wait_ms)wait_ms=left;continue;}
-   uint32_t gen=wave_job[d].wanted;uint64_t requested_us=wave_job[d].requested_us;
-   pthread_mutex_unlock(&mutex);
-   uint32_t retry=WAVE_RETRY_MS;
-   int finished=wave_step(d,gen,requested_us,&retry);
-   lock_as("worker");
-   if(finished){if(wave_job[d].wanted==gen)wave_job[d].done=gen;}
-   else wave_job[d].retry_at=now_ms()+retry;
-   worked=1;
-  }
-  for(int d=0;d<XZ_SHELL_NATIVE_DECKS&&!worked;d++){
-   if(!hint[d].pending)continue;
-   int slot=hint[d].slot;uint32_t id=hint[d].id;uint64_t posted=hint[d].posted_us;hint[d].pending=0;
-   pthread_mutex_unlock(&mutex);
-   if(slot>=0&&slot<2)run_prefetch(d,slot,id,posted);
-   lock_as("worker");
-   worked=1;
+  /* First waves on either deck, then base-only LOAD prefetch, then optional
+   * grid/cue/stem enrichment. An old deck's stem job cannot jump a new wave. */
+  for(int base=1;base>=0&&!worked;base--){
+   if(!base)for(int d=0;d<XZ_SHELL_NATIVE_DECKS&&!worked;d++){
+    if(!hint[d].pending)continue;
+    int slot=hint[d].slot;uint32_t id=hint[d].id;uint64_t posted=hint[d].posted_us;struct xz_shmedia media=hint[d].media;hint[d].pending=0;
+    int already_ready=wave_job[d].running_gen==wave_job[d].wanted&&wave_job[d].stage>0&&
+     wave_job[d].request.track_id==id&&wave_job[d].request.device_kind==slot+2&&wave_job[d].request.media.generation==media.generation;
+    pthread_mutex_unlock(&mutex);
+    if(slot>=0&&slot<2&&!already_ready)run_prefetch(d,slot,id,posted,&media);
+    lock_as("worker");worked=1;
+   }
+   for(int d=0;d<XZ_SHELL_NATIVE_DECKS&&!worked;d++){
+    if(wave_job[d].done==wave_job[d].wanted)continue;
+    int first_wave=wave_job[d].running_gen!=wave_job[d].wanted||wave_job[d].stage==0;
+    if(first_wave!=base)continue;
+    if((int32_t)(now-wave_job[d].retry_at)<0){uint32_t left=wave_job[d].retry_at-now;if(left<wait_ms)wait_ms=left;continue;}
+    uint32_t gen=wave_job[d].wanted;uint64_t requested_us=wave_job[d].requested_us;struct wave_request request=wave_job[d].request;
+    pthread_mutex_unlock(&mutex);
+    uint32_t retry=WAVE_RETRY_MS;
+    int finished=wave_step(d,gen,requested_us,&request,&retry);
+    lock_as("worker");
+    if(finished){if(wave_job[d].wanted==gen)wave_job[d].done=gen;}
+    else wave_job[d].retry_at=now_ms()+retry;
+    worked=1;
+   }
   }
   if(!worked&&mys_job.pending){
    int slot=mys_job.slot;unsigned kinds=mys_job.kinds;mys_job.pending=0;
@@ -2221,6 +2293,54 @@ static void extra_refresh_locked(uint32_t now) {
  extra_sides=model.sides_extra;
 }
 
+/* Native SYNC consumers copy this cache. Only the existing UI publisher reads native memory. */
+static pthread_mutex_t native_sync_mutex=PTHREAD_MUTEX_INITIALIZER;
+static struct xz_sync_native_snapshot native_sync_cache={.native_deck=-1,.master_id=-1,.reason=XZ_SYNC_NATIVE_MASTER_UNAVAILABLE};
+static uint32_t native_sync_polled;
+static int native_sync_requested;
+int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *out) {
+ if(!out)return 0;
+ pthread_mutex_lock(&native_sync_mutex);*out=native_sync_cache;pthread_mutex_unlock(&native_sync_mutex);
+ uint64_t now=mono_checked_us();
+ uint32_t age=(uint32_t)(now/1000u)-out->captured_ms;
+ if(!out->available)return 0;
+ if(!out->source_revision){out->available=0;out->reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;return 0;}
+ if(!now||(int32_t)age<0||age>150u){out->available=0;out->reason=XZ_SYNC_NATIVE_TIME_INVALID;return 0;}
+ return 1;
+}
+static uint64_t native_sync_now(void *unused) { (void)unused;return mono_checked_us(); }
+static void native_sync_clear(void) {
+ struct xz_sync_native_snapshot empty={.native_deck=-1,.master_id=-1,.reason=XZ_SYNC_NATIVE_MASTER_UNAVAILABLE};
+ pthread_mutex_lock(&native_sync_mutex);native_sync_cache=empty;pthread_mutex_unlock(&native_sync_mutex);
+ native_sync_requested=0;native_sync_polled=0;
+}
+static void native_sync_refresh_locked(void) {
+ if(!xz_extra_decks_needs_native_sync()){
+  if(native_sync_requested)native_sync_clear();
+  return;
+ }
+ uint64_t clock=mono_checked_us();
+ if(!clock){native_sync_clear();return;}
+ uint32_t now=(uint32_t)(clock/1000u);
+ if(native_sync_requested&&(uint32_t)(now-native_sync_polled)<XZ_SHRT_REFRESH_MS)return;
+ native_sync_requested=1;native_sync_polled=now;
+ struct loaded before[2]={read_loaded(0),read_loaded(1)};
+ struct xz_sync_native_snapshot next;
+ if(xz_sync_native_read(plain_read,NULL,native_sync_now,NULL,&next)){
+  int d=next.native_deck;struct loaded after=read_loaded(d);
+  const struct wave_request *request=&wave_job[d].request;
+  int slot=after.device_kind==2?0:after.device_kind==3?1:-1;
+  if(!settled(&before[d])||!settled(&after)||before[d].id!=after.id||
+     before[d].device_kind!=after.device_kind||!wave_job[d].wanted||
+     request->track_id!=after.id||request->device_kind!=after.device_kind||
+     (slot>=0&&(!request->media.generation||request->media.generation!=usb[slot].generation||
+       !xz_shmedia_same(&request->media,&usb[slot].media)))){
+   next.available=0;next.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
+  }else next.source_revision=wave_job[d].wanted;
+ }
+ pthread_mutex_lock(&native_sync_mutex);native_sync_cache=next;pthread_mutex_unlock(&native_sync_mutex);
+}
+
 /* ---- model refresh (model thread) ---- */
 static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_input *in) {
  uint64_t began=now_us();
@@ -2275,19 +2395,31 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
    xz_log(line);memcpy(last_fx,fx,12);last_fx_ok=1;
   }
  }
- for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)if(changed>>d&1u){
+ for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++){
+  uint32_t id=loaded[d].known?loaded[d].id:0;uint8_t kind=loaded[d].known?loaded[d].device_kind:0;
+  int slot=kind==2?0:kind==3?1:-1;uint32_t generation=slot>=0?usb[slot].generation:0;
+  if(!(changed>>d&1u)&&wave_job[d].request.track_id==id&&wave_job[d].request.device_kind==kind&&wave_job[d].request.media.generation==generation)continue;
   memory_count_cache[d]=-1;
-  /* A new track: drop the old grid now, load the new wave and grid on the worker. */
+  /* A changed source incarnation invalidates waves even if title, duration and
+   * track number happen to match the removed USB. No file lookup on this thread. */
+  memset(&wave_job[d].request,0,sizeof wave_job[d].request);wave_job[d].request.track_id=id;wave_job[d].request.device_kind=kind;
+  if(slot>=0)wave_job[d].request.media=usb[slot].media;
+  xz_shell_model_set_wave(storage,d,NULL,0,0,NULL,0,0);xz_shell_model_set_stems(storage,d,NULL,0,0);
+  model.deck[d].known&=~(K(WAVE)|K(OVERVIEW)|K(STEM_WAVE)|K(GRID)|K(MEMORY_CUES));
+  memset(&model.deck[d].wave,0,sizeof model.deck[d].wave);memset(&model.deck[d].overview,0,sizeof model.deck[d].overview);memset(&model.deck[d].stems,0,sizeof model.deck[d].stems);
+  model.deck[d].grid=NULL;model.deck[d].grid_count=0;
+  model.deck[d].memory_count=0;memset(model.deck[d].memory_cue,0,sizeof model.deck[d].memory_cue);
   wave_job[d].wanted++;wave_job[d].retry_at=0;wave_job[d].requested_us=mono_us();grid_count[d]=0;pthread_cond_signal(&wake);
   xz_shrt_position_reset(&position[d]);memset(&motion[d],0,sizeof motion[d]);
  }
+ native_sync_refresh_locked();
  /* Playhead. The position comes from the audio engine (native clock: the player's sample position and its
     real speed with pitch and sync), read this refresh. The UI stat frame's elapsed time is the fallback
     when the engine read fails, or disagrees by more than ENGINE_AGREE_MS (a reading this module does not
     understand, e.g. a sample rate other than the 44.1 kHz the clock assumes). PLAYING comes from the
     native clock; without it, a stat-frame elapsed time that keeps changing is the proof of motion. The
     published elapsed time is the smoothed line the renderer extrapolates per frame (elapsed_at_ms). */
- unsigned moving=0,following=0;
+ unsigned moving=0,following=0,input_follow=native_input_mask();
  for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++){
   struct xz_shell_deck *k=&model.deck[d];
   if(!(k->known&K(ELAPSED))||!(k->known&K(LOADED))||!k->loaded){xz_shrt_position_reset(&position[d]);memset(&motion[d],0,sizeof motion[d]);continue;}
@@ -2305,7 +2437,8 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   }
   /* A jog hold, scratch or brake moves the engine position at a speed other than the pitch speed: the
      playhead then follows each engine reading with no extrapolation (and the model refreshes every frame). */
-  if(xz_shrt_position_step(&position[d],k->playing,source_ms,source_at,rate,from_engine,&k->elapsed_ms,&k->elapsed_at_ms))following|=1u<<d;
+  if(input_follow>>d&1u){native_observed_position(d,k,source_ms);following|=1u<<d;}
+  else if(xz_shrt_position_step(&position[d],k->playing,source_ms,source_at,rate,from_engine,&k->elapsed_ms,&k->elapsed_at_ms))following|=1u<<d;
   if(k->playing)moving|=1u<<d;
   if(debug&&k->playing&&now-sync_logged[d]>=1000u){
    sync_logged[d]=now;char line[220];
@@ -2316,7 +2449,7 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
    xz_log(line);
   }
  }
- for(int d=XZ_SHELL_NATIVE_DECKS;d<XZ_SHELL_DECKS;d++)if((model.deck[d].known&K(PLAYING))&&model.deck[d].playing)moving|=1u<<d;
+ moving=xz_shrt_moving_decks(&model);
  sec.moving|=moving;follow_bits=following;sec.following|=following;
  uint32_t raw_caution=xz_shell_model_caution(storage),caution=xz_shrt_caution_filter(&caution_state,raw_caution);
  if(caution!=raw_caution)xz_mods_shell_proof_v1.caution_filtered++;
@@ -2333,7 +2466,7 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   if(debug){char line[120];snprintf(line,sizeof line,"SHELL_CAUTION: read=0x%x yields=0x%x acknowledged=0x%x",raw_caution,caution,caution_state.ack);xz_log(line);}
   last_caution_logged=caution;
  }
- uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),moving!=0);
+ uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),(moving|input_follow)!=0);
  if(period<__atomic_load_n(&period_ms,__ATOMIC_RELAXED))dirty_flag=1; /* playback started: draw now */
  __atomic_store_n(&period_ms,period,__ATOMIC_RELAXED);
  refreshed=1;
@@ -2346,10 +2479,13 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
 /* ---- entry points ---- */
 int xz_shell_runtime_owns(void) { return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE); }
 int xz_shell_runtime_will_refresh(void) {
- return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)&&now_ms()-__atomic_load_n(&last_refresh_ms,__ATOMIC_RELAXED)>=XZ_SHRT_REFRESH_MS-XZ_SHRT_PRESENT_LEAD_MS;
+ return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)&&(native_input_mask()||now_ms()-__atomic_load_n(&last_refresh_ms,__ATOMIC_RELAXED)>=XZ_SHRT_REFRESH_MS-XZ_SHRT_PRESENT_LEAD_MS);
 }
 int xz_shell_runtime_idle(void) {
  if(!__atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)||__atomic_load_n(&dirty_flag,__ATOMIC_ACQUIRE))return 0;
+ if(__atomic_load_n(&native_input_revision,__ATOMIC_ACQUIRE)!=__atomic_load_n(&shown_native_input,__ATOMIC_ACQUIRE))return 0;
+ if(xz_extra_decks_revision()!=__atomic_load_n(&shown_extra_revision,__ATOMIC_ACQUIRE)||
+    xz_extra_decks_control_revision()!=__atomic_load_n(&shown_extra_control,__ATOMIC_ACQUIRE))return 0;
  return now_ms()-__atomic_load_n(&last_drawn_ms,__ATOMIC_ACQUIRE)<__atomic_load_n(&period_ms,__ATOMIC_RELAXED);
 }
 int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shell_runtime_frame_input *in) {
@@ -2377,15 +2513,22 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  last_call_ms=now;last_input=*in;
  int result=0;
  if(!enabled||!candidate(in->eligible,in->theme)){set_owns(0);goto done;}
- int owned=owns_flag,due=dirty_flag||now-last_drawn_ms>=period_ms;
+ int extra_changed=xz_extra_decks_revision()!=shown_extra_revision||xz_extra_decks_control_revision()!=shown_extra_control;
+ uint32_t input_revision=__atomic_load_n(&native_input_revision,__ATOMIC_ACQUIRE);
+ int input_changed=input_revision!=shown_native_input;
+ int owned=owns_flag,due=dirty_flag||extra_changed||input_changed||now-last_drawn_ms>=period_ms;
  if(owned&&!due){sec.skipped++;result=-1;goto done;}
  /* Off screen (handed off or yielding to a caution) the model still refreshes, at 10 Hz, to see the way back. */
  if(!owned&&refreshed&&now-last_refresh_ms<100u)goto done;
  /* The model refreshes at most every XZ_SHRT_REFRESH_MS (the native reads cost more than a frame can
     spare); frames in between redraw the same model with a newer clock, and the renderer advances the
     playhead from elapsed_at_ms. */
- if(!owned||!refreshed||follow_bits||now-last_refresh_ms>=XZ_SHRT_REFRESH_MS){
+ if(!owned||!refreshed||input_changed||follow_bits||now-last_refresh_ms>=XZ_SHRT_REFRESH_MS){
   uint64_t r0=now_us();refresh_locked(now,in);wf.refresh_us=(uint32_t)(now_us()-r0);
+ }else if(extra_changed){
+  extra_refresh_locked(now);
+  native_sync_refresh_locked();
+  __atomic_store_n(&period_ms,xz_shrt_frame_period_ms(xz_shell_screen(&shell),xz_shrt_moving_decks(&model)!=0),__ATOMIC_RELAXED);
  }
  if(!owns_now(in->eligible,in->theme)){set_owns(0);goto done;}
  set_owns(1);
@@ -2432,6 +2575,11 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  xz_shrt_frame_mark(&sec.shown,began_us);
  xz_mods_shell_proof_v1.frames++;
  step_jitter_locked();
+ if(result>0){
+  __atomic_store_n(&shown_extra_revision,extra.snapshot_revision,__ATOMIC_RELEASE);
+  __atomic_store_n(&shown_extra_control,extra.control_revision,__ATOMIC_RELEASE);
+  __atomic_store_n(&shown_native_input,input_revision,__ATOMIC_RELEASE);
+ }
  __atomic_store_n(&last_drawn_ms,now,__ATOMIC_RELEASE);__atomic_store_n(&dirty_flag,0,__ATOMIC_RELEASE);
 done:
  roll_second(now);
@@ -2813,6 +2961,7 @@ void xz_shell_runtime_owner_tick(void) {
    /* The worker reads the new track's wave while the deck loads it. */
    if(c->device_kind==2||c->device_kind==3){
     hint[c->deck].pending=1;hint[c->deck].slot=c->device_kind-2;hint[c->deck].id=c->track_id;hint[c->deck].posted_us=mono_us();
+    hint[c->deck].media=usb[c->device_kind-2].media;
     pthread_cond_signal(&wake);
    }
   }else if(c->kind==XZ_SHRT_CMD_UTILITY){
@@ -2929,7 +3078,7 @@ static void stop_locked(void) {
  pthread_mutex_lock(&mutex);running=0;pthread_cond_signal(&wake);pthread_mutex_unlock(&mutex);
  if(worker_created){pthread_join(worker_thread,NULL);worker_created=0;}
  pthread_mutex_lock(&mutex);
- set_owns(0);
+ set_owns(0);native_sync_clear();
  model.browse=NULL;model.source=NULL;model.info=NULL;model.settings_screen=NULL;model.mods=NULL;model.my_settings=NULL;model.help=NULL;
  for(int k=0;k<L_COUNT;k++){retire_list(lists[k].result);xz_extra_order_release(lists[k].order);lists[k].order=NULL;lists[k].result=NULL;}
  for(int i=0;i<2;i++){if(usb[i].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[i].lib;usb[i].lib=NULL;}

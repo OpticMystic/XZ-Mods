@@ -13,6 +13,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -93,7 +94,7 @@ int xz_doom_choose_game(int chex) {
 }
 uint32_t xz_game_milliseconds(void) {
     struct timespec t;
-    if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t)) return 0;
+    if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t)) return 0;
     return (uint32_t)((uint64_t)t.tv_sec*1000+(uint32_t)t.tv_nsec/1000000);
 }
 int xz_game_active(const struct xz_game_input *s,uint32_t now) {

@@ -11,6 +11,8 @@ for arch,cc,objcopy in [('host','gcc','objcopy'),('arm','arm-linux-gnueabi-gcc',
  run(*(['qemu-arm','-L','/usr/arm-linux-gnueabi'] if arch=='arm' else []),linux(selector))
  kart=a.out/f'test-kart-jog-pending-{arch}';run(cc,'-std=c11','-O1','-ffunction-sections','-fdata-sections','-Wl,--gc-sections','-Wall','-Wextra','-Werror','tests/test_kart_jog_pending.c','kart/xz_kart_input.c','-lpthread','-o',linux(kart))
  run(*(['qemu-arm','-L','/usr/arm-linux-gnueabi'] if arch=='arm' else []),linux(kart))
+ sync=a.out/f'test-sync-edges-{arch}';run(cc,'-std=c11','-O1','-UNDEBUG','-Wall','-Wextra','-Werror','tests/test_sync_edges.c','deck_select.c','-o',linux(sync))
+ run(*(['qemu-arm','-L','/usr/arm-linux-gnueabi'] if arch=='arm' else []),linux(sync))
  objects=[]
  for name in ['runtime','player']:
   obj=a.out/f'global-jog-{arch}-{name}.o';objects.append(linux(obj));run(cc,'-std=c11','-O1','-ffunction-sections','-fdata-sections','-Wall','-Wextra','-Werror','-c',f'tests/test_global_jog_{name}.c','-o',linux(obj))

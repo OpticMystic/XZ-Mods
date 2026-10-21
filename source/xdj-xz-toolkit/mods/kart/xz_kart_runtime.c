@@ -16,6 +16,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <sys/vfs.h>
 #include <time.h>
 #include <unistd.h>
@@ -48,7 +49,7 @@ void xz_kart_runtime_display_probe(int (*probe)(void)) {
  pthread_mutex_lock(&mutex);display_probe=probe;unlock_published();
 }
 static uint32_t milliseconds(void) {
- struct timespec t;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t))return 0;
+ struct timespec t;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;
  return (uint32_t)((uint64_t)t.tv_sec*1000+(uint32_t)t.tv_nsec/1000000);
 }
 static int heartbeat_attributes(pthread_attr_t *attributes) {

@@ -12,6 +12,7 @@
 #include <time.h>
 #ifndef _WIN32
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <unistd.h>
 #endif
 #ifdef _WIN32
@@ -168,7 +169,7 @@ static double milliseconds(void){
 #ifdef _WIN32
     LARGE_INTEGER a,b;QueryPerformanceCounter(&a);QueryPerformanceFrequency(&b);return 1000.*a.QuadPart/b.QuadPart;
 #else
-    struct timespec t;assert(!syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t));return t.tv_sec*1000.+t.tv_nsec*.000001;
+    struct timespec t;assert(!xz_clock_gettime_compat(CLOCK_MONOTONIC,&t));return t.tv_sec*1000.+t.tv_nsec*.000001;
 #endif
 }
 static int compare_time(const void *a,const void *b){double x=*(const double *)a,y=*(const double *)b;return x<y?-1:x>y?1:0;}

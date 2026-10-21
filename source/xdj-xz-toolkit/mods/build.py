@@ -215,7 +215,7 @@ def main() -> None:
                str(ROOT / "ui/native_window_keys.c"),
                # FLAGSHIP shell; ui_draw.c already comes with UI_SOURCES.
                *(str(ROOT / "shell" / name) for name in SHELL_SOURCES if name != "../ui/ui_draw.c"),
-               str(ROOT / "shell_model.c"), str(ROOT / "shell_runtime.c"), str(ROOT / "shell_runtime_core.c"),
+               str(ROOT / "shell_model.c"), str(ROOT / "shell_runtime.c"), str(ROOT / "shell_runtime_core.c"), str(ROOT / "sync_native.c"),
                str(ROOT / "shell_library.c"), str(ROOT / "shell_analysis.c"), str(ROOT / "shell_playlists.c"), str(ROOT / "shell_utility.c"), str(ROOT / "shell_mysettings.c"), str(ROOT / "my_settings.c"), str(ROOT / "pdb/pdb.c"),
                str(ROOT / "settings.c"), str(ROOT / "settings_internal.c"), str(ROOT / "usb_profile.c"),
                str(ROOT / "dj_profile.c"), str(ROOT / "dj_runtime.c"), str(ROOT / "dj_profile_write.c"), str(ROOT / "dj_folders.c"),

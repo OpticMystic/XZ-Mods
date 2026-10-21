@@ -6,6 +6,7 @@
    pixel (track_px = ms x pps / 1000), so an audio column lands on the same
    pixel phase every frame while the lane scrolls and nothing shimmers. */
 #include "shell_internal.h"
+#include "shell_axis.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -107,28 +108,45 @@ static void column_bottom(const struct span_canvas *s, int x, int base, const in
 /* Columns per track pixel in 16.16, and the columns pixel p shows: the ones whose start falls
    within half a pixel of p's centre, so a sound lands on the pixel its time rounds to, the same
    rounding the playhead and every marker use. */
-static uint64_t lane_cpp(const struct xz_shell_wave *w, int pps) {
- uint64_t cpp=((uint64_t)w->count*1000u<<16)/((uint64_t)w->span_ms*(uint64_t)pps);
- return cpp?cpp:1;
+struct lane_sampler { uint64_t centre,step,half; unsigned shift; };
+static uint64_t sample_fixed(double value){return value>=(double)UINT64_MAX?UINT64_MAX:(uint64_t)value;}
+static struct lane_sampler lane_sampler(const struct xz_shell_wave *w,struct sh_wave_axis axis,int64_t first){
+ struct lane_sampler s;
+ if(first<0)first=0;
+ if(axis.rate==10000){
+  uint64_t cpp=((uint64_t)w->count*1000u<<16)/((uint64_t)w->span_ms*(uint64_t)axis.pps);
+  s.step=cpp?cpp:1;s.shift=16;s.centre=(uint64_t)first*s.step;
+ }else{
+  /* One division per lane.32 fractional bits retain sparse data at very slow
+     positive tempo; anchor before quantizing the step so long source offsets
+     do not accumulate step-rounding error. No floating work in the pixel loop. */
+  double step=(double)w->count*1000.*4294967296.*axis.rate/((double)w->span_ms*axis.pps*10000.);
+  s.step=sample_fixed(step);s.shift=32;s.centre=sample_fixed((double)first*step);
+ }
+ s.half=s.step/2;return s;
 }
-static void lane_range(uint64_t cpp, int64_t p, uint64_t *from, uint64_t *to) {
- uint64_t centre=(uint64_t)p*cpp,half=cpp/2;
- *from=(centre>half?centre-half:0)>>16;*to=(centre+half)>>16;
+static void lane_range(struct lane_sampler *s,uint64_t *from,uint64_t *to){
+ *from=(s->centre>s->half?s->centre-s->half:0)>>s->shift;
+ *to=(UINT64_MAX-s->centre<s->half?UINT64_MAX:s->centre+s->half)>>s->shift;
+ s->centre=UINT64_MAX-s->centre<s->step?UINT64_MAX:s->centre+s->step;
 }
-void sh_wave_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int64_t first_px, int pps) {
+static void wave_lane_axis(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int64_t first_px, struct sh_wave_axis axis) {
  struct span_canvas s;
- if(!w->columns||!w->count||!w->span_ms||pps<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
+ if(!w->columns||!w->count||!w->span_ms||axis.pps<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
  int16_t scale[256];scale_table(scale,amp);
  int cy=r.y+r.h/2;
- uint64_t cpp=lane_cpp(w,pps);
+ struct lane_sampler sampler=lane_sampler(w,axis,first_px+s.x0-r.x);
  for(int x=s.x0;x<s.x1;x++){
   int64_t p=first_px+(x-r.x);
   if(p<0)continue;
-  uint64_t from,to;lane_range(cpp,p,&from,&to);
+  uint64_t from,to;lane_range(&sampler,&from,&to);
   if(from>=w->count)break;
   int band[3];band_max(w,(uint32_t)from,(uint32_t)to,band);
   column_centered(&s,x,cy,scale,band,mode);
  }
+}
+void sh_wave_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int64_t first_px, int pps) {
+ wave_lane_axis(c,r,amp,w,mode,first_px,(struct sh_wave_axis){pps,10000});
 }
 void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int played_x) {
  struct span_canvas s;
@@ -215,18 +233,18 @@ static void stem_column_centered(const struct span_canvas *s, int x, int cy, int
   vspan(s,x,cy+lo,cy+hi+1,k->stroke[layer]);
  }
 }
-static void stem_lane(const struct xz_shell_model *m, const struct xz_shell_deck *d, struct xz_canvas c, struct xz_shell_rect r, int amp, int64_t first_px, int pps) {
+static void stem_lane(const struct xz_shell_model *m, const struct xz_shell_deck *d, struct xz_canvas c, struct xz_shell_rect r, int amp, int64_t first_px, struct sh_wave_axis axis) {
  const struct xz_shell_wave *w=&d->stems;
  struct span_canvas s;
- if(pps<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
+ if(axis.pps<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
  struct stem_ink k;stem_inks(m,d,0,&k);
  int16_t scale[256];scale_table(scale,amp);
  int cy=r.y+r.h/2,prev[3]={-1,-1,-1};
- uint64_t cpp=lane_cpp(w,pps);
+ struct lane_sampler sampler=lane_sampler(w,axis,first_px+s.x0-r.x);
  for(int x=s.x0;x<s.x1;x++){
   int64_t p=first_px+(x-r.x);
   if(p<0)continue;
-  uint64_t from,to;lane_range(cpp,p,&from,&to);
+  uint64_t from,to;lane_range(&sampler,&from,&to);
   if(from>=w->count)break;
   const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to);
   if(!q->low&&!q->mid&&!q->high){prev[0]=prev[1]=prev[2]=-1;continue;}
@@ -272,13 +290,13 @@ static void stem_overview(const struct xz_shell_model *m, const struct xz_shell_
 int sh_stem_wave_ready(const struct xz_shell_deck *d) {
  return sh_has(d,XZ_SHELL_F_STEM_WAVE)&&d->stems.columns&&d->stems.count&&d->stems.span_ms;
 }
-void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps) {
+void sh_deck_lane_axis(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, struct sh_wave_axis axis) {
  enum xz_shell_wave_color mode=sh_deck_wave_color(u,d);
  if(mode==XZ_SHELL_WAVE_STEMS){
-  if(sh_stem_wave_ready(d)){stem_lane(m,d,c,r,amp,first_px,pps);return;}
+  if(sh_stem_wave_ready(d)){stem_lane(m,d,c,r,amp,first_px,axis);return;}
   mode=XZ_SHELL_WAVE_3BAND;
  }
- if(sh_has(d,XZ_SHELL_F_WAVE))sh_wave_lane(c,r,amp,&d->wave,mode,first_px,pps);
+ if(sh_has(d,XZ_SHELL_F_WAVE))wave_lane_axis(c,r,amp,&d->wave,mode,first_px,axis);
 }
 void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int played_x) {
  enum xz_shell_wave_color mode=sh_deck_wave_color(u,d);
@@ -289,22 +307,31 @@ void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
  if(sh_has(d,XZ_SHELL_F_OVERVIEW))sh_wave_overview(c,r,&d->overview,mode,played_x);
 }
 
+void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps) {
+ sh_deck_lane_axis(c,r,amp,u,m,d,first_px,(struct sh_wave_axis){pps,10000});
+}
 int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
  if(!m||deck<0||deck>=sh_deck_count(m))return -1;
  const struct xz_shell_deck *d=&m->deck[deck];
  if(!sh_has(d,XZ_SHELL_F_ELAPSED))return -1;
  int64_t e=d->elapsed_ms;
- if(sh_has(d,XZ_SHELL_F_PLAYING)&&d->playing&&d->elapsed_at_ms){
+ int timeline=sh_has(d,XZ_SHELL_F_MOTION);
+ int moving=timeline?d->moving:sh_has(d,XZ_SHELL_F_PLAYING)&&d->playing;
+ int rate_known=sh_has(d,XZ_SHELL_F_PLAYBACK_RATE);
+ if(moving&&d->elapsed_at_ms&&(!timeline||rate_known)){
   uint32_t dt=m->clock_ms-d->elapsed_at_ms;
   if(dt<=0x7fffffffu){
-   if(dt>XZ_SHELL_EXTRAPOLATE_MAX_MS)dt=XZ_SHELL_EXTRAPOLATE_MAX_MS;
-   int64_t rate=10000+(sh_has(d,XZ_SHELL_F_TEMPO)?d->tempo_x100:0);
-   if(rate<0)rate=0;
-   int64_t advanced=e+(int64_t)dt*rate/10000;
-   /* An active loop wraps instead of running past its out point. */
+   uint32_t limit=(timeline||rate_known)?XZ_SHELL_TIMELINE_EXTRAPOLATE_MS:XZ_SHELL_EXTRAPOLATE_MAX_MS;
+   if(dt>limit)dt=limit;
+   int64_t rate=rate_known?d->playback_rate_ppm:1000000+(int64_t)(sh_has(d,XZ_SHELL_F_TEMPO)?d->tempo_x100:0)*100;
+   if(!rate_known&&rate<0)rate=0;
+   int64_t advanced=e+(int64_t)dt*rate/1000000;
    const struct xz_shell_loop *l=&d->loop;
-   if(sh_has(d,XZ_SHELL_F_LOOP)&&l->active&&l->out_ms>l->in_ms&&e>=l->in_ms&&e<l->out_ms&&advanced>=l->out_ms)
-    advanced=l->in_ms+(advanced-l->in_ms)%(l->out_ms-l->in_ms);
+   if(sh_has(d,XZ_SHELL_F_LOOP)&&l->active&&l->out_ms>l->in_ms&&e>=l->in_ms&&e<l->out_ms&&
+      (advanced>=l->out_ms||advanced<l->in_ms)){
+    int64_t span=(int64_t)l->out_ms-l->in_ms,offset=(advanced-l->in_ms)%span;
+    advanced=l->in_ms+(offset<0?offset+span:offset);
+   }
    e=advanced;
   }
  }

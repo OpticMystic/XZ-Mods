@@ -38,7 +38,7 @@ static const struct xz_ds_row rows[] = {
     all move or change the deck they reach. */
  ROW(0x4121, 0x4122, SWALLOW, PLAYER, NONE),
  ROW(0x4126, 0x4128, SWALLOW, PLAYER, NONE),
- ROW(0x4312, 0x4312, SWALLOW, PLAYER, NONE),
+ ROW(0x4312, 0x4312, DELIVER, GLOBAL, XZ_EXTRA_IN_MASTER),
  ROW(0x4324, 0x4324, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_DOUBLE), /* CALL NEXT / 2X */
  ROW(0x4325, 0x4325, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_HALF),   /* CALL PREV / 1/2X */
  /* TotalMainIfUi consumes TRACK SEARCH globally before the physical-player hook. */
@@ -209,6 +209,7 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
  int away = s->target == XZ_DS_EXTRA;
  if(k->op == 0) {
   if(!away) { s->owner[XZ_DS_NATIVE] |= bit; return; }
+  if(row->kind==XZ_EXTRA_IN_SYNC){s->owner[XZ_DS_EXTRA]|=bit;out->verdict=XZ_DS_SWALLOW;return;}
   if(k->code >= 0x4114 && k->code <= 0x4118) s->extra_hot_cue = k->code == 0x4114 && !k->shift;
   int pad = k->code >= 0x4119 && k->code <= 0x4120;
   if(row->cls != XZ_DS_ROW_DELIVER || (pad && !s->extra_hot_cue)) { out->verdict = XZ_DS_SWALLOW; return; }
@@ -229,6 +230,11 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
   }
   if(!release) { out->verdict = XZ_DS_SWALLOW; return; }
   s->owner[XZ_DS_EXTRA] &= ~bit;
+  if(row->kind==XZ_EXTRA_IN_SYNC){
+   out->verdict=XZ_DS_SWALLOW;
+   if(k->op==2){deliver(out,side,XZ_EXTRA_IN_SYNC,k);out->event.pressed=1;}
+   return;
+  }
   deliver(out, side, (enum xz_extra_input)row->kind, k);
   if(k->code >= 0x4119 && k->code <= 0x4120) out->event.hot_cue = (int)(k->code - 0x4119);
   return;
@@ -258,6 +264,15 @@ struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *d, const struct x
   return out;
  }
  if(row->cls == XZ_DS_ROW_STOCK) return out;
+ uint64_t native_bit=(uint64_t)1<<slot;
+ if((k->op==2||k->op==3)&&(s->early_native_release&native_bit)){
+  s->early_native_release&=~native_bit;s->owner[XZ_DS_NATIVE]&=~native_bit;return out;
+ }
+ if(s->early_native_down&native_bit){
+  if(k->op==0)s->owner[XZ_DS_NATIVE]|=native_bit;
+  else if(k->op==2||k->op==3){s->early_native_down&=~native_bit;s->owner[XZ_DS_NATIVE]&=~native_bit;}
+  return out;
+ }
  if(row->path==XZ_DS_PATH_GLOBAL){if(away)out.verdict=XZ_DS_SWALLOW;return out;}
  int stream = row->kind == XZ_EXTRA_IN_JOG_TURN || row->kind == XZ_EXTRA_IN_TEMPO;
  if(stream || k->op == XZ_DS_OP_JOG || k->op == XZ_DS_OP_FADER) {
@@ -284,10 +299,20 @@ struct xz_ds_outcome xz_deck_select_global_player(struct xz_deck_select *d,const
  struct xz_ds_side *s=&d->side[k->side];other_key(s);
  int stream=row->kind==XZ_EXTRA_IN_JOG_TURN||row->kind==XZ_EXTRA_IN_TEMPO;
  if(!stream){
-  uint64_t bit=(uint64_t)1<<slot;
+  uint64_t bit=(uint64_t)1<<slot;int release=k->op==2||k->op==3;
+  /* A new press retires an old release token when a PC listener ate the fallback. */
+  if(k->op==0&&(s->early_native_release&bit)){s->early_native_release&=~bit;s->owner[XZ_DS_NATIVE]&=~bit;}
+  if(s->owner[XZ_DS_EXTRA]&bit){
+   if(k->op==0){pass.verdict=XZ_DS_SWALLOW;return pass;}
+   return xz_deck_select_key(d,k,now);
+  }
+  if(s->early_native_down&bit){
+   if(release){s->early_native_down&=~bit;s->early_native_release|=bit;}
+   return pass;
+  }
   if(s->owner[XZ_DS_NATIVE]&bit)return pass;
-  if(k->op==0&&(s->owner[XZ_DS_EXTRA]&bit)){pass.verdict=XZ_DS_SWALLOW;return pass;}
-  if(s->target!=XZ_DS_EXTRA&&!(s->owner[XZ_DS_EXTRA]&bit))return pass;
+  if(s->target==XZ_DS_NATIVE){if(k->op==0)s->early_native_down|=bit;return pass;}
+  if(release&&(s->early_native_release&bit))return pass;
  }else if(s->target!=XZ_DS_EXTRA)return pass;
  return xz_deck_select_key(d,k,now);
 }
@@ -319,6 +344,16 @@ struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *d, unsigne
    if(!shift){out.verdict=XZ_DS_DELIVER;out.event.deck=side;out.event.kind=code==0x4213?XZ_EXTRA_IN_SEEK:XZ_EXTRA_IN_TRACK_NEXT;out.event.pressed=1;out.event.seek_ms=0;}
   }
   return out;
+ }
+ if(row&&row->kind==XZ_EXTRA_IN_MASTER){
+  unsigned slot=0;(void)xz_ds_row_for(code,&slot);uint64_t bit=(uint64_t)1<<slot;
+  if(op==0&&((s->owner[XZ_DS_EXTRA]|s->owner[XZ_DS_NATIVE])&bit)){
+   if(s->owner[XZ_DS_EXTRA]&bit)out.verdict=XZ_DS_SWALLOW;
+   return out;
+  }
+  struct xz_ds_key key={.side=side,.code=code,.op=op};
+  key.shift=s->phase==XZ_DS_DOWN_ONCE||s->phase==XZ_DS_DOWN_TWICE||s->phase==XZ_DS_MODIFIER;
+  other_key(s);button(s,side,row,slot,&key,&out);return out;
  }
  if(row && row->kind == XZ_EXTRA_IN_LOAD) {
   if(op == 0) {
