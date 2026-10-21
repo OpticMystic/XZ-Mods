@@ -50,16 +50,36 @@ static int tick_row(unsigned s){return (s>=4&&s<=13)||(s>=118&&s<=127);}
 static int64_t floor_div(int64_t a,int64_t b){return a>=0?a/b:-((-a+b-1)/b);}
 
 int xz_extra_lane_position_ms(const struct xz_extra_deck *d,uint32_t now_ms,int32_t *out){
- if(!d||!out||!(d->known&K(ELAPSED)))return 0;
- int64_t p=d->elapsed_ms;
- if((d->known&K(PLAYING))&&d->playing&&d->elapsed_at_ms){
+ if(!d||!out)return 0;
+ int have=(d->known&K(ELAPSED))!=0;
+ int64_t p=have?d->elapsed_ms:0;
+ if(d->known&K(TIMELINE)){
+  const struct xz_extra_timeline *t=&d->timeline;
+  uint32_t age=now_ms-t->at_ms;
+  if((t->flags&XZ_EXTRA_TIMELINE_ANCHOR)&&t->source_rate&&t->at_ms&&(int32_t)age>=0&&age<=250u&&
+     t->source_frame<=(uint64_t)INT32_MAX*t->source_rate/1000u){
+   p=(int64_t)(t->source_frame*1000u/t->source_rate);have=1;
+   int moving=t->flags&XZ_EXTRA_TIMELINE_MOTION?t->moving:((d->known&K(PLAYING))&&d->playing);
+   if(moving&&(t->flags&XZ_EXTRA_TIMELINE_RATE)){
+    if(age>50u)age=50u;
+    int64_t advanced=p+(int64_t)age*t->rate_ppm/1000000;
+    if((d->known&K(LOOP))&&d->loop.active&&d->loop.out_ms>d->loop.in_ms&&p>=d->loop.in_ms&&p<d->loop.out_ms&&
+       (advanced<d->loop.in_ms||advanced>=d->loop.out_ms)){
+     int64_t span=(int64_t)d->loop.out_ms-d->loop.in_ms,offset=(advanced-d->loop.in_ms)%span;
+     advanced=d->loop.in_ms+(offset<0?offset+span:offset);
+    }
+    p=advanced;
+   }
+  }
+ }else if((d->known&K(PLAYING))&&d->playing&&d->elapsed_at_ms){
   int32_t age=(int32_t)(now_ms-d->elapsed_at_ms);
   if(age<0)age=0;else if(age>1000)age=1000;
   int64_t speed=10000+((d->known&K(TEMPO))?d->tempo_x100:0);
   if(speed>0)p+=(int64_t)age*speed/10000;
  }
+ if(!have)return 0;
  if(p<0)p=0;
- if((d->known&K(LOOP))&&d->loop.active&&d->loop.out_ms>d->loop.in_ms&&p>=d->loop.out_ms)
+ if(!(d->known&K(TIMELINE))&&(d->known&K(LOOP))&&d->loop.active&&d->loop.out_ms>d->loop.in_ms&&p>=d->loop.out_ms)
   p=d->loop.in_ms+(p-d->loop.in_ms)%(d->loop.out_ms-d->loop.in_ms);
  if((d->known&K(TOTAL))&&d->total_ms>0&&p>d->total_ms)p=d->total_ms;
  *out=(int32_t)p;return 1;
@@ -115,8 +135,14 @@ static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_dec
  else{xz_rect(c,3,2,tag,13,0x1c2632);xz_border(c,3,2,tag,13,0x55606c);xz_text(c,8,4,text,1,12,0xb4bcc4);}
  if(!loaded)return;
  if((d->known&K(MASTER))&&d->master){
-  int w=xz_text_width(c,"MASTER",1,12)+8;
-  xz_rect(c,3+tag+4,2,w,13,0xff6a00);xz_text(c,3+tag+8,4,"MASTER",1,12,0xffffff);
+  const char *label=d->master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MST":"MASTER";
+  int w=xz_text_width(c,label,1,12)+8;
+  xz_rect(c,3+tag+4,2,w,13,0xff6a00);xz_text(c,3+tag+8,4,label,1,12,0xffffff);
+ }else if((d->known&K(SYNC))&&d->sync.requested){
+  const char *label=d->sync.locked?"SYNC":d->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE?"BPM":"WAIT";
+  if(d->sync.master_deck>=0&&d->sync.master_deck<4)snprintf(text,sizeof text,"%s %d",label,d->sync.master_deck+1);
+  else snprintf(text,sizeof text,"%s",label);
+  xz_text(c,3+tag+4,4,text,1,12,d->sync.locked?0x4d9fff:0xffc070);
  }else{
   char range[8]="";
   if(d->known&K(TEMPO_RANGE)){

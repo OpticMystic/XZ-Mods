@@ -9,6 +9,7 @@
 #include "extra_player.h"
 #include "runtime.h"
 #include "extra_thread_placement.h"
+#include "clock_compat.h"
 #include <dirent.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -23,6 +24,7 @@
 #pragma weak xz_extra_resolve_track_checked
 #pragma weak xz_extra_resolve_track
 #pragma weak xz_extra_native_master_bpm
+#pragma weak xz_extra_native_sync_clock
 
 /* Overridable so the host test can use a node it may stat and poll fast. */
 #ifndef USB_MAJOR
@@ -36,15 +38,20 @@
 #endif
 
 /* glibc 2.13 has clock_gettime only in librt; the transport is built with -Dclock_gettime=this. */
-int xz_usb_clock_gettime(clockid_t clock, struct timespec *t) { return (int)syscall(SYS_clock_gettime, clock, t); }
+int xz_usb_clock_gettime(clockid_t clock, struct timespec *t) { return xz_clock_gettime_compat(clock,t); }
 static uint32_t now_ms(void) {
  struct timespec t;
  if (xz_usb_clock_gettime(CLOCK_MONOTONIC, &t)) return 0;
  return (uint32_t)((uint64_t)t.tv_sec * 1000u + (uint32_t)t.tv_nsec / 1000000u);
 }
 
-static int left_side, right_side;
-static int available, route_up;
+enum { CONTROL_LEFT=1u,CONTROL_RIGHT=2u,CONTROL_ROUTE=4u,CONTROL_AVAILABLE=8u };
+static unsigned control_state;
+static void control_update(unsigned mask,unsigned value){
+ unsigned before=__atomic_load_n(&control_state,__ATOMIC_ACQUIRE),after;
+ do{after=(before&~mask)|(value&mask);}while(!__atomic_compare_exchange_n(&control_state,&before,after,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE));
+}
+uint32_t xz_extra_decks_control_revision(void){return __atomic_load_n(&control_state,__ATOMIC_ACQUIRE);}
 static uint32_t link_epoch;                /* nonzero while the transport runs */
 static struct xz_xp_players *players;
 static struct {
@@ -57,12 +64,12 @@ static struct {
 } route = {.lock = PTHREAD_RWLOCK_INITIALIZER};
 
 void xz_extra_decks_publish_sides(int left_on_3, int right_on_4) {
- __atomic_store_n(&left_side, !!left_on_3, __ATOMIC_RELEASE);
- __atomic_store_n(&right_side, !!right_on_4, __ATOMIC_RELEASE);
+ control_update(CONTROL_LEFT|CONTROL_RIGHT,(left_on_3?CONTROL_LEFT:0)|(right_on_4?CONTROL_RIGHT:0));
 }
 
 struct xz_extra_route xz_extra_decks_route(void) {
- struct xz_extra_route r = {__atomic_load_n(&available, __ATOMIC_ACQUIRE), __atomic_load_n(&route_up, __ATOMIC_ACQUIRE)};
+ unsigned c=xz_extra_decks_control_revision();
+ struct xz_extra_route r = {!!(c&CONTROL_AVAILABLE),!!(c&CONTROL_ROUTE)};
  return r;
 }
 
@@ -70,11 +77,11 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
  if (!out) return 0;
  memset(out, 0, sizeof *out);
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);
- if (!p) return 0;
+ if (!p) {out->control_revision=xz_extra_decks_control_revision();return 0;}
  xz_xp_read(p, out);
- out->route_up = __atomic_load_n(&route_up, __ATOMIC_ACQUIRE);
- out->left_on_3 = out->route_up && __atomic_load_n(&left_side, __ATOMIC_ACQUIRE);
- out->right_on_4 = out->route_up && __atomic_load_n(&right_side, __ATOMIC_ACQUIRE);
+ unsigned c=xz_extra_decks_control_revision();out->control_revision=c;
+ out->route_up=!!(c&CONTROL_ROUTE);out->left_on_3=out->route_up&&!!(c&CONTROL_LEFT);
+ out->right_on_4=out->route_up&&!!(c&CONTROL_RIGHT);
  return out->route_up;
 }
 
@@ -84,6 +91,13 @@ int xz_extra_deck_input(const struct xz_extra_deck_event *event) {
 }
 uint32_t xz_extra_decks_revision(void){
  return xz_xp_revision(__atomic_load_n(&players,__ATOMIC_ACQUIRE));
+}
+int xz_extra_decks_needs_native_sync(void){
+ if(!(xz_extra_decks_control_revision()&CONTROL_AVAILABLE))return 0;
+ return xz_xp_needs_native_sync(__atomic_load_n(&players,__ATOMIC_ACQUIRE));
+}
+int xz_extra_decks_use_native_master(void){
+ return xz_xp_use_native_master(__atomic_load_n(&players,__ATOMIC_ACQUIRE));
 }
 
 /* ---- the sink the players submit into; never waits on the connector ---- */
@@ -157,7 +171,7 @@ static void say(const char *text) {
 static void set_link(uint32_t epoch) {
  pthread_rwlock_wrlock(&route.lock);
  __atomic_store_n(&link_epoch, epoch, __ATOMIC_RELEASE);
- __atomic_store_n(&route_up, epoch != 0, __ATOMIC_RELEASE);
+ control_update(CONTROL_ROUTE,epoch?CONTROL_ROUTE:0);
  pthread_rwlock_unlock(&route.lock);
 }
 /* 0 when closed. On TIMEOUT the transport keeps its handle and its worker; retry later, never free it. */
@@ -232,6 +246,7 @@ int xz_extra_decks_start(void) {
                          xz_extra_resolve_track, xz_extra_native_master_bpm, deck_worker_enter, xz_extra_resolve_track_checked};
  struct xz_xp_players *p = xz_xp_create(&env);
  if (!p) return -1;
+ if(xz_extra_native_sync_clock)xz_xp_set_native_sync_clock(p,xz_extra_native_sync_clock);
  if (xz_xp_start(p)) { xz_xp_destroy(p); return -1; }
  __atomic_store_n(&players, p, __ATOMIC_RELEASE);
  __atomic_store_n(&route.quit, 0, __ATOMIC_RELEASE);
@@ -241,14 +256,14 @@ int xz_extra_decks_start(void) {
   return -1;
  }
  route.started = 1;
- __atomic_store_n(&available, 1, __ATOMIC_RELEASE);
+ control_update(CONTROL_AVAILABLE,CONTROL_AVAILABLE);
  return 0;
 }
 
 /* The players stay allocated: a draw thread may be inside a snapshot, and the library never unloads. */
 void xz_extra_decks_stop(void) {
  if (!route.started) return;
- __atomic_store_n(&available, 0, __ATOMIC_RELEASE);
+ control_update(CONTROL_AVAILABLE,0);
  __atomic_store_n(&route.quit, 1, __ATOMIC_RELEASE);
  pthread_join(route.thread, NULL);
  xz_xp_stop(players);

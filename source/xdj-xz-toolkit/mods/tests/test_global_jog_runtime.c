@@ -14,6 +14,11 @@ extern int test_player_pressed(int side,unsigned n);
 extern int test_player_input(const struct xz_extra_deck_event *e);
 static int route_live=1,game_owner,game_calls[3],delivered;
 static uint32_t test_clock=1000;
+static unsigned native_master_requests,native_input_calls;
+static int native_input_side;
+static uint32_t native_input_at;
+void xz_shell_runtime_native_input(int side,uint32_t at){native_input_calls++;native_input_side=side;native_input_at=at;}
+int xz_extra_decks_use_native_master(void){native_master_requests++;return 1;}
 struct xz_extra_route xz_extra_decks_route(void){return (struct xz_extra_route){1,route_live};}
 int xz_extra_decks_snapshot(struct xz_extra_decks *out){memset(out,0,sizeof *out);return 0;}
 void xz_extra_decks_publish_sides(int left,int right){(void)left;(void)right;}
@@ -48,8 +53,25 @@ int main(int argc,char **argv){
  if(selected)select_side(side);
  int taken=xz_runtime_deck_global_input(NULL,input);
  assert(taken==selected);assert(test_player_count(side)==(unsigned)selected);assert(delivered==selected);
+ assert(native_input_calls==(unsigned)!selected);
+ if(!selected){assert(native_input_side==side);assert(native_input_at==test_clock-1);}
  if(selected)assert(test_player_delta(side)==delta);
+ if(!selected){
+  unsigned wake_before=native_input_calls;
+  int32_t zero_delta=0;memcpy(input+12,&zero_delta,4);
+  (void)xz_runtime_deck_global_input(NULL,input);assert(native_input_calls==wake_before);
+  memcpy(input+12,&delta,4);
+ }
  printf("%d %u %d\n",taken,test_player_count(side),selected?test_player_delta(side):0);
+ if(argc>4&&!strcmp(argv[4],"workflow")){
+  fflush(stdout);char command;unsigned raw,operation;stock_key=stock_fixture;
+  while(scanf(" %c %x %u",&command,&raw,&operation)==3){
+   code=(uint16_t)raw;memcpy(input+8,&code,2);input[11]=(unsigned char)operation;
+   int result=command=='F'?physical_key(innards,input):xz_runtime_deck_early_key(code)?xz_runtime_deck_global_input(NULL,input):xz_runtime_deck_global_key(code,(unsigned)side+1,operation);
+   printf("%d %u %d %d\n",result,test_player_count(side),stock_contacts,deck_select.side[side].target==XZ_DS_EXTRA);fflush(stdout);
+  }
+  return 0;
+ }
  if(argc>4&&!strcmp(argv[4],"bench")){
   code=argc>5?(uint16_t)strtoul(argv[5],NULL,0):0x4305;memcpy(input+8,&code,2);
   const unsigned loops=200000;struct timespec began,end;double base[7],cost[7];
@@ -71,7 +93,8 @@ int main(int argc,char **argv){
  observer=1;assert(!xz_runtime_deck_global_input(innards,input));observer=0;
  for(game_owner=1;game_owner<=3;game_owner++){
   memset(game_calls,0,sizeof game_calls);unsigned before=test_player_count(side);
-  assert(xz_runtime_deck_global_input(innards,input));assert(test_player_count(side)==before);
+  unsigned game_wake_before=native_input_calls;
+  assert(xz_runtime_deck_global_input(innards,input));assert(test_player_count(side)==before);assert(native_input_calls==game_wake_before);
   for(int i=0;i<3;i++)assert(game_calls[i]==(i<game_owner));
  }
  game_owner=0;
@@ -95,8 +118,8 @@ int main(int argc,char **argv){
  route_live=0;input[11]=3;assert(xz_runtime_deck_global_input(innards,input));assert(test_player_count(side)==before+1);
  assert(!xz_runtime_deck_global_input(innards,input));
  route_live=1;xz_deck_select_route(&deck_select,1);assert(xz_runtime_deck_select_toggle(side)==1);
- const uint16_t transport[]={0x4101,0x4102,0x4104,0x4107,0x4108,0x4109,0x410d,0x410e,0x410f,0x4313,0x4119,0x4324,0x4325};
- const int kinds[]={XZ_EXTRA_IN_PLAY,XZ_EXTRA_IN_CUE,XZ_EXTRA_IN_VINYL,XZ_EXTRA_IN_TEMPO_RANGE,XZ_EXTRA_IN_MASTER_TEMPO,XZ_EXTRA_IN_TEMPO_RESET,XZ_EXTRA_IN_LOOP_IN,XZ_EXTRA_IN_LOOP_OUT,XZ_EXTRA_IN_RELOOP,XZ_EXTRA_IN_SYNC,XZ_EXTRA_IN_HOT_CUE,XZ_EXTRA_IN_LOOP_DOUBLE,XZ_EXTRA_IN_LOOP_HALF};
+ const uint16_t transport[]={0x4101,0x4102,0x4104,0x4107,0x4108,0x4109,0x410d,0x410e,0x410f,0x4119,0x4324,0x4325};
+ const int kinds[]={XZ_EXTRA_IN_PLAY,XZ_EXTRA_IN_CUE,XZ_EXTRA_IN_VINYL,XZ_EXTRA_IN_TEMPO_RANGE,XZ_EXTRA_IN_MASTER_TEMPO,XZ_EXTRA_IN_TEMPO_RESET,XZ_EXTRA_IN_LOOP_IN,XZ_EXTRA_IN_LOOP_OUT,XZ_EXTRA_IN_RELOOP,XZ_EXTRA_IN_HOT_CUE,XZ_EXTRA_IN_LOOP_DOUBLE,XZ_EXTRA_IN_LOOP_HALF};
  for(unsigned i=0;i<sizeof transport/sizeof *transport;i++){
   test_player_clear(side);code=transport[i];memcpy(input+8,&code,2);input[11]=0;
   assert(xz_runtime_deck_global_input(NULL,input));assert(test_player_count(side)==1);
@@ -110,5 +133,17 @@ int main(int argc,char **argv){
   assert(test_player_kind(side,1+held)==kinds[i]&&!test_player_pressed(side,1+held));game_owner=0;
   assert(!xz_runtime_deck_global_input(NULL,input));assert(xz_runtime_deck_select_toggle(side)==1);
  }
+ test_player_clear(side);code=0x4313;memcpy(input+8,&code,2);input[11]=0;
+ assert(xz_runtime_deck_global_input(NULL,input));assert(!test_player_count(side));
+ assert(xz_runtime_deck_select_toggle(side)==1);game_owner=1;input[11]=2;
+ assert(xz_runtime_deck_global_input(NULL,input));assert(test_player_count(side)==1&&test_player_kind(side,0)==XZ_EXTRA_IN_SYNC&&test_player_pressed(side,0));
+ game_owner=0;assert(xz_runtime_deck_select_toggle(side)==1);
+ test_player_clear(side);unsigned master_before=native_master_requests;assert(xz_runtime_deck_global_key(0x4312,side+1,0));
+ assert(test_player_count(side)==1&&test_player_kind(side,0)==XZ_EXTRA_IN_MASTER&&test_player_pressed(side,0));
+ assert(xz_runtime_deck_global_key(0x4312,side+1,0));assert(test_player_count(side)==1);
+ assert(xz_runtime_deck_select_toggle(side)==1);assert(xz_runtime_deck_global_key(0x4312,side+1,2));assert(test_player_count(side)==2);
+ assert(native_master_requests==master_before);
+ assert(!xz_runtime_deck_global_key(0x4312,side+1,0));assert(native_master_requests==master_before+1);assert(xz_runtime_deck_select_toggle(side)==1);
+ assert(!xz_runtime_deck_global_key(0x4312,side+1,2));assert(test_player_count(side)==2);assert(native_master_requests==master_before+1);
  return 0;
 }

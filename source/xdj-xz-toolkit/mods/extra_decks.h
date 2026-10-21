@@ -19,7 +19,7 @@ enum xz_extra_field {
  XZ_EXTRA_F_TITLE, XZ_EXTRA_F_ARTIST, XZ_EXTRA_F_SOURCE, XZ_EXTRA_F_ELAPSED, XZ_EXTRA_F_TOTAL,
  XZ_EXTRA_F_PLAYING, XZ_EXTRA_F_BPM, XZ_EXTRA_F_TEMPO, XZ_EXTRA_F_MASTER, XZ_EXTRA_F_KEY,
  XZ_EXTRA_F_CUE, XZ_EXTRA_F_HOT_CUES, XZ_EXTRA_F_GRID, XZ_EXTRA_F_WAVE, XZ_EXTRA_F_LOOP,
- XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL, XZ_EXTRA_F_TIMELINE,
+ XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL, XZ_EXTRA_F_TIMELINE, XZ_EXTRA_F_SYNC,
  XZ_EXTRA_FIELD_COUNT
 };
 #define XZ_EXTRA_KNOWN(field) ((uint32_t)1<<(field))
@@ -50,6 +50,24 @@ struct xz_extra_timeline {
  int32_t rate_ppm;                   /* signed source seconds / output second, millionths */
  int moving;
 };
+enum xz_extra_sync_reason {
+ XZ_EXTRA_SYNC_OFF, XZ_EXTRA_SYNC_WAIT_MASTER, XZ_EXTRA_SYNC_WAIT_ANCHOR,
+ XZ_EXTRA_SYNC_NO_GRID, XZ_EXTRA_SYNC_MANUAL, XZ_EXTRA_SYNC_DISCONTINUITY,
+ XZ_EXTRA_SYNC_LOOP_UNALIGNED, XZ_EXTRA_SYNC_OUT_OF_RANGE, XZ_EXTRA_SYNC_ACQUIRING,
+ XZ_EXTRA_SYNC_LOCKED, XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE, XZ_EXTRA_SYNC_MASTER_CLOCK,
+ XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED, XZ_EXTRA_SYNC_NO_SOURCE_BPM
+};
+enum xz_extra_master_scope {
+ XZ_EXTRA_MASTER_SCOPE_NONE=0u, XZ_EXTRA_MASTER_SCOPE_NATIVE=3u,
+ XZ_EXTRA_MASTER_SCOPE_SOFTWARE=12u /* bits deck1..4; 15 requires a separately verified native bridge */
+};
+struct xz_extra_sync {
+ int requested,locked;
+ int master_deck;                    /* 2/3: software group, 0/1: native tempo source, -1: unavailable */
+ enum xz_extra_sync_reason reason;
+ int32_t phase_error_us,correction_ppm;
+ uint32_t master_scope;              /* authority group, not a claim that every deck currently follows */
+};
 
 struct xz_extra_deck {
  uint32_t known;
@@ -64,6 +82,7 @@ struct xz_extra_deck {
  int tempo_range, master_tempo, vinyl;
  uint32_t tempo_revision;             /* changes when SYNC sets a tempo away from the fader */
  int master;
+ uint32_t master_scope;
  char key[8];                          /* as the library writes it, e.g. "Fm" or "4A" */
  int32_t cue_ms;
  struct xz_extra_cue hot_cue[XZ_EXTRA_HOT_CUES];
@@ -71,6 +90,7 @@ struct xz_extra_deck {
  const struct xz_extra_beat *grid; uint32_t grid_count;
  struct xz_extra_wave wave;
  struct xz_extra_timeline timeline;
+ struct xz_extra_sync sync;
 };
 
 struct xz_extra_decks {
@@ -82,6 +102,7 @@ struct xz_extra_decks {
     at notice_at_ms (monotonic); notice_seq changes with every new notice. Empty when none. */
  char notice[64]; uint32_t notice_at_ms, notice_seq;
  uint32_t snapshot_revision; /* exact player revision represented by the locked deck/notice copy */
+ uint32_t control_revision;  /* packed atomic control state represented by route/sides, compare for change */
 };
 
 /* Copies the published state. Returns route_up; with no players running it clears out and returns 0,
@@ -89,6 +110,11 @@ struct xz_extra_decks {
    right_on_4 are only ever set while route_up is. */
 int xz_extra_decks_snapshot(struct xz_extra_decks *out);
 uint32_t xz_extra_decks_revision(void); /* atomic player visible-state revision, no snapshot copy */
+uint32_t xz_extra_decks_control_revision(void); /* packed route/sides/availability state; no locks */
+int xz_extra_decks_needs_native_sync(void); /* atomic; cached native clock publisher demand */
+int xz_extra_decks_use_native_master(void); /* explicit native MASTER request; changes no firmware state */
+struct xz_sync_native_snapshot;
+int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *); /* cache copy only, never native I/O */
 
 /* The cheap read the input layer makes on every key: whether the players run at all, and whether the
    CH3/CH4 route is live. Lock-free. */

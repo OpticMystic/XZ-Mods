@@ -136,9 +136,9 @@ static void test_routing(void) {
  o = key(LEFT, 0x4306, 0);
  assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_JOG_TOUCH && o.event.pressed);
  assert(key(LEFT, 0x4306, 2).event.kind == XZ_EXTRA_IN_JOG_TOUCH);
- o = key(LEFT, 0x4313, 0);
- assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_SYNC);
- key(LEFT, 0x4313, 2);
+ assert(key(LEFT,0x4313,0).verdict==XZ_DS_SWALLOW);
+ o=key(LEFT,0x4313,2);
+ assert(o.verdict==XZ_DS_DELIVER&&o.event.kind==XZ_EXTRA_IN_SYNC&&o.event.pressed);
  o = ev(LEFT, 0x4108, 0, 1, 0, 0);
  assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_MASTER_TEMPO && o.event.shift);
  key(LEFT, 0x4108, 2);

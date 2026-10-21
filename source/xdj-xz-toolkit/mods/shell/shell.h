@@ -53,6 +53,7 @@
    by (clock_ms - elapsed_at_ms) x (1 + tempo), for at most this long after a
    read, so a stale reading stops instead of running on. */
 #define XZ_SHELL_EXTRAPOLATE_MAX_MS 500
+#define XZ_SHELL_TIMELINE_EXTRAPOLATE_MS 50u
 /* A runtime notice (model.notice) shows for this long after notice_at_ms, on every screen. */
 #define XZ_SHELL_NOTICE_MS 2500
 
@@ -75,6 +76,7 @@ enum xz_shell_field {
  XZ_SHELL_F_STEM_GAIN,
  XZ_SHELL_F_KEY_ORIGINAL, XZ_SHELL_F_KEY_SYNC,
  XZ_SHELL_F_STEM_BYPASS,
+ XZ_SHELL_F_PLAYBACK_RATE, XZ_SHELL_F_MOTION, XZ_SHELL_F_SYNC_STATUS,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -115,6 +117,8 @@ struct xz_shell_column { uint8_t low, mid, high; };
 struct xz_shell_wave { const struct xz_shell_column *columns; uint32_t count; uint32_t span_ms; };
 struct xz_shell_loop { int active; int beats_num, beats_den; int32_t in_ms, out_ms; };
 
+enum xz_shell_sync_status { XZ_SHELL_SYNC_OFF, XZ_SHELL_SYNC_LOCKED, XZ_SHELL_SYNC_WAITING, XZ_SHELL_SYNC_TEMPO_ONLY, XZ_SHELL_SYNC_MASTER };
+
 struct xz_shell_deck {
  uint64_t known;
  int loaded;
@@ -125,7 +129,12 @@ struct xz_shell_deck {
  int32_t tempo_x100;                 /* 0.01 % */
  int tempo_range;                    /* percent; 100 = WIDE */
  int master_tempo, master, sync, playing, cue_standby;
+ enum xz_shell_sync_status sync_status;
+ int sync_master_deck;
+ uint32_t master_scope;             /* bits for decks governed by this master; 12 means software3/4 only */
  int32_t elapsed_ms, total_ms;
+ int32_t playback_rate_ppm;          /* signed observed source seconds per output second */
+ int moving;                        /* confirmed motion, including paused vinyl scratching */
  uint32_t elapsed_at_ms;             /* model clock_ms when elapsed_ms was read; 0 = not stamped, no
                                         extrapolation. See XZ_SHELL_EXTRAPOLATE_MAX_MS */
  enum xz_shell_time_mode time_mode;  /* per-deck override of settings.time_mode */

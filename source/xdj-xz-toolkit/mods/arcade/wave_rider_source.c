@@ -50,6 +50,7 @@ void xz_wave_rider_rhythm(struct xz_wave_rider_snapshot *out,const uint8_t *band
 
 #ifndef XZ_WAVE_RIDER_SOURCE_PORTABLE
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <unistd.h>
 #endif
 
@@ -98,7 +99,7 @@ static struct xz_wave_rider_snapshot published;
 static int selected=-1,started;
 static uint32_t selection_epoch,published_epoch;
 static uint32_t milliseconds(void){
-    struct timespec ts;if(syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&ts))return 0;
+    struct timespec ts;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&ts))return 0;
     return (uint32_t)((uint64_t)ts.tv_sec*1000+(uint32_t)ts.tv_nsec/1000000);
 }
 static int read_native(void *context,uint32_t address,void *out,size_t count){

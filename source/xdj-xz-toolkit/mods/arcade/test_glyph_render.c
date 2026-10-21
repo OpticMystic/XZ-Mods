@@ -7,11 +7,12 @@
 #include <string.h>
 #include <time.h>
 #include <sys/syscall.h>
+#include "../clock_compat.h"
 #include <unistd.h>
 static struct xz_rhythm_lab g;
 static uint16_t frame[800*480+2];
-static double millis(void){struct timespec t;assert(!syscall(SYS_clock_gettime,CLOCK_MONOTONIC,&t));return t.tv_sec*1000.+t.tv_nsec*.000001;}
-static double cpu_millis(void){struct timespec t;assert(!syscall(SYS_clock_gettime,CLOCK_PROCESS_CPUTIME_ID,&t));return t.tv_sec*1000.+t.tv_nsec*.000001;}
+static double millis(void){struct timespec t;assert(!xz_clock_gettime_compat(CLOCK_MONOTONIC,&t));return t.tv_sec*1000.+t.tv_nsec*.000001;}
+static double cpu_millis(void){struct timespec t;assert(!xz_clock_gettime_compat(CLOCK_PROCESS_CPUTIME_ID,&t));return t.tv_sec*1000.+t.tv_nsec*.000001;}
 static void save(const char *dir,const char *name){if(!dir)return;char path[1000];snprintf(path,sizeof(path),"%s/%s.ppm",dir,name);FILE *f=fopen(path,"wb");assert(f);fprintf(f,"P6\n800 480\n255\n");for(unsigned n=1;n<=800*480;n++){unsigned v=frame[n];unsigned char rgb[3]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};fwrite(rgb,1,3,f);}fclose(f);}
 static void draw(void){frame[0]=0x1234;frame[800*480+1]=0xabcd;assert(xz_glyph_render(&g,frame+1,800*480,800));assert(frame[0]==0x1234&&frame[800*480+1]==0xabcd);}
 int main(int argc,char **argv){

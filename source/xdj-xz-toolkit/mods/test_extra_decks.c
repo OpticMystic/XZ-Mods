@@ -128,8 +128,12 @@ int main(void) {
  assert(until_route(1) && tempo());
  const struct xz_xp_sink *sink = xz_extra_decks_test_sink();
  uint32_t old_epoch = sink->link(NULL); assert(old_epoch);
+ uint32_t control_before=xz_extra_decks_control_revision();
  xz_extra_decks_publish_sides(1, 0);
+ assert(xz_extra_decks_control_revision()!=control_before);
  assert(xz_extra_decks_snapshot(&view) && view.left_on_3 && !view.right_on_4);
+ assert(view.control_revision==xz_extra_decks_control_revision());
+ uint32_t control_same=view.control_revision;xz_extra_decks_publish_sides(1,0);assert(xz_extra_decks_control_revision()==control_same);
 
  set(XZ_USB_BUSY, XZ_USB_FAULTED);
  assert(until_route(0));

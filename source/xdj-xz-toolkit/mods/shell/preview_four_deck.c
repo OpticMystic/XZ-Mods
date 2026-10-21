@@ -48,6 +48,16 @@ int main(int argc, char **argv) {
  xz_shell_init(&u);
  fx_model_four(&m,&track);
  shot(&u,&m,"play-4deck-full");
+ /* Explicit synthetic status fixtures; no firmware or audio acceptance claim. */
+ for(int d=2;d<4;d++)m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_SYNC)|XZ_SHELL_KNOWN(XZ_SHELL_F_SYNC_STATUS);
+ m.deck[2].master=1;m.deck[2].master_scope=12u;m.deck[2].sync=1;m.deck[2].sync_status=XZ_SHELL_SYNC_MASTER;
+ m.deck[3].sync=1;m.deck[3].sync_status=XZ_SHELL_SYNC_LOCKED;m.deck[3].sync_master_deck=2;
+ shot(&u,&m,"play-4deck-software-sync-status");
+ m.deck[2].master=0;m.deck[2].sync_status=XZ_SHELL_SYNC_TEMPO_ONLY;m.deck[2].sync_master_deck=0;
+ m.deck[3].sync_status=XZ_SHELL_SYNC_WAITING;
+ shot(&u,&m,"play-4deck-sync-pending-status");
+ fx_model_four(&m,&track);
+
  m.wave_order=1;shot(&u,&m,"play-4deck-mixer-waves");m.wave_order=0;
  u.deck=2;shot(&u,&m,"play-4deck-active-3");u.deck=0;
 

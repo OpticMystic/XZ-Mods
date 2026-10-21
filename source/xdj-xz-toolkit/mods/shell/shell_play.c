@@ -8,6 +8,7 @@
    and lanes scroll in whole track pixels, so the picture moves every frame
    without shimmer. */
 #include "shell_internal.h"
+#include "shell_axis.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -402,16 +403,15 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
 /* ---- scrolling lane ----
    Everything in a lane is placed by absolute track pixel, the same mapping the
    waveform samples by, so markers never slide against the audio. */
-struct lane_view { int64_t head_px; int pps, ph_x; };
-static int64_t floor_div(int64_t a, int64_t b) { int64_t q=a/b;return (a%b!=0&&(a<0)!=(b<0))?q-1:q; }
+struct lane_view { int64_t head_px; struct sh_wave_axis axis; int ph_x; };
 /* Rounded, not floored: a time lands on its nearest track pixel, the playhead included, so the
    picture is never up to a whole pixel late. */
-static int64_t track_px(int pps, int32_t ms) { return floor_div((int64_t)ms*pps+500,1000); }
+static int64_t track_px(struct sh_wave_axis axis, int32_t ms) { return sh_axis_px(axis,ms); }
 static int lane_x(const struct lane_view *v, int32_t ms) {
- int64_t x=v->ph_x+track_px(v->pps,ms)-v->head_px;
+ int64_t x=v->ph_x+track_px(v->axis,ms)-v->head_px;
  return x<-4096?-4096:x>4096?4096:(int)x;
 }
-static int32_t lane_ms(const struct lane_view *v, int x) { return (int32_t)floor_div((v->head_px+x-v->ph_x)*1000,v->pps); }
+static int32_t lane_ms(const struct lane_view *v, int x) { return sh_axis_ms(v->axis,v->head_px+x-v->ph_x); }
 /* Small lane captions sit over the waveform, so they carry a black backing. */
 static void lane_caption(struct xz_canvas c, int x, int y, const char *text, uint32_t ink) {
  xz_rect(c,x-2,y-1,sh_text_width(c,text,SH_SMALL)+4,SH_CAP_SMALL+3,SH_BLACK);
@@ -448,16 +448,17 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
  if(fx_on_deck(m,deck))xz_rect(c,COL_W,lane_y(L,m,deck),2,L->lane_h,SH_RED);
  int loaded=sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded;
  int32_t elapsed=loaded?xz_shell_elapsed_now(m,deck):-1;
- struct lane_view v={0,zoom_pps[u->zoom<0?0:u->zoom>XZ_SHELL_ZOOM_MAX?XZ_SHELL_ZOOM_MAX:u->zoom],playhead_x(u)};
+ struct lane_view v={0,sh_axis(zoom_pps[u->zoom<0?0:u->zoom>XZ_SHELL_ZOOM_MAX?XZ_SHELL_ZOOM_MAX:u->zoom],d),playhead_x(u)};
  if(elapsed>=0){
-  v.head_px=track_px(v.pps,elapsed);
-  int32_t first=lane_ms(&v,WAVE_X)-50,last=lane_ms(&v,WAVE_X+WAVE_W)+50;
+  v.head_px=track_px(v.axis,elapsed);
+  int32_t first=lane_ms(&v,WAVE_X),last=lane_ms(&v,WAVE_X+WAVE_W);
+  first=first<INT32_MIN+50?INT32_MIN:first-50;last=last>INT32_MAX-50?INT32_MAX:last+50;
   struct xz_canvas lane=xz_sub(c,WAVE_X,ly,WAVE_W,lh);
   if(sh_has(d,XZ_SHELL_F_LOOP)&&d->loop.active&&d->loop.out_ms>d->loop.in_ms){
    int x0=sh_max(WAVE_X,lane_x(&v,d->loop.in_ms)),x1=sh_min(WAVE_X+WAVE_W,lane_x(&v,d->loop.out_ms));
    if(x1>x0)xz_rect(c,x0,ly,x1-x0,lh,xz_blend(SH_BLACK,SH_LOOP,48));
   }
-  sh_deck_lane(c,(struct xz_shell_rect){WAVE_X,ly,WAVE_W,lh},lh/2-L->edge,u,m,d,v.head_px-(v.ph_x-WAVE_X),v.pps);
+  sh_deck_lane_axis(c,(struct xz_shell_rect){WAVE_X,ly,WAVE_W,lh},lh/2-L->edge,u,m,d,v.head_px-(v.ph_x-WAVE_X),v.axis);
   /* STEMS with no stem layer yet draws 3BAND, and says so, quietly, in the lane corner. */
   if(sh_deck_wave_color(u,d)==XZ_SHELL_WAVE_STEMS&&!sh_stem_wave_ready(d)){
    static const char hint[]="NO STEM WAVE YET \xc2\xb7 3BAND";
@@ -773,15 +774,26 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
   uint32_t ink=lit?SH_RED:0x5a5a5a;
   mx+=sh_chip(c,mx,my,"MT",ink,ink,0)+4;
  }
- if(sh_has(d,XZ_SHELL_F_SYNC)&&d->sync)sh_chip(c,mx,my,"SYNC",SH_BLUE,SH_WHITE,0);
+ if(sh_has(d,XZ_SHELL_F_SYNC)&&d->sync){
+  if(sh_has(d,XZ_SHELL_F_SYNC_STATUS)){
+   if(d->sync_status!=XZ_SHELL_SYNC_MASTER){
+    const char *label=d->sync_status==XZ_SHELL_SYNC_LOCKED?"SYNC":d->sync_status==XZ_SHELL_SYNC_TEMPO_ONLY?"BPM":"WAIT";
+    char status[12];
+    if(d->sync_master_deck>=0&&d->sync_master_deck<4)snprintf(status,sizeof status,"%s %d",label,d->sync_master_deck+1);
+    else snprintf(status,sizeof status,"%s",label);
+    sh_chip(c,mx,my,status,d->sync_status==XZ_SHELL_SYNC_LOCKED?SH_BLUE:SH_LOOP,SH_WHITE,0);
+   }
+  }else sh_chip(c,mx,my,"SYNC",SH_BLUE,SH_WHITE,0);
+ }
  /* BPM box */
  int bx=sx+S->bpm_dx,bw=right-bx,by=s.y+S->bpm_dy,bh=S->bpm_h;
  int master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
  xz_border(c,bx,by,bw,bh,master?SH_RED:SH_WHITE);
  sh_text(c,bx+5,by+3,"BPM",SH_SMALL,SH_WHITE);
  if(master){
-  int w=sh_text_width(c,"MASTER",SH_SMALL)+8;
-  xz_rect(c,bx+bw-1-w,by+1,w,12,SH_RED);sh_text(c,bx+bw-1-w+4,by+3,"MASTER",SH_SMALL,SH_WHITE);
+  const char *label=d->master_scope==12u?"3/4 MASTER":"MASTER";
+  int w=sh_text_width(c,label,SH_SMALL)+8;
+  xz_rect(c,bx+bw-1-w,by+1,w,12,SH_RED);sh_text(c,bx+bw-1-w+4,by+3,label,SH_SMALL,SH_WHITE);
  }
  if(loaded&&sh_has(d,XZ_SHELL_F_BPM)){
   int32_t b=d->bpm_x100<0?0:d->bpm_x100>99999?99999:d->bpm_x100;

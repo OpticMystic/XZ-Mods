@@ -654,7 +654,7 @@ static void extra_snapshot(struct xz_extra_decks *s) {
  s->route_up=1;s->left_on_3=1;
  for(int i=0;i<XZ_EXTRA_DECKS;i++){
   struct xz_extra_deck *d=&s->deck[i];
-  d->known=(1u<<XZ_EXTRA_FIELD_COUNT)-1u;
+  d->known=(1u<<(XZ_EXTRA_F_VINYL+1))-1u; /* legacy fields; optional snapshots are supplied explicitly */
   d->loaded=1;snprintf(d->title,sizeof d->title,"Extra %d",i+3);snprintf(d->artist,sizeof d->artist,"Artist %d",i+3);
   d->source=i+1;d->elapsed_ms=60000;d->total_ms=300000;d->elapsed_at_ms=9900;d->playing=i==1;
   d->bpm_x100=12000;d->track_bpm_x100=12000;d->tempo_x100=0;d->master=0;snprintf(d->key,sizeof d->key,"%s",i?"8A":"Fm");
@@ -715,6 +715,44 @@ static void extra_decks(void) {
  assert(m.deck[3].elapsed_at_ms==0&&!(m.deck[3].known&(XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_GRID))));
  s.deck[0].elapsed_at_ms=10000-61000;xz_shrt_extra_map(&m,&s,parts,500000,10000);assert(m.deck[2].elapsed_at_ms==0);
  s.deck[0].elapsed_at_ms=10000;xz_shrt_extra_map(&m,&s,parts,0,10000);assert(m.deck[2].elapsed_at_ms==1);
+ /* Signed completed-PCM anchors use their own timestamp/rate, never a nominal fader estimate. */
+ extra_snapshot(&s);s.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE);
+ struct xz_extra_timeline *timeline=&s.deck[0].timeline;
+ *timeline=(struct xz_extra_timeline){.source_frame=463050,.source_rate=44100,.at_ms=9975,.rate_ppm=-1000000,.moving=1,
+   .flags=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_RATE|XZ_EXTRA_TIMELINE_MOTION};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);m.clock_ms=500000;
+ assert(!m.deck[2].playing&&m.deck[2].moving&&m.deck[2].elapsed_ms==10500&&m.deck[2].elapsed_at_ms==499975);
+ assert(xz_shell_elapsed_now(&m,2)==10475);
+ assert(xz_shrt_moving_decks(&m)&4u);
+ assert(xz_shrt_frame_period_ms(XZ_SHELL_PLAY,xz_shrt_moving_decks(&m)!=0)==XZ_SHRT_FRAME_LIVE_MS);
+ timeline->flags&=~XZ_EXTRA_TIMELINE_RATE;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].elapsed_at_ms==0&&xz_shell_elapsed_now(&m,2)==10500);
+ timeline->flags|=XZ_EXTRA_TIMELINE_RATE;
+ for(int invalid=0;invalid<4;invalid++){
+  timeline->at_ms=9975;timeline->source_rate=44100;timeline->source_frame=463050;
+  if(invalid==0)timeline->at_ms=10001;else if(invalid==1)timeline->at_ms=9000;else if(invalid==2)timeline->source_rate=0;else timeline->source_frame=UINT64_MAX;
+  xz_shrt_extra_map(&m,&s,parts,500000,10000);
+  assert(m.deck[2].elapsed_at_ms==0&&!(m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_PLAYBACK_RATE))&&m.deck[2].moving);
+ }
+ puts("PASS actual timeline clock conversion, reverse paused motion, unknown-rate holds and invalid/future/stale anchor refusal");
+ /* SYNC readouts distinguish actual beat lock from tempo-only and pending state. */
+ extra_snapshot(&s);s.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
+ s.deck[0].sync=(struct xz_extra_sync){.requested=1,.master_deck=0,.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE,
+   .reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].sync&&m.deck[2].sync_status==XZ_SHELL_SYNC_TEMPO_ONLY&&m.deck[2].sync_master_deck==0);
+ s.deck[0].sync.master_deck=3;s.deck[0].sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
+ s.deck[0].sync.reason=XZ_EXTRA_SYNC_ACQUIRING;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].sync_status==XZ_SHELL_SYNC_WAITING);
+ s.deck[0].sync.locked=1;s.deck[0].sync.reason=XZ_EXTRA_SYNC_LOCKED;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].sync_status==XZ_SHELL_SYNC_LOCKED&&m.deck[2].sync_master_deck==3);
+ s.deck[0].sync.locked=0;s.deck[0].sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;s.deck[0].master=1;
+ s.deck[0].master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(m.deck[2].sync_status==XZ_SHELL_SYNC_MASTER&&m.deck[2].master&&m.deck[2].master_scope==12u);
+ assert(!memcmp(&m.deck[0],&two.deck[0],sizeof m.deck[0]));
+ s.deck[0].sync.requested=0;xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert(!m.deck[2].sync&&m.deck[2].sync_status==XZ_SHELL_SYNC_OFF);
+ puts("PASS actual SYNC lock versus tempo-only/waiting/master scope; native master labels remain native");
  /* Up, down, up again: down is the two-deck model each time. */
  extra_snapshot(&s);
  for(int flip=0;flip<4;flip++){

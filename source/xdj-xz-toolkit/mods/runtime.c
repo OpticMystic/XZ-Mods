@@ -15,6 +15,7 @@
 extern int xz_mods_takeover_v1(void);
 extern void xz_shell_runtime_notice(const char *text) __attribute__((weak));
 extern int xz_shell_runtime_owns(void) __attribute__((weak));
+extern void xz_shell_runtime_native_input(int side,uint32_t monotonic_ms) __attribute__((weak));
 /* classic_load.c: arms a one-shot divert of stock's next load for that side to DECK 3 / 4. 1 when armed. */
 extern int xz_classic_load_divert_arm(int side) __attribute__((weak));
 static int kart_display_ready(void) { return xz_sdk_host_foreground() && xz_mods_takeover_v1(); }
@@ -313,6 +314,11 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
     struct xz_ds_outcome outcome = xz_deck_select_global_key(&deck_select, channel, code, operation, xz_game_milliseconds());
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
+    /* Native MASTER requests return the software group to the effective native master.
+       The stock event still arbitrates ON/OFF; the pressed side is not a master identity. */
+    if (code == 0x4312 && operation == 0 && outcome.verdict == XZ_DS_PASS &&
+        !(channel == 1 ? left : right))
+        xz_extra_decks_use_native_master();
     if (outcome.verdict == XZ_DS_LOAD) {
         /* The interface on screen owns the browser cursor, so it decides where the track comes from. */
         int side = outcome.event.deck;
@@ -365,7 +371,7 @@ int xz_runtime_deck_games_pending(void){
 static int owned_player_release(const struct xz_ds_key *key){
  if(key->op!=2&&key->op!=3)return 0;
  unsigned slot=0;(void)xz_ds_row_for(key->code,&slot);uint64_t bit=(uint64_t)1<<slot;
- return !!((deck_select.side[key->side].owner[XZ_DS_EXTRA]|deck_select.side[key->side].owner[XZ_DS_NATIVE])&bit);
+ return !!((deck_select.side[key->side].owner[XZ_DS_EXTRA]|deck_select.side[key->side].owner[XZ_DS_NATIVE]|deck_select.side[key->side].early_native_down|deck_select.side[key->side].early_native_release)&bit);
 }
 int xz_runtime_deck_global_input(void *self, const void *input) {
     if (!installed || observer || !input) return 0;
@@ -374,7 +380,12 @@ int xz_runtime_deck_global_input(void *self, const void *input) {
     if(!xz_ds_key_decode_global(input,&key)||!xz_runtime_deck_early_key(key.code)||
        (self&&((const unsigned char *)self)[0x26]!=packet[10]))return 0;
     pthread_mutex_lock(&deck_mutex);
-    int release=owned_player_release(&key);
+    unsigned slot=0;(void)xz_ds_row_for(key.code,&slot);uint64_t bit=(uint64_t)1<<slot;
+    struct xz_ds_side *side=&deck_select.side[key.side];
+    /* Retire a PC-eaten release before a new game can acquire this press. */
+    if(key.op==0&&(side->early_native_release&bit)){side->early_native_release&=~bit;side->owner[XZ_DS_NATIVE]&=~bit;}
+    int owned=key.op<=3&&!!((side->owner[XZ_DS_EXTRA]|side->owner[XZ_DS_NATIVE]|side->early_native_down)&bit);
+    int release=owned||owned_player_release(&key);
     key.shift=deck_select.side[key.side].phase!=XZ_DS_IDLE&&deck_select.side[key.side].phase!=XZ_DS_RELEASED;
     pthread_mutex_unlock(&deck_mutex);
     /* Kart must observe contacts even while inactive so a later grant cannot take a held contact. */
@@ -386,9 +397,12 @@ int xz_runtime_deck_global_input(void *self, const void *input) {
     struct xz_extra_route route=xz_extra_decks_route();
     pthread_mutex_lock(&deck_mutex);
     xz_deck_select_route(&deck_select,route.route_up);
-    struct xz_ds_outcome outcome=xz_deck_select_global_player(&deck_select,&key,xz_game_milliseconds());
+    uint32_t input_ms=xz_game_milliseconds();
+    struct xz_ds_outcome outcome=xz_deck_select_global_player(&deck_select,&key,input_ms);
     int left=deck_select.side[0].target==XZ_DS_EXTRA,right=deck_select.side[1].target==XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
+    if(outcome.verdict==XZ_DS_PASS&&key.code==0x4305&&key.op==4&&key.delta&&xz_shell_runtime_native_input)
+     xz_shell_runtime_native_input(key.side,input_ms);
     return deck_outcome(&outcome,left,right,route.available,key.code);
 }
 

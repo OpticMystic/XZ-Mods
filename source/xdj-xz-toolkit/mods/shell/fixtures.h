@@ -98,7 +98,8 @@ static void fx_track_build(struct fx_track *t, uint32_t seed) {
 }
 static int32_t fx_beat_ms(int beat) { return (int32_t)((int64_t)beat*FX_BEAT_MS/100); }
 static uint64_t fx_all_known(void) { return (XZ_SHELL_KNOWN(XZ_SHELL_FIELD_COUNT)-1)&~(XZ_SHELL_KNOWN(XZ_SHELL_F_ARTWORK)|XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE_LOOK)
-  |XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUE_CALL)|XZ_SHELL_KNOWN(XZ_SHELL_F_ALERT)|XZ_SHELL_KNOWN(XZ_SHELL_F_ON_AIR)); }
+  |XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP_EDIT)|XZ_SHELL_KNOWN(XZ_SHELL_F_HOT_CUE_CALL)|XZ_SHELL_KNOWN(XZ_SHELL_F_ALERT)|XZ_SHELL_KNOWN(XZ_SHELL_F_ON_AIR)
+  |XZ_SHELL_KNOWN(XZ_SHELL_F_PLAYBACK_RATE)|XZ_SHELL_KNOWN(XZ_SHELL_F_MOTION)|XZ_SHELL_KNOWN(XZ_SHELL_F_SYNC_STATUS)); }
 
 static void fx_deck_one(struct xz_shell_deck *d, const struct fx_track *t) {
  memset(d,0,sizeof *d);

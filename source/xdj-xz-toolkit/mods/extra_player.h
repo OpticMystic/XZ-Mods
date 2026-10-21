@@ -64,6 +64,10 @@ int xz_xp_input(struct xz_xp_players *, const struct xz_extra_deck_event *);
 /* Fills deck[] and the notice of *out; route and sides are the caller's. */
 void xz_xp_read(struct xz_xp_players *, struct xz_extra_decks *out);
 uint32_t xz_xp_revision(const struct xz_xp_players *); /* atomic, no locks/IO */
+/* Install only before starting workers. The callback copies a publisher-owned cache; no native I/O. */
+void xz_xp_set_native_sync_clock(struct xz_xp_players *,int (*)(struct xz_sync_native_snapshot *));
+int xz_xp_needs_native_sync(const struct xz_xp_players *);
+int xz_xp_use_native_master(struct xz_xp_players *); /* 1 changed, 0 already native-reference mode */
 void xz_xp_notice(struct xz_xp_players *, const char *text);
 
 /* Worker-private state for tests; only while no worker runs. */

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "native_clock.h"
 #include <math.h>
+#include <float.h>
 #include <string.h>
 
 static int block(xz_arcade_memory_read read,void *ctx,uint32_t base,unsigned offset,void *out,size_t n){
@@ -32,7 +33,7 @@ int xz_arcade_mixer_clock_read(xz_arcade_memory_read read,void *ctx,float *bpm,u
     if(state[5]||raw<400||raw>2400)return 0;
     *bpm=raw*.1f;*tap_mode=!!state[6];return 1;
 }
-int xz_arcade_native_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,struct xz_arcade_track_clock *out){
+static int track_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,struct xz_arcade_track_clock *out,int music){
     uint32_t engine,range[2],player,reader,impl,info,manager,tempo,check;
     unsigned char state[0x44],cache[0x28],grid[0x3c],speed[0x64],unit[8],again[8];
     if(!read||!out||deck>1||read(ctx,0x010e9688,&engine,4)||
@@ -55,17 +56,26 @@ int xz_arcade_native_clock_read(xz_arcade_memory_read read,void *ctx,unsigned de
     int32_t offset=(int32_t)u32(grid+0x28);
     if(position<0||offset < -3600000||offset>3600000)return 0;
     double multiplier=1+(speed[0x45]||!speed[0x60]?f64(speed+0x30):f64(speed+0x50)+f64(speed+0x58))+f64(speed+0x38);
-    if(!isfinite(multiplier)||multiplier<.25||multiplier>4)return 0;
+    if(!isfinite(multiplier)||multiplier<=0||multiplier>FLT_MAX||
+       (!music&&(multiplier<.25||multiplier>4)))return 0;
     double bpm=bpm100*.01*multiplier;
     double position_ms=position*(1000./44100.);
     double fraction=(position_ms-(double)u32(unit+4)-offset)*bpm100/6000000.;
     /* Cached previous beat can straddle a boundary, but a distant record is
        stale during a seek/load and must never label an invented phase LIVE. */
-    if(!isfinite(fraction)||fraction < -.15||fraction>1.35||bpm<40||bpm>240)return 0;
+    if(!isfinite(fraction)||fraction < -.15||fraction>1.35||!isfinite(bpm)||bpm<=0||bpm>FLT_MAX||
+       !(float)multiplier||!(float)bpm||(!music&&(bpm<40||bpm>240)))return 0;
     if(word(read,ctx,range[0],deck*4,&check)||check!=player||
        word(read,ctx,impl,0x6a0,&check)||check!=info||block(read,ctx,manager,0x10,again,8)||memcmp(again,cache+0x10,8))return 0;
     double phase=fmod(bar-1+fraction+4.,4.);
     *out=(struct xz_arcade_track_clock){.track=info,.position_ms=(uint32_t)position_ms,.bpm=(float)bpm,.bar_phase=(float)phase,.speed=(float)multiplier,
                                       .playing=!!state[0x13]&&!state[0x40]};
     return 1;
+}
+
+int xz_arcade_native_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,struct xz_arcade_track_clock *out){
+    return track_clock_read(read,ctx,deck,out,0);
+}
+int xz_music_native_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,struct xz_arcade_track_clock *out){
+    return track_clock_read(read,ctx,deck,out,1);
 }
