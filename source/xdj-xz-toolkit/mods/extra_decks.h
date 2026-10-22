@@ -86,6 +86,7 @@ struct xz_extra_deck {
  int32_t tempo_x100;                   /* 0.01 % */
  int tempo_range, master_tempo, vinyl;
  int quantize;                         /* QUANTIZE: SYNC snaps to the master's beat (and keeps it) */
+ unsigned quantize_den;                /* worker-applied 1/2/4/8; zero means unknown */
  int remain, auto_cue;                 /* TIME MODE shows remaining time; AUTO CUE (manual, Auto Cue) */
  int tempo_reset;                      /* TEMPO RESET on: plays at the track's own speed */
  int reverse, slip;                    /* DIRECTION REV and SLIP modes */

@@ -6,7 +6,8 @@ M = Path(__file__).resolve().parents[1]
 ap = argparse.ArgumentParser()
 ap.add_argument('--output', type=Path, required=True)
 ap.add_argument('--arch', choices=['host', 'arm'], default='host')
-ap.add_argument('--suite', choices=['sync', 'controls', 'extensions', 'tempo_grid', 'global_sync'], required=True)
+ap.add_argument('--sanitizer', choices=['address', 'thread'], default='address')
+ap.add_argument('--suite', choices=['sync', 'controls', 'extensions', 'tempo_grid', 'global_sync', 'authority'], required=True)
 ap.add_argument('--modes')
 ap.add_argument('--source', type=Path, help='Frozen mods directory to compare using this regression fixture')
 a = ap.parse_args()
@@ -51,13 +52,13 @@ if a.suite == 'controls':
     flags += ['-DXZ_XP_SERVICE_PROOF', '-DXZ_XP_JOG_TICKS_PER_REV=6600']
 if a.arch == 'host':
     cc = 'gcc'
-    flags += ['-O1', '-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie']
-    runner = ['env', 'ASAN_OPTIONS=detect_leaks=1:halt_on_error=1', 'UBSAN_OPTIONS=halt_on_error=1']
+    flags += ['-O1', '-fsanitize=' + ('thread' if a.sanitizer == 'thread' else 'address,undefined'), '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie']
+    runner = ['env', 'TSAN_OPTIONS=halt_on_error=1', 'setarch', 'x86_64', '-R'] if a.sanitizer == 'thread' else ['env', 'ASAN_OPTIONS=detect_leaks=1:halt_on_error=1', 'UBSAN_OPTIONS=halt_on_error=1']
 else:
     cc = 'arm-linux-gnueabi-gcc'
     flags += ['-O2', '-mcpu=cortex-a9', '-mfpu=vfpv3', '-mfloat-abi=softfp']
     runner = ['qemu-arm', '-cpu', 'cortex-a9', '-L', '/usr/arm-linux-gnueabi']
-receipt = {'arch': a.arch, 'suite': a.suite, 'hardware_verified': False, 'inputs': {}, 'runs': []}
+receipt = {'arch': a.arch, 'sanitizer': a.sanitizer if a.arch == 'host' else None, 'suite': a.suite, 'hardware_verified': False, 'inputs': {}, 'runs': []}
 for p in sources + list(M.glob('*.h')) + list(M.glob('test_extra_player*.h')):
     receipt['inputs'][str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
 

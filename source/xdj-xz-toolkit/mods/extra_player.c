@@ -82,7 +82,7 @@ struct sync_clock {
 #define MODE_SLOTS 3u
 #define QUEUE_SLOTS (XZ_XP_QUEUE + RELEASE_SLOTS + MODE_SLOTS)
 #define CONTROL_BUDGET (XZ_XP_QUEUE + 3u) /* Preserve the existing per-pass bound. */
-struct queued_control { struct xz_extra_deck_event event; uint32_t epoch, at; };
+struct queued_control { struct xz_extra_deck_event event; uint32_t epoch, at, master_choice, operator_epoch; };
 static unsigned release_bit(const struct xz_extra_deck_event *e) {
  if(e->kind==XZ_EXTRA_IN_HOT_CUE)
   return e->hot_cue>=0&&e->hot_cue<XZ_EXTRA_HOT_CUES?1u<<(4u+(unsigned)e->hot_cue):0u;
@@ -186,6 +186,8 @@ struct deck {
  int sync_initial,sync_hold,sync_rate_active,sync_have_master,sync_lock_count;
  int sync_native_gap_hold, sync_stationary;
  uint32_t master_playing_choice;int master_playing_seen;
+ uint32_t handoff_intent_epoch;
+ struct xz_master_observation master_actual;
  int sync_master_id;
  enum xz_extra_sync_reason sync_hold_reason;
  uint64_t sync_last_wire;
@@ -194,7 +196,7 @@ struct deck {
  int32_t sync_legacy_bpm;
  uint32_t sync_native_identity,sync_native_source_revision;
  uint32_t sync_requested_at;
- int sync_wait_fresh;unsigned sync_grid_seen;
+ int sync_wait_fresh;unsigned sync_grid_seen,sync_grid_den;
  struct { int have,ready; uint64_t at; double phase,bpm; } native_phase;
  uint64_t sync_native_captured_us;
  double sync_native_bar_phase,sync_native_bpm;
@@ -225,7 +227,11 @@ struct xz_xp_players {
  int threads;
  atomic_int quit;
  atomic_uint revision;
- atomic_int sync_master;
+ atomic_int sync_master; /* requested software index, or -1 for native selection */
+ atomic_int native_intent;
+ atomic_uint explicit_intent;
+ xz_master_observer master_observer;
+ uint32_t master_admitted,admitted_operator,operator_floor,intent_operator,acknowledged_intent; /* publish_lock */
  atomic_uint sync_requests;
  atomic_uint sync_choice_epoch, sync_grid;
  int (*native_sync_clock)(struct xz_sync_native_snapshot *);
@@ -244,15 +250,126 @@ uint32_t xz_xp_revision(const struct xz_xp_players *p){return p?atomic_load_expl
 void xz_xp_set_quantize_grid(struct xz_xp_players *p,unsigned denominator,int known){
  if(!p)return;
  unsigned value=known&&(denominator==1||denominator==2||denominator==4||denominator==8)?denominator:0;
- atomic_store_explicit(&p->sync_grid,value,memory_order_release);
+ unsigned previous=atomic_load_explicit(&p->sync_grid,memory_order_acquire);
+ for(;;){
+  if(previous==UINT32_MAX||(previous&15u)==value)return;
+  unsigned revision=previous>>4;
+  unsigned next=revision==UINT32_MAX>>4?UINT32_MAX:((revision+1)<<4)|value;
+  if(atomic_compare_exchange_weak_explicit(&p->sync_grid,&previous,next,memory_order_acq_rel,memory_order_acquire))return;
+ }
+}
+void xz_xp_set_master_observer(struct xz_xp_players *p,xz_master_observer observer){
+ if(p&&!p->threads)p->master_observer=observer;
 }
 void xz_xp_set_native_sync_clock(struct xz_xp_players *p,int (*read)(struct xz_sync_native_snapshot *)){
  if(p&&!p->threads)p->native_sync_clock=read;
 }
 int xz_xp_needs_native_sync(const struct xz_xp_players *p){
- return p&&atomic_load(&p->sync_master)<0&&atomic_load(&p->sync_requests)!=0;
+ return p&&(p->master_observer||atomic_load(&p->sync_master)<0)&&atomic_load(&p->sync_requests)!=0;
+}
+static struct xz_master_intent master_intent_locked(const struct xz_xp_players *p){
+ int selected=atomic_load(&p->sync_master);
+ return (struct xz_master_intent){selected>=0?selected+2:atomic_load(&p->native_intent),
+  atomic_load(&p->sync_choice_epoch),atomic_load(&p->explicit_intent),p->intent_operator};
+}
+static uint32_t observe_operator(struct xz_xp_players *p){
+ struct xz_master_observation value={.deck=XZ_MASTER_UNKNOWN};
+ return p->master_observer&&p->master_observer(&value)?value.operator_epoch:0;
+}
+static void consume_operator_locked(struct xz_xp_players *p,uint32_t operator_epoch){
+ if(operator_epoch>p->operator_floor)p->operator_floor=operator_epoch;
+ if(atomic_load(&p->sync_master)>=0&&p->intent_operator<p->operator_floor){
+  atomic_store(&p->sync_master,-1);atomic_store(&p->native_intent,XZ_MASTER_NONE);
+  atomic_store(&p->explicit_intent,0);p->intent_operator=p->operator_floor;p->acknowledged_intent=0;
+  atomic_fetch_add_explicit(&p->revision,1,memory_order_release);
+ }
+}
+static uint32_t reserve_master_locked(struct xz_xp_players *p,uint32_t operator_epoch){
+ uint32_t next=p->master_admitted,applied=atomic_load(&p->sync_choice_epoch);
+ if(applied>next)next=applied;
+ if(next==UINT32_MAX)return 0;
+ p->master_admitted=next+1;p->admitted_operator=operator_epoch;return next+1;
+}
+static int request_master(struct xz_xp_players *p,int logical,int explicit_choice,uint32_t admitted,uint32_t operator_epoch){
+ pthread_mutex_lock(&p->publish_lock);
+ consume_operator_locked(p,operator_epoch);
+ struct xz_master_intent old=master_intent_locked(p);
+ if(admitted){
+  if(admitted!=p->master_admitted||!operator_epoch||operator_epoch<p->operator_floor){pthread_mutex_unlock(&p->publish_lock);return 0;}
+ }else{
+  int pending=p->master_admitted!=old.epoch&&p->admitted_operator&&p->admitted_operator>=p->operator_floor;
+  if((!explicit_choice&&(pending||old.deck==logical))||
+     (logical==XZ_MASTER_NONE&&old.explicit_choice&&old.deck>=0&&old.deck<2)||
+     (logical>=2&&(!operator_epoch||operator_epoch<p->operator_floor||explicit_choice))){
+   pthread_mutex_unlock(&p->publish_lock);return 0;
+  }
+  admitted=reserve_master_locked(p,operator_epoch);
+  if(!admitted){pthread_mutex_unlock(&p->publish_lock);return 0;}
+ }
+ atomic_store(&p->sync_master,logical>=2?logical-2:-1);
+ atomic_store(&p->native_intent,logical<2?logical:XZ_MASTER_NONE);
+ atomic_store(&p->explicit_intent,!!explicit_choice);atomic_store(&p->sync_choice_epoch,admitted);
+ p->intent_operator=operator_epoch;p->acknowledged_intent=0;
+ atomic_fetch_add_explicit(&p->revision,1,memory_order_release);
+ pthread_mutex_unlock(&p->publish_lock);return 1;
+}
+void xz_xp_native_master_selected(struct xz_xp_players *p,unsigned native_deck){
+ if(p&&native_deck<2)(void)request_master(p,(int)native_deck,1,0,observe_operator(p));
+}
+static int observation_source_matches(const struct xz_extra_deck *views,
+ const struct xz_master_intent *intent,const struct xz_master_observation *actual){
+ if(actual->deck<2)return 1;
+ if(actual->deck>3||!actual->request_epoch||!actual->lease_generation)return 0;
+ const struct xz_extra_deck *v=&views[actual->deck-2];
+ return v->loaded&&actual->route_epoch&&actual->load_revision&&actual->transport_generation&&
+  v->timeline.route_epoch==actual->route_epoch&&v->timeline.load_revision==actual->load_revision&&
+  v->timeline.transport_generation==actual->transport_generation&&
+  (intent->deck!=actual->deck||intent->epoch==actual->request_epoch);
+}
+static void copy_master(struct xz_xp_players *p,struct xz_master_observation *out){
+ *out=(struct xz_master_observation){.deck=XZ_MASTER_UNKNOWN};
+ struct xz_master_observation value={.deck=XZ_MASTER_UNKNOWN};
+ if(!p->master_observer||!p->master_observer(&value)||!value.revision||value.deck<XZ_MASTER_UNKNOWN||value.deck>3||
+    (uint32_t)(p->env.now_ms()-value.observed_ms)>XZ_MASTER_MAX_AGE_MS)return;
+ pthread_mutex_lock(&p->publish_lock);
+ struct xz_master_intent intent=master_intent_locked(p);
+ int valid=value.operator_epoch>=p->operator_floor&&observation_source_matches(p->view,&intent,&value);
+ if(valid&&value.deck==intent.deck&&value.deck>=0)p->acknowledged_intent=intent.epoch;
+ pthread_mutex_unlock(&p->publish_lock);
+ if(valid)*out=value;
+}
+static int observed_selection(const struct xz_master_observation *actual){
+ return actual->deck>=2?actual->deck-2:actual->deck>=0?-1:actual->deck==XZ_MASTER_EXTERNAL?-3:-2;
+}
+static int sync_selection(struct xz_xp_players *p,struct deck *d,uint32_t *choice){
+ if(!p->master_observer){*choice=atomic_load(&p->sync_choice_epoch);return atomic_load(&p->sync_master);}
+ copy_master(p,&d->master_actual);*choice=d->master_actual.revision;return observed_selection(&d->master_actual);
+}
+static int current_master(struct xz_xp_players *p,const struct deck *d){
+ if(!p->master_observer)return atomic_load(&p->sync_master)==d->index;
+ struct xz_master_observation actual;copy_master(p,&actual);return actual.deck==d->index+2;
+}
+static int authority_same(const struct xz_master_observation *a,const struct xz_master_observation *b){
+ return a->deck==b->deck&&a->revision==b->revision&&a->operator_epoch==b->operator_epoch&&
+  a->request_epoch==b->request_epoch&&a->lease_generation==b->lease_generation&&a->route_epoch==b->route_epoch&&
+  a->load_revision==b->load_revision&&a->transport_generation==b->transport_generation;
+}
+/* Read observer caches before taking our lock. Under the lock recheck the own
+   source tuple, so neither a load nor an intent change can reuse an old grant. */
+static int authority_before(struct xz_xp_players *p,const struct deck *d){
+ if(!p->master_observer)return 1;
+ struct xz_master_observation actual;copy_master(p,&actual);
+ return actual.deck>=0&&authority_same(&actual,&d->master_actual);
+}
+static int authority_locked(struct xz_xp_players *p,const struct deck *d,int selected,uint32_t choice){
+ if(atomic_load_explicit(&p->sync_grid,memory_order_acquire)!=d->sync_grid_seen)return 0;
+ if(!p->master_observer)return atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+ struct xz_master_intent intent=master_intent_locked(p);
+ return d->master_actual.revision==choice&&observed_selection(&d->master_actual)==selected&&
+  observation_source_matches(p->view,&intent,&d->master_actual);
 }
 static int select_sync_master(struct xz_xp_players *p,int selected){
+ if(p->master_observer)return request_master(p,selected<0?XZ_MASTER_NONE:selected+2,0,0,observe_operator(p));
  pthread_mutex_lock(&p->publish_lock);
  if(atomic_load(&p->sync_master)==selected){pthread_mutex_unlock(&p->publish_lock);return 0;}
  atomic_store(&p->sync_master,selected);atomic_fetch_add(&p->sync_choice_epoch,1);
@@ -268,7 +385,10 @@ static int select_sync_master(struct xz_xp_players *p,int selected){
  atomic_fetch_add_explicit(&p->revision,1,memory_order_release);
  pthread_mutex_unlock(&p->publish_lock);return 1;
 }
-int xz_xp_use_native_master(struct xz_xp_players *p){return p?select_sync_master(p,-1):0;}
+int xz_xp_use_native_master(struct xz_xp_players *p){
+ if(!p)return 0;
+ return select_sync_master(p,-1);
+}
 
 static int streaming(enum xz_xp_state s) { return s == XZ_XP_PLAYING || s == XZ_XP_SAMPLING || s == XZ_XP_SCRATCHING; }
 static int loaded(enum xz_xp_state s) { return s == XZ_XP_CUED || streaming(s) || s == XZ_XP_ENDED; }
@@ -756,11 +876,13 @@ static int segment_at_wire(const struct sync_clock *c,uint64_t wire,double *phas
  return 0;
 }
 static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
+ struct xz_master_observation actual={.deck=XZ_MASTER_UNKNOWN};
+ if(p->master_observer)copy_master(p,&actual);
  struct xz_extra_deck v;
  memset(&v, 0, sizeof v);
  enum xz_xp_state s = d->state;
  /* Deck modes hold with or without a track, as the stock lamps show them. */
- v.vinyl = d->vinyl; v.master_tempo = d->master_tempo; v.quantize = d->quantize;
+ v.vinyl = d->vinyl; v.master_tempo = d->master_tempo; v.quantize = d->quantize;v.quantize_den=d->sync_grid_den;
  v.remain = d->remain; v.auto_cue = d->auto_cue;
  v.known = XZ_EXTRA_KNOWN(XZ_EXTRA_F_VINYL) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER_TEMPO) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_QUANTIZE) |
            XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIME_MODE);
@@ -841,8 +963,9 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   p->duplicate_source[d->index].load.media_generation=d->media_generation;
   p->duplicate_source[d->index].load.route_epoch=d->epoch;
  }
- int selected=atomic_load(&p->sync_master);
- v.master=selected==d->index;v.master_scope=v.master?XZ_EXTRA_MASTER_SCOPE_SOFTWARE:0;
+ int selected=p->master_observer?observed_selection(&actual):atomic_load(&p->sync_master);
+ v.master=selected==d->index;v.master_scope=v.master?(XZ_EXTRA_MASTER_SCOPE_SOFTWARE|(p->master_observer?XZ_EXTRA_MASTER_SCOPE_NATIVE:0)):0;
+ if(!p->master_observer){
  if(selected<0&&v.sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE){
   v.sync.locked=0;v.sync.master_deck=-1;v.sync.master_scope=0;
   if(v.sync.requested)v.sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
@@ -853,6 +976,11 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  if(selected>=0&&selected!=d->index&&v.sync.requested&&
     d->sync_choice_seen!=atomic_load(&p->sync_choice_epoch)&&(v.sync.locked||v.sync.correction_ppm)){
   v.sync.locked=0;v.sync.correction_ppm=0;v.sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;
+ }
+ }else if(v.sync.requested&&(actual.deck<0||v.sync.master_deck!=actual.deck)){
+  v.sync.locked=0;v.sync.correction_ppm=0;v.sync.master_deck=actual.deck>=0?actual.deck:-1;
+  v.sync.master_scope=actual.deck<0?0:actual.deck<2?XZ_EXTRA_MASTER_SCOPE_NATIVE:XZ_EXTRA_MASTER_SCOPE_NATIVE|XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
+  v.sync.reason=actual.deck==d->index+2?XZ_EXTRA_SYNC_MASTER_CLOCK:actual.deck==XZ_MASTER_EXTERNAL?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;
  }
  p->clock[d->index]=atomic_load(&p->sync_requests)?sync_clock(d,now):(struct sync_clock){0};
  const struct xz_extra_deck *before=&p->view[d->index];
@@ -1169,8 +1297,9 @@ static void sync_set_trim(struct deck *d,double trim){
  d->sync_trim=trim;d->sync.correction_ppm=(int32_t)llround(trim*1000000.);
 }
 static int sync_apply_base(struct xz_xp_players *p,struct deck *d,int selected,uint32_t choice,double rate){
+ int valid=authority_before(p,d);
  pthread_mutex_lock(&p->publish_lock);
- int valid=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+ valid=valid&&authority_locked(p,d,selected,choice);
  int applied=valid?sync_base(d,rate):-1;pthread_mutex_unlock(&p->publish_lock);return applied;
 }
 enum {SYNC_NATIVE_GAP_NONE,SYNC_NATIVE_GAP_WAIT_PHASE,SYNC_NATIVE_GAP_HAVE_PHASE};
@@ -1266,33 +1395,42 @@ static void sync_stationary(struct xz_xp_players *p,struct deck *d,int selected,
  int applied=sync_apply_base(p,d,selected,choice,rate);
  if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
  if(d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
- if(d->quantize&&!d->sync_grid_seen){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
+ if(d->quantize&&!d->sync_grid_den){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(d->quantize&&d->sync_initial){
   double phase,period;
   if(!phase_known){d->sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;}
   if(!grid_phase(d,d->heard,&phase,&period)){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
   if(!aligned_loop(d)){d->sync.reason=XZ_EXTRA_SYNC_LOOP_UNALIGNED;return;}
-  double delta=quantized_delta(phase-master_phase,d->sync_grid_seen);
+  double delta=quantized_delta(phase-master_phase,d->sync_grid_den);
   double to=(double)d->heard-delta*period;
   if(d->loop.active){double span=d->loop.out-d->loop.in;to=d->loop.in+fmod(to-d->loop.in+span,span);}
   else {if(to<0)to+=period;if(to>=d->r->frames)to-=period;}
   if(to<0||to>=d->r->frames){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
+  int current=authority_before(p,d);
   pthread_mutex_lock(&p->publish_lock);
-  int current=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+  current=current&&authority_locked(p,d,selected,choice);
   if(current){jump(d,(uint64_t)llround(to),now);d->sync_initial=0;d->sync_snap_at=now|1u;}
   pthread_mutex_unlock(&p->publish_lock);
   if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
  }
  d->sync_stationary=1;d->sync_have_master=0;d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;
 }
+static unsigned sync_grid_refresh(struct xz_xp_players *p,struct deck *d){
+ unsigned packed=atomic_load_explicit(&p->sync_grid,memory_order_acquire),denominator=packed&15u;
+ if(denominator!=1&&denominator!=2&&denominator!=4&&denominator!=8)denominator=0;
+ if(d->sync_grid_seen!=packed){
+  d->sync_grid_seen=packed;d->sync_grid_den=denominator;d->sync_initial=d->quantize;
+  d->sync_have_master=0;d->sync_lock_count=0;
+ }
+ return denominator;
+}
 static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_position *position,uint32_t now){
  d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;
  if(!d->sync.requested)return;
- unsigned grid=atomic_load_explicit(&p->sync_grid,memory_order_acquire);
- if(d->sync_grid_seen!=grid){d->sync_grid_seen=grid;d->sync_initial=d->quantize;d->sync_have_master=0;d->sync_lock_count=0;}
+ unsigned grid=sync_grid_refresh(p,d);
  if(d->emergency.active){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
- int selected=atomic_load(&p->sync_master);
- uint32_t choice=atomic_load(&p->sync_choice_epoch);
+ uint32_t choice;int selected=sync_selection(p,d,&choice);
+ if(selected< -1){d->sync.reason=selected==-3?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;return;}
  if(selected==d->index){d->sync_rate_active=0;d->sync.master_deck=selected+XZ_EXTRA_FIRST_DECK;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;d->sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;return;}
  if(selected<0){
   if(d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE){
@@ -1305,6 +1443,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    int copied=p->native_sync_clock(&native);
    if(native.reason==XZ_SYNC_NATIVE_EXTERNAL_MASTER){d->sync.reason=XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED;d->sync.master_scope=0;return;}
    if(!copied||!native.available||native.native_deck<0||native.native_deck>1||
+      (p->master_observer&&native.native_deck!=d->master_actual.deck)||
       !native.source_revision||!native.track_identity||!isfinite(native.bpm)||native.bpm<=0||native.bpm>(double)INT32_MAX/100.||
       (uint32_t)(now-native.captured_ms)>150u||
       (d->sync_wait_fresh&&(int32_t)(native.captured_ms-d->sync_requested_at)<=0)){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
@@ -1432,8 +1571,9 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    uint64_t target=(uint64_t)llround(to);
    if(d->loop.active)target=loop_frame(d,target);
    else if(target>=d->r->frames)target=d->r->frames-1;
+   int current=authority_before(p,d);
    pthread_mutex_lock(&p->publish_lock);
-   int current=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+   current=current&&authority_locked(p,d,selected,choice);
    if(current){d->sync_initial=0;d->sync_lock_count=d->sync_have_master=0;jump(d,target,now);d->sync_snap_at=now|1u;}
    pthread_mutex_unlock(&p->publish_lock);
    if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
@@ -1443,8 +1583,9 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   double limit=.01*d->sync_rate;
   if(trim>limit)trim=limit;
   if(trim< -limit)trim=-limit;
+  int current=authority_before(p,d);
   pthread_mutex_lock(&p->publish_lock);
-  int current=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+  current=current&&authority_locked(p,d,selected,choice);
   if(current)sync_set_trim(d,trim);
   pthread_mutex_unlock(&p->publish_lock);
   if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
@@ -1527,8 +1668,9 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   uint64_t target=(uint64_t)llround(to);
   if(d->loop.active)target=loop_frame(d,target);
   else if(target>=d->r->frames)target=d->r->frames-1;
+  int current=authority_before(p,d);
   pthread_mutex_lock(&p->publish_lock);
-  int current=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+  current=current&&authority_locked(p,d,selected,choice);
   if(current){d->sync_initial=0;d->sync_lock_count=d->sync_have_master=0;jump(d,target,now);d->sync_snap_at=now|1u;}
   pthread_mutex_unlock(&p->publish_lock);
   if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
@@ -1539,8 +1681,9 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  double limit=.01*d->sync_rate;
  if(trim>limit)trim=limit;
  if(trim< -limit)trim=-limit;
+ int current=authority_before(p,d);
  pthread_mutex_lock(&p->publish_lock);
- int current=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
+ current=current&&authority_locked(p,d,selected,choice);
  if(current)sync_set_trim(d,trim);
  pthread_mutex_unlock(&p->publish_lock);
  if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
@@ -1849,12 +1992,21 @@ static int native_master_playing(struct xz_xp_players *p,uint32_t now,int *absen
  return 1;
 }
 static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
- int selected=atomic_load(&p->sync_master);
+ uint32_t authority_choice;int selected=sync_selection(p,d,&authority_choice);
+ if(p->master_observer){
+  uint32_t intent_epoch=atomic_load(&p->sync_choice_epoch);
+  if(d->handoff_intent_epoch!=intent_epoch){
+   d->handoff_intent_epoch=intent_epoch;d->master_playing_seen=0;d->native_observed_known=0;d->native_idle_pending=0;
+  }
+  pthread_mutex_lock(&p->publish_lock);struct xz_master_intent intent=master_intent_locked(p);
+  int pending_intent=p->acknowledged_intent!=intent.epoch;pthread_mutex_unlock(&p->publish_lock);
+  if(selected< -1||(pending_intent&&intent.explicit_choice&&intent.deck!=d->master_actual.deck))return;
+ }
  int other=1-d->index,other_playing=state_playing(atomic_load(&p->deck[other].published_state));
  int absent;
  if(selected==d->index){
   d->native_idle_pending=0;
-  uint32_t choice=atomic_load(&p->sync_choice_epoch);
+  uint32_t choice=authority_choice;
   if(d->master_playing_choice!=choice){d->master_playing_choice=choice;d->master_playing_seen=0;}
   if(state_playing(d->state)){d->master_playing_seen=1;return;}
   if(loaded(d->state)&&!d->master_playing_seen)return;
@@ -1867,8 +2019,10 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
  if(selected>=0||!state_playing(d->state)||d->state==XZ_XP_SCRATCHING){d->native_idle_pending=0;return;}
  struct xz_sync_native_snapshot stopped={0};
  int native_playing=native_master_playing(p,now,&absent,&stopped);
- uint32_t choice=atomic_load(&p->sync_choice_epoch);
- if(!stopped.available){d->native_idle_pending=0;return;}
+ uint32_t choice=authority_choice;
+ if(!stopped.available||(p->master_observer&&stopped.native_deck!=d->master_actual.deck)){
+  d->native_idle_pending=0;return;
+ }
  if(!d->native_observed_known||d->native_observed_choice!=choice||
     d->native_observed_deck!=stopped.native_deck||d->native_observed_identity!=stopped.track_identity||
     d->native_observed_revision!=stopped.source_revision){
@@ -1891,7 +2045,7 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
  if(select_sync_master(p,d->index))xz_xp_notice(p,d->index?"MASTER: DECK 4":"MASTER: DECK 3");
 }
 
-static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, uint32_t arrived) {
+static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, uint32_t arrived,uint32_t master_choice,uint32_t operator_epoch) {
  if(d->emergency.active&&e->kind!=XZ_EXTRA_IN_LOAD&&e->kind!=XZ_EXTRA_IN_INSTANT_DOUBLES){
   if(e->pressed&&(e->kind==XZ_EXTRA_IN_PLAY||e->kind==XZ_EXTRA_IN_CUE)){
    if(streaming(d->state))pause_at_heard(d,now);else if(e->kind==XZ_EXTRA_IN_PLAY)start(d,now);
@@ -2018,6 +2172,10 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
  }
  if(e->kind==XZ_EXTRA_IN_MASTER){
   if(e->pressed&&loaded(d->state)){
+   if(p->master_observer){
+    if(request_master(p,d->index+2,1,master_choice,operator_epoch))xz_xp_notice(p,"MASTER REQUESTED");
+    return;
+   }
    d->master_playing_seen=state_playing(d->state);
    (void)select_sync_master(p,d->index);d->master_playing_choice=atomic_load(&p->sync_choice_epoch);
    d->sync_trim=0;d->sync_rate_active=0;
@@ -2073,7 +2231,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
  }
  if (e->kind == XZ_EXTRA_IN_TEMPO) {
   /* A synced deck takes its tempo from the master (stock): the fader is ignored until SYNC is off. */
-  if(d->sync.requested&&atomic_load(&p->sync_master)!=d->index)return;
+  if(d->sync.requested&&!current_master(p,d))return;
   int32_t at = e->tempo_position;
   if (at > XZ_EXTRA_TEMPO_SPAN) at = XZ_EXTRA_TEMPO_SPAN;
   if (at < -XZ_EXTRA_TEMPO_SPAN) at = -XZ_EXTRA_TEMPO_SPAN;
@@ -2081,7 +2239,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   return;
  }
  if (e->kind == XZ_EXTRA_IN_TEMPO_RANGE) {
-  if(d->sync.requested&&atomic_load(&p->sync_master)!=d->index)return;
+  if(d->sync.requested&&!current_master(p,d))return;
   if (e->pressed) {
    d->tempo_range = d->tempo_range == 6 ? 10 : d->tempo_range == 10 ? 16 : d->tempo_range == 16 ? 100 : 6;
    set_tempo(d);
@@ -2089,7 +2247,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   return;
  }
  if (e->kind == XZ_EXTRA_IN_TEMPO_RESET) {
-  if(d->sync.requested&&atomic_load(&p->sync_master)!=d->index)return;
+  if(d->sync.requested&&!current_master(p,d))return;
   if (e->pressed) {
    d->tempo_reset = !d->tempo_reset; set_tempo(d);
    xz_xp_notice(p,d->tempo_reset?"TEMPO RESET ON":"TEMPO RESET OFF");
@@ -2382,7 +2540,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
-    int selected=atomic_load(&p->sync_master);uint32_t choice=atomic_load(&p->sync_choice_epoch);
+    uint32_t choice;int selected=sync_selection(p,d,&choice);
     if(selected!=d->sync_master_id||choice!=d->sync_choice_seen){
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
@@ -2399,7 +2557,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
-    int selected=atomic_load(&p->sync_master);uint32_t choice=atomic_load(&p->sync_choice_epoch);
+    uint32_t choice;int selected=sync_selection(p,d,&choice);
     if(selected>=0||choice!=d->sync_choice_seen){
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
@@ -2460,6 +2618,9 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   if(d->slip_reverse)d->reverse=0;
   d->auto_button.down=0;d->track_prev_known=0;d->search=0;d->control_down=0;d->pad_hold=PAD_HOLD_NONE;d->slip_pad=-1;d->slip_bg.active=d->slip_reverse=0;
  }
+ (void)sync_grid_refresh(p,d);
+ uint32_t operator_epoch=observe_operator(p);
+ if(operator_epoch){pthread_mutex_lock(&p->publish_lock);consume_operator_locked(p,operator_epoch);pthread_mutex_unlock(&p->publish_lock);}
  struct queued_control q;
  /* Fixed queue-capacity budget: producers cannot prolong a worker drain indefinitely. */
  for(unsigned controls=0;controls<CONTROL_BUDGET&&take(p,d,&q);controls++) {
@@ -2467,8 +2628,13 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   if(q.event.kind==XZ_EXTRA_IN_LOAD&&!q.event.load.route_epoch)q.event.load.route_epoch=q.epoch;
   if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx)){
    SP_ONLY(if(q.event.kind==XZ_EXTRA_IN_JOG_TOUCH){if(q.event.pressed&&!d->sp.contact)d->sp.attempt++;d->sp.contact=!!q.event.pressed;d->sp.history_dirty=1;});
-   command(p,d,&q.event,now,q.at);
+   command(p,d,&q.event,now,q.at,q.master_choice,q.operator_epoch);
    SP_ONLY(sp_capture(d,now));
+  }
+  if(q.master_choice){
+   pthread_mutex_lock(&p->publish_lock);
+   if(p->master_admitted==q.master_choice&&atomic_load(&p->sync_choice_epoch)!=q.master_choice)p->admitted_operator=0;
+   pthread_mutex_unlock(&p->publish_lock);
   }
   if(q.event.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(q.event.load.order);
  }
@@ -2524,7 +2690,7 @@ static int mode_input(struct xz_xp_players *p,const struct xz_extra_deck_event *
   int on=e->kind==XZ_EXTRA_IN_MODE_SET?e->hot_cue%2:!p->deck[e->deck].mode_target[mode];
   for(int i=first;i<=last;i++){
    struct deck *d=&p->deck[i];struct xz_extra_deck_event set={.deck=i,.kind=XZ_EXTRA_IN_MODE_SET,.pressed=1,.hot_cue=mode*2+on};
-   d->queue[(d->head+d->count)%QUEUE_SLOTS]=(struct queued_control){set,epoch,p->env.now_ms()};
+   d->queue[(d->head+d->count)%QUEUE_SLOTS]=(struct queued_control){.event=set,.epoch=epoch,.at=p->env.now_ms()};
    d->count++;d->mode_pending[mode]++;d->mode_target[mode]=on;
   }
  }
@@ -2550,6 +2716,9 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
                e->kind == XZ_EXTRA_IN_TIME_MODE || e->kind == XZ_EXTRA_IN_AUTO_CUE;
  if ((state == XZ_XP_EMPTY || state == XZ_XP_ERROR) && !release && e->kind != XZ_EXTRA_IN_LOAD && e->kind!=XZ_EXTRA_IN_INSTANT_DOUBLES && !setting)
   {SP_ONLY(sp_input(d,e,p->env.now_ms(),epoch,state,0,XP_SP_STATE_REFUSED,XP_SP_UNKNOWN,XP_SP_UNKNOWN,0));return 0;}
+ int master_input=p->master_observer&&e->kind==XZ_EXTRA_IN_MASTER&&e->pressed;
+ uint32_t operator_epoch=master_input?observe_operator(p):0,master_choice=0;
+ if(master_input&&!operator_epoch){xz_xp_notice(p,"MASTER REQUEST NOT READY");return 0;}
  pthread_mutex_lock(&d->queue_lock);
  if(epoch!=p->env.sink.link(p->env.sink.ctx)){SP_ONLY(sp_input(d,e,p->env.now_ms(),epoch,state,0,XP_SP_ROUTE_CHANGED,d->count,d->release_owed,0));pthread_mutex_unlock(&d->queue_lock);return 0;}
  queue_epoch(p,d,epoch);
@@ -2560,9 +2729,14 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
   else if(!e->held||(e->kind!=XZ_EXTRA_IN_HOT_CUE&&e->kind!=XZ_EXTRA_IN_REVERSE))owed|=bit;
  }
  int taken=(d->count<XZ_XP_QUEUE || completing) && d->count+1+release_count(owed)<=QUEUE_SLOTS;
+ if(taken&&master_input){
+  pthread_mutex_lock(&p->publish_lock);consume_operator_locked(p,operator_epoch);
+  if(operator_epoch>=p->operator_floor)master_choice=reserve_master_locked(p,operator_epoch);
+  taken=master_choice!=0;pthread_mutex_unlock(&p->publish_lock);
+ }
  if (taken) {
   if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_retain(e->load.order);
-  d->queue[(d->head+d->count)%QUEUE_SLOTS]=(struct queued_control){*e,epoch,p->env.now_ms()};
+  d->queue[(d->head+d->count)%QUEUE_SLOTS]=(struct queued_control){.event=*e,.epoch=epoch,.at=p->env.now_ms(),.master_choice=master_choice,.operator_epoch=operator_epoch};
   d->count++;d->release_owed=owed;
  }
  SP_ONLY(uint32_t at=taken?d->queue[(d->head+d->count-1)%QUEUE_SLOTS].at:p->env.now_ms();
@@ -2575,12 +2749,27 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
 
 void xz_xp_read(struct xz_xp_players *p, struct xz_extra_decks *out) {
  if (!p || !out) return;
+ struct xz_master_observation actual={.deck=XZ_MASTER_UNKNOWN};
+ if(p->master_observer)copy_master(p,&actual);
  pthread_mutex_lock(&p->publish_lock);
  memcpy(out->deck, p->view, sizeof out->deck);
  memcpy(out->notice, p->notice, sizeof out->notice);
  out->notice_at_ms = p->notice_at; out->notice_seq = p->notice_seq;
  out->snapshot_revision=atomic_load_explicit(&p->revision,memory_order_acquire);
+ out->master_intent=master_intent_locked(p);
  pthread_mutex_unlock(&p->publish_lock);
+ if(!observation_source_matches(out->deck,&out->master_intent,&actual))actual=(struct xz_master_observation){.deck=XZ_MASTER_UNKNOWN};
+ out->master_actual=actual;
+ if(p->master_observer)for(int i=0;i<2;i++){
+  struct xz_extra_deck *v=&out->deck[i];v->master=v->loaded&&actual.deck==i+2;
+  v->master_scope=v->master?XZ_EXTRA_MASTER_SCOPE_SOFTWARE|XZ_EXTRA_MASTER_SCOPE_NATIVE:0;
+  if(v->sync.requested){
+   if(actual.deck<0||v->sync.master_deck!=actual.deck){v->sync.locked=0;v->sync.correction_ppm=0;}
+   v->sync.master_deck=actual.deck>=0?actual.deck:-1;
+   v->sync.master_scope=actual.deck<0?0:actual.deck<2?XZ_EXTRA_MASTER_SCOPE_NATIVE:XZ_EXTRA_MASTER_SCOPE_NATIVE|XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
+   if(actual.deck<0)v->sync.reason=actual.deck==XZ_MASTER_EXTERNAL?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;
+  }
+ }
 }
 
 void xz_xp_debug(struct xz_xp_players *p, int index, struct xz_xp_debug *out) {
@@ -2637,7 +2826,8 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
  atomic_init(&p->quit, 0);
  atomic_init(&p->revision,0);
  atomic_init(&p->sync_master,-1);atomic_init(&p->sync_requests,0);
- atomic_init(&p->sync_choice_epoch,0);atomic_init(&p->sync_grid,0);
+ atomic_init(&p->sync_choice_epoch,1);atomic_init(&p->sync_grid,0);
+ atomic_init(&p->native_intent,XZ_MASTER_NONE);atomic_init(&p->explicit_intent,0);p->master_admitted=1;
  return p;
 }
 

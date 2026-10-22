@@ -32,6 +32,10 @@ int main(void){
  route_up=1;route_epoch=2;assert(xz_runtime_deck_selection_snapshot(&a));
  xz_deck_select_toggle(&deck_select,0,NULL);assert(xz_runtime_deck_selection_snapshot(&a));assert(a.deck[0]==3);
  route_epoch=3;assert(xz_runtime_deck_selection_snapshot(&b));assert(b.deck[0]==1&&b.epoch[0]>a.epoch[0]&&b.epoch[1]>a.epoch[1]);
+ deck_select.side[0].selection_epoch=UINT64_MAX;xz_deck_select_toggle(&deck_select,0,NULL);
+ assert(xz_runtime_deck_selection_snapshot(&b));assert(b.deck[0]==3&&b.epoch[0]==0);
+ xz_deck_select_toggle(&deck_select,0,NULL);assert(xz_runtime_deck_selection_snapshot(&b));assert(b.deck[0]==1&&b.epoch[0]==0);
+ route_epoch++;assert(xz_runtime_deck_selection_snapshot(&b));assert(b.epoch[0]==0);
  memset(&unchanged,0xa5,sizeof unchanged);b=unchanged;
  assert(!pthread_mutex_lock(&deck_mutex));assert(!xz_runtime_deck_selection_snapshot(&b));assert(!memcmp(&b,&unchanged,sizeof b));assert(!pthread_mutex_unlock(&deck_mutex));
  observer=1;assert(!xz_runtime_deck_selection_snapshot(&b));assert(!memcmp(&b,&unchanged,sizeof b));observer=0;

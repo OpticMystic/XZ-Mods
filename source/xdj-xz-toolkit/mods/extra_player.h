@@ -68,6 +68,8 @@ struct xz_xp_players;
 #define XZ_XP_HAS_QUANTIZE_GRID 1
 /* Unknown or invalid settings inhibit phase alignment while retaining BPM follow. */
 void xz_xp_set_quantize_grid(struct xz_xp_players *,unsigned denominator,int known);
+void xz_xp_set_master_observer(struct xz_xp_players *,xz_master_observer);
+void xz_xp_native_master_selected(struct xz_xp_players *,unsigned native_deck);
 struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env);
 void xz_xp_destroy(struct xz_xp_players *);
 /* The two workers, each calling xz_xp_step for its deck. Without them a test steps by hand. */
