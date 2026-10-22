@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Included after the existing fake transport and player fixture helpers. */
 static void recovery_setup(uint32_t epoch) {
- struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,order_resolve};
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,order_resolve,0,0};
  clock_ms=1000;p=xz_xp_create(&env);assert(p);fake_route(epoch);step();
 }
 static void recovery_close(void) { xz_xp_destroy(p);p=NULL;assert(!xz_extra_order_live()); }

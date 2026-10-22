@@ -16,7 +16,7 @@ int main(int argc,char **argv){
  snprintf(fixtures,sizeof fixtures,"%s",argv[1]);
  for(int side=0;side<2;side++)for(int rate=44100;rate<=48000;rate+=3900)
  for(int playing=0;playing<2;playing++)for(int sign=-1;sign<=1;sign+=2){
-  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL};
+  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
   p=xz_xp_create(&env);assert(p);clock_ms=1000;fake_route(++epoch);step();
   load(side,rate==44100?4:2);seek(side,sign>0?50:1950);
   press(side,XZ_EXTRA_IN_VINYL);if(playing)press(side,XZ_EXTRA_IN_PLAY);

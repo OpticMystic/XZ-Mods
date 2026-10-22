@@ -26,6 +26,8 @@ enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_
 #define XZ_XP_SEARCH_MS_PER_REV 1800   /* paused jog: audio one platter turn moves through */
 /* VINYL SPEED ADJUST brake/start time from full speed with the knob fully counterclockwise and fully
    clockwise; the centre is ~300 ms. Provisional until timed against a stock deck. */
+#define XZ_XP_SYNC_RESNAP_MS 1000u    /* QUANTIZE re-snaps after a SYNC break at most this often */
+#define XZ_XP_MASTER_HANDOFF_MS 300u  /* a stopped native master must stay stopped this long before a software deck takes over */
 #define XZ_XP_RAMP_FAST_MS 30
 #define XZ_XP_RAMP_SLOW_MS 3000
 #define XZ_XP_RETIRE_MS 2000u          /* wave and grid arrays outlive the load that replaced them */
@@ -54,6 +56,10 @@ struct xz_xp_env {
  int32_t (*master_bpm)(void);                                      /* NULL: SYNC has no master */
  void (*worker_enter)(int deck); /* Optional; called once inside each owned worker, never by step/input. */
  int (*resolve_checked)(int source, uint32_t track_id, uint64_t media_generation, struct xz_extra_track *out);
+ /* Start-up modes. The runtime starts in VINYL mode with QUANTIZE on, as the stock decks do; zero keeps
+    the older CDJ-mode, quantize-on start for embedders that do not set them. */
+ int start_in_vinyl;
+ int start_without_quantize;
 };
 
 struct xz_xp_players;

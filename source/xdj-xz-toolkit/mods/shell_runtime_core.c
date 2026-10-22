@@ -380,11 +380,12 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
  if(EK(TEMPO_RANGE)){d->tempo_range=s->tempo_range;d->known|=SK(TEMPO_RANGE);}
  if(EK(MASTER_TEMPO)){d->master_tempo=!!s->master_tempo;d->known|=SK(MASTER_TEMPO);}
  if(EK(VINYL)){d->vinyl=!!s->vinyl;d->known|=SK(VINYL);}
+ if(EK(QUANTIZE)){d->quantize_on=!!s->quantize;d->quantize_num=d->quantize_den=1;d->known|=SK(QUANTIZE);}
  if(EK(MASTER)){d->master=!!s->master;d->master_scope=s->master_scope;d->known|=SK(MASTER);}
  if(EK(SYNC)){
   d->sync=!!s->sync.requested;d->sync_master_deck=s->sync.master_deck;
   d->sync_status=!s->sync.requested?XZ_SHELL_SYNC_OFF:s->sync.locked?XZ_SHELL_SYNC_LOCKED:
-   s->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE?XZ_SHELL_SYNC_TEMPO_ONLY:
+   s->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE||s->sync.reason==XZ_EXTRA_SYNC_TEMPO_FOLLOW?XZ_SHELL_SYNC_TEMPO_ONLY:
    s->sync.reason==XZ_EXTRA_SYNC_MASTER_CLOCK?XZ_SHELL_SYNC_MASTER:XZ_SHELL_SYNC_WAITING;
   d->known|=SK(SYNC)|SK(SYNC_STATUS);
  }

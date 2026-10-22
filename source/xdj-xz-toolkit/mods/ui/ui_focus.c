@@ -113,7 +113,7 @@ const char *xz_ui_page_title(int page){
  case XZ_UI_UPDATES:return "NETWORK UPDATES";case XZ_UI_UPDATE_SETUP:return "UPDATE SETUP";case XZ_UI_MYHOUSE_SETUP:return "MY HOUSE";
  case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";case XZ_UI_PC_STEMS:return "PC STEMS";
  case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";case XZ_UI_APPS:return "APPLICATIONS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
- case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";
+ case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "STANDALONE STEMS";
  case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_BUTTONS:return "BUTTONS";default:return "MODS";}
 }
 const char *xz_ui_page_body(int page){

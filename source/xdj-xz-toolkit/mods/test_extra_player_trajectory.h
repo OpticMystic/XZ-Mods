@@ -82,7 +82,7 @@ static uint32_t tr_clock_link(void *ctx){
 static void tr_setup(int side,int rate,int playing,int ms){
  tr.side=side;tr.source_rate=rate;tr.trace=tr.count=tr.head=tr.frames=tr.bad=tr.calls=tr.max_calls=0;
  tr.arrival_valid=0;tr.fault_left=0;tr.hash=1469598103934665603ULL;tr.cases++;
- struct xz_xp_env env={{NULL,tr_clock_link,tr_submit,fake_flush,fake_position,tr_transition},now_ms,resolve,master_bpm,NULL,NULL};
+ struct xz_xp_env env={{NULL,tr_clock_link,tr_submit,fake_flush,fake_position,tr_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
  clock_ms=1000;p=xz_xp_create(&env);assert(p);fake_route(1900);step();load(side,rate==44100?4:2);seek(side,ms);
  press(side,XZ_EXTRA_IN_VINYL);if(playing)press(side,XZ_EXTRA_IN_PLAY);
  hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);tr.at=tr.target=(double)debug(side).position;tr.trace=1;
@@ -266,7 +266,7 @@ static uint32_t tr_refill_link(void *ctx){
 }
 static void test_trajectory_fifo_budget(void){
  for(int side=0;side<2;side++){
-  struct xz_xp_env env={{NULL,tr_refill_link,release_submit,fake_flush,fake_position,release_transition},now_ms,resolve,master_bpm,NULL,NULL};
+  struct xz_xp_env env={{NULL,tr_refill_link,release_submit,fake_flush,fake_position,release_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
   clock_ms=1000;p=xz_xp_create(&env);assert(p);fake_route(1900);step();load(side,4);seek(side,700);press(side,XZ_EXTRA_IN_VINYL);
   release_side=side;release_from=30870;release_trace=release_frames=release_bad_pcm=0;release_fault_left=0;
   release_enqueue(side,4,0);for(unsigned i=3;i<64;i++)assert(input(event(side,XZ_EXTRA_IN_SYNC,0)));
@@ -326,7 +326,7 @@ static xz_usb_result dt_transition(void *ctx,uint32_t epoch,int side,uint32_t ge
 static void dt_step(void){dt.available=dt.groups-(dt.groups&&dt.at==clock_ms);dt.calls=0;step();if(dt.calls>dt.max_calls)dt.max_calls=dt.calls;}
 static void dt_setup(int side,int rate,int sign,int playing){
  memset(&dt,0,sizeof dt);dt.side=side;dt.rate=rate;dt.sign=sign;
- struct xz_xp_env env={{NULL,fake_link,dt_submit,fake_flush,fake_position,dt_transition},now_ms,resolve,master_bpm,NULL,NULL};
+ struct xz_xp_env env={{NULL,fake_link,dt_submit,fake_flush,fake_position,dt_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
  clock_ms=1000;p=xz_xp_create(&env);assert(p);fake_route(1977);step();load(side,rate==44100?4:2);seek(side,700);
  press(side,XZ_EXTRA_IN_VINYL);if(playing)press(side,XZ_EXTRA_IN_PLAY);
  hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);dt.origin=debug(side).position;

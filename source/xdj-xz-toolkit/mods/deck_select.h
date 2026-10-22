@@ -94,6 +94,7 @@ struct xz_ds_outcome {
  enum xz_ds_notice notice;            /* a double press with the route down */
  int toggled;                         /* this event switched its side */
  int unknown_first;                   /* first sighting of an unknown code on a switched side: log it */
+ int also_stock;                      /* DELIVER and pass the key on to stock as well */
 };
 
 /* Where a key reaches the runtime. PLAYER keys arrive at onPhysicalKey; GLOBAL keys only at the

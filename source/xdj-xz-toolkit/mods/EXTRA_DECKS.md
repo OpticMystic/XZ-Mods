@@ -18,7 +18,7 @@ Existing native routing remains in use when that side selects deck 1 or 2.
 | --- | --- |
 | SHIFT twice / existing deck selector | Switch the side between its native and software player; tempo pickup prevents an immediate fader jump. |
 | LOAD | Existing Classic or FLAGSHIP browser path loads the selected track into the assigned software player. |
-| PLAY / CUE | Existing independent transport, back cue and cue audition. In VINYL mode PLAY/PAUSE brakes to a stop and starts up at the VINYL SPEED ADJUST rate (manual p.45); pressed again during a brake, playback speeds back up. |
+| PLAY / CUE | Existing independent transport, back cue and cue audition. PLAY starts at full speed at once. In VINYL mode PAUSE brakes to a stop at the VINYL SPEED ADJUST rate (manual p.45); PLAY during a brake returns to full speed at once. |
 | HOT CUE / BEAT LOOP / SLIP LOOP / BEAT JUMP | Set the software deck's pad mode; the native deck's mode is unchanged. SHIFT + HOT CUE (CALL) makes the pads inert. |
 | Pads, HOT CUE mode | Store, play and (SHIFT) clear hot cues. With SLIP on, a held hot cue plays from the cue and its release returns to the background position. |
 | Pads, BEAT LOOP mode | 1/4, 1/2, 1, 2 / 4, 8, 16, 32 beats from the press (p.56). The running loop's pad exits it; another pad resizes it from the same IN. |
@@ -29,14 +29,16 @@ Existing native routing remains in use when that side selects deck 1 or 2.
 | VINYL SPEED ADJUST | Brake/start time from 30 ms (counterclockwise) to 3 s (clockwise), ~300 ms at the centre. The player accepts the knob, but its key code is unknown, so no input reaches it yet and the centre value is used. |
 | TEMPO RANGE | Cycle ±6%, ±10%, ±16%, WIDE. WIDE covers stopped speed through +100%. |
 | TEMPO RESET | Toggle original speed; retain the fader setting for release from reset. |
-| SYNC | Match the native master's BPM once and rearm tempo pickup. This is not beat-phase synchronization. |
+| SYNC | Follow the master deck's tempo until SYNC is pressed off. With QUANTIZE on, SYNC also snaps to the master's beat and holds it. A pause, jump, master change or clock gap re-acquires on its own (re-snapping at most once a second); no second press. The follower's tempo fader is locked while synced. |
+| MASTER | Make this deck the master. When the master stops, master passes to the next playing deck in order (3, 4, then the native decks' own master; from 4: native, then 3). A stopped native master hands over to a playing DECK 3/4 after 300 ms, so the firmware's own 1/2 handoff wins; a LINK (external) master is never taken. Channel-fader-down handoff needs fader positions this runtime cannot read yet. Native decks 1/2 cannot follow a software master. |
+| QUANTIZE | DECK QUANTIZE switches quantize for every deck, the native decks through stock as before; SHIFT + DECK QUANTIZE switches only the deck of that side (manual, Quantize). With QUANTIZE off, SYNC follows tempo only. |
 | MASTER TEMPO | Preserve pitch while changing playback speed using stereo WSOLA. |
 | LOOP IN / OUT | Set loop boundaries. During a loop, enter boundary adjustment and move the selected edge with the jog; press again or wait ten seconds to leave adjustment. |
 | Hold LOOP IN | After one second while playing, create a four-beat loop. Use the track BPM, or 120 BPM when it is unknown. |
 | SHIFT + LOOP IN | Retrigger the active loop. |
 | RELOOP / EXIT | Exit the active loop or return to its stored boundaries. |
 | CALL PREV / NEXT | Halve / double the active loop length. |
-| VINYL | Enable touch hold and bidirectional scratching. In CDJ mode, jog touch is ignored and the existing jog bend remains. |
+| VINYL | On at start, as the stock decks. Enables touch hold and bidirectional scratching. In CDJ mode, jog touch is ignored and the existing jog bend remains. |
 
 Loop adjustment uses half a CD frame per jog tick. IN adjustment is bounded to
 thirty CD frames around the entry point. Loop wrapping does not flush the USB

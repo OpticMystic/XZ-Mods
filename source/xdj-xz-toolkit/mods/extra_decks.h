@@ -20,6 +20,7 @@ enum xz_extra_field {
  XZ_EXTRA_F_PLAYING, XZ_EXTRA_F_BPM, XZ_EXTRA_F_TEMPO, XZ_EXTRA_F_MASTER, XZ_EXTRA_F_KEY,
  XZ_EXTRA_F_CUE, XZ_EXTRA_F_HOT_CUES, XZ_EXTRA_F_GRID, XZ_EXTRA_F_WAVE, XZ_EXTRA_F_LOOP,
  XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL, XZ_EXTRA_F_TIMELINE, XZ_EXTRA_F_SYNC,
+ XZ_EXTRA_F_QUANTIZE,
  XZ_EXTRA_FIELD_COUNT
 };
 #define XZ_EXTRA_KNOWN(field) ((uint32_t)1<<(field))
@@ -56,7 +57,8 @@ enum xz_extra_sync_reason {
  XZ_EXTRA_SYNC_NO_GRID, XZ_EXTRA_SYNC_MANUAL, XZ_EXTRA_SYNC_DISCONTINUITY,
  XZ_EXTRA_SYNC_LOOP_UNALIGNED, XZ_EXTRA_SYNC_OUT_OF_RANGE, XZ_EXTRA_SYNC_ACQUIRING,
  XZ_EXTRA_SYNC_LOCKED, XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE, XZ_EXTRA_SYNC_MASTER_CLOCK,
- XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED, XZ_EXTRA_SYNC_NO_SOURCE_BPM
+ XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED, XZ_EXTRA_SYNC_NO_SOURCE_BPM,
+ XZ_EXTRA_SYNC_TEMPO_FOLLOW          /* QUANTIZE off: following the master's tempo, beat position untouched */
 };
 enum xz_extra_master_scope {
  XZ_EXTRA_MASTER_SCOPE_NONE=0u, XZ_EXTRA_MASTER_SCOPE_NATIVE=3u,
@@ -81,6 +83,7 @@ struct xz_extra_deck {
  int32_t bpm_x100, track_bpm_x100;     /* playing BPM, the track's analysed BPM */
  int32_t tempo_x100;                   /* 0.01 % */
  int tempo_range, master_tempo, vinyl;
+ int quantize;                         /* QUANTIZE: SYNC snaps to the master's beat (and keeps it) */
  int tempo_reset;                      /* TEMPO RESET on: plays at the track's own speed */
  int reverse, slip;                    /* DIRECTION REV and SLIP modes */
  int pad_mode;                         /* enum xz_extra_pad_mode */
@@ -165,7 +168,9 @@ enum xz_extra_input {
  XZ_EXTRA_IN_PAD_MODE,               /* pad-mode button: hot_cue carries enum xz_extra_pad_mode */
  XZ_EXTRA_IN_REVERSE,                /* DIRECTION REV */
  XZ_EXTRA_IN_SLIP,
- XZ_EXTRA_IN_VINYL_SPEED,            /* VINYL SPEED ADJUST: tempo_position, +SPAN fully clockwise = slowest */
+ XZ_EXTRA_IN_VINYL_SPEED,
+ XZ_EXTRA_IN_QUANTIZE,              /* DECK QUANTIZE; shift: this deck only (manual), else every deck */
+ XZ_EXTRA_IN_QUANTIZE_SET,          /* the other software deck's QUANTIZE press: tempo_position 0 off, 1 on */            /* VINYL SPEED ADJUST: tempo_position, +SPAN fully clockwise = slowest */
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */

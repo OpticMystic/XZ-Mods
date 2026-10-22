@@ -51,7 +51,8 @@ static const struct xz_ds_row rows[] = {
     sends to DECK 3 / 4. Neither: swallowed, or DECK 1 would load what was meant for 3.
     TIME MODE / AUTO CUE and QUANTIZE: native deck display and quantize state. */
  ROW(0x430f, 0x430f, SWALLOW, GLOBAL, XZ_EXTRA_IN_LOAD),
- ROW(0x430b, 0x430c, SWALLOW, GLOBAL, NONE),
+ ROW(0x430b, 0x430b, SWALLOW, GLOBAL, NONE),
+ ROW(0x430c, 0x430c, SWALLOW, GLOBAL, XZ_EXTRA_IN_QUANTIZE),
 };
 
 const struct xz_ds_row *xz_ds_row_for(uint16_t code, unsigned *slot) {
@@ -363,6 +364,22 @@ struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *d, unsigne
   struct xz_ds_key key={.side=side,.code=code,.op=op};
   key.shift=s->phase==XZ_DS_DOWN_ONCE||s->phase==XZ_DS_DOWN_TWICE||s->phase==XZ_DS_MODIFIER;
   other_key(s);button(s,side,row,slot,&key,&out);return out;
+ }
+ /* DECK QUANTIZE (manual DRI1625B, Quantize): a press turns quantize on/off for every deck, SHIFT + press only
+    for the deck of that side. Stock still gets every press it would act on; a SHIFT press for a software
+    deck never reaches stock, so the native deck under it keeps its setting. */
+ if(row && row->kind == XZ_EXTRA_IN_QUANTIZE) {
+  unsigned slot=0;(void)xz_ds_row_for(code,&slot);uint64_t bit=(uint64_t)1<<slot;
+  if(op != 0) {
+   if(s->owner[XZ_DS_EXTRA]&bit){if(op==2||op==3)s->owner[XZ_DS_EXTRA]&=~bit;out.verdict=XZ_DS_SWALLOW;}
+   return out;
+  }
+  int shift=s->phase==XZ_DS_DOWN_ONCE||s->phase==XZ_DS_DOWN_TWICE||s->phase==XZ_DS_MODIFIER;
+  other_key(s);
+  if(!d->route_up||(shift&&s->target!=XZ_DS_EXTRA))return out;
+  out.verdict=XZ_DS_DELIVER;out.event.deck=side;out.event.kind=XZ_EXTRA_IN_QUANTIZE;out.event.pressed=1;out.event.shift=shift;
+  if(shift)s->owner[XZ_DS_EXTRA]|=bit;else out.also_stock=1;
+  return out;
  }
  if(row && row->kind == XZ_EXTRA_IN_LOAD) {
   if(op == 0) {

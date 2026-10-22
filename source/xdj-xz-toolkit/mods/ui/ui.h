@@ -343,9 +343,9 @@ const char *xz_ui_pc_reason_text(enum xz_ui_pc_reason);
 /* Why USB stems on this deck can't play: usb_reason when the runtime set it,
    else derived from ready/enabled/stem_error/stem_loading/track. Never UNKNOWN. */
 enum xz_ui_usb_reason xz_ui_usb_blocked(const struct xz_ui_model *,int deck);
-/* 1 when the USB stem engine is present, so USB STEMS can be switched on directly. */
+/* 1 when the USB stem engine is present, so STANDALONE STEMS can be switched on directly. */
 int xz_ui_usb_engine(const struct xz_ui_model *);
-/* Short status ("USB STEMS OFF", "PLAY TO ALIGN"), at most 16 characters. */
+/* Short status ("STEMS OFF", "PLAY TO ALIGN"), at most 16 characters. */
 const char *xz_ui_usb_reason_text(enum xz_ui_usb_reason);
 /* The one fix for this reason ("TURN ON", "SET UP"), or NULL when there is
    nothing to set up (ready, no track, loading, aligning). */

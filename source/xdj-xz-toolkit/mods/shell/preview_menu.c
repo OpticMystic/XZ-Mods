@@ -83,11 +83,11 @@ int main(int argc, char **argv) {
  page("menu-general",CHAIN(XZ_UI_GENERAL),NULL,0);
  page("menu-general-gate-values",CHAIN(XZ_UI_GENERAL),"GATE CUE",0);
  page("menu-general-link",CHAIN(XZ_UI_GENERAL),"STEM SETTINGS",0);
- /* no stem engine: USB STEMS is one button into its setup */
+ /* no stem engine: STANDALONE STEMS is one button into its setup */
  {
   struct xz_ui_model saved=ui_model;
   ui_model.enabled=0;for(int d=0;d<2;d++){ui_model.deck[d].ready&=~(uint32_t)XZ_UI_STEM;ui_model.deck[d].usb_reason=XZ_UI_USB_WHY_ENGINE;}
-  page("menu-general-no-engine",CHAIN(XZ_UI_GENERAL),"SET UP USB STEMS",0);
+  page("menu-general-no-engine",CHAIN(XZ_UI_GENERAL),"SET UP STANDALONE STEMS",0);
   ui_model.deck[0].usb_reason=XZ_UI_USB_WHY_ENGINE;
   reach(&u,CHAIN(XZ_UI_GENERAL,XZ_UI_LOCAL_STEM_SETUP));open_shell(&s,&u,0);shot(&s,"menu-usb-stems-setup-engine");
   ui_model=saved;
