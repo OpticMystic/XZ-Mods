@@ -71,13 +71,15 @@ static inline int sh_control_active(const struct xz_shell_model *m, int deck) {
  if(sh_deck_count(m)!=4||!(m->capabilities&XZ_SHELL_CAP_DECK_SELECT)||(unsigned)deck>=4)return 0;
  return deck==(deck&1)+2*((m->sides_extra>>(deck&1))&1);
 }
-/* First circle: physical left controls (1/3). Second: physical right controls (2/4). */
-static inline void sh_control_pair(struct xz_canvas c,int x,int y,int right,uint32_t ink) {
- xz_rect(c,x,y,1,9,ink);xz_rect(c,x,y,3,1,ink);xz_rect(c,x,y+8,3,1,ink);
- xz_rect(c,x+26,y,1,9,ink);xz_rect(c,x+24,y,3,1,ink);xz_rect(c,x+24,y+8,3,1,ink);
- for(int i=0;i<2;i++){
-  if(i==!!right)xz_disc(c,x+7+i*12,y+4,3,ink);
-  else xz_ring(c,x+7+i*12,y+4,3,1,ink);
+/* Point toward the assigned physical controls: left for 1/3, right for 2/4. */
+static inline void sh_control_arrow(struct xz_canvas c,int x,int y,int right) {
+ for(int row=0;row<9;row++){
+  int distance=row<4?4-row:row-4,from=2*distance,to=row>=2&&row<=6?25:8;
+  xz_rect(c,x+(right?26-to:from),y+row,to-from+1,1,SH_BLACK);
+ }
+ for(int row=2;row<=6;row++){
+  int distance=row<4?4-row:row-4,from=2+2*distance,to=distance==2?8:24;
+  xz_rect(c,x+(right?26-to:from),y+row,to-from+1,1,SH_WHITE);
  }
 }
 static inline int sh_has(const struct xz_shell_deck *d, enum xz_shell_field f) { return (d->known>>f)&1; }

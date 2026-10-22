@@ -400,7 +400,7 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  snprintf(text,sizeof text,"DECK %d",deck+1);
  if(sh_deck_count(m)==4){
   snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,ink);
-  if(control)sh_control_pair(c,30,ly+1,deck&1,ink);
+  if(control)sh_control_arrow(c,30,ly+1,deck&1);
   else sh_text(c,30,ly+5,"DECK",SH_SMALL,ink);
   if(control)sh_text(c,30,ly+10,"CONTROL",SH_SMALL,ink);
  }else sh_text(c,6+(!filled&&accent!=SH_BLUE?2:0),ly+L->tag_text_dy,text,SH_TEXT,ink);
@@ -745,7 +745,7 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
   snprintf(text,sizeof text,"%d",deck+1);
   int nx=control?sx+5:sx+(badge_w-sh_num_width(SH_NUM_MID,text))/2;
   sh_num(c,nx,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
-  if(control)sh_control_pair(c,sx+badge_w-27,by0+6,deck&1,sh_ink_on(tile));
+  if(control)sh_control_arrow(c,sx+badge_w-27,by0+6,deck&1);
   if(u->deck==deck)xz_border(c,sx,by0,badge_w,badge_h,SH_WHITE);
  }else{snprintf(text,sizeof text,"DECK %d",deck+1);sh_text(c,sx+5,by0+3,text,SH_SMALL,sh_ink_on(tile));}
  int tx=sx+badge_w+8;

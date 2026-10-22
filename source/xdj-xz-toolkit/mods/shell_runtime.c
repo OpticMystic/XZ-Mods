@@ -118,7 +118,7 @@ static struct xz_shrt_motion motion[XZ_SHELL_NATIVE_DECKS];
 static struct xz_shrt_caution caution_state;
 /* The audio engine's position and speed per deck, read in this refresh (model thread). */
 #define ENGINE_AGREE_MS 1500
-static struct { int ok; uint32_t position_ms; float speed; } engine[XZ_SHELL_NATIVE_DECKS];
+static struct { int ok; uint32_t position_ms,at_ms; float speed; } engine[XZ_SHELL_NATIVE_DECKS];
 static uint32_t sync_logged[XZ_SHELL_NATIVE_DECKS];
 static unsigned follow_bits; /* decks whose playhead follows the engine readings (jog hold, scratch) */
 #define FRAME_LOCK_US 4000u
@@ -2296,10 +2296,12 @@ static void extra_parts_of(int i, const struct xz_extra_deck *d) {
 }
 static void extra_refresh_locked(uint32_t now) {
  model.wave_order=xz_native_four_mixer_order();
- uint32_t mono=(uint32_t)(mono_us()/1000u);
  if(xz_extra_decks_snapshot(&extra))for(int i=0;i<XZ_EXTRA_DECKS;i++)extra_parts_of(i,&extra.deck[i]);
  else{memset(extra_seen,0,sizeof extra_seen);memset(extra_parts,0,sizeof extra_parts);}
- xz_shrt_extra_map(&model,&extra,extra_parts,now,mono);
+ /* Pair the two clocks after the snapshot copy. `now` is the start of a refresh,
+    possibly before native/model reads or a wait for the publisher. */
+ uint32_t wall=now_ms(),mono=(uint32_t)(mono_us()/1000u);
+ xz_shrt_extra_map(&model,&extra,extra_parts,wall,mono);
  fill_extra_info();
  if(xz_shrt_extra_notice(&extra_notice_seen,&extra,mono))notice_locked(now,extra.notice);
  /* Physical assignments have their own indicators; preserve independent browse/grid focus.
@@ -2538,6 +2540,8 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   engine[d].ok=0;
   if(has(G_CLOCK)&&xz_arcade_native_clock_read(plain_read,NULL,(unsigned)d,&clock)){
    engine[d].ok=1;engine[d].position_ms=clock.position_ms;engine[d].speed=clock.speed;
+   /* This deck was observed here, not at the start of the whole refresh. */
+   engine[d].at_ms=now_ms();
    input.playing=!!clock.playing;
    int beat=(int)floorf(clock.bar_phase)+1;
    input.bar_phase=beat<1?1:beat>4?4:beat;
@@ -2612,9 +2616,9 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   if(engine[d].ok&&engine[d].position_ms<=(uint32_t)INT32_MAX&&isfinite(engine[d].speed)&&engine[d].speed>.25f&&engine[d].speed<4.f){
    engine_rate=(int32_t)(engine[d].speed*1e6f+.5f);
    /* The stat frame may be an older (held) reading: compare at the same instant. */
-   int64_t ui_now=(int64_t)ui_ms+(k->playing?(int64_t)(int32_t)(now-ui_at)*rate/1000000:0);
+   int64_t ui_now=(int64_t)ui_ms+(k->playing?(int64_t)(int32_t)(engine[d].at_ms-ui_at)*rate/1000000:0);
    diff=(int32_t)((int64_t)engine[d].position_ms-ui_now);
-   if(diff<ENGINE_AGREE_MS&&diff> -ENGINE_AGREE_MS){source_ms=(int32_t)engine[d].position_ms;source_at=now?now:1;rate=engine_rate;from_engine=1;}
+   if(diff<ENGINE_AGREE_MS&&diff> -ENGINE_AGREE_MS){source_ms=(int32_t)engine[d].position_ms;source_at=engine[d].at_ms?engine[d].at_ms:1;rate=engine_rate;from_engine=1;}
   }
   /* A jog hold, scratch or brake moves the engine position at a speed other than the pitch speed: the
      playhead then follows each engine reading with no extrapolation (and the model refreshes every frame). */
