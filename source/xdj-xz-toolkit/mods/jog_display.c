@@ -42,6 +42,15 @@ static int fresh(const struct xz_jd *s,const struct xz_jd_snapshot *p,uint64_t n
         (p->tempo_range==0||p->tempo_range==6||p->tempo_range==10||p->tempo_range==16||p->tempo_range==100)&&
         p->generation&&p->captured_ms<=now&&now-p->captured_ms<=s->freshness_ms&&p->position_ms<=p->length_ms&&p->length_ms<128u*60000u;
 }
+int xz_jd_select_unavailable(struct xz_jd *s,unsigned deck) {
+    if(!s||deck!=s->physical_side+2u)return XZ_JD_BAD_INPUT;
+    if(!xz_jd_ready(s))return XZ_JD_NOT_READY;
+    if(s->selected!=deck||!s->unavailable) {
+        s->phase=XZ_JD_EXTRA_CLEAR;s->clear_next=1;
+    }
+    s->selected=(uint8_t)deck;s->software_generation=0;s->unavailable=1;
+    return XZ_JD_STALE;
+}
 int xz_jd_select(struct xz_jd *s,unsigned deck,const struct xz_jd_snapshot *p,uint64_t now) {
     if(deck!=s->physical_side&&deck!=s->physical_side+2u)return XZ_JD_BAD_INPUT;
     if(deck==s->physical_side) {

@@ -50,9 +50,24 @@ int main(int argc,char **argv){
  memcpy(input+8,&code,2);input[10]=(unsigned char)(side+1);input[11]=4;
  memcpy(input+12,&delta,4);memcpy(input+16,&speed,4);memcpy(input+20,&absolute,4);
  installed=1;observer=0;xz_deck_select_init(&deck_select);xz_deck_select_route(&deck_select,1);test_player_init();
- if(selected)select_side(side);
+ xz_deck_input_trace_init(&xz_mods_deck_input_trace_v1,1);
+ if(selected){
+  select_side(side);
+  assert(xz_mods_deck_input_trace_v1.next==4);
+  assert(xz_mods_deck_input_trace_v1.record[2].path==XZ_DECK_TRACE_GLOBAL_KEY);
+  assert(xz_mods_deck_input_trace_v1.record[2].code==XZ_DS_KEY_SHIFT);
+  assert(xz_mods_deck_input_trace_v1.record[2].logical_deck==(unsigned)side+3u);
+ }
+ xz_deck_input_trace_init(&xz_mods_deck_input_trace_v1,1);
  int taken=xz_runtime_deck_global_input(NULL,input);
  assert(taken==selected);assert(test_player_count(side)==(unsigned)selected);assert(delivered==selected);
+ assert(xz_mods_deck_input_trace_v1.next==1);
+ const struct xz_deck_input_trace_record *trace=&xz_mods_deck_input_trace_v1.record[0];
+ int32_t trace_delta;float trace_speed;memcpy(&trace_delta,&trace->delta_bits,4);memcpy(&trace_speed,&trace->value_bits,4);
+ assert(trace->path==XZ_DECK_TRACE_GLOBAL&&trace->channel==(unsigned)side+1u);
+ assert(trace->logical_deck==(unsigned)side+1u+(selected?2u:0u));
+ assert(trace->code==code&&trace->operation==4&&trace_delta==delta&&trace_speed==speed);
+ assert(trace->verdict==(unsigned)(selected?XZ_DS_DELIVER:XZ_DS_PASS));
  assert(native_input_calls==(unsigned)!selected);
  if(!selected){assert(native_input_side==side);assert(native_input_at==test_clock-1);}
  if(selected)assert(test_player_delta(side)==delta);
@@ -138,12 +153,22 @@ int main(int argc,char **argv){
  assert(xz_runtime_deck_select_toggle(side)==1);game_owner=1;input[11]=2;
  assert(xz_runtime_deck_global_input(NULL,input));assert(test_player_count(side)==1&&test_player_kind(side,0)==XZ_EXTRA_IN_SYNC&&test_player_pressed(side,0));
  game_owner=0;assert(xz_runtime_deck_select_toggle(side)==1);
+ xz_deck_input_trace_init(&xz_mods_deck_input_trace_v1,1);
  test_player_clear(side);unsigned master_before=native_master_requests;assert(xz_runtime_deck_global_key(0x4312,side+1,0));
+ assert(xz_mods_deck_input_trace_v1.next==1);
+ assert(xz_mods_deck_input_trace_v1.record[0].path==XZ_DECK_TRACE_GLOBAL_KEY);
+ assert(xz_mods_deck_input_trace_v1.record[0].code==0x4312);
+ assert(xz_mods_deck_input_trace_v1.record[0].logical_deck==(unsigned)side+3u);
  assert(test_player_count(side)==1&&test_player_kind(side,0)==XZ_EXTRA_IN_MASTER&&test_player_pressed(side,0));
  assert(xz_runtime_deck_global_key(0x4312,side+1,0));assert(test_player_count(side)==1);
  assert(xz_runtime_deck_select_toggle(side)==1);assert(xz_runtime_deck_global_key(0x4312,side+1,2));assert(test_player_count(side)==2);
  assert(native_master_requests==master_before);
  assert(!xz_runtime_deck_global_key(0x4312,side+1,0));assert(native_master_requests==master_before+1);assert(xz_runtime_deck_select_toggle(side)==1);
  assert(!xz_runtime_deck_global_key(0x4312,side+1,2));assert(test_player_count(side)==2);assert(native_master_requests==master_before+1);
+ assert(xz_mods_deck_input_trace_v1.next==5);
+ assert(xz_mods_deck_input_trace_v1.record[2].logical_deck==(unsigned)side+1u);
+ assert(xz_mods_deck_input_trace_v1.record[2].verdict==XZ_DS_DELIVER);
+ assert(xz_mods_deck_input_trace_v1.record[3].logical_deck==(unsigned)side+1u);
+ assert(xz_mods_deck_input_trace_v1.record[3].verdict==XZ_DS_PASS);
  return 0;
 }

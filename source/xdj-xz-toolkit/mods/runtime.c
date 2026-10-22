@@ -12,6 +12,7 @@
 #include "kart/xz_kart_runtime.h"
 #include "sdk/xz_sdk_host.h"
 #include "deck_select.h"
+#include "deck_input_trace.h"
 #include "sync_link_runtime.h"
 #include "jog_display_runtime.h"
 extern int xz_mods_takeover_v1(void);
@@ -58,6 +59,7 @@ static unsigned code_hook_count;
 struct pad_trace_record { uint32_t key,operation_byte,channel,mode,decoded,deck,pad,operation,hotcue,ui_flags; };
 struct pad_trace { uint32_t version,sequence,count,enabled;struct pad_trace_record records[64]; };
 __attribute__((visibility("default"))) struct pad_trace xz_mods_pad_trace_v1 = {1,0,0,0,{{0}}};
+__attribute__((visibility("default"),used)) struct xz_deck_input_trace xz_mods_deck_input_trace_v1;
 
 static int enabled(const char *name) {
     const char *value = getenv(name);
@@ -307,9 +309,12 @@ static int deck_route(void *self, const void *input) {
     pthread_mutex_lock(&deck_mutex);
     if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
     xz_deck_select_route(&deck_select, route.route_up);
-    struct xz_ds_outcome outcome = xz_deck_select_key(&deck_select, &key, xz_game_milliseconds());
+    uint32_t input_ms=xz_game_milliseconds();
+    struct xz_ds_outcome outcome = xz_deck_select_key(&deck_select, &key, input_ms);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
+    xz_deck_input_trace_write(&xz_mods_deck_input_trace_v1,&key,XZ_DECK_TRACE_FALLBACK,outcome.verdict,
+        (left?1u:0u)|(right?2u:0u)|(route.route_up?4u:0u)|(route.available?8u:0u),input_ms);
     return deck_outcome(&outcome, left, right, route.available, key.code);
 }
 
@@ -324,9 +329,15 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
     pthread_mutex_lock(&deck_mutex);
     if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
     xz_deck_select_route(&deck_select, route.route_up);
-    struct xz_ds_outcome outcome = xz_deck_select_global_key(&deck_select, channel, code, operation, xz_game_milliseconds());
+    uint32_t input_ms=xz_game_milliseconds();
+    struct xz_ds_key trace_key={.side=(int)channel-1,.code=code,.op=operation};
+    trace_key.shift=deck_select.side[channel-1].phase==XZ_DS_DOWN_ONCE||
+        deck_select.side[channel-1].phase==XZ_DS_DOWN_TWICE||deck_select.side[channel-1].phase==XZ_DS_MODIFIER;
+    struct xz_ds_outcome outcome = xz_deck_select_global_key(&deck_select, channel, code, operation, input_ms);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
+    xz_deck_input_trace_write(&xz_mods_deck_input_trace_v1,&trace_key,XZ_DECK_TRACE_GLOBAL_KEY,outcome.verdict,
+        (left?1u:0u)|(right?2u:0u)|(route.route_up?4u:0u)|(route.available?8u:0u),input_ms);
     /* Native MASTER requests return the software group to the effective native master.
        The stock event still arbitrates ON/OFF; the pressed side is not a master identity. */
     if (code == 0x4312 && operation == 0 && outcome.verdict == XZ_DS_PASS &&
@@ -416,6 +427,8 @@ int xz_runtime_deck_global_input(void *self, const void *input) {
     pthread_mutex_unlock(&deck_mutex);
     if(outcome.verdict==XZ_DS_PASS&&key.code==0x4305&&key.op==4&&key.delta&&xz_shell_runtime_native_input)
      xz_shell_runtime_native_input(key.side,input_ms);
+    xz_deck_input_trace_write(&xz_mods_deck_input_trace_v1,&key,XZ_DECK_TRACE_GLOBAL,outcome.verdict,
+        (left?1u:0u)|(right?2u:0u)|(route.route_up?4u:0u)|(route.available?8u:0u),input_ms);
     return deck_outcome(&outcome,left,right,route.available,key.code);
 }
 
@@ -496,6 +509,7 @@ __attribute__((constructor)) static void start(void) {
     }
     observer = enabled("XZ_MODS_OBSERVER");
     xz_mods_pad_trace_v1.enabled = enabled("XZ_MODS_PAD_TRACE");
+    xz_deck_input_trace_init(&xz_mods_deck_input_trace_v1,enabled("XZ_MODS_DECK_INPUT_TRACE"));
     xz_cue_init(&cues, xz_cue_native_api(&native));
     xz_cue_settings(&cues, 0, 0);
     xz_deck_select_init(&deck_select);
@@ -520,9 +534,10 @@ __attribute__((constructor)) static void start(void) {
     installed = 1;
     xz_log(observer ? "OBSERVER installed; stock dispatch retained" : "EXPERIMENTAL gate/smart cue adapter installed");
     if (observer) return;
+    /* Install the Jog reader before players/connector can publish snapshots. */
+    if (xz_jog_display_runtime_start()) xz_log("DECK 3/4 Jog LCD bridge unavailable");
     if (xz_extra_decks_start()) xz_log("DECK 3/4 players unavailable");
     if (xz_sync_link_runtime_start()) xz_log("DECK 3/4 Link master bridge unavailable");
-    if (xz_jog_display_runtime_start()) xz_log("DECK 3/4 Jog LCD bridge unavailable");
     if(xz_doom_bridge_start()) xz_log("Doom: native input bridge unavailable");
     xz_kart_runtime_display_probe(kart_display_ready);
     if(xz_kart_runtime_start()) xz_log("Kart: explicit physical-input bridge unavailable");

@@ -4,9 +4,15 @@
 #include <time.h>
 #include "jog_display_runtime.h"
 #include "runtime.h"
+#ifdef __linux__
 #include "clock_compat.h"
+#endif
 #include <stdatomic.h>
 #include <string.h>
+#ifdef XZ_JOG_DISPLAY_PROOF
+#include "jog_display_proof.h"
+__attribute__((visibility("default"))) struct xz_jdp xz_mods_jog_proof_v1={.version=1};
+#endif
 
 #define XZ_JD_RUNTIME_FRESH_MS 250u
 
@@ -14,18 +20,48 @@ static uint8_t jd_storage[XZ_EXTRA_DECKS][XZ_JD_STORAGE_BYTES];
 static struct xz_jd jd_state[XZ_EXTRA_DECKS];
 static _Atomic int jd_installed;
 
-struct jd_pub_slot {
- _Atomic uint32_t seq;
- struct xz_extra_deck deck[2];
+/* Every payload access uses one bounded try. Neither lifecycle nor a busy
+ * reader resets the slot, and no guard is held across the native assembler. */
+struct jd_sample {
+ struct xz_extra_deck deck;
+ uint32_t seq, published_ms, session, route_epoch, source_revision;
+ int source_ordered;
 };
-static struct jd_pub_slot jd_pub[XZ_EXTRA_DECKS];
+struct jd_pub_slot {
+ atomic_flag busy;
+ _Atomic uint32_t seq;
+ struct jd_sample sample;
+#ifdef XZ_JOG_DISPLAY_PROOF
+ _Atomic unsigned drops;
+#endif
+};
+static struct jd_pub_slot jd_pub[XZ_EXTRA_DECKS]={{.busy=ATOMIC_FLAG_INIT},{.busy=ATOMIC_FLAG_INIT}};
+struct jd_side_runtime {
+ atomic_flag busy;
+ uint32_t session, route_epoch, floor_seq;
+ uint64_t cache_publication_ms;
+ int cached;
+ struct jd_sample cache;
+};
+static struct jd_side_runtime jd_side[XZ_EXTRA_DECKS]={{.busy=ATOMIC_FLAG_INIT},{.busy=ATOMIC_FLAG_INIT}};
+static atomic_flag jd_lifecycle_busy=ATOMIC_FLAG_INIT;
+static _Atomic uint32_t jd_session=1;
+static int jd_hooked; /* Only the lifecycle owner changes this. Stop keeps the hook. */
 
-static void (*orig_jog_assemble)(void *);
-static uint64_t (*test_now_ms)(void);
-static uint32_t (*test_control_revision)(void);
+typedef void (*jd_assemble_fn)(void *);
+typedef uint64_t (*jd_now_fn)(void);
+typedef uint32_t (*jd_control_fn)(void);
+/* The hook provider fills this BEFORE activating the replacement. Keep its
+ * existing output slot rather than delaying that handoff until start returns. */
+static jd_assemble_fn orig_jog_assemble;
+static _Atomic(jd_assemble_fn) test_assemble;
+static _Atomic int jd_test_mode;
+static _Atomic(jd_now_fn) test_now_ms;
+static _Atomic(jd_control_fn) test_control_revision;
 
 static uint64_t default_now_ms(void){
- if(test_now_ms)return test_now_ms();
+ jd_now_fn clock=atomic_load_explicit(&test_now_ms,memory_order_acquire);
+ if(clock)return clock();
  struct timespec t;
 #ifdef __linux__
  if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;
@@ -36,36 +72,66 @@ static uint64_t default_now_ms(void){
 }
 
 static uint32_t current_control_revision(void){
- if(test_control_revision)return test_control_revision();
+ jd_control_fn control=atomic_load_explicit(&test_control_revision,memory_order_acquire);
+ if(control)return control();
  return xz_extra_decks_control_revision();
 }
 
-void xz_jog_display_runtime_publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_t now_ms){
- (void)now_ms;
+static void publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_t now_ms,uint32_t revision,int ordered){
  if(deck_index<0||deck_index>=XZ_EXTRA_DECKS||!deck)return;
+ uint32_t session=atomic_load_explicit(&jd_session,memory_order_acquire);
+ uint32_t route_epoch=xz_extra_decks_epoch();
  struct jd_pub_slot *s=&jd_pub[deck_index];
- uint32_t seq=atomic_load_explicit(&s->seq,memory_order_relaxed);
- uint32_t next=seq+1u;
- s->deck[next&1u]=*deck;
+ if(atomic_flag_test_and_set_explicit(&s->busy,memory_order_acquire)){
+#ifdef XZ_JOG_DISPLAY_PROOF
+  JDP_INC(s->drops);
+#endif
+  return;
+ }
+ if(session!=atomic_load_explicit(&jd_session,memory_order_acquire)){
+  atomic_flag_clear_explicit(&s->busy,memory_order_release);return;
+ }
+ /* Snapshot callers can arrive out of order after xz_xp_read releases its lock.
+  * Preserve the newest player observation within this lifecycle and route.
+  * Equal revisions may renew a genuine observation of a stable paused view. */
+ if(ordered&&s->sample.source_ordered&&s->sample.session==session&&s->sample.route_epoch==route_epoch&&
+    (int32_t)(revision-s->sample.source_revision)<0){
+  atomic_flag_clear_explicit(&s->busy,memory_order_release);return;
+ }
+ /* Reserve the upper two proof read_seq bits for contention observations. */
+ uint32_t next=(atomic_load_explicit(&s->seq,memory_order_relaxed)+1u)&0x3fffffffu;
+ if(!next)next=1;
+ s->sample.deck=*deck;
+ s->sample.seq=next;s->sample.published_ms=now_ms;
+ s->sample.session=session;s->sample.route_epoch=route_epoch;
+ s->sample.source_revision=revision;s->sample.source_ordered=ordered;
  atomic_store_explicit(&s->seq,next,memory_order_release);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_INC(xz_mods_jog_proof_v1.side[deck_index].publications);
+ JDP_SET(xz_mods_jog_proof_v1.side[deck_index].published_seq,next);
+ JDP_SET(xz_mods_jog_proof_v1.side[deck_index].published_ms,now_ms);
+#endif
+ atomic_flag_clear_explicit(&s->busy,memory_order_release);
+}
+
+void xz_jog_display_runtime_publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_t now_ms){
+ publish_deck(deck_index,deck,now_ms,0,0);
 }
 
 void xz_jog_display_runtime_publish(const struct xz_extra_decks *decks,uint32_t now_ms){
  if(!decks)return;
- for(int i=0;i<XZ_EXTRA_DECKS;i++)xz_jog_display_runtime_publish_deck(i,&decks->deck[i],now_ms);
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)publish_deck(i,&decks->deck[i],now_ms,decks->snapshot_revision,1);
 }
 
-static int read_published_deck(int deck_index,struct xz_extra_deck *out){
- if(deck_index<0||deck_index>=XZ_EXTRA_DECKS||!out)return 0;
+enum jd_read_result { JD_READ_BUSY=-1,JD_READ_EMPTY,JD_READ_OK };
+static int read_published_deck(int deck_index,struct jd_sample *out){
+ if(deck_index<0||deck_index>=XZ_EXTRA_DECKS||!out)return JD_READ_EMPTY;
  struct jd_pub_slot *s=&jd_pub[deck_index];
- for(unsigned tries=0;tries<4;tries++){
-  uint32_t s1=atomic_load_explicit(&s->seq,memory_order_acquire);
-  if(!s1)return 0;
-  *out=s->deck[s1&1u];
-  uint32_t s2=atomic_load_explicit(&s->seq,memory_order_acquire);
-  if(s1==s2||s2-s1<=1u)return 1;
- }
- return 0;
+ if(atomic_flag_test_and_set_explicit(&s->busy,memory_order_acquire))return JD_READ_BUSY;
+ uint32_t seq=atomic_load_explicit(&s->seq,memory_order_relaxed);
+ if(seq)*out=s->sample;
+ atomic_flag_clear_explicit(&s->busy,memory_order_release);
+ return seq?JD_READ_OK:JD_READ_EMPTY;
 }
 
 int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck *d,uint64_t now_ms,struct xz_jd_snapshot *out){
@@ -142,63 +208,215 @@ static void prime_side_baseline(unsigned side_idx){
  }
 }
 
+/* Publication time is a separate upper bound even for paused/no-timeline
+ * inputs. Re-reading a slot, or reusing it under contention, never renews it. */
+static int sample_current(const struct jd_sample *p,const struct jd_side_runtime *side,uint32_t session,uint32_t route_epoch){
+ return p->seq&&p->seq!=side->floor_seq&&p->session==session&&route_epoch&&p->route_epoch==route_epoch&&
+  (!p->deck.timeline.route_epoch||p->deck.timeline.route_epoch==route_epoch);
+}
+static int sample_snapshot(unsigned side_idx,const struct jd_sample *p,uint64_t publication_ms,uint64_t now_ms,struct xz_jd_snapshot *out){
+ if(publication_ms>now_ms||now_ms-publication_ms>XZ_JD_RUNTIME_FRESH_MS)return 0;
+ uint32_t age=(uint32_t)now_ms-p->published_ms;
+ if((int32_t)age<0||age>XZ_JD_RUNTIME_FRESH_MS||now_ms<age)return 0;
+ if(!xz_jog_display_snapshot_from_deck((int)side_idx,&p->deck,now_ms,out))return 0;
+ if(out->captured_ms>publication_ms)out->captured_ms=publication_ms;
+ return 1;
+}
+
 static void hook_jog_assemble(void *self){
- if(orig_jog_assemble)orig_jog_assemble(self);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_INC(xz_mods_jog_proof_v1.calls);
+#endif
+ uint32_t session=atomic_load_explicit(&jd_session,memory_order_acquire);
+ jd_assemble_fn original=atomic_load_explicit(&jd_test_mode,memory_order_acquire)?
+  atomic_load_explicit(&test_assemble,memory_order_acquire):orig_jog_assemble;
+ if(original)original(self);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ if(!atomic_load(&jd_installed))JDP_INC(xz_mods_jog_proof_v1.disabled_calls);
+ if(!self)JDP_INC(xz_mods_jog_proof_v1.null_self);
+#endif
  if(!atomic_load(&jd_installed)||!self)return;
  uint32_t channel=0;
  memcpy(&channel,(const uint8_t *)self+0x64,4);
- if(channel!=1u&&channel!=2u)return;
+ if(channel!=1u&&channel!=2u){
+#ifdef XZ_JOG_DISPLAY_PROOF
+  JDP_INC(xz_mods_jog_proof_v1.invalid_channel);
+  JDP_SET(xz_mods_jog_proof_v1.last_invalid_channel,channel);
+#endif
+  return;
+ }
  unsigned side_idx=channel-1u;
+ struct jd_side_runtime *side=&jd_side[side_idx];
+ if(atomic_flag_test_and_set_explicit(&side->busy,memory_order_acquire))return;
+ if(!atomic_load(&jd_installed)||session!=atomic_load_explicit(&jd_session,memory_order_acquire)){
+  atomic_flag_clear_explicit(&side->busy,memory_order_release);return;
+ }
+ uint32_t route_epoch=xz_extra_decks_epoch();
+ if(side->session!=session){
+  /* Only this side's serializer resets its display/cache, after the native call.
+   * Publishers never access these objects. Lifecycle never clears a live flag. */
+  prime_side_baseline(side_idx);
+  side->session=session;side->route_epoch=route_epoch;side->floor_seq=0;side->cached=0;
+ }
+ if(side->route_epoch!=route_epoch){side->cached=0;side->route_epoch=route_epoch;}
  uint8_t *frame=(uint8_t *)self+0x104;
  uint64_t now_ms=default_now_ms();
  uint32_t ctrl=current_control_revision();
  int route_up=!!(ctrl&4u);
  int on_extra=route_up&&!!(ctrl&(side_idx==0?1u:2u));
- struct xz_extra_deck d;
+ struct jd_sample sample;
+ int read_result=JD_READ_EMPTY;
  struct xz_jd_snapshot snap;
  int have_snap=0;
- if(on_extra&&read_published_deck((int)side_idx,&d)){
-  have_snap=xz_jog_display_snapshot_from_deck((int)side_idx,&d,now_ms,&snap);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ struct xz_jdp_side *proof=&xz_mods_jog_proof_v1.side[side_idx];
+ unsigned why=on_extra?XZ_JDP_NO_PUBLICATION:XZ_JDP_NATIVE;
+ int selected_result=-1;
+ JDP_INC(proof->calls);
+#endif
+ if(!on_extra){
+  side->cached=0;
+  side->floor_seq=atomic_load_explicit(&jd_pub[side_idx].seq,memory_order_acquire);
+ }else{
+  read_result=read_published_deck((int)side_idx,&sample);
+  if(read_result==JD_READ_OK){
+   int same=side->cached&&side->cache.seq==sample.seq&&side->cache.session==sample.session;
+   side->cached=sample_current(&sample,side,session,route_epoch);
+   if(side->cached){
+    if(!same){
+     uint32_t age=(uint32_t)now_ms-sample.published_ms;
+     side->cache_publication_ms=(int32_t)age>=0&&now_ms>=age?now_ms-age:UINT64_MAX;
+    }
+    side->cache=sample;
+   }
+  }
+  if(side->cached&&sample_current(&side->cache,side,session,route_epoch)){
+   have_snap=sample_snapshot(side_idx,&side->cache,side->cache_publication_ms,now_ms,&snap);
+#ifdef XZ_JOG_DISPLAY_PROOF
+   const struct xz_extra_deck *d=&side->cache.deck;
+   uint32_t age=(uint32_t)now_ms-side->cache.published_ms;
+   why=have_snap?XZ_JDP_VALID:!d->loaded?XZ_JDP_EMPTY:
+    d->total_ms<=0||(uint32_t)d->total_ms>=128u*60000u?XZ_JDP_LENGTH:
+    (int32_t)age<0||(int32_t)((uint32_t)now_ms-d->timeline.at_ms)<0?XZ_JDP_FUTURE:XZ_JDP_STALE;
+#endif
+  }else side->cached=0;
  }
  if(!on_extra){
-  (void)xz_jd_select(&jd_state[side_idx],channel,NULL,now_ms);
+#ifdef XZ_JOG_DISPLAY_PROOF
+  selected_result=
+#else
+  (void)
+#endif
+  xz_jd_select(&jd_state[side_idx],channel,NULL,now_ms);
  }else if(have_snap){
-  (void)xz_jd_select(&jd_state[side_idx],channel+2u,&snap,now_ms);
+#ifdef XZ_JOG_DISPLAY_PROOF
+  selected_result=
+#else
+  (void)
+#endif
+  xz_jd_select(&jd_state[side_idx],channel+2u,&snap,now_ms);
+ }else{
+#ifdef XZ_JOG_DISPLAY_PROOF
+  selected_result=
+#else
+  (void)
+#endif
+  xz_jd_select_unavailable(&jd_state[side_idx],channel+2u);
  }
  uint8_t out[XZ_JD_FRAME];
- (void)xz_jd_step(&jd_state[side_idx],frame,on_extra&&have_snap?&snap:NULL,now_ms,out);
- memcpy(frame,out,XZ_JD_FRAME);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ int step_result=
+#else
+ (void)
+#endif
+ xz_jd_step(&jd_state[side_idx],frame,on_extra&&have_snap?&snap:NULL,now_ms,out);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ atomic_fetch_add_explicit(&proof->seq,1u,memory_order_acq_rel);
+ JDP_SET(proof->channel,channel);JDP_SET(proof->control,ctrl);
+ JDP_SET(proof->desired,on_extra?channel+2u:channel);JDP_SET(proof->snapshot_reason,why);
+ JDP_SET(proof->select_result,selected_result);JDP_SET(proof->step_result,step_result);
+ JDP_SET(proof->phase,jd_state[side_idx].phase);
+ JDP_SET(proof->encoded_frame,out[0x53]>>4);JDP_SET(proof->encoded_packet,out[12+3]>>4);
+ JDP_SET(proof->changed,memcmp(frame,out,XZ_JD_FRAME)!=0);
+ JDP_SET(proof->fallback,on_extra&&(out[0x53]>>4)!=channel+2u);
+ /* ABI unchanged: low 30 bits identify the coherent sample, bit 31 means
+  * this read contended, bit 30 means a publisher has dropped on contention.
+  * Publications/published_seq still count only completed copies. */
+ JDP_SET(proof->read_seq,(side->cached?side->cache.seq:0u)|
+  (read_result==JD_READ_BUSY?0x80000000u:0u)|
+  (atomic_load_explicit(&jd_pub[side_idx].drops,memory_order_relaxed)?0x40000000u:0u));
+ atomic_fetch_add_explicit(&proof->seq,1u,memory_order_release);
+#endif
+ if(atomic_load(&jd_installed)&&session==atomic_load_explicit(&jd_session,memory_order_acquire))
+  memcpy(frame,out,XZ_JD_FRAME);
+ atomic_flag_clear_explicit(&side->busy,memory_order_release);
 }
 
 int xz_jog_display_runtime_start(void){
- if(atomic_load(&jd_installed))return 0;
- for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
-  atomic_init(&jd_pub[i].seq,0);
-  memset(jd_pub[i].deck,0,sizeof jd_pub[i].deck);
-  prime_side_baseline(i);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_INC(xz_mods_jog_proof_v1.start_attempts);
+#endif
+ if(atomic_flag_test_and_set_explicit(&jd_lifecycle_busy,memory_order_acquire))return -1;
+ if(atomic_load(&jd_installed)){
+  atomic_flag_clear_explicit(&jd_lifecycle_busy,memory_order_release);return 0;
  }
- static const unsigned char g_assemble[8]={0xf0,0x4f,0x2d,0xe9,0x00,0x40,0xa0,0xe1};
- if(xz_hook_arm(0x2591e0,g_assemble,(void *)(uintptr_t)hook_jog_assemble,(void **)&orig_jog_assemble))return -1;
- atomic_store(&jd_installed,1);
- return 0;
+ uint32_t session=atomic_load_explicit(&jd_session,memory_order_acquire);
+ int previous_test_mode=atomic_load_explicit(&jd_test_mode,memory_order_acquire);
+ atomic_store_explicit(&jd_test_mode,0,memory_order_release);
+ if(!jd_hooked){
+  static const unsigned char g_assemble[8]={0xf0,0x4f,0x2d,0xe9,0x00,0x40,0xa0,0xe1};
+  if(xz_hook_arm(0x2591e0,g_assemble,(void *)(uintptr_t)hook_jog_assemble,(void **)&orig_jog_assemble)){
+   atomic_store_explicit(&jd_test_mode,previous_test_mode,memory_order_release);
+#ifdef XZ_JOG_DISPLAY_PROOF
+   JDP_INC(xz_mods_jog_proof_v1.install_failed);
+#endif
+   atomic_flag_clear_explicit(&jd_lifecycle_busy,memory_order_release);return -1;
+  }
+  jd_hooked=1;
+#ifdef XZ_JOG_DISPLAY_PROOF
+  JDP_INC(xz_mods_jog_proof_v1.install_ok);
+#endif
+ }
+ /* A concurrent stop cancels activation. No payload/state is reset here. */
+ uint32_t next=session+1u;
+ int activate=atomic_compare_exchange_strong_explicit(&jd_session,&session,next,memory_order_acq_rel,memory_order_acquire);
+ if(activate){
+  atomic_store(&jd_installed,1);
+  if(atomic_load_explicit(&jd_session,memory_order_acquire)!=next){atomic_store(&jd_installed,0);activate=0;}
+ }
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_SET(xz_mods_jog_proof_v1.installed,atomic_load(&jd_installed));
+#endif
+ atomic_flag_clear_explicit(&jd_lifecycle_busy,memory_order_release);
+ return activate?0:-1;
 }
 
 void xz_jog_display_runtime_stop(void){
+ atomic_fetch_add_explicit(&jd_session,1u,memory_order_acq_rel);
  atomic_store(&jd_installed,0);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_SET(xz_mods_jog_proof_v1.installed,0);
+#endif
 }
 
 void xz_jog_display_runtime_test_install(const struct xz_jog_display_test_ops *originals,void (**assemble_hook_out)(void *)){
+ if(assemble_hook_out)*assemble_hook_out=NULL;
+ if(atomic_flag_test_and_set_explicit(&jd_lifecycle_busy,memory_order_acquire))return;
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_INC(xz_mods_jog_proof_v1.test_installs);
+#endif
  atomic_store(&jd_installed,0);
- for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
-  atomic_init(&jd_pub[i].seq,0);
-  memset(jd_pub[i].deck,0,sizeof jd_pub[i].deck);
-  prime_side_baseline(i);
- }
- orig_jog_assemble=originals?originals->assemble:NULL;
- test_now_ms=originals?originals->now_ms:NULL;
- test_control_revision=originals?originals->control_revision:NULL;
+ atomic_store_explicit(&test_assemble,originals?originals->assemble:NULL,memory_order_release);
+ atomic_store_explicit(&test_now_ms,originals?originals->now_ms:NULL,memory_order_release);
+ atomic_store_explicit(&test_control_revision,originals?originals->control_revision:NULL,memory_order_release);
+ atomic_fetch_add_explicit(&jd_session,1u,memory_order_acq_rel);
+ atomic_store_explicit(&jd_test_mode,1,memory_order_release);
  atomic_store(&jd_installed,1);
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_SET(xz_mods_jog_proof_v1.installed,1);
+#endif
  if(assemble_hook_out)*assemble_hook_out=hook_jog_assemble;
+ atomic_flag_clear_explicit(&jd_lifecycle_busy,memory_order_release);
 }
 
 const struct xz_jd *xz_jog_display_runtime_state(int side_index){

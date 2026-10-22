@@ -11,6 +11,7 @@ int xz_hook_arm(uint32_t address,const unsigned char expected[8],void *replaceme
  (void)address;(void)expected;(void)replacement;(void)original;return -1;
 }
 uint32_t xz_extra_decks_control_revision(void){return 0;}
+uint32_t xz_extra_decks_epoch(void){return 3;}
 
 static uint64_t sim_now_ms;
 static uint32_t sim_ctrl;
@@ -83,6 +84,22 @@ int main(void){
  sim_next_pkt[0][0]=0x10;sim_next_pkt[0][1]=0x21;sim_next_pkt[0][2]=0x08;sim_next_pkt[0][11]=1;
  assemble_hook(jog_left);
 
+ /* Selecting an empty right software deck must never show hidden native Deck 2. */
+ assert(xz_jd_select_unavailable(NULL,4)==XZ_JD_BAD_INPUT);
+ unsigned char jog_right[0x200]={0};uint32_t ch2=2;memcpy(jog_right+0x64,&ch2,4);
+ sim_ctrl|=2u;
+ for(unsigned i=0;i<8;i++){
+  assemble_hook(jog_right);
+  assert((jog_right[0x104+0x53]>>4)==4);
+ }
+ uint8_t empty_packet[64];swap64(empty_packet,jog_right+0x104+12);
+ assert(empty_packet[0]==0x40&&empty_packet[1]==0x21&&empty_packet[0x13]==0);
+ assert(xz_jog_display_runtime_state(1)->unavailable);
+ sim_ctrl&=~2u;
+ for(unsigned i=0;i<20;i++)assemble_hook(jog_right);
+ assert(xz_jog_display_runtime_state(1)->phase==XZ_JD_NATIVE);
+ assert((jog_right[0x104+0x53]>>4)==2);
+
  /* Publish Deck 3 state and switch Left side to Deck 3 (ctrl |= 1u). */
  struct xz_extra_deck d3=make_extra_deck(10000,44100*30,1000000,1);
  xz_jog_display_runtime_publish_deck(0,&d3,10000);
@@ -127,6 +144,6 @@ int main(void){
   assert(get32(frame+144)==xz_jd_crc(frame));
  }
  assert(xz_jog_display_runtime_state(0)->phase==XZ_JD_NATIVE);
- puts("PASS runtime Jog LCD bridge: lock-free Deck 3/4 timeline projection, EXTRA_CLEAR/EXTRA, stale guard, and NATIVE_CLEAR/REPLAY restoration");
+ puts("PASS runtime Jog LCD bridge: bounded Deck 3/4 timeline projection, EXTRA_CLEAR/EXTRA, stale guard, and NATIVE_CLEAR/REPLAY restoration");
  return 0;
 }
