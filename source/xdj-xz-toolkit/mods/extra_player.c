@@ -425,7 +425,10 @@ static int stored_loop_end(const struct deck *d, int32_t ms, int32_t end_ms, uin
  if (first >= d->r->frames || last <= first || last > d->r->frames) return 0;
  *end = last; return 1;
 }
-static double nominal(const struct deck *d) { return 1.0 + d->tempo_x100 / 10000.0; }
+static double nominal(const struct deck *d) {
+ /* Retain the exact applied SYNC rate until an accepted manual tempo command. */
+ return d->sync_rate_active ? d->sync_rate : 1.0 + d->tempo_x100 / 10000.0;
+}
 static float bend_now(const struct deck *d, uint32_t now) {
  uint32_t since = now - d->bend_at;
  if (d->bend == 0.0f || since >= XZ_XP_BEND_DECAY_MS) return 0.0f;
@@ -1304,7 +1307,7 @@ static void sync_request(struct xz_xp_players *p,struct deck *d,int on){
  d->sync_initial=on&&d->quantize;d->sync_hold=d->sync_have_master=d->sync_lock_count=0;d->sync_stationary=0;
  d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
  d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;
- d->sync_trim=0;d->sync_rate_active=0;
+ d->sync_trim=0;
  d->sync_requested_at=p->env.now_ms();d->sync_wait_fresh=!!on;d->native_phase.have=d->native_phase.ready=0;
  if(on)atomic_fetch_or(&p->sync_requests,1u<<d->index);else atomic_fetch_and(&p->sync_requests,~(1u<<d->index));
  /* Legacy embedders can supply BPM only. It is sampled once, never advertised as phase lock. */
@@ -1455,7 +1458,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  if(d->emergency.active){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
  uint32_t choice;int selected=sync_selection(p,d,&choice);
  if(selected< -1){d->sync.reason=selected==-3?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;return;}
- if(selected==d->index){d->sync_rate_active=0;d->sync.master_deck=selected+XZ_EXTRA_FIRST_DECK;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;d->sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;return;}
+ if(selected==d->index){d->sync.master_deck=selected+XZ_EXTRA_FIRST_DECK;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;d->sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;return;}
  if(selected<0){
   if(d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE){
    d->sync_hold=d->sync_have_master=0;d->sync.master_scope=0;d->sync.master_deck=-1;
@@ -1722,6 +1725,7 @@ static void slip_begin(struct deck *d, uint64_t at, uint32_t now);
 static void slip_return(struct deck *d, uint32_t now);
 static double beat_frames(const struct deck *d, uint64_t at);
 static void set_tempo(struct deck *d) {
+ d->sync_rate_active=0;
  int32_t step = d->tempo_range <= 6 ? 2 : d->tempo_range <= 16 ? 5 : 50;
  int64_t raw = (int64_t)d->tempo_position * d->tempo_range * 100;
  int64_t steps = (raw >= 0 ? raw + (int64_t)step * XZ_EXTRA_TEMPO_SPAN / 2 : raw - (int64_t)step * XZ_EXTRA_TEMPO_SPAN / 2) /
@@ -2203,7 +2207,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
    }
    d->master_playing_seen=state_playing(d->state);
    (void)select_sync_master(p,d->index);d->master_playing_choice=atomic_load(&p->sync_choice_epoch);
-   d->sync_trim=0;d->sync_rate_active=0;
+   d->sync_trim=0;
    d->sync_initial=d->sync_hold=d->sync_have_master=0;d->sync.locked=0;
    d->sync.master_deck=d->index+XZ_EXTRA_FIRST_DECK;
    d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
