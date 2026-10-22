@@ -81,10 +81,10 @@ int main(void) {
     unknown cues off, the stock-forced pad C untouched, channel 2 untouched. */
  memcpy(packet,saved,sizeof(packet));
  extra.loaded=1;extra.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES);
- extra.hot_cue[0]=(struct xz_extra_cue){1,1000,0xff0000};
- extra.hot_cue[3]=(struct xz_extra_cue){1,2000,0};
- extra.hot_cue[2]=(struct xz_extra_cue){1,3000,0x0000ff};
- extra.hot_cue[7]=(struct xz_extra_cue){1,4000,0x123456};
+ extra.hot_cue[0]=(struct xz_extra_cue){1,1000,0xff0000,0};
+ extra.hot_cue[3]=(struct xz_extra_cue){1,2000,0,0};
+ extra.hot_cue[2]=(struct xz_extra_cue){1,3000,0x0000ff,0};
+ extra.hot_cue[7]=(struct xz_extra_cue){1,4000,0x123456,0};
  assert(xz_native_led_apply(packet,sizeof(packet),8,1,extra_color)==7);
  const uint32_t expect_rgb[8]={0xff0000,0,0,0x00ff00,0,0,0,0x123456};
  for(unsigned i=0;i<8;i++){
@@ -205,7 +205,7 @@ int main(void) {
   d.pad_mode=XZ_EXTRA_PAD_BEAT_JUMP;
   for(int i=0;i<8;i++){assert(xz_extra_pad_led(&d,i,&rgb,&on)==XZ_LED_REPLACE&&on&&rgb==xz_jump_page2_color(i));}
   d.pad_mode=XZ_EXTRA_PAD_NONE;assert(xz_extra_pad_led(&d,0,&rgb,&on)==XZ_LED_REPLACE&&!on&&!rgb);
-  d.pad_mode=XZ_EXTRA_PAD_HOT_CUE;d.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES);d.hot_cue[1]=(struct xz_extra_cue){1,10,0};
+  d.pad_mode=XZ_EXTRA_PAD_HOT_CUE;d.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES);d.hot_cue[1]=(struct xz_extra_cue){1,10,0,0};
   assert(xz_extra_pad_led(&d,1,&rgb,&on)==XZ_LED_REPLACE&&on&&rgb==XZ_EXTRA_PAD_DEFAULT_RGB);
  }
  /* Native pad probe: per channel, native page and pad, words and colour. */

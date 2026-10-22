@@ -44,7 +44,7 @@ static void fill_deck(struct xz_extra_deck *d,const struct track *t,const char *
  snprintf(d->key,sizeof(d->key),"8A");
  d->cue_ms=elapsed-900;
  static const uint32_t colors[3]={0x30d050,0xe03040,0x3080ff};
- for(int i=0;i<3;i++)d->hot_cue[i]=(struct xz_extra_cue){1,elapsed-1400+i*1100,colors[i]};
+ for(int i=0;i<3;i++)d->hot_cue[i]=(struct xz_extra_cue){1,elapsed-1400+i*1100,colors[i],0};
  d->grid=t->grid;d->grid_count=t->beats;
  d->wave=(struct xz_extra_wave){t->columns,t->count,t->span_ms,t->normalization};
 }

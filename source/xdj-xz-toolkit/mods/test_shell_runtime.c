@@ -659,7 +659,7 @@ static void extra_snapshot(struct xz_extra_decks *s) {
   d->source=i+1;d->elapsed_ms=60000;d->total_ms=300000;d->elapsed_at_ms=9900;d->playing=i==1;
   d->bpm_x100=12000;d->track_bpm_x100=12000;d->tempo_x100=0;d->master=0;snprintf(d->key,sizeof d->key,"%s",i?"8A":"Fm");
   d->tempo_range=i?100:16;d->master_tempo=!i;d->vinyl=i;
-  d->cue_ms=1000;d->hot_cue[2]=(struct xz_extra_cue){1,4000,0x20c8ff};
+  d->cue_ms=1000;d->hot_cue[2]=(struct xz_extra_cue){1,4000,0x20c8ff,0};
   d->loop.active=1;d->loop.in_ms=8000;d->loop.out_ms=12000;   /* 8 beats at 120 BPM */
   d->grid=extra_beats;d->grid_count=16;
   d->wave=(struct xz_extra_wave){extra_cols,300,2000,0};
@@ -786,9 +786,12 @@ static void extra_decks(void) {
  a.id=0;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);a.id=77;
  a.deck=1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
  a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,3,123456,0};
+ /* NEEDLE LOCK (stock default LOCK): waveform seek only while the software deck is not playing. */
+ int was_playing=m.deck[3].playing;
+ m.deck[3].playing=1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
+ m.deck[3].playing=0;
  assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_INPUT&&e.deck==1&&e.kind==XZ_EXTRA_IN_SEEK&&e.seek_ms==123456);
- /* NEEDLE LOCK (stock default LOCK): no waveform seek on a playing software deck. */
- m.deck[3].playing=1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);m.deck[3].playing=0;
+ m.deck[3].playing=was_playing;
  a.value=-1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
  a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,0,1000,0};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
  static const enum xz_shell_action_kind refused[]={XZ_SHELL_ACT_GRID_ADJUST,XZ_SHELL_ACT_SET_SETTING,XZ_SHELL_ACT_TAG_TRACK,
@@ -819,7 +822,12 @@ static void extra_decks(void) {
    if(d<2)assert(n==0);
    else{
     assert(n==1&&out[0].kind==XZ_SHELL_ACT_SEEK&&out[0].deck==d);
+    /* NEEDLE LOCK: a playing software deck refuses the seek; paused, it becomes a player SEEK. */
+    int was_playing=m.deck[d].playing;
+    m.deck[d].playing=1;assert(xz_shrt_extra_action(&m,&out[0],0,&e)==XZ_SHRT_EXTRA_REFUSE);
+    m.deck[d].playing=0;
     assert(xz_shrt_extra_action(&m,&out[0],0,&e)==XZ_SHRT_EXTRA_INPUT&&e.kind==XZ_EXTRA_IN_SEEK&&e.deck==d-2&&e.seek_ms==out[0].value);
+    m.deck[d].playing=was_playing;
    }
   }
   static uint16_t pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];

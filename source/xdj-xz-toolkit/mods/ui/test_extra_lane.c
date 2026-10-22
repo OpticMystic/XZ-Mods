@@ -29,7 +29,7 @@ static struct xz_extra_deck deck(void){
  d.known=ALL;d.loaded=1;snprintf(d.title,sizeof(d.title),"Fixture");
  d.elapsed_ms=10000;d.total_ms=20000;d.elapsed_at_ms=500;d.playing=1;
  d.bpm_x100=12000;d.track_bpm_x100=12000;d.tempo_x100=0;d.cue_ms=9000;
- d.hot_cue[0]=(struct xz_extra_cue){1,11250,0x30d050};
+ d.hot_cue[0]=(struct xz_extra_cue){1,11250,0x30d050,0};
  for(unsigned i=0;i<3000;i++)columns[i]=(struct xz_extra_column){(uint8_t)(60+i%50),40,(uint8_t)(20+i%9)};
  for(unsigned i=0;i<64;i++)grid[i]=(struct xz_extra_beat){(int32_t)(i*500),(uint8_t)(i%4+1)};
  d.grid=grid;d.grid_count=64;
@@ -115,7 +115,7 @@ int main(void){
  d=deck();d.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_ELAPSED);
  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,3,&d,&view,&marks));memcpy(copy,pixels,sizeof(pixels));
  d.total_ms=99999;d.bpm_x100=17777;d.tempo_x100=-555;d.master=1;snprintf(d.title,sizeof(d.title),"Hidden");
- d.cue_ms=10100;d.hot_cue[1]=(struct xz_extra_cue){1,10200,0xff0000};d.loop.active=1;d.loop.in_ms=9000;d.loop.out_ms=11000;
+ d.cue_ms=10100;d.hot_cue[1]=(struct xz_extra_cue){1,10200,0xff0000,0};d.loop.active=1;d.loop.in_ms=9000;d.loop.out_ms=11000;
  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,3,&d,&view,&marks));
  assert(!memcmp(copy,pixels,sizeof(pixels)));
  /* The lit tag changes only the readout. */
