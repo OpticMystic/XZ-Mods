@@ -156,11 +156,36 @@ static int replay(struct xz_jd *s,uint8_t packet[64]) {
     }
     s->phase=XZ_JD_NATIVE;return 0;
 }
+static void observe_native(struct xz_jd *s,const uint8_t native[148]){
+    unsigned sequence=get16(native+8);
+    if(!s->observed||sequence!=s->observed_sequence){
+        uint8_t packet[64];swap64(packet,native+12);(void)xz_jd_capture(s,packet);
+        s->observed_sequence=(uint16_t)sequence;s->observed=1;s->native_pending=1;
+    }
+}
+static int info_changed(const struct xz_jd_snapshot *a,const struct xz_jd_snapshot *b){
+    return a->paused!=b->paused||a->tempo_rate!=b->tempo_rate||a->tempo_range!=b->tempo_range||
+        a->master_tempo!=b->master_tempo||a->vinyl_mode!=b->vinyl_mode||a->status_known!=b->status_known||
+        a->cued!=b->cued||a->master!=b->master||a->sync_mode!=b->sync_mode||a->slip!=b->slip||
+        a->bpm_x100!=b->bpm_x100||a->track_bpm_x100!=b->track_bpm_x100||a->key_code!=b->key_code;
+}
+static void software_packet(struct xz_jd *s,const struct xz_jd_snapshot *snapshot,uint64_t now,uint8_t packet[64]){
+    int wave=s->software_wave&&s->wave_next<XZ_JD_RGB_WAVE_PACKETS;
+    int due=!s->have_info||now<s->last_info_ms||now-s->last_info_ms>=20u||s->wave_since_info>=7u||
+        info_changed(snapshot,&s->last_info);
+    if(wave&&s->have_info&&(s->after_info||!due)){
+        (void)xz_jd_wave_packet(s->software_wave,s->physical_side,s->wave_next++,packet);
+        s->wave_since_info++;s->after_info=0;
+    }else{
+        info(snapshot,packet);s->last_info=*snapshot;s->last_info_ms=now;s->have_info=1;
+        s->wave_since_info=0;s->after_info=1;
+    }
+}
 int xz_jd_step(struct xz_jd *s,const uint8_t native[148],const struct xz_jd_snapshot *snapshot,uint64_t now,uint8_t out[148]) {
-    uint8_t packet[64];unsigned sequence=get16(native+8),new_packet=!s->observed||sequence!=s->observed_sequence;int emitted=0,result=XZ_JD_OK;
+    uint8_t packet[64];unsigned sequence,new_packet;int emitted=0,result=XZ_JD_OK;
     memcpy(out,native,148);
     if((native[2]&0xc0u)||((native[0x4e]&0x7fu)!=0x40u))return XZ_JD_UNSUPPORTED;
-    if(new_packet) { swap64(packet,native+12);(void)xz_jd_capture(s,packet);s->observed_sequence=(uint16_t)sequence;s->observed=1; }
+    observe_native(s,native);new_packet=s->native_pending;s->native_pending=0;
     if(s->phase==XZ_JD_EXTRA||s->phase==XZ_JD_EXTRA_CLEAR) {
         int valid=fresh(s,snapshot,now);
         if(!valid) {
@@ -171,10 +196,11 @@ int xz_jd_step(struct xz_jd *s,const uint8_t native[148],const struct xz_jd_snap
         }
     }
     if(s->phase==XZ_JD_EXTRA_CLEAR||s->phase==XZ_JD_NATIVE_CLEAR) {
+        s->have_info=0;s->after_info=0;s->wave_since_info=0;s->wave_next=0;
         unsigned deck=s->phase==XZ_JD_EXTRA_CLEAR?s->physical_side+2u:s->physical_side;
         xz_jd_clear_packet(deck,s->clear_next++,packet);emitted=1;
         if(s->clear_next==6) { s->phase=s->phase==XZ_JD_EXTRA_CLEAR?XZ_JD_EXTRA:XZ_JD_REPLAY;s->replay_family=0;for(sequence=0;sequence<6;sequence++){s->family[sequence].replay=0;s->family[sequence].replay_version=s->family[sequence].version;} }
-    } else if(s->phase==XZ_JD_EXTRA) { if(s->unavailable)unavailable(s->selected,packet);else info(snapshot,packet);emitted=1; }
+    } else if(s->phase==XZ_JD_EXTRA) { if(s->unavailable)unavailable(s->selected,packet);else software_packet(s,snapshot,now,packet);emitted=1; }
     else if(s->phase==XZ_JD_REPLAY) {
         if((++s->replay_ticks&7u)==0&&s->family[0].complete) { memcpy(packet,s->family[0].bank[s->family[0].active],64);emitted=1; }
         else emitted=replay(s,packet);
@@ -205,3 +231,17 @@ int xz_jd_step(struct xz_jd *s,const uint8_t native[148],const struct xz_jd_snap
     }
     return result;
 }
+int xz_jd_prepare(struct xz_jd *s,const uint8_t native[148],unsigned selected,const struct xz_jd_snapshot *snapshot,
+ uint64_t now,const struct xz_jd_wave *wave,uint32_t wave_revision,struct xz_jd_transaction *tx){
+    if((native[2]&0xc0u)||((native[0x4e]&0x7fu)!=0x40u))return XZ_JD_UNSUPPORTED;
+    observe_native(s,native);tx->next=*s;
+    tx->selected=selected==s->physical_side?xz_jd_select(&tx->next,selected,NULL,now):
+        snapshot?xz_jd_select(&tx->next,selected,snapshot,now):xz_jd_select_unavailable(&tx->next,selected);
+    if(tx->next.software_wave!=wave||tx->next.wave_revision!=wave_revision){
+        if(tx->next.software_wave&&!wave&&tx->next.phase==XZ_JD_EXTRA){tx->next.phase=XZ_JD_EXTRA_CLEAR;tx->next.clear_next=1;}
+        tx->next.software_wave=wave;tx->next.wave_revision=wave_revision;tx->next.wave_next=0;tx->next.have_info=0;
+    }
+    tx->phase_before=tx->next.phase;
+    tx->result=xz_jd_step(&tx->next,native,snapshot,now,tx->frame);return tx->result;
+}
+void xz_jd_commit(struct xz_jd *s,const struct xz_jd_transaction *tx){*s=tx->next;}

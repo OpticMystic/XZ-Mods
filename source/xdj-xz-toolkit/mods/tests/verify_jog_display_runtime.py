@@ -30,7 +30,7 @@ for arch,compiler in [('host','gcc'),('arm','arm-linux-gnueabi-gcc')]:
  for proof in [False,True]:
   for test in ['runtime','publication']:
    binary=a.out/f'test-jog-{test}-{arch}{"-proof" if proof else ""}'
-   sources=[root/f'tests/test_jog_display_{test}.c',root/'jog_display.c']
+   sources=[root/f'tests/test_jog_display_{test}.c',root/'jog_display.c',root/'jog_display_wave.c']
    if test=='runtime':sources.append(root/'jog_display_runtime.c')
    flags=['-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-pthread']
    if proof:flags.append('-DXZ_JOG_DISPLAY_PROOF')
@@ -42,6 +42,6 @@ if a.zig:
   binary=a.out/f'test-jog-publication-zig{"-proof" if proof else ""}.exe'
   subprocess.run([str(a.zig),'cc','-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-pthread',
    '-fsanitize=undefined','-fno-sanitize-recover=all',*(['-DXZ_JOG_DISPLAY_PROOF'] if proof else []),
-   str(root/'tests/test_jog_display_publication.c'),str(root/'jog_display.c'),'-o',str(binary)],check=True,timeout=60)
+   str(root/'tests/test_jog_display_publication.c'),str(root/'jog_display.c'),str(root/'jog_display_wave.c'),'-o',str(binary)],check=True,timeout=60)
   subprocess.run([str(binary)],check=True,timeout=60)
 print('PASS Jog runtime/publication gates; all native, clock and route boundaries remain synthetic')

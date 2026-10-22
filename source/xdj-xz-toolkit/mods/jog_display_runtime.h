@@ -7,6 +7,8 @@
 
 int xz_jog_display_runtime_start(void);
 void xz_jog_display_runtime_stop(void);
+/* Existing connector only, after its snapshot. Bounded chunk/reduction budget. */
+void xz_jog_display_runtime_service_assets(void);
 
 /* Lock-free publisher called when extra deck state updates. */
 void xz_jog_display_runtime_publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_t now_ms);

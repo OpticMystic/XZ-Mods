@@ -41,6 +41,12 @@ static uint64_t now(void){return atomic_load(&sim_now);}
 static uint32_t control(void){return atomic_load(&sim_control);}
 uint32_t xz_extra_decks_control_revision(void){return control();}
 uint32_t xz_extra_decks_epoch(void){return atomic_load(&sim_route);}
+uint32_t xz_extra_decks_jog_content_epoch(int side){return (unsigned)side<2?1:0;}
+int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *out){
+ uint32_t c=control();
+ *out=(struct xz_ds_selection){.epoch={1,1},.deck={(c&4u)&&(c&1u)?3:1,(c&4u)&&(c&2u)?4:2},
+  .route_up=!!(c&4u),.route_epoch=xz_extra_decks_epoch()};return 1;
+}
 int xz_hook_arm(uint32_t address,const unsigned char guard[8],void *replacement,void **previous){
  (void)address;(void)guard;install_calls++;
  if(install_fail)return -1;
@@ -65,6 +71,7 @@ static void fresh_install(void){
 static struct xz_extra_deck deck(unsigned n,int playing){
  struct xz_extra_deck d={0};memset(d.title,'A'+(int)n,sizeof d.title-1);
  d.loaded=1;d.playing=playing;d.total_ms=180000;d.elapsed_ms=30000+(int32_t)n*1000;
+ d.jog_content_epoch=1;
  d.tempo_range=10;d.vinyl=1;d.master_tempo=1;
  d.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE);
  d.timeline.source_frame=44100ull*(30u+n);d.timeline.source_rate=44100;
@@ -266,6 +273,7 @@ static void stress(void){
  printf("PASS real C multiwriter/reader/reset stress: attempted=800000 accepted=%u busy=%u converted=%u mixed=%u\n",accepted,busy,converted,mixed);
 }
 int main(void){
+ setvbuf(stdout,NULL,_IONBF,0);
  deterministic_busy();busy_display();no_initial_and_expiry();route_generation_selection();timestamp_and_sequence_wrap();source_observation_order();lifecycle();stress();
 #ifdef XZ_JOG_DISPLAY_PROOF
  CHECK(sizeof xz_mods_jog_proof_v1==196&&xz_mods_jog_proof_v1.version==1);
