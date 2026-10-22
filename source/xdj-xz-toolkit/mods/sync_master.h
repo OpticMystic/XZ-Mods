@@ -2,6 +2,7 @@
 #ifndef XZ_SYNC_MASTER_H
 #define XZ_SYNC_MASTER_H
 #include <stdint.h>
+#define XZ_MASTER_MAX_AGE_MS 100u
 
 /* Logical indices match the shell. Native wire/source IDs stay inside the bridge. */
 enum xz_master_deck {
