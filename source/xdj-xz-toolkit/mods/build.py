@@ -112,6 +112,8 @@ def main() -> None:
     parser.add_argument("--output", type=pathlib.Path, required=True)
     parser.add_argument("--arm-gcc", help="ARM EABI GCC executable for the VFP MP3 decoder")
     parser.add_argument("--wsl-distro", default="Ubuntu", help="WSL distribution used for ARM GCC on Windows")
+    parser.add_argument("--jog-display-proof", action="store_true",
+                        help="Include bounded Jog LCD diagnostic counters in a private trial build")
     parser.add_argument("--host-checks-only", action="store_true",
                         help="Run standalone settings host checks without building or deploying the runtime")
     args = parser.parse_args()
@@ -235,8 +237,11 @@ def main() -> None:
                "-DMINIZ_NO_ARCHIVE_APIS", "-DMINIZ_NO_DEFLATE_APIS",
                "-pthread", "-lm", "-ldl",
                "-o", str(destination)]
+    if args.jog_display_proof:
+        command.insert(2, "-DXZ_JOG_DISPLAY_PROOF")
     subprocess.run(command, check=True)
     result = inspect(destination)
+    result["jog_display_proof"] = args.jog_display_proof
     result["mp3_decoder"] = mp3_build
     vendor = ROOT.parent / "vendor"
     receiver = args.output.resolve() / "libxz-directfb-mods-test.so"

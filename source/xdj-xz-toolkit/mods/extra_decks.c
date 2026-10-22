@@ -20,6 +20,9 @@
 #include <sys/sysmacros.h>
 #include <time.h>
 #include <unistd.h>
+#ifdef XZ_JOG_DISPLAY_PROOF
+#include "jog_display_proof.h"
+#endif
 
 #pragma weak xz_extra_resolve_track_checked
 #pragma weak xz_extra_resolve_track
@@ -68,6 +71,10 @@ static struct {
 
 void xz_extra_decks_publish_sides(int left_on_3, int right_on_4) {
  control_update(CONTROL_LEFT|CONTROL_RIGHT,(left_on_3?CONTROL_LEFT:0)|(right_on_4?CONTROL_RIGHT:0));
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_INC(xz_mods_jog_proof_v1.selections);
+ JDP_SET(xz_mods_jog_proof_v1.selection_control,xz_extra_decks_control_revision());
+#endif
 }
 
 struct xz_extra_route xz_extra_decks_route(void) {
@@ -77,10 +84,18 @@ struct xz_extra_route xz_extra_decks_route(void) {
 }
 
 int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
+#ifdef XZ_JOG_DISPLAY_PROOF
+ JDP_INC(xz_mods_jog_proof_v1.snapshot_calls);
+#endif
  if (!out) return 0;
  memset(out, 0, sizeof *out);
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);
- if (!p) {out->control_revision=xz_extra_decks_control_revision();return 0;}
+ if (!p) {
+#ifdef XZ_JOG_DISPLAY_PROOF
+  JDP_INC(xz_mods_jog_proof_v1.snapshot_no_players);
+#endif
+  out->control_revision=xz_extra_decks_control_revision();return 0;
+ }
  xz_xp_read(p, out);
  unsigned c=xz_extra_decks_control_revision();out->control_revision=c;
  out->route_up=!!(c&CONTROL_ROUTE);out->left_on_3=out->route_up&&!!(c&CONTROL_LEFT);

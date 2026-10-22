@@ -46,6 +46,9 @@ void xz_jd_native_epoch(struct xz_jd *, uint64_t epoch);
 int xz_jd_capture(struct xz_jd *, const uint8_t packet[XZ_JD_PACKET]);
 int xz_jd_ready(const struct xz_jd *);
 int xz_jd_select(struct xz_jd *, unsigned logical_deck, const struct xz_jd_snapshot *, uint64_t now_ms);
+/* Keep software control assignment visible while its track telemetry is absent.
+   Emits clear/unavailable packets, never the hidden native deck's live state. */
+int xz_jd_select_unavailable(struct xz_jd *, unsigned logical_deck);
 /* Input must be ORIGINAL output of native assemble, before previous overrides.
  * A stale software snapshot keeps logical ownership but clears displayed data.
  * Native frame routing/configuration is retained; only proven display fields
