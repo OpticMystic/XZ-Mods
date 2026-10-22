@@ -129,16 +129,18 @@ int main(void) {
   uint16_t idx[120],cnt=4;
   memset(existing,0xa5,sizeof existing);memset(idx,0x5a,sizeof idx);
   put(existing,XZ_LED_ID_PLAY_PAUSE);put(existing+4,1);put(existing+0x10,0);existing[0x18]=0;
-  put(existing+44,XZ_LED_ID_LOOP_IN);put(existing+48,1);
+  put(existing+44,XZ_LED_ID_LOOP_IN);put(existing+48,1);existing[44+0x18]=0;
   put(existing+88,XZ_LED_ID_PLAY_PAUSE);put(existing+92,2);
   put(existing+132,XZ_LED_ID_CUE);put(existing+136,1);
   existing[132+0x18]=1;
   memcpy(before,existing,sizeof existing);
   struct xz_extra_deck d={0};d.loaded=d.playing=1;d.loop.active=1;
   assert(xz_native_led_extra_deck(existing,sizeof existing,&cnt,idx,65535,65535,
-                                  0,1000,1,&d)==1);
-  assert(cnt==4&&word(existing+0x10)==1);
-  assert(!memcmp(existing+44,before+44,sizeof existing-44));
+                                  0,1000,1,&d)==2);
+  /* Only the state words of the PLAY and LOOP IN records change; channel 2 and forced CUE stay. */
+  assert(cnt==4&&word(existing+0x10)==1&&word(existing+44+0x10)==1);
+  assert(!memcmp(existing,before,0x10)&&!memcmp(existing+0x14,before+0x14,44+0x10-0x14));
+  assert(!memcmp(existing+44+0x14,before+44+0x14,sizeof existing-44-0x14));
   for(unsigned i=0;i<120;i++)assert(idx[i]==0x5a5a);
   cnt=0;memcpy(existing,before,sizeof existing);
   assert(!xz_native_led_extra_deck(existing,sizeof existing,&cnt,idx,0,0,
@@ -148,6 +150,76 @@ int main(void) {
   assert(!xz_native_led_extra_deck(existing,sizeof existing,&cnt,idx,65535,65535,
                                    0,1000,1,&d));
   assert(!memcmp(existing,before,sizeof existing));
+ }
+ /* Lamp model, manual DRI1625B pp.35-64 and the owner's stock-deck observations. */
+ {
+  struct xz_extra_deck d={0};
+  for(uint32_t id=1;id<=29;id++){
+   if(id>=XZ_LED_ID_PAD_HOT_CUE&&id<=XZ_LED_ID_PAD_BEAT_JUMP)continue;
+   int lamp=xz_extra_lamp(&d,id);
+   assert(lamp==-1||lamp==XZ_LED_STATE_OFF);  /* empty deck: nothing lit */
+  }
+  assert(xz_extra_lamp(&d,XZ_LED_ID_PAD_HOT_CUE)==XZ_LED_STATE_ON); /* pad mode is a setting */
+  d.loaded=1;d.cue_ms=d.elapsed_ms=500;
+  assert(xz_extra_lamp(&d,XZ_LED_ID_CUE)==XZ_LED_STATE_ON&&xz_extra_lamp(&d,XZ_LED_ID_PLAY_PAUSE)==XZ_LED_STATE_BLINK);
+  assert(xz_extra_lamp(&d,XZ_LED_ID_LOOP_IN)==XZ_LED_STATE_OFF&&xz_extra_lamp(&d,XZ_LED_ID_LOOP_OUT)==XZ_LED_STATE_OFF);
+  d.elapsed_ms=900;
+  assert(xz_extra_lamp(&d,XZ_LED_ID_CUE)==XZ_LED_STATE_BLINK);
+  d.playing=1;
+  assert(xz_extra_lamp(&d,XZ_LED_ID_CUE)==XZ_LED_STATE_ON&&xz_extra_lamp(&d,XZ_LED_ID_PLAY_PAUSE)==XZ_LED_STATE_ON);
+  assert(xz_extra_lamp(&d,XZ_LED_ID_LOOP_IN)==XZ_LED_STATE_ON&&xz_extra_lamp(&d,XZ_LED_ID_LOOP_OUT)==XZ_LED_STATE_ON);
+  d.playing=0;d.held_playing=1;  /* vinyl hold that resumes playback */
+  assert(xz_extra_lamp(&d,XZ_LED_ID_PLAY_PAUSE)==XZ_LED_STATE_ON);
+  d.held_playing=0;d.playing=1;d.loop.active=d.loop.stored=1;d.loop.edit=1;
+  assert(xz_extra_lamp(&d,XZ_LED_ID_LOOP_IN)==XZ_LED_STATE_BLINK&&xz_extra_lamp(&d,XZ_LED_ID_LOOP_OUT)==XZ_LED_STATE_OFF);
+  d.loop.edit=2;
+  assert(xz_extra_lamp(&d,XZ_LED_ID_LOOP_IN)==XZ_LED_STATE_OFF&&xz_extra_lamp(&d,XZ_LED_ID_LOOP_OUT)==XZ_LED_STATE_BLINK);
+  d.loop.edit=0;assert(xz_extra_lamp(&d,XZ_LED_ID_RELOOP_EXIT)==XZ_LED_STATE_ON);
+  d.loop.active=0;assert(xz_extra_lamp(&d,XZ_LED_ID_RELOOP_EXIT)==XZ_LED_STATE_ON);
+  d.loop.stored=0;assert(xz_extra_lamp(&d,XZ_LED_ID_RELOOP_EXIT)==XZ_LED_STATE_OFF);
+  assert(xz_extra_lamp(&d,XZ_LED_ID_BEAT_SYNC)==XZ_LED_STATE_OFF);
+  d.sync.requested=1;assert(xz_extra_lamp(&d,XZ_LED_ID_BEAT_SYNC)==XZ_LED_STATE_ON); /* on, locked or not */
+  assert(xz_extra_lamp(&d,XZ_LED_ID_MASTER)==XZ_LED_STATE_OFF);
+  d.master=1;assert(xz_extra_lamp(&d,XZ_LED_ID_MASTER)==XZ_LED_STATE_ON);
+  d.master_tempo=1;d.tempo_x100=0;assert(xz_extra_lamp(&d,XZ_LED_ID_MASTER_TEMPO)==XZ_LED_STATE_ON);
+  assert(xz_extra_lamp(&d,XZ_LED_ID_TEMPO_RESET)==XZ_LED_STATE_OFF); /* centred fader is not RESET */
+  d.tempo_reset=1;assert(xz_extra_lamp(&d,XZ_LED_ID_TEMPO_RESET)==XZ_LED_STATE_ON);
+  d.reverse=1;assert(xz_extra_lamp(&d,XZ_LED_ID_REVERSE)==XZ_LED_STATE_ON);
+  d.slip=1;assert(xz_extra_lamp(&d,XZ_LED_ID_SLIP)==XZ_LED_STATE_ON);
+  d.slip_active=1;assert(xz_extra_lamp(&d,XZ_LED_ID_SLIP)==XZ_LED_STATE_BLINK);
+  d.vinyl=1;assert(xz_extra_lamp(&d,XZ_LED_ID_VINYL)==XZ_LED_STATE_ON);
+  d.pad_mode=XZ_EXTRA_PAD_SLIP_LOOP;
+  assert(xz_extra_lamp(&d,XZ_LED_ID_PAD_SLIP_LOOP)==XZ_LED_STATE_ON&&xz_extra_lamp(&d,XZ_LED_ID_PAD_HOT_CUE)==XZ_LED_STATE_OFF);
+  d.pad_mode=XZ_EXTRA_PAD_NONE;
+  for(uint32_t id=XZ_LED_ID_PAD_HOT_CUE;id<=XZ_LED_ID_PAD_BEAT_JUMP;id++)assert(xz_extra_lamp(&d,id)==XZ_LED_STATE_OFF);
+  assert(xz_extra_lamp(&d,XZ_LED_ID_HOT_CUE_1)==-1&&xz_extra_lamp(&d,XZ_LED_ID_JOG_RING_POS)==-1&&xz_extra_lamp(NULL,1)==-1);
+  /* A flash is written OFF until a native flashing record is qualified. */
+  assert(xz_led_written_state(XZ_LED_STATE_ON)==1&&xz_led_written_state(XZ_LED_STATE_OFF)==0);
+  assert(xz_led_written_state(XZ_LED_STATE_BLINK)==(XZ_LED_BLINK_QUALIFIED?2u:0u));
+  /* Pads follow the pad mode: loop modes light every pad and mark the running one; jump uses its pair colours. */
+  uint32_t rgb;int on;d.pad_mode=XZ_EXTRA_PAD_BEAT_LOOP;d.active_pad=3;
+  assert(xz_extra_pad_led(&d,0,&rgb,&on)==XZ_LED_REPLACE&&on&&rgb==XZ_EXTRA_PAD_BEAT_LOOP_RGB);
+  assert(xz_extra_pad_led(&d,3,&rgb,&on)==XZ_LED_REPLACE&&on&&rgb==XZ_EXTRA_PAD_ACTIVE_RGB);
+  d.pad_mode=XZ_EXTRA_PAD_SLIP_LOOP;d.active_pad=-1;
+  assert(xz_extra_pad_led(&d,5,&rgb,&on)==XZ_LED_REPLACE&&on&&rgb==XZ_EXTRA_PAD_SLIP_LOOP_RGB);
+  d.pad_mode=XZ_EXTRA_PAD_BEAT_JUMP;
+  for(int i=0;i<8;i++){assert(xz_extra_pad_led(&d,i,&rgb,&on)==XZ_LED_REPLACE&&on&&rgb==xz_jump_page2_color(i));}
+  d.pad_mode=XZ_EXTRA_PAD_NONE;assert(xz_extra_pad_led(&d,0,&rgb,&on)==XZ_LED_REPLACE&&!on&&!rgb);
+  d.pad_mode=XZ_EXTRA_PAD_HOT_CUE;d.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES);d.hot_cue[1]=(struct xz_extra_cue){1,10,0};
+  assert(xz_extra_pad_led(&d,1,&rgb,&on)==XZ_LED_REPLACE&&on&&rgb==XZ_EXTRA_PAD_DEFAULT_RGB);
+ }
+ /* Native pad probe: per channel, native page and pad, words and colour. */
+ {
+  unsigned char pads[2*XZ_LED_RECORD_BYTES]={0};
+  put(pads,0x13);put(pads+4,2);put(pads+0x10,1);pads[0x28]=0x12;pads[0x29]=0x34;pads[0x2a]=0x56;
+  put(pads+XZ_LED_RECORD_BYTES,0x05);put(pads+XZ_LED_RECORD_BYTES+4,2);
+  xz_native_led_pad_probe(pads,sizeof pads,2,2,1);xz_native_led_pad_probe(pads,sizeof pads,2,2,1);
+  const struct xz_led_pad_probe_entry *e=&xz_mods_led_pad_probe_v1.entry[1][1][1];
+  assert(e->seen==2&&e->words[2]==1&&(e->rgb&0xffffffu)==0x563412u&&!(e->sequence&1));
+  assert(!xz_mods_led_pad_probe_v1.entry[1][1][0].seen&&!xz_mods_led_pad_probe_v1.entry[0][1][1].seen);
+  xz_native_led_pad_probe(pads,sizeof pads,2,2,-1);xz_native_led_pad_probe(pads,sizeof pads,2,3,1);
+  xz_native_led_pad_probe(pads,sizeof pads-1,2,2,1);
+  assert(e->seen==2);
  }
  puts("PASS native LED packet bounds, colors, mute, DECK 3/4 hot cues, existing-record-only transport, stock ownership and channel isolation");
 }

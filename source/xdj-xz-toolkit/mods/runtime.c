@@ -60,6 +60,8 @@ struct pad_trace_record { uint32_t key,operation_byte,channel,mode,decoded,deck,
 struct pad_trace { uint32_t version,sequence,count,enabled;struct pad_trace_record records[64]; };
 __attribute__((visibility("default"))) struct pad_trace xz_mods_pad_trace_v1 = {1,0,0,0,{{0}}};
 __attribute__((visibility("default"),used)) struct xz_deck_input_trace xz_mods_deck_input_trace_v1;
+__attribute__((visibility("default"),used)) struct xz_deck_input_codes xz_mods_deck_input_codes_v1;
+static struct xz_deck_input_motion deck_input_motion;
 
 static int enabled(const char *name) {
     const char *value = getenv(name);
@@ -304,6 +306,9 @@ static int deck_route(void *self, const void *input) {
     struct xz_ds_key key;
     if (!xz_ds_key_decode(self, input, &key)) return 0;
     struct xz_extra_route route = xz_extra_decks_route();
+    xz_deck_input_codes_write(&xz_mods_deck_input_codes_v1,&key,XZ_DECK_TRACE_FALLBACK,0,
+        xz_extra_decks_control_revision(),
+        xz_game_milliseconds());
     struct xz_extra_decks feedback;
     int have_feedback=route.route_up&&(key.code==XZ_DS_KEY_SHIFT||key.code==XZ_DS_KEY_TEMPO)&&xz_extra_decks_snapshot(&feedback);
     pthread_mutex_lock(&deck_mutex);
@@ -313,13 +318,18 @@ static int deck_route(void *self, const void *input) {
     struct xz_ds_outcome outcome = xz_deck_select_key(&deck_select, &key, input_ms);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
-    xz_deck_input_trace_write(&xz_mods_deck_input_trace_v1,&key,XZ_DECK_TRACE_FALLBACK,outcome.verdict,
+    xz_deck_input_trace_write_motion(&xz_mods_deck_input_trace_v1,&deck_input_motion,&key,XZ_DECK_TRACE_FALLBACK,outcome.verdict,
         (left?1u:0u)|(right?2u:0u)|(route.route_up?4u:0u)|(route.available?8u:0u),input_ms);
     return deck_outcome(&outcome, left, right, route.available, key.code);
 }
 
 int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operation) {
     if (!installed || observer || (channel != 1 && channel != 2)) return 0;
+    {
+        struct xz_ds_key seen={.side=(int)channel-1,.code=code,.op=operation};
+        xz_deck_input_codes_write(&xz_mods_deck_input_codes_v1,&seen,XZ_DECK_TRACE_GLOBAL_KEY,0,
+            xz_extra_decks_control_revision(),xz_game_milliseconds());
+    }
     /* Every key passes the global hook: only SHIFT and the GLOBAL-path rows take the lock. */
     const struct xz_ds_row *row = code == XZ_DS_KEY_SHIFT ? NULL : xz_ds_row_for(code, NULL);
     if (code != XZ_DS_KEY_SHIFT && (!row || row->path != XZ_DS_PATH_GLOBAL)) return 0;
@@ -336,7 +346,7 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
     struct xz_ds_outcome outcome = xz_deck_select_global_key(&deck_select, channel, code, operation, input_ms);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
-    xz_deck_input_trace_write(&xz_mods_deck_input_trace_v1,&trace_key,XZ_DECK_TRACE_GLOBAL_KEY,outcome.verdict,
+    xz_deck_input_trace_write_motion(&xz_mods_deck_input_trace_v1,&deck_input_motion,&trace_key,XZ_DECK_TRACE_GLOBAL_KEY,outcome.verdict,
         (left?1u:0u)|(right?2u:0u)|(route.route_up?4u:0u)|(route.available?8u:0u),input_ms);
     /* Native MASTER requests return the software group to the effective native master.
        The stock event still arbitrates ON/OFF; the pressed side is not a master identity. */
@@ -401,6 +411,9 @@ int xz_runtime_deck_global_input(void *self, const void *input) {
     if (!installed || observer || !input) return 0;
     const unsigned char *packet=input;
     struct xz_ds_key key;
+    if(xz_ds_key_decode_global(input,&key))
+     xz_deck_input_codes_write(&xz_mods_deck_input_codes_v1,&key,XZ_DECK_TRACE_GLOBAL,0,
+         xz_extra_decks_control_revision(),xz_game_milliseconds());
     if(!xz_ds_key_decode_global(input,&key)||!xz_runtime_deck_early_key(key.code)||
        (self&&((const unsigned char *)self)[0x26]!=packet[10]))return 0;
     pthread_mutex_lock(&deck_mutex);
@@ -427,7 +440,7 @@ int xz_runtime_deck_global_input(void *self, const void *input) {
     pthread_mutex_unlock(&deck_mutex);
     if(outcome.verdict==XZ_DS_PASS&&key.code==0x4305&&key.op==4&&key.delta&&xz_shell_runtime_native_input)
      xz_shell_runtime_native_input(key.side,input_ms);
-    xz_deck_input_trace_write(&xz_mods_deck_input_trace_v1,&key,XZ_DECK_TRACE_GLOBAL,outcome.verdict,
+    xz_deck_input_trace_write_motion(&xz_mods_deck_input_trace_v1,&deck_input_motion,&key,XZ_DECK_TRACE_GLOBAL,outcome.verdict,
         (left?1u:0u)|(right?2u:0u)|(route.route_up?4u:0u)|(route.available?8u:0u),input_ms);
     return deck_outcome(&outcome,left,right,route.available,key.code);
 }
@@ -510,6 +523,7 @@ __attribute__((constructor)) static void start(void) {
     observer = enabled("XZ_MODS_OBSERVER");
     xz_mods_pad_trace_v1.enabled = enabled("XZ_MODS_PAD_TRACE");
     xz_deck_input_trace_init(&xz_mods_deck_input_trace_v1,enabled("XZ_MODS_DECK_INPUT_TRACE"));
+    xz_deck_input_codes_init(&xz_mods_deck_input_codes_v1,enabled("XZ_MODS_DECK_INPUT_TRACE"));
     xz_cue_init(&cues, xz_cue_native_api(&native));
     xz_cue_settings(&cues, 0, 0);
     xz_deck_select_init(&deck_select);

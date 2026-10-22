@@ -142,22 +142,34 @@ static void test_routing(void) {
  o = ev(LEFT, 0x4108, 0, 1, 0, 0);
  assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_MASTER_TEMPO && o.event.shift);
  key(LEFT, 0x4108, 2);
- /* Pads in the software deck's HOT CUE mode; any other pad mode swallows them. */
+ /* Pads always reach the software deck, which applies its own pad mode. */
  o = key(LEFT, 0x411b, 0);
  assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_HOT_CUE && o.event.hot_cue == 2);
  o = key(LEFT, 0x411b, 2);
  assert(o.verdict == XZ_DS_DELIVER && o.event.hot_cue == 2 && !o.event.pressed);
- assert(key(LEFT, 0x4116, 0).verdict == XZ_DS_SWALLOW);
- key(LEFT, 0x4116, 2);
- assert(key(LEFT, 0x4119, 0).verdict == XZ_DS_SWALLOW && key(LEFT, 0x4119, 2).verdict == XZ_DS_SWALLOW);
- assert(ev(LEFT, 0x4114, 0, 1, 0, 0).verdict == XZ_DS_SWALLOW && !d.side[LEFT].extra_hot_cue);
- key(LEFT, 0x4114, 0); key(LEFT, 0x4114, 2);
+ /* Pad-mode buttons HOT CUE, BEAT LOOP, SLIP LOOP, BEAT JUMP go to the software deck with their mode;
+    the native deck's pad mode never changes. 0x4118 stays swallowed. */
+ for(int mode = 0; mode < 4; mode++) {
+  o = ev(LEFT, (uint16_t)(0x4114 + mode), 0, mode == 0, 0, 0);
+  assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_PAD_MODE && o.event.hot_cue == mode &&
+         o.event.pressed && o.event.shift == (mode == 0));
+  o = key(LEFT, (uint16_t)(0x4114 + mode), 2);
+  assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_PAD_MODE && o.event.hot_cue == mode && !o.event.pressed);
+  assert(key(RIGHT, (uint16_t)(0x4114 + mode), 0).verdict == XZ_DS_PASS);
+  assert(key(RIGHT, (uint16_t)(0x4114 + mode), 2).verdict == XZ_DS_PASS);
+ }
+ assert(key(LEFT, 0x4118, 0).verdict == XZ_DS_SWALLOW && key(LEFT, 0x4118, 2).verdict == XZ_DS_SWALLOW);
+ o = key(LEFT, 0x4119, 0);
+ assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_HOT_CUE && o.event.hot_cue == 0);
+ o = key(LEFT, 0x4119, 2);
+ assert(o.verdict == XZ_DS_DELIVER && o.event.hot_cue == 0 && !o.event.pressed);
  assert(key(LEFT, 0x4120, 0).event.hot_cue == 7);
  key(LEFT, 0x4120, 2);
  static const struct { uint16_t key; enum xz_extra_input kind; } controls[] = {
   {0x410d, XZ_EXTRA_IN_LOOP_IN}, {0x410e, XZ_EXTRA_IN_LOOP_OUT}, {0x410f, XZ_EXTRA_IN_RELOOP},
   {0x4104, XZ_EXTRA_IN_VINYL}, {0x4107, XZ_EXTRA_IN_TEMPO_RANGE}, {0x4109, XZ_EXTRA_IN_TEMPO_RESET},
-  {0x4324, XZ_EXTRA_IN_LOOP_DOUBLE}, {0x4325, XZ_EXTRA_IN_LOOP_HALF}
+  {0x4324, XZ_EXTRA_IN_LOOP_DOUBLE}, {0x4325, XZ_EXTRA_IN_LOOP_HALF},
+  {0x4110, XZ_EXTRA_IN_REVERSE}, {0x4111, XZ_EXTRA_IN_SLIP}
  };
  for (unsigned i = 0; i < sizeof controls / sizeof *controls; ++i) {
   o = key(LEFT, controls[i].key, 0);
@@ -170,7 +182,7 @@ static void test_routing(void) {
   assert(key(RIGHT, controls[i].key, 2).verdict == XZ_DS_PASS);
  }
  /* Unsupported per-deck keys never reach the native deck. */
- static const uint16_t swallowed[] = {0x4110, 0x4111,
+ static const uint16_t swallowed[] = {
   0x4121, 0x4122, 0x4126, 0x4127, 0x4128, 0x4312, 0x4212, 0x4213, 0x430f, 0x430b, 0x430c};
  for(size_t i = 0; i < sizeof swallowed / sizeof *swallowed; i++) {
   assert(key(LEFT, swallowed[i], 0).verdict == XZ_DS_SWALLOW);

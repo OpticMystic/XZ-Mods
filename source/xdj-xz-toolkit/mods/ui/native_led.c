@@ -75,11 +75,43 @@ size_t xz_native_led_apply(void *records,size_t bytes,unsigned count,
 
 int xz_extra_pad_led(const struct xz_extra_deck *deck,int pad,uint32_t *rgb,int *enabled){
  if(!deck||!rgb||!enabled||pad<0||pad>=XZ_EXTRA_HOT_CUES)return XZ_LED_STOCK;
- const struct xz_extra_cue *cue=&deck->hot_cue[pad];
- int lit=deck->loaded&&(deck->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES))&&cue->set;
- uint32_t color=cue->rgb&0xffffffu;
- *enabled=lit;*rgb=!lit?0:color?color:XZ_EXTRA_PAD_DEFAULT_RGB;
+ *enabled=0;*rgb=0;
+ if(!deck->loaded)return XZ_LED_REPLACE;
+ switch(deck->pad_mode){
+  case XZ_EXTRA_PAD_HOT_CUE:{
+   const struct xz_extra_cue *cue=&deck->hot_cue[pad];
+   int lit=(deck->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES))&&cue->set;
+   uint32_t color=cue->rgb&0xffffffu;
+   *enabled=lit;*rgb=!lit?0:color?color:XZ_EXTRA_PAD_DEFAULT_RGB;
+   break;
+  }
+  /* Every pad is available; the pad whose loop runs is marked (manual p.56: it flashes). */
+  case XZ_EXTRA_PAD_BEAT_LOOP:case XZ_EXTRA_PAD_SLIP_LOOP:
+   *enabled=1;
+   *rgb=deck->active_pad==pad?XZ_EXTRA_PAD_ACTIVE_RGB:
+        deck->pad_mode==XZ_EXTRA_PAD_BEAT_LOOP?XZ_EXTRA_PAD_BEAT_LOOP_RGB:XZ_EXTRA_PAD_SLIP_LOOP_RGB;
+   break;
+  case XZ_EXTRA_PAD_BEAT_JUMP:*enabled=1;*rgb=xz_jump_page2_color(pad);break;
+  default:break;
+ }
  return XZ_LED_REPLACE;
+}
+
+__attribute__((visibility("default"))) struct xz_led_pad_probe xz_mods_led_pad_probe_v1={.version=1};
+/* Native pad records by channel, native pad page and pad: the words and colour stock writes, so
+   software-deck pad colours can be matched to captured stock values. Same reader rule as the probe. */
+void xz_native_led_pad_probe(const void *records,size_t bytes,unsigned count,unsigned channel,int page){
+ const unsigned char *p=records;
+ if(!p||channel<1||channel>2||page<0||page>3||count>XZ_LED_MAX_RECORDS||bytes<(size_t)count*XZ_LED_RECORD_BYTES)return;
+ for(unsigned i=0;i<count;i++,p+=XZ_LED_RECORD_BYTES){
+  uint32_t id=word(p);if(word(p+4)!=channel||id<0x12||id>0x19)continue;
+  struct xz_led_pad_probe_entry *e=&xz_mods_led_pad_probe_v1.entry[channel-1][page][id-0x12];
+  __atomic_add_fetch(&e->sequence,1,__ATOMIC_ACQ_REL);
+  for(unsigned j=0;j<8;j++)__atomic_store_n(&e->words[j],word(p+8+j*4),__ATOMIC_RELAXED);
+  __atomic_store_n(&e->rgb,word(p+0x28),__ATOMIC_RELAXED);
+  if(e->seen!=UINT32_MAX)e->seen++;
+  __atomic_add_fetch(&e->sequence,1,__ATOMIC_RELEASE);
+ }
 }
 
 /* Only existing, non-forced records have a proven writable extent. The saved
@@ -97,23 +129,45 @@ size_t xz_native_led_extra_deck(void *records,size_t bytes,
  for(unsigned i=0;i<*count_io;i++){
   unsigned char *r=p+(size_t)i*XZ_LED_RECORD_BYTES;
   if(word(r+4)!=channel||r[0x18])continue;
-  uint32_t id=word(r),state;
-  switch(id){
-   case XZ_LED_ID_CUE:
-    state=d->loaded&&!d->playing&&d->elapsed_ms==d->cue_ms;break;
-   case XZ_LED_ID_PLAY_PAUSE:state=d->loaded&&d->playing;break;
-   case XZ_LED_ID_VINYL:state=d->loaded&&d->vinyl;break;
-   case XZ_LED_ID_BEAT_SYNC:state=d->loaded&&d->sync.locked;break;
-   case XZ_LED_ID_MASTER:state=d->loaded&&d->master;break;
-   case XZ_LED_ID_MASTER_TEMPO:state=d->loaded&&d->master_tempo;break;
-   case XZ_LED_ID_TEMPO_RESET:
-    state=d->loaded&&(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TEMPO))&&
-          d->tempo_x100==0;break;
-   default:continue; /* Loop, ring, reverse and timer semantics unqualified. */
-  }
+  int lamp=xz_extra_lamp(d,word(r));
+  if(lamp<0)continue;
+  uint32_t state=xz_led_written_state(lamp);
   if(word(r+0x10)!=state){put(r+0x10,state);changed++;}
  }
  return changed;
+}
+
+int xz_extra_lamp(const struct xz_extra_deck *d,uint32_t id){
+ if(!d)return -1;
+ int on=XZ_LED_STATE_ON,off=XZ_LED_STATE_OFF,flash=XZ_LED_STATE_BLINK;
+ int playing=d->loaded&&(d->playing||d->held_playing);
+ switch(id){
+  /* p.45: paused at the cue, CUE lights and PLAY/PAUSE flashes. Playing: both lit (owner, stock deck).
+     Paused away from the cue: CUE flashes (p.45 cue adjust). */
+  case XZ_LED_ID_PLAY_PAUSE:return !d->loaded?off:playing?on:flash;
+  case XZ_LED_ID_CUE:return !d->loaded?off:playing||d->elapsed_ms==d->cue_ms?on:flash;
+  /* pp.47-48: adjusting one loop end flashes that button rapidly and turns the other off. Otherwise
+     both are lit while a track plays or loops (owner, stock deck). */
+  case XZ_LED_ID_LOOP_IN:case XZ_LED_ID_LOOP_OUT:{
+   int self=id==XZ_LED_ID_LOOP_IN?1:2;
+   if(!d->loaded)return off;
+   if(d->loop.edit)return d->loop.edit==self?flash:off;
+   return playing||d->loop.active?on:off;
+  }
+  case XZ_LED_ID_RELOOP_EXIT:return d->loaded&&(d->loop.active||d->loop.stored)?on:off;
+  case XZ_LED_ID_REVERSE:return d->loaded&&d->reverse?on:off;            /* p.42 */
+  /* p.58: SLIP lights while on and flashes while playback continues in the background. */
+  case XZ_LED_ID_SLIP:return !d->slip?off:d->slip_active?flash:on;
+  case XZ_LED_ID_VINYL:return d->vinyl?on:off;                            /* p.43 */
+  case XZ_LED_ID_BEAT_SYNC:return d->loaded&&d->sync.requested?on:off;    /* p.64: SYNC on */
+  case XZ_LED_ID_MASTER:return d->loaded&&d->master?on:off;
+  case XZ_LED_ID_MASTER_TEMPO:return d->master_tempo?on:off;              /* p.42 */
+  case XZ_LED_ID_TEMPO_RESET:return d->tempo_reset?on:off;                /* p.35 */
+  case XZ_LED_ID_PAD_HOT_CUE:case XZ_LED_ID_PAD_BEAT_LOOP:
+  case XZ_LED_ID_PAD_SLIP_LOOP:case XZ_LED_ID_PAD_BEAT_JUMP:
+   return d->pad_mode==(int)(id-XZ_LED_ID_PAD_HOT_CUE)?on:off;
+  default:return -1; /* pads use apply(); jog ring and timers stay native */
+ }
 }
 
 #ifndef XZ_LED_PORTABLE_TEST
@@ -163,6 +217,8 @@ static void led_hook(void *player,void *packet) {
   }
  }
  xz_native_led_probe((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel);
+ xz_native_led_pad_probe((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,
+                         mode==0?0:(mode>=2&&mode<=4?(int)mode-1:-1));
  xz_native_led_keysync((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,
                       xz_ui_runtime_key_synced((int)channel-1),&xz_led_keysync_mapping);
  xz_led_color_fn color=xz_ui_runtime_pad_color;

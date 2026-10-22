@@ -239,7 +239,7 @@ static void pcp2(struct buf *b, uint32_t hot, uint8_t type, uint32_t ms, uint32_
  u32(b, hot); u8(b, type); u8(b, 0); u16(b, 0); u32(b, ms); u32(b, 0xffffffffu);
  u8(b, 0); pad_to(b, e + 40);
  u32(b, 4); u16(b, 'A'); u16(b, 0);
- u8(b, 1); u8(b, (uint8_t)(rgb >> 16)); u8(b, (uint8_t)(rgb >> 8)); u8(b, (uint8_t)rgb);
+ u8(b, rgb ? 1 : 0); u8(b, (uint8_t)(rgb >> 16)); u8(b, (uint8_t)(rgb >> 8)); u8(b, (uint8_t)rgb);
  pad_to(b, b->n + 4);
  close_section(b, e);
 }
@@ -281,10 +281,18 @@ static void build_analysis(void) {
 static void test_parsers(void) {
  struct xz_extra_cue hot[XZ_EXTRA_HOT_CUES];
  assert(xz_anlz_hot_cues(dat.b, dat.n, hot) == 1);
- assert(hot[1].set && hot[1].ms == 1200 && hot[1].rgb == 0 && !hot[0].set);
+ assert(hot[1].set && hot[1].ms == 1200 && hot[1].rgb == XZ_ANLZ_CUE_RGB && !hot[0].set);
  assert(xz_anlz_hot_cues(ext.b, ext.n, hot) == 2);
  assert(hot[0].set && hot[0].ms == 300 && hot[0].rgb == 0x305aff && hot[7].set && hot[7].ms == 1500 && !hot[1].set);
  assert(xz_anlz_hot_cues(two.b, two.n, hot) == -1);
+ /* Uncoloured rekordbox cues light green; uncoloured loops orange (manual p.54). */
+ static struct buf plain; file_start(&plain);
+ uint32_t list = open_section(&plain, "PCO2", 20);
+ u32(&plain, 1); u16(&plain, 2); u16(&plain, 0);
+ pcp2(&plain, 3, 1, 700, 0); pcp2(&plain, 4, 2, 900, 0);
+ close_section(&plain, list); file_end(&plain);
+ assert(xz_anlz_hot_cues(plain.b, plain.n, hot) == 2);
+ assert(hot[2].rgb == XZ_ANLZ_CUE_RGB && hot[3].rgb == XZ_ANLZ_LOOP_RGB);
  struct xz_extra_beat *grid; uint32_t count; int32_t bpm;
  assert(!xz_anlz_beat_grid(dat.b, dat.n, &grid, &count, &bpm));
  assert(count == 4 && bpm == 12000 && grid[0].ms == 100 && grid[0].beat_in_bar == 1 && grid[3].ms == 1600 && grid[3].beat_in_bar == 4);
@@ -650,6 +658,197 @@ static void test_loop_and_range(void) {
  puts("PASS loop IN/OUT, bounded adjust, hold auto-loop, reloop, half/double, continuous wraps, per-deck isolation, tempo ranges/reset/WIDE zero");
 }
 
+/* Pad modes, DIRECTION REV, SLIP and VINYL SPEED ADJUST (manual pp.42-62). Track 1 has a 120 BPM grid
+   (beats at 100, 600, 1100, 1600 ms) and hot cues A = 300 ms, H = 1500 ms. */
+static void mode(int d, int m, int shift) {
+ struct xz_extra_deck_event e = event(d, XZ_EXTRA_IN_PAD_MODE, 1); e.hot_cue = m; e.shift = shift;
+ assert(input(e)); e.pressed = 0; assert(input(e)); step();
+}
+static void pad_key(int d, int index, int down) {
+ struct xz_extra_deck_event e = event(d, XZ_EXTRA_IN_HOT_CUE, down); e.hot_cue = index;
+ assert(input(e)); step();
+}
+static int near_frames(uint64_t a, uint64_t b, uint64_t slack) { return a > b ? a - b <= slack : b - a <= slack; }
+static void test_controls(void) {
+ wire_horizon = 0; position_interval = position_noise = position_blocked = 0; threaded_clock = 0;
+ struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
+ p = xz_xp_create(&env); assert(p);
+ fake_route(9); step();
+ /* Settings work before a track is loaded. */
+ assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_HOT_CUE && view.deck[0].active_pad == -1);
+ mode(0, XZ_EXTRA_PAD_BEAT_LOOP, 0); assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_BEAT_LOOP);
+ mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 1); assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_BEAT_LOOP);
+ mode(0, XZ_EXTRA_PAD_HOT_CUE, 1); assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_NONE);
+ load(0, 1); load(1, 2);
+ assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_NONE && view.deck[0].active_pad == -1);
+ seek(0, 1000); pad_key(0, 0, 1); pad_key(0, 0, 0);
+ assert(debug(0).position == ms_frames(0, 1000) && !debug(0).loop_active); /* CALL: pads inert */
+
+ /* BEAT LOOP: 1 beat from the press, its pad exits, another pad resizes from the same IN. */
+ mode(0, XZ_EXTRA_PAD_BEAT_LOOP, 0);
+ seek(0, 700); hold(0, XZ_EXTRA_IN_PLAY, 1); advance(100);
+ pad_key(0, 2, 1); pad_key(0, 2, 0);
+ uint64_t in = debug(0).loop_in;
+ assert(debug(0).loop_active && view.deck[0].active_pad == 2 && near_frames(in, ms_frames(0, 800), ms_frames(0, 60)));
+ assert(debug(0).loop_out - in == ms_frames(0, 500));
+ for (int i = 0; i < 15; ++i) {
+  advance(100);
+  assert(debug(0).state == XZ_XP_PLAYING && debug(0).position >= in && debug(0).position < debug(0).loop_out);
+ }
+ assert(view.deck[0].loop.active && view.deck[0].loop.stored);
+ pad_key(0, 0, 1); pad_key(0, 0, 0);
+ assert(debug(0).loop_in == in && near_frames(debug(0).loop_out - in, ms_frames(0, 125), 1) && view.deck[0].active_pad == 0);
+ pad_key(0, 0, 1); pad_key(0, 0, 0);
+ assert(!debug(0).loop_active && view.deck[0].active_pad == -1 && debug(0).state == XZ_XP_PLAYING);
+ hold(0, XZ_EXTRA_IN_PLAY, 1);
+
+ /* BEAT JUMP: A/B are -/+1 beat, C/D 2, E/F 4, G/H 8; a set loop moves with the jump. */
+ mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 0); seek(0, 1000);
+ pad_key(0, 1, 1); pad_key(0, 1, 0); assert(debug(0).position == ms_frames(0, 1500));
+ pad_key(0, 0, 1); pad_key(0, 0, 0); assert(debug(0).position == ms_frames(0, 1000));
+ pad_key(0, 2, 1); pad_key(0, 2, 0); assert(debug(0).position == 0);
+ pad_key(0, 7, 1); pad_key(0, 7, 0); assert(debug(0).position == ms_frames(0, 2000));
+ mode(0, XZ_EXTRA_PAD_BEAT_LOOP, 0); seek(0, 600); pad_key(0, 2, 1); pad_key(0, 2, 0);
+ in = debug(0).loop_in;
+ mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 0); pad_key(0, 1, 1); pad_key(0, 1, 0);
+ assert(debug(0).loop_active && debug(0).loop_in == in + ms_frames(0, 500) && debug(0).loop_out == in + ms_frames(0, 1000));
+ assert(debug(0).position >= debug(0).loop_in && debug(0).position < debug(0).loop_out);
+ pad_key(0, 7, 1); pad_key(0, 7, 0); assert(debug(0).loop_in == in + ms_frames(0, 500)); /* past the end: refused */
+ hold(0, XZ_EXTRA_IN_RELOOP, 1); assert(!debug(0).loop_active);
+
+ /* SLIP LOOP: held pad loops, its release continues from the background position. */
+ mode(0, XZ_EXTRA_PAD_SLIP_LOOP, 0); seek(0, 300); hold(0, XZ_EXTRA_IN_PLAY, 1); advance(100);
+ pad_key(0, 4, 1);
+ in = debug(0).loop_in;
+ assert(debug(0).loop_active && debug(0).loop_out - in == ms_frames(0, 500) && view.deck[0].slip_active);
+ advance(800);
+ assert(debug(0).position >= in && debug(0).position < debug(0).loop_out);
+ pad_key(0, 4, 0);
+ assert(!debug(0).loop_active && !view.deck[0].slip_active && view.deck[0].active_pad == -1);
+ assert(debug(0).position > in + ms_frames(0, 700) && debug(0).position < in + ms_frames(0, 1000));
+ hold(0, XZ_EXTRA_IN_PLAY, 1);
+
+ /* SLIP + hot cue: plays from the cue while held, then returns to the background position. */
+ mode(0, XZ_EXTRA_PAD_HOT_CUE, 0); hold(0, XZ_EXTRA_IN_SLIP, 1); hold(0, XZ_EXTRA_IN_SLIP, 0);
+ assert(view.deck[0].slip && !view.deck[0].slip_active);
+ seek(0, 800); hold(0, XZ_EXTRA_IN_PLAY, 1); advance(50);
+ pad_key(0, 0, 1);
+ assert(debug(0).position >= ms_frames(0, 300) && debug(0).position < ms_frames(0, 400) && view.deck[0].slip_active);
+ advance(200); pad_key(0, 0, 0);
+ assert(!view.deck[0].slip_active && debug(0).position > ms_frames(0, 1000) && debug(0).position < ms_frames(0, 1200));
+
+ /* SLIP + REV: reverse while held, then the background position. */
+ seek(0, 500); advance(50);
+ uint64_t before = debug(0).position;
+ hold(0, XZ_EXTRA_IN_REVERSE, 1);
+ assert(view.deck[0].reverse && view.deck[0].slip_active);
+ advance(300);
+ assert(completed_tag(0) < before + ms_frames(0, 100));
+ hold(0, XZ_EXTRA_IN_REVERSE, 0);
+ assert(!view.deck[0].reverse && !view.deck[0].slip_active && debug(0).position > ms_frames(0, 750));
+ hold(0, XZ_EXTRA_IN_SLIP, 1); hold(0, XZ_EXTRA_IN_SLIP, 0); assert(!view.deck[0].slip);
+
+ /* DIRECTION REV: plays toward the start at the same rate, stops there, toggles off. */
+ seek(0, 1500); advance(20);
+ hold(0, XZ_EXTRA_IN_REVERSE, 1); hold(0, XZ_EXTRA_IN_REVERSE, 0);
+ assert(view.deck[0].reverse && debug(0).state == XZ_XP_PLAYING);
+ f.capture[0] = 1; advance(300);
+ uint64_t heard = completed_tag(0);
+ assert(heard < ms_frames(0, 1500) && heard > ms_frames(0, 1100));
+ assert(f.captured_frames[0] >= 32);
+ /* A reversed sine is again a sine, so the heard tags above prove direction; the block itself must be
+    one clean backward read with no seam. */
+ double best_back = 1e9;
+ for (uint64_t start = ms_frames(0, 1000); start <= ms_frames(0, 1600); ++start) {
+  double back = 0;
+  for (unsigned n = 0; n < f.captured_frames[0]; ++n)
+   back = fmax(back, fabs(f.captured[0][n * 2] - .5 * sin(6.283185307179586 * 440 * (double)(start - n) / 44100.0)));
+  best_back = fmin(best_back, back);
+ }
+ assert(best_back < .001);
+ advance(1800);
+ assert(debug(0).state == XZ_XP_CUED && debug(0).position == 0 && view.deck[0].reverse);
+ hold(0, XZ_EXTRA_IN_REVERSE, 1); hold(0, XZ_EXTRA_IN_REVERSE, 0); assert(!view.deck[0].reverse);
+
+ /* VINYL: PLAY/PAUSE brakes and starts at the VINYL SPEED ADJUST rate (p.45). */
+ hold(0, XZ_EXTRA_IN_VINYL, 1); hold(0, XZ_EXTRA_IN_VINYL, 0); assert(view.deck[0].vinyl);
+ seek(0, 200); hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(400);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0);
+ assert(debug(0).state == XZ_XP_PLAYING && view.deck[0].playing);
+ advance(200); assert(debug(0).state == XZ_XP_PLAYING);
+ advance(200); assert(debug(0).state == XZ_XP_CUED);
+ /* Pressed again mid-brake, playback speeds back up instead of stopping. */
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(400);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(100);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(600);
+ assert(debug(0).state == XZ_XP_PLAYING);
+ /* Knob: fully clockwise is slow, fully counterclockwise fast. */
+ struct xz_extra_deck_event knob = event(0, XZ_EXTRA_IN_VINYL_SPEED, 0);
+ knob.tempo_position = XZ_EXTRA_TEMPO_SPAN; assert(input(knob)); step();
+ seek(0, 200); assert(debug(0).state == XZ_XP_PLAYING);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(1000);
+ assert(debug(0).state == XZ_XP_PLAYING);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(100); /* speed back up */
+ knob.tempo_position = -XZ_EXTRA_TEMPO_SPAN; assert(input(knob)); step();
+ seek(0, 200); assert(debug(0).state == XZ_XP_PLAYING);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(60);
+ assert(debug(0).state == XZ_XP_CUED);
+ /* Normal (CDJ) mode pauses at once. */
+ hold(0, XZ_EXTRA_IN_VINYL, 1); hold(0, XZ_EXTRA_IN_VINYL, 0);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(100);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); assert(debug(0).state == XZ_XP_CUED);
+
+ /* Published lamp inputs. */
+ hold(0, XZ_EXTRA_IN_TEMPO_RESET, 1); assert(view.deck[0].tempo_reset);
+ hold(0, XZ_EXTRA_IN_TEMPO_RESET, 1); assert(!view.deck[0].tempo_reset);
+ seek(0, 500); hold(0, XZ_EXTRA_IN_PLAY, 1); advance(50);
+ hold(0, XZ_EXTRA_IN_LOOP_IN, 1); hold(0, XZ_EXTRA_IN_LOOP_IN, 0); advance(300);
+ hold(0, XZ_EXTRA_IN_LOOP_OUT, 1); hold(0, XZ_EXTRA_IN_LOOP_OUT, 0);
+ hold(0, XZ_EXTRA_IN_LOOP_OUT, 1); hold(0, XZ_EXTRA_IN_LOOP_OUT, 0);
+ assert(view.deck[0].loop.active && view.deck[0].loop.edit == 2);
+ assert(view.deck[1].pad_mode == XZ_EXTRA_PAD_HOT_CUE && !view.deck[1].reverse && !view.deck[1].slip);
+ assert(f.stale == 0);
+ xz_xp_destroy(p); p = NULL;
+ puts("PASS pad modes (CALL, BEAT LOOP exit/resize, BEAT JUMP and loop move, SLIP LOOP), SLIP hot cue and reverse, "
+      "DIRECTION REV to the start, VINYL brake/start ramps and knob range, lamp inputs");
+}
+
+
+static void test_coast_control_interactions(void) {
+ wire_horizon=0;position_interval=position_noise=position_blocked=0;threaded_clock=0;
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL};
+ for(int d=0;d<2;d++)for(int playing=0;playing<2;playing++){
+  p=xz_xp_create(&env);assert(p);fake_route(17);step();load(d,d?2:1);seek(d,500);
+  if(playing)press(d,XZ_EXTRA_IN_PLAY);
+  press(d,XZ_EXTRA_IN_VINYL);hold(d,XZ_EXTRA_IN_JOG_TOUCH,1);
+  struct xz_extra_deck_event e=event(d,XZ_EXTRA_IN_JOG_TURN,1);
+  e.jog.speed_known=1;assert(input(e));step();
+  e.jog.delta=1;e.jog.speed_known=0;assert(input(e));step();
+  hold(d,XZ_EXTRA_IN_JOG_TOUCH,0);
+  assert(debug(d).state==XZ_XP_SCRATCHING); /* newer motion supersedes the old stop */
+  press(d,XZ_EXTRA_IN_PLAY);
+  assert(debug(d).state==(playing?XZ_XP_CUED:XZ_XP_PLAYING)); /* coast cancel has priority over braking */
+  xz_xp_destroy(p);p=NULL;
+ }
+ for(int d=0;d<2;d++)for(int playing=0;playing<2;playing++)for(int end=1;end<=2;end++){
+  p=xz_xp_create(&env);assert(p);fake_route(19);step();load(d,d?2:1);seek(d,500);
+  if(playing)press(d,XZ_EXTRA_IN_PLAY);
+  press(d,XZ_EXTRA_IN_LOOP_IN);seek(d,800);press(d,XZ_EXTRA_IN_LOOP_OUT);
+  press(d,end==1?XZ_EXTRA_IN_LOOP_IN:XZ_EXTRA_IN_LOOP_OUT);
+  struct xz_xp_debug prior=debug(d);assert(prior.loop_active&&prior.loop_edit==end);
+  struct xz_extra_deck_event e=event(d,XZ_EXTRA_IN_JOG_TURN,1);e.jog.speed_known=1;
+  for(int i=0;i<11;i++){
+   assert(input(e));step();
+   assert(debug(d).generation==prior.generation);
+   assert(debug(d).loop_in==prior.loop_in&&debug(d).loop_out==prior.loop_out);
+   advance(1000);
+  }
+  assert(!debug(d).loop_edit); /* idle packets cannot renew the ten-second adjustment deadline */
+  xz_xp_destroy(p);p=NULL;
+ }
+ puts("PASS coast/control interactions: stale stop then unknown-speed motion, PLAY cancellation, idle loop audio and timeout");
+}
+
 static void test_vinyl(void) {
  struct xz_xp_env env = {{NULL, fake_link, fake_submit, fake_flush, fake_position, fake_transition}, now_ms, resolve, master_bpm, NULL, NULL};
  p=xz_xp_create(&env);assert(p);
@@ -696,6 +895,7 @@ static void test_vinyl(void) {
  hold(0,XZ_EXTRA_IN_JOG_TOUCH,0);advance(100);
  assert(debug(0).state==XZ_XP_PLAYING&&debug(0).position>at&&view.deck[0].playing);
  hold(0,XZ_EXTRA_IN_PLAY,1);
+ assert(debug(0).state==XZ_XP_PLAYING);advance(400);assert(debug(0).state==XZ_XP_CUED);
  hold(0,XZ_EXTRA_IN_JOG_TOUCH,1);at=debug(0).position;
  jog(0,6);step();advance(100);
  hold(0,XZ_EXTRA_IN_JOG_TOUCH,0);
@@ -1260,13 +1460,15 @@ static void test_threads(void) {
 #include "test_extra_player_recovery.h"
 #include "test_extra_player_release.h"
 #include "test_extra_player_trajectory.h"
+#include "test_extra_player_held_controls.h"
 
 int main(int argc, char **argv) {
- assert(argc == 2);
+ assert(argc == 2 || argc == 3);
  assert(!pthread_mutex_init(&f.lock, NULL));
  snprintf(fixtures, sizeof fixtures, "%s", argv[1]);
  snprintf(anlz_dir, sizeof anlz_dir, "%s/anlz", argv[1]);
  build_analysis();
+ if(argc==3){if(!strcmp(argv[2],"held-controls"))return test_held_controls()?0:1;assert(!strcmp(argv[2],"controls-coast"));test_coast_control_interactions();return 0;}
  test_parsers();
  test_players();
  test_loop_and_range();
@@ -1287,6 +1489,10 @@ int main(int argc, char **argv) {
  test_reconnect_during_render();
 #endif
  test_threads();
+ /* Last: the SYNC sparse-noise cases depend on the fake transport's per-side position-call phase. */
+ test_controls();
+ test_coast_control_interactions();
+ if(!test_held_controls())return 1;
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
         "tempo rate, jog bend decay and search, SYNC, MASTER TEMPO, SEEK, EOF, 44.1/48 kHz, load while playing, "
         "retire grace, resolver and read failures, route down, full queue, threaded snapshots (%lu)\n", snapshots);

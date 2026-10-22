@@ -70,9 +70,21 @@ static inline int xz_stem_pad_led(int role,const int stem_colors[3],unsigned mut
 /* Existing records only. REPLACE sets rgb and brightness; HUE changes only RGB, scaled by native intensity; on/off/blink stay native. */
 size_t xz_native_led_apply(void *records,size_t bytes,unsigned count,
                            unsigned channel,xz_led_color_fn color);
-/* Updates only qualified on/off state in existing same-channel, non-forced
-   transport records. No insertion, index writes, blink/timer or loop fields.
-   Missing native records remain unchanged; hot cue colors use apply(). */
+/* The lamp a software deck shows on one LED record id, per the XDJ-XZ manual (DRI1625B pp.40-64)
+   and the owner's stock-deck observations; -1 leaves the native record alone. Pure. */
+int xz_extra_lamp(const struct xz_extra_deck *deck, uint32_t id);
+/* How a lamp state is written to a record's +0x10 word. Flashing is written only once a native
+   flashing record has been captured (XZ_LED_BLINK_QUALIFIED); until then a flash is written OFF, so
+   a lamp never claims a state the deck is not in. */
+#ifndef XZ_LED_BLINK_QUALIFIED
+#define XZ_LED_BLINK_QUALIFIED 0
+#endif
+static inline uint32_t xz_led_written_state(int state){
+ return state==XZ_LED_STATE_ON?1u:(state==XZ_LED_STATE_BLINK&&XZ_LED_BLINK_QUALIFIED)?(uint32_t)XZ_LED_STATE_BLINK:0u;
+}
+/* Updates the state word of existing same-channel, non-forced records from xz_extra_lamp().
+   No insertion or index writes: a record the native packet does not carry stays missing.
+   Hot cue pad colours use apply(). */
 size_t xz_native_led_extra_deck(void *records,size_t capacity_bytes,
                                 uint16_t *count_io,uint16_t *index_table,
                                 unsigned max_rows,unsigned num_channels,
@@ -87,9 +99,20 @@ struct xz_led_probe_entry { uint32_t sequence,seen,id,changes,words[8]; };
 struct xz_led_probe { uint32_t version,overflow[2]; struct xz_led_probe_entry entry[2][XZ_LED_PROBE_IDS]; };
 extern struct xz_led_probe xz_mods_led_probe_v1;
 void xz_native_led_probe(const void *,size_t,unsigned,unsigned);
-/* A DECK 3 / DECK 4 hot-cue pad (pad 0..7 = A..H): a stored cue lit in its colour, an empty pad or
-   unknown cues off. Always XZ_LED_REPLACE so no native pad state shows through. */
+/* A DECK 3 / DECK 4 pad (pad 0..7 = A..H) in the deck's pad mode: HOT CUE lights stored cues in their
+   colour; BEAT LOOP / SLIP LOOP / BEAT JUMP light every pad. Always XZ_LED_REPLACE so no native pad
+   state shows through. */
 #define XZ_EXTRA_PAD_DEFAULT_RGB 0x00ff00u
+/* Beat loop / slip loop pad colours: provisional until xz_mods_led_pad_probe_v1 captures the stock
+   values for those pages. The pad whose loop runs is white because a flash is not yet qualified. */
+#define XZ_EXTRA_PAD_BEAT_LOOP_RGB 0xff6000u
+#define XZ_EXTRA_PAD_SLIP_LOOP_RGB 0x0060ffu
+#define XZ_EXTRA_PAD_ACTIVE_RGB 0xffffffu
+struct xz_led_pad_probe_entry { uint32_t sequence,seen,words[8],rgb; };
+struct xz_led_pad_probe { uint32_t version; struct xz_led_pad_probe_entry entry[2][4][8]; };
+_Static_assert(sizeof(struct xz_led_pad_probe)==4+2*4*8*44,"Pad probe ABI");
+extern struct xz_led_pad_probe xz_mods_led_pad_probe_v1;
+void xz_native_led_pad_probe(const void *,size_t,unsigned,unsigned,int page);
 int xz_extra_pad_led(const struct xz_extra_deck *deck,int pad,uint32_t *rgb,int *enabled);
 int xz_native_led_start(void);
 void xz_native_led_stop(void);

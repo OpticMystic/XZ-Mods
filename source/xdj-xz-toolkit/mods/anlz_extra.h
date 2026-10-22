@@ -10,9 +10,12 @@
 #include "extra_decks.h"
 
 /* Hot cues from ANLZ0000.EXT (PCO2 list type 1, PCP2 entries with colours) or ANLZ0000.DAT (PCOB list
-   type 1, PCPT entries, no colour: rgb 0). Entry hot_cue 1..8 is pad A..H; a stored loop counts as a
+   type 1, PCPT entries, no colour: the default colour below). Entry hot_cue 1..8 is pad A..H; a stored loop counts as a
    cue at its start. Returns the number of pads set, -1 when the file has no hot cue list. */
 int xz_anlz_hot_cues(const uint8_t *file, size_t n, struct xz_extra_cue out[XZ_EXTRA_HOT_CUES]);
+/* Colour of a hot cue rekordbox left uncoloured (and every PCPT cue): green, orange for a loop. */
+#define XZ_ANLZ_CUE_RGB 0x00ff00u
+#define XZ_ANLZ_LOOP_RGB 0xff8000u
 
 /* The PQTZ beat grid of ANLZ0000.DAT: {beat in bar 1..4, BPM x100, time ms} per beat. *grid is
    malloc'd; *bpm_x100 is the first beat's tempo (0 when none). 0 = found. */

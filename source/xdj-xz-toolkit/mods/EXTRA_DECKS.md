@@ -18,7 +18,15 @@ Existing native routing remains in use when that side selects deck 1 or 2.
 | --- | --- |
 | SHIFT twice / existing deck selector | Switch the side between its native and software player; tempo pickup prevents an immediate fader jump. |
 | LOAD | Existing Classic or FLAGSHIP browser path loads the selected track into the assigned software player. |
-| PLAY / CUE / hot-cue pads | Existing independent transport, back cue, cue audition and hot-cue behavior. |
+| PLAY / CUE | Existing independent transport, back cue and cue audition. In VINYL mode PLAY/PAUSE brakes to a stop and starts up at the VINYL SPEED ADJUST rate (manual p.45); pressed again during a brake, playback speeds back up. |
+| HOT CUE / BEAT LOOP / SLIP LOOP / BEAT JUMP | Set the software deck's pad mode; the native deck's mode is unchanged. SHIFT + HOT CUE (CALL) makes the pads inert. |
+| Pads, HOT CUE mode | Store, play and (SHIFT) clear hot cues. With SLIP on, a held hot cue plays from the cue and its release returns to the background position. |
+| Pads, BEAT LOOP mode | 1/4, 1/2, 1, 2 / 4, 8, 16, 32 beats from the press (p.56). The running loop's pad exits it; another pad resizes it from the same IN. |
+| Pads, SLIP LOOP mode | 1/16, 1/8, 1/4, 1/2 / 1, 2, 1/3, 3/4 beats while held; release continues from the background position (p.62). |
+| Pads, BEAT JUMP mode | A/B back/forward 1 beat, C/D 2, E/F 4, G/H 8 (pp.56-57). With a loop set the loop moves. The pair layout is assumed from Pioneer's usual order; confirm on a stock deck. |
+| DIRECTION REV | Toggle reverse playback at the same rate; it stops at the track start (p.42). With SLIP on, held: reverse while down, then the background position on release or after eight beats (p.59). |
+| SLIP | Toggle slip. Beat/slip loops, manual loops and held hot cues then continue in the background; RELOOP/EXIT returns to the background position (p.61). |
+| VINYL SPEED ADJUST | Brake/start time from 30 ms (counterclockwise) to 3 s (clockwise), ~300 ms at the centre. The player accepts the knob, but its key code is unknown, so no input reaches it yet and the centre value is used. |
 | TEMPO RANGE | Cycle ±6%, ±10%, ±16%, WIDE. WIDE covers stopped speed through +100%. |
 | TEMPO RESET | Toggle original speed; retain the fader setting for release from reset. |
 | SYNC | Match the native master's BPM once and rearm tempo pickup. This is not beat-phase synchronization. |
@@ -132,11 +140,24 @@ as unverified. Synthetic pitch tests do not establish subjective music quality.
 - AAC/M4A remains unsupported: the local inventory found no portable AAC
   decoder plus MP4 demux/seek/edit-list implementation that could be qualified
   for ARM32 soft-float and GLIBC_2.4.
-- Jog-display output and physical PLAY/CUE LED ownership remain unimplemented.
-  The stopped jog-display analysis has not been resumed. Existing hot-cue pad
-  LEDs are separate from those gaps.
-- Reverse/slip modes, quantize, memory cues and native-equivalent beat-phase
-  sync are not provided by this candidate.
+- Lamps follow the manual's states (`xz_extra_lamp`, ui/native_led.c): PLAY lit
+  while playing and flashing when paused; CUE lit while playing or at the cue,
+  flashing elsewhere; LOOP IN/OUT lit while playing or looping, with the adjusted
+  end flashing and the other off (pp.47-48); RELOOP/EXIT, REV, SLIP, VINYL, SYNC
+  (while on), MASTER, MASTER TEMPO, TEMPO RESET and the pad-mode buttons. Two
+  limits remain. The hook only edits records the native packet already carries,
+  and a flash is written as OFF until `XZ_LED_BLINK_QUALIFIED` is set from a
+  captured native flashing record. `read_feedback_capture.py` reads the native
+  status records, the native pad colours per pad page and the code table that
+  qualifies both and finds the VINYL SPEED ADJUST code.
+- Beat-loop/slip-loop pad colours are provisional (`XZ_EXTRA_PAD_*_RGB`) until
+  the pad probe captures the stock values. Uncoloured rekordbox hot cues light
+  green, loops orange (p.54).
+- Jog-display output remains with the root thread. The stopped jog-display
+  analysis has not been resumed here.
+- Touch deceleration in VINYL mode and slip during scratching belong to the
+  jog-coast work and are not changed here. Quantize, memory cues and
+  native-equivalent beat-phase sync are not provided by this candidate.
 
 `audio/usb_transport` remains byte-identical to its recorded upstream source.
 The player and new stretch module retain GPL-2.0-only notices; the AIFF reader

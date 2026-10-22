@@ -21,19 +21,20 @@ static const struct xz_ds_row rows[] = {
  ROW(0x410a, 0x410a, DELIVER, PLAYER, XZ_EXTRA_IN_TEMPO),      /* op 5, through pickup */
  ROW(0x4313, 0x4313, DELIVER, PLAYER, XZ_EXTRA_IN_SYNC),
  ROW(0x4108, 0x4108, DELIVER, PLAYER, XZ_EXTRA_IN_MASTER_TEMPO),
- /* Pads A..H: HOT_CUE while the software deck's pad mode is HOT CUE, otherwise swallowed. */
+ /* Pads A..H: the software deck applies its own pad mode (HOT CUE, BEAT LOOP, SLIP LOOP, BEAT JUMP). */
  ROW(0x4119, 0x4120, DELIVER, PLAYER, XZ_EXTRA_IN_HOT_CUE),
- /* Pad mode buttons: they set the software deck's pad mode (HOT CUE alone, without SHIFT, is HOT CUE)
-    and never change the native deck's. */
- ROW(0x4114, 0x4118, SWALLOW, PLAYER, NONE),
+ /* Pad mode buttons HOT CUE, BEAT LOOP, SLIP LOOP, BEAT JUMP (cue/native.c mode_button order) set the
+    software deck's pad mode and never change the native deck's. 0x4118 has no documented meaning. */
+ ROW(0x4114, 0x4117, DELIVER, PLAYER, XZ_EXTRA_IN_PAD_MODE),
+ ROW(0x4118, 0x4118, SWALLOW, PLAYER, NONE),
  ROW(0x4104, 0x4104, DELIVER, PLAYER, XZ_EXTRA_IN_VINYL),
  ROW(0x4107, 0x4107, DELIVER, PLAYER, XZ_EXTRA_IN_TEMPO_RANGE),
  ROW(0x4109, 0x4109, DELIVER, PLAYER, XZ_EXTRA_IN_TEMPO_RESET),
  ROW(0x410d, 0x410d, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_IN),
  ROW(0x410e, 0x410e, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_OUT),
  ROW(0x410f, 0x410f, DELIVER, PLAYER, XZ_EXTRA_IN_RELOOP),
- /* REVERSE and SLIP remain owned by the software side but have no input yet. */
- ROW(0x4110, 0x4111, SWALLOW, PLAYER, NONE),
+ ROW(0x4110, 0x4110, DELIVER, PLAYER, XZ_EXTRA_IN_REVERSE),
+ ROW(0x4111, 0x4111, DELIVER, PLAYER, XZ_EXTRA_IN_SLIP),
  /* SEARCH FWD/REV, CUE/LOOP DELETE and MEMORY, NEEDLE SEARCH, MASTER, CUE/LOOP CALL NEXT/PREV,
     all move or change the deck they reach. */
  ROW(0x4121, 0x4122, SWALLOW, PLAYER, NONE),
@@ -101,7 +102,6 @@ int xz_ds_pickup_feed(struct xz_ds_pickup *p, int32_t position) {
 void xz_deck_select_init(struct xz_deck_select *d) {
  memset(d, 0, sizeof *d);
  for(int i = 0; i < 2; i++) {
-  d->side[i].extra_hot_cue = 1;
   /* A software deck starts at 0 % tempo: the fader centre. */
   d->side[i].held_known[XZ_DS_EXTRA] = 1;
  }
@@ -218,13 +218,13 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
  if(k->op == 0) {
   if(!away) { s->owner[XZ_DS_NATIVE] |= bit; return; }
   if(row->kind==XZ_EXTRA_IN_SYNC){s->owner[XZ_DS_EXTRA]|=bit;out->verdict=XZ_DS_SWALLOW;return;}
-  if(k->code >= 0x4114 && k->code <= 0x4118) s->extra_hot_cue = k->code == 0x4114 && !k->shift;
   int pad = k->code >= 0x4119 && k->code <= 0x4120;
-  if(row->cls != XZ_DS_ROW_DELIVER || (pad && !s->extra_hot_cue)) { out->verdict = XZ_DS_SWALLOW; return; }
+  if(row->cls != XZ_DS_ROW_DELIVER) { out->verdict = XZ_DS_SWALLOW; return; }
   s->owner[XZ_DS_EXTRA] |= bit;
   deliver(out, side, (enum xz_extra_input)row->kind, k);
   out->event.pressed = 1;
   if(pad) out->event.hot_cue = (int)(k->code - 0x4119);
+  if(row->kind == XZ_EXTRA_IN_PAD_MODE) out->event.hot_cue = (int)(k->code - 0x4114);
   return;
  }
  /* Hold and release follow whoever received the press, so neither deck is left with a key down. */
@@ -245,6 +245,7 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
   }
   deliver(out, side, (enum xz_extra_input)row->kind, k);
   if(k->code >= 0x4119 && k->code <= 0x4120) out->event.hot_cue = (int)(k->code - 0x4119);
+  if(row->kind == XZ_EXTRA_IN_PAD_MODE) out->event.hot_cue = (int)(k->code - 0x4114);
   return;
  }
  if(away) out->verdict = XZ_DS_SWALLOW;
