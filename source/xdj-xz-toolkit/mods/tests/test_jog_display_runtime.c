@@ -64,7 +64,33 @@ static struct xz_extra_deck make_extra_deck(uint32_t at_ms,uint64_t source_frame
  return d;
 }
 
+static void bounded_loop_projection(void){
+ struct xz_extra_deck d=make_extra_deck(10000,7679998,1000000,0);
+ struct xz_jd_snapshot snapshot;
+ d.total_ms=7679999;d.timeline.source_rate=1000;
+ d.loop.active=1;d.loop.in_ms=100;d.loop.out_ms=101;
+ assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&snapshot));
+ assert(snapshot.position_ms==100);
+ d.timeline.source_rate=44100;d.loop.out_ms=173;
+ for(uint64_t frame=4410;frame<441000;frame+=1009){
+  d.timeline.source_frame=frame;
+  uint64_t remainder=(frame*1000-100*44100)%(73*44100);
+  uint32_t expected=100+(uint32_t)((2*remainder+44100)/(2*44100));
+  assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&snapshot));
+  assert(snapshot.position_ms==expected);
+ }
+ d.timeline.source_rate=1;d.timeline.source_frame=UINT64_MAX;
+ d.loop.out_ms=101;
+ puts("CHECK malformed source must not hang loop projection");fflush(stdout);
+ assert(!xz_jog_display_snapshot_from_deck(0,&d,10000,&snapshot));
+ d.timeline.source_frame=3000000;
+ d.loop.in_ms=INT32_MIN;d.loop.out_ms=INT32_MAX;
+ assert(!xz_jog_display_snapshot_from_deck(0,&d,10000,&snapshot));
+ puts("PASS bounded loop projection, fractional source positions and corrupt-anchor rejection");
+}
+
 int main(void){
+ bounded_loop_projection();
  sim_now_ms=10000;sim_ctrl=8u|4u; /* AVAILABLE | ROUTE, native sides */
  sim_seq[0]=sim_seq[1]=100;
  struct xz_jog_display_test_ops ops={fake_orig_assemble,fake_now_ms,fake_ctrl};
