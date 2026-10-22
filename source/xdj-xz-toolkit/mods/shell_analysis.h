@@ -62,4 +62,6 @@ int xz_shana_cue_list(const char *dir, struct xz_shana_cue *out, int cap);
    {hot_cue 0, type 1 cue / 2 loop, time ms, loop end ms}. Sorted by time, at most XZ_SHELL_MEMORY_CUES.
    Returns the count, or -1 when the file or its cue list cannot be read. */
 int xz_shana_memory_cues(const char *dir, struct xz_shell_cue out[XZ_SHELL_MEMORY_CUES]);
+/* Active-loop flag from the DAT memory list; never inferred from an ordinary loop. */
+int xz_shana_active_loop(const char *dir, struct xz_shana_cue *out);
 #endif

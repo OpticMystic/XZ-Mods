@@ -78,7 +78,7 @@ int xz_extra_pad_led(const struct xz_extra_deck *deck,int pad,uint32_t *rgb,int 
  *enabled=0;*rgb=0;
  if(!deck->loaded)return XZ_LED_REPLACE;
  switch(deck->pad_mode){
-  case XZ_EXTRA_PAD_HOT_CUE:{
+  case XZ_EXTRA_PAD_HOT_CUE:case XZ_EXTRA_PAD_CALL:{
    const struct xz_extra_cue *cue=&deck->hot_cue[pad];
    int lit=(deck->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES))&&cue->set;
    uint32_t color=cue->rgb&0xffffffu;
@@ -123,7 +123,7 @@ size_t xz_native_led_extra_deck(void *records,size_t bytes,
                                 unsigned channel,const struct xz_extra_deck *d){
  unsigned char *p=records;size_t changed=0;
  (void)index_table;(void)max_rows;(void)num_channels;
- (void)dimmer;(void)now_ms;
+ (void)dimmer;
  if(!p||!count_io||!d||channel<1u||channel>2u||
     *count_io>XZ_LED_MAX_RECORDS||bytes<(size_t)*count_io*XZ_LED_RECORD_BYTES)return 0;
  for(unsigned i=0;i<*count_io;i++){
@@ -131,7 +131,7 @@ size_t xz_native_led_extra_deck(void *records,size_t bytes,
   if(word(r+4)!=channel||r[0x18])continue;
   int lamp=xz_extra_lamp(d,word(r));
   if(lamp<0)continue;
-  uint32_t state=xz_led_written_state(lamp);
+  uint32_t state=lamp==XZ_LED_STATE_BLINK?((now_ms/250u)&1u):xz_led_written_state(lamp);
   if(word(r+0x10)!=state){put(r+0x10,state);changed++;}
  }
  return changed;
@@ -165,7 +165,7 @@ int xz_extra_lamp(const struct xz_extra_deck *d,uint32_t id){
   case XZ_LED_ID_TEMPO_RESET:return d->tempo_reset?on:off;                /* p.35 */
   case XZ_LED_ID_PAD_HOT_CUE:case XZ_LED_ID_PAD_BEAT_LOOP:
   case XZ_LED_ID_PAD_SLIP_LOOP:case XZ_LED_ID_PAD_BEAT_JUMP:
-   return d->pad_mode==(int)(id-XZ_LED_ID_PAD_HOT_CUE)?on:off;
+   return d->pad_mode==(int)(id-XZ_LED_ID_PAD_HOT_CUE)||(id==XZ_LED_ID_PAD_HOT_CUE&&d->pad_mode==XZ_EXTRA_PAD_CALL)?on:off;
   default:return -1; /* pads use apply(); jog ring and timers stay native */
  }
 }

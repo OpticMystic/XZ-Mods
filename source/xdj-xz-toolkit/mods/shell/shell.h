@@ -129,6 +129,7 @@ struct xz_shell_deck {
  int32_t tempo_x100;                 /* 0.01 % */
  int tempo_range;                    /* percent; 100 = WIDE */
  int master_tempo, master, sync, playing, cue_standby;
+ int needle_locked;
  enum xz_shell_sync_status sync_status;
  int sync_master_deck;
  uint32_t master_scope;             /* bits for decks governed by this master; 12 means software3/4 only */

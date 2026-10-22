@@ -99,6 +99,7 @@ struct xz_extra_deck {
  /* stored: a loop RELOOP can return to; edit: 0 none, 1 LOOP IN adjust, 2 LOOP OUT adjust. */
  struct { int active; int32_t in_ms, out_ms; int stored, edit; } loop;
  int held_playing;                     /* a vinyl hold that resumes playback on release */
+ int platter_contact;                  /* physical TOP contact, distinct from released coast */
  int slip_active;                      /* SLIP: playback continues silently in the background */
  const struct xz_extra_beat *grid; uint32_t grid_count;
  struct xz_extra_wave wave;
@@ -110,7 +111,7 @@ struct xz_extra_deck {
    NONE is SHIFT + HOT CUE (CALL): the pads do nothing on a software deck. */
 enum xz_extra_pad_mode {
  XZ_EXTRA_PAD_HOT_CUE, XZ_EXTRA_PAD_BEAT_LOOP, XZ_EXTRA_PAD_SLIP_LOOP, XZ_EXTRA_PAD_BEAT_JUMP,
- XZ_EXTRA_PAD_NONE
+ XZ_EXTRA_PAD_NONE, XZ_EXTRA_PAD_CALL
 };
 
 enum xz_extra_mode { XZ_EXTRA_MODE_QUANTIZE, XZ_EXTRA_MODE_REMAIN, XZ_EXTRA_MODE_AUTO_CUE };
@@ -180,6 +181,8 @@ enum xz_extra_input {
  XZ_EXTRA_IN_AUTO_CUE,              /* TIME MODE held one second; shift: this deck only */
  XZ_EXTRA_IN_TRACK_PREV,            /* TRACK SEARCH back: start of the track; twice quickly: previous track */
  XZ_EXTRA_IN_SEARCH,                /* SEARCH held: hot_cue 0 forward, 1 back */            /* VINYL SPEED ADJUST: tempo_position, +SPAN fully clockwise = slowest */
+ XZ_EXTRA_IN_INSTANT_DOUBLES,
+ XZ_EXTRA_IN_LOOP_4_8,
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */

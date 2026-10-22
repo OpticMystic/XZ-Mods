@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 enum { LEFT, RIGHT };
 static struct xz_deck_select d;
@@ -158,7 +159,9 @@ static void test_routing(void) {
   assert(key(RIGHT, (uint16_t)(0x4114 + mode), 0).verdict == XZ_DS_PASS);
   assert(key(RIGHT, (uint16_t)(0x4114 + mode), 2).verdict == XZ_DS_PASS);
  }
- assert(key(LEFT, 0x4118, 0).verdict == XZ_DS_SWALLOW && key(LEFT, 0x4118, 2).verdict == XZ_DS_SWALLOW);
+ o=key(LEFT,0x4118,0);assert(o.verdict==XZ_DS_DELIVER&&o.event.kind==XZ_EXTRA_IN_LOOP_4_8&&o.event.pressed);
+ o=key(LEFT,0x4118,1);assert(o.verdict==XZ_DS_DELIVER&&o.event.kind==XZ_EXTRA_IN_LOOP_4_8&&o.event.held);
+ o=key(LEFT,0x4118,3);assert(o.verdict==XZ_DS_DELIVER&&!o.event.pressed);
  o = key(LEFT, 0x4119, 0);
  assert(o.verdict == XZ_DS_DELIVER && o.event.kind == XZ_EXTRA_IN_HOT_CUE && o.event.hot_cue == 0);
  o = key(LEFT, 0x4119, 2);
@@ -439,7 +442,8 @@ static void test_load_routes(void) {
   assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 2, now).verdict == follow);
   /* After the release the contact is over: a stray release passes. */
   assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_LOAD, 2, now).verdict == XZ_DS_PASS);
-  assert(xz_deck_select_global_key(&d,2,XZ_DS_KEY_LOAD,0,now).verdict==XZ_DS_LOAD);
+  o=xz_deck_select_global_key(&d,2,XZ_DS_KEY_LOAD,0,now);
+  assert(o.verdict==XZ_DS_DELIVER&&o.event.kind==XZ_EXTRA_IN_INSTANT_DOUBLES);
   xz_deck_select_global_key(&d,2,XZ_DS_KEY_LOAD,2,now);
  }
  /* A route given with no LOAD down changes nothing. */
@@ -546,6 +550,16 @@ static void test_global_track_restart(void) {
 }
 
 int main(void) {
+ for(int side=0;side<2;side++){
+  reset(1);double_press(side);
+  for(int end=0;end<3;end++){
+   struct xz_ds_outcome o=ev(side,0x4123,5,0,0,(float)end/2.f);
+   assert(o.verdict==XZ_DS_DELIVER&&o.event.kind==XZ_EXTRA_IN_VINYL_SPEED&&o.event.deck==side);
+   assert(o.event.tempo_position==(end-1)*XZ_EXTRA_TEMPO_SPAN);
+  }
+  assert(ev(side,0x4123,5,0,0,NAN).verdict==XZ_DS_SWALLOW);
+  assert(ev(side,0x4123,5,0,0,1.1f).verdict==XZ_DS_SWALLOW);
+ }
  test_global_track_restart();
  test_double_press();
  test_slow_presses();

@@ -42,7 +42,7 @@ int xz_anlz_hot_cues(const uint8_t *f, size_t n, struct xz_extra_cue out[XZ_EXTR
   if(count<0)count=0;
   for(uint32_t e=at+head;(uint64_t)e+44<=(uint64_t)at+total;){
    uint32_t eh=be32(f+e+4),et=be32(f+e+8);
-   if(memcmp(f+e,"PCP2",4)||eh<16||et<44||et>at+total-e)break;
+   if(memcmp(f+e,"PCP2",4)||eh<16||et<eh||et<44||et>at+total-e)break;
    uint32_t clen=be32(f+e+40),rgb=0;
    if(clen<=et-44&&(uint64_t)44+clen+4<=et){const uint8_t *k=f+e+44+clen;if(k[0])rgb=(uint32_t)k[1]<<16|(uint32_t)k[2]<<8|k[3];}
    put(out,&count,be32(f+e+12),f[e+16],be32(f+e+20),be32(f+e+24),rgb);

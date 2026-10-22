@@ -224,7 +224,7 @@ static void file_start(struct buf *b) { b->n = 0; memcpy(b->b, "PMAI", 4); b->n 
 static void file_end(struct buf *b) { set32(b, 8, b->n); }
 static void pcpt(struct buf *b, uint32_t hot, uint8_t type, uint32_t ms) {
  uint32_t e = open_section(b, "PCPT", 28);
- u32(b, hot); u32(b, 4); u32(b, 0x10000); u16(b, 0xffff); u16(b, 0xffff);
+ u32(b, hot); u32(b, 1); u32(b, 0x10000); u16(b, 0xffff); u16(b, 0xffff);
  u8(b, type); u8(b, 0); u16(b, 1000); u32(b, ms); u32(b, 0xffffffffu); pad_to(b, e + 56);
  close_section(b, e);
 }
@@ -665,6 +665,8 @@ static void test_loop_and_range(void) {
 /* Pad modes, DIRECTION REV, SLIP and VINYL SPEED ADJUST (manual pp.42-62). Track 1 has a 120 BPM grid
    (beats at 100, 600, 1100, 1600 ms) and hot cues A = 300 ms, H = 1500 ms. */
 static void mode(int d, int m, int shift) {
+ /* Select a mode. A second HOT CUE press is the separate CALL gesture. */
+ if(!shift&&m==XZ_EXTRA_PAD_HOT_CUE&&view.deck[d].pad_mode==XZ_EXTRA_PAD_HOT_CUE)return;
  struct xz_extra_deck_event e = event(d, XZ_EXTRA_IN_PAD_MODE, 1); e.hot_cue = m; e.shift = shift;
  assert(input(e)); e.pressed = 0; assert(input(e)); step();
 }
@@ -1030,6 +1032,7 @@ static void test_native_sync_cache(void){
  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_native);fake_route(990);step();load(0,1);press(0,XZ_EXTRA_IN_PLAY);
  memset(&cached_native,0,sizeof cached_native);native_cache_copies=0;advance(20);assert(!xz_xp_needs_native_sync(p)&&!native_cache_copies);
  press(0,XZ_EXTRA_IN_SYNC);assert(xz_xp_needs_native_sync(p)&&view.deck[0].sync.reason==XZ_EXTRA_SYNC_WAIT_MASTER);
+ clock_ms++; /* the publisher observes a fresh sample after demand starts */
  cached_native=(struct xz_sync_native_snapshot){.available=1,.native_deck=0,.source_revision=10,.track_identity=0x1234,
   .bpm=126,.speed=1.05f,.playing=1,.captured_ms=clock_ms};
  advance(60);assert(view.deck[0].tempo_x100==500&&view.deck[0].sync.requested&&!view.deck[0].sync.locked);
@@ -1042,7 +1045,7 @@ static void test_native_sync_cache(void){
  cached_native.captured_ms=clock_ms+1;step();assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_WAIT_MASTER);
  press(0,XZ_EXTRA_IN_SYNC);unsigned before=native_cache_copies;advance(50);assert(!xz_xp_needs_native_sync(p)&&native_cache_copies==before);
  press(0,XZ_EXTRA_IN_MASTER);press(0,XZ_EXTRA_IN_SYNC);assert(view.deck[0].master&&view.deck[0].sync.requested);
- uint32_t flush_before=f.flushes[0];cached_native.captured_ms=clock_ms;
+ uint32_t flush_before=f.flushes[0];clock_ms++;cached_native.captured_ms=clock_ms;
  assert(xz_xp_use_native_master(p));xz_xp_read(p,&view);
  assert(!view.deck[0].master&&!view.deck[1].master&&!view.deck[0].sync.locked&&view.deck[0].sync.master_deck==-1);
  uint32_t native_revision=view.snapshot_revision;assert(!xz_xp_use_native_master(p)&&xz_xp_revision(p)==native_revision);
@@ -1113,9 +1116,11 @@ static void test_native_phase_sync(void){
   assert(fabs(actual_native_sync_error(slave))>.05);
   unsigned flush_before_sync=f.flushes[slave];
   press(slave,XZ_EXTRA_IN_SYNC);
-  /* Pressing SYNC arms the initial jump (ACQUIRING, locked=0) and transitions audio on the next step. */
-  assert(f.flushes[slave]==flush_before_sync&&!view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_ACQUIRING);
-  step();assert(f.flushes[slave]==flush_before_sync+1&&!view.deck[slave].sync.locked);
+  /* A cached observation from before the press cannot trigger a jump. Two
+     coherent fresh samples qualify acquisition before the first transition. */
+  assert(f.flushes[slave]==flush_before_sync&&!view.deck[slave].sync.locked);
+  step();assert(f.flushes[slave]==flush_before_sync&&!view.deck[slave].sync.locked);
+  advance(50);assert(f.flushes[slave]==flush_before_sync+1);
   for(unsigned elapsed=0;elapsed<2000;elapsed+=10)advance(10);
   assert(view.deck[slave].sync.locked&&view.deck[slave].sync.reason==XZ_EXTRA_SYNC_LOCKED);
   assert(view.deck[slave].sync.master_scope==XZ_EXTRA_MASTER_SCOPE_NATIVE&&view.deck[slave].sync.master_deck==slave);
@@ -1166,12 +1171,12 @@ static void test_sync_missing_sources(void){
  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,1};
  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_native);fake_route(993);step();load(0,2);press(0,XZ_EXTRA_IN_PLAY);
  cached_native=(struct xz_sync_native_snapshot){.available=1,.native_deck=0,.source_revision=12,.track_identity=0x99,.bpm=126,.captured_ms=clock_ms};
- press(0,XZ_EXTRA_IN_SYNC);advance(30);assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_NO_SOURCE_BPM&&!view.deck[0].sync.locked&&!view.deck[0].tempo_x100);
+ press(0,XZ_EXTRA_IN_SYNC);clock_ms++;cached_native.captured_ms=clock_ms;advance(30);assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_NO_SOURCE_BPM&&!view.deck[0].sync.locked&&!view.deck[0].tempo_x100);
  xz_xp_destroy(p);p=NULL;puts("PASS missing master/slave grid and native-tempo source BPM refuse phase/audio coercion");
  env.resolve=wide_sync_resolve;p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_native);fake_route(995);step();load(0,4);
  press(0,XZ_EXTRA_IN_TEMPO_RANGE);press(0,XZ_EXTRA_IN_TEMPO_RANGE);assert(view.deck[0].tempo_range==100);press(0,XZ_EXTRA_IN_PLAY);
  cached_native=(struct xz_sync_native_snapshot){.available=1,.native_deck=0,.source_revision=13,.track_identity=0x100,.bpm=500,.captured_ms=clock_ms};
- press(0,XZ_EXTRA_IN_SYNC);advance(60);assert(view.deck[0].tempo_x100==10000&&abs(view.deck[0].timeline.rate_ppm-2000000)<5000);
+ press(0,XZ_EXTRA_IN_SYNC);clock_ms++;cached_native.captured_ms=clock_ms;advance(60);assert(view.deck[0].tempo_x100==10000&&abs(view.deck[0].timeline.rate_ppm-2000000)<5000);
  cached_native.bpm=501;cached_native.captured_ms=clock_ms;step();
  assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_OUT_OF_RANGE&&view.deck[0].tempo_x100==10000&&!view.deck[0].sync.locked);
  xz_xp_destroy(p);p=NULL;puts("PASS 250-to-500 BPM WIDE native tempo ratio and explicit 501 BPM out-of-range refusal");

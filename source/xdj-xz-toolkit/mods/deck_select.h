@@ -54,6 +54,7 @@ struct xz_ds_side {
  uint64_t early_native_down, early_native_release; /* global native press and one fallback release pass */
  uint64_t owner[2];                   /* by target: buttons down whose press that deck received */
  int load_down;                       /* a LOAD press went to the software deck; hold and release follow load */
+ int sync_held,load_previous;uint32_t load_at;
  int time_down, time_shift, time_held; /* TIME MODE: pressed; SHIFT at the press; the hold (AUTO CUE) fired */
  enum xz_ds_load_route load;
 };

@@ -26,7 +26,7 @@ Existing native routing remains in use when that side selects deck 1 or 2.
 | Pads, BEAT JUMP mode | A/B back/forward 1 beat, C/D 2, E/F 4, G/H 8 (pp.56-57). With a loop set the loop moves. The pair layout is assumed from Pioneer's usual order; confirm on a stock deck. |
 | DIRECTION REV | Toggle reverse playback at the same rate; it stops at the track start (p.42). With SLIP on, held: reverse while down, then the background position on release or after eight beats (p.59). |
 | SLIP | Toggle slip; a load turns it off (p.60). With VINYL on, PAUSE keeps playback running in the background and PLAY resumes from there (pp.58-59). Beat/slip loops, manual loops and held hot cues then continue in the background; RELOOP/EXIT returns to the background position (p.61). |
-| VINYL SPEED ADJUST | Brake/start time from 30 ms (counterclockwise) to 3 s (clockwise), ~300 ms at the centre. The player accepts the knob, but its key code is unknown, so no input reaches it yet and the centre value is used. |
+| VINYL SPEED ADJUST | Captured code `0x4123`, operation 5, value 0..1. Controls the pause brake from 30 ms counterclockwise to 3 s clockwise, about 300 ms at centre. PLAY remains instant. The timing curve still needs comparison with a stock deck. |
 | TEMPO RANGE | Cycle ±6%, ±10%, ±16%, WIDE. WIDE covers stopped speed through +100%. The fader moves in the stock steps: 0.02 % (±6), 0.05 % (±10, ±16), 0.5 % (WIDE). |
 | TEMPO RESET | Toggle original speed; retain the fader setting for release from reset. |
 | SYNC | Follow the master deck's tempo until SYNC is pressed off. With QUANTIZE on, SYNC also snaps to the master's beat and holds it. A pause, jump, master change or clock gap re-acquires on its own (re-snapping at most once a second); no second press. The follower's tempo fader is locked while synced. |
@@ -54,6 +54,14 @@ Direction changes flush once to the heard position. The current conversion uses
 360 jog ticks per revolution and 1.8 seconds per revolution, inherited from the
 existing input path. Platter calibration and scratch latency need physical
 acceptance.
+
+## Additional stock controls
+
+- The dedicated 4/8BEAT button uses captured code `0x4118`. Press starts a four-beat loop, hold extends it to eight beats, and a press during loop playback halves the loop. SHIFT doubles the loop.
+- Press HOT CUE again while already in Hot Cue mode to enter CALL. Choosing a saved pad recalls it without moving playback. Press HOT CUE again to finish; pads not selected are cleared from the working bank. The source export remains unchanged.
+- Rekordbox active loops engage when forward playback reaches the stored start. The DAT PCPT status must explicitly be 4. The public [crate-digger ANLZ schema](https://github.com/Deep-Symmetry/crate-digger/blob/main/src/main/kaitai/rekordbox_anlz.ksy) documents this field. Malformed or out-of-track loop boundaries are rejected.
+- Hold SYNC or double-press LOAD to duplicate the other software deck's track, current position, tempo, direction and loop. Native-deck sources are not supported by this path.
+- After a read failure, Emergency Loop replays the last four beats of accepted PCM from RAM. It requires a full four-beat history in the current generation and uses an eight-second cache per deck, about 2.7 MiB each. Scratch, reverse, scan and braking audio are excluded. Without sufficient history the existing read-error pause remains. PLAY and CUE can stop playback; LOAD replaces the emergency loop.
 
 ## Display behavior
 
@@ -150,9 +158,9 @@ as unverified. Synthetic pitch tests do not establish subjective music quality.
   flashing elsewhere; LOOP IN/OUT lit while playing or looping, with the adjusted
   end flashing and the other off (pp.47-48); RELOOP/EXIT, REV, SLIP, VINYL, SYNC
   (while on), MASTER, MASTER TEMPO, TEMPO RESET and the pad-mode buttons. Two
-  limits remain. The hook only edits records the native packet already carries,
-  and a flash is written as OFF until `XZ_LED_BLINK_QUALIFIED` is set from a
-  captured native flashing record. `read_feedback_capture.py` reads the native
+  limits remain. The hook only edits records the native packet already carries.
+  Flashing alternates the qualified ON/OFF states every 250 ms; physical cadence
+  remains unverified. `read_feedback_capture.py` reads the native
   status records, the native pad colours per pad page and the code table that
   qualifies both and finds the VINYL SPEED ADJUST code.
 - Beat-loop/slip-loop pad colours are provisional (`XZ_EXTRA_PAD_*_RGB`) until
@@ -160,13 +168,12 @@ as unverified. Synthetic pitch tests do not establish subjective music quality.
   green, loops orange (p.54).
 - Jog-display output remains with the root thread. The stopped jog-display
   analysis has not been resumed here.
-- Not yet stock: 4/8BEAT (LOOP CUTTER) needs its key code (the code table finds it); Emergency
-  Loop on a read failure; Instant Doubles; HOT CUE (CALL) call-up mode; rekordbox active loops; MEMORY /
-  DELETE and saving hot cues to the stick (USB writes need the owner's approval); waveform needle search
+- Not yet stock: native sources for Instant Doubles; MEMORY / DELETE and saving hot cues to the stick;
+  waveform needle search
   is refused while playing (stock NEEDLE LOCK default) because the UTILITY setting is not readable.
 - Touch deceleration in VINYL mode and slip during scratching belong to the
-  jog-coast work and are not changed here. Quantize, memory cues and
-  native-equivalent beat-phase sync are not provided by this candidate.
+  jog-coast work. Quantize, memory-point recall and software following of native
+  tempo and phase are covered by the offline checks. Physical acceptance remains open.
 
 `audio/usb_transport` remains byte-identical to its recorded upstream source.
 The player and new stretch module retain GPL-2.0-only notices; the AIFF reader
