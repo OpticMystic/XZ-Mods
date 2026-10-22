@@ -3,7 +3,11 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+static void *observed_frame_copy(void *,const void *,size_t);
+#define memcpy observed_frame_copy
 #include "../jog_display_runtime.c"
+#undef memcpy
 #include "jog_display_fixtures.h"
 static uint64_t clock_ms=10000,media[2]={10,20};
 static uint32_t content[2]={10,20},revision,reads,copies[2];
@@ -13,7 +17,24 @@ static struct xz_extra_column *columns[2];
 static uint8_t objects[2][0x200],original_frame[2][148];
 static void (*hook)(void *);
 static unsigned flip_at,flip_kind,copy_clock_step,stop_on_copy,in_hook;
-static uint64_t now(void){return clock_ms;}
+static unsigned now_calls,now_flip_at,now_flip_kind,after_fence_flip;
+static void *observed_frame_copy(void *dst,const void *src,size_t size){
+ if(after_fence_flip&&in_hook&&dst==objects[0]+0x104&&size==148){
+  after_fence_flip=0;content[0]++; /* Simulate a concurrent owner event after validation. */
+ }
+ return memcpy(dst,src,size);
+}
+static uint64_t now(void){
+ if(++now_calls==now_flip_at){
+  if(now_flip_kind==1)content[0]++;
+  if(now_flip_kind==2)selection.epoch[0]+=2;
+  if(now_flip_kind==3)media[0]++;
+  if(now_flip_kind==4)selection.route_epoch++;
+  if(now_flip_kind==5)xz_jog_display_runtime_stop();
+  if(now_flip_kind==6)clock_ms+=251;
+ }
+ return clock_ms;
+}
 static uint32_t control(void){return 12u|(selection.deck[0]==3?1u:0u)|(selection.deck[1]==4?2u:0u);}
 uint32_t xz_extra_decks_control_revision(void){return control();}
 uint32_t xz_extra_decks_epoch(void){return selection.route_epoch;}
@@ -55,6 +76,7 @@ static void tick(unsigned side){in_hook=1;hook(objects[side]);in_hook=0;}
 static void publish(void){values.snapshot_revision=++revision;xz_jog_display_runtime_publish(&values,(uint32_t)clock_ms);}
 static void reset(unsigned count){
  clock_ms=10000;reads=flip_at=flip_kind=copy_clock_step=stop_on_copy=0;memset(copies,0,sizeof copies);
+ now_calls=now_flip_at=now_flip_kind=after_fence_flip=0;
  selection.route_up=1;selection.route_epoch=3;selection.deck[0]=3;selection.deck[1]=4;
  memset(&values,0,sizeof values);
  for(unsigned side=0;side<2;side++){
@@ -147,6 +169,24 @@ static void replacement(void){
  }
  puts("PASS replacement at wave1/37/73, blocked mailbox, delayed old snapshot, missing key/BPM, fresh batch and exact native restoration");
 }
+static void clock_and_commit_boundary(void){
+ for(unsigned kind=1;kind<=6;kind++){
+  reset(1025);complete();for(unsigned n=0;n<10;n++)tick(0);
+  uint16_t next=jd_state[0].wave_next,seq=jd_state[0].wire_sequence;
+  now_calls=0;now_flip_at=2;now_flip_kind=kind;tick(0);now_flip_at=0;
+  assert(now_calls==2);assert(!memcmp(frame(0),original_frame[0],148));
+  assert(jd_state[0].wave_next==next&&jd_state[0].wire_sequence==seq);
+ }
+ reset(1025);complete();for(unsigned n=0;n<10;n++)tick(0);
+ uint32_t accepted_content=content[0];uint16_t accepted_seq=jd_state[0].wire_sequence;
+ after_fence_flip=1;tick(0);
+ assert(content[0]==accepted_content+1&&!after_fence_flip);
+ assert(memcmp(frame(0),original_frame[0],148)&&jd_state[0].wire_sequence==(uint16_t)(accepted_seq+1));
+ /* Already validated output can race a later event. The next callback must
+    cancel it; no claim of atomic physical-send cancellation is made. */
+ tick(0);uint8_t p[64];packet(0,p);assert(p[1]==0x2d&&!jd_side[0].have_wave);
+ puts("PASS final clock changes reject all six contexts; post-validation event permits accepted packet then cancels next callback");
+}
 static void authority(void){
  reset(0);
  for(unsigned side=0;side<2;side++){
@@ -196,4 +236,4 @@ static void benchmark(void){
   measured[0],measured[1],measured[2],sizeof jd_wave_slot+sizeof jd_wave_job+sizeof jd_wave_chunk,
   2*sizeof(struct xz_jd_wave),sizeof(struct xz_jd_transaction));
 }
-int main(void){setvbuf(stdout,NULL,_IONBF,0);waves_and_contention();fences();replacement();authority();benchmark();free(columns[0]);free(columns[1]);return 0;}
+int main(void){setvbuf(stdout,NULL,_IONBF,0);waves_and_contention();fences();replacement();clock_and_commit_boundary();authority();benchmark();free(columns[0]);free(columns[1]);return 0;}

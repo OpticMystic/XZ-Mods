@@ -715,6 +715,8 @@ static void hook_jog_assemble(void *self){
 #ifdef XZ_JOG_DISPLAY_PROOF
  unsigned copied=0;
 #endif
+ /* Preflight precedes the final clock callback, so time spent here is covered
+    by the age checks. It is not the frame acceptance fence. */
  struct xz_ds_selection final_selection;
  int final_valid=selection_snapshot(&final_selection)&&final_selection.epoch[side_idx]==selection.epoch[side_idx]&&
   final_selection.deck[side_idx]==selection.deck[side_idx]&&final_selection.route_up==selection.route_up&&
@@ -727,6 +729,13 @@ static void hook_jog_assemble(void *self){
   if(snap.master)final_valid=final_valid&&
    (uint32_t)((uint32_t)final_now-side->cache.master_actual.observed_ms)<=XZ_MASTER_MAX_AGE_MS;
  }
+ /* Recollect after every clock/callback-capable input. These owner getters are
+    qualified bounded copies/atomic reads. No clock, callback or I/O follows
+    this fence before the frame and cursor commit. A later owner event may
+    still race that commit; this does not make the physical send atomic. */
+ final_valid=final_valid&&selection_snapshot(&final_selection)&&
+  final_selection.epoch[side_idx]==selection.epoch[side_idx]&&final_selection.deck[side_idx]==selection.deck[side_idx]&&
+  final_selection.route_up==selection.route_up&&final_selection.route_epoch==route_epoch&&current_content(side_idx)==content;
  if(on_extra&&have_snap&&side->cache.deck.timeline.media_generation&&xz_extra_source_generation)
   final_valid=final_valid&&xz_extra_source_generation(side->cache.deck.source)==side->cache.deck.timeline.media_generation;
  if(final_valid&&atomic_load(&jd_installed)&&session==atomic_load_explicit(&jd_session,memory_order_acquire)){
