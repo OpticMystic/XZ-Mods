@@ -20,7 +20,9 @@ enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_
 #define XZ_XP_BEND_PER_TICK 0.004f     /* playing jog: speed added per tick, decaying */
 #define XZ_XP_BEND_MAX 0.9f
 #define XZ_XP_BEND_DECAY_MS 150u
-#define XZ_XP_JOG_TICKS_PER_REV 360    /* unknown on the XZ: measure one platter turn and set it */
+#ifndef XZ_XP_JOG_TICKS_PER_REV
+#define XZ_XP_JOG_TICKS_PER_REV 360    /* reference scale for standalone host fixtures; build.py sets the hardware estimate */
+#endif
 #define XZ_XP_SEARCH_MS_PER_REV 1800   /* paused jog: audio one platter turn moves through */
 #define XZ_XP_RETIRE_MS 2000u          /* wave and grid arrays outlive the load that replaced them */
 #define XZ_XP_RETIRE_SLOTS 8

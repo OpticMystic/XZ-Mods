@@ -114,6 +114,8 @@ def main() -> None:
     parser.add_argument("--wsl-distro", default="Ubuntu", help="WSL distribution used for ARM GCC on Windows")
     parser.add_argument("--jog-display-proof", action="store_true",
                         help="Include bounded Jog LCD diagnostic counters in a private trial build")
+    parser.add_argument("--jog-counts-per-rev", type=int, default=6600,
+                        help="Provisional platter counts per revolution, estimated from the owner's 33 s versus 1.8 s travel (default: 6600)")
     parser.add_argument("--host-checks-only", action="store_true",
                         help="Run standalone settings host checks without building or deploying the runtime")
     args = parser.parse_args()
@@ -123,6 +125,8 @@ def main() -> None:
         return
     if not args.zig:
         parser.error("Supply --zig with a Zig executable supporting arm-linux-gnueabi.2.13")
+    if not 100 <= args.jog_counts_per_rev <= 100000:
+        parser.error("--jog-counts-per-rev must be between 100 and 100000")
     args.output.mkdir(parents=True, exist_ok=True)
     destination = args.output.resolve() / "libxz-mods-development.so"
     compiler = shutil.which(args.zig) or str(pathlib.Path(args.zig).resolve())
@@ -151,6 +155,7 @@ def main() -> None:
     player_object=args.output.resolve()/"extra-player-vfp.o"
     subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
                     "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
+                    "-DXZ_XP_JOG_TICKS_PER_REV="+str(args.jog_counts_per_rev),
                     "-fPIC","-fvisibility=hidden","-c",str(ROOT/"extra_player.c"),
                     "-o",str(player_object)],check=True)
     transport_object=args.output.resolve()/"usb-transport.o"
@@ -239,9 +244,14 @@ def main() -> None:
                "-o", str(destination)]
     if args.jog_display_proof:
         command.insert(2, "-DXZ_JOG_DISPLAY_PROOF")
+    command.insert(2, "-DXZ_XP_JOG_TICKS_PER_REV=" + str(args.jog_counts_per_rev))
     subprocess.run(command, check=True)
     result = inspect(destination)
     result["jog_display_proof"] = args.jog_display_proof
+    result["jog_counts_per_rev"] = args.jog_counts_per_rev
+    result["jog_player_object_sha256"] = hashlib.sha256(player_object.read_bytes()).hexdigest()
+    result["jog_travel_ms_per_rev"] = 1800
+    result["jog_calibration"] = "provisional owner travel ratio; physical encoder counts not yet measured"
     result["mp3_decoder"] = mp3_build
     vendor = ROOT.parent / "vendor"
     receiver = args.output.resolve() / "libxz-directfb-mods-test.so"
