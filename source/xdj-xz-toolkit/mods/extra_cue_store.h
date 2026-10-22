@@ -2,7 +2,7 @@
 #ifndef XZ_EXTRA_CUE_STORE_H
 #define XZ_EXTRA_CUE_STORE_H
 #include "extra_decks.h"
-#define XZ_CUE_MEMORY 16
+#define XZ_CUE_MEMORY XZ_EXTRA_MEMORY_CUES
 struct xz_saved_cues { struct xz_extra_cue hot[8],memory[XZ_CUE_MEMORY];unsigned memory_count; };
 enum xz_cue_edit_kind { XZ_CUE_EDIT_HOT, XZ_CUE_EDIT_MEMORY, XZ_CUE_EDIT_DELETE };
 struct xz_cue_edit { enum xz_cue_edit_kind kind;unsigned pad;struct xz_extra_cue point; };

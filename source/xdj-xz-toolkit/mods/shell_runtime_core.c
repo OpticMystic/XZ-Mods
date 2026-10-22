@@ -373,6 +373,12 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
  if(EK(TOTAL)){d->total_ms=s->total_ms;d->known|=SK(TOTAL);}
  if(EK(PLAYING)){d->playing=!!s->playing;d->known|=SK(PLAYING);}
  d->needle_locked=s->held_playing&&!s->platter_contact;
+ if(EK(MEMORY_CUES)){
+  _Static_assert(XZ_EXTRA_MEMORY_CUES==XZ_SHELL_MEMORY_CUES,"cue model capacity");
+  d->memory_count=s->memory_count>XZ_SHELL_MEMORY_CUES?XZ_SHELL_MEMORY_CUES:(int)s->memory_count;
+  for(int i=0;i<d->memory_count;i++)d->memory_cue[i]=(struct xz_shell_cue){s->memory_cue[i].set,s->memory_cue[i].ms,s->memory_cue[i].rgb,s->memory_cue[i].end_ms>s->memory_cue[i].ms};
+  d->known|=SK(MEMORY_CUES);
+ }
  if(EK(BPM)){
   d->bpm_x100=s->bpm_x100;d->known|=SK(BPM);
   if(s->track_bpm_x100>0){d->track_bpm_x100=s->track_bpm_x100;d->known|=SK(TRACK_BPM);}

@@ -705,6 +705,10 @@ static void extra_decks(void) {
  }
  assert(m.deck[2].loop.active&&m.deck[2].loop.beats_num==8&&m.deck[2].loop.beats_den==1);
  assert(m.deck[3].loop.beats_num==1&&m.deck[3].loop.beats_den==4);
+ s.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_MEMORY_CUES);s.deck[0].memory_count=1;
+ s.deck[0].memory_cue[0]=(struct xz_extra_cue){1,5000,0xff8000,6000};
+ xz_shrt_extra_map(&m,&s,parts,500000,10000);
+ assert((m.deck[2].known&XZ_SHELL_KNOWN(XZ_SHELL_F_MEMORY_CUES))&&m.deck[2].memory_count==1&&m.deck[2].memory_cue[0].ms==5000&&m.deck[2].memory_cue[0].is_loop);
  /* Unknown bits stay clear; a stale, future or missing stamp is not extrapolated; no parts, no wave. */
  s.deck[0].known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_ELAPSED)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_LOOP);s.deck[0].elapsed_at_ms=10001;
  s.deck[1].elapsed_at_ms=0;s.deck[1].source=7;
@@ -712,6 +716,7 @@ static void extra_decks(void) {
  xz_shrt_extra_map(&m,&s,parts,500000,10000);
  assert(m.deck[2].known==(XZ_SHELL_KNOWN(XZ_SHELL_F_LOADED)|XZ_SHELL_KNOWN(XZ_SHELL_F_ELAPSED)|XZ_SHELL_KNOWN(XZ_SHELL_F_LOOP)));
  assert(m.deck[2].elapsed_at_ms==0&&m.deck[2].loop.beats_num==0&&!m.deck[2].title);
+ assert(!m.deck[2].memory_count);
  assert(m.deck[3].elapsed_at_ms==0&&!(m.deck[3].known&(XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE)|XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_GRID))));
  s.deck[0].elapsed_at_ms=10000-61000;xz_shrt_extra_map(&m,&s,parts,500000,10000);assert(m.deck[2].elapsed_at_ms==0);
  s.deck[0].elapsed_at_ms=10000;xz_shrt_extra_map(&m,&s,parts,0,10000);assert(m.deck[2].elapsed_at_ms==1);
