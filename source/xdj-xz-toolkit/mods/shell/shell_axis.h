@@ -2,12 +2,12 @@
 #define XZ_SHELL_AXIS_H
 #include "shell_internal.h"
 #include <limits.h>
-/* Absolute source-time pixels, normalized by stable nominal tempo. Motion,
-   jog bend and SYNC state never enter this geometry. */
+/* Zoom fixes source-time pixels. Tempo, jog bend and SYNC change motion,
+   never the size of the waveform, beat grid or cue/loop markers. */
 struct sh_wave_axis { int pps; uint32_t rate; };
 static inline struct sh_wave_axis sh_axis(int pps,const struct xz_shell_deck *d){
- int64_t rate=sh_has(d,XZ_SHELL_F_TEMPO)?10000ll+d->tempo_x100:10000;
- return (struct sh_wave_axis){pps,rate>0?(uint32_t)rate:10000u};
+ (void)d;
+ return (struct sh_wave_axis){pps,10000u};
 }
 static inline int64_t sh_axis_floor(int64_t a,int64_t b){int64_t q=a/b;return q-((a%b)!=0&&a<0);}
 static inline int64_t sh_axis_px(struct sh_wave_axis a,int32_t ms){
