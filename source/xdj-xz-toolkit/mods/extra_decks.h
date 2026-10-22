@@ -46,6 +46,7 @@ enum xz_extra_timeline_flag {
    moving remains useful for refresh cadence while queued scratch PCM finishes. */
 struct xz_extra_timeline {
  uint64_t source_frame, sink_frame, media_generation;
+ uint64_t observed_wire_frame; /* same observation as at_ms; sink_frame is the earlier tagged block end */
  uint32_t source_rate, at_ms, revision, route_epoch, load_revision, transport_generation, flags;
  int32_t rate_ppm;                   /* signed source seconds / output second, millionths */
  int moving;
