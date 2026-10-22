@@ -142,6 +142,7 @@ struct deck {
  uint64_t timeline_output_frames, timeline_sink_frame, timeline_wire_completed;
  struct xz_extra_sync sync;
  int sync_initial,sync_hold,sync_rate_active,sync_have_master,sync_lock_count;
+ int sync_native_gap_hold;
  int sync_master_id;
  enum xz_extra_sync_reason sync_hold_reason;
  uint64_t sync_last_wire;
@@ -906,7 +907,7 @@ static void jog(struct xz_xp_players *p,struct deck *d, int32_t delta, uint32_t 
 static void sync_request(struct xz_xp_players *p,struct deck *d,int on){
  d->sync=(struct xz_extra_sync){.requested=!!on,.master_deck=-1,.reason=on?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OFF};
  d->sync_initial=!!on;d->sync_hold=d->sync_have_master=d->sync_lock_count=0;
- d->sync_native_captured_us=0;d->sync_native_discontinuous=0;
+ d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
  d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;
  d->sync_trim=0;d->sync_rate_active=0;
  if(on)atomic_fetch_or(&p->sync_requests,1u<<d->index);else atomic_fetch_and(&p->sync_requests,~(1u<<d->index));
@@ -928,6 +929,27 @@ static int sync_apply_base(struct xz_xp_players *p,struct deck *d,int selected,u
  int valid=atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
  int applied=valid?sync_base(d,rate):-1;pthread_mutex_unlock(&p->publish_lock);return applied;
 }
+static int sync_native_gap_tempo(struct xz_xp_players *p,struct deck *d,
+ const struct xz_sync_native_snapshot *native,int selected,uint32_t choice,uint32_t now){
+ if(!d->sync_native_gap_hold||d->sync_hold_reason!=XZ_EXTRA_SYNC_DISCONTINUITY)return 0;
+ struct sync_clock slave=sync_clock(d,now);
+ uint64_t cur_us=native->captured_us?native->captured_us:(uint64_t)native->captured_ms*1000u;
+ if(selected>=0||!d->sync_have_master||d->sync.master_scope!=XZ_EXTRA_MASTER_SCOPE_NATIVE||
+    d->sync_master_id!=native->native_deck||d->sync_native_identity!=native->track_identity||
+    d->sync_native_source_revision!=native->source_revision||d->sync_choice_seen!=choice||
+    d->epoch!=d->sync_master_clock.route||d->load_revision!=d->sync_master_clock.load||
+    d->generation!=d->sync_master_clock.generation||d->underrun!=d->sync_slave_underrun||
+    d->state!=XZ_XP_PLAYING||!native->playing||
+    !cur_us||cur_us<d->sync_native_captured_us){
+  d->sync_native_gap_hold=0;return 0;
+ }
+ if(slave.manual||native->manual){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return 1;}
+ if(d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return 1;}
+ int applied=sync_apply_base(p,d,selected,choice,(double)native->bpm*100./d->track.track_bpm_x100);
+ if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return 1;}
+ d->sync_native_captured_us=cur_us;d->sync_native_bpm=native->bpm;
+ d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return 1;
+}
 static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_position *position,uint32_t now){
  d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;
  if(!d->sync.requested)return;
@@ -937,7 +959,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  if(selected<0){
   if(d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE){
    d->sync_hold=d->sync_have_master=0;d->sync.master_scope=0;d->sync.master_deck=-1;
-   d->sync_native_captured_us=0;d->sync_native_discontinuous=0;
+   d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
   }
   struct xz_sync_native_snapshot native={0};
   int32_t bpm=d->sync_legacy_bpm;
@@ -950,33 +972,40 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    if(d->sync_native_identity!=native.track_identity||d->sync_native_source_revision!=native.source_revision||
       (d->sync_have_master&&d->sync_master_id!=native.native_deck)){
     if(d->sync_have_master&&native.phase_available){
-     d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
+     d->sync_native_gap_hold=0;d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
     }
     d->sync_have_master=d->sync_lock_count=0;
-    d->sync_native_captured_us=0;d->sync_native_discontinuous=0;
+    d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
     d->sync_native_identity=native.track_identity;d->sync_native_source_revision=native.source_revision;
    }
    bpm=(int32_t)llround(native.bpm*100);d->sync.master_deck=native.native_deck;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE;
   }
   if(bpm<=0){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
+  if(d->sync_hold){
+   if(sync_native_gap_tempo(p,d,&native,selected,choice,now))return;
+   d->sync.reason=d->sync_hold_reason?d->sync_hold_reason:XZ_EXTRA_SYNC_DISCONTINUITY;return;
+  }
   if(!native.phase_available){
    if(d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
-   if(!d->sync_hold){
-    int applied=sync_apply_base(p,d,selected,choice,(double)bpm/d->track.track_bpm_x100);
-    if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
-   }
-   d->sync.reason=d->sync_hold?(d->sync_hold_reason?d->sync_hold_reason:XZ_EXTRA_SYNC_MANUAL):XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;
+   d->sync_native_bpm=native.bpm;
+   int applied=sync_apply_base(p,d,selected,choice,(double)bpm/d->track.track_bpm_x100);
+   if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
+   d->sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;
   }
-  if(d->sync_hold){d->sync.reason=d->sync_hold_reason?d->sync_hold_reason:XZ_EXTRA_SYNC_DISCONTINUITY;return;}
   struct sync_clock slave=sync_clock(d,now);
   if(!native.playing){
    if(d->sync_have_master)d->sync_native_discontinuous=1;
+   d->sync_native_gap_hold=0;
    d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;
   }
   uint64_t cur_us=native.captured_us?native.captured_us:(uint64_t)native.captured_ms*1000u;
   if(d->sync_have_master&&d->sync_native_captured_us){
-   if(d->sync_native_discontinuous||cur_us<d->sync_native_captured_us||cur_us-d->sync_native_captured_us>150000u){
-    d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
+   int gap=!d->sync_native_discontinuous&&cur_us>=d->sync_native_captured_us&&
+    cur_us-d->sync_native_captured_us>150000u;
+   if(d->sync_native_discontinuous||cur_us<d->sync_native_captured_us||gap){
+    d->sync_native_gap_hold=gap;d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;
+    if(gap)(void)sync_native_gap_tempo(p,d,&native,selected,choice,now);
+    return;
    }
    double dt_obs=(double)(cur_us-d->sync_native_captured_us)/1000000.;
    double min_step=dt_obs*(fmin(d->sync_native_bpm,(double)native.bpm)/60.);
@@ -984,7 +1013,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    double mid_step=.5*(min_step+max_step),tol=.5*(max_step-min_step)+.06;
    double phase_jump=wrapped_beat((double)native.bar_phase-(d->sync_native_bar_phase+mid_step)+.5)-.5;
    if(fabs(phase_jump)>tol){
-    d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
+    d->sync_native_gap_hold=0;d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
    }
   }
   d->sync_native_captured_us=cur_us;d->sync_native_bar_phase=native.bar_phase;d->sync_native_bpm=native.bpm;
@@ -1005,7 +1034,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   if(!slave.available){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
   if(d->sync_have_master&&(d->epoch!=d->sync_master_clock.route||d->load_revision!=d->sync_master_clock.load||
      d->sync_choice_seen!=choice||d->underrun!=d->sync_slave_underrun)){
-   d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
+   d->sync_native_gap_hold=0;d->sync_hold=1;d->sync_hold_reason=d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return;
   }
   int64_t sub_ms_us=native.captured_us?(int64_t)(native.captured_us-(uint64_t)native.captured_ms*1000u):0;
   if(sub_ms_us<-1000||sub_ms_us>1000)sub_ms_us=0;
