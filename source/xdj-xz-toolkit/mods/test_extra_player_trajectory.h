@@ -90,8 +90,9 @@ static void tr_setup(int side,int rate,int playing,int ms){
 static void tr_add(int delta,uint32_t at){
  if(delta){
   if(!tr.arrival_valid||tr.arrival!=at){
-   tr.interval=tr.arrival_valid?(uint32_t)(at-tr.arrival):16;
-   if(!tr.interval)tr.interval=1;
+   int32_t elapsed=(int32_t)(at-tr.arrival);
+   tr.interval=tr.arrival_valid&&elapsed>0
+    ?(elapsed>16?16u:(uint32_t)elapsed):16u;
    tr.arrival=at;tr.arrival_valid=1;tr.group_first=tr.count;
   }
   double target=fmin(tr.source_rate*2.,fmax(0,tr.target+(double)delta*tr.source_rate*XZ_XP_SEARCH_MS_PER_REV/(1000.*XZ_XP_JOG_TICKS_PER_REV)));
@@ -188,7 +189,7 @@ static void test_trajectory_faults(void){
   tr_setup(side,44100,playing,700);tr_add(8,2000);tr_add(-8,2020);
   clock_ms=2040;assert(input(event(side,XZ_EXTRA_IN_JOG_TOUCH,0)));tr_step();
   for(unsigned ms=0;ms<64&&debug(side).state==XZ_XP_SCRATCHING;ms++)tr_tick(1);
-  tr_check("net-zero released trajectory produces both signed legs",tr.frames>1500&&!tr.bad&&tr.head==tr.count);
+  tr_check("net-zero released trajectory produces both signed legs",fabs(tr.frames-32.*44.1)<1.00001&&!tr.bad&&tr.head==tr.count);
   tr_check("net-zero release restores prior state",debug(side).state==(playing?XZ_XP_PLAYING:XZ_XP_CUED));
   tr_check("net-zero release completed source endpoint",view.deck[side].timeline.source_frame==30870);
   tr_close();
@@ -416,11 +417,40 @@ static void test_duration_splits(void){
  puts("PASS duration packet splitting: one shared interval, exact PCM bytes, equal-time ordered reversals");
 }
 
+/* A motion arriving after quiet time starts a new audible stroke. Its elapsed
+   idle time cannot be placed on the future output clock. This independent
+   oracle derives every signed endpoint from input counts and every sample
+   duration from the documented onset/cadence rule. */
+static void test_trajectory_causal_quiet(void){
+ const unsigned gaps[]={2,20,200,500};
+ for(int side=0;side<2;side++)for(int rate=44100;rate<=48000;rate+=3900)
+ for(int playing=0;playing<2;playing++)for(int sign=-1;sign<=1;sign+=2)
+ for(unsigned g=0;g<sizeof gaps/sizeof gaps[0];g++){
+  tr_setup(side,rate,playing,700);
+  tr_add(sign*8,2000);tr_step();tr_tick(gaps[g]);
+  for(unsigned n=0;n<120;n++){
+   int turn=sign*(n%7==6?-1:1)*(n%3==0?2:1);
+   tr_add(turn,clock_ms);tr_step();tr_tick(1);
+  }
+  tr_finish(180);
+  double onset=gaps[g]>16?16:gaps[g];
+  double duration=16.+fmax(onset,2.*XZ_XP_SEARCH_MS_PER_REV/(8.*XZ_XP_JOG_TICKS_PER_REV));
+  for(unsigned n=1;n<120;n++){
+   double counts=n%3==0?2.:1.;
+   duration+=fmax(1.,counts*XZ_XP_SEARCH_MS_PER_REV/(8.*XZ_XP_JOG_TICKS_PER_REV));
+  }
+  double expected=duration*XZ_USB_RATE/1000.;
+  tr_check("causal quiet interval has one audible onset, then exact 1ms cadence",fabs(tr.frames-expected)<1.00001);
+  tr_check("healthy variable-velocity signed path never overflows",!strstr(view.notice,"BUFFER FULL"));
+  tr_close();
+ }
+ puts("PASS causal quiet: short/long gaps, changing 1/2-count velocity, ordered reversals, both sides/rates/transport states, exact PCM/tags");
+}
 static int test_player_trajectory(void){
  tr.checks=tr.failures=tr.cases=0;
  test_trajectory_schedules();test_trajectory_turns();test_trajectory_timestamps();test_trajectory_edges();
  test_trajectory_faults();test_trajectory_capacity();test_trajectory_cancel();test_trajectory_fifo_budget();
- test_duration_first_progress();test_duration_worker_clock();test_duration_splits();test_duration_pressure();
+ test_trajectory_causal_quiet();test_duration_first_progress();test_duration_worker_clock();test_duration_splits();test_duration_pressure();
  printf("RESULT trajectory cases=%u checks=%u failures=%u\n",tr.cases,tr.checks,tr.failures);
  return tr.failures==0;
 }

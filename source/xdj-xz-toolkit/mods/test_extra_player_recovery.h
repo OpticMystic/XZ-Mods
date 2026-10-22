@@ -63,7 +63,8 @@ static void test_recovery_timing(void) {
   jog(side,sign);clock_ms+=gaps[i];jog(side,sign);
   /* Worker latency must not become the packet interval. */
   clock_ms+=500;recovery_capture(side);step();
-  double rate=sign*(gaps[i]?5.0/gaps[i]:10.0/16.0);
+  double interval=gaps[i]>16?16:gaps[i];
+  double rate=sign*(gaps[i]?5.0/interval:10.0/16.0);
   /* The first accepted interval keeps its 16 ms fallback traversal even when
      a later packet is already queued with a different arrival interval. */
   recovery_pcm(side,start,sign*(gaps[i]?5.0/16.0:10.0/16.0));
@@ -71,12 +72,14 @@ static void test_recovery_timing(void) {
   assert(debug(side).scratch_target==(uint64_t)(start+sign*441.0));
   recovery_close();
  }
- /* Real reversals retain the measured inter-packet interval. */
+ /* A reversal after quiet time uses the same bounded audible onset. */
  for(int side=0;side<2;side++){
   recovery_setup(811);load(side,4);seek(side,1000);press(side,XZ_EXTRA_IN_VINYL);
   hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);jog(side,1);step();advance(200);
   double start=44100.0+220.5;recovery_capture(side);jog(side,-1);step();clock_ms++;step();
-  recovery_pcm(side,start-.4*.025,-.025);assert(fabs(debug(side).speed+.025)<1e-9);
+  /* One 16 ms stroke uses 705.6 samples, leaving a 0.4-sample carry. */
+  recovery_pcm(side,start-.4*.3125,-.3125);
+  assert(debug(side).position==debug(side).scratch_target&&debug(side).speed==0);
   recovery_close();
  }
  const uint32_t first[]={0,UINT32_MAX-5};const uint32_t next[]={5,4};

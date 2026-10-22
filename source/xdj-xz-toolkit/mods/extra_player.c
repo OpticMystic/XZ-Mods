@@ -852,8 +852,11 @@ static void jog(struct xz_xp_players *p,struct deck *d, int32_t delta, uint32_t 
   if(d->scratch.overflow)return;
   if(!d->scratch.group_open||d->scratch.at!=arrived){
    scratch_seal(d);
-   d->scratch.interval=d->scratch.at_valid?arrived-d->scratch.at:16u;
-   if(!d->scratch.interval)d->scratch.interval=1;
+   /* The quiet interval has elapsed before this motion arrives. Preserve an
+      audible 16 ms onset, then use the current inter-arrival cadence. */
+   int32_t elapsed=(int32_t)(arrived-d->scratch.at);
+   d->scratch.interval=d->scratch.at_valid&&elapsed>0
+    ?(elapsed>16?16u:(uint32_t)elapsed):16u;
    d->scratch.at=arrived;d->scratch.at_valid=1;
    d->scratch.group_open=1;d->scratch.group_ticks=0;
    d->scratch.group_origin=d->scratch.target;d->scratch.ticks=0;
