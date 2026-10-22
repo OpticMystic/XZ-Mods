@@ -78,7 +78,7 @@ static void publish(unsigned side,const struct xz_extra_deck *d){xz_jog_display_
 static void choose(unsigned side,int extra){uint32_t c=control(),bit=1u<<side;atomic_store(&sim_control,extra?c|bit:c&~bit);}
 static void assert_info(unsigned side,int available){
  uint8_t p[64];packet(side,p);CHECK((frame(side)[0x53]>>4)==side+3);
- CHECK(p[0]==(side+3)<<4&&p[1]==0x21);CHECK(p[0x13]==(available?0xbbu:0u));
+ CHECK(p[0]==(side+1)<<4&&p[1]==0x21);CHECK(p[0x13]==(available?0xbbu:0u));
  CHECK(jd_state[side].unavailable==!available);
 }
 static void settle(unsigned side){ticks(side,6);assert_info(side,1);}
@@ -113,7 +113,7 @@ static void busy_display(void){
 #endif
   atomic_store(&sim_now,10251);
   static const uint8_t commands[5]={0x2d,0x30,0x3f,0x2c,0x33};
-  for(unsigned i=0;i<5;i++){tick(side);uint8_t p[64];packet(side,p);CHECK(p[0]==(side+3)<<4&&p[1]==commands[i]);CHECK((frame(side)[0x53]>>4)==side+3);}
+  for(unsigned i=0;i<5;i++){tick(side);uint8_t p[64];packet(side,p);CHECK(p[0]==(side+1)<<4&&p[1]==commands[i]);CHECK((frame(side)[0x53]>>4)==side+3);}
   ticks(side,12);assert_info(side,0);CHECK(jd_state[side].clear_next==6);still_held(side);release_pub(side);
   /* Successful reads of the same slot also cannot manufacture freshness. */
   ticks(side,8);assert_info(side,0);CHECK(jd_side[side].cache.published_ms==10000);

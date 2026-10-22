@@ -98,7 +98,9 @@ snapshot_valid snapshot_paused snapshot_status_known final_copied'''.split()
         # Own INFO uses our millisecond encoding. Native INFO is opaque here;
         # its time layout must not prevent recovery of stable own active banks.
         if (r['snapshot_valid'] and r['phase_before'] == r['phase'] == 2 and
-                r['step_result'] == 0 and packet[0] >> 4 == frame[0x53] >> 4 == side + 3):
+                r['step_result'] == 0 and r['snapshot_reason'] == 6 and
+                r['snapshot_logical_id'] == r['logical_id'] == frame[0x53] >> 4 == side + 3 and
+                packet[0] >> 4 in (side + 1, side + 3)):
             r.update(encoded_position_ms=time_ms(packet[11:15]),
                      encoded_length_ms=time_ms(packet[15:19]), info_time_scope='own INFO milliseconds')
         else:
@@ -107,7 +109,8 @@ snapshot_valid snapshot_paused snapshot_status_known final_copied'''.split()
     if slot < 6 and not (r['snapshot_valid'] and r['snapshot_reason'] == 6 and r['source_loaded'] and
             r['final_copied'] and r['step_result'] == 0 and r['phase_before'] == r['phase'] == 2 and
             (r['source_playing'] or r['source_moving']) and packet[1] == 0x21 and
-            packet[0] >> 4 == frame[0x53] >> 4 == side + 3):
+            r['snapshot_logical_id'] == r['logical_id'] == frame[0x53] >> 4 == side + 3 and
+            packet[0] >> 4 in (side + 1, side + 3)):
         raise ValueError('non-active record in active bank')
     return r
 
