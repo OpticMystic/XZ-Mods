@@ -124,7 +124,7 @@ static void reset_sim(void){
   .sync_mgr_sync=orig_sync_mgr,.get_player_info=orig_get_player,.get_beat_info=orig_get_beat,
   .set_player_info=orig_set_player,.set_beat_info=orig_set_beat,
   .set_master_on=orig_set_master_on,.set_link_master=fake_set_link_master,
-  .on_use_native_master=on_native_master,.monotonic_us=fake_monotonic_us
+  .on_use_native_master=on_native_master,.monotonic_us=fake_monotonic_us,.legacy_fixture=1
  };
  xz_sync_link_runtime_test_install(&orig,&hooks);
 }
@@ -212,7 +212,10 @@ int main(void){
  xz_sync_link_runtime_step(&decks,&clk);
  assert(xz_sync_link_runtime_master_committed(1));
  int op_m=1;hooks.set_master_on(fake_sync_master,&op_m);
- assert(native_use_calls==1&&!xz_sync_link_runtime_master_committed(1));
+ assert(native_use_calls==0&&!xz_sync_link_runtime_master_committed(1));
+ /* Native callback queues withdrawal; publisher delivers after its lock. */
+ xz_sync_link_runtime_step(&decks,&clk);
+ assert(native_use_calls==1);
  /* Foreign external Link writer invalidates lease immediately and preserves foreign slot. */
  reset_sim();
  clk=(struct xz_sync_link_clock_pair){.mono_us=3000000,.realtime_us=UINT64_C(1700000002000000),.uncertainty_us=50};

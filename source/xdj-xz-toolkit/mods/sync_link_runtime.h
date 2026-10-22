@@ -8,6 +8,7 @@
 
 struct xz_va_bundle {
  uint32_t source_id;
+ uint32_t request_epoch,route_epoch,load_revision,transport_generation;
  uint64_t captured_mono_us; /* Immutable while the slot has readers; no 64-bit atomics. */
  unsigned char status[56];
  unsigned char beat[44];
@@ -24,7 +25,7 @@ struct xz_va_frame {
  uint32_t depth,mode,slot,source_id,foreign_epoch,operator_epoch,lease_generation;
  void *expected_link_mgr;
  void *draining_sync_master;
- int probing_original;
+ int probing_original,draining_request;
 };
 struct xz_va_registry_slot {
  _Atomic uintptr_t owner;
@@ -59,6 +60,7 @@ void xz_sync_link_runtime_stop(void);
 void xz_sync_link_runtime_step(const struct xz_extra_decks *,const struct xz_sync_link_clock_pair *);
 void xz_sync_link_runtime_poll(const struct xz_extra_decks *);
 int xz_sync_link_runtime_master_committed(int deck_index);
+int xz_sync_link_runtime_master_observe(struct xz_master_observation *);
 
 /* Test seam for exercising the exact hook callbacks without hardware. */
 struct xz_sync_link_test_ops {
@@ -73,6 +75,7 @@ struct xz_sync_link_test_ops {
  int (*set_link_master)(void *sync_master,const int *input_id);
  void (*on_use_native_master)(void);
  int (*monotonic_us)(uint64_t *out);
+ uint32_t legacy_fixture; /* Explicit isolated pre-observer compatibility only. */
 };
 void xz_sync_link_runtime_test_install(const struct xz_sync_link_test_ops *originals,struct xz_sync_link_test_ops *hooks_out);
 #endif

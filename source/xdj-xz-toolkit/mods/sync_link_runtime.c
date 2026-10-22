@@ -117,7 +117,10 @@ void xz_va_explicit_request(struct xz_va *s){
 }
 static void va_advance(_Atomic uint32_t *p){
  uint32_t old=atomic_load(p);
- while(old&&!atomic_compare_exchange_weak(p,&old,old==UINT32_MAX?0:old+1)){}
+ for(unsigned n=0;n<2&&old;n++)
+  if(atomic_compare_exchange_strong(p,&old,old==UINT32_MAX?0:old+1))return;
+ /* Exhaustion or competing operators must fail closed, never reuse a token. */
+ if(old)atomic_store(p,0);
 }
 void xz_va_foreign(struct xz_va *s,uint32_t id){
  if(id<3||id>4)return;
@@ -136,7 +139,7 @@ int xz_va_begin(struct xz_va *s,struct xz_va_frame *f){
  f->foreign_epoch=atomic_load(&s->claim_foreign);
  f->operator_epoch=atomic_load(&s->claim_operator);
  f->lease_generation=atomic_load(&s->lease_generation);
- f->expected_link_mgr=NULL;f->draining_sync_master=NULL;f->probing_original=0;
+ f->expected_link_mgr=NULL;f->draining_sync_master=NULL;f->probing_original=0;f->draining_request=0;
  if(!f->source_id||f->operator_epoch!=atomic_load(&s->operator_epoch))return 0;
  if(f->foreign_epoch!=xz_va_probe_epoch(s,atomic_load(&s->source_id))){f->mode=2;return 2;}
  if(!va_live(s)){f->mode=f->operator_epoch==atomic_load(&s->operator_epoch)?2:0;return (int)f->mode;}
@@ -174,7 +177,7 @@ void xz_va_end(struct xz_va *s,struct xz_va_frame *f){
  if(!f->depth)return;
  if(--f->depth)return;
  if(f->mode==1)atomic_fetch_sub(&s->slots[f->slot].refs,1);
- f->mode=0;f->expected_link_mgr=NULL;f->draining_sync_master=NULL;f->probing_original=0;
+ f->mode=0;f->expected_link_mgr=NULL;f->draining_sync_master=NULL;f->probing_original=0;f->draining_request=0;
 }
 void xz_va_registry_init(struct xz_va_registry *r){
  for(unsigned i=0;i<4;i++){
@@ -316,6 +319,24 @@ static _Atomic uint32_t rt_slot_probed_epoch[2];
 static _Atomic int32_t rt_observed_master_id;
 static _Atomic int rt_observed_ready;
 static _Atomic int rt_committed_deck;
+static _Atomic uint32_t rt_request_epoch,rt_request_operator,rt_ack_generation,rt_notify_pending;
+static _Atomic uint32_t rt_initialized,rt_global_mode,rt_legacy_mode;
+static _Atomic uint32_t rt_consumer_sequence,rt_actual_guard,rt_actual_serial,rt_actual_exhausted;
+static _Atomic uint32_t rt_invalid_sequence;
+/* Every shared payload word is atomic, including split timestamps. The bounded
+   serialized writer owns rt_last_sample; readers never access that plain object. */
+static _Atomic uint32_t rt_actual_words[16];
+struct rt_master_sample {
+ struct xz_master_observation actual;
+ uint64_t at_us,pcm_us;
+ uint32_t foreign_epoch,sequence;
+ int32_t native_id;
+};
+static struct rt_master_sample rt_last_sample;
+_Static_assert(sizeof(struct xz_master_observation)==9*sizeof(uint32_t),"canonical observation words");
+_Static_assert(ATOMIC_INT_LOCK_FREE==2,"native callbacks require lock-free 32-bit atomics");
+_Static_assert(XZ_SYNC_LINK_MAX_AGE_US==XZ_MASTER_MAX_AGE_MS*1000u,"shared authority age");
+
 
 static _Atomic int rt_restore_pending;
 static _Atomic int rt_restore_input_id;
@@ -373,6 +394,13 @@ static int runtime_frame_fresh(struct xz_va_frame *f){
  }
  return 0;
 }
+static int runtime_frame_request_current(struct xz_va_frame *f){
+ if(!runtime_frame_fresh(f))return 0;
+ const struct xz_va_bundle *v=&rt_va.slots[f->slot].value;
+ if(!v->request_epoch)return atomic_load(&rt_legacy_mode)&&!atomic_load(&rt_global_mode);
+ return v->request_epoch==atomic_load(&rt_request_epoch)&&
+  f->operator_epoch==atomic_load(&rt_request_operator)&&f->operator_epoch==atomic_load(&rt_va.operator_epoch);
+}
 
 static uintptr_t current_thread_key(void){
  uintptr_t k=(uintptr_t)pthread_self();
@@ -398,8 +426,125 @@ static int call_set_link_master(void *sm,const int *input_id){
  return rc;
 }
 static void notify_use_native_master(void){
+ atomic_store(&rt_notify_pending,1);
+}
+static void deliver_native_master(uint32_t epoch,uint32_t request){
+ /* Global player cancellation uses its admission token and the observer under
+    its own lock. An unconditional callback here could erase a newer press. */
+ if(atomic_load(&rt_global_mode)||!atomic_load(&rt_legacy_mode))return;
+ if(epoch!=atomic_load(&rt_va.operator_epoch)||request!=atomic_load(&rt_request_epoch))return;
  if(test_on_use_native_master){test_on_use_native_master();return;}
  (void)xz_extra_decks_use_native_master();
+}
+static void invalidate_sample(uint32_t sequence){
+ uint32_t old=atomic_load(&rt_invalid_sequence);
+ for(unsigned n=0;n<2&&old<sequence;n++)
+  if(atomic_compare_exchange_strong(&rt_invalid_sequence,&old,sequence))return;
+ if(old<sequence)atomic_store(&rt_actual_exhausted,1);
+}
+static int sample_live(const struct rt_master_sample *s,uint64_t now){
+ const struct xz_master_observation *o=&s->actual;
+ if(!atomic_load(&rt_installed)||atomic_load(&rt_actual_exhausted)||!o->revision||
+    s->sequence<=atomic_load(&rt_invalid_sequence)||
+    !o->operator_epoch||o->operator_epoch!=atomic_load(&rt_va.operator_epoch)||
+    now<s->at_us||now-s->at_us>XZ_SYNC_LINK_MAX_AGE_US)return 0;
+ if(o->deck==XZ_MASTER_DECK3||o->deck==XZ_MASTER_DECK4){
+  uint32_t id=(uint32_t)o->deck+1;
+  return o->request_epoch&&o->request_epoch==atomic_load(&rt_request_epoch)&&va_live(&rt_va)&&
+   atomic_load(&rt_va.source_id)==id&&o->lease_generation==atomic_load(&rt_va.lease_generation)&&
+   o->lease_generation==atomic_load(&rt_ack_generation)&&s->foreign_epoch==xz_va_probe_epoch(&rt_va,id)&&
+   now>=s->pcm_us&&now-s->pcm_us<=XZ_SYNC_LINK_MAX_AGE_US;
+ }
+ if(s->native_id==2||s->native_id==3)
+  if(s->foreign_epoch!=xz_va_probe_epoch(&rt_va,(uint32_t)s->native_id+1))return 0;
+ return o->deck>=XZ_MASTER_NONE&&o->deck<=XZ_MASTER_DECK2;
+}
+static int read_master_sample(struct rt_master_sample *s){
+ for(unsigned attempt=0;attempt<2;attempt++){
+  uint32_t serial=atomic_load(&rt_actual_serial),w[16];
+  if(!serial||(serial&1))continue;
+  for(unsigned i=0;i<16;i++)w[i]=atomic_load(&rt_actual_words[i]);
+  if(serial!=atomic_load(&rt_actual_serial))continue;
+  memcpy(&s->actual,w,sizeof s->actual);
+  s->at_us=(uint64_t)w[9]|(uint64_t)w[10]<<32;
+  s->pcm_us=(uint64_t)w[11]|(uint64_t)w[12]<<32;
+  s->foreign_epoch=w[13];s->sequence=w[14];memcpy(&s->native_id,&w[15],4);
+  uint64_t now;
+  if(runtime_monotonic_us(&now)||!sample_live(s,now))return 0;
+  return serial==atomic_load(&rt_actual_serial)&&sample_live(s,now);
+ }
+ return 0;
+}
+int xz_sync_link_runtime_master_observe(struct xz_master_observation *out){
+ if(!out)return 0;
+ memset(out,0,sizeof *out);out->deck=XZ_MASTER_UNKNOWN;
+ struct rt_master_sample s;
+ if(read_master_sample(&s)){*out=s.actual;return 1;}
+ /* This is a coherent control token, not confirmed engine authority. Admission
+    must see a new operator fence before any deferred consumer publication. */
+ for(unsigned n=0;n<2;n++){
+  uint32_t op=atomic_load(&rt_va.operator_epoch);
+  if(!op||!atomic_load(&rt_installed)||atomic_load(&rt_actual_exhausted))return 0;
+  if(op==atomic_load(&rt_va.operator_epoch)&&atomic_load(&rt_installed)){
+   out->operator_epoch=op;return 1;
+  }
+ }
+ return 0;
+}
+static void publish_master_sample(struct rt_master_sample *s){
+ uint32_t zero=0;
+ if(!atomic_compare_exchange_strong(&rt_actual_guard,&zero,1)){invalidate_sample(s->sequence);return;}
+ uint32_t serial=atomic_load(&rt_actual_serial);
+ if(atomic_load(&rt_actual_exhausted)||serial>UINT32_MAX-2||
+    rt_last_sample.actual.revision==UINT32_MAX){
+  atomic_store(&rt_actual_exhausted,1);goto done;
+ }
+ if(s->sequence<=rt_last_sample.sequence||!atomic_load(&rt_installed)||
+    s->actual.operator_epoch!=atomic_load(&rt_va.operator_epoch))goto done;
+ s->actual.revision=rt_last_sample.actual.revision;
+ struct xz_master_observation a=s->actual,b=rt_last_sample.actual;
+ a.revision=b.revision=0;a.observed_ms=b.observed_ms=0;
+ if(!s->actual.revision||memcmp(&a,&b,sizeof a)||s->native_id!=rt_last_sample.native_id||
+    s->foreign_epoch!=rt_last_sample.foreign_epoch||
+    s->at_us<rt_last_sample.at_us||s->at_us-rt_last_sample.at_us>XZ_SYNC_LINK_MAX_AGE_US)
+  s->actual.revision++;
+ if(!sample_live(s,s->at_us))goto done;
+ uint32_t w[16];memcpy(w,&s->actual,sizeof s->actual);
+ w[9]=(uint32_t)s->at_us;w[10]=(uint32_t)(s->at_us>>32);
+ w[11]=(uint32_t)s->pcm_us;w[12]=(uint32_t)(s->pcm_us>>32);
+ w[13]=s->foreign_epoch;w[14]=s->sequence;memcpy(&w[15],&s->native_id,4);
+ atomic_store(&rt_actual_serial,serial+1);
+ for(unsigned i=0;i<16;i++)atomic_store(&rt_actual_words[i],w[i]);
+ rt_last_sample=*s;
+ atomic_store(&rt_observed_master_id,s->native_id);atomic_store(&rt_observed_ready,1);
+ atomic_store(&rt_actual_serial,serial+2);
+ done:atomic_store(&rt_actual_guard,0);
+}
+static void observe_consumer(struct xz_va_frame *f,int32_t id,uint32_t op,uint32_t sequence,int requested,int setter_rc){
+ uint64_t now;
+ if(!sequence)return;
+ if(runtime_monotonic_us(&now)||op!=atomic_load(&rt_va.operator_epoch)||id< -1){invalidate_sample(sequence);return;}
+ struct rt_master_sample s={.at_us=now,.sequence=sequence,.native_id=id};
+ s.actual=(struct xz_master_observation){.deck=id==-1?XZ_MASTER_NONE:id>=0&&id<2?id:XZ_MASTER_EXTERNAL,
+  .observed_ms=(uint32_t)(now/1000),.operator_epoch=op};
+ if(id==2||id==3)s.foreign_epoch=xz_va_probe_epoch(&rt_va,(uint32_t)id+1);
+ if(f->mode==1&&runtime_frame_fresh(f)&&id==(int32_t)f->source_id-1){
+  /* This pointer is borrowed only until registry_leave. Copy provenance now. */
+  const struct xz_va_bundle *v=&rt_va.slots[f->slot].value;
+  if(v->request_epoch==atomic_load(&rt_request_epoch)&&
+     (!v->request_epoch||atomic_load(&rt_request_operator)==op)){
+   uint32_t ack=atomic_load(&rt_ack_generation);
+   if(requested==(int)f->source_id&&!setter_rc&&ack<f->lease_generation)
+    (void)atomic_compare_exchange_strong(&rt_ack_generation,&ack,f->lease_generation);
+   if(v->request_epoch&&atomic_load(&rt_ack_generation)==f->lease_generation){
+    s.actual.deck=id;s.actual.request_epoch=v->request_epoch;s.actual.lease_generation=f->lease_generation;
+    s.actual.route_epoch=v->route_epoch;s.actual.load_revision=v->load_revision;
+    s.actual.transport_generation=v->transport_generation;
+    s.pcm_us=v->captured_mono_us;s.foreign_epoch=f->foreign_epoch;
+   }
+  }
+ }
+ publish_master_sample(&s);
 }
 
 static int hook_sync_mgr_sync(void *sync_mgr){
@@ -412,6 +557,13 @@ static int hook_sync_mgr_sync(void *sync_mgr){
  struct xz_va_frame *f=xz_va_registry_enter(&rt_va,&rt_registry,key);
  if(!f){SYO_INC(CONSUMER_NO_FRAME);return 0;}
  int32_t syo_before=-2;
+ uint32_t observed_op=atomic_load(&rt_va.operator_epoch),sequence=0;
+ int requested=0,setter_rc=-1;
+ if(f->depth==1){
+  uint32_t old=atomic_fetch_add(&rt_consumer_sequence,1);
+  if(old==UINT32_MAX)atomic_store(&rt_actual_exhausted,1);
+  else sequence=old+1;
+ }
  if(f->depth==1){
   f->expected_link_mgr=link_mgr;
   if(link_mgr&&orig_get_player_info){
@@ -432,14 +584,14 @@ static int hook_sync_mgr_sync(void *sync_mgr){
    memcpy(&cur_master,(const unsigned char *)sm+(dummy?0x18:0x08),4);
   }
   SYO_INC(MASTER_BEFORE);syo_before=cur_master;
-  atomic_store(&rt_observed_master_id,cur_master);
-  atomic_store(&rt_observed_ready,sm&&link_mgr?1:0);
-  int req_id=runtime_frame_fresh(f)?xz_va_take_request(&rt_va,f):0;
-  if((req_id==3||req_id==4)&&sm){
+
+  int req_id=sm&&link_mgr&&runtime_frame_request_current(f)?xz_va_take_request(&rt_va,f):0;
+  if((req_id==3||req_id==4)&&sm&&runtime_frame_request_current(f)){
    atomic_store(&rt_restore_pending,0);
    f->draining_sync_master=sm;
-   (void)call_set_link_master(sm,&req_id);
-   f->draining_sync_master=NULL;
+   f->draining_request=1;
+   requested=req_id;setter_rc=call_set_link_master(sm,&req_id);
+   f->draining_sync_master=NULL;f->draining_request=0;
   }else if(sm&&atomic_exchange(&rt_restore_pending,0)){
    int32_t exp_master=atomic_load(&rt_restore_expected_master);
    uint32_t exp_op=atomic_load(&rt_restore_operator_epoch);
@@ -463,8 +615,10 @@ static int hook_sync_mgr_sync(void *sync_mgr){
   memcpy(&after_master,(const unsigned char *)sm+(dummy?0x18:0x08),4);
   SYO_INC(MASTER_AFTER);
   SYO_REC(MASTER_OBSERVED,3,syo_before,after_master,rc);
-  atomic_store(&rt_observed_master_id,after_master);
+  if(orig_sync_mgr_sync&&!rc&&link_mgr)observe_consumer(f,after_master,observed_op,sequence,requested,setter_rc);
+  else invalidate_sample(sequence);
  }
+ else if(f->depth==1)invalidate_sample(sequence);
  (void)syo_before;
  xz_va_registry_leave(&rt_va,&rt_registry,key);
  return rc;
@@ -531,6 +685,7 @@ static int hook_set_master_on(void *sync_master,const int *master_id){
  if(atomic_load(&rt_installed)&&sync_master){
   struct xz_va_frame *f=xz_va_registry_lookup(&rt_registry,current_thread_key());
   int internal=(f&&f->depth>0&&f->draining_sync_master==sync_master);
+  if(internal&&f->draining_request&&!runtime_frame_request_current(f))return -1;
   int dummy=((const uint8_t *)sync_master)[0x15]!=0;
   syo_class=internal?1:dummy?2:3;
   if(internal)SYO_INC(OPERATOR_INTERNAL);else if(dummy)SYO_INC(OPERATOR_DUMMY);else SYO_INC(OPERATOR_EXTERNAL);
@@ -595,16 +750,24 @@ static void syo_link(unsigned outcome,int selected,int clock_result,int anchor_o
 #else
 #define SYO_LINK(...) ((void)0)
 #endif
-void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct xz_sync_link_clock_pair *clock_pair){
+static void runtime_step_locked(const struct xz_extra_decks *decks,const struct xz_sync_link_clock_pair *clock_pair){
  SYO_INC(STEP);
  if(!atomic_load(&rt_installed)){SYO_INC(STEP_DISABLED);return;}
- pthread_mutex_lock(&rt_pub_mutex);
  if(rt_clock.stepped&&!rt_lease.active)memset(&rt_clock,0,sizeof rt_clock);
  int clock_rc=xz_sync_link_clock_update(&rt_clock,clock_pair);
  int clock_ok=clock_rc==XZ_SYNC_LINK_OK;
  int selected=-1;
  if(decks&&decks->route_up){
-  for(int i=0;i<XZ_EXTRA_DECKS;i++)if(decks->deck[i].loaded&&decks->deck[i].master){selected=i;break;}
+  if(decks->master_intent.epoch){
+   int i=decks->master_intent.deck-XZ_EXTRA_FIRST_DECK;
+   if(i>=0&&i<XZ_EXTRA_DECKS&&decks->deck[i].loaded&&
+      decks->master_intent.operator_epoch==atomic_load(&rt_request_operator)&&
+      atomic_load(&rt_request_operator)==atomic_load(&rt_va.operator_epoch))selected=i;
+  }else if(atomic_load(&rt_legacy_mode)&&!atomic_load(&rt_global_mode)){
+   /* Compatibility for isolated pre-observer fixtures only. Epoch zero never
+      produces an owned global observation. */
+   for(int i=0;i<XZ_EXTRA_DECKS;i++)if(decks->deck[i].loaded&&decks->deck[i].master){selected=i;break;}
+  }
  }
  struct xz_sync_link_pcm_anchor anchor;
  int anchor_ok=clock_ok&&selected>=0&&
@@ -625,17 +788,20 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
    xz_sync_link_lease_release(&rt_lease,&obs,&clean);
    apply_cleanup(&clean,leased_id,&obs);
    SYO_LINK(4);
-   pthread_mutex_unlock(&rt_pub_mutex);
    return;
-  }else if(xz_sync_link_lease_observe(&rt_lease,&obs,&clean)==XZ_SYNC_LINK_LEASE_LOST){
+  }else {
+   if(obs.current_master_id==(int32_t)leased_id-1&&
+      atomic_load(&rt_ack_generation)!=atomic_load(&rt_va.lease_generation))
+    obs.current_master_id=rt_lease.claim.previous_master_id;
+   if(xz_sync_link_lease_observe(&rt_lease,&obs,&clean)==XZ_SYNC_LINK_LEASE_LOST){
    SYO_INC(LEASE_LOST);SYO_LINK(5);
    apply_cleanup(&clean,leased_id,&obs);
    if(obs.master_choice_epoch!=rt_lease.claim.master_choice_epoch||
       (obs.current_master_id>=0&&obs.current_master_id<2)){
     notify_use_native_master();
    }
-   pthread_mutex_unlock(&rt_pub_mutex);
    return;
+   }
   }
  }
  if(anchor_ok){
@@ -643,8 +809,12 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
    if(!rt_lease.active&&atomic_load(&rt_observed_ready)&&atomic_load(&rt_slot_absent[selected])){
     uint32_t probed_f=atomic_load(&rt_slot_probed_epoch[selected]);
     uint32_t op_epoch=atomic_load(&rt_va.operator_epoch);
-    int32_t prev_master=atomic_load(&rt_observed_master_id);
-    if(prev_master>=-1&&prev_master<=5&&prev_master!=(int32_t)src_id-1){
+    struct rt_master_sample observed;
+    int observed_ok=read_master_sample(&observed);
+    int32_t prev_master=observed_ok?observed.native_id:-2;
+    int request_current=!atomic_load(&rt_request_epoch)||
+     (op_epoch==atomic_load(&rt_request_operator)&&op_epoch==decks->master_intent.operator_epoch);
+    if(request_current&&prev_master>=-1&&prev_master<=5&&prev_master!=(int32_t)src_id-1){
      struct xz_sync_link_claim claim={
       .source_id=src_id,.owner=1,.route_epoch=anchor.route_epoch,
       .source_revision=anchor.source_revision,.playback_epoch=anchor.playback_epoch,
@@ -654,7 +824,12 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
      memcpy(claim.music_id,anchor.music_id,8);
      if(xz_sync_link_lease_claim(&rt_lease,&claim)==XZ_SYNC_LINK_OK){
       SYO_INC(CLAIM_OK);
-      if(!xz_va_claim(&rt_va,src_id,1,probed_f)){SYO_INC(VA_CLAIM_FAIL);syo_outcome=8;memset(&rt_lease,0,sizeof rt_lease);}
+      if(!xz_va_claim(&rt_va,src_id,1,probed_f)||atomic_load(&rt_va.claim_operator)!=op_epoch||
+         atomic_load(&rt_va.operator_epoch)!=op_epoch){
+       SYO_INC(VA_CLAIM_FAIL);syo_outcome=8;
+       atomic_store(&rt_va.valid_generation,0);atomic_store(&rt_va.pending,0);atomic_store(&rt_va.active,0);
+       memset(&rt_lease,0,sizeof rt_lease);
+      }
      }else{SYO_INC(CLAIM_FAIL);syo_outcome=7;}
     }else{SYO_INC(PREVIOUS_MASTER_INVALID);syo_outcome=9;}
    }else if(!rt_lease.active){
@@ -668,6 +843,9 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
      struct xz_va_bundle bundle;
      xz_sync_link_bundle_from_plan(&plan,&bundle);
      bundle.captured_mono_us=anchor.captured_mono_us;
+     bundle.request_epoch=atomic_load(&rt_request_epoch);
+     bundle.route_epoch=(uint32_t)anchor.route_epoch;bundle.load_revision=(uint32_t)anchor.source_revision;
+     bundle.transport_generation=(uint32_t)anchor.playback_epoch;
      if(xz_va_offer(&rt_va,&bundle,ticket)){
       SYO_INC(OFFER_OK);syo_outcome=0;
       if(plan.request_master){SYO_INC(MASTER_PENDING);xz_va_explicit_request(&rt_va);}
@@ -677,7 +855,40 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
  }
  SYO_LINK(syo_outcome);(void)syo_outcome;
  atomic_store(&rt_committed_deck,rt_lease.active&&rt_lease.master_committed?(int)rt_lease.claim.source_id-3:-1);
+}
+
+void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct xz_sync_link_clock_pair *clock_pair){
+ if(!atomic_load(&rt_installed))return;
+ pthread_mutex_lock(&rt_pub_mutex);
+ if(decks&&(decks->master_intent.epoch||decks->master_intent.explicit_choice||decks->master_intent.operator_epoch))
+  atomic_store(&rt_global_mode,1);
+ uint32_t old_request=atomic_load(&rt_request_epoch);
+ uint32_t request=decks?decks->master_intent.epoch:0;
+ if(request&&old_request&&request<old_request){pthread_mutex_unlock(&rt_pub_mutex);return;}
+ if(!request&&atomic_load(&rt_global_mode))request=old_request;
+ if(old_request!=request){
+  atomic_store(&rt_request_operator,decks?decks->master_intent.operator_epoch:0);
+ }
+ atomic_store(&rt_request_epoch,request);
+ if(old_request!=request&&rt_lease.active){
+  /* A same-source explicit reselection retains the guarded prior-master restore,
+     but gets a new lease generation and must drain a fresh request. */
+  unsigned side=rt_lease.claim.source_id-3;
+  if(decks&&decks->route_up&&decks->master_intent.deck==(int32_t)side+2&&
+     decks->deck[side].timeline.route_epoch==rt_lease.claim.route_epoch&&
+     decks->deck[side].timeline.load_revision==rt_lease.claim.source_revision&&
+     decks->deck[side].timeline.transport_generation==rt_lease.claim.playback_epoch&&va_live(&rt_va)){
+   atomic_store(&rt_va.active,0);atomic_store(&rt_va.pending,0);
+   rt_lease.master_committed=0;atomic_store(&rt_committed_deck,-1);
+   if(!xz_va_claim(&rt_va,side+3,atomic_load(&rt_slot_absent[side]),
+                   (uint32_t)rt_lease.claim.external_writer_epoch))release_runtime_lease();
+  }else release_runtime_lease();
+ }
+ runtime_step_locked(decks,clock_pair);
+ uint32_t op=atomic_load(&rt_va.operator_epoch);
+ int notify=atomic_exchange(&rt_notify_pending,0)&&old_request==request;
  pthread_mutex_unlock(&rt_pub_mutex);
+ if(notify)deliver_native_master(op,request);
 }
 
 void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks){
@@ -706,6 +917,11 @@ void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks){
 }
 
 int xz_sync_link_runtime_master_committed(int deck_index){
+ if(atomic_load(&rt_global_mode)){
+  struct xz_master_observation actual;
+  return deck_index>=0&&deck_index<XZ_EXTRA_DECKS&&
+   xz_sync_link_runtime_master_observe(&actual)&&actual.deck==deck_index+XZ_EXTRA_FIRST_DECK;
+ }
  if(deck_index<0||deck_index>=XZ_EXTRA_DECKS||atomic_load(&rt_committed_deck)!=deck_index)return 0;
  struct xz_va_frame frame={0};
  xz_va_begin(&rt_va,&frame);
@@ -716,26 +932,40 @@ int xz_sync_link_runtime_master_committed(int deck_index){
 
 static void reset_runtime_state(void){
  SYO_INC(RESETS);
- xz_va_init(&rt_va);
- xz_va_registry_init(&rt_registry);
+ pthread_mutex_lock(&rt_pub_mutex);
  memset(&rt_lease,0,sizeof rt_lease);
  memset(&rt_clock,0,sizeof rt_clock);
- atomic_init(&rt_slot_absent[0],0);atomic_init(&rt_slot_absent[1],0);
- atomic_init(&rt_slot_probed_epoch[0],0);atomic_init(&rt_slot_probed_epoch[1],0);
- atomic_init(&rt_observed_master_id,-2);
- atomic_init(&rt_observed_ready,0);
- atomic_init(&rt_committed_deck,-1);
- atomic_init(&rt_restore_pending,0);
- atomic_init(&rt_restore_input_id,0);
- atomic_init(&rt_restore_expected_master,-2);
- atomic_init(&rt_restore_operator_epoch,0);
- atomic_init(&rt_restore_foreign_epoch,0);
- atomic_init(&rt_restore_source_id,0);
+ atomic_store(&rt_slot_absent[0],0);atomic_store(&rt_slot_absent[1],0);
+ atomic_store(&rt_slot_probed_epoch[0],0);atomic_store(&rt_slot_probed_epoch[1],0);
+ atomic_store(&rt_observed_master_id,-2);
+ atomic_store(&rt_observed_ready,0);
+ atomic_store(&rt_committed_deck,-1);
+ /* Keep pins, cache identities, operator/lease counters and exhausted state
+    across stop/start. Surviving requests must never see a reused token. */
+ if(!atomic_exchange(&rt_initialized,1)){
+ xz_va_init(&rt_va);
+ xz_va_registry_init(&rt_registry);
+ atomic_init(&rt_request_epoch,0);atomic_init(&rt_request_operator,1);
+ atomic_init(&rt_ack_generation,0);atomic_init(&rt_notify_pending,0);atomic_init(&rt_invalid_sequence,0);
+ atomic_init(&rt_consumer_sequence,0);atomic_init(&rt_actual_guard,0);
+ atomic_init(&rt_actual_serial,0);atomic_init(&rt_actual_exhausted,0);
+ memset(&rt_last_sample,0,sizeof rt_last_sample);
+ for(unsigned i=0;i<16;i++)atomic_init(&rt_actual_words[i],0);
+ }
+ atomic_store(&rt_notify_pending,0);
+ atomic_store(&rt_restore_pending,0);
+ atomic_store(&rt_restore_input_id,0);
+ atomic_store(&rt_restore_expected_master,-2);
+ atomic_store(&rt_restore_operator_epoch,0);
+ atomic_store(&rt_restore_foreign_epoch,0);
+ atomic_store(&rt_restore_source_id,0);
+ pthread_mutex_unlock(&rt_pub_mutex);
 }
 
 int xz_sync_link_runtime_start(void){
  SYO_INC(INSTALL_ATTEMPT);
  if(atomic_load(&rt_installed)){SYO_INC(INSTALL_ALREADY);return 0;}
+ atomic_store(&rt_global_mode,1);atomic_store(&rt_legacy_mode,0);
  reset_runtime_state();
  static const unsigned char g_sync_mgr[8]={0xf8,0x40,0x2d,0xe9,0x14,0x50,0x80,0xe2};
  static const unsigned char g_get_player[8]={0x00,0x30,0x91,0xe5,0x01,0x10,0x43,0xe2};
@@ -768,14 +998,16 @@ int xz_sync_link_runtime_start(void){
 
 void xz_sync_link_runtime_stop(void){
  SYO_INC(STOPS);
- atomic_store(&rt_installed,0);
+ if(atomic_exchange(&rt_installed,0))xz_va_operator(&rt_va);
+ atomic_store(&rt_va.valid_generation,0);
  atomic_store(&rt_committed_deck,-1);
  SYO_REC(INSTALL,4,8,0,0,0);
 }
 
 void xz_sync_link_runtime_test_install(const struct xz_sync_link_test_ops *originals,struct xz_sync_link_test_ops *hooks_out){
  SYO_INC(TEST_INSTALL);
- atomic_store(&rt_installed,0);
+ xz_sync_link_runtime_stop();
+ atomic_store(&rt_legacy_mode,originals&&originals->legacy_fixture&&!atomic_load(&rt_global_mode));
  reset_runtime_state();
  orig_sync_mgr_sync=originals?originals->sync_mgr_sync:NULL;
  orig_get_player_info=originals?originals->get_player_info:NULL;
