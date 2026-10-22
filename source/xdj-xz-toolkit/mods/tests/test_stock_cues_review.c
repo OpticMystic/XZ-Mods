@@ -18,6 +18,7 @@ static void checked_load(int deck){
 }
 int main(int argc,char **argv){
  assert(argc==3);assert(!pthread_mutex_init(&f.lock,NULL));snprintf(fixtures,sizeof fixtures,"%s",argv[1]);snprintf(anlz_dir,sizeof anlz_dir,"%s/anlz",argv[1]);build_analysis();
+ uint32_t memory=open_section(&ext,"PCO2",20);u32(&ext,0);u16(&ext,1);u16(&ext,0);pcp2(&ext,0,1,500,0xaabbcc);close_section(&ext,memory);file_end(&ext);write_file("ANLZ0000.EXT",&ext);
  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
  p=xz_xp_create(&env);assert(p);xz_xp_set_cue_store(p,read_cues,write_cues);fake_route(8123);step();load(0,1);
  struct xz_extra_deck_event call=event(0,XZ_EXTRA_IN_PAD_MODE,1);call.hot_cue=XZ_EXTRA_PAD_HOT_CUE;
@@ -25,6 +26,7 @@ int main(int argc,char **argv){
  seek(0,800);press(0,XZ_EXTRA_IN_CUE);press(0,XZ_EXTRA_IN_MEMORY);CHECK(writes==1&&saved.memory_count==2);
  CHECK(view.deck[0].memory_count==2&&view.deck[0].memory_cue[1].ms==800);
  CHECK(saved.hot[7].set); /* CALL unloads a pad; it must not delete the stored cue. */
+ CHECK(saved.memory[0].rgb==0xaabbcc);
  seek(0,900);pad_key(0,2,1);pad_key(0,2,0);CHECK(writes==2&&saved.hot[2].set&&saved.hot[2].ms==900);
  load(0,1);CHECK(view.deck[0].hot_cue[2].set&&view.deck[0].hot_cue[2].ms==900);
  seek(0,700);press(0,XZ_EXTRA_IN_LOOP_DOUBLE);CHECK(debug(0).cue==ms_frames(0,800));
