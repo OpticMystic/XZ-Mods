@@ -106,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix='xz-extra-player-') as folder:
         else:
             tsan_unavailable = checked.stderr.strip()
         connector = folder / 'test-extra-decks'
-        subprocess.run(gcc + ['-DXZ_PLACEMENT_CONNECTOR_TEST', '-DUSB_MAJOR=1', '-DPOLL_DOWN_MS=50', '-DPOLL_UP_MS=5', linux(ROOT / 'extra_decks.c'),
+        subprocess.run(gcc + ['-DXZ_PLACEMENT_CONNECTOR_TEST', '-DUSB_MAJOR=1', '-DPOLL_DOWN_MS=50', '-DPOLL_UP_MS=5', linux(ROOT / 'extra_decks.c'), linux(ROOT / 'extra_cue_store.c'),
                               *(linux(ROOT / s) for s in SOURCES), linux(ROOT / 'test_extra_decks.c'), '-lm',
                               '-o', linux(connector)], check=True)
         subprocess.run(['wsl', '-d', 'Ubuntu', '--', linux(connector)], check=True)

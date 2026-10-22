@@ -350,6 +350,9 @@ static void *connector(void *unused) {
 }
 
 static void deck_worker_enter(int deck) { xz_extra_thread_place(deck ? "deck4" : "deck3"); }
+static void cue_store_notice(const char *message){
+ struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);if(p)xz_xp_notice(p,message);
+}
 
 int xz_extra_decks_start(void) {
  const char *enabled = getenv("XZ_MODS_FOUR_DECK");
@@ -359,14 +362,17 @@ int xz_extra_decks_start(void) {
                          1, 1}; /* VINYL mode and QUANTIZE on at start, as the stock decks */
  struct xz_xp_players *p = xz_xp_create(&env);
  if (!p) return -1;
+ (void)xz_cues_worker_start(xz_extra_resolve_track_checked,cue_store_notice,"/media/usb1","/media/usb2");
+ xz_xp_set_cue_store(p,xz_cues_restore,xz_cues_enqueue);
  if(xz_extra_native_sync_clock)xz_xp_set_native_sync_clock(p,xz_extra_native_sync_clock);
  if(xz_xp_set_master_observer&&xz_sync_link_runtime_master_observe)
   xz_xp_set_master_observer(p,xz_sync_link_runtime_master_observe);
- if (xz_xp_start(p)) { xz_xp_destroy(p); return -1; }
+ if (xz_xp_start(p)) { xz_cues_worker_stop();xz_xp_destroy(p); return -1; }
  __atomic_store_n(&players, p, __ATOMIC_RELEASE);
  __atomic_store_n(&route.quit, 0, __ATOMIC_RELEASE);
  if (pthread_create(&route.thread, NULL, connector, NULL)) {
   __atomic_store_n(&players, NULL, __ATOMIC_RELEASE);
+  xz_cues_worker_stop();
   xz_xp_destroy(p);
   return -1;
  }
@@ -382,5 +388,6 @@ void xz_extra_decks_stop(void) {
  __atomic_store_n(&route.quit, 1, __ATOMIC_RELEASE);
  pthread_join(route.thread, NULL);
  xz_xp_stop(players);
+ xz_cues_worker_stop();
  route.started = 0;
 }

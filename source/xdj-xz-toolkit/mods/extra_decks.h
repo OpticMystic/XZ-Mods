@@ -216,6 +216,7 @@ enum xz_extra_input {
  XZ_EXTRA_IN_SEARCH,                /* SEARCH held: hot_cue 0 forward, 1 back */            /* VINYL SPEED ADJUST: tempo_position, +SPAN fully clockwise = slowest */
  XZ_EXTRA_IN_INSTANT_DOUBLES,
  XZ_EXTRA_IN_LOOP_4_8,
+ XZ_EXTRA_IN_MEMORY, XZ_EXTRA_IN_MEMORY_DELETE,
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */
