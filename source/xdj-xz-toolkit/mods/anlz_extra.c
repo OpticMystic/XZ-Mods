@@ -25,11 +25,13 @@ static int section(const uint8_t *f, size_t n, const char tag[4], uint32_t *at, 
  return 0;
 }
 
-static void put(struct xz_extra_cue out[XZ_EXTRA_HOT_CUES], int *count, uint32_t hot, uint8_t type, uint32_t ms, uint32_t rgb) {
+static void put(struct xz_extra_cue out[XZ_EXTRA_HOT_CUES], int *count, uint32_t hot, uint8_t type, uint32_t ms,
+                uint32_t end, uint32_t rgb) {
  if(hot<1||hot>XZ_EXTRA_HOT_CUES||(type!=1&&type!=2)||ms>INT32_MAX||out[hot-1].set)return;
  /* Manual p.54: a pad lights green for a cue and orange for a loop unless rekordbox set a colour. */
  if(!rgb)rgb=type==2?XZ_ANLZ_LOOP_RGB:XZ_ANLZ_CUE_RGB;
- out[hot-1]=(struct xz_extra_cue){1,(int32_t)ms,rgb};(*count)++;
+ int32_t end_ms=type==2&&end!=0xffffffffu&&end>ms&&end<=INT32_MAX?(int32_t)end:0;
+ out[hot-1]=(struct xz_extra_cue){1,(int32_t)ms,rgb,end_ms};(*count)++;
 }
 
 int xz_anlz_hot_cues(const uint8_t *f, size_t n, struct xz_extra_cue out[XZ_EXTRA_HOT_CUES]) {
@@ -43,7 +45,7 @@ int xz_anlz_hot_cues(const uint8_t *f, size_t n, struct xz_extra_cue out[XZ_EXTR
    if(memcmp(f+e,"PCP2",4)||eh<16||et<44||et>at+total-e)break;
    uint32_t clen=be32(f+e+40),rgb=0;
    if(clen<=et-44&&(uint64_t)44+clen+4<=et){const uint8_t *k=f+e+44+clen;if(k[0])rgb=(uint32_t)k[1]<<16|(uint32_t)k[2]<<8|k[3];}
-   put(out,&count,be32(f+e+12),f[e+16],be32(f+e+20),rgb);
+   put(out,&count,be32(f+e+12),f[e+16],be32(f+e+20),be32(f+e+24),rgb);
    e+=et;
   }
  }
@@ -55,7 +57,7 @@ int xz_anlz_hot_cues(const uint8_t *f, size_t n, struct xz_extra_cue out[XZ_EXTR
   for(uint32_t e=at+head;(uint64_t)e+40<=(uint64_t)at+total;){
    uint32_t eh=be32(f+e+4),et=be32(f+e+8);
    if(memcmp(f+e,"PCPT",4)||eh<28||et<eh||et<40||et>at+total-e)break;
-   put(out,&count,be32(f+e+12),f[e+28],be32(f+e+32),0);
+   put(out,&count,be32(f+e+12),f[e+28],be32(f+e+32),be32(f+e+36),0);
    e+=et;
   }
  }

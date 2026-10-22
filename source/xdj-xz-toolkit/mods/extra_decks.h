@@ -20,7 +20,7 @@ enum xz_extra_field {
  XZ_EXTRA_F_PLAYING, XZ_EXTRA_F_BPM, XZ_EXTRA_F_TEMPO, XZ_EXTRA_F_MASTER, XZ_EXTRA_F_KEY,
  XZ_EXTRA_F_CUE, XZ_EXTRA_F_HOT_CUES, XZ_EXTRA_F_GRID, XZ_EXTRA_F_WAVE, XZ_EXTRA_F_LOOP,
  XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL, XZ_EXTRA_F_TIMELINE, XZ_EXTRA_F_SYNC,
- XZ_EXTRA_F_QUANTIZE,
+ XZ_EXTRA_F_QUANTIZE, XZ_EXTRA_F_TIME_MODE,
  XZ_EXTRA_FIELD_COUNT
 };
 #define XZ_EXTRA_KNOWN(field) ((uint32_t)1<<(field))
@@ -33,7 +33,8 @@ struct xz_extra_column { uint8_t low, mid, high; };
    percentile), computed once by the player so the draw thread never ranks a whole track; 0 = 765. */
 struct xz_extra_wave { const struct xz_extra_column *columns; uint32_t count; uint32_t span_ms; uint32_t normalization; };
 struct xz_extra_beat { int32_t ms; uint8_t beat_in_bar; };   /* 1..4 */
-struct xz_extra_cue { int set; int32_t ms; uint32_t rgb; };
+/* end_ms > ms: a loop hot cue from ms to end_ms; 0 for a point. */
+struct xz_extra_cue { int set; int32_t ms; uint32_t rgb; int32_t end_ms; };
 enum xz_extra_timeline_flag {
  XZ_EXTRA_TIMELINE_ANCHOR=1u, XZ_EXTRA_TIMELINE_RATE=2u,
  XZ_EXTRA_TIMELINE_MOTION=4u, XZ_EXTRA_TIMELINE_SINK_FRAME=8u
@@ -84,6 +85,7 @@ struct xz_extra_deck {
  int32_t tempo_x100;                   /* 0.01 % */
  int tempo_range, master_tempo, vinyl;
  int quantize;                         /* QUANTIZE: SYNC snaps to the master's beat (and keeps it) */
+ int remain, auto_cue;                 /* TIME MODE shows remaining time; AUTO CUE (manual, Auto Cue) */
  int tempo_reset;                      /* TEMPO RESET on: plays at the track's own speed */
  int reverse, slip;                    /* DIRECTION REV and SLIP modes */
  int pad_mode;                         /* enum xz_extra_pad_mode */
@@ -110,6 +112,8 @@ enum xz_extra_pad_mode {
  XZ_EXTRA_PAD_HOT_CUE, XZ_EXTRA_PAD_BEAT_LOOP, XZ_EXTRA_PAD_SLIP_LOOP, XZ_EXTRA_PAD_BEAT_JUMP,
  XZ_EXTRA_PAD_NONE
 };
+
+enum xz_extra_mode { XZ_EXTRA_MODE_QUANTIZE, XZ_EXTRA_MODE_REMAIN, XZ_EXTRA_MODE_AUTO_CUE };
 
 struct xz_extra_decks {
  int route_up;                         /* the CH3/CH4 route is live: interfaces show four decks */
@@ -170,7 +174,12 @@ enum xz_extra_input {
  XZ_EXTRA_IN_SLIP,
  XZ_EXTRA_IN_VINYL_SPEED,
  XZ_EXTRA_IN_QUANTIZE,              /* DECK QUANTIZE; shift: this deck only (manual), else every deck */
- XZ_EXTRA_IN_QUANTIZE_SET,          /* the other software deck's QUANTIZE press: tempo_position 0 off, 1 on */            /* VINYL SPEED ADJUST: tempo_position, +SPAN fully clockwise = slowest */
+ XZ_EXTRA_IN_MODE_SET,              /* the other software deck's QUANTIZE / TIME MODE / AUTO CUE press:
+                                       hot_cue = enum xz_extra_mode * 2 + (1 on, 0 off) */
+ XZ_EXTRA_IN_TIME_MODE,             /* TIME MODE press; shift: this deck only, else every deck */
+ XZ_EXTRA_IN_AUTO_CUE,              /* TIME MODE held one second; shift: this deck only */
+ XZ_EXTRA_IN_TRACK_PREV,            /* TRACK SEARCH back: start of the track; twice quickly: previous track */
+ XZ_EXTRA_IN_SEARCH,                /* SEARCH held: hot_cue 0 forward, 1 back */            /* VINYL SPEED ADJUST: tempo_position, +SPAN fully clockwise = slowest */
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */

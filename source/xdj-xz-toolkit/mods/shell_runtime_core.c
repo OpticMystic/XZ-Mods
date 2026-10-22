@@ -381,6 +381,7 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
  if(EK(MASTER_TEMPO)){d->master_tempo=!!s->master_tempo;d->known|=SK(MASTER_TEMPO);}
  if(EK(VINYL)){d->vinyl=!!s->vinyl;d->known|=SK(VINYL);}
  if(EK(QUANTIZE)){d->quantize_on=!!s->quantize;d->quantize_num=d->quantize_den=1;d->known|=SK(QUANTIZE);}
+ if(EK(TIME_MODE)){d->time_mode=s->remain?XZ_SHELL_TIME_REMAIN:XZ_SHELL_TIME_ELAPSED;d->known|=SK(TIME_MODE);}
  if(EK(MASTER)){d->master=!!s->master;d->master_scope=s->master_scope;d->known|=SK(MASTER);}
  if(EK(SYNC)){
   d->sync=!!s->sync.requested;d->sync_master_deck=s->sync.master_deck;
@@ -392,7 +393,8 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
  if(EK(KEY)&&s->key[0]){d->key=s->key;d->known|=SK(KEY);}
  if(EK(CUE)){d->cue_ms=s->cue_ms;d->known|=SK(CUE_POINT);}
  if(EK(HOT_CUES)){
-  for(int i=0;i<XZ_SHELL_HOT_CUES;i++)d->hot_cue[i]=(struct xz_shell_cue){!!s->hot_cue[i].set,s->hot_cue[i].ms,s->hot_cue[i].rgb,0};
+  for(int i=0;i<XZ_SHELL_HOT_CUES;i++)
+   d->hot_cue[i]=(struct xz_shell_cue){!!s->hot_cue[i].set,s->hot_cue[i].ms,s->hot_cue[i].rgb,s->hot_cue[i].end_ms>s->hot_cue[i].ms};
   d->known|=SK(HOT_CUES);
  }
  if(EK(LOOP)){
@@ -449,7 +451,12 @@ enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *m, co
   e->kind=XZ_EXTRA_IN_LOAD;e->load.source=browse_slot+1;e->load.track_id=(uint32_t)a->id;
   return XZ_SHRT_EXTRA_INPUT;
  }
- if(a->kind==XZ_SHELL_ACT_SEEK&&(caps&XZ_SHELL_CAP_SEEK)&&a->value>=0){e->kind=XZ_EXTRA_IN_SEEK;e->seek_ms=a->value;return XZ_SHRT_EXTRA_INPUT;}
+ /* NEEDLE LOCK (stock default LOCK, manual p.63): touching the waveform moves a software deck only while it
+    is paused or held on the platter in VINYL mode (the player reports neither as playing). */
+ if(a->kind==XZ_SHELL_ACT_SEEK&&(caps&XZ_SHELL_CAP_SEEK)&&a->value>=0){
+  if(m->deck[a->deck].playing)return XZ_SHRT_EXTRA_REFUSE;
+  e->kind=XZ_EXTRA_IN_SEEK;e->seek_ms=a->value;return XZ_SHRT_EXTRA_INPUT;
+ }
  return XZ_SHRT_EXTRA_REFUSE;
 }
 int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now) {

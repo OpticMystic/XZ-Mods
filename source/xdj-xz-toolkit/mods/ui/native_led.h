@@ -103,6 +103,7 @@ void xz_native_led_probe(const void *,size_t,unsigned,unsigned);
    colour; BEAT LOOP / SLIP LOOP / BEAT JUMP light every pad. Always XZ_LED_REPLACE so no native pad
    state shows through. */
 #define XZ_EXTRA_PAD_DEFAULT_RGB 0x00ff00u
+#define XZ_EXTRA_PAD_LOOP_DEFAULT_RGB 0xff8000u  /* an uncoloured loop hot cue lights orange (p.54) */
 /* Beat loop / slip loop pad colours: provisional until xz_mods_led_pad_probe_v1 captures the stock
    values for those pages. The pad whose loop runs is white because a flash is not yet qualified. */
 #define XZ_EXTRA_PAD_BEAT_LOOP_RGB 0xff6000u

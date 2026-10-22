@@ -82,7 +82,7 @@ int xz_extra_pad_led(const struct xz_extra_deck *deck,int pad,uint32_t *rgb,int 
    const struct xz_extra_cue *cue=&deck->hot_cue[pad];
    int lit=(deck->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_HOT_CUES))&&cue->set;
    uint32_t color=cue->rgb&0xffffffu;
-   *enabled=lit;*rgb=!lit?0:color?color:XZ_EXTRA_PAD_DEFAULT_RGB;
+   *enabled=lit;*rgb=!lit?0:color?color:cue->end_ms>cue->ms?XZ_EXTRA_PAD_LOOP_DEFAULT_RGB:XZ_EXTRA_PAD_DEFAULT_RGB;
    break;
   }
   /* Every pad is available; the pad whose loop runs is marked (manual p.56: it flashes). */

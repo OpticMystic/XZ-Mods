@@ -10,7 +10,7 @@
 #include "extra_decks.h"
 
 /* Hot cues from ANLZ0000.EXT (PCO2 list type 1, PCP2 entries with colours) or ANLZ0000.DAT (PCOB list
-   type 1, PCPT entries, no colour: the default colour below). Entry hot_cue 1..8 is pad A..H; a stored loop counts as a
+   type 1, PCPT entries, no colour: the default colour below). Entry hot_cue 1..8 is pad A..H; a stored loop keeps its end in end_ms (a loop hot cue), and counts as a
    cue at its start. Returns the number of pads set, -1 when the file has no hot cue list. */
 int xz_anlz_hot_cues(const uint8_t *file, size_t n, struct xz_extra_cue out[XZ_EXTRA_HOT_CUES]);
 /* Colour of a hot cue rekordbox left uncoloured (and every PCPT cue): green, orange for a loop. */
