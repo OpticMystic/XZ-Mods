@@ -506,7 +506,7 @@ static void cue_save(struct xz_xp_players *p,struct deck *d,const struct xz_cue_
  if(!p->cue_write)return;
  struct xz_saved_cues snapshot;cue_snapshot(d,&snapshot);
  if(!p->cue_write(d->index,&d->track,d->media_generation,to_ms(d,d->r->frames),&snapshot,edit))
-  xz_xp_notice(p,"SESSION CUES / USB SAVE NOT QUEUED");
+  xz_xp_notice(p,"CUES KEPT FOR THIS SESSION");
 }
 static float bend_now(const struct deck *d, uint32_t now) {
  uint32_t since = now - d->bend_at;
@@ -1016,6 +1016,9 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   for (int i = 0; i < XZ_EXTRA_HOT_CUES; ++i)
    if (d->hot[i].set) v.hot_cue[i] = (struct xz_extra_cue){1, to_ms(d, d->hot[i].at), d->hot[i].rgb,
                                                            d->hot[i].loop ? to_ms(d, d->hot[i].end) : 0};
+  v.memory_count=(unsigned)d->memory_count;
+  for(unsigned i=0;i<v.memory_count;i++)v.memory_cue[i]=(struct xz_extra_cue){1,to_ms(d,d->memory[i].at),0,d->memory[i].loop?to_ms(d,d->memory[i].end):0};
+  v.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_MEMORY_CUES);
   double published_bpm=d->track.track_bpm_x100,phase,period;
   if(loaded(s)&&grid_phase(d,d->heard,&phase,&period))published_bpm=6000.*d->r->rate/period;
   if (published_bpm > 0) {

@@ -14,6 +14,7 @@
 #define XZ_EXTRA_DECKS 2           /* index 0 = DECK 3, 1 = DECK 4 */
 #define XZ_EXTRA_FIRST_DECK 2      /* the zero-based deck number of index 0 */
 #define XZ_EXTRA_HOT_CUES 8
+#define XZ_EXTRA_MEMORY_CUES 16
 #define XZ_EXTRA_TEXT 96
 
 enum xz_extra_field {
@@ -21,7 +22,7 @@ enum xz_extra_field {
  XZ_EXTRA_F_PLAYING, XZ_EXTRA_F_BPM, XZ_EXTRA_F_TEMPO, XZ_EXTRA_F_MASTER, XZ_EXTRA_F_KEY,
  XZ_EXTRA_F_CUE, XZ_EXTRA_F_HOT_CUES, XZ_EXTRA_F_GRID, XZ_EXTRA_F_WAVE, XZ_EXTRA_F_LOOP,
  XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL, XZ_EXTRA_F_TIMELINE, XZ_EXTRA_F_SYNC,
- XZ_EXTRA_F_QUANTIZE, XZ_EXTRA_F_TIME_MODE,
+ XZ_EXTRA_F_QUANTIZE, XZ_EXTRA_F_TIME_MODE, XZ_EXTRA_F_MEMORY_CUES,
  XZ_EXTRA_FIELD_COUNT
 };
 #define XZ_EXTRA_KNOWN(field) ((uint32_t)1<<(field))
@@ -119,6 +120,7 @@ struct xz_extra_deck {
  char key[8];                          /* as the library writes it, e.g. "Fm" or "4A" */
  int32_t cue_ms;
  struct xz_extra_cue hot_cue[XZ_EXTRA_HOT_CUES];
+ struct xz_extra_cue memory_cue[XZ_EXTRA_MEMORY_CUES];unsigned memory_count;
  /* stored: a loop RELOOP can return to; edit: 0 none, 1 LOOP IN adjust, 2 LOOP OUT adjust. */
  struct { int active; int32_t in_ms, out_ms; int stored, edit; } loop;
  int held_playing;                     /* a vinyl hold that resumes playback on release */

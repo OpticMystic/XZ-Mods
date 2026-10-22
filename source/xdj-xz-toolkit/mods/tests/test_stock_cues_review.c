@@ -23,6 +23,7 @@ int main(int argc,char **argv){
  struct xz_extra_deck_event call=event(0,XZ_EXTRA_IN_PAD_MODE,1);call.hot_cue=XZ_EXTRA_PAD_HOT_CUE;
  assert(input(call));step();pad_key(0,0,1);pad_key(0,0,0);assert(input(call));step();CHECK(!view.deck[0].hot_cue[7].set);
  seek(0,800);press(0,XZ_EXTRA_IN_CUE);press(0,XZ_EXTRA_IN_MEMORY);CHECK(writes==1&&saved.memory_count==2);
+ CHECK(view.deck[0].memory_count==2&&view.deck[0].memory_cue[1].ms==800);
  CHECK(saved.hot[7].set); /* CALL unloads a pad; it must not delete the stored cue. */
  seek(0,900);pad_key(0,2,1);pad_key(0,2,0);CHECK(writes==2&&saved.hot[2].set&&saved.hot[2].ms==900);
  load(0,1);CHECK(view.deck[0].hot_cue[2].set&&view.deck[0].hot_cue[2].ms==900);
