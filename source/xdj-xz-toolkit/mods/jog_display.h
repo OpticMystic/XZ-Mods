@@ -12,12 +12,16 @@
 
 enum xz_jd_result { XZ_JD_OK, XZ_JD_NOT_READY, XZ_JD_BAD_INPUT, XZ_JD_UNSUPPORTED, XZ_JD_RESTORING, XZ_JD_STALE };
 enum xz_jd_phase { XZ_JD_NATIVE, XZ_JD_EXTRA_CLEAR, XZ_JD_EXTRA, XZ_JD_NATIVE_CLEAR, XZ_JD_REPLAY };
+enum xz_jd_sync_mode { XZ_JD_SYNC_OFF=0, XZ_JD_SYNC_LOCKED=1, XZ_JD_SYNC_BLINK=2 };
 struct xz_jd_snapshot {
     uint64_t generation, captured_ms;
     uint32_t position_ms, length_ms;
     uint8_t logical_deck, paused;
     int16_t tempo_rate; /* Exact signed UiGetPlayTempoRate wire units. */
     uint8_t tempo_range, vinyl_mode, master_tempo, tempo_known;
+    uint8_t status_known, cued, master, sync_mode, loop_active, slip;
+    uint16_t bpm_x100, track_bpm_x100;
+    uint32_t loop_in_ms, loop_out_ms;
 };
 struct xz_jd_family {
     uint8_t *bank[2];

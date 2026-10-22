@@ -40,6 +40,8 @@ int xz_jd_ready(const struct xz_jd *s) { unsigned i;if(!s->native_epoch)return 0
 static int fresh(const struct xz_jd *s,const struct xz_jd_snapshot *p,uint64_t now) {
     return p&&p->logical_deck==s->physical_side+2u&&p->paused<=1&&p->tempo_known==1&&p->vinyl_mode<=1&&p->master_tempo<=1&&
         (p->tempo_range==0||p->tempo_range==6||p->tempo_range==10||p->tempo_range==16||p->tempo_range==100)&&
+        p->status_known<=1&&(!p->status_known||(p->cued<=1&&p->master<=1&&p->sync_mode<=XZ_JD_SYNC_BLINK&&
+        p->loop_active<=1&&p->slip<=1&&(!p->loop_active||p->loop_out_ms>p->loop_in_ms)))&&
         p->generation&&p->captured_ms<=now&&now-p->captured_ms<=s->freshness_ms&&p->position_ms<=p->length_ms&&p->length_ms<128u*60000u;
 }
 int xz_jd_select_unavailable(struct xz_jd *s,unsigned deck) {
@@ -68,6 +70,12 @@ void xz_jd_clear_packet(unsigned deck,unsigned family,uint8_t p[64]) {
     memset(p,0,64);if(family<1||family>5)return;p[0]=(uint8_t)(deck<<4);p[1]=command[family];p[2]=p[4]=1;if(family==4)p[6]=0x80;
 }
 static void time_ms(uint8_t *p,uint32_t value) { p[0]=(uint8_t)(value/60000u);p[1]=(uint8_t)((value/1000u)%60u);set16(p+2,value%1000u); }
+static void encode_bpm_pair(uint8_t *p,unsigned bpm_x100,int high_first) {
+    unsigned tenths=bpm_x100/10u,whole=tenths/10u,frac=tenths%10u;
+    p[0]=(uint8_t)(whole&0xffu);
+    p[1]=high_first?(uint8_t)((((whole>>8)&0x0fu)<<4)|(frac&0x0fu))
+                   :(uint8_t)(((frac&0x0fu)<<4)|((whole>>8)&0x0fu));
+}
 static void info(const struct xz_jd_snapshot *s,uint8_t p[64]) {
     /* Neutral native producer output: BPM invalid, no cue/loop/slip/sync,
      * quantize disabled, native track number unknown, explicit elapsed time. */
@@ -80,6 +88,20 @@ static void info(const struct xz_jd_snapshot *s,uint8_t p[64]) {
     time_ms(p+0xb,s->position_ms);time_ms(p+0xf,s->length_ms);p[0x13]=p[0x14]=0xbb;set16(p+0x17,(uint16_t)s->tempo_rate);
     p[4]=(uint8_t)((s->tempo_range==6?1:s->tempo_range==10?2:s->tempo_range==16?3:s->tempo_range==100?4:0)<<4);
     p[4]|=(uint8_t)(s->master_tempo<<2);p[5]=(uint8_t)((p[5]&0xfcu)|s->vinyl_mode);
+    if(s->status_known) {
+        if(s->paused&&s->cued)p[2]=0x0cu;
+        p[5]=(uint8_t)((p[5]&~0xb8u)|(s->slip?0x08u:0u)|
+            (s->sync_mode==XZ_JD_SYNC_LOCKED?0x10u:s->sync_mode==XZ_JD_SYNC_BLINK?0x20u:0u)|
+            (s->master?0x80u:0u));
+        if(s->bpm_x100>0) {
+            encode_bpm_pair(p+0x15,s->bpm_x100,0);
+            encode_bpm_pair(p+0x26,s->bpm_x100,1);
+            p[9]&=(uint8_t)~0x10u; /* Known BPM is not native -1. */
+        }
+        if(s->track_bpm_x100>0)encode_bpm_pair(p+0x2f,s->track_bpm_x100,0);
+        /* Loop and cue time units are unresolved. Keep the neutral inactive
+         * sentinels instead of serializing software milliseconds. */
+    }
 }
 static void quiet_status(uint8_t *p) {
     /* Exact native LED differential proof identifies these status fields.
@@ -87,6 +109,20 @@ static void quiet_status(uint8_t *p) {
     p[0]=0;p[3]&=(uint8_t)~2u;p[4]&=(uint8_t)~7u;p[5]&=(uint8_t)~15u;
     p[0x50]=0;p[0x51]&=(uint8_t)~0x21u;p[0x56]&=(uint8_t)~0x90u;p[0x57]=0;
     p[0x5d]=p[0x5e]=0x7f;p[0x84]=p[0x8b]=0;
+}
+static void extra_status(uint8_t *p,const struct xz_jd_snapshot *s) {
+    /* Direct fields only: no unqualified blink cadence, ring warning or loop feedback. */
+    uint8_t vinyl=s->vinyl_mode?1u:0u;
+    uint8_t slip=s->slip?1u:0u;
+    uint8_t cue_led=s->paused&&s->cued?1u:0u;
+    uint8_t play_led=s->paused?0u:1u;
+    uint8_t sync_led=s->sync_mode==XZ_JD_SYNC_LOCKED?1u:0u;
+    uint8_t master_led=s->master?1u:0u;
+    p[4]=(uint8_t)((p[4]&~7u)|(vinyl<<1)|(slip<<2));
+    p[5]=(uint8_t)((p[5]&~15u)|cue_led|(play_led<<1));
+    p[0x50]=vinyl;
+    p[0x51]=(uint8_t)((p[0x51]&~0x21u)|slip);
+    p[0x56]=(uint8_t)((p[0x56]&~0x90u)|(sync_led?0x10u:0u)|(master_led?0x80u:0u));
 }
 static void unavailable(unsigned deck,uint8_t packet[64]) {
     struct xz_jd_snapshot empty={0};
@@ -138,7 +174,10 @@ int xz_jd_step(struct xz_jd *s,const uint8_t native[148],const struct xz_jd_snap
         if(!s->ever_owned)s->wire_sequence=(uint16_t)get16(native+8);
         s->ever_owned=1;swap64(out+12,packet);out[7]&=0xcf;
         out[0x53]=(uint8_t)((out[0x53]&15u)|((s->selected)<<4));
-        if(s->selected==s->physical_side+2u)quiet_status(out);
+        if(s->selected==s->physical_side+2u) {
+            quiet_status(out);
+            if(!s->unavailable&&snapshot&&snapshot->status_known)extra_status(out,snapshot);
+        }
     }
     if(s->ever_owned) {
         if(emitted||new_packet)s->wire_sequence++;

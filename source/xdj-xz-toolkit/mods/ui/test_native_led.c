@@ -123,5 +123,31 @@ int main(void) {
  assert(!(xz_mods_led_probe_v1.entry[0][0].sequence&1));
  for(unsigned i=0;i<XZ_LED_PROBE_IDS+1;i++){put(status,0x100+i);xz_native_led_probe(status,XZ_LED_RECORD_BYTES,1,1);}
  assert(xz_mods_led_probe_v1.overflow[0]==2);
- puts("PASS native LED packet bounds, colors, mute, DECK 3/4 hot cues, stock ownership and channel isolation");
+ /* Existing-record scope: no append, index write, timer, loop or ring write. */
+ {
+  unsigned char existing[4*XZ_LED_RECORD_BYTES+64],before[sizeof existing];
+  uint16_t idx[120],cnt=4;
+  memset(existing,0xa5,sizeof existing);memset(idx,0x5a,sizeof idx);
+  put(existing,XZ_LED_ID_PLAY_PAUSE);put(existing+4,1);put(existing+0x10,0);existing[0x18]=0;
+  put(existing+44,XZ_LED_ID_LOOP_IN);put(existing+48,1);
+  put(existing+88,XZ_LED_ID_PLAY_PAUSE);put(existing+92,2);
+  put(existing+132,XZ_LED_ID_CUE);put(existing+136,1);
+  existing[132+0x18]=1;
+  memcpy(before,existing,sizeof existing);
+  struct xz_extra_deck d={0};d.loaded=d.playing=1;d.loop.active=1;
+  assert(xz_native_led_extra_deck(existing,sizeof existing,&cnt,idx,65535,65535,
+                                  0,1000,1,&d)==1);
+  assert(cnt==4&&word(existing+0x10)==1);
+  assert(!memcmp(existing+44,before+44,sizeof existing-44));
+  for(unsigned i=0;i<120;i++)assert(idx[i]==0x5a5a);
+  cnt=0;memcpy(existing,before,sizeof existing);
+  assert(!xz_native_led_extra_deck(existing,sizeof existing,&cnt,idx,0,0,
+                                   0,1000,1,&d));
+  assert(!memcmp(existing,before,sizeof existing));
+  cnt=65535;
+  assert(!xz_native_led_extra_deck(existing,sizeof existing,&cnt,idx,65535,65535,
+                                   0,1000,1,&d));
+  assert(!memcmp(existing,before,sizeof existing));
+ }
+ puts("PASS native LED packet bounds, colors, mute, DECK 3/4 hot cues, existing-record-only transport, stock ownership and channel isolation");
 }

@@ -88,5 +88,31 @@ int main(void) {
     for(i=0;i<6;i++) { assert(xz_jd_step(&s,native_right,&extra,1101,out)==XZ_JD_OK);packet(out,p);assert(p[0]==0x40&&(out[0x53]>>4)==4);check_crc(out); }
     assert(xz_jd_select(&s,3,&extra,1101)==XZ_JD_BAD_INPUT);
     assert(xz_jd_select(&s,2,NULL,1101)==XZ_JD_OK);xz_jd_step(&s,native_right,NULL,1101,out);packet(out,p);assert(p[0]==0x20&&(out[0x53]>>4)==2);
+    /* Extended software deck status_known synthesis: cued pause, sync/master/slip,
+     * BPM fields, loop window, and active JogCpuCom ring/button status bytes. */
+    {
+        struct xz_jd_snapshot rich={
+            .generation=2,.captured_ms=1101,.position_ms=2000,.length_ms=200000,
+            .logical_deck=4,.paused=1,.tempo_rate=-250,.tempo_range=10,
+            .vinyl_mode=1,.master_tempo=1,.tempo_known=1,.status_known=1,
+            .cued=1,.master=1,.sync_mode=XZ_JD_SYNC_LOCKED,.loop_active=1,.slip=1,
+            .bpm_x100=12850,.track_bpm_x100=12500,.loop_in_ms=2000,.loop_out_ms=6000
+        };
+        assert(xz_jd_select(&s,4,&rich,1101)==XZ_JD_OK);
+        for(i=0;i<6;i++)assert(xz_jd_step(&s,native_right,&rich,1101,out)==XZ_JD_OK);
+        packet(out,p);check_crc(out);
+        assert(p[0]==0x40&&p[2]==0x0c);
+        assert((p[5]&0xb9u)==(0x01u|0x08u|0x10u|0x80u));
+        assert(p[0x15]==128&&p[0x16]==0x50&&p[0x26]==128&&p[0x27]==0x05);
+        assert(p[0x2f]==125&&p[0x30]==0x00);
+        assert(!(p[9]&0x10u)); /* Known BPM must not carry unavailable. */
+        assert(p[0x19]==0xff&&p[0x1a]==0xff&&p[0x1b]==0xff);
+        assert(p[0x1c]==0xff&&p[0x1d]==0xff&&p[0x1e]==0xff);
+        assert(p[0x1f]==0xff&&p[0x20]==0xff&&p[0x21]==0xff);
+        assert(!(out[3]&0x02u)&&out[0x5d]==0x7f&&out[0x5e]==0x7f);
+        assert((out[4]&0x07u)==0x06u&&out[0x50]==1&&(out[0x51]&0x21u)==0x01u);
+        assert((out[5]&0x01u)==0x01u&&!(out[5]&0x0cu));
+        assert((out[0x56]&0x90u)==0x90u&&out[0x57]==0);
+    }
     free(storage);puts("PASS: native ARM fixture parity, ownership, quiet ring/status, full paused-native replay, freshness, media epoch, bounds, and unsupported PC mode");return 0;
 }
