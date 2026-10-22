@@ -173,6 +173,7 @@ static void test_routing(void) {
   {0x4104, XZ_EXTRA_IN_VINYL}, {0x4107, XZ_EXTRA_IN_TEMPO_RANGE}, {0x4109, XZ_EXTRA_IN_TEMPO_RESET},
   {0x4324, XZ_EXTRA_IN_LOOP_DOUBLE}, {0x4325, XZ_EXTRA_IN_LOOP_HALF},
   {0x4110, XZ_EXTRA_IN_REVERSE}, {0x4111, XZ_EXTRA_IN_SLIP},
+  {0x4126, XZ_EXTRA_IN_MEMORY_DELETE}, {0x4127, XZ_EXTRA_IN_MEMORY},
   {0x4121, XZ_EXTRA_IN_SEARCH}, {0x4122, XZ_EXTRA_IN_SEARCH}
  };
  for (unsigned i = 0; i < sizeof controls / sizeof *controls; ++i) {
@@ -187,7 +188,7 @@ static void test_routing(void) {
  }
  /* Unsupported per-deck keys never reach the native deck. */
  static const uint16_t swallowed[] = {
-  0x4126, 0x4127, 0x4128, 0x4312, 0x4212, 0x4213, 0x430f, 0x430b, 0x430c};
+  0x4128, 0x4312, 0x4212, 0x4213, 0x430f, 0x430b, 0x430c};
  for(size_t i = 0; i < sizeof swallowed / sizeof *swallowed; i++) {
   assert(key(LEFT, swallowed[i], 0).verdict == XZ_DS_SWALLOW);
   assert(key(LEFT, swallowed[i], 2).verdict == XZ_DS_SWALLOW);

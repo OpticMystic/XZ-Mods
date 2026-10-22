@@ -57,6 +57,11 @@ acceptance.
 
 ## Additional stock controls
 
+- MEMORY stores the current cue or loop. DELETE removes the called memory point. Hot-cue edits and loop-hot-cue boundary edits also request a save.
+- Software-deck cues persist in `xzmods-cues-TRACK_ID.bin` in that track's ANLZ directory. Rekordbox's DAT, EXT and database files remain unchanged; native decks and rekordbox do not read this sidecar. A fresh software-deck load restores the saved cues after reading the export.
+- A separate writer thread serializes edits from both decks. The audio workers enqueue changes into a fixed 16-job queue and perform no filesystem writes. Each job rechecks the selected USB's media generation, opens the ANLZ directory through the allowed USB root, writes a bounded temporary file, then renames it. Concurrent edits merge per pad or memory point rather than replacing another deck's changes.
+- `XZ_MODS_SETTINGS_READONLY=1` prevents every save request. Edits still work for the session. A full queue or failed save is reported without discarding the session cue. Saved files have a version, track identity, duration, bounds and checksum checks. Invalid saved data leaves the rekordbox export available.
+
 - The dedicated 4/8BEAT button uses captured code `0x4118`. Press starts a four-beat loop, hold extends it to eight beats, and a press during loop playback halves the loop. SHIFT doubles the loop.
 - Press HOT CUE again while already in Hot Cue mode to enter CALL. Choosing a saved pad recalls it without moving playback. Press HOT CUE again to finish; pads not selected are cleared from the working bank. The source export remains unchanged.
 - Rekordbox active loops engage when forward playback reaches the stored start. The DAT PCPT status must explicitly be 4. The public [crate-digger ANLZ schema](https://github.com/Deep-Symmetry/crate-digger/blob/main/src/main/kaitai/rekordbox_anlz.ksy) documents this field. Malformed or out-of-track loop boundaries are rejected.
@@ -168,7 +173,7 @@ as unverified. Synthetic pitch tests do not establish subjective music quality.
   green, loops orange (p.54).
 - Jog-display output remains with the root thread. The stopped jog-display
   analysis has not been resumed here.
-- Not yet stock: native sources for Instant Doubles; MEMORY / DELETE and saving hot cues to the stick;
+- Not yet stock: native sources for Instant Doubles; native/rekordbox visibility of software cue edits;
   waveform needle search
   is refused while playing (stock NEEDLE LOCK default) because the UTILITY setting is not readable.
 - Touch deceleration in VINYL mode and slip during scratching belong to the

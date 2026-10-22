@@ -309,6 +309,7 @@ struct xz_xp_players {
  atomic_uint sync_requests;
  atomic_uint sync_choice_epoch, sync_grid;
  int (*native_sync_clock)(struct xz_sync_native_snapshot *);
+ xz_cue_read_fn cue_read;xz_cue_write_fn cue_write;
  struct sync_clock clock[XZ_EXTRA_DECKS]; /* copies only, protected by publish_lock */
  xz_usb_position sync_position;
  uint32_t sync_position_route,sync_position_at;
@@ -337,6 +338,9 @@ void xz_xp_set_master_observer(struct xz_xp_players *p,xz_master_observer observ
 }
 void xz_xp_set_native_sync_clock(struct xz_xp_players *p,int (*read)(struct xz_sync_native_snapshot *)){
  if(p&&!p->threads)p->native_sync_clock=read;
+}
+void xz_xp_set_cue_store(struct xz_xp_players *p,xz_cue_read_fn read,xz_cue_write_fn write){
+ if(p&&!p->threads){p->cue_read=read;p->cue_write=write;}
 }
 int xz_xp_needs_native_sync(const struct xz_xp_players *p){
  return p&&(p->master_observer||atomic_load(&p->sync_master)<0)&&atomic_load(&p->sync_requests)!=0;
@@ -486,6 +490,23 @@ static int stored_loop_end(const struct deck *d, int32_t ms, int32_t end_ms, uin
 static double nominal(const struct deck *d) {
  /* Retain the exact applied SYNC rate until an accepted manual tempo command. */
  return d->sync_rate_active ? d->sync_rate : 1.0 + d->tempo_x100 / 10000.0;
+}
+static struct xz_extra_cue saved_hot(const struct deck *d,const struct hot *h){
+ return h->set?(struct xz_extra_cue){1,to_ms(d,h->at),h->rgb,h->loop?to_ms(d,h->end):0}:(struct xz_extra_cue){0};
+}
+static void cue_snapshot(const struct deck *d,struct xz_saved_cues *out){
+ memset(out,0,sizeof *out);
+ for(unsigned i=0;i<8;i++)out->hot[i]=saved_hot(d,&d->saved_hot[i]);
+ for(int i=0;i<d->memory_count&&i<XZ_CUE_MEMORY;i++){
+  const struct memory_point *m=&d->memory[i];
+  out->memory[out->memory_count++]=(struct xz_extra_cue){1,to_ms(d,m->at),0,m->loop?to_ms(d,m->end):0};
+ }
+}
+static void cue_save(struct xz_xp_players *p,struct deck *d,const struct xz_cue_edit *edit){
+ if(!p->cue_write)return;
+ struct xz_saved_cues snapshot;cue_snapshot(d,&snapshot);
+ if(!p->cue_write(d->index,&d->track,d->media_generation,to_ms(d,d->r->frames),&snapshot,edit))
+  xz_xp_notice(p,"SESSION CUES / USB SAVE NOT QUEUED");
 }
 static float bend_now(const struct deck *d, uint32_t now) {
  uint32_t since = now - d->bend_at;
@@ -1168,7 +1189,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
    d->hot[i].loop = stored_loop_end(d, extra.hot_cue[i].ms, extra.hot_cue[i].end_ms, &d->hot[i].end);
   }
  xz_anlz_extra_free(&extra);
- memcpy(d->saved_hot,d->hot,sizeof d->hot);d->called_hot=0;
+ d->called_hot=0;
  if(d->pad_mode==XZ_EXTRA_PAD_CALL)d->pad_mode=XZ_EXTRA_PAD_HOT_CUE;
  d->active_loop.armed=0;
  struct xz_shana_cue active={0};
@@ -1190,6 +1211,25 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
    d->memory_count++;
   }
  }
+ if(p->cue_read){
+  struct xz_saved_cues saved={0};int found=p->cue_read(&t,e->load.media_generation,to_ms(d,d->r->frames),&saved);
+  if(found>0&&saved.memory_count<=XZ_CUE_MEMORY){
+   memset(d->hot,0,sizeof d->hot);
+   for(unsigned i=0;i<8;i++)if(saved.hot[i].set){
+    d->hot[i]=(struct hot){1,to_frames(d,saved.hot[i].ms),saved.hot[i].rgb,0,0};
+    d->hot[i].loop=stored_loop_end(d,saved.hot[i].ms,saved.hot[i].end_ms,&d->hot[i].end);
+   }
+   d->memory_count=(int)saved.memory_count;int active=0;
+   for(unsigned i=0;i<saved.memory_count;i++){
+    struct memory_point *m=&d->memory[i];m->at=to_frames(d,saved.memory[i].ms);m->end=0;
+    m->loop=stored_loop_end(d,saved.memory[i].ms,saved.memory[i].end_ms,&m->end);
+    active|=m->loop&&m->at==d->active_loop.in&&m->end==d->active_loop.out;
+   }
+   if(!active)d->active_loop.armed=0;
+   d->cue=d->auto_cue&&d->memory_count?d->memory[0].at:0;d->auto_cue_at=d->cue;
+  }else if(found<0)xz_xp_notice(p,"SAVED CUES INVALID / USING EXPORT");
+ }
+ memcpy(d->saved_hot,d->hot,sizeof d->hot);
  jump(d, d->cue, now);
  d->state = XZ_XP_CUED;
  d->load_revision++;d->media_generation=e->load.media_generation;
@@ -1802,11 +1842,13 @@ static void set_tempo(struct deck *d) {
  d->tempo_x100 = d->tempo_reset ? 0 : (int32_t)(steps * step);
 }
 /* A loop called from a hot cue pad keeps that pad's loop in step with edits (p.53). */
-static void loop_pad_store(struct deck *d) {
+static void loop_pad_store(struct xz_xp_players *p,struct deck *d) {
  if (d->loop_pad < 0 || d->loop_pad >= XZ_EXTRA_HOT_CUES) return;
  struct hot *h = &d->hot[d->loop_pad];
  if (!h->set || !h->loop || !d->loop.valid) { d->loop_pad = -1; return; }
- h->at = d->loop.in; h->end = d->loop.out;
+ if(h->at==d->loop.in&&h->end==d->loop.out)return;
+ h->at = d->loop.in; h->end = d->loop.out;d->saved_hot[d->loop_pad]=*h;
+ struct xz_cue_edit edit={.kind=XZ_CUE_EDIT_HOT,.pad=(unsigned)d->loop_pad,.point=saved_hot(d,h)};cue_save(p,d,&edit);
 }
 /* CUE/LOOP CALL outside loop playback (p.51): the stored point before (back) or after (forward) the
    position; the track jumps there and pauses. A memory loop is set, so PLAY starts loop playback. */
@@ -1897,10 +1939,10 @@ static void loop_button(struct xz_xp_players *p, struct deck *d, const struct xz
   else length = d->r->frames - d->loop.in;
   d->loop.out = d->loop.in + length;
   d->loop.edit = 0; jump(d, loop_frame(d, at), now);
-  loop_pad_store(d);
+  loop_pad_store(p,d);
   xz_xp_notice(p,e->kind==XZ_EXTRA_IN_LOOP_HALF?"LOOP HALF":"LOOP DOUBLE");
  }
- if (d->loop.active) loop_pad_store(d); else d->loop_pad = -1;
+ if (d->loop.active) loop_pad_store(p,d); else d->loop_pad = -1;
 }
 
 /* ---- pad modes, DIRECTION REV, SLIP and VINYL SPEED ADJUST (manual pp.42-62) ---- */
@@ -1996,7 +2038,7 @@ static void pad_jump(struct xz_xp_players *p, struct deck *d, int pad, uint32_t 
   d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;
   d->loop.in = (uint64_t)llround(in); d->loop.out = (uint64_t)llround(out); d->loop.edit = 0;
   jump(d, loop_frame(d, (uint64_t)llround((double)at + delta)), now);
-  loop_pad_store(d);
+  loop_pad_store(p,d);
   return;
  }
  double to = (double)at + delta;
@@ -2024,7 +2066,14 @@ static void pad(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
    double rate = fabs(d->slip_bg.rate) > 0.01 ? fabs(d->slip_bg.rate) : 1.0;
    d->slip_bg.reverse_ms = (uint32_t)llround(4.0 * beat_frames(d, d->hot[index].at) * 1000.0 / d->r->rate / rate);
   }
-  hot_cue(d, e, now);
+  {
+   struct hot before=d->hot[index];hot_cue(d,e,now);
+   const struct hot *after=&d->hot[index];
+   if(before.set!=after->set||before.at!=after->at||before.end!=after->end||before.rgb!=after->rgb||before.loop!=after->loop){
+    d->saved_hot[index]=*after;
+    struct xz_cue_edit edit={.kind=XZ_CUE_EDIT_HOT,.pad=(unsigned)index,.point=saved_hot(d,after)};cue_save(p,d,&edit);
+   }
+  }
   break;
  case XZ_EXTRA_PAD_BEAT_LOOP: pad_loop(p, d, index, e->pressed, 0, now); break;
  case XZ_EXTRA_PAD_SLIP_LOOP: pad_loop(p, d, index, e->pressed, 1, now); break;
@@ -2144,6 +2193,26 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
 }
 
 static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, uint32_t arrived,uint32_t master_choice,uint32_t operator_epoch) {
+ if(e->kind==XZ_EXTRA_IN_MEMORY||e->kind==XZ_EXTRA_IN_MEMORY_DELETE){
+  if(!e->pressed||e->held||!loaded(d->state)||d->emergency.active)return;
+  uint64_t at=d->loop.active?d->loop.in:d->cue,end=d->loop.active?d->loop.out:0;
+  int index=0;while(index<d->memory_count&&d->memory[index].at<at)index++;
+  int exists=index<d->memory_count&&d->memory[index].at==at;
+  if(e->kind==XZ_EXTRA_IN_MEMORY_DELETE){
+   if(!exists){xz_xp_notice(p,"NO MEMORY POINT AT CUE");return;}
+   memmove(d->memory+index,d->memory+index+1,(size_t)(d->memory_count-index-1)*sizeof *d->memory);d->memory_count--;
+   if(d->active_loop.in==at)d->active_loop.armed=0;
+   xz_xp_notice(p,"MEMORY POINT DELETED");
+  }else{
+   if(!exists){
+    if(d->memory_count==XZ_SHELL_MEMORY_CUES){xz_xp_notice(p,"MEMORY POINTS FULL");return;}
+    memmove(d->memory+index+1,d->memory+index,(size_t)(d->memory_count-index)*sizeof *d->memory);d->memory_count++;
+   }
+   d->memory[index]=(struct memory_point){at,end,end>at};xz_xp_notice(p,"MEMORY POINT SET");
+  }
+  struct xz_cue_edit edit={.kind=e->kind==XZ_EXTRA_IN_MEMORY?XZ_CUE_EDIT_MEMORY:XZ_CUE_EDIT_DELETE,
+   .point={1,to_ms(d,at),0,end>at?to_ms(d,end):0}};cue_save(p,d,&edit);return;
+ }
  if(d->emergency.active&&e->kind!=XZ_EXTRA_IN_LOAD&&e->kind!=XZ_EXTRA_IN_INSTANT_DOUBLES){
   if(e->pressed&&(e->kind==XZ_EXTRA_IN_PLAY||e->kind==XZ_EXTRA_IN_CUE)){
    if(streaming(d->state))pause_at_heard(d,now);else if(e->kind==XZ_EXTRA_IN_PLAY)start(d,now);
@@ -2747,7 +2816,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   if(gap!=XP_SP_UNKNOWN&&gap>v->current[XP_SP_CURRENT_MAX_WORKER_GAP])v->current[XP_SP_CURRENT_MAX_WORKER_GAP]=gap;
   v->last_start=now;v->have_start=1;
   if(gap==XP_SP_UNKNOWN||gap>=8)sp_history(d,now,2));
- if (d->loop.edit && now - d->loop.edit_at >= 10000u) { d->loop.edit = 0; loop_pad_store(d); }
+ if (d->loop.edit && now - d->loop.edit_at >= 10000u) { d->loop.edit = 0; loop_pad_store(p,d); }
  collect(d, now);
  uint32_t link = s->link(s->ctx);
  if (link != d->epoch) {
