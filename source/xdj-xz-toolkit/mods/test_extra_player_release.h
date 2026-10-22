@@ -3,6 +3,8 @@
 static unsigned release_frames,release_calls,release_max_calls,release_trace;
 static uint64_t release_last;
 static double release_from,release_rate;
+static double release_reverse_at;
+static double release_reverse_source,release_reverse_rate;
 static int release_side,release_bad_pcm,release_fault_stage,release_fault_left;
 static int release_complete_transition;
 static xz_usb_result release_fault;
@@ -10,6 +12,8 @@ static void release_pcm(int side,const float *pcm,uint32_t frames,uint64_t after
  if(!release_trace||side!=release_side||debug(side).state!=XZ_XP_SCRATCHING)return;
  for(unsigned n=0;n<frames;n++)for(unsigned ch=0;ch<2;ch++){
   double at=release_from+release_rate*debug(side).source_rate/XZ_USB_RATE*(release_frames+n);
+  if(release_reverse_at&&release_frames+n>=release_reverse_at)
+   at=release_reverse_source+release_reverse_rate*debug(side).source_rate/XZ_USB_RATE*(release_frames+n-release_reverse_at);
   if(fabs(pcm[n*2+ch]-.5*sin(6.283185307179586*440*at/debug(side).source_rate))>=.001)release_bad_pcm=1;
  }
  release_frames+=frames;release_last=after;
@@ -43,6 +47,7 @@ static int release_resolve(int source,uint32_t id,struct xz_extra_track *out){
 }
 static void release_setup(int side,int rate,int playing){
  release_side=side;release_trace=release_frames=release_max_calls=release_bad_pcm=0;release_fault_left=release_complete_transition=0;
+ release_reverse_at=0;
  struct xz_xp_env env={{NULL,fake_link,release_submit,fake_flush,fake_position,release_transition},now_ms,release_resolve,master_bpm,NULL,NULL};
  clock_ms=1000;p=xz_xp_create(&env);assert(p);fake_route(1600);release_step();
  load(side,rate==44100?4:2);seek(side,700);press(side,XZ_EXTRA_IN_VINYL);
@@ -86,7 +91,7 @@ static void test_release_gestures(void){
  }
  for(int side=0;side<2;side++)for(int sign=-1;sign<=1;sign+=2){
   release_setup(side,44100,0);hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);
-  release_rate=sign*2.5;release_trace=1;clock_ms=2020;jog(side,sign*8);release_step();
+  release_rate=sign*2.5;release_trace=1;clock_ms=2020;jog(side,sign*8);release_step();clock_ms++;release_step();
   consume(side,256);clock_ms+=6;release_step();
   assert(f.position.deck[side].completed_frames==256);
   assert(input(event(side,XZ_EXTRA_IN_JOG_TOUCH,0)));release_step();release_drain(side,1);
@@ -166,8 +171,10 @@ static void test_release_cancellation(void){
   release_setup(side,44100,0);release_enqueue(side,4,0);release_step();release_close();
   release_setup(side,44100,0);hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);
   clock_ms=2000;jog(side,4);clock_ms=2020;jog(side,-4);
-  assert(input(event(side,XZ_EXTRA_IN_JOG_TOUCH,0)));release_rate=-1.;release_trace=1;release_step();release_drain(side,1);
-  assert(release_frames>500&&!release_bad_pcm&&debug(side).position==29988);release_close();
+  assert(input(event(side,XZ_EXTRA_IN_JOG_TOUCH,0)));release_rate=1.25;
+  release_reverse_at=705.6;release_reverse_source=release_from+882;release_reverse_rate=-1.;
+  release_trace=1;release_step();release_drain(side,1);
+  assert(release_frames==1588&&!release_bad_pcm&&debug(side).position==30870);release_close();
   release_setup(side,44100,0);
   assert(input(event(side,XZ_EXTRA_IN_JOG_TOUCH,1)));jog(side,4);
   for(unsigned q=2;q<XZ_XP_QUEUE;q++)jog(side,0);

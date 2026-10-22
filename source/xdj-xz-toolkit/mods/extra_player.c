@@ -21,6 +21,10 @@
 /* A released TOP may finish accepted motion, never indefinitely chase a blocked sink. */
 #define SCRATCH_RELEASE_FRAMES 2048u
 #define SCRATCH_RELEASE_MS 64u
+/* Two full ordinary FIFO drains can wait behind a blocked sink. Beyond this,
+   cancel at completed position and require a new contact, never rewrite a turn. */
+#define SCRATCH_SEGMENTS (2u * XZ_XP_QUEUE)
+struct scratch_segment { uint64_t begin,end; double rate,frames; int direction; };
 
 struct xz_extra_order { atomic_uint refs; int source; uint64_t media_generation; uint32_t count; uint32_t id[]; };
 static atomic_uint order_live;
@@ -94,13 +98,18 @@ struct deck {
  struct xz_stretch stretch;
  struct {
   enum xz_xp_state resume;
-  uint64_t target;
+  uint64_t target,group_origin;
   double rate;
   uint32_t at, interval;
   int at_valid, releasing;
   uint32_t released_at;
   uint64_t release_end;
   int64_t ticks;
+  struct scratch_segment segment[SCRATCH_SEGMENTS];
+  unsigned head,count;
+  int overflow,group_open;
+  unsigned group_count,pending_segments;
+  double group_ticks,offset,carry,pending_offset,pending_carry;
  } scratch;
  struct {
   uint64_t in, out, anchor;
@@ -207,8 +216,8 @@ static float bend_now(const struct deck *d, uint32_t now) {
 }
 static double speed(const struct deck *d, uint32_t now) {
  if(d->state==XZ_XP_SCRATCHING){
-  if(d->pos==d->scratch.target)return 0;
-  return (d->scratch.target>d->pos?1:-1)*fabs(d->scratch.rate);
+  if(!d->scratch.count)return 0;
+  return d->scratch.count>d->scratch.group_count?d->scratch.segment[d->scratch.head].rate:d->scratch.rate;
  }
  double s = (d->sync_rate_active?d->sync_rate:nominal(d)) + d->sync_trim + bend_now(d, now);
  return s < 0.0 ? 0.0 : s;
@@ -286,6 +295,50 @@ static uint64_t advance_position(const struct deck *d,uint64_t position,uint64_t
  return position+(step>end-position?end-position:step);
 }
 static int grid_phase(const struct deck *,uint64_t,double *,double *);
+/* A millisecond timestamp cannot identify the last packet until the clock moves.
+   Only this worker seals groups. TOP release seals immediately, including when
+   touch, turns and release all arrive in one bounded FIFO drain. */
+static void scratch_seal(struct deck *d){
+ if(!d->scratch.group_open)return;
+ double rate=d->scratch.group_ticks*XZ_XP_SEARCH_MS_PER_REV/
+             ((double)XZ_XP_JOG_TICKS_PER_REV*d->scratch.interval);
+ if(rate>8)rate=8;
+ double step=(double)d->r->rate/XZ_USB_RATE*rate;
+ unsigned first=d->scratch.count-d->scratch.group_count;
+ for(unsigned i=first;i<d->scratch.count;i++){
+  struct scratch_segment *s=&d->scratch.segment[(d->scratch.head+i)%SCRATCH_SEGMENTS];
+  uint64_t distance=s->end>s->begin?s->end-s->begin:s->begin-s->end;
+  s->rate=s->end>s->begin?rate:-rate;
+  s->frames=(double)distance/(double)ONE/step;
+ }
+ d->scratch.group_count=0;d->scratch.group_open=0;
+}
+static void accepted_scratch(struct deck *d){
+ if(d->state!=XZ_XP_SCRATCHING)return;
+ d->scratch.head=(d->scratch.head+d->scratch.pending_segments)%SCRATCH_SEGMENTS;
+ d->scratch.count-=d->scratch.pending_segments;
+ d->scratch.offset=d->scratch.pending_offset;
+ d->scratch.carry=d->scratch.pending_carry;
+ d->scratch.pending_segments=0;
+}
+/* Walk source legs in output-sample time. Across a boundary the unused part of
+   this sample traverses the next leg, including an opposite direction. The
+   fixed ring bounds total crossings in one render to SCRATCH_SEGMENTS. */
+static void scratch_advance(struct deck *d,unsigned available,unsigned *retired,
+                            double *offset,double *time){
+ while(*time>0&&*retired<available){
+  const struct scratch_segment *s=&d->scratch.segment[(d->scratch.head+*retired)%SCRATCH_SEGMENTS];
+  double left=s->frames-*offset;
+  if(*time>=left){
+   *time-=left;d->pos=s->end;(*retired)++;*offset=0;
+  }else{
+   *offset+=*time;*time=0;
+   uint64_t distance=s->end>s->begin?s->end-s->begin:s->begin-s->end;
+   uint64_t moved=(uint64_t)((double)distance*(*offset/s->frames));
+   d->pos=s->end>s->begin?s->begin+moved:s->begin-moved;
+  }
+ }
+}
 static void accepted_segment(struct deck *d){
  if(!d->pending||!isfinite(d->pending_phase)||d->state!=XZ_XP_PLAYING)return;
  if(d->segment_count){
@@ -327,17 +380,20 @@ static int render(struct deck *d, double rate) {
  }
  d->block_start = d->pos;
  if(d->state==XZ_XP_SCRATCHING){
-  uint64_t step=(uint64_t)((double)r->rate/XZ_USB_RATE*fabs(rate)*(double)ONE);
-  while(step&&n<limit&&d->pos!=d->scratch.target){
+  unsigned available=d->scratch.count-d->scratch.group_count,retired=0;
+  double offset=d->scratch.offset,carry=d->scratch.carry;
+  scratch_advance(d,available,&retired,&offset,&carry);
+  while(n<limit&&retired<available){
    if(!sample_at(d,d->pos>=end?end-ONE:d->pos,d->pcm+n*2,0))return 0;
-   if(d->pos<d->scratch.target){
-    uint64_t distance=d->scratch.target-d->pos;d->pos+=step>distance?distance:step;
-   }else{
-    uint64_t distance=d->pos-d->scratch.target;d->pos-=step>distance?distance:step;
-   }
-   n++;
+   carry=1.;scratch_advance(d,available,&retired,&offset,&carry);n++;
   }
-  d->pending=n;d->pending_after=d->pos>>32;return 1;
+  d->scratch.pending_segments=retired;
+  d->scratch.pending_offset=offset;d->scratch.pending_carry=carry;
+  d->pending=n;d->pending_after=d->pos>>32;
+  /* Sub-sample motion can finish inside time already covered by the preceding
+     accepted output sample. It emits no fabricated extra sample. */
+  if(!n)accepted_scratch(d);
+  return 1;
  }
  uint64_t step = (uint64_t)((double)r->rate / XZ_USB_RATE * rate * (double)ONE);
  if (!step) { d->pending = 0; return 1; }
@@ -387,6 +443,9 @@ static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  d->timeline_output_frames=d->timeline_sink_frame=d->timeline_wire_completed=0;
  if(d->state==XZ_XP_SCRATCHING){
   d->scratch.target=d->pos;d->scratch.rate=0;d->scratch.at_valid=0;d->scratch.ticks=0;
+  d->scratch.head=d->scratch.count=0;d->scratch.pending_segments=d->scratch.overflow=0;
+  d->scratch.group_open=0;d->scratch.group_count=0;
+  d->scratch.offset=d->scratch.carry=0;
  }
  xz_stretch_reset(&d->stretch);
 }
@@ -410,7 +469,7 @@ static void scratch_release(struct deck *d,uint32_t now){
 /* Returns after completion or a fixed deadline; no sink wait, render, allocation or IO here. */
 static int scratch_tail_done(struct xz_xp_players *p,struct deck *d,uint32_t now){
  if(d->state!=XZ_XP_SCRATCHING||!d->scratch.releasing)return 0;
- int finished=d->pos==d->scratch.target&&!d->pending&&d->completed>=d->submitted;
+ int finished=!d->scratch.count&&!d->pending&&d->completed>=d->submitted;
  int capped=d->submitted>=d->scratch.release_end&&!d->pending&&d->completed>=d->submitted;
  if(!finished&&!capped&&(uint32_t)(now-d->scratch.released_at)<SCRATCH_RELEASE_MS)return 0;
  scratch_release(d,now);
@@ -421,9 +480,10 @@ static void scratch_touch(struct deck *d,int pressed,uint32_t now){
  if(!d->vinyl)return;
  if(!pressed){
   if(d->state!=XZ_XP_SCRATCHING||d->scratch.releasing)return;
+  scratch_seal(d);
   /* Already-rendered motion keeps the established release-at-heard behavior.
      Defer only when release would erase motion the worker has not submitted. */
-  if(d->pos==d->scratch.target&&!d->pending){scratch_release(d,now);return;}
+  if(!d->scratch.count&&!d->pending){scratch_release(d,now);return;}
   d->scratch.releasing=1;d->scratch.released_at=now;
   d->scratch.release_end=d->completed+SCRATCH_RELEASE_FRAMES;
   if(d->scratch.release_end<d->submitted)d->scratch.release_end=d->submitted;
@@ -449,7 +509,7 @@ static void flush(struct xz_xp_players *p, struct deck *d) {
  if (r == XZ_USB_OK) {
   d->generation = next; d->submitted = d->completed = 0;
   d->segment_count=0;
-  if (first) { accepted_segment(d);d->submitted = d->pending; d->pending = 0; }
+  if (first) { accepted_segment(d);accepted_scratch(d);d->submitted = d->pending; d->pending = 0; }
  }
  /* Busy/full retries keep the prepared target private. A newer command can replace it. */
  if (r != XZ_USB_BUSY && r != XZ_USB_AGAIN && r != XZ_USB_STALE) d->need_flush = 0;
@@ -732,7 +792,7 @@ static uint64_t jog_target(const struct deck *d,uint64_t from,int32_t delta) {
  if(target>=(double)d->r->frames)return d->r->frames<<32;
  return (uint64_t)(target*(double)ONE);
 }
-static void jog(struct deck *d, int32_t delta, uint32_t now, uint32_t arrived) {
+static void jog(struct xz_xp_players *p,struct deck *d, int32_t delta, uint32_t now, uint32_t arrived) {
  if(!delta)return;
  if (d->loop.edit && d->loop.active) {
   int64_t value = (int64_t)(d->loop.edit == 1 ? d->loop.in : d->loop.out);
@@ -754,24 +814,42 @@ static void jog(struct deck *d, int32_t delta, uint32_t now, uint32_t arrived) {
   return;
  }
  if(d->state==XZ_XP_SCRATCHING){
-  if(!delta)return;
-  if(d->scratch.rate*(double)delta<0){
-   uint32_t at=d->scratch.at,interval=d->scratch.interval;int valid=d->scratch.at_valid;
-   jump(d,heard_now(d,now),now);d->scratch.target=d->pos;
-   d->scratch.at=at;d->scratch.interval=interval;d->scratch.at_valid=valid;
-  }
-  if(!d->scratch.at_valid||d->scratch.at!=arrived){
+  if(d->scratch.overflow)return;
+  if(!d->scratch.group_open||d->scratch.at!=arrived){
+   scratch_seal(d);
    d->scratch.interval=d->scratch.at_valid?arrived-d->scratch.at:16u;
    if(!d->scratch.interval)d->scratch.interval=1;
-   d->scratch.at=arrived;d->scratch.at_valid=1;d->scratch.ticks=0;
+   d->scratch.at=arrived;d->scratch.at_valid=1;
+   d->scratch.group_open=1;d->scratch.group_ticks=0;
+   d->scratch.group_origin=d->scratch.target;d->scratch.ticks=0;
   }
-  if(delta>0&&d->scratch.ticks>INT64_MAX-delta)d->scratch.ticks=INT64_MAX;
-  else if(delta<0&&d->scratch.ticks<INT64_MIN-delta)d->scratch.ticks=INT64_MIN;
-  else d->scratch.ticks+=delta;
-  d->scratch.target=jog_target(d,d->scratch.target,delta);
-  double rate=(double)d->scratch.ticks*XZ_XP_SEARCH_MS_PER_REV/
+  d->scratch.group_ticks+=fabs((double)delta);
+  double rate=d->scratch.group_ticks*XZ_XP_SEARCH_MS_PER_REV/
               ((double)XZ_XP_JOG_TICKS_PER_REV*d->scratch.interval);
-  d->scratch.rate=rate>8?8:rate< -8?-8:rate;
+  if(rate>8)rate=8;d->scratch.rate=delta>0?rate:-rate;
+  unsigned tail=(d->scratch.head+d->scratch.count)%SCRATCH_SEGMENTS;
+  struct scratch_segment *last=d->scratch.group_count?
+    &d->scratch.segment[(tail+SCRATCH_SEGMENTS-1)%SCRATCH_SEGMENTS]:NULL;
+  int merge=last&&((last->direction>0)==(delta>0));
+  uint64_t from=merge?last->begin:d->scratch.target;
+  /* Relative group counts keep packet splits and balanced legs on the same
+     Q32 endpoint. Reset at a source clamp so a reversal starts at that edge. */
+  d->scratch.ticks+=(int64_t)delta;
+  double to=(double)d->scratch.group_origin/(double)ONE+(double)d->scratch.ticks*d->r->rate*XZ_XP_SEARCH_MS_PER_REV/
+             (1000.0*XZ_XP_JOG_TICKS_PER_REV);
+  uint64_t target=to<=0?0:to>=(double)d->r->frames?d->r->frames<<32:(uint64_t)(to*(double)ONE);
+  if(to<=0||to>=(double)d->r->frames){d->scratch.group_origin=target;d->scratch.ticks=0;}
+  if(target==d->scratch.target)return;
+  if(!merge&&d->scratch.count==SCRATCH_SEGMENTS){
+   jump(d,d->heard,now);d->scratch.overflow=1;
+   xz_xp_notice(p,"SCRATCH BUFFER FULL / RETOUCH");return;
+  }
+  if(merge){last->end=target;}
+  else{
+   d->scratch.segment[tail]=(struct scratch_segment){.begin=from,.end=target,.direction=delta>0?1:-1};
+   d->scratch.count++;d->scratch.group_count++;
+  }
+  d->scratch.target=target;
   return;
  }
  if (streaming(d->state)) {
@@ -1172,7 +1250,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   break;
  case XZ_EXTRA_IN_CUE: cue_button(d, e->pressed, now); break;
  case XZ_EXTRA_IN_HOT_CUE: hot_cue(d, e, now); break;
- case XZ_EXTRA_IN_JOG_TURN: jog(d, e->jog.delta, now, arrived); break;
+ case XZ_EXTRA_IN_JOG_TURN: jog(p,d, e->jog.delta, now, arrived); break;
  case XZ_EXTRA_IN_JOG_TOUCH: scratch_touch(d,e->pressed,now); break;
  case XZ_EXTRA_IN_SYNC: if (e->pressed) sync_request(p,d,!d->sync.requested); break;
  case XZ_EXTRA_IN_LOOP_IN: case XZ_EXTRA_IN_LOOP_OUT: case XZ_EXTRA_IN_RELOOP:
@@ -1350,7 +1428,7 @@ render_ready:
    if (!d->pending) return;
   }
   xz_usb_result r = s->submit(s->ctx, d->epoch, d->index, d->generation, d->pcm, d->pending, d->pending_after);
-  if (r == XZ_USB_OK) { accepted_segment(d);d->submitted += d->pending; d->pending = 0; continue; }
+  if (r == XZ_USB_OK) { accepted_segment(d);accepted_scratch(d);d->submitted += d->pending; d->pending = 0; continue; }
   if (r == XZ_USB_STALE) {
    if(d->scratch.releasing){scratch_release(d,now);xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");}
    else {d->pos=d->block_start;d->pending=0;d->need_flush=1;}
@@ -1384,6 +1462,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx))command(p,d,&q.event,now,q.at);
   if(q.event.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(q.event.load.order);
  }
+ if(d->state==XZ_XP_SCRATCHING&&d->scratch.group_open&&(int32_t)(now-d->scratch.at)>0)scratch_seal(d);
  d->sync_capture=atomic_load(&p->sync_requests)!=0;
  if(!streaming(d->state)&&d->sync.requested){xz_usb_position none={0};sync_update(p,d,&none,now);}
  if(link&&d->loop.in_down&&!d->loop.held&&now-d->loop.in_at>=1000u){

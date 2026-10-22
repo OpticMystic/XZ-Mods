@@ -34,7 +34,7 @@ static void test_recovery_pcm(void) {
     assert(debug(side).state==XZ_XP_SCRATCHING&&!view.deck[side].playing);
     recovery_capture(side);jog(side,side?-8:8);
    }
-   step();
+   step();clock_ms++;step();
    for(int side=0;side<2;side++)recovery_pcm(side,(double)start[side],side?-2.5:2.5);
    advance(100);
    for(int side=0;side<2;side++){
@@ -64,7 +64,9 @@ static void test_recovery_timing(void) {
   /* Worker latency must not become the packet interval. */
   clock_ms+=500;recovery_capture(side);step();
   double rate=sign*(gaps[i]?5.0/gaps[i]:10.0/16.0);
-  recovery_pcm(side,start,rate);
+  /* The first accepted interval keeps its 16 ms fallback traversal even when
+     a later packet is already queued with a different arrival interval. */
+  recovery_pcm(side,start,sign*(gaps[i]?5.0/16.0:10.0/16.0));
   assert(fabs(debug(side).speed-rate)<1e-8||debug(side).position==debug(side).scratch_target);
   assert(debug(side).scratch_target==(uint64_t)(start+sign*441.0));
   recovery_close();
@@ -73,15 +75,15 @@ static void test_recovery_timing(void) {
  for(int side=0;side<2;side++){
   recovery_setup(811);load(side,4);seek(side,1000);press(side,XZ_EXTRA_IN_VINYL);
   hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);jog(side,1);step();advance(200);
-  double start=44100.0+220.5;recovery_capture(side);jog(side,-1);step();
-  recovery_pcm(side,floor(start),-.025);assert(fabs(debug(side).speed+.025)<1e-9);
+  double start=44100.0+220.5;recovery_capture(side);jog(side,-1);step();clock_ms++;step();
+  recovery_pcm(side,start-.4*.025,-.025);assert(fabs(debug(side).speed+.025)<1e-9);
   recovery_close();
  }
  const uint32_t first[]={0,UINT32_MAX-5};const uint32_t next[]={5,4};
  for(unsigned i=0;i<2;i++){
   recovery_setup(812);load(0,4);seek(0,1000);press(0,XZ_EXTRA_IN_VINYL);
   hold(0,XZ_EXTRA_IN_JOG_TOUCH,1);clock_ms=first[i];jog(0,1);clock_ms=next[i];jog(0,1);
-  clock_ms+=500;recovery_capture(0);step();recovery_pcm(0,44100,i?.5:1.0);
+  clock_ms+=500;recovery_capture(0);step();recovery_pcm(0,44100,.3125);
   recovery_close();
  }
  /* Playing rim bend sees the same arrivals with eager or delayed consumption. */

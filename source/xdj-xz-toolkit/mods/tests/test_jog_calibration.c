@@ -24,8 +24,9 @@ int main(int argc,char **argv){
   struct xz_deck_select selector;xz_deck_select_init(&selector);xz_deck_select_route(&selector,1);
   struct xz_ds_outcome selected;xz_deck_select_toggle(&selector,side,&selected);assert(selected.toggled);
   f.capture[side]=1;f.captured_frames[side]=0;f.peak[side]=0;
+  uint32_t arrival=clock_ms+16;
   for(int packet=0;packet<100;packet++){
-   if(packet)tick(18);else clock_ms+=16;
+   while(clock_ms!=arrival)tick(1);
    unsigned char raw[24]={0};uint16_t code=0x4305;int32_t delta=sign*66;float speed=0;
    memcpy(raw+8,&code,2);raw[10]=(unsigned char)(side+1);raw[11]=4;
    memcpy(raw+12,&delta,4);memcpy(raw+16,&speed,4);
@@ -34,12 +35,16 @@ int main(int argc,char **argv){
    assert(result.verdict==XZ_DS_DELIVER&&result.event.jog.delta==delta);
    assert(input(result.event));step();
    if(!packet){
-    check("configured first segment produces scratch PCM",f.captured_frames[side]>=32);
+    /* A group at the current millisecond may wait until the next clock tick
+       so later packets sharing that timestamp do not multiply its duration. */
+    if(f.captured_frames[side]<32)tick(1);
+    check("configured first segment produces PCM by the next clock tick",f.captured_frames[side]>=32);
     for(unsigned n=0;n<32&&n<f.captured_frames[side];n++){
      double source=(double)start+sign*1.125*rate/44100.*n;
      check("configured first segment traverses signed PCM at 1.125x",fabs(f.captured[side][n*2]-.5*sin(6.283185307179586*440*source/rate))<.001);
     }
    }
+   arrival+=18;
   }
   tick(200);
   double moved=((double)debug(side).position-start)*1000./rate;
