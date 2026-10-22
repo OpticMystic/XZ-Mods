@@ -1,5 +1,6 @@
 #include "jog_display.h"
 #include "jog_display_fixtures.h"
+#include "jog_key_vectors.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -120,5 +121,18 @@ int main(void) {
         assert(p[0x15]==0&&p[0x16]==0&&p[0x26]==0x99&&p[0x27]==0x95);
         assert(p[0x2f]==0x99&&p[0x30]==0x59);
     }
-    free(storage);puts("PASS: native ARM fixture parity, ownership, quiet ring/status, full paused-native replay, freshness, media epoch, bounds, and unsupported PC mode");return 0;
+    for(unsigned side=1;side<=2;side++) {
+        assert(xz_jd_init(&s,side,storage,XZ_JD_STORAGE_BYTES,100)==XZ_JD_OK);xz_jd_native_epoch(&s,20);seed(&s);
+        extra.logical_deck=(uint8_t)(side+2);extra.status_known=1;extra.captured_ms=1101;
+        assert(xz_jd_select(&s,side+2,&extra,1101)==XZ_JD_OK);
+        for(unsigned k=0;k<sizeof jog_key_vectors/sizeof jog_key_vectors[0];k++) {
+            extra.key_code=xz_jd_key_code(jog_key_vectors[k].name);
+            assert(extra.key_code==jog_key_vectors[k].code);
+            for(unsigned clear=0;clear<6;clear++)assert(xz_jd_step(&s,native_right,&extra,1101,out)==XZ_JD_OK);
+            packet(out,p);assert(p[0x3c]==jog_key_vectors[k].code);check_crc(out);
+        }
+        char unterminated[8]={'F','m','x','x','x','x','x','x'};
+        assert(!xz_jd_key_code(unterminated)&&!xz_jd_key_code(NULL));
+    }
+    free(storage);puts("PASS: native ARM fixture parity, keys, ownership, quiet ring/status, full paused-native replay, freshness, media epoch, bounds, and unsupported PC mode");return 0;
 }
