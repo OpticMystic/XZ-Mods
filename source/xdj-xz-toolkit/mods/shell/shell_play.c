@@ -480,6 +480,7 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
  int32_t elapsed=loaded?xz_shell_elapsed_now(m,deck):-1;
  struct lane_view v={0,sh_axis(zoom_pps[u->zoom<0?0:u->zoom>XZ_SHELL_ZOOM_MAX?XZ_SHELL_ZOOM_MAX:u->zoom],d),playhead_x(u)};
  if(elapsed>=0){
+  v.axis=sh_axis_window(v.axis,elapsed,WAVE_W);
   v.head_px=track_px(v.axis,elapsed);
   int32_t first=lane_ms(&v,WAVE_X),last=lane_ms(&v,WAVE_X+WAVE_W);
   first=first<INT32_MIN+50?INT32_MIN:first-50;last=last>INT32_MAX-50?INT32_MAX:last+50;
@@ -495,10 +496,13 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
    lane_caption(c,WAVE_X+WAVE_W-6-sh_text_width(c,hint,SH_SMALL),ly+lh-tick_h-SH_CAP_SMALL-6,hint,SH_DIM);
   }
   if(sh_has(d,XZ_SHELL_F_GRID)&&d->grid){
-   int bar=0;
-   for(uint32_t i=0;i<d->grid_count;i++){
+   uint32_t begin=v.axis.count?v.axis.lo:sh_axis_lower(d->grid,d->grid_count,first);
+   uint32_t end=v.axis.count?v.axis.hi+1:d->grid_count;
+   if((uint64_t)begin+114<end)end=begin+114;
+   for(uint32_t i=begin;i<end;i++){
     const struct xz_shell_beat *b=&d->grid[i];
-    if(b->beat_in_bar==1)bar++;
+    uint32_t first_down=(5u-d->grid[0].beat_in_bar)%4u;
+    uint32_t bar=i>=first_down?1u+(i-first_down)/4u:0;
     if(b->ms<first)continue;
     if(b->ms>last)break;
     /* The beat ruler on both edges: beats white, each bar's downbeat taller and red, as the stock lane marks them. */
@@ -508,7 +512,7 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
     /* Continue the same beat coordinate behind the title; text is painted last. */
     if(title_h)xz_rect(c,x,ruler_top,1+down,title_h,xz_blend(SH_BLACK,ink,112));
     xz_rect(c,x,ly,1+down,h,ink);xz_rect(c,x,ly+lh-h,1+down,h,ink);
-    if(b->beat_in_bar==1&&bar%4==0){snprintf(text,sizeof text,"%d",bar);lane_caption(lane,x-WAVE_X+3,lh-tick_h-2,text,SH_DIM);}
+    if(b->beat_in_bar==1&&bar%4==0){snprintf(text,sizeof text,"%u",bar);lane_caption(lane,x-WAVE_X+3,lh-tick_h-2,text,SH_DIM);}
    }
   }
   if(sh_has(d,XZ_SHELL_F_MEMORY_CUES))for(int i=0;i<d->memory_count&&i<XZ_SHELL_MEMORY_CUES;i++){
@@ -536,15 +540,17 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
    lane_caption(c,WAVE_X+6,ly+tick_h+3,text,SH_LOOP);
   }
   /* beat countdown to the next cue ahead of the playhead, in bars.beats */
-  if(sh_has(d,XZ_SHELL_F_GRID)&&d->grid){
+  if(v.axis.grid){
    int32_t next=INT32_MAX;
    if(sh_has(d,XZ_SHELL_F_HOT_CUES))for(int i=0;i<XZ_SHELL_HOT_CUES;i++)if(d->hot_cue[i].set&&d->hot_cue[i].ms>elapsed&&d->hot_cue[i].ms<next)next=d->hot_cue[i].ms;
    if(sh_has(d,XZ_SHELL_F_MEMORY_CUES))for(int i=0;i<d->memory_count&&i<XZ_SHELL_MEMORY_CUES;i++)if(d->memory_cue[i].set&&d->memory_cue[i].ms>elapsed&&d->memory_cue[i].ms<next)next=d->memory_cue[i].ms;
    if(sh_has(d,XZ_SHELL_F_CUE_POINT)&&d->cue_ms>elapsed&&d->cue_ms<next)next=d->cue_ms;
    if(next!=INT32_MAX){
-    int beats=0;
-    for(uint32_t i=0;i<d->grid_count&&d->grid[i].ms<=next;i++)if(d->grid[i].ms>elapsed)beats++;
-    if(beats<=64){snprintf(text,sizeof text,"%d.%d",beats/4,beats%4);lane_caption(c,v.ph_x+5,ly+tick_h+3,text,SH_WHITE);}
+    uint32_t a=sh_axis_lower(d->grid,d->grid_count,elapsed),b=sh_axis_lower(d->grid,d->grid_count,next);
+    if(a<d->grid_count&&d->grid[a].ms==elapsed)a++;
+    if(b<d->grid_count&&d->grid[b].ms==next)b++;
+    unsigned beats=b>=a?b-a:65;
+    if(beats<=64){snprintf(text,sizeof text,"%u.%u",beats/4,beats%4);lane_caption(c,v.ph_x+5,ly+tick_h+3,text,SH_WHITE);}
    }
   }
   /* The slip ghost: a dashed amber line where the track will land when SLIP lets go. */

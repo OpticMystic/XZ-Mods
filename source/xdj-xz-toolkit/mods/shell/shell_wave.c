@@ -2,8 +2,8 @@
    deck reads the same on the play screen, the status strips and the lists.
 
    Waveforms write RGB565 spans straight into the canvas: one palette lookup per
-   colour mode, no division per pixel. Lanes sample the track by absolute track
-   pixel (track_px = ms x pps / 1000), so an audio column lands on the same
+   colour mode, no division per pixel. Lanes sample the track by absolute beat
+   pixel, so an audio column lands on the same
    pixel phase every frame while the lane scrolls and nothing shimmers. */
 #include "shell_internal.h"
 #include "shell_axis.h"
@@ -108,10 +108,41 @@ static void column_bottom(const struct span_canvas *s, int x, int base, const in
 /* Columns per track pixel in 16.16, and the columns pixel p shows: the ones whose start falls
    within half a pixel of p's centre, so a sound lands on the pixel its time rounds to, the same
    rounding the playhead and every marker use. */
-struct lane_sampler { uint64_t centre,step,half; unsigned shift; };
+struct lane_sampler {
+ uint64_t centre,step,half; unsigned shift;
+ struct sh_wave_axis axis; const struct xz_shell_wave *wave;
+ int64_t pixel,until; int segmented,fresh;
+};
 static uint64_t sample_fixed(double value){return value>=(double)UINT64_MAX?UINT64_MAX:(uint64_t)value;}
+/* One setup per visible segment, then integer additions per pixel. Inverse
+   sampling uses half-pixel edges, so a peak and its source-time marker share
+   the same rounding, including the pixel straddling a tempo-grid transition. */
+static void lane_segment(struct lane_sampler *s,double edge){
+ struct sh_wave_axis a=s->axis;
+ double ms,step;
+ s->until=INT64_MAX;
+ if(a.grid){
+  int ppb=a.pps/2;
+  int64_t ordinal=sh_axis_floor((int64_t)(edge<0?edge-1:edge),ppb);
+  uint32_t i=a.regular?a.lo:ordinal<(int64_t)a.lo?a.lo:ordinal>=(int64_t)a.hi?a.hi-1:(uint32_t)ordinal;
+  int64_t span=a.regular?a.regular:(int64_t)a.grid[i+1].ms-a.grid[i].ms;
+  step=(double)span/ppb;ms=a.grid[i].ms+(edge-(double)i*ppb)*step;
+  if(!a.regular&&i<a.hi-1)s->until=(int64_t)(i+1)*ppb;
+ }else{
+  step=a.bpm?12000000./((double)a.pps*a.bpm):1000.*a.rate/((double)a.pps*10000.);
+  ms=edge*step;
+ }
+ double columns=(double)s->wave->count/s->wave->span_ms*4294967296.;
+ s->centre=ms>0?sample_fixed(ms*columns):0;
+ s->step=sample_fixed(step*columns);s->shift=32;
+}
 static struct lane_sampler lane_sampler(const struct xz_shell_wave *w,struct sh_wave_axis axis,int64_t first){
- struct lane_sampler s;
+ struct lane_sampler s={0};
+ int identity=axis.grid?axis.regular==500&&axis.grid[axis.lo].ms==(int64_t)axis.lo*500:!axis.bpm||axis.bpm==12000;
+ if(!identity){
+  s.axis=axis;s.wave=w;s.pixel=first;s.segmented=1;s.fresh=1;
+  lane_segment(&s,(double)first-.5);return s;
+ }
  if(first<0)first=0;
  if(axis.rate==10000){
   uint64_t cpp=((uint64_t)w->count*1000u<<16)/((uint64_t)w->span_ms*(uint64_t)axis.pps);
@@ -126,6 +157,12 @@ static struct lane_sampler lane_sampler(const struct xz_shell_wave *w,struct sh_
  s.half=s.step/2;return s;
 }
 static void lane_range(struct lane_sampler *s,uint64_t *from,uint64_t *to){
+ if(s->segmented){
+  *from=s->centre>>32;
+  if(s->fresh||(double)s->pixel+.5>=s->until){lane_segment(s,(double)s->pixel+.5);s->fresh=0;}
+  else s->centre=UINT64_MAX-s->centre<s->step?UINT64_MAX:s->centre+s->step;
+  *to=s->centre>>32;s->pixel++;return;
+ }
  *from=(s->centre>s->half?s->centre-s->half:0)>>s->shift;
  *to=(UINT64_MAX-s->centre<s->half?UINT64_MAX:s->centre+s->half)>>s->shift;
  s->centre=UINT64_MAX-s->centre<s->step?UINT64_MAX:s->centre+s->step;
@@ -135,10 +172,12 @@ static void wave_lane_axis(struct xz_canvas c, struct xz_shell_rect r, int amp, 
  if(!w->columns||!w->count||!w->span_ms||axis.pps<=0||!clip(c,r.x,r.y,r.w,r.h,&s))return;
  int16_t scale[256];scale_table(scale,amp);
  int cy=r.y+r.h/2;
- struct lane_sampler sampler=lane_sampler(w,axis,first_px+s.x0-r.x);
+ int64_t source_start=sh_axis_px(axis,0),start=first_px+s.x0-r.x;
+ if(start<source_start)start=source_start;
+ struct lane_sampler sampler=lane_sampler(w,axis,start);
  for(int x=s.x0;x<s.x1;x++){
   int64_t p=first_px+(x-r.x);
-  if(p<0)continue;
+  if(p<source_start)continue;
   uint64_t from,to;lane_range(&sampler,&from,&to);
   if(from>=w->count)break;
   int band[3];band_max(w,(uint32_t)from,(uint32_t)to,band);
@@ -146,7 +185,7 @@ static void wave_lane_axis(struct xz_canvas c, struct xz_shell_rect r, int amp, 
  }
 }
 void sh_wave_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int64_t first_px, int pps) {
- wave_lane_axis(c,r,amp,w,mode,first_px,(struct sh_wave_axis){pps,10000});
+ wave_lane_axis(c,r,amp,w,mode,first_px,(struct sh_wave_axis){.pps=pps,.rate=10000});
 }
 void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int played_x) {
  struct span_canvas s;
@@ -185,11 +224,12 @@ static uint32_t stem_reciprocal(int sum) {
  if(!table[1])for(int i=1;i<766;i++)table[i]=65536u/(uint32_t)i;
  return table[sum<1?1:sum>765?765:sum];
 }
-/* The loudest column of [from,to); a long range is sampled at 16 evenly spaced columns. */
-static const struct xz_shell_column *stem_pick(const struct xz_shell_wave *w, uint32_t from, uint32_t to) {
+/* The loudest source column of [from,to). A narrow transient must survive
+   beat-normalized low zoom just as it does in the original waveform. */
+static const struct xz_shell_column *stem_pick(const struct xz_shell_wave *w, uint32_t from, uint32_t to, int detail) {
  if(to<=from)to=from+1;
  if(to>w->count)to=w->count;
- uint32_t step=to-from>16?(to-from)/16:1;
+ uint32_t step=!detail&&to-from>16?(to-from)/16:1;
  const struct xz_shell_column *best=&w->columns[from];int loudest=-1;
  for(uint32_t i=from;i<to;i+=step){
   const struct xz_shell_column *q=&w->columns[i];
@@ -240,13 +280,15 @@ static void stem_lane(const struct xz_shell_model *m, const struct xz_shell_deck
  struct stem_ink k;stem_inks(m,d,0,&k);
  int16_t scale[256];scale_table(scale,amp);
  int cy=r.y+r.h/2,prev[3]={-1,-1,-1};
- struct lane_sampler sampler=lane_sampler(w,axis,first_px+s.x0-r.x);
+ int64_t source_start=sh_axis_px(axis,0),start=first_px+s.x0-r.x;
+ if(start<source_start)start=source_start;
+ struct lane_sampler sampler=lane_sampler(w,axis,start);
  for(int x=s.x0;x<s.x1;x++){
   int64_t p=first_px+(x-r.x);
-  if(p<0)continue;
+  if(p<source_start)continue;
   uint64_t from,to;lane_range(&sampler,&from,&to);
   if(from>=w->count)break;
-  const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to);
+  const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to,1);
   if(!q->low&&!q->mid&&!q->high){prev[0]=prev[1]=prev[2]=-1;continue;}
   int core,inner,total;stem_heights(q,scale,&core,&inner,&total);
   stem_column_centered(&s,x,cy,core,inner,total,&k,prev);
@@ -268,7 +310,7 @@ static void stem_overview(const struct xz_shell_model *m, const struct xz_shell_
  for(int x=s.x0;x<s.x1;x++){
   uint64_t from=((uint64_t)(x-r.x)*cpp)>>16,to=((uint64_t)(x-r.x+1)*cpp)>>16;
   if(from>=w->count)break;
-  const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to);
+  const struct xz_shell_column *q=stem_pick(w,(uint32_t)from,(uint32_t)to,0);
   int core,inner,total;stem_heights(q,scale,&core,&inner,&total);
   const struct stem_ink *ink=&k[x<played_x];
   const int bound[4]={total,inner,core,0};
@@ -308,7 +350,7 @@ void sh_deck_overview(struct xz_canvas c, struct xz_shell_rect r, const struct x
 }
 
 void sh_deck_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_deck *d, int64_t first_px, int pps) {
- sh_deck_lane_axis(c,r,amp,u,m,d,first_px,(struct sh_wave_axis){pps,10000});
+ sh_deck_lane_axis(c,r,amp,u,m,d,first_px,(struct sh_wave_axis){.pps=pps,.rate=10000});
 }
 int32_t xz_shell_elapsed_now(const struct xz_shell_model *m, int deck) {
  if(!m||deck<0||deck>=sh_deck_count(m))return -1;

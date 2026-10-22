@@ -42,7 +42,7 @@ static void test_ruler_and_icons(void){
   xz_shell_play_projection(&u,&m,&view);render(&u,&m);memcpy(shown,pixels,sizeof shown);
   for(int d=0;d<4;d++)if(sh_play_visible(&view,d)){
    struct xz_shell_rect tag=xz_shell_play_rect(&view,XZ_SHELL_R_DECK_TAG,d);
-   int x=98+700/2+24; /* 250 ms ahead at zoom 3 (96 pixels/second). */
+   int x=98+700/2+48; /* One source-grid beat ahead at zoom 3. */
    assert(pixels[(tag.y+1)*804+x]==rgb565(xz_blend(SH_BLACK,SH_WHITE,112)));
    assert(pixels[(tag.y+20)*804+x]==rgb565(SH_WHITE));
    if(sh_control_active(&m,d)){
@@ -55,7 +55,7 @@ static void test_ruler_and_icons(void){
   assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_WAVE_TITLES,1));render(&u,&m);
   int changed=0;
   for(int d=0;d<4;d++)if(sh_play_visible(&view,d)){
-   struct xz_shell_rect tag=xz_shell_play_rect(&view,XZ_SHELL_R_DECK_TAG,d);int x=98+700/2+24;
+   struct xz_shell_rect tag=xz_shell_play_rect(&view,XZ_SHELL_R_DECK_TAG,d);int x=98+700/2+48;
    assert(pixels[(tag.y+1)*804+x]==rgb565(SH_WHITE)); /* Waveform ruler takes the title space. */
    for(int y=tag.y;y<tag.y+20;y++)for(int xx=104;xx<180;xx++)changed+=pixels[y*804+xx]!=shown[y*804+xx];
   }

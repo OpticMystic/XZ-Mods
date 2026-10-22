@@ -193,7 +193,9 @@ static void test_scroll_is_stable(void) {
   int32_t from=90000+zoom*7;
   m.deck[0].elapsed_ms=from;render_checked(&u,&m,buffer_a);
   int32_t to=from+(step*1000+pps[zoom]/3)/pps[zoom];
-  int shift=(int)(((int64_t)to*pps[zoom]+500)/1000-((int64_t)from*pps[zoom]+500)/1000);
+  /* Without a grid, the known original 128 BPM fixes scale. */
+  int shift=(int)(((int64_t)to*pps[zoom]*FX_BPM_X100+6000000)/12000000-
+    ((int64_t)from*pps[zoom]*FX_BPM_X100+6000000)/12000000);
   m.deck[0].elapsed_ms=to;render_checked(&u,&m,buffer_b);
   int ph=-1;
   for(int x=lane.x;x<lane.x+lane.w;x++)if(at(frame(buffer_a),x,lane.y+1)==rgb565(SH_PLAYHEAD)){ph=x;break;}

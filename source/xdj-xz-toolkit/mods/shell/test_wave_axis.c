@@ -30,10 +30,10 @@ int main(void){
  }
  /* Fractional multiplier uses the full rational scale, with no SYNC input.
    120->128 is approximated by the published nominal fader precision10667. */
- struct sh_wave_axis a={96,10667},b={96,10000};
+ struct sh_wave_axis a={.pps=96,.rate=10667},b={.pps=96,.rate=10000};
  assert(sh_axis_px(a,500)==45&&sh_axis_px(b,469)==45);
  int64_t sa=sh_axis_px(a,26000)-sh_axis_px(a,10000),sb=sh_axis_px(b,24375)-sh_axis_px(b,9375);assert(sa==sb);
- assert(sh_axis_px((struct sh_wave_axis){96,12345},100000)!=old_px(78,100000));
+ assert(sh_axis_px((struct sh_wave_axis){.pps=96,.rate=12345},100000)!=old_px(78,100000));
  /* Different beat phase remains different, and unrelated100BPM spacing is57.6px. */
  assert(sh_axis_px(b,250)!=sh_axis_px(b,0));assert(sh_axis_px(b,600)==58);
  /* Cue and loop geometry use the same forward/inverse mapping. */
@@ -47,7 +47,7 @@ int main(void){
  for(int mode=0;mode<3;mode++){
   u.display.wave_color=mode;memset(before,0,sizeof before);memset(after,0,sizeof after);
   sh_deck_lane((struct xz_canvas){.p=before,.stride=800,.width=800,.height=80},rect,39,&u,&m,&d,0,96);
-  sh_deck_lane_axis((struct xz_canvas){.p=after,.stride=800,.width=800,.height=80},rect,39,&u,&m,&d,0,(struct sh_wave_axis){96,10000});
+  sh_deck_lane_axis((struct xz_canvas){.p=after,.stride=800,.width=800,.height=80},rect,39,&u,&m,&d,0,(struct sh_wave_axis){.pps=96,.rate=10000});
   assert(!memcmp(before,after,sizeof before));
  }
  /* A real source impulse and its marker share the scaled axis (within the
@@ -57,14 +57,14 @@ int main(void){
   u.display.wave_color=stem?XZ_SHELL_WAVE_STEMS:XZ_SHELL_WAVE_3BAND;
   d.known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE);d.stems=d.wave;
   memset(after,0,sizeof after);
-  sh_deck_lane_axis((struct xz_canvas){.p=after,.stride=800,.width=800,.height=80},rect,39,&u,&m,&d,0,(struct sh_wave_axis){96,20000});
+  sh_deck_lane_axis((struct xz_canvas){.p=after,.stride=800,.width=800,.height=80},rect,39,&u,&m,&d,0,(struct sh_wave_axis){.pps=96,.rate=20000});
   int first=-1,last=-1;for(int x=0;x<800;x++)for(int y=0;y<80;y++)if(after[y*800+x]){if(first<0)first=x;last=x;break;}
   assert(first>=23&&first<=25&&last<=26);
  }
  /* Slow positive tempo with sparse columns must not quantize columns/pixel
     up to1/65536 and draw a completely different source region. */
  d.wave.span_ms=600000;d.stems=d.wave;u.display.wave_color=XZ_SHELL_WAVE_3BAND;
- memset(after,0,sizeof after);struct sh_wave_axis slow={96,1};
+ memset(after,0,sizeof after);struct sh_wave_axis slow={.pps=96,.rate=1};
  int64_t marker=sh_axis_px(slow,30000);
  sh_deck_lane_axis((struct xz_canvas){.p=after,.stride=800,.width=800,.height=80},rect,39,&u,&m,&d,marker-400,slow);
  assert(after[40*800+400]!=0||after[40*800+401]!=0);
