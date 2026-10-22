@@ -106,6 +106,7 @@ int main(void) {
         assert(p[0x15]==128&&p[0x16]==0x50&&p[0x26]==128&&p[0x27]==0x05);
         assert(p[0x2f]==125&&p[0x30]==0x00);
         assert(!(p[9]&0x10u)); /* Known BPM must not carry unavailable. */
+        assert(p[9]&0x20u); /* Native producer marks a valid displayed BPM separately. */
         assert(p[0x19]==0xff&&p[0x1a]==0xff&&p[0x1b]==0xff);
         assert(p[0x1c]==0xff&&p[0x1d]==0xff&&p[0x1e]==0xff);
         assert(p[0x1f]==0xff&&p[0x20]==0xff&&p[0x21]==0xff);
@@ -113,6 +114,11 @@ int main(void) {
         assert((out[4]&0x07u)==0x06u&&out[0x50]==1&&(out[0x51]&0x21u)==0x01u);
         assert((out[5]&0x01u)==0x01u&&!(out[5]&0x0cu));
         assert((out[0x56]&0x90u)==0x90u&&out[0x57]==0);
+        rich.bpm_x100=rich.track_bpm_x100=0;
+        assert(xz_jd_step(&s,native_right,&rich,1101,out)==XZ_JD_OK);packet(out,p);
+        assert((p[9]&0x30u)==0x10u);
+        assert(p[0x15]==0&&p[0x16]==0&&p[0x26]==0x99&&p[0x27]==0x95);
+        assert(p[0x2f]==0x99&&p[0x30]==0x59);
     }
     free(storage);puts("PASS: native ARM fixture parity, ownership, quiet ring/status, full paused-native replay, freshness, media epoch, bounds, and unsupported PC mode");return 0;
 }
