@@ -33,6 +33,7 @@ extern void xz_xp_native_master_selected(struct xz_xp_players *,unsigned) __attr
 extern void xz_xp_set_quantize_grid(struct xz_xp_players *,unsigned,int) __attribute__((weak));
 extern void xz_xp_set_master_observer(struct xz_xp_players *,xz_master_observer) __attribute__((weak));
 extern void xz_jog_display_runtime_publish(const struct xz_extra_decks *decks,uint32_t now_ms) __attribute__((weak));
+extern void xz_jog_display_runtime_service_assets(void) __attribute__((weak));
 extern void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks) __attribute__((weak));
 extern int xz_sync_link_runtime_master_committed(int deck_index) __attribute__((weak));
 extern int xz_sync_link_runtime_master_observe(struct xz_master_observation *) __attribute__((weak));
@@ -164,6 +165,14 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
  if(xz_jog_display_runtime_publish)xz_jog_display_runtime_publish(out,now_ms());
  SYO_SOFTWARE(out);
  return out->route_up;
+}
+
+enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int deck,
+ const struct xz_extra_wave_key *expected,uint32_t first,struct xz_extra_wave_chunk *out) {
+ /* Only the connector calls this. start publishes players before creating it;
+    stop joins it before stopping players. Startup failure has no connector. */
+ struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
+ return p?xz_xp_copy_wave(p,deck,expected,first,out):XZ_EXTRA_WAVE_COPY_ABSENT;
 }
 
 int xz_extra_deck_input(const struct xz_extra_deck_event *event) {
@@ -330,6 +339,7 @@ static void *connector(void *unused) {
   if (p.state == XZ_USB_RUNNING) {
    struct xz_extra_decks snap;
    (void)xz_extra_decks_snapshot(&snap);
+   if(xz_jog_display_runtime_service_assets)xz_jog_display_runtime_service_assets();
   }
   rest(POLL_UP_MS);
  }

@@ -2772,6 +2772,34 @@ void xz_xp_read(struct xz_xp_players *p, struct xz_extra_decks *out) {
  }
 }
 
+enum xz_extra_wave_copy_result xz_xp_copy_wave(struct xz_xp_players *p, int deck,
+ const struct xz_extra_wave_key *expected, uint32_t first, struct xz_extra_wave_chunk *out) {
+ if(!p||!out||(unsigned)deck>=XZ_EXTRA_DECKS)return XZ_EXTRA_WAVE_COPY_INVALID;
+ if(pthread_mutex_trylock(&p->publish_lock))return XZ_EXTRA_WAVE_COPY_BUSY;
+ const struct xz_extra_deck *v=&p->view[deck];
+ enum xz_extra_wave_copy_result result=XZ_EXTRA_WAVE_COPY_OK;
+ struct xz_extra_wave_key key={0};
+ key.media_generation=v->timeline.media_generation;key.route_epoch=v->timeline.route_epoch;
+ key.load_revision=v->timeline.load_revision;key.source=v->source;
+ key.column_count=v->wave.count;key.span_ms=v->wave.span_ms;key.normalization=v->wave.normalization;
+ if(!v->loaded||!(v->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE))||
+    !v->wave.columns||!key.column_count||!key.span_ms)
+  result=expected?XZ_EXTRA_WAVE_COPY_CHANGED:XZ_EXTRA_WAVE_COPY_ABSENT;
+ else if(expected&&(expected->media_generation!=key.media_generation||expected->route_epoch!=key.route_epoch||
+  expected->load_revision!=key.load_revision||expected->source!=key.source||
+  expected->column_count!=key.column_count||expected->span_ms!=key.span_ms||expected->normalization!=key.normalization))
+  result=XZ_EXTRA_WAVE_COPY_CHANGED;
+ else if(first>key.column_count)result=XZ_EXTRA_WAVE_COPY_INVALID;
+ if(result==XZ_EXTRA_WAVE_COPY_OK){
+  uint32_t count=key.column_count-first;
+  if(count>XZ_EXTRA_WAVE_CHUNK_COLUMNS)count=XZ_EXTRA_WAVE_CHUNK_COLUMNS;
+  out->key=key;out->first=first;out->count=count;
+  if(count)memcpy(out->columns,v->wave.columns+first,count*sizeof out->columns[0]);
+ }
+ pthread_mutex_unlock(&p->publish_lock);
+ return result;
+}
+
 void xz_xp_debug(struct xz_xp_players *p, int index, struct xz_xp_debug *out) {
  const struct deck *d = &p->deck[index];
  *out = (struct xz_xp_debug){d->state, d->pos >> 32, d->cue, d->generation, d->r->rate, d->retired_count,

@@ -32,6 +32,16 @@ struct xz_usb_transport { int unused; };
 static struct xz_usb_transport handle;
 static struct { xz_usb_result open_result; int opens, closes, close_timeouts, open_handles; xz_usb_state state, open_state; uint32_t generation[2]; } t;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static unsigned asset_services;
+void xz_jog_display_runtime_service_assets(void) {
+#ifdef XZ_PLACEMENT_CONNECTOR_TEST
+ assert(entered_connector);
+#endif
+ struct xz_extra_wave_chunk chunk;
+ enum xz_extra_wave_copy_result result=xz_extra_decks_copy_wave(0,NULL,0,&chunk);
+ assert(result==XZ_EXTRA_WAVE_COPY_ABSENT||result==XZ_EXTRA_WAVE_COPY_BUSY);
+ __atomic_add_fetch(&asset_services,1,__ATOMIC_RELAXED);
+}
 xz_usb_result xz_usb_transport_open(const char *node, xz_usb_transport **out) {
  assert(!strcmp(node, "/dev/null"));
 #ifdef XZ_PLACEMENT_CONNECTOR_TEST
@@ -126,6 +136,8 @@ int main(void) {
  assert(read_int(&t.open_handles) == 1 && !xz_extra_decks_route().route_up);   /* STARTING is not up */
  set(XZ_USB_OK, XZ_USB_RUNNING);
  assert(until_route(1) && tempo());
+ for(int i=0;i<200&&!__atomic_load_n(&asset_services,__ATOMIC_RELAXED);i++)wait_ms(5);
+ assert(__atomic_load_n(&asset_services,__ATOMIC_RELAXED));
  const struct xz_xp_sink *sink = xz_extra_decks_test_sink();
  uint32_t old_epoch = sink->link(NULL); assert(old_epoch);
  uint32_t control_before=xz_extra_decks_control_revision();
@@ -166,6 +178,8 @@ int main(void) {
  assert(until_route(1) && read_int(&t.closes) == 2 && read_int(&t.opens) > opens);
 
  xz_extra_decks_stop();
+ unsigned services_after_join=__atomic_load_n(&asset_services,__ATOMIC_RELAXED);
+ wait_ms(20);assert(__atomic_load_n(&asset_services,__ATOMIC_RELAXED)==services_after_join);
  assert(!xz_extra_decks_route().available && !xz_extra_decks_route().route_up && read_int(&t.open_handles) == 0);
  puts("PASS route connector: disabled, busy notice once, STARTING not up, running up, lost notice and close, reconnect, close timeout retained and retried, stop");
  return 0;

@@ -33,6 +33,22 @@ struct xz_extra_column { uint8_t low, mid, high; };
    low+mid+high sum drawn at full height, ui/layered_wave_source.c xz_wave_normalization() (the 99.5th
    percentile), computed once by the player so the draw thread never ranks a whole track; 0 = 765. */
 struct xz_extra_wave { const struct xz_extra_column *columns; uint32_t count; uint32_t span_ms; uint32_t normalization; };
+#define XZ_EXTRA_WAVE_CHUNK_COLUMNS 512u
+struct xz_extra_wave_key {
+ uint64_t media_generation;
+ uint32_t route_epoch, load_revision;
+ int source;
+ uint32_t column_count, span_ms, normalization;
+};
+struct xz_extra_wave_chunk {
+ struct xz_extra_wave_key key;
+ uint32_t first, count;
+ struct xz_extra_column columns[XZ_EXTRA_WAVE_CHUNK_COLUMNS];
+};
+enum xz_extra_wave_copy_result {
+ XZ_EXTRA_WAVE_COPY_INVALID=-3, XZ_EXTRA_WAVE_COPY_BUSY=-2,
+ XZ_EXTRA_WAVE_COPY_CHANGED=-1, XZ_EXTRA_WAVE_COPY_ABSENT=0, XZ_EXTRA_WAVE_COPY_OK=1
+};
 struct xz_extra_beat { int32_t ms; uint8_t beat_in_bar; };   /* 1..4 */
 /* end_ms > ms: a loop hot cue from ms to end_ms; 0 for a point. */
 struct xz_extra_cue { int set; int32_t ms; uint32_t rgb; int32_t end_ms; };
@@ -136,6 +152,10 @@ struct xz_extra_decks {
    and every interface keeps its two-deck screen. Never blocks the caller on IO. left_on_3 and
    right_on_4 are only ever set while route_up is. */
 int xz_extra_decks_snapshot(struct xz_extra_decks *out);
+/* Connector service only. Its owner joins the connector before stopping the players.
+   deck is 0/1. Copies values, never lends analysis pointers. See xz_xp_copy_wave. */
+enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int deck,
+ const struct xz_extra_wave_key *expected, uint32_t first, struct xz_extra_wave_chunk *out);
 uint32_t xz_extra_decks_revision(void); /* atomic player visible-state revision, no snapshot copy */
 uint32_t xz_extra_decks_control_revision(void); /* packed route/sides/availability state; no locks */
 int xz_extra_decks_needs_native_sync(void); /* atomic; cached native clock publisher demand */
