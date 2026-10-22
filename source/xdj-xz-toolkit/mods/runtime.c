@@ -14,6 +14,7 @@
 #include "deck_select.h"
 #include "deck_input_trace.h"
 #include "sync_link_runtime.h"
+extern void xz_extra_decks_native_master_selected(unsigned native_deck);
 #include "jog_display_runtime.h"
 extern int xz_mods_takeover_v1(void);
 extern void xz_shell_runtime_notice(const char *text) __attribute__((weak));
@@ -362,7 +363,7 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
        The stock event still arbitrates ON/OFF; the pressed side is not a master identity. */
     if (code == 0x4312 && operation == 0 && outcome.verdict == XZ_DS_PASS &&
         !(channel == 1 ? left : right))
-        xz_extra_decks_use_native_master();
+        xz_extra_decks_native_master_selected(channel-1);
     if (outcome.verdict == XZ_DS_LOAD) {
         /* The interface on screen owns the browser cursor, so it decides where the track comes from. */
         int side = outcome.event.deck;

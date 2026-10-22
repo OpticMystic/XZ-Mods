@@ -154,6 +154,26 @@ static void fresh_pickup(void){
   physical(XZ_DS_KEY_TEMPO,XZ_DS_OP_FADER,.6f);CHECK(view.deck[d].tempo_x100==600);end();
  }
 }
+static int grid_pulse;
+static int grid_native(struct xz_sync_native_snapshot *out){
+ if(grid_pulse){int pulse=grid_pulse;grid_pulse=0;grid_setting(pulse==1?8:1,pulse!=2);grid_setting(1,1);}
+ return live_native(out);
+}
+static void grid_aba(void){
+ for(int d=0;d<2;d++)for(int pulse=1;pulse<=3;pulse++){
+  begin(d,1,"quantum-ABA-invalidates-in-flight-alignment");
+  press(0,XZ_EXTRA_IN_PLAY);press(1,XZ_EXTRA_IN_PLAY);seek(d,805);
+  live_native_state=(struct xz_sync_native_snapshot){.available=1,.phase_available=1,.native_deck=0,.master_id=0,
+   .source_revision=61,.track_identity=321,.bpm=126,.bar_phase=1,.uncertainty_us=500};
+  xz_xp_set_native_sync_clock(p,grid_native);xz_xp_use_native_master(p);grid_pulse=0;
+  press(d,XZ_EXTRA_IN_SYNC);unsigned gen=debug(d).generation;
+  grid_pulse=pulse;clock_ms+=10;step();CHECK(!grid_pulse);
+  CHECK(pulse==3?debug(d).generation!=gen:debug(d).generation==gen);
+  CHECK(debug(d).position==ms_frames(d,pulse==3?600:805));
+  clock_ms+=10;step();CHECK(debug(d).position==ms_frames(d,600));
+  CHECK(view.deck[d].tempo_x100==500);end();
+ }
+}
 int main(int argc,char **argv){
  assert(argc==3);setvbuf(stdout,NULL,_IONBF,0);assert(!pthread_mutex_init(&f.lock,NULL));
  snprintf(fixtures,sizeof fixtures,"%s",argv[1]);snprintf(anlz_dir,sizeof anlz_dir,"%s/anlz",argv[1]);build_analysis();
@@ -165,5 +185,6 @@ int main(int argc,char **argv){
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"subdivisions"))subdivisions();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"running-subdivisions"))running_subdivisions();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"fresh-pickup"))fresh_pickup();
+ if(!strcmp(argv[2],"all")||!strcmp(argv[2],"grid-aba"))grid_aba();
  pthread_mutex_destroy(&f.lock);printf("RESULT global-sync cases=%u checks=%u failures=%u\n",cases,checks,failed);return failed?1:0;
 }

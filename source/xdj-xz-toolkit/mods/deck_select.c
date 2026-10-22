@@ -114,9 +114,13 @@ void xz_deck_select_init(struct xz_deck_select *d) {
  }
 }
 
+static void advance_selection_epoch(struct xz_ds_side *s){
+ if(s->selection_epoch==UINT64_MAX)s->selection_epoch=0;
+ else if(s->selection_epoch)s->selection_epoch++;
+}
 static void switch_to(struct xz_ds_side *s, enum xz_ds_target target) {
  if(s->target == target) return;
- s->target = target;s->selection_epoch++;
+ s->target = target;advance_selection_epoch(s);
  if(s->held_known[target]) xz_ds_pickup_arm(&s->pickup, s->held[target], s->physical_known, s->physical);
  else s->pickup.armed = 0;
 }
@@ -125,7 +129,7 @@ void xz_deck_select_route_instance(struct xz_deck_select *d,int route_up,uint32_
  if(!d)return;
  int invalidated=d->route_up&&(!route_up||d->route_epoch!=epoch);
  if(invalidated)for(int i=0;i<2;i++){
-  d->side[i].selection_epoch++;switch_to(&d->side[i],XZ_DS_NATIVE);
+  advance_selection_epoch(&d->side[i]);switch_to(&d->side[i],XZ_DS_NATIVE);
  }
  d->route_up=!!route_up;d->route_epoch=epoch;
  if(!d->route_up)for(int i=0;i<2;i++)switch_to(&d->side[i],XZ_DS_NATIVE);
