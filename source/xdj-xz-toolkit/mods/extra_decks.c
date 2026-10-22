@@ -31,9 +31,11 @@
 #pragma weak xz_extra_native_sync_clock
 extern void xz_xp_native_master_selected(struct xz_xp_players *,unsigned) __attribute__((weak));
 extern void xz_xp_set_quantize_grid(struct xz_xp_players *,unsigned,int) __attribute__((weak));
+extern void xz_xp_set_master_observer(struct xz_xp_players *,xz_master_observer) __attribute__((weak));
 extern void xz_jog_display_runtime_publish(const struct xz_extra_decks *decks,uint32_t now_ms) __attribute__((weak));
 extern void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks) __attribute__((weak));
 extern int xz_sync_link_runtime_master_committed(int deck_index) __attribute__((weak));
+extern int xz_sync_link_runtime_master_observe(struct xz_master_observation *) __attribute__((weak));
 
 /* Overridable so the host test can use a node it may stat and poll fast. */
 #ifndef USB_MAJOR
@@ -105,6 +107,29 @@ static void syo_software(const struct xz_extra_decks *s){
 #else
 #define SYO_SOFTWARE(s) ((void)0)
 #endif
+static void project_master(struct xz_extra_decks *out,uint32_t now){
+ struct xz_master_observation a={.deck=XZ_MASTER_UNKNOWN};
+ int valid=xz_sync_link_runtime_master_observe(&a)&&a.revision&&a.operator_epoch&&
+  a.deck>=XZ_MASTER_NONE&&a.deck<=XZ_MASTER_DECK4&&
+  (uint32_t)(now-a.observed_ms)<=XZ_MASTER_MAX_AGE_MS;
+ if(valid&&a.deck>=XZ_MASTER_DECK3){
+  const struct xz_extra_deck *d=&out->deck[a.deck-XZ_EXTRA_FIRST_DECK];
+  valid=out->route_up&&d->loaded&&a.request_epoch&&a.lease_generation&&
+   a.route_epoch&&a.load_revision&&a.transport_generation&&
+   a.route_epoch==d->timeline.route_epoch&&a.load_revision==d->timeline.load_revision&&
+   a.transport_generation==d->timeline.transport_generation&&
+   (out->master_intent.deck!=a.deck||out->master_intent.epoch==a.request_epoch);
+ }
+ if(!valid)a=(struct xz_master_observation){.deck=XZ_MASTER_UNKNOWN};
+ out->master_actual=a;
+ for(int i=0;i<XZ_EXTRA_DECKS;i++){
+  struct xz_extra_deck *d=&out->deck[i];
+  d->master=valid&&a.deck==i+XZ_EXTRA_FIRST_DECK;
+  d->master_scope=d->master?(XZ_EXTRA_MASTER_SCOPE_SOFTWARE|XZ_EXTRA_MASTER_SCOPE_NATIVE):0;
+  if(valid)d->known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER);
+  else d->known&=~XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER);
+ }
+}
 int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
  SYO_INC(SNAPSHOT);
 #ifdef XZ_JOG_DISPLAY_PROOF
@@ -112,6 +137,7 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
 #endif
  if (!out) return 0;
  memset(out, 0, sizeof *out);
+ out->master_actual.deck=XZ_MASTER_UNKNOWN;
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);
  if (!p) {
   SYO_INC(SNAPSHOT_EMPTY);
@@ -124,9 +150,9 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
  unsigned c=xz_extra_decks_control_revision();out->control_revision=c;
  out->route_up=!!(c&CONTROL_ROUTE);out->left_on_3=out->route_up&&!!(c&CONTROL_LEFT);
  out->right_on_4=out->route_up&&!!(c&CONTROL_RIGHT);
- if(xz_jog_display_runtime_publish)xz_jog_display_runtime_publish(out,now_ms());
  if(xz_sync_link_runtime_poll)xz_sync_link_runtime_poll(out);
- if(xz_sync_link_runtime_master_committed){
+ if(xz_sync_link_runtime_master_observe&&out->master_intent.epoch)project_master(out,now_ms());
+ else if(xz_sync_link_runtime_master_committed){
   for(int i=0;i<XZ_EXTRA_DECKS;i++){
    if(out->deck[i].master&&xz_sync_link_runtime_master_committed(i)){
     out->deck[i].master_scope|=XZ_EXTRA_MASTER_SCOPE_NATIVE;
@@ -135,6 +161,7 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
    }
   }
  }
+ if(xz_jog_display_runtime_publish)xz_jog_display_runtime_publish(out,now_ms());
  SYO_SOFTWARE(out);
  return out->route_up;
 }
@@ -322,6 +349,8 @@ int xz_extra_decks_start(void) {
  struct xz_xp_players *p = xz_xp_create(&env);
  if (!p) return -1;
  if(xz_extra_native_sync_clock)xz_xp_set_native_sync_clock(p,xz_extra_native_sync_clock);
+ if(xz_xp_set_master_observer&&xz_sync_link_runtime_master_observe)
+  xz_xp_set_master_observer(p,xz_sync_link_runtime_master_observe);
  if (xz_xp_start(p)) { xz_xp_destroy(p); return -1; }
  __atomic_store_n(&players, p, __ATOMIC_RELEASE);
  __atomic_store_n(&route.quit, 0, __ATOMIC_RELEASE);

@@ -411,14 +411,28 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
 }
 #undef EK
 #undef SK
+static void map_master(struct xz_shell_model *m,const struct xz_extra_decks *s,uint32_t now){
+ if(!s||!s->master_intent.epoch)return;
+ const struct xz_master_observation *a=&s->master_actual;
+ int known=a->revision&&a->operator_epoch&&a->deck>=XZ_MASTER_NONE&&a->deck<=XZ_MASTER_DECK4&&
+  (uint32_t)(now-a->observed_ms)<=XZ_MASTER_MAX_AGE_MS;
+ if(a->deck>=XZ_MASTER_DECK3&&!s->route_up)known=0;
+ for(int i=0;i<XZ_SHELL_DECKS;i++){
+  struct xz_shell_deck *d=&m->deck[i];d->master=known&&a->deck==i;
+  d->master_scope=d->master?(XZ_EXTRA_MASTER_SCOPE_NATIVE|(i>=XZ_EXTRA_FIRST_DECK?XZ_EXTRA_MASTER_SCOPE_SOFTWARE:0)):0;
+  if(known)d->known|=XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER);
+  else d->known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_MASTER);
+ }
+}
 void xz_shrt_extra_map(struct xz_shell_model *m, const struct xz_extra_decks *s, const struct xz_shrt_extra_parts parts[XZ_EXTRA_DECKS],
                        uint32_t model_now, uint32_t mono_now) {
  for(int i=0;i<XZ_EXTRA_DECKS;i++)memset(&m->deck[XZ_EXTRA_FIRST_DECK+i],0,sizeof m->deck[0]);
  m->sides_extra=0;
- if(!s||!s->route_up){m->deck_count=XZ_SHELL_NATIVE_DECKS;return;}
+ if(!s||!s->route_up){m->deck_count=XZ_SHELL_NATIVE_DECKS;map_master(m,s,mono_now);return;}
  m->deck_count=XZ_SHELL_NATIVE_DECKS+XZ_EXTRA_DECKS;
  for(int i=0;i<XZ_EXTRA_DECKS;i++)map_deck(&m->deck[XZ_EXTRA_FIRST_DECK+i],&s->deck[i],&parts[i],model_now,mono_now);
  m->sides_extra=(uint8_t)((s->left_on_3?1u:0u)|(s->right_on_4?2u:0u));
+ map_master(m,s,mono_now);
 }
 uint32_t xz_shrt_extra_caps(struct xz_shell_model *m, uint32_t caps, int native_load, int extra_load, int deck_select) {
  caps&=~(uint32_t)(XZ_SHELL_CAP_LOAD|XZ_SHELL_CAP_SEEK|XZ_SHELL_CAP_DECK_SELECT);
