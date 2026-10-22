@@ -259,11 +259,31 @@ static void missing_snapshot(void){
  actual(1);assert(!xz_sync_link_runtime_master_committed(0));
  puts("PASS missing/zero snapshots preserve global mode and never enable legacy withdrawal");
 }
+static void restarted_request(void){
+ for(int side=0;side<2;side++)for(int same=0;same<2;same++){
+  acquire(side);struct xz_master_observation before=actual(side+2);
+  struct xz_extra_decks old=global_decks;
+  global_reset(side);
+  global_decks.master_intent.epoch=same?before.request_epoch:1;
+  assert(global_decks.master_intent.operator_epoch>before.operator_epoch);
+  hooks.sync_mgr_sync(fake_sync_mgr);step();hooks.sync_mgr_sync(fake_sync_mgr);
+  struct xz_master_observation fresh=actual(side+2);
+  assert(fresh.request_epoch==global_decks.master_intent.epoch&&fresh.operator_epoch>before.operator_epoch);
+  assert(fresh.lease_generation>before.lease_generation);
+  /* Even a larger sequence from the retired operator cannot replace it. */
+  old.master_intent.epoch=UINT32_MAX-1;
+  xz_sync_link_runtime_step(&old,&global_clock);hooks.sync_mgr_sync(fake_sync_mgr);
+  struct xz_master_observation after=actual(side+2);
+  assert(after.request_epoch==fresh.request_epoch&&after.operator_epoch==fresh.operator_epoch&&after.lease_generation==fresh.lease_generation);
+ }
+ puts("PASS restart accepts first request with newer operator and reused/lower request number; retired operator never supersedes it");
+}
 int main(int argc,char **argv){
  assert(argc==2);
  if(!strcmp(argv[1],"pending"))pending();else if(!strcmp(argv[1],"local"))local();else if(!strcmp(argv[1],"guards"))guards();
  else if(!strcmp(argv[1],"operator"))operator_test();else if(!strcmp(argv[1],"stale"))stale();else if(!strcmp(argv[1],"reentrant"))reentrant();
  else if(!strcmp(argv[1],"inflight"))inflight();else if(!strcmp(argv[1],"concurrent"))concurrent();else if(!strcmp(argv[1],"steady"))steady();else if(!strcmp(argv[1],"paused"))paused();
- else if(!strcmp(argv[1],"admission"))admission();else if(!strcmp(argv[1],"missing"))missing_snapshot();else assert(0);
+ else if(!strcmp(argv[1],"admission"))admission();else if(!strcmp(argv[1],"missing"))missing_snapshot();
+ else if(!strcmp(argv[1],"restart-request"))restarted_request();else assert(0);
  return 0;
 }
