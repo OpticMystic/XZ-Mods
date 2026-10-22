@@ -348,7 +348,7 @@ static int cue_list_ext(const char *dir, struct xz_shana_cue *out, int cap) {
     if(count<0)count=0;
     for(uint32_t e=at+head;(uint64_t)e+44<=(uint64_t)at+total;){
      uint32_t eh=be32(f+e+4),et=be32(f+e+8);
-     if(memcmp(f+e,"PCP2",4)||eh<16||et<44||et>at+total-e)break;
+     if(memcmp(f+e,"PCP2",4)||eh<16||et<eh||et<44||et>at+total-e)break;
      uint32_t hot=be32(f+e+12),ms=be32(f+e+20),end=be32(f+e+24),clen=be32(f+e+40);uint8_t type=f[e+16];
      if(!hot&&(type==1||type==2)&&ms<=INT32_MAX&&count<cap){
       struct xz_shana_cue *c=&out[count];memset(c,0,sizeof *c);
@@ -365,6 +365,32 @@ static int cue_list_ext(const char *dir, struct xz_shana_cue *out, int cap) {
  }
  free(f);
  return count;
+}
+int xz_shana_active_loop(const char *dir,struct xz_shana_cue *out){
+ char path[PATH_CAP];size_t n=0;int found=0;
+ if(!dir||!out||snprintf(path,sizeof path,"%s/ANLZ0000.DAT",dir)>=(int)sizeof path)return 0;
+ uint8_t *f=read_all(path,ANALYSIS_CAP,&n);if(!f)return 0;
+ if(n>=12&&!memcmp(f,"PMAI",4)){
+  uint32_t length=be32(f+8);if(length>n)length=(uint32_t)n;
+  for(uint32_t at=be32(f+4);at>=12&&(uint64_t)at+12<=length&&!found;){
+   uint32_t head=be32(f+at+4),total=be32(f+at+8);
+   if(head<12||total<head||total>length-at)break;
+   if(!memcmp(f+at,"PCOB",4)&&head>=24&&!be32(f+at+12)){
+    for(uint32_t e=at+head;(uint64_t)e+40<=at+total;){
+     uint32_t eh=be32(f+e+4),et=be32(f+e+8);
+     if(memcmp(f+e,"PCPT",4)||eh<28||et<eh||et<40||et>at+total-e)break;
+     uint32_t ms=be32(f+e+32),end=be32(f+e+36);
+     /* Public crate-digger ANLZ schema: PCPT status 4 denotes an active loop. */
+     if(!be32(f+e+12)&&be32(f+e+16)==4&&f[e+28]==2&&ms<end&&end<=INT32_MAX){
+      memset(out,0,sizeof *out);out->ms=(int32_t)ms;out->end_ms=(int32_t)end;out->loop=1;found=1;break;
+     }
+     e+=et;
+    }
+   }
+   at+=total;
+  }
+ }
+ free(f);return found;
 }
 int xz_shana_cue_list(const char *dir, struct xz_shana_cue *out, int cap) {
  int count=cue_list_ext(dir,out,cap);

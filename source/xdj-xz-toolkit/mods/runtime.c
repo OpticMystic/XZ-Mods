@@ -298,7 +298,7 @@ static int deck_outcome(const struct xz_ds_outcome *outcome, int left, int right
         snprintf(line, sizeof(line), "Deck select: unknown key 0x%04x swallowed on a side driving DECK 3/4", code);
         xz_log(line);
     }
-    if (outcome->verdict == XZ_DS_DELIVER) (void)xz_extra_deck_input(&outcome->event);
+    if (outcome->verdict == XZ_DS_DELIVER && !xz_extra_deck_input(&outcome->event)) return 1;
     return outcome->verdict != XZ_DS_PASS && !outcome->also_stock;
 }
 

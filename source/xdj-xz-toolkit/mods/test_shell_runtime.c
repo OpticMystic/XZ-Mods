@@ -788,10 +788,11 @@ static void extra_decks(void) {
  a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,3,123456,0};
  /* NEEDLE LOCK (stock default LOCK): waveform seek only while the software deck is not playing. */
  int was_playing=m.deck[3].playing;
+ int was_locked=m.deck[3].needle_locked;
  m.deck[3].playing=1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
- m.deck[3].playing=0;
+ m.deck[3].playing=0;m.deck[3].needle_locked=0;
  assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_INPUT&&e.deck==1&&e.kind==XZ_EXTRA_IN_SEEK&&e.seek_ms==123456);
- m.deck[3].playing=was_playing;
+ m.deck[3].playing=was_playing;m.deck[3].needle_locked=was_locked;
  a.value=-1;assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_REFUSE);
  a=(struct xz_shell_action){XZ_SHELL_ACT_SEEK,0,1000,0};assert(xz_shrt_extra_action(&m,&a,0,&e)==XZ_SHRT_EXTRA_NONE);
  static const enum xz_shell_action_kind refused[]={XZ_SHELL_ACT_GRID_ADJUST,XZ_SHELL_ACT_SET_SETTING,XZ_SHELL_ACT_TAG_TRACK,

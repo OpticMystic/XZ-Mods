@@ -88,7 +88,10 @@ struct xz_extra_route xz_extra_decks_route(void) {
 static void syo_software(const struct xz_extra_decks *s){
  for(unsigned i=0;i<2;i++){
   const struct xz_extra_deck *d=&s->deck[i];
-  xz_syo_inc((i?SYO_C_SOFT4_REASON_0:SYO_C_SOFT3_REASON_0)+(unsigned)(d->sync.reason<14?d->sync.reason:0));
+  /* v1 has counters only for reasons 0..13. Keep newer reasons in the record,
+     without misclassifying them as OFF or changing the 2260-byte ABI. */
+  unsigned reason = (unsigned)d->sync.reason;
+  if (reason < 14u) xz_syo_inc((i?SYO_C_SOFT4_REASON_0:SYO_C_SOFT3_REASON_0)+reason);
   uint32_t v[]={d->sync.requested,d->sync.locked,d->sync.reason,d->sync.master_deck,d->sync.master_scope,
    d->master,d->playing,d->loaded,d->timeline.flags,d->timeline.route_epoch,d->timeline.load_revision,
    d->timeline.transport_generation,SYO_LO(d->timeline.media_generation),SYO_HI(d->timeline.media_generation),xz_syo_request_seq(i),

@@ -193,7 +193,15 @@ int main(void) {
   d.pad_mode=XZ_EXTRA_PAD_NONE;
   for(uint32_t id=XZ_LED_ID_PAD_HOT_CUE;id<=XZ_LED_ID_PAD_BEAT_JUMP;id++)assert(xz_extra_lamp(&d,id)==XZ_LED_STATE_OFF);
   assert(xz_extra_lamp(&d,XZ_LED_ID_HOT_CUE_1)==-1&&xz_extra_lamp(&d,XZ_LED_ID_JOG_RING_POS)==-1&&xz_extra_lamp(NULL,1)==-1);
-  /* A flash is written OFF until a native flashing record is qualified. */
+  /* Software flashing uses only qualified ON/OFF words, never a new native blink opcode. */
+  unsigned char blink[XZ_LED_RECORD_BYTES]={0};uint16_t blink_count=1;
+  put(blink,XZ_LED_ID_PLAY_PAUSE);put(blink+4,1);d.playing=d.held_playing=0;d.loaded=1;
+  xz_native_led_extra_deck(blink,sizeof blink,&blink_count,NULL,0,0,0,0,1,&d);
+  assert(word(blink+0x10)==0);
+  xz_native_led_extra_deck(blink,sizeof blink,&blink_count,NULL,0,0,0,250,1,&d);
+  assert(word(blink+0x10)==1);
+  xz_native_led_extra_deck(blink,sizeof blink,&blink_count,NULL,0,0,0,500,1,&d);
+  assert(word(blink+0x10)==0);
   assert(xz_led_written_state(XZ_LED_STATE_ON)==1&&xz_led_written_state(XZ_LED_STATE_OFF)==0);
   assert(xz_led_written_state(XZ_LED_STATE_BLINK)==(XZ_LED_BLINK_QUALIFIED?2u:0u));
   /* Pads follow the pad mode: loop modes light every pad and mark the running one; jump uses its pair colours. */

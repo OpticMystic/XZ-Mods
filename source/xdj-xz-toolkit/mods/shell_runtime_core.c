@@ -372,6 +372,7 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
  }
  if(EK(TOTAL)){d->total_ms=s->total_ms;d->known|=SK(TOTAL);}
  if(EK(PLAYING)){d->playing=!!s->playing;d->known|=SK(PLAYING);}
+ d->needle_locked=s->held_playing&&!s->platter_contact;
  if(EK(BPM)){
   d->bpm_x100=s->bpm_x100;d->known|=SK(BPM);
   if(s->track_bpm_x100>0){d->track_bpm_x100=s->track_bpm_x100;d->known|=SK(TRACK_BPM);}
@@ -454,7 +455,7 @@ enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *m, co
  /* NEEDLE LOCK (stock default LOCK, manual p.63): touching the waveform moves a software deck only while it
     is paused or held on the platter in VINYL mode (the player reports neither as playing). */
  if(a->kind==XZ_SHELL_ACT_SEEK&&(caps&XZ_SHELL_CAP_SEEK)&&a->value>=0){
-  if(m->deck[a->deck].playing)return XZ_SHRT_EXTRA_REFUSE;
+  if(m->deck[a->deck].needle_locked||m->deck[a->deck].playing)return XZ_SHRT_EXTRA_REFUSE;
   e->kind=XZ_EXTRA_IN_SEEK;e->seek_ms=a->value;return XZ_SHRT_EXTRA_INPUT;
  }
  return XZ_SHRT_EXTRA_REFUSE;
