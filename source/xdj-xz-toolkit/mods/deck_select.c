@@ -37,7 +37,7 @@ static const struct xz_ds_row rows[] = {
  ROW(0x4111, 0x4111, DELIVER, PLAYER, XZ_EXTRA_IN_SLIP),
  /* SEARCH FWD/REV, CUE/LOOP DELETE and MEMORY, NEEDLE SEARCH, MASTER, CUE/LOOP CALL NEXT/PREV,
     all move or change the deck they reach. */
- ROW(0x4121, 0x4122, SWALLOW, PLAYER, NONE),
+ ROW(0x4121, 0x4122, DELIVER, PLAYER, XZ_EXTRA_IN_SEARCH),   /* SEARCH forward, back */
  ROW(0x4126, 0x4128, SWALLOW, PLAYER, NONE),
  ROW(0x4312, 0x4312, DELIVER, GLOBAL, XZ_EXTRA_IN_MASTER),
  ROW(0x4324, 0x4324, DELIVER, PLAYER, XZ_EXTRA_IN_LOOP_DOUBLE), /* CALL NEXT / 2X */
@@ -51,7 +51,7 @@ static const struct xz_ds_row rows[] = {
     sends to DECK 3 / 4. Neither: swallowed, or DECK 1 would load what was meant for 3.
     TIME MODE / AUTO CUE and QUANTIZE: native deck display and quantize state. */
  ROW(0x430f, 0x430f, SWALLOW, GLOBAL, XZ_EXTRA_IN_LOAD),
- ROW(0x430b, 0x430b, SWALLOW, GLOBAL, NONE),
+ ROW(0x430b, 0x430b, SWALLOW, GLOBAL, XZ_EXTRA_IN_TIME_MODE),
  ROW(0x430c, 0x430c, SWALLOW, GLOBAL, XZ_EXTRA_IN_QUANTIZE),
 };
 
@@ -226,6 +226,7 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
   out->event.pressed = 1;
   if(pad) out->event.hot_cue = (int)(k->code - 0x4119);
   if(row->kind == XZ_EXTRA_IN_PAD_MODE) out->event.hot_cue = (int)(k->code - 0x4114);
+  if(row->kind == XZ_EXTRA_IN_SEARCH) out->event.hot_cue = (int)(k->code - 0x4121);
   return;
  }
  /* Hold and release follow whoever received the press, so neither deck is left with a key down. */
@@ -247,6 +248,7 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
   deliver(out, side, (enum xz_extra_input)row->kind, k);
   if(k->code >= 0x4119 && k->code <= 0x4120) out->event.hot_cue = (int)(k->code - 0x4119);
   if(row->kind == XZ_EXTRA_IN_PAD_MODE) out->event.hot_cue = (int)(k->code - 0x4114);
+  if(row->kind == XZ_EXTRA_IN_SEARCH) out->event.hot_cue = (int)(k->code - 0x4121);
   return;
  }
  if(away) out->verdict = XZ_DS_SWALLOW;
@@ -351,7 +353,7 @@ struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *d, unsigne
   other_key(s);out.verdict=XZ_DS_SWALLOW;
   if(op==0){
    s->owner[XZ_DS_EXTRA]|=bit;
-   if(!shift){out.verdict=XZ_DS_DELIVER;out.event.deck=side;out.event.kind=code==0x4213?XZ_EXTRA_IN_SEEK:XZ_EXTRA_IN_TRACK_NEXT;out.event.pressed=1;out.event.seek_ms=0;}
+   if(!shift){out.verdict=XZ_DS_DELIVER;out.event.deck=side;out.event.kind=code==0x4213?XZ_EXTRA_IN_TRACK_PREV:XZ_EXTRA_IN_TRACK_NEXT;out.event.pressed=1;}
   }
   return out;
  }
@@ -379,6 +381,31 @@ struct xz_ds_outcome xz_deck_select_global_key(struct xz_deck_select *d, unsigne
   if(!d->route_up||(shift&&s->target!=XZ_DS_EXTRA))return out;
   out.verdict=XZ_DS_DELIVER;out.event.deck=side;out.event.kind=XZ_EXTRA_IN_QUANTIZE;out.event.pressed=1;out.event.shift=shift;
   if(shift)s->owner[XZ_DS_EXTRA]|=bit;else out.also_stock=1;
+  return out;
+ }
+ /* TIME MODE / AUTO CUE (manual, Time mode and Auto Cue): stock switches the time display when the key is
+    released after a short press and AUTO CUE when it is held a second; with SHIFT only for the deck of
+    that side. Stock still sees every contact it acts on; a SHIFT contact for a software deck never reaches
+    it, so the native deck under it keeps its setting. */
+ if(row && row->kind == XZ_EXTRA_IN_TIME_MODE) {
+  unsigned slot=0;(void)xz_ds_row_for(code,&slot);uint64_t bit=(uint64_t)1<<slot;
+  int mine=!!(s->owner[XZ_DS_EXTRA]&bit);
+  if(op == 0) {
+   s->time_shift=s->phase==XZ_DS_DOWN_ONCE||s->phase==XZ_DS_DOWN_TWICE||s->phase==XZ_DS_MODIFIER;s->time_held=0;s->time_down=1;
+   other_key(s);
+   if(s->time_shift&&s->target==XZ_DS_EXTRA&&d->route_up){s->owner[XZ_DS_EXTRA]|=bit;out.verdict=XZ_DS_SWALLOW;}
+   return out;
+  }
+  int release=op==2||op==3;
+  if(op!=1&&!release){if(mine)out.verdict=XZ_DS_SWALLOW;return out;}
+  if(release&&mine)s->owner[XZ_DS_EXTRA]&=~bit;
+  int fire=s->time_down&&!s->time_held;   /* a release or hold without its press does nothing */
+  if(release)s->time_down=0;
+  if(op==1)s->time_held=1;
+  if(!fire||!d->route_up||(s->time_shift&&s->target!=XZ_DS_EXTRA)){if(mine)out.verdict=XZ_DS_SWALLOW;return out;}
+  out.verdict=XZ_DS_DELIVER;out.event.deck=side;out.event.pressed=1;out.event.shift=s->time_shift;
+  out.event.kind=op==1?XZ_EXTRA_IN_AUTO_CUE:XZ_EXTRA_IN_TIME_MODE;
+  out.also_stock=!mine;
   return out;
  }
  if(row && row->kind == XZ_EXTRA_IN_LOAD) {

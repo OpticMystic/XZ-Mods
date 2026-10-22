@@ -337,6 +337,7 @@ static void seek(int d, int32_t ms) { struct xz_extra_deck_event e = event(d, XZ
 static void jog(int d, int32_t delta) { struct xz_extra_deck_event e = event(d, XZ_EXTRA_IN_JOG_TURN, 1); e.jog.delta = delta; assert(input(e)); }
 static void tempo(int d, int32_t at) { struct xz_extra_deck_event e = event(d, XZ_EXTRA_IN_TEMPO, 1); e.tempo_position = at; assert(input(e)); step(); }
 static uint64_t ms_frames(int d, int32_t ms) { return (uint64_t)ms * debug(d).source_rate / 1000u; }
+static int32_t to_ms_test(int d, uint64_t frames) { return (int32_t)(frames * 1000u / debug(d).source_rate); }
 static uint64_t completed_tag(int d) { pthread_mutex_lock(&f.lock); uint64_t t = f.position.deck[d].source_after_completed; pthread_mutex_unlock(&f.lock); return t; }
 static unsigned flushes(int d) { return f.flushes[d]; }
 /* After a jump: exactly one new generation, and every later block carries it. */
@@ -561,9 +562,10 @@ static void test_players(void) {
  assert(debug(0).state == XZ_XP_PLAYING && !strcmp(view.deck[0].title, "Track B"));
  load(0, 3);
  expect_notice("TRACK CANNOT BE READ", &seq);
- /* Only the deck modes (VINYL, MASTER TEMPO, QUANTIZE) stay known without a track. */
+ /* Only the deck modes (VINYL, MASTER TEMPO, QUANTIZE, TIME MODE) stay known without a track. */
  assert(debug(0).state == XZ_XP_ERROR && !view.deck[0].loaded &&
-        view.deck[0].known == (XZ_EXTRA_KNOWN(XZ_EXTRA_F_VINYL) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER_TEMPO) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_QUANTIZE)));
+        view.deck[0].known == (XZ_EXTRA_KNOWN(XZ_EXTRA_F_VINYL) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER_TEMPO) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_QUANTIZE) |
+                               XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIME_MODE)));
  assert(!input(event(0, XZ_EXTRA_IN_PLAY, 1)));
  load(0, 1);
  assert(debug(0).state == XZ_XP_CUED);
@@ -1469,6 +1471,70 @@ static void test_quantize_parity(void){
       "slip hot cue 4-beat return, SLIP off on load, slip pause, stock tempo steps");
 }
 
+/* Stock parity batch B (stock-audit.md #3-#5, #10, #12, #13, #20). Track 1 has one memory cue at 500 ms. */
+static void test_stock_parity_b(void){
+ wire_horizon=0;position_interval=position_noise=position_blocked=0;threaded_clock=0;
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
+ p=xz_xp_create(&env);assert(p);fake_route(1600);step();load(0,1);load(1,2);
+ /* CUE/LOOP CALL outside a loop calls the stored points and pauses there (p.51). */
+ seek(0,1200);hold(0,XZ_EXTRA_IN_LOOP_HALF,1);hold(0,XZ_EXTRA_IN_LOOP_HALF,0);
+ assert(debug(0).state==XZ_XP_CUED&&debug(0).position==ms_frames(0,500)&&debug(0).cue==ms_frames(0,500));
+ hold(0,XZ_EXTRA_IN_LOOP_HALF,1);hold(0,XZ_EXTRA_IN_LOOP_HALF,0);assert(debug(0).position==ms_frames(0,500)); /* none earlier */
+ seek(0,0);hold(0,XZ_EXTRA_IN_LOOP_DOUBLE,1);hold(0,XZ_EXTRA_IN_LOOP_DOUBLE,0);assert(debug(0).position==ms_frames(0,500));
+ /* Loop hot cue: a pad set during loop playback stores the loop; calling it loops; edits follow (p.53). */
+ seek(0,300);hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);advance(20);
+ hold(0,XZ_EXTRA_IN_LOOP_IN,1);hold(0,XZ_EXTRA_IN_LOOP_IN,0);advance(400);
+ hold(0,XZ_EXTRA_IN_LOOP_OUT,1);hold(0,XZ_EXTRA_IN_LOOP_OUT,0);
+ uint64_t in=debug(0).loop_in,out=debug(0).loop_out;assert(debug(0).loop_active&&out>in);
+ pad_key(0,4,1);pad_key(0,4,0);
+ assert(view.deck[0].hot_cue[4].set&&view.deck[0].hot_cue[4].end_ms>view.deck[0].hot_cue[4].ms);
+ hold(0,XZ_EXTRA_IN_RELOOP,1);hold(0,XZ_EXTRA_IN_RELOOP,0);assert(!debug(0).loop_active);
+ seek(0,1500);advance(20);pad_key(0,4,1);pad_key(0,4,0);
+ assert(debug(0).loop_active&&debug(0).loop_in==in&&debug(0).loop_out==out&&debug(0).state==XZ_XP_PLAYING);
+ hold(0,XZ_EXTRA_IN_LOOP_HALF,1);hold(0,XZ_EXTRA_IN_LOOP_HALF,0);
+ assert(view.deck[0].hot_cue[4].end_ms==to_ms_test(0,in+(out-in)/2));
+ hold(0,XZ_EXTRA_IN_RELOOP,1);hold(0,XZ_EXTRA_IN_RELOOP,0);
+ /* SEARCH: paused, half a frame per press; playing, held, scans forward or back at XZ_XP_SCAN_RATE. */
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);seek(0,1000);
+ struct xz_extra_deck_event search=event(0,XZ_EXTRA_IN_SEARCH,1);
+ assert(input(search));step();assert(debug(0).position==ms_frames(0,1000)+44100/150);
+ search.pressed=0;assert(input(search));step();
+ search.hot_cue=1;search.pressed=1;assert(input(search));step();search.pressed=0;assert(input(search));step();
+ assert(debug(0).position==ms_frames(0,1000));
+ seek(0,400);hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);advance(40);
+ search.hot_cue=0;search.pressed=1;assert(input(search));step();
+ uint64_t from=completed_tag(0);advance(200);
+ assert(completed_tag(0)>from+ms_frames(0,500));                 /* ~4x for 200 ms */
+ search.pressed=0;assert(input(search));step();
+ from=completed_tag(0);advance(200);
+ assert(completed_tag(0)<from+ms_frames(0,300)&&completed_tag(0)>from+ms_frames(0,100)); /* back to 1x */
+ search.hot_cue=1;search.pressed=1;assert(input(search));step();
+ from=completed_tag(0);advance(100);assert(completed_tag(0)<from);  /* scanning back */
+ search.pressed=0;assert(input(search));step();assert(!view.deck[0].reverse);
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);
+ /* TIME MODE: every deck, SHIFT this deck only. AUTO CUE likewise; off, a load lands at 0 and keeps playing. */
+ struct xz_extra_deck_event time=event(0,XZ_EXTRA_IN_TIME_MODE,1);
+ assert(input(time));step();step();assert(view.deck[0].remain&&view.deck[1].remain);
+ time.shift=1;assert(input(time));step();step();assert(!view.deck[0].remain&&view.deck[1].remain);
+ struct xz_extra_deck_event autocue=event(0,XZ_EXTRA_IN_AUTO_CUE,1);autocue.shift=1;
+ assert(view.deck[0].auto_cue);assert(input(autocue));step();assert(!view.deck[0].auto_cue&&view.deck[1].auto_cue);
+ seek(0,800);hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);advance(20);load(0,1);
+ assert(debug(0).cue==0&&debug(0).state==XZ_XP_PLAYING);
+ assert(input(autocue));step();assert(view.deck[0].auto_cue);
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);load(0,1);
+ assert(debug(0).cue==ms_frames(0,500)&&debug(0).state==XZ_XP_CUED);
+ /* TRACK SEARCH back: the point the track cued to at load, play state kept (p.40). */
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);seek(0,1400);advance(20);
+
+ struct xz_extra_deck_event back=event(0,XZ_EXTRA_IN_TRACK_PREV,1);assert(input(back));step();
+ assert(debug(0).state==XZ_XP_PLAYING&&debug(0).cue==ms_frames(0,500));
+ advance(20);assert(completed_tag(0)>=ms_frames(0,500)&&completed_tag(0)<ms_frames(0,700));
+ assert(f.stale==0);
+ xz_xp_destroy(p);p=NULL;
+ puts("PASS stock parity B: memory CALL, loop hot cue store/call/edit, SEARCH step/scan, TIME MODE and AUTO CUE "
+      "(every deck / SHIFT), AUTO CUE off load, TRACK SEARCH back to the load cue");
+}
+
 static void test_completed_timeline(void){
  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
  for(int side=0;side<2;side++){
@@ -1685,6 +1751,7 @@ int main(int argc, char **argv) {
  test_stock_sync();
  test_native_master_handoff();
  test_quantize_parity();
+ test_stock_parity_b();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
         "tempo rate, jog bend decay and search, SYNC, MASTER TEMPO, SEEK, EOF, 44.1/48 kHz, load while playing, "
         "retire grace, resolver and read failures, route down, full queue, threaded snapshots (%lu)\n", snapshots);

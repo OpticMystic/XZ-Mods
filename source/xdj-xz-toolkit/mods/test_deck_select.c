@@ -169,7 +169,8 @@ static void test_routing(void) {
   {0x410d, XZ_EXTRA_IN_LOOP_IN}, {0x410e, XZ_EXTRA_IN_LOOP_OUT}, {0x410f, XZ_EXTRA_IN_RELOOP},
   {0x4104, XZ_EXTRA_IN_VINYL}, {0x4107, XZ_EXTRA_IN_TEMPO_RANGE}, {0x4109, XZ_EXTRA_IN_TEMPO_RESET},
   {0x4324, XZ_EXTRA_IN_LOOP_DOUBLE}, {0x4325, XZ_EXTRA_IN_LOOP_HALF},
-  {0x4110, XZ_EXTRA_IN_REVERSE}, {0x4111, XZ_EXTRA_IN_SLIP}
+  {0x4110, XZ_EXTRA_IN_REVERSE}, {0x4111, XZ_EXTRA_IN_SLIP},
+  {0x4121, XZ_EXTRA_IN_SEARCH}, {0x4122, XZ_EXTRA_IN_SEARCH}
  };
  for (unsigned i = 0; i < sizeof controls / sizeof *controls; ++i) {
   o = key(LEFT, controls[i].key, 0);
@@ -183,7 +184,7 @@ static void test_routing(void) {
  }
  /* Unsupported per-deck keys never reach the native deck. */
  static const uint16_t swallowed[] = {
-  0x4121, 0x4122, 0x4126, 0x4127, 0x4128, 0x4312, 0x4212, 0x4213, 0x430f, 0x430b, 0x430c};
+  0x4126, 0x4127, 0x4128, 0x4312, 0x4212, 0x4213, 0x430f, 0x430b, 0x430c};
  for(size_t i = 0; i < sizeof swallowed / sizeof *swallowed; i++) {
   assert(key(LEFT, swallowed[i], 0).verdict == XZ_DS_SWALLOW);
   assert(key(LEFT, swallowed[i], 2).verdict == XZ_DS_SWALLOW);
@@ -196,7 +197,23 @@ static void test_routing(void) {
  assert(xz_deck_select_global_key(&d, 1, 0x430f, 2, now).verdict == XZ_DS_SWALLOW);
  assert(xz_deck_select_global_key(&d, 2, 0x430f, 0, now).verdict == XZ_DS_PASS);
  assert(xz_deck_select_global_key(&d, 2, 0x430f, 2, now).verdict == XZ_DS_PASS);
- assert(xz_deck_select_global_key(&d, 1, 0x430b, 2, now).verdict == XZ_DS_SWALLOW);
+ assert(xz_deck_select_global_key(&d, 1, 0x430b, 2, now).verdict == XZ_DS_PASS);   /* release without its press */
+ /* TIME MODE: a short press switches the time display on release, a 1 s hold AUTO CUE; every deck, and
+    stock still gets every contact. SHIFT: the side's deck only, stock never sees it. */
+ assert(xz_deck_select_global_key(&d, 1, 0x430b, 0, now).verdict == XZ_DS_PASS);
+ o = xz_deck_select_global_key(&d, 1, 0x430b, 2, now);
+ assert(o.verdict == XZ_DS_DELIVER && o.also_stock && o.event.kind == XZ_EXTRA_IN_TIME_MODE && !o.event.shift && o.event.deck == LEFT);
+ assert(xz_deck_select_global_key(&d, 1, 0x430b, 0, now).verdict == XZ_DS_PASS);
+ o = xz_deck_select_global_key(&d, 1, 0x430b, 1, now);
+ assert(o.verdict == XZ_DS_DELIVER && o.also_stock && o.event.kind == XZ_EXTRA_IN_AUTO_CUE);
+ assert(xz_deck_select_global_key(&d, 1, 0x430b, 1, now).verdict == XZ_DS_PASS);       /* repeated hold */
+ assert(xz_deck_select_global_key(&d, 1, 0x430b, 2, now).verdict == XZ_DS_PASS);       /* held: no TIME MODE */
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_SHIFT, 0, now).verdict == XZ_DS_PASS);
+ assert(xz_deck_select_global_key(&d, 1, 0x430b, 0, now).verdict == XZ_DS_SWALLOW);
+ o = xz_deck_select_global_key(&d, 1, 0x430b, 2, now);
+ assert(o.verdict == XZ_DS_DELIVER && !o.also_stock && o.event.kind == XZ_EXTRA_IN_TIME_MODE && o.event.shift);
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_SHIFT, 2, now).verdict == XZ_DS_PASS);
+ assert(d.side[LEFT].target == XZ_DS_EXTRA);
  /* DECK QUANTIZE (manual): a press is for every deck, so stock still gets it and the software deck of that
     side hears it too; SHIFT + press is for the side's deck only. Left drives DECK 3, right drives DECK 2. */
  o = xz_deck_select_global_key(&d, 1, 0x430c, 0, now);
@@ -337,9 +354,10 @@ static void test_stock_unchanged(void) {
     if(code == XZ_DS_KEY_SHIFT) continue;
     struct xz_ds_outcome o = ev(LEFT, (uint16_t)code, op, (int)(code & 1), 3, 0.25f);
     assert(o.verdict == XZ_DS_PASS && !o.toggled && !o.unknown_first);
-    /* Stock still receives every key; DECK QUANTIZE also reaches the software decks (it is for every deck). */
+    /* Stock still receives every key; DECK QUANTIZE and TIME MODE also reach the software decks (they are
+       for every deck). */
     struct xz_ds_outcome g = xz_deck_select_global_key(&d, 1, (uint16_t)code, op, now);
-    assert(g.verdict == XZ_DS_PASS || (route && code == 0x430c && op == 0 && g.verdict == XZ_DS_DELIVER && g.also_stock));
+    assert(g.verdict == XZ_DS_PASS || (route && (code == 0x430c || code == 0x430b) && g.verdict == XZ_DS_DELIVER && g.also_stock));
     if(!route) assert(ev(RIGHT, (uint16_t)code, op, 0, 3, 0.25f).verdict == XZ_DS_PASS);
    }
  }
@@ -507,7 +525,7 @@ static void test_global_track_restart(void) {
   assert(xz_deck_select_global_key(&d,side+1,0x4213,2,now).verdict==XZ_DS_PASS);
   assert(double_press(side));
   struct xz_ds_outcome o=xz_deck_select_global_key(&d,side+1,0x4213,0,now);
-  assert(o.verdict==XZ_DS_DELIVER&&o.event.deck==side&&o.event.kind==XZ_EXTRA_IN_SEEK&&o.event.seek_ms==0);
+  assert(o.verdict==XZ_DS_DELIVER&&o.event.deck==side&&o.event.kind==XZ_EXTRA_IN_TRACK_PREV);
   assert(xz_deck_select_global_key(&d,side+1,0x4213,0,now).verdict==XZ_DS_SWALLOW);
   assert(xz_deck_select_global_key(&d,side+1,0x4213,1,now).verdict==XZ_DS_SWALLOW);
   assert(xz_deck_select_global_key(&d,side+1,0x4213,2,now).verdict==XZ_DS_SWALLOW);
