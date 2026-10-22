@@ -1024,7 +1024,7 @@ static struct xz_sync_native_snapshot cached_native;
 static unsigned native_cache_copies;
 static int copy_native(struct xz_sync_native_snapshot *out){__atomic_fetch_add(&native_cache_copies,1,__ATOMIC_RELAXED);*out=cached_native;return out->available;}
 static void test_native_sync_cache(void){
- struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,0};
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,1};
  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_native);fake_route(990);step();load(0,1);press(0,XZ_EXTRA_IN_PLAY);
  memset(&cached_native,0,sizeof cached_native);native_cache_copies=0;advance(20);assert(!xz_xp_needs_native_sync(p)&&!native_cache_copies);
  press(0,XZ_EXTRA_IN_SYNC);assert(xz_xp_needs_native_sync(p)&&view.deck[0].sync.reason==XZ_EXTRA_SYNC_WAIT_MASTER);
@@ -1099,7 +1099,7 @@ static double actual_native_sync_error(int slave_deck){
 static void test_native_phase_sync(void){
  wire_horizon=882;
  for(int slave=0;slave<2;slave++)for(int source=1;source<=2;source++){
-  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,0};
+  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,1};
   p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_sim_native);fake_route(997);step();
   sync_loop_track(slave,(uint32_t)source,350);
   sim_native.active=1;sim_native.native_deck=slave;sim_native.playing=1;sim_native.manual=0;
@@ -1155,13 +1155,13 @@ static void test_native_phase_sync(void){
 }
 static void test_sync_missing_sources(void){
  for(int missing_master=0;missing_master<2;missing_master++){
-  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,0};
+  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,1};
   p=xz_xp_create(&env);assert(p);fake_route(992);step();sync_loop_track(0,missing_master?4:1,100);sync_loop_track(1,missing_master?1:4,350);
   press(0,XZ_EXTRA_IN_MASTER);advance(40);unsigned flush_before=f.flushes[1];press(1,XZ_EXTRA_IN_SYNC);advance(100);
   assert(view.deck[1].sync.requested&&!view.deck[1].sync.locked&&view.deck[1].sync.reason==XZ_EXTRA_SYNC_NO_GRID&&f.flushes[1]==flush_before);
   xz_xp_destroy(p);p=NULL;
  }
- struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,1};
  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_native);fake_route(993);step();load(0,2);press(0,XZ_EXTRA_IN_PLAY);
  cached_native=(struct xz_sync_native_snapshot){.available=1,.native_deck=0,.source_revision=12,.track_identity=0x99,.bpm=126,.captured_ms=clock_ms};
  press(0,XZ_EXTRA_IN_SYNC);advance(30);assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_NO_SOURCE_BPM&&!view.deck[0].sync.locked&&!view.deck[0].tempo_x100);
@@ -1175,18 +1175,20 @@ static void test_sync_missing_sources(void){
  xz_xp_destroy(p);p=NULL;puts("PASS 250-to-500 BPM WIDE native tempo ratio and explicit 501 BPM out-of-range refusal");
 }
 static void test_sync_nonzero_loop(void){
- struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,0};
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,1};
  p=xz_xp_create(&env);assert(p);fake_route(996);step();sync_loop_track(0,1,300);
+ /* With QUANTIZE on, LOOP IN at 500 ms and OUT at 1000 ms land on the beats at 600 and 1100 ms. */
  load(1,2);seek(1,500);press(1,XZ_EXTRA_IN_LOOP_IN);seek(1,1000);press(1,XZ_EXTRA_IN_LOOP_OUT);
+ assert(debug(1).loop_in==ms_frames(1,600)&&debug(1).loop_out==ms_frames(1,1100));
  press(0,XZ_EXTRA_IN_MASTER);advance(40);press(1,XZ_EXTRA_IN_SYNC);
  for(unsigned elapsed=0;elapsed<2000;elapsed+=10){
-  advance(10);assert(debug(1).position>=ms_frames(1,500)&&debug(1).position<ms_frames(1,1000));
+  advance(10);assert(debug(1).position>=ms_frames(1,600)&&debug(1).position<ms_frames(1,1100));
  }
  assert(view.deck[1].sync.locked&&fabs(actual_sync_error(0,1))<=.001);
  xz_xp_destroy(p);p=NULL;puts("PASS initial phase acquire wraps within a nonzero integer-beat loop, never outside its PCM region");
 }
 static void test_sync_concurrent_groups(void){
- struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,0};
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,1};
  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,copy_native);fake_route(994);step();
  sync_loop_track(0,1,100);sync_loop_track(1,2,350);advance(40);memset(&cached_native,0,sizeof cached_native);
  threaded_clock=1;assert(!xz_xp_start(p));__atomic_store_n(&stop_usb,0,__ATOMIC_RELEASE);pthread_t wire;assert(!pthread_create(&wire,NULL,usb,NULL));
@@ -1217,7 +1219,7 @@ static void test_sync_coordinator(void){
  char trace_path[512];snprintf(trace_path,sizeof trace_path,"%s/sync-phase-trace.jsonl",fixtures);sync_trace_file=fopen(trace_path,"w");assert(sync_trace_file);
  for(int master_deck=0;master_deck<2;master_deck++)for(int source=1;source<=2;source++){
   int slave=1-master_deck;
-  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,0};
+  struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,1};
   p=xz_xp_create(&env);assert(p);fake_route(1000);step();
   sync_loop_track(master_deck,(uint32_t)source,100);sync_loop_track(slave,(uint32_t)(3-source),350);
   press(master_deck,XZ_EXTRA_IN_MASTER);advance(40);assert(view.deck[master_deck].master&&!view.deck[slave].master);
@@ -1294,7 +1296,7 @@ static void quantize_key(int d,int shift){
 }
 static void test_stock_sync(void){
  wire_horizon=0;position_interval=position_noise=position_blocked=0;threaded_clock=0;
- struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,1,0};
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,1,1};
  p=xz_xp_create(&env);assert(p);fake_route(1300);step();
  assert(view.deck[0].vinyl&&view.deck[1].vinyl&&view.deck[0].quantize&&view.deck[1].quantize);
  sync_loop_track(0,1,100);sync_loop_track(1,2,350);
@@ -1361,7 +1363,7 @@ static struct xz_sync_native_snapshot live_native_state;
 static int live_native(struct xz_sync_native_snapshot *out){*out=live_native_state;out->captured_ms=clock_ms;return out->available;}
 static void test_native_master_handoff(void){
  wire_horizon=0;position_interval=position_noise=position_blocked=0;threaded_clock=0;
- struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,0};
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,1};
  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,live_native);fake_route(1400);step();
  live_native_state=(struct xz_sync_native_snapshot){.available=1,.native_deck=0,.master_id=0,.source_revision=10,
   .track_identity=0x42,.bpm=120,.nominal_bpm=120,.speed=1,.playing=1};
@@ -1391,6 +1393,80 @@ static void test_native_master_handoff(void){
  assert(!view.deck[0].master&&!view.deck[1].master);
  xz_xp_destroy(p);p=NULL;
  puts("PASS master handoff: native stop to DECK 3 after the firmware's window, stays while playing, DECK 3 to DECK 4 to native on stop, never from LINK");
+}
+
+/* Stock parity batch A (stock-audit.md #1, #6-#8, #14, #18). Track 1's grid has beats at 100 + 500 n ms. */
+static void test_quantize_parity(void){
+ wire_horizon=0;position_interval=position_noise=position_blocked=0;threaded_clock=0;
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,1};
+ p=xz_xp_create(&env);assert(p);fake_route(1500);step();load(0,1);load(1,2);
+ assert(view.deck[0].quantize);
+ /* Cue set while paused lands on the nearest beat. */
+ seek(0,820);press(0,XZ_EXTRA_IN_CUE);
+ assert(debug(0).cue==ms_frames(0,600)&&debug(0).position==ms_frames(0,600));
+ seek(0,880);press(0,XZ_EXTRA_IN_CUE);assert(debug(0).cue==ms_frames(0,1100));
+ /* Hot cue set on the beat; played mid-beat during playback it keeps the beat position. */
+ seek(0,1240);pad_key(0,2,1);pad_key(0,2,0);
+ assert(view.deck[0].hot_cue[2].set&&view.deck[0].hot_cue[2].ms==1100);
+ seek(0,700);hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);advance(130);
+ uint64_t at=completed_tag(0);
+ unsigned jumps=f.flushes[0];pad_key(0,2,1);pad_key(0,2,0);
+ assert(f.flushes[0]==jumps+1);
+ uint64_t into=(at-ms_frames(0,100))%ms_frames(0,500);
+ advance(30);
+ uint64_t landed=completed_tag(0);
+ assert(landed>=ms_frames(0,1100)+into&&landed<ms_frames(0,1100)+into+ms_frames(0,80));
+ /* LOOP IN (real-time cue) and the 4-beat hold start on the beat; the hold keeps playing, no jump back. */
+ seek(0,250);advance(20);hold(0,XZ_EXTRA_IN_LOOP_IN,1);
+ assert(debug(0).loop_in==ms_frames(0,100)&&debug(0).cue==ms_frames(0,100));
+ hold(0,XZ_EXTRA_IN_LOOP_IN,0);
+ hold(0,XZ_EXTRA_IN_CUE,1);hold(0,XZ_EXTRA_IN_CUE,0);
+ seek(0,700);hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);advance(20);
+ struct xz_extra_deck_event held=event(0,XZ_EXTRA_IN_LOOP_IN,1);
+ assert(input(held));step();jumps=f.flushes[0];held.held=1;advance(1000);assert(input(held));step();
+ /* The press at ~720 ms set IN on the beat at 600 ms; the hold makes it a 4-beat loop from there. */
+ assert(debug(0).loop_active&&debug(0).loop_in==ms_frames(0,600)&&debug(0).loop_out==ms_frames(0,2000));
+ hold(0,XZ_EXTRA_IN_LOOP_IN,0);hold(0,XZ_EXTRA_IN_RELOOP,1);hold(0,XZ_EXTRA_IN_RELOOP,0);
+ /* LOOP OUT without LOOP IN uses the current cue point as IN (p.47). */
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);
+ seek(0,600);press(0,XZ_EXTRA_IN_CUE);assert(debug(0).cue==ms_frames(0,600));
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);advance(20);seek(0,1580);
+ hold(0,XZ_EXTRA_IN_LOOP_OUT,1);hold(0,XZ_EXTRA_IN_LOOP_OUT,0);
+ assert(debug(0).loop_active&&debug(0).loop_in==ms_frames(0,600)&&debug(0).loop_out==ms_frames(0,1600));
+ hold(0,XZ_EXTRA_IN_RELOOP,1);hold(0,XZ_EXTRA_IN_RELOOP,0);
+ /* Beat loop pad starts on the beat at or before the press. */
+ mode(0,XZ_EXTRA_PAD_BEAT_LOOP,0);seek(0,1320);advance(20);pad_key(0,2,1);pad_key(0,2,0);
+ assert(debug(0).loop_active&&debug(0).loop_in==ms_frames(0,1100)&&debug(0).loop_out==ms_frames(0,1600));
+ pad_key(0,2,1);pad_key(0,2,0);mode(0,XZ_EXTRA_PAD_HOT_CUE,0);
+ /* Slip hot cue: returns to the background by itself after 4 beats (p.59). */
+ hold(0,XZ_EXTRA_IN_SLIP,1);hold(0,XZ_EXTRA_IN_SLIP,0);
+ seek(0,200);advance(20);pad_key(0,2,1);
+ assert(view.deck[0].slip_active);
+ advance(2100);
+ assert(!view.deck[0].slip_active);
+ pad_key(0,2,0);
+ /* Loading a track turns SLIP off (p.60). */
+ assert(view.deck[0].slip);load(0,1);assert(!view.deck[0].slip);
+ /* Slip pause (pp.58-59): VINYL + SLIP, pause keeps the background running; PLAY resumes from it. */
+ hold(0,XZ_EXTRA_IN_VINYL,1);hold(0,XZ_EXTRA_IN_VINYL,0);hold(0,XZ_EXTRA_IN_SLIP,1);hold(0,XZ_EXTRA_IN_SLIP,0);
+ seek(0,200);hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);advance(100);
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);advance(500);
+ assert(debug(0).state==XZ_XP_CUED&&view.deck[0].slip_active);
+ uint64_t paused=debug(0).position;advance(300);
+ hold(0,XZ_EXTRA_IN_PLAY,1);hold(0,XZ_EXTRA_IN_PLAY,0);
+ assert(debug(0).state==XZ_XP_PLAYING&&!view.deck[0].slip_active&&debug(0).position>paused+ms_frames(0,500));
+ /* Tempo moves in the stock steps: 0.02 % at +-6, 0.05 % at +-10/16, 0.5 % at WIDE. */
+ tempo(1,1234);assert(view.deck[1].tempo_x100%5==0);                       /* +-10 */
+ hold(1,XZ_EXTRA_IN_TEMPO_RANGE,1);hold(1,XZ_EXTRA_IN_TEMPO_RANGE,0);      /* +-16 */
+ hold(1,XZ_EXTRA_IN_TEMPO_RANGE,1);hold(1,XZ_EXTRA_IN_TEMPO_RANGE,0);      /* WIDE */
+ tempo(1,1234);assert(view.deck[1].tempo_x100%50==0&&view.deck[1].tempo_x100==1250);
+ hold(1,XZ_EXTRA_IN_TEMPO_RANGE,1);hold(1,XZ_EXTRA_IN_TEMPO_RANGE,0);      /* +-6 */
+ tempo(1,1234);assert(view.deck[1].tempo_x100%2==0&&view.deck[1].tempo_x100==74);
+ tempo(1,-1234);assert(view.deck[1].tempo_x100==-74);
+ assert(f.stale==0);
+ xz_xp_destroy(p);p=NULL;
+ puts("PASS stock parity A: quantized cue/hot cue/loop/beat loop points, beat-keeping hot cue, LOOP OUT from cue, "
+      "slip hot cue 4-beat return, SLIP off on load, slip pause, stock tempo steps");
 }
 
 static void test_completed_timeline(void){
@@ -1608,6 +1684,7 @@ int main(int argc, char **argv) {
  if(!test_held_controls())return 1;
  test_stock_sync();
  test_native_master_handoff();
+ test_quantize_parity();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
         "tempo rate, jog bend decay and search, SYNC, MASTER TEMPO, SEEK, EOF, 44.1/48 kHz, load while playing, "
         "retire grace, resolver and read failures, route down, full queue, threaded snapshots (%lu)\n", snapshots);
