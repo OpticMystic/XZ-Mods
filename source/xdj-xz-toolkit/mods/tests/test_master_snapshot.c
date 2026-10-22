@@ -53,7 +53,22 @@ static void ui_projection(int deck,int fresh,int route_up){
  int eligible=fresh&&(route_up||deck<2);
  for(int i=0;i<4;i++)CHECK(m.deck[i].master==(eligible&&deck==i));
 }
+static void ui_quantum(void){
+ static const unsigned values[]={0,1,2,4,8,3,UINT32_MAX};
+ for(unsigned v=0;v<sizeof values/sizeof *values;v++)for(int side=0;side<2;side++){
+  reset(0);supplied.route_up=1;
+  supplied.deck[side].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_QUANTIZE);
+  supplied.deck[side].quantize=1;supplied.deck[side].quantize_den=values[v];
+  struct xz_shell_model m={0};struct xz_shrt_extra_parts parts[2]={{0}};
+  xz_shrt_extra_map(&m,&supplied,parts,clock_ms,clock_ms);
+  unsigned den=values[v];int known=den==1||den==2||den==4||den==8;
+  CHECK(m.deck[side+2].quantize_on);
+  CHECK(m.deck[side+2].quantize_den==(known?(int)den:0));
+  CHECK(m.deck[side+2].quantize_num==known);
+ }
+}
 int main(void){
+ ui_quantum();
  for(int d=0;d<4;d++)for(int fresh=0;fresh<2;fresh++)for(int route_up=0;route_up<2;route_up++)
   ui_projection(d,fresh,route_up);
  for(int d=0;d<4;d++){

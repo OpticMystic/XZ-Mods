@@ -381,7 +381,10 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
  if(EK(TEMPO_RANGE)){d->tempo_range=s->tempo_range;d->known|=SK(TEMPO_RANGE);}
  if(EK(MASTER_TEMPO)){d->master_tempo=!!s->master_tempo;d->known|=SK(MASTER_TEMPO);}
  if(EK(VINYL)){d->vinyl=!!s->vinyl;d->known|=SK(VINYL);}
- if(EK(QUANTIZE)){d->quantize_on=!!s->quantize;d->quantize_num=d->quantize_den=1;d->known|=SK(QUANTIZE);}
+ if(EK(QUANTIZE)){
+  unsigned den=s->quantize_den;int valid=den==1||den==2||den==4||den==8;
+  d->quantize_on=!!s->quantize;d->quantize_num=valid?1:0;d->quantize_den=valid?(int)den:0;d->known|=SK(QUANTIZE);
+ }
  if(EK(TIME_MODE)){d->time_mode=s->remain?XZ_SHELL_TIME_REMAIN:XZ_SHELL_TIME_ELAPSED;d->known|=SK(TIME_MODE);}
  if(EK(MASTER)){d->master=!!s->master;d->master_scope=s->master_scope;d->known|=SK(MASTER);}
  if(EK(SYNC)){

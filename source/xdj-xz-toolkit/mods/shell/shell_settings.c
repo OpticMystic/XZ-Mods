@@ -1166,6 +1166,7 @@ static void render_deck_status(const struct xz_shell_model *m, struct xz_canvas 
   if(sh_has(d,XZ_SHELL_F_QUANTIZE)&&d->quantize_on)snprintf(text,sizeof text,"Q %d%s%d",d->quantize_num,d->quantize_den>1?"/":"",d->quantize_den>1?d->quantize_den:0);
   else snprintf(text,sizeof text,"QUANTIZE");
   if(sh_has(d,XZ_SHELL_F_QUANTIZE)&&d->quantize_on&&d->quantize_den<=1)snprintf(text,sizeof text,"Q %d",d->quantize_num);
+  if(sh_has(d,XZ_SHELL_F_QUANTIZE)&&d->quantize_on&&(d->quantize_num<=0||d->quantize_den<=0))snprintf(text,sizeof text,"Q ?");
   lamp(c,xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_QUANTIZE),text,sh_has(d,XZ_SHELL_F_QUANTIZE),d->quantize_on,SH_RED);
   lamp(c,xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_SYNC),"SYNC",sh_has(d,XZ_SHELL_F_SYNC),d->sync,SH_BLUE);
   lamp(c,xz_shell_shortcut_lamp(m,deck,XZ_SHELL_LAMP_SLIP),"SLIP",sh_has(d,XZ_SHELL_F_SLIP),d->slip,0xffbd59);
