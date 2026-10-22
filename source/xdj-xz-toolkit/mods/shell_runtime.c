@@ -2338,9 +2338,20 @@ static struct {
 #if XZ_SYNC_OBSERVATION
 static void syo_native(const struct xz_sync_native_snapshot *s,uint64_t observed,unsigned admitted,unsigned pending,unsigned qualification){
  SYO_INC(NATIVE_PUBLISH);SYO_REASON(NATIVE_REASON_0,s->reason,10);
- SYO_REC(NATIVE,11,s->reason,s->available,s->phase_available,s->native_deck,s->master_id,s->source_revision,
+ /* Optional RVW1 tail: the existing typed input, including invalid values.
+    Source qualification stays in the original fields; no second native read. */
+ _Static_assert(sizeof(float)==4,"native observation requires binary32 storage");
+ uint32_t bpm,speed,phase;
+ memcpy(&bpm,&s->bpm,4);memcpy(&speed,&s->speed,4);memcpy(&phase,&s->bar_phase,4);
+ const uint32_t v[]={s->reason,s->available,s->phase_available,s->native_deck,s->master_id,s->source_revision,
   s->playing,s->manual,admitted,pending,qualification,s->captured_ms,SYO_LO(s->captured_us),SYO_HI(s->captured_us),
-  s->uncertainty_us,SYO_LO(observed),SYO_HI(observed));
+  s->uncertainty_us,SYO_LO(observed),SYO_HI(observed),0x52565731u,1u,bpm,speed,phase};
+ const struct xz_syo_record *r=&xz_mods_sync_observation_v1.records[SYO_R_NATIVE];
+ int changed=0;
+ /* This sole writer is under the existing owner mutex. Key the tail without
+    keying advancing clock or phase words; xz_syo_record still owns the CAS. */
+ for(unsigned i=17;i<21;i++)changed|=atomic_load_explicit(&r->words[i+1],memory_order_relaxed)!=v[i];
+ xz_syo_record(SYO_R_NATIVE,11,v,sizeof v/sizeof v[0],changed);
 }
 static void syo_cache(const struct xz_sync_native_snapshot *s,uint64_t observed,uint32_t age,int result){
  SYO_REASON(CACHE_REASON_0,s->reason,10);
