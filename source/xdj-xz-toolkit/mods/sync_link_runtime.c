@@ -863,14 +863,18 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
  if(decks&&(decks->master_intent.epoch||decks->master_intent.explicit_choice||decks->master_intent.operator_epoch))
   atomic_store(&rt_global_mode,1);
  uint32_t old_request=atomic_load(&rt_request_epoch);
+ uint32_t old_operator=atomic_load(&rt_request_operator);
  uint32_t request=decks?decks->master_intent.epoch:0;
- if(request&&old_request&&request<old_request){pthread_mutex_unlock(&rt_pub_mutex);return;}
- if(!request&&atomic_load(&rt_global_mode))request=old_request;
- if(old_request!=request){
-  atomic_store(&rt_request_operator,decks?decks->master_intent.operator_epoch:0);
- }
+ uint32_t operator_epoch=decks?decks->master_intent.operator_epoch:0;
+ /* Players can be recreated while the bridge retains its lifetime counters.
+    A newer operator admits their first request even if its number is reused. */
+ if(request&&old_request&&((operator_epoch&&old_operator&&operator_epoch<old_operator)||
+    ((!operator_epoch||operator_epoch==old_operator)&&request<old_request))){pthread_mutex_unlock(&rt_pub_mutex);return;}
+ if(!request&&atomic_load(&rt_global_mode)){request=old_request;operator_epoch=old_operator;}
+ int changed=old_request!=request||old_operator!=operator_epoch;
+ if(changed)atomic_store(&rt_request_operator,operator_epoch);
  atomic_store(&rt_request_epoch,request);
- if(old_request!=request&&rt_lease.active){
+ if(changed&&rt_lease.active){
   /* A same-source explicit reselection retains the guarded prior-master restore,
      but gets a new lease generation and must drain a fresh request. */
   unsigned side=rt_lease.claim.source_id-3;

@@ -2,7 +2,7 @@
 from pathlib import Path
 import argparse,hashlib,json,subprocess
 
-p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--arch',choices=['host','arm','all'],default='all');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--arch',choices=['host','arm','all'],default='all');p.add_argument('--case');a=p.parse_args()
 root=Path(__file__).resolve().parents[1];out=a.out.resolve();out.mkdir(parents=True,exist_ok=False)
 def linux(path):
     s=path.resolve().as_posix();return '/mnt/'+s[0].lower()+s[2:]
@@ -11,8 +11,11 @@ files=['sync_link_runtime.c','sync_link_runtime.h','sync_link_plan.c','sync_link
        'tests/test_sync_link_runtime.c','tests/test_sync_link_plan.c','tests/test_global_master.c','tests/test_master_lifecycle.c']
 receipt={'inputs':{n:sha(root/n) for n in files},'runs':[],'hardware':False}
 cases={'runtime':[None],'plan':[None],
-       'global':['pending','local','guards','operator','stale','reentrant','inflight','concurrent','steady','paused','admission','missing'],
+       'global':['pending','local','guards','operator','stale','reentrant','inflight','concurrent','steady','paused','admission','missing','restart-request'],
        'lifecycle':['stop-start','exhaustion','cache-exhaustion','pinned-restart','no-legacy-fallback','busy-authority-token']}
+if a.case:
+    cases={suite:[a.case] for suite,selected in cases.items() if a.case in selected}
+    if not cases:p.error('unknown case')
 def run(label,cmd):
     r=subprocess.run(['wsl','-d','Ubuntu','--exec',*cmd],capture_output=True,timeout=90)
     (out/(label+'.stdout')).write_bytes(r.stdout);(out/(label+'.stderr')).write_bytes(r.stderr)
