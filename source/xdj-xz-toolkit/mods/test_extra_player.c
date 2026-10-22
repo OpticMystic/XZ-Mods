@@ -684,8 +684,8 @@ static void test_vinyl(void) {
  f.capture[0]=1;jog(0,-4);step();advance(100);
  assert(f.captured_frames[0]>=32);
  for(unsigned n=0;n<32;n++)
-  assert(fabs(f.captured[0][n*2]-.5*sin(6.283185307179586*440*(at-.2*n)/44100.0))<.001);
- assert(debug(0).position<at&&debug(0).generation==generation+1);
+  assert(fabs(f.captured[0][n*2]-.5*sin(6.283185307179586*440*(at-.2*(n+.4))/44100.0))<.001);
+ assert(debug(0).position<at&&debug(0).generation==generation); /* Continuous turn, no dropped generation. */
  at=debug(0).position;submits=f.submits[0];advance(100);
  assert(debug(0).position==at&&f.submits[0]==submits);
  hold(0,XZ_EXTRA_IN_JOG_TOUCH,0);advance(100);
@@ -1088,7 +1088,7 @@ static void test_completed_timeline(void){
   jog(side,20);step();advance(70);
   assert(view.deck[side].timeline.rate_ppm>1005000);
   hold(side,XZ_EXTRA_IN_PLAY,1);seek(side,700);hold(side,XZ_EXTRA_IN_VINYL,1);
-  hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);jog(side,-8);step();
+  hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);jog(side,-8);step();clock_ms++;step();
   advance(6);
   assert(view.deck[side].timeline.moving&&view.deck[side].timeline.rate_ppm<0);
   assert(debug(side).position==debug(side).scratch_target); /* render complete, queued PCM still moving */
@@ -1254,6 +1254,7 @@ static void test_threads(void) {
 
 #include "test_extra_player_recovery.h"
 #include "test_extra_player_release.h"
+#include "test_extra_player_trajectory.h"
 
 int main(int argc, char **argv) {
  assert(argc == 2);
@@ -1276,6 +1277,7 @@ int main(int argc, char **argv) {
  test_ordered_next();
  test_player_recovery();
  test_player_release();
+ if(!test_player_trajectory())return 1;
 #ifdef XZ_XP_TEST_RENDER_HOOK
  test_reconnect_during_render();
 #endif
