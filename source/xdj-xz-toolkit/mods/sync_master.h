@@ -12,13 +12,15 @@ struct xz_master_intent {
  int32_t deck;
  uint32_t epoch;
  uint32_t explicit_choice;
+ uint32_t operator_epoch;
 };
 struct xz_master_observation {
  int32_t deck;
  uint32_t revision,observed_ms,operator_epoch,request_epoch,lease_generation;
  uint32_t route_epoch,load_revision,transport_generation;
 };
-/* Copies one coherent confirmed observation without native I/O or player locks.
- * A failed copy returns zero and sets the output deck to UNKNOWN. */
+/* Copies authority or UNKNOWN plus a current nonzero admission token, without
+ * native I/O or player locks. UNKNOWN has no revision or source provenance.
+ * A failed copy returns zero and clears every field except deck=UNKNOWN. */
 typedef int (*xz_master_observer)(struct xz_master_observation *);
 #endif
