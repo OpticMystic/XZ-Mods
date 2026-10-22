@@ -66,6 +66,10 @@ int xz_shell_model_fx_raw(const struct xz_shell_model_storage *storage, unsigned
    thread may call it, with or without the shell running. */
 int32_t xz_shell_model_master_bpm(xz_shell_read_fn read);
 
+/* Qualified Utility quantize subdivision: denominator 1,2,4,8. Unknown returns
+ * zero and clears *denominator; this does not infer a deck's QUANTIZE on/off. */
+int xz_shell_model_quantize_grid(xz_shell_read_fn read, unsigned *denominator);
+
 /* Hot cue OUT time (loop hot cues); returns 0 when not known. */
 int xz_shell_model_hot_cue_out(const struct xz_shell_model_storage *storage, int deck, int cue, int32_t *out_ms);
 #endif

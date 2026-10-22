@@ -363,6 +363,13 @@ int32_t xz_shell_model_master_bpm(xz_shell_read_fn read){
     }
     return 0;
 }
+int xz_shell_model_quantize_grid(xz_shell_read_fn read,unsigned *denominator){
+    struct setting_pair list[SETTINGS_CAP];uint32_t count=0,value=0,failures=0;
+    if(denominator)*denominator=0;
+    if(!read||!denominator||!guard(read,addresses[1],guards[1],&failures)||
+       !settings(read,list,&count)||!setting(list,count,0x62,&value)||value<0x30||value>0x33)return 0;
+    *denominator=1u<<(0x33u-value);return 1;
+}
 unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_storage *s,xz_shell_read_fn read,uint32_t now_ms){
     int ok[4],auto_known[2]={0,0},auto_value[2]={0,0};unsigned changed=0;
     struct setting_pair list[SETTINGS_CAP];uint32_t count=0;
