@@ -1240,6 +1240,11 @@ static int native_phase_ready(struct deck *d,const struct xz_sync_native_snapsho
  d->native_phase.at=at;d->native_phase.phase=n->bar_phase;d->native_phase.bpm=n->bpm;
  return coherent;
 }
+static double native_tempo_rate(const struct deck *d,double bpm){
+ double phase,period;
+ if(grid_phase(d,d->heard,&phase,&period))return bpm/60.*period/d->r->rate;
+ return d->track.track_bpm_x100>0?bpm*100./d->track.track_bpm_x100:0.;
+}
 static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_position *position,uint32_t now){
  d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;
  if(!d->sync.requested)return;
@@ -1274,7 +1279,8 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   if(bpm<=0){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
   if(native.manual){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
   if(p->native_sync_clock&&native.phase_available&&d->quantize&&!native_phase_ready(d,&native)){
-   if(d->track.track_bpm_x100>0)(void)sync_apply_base(p,d,selected,choice,(double)bpm/d->track.track_bpm_x100);
+   double rate=native_tempo_rate(d,native.bpm);
+   if(rate>0)(void)sync_apply_base(p,d,selected,choice,rate);
    if(d->sync_have_master){d->sync_hold=1;d->sync_native_gap_hold=0;d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;}
    d->sync.reason=native.manual?XZ_EXTRA_SYNC_MANUAL:!native.playing?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_WAIT_ANCHOR;return;
   }
@@ -1287,9 +1293,10 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    }
   }
   if(!native.phase_available||!d->quantize){
-   if(d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
+   double rate=native_tempo_rate(d,(double)bpm/100.);
+   if(rate<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
    d->sync_native_bpm=native.bpm;
-   int applied=sync_apply_base(p,d,selected,choice,(double)bpm/d->track.track_bpm_x100);
+   int applied=sync_apply_base(p,d,selected,choice,rate);
    if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
    d->sync.reason=d->quantize?XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;
   }
