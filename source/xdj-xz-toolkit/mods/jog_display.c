@@ -96,7 +96,8 @@ static void info(const struct xz_jd_snapshot *s,uint8_t p[64]) {
         if(s->bpm_x100>0) {
             encode_bpm_pair(p+0x15,s->bpm_x100,0);
             encode_bpm_pair(p+0x26,s->bpm_x100,1);
-            p[9]&=(uint8_t)~0x10u; /* Known BPM is not native -1. */
+            /* Native producer: bit 4 unavailable, bit 5 valid BPM. */
+            p[9]=(uint8_t)((p[9]&~0x10u)|0x20u);
         }
         if(s->track_bpm_x100>0)encode_bpm_pair(p+0x2f,s->track_bpm_x100,0);
         /* Loop and cue time units are unresolved. Keep the neutral inactive
