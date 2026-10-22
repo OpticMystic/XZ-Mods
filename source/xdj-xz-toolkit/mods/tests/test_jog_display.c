@@ -43,11 +43,11 @@ int main(void) {
         assert(!out[0]&&!out[0x50]&&!out[0x57]&&out[0x5d]==0x7f&&out[0x5e]==0x7f&&!out[0x84]&&!out[0x8b]);
         assert(out[1]==0x59&&(out[3]&0x20)==0x20&&(out[4]&0x80)==0x80&&(out[5]&0xf0)==0xa0);
         assert(out[0x51]==0xc0&&out[0x56]==0x6f);
-        if(i<6) { xz_jd_clear_packet(3,i,wanted);assert(!memcmp(p,wanted,64)); }
-        else { memcpy(wanted,native_info,64);wanted[0]=0x30;wanted[0x13]=wanted[0x14]=0xbb;assert(!memcmp(p,wanted,64)); }
+        if(i<6) { xz_jd_clear_packet(1,i,wanted);assert(!memcmp(p,wanted,64)); }
+        else { memcpy(wanted,native_info,64);wanted[0]=0x10;wanted[0x13]=wanted[0x14]=0xbb;assert(!memcmp(p,wanted,64)); }
     }
     extra.tempo_rate=-1234;extra.tempo_range=10;extra.vinyl_mode=0;extra.master_tempo=1;
-    assert(xz_jd_step(&s,native,&extra,1000,out)==XZ_JD_OK);packet(out,p);memcpy(wanted,native_controls,64);wanted[0]=0x30;wanted[0x13]=wanted[0x14]=0xbb;assert(!memcmp(p,wanted,64));
+    assert(xz_jd_step(&s,native,&extra,1000,out)==XZ_JD_OK);packet(out,p);memcpy(wanted,native_controls,64);wanted[0]=0x10;wanted[0x13]=wanted[0x14]=0xbb;assert(!memcmp(p,wanted,64));
     extra.tempo_rate=0;extra.tempo_range=6;extra.vinyl_mode=1;extra.master_tempo=0;
     extra.paused=1;assert(xz_jd_step(&s,native,&extra,1000,out)==XZ_JD_OK);packet(out,p);assert(p[2]==0x0a);
     /* Return must clear software artifacts, replay full paused native data,
@@ -59,9 +59,9 @@ int main(void) {
     assert(xz_jd_step(&s,native,NULL,1000,out)==XZ_JD_OK);assert((out[7]&0x30)==(native[7]&0x30));
     /* Expiry clears data but keeps logical3 while input still owns3. */
     assert(xz_jd_select(&s,3,&extra,1000)==XZ_JD_OK);
-    result=xz_jd_step(&s,native,&extra,1101,out);assert(result==XZ_JD_STALE);assert(s.selected==3);packet(out,p);assert(p[0]==0x30&&p[1]==0x2d);
+    result=xz_jd_step(&s,native,&extra,1101,out);assert(result==XZ_JD_STALE);assert(s.selected==3);packet(out,p);assert(p[0]==0x10&&p[1]==0x2d);
     for(i=0;i<5;i++)assert(xz_jd_step(&s,native,&extra,1101,out)==XZ_JD_STALE);
-    packet(out,p);memcpy(wanted,native_empty,64);wanted[0]=0x30;assert(!memcmp(p,wanted,64));
+    packet(out,p);memcpy(wanted,native_empty,64);wanted[0]=0x10;assert(!memcmp(p,wanted,64));
     extra.captured_ms=1101;assert(xz_jd_step(&s,native,&extra,1101,out)==XZ_JD_OK);packet(out,p);assert(p[1]==0x2d);
     assert(xz_jd_select(&s,1,NULL,1101)==XZ_JD_OK);
     /* Unknown native generation and oversized/incomplete image transactions
@@ -85,7 +85,7 @@ int main(void) {
     }
     assert(xz_jd_init(&s,2,storage,XZ_JD_STORAGE_BYTES,100)==XZ_JD_OK);xz_jd_native_epoch(&s,14);seed(&s);
     extra.logical_deck=4;assert(xz_jd_select(&s,4,&extra,1101)==XZ_JD_OK);
-    for(i=0;i<6;i++) { assert(xz_jd_step(&s,native_right,&extra,1101,out)==XZ_JD_OK);packet(out,p);assert(p[0]==0x40&&(out[0x53]>>4)==4);check_crc(out); }
+    for(i=0;i<6;i++) { assert(xz_jd_step(&s,native_right,&extra,1101,out)==XZ_JD_OK);packet(out,p);assert(p[0]==0x20&&(out[0x53]>>4)==4);check_crc(out); }
     assert(xz_jd_select(&s,3,&extra,1101)==XZ_JD_BAD_INPUT);
     assert(xz_jd_select(&s,2,NULL,1101)==XZ_JD_OK);xz_jd_step(&s,native_right,NULL,1101,out);packet(out,p);assert(p[0]==0x20&&(out[0x53]>>4)==2);
     /* Extended software deck status_known synthesis: cued pause, sync/master/slip,
@@ -101,7 +101,7 @@ int main(void) {
         assert(xz_jd_select(&s,4,&rich,1101)==XZ_JD_OK);
         for(i=0;i<6;i++)assert(xz_jd_step(&s,native_right,&rich,1101,out)==XZ_JD_OK);
         packet(out,p);check_crc(out);
-        assert(p[0]==0x40&&p[2]==0x0c);
+        assert(p[0]==0x20&&p[2]==0x0c);
         assert((p[5]&0xb9u)==(0x01u|0x08u|0x10u|0x80u));
         assert(p[0x15]==128&&p[0x16]==0x50&&p[0x26]==128&&p[0x27]==0x05);
         assert(p[0x2f]==125&&p[0x30]==0x00);

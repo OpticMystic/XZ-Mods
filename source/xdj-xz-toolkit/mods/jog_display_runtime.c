@@ -324,7 +324,7 @@ static void latch_observe(unsigned side_idx,uint32_t session,uint32_t ctrl,uint3
   * All actual copies/skips still contribute to the independent lifetime totals. */
  if(!copied||(why==XZ_JDP_VALID&&sample&&key.loaded&&step==XZ_JD_OK&&
     phase_before==XZ_JD_EXTRA&&value.phase==XZ_JD_EXTRA&&value.packet_command==0x21u&&
-    value.desired==side_idx+3u&&value.encoded_frame==value.desired&&value.encoded_packet==value.desired))
+    value.desired==side_idx+3u&&value.encoded_frame==value.desired&&value.encoded_packet==side_idx+1u))
   latch_store(&proof->event[XZ_JDL_REASON_COUNT+XZ_JDL_RESULT_COUNT+copied],&value);
 }
 #endif
@@ -375,7 +375,7 @@ static void position_observe(unsigned side_idx,uint32_t session,uint32_t ctrl,ui
  const struct jd_sample *sample=side->cached?&side->cache:NULL;
  unsigned normal=copied&&why==XZ_JDP_VALID&&have_snap&&sample&&sample->deck.loaded&&
   step==XZ_JD_OK&&phase_before==XZ_JD_EXTRA&&jd_state[side_idx].phase==XZ_JD_EXTRA&&
-  out[14]==0x21u&&(out[0x53]>>4)==side_idx+3u&&(out[15]>>4)==side_idx+3u;
+  out[14]==0x21u&&(out[0x53]>>4)==side_idx+3u&&(out[15]>>4)==side_idx+1u;
  unsigned active=normal&&(sample->deck.playing||sample->deck.timeline.moving);
  unsigned latest_due=position_due(now,state->latest_at,state->latest_seen);
  unsigned active_due=active&&position_due(now,state->active_at,state->active_seen);

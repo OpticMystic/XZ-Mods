@@ -93,7 +93,7 @@ int main(void){
   assert((jog_right[0x104+0x53]>>4)==4);
  }
  uint8_t empty_packet[64];swap64(empty_packet,jog_right+0x104+12);
- assert(empty_packet[0]==0x40&&empty_packet[1]==0x21&&empty_packet[0x13]==0);
+ assert(empty_packet[0]==0x20&&empty_packet[1]==0x21&&empty_packet[0x13]==0);
  assert(xz_jog_display_runtime_state(1)->unavailable);
  sim_ctrl&=~2u;
  for(unsigned i=0;i<20;i++)assemble_hook(jog_right);
@@ -105,13 +105,13 @@ int main(void){
  xz_jog_display_runtime_publish_deck(0,&d3,10000);
  sim_ctrl|=1u;
 
- /* Next 5 ticks emit EXTRA_CLEAR packets (families 1..5) for logical deck 3 (0x30). */
+ /* Next 5 ticks emit EXTRA_CLEAR packets (families 1..5) addressed to physical left (0x10). */
  static const uint8_t exp_clear_cmd[5]={0x2d,0x30,0x3f,0x2c,0x33};
  for(unsigned i=0;i<5;i++){
   uint8_t pkt[64];
   assemble_hook(jog_left);
   swap64(pkt,frame+12);
-  assert(pkt[0]==0x30&&pkt[1]==exp_clear_cmd[i]);
+  assert(pkt[0]==0x10&&pkt[1]==exp_clear_cmd[i]);
   assert((frame[0x53]>>4)==3&&frame[0]==0&&get32(frame+144)==xz_jd_crc(frame));
  }
  /* Tick 6 emits live Deck 3 INFO packet with extrapolated audio timeline position. */
@@ -119,7 +119,7 @@ int main(void){
  assemble_hook(jog_left);
  uint8_t pkt[64];swap64(pkt,frame+12);
  assert(xz_jog_display_runtime_state(0)->phase==XZ_JD_EXTRA);
- assert(pkt[0]==0x30&&pkt[1]==0x21&&pkt[2]==0x08);
+ assert(pkt[0]==0x10&&pkt[1]==0x21&&pkt[2]==0x08);
  assert(pkt[11]==0&&pkt[12]==30&&get16(pkt+13)==50);
  assert((int16_t)get16(pkt+0x17)==-250);
  assert(get32(frame+144)==xz_jd_crc(frame));
@@ -129,7 +129,7 @@ int main(void){
  for(unsigned i=0;i<5;i++)assemble_hook(jog_left);
  assemble_hook(jog_left);
  swap64(pkt,frame+12);
- assert(pkt[0]==0x30&&pkt[1]==0x21&&pkt[0x13]==0&&pkt[0x14]==0);
+ assert(pkt[0]==0x10&&pkt[1]==0x21&&pkt[0x13]==0&&pkt[0x14]==0);
 
  /* Switch Left side back to Native Deck 1 (ctrl &= ~1u): 5 native clear packets + replay -> NATIVE. */
  sim_ctrl&=~1u;

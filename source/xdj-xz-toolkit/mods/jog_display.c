@@ -172,7 +172,10 @@ int xz_jd_step(struct xz_jd *s,const uint8_t native[148],const struct xz_jd_snap
     }
     if(emitted) {
         if(!s->ever_owned)s->wire_sequence=(uint16_t)get16(native+8);
-        s->ever_owned=1;swap64(out+12,packet);out[7]&=0xcf;
+        s->ever_owned=1;
+        /* Local commands address the physical receiver; frame 0x53 carries the selected deck. */
+        packet[0]=(uint8_t)((packet[0]&15u)|(s->physical_side<<4));
+        swap64(out+12,packet);out[7]&=0xcf;
         out[0x53]=(uint8_t)((out[0x53]&15u)|((s->selected)<<4));
         if(s->selected==s->physical_side+2u) {
             quiet_status(out);
