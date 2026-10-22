@@ -18,6 +18,9 @@
 #define CACHE 4096u
 #define PWV7_PER_SECOND 150u
 #define ONE ((uint64_t)1 << 32)
+/* A released TOP may finish accepted motion, never indefinitely chase a blocked sink. */
+#define SCRATCH_RELEASE_FRAMES 2048u
+#define SCRATCH_RELEASE_MS 64u
 
 struct xz_extra_order { atomic_uint refs; int source; uint64_t media_generation; uint32_t count; uint32_t id[]; };
 static atomic_uint order_live;
@@ -94,7 +97,9 @@ struct deck {
   uint64_t target;
   double rate;
   uint32_t at, interval;
-  int at_valid;
+  int at_valid, releasing;
+  uint32_t released_at;
+  uint64_t release_end;
   int64_t ticks;
  } scratch;
  struct {
@@ -306,6 +311,10 @@ static int render(struct deck *d, double rate) {
  unsigned limit=XZ_USB_BLOCK_FRAMES;
  if(d->render_limit&&d->render_limit<limit)limit=d->render_limit;
  d->render_limit=0;
+ if(d->state==XZ_XP_SCRATCHING&&d->scratch.releasing){
+  uint64_t left=d->scratch.release_end>d->submitted?d->scratch.release_end-d->submitted:0;
+  if(left<limit)limit=(unsigned)left;
+ }
  double phase,period;
  d->pending_phase=NAN;
  if(d->sync_capture&&d->state==XZ_XP_PLAYING&&grid_phase(d,d->pos>>32,&phase,&period)&&rate>0){
@@ -319,7 +328,7 @@ static int render(struct deck *d, double rate) {
  d->block_start = d->pos;
  if(d->state==XZ_XP_SCRATCHING){
   uint64_t step=(uint64_t)((double)r->rate/XZ_USB_RATE*fabs(rate)*(double)ONE);
-  while(step&&n<XZ_USB_BLOCK_FRAMES&&d->pos!=d->scratch.target){
+  while(step&&n<limit&&d->pos!=d->scratch.target){
    if(!sample_at(d,d->pos>=end?end-ONE:d->pos,d->pcm+n*2,0))return 0;
    if(d->pos<d->scratch.target){
     uint64_t distance=d->scratch.target-d->pos;d->pos+=step>distance?distance:step;
@@ -370,6 +379,7 @@ static uint64_t heard_now(const struct deck *d, uint32_t now) {
 /* Every jump discards what the transport holds and starts a new generation before the next submit. */
 static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  if (frame > d->r->frames) frame = d->r->frames;
+ d->scratch.releasing=0;
  d->pos = frame << 32; d->need_flush = 1; d->pending = 0; d->submitted = d->completed = 0;
  d->segment_count=0;
  d->heard = frame; d->heard_at = now;
@@ -381,7 +391,7 @@ static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  xz_stretch_reset(&d->stretch);
 }
 static void pause_at_heard(struct deck *d, uint32_t now) {
- jump(d, heard_now(d, now), now);
+ jump(d, d->scratch.releasing?d->heard:heard_now(d,now), now);
  d->state = XZ_XP_CUED;
 }
 static void start(struct deck *d, uint32_t now) {
@@ -392,13 +402,34 @@ static void start(struct deck *d, uint32_t now) {
 static void scratch_release(struct deck *d,uint32_t now){
  if(d->state!=XZ_XP_SCRATCHING)return;
  enum xz_xp_state resume=d->scratch.resume;
- uint64_t at=loop_frame(d,heard_now(d,now));
+ /* A release tail retires only verified completed motion, including on timeout. */
+ uint64_t at=loop_frame(d,d->scratch.releasing?d->heard:heard_now(d,now));
  jump(d,at,now);
  d->state=resume;
 }
+/* Returns after completion or a fixed deadline; no sink wait, render, allocation or IO here. */
+static int scratch_tail_done(struct xz_xp_players *p,struct deck *d,uint32_t now){
+ if(d->state!=XZ_XP_SCRATCHING||!d->scratch.releasing)return 0;
+ int finished=d->pos==d->scratch.target&&!d->pending&&d->completed>=d->submitted;
+ int capped=d->submitted>=d->scratch.release_end&&!d->pending&&d->completed>=d->submitted;
+ if(!finished&&!capped&&(uint32_t)(now-d->scratch.released_at)<SCRATCH_RELEASE_MS)return 0;
+ scratch_release(d,now);
+ if(!finished)xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");
+ return 1;
+}
 static void scratch_touch(struct deck *d,int pressed,uint32_t now){
  if(!d->vinyl)return;
- if(!pressed){scratch_release(d,now);return;}
+ if(!pressed){
+  if(d->state!=XZ_XP_SCRATCHING||d->scratch.releasing)return;
+  /* Already-rendered motion keeps the established release-at-heard behavior.
+     Defer only when release would erase motion the worker has not submitted. */
+  if(d->pos==d->scratch.target&&!d->pending){scratch_release(d,now);return;}
+  d->scratch.releasing=1;d->scratch.released_at=now;
+  d->scratch.release_end=d->completed+SCRATCH_RELEASE_FRAMES;
+  if(d->scratch.release_end<d->submitted)d->scratch.release_end=d->submitted;
+  if(d->pending>d->scratch.release_end-d->submitted){d->pos=d->block_start;d->pending=0;}
+  return;
+ }
  if(d->state==XZ_XP_SCRATCHING)return;
  enum xz_xp_state resume=streaming(d->state)?d->state:XZ_XP_CUED;
  jump(d,heard_now(d,now),now);
@@ -426,7 +457,19 @@ static void flush(struct xz_xp_players *p, struct deck *d) {
   xz_usb_position position;
   if (s->position(s->ctx, d->epoch, &position) == XZ_USB_OK && position.requested_generation[d->index])
    d->generation = position.requested_generation[d->index];
+  if(d->scratch.releasing){scratch_release(d,p->env.now_ms());xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");}
  }
+}
+
+/* Prepare the next generation before retiring the old one, including tail-to-play resume. */
+static void prepare_flush(struct xz_xp_players *p,struct deck *d,uint32_t now,uint32_t link){
+ if (d->need_flush && streaming(d->state) && link && !d->pending &&
+     (d->state == XZ_XP_SCRATCHING || d->pos >> 32 < d->r->frames)) {
+  if (!render(d, speed(d, now))) {
+   pause_at_heard(d, now); xz_xp_notice(p, "TRACK CANNOT BE READ");
+  }
+ }
+ flush(p, d);
 }
 
 static void retire(struct deck *d, uint32_t now) {
@@ -1040,6 +1083,18 @@ static void loop_button(struct xz_xp_players *p, struct deck *d, const struct xz
 }
 
 static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, uint32_t arrived) {
+ /* A later transport/source gesture follows release in FIFO order and supersedes its tail.
+    Settings and inert button-up traffic do not discard accepted motion or renew the deadline. */
+ if(d->scratch.releasing&&(
+    e->kind==XZ_EXTRA_IN_LOAD||e->kind==XZ_EXTRA_IN_SEEK||
+    (e->kind==XZ_EXTRA_IN_JOG_TURN&&e->jog.delta)||
+    (e->kind==XZ_EXTRA_IN_CUE&&(e->pressed||d->scratch.resume==XZ_XP_SAMPLING))||
+    (e->pressed&&(e->kind==XZ_EXTRA_IN_PLAY||e->kind==XZ_EXTRA_IN_JOG_TOUCH||
+     e->kind==XZ_EXTRA_IN_HOT_CUE||e->kind==XZ_EXTRA_IN_VINYL||
+     e->kind==XZ_EXTRA_IN_MASTER_TEMPO||e->kind==XZ_EXTRA_IN_TRACK_NEXT||
+     e->kind==XZ_EXTRA_IN_LOOP_IN||e->kind==XZ_EXTRA_IN_LOOP_OUT||
+     e->kind==XZ_EXTRA_IN_RELOOP||e->kind==XZ_EXTRA_IN_LOOP_HALF||e->kind==XZ_EXTRA_IN_LOOP_DOUBLE))))
+  scratch_release(d,now);
  if (e->kind == XZ_EXTRA_IN_LOAD) { load(p, d, e, now, 0); return; }
  if(e->kind==XZ_EXTRA_IN_MASTER){
   if(e->pressed&&loaded(d->state)){
@@ -1223,7 +1278,12 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
    xz_usb_position cached={.wire_submitted_frames=d->sync_wire_submitted};sync_update(p,d,&cached,now);
   }else{d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;}
  }
- if(d->need_flush)return;
+ if(scratch_tail_done(p,d,now)){
+  /* Resumed playback must be primed in this pass. An extra worker interval adds
+     silence/phase lag after a tail whose last block has already completed. */
+  prepare_flush(p,d,now,d->epoch);applied=0;staged=0;
+ }
+ if(d->need_flush||!streaming(d->state))return;
  for (int blocks = 0; blocks < 16; ++blocks) {
   if (!d->pending) {
    if ((d->state!=XZ_XP_SCRATCHING&&d->pos >> 32 >= d->r->frames) ||
@@ -1291,7 +1351,10 @@ render_ready:
   }
   xz_usb_result r = s->submit(s->ctx, d->epoch, d->index, d->generation, d->pcm, d->pending, d->pending_after);
   if (r == XZ_USB_OK) { accepted_segment(d);d->submitted += d->pending; d->pending = 0; continue; }
-  if (r == XZ_USB_STALE) { d->pos = d->block_start; d->pending = 0; d->need_flush = 1; }
+  if (r == XZ_USB_STALE) {
+   if(d->scratch.releasing){scratch_release(d,now);xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");}
+   else {d->pos=d->block_start;d->pending=0;d->need_flush=1;}
+  }
   else if (r != XZ_USB_AGAIN && r != XZ_USB_BUSY) { d->pos = d->block_start; d->pending = 0; }
   return;
  }
@@ -1314,7 +1377,8 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   d->loop.in_down=d->loop.held=0;
  }
  struct queued_control q;
- while (take(p,d, &q)) {
+ /* Fixed queue-capacity budget: producers cannot prolong a worker drain indefinitely. */
+ for(unsigned controls=0;controls<QUEUE_SLOTS&&take(p,d,&q);controls++) {
   /* Keep the captured route gate across LOAD's potentially blocking resolver. */
   if(q.event.kind==XZ_EXTRA_IN_LOAD&&!q.event.load.route_epoch)q.event.load.route_epoch=q.epoch;
   if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx))command(p,d,&q.event,now,q.at);
@@ -1326,18 +1390,12 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   struct xz_extra_deck_event held={.kind=XZ_EXTRA_IN_LOOP_IN,.pressed=1,.held=1};
   if(loaded(d->state))loop_button(p,d,&held,now);
  }
- /* Prepare the first sample block at the new position before retiring the old
-    generation. A cold read after flush would otherwise stage silence while the
-    decoder catches up. Pausing still flushes immediately; queued old USB audio
-    keeps the transport's existing bounded tail. */
- if (d->need_flush && streaming(d->state) && link && !d->pending &&
-     (d->state == XZ_XP_SCRATCHING || d->pos >> 32 < d->r->frames)) {
-  if (!render(d, speed(d, now))) {
-   pause_at_heard(d, now); xz_xp_notice(p, "TRACK CANNOT BE READ");
-  }
- }
- flush(p, d);
+ /* Expiry precedes an initial transition retry, where no tail PCM was accepted.
+    Submitted tails first observe completion in stream before deciding expiry. */
+ if(d->need_flush)(void)scratch_tail_done(p,d,now);
+ prepare_flush(p,d,now,link);
  if (streaming(d->state) && link && !d->need_flush) stream(p, d, now);
+ if(scratch_tail_done(p,d,now))flush(p,d);
  publish(p, d, now);
 }
 

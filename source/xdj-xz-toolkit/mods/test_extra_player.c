@@ -1253,6 +1253,7 @@ static void test_threads(void) {
 }
 
 #include "test_extra_player_recovery.h"
+#include "test_extra_player_release.h"
 
 int main(int argc, char **argv) {
  assert(argc == 2);
@@ -1274,6 +1275,7 @@ int main(int argc, char **argv) {
  test_sync_concurrent_groups();
  test_ordered_next();
  test_player_recovery();
+ test_player_release();
 #ifdef XZ_XP_TEST_RENDER_HOOK
  test_reconnect_during_render();
 #endif
