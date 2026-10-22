@@ -46,10 +46,10 @@ static void test_ruler_and_icons(void){
    assert(pixels[(tag.y+1)*804+x]==rgb565(xz_blend(SH_BLACK,SH_WHITE,112)));
    assert(pixels[(tag.y+20)*804+x]==rgb565(SH_WHITE));
    if(sh_control_active(&m,d)){
-    int right=d&1,filled=30+7+right*12,hollow=30+7+(!right)*12;
-    assert(pixels[(tag.y+5)*804+filled]==rgb565(SH_WHITE));
-    assert(pixels[(tag.y+5)*804+hollow]==rgb565(SH_BLUE));
-    assert(pixels[(tag.y+1)*804+30]==rgb565(SH_WHITE)&&pixels[(tag.y+1)*804+56]==rgb565(SH_WHITE));
+    int right=d&1,head=30+(right?19:7),tail=30+(right?7:19);
+    assert(pixels[(tag.y+3)*804+head]==rgb565(SH_WHITE));
+    assert(pixels[(tag.y+3)*804+tail]==rgb565(SH_BLACK));
+    assert(pixels[(tag.y+5)*804+30+(right?26:0)]==rgb565(SH_BLACK));
    }
   }
   assert(xz_shell_restore_setting(&u,XZ_SHELL_ITEM_WAVE_TITLES,1));render(&u,&m);
@@ -82,4 +82,4 @@ static void test_title_clip(void){
  }
  puts("PASS long waveform titles leave playhead and future beats clear in both positions/views");
 }
-int main(void){fx_track_build(&track,7);test_setting();test_ruler_and_icons();test_title_clip();puts("PASS title SHOW/HIDE, full upper beat alignment, selected pairs/orders and bracketed single-filled control icons");}
+int main(void){fx_track_build(&track,7);test_setting();test_ruler_and_icons();test_title_clip();puts("PASS title SHOW/HIDE, full upper beat alignment, selected pairs/orders and black-outlined control arrows");}
