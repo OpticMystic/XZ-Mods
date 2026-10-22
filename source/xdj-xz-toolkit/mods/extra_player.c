@@ -871,6 +871,7 @@ static struct sync_clock sync_clock(const struct deck *d,uint32_t now){
  if(!grid_phase(d,d->heard,&c.phase,&c.period_frames))return c;
  c.beats_per_second=d->heard_rate*d->r->rate/c.period_frames;
  c.nominal_beats_per_second=nominal(d)*d->r->rate/c.period_frames;
+ c.tempo_bps=c.nominal_beats_per_second;
  c.output_frame=d->timeline_output_frames;c.segment_count=d->segment_count;
  memcpy(c.segment,d->segment,d->segment_count*sizeof *d->segment);
  c.available=d->timeline_valid&&d->timeline_anchor_valid&&d->timeline_sink_frame&&
@@ -926,9 +927,11 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   for (int i = 0; i < XZ_EXTRA_HOT_CUES; ++i)
    if (d->hot[i].set) v.hot_cue[i] = (struct xz_extra_cue){1, to_ms(d, d->hot[i].at), d->hot[i].rgb,
                                                            d->hot[i].loop ? to_ms(d, d->hot[i].end) : 0};
-  if (d->track.track_bpm_x100 > 0) {
-   v.track_bpm_x100 = d->track.track_bpm_x100;
-   v.bpm_x100 = (int32_t)((int64_t)d->track.track_bpm_x100 * (10000 + d->tempo_x100) / 10000);
+  double published_bpm=d->track.track_bpm_x100,phase,period;
+  if(loaded(s)&&grid_phase(d,d->heard,&phase,&period))published_bpm=6000.*d->r->rate/period;
+  if (published_bpm > 0) {
+   v.track_bpm_x100 = (int32_t)llround(published_bpm);
+   v.bpm_x100 = (int32_t)llround(published_bpm*(d->sync_rate_active?d->sync_rate:nominal(d)));
    v.known |= XZ_EXTRA_KNOWN(XZ_EXTRA_F_BPM);
   }
  }
@@ -1638,8 +1641,9 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  if(d->sync_stationary){d->sync_stationary=0;sync_reacquire(d,now);d->sync_initial=d->quantize;}
  if(!d->quantize){
   if((uint32_t)(now-master.at_ms)>150u){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
-  if(master.tempo_bps<=0||d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
-  int applied=sync_apply_base(p,d,selected,choice,master.tempo_bps*6000./d->track.track_bpm_x100);
+  double rate=native_tempo_rate(d,master.tempo_bps*60.);
+  if(master.tempo_bps<=0||rate<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
+  int applied=sync_apply_base(p,d,selected,choice,rate);
   d->sync.reason=applied>0?XZ_EXTRA_SYNC_TEMPO_FOLLOW:applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;
  }
  if(!master.period_frames){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
