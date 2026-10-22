@@ -57,9 +57,9 @@ struct xz_xp_env {
  void (*worker_enter)(int deck); /* Optional; called once inside each owned worker, never by step/input. */
  int (*resolve_checked)(int source, uint32_t track_id, uint64_t media_generation, struct xz_extra_track *out);
  /* Start-up modes. The runtime starts in VINYL mode with QUANTIZE on, as the stock decks do; zero keeps
-    the older CDJ-mode, quantize-on start for embedders that do not set them. */
+    the older CDJ-mode, unquantized start for embedders that do not set them. */
  int start_in_vinyl;
- int start_without_quantize;
+ int start_with_quantize;
 };
 
 struct xz_xp_players;
