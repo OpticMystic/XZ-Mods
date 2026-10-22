@@ -89,6 +89,7 @@ static void info(const struct xz_jd_snapshot *s,uint8_t p[64]) {
     p[4]=(uint8_t)((s->tempo_range==6?1:s->tempo_range==10?2:s->tempo_range==16?3:s->tempo_range==100?4:0)<<4);
     p[4]|=(uint8_t)(s->master_tempo<<2);p[5]=(uint8_t)((p[5]&0xfcu)|s->vinyl_mode);
     if(s->status_known) {
+        p[0x3c]=s->key_code;
         if(s->paused&&s->cued)p[2]=0x0cu;
         p[5]=(uint8_t)((p[5]&~0xb8u)|(s->slip?0x08u:0u)|
             (s->sync_mode==XZ_JD_SYNC_LOCKED?0x10u:s->sync_mode==XZ_JD_SYNC_BLINK?0x20u:0u)|
@@ -103,6 +104,21 @@ static void info(const struct xz_jd_snapshot *s,uint8_t p[64]) {
         /* Loop and cue time units are unresolved. Keep the neutral inactive
          * sentinels instead of serializing software milliseconds. */
     }
+}
+uint8_t xz_jd_key_code(const char key[8]) {
+    static const char names[][4]={
+        "C","Am","Db","Bbm","D","Bm","Eb","Cm","E","Dbm","F","Dm",
+        "F#","Ebm","G","Em","Ab","Fm","A","F#m","Bb","Gm","B","Abm",
+        "C#","A#m","D#","C#m","Gb","D#m","G#","Gbm","A#","G#m"
+    };
+    static const uint8_t wheel_b[12]={23,13,3,17,7,21,11,1,15,5,19,9};
+    if(!key||!memchr(key,0,8))return 0;
+    for(unsigned i=0;i<sizeof names/sizeof names[0];i++)if(!strcmp(key,names[i]))return (uint8_t)(i+1u);
+    unsigned n=0,i=0;
+    while(i<2&&key[i]>='0'&&key[i]<='9'){n=n*10u+(unsigned)(key[i]-'0');i++;}
+    if(n>=1&&n<=12&&(key[i]=='A'||key[i]=='B')&&!key[i+1])
+        return (uint8_t)(0x80u|(wheel_b[n-1]+(key[i]=='A')));
+    return 0;
 }
 static void quiet_status(uint8_t *p) {
     /* Exact native LED differential proof identifies these status fields.

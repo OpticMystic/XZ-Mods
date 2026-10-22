@@ -91,6 +91,21 @@ static void bounded_loop_projection(void){
 
 int main(void){
  bounded_loop_projection();
+ {
+  struct xz_extra_deck d=make_extra_deck(10000,44100,0,0);
+  struct xz_jd_snapshot s;
+  strcpy(d.key,"Fm");
+  d.bpm_x100=17400;d.track_bpm_x100=13000;
+  assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&s)&&s.key_code==0);
+  assert(!s.bpm_x100&&!s.track_bpm_x100);
+  d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_BPM);
+  assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&s)&&s.bpm_x100==17400&&s.track_bpm_x100==13000);
+  d.bpm_x100=65535;d.track_bpm_x100=65535;
+  assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&s)&&!s.bpm_x100&&!s.track_bpm_x100);
+  d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY);
+  assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&s)&&s.key_code==18);
+  d.key[0]=0;assert(xz_jog_display_snapshot_from_deck(1,&d,10000,&s)&&s.key_code==0);
+ }
  sim_now_ms=10000;sim_ctrl=8u|4u; /* AVAILABLE | ROUTE, native sides */
  sim_seq[0]=sim_seq[1]=100;
  struct xz_jog_display_test_ops ops={fake_orig_assemble,fake_now_ms,fake_ctrl};

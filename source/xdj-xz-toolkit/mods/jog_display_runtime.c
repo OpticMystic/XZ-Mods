@@ -199,8 +199,9 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
  uint8_t sync_mode=!d->sync.requested?XZ_JD_SYNC_OFF:
   d->sync.locked?XZ_JD_SYNC_LOCKED:XZ_JD_SYNC_BLINK;
  uint8_t loop_active=(uint8_t)(d->loop.active&&d->loop.out_ms>d->loop.in_ms&&d->loop.in_ms>=0);
- uint16_t bpm=d->bpm_x100>0&&d->bpm_x100<=65535?(uint16_t)d->bpm_x100:0u;
- uint16_t track_bpm=d->track_bpm_x100>0&&d->track_bpm_x100<=65535?(uint16_t)d->track_bpm_x100:0u;
+ int bpm_known=!!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_BPM));
+ uint16_t bpm=bpm_known&&d->bpm_x100>0&&d->bpm_x100<65535?(uint16_t)d->bpm_x100:0u;
+ uint16_t track_bpm=bpm_known&&d->track_bpm_x100>0&&d->track_bpm_x100<65535?(uint16_t)d->track_bpm_x100:0u;
  *out=(struct xz_jd_snapshot){
   .generation=gen,
   .captured_ms=cap_ms,
@@ -221,6 +222,7 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
   .slip=0,
   .bpm_x100=bpm,
   .track_bpm_x100=track_bpm,
+  .key_code=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))?xz_jd_key_code(d->key):0,
   .loop_in_ms=loop_active?(uint32_t)d->loop.in_ms:0u,
   .loop_out_ms=loop_active?(uint32_t)d->loop.out_ms:0u
  };

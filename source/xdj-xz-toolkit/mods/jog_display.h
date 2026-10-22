@@ -21,6 +21,7 @@ struct xz_jd_snapshot {
     uint8_t tempo_range, vinyl_mode, master_tempo, tempo_known;
     uint8_t status_known, cued, master, sync_mode, loop_active, slip;
     uint16_t bpm_x100, track_bpm_x100;
+    uint8_t key_code; /* Qualified native spelling code; 0 clears unknown/missing key. */
     uint32_t loop_in_ms, loop_out_ms;
 };
 struct xz_jd_family {
@@ -59,5 +60,6 @@ int xz_jd_select_unavailable(struct xz_jd *, unsigned logical_deck);
  * are changed. Unsupported PC/HID ownership is returned without mutation. */
 int xz_jd_step(struct xz_jd *, const uint8_t native_frame[XZ_JD_FRAME], const struct xz_jd_snapshot *, uint64_t now_ms, uint8_t output[XZ_JD_FRAME]);
 uint32_t xz_jd_crc(const uint8_t payload[144]);
+uint8_t xz_jd_key_code(const char key[8]);
 void xz_jd_clear_packet(unsigned logical_deck, unsigned family, uint8_t output[64]);
 #endif
