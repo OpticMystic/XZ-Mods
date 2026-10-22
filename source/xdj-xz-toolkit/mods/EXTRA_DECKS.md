@@ -20,24 +20,27 @@ Existing native routing remains in use when that side selects deck 1 or 2.
 | LOAD | Existing Classic or FLAGSHIP browser path loads the selected track into the assigned software player. |
 | PLAY / CUE | Existing independent transport, back cue and cue audition. PLAY starts at full speed at once. In VINYL mode PAUSE brakes to a stop at the VINYL SPEED ADJUST rate (manual p.45); PLAY during a brake returns to full speed at once. |
 | HOT CUE / BEAT LOOP / SLIP LOOP / BEAT JUMP | Set the software deck's pad mode; the native deck's mode is unchanged. SHIFT + HOT CUE (CALL) makes the pads inert. |
-| Pads, HOT CUE mode | Store, play and (SHIFT) clear hot cues. With SLIP on, a held hot cue plays from the cue and its release returns to the background position. |
+| Pads, HOT CUE mode | Store, play and (SHIFT) clear hot cues. Set during loop playback, the pad stores the loop; calling it loops, and loop edits update the pad (p.53). rekordbox loop hot cues load as loops. With SLIP on, a held hot cue plays from the cue; its release, or four beats (p.59), returns to the background position. |
 | Pads, BEAT LOOP mode | 1/4, 1/2, 1, 2 / 4, 8, 16, 32 beats from the press (p.56). The running loop's pad exits it; another pad resizes it from the same IN. |
 | Pads, SLIP LOOP mode | 1/16, 1/8, 1/4, 1/2 / 1, 2, 1/3, 3/4 beats while held; release continues from the background position (p.62). |
 | Pads, BEAT JUMP mode | A/B back/forward 1 beat, C/D 2, E/F 4, G/H 8 (pp.56-57). With a loop set the loop moves. The pair layout is assumed from Pioneer's usual order; confirm on a stock deck. |
 | DIRECTION REV | Toggle reverse playback at the same rate; it stops at the track start (p.42). With SLIP on, held: reverse while down, then the background position on release or after eight beats (p.59). |
-| SLIP | Toggle slip. Beat/slip loops, manual loops and held hot cues then continue in the background; RELOOP/EXIT returns to the background position (p.61). |
+| SLIP | Toggle slip; a load turns it off (p.60). With VINYL on, PAUSE keeps playback running in the background and PLAY resumes from there (pp.58-59). Beat/slip loops, manual loops and held hot cues then continue in the background; RELOOP/EXIT returns to the background position (p.61). |
 | VINYL SPEED ADJUST | Brake/start time from 30 ms (counterclockwise) to 3 s (clockwise), ~300 ms at the centre. The player accepts the knob, but its key code is unknown, so no input reaches it yet and the centre value is used. |
-| TEMPO RANGE | Cycle ±6%, ±10%, ±16%, WIDE. WIDE covers stopped speed through +100%. |
+| TEMPO RANGE | Cycle ±6%, ±10%, ±16%, WIDE. WIDE covers stopped speed through +100%. The fader moves in the stock steps: 0.02 % (±6), 0.05 % (±10, ±16), 0.5 % (WIDE). |
 | TEMPO RESET | Toggle original speed; retain the fader setting for release from reset. |
 | SYNC | Follow the master deck's tempo until SYNC is pressed off. With QUANTIZE on, SYNC also snaps to the master's beat and holds it. A pause, jump, master change or clock gap re-acquires on its own (re-snapping at most once a second); no second press. The follower's tempo fader is locked while synced. |
 | MASTER | Make this deck the master. When the master stops, master passes to the next playing deck in order (3, 4, then the native decks' own master; from 4: native, then 3). A stopped native master hands over to a playing DECK 3/4 after 300 ms, so the firmware's own 1/2 handoff wins; a LINK (external) master is never taken. Channel-fader-down handoff needs fader positions this runtime cannot read yet. Native decks 1/2 cannot follow a software master. |
-| QUANTIZE | DECK QUANTIZE switches quantize for every deck, the native decks through stock as before; SHIFT + DECK QUANTIZE switches only the deck of that side (manual, Quantize). With QUANTIZE off, SYNC follows tempo only. |
+| SEARCH | Paused: each press moves the position half a frame (CUE then sets it, p.45). During LOOP IN/OUT adjust: each press moves that edge half a frame (pp.47-48). Playing: held, scans forward or back at 4x (provisional; the manual gives no speed). |
+| CUE/LOOP CALL | During loop playback: loop 1/2X and 2X. Otherwise: call the track's stored memory point before or after the position; the deck pauses there, and a memory loop is set so PLAY loops (p.51). |
+| TRACK SEARCH | Back: the point the track cued to at load, play state kept; twice within 500 ms (provisional): the previous track in the browsed order (p.40). Forward: the next track, at its load cue. |
+| TIME MODE / AUTO CUE | A short press switches elapsed/remaining time for every deck, held 1 s it switches AUTO CUE; with SHIFT only the side's deck. Stock still gets the key for the native decks. AUTO CUE off: a load lands at the track start, and loading while playing keeps playing. |
+| QUANTIZE | DECK QUANTIZE switches quantize for every deck, the native decks through stock as before; SHIFT + DECK QUANTIZE switches only the deck of that side (manual, Quantize). With QUANTIZE off, SYNC follows tempo only. With QUANTIZE on, cue, LOOP IN/OUT, hot cue and beat/slip loop points land on the beat grid (1-beat value; QUANTIZE BEAT VALUE is not readable), and a hot cue played mid-beat keeps the beat position. |
 | MASTER TEMPO | Preserve pitch while changing playback speed using stereo WSOLA. |
-| LOOP IN / OUT | Set loop boundaries. During a loop, enter boundary adjustment and move the selected edge with the jog; press again or wait ten seconds to leave adjustment. |
-| Hold LOOP IN | After one second while playing, create a four-beat loop. Use the track BPM, or 120 BPM when it is unknown. |
+| LOOP IN / OUT | Set loop boundaries; LOOP OUT on its own takes the cue point as IN (p.47). During a loop, enter boundary adjustment and move the selected edge with the jog or SEARCH; press again or wait ten seconds to leave adjustment. |
+| Hold LOOP IN | After one second while playing, a four-beat loop from the press (on the beat with QUANTIZE). Beat length from the grid, else the track BPM, else 120 BPM. |
 | SHIFT + LOOP IN | Retrigger the active loop. |
 | RELOOP / EXIT | Exit the active loop or return to its stored boundaries. |
-| CALL PREV / NEXT | Halve / double the active loop length. |
 | VINYL | On at start, as the stock decks. Enables touch hold and bidirectional scratching. In CDJ mode, jog touch is ignored and the existing jog bend remains. |
 
 Loop adjustment uses half a CD frame per jog tick. IN adjustment is bounded to
@@ -157,6 +160,10 @@ as unverified. Synthetic pitch tests do not establish subjective music quality.
   green, loops orange (p.54).
 - Jog-display output remains with the root thread. The stopped jog-display
   analysis has not been resumed here.
+- Not yet stock: 4/8BEAT (LOOP CUTTER) needs its key code (the code table finds it); Emergency
+  Loop on a read failure; Instant Doubles; HOT CUE (CALL) call-up mode; rekordbox active loops; MEMORY /
+  DELETE and saving hot cues to the stick (USB writes need the owner's approval); waveform needle search
+  is refused while playing (stock NEEDLE LOCK default) because the UTILITY setting is not readable.
 - Touch deceleration in VINYL mode and slip during scratching belong to the
   jog-coast work and are not changed here. Quantize, memory cues and
   native-equivalent beat-phase sync are not provided by this candidate.
