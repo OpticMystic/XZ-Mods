@@ -60,7 +60,7 @@ int xz_sync_native_read(xz_sync_native_read_fn read,void *context,xz_sync_native
  out->position_frames=b.position_frames;out->bpm=b.bpm;out->nominal_bpm=b.nominal_bpm;
  out->bar_phase=b.bar_phase;out->speed=b.speed;out->playing=!!b.playing;out->manual=!!b.manual;
  out->reason=XZ_SYNC_NATIVE_OK;out->available=1;
-done:
+done:;
  /* Retain observations even when a later memory/numeric/window guard rejects
   * the clock. No partial BPM or phase is published as a current sample. */
  int transport_boundary=0;
