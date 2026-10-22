@@ -28,6 +28,21 @@
 /* Two full ordinary FIFO drains can wait behind a blocked sink. Beyond this,
    cancel at completed position and require a new contact, never rewrite a turn. */
 #define SCRATCH_SEGMENTS (2u * XZ_XP_QUEUE)
+/* Process lifetime, independent of any player allocation. One active instance
+   owns each deck; constructing another invalidates its predecessor's display. */
+_Static_assert(ATOMIC_INT_LOCK_FREE==2&&sizeof(uint32_t)==sizeof(unsigned),"Jog epoch getter must be lock-free");
+static _Atomic uint32_t jog_content_epoch[XZ_EXTRA_DECKS]={1,1};
+uint32_t xz_xp_jog_content_epoch(int deck){
+ return (unsigned)deck<XZ_EXTRA_DECKS?atomic_load_explicit(&jog_content_epoch[deck],memory_order_acquire):0;
+}
+static uint32_t advance_jog_content_epoch(int deck){
+ uint32_t before=xz_xp_jog_content_epoch(deck);
+ while(before){
+  uint32_t after=before==UINT32_MAX?0:before+1u;
+  if(atomic_compare_exchange_weak_explicit(&jog_content_epoch[deck],&before,after,memory_order_acq_rel,memory_order_acquire))return after;
+ }
+ return 0; /* Exhaustion is permanent, including across player restarts. */
+}
 struct scratch_segment { uint64_t begin,end; double rate,frames; int direction; };
 
 struct xz_extra_order { atomic_uint refs; int source; uint64_t media_generation; uint32_t count; uint32_t id[]; };
@@ -180,6 +195,7 @@ struct deck {
  double heard_rate;
  int timeline_valid, timeline_anchor_valid;
  uint32_t timeline_revision, load_revision;
+ int jog_load_pending;
  uint64_t media_generation;
  uint64_t timeline_output_frames, timeline_sink_frame, timeline_wire_completed;
  struct xz_extra_sync sync;
@@ -984,6 +1000,9 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  }
  p->clock[d->index]=atomic_load(&p->sync_requests)?sync_clock(d,now):(struct sync_clock){0};
  const struct xz_extra_deck *before=&p->view[d->index];
+ v.jog_content_epoch=s==XZ_XP_LOADING&&d->jog_load_pending?
+  advance_jog_content_epoch(d->index):before->jog_content_epoch;
+ if(s==XZ_XP_LOADING)d->jog_load_pending=0;
  if(!v.timeline.moving&&!before->timeline.moving&&v.elapsed_ms==before->elapsed_ms&&
     v.timeline.source_frame==before->timeline.source_frame&&v.timeline.revision==before->timeline.revision){
   v.elapsed_at_ms=before->elapsed_at_ms;v.timeline.at_ms=before->timeline.at_ms;
@@ -1047,6 +1066,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
   }
  }
  if (d->r->media&&!next) { jump(d, 0, now); flush(p, d); }
+ d->jog_load_pending=1;
  d->state = XZ_XP_LOADING; d->track = t;
  d->emergency.active=0;d->emergency.count=0;
  memset(&d->loop, 0, sizeof d->loop);
@@ -2856,6 +2876,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
  atomic_init(&p->sync_master,-1);atomic_init(&p->sync_requests,0);
  atomic_init(&p->sync_choice_epoch,1);atomic_init(&p->sync_grid,0);
  atomic_init(&p->native_intent,XZ_MASTER_NONE);atomic_init(&p->explicit_intent,0);p->master_admitted=1;
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)p->view[i].jog_content_epoch=advance_jog_content_epoch(i);
  return p;
 }
 

@@ -90,6 +90,7 @@ void xz_xp_read(struct xz_xp_players *, struct xz_extra_decks *out);
    Only OK writes out. No callback or borrowed pointer leaves the owner lock. */
 enum xz_extra_wave_copy_result xz_xp_copy_wave(struct xz_xp_players *, int deck,
  const struct xz_extra_wave_key *expected, uint32_t first, struct xz_extra_wave_chunk *out);
+uint32_t xz_xp_jog_content_epoch(int deck); /* process-lifetime atomic acquire; 0 invalid/exhausted */
 uint32_t xz_xp_revision(const struct xz_xp_players *); /* atomic, no locks/IO */
 /* Install only before starting workers. The callback copies a publisher-owned cache; no native I/O. */
 void xz_xp_set_native_sync_clock(struct xz_xp_players *,int (*)(struct xz_sync_native_snapshot *));
