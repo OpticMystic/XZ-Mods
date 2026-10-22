@@ -172,9 +172,10 @@ static void test_release_cancellation(void){
   release_setup(side,44100,0);hold(side,XZ_EXTRA_IN_JOG_TOUCH,1);
   clock_ms=2000;jog(side,4);clock_ms=2020;jog(side,-4);
   assert(input(event(side,XZ_EXTRA_IN_JOG_TOUCH,0)));release_rate=1.25;
-  release_reverse_at=705.6;release_reverse_source=release_from+882;release_reverse_rate=-1.;
+  /* The 20 ms idle span before reversal now starts a 16 ms audible stroke. */
+  release_reverse_at=705.6;release_reverse_source=release_from+882;release_reverse_rate=-1.25;
   release_trace=1;release_step();release_drain(side,1);
-  assert(release_frames==1588&&!release_bad_pcm&&debug(side).position==30870);release_close();
+  assert(release_frames==1412&&!release_bad_pcm&&debug(side).position==30870);release_close();
   release_setup(side,44100,0);
   assert(input(event(side,XZ_EXTRA_IN_JOG_TOUCH,1)));jog(side,4);
   for(unsigned q=2;q<XZ_XP_QUEUE;q++)jog(side,0);

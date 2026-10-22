@@ -683,8 +683,13 @@ static void test_vinyl(void) {
  at=debug(0).position;
  f.capture[0]=1;jog(0,-4);step();advance(100);
  assert(f.captured_frames[0]>=32);
+ /* Two completed 16 ms strokes leave 0.8 output-sample time before reversal.
+    Four counts move 20 ms of source over the new 16 ms audible onset. */
+ const double reverse_step=20./16.;
+ const double previous_output=2.*16.*44100./1000.;
+ const double carry=ceil(previous_output)-previous_output;
  for(unsigned n=0;n<32;n++)
-  assert(fabs(f.captured[0][n*2]-.5*sin(6.283185307179586*440*(at-.2*(n+.4))/44100.0))<.001);
+  assert(fabs(f.captured[0][n*2]-.5*sin(6.283185307179586*440*(at-reverse_step*(n+carry))/44100.0))<.001);
  assert(debug(0).position<at&&debug(0).generation==generation); /* Continuous turn, no dropped generation. */
  at=debug(0).position;submits=f.submits[0];advance(100);
  assert(debug(0).position==at&&f.submits[0]==submits);
