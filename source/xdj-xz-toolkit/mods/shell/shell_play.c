@@ -783,7 +783,9 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  /* QUANTIZE and its beat value between the time and tempo captions, where the stock screen has them
    (XZ manual pp.71-72, elements 24-25): red on, grey off. */
  if(S->quantize_right&&sh_has(d,XZ_SHELL_F_QUANTIZE)&&sh_indicator_shown(u,XZ_SHELL_IND_QUANTIZE)){
-  char beat[12];fmt_fraction(beat,sizeof beat,d->quantize_num>99?99:d->quantize_num,d->quantize_den>99?99:d->quantize_den);
+  char beat[12];
+  if(d->quantize_num<=0||d->quantize_den<=0)snprintf(beat,sizeof beat,"?");
+  else fmt_fraction(beat,sizeof beat,d->quantize_num>99?99:d->quantize_num,d->quantize_den>99?99:d->quantize_den);
   uint32_t q_ink=d->quantize_on?SH_RED:0x5a5a5a;
   int bw=sh_text_width(c,beat,SH_SMALL),qx=sx+S->quantize_right-bw-4-sh_text_width(c,"QUANTIZE",SH_SMALL);
   sh_text(c,qx,num_y,"QUANTIZE",SH_SMALL,q_ink);
