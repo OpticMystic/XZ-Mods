@@ -12,10 +12,10 @@
 #include <pthread.h>
 #include <stdio.h>
 #include "../jog_display_runtime.h"
-static int observed_step(struct xz_jd *,const uint8_t *,const struct xz_jd_snapshot *,uint64_t,uint8_t *);
-#define xz_jd_step observed_step
+static int observed_prepare(struct xz_jd *,const uint8_t *,unsigned,const struct xz_jd_snapshot *,uint64_t,const struct xz_jd_wave *,uint32_t,struct xz_jd_transaction *);
+#define xz_jd_prepare observed_prepare
 #include "../jog_display_runtime.c"
-#undef xz_jd_step
+#undef xz_jd_prepare
 
 static uint64_t clock_ms=10000;
 static uint32_t controls=14,route=3;
@@ -27,6 +27,11 @@ static unsigned accepted;
 static uint64_t now(void){return clock_ms;}
 uint32_t xz_extra_decks_control_revision(void){return controls;}
 uint32_t xz_extra_decks_epoch(void){return route;}
+uint32_t xz_extra_decks_jog_content_epoch(int side){return (unsigned)side<2?1:0;}
+int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *out){
+ *out=(struct xz_ds_selection){.epoch={1,1},.deck={(controls&4u)&&(controls&1u)?3:1,(controls&4u)&&(controls&2u)?4:2},
+  .route_up=!!(controls&4u),.route_epoch=route};return 1;
+}
 static void original(void *self){
  uint32_t ch;memcpy(&ch,(uint8_t *)self+0x64,4);assert(ch==1||ch==2);
  uint8_t *f=(uint8_t *)self+0x104,p[64]={0};memset(f,0,XZ_JD_FRAME);
@@ -39,14 +44,16 @@ static void original(void *self){
 int xz_hook_arm(uint32_t address,const unsigned char guard[8],void *replacement,void **previous){
  (void)address;(void)guard;hook=(void (*)(void *))replacement;*previous=(void *)original;return 0;
 }
-static int observed_step(struct xz_jd *state,const uint8_t *in,const struct xz_jd_snapshot *snap,uint64_t at,uint8_t *out){
- int result=xz_jd_step(state,in,snap,at,out);
+static int observed_prepare(struct xz_jd *state,const uint8_t *in,unsigned selected,const struct xz_jd_snapshot *snap,uint64_t at,
+ const struct xz_jd_wave *wave,uint32_t revision,struct xz_jd_transaction *tx){
+ int result=xz_jd_prepare(state,in,selected,snap,at,wave,revision,tx);
  unsigned pending=action;action=0;
  if(pending){xz_jog_display_runtime_stop();if(pending==2)assert(!xz_jog_display_runtime_start());}
  return result;
 }
 static struct xz_extra_deck deck(uint32_t revision){
  struct xz_extra_deck d={0};d.loaded=d.playing=1;d.total_ms=180000;d.elapsed_ms=30000;
+ d.jog_content_epoch=1;
  d.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE);d.tempo_range=10;
  d.timeline.source_frame=44100*30;d.timeline.source_rate=44100;d.timeline.at_ms=(uint32_t)clock_ms;
  d.timeline.route_epoch=route;d.timeline.load_revision=revision;d.timeline.media_generation=0xdeadbeef00000000ULL+revision*3u;

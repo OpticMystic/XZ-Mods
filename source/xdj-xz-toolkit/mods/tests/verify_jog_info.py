@@ -23,7 +23,7 @@ for arch,cc in [('host','gcc'),('arm','arm-linux-gnueabi-gcc')]:
     binary=a.out/('info-'+arch)
     flags=['-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-I'+linux(root),'-I'+linux(a.fixtures)]
     flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-pie','-no-pie'] if arch=='host' else ['-march=armv7-a']
-    compile=[cc,*flags,linux(root/'tests/test_jog_display.c'),linux(core),'-o',linux(binary)]
+    compile=[cc,*flags,linux(root/'tests/test_jog_display.c'),linux(core),linux(root/'jog_display_wave.c'),'-o',linux(binary)]
     run=(['qemu-arm','-L','/usr/arm-linux-gnueabi'] if arch=='arm' else [])+[linux(binary)]
     for i,cmd in enumerate([compile,run]):
         r=subprocess.run(['wsl','-d','Ubuntu','--exec',*cmd],capture_output=True,text=True,timeout=60)

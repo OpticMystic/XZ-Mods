@@ -4,11 +4,16 @@
 #include <time.h>
 #include "jog_display_runtime.h"
 #include "runtime.h"
+#include "deck_select.h"
 #ifdef __linux__
 #include "clock_compat.h"
 #endif
 #include <stdatomic.h>
 #include <string.h>
+extern int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *) __attribute__((weak));
+extern uint32_t xz_extra_decks_jog_content_epoch(int deck) __attribute__((weak));
+extern uint64_t xz_extra_source_generation(int source) __attribute__((weak));
+extern enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int,const struct xz_extra_wave_key *,uint32_t,struct xz_extra_wave_chunk *) __attribute__((weak));
 #ifdef XZ_JOG_DISPLAY_PROOF
 #include "jog_display_proof.h"
 #include "jog_display_latch.h"
@@ -34,6 +39,7 @@ static _Atomic int jd_installed;
  * reader resets the slot, and no guard is held across the native assembler. */
 struct jd_sample {
  struct xz_extra_deck deck;
+ struct xz_master_observation master_actual;
  uint32_t seq, published_ms, session, route_epoch, source_revision;
  int source_ordered;
 };
@@ -52,6 +58,11 @@ struct jd_side_runtime {
  uint64_t cache_publication_ms;
  int cached;
  struct jd_sample cache;
+ uint64_t selection_epoch;
+ uint32_t content_epoch;
+ int have_wave;
+ struct xz_extra_wave_key wave_key;
+ struct xz_jd_wave wave;
 };
 static struct jd_side_runtime jd_side[XZ_EXTRA_DECKS]={{.busy=ATOMIC_FLAG_INIT},{.busy=ATOMIC_FLAG_INIT}};
 #ifdef XZ_JOG_DISPLAY_PROOF
@@ -97,8 +108,128 @@ static uint32_t current_control_revision(void){
  if(control)return control();
  return xz_extra_decks_control_revision();
 }
+static int selection_snapshot(struct xz_ds_selection *out){
+ if(xz_runtime_deck_selection_snapshot)return xz_runtime_deck_selection_snapshot(out);
+ /* Legacy synthetic fixtures do not link the selector adapter. Production
+    requires the controls owner's coherent getter; it has no mask fallback. */
+ if(!atomic_load_explicit(&jd_test_mode,memory_order_acquire))return 0;
+ uint32_t c=current_control_revision();
+ *out=(struct xz_ds_selection){.epoch={1,1},.deck={c&4u&&c&1u?3:1,c&4u&&c&2u?4:2},
+  .route_up=!!(c&4u),.route_epoch=xz_extra_decks_epoch()};return 1;
+}
+static uint32_t current_content(unsigned side){
+ if(xz_extra_decks_jog_content_epoch)return xz_extra_decks_jog_content_epoch((int)side);
+ return atomic_load_explicit(&jd_test_mode,memory_order_acquire)?1:0;
+}
+static int same_wave_key(const struct xz_extra_wave_key *a,const struct xz_extra_wave_key *b){
+ return a->media_generation==b->media_generation&&a->route_epoch==b->route_epoch&&a->load_revision==b->load_revision&&
+  a->source==b->source&&a->column_count==b->column_count&&a->span_ms==b->span_ms&&a->normalization==b->normalization;
+}
+static int media_current(const struct xz_extra_wave_key *key){
+ return key->media_generation&&key->source>=1&&key->source<=2&&xz_extra_source_generation&&
+  xz_extra_source_generation(key->source)==key->media_generation;
+}
+struct jd_wave_tag { uint32_t session,content; uint64_t selection; struct xz_extra_wave_key key; };
+struct jd_wave_value { struct jd_wave_tag tag; struct xz_jd_wave wave; };
+struct jd_wave_slot { atomic_flag busy; int valid; struct jd_wave_value value; };
+struct jd_wave_job { int active,ready,done; struct jd_wave_value value; struct xz_jd_overview overview; };
+static struct jd_wave_slot jd_wave_slot[2]={{.busy=ATOMIC_FLAG_INIT},{.busy=ATOMIC_FLAG_INIT}};
+static struct jd_wave_job jd_wave_job[2]; /* existing connector is the sole writer */
+static struct xz_extra_wave_chunk jd_wave_chunk; /* connector-owned scratch, no borrowed pointers */
+static int wave_tag_current(unsigned side,const struct jd_wave_tag *tag,int selection){
+ if(!atomic_load_explicit(&jd_installed,memory_order_acquire)||tag->session!=atomic_load_explicit(&jd_session,memory_order_acquire)||
+  !tag->content||tag->content!=current_content(side)||!tag->key.route_epoch||
+  tag->key.route_epoch!=xz_extra_decks_epoch()||!media_current(&tag->key))return 0;
+ if(selection){
+  struct xz_ds_selection current;if(!selection_snapshot(&current))return -1;
+  if(!current.route_up||current.route_epoch!=tag->key.route_epoch||current.epoch[side]!=tag->selection)return 0;
+ }
+ return 1;
+}
+static int service_wave_step(unsigned side,uint32_t session,const struct xz_ds_selection *selection){
+ struct jd_wave_job *job=&jd_wave_job[side];
+ if(job->active){
+  int current=wave_tag_current(side,&job->value.tag,1);
+  if(current<0)return 0;
+  if(!current)job->active=0;
+ }
+ if(!job->active){
+  uint32_t content=current_content(side);if(!content||!selection->epoch[side])return 0;
+  enum xz_extra_wave_copy_result result=xz_extra_decks_copy_wave((int)side,NULL,0,&jd_wave_chunk);
+  if(result!=XZ_EXTRA_WAVE_COPY_OK||!jd_wave_chunk.count)return 0;
+  struct jd_wave_tag tag={.session=session,.content=content,.selection=selection->epoch[side],.key=jd_wave_chunk.key};
+  if(wave_tag_current(side,&tag,1)!=1)return 0;
+  if(!xz_jd_overview_begin(&job->overview,tag.key.column_count,tag.key.normalization))return 0;
+  job->value.tag=tag;job->active=1;job->ready=job->done=0;
+  if(!xz_jd_overview_add(&job->overview,jd_wave_chunk.first,jd_wave_chunk.columns,jd_wave_chunk.count)){job->active=0;return 0;}
+  return 1;
+ }
+ if(job->done)return 0;
+ if(!job->ready){
+  enum xz_extra_wave_copy_result result=xz_extra_decks_copy_wave((int)side,&job->value.tag.key,job->overview.next,&jd_wave_chunk);
+  if(result==XZ_EXTRA_WAVE_COPY_BUSY)return 0;
+  if(result!=XZ_EXTRA_WAVE_COPY_OK||!same_wave_key(&job->value.tag.key,&jd_wave_chunk.key)){job->active=0;return 0;}
+  int current=wave_tag_current(side,&job->value.tag,1);
+  if(current<0)return 0;
+  if(!current){job->active=0;return 0;}
+  if(jd_wave_chunk.count){
+   if(!xz_jd_overview_add(&job->overview,jd_wave_chunk.first,jd_wave_chunk.columns,jd_wave_chunk.count))job->active=0;
+   return 1;
+  }
+  /* This zero-count copy revalidated the complete current view under its lock. */
+  if(!xz_jd_overview_encode(&job->overview,&job->value.wave)){job->active=0;return 0;}
+  current=wave_tag_current(side,&job->value.tag,1);
+  if(current<0)return 0;
+  if(!current){job->active=0;return 0;}
+  job->ready=1;
+ }
+ struct jd_wave_slot *slot=&jd_wave_slot[side];
+ if(atomic_flag_test_and_set_explicit(&slot->busy,memory_order_acquire))return 0;
+ slot->valid=0;
+ if(wave_tag_current(side,&job->value.tag,1)==1){
+  slot->value=job->value;
+  slot->valid=wave_tag_current(side,&job->value.tag,1)==1;
+  job->done=slot->valid;
+ }
+ atomic_flag_clear_explicit(&slot->busy,memory_order_release);return job->done;
+}
+void xz_jog_display_runtime_service_assets(void){
+ if(!xz_extra_decks_copy_wave||!atomic_load_explicit(&jd_installed,memory_order_acquire))return;
+ struct xz_ds_selection selection;if(!selection_snapshot(&selection)||!selection.route_up||!selection.route_epoch)return;
+ uint32_t session=atomic_load_explicit(&jd_session,memory_order_acquire);uint64_t began=default_now_ms();
+ /* At most 64 * 512 columns per deck, with a 2 ms cooperative budget. This is
+    connector work only. Both sides get an attempt before checking the clock. */
+ for(unsigned round=0;round<64;round++){
+  int progress=service_wave_step(0,session,&selection);progress|=service_wave_step(1,session,&selection);
+  uint64_t now=default_now_ms();if(!progress||now<began||now-began>=2u)break;
+ }
+}
+static struct xz_extra_wave_key sample_wave_key(const struct xz_extra_deck *d){
+ return (struct xz_extra_wave_key){.media_generation=d->timeline.media_generation,.route_epoch=d->timeline.route_epoch,
+  .load_revision=d->timeline.load_revision,.source=d->source,.column_count=d->wave.count,
+  .span_ms=d->wave.span_ms,.normalization=d->wave.normalization};
+}
+static void adopt_wave(unsigned index,uint32_t session){
+ struct jd_side_runtime *side=&jd_side[index];const struct xz_extra_deck *d=&side->cache.deck;
+ struct xz_extra_wave_key key=sample_wave_key(d);
+ if(!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE))||!key.column_count||!media_current(&key)){side->have_wave=0;return;}
+ /* The LCD maps the whole overview onto INFO length. Permit one analysis
+    column of endpoint rounding, never stretch mismatched analysis to a track. */
+ uint64_t span=key.span_ms,total=d->total_ms>0?(uint32_t)d->total_ms:0;
+ uint64_t tolerance=(span+key.column_count-1u)/key.column_count;
+ if(!span||!total||(span>total?span-total:total-span)>tolerance){side->have_wave=0;return;}
+ if(side->have_wave&&same_wave_key(&side->wave_key,&key))return;
+ side->have_wave=0;struct jd_wave_slot *slot=&jd_wave_slot[index];
+ if(atomic_flag_test_and_set_explicit(&slot->busy,memory_order_acquire))return;
+ if(slot->valid&&slot->value.tag.session==session&&slot->value.tag.content==d->jog_content_epoch&&
+  same_wave_key(&slot->value.tag.key,&key)&&wave_tag_current(index,&slot->value.tag,0)==1){
+  side->wave=slot->value.wave;side->wave_key=key;side->have_wave=1;
+ }
+ atomic_flag_clear_explicit(&slot->busy,memory_order_release);
+}
 
-static void publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_t now_ms,uint32_t revision,int ordered){
+static void publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_t now_ms,uint32_t revision,int ordered,
+ const struct xz_master_observation *actual){
  if(deck_index<0||deck_index>=XZ_EXTRA_DECKS||!deck)return;
  uint32_t session=atomic_load_explicit(&jd_session,memory_order_acquire);
  uint32_t route_epoch=xz_extra_decks_epoch();
@@ -123,6 +254,10 @@ static void publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_
  uint32_t next=(atomic_load_explicit(&s->seq,memory_order_relaxed)+1u)&0x3fffffffu;
  if(!next)next=1;
  s->sample.deck=*deck;
+ s->sample.master_actual=actual?*actual:(struct xz_master_observation){.deck=XZ_MASTER_UNKNOWN};
+ /* The Jog publication retains values only; the connector copy seam owns all
+    source-array access. Keep descriptors for identity, never analysis pointers. */
+ s->sample.deck.wave.columns=NULL;s->sample.deck.grid=NULL;
  s->sample.seq=next;s->sample.published_ms=now_ms;
  s->sample.session=session;s->sample.route_epoch=route_epoch;
  s->sample.source_revision=revision;s->sample.source_ordered=ordered;
@@ -136,12 +271,12 @@ static void publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_
 }
 
 void xz_jog_display_runtime_publish_deck(int deck_index,const struct xz_extra_deck *deck,uint32_t now_ms){
- publish_deck(deck_index,deck,now_ms,0,0);
+ publish_deck(deck_index,deck,now_ms,0,0,NULL);
 }
 
 void xz_jog_display_runtime_publish(const struct xz_extra_decks *decks,uint32_t now_ms){
  if(!decks)return;
- for(int i=0;i<XZ_EXTRA_DECKS;i++)publish_deck(i,&decks->deck[i],now_ms,decks->snapshot_revision,1);
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)publish_deck(i,&decks->deck[i],now_ms,decks->snapshot_revision,1,&decks->master_actual);
 }
 
 enum jd_read_result { JD_READ_BUSY=-1,JD_READ_EMPTY,JD_READ_OK };
@@ -216,7 +351,7 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
   .tempo_known=1,
   .status_known=1,
   .cued=cued,
-  .master=(uint8_t)!!d->master,
+  .master=0, /* Only aggregate confirmed authority can set MASTER below. */
   .sync_mode=sync_mode,
   .loop_active=loop_active,
   .slip=0,
@@ -254,6 +389,9 @@ static void prime_side_baseline(unsigned side_idx){
  * inputs. Re-reading a slot, or reusing it under contention, never renews it. */
 static int sample_current(const struct jd_sample *p,const struct jd_side_runtime *side,uint32_t session,uint32_t route_epoch){
  return p->seq&&p->seq!=side->floor_seq&&p->session==session&&route_epoch&&p->route_epoch==route_epoch&&
+  p->deck.jog_content_epoch&&p->deck.jog_content_epoch==side->content_epoch&&
+  (!p->deck.timeline.media_generation||!xz_extra_source_generation||
+   xz_extra_source_generation(p->deck.source)==p->deck.timeline.media_generation)&&
   (!p->deck.timeline.route_epoch||p->deck.timeline.route_epoch==route_epoch);
 }
 static int sample_snapshot(unsigned side_idx,const struct jd_sample *p,uint64_t publication_ms,uint64_t now_ms,struct xz_jd_snapshot *out){
@@ -261,6 +399,12 @@ static int sample_snapshot(unsigned side_idx,const struct jd_sample *p,uint64_t 
  uint32_t age=(uint32_t)now_ms-p->published_ms;
  if((int32_t)age<0||age>XZ_JD_RUNTIME_FRESH_MS||now_ms<age)return 0;
  if(!xz_jog_display_snapshot_from_deck((int)side_idx,&p->deck,now_ms,out))return 0;
+ const struct xz_master_observation *master=&p->master_actual;
+ const struct xz_extra_timeline *timeline=&p->deck.timeline;
+ out->master=(uint8_t)(master->deck==(int)side_idx+2&&master->revision&&
+  (uint32_t)((uint32_t)now_ms-master->observed_ms)<=XZ_MASTER_MAX_AGE_MS&&
+  master->route_epoch==timeline->route_epoch&&master->load_revision==timeline->load_revision&&
+  master->transport_generation==timeline->transport_generation);
  if(out->captured_ms>publication_ms)out->captured_ms=publication_ms;
  return 1;
 }
@@ -476,19 +620,31 @@ static void hook_jog_assemble(void *self){
  if(!atomic_load(&jd_installed)||session!=atomic_load_explicit(&jd_session,memory_order_acquire)){
   atomic_flag_clear_explicit(&side->busy,memory_order_release);return;
  }
- uint32_t route_epoch=xz_extra_decks_epoch();
+ struct xz_ds_selection selection;
+ if(!selection_snapshot(&selection)||!selection.epoch[side_idx]){
+  atomic_flag_clear_explicit(&side->busy,memory_order_release);return;
+ }
+ uint32_t route_epoch=selection.route_epoch;
  if(side->session!=session){
   /* Only this side's serializer resets its display/cache, after the native call.
    * Publishers never access these objects. Lifecycle never clears a live flag. */
   prime_side_baseline(side_idx);
-  side->session=session;side->route_epoch=route_epoch;side->floor_seq=0;side->cached=0;
+  side->session=session;side->route_epoch=route_epoch;side->floor_seq=0;side->cached=0;side->have_wave=0;
  }
- if(side->route_epoch!=route_epoch){side->cached=0;side->route_epoch=route_epoch;}
+ uint32_t content=current_content(side_idx);
+ if(side->route_epoch!=route_epoch||side->selection_epoch!=selection.epoch[side_idx]||side->content_epoch!=content){
+  side->cached=0;side->have_wave=0;side->route_epoch=route_epoch;
+  side->selection_epoch=selection.epoch[side_idx];side->content_epoch=content;
+  jd_state[side_idx].software_generation=0;jd_state[side_idx].software_wave=NULL;jd_state[side_idx].wave_revision=0;
+ }
  uint8_t *frame=(uint8_t *)self+0x104;
  uint64_t now_ms=default_now_ms();
- uint32_t ctrl=current_control_revision();
- int route_up=!!(ctrl&4u);
- int on_extra=route_up&&!!(ctrl&(side_idx==0?1u:2u));
+#ifdef XZ_JOG_DISPLAY_PROOF
+ uint32_t ctrl=(current_control_revision()&8u)|(selection.route_up?4u:0u)|
+  (selection.deck[0]==3?1u:0u)|(selection.deck[1]==4?2u:0u);
+#endif
+ int route_up=selection.route_up;
+ int on_extra=route_up&&selection.deck[side_idx]==(int)channel+2;
  struct jd_sample sample;
  int read_result=JD_READ_EMPTY;
  struct xz_jd_snapshot snap;
@@ -526,43 +682,24 @@ static void hook_jog_assemble(void *self){
 #endif
   }else side->cached=0;
  }
- if(!on_extra){
-#ifdef XZ_JOG_DISPLAY_PROOF
-  selected_result=
-#else
-  (void)
-#endif
-  xz_jd_select(&jd_state[side_idx],channel,NULL,now_ms);
- }else if(have_snap){
-#ifdef XZ_JOG_DISPLAY_PROOF
-  selected_result=
-#else
-  (void)
-#endif
-  xz_jd_select(&jd_state[side_idx],channel+2u,&snap,now_ms);
- }else{
-#ifdef XZ_JOG_DISPLAY_PROOF
-  selected_result=
-#else
-  (void)
-#endif
-  xz_jd_select_unavailable(&jd_state[side_idx],channel+2u);
- }
- uint8_t out[XZ_JD_FRAME];
+ if(on_extra&&have_snap)adopt_wave(side_idx,session);else side->have_wave=0;
+ struct xz_jd_transaction transaction;
 #ifdef XZ_JOG_DISPLAY_PROOF
  unsigned phase_before=(unsigned)jd_state[side_idx].phase;
- int step_result=
-#else
- (void)
 #endif
- xz_jd_step(&jd_state[side_idx],frame,on_extra&&have_snap?&snap:NULL,now_ms,out);
+ int step_result=xz_jd_prepare(&jd_state[side_idx],frame,on_extra?channel+2u:channel,on_extra&&have_snap?&snap:NULL,
+  now_ms,side->have_wave?&side->wave:NULL,side->have_wave?content:0,&transaction);
+ if(step_result==XZ_JD_UNSUPPORTED){atomic_flag_clear_explicit(&side->busy,memory_order_release);return;}
+ uint8_t *out=transaction.frame;
 #ifdef XZ_JOG_DISPLAY_PROOF
+ selected_result=transaction.selected;
+ phase_before=(unsigned)transaction.phase_before;
  unsigned candidate_changed=memcmp(frame,out,XZ_JD_FRAME)!=0;
  atomic_fetch_add_explicit(&proof->seq,1u,memory_order_acq_rel);
  JDP_SET(proof->channel,channel);JDP_SET(proof->control,ctrl);
  JDP_SET(proof->desired,on_extra?channel+2u:channel);JDP_SET(proof->snapshot_reason,why);
  JDP_SET(proof->select_result,selected_result);JDP_SET(proof->step_result,step_result);
- JDP_SET(proof->phase,jd_state[side_idx].phase);
+ JDP_SET(proof->phase,transaction.next.phase);
  JDP_SET(proof->encoded_frame,out[0x53]>>4);JDP_SET(proof->encoded_packet,out[12+3]>>4);
  JDP_SET(proof->changed,candidate_changed);
  JDP_SET(proof->fallback,on_extra&&(out[0x53]>>4)!=channel+2u);
@@ -577,8 +714,23 @@ static void hook_jog_assemble(void *self){
 #ifdef XZ_JOG_DISPLAY_PROOF
  unsigned copied=0;
 #endif
- if(atomic_load(&jd_installed)&&session==atomic_load_explicit(&jd_session,memory_order_acquire)){
+ struct xz_ds_selection final_selection;
+ int final_valid=selection_snapshot(&final_selection)&&final_selection.epoch[side_idx]==selection.epoch[side_idx]&&
+  final_selection.deck[side_idx]==selection.deck[side_idx]&&final_selection.route_up==selection.route_up&&
+  final_selection.route_epoch==route_epoch&&current_content(side_idx)==content;
+ uint64_t final_now=default_now_ms();
+ if(on_extra&&have_snap){
+  final_valid=final_valid&&final_now>=now_ms&&final_now>=side->cache_publication_ms&&
+   final_now-side->cache_publication_ms<=XZ_JD_RUNTIME_FRESH_MS&&final_now>=snap.captured_ms&&
+   final_now-snap.captured_ms<=XZ_JD_RUNTIME_FRESH_MS;
+  if(snap.master)final_valid=final_valid&&
+   (uint32_t)((uint32_t)final_now-side->cache.master_actual.observed_ms)<=XZ_MASTER_MAX_AGE_MS;
+ }
+ if(on_extra&&have_snap&&side->cache.deck.timeline.media_generation&&xz_extra_source_generation)
+  final_valid=final_valid&&xz_extra_source_generation(side->cache.deck.source)==side->cache.deck.timeline.media_generation;
+ if(final_valid&&atomic_load(&jd_installed)&&session==atomic_load_explicit(&jd_session,memory_order_acquire)){
   memcpy(frame,out,XZ_JD_FRAME);
+  xz_jd_commit(&jd_state[side_idx],&transaction);
 #ifdef XZ_JOG_DISPLAY_PROOF
   copied=1;
 #endif

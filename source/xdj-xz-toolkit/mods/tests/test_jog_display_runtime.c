@@ -50,6 +50,7 @@ static uint32_t fake_ctrl(void){return sim_ctrl;}
 static struct xz_extra_deck make_extra_deck(uint32_t at_ms,uint64_t source_frame,int32_t rate_ppm,int playing){
  struct xz_extra_deck d;memset(&d,0,sizeof d);
  d.loaded=1;d.playing=playing;d.total_ms=180000;d.elapsed_ms=30000;d.elapsed_at_ms=at_ms;
+ d.jog_content_epoch=1;
  d.tempo_x100=-250;d.tempo_range=10;d.vinyl=1;d.master_tempo=1;
  d.known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_ELAPSED)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_TOTAL);
  d.timeline.source_frame=source_frame;
