@@ -11,7 +11,12 @@
 #include <string.h>
 #ifdef XZ_JOG_DISPLAY_PROOF
 #include "jog_display_proof.h"
+#include "jog_display_latch.h"
 __attribute__((visibility("default"))) struct xz_jdp xz_mods_jog_proof_v1={.version=1};
+__attribute__((visibility("default"))) struct xz_jdl xz_mods_jog_latch_v2={
+ .version=2,.size=sizeof(struct xz_jdl),.sides=2,.slots=XZ_JDL_SLOTS,
+ .event_bytes=sizeof(struct xz_jdl_event),.counter_words=25
+};
 #endif
 
 #define XZ_JD_RUNTIME_FRESH_MS 250u
@@ -44,6 +49,17 @@ struct jd_side_runtime {
  struct jd_sample cache;
 };
 static struct jd_side_runtime jd_side[XZ_EXTRA_DECKS]={{.busy=ATOMIC_FLAG_INIT},{.busy=ATOMIC_FLAG_INIT}};
+#ifdef XZ_JOG_DISPLAY_PROOF
+/* Owned by the existing per-side serializer. Context is an observed diagnostic
+ * ordinal, not an authoritative selector revision. No lifecycle writer resets
+ * a live slot. Bins are replaced lazily under the existing guard. */
+struct jd_latch_key {
+ uint32_t session,control,route,present,source_session,source_route,timeline_route,load_revision;
+ uint32_t source_device,loaded;
+ uint64_t media_generation;
+};
+static struct jd_latch_key jd_latch_key[XZ_EXTRA_DECKS];
+#endif
 static atomic_flag jd_lifecycle_busy=ATOMIC_FLAG_INIT;
 static _Atomic uint32_t jd_session=1;
 static int jd_hooked; /* Only the lifecycle owner changes this. Stop keeps the hook. */
@@ -223,6 +239,74 @@ static int sample_snapshot(unsigned side_idx,const struct jd_sample *p,uint64_t 
  return 1;
 }
 
+#ifdef XZ_JOG_DISPLAY_PROOF
+/* At most three132-byte publications, with lazy per-bin context replacement.
+ * Existing side ownership serializes writers. Readers never acquire a lock. */
+struct jd_latch_values {
+#define XZ_JDL_VALUE(name) unsigned name;
+ XZ_JDL_EVENT_FIELDS(XZ_JDL_VALUE)
+#undef XZ_JDL_VALUE
+};
+static void latch_store(struct xz_jdl_event *event,const struct jd_latch_values *value){
+ if(atomic_load_explicit(&event->valid,memory_order_relaxed)&&
+    atomic_load_explicit(&event->context,memory_order_relaxed)==value->context)return;
+ atomic_fetch_add_explicit(&event->seq,1u,memory_order_acq_rel);
+#define XZ_JDL_STORE(name) JDP_SET(event->name,value->name);
+ XZ_JDL_EVENT_FIELDS(XZ_JDL_STORE)
+#undef XZ_JDL_STORE
+ atomic_fetch_add_explicit(&event->seq,1u,memory_order_release);
+}
+static void latch_observe(unsigned side_idx,uint32_t session,uint32_t ctrl,uint32_t route,uint64_t now,
+ unsigned why,int selected,int step,unsigned phase_before,const uint8_t out[XZ_JD_FRAME],unsigned changed,unsigned copied,int read_result){
+ struct xz_jdl_side *proof=&xz_mods_jog_latch_v2.side[side_idx];
+ const struct jd_side_runtime *side=&jd_side[side_idx];
+ const struct jd_sample *sample=side->cached?&side->cache:NULL;
+ struct jd_latch_key key={0};
+ key.session=session;key.control=ctrl;key.route=route;key.present=sample!=NULL;
+ if(sample){
+  key.source_session=sample->session;key.source_route=sample->route_epoch;
+  key.timeline_route=sample->deck.timeline.route_epoch;key.load_revision=sample->deck.timeline.load_revision;
+  key.media_generation=sample->deck.timeline.media_generation;
+  key.source_device=(uint32_t)sample->deck.source;key.loaded=(uint32_t)!!sample->deck.loaded;
+ }
+ if(memcmp(&key,&jd_latch_key[side_idx],sizeof key)){
+  jd_latch_key[side_idx]=key;
+  JDP_INC(proof->context_changes);JDP_SET(proof->session,session);
+ }
+ JDP_INC(proof->callbacks);
+ if(why<XZ_JDL_REASON_COUNT)JDP_INC(proof->reason[why]);
+ if((unsigned)selected<XZ_JDL_RESULT_COUNT)JDP_INC(proof->select[selected]);
+ if((unsigned)step<XZ_JDL_RESULT_COUNT)JDP_INC(proof->step[step]);
+ JDP_INC(proof->final[copied]);
+ struct jd_latch_values value={
+  .valid=1,.context=atomic_load_explicit(&proof->context_changes,memory_order_relaxed),
+  .session=session,.control=ctrl,.route_epoch=route,.at_ms_lo=(uint32_t)now,.at_ms_hi=(uint32_t)(now>>32),
+  .source_present=key.present,.source_session=key.source_session,.source_route_epoch=key.source_route,
+  .source_timeline_route=key.timeline_route,.source_load_revision=key.load_revision,
+  .source_media_lo=(uint32_t)key.media_generation,.source_media_hi=(uint32_t)(key.media_generation>>32),
+  .snapshot_reason=why,.select_result=(unsigned)selected,.step_result=(unsigned)step,
+  .phase_before=phase_before,.phase=(unsigned)jd_state[side_idx].phase,.desired=(ctrl&4u)&&(ctrl&(1u<<side_idx))?side_idx+3u:side_idx+1u,
+  .encoded_frame=out[0x53]>>4,.encoded_packet=out[15]>>4,.packet_command=out[14],
+  .candidate_changed=changed,.final_copied=copied,
+  .fallback=(ctrl&4u)&&(ctrl&(1u<<side_idx))&&(out[0x53]>>4)!=side_idx+3u,
+  .read_result=(unsigned)read_result
+ };
+ if(sample){
+  value.source_revision=sample->source_revision;value.source_transport_generation=sample->deck.timeline.transport_generation;
+  value.source_device=(unsigned)sample->deck.source;value.publication_seq=sample->seq;value.publication_ms=sample->published_ms;
+ }
+ if(why<XZ_JDL_REASON_COUNT)latch_store(&proof->event[why],&value);
+ if((unsigned)step<XZ_JDL_RESULT_COUNT)latch_store(&proof->event[XZ_JDL_REASON_COUNT+(unsigned)step],&value);
+ /* The successful-copy bin belongs to normal loaded EXTRA INFO only. Native
+  * restoration, clear packets and guard rejection cannot displace that evidence.
+  * All actual copies/skips still contribute to the independent lifetime totals. */
+ if(!copied||(why==XZ_JDP_VALID&&sample&&key.loaded&&step==XZ_JD_OK&&
+    phase_before==XZ_JD_EXTRA&&value.phase==XZ_JD_EXTRA&&value.packet_command==0x21u&&
+    value.desired==side_idx+3u&&value.encoded_frame==value.desired&&value.encoded_packet==value.desired))
+  latch_store(&proof->event[XZ_JDL_REASON_COUNT+XZ_JDL_RESULT_COUNT+copied],&value);
+}
+#endif
+
 static void hook_jog_assemble(void *self){
 #ifdef XZ_JOG_DISPLAY_PROOF
  JDP_INC(xz_mods_jog_proof_v1.calls);
@@ -247,7 +331,12 @@ static void hook_jog_assemble(void *self){
  }
  unsigned side_idx=channel-1u;
  struct jd_side_runtime *side=&jd_side[side_idx];
- if(atomic_flag_test_and_set_explicit(&side->busy,memory_order_acquire))return;
+ if(atomic_flag_test_and_set_explicit(&side->busy,memory_order_acquire)){
+#ifdef XZ_JOG_DISPLAY_PROOF
+  JDP_INC(xz_mods_jog_latch_v2.side[side_idx].contention);
+#endif
+  return;
+ }
  if(!atomic_load(&jd_installed)||session!=atomic_load_explicit(&jd_session,memory_order_acquire)){
   atomic_flag_clear_explicit(&side->busy,memory_order_release);return;
  }
@@ -325,19 +414,21 @@ static void hook_jog_assemble(void *self){
  }
  uint8_t out[XZ_JD_FRAME];
 #ifdef XZ_JOG_DISPLAY_PROOF
+ unsigned phase_before=(unsigned)jd_state[side_idx].phase;
  int step_result=
 #else
  (void)
 #endif
  xz_jd_step(&jd_state[side_idx],frame,on_extra&&have_snap?&snap:NULL,now_ms,out);
 #ifdef XZ_JOG_DISPLAY_PROOF
+ unsigned candidate_changed=memcmp(frame,out,XZ_JD_FRAME)!=0;
  atomic_fetch_add_explicit(&proof->seq,1u,memory_order_acq_rel);
  JDP_SET(proof->channel,channel);JDP_SET(proof->control,ctrl);
  JDP_SET(proof->desired,on_extra?channel+2u:channel);JDP_SET(proof->snapshot_reason,why);
  JDP_SET(proof->select_result,selected_result);JDP_SET(proof->step_result,step_result);
  JDP_SET(proof->phase,jd_state[side_idx].phase);
  JDP_SET(proof->encoded_frame,out[0x53]>>4);JDP_SET(proof->encoded_packet,out[12+3]>>4);
- JDP_SET(proof->changed,memcmp(frame,out,XZ_JD_FRAME)!=0);
+ JDP_SET(proof->changed,candidate_changed);
  JDP_SET(proof->fallback,on_extra&&(out[0x53]>>4)!=channel+2u);
  /* ABI unchanged: low 30 bits identify the coherent sample, bit 31 means
   * this read contended, bit 30 means a publisher has dropped on contention.
@@ -347,8 +438,18 @@ static void hook_jog_assemble(void *self){
   (atomic_load_explicit(&jd_pub[side_idx].drops,memory_order_relaxed)?0x40000000u:0u));
  atomic_fetch_add_explicit(&proof->seq,1u,memory_order_release);
 #endif
- if(atomic_load(&jd_installed)&&session==atomic_load_explicit(&jd_session,memory_order_acquire))
+#ifdef XZ_JOG_DISPLAY_PROOF
+ unsigned copied=0;
+#endif
+ if(atomic_load(&jd_installed)&&session==atomic_load_explicit(&jd_session,memory_order_acquire)){
   memcpy(frame,out,XZ_JD_FRAME);
+#ifdef XZ_JOG_DISPLAY_PROOF
+  copied=1;
+#endif
+ }
+#ifdef XZ_JOG_DISPLAY_PROOF
+ latch_observe(side_idx,session,ctrl,route_epoch,now_ms,why,selected_result,step_result,phase_before,out,candidate_changed,copied,read_result);
+#endif
  atomic_flag_clear_explicit(&side->busy,memory_order_release);
 }
 

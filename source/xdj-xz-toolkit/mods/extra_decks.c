@@ -5,6 +5,7 @@
    retries. Adapted from the route worker of VJToolsLibrary tools/xz-four-deck-poc/player.c (dae68bec).
    Without the node nothing changes: the route stays down and every interface keeps two decks. */
 #define _GNU_SOURCE
+#include "sync_observation.h"
 #include "extra_decks.h"
 #include "extra_player.h"
 #include "runtime.h"
@@ -83,7 +84,24 @@ struct xz_extra_route xz_extra_decks_route(void) {
  return r;
 }
 
+#if XZ_SYNC_OBSERVATION
+static void syo_software(const struct xz_extra_decks *s){
+ for(unsigned i=0;i<2;i++){
+  const struct xz_extra_deck *d=&s->deck[i];
+  xz_syo_inc((i?SYO_C_SOFT4_REASON_0:SYO_C_SOFT3_REASON_0)+(unsigned)(d->sync.reason<14?d->sync.reason:0));
+  uint32_t v[]={d->sync.requested,d->sync.locked,d->sync.reason,d->sync.master_deck,d->sync.master_scope,
+   d->master,d->playing,d->loaded,d->timeline.flags,d->timeline.route_epoch,d->timeline.load_revision,
+   d->timeline.transport_generation,SYO_LO(d->timeline.media_generation),SYO_HI(d->timeline.media_generation),xz_syo_request_seq(i),
+   d->sync.phase_error_us,d->sync.correction_ppm,d->tempo_x100,d->bpm_x100,d->timeline.at_ms,s->snapshot_revision,s->control_revision};
+  xz_syo_record(i?SYO_R_SOFT4:SYO_R_SOFT3,15,v,sizeof v/sizeof *v,0);
+ }
+}
+#define SYO_SOFTWARE(s) syo_software(s)
+#else
+#define SYO_SOFTWARE(s) ((void)0)
+#endif
 int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
+ SYO_INC(SNAPSHOT);
 #ifdef XZ_JOG_DISPLAY_PROOF
  JDP_INC(xz_mods_jog_proof_v1.snapshot_calls);
 #endif
@@ -91,6 +109,7 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
  memset(out, 0, sizeof *out);
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);
  if (!p) {
+  SYO_INC(SNAPSHOT_EMPTY);
 #ifdef XZ_JOG_DISPLAY_PROOF
   JDP_INC(xz_mods_jog_proof_v1.snapshot_no_players);
 #endif
@@ -111,12 +130,21 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
    }
   }
  }
+ SYO_SOFTWARE(out);
  return out->route_up;
 }
 
 int xz_extra_deck_input(const struct xz_extra_deck_event *event) {
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);
- return p ? xz_xp_input(p, event) : 0;
+ int accepted=p ? xz_xp_input(p, event) : 0;
+#if XZ_SYNC_OBSERVATION
+ if(event&&(unsigned)event->deck<2&&(event->kind==XZ_EXTRA_IN_SYNC||event->kind==XZ_EXTRA_IN_MASTER)){
+  SYO_INC(REQUEST);if(accepted)SYO_INC(REQUEST_ACCEPTED);else SYO_INC(REQUEST_REFUSED);
+  uint32_t v[]={event->kind,event->deck,event->pressed,event->shift,event->held,accepted};
+  xz_syo_record(event->deck?SYO_R_REQUEST4:SYO_R_REQUEST3,6,v,6,1);
+ }
+#endif
+ return accepted;
 }
 uint32_t xz_extra_decks_revision(void){
  return xz_xp_revision(__atomic_load_n(&players,__ATOMIC_ACQUIRE));

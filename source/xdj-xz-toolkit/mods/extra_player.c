@@ -14,6 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifdef XZ_XP_SERVICE_PROOF
+#include "xp_service_proof.h"
+#endif
 
 #define CACHE 4096u
 #define PWV7_PER_SECOND 150u
@@ -47,6 +50,9 @@ int xz_extra_order_matches(const struct xz_extra_order *o,int source,uint64_t ge
 }
 
 struct reader {
+#ifdef XZ_XP_SERVICE_PROOF
+ struct xp_sp_private *sp; uint32_t (*sp_clock)(void);
+#endif
  struct xz_stem_media *media;
  uint32_t rate;
  uint64_t frames, begin;
@@ -79,6 +85,9 @@ static unsigned release_bit(enum xz_extra_input kind) {
 static unsigned release_count(unsigned mask) { return !!(mask&1u)+!!(mask&2u)+!!(mask&4u); }
 
 struct deck {
+#ifdef XZ_XP_SERVICE_PROOF
+ struct xp_sp_private sp;
+#endif
  int index;
  pthread_mutex_t queue_lock;
  struct queued_control queue[QUEUE_SLOTS];
@@ -155,6 +164,9 @@ struct deck {
 };
 
 struct xz_xp_players {
+#ifdef XZ_XP_SERVICE_PROOF
+ int sp_enabled;uint32_t sp_id;
+#endif
  struct xz_xp_env env;
  struct deck deck[XZ_EXTRA_DECKS];
  pthread_mutex_t publish_lock;
@@ -173,6 +185,13 @@ struct xz_xp_players {
  xz_usb_position sync_position;
  uint32_t sync_position_route,sync_position_at;
 };
+#ifdef XZ_XP_SERVICE_PROOF
+#include "xp_service_proof.inc"
+#else
+#define SP_ONLY(x) do{}while(0)
+#define SP_POSITION(p,d,q) ((p)->env.sink.position((p)->env.sink.ctx,(d)->epoch,q))
+#define SP_READ(r,at,n,pcm) xz_stem_media_read((r)->media,at,n,pcm)
+#endif
 uint32_t xz_xp_revision(const struct xz_xp_players *p){return p?atomic_load_explicit(&p->revision,memory_order_acquire):0;}
 void xz_xp_set_native_sync_clock(struct xz_xp_players *p,int (*read)(struct xz_sync_native_snapshot *)){
  if(p&&!p->threads)p->native_sync_clock=read;
@@ -243,8 +262,8 @@ static int fill_cache(struct reader *r, uint64_t at) {
  uint64_t begin = at / CACHE * CACHE;
  if (r->cached && begin == r->begin + CACHE) {
   r->pcm[0] = r->pcm[CACHE * 2]; r->pcm[1] = r->pcm[CACHE * 2 + 1];
-  if (xz_stem_media_read(r->media, (int64_t)(begin + 1), CACHE, r->pcm + 2)) return 0;
- } else if (xz_stem_media_read(r->media, (int64_t)begin, CACHE + 1, r->pcm)) return 0;
+  if (SP_READ(r, (int64_t)(begin + 1), CACHE, r->pcm + 2)) return 0;
+ } else if (SP_READ(r, (int64_t)begin, CACHE + 1, r->pcm)) return 0;
  r->begin = begin; r->cached = 1; return 1;
 }
 static int sample_at(struct deck *d, uint64_t position, float out[2],int wrap_loop) {
@@ -265,19 +284,19 @@ static int sample_at(struct deck *d, uint64_t position, float out[2],int wrap_lo
 }
 static int stretch_read(void *context,int64_t first,uint32_t count,float *out) {
  struct deck *d=context;
- if(!d->loop.active)return xz_stem_media_read(d->r->media,first,count,out);
+ if(!d->loop.active)return SP_READ(d->r,first,count,out);
  uint64_t length=d->loop.out-d->loop.in;
  int64_t relative=(first-(int64_t)d->loop.in)%(int64_t)length;
  if(relative<0)relative+=(int64_t)length;
  uint64_t at=d->loop.in+(uint64_t)relative;
  uint32_t done=(uint32_t)(d->loop.out-at);
  if(done>count)done=count;
- if(xz_stem_media_read(d->r->media,(int64_t)at,done,out))return -1;
+ if(SP_READ(d->r,(int64_t)at,done,out))return -1;
  if(done==count)return 0;
  uint32_t period=count-done;
  if(period>length)period=(uint32_t)length;
  uint32_t start=done;
- if(xz_stem_media_read(d->r->media,(int64_t)d->loop.in,period,out+done*2))return -1;
+ if(SP_READ(d->r,(int64_t)d->loop.in,period,out+done*2))return -1;
  done+=period;
  while(done<count){
   uint32_t n=count-done;if(n>period)n=period;
@@ -503,9 +522,15 @@ static void flush(struct xz_xp_players *p, struct deck *d) {
  if (!d->need_flush) return;
  uint32_t next;
  int first = streaming(d->state) && d->pending;
- xz_usb_result r = !s->link(s->ctx) ? XZ_USB_STOPPED : first
+#ifdef XZ_XP_SERVICE_PROOF
+ uint32_t sp_begin=p->env.now_ms();
+#endif
+ SP_ONLY(sp_capture(d,sp_begin));
+ uint32_t available=s->link(s->ctx);
+ xz_usb_result r = !available ? XZ_USB_STOPPED : first
   ? s->transition(s->ctx, d->epoch, d->index, d->generation, d->pcm, d->pending, d->pending_after, &next)
   : s->flush(s->ctx, d->epoch, d->index, &next);
+ SP_ONLY(if(available)sp_service(&d->sp,first?XP_SP_TRANSITION:XP_SP_FLUSH,r,sp_begin,p->env.now_ms()));
  if (r == XZ_USB_OK) {
   d->generation = next; d->submitted = d->completed = 0;
   d->segment_count=0;
@@ -515,7 +540,7 @@ static void flush(struct xz_xp_players *p, struct deck *d) {
  if (r != XZ_USB_BUSY && r != XZ_USB_AGAIN && r != XZ_USB_STALE) d->need_flush = 0;
  if (r == XZ_USB_STALE) {
   xz_usb_position position;
-  if (s->position(s->ctx, d->epoch, &position) == XZ_USB_OK && position.requested_generation[d->index])
+  if (SP_POSITION(p,d,&position) == XZ_USB_OK && position.requested_generation[d->index])
    d->generation = position.requested_generation[d->index];
   if(d->scratch.releasing){scratch_release(d,p->env.now_ms());xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");}
  }
@@ -712,9 +737,13 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return 0; }
  memset(&t, 0, sizeof t);
  int resolved;
+#ifdef XZ_XP_SERVICE_PROOF
+ uint32_t sp_begin=p->env.now_ms();
+#endif
  if (e->load.media_generation)
   resolved = p->env.resolve_checked ? p->env.resolve_checked(e->load.source, e->load.track_id, e->load.media_generation, &t) : -1;
  else resolved = p->env.resolve ? p->env.resolve(e->load.source, e->load.track_id, &t) : -1;
+ SP_ONLY(sp_service(&d->sp,XP_SP_RESOLVER,resolved,sp_begin,p->env.now_ms()));
  if (resolved) { xz_xp_notice(p, e->load.media_generation ? "SOURCE CHANGED / LOAD REFUSED" : "TRACK NOT FOUND"); return 0; }
  if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return 0; }
  t.path[sizeof t.path - 1] = t.anlz_dir[sizeof t.anlz_dir - 1] = t.title[sizeof t.title - 1] = 0;
@@ -728,7 +757,11 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
    xz_stem_media_close(prepared);xz_xp_notice(p,"NEXT TRACK CANNOT BE READ");return 0;
   }
   struct xz_extra_track verify;
+ #ifdef XZ_XP_SERVICE_PROOF
+  uint32_t sp_verify_begin=p->env.now_ms();
+#endif
   int stale=!p->env.resolve_checked||p->env.resolve_checked(e->load.source,e->load.track_id,e->load.media_generation,&verify);
+  SP_ONLY(sp_service(&d->sp,XP_SP_RESOLVER,stale,sp_verify_begin,p->env.now_ms()));
   if(stale||e->load.route_epoch!=p->env.sink.link(p->env.sink.ctx)){
    xz_stem_media_close(prepared);xz_xp_notice(p,stale?"SOURCE CHANGED / NEXT REFUSED":"ROUTE CHANGED / NEXT REFUSED");return 0;
   }
@@ -755,6 +788,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  jump(d, d->cue, now);
  d->state = XZ_XP_CUED;
  d->load_revision++;d->media_generation=e->load.media_generation;
+ SP_ONLY(sp_newsession(d,now));
  struct xz_extra_order *order=xz_extra_order_matches(e->load.order,e->load.source,e->load.media_generation,e->load.order_index,e->load.track_id)?e->load.order:NULL;
  xz_extra_order_retain(order);xz_extra_order_release(d->order);d->order=order;
  d->order_index=e->load.order_index;d->order_epoch=e->load.route_epoch;
@@ -842,6 +876,7 @@ static void jog(struct xz_xp_players *p,struct deck *d, int32_t delta, uint32_t 
   if(to<=0||to>=(double)d->r->frames){d->scratch.group_origin=target;d->scratch.ticks=0;}
   if(target==d->scratch.target)return;
   if(!merge&&d->scratch.count==SCRATCH_SEGMENTS){
+   SP_ONLY(sp_incident(d,p->env.now_ms()));
    jump(d,d->heard,now);d->scratch.overflow=1;
    xz_xp_notice(p,"SCRATCH BUFFER FULL / RETOUCH");return;
   }
@@ -1270,6 +1305,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
 
 static int take(struct xz_xp_players *p,struct deck *d, struct queued_control *q) {
  pthread_mutex_lock(&d->queue_lock);
+ SP_ONLY(d->sp.queue_depth=d->count;if(d->count>d->sp.queue_max)d->sp.queue_max=d->count);
  int got = d->count > 0;
  if (got) {
   *q = d->queue[d->head];
@@ -1279,7 +1315,8 @@ static int take(struct xz_xp_players *p,struct deck *d, struct queued_control *q
   /* Stale loads must release their references even while current loads wait for retire slots. */
   else if (q->epoch==d->epoch && q->event.kind == XZ_EXTRA_IN_LOAD &&
       d->retired_count >= XZ_XP_RETIRE_SLOTS) got = 0;
-  else { d->head = (d->head + 1) % QUEUE_SLOTS; d->count--; }
+  else { d->head = (d->head + 1) % QUEUE_SLOTS; d->count--;
+   SP_ONLY(d->sp.controls++;d->sp.last_arrival=q->at;d->sp.arrival_seen=1); }
  }
  pthread_mutex_unlock(&d->queue_lock);
  return got;
@@ -1330,8 +1367,9 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  uint64_t staged = 0;
  int applied = 0;
  uint32_t observation_at=now;
- int observed=s->position(s->ctx,d->epoch,&position)==XZ_USB_OK;
+ int observed=SP_POSITION(p,d,&position)==XZ_USB_OK;
  if(atomic_load(&p->sync_requests))observed=shared_position(p,d->epoch,&position,&observation_at,observed);
+ SP_ONLY(if(observed)sp_position_result(d,&position,observation_at));
  if (observed) {
   const xz_usb_deck_position *q = &position.deck[d->index];
   d->sync_wire_submitted=position.wire_submitted_frames;
@@ -1428,7 +1466,12 @@ render_ready:
    }
    if (!d->pending) return;
   }
+#ifdef XZ_XP_SERVICE_PROOF
+  uint32_t sp_begin=p->env.now_ms();
+#endif
+  SP_ONLY(sp_capture(d,sp_begin));
   xz_usb_result r = s->submit(s->ctx, d->epoch, d->index, d->generation, d->pcm, d->pending, d->pending_after);
+  SP_ONLY(sp_service(&d->sp,XP_SP_SUBMIT,r,sp_begin,p->env.now_ms()));
   if (r == XZ_USB_OK) { accepted_segment(d);accepted_scratch(d);d->submitted += d->pending; d->pending = 0; continue; }
   if (r == XZ_USB_STALE) {
    if(d->scratch.releasing){scratch_release(d,now);xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");}
@@ -1444,12 +1487,20 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
  struct deck *d = &p->deck[index];
  const struct xz_xp_sink *s = &p->env.sink;
  uint32_t now = p->env.now_ms();
+ SP_ONLY(struct xp_sp_private *v=&d->sp;
+  v->step_begin=now;v->controls=0;v->current[XP_SP_CURRENT_WORKER_START]=now;
+  uint32_t gap=v->have_start?sp_elapsed(now,v->last_start,&v->clock_future):0;
+  v->current[XP_SP_CURRENT_WORKER_GAP]=gap;
+  if(gap!=XP_SP_UNKNOWN&&gap>v->current[XP_SP_CURRENT_MAX_WORKER_GAP])v->current[XP_SP_CURRENT_MAX_WORKER_GAP]=gap;
+  v->last_start=now;v->have_start=1;
+  if(gap==XP_SP_UNKNOWN||gap>=8)sp_history(d,now,2));
  if (d->loop.edit && now - d->loop.edit_at >= 10000u) d->loop.edit = 0;
  collect(d, now);
  uint32_t link = s->link(s->ctx);
  if (link != d->epoch) {
   /* A new route instance starts its queues at the initial generation; a lost one took the audio. */
   if (streaming(d->state)) pause_at_heard(d, now);
+  SP_ONLY(d->sp.contact=0;d->sp.history_dirty=1);
   d->epoch = link; d->generation = XZ_USB_INITIAL_GENERATION;
   d->timeline_revision++;d->timeline_valid=d->timeline_anchor_valid=0;d->heard_rate=0;
   d->need_flush = 0; d->pending = 0; d->submitted = d->completed = 0;
@@ -1460,7 +1511,11 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
  for(unsigned controls=0;controls<QUEUE_SLOTS&&take(p,d,&q);controls++) {
   /* Keep the captured route gate across LOAD's potentially blocking resolver. */
   if(q.event.kind==XZ_EXTRA_IN_LOAD&&!q.event.load.route_epoch)q.event.load.route_epoch=q.epoch;
-  if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx))command(p,d,&q.event,now,q.at);
+  if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx)){
+   SP_ONLY(if(q.event.kind==XZ_EXTRA_IN_JOG_TOUCH){if(q.event.pressed&&!d->sp.contact)d->sp.attempt++;d->sp.contact=!!q.event.pressed;d->sp.history_dirty=1;});
+   command(p,d,&q.event,now,q.at);
+   SP_ONLY(sp_capture(d,now));
+  }
   if(q.event.kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(q.event.load.order);
  }
  if(d->state==XZ_XP_SCRATCHING&&d->scratch.group_open&&(int32_t)(now-d->scratch.at)>0)scratch_seal(d);
@@ -1477,13 +1532,21 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
  if (streaming(d->state) && link && !d->need_flush) stream(p, d, now);
  if(scratch_tail_done(p,d,now))flush(p,d);
  publish(p, d, now);
+ SP_ONLY(struct xp_sp_private *v=&d->sp;uint32_t end=p->env.now_ms();
+  uint32_t cost=sp_elapsed(end,v->step_begin,&v->clock_future);
+  v->current[XP_SP_CURRENT_WORKER_COST]=cost;
+  if(cost!=XP_SP_UNKNOWN&&cost>v->current[XP_SP_CURRENT_MAX_WORKER_COST])v->current[XP_SP_CURRENT_MAX_WORKER_COST]=cost;
+  sp_capture(d,end);
+  if(v->history_dirty||(uint32_t)(end-v->history_at)>=16u)sp_history(d,end,1);
+  struct xp_sp_current_block *b=&xz_mods_xp_service_proof_v1.deck[index].current;
+  sp_publish(&b->seq,b->word,v->current,XP_SP_CURRENT_WORDS+XP_SP_SERVICE_WORDS));
 }
 
 int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
  if (!p || !e || e->deck < 0 || e->deck >= XZ_EXTRA_DECKS || (unsigned)e->kind >= XZ_EXTRA_INPUT_COUNT) return 0;
  uint32_t epoch=p->env.sink.link(p->env.sink.ctx);
- if (!epoch) return 0;
- if (e->kind == XZ_EXTRA_IN_LOAD && !p->env.resolve) { xz_xp_notice(p, "TRACK NOT FOUND"); return 0; }
+ if (!epoch) {SP_ONLY(sp_input(&p->deck[e->deck],e,p->env.now_ms(),0,atomic_load(&p->deck[e->deck].published_state),0,XP_SP_NO_ROUTE,XP_SP_UNKNOWN,XP_SP_UNKNOWN,0));return 0;}
+ if (e->kind == XZ_EXTRA_IN_LOAD && !p->env.resolve) { SP_ONLY(sp_input(&p->deck[e->deck],e,p->env.now_ms(),epoch,atomic_load(&p->deck[e->deck].published_state),0,XP_SP_NO_RESOLVER,XP_SP_UNKNOWN,XP_SP_UNKNOWN,0));xz_xp_notice(p, "TRACK NOT FOUND"); return 0; }
  struct deck *d = &p->deck[e->deck];
  int state = atomic_load(&d->published_state);
  int button = e->kind != XZ_EXTRA_IN_TEMPO && e->kind != XZ_EXTRA_IN_JOG_TURN &&
@@ -1493,9 +1556,9 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
                e->kind == XZ_EXTRA_IN_TEMPO_RESET || e->kind == XZ_EXTRA_IN_VINYL ||
                e->kind == XZ_EXTRA_IN_MASTER_TEMPO;
  if ((state == XZ_XP_EMPTY || state == XZ_XP_ERROR) && !release && e->kind != XZ_EXTRA_IN_LOAD && !setting)
-  return 0;
+  {SP_ONLY(sp_input(d,e,p->env.now_ms(),epoch,state,0,XP_SP_STATE_REFUSED,XP_SP_UNKNOWN,XP_SP_UNKNOWN,0));return 0;}
  pthread_mutex_lock(&d->queue_lock);
- if(epoch!=p->env.sink.link(p->env.sink.ctx)){pthread_mutex_unlock(&d->queue_lock);return 0;}
+ if(epoch!=p->env.sink.link(p->env.sink.ctx)){SP_ONLY(sp_input(d,e,p->env.now_ms(),epoch,state,0,XP_SP_ROUTE_CHANGED,d->count,d->release_owed,0));pthread_mutex_unlock(&d->queue_lock);return 0;}
  if(d->queue_epoch!=epoch){d->queue_epoch=epoch;d->release_owed=0;}
  unsigned bit=release_bit(e->kind),owed=d->release_owed;
  int completing=release && (owed&bit);
@@ -1506,6 +1569,10 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
   d->queue[(d->head+d->count)%QUEUE_SLOTS]=(struct queued_control){*e,epoch,p->env.now_ms()};
   d->count++;d->release_owed=owed;
  }
+ SP_ONLY(uint32_t at=taken?d->queue[(d->head+d->count-1)%QUEUE_SLOTS].at:p->env.now_ms();
+  struct xp_sp_deck_wire *w=&xz_mods_xp_service_proof_v1.deck[e->deck];
+  if(d->count>atomic_load(&w->counter[XP_SP_COUNTER_MAX_DEPTH]))atomic_store(&w->counter[XP_SP_COUNTER_MAX_DEPTH],d->count);
+  sp_input(d,e,at,epoch,state,taken,taken?XP_SP_ADMITTED:XP_SP_FIFO_FULL,d->count,d->release_owed,completing));
  pthread_mutex_unlock(&d->queue_lock);
  return taken;
 }
@@ -1532,6 +1599,10 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
  struct xz_xp_players *p = calloc(1, sizeof *p);
  if (!p) return NULL;
  p->env = *env;
+#ifdef XZ_XP_SERVICE_PROOF
+ uint32_t sp_id=atomic_fetch_add(&sp_instance,1)+1;
+ if(!sp_id)sp_id=atomic_fetch_add(&sp_instance,1)+1;
+#endif
  int mutexes = 0;
  if (pthread_mutex_init(&p->publish_lock, NULL)) { free(p); return NULL; }
  for (; mutexes < XZ_EXTRA_DECKS; ++mutexes) {
@@ -1547,6 +1618,22 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
   while (mutexes--) { pthread_mutex_destroy(&p->deck[mutexes].queue_lock); free(p->deck[mutexes].r); }
   pthread_mutex_destroy(&p->publish_lock); free(p); return NULL;
  }
+#ifdef XZ_XP_SERVICE_PROOF
+ unsigned sp_free=0;p->sp_id=sp_id;
+ p->sp_enabled=atomic_compare_exchange_strong(&sp_owner,&sp_free,sp_id);
+#endif
+ SP_ONLY(for(int i=0;i<XZ_EXTRA_DECKS;i++){
+  struct deck *d=&p->deck[i];d->sp.current[XP_SP_CURRENT_INSTANCE]=sp_id;d->r->sp=&d->sp;d->r->sp_clock=env->now_ms;
+  for(unsigned op=0;op<XP_SP_OPS;op++)d->sp.current[XP_SP_CURRENT_WORDS+op*8]=XP_SP_UNKNOWN;
+  struct xp_sp_deck_wire *w=&xz_mods_xp_service_proof_v1.deck[i];
+  for(unsigned j=0;j<XP_SP_COUNTER_WORDS;j++)atomic_store(&w->counter[j],0);
+  uint32_t zero[XP_SP_LATCH_WORDS]={0};
+  sp_publish(&w->current.seq,w->current.word,d->sp.current,XP_SP_CURRENT_WORDS+XP_SP_SERVICE_WORDS);
+  sp_publish(&w->latest.seq,w->latest.word,zero,XP_SP_INPUT_WORDS);sp_publish(&w->last_refusal.seq,w->last_refusal.word,zero,XP_SP_INPUT_WORDS);
+  for(unsigned h=0;h<XP_SP_HISTORY;h++)sp_publish(&w->history[h].seq,w->history[h].word,zero,XP_SP_HISTORY_WORDS);
+  sp_publish(&w->first.seq,w->first.word,zero,XP_SP_LATCH_WORDS);
+  sp_publish(&w->previous.seq,w->previous.word,zero,XP_SP_LATCH_WORDS);
+ });
  atomic_init(&p->quit, 0);
  atomic_init(&p->revision,0);
  atomic_init(&p->sync_master,-1);atomic_init(&p->sync_requests,0);
@@ -1568,6 +1655,7 @@ static void *worker(void *arg) {
 
 int xz_xp_start(struct xz_xp_players *p) {
  if (!p || p->threads) return -1;
+ SP_ONLY(for(unsigned i=0;i<2;i++)atomic_fetch_add(&xz_mods_xp_service_proof_v1.deck[i].counter[XP_SP_COUNTER_START_REQUESTS],1));
  atomic_store(&p->quit, 0);
  for (; p->threads < XZ_EXTRA_DECKS; ++p->threads)
 {
@@ -1579,6 +1667,7 @@ int xz_xp_start(struct xz_xp_players *p) {
 
 void xz_xp_stop(struct xz_xp_players *p) {
  if (!p) return;
+ SP_ONLY(for(unsigned i=0;i<2;i++)atomic_fetch_add(&xz_mods_xp_service_proof_v1.deck[i].counter[XP_SP_COUNTER_STOP_REQUESTS],1));
  atomic_store(&p->quit, 1);
  while (p->threads) pthread_join(p->thread[--p->threads], NULL);
 }
@@ -1596,6 +1685,9 @@ void xz_xp_destroy(struct xz_xp_players *p) {
   pthread_mutex_destroy(&d->queue_lock);
   free(d->r);
  }
+#ifdef XZ_XP_SERVICE_PROOF
+ if(p->sp_enabled)atomic_store(&sp_owner,0);
+#endif
  pthread_mutex_destroy(&p->publish_lock);
  free(p);
 }

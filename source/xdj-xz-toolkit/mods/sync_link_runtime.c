@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #define _GNU_SOURCE
+#include "sync_observation.h"
 #include <unistd.h>
 #include <time.h>
 #include "sync_link_runtime.h"
@@ -10,6 +11,13 @@
 #include <pthread.h>
 #include <string.h>
 
+#if XZ_SYNC_OBSERVATION
+__attribute__((visibility("default"),used))
+struct xz_syo_object xz_mods_sync_observation_v1={
+ .magic=0x53594f31u,.version=1,.size=sizeof(struct xz_syo_object),
+ .counter_count=SYO_COUNTER_COUNT,.record_count=SYO_RECORD_COUNT,.record_words=SYO_WORDS
+};
+#endif
 #define XZ_VA_WRITER UINT32_MAX
 
 static void va_copy(void *to,const void *from,unsigned n){
@@ -337,13 +345,28 @@ static int runtime_monotonic_us(uint64_t *out){
 }
 /* Only revoke the generation borrowed by this frame. A newer claim cannot be
    cancelled by a consumer finishing an old frame. Slots remain reader-pinned. */
+#if XZ_SYNC_OBSERVATION
+static void syo_fresh(struct xz_va_frame *f,unsigned result,uint64_t now,uint64_t captured){
+ SYO_REC(FRESH,5,result,f?f->mode:0,f?f->depth:0,f?f->source_id:0,f?f->lease_generation:0,
+  SYO_LO(now),SYO_HI(now),SYO_LO(captured),SYO_HI(captured));
+}
+#define SYO_FRESH(...) syo_fresh(__VA_ARGS__)
+#else
+#define SYO_FRESH(...) ((void)0)
+#endif
 static int runtime_frame_fresh(struct xz_va_frame *f){
- if(!f||f->mode!=1||!va_live(&rt_va)||
-    f->lease_generation!=atomic_load(&rt_va.lease_generation))return 0;
+ if(!f||f->mode!=1){SYO_INC(FRESH_WRONG_SCOPE);SYO_FRESH(f,1,0,0);return 0;}
+ if(!va_live(&rt_va)){SYO_INC(FRESH_DEAD);SYO_FRESH(f,2,0,0);return 0;}
+ if(f->lease_generation!=atomic_load(&rt_va.lease_generation)){SYO_INC(FRESH_GENERATION);SYO_FRESH(f,3,0,0);return 0;}
  uint64_t now,captured=rt_va.slots[f->slot].value.captured_mono_us;
- if(!runtime_monotonic_us(&now)&&now>=captured&&now-captured<=XZ_SYNC_LINK_MAX_AGE_US)return 1;
+ int clock_rc=runtime_monotonic_us(&now);
+ if(!clock_rc&&now>=captured&&now-captured<=XZ_SYNC_LINK_MAX_AGE_US){SYO_INC(FRESH_OK);SYO_FRESH(f,0,now,captured);return 1;}
+ if(clock_rc){SYO_INC(FRESH_CLOCK_FAIL);SYO_FRESH(f,4,0,captured);}
+ else if(now<captured){SYO_INC(FRESH_FUTURE);SYO_FRESH(f,5,now,captured);}
+ else{SYO_INC(FRESH_EXPIRED);SYO_FRESH(f,6,now,captured);}
  uint32_t generation=f->lease_generation;
  if(atomic_compare_exchange_strong(&rt_va.valid_generation,&generation,0)){
+  SYO_INC(EXPIRED_WITHDRAW);
   generation=f->lease_generation;
   (void)atomic_compare_exchange_strong(&rt_va.pending,&generation,0);
   atomic_store(&rt_committed_deck,-1);
@@ -357,12 +380,22 @@ static uintptr_t current_thread_key(void){
  return k;
 }
 static int call_set_link_master(void *sm,const int *input_id){
- if(test_set_link_master)return test_set_link_master(sm,input_id);
-#ifdef __arm__
- return ((int (*)(void *,const int *))(uintptr_t)0x5984c)(sm,input_id);
-#else
- (void)sm;(void)input_id;return 0;
+ SYO_INC(MASTER_CALL);
+#if XZ_SYNC_OBSERVATION
+ uint32_t requested_id=input_id?(uint32_t)*input_id:UINT32_MAX;
 #endif
+ int rc;
+ if(test_set_link_master)rc=test_set_link_master(sm,input_id);
+ else {
+#ifdef __arm__
+  rc=((int (*)(void *,const int *))(uintptr_t)0x5984c)(sm,input_id);
+#else
+  (void)sm;rc=0;
+#endif
+ }
+ if(rc)SYO_INC(MASTER_CALL_FAIL);else SYO_INC(MASTER_CALL_OK);
+ SYO_REC(MASTER_CALL,4,requested_id,rc,xz_syo_request_seq(0),xz_syo_request_seq(1));
+ return rc;
 }
 static void notify_use_native_master(void){
  if(test_on_use_native_master){test_on_use_native_master();return;}
@@ -370,13 +403,15 @@ static void notify_use_native_master(void){
 }
 
 static int hook_sync_mgr_sync(void *sync_mgr){
- if(!atomic_load(&rt_installed)||!sync_mgr)return orig_sync_mgr_sync?orig_sync_mgr_sync(sync_mgr):0;
+ SYO_INC(CONSUMER);
+ if(!atomic_load(&rt_installed)||!sync_mgr){SYO_INC(CONSUMER_DISABLED);if(orig_sync_mgr_sync)SYO_INC(CONSUMER_ORIGINAL);return orig_sync_mgr_sync?orig_sync_mgr_sync(sync_mgr):0;}
  void *sm=NULL,*link_mgr=NULL;
  memcpy(&sm,(const unsigned char *)sync_mgr+4,sizeof sm);
  if(sm)memcpy(&link_mgr,(const unsigned char *)sm+0x30,sizeof link_mgr);
  uintptr_t key=current_thread_key();
  struct xz_va_frame *f=xz_va_registry_enter(&rt_va,&rt_registry,key);
- if(!f)return 0;
+ if(!f){SYO_INC(CONSUMER_NO_FRAME);return 0;}
+ int32_t syo_before=-2;
  if(f->depth==1){
   f->expected_link_mgr=link_mgr;
   if(link_mgr&&orig_get_player_info){
@@ -396,6 +431,7 @@ static int hook_sync_mgr_sync(void *sync_mgr){
    uint8_t dummy=((const uint8_t *)sm)[0x15];
    memcpy(&cur_master,(const unsigned char *)sm+(dummy?0x18:0x08),4);
   }
+  SYO_INC(MASTER_BEFORE);syo_before=cur_master;
   atomic_store(&rt_observed_master_id,cur_master);
   atomic_store(&rt_observed_ready,sm&&link_mgr?1:0);
   int req_id=runtime_frame_fresh(f)?xz_va_take_request(&rt_va,f):0;
@@ -419,38 +455,52 @@ static int hook_sync_mgr_sync(void *sync_mgr){
    }
   }
  }
+ if(orig_sync_mgr_sync)SYO_INC(CONSUMER_ORIGINAL);
  int rc=orig_sync_mgr_sync?orig_sync_mgr_sync(sync_mgr):0;
  if(f->depth==1&&sm){
   int32_t after_master=-2;
   uint8_t dummy=((const uint8_t *)sm)[0x15];
   memcpy(&after_master,(const unsigned char *)sm+(dummy?0x18:0x08),4);
+  SYO_INC(MASTER_AFTER);
+  SYO_REC(MASTER_OBSERVED,3,syo_before,after_master,rc);
   atomic_store(&rt_observed_master_id,after_master);
  }
+ (void)syo_before;
  xz_va_registry_leave(&rt_va,&rt_registry,key);
  return rc;
 }
 
 static int hook_get_player_info(void *link_mgr,const int *id_ptr,void *out){
+ SYO_INC(STATUS_READ);
  if(atomic_load(&rt_installed)&&id_ptr&&(*id_ptr==3||*id_ptr==4)&&out){
   struct xz_va_frame *f=xz_va_registry_lookup(&rt_registry,current_thread_key());
   if(f&&f->depth>0&&!f->probing_original&&f->expected_link_mgr==link_mgr&&f->source_id==(uint32_t)*id_ptr){
    int vrc=f->mode==1&&!runtime_frame_fresh(f)?-1:xz_va_get(&rt_va,f,0,out);
-   if(vrc==1)return 0;
-   if(vrc<0)return -1;
-  }
+   SYO_INC(STATUS_SCOPE);
+   if(vrc==1){SYO_INC(STATUS_OK);return 0;}
+   if(vrc<0){SYO_INC(STATUS_REFUSED);return -1;}
+  }else if(!f||!f->depth||f->probing_original)SYO_INC(STATUS_NO_SCOPE);
+  else if(f->expected_link_mgr!=link_mgr)SYO_INC(STATUS_WRONG_MANAGER);
+  else if(f->source_id!=(uint32_t)*id_ptr)SYO_INC(STATUS_WRONG_SOURCE);
  }
+ SYO_INC(STATUS_FALLBACK);
  return orig_get_player_info?orig_get_player_info(link_mgr,id_ptr,out):-1;
 }
 
 static int hook_get_beat_info(void *link_mgr,const int *id_ptr,const uint8_t *lane_ptr,void *out){
+ SYO_INC(BEAT_READ);
  if(atomic_load(&rt_installed)&&id_ptr&&(*id_ptr==3||*id_ptr==4)&&out){
   struct xz_va_frame *f=xz_va_registry_lookup(&rt_registry,current_thread_key());
   if(f&&f->depth>0&&!f->probing_original&&f->expected_link_mgr==link_mgr&&f->source_id==(uint32_t)*id_ptr){
    int vrc=f->mode==1&&!runtime_frame_fresh(f)?-1:xz_va_get(&rt_va,f,1,out);
-   if(vrc==1)return 0;
-   if(vrc<0)return -1;
-  }
+   SYO_INC(BEAT_SCOPE);
+   if(vrc==1){SYO_INC(BEAT_OK);return 0;}
+   if(vrc<0){SYO_INC(BEAT_REFUSED);return -1;}
+  }else if(!f||!f->depth||f->probing_original)SYO_INC(BEAT_NO_SCOPE);
+  else if(f->expected_link_mgr!=link_mgr)SYO_INC(BEAT_WRONG_MANAGER);
+  else if(f->source_id!=(uint32_t)*id_ptr)SYO_INC(BEAT_WRONG_SOURCE);
  }
+ SYO_INC(BEAT_FALLBACK);
  return orig_get_beat_info?orig_get_beat_info(link_mgr,id_ptr,lane_ptr,out):-1;
 }
 
@@ -458,6 +508,7 @@ static int hook_set_player_info(void *link_mgr,const int *id_ptr,const void *a2,
                                 const void *a5,const void *a6,const void *a7,const void *a8,const void *a9,
                                 const void *a10,const void *a11,const void *a12,const void *a13){
  if(atomic_load(&rt_installed)&&id_ptr&&(*id_ptr==3||*id_ptr==4)){
+  SYO_INC(FOREIGN_STATUS);
   xz_va_foreign(&rt_va,(uint32_t)*id_ptr);
   atomic_store(&rt_slot_absent[*id_ptr-3],0);
   atomic_store(&rt_committed_deck,-1);
@@ -467,6 +518,7 @@ static int hook_set_player_info(void *link_mgr,const int *id_ptr,const void *a2,
 
 static int hook_set_beat_info(void *link_mgr,const int *id_ptr,const void *lane_ptr,const void *packet){
  if(atomic_load(&rt_installed)&&id_ptr&&(*id_ptr==3||*id_ptr==4)){
+  SYO_INC(FOREIGN_BEAT);
   xz_va_foreign(&rt_va,(uint32_t)*id_ptr);
   atomic_store(&rt_slot_absent[*id_ptr-3],0);
   atomic_store(&rt_committed_deck,-1);
@@ -475,10 +527,13 @@ static int hook_set_beat_info(void *link_mgr,const int *id_ptr,const void *lane_
 }
 
 static int hook_set_master_on(void *sync_master,const int *master_id){
+ unsigned syo_class=0;
  if(atomic_load(&rt_installed)&&sync_master){
   struct xz_va_frame *f=xz_va_registry_lookup(&rt_registry,current_thread_key());
   int internal=(f&&f->depth>0&&f->draining_sync_master==sync_master);
   int dummy=((const uint8_t *)sync_master)[0x15]!=0;
+  syo_class=internal?1:dummy?2:3;
+  if(internal)SYO_INC(OPERATOR_INTERNAL);else if(dummy)SYO_INC(OPERATOR_DUMMY);else SYO_INC(OPERATOR_EXTERNAL);
   if(!internal&&!dummy){
    xz_va_operator(&rt_va);
    atomic_store(&rt_restore_pending,0);
@@ -486,7 +541,9 @@ static int hook_set_master_on(void *sync_master,const int *master_id){
    notify_use_native_master();
   }
  }
- return orig_set_master_on?orig_set_master_on(sync_master,master_id):0;
+ int rc=orig_set_master_on?orig_set_master_on(sync_master,master_id):0;
+ SYO_REC(OPERATOR,3,master_id?*master_id:UINT32_MAX,syo_class,rc);
+ (void)syo_class;return rc;
 }
 
 static void apply_cleanup(const struct xz_sync_link_cleanup *clean,uint32_t leased_id,const struct xz_sync_link_observation *obs){
@@ -525,11 +582,26 @@ static void release_runtime_lease(void){
  apply_cleanup(&clean,id,&obs);
 }
 
+#if XZ_SYNC_OBSERVATION
+static void syo_link(unsigned outcome,int selected,int clock_result,int anchor_ok,const struct xz_sync_link_pcm_anchor *a,const struct xz_sync_link_clock_pair *pair,const struct xz_extra_decks *decks){
+ uint64_t gap=anchor_ok?decks->deck[selected].timeline.observed_wire_frame-decks->deck[selected].timeline.sink_frame:0;
+ SYO_REC(LINK,12,outcome,selected,clock_result,anchor_ok,rt_lease.active,rt_lease.master_committed,
+  rt_lease.active?rt_lease.claim.source_id:0,atomic_load(&rt_observed_ready),atomic_load(&rt_observed_master_id),
+  anchor_ok?a->route_epoch:0,anchor_ok?a->source_revision:0,anchor_ok?a->playback_epoch:0,
+  anchor_ok?SYO_LO(a->captured_mono_us):0,anchor_ok?SYO_HI(a->captured_mono_us):0,
+  pair?SYO_LO(pair->mono_us):0,pair?SYO_HI(pair->mono_us):0,SYO_LO(gap),SYO_HI(gap));
+}
+#define SYO_LINK(outcome) syo_link(outcome,selected,clock_rc,anchor_ok,&anchor,clock_pair,decks)
+#else
+#define SYO_LINK(...) ((void)0)
+#endif
 void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct xz_sync_link_clock_pair *clock_pair){
- if(!atomic_load(&rt_installed))return;
+ SYO_INC(STEP);
+ if(!atomic_load(&rt_installed)){SYO_INC(STEP_DISABLED);return;}
  pthread_mutex_lock(&rt_pub_mutex);
  if(rt_clock.stepped&&!rt_lease.active)memset(&rt_clock,0,sizeof rt_clock);
- int clock_ok=xz_sync_link_clock_update(&rt_clock,clock_pair)==XZ_SYNC_LINK_OK;
+ int clock_rc=xz_sync_link_clock_update(&rt_clock,clock_pair);
+ int clock_ok=clock_rc==XZ_SYNC_LINK_OK;
  int selected=-1;
  if(decks&&decks->route_up){
   for(int i=0;i<XZ_EXTRA_DECKS;i++)if(decks->deck[i].loaded&&decks->deck[i].master){selected=i;break;}
@@ -537,20 +609,26 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
  struct xz_sync_link_pcm_anchor anchor;
  int anchor_ok=clock_ok&&selected>=0&&
   xz_sync_link_anchor_from_deck(selected,&decks->deck[selected],clock_pair->mono_us,&anchor);
+ if(selected<0)SYO_INC(NO_MASTER);else if(!clock_ok)SYO_INC(CLOCK_BAD);else if(!anchor_ok)SYO_INC(ANCHOR_BAD);
+ unsigned syo_outcome=selected<0?1:!clock_ok?2:!anchor_ok?3:0;
  if(rt_lease.active){
   uint32_t leased_id=rt_lease.claim.source_id;
   struct xz_sync_link_observation obs=runtime_observation(leased_id);
   struct xz_sync_link_cleanup clean={0};
+  SYO_REC(LEASE,10,leased_id,rt_lease.active,rt_lease.master_committed,obs.current_master_id,rt_lease.claim.master_choice_epoch,obs.master_choice_epoch,rt_lease.claim.external_writer_epoch,obs.external_writer_epoch,obs.foreign_present,obs.payload_still_ours);
   int keep=anchor_ok&&va_live(&rt_va)&&(uint32_t)(selected+3)==leased_id&&
    decks->deck[selected].timeline.route_epoch==rt_lease.claim.route_epoch&&
    decks->deck[selected].timeline.load_revision==rt_lease.claim.source_revision&&
    decks->deck[selected].timeline.transport_generation==rt_lease.claim.playback_epoch;
   if(!keep){
+   SYO_INC(LEASE_RELEASE);
    xz_sync_link_lease_release(&rt_lease,&obs,&clean);
    apply_cleanup(&clean,leased_id,&obs);
+   SYO_LINK(4);
    pthread_mutex_unlock(&rt_pub_mutex);
    return;
   }else if(xz_sync_link_lease_observe(&rt_lease,&obs,&clean)==XZ_SYNC_LINK_LEASE_LOST){
+   SYO_INC(LEASE_LOST);SYO_LINK(5);
    apply_cleanup(&clean,leased_id,&obs);
    if(obs.master_choice_epoch!=rt_lease.claim.master_choice_epoch||
       (obs.current_master_id>=0&&obs.current_master_id<2)){
@@ -575,9 +653,13 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
      };
      memcpy(claim.music_id,anchor.music_id,8);
      if(xz_sync_link_lease_claim(&rt_lease,&claim)==XZ_SYNC_LINK_OK){
-      if(!xz_va_claim(&rt_va,src_id,1,probed_f))memset(&rt_lease,0,sizeof rt_lease);
-     }
-    }
+      SYO_INC(CLAIM_OK);
+      if(!xz_va_claim(&rt_va,src_id,1,probed_f)){SYO_INC(VA_CLAIM_FAIL);syo_outcome=8;memset(&rt_lease,0,sizeof rt_lease);}
+     }else{SYO_INC(CLAIM_FAIL);syo_outcome=7;}
+    }else{SYO_INC(PREVIOUS_MASTER_INVALID);syo_outcome=9;}
+   }else if(!rt_lease.active){
+    if(!atomic_load(&rt_observed_ready)){SYO_INC(NOT_READY);syo_outcome=10;}
+    else{SYO_INC(OCCUPIED);syo_outcome=11;}
    }
    if(rt_lease.active){
     uint32_t ticket=xz_va_ticket(&rt_va);
@@ -587,11 +669,13 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
      xz_sync_link_bundle_from_plan(&plan,&bundle);
      bundle.captured_mono_us=anchor.captured_mono_us;
      if(xz_va_offer(&rt_va,&bundle,ticket)){
-      if(plan.request_master)xz_va_explicit_request(&rt_va);
-     }else release_runtime_lease();
-    }else release_runtime_lease();
+      SYO_INC(OFFER_OK);syo_outcome=0;
+      if(plan.request_master){SYO_INC(MASTER_PENDING);xz_va_explicit_request(&rt_va);}
+     }else{SYO_INC(OFFER_FAIL);syo_outcome=12;release_runtime_lease();}
+    }else{if(!ticket)SYO_INC(NO_TICKET);else{SYO_INC(BUILD_FAIL);SYO_REASON(PLAN_REASON_0,plan.reason,12);}syo_outcome=ticket?13:14;release_runtime_lease();}
    }
  }
+ SYO_LINK(syo_outcome);(void)syo_outcome;
  atomic_store(&rt_committed_deck,rt_lease.active&&rt_lease.master_committed?(int)rt_lease.claim.source_id-3:-1);
  pthread_mutex_unlock(&rt_pub_mutex);
 }
@@ -631,6 +715,7 @@ int xz_sync_link_runtime_master_committed(int deck_index){
 }
 
 static void reset_runtime_state(void){
+ SYO_INC(RESETS);
  xz_va_init(&rt_va);
  xz_va_registry_init(&rt_registry);
  memset(&rt_lease,0,sizeof rt_lease);
@@ -649,7 +734,8 @@ static void reset_runtime_state(void){
 }
 
 int xz_sync_link_runtime_start(void){
- if(atomic_load(&rt_installed))return 0;
+ SYO_INC(INSTALL_ATTEMPT);
+ if(atomic_load(&rt_installed)){SYO_INC(INSTALL_ALREADY);return 0;}
  reset_runtime_state();
  static const unsigned char g_sync_mgr[8]={0xf8,0x40,0x2d,0xe9,0x14,0x50,0x80,0xe2};
  static const unsigned char g_get_player[8]={0x00,0x30,0x91,0xe5,0x01,0x10,0x43,0xe2};
@@ -657,22 +743,38 @@ int xz_sync_link_runtime_start(void){
  static const unsigned char g_set_player[8]={0x00,0xc0,0x91,0xe5,0x10,0x40,0x2d,0xe9};
  static const unsigned char g_set_beat[8]={0x00,0x00,0x53,0xe3,0x30,0x00,0x2d,0xe9};
  static const unsigned char g_set_master[8]={0x00,0x20,0x91,0xe5,0x08,0x40,0x2d,0xe9};
- if(xz_hook_arm(0x59f70,g_sync_mgr,(void *)(uintptr_t)hook_sync_mgr_sync,(void **)&orig_sync_mgr_sync))return -1;
- if(xz_hook_arm(0x532c0,g_get_player,(void *)(uintptr_t)hook_get_player_info,(void **)&orig_get_player_info))return -1;
- if(xz_hook_arm(0x53140,g_get_beat,(void *)(uintptr_t)hook_get_beat_info,(void **)&orig_get_beat_info))return -1;
- if(xz_hook_arm(0x531d8,g_set_player,(void *)(uintptr_t)hook_set_player_info,(void **)&orig_set_player_info))return -1;
- if(xz_hook_arm(0x53090,g_set_beat,(void *)(uintptr_t)hook_set_beat_info,(void **)&orig_set_beat_info))return -1;
- if(xz_hook_arm(0x597c8,g_set_master,(void *)(uintptr_t)hook_set_master_on,(void **)&orig_set_master_on))return -1;
+ SYO_REC(INSTALL,4,1,0,0,0);
+ int install_rc_1=xz_hook_arm(0x59f70,g_sync_mgr,(void *)(uintptr_t)hook_sync_mgr_sync,(void **)&orig_sync_mgr_sync);
+ if(install_rc_1){SYO_INC(INSTALL_FAILED);SYO_REC(INSTALL,4,1,install_rc_1,0,0);return -1;}
+ SYO_REC(INSTALL,4,2,0,0,1);
+ int install_rc_2=xz_hook_arm(0x532c0,g_get_player,(void *)(uintptr_t)hook_get_player_info,(void **)&orig_get_player_info);
+ if(install_rc_2){SYO_INC(INSTALL_FAILED);SYO_REC(INSTALL,4,2,install_rc_2,0,1);return -1;}
+ SYO_REC(INSTALL,4,3,0,0,3);
+ int install_rc_3=xz_hook_arm(0x53140,g_get_beat,(void *)(uintptr_t)hook_get_beat_info,(void **)&orig_get_beat_info);
+ if(install_rc_3){SYO_INC(INSTALL_FAILED);SYO_REC(INSTALL,4,3,install_rc_3,0,3);return -1;}
+ SYO_REC(INSTALL,4,4,0,0,7);
+ int install_rc_4=xz_hook_arm(0x531d8,g_set_player,(void *)(uintptr_t)hook_set_player_info,(void **)&orig_set_player_info);
+ if(install_rc_4){SYO_INC(INSTALL_FAILED);SYO_REC(INSTALL,4,4,install_rc_4,0,7);return -1;}
+ SYO_REC(INSTALL,4,5,0,0,15);
+ int install_rc_5=xz_hook_arm(0x53090,g_set_beat,(void *)(uintptr_t)hook_set_beat_info,(void **)&orig_set_beat_info);
+ if(install_rc_5){SYO_INC(INSTALL_FAILED);SYO_REC(INSTALL,4,5,install_rc_5,0,15);return -1;}
+ SYO_REC(INSTALL,4,6,0,0,31);
+ int install_rc_6=xz_hook_arm(0x597c8,g_set_master,(void *)(uintptr_t)hook_set_master_on,(void **)&orig_set_master_on);
+ if(install_rc_6){SYO_INC(INSTALL_FAILED);SYO_REC(INSTALL,4,6,install_rc_6,0,31);return -1;}
  atomic_store(&rt_installed,1);
+ SYO_INC(INSTALL_OK);SYO_REC(INSTALL,4,7,0,1,63);
  return 0;
 }
 
 void xz_sync_link_runtime_stop(void){
+ SYO_INC(STOPS);
  atomic_store(&rt_installed,0);
  atomic_store(&rt_committed_deck,-1);
+ SYO_REC(INSTALL,4,8,0,0,0);
 }
 
 void xz_sync_link_runtime_test_install(const struct xz_sync_link_test_ops *originals,struct xz_sync_link_test_ops *hooks_out){
+ SYO_INC(TEST_INSTALL);
  atomic_store(&rt_installed,0);
  reset_runtime_state();
  orig_sync_mgr_sync=originals?originals->sync_mgr_sync:NULL;

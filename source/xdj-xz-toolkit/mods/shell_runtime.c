@@ -8,6 +8,7 @@
    in, so the order is always UI mutex -> mutex. The worker and the native
    owner tick take only `mutex`, and never call native code while holding it. */
 #define _GNU_SOURCE
+#include "sync_observation.h"
 #include "shell_runtime.h"
 #include "shell_model.h"
 #include "sync_native.h"
@@ -2332,18 +2333,39 @@ static struct {
  uint32_t track,revision;
  struct xz_shmedia media;
 } native_sync_source[2]; /* mutex; counters survive request clears and interface changes */
+#if XZ_SYNC_OBSERVATION
+static void syo_native(const struct xz_sync_native_snapshot *s,uint64_t observed,unsigned admitted,unsigned pending,unsigned qualification){
+ SYO_INC(NATIVE_PUBLISH);SYO_REASON(NATIVE_REASON_0,s->reason,10);
+ SYO_REC(NATIVE,11,s->reason,s->available,s->phase_available,s->native_deck,s->master_id,s->source_revision,
+  s->playing,s->manual,admitted,pending,qualification,s->captured_ms,SYO_LO(s->captured_us),SYO_HI(s->captured_us),
+  s->uncertainty_us,SYO_LO(observed),SYO_HI(observed));
+}
+static void syo_cache(const struct xz_sync_native_snapshot *s,uint64_t observed,uint32_t age,int result){
+ SYO_REASON(CACHE_REASON_0,s->reason,10);
+ SYO_REC(CACHE,9,result,s->reason,s->available,s->phase_available,s->native_deck,s->master_id,s->source_revision,
+  s->playing,s->manual,s->captured_ms,age,s->uncertainty_us,SYO_LO(observed),SYO_HI(observed));
+}
+#define SYO_NATIVE(...) syo_native(__VA_ARGS__)
+#define SYO_CACHE(...) syo_cache(__VA_ARGS__)
+#else
+#define SYO_NATIVE(...) ((void)0)
+#define SYO_CACHE(...) ((void)0)
+#endif
 int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *out) {
- if(!out)return 0;
+ SYO_INC(CACHE_COPY);
+ if(!out){SYO_INC(CACHE_NULL);return 0;}
  pthread_mutex_lock(&native_sync_mutex);*out=native_sync_cache;pthread_mutex_unlock(&native_sync_mutex);
  uint64_t now=mono_checked_us();
  uint32_t age=(uint32_t)(now/1000u)-out->captured_ms;
- if(!out->available)return 0;
- if(!out->source_revision){out->available=0;out->phase_available=0;out->reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;return 0;}
- if(!now||(int32_t)age<0||age>150u){out->available=0;out->phase_available=0;out->reason=XZ_SYNC_NATIVE_TIME_INVALID;return 0;}
+ if(!out->available){SYO_INC(CACHE_UNAVAILABLE);SYO_CACHE(out,now,age,0);return 0;}
+ if(!out->source_revision){out->available=0;out->phase_available=0;out->reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;SYO_INC(CACHE_NO_REVISION);SYO_CACHE(out,now,age,0);return 0;}
+ if(!now||(int32_t)age<0||age>150u){out->available=0;out->phase_available=0;out->reason=XZ_SYNC_NATIVE_TIME_INVALID;SYO_INC(CACHE_STALE);SYO_CACHE(out,now,age,0);return 0;}
+ SYO_INC(CACHE_OK);SYO_CACHE(out,now,age,1);
  return 1;
 }
 static uint64_t native_sync_now(void *unused) { (void)unused;return mono_checked_us(); }
 static void native_sync_clear(void) {
+ SYO_INC(NATIVE_CLEAR);
  struct xz_sync_native_snapshot empty={.native_deck=-1,.master_id=-1,.reason=XZ_SYNC_NATIVE_MASTER_UNAVAILABLE};
  pthread_mutex_lock(&native_sync_mutex);native_sync_cache=empty;pthread_mutex_unlock(&native_sync_mutex);
  native_sync_requested=0;native_sync_polled=0;
@@ -2442,13 +2464,16 @@ static void native_sync_observe_locked(int d,const struct loaded *l) {
 }
 static void native_sync_refresh_locked(void) {
  if(!xz_extra_decks_needs_native_sync()){
+  SYO_INC(OWNER_NO_DEMAND);
   if(native_sync_requested)native_sync_clear();
   return;
  }
+ SYO_INC(OWNER_DEMAND);
  uint64_t clock=mono_checked_us();
- if(!clock){native_sync_clear();return;}
+ if(!clock){SYO_INC(OWNER_NO_CLOCK);native_sync_clear();return;}
  uint32_t now=(uint32_t)(clock/1000u);
- if(native_sync_requested&&(uint32_t)(now-native_sync_polled)<XZ_SHRT_REFRESH_MS)return;
+ if(native_sync_requested&&(uint32_t)(now-native_sync_polled)<XZ_SHRT_REFRESH_MS){SYO_INC(OWNER_THROTTLE);return;}
+ SYO_INC(OWNER_POLL);
  native_sync_requested=1;native_sync_polled=now;
  struct loaded before[2]={read_loaded(0),read_loaded(1)};
  uint64_t generation[2]={xz_extra_source_generation(1),xz_extra_source_generation(2)};
@@ -2473,8 +2498,10 @@ static void native_sync_refresh_locked(void) {
   if(slot>=0&&native_sync_source[d].media.generation==usb[slot].generation&&
      native_sync_source[d].media.generation&&!xz_shmedia_same(&native_sync_source[d].media,&usb[slot].media))coherent=0;
   if(!coherent||native_sync_source[d].observation==UINT32_MAX||((!same||!native_sync_source[d].valid)&&native_sync_revision==UINT32_MAX)){
+   SYO_INC(NATIVE_UNQUALIFIED);
    native_sync_source[d].valid=0;next.available=0;next.phase_available=0;next.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
   }else if(native_sync_source[d].admitted||native_sync_source[d].pending){
+   SYO_INC(NATIVE_LOAD_FENCE);
    next.available=0;next.phase_available=0;next.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
   }else{
    if(!same||!native_sync_source[d].valid){
@@ -2483,6 +2510,7 @@ static void native_sync_refresh_locked(void) {
     memset(&native_sync_source[d].media,0,sizeof native_sync_source[d].media);
     if(slot>=0)native_sync_source[d].media=usb[slot].media;
    }
+   SYO_INC(NATIVE_QUALIFIED);
    native_sync_source[d].valid=1;next.source_revision=native_sync_source[d].revision;
   }
  }else{
@@ -2490,6 +2518,9 @@ static void native_sync_refresh_locked(void) {
   for(int d=0;d<2;d++)native_sync_source[d].valid=0;
  }
  pthread_mutex_lock(&native_sync_mutex);native_sync_cache=next;pthread_mutex_unlock(&native_sync_mutex);
+ SYO_NATIVE(&next,clock,(unsigned)next.native_deck<2?native_sync_source[next.native_deck].admitted:0,
+  (unsigned)next.native_deck<2?native_sync_source[next.native_deck].pending:0,
+  (unsigned)next.native_deck<2?native_sync_source[next.native_deck].valid:0);
 }
 
 /* ---- model refresh (model thread) ---- */
@@ -3071,11 +3102,15 @@ static void poll_utility(uint32_t now) {
  pthread_mutex_unlock(&mutex);
 }
 void xz_shell_runtime_owner_tick(void) {
- if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return;
+ SYO_INC(OWNER_TICK);
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)){SYO_INC(OWNER_DISABLED);SYO_REC(OWNER,2,0,0,0);return;}
+ SYO_INC(OWNER_ENABLED);
  uint32_t now=now_ms();
+ SYO_REC(OWNER,2,1,1,now);
  struct xz_shrt_command commands[XZ_SHRT_QUEUE];unsigned n=0;int pump=0;
  /* A frame holds the lock for its render; the tick tries again on the next native event. */
- if(pthread_mutex_trylock(&mutex)){__atomic_add_fetch(&sec.tick_busy,1,__ATOMIC_RELAXED);return;}
+ if(pthread_mutex_trylock(&mutex)){SYO_INC(OWNER_BUSY);__atomic_add_fetch(&sec.tick_busy,1,__ATOMIC_RELAXED);return;}
+ SYO_INC(OWNER_LOCKED);
  lock_holder="tick";
  sec.ticks++;
  int check=0,check_deck=0,check_tries=0;uint32_t check_id=0,check_before=0;uint8_t check_kind=0;
