@@ -27,6 +27,8 @@ static int section(const uint8_t *f, size_t n, const char tag[4], uint32_t *at, 
 
 static void put(struct xz_extra_cue out[XZ_EXTRA_HOT_CUES], int *count, uint32_t hot, uint8_t type, uint32_t ms, uint32_t rgb) {
  if(hot<1||hot>XZ_EXTRA_HOT_CUES||(type!=1&&type!=2)||ms>INT32_MAX||out[hot-1].set)return;
+ /* Manual p.54: a pad lights green for a cue and orange for a loop unless rekordbox set a colour. */
+ if(!rgb)rgb=type==2?XZ_ANLZ_LOOP_RGB:XZ_ANLZ_CUE_RGB;
  out[hot-1]=(struct xz_extra_cue){1,(int32_t)ms,rgb};(*count)++;
 }
 

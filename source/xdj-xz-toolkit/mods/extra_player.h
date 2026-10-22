@@ -24,9 +24,13 @@ enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_
 #define XZ_XP_JOG_TICKS_PER_REV 360    /* reference scale for standalone host fixtures; build.py sets the hardware estimate */
 #endif
 #define XZ_XP_SEARCH_MS_PER_REV 1800   /* paused jog: audio one platter turn moves through */
+/* VINYL SPEED ADJUST brake/start time from full speed with the knob fully counterclockwise and fully
+   clockwise; the centre is ~300 ms. Provisional until timed against a stock deck. */
+#define XZ_XP_RAMP_FAST_MS 30
+#define XZ_XP_RAMP_SLOW_MS 3000
 #define XZ_XP_RETIRE_MS 2000u          /* wave and grid arrays outlive the load that replaced them */
 #define XZ_XP_RETIRE_SLOTS 8
-#define XZ_XP_QUEUE 64                 /* ordinary FIFO slots;3 private slots reserve accepted hold releases */
+#define XZ_XP_QUEUE 64                 /* ordinary FIFO slots; private slots reserve one release per distinct hold */
 
 /* Where the audio goes: the USB transport in the runtime, a fake in host tests. deck 0 = DECK 3. */
 struct xz_xp_sink {
@@ -61,7 +65,7 @@ void xz_xp_stop(struct xz_xp_players *);
 /* One worker pass for one deck: commands, flush, render and submit, publish. */
 void xz_xp_step(struct xz_xp_players *, int deck);
 
-/* 1 accepted,0 refused. Every accepted TOUCH/CUE/LOOP_IN hold reserves its ordered release
+/* 1 accepted,0 refused. Every accepted TOUCH/CUE/LOOP_IN/REV or valid pad hold reserves its ordered release
    while the route survives, including under a full ordinary queue. Queued work captures the
    route epoch and arrival time privately; a new route discards stale work and resets holds. */
 int xz_xp_input(struct xz_xp_players *, const struct xz_extra_deck_event *);

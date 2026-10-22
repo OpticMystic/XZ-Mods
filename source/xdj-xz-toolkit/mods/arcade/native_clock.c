@@ -34,17 +34,27 @@ int xz_arcade_mixer_clock_read(xz_arcade_memory_read read,void *ctx,float *bpm,u
     *bpm=raw*.1f;*tap_mode=!!state[6];return 1;
 }
 static int track_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,struct xz_arcade_track_clock *out,int music){
+    if(out)memset(out,0,sizeof *out);
     uint32_t engine,range[2],player,reader,impl,info,manager,tempo,check;
     unsigned char state[0x44],cache[0x28],grid[0x3c],speed[0x64],unit[8],again[8];
     if(!read||!out||deck>1||read(ctx,0x010e9688,&engine,4)||
        block(read,ctx,engine,12,range,8)||range[1]<range[0]||((range[1]-range[0])&3)||
        range[1]-range[0]>16||deck>=(range[1]-range[0])/4||
-       word(read,ctx,range[0],deck*4,&player)||block(read,ctx,player,0xe64,state,sizeof(state))||
-       !state[2]||word(read,ctx,player,0xc8,&reader)||word(read,ctx,reader,4,&impl)||
-       word(read,ctx,impl,0x6a0,&info)||block(read,ctx,info,0,grid,sizeof(grid)))return 0;
+       word(read,ctx,range[0],deck*4,&player)||block(read,ctx,player,0xe64,state,sizeof(state)))return 0;
+    out->playing=!!state[0x13]&&!state[0x40];out->manual=!!state[0x40];
+    out->observed=XZ_ARCADE_CLOCK_STATE;
+    if(!state[2])return 0;
+    if(word(read,ctx,player,0xc8,&reader)||word(read,ctx,reader,4,&impl)||
+       word(read,ctx,impl,0x6a0,&info))return 0;
+    out->track=info;out->observed|=XZ_ARCADE_CLOCK_TRACK;
+    if(block(read,ctx,info,0,grid,sizeof(grid)))return 0;
     manager=u32(state+0x24);tempo=u32(state+0x38);
-    if(block(read,ctx,manager,0,cache,sizeof(cache))||u32(cache)!=player||!u32(cache+4)||
-       block(read,ctx,tempo,0,speed,sizeof(speed))||!u32(grid+0x24))return 0;
+    if(block(read,ctx,manager,0,cache,sizeof(cache)))return 0;
+    if(u32(cache)!=player){out->observed|=XZ_ARCADE_CLOCK_BOUNDARY;return 0;}
+    if(!u32(cache+4)||block(read,ctx,tempo,0,speed,sizeof(speed)))return 0;
+    double bend=f64(speed+0x38);
+    if(isfinite(bend)){out->manual=!!state[0x40]||fabs(bend)>1e-6;out->observed|=XZ_ARCADE_CLOCK_MANUAL;}
+    if(!u32(grid+0x24))return 0;
     uint32_t begin=u32(grid+0x34),end=u32(grid+0x38),previous=u32(cache+0x10);
     if(end<=begin||(end-begin)%8||(end-begin)/8>1000000||previous<begin||previous>end-8||(previous-begin)%8||
        block(read,ctx,previous,0,unit,8))return 0;
@@ -55,7 +65,6 @@ static int track_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,s
     int32_t position=(int32_t)(current==pause_state[4]?pause_state[5]:u32(state+(state[0x18]?0x1c:0x14)));
     int32_t offset=(int32_t)u32(grid+0x28);
     if(position<0||offset < -3600000||offset>3600000)return 0;
-    double bend=f64(speed+0x38);
     if(!isfinite(bend))return 0;
     double multiplier=1+(speed[0x45]||!speed[0x60]?f64(speed+0x30):f64(speed+0x50)+f64(speed+0x58))+bend;
     if(!isfinite(multiplier)||multiplier<=0||multiplier>FLT_MAX||
@@ -68,12 +77,17 @@ static int track_clock_read(xz_arcade_memory_read read,void *ctx,unsigned deck,s
        stale during a seek/load and must never label an invented phase LIVE. */
     if(!isfinite(fraction)||fraction < -.15||fraction>1.35||!isfinite(bpm)||bpm<=0||bpm>FLT_MAX||
        !(float)multiplier||!(float)bpm||(!music&&(bpm<40||bpm>240)))return 0;
-    if(word(read,ctx,range[0],deck*4,&check)||check!=player||
-       word(read,ctx,impl,0x6a0,&check)||check!=info||block(read,ctx,manager,0x10,again,8)||memcmp(again,cache+0x10,8))return 0;
+    if(word(read,ctx,range[0],deck*4,&check))return 0;
+    if(check!=player){out->observed|=XZ_ARCADE_CLOCK_BOUNDARY;return 0;}
+    if(word(read,ctx,impl,0x6a0,&check))return 0;
+    if(check!=info){out->observed|=XZ_ARCADE_CLOCK_BOUNDARY;return 0;}
+    if(block(read,ctx,manager,0x10,again,8))return 0;
+    if(memcmp(again,cache+0x10,8)){out->observed|=XZ_ARCADE_CLOCK_BOUNDARY;return 0;}
     double phase=fmod(bar-1+fraction+4.,4.);
     *out=(struct xz_arcade_track_clock){.track=info,.position_ms=(uint32_t)position_ms,.position_frames=(uint32_t)position,
                                       .bpm=(float)bpm,.nominal_bpm=(float)nominal_bpm,.bar_phase=(float)phase,.speed=(float)multiplier,
-                                      .playing=!!state[0x13]&&!state[0x40],.manual=!!state[0x40]||fabs(bend)>1e-6,.phase_valid=1};
+                                      .playing=!!state[0x13]&&!state[0x40],.manual=!!state[0x40]||fabs(bend)>1e-6,.phase_valid=1,
+                                      .observed=XZ_ARCADE_CLOCK_TRACK|XZ_ARCADE_CLOCK_STATE|XZ_ARCADE_CLOCK_MANUAL};
     return 1;
 }
 

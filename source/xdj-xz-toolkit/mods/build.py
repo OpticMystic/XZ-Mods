@@ -291,6 +291,9 @@ def main() -> None:
         "xz_mods_sync_observation_v1", "read_sync_observation.py")
     result["jog_latch_exports"] = proof_export(destination, args.jog_display_proof,
         "xz_mods_jog_latch_v2", "read_jog_display_latch.py")
+    result["jog_position_exports"] = proof_export(destination, args.jog_display_proof,
+        "xz_mods_jog_position_v1", "read_jog_position.py")
+    result["jog_position_reader_sha256"] = hashlib.sha256((ROOT / "read_jog_position.py").read_bytes()).hexdigest()
     result["player_defines"] = player_defines(args)
     result["jog_counts_per_rev"] = args.jog_counts_per_rev
     result["jog_player_object_sha256"] = hashlib.sha256(player_object.read_bytes()).hexdigest()

@@ -47,7 +47,6 @@ struct xz_ds_side {
  enum xz_ds_phase phase;
  uint32_t first_down_ms;
  enum xz_ds_target target;            /* the deck these controls drive now */
- int extra_hot_cue;                   /* the software deck's pads are in HOT CUE mode */
  int physical_known; int32_t physical; /* where the DJ's hand left the tempo fader */
  int held_known[2]; int32_t held[2];  /* by target: the tempo position that deck keeps */
  struct xz_ds_pickup pickup;          /* toward held[target] */

@@ -12,6 +12,11 @@
 #ifdef XZ_JOG_DISPLAY_PROOF
 #include "jog_display_proof.h"
 #include "jog_display_latch.h"
+#include "jog_position_proof.h"
+__attribute__((visibility("default"))) struct xz_jpos xz_mods_jog_position_v1={
+ .version=1,.size=sizeof(struct xz_jpos),.sides=2,.slots=XZ_JPOS_SLOTS,
+ .record_bytes=sizeof(struct xz_jpos_record),.frame_bytes=XZ_JD_FRAME,.interval_ms=XZ_JPOS_INTERVAL_MS
+};
 __attribute__((visibility("default"))) struct xz_jdp xz_mods_jog_proof_v1={.version=1};
 __attribute__((visibility("default"))) struct xz_jdl xz_mods_jog_latch_v2={
  .version=2,.size=sizeof(struct xz_jdl),.sides=2,.slots=XZ_JDL_SLOTS,
@@ -324,6 +329,116 @@ static void latch_observe(unsigned side_idx,uint32_t session,uint32_t ctrl,uint3
 }
 #endif
 
+#ifdef XZ_JOG_DISPLAY_PROOF
+struct jd_position_values {
+#define XZ_JPOS_VALUE(name) unsigned name;
+ XZ_JPOS_FIELDS(XZ_JPOS_VALUE)
+#undef XZ_JPOS_VALUE
+};
+/* No transport generation or position value is inferred from independent
+ * counters. This key and every record come from this callback's guarded copy. */
+#define JD_POSITION_KEY(X) \
+ X(session) X(control) X(route_epoch) X(source_present) X(source_session) \
+ X(source_route_epoch) X(timeline_route_epoch) X(load_revision) X(media_lo) X(media_hi) \
+ X(transport_generation) X(source_device) X(source_loaded)
+struct jd_position_key {
+#define JD_POSITION_KEY_FIELD(name) unsigned name;
+ JD_POSITION_KEY(JD_POSITION_KEY_FIELD)
+#undef JD_POSITION_KEY_FIELD
+};
+struct jd_position_side {
+ struct jd_position_key key;
+ unsigned context,ordinal,latest_seen,active_seen,committed,has_committed;
+ unsigned committed_context,pending_context,pending_count,next;
+ uint64_t latest_at,active_at;
+};
+static struct jd_position_side jd_position[2];
+
+static int position_due(uint64_t now,uint64_t previous,unsigned seen){
+ return !seen||(now>=previous&&now-previous>=XZ_JPOS_INTERVAL_MS);
+}
+static void position_store(struct xz_jpos_record *record,const struct jd_position_values *v,const uint8_t *frame){
+ atomic_fetch_add_explicit(&record->seq,1u,memory_order_acq_rel);
+#define XZ_JPOS_STORE(name) JDP_SET(record->name,v->name);
+ XZ_JPOS_FIELDS(XZ_JPOS_STORE)
+#undef XZ_JPOS_STORE
+ for(unsigned i=0;i<37;i++){
+  uint32_t word;memcpy(&word,frame+4u*i,4);JDP_SET(record->frame[i],word);
+ }
+ atomic_fetch_add_explicit(&record->seq,1u,memory_order_release);
+}
+static void position_observe(unsigned side_idx,uint32_t session,uint32_t ctrl,uint32_t route,uint64_t now,
+ unsigned why,int have_snap,const struct xz_jd_snapshot *snap,int selected,int step,unsigned phase_before,
+ const uint8_t out[XZ_JD_FRAME],unsigned copied,int read_result){
+ struct jd_position_side *state=&jd_position[side_idx];
+ const struct jd_side_runtime *side=&jd_side[side_idx];
+ const struct jd_sample *sample=side->cached?&side->cache:NULL;
+ unsigned normal=copied&&why==XZ_JDP_VALID&&have_snap&&sample&&sample->deck.loaded&&
+  step==XZ_JD_OK&&phase_before==XZ_JD_EXTRA&&jd_state[side_idx].phase==XZ_JD_EXTRA&&
+  out[14]==0x21u&&(out[0x53]>>4)==side_idx+3u&&(out[15]>>4)==side_idx+3u;
+ unsigned active=normal&&(sample->deck.playing||sample->deck.timeline.moving);
+ unsigned latest_due=position_due(now,state->latest_at,state->latest_seen);
+ unsigned active_due=active&&position_due(now,state->active_at,state->active_seen);
+ if(!latest_due&&!active_due)return;
+ struct jd_position_values v={
+  .valid=1,.session=session,.control=ctrl,.route_epoch=route,.physical_side=side_idx+1u,
+  .logical_id=(ctrl&4u)&&(ctrl&(1u<<side_idx))?side_idx+3u:side_idx+1u,
+  .at_ms_lo=(uint32_t)now,.at_ms_hi=(uint32_t)(now>>32),.source_present=sample!=NULL,
+  .snapshot_valid=(unsigned)have_snap,.snapshot_reason=why,.read_result=(unsigned)read_result,
+  .select_result=(unsigned)selected,.step_result=(unsigned)step,.phase_before=phase_before,
+  .phase=(unsigned)jd_state[side_idx].phase,.final_copied=copied
+ };
+ if(sample){
+  const struct xz_extra_deck *d=&sample->deck;
+  v.source_session=sample->session;v.source_route_epoch=sample->route_epoch;
+  v.source_ordered=(unsigned)sample->source_ordered;v.source_revision=sample->source_revision;
+  v.publication_seq=sample->seq;v.publication_ms=sample->published_ms;
+  v.source_known=d->known;v.source_loaded=(unsigned)!!d->loaded;v.source_device=(unsigned)d->source;
+  v.source_elapsed_ms=(unsigned)d->elapsed_ms;v.source_elapsed_at_ms=d->elapsed_at_ms;
+  v.source_total_ms=(unsigned)d->total_ms;v.source_playing=(unsigned)!!d->playing;
+  v.source_frame_lo=(uint32_t)d->timeline.source_frame;v.source_frame_hi=(uint32_t)(d->timeline.source_frame>>32);
+  v.source_rate=d->timeline.source_rate;v.source_at_ms=d->timeline.at_ms;v.source_flags=d->timeline.flags;
+  v.source_rate_ppm=(unsigned)d->timeline.rate_ppm;v.source_moving=(unsigned)!!d->timeline.moving;
+  v.timeline_revision=d->timeline.revision;v.timeline_route_epoch=d->timeline.route_epoch;
+  v.load_revision=d->timeline.load_revision;v.media_lo=(uint32_t)d->timeline.media_generation;
+  v.media_hi=(uint32_t)(d->timeline.media_generation>>32);v.transport_generation=d->timeline.transport_generation;
+ }
+ if(have_snap){
+  v.snapshot_generation_lo=(uint32_t)snap->generation;v.snapshot_generation_hi=(uint32_t)(snap->generation>>32);
+  v.snapshot_captured_lo=(uint32_t)snap->captured_ms;v.snapshot_captured_hi=(uint32_t)(snap->captured_ms>>32);
+  v.snapshot_position_ms=snap->position_ms;v.snapshot_length_ms=snap->length_ms;
+  v.snapshot_paused=snap->paused;v.snapshot_status_known=snap->status_known;v.snapshot_logical_id=snap->logical_deck;
+ }
+ struct jd_position_key key={0};
+#define JD_POSITION_COPY_KEY(name) key.name=v.name;
+ JD_POSITION_KEY(JD_POSITION_COPY_KEY)
+#undef JD_POSITION_COPY_KEY
+ if(!state->context||memcmp(&key,&state->key,sizeof key)){
+  state->key=key;if(!++state->context)++state->context;
+ }
+ v.context=state->context;if(!++state->ordinal)++state->ordinal;v.ordinal=state->ordinal;
+ if(latest_due){
+  position_store(&xz_mods_jog_position_v1.side[side_idx][6],&v,out);
+  state->latest_seen=1;state->latest_at=now;
+ }
+ if(active_due){
+  unsigned bank=state->committed;
+  if(!state->has_committed||state->committed_context!=v.context){
+   bank=state->has_committed?1u-state->committed:0u;
+   if(state->pending_context!=v.context){state->pending_context=v.context;state->pending_count=0;state->next=0;}
+  }
+  position_store(&xz_mods_jog_position_v1.side[side_idx][bank*3u+state->next],&v,out);
+  state->next=(state->next+1u)%3u;
+  if(!state->has_committed||state->committed_context!=v.context){
+   if(++state->pending_count==3u){
+    state->committed=bank;state->committed_context=v.context;state->has_committed=1;
+   }
+  }
+  state->active_seen=1;state->active_at=now;
+ }
+}
+#endif
+
 static void hook_jog_assemble(void *self){
 #ifdef XZ_JOG_DISPLAY_PROOF
  JDP_INC(xz_mods_jog_proof_v1.calls);
@@ -466,6 +581,7 @@ static void hook_jog_assemble(void *self){
  }
 #ifdef XZ_JOG_DISPLAY_PROOF
  latch_observe(side_idx,session,ctrl,route_epoch,now_ms,why,selected_result,step_result,phase_before,out,candidate_changed,copied,read_result);
+ position_observe(side_idx,session,ctrl,route_epoch,now_ms,why,have_snap,&snap,selected_result,step_result,phase_before,out,copied,read_result);
 #endif
  atomic_flag_clear_explicit(&side->busy,memory_order_release);
 }

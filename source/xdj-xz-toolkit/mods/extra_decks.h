@@ -81,17 +81,31 @@ struct xz_extra_deck {
  int32_t bpm_x100, track_bpm_x100;     /* playing BPM, the track's analysed BPM */
  int32_t tempo_x100;                   /* 0.01 % */
  int tempo_range, master_tempo, vinyl;
+ int tempo_reset;                      /* TEMPO RESET on: plays at the track's own speed */
+ int reverse, slip;                    /* DIRECTION REV and SLIP modes */
+ int pad_mode;                         /* enum xz_extra_pad_mode */
+ int active_pad;                       /* -1, or the BEAT LOOP / SLIP LOOP pad whose loop is running */
  uint32_t tempo_revision;             /* changes when SYNC sets a tempo away from the fader */
  int master;
  uint32_t master_scope;
  char key[8];                          /* as the library writes it, e.g. "Fm" or "4A" */
  int32_t cue_ms;
  struct xz_extra_cue hot_cue[XZ_EXTRA_HOT_CUES];
- struct { int active; int32_t in_ms, out_ms; } loop;
+ /* stored: a loop RELOOP can return to; edit: 0 none, 1 LOOP IN adjust, 2 LOOP OUT adjust. */
+ struct { int active; int32_t in_ms, out_ms; int stored, edit; } loop;
+ int held_playing;                     /* a vinyl hold that resumes playback on release */
+ int slip_active;                      /* SLIP: playback continues silently in the background */
  const struct xz_extra_beat *grid; uint32_t grid_count;
  struct xz_extra_wave wave;
  struct xz_extra_timeline timeline;
  struct xz_extra_sync sync;
+};
+
+/* What pads A..H do, chosen by the HOT CUE / BEAT LOOP / SLIP LOOP / BEAT JUMP buttons (manual pp.52-62).
+   NONE is SHIFT + HOT CUE (CALL): the pads do nothing on a software deck. */
+enum xz_extra_pad_mode {
+ XZ_EXTRA_PAD_HOT_CUE, XZ_EXTRA_PAD_BEAT_LOOP, XZ_EXTRA_PAD_SLIP_LOOP, XZ_EXTRA_PAD_BEAT_JUMP,
+ XZ_EXTRA_PAD_NONE
 };
 
 struct xz_extra_decks {
@@ -148,6 +162,10 @@ enum xz_extra_input {
  XZ_EXTRA_IN_LOOP_HALF, XZ_EXTRA_IN_LOOP_DOUBLE,
  XZ_EXTRA_IN_TRACK_NEXT,             /* next TRACK occurrence in the captured FLAGSHIP order */
  XZ_EXTRA_IN_MASTER,                 /* explicit software clock-master request */
+ XZ_EXTRA_IN_PAD_MODE,               /* pad-mode button: hot_cue carries enum xz_extra_pad_mode */
+ XZ_EXTRA_IN_REVERSE,                /* DIRECTION REV */
+ XZ_EXTRA_IN_SLIP,
+ XZ_EXTRA_IN_VINYL_SPEED,            /* VINYL SPEED ADJUST: tempo_position, +SPAN fully clockwise = slowest */
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */
@@ -163,7 +181,7 @@ struct xz_extra_deck_event {
   /* Fader position, -XZ_EXTRA_TEMPO_SPAN at the minus end to +XZ_EXTRA_TEMPO_SPAN at the plus end;
      the player applies its own tempo range. Already past pickup when it arrives. */
   int32_t tempo_position;
-  int hot_cue;                      /* 0..7, pads A..H */
+  int hot_cue;                      /* 0..7, pads A..H; the deck's pad mode decides what a pad does */
   /* Caller keeps its reference; accepted queue and loaded deck each retain their own. */
   struct { int source; uint32_t track_id; uint64_t media_generation; uint32_t route_epoch;
            struct xz_extra_order *order; uint32_t order_index; } load;

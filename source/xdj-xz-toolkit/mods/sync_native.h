@@ -12,6 +12,13 @@ enum xz_sync_native_reason {
 };
 #define XZ_SYNC_NATIVE_MAX_READ_US 20000u
 #define XZ_SYNC_NATIVE_MAX_PHASE_UNCERTAINTY_US 1000u
+/* Read evidence is independent of availability/reason. It is not serialized.
+ * An unreadable code guard is uncertainty; successfully read unequal bytes are
+ * an observed boundary. Master/track flags qualify partial identity only. */
+enum xz_sync_native_evidence {
+ XZ_SYNC_NATIVE_MASTER_OBSERVED=1u, XZ_SYNC_NATIVE_TRACK_OBSERVED=2u,
+ XZ_SYNC_NATIVE_BOUNDARY_OBSERVED=4u
+};
 struct xz_sync_native_snapshot {
  int available;
  int phase_available;                /* 1 when grid phase and read window are qualified for beat sync */
@@ -22,6 +29,7 @@ struct xz_sync_native_snapshot {
  uint32_t position_ms;
  uint32_t position_frames;           /* native 44.1 kHz engine frame index */
  uint32_t source_revision;           /* publisher load generation; direct reader leaves this unknown (0) */
+ unsigned evidence;                 /* occupies former 8-byte alignment padding; wire proof ABI unchanged */
  uint64_t captured_us, earliest_us, latest_us;
  uint32_t captured_ms;               /* same CLOCK_MONOTONIC domain as player env.now_ms */
  uint32_t uncertainty_us;            /* half-width of the guarded native read window */

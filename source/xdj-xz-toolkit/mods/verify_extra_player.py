@@ -14,7 +14,7 @@ import tempfile
 from extra_player_fixtures import fixtures
 
 ROOT = Path(__file__).resolve().parent
-SOURCES = ['extra_player.c', 'anlz_extra.c', 'shell_analysis.c', 'ui/layered_wave_source.c', 'ui/layered_wave.c',
+SOURCES = ['extra_player.c', 'deck_select.c', 'anlz_extra.c', 'shell_analysis.c', 'ui/layered_wave_source.c', 'ui/layered_wave.c',
            'audio/stem_media.c', 'audio/stem_mp3.c', 'audio/stem_decode.c']
 MUTATION = ('if (d->state == XZ_XP_PLAYING || d->state == XZ_XP_ENDED) { jump(d, d->cue, now); d->state = XZ_XP_CUED; }',
             'if (d->state == XZ_XP_PLAYING || d->state == XZ_XP_ENDED) { jump(d, d->cue, now); }')
