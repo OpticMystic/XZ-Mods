@@ -9,6 +9,7 @@
    never a guess. Text is copied into the snapshot; wave, grid and cue arrays are runtime-owned and
    stay valid until the next snapshot of the same deck. */
 #include <stdint.h>
+#include "sync_master.h"
 
 #define XZ_EXTRA_DECKS 2           /* index 0 = DECK 3, 1 = DECK 4 */
 #define XZ_EXTRA_FIRST_DECK 2      /* the zero-based deck number of index 0 */
@@ -126,6 +127,8 @@ struct xz_extra_decks {
  char notice[64]; uint32_t notice_at_ms, notice_seq;
  uint32_t snapshot_revision; /* exact player revision represented by the locked deck/notice copy */
  uint32_t control_revision;  /* packed atomic control state represented by route/sides, compare for change */
+ struct xz_master_intent master_intent;
+ struct xz_master_observation master_actual;
 };
 
 /* Copies the published state. Returns route_up; with no players running it clears out and returns 0,
