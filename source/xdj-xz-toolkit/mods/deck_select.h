@@ -51,6 +51,7 @@ struct xz_ds_side {
  int physical_known; int32_t physical; /* where the DJ's hand left the tempo fader */
  int held_known[2]; int32_t held[2];  /* by target: the tempo position that deck keeps */
  struct xz_ds_pickup pickup;          /* toward held[target] */
+ int fresh_pickup[2];                /* persists while this logical target is not selected */
  uint32_t extra_revision; int extra_revision_known, extra_following;
  uint64_t early_native_down, early_native_release; /* global native press and one fallback release pass */
  uint64_t owner[2];                   /* by target: buttons down whose press that deck received */

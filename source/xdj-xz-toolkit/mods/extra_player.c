@@ -378,6 +378,7 @@ static int authority_before(struct xz_xp_players *p,const struct deck *d){
  return actual.deck>=0&&authority_same(&actual,&d->master_actual);
 }
 static int authority_locked(struct xz_xp_players *p,const struct deck *d,int selected,uint32_t choice){
+ if(!d->epoch||p->env.sink.link(p->env.sink.ctx)!=d->epoch)return 0;
  if(atomic_load_explicit(&p->sync_grid,memory_order_acquire)!=d->sync_grid_seen)return 0;
  if(!p->master_observer)return atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
  struct xz_master_intent intent=master_intent_locked(p);

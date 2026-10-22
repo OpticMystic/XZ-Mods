@@ -118,11 +118,20 @@ static void advance_selection_epoch(struct xz_ds_side *s){
  if(s->selection_epoch==UINT64_MAX)s->selection_epoch=0;
  else if(s->selection_epoch)s->selection_epoch++;
 }
+static void arm_side_pickup(struct xz_ds_side *s){
+ enum xz_ds_target target=s->target;
+ if(!s->held_known[target]){s->pickup.armed=0;return;}
+ xz_ds_pickup_arm(&s->pickup,s->held[target],s->physical_known,s->physical);
+ if(s->fresh_pickup[target]){
+  s->pickup.armed=s->pickup.require_motion=1;
+  s->pickup.arm_known=s->physical_known;s->pickup.arm_position=s->physical;
+  if(s->physical_known&&within_slack(s->physical,s->held[target]))s->pickup.have_prev=0;
+ }
+}
 static void switch_to(struct xz_ds_side *s, enum xz_ds_target target) {
  if(s->target == target) return;
  s->target = target;advance_selection_epoch(s);
- if(s->held_known[target]) xz_ds_pickup_arm(&s->pickup, s->held[target], s->physical_known, s->physical);
- else s->pickup.armed = 0;
+ arm_side_pickup(s);
 }
 
 void xz_deck_select_route_instance(struct xz_deck_select *d,int route_up,uint32_t epoch){
@@ -153,19 +162,13 @@ void xz_deck_select_feedback(struct xz_deck_select *d,const struct xz_extra_deck
   int following=deck->sync.requested&&!deck->master;
   int released=side->extra_following&&!following;
   side->extra_following=following;
+  if(released)side->fresh_pickup[XZ_DS_EXTRA]=1;
   if(!released&&side->extra_revision_known&&side->extra_revision==deck->tempo_revision)continue;
   int64_t position=(int64_t)deck->tempo_x100*XZ_EXTRA_TEMPO_SPAN/(deck->tempo_range*100);
   if(position< -XZ_EXTRA_TEMPO_SPAN||position>XZ_EXTRA_TEMPO_SPAN)continue;
   side->extra_revision=deck->tempo_revision;side->extra_revision_known=1;
   side->held[XZ_DS_EXTRA]=(int32_t)position;side->held_known[XZ_DS_EXTRA]=1;
-  if(side->target==XZ_DS_EXTRA){
-   xz_ds_pickup_arm(&side->pickup,(int32_t)position,side->physical_known,side->physical);
-   if(released){
-    side->pickup.armed=side->pickup.require_motion=1;
-    side->pickup.arm_known=side->physical_known;side->pickup.arm_position=side->physical;
-    if(side->physical_known&&within_slack(side->physical,(int32_t)position))side->pickup.have_prev=0;
-   }
-  }
+  if(side->target==XZ_DS_EXTRA)arm_side_pickup(side);
  }
 }
 
@@ -240,6 +243,7 @@ static void tempo(struct xz_ds_side *s, int side, const struct xz_ds_key *k, str
  s->physical_known = 1; s->physical = position;
  if(away&&s->extra_following){out->verdict=XZ_DS_SWALLOW;return;}
  if(!xz_ds_pickup_feed(&s->pickup, position)) { out->verdict = XZ_DS_SWALLOW; return; }
+ s->fresh_pickup[s->target]=0;
  s->held_known[s->target] = 1; s->held[s->target] = position;
  if(!away) return;
  deliver(out, side, XZ_EXTRA_IN_TEMPO, k);
