@@ -17,7 +17,7 @@ static uint32_t get(const unsigned char *p){return (uint32_t)p[0]|(uint32_t)p[1]
 static void put(unsigned char *p,uint32_t v){for(unsigned i=0;i<4;i++)p[i]=(unsigned char)(v>>(i*8));}
 static uint32_t checksum(const unsigned char *p,size_t n){uint32_t v=2166136261u;while(n--)v=(v^*p++)*16777619u;return v;}
 static int point_valid(const struct xz_extra_cue *c,int32_t duration){
- return (c->set==0||c->set==1)&&(!c->set||(c->ms>=0&&c->ms<duration&&c->rgb<=0xffffffu&&
+ return (c->set==0||c->set==1)&&(!c->set||(c->ms>=0&&c->ms<=duration&&c->rgb<=0xffffffu&&
   (!c->end_ms||(c->end_ms>c->ms&&c->end_ms<=duration))));
 }
 static int valid(const struct xz_saved_cues *s,int32_t duration){

@@ -20,6 +20,7 @@ int main(int argc,char **argv){
  assert(argc==2);char folder[480];assert(snprintf(folder,sizeof folder,"%s/anlz",argv[1])<(int)sizeof folder);assert(!mkdir(folder,0700));
  int dir=open(folder,O_RDONLY|O_DIRECTORY);assert(dir>=0);
  struct xz_saved_cues a={0},b={0};a.hot[0]=(struct xz_extra_cue){1,100,0xff0000,0};a.memory_count=1;a.memory[0]=(struct xz_extra_cue){1,500,0,1500};
+ a.hot[7]=(struct xz_extra_cue){1,10000,0xff8000,0}; /* An end marker is a legal point, but cannot start a loop. */
  assert(!xz_cues_read_at(dir,7,10000,&b));assert(!xz_cues_write_at(dir,7,10000,&a));assert(xz_cues_read_at(dir,7,10000,&b)==1&&!memcmp(&a,&b,sizeof a));
  assert(xz_cues_read_at(dir,7,10001,&b)==-1);assert(!memcmp(&a,&b,sizeof a));
  struct xz_saved_cues bad=a;bad.memory[0].end_ms=10001;assert(xz_cues_write_at(dir,7,10000,&bad)==-1);assert(xz_cues_read_at(dir,7,10000,&b)==1&&!memcmp(&a,&b,sizeof a));
