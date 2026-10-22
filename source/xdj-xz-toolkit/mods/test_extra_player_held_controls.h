@@ -188,8 +188,25 @@ static void hc_coast_decoder(void){
   HC(!debug(d).loop_active&&!view.deck[d].slip_active);hc_close();
  }
 }
+/* A successful loop move supersedes held REV just like a non-loop BEAT JUMP. */
+static void hc_reverse_loop_move(void){
+ for(int d=0;d<2;d++)for(int forward=0;forward<2;forward++){
+  hc_setup(d,0);load(d,1);seek(d,700);press(d,XZ_EXTRA_IN_PLAY);
+  mode(d,XZ_EXTRA_PAD_BEAT_LOOP,0);pad_key(d,0,1);pad_key(d,0,0);
+  press(d,XZ_EXTRA_IN_SLIP);hold(d,XZ_EXTRA_IN_REVERSE,1);
+  assert(view.deck[d].reverse&&view.deck[d].slip_active&&debug(d).loop_active);
+  uint64_t old=debug(d).loop_in;mode(d,XZ_EXTRA_PAD_BEAT_JUMP,0);
+  hc_capture=1;hc_frames=0;pad_key(d,forward,1);pad_key(d,forward,0);
+  HC(debug(d).loop_in==(forward?old+ms_frames(d,500):old-ms_frames(d,500)));
+  HC(!view.deck[d].reverse);hc_pcm_forward(d,debug(d).loop_in);
+  unsigned generation=debug(d).generation;uint64_t in=debug(d).loop_in,out=debug(d).loop_out;
+  hc_fill(d);HC(input(event(d,XZ_EXTRA_IN_REVERSE,0)));step();
+  HC(debug(d).generation==generation&&debug(d).loop_active&&debug(d).loop_in==in&&debug(d).loop_out==out);
+  hc_close();
+ }
+}
 static int test_held_controls(void){
- hc_modes();hc_queue();hc_ownership();hc_refused_takeover();hc_repeats_cancel();hc_coast_decoder();
+ hc_modes();hc_queue();hc_ownership();hc_refused_takeover();hc_repeats_cancel();hc_coast_decoder();hc_reverse_loop_move();
  printf("RESULT held_controls_permanent cases=%u checks=%u failures=%u profile=%d\n",hc_cases,hc_checks,hc_failures,XZ_XP_JOG_TICKS_PER_REV);
  return hc_failures==0;
 }
