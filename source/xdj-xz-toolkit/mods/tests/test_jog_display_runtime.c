@@ -106,6 +106,10 @@ int main(void){
   d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY);
   assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&s)&&s.key_code==18);
   d.key[0]=0;assert(xz_jog_display_snapshot_from_deck(1,&d,10000,&s)&&s.key_code==0);
+  d.remain=1;assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&s)&&s.remain==0);
+  d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIME_MODE);
+  assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&s)&&s.remain==1&&s.position_ms==1000);
+  d.remain=0;assert(xz_jog_display_snapshot_from_deck(0,&d,10000,&s)&&s.remain==0);
  }
  sim_now_ms=10000;sim_ctrl=8u|4u; /* AVAILABLE | ROUTE, native sides */
  sim_seq[0]=sim_seq[1]=100;

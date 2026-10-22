@@ -23,6 +23,7 @@ struct xz_jd_snapshot {
     uint8_t status_known, cued, master, sync_mode, loop_active, slip;
     uint16_t bpm_x100, track_bpm_x100;
     uint8_t key_code; /* Qualified native spelling code; 0 clears unknown/missing key. */
+    uint8_t remain; /* Native TIME MODE flag; position remains elapsed milliseconds. */
     uint32_t loop_in_ms, loop_out_ms;
 };
 struct xz_jd_family {
