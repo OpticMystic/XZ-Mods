@@ -29,6 +29,8 @@
 #pragma weak xz_extra_resolve_track
 #pragma weak xz_extra_native_master_bpm
 #pragma weak xz_extra_native_sync_clock
+extern void xz_xp_native_master_selected(struct xz_xp_players *,unsigned) __attribute__((weak));
+extern void xz_xp_set_quantize_grid(struct xz_xp_players *,unsigned,int) __attribute__((weak));
 extern void xz_jog_display_runtime_publish(const struct xz_extra_decks *decks,uint32_t now_ms) __attribute__((weak));
 extern void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks) __attribute__((weak));
 extern int xz_sync_link_runtime_master_committed(int deck_index) __attribute__((weak));
@@ -158,6 +160,14 @@ int xz_extra_decks_needs_native_sync(void){
 }
 int xz_extra_decks_use_native_master(void){
  return xz_xp_use_native_master(__atomic_load_n(&players,__ATOMIC_ACQUIRE));
+}
+void xz_extra_decks_native_master_selected(unsigned native_deck){
+ struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
+ if(p&&native_deck<2&&xz_xp_native_master_selected)xz_xp_native_master_selected(p,native_deck);
+}
+void xz_extra_decks_set_quantize_grid(unsigned denominator,int known){
+ struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
+ if(p&&xz_xp_set_quantize_grid)xz_xp_set_quantize_grid(p,denominator,known);
 }
 
 /* ---- the sink the players submit into; never waits on the connector ---- */

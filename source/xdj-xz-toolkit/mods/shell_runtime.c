@@ -153,6 +153,7 @@ static int push_input;
 extern int xz_ui_runtime_stock_source_key(int which, int run) __attribute__((weak));
 /* runtime.c: SHORTCUT DECK SELECT (runtime.h). Weak: host fixtures have no runtime.c. */
 #pragma weak xz_runtime_deck_select_toggle
+#pragma weak xz_extra_decks_set_quantize_grid
 static struct { uint32_t second, lines, dropped; } key_log;
 
 /* ---- clocks and reads ---- */
@@ -2507,7 +2508,23 @@ static void native_sync_unavailable_clock(void) {
  struct xz_sync_native_snapshot empty={.native_deck=-1,.master_id=-1,.reason=XZ_SYNC_NATIVE_TIME_INVALID};
  pthread_mutex_lock(&native_sync_mutex);native_sync_cache=empty;pthread_mutex_unlock(&native_sync_mutex);
 }
+static unsigned native_quantize_guard,native_quantize_seen,native_quantize_known,native_quantize_den;
+static uint32_t native_quantize_polled;
+static void native_quantize_refresh(int force){
+ unsigned expected=0;
+ if(!__atomic_compare_exchange_n(&native_quantize_guard,&expected,1,0,__ATOMIC_ACQUIRE,__ATOMIC_RELAXED))return;
+ uint32_t now=now_ms();
+ if(force||!native_quantize_seen||(int32_t)(now-native_quantize_polled)<0||
+    (uint32_t)(now-native_quantize_polled)>=XZ_SHRT_REFRESH_MS){
+  native_quantize_den=0;
+  native_quantize_known=xz_shell_model_quantize_grid(model_read,&native_quantize_den);
+  native_quantize_polled=now;native_quantize_seen=1;
+ }
+ if(xz_extra_decks_set_quantize_grid)xz_extra_decks_set_quantize_grid(native_quantize_den,native_quantize_known);
+ __atomic_store_n(&native_quantize_guard,0,__ATOMIC_RELEASE);
+}
 static void native_sync_refresh_locked(void) {
+ native_quantize_refresh(0);
  pthread_mutex_lock(&native_sync_mutex);
  int requalify=native_sync_requalify;native_sync_requalify=0;
  pthread_mutex_unlock(&native_sync_mutex);
@@ -2596,6 +2613,7 @@ static void native_sync_refresh_locked(void) {
  * mutex. It cannot create a source revision, accept a changed load, or cross a
  * LOAD fence; all of those still require native_sync_refresh_locked(). */
 static void native_sync_refresh_contended(void) {
+ native_quantize_refresh(0);
  if(!xz_extra_decks_needs_native_sync()){SYO_INC(OWNER_NO_DEMAND);return;}
  SYO_INC(OWNER_DEMAND);
  if(!__atomic_load_n(&native_sync_requested,__ATOMIC_ACQUIRE))return;
@@ -3154,6 +3172,7 @@ static int run_command(const struct xz_shrt_command *c,struct native_sync_load_b
  case XZ_SHRT_CMD_QUANTIZE_BEAT:
   if(c->value<0||c->value>3||!code_is(0xc9304,set_quantize_code,16))return -1;
   ((void(*)(int))(uintptr_t)0xc9304)(c->value);
+  native_quantize_refresh(1);
   return 0;
  /* XZ_SHRT_CMD_STOCK_MENU is never queued: the physical MENU key goes to stock instead. */
  case XZ_SHRT_CMD_UTILITY:{
