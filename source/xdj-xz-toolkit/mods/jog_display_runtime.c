@@ -174,10 +174,12 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
    base_ms+=(double)age32*((double)d->timeline.rate_ppm/1000000.);
   }
   if(d->loop.active&&d->loop.out_ms>d->loop.in_ms&&base_ms>=(double)d->loop.out_ms){
-   double span=(double)(d->loop.out_ms-d->loop.in_ms);
+   double span=(double)d->loop.out_ms-(double)d->loop.in_ms;
    double rel=base_ms-(double)d->loop.in_ms;
-   while(rel>=span)rel-=span;
-   base_ms=(double)d->loop.in_ms+rel;
+   /* Supported tracks fit in 32-bit milliseconds; corrupt anchors must not stall the serializer. */
+   if(rel>=4294967296.)return 0;
+   uint32_t whole=(uint32_t)rel;
+   base_ms=(double)d->loop.in_ms+(double)(whole%(uint32_t)span)+(rel-(double)whole);
   }
   if(base_ms<0.)base_ms=0.;
   if(base_ms>(double)length_ms)base_ms=(double)length_ms;
