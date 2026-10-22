@@ -82,6 +82,40 @@ int xz_extra_pad_led(const struct xz_extra_deck *deck,int pad,uint32_t *rgb,int 
  return XZ_LED_REPLACE;
 }
 
+/* Only existing, non-forced records have a proven writable extent. The saved
+ * serializer proof does not establish spare record or index-table capacity. */
+size_t xz_native_led_extra_deck(void *records,size_t bytes,
+                                uint16_t *count_io,uint16_t *index_table,
+                                unsigned max_rows,unsigned num_channels,
+                                uint32_t dimmer,uint32_t now_ms,
+                                unsigned channel,const struct xz_extra_deck *d){
+ unsigned char *p=records;size_t changed=0;
+ (void)index_table;(void)max_rows;(void)num_channels;
+ (void)dimmer;(void)now_ms;
+ if(!p||!count_io||!d||channel<1u||channel>2u||
+    *count_io>XZ_LED_MAX_RECORDS||bytes<(size_t)*count_io*XZ_LED_RECORD_BYTES)return 0;
+ for(unsigned i=0;i<*count_io;i++){
+  unsigned char *r=p+(size_t)i*XZ_LED_RECORD_BYTES;
+  if(word(r+4)!=channel||r[0x18])continue;
+  uint32_t id=word(r),state;
+  switch(id){
+   case XZ_LED_ID_CUE:
+    state=d->loaded&&!d->playing&&d->elapsed_ms==d->cue_ms;break;
+   case XZ_LED_ID_PLAY_PAUSE:state=d->loaded&&d->playing;break;
+   case XZ_LED_ID_VINYL:state=d->loaded&&d->vinyl;break;
+   case XZ_LED_ID_BEAT_SYNC:state=d->loaded&&d->sync.locked;break;
+   case XZ_LED_ID_MASTER:state=d->loaded&&d->master;break;
+   case XZ_LED_ID_MASTER_TEMPO:state=d->loaded&&d->master_tempo;break;
+   case XZ_LED_ID_TEMPO_RESET:
+    state=d->loaded&&(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TEMPO))&&
+          d->tempo_x100==0;break;
+   default:continue; /* Loop, ring, reverse and timer semantics unqualified. */
+  }
+  if(word(r+0x10)!=state){put(r+0x10,state);changed++;}
+ }
+ return changed;
+}
+
 #ifndef XZ_LED_PORTABLE_TEST
 #include "../runtime.h"
 #include "../ui_runtime.h"
@@ -103,7 +137,7 @@ static int extra_pad_color(int deck,int pad,uint32_t *rgb,int *lit){
 }
 
 static void led_hook(void *player,void *packet) {
- unsigned char *p=packet;uint16_t count;uint32_t pointer,innards,mode;unsigned channel;
+ unsigned char *p=packet;uint16_t count;uint32_t pointer,dimmer=0,now_ms=0,innards,mode;unsigned channel;
  original_led(player,packet);
  TRACE(1);
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!player||!packet)return;
@@ -114,11 +148,13 @@ static void led_hook(void *player,void *packet) {
  if(((const unsigned char*)(uintptr_t)innards)[0x26]!=channel){TRACE(4);return;}
  memcpy(&mode,(const unsigned char*)(uintptr_t)innards+0x80,4);
  xz_ui_runtime_pad_native_page((int)channel-1,mode==0?0:(mode>=2&&mode<=4?(int)mode-1:-1));
+ memcpy(&dimmer,p+0,4);memcpy(&now_ms,p+4,4);
  memcpy(&count,p+8,2);memcpy(&pointer,p+0xc,4);
  __atomic_store_n(&xz_mods_led_trace_v1[5],count,__ATOMIC_RELAXED);
  __atomic_store_n(&xz_mods_led_trace_v1[6],mode,__ATOMIC_RELAXED);
- if(!pointer||(pointer&3)||count>XZ_LED_MAX_RECORDS||
+ if(count>XZ_LED_MAX_RECORDS||!pointer||(pointer&3)||
     pointer>UINT32_MAX-(uint32_t)count*XZ_LED_RECORD_BYTES)return;
+
  for(unsigned i=0;i<count;i++) {
   const unsigned char *entry=(const unsigned char*)(uintptr_t)pointer+i*XZ_LED_RECORD_BYTES;
   if(word(entry)>=0x12&&word(entry)<=0x19) {
@@ -130,9 +166,20 @@ static void led_hook(void *player,void *packet) {
  xz_native_led_keysync((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,
                       xz_ui_runtime_key_synced((int)channel-1),&xz_led_keysync_mapping);
  xz_led_color_fn color=xz_ui_runtime_pad_color;
- if(xz_extra_decks_route().route_up&&xz_extra_decks_snapshot(&extra)&&
-    (channel==1?extra.left_on_3:extra.right_on_4)){extra_side=(int)channel-1;color=extra_pad_color;}
- size_t changed=xz_native_led_apply((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,
+ size_t changed=0;
+ if(xz_extra_decks_route().route_up){
+  int snap_ok=xz_extra_decks_snapshot(&extra);
+  int on_extra=snap_ok?(channel==1?extra.left_on_3:extra.right_on_4)
+                      :!!(extra.control_revision&(channel==1?1u:2u));
+  if(on_extra){
+   extra_side=(int)channel-1;color=extra_pad_color;
+   changed+=xz_native_led_extra_deck((void*)(uintptr_t)pointer,
+                                     (size_t)count*XZ_LED_RECORD_BYTES,&count,
+                                     NULL,0,0,dimmer,now_ms,
+                                     channel,&extra.deck[extra_side]);
+  }
+ }
+ changed+=xz_native_led_apply((void*)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,
                       count,channel,color);
  __atomic_fetch_add(&xz_mods_led_trace_v1[10],(uint32_t)changed,__ATOMIC_RELAXED);
 }

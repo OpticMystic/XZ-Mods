@@ -187,6 +187,13 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
  if(tempo>32767)tempo=32767;
  uint64_t gen=((uint64_t)(d->timeline.route_epoch?d->timeline.route_epoch:1u)<<32)|
               (uint64_t)(d->timeline.load_revision?d->timeline.load_revision:1u);
+ uint32_t cue_ms=d->cue_ms>0?(uint32_t)d->cue_ms:0u;
+ uint8_t cued=(uint8_t)(!d->playing&&pos_ms==cue_ms);
+ uint8_t sync_mode=!d->sync.requested?XZ_JD_SYNC_OFF:
+  d->sync.locked?XZ_JD_SYNC_LOCKED:XZ_JD_SYNC_BLINK;
+ uint8_t loop_active=(uint8_t)(d->loop.active&&d->loop.out_ms>d->loop.in_ms&&d->loop.in_ms>=0);
+ uint16_t bpm=d->bpm_x100>0&&d->bpm_x100<=65535?(uint16_t)d->bpm_x100:0u;
+ uint16_t track_bpm=d->track_bpm_x100>0&&d->track_bpm_x100<=65535?(uint16_t)d->track_bpm_x100:0u;
  *out=(struct xz_jd_snapshot){
   .generation=gen,
   .captured_ms=cap_ms,
@@ -198,7 +205,17 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
   .tempo_range=range,
   .vinyl_mode=(uint8_t)!!d->vinyl,
   .master_tempo=(uint8_t)!!d->master_tempo,
-  .tempo_known=1
+  .tempo_known=1,
+  .status_known=1,
+  .cued=cued,
+  .master=(uint8_t)!!d->master,
+  .sync_mode=sync_mode,
+  .loop_active=loop_active,
+  .slip=0,
+  .bpm_x100=bpm,
+  .track_bpm_x100=track_bpm,
+  .loop_in_ms=loop_active?(uint32_t)d->loop.in_ms:0u,
+  .loop_out_ms=loop_active?(uint32_t)d->loop.out_ms:0u
  };
  return 1;
 }
