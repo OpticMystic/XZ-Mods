@@ -120,6 +120,9 @@ int main(void) {
         assert((p[9]&0x30u)==0x10u);
         assert(p[0x15]==0&&p[0x16]==0&&p[0x26]==0x99&&p[0x27]==0x95);
         assert(p[0x2f]==0x99&&p[0x30]==0x59);
+        rich.remain=1;assert(xz_jd_step(&s,native_right,&rich,1101,out)==XZ_JD_OK);packet(out,p);
+        assert(p[3]&0x08u);assert(p[0xb]==0&&p[0xc]==2&&p[0xd]==0&&p[0xe]==0);
+        rich.remain=0;assert(xz_jd_step(&s,native_right,&rich,1101,out)==XZ_JD_OK);packet(out,p);assert(!(p[3]&0x08u));
     }
     for(unsigned side=1;side<=2;side++) {
         assert(xz_jd_init(&s,side,storage,XZ_JD_STORAGE_BYTES,100)==XZ_JD_OK);xz_jd_native_epoch(&s,20);seed(&s);

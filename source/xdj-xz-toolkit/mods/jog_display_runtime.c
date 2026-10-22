@@ -358,6 +358,7 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
   .bpm_x100=bpm,
   .track_bpm_x100=track_bpm,
   .key_code=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))?xz_jd_key_code(d->key):0,
+  .remain=(uint8_t)((d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIME_MODE))&&d->remain),
   .loop_in_ms=loop_active?(uint32_t)d->loop.in_ms:0u,
   .loop_out_ms=loop_active?(uint32_t)d->loop.out_ms:0u
  };

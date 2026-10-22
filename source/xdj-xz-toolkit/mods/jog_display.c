@@ -38,7 +38,7 @@ int xz_jd_capture(struct xz_jd *s,const uint8_t p[64]) {
 }
 int xz_jd_ready(const struct xz_jd *s) { unsigned i;if(!s->native_epoch)return 0;for(i=0;i<6;i++)if(!s->family[i].complete)return 0;return 1; }
 static int fresh(const struct xz_jd *s,const struct xz_jd_snapshot *p,uint64_t now) {
-    return p&&p->logical_deck==s->physical_side+2u&&p->paused<=1&&p->tempo_known==1&&p->vinyl_mode<=1&&p->master_tempo<=1&&
+    return p&&p->logical_deck==s->physical_side+2u&&p->paused<=1&&p->remain<=1&&p->tempo_known==1&&p->vinyl_mode<=1&&p->master_tempo<=1&&
         (p->tempo_range==0||p->tempo_range==6||p->tempo_range==10||p->tempo_range==16||p->tempo_range==100)&&
         p->status_known<=1&&(!p->status_known||(p->cued<=1&&p->master<=1&&p->sync_mode<=XZ_JD_SYNC_BLINK&&
         p->loop_active<=1&&p->slip<=1&&(!p->loop_active||p->loop_out_ms>p->loop_in_ms)))&&
@@ -89,6 +89,7 @@ static void info(const struct xz_jd_snapshot *s,uint8_t p[64]) {
     p[4]=(uint8_t)((s->tempo_range==6?1:s->tempo_range==10?2:s->tempo_range==16?3:s->tempo_range==100?4:0)<<4);
     p[4]|=(uint8_t)(s->master_tempo<<2);p[5]=(uint8_t)((p[5]&0xfcu)|s->vinyl_mode);
     if(s->status_known) {
+        p[3]=(uint8_t)((p[3]&~0x08u)|(s->remain?0x08u:0u));
         p[0x3c]=s->key_code;
         if(s->paused&&s->cued)p[2]=0x0cu;
         p[5]=(uint8_t)((p[5]&~0xb8u)|(s->slip?0x08u:0u)|
@@ -164,7 +165,7 @@ static void observe_native(struct xz_jd *s,const uint8_t native[148]){
     }
 }
 static int info_changed(const struct xz_jd_snapshot *a,const struct xz_jd_snapshot *b){
-    return a->paused!=b->paused||a->tempo_rate!=b->tempo_rate||a->tempo_range!=b->tempo_range||
+    return a->paused!=b->paused||a->remain!=b->remain||a->tempo_rate!=b->tempo_rate||a->tempo_range!=b->tempo_range||
         a->master_tempo!=b->master_tempo||a->vinyl_mode!=b->vinyl_mode||a->status_known!=b->status_known||
         a->cued!=b->cued||a->master!=b->master||a->sync_mode!=b->sync_mode||a->slip!=b->slip||
         a->bpm_x100!=b->bpm_x100||a->track_bpm_x100!=b->track_bpm_x100||a->key_code!=b->key_code;
