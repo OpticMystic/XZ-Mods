@@ -242,13 +242,21 @@ int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,u
  if(!d->loaded||!d->playing||!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE))||
     !(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_GRID))||!d->grid||d->grid_count<2||
     (d->timeline.flags&req_flags)!=req_flags||d->timeline.source_rate<8000||d->timeline.rate_ppm<=0||
-    !d->timeline.route_epoch||!d->timeline.load_revision||!d->timeline.transport_generation||!d->timeline.sink_frame)
+    !d->timeline.route_epoch||!d->timeline.load_revision||!d->timeline.transport_generation||!d->timeline.sink_frame||
+    d->timeline.observed_wire_frame<d->timeline.sink_frame)
   return 0;
  uint32_t now_ms=(uint32_t)(now_mono_us/1000u);
  uint32_t age_ms=now_ms-d->timeline.at_ms;
  if((int32_t)age_ms<0||age_ms>90u)return 0;
  uint64_t cap_us=(uint64_t)d->timeline.at_ms*1000u+(now_mono_us%1000u);
  if(cap_us>now_mono_us)cap_us=now_mono_us;
+ /* The source tag belongs to the completed block end, not the later observation.
+    Keep the existing monotonic mapping and subtract only the known wire gap. */
+ uint64_t gap=d->timeline.observed_wire_frame-d->timeline.sink_frame;
+ if(gap>4410u)return 0; /* 100 ms: refuse stale or inconsistent completion coordinates */
+ uint64_t lag_us=gap*1000000ULL/44100u;
+ if(lag_us>cap_us)return 0;
+ cap_us-=lag_us;
  double ms=(double)d->timeline.source_frame*1000./(double)d->timeline.source_rate;
  unsigned lo=0,hi=d->grid_count;
  while(lo<hi){unsigned mid=lo+(hi-lo)/2;if((double)d->grid[mid].ms<=ms)lo=mid+1;else hi=mid;}
@@ -280,7 +288,7 @@ int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,u
  out->phase_eligible=1;
  out->source_rate=d->timeline.source_rate;
  out->bpm100=d->track_bpm_x100>0?(uint32_t)d->track_bpm_x100:(uint32_t)llround(6000000./(double)period_ms);
- out->uncertainty_us=250;
+ out->uncertainty_us=1250; /* existing 250 us allowance plus millisecond observation quantization */
  out->source_frame=src_frame;
  out->beat_source_frame=beat_frame;
  out->effective_speed=(double)d->timeline.rate_ppm/1000000.;

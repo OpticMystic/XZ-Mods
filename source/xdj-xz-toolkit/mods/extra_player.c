@@ -640,6 +640,7 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   v.loop.out_ms = to_ms(d, d->loop.out);
   /* Preserve zeroed padding: the visible-state revision compares the whole published object. */
   v.timeline.source_frame=streaming(s)?d->heard:d->pos>>32;v.timeline.sink_frame=d->timeline_sink_frame;
+  v.timeline.observed_wire_frame=d->timeline_wire_completed;
   v.timeline.source_rate=d->r->rate;v.timeline.at_ms=streaming(s)?d->heard_at:now;v.timeline.revision=d->timeline_revision;
   v.timeline.route_epoch=d->epoch;v.timeline.load_revision=d->load_revision;v.timeline.transport_generation=d->generation;
   v.timeline.media_generation=d->media_generation;v.timeline.rate_ppm=(int32_t)llround(d->heard_rate*1000000.);

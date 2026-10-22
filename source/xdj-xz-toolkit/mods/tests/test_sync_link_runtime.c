@@ -145,6 +145,7 @@ static struct xz_extra_decks make_decks(int master_deck,uint32_t at_ms,uint64_t 
   dk->known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_GRID)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_BPM);
   dk->timeline.source_frame=source_frame;
   dk->timeline.sink_frame=44100;
+  dk->timeline.observed_wire_frame=44100;
   dk->timeline.media_generation=42;
   dk->timeline.source_rate=44100;
   dk->timeline.at_ms=at_ms;
@@ -160,6 +161,8 @@ static struct xz_extra_decks make_decks(int master_deck,uint32_t at_ms,uint64_t 
 
 static void stale_safety_tests(void);
 static void publication_failure_test(void);
+
+static void completion_coordinate_tests(void);
 
 int main(void){
  reset_sim();
@@ -227,6 +230,7 @@ int main(void){
  assert(!xz_sync_link_runtime_master_committed(0));
  stale_safety_tests();
  publication_failure_test();
+ completion_coordinate_tests();
  puts("PASS runtime Link bridge: Deck 3/4 master handoff, consumer-scoped status/beat reads, operator override, foreign writer preemption and previous-master restore");
  return 0;
 }
@@ -377,4 +381,27 @@ static void publication_failure_test(void){
  for(unsigned i=0;i<2;i++)assert(pthread_join(readers[i],NULL)==0);
  hooks.sync_mgr_sync(fake_sync_mgr);assert(simulated_master()==0);
  puts("PASS publication failure withdraws owned lease and restores prior master after pinned readers finish");
+}
+
+static void completion_coordinate_tests(void){
+ for(int side=0;side<2;side++){
+  struct xz_extra_decks d=make_decks(side,1000,44100,1000000);
+  struct xz_extra_deck *dk=&d.deck[side];struct xz_sync_link_pcm_anchor a;
+  assert(xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+  assert(a.captured_mono_us==1000000&&a.uncertainty_us==1250);
+  dk->timeline.observed_wire_frame=dk->timeline.sink_frame+256;
+  assert(xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+  assert(a.captured_mono_us==1000000-UINT64_C(256000000)/44100);
+  dk->timeline.observed_wire_frame=0;
+  assert(!xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+  dk->timeline.observed_wire_frame=dk->timeline.sink_frame-1;
+  assert(!xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+  dk->timeline.observed_wire_frame=dk->timeline.sink_frame+4410;
+  assert(xz_sync_link_anchor_from_deck(side,dk,1000000,&a)&&a.captured_mono_us==900000);
+  dk->timeline.observed_wire_frame++;
+  assert(!xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+  dk->timeline.observed_wire_frame=UINT64_MAX;
+  assert(!xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+ }
+ puts("PASS completed-wire timestamps: tagged endpoint lag, missing/torn/old/overflow coordinates and uncertainty");
 }
