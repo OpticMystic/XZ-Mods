@@ -7,7 +7,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--output', type=Path, required=True)
 ap.add_argument('--arch', choices=['host', 'arm'], default='host')
 ap.add_argument('--sanitizer', choices=['address', 'thread'], default='address')
-ap.add_argument('--suite', choices=['sync', 'controls', 'extensions', 'tempo_grid', 'global_sync', 'authority', 'tempo_display', 'pickup_route'], required=True)
+ap.add_argument('--suite', choices=['sync', 'controls', 'extensions', 'tempo_grid', 'global_sync', 'authority', 'tempo_display', 'pickup_route', 'rate_hold', 'rate_hold_extended'], required=True)
 ap.add_argument('--modes')
 ap.add_argument('--source', type=Path, help='Frozen mods directory to compare using this regression fixture')
 a = ap.parse_args()
@@ -59,7 +59,7 @@ else:
     flags += ['-O2', '-mcpu=cortex-a9', '-mfpu=vfpv3', '-mfloat-abi=softfp']
     runner = ['qemu-arm', '-cpu', 'cortex-a9', '-L', '/usr/arm-linux-gnueabi']
 receipt = {'arch': a.arch, 'sanitizer': a.sanitizer if a.arch == 'host' else None, 'suite': a.suite, 'hardware_verified': False, 'inputs': {}, 'runs': []}
-for p in sources + list(M.glob('*.h')) + list(M.glob('test_extra_player*.h')):
+for p in sources + list(M.glob('*.h')) + list(M.glob('test_extra_player*.h')) + list(test_root.glob('rate_hold*.inc')):
     receipt['inputs'][str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
 
 def run(name, command):
