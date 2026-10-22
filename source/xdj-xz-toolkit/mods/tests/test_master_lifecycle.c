@@ -67,10 +67,22 @@ static void no_legacy_fallback(void){
  xz_sync_link_runtime_step(&empty,NULL);assert(!legacy_calls);
  puts("PASS initial missing/zero snapshots never infer legacy fixture mode");
 }
+static void busy_authority_token(void){
+ install();atomic_store(&rt_actual_serial,1);
+ struct xz_master_observation a,expected={.deck=XZ_MASTER_UNKNOWN,.operator_epoch=1};
+ assert(xz_sync_link_runtime_master_observe(&a)&&!memcmp(&a,&expected,sizeof a));
+ unsigned char sm[64]={0};int native=1;lifecycle_hooks.set_master_on(sm,&native);
+ expected.operator_epoch=2;
+ assert(xz_sync_link_runtime_master_observe(&a)&&!memcmp(&a,&expected,sizeof a));
+ atomic_store(&rt_va.operator_epoch,0);failed();
+ atomic_store(&rt_va.operator_epoch,2);atomic_store(&rt_actual_exhausted,1);failed();
+ puts("PASS busy authority returns only a coherent current control token; unavailable/exhausted token fails cleared");
+}
 int main(int argc,char **argv){
  assert(argc==2);
  if(!strcmp(argv[1],"stop-start"))stop_start();else if(!strcmp(argv[1],"exhaustion"))exhaustion();
  else if(!strcmp(argv[1],"cache-exhaustion"))cache_exhaustion();else if(!strcmp(argv[1],"pinned-restart"))pinned_restart();
- else if(!strcmp(argv[1],"no-legacy-fallback"))no_legacy_fallback();else assert(0);
+ else if(!strcmp(argv[1],"no-legacy-fallback"))no_legacy_fallback();
+ else if(!strcmp(argv[1],"busy-authority-token"))busy_authority_token();else assert(0);
  return 0;
 }
