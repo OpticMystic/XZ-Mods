@@ -945,7 +945,10 @@ static int sync_native_gap_tempo(struct xz_xp_players *p,struct deck *d,
  }
  if(slave.manual||native->manual){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return 1;}
  if(d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return 1;}
- int applied=sync_apply_base(p,d,selected,choice,(double)native->bpm*100./d->track.track_bpm_x100);
+ double rate=slave.period_frames
+  ?(double)native->bpm/60.*slave.period_frames/d->r->rate
+  :(double)native->bpm*100./d->track.track_bpm_x100;
+ int applied=sync_apply_base(p,d,selected,choice,rate);
  if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return 1;}
  d->sync_native_captured_us=cur_us;d->sync_native_bpm=native->bpm;
  d->sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;return 1;
