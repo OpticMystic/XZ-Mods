@@ -90,6 +90,7 @@ static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t wake=PTHREAD_COND_INITIALIZER;
 static pthread_t worker_thread;
 static int worker_created, running, enabled, load_enabled, debug;
+static int interface_modern=1; /* drawing eligibility; the control worker is interface-independent */
 static unsigned guards;
 static int owns_flag, dirty_flag;
 static uint32_t last_drawn_ms, period_ms=100;
@@ -1729,7 +1730,7 @@ static void *worker(void *unused) {
 }
 
 /* ---- ownership, proof ---- */
-static int candidate(int eligible, int theme) { return enabled&&eligible&&theme==XZ_THEME_FLAGSHIP; }
+static int candidate(int eligible, int theme) { return enabled&&__atomic_load_n(&interface_modern,__ATOMIC_ACQUIRE)&&eligible&&theme==XZ_THEME_FLAGSHIP; }
 static int owns_now(int eligible, int theme) { return candidate(eligible,theme)&&refreshed&&!xz_shrt_handoff_yields(&handoff); }
 static void set_owns(int owns) {
  int was=__atomic_exchange_n(&owns_flag,owns,__ATOMIC_ACQ_REL);
@@ -2308,10 +2309,29 @@ static void extra_refresh_locked(uint32_t now) {
 }
 
 /* Native SYNC consumers copy this cache. Only the existing UI publisher reads native memory. */
+/* Clock publication belongs to the native owner tick, independently of screen ownership.
+ * The existing control worker qualifies media; this thread performs bounded memory reads only.
+ * A source revision identifies an observed coherent load/media/native-clock tuple, not a wave job. */
 static pthread_mutex_t native_sync_mutex=PTHREAD_MUTEX_INITIALIZER;
 static struct xz_sync_native_snapshot native_sync_cache={.native_deck=-1,.master_id=-1,.reason=XZ_SYNC_NATIVE_MASTER_UNAVAILABLE};
-static uint32_t native_sync_polled;
+static uint32_t native_sync_polled,native_sync_revision;
 static int native_sync_requested;
+struct native_sync_load_boundary {
+ struct loaded load;
+ uint32_t track,observation;
+ struct xz_shmedia media;
+};
+static struct {
+ int valid,pending;
+ unsigned admitted;
+ uint32_t observation,observed_track;
+ struct loaded observed_load;
+ struct xz_shmedia observed_media;
+ struct native_sync_load_boundary boundary;
+ struct loaded load;
+ uint32_t track,revision;
+ struct xz_shmedia media;
+} native_sync_source[2]; /* mutex; counters survive request clears and interface changes */
 int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *out) {
  if(!out)return 0;
  pthread_mutex_lock(&native_sync_mutex);*out=native_sync_cache;pthread_mutex_unlock(&native_sync_mutex);
@@ -2327,6 +2347,98 @@ static void native_sync_clear(void) {
  struct xz_sync_native_snapshot empty={.native_deck=-1,.master_id=-1,.reason=XZ_SYNC_NATIVE_MASTER_UNAVAILABLE};
  pthread_mutex_lock(&native_sync_mutex);native_sync_cache=empty;pthread_mutex_unlock(&native_sync_mutex);
  native_sync_requested=0;native_sync_polled=0;
+ for(int d=0;d<2;d++)native_sync_source[d].valid=0;
+}
+/* Admission only suppresses publication. It is not an observed source change.
+ * Each command releases its own admission; only acceptance replaces the pending
+ * boundary. A later refusal cannot cancel an earlier asynchronous LOAD. */
+static void native_sync_load_locked(int deck) {
+ if((unsigned)deck>=2)return;
+ if(native_sync_source[deck].admitted<UINT_MAX)native_sync_source[deck].admitted++;
+ pthread_mutex_lock(&native_sync_mutex);
+ if(native_sync_cache.native_deck==deck){
+  native_sync_cache.available=0;native_sync_cache.phase_available=0;native_sync_cache.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
+ }
+ pthread_mutex_unlock(&native_sync_mutex);
+}
+static int native_sync_same_load(const struct loaded *a,const struct loaded *b) {
+ return a->known&&b->known&&a->id==b->id&&a->device_kind==b->device_kind;
+}
+static void native_sync_observe_locked(int d,const struct loaded *l);
+static void native_sync_track_locked(int d,uint32_t track) {
+ if(native_sync_source[d].observed_track&&native_sync_source[d].observed_track!=track){
+  native_sync_source[d].valid=0;
+  if(native_sync_source[d].observation<UINT32_MAX)native_sync_source[d].observation++;
+ }
+ native_sync_source[d].observed_track=track;
+}
+/* Owner-thread, immediately before execution, under mutex. The existing guarded
+ * reader supplies a token for this deck, including a non-master. This is a LOAD
+ * boundary read, not a clock publication or a reset of the 33 ms poll gate. A
+ * missing/torn token cannot be used as later completion evidence. */
+static struct native_sync_load_boundary native_sync_load_before_locked(int deck) {
+ struct native_sync_load_boundary b={0};
+ uint64_t began=mono_checked_us();
+ b.load=read_loaded(deck);
+ native_sync_observe_locked(deck,&b.load);
+ struct xz_arcade_track_clock a={0},z={0};
+ if(xz_arcade_native_clock_valid(plain_read,NULL)&&
+    xz_music_native_clock_read(plain_read,NULL,(unsigned)deck,&a)&&
+    xz_music_native_clock_read(plain_read,NULL,(unsigned)deck,&z)&&a.track==z.track)b.track=z.track;
+ struct loaded after=read_loaded(deck);
+ if(!native_sync_same_load(&b.load,&after)||b.load.state!=after.state)b.track=0;
+ uint64_t ended=mono_checked_us();
+ if(!began||ended<began||ended-began>XZ_SYNC_NATIVE_MAX_READ_US)b.track=0;
+ native_sync_observe_locked(deck,&after);
+ b.load=after;
+ int slot=after.device_kind==2?0:after.device_kind==3?1:-1;
+ if(slot>=0)b.media=usb[slot].media;
+ if(!b.track||b.track!=native_sync_source[deck].track)native_sync_source[deck].valid=0;
+ if(b.track)native_sync_track_locked(deck,b.track);
+ if(settled(&after)&&b.track&&native_sync_source[deck].pending&&
+    native_sync_source[deck].boundary.track&&native_sync_source[deck].boundary.track!=b.track)native_sync_source[deck].pending=0;
+ b.observation=native_sync_source[deck].observation;
+ return b;
+}
+static void native_sync_load_result_locked(int deck,const struct native_sync_load_boundary *b,int rc) {
+ if((unsigned)deck>=2)return;
+ if(native_sync_source[deck].admitted&&native_sync_source[deck].admitted!=UINT_MAX)native_sync_source[deck].admitted--;
+ if(!rc){
+  native_sync_source[deck].boundary=*b;
+  native_sync_source[deck].pending=native_sync_source[deck].observation==b->observation||
+   native_sync_source[deck].observation==UINT32_MAX;
+  native_sync_source[deck].valid=0;
+ }
+ /* No cache/timestamp/identity rollback on refusal. Only a fresh owner poll may
+  * publish again, and real intervening observations remain invalidations. */
+}
+/* Observe both decks even when only the other deck is native master. Invalidity
+ * persists until a coherent qualification, so an observed non-master A-B-A
+ * cannot inherit A's old revision. Unknown records never prove LOAD completion. */
+static void native_sync_observe_locked(int d,const struct loaded *l) {
+ int slot=l->device_kind==2?0:l->device_kind==3?1:-1;
+ if(l->known){
+  int changed=native_sync_source[d].observed_load.known&&
+   (!native_sync_same_load(&native_sync_source[d].observed_load,l)||settled(&native_sync_source[d].observed_load)!=settled(l));
+  if(settled(l)&&slot>=0&&usb[slot].generation&&usb[slot].media.generation==usb[slot].generation&&
+     xz_extra_source_generation(slot+1)==usb[slot].generation){
+   if(native_sync_source[d].observed_media.generation&&
+      (native_sync_source[d].observed_media.generation!=usb[slot].generation||
+       !xz_shmedia_same(&native_sync_source[d].observed_media,&usb[slot].media)))changed=1;
+   native_sync_source[d].observed_media=usb[slot].media;
+  }
+  if(changed&&native_sync_source[d].observation<UINT32_MAX)native_sync_source[d].observation++;
+  native_sync_source[d].observed_load=*l;
+ }
+ int same_media=slot<0||(native_sync_source[d].media.generation==usb[slot].generation&&
+  xz_shmedia_same(&native_sync_source[d].media,&usb[slot].media));
+ if(!settled(l)||!native_sync_same_load(&native_sync_source[d].load,l)||!same_media)native_sync_source[d].valid=0;
+ if(native_sync_source[d].pending&&l->known){
+  const struct native_sync_load_boundary *b=&native_sync_source[d].boundary;
+  int media_changed=slot>=0&&b->media.generation&&
+   (b->media.generation!=usb[slot].generation||!xz_shmedia_same(&b->media,&usb[slot].media));
+  if(!settled(l)||(b->load.known&&!native_sync_same_load(&b->load,l))||media_changed)native_sync_source[d].pending=0;
+ }
 }
 static void native_sync_refresh_locked(void) {
  if(!xz_extra_decks_needs_native_sync()){
@@ -2339,18 +2451,43 @@ static void native_sync_refresh_locked(void) {
  if(native_sync_requested&&(uint32_t)(now-native_sync_polled)<XZ_SHRT_REFRESH_MS)return;
  native_sync_requested=1;native_sync_polled=now;
  struct loaded before[2]={read_loaded(0),read_loaded(1)};
+ uint64_t generation[2]={xz_extra_source_generation(1),xz_extra_source_generation(2)};
+ for(int d=0;d<2;d++)native_sync_observe_locked(d,&before[d]);
  struct xz_sync_native_snapshot next;
  if(xz_sync_native_read(plain_read,NULL,native_sync_now,NULL,&next)){
   int d=next.native_deck;struct loaded after=read_loaded(d);
-  const struct wave_request *request=&wave_job[d].request;
   int slot=after.device_kind==2?0:after.device_kind==3?1:-1;
-  if(!settled(&before[d])||!settled(&after)||before[d].id!=after.id||
-     before[d].device_kind!=after.device_kind||!wave_job[d].wanted||
-     request->track_id!=after.id||request->device_kind!=after.device_kind||
-     (slot>=0&&(!request->media.generation||request->media.generation!=usb[slot].generation||
-       !xz_shmedia_same(&request->media,&usb[slot].media)))){
+  int coherent=settled(&before[d])&&settled(&after)&&before[d].state==after.state&&
+   before[d].id==after.id&&before[d].device_kind==after.device_kind;
+  if(slot>=0)coherent=coherent&&generation[slot]&&generation[slot]==xz_extra_source_generation(slot+1)&&
+   generation[slot]==usb[slot].generation&&usb[slot].media.generation==usb[slot].generation;
+  int same=native_sync_source[d].load.id==after.id&&native_sync_source[d].load.device_kind==after.device_kind&&
+   native_sync_source[d].track==next.track_identity&&
+   (slot<0||(native_sync_source[d].media.generation==usb[slot].generation&&xz_shmedia_same(&native_sync_source[d].media,&usb[slot].media)));
+  native_sync_observe_locked(d,&after);
+  if(coherent)native_sync_track_locked(d,next.track_identity);
+  if(!same)native_sync_source[d].valid=0;
+  if(native_sync_source[d].pending&&coherent&&native_sync_source[d].boundary.track&&
+     native_sync_source[d].boundary.track!=next.track_identity)native_sync_source[d].pending=0;
+  /* A reused media generation with different identity is never a new qualified source. */
+  if(slot>=0&&native_sync_source[d].media.generation==usb[slot].generation&&
+     native_sync_source[d].media.generation&&!xz_shmedia_same(&native_sync_source[d].media,&usb[slot].media))coherent=0;
+  if(!coherent||native_sync_source[d].observation==UINT32_MAX||((!same||!native_sync_source[d].valid)&&native_sync_revision==UINT32_MAX)){
+   native_sync_source[d].valid=0;next.available=0;next.phase_available=0;next.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
+  }else if(native_sync_source[d].admitted||native_sync_source[d].pending){
    next.available=0;next.phase_available=0;next.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
-  }else next.source_revision=wave_job[d].wanted;
+  }else{
+   if(!same||!native_sync_source[d].valid){
+    native_sync_source[d].revision=++native_sync_revision;
+    native_sync_source[d].load=after;native_sync_source[d].track=next.track_identity;
+    memset(&native_sync_source[d].media,0,sizeof native_sync_source[d].media);
+    if(slot>=0)native_sync_source[d].media=usb[slot].media;
+   }
+   native_sync_source[d].valid=1;next.source_revision=native_sync_source[d].revision;
+  }
+ }else{
+  /* Reader failures must not let a later recycled token inherit an old observed revision. */
+  for(int d=0;d<2;d++)native_sync_source[d].valid=0;
  }
  pthread_mutex_lock(&native_sync_mutex);native_sync_cache=next;pthread_mutex_unlock(&native_sync_mutex);
 }
@@ -2426,7 +2563,6 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   wave_job[d].wanted++;wave_job[d].retry_at=0;wave_job[d].requested_us=mono_us();grid_count[d]=0;pthread_cond_signal(&wake);
   xz_shrt_position_reset(&position[d]);memset(&motion[d],0,sizeof motion[d]);
  }
- native_sync_refresh_locked();
  /* Playhead. The position comes from the audio engine (native clock: the player's sample position and its
     real speed with pitch and sync), read this refresh. The UI stat frame's elapsed time is the fallback
     when the engine read fails, or disagrees by more than ENGINE_AGREE_MS (a reading this module does not
@@ -2541,7 +2677,6 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
   uint64_t r0=now_us();refresh_locked(now,in);wf.refresh_us=(uint32_t)(now_us()-r0);
  }else if(extra_changed){
   extra_refresh_locked(now);
-  native_sync_refresh_locked();
   __atomic_store_n(&period_ms,xz_shrt_frame_period_ms(xz_shell_screen(&shell),xz_shrt_moving_decks(&model)!=0),__ATOMIC_RELAXED);
  }
  if(!owns_now(in->eligible,in->theme)){set_owns(0);goto done;}
@@ -2869,7 +3004,7 @@ static uint32_t debug_load_lock(void) {
   for(uint32_t i=0;i<count;i++){uint32_t id;memcpy(&id,raw+i*0x8c,4);if(id==0x60){memcpy(&value,raw+i*0x8c+0x88,4);break;}}
  free(raw);return value;
 }
-static int run_command(const struct xz_shrt_command *c) {
+static int run_command(const struct xz_shrt_command *c,struct native_sync_load_boundary *boundary) {
  switch(c->kind){
  case XZ_SHRT_CMD_TIME_MODE:
   if(!code_is(0xca308,set_time_mode_code,16))return -1;
@@ -2899,6 +3034,7 @@ static int run_command(const struct xz_shrt_command *c) {
      export.pdb track id}. 1 means the request was posted (message 0x40e), not that the deck loaded:
      the owner tick reads the deck's loaded id a second later (SHELL_LOAD_CHECK). */
   unsigned char id[8]={0,c->device_kind,1,0};memcpy(id+4,&c->track_id,4);
+  lock_as("tick");*boundary=native_sync_load_before_locked(c->deck);pthread_mutex_unlock(&mutex);
   return ((int(*)(int,void *,int))(uintptr_t)0x135728)(c->deck,id,3)?LOAD_OK:LOAD_NOT_POSTED;
  }
  default:return -1;
@@ -2947,6 +3083,8 @@ void xz_shell_runtime_owner_tick(void) {
   check=1;check_deck=load_check.deck;check_id=load_check.id;check_before=load_check.before;check_kind=load_check.device_kind;check_tries=load_check.tries;load_check.pending=0;
  }
  while(n<XZ_SHRT_QUEUE&&xz_shrt_queue_pop(&queue,&commands[n]))n++;
+ for(unsigned i=0;i<n;i++)if(commands[i].kind==XZ_SHRT_CMD_LOAD)native_sync_load_locked(commands[i].deck);
+ native_sync_refresh_locked();
  /* Off screen, stock may not flip at all; keep checking the way back from here. */
  if(refreshed&&xz_shrt_handoff_yields(&handoff)&&candidate(last_input.eligible,last_input.theme)&&now-last_refresh_ms>=100u){
   refresh_locked(now,&last_input);
@@ -2960,15 +3098,19 @@ void xz_shell_runtime_owner_tick(void) {
  for(unsigned i=0;i<n;i++){
   const struct xz_shrt_command *c=&commands[i];
   struct loaded before={0,0,0,0};
-  if(c->kind==XZ_SHRT_CMD_LOAD&&c->deck>=0&&c->deck<XZ_SHELL_NATIVE_DECKS)before=read_loaded(c->deck);
+  struct native_sync_load_boundary boundary={0};
+  if(c->kind==XZ_SHRT_CMD_LOAD&&(unsigned)c->deck<2){
+   lock_as("tick");before=read_loaded(c->deck);native_sync_observe_locked(c->deck,&before);pthread_mutex_unlock(&mutex);
+  }
   int rc=c->kind==XZ_SHRT_CMD_LOAD&&!xz_shrt_load_generation_current(c,(uint32_t)xz_extra_source_generation((int)c->device_kind-1))?
-   LOAD_SOURCE_CHANGED:run_command(c);
+   LOAD_SOURCE_CHANGED:run_command(c,&boundary);
   uint32_t latency=now-c->at_ms;
   lock_as("tick");
   struct xz_shell_proof *p=&xz_mods_shell_proof_v1;
   p->last_command=(uint32_t)c->kind;p->last_command_result=(uint32_t)rc;
   if(rc)p->commands_refused++;else p->commands_run++;
   if(latency>p->command_latency_max_ms&&latency<60000u)p->command_latency_max_ms=latency;
+  if(c->kind==XZ_SHRT_CMD_LOAD)native_sync_load_result_locked(c->deck,&boundary,rc);
   if(c->kind==XZ_SHRT_CMD_LOAD&&!rc){
    load_check.pending=1;load_check.deck=c->deck;load_check.id=c->track_id;load_check.device_kind=c->device_kind;
    load_check.before=before.known?before.id:UINT32_MAX;load_check.at=now_ms()+1000u;load_check.tries=0;
@@ -3032,26 +3174,19 @@ void xz_shell_runtime_owner_tick(void) {
 }
 
 static int flag(const char *name) { const char *v=getenv(name);return v&&!strcmp(v,"1"); }
-/* Start and stop serialise on lifecycle: the interface switch stops on its own thread (the worker may
-   be inside a USB read for a while) and a quick switch back waits for that stop to finish. */
+/* Start and stop serialise on lifecycle. Interface changes share this runtime; final shutdown joins
+   the control worker, which may be inside a USB read. */
 static pthread_mutex_t lifecycle=PTHREAD_MUTEX_INITIALIZER;
 static int start_locked(void);
 static void stop_locked(void);
 int xz_shell_runtime_start(void) { pthread_mutex_lock(&lifecycle);int rc=start_locked();pthread_mutex_unlock(&lifecycle);return rc; }
 void xz_shell_runtime_stop(void) { pthread_mutex_lock(&lifecycle);stop_locked();pthread_mutex_unlock(&lifecycle); }
-static void *stop_thread(void *unused) { (void)unused;xz_shell_runtime_stop();return NULL; }
 int xz_shell_runtime_follow_interface(int modern) {
- if(modern)return __atomic_load_n(&enabled,__ATOMIC_ACQUIRE)?0:xz_shell_runtime_start();
- if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return 0;
- /* Stop drawing now; the worker joins on a thread of its own so the caller (the UI lock) never waits. */
- pthread_t t;pthread_attr_t a;int started=0;
- if(!pthread_attr_init(&a)){
-  if(!pthread_attr_setdetachstate(&a,PTHREAD_CREATE_DETACHED))started=!pthread_create(&t,&a,stop_thread,NULL);
-  pthread_attr_destroy(&a);
- }
- if(!started)xz_shell_runtime_stop();
- xz_log("FLAGSHIP shell stopping: CLASSIC interface");
- return 0;
+ __atomic_store_n(&interface_modern,!!modern,__ATOMIC_RELEASE);
+ if(!modern){pthread_mutex_lock(&mutex);set_owns(0);pthread_mutex_unlock(&mutex);}
+ /* The shared control worker must keep media incarnations current in CLASSIC too. Drawing still
+  * depends on candidate(eligible,theme). No wave request is needed by the native clock publisher. */
+ return __atomic_load_n(&enabled,__ATOMIC_ACQUIRE)?0:xz_shell_runtime_start();
 }
 static int start_locked(void) {
  if(__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return 0;
