@@ -286,6 +286,16 @@ int xz_runtime_beat_jump(int deck,int beats) {
 static struct xz_deck_select deck_select;
 static pthread_mutex_t deck_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *out){
+    if(!out||!installed||observer||pthread_mutex_trylock(&deck_mutex))return 0;
+    uint32_t epoch=xz_extra_decks_epoch();
+    struct xz_extra_route route=xz_extra_decks_route();
+    if(epoch!=xz_extra_decks_epoch()) {pthread_mutex_unlock(&deck_mutex);return 0;}
+    xz_deck_select_route_instance(&deck_select,route.route_up&&epoch,epoch);
+    xz_deck_select_snapshot(&deck_select,out);
+    pthread_mutex_unlock(&deck_mutex);return 1;
+}
+
 /* Publishes the sides and carries out one outcome with no lock held. 1: stock must not see the key. */
 static int deck_outcome(const struct xz_ds_outcome *outcome, int left, int right, int available, uint16_t code) {
     xz_extra_decks_publish_sides(left, right);
@@ -313,7 +323,7 @@ static int deck_route(void *self, const void *input) {
     int have_feedback=route.route_up&&(key.code==XZ_DS_KEY_SHIFT||key.code==XZ_DS_KEY_TEMPO)&&xz_extra_decks_snapshot(&feedback);
     pthread_mutex_lock(&deck_mutex);
     if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
-    xz_deck_select_route(&deck_select, route.route_up);
+    xz_deck_select_route_instance(&deck_select, route.route_up,xz_extra_decks_epoch());
     uint32_t input_ms=xz_game_milliseconds();
     struct xz_ds_outcome outcome = xz_deck_select_key(&deck_select, &key, input_ms);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
@@ -338,7 +348,7 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
     int have_feedback=route.route_up&&code==XZ_DS_KEY_SHIFT&&xz_extra_decks_snapshot(&feedback);
     pthread_mutex_lock(&deck_mutex);
     if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
-    xz_deck_select_route(&deck_select, route.route_up);
+    xz_deck_select_route_instance(&deck_select, route.route_up,xz_extra_decks_epoch());
     uint32_t input_ms=xz_game_milliseconds();
     struct xz_ds_key trace_key={.side=(int)channel-1,.code=code,.op=operation};
     trace_key.shift=deck_select.side[channel-1].phase==XZ_DS_DOWN_ONCE||
@@ -382,7 +392,7 @@ int xz_runtime_deck_select_toggle(int side) {
     memset(&outcome, 0, sizeof(outcome));
     pthread_mutex_lock(&deck_mutex);
     if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
-    xz_deck_select_route(&deck_select, route.route_up);
+    xz_deck_select_route_instance(&deck_select, route.route_up,xz_extra_decks_epoch());
     xz_deck_select_toggle(&deck_select, side, &outcome);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
@@ -433,7 +443,7 @@ int xz_runtime_deck_global_input(void *self, const void *input) {
     }
     struct xz_extra_route route=xz_extra_decks_route();
     pthread_mutex_lock(&deck_mutex);
-    xz_deck_select_route(&deck_select,route.route_up);
+    xz_deck_select_route_instance(&deck_select,route.route_up,xz_extra_decks_epoch());
     uint32_t input_ms=xz_game_milliseconds();
     struct xz_ds_outcome outcome=xz_deck_select_global_player(&deck_select,&key,input_ms);
     int left=deck_select.side[0].target==XZ_DS_EXTRA,right=deck_select.side[1].target==XZ_DS_EXTRA;

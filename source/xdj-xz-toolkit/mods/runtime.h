@@ -28,4 +28,7 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
    route is down (the caller shows XZ_DS_NO_ROUTE_TEXT), -1 no players or no adapter. Takes only deck select's
    own lock, so the shell may call it under its lock. */
 int xz_runtime_deck_select_toggle(int side);
+struct xz_ds_selection;
+/* Nonblocking own-state copy; 0 unavailable/contended, output unchanged. */
+int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *);
 #endif

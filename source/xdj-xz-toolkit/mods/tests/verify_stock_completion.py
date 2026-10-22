@@ -6,9 +6,13 @@ M = Path(__file__).resolve().parents[1]
 ap = argparse.ArgumentParser()
 ap.add_argument('--output', type=Path, required=True)
 ap.add_argument('--arch', choices=['host', 'arm'], default='host')
-ap.add_argument('--suite', choices=['sync', 'controls', 'extensions', 'tempo_grid'], required=True)
+ap.add_argument('--suite', choices=['sync', 'controls', 'extensions', 'tempo_grid', 'global_sync'], required=True)
 ap.add_argument('--modes')
+ap.add_argument('--source', type=Path, help='Frozen mods directory to compare using this regression fixture')
 a = ap.parse_args()
+test_root = M / 'tests'
+if a.source:
+    M = a.source.resolve()
 O = a.output.resolve()
 O.mkdir(parents=True, exist_ok=False)
 
@@ -39,7 +43,7 @@ end = runtime.index('\nstatic int deck_route(', begin)
 names = ['extra_player.c', 'deck_select.c', 'anlz_extra.c', 'shell_analysis.c',
          'ui/layered_wave_source.c', 'ui/layered_wave.c', 'audio/stem_media.c',
          'audio/stem_mp3.c', 'audio/stem_decode.c', 'shell_runtime_core.c']
-sources = [M / n for n in names] + [M / 'tests' / ('test_stock_' + a.suite + '_review.c')]
+sources = [M / n for n in names] + [test_root / ('test_stock_' + a.suite + '_review.c')]
 flags = ['-std=c11', '-g', '-UNDEBUG', '-pthread', '-Wall', '-Wextra', '-Werror',
          '-Wno-unused-function', '-Wno-misleading-indentation', '-DXZ_XP_TEST_RENDER_HOOK',
          '-I' + linux(M), '-I' + linux(O), '-ffunction-sections', '-fdata-sections']

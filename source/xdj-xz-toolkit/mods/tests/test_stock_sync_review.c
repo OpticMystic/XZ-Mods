@@ -73,7 +73,10 @@ static void debounce(const char *which){
  if(!strcmp(which,"identity")){
   advance(200);sim_native.native_deck=1;sim_native.track_identity++;sim_native.source_revision++;step();
   advance(120);dump("debounce-new-identity-120");CHECK(!view.deck[0].master&&!view.deck[1].master);
-  advance(190);CHECK(view.deck[0].master);
+  /* A newly selected source first observed paused has not stopped during this authority. */
+  advance(190);CHECK(!view.deck[0].master&&!view.deck[1].master);
+  sim_native.playing=1;advance(50);sim_native.playing=0;advance(290);
+  CHECK(!view.deck[0].master&&!view.deck[1].master);advance(30);CHECK(view.deck[0].master);
  }
 }
 static void negatives(void){

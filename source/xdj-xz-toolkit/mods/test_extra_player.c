@@ -24,6 +24,12 @@
 #include <unistd.h>
 #endif
 
+static struct xz_xp_players *create_with_test_grid(const struct xz_xp_env *env){
+ struct xz_xp_players *result=xz_xp_create(env);
+ xz_xp_set_quantize_grid(result,1,1);return result;
+}
+#define xz_xp_create create_with_test_grid
+
 /* ---- fake transport: queues per deck, generations applied like the USB worker applies them ---- */
 #define FAKE_BLOCKS 32
 struct block { uint32_t generation, frames; uint64_t after; };
