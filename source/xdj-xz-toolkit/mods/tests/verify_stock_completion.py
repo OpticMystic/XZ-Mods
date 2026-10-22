@@ -6,7 +6,7 @@ M = Path(__file__).resolve().parents[1]
 ap = argparse.ArgumentParser()
 ap.add_argument('--output', type=Path, required=True)
 ap.add_argument('--arch', choices=['host', 'arm'], default='host')
-ap.add_argument('--suite', choices=['sync', 'controls', 'extensions'], required=True)
+ap.add_argument('--suite', choices=['sync', 'controls', 'extensions', 'tempo_grid'], required=True)
 ap.add_argument('--modes')
 a = ap.parse_args()
 O = a.output.resolve()
