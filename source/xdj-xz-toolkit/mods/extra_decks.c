@@ -174,6 +174,7 @@ enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int deck,
  struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
  return p?xz_xp_copy_wave(p,deck,expected,first,out):XZ_EXTRA_WAVE_COPY_ABSENT;
 }
+uint32_t xz_extra_decks_jog_content_epoch(int deck){return xz_xp_jog_content_epoch(deck);}
 
 int xz_extra_deck_input(const struct xz_extra_deck_event *event) {
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);

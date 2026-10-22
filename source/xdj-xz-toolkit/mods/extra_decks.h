@@ -123,6 +123,7 @@ struct xz_extra_deck {
  struct xz_extra_wave wave;
  struct xz_extra_timeline timeline;
  struct xz_extra_sync sync;
+ uint32_t jog_content_epoch;          /* accepted LOAD/instance identity, captured under publication lock; 0 invalid */
 };
 
 /* What pads A..H do, chosen by the HOT CUE / BEAT LOOP / SLIP LOOP / BEAT JUMP buttons (manual pp.52-62).
@@ -156,6 +157,7 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out);
    deck is 0/1. Copies values, never lends analysis pointers. See xz_xp_copy_wave. */
 enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int deck,
  const struct xz_extra_wave_key *expected, uint32_t first, struct xz_extra_wave_chunk *out);
+uint32_t xz_extra_decks_jog_content_epoch(int deck); /* process-lifetime atomic acquire, no player pointer */
 uint32_t xz_extra_decks_revision(void); /* atomic player visible-state revision, no snapshot copy */
 uint32_t xz_extra_decks_control_revision(void); /* packed route/sides/availability state; no locks */
 int xz_extra_decks_needs_native_sync(void); /* atomic; cached native clock publisher demand */
