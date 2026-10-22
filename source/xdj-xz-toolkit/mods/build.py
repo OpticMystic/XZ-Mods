@@ -18,6 +18,35 @@ from shell.shell_sources import SHELL_SOURCES
 ROOT = pathlib.Path(__file__).resolve().parent
 
 
+def player_defines(args) -> list[str]:
+    """Keep the separate player object and shared build on one profile."""
+    flags = ["-DXZ_XP_JOG_TICKS_PER_REV=" + str(args.jog_counts_per_rev)]
+    if args.xp_service_proof:
+        flags.append("-DXZ_XP_SERVICE_PROOF=1")
+    return flags
+
+
+def proof_export(path: pathlib.Path, enabled: bool, name: str, reader_name: str) -> dict[str, int]:
+    with path.open("rb") as stream:
+        table = ELFFile(stream).get_section_by_name(".dynsym")
+        symbols = table.get_symbol_by_name(name) if table else None
+        if not enabled:
+            if symbols:
+                raise ValueError("Unexpected diagnostic export: " + name)
+            return {}
+        if len(symbols or []) != 1 or symbols[0]["st_info"]["type"] != "STT_OBJECT":
+            raise ValueError("Diagnostic object was not compiled into the runtime: " + name)
+        if symbols[0]["st_info"]["bind"] != "STB_GLOBAL" or symbols[0]["st_other"]["visibility"] != "STV_DEFAULT":
+            raise ValueError("Diagnostic object is not a public global export: " + name)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("xz_build_" + reader_name[:-3], ROOT / reader_name)
+        reader = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(reader)
+        if symbols[0]["st_size"] != reader.SIZE:
+            raise ValueError("Diagnostic object differs from its reader ABI: " + name)
+        return {name: int(symbols[0]["st_size"])}
+
+
 def build_mp3_vfp(output: pathlib.Path, arm_gcc: str | None, wsl_distro: str) -> dict:
     """Keep the base ARM ABI while compiling MP3 arithmetic to VFP instructions."""
     source = ROOT / "audio/stem_mp3.c"
@@ -114,6 +143,10 @@ def main() -> None:
     parser.add_argument("--wsl-distro", default="Ubuntu", help="WSL distribution used for ARM GCC on Windows")
     parser.add_argument("--jog-display-proof", action="store_true",
                         help="Include bounded Jog LCD diagnostic counters in a private trial build")
+    parser.add_argument("--xp-service-proof", action="store_true",
+                        help="Include optional scratch service and first-overflow diagnostics in a private trial build")
+    parser.add_argument("--sync-observation", action="store_true",
+                        help="Include optional native/software SYNC handoff diagnostics in a private trial build")
     parser.add_argument("--jog-counts-per-rev", type=int, default=6600,
                         help="Provisional platter counts per revolution, estimated from the owner's 33 s versus 1.8 s travel (default: 6600)")
     parser.add_argument("--host-checks-only", action="store_true",
@@ -155,7 +188,7 @@ def main() -> None:
     player_object=args.output.resolve()/"extra-player-vfp.o"
     subprocess.run([compiler,"cc","-target","arm-linux-gnueabi.2.13","-mcpu=cortex_a9",
                     "-mfloat-abi=softfp","-mfpu=vfpv3","-O2","-std=c11","-Wall","-Wextra","-Werror",
-                    "-DXZ_XP_JOG_TICKS_PER_REV="+str(args.jog_counts_per_rev),
+                    *player_defines(args),
                     "-fPIC","-fvisibility=hidden","-c",str(ROOT/"extra_player.c"),
                     "-o",str(player_object)],check=True)
     transport_object=args.output.resolve()/"usb-transport.o"
@@ -244,10 +277,21 @@ def main() -> None:
                "-o", str(destination)]
     if args.jog_display_proof:
         command.insert(2, "-DXZ_JOG_DISPLAY_PROOF")
-    command.insert(2, "-DXZ_XP_JOG_TICKS_PER_REV=" + str(args.jog_counts_per_rev))
+    if args.sync_observation:
+        command.insert(2, "-DXZ_SYNC_OBSERVATION=1")
+    command[2:2] = player_defines(args)
     subprocess.run(command, check=True)
     result = inspect(destination)
     result["jog_display_proof"] = args.jog_display_proof
+    result["xp_service_proof"] = args.xp_service_proof
+    result["xp_service_proof_exports"] = proof_export(destination, args.xp_service_proof,
+        "xz_mods_xp_service_proof_v1", "read_xp_service_proof.py")
+    result["sync_observation"] = args.sync_observation
+    result["sync_observation_exports"] = proof_export(destination, args.sync_observation,
+        "xz_mods_sync_observation_v1", "read_sync_observation.py")
+    result["jog_latch_exports"] = proof_export(destination, args.jog_display_proof,
+        "xz_mods_jog_latch_v2", "read_jog_display_latch.py")
+    result["player_defines"] = player_defines(args)
     result["jog_counts_per_rev"] = args.jog_counts_per_rev
     result["jog_player_object_sha256"] = hashlib.sha256(player_object.read_bytes()).hexdigest()
     result["jog_travel_ms_per_rev"] = 1800
