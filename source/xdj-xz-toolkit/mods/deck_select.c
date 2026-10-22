@@ -88,12 +88,17 @@ int xz_ds_key_decode(const void *innards, const void *input, struct xz_ds_key *k
 static int within_slack(int32_t a, int32_t b) { return a - b <= XZ_DS_PICKUP_SLACK && b - a <= XZ_DS_PICKUP_SLACK; }
 
 void xz_ds_pickup_arm(struct xz_ds_pickup *p, int32_t target, int physical_known, int32_t physical) {
- p->target = target; p->have_prev = physical_known; p->prev = physical;
+ p->target = target; p->have_prev = physical_known; p->prev = physical;p->require_motion=0;
  p->armed = !(physical_known && within_slack(physical, target));
 }
 
 int xz_ds_pickup_feed(struct xz_ds_pickup *p, int32_t position) {
  if(!p->armed) return 1;
+ if(p->require_motion){
+  if(!p->arm_known){p->arm_known=1;p->arm_position=position;p->prev=position;p->have_prev=1;return 0;}
+  if(within_slack(position,p->arm_position))return 0;
+  p->require_motion=0;
+ }
  if(within_slack(position, p->target) || (p->have_prev && (p->prev < p->target) != (position < p->target))) {
   p->armed = 0; return 1;
  }
@@ -105,20 +110,33 @@ void xz_deck_select_init(struct xz_deck_select *d) {
  memset(d, 0, sizeof *d);
  for(int i = 0; i < 2; i++) {
   /* A software deck starts at 0 % tempo: the fader centre. */
-  d->side[i].held_known[XZ_DS_EXTRA] = 1;
+  d->side[i].held_known[XZ_DS_EXTRA] = 1;d->side[i].selection_epoch=1;
  }
 }
 
 static void switch_to(struct xz_ds_side *s, enum xz_ds_target target) {
  if(s->target == target) return;
- s->target = target;
+ s->target = target;s->selection_epoch++;
  if(s->held_known[target]) xz_ds_pickup_arm(&s->pickup, s->held[target], s->physical_known, s->physical);
  else s->pickup.armed = 0;
 }
 
-void xz_deck_select_route(struct xz_deck_select *d, int route_up) {
- d->route_up = !!route_up;
- if(!d->route_up) for(int i = 0; i < 2; i++) switch_to(&d->side[i], XZ_DS_NATIVE);
+void xz_deck_select_route_instance(struct xz_deck_select *d,int route_up,uint32_t epoch){
+ if(!d)return;
+ int invalidated=d->route_up&&(!route_up||d->route_epoch!=epoch);
+ if(invalidated)for(int i=0;i<2;i++){
+  d->side[i].selection_epoch++;switch_to(&d->side[i],XZ_DS_NATIVE);
+ }
+ d->route_up=!!route_up;d->route_epoch=epoch;
+ if(!d->route_up)for(int i=0;i<2;i++)switch_to(&d->side[i],XZ_DS_NATIVE);
+}
+void xz_deck_select_route(struct xz_deck_select *d,int route_up){
+ xz_deck_select_route_instance(d,route_up,d?d->route_epoch:0);
+}
+void xz_deck_select_snapshot(const struct xz_deck_select *d,struct xz_ds_selection *out){
+ if(!d||!out)return;
+ for(int i=0;i<2;i++){out->epoch[i]=d->side[i].selection_epoch;out->deck[i]=i+1+(d->side[i].target==XZ_DS_EXTRA?2:0);}
+ out->route_up=d->route_up;out->route_epoch=d->route_epoch;
 }
 void xz_deck_select_feedback(struct xz_deck_select *d,const struct xz_extra_decks *extra) {
  if(!d||!extra||!extra->route_up)return;
@@ -128,12 +146,22 @@ void xz_deck_select_feedback(struct xz_deck_select *d,const struct xz_extra_deck
   uint32_t needed=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TEMPO)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_TEMPO_RANGE);
   if((deck->known&needed)!=needed||(deck->tempo_range!=6&&deck->tempo_range!=10&&
      deck->tempo_range!=16&&deck->tempo_range!=100))continue;
-  if(side->extra_revision_known&&side->extra_revision==deck->tempo_revision)continue;
+  int following=deck->sync.requested&&!deck->master;
+  int released=side->extra_following&&!following;
+  side->extra_following=following;
+  if(!released&&side->extra_revision_known&&side->extra_revision==deck->tempo_revision)continue;
   int64_t position=(int64_t)deck->tempo_x100*XZ_EXTRA_TEMPO_SPAN/(deck->tempo_range*100);
   if(position< -XZ_EXTRA_TEMPO_SPAN||position>XZ_EXTRA_TEMPO_SPAN)continue;
   side->extra_revision=deck->tempo_revision;side->extra_revision_known=1;
   side->held[XZ_DS_EXTRA]=(int32_t)position;side->held_known[XZ_DS_EXTRA]=1;
-  if(side->target==XZ_DS_EXTRA)xz_ds_pickup_arm(&side->pickup,(int32_t)position,side->physical_known,side->physical);
+  if(side->target==XZ_DS_EXTRA){
+   xz_ds_pickup_arm(&side->pickup,(int32_t)position,side->physical_known,side->physical);
+   if(released){
+    side->pickup.armed=side->pickup.require_motion=1;
+    side->pickup.arm_known=side->physical_known;side->pickup.arm_position=side->physical;
+    if(side->physical_known&&within_slack(side->physical,(int32_t)position))side->pickup.have_prev=0;
+   }
+  }
  }
 }
 
@@ -206,6 +234,7 @@ static void tempo(struct xz_ds_side *s, int side, const struct xz_ds_key *k, str
  if(!isfinite(k->value)) { out->verdict = away ? XZ_DS_SWALLOW : XZ_DS_PASS; return; }
  int32_t position = fader_position(k->value);
  s->physical_known = 1; s->physical = position;
+ if(away&&s->extra_following){out->verdict=XZ_DS_SWALLOW;return;}
  if(!xz_ds_pickup_feed(&s->pickup, position)) { out->verdict = XZ_DS_SWALLOW; return; }
  s->held_known[s->target] = 1; s->held[s->target] = position;
  if(!away) return;
@@ -219,7 +248,11 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
  int away = s->target == XZ_DS_EXTRA;
  if(k->op == 0) {
   if(!away) { s->owner[XZ_DS_NATIVE] |= bit; return; }
-  if(row->kind==XZ_EXTRA_IN_SYNC){s->owner[XZ_DS_EXTRA]|=bit;s->sync_held=0;out->verdict=XZ_DS_SWALLOW;return;}
+  if(row->kind==XZ_EXTRA_IN_SYNC){
+   if(s->owner[XZ_DS_EXTRA]&bit){out->verdict=XZ_DS_SWALLOW;return;}
+   s->owner[XZ_DS_EXTRA]|=bit;s->sync_held=0;
+   deliver(out,side,XZ_EXTRA_IN_SYNC,k);out->event.pressed=1;return;
+  }
   int pad = k->code >= 0x4119 && k->code <= 0x4120;
   if(row->cls != XZ_DS_ROW_DELIVER) { out->verdict = XZ_DS_SWALLOW; return; }
   s->owner[XZ_DS_EXTRA] |= bit;
@@ -248,7 +281,6 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
   s->owner[XZ_DS_EXTRA] &= ~bit;
   if(row->kind==XZ_EXTRA_IN_SYNC){
    out->verdict=XZ_DS_SWALLOW;
-   if(k->op==2&&!s->sync_held){deliver(out,side,XZ_EXTRA_IN_SYNC,k);out->event.pressed=1;}
    return;
   }
   deliver(out, side, (enum xz_extra_input)row->kind, k);

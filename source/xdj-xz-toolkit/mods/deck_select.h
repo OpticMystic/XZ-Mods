@@ -33,7 +33,7 @@ enum xz_ds_phase {
 };
 enum xz_ds_target { XZ_DS_NATIVE, XZ_DS_EXTRA };
 
-struct xz_ds_pickup { int armed, have_prev; int32_t target, prev; };
+struct xz_ds_pickup { int armed, have_prev, require_motion, arm_known; int32_t target, prev, arm_position; };
 /* Where a LOAD pressed on a switched side went, decided by the caller at the press (xz_deck_select_load_route):
    swallowed, to the FLAGSHIP shell (it loads its highlighted row to the side's software deck), or on to stock
    (the classic interface's one-shot divert sends stock's own load to the software deck). */
@@ -46,11 +46,12 @@ int xz_ds_pickup_feed(struct xz_ds_pickup *, int32_t position);
 struct xz_ds_side {
  enum xz_ds_phase phase;
  uint32_t first_down_ms;
+ uint64_t selection_epoch;
  enum xz_ds_target target;            /* the deck these controls drive now */
  int physical_known; int32_t physical; /* where the DJ's hand left the tempo fader */
  int held_known[2]; int32_t held[2];  /* by target: the tempo position that deck keeps */
  struct xz_ds_pickup pickup;          /* toward held[target] */
- uint32_t extra_revision; int extra_revision_known;
+ uint32_t extra_revision; int extra_revision_known, extra_following;
  uint64_t early_native_down, early_native_release; /* global native press and one fallback release pass */
  uint64_t owner[2];                   /* by target: buttons down whose press that deck received */
  int load_down;                       /* a LOAD press went to the software deck; hold and release follow load */
@@ -59,7 +60,7 @@ struct xz_ds_side {
  enum xz_ds_load_route load;
 };
 struct xz_deck_select {
- int route_up;
+ int route_up;uint32_t route_epoch;
  struct xz_ds_side side[2];           /* 0 left (channel 1), 1 right (channel 2) */
  uint16_t logged[16]; unsigned logged_count;
 };
@@ -107,6 +108,10 @@ struct xz_ds_row { uint16_t lo, hi; uint8_t cls, path; int8_t kind; };
 /* The row for code, or NULL; slot is the code's own ownership bit (0..63). */
 const struct xz_ds_row *xz_ds_row_for(uint16_t code, unsigned *slot);
 
+#define XZ_DS_HAS_SELECTION_SNAPSHOT 1
+struct xz_ds_selection { uint64_t epoch[2]; int deck[2],route_up; uint32_t route_epoch; };
+void xz_deck_select_snapshot(const struct xz_deck_select *,struct xz_ds_selection *);
+void xz_deck_select_route_instance(struct xz_deck_select *,int route_up,uint32_t route_epoch);
 void xz_deck_select_init(struct xz_deck_select *);
 /* Call before each event with the route as it is now. A drop returns both sides to DECK 1 / DECK 2. */
 void xz_deck_select_route(struct xz_deck_select *, int route_up);
