@@ -1428,6 +1428,7 @@ static void pad_jump(struct xz_xp_players *p, struct deck *d, int pad, uint32_t 
  if (d->loop.active) {
   double in = (double)d->loop.in + delta, out = (double)d->loop.out + delta;
   if (in < 0 || out > (double)d->r->frames) { xz_xp_notice(p, "LOOP MOVE OUT OF TRACK"); return; }
+  if(d->slip_reverse){d->slip_reverse=0;d->reverse=0;}
   d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;
   d->loop.in = (uint64_t)llround(in); d->loop.out = (uint64_t)llround(out); d->loop.edit = 0;
   jump(d, loop_frame(d, (uint64_t)llround((double)at + delta)), now);
