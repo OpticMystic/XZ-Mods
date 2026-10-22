@@ -18,7 +18,7 @@ int main(void){
   struct sh_wave_axis unknown=sh_axis(pps,&d);assert(unknown.rate==10000);
   d.known=XZ_SHELL_KNOWN(XZ_SHELL_F_TEMPO);d.tempo_x100=-10000;assert(sh_axis(pps,&d).rate==10000);
   for(unsigned r=0;r<sizeof rates/sizeof rates[0];r++){
-   d.tempo_x100=rates[r]-10000;struct sh_wave_axis a=sh_axis(pps,&d);assert(a.rate==(rates[r]?(uint32_t)rates[r]:10000u));
+   d.tempo_x100=rates[r]-10000;struct sh_wave_axis a=sh_axis(pps,&d);assert(a.rate==10000u);
    for(unsigned i=0;i<sizeof positions/sizeof positions[0];i++){
     int32_t ms=positions[i];int64_t px=sh_axis_px(a,ms);
     if(a.rate==10000)assert(px==old_px(pps,ms));
@@ -68,5 +68,5 @@ int main(void){
  int64_t marker=sh_axis_px(slow,30000);
  sh_deck_lane_axis((struct xz_canvas){.p=after,.stride=800,.width=800,.height=80},rect,39,&u,&m,&d,marker-400,slow);
  assert(after[40*800+400]!=0||after[40*800+401]!=0);
- puts("PASS rational axis: nominal tempo, unknown/zero/slow/WIDE, signed and overflow bounds, equal-beat motion, honest phase, cue/loop/seek,1x source sampling");return 0;
+ puts("PASS fixed source-time axis at every tempo; rational sampler bounds, cue/loop/seek and source sampling");return 0;
 }
