@@ -22,7 +22,7 @@ static xz_usb_result hc_transition(void *ctx,uint32_t epoch,int d,uint32_t expec
 static void hc_setup(int d,int playing){
  hc_cases++;hc_side=d;hc_capture=hc_frames=0;clock_ms=1000;
  wire_horizon=0;position_interval=position_noise=position_blocked=0;threaded_clock=0;hold_flush=0;
- struct xz_xp_env env={{NULL,fake_link,hc_submit,fake_flush,fake_position,hc_transition},now_ms,resolve,master_bpm,NULL,NULL};
+ struct xz_xp_env env={{NULL,fake_link,hc_submit,fake_flush,fake_position,hc_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
  p=xz_xp_create(&env);assert(p);fake_route(3000+hc_cases);step();load(d,d?2:1);load(1-d,d?1:2);seek(d,700);seek(1-d,1000);
  if(playing)press(d,XZ_EXTRA_IN_PLAY);
 }

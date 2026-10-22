@@ -78,7 +78,7 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   if(xz_ui_profile_place(u,m,a))continue;
   switch(a->kind){
   case XZ_UI_FEATURE_LINK:
-   /* PC STEMS sits beside the USB STEMS switch; stem settings join the bottom links. */
+   /* PC STEMS sits beside the STANDALONE STEMS switch; stem settings join the bottom links. */
    if(k==XZ_UI_METRICS_SETUP){grid(a,1,0,5,1);break;}
    grid(a,2,k==XZ_UI_STEM_COLORS||k==XZ_UI_CONTROLS?0:1,k==XZ_UI_PC_STEMS?0:k==XZ_UI_BEAT_JUMP?1:k==XZ_UI_STEM_COLORS||k==XZ_UI_XPAD?4:k==XZ_UI_METRICS_SETUP?5:6,1);break;
   case XZ_UI_FEATURE_SETUP_OPEN:
@@ -233,7 +233,7 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
   int deck=u->deck>=0&&u->deck<2?u->deck:0,four=xz_ui_stem_count(m,deck)==4;
   enum xz_ui_usb_reason why=xz_ui_usb_blocked(m,deck);
   uint32_t tone=why==XZ_UI_USB_WHY_ERROR||why==XZ_UI_USB_WHY_ENGINE?p->alarm:why==XZ_UI_USB_WHY_NONE?p->accent:ink;
-  label(c,X0,52,CW,"USB STEMS SETUP",2,ink);
+  label(c,X0,52,CW,"STANDALONE STEMS SETUP",2,ink);
   label(c,X0,78,CW,"1 CHECK ENGINE  /  2 TURN ON (ALL DECKS)  /  3 LOAD A PREPARED TRACK",1,dim);
   label(c,X0,104,CW,d->track&&*d->track?d->track:"NO TRACK LOADED ON THIS DECK",2,ink);
   snprintf(buf,sizeof(buf),"DECK %d: %s",deck+1,xz_ui_usb_reason_text(why));

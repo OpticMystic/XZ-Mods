@@ -304,7 +304,8 @@ int xz_extra_decks_start(void) {
  const char *enabled = getenv("XZ_MODS_FOUR_DECK");
  if (route.started || (enabled && !strcmp(enabled, "0"))) return 0;
  struct xz_xp_env env = {{NULL, sink_link, sink_submit, sink_flush, sink_position, sink_transition}, now_ms,
-                         xz_extra_resolve_track, xz_extra_native_master_bpm, deck_worker_enter, xz_extra_resolve_track_checked};
+                         xz_extra_resolve_track, xz_extra_native_master_bpm, deck_worker_enter, xz_extra_resolve_track_checked,
+                         1, 0}; /* VINYL mode and QUANTIZE on at start, as the stock decks */
  struct xz_xp_players *p = xz_xp_create(&env);
  if (!p) return -1;
  if(xz_extra_native_sync_clock)xz_xp_set_native_sync_clock(p,xz_extra_native_sync_clock);

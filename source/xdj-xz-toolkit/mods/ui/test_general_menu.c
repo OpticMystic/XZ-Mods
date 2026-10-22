@@ -85,7 +85,7 @@ int main(void){
   m.deck[1].ready=XZ_UI_STEM;
   const struct xz_ui_widget available=find(&u,&m,XZ_UI_ENABLE,XZ_UI_STEM);
   assert(available.x==unavailable.x&&available.y==unavailable.y&&available.w==unavailable.w&&available.h==unavailable.h);
-  /* Row 0: USB STEMS for all decks beside PC STEMS SETUP; stem settings move to the bottom links. */
+  /* Row 0: STANDALONE STEMS for all decks beside PC STEMS SETUP; stem settings move to the bottom links. */
   const struct xz_ui_widget pc=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS),settings=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS);
   const struct xz_ui_widget keys=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS);
   assert(pc.y==available.y&&pc.x>available.x&&strstr(available.label,"ALL DECKS"));

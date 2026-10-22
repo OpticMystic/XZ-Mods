@@ -142,9 +142,9 @@ enum xz_ui_usb_reason xz_ui_usb_blocked(const struct xz_ui_model *m,int deck){
 }
 const char *xz_ui_usb_reason_text(enum xz_ui_usb_reason why){
  switch(why){
- case XZ_UI_USB_WHY_NONE:return "USB STEMS READY";
+ case XZ_UI_USB_WHY_NONE:return "STEMS READY";
  case XZ_UI_USB_WHY_ENGINE:return "NO STEM ENGINE";
- case XZ_UI_USB_WHY_OFF:return "USB STEMS OFF";
+ case XZ_UI_USB_WHY_OFF:return "STEMS OFF";
  case XZ_UI_USB_WHY_NO_TRACK:return "NO TRACK LOADED";
  case XZ_UI_USB_WHY_NOT_PREPARED:return "NOT PREPARED";
  case XZ_UI_USB_WHY_LOADING:return "LOADING STEMS";
@@ -164,9 +164,9 @@ const char *xz_ui_usb_action_label(enum xz_ui_usb_reason why){
 }
 const char *xz_ui_usb_next_step(enum xz_ui_usb_reason why){
  switch(why){
- case XZ_UI_USB_WHY_NONE:return "USB STEMS READY ON THIS DECK.";
+ case XZ_UI_USB_WHY_NONE:return "STANDALONE STEMS READY ON THIS DECK.";
  case XZ_UI_USB_WHY_ENGINE:return "UPDATE THE USB LOADER WITH XZ MODS ON YOUR COMPUTER, THEN RESTART THE PLAYER.";
- case XZ_UI_USB_WHY_OFF:return "TURN ON USB STEMS. IT APPLIES TO ALL DECKS.";
+ case XZ_UI_USB_WHY_OFF:return "TURN ON STANDALONE STEMS. IT APPLIES TO ALL DECKS.";
  case XZ_UI_USB_WHY_NO_TRACK:return "LOAD A TRACK FROM USB ON THIS DECK.";
  case XZ_UI_USB_WHY_NOT_PREPARED:return "PREPARE THIS TRACK IN XZ MODS ON YOUR COMPUTER, THEN LOAD IT AGAIN.";
  case XZ_UI_USB_WHY_LOADING:return "STEMS ARE LOADING FROM USB. WAIT A MOMENT.";
@@ -297,7 +297,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   uint32_t available=m->deck[0].ready|m->deck[1].ready|m->enabled;
   /* One switch for every deck: an installed engine turns on here, no wizard. */
   int engine=xz_ui_usb_engine(m);
-  add(w,&n,engine?XZ_UI_ENABLE:XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM,0,engine?"USB STEMS / ALL DECKS":"SET UP USB STEMS");
+  add(w,&n,engine?XZ_UI_ENABLE:XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM,0,engine?"STANDALONE STEMS / ALL DECKS":"SET UP STANDALONE STEMS");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS,0,"PC STEMS SETUP >");
   add(w,&n,XZ_UI_JUMP_ENABLE,0,0,"PAGE 1 CUSTOM JUMPS");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BEAT_JUMP,0,"JUMP SETTINGS >");
@@ -345,7 +345,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
      its check passes (step 1) the button turns stems on instead of looping. */
   enum xz_ui_usb_reason why=xz_ui_usb_blocked(m,u->deck<2?u->deck:0);
   int step=why==XZ_UI_USB_WHY_ENGINE?(u->stem_setup_step==1?1:0):why==XZ_UI_USB_WHY_OFF?1:2;
-  add(w,&n,XZ_UI_LOCAL_STEM_SETUP_STEP,step,0,step==0?"CHECK STEM ENGINE":step==1?"TURN ON USB STEMS / ALL DECKS":
+  add(w,&n,XZ_UI_LOCAL_STEM_SETUP_STEP,step,0,step==0?"CHECK STEM ENGINE":step==1?"TURN ON STANDALONE STEMS / ALL DECKS":
    why==XZ_UI_USB_WHY_NONE?"STEMS READY / BACK TO PLAY":"CHECK THIS DECK AGAIN");
  }else if(u->page==XZ_UI_KEY_SETUP){
   add(w,&n,XZ_UI_KEY_CHECK,0,0,"DETECT + VERIFY KEYS");
@@ -448,7 +448,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_CONNECTION_ENABLE,0,XZ_UI_VJ_CONNECTION,"VJ.TOOLS CONNECTION");
   add(w,&n,XZ_UI_DISCOVERY,0,XZ_UI_VJ_DISCOVERY,"DISCOVERABLE");
  }else if(u->page==XZ_UI_PC_STEMS){
-  static const char *sources[3]={"USB STEMS","PC STEMS","SOURCE UNKNOWN"};
+  static const char *sources[3]={"STANDALONE STEMS","PC STEMS","SOURCE UNKNOWN"};
   for(i=0;i<2;i++){int source=m->deck[i].pc_stems.source;add(w,&n,XZ_UI_DECK,i,0,sources[source>=0&&source<3?source:2]);}
   int deck=pc_deck(u),step=m->deck[deck].pc_stems.setup_step;size_t first=n;
   if(step==XZ_UI_PC_STEP_MAPPING)add(w,&n,XZ_UI_PC_CHECK,step,0,"STEMS ON / CONTINUE");
@@ -613,7 +613,7 @@ static void pc_setup_render(const struct xz_ui_scene *s){
  int step=pc->setup_step<XZ_UI_PC_STEP_DETECT||pc->setup_step>XZ_UI_PC_STEP_DONE?XZ_UI_PC_STEP_DETECT:pc->setup_step;
  enum xz_ui_pc_reason why=xz_ui_pc_blocked(m,deck);char line[96];
  snprintf(line,sizeof(line),"DECK %d SOURCE: %s",deck+1,pc->source==XZ_UI_SOURCE_PC?"PC / REKORDBOX PERFORMANCE":
-  pc->source==XZ_UI_SOURCE_LOCAL?"XZ USB / USB STEMS":"NOT CONFIRMED");
+  pc->source==XZ_UI_SOURCE_LOCAL?"XZ USB / STANDALONE STEMS":"NOT CONFIRMED");
  xz_text(c,560,98,line,1,38,ink);
  snprintf(line,sizeof(line),"PC LINK: %s",pc->source!=XZ_UI_SOURCE_PC?"--":pc->connected?"CONNECTED":"LOST / NOTHING SENT");
  xz_text(c,560,112,line,1,38,pc->source==XZ_UI_SOURCE_PC&&!pc->connected?p->alarm:ink);
@@ -638,7 +638,7 @@ static void pc_setup_render(const struct xz_ui_scene *s){
   {"IMPORT THE XZ STEMS MAP IN REKORDBOX.","FILE: XZ-onscreen-stems-4deck.midi.csv","TURN STEMS ON FOR THE LOADED TRACK."},
   {"LOAD A TRACK ON THIS DECK IN REKORDBOX.","THE TEST SENDS ONE DRUMS SWITCH.","WATCH THE DRUMS STEM IN REKORDBOX."},
   {"DID THE DRUMS STEM SWITCH IN REKORDBOX?","TAP DRUMS ON THE DECK ROW LATER TO SWITCH IT BACK.","NO GOES BACK TO THE TEST STEP."},
-  {"ONSCREEN STEMS NOW SWITCH REKORDBOX STEMS ON THIS DECK.","LIT/UNLIT SHOWS ONLY WHEN REKORDBOX REPORTS ITS LED.","PADS AND USB STEMS KEEP THEIR OWN SETTINGS."}};
+  {"ONSCREEN STEMS NOW SWITCH REKORDBOX STEMS ON THIS DECK.","LIT/UNLIT SHOWS ONLY WHEN REKORDBOX REPORTS ITS LED.","PADS AND STANDALONE STEMS KEEP THEIR OWN SETTINGS."}};
  xz_text(c,XZ_UI_CX,190,text[step][0],step==XZ_UI_PC_STEP_DONE?1:2,step==XZ_UI_PC_STEP_DONE?108:54,ink);
  for(int i=1;i<3;i++)xz_text(c,XZ_UI_CX,step==XZ_UI_PC_STEP_DONE?190+i*20:196+i*24,text[step][i],1,108,ink);
  if(step==XZ_UI_PC_STEP_TEST&&(pc->pending&(1u<<XZ_UI_PC_DRUMS)))xz_text(c,XZ_UI_CX,292,"DRUMS SENT / WAITING FOR REKORDBOX",1,108,p->accent);
@@ -761,7 +761,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   else if(a.kind==XZ_UI_PROFILE_PICK)snprintf(u->notice,sizeof(u->notice),"%s",m->dj&&m->dj->pending>=0?
    "STILL SWITCHING THE LAST PROFILE":"THIS PROFILE FILE IS DAMAGED / SAVE IT AGAIN FROM VJ.TOOLS");
   else if(a.kind==XZ_UI_MUTE||a.kind==XZ_UI_BYPASS||a.kind==XZ_UI_LEVEL){
-   /* Locked stems name their one reason; the runtime opens USB STEMS setup at it. */
+   /* Locked stems name their one reason; the runtime opens STANDALONE STEMS setup at it. */
    enum xz_ui_usb_reason why=xz_ui_usb_blocked(m,deck);const char *error=deck<2?m->deck[deck].stem_error:NULL;
    snprintf(u->notice,sizeof(u->notice),"%s",why==XZ_UI_USB_WHY_ERROR&&error&&*error?error:xz_ui_usb_next_step(why));
    u->notice_deck=deck;out[n++]=action(XZ_UI_UNAVAILABLE,XZ_UI_PRESS,deck,XZ_UI_STEM,0,0);return n;

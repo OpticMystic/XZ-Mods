@@ -106,7 +106,7 @@ static void setups_open_in_shell(void){
     /* opened from GENERAL's own row inside MODS: under GENERAL, BACK returns there */
     modern();for(int d=0;d<2;d++){model.deck[d].ready&=~(uint32_t)XZ_UI_STEM;model.deck[d].usb_reason=XZ_UI_USB_WHY_ENGINE;}
     audio_available=0;model.enabled=0;open_tab(XZ_UI_GENERAL);
-    activate(row_named("SET UP USB STEMS"),-1);
+    activate(row_named("SET UP STANDALONE STEMS"),-1);
     assert(panel_shut()&&ui.page==XZ_UI_LOCAL_STEM_SETUP&&fake_menu.root==XZ_UI_GENERAL&&fake_menu.depth==1);
     back();assert(ui.page==XZ_UI_GENERAL);
     audio_available=1;

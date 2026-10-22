@@ -575,7 +575,7 @@ static void control(struct build *b, const struct xz_ui_widget *w, size_t n, int
  case XZ_UI_FEATURE_SETUP_OPEN:case XZ_UI_LOCAL_STEM_SETUP_OPEN:case XZ_UI_METRICS_SETUP_OPEN:
   control_row(b,a,XZ_SHELL_MENU_LINK,a->label);return;
  case XZ_UI_ENABLE:
-  toggle_row(b,a,a->index==XZ_UI_STEM?"USB STEMS":a->label);return;
+  toggle_row(b,a,a->index==XZ_UI_STEM?"STANDALONE STEMS":a->label);return;
  case XZ_UI_JUMP_ENABLE:toggle_row(b,a,"CUSTOM JUMPS ON PAGE 1");return;
  case XZ_UI_FOUR_WAVE_ORDER:{
   struct xz_shell_menu_row *r=control_row(b,a,XZ_SHELL_MENU_CHOICE,"FOUR-DECK WAVE ORDER");

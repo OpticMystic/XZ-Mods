@@ -39,7 +39,7 @@ static void *recovery_new_route_input(void *unused) {
 }
 
 static int recovery_restored_input(int side,enum xz_extra_input kind) {
- struct xz_xp_env env={{NULL,recovery_scheduled_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,order_resolve};
+ struct xz_xp_env env={{NULL,recovery_scheduled_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,order_resolve,0,0};
  owner_thread=pthread_self();
  clock_ms=1000;p=xz_xp_create(&env);assert(p);fake_route(9000);step();load(side,4);
  if(kind==XZ_EXTRA_IN_JOG_TOUCH)press(side,XZ_EXTRA_IN_VINYL);
@@ -70,7 +70,7 @@ static int recovery_reconnecting_resolver(int source,uint32_t id,struct xz_extra
  return rc;
 }
 static int recovery_stale_inflight_load(int side,int explicit_epoch) {
- struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,recovery_reconnecting_resolver,master_bpm,NULL,order_resolve};
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,recovery_reconnecting_resolver,master_bpm,NULL,order_resolve,0,0};
  clock_ms=1000;p=xz_xp_create(&env);assert(p);fake_route(9100);step();load(side,4);
  struct xz_extra_deck_event e=event(side,XZ_EXTRA_IN_LOAD,1);
  e.load.source=1;e.load.track_id=2;e.load.route_epoch=explicit_epoch?9100:0;

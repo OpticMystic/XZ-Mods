@@ -44,7 +44,7 @@ static void dispatch(unsigned side,unsigned op){
 }
 static void tap(unsigned side){dispatch(side,0);dispatch(side,2);step();}
 static void init_case(unsigned side,int modern){
- clock_ms=1000;wire_horizon=882;struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL};
+ clock_ms=1000;wire_horizon=882;struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,sync_resolve,master_bpm,NULL,NULL,0,0};
  p=xz_xp_create(&env);assert(p);xz_xp_set_native_sync_clock(p,xz_extra_native_sync_clock);fake_route(997);step();fixture_runtime_reset();
  CHECK(fixture_toggle((int)side)==1);sync_loop_track((int)side,1,350);
  fixture_shell_reset();fixture_native_init();CHECK(xz_shell_runtime_follow_interface(modern)==0);

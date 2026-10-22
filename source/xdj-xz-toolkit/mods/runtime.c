@@ -299,7 +299,7 @@ static int deck_outcome(const struct xz_ds_outcome *outcome, int left, int right
         xz_log(line);
     }
     if (outcome->verdict == XZ_DS_DELIVER) (void)xz_extra_deck_input(&outcome->event);
-    return outcome->verdict != XZ_DS_PASS;
+    return outcome->verdict != XZ_DS_PASS && !outcome->also_stock;
 }
 
 static int deck_route(void *self, const void *input) {

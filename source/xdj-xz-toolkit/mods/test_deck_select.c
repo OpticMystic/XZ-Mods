@@ -197,6 +197,26 @@ static void test_routing(void) {
  assert(xz_deck_select_global_key(&d, 2, 0x430f, 0, now).verdict == XZ_DS_PASS);
  assert(xz_deck_select_global_key(&d, 2, 0x430f, 2, now).verdict == XZ_DS_PASS);
  assert(xz_deck_select_global_key(&d, 1, 0x430b, 2, now).verdict == XZ_DS_SWALLOW);
+ /* DECK QUANTIZE (manual): a press is for every deck, so stock still gets it and the software deck of that
+    side hears it too; SHIFT + press is for the side's deck only. Left drives DECK 3, right drives DECK 2. */
+ o = xz_deck_select_global_key(&d, 1, 0x430c, 0, now);
+ assert(o.verdict == XZ_DS_DELIVER && o.also_stock && o.event.kind == XZ_EXTRA_IN_QUANTIZE && o.event.deck == LEFT && !o.event.shift);
+ assert(xz_deck_select_global_key(&d, 1, 0x430c, 2, now).verdict == XZ_DS_PASS);
+ o = xz_deck_select_global_key(&d, 2, 0x430c, 0, now);
+ assert(o.verdict == XZ_DS_DELIVER && o.also_stock && o.event.deck == RIGHT && !o.event.shift);
+ assert(xz_deck_select_global_key(&d, 2, 0x430c, 2, now).verdict == XZ_DS_PASS);
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_SHIFT, 0, now).verdict == XZ_DS_PASS);
+ o = xz_deck_select_global_key(&d, 1, 0x430c, 0, now);
+ assert(o.verdict == XZ_DS_DELIVER && !o.also_stock && o.event.shift && o.event.deck == LEFT);
+ assert(xz_deck_select_global_key(&d, 1, 0x430c, 2, now).verdict == XZ_DS_SWALLOW);  /* stock never saw it */
+ assert(xz_deck_select_global_key(&d, 1, XZ_DS_KEY_SHIFT, 2, now).verdict == XZ_DS_PASS);
+ assert(d.side[LEFT].target == XZ_DS_EXTRA);                                           /* SHIFT was a modifier */
+ assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_SHIFT, 0, now).verdict == XZ_DS_PASS);
+ o = xz_deck_select_global_key(&d, 2, 0x430c, 0, now);
+ assert(o.verdict == XZ_DS_PASS && !o.also_stock);                                     /* native deck only */
+ assert(xz_deck_select_global_key(&d, 2, 0x430c, 2, now).verdict == XZ_DS_PASS);
+ assert(xz_deck_select_global_key(&d, 2, XZ_DS_KEY_SHIFT, 2, now).verdict == XZ_DS_PASS);
+ assert(d.side[RIGHT].target == XZ_DS_NATIVE);
  /* Browse and the other global keys pass at the global hook, whatever the side. */
  assert(xz_deck_select_global_key(&d, 0, 0x4208, 0, now).verdict == XZ_DS_PASS);
  assert(xz_deck_select_global_key(&d, 1, 0x4101, 0, now).verdict == XZ_DS_PASS);
@@ -317,7 +337,9 @@ static void test_stock_unchanged(void) {
     if(code == XZ_DS_KEY_SHIFT) continue;
     struct xz_ds_outcome o = ev(LEFT, (uint16_t)code, op, (int)(code & 1), 3, 0.25f);
     assert(o.verdict == XZ_DS_PASS && !o.toggled && !o.unknown_first);
-    assert(xz_deck_select_global_key(&d, 1, (uint16_t)code, op, now).verdict == XZ_DS_PASS);
+    /* Stock still receives every key; DECK QUANTIZE also reaches the software decks (it is for every deck). */
+    struct xz_ds_outcome g = xz_deck_select_global_key(&d, 1, (uint16_t)code, op, now);
+    assert(g.verdict == XZ_DS_PASS || (route && code == 0x430c && op == 0 && g.verdict == XZ_DS_DELIVER && g.also_stock));
     if(!route) assert(ev(RIGHT, (uint16_t)code, op, 0, 3, 0.25f).verdict == XZ_DS_PASS);
    }
  }

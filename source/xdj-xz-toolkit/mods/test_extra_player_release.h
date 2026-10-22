@@ -48,7 +48,7 @@ static int release_resolve(int source,uint32_t id,struct xz_extra_track *out){
 static void release_setup(int side,int rate,int playing){
  release_side=side;release_trace=release_frames=release_max_calls=release_bad_pcm=0;release_fault_left=release_complete_transition=0;
  release_reverse_at=0;
- struct xz_xp_env env={{NULL,fake_link,release_submit,fake_flush,fake_position,release_transition},now_ms,release_resolve,master_bpm,NULL,NULL};
+ struct xz_xp_env env={{NULL,fake_link,release_submit,fake_flush,fake_position,release_transition},now_ms,release_resolve,master_bpm,NULL,NULL,0,0};
  clock_ms=1000;p=xz_xp_create(&env);assert(p);fake_route(1600);release_step();
  load(side,rate==44100?4:2);seek(side,700);press(side,XZ_EXTRA_IN_VINYL);
  if(playing)press(side,XZ_EXTRA_IN_PLAY);
