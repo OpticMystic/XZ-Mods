@@ -90,8 +90,11 @@ enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_M
 struct xz_shell_menu;
 int xz_shell_runtime_menu_wanted(void);
 void xz_shell_runtime_menu(const struct xz_shell_menu *);
+/* NETWORK's review token is acknowledged only by an actual interactive menu
+ * frame and a later fresh input sequence. A build/publication is not a paint. */
+void xz_shell_runtime_menu_network(const struct xz_shell_menu *,uint64_t review_token);
 /* op: enum xz_shell_menu_op. OPEN: root; ACTIVATE: target; BACK; PRESS/MOVE/RELEASE: target, x, y (0..1000). */
-struct xz_shell_runtime_menu_command { int op, root, x, y; struct xz_shell_menu_target target; };
+struct xz_shell_runtime_menu_command { int op, root, x, y; struct xz_shell_menu_target target; uint64_t network_publication; };
 int xz_shell_runtime_take_menu_command(struct xz_shell_runtime_menu_command *);
 /* A panel control led to a mod page (a setup the runtime opens itself): MODS opens on the MENU tab whose
    root holds it, inside the page. 0 when the shell cannot show it (no such tab, not running). close: MODS

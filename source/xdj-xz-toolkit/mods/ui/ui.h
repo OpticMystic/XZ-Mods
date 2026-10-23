@@ -137,6 +137,7 @@ struct xz_ui_action {
     uint32_t pc_epoch;
     int pc_target;
     uint64_t network_revision; /* immutable draft revision at submission */
+    uint64_t network_publication; /* one consumed successful review paint */
     uint32_t sdk_generation; /* catalog generation an SDK row action was made from */
 };
 /* Mirrors enum xz_ram_state in ../ram/runtime.h so the panel builds without the RAM backend.
@@ -285,6 +286,12 @@ struct xz_ui {
     int edit_logo_chosen;      /* the DJ picked; no automatic pick after that */
     int kb_shift, kb_symbols, image_offset;
     struct xz_network_ui_draft network;
+    struct {
+        struct xz_network_ui_draft staged;
+        struct xz_net_snapshot observed;
+        uint64_t request_id,trial_id,token,painted,consumed;
+        int phase,result,theme,valid,contact_blocked,press_armed;
+    } network_review;
     char edit_name[641], edit_tagline[321], edit_id[129]; /* edit_id "" = a new profile */
 };
 struct xz_ui_widget {
@@ -300,7 +307,7 @@ size_t xz_ui_back(struct xz_ui *,struct xz_ui_action out[XZ_UI_ACTIONS]);
 void xz_ui_init(struct xz_ui *ui);
 /* The model is a runtime snapshot. Rendering and touch never change it. */
 size_t xz_ui_layout(const struct xz_ui *, const struct xz_ui_model *, struct xz_ui_widget out[XZ_UI_WIDGETS]);
-int xz_ui_render(const struct xz_ui *, const struct xz_ui_model *, uint16_t *pixels, size_t count, size_t stride);
+int xz_ui_render(struct xz_ui *, const struct xz_ui_model *, uint16_t *pixels, size_t count, size_t stride);
 /* Up to XZ_UI_ACTIONS actions. Runtime applies these and supplies the next model. */
 size_t xz_ui_touch(struct xz_ui *, const struct xz_ui_model *, int x, int y, int down, struct xz_ui_action out[XZ_UI_ACTIONS]);
 /* Call on close, focus loss or device removal to release a held mute/strip/pad. */

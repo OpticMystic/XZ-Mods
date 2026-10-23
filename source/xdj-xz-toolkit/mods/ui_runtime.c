@@ -84,6 +84,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_menu_wanted
 #pragma weak xz_shell_runtime_menu
 #pragma weak xz_shell_runtime_take_menu_command
+#pragma weak xz_shell_runtime_menu_network
 #pragma weak xz_shell_runtime_show_mods
 #pragma weak xz_shell_runtime_close_mods
 #pragma weak xz_shell_runtime_mods_open
@@ -625,7 +626,11 @@ static int menu_in_shell_locked(void){
 }
 static struct xz_shell_menu menu_scratch; /* under ui_mutex */
 static void menu_publish_locked(void){
-    if(xz_shell_runtime_menu&&xz_ui_menu_build(&ui,&model,&menu_scratch))xz_shell_runtime_menu(&menu_scratch);
+    if(xz_shell_runtime_menu&&xz_ui_menu_build(&ui,&model,&menu_scratch)){
+        uint64_t review=xz_ui_network_review_token(&ui,&model);
+        if(review&&xz_shell_runtime_menu_network)xz_shell_runtime_menu_network(&menu_scratch,review);
+        else xz_shell_runtime_menu(&menu_scratch);
+    }
 }
 /* The page ui.page sits under must be a MENU tab (GENERAL, CONTROLS, ADVANCED, EXTRAS); a page reached from
    the two item tabs (APPEARANCE, BUTTONS) is filed under GENERAL, which links to it too. */
@@ -1053,7 +1058,8 @@ static void network_apply(const struct xz_ui_action *a) {
     if(a->kind==XZ_UI_NETWORK_DETECT)command.kind=XZ_NET_CMD_DETECT;
     else if(a->kind==XZ_UI_NETWORK_APPLY){
         if(a->network_revision!=ui.network.revision){snprintf(ui.notice,sizeof ui.notice,"Network draft changed; review again");return;}
-        command.kind=XZ_NET_CMD_APPLY_TRIAL;command.body.apply=ui.network.trial;
+        command.kind=XZ_NET_CMD_APPLY_TRIAL;
+        if(!xz_ui_network_take_apply(&ui,&model,a,&command.body.apply)){snprintf(ui.notice,sizeof ui.notice,"Network review paint/gesture changed; review again");return;}
     }else if(a->kind==XZ_UI_NETWORK_REVERT){command.kind=XZ_NET_CMD_REVERT;command.body.trial_id=model.network.trial_id;}
     else if(a->kind==XZ_UI_NETWORK_CANCEL){command.kind=XZ_NET_CMD_CANCEL;command.body.trial_id=model.network.trial_id;}
     else if(a->kind==XZ_UI_NETWORK_STEP&&a->index==XZ_NETWORK_VERIFY){command.kind=XZ_NET_CMD_VERIFY;command.body.trial_id=model.network.trial_id;}
@@ -1510,6 +1516,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
    opening_contact capture does. */
 static void menu_command_locked(const struct xz_shell_runtime_menu_command *c){
     struct xz_ui_action actions[XZ_UI_MENU_ACTIONS];size_t n=0;
+    if(xz_ui_network_page(ui.page))xz_ui_network_painted(&ui,&model,c->network_publication);
     switch(c->op){
     case XZ_SHELL_MENU_OPEN:
         if(!menu_top(c->root))return;

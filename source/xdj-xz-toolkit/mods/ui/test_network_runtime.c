@@ -17,7 +17,12 @@ int main(void){
     network_refresh();assert(model.network.actual.count==1);
     struct xz_ui_action actions[XZ_UI_ACTIONS];size_t n=xz_ui_network_action(&ui,&model,XZ_UI_NETWORK_SETUP_OPEN,0,actions);assert(n==1);apply(NULL,actions,n);assert(submitted==1&&captured_command.kind==XZ_NET_CMD_DETECT);
     assert(!xz_ui_network_action(&ui,&model,XZ_UI_NETWORK_STEP,XZ_NETWORK_CHOOSE,actions));assert(!xz_ui_network_action(&ui,&model,XZ_UI_NETWORK_MODE,XZ_NET_STATIC,actions));strcpy(ui.network.ip,"192.0.2.50");assert(!xz_ui_network_action(&ui,&model,XZ_UI_NETWORK_STEP,XZ_NETWORK_REVIEW,actions));
-    n=xz_ui_network_action(&ui,&model,XZ_UI_NETWORK_APPLY,0,actions);assert(n==1);apply(NULL,actions,n);assert(submitted==2&&captured_command.kind==XZ_NET_CMD_APPLY_TRIAL&&captured_command.body.apply.policy.order[0].static_ip.address.ip.octet[3]==50);
+    assert(!xz_ui_network_action(&ui,&model,XZ_UI_NETWORK_APPLY,0,actions));
+    static uint16_t review_pixels[800*480];assert(xz_ui_render(&ui,&model,review_pixels,800*480,800));
+    struct xz_ui_widget widgets[XZ_UI_WIDGETS],button={0};size_t count=xz_ui_layout(&ui,&model,widgets);
+    for(size_t i=0;i<count;i++)if(widgets[i].kind==XZ_UI_NETWORK_APPLY)button=widgets[i];assert(button.kind==XZ_UI_NETWORK_APPLY);
+    n=xz_ui_touch(&ui,&model,button.x+button.w/2,button.y+button.h/2,1,actions);assert(n==1);apply(NULL,actions,n);assert(submitted==2&&captured_command.kind==XZ_NET_CMD_APPLY_TRIAL&&captured_command.body.apply.policy.order[0].static_ip.address.ip.octet[3]==50);
+    apply(NULL,actions,n);assert(submitted==2);struct xz_ui_action release[XZ_UI_ACTIONS];assert(!xz_ui_touch(&ui,&model,0,0,0,release));
     uint64_t request=captured_command.request_id;strcpy(ui.network.ip,"192.0.2.99");assert(captured_command.body.apply.policy.order[0].static_ip.address.ip.octet[3]==50);
     actions[0].phase=XZ_UI_MOVE;apply(NULL,actions,1);actions[0].phase=XZ_UI_RELEASE;apply(NULL,actions,1);assert(submitted==2);
     actions[0].phase=XZ_UI_PRESS;actions[0].network_revision--;apply(NULL,actions,1);assert(submitted==2&&strstr(ui.notice,"draft changed"));

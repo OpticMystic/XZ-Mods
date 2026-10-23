@@ -208,6 +208,7 @@ static int root_page(enum xz_ui_page page){
  return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_THEMES||page==XZ_UI_EXTRAS;
 }
 void xz_ui_navigate(struct xz_ui *u,enum xz_ui_page page){
+ xz_ui_network_invalidate(u);
  if(!u||(unsigned)page>=XZ_UI_PAGE_COUNT||u->page==page)return;
  if(root_page(page))u->history_count=0;
  else{
@@ -261,6 +262,7 @@ static enum xz_ui_page parent_page(enum xz_ui_page page){
  }
 }
 size_t xz_ui_back(struct xz_ui *u,struct xz_ui_action out[XZ_UI_ACTIONS]){
+ xz_ui_network_invalidate(u);
  /* BACK first leaves an encoder value edit and stays on the page. */
  if(u->adjusting){u->adjusting=0;return 0;}
  /* Then it closes the DJ Profile list and returns focus to its chip. */
@@ -651,9 +653,10 @@ static int profile_kind(enum xz_ui_action_kind kind){
  return kind==XZ_UI_PROFILE||kind==XZ_UI_PROFILE_PICK||kind==XZ_UI_PROFILE_PAGE||xz_ui_profile_owns(kind);
 }
 static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16_t *pixels,size_t stride,int chrome);
-int xz_ui_render(const struct xz_ui *u,const struct xz_ui_model *m,uint16_t *pixels,size_t count,size_t stride){
+int xz_ui_render(struct xz_ui *u,const struct xz_ui_model *m,uint16_t *pixels,size_t count,size_t stride){
+ if(u)u->network_review.painted=0;
  if(!u||!m||!pixels||u->deck<0||u->deck>3||stride<800||stride>count/480)return 0;
- if(!u->profile_open||!m->dj){render_page(u,m,pixels,stride,1);return 1;}
+ if(!u->profile_open||!m->dj){uint64_t review=xz_ui_network_review_token(u,m);render_page(u,m,pixels,stride,1);xz_ui_network_painted(u,m,review);return 1;}
  /* The open profile list sits over the page it was opened from. */
  struct xz_ui base=*u;base.profile_open=0;
  render_page(&base,m,pixels,stride,0);
@@ -740,7 +743,7 @@ static struct xz_ui_action action(enum xz_ui_action_kind kind,enum xz_ui_phase p
 }
 size_t xz_ui_cancel(struct xz_ui *u,struct xz_ui_action out[XZ_UI_ACTIONS]){
  size_t n=0;if(u->held_kind!=XZ_UI_NONE)out[n++]=action(u->held_kind,XZ_UI_RELEASE,u->held_deck,u->held_index,0,0);
- u->held_kind=XZ_UI_NONE;u->capture=-1;u->down=0;u->dragged=0;return n;
+ u->held_kind=XZ_UI_NONE;u->capture=-1;u->down=0;u->dragged=0;u->network_review.contact_blocked=0;u->network_review.press_armed=0;return n;
 }
 static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,int y,int down,struct xz_ui_action out[XZ_UI_ACTIONS],const struct xz_ui_widget *w,size_t count){
  struct xz_ui_widget a;size_t n,i;const struct xz_ui_deck *d;int press,deck;
@@ -871,13 +874,14 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
 size_t xz_ui_touch(struct xz_ui *u,const struct xz_ui_model *m,int x,int y,int down,struct xz_ui_action out[XZ_UI_ACTIONS]){
  struct xz_ui_widget w[XZ_UI_WIDGETS];
  if(!u||!m||u->deck<0||u->deck>3)return 0;
+ u->network_review.press_armed=down&&!u->down;
  size_t count=xz_ui_layout(u,m,w);
  if(u->profile_open&&m->dj&&down&&!u->down){
   int hit=0;for(size_t i=0;i<count;i++)hit|=x>=w[i].x&&x<w[i].x+w[i].w&&y>=w[i].y&&y<w[i].y+w[i].h;
   /* A tap outside the list only closes it; the finger stays captured until release. */
   if(!hit){u->profile_open=0;u->down=1;u->capture=-1;u->focus_kind=XZ_UI_PROFILE;u->focus_index=0;u->focus_deck=-1;return 0;}
  }
- return touch_widgets(u,m,x,y,down,out,w,count);
+ size_t result=touch_widgets(u,m,x,y,down,out,w,count);u->network_review.press_armed=0;return result;
 }
 /* A row is equal slots: stems, then the trailing control. Three stems in
    four slots is the USB grid, so a 3-stem PC row lines up with a USB row. */

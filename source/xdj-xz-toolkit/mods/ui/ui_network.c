@@ -87,6 +87,47 @@ static void initialize(struct xz_ui *u,const struct xz_ui_model *m){
 static size_t emit(struct xz_ui *u,int kind,int index,struct xz_ui_action *out){
     out[0]=(struct xz_ui_action){.kind=(enum xz_ui_action_kind)kind,.phase=XZ_UI_PRESS,.deck=-1,.index=index,.network_revision=u->network.revision,.pc_target=-1};return 1;
 }
+void xz_ui_network_invalidate(struct xz_ui *u){
+    if(!u)return;
+    u->network_review.token++;if(!u->network_review.token)u->network_review.token++;
+    u->network_review.valid=0;u->network_review.painted=0;u->network_review.consumed=0;
+}
+uint64_t xz_ui_network_review_token(struct xz_ui *u,const struct xz_ui_model *m){
+    if(!u||!m)return 0;
+    struct xz_net_snapshot observed=m->network.actual;observed.observed_ms=0;
+    if(u->page!=XZ_UI_NETWORK_SETUP||!u->network.initialized||u->network.setup_reason||u->network.step!=XZ_NETWORK_REVIEW||u->profile_open){
+        if(u->network_review.valid||u->network_review.painted)xz_ui_network_invalidate(u);
+        return 0;
+    }
+    if(!u->network_review.valid||memcmp(&u->network_review.staged,&u->network,sizeof u->network)||
+       memcmp(&u->network_review.observed,&observed,sizeof observed)||u->network_review.request_id!=m->network.request_id||
+       u->network_review.trial_id!=m->network.trial_id||u->network_review.phase!=(int)m->network.phase||u->network_review.result!=(int)m->network.result||u->network_review.theme!=m->theme){
+        xz_ui_network_invalidate(u);u->network_review.staged=u->network;u->network_review.observed=observed;
+        u->network_review.request_id=m->network.request_id;u->network_review.trial_id=m->network.trial_id;
+        u->network_review.phase=(int)m->network.phase;u->network_review.result=(int)m->network.result;u->network_review.theme=m->theme;u->network_review.valid=1;
+    }
+    return u->network_review.token;
+}
+void xz_ui_network_painted(struct xz_ui *u,const struct xz_ui_model *m,uint64_t token){
+    if(!u||!m)return;
+    uint64_t current=xz_ui_network_review_token(u,m);
+    u->network_review.painted=token&&token==current?token:0;
+    if(u->network_review.painted&&u->down)u->network_review.contact_blocked=1;
+}
+int xz_ui_network_take_apply(struct xz_ui *u,const struct xz_ui_model *m,const struct xz_ui_action *a,struct xz_net_trial *out){
+    if(!u||!m||!a||!out)return 0;
+    struct xz_net_snapshot observed=m->network.actual;observed.observed_ms=0;
+    struct xz_network_ui_draft staged=u->network;staged.step=XZ_NETWORK_REVIEW;
+    int valid=a->kind==XZ_UI_NETWORK_APPLY&&a->phase==XZ_UI_PRESS&&a->network_publication&&
+        a->network_publication==u->network_review.consumed&&a->network_revision==u->network.revision&&
+        u->network.step==XZ_NETWORK_VERIFY&&u->network_review.request_id==m->network.request_id&&
+        u->network_review.trial_id==m->network.trial_id&&u->network_review.phase==(int)m->network.phase&&u->network_review.result==(int)m->network.result&&u->network_review.theme==m->theme&&
+        !memcmp(&u->network_review.observed,&observed,sizeof observed)&&
+        !memcmp(&u->network_review.staged,&staged,sizeof staged);
+    u->network_review.consumed=0;
+    if(valid)*out=u->network_review.staged.trial;
+    return valid;
+}
 static int fresh(struct xz_ui *u,const struct xz_ui_model *m){
     if(u->network.initialized&&u->network.trial.expected_generation==m->network.actual.generation&&actual(u,m))return 1;
     snprintf(u->notice,sizeof u->notice,"NETWORK CHANGED / DETECT AND CHOOSE AGAIN");u->network.initialized=0;u->network.step=XZ_NETWORK_DETECT;return 0;
@@ -104,6 +145,7 @@ static int parse_draft(struct xz_ui *u,const struct xz_ui_model *m){
 }
 size_t xz_ui_network_action(struct xz_ui *u,const struct xz_ui_model *m,int kind,int index,struct xz_ui_action *out){
     struct xz_network_ui_draft *d=&u->network;
+    if(kind!=XZ_UI_NETWORK_APPLY)xz_ui_network_invalidate(u);
     if(kind==XZ_UI_NETWORK_SETUP_OPEN){xz_ui_navigate(u,XZ_UI_NETWORK_SETUP);d->step=XZ_NETWORK_DETECT;d->initialized=0;return emit(u,XZ_UI_NETWORK_DETECT,0,out);}
     if(kind==XZ_UI_NETWORK_DETECT){d->step=XZ_NETWORK_DETECT;d->initialized=0;return emit(u,kind,index,out);}
     if(kind==XZ_UI_NETWORK_CANCEL||kind==XZ_UI_NETWORK_REVERT)return emit(u,kind,index,out);
@@ -127,7 +169,13 @@ size_t xz_ui_network_action(struct xz_ui *u,const struct xz_ui_model *m,int kind
     if(kind==XZ_UI_NETWORK_PRIORITY){int next=d->selected+(index<0?-1:1);if(next>=0&&next<d->trial.policy.count){struct xz_net_preference swap=d->trial.policy.order[next];d->trial.policy.order[next]=*p;*p=swap;d->selected=next;d->adapter_offset=(next/3)*3;d->revision++;}return 0;}
     if(kind==XZ_UI_NETWORK_MODE){if(index>=0&&index<3)p->mode=(enum xz_net_mode)index;else if(index==3)d->trial.policy.request_route=!d->trial.policy.request_route;else if(index==4)p->static_ip.dhcp=p->static_ip.dhcp==XZ_NET_STATIC_KEEP_DHCP?XZ_NET_STATIC_DISABLE_DHCP:XZ_NET_STATIC_KEEP_DHCP;d->revision++;return 0;}
     if(kind==XZ_UI_NETWORK_FIELD&&index>=0&&index<=2){d->field=(enum xz_network_field)index;memcpy(d->edit,index==0?d->ip:index==1?d->mask:d->gateway,16);xz_ui_navigate(u,XZ_UI_NETWORK_EDIT);return 0;}
-    if(kind==XZ_UI_NETWORK_APPLY){if(d->step!=XZ_NETWORK_REVIEW||!parse_draft(u,m))return 0;d->step=XZ_NETWORK_VERIFY;return emit(u,kind,index,out);}
+    if(kind==XZ_UI_NETWORK_APPLY){
+        uint64_t token=xz_ui_network_review_token(u,m);
+        if(!token||u->network_review.painted!=token||!u->network_review.press_armed||u->network_review.contact_blocked){snprintf(u->notice,sizeof u->notice,"WAIT FOR REVIEW TO DRAW / THEN APPLY AGAIN");return 0;}
+        if(!parse_draft(u,m)||memcmp(&u->network_review.staged,&u->network,sizeof u->network)){xz_ui_network_invalidate(u);return 0;}
+        u->network_review.consumed=token;u->network_review.painted=0;d->step=XZ_NETWORK_VERIFY;
+        size_t n=emit(u,kind,index,out);out[0].network_publication=token;return n;
+    }
     return 0;
 }
 const char *xz_ui_network_help(int kind){
@@ -176,6 +224,32 @@ int xz_ui_network_menu(const struct xz_ui *u,const struct xz_ui_model *m,struct 
         if(u->focus_kind==w[i].kind&&u->focus_index==w[i].index)out->focus_row=(int16_t)(out->row_count-1);
     }
     if(u->page==XZ_UI_NETWORK_EDIT){out->layout=XZ_SHELL_MENU_KEYBOARD;snprintf(out->field_label,sizeof out->field_label,"%s",u->network.field==0?"IP":u->network.field==1?"MASK / PREFIX":"GATEWAY");snprintf(out->field,sizeof out->field,"%s",u->network.edit);}
+    if(u->page==XZ_UI_NETWORK_SETUP&&u->network.initialized&&u->network.step>=XZ_NETWORK_REVIEW){
+        const struct xz_network_ui_draft *d=&u->network;
+        const struct xz_net_preference *p=&d->trial.policy.order[d->selected];
+        struct xz_shell_menu_line *line=&out->line[out->line_count++];
+        snprintf(line->text,sizeof line->text,"REQUEST: %s / CONFIGURE %.15s",p->mode==XZ_NET_STATIC?"STATIC IP":p->mode==XZ_NET_DHCP?"DHCP ON":"KEEP CURRENT",p->adapter.name);
+        if(p->mode==XZ_NET_STATIC){
+            char ip[16],gateway[16];xz_net_ipv4_text(p->static_ip.address.ip,ip);xz_net_ipv4_text(p->static_ip.gateway,gateway);
+            line=&out->line[out->line_count++];snprintf(line->text,sizeof line->text,"REQUEST IP: %s/%u",ip,p->static_ip.address.prefix);
+            line=&out->line[out->line_count++];snprintf(line->text,sizeof line->text,"GATEWAY: %s",p->static_ip.gateway_mode==XZ_NET_GATEWAY_SET?gateway:p->static_ip.gateway_mode==XZ_NET_GATEWAY_NONE?"NO MODS ROUTE ADDED":"KEEP CURRENT");
+            line=&out->line[out->line_count++];snprintf(line->text,sizeof line->text,"MODS DHCP: %s; NATIVE DHCP: UNKNOWN",p->static_ip.dhcp==XZ_NET_STATIC_DISABLE_DHCP?"OFF REQUESTED":"KEEP OWNER");
+        }else{
+            line=&out->line[out->line_count++];snprintf(line->text,sizeof line->text,"%s",p->mode==XZ_NET_DHCP?"REQUEST A LEASE; KEEP EXISTING ADDRESSES":"KEEP EXISTING ADDRESSES AND DHCP OWNER");
+            line=&out->line[out->line_count++];snprintf(line->text,sizeof line->text,"MODS ROUTE: %s; NATIVE DHCP: UNKNOWN",d->trial.policy.request_route?"REQUESTED":"KEEP CURRENT");
+        }
+        line=&out->line[out->line_count++];size_t at=0;
+        for(unsigned i=0;i<d->trial.policy.count&&at<sizeof line->text;i++){
+            int n=snprintf(line->text+at,sizeof line->text-at,"%s%u:%.15s",i?" > ":"REQUEST ORDER ",i+1,d->trial.policy.order[i].adapter.name);
+            if(n<0||(size_t)n>=sizeof line->text-at)break;at+=(size_t)n;
+        }
+        const struct xz_net_adapter *current=actual(u,m);
+        if(current){
+            char ip[16]="NONE",gateway[16]="UNKNOWN";if(current->address_count)xz_net_ipv4_text(current->address[0].ip,ip);
+            if(current->gateway_known==XZ_NET_YES){if(current->gateway_present)xz_net_ipv4_text(current->gateway,gateway);else strcpy(gateway,"NONE");}
+            line=&out->line[out->line_count++];snprintf(line->text,sizeof line->text,"CURRENT %.15s: %s/%u GATEWAY %s",current->id.name,ip,current->address_count?current->address[0].prefix:0,gateway);
+        }
+    }
     for(unsigned i=0;i<m->network.actual.count&&out->line_count<XZ_SHELL_MENU_LINES;i++){
         const struct xz_net_adapter *a=&m->network.actual.adapter[i];char ip[16]="NONE",gateway[16]="UNKNOWN";if(a->address_count)xz_net_ipv4_text(a->address[0].ip,ip);
         if(a->gateway_known==XZ_NET_YES){if(a->gateway_present)xz_net_ipv4_text(a->gateway,gateway);else strcpy(gateway,"NONE");}
