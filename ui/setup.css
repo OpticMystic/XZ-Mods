@@ -490,3 +490,26 @@ details.wz-custom[open]>summary{margin-bottom:0;border-bottom:1px solid #1f2324}
 .wz-ejected{display:flex;align-items:center;gap:8px;margin:0;padding:12px 14px;border:1px solid #2f6b3d;border-radius:8px;background:#121a14;color:#cfe9d5;font-weight:550}
 .wz-ejected .icon{width:18px;height:18px;color:#6fd389}
 .wz-eject-error{margin:0}
+
+/* Quad guide lives in the USB wizard; connector motion never changes device state. */
+.wz-quad-entry{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:#111314;text-align:left}
+.wz-quad-entry>span{display:grid;gap:4px}.wz-quad-entry small{color:var(--muted);font-size:12px;line-height:1.5}
+.wz-quad-entry button{flex:none}.wz-quad-art{margin:0;border:1px solid var(--line);border-radius:8px;background:#0a0c0d;overflow:hidden}
+.wz-quad-svg{display:block;width:100%;max-height:290px;font:14px system-ui,sans-serif;fill:#c3c9c5}
+.wq-label{font-weight:700;letter-spacing:1px;font-size:13px;fill:#eef0ec}.wq-accent{fill:var(--yellow)}
+.wq-panel{fill:#181c1f;stroke:#3d4347}.wq-socket{fill:#050708;stroke:#899297;stroke-width:2}
+.wq-metal{fill:#d0d6d9;stroke:#7e8b91;stroke-width:2}.wq-insulator,.wq-hole{fill:#22282d}
+.wq-contact{stroke:#e9bf70;stroke-width:3}.wq-grip{fill:#363f45;stroke:#93a0a6;stroke-width:1.5}.wq-ridge{stroke:#64717a;stroke-width:2}
+.wq-port-lip{fill:#343c41}.wq-music{fill:#294737;stroke:#7fae88;stroke-width:1.5}.wq-music-text{fill:#d6f0dc;font-size:8px;font-weight:700}
+.wq-cable{fill:none;stroke:var(--yellow);stroke-width:7;stroke-linecap:round;animation:wq-cable 5s ease-in-out both}
+.wq-a-move{animation:wq-insert 5s ease-in-out both}
+@keyframes wq-insert{0%,25%{transform:translateY(0)}65%,100%{transform:translateY(-44px)}}
+@keyframes wq-cable{0%,25%{d:path('M137 176 C137 270 491 286 491 211')}65%,100%{d:path('M137 176 C137 270 491 286 491 167')}}
+.wz-quad-art[data-paused] .wq-a-move,.wz-quad-art[data-paused] .wq-cable{animation-play-state:paused}
+.wz-quad-art figcaption{display:flex;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;align-items:center;padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:#c3c9c5}
+.wz-quad-art .text-button{font-size:12px}.wz-quad-steps{margin:0;padding-left:22px;display:grid;gap:10px;line-height:1.55;color:#c3c9c5;font-size:13px}.wz-quad-steps strong{color:#eef0ec}
+.wz-quad-confirm{margin:0;font-size:13px}.wz-quad-status{margin:0;color:#bbc6cd;font-size:12px;line-height:1.5}
+.wz-quad-trouble{font-size:13px}.wz-quad-trouble p{line-height:1.55;color:#c3c9c5}.wz-flow-body h3:focus{outline:none}
+.wz-quad-entry button:focus-visible,.wz-flow[data-step=quad] :is(button,input,summary):focus-visible{outline:2px solid var(--yellow);outline-offset:4px}
+@media(max-width:620px){.wz-quad-entry{align-items:flex-start;flex-direction:column}.wz-quad-svg{min-width:0}.wz-quad-art figcaption{padding:10px}}
+@media(prefers-reduced-motion:reduce){.wq-a-move{animation:none;transform:translateY(-44px)}.wq-cable{animation:none;d:path('M137 176 C137 270 491 286 491 167')}.wz-quad-art #wz-quad-motion{display:none}}

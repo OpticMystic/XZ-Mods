@@ -8,10 +8,12 @@ const FLOWS={
   install:{title:'Install XZ Mods',loader:'auto'},
   update:{title:'Update USB',loader:'auto'},
   profile:{title:'Save DJ profile',loader:'keep'},
-  games:{title:'Add games',loader:'keep'}
+  games:{title:'Add games',loader:'keep'},
+  quad:{title:'Quad standalone mixer',loader:'keep'}
 };
 const POLL_MS=2000;
 const W={view:'find',flow:null,step:null,usbs:null,finding:false,opening:null,eject:null,usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,result:null,
+  quadReturn:null,quadConfirmed:false,quadPaused:false,
   changesOpen:false,changesAll:false,gamesOpen:false,filesOpen:false};
 const host=$('wiz'),listeners=[];
 // Every run started here reports beside this one node, which survives re-renders.
@@ -215,12 +217,12 @@ function viewFind(){
   if(list.length)return el('section',{class:'wz-find wz-find-list'},
     el('h2',{text:list.length>1?'Choose your XZ USB':'Your XZ USB'}),
     el('div',{class:'wz-usb-list',role:'list'},...list.map(usbCard)),
-    quietActions(),jobSlot);
+    quietActions(),quadEntry(),jobSlot);
   return el('section',{class:'wz-find wz-empty',dataset:{looking:W.finding?'1':null}},
     $('tpl-usb-art').content.firstElementChild.cloneNode(true),
     el('h2',{text:'Plug in your XZ USB'}),
     el('p',{class:'wz-lead',text:'XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
-    quietActions(),jobSlot);
+    quietActions(),quadEntry(),jobSlot);
 }
 
 // --- device view ---
@@ -299,7 +301,7 @@ function viewDevice(){
     el('div',{class:'wz-card'},driveHeader(),statusBlock(),jobSlot),
     W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy the finished autoexec.bin to the USB afterward.'}):null,
     tiles(),
-    buildLine(),
+    buildLine(),quadEntry(),
     el('details',{class:'wz-files',open:W.filesOpen?true:null,ontoggle:event=>{W.filesOpen=event.target.open;}},
       el('summary',{text:'Show every file on this USB'}),tree()));
 }
@@ -341,9 +343,9 @@ function startFlow(kind,{profile=false,gamesOpen=false}={}){
   startState(ins);
   // The screen choice comes with a loader install or update, after the profile and before the review.
   const withLook=(kind==='install'||kind==='update')&&lookAvailable();
-  const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),'review','writing','done'];
+  const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),...((kind==='install'||kind==='update')?['quad']:[]),'review','writing','done'];
   if(kind==='profile')W.games=installedGames(ins);
-  go({view:'flow',flow:{kind,steps},step:gamesOpen?'review':steps[0],loader:FLOWS[kind].loader,result:null,gamesOpen});
+  go({view:'flow',flow:{kind,steps},step:gamesOpen?'review':steps[0],loader:FLOWS[kind].loader,result:null,gamesOpen,quadConfirmed:false,quadPaused:false});focusStep();
 }
 function backToDevice(){
   if(W.flow?.steps.includes('profile')&&W.step!=='done')window.djProfilePage?.discard();
@@ -352,17 +354,17 @@ function backToDevice(){
 }
 function goto(step){
   if(W.view!=='flow'||!W.flow.steps.includes(step))return;
-  W.step=step;render();host.scrollIntoView({block:'start'});
+  W.step=step;render();host.scrollIntoView({block:'start'});focusStep();
 }
 function previous(){const steps=W.flow.steps,index=steps.indexOf(W.step);if(index>0)goto(steps[index-1]);else backToDevice();}
 function flowHead(){
-  const steps=W.flow.steps,index=steps.indexOf(W.step),cancellable=W.step==='profile'||W.step==='look'||W.step==='review';
+  const steps=W.flow.steps,index=steps.indexOf(W.step),cancellable=W.step==='profile'||W.step==='look'||W.step==='review'||W.step==='quad';
   return el('div',{class:'wz-flow-head'},
-    el('div',{class:'wz-flow-title'},el('h2',{text:FLOWS[W.flow.kind].title}),el('span',{class:'wz-mono',text:driveLabel()===W.usb?W.usb:driveLabel()+' · '+W.usb})),
+    el('div',{class:'wz-flow-title'},el('h2',{text:FLOWS[W.flow.kind].title}),W.flow.kind==='quad'?null:el('span',{class:'wz-mono',text:driveLabel()===W.usb?W.usb:driveLabel()+' · '+W.usb})),
     el('div',{class:'wz-flow-progress'},
       el('span',{class:'wz-flow-count',text:'Step '+(index+1)+' of '+steps.length}),
       el('ol',{class:'wz-dots','aria-hidden':'true'},...steps.map((step,i)=>el('li',{dataset:{state:i<index?'done':i===index?'current':'todo'}})))),
-    cancellable?el('button',{type:'button',class:'text-button wz-cancel',text:'Cancel',onclick:backToDevice}):null);
+    cancellable?el('button',{type:'button',class:'text-button wz-cancel',text:'Cancel',onclick:W.flow.kind==='quad'?closeQuad:backToDevice}):null);
 }
 function navButtons(next,label,primary=true){
   return el('div',{class:'actions wz-nav'},
@@ -384,6 +386,85 @@ function stepProfile(){
     el('div',{id:'wz-djp-slot'}),
     stepNav()];
 }
+
+// This guide records a user's observation only. It makes no host/device requests or settings changes.
+function focusStep(){const heading=host.querySelector('.wz-flow-body h3');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}}
+function quadEntry(){return el('div',{class:'wz-quad-entry'},
+  el('span',{},el('strong',{text:'Quad standalone mixer'}),el('small',{text:'Private preview. Requires a paired four-deck loader and bridge. Reopen this guide any time.'})),
+  el('button',{type:'button',class:'secondary',id:'wz-quad-open',text:'Set up four decks',onclick:openQuad}));}
+function openQuad(){
+  W.quadReturn={view:W.view,flow:W.flow,step:W.step};
+  go({view:'flow',flow:{kind:'quad',steps:['quad']},step:'quad',quadConfirmed:false,quadPaused:false});focusStep();
+}
+function closeQuad(){
+  const target=W.quadReturn;W.quadReturn=null;
+  go(target||{view:W.inspection?'device':'find',flow:null,step:null});
+  host.querySelector('#wz-quad-open')?.focus({preventScroll:true});
+}
+function quadNext(){if(W.flow.kind==='quad')closeQuad();else goto(W.flow.steps[W.flow.steps.indexOf('quad')+1]);}
+function quadStatus(){return W.quadConfirmed?'User confirmation: you saw four decks. This app has not detected or verified the cable connection.':'Connection not checked by this app. Confirm the result on the XZ.';}
+function quadCable(){
+  const svg=document.createElementNS(SVG_NS,'svg');
+  svg.setAttribute('viewBox','0 0 700 300');svg.setAttribute('class','wz-quad-svg');
+  svg.setAttribute('role','img');svg.setAttribute('aria-labelledby','wz-quad-svg-title wz-quad-svg-desc');
+  // Fixed markup only. The USB-B has square sides and beveled top corners; USB-A has a metal tongue and retention holes.
+  svg.innerHTML=`<title id="wz-quad-svg-title">One USB-B to USB-A cable loops back into the same XDJ-XZ</title>
+    <desc id="wz-quad-svg-desc">The square USB-B plug with beveled top corners stays in the rear USB-B socket. Only the rectangular male USB-A free end moves into top USB1, after the boot stick is safely removed. The music stick stays in top USB2. No computer is connected.</desc>
+    <rect x="20" y="48" width="238" height="145" rx="10" class="wq-panel"/>
+    <text x="38" y="73" class="wq-label">REAR PANEL</text>
+    <text x="38" y="94">USB-B stays connected</text>
+    <path d="M117 110 L157 110 L167 120 L167 166 L107 166 L107 120 Z" class="wq-socket"/>
+    <g class="wq-b-fixed"><path d="M124 116 L150 116 L160 126 L160 160 L114 160 L114 126 Z" class="wq-metal"/>
+      <path d="M127 126 H147 V143 H127 Z" class="wq-insulator"/>
+      <path d="M130 128 V133 M144 128 V133 M130 137 V141 M144 137 V141" class="wq-contact"/>
+      <rect x="124" y="160" width="26" height="16" rx="3" class="wq-grip"/></g>
+    <rect x="348" y="48" width="332" height="145" rx="10" class="wq-panel"/>
+    <text x="366" y="73" class="wq-label">TOP PANEL</text>
+    <text x="473" y="99" class="wq-label wq-accent">USB1</text><text x="579" y="99" class="wq-label">USB2</text>
+    <rect x="464" y="108" width="54" height="22" rx="2" class="wq-socket"/>
+    <rect x="570" y="108" width="54" height="22" rx="2" class="wq-socket"/>
+    <path class="wq-cable" d="M137 176 C137 270 491 286 491 211"/>
+    <g class="wq-a-move"><rect x="473" y="154" width="36" height="24" class="wq-metal"/>
+      <rect x="481" y="161" width="6" height="6" class="wq-hole"/><rect x="495" y="161" width="6" height="6" class="wq-hole"/>
+      <path d="M479 156 H503" class="wq-contact"/>
+      <rect x="471" y="178" width="40" height="33" rx="4" class="wq-grip"/>
+      <path d="M479 190 H503 M479 196 H503 M479 202 H503" class="wq-ridge"/></g>
+    <path d="M465 107 H517 V115 H465 Z" class="wq-port-lip"/>
+    <rect x="580" y="115" width="34" height="61" rx="4" class="wq-music"/>
+    <text x="597" y="143" text-anchor="middle" class="wq-music-text">MUSIC</text>
+    <text x="597" y="160" text-anchor="middle" class="wq-music-text">STAYS</text>
+    <text x="350" y="28" text-anchor="middle" class="wq-label wq-accent">Only the free USB-A end moves</text>
+    <text x="350" y="282" text-anchor="middle">Same XDJ-XZ. No computer.</text>`;
+  return svg;
+}
+function stepQuad(){
+  return [el('h3',{text:'Four decks, one standalone mixer'}),
+    el('p',{class:'wz-lead',text:'Decks 3 and 4 send audio back to mixer CH3 and CH4 through a USB-B to USB-A cable. This is the cable guide for after installation.'}),
+    el('p',{class:'notice wz-quad-prereq',text:'Requires the paired private four-deck loader and automatic bridge. The general USB writer does not include this bridge yet. This guide does not install or start quad mode.'}),
+    el('figure',{class:'wz-quad-art',dataset:{paused:W.quadPaused?'1':null}},quadCable(),
+      el('figcaption',{},el('span',{text:'Rear USB-B → top USB1 · Music stays in USB2'}),
+        el('button',{type:'button',class:'text-button',id:'wz-quad-motion','aria-pressed':String(W.quadPaused),text:W.quadPaused?'Replay cable animation':'Pause cable animation',onclick:event=>{
+          W.quadPaused=!W.quadPaused;
+          const figure=event.currentTarget.closest('figure');if(W.quadPaused)figure.dataset.paused='1';else{delete figure.dataset.paused;figure.querySelector('svg').replaceWith(quadCable());}
+          event.currentTarget.textContent=W.quadPaused?'Replay cable animation':'Pause cable animation';event.currentTarget.setAttribute('aria-pressed',String(W.quadPaused));
+        }}))),
+    el('ol',{class:'wz-quad-steps'},
+      el('li',{},el('strong',{text:'Boot first. '}),'Keep the boot stick in USB1 until XZ Mods has finished starting. Keep the music stick in USB2. Leave the square, beveled USB-B end plugged into the rear USB-B socket; leave its rectangular USB-A end free.'),
+      el('li',{},el('strong',{text:'Stop every deck. '}),'Hold USB1 STOP for more than 2 seconds. Wait until the USB1 indicator is off, then remove only the boot stick.'),
+      el('li',{},el('strong',{text:'Loop back. '}),'Insert only the free USB-A cable end into top USB1. It connects back to the XZ, not a computer. Keep music USB2 connected.'),
+      el('li',{},el('strong',{text:'Check on the XZ. '}),'Four decks should appear when the route is ready. Set the CH3 and CH4 input selectors to USB if required. Press left SHIFT twice to switch 1/3; right SHIFT twice to switch 2/4.')),
+    el('label',{class:'check wz-quad-confirm'},el('input',{type:'checkbox',id:'wz-quad-confirm',checked:W.quadConfirmed?true:null,onchange:event=>{W.quadConfirmed=event.currentTarget.checked;$('wz-quad-status').textContent=quadStatus();}}),'I can see four decks on the XZ'),
+    el('p',{class:'wz-quad-status',id:'wz-quad-status',role:'status',text:quadStatus()}),
+    el('details',{class:'wz-quad-trouble'},el('summary',{text:'Still two decks, or no CH3/CH4 audio?'}),
+      el('p',{text:'Confirm the matching four-deck loader and bridge are running. With all decks stopped, check rear USB-B → top USB1, music USB2 and the CH3/CH4 USB selectors. If the cable was connected before boot, leave the rear USB-B end in place and reconnect only the free USB-A end after startup. Stop every deck before reconnecting.'}),
+      el('p',{text:'These USB1 loopback / USB2 music instructions describe the private setup. Other loader/bridge configurations may differ. This guide does not detect your configuration. Reopen it from USB → Set up four decks.'})),
+    el('p',{class:'wz-mono',text:'Keep the music USB connected. Full RAM playback and four-deck stems are still incomplete.'}),
+    el('div',{class:'actions wz-nav'},
+      el('button',{type:'button',class:'secondary',text:'Back',onclick:W.flow.kind==='quad'?closeQuad:previous}),
+      el('button',{type:'button',class:'primary',text:'Next',onclick:quadNext}),
+      el('button',{type:'button',class:'text-button',text:'Skip for now',onclick:quadNext}))];
+}
+
 // --- the screen the XZ starts with ---
 // One setting decides it: interface (1 new, 0 standard), the same value MODS > APPEARANCE > INTERFACE
 // changes on the deck. Choosing the standard interface leaves classic_theme as the USB has it.
@@ -452,7 +533,7 @@ function stepLook(){
     el('div',{class:'wz-look-step',dataset:{choice:choice===LOOK_NEW?'new':'standard'}},
       el('div',{class:'wz-look',role:'radiogroup','aria-label':'Screen the XZ shows'},...LOOKS.map(look=>lookCard(look,choice))),
       lookLater(choice)),
-    navButtons(()=>goto('review'),'Next')];
+    navButtons(()=>goto('quad'),'Next')];
 }
 // The review lists what the write will do, from the same plan data the write uses.
 function planLines(){
@@ -593,6 +674,7 @@ function stepDone(){
       el('h3',{text:trouble?'Finished, with something to check':'Your USB is ready'})),
     el('ul',{class:'wz-done'},...lines.map(text=>el('li',{text}))),
     ejectStatus(),
+    r.loader?quadEntry():null,
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
       el('li',{text:'Press the REKORDBOX key or touch MODS to open the menu. GENERAL is the first tab.'}),el('li',{text:'Test the loader before you use it in a set.'}))):null,
@@ -611,7 +693,7 @@ function ejectStatus(){
   if(W.eject?.state==='error')return el('p',{class:'notice wz-eject-error',role:'alert',text:'The USB was not ejected. '+W.eject.message});
   return null;
 }
-const STEPS={profile:stepProfile,look:stepLook,review:stepReview,writing:stepWriting,done:stepDone};
+const STEPS={quad:stepQuad,profile:stepProfile,look:stepLook,review:stepReview,writing:stepWriting,done:stepDone};
 function viewFlow(){return el('section',{class:'wz-flow',dataset:{step:W.step}},flowHead(),el('div',{class:'wz-flow-body'},...STEPS[W.step]()));}
 
 const VIEWS={find:viewFind,device:viewDevice,flow:viewFlow};
