@@ -25,7 +25,7 @@ int main(void){
  for(int count=2;count<=4;count+=2)for(int screen=XZ_SHELL_BROWSE;screen<=XZ_SHELL_SEARCH;screen++)for(int back=0;back<2;back++){
   struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;struct xz_shell_action a[XZ_SHELL_ACTIONS];
   setup(&u,&m,&b,count,(enum xz_shell_screen)screen);int depth=u.depth;
-  size_t n=key(&u,&m,XZ_SHELL_KEY_LOAD,0,a);if(count==4){assert(!n);n=key(&u,&m,XZ_SHELL_KEY_LOAD,1,a);}
+  size_t n=key(&u,&m,XZ_SHELL_KEY_LOAD,0,a);
   assert(n==1&&a[0].kind==XZ_SHELL_ACT_LOAD&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
   key(&u,&m,back?XZ_SHELL_KEY_BACK:XZ_SHELL_KEY_BROWSE,-1,a);
   assert((int)xz_shell_screen(&u)==screen&&u.depth==depth);

@@ -148,7 +148,7 @@ static void games_return(void){
     puts("PASS a game started from MODS returns to the shell's MODS, never to the panel");
 }
 
-/* BACK runs the panel's own BACK one level and never closes anything from a top page. */
+/* BACK runs one level up, then closes top-level MODS to its prior screen. */
 static void back_one_level(void){
     modern();open_tab(XZ_UI_SETTINGS);
     for(int row=0;row<fake_menu.row_count;row++)assert(strcmp(fake_menu.row[row].label,"KEY SETUP"));
@@ -157,8 +157,9 @@ static void back_one_level(void){
     activate(row_named("NETWORK SETUP"),-1);assert(ui.page==XZ_UI_UPDATE_SETUP&&fake_menu.depth==2);
     back();assert(ui.page==XZ_UI_UPDATES&&panel_shut());
     back();assert(ui.page==XZ_UI_EXTRAS&&panel_shut());
-    back();assert(ui.page==XZ_UI_EXTRAS&&panel_shut());   /* a top page: the shell's rail takes BACK */
-    puts("PASS menu BACK: one panel page up, nothing on a top page, never a close");
+    int closed=fake_closes;
+    back();assert(panel_shut()&&!fake_mods_open&&fake_closes==closed+1);
+    puts("PASS menu BACK: one page up; top-level MODS closes to the prior screen");
 }
 
 /* REKORDBOX set to MODS, reaching the native handler: the shell opens MODS and its tab's page is read at
@@ -181,7 +182,10 @@ static void classic_keeps_panel(void){
     puts("PASS CLASSIC: setups open the panel as before");
 }
 
-int main(void){
+#ifndef XZ_MENU_RUNTIME_MAIN
+#define XZ_MENU_RUNTIME_MAIN main
+#endif
+int XZ_MENU_RUNTIME_MAIN(void){
     existing_runtime_controls();
     fake_menu_on=1;
     menu_walk();

@@ -153,7 +153,7 @@ static void test_encoder_never_leaves(void) {
  for(int run=0;run<24;run++){
   struct xz_shell s;fresh(&s);
   key(&s,XZ_SHELL_KEY_MENU);
-  turn(&s,run%6);push(&s);   /* into the tab: from here only BACK reaches the rail */
+  turn(&s,run%6);push(&s);   /* into the tab: BACK leaves its page or closes MODS */
   for(int step=0;step<1500;step++){
    seed=seed*1664525u+1013904223u;
    int r=(int)((seed>>16)%10);
@@ -173,8 +173,7 @@ static void test_encoder_never_leaves(void) {
  printf("PASS encoder: 36000 seeded turns, pushes and holds over %d pages never leave MODS and ask only for MODS menu actions\n",distinct);
 }
 
-/* BACK: the values pane, then one page up (the cursor back on the link that led away), then the rail,
-   then MODS closes. */
+/* BACK: the values pane, then one page up onto its link, then top-level MODS closes. */
 static void test_back(void) {
  struct xz_shell s;fresh(&s);
  key(&s,XZ_SHELL_KEY_MENU);
@@ -194,7 +193,6 @@ static void test_back(void) {
  /* BACK then push re-enters the page just left */
  assert(push(&s)==1&&ui.page==XZ_UI_PC_STEMS);
  key(&s,XZ_SHELL_KEY_BACK);
- assert(key(&s,XZ_SHELL_KEY_BACK)==0&&s.mods_view.on_tabs&&in_mods(&s));
  assert(key(&s,XZ_SHELL_KEY_BACK)==0&&s.depth==1&&xz_shell_screen(&s)==XZ_SHELL_PLAY);
  /* values pane */
  key(&s,XZ_SHELL_KEY_MENU);turn(&s,1);push(&s);   /* CONTROLS */
@@ -202,19 +200,19 @@ static void test_back(void) {
  assert(push(&s)==0&&pane(&s)==2);
  assert(key(&s,XZ_SHELL_KEY_BACK)==0&&pane(&s)==1&&!s.mods_view.on_tabs&&ui.page==XZ_UI_CONTROLS);
  /* three deep: EXTRAS / GAMES / DOOM, back one level at a time */
- key(&s,XZ_SHELL_KEY_BACK);turn(&s,4);assert(ui.page==XZ_UI_EXTRAS);push(&s);
+ key(&s,XZ_SHELL_KEY_BACK);key(&s,XZ_SHELL_KEY_MENU);turn(&s,5);assert(ui.page==XZ_UI_EXTRAS);push(&s);
  cursor_to(&s,"GAMES");push(&s);assert(ui.page==XZ_UI_GAMES&&menu.depth==1);
  cursor_to(&s,"CHEX QUEST");push(&s);assert(ui.page==XZ_UI_DOOM&&menu.depth==2&&!strcmp(menu.path,"EXTRAS / GAMES"));
  key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_GAMES&&cursor_row(&s)&&!strcmp(cursor_row(&s)->label,"CHEX QUEST"));
  key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_EXTRAS&&cursor_row(&s)&&!strcmp(cursor_row(&s)->label,"GAMES"));
- key(&s,XZ_SHELL_KEY_BACK);assert(s.mods_view.on_tabs);
+ key(&s,XZ_SHELL_KEY_BACK);assert(xz_shell_screen(&s)==XZ_SHELL_PLAY);
  /* the title bar's back arrow is BACK too */
- push(&s);cursor_to(&s,"GAMES");push(&s);
+ key(&s,XZ_SHELL_KEY_MENU);turn(&s,5);push(&s);cursor_to(&s,"GAMES");push(&s);
  struct xz_shell_rect b=xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON);
  assert(send(&s,(struct xz_shell_event){XZ_SHELL_TOUCH_DOWN,b.x+b.w/2,b.y+b.h/2,0,0,-1})==1&&out[0].id==XZ_SHELL_MENU_BACK&&ui.page==XZ_UI_EXTRAS);
  send(&s,(struct xz_shell_event){XZ_SHELL_TOUCH_UP,b.x+b.w/2,b.y+b.h/2,0,0,-1});
  assert(!others&&!refusals);
- puts("PASS BACK: values pane, one page up onto the link that led away, the rail, then closed");
+ puts("PASS BACK: values pane, one page up onto its link, top-level MODS closes on one BACK");
 }
 
 /* Every page the panel has (but its classic theme list and the two pages the item tabs carry) is
@@ -345,13 +343,11 @@ static void test_press_parity(void) {
  puts("PASS press parity: GATE/SMART CUE 2 pushes (was 3), pad mode 3 (3), a game 3 (4), a beat jump size 4 (5)");
 }
 
-/* Touch: touch-down highlights, a second touch confirms; a value is picked the same way; a key types at
-   once; a pad is held while touched. */
+/* Touch: one tap runs a row or picks a value; dragging cancels; a pad is held while touched. */
 static void test_touch(void) {
  struct xz_shell s;fresh(&s);key(&s,XZ_SHELL_KEY_MENU);
  struct xz_shell_rect r=xz_shell_menu_row_rect(&s,&sm,2);
  assert(r.w&&r.h>=36);
- assert(tap(&s,r.x+40,r.y+r.h/2)==0&&!s.mods_view.on_tabs&&cursor_row(&s)==&menu.row[2]);
  size_t n=tap(&s,r.x+40,r.y+r.h/2);
  assert(n==1&&out[0].id==XZ_SHELL_MENU_ACTIVATE);
  /* the profile name: a key types on one tap */
@@ -382,7 +378,7 @@ static void test_touch(void) {
  send(&s,(struct xz_shell_event){XZ_SHELL_TOUCH_UP,pad.x+2,pad.y+pad.h-2,0,0,-1});
  assert(ran_count==3&&ran[2].kind==XZ_UI_STRIP&&ran[2].phase==XZ_UI_RELEASE);
  assert(!others&&!refusals);
- puts("PASS touch: highlight then confirm, a key types on one tap, the loop strip is held while touched");
+ puts("PASS touch: one-tap rows and keys, the loop strip is held while touched");
 }
 
 /* A page the runtime has not published for this tab, a hostile page and a page that changes under the

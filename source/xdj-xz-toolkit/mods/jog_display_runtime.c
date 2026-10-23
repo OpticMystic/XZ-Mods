@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdio.h>
 extern int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *) __attribute__((weak));
+extern int xz_sync_link_runtime_master_observe(struct xz_master_observation *) __attribute__((weak));
 extern uint32_t xz_extra_decks_jog_content_epoch(int deck) __attribute__((weak));
 extern uint64_t xz_extra_source_generation(int source) __attribute__((weak));
 extern enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int,const struct xz_extra_wave_key *,uint32_t,struct xz_extra_wave_chunk *) __attribute__((weak));
@@ -437,17 +438,48 @@ static int sample_current(const struct jd_sample *p,const struct jd_side_runtime
 #endif
  return reason==0;
 }
+static int display_master_current(const struct xz_master_observation *master,uint64_t now){
+ return master->deck>=XZ_MASTER_NONE&&master->deck<=XZ_MASTER_DECK4&&master->revision&&master->operator_epoch&&
+  (uint32_t)((uint32_t)now-master->observed_ms)<=XZ_MASTER_MAX_AGE_MS;
+}
+static int display_extra_master(unsigned side_idx,const struct jd_sample *p,const struct xz_master_observation *master,uint64_t now){
+ const struct xz_extra_timeline *timeline=&p->deck.timeline;
+ return display_master_current(master,now)&&master->deck==(int)side_idx+2&&
+  master->route_epoch==timeline->route_epoch&&master->load_revision==timeline->load_revision&&
+  master->transport_generation==timeline->transport_generation;
+}
+/* The bridge owns global authority. Native SYNC remains native-produced; a
+   software SYNC request never fabricates a native follower latch. */
+static void display_master_frame(struct xz_jd_transaction *tx,int master){
+ uint8_t *f=tx->frame;
+ f[0x56]=(uint8_t)((f[0x56]&~0x80u)|(master?0x80u:0u));
+ if(f[14]==0x21u&&(f[15]>>4)==tx->next.physical_side){
+  unsigned at=12u+(5u^3u);uint8_t value=(uint8_t)((f[at]&~0x80u)|(master?0x80u:0u));
+  if(f[at]!=value){
+   f[at]=value;
+   if(!tx->next.ever_owned){tx->next.wire_sequence=(uint16_t)(f[8]|((unsigned)f[9]<<8));tx->next.ever_owned=1;}
+   tx->next.wire_sequence++;f[8]=(uint8_t)tx->next.wire_sequence;f[9]=(uint8_t)(tx->next.wire_sequence>>8);
+  }
+ }
+ uint32_t crc=xz_jd_crc(f);memcpy(f+144,&crc,4);
+}
 static int sample_snapshot(unsigned side_idx,const struct jd_sample *p,uint64_t publication_ms,uint64_t now_ms,struct xz_jd_snapshot *out){
  if(publication_ms>now_ms||now_ms-publication_ms>XZ_JD_RUNTIME_FRESH_MS)return 0;
  uint32_t age=(uint32_t)now_ms-p->published_ms;
  if((int32_t)age<0||age>XZ_JD_RUNTIME_FRESH_MS||now_ms<age)return 0;
  if(!xz_jog_display_snapshot_from_deck((int)side_idx,&p->deck,now_ms,out))return 0;
  const struct xz_master_observation *master=&p->master_actual;
- const struct xz_extra_timeline *timeline=&p->deck.timeline;
- out->master=(uint8_t)(master->deck==(int)side_idx+2&&master->revision&&
+ struct xz_master_observation current={.deck=XZ_MASTER_UNKNOWN};
+ if(xz_sync_link_runtime_master_observe){
+  if(!xz_sync_link_runtime_master_observe(&current))current.deck=XZ_MASTER_UNKNOWN;
+  master=&current;
+ }
+ /* Builds without the observer retain the bounded aggregate publication. */
+ out->master=(uint8_t)(xz_sync_link_runtime_master_observe?display_extra_master(side_idx,p,master,now_ms):
+  master->deck==(int)side_idx+2&&master->revision&&
   (uint32_t)((uint32_t)now_ms-master->observed_ms)<=XZ_MASTER_MAX_AGE_MS&&
-  master->route_epoch==timeline->route_epoch&&master->load_revision==timeline->load_revision&&
-  master->transport_generation==timeline->transport_generation);
+  master->route_epoch==p->deck.timeline.route_epoch&&master->load_revision==p->deck.timeline.load_revision&&
+  master->transport_generation==p->deck.timeline.transport_generation);
  if(out->captured_ms>publication_ms)out->captured_ms=publication_ms;
  return 1;
 }
@@ -772,9 +804,23 @@ static void hook_jog_assemble(void *self){
   final_valid=final_valid&&final_now>=now_ms&&final_now>=side->cache_publication_ms&&
    final_now-side->cache_publication_ms<=XZ_JD_RUNTIME_FRESH_MS&&final_now>=snap.captured_ms&&
    final_now-snap.captured_ms<=XZ_JD_RUNTIME_FRESH_MS;
-  if(snap.master)final_valid=final_valid&&
+  if(snap.master&&!xz_sync_link_runtime_master_observe)final_valid=final_valid&&
    (uint32_t)((uint32_t)final_now-side->cache.master_actual.observed_ms)<=XZ_MASTER_MAX_AGE_MS;
  }
+ /* Refresh after the final clock callback: an operator event can invalidate
+    the cached publication without waiting for the 50 ms connector tick. */
+ if(xz_sync_link_runtime_master_observe){
+  struct xz_master_observation actual={.deck=XZ_MASTER_UNKNOWN};
+  int known=xz_sync_link_runtime_master_observe(&actual)&&display_master_current(&actual,final_now);
+  if(on_extra)display_master_frame(&transaction,known&&have_snap&&display_extra_master(side_idx,&side->cache,&actual,final_now));
+  else if(known)display_master_frame(&transaction,actual.deck==(int)side_idx);
+ }
+#ifdef XZ_JOG_DISPLAY_PROOF
+ candidate_changed=memcmp(frame,out,XZ_JD_FRAME)!=0;
+ atomic_fetch_add_explicit(&proof->seq,1u,memory_order_acq_rel);
+ JDP_SET(proof->changed,candidate_changed);
+ atomic_fetch_add_explicit(&proof->seq,1u,memory_order_release);
+#endif
  /* Recollect after every clock/callback-capable input. These owner getters are
     qualified bounded copies/atomic reads. No clock, callback or I/O follows
     this fence before the frame and cursor commit. A later owner event may

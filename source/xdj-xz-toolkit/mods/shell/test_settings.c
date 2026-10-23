@@ -171,7 +171,6 @@ static void test_empty_and_unknown(void) {
   assert(push(&u,&gone)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==(screen?XZ_SHELL_UTILITY:XZ_SHELL_SHORTCUT));
   assert(send(&u,&gone,XZ_SHELL_TOUCH_DOWN,400,200,0)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
   send(&u,&gone,XZ_SHELL_TOUCH_UP,400,200,0);
-  if(screen)assert(tap(&u,&gone,20,20)==0&&u.depth==2&&u.mods_view.on_tabs);   /* MODS: back to the rail first */
   assert(tap(&u,&gone,20,20)==0&&u.depth==1);   /* the back button still closes */
  }
  puts("PASS empty, NULL and wild settings render and hand off without reading garbage");
@@ -216,12 +215,10 @@ static void test_utility_encoder(void) {
  assert(pane(&u)==1);
  /* The model has not confirmed yet; pushing the current value again writes nothing. */
  push(&u,&m);assert(pane(&u)==2&&push(&u,&m)==0&&pane(&u)==1);
- /* BACK steps values, items, then the rail; then the navigation table closes the screen. */
+ /* BACK leaves values, then closes top-level MODS. */
  push(&u,&m);assert(pane(&u)==2);
  assert(xz_shell_settings_back(&u,&m)==1&&pane(&u)==1&&!u.mods_view.on_tabs);
- assert(xz_shell_settings_back(&u,&m)==1&&u.mods_view.on_tabs);
- assert(xz_shell_settings_back(&u,&m)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY);
- assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
+ assert(xz_shell_settings_back(&u,&m)==1&&u.depth==1);
  assert(xz_shell_settings_back(&u,&m)==0);   /* not on UTILITY */
  /* Read-only items hand the screen to the stock menu on apply. */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
@@ -276,13 +273,11 @@ static void test_utility_touch(void) {
  struct xz_shell_rect page0=xz_shell_mods_tab_rect(&u,&m,0);
  assert(tap(&u,&m,page0.x+10,page0.y+10)==0&&u.mods_view.on_tabs);
  assert(tap(&u,&m,page0.x+10,page0.y+10)==0&&!u.mods_view.on_tabs&&pane(&u)==1);
- /* Items: first touch highlights, second confirms into the values; header rows take no touch. */
- assert(tap(&u,&m,item_x()+100,list_row(2))==0&&pane(&u)==1&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
+ /* One tap opens values; header rows take no touch. */
+ assert(tap(&u,&m,item_x()+100,list_row(2))==0&&pane(&u)==2&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
  assert(tap(&u,&m,item_x()+100,list_row(0))==0&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);   /* the header */
- assert(tap(&u,&m,item_x()+100,list_row(4))==0&&pane(&u)==1&&cursor_id(&u)==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD);
- assert(tap(&u,&m,item_x()+100,list_row(4))==0&&pane(&u)==2);
- /* Values: touch highlights, a second touch on the same row applies on release. */
- assert(tap(&u,&m,value_x()+60,list_row(0))==0&&pane(&u)==2);
+ assert(tap(&u,&m,item_x()+100,list_row(4))==0&&pane(&u)==2&&cursor_id(&u)==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD);
+ /* One tap picks the value on release. */
  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,value_x()+60,list_row(0),0)==0);
  assert(send(&u,&m,XZ_SHELL_TOUCH_UP,value_x()+60,list_row(0),0)==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD&&out[0].value==0);
  assert(pane(&u)==1);
@@ -302,16 +297,15 @@ static void test_utility_touch(void) {
  /* The description panel under the values takes no touch. */
  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,value_x()+60,list_row(ROWS-1),0)==0);
  send(&u,&m,XZ_SHELL_TOUCH_UP,value_x()+60,list_row(ROWS-1),0);
- /* The back button steps focus left, then to the rail, then closes. */
+ /* The back button leaves values, then closes top-level MODS. */
  push(&u,&m);assert(pane(&u)==2);
  struct xz_shell_rect back=R(XZ_SHELL_SR_BACK_BUTTON);
  assert(tap(&u,&m,back.x+10,back.y+10)==0&&pane(&u)==1&&u.depth==2);
- assert(tap(&u,&m,back.x+10,back.y+10)==0&&u.depth==2&&u.mods_view.on_tabs);
  assert(tap(&u,&m,back.x+10,back.y+10)==0&&u.depth==1);
  /* MENU closes UTILITY from any pane (navigation table). */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);push(&u,&m);
  assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&u.depth==1);
- puts("PASS UTILITY touch: rail entry, highlight then confirm, headers inert, drag scroll, description panel inert, back button");
+ puts("PASS UTILITY touch: rail entry, one-tap items/values, headers inert, drag scroll, description panel inert, back button");
 }
 
 static struct xz_shell_rect slot_of(int q, int k) { return xz_shell_shortcut_slot(q,k); }
@@ -453,10 +447,8 @@ static void test_back_key_steps_panes(void) {
  assert(pane(&u)==2);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&pane(&u)==1);
  key(&u,&m,XZ_SHELL_KEY_BACK);
- assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.mods_view.on_tabs);
- key(&u,&m,XZ_SHELL_KEY_BACK);
  assert(xz_shell_screen(&u)==XZ_SHELL_PLAY);
- puts("PASS BACK key steps MODS > UTILITY values, items, onto the rail, then closes");
+ puts("PASS BACK key leaves values, then closes top-level MODS on one BACK");
 }
 int main(void) {
  setvbuf(stdout,NULL,_IONBF,0);   /* a failed assertion still shows which test got there */

@@ -1230,6 +1230,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
                 model.deck[0].stem_count==4||model.deck[1].stem_count==4?" +BASS":"");
             break;
         case XZ_UI_CLOSE:
+            if(menu_in_shell_locked()&&xz_shell_runtime_close_mods)xz_shell_runtime_close_mods();
             ui.history_count=0;
             xz_native_skin_request_repaint();
             xz_native_touch_visible(&touch, 0);

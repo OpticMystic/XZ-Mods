@@ -801,15 +801,14 @@ static void utility_touch_down(struct xz_shell *u, struct ustate *s, const struc
  if(p==PANE_ITEMS){
   int index=s->item_scroll+row;
   if(index>=l->n_rows||l->rows[index]<0)return;
-  if(index==l->list_row&&s->pane==PANE_ITEMS)s->armed=1;
-  else{if(index!=l->list_row)select_row(s,l,index);s->pane=PANE_ITEMS;}
+  if(index!=l->list_row)select_row(s,l,index);
+  s->pane=PANE_ITEMS;s->armed=1;
   return;
  }
  if(!selectable(it)||row>=l->value_rows)return;
  int index=s->value_scroll+row;
  if(index>=choice_count(it))return;
- if(index==s->value&&s->pane==PANE_VALUES)s->armed=1;
- else{s->value=index;s->pane=PANE_VALUES;}
+ s->value=index;s->pane=PANE_VALUES;s->armed=1;
  return;
 }
 static void utility_drag(struct xz_shell *u, struct ustate *s, const struct ulayout *l, int y) {
@@ -950,7 +949,7 @@ int xz_shell_settings_back(struct xz_shell *u, const struct xz_shell_model *m) {
  struct ustate s=settle(u,m,unpack(v),&l);
  const struct xz_shell_mods_tab *tab=mods_tab(u,m);
  if(tab&&tab->kind==XZ_SHELL_TAB_MENU){struct xz_shell_action dropped[XZ_SHELL_ACTIONS];return sh_menu_back(u,m,tab,dropped),1;}
- if((tab&&tab->kind==XZ_SHELL_TAB_PAGE)||l.item<0||s.pane<=PANE_ITEMS){u->mods_view.on_tabs=1;return 1;}
+ if((tab&&tab->kind==XZ_SHELL_TAB_PAGE)||l.item<0||s.pane<=PANE_ITEMS){xz_shell_mods_close(u);return 1;}
  s.pane--;
  pack(v,s);
  return 1;

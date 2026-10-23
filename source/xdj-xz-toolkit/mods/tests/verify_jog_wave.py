@@ -18,7 +18,7 @@ if a.red_runtime:
         'commit':('struct xz_ds_selection final_selection;','xz_jd_commit(&jd_state[side_idx],&transaction);\n struct xz_ds_selection final_selection;'),
         'age':('<=XZ_MASTER_MAX_AGE_MS','<=150u')
     }[a.red_runtime]
-    assert source.count(needle)==(2 if a.red_runtime in ('age','content') else 1)
+    assert source.count(needle)==(3 if a.red_runtime=='age' else 2 if a.red_runtime=='content' else 1)
     (mutant/'jog_display_runtime.c').write_text(source.replace(needle,replacement))
     (mutant/'tests/test_jog_assets_runtime.c').write_text((root/'tests/test_jog_assets_runtime.c').read_text())
     for arch,cc in [('host','gcc'),('arm','arm-linux-gnueabi-gcc')]:

@@ -53,8 +53,8 @@ static void finish(void) { printf("{\"workflow\":\"%s\",\"steps\":%u,\"failures\
 static int same_view(struct xz_shell_view a,struct xz_shell_view b) { return a.screen==b.screen&&a.cursor==b.cursor&&a.scroll==b.scroll&&a.focus==b.focus; }
 static int is_action(enum xz_shell_action_kind kind,int id) { return action_count==1&&actions[0].kind==kind&&(id<0||actions[0].id==id); }
 static void load_track(int decks,int physical_choice) {
-    size_t n=key(XZ_SHELL_KEY_LOAD,0);
-    if(decks==4) { CHECK(!n&&u.load_choice.mode==1);if(physical_choice)key(XZ_SHELL_KEY_LOAD,1);else{turn(1);push();} }
+    if(decks==4&&!physical_choice) { push();CHECK(u.load_choice.mode==2);turn(2);push(); }
+    else key(XZ_SHELL_KEY_LOAD,decks==4?2:0);
     CHECK(is_action(XZ_SHELL_ACT_LOAD,-1));CHECK(xz_shell_screen(&u)==XZ_SHELL_PLAY);
     CHECK(actions[0].deck==(decks==4?2:0));
 }
@@ -74,10 +74,13 @@ static void cancel_and_isolation(void) {
     static const enum xz_shell_key isolated[]={XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BROWSE,XZ_SHELL_KEY_SOURCE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_SEARCH};
     for(unsigned k=0;k<sizeof isolated/sizeof isolated[0];k++) {
         char name[60];snprintf(name,sizeof name,"modal_key_%d_isolated",isolated[k]);start(name,4,XZ_SHELL_BROWSE);turn(18);struct xz_shell_view saved=view();
-        key(XZ_SHELL_KEY_LOAD,0);CHECK(u.load_choice.mode==1);turn(1000);CHECK(u.load_choice.cursor==2&&same_view(view(),saved));
-        key(isolated[k],-1);CHECK(!action_count&&!u.load_choice.mode&&same_view(view(),saved));turn(1);CHECK(view().cursor==19);finish();
+        push();CHECK(u.load_choice.mode==2);turn(1000);CHECK(u.load_choice.cursor==4&&same_view(view(),saved));
+        key(isolated[k],-1);CHECK(!u.load_choice.mode);
+        if(isolated[k]==XZ_SHELL_KEY_BACK){CHECK(same_view(view(),saved));turn(1);CHECK(view().cursor==19);}
+        else CHECK(xz_shell_screen(&u)==(isolated[k]==XZ_SHELL_KEY_BROWSE?XZ_SHELL_PLAY:isolated[k]==XZ_SHELL_KEY_SOURCE?XZ_SHELL_SOURCE:isolated[k]==XZ_SHELL_KEY_SEARCH?XZ_SHELL_SEARCH:XZ_SHELL_BROWSE));
+        finish();
     }
-    start("modal_encoder_CANCEL",4,XZ_SHELL_BROWSE);turn(18);struct xz_shell_view saved=view();key(XZ_SHELL_KEY_LOAD,0);turn(2);push();CHECK(!action_count&&!u.load_choice.mode&&same_view(view(),saved));finish();
+    start("modal_encoder_CANCEL",4,XZ_SHELL_BROWSE);turn(18);struct xz_shell_view saved=view();push();turn(4);push();CHECK(!action_count&&!u.load_choice.mode&&same_view(view(),saved));finish();
 }
 static void source_hierarchy(void) {
     start("SOURCE_BACK_category_source_PLAY",4,XZ_SHELL_BROWSE);turn(7);key(XZ_SHELL_KEY_BACK,-1);CHECK(xz_shell_screen(&u)==XZ_SHELL_BROWSE&&view().focus!=1);
@@ -105,7 +108,7 @@ static void search_workflow(void) {
 }
 static void removal_workflows(void) {
     for(int why=0;why<5;why++) {
-        char name[70];snprintf(name,sizeof name,"pending_LOAD_invalidation_%d",why);start(name,4,XZ_SHELL_BROWSE);turn(18);key(XZ_SHELL_KEY_LOAD,0);
+        char name[70];snprintf(name,sizeof name,"pending_LOAD_invalidation_%d",why);start(name,4,XZ_SHELL_BROWSE);turn(18);push();
         if(why==0)model.browse=NULL;else if(why==1)browse.media_generation++;else if(why==2)browse.list_id++;else if(why==3)browse.source_name="USB2";else{library.tracks[18].id=9999;}
         push();CHECK(!action_count&&!u.load_choice.mode&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);library.tracks[18].id=1018;finish();
     }
@@ -117,11 +120,11 @@ static void removal_workflows(void) {
     start("USB_replacement_active_list_encoder_and_LOAD",4,XZ_SHELL_BROWSE);turn(18);source.device[0].status=XZ_SHELL_DEVICE_NOT_CONNECTED;model.browse=NULL;
     turn(1);CHECK(action_count==1&&actions[0].kind==XZ_SHELL_ACT_HAND_OFF);key(XZ_SHELL_KEY_LOAD,0);CHECK(!action_count&&!u.load_choice.mode);
     bx_tracks(&browse,&library,XZ_SHELL_BROWSE);browse.media_generation=18;model.browse=&browse;source.device[0].status=XZ_SHELL_DEVICE_READY;
-    turn(0);CHECK(view().cursor==0&&view().scroll==0);key(XZ_SHELL_KEY_LOAD,0);CHECK(u.load_choice.track==1000);finish();
+    turn(0);CHECK(view().cursor==0&&view().scroll==0);key(XZ_SHELL_KEY_LOAD,0);CHECK(is_action(XZ_SHELL_ACT_LOAD,1000));finish();
     start("USB_replacement_immediate_LOAD_no_encoder",4,XZ_SHELL_BROWSE);turn(18);model.browse=NULL;
     bx_tracks(&browse,&library,XZ_SHELL_BROWSE);browse.media_generation=18;model.browse=&browse;
     const struct xz_shell_browse_row *fresh=xz_shell_browse_highlight(&u,&model);CHECK(fresh&&fresh->id==1000);
-    key(XZ_SHELL_KEY_LOAD,0);CHECK(u.load_choice.track==1000&&u.load_choice.row==0);push();
+    key(XZ_SHELL_KEY_LOAD,0);CHECK(!u.load_choice.mode);
     CHECK(is_action(XZ_SHELL_ACT_LOAD,1000)&&actions[0].value==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY);finish();
 }
 static uint64_t render_hash(const struct xz_shell *shell) {
@@ -164,7 +167,7 @@ static int benchmark(void) {
      * cancelling a chooser. The changed return path is deliberately excluded. */
     start("common_dispatch_benchmark",4,XZ_SHELL_BROWSE);turn(12);
     for(unsigned b=0;b<128;b++) { uint64_t t=ns();for(unsigned j=0;j<256;j++) {
-        turn(1);turn(-1);key(XZ_SHELL_KEY_LOAD,0);turn(1);key(XZ_SHELL_KEY_BACK,-1);
+        turn(1);turn(-1);push();turn(1);key(XZ_SHELL_KEY_BACK,-1);
         checksum+=(uint64_t)view().cursor+(uint64_t)view().scroll+(uint64_t)u.load_choice.mode;events+=5;
     }batches[b]=ns()-t; }
     qsort(batches,128,sizeof batches[0],compare64);
