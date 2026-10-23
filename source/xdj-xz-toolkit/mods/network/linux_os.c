@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT. Documented Linux OS boundary. Never called by host fixtures' fake inventory. */
 #define _GNU_SOURCE
 #include "linux.h"
+#include "proc_parse.h"
 #include "../clock_compat.h"
 #include <arpa/inet.h>
 #include <dirent.h>
@@ -59,7 +60,7 @@ static void competing_clients(struct xz_net_linux_os *o,struct xz_net_snapshot *
         const char *exe=strrchr(buf,'/');exe=exe?exe+1:buf;
         if(strcmp(exe,"udhcpc")&&strcmp(exe,"dhclient")&&strcmp(exe,"dhcpcd")&&strcmp(exe,"xz-network-udhcpc"))continue;
         if(o->pid>0){char stat_path[80],stat_text[1024];snprintf(stat_path,sizeof stat_path,"/proc/%ld/stat",pid);FILE *sf=fopen(stat_path,"r");
-            if(sf){int own=0;if(fgets(stat_text,sizeof stat_text,sf)){char *tail=strrchr(stat_text,')');char state;long parent;if(tail&&sscanf(tail+1," %c %ld",&state,&parent)==2&&parent==o->pid)own=1;}fclose(sf);if(own)continue;}}
+            if(sf){int own=0;if(fgets(stat_text,sizeof stat_text,sf)){uint32_t parent;if(xz_net_proc_parent(stat_text,&parent)&&parent==(uint32_t)o->pid)own=1;}fclose(sf);if(own)continue;}}
         for(size_t at=strlen(buf)+1;at<(size_t)n;at+=strlen(buf+at)+1)
             for(unsigned i=0;i<s->count;i++)if(!strcmp(buf+at,s->adapter[i].id.name))s->adapter[i].competing_client=1;
     }closedir(d);
@@ -97,11 +98,11 @@ static enum xz_net_result inventory(void *p,const struct xz_net_control *c,struc
         for(unsigned i=0;i<s->count;i++)s->adapter[i].gateway_known=XZ_NET_YES;
         char line[512];unsigned lines=0;
         while(fgets(line,sizeof line,f)&&++lines<4096){
-            char name[16];unsigned long dst,gw,flags,metric,mask;unsigned ref,use;
-            if(sscanf(line,"%15s %lx %lx %lx %u %u %lu %lx",name,&dst,&gw,&flags,&ref,&use,&metric,&mask)!=8||dst||mask||!(flags&1))continue;
-            for(unsigned i=0;i<s->count;i++)if(!strcmp(s->adapter[i].id.name,name)&&metric<=best[i]){
-                struct xz_net_adapter *b=&s->adapter[i];if(metric==best[i]&&b->gateway_present){b->gateway_ambiguous=1;continue;}best[i]=metric;b->gateway_ambiguous=0;b->gateway_present=1;
-                for(unsigned k=0;k<4;k++)b->gateway.octet[k]=(uint8_t)(gw>>(8*k));
+            struct xz_net_proc_route parsed;
+            if(!xz_net_proc_route_parse(line,&parsed)||parsed.destination||parsed.mask||!(parsed.flags&1))continue;
+            for(unsigned i=0;i<s->count;i++)if(!strcmp(s->adapter[i].id.name,parsed.name)&&parsed.metric<=best[i]){
+                struct xz_net_adapter *b=&s->adapter[i];if(parsed.metric==best[i]&&b->gateway_present){b->gateway_ambiguous=1;continue;}best[i]=parsed.metric;b->gateway_ambiguous=0;b->gateway_present=1;
+                for(unsigned k=0;k<4;k++)b->gateway.octet[k]=(uint8_t)(parsed.gateway>>(8*k));
             }
         }if(lines>=4096)for(unsigned i=0;i<s->count;i++)s->adapter[i].gateway_ambiguous=1;fclose(f);
     }
@@ -150,9 +151,9 @@ static enum xz_net_result address(void *p,int add,const struct xz_net_identity *
 static int route_present(void *p,const struct xz_net_identity *id,struct xz_net_ipv4 gateway,unsigned metric){
     (void)p;FILE *f=fopen("/proc/net/route","r");if(!f)return 0;char line[512];unsigned lines=0;int found=0;
     while(fgets(line,sizeof line,f)&&++lines<4096){
-        char name[16];unsigned long dst,gw,flags,m,mask;unsigned ref,use;
-        if(sscanf(line,"%15s %lx %lx %lx %u %u %lu %lx",name,&dst,&gw,&flags,&ref,&use,&m,&mask)!=8||dst||mask||m!=metric||!(flags&1)||strcmp(name,id->name))continue;
-        struct xz_net_ipv4 g;for(unsigned k=0;k<4;k++)g.octet[k]=(uint8_t)(gw>>(8*k));if(address_equal(g,gateway)){found=1;break;}
+        struct xz_net_proc_route parsed;
+        if(!xz_net_proc_route_parse(line,&parsed)||parsed.destination||parsed.mask||parsed.metric!=metric||!(parsed.flags&1)||strcmp(parsed.name,id->name))continue;
+        struct xz_net_ipv4 g;for(unsigned k=0;k<4;k++)g.octet[k]=(uint8_t)(parsed.gateway>>(8*k));if(address_equal(g,gateway)){found=1;break;}
     }fclose(f);return found;
 }
 static enum xz_net_result route(void *p,int add,const struct xz_net_identity *id,struct xz_net_ipv4 gateway,unsigned metric,const struct xz_net_control *c){
