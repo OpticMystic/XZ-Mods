@@ -41,7 +41,20 @@ static uint16_t at(unsigned lane_y,unsigned r,unsigned x){return pixels[(lane_y+
 /* Lane rows 4..9 are beat-tick rows; the playhead covers 268 and 269. */
 static int tick_at(unsigned lane_y,unsigned x){return at(lane_y,6,x)==0xce59||at(lane_y,6,x)==0xf800;}
 
+static void sync_label_parity(void){
+ for(unsigned number=3;number<=4;number++){
+  struct xz_extra_deck d=deck();d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
+  d.sync.requested=1;d.sync.master_deck=1;d.sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;
+  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,68,number,&d,&view,&marks));memcpy(copy,pixels,sizeof pixels);
+  d.sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;
+  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,68,number,&d,&view,&marks));assert(!memcmp(copy,pixels,sizeof pixels));
+  d.sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
+  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,68,number,&d,&view,&marks));assert(memcmp(copy,pixels,sizeof pixels));
+ }
+ puts("PASS Classic tempo following is BPM; unavailable authority remains WAIT on both extra decks");
+}
 int main(void){
+ sync_label_parity();
  struct xz_extra_deck d=deck();int32_t pos;
  assert(xz_extra_lane_position_ms(&d,500,&pos)&&pos==10000);
  assert(xz_extra_lane_position_ms(&d,900,&pos)&&pos==10400);

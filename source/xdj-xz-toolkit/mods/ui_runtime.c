@@ -456,7 +456,7 @@ static void wave_configure(void) {
 /* The interface and classic theme decide the look; every renderer, the shell
    included, reads the derived model.theme. */
 _Static_assert((int)XZ_UI_INTERFACE_CLASSIC==(int)XZ_INTERFACE_CLASSIC&&(int)XZ_UI_INTERFACE_MODERN==(int)XZ_INTERFACE_MODERN&&(int)XZ_UI_MODERN_THEMES==(int)XZ_MODERN_THEME_COUNT,"one interface numbering");
-/* The FLAGSHIP shell runs only in the MODERN interface (nothing on CLASSIC: no thread, no USB scan). */
+/* Interface choice owns drawing; the shared media/SYNC worker remains active in CLASSIC. */
 static void shell_follow_interface_locked(void) {
     if(started&&xz_shell_runtime_follow_interface&&xz_shell_runtime_follow_interface(model.ui_interface==XZ_UI_INTERFACE_MODERN))
         xz_log("FLAGSHIP shell unavailable; the restyled stock screen stays");
@@ -1296,7 +1296,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         case XZ_UI_SET_INTERFACE:
             if (a->index == XZ_INTERFACE_CLASSIC || a->index == XZ_INTERFACE_MODERN) {
                 model.ui_interface = a->index;appearance_changed();
-                snprintf(ui.notice, sizeof(ui.notice), "%s", a->index == XZ_INTERFACE_MODERN ? "INTERFACE: MODERN" : "INTERFACE: CLASSIC");
+                snprintf(ui.notice, sizeof(ui.notice), "%s", a->index == XZ_INTERFACE_MODERN ? "INTERFACE: FLAGSHIP" : "INTERFACE: CLASSIC");
             }
             break;
         case XZ_UI_SET_MODERN_THEME:

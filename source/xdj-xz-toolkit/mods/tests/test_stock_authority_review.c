@@ -265,6 +265,21 @@ static void master_tempo_feedback(void){
   end();
  }
 }
+#include "../deck_select.h"
+static void physical_brake_setting(void){
+ for(int side=0;side<2;side++)for(int slow=0;slow<2;slow++){
+  begin("native-knob-before-loopback-controls-next-loaded-track");
+  fake_route(0);step();struct xz_deck_select selector;xz_deck_select_init(&selector);
+  struct xz_ds_key knob={.side=side,.code=0x4123,.op=XZ_DS_OP_FADER,.value=slow?1.f:0.f};
+  struct xz_ds_outcome routed=xz_deck_select_global_player(&selector,&knob,clock_ms);
+  CHECK(routed.verdict==XZ_DS_DELIVER&&routed.also_stock);CHECK(input(routed.event));
+  fake_route(200000+cases);step();sync_loop_track(side,side+1,350);
+  if(!view.deck[side].vinyl)press(side,XZ_EXTRA_IN_VINYL);
+  CHECK(view.deck[side].playing);press(side,XZ_EXTRA_IN_PLAY);
+  CHECK(debug(side).state==(slow?XZ_XP_PLAYING:XZ_XP_CUED));
+  advance(XZ_XP_RAMP_SLOW_MS+100);CHECK(debug(side).state==XZ_XP_CUED);end();
+ }
+}
 int main(int argc,char **argv){
  assert(argc==3);setvbuf(stdout,NULL,_IONBF,0);assert(!pthread_mutex_init(&f.lock,NULL));
  snprintf(fixtures,sizeof fixtures,"%s",argv[1]);snprintf(anlz_dir,sizeof anlz_dir,"%s/anlz",argv[1]);build_analysis();
@@ -280,5 +295,6 @@ int main(int argc,char **argv){
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"rapid-recovery"))rapid_reacquisition();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"pending-output"))pending_output_tempo();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"mt-feedback"))master_tempo_feedback();
+ if(!strcmp(argv[2],"all")||!strcmp(argv[2],"physical-brake"))physical_brake_setting();
  pthread_mutex_destroy(&f.lock);printf("RESULT authority cases=%u checks=%u failures=%u\n",cases,checks,failed);return failed?1:0;
 }

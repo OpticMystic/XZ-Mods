@@ -484,8 +484,12 @@ static int read_master_sample(struct rt_master_sample *s){
   s->pcm_us=(uint64_t)w[11]|(uint64_t)w[12]<<32;
   s->foreign_epoch=w[13];s->sequence=w[14];memcpy(&s->native_id,&w[15],4);
   uint64_t now;
-  if(runtime_monotonic_us(&now)||!sample_live(s,now))return 0;
-  return serial==atomic_load(&rt_actual_serial)&&sample_live(s,now);
+  if(runtime_monotonic_us(&now))return 0;
+  /* A publication during the clock read consumes this attempt, not authority.
+     Recopy within the existing bound instead of dropping a healthy master. */
+  if(serial!=atomic_load(&rt_actual_serial))continue;
+  if(!sample_live(s,now))return 0;
+  if(serial==atomic_load(&rt_actual_serial)&&sample_live(s,now))return 1;
  }
  return 0;
 }

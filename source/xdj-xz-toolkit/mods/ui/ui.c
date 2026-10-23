@@ -24,7 +24,7 @@ static const char *const rekordbox_names[XZ_UI_RB_CHOICES]={"MODS MENU","EXPORT 
 static const char *const rekordbox_help[XZ_UI_RB_CHOICES]={
  "Opens and closes MODS. Works with the encoder and BACK.",
  "Opens the stock screen to play a laptop's or phone's library over the network (or USB).",
- "Switches between the MODERN and CLASSIC interfaces.",
+ "Switches between the FLAGSHIP and CLASSIC interfaces.",
  "Switches to the VJ.Tools screen and back. Needs the VJ.Tools link.",
  "Shows or hides the stem rows on the play screen.",
  "The button does nothing."};
@@ -424,7 +424,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
  }else if(u->page==XZ_UI_THEMES){
   /* APPEARANCE: the interface first, then its themes, then the other looks.
      Section headers are drawn by xz_ui_appearance_details (ui_layout.c). */
-  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,"MODERN");
+  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,"FLAGSHIP");
   add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC,0,"CLASSIC");
   if(m->ui_interface==XZ_UI_INTERFACE_MODERN)add(w,&n,XZ_UI_SET_MODERN_THEME,0,0,"STANDARD");
   else add(w,&n,XZ_UI_PANEL,XZ_UI_THEME_PICK,0,xz_theme_name(m->classic_theme>=0&&m->classic_theme<XZ_THEME_FLAGSHIP?m->classic_theme:0));

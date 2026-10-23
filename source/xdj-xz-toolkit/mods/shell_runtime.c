@@ -365,7 +365,7 @@ static void save_display(int id, int value);
 enum { LOOK_TAB=3, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
        LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP, LOOK_BYPASS, LOOK_WAVE_TITLES };
 static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
-static const char *const look_interface[2]={"MODERN","CLASSIC"};
+static const char *const look_interface[2]={"FLAGSHIP","CLASSIC"};
 _Static_assert(XZ_UI_MODERN_THEMES==1,"one modern theme name below");
 static const char *const look_modern_theme[1]={"STANDARD"};
 static const char *const look_wave[3]={"STOCK","3-BAND","STEMS"};
@@ -445,7 +445,6 @@ static void fill_buttons(void) {
  }
  buttons_model=(struct xz_shell_settings_model){2,buttons_items,NULL};
 }
-static uint32_t look_classic_at; /* the first push of INTERFACE > CLASSIC: a second one within 4 s switches */
 static struct { int kind, deck, index; float value; } ui_actions[8]; static int ui_action_count; /* under mutex */
 static void fill_look(void) {
  const struct xz_shell_runtime_frame_input *in=&last_input;int k=!!in->look_known;
@@ -487,11 +486,8 @@ static void ui_action_locked(int kind, int deck, int index, float value, uint32_
 static void look_set_locked(int id, int choice, uint32_t now) {
  switch(id){
  case LOOK_INTERFACE:
-  if(choice==1){
-   /* CLASSIC replaces the whole screen and stops the shell: ask for a second push. */
-   if(!look_classic_at||now-look_classic_at>4000u){look_classic_at=now?now:1;notice_locked(now,"PUSH AGAIN TO SWITCH TO CLASSIC");return;}
-   look_classic_at=0;ui_action_locked(XZ_UI_SET_INTERFACE,-1,XZ_UI_INTERFACE_CLASSIC,0,now);
-  }else if(choice==0)ui_action_locked(XZ_UI_SET_INTERFACE,-1,XZ_UI_INTERFACE_MODERN,0,now);
+  if(choice==0||choice==1)
+   ui_action_locked(XZ_UI_SET_INTERFACE,-1,choice==0?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC,0,now);
   else refuse();
   return;
  case LOOK_MODE_LAMPS:case LOOK_QUANTIZE_LAMP:case LOOK_BYPASS:case LOOK_WAVE_TITLES:{
@@ -2573,7 +2569,8 @@ static void native_sync_refresh_locked(void) {
  uint64_t clock=mono_checked_us();
  if(!clock){SYO_INC(OWNER_NO_CLOCK);native_sync_unavailable_clock();return;}
  uint32_t now=(uint32_t)(clock/1000u);
- if(__atomic_load_n(&native_sync_requested,__ATOMIC_ACQUIRE)&&
+ /* A contention-observed boundary needs owner qualification on the first free tick. */
+ if(!requalify&&__atomic_load_n(&native_sync_requested,__ATOMIC_ACQUIRE)&&
     (uint32_t)(now-__atomic_load_n(&native_sync_polled,__ATOMIC_ACQUIRE))<XZ_SHRT_REFRESH_MS){SYO_INC(OWNER_THROTTLE);return;}
  SYO_INC(OWNER_POLL);
  __atomic_store_n(&native_sync_requested,1,__ATOMIC_RELEASE);
@@ -3457,7 +3454,7 @@ static int start_locked(void) {
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
  network_menu_token=network_shown_token=network_input_sequence=network_shown_sequence=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
- ui_action_count=0;look_classic_at=0;stock_key_pending=-1;push_input=0;
+ ui_action_count=0;stock_key_pending=-1;push_input=0;
  le_count=0;
  memset(mys,0,sizeof mys);memset(&mys_job,0,sizeof mys_job);memset(mys_state,0,sizeof mys_state);memset(mys_result,0,sizeof mys_result);dj_pick=-1;mys_readonly=flag("XZ_MODS_SETTINGS_READONLY");
  memset(&util,0,sizeof util);memset(cue_cache,0,sizeof cue_cache);memset(&cue_want,0,sizeof cue_want);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;

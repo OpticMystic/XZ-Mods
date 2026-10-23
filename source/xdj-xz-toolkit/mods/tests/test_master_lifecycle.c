@@ -78,9 +78,42 @@ static void busy_authority_token(void){
  atomic_store(&rt_va.operator_epoch,2);atomic_store(&rt_actual_exhausted,1);failed();
  puts("PASS busy authority returns only a coherent current control token; unavailable/exhausted token fails cleared");
 }
+static unsigned collision_kind,collision_left,collision_calls;
+static int collision_clock(uint64_t *out){
+ collision_calls++;*out=1000000;
+ if(collision_kind==3)return -1;
+ if(collision_left){
+  collision_left=0;
+  if(collision_kind==2)atomic_fetch_add(&rt_va.operator_epoch,1);
+  else {
+   struct rt_master_sample next=rt_last_sample;next.sequence++;
+   if(collision_kind==1){next.native_id^=1;next.actual.deck=next.native_id;}
+   publish_master_sample(&next);
+  }
+ }
+ return 0;
+}
+static void clock_collision(void){
+ struct xz_sync_link_test_ops ops={.monotonic_us=collision_clock};
+ xz_sync_link_runtime_test_install(&ops,&lifecycle_hooks);
+ unsigned failures=0,checks=0;
+ for(int native=0;native<2;native++)for(unsigned kind=0;kind<4;kind++){
+  collision_kind=0;collision_left=0;collision_calls=0;
+  struct rt_master_sample s={.actual={.deck=native,.operator_epoch=atomic_load(&rt_va.operator_epoch)},
+   .at_us=1000000,.sequence=rt_last_sample.sequence+1,.native_id=native};
+  publish_master_sample(&s);collision_kind=kind;collision_left=1;
+  struct xz_master_observation o;int ok=xz_sync_link_runtime_master_observe(&o);
+  int wanted=kind<2?(native^(int)kind):XZ_MASTER_UNKNOWN;
+  checks++;if(!ok||o.deck!=wanted||(kind<2?!o.revision:o.revision!=0)){
+   failures++;printf("RED native=%d collision=%u wanted=%d actual=%d revision=%u clocks=%u\n",native,kind,wanted,o.deck,o.revision,collision_calls);
+  }
+ }
+ printf("RESULT post-clock authority collision checks=%u failures=%u\n",checks,failures);fflush(stdout);assert(!failures);
+}
 int main(int argc,char **argv){
  assert(argc==2);
- if(!strcmp(argv[1],"stop-start"))stop_start();else if(!strcmp(argv[1],"exhaustion"))exhaustion();
+ if(!strcmp(argv[1],"clock-collision"))clock_collision();
+ else if(!strcmp(argv[1],"stop-start"))stop_start();else if(!strcmp(argv[1],"exhaustion"))exhaustion();
  else if(!strcmp(argv[1],"cache-exhaustion"))cache_exhaustion();else if(!strcmp(argv[1],"pinned-restart"))pinned_restart();
  else if(!strcmp(argv[1],"no-legacy-fallback"))no_legacy_fallback();
  else if(!strcmp(argv[1],"busy-authority-token"))busy_authority_token();else assert(0);

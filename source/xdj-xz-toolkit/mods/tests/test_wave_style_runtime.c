@@ -48,5 +48,10 @@ int main(int argc,char **argv){
  for(int d=0;d<4;d++)failed+=sh_deck_wave_color(&shell,&model.deck[d])!=XZ_SHELL_WAVE_RGB;
  last_input.look_known=0;assert(menu_render_frame_locked(pixels,800)>0);
  failed+=shell.display.wave_color_override!=XZ_SHELL_WAVE_BLUE;
+ ui_action_count=0;look_set_locked(LOOK_INTERFACE,1,1000);
+ printf("CLASSIC first-push queued actions=%d expected=1\n",ui_action_count);
+ failed+=ui_action_count!=1||(ui_action_count&&ui_actions[0].index!=XZ_UI_INTERFACE_CLASSIC);
+ ui_action_count=0;look_set_locked(LOOK_INTERFACE,0,1010);
+ failed+=ui_action_count!=1||(ui_action_count&&ui_actions[0].index!=XZ_UI_INTERFACE_MODERN);
  return failed?1:0;
 }

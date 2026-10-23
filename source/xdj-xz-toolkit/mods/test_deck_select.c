@@ -357,12 +357,13 @@ static void test_stock_unchanged(void) {
    for(unsigned op = 0; op <= 5; op++) {
     if(code == XZ_DS_KEY_SHIFT) continue;
     struct xz_ds_outcome o = ev(LEFT, (uint16_t)code, op, (int)(code & 1), 3, 0.25f);
-    assert((o.verdict == XZ_DS_PASS || (route && code == 0x4123 && op == 5 && o.verdict == XZ_DS_DELIVER && o.also_stock)) && !o.toggled && !o.unknown_first);
+    assert((o.verdict == XZ_DS_PASS || (code == 0x4123 && op == 5 && o.verdict == XZ_DS_DELIVER && o.also_stock)) && !o.toggled && !o.unknown_first);
     /* Stock still receives every key; DECK QUANTIZE and TIME MODE also reach the software decks (they are
        for every deck). */
     struct xz_ds_outcome g = xz_deck_select_global_key(&d, 1, (uint16_t)code, op, now);
     assert(g.verdict == XZ_DS_PASS || (route && (code == 0x430c || code == 0x430b) && g.verdict == XZ_DS_DELIVER && g.also_stock));
-    if(!route) assert(ev(RIGHT, (uint16_t)code, op, 0, 3, 0.25f).verdict == XZ_DS_PASS);
+    if(!route){struct xz_ds_outcome right=ev(RIGHT,(uint16_t)code,op,0,3,0.25f);
+     assert(right.verdict==XZ_DS_PASS||(code==0x4123&&op==5&&right.verdict==XZ_DS_DELIVER&&right.also_stock));}
    }
  }
 }

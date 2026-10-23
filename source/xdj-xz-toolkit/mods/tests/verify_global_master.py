@@ -12,7 +12,7 @@ files=['sync_link_runtime.c','sync_link_runtime.h','sync_link_plan.c','sync_link
 receipt={'inputs':{n:sha(root/n) for n in files},'runs':[],'hardware':False}
 cases={'runtime':[None],'plan':[None],
        'global':['pending','local','guards','operator','stale','reentrant','inflight','concurrent','steady','paused','admission','missing','restart-request'],
-       'lifecycle':['stop-start','exhaustion','cache-exhaustion','pinned-restart','no-legacy-fallback','busy-authority-token']}
+       'lifecycle':['stop-start','exhaustion','cache-exhaustion','pinned-restart','no-legacy-fallback','busy-authority-token','clock-collision']}
 if a.case:
     cases={suite:[a.case] for suite,selected in cases.items() if a.case in selected}
     if not cases:p.error('unknown case')

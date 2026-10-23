@@ -310,7 +310,10 @@ static int deck_outcome(const struct xz_ds_outcome *outcome, int left, int right
         snprintf(line, sizeof(line), "Deck select: unknown key 0x%04x swallowed on a side driving DECK 3/4", code);
         xz_log(line);
     }
-    if (outcome->verdict == XZ_DS_DELIVER && !xz_extra_deck_input(&outcome->event)) return 1;
+    if (outcome->verdict == XZ_DS_DELIVER && !xz_extra_deck_input(&outcome->event)) {
+        /* The physical brake knob still belongs to native when its software copy is unavailable. */
+        return !(outcome->also_stock && outcome->event.kind == XZ_EXTRA_IN_VINYL_SPEED);
+    }
     return outcome->verdict != XZ_DS_PASS && !outcome->also_stock;
 }
 
