@@ -26,7 +26,7 @@ int xz_shell_runtime_take_menu_command(struct xz_shell_runtime_menu_command *c){
 }
 int xz_shell_runtime_show_mods(int root){
     if(!fake_menu_on||!fake_shell_running)return 0;
-    if(root!=XZ_UI_GENERAL&&root!=XZ_UI_CONTROLS&&root!=XZ_UI_SETTINGS&&root!=XZ_UI_EXTRAS)return 0;
+    if(root!=XZ_UI_GENERAL&&root!=XZ_UI_CONTROLS&&root!=XZ_UI_SETTINGS&&root!=XZ_UI_EXTRAS&&root!=XZ_UI_NETWORK)return 0;
     fake_shows++;fake_mods_open=1;fake_menu_tab_root=root;return 1;
 }
 void xz_shell_runtime_close_mods(void){fake_closes++;fake_mods_open=0;}
@@ -65,9 +65,9 @@ static int panel_shut(void){return !touch.visible&&!__atomic_load_n(&visible,__A
 
 /* Every row of every page the four MENU tabs reach runs on the panel; the panel never shows. */
 static void menu_walk(void){
-    static const int roots[4]={XZ_UI_GENERAL,XZ_UI_CONTROLS,XZ_UI_SETTINGS,XZ_UI_EXTRAS};
+    static const int roots[5]={XZ_UI_GENERAL,XZ_UI_CONTROLS,XZ_UI_SETTINGS,XZ_UI_EXTRAS,XZ_UI_NETWORK};
     int seen[XZ_UI_PAGE_COUNT]={0},rows=0;
-    for(int t=0;t<4;t++){
+    for(int t=0;t<5;t++){
         modern();open_tab(roots[t]);
         /* breadth first over links, one row run per visit, from a fresh copy of the page each time */
         static struct xz_ui queue[96];int head=0,tail=0;queue[tail++]=ui;
@@ -152,11 +152,11 @@ static void games_return(void){
 static void back_one_level(void){
     modern();open_tab(XZ_UI_SETTINGS);
     for(int row=0;row<fake_menu.row_count;row++)assert(strcmp(fake_menu.row[row].label,"KEY SETUP"));
-    open_tab(XZ_UI_EXTRAS);
+    open_tab(XZ_UI_NETWORK);
     activate(row_named("NETWORK UPDATES"),-1);assert(ui.page==XZ_UI_UPDATES);
     activate(row_named("NETWORK SETUP"),-1);assert(ui.page==XZ_UI_UPDATE_SETUP&&fake_menu.depth==2);
     back();assert(ui.page==XZ_UI_UPDATES&&panel_shut());
-    back();assert(ui.page==XZ_UI_EXTRAS&&panel_shut());
+    back();assert(ui.page==XZ_UI_NETWORK&&panel_shut());
     int closed=fake_closes;
     back();assert(panel_shut()&&!fake_mods_open&&fake_closes==closed+1);
     puts("PASS menu BACK: one page up; top-level MODS closes to the prior screen");

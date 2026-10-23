@@ -24,8 +24,8 @@ static void buttons(struct xz_ui_widget *a,int k){
  int slot=k/XZ_UI_RB_CHOICES,choice=k%XZ_UI_RB_CHOICES,pitch=CW+GAP;
  put(a,X0+(choice%3)*pitch/3,BUTTONS_HEAD(slot)+16+(choice/3)*ROW,pitch/3-GAP,BUTTONS_H);
 }
-static int root(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_THEMES||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS;}
-static int rail_slot(int page){return page==XZ_UI_GENERAL?0:page==XZ_UI_CONTROLS?1:page==XZ_UI_THEMES?2:page==XZ_UI_SETTINGS?3:4;}
+static int root(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_THEMES||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS||page==XZ_UI_NETWORK;}
+static int rail_slot(int page){return page==XZ_UI_GENERAL?0:page==XZ_UI_CONTROLS?1:page==XZ_UI_THEMES?2:page==XZ_UI_SETTINGS?3:page==XZ_UI_EXTRAS?4:5;}
 /* The DJ Profile list hangs from the header's right corner: rows of 52 on a 56 pitch,
    then one row of buttons. With no profiles it holds a message and the setup button. */
 static int profile_buttons_y(const struct xz_ui *u,const struct xz_ui_model *m){
@@ -37,7 +37,7 @@ int xz_ui_profile_list_bottom(const struct xz_ui *u,const struct xz_ui_model *m)
 static void pad(struct xz_ui_widget *a,int k){put(a,X0+(k%4)*96+((k%4)/2)*16,192+(k/4)*96,88,88);}
 static void place_panel(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *a){
  int k=a->index,page=u->page;
- if(root(k)){put(a,0,XZ_UI_CY+rail_slot(k)*72,XZ_UI_RAIL_W,68);return;}
+ if(root(k)){put(a,0,XZ_UI_CY+rail_slot(k)*60,XZ_UI_RAIL_W,56);return;}
  if(page==XZ_UI_THEMES){
   if(k==XZ_UI_THEME_PICK){appearance(a,1,2,0);return;}
   if(k==XZ_UI_BROWSE_SETUP){appearance(a,3,3,1);return;}

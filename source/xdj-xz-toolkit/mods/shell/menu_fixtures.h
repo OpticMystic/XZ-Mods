@@ -67,14 +67,15 @@ static void mfx_model(struct xz_ui_model *m) {
 static const char *const mfx_show_hide[2]={"SHOW","HIDE"};
 static const struct xz_shell_setting_item mfx_look_items[1]={{1,0,"MODE LAMPS",mfx_show_hide,2,0,1,1}};
 static const struct xz_shell_settings_model mfx_look={1,mfx_look_items,NULL};
-static const struct xz_shell_mods_tab mfx_tabs[6]={
+static const struct xz_shell_mods_tab mfx_tabs[7]={
  {"GENERAL",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_GENERAL,NULL},
  {"CONTROLS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_CONTROLS,NULL},
  {"BUTTONS",XZ_SHELL_TAB_ITEMS,&mfx_look,NULL,0,XZ_UI_BUTTONS,NULL},
  {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&mfx_look,NULL,0,XZ_UI_THEMES,NULL},
  {"ADVANCED",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_SETTINGS,NULL},
- {"EXTRAS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_EXTRAS,NULL}};
-static const struct xz_shell_mods_model mfx_mods={6,mfx_tabs};
+ {"EXTRAS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_EXTRAS,NULL},
+ {"NETWORK",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_NETWORK,NULL}};
+static const struct xz_shell_mods_model mfx_mods={7,mfx_tabs};
 /* The rail entry (1..) of the MENU tab a top page belongs to; 0 when none. */
-static int mfx_tab_of(int top) { for(int t=0;t<6;t++)if(mfx_tabs[t].kind==XZ_SHELL_TAB_MENU&&mfx_tabs[t].page==top)return t+1; return 0; }
+static int mfx_tab_of(int top) { for(int t=0;t<7;t++)if(mfx_tabs[t].kind==XZ_SHELL_TAB_MENU&&mfx_tabs[t].page==top)return t+1; return 0; }
 #endif

@@ -634,7 +634,7 @@ static void menu_publish_locked(void){
 }
 /* The page ui.page sits under must be a MENU tab (GENERAL, CONTROLS, ADVANCED, EXTRAS); a page reached from
    the two item tabs (APPEARANCE, BUTTONS) is filed under GENERAL, which links to it too. */
-static int menu_top(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS;}
+static int menu_top(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS||page==XZ_UI_NETWORK;}
 static void panel_show_locked(void){
     play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
     if(menu_in_shell_locked()){

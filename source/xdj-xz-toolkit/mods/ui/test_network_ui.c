@@ -31,12 +31,12 @@ static void check_layout(struct xz_ui *u,struct xz_ui_model *m){
         for(size_t j=i+1;j<n;j++)if(xz_ui_network_kind(w[j].kind))assert(w[i].x+w[i].w<=w[j].x||w[j].x+w[j].w<=w[i].x||w[i].y+w[i].h<=w[j].y||w[j].y+w[j].h<=w[i].y);
     }assert(primary);assert(xz_ui_render(u,m,pixels,800*480,800));
     struct xz_shell_menu menu;assert(xz_ui_menu_build(u,m,&menu)&&menu.row_count>0);assert(strstr(menu.title,"NETWORK")||!strcmp(menu.title,"EDIT IPV4"));
-    for(unsigned i=0;i<menu.row_count;i++)assert(menu.row[i].available&&xz_ui_network_kind(menu.row[i].target.kind));
+    for(unsigned i=0;i<menu.row_count;i++)assert(menu.row[i].available&&(xz_ui_network_kind(menu.row[i].target.kind)||(menu.row[i].kind==XZ_SHELL_MENU_LINK&&menu.row[i].target.kind==XZ_UI_PANEL&&menu.row[i].target.index==XZ_UI_UPDATES)));
 }
 static void image(const char *name){FILE *f=fopen(name,"wb");assert(f);fputs("P6\n800 480\n255\n",f);for(unsigned i=0;i<800*480;i++){unsigned v=pixels[i];unsigned char c[3]={(unsigned char)(((v>>11)&31)*255/31),(unsigned char)(((v>>5)&63)*255/63),(unsigned char)((v&31)*255/31)};assert(fwrite(c,1,3,f)==3);}assert(!fclose(f));}
 int main(void){
     struct xz_ui u;struct xz_ui_model m;model(&m);xz_ui_init(&u);struct xz_ui_action out[XZ_UI_MENU_ACTIONS];
-    assert(tap(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_NETWORK,out)==1&&u.page==XZ_UI_NETWORK);check_layout(&u,&m);
+    assert(tap(&u,&m,XZ_UI_PANEL,XZ_UI_NETWORK,out)==1&&u.page==XZ_UI_NETWORK);check_layout(&u,&m);
     assert(tap(&u,&m,XZ_UI_NETWORK_STEP,XZ_NETWORK_CHOOSE,out)==0&&u.network.initialized&&u.network.step==XZ_NETWORK_CHOOSE);check_layout(&u,&m);
     assert(!tap(&u,&m,XZ_UI_NETWORK_MODE,XZ_NET_STATIC,out));assert(!tap(&u,&m,XZ_UI_NETWORK_FIELD,XZ_NETWORK_IP,out));assert(u.page==XZ_UI_NETWORK_EDIT);check_layout(&u,&m);
     assert(!tap(&u,&m,XZ_UI_NETWORK_KEY,12,out));for(const char *p="192.0.2.50";*p;p++)assert(!tap(&u,&m,XZ_UI_NETWORK_KEY,*p=='.'?10:*p-'0',out));assert(!tap(&u,&m,XZ_UI_NETWORK_KEY,13,out));assert(!strcmp(u.network.ip,"192.0.2.50"));

@@ -58,7 +58,7 @@ static void bridge_action(const struct xz_shell_action *a) {
  struct xz_ui_action pad[XZ_UI_ACTIONS];size_t n;
  switch(a->id){
  case XZ_SHELL_MENU_OPEN:
-  assert(a->value==XZ_UI_GENERAL||a->value==XZ_UI_CONTROLS||a->value==XZ_UI_SETTINGS||a->value==XZ_UI_EXTRAS);
+  assert(a->value==XZ_UI_GENERAL||a->value==XZ_UI_CONTROLS||a->value==XZ_UI_SETTINGS||a->value==XZ_UI_EXTRAS||a->value==XZ_UI_NETWORK);
   xz_ui_menu_open(&ui,(enum xz_ui_page)a->value);break;
  case XZ_SHELL_MENU_BACK:
   n=xz_ui_menu_back(&ui,pad);
@@ -127,8 +127,8 @@ static void test_open(void) {
  assert(in_mods(&s)&&s.mods_view.tab==1&&s.mods_view.on_tabs&&ui.page==XZ_UI_GENERAL&&!ui.history_count);
  assert(menu.root==XZ_UI_GENERAL&&menu.depth==0);
  render_check(&s);
- static const int expect[7]={-1,XZ_UI_GENERAL,XZ_UI_CONTROLS,-1,-1,XZ_UI_SETTINGS,XZ_UI_EXTRAS};
- for(int t=2;t<=6;t++){
+ static const int expect[8]={-1,XZ_UI_GENERAL,XZ_UI_CONTROLS,-1,-1,XZ_UI_SETTINGS,XZ_UI_EXTRAS,XZ_UI_NETWORK};
+ for(int t=2;t<=7;t++){
   size_t n=turn(&s,1);
   assert(s.mods_view.tab==t&&s.mods_view.on_tabs);
   if(expect[t]<0)assert(n==0);
@@ -153,7 +153,7 @@ static void test_encoder_never_leaves(void) {
  for(int run=0;run<24;run++){
   struct xz_shell s;fresh(&s);
   key(&s,XZ_SHELL_KEY_MENU);
-  turn(&s,run%6);push(&s);   /* into the tab: BACK leaves its page or closes MODS */
+  turn(&s,run%7);push(&s);   /* into the tab: BACK leaves its page or closes MODS */
   for(int step=0;step<1500;step++){
    seed=seed*1664525u+1013904223u;
    int r=(int)((seed>>16)%10);
@@ -230,7 +230,7 @@ static int link_like(const struct xz_shell_menu_row *r) { return r->kind==XZ_SHE
 static void test_reach_every_page(void) {
  int seen[XZ_UI_PAGE_COUNT]={0};
  static struct { struct xz_ui u; } queue[256];
- static const int roots[4]={XZ_UI_GENERAL,XZ_UI_CONTROLS,XZ_UI_SETTINGS,XZ_UI_EXTRAS};
+ static const int roots[5]={XZ_UI_GENERAL,XZ_UI_CONTROLS,XZ_UI_SETTINGS,XZ_UI_EXTRAS,XZ_UI_NETWORK};
  int rows_checked=0;
  /* a loaded deck with everything working, then a loader without the stem engine: some setup pages
     open only while something is missing */
@@ -239,7 +239,7 @@ static void test_reach_every_page(void) {
  mfx_model(&um);
  if(variant==1){um.enabled=0;for(int d=0;d<2;d++){um.deck[d].ready&=~(uint32_t)XZ_UI_STEM;um.deck[d].usb_reason=XZ_UI_USB_WHY_ENGINE;}}
  if(variant==2)detected_network();
- for(int i=0;i<4;i++){xz_ui_init(&queue[tail].u);xz_ui_menu_open(&queue[tail].u,(enum xz_ui_page)roots[i]);tail++;}
+ for(int i=0;i<5;i++){xz_ui_init(&queue[tail].u);xz_ui_menu_open(&queue[tail].u,(enum xz_ui_page)roots[i]);tail++;}
  while(head<tail){
   ui=queue[head++].u;
   if(visits[ui.page]++>3)continue;
@@ -298,7 +298,7 @@ static void test_reach_every_page(void) {
 
 static void test_ipv4_encoder(void) {
  struct xz_shell s;fresh(&s);detected_network();publish();
- key(&s,XZ_SHELL_KEY_MENU);push(&s);cursor_to(&s,"NETWORK");push(&s);
+ key(&s,XZ_SHELL_KEY_MENU);turn(&s,6);push(&s);
  assert(ui.page==XZ_UI_NETWORK);cursor_to(&s,"CHOOSE ADAPTER / SETTINGS");push(&s);
  assert(ui.page==XZ_UI_NETWORK_SETUP&&ui.network.initialized);
  cursor_to(&s,"STATIC IP");push(&s);assert(ui.network.trial.policy.order[0].mode==XZ_NET_STATIC);
@@ -314,7 +314,6 @@ static void test_ipv4_encoder(void) {
  cursor_to(&s,"EDIT GATEWAY");push(&s);assert(ui.page==XZ_UI_NETWORK_EDIT);
  cursor_to(&s,"CANCEL");push(&s);assert(ui.page==XZ_UI_NETWORK_SETUP);
  key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_NETWORK);
- key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_GENERAL);
  key(&s,XZ_SHELL_KEY_BACK);assert(xz_shell_screen(&s)==XZ_SHELL_PLAY);
  assert(!others&&!refusals);
  puts("PASS synthetic detected adapter: encoder STATIC / IP / MASK / GATEWAY / type / delete / done / cancel / nested BACK; no network execution");
@@ -322,7 +321,7 @@ static void test_ipv4_encoder(void) {
 
 /* Each page draws inside the frame, from the rail and from inside, at every row and in every values pane. */
 static void test_render_every_page(void) {
- static const int pages[]={XZ_UI_GENERAL,XZ_UI_FEATURE_SETUP,XZ_UI_LOCAL_STEM_SETUP,XZ_UI_PC_STEMS,XZ_UI_STEM_COLORS,XZ_UI_XPAD,
+ static const int pages[]={XZ_UI_NETWORK,XZ_UI_NETWORK_SETUP,XZ_UI_NETWORK_EDIT,XZ_UI_GENERAL,XZ_UI_FEATURE_SETUP,XZ_UI_LOCAL_STEM_SETUP,XZ_UI_PC_STEMS,XZ_UI_STEM_COLORS,XZ_UI_XPAD,
   XZ_UI_METRICS_SETUP,XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ_UI_SETTINGS,XZ_UI_STEMS,XZ_UI_BROWSE_SETUP,XZ_UI_RAM_SETUP,
   XZ_UI_EXTRAS,XZ_UI_CONNECTION,XZ_UI_GAMES,XZ_UI_DOOM,XZ_UI_DOOM_SETUP,XZ_UI_DOOM_FILES,XZ_UI_MYHOUSE_SETUP,XZ_UI_UPDATES,
   XZ_UI_UPDATE_SETUP,XZ_UI_APPS,XZ_UI_APPS_SETUP,XZ_UI_PROFILE_SETUP,XZ_UI_PROFILE_EDIT};

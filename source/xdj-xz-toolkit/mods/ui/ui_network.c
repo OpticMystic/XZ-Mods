@@ -55,6 +55,10 @@ void xz_ui_network_place(const struct xz_ui *u,const struct xz_ui_model *m,struc
         struct xz_ui_widget *a=&w[i];
         if(u->page==XZ_UI_GENERAL&&a->kind==XZ_UI_FEATURE_LINK&&(a->index==XZ_UI_NETWORK||a->index==XZ_UI_METRICS_SETUP))put(a,a->index==XZ_UI_NETWORK?472:136,288,320,40);
         if(u->page==XZ_UI_CONNECTION&&a->kind==XZ_UI_PANEL&&a->index==XZ_UI_NETWORK)put(a,468,300,324,40);
+        int updates=a->kind==XZ_UI_PANEL&&a->index==XZ_UI_UPDATES;
+        if(u->page==XZ_UI_NETWORK&&(xz_ui_network_kind(a->kind)||updates)){
+            put(a,136+(secondary%2)*336,320+(secondary/2)*48,320,36);secondary++;continue;
+        }
         if(!xz_ui_network_kind(a->kind))continue;
         if(a->kind==XZ_UI_NETWORK_KEY){put(a,136+(a->index%4)*166,148+(a->index/4)*52,158,44);continue;}
         if(a->kind==XZ_UI_NETWORK_ADAPTER){if(a->index>=0)put(a,136+(a->index-u->network.adapter_offset)*184,184,176,40);else put(a,688,a->index==-1?184:206,104,18);continue;}
@@ -206,19 +210,19 @@ void xz_ui_network_render(const struct xz_ui_scene *s){
             snprintf(line,sizeof line,"%u %s  LINK %s  %s/%u  +%u MORE",i+1,a->id.name,a->link_up==XZ_NET_YES?"UP":a->link_up==XZ_NET_NO?"DOWN":"UNKNOWN",ip,a->address_count?a->address[0].prefix:0,a->address_count?a->address_count-1:0);text(s,110+(int)i*34,line,ink);
         }text(s,270,"DHCP ORIGIN / NATIVE OWNER: UNKNOWN UNLESS REPORTED",ink);text(s,292,"SETUP SHOWS ALL ADAPTERS. NOTHING CHANGES UNTIL APPLY.",ink);
     }
-    for(size_t i=0;i<s->n;i++)if(xz_ui_network_kind(s->w[i].kind)){
+    for(size_t i=0;i<s->n;i++)if(xz_ui_network_kind(s->w[i].kind)||(s->w[i].kind==XZ_UI_PANEL&&s->w[i].index==XZ_UI_UPDATES)){
         const struct xz_ui_widget *a=&s->w[i];int selected=xz_ui_network_selected(u,a);uint32_t fill=xz_blend(bg,accent,selected?130:40);
         xz_round_rect(s->c,a->x,a->y,a->w,a->h,6,15,selected?accent:xz_blend(bg,ink,80));xz_round_rect(s->c,a->x+1,a->y+1,a->w-2,a->h-2,5,15,fill);
         xz_ui_chrome_fit(s->c,a->x+8,a->y+(a->h<24?4:13),a->w-16,a->label,1,ink);
     }
 }
 int xz_ui_network_menu(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_shell_menu *out){
-    memset(out,0,sizeof *out);out->page=u->page;out->root=xz_ui_menu_root(u,NULL);out->depth=(uint8_t)(u->page==XZ_UI_NETWORK?1:u->page==XZ_UI_NETWORK_SETUP?2:3);out->focus_row=-1;
-    snprintf(out->title,sizeof out->title,"%s",xz_ui_network_title(u->page));snprintf(out->path,sizeof out->path,"GENERAL / NETWORK");out->section_count=1;strcpy(out->sections[0],"NETWORK");
-    static const char *steps[]={"DETECT","CHOOSE","APPLY","VERIFY"};out->step_count=4;out->step=(uint8_t)u->network.step;for(unsigned i=0;i<4;i++)strcpy(out->steps[i],steps[i]);
+    memset(out,0,sizeof *out);out->page=u->page;int depth=0;out->root=xz_ui_menu_root(u,&depth);out->depth=(uint8_t)depth;out->focus_row=-1;
+    snprintf(out->title,sizeof out->title,"%s",xz_ui_network_title(u->page));snprintf(out->path,sizeof out->path,"%s",u->page==XZ_UI_NETWORK?"":u->page==XZ_UI_NETWORK_SETUP?"NETWORK":"NETWORK / NETWORK SETUP");out->section_count=1;strcpy(out->sections[0],"NETWORK");
+    static const char *steps[]={"DETECT","CHOOSE","APPLY","VERIFY"};out->step_count=u->page==XZ_UI_NETWORK?0:4;out->step=(uint8_t)u->network.step;for(unsigned i=0;i<4;i++)strcpy(out->steps[i],steps[i]);
     struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(u,m,w);
-    for(size_t i=0;i<n&&out->row_count<XZ_SHELL_MENU_ROWS;i++)if(xz_ui_network_kind(w[i].kind)){
-        struct xz_shell_menu_row *r=&out->row[out->row_count++];r->kind=w[i].kind==XZ_UI_NETWORK_KEY&&w[i].index<13?XZ_SHELL_MENU_KEY:XZ_SHELL_MENU_ACTION;r->available=1;r->current=-1;r->key=((int32_t)w[i].kind<<16)^(w[i].index&0xffff);
+    for(size_t i=0;i<n&&out->row_count<XZ_SHELL_MENU_ROWS;i++)if(xz_ui_network_kind(w[i].kind)||(w[i].kind==XZ_UI_PANEL&&w[i].index==XZ_UI_UPDATES)){
+        struct xz_shell_menu_row *r=&out->row[out->row_count++];r->kind=w[i].kind==XZ_UI_PANEL?XZ_SHELL_MENU_LINK:w[i].kind==XZ_UI_NETWORK_KEY&&w[i].index<13?XZ_SHELL_MENU_KEY:XZ_SHELL_MENU_ACTION;r->available=1;r->current=-1;r->key=((int32_t)w[i].kind<<16)^(w[i].index&0xffff);
         snprintf(r->label,sizeof r->label,"%s",w[i].label);snprintf(r->help,sizeof r->help,"%s",xz_ui_network_help(w[i].kind));if(xz_ui_network_selected(u,&w[i]))strcpy(r->value,"SELECTED");
         r->target=(struct xz_shell_menu_target){(int16_t)w[i].kind,(int16_t)w[i].index,-1,XZ_UI_MENU_TOUCH,0};
         if(u->focus_kind==w[i].kind&&u->focus_index==w[i].index)out->focus_row=(int16_t)(out->row_count-1);
