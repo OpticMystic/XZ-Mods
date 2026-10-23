@@ -3,6 +3,8 @@
 #include "ui/play_key.h"
 #include "ui/play_key_classic.h"
 #pragma weak xz_extra_decks_snapshot
+#include "network/runtime.h"
+#include "ui/ui_network.h"
 #include "metrics_runtime.h"
 /* Portable UI harnesses omit the OS sampler. */
 #pragma weak xz_metrics_start
@@ -1034,10 +1036,32 @@ static void ram_action(const struct xz_ui_action *a) {
     ram_refresh(deck);
 }
 
+static uint64_t network_request_id;
+static void network_refresh(void) {
+    struct xz_net_view fresh;
+    enum xz_net_result result=xz_net_runtime_read?xz_net_runtime_read(&fresh):XZ_NET_NEEDS_BACKEND;
+    if(result==XZ_NET_OK)model.network=fresh;
+    else if(result==XZ_NET_NEEDS_BACKEND){model.network.result=result;model.network.phase=XZ_NET_NEEDS_SETUP;snprintf(model.network.detail,sizeof model.network.detail,"Start the network worker in this RAM loader, then detect again");}
+}
+static void network_apply(const struct xz_ui_action *a) {
+    if(a->phase!=XZ_UI_PRESS)return;
+    struct xz_net_command command={.request_id=++network_request_id};
+    if(a->kind==XZ_UI_NETWORK_DETECT)command.kind=XZ_NET_CMD_DETECT;
+    else if(a->kind==XZ_UI_NETWORK_APPLY){
+        if(a->network_revision!=ui.network.revision){snprintf(ui.notice,sizeof ui.notice,"Network draft changed; review again");return;}
+        command.kind=XZ_NET_CMD_APPLY_TRIAL;command.body.apply=ui.network.trial;
+    }else if(a->kind==XZ_UI_NETWORK_REVERT){command.kind=XZ_NET_CMD_REVERT;command.body.trial_id=model.network.trial_id;}
+    else if(a->kind==XZ_UI_NETWORK_CANCEL){command.kind=XZ_NET_CMD_CANCEL;command.body.trial_id=model.network.trial_id;}
+    else if(a->kind==XZ_UI_NETWORK_STEP&&a->index==XZ_NETWORK_VERIFY){command.kind=XZ_NET_CMD_VERIFY;command.body.trial_id=model.network.trial_id;}
+    else return;
+    enum xz_net_result result=xz_net_runtime_submit?xz_net_runtime_submit(&command):XZ_NET_NEEDS_BACKEND;
+    if(result!=XZ_NET_OK)snprintf(ui.notice,sizeof ui.notice,"%s",xz_net_result_text(result));
+}
 static void apply(void *context, const struct xz_ui_action *actions, size_t count) {
     (void)context;
     for (size_t i = 0; i < count; i++) {
         const struct xz_ui_action *a = &actions[i];
+        if(xz_ui_network_kind(a->kind)){network_apply(a);continue;}
         if (xz_sdk_ui_kind(a->kind)) { sdk_apply(a); continue; }
         if (sdk_refuses_game(a)) continue;
         switch (a->kind) {
@@ -2016,7 +2040,7 @@ static void ram_debug_refresh(void){
     __atomic_store_n(&xz_mods_ram_debug_v1.valid,model.ram_debug_valid,__ATOMIC_RELAXED);
     __atomic_add_fetch(&xz_mods_ram_debug_v1.samples,1,__ATOMIC_RELAXED);
 }
-static void refresh(void){sdk_refresh();pc_refresh_locked();refresh_local();ram_debug_refresh();if(model.metrics_enabled&&xz_metrics_snapshot)xz_metrics_snapshot(&model.metrics);}
+static void refresh(void){network_refresh();sdk_refresh();pc_refresh_locked();refresh_local();ram_debug_refresh();if(model.metrics_enabled&&xz_metrics_snapshot)xz_metrics_snapshot(&model.metrics);}
 
 static int inline_enabled(void) { return __atomic_load_n(&started,__ATOMIC_ACQUIRE)?__atomic_load_n(&inline_requested,__ATOMIC_ACQUIRE):XZ_STEM_LAYOUT_HIDDEN; }
 static int render_inline(void *context,uint16_t *pixels,size_t count,size_t stride,int width,int height) {

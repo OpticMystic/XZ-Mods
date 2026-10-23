@@ -7,6 +7,7 @@
 #include "ram/runtime.h"
 #include "ram/abi.h"
 #include "ui_runtime.h"
+#include "network/runtime.h"
 #include "key/runtime.h"
 #include "doom/native_bridge.h"
 #include "kart/xz_kart_runtime.h"
@@ -573,11 +574,25 @@ __attribute__((constructor)) static void start(void) {
        processing leaves audio unchanged until a performance action sets cents. */
     xz_key_runtime_observe(0);
     int key_ready = audio_ready && xz_key_runtime_start()==0;
-    if (enabled("XZ_MODS_UI")) xz_ui_runtime_start(audio_ready, key_ready, 1);
+    if (enabled("XZ_MODS_UI")) {
+      /* Root hash-verifies the exact FD9 payload before runtime construction. */
+      const struct xz_net_linux_config network_config={
+        .client_path="/dev/shm/xz-network-udhcpc",
+        .event_path="/dev/shm/xz-network-lease-event",
+        .client_contract_verified=1
+      };
+      if(xz_net_runtime_start(&network_config)!=XZ_NET_OK)
+          xz_log("Network worker unavailable; NETWORK setup remains visible");
+      xz_ui_runtime_start(audio_ready,key_ready,1);
+    }
     { extern int xz_classic_load_start(void); if (xz_classic_load_start()) xz_log("Classic LOAD into DECK 3/4 unavailable: guard or hook slot refused"); }
 }
 
 __attribute__((destructor)) static void stop(void) {
+    /* No UI lock. Network owns all its state; keep NODELETE/state on failure,
+       while continuing UI/engine teardown in the existing order. */
+    if(xz_net_runtime_stop(8000)!=XZ_NET_OK)
+        xz_log("Network stop incomplete; service-owned state retained");
     xz_jog_display_runtime_stop();
     xz_sync_link_runtime_stop();
     xz_extra_decks_stop();
