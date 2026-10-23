@@ -189,14 +189,6 @@ static void dj_caret(struct xz_canvas c,int x,int y,int up,uint32_t color){
  int d=up?-1:1;
  xz_line16(c,(x-5)*16,(y-2*d)*16,x*16,(y+3*d)*16,26,color);xz_line16(c,x*16,(y+3*d)*16,(x+5)*16,(y-2*d)*16,26,color);
 }
-/* Longest prefix of text that fits width at scale, cut on a whole character. */
-void xz_ui_chrome_fit(struct xz_canvas c,int x,int y,int width,const char *text,int scale,uint32_t color){
- char row[100];size_t n=0;
- if(!text)return;
- while(text[n]&&n<sizeof(row)-1){row[n]=text[n];n++;}row[n]=0;
- while(n&&xz_text_width(c,row,scale,99)>width){do n--;while(n&&((unsigned char)row[n]&0xc0)==0x80);row[n]=0;}
- xz_text(c,x,y,row,scale,99,color);
-}
 static void dj_chip(const struct xz_ui_scene *s,const struct xz_ui_widget *a,uint32_t bg,uint32_t ink,uint32_t dim,uint32_t accent){
  struct xz_canvas c=s->c;const struct xz_ui_model *m=s->m;const struct xz_ui_dj *dj=m->dj;
  const struct xz_ui_dj_entry *e=dj_entry(m,dj->current);int open=s->u->profile_open,compact=a->w<100;

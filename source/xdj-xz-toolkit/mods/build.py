@@ -254,8 +254,8 @@ def main() -> None:
                str(ROOT / "ui/native_skin_runtime.c"),
                str(ROOT / "ui/native_raw_skin.c"),
                str(ROOT / "ui/native_window_keys.c"),
-               # FLAGSHIP shell; ui_draw.c already comes with UI_SOURCES.
-               *(str(ROOT / "shell" / name) for name in SHELL_SOURCES if name != "../ui/ui_draw.c"),
+               # FLAGSHIP source closure shares its small UI renderers with UI_SOURCES.
+               *(str(ROOT / "shell" / name) for name in SHELL_SOURCES if name not in {"../ui/" + item for item in UI_SOURCES}),
                str(ROOT / "shell_model.c"), str(ROOT / "shell_runtime.c"), str(ROOT / "shell_runtime_core.c"), str(ROOT / "sync_native.c"),
                str(ROOT / "sync_link_plan.c"), str(ROOT / "sync_link_runtime.c"), str(ROOT / "jog_display.c"), str(ROOT / "jog_display_wave.c"), str(ROOT / "jog_display_runtime.c"),
                str(ROOT / "shell_library.c"), str(ROOT / "shell_analysis.c"), str(ROOT / "shell_playlists.c"), str(ROOT / "shell_utility.c"), str(ROOT / "shell_mysettings.c"), str(ROOT / "my_settings.c"), str(ROOT / "pdb/pdb.c"),
