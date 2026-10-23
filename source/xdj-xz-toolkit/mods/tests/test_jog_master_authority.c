@@ -40,7 +40,7 @@ int main(void){
   int expected=master==(int)side+(extra?2:0);
   check(!!(frame(side)[0x56]&0x80)==expected,"outer MASTER",side,master);
   check(p[1]==0x21&&!!(p[5]&0x80)==expected,"INFO MASTER",side,master);
-  check(!!(frame(side)[0x56]&0x10)==(extra?1:!!native_sync[side]),"SYNC follows selected deck",side,master);
+  check(!!(frame(side)[0x56]&0x30)==(extra?1:!!native_sync[side]),"SYNC follows selected deck",side,master);
   check((p[5]&0x30)==(extra?0x20:native_sync[side]?0x10:0),"INFO SYNC state",side,master);
   uint32_t crc;memcpy(&crc,frame(side)+144,4);check(crc==xz_jd_crc(frame(side)),"CRC",side,master);
  }
@@ -68,16 +68,10 @@ int main(void){
   setup(side,1,(int)side+2);settled(side);observer_calls=0;observer_revoke_at=2;tick(side);observer_revoke_at=0;
   uint8_t p[64];packet(side,p);check(!(p[5]&0x80)&&!(frame(side)[0x56]&0x80),"late operator fence",side,observed.deck);
   check((frame(side)[0x53]>>4)==side+3,"revocation keeps INFO",side,observed.deck);
-  setup(side,0,XZ_MASTER_UNKNOWN);settled(side);
-  for(unsigned i=0;i<148;i++){
-   if(i==8||i==9||i>=144)continue;
-   check(frame(side)[i]==(i==2?(uint8_t)((original_frame[side][i]&~0x90u)|0x80u):original_frame[side][i]),"unknown authority preserves native frame",side,observed.deck);
-  }
-  setup(side,0,(int)(side^1u));settled(side);
-  for(unsigned i=0;i<148;i++){
-   if(i==8||i==9||i>=144||i==0x56||i==12+(5^3))continue;
-   check(frame(side)[i]==(i==2?(uint8_t)((original_frame[side][i]&~0x90u)|0x80u):original_frame[side][i]),"native overlay touches only MASTER",side,observed.deck);
-  }
+  setup(side,0,XZ_MASTER_UNKNOWN);settled(side);uint8_t expected[148];native_quad_expected(side,-1,expected);
+  for(unsigned i=0;i<148;i++)check(frame(side)[i]==expected[i],"unknown authority preserves native content in both streams",side,observed.deck);
+  setup(side,0,(int)(side^1u));settled(side);native_quad_expected(side,0,expected);
+  for(unsigned i=0;i<148;i++)check(frame(side)[i]==expected[i],"native overlay changes only MASTER and LINK framing",side,observed.deck);
  }
  const uint32_t times[]={10000,0,0xffffffffu};
  for(unsigned side=0;side<2;side++)for(unsigned t=0;t<3;t++)for(unsigned age=99;age<=101;age++){

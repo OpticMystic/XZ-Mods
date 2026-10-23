@@ -815,12 +815,14 @@ static void hook_jog_assemble(void *self){
   if(on_extra)display_master_frame(&transaction,known&&have_snap&&display_extra_master(side_idx,&side->cache,&actual,final_now));
   else if(known)display_master_frame(&transaction,actual.deck==(int)side_idx);
  }
- /* Owner-observed native LINK envelope: the presentation flag and alternate
-    side bit accompany the visible 1/3 and 2/4 labels. Only our four-deck route
-    mirrors these display fields; certification, USB state and body addressing
-    remain native. Physical acceptance of the composed display is separate. */
+ /* LINK presentation consumes the secondary display stream. Native selUsbInfo
+    uses kind 0x40, sequence +0, ready bit +3 and a word-swapped command at +4.
+    Keep the local physical command too; the LINK command uses the logical deck.
+    Certification/USB connection flags and native PC objects stay untouched. */
  if(route_up){
   out[2]=(uint8_t)((out[2]&~0x90u)|0x80u|(on_extra?0x10u:0u));
+  out[0x4c]=out[8];out[0x4d]=out[9];out[0x4e]=0x40;out[0x4f]|=1u;
+  memcpy(out+0x50,out+0x0c,64);
   out[0x53]=(uint8_t)((out[0x53]&15u)|((on_extra?channel+2u:channel)<<4));
   uint32_t crc=xz_jd_crc(out);memcpy(out+144,&crc,4);
  }

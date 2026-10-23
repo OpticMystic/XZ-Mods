@@ -22,7 +22,7 @@ int main(void){
   check((f[0x53]>>4)==logical,"logical number",side,logical);
   check((f[15]>>4)==side+1,"physical command unchanged",side,logical);
   check((f[2]&~0x90u)==(original_frame[side][2]&~0x90u),"USB/certification flags unchanged",side,logical);
-  check(f[0x4e]==original_frame[side][0x4e],"local packet path unchanged",side,logical);
+  check(f[0x0a]==original_frame[side][0x0a]&&f[0x4e]==0x40,"local packet retained with complete LINK stream",side,logical);
   uint32_t crc;memcpy(&crc,f+144,4);check(crc==xz_jd_crc(f),"CRC",side,logical);
   selection.route_up=0;selection.route_epoch++;selection.epoch[side]++;
   for(unsigned n=0;n<24;n++)tick(side);
