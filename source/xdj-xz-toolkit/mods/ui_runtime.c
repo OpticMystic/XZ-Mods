@@ -57,6 +57,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_runtime_deck_games_pending
 #pragma weak xz_shell_runtime_extra_load_key
 #include "ui/ui_menu.h"
+#include "ui/layout_cycle.h"
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
 #pragma weak xz_shell_runtime_start
 #pragma weak xz_shell_runtime_stop
@@ -2267,6 +2268,20 @@ static int browse_head_touch(const struct xz_touch_status *status, int previous_
     }
     return 1;
 }
+static int layout_button_shown,layout_button_painted,layout_button_preference,layout_button_order,layout_button_contact;
+static int classic_native_two(void){return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&xz_native_four_order()<0;}
+static int layout_button_touch_locked(const struct xz_touch_status *status,int fresh){
+ if(layout_button_contact){if(!status->down)layout_button_contact=0;return 1;}
+ if(!fresh||!status->down||model.ui_interface!=XZ_UI_INTERFACE_CLASSIC||touch.visible||model.fb_takeover||
+    play_key.open||game_locked()!=GAME_NONE||!xz_classic_layout_hit((int)status->x,(int)status->y))return 0;
+ if(!layout_button_painted)return 0;
+ layout_button_contact=1;if(!layout_button_shown)return 1;
+ struct xz_extra_decks extra;
+ if(!xz_native_play_visible()||!xz_extra_decks_snapshot||!xz_extra_decks_snapshot(&extra)||!extra.route_up||
+    xz_deck_layout_get()!=layout_button_preference||xz_native_four_order()!=layout_button_order){__atomic_store_n(&layout_button_shown,0,__ATOMIC_RELEASE);return 1;}
+ xz_deck_layout_set(xz_deck_layout_next(layout_button_preference));__atomic_store_n(&layout_button_shown,0,__ATOMIC_RELEASE);
+ xz_native_skin_request_repaint();return 1;
+}
 static int play_key_extra_locked(struct xz_extra_decks *out){
     return xz_extra_decks_snapshot&&xz_extra_decks_snapshot(out);
 }
@@ -2286,7 +2301,7 @@ static int play_key_binding_valid(const struct xz_play_key *key){
     if(key->classic_side>=0){
         struct xz_extra_decks extra;int have=play_key_extra_locked(&extra);
         if(!have&&(key->source_frame||xz_native_four_order()>=0))return 0;
-        if(xz_classic_key_target(have?&extra:NULL,key->classic_side)!=key->selected_deck)return 0;
+        if(xz_classic_key_target(have&&!classic_native_two()?&extra:NULL,key->classic_side)!=key->selected_deck)return 0;
     }
     return 1;
 }
@@ -2318,7 +2333,7 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
         else if(xz_native_play_visible()&&(xz_native_inline_active()||xz_native_four_order()>=0)){
             side=xz_classic_key_slot_at(&classic_keys,(int)status->x,(int)status->y);
             if(side>=0){
-                int target=xz_classic_key_target(have_extra?&extra:NULL,side);
+                int target=xz_classic_key_target(have_extra&&!classic_native_two()?&extra:NULL,side);
                 if((!have_extra&&xz_native_four_order()>=0)||target!=classic_keys.deck[side]){
                     play_key.down=1;classic_keys.shown=0;xz_native_skin_request_repaint();return 1;
                 }
@@ -2359,6 +2374,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         }else if(!status->down)arcade_touch_owned=0;
         pthread_mutex_unlock(&ui_mutex);return;
     }
+    if(layout_button_touch_locked(status,fresh)){pthread_mutex_unlock(&ui_mutex);return;}
     if(play_key_touch_locked(self,status,fresh)){pthread_mutex_unlock(&ui_mutex);return;}
     if(shell_touch_locked(self,status,mode)){pthread_mutex_unlock(&ui_mutex);return;}
     sdk_refresh();pc_refresh_locked();
@@ -2564,8 +2580,15 @@ static void badge(uint16_t *pixels, uint32_t stride) {
     if(!model.fb_takeover)xz_ui_notice_badge(pixels,stride,model.theme,&async_notice,xz_game_milliseconds(),&notice_pixels);
     xz_metrics_draw(pixels,stride,model.theme,model.metrics_enabled,&model.metrics,xz_game_milliseconds());
     struct xz_extra_decks extra;int have_extra=play_key_extra_locked(&extra);
-    xz_classic_key_render(&classic_keys,&model,have_extra?&extra:NULL,play&&!model.fb_takeover,
+    xz_classic_key_render(&classic_keys,&model,have_extra&&!classic_native_two()?&extra:NULL,play&&!model.fb_takeover,
         xz_native_four_order(),pixels,stride);
+    __atomic_store_n(&layout_button_shown,0,__ATOMIC_RELEASE);layout_button_painted=0;
+    if(play&&!model.fb_takeover&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&have_extra&&extra.route_up){
+        int order=xz_native_four_order(),actual=order<0?XZ_LAYOUT_TWO:order==XZ_FOUR_MIXER?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
+        xz_deck_layout_draw((struct xz_canvas){pixels,stride,800,480,model.theme},XZ_CLASSIC_LAYOUT_X,0,XZ_CLASSIC_LAYOUT_W,XZ_CLASSIC_LAYOUT_H,actual,1);
+        layout_button_preference=xz_deck_layout_get();layout_button_order=order;layout_button_painted=1;
+        __atomic_store_n(&layout_button_shown,actual==layout_button_preference,__ATOMIC_RELEASE);
+    }
     __atomic_store_n(&classic_key_visible,!!classic_keys.shown,__ATOMIC_RELEASE);
 }
 
@@ -2629,7 +2652,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE) || !pixels || width != 800 || height != 480 || stride < 800 || stride > 16384)
         return 0;
     if (pthread_mutex_trylock(&ui_mutex) != 0) {
-        if(__atomic_load_n(&play_key_visible,__ATOMIC_ACQUIRE)||__atomic_load_n(&classic_key_visible,__ATOMIC_ACQUIRE))return 0;
+        if(__atomic_load_n(&play_key_visible,__ATOMIC_ACQUIRE)||__atomic_load_n(&classic_key_visible,__ATOMIC_ACQUIRE)||__atomic_load_n(&layout_button_shown,__ATOMIC_ACQUIRE))return 0;
         __atomic_add_fetch(&xz_mods_key_present_proof_v1.busy,1,__ATOMIC_RELAXED);
         /* The shell needs nothing from the UI model for one frame: draw it from the previous input. */
         if(shell_input_cached&&xz_shell_runtime_frame&&xz_shell_runtime_owns&&xz_shell_runtime_owns()&&

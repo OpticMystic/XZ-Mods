@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #define _GNU_SOURCE
 #include "native_wave_runtime.h"
+#include "layout_cycle.h"
 #include "extra_lane.h"
 #include "native_skin_runtime.h"
 #include "native_raw_skin.h"
@@ -28,8 +29,8 @@ __attribute__((visibility("default"))) uint32_t xz_native_wave_skin_v1[4]={1};
 static int transformed, drawn_layout, observed, observe_only, focus_verified;
 /* Four decks: route_up from the draw thread's snapshot at the wave lock; four_drawn is the drawn
    lane order + 1 after a successful four-deck frame, the geometry touches map against. */
-static int route_up, four_drawn, notice_up, mixer_order;
-static _Thread_local int four_frame_order;
+static int route_up, four_drawn, notice_up;
+static _Thread_local int four_frame_order,four_frame_layout;
 static uint32_t monotonic_ms(void);
 static _Thread_local struct xz_extra_decks extra;
 static _Thread_local struct xz_extra_lane_marks extra_marks[XZ_EXTRA_DECKS];
@@ -67,8 +68,8 @@ int xz_native_four_order(void){
     if(!scene(&current)){__atomic_store_n(&four_drawn,0,__ATOMIC_RELEASE);return -1;}
     return __atomic_load_n(&four_drawn,__ATOMIC_ACQUIRE)-1;
 }
-int xz_native_four_mixer_order(void){return __atomic_load_n(&mixer_order,__ATOMIC_ACQUIRE);}
-void xz_native_four_set_mixer_order(int mixer){__atomic_store_n(&mixer_order,!!mixer,__ATOMIC_RELEASE);}
+int xz_native_four_mixer_order(void){return xz_deck_layout_get()==XZ_LAYOUT_MIXER;}
+void xz_native_four_set_mixer_order(int mixer){xz_deck_layout_set(mixer?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR);}
 int xz_native_focus_deck(void){
     uint32_t deck;
     if(!focus_verified||word(0x02205d10,&deck)||deck<1||deck>2)return -1;
@@ -99,7 +100,8 @@ static int lock_hook(void *window,void **pixels,int *pitch){
     if(result==0&&caller==0x1fd058&&scene(&current)&&current.gr==(uintptr_t)window&&pixels&&pitch&&
        xz_native_wave_capture(&pair,&current,caller,(uintptr_t)pthread_self(),*pixels,*pitch)){
         __atomic_fetch_add(&xz_inline_proof_v1.captures,1,__ATOMIC_RELAXED);
-        four_frame_order=xz_native_four_mixer_order()?XZ_FOUR_MIXER:XZ_FOUR_STACKED;
+        four_frame_layout=xz_deck_layout_get();
+        four_frame_order=four_frame_layout==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED;
         xz_layered_wave_begin(*pixels);
         if(!__atomic_exchange_n(&observed,1,__ATOMIC_ACQ_REL))
             xz_log("INLINE_WAVE_PROOF: native play scene=2 window=536x268 at=131,18 pitch=1072 caller=1fd058");
@@ -161,7 +163,7 @@ static int unlock_hook(void *window){
         xz_layered_wave_end();
         struct xz_native_wave_scene current;int drawn=0;
         /* Four decks hide the stem rows; the saved layout returns on the first frame after. */
-        int four=__atomic_load_n(&route_up,__ATOMIC_ACQUIRE);
+        int four=__atomic_load_n(&route_up,__ATOMIC_ACQUIRE)&&four_frame_layout!=XZ_LAYOUT_TWO;
         int inline_rows=four||!requested?XZ_STEM_LAYOUT_HIDDEN:requested();
         if(scene(&current)&&!observe_only){
             if(four)drawn=xz_native_wave_finish_four(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,

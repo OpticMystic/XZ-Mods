@@ -34,6 +34,7 @@
 #include "ui/native_wave_runtime.h"
 #include "ui/themes.h"
 #include "ui/ui.h"
+#include "ui/layout_cycle.h"
 #include <dirent.h>
 #include <errno.h>
 #include <dlfcn.h>
@@ -2063,6 +2064,10 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    continue;
   }
   switch(a->kind){
+  case XZ_SHELL_ACT_DECK_LAYOUT:
+   if(model.deck_count==4&&(unsigned)a->value<XZ_LAYOUT_COUNT){
+    xz_deck_layout_set(a->value);model.layout_preference=a->value+1;model.wave_order=a->value==XZ_LAYOUT_MIXER;dirty_flag=1;
+   }break;
   case XZ_SHELL_ACT_WAVE_ORDER:
    if(model.deck_count==4&&(a->value==0||a->value==1)){xz_native_four_set_mixer_order(a->value);model.wave_order=a->value;dirty_flag=1;}
    break;
@@ -2290,7 +2295,7 @@ static void extra_parts_of(int i, const struct xz_extra_deck *d) {
  }
 }
 static void extra_refresh_locked(uint32_t now) {
- model.wave_order=xz_native_four_mixer_order();
+ model.wave_order=xz_native_four_mixer_order();model.layout_preference=xz_deck_layout_get()+1;
  if(xz_extra_decks_snapshot(&extra))for(int i=0;i<XZ_EXTRA_DECKS;i++)extra_parts_of(i,&extra.deck[i]);
  else{memset(extra_seen,0,sizeof extra_seen);memset(extra_parts,0,sizeof extra_parts);}
  /* Pair the two clocks after the snapshot copy. `now` is the start of a refresh,
