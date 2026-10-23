@@ -12,7 +12,7 @@ static void complete(struct deck *d,uint64_t end,uint64_t source){
 }
 int main(void){
  static struct deck d;static struct reader reader;static struct analysis analysis;
- static struct xz_extra_beat grid[]={{100,1},{1600,2},{3100,3},{4600,4}};
+ static struct xz_extra_beat grid[]={{100,1,0},{1600,2,0},{3100,3,0},{4600,4,0}};
  reader.rate=44100;reader.frames=44100*20;d.r=&reader;d.analysis=&analysis;analysis.grid=grid;analysis.grid_count=4;
  d.state=XZ_XP_PLAYING;d.generation=7;
  uint64_t source=4410ULL<<32,lo=source,hi=70560ULL<<32;

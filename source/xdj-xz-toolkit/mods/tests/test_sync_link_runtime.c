@@ -131,7 +131,7 @@ static void reset_sim(void){
 }
 
 static struct xz_extra_beat test_grid[8]={
- {100,1},{600,2},{1100,3},{1600,4},{2100,1},{2600,2},{3100,3},{3600,4}
+ {100,1,0},{600,2,0},{1100,3,0},{1600,4,0},{2100,1,0},{2600,2,0},{3100,3,0},{3600,4,0}
 };
 
 static struct xz_extra_decks make_decks(int master_deck,uint32_t at_ms,uint64_t source_frame,int32_t rate_ppm){
