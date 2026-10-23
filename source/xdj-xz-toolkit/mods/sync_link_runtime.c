@@ -249,10 +249,13 @@ static void derive_music_id(int deck_index,const struct xz_extra_deck *d,unsigne
 int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,uint64_t now_mono_us,struct xz_sync_link_pcm_anchor *out){
  if(!d||!out||deck_index<0||deck_index>=XZ_EXTRA_DECKS)return 0;
  memset(out,0,sizeof *out);
- const uint32_t req_flags=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_RATE|XZ_EXTRA_TIMELINE_SINK_FRAME;
+ const uint32_t req_flags=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_SINK_FRAME|
+  XZ_EXTRA_TIMELINE_APPLIED_RATE;
+ int history=!!(d->timeline.flags&XZ_EXTRA_TIMELINE_BEAT_HISTORY);
  if(!d->loaded||!d->playing||!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE))||
     !(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_GRID))||!d->grid||d->grid_count<2||
-    (d->timeline.flags&req_flags)!=req_flags||d->timeline.source_rate<8000||d->timeline.rate_ppm<=0||
+    (d->timeline.flags&req_flags)!=req_flags||d->timeline.source_rate<8000||!isfinite(d->timeline.completed_rate)||d->timeline.completed_rate<=0||
+    (history&&(!isfinite(d->timeline.completed_beat_age_frames)||d->timeline.completed_beat_age_frames<0))||
     !d->timeline.route_epoch||!d->timeline.load_revision||!d->timeline.transport_generation||!d->timeline.sink_frame||
     d->timeline.observed_wire_frame<d->timeline.sink_frame)
   return 0;
@@ -270,14 +273,24 @@ int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,u
  cap_us-=lag_us;
  double ms=(double)d->timeline.source_frame*1000./(double)d->timeline.source_rate;
  unsigned lo=0,hi=d->grid_count;
- while(lo<hi){unsigned mid=lo+(hi-lo)/2;if((double)d->grid[mid].ms<=ms)lo=mid+1;else hi=mid;}
- if(!lo)return 0;
- unsigned idx=lo-1;
+ if(history){
+  while(lo<hi){unsigned mid=lo+(hi-lo)/2;if(d->grid[mid].ms<d->timeline.completed_beat_ms)lo=mid+1;else hi=mid;}
+  if(lo==d->grid_count||d->grid[lo].ms!=d->timeline.completed_beat_ms)return 0;
+ }else{
+  while(lo<hi){unsigned mid=lo+(hi-lo)/2;if(d->grid[mid].ms<=ms)lo=mid+1;else hi=mid;}
+  if(!lo)return 0; /* No known predecessor before the first grid beat. */
+  lo--;
+ }
+ unsigned idx=lo;
  int32_t period_ms=idx+1<d->grid_count?d->grid[idx+1].ms-d->grid[idx].ms:d->grid[idx].ms-d->grid[idx-1].ms;
  if(period_ms<250||period_ms>1500||d->grid[idx].beat_in_bar<1||d->grid[idx].beat_in_bar>4)return 0;
  double beat_frame=(double)d->grid[idx].ms*(double)d->timeline.source_rate/1000.;
  double src_frame=(double)d->timeline.source_frame;
- if(src_frame<beat_frame)beat_frame=src_frame;
+ if(src_frame+1.<=beat_frame){
+  if(!history||!d->loop.active||d->loop.out_ms<=d->loop.in_ms||ms<d->loop.in_ms||ms>=d->loop.out_ms||
+     d->grid[idx].ms<d->loop.in_ms||d->grid[idx].ms>=d->loop.out_ms)return 0;
+  src_frame+=(double)(d->loop.out_ms-d->loop.in_ms)*d->timeline.source_rate/1000.;
+ }
  for(unsigned k=0;k<8;k++){
   if(!d->loop.active&&idx+1+k<d->grid_count&&d->grid[idx+1+k].ms>d->grid[idx].ms){
    uint32_t delta=(uint32_t)(d->grid[idx+1+k].ms-d->grid[idx].ms);
@@ -302,7 +315,8 @@ int xz_sync_link_anchor_from_deck(int deck_index,const struct xz_extra_deck *d,u
  out->uncertainty_us=1250; /* existing 250 us allowance plus millisecond observation quantization */
  out->source_frame=src_frame;
  out->beat_source_frame=beat_frame;
- out->effective_speed=(double)d->timeline.rate_ppm/1000000.;
+ out->effective_speed=d->timeline.completed_rate;
+ out->completed_beat_age_frames=history?d->timeline.completed_beat_age_frames:0;out->completed_beat_history=history;
  out->beat_in_bar=d->grid[idx].beat_in_bar;
  out->lane=(unsigned)deck_index;
  return 1;

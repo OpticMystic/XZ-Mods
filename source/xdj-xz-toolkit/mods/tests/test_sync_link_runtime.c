@@ -8,6 +8,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sched.h>
+#include <math.h>
 
 int xz_hook_arm(uint32_t address,const unsigned char expected[8],void *replacement,void **original){
  (void)address;(void)expected;(void)replacement;(void)original;return -1;
@@ -154,6 +155,12 @@ static struct xz_extra_decks make_decks(int master_deck,uint32_t at_ms,uint64_t 
   dk->timeline.transport_generation=5;
   dk->timeline.flags=XZ_EXTRA_TIMELINE_ANCHOR|XZ_EXTRA_TIMELINE_RATE|XZ_EXTRA_TIMELINE_SINK_FRAME|XZ_EXTRA_TIMELINE_MOTION;
   dk->timeline.rate_ppm=rate_ppm;
+  /* This fixed-rate synthetic fixture explicitly supplies its accepted/completed provenance. */
+  dk->timeline.completed_rate=rate_ppm/1000000.;
+  unsigned beat=0;while(beat+1<8&&(double)test_grid[beat+1].ms*44.1<=source_frame)beat++;
+  dk->timeline.completed_beat_ms=test_grid[beat].ms;
+  dk->timeline.completed_beat_age_frames=(source_frame-test_grid[beat].ms*44.1)/dk->timeline.completed_rate;
+  dk->timeline.flags|=XZ_EXTRA_TIMELINE_APPLIED_RATE|XZ_EXTRA_TIMELINE_BEAT_HISTORY;
   dk->timeline.moving=1;
  }
  return d;
@@ -395,6 +402,15 @@ static void completion_coordinate_tests(void){
   dk->timeline.observed_wire_frame=dk->timeline.sink_frame+256;
   assert(xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
   assert(a.captured_mono_us==1000000-UINT64_C(256000000)/44100);
+  dk->timeline.rate_ppm=1066406;dk->timeline.completed_rate=1.07;
+  assert(xz_sync_link_anchor_from_deck(side,dk,1000000,&a)&&a.effective_speed==1.07&&a.completed_beat_history);
+  uint32_t flags=dk->timeline.flags;
+  dk->timeline.flags&=~XZ_EXTRA_TIMELINE_APPLIED_RATE;assert(!xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+  dk->timeline.flags=flags&~XZ_EXTRA_TIMELINE_BEAT_HISTORY;assert(xz_sync_link_anchor_from_deck(side,dk,1000000,&a)&&!a.completed_beat_history&&a.effective_speed==1.07);
+  dk->timeline.flags=flags;double age=dk->timeline.completed_beat_age_frames;
+  dk->timeline.completed_beat_age_frames=NAN;assert(!xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+  dk->timeline.completed_beat_age_frames=-1;assert(!xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
+  dk->timeline.completed_beat_age_frames=age;
   dk->timeline.observed_wire_frame=0;
   assert(!xz_sync_link_anchor_from_deck(side,dk,1000000,&a));
   dk->timeline.observed_wire_frame=dk->timeline.sink_frame-1;

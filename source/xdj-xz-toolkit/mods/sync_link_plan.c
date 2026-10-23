@@ -72,12 +72,18 @@ int xz_sync_link_build(struct xz_sync_link_lease *s,const struct xz_sync_link_cl
  p->reason=XZ_SYNC_LINK_NO_PHASE;
  if(!a->playing||!a->phase_eligible||a->source_rate<8000||a->source_rate>384000||a->bpm100<4000||a->bpm100>24000||
     a->beat_in_bar<1||a->beat_in_bar>4||a->lane>1||!isfinite(a->effective_speed)||a->effective_speed<.25||a->effective_speed>4||
-    !isfinite(a->source_frame)||!isfinite(a->beat_source_frame)||a->beat_source_frame<0||a->source_frame<a->beat_source_frame)return 0;
+    !isfinite(a->source_frame)||!isfinite(a->beat_source_frame)||a->beat_source_frame<0||(a->source_frame<a->beat_source_frame&&(!a->completed_beat_history||a->beat_source_frame-a->source_frame>=1.)))return 0;
  if(a->bpm100*.01*a->effective_speed<40||a->bpm100*.01*a->effective_speed>240)return 0;
  for(unsigned i=0;i<8;i++)if(!a->future_beat_ms[i]||a->future_beat_ms[i]>120000||(i&&a->future_beat_ms[i]<=a->future_beat_ms[i-1]))return 0;
  double elapsed_source_ms=(a->source_frame-a->beat_source_frame)*1000/a->source_rate;
  if(elapsed_source_ms>a->future_beat_ms[0]+1000./a->source_rate)return 0;
- double elapsed_us=elapsed_source_ms*1000/a->effective_speed;
+ /* Packet time is a virtual origin at its Q20 rate, not a heard crossing time. */
+ uint32_t q20_speed=(uint32_t)(a->effective_speed*1048576.0);
+ double elapsed_us=fmax(0.,elapsed_source_ms)*1000/(q20_speed/1048576.);
+ if(a->completed_beat_history){
+  if(!isfinite(a->completed_beat_age_frames)||a->completed_beat_age_frames<0||
+     a->completed_beat_age_frames*1000000./44100.>(double)a->captured_mono_us)return 0;
+ }
  p->reason=XZ_SYNC_LINK_TIME_RANGE;
  if(!isfinite(elapsed_us)||elapsed_us<0||elapsed_us>(double)a->captured_mono_us||a->captured_mono_us>INT64_MAX)return 0;
  int64_t beat_mono=(int64_t)a->captured_mono_us-(int64_t)llround(elapsed_us);
@@ -87,7 +93,7 @@ int xz_sync_link_build(struct xz_sync_link_lease *s,const struct xz_sync_link_cl
  memset(p->beat_packet,255,sizeof p->beat_packet);
  unsigned pick[6]={0,1,4-a->beat_in_bar,3,8-a->beat_in_bar,7};
  for(unsigned i=0;i<6;i++)be32(p->beat_packet+i*4,a->future_beat_ms[pick[i]]);
- p->q20_speed=(uint32_t)(a->effective_speed*1048576.0);be32(p->beat_packet+0x30,p->q20_speed);be32(p->beat_packet+0x34,a->bpm100);
+ p->q20_speed=q20_speed;be32(p->beat_packet+0x30,p->q20_speed);be32(p->beat_packet+0x34,a->bpm100);
  p->beat_packet[0x38]=(unsigned char)a->beat_in_bar;p->beat_packet[0x39]=(unsigned char)a->lane;p->beat_packet[0x3a]=0;p->beat_packet[0x3b]=(unsigned char)s->claim.source_id;
  p->beat_sec=(int32_t)(beat_real/1000000);p->beat_usec=(int32_t)(beat_real%1000000);
  p->uncertainty_us=a->uncertainty_us+clock->pair.uncertainty_us+(1000000u+a->source_rate-1)/a->source_rate;
