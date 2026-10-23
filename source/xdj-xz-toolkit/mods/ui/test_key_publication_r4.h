@@ -10,7 +10,7 @@ static void r4_open_software(int interface){
   struct xz_shell_model view;xz_shell_play_projection(&key_shell,&key_model,&view);
   struct xz_shell_rect r=xz_shell_play_rect(&view,XZ_SHELL_R_KEY,2);tap_xy(r.x+8,r.y+8);
  }else{native_four=XZ_FOUR_STACKED;render_classic_key_fixture();tap_xy(20,130);}
- assert(play_key.open&&play_key.deck==2);press_button(4);assert(play_key.setup);paint_runtime_key_fixture();
+ assert(play_key.open&&play_key.deck==2);paint_runtime_key_fixture();press_button(4);assert(play_key.setup);paint_runtime_key_fixture();
 }
 static void r4_publication_regressions(void){
  /* Pure preview rendering and failed interactive rendering cannot publish

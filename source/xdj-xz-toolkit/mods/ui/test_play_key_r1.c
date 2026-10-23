@@ -36,10 +36,10 @@ static void controls(void){
  }
  struct xz_play_key p;model.deck[0].ready=0;xz_play_key_open(&p,0);xz_play_key_touch(&p,&model,0,0,0,&act);
  for(int i=0;i<4;i++)assert(!click(&p,i));
- assert(!click(&p,4)&&p.setup&&p.step==0);
- for(int i=0;i<3;i++){assert(click(&p,4)&&act.kind==XZ_UI_KEY_CHECK&&act.deck==0);}
- assert(p.step==3&&click(&p,4)&&p.setup); /* no fake live verification */
- model.deck[0].ready=XZ_UI_KEY|XZ_UI_KEYSYNC;assert(!click(&p,4)&&!p.setup);
+ draw_popup(&p);assert(!click(&p,4)&&p.setup&&p.step==0);
+ for(int i=0;i<3;i++){draw_popup(&p);assert(click(&p,4)&&act.kind==XZ_UI_KEY_CHECK&&act.deck==0);}
+ draw_popup(&p);assert(p.step==3&&click(&p,4)&&p.setup); /* no fake live verification */
+ model.deck[0].ready=XZ_UI_KEY|XZ_UI_KEYSYNC;draw_popup(&p);assert(!click(&p,4)&&!p.setup);
  draw_popup(&p);
  /* Sliding off a button cancels the whole contact, including a zero-coordinate release. */
  struct xz_ui_widget w=xz_play_key_button(2);
