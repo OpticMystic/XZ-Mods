@@ -70,15 +70,17 @@ int xz_anlz_beat_grid(const uint8_t *f, size_t n, struct xz_extra_beat **grid, u
  if(!section(f,n,"PQTZ",&at,&head,&total)||head<24)return -1;
  uint32_t c=be32(f+at+20);
  if(!c||c>GRID_CAP||(uint64_t)c*8>total-head)return -1;
- struct xz_extra_beat *g=malloc((size_t)c*sizeof(*g));
+ struct xz_extra_beat *g=calloc((size_t)c,sizeof(*g));
  if(!g)return -1;
  const uint8_t *e=f+at+head;
  for(uint32_t i=0;i<c;i++,e+=8){
   uint16_t beat=be16(e);uint32_t ms=be32(e+4);
   g[i].ms=ms>INT32_MAX?INT32_MAX:(int32_t)ms;
   g[i].beat_in_bar=(uint8_t)(beat<1?1:beat>4?4:beat);
+  uint16_t bpm=be16(e+2);
+  g[i].bpm_x100=bpm>=2000&&bpm<=60000?bpm:0;
  }
- *grid=g;*count=c;*bpm_x100=be16(f+at+head+2);
+ *grid=g;*count=c;*bpm_x100=g[0].bpm_x100;
  return 0;
 }
 

@@ -137,7 +137,7 @@ static int output_crossing(const struct output_span *s,uint64_t begin,uint64_t e
 }
 
 #define SYNC_SEGMENTS 64u
-struct sync_segment { uint64_t begin,end; double phase,beat_step; };
+struct sync_segment { uint64_t begin,end; double phase,beat_step,nominal_bps; };
 struct sync_clock {
  int available,playing,loop_aligned,manual,loaded;
  uint32_t route,load,generation,at_ms;
@@ -244,7 +244,7 @@ struct deck {
  uint64_t submitted;                /* output frames accepted in this generation */
  uint64_t completed;
  uint32_t pending; uint64_t pending_after, block_start; float pcm[XZ_USB_BLOCK_FRAMES * 2];
- double pending_phase,pending_beat_step;
+ double pending_phase,pending_beat_step,pending_nominal_bps;
  struct output_history output;
  unsigned render_limit;int sync_capture;
  unsigned segment_count;
@@ -598,6 +598,7 @@ static uint64_t advance_position(const struct deck *d,uint64_t position,uint64_t
  return position+(step>end-position?end-position:step);
 }
 static int grid_phase(const struct deck *,uint64_t,double *,double *);
+static double grid_bpm(const struct deck *,uint64_t);
 /* A millisecond timestamp cannot identify the last packet until the clock moves.
    Only this worker seals groups. TOP release seals immediately, including when
    touch, turns and release all arrive in one bounded FIFO drain. */
@@ -659,6 +660,7 @@ static void accepted_segment(struct deck *d){
  if(d->segment_count){
   struct sync_segment *last=&d->segment[d->segment_count-1];
   if(last->end==d->submitted&&fabs(last->beat_step-d->pending_beat_step)<1e-12&&
+     fabs(last->nominal_bps-d->pending_nominal_bps)<1e-12&&
      fabs(remainder(last->phase+(last->end-last->begin)*last->beat_step-d->pending_phase,1.))<1e-7){
    last->end+=d->pending;return;
   }
@@ -666,7 +668,7 @@ static void accepted_segment(struct deck *d){
  if(d->segment_count==SYNC_SEGMENTS){
   memmove(d->segment,d->segment+1,(SYNC_SEGMENTS-1)*sizeof *d->segment);d->segment_count--;
  }
- d->segment[d->segment_count++]=(struct sync_segment){d->submitted,d->submitted+d->pending,d->pending_phase,d->pending_beat_step};
+ d->segment[d->segment_count++]=(struct sync_segment){d->submitted,d->submitted+d->pending,d->pending_phase,d->pending_beat_step,d->pending_nominal_bps};
 }
 static int render(struct deck *d, double rate) {
 #ifdef XZ_XP_TEST_RENDER_HOOK
@@ -714,6 +716,7 @@ static int render(struct deck *d, double rate) {
   if(!limit)limit=1;
   d->pending_phase=phase+((double)(uint32_t)d->pos/(double)ONE)/period;
   d->pending_beat_step=step/period;
+  d->pending_nominal_bps=nominal(d)*grid_bpm(d,d->pos>>32)/6000.;
  }
  d->block_start = d->pos;
  if(d->state==XZ_XP_SCRATCHING){
@@ -945,6 +948,22 @@ static int grid_phase(const struct deck *d,uint64_t frame,double *phase,double *
  *phase=wrapped_beat((double)a->grid[index].beat_in_bar-1+(ms-a->grid[index].ms)/length);
  *period=(double)length*d->r->rate/1000;return 1;
 }
+/* PQTZ tempo is independent of its millisecond-quantized phase coordinates.
+ * Retain local tempo changes, without commanding rate changes for 348/349 ms beats. */
+static double grid_bpm(const struct deck *d,uint64_t frame){
+ const struct analysis *a=d->analysis;
+ if(a&&a->grid_count>=2&&d->r->rate){
+  double ms=(double)frame*1000/d->r->rate;unsigned lo=0,hi=a->grid_count;
+  while(lo<hi){unsigned mid=lo+(hi-lo)/2;if(a->grid[mid].ms<=ms)lo=mid+1;else hi=mid;}
+  unsigned index=lo?lo-1:0;
+  double phase,period;
+  if(grid_phase(d,frame,&phase,&period)){
+   if(a->grid[index].bpm_x100)return a->grid[index].bpm_x100;
+   return 6000.*d->r->rate/period;
+  }
+ }
+ return d->track.track_bpm_x100;
+}
 static int aligned_loop(const struct deck *d){
  if(!d->loop.active)return 1;
  double a,b,pa,pb;
@@ -960,7 +979,7 @@ static struct sync_clock sync_clock(const struct deck *d,uint32_t now){
  c.tempo_bps=nominal(d)*(double)d->track.track_bpm_x100/6000.;
  if(!grid_phase(d,d->heard,&c.phase,&c.period_frames))return c;
  c.beats_per_second=d->heard_rate*d->r->rate/c.period_frames;
- c.nominal_beats_per_second=nominal(d)*d->r->rate/c.period_frames;
+ c.nominal_beats_per_second=nominal(d)*grid_bpm(d,d->heard)/6000.;
  c.tempo_bps=c.nominal_beats_per_second;
  c.output_frame=d->timeline_output_frames;c.segment_count=d->segment_count;
  memcpy(c.segment,d->segment,d->segment_count*sizeof *d->segment);
@@ -969,7 +988,7 @@ static struct sync_clock sync_clock(const struct deck *d,uint32_t now){
  return c;
 }
 /* Coordinates refer to accepted PCM, never a nominal-rate prediction. */
-static int segment_at_wire(const struct sync_clock *c,uint64_t wire,double *phase,double *step,uint64_t *remaining){
+static int segment_at_wire(const struct sync_clock *c,uint64_t wire,double *phase,double *step,uint64_t *remaining,double *nominal_bps){
  if(!c->available)return 0;
  double output=(double)c->output_frame+(double)wire-(double)c->wire_frame;
  for(unsigned i=0;i<c->segment_count;i++){
@@ -977,6 +996,7 @@ static int segment_at_wire(const struct sync_clock *c,uint64_t wire,double *phas
   if(output>=s->begin&&output<s->end){
    *phase=wrapped_beat(s->phase+(output-s->begin)*s->beat_step);*step=s->beat_step;
    if(remaining)*remaining=s->end-(uint64_t)output;
+   if(nominal_bps)*nominal_bps=s->nominal_bps;
    return 1;
   }
  }
@@ -1020,8 +1040,7 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   v.memory_count=(unsigned)d->memory_count;
   for(unsigned i=0;i<v.memory_count;i++)v.memory_cue[i]=(struct xz_extra_cue){1,d->memory[i].saved_ms,d->memory[i].rgb,d->memory[i].loop?d->memory[i].saved_end_ms:0};
   v.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_MEMORY_CUES);
-  double published_bpm=d->track.track_bpm_x100,phase,period;
-  if(loaded(s)&&grid_phase(d,d->heard,&phase,&period))published_bpm=6000.*d->r->rate/period;
+  double published_bpm=grid_bpm(d,d->heard);
   if (published_bpm > 0) {
    v.track_bpm_x100 = (int32_t)llround(published_bpm);
    v.bpm_x100 = (int32_t)llround(published_bpm*(d->sync_rate_active?d->sync_rate:nominal(d)));
@@ -1466,9 +1485,8 @@ static int sync_native_gap_tempo(struct xz_xp_players *p,struct deck *d,
  }
  if(slave.manual||native->manual){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return 1;}
  if(d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return 1;}
- double rate=slave.period_frames
-  ?(double)native->bpm/60.*slave.period_frames/d->r->rate
-  :(double)native->bpm*100./d->track.track_bpm_x100;
+ double source_bpm=grid_bpm(d,d->heard);
+ double rate=source_bpm>0?(double)native->bpm*100./source_bpm:0.;
  int applied=sync_apply_base(p,d,selected,choice,rate);
  if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return 1;}
  int phase_usable=native->phase_available&&isfinite(native->bar_phase)&&native->bar_phase>=0.f&&native->bar_phase<4.f&&
@@ -1531,9 +1549,8 @@ static int native_phase_ready(struct deck *d,const struct xz_sync_native_snapsho
  return coherent;
 }
 static double native_tempo_rate(const struct deck *d,double bpm){
- double phase,period;
- if(grid_phase(d,d->heard,&phase,&period))return bpm/60.*period/d->r->rate;
- return d->track.track_bpm_x100>0?bpm*100./d->track.track_bpm_x100:0.;
+ double source_bpm=grid_bpm(d,d->heard);
+ return source_bpm>0?bpm*100./source_bpm:0.;
 }
 /* A paused deck has an exact source position but no running output clock. Apply
    the requested alignment once; retain BPM without claiming continuous phase lock. */
@@ -1680,7 +1697,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    d->sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;
   }
   double master_bps=(double)native.bpm/60.;
-  int base_applied=sync_apply_base(p,d,selected,choice,master_bps*slave.period_frames/d->r->rate);
+  int base_applied=sync_apply_base(p,d,selected,choice,native_tempo_rate(d,(double)native.bpm));
   if(base_applied<=0){
    d->sync.reason=base_applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;
   }
@@ -1777,7 +1794,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  if(!master.available||(uint32_t)(now-master.at_ms)>150u){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
  if(!slave.period_frames){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(!master.loop_aligned||!slave.loop_aligned){d->sync.reason=XZ_EXTRA_SYNC_LOOP_UNALIGNED;return;}
- int base_applied=sync_apply_base(p,d,selected,choice,master.nominal_beats_per_second*slave.period_frames/d->r->rate);
+ int base_applied=sync_apply_base(p,d,selected,choice,native_tempo_rate(d,master.nominal_beats_per_second*60.));
  if(base_applied<=0){
   d->sync.reason=base_applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;
  }
@@ -1792,7 +1809,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  double wire_delta=(double)slave.wire_frame-(double)master.wire_frame;
  if(fabs(wire_delta)>XZ_USB_RATE*.15){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
  double target_phase,master_step;
- if(!segment_at_wire(&master,slave.wire_frame,&target_phase,&master_step,NULL)){
+ if(!segment_at_wire(&master,slave.wire_frame,&target_phase,&master_step,NULL,NULL)){
   d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;
  }
  double error=quantized_delta(slave.phase-target_phase,grid);
@@ -1802,7 +1819,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  if(sync_snap_ready(d,now)){
   uint64_t wire=position->wire_submitted_frames?position->wire_submitted_frames:slave.wire_frame;
   double desired,forecast_step;
-  if(!segment_at_wire(&master,wire,&desired,&forecast_step,NULL)){
+  if(!segment_at_wire(&master,wire,&desired,&forecast_step,NULL,NULL)){
    d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;
   }
   double delta=quantized_delta(slave.phase-desired,grid);
@@ -2779,7 +2796,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
-    double own_phase,period,phase,beat_step;uint64_t remaining;
+    double own_phase,period,phase,beat_step,nominal_bps;uint64_t remaining;
     uint64_t wire=d->timeline_sink_frame+d->submitted-d->timeline_output_frames;
     if(!grid_phase(d,d->pos>>32,&own_phase,&period)){
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;
@@ -2787,7 +2804,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
     }
     /* Waiting at the produced horizon emits no speculative PCM. Current lock
        still refers only to the independently checked completed anchors. */
-    if(!segment_at_wire(&master,wire,&phase,&beat_step,&remaining)){
+    if(!segment_at_wire(&master,wire,&phase,&beat_step,&remaining,&nominal_bps)){
      if(d->submitted-d->completed>2*XZ_USB_BLOCK_FRAMES)return;
      /* A prolonged absent forecast must not starve ordinary playback. Keep
         the last rate, suspend phase correction, and publish no lock. */
@@ -2799,7 +2816,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
-    if(sync_apply_base(p,d,selected,choice,beat_step*XZ_USB_RATE*period/d->r->rate)<=0){
+    if(sync_apply_base(p,d,selected,choice,nominal_bps*6000./grid_bpm(d,d->pos>>32))<=0){
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
@@ -2816,7 +2833,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
-    if(sync_apply_base(p,d,selected,choice,(d->sync_native_bpm/60.)*period/d->r->rate)<=0){
+    if(sync_apply_base(p,d,selected,choice,d->sync_native_bpm*100./grid_bpm(d,d->pos>>32))<=0){
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
