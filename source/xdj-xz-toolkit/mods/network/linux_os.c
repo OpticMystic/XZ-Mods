@@ -43,7 +43,9 @@ static int valid_identity(const struct xz_net_identity *id){
         struct ifaddrs *list=NULL;if(getifaddrs(&list))return 0;int match=0;
         for(struct ifaddrs *a=list;a;a=a->ifa_next)if(a->ifa_addr&&a->ifa_addr->sa_family==AF_PACKET&&!strcmp(a->ifa_name,id->name)){
             struct sockaddr_ll *ll=(struct sockaddr_ll *)a->ifa_addr;if(ll->sll_halen==6&&!memcmp(ll->sll_addr,id->mac,6))match=1;
-        }freeifaddrs(list);if(!match)return 0;
+        }
+        freeifaddrs(list);
+        if(!match)return 0;
     }return 1;
 }
 static int compare_adapter(const void *p,const void *q){const struct xz_net_adapter *a=p,*b=q;return strcmp(a->id.name,b->id.name);}
@@ -121,9 +123,16 @@ static enum xz_net_result netlink(struct nlmsghdr *n,const struct xz_net_control
         struct pollfd p={fd,POLLIN,0};int waited=poll(&p,1,20);if(waited<0&&errno==EINTR)continue;if(waited<=0)continue;
         char data[4096];struct sockaddr_nl peer={0};socklen_t length=sizeof peer;ssize_t got=recvfrom(fd,data,sizeof data,MSG_DONTWAIT,(struct sockaddr *)&peer,&length);
         if(got<=0||peer.nl_pid)continue;
-        for(struct nlmsghdr *reply=(struct nlmsghdr *)data;NLMSG_OK(reply,got);reply=NLMSG_NEXT(reply,got))if(reply->nlmsg_seq==1&&reply->nlmsg_type==NLMSG_ERROR&&reply->nlmsg_len>=NLMSG_LENGTH(sizeof(struct nlmsgerr))){
-            int error=((struct nlmsgerr *)NLMSG_DATA(reply))->error;
-            result=!error?XZ_NET_OK:error==-EEXIST||error==-EADDRNOTAVAIL||error==-ESRCH?XZ_NET_CONFLICT:XZ_NET_VERIFY_FAILED;goto done;
+        size_t remaining=(size_t)got;char *cursor=data;
+        while(remaining>=sizeof(struct nlmsghdr)){
+            struct nlmsghdr *reply=(struct nlmsghdr *)cursor;
+            if(reply->nlmsg_len<sizeof(*reply)||reply->nlmsg_len>remaining)break;
+            if(reply->nlmsg_seq==1&&reply->nlmsg_type==NLMSG_ERROR&&reply->nlmsg_len>=NLMSG_LENGTH(sizeof(struct nlmsgerr))){
+                int error=((struct nlmsgerr *)NLMSG_DATA(reply))->error;
+                result=!error?XZ_NET_OK:error==-EEXIST||error==-EADDRNOTAVAIL||error==-ESRCH?XZ_NET_CONFLICT:XZ_NET_VERIFY_FAILED;goto done;
+            }
+            size_t step=NLMSG_ALIGN(reply->nlmsg_len);if(step>remaining)break;
+            cursor+=step;remaining-=step;
         }
     }
 done:close(fd);return result;
