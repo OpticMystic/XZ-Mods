@@ -165,3 +165,12 @@ int xz_sin1024(int degrees){
  return -table[360-d];
 }
 int xz_cos1024(int degrees){return xz_sin1024(degrees%360+90);}
+
+/* Longest prefix of text that fits width at scale, cut on a whole character. */
+void xz_ui_chrome_fit(struct xz_canvas c,int x,int y,int width,const char *text,int scale,uint32_t color){
+ char row[100];size_t n=0;
+ if(!text)return;
+ while(text[n]&&n<sizeof(row)-1){row[n]=text[n];n++;}row[n]=0;
+ while(n&&xz_text_width(c,row,scale,99)>width){do n--;while(n&&((unsigned char)row[n]&0xc0)==0x80);row[n]=0;}
+ xz_text(c,x,y,row,scale,99,color);
+}
