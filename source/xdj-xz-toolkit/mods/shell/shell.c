@@ -104,7 +104,7 @@ void xz_shell_init(struct xz_shell *u) {
  memset(u,0,sizeof *u);
  u->stack[0].screen=XZ_SHELL_PLAY;u->depth=1;
  u->zoom=XZ_SHELL_ZOOM_DEFAULT;
- u->display=(struct xz_shell_display){XZ_SHELL_WAVE_3BAND,XZ_SHELL_POSITION_CENTER,XZ_SHELL_KEY_AS_DECK,XZ_SHELL_USB_COLORS_ALL,0};
+ u->display=(struct xz_shell_display){.wave_color=XZ_SHELL_WAVE_3BAND,.wave_position=XZ_SHELL_POSITION_CENTER,.key_display=XZ_SHELL_KEY_AS_DECK,.usb_colors=XZ_SHELL_USB_COLORS_ALL};
 }
 int xz_shell_restore_setting(struct xz_shell *u, int id, int value) {
  if(!u)return 0;

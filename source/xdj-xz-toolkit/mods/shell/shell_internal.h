@@ -138,6 +138,7 @@ static inline enum xz_shell_usb_colors sh_usb_colors(const struct xz_shell *u) {
 static inline int sh_indicator_shown(const struct xz_shell *u, enum xz_shell_indicator i) { return !((u->display.hidden>>i)&1); }
 /* A deck's waveform colour: its stick's when the deck follows it (USB COLORS ALL), else the shell's. */
 static inline enum xz_shell_wave_color sh_deck_wave_color(const struct xz_shell *u, const struct xz_shell_deck *d) {
+ if(u->display.wave_color_override==XZ_SHELL_WAVE_3BAND||u->display.wave_color_override==XZ_SHELL_WAVE_STEMS)return u->display.wave_color_override;
  if(sh_usb_colors(u)==XZ_SHELL_USB_COLORS_ALL&&sh_has(d,XZ_SHELL_F_SOURCE_LOOK)
     &&d->look.wave_color>=XZ_SHELL_WAVE_BLUE&&d->look.wave_color<=XZ_SHELL_WAVE_STEMS)return (enum xz_shell_wave_color)d->look.wave_color;
  return sh_wave_color(u);

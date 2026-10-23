@@ -380,7 +380,7 @@ static struct xz_shell_setting_item wave_items[2];
 static struct xz_shell_settings_model wave_model;
 /* Descriptions (shell_settings.h help): APPEARANCE is scope LOOK_TAB + 1; the WAVEFORM items share it. */
 static const char *const help_interface[2]={"This full-screen interface.","The player's own layout, restyled by the classic themes."};
-static const char *const help_wave[3]={"The player's own waveform.","Lows, mids and highs layered in their own colours.",
+static const char *const help_wave[3]={"Original deck/USB waveform colours.","Lows, mids and highs layered consistently on all decks.",
  "Drums, harmonics and vocals in the stem colours; tracks without stems show 3-BAND."};
 static const char *const help_key_format[3]={"As the stick's library sets it.","Note names, like Am.","Wheel numbers, like 8A."};
 static const char *const help_mode_lamps[2]={"Each lamp lights while its mode is on.","The lamps leave the screen; the modes keep working."};
@@ -2821,6 +2821,10 @@ int xz_shell_runtime_idle(void) {
  return now_ms()-__atomic_load_n(&last_drawn_ms,__ATOMIC_ACQUIRE)<__atomic_load_n(&period_ms,__ATOMIC_RELAXED);
 }
 static int menu_render_frame_locked(uint16_t *pixels,size_t stride) {
+ /* An explicit layered MODS style applies to all logical decks. USB colours
+    still own stock-style choices and deck backgrounds. */
+ shell.display.wave_color_override=last_input.look_known&&last_input.wave_mode==1?XZ_SHELL_WAVE_3BAND:
+  last_input.look_known&&last_input.wave_mode==2?XZ_SHELL_WAVE_STEMS:XZ_SHELL_WAVE_BLUE;
  int result=xz_shell_render_frame(&shell,&model,pixels,stride)?1:-1;
  if(result>0){
   uint64_t painted=menu_wanted_flag&&model.menu==&menu_page?network_menu_token:0;
@@ -2851,13 +2855,14 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  sec.calls++;xz_mods_shell_proof_v1.render_calls++;
  if(in->cached)sec.ui_cached++;
  if(xz_native_skin_on_owner_thread()){sec.flips++;xz_mods_shell_proof_v1.stock_flips++;}
- last_call_ms=now;int key_overlay_changed=last_input.key_controls_open!=in->key_controls_open;last_input=*in;
+ last_call_ms=now;int key_overlay_changed=last_input.key_controls_open!=in->key_controls_open;
+ int waveform_changed=last_input.look_known!=in->look_known||last_input.wave_mode!=in->wave_mode;last_input=*in;
  int result=0;
  if(!enabled||!candidate(in->eligible,in->theme)){set_owns(0);goto done;}
  int extra_changed=xz_extra_decks_revision()!=shown_extra_revision||xz_extra_decks_control_revision()!=shown_extra_control;
  uint32_t input_revision=__atomic_load_n(&native_input_revision,__ATOMIC_ACQUIRE);
  int input_changed=input_revision!=shown_native_input;
- int owned=owns_flag,due=dirty_flag||extra_changed||input_changed||in->key_controls_open||key_overlay_changed||now-last_drawn_ms>=period_ms;
+ int owned=owns_flag,due=dirty_flag||extra_changed||input_changed||in->key_controls_open||key_overlay_changed||waveform_changed||now-last_drawn_ms>=period_ms;
  if(owned&&!due){sec.skipped++;result=-1;goto done;}
  /* Off screen (handed off or yielding to a caution) the model still refreshes, at 10 Hz, to see the way back. */
  if(!owned&&refreshed&&now-last_refresh_ms<100u)goto done;
