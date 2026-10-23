@@ -309,7 +309,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_XPAD,0,"X-PAD SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,m->metrics.valid?"METRICS SETTINGS >":"SET UP METRICS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS,0,"STEM SETTINGS >");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS,0,"KEYS / DISPLAY / RAM >");
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS,0,"MORE CONTROLS >");
  }else if(u->page==XZ_UI_FEATURE_SETUP){
   static const char *steps[4]={"DETECT FEATURE","USE SELECTED DECK","ENABLE FEATURE","I TESTED IT / DONE"};
   int additive=u->feature_cap==XZ_UI_PREVIEW||u->feature_cap==XZ_UI_SAMPLE;
@@ -332,11 +332,6 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
  }else if(u->page==XZ_UI_SETTINGS){
   add(w,&n,XZ_UI_PANEL,XZ_UI_STEMS,0,"GROOVE PADS");
   add(w,&n,XZ_UI_PANEL,XZ_UI_XPAD,0,"X-PAD CONTROLS");
-  add(w,&n,XZ_UI_KEY_SHIFT,-1,XZ_UI_KEY,"KEY -");
-  add(w,&n,XZ_UI_KEY_SHIFT,0,XZ_UI_KEY,"RESET");
-  add(w,&n,XZ_UI_KEY_SHIFT,1,XZ_UI_KEY,"KEY +");
-  add(w,&n,XZ_UI_KEY_SYNC,0,XZ_UI_KEYSYNC,"KEY SYNC");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_KEY_SETUP,0,"KEY SETUP");
   add(w,&n,XZ_UI_PANEL,XZ_UI_RAM_SETUP,0,"RAM TRACKS");
  }else if(u->page==XZ_UI_LOCAL_STEM_SETUP){
   /* The button is the deck's next real step, so a prepared track never repeats DETECT.
@@ -347,15 +342,11 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   int step=why==XZ_UI_USB_WHY_ENGINE?(u->stem_setup_step==1?1:0):why==XZ_UI_USB_WHY_OFF?1:2;
   add(w,&n,XZ_UI_LOCAL_STEM_SETUP_STEP,step,0,step==0?"CHECK STEM ENGINE":step==1?"TURN ON STANDALONE STEMS / ALL DECKS":
    why==XZ_UI_USB_WHY_NONE?"STEMS READY / BACK TO PLAY":"CHECK THIS DECK AGAIN");
- }else if(u->page==XZ_UI_KEY_SETUP){
-  add(w,&n,XZ_UI_KEY_CHECK,0,0,"DETECT + VERIFY KEYS");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_BROWSE_SETUP,0,"KEY FORMAT");
  }else if(u->page==XZ_UI_BROWSE_SETUP){
   add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"KEY FEEDBACK");
   /* Browse columns are the stock ones, chosen from the table header (TAP MENU);
      this page keeps only the key format the deck key strips use. */
   for(i=0;i<3;i++)add(w,&n,XZ_UI_KEY_FORMAT,i,0,key_formats[i]);
-  add(w,&n,XZ_UI_PANEL,XZ_UI_KEY_SETUP,0,"KEY SETUP");
  }else if(u->page==XZ_UI_RAM_SETUP){
   add(w,&n,XZ_UI_RAM_DECK,0,0,"DECK 1");
   add(w,&n,XZ_UI_RAM_DECK,1,0,"DECK 2");

@@ -166,6 +166,7 @@ struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_
   return m&&sh_deck_count(m)==4?(struct xz_shell_rect){INFO_X-98+(r==XZ_SHELL_R_VIEW_FOUR?46:0),0,46,TOP_H}:(struct xz_shell_rect){0,0,0,0};
  case XZ_SHELL_R_TOP_BAR:return (struct xz_shell_rect){0,0,XZ_SHELL_WIDTH,TOP_H};
  case XZ_SHELL_R_INFO_COLUMN:return (struct xz_shell_rect){0,ly,COL_W,L->lane_h};
+ case XZ_SHELL_R_KEY:return (struct xz_shell_rect){0,ly+L->lane_h-44,COL_W,44};
  case XZ_SHELL_R_DECK_TAG:return (struct xz_shell_rect){0,ly,COL_W,L->tag_h};
  case XZ_SHELL_R_LANE:return (struct xz_shell_rect){COL_W,ly,XZ_SHELL_WIDTH-COL_W,L->lane_h};
  case XZ_SHELL_R_STRIP:return (struct xz_shell_rect){sx,S->y,S->w,S->h};
@@ -182,6 +183,15 @@ struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_
  }
  }
  return (struct xz_shell_rect){0,0,0,0};
+}
+int xz_shell_play_key_deck(const struct xz_shell *u,const struct xz_shell_model *m,int x,int y){
+ if(xz_shell_screen(u)!=XZ_SHELL_PLAY)return -1;
+ struct xz_shell_model view;xz_shell_play_projection(u,m,&view);
+ for(int d=0;d<sh_deck_count(&view);d++){
+  struct xz_shell_rect r=xz_shell_play_rect(&view,XZ_SHELL_R_KEY,d);
+  if(r.w&&sh_inside(r,x,y))return d;
+ }
+ return -1;
 }
 int32_t xz_shell_overview_ms(const struct xz_shell_model *m, int32_t total_ms, int x, int deck) {
  struct xz_shell_rect ov=xz_shell_play_rect(m,XZ_SHELL_R_OVERVIEW,deck);

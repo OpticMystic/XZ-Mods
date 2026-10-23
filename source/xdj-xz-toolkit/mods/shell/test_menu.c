@@ -9,6 +9,7 @@
 #include "fixtures.h"
 #include "settings_fixtures.h"
 #include "menu_fixtures.h"
+#include "../ui/play_key.h"
 #include "shell_internal.h"
 #include <assert.h>
 #include <stdio.h>
@@ -242,6 +243,8 @@ static void test_reach_every_page(void) {
   for(int r=0;r<menu.row_count;r++){
    const struct xz_shell_menu_row *row=&menu.row[r];
    assert(row->label[0]);
+   assert(row->target.kind!=XZ_UI_KEY_SHIFT&&row->target.kind!=XZ_UI_KEY_SYNC);
+   assert(!((row->target.kind==XZ_UI_PANEL||row->target.kind==XZ_UI_FEATURE_LINK)&&row->target.index==XZ_UI_KEY_SETUP));
    for(int k=r+1;k<menu.row_count;k++)assert(menu.row[k].key!=row->key);
    for(int c=0;c<row->choice_count;c++)assert(menu.choice[row->first_choice+c].label[0]);
    if(!row->available)assert(row->reason[0]);
@@ -257,17 +260,31 @@ static void test_reach_every_page(void) {
  }
  /* pages only the runtime opens: the setups, reached by their own rows above or the runtime itself */
  for(int p=0;p<XZ_UI_PAGE_COUNT;p++){
-  if(p==XZ_UI_THEMES||p==XZ_UI_BUTTONS||p==XZ_UI_THEME_PICK)continue;
+  if(p==XZ_UI_KEY_SETUP){assert(!seen[p]);continue;}
+  if(p==XZ_UI_THEMES||p==XZ_UI_BUTTONS||p==XZ_UI_THEME_PICK||p==XZ_UI_BROWSE_SETUP)continue;
   if(!seen[p])fprintf(stderr,"page %d (%s) not reached\n",p,xz_ui_page_title(p));
   assert(seen[p]);
  }
- printf("PASS every MODS panel page but the classic themes is reachable from GENERAL, CONTROLS, ADVANCED and EXTRAS; %d rows run their own control\n",rows_checked);
+ /* The replacement is the PLAY readout and its existing key actions. */
+ for(int deck=0;deck<2;deck++){
+  struct xz_shell play;xz_shell_init(&play);struct xz_shell_model view;
+  xz_shell_play_projection(&play,&sm,&view);
+  struct xz_shell_rect r=xz_shell_play_rect(&view,XZ_SHELL_R_KEY,deck);
+  assert(xz_shell_play_key_deck(&play,&sm,r.x+8,r.y+8)==deck);
+  struct xz_play_key popup;xz_play_key_open(&popup,deck);struct xz_ui_action a;
+  xz_play_key_touch(&popup,&um,0,0,0,&a);um.deck[deck].ready|=XZ_UI_KEY|XZ_UI_KEYSYNC;
+  for(int k=0;k<4;k++){struct xz_ui_widget w=xz_play_key_button(k);
+   assert(!xz_play_key_touch(&popup,&um,w.x+8,w.y+8,1,&a));
+   assert(xz_play_key_touch(&popup,&um,0,0,0,&a)&&a.deck==deck&&a.kind==(k==3?XZ_UI_KEY_SYNC:XZ_UI_KEY_SHIFT));
+  }
+ }
+ printf("PASS reachable MODS pages, absence of KEY settings navigation and replacement PLAY key actions; %d menu rows checked\n",rows_checked);
 }
 
 /* Each page draws inside the frame, from the rail and from inside, at every row and in every values pane. */
 static void test_render_every_page(void) {
  static const int pages[]={XZ_UI_GENERAL,XZ_UI_FEATURE_SETUP,XZ_UI_LOCAL_STEM_SETUP,XZ_UI_PC_STEMS,XZ_UI_STEM_COLORS,XZ_UI_XPAD,
-  XZ_UI_METRICS_SETUP,XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ_UI_SETTINGS,XZ_UI_STEMS,XZ_UI_KEY_SETUP,XZ_UI_BROWSE_SETUP,XZ_UI_RAM_SETUP,
+  XZ_UI_METRICS_SETUP,XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ_UI_SETTINGS,XZ_UI_STEMS,XZ_UI_BROWSE_SETUP,XZ_UI_RAM_SETUP,
   XZ_UI_EXTRAS,XZ_UI_CONNECTION,XZ_UI_GAMES,XZ_UI_DOOM,XZ_UI_DOOM_SETUP,XZ_UI_DOOM_FILES,XZ_UI_MYHOUSE_SETUP,XZ_UI_UPDATES,
   XZ_UI_UPDATE_SETUP,XZ_UI_APPS,XZ_UI_APPS_SETUP,XZ_UI_PROFILE_SETUP,XZ_UI_PROFILE_EDIT};
  int frames=0;

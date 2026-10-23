@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "ui_skin.h"
+#include "play_key.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,11 +69,26 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  tap(u,m,XZ_UI_PANEL,XZ_UI_GENERAL);
  for(i=0;i<2;i++){int flags[2]={XZ_UI_GATE,XZ_UI_SMART};assert(tap(u,m,XZ_UI_ENABLE,flags[i]).kind==XZ_UI_ENABLE);}
  tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);
- assert(tap(u,m,XZ_UI_KEY_SHIFT,-1).value==-1);
- assert(tap(u,m,XZ_UI_KEY_SHIFT,0).value==0);
- m->deck[0].ready&=~XZ_UI_KEYSYNC;assert(tap(u,m,XZ_UI_KEY_SYNC,0).kind==XZ_UI_UNAVAILABLE);
- m->deck[0].ready|=XZ_UI_KEYSYNC;
- assert(tap(u,m,XZ_UI_KEY_SYNC,0).kind==XZ_UI_KEY_SYNC);
+ /* Key actions live in PLAY; no settings page links back to KEY SETUP. */
+ for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
+  struct xz_ui copy=*u;copy.page=(enum xz_ui_page)page;struct xz_ui_widget controls[XZ_UI_WIDGETS];
+  size_t count=xz_ui_layout(&copy,m,controls);
+  for(size_t k=0;k<count;k++){
+   assert(controls[k].kind!=XZ_UI_KEY_SHIFT&&controls[k].kind!=XZ_UI_KEY_SYNC);
+   assert(!((controls[k].kind==XZ_UI_PANEL||controls[k].kind==XZ_UI_FEATURE_LINK)&&controls[k].index==XZ_UI_KEY_SETUP));
+  }
+ }
+ for(int deck=0;deck<2;deck++){
+  struct xz_play_key play;xz_play_key_open(&play,deck);xz_play_key_touch(&play,m,0,0,0,&result);
+  m->deck[deck].ready|=XZ_UI_KEY|XZ_UI_KEYSYNC;
+  for(int button=0;button<4;button++){
+   w=xz_play_key_button(button);assert(!xz_play_key_touch(&play,m,w.x+10,w.y+10,1,&result));
+   assert(xz_play_key_touch(&play,m,0,0,0,&result)&&result.deck==deck);
+   assert(result.kind==(button==3?XZ_UI_KEY_SYNC:XZ_UI_KEY_SHIFT)&&result.index==(button==3?0:button-1));
+  }
+  m->deck[deck].ready&=~XZ_UI_KEYSYNC;w=xz_play_key_button(3);
+  assert(!xz_play_key_touch(&play,m,w.x+10,w.y+10,1,&result)&&!xz_play_key_touch(&play,m,0,0,0,&result));
+ }
  tap(u,m,XZ_UI_PANEL,XZ_UI_CONTROLS);
  for(i=0;i<4;i++){
   result=tap(u,m,XZ_UI_STEM_PAGE,i);
@@ -325,11 +341,11 @@ static void encoder(void){
  u.focus_index=XZ_UI_RB_NOTHING;assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].index==0&&a[0].value==XZ_UI_RB_NOTHING);
  xz_ui_init(&u);u.page=XZ_UI_SETTINGS;u.focus_deck=-1;
  /* A link opens its page; BACK returns to the link so push re-enters it. */
- u.focus_kind=XZ_UI_PANEL;u.focus_index=XZ_UI_KEY_SETUP;
- assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].kind==XZ_UI_PANEL&&u.page==XZ_UI_KEY_SETUP);
+ u.focus_kind=XZ_UI_PANEL;u.focus_index=XZ_UI_RAM_SETUP;
+ assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].kind==XZ_UI_PANEL&&u.page==XZ_UI_RAM_SETUP);
  assert(xz_ui_focused(&u,&m,&f)&&f.y>=40&&f.x>=124);
  assert(xz_ui_back(&u,a)==1&&a[0].kind==XZ_UI_PANEL&&u.page==XZ_UI_SETTINGS);
- assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_PANEL&&f.index==XZ_UI_KEY_SETUP);
+ assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_PANEL&&f.index==XZ_UI_RAM_SETUP);
  /* Rail tabs open their section at its first control. */
  u.focus_kind=XZ_UI_PANEL;u.focus_index=XZ_UI_THEMES;
  assert(xz_ui_encoder_push(&u,&m,a)==1&&u.page==XZ_UI_THEMES);
