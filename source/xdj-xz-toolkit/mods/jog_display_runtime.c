@@ -10,6 +10,7 @@
 #endif
 #include <stdatomic.h>
 #include <string.h>
+#include <stdio.h>
 extern int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *) __attribute__((weak));
 extern uint32_t xz_extra_decks_jog_content_epoch(int deck) __attribute__((weak));
 extern uint64_t xz_extra_source_generation(int source) __attribute__((weak));
@@ -75,6 +76,35 @@ struct jd_latch_key {
  uint64_t media_generation;
 };
 static struct jd_latch_key jd_latch_key[XZ_EXTRA_DECKS];
+#endif
+#ifdef XZ_JOG_DISPLAY_PROOF
+/* Diagnostic-only: the assembler publishes one reason word. The connector
+ * reports a persistent failure off the display/audio thread, without log storms. */
+extern void xz_log(const char *) __attribute__((weak));
+static _Atomic unsigned jd_reject_reason[XZ_EXTRA_DECKS],jd_reject_session[XZ_EXTRA_DECKS];
+static uint32_t jd_reject_report_session;
+static atomic_flag jd_reject_report_busy=ATOMIC_FLAG_INIT;
+static unsigned jd_reject_seen[XZ_EXTRA_DECKS],jd_reject_reported[XZ_EXTRA_DECKS];
+static uint64_t jd_reject_since[XZ_EXTRA_DECKS];
+static void report_jog_rejections(uint64_t now,uint32_t session){
+ if(!xz_log||atomic_flag_test_and_set_explicit(&jd_reject_report_busy,memory_order_acquire))return;
+ if(jd_reject_report_session!=session){memset(jd_reject_seen,0,sizeof jd_reject_seen);memset(jd_reject_reported,0,sizeof jd_reject_reported);jd_reject_report_session=session;}
+ static const char *const names[]={"NONE","NO_SEQUENCE","NATIVE_FLOOR","SESSION","ROUTE","CONTENT_EPOCH","MEDIA_GENERATION","TIMELINE_ROUTE"};
+ for(unsigned side=0;side<XZ_EXTRA_DECKS;side++){
+  unsigned reason=atomic_load_explicit(&jd_reject_session[side],memory_order_acquire)==session?
+   atomic_load_explicit(&jd_reject_reason[side],memory_order_relaxed):0;
+  if(reason!=jd_reject_seen[side]){jd_reject_seen[side]=reason;jd_reject_since[side]=now;}
+  if(!reason&&jd_reject_reported[side]){
+   char text[96];snprintf(text,sizeof text,"JOG_STATE_RECOVERED: side=%u",side+1);xz_log(text);jd_reject_reported[side]=0;
+  }else if(reason<sizeof names/sizeof names[0]&&reason&&reason!=jd_reject_reported[side]&&
+           now>=jd_reject_since[side]&&now-jd_reject_since[side]>=XZ_JD_RUNTIME_FRESH_MS){
+   char text[144];snprintf(text,sizeof text,"JOG_STATE_REJECT: side=%u reason=%s persistent_ms=%llu",side+1,names[reason],(unsigned long long)(now-jd_reject_since[side]));xz_log(text);jd_reject_reported[side]=reason;
+  }
+ }
+ atomic_flag_clear_explicit(&jd_reject_report_busy,memory_order_release);
+}
+#else
+#define report_jog_rejections(now,session) ((void)0)
 #endif
 static atomic_flag jd_lifecycle_busy=ATOMIC_FLAG_INIT;
 static _Atomic uint32_t jd_session=1;
@@ -197,6 +227,7 @@ void xz_jog_display_runtime_service_assets(void){
  if(!xz_extra_decks_copy_wave||!atomic_load_explicit(&jd_installed,memory_order_acquire))return;
  struct xz_ds_selection selection;if(!selection_snapshot(&selection)||!selection.route_up||!selection.route_epoch)return;
  uint32_t session=atomic_load_explicit(&jd_session,memory_order_acquire);uint64_t began=default_now_ms();
+ report_jog_rejections(began,session);
  /* At most 64 * 512 columns per deck, with a 2 ms cooperative budget. This is
     connector work only. Both sides get an attempt before checking the clock. */
  for(unsigned round=0;round<64;round++){
@@ -389,11 +420,17 @@ static void prime_side_baseline(unsigned side_idx){
 /* Publication time is a separate upper bound even for paused/no-timeline
  * inputs. Re-reading a slot, or reusing it under contention, never renews it. */
 static int sample_current(const struct jd_sample *p,const struct jd_side_runtime *side,uint32_t session,uint32_t route_epoch){
- return p->seq&&p->seq!=side->floor_seq&&p->session==session&&route_epoch&&p->route_epoch==route_epoch&&
-  p->deck.jog_content_epoch&&p->deck.jog_content_epoch==side->content_epoch&&
-  (!p->deck.timeline.media_generation||!xz_extra_source_generation||
-   xz_extra_source_generation(p->deck.source)==p->deck.timeline.media_generation)&&
-  (!p->deck.timeline.route_epoch||p->deck.timeline.route_epoch==route_epoch);
+ unsigned reason=!p->seq?1:p->seq==side->floor_seq?2:p->session!=session?3:
+  (!route_epoch||p->route_epoch!=route_epoch)?4:
+  (!p->deck.jog_content_epoch||p->deck.jog_content_epoch!=side->content_epoch)?5:
+  (p->deck.timeline.media_generation&&xz_extra_source_generation&&
+   xz_extra_source_generation(p->deck.source)!=p->deck.timeline.media_generation)?6:
+  (p->deck.timeline.route_epoch&&p->deck.timeline.route_epoch!=route_epoch)?7:0;
+#ifdef XZ_JOG_DISPLAY_PROOF
+ atomic_store_explicit(&jd_reject_reason[side-jd_side],reason,memory_order_relaxed);
+ atomic_store_explicit(&jd_reject_session[side-jd_side],session,memory_order_release);
+#endif
+ return reason==0;
 }
 static int sample_snapshot(unsigned side_idx,const struct jd_sample *p,uint64_t publication_ms,uint64_t now_ms,struct xz_jd_snapshot *out){
  if(publication_ms>now_ms||now_ms-publication_ms>XZ_JD_RUNTIME_FRESH_MS)return 0;
@@ -657,6 +694,10 @@ static void hook_jog_assemble(void *self){
  JDP_INC(proof->calls);
 #endif
  if(!on_extra){
+#ifdef XZ_JOG_DISPLAY_PROOF
+  atomic_store_explicit(&jd_reject_reason[side_idx],0,memory_order_relaxed);
+  atomic_store_explicit(&jd_reject_session[side_idx],session,memory_order_release);
+#endif
   side->cached=0;
   side->floor_seq=atomic_load_explicit(&jd_pub[side_idx].seq,memory_order_acquire);
  }else{
