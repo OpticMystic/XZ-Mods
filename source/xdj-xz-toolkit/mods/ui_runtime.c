@@ -2265,6 +2265,8 @@ static void play_key_view_locked(struct xz_play_key_view *out){
 static int play_key_binding_valid(const struct xz_play_key *key){
     if(!key->open)return 1;
     if(key->source_frame&&(!xz_shell_runtime_key_frame||xz_shell_runtime_key_frame()!=key->source_frame))return 0;
+    /* Projection 1 is a validated native-only frame; software players are optional. */
+    if(key->source_frame==1u)return key->deck<2&&key->selected_deck==key->classic_side;
     if(key->classic_side>=0){
         struct xz_extra_decks extra;int have=play_key_extra_locked(&extra);
         if(!have&&(key->source_frame||xz_native_four_order()>=0))return 0;
@@ -2292,7 +2294,7 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
             if(deck==-2){play_key.down=1;play_key_dirty=1;return 1;}
             if(deck>=0){
                 side=deck&1;
-                if(!have_extra||xz_classic_key_target(&extra,side)!=xz_shell_key_frame_selected(source_frame,side)){
+                if(source_frame!=1u&&(!have_extra||xz_classic_key_target(&extra,side)!=xz_shell_key_frame_selected(source_frame,side))){
                     play_key.down=1;play_key_dirty=1;return 1;
                 }
             }

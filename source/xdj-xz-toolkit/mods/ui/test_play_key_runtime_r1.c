@@ -139,7 +139,7 @@ int main(void){
  puts("PASS real render entry: modal overlay survives idle/busy frames, close redraws the base, encoder cannot operate hidden settings");
  reset(0);fixture_key_valid[0]=0;model.deck[0].ready=0;snprintf(model.deck[0].key_readout,sizeof model.deck[0].key_readout,"---");
  render_classic_key_fixture();tap_xy(30,135);int before=fixture_key_requests;for(int b=0;b<4;b++)press_button(b);assert(fixture_key_requests==before);
- press_button(4);assert(play_key.setup);for(int i=0;i<4;i++)press_button(4);
+ paint_runtime_key_fixture();press_button(4);assert(play_key.setup);for(int i=0;i<4;i++){paint_runtime_key_fixture();press_button(4);}
  assert(play_key.setup&&play_key.step==3&&strstr(ui.notice,"LOAD ANALYZED"));
  back_key();assert(play_key.open&&!play_key.setup);back_key();assert(!play_key.open);
  reset(0);native_four=0;render_classic_key_fixture();actions(0,0,30,135);

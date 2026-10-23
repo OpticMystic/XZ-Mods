@@ -67,7 +67,7 @@ static inline int xz_play_key_touch(struct xz_play_key *p,const struct xz_ui_mod
    p->capture=hit;p->cancelled=0;p->contact_revision=p->revision;
    int native=hit>=0&&hit<4&&p->deck<2&&!p->setup;
    int choice=hit>=0&&hit<2&&p->deck>1&&p->setup;
-   if((native||choice)&&p->painted_revision!=p->revision)p->capture=-1;
+   if((native||choice||hit==4)&&p->painted_revision!=p->revision)p->capture=-1;
    if(x<XZ_PLAY_KEY_X||x>=XZ_PLAY_KEY_X+XZ_PLAY_KEY_W||y<XZ_PLAY_KEY_Y||y>=XZ_PLAY_KEY_Y+XZ_PLAY_KEY_H)p->open=0;
   }else if(hit!=p->capture)p->cancelled=1;
   p->down=1;return 0;
