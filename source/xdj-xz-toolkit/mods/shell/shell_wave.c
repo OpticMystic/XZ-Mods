@@ -67,15 +67,22 @@ static void scale_table(int16_t table[256], int size) {
  for(int v=0;v<256;v++)table[v]=(int16_t)(v*size/255);
 }
 
+/* 65536/sum for the sum of three stems, 1..765. */
+static uint32_t stem_reciprocal(int sum) {
+ static uint32_t table[766];
+ if(!table[1])for(int i=1;i<766;i++)table[i]=65536u/(uint32_t)i;
+ return table[sum<1?1:sum>765?765:sum];
+}
 /* Mirrored about cy, size px each way at full scale. */
 static void column_centered(const struct span_canvas *s, int x, int cy, const int16_t *scale, const int band[3], enum xz_shell_wave_color mode) {
  if(mode==XZ_SHELL_WAVE_3BAND){
-  int h0=scale[band[0]],h1=scale[band[1]],h2=scale[band[2]];
-  int outer=sh_max(h0,sh_max(h1,h2));
+  int sum=band[0]+band[1]+band[2];
+  if(!sum)return;
+  int outer=scale[sh_max(band[0],sh_max(band[1],band[2]))];
+  uint32_t k=stem_reciprocal(sum)*(uint32_t)outer;
+  int lo=(int)((uint32_t)band[2]*k>>16),mid=(int)((uint32_t)(band[1]+band[2])*k>>16);
   const uint16_t *ink=band_ink[0];
   /* Paint back to front as nested spans: each pixel written once. */
-  int lo=h2,mid=sh_max(h1,h2);
-  if(!band[0]&&!band[1]&&!band[2])return;
   if(outer>mid){vspan(s,x,cy-outer,cy-mid,ink[0]);vspan(s,x,cy+mid+1,cy+outer+1,ink[0]);}
   if(mid>lo){vspan(s,x,cy-mid,cy-lo,ink[1]);vspan(s,x,cy+lo+1,cy+mid+1,ink[1]);}
   /* The core: the highs, or on a column without them the front-most band that reaches it. */
@@ -91,8 +98,11 @@ static void column_centered(const struct span_canvas *s, int x, int cy, const in
 /* Rising from the baseline (bottom), height px at full scale. */
 static void column_bottom(const struct span_canvas *s, int x, int base, const int16_t *scale, const int band[3], enum xz_shell_wave_color mode, int played) {
  if(mode==XZ_SHELL_WAVE_3BAND){
-  int h0=scale[band[0]],h1=scale[band[1]],h2=scale[band[2]];
-  int outer=sh_max(h0,sh_max(h1,h2)),mid=sh_max(h1,h2);
+  int sum=band[0]+band[1]+band[2];
+  if(!sum)return;
+  int outer=scale[sh_max(band[0],sh_max(band[1],band[2]))];
+  uint32_t r=stem_reciprocal(sum)*(uint32_t)outer;
+  int h2=(int)((uint32_t)band[2]*r>>16),mid=(int)((uint32_t)(band[1]+band[2])*r>>16);
   const uint16_t *k=band_ink[played?1:0];
   if(outer>mid)vspan(s,x,base-outer,base-mid,k[0]);
   if(mid>h2)vspan(s,x,base-mid,base-h2,k[1]);
@@ -217,12 +227,6 @@ static void stem_inks(const struct xz_shell_model *m, const struct xz_shell_deck
   else if(muted){k->fill[stem]=k->stroke[stem]=c565(0x2a2a2a);k->outline[stem]=0;}
   else{k->fill[stem]=c565(sh_stem_wave_fill(bright));k->stroke[stem]=c565(bright);k->outline[stem]=1;}
  }
-}
-/* 65536/sum for the sum of three stems, 1..765. */
-static uint32_t stem_reciprocal(int sum) {
- static uint32_t table[766];
- if(!table[1])for(int i=1;i<766;i++)table[i]=65536u/(uint32_t)i;
- return table[sum<1?1:sum>765?765:sum];
 }
 /* The loudest source column of [from,to). A narrow transient must survive
    beat-normalized low zoom just as it does in the original waveform. */

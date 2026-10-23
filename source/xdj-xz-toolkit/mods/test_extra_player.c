@@ -803,7 +803,7 @@ static void test_controls(void) {
  hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(100); /* speed back up */
  knob.tempo_position = -XZ_EXTRA_TEMPO_SPAN; assert(input(knob)); step();
  seek(0, 200); assert(debug(0).state == XZ_XP_PLAYING);
- hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0); advance(60);
+ hold(0, XZ_EXTRA_IN_PLAY, 1); hold(0, XZ_EXTRA_IN_PLAY, 0);
  assert(debug(0).state == XZ_XP_CUED);
  /* Normal (CDJ) mode pauses at once. */
  hold(0, XZ_EXTRA_IN_VINYL, 1); hold(0, XZ_EXTRA_IN_VINYL, 0);
