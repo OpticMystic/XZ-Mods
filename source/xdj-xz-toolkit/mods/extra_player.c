@@ -78,7 +78,7 @@ struct reader {
 /* Immutable once published; a consumer may hold these pointers until XZ_XP_RETIRE_MS after the next load. */
 struct analysis { struct xz_extra_column *columns; uint32_t count, span_ms, normalization; struct xz_extra_beat *grid; uint32_t grid_count; };
 struct hot { int set; uint64_t at; uint32_t rgb; uint64_t end; int loop; }; /* loop: at..end */
-struct memory_point { uint64_t at, end; int loop; uint32_t rgb; int32_t saved_ms; };
+struct memory_point { uint64_t at, end; int loop; uint32_t rgb; int32_t saved_ms,saved_end_ms; };
 /* Accepted output provenance. Worker-owned, bounded, no render-time allocation. */
 #define OUTPUT_SPANS 64u
 struct output_span { uint64_t begin,end,source,step,loop_in,loop_out; };
@@ -499,7 +499,7 @@ static void cue_snapshot(const struct deck *d,struct xz_saved_cues *out){
  for(unsigned i=0;i<8;i++)out->hot[i]=saved_hot(d,&d->saved_hot[i]);
  for(int i=0;i<d->memory_count&&i<XZ_CUE_MEMORY;i++){
   const struct memory_point *m=&d->memory[i];
-  out->memory[out->memory_count++]=(struct xz_extra_cue){1,m->saved_ms,m->rgb,m->loop?to_ms(d,m->end):0};
+  out->memory[out->memory_count++]=(struct xz_extra_cue){1,m->saved_ms,m->rgb,m->loop?m->saved_end_ms:0};
  }
 }
 static void cue_save(struct xz_xp_players *p,struct deck *d,const struct xz_cue_edit *edit){
@@ -1017,7 +1017,7 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
    if (d->hot[i].set) v.hot_cue[i] = (struct xz_extra_cue){1, to_ms(d, d->hot[i].at), d->hot[i].rgb,
                                                            d->hot[i].loop ? to_ms(d, d->hot[i].end) : 0};
   v.memory_count=(unsigned)d->memory_count;
-  for(unsigned i=0;i<v.memory_count;i++)v.memory_cue[i]=(struct xz_extra_cue){1,d->memory[i].saved_ms,d->memory[i].rgb,d->memory[i].loop?to_ms(d,d->memory[i].end):0};
+  for(unsigned i=0;i<v.memory_count;i++)v.memory_cue[i]=(struct xz_extra_cue){1,d->memory[i].saved_ms,d->memory[i].rgb,d->memory[i].loop?d->memory[i].saved_end_ms:0};
   v.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_MEMORY_CUES);
   double published_bpm=d->track.track_bpm_x100,phase,period;
   if(loaded(s)&&grid_phase(d,d->heard,&phase,&period))published_bpm=6000.*d->r->rate/period;
@@ -1211,6 +1211,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
    struct memory_point *m = &d->memory[d->memory_count];
    m->at = to_frames(d, list[i].ms); m->end = 0;m->rgb=list[i].rgb;m->saved_ms=list[i].ms;
    m->loop = list[i].loop && stored_loop_end(d, list[i].ms, list[i].end_ms, &m->end);
+   m->saved_end_ms=m->loop?list[i].end_ms:0;
    d->memory_count++;
   }
  }
@@ -1226,6 +1227,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
    for(unsigned i=0;i<saved.memory_count;i++){
     struct memory_point *m=&d->memory[i];m->at=to_frames(d,saved.memory[i].ms);m->end=0;m->rgb=saved.memory[i].rgb;m->saved_ms=saved.memory[i].ms;
     m->loop=stored_loop_end(d,saved.memory[i].ms,saved.memory[i].end_ms,&m->end);
+    m->saved_end_ms=m->loop?saved.memory[i].end_ms:0;
     active|=m->loop&&m->at==d->active_loop.in&&m->end==d->active_loop.out;
    }
    if(!active)d->active_loop.armed=0;
@@ -2204,6 +2206,11 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   int exists=index<d->memory_count&&d->memory[index].at==at;
   uint32_t rgb=exists?d->memory[index].rgb:0;
   int32_t saved_ms=exists?d->memory[index].saved_ms:to_ms(d,at);
+  int32_t saved_end_ms=end>at?(exists&&d->memory[index].loop&&d->memory[index].end==end?d->memory[index].saved_end_ms:to_ms(d,end)):0;
+  if(e->kind==XZ_EXTRA_IN_MEMORY&&end>at){
+   if(saved_end_ms<to_ms(d,d->r->frames)&&to_frames(d,saved_end_ms)<end)saved_end_ms++;
+   if(saved_end_ms<=saved_ms){xz_xp_notice(p,"LOOP KEPT FOR THIS SESSION");return;}
+  }
   if(e->kind==XZ_EXTRA_IN_MEMORY_DELETE){
    if(!exists){xz_xp_notice(p,"NO MEMORY POINT AT CUE");return;}
    memmove(d->memory+index,d->memory+index+1,(size_t)(d->memory_count-index-1)*sizeof *d->memory);d->memory_count--;
@@ -2214,10 +2221,10 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
     if(d->memory_count==XZ_SHELL_MEMORY_CUES){xz_xp_notice(p,"MEMORY POINTS FULL");return;}
     memmove(d->memory+index+1,d->memory+index,(size_t)(d->memory_count-index)*sizeof *d->memory);d->memory_count++;
    }
-   d->memory[index]=(struct memory_point){at,end,end>at,rgb,saved_ms};xz_xp_notice(p,"MEMORY POINT SET");
+   d->memory[index]=(struct memory_point){at,end,end>at,rgb,saved_ms,saved_end_ms};xz_xp_notice(p,"MEMORY POINT SET");
   }
   struct xz_cue_edit edit={.kind=e->kind==XZ_EXTRA_IN_MEMORY?XZ_CUE_EDIT_MEMORY:XZ_CUE_EDIT_DELETE,
-   .point={1,saved_ms,rgb,end>at?to_ms(d,end):0}};cue_save(p,d,&edit);return;
+   .point={1,saved_ms,rgb,saved_end_ms}};cue_save(p,d,&edit);return;
  }
  if(d->emergency.active&&e->kind!=XZ_EXTRA_IN_LOAD&&e->kind!=XZ_EXTRA_IN_INSTANT_DOUBLES){
   if(e->pressed&&(e->kind==XZ_EXTRA_IN_PLAY||e->kind==XZ_EXTRA_IN_CUE)){
