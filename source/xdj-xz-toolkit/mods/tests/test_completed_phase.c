@@ -5,7 +5,7 @@
 #include <assert.h>
 static unsigned checks;
 #define CHECK(x) do{checks++;assert(x);}while(0)
-static struct xz_extra_beat grid[]={{100,1},{600,2},{1100,3},{1600,4},{2100,1},{2600,2},{3100,3},{3600,4},{4100,1}};
+static struct xz_extra_beat grid[]={{100,1,0},{600,2,0},{1100,3,0},{1600,4,0},{2100,1,0},{2600,2,0},{3100,3,0},{3600,4,0},{4100,1,0}};
 static void packet_case(unsigned sr,int side,int loop,int midbeat){
  static struct deck d;static struct reader r;static struct analysis an;
  memset(&d,0,sizeof d);memset(&r,0,sizeof r);memset(&an,0,sizeof an);

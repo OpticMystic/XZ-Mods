@@ -32,7 +32,7 @@ static void make_track(struct track *t,double bpm,uint32_t span_ms,uint32_t seed
  uint32_t below=0,target=t->count-t->count/200;t->normalization=765;
  for(unsigned v=0;v<766;v++){below+=histogram[v];if(below>=target){t->normalization=v?v:1;break;}}
  t->beats=(uint32_t)(span_ms/beat);t->grid=calloc(t->beats,sizeof(*t->grid));
- for(uint32_t i=0;i<t->beats;i++)t->grid[i]=(struct xz_extra_beat){(int32_t)(120+i*beat),(uint8_t)(i%4+1)};
+ for(uint32_t i=0;i<t->beats;i++)t->grid[i]=(struct xz_extra_beat){(int32_t)(120+i*beat),(uint8_t)(i%4+1),0};
 }
 static void fill_deck(struct xz_extra_deck *d,const struct track *t,const char *title,int32_t elapsed,int32_t bpm,int32_t tempo,int playing){
  memset(d,0,sizeof(*d));

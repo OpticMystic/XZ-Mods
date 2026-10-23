@@ -31,7 +31,7 @@ static struct xz_extra_deck deck(void){
  d.bpm_x100=12000;d.track_bpm_x100=12000;d.tempo_x100=0;d.cue_ms=9000;
  d.hot_cue[0]=(struct xz_extra_cue){1,11250,0x30d050,0};
  for(unsigned i=0;i<3000;i++)columns[i]=(struct xz_extra_column){(uint8_t)(60+i%50),40,(uint8_t)(20+i%9)};
- for(unsigned i=0;i<64;i++)grid[i]=(struct xz_extra_beat){(int32_t)(i*500),(uint8_t)(i%4+1)};
+ for(unsigned i=0;i<64;i++)grid[i]=(struct xz_extra_beat){(int32_t)(i*500),(uint8_t)(i%4+1),0};
  d.grid=grid;d.grid_count=64;
  d.wave=(struct xz_extra_wave){columns,3000,20000,150};
  return d;

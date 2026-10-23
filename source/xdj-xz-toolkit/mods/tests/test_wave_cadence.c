@@ -103,7 +103,7 @@ static void reset(void){
  for(int d=0;d<4;d++){
   for(int i=0;i<BEATS;i++)beats[d][i]=(struct xz_shell_beat){(int)(6000000LL*i/originals[d]),(uint8_t)(i%4+1)};
   int peak=beats[d][34].ms;for(int i=peak-4;i<=peak+4;i++)peaks[d][i]=(struct xz_shell_column){255,255,255};
-  if(d>=2){memcpy(producer_peaks[d-2],peaks[d],sizeof peaks[d]);for(int i=0;i<BEATS;i++)producer_beats[d-2][i]=(struct xz_extra_beat){beats[d][i].ms,beats[d][i].beat_in_bar};}
+  if(d>=2){memcpy(producer_peaks[d-2],peaks[d],sizeof peaks[d]);for(int i=0;i<BEATS;i++)producer_beats[d-2][i]=(struct xz_extra_beat){beats[d][i].ms,beats[d][i].beat_in_bar,0};}
  }
  publish_extra(1000);
 }
