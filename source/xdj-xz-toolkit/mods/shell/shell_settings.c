@@ -648,6 +648,23 @@ static void render_items(const struct xz_shell_model *m, struct xz_canvas c, con
  }
  scrollbar(p,LIST_W-4,2,ROWS*ROW_H-6,s.item_scroll,l->n_rows,ROWS);
 }
+static int fader_curve_item(const struct xz_shell_setting_item *it){
+ return it&&(it->id==XZ_SHELL_ITEM_CH_FADER_CURVE||it->id==XZ_SHELL_ITEM_CROSSFADER_CURVE)&&choice_count(it)==3;
+}
+static void fader_curve_icon(struct xz_canvas c,int x,int y,int w,int h,int cross,int curve){
+ xz_line16(c,x*16,(y+h)*16,(x+w)*16,(y+h)*16,16,GREY_TEXT);
+ xz_line16(c,x*16,y*16,x*16,(y+h)*16,16,GREY_TEXT);
+ /* Qualitative stock choices, ordered steep-top/linear/steep-bottom for CH,
+    and constant-power/slow-cut/fast-cut for CROSS. These are UI schematics. */
+ static const unsigned channel[3][9]={{0,2,5,9,16,27,44,68,100},{0,12,25,37,50,62,75,87,100},{0,32,56,73,84,91,95,98,100}};
+ static const unsigned blend[3][9]={{0,35,50,61,71,79,87,94,100},{0,25,50,75,100,100,100,100,100},{0,100,100,100,100,100,100,100,100}};
+ const unsigned *v=cross?blend[curve]:channel[curve];
+ for(int side=0;side<(cross?2:1);side++)for(int i=1;i<9;i++){
+  int a=side?8-(i-1):i-1,b=side?8-i:i;
+  xz_line16(c,(x*16+(i-1)*w*2),(y+h)*16-(int)v[a]*h*16/100,
+   (x*16+i*w*2),(y+h)*16-(int)v[b]*h*16/100,28,SH_WHITE);
+ }
+}
 static void render_values(const struct xz_shell_model *m, struct xz_canvas c, const struct ulayout *l, struct ustate s) {
  struct xz_canvas p=xz_sub(c,VALUE_X,U_Y,VALUE_W,ROWS*ROW_H);
  const struct xz_shell_setting_item *it=l->item>=0?&l->t.items[l->item]:NULL;
@@ -668,7 +685,9 @@ static void render_values(const struct xz_shell_model *m, struct xz_canvas c, co
   if(cursor)xz_rect(p,0,y,VALUE_W,ROW_H-2,SH_BLUE);
   xz_ring(p,22,y+18,8,1,SH_WHITE);
   if(index==cur)xz_disc(p,22,y+18,4,cursor?SH_WHITE:SH_BLUE);
-  text_fit(p,40,y+12,VALUE_W-56,choice_text(it,index),SH_TEXT,SH_WHITE);
+  int curve=fader_curve_item(it);
+  text_fit(p,40,y+12,VALUE_W-56-(curve?88:0),choice_text(it,index),SH_TEXT,SH_WHITE);
+  if(curve)fader_curve_icon(p,VALUE_W-86,y+6,66,23,it->id==XZ_SHELL_ITEM_CROSSFADER_CURVE,index);
  }
  scrollbar(p,VALUE_W-5,2,l->value_rows*ROW_H-6,s.value_scroll,n,l->value_rows);
  /* What the item does, and what the lit choice (or the current one) does, right under the choices. */

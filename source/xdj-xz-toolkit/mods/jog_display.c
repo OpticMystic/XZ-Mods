@@ -188,10 +188,17 @@ static void software_packet(struct xz_jd *s,const struct xz_jd_snapshot *snapsho
         s->wave_since_info=0;s->after_info=1;
     }
 }
+static int local_display(const uint8_t frame[148]){
+    /* LINK selection alone retains native local commands (captured 0xa0/0xb0,
+     * secondary kind 0xc0). A certified host or USB-owned secondary block does
+     * not belong to this adapter. */
+    return !(frame[2]&0x40u)&&(frame[0x4e]&0x7fu)==0x40u&&
+        (!(frame[2]&0x80u)||frame[0x4e]==0xc0u);
+}
 int xz_jd_step(struct xz_jd *s,const uint8_t native[148],const struct xz_jd_snapshot *snapshot,uint64_t now,uint8_t out[148]) {
     uint8_t packet[64];unsigned sequence,new_packet;int emitted=0,result=XZ_JD_OK;
     memcpy(out,native,148);
-    if((native[2]&0xc0u)||((native[0x4e]&0x7fu)!=0x40u))return XZ_JD_UNSUPPORTED;
+    if(!local_display(native))return XZ_JD_UNSUPPORTED;
     observe_native(s,native);new_packet=s->native_pending;s->native_pending=0;
     if(s->phase==XZ_JD_EXTRA||s->phase==XZ_JD_EXTRA_CLEAR) {
         int valid=fresh(s,snapshot,now);
@@ -240,7 +247,7 @@ int xz_jd_step(struct xz_jd *s,const uint8_t native[148],const struct xz_jd_snap
 }
 int xz_jd_prepare(struct xz_jd *s,const uint8_t native[148],unsigned selected,const struct xz_jd_snapshot *snapshot,
  uint64_t now,const struct xz_jd_wave *wave,uint32_t wave_revision,struct xz_jd_transaction *tx){
-    if((native[2]&0xc0u)||((native[0x4e]&0x7fu)!=0x40u))return XZ_JD_UNSUPPORTED;
+    if(!local_display(native))return XZ_JD_UNSUPPORTED;
     observe_native(s,native);tx->next=*s;
     tx->selected=selected==s->physical_side?xz_jd_select(&tx->next,selected,NULL,now):
         snapshot?xz_jd_select(&tx->next,selected,snapshot,now):xz_jd_select_unavailable(&tx->next,selected);

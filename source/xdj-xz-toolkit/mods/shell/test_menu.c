@@ -109,7 +109,7 @@ static const struct xz_shell_menu_row *cursor_row(const struct xz_shell *s) {
 static int pane(const struct xz_shell *s) { return s->stack[s->depth-1].focus&3; }
 /* The cursor on the row whose label starts with label; pushes nothing. */
 static void cursor_to(struct xz_shell *s, const char *label) {
- turn(s,-99);
+ for(int i=0;i<=menu.row_count;i++)turn(s,-8);
  for(int i=0;i<=menu.row_count;i++){
   const struct xz_shell_menu_row *r=cursor_row(s);
   if(r&&!strncmp(r->label,label,strlen(label)))return;
@@ -217,6 +217,15 @@ static void test_back(void) {
 
 /* Every page the panel has (but its classic theme list and the two pages the item tabs carry) is
    reachable from the four MENU tabs, and every row on it runs its own control. */
+/* Synthetic inventory only. No service, OS backend or live adapter is used. */
+static void detected_network(void) {
+ um.network.actual.generation=7;um.network.actual.count=1;um.network.result=XZ_NET_OK;
+ struct xz_net_adapter *a=&um.network.actual.adapter[0];
+ strcpy(a->id.name,"fixture0");a->id.ifindex=7;a->id.identity_epoch=12;a->state_revision=20;
+ a->addresses_known=a->link_up=a->gateway_known=XZ_NET_YES;a->address_count=1;
+ a->address[0].ip=(struct xz_net_ipv4){{192,0,2,10}};a->address[0].prefix=24;
+ a->caps=XZ_NET_CAP_STATIC_ADD|XZ_NET_CAP_GATEWAY;
+}
 static int link_like(const struct xz_shell_menu_row *r) { return r->kind==XZ_SHELL_MENU_LINK||r->kind==XZ_SHELL_MENU_ACTION; }
 static void test_reach_every_page(void) {
  int seen[XZ_UI_PAGE_COUNT]={0};
@@ -225,14 +234,15 @@ static void test_reach_every_page(void) {
  int rows_checked=0;
  /* a loaded deck with everything working, then a loader without the stem engine: some setup pages
     open only while something is missing */
- for(int variant=0;variant<2;variant++){
- int head=0,tail=0;
+ for(int variant=0;variant<3;variant++){
+ int head=0,tail=0,visits[XZ_UI_PAGE_COUNT]={0};
  mfx_model(&um);
- if(variant){um.enabled=0;for(int d=0;d<2;d++){um.deck[d].ready&=~(uint32_t)XZ_UI_STEM;um.deck[d].usb_reason=XZ_UI_USB_WHY_ENGINE;}}
+ if(variant==1){um.enabled=0;for(int d=0;d<2;d++){um.deck[d].ready&=~(uint32_t)XZ_UI_STEM;um.deck[d].usb_reason=XZ_UI_USB_WHY_ENGINE;}}
+ if(variant==2)detected_network();
  for(int i=0;i<4;i++){xz_ui_init(&queue[tail].u);xz_ui_menu_open(&queue[tail].u,(enum xz_ui_page)roots[i]);tail++;}
  while(head<tail){
   ui=queue[head++].u;
-  if(seen[ui.page]>3)continue;
+  if(visits[ui.page]++>3)continue;
   seen[ui.page]++;
   publish();
   assert(menu.page==(int)ui.page&&menu.root>=0);
@@ -251,7 +261,11 @@ static void test_reach_every_page(void) {
    ui=at;ran_count=0;run_target(t);
    assert(strcmp(ui.notice,"THAT CONTROL HAS CHANGED: LOOK AGAIN"));
    rows_checked++;
-   if(link_like(row)&&ui.page!=at.page&&tail<256)queue[tail++].u=ui;
+   /* STATIC IP changes the setup in place; its newly visible EDIT rows
+      must be traversed too. The default zero-adapter model cannot offer them. */
+   int static_branch=t->kind==XZ_UI_NETWORK_MODE&&t->index==XZ_NET_STATIC&&
+    at.network.initialized&&at.network.trial.policy.order[at.network.selected].mode!=XZ_NET_STATIC;
+   if((link_like(row)&&ui.page!=at.page)||static_branch){assert(tail<256);queue[tail++].u=ui;}
   }
   ui=at;
  }
@@ -280,6 +294,30 @@ static void test_reach_every_page(void) {
   }
  }
  printf("PASS reachable MODS pages, absence of KEY settings navigation and replacement PLAY key actions; %d menu rows checked\n",rows_checked);
+}
+
+static void test_ipv4_encoder(void) {
+ struct xz_shell s;fresh(&s);detected_network();publish();
+ key(&s,XZ_SHELL_KEY_MENU);push(&s);cursor_to(&s,"NETWORK");push(&s);
+ assert(ui.page==XZ_UI_NETWORK);cursor_to(&s,"CHOOSE ADAPTER / SETTINGS");push(&s);
+ assert(ui.page==XZ_UI_NETWORK_SETUP&&ui.network.initialized);
+ cursor_to(&s,"STATIC IP");push(&s);assert(ui.network.trial.policy.order[0].mode==XZ_NET_STATIC);
+ cursor_to(&s,"EDIT IP");push(&s);assert(ui.page==XZ_UI_NETWORK_EDIT);
+ cursor_to(&s,"CLEAR");assert(push(&s)==1&&!ui.network.edit[0]);
+ cursor_to(&s,"1");assert(push(&s)==1&&!strcmp(ui.network.edit,"1"));
+ hold(&s);assert(!strcmp(ui.network.edit,"1"));
+ cursor_to(&s,"BACKSPACE");assert(push(&s)==1&&!ui.network.edit[0]);
+ cursor_to(&s,"2");push(&s);cursor_to(&s,"DONE");push(&s);
+ assert(ui.page==XZ_UI_NETWORK_SETUP&&!strcmp(ui.network.ip,"2"));
+ cursor_to(&s,"EDIT MASK / PREFIX");push(&s);assert(ui.page==XZ_UI_NETWORK_EDIT);render_check(&s);
+ key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_NETWORK_SETUP);
+ cursor_to(&s,"EDIT GATEWAY");push(&s);assert(ui.page==XZ_UI_NETWORK_EDIT);
+ cursor_to(&s,"CANCEL");push(&s);assert(ui.page==XZ_UI_NETWORK_SETUP);
+ key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_NETWORK);
+ key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_GENERAL);
+ key(&s,XZ_SHELL_KEY_BACK);assert(xz_shell_screen(&s)==XZ_SHELL_PLAY);
+ assert(!others&&!refusals);
+ puts("PASS synthetic detected adapter: encoder STATIC / IP / MASK / GATEWAY / type / delete / done / cancel / nested BACK; no network execution");
 }
 
 /* Each page draws inside the frame, from the rail and from inside, at every row and in every values pane. */
@@ -429,6 +467,7 @@ int main(void) {
  test_encoder_never_leaves();
  test_back();
  test_reach_every_page();
+ test_ipv4_encoder();
  test_render_every_page();
  test_press_parity();
  test_touch();
