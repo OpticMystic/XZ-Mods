@@ -68,7 +68,8 @@ int xz_jd_select_unavailable(struct xz_jd *, unsigned logical_deck);
 /* Input must be ORIGINAL output of native assemble, before previous overrides.
  * A stale software snapshot keeps logical ownership but clears displayed data.
  * Native frame routing/configuration is retained; only proven display fields
- * are changed. Unsupported PC/HID ownership is returned without mutation. */
+ * are changed. Certified PC/HID ownership is returned without mutation; uncertified LINK
+ * selection is accepted only with the native local secondary block. */
 int xz_jd_step(struct xz_jd *, const uint8_t native_frame[XZ_JD_FRAME], const struct xz_jd_snapshot *, uint64_t now_ms, uint8_t output[XZ_JD_FRAME]);
 /* Native observation survives a rejected proposal. Emission state advances only
    on commit. wave belongs to this side until replaced under its owner guard. */

@@ -165,7 +165,7 @@ static void replacement(void){
   selection.deck[0]=1;selection.epoch[0]++;
   for(unsigned n=0;n<30;n++)tick(0);
   assert(jd_state[0].phase==XZ_JD_NATIVE);
-  for(unsigned i=0;i<144;i++)if(i!=8&&i!=9)assert(frame(0)[i]==original_frame[0][i]);
+  for(unsigned i=0;i<144;i++)if(i!=8&&i!=9)assert(frame(0)[i]==(i==2?(uint8_t)((original_frame[0][i]&~0x90u)|0x80u):original_frame[0][i]));
  }
  puts("PASS replacement at wave1/37/73, blocked mailbox, delayed old snapshot, missing key/BPM, fresh batch and exact native restoration");
 }
@@ -216,9 +216,9 @@ static void authority(void){
   selection.deck[side]=(int)side+1;selection.epoch[side]++;
   for(unsigned n=0;n<20;n++)tick(side);
   assert(jd_state[side].phase==XZ_JD_NATIVE);
-  for(unsigned i=0;i<144;i++)if(i!=8&&i!=9)assert(frame(side)[i]==original_frame[side][i]);
+  for(unsigned i=0;i<144;i++)if(i!=8&&i!=9)assert(frame(side)[i]==(i==2?(uint8_t)((original_frame[side][i]&~0x90u)|0x80u):original_frame[side][i]));
  }
- puts("PASS confirmed MASTER tuple/100ms expiry; UNKNOWN, pending, future and direct-deck-only do not assert; native restoration exact except owned sequence/CRC");
+ puts("PASS confirmed MASTER tuple/100ms expiry; UNKNOWN, pending, future and direct-deck-only do not assert; native restoration exact except quad badge presentation and owned sequence/CRC");
 }
 static double bench_elapsed(struct timespec begin,struct timespec end){return (end.tv_sec-begin.tv_sec)*1000000.+(end.tv_nsec-begin.tv_nsec)/1000.;}
 static void benchmark(void){

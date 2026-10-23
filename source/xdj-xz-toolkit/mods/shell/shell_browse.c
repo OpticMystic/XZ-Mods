@@ -27,10 +27,10 @@ enum { SH_RAIL_SEL=XZ_FLAGSHIP_RAIL_SELECTED, SH_TILE=XZ_FLAGSHIP_TILE, SH_UNAVA
    this module has not started yet. Everything else a list needs between
    events is here: one shell drives these screens at a time. */
 enum target { T_NONE, T_LIST, T_RAIL, T_KEY, T_OTHER };
-enum { FOCUS_LIST=1, FOCUS_RAIL=2 };
+enum { FOCUS_LIST=1, FOCUS_RAIL=2, FOCUS_KEYBOARD=3, FOCUS_FIELD=4 };
 static struct {
  int touched, jump, pressed;
- int hide_preview, side_open, keyboard_hidden;
+ int hide_preview, side_open, keyboard_hidden, key_cursor;
  char query[XZ_SHELL_BROWSE_QUERY];
  int32_t last_request;
  int rail_first, rail_cursor;
@@ -440,12 +440,12 @@ static void render_field(const struct xz_shell *u, const struct xz_shell_model *
  int open=keyboard_shown(u);
  int x=r.x,y=5,w=r.w,h=28;
  xz_rect(c,x,y,w,h,SH_BLACK);
- xz_border(c,x,y,w,h,open?SH_BLUE:0x6a6a6a);
+ xz_border(c,x,y,w,h,top_view(u)->focus==FOCUS_FIELD?SH_WHITE:open?SH_BLUE:0x6a6a6a);
  xz_ring(c,x+13,y+12,5,1,SH_DIM);
  xz_line16(c,(x+17)*16,(y+16)*16,(x+21)*16,(y+20)*16,32,SH_DIM);
  int tx=x+28,room=w-28-10;
  const char *q=st.query;
- if(!*q){sh_text(c,tx,y+8,"Type to search",SH_TEXT,0x6a6a6a);}
+ if(!*q){sh_text_fit(c,tx,y+8,room,open?"TURN + PUSH TO TYPE":"TURN LEFT / PUSH TO TYPE",SH_SMALL,0x6a6a6a);}
  else{
   /* Show the end of a long query: that is where typing happens. */
   while(*q&&sh_text_width(c,q,SH_TEXT)>room)q++;
@@ -1565,6 +1565,11 @@ static void render_keyboard(const struct xz_shell *u, struct xz_canvas c, const 
   uint32_t fill=v->pressed==i?SH_BLUE:keys[i].code==KB_SEARCH?SH_BLUE:special?SH_RAIL:SH_TILE;
   if(v->pressed==i&&keys[i].code==KB_SEARCH)fill=SH_WHITE;
   xz_rect(c,r.x,r.y,r.w,r.h,fill);
+  if(xz_shell_screen(u)==XZ_SHELL_SEARCH&&!panel_open(u)&&
+     (!top_view(u)->focus||top_view(u)->focus==FOCUS_KEYBOARD)&&i==(!top_view(u)->focus?0:st.key_cursor)){
+   xz_border(c,r.x,r.y,r.w,r.h,SH_WHITE);
+   xz_border(c,r.x+1,r.y+1,r.w-2,r.h-2,SH_WHITE);
+  }
   uint32_t ink=fill==SH_WHITE?SH_BLUE:SH_WHITE;
   const char *label=keys[i].code==KB_SEARCH&&naming(u)?"SAVE":keys[i].label;
   if(special)sh_text_center(c,r.x+r.w/2,r.y+(r.h-SH_CAP_SMALL)/2,label,SH_SMALL,ink);
@@ -1691,14 +1696,14 @@ static void remember(const struct xz_shell_browse_model *b, enum xz_shell_screen
  st.memory[k].cursor=v->cursor;st.memory[k].scroll=v->scroll;
 }
 static void begin(struct xz_shell_view *v, const struct xz_shell_browse_model *b, enum xz_shell_screen s) {
- v->focus=s==XZ_SHELL_BROWSE?FOCUS_RAIL:FOCUS_LIST;
+ v->focus=s==XZ_SHELL_BROWSE?FOCUS_RAIL:s==XZ_SHELL_SEARCH?FOCUS_KEYBOARD:FOCUS_LIST;
  if(s==XZ_SHELL_BROWSE){
   int entries[RAIL_MAX],n=0;
   if(b)for(int k=0;k<XZ_SHELL_CAT_COUNT;k++)if((b->category_known>>k)&1)entries[n++]=k;
   st.rail_cursor=rail_current(b,entries,n);rail_follow(n);
  }
  st.touched=-1;st.jump=0;st.pressed=-1;st.target=T_NONE;st.confirm=0;st.dragging=0;
- st.last_request=-1;st.keyboard_hidden=0;
+ st.last_request=-1;st.keyboard_hidden=0;st.key_cursor=0;
  if(remembered(b,s)){v->cursor=st.memory[slot_of(s)].cursor;v->scroll=st.memory[slot_of(s)].scroll;}
 }
 static void reset_view(struct xz_shell_view *v) { v->cursor=v->scroll=0;st.touched=-1;st.last_request=-1; }
@@ -1913,7 +1918,7 @@ static size_t type_key(struct xz_shell_view *v, int i, struct xz_shell_action ou
  switch(keys[i].code){
  case KB_DEL:if(!len)return n;st.query[len-1]=0;break;
  case KB_CLEAR:if(!len)return n;st.query[0]=0;break;
- case KB_SEARCH:st.keyboard_hidden=1;return n;
+ case KB_SEARCH:st.keyboard_hidden=1;v->focus=FOCUS_LIST;return n;
  default:
   if(len+1>=sizeof st.query)return n;
   st.query[len]=keys[i].code;st.query[len+1]=0;
@@ -1964,7 +1969,10 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
    return n;
   }
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER_CHIP,0),x,y)){memset(&u->filter,0,sizeof u->filter);return apply_filter(u,out,n);}
-  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_FIELD,0),x,y)){st.keyboard_hidden=!st.keyboard_hidden;follow_cursor(v,xz_shell_browse_rows_visible(u));return n;}
+  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_FIELD,0),x,y)){
+   st.keyboard_hidden=!st.keyboard_hidden;v->focus=st.keyboard_hidden?FOCUS_LIST:FOCUS_KEYBOARD;
+   follow_cursor(v,xz_shell_browse_rows_visible(u));return n;
+  }
   return n;
  }
  for(int d=0;d<sh_deck_count(m);d++)if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_STRIP,d),x,y)){
@@ -1979,6 +1987,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
  if(keyboard_shown(u)&&y>=KB_Y){
   for(int i=0;i<XZ_SHELL_BROWSE_KEYS;i++)if(sh_inside(key_rect(i),x,y)){
    st.target=T_KEY;st.pressed=i;
+   if(s==XZ_SHELL_SEARCH&&!naming(u)){v->focus=FOCUS_KEYBOARD;st.key_cursor=i;}
    return naming(u)?type_name(u,m,i,out,n):type_key(v,i,out,n);
   }
   return n;
@@ -2097,6 +2106,10 @@ size_t sh_browse_back_step(struct xz_shell *u, const struct xz_shell_model *m, s
  if((u->panel.kind==XZ_SHELL_PANEL_FILTER||u->panel.kind==XZ_SHELL_PANEL_MY_SETTINGS)&&u->panel.armed){u->panel.armed=0;return 0;}
  if(u->panel.kind!=XZ_SHELL_PANEL_NONE){close_panel(u);return 0;}
  if(st.jump){st.jump=0;return 0;}
+ if(s==XZ_SHELL_SEARCH){
+  if(!v->focus)begin(v,m->browse,s);
+  if(v->focus==FOCUS_KEYBOARD){st.keyboard_hidden=1;v->focus=FOCUS_LIST;return 0;}
+ }
  if(list_screen(s)&&matches(m->browse,s)&&depth_of(m->browse)>0&&!source_absent(m,s)){
   if(!v->focus)begin(v,m->browse,s);
   return up(v,s,out,0);
@@ -2147,6 +2160,38 @@ static size_t list_input(struct xz_shell *u, const struct xz_shell_model *m, con
   v->cursor=u->grab.to;
   follow_cursor(v,xz_shell_browse_rows_visible(u));
   return request_window(b,s,v,xz_shell_browse_rows_visible(u),out,0);
+ }
+ /* SEARCH owns the encoder while its keyboard or query field has focus.
+    The field is one step left of result zero; push returns to typing.
+    Never require HOLD here: the physical decoder emits PUSH before HOLD. */
+ if(s==XZ_SHELL_SEARCH&&!panel_open(u)&&!u->grab.active){
+  if(v->focus==FOCUS_FIELD){
+   if(e->kind==XZ_SHELL_ENCODER_PUSH){
+    st.keyboard_hidden=0;v->focus=FOCUS_KEYBOARD;st.jump=0;
+    follow_cursor(v,SEARCH_ROWS);return 0;
+   }
+   if(e->kind==XZ_SHELL_ENCODER_TURN){
+    if(e->delta<=0)return 0;
+    v->focus=FOCUS_LIST;
+    n=turn(u,m,e->delta-1,out,0);
+    return request_window(b,s,v,xz_shell_browse_rows_visible(u),out,n);
+   }
+   if(e->kind==XZ_SHELL_ENCODER_HOLD)return 0;
+  }
+  if(v->focus==FOCUS_LIST&&!st.jump&&e->kind==XZ_SHELL_ENCODER_TURN&&
+     (int64_t)v->cursor+e->delta<0){
+   v->cursor=v->scroll=0;v->focus=FOCUS_FIELD;st.touched=-1;
+   st.keyboard_hidden=1;return 0;
+  }
+  if(v->focus==FOCUS_KEYBOARD){
+   if(e->kind==XZ_SHELL_ENCODER_TURN){
+    int64_t at=(int64_t)st.key_cursor+e->delta;
+    st.key_cursor=at<0?0:at>=XZ_SHELL_BROWSE_KEYS?XZ_SHELL_BROWSE_KEYS-1:(int)at;
+    return 0;
+   }
+   if(e->kind==XZ_SHELL_ENCODER_PUSH)return type_key(v,st.key_cursor,out,0);
+   if(e->kind==XZ_SHELL_ENCODER_HOLD)return 0;
+  }
  }
  if(source_absent(m,s)&&e->kind!=XZ_SHELL_TOUCH_DOWN)return 0;
  if(rail_focused(u)&&(e->kind==XZ_SHELL_ENCODER_TURN||e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_ENCODER_HOLD)){

@@ -212,8 +212,15 @@ void xz_ui_navigate(struct xz_ui *u,enum xz_ui_page page){
  if(!u||(unsigned)page>=XZ_UI_PAGE_COUNT||u->page==page)return;
  if(root_page(page))u->history_count=0;
  else{
-  if(u->history_count==16){memmove(u->history,u->history+1,15*sizeof(*u->history));u->history_count=15;}
-  u->history[u->history_count++]=u->page;
+  /* DONE / CANCEL may navigate to an ancestor already in the menu trail.
+     Returning there removes the editor instead of making BACK reopen it. */
+  int ancestor=-1;
+  for(unsigned i=0;i<u->history_count;i++)if(u->history[i]==page){ancestor=(int)i;break;}
+  if(ancestor>=0)u->history_count=(unsigned)ancestor;
+  else{
+   if(u->history_count==16){memmove(u->history,u->history+1,15*sizeof(*u->history));u->history_count=15;}
+   u->history[u->history_count++]=u->page;
+  }
  }
  u->page=page;u->capture=-1;u->notice[0]=0;u->focus_kind=XZ_UI_NONE;u->adjusting=0;u->profile_open=0;
 }

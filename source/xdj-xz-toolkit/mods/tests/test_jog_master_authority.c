@@ -71,12 +71,12 @@ int main(void){
   setup(side,0,XZ_MASTER_UNKNOWN);settled(side);
   for(unsigned i=0;i<148;i++){
    if(i==8||i==9||i>=144)continue;
-   check(frame(side)[i]==original_frame[side][i],"unknown authority preserves native frame",side,observed.deck);
+   check(frame(side)[i]==(i==2?(uint8_t)((original_frame[side][i]&~0x90u)|0x80u):original_frame[side][i]),"unknown authority preserves native frame",side,observed.deck);
   }
   setup(side,0,(int)(side^1u));settled(side);
   for(unsigned i=0;i<148;i++){
    if(i==8||i==9||i>=144||i==0x56||i==12+(5^3))continue;
-   check(frame(side)[i]==original_frame[side][i],"native overlay touches only MASTER",side,observed.deck);
+   check(frame(side)[i]==(i==2?(uint8_t)((original_frame[side][i]&~0x90u)|0x80u):original_frame[side][i]),"native overlay touches only MASTER",side,observed.deck);
   }
  }
  const uint32_t times[]={10000,0,0xffffffffu};

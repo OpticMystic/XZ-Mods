@@ -48,6 +48,9 @@ static void start(const char *name,int decks,enum xz_shell_screen screen) {
     /* First real encoder event initializes the screen; BROWSE starts on its
      * current category rail, whose push enters the track list. */
     turn(0);if(screen==XZ_SHELL_BROWSE)push();
+    /* These return/LOAD stories start on results. SEARCH initially focuses
+     * its keyboard; BACK dismisses it in one press before browsing results. */
+    if(screen==XZ_SHELL_SEARCH)key(XZ_SHELL_KEY_BACK,-1);
 }
 static void finish(void) { printf("{\"workflow\":\"%s\",\"steps\":%u,\"failures\":%u}\n",story,steps,case_failures); }
 static int same_view(struct xz_shell_view a,struct xz_shell_view b) { return a.screen==b.screen&&a.cursor==b.cursor&&a.scroll==b.scroll&&a.focus==b.focus; }
@@ -103,7 +106,7 @@ static void tap_key(const char *label) {
     send_event((struct xz_shell_event){XZ_SHELL_TOUCH_DOWN,r.x+r.w/2,r.y+r.h/2,0,0,-1});send_event((struct xz_shell_event){XZ_SHELL_TOUCH_UP,r.x+r.w/2,r.y+r.h/2,0,0,-1});
 }
 static void search_workflow(void) {
-    start("SEARCH_query_LOAD_return_next",4,XZ_SHELL_SEARCH);tap_key("N");tap_key("E");CHECK(!strcmp(xz_shell_browse_query(),"NE"));turn(12);struct xz_shell_view saved=view();
+    start("SEARCH_query_LOAD_return_next",4,XZ_SHELL_SEARCH);turn(-1);push();tap_key("N");tap_key("E");CHECK(!strcmp(xz_shell_browse_query(),"NE"));tap_key("SEARCH");turn(12);struct xz_shell_view saved=view();
     load_track(4,0);key(XZ_SHELL_KEY_BACK,-1);CHECK(same_view(view(),saved));CHECK(!strcmp(xz_shell_browse_query(),"NE"));turn(1);CHECK(view().cursor==13);finish();
 }
 static void removal_workflows(void) {
