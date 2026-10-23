@@ -244,10 +244,12 @@ static void adopt_wave(unsigned index,uint32_t session){
  struct jd_side_runtime *side=&jd_side[index];const struct xz_extra_deck *d=&side->cache.deck;
  struct xz_extra_wave_key key=sample_wave_key(d);
  if(!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE))||!key.column_count||!media_current(&key)){side->have_wave=0;return;}
- /* The LCD maps the whole overview onto INFO length. Permit one analysis
-    column of endpoint rounding, never stretch mismatched analysis to a track. */
+ /* The LCD maps the reduced overview onto INFO length. Bound endpoint
+    disagreement by one represented column, rather than one high-resolution
+    analysis sample. Exact load/media/content identity is checked separately. */
  uint64_t span=key.span_ms,total=d->total_ms>0?(uint32_t)d->total_ms:0;
- uint64_t tolerance=(span+key.column_count-1u)/key.column_count;
+ uint64_t bins=key.column_count<XZ_JD_OVERVIEW_COLUMNS?key.column_count:XZ_JD_OVERVIEW_COLUMNS;
+ uint64_t tolerance=(span+bins-1u)/bins;
  if(!span||!total||(span>total?span-total:total-span)>tolerance){side->have_wave=0;return;}
  if(side->have_wave&&same_wave_key(&side->wave_key,&key))return;
  side->have_wave=0;struct jd_wave_slot *slot=&jd_wave_slot[index];

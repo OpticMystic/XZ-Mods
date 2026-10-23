@@ -336,7 +336,6 @@ struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *d, const struct x
  if(row->path==XZ_DS_PATH_GLOBAL){if(away)out.verdict=XZ_DS_SWALLOW;return out;}
  if(row->kind==XZ_EXTRA_IN_VINYL_SPEED){
   if(k->op!=XZ_DS_OP_FADER||!isfinite(k->value)||k->value<0||k->value>1){if(away)out.verdict=XZ_DS_SWALLOW;return out;}
-  if(!d->route_up)return out;
   deliver(&out,k->side,XZ_EXTRA_IN_VINYL_SPEED,k);out.event.tempo_position=fader_position(k->value*2.f-1.f);
   out.also_stock=!away;return out;
  }

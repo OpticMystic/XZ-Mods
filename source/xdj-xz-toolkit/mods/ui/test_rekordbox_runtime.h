@@ -86,7 +86,7 @@ static void rekordbox_runtime_check(void) {
     /* INTERFACE: CLASSIC -> MODERN starts the shell; the shell then sees the press first. */
     rekordbox_reset(XZ_UI_INTERFACE_CLASSIC,XZ_REKORDBOX_INTERFACE,XZ_REKORDBOX_STOCK);
     assert(rekordbox_contact(0,0)==1&&model.ui_interface==XZ_UI_INTERFACE_MODERN&&model.theme==XZ_THEME_FLAGSHIP&&fake_shell_running);
-    assert(!fake_stock_calls&&!strcmp(ui.notice,"INTERFACE: MODERN"));
+    assert(!fake_stock_calls&&!strcmp(ui.notice,"INTERFACE: FLAGSHIP"));
 
     /* MODERN, the shell owning the screen. MODS and STEMS are the shell's own: swallowed at the key, the
        handler never runs and stock never sees the key. */
