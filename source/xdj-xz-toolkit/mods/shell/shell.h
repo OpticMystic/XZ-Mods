@@ -445,6 +445,10 @@ struct xz_shell_browse_return {
  uint32_t list_id;
  char source[64];
 };
+struct xz_shell_key_frame {
+ uint32_t projection; /* semantic view/pair token, not a physical presentation acknowledgement */
+ struct { int x,y,w,h; } key[XZ_SHELL_DECKS];
+};
 struct xz_shell {
  struct xz_shell_view stack[XZ_SHELL_STACK];
  int depth;
@@ -481,6 +485,7 @@ struct xz_shell {
     model.notice; the runtime may also read it as the reason for a hand-off. */
  const char *notice;
  uint32_t notice_at_ms;
+ struct xz_shell_key_frame key_frame; /* last successfully rendered C buffer; value-owned for copy probes */
 };
 
 void xz_shell_init(struct xz_shell *);
@@ -489,6 +494,9 @@ enum xz_shell_screen xz_shell_screen(const struct xz_shell *);
 size_t xz_shell_input(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 /* 0 when pixels is NULL or stride < XZ_SHELL_WIDTH. */
 int xz_shell_render(const struct xz_shell *, const struct xz_shell_model *, uint16_t *pixels, size_t stride);
+/* Interactive frame: publish input geometry only after a successful complete C render.
+ * The pure renderer above remains available for previews and pixel comparisons. */
+int xz_shell_render_frame(struct xz_shell *, const struct xz_shell_model *, uint16_t *pixels, size_t stride);
 const char *xz_shell_screen_name(enum xz_shell_screen);
 /* Restores a persisted shell-owned setting (id as in its SET_SETTING; value as sent, for the zoom item
    the zoom level). Returns 0 and changes nothing for any other id or an out-of-range value. */
@@ -511,6 +519,11 @@ enum xz_shell_play_region {
    deck_count remain unchanged; only play_view_count selects geometry. */
 void xz_shell_play_projection(const struct xz_shell *, const struct xz_shell_model *, struct xz_shell_model *);
 int xz_shell_play_key_deck(const struct xz_shell *, const struct xz_shell_model *, int x, int y);
+/* Current projection must match the last rendered key frame. Zero means no published/matching PLAY view.
+ * key_deck returns -2 for an old key rectangle awaiting a replacement frame, -1 for no key. */
+uint32_t xz_shell_play_key_frame(const struct xz_shell *, const struct xz_shell_model *);
+/* Selection encoded by the published semantic projection, side 0 or 1. */
+static inline int xz_shell_key_frame_selected(uint32_t projection,int side){return side+2*(int)((projection>>(4+side))&1u);}
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *, enum xz_shell_play_region, int deck);
 /* A deck's stem row on PLAY for the model's stem layout (zero size when hidden or not read); the
    waveform takes the rest of the deck's lane. ZOOM/GRID and the GRID buttons move clear of it. In the

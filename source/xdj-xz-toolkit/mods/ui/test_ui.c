@@ -81,6 +81,8 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  for(int deck=0;deck<2;deck++){
   struct xz_play_key play;xz_play_key_open(&play,deck);xz_play_key_touch(&play,m,0,0,0,&result);
   m->deck[deck].ready|=XZ_UI_KEY|XZ_UI_KEYSYNC;
+  struct xz_play_key_view key_view;xz_play_key_view(&play,m,NULL,&key_view);
+  xz_play_key_render(&play,&key_view,frame,800);xz_play_key_published(&play,&play);
   for(int button=0;button<4;button++){
    w=xz_play_key_button(button);assert(!xz_play_key_touch(&play,m,w.x+10,w.y+10,1,&result));
    assert(xz_play_key_touch(&play,m,0,0,0,&result)&&result.deck==deck);

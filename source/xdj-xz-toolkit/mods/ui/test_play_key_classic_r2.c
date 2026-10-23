@@ -59,6 +59,7 @@ int main(int argc,char **argv){
    int deck=side+2*((pair>>side)&1);assert(classic_keys.deck[side]==deck);
    struct xz_key_strip_box b=xz_classic_key_box(side);int requests=fixture_key_requests;
    tap_xy(b.x+b.w/2,b.y+b.h/2);assert(play_key.open&&play_key.deck==deck&&play_key.classic_side==side);
+    paint_runtime_key_fixture();
    if(images&&theme==0&&feedback&&pair==0&&order==XZ_FOUR_STACKED){
     struct xz_play_key_view v;play_key_view_locked(&v);memcpy(popup,rendered,sizeof popup);xz_play_key_render(&play_key,&v,popup,800);
     save(images,side?"classic-four-native-deck2-key-controls":"classic-four-native-deck1-key-controls",popup);
@@ -72,8 +73,10 @@ int main(int argc,char **argv){
     for(int i=0;i<4;i++){struct xz_ui_widget w=xz_play_key_button(i);assert(popup[(w.y+w.h-3)*800+w.x+w.w-3]==bg);}
     press_button(3);assert(fixture_key_requests==requests);
     press_button(4);assert(play_key.setup);play_key_view_locked(&v);assert(v.native_engine==1);
+    paint_runtime_key_fixture();
     press_button(4);assert(play_key.deck==deck&&fixture_key_requests==requests); /* actual capability recheck, no install */
     press_button(side);assert(play_key.deck==side&&!play_key.setup&&play_key.classic_side==-1);
+    paint_runtime_key_fixture();
     press_button(2);assert(fixture_key_cents[side]==100&&fixture_key_requests==requests+1);press_button(1);
    }
    back_key();assert(!play_key.open);
@@ -104,7 +107,7 @@ int main(int argc,char **argv){
   * actually unavailable and an explicit native choice stays gated. */
  reset(0);native_four=XZ_FOUR_MIXER;fixture_extra.left_on_3=1;fixture_extra.deck[0].known=0;key_available=0;
  render_classic_key_fixture();tap_xy(20,130);struct xz_play_key_view v;play_key_view_locked(&v);assert(!strcmp(v.key,"---")&&v.native_engine==0);
- press_button(4);press_button(0);requests=fixture_key_requests;press_button(2);assert(fixture_key_requests==requests);
+ press_button(4);paint_runtime_key_fixture();press_button(0);paint_runtime_key_fixture();requests=fixture_key_requests;press_button(2);assert(fixture_key_requests==requests);
  /* A blank or non-PLAY render does not create a hidden key touch target. */
  reset(0);native_four=XZ_FOUR_STACKED;memset(rendered,0,sizeof rendered);assert(xz_mods_render_v1(rendered,800,480,800,NULL)&&!classic_keys.shown);
  tap_xy(20,130);assert(!play_key.open);native_play=0;stock_key_fixture(rendered);assert(xz_mods_render_v1(rendered,800,480,800,NULL)&&!classic_keys.shown);
@@ -113,6 +116,7 @@ int main(int argc,char **argv){
  reset(1);static struct fx_track track;fx_track_build(&track,7);fx_model_four(&key_model,&track);
  key_model.deck[0].key="Cm";key_model.deck[0].key_original="Cm";key_model.deck[1].key="Am";key_model.deck[1].key_original="Am";
  key_shell.play_decks=2;key_model.sides_extra=3;
+ fixture_extra.left_on_3=fixture_extra.right_on_4=1;paint_runtime_key_fixture();
  struct xz_shell_model projected;xz_shell_play_projection(&key_shell,&key_model,&projected);
  struct xz_shell_rect key=xz_shell_play_rect(&projected,XZ_SHELL_R_KEY,2);tap_xy(key.x+8,key.y+8);
  assert(play_key.open&&play_key.deck==2);play_key_view_locked(&v);assert(!strcmp(v.key,"8A")&&v.native_engine==1);

@@ -7,14 +7,27 @@
 
 /* Transient PLAY controls. The engine still owns readiness and applied key text.
  * No settings, native addresses, software-player commands or new action IDs. */
-struct xz_play_key { int open, deck, down, capture, cancelled, setup, step, classic_side; };
+struct xz_play_key {
+ int open,deck,down,capture,cancelled,setup,step;
+ int classic_side,selected_deck; /* implicit side/selection for either host; -1 side after explicit choice */
+ uint32_t source_frame; /* MODERN implicit origin; zero after an explicit native choice */
+ uint64_t instance,revision,painted_revision,contact_revision;
+};
 struct xz_play_key_view {
  uint32_t ready,native_ready[2]; int theme,synced,native_engine,native_sync;
  char key[48],notice[128],native_key[2][48];
 };
 enum { XZ_PLAY_KEY_X=124, XZ_PLAY_KEY_Y=84, XZ_PLAY_KEY_W=620, XZ_PLAY_KEY_H=276 };
 static inline void xz_play_key_open(struct xz_play_key *p,int deck){
- *p=(struct xz_play_key){.open=1,.deck=deck,.down=1,.capture=-1,.classic_side=-1};
+ *p=(struct xz_play_key){.open=1,.deck=deck,.down=1,.capture=-1,.classic_side=-1,.revision=1};
+}
+static inline void xz_play_key_changed(struct xz_play_key *p){p->revision++;p->painted_revision=0;}
+/* Called by the host only after this exact popup state was drawn successfully.
+ * A render of an old copy must never authorize a newer choice or popup instance. */
+static inline void xz_play_key_published(struct xz_play_key *live,const struct xz_play_key *painted){
+ if(live->open&&painted->open&&live->instance==painted->instance&&live->revision==painted->revision&&
+    live->deck==painted->deck&&live->setup==painted->setup&&live->step==painted->step)
+  live->painted_revision=painted->revision;
 }
 static inline void xz_play_key_view(const struct xz_play_key *p,const struct xz_ui_model *m,const char *notice,struct xz_play_key_view *v){
  memset(v,0,sizeof *v);v->theme=m->theme;v->native_engine=-1;
@@ -51,7 +64,10 @@ static inline int xz_play_key_touch(struct xz_play_key *p,const struct xz_ui_mod
  int hit=xz_play_key_hit(x,y);
  if(down){
   if(!p->down){
-   p->capture=hit;p->cancelled=0;
+   p->capture=hit;p->cancelled=0;p->contact_revision=p->revision;
+   int native=hit>=0&&hit<4&&p->deck<2&&!p->setup;
+   int choice=hit>=0&&hit<2&&p->deck>1&&p->setup;
+   if((native||choice)&&p->painted_revision!=p->revision)p->capture=-1;
    if(x<XZ_PLAY_KEY_X||x>=XZ_PLAY_KEY_X+XZ_PLAY_KEY_W||y<XZ_PLAY_KEY_Y||y>=XZ_PLAY_KEY_Y+XZ_PLAY_KEY_H)p->open=0;
   }else if(hit!=p->capture)p->cancelled=1;
   p->down=1;return 0;
@@ -59,23 +75,25 @@ static inline int xz_play_key_touch(struct xz_play_key *p,const struct xz_ui_mod
  if(!p->down)return 0;
  p->down=0;
  int at=p->capture;p->capture=-1;
- if(p->cancelled||at<0||((x||y)&&hit!=at))return 0;
+ if(p->cancelled||at<0||p->contact_revision!=p->revision||((x||y)&&hit!=at))return 0;
  if(at==5){p->open=0;return 0;}
  if(p->deck>1){
-  if(at==4){p->setup=1;return 0;}
-  if(p->setup&&at<2){p->deck=at;p->setup=0;p->classic_side=-1;}
+  if(at==4){if(!p->setup){p->setup=1;xz_play_key_changed(p);}return 0;}
+  if(p->setup&&at<2&&p->painted_revision==p->revision){
+   p->deck=at;p->setup=0;p->classic_side=-1;p->source_frame=0;xz_play_key_changed(p);
+  }
   return 0;
  }
  uint32_t ready=p->deck>=0&&p->deck<2?m->deck[p->deck].ready:0;
  if(at==4){
   if(p->deck<0||p->deck>3)return 0;
   if(!p->setup&&(ready&(XZ_UI_KEY|XZ_UI_KEYSYNC))==(XZ_UI_KEY|XZ_UI_KEYSYNC))return 0;
-  if(!p->setup){p->setup=1;p->step=0;return 0;}
-  if(p->step<3)p->step++;
-  else if((ready&(XZ_UI_KEY|XZ_UI_KEYSYNC))==(XZ_UI_KEY|XZ_UI_KEYSYNC)){p->setup=0;return 0;}
+  if(!p->setup){p->setup=1;p->step=0;xz_play_key_changed(p);return 0;}
+  if(p->step<3){p->step++;xz_play_key_changed(p);}
+  else if((ready&(XZ_UI_KEY|XZ_UI_KEYSYNC))==(XZ_UI_KEY|XZ_UI_KEYSYNC)){p->setup=0;xz_play_key_changed(p);return 0;}
   *out=(struct xz_ui_action){.kind=XZ_UI_KEY_CHECK,.phase=XZ_UI_PRESS,.deck=p->deck};return 1;
  }
- if(p->setup||!xz_play_key_ready(p,ready,at))return 0;
+ if(p->setup||p->painted_revision!=p->revision||!xz_play_key_ready(p,ready,at))return 0;
  *out=(struct xz_ui_action){.kind=at==3?XZ_UI_KEY_SYNC:XZ_UI_KEY_SHIFT,.phase=XZ_UI_PRESS,.deck=p->deck,.index=at==3?0:at-1,.value=at==3?1.f:(float)(at-1)};
  return 1;
 }

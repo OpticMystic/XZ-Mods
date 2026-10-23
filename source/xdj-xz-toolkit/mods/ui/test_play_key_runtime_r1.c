@@ -4,6 +4,7 @@
 #include "test_runtime_controls.c"
 #undef main
 #include "../shell/shell_internal.h"
+#include "native_palette.h"
 
 /* Only the memory reads already used by key_player() succeed. No real memory,
  * device, USB, network or native functions are accessed by this host test. */
@@ -29,13 +30,21 @@ static struct xz_shell_model key_model;
 static struct xz_extra_decks fixture_extra;
 static int fixture_extra_ok=1;
 int xz_extra_decks_snapshot(struct xz_extra_decks *out){if(!fixture_extra_ok)return 0;*out=fixture_extra;return 1;}
-int xz_shell_runtime_key_deck(int x,int y){return xz_shell_play_key_deck(&key_shell,&key_model,x,y);}
-static int fake_idle,frame_calls;
+int xz_shell_runtime_key_hit(int x,int y,uint32_t *frame){
+ int deck=xz_shell_play_key_deck(&key_shell,&key_model,x,y);
+ *frame=deck>=0?xz_shell_play_key_frame(&key_shell,&key_model):0;return deck;
+}
+uint32_t xz_shell_runtime_key_frame(void){return xz_shell_play_key_frame(&key_shell,&key_model);}
+static int fake_idle,frame_calls,fake_frame_skip,fake_frame_hold_ui,fake_frame_switch_side;
 int xz_shell_runtime_idle(void){return fake_idle;}
 int xz_shell_runtime_frame(uint16_t *pixels,size_t stride,const struct xz_shell_runtime_frame_input *in){
  if(!fake_shell_running||!fake_owns)return 0;
  assert(in->key_controls_open==play_key.open);frame_calls++;
- return xz_shell_render(&key_shell,&key_model,pixels,stride);
+ if(fake_frame_skip)return -1;
+ int rendered=xz_shell_render_frame(&key_shell,&key_model,pixels,stride);
+ if(fake_frame_switch_side)fixture_extra.left_on_3=1;
+ if(fake_frame_hold_ui)pthread_mutex_lock(&ui_mutex);
+ return rendered;
 }
 static int mt_calls,mt_deck,mt_value;
 static int mt_set(void *player,int on){mt_calls++;mt_deck=(uintptr_t)player==0x230000?0:1;mt_value=on;return 0;}
@@ -45,7 +54,7 @@ static void press_button(int which){struct xz_ui_widget w=xz_play_key_button(whi
 static void back_key(void){unsigned char input[16]={0};input[8]=8;input[9]=0x42;menu_back_key_hook(NULL,input);input[11]=2;menu_back_key_hook(NULL,input);}
 static void reset(int interface){
  memset(solver,0,sizeof solver);memset(&play_key,0,sizeof play_key);memset(key_sync,0,sizeof key_sync);play_key_visible=0;
- classic_keys.shown=0;classic_key_visible=0;fixture_extra_ok=1;memset(&fixture_extra,0,sizeof fixture_extra);fixture_extra.route_up=1;
+ classic_keys.shown=0;classic_key_visible=0;play_key_raw_down=0;play_key_dirty=0;fake_idle=0;fake_frame_skip=fake_frame_hold_ui=fake_frame_switch_side=0;fixture_extra_ok=1;memset(&fixture_extra,0,sizeof fixture_extra);fixture_extra.route_up=1;
  for(int d=0;d<2;d++){fixture_extra.deck[d].loaded=1;fixture_extra.deck[d].known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY);snprintf(fixture_extra.deck[d].key,8,"%s",d?"Gm":"8A");}
  rekordbox_reset(interface,XZ_REKORDBOX_MODS,XZ_REKORDBOX_STOCK);xz_ui_init(&ui);xz_ui_init(&inline_ui);
  started=key_available=1;native_master_tempo_on=mt_set;native_play=native_active=1;native_four=-1;stock_touch=stock;
@@ -66,9 +75,19 @@ static void render_classic_key_fixture(void){
  static uint16_t pixels[800*480];stock_key_fixture(pixels);assert(xz_mods_render_v1(pixels,800,480,800,NULL));
  assert(classic_keys.shown==3);
 }
+static void paint_runtime_key_fixture(void){
+ static uint16_t pixels[800*480];if(!model.ui_interface){
+  stock_key_fixture(pixels);
+  for(size_t i=0;i<800*480;i++)pixels[i]=xz_native_palette_pixel(model.theme,pixels[i]);
+ }
+ assert(xz_mods_render_v1(pixels,800,480,800,NULL));
+}
 static void actions(int interface,int deck,int x,int y){
+ if(interface)paint_runtime_key_fixture();
  int before=fixture_key_requests;
  tap_xy(x,y);assert(play_key.open&&play_key.deck==deck&&!stock_calls);
+ /* The fixture must draw the opened controls before sending key gestures. */
+ paint_runtime_key_fixture();
  press_button(2);assert(fixture_key_requests==before+1&&fixture_key_cents[deck]==100);
  press_button(0);assert(fixture_key_cents[deck]==0);
  press_button(0);assert(fixture_key_cents[deck]==-100);
@@ -80,6 +99,7 @@ static void actions(int interface,int deck,int x,int y){
  printf("PASS actual %s touch_hook -> popover -> apply -> key engine requests: local deck %d KEY-/RESET/KEY+/SYNC toggle and BACK\n",interface?"MODERN":"CLASSIC",deck+1);
 }
 #ifndef XZ_PLAY_KEY_RUNTIME_NO_MAIN
+#include "test_key_publication_r4.h"
 int main(void){
  for(int interface=0;interface<2;interface++)for(int d=0;d<2;d++){
   reset(interface);
@@ -89,10 +109,12 @@ int main(void){
  reset(1);
  for(int view_mode=2;view_mode<=4;view_mode+=2)for(int sides=0;sides<4;sides++)for(int order=0;order<2;order++){
   key_shell.play_decks=view_mode;key_model.sides_extra=(uint8_t)sides;key_model.wave_order=order;
+  fixture_extra.left_on_3=sides&1;fixture_extra.right_on_4=(sides>>1)&1;paint_runtime_key_fixture();
   struct xz_shell_model view;xz_shell_play_projection(&key_shell,&key_model,&view);
   for(int d=0;d<4;d++){
    struct xz_shell_rect r=xz_shell_play_rect(&view,XZ_SHELL_R_KEY,d);if(!r.w)continue;
    int before=fixture_key_requests;tap_xy(8,r.y+12);assert(play_key.open&&play_key.deck==d);
+   paint_runtime_key_fixture();
    press_button(2);assert(fixture_key_requests==before+(d<2));
    if(d<2){assert(fixture_key_cents[d]==100);press_button(1);assert(fixture_key_cents[d]==0);}
    else{
@@ -106,7 +128,7 @@ int main(void){
  puts("PASS actual MODERN selected-pair/4-lane touch routing: all side assignments, both wave orders, no local-deck alias from software decks 3/4");
  reset(1);key_shell.play_decks=4;fake_idle=1;
  static uint16_t pixels[800*480],clean[800*480];
- assert(xz_shell_render(&key_shell,&key_model,clean,800));
+ assert(xz_shell_render_frame(&key_shell,&key_model,clean,800));
  struct xz_shell_model projected;xz_shell_play_projection(&key_shell,&key_model,&projected);
  struct xz_shell_rect first=xz_shell_play_rect(&projected,XZ_SHELL_R_KEY,0);tap_xy(8,first.y+8);
  frame_calls=0;assert(xz_mods_render_v1(pixels,800,480,800,NULL)&&frame_calls==1&&memcmp(pixels,clean,sizeof clean));
@@ -122,6 +144,7 @@ int main(void){
  back_key();assert(play_key.open&&!play_key.setup);back_key();assert(!play_key.open);
  reset(0);native_four=0;render_classic_key_fixture();actions(0,0,30,135);
  puts("PASS unknown/unanalysed keys: no engine request, working setup flow, failed live verify stays open; CLASSIC four-lane uses the rendered logical key slots");
+ r4_publication_regressions();
  return 0;
 }
 #endif

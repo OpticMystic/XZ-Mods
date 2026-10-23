@@ -397,3 +397,7 @@ int xz_shell_render(const struct xz_shell *u, const struct xz_shell_model *m, ui
  sh_header_buttons(m,c);
  return 1;
 }
+int xz_shell_render_frame(struct xz_shell *u,const struct xz_shell_model *m,uint16_t *pixels,size_t stride){
+ if(!xz_shell_render(u,m,pixels,stride))return 0;
+ sh_play_key_publish(u,m);return 1;
+}

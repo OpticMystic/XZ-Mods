@@ -269,10 +269,13 @@ static void test_reach_every_page(void) {
  for(int deck=0;deck<2;deck++){
   struct xz_shell play;xz_shell_init(&play);struct xz_shell_model view;
   xz_shell_play_projection(&play,&sm,&view);
+  assert(xz_shell_render_frame(&play,&sm,buffer+GUARD+STRIDE,STRIDE));
   struct xz_shell_rect r=xz_shell_play_rect(&view,XZ_SHELL_R_KEY,deck);
   assert(xz_shell_play_key_deck(&play,&sm,r.x+8,r.y+8)==deck);
   struct xz_play_key popup;xz_play_key_open(&popup,deck);struct xz_ui_action a;
   xz_play_key_touch(&popup,&um,0,0,0,&a);um.deck[deck].ready|=XZ_UI_KEY|XZ_UI_KEYSYNC;
+  struct xz_play_key_view key_view;xz_play_key_view(&popup,&um,NULL,&key_view);
+  xz_play_key_render(&popup,&key_view,buffer+GUARD+STRIDE,STRIDE);xz_play_key_published(&popup,&popup);
   for(int k=0;k<4;k++){struct xz_ui_widget w=xz_play_key_button(k);
    assert(!xz_play_key_touch(&popup,&um,w.x+8,w.y+8,1,&a));
    assert(xz_play_key_touch(&popup,&um,0,0,0,&a)&&a.deck==deck&&a.kind==(k==3?XZ_UI_KEY_SYNC:XZ_UI_KEY_SHIFT));
