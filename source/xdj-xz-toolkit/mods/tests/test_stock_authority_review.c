@@ -187,6 +187,62 @@ static void explicit_native(void){
  }
  end();
 }
+static void rapid_native_choice(unsigned deck){
+ observed.operator_epoch++;atomic_store(&control_operator,observed.operator_epoch);
+ observed.deck=(int)deck;observed.revision++;observed.request_epoch=0;observed.lease_generation=0;
+ sim_native.native_deck=deck;sim_native.source_revision++;sim_native.track_identity++;
+ xz_xp_native_master_selected(p,deck);advance(80);
+}
+static void rapid_reacquisition(void){
+ for(unsigned spacing=120;spacing<=1200;spacing+=1080){
+  begin("MASTER-change-during-phase-cooldown-retains-request");press(0,XZ_EXTRA_IN_QUANTIZE);
+  for(int d=0;d<2;d++){if(!view.deck[d].playing)press(d,XZ_EXTRA_IN_PLAY);press(d,XZ_EXTRA_IN_SYNC);}
+  advance(2200);CHECK(view.deck[0].sync.locked&&view.deck[1].sync.locked);
+  rapid_native_choice(1);advance(spacing);
+  unsigned before[2]={flushes(0),flushes(1)};
+  sim_native.anchor_phase+=.25;rapid_native_choice(0);
+  if(spacing<1000)for(int d=0;d<2;d++)CHECK(flushes(d)==before[d]);
+  advance(3000);
+  for(int d=0;d<2;d++){
+   CHECK(view.deck[d].sync.requested&&view.deck[d].playing);
+   CHECK(view.deck[d].sync.locked&&fabs(actual_native_sync_error(d))<=.002);
+   if(spacing<1000)CHECK(flushes(d)>before[d]);
+  }
+  end();
+ }
+}
+static int pending_clock_fault;
+static int pending_clock_sample(struct xz_sync_native_snapshot *out){
+ int copied=copy_sim_native(out);
+ switch(pending_clock_fault){
+ case 1:return 0;
+ case 2:out->manual=1;break;
+ case 3:out->native_deck=1;out->master_id=1;break;
+ case 4:out->captured_ms=clock_ms-151;break;
+ case 5:out->captured_ms=clock_ms+1;break;
+ case 6:out->track_identity=0;break;
+ case 7:out->source_revision=0;break;
+ case 8:out->bpm=NAN;break;
+ case 9:out->reason=XZ_SYNC_NATIVE_EXTERNAL_MASTER;break;
+ }
+ return copied;
+}
+static void pending_output_tempo(void){
+ for(int fault=0;fault<10;fault++){
+  begin("BPM-follow-independent-of-output-anchor-with-source-fences");press(0,XZ_EXTRA_IN_QUANTIZE);
+  for(int d=0;d<2;d++){if(!view.deck[d].playing)press(d,XZ_EXTRA_IN_PLAY);press(d,XZ_EXTRA_IN_SYNC);}
+  advance(2200);CHECK(view.deck[0].sync.locked&&view.deck[1].sync.locked);
+  position_blocked=1;advance(200);pending_clock_fault=fault;xz_xp_set_native_sync_clock(p,pending_clock_sample);
+  sim_native_set_bpm(132.);advance(40);
+  for(int d=0;d<2;d++){
+   CHECK(view.deck[d].sync.requested&&!view.deck[d].sync.locked);
+   CHECK(view.deck[d].tempo_x100==(fault?500:1000));
+  }
+  xz_xp_set_native_sync_clock(p,copy_sim_native);pending_clock_fault=0;position_blocked=0;advance(3000);
+  for(int d=0;d<2;d++)CHECK(view.deck[d].sync.locked&&fabs(actual_native_sync_error(d))<=.002);
+  end();
+ }
+}
 int main(int argc,char **argv){
  assert(argc==3);setvbuf(stdout,NULL,_IONBF,0);assert(!pthread_mutex_init(&f.lock,NULL));
  snprintf(fixtures,sizeof fixtures,"%s",argv[1]);snprintf(anlz_dir,sizeof anlz_dir,"%s/anlz",argv[1]);build_analysis();
@@ -199,5 +255,7 @@ int main(int argc,char **argv){
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"route"))route_retires_admission();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"age"))age_boundary();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"native-handoff"))native_handoff_after_confirmation();
+ if(!strcmp(argv[2],"all")||!strcmp(argv[2],"rapid-recovery"))rapid_reacquisition();
+ if(!strcmp(argv[2],"all")||!strcmp(argv[2],"pending-output"))pending_output_tempo();
  pthread_mutex_destroy(&f.lock);printf("RESULT authority cases=%u checks=%u failures=%u\n",cases,checks,failed);return failed?1:0;
 }
