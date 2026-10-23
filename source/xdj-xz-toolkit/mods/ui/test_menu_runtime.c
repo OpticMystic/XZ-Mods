@@ -151,11 +151,13 @@ static void games_return(void){
 /* BACK runs the panel's own BACK one level and never closes anything from a top page. */
 static void back_one_level(void){
     modern();open_tab(XZ_UI_SETTINGS);
-    activate(row_named("KEY SETUP"),-1);assert(ui.page==XZ_UI_KEY_SETUP);
-    activate(row_named("KEY FORMAT"),-1);assert(ui.page==XZ_UI_BROWSE_SETUP&&fake_menu.depth==2);
-    back();assert(ui.page==XZ_UI_KEY_SETUP&&panel_shut());
-    back();assert(ui.page==XZ_UI_SETTINGS&&panel_shut());
-    back();assert(ui.page==XZ_UI_SETTINGS&&panel_shut());   /* a top page: the shell's rail takes BACK */
+    for(int row=0;row<fake_menu.row_count;row++)assert(strcmp(fake_menu.row[row].label,"KEY SETUP"));
+    open_tab(XZ_UI_EXTRAS);
+    activate(row_named("NETWORK UPDATES"),-1);assert(ui.page==XZ_UI_UPDATES);
+    activate(row_named("NETWORK SETUP"),-1);assert(ui.page==XZ_UI_UPDATE_SETUP&&fake_menu.depth==2);
+    back();assert(ui.page==XZ_UI_UPDATES&&panel_shut());
+    back();assert(ui.page==XZ_UI_EXTRAS&&panel_shut());
+    back();assert(ui.page==XZ_UI_EXTRAS&&panel_shut());   /* a top page: the shell's rail takes BACK */
     puts("PASS menu BACK: one panel page up, nothing on a top page, never a close");
 }
 
