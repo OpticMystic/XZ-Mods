@@ -50,7 +50,7 @@ enum xz_extra_wave_copy_result {
  XZ_EXTRA_WAVE_COPY_INVALID=-3, XZ_EXTRA_WAVE_COPY_BUSY=-2,
  XZ_EXTRA_WAVE_COPY_CHANGED=-1, XZ_EXTRA_WAVE_COPY_ABSENT=0, XZ_EXTRA_WAVE_COPY_OK=1
 };
-struct xz_extra_beat { int32_t ms; uint8_t beat_in_bar; };   /* 1..4 */
+struct xz_extra_beat { int32_t ms; uint8_t beat_in_bar; uint16_t bpm_x100; };   /* 1..4 */
 /* end_ms > ms: a loop hot cue from ms to end_ms; 0 for a point. */
 struct xz_extra_cue { int set; int32_t ms; uint32_t rgb; int32_t end_ms; };
 enum xz_extra_timeline_flag {
