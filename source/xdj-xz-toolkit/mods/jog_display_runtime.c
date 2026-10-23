@@ -13,7 +13,6 @@
 #include <stdio.h>
 extern int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *) __attribute__((weak));
 extern uint32_t xz_extra_decks_jog_content_epoch(int deck) __attribute__((weak));
-extern uint64_t xz_extra_source_generation(int source) __attribute__((weak));
 extern enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int,const struct xz_extra_wave_key *,uint32_t,struct xz_extra_wave_chunk *) __attribute__((weak));
 #ifdef XZ_JOG_DISPLAY_PROOF
 #include "jog_display_proof.h"
@@ -155,9 +154,11 @@ static int same_wave_key(const struct xz_extra_wave_key *a,const struct xz_extra
  return a->media_generation==b->media_generation&&a->route_epoch==b->route_epoch&&a->load_revision==b->load_revision&&
   a->source==b->source&&a->column_count==b->column_count&&a->span_ms==b->span_ms&&a->normalization==b->normalization;
 }
-static int media_current(const struct xz_extra_wave_key *key){
- return key->media_generation&&key->source>=1&&key->source<=2&&xz_extra_source_generation&&
-  xz_extra_source_generation(key->source)==key->media_generation;
+static int wave_media_key_valid(const struct xz_extra_wave_key *key){
+ /* The copied asset belongs to an accepted LOAD, not the current USB-library
+    mount. Content epochs retire old loads; the exact captured media identity
+    remains part of same_wave_key and every bounded owner copy. */
+ return key->media_generation&&key->source>=1&&key->source<=2;
 }
 struct jd_wave_tag { uint32_t session,content; uint64_t selection; struct xz_extra_wave_key key; };
 struct jd_wave_value { struct jd_wave_tag tag; struct xz_jd_wave wave; };
@@ -169,7 +170,7 @@ static struct xz_extra_wave_chunk jd_wave_chunk; /* connector-owned scratch, no 
 static int wave_tag_current(unsigned side,const struct jd_wave_tag *tag,int selection){
  if(!atomic_load_explicit(&jd_installed,memory_order_acquire)||tag->session!=atomic_load_explicit(&jd_session,memory_order_acquire)||
   !tag->content||tag->content!=current_content(side)||!tag->key.route_epoch||
-  tag->key.route_epoch!=xz_extra_decks_epoch()||!media_current(&tag->key))return 0;
+  tag->key.route_epoch!=xz_extra_decks_epoch()||!wave_media_key_valid(&tag->key))return 0;
  if(selection){
   struct xz_ds_selection current;if(!selection_snapshot(&current))return -1;
   if(!current.route_up||current.route_epoch!=tag->key.route_epoch||current.epoch[side]!=tag->selection)return 0;
@@ -243,7 +244,7 @@ static struct xz_extra_wave_key sample_wave_key(const struct xz_extra_deck *d){
 static void adopt_wave(unsigned index,uint32_t session){
  struct jd_side_runtime *side=&jd_side[index];const struct xz_extra_deck *d=&side->cache.deck;
  struct xz_extra_wave_key key=sample_wave_key(d);
- if(!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE))||!key.column_count||!media_current(&key)){side->have_wave=0;return;}
+ if(!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE))||!key.column_count||!wave_media_key_valid(&key)){side->have_wave=0;return;}
  /* The LCD maps the whole overview onto INFO length. Permit one analysis
     column of endpoint rounding, never stretch mismatched analysis to a track. */
  uint64_t span=key.span_ms,total=d->total_ms>0?(uint32_t)d->total_ms:0;
@@ -419,12 +420,12 @@ static void prime_side_baseline(unsigned side_idx){
 
 /* Publication time is a separate upper bound even for paused/no-timeline
  * inputs. Re-reading a slot, or reusing it under contention, never renews it. */
+/* The LOAD content epoch, not the removable library cache, owns these copied
+ * values. Mount loss/replacement cannot retire an already loaded track. */
 static int sample_current(const struct jd_sample *p,const struct jd_side_runtime *side,uint32_t session,uint32_t route_epoch){
  unsigned reason=!p->seq?1:p->seq==side->floor_seq?2:p->session!=session?3:
   (!route_epoch||p->route_epoch!=route_epoch)?4:
   (!p->deck.jog_content_epoch||p->deck.jog_content_epoch!=side->content_epoch)?5:
-  (p->deck.timeline.media_generation&&xz_extra_source_generation&&
-   xz_extra_source_generation(p->deck.source)!=p->deck.timeline.media_generation)?6:
   (p->deck.timeline.route_epoch&&p->deck.timeline.route_epoch!=route_epoch)?7:0;
 #ifdef XZ_JOG_DISPLAY_PROOF
  atomic_store_explicit(&jd_reject_reason[side-jd_side],reason,memory_order_relaxed);
@@ -777,8 +778,6 @@ static void hook_jog_assemble(void *self){
  final_valid=final_valid&&selection_snapshot(&final_selection)&&
   final_selection.epoch[side_idx]==selection.epoch[side_idx]&&final_selection.deck[side_idx]==selection.deck[side_idx]&&
   final_selection.route_up==selection.route_up&&final_selection.route_epoch==route_epoch&&current_content(side_idx)==content;
- if(on_extra&&have_snap&&side->cache.deck.timeline.media_generation&&xz_extra_source_generation)
-  final_valid=final_valid&&xz_extra_source_generation(side->cache.deck.source)==side->cache.deck.timeline.media_generation;
  if(final_valid&&atomic_load(&jd_installed)&&session==atomic_load_explicit(&jd_session,memory_order_acquire)){
   memcpy(frame,out,XZ_JD_FRAME);
   xz_jd_commit(&jd_state[side_idx],&transaction);

@@ -6,13 +6,13 @@ static unsigned log_count;
 void xz_log(const char *text){assert(!in_hook);snprintf(last_log,sizeof last_log,"%s",text);log_count++;}
 int main(void){
  reset(1025);complete();tick(0);tick(1);
- media[0]++;tick(0);assert(!jd_side[0].cached);
+ values.deck[0].timeline.route_epoch++;publish();tick(0);assert(!jd_side[0].cached);
  xz_jog_display_runtime_service_assets();assert(!log_count);
  clock_ms+=251;tick(0);xz_jog_display_runtime_service_assets();
- assert(log_count==1&&strstr(last_log,"side=1 reason=MEDIA_GENERATION"));
+ assert(log_count==1&&strstr(last_log,"side=1 reason=TIMELINE_ROUTE"));
  for(unsigned i=0;i<50;i++){clock_ms++;tick(0);xz_jog_display_runtime_service_assets();}
  assert(log_count==1);
- values.deck[0].timeline.media_generation=media[0];
+ values.deck[0].timeline.route_epoch=selection.route_epoch;
  values.deck[0].timeline.at_ms=(uint32_t)clock_ms;publish();tick(0);xz_jog_display_runtime_service_assets();
  assert(jd_side[0].cached&&log_count==2&&strstr(last_log,"RECOVERED"));
  content[1]++;tick(1);xz_jog_display_runtime_service_assets();clock_ms+=251;tick(1);xz_jog_display_runtime_service_assets();
