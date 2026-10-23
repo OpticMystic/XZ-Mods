@@ -9,6 +9,7 @@
    without shimmer. */
 #include "shell_internal.h"
 #include "shell_axis.h"
+#include "../ui/layout_cycle.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -85,7 +86,11 @@ static const struct play_layout four_deck={
 static const struct play_layout *layout_of(const struct xz_shell_model *m) { return sh_play_deck_count(m)==4?&four_deck:&two_deck; }
 void xz_shell_play_projection(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_model *view) {
  *view=*m;
- view->play_view_count=sh_deck_count(m)==4&&u->play_decks!=2?4:2;
+ if(m->layout_preference>0){
+  int layout=m->layout_preference-1;
+  view->play_view_count=sh_deck_count(m)==4&&layout!=XZ_LAYOUT_TWO?4:2;
+  view->wave_order=layout==XZ_LAYOUT_MIXER;
+ }else view->play_view_count=sh_deck_count(m)==4&&u->play_decks!=2?4:2;
 }
 static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256};
 static const char *const cue_letters[XZ_SHELL_HOT_CUES]={"A","B","C","D","E","F","G","H"};
@@ -162,8 +167,9 @@ struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_
  int ly=lane_y(L,m,deck),sx=strip_x(L,deck),last=m?sh_play_deck(m,sh_play_deck_count(m)-1):1;
  if(m&&!sh_play_visible(m,deck)&&r!=XZ_SHELL_R_TOP_BAR&&r!=XZ_SHELL_R_ZOOM&&r!=XZ_SHELL_R_INFO_BUTTON&&r!=XZ_SHELL_R_FX&&r!=XZ_SHELL_R_VIEW_TWO&&r!=XZ_SHELL_R_VIEW_FOUR)return (struct xz_shell_rect){0,0,0,0};
  switch(r){
- case XZ_SHELL_R_VIEW_TWO:case XZ_SHELL_R_VIEW_FOUR:
-  return m&&sh_deck_count(m)==4?(struct xz_shell_rect){INFO_X-98+(r==XZ_SHELL_R_VIEW_FOUR?46:0),0,46,TOP_H}:(struct xz_shell_rect){0,0,0,0};
+ case XZ_SHELL_R_VIEW_TWO:
+  return m&&sh_deck_count(m)==4?(struct xz_shell_rect){INFO_X-98,0,92,TOP_H}:(struct xz_shell_rect){0,0,0,0};
+ case XZ_SHELL_R_VIEW_FOUR:return (struct xz_shell_rect){0,0,0,0};
  case XZ_SHELL_R_TOP_BAR:return (struct xz_shell_rect){0,0,XZ_SHELL_WIDTH,TOP_H};
  case XZ_SHELL_R_INFO_COLUMN:return (struct xz_shell_rect){0,ly,COL_W,L->lane_h};
  case XZ_SHELL_R_KEY:return (struct xz_shell_rect){0,ly+L->lane_h-44,COL_W,44};
@@ -262,12 +268,10 @@ static void render_top(const struct xz_shell *u, const struct xz_shell_model *m,
  xz_rect(c,0,0,c.width,TOP_H,SH_CHROME);
  xz_rect(c,0,TOP_H-1,c.width,1,SH_BLACK);
  render_fx(m,c,fx_rect(u,m));
- if(sh_deck_count(m)==4)for(int i=0;i<2;i++){
-  struct xz_shell_rect r=xz_shell_play_rect(m,i?XZ_SHELL_R_VIEW_FOUR:XZ_SHELL_R_VIEW_TWO,0);
-  int on=sh_play_deck_count(m)==(i?4:2);
-  if(on)xz_rect(c,r.x+1,4,r.w-2,18,SH_RAIL);
-  else xz_border(c,r.x+1,4,r.w-2,18,SH_SEPARATOR);
-  sh_text_center(c,r.x+r.w/2,8,i?"4 DECK":"2 DECK",SH_SMALL,on?SH_WHITE:SH_DIM);
+ if(sh_deck_count(m)==4){
+  struct xz_shell_rect r=xz_shell_play_rect(m,XZ_SHELL_R_VIEW_TWO,0);
+  int layout=sh_play_deck_count(m)==2?XZ_LAYOUT_TWO:m->wave_order?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
+  xz_deck_layout_draw(c,r.x,r.y,r.w,r.h,layout,0);
  }
  sh_info_icon(c,INFO_X+INFO_W/2,TOP_H/2,SH_WHITE);
  if(!mode_lamps(u))return;
@@ -1090,8 +1094,10 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
  const struct play_layout *L=layout_of(m);
  size_t n=0;
  u->down=1;u->down_region=XZ_SHELL_TOUCH_OTHER;u->down_deck=u->deck;
- if(sh_deck_count(m)==4)for(int i=0;i<2;i++)if(header_band(x,y,xz_shell_play_rect(m,i?XZ_SHELL_R_VIEW_FOUR:XZ_SHELL_R_VIEW_TWO,0))){
-  u->play_decks=i?4:2;return 0;
+ if(sh_deck_count(m)==4&&header_band(x,y,xz_shell_play_rect(m,XZ_SHELL_R_VIEW_TWO,0))){
+  if(!xz_shell_play_key_frame(u,m))return 0;
+  int layout=sh_play_deck_count(m)==2?XZ_LAYOUT_TWO:m->wave_order?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
+  return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_DECK_LAYOUT,-1,xz_deck_layout_next(layout),0});
  }
  for(int slot=0;slot<sh_play_deck_count(m);slot++)
   if(sh_inside(xz_shell_play_rect(m,XZ_SHELL_R_INFO_COLUMN,sh_play_deck(m,slot)),x,y))return activate(u,sh_play_deck(m,slot),out,n);

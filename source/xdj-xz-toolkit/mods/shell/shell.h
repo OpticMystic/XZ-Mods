@@ -258,6 +258,7 @@ struct xz_shell_model {
  int deck_count;                     /* decks the unit plays now: 4 while the runtime's extra deck route is up;
                                         any other value means 2, so a zero-initialised model has two decks. The
                                         screens draw and accept decks 0..count-1 only */
+ int layout_preference;              /* 0 unpublished; 1 TWO, 2 FOUR, 3 MIXER. Session state. */
  int play_view_count;                /* transient PLAY projection only: 2 or 4; deck_count remains audio availability */
  uint32_t capabilities;
  struct xz_shell_settings settings;
@@ -358,7 +359,8 @@ enum xz_shell_action_kind {
                               XZ_SHELL_CAP_STEM_BYPASS */
  XZ_SHELL_ACT_MOD_MENU     /* a MODS menu page (shell_settings.h XZ_SHELL_TAB_MENU): id = enum xz_shell_menu_op,
                               value = the root page (OPEN) or a row of model.menu, deck = the choice or the touch */,
- XZ_SHELL_ACT_WAVE_ORDER /* value 0 numeric or 1 mixer, session display preference */
+ XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, session display preference */
+ XZ_SHELL_ACT_DECK_LAYOUT /* value enum xz_deck_layout; display only, no deck assignment */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */

@@ -3,6 +3,7 @@
 #endif
 #include "four_deck_fixtures.h"
 #include "shell_internal.h"
+#include "../ui/layout_cycle.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -55,12 +56,15 @@ static void test_views(void){
  for(int order=0;order<2;order++)for(int sides=0;sides<4;sides++)for(int focus=0;focus<4;focus++)for(int count=2;count<=4;count+=2){
   struct xz_shell u;struct xz_shell_model m,view;struct xz_shell_action out[XZ_SHELL_ACTIONS];
   xz_shell_init(&u);fx_model_four_players(&m,&track);u.deck=focus;m.sides_extra=(uint8_t)sides;m.wave_order=order;
-  struct xz_shell_model original=m;
-  struct xz_shell_rect button=xz_shell_play_rect(&m,count==2?XZ_SHELL_R_VIEW_TWO:XZ_SHELL_R_VIEW_FOUR,0);
-  assert(button.w>=44&&button.h>0);
+  int wanted=count==2?XZ_LAYOUT_TWO:order?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
+  m.layout_preference=(wanted+XZ_LAYOUT_COUNT-1)%XZ_LAYOUT_COUNT+1;
+  struct xz_shell_rect button=xz_shell_play_rect(&m,XZ_SHELL_R_VIEW_TWO,0);
+  assert(button.w>=44&&button.h>0&&!xz_shell_play_rect(&m,XZ_SHELL_R_VIEW_FOUR,0).w);
+  assert(xz_shell_render_frame(&u,&m,frame(a),STRIDE));
+  assert(tap(&u,&m,button.x+button.w/2,43,out)==1&&out[0].kind==XZ_SHELL_ACT_DECK_LAYOUT&&out[0].value==wanted);
+  m.layout_preference=out[0].value+1;
   assert(!tap(&u,&m,button.x+button.w/2,43,out));
-  assert(!tap(&u,&m,button.x+button.w/2,43,out));
-  assert(u.play_decks==count&&u.deck==focus&&!memcmp(&m,&original,sizeof m));
+  assert(u.deck==focus&&m.sides_extra==sides);
   xz_shell_play_projection(&u,&m,&view);
   assert(view.deck_count==4&&view.play_view_count==count&&!memcmp(view.deck,m.deck,sizeof m.deck));
   render(&u,&m);
@@ -90,7 +94,7 @@ static void test_views(void){
    if(count==2)assert(!xz_shell_play_rect(&view,XZ_SHELL_R_LANE,d^2).w);
   }
  }
- puts("PASS 2/4 view:44px idempotent hits, all pairs/orders/focuses, complete guarded frames, large logical numbers/titles, fixed3/1/2/4, correct seek targets");
+ puts("PASS cycle view:44px painted cycle hits, all pairs/orders/focuses, complete guarded frames, large logical numbers/titles, fixed3/1/2/4, correct seek targets");
 }
 static void test_grid_focus(void){
  for(int sides=0;sides<4;sides++)for(int focus=0;focus<4;focus++){
