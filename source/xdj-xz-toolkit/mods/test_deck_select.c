@@ -357,7 +357,7 @@ static void test_stock_unchanged(void) {
    for(unsigned op = 0; op <= 5; op++) {
     if(code == XZ_DS_KEY_SHIFT) continue;
     struct xz_ds_outcome o = ev(LEFT, (uint16_t)code, op, (int)(code & 1), 3, 0.25f);
-    assert(o.verdict == XZ_DS_PASS && !o.toggled && !o.unknown_first);
+    assert((o.verdict == XZ_DS_PASS || (route && code == 0x4123 && op == 5 && o.verdict == XZ_DS_DELIVER && o.also_stock)) && !o.toggled && !o.unknown_first);
     /* Stock still receives every key; DECK QUANTIZE and TIME MODE also reach the software decks (they are
        for every deck). */
     struct xz_ds_outcome g = xz_deck_select_global_key(&d, 1, (uint16_t)code, op, now);
@@ -552,10 +552,18 @@ static void test_global_track_restart(void) {
 
 int main(void) {
  for(int side=0;side<2;side++){
-  reset(1);double_press(side);
+  reset(1);
+  for(int end=0;end<3;end++){
+   struct xz_ds_outcome n=ev(side,0x4123,5,0,0,(float)end/2.f);
+   assert(n.verdict==XZ_DS_DELIVER&&n.also_stock&&n.event.kind==XZ_EXTRA_IN_VINYL_SPEED&&n.event.deck==side);
+   assert(n.event.tempo_position==(end-1)*XZ_EXTRA_TEMPO_SPAN);
+  }
+  assert(ev(side,0x4123,5,0,0,NAN).verdict==XZ_DS_PASS);
+  assert(ev(side,0x4123,5,0,0,1.1f).verdict==XZ_DS_PASS);
+  double_press(side);
   for(int end=0;end<3;end++){
    struct xz_ds_outcome o=ev(side,0x4123,5,0,0,(float)end/2.f);
-   assert(o.verdict==XZ_DS_DELIVER&&o.event.kind==XZ_EXTRA_IN_VINYL_SPEED&&o.event.deck==side);
+   assert(o.verdict==XZ_DS_DELIVER&&!o.also_stock&&o.event.kind==XZ_EXTRA_IN_VINYL_SPEED&&o.event.deck==side);
    assert(o.event.tempo_position==(end-1)*XZ_EXTRA_TEMPO_SPAN);
   }
   assert(ev(side,0x4123,5,0,0,NAN).verdict==XZ_DS_SWALLOW);
