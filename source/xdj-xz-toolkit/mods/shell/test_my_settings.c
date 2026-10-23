@@ -199,11 +199,11 @@ static void test_short_menu(void) {
  assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&u.depth==1);
  m.mods=NULL;
  assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.mods_view.tab==0);
- /* Held MENU from there goes to UTILITY; held again closes. */
+ /* Held MENU always goes to UTILITY, including another hold from UTILITY. */
  m.mods=&fxm_model;key(&u,&m,XZ_SHELL_KEY_BACK);key(&u,&m,XZ_SHELL_KEY_MENU);
  assert(u.mods_view.tab==1);
  assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.mods_view.tab==0&&u.mods_view.on_tabs&&u.depth==2);
- assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.depth==1);
+ assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.depth==2&&u.mods_view.tab==0);
  /* Screens without a MENU panel of their own take MENU the same way. */
  static const enum xz_shell_key openers[]={XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_KEY_SOURCE};
  for(size_t i=0;i<sizeof openers/sizeof *openers;i++){

@@ -1,4 +1,5 @@
 #include "ui_skin.h"
+#include "ui_about.h"
 #include "../key/display.h"
 #include "stem_pads.h"
 #include "wave_viewport.h"
@@ -261,7 +262,7 @@ static enum xz_ui_page parent_page(enum xz_ui_page page){
  case XZ_UI_UPDATES:return XZ_UI_NETWORK;
  case XZ_UI_NETWORK_SETUP:return XZ_UI_NETWORK;
  case XZ_UI_NETWORK_EDIT:return XZ_UI_NETWORK_SETUP;
- case XZ_UI_CONNECTION:case XZ_UI_GAMES:case XZ_UI_APPS:return XZ_UI_EXTRAS;
+ case XZ_UI_CONNECTION:case XZ_UI_GAMES:case XZ_UI_APPS:case XZ_UI_ABOUT:return XZ_UI_EXTRAS;
  case XZ_UI_UPDATE_SETUP:return XZ_UI_UPDATES;
  case XZ_UI_APPS_SETUP:return XZ_UI_APPS;
  case XZ_UI_DOOM:case XZ_UI_DOOM_FILES:case XZ_UI_MYHOUSE_SETUP:return XZ_UI_GAMES;
@@ -371,7 +372,10 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   case XZ_UI_RAM_READY:add(w,&n,XZ_UI_RAM_RELEASE,0,0,"RELEASE RAM COPY");break;
   case XZ_UI_RAM_ERROR:add(w,&n,XZ_UI_RAM_REQUEST,0,0,"RETRY LOAD INTO RAM");break;
   case XZ_UI_RAM_DETACHED:break;}
+ }else if(u->page==XZ_UI_ABOUT){
+  for(int i=0;i<XZ_ABOUT_LINKS;i++)add(w,&n,XZ_UI_ABOUT_LINK,i,0,xz_about_links[i].label);
  }else if(u->page==XZ_UI_EXTRAS){
+  add(w,&n,XZ_UI_PANEL,XZ_UI_ABOUT,0,"ABOUT XZ MODS");
   add(w,&n,XZ_UI_PANEL,XZ_UI_CONNECTION,0,"VJ.TOOLS");
   add(w,&n,XZ_UI_PANEL,XZ_UI_GAMES,0,"GAMES");
   n=xz_sdk_ui_controls(u,m,w,n);
@@ -600,6 +604,7 @@ const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m)
  if(u->page==XZ_UI_SETTINGS||u->page==XZ_UI_BROWSE_SETUP)return saved;
  if(u->page==XZ_UI_CONNECTION)
   return m->connection.status?m->connection.status:m->connection.ready&&m->connection.connected?"VJ.Tools CONNECTED":"VJ.Tools CONNECTION AVAILABLE";
+ if(u->page==XZ_UI_ABOUT)return "TURN TO CHOOSE / PUSH OR TAP TO SHOW QR / SCAN WITH YOUR PHONE";
  if(u->page==XZ_UI_EXTRAS)return "OPTIONAL EXTRAS / DJ CONTROLS STAY AVAILABLE";
  if(u->page==XZ_UI_DOOM||u->page==XZ_UI_DOOM_SETUP)return m->doom_ready?"DOOM READY / GAME RUNS ENTIRELY ON THE XZ":"OPEN SETUP TO CHECK THE USB GAME FILES";
  if(u->page==XZ_UI_DOOM_FILES)return m->doom.status;
@@ -686,6 +691,8 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  if(u->page==XZ_UI_STEM_COLORS)xz_ui_stem_colors(&s);
  if(u->page==XZ_UI_THEMES)xz_ui_appearance_details(&s);
  if(u->page==XZ_UI_BUTTONS)xz_ui_buttons_details(&s);
+ if(u->page==XZ_UI_ABOUT){struct xz_ui_widget focus;int f=xz_ui_focused(u,m,&focus)&&focus.kind==XZ_UI_ABOUT_LINK?focus.index:-1;
+  xz_about_render(s.c,u->about_link,f,1);}
  xz_key_display_panel(pixels,stride,u,m);
  if(u->page>=XZ_UI_EXTRAS&&u->page!=XZ_UI_CONNECTION)xz_ui_page_details(&s);
  xz_ui_profile_render(&s);
@@ -760,6 +767,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
  if(u->capture<0||(size_t)u->capture>=count)return 0;a=w[u->capture];
  deck=a.deck>=0?a.deck:u->deck;d=&m->deck[deck];
  if(press&&xz_ui_focusable(&a)){u->focus_kind=a.kind;u->focus_index=a.index;u->focus_deck=a.deck;u->adjusting=0;}
+ if(press&&a.kind==XZ_UI_ABOUT_LINK){u->about_link=a.index;u->capture=-1;return 0;}
  if(press&&xz_ui_network_kind(a.kind))return xz_ui_network_action(u,m,a.kind,a.index,out);
  if(!ready(u,m,deck,&a)){
   if(!press)return 0;

@@ -224,7 +224,7 @@ uint32_t sh_key_ink(const struct xz_shell_model *m, const char *key, int matches
 /* The key in the chosen notation; key itself when it is NULL, already in it, or neither notation. */
 const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *buffer, size_t cap);
 /* Mod header buttons (shell.c): drawn over every screen; hit tests padded to XZ_SHELL_HEADER_HIT_H. */
-void sh_header_buttons(const struct xz_shell_model *m, struct xz_canvas c);
+void sh_header_buttons(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
 enum xz_shell_action_kind sh_header_hit(int x, int y);
 /* Runtime notice toast (shell_draw.c): shown, its box, and how many lines it wraps to (1 or 2). */
 int sh_notice_shown(const struct xz_shell_model *m);

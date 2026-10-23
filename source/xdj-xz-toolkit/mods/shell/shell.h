@@ -486,6 +486,7 @@ struct xz_shell {
     model.notice; the runtime may also read it as the reason for a hand-off. */
  const char *notice;
  uint32_t notice_at_ms;
+ struct { int valid, screen, depth, popup, panel, tab, page; } header_frame;
  struct xz_shell_key_frame key_frame; /* last successfully rendered C buffer; value-owned for copy probes */
 };
 

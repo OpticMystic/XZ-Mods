@@ -66,17 +66,26 @@ static void test_header_buttons(void) {
    {XZ_SHELL_MODS_X,12,XZ_SHELL_ACT_OPEN_MODS},{XZ_SHELL_WIDTH-1,XZ_SHELL_HEADER_HIT_H-1,XZ_SHELL_ACT_OPEN_MODS}};
   for(size_t i=0;i<sizeof hits/sizeof *hits;i++){
    struct xz_shell before=u;
-   assert(touch(&u,&m,XZ_SHELL_TOUCH_DOWN,hits[i].x,hits[i].y,out)==1&&out[0].kind==hits[i].kind&&out[0].deck==-1);
+   assert(xz_shell_render_frame(&u,&m,frame(buffer_a),STRIDE));
+   int closing=screen!=XZ_SHELL_PLAY||popup;
+   size_t n=touch(&u,&m,XZ_SHELL_TOUCH_DOWN,hits[i].x,hits[i].y,out);
+   if(closing){
+    assert(!n);
+    if(hits[i].kind==XZ_SHELL_ACT_OPEN_MODS){
+     if(popup)assert(u.popup.kind==XZ_SHELL_POPUP_NONE&&u.depth==before.depth);
+     else assert(xz_shell_screen(&u)==XZ_SHELL_PLAY);
+    }else assert(u.depth==before.depth&&u.popup.kind==before.popup.kind);
+   }else assert(n==1&&out[0].kind==hits[i].kind&&out[0].deck==-1);
    assert(touch(&u,&m,XZ_SHELL_TOUCH_MOVE,200,300,out)==0);
    assert(touch(&u,&m,XZ_SHELL_TOUCH_UP,200,300,out)==0);
-   assert(u.depth==before.depth&&xz_shell_screen(&u)==xz_shell_screen(&before)&&u.popup.kind==before.popup.kind&&!u.down);
+   assert(!u.down);u=before;
   }
   /* Just outside the buttons the screen gets the touch. */
   assert(sh_header_hit(XZ_SHELL_STEMS_X-1,10)==XZ_SHELL_ACT_NONE&&sh_header_hit(XZ_SHELL_MODS_X,XZ_SHELL_HEADER_HIT_H)==XZ_SHELL_ACT_NONE);
   /* Both are drawn on top, in the stock place and size; STEMS lights from the model. */
   m.stems_known=1;m.stems_on=screen&1;
   render_checked(&u,&m,buffer_a);
-  assert(at(frame(buffer_a),XZ_SHELL_STEMS_X+2,2)==rgb565(m.stems_on?SH_BLUE:XZ_FLAGSHIP_TILE));
+  assert(at(frame(buffer_a),XZ_SHELL_STEMS_X+2,2)==rgb565(screen!=XZ_SHELL_PLAY||popup?SH_CHROME:m.stems_on?SH_BLUE:XZ_FLAGSHIP_TILE));
   assert(at(frame(buffer_a),XZ_SHELL_MODS_X+2,2)==rgb565(XZ_FLAGSHIP_TILE));
   assert(at(frame(buffer_a),XZ_SHELL_MODS_X+2,XZ_SHELL_HEADER_BUTTON_H-1)==rgb565(SH_BLACK));
  }

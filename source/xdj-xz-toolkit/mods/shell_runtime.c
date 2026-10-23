@@ -362,7 +362,7 @@ static struct xz_shell_info_model info_model;
 static void refuse(void);
 static void save_display(int id, int value);
 /* MODS > APPEARANCE in the shell's own style: an item tab whose sets run the MODS panel's own actions. */
-enum { LOOK_TAB=3, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
+enum { LOOK_TAB=2, LOOK_INTERFACE=1, LOOK_THEME, LOOK_WAVE, LOOK_KEY_FORMAT, LOOK_KEY_FEEDBACK, LOOK_TRAFFIC,
        LOOK_DRUMS, LOOK_HARMONICS, LOOK_VOCALS, LOOK_STEM_LAYOUT, LOOK_MODE_LAMPS, LOOK_QUANTIZE_LAMP, LOOK_BYPASS, LOOK_WAVE_TITLES };
 static const char *const look_sections[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
 static const char *const look_interface[2]={"FLAGSHIP","CLASSIC"};
@@ -416,35 +416,7 @@ static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_STEM_LAYOUT,"Where the stem buttons sit on the play screen. The STEMS button steps through these in this order.",XZ_SHELL_STEM_LAYOUTS,help_stem_layout),
 };
 #undef HELP
-/* MODS > BUTTONS: the REKORDBOX button's two slots, the same rows as the panel's CONTROLS > BUTTONS. Item id =
-   slot + 1; a set runs the panel's own XZ_UI_REKORDBOX_ASSIGN. */
-enum { BUTTONS_TAB=2, BUTTONS_PRESS=1, BUTTONS_SHIFT };
-static const char *const buttons_sections[1]={"REKORDBOX BUTTON"};
-static const char *buttons_choices[XZ_UI_RB_CHOICES],*buttons_help[XZ_UI_RB_CHOICES];
-static struct xz_shell_setting_item buttons_items[2];
-static struct xz_shell_settings_model buttons_model;
-static const struct xz_shell_item_help help_all[]={
- {BUTTONS_TAB+1,BUTTONS_PRESS,"What the REKORDBOX button does.",XZ_UI_RB_CHOICES,buttons_help},
- {BUTTONS_TAB+1,BUTTONS_SHIFT,"What the REKORDBOX button does while SHIFT is held on either deck.",XZ_UI_RB_CHOICES,buttons_help},
-};
-static struct xz_shell_item_help help_list[sizeof help_items/sizeof *help_items+sizeof help_all/sizeof *help_all];
-static struct xz_shell_help_model help_model;
-static void fill_buttons(void) {
- const struct xz_shell_runtime_frame_input *in=&last_input;int k=!!in->rekordbox_known;
- if(!help_model.count){
-  for(int i=0;i<XZ_UI_RB_CHOICES;i++){buttons_choices[i]=xz_ui_rekordbox_choice_name(i);buttons_help[i]=xz_ui_rekordbox_choice_help(i);}
-  size_t n=0;
-  for(size_t i=0;i<sizeof help_items/sizeof *help_items;i++)help_list[n++]=help_items[i];
-  for(size_t i=0;i<sizeof help_all/sizeof *help_all;i++)help_list[n++]=help_all[i];
-  help_model=(struct xz_shell_help_model){(uint32_t)n,help_list};
- }
- for(int slot=0;slot<2;slot++){
-  int v=k?in->rekordbox_assign[slot]:0;if(v<0||v>=XZ_UI_RB_CHOICES){v=0;k=0;}
-  buttons_items[slot]=(struct xz_shell_setting_item){BUTTONS_PRESS+slot,(enum xz_shell_setting_category)0,
-   slot?"SHIFT + REKORDBOX":"REKORDBOX BUTTON",buttons_choices,XZ_UI_RB_CHOICES,v,k,k};
- }
- buttons_model=(struct xz_shell_settings_model){2,buttons_items,NULL};
-}
+static const struct xz_shell_help_model help_model={sizeof help_items/sizeof *help_items,help_items};
 static struct { int kind, deck, index; float value; } ui_actions[8]; static int ui_action_count; /* under mutex */
 static void fill_look(void) {
  const struct xz_shell_runtime_frame_input *in=&last_input;int k=!!in->look_known;
@@ -524,16 +496,15 @@ static void look_set_locked(int id, int choice, uint32_t now) {
 /* GENERAL, CONTROLS, ADVANCED and EXTRAS are the MODS panel's own top pages as MENU tabs: ui_runtime.c
    publishes the panel's open page (ui/ui_menu.h) and runs what a push asks for, so the shell draws every
    page and sub-page and the panel never opens over it. */
-static const struct xz_shell_mods_tab mod_tabs[7]={
+static const struct xz_shell_mods_tab mod_tabs[6]={
  {"GENERAL",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_GENERAL,NULL},
  {"CONTROLS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_CONTROLS,NULL},
- {"BUTTONS",XZ_SHELL_TAB_ITEMS,&buttons_model,buttons_sections,1,XZ_UI_BUTTONS,NULL},
  {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,look_sections,4,XZ_UI_THEMES,NULL},
  {"ADVANCED",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_SETTINGS,NULL},
  {"EXTRAS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_EXTRAS,NULL},
  {"NETWORK",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_NETWORK,NULL}};
-_Static_assert(BUTTONS_TAB==2&&LOOK_TAB==3,"tab indexes follow mod_tabs");
-static const struct xz_shell_mods_model mods_model={7,mod_tabs};
+_Static_assert(LOOK_TAB==2,"tab indexes follow mod_tabs");
+static const struct xz_shell_mods_model mods_model={6,mod_tabs};
 static int mods_page=-1; /* under mutex: the page OPEN_MODS asked for */
 /* The MENU tabs' page as ui_runtime.c last published it, and the commands a push asked for. Under mutex. */
 static struct xz_shell_menu menu_page;
@@ -831,7 +802,7 @@ static void fill_slots_locked(void) {
  if(lib){fill_browse(lib);model.browse=&browse;}else model.browse=NULL;
  fill_source();model.source=&source_model;
  fill_settings();model.settings_screen=&settings_model;
- fill_look();fill_buttons();model.mods=&mods_model;model.help=&help_model;
+ fill_look();model.mods=&mods_model;model.help=&help_model;
  model.menu=menu_valid?&menu_page:NULL;
  model.my_settings=NULL;
  if(lib&&browse_source>=0){
@@ -2220,8 +2191,6 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   }
   case XZ_SHELL_ACT_SET_MOD:
    if(a->deck==LOOK_TAB)look_set_locked(a->id,a->value,now);
-   else if(a->deck==BUTTONS_TAB&&(a->id==BUTTONS_PRESS||a->id==BUTTONS_SHIFT)&&a->value>=0&&a->value<XZ_UI_RB_CHOICES)
-    ui_action_locked(XZ_UI_REKORDBOX_ASSIGN,-1,a->id-BUTTONS_PRESS,(float)a->value,now);
    else refuse();
    break;
   case XZ_SHELL_ACT_MOD_MENU:menu_command_locked(a,now);break;

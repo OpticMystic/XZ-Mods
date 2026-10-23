@@ -5,7 +5,7 @@
 #include "ui_network.h"
 #include <stdlib.h>
 
-_Static_assert(XZ_UI_NETWORK==30&&XZ_UI_NETWORK_SETUP==31&&XZ_UI_NETWORK_EDIT==32&&XZ_UI_PAGE_COUNT==33,"persistent page IDs unchanged");
+_Static_assert(XZ_UI_NETWORK==30&&XZ_UI_NETWORK_SETUP==31&&XZ_UI_NETWORK_EDIT==32&&XZ_UI_PAGE_COUNT==34,"persistent page IDs unchanged");
 _Static_assert(XZ_UI_NETWORK_SETUP_OPEN==114&&XZ_UI_NETWORK_CANCEL==124,"action IDs unchanged");
 
 static void snapshot(struct xz_shell *s,const char *dir,const char *name,int classic){
@@ -20,8 +20,8 @@ static void snapshot(struct xz_shell *s,const char *dir,const char *name,int cla
 }
 static void open_network(struct xz_shell *s){
  fresh(s);detected_network();snprintf(um.network.detail,sizeof um.network.detail,"SYNTHETIC READBACK / NO DEVICE I/O");publish();
- key(s,XZ_SHELL_KEY_MENU);turn(s,6);
- assert(s->mods_view.tab==7&&ui.page==XZ_UI_NETWORK&&menu.root==XZ_UI_NETWORK&&menu.depth==0&&!ui.history_count);
+ key(s,XZ_SHELL_KEY_MENU);turn(s,5);
+ assert(s->mods_view.tab==6&&ui.page==XZ_UI_NETWORK&&menu.root==XZ_UI_NETWORK&&menu.depth==0&&!ui.history_count);
  push(s);assert(!s->mods_view.on_tabs&&pane(s)==1);
  for(unsigned i=0;i<menu.row_count;i++)assert(!strstr(menu.row[i].label,"PRO DJ")&&!strstr(menu.row[i].label,"PRODJ"));
 }
@@ -39,7 +39,7 @@ int main(int argc,char **argv){
  assert(cursor_row(&s)&&!strcmp(cursor_row(&s)->label,"NETWORK UPDATES"));
  push(&s);assert(ui.page==XZ_UI_UPDATES);key(&s,XZ_SHELL_KEY_BACK);
  key(&s,XZ_SHELL_KEY_BACK);assert(xz_shell_screen(&s)==XZ_SHELL_PLAY);
- puts("PASS NETWORK tab7: one push into each branch; update setup BACK restores link, root BACK closes; network draft unchanged by update navigation");
+ puts("PASS NETWORK tab6: one push into each branch; update setup BACK restores link, root BACK closes; network draft unchanged by update navigation");
 
  open_network(&s);cursor_to(&s,"CHOOSE ADAPTER");push(&s);assert(ui.page==XZ_UI_NETWORK_SETUP&&menu.depth==1);
  cursor_to(&s,"STATIC IP");push(&s);snapshot(&s,argv[1],"network-addresses",0);

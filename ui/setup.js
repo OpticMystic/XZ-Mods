@@ -343,7 +343,7 @@ function startFlow(kind,{profile=false,gamesOpen=false}={}){
   startState(ins);
   // The screen choice comes with a loader install or update, after the profile and before the review.
   const withLook=(kind==='install'||kind==='update')&&lookAvailable();
-  const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),...((kind==='install'||kind==='update')?['quad']:[]),'review','writing','done'];
+  const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),...((kind==='install'||kind==='update')?['quad']:[]),'review','writing','done',...((kind==='install'||kind==='update')?['support']:[])];
   if(kind==='profile')W.games=installedGames(ins);
   go({view:'flow',flow:{kind,steps},step:gamesOpen?'review':steps[0],loader:FLOWS[kind].loader,result:null,gamesOpen,quadConfirmed:false,quadPaused:false});focusStep();
 }
@@ -675,6 +675,7 @@ function stepDone(){
     el('ul',{class:'wz-done'},...lines.map(text=>el('li',{text}))),
     ejectStatus(),
     r.loader?quadEntry():null,
+    r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
       el('li',{text:'Press the REKORDBOX key or touch MODS to open the menu. GENERAL is the first tab.'}),el('li',{text:'Test the loader before you use it in a set.'}))):null,
@@ -693,7 +694,28 @@ function ejectStatus(){
   if(W.eject?.state==='error')return el('p',{class:'notice wz-eject-error',role:'alert',text:'The USB was not ejected. '+W.eject.message});
   return null;
 }
-const STEPS={quad:stepQuad,profile:stepProfile,look:stepLook,review:stepReview,writing:stepWriting,done:stepDone};
+function supportLink(label,url){
+  return el('a',{class:'button secondary',href:url,target:'_blank',rel:'noopener noreferrer',text:label,onclick:async event=>{
+    if(!invoke)return;
+    event.preventDefault();
+    try{await invoke('open_link',{url});}catch(error){showError(String(error),jobSlot);}
+  }});
+}
+function stepSupport(){
+  return [el('div',{class:'wz-support'},
+    el('img',{class:'wz-support-logo',src:'assets/xz-mods.png',alt:'XZ Mods',width:112,height:112}),
+    el('span',{class:'wz-eyebrow',text:'Optional support'}),
+    el('h3',{text:'Help keep XZ Mods growing'}),
+    el('p',{class:'wz-lead',text:'If XZ Mods has been useful to you, voluntary support helps fund upkeep and future projects.'}),
+    el('p',{text:'Every feature stays available whether you contribute or not. Thanks for using it and sharing what works for you.'}),
+    el('div',{class:'wz-support-link'},supportLink('Support on Cash App','https://cash.app/$FireAtWill42'),el('code',{text:'$FireAtWill42'})),
+    el('p',{class:'muted',text:'Opens Cash App in your browser. You choose whether to pay and how much.'}),
+    el('p',{class:'wz-support-credit',text:'Created by VJ OpticMystic. Updates and projects: @opticmysticvj. Available for live VJ performances and custom visuals.'}),
+    el('div',{class:'actions'},
+      el('button',{type:'button',class:'primary',id:'wz-support-finish',text:'Finish',onclick:W.eject?.state==='done'?afterEject:backToDevice}),
+      el('button',{type:'button',class:'secondary',text:'Back to results',onclick:()=>goto('done')})))];
+}
+const STEPS={support:stepSupport,quad:stepQuad,profile:stepProfile,look:stepLook,review:stepReview,writing:stepWriting,done:stepDone};
 function viewFlow(){return el('section',{class:'wz-flow',dataset:{step:W.step}},flowHead(),el('div',{class:'wz-flow-body'},...STEPS[W.step]()));}
 
 const VIEWS={find:viewFind,device:viewDevice,flow:viewFlow};
