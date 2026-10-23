@@ -391,6 +391,7 @@ enum xz_shell_usb_colors { XZ_SHELL_USB_COLORS_ALL, XZ_SHELL_USB_COLORS_TILE, XZ
 enum xz_shell_indicator { XZ_SHELL_IND_MODE_LAMPS, XZ_SHELL_IND_QUANTIZE, XZ_SHELL_IND_BYPASS, XZ_SHELL_IND_WAVE_TITLES, XZ_SHELL_INDICATORS };
 struct xz_shell_display {
  enum xz_shell_wave_color wave_color;
+ enum xz_shell_wave_color wave_color_override; /* MODS layered style; BLUE/zero means follow unit/stick */
  enum xz_shell_wave_position wave_position;
  enum xz_shell_key_display key_display;
  enum xz_shell_usb_colors usb_colors;  /* XZ_SHELL_ITEM_USB_COLORS */
