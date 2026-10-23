@@ -243,6 +243,28 @@ static void pending_output_tempo(void){
   end();
  }
 }
+
+#define XZ_LED_PORTABLE_TEST
+#include "../ui/native_led.c"
+static void master_tempo_feedback(void){
+ for(int d=0;d<2;d++)for(int playing=0;playing<2;playing++){
+  begin("master-tempo-feedback-is-state-not-popup");if(playing)press(d,XZ_EXTRA_IN_PLAY);
+  uint32_t prior=view.notice_seq;int original=view.deck[d].master_tempo;
+  for(int n=0;n<8;n++){
+   press(d,XZ_EXTRA_IN_MASTER_TEMPO);
+   CHECK(view.deck[d].master_tempo==(original^((n+1)&1)));
+   CHECK(view.deck[d].known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER_TEMPO));
+   CHECK(view.notice_seq==prior);
+   uint8_t records[2*XZ_LED_RECORD_BYTES];memset(records,0xa5,sizeof records);
+   uint32_t id=XZ_LED_ID_MASTER_TEMPO,ch=d+1,zero=0;memcpy(records,&id,4);memcpy(records+4,&ch,4);memcpy(records+0x18,&zero,4);
+   uint8_t before[sizeof records];memcpy(before,records,sizeof records);uint16_t count=2;
+   xz_native_led_extra_deck(records,sizeof records,&count,NULL,0,0,0,clock_ms,ch,&view.deck[d]);
+   uint32_t state;memcpy(&state,records+0x10,4);CHECK(state==(uint32_t)view.deck[d].master_tempo);
+   for(unsigned i=0;i<sizeof records;i++)if(i<0x10||i>=0x14)CHECK(records[i]==before[i]);
+  }
+  end();
+ }
+}
 int main(int argc,char **argv){
  assert(argc==3);setvbuf(stdout,NULL,_IONBF,0);assert(!pthread_mutex_init(&f.lock,NULL));
  snprintf(fixtures,sizeof fixtures,"%s",argv[1]);snprintf(anlz_dir,sizeof anlz_dir,"%s/anlz",argv[1]);build_analysis();
@@ -257,5 +279,6 @@ int main(int argc,char **argv){
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"native-handoff"))native_handoff_after_confirmation();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"rapid-recovery"))rapid_reacquisition();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"pending-output"))pending_output_tempo();
+ if(!strcmp(argv[2],"all")||!strcmp(argv[2],"mt-feedback"))master_tempo_feedback();
  pthread_mutex_destroy(&f.lock);printf("RESULT authority cases=%u checks=%u failures=%u\n",cases,checks,failed);return failed?1:0;
 }

@@ -2501,7 +2501,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   if(e->pressed){
    if(loaded(d->state))jump(d,heard_now(d,now),now);
    d->master_tempo=!d->master_tempo;
-   xz_xp_notice(p,d->master_tempo?"MASTER TEMPO ON":"MASTER TEMPO OFF");
+   /* Persistent deck/lamp state is the feedback; ordinary toggles do not replace notices. */
   }
   return;
  }
