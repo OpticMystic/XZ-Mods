@@ -79,6 +79,63 @@ struct reader {
 struct analysis { struct xz_extra_column *columns; uint32_t count, span_ms, normalization; struct xz_extra_beat *grid; uint32_t grid_count; };
 struct hot { int set; uint64_t at; uint32_t rgb; uint64_t end; int loop; }; /* loop: at..end */
 struct memory_point { uint64_t at, end; int loop; };
+/* Accepted output provenance. Worker-owned, bounded, no render-time allocation. */
+#define OUTPUT_SPANS 64u
+struct output_span { uint64_t begin,end,source,step,loop_in,loop_out; };
+struct output_history {
+ struct output_span span[OUTPUT_SPANS],pending;
+ unsigned head,count;
+ double rate,beat_age;
+ uint64_t completed,completed_source;
+ double crossing;
+ int32_t beat_ms;
+ int32_t crossing_ms;
+ int rate_valid,beat_valid,crossing_valid;
+};
+static void output_reset(struct output_history *h){
+ h->head=h->count=0;h->completed=0;h->rate_valid=h->beat_valid=h->crossing_valid=0;
+}
+
+static int output_source(const struct output_span *s,uint64_t frame,uint64_t *source){
+ if(frame<s->begin||frame>s->end||!s->step)return 0;
+ uint64_t n=frame-s->begin;
+ if(n>(UINT64_MAX-s->source)/s->step)return 0;
+ uint64_t at=s->source+n*s->step;
+ if(s->loop_out>s->loop_in&&at>=s->loop_out)
+  at=s->loop_in+(at-s->loop_in)%(s->loop_out-s->loop_in);
+ *source=at;return 1;
+}
+static void output_accept(struct output_history *h,uint64_t begin,unsigned frames){
+ if(!frames)return;
+ struct output_span s=h->pending;s.begin=begin;s.end=begin+frames;
+ if(h->count){
+  struct output_span *last=&h->span[(h->head+h->count-1)%OUTPUT_SPANS];uint64_t at;
+  if(last->end==begin&&last->step==s.step&&last->loop_in==s.loop_in&&last->loop_out==s.loop_out&&
+     output_source(last,begin,&at)&&at==s.source&&
+     s.end-last->begin<=(UINT64_MAX-last->source)/s.step){last->end=s.end;return;}
+ }
+ if(h->count==OUTPUT_SPANS){h->head=(h->head+1)%OUTPUT_SPANS;h->count--;}
+ h->span[(h->head+h->count++)%OUTPUT_SPANS]=s;
+}
+/* Invert the actual Q32 motion in a newly completed portion of one span. */
+static int output_crossing(const struct output_span *s,uint64_t begin,uint64_t end,double beat,double *crossing){
+  if(!s->step||begin<s->begin||end>s->end||begin>end)return 0;
+  double step=(double)s->step/(double)ONE;
+  double first=(double)s->source/(double)ONE;
+  double last=first+(double)(end-s->begin)*step;
+  double target=beat;
+  if(s->loop_out>s->loop_in&&last>=(double)s->loop_out/(double)ONE){
+   double lo=(double)s->loop_in/(double)ONE,hi=(double)s->loop_out/(double)ONE,length=hi-lo;
+   if(beat<lo||beat>=hi)return 0;
+   target+=floor((last-beat)/length)*length;
+  }
+  if(target>=first&&target<=last){
+   *crossing=(double)s->begin+(target-first)/step;
+   return isfinite(*crossing)&&*crossing>=(double)begin&&*crossing<=(double)end;
+  }
+ return 0;
+}
+
 #define SYNC_SEGMENTS 64u
 struct sync_segment { uint64_t begin,end; double phase,beat_step; };
 struct sync_clock {
@@ -188,6 +245,7 @@ struct deck {
  uint64_t completed;
  uint32_t pending; uint64_t pending_after, block_start; float pcm[XZ_USB_BLOCK_FRAMES * 2];
  double pending_phase,pending_beat_step;
+ struct output_history output;
  unsigned render_limit;int sync_capture;
  unsigned segment_count;
  struct sync_segment segment[SYNC_SEGMENTS];
@@ -563,6 +621,7 @@ static void scratch_advance(struct deck *d,unsigned available,unsigned *retired,
  }
 }
 static void accepted_segment(struct deck *d){
+ output_accept(&d->output,d->submitted,d->pending);
  if(!d->emergency.active){
   if(d->state!=XZ_XP_PLAYING||reversed(d)||d->search||d->ramp.active){d->emergency.count=0;}
   else if(d->pending){
@@ -593,6 +652,7 @@ static int render(struct deck *d, double rate) {
  xz_xp_test_render_hook();
 #endif
  struct reader *r = d->r;
+ memset(&d->output.pending,0,sizeof d->output.pending);
  if(d->emergency.active){
   for(unsigned i=0;i<XZ_USB_BLOCK_FRAMES;i++){
    unsigned at=(d->emergency.start+d->emergency.read)%EMERGENCY_FRAMES;
@@ -651,6 +711,10 @@ static int render(struct deck *d, double rate) {
   return 1;
  }
  uint64_t step = (uint64_t)((double)r->rate / XZ_USB_RATE * rate * (double)ONE);
+ if(d->state==XZ_XP_PLAYING&&!reversed(d)&&!d->search&&!d->ramp.active){
+  d->output.pending.source=d->block_start;d->output.pending.step=step;
+  if(d->loop.active){d->output.pending.loop_in=d->loop.in<<32;d->output.pending.loop_out=d->loop.out<<32;}
+ }
  if (!step) { d->pending = 0; return 1; }
  if (reversed(d)) {
   /* DIRECTION REV (p.42): the same rate toward the track start; a loop wraps from IN back to OUT.
@@ -710,7 +774,7 @@ static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  if (frame > d->r->frames) frame = d->r->frames;
  d->scratch.releasing=0;d->ramp.active=0;
  d->pos = frame << 32; d->need_flush = 1; d->pending = 0; d->submitted = d->completed = 0;
- d->segment_count=0;
+ d->segment_count=0;output_reset(&d->output);
  d->heard = frame; d->heard_at = now;
  d->heard_rate=0;d->timeline_valid=d->timeline_anchor_valid=0;d->timeline_revision++;
  d->timeline_output_frames=d->timeline_sink_frame=d->timeline_wire_completed=0;
@@ -803,8 +867,8 @@ static void flush(struct xz_xp_players *p, struct deck *d) {
   : s->flush(s->ctx, d->epoch, d->index, &next);
  SP_ONLY(if(available)sp_service(&d->sp,first?XP_SP_TRANSITION:XP_SP_FLUSH,r,sp_begin,p->env.now_ms()));
  if (r == XZ_USB_OK) {
-  d->generation = next; d->submitted = d->completed = 0;
-  d->segment_count=0;
+  d->generation = next; d->submitted = d->completed = 0; d->underrun=0;
+  d->segment_count=0;output_reset(&d->output);
   if (first) { accepted_segment(d);accepted_scratch(d);d->submitted = d->pending; d->pending = 0; }
  }
  /* Busy/full retries keep the prepared target private. A newer command can replace it. */
@@ -967,6 +1031,11 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
    v.timeline.flags|=XZ_EXTRA_TIMELINE_ANCHOR;
    if(d->timeline_valid)v.timeline.flags|=XZ_EXTRA_TIMELINE_RATE;
    if(d->timeline_sink_frame)v.timeline.flags|=XZ_EXTRA_TIMELINE_SINK_FRAME;
+   if(d->output.rate_valid){v.timeline.completed_rate=d->output.rate;v.timeline.flags|=XZ_EXTRA_TIMELINE_APPLIED_RATE;}
+   if(d->output.beat_valid){
+    v.timeline.completed_beat_age_frames=d->output.beat_age;v.timeline.completed_beat_ms=d->output.beat_ms;
+    v.timeline.flags|=XZ_EXTRA_TIMELINE_BEAT_HISTORY;
+   }
   }
   v.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE);
   v.known |= XZ_EXTRA_KNOWN(XZ_EXTRA_F_ELAPSED) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_TOTAL) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_CUE) |
@@ -2443,10 +2512,55 @@ static int take(struct xz_xp_players *p,struct deck *d, struct queued_control *q
  return got;
 }
 
+static void completed_output(struct deck *d,const xz_usb_deck_position *q){
+ struct output_history *h=&d->output;h->rate_valid=h->beat_valid=0;
+ uint64_t end=q->source_completed_output_frames;
+ if(!end||end>q->completed_frames||end<h->completed||q->applied_generation!=d->generation){h->crossing_valid=0;return;}
+ const struct analysis *a=d->analysis;
+ for(unsigned i=0;i<h->count;i++){
+  const struct output_span *s=&h->span[(h->head+i)%OUTPUT_SPANS];uint64_t source,first;
+  if(s->end<=h->completed||s->begin>=end)continue;
+  uint64_t begin=h->completed>s->begin?h->completed:s->begin;
+  uint64_t last=end<s->end?end:s->end;
+  if(begin!=h->completed||!output_source(s,begin,&first)||
+     (h->completed&&first!=h->completed_source))h->crossing_valid=0;
+  if(!output_source(s,last,&source)){h->crossing_valid=0;h->completed=last;continue;}
+  if(!s->loop_out&&source>(d->r->frames<<32))source=d->r->frames<<32;
+  h->completed=last;h->completed_source=source;
+  if(a&&a->grid_count){
+  double ms=(double)source/(double)ONE*1000./d->r->rate;
+  unsigned lo=0,hi=a->grid_count;
+  while(lo<hi){unsigned mid=lo+(hi-lo)/2;if(a->grid[mid].ms<=ms)lo=mid+1;else hi=mid;}
+  if(s->loop_out>s->loop_in&&(!lo||(double)a->grid[lo-1].ms*d->r->rate/1000.<(double)s->loop_in/ONE)){
+   lo=0;hi=a->grid_count;
+   while(lo<hi){unsigned mid=lo+(hi-lo)/2;if((double)a->grid[mid].ms*d->r->rate/1000.<(double)s->loop_out/ONE)lo=mid+1;else hi=mid;}
+  }
+  if(lo){
+  h->beat_ms=a->grid[lo-1].ms;
+  double beat=(double)h->beat_ms*d->r->rate/1000.,crossing;
+  if(output_crossing(s,begin,last,beat,&crossing)){
+   h->crossing=crossing;h->crossing_ms=h->beat_ms;h->crossing_valid=1;
+  }
+  if(s->loop_out>s->loop_in&&(beat<(double)s->loop_in/ONE||beat>=(double)s->loop_out/ONE))h->crossing_valid=0;
+  }else h->crossing_valid=0;
+  }else h->crossing_valid=0;
+  if(last==end){
+   if((source>>32)!=q->source_after_completed){h->crossing_valid=0;return;}
+   h->rate=(double)s->step/(double)ONE*XZ_USB_RATE/d->r->rate;h->rate_valid=1;
+   h->beat_valid=h->crossing_valid&&h->crossing_ms==h->beat_ms&&h->crossing<=(double)end;
+   if(h->beat_valid)h->beat_age=(double)end-h->crossing;
+   return;
+  }
+ }
+ h->crossing_valid=0;
+}
+
 /* Source tags are a USB completion-boundary proxy, not an exact DAC-time observation. */
 static void completed_timeline(struct deck *d,const xz_usb_deck_position *q,uint64_t wire_completed,uint32_t now){
+ if(q->completed_frames<d->completed||q->source_completed_output_frames<d->timeline_output_frames)return;
  d->completed=q->completed_frames;
  if(!q->source_completed_output_frames||q->source_completed_output_frames==d->timeline_output_frames)return;
+ completed_output(d,q);
  uint64_t frames=q->source_completed_output_frames-d->timeline_output_frames;
  int valid=q->source_completed_output_frames>d->timeline_output_frames&&
   q->source_completed_output_frames<=q->completed_frames&&q->source_after_completed<=d->r->frames&&d->r->rate;
@@ -2510,9 +2624,10 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  if (observed) {
   const xz_usb_deck_position *q = &position.deck[d->index];
   d->sync_wire_submitted=position.wire_submitted_frames;
-  d->underrun=q->underrun_frames;
   applied = q->applied_generation == d->generation;
   if (applied) {
+   if(d->underrun!=q->underrun_frames)output_reset(&d->output);
+   d->underrun=q->underrun_frames;
    staged = q->staged_frames;
    if ((q->source_valid & 2) && q->completed_frames != d->completed) {
     completed_timeline(d,q,position.wire_completed_frames,observation_at);
@@ -2641,6 +2756,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   SP_ONLY(d->sp.contact=0;d->sp.history_dirty=1);
   d->epoch = link; d->generation = XZ_USB_INITIAL_GENERATION;
   d->timeline_revision++;d->timeline_valid=d->timeline_anchor_valid=0;d->heard_rate=0;
+  output_reset(&d->output);
   d->need_flush = 0; d->pending = 0; d->submitted = d->completed = 0;
   d->loop.in_down=d->loop.held=0;
   if(d->pad_hold==PAD_HOLD_LOOP){d->loop.active=0;d->loop.edit=0;d->active_pad=-1;}

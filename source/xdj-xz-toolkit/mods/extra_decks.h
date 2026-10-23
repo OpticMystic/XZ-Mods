@@ -54,7 +54,8 @@ struct xz_extra_beat { int32_t ms; uint8_t beat_in_bar; };   /* 1..4 */
 struct xz_extra_cue { int set; int32_t ms; uint32_t rgb; int32_t end_ms; };
 enum xz_extra_timeline_flag {
  XZ_EXTRA_TIMELINE_ANCHOR=1u, XZ_EXTRA_TIMELINE_RATE=2u,
- XZ_EXTRA_TIMELINE_MOTION=4u, XZ_EXTRA_TIMELINE_SINK_FRAME=8u
+ XZ_EXTRA_TIMELINE_MOTION=4u, XZ_EXTRA_TIMELINE_SINK_FRAME=8u,
+ XZ_EXTRA_TIMELINE_APPLIED_RATE=16u, XZ_EXTRA_TIMELINE_BEAT_HISTORY=32u
 };
 /* Completed-PCM source tag observed at at_ms, with slope measured against completed output frames.
    This is a USB transport-boundary proxy, not an audible-position/DAC timestamp measurement.
@@ -69,6 +70,10 @@ struct xz_extra_timeline {
  uint32_t source_rate, at_ms, revision, route_epoch, load_revision, transport_generation, flags;
  int32_t rate_ppm;                   /* signed source seconds / output second, millionths */
  int moving;
+ /* Accepted Q32 render step at the completed endpoint, normalized to source seconds/output second.
+    Separate from observed tag slope. Beat age is output frames since a retained actual grid crossing. */
+ double completed_rate,completed_beat_age_frames;
+ int32_t completed_beat_ms;
 };
 enum xz_extra_sync_reason {
  XZ_EXTRA_SYNC_OFF, XZ_EXTRA_SYNC_WAIT_MASTER, XZ_EXTRA_SYNC_WAIT_ANCHOR,

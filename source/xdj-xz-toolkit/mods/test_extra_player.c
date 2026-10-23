@@ -1728,6 +1728,7 @@ static void test_threads(void) {
 #include "test_extra_player_trajectory.h"
 #include "test_extra_player_held_controls.h"
 
+#include "test_extra_player_completed_rate.h"
 int main(int argc, char **argv) {
  assert(argc == 2 || argc == 3);
  assert(!pthread_mutex_init(&f.lock, NULL));
@@ -1763,6 +1764,7 @@ int main(int argc, char **argv) {
  test_native_master_handoff();
  test_quantize_parity();
  test_stock_parity_b();
+ test_completed_rate();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
         "tempo rate, jog bend decay and search, SYNC, MASTER TEMPO, SEEK, EOF, 44.1/48 kHz, load while playing, "
         "retire grace, resolver and read failures, route down, full queue, threaded snapshots (%lu)\n", snapshots);

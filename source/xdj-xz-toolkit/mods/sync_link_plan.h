@@ -35,6 +35,8 @@ struct xz_sync_link_pcm_anchor {
  double source_frame,beat_source_frame,effective_speed;
  unsigned beat_in_bar,lane;
  uint32_t future_beat_ms[8];          /* actual projected PCM grid intervals after current beat */
+ double completed_beat_age_frames;
+ int completed_beat_history;
 };
 struct xz_sync_link_plan {
  int valid;
