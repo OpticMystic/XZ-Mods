@@ -2,6 +2,7 @@
 #include "../key/display.h"
 #include "stem_pads.h"
 #include "wave_viewport.h"
+#include "ui_network.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -248,7 +249,9 @@ static enum xz_ui_page parent_page(enum xz_ui_page page){
  case XZ_UI_METRICS_SETUP:return XZ_UI_SETTINGS;
  case XZ_UI_PROFILE_SETUP:return XZ_UI_EXTRAS;
  case XZ_UI_PROFILE_EDIT:return XZ_UI_PROFILE_SETUP;
- case XZ_UI_FEATURE_SETUP:return XZ_UI_GENERAL;
+ case XZ_UI_FEATURE_SETUP:case XZ_UI_NETWORK:return XZ_UI_GENERAL;
+ case XZ_UI_NETWORK_SETUP:return XZ_UI_NETWORK;
+ case XZ_UI_NETWORK_EDIT:return XZ_UI_NETWORK_SETUP;
  case XZ_UI_CONNECTION:case XZ_UI_GAMES:case XZ_UI_UPDATES:case XZ_UI_APPS:return XZ_UI_EXTRAS;
  case XZ_UI_UPDATE_SETUP:return XZ_UI_UPDATES;
  case XZ_UI_APPS_SETUP:return XZ_UI_APPS;
@@ -308,6 +311,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,"STEM COLORS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_XPAD,0,"X-PAD SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,m->metrics.valid?"METRICS SETTINGS >":"SET UP METRICS >");
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_NETWORK,0,"NETWORK >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS,0,"STEM SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS,0,"MORE CONTROLS >");
  }else if(u->page==XZ_UI_FEATURE_SETUP){
@@ -438,6 +442,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_TAKEOVER_ASSIGN,2,0,"ONSCREEN");
   add(w,&n,XZ_UI_CONNECTION_ENABLE,0,XZ_UI_VJ_CONNECTION,"VJ.TOOLS CONNECTION");
   add(w,&n,XZ_UI_DISCOVERY,0,XZ_UI_VJ_DISCOVERY,"DISCOVERABLE");
+  add(w,&n,XZ_UI_PANEL,XZ_UI_NETWORK,0,"NETWORK SETTINGS");
  }else if(u->page==XZ_UI_PC_STEMS){
   static const char *sources[3]={"STANDALONE STEMS","PC STEMS","SOURCE UNKNOWN"};
   for(i=0;i<2;i++){int source=m->deck[i].pc_stems.source;add(w,&n,XZ_UI_DECK,i,0,sources[source>=0&&source<3?source:2]);}
@@ -450,6 +455,8 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   }else if(step==XZ_UI_PC_STEP_DONE)add(w,&n,XZ_UI_PC_CHECK,step,0,"RUN SETUP AGAIN");
   else add(w,&n,XZ_UI_PC_CHECK,XZ_UI_PC_STEP_DETECT,0,"DETECT PC");
   for(size_t k=first;k<n;k++)w[k].deck=deck;
+ }else if(xz_ui_network_page(u->page)){
+  n=xz_ui_network_controls(u,m,w,n);
  }else if(u->page==XZ_UI_PROFILE_SETUP||u->page==XZ_UI_PROFILE_EDIT){
   /* Without a reader the page says so in one line and offers no dead button. */
   n=xz_ui_profile_controls(u,m,w,n);
@@ -460,6 +467,7 @@ size_t xz_ui_layout(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_
  size_t n=page_controls(u,m,w);
  xz_ui_place(u,m,w,n);
  xz_sdk_ui_place(u,m,w,n);
+ xz_ui_network_place(u,m,w,n);
  return n;
 }
 static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,const struct xz_ui_widget *w){
@@ -492,6 +500,7 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
  int deck=a->deck>=0?a->deck:u->deck,k=a->index;const struct xz_ui_deck *d=&m->deck[deck];
  const struct xz_theme_palette *p=xz_theme_palette(m->theme);
  struct xz_ui_look l={ready(u,m,deck,a),0,p->accent};
+ if(xz_ui_network_kind(a->kind)){l.selected=xz_ui_network_selected(u,a);return l;}
  switch(a->kind){
  case XZ_UI_DECK:l.selected=k==u->deck;break;
  case XZ_UI_FEATURE_LINK:break;
@@ -567,6 +576,7 @@ const char *xz_ui_ram_state_text(enum xz_ui_ram_state state){
  default:return "RAM ENGINE NOT DETECTED";}
 }
 const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m){
+ if(xz_ui_network_page(u->page))return u->notice[0]?u->notice:m->network.detail[0]?m->network.detail:"SET UP NETWORK / CHANGES LAST UNTIL REBOOT";
  const struct xz_ui_deck *d=&m->deck[u->deck];
  const char *saved=m->settings_status?m->settings_status:"INSERT USB TO SAVE SETTINGS";
  if(m->settings_flash)return saved;
@@ -670,6 +680,7 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  xz_key_display_panel(pixels,stride,u,m);
  if(u->page>=XZ_UI_EXTRAS&&u->page!=XZ_UI_CONNECTION)xz_ui_page_details(&s);
  xz_ui_profile_render(&s);
+ if(xz_ui_network_page(u->page))xz_ui_network_render(&s);
  if(u->page==XZ_UI_CONTROLS)xz_ui_stem_setup(&s);
  if(u->page==XZ_UI_PC_STEMS)pc_setup_render(&s);
  if(u->page==XZ_UI_METRICS_SETUP){
@@ -740,6 +751,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
  if(u->capture<0||(size_t)u->capture>=count)return 0;a=w[u->capture];
  deck=a.deck>=0?a.deck:u->deck;d=&m->deck[deck];
  if(press&&xz_ui_focusable(&a)){u->focus_kind=a.kind;u->focus_index=a.index;u->focus_deck=a.deck;u->adjusting=0;}
+ if(press&&xz_ui_network_kind(a.kind))return xz_ui_network_action(u,m,a.kind,a.index,out);
  if(!ready(u,m,deck,&a)){
   if(!press)return 0;
   if(a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY)snprintf(u->notice,sizeof(u->notice),"%s CONTROL IS NOT AVAILABLE",a.label);

@@ -3,6 +3,7 @@
    runtime: focus is UI state, and every activation goes through the same
    touch path a finger would take, so encoder and screen can never disagree. */
 #include "ui_skin.h"
+#include "ui_network.h"
 #include "stem_pads.h"
 #include <stdio.h>
 #include <string.h>
@@ -104,6 +105,7 @@ size_t xz_ui_encoder_push(struct xz_ui *u,const struct xz_ui_model *m,struct xz_
 
 /* Info box text. Titles name the control; bodies say what it changes. */
 const char *xz_ui_page_title(int page){
+ if(xz_ui_network_page(page))return xz_ui_network_title(page);
  switch(page){
  case XZ_UI_GENERAL:return "GENERAL";case XZ_UI_FEATURE_SETUP:return "FEATURE SETUP";
  case XZ_UI_CONTROLS:return "CONTROLS";case XZ_UI_THEMES:return "APPEARANCE";case XZ_UI_SETTINGS:return "ADVANCED";
@@ -270,6 +272,7 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
   out->title=title;
  }
  out->body=body(u,m,&a);
+ if(xz_ui_network_kind(a.kind))out->body=xz_ui_network_help(a.kind);
  if(xz_ui_profile_owns(a.kind)){const char *title=NULL,*text=xz_ui_profile_describe(u,m,&a,&title);if(text)out->body=text;if(title)out->title=title;}
  /* Locked stems name their reason instead of a bare NOT READY. */
  if(!l.available&&(a.kind==XZ_UI_MUTE||a.kind==XZ_UI_BYPASS||a.kind==XZ_UI_LEVEL)){

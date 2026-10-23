@@ -243,6 +243,7 @@ def main() -> None:
                *lab_objects, str(ROOT / "arcade/rhythm_lab_runtime.c"),
                str(ROOT / "doom/wad_catalog.c"),
                str(ROOT / "ota/native_update.c"),
+               *(str(ROOT / "network" / name) for name in ("lease.c", "service.c", "linux.c", "linux_os.c", "runtime.c")),
                str(ROOT / "ui_runtime.c"), str(ROOT / "metrics_runtime.c"), str(ROOT / "pc_control/stems.c"), str(ROOT / "pc_control/native.c"), str(ROOT / "pc_control/wave.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
                str(ROOT / "ui/stem_pads.c"), str(ROOT / "ui/beat_jump.c"),
                str(ROOT / "ui/native_led.c"),

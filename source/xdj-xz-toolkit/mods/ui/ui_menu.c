@@ -5,6 +5,7 @@
    the profile list) become ordinary choices that run the panel's own actions. */
 #include "ui_skin.h"
 #include "ui_menu.h"
+#include "ui_network.h"
 #include "stem_pads.h"
 #include "wave_viewport.h"
 #include <stdarg.h>
@@ -657,6 +658,7 @@ static int skipped(const struct build *b, const struct xz_ui_widget *a) {
 }
 int xz_ui_menu_build(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_shell_menu *out) {
  if(!u||!m||!out)return 0;
+ if(xz_ui_network_page(u->page))return xz_ui_network_menu(u,m,out);
  memset(out,0,sizeof *out);
  struct build b={out,NULL,u,m,0,-1,{0},0,0};
  int chain[24],n=chain_of(u,chain),depth=n-1;
@@ -751,6 +753,7 @@ size_t xz_ui_menu_run(struct xz_ui *u, const struct xz_ui_model *m, const struct
   if(w.kind==XZ_UI_CONTROL_SECTION){u->focus_kind=w.kind;u->focus_index=w.index;u->focus_deck=w.deck;}
   return total;}
  case XZ_UI_MENU_DIRECT:case XZ_UI_MENU_SLIDE:
+  if(xz_ui_network_kind(t->kind))return take(out,total,XZ_UI_MENU_ACTIONS,a,xz_ui_network_action(u,m,t->kind,t->index,a));
   if(t->kind==XZ_UI_FEATURE_SETUP_OPEN){
    /* the X-PAD page's way into its setup, as GENERAL's SET UP X-PAD opens it */
    enum xz_ui_page old=u->page;xz_ui_navigate(u,XZ_UI_FEATURE_SETUP);u->feature_cap=t->index;u->feature_step=0;

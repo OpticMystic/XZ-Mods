@@ -9,13 +9,14 @@
 #include "../ota/native_update.h"
 #include "sdk_ui.h"
 #include "metrics.h"
+#include "../network/ui_types.h"
 
 #define XZ_UI_WIDTH 800
 #define XZ_UI_HEIGHT 480
 #define XZ_UI_WIDGETS 64
 #define XZ_UI_ACTIONS 4
 
-enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_CONNECTION, XZ_UI_CONTROLS, XZ_UI_BEAT_JUMP, XZ_UI_EXTRAS, XZ_UI_DOOM, XZ_UI_DOOM_SETUP, XZ_UI_DOOM_FILES, XZ_UI_UPDATES, XZ_UI_UPDATE_SETUP, XZ_UI_GAMES, XZ_UI_MYHOUSE_SETUP, XZ_UI_KEY_SETUP, XZ_UI_BROWSE_SETUP, XZ_UI_PC_STEMS, XZ_UI_STEM_COLORS, XZ_UI_APPS, XZ_UI_APPS_SETUP, XZ_UI_RAM_SETUP, XZ_UI_LOCAL_STEM_SETUP, XZ_UI_METRICS_SETUP, XZ_UI_PROFILE_SETUP, XZ_UI_PROFILE_EDIT, XZ_UI_GENERAL, XZ_UI_FEATURE_SETUP, XZ_UI_THEME_PICK, XZ_UI_BUTTONS, XZ_UI_PAGE_COUNT };
+enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_CONNECTION, XZ_UI_CONTROLS, XZ_UI_BEAT_JUMP, XZ_UI_EXTRAS, XZ_UI_DOOM, XZ_UI_DOOM_SETUP, XZ_UI_DOOM_FILES, XZ_UI_UPDATES, XZ_UI_UPDATE_SETUP, XZ_UI_GAMES, XZ_UI_MYHOUSE_SETUP, XZ_UI_KEY_SETUP, XZ_UI_BROWSE_SETUP, XZ_UI_PC_STEMS, XZ_UI_STEM_COLORS, XZ_UI_APPS, XZ_UI_APPS_SETUP, XZ_UI_RAM_SETUP, XZ_UI_LOCAL_STEM_SETUP, XZ_UI_METRICS_SETUP, XZ_UI_PROFILE_SETUP, XZ_UI_PROFILE_EDIT, XZ_UI_GENERAL, XZ_UI_FEATURE_SETUP, XZ_UI_THEME_PICK, XZ_UI_BUTTONS, XZ_UI_NETWORK, XZ_UI_NETWORK_SETUP, XZ_UI_NETWORK_EDIT, XZ_UI_PAGE_COUNT };
 enum xz_ui_cap {
     XZ_UI_GATE=1u, XZ_UI_SMART=2u, XZ_UI_PREVIEW=4u, XZ_UI_STEM=8u,
     XZ_UI_GROOVE=16u, XZ_UI_SAMPLE=32u, XZ_UI_THEME=64u, XZ_UI_SERVER=128u,
@@ -78,7 +79,10 @@ enum xz_ui_action_kind {
      * XZ_UI_RB_CHOICES + choice; the action carries index = slot (0 press, 1 SHIFT + press) and
      * value = choice (enum xz_ui_rekordbox). */
     XZ_UI_REKORDBOX_ASSIGN,
-    XZ_UI_FOUR_WAVE_ORDER /* Session-only shared display order; value 0 numeric / 1 mixer. */
+    XZ_UI_FOUR_WAVE_ORDER, /* Session-only shared display order; value 0 numeric / 1 mixer. */
+    XZ_UI_NETWORK_SETUP_OPEN, XZ_UI_NETWORK_DETECT, XZ_UI_NETWORK_ADAPTER, XZ_UI_NETWORK_PRIORITY,
+    XZ_UI_NETWORK_MODE, XZ_UI_NETWORK_FIELD, XZ_UI_NETWORK_KEY, XZ_UI_NETWORK_STEP,
+    XZ_UI_NETWORK_APPLY, XZ_UI_NETWORK_REVERT, XZ_UI_NETWORK_CANCEL
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
@@ -132,6 +136,7 @@ struct xz_ui_action {
     float value, secondary;
     uint32_t pc_epoch;
     int pc_target;
+    uint64_t network_revision; /* immutable draft revision at submission */
     uint32_t sdk_generation; /* catalog generation an SDK row action was made from */
 };
 /* Mirrors enum xz_ram_state in ../ram/runtime.h so the panel builds without the RAM backend.
@@ -246,6 +251,7 @@ struct xz_ui_model {
     struct xz_metrics_sample metrics;
     const struct xz_ui_dj *dj; /* NULL: this runtime has no DJ Profile support, so no header chip */
     int four_wave_mixer; /* Session preference; never persisted in settings. */
+    struct xz_net_view network;
 };
 struct xz_ui {
     enum xz_ui_page page;
@@ -278,6 +284,7 @@ struct xz_ui {
     int edit_logo;             /* image index, XZ_UI_LOGO_KEEP or XZ_UI_LOGO_NONE */
     int edit_logo_chosen;      /* the DJ picked; no automatic pick after that */
     int kb_shift, kb_symbols, image_offset;
+    struct xz_network_ui_draft network;
     char edit_name[641], edit_tagline[321], edit_id[129]; /* edit_id "" = a new profile */
 };
 struct xz_ui_widget {
