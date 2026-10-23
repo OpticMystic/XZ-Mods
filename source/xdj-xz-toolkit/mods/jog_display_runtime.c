@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <time.h>
 #include "jog_display_runtime.h"
+#include "jog_wave_diagnostic.h"
 #include "runtime.h"
 #include "deck_select.h"
 #ifdef __linux__
@@ -178,6 +179,7 @@ static int wave_tag_current(unsigned side,const struct jd_wave_tag *tag,int sele
  return 1;
 }
 static int service_wave_step(unsigned side,uint32_t session,const struct xz_ds_selection *selection){
+ JW_INC(side,JW_SERVICE);
  struct jd_wave_job *job=&jd_wave_job[side];
  if(job->active){
   int current=wave_tag_current(side,&job->value.tag,1);
@@ -187,6 +189,7 @@ static int service_wave_step(unsigned side,uint32_t session,const struct xz_ds_s
  if(!job->active){
   uint32_t content=current_content(side);if(!content||!selection->epoch[side])return 0;
   enum xz_extra_wave_copy_result result=xz_extra_decks_copy_wave((int)side,NULL,0,&jd_wave_chunk);
+  JW_COPY(side,result);
   if(result!=XZ_EXTRA_WAVE_COPY_OK||!jd_wave_chunk.count)return 0;
   struct jd_wave_tag tag={.session=session,.content=content,.selection=selection->epoch[side],.key=jd_wave_chunk.key};
   if(wave_tag_current(side,&tag,1)!=1)return 0;
@@ -198,6 +201,7 @@ static int service_wave_step(unsigned side,uint32_t session,const struct xz_ds_s
  if(job->done)return 0;
  if(!job->ready){
   enum xz_extra_wave_copy_result result=xz_extra_decks_copy_wave((int)side,&job->value.tag.key,job->overview.next,&jd_wave_chunk);
+  JW_COPY(side,result);
   if(result==XZ_EXTRA_WAVE_COPY_BUSY)return 0;
   if(result!=XZ_EXTRA_WAVE_COPY_OK||!same_wave_key(&job->value.tag.key,&jd_wave_chunk.key)){job->active=0;return 0;}
   int current=wave_tag_current(side,&job->value.tag,1);
@@ -212,6 +216,7 @@ static int service_wave_step(unsigned side,uint32_t session,const struct xz_ds_s
   current=wave_tag_current(side,&job->value.tag,1);
   if(current<0)return 0;
   if(!current){job->active=0;return 0;}
+  JW_INC(side,JW_ENCODED);
   job->ready=1;
  }
  struct jd_wave_slot *slot=&jd_wave_slot[side];
@@ -221,6 +226,7 @@ static int service_wave_step(unsigned side,uint32_t session,const struct xz_ds_s
   slot->value=job->value;
   slot->valid=wave_tag_current(side,&job->value.tag,1)==1;
   job->done=slot->valid;
+  if(job->done)JW_INC(side,JW_PUBLISHED);
  }
  atomic_flag_clear_explicit(&slot->busy,memory_order_release);return job->done;
 }
@@ -251,13 +257,13 @@ static void adopt_wave(unsigned index,uint32_t session){
  uint64_t span=key.span_ms,total=d->total_ms>0?(uint32_t)d->total_ms:0;
  uint64_t bins=key.column_count<XZ_JD_OVERVIEW_COLUMNS?key.column_count:XZ_JD_OVERVIEW_COLUMNS;
  uint64_t tolerance=(span+bins-1u)/bins;
- if(!span||!total||(span>total?span-total:total-span)>tolerance){side->have_wave=0;return;}
+ if(!span||!total||(span>total?span-total:total-span)>tolerance){JW_INC(index,JW_SPAN_REJECT);side->have_wave=0;return;}
  if(side->have_wave&&same_wave_key(&side->wave_key,&key))return;
  side->have_wave=0;struct jd_wave_slot *slot=&jd_wave_slot[index];
  if(atomic_flag_test_and_set_explicit(&slot->busy,memory_order_acquire))return;
  if(slot->valid&&slot->value.tag.session==session&&slot->value.tag.content==d->jog_content_epoch&&
   same_wave_key(&slot->value.tag.key,&key)&&wave_tag_current(index,&slot->value.tag,0)==1){
-  side->wave=slot->value.wave;side->wave_key=key;side->have_wave=1;
+  side->wave=slot->value.wave;side->wave_key=key;side->have_wave=1;JW_INC(index,JW_ADOPTED);
  }
  atomic_flag_clear_explicit(&slot->busy,memory_order_release);
 }
@@ -846,6 +852,8 @@ static void hook_jog_assemble(void *self){
  if(final_valid&&atomic_load(&jd_installed)&&session==atomic_load_explicit(&jd_session,memory_order_acquire)){
   memcpy(frame,out,XZ_JD_FRAME);
   xz_jd_commit(&jd_state[side_idx],&transaction);
+  if(on_extra&&have_snap&&side->have_wave&&transaction.selected==XZ_JD_OK&&
+     transaction.phase_before==XZ_JD_EXTRA&&out[12+(1^3u)]==0x2c&&out[12+(4^3u)]==73)JW_INC(side_idx,JW_COMMITTED);
 #ifdef XZ_JOG_DISPLAY_PROOF
   copied=1;
 #endif
