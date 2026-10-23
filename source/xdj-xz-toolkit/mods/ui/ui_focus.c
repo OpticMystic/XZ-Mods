@@ -126,7 +126,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_THEMES:return "Interface, theme, waveform style, key display and stem colors.";
  case XZ_UI_THEME_PICK:return "Restyles the classic player screen and this menu.";
  case XZ_UI_SETTINGS:return "Key shift and key sync, groove pads, X-PAD, RAM tracks and hardware keys.";
- case XZ_UI_EXTRAS:return "VJ.Tools link, games, USB apps and network updates.";
+ case XZ_UI_EXTRAS:return "VJ.Tools link, games and USB apps.";
  case XZ_UI_STEMS:return "Play grooves that replace a stem. Unassigned pads keep their hot cues.";
  case XZ_UI_XPAD:return "Experimental X-PAD sampler: loop strip, hold, overdub and sample pads.";
  case XZ_UI_CONNECTION:return "Link a computer running VJ.Tools for video on this screen and the filmstrip.";

@@ -524,15 +524,16 @@ static void look_set_locked(int id, int choice, uint32_t now) {
 /* GENERAL, CONTROLS, ADVANCED and EXTRAS are the MODS panel's own top pages as MENU tabs: ui_runtime.c
    publishes the panel's open page (ui/ui_menu.h) and runs what a push asks for, so the shell draws every
    page and sub-page and the panel never opens over it. */
-static const struct xz_shell_mods_tab mod_tabs[6]={
+static const struct xz_shell_mods_tab mod_tabs[7]={
  {"GENERAL",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_GENERAL,NULL},
  {"CONTROLS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_CONTROLS,NULL},
  {"BUTTONS",XZ_SHELL_TAB_ITEMS,&buttons_model,buttons_sections,1,XZ_UI_BUTTONS,NULL},
  {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,look_sections,4,XZ_UI_THEMES,NULL},
  {"ADVANCED",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_SETTINGS,NULL},
- {"EXTRAS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_EXTRAS,NULL}};
+ {"EXTRAS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_EXTRAS,NULL},
+ {"NETWORK",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_NETWORK,NULL}};
 _Static_assert(BUTTONS_TAB==2&&LOOK_TAB==3,"tab indexes follow mod_tabs");
-static const struct xz_shell_mods_model mods_model={6,mod_tabs};
+static const struct xz_shell_mods_model mods_model={7,mod_tabs};
 static int mods_page=-1; /* under mutex: the page OPEN_MODS asked for */
 /* The MENU tabs' page as ui_runtime.c last published it, and the commands a push asked for. Under mutex. */
 static struct xz_shell_menu menu_page;

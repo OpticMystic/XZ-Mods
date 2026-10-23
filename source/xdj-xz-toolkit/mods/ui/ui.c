@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
-static const enum xz_ui_page menu_pages[5]={XZ_UI_GENERAL,XZ_UI_CONTROLS,XZ_UI_THEMES,XZ_UI_SETTINGS,XZ_UI_EXTRAS};
-static const char *menu_names[5]={"GENERAL","CONTROLS","APPEARANCE","ADVANCED","EXTRAS"};
+static const enum xz_ui_page menu_pages[6]={XZ_UI_GENERAL,XZ_UI_CONTROLS,XZ_UI_THEMES,XZ_UI_SETTINGS,XZ_UI_EXTRAS,XZ_UI_NETWORK};
+static const char *menu_names[6]={"GENERAL","CONTROLS","APPEARANCE","ADVANCED","EXTRAS","NETWORK"};
 static const char *stem_pages[4]={"HOT CUE","BEAT LOOP","SLIP LOOP","BEAT JUMP"};
 static const char *stems[3]={"DRUMS","HARMONICS","VOCALS"};
 /* Four-stem rows: harmonics without bass reads INST, same column and colour. */
@@ -205,7 +205,7 @@ static void add(struct xz_ui_widget *w,size_t *n,enum xz_ui_action_kind kind,int
 }
 static struct xz_ui_action action(enum xz_ui_action_kind,enum xz_ui_phase,int,int,float,float);
 static int root_page(enum xz_ui_page page){
- return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_THEMES||page==XZ_UI_EXTRAS;
+ return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_THEMES||page==XZ_UI_EXTRAS||page==XZ_UI_NETWORK;
 }
 void xz_ui_navigate(struct xz_ui *u,enum xz_ui_page page){
  xz_ui_network_invalidate(u);
@@ -257,10 +257,11 @@ static enum xz_ui_page parent_page(enum xz_ui_page page){
  case XZ_UI_METRICS_SETUP:return XZ_UI_SETTINGS;
  case XZ_UI_PROFILE_SETUP:return XZ_UI_EXTRAS;
  case XZ_UI_PROFILE_EDIT:return XZ_UI_PROFILE_SETUP;
- case XZ_UI_FEATURE_SETUP:case XZ_UI_NETWORK:return XZ_UI_GENERAL;
+ case XZ_UI_FEATURE_SETUP:return XZ_UI_GENERAL;
+ case XZ_UI_UPDATES:return XZ_UI_NETWORK;
  case XZ_UI_NETWORK_SETUP:return XZ_UI_NETWORK;
  case XZ_UI_NETWORK_EDIT:return XZ_UI_NETWORK_SETUP;
- case XZ_UI_CONNECTION:case XZ_UI_GAMES:case XZ_UI_UPDATES:case XZ_UI_APPS:return XZ_UI_EXTRAS;
+ case XZ_UI_CONNECTION:case XZ_UI_GAMES:case XZ_UI_APPS:return XZ_UI_EXTRAS;
  case XZ_UI_UPDATE_SETUP:return XZ_UI_UPDATES;
  case XZ_UI_APPS_SETUP:return XZ_UI_APPS;
  case XZ_UI_DOOM:case XZ_UI_DOOM_FILES:case XZ_UI_MYHOUSE_SETUP:return XZ_UI_GAMES;
@@ -296,7 +297,7 @@ size_t xz_ui_back(struct xz_ui *u,struct xz_ui_action out[XZ_UI_ACTIONS]){
 static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget w[XZ_UI_WIDGETS]){
  size_t n=0;int i;
  if(u->profile_open&&m->dj)return profile_controls(u,m,w);
- for(i=0;i<5;i++)add(w,&n,XZ_UI_PANEL,menu_pages[i],0,menu_names[i]);
+ for(i=0;i<6;i++)add(w,&n,XZ_UI_PANEL,menu_pages[i],0,menu_names[i]);
  add(w,&n,XZ_UI_CLOSE,0,0,"CLOSE");
  add(w,&n,XZ_UI_BACK,0,0,"< BACK");
  if(m->dj)add(w,&n,XZ_UI_PROFILE,0,0,"DJ PROFILE");
@@ -320,7 +321,6 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,"STEM COLORS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_XPAD,0,"X-PAD SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,m->metrics.valid?"METRICS SETTINGS >":"SET UP METRICS >");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_NETWORK,0,"NETWORK >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS,0,"STEM SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS,0,"MORE CONTROLS >");
  }else if(u->page==XZ_UI_FEATURE_SETUP){
@@ -374,7 +374,6 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
  }else if(u->page==XZ_UI_EXTRAS){
   add(w,&n,XZ_UI_PANEL,XZ_UI_CONNECTION,0,"VJ.TOOLS");
   add(w,&n,XZ_UI_PANEL,XZ_UI_GAMES,0,"GAMES");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_UPDATES,0,"NETWORK UPDATES");
   n=xz_sdk_ui_controls(u,m,w,n);
  }else if(u->page==XZ_UI_GAMES){
   add(w,&n,XZ_UI_GAME_SELECT,0,0,"DOOM / CHOOSE WAD");
@@ -451,7 +450,6 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_TAKEOVER_ASSIGN,2,0,"ONSCREEN");
   add(w,&n,XZ_UI_CONNECTION_ENABLE,0,XZ_UI_VJ_CONNECTION,"VJ.TOOLS CONNECTION");
   add(w,&n,XZ_UI_DISCOVERY,0,XZ_UI_VJ_DISCOVERY,"DISCOVERABLE");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_NETWORK,0,"NETWORK SETTINGS");
  }else if(u->page==XZ_UI_PC_STEMS){
   static const char *sources[3]={"STANDALONE STEMS","PC STEMS","SOURCE UNKNOWN"};
   for(i=0;i<2;i++){int source=m->deck[i].pc_stems.source;add(w,&n,XZ_UI_DECK,i,0,sources[source>=0&&source<3?source:2]);}
@@ -466,6 +464,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   for(size_t k=first;k<n;k++)w[k].deck=deck;
  }else if(xz_ui_network_page(u->page)){
   n=xz_ui_network_controls(u,m,w,n);
+  if(u->page==XZ_UI_NETWORK)add(w,&n,XZ_UI_PANEL,XZ_UI_UPDATES,0,"NETWORK UPDATES");
  }else if(u->page==XZ_UI_PROFILE_SETUP||u->page==XZ_UI_PROFILE_EDIT){
   /* Without a reader the page says so in one line and offers no dead button. */
   n=xz_ui_profile_controls(u,m,w,n);

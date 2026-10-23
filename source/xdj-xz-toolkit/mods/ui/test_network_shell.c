@@ -8,7 +8,7 @@ int main(void){
     fx_track_build(&track,7);fx_model_full(&sm,&track);sm.settings_screen=fxs_reset();sm.mods=&mfx_mods;sm.menu=&menu;(void)fxs_item;
     struct xz_shell s;fresh(&s);um.network.actual.count=1;um.network.actual.generation=8;um.network.result=XZ_NET_OK;
     struct xz_net_adapter *a=&um.network.actual.adapter[0];strcpy(a->id.name,"fixture0");a->id.ifindex=7;a->id.identity_epoch=3;a->state_revision=2;a->addresses_known=a->link_up=XZ_NET_YES;a->caps=XZ_NET_CAP_STATIC_ADD;a->address_count=1;a->address[0].ip=(struct xz_net_ipv4){{192,0,2,10}};a->address[0].prefix=24;
-    xz_ui_navigate(&ui,XZ_UI_NETWORK);publish();xz_shell_mods_show(&s,&sm,1);render_check(&s);
+    xz_ui_navigate(&ui,XZ_UI_NETWORK);publish();xz_shell_mods_show(&s,&sm,mfx_tab_of(XZ_UI_NETWORK));render_check(&s);
     cursor_to(&s,"CHOOSE ADAPTER");push(&s);assert(ui.page==XZ_UI_NETWORK_SETUP&&ui.network.initialized);render_check(&s);
     cursor_to(&s,"STATIC IP");push(&s);cursor_to(&s,"EDIT IP");push(&s);assert(ui.page==XZ_UI_NETWORK_EDIT&&menu.layout==XZ_SHELL_MENU_KEYBOARD);render_check(&s);
     /* Every key has real shell keyboard geometry inside the screen. */
