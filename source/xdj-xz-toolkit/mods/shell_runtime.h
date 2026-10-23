@@ -26,6 +26,7 @@ struct xz_shell_runtime_key { int valid; char text[8]; char original[8]; int cen
 #define XZ_SHELL_RUNTIME_DJ 32
 struct xz_shell_runtime_frame_input {
  int eligible, theme;
+ int key_controls_open; /* transient PLAY overlay, forces a clean frame beneath it */
  struct xz_shell_runtime_key key[XZ_SHELL_NATIVE_DECKS];
  int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
  int stem_muted_known[XZ_SHELL_NATIVE_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
@@ -49,6 +50,8 @@ void xz_shell_runtime_stop(void);
 int xz_shell_runtime_follow_interface(int modern);
 /* Lock-free: the shell owns the screen now. */
 int xz_shell_runtime_owns(void);
+/* Logical deck under a PLAY key readout, -1 on other screens or hidden decks. */
+int xz_shell_runtime_key_deck(int x, int y);
 /* Lock-free: owns the screen and no frame is due, so the caller can skip all work. */
 int xz_shell_runtime_idle(void);
 /* Scheduling hint only; position and motion still come from native observations. */

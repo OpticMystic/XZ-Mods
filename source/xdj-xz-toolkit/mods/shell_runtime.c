@@ -2787,6 +2787,12 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
 
 /* ---- entry points ---- */
 int xz_shell_runtime_owns(void) { return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE); }
+int xz_shell_runtime_key_deck(int x, int y) {
+ if(!__atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE))return -1;
+ pthread_mutex_lock(&mutex);
+ int found=owns_flag?xz_shell_play_key_deck(&shell,&model,x,y):-1;
+ pthread_mutex_unlock(&mutex);return found;
+}
 int xz_shell_runtime_will_refresh(void) {
  return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)&&(native_input_mask()||now_ms()-__atomic_load_n(&last_refresh_ms,__ATOMIC_RELAXED)>=XZ_SHRT_REFRESH_MS-XZ_SHRT_PRESENT_LEAD_MS);
 }
@@ -2819,13 +2825,13 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  sec.calls++;xz_mods_shell_proof_v1.render_calls++;
  if(in->cached)sec.ui_cached++;
  if(xz_native_skin_on_owner_thread()){sec.flips++;xz_mods_shell_proof_v1.stock_flips++;}
- last_call_ms=now;last_input=*in;
+ last_call_ms=now;int key_overlay_changed=last_input.key_controls_open!=in->key_controls_open;last_input=*in;
  int result=0;
  if(!enabled||!candidate(in->eligible,in->theme)){set_owns(0);goto done;}
  int extra_changed=xz_extra_decks_revision()!=shown_extra_revision||xz_extra_decks_control_revision()!=shown_extra_control;
  uint32_t input_revision=__atomic_load_n(&native_input_revision,__ATOMIC_ACQUIRE);
  int input_changed=input_revision!=shown_native_input;
- int owned=owns_flag,due=dirty_flag||extra_changed||input_changed||now-last_drawn_ms>=period_ms;
+ int owned=owns_flag,due=dirty_flag||extra_changed||input_changed||in->key_controls_open||key_overlay_changed||now-last_drawn_ms>=period_ms;
  if(owned&&!due){sec.skipped++;result=-1;goto done;}
  /* Off screen (handed off or yielding to a caution) the model still refreshes, at 10 Hz, to see the way back. */
  if(!owned&&refreshed&&now-last_refresh_ms<100u)goto done;

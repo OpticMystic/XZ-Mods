@@ -1,5 +1,8 @@
 #define _GNU_SOURCE
 #include "ui_runtime.h"
+#include "ui/play_key.h"
+#include "ui/play_key_classic.h"
+#pragma weak xz_extra_decks_snapshot
 #include "metrics_runtime.h"
 /* Portable UI harnesses omit the OS sampler. */
 #pragma weak xz_metrics_start
@@ -56,6 +59,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_start
 #pragma weak xz_shell_runtime_stop
 #pragma weak xz_shell_runtime_follow_interface
+#pragma weak xz_shell_runtime_key_deck
 #pragma weak xz_shell_runtime_owns
 #pragma weak xz_shell_runtime_idle
 #pragma weak xz_shell_runtime_frame
@@ -110,6 +114,12 @@ extern int xz_settings_internal_save(const struct xz_settings *) __attribute__((
 static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
 static struct xz_ui ui;
 static struct xz_ui inline_ui;
+static struct xz_play_key play_key;
+static struct xz_classic_key_slots classic_keys;
+static int classic_key_visible;
+static int play_key_dirty;
+static int play_key_visible; /* atomic: a busy frame keeps the last complete overlay frame */
+static int play_key_back_contact;
 static struct xz_ui_model model;
 static struct xz_native_touch touch;
 static struct xz_audio_status audio_status[2];
@@ -615,6 +625,7 @@ static void menu_publish_locked(void){
    the two item tabs (APPEARANCE, BUTTONS) is filed under GENERAL, which links to it too. */
 static int menu_top(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS;}
 static void panel_show_locked(void){
+    play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
     if(menu_in_shell_locked()){
         /* Opened from outside MODS: the page sits under its own parents, not wherever the panel was. */
         if(!(xz_shell_runtime_menu_wanted&&xz_shell_runtime_menu_wanted()))ui.history_count=0;
@@ -837,7 +848,8 @@ static int sync_key(int deck) {
     struct xz_key_snapshot source,master;struct xz_playing_key target;int master_shift,cents;
     if(deck<0||deck>1)return 0;
     if(!key_available){
-        xz_ui_navigate(&ui,XZ_UI_KEY_SETUP);snprintf(ui.notice,sizeof(ui.notice),"KEY ENGINE UNAVAILABLE / REBUILD THE LOADER WITH THE CURRENT XZ MODS APP");
+        xz_play_key_open(&play_key,deck);play_key.down=0;play_key_dirty=1;
+        __atomic_store_n(&play_key_visible,1,__ATOMIC_RELEASE);
         return key_sync_fail(deck,XZ_KEY_SYNC_NO_ENGINE);
     }
     void *player=key_player(deck);
@@ -1093,7 +1105,10 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         }
         case XZ_UI_UNAVAILABLE:
             if(a->index==XZ_UI_STEM){xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);ui.stem_setup_step=0;panel_show_locked();inline_layout_publish();}
-            if(a->index&(XZ_UI_KEY|XZ_UI_KEYSYNC))xz_ui_navigate(&ui,XZ_UI_KEY_SETUP);
+            if(a->index&(XZ_UI_KEY|XZ_UI_KEYSYNC)){
+                xz_play_key_open(&play_key,a->deck>=0&&a->deck<4?a->deck:0);play_key.setup=1;play_key.down=0;
+                play_key_dirty=1;__atomic_store_n(&play_key_visible,1,__ATOMIC_RELEASE);
+            }
             break;
         case XZ_UI_GAME_SELECT:
             if(a->index==0){xz_ui_navigate(&ui,XZ_UI_DOOM_FILES);xz_doom_browser_scan();}
@@ -1417,7 +1432,7 @@ static int shell_eligible_locked(void){
 }
 static int shell_owns_locked(void){return xz_shell_runtime_owns&&shell_eligible_locked()&&xz_shell_runtime_owns();}
 static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
-    memset(in,0,sizeof(*in));in->eligible=shell_eligible_locked();in->theme=model.theme;
+    memset(in,0,sizeof(*in));in->eligible=shell_eligible_locked();in->theme=model.theme;in->key_controls_open=play_key.open;
     in->stems_known=1;in->stems_on=model.modern_stems!=XZ_STEM_LAYOUT_HIDDEN;
     for(int d=0;d<2;d++){
         /* 3-stem local playback only: with four stems or PC stems the bits mean something else. */
@@ -1589,6 +1604,21 @@ static void menu_back_key_hook(void *self,const void *input){
         if(xz_shell_runtime_rekordbox_action)xz_shell_runtime_rekordbox_action(rekordbox_latch.action);
         pthread_mutex_unlock(&ui_mutex);
     }
+    if(key==0x4208){
+        pthread_mutex_lock(&ui_mutex);
+        if(play_key_back_contact){consumed=1;if(operation==2||operation==3)play_key_back_contact=0;}
+        else if(operation==0&&play_key.open){
+            if(play_key.setup)play_key.setup=0;else play_key.open=0;
+            __atomic_store_n(&play_key_visible,play_key.open,__ATOMIC_RELEASE);
+            play_key_dirty=1;play_key_back_contact=consumed=1;xz_native_skin_request_repaint();
+        }
+        pthread_mutex_unlock(&ui_mutex);if(consumed)return;
+    }
+    if(operation==0&&xz_shrt_key_lookup&&xz_shrt_key_lookup(key,channel)){
+        pthread_mutex_lock(&ui_mutex);
+        if(play_key.open){play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);xz_native_skin_request_repaint();}
+        pthread_mutex_unlock(&ui_mutex);
+    }
     if(input&&xz_shell_runtime_key&&xz_shrt_key_lookup&&xz_shrt_key_lookup(key,channel)&&__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
         consumed=xz_shell_runtime_key(shell_eligible_locked(),model.theme,key,channel,operation);
@@ -1707,6 +1737,7 @@ static int (*stock_encoder_rotate)(int);
 static int encoder_rotate_hook(int delta) {
     if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
+        if(play_key.open){pthread_mutex_unlock(&ui_mutex);return 1;}
         int owned=menu_owns_keys_locked(),shell=0;
         if(owned&&delta){
             struct xz_ui_action actions[XZ_UI_ACTIONS];
@@ -1734,6 +1765,7 @@ static int (*stock_encoder_push)(void *,void *,void *,void *);
 static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
     if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
+        if(play_key.open){pthread_mutex_unlock(&ui_mutex);return 1;}
         int owned=menu_owns_keys_locked(),shell=0;
         /* Stock calls this for the press, the hold, the release and again on later key passes while the
            entry's state stays set: the panel, games and Doom act on the press phase (flags 1) only, and
@@ -2065,7 +2097,7 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
                 int done = sync_key(event->deck);
                 /* A failure is shown inline on the deck strip. Only a missing key engine,
                    which no gesture can fix, opens its setup page. */
-                if (!done && !key_available) panel_show_locked();
+                if (!done && !key_available) xz_native_skin_request_repaint();
             }
         }
         pthread_mutex_unlock(&ui_mutex); return owned;
@@ -2191,6 +2223,46 @@ static int browse_head_touch(const struct xz_touch_status *status, int previous_
     }
     return 1;
 }
+static int play_key_extra_locked(struct xz_extra_decks *out){
+    return xz_extra_decks_snapshot&&xz_extra_decks_snapshot(out);
+}
+static void play_key_view_locked(struct xz_play_key_view *out){
+    xz_play_key_view(&play_key,&model,ui.notice,out);out->native_engine=!!key_available;
+    out->native_sync=key_available&&native_master_tempo_on;
+    if(play_key.deck>1){
+        struct xz_extra_decks extra;
+        snprintf(out->key,sizeof out->key,"%s",play_key_extra_locked(&extra)?xz_classic_metadata(&extra.deck[play_key.deck-2]):"---");
+    }
+}
+static int play_key_touch_locked(void *self,const struct xz_touch_status *status){
+    int previous_down=((const unsigned char *)self)[4]!=0,deck=-1,side=-1;
+    struct xz_extra_decks extra;int have_extra=play_key_extra_locked(&extra);
+    if(play_key.open&&play_key.classic_side>=0&&
+       ((!have_extra&&xz_native_four_order()>=0)||xz_classic_key_target(have_extra?&extra:NULL,play_key.classic_side)!=play_key.deck)){
+        play_key.open=0;play_key.down=!!status->down;play_key_dirty=1;
+        __atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);xz_native_skin_request_repaint();return 1;
+    }
+    if(!play_key.open&&!play_key.down){
+        if(touch.visible||model.fb_takeover||game_locked()!=GAME_NONE||!status->down||previous_down)return 0;
+        if(shell_owns_locked()){if(xz_shell_runtime_key_deck)deck=xz_shell_runtime_key_deck((int)status->x,(int)status->y);}
+        else if(xz_native_play_visible()&&(xz_native_inline_active()||xz_native_four_order()>=0)){
+            side=xz_classic_key_slot_at(&classic_keys,(int)status->x,(int)status->y);
+            if(side>=0){
+                int target=xz_classic_key_target(have_extra?&extra:NULL,side);
+                if((!have_extra&&xz_native_four_order()>=0)||target!=classic_keys.deck[side]){
+                    play_key.down=1;classic_keys.shown=0;xz_native_skin_request_repaint();return 1;
+                }
+                deck=target;
+            }
+        }
+        if(deck<0)return 0;
+        xz_play_key_open(&play_key,deck);play_key.classic_side=side;ui.notice[0]=0;
+    }else if(!play_key.open){if(!status->down)play_key.down=0;return 1;}
+    struct xz_ui_action action;
+    if(xz_play_key_touch(&play_key,&model,(int)status->x,(int)status->y,!!status->down,&action))apply(NULL,&action,1);
+    __atomic_store_n(&play_key_visible,play_key.open,__ATOMIC_RELEASE);
+    play_key_dirty=1;xz_native_skin_request_repaint();return 1;
+}
 static void touch_hook(void *self, const struct xz_touch_status *status, const void *mode) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE)) { stock_touch(self, status, mode); return; }
     pthread_mutex_lock(&ui_mutex);
@@ -2215,6 +2287,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         }else if(!status->down)arcade_touch_owned=0;
         pthread_mutex_unlock(&ui_mutex);return;
     }
+    if(play_key_touch_locked(self,status)){pthread_mutex_unlock(&ui_mutex);return;}
     if(shell_touch_locked(self,status,mode)){pthread_mutex_unlock(&ui_mutex);return;}
     sdk_refresh();pc_refresh_locked();
     if(touch.visible||model.deck[0].pc_stems.source!=XZ_UI_SOURCE_PC||model.deck[1].pc_stems.source!=XZ_UI_SOURCE_PC)refresh_local();
@@ -2313,7 +2386,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
 
 /* The receiver treats a shell-owned screen exactly like the open panel. */
 __attribute__((visibility("default"))) int xz_mods_visible_v1(void) {
-    return __atomic_load_n(&visible, __ATOMIC_ACQUIRE)||(xz_shell_runtime_owns&&xz_shell_runtime_owns());
+    return __atomic_load_n(&visible, __ATOMIC_ACQUIRE)||__atomic_load_n(&play_key_visible,__ATOMIC_ACQUIRE)||(xz_shell_runtime_owns&&xz_shell_runtime_owns());
 }
 /* Lock-free: the next xz_mods_render_v1 that draws writes every pixel (the shell owns the screen), so
    the receiver can skip copying its base frame under it. */
@@ -2418,6 +2491,10 @@ static void badge(uint16_t *pixels, uint32_t stride) {
     badge_frame_cache.notice=async_notice;
     if(!model.fb_takeover)xz_ui_notice_badge(pixels,stride,model.theme,&async_notice,xz_game_milliseconds(),&notice_pixels);
     xz_metrics_draw(pixels,stride,model.theme,model.metrics_enabled,&model.metrics,xz_game_milliseconds());
+    struct xz_extra_decks extra;int have_extra=play_key_extra_locked(&extra);
+    xz_classic_key_render(&classic_keys,&model,have_extra?&extra:NULL,play&&!model.fb_takeover,
+        xz_native_four_order(),pixels,stride);
+    __atomic_store_n(&classic_key_visible,!!classic_keys.shown,__ATOMIC_RELEASE);
 }
 
 void xz_ui_runtime_profile_usb(unsigned slot) {
@@ -2480,6 +2557,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE) || !pixels || width != 800 || height != 480 || stride < 800 || stride > 16384)
         return 0;
     if (pthread_mutex_trylock(&ui_mutex) != 0) {
+        if(__atomic_load_n(&play_key_visible,__ATOMIC_ACQUIRE)||__atomic_load_n(&classic_key_visible,__ATOMIC_ACQUIRE))return 0;
         __atomic_add_fetch(&xz_mods_key_present_proof_v1.busy,1,__ATOMIC_RELAXED);
         /* The shell needs nothing from the UI model for one frame: draw it from the previous input. */
         if(shell_input_cached&&xz_shell_runtime_frame&&xz_shell_runtime_owns&&xz_shell_runtime_owns()&&
@@ -2511,7 +2589,8 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
     }
     /* Between shell frames there is nothing to refresh or draw; the receiver keeps the last frame. */
     int shell_path=xz_shell_runtime_frame&&shell_owns_locked();
-    if(shell_path&&xz_shell_runtime_idle&&xz_shell_runtime_idle()){pthread_mutex_unlock(&ui_mutex);return 0;}
+    if(shell_path){classic_keys.shown=0;__atomic_store_n(&classic_key_visible,0,__ATOMIC_RELEASE);}
+    if(shell_path&&!play_key.open&&!play_key_dirty&&xz_shell_runtime_idle&&xz_shell_runtime_idle()){pthread_mutex_unlock(&ui_mutex);return 0;}
     /* The shell draws from its own model and reads only the key snapshots from this one, so while it
        owns the screen the UI model refreshes at 10 Hz instead of on every 60 Hz frame. */
     {
@@ -2542,9 +2621,11 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
            on ui_mutex for a frame. 0 = it gave the screen up during this call; draw the usual way. */
         struct xz_shell_runtime_frame_input in;shell_frame_input_locked(&in);
         shell_input_cache=in;shell_input_cached=1;
+        struct xz_play_key key_frame=play_key;struct xz_play_key_view key_view;
+        play_key_view_locked(&key_view);play_key_dirty=0;
         pthread_mutex_unlock(&ui_mutex);
         int drawn=xz_shell_runtime_frame(pixels,stride,&in);
-        if(drawn)return drawn>0;
+        if(drawn){if(drawn>0)xz_play_key_render(&key_frame,&key_view,pixels,stride);return drawn>0;}
         if(pthread_mutex_trylock(&ui_mutex)!=0)return 0;
     }
     int result,shell=0;
@@ -2584,6 +2665,10 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         for(int i=0;i<3;i++)badge_frame_cache.colors[i]=xz_ui_model_stem_color(&model,i);
         badge(pixels,stride);result=1;
     }
+    if(result&&!touch.visible&&game_locked()==GAME_NONE&&!model.fb_takeover){
+        struct xz_play_key_view view;play_key_view_locked(&view);
+        xz_play_key_render(&play_key,&view,pixels,stride);
+    }
     if(game_locked()!=GAME_NONE&&result){
         xz_game_nav_frame(&game_nav,&game_frame);
         xz_game_nav_draw(&game_nav,pixels,stride,(int)width,(int)height);
@@ -2597,6 +2682,8 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     static const unsigned char link_guard[8] = {0x70,0x40,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     static const unsigned char rekordbox_guard[8] = {0x38,0x40,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     if (started) return 0;
+    memset(&play_key,0,sizeof play_key);classic_keys.shown=0;play_key_dirty=play_key_back_contact=0;
+    __atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);__atomic_store_n(&classic_key_visible,0,__ATOMIC_RELEASE);
     settings_usb[0] = 0; settings_pending = settings_created = 0; settings_flash_at = 0;
     memset(&settings_profile,0,sizeof(settings_profile)); settings_slot=-1;
     __atomic_store_n(&profile_slot,~0u,__ATOMIC_RELAXED);

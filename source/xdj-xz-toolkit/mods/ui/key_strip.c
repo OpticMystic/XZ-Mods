@@ -183,7 +183,7 @@ int xz_browse_head_render(uint16_t *pixels, size_t stride, int theme, const stru
 void xz_key_sync_failure_text(enum xz_key_sync_failure f, int deck, char out[40]) {
     int other = deck ? 1 : 2;
     switch (f) {
-    case XZ_KEY_SYNC_NO_ENGINE: snprintf(out, 40, "KEY ENGINE OFF: OPEN MODS"); break;
+    case XZ_KEY_SYNC_NO_ENGINE: snprintf(out, 40, "KEY ENGINE OFF: SET UP KEYS"); break;
     case XZ_KEY_SYNC_NO_KEY: snprintf(out, 40, "DECK %d TRACK HAS NO KEY", deck + 1); break;
     case XZ_KEY_SYNC_NO_MASTER_KEY: snprintf(out, 40, "LOAD A KEYED TRACK ON DECK %d", other); break;
     case XZ_KEY_SYNC_IS_MASTER: snprintf(out, 40, "MAKE DECK %d MASTER FIRST", other); break;

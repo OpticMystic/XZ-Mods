@@ -504,11 +504,13 @@ enum xz_shell_play_region {
  XZ_SHELL_R_PAD_ROW,  /* per deck, between the lanes and the strips: stem mute buttons and hot-cue lamps.
                          The four-deck view has none (zero size) */
  XZ_SHELL_R_ALERT_BUTTON, /* per deck, while F_ALERT holds: CHOOSE TRACK, into BROWSE */
- XZ_SHELL_R_GRID_RESET, XZ_SHELL_R_GRID_SNAP, XZ_SHELL_R_GRID_SHIFT, XZ_SHELL_R_VIEW_TWO, XZ_SHELL_R_VIEW_FOUR /* the active deck's lane in GRID mode */
+ XZ_SHELL_R_GRID_RESET, XZ_SHELL_R_GRID_SNAP, XZ_SHELL_R_GRID_SHIFT, XZ_SHELL_R_VIEW_TWO, XZ_SHELL_R_VIEW_FOUR /* the active deck's lane in GRID mode */,
+ XZ_SHELL_R_KEY /* PLAY key readout, retaining logical deck IDs in selected-pair views */
 };
 /* Build the same immutable PLAY projection used by rendering and input. Logical deck IDs and
    deck_count remain unchanged; only play_view_count selects geometry. */
 void xz_shell_play_projection(const struct xz_shell *, const struct xz_shell_model *, struct xz_shell_model *);
+int xz_shell_play_key_deck(const struct xz_shell *, const struct xz_shell_model *, int x, int y);
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *, enum xz_shell_play_region, int deck);
 /* A deck's stem row on PLAY for the model's stem layout (zero size when hidden or not read); the
    waveform takes the rest of the deck's lane. ZOOM/GRID and the GRID buttons move clear of it. In the

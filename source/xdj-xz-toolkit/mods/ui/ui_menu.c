@@ -251,7 +251,7 @@ static const char *section_for(const struct build *b, const struct xz_ui_widget 
  case XZ_UI_SETTINGS:
   if(w->kind==XZ_UI_PANEL&&(k==XZ_UI_STEMS||k==XZ_UI_XPAD))return "PADS";
   if(w->kind==XZ_UI_PANEL&&k==XZ_UI_RAM_SETUP)return "MEMORY";
-  return "KEY";
+  return "PADS";
  case XZ_UI_EXTRAS:return "EXTRAS";
  case XZ_UI_CONNECTION:return w->kind==XZ_UI_TAKEOVER_TOGGLE||w->kind==XZ_UI_TAKEOVER_ASSIGN?"SCREEN":"CONNECTION";
  case XZ_UI_XPAD:return w->kind==XZ_UI_SAMPLE_PAD?"SAMPLE PADS":"LOOP";
@@ -265,7 +265,7 @@ static const char *section_for(const struct build *b, const struct xz_ui_widget 
 static void page_sections(struct build *b) {
  static const char *const general[]={"STEMS","CUES AND PADS","BEAT JUMP","SYSTEM",NULL};
  static const char *const controls[]={"STEM SHORTCUTS","PLAY SCREEN","MORE CONTROLS",NULL};
- static const char *const advanced[]={"KEY","PADS","MEMORY",NULL};
+ static const char *const advanced[]={"PADS","MEMORY",NULL};
  static const char *const extras[]={"DJ PROFILE","EXTRAS",NULL};
  static const char *const apps[]={"APPS ON USB","MANAGE",NULL};
  static const char *const connection[]={"SCREEN","CONNECTION",NULL};
@@ -492,7 +492,7 @@ static void page_text(struct build *b) {
   if(d->bpm>0)line(b,XZ_SHELL_TONE_PLAIN,"DECK %d / %.1f BPM",deck+1,(double)d->bpm);
   if(u->page==XZ_UI_XPAD)line(b,XZ_SHELL_TONE_DIM,"LOOP %s BEATS / %+.1f KEY",xz_ui_lengths[d->loop_index>=0&&d->loop_index<6?d->loop_index:0],(double)d->pitch);
   break;
- case XZ_UI_SETTINGS:case XZ_UI_KEY_SETUP:
+ case XZ_UI_KEY_SETUP:
   for(int k=0;k<2;k++)line(b,k==deck?XZ_SHELL_TONE_HEAD:XZ_SHELL_TONE_PLAIN,"DECK %d KEY: %s%s",k+1,m->deck[k].key_readout[0]?m->deck[k].key_readout:"---",m->deck[k].key_synced?" (KEY SYNC)":"");
   break;
  case XZ_UI_BROWSE_SETUP:
