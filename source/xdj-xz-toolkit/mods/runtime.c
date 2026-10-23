@@ -330,9 +330,13 @@ static int deck_route(void *self, const void *input) {
     struct xz_ds_outcome outcome = xz_deck_select_key(&deck_select, &key, input_ms);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
+    if (outcome.verdict == XZ_DS_PASS && key.code == 0x4305 && key.op == 4 && key.delta && xz_shell_runtime_native_input)
+        xz_shell_runtime_native_input(key.side, input_ms);
     xz_deck_input_trace_write_motion(&xz_mods_deck_input_trace_v1,&deck_input_motion,&key,XZ_DECK_TRACE_FALLBACK,outcome.verdict,
         (left?1u:0u)|(right?2u:0u)|(route.route_up?4u:0u)|(route.available?8u:0u),input_ms);
-    return deck_outcome(&outcome, left, right, route.available, key.code);
+    int r = deck_outcome(&outcome, left, right, route.available, key.code);
+    if (outcome.toggled) (void)xz_extra_decks_snapshot(&feedback);
+    return r;
 }
 
 int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operation) {
@@ -381,7 +385,9 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
         }
         return to == XZ_DS_LOAD_SHELL ? XZ_RUNTIME_KEY_SHELL_LOAD + side : to == XZ_DS_LOAD_SWALLOW;
     }
-    return deck_outcome(&outcome, left, right, route.available, code);
+    int r = deck_outcome(&outcome, left, right, route.available, code);
+    if (outcome.toggled) (void)xz_extra_decks_snapshot(&feedback);
+    return r;
 }
 
 int xz_runtime_deck_select_toggle(int side) {
@@ -399,6 +405,7 @@ int xz_runtime_deck_select_toggle(int side) {
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
     xz_extra_decks_publish_sides(left, right);
+    if (outcome.toggled) (void)xz_extra_decks_snapshot(&feedback);
     if (outcome.notice == XZ_DS_NOTICE_NO_ROUTE) { xz_log(XZ_DS_NO_ROUTE_TEXT); return 0; }
     return outcome.toggled ? 1 : -1;
 }

@@ -1495,10 +1495,16 @@ static int sync_native_gap_tempo(struct xz_xp_players *p,struct deck *d,
 /* Stock SYNC stays on until it is pressed off. A break (pause, jump, master change, clock gap, underrun)
    keeps following the tempo and finds the beat again, snapping to it when QUANTIZE is on at most once per
    XZ_XP_SYNC_RESNAP_MS; between snaps the bounded phase trim closes the gap. */
+enum { SYNC_INITIAL_OFF=0, SYNC_INITIAL_NOW=1, SYNC_INITIAL_AFTER_COOLDOWN=2 };
+static int sync_snap_ready(const struct deck *d,uint32_t now){
+ return d->sync_initial==SYNC_INITIAL_NOW||
+  (d->sync_initial==SYNC_INITIAL_AFTER_COOLDOWN&&(!d->sync_snap_at||(uint32_t)(now-d->sync_snap_at)>=XZ_XP_SYNC_RESNAP_MS));
+}
 static void sync_reacquire(struct deck *d,uint32_t now){
  d->sync_hold=0;d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;d->sync_have_master=d->sync_lock_count=0;
  d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
- d->sync_initial=d->quantize&&(!d->sync_snap_at||(uint32_t)(now-d->sync_snap_at)>=XZ_XP_SYNC_RESNAP_MS);
+ d->sync_initial=!d->quantize?SYNC_INITIAL_OFF:
+  (!d->sync_snap_at||(uint32_t)(now-d->sync_snap_at)>=XZ_XP_SYNC_RESNAP_MS)?SYNC_INITIAL_NOW:SYNC_INITIAL_AFTER_COOLDOWN;
  d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;
 }
 /* Phase acquisition needs two advancing, coherent observations. A fresh timestamp
@@ -1537,7 +1543,7 @@ static void sync_stationary(struct xz_xp_players *p,struct deck *d,int selected,
  if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
  if(d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
  if(d->quantize&&!d->sync_grid_den){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
- if(d->quantize&&d->sync_initial){
+ if(d->quantize&&sync_snap_ready(d,now)){
   double phase,period;
   if(!phase_known){d->sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;}
   if(!grid_phase(d,d->heard,&phase,&period)){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
@@ -1694,7 +1700,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   d->sync.phase_error_us=(int32_t)llround(error_seconds*1000000.);
   d->sync_master_clock=(struct sync_clock){.route=d->epoch,.load=d->load_revision,.generation=d->generation};
   d->sync_have_master=1;d->sync_master_id=native.native_deck;d->sync_slave_underrun=d->underrun;d->sync_choice_seen=choice;
-  if(d->sync_initial){
+  if(sync_snap_ready(d,now)){
    uint64_t wire=position->wire_submitted_frames>slave.wire_frame?position->wire_submitted_frames:slave.wire_frame;
    double horizon_sec=(double)(wire-slave.wire_frame)/(double)XZ_USB_RATE;
    double desired=wrapped_beat(target_phase+horizon_sec*master_bps);
@@ -1790,7 +1796,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  double error_seconds=error/(master_step*XZ_USB_RATE);
  d->sync.phase_error_us=(int32_t)llround(error_seconds*1000000.);
  d->sync_master_clock=master;d->sync_have_master=1;d->sync_master_id=selected;d->sync_slave_underrun=d->underrun;d->sync_choice_seen=choice;
- if(d->sync_initial){
+ if(sync_snap_ready(d,now)){
   uint64_t wire=position->wire_submitted_frames?position->wire_submitted_frames:slave.wire_frame;
   double desired,forecast_step;
   if(!segment_at_wire(&master,wire,&desired,&forecast_step,NULL)){
@@ -2492,7 +2498,6 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   if(e->pressed){
    if(loaded(d->state))jump(d,heard_now(d,now),now);
    d->master_tempo=!d->master_tempo;
-   xz_xp_notice(p,d->master_tempo?"MASTER TEMPO ON":"MASTER TEMPO OFF");
   }
   return;
  }
@@ -2739,7 +2744,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   if (!d->pending) {
    if ((d->state!=XZ_XP_SCRATCHING&&d->pos >> 32 >= d->r->frames) ||
        d->submitted - (applied ? staged : 0) >= XZ_XP_AHEAD_FRAMES) return;
-   if(d->sync.requested&&d->sync_have_master&&!d->sync_initial&&!d->sync_hold&&d->timeline_anchor_valid&&
+   if(d->sync.requested&&d->sync_have_master&&!sync_snap_ready(d,now)&&!d->sync_hold&&d->timeline_anchor_valid&&
       d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE&&d->state==XZ_XP_PLAYING){
     struct sync_clock master;
     pthread_mutex_lock(&p->publish_lock);master=p->clock[d->sync_master_id];pthread_mutex_unlock(&p->publish_lock);
@@ -2776,7 +2781,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
     d->render_limit=remaining>XZ_USB_BLOCK_FRAMES?XZ_USB_BLOCK_FRAMES:(unsigned)remaining;
-   }else if(d->sync.requested&&d->sync_have_master&&!d->sync_initial&&!d->sync_hold&&d->timeline_anchor_valid&&
+   }else if(d->sync.requested&&d->sync_have_master&&!sync_snap_ready(d,now)&&!d->sync_hold&&d->timeline_anchor_valid&&
             d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_NATIVE&&d->state==XZ_XP_PLAYING&&d->sync_native_bpm>0){
     double own_phase,period;
     if(!grid_phase(d,d->pos>>32,&own_phase,&period)){

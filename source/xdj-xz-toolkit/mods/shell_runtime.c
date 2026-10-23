@@ -191,9 +191,12 @@ static unsigned native_input_mask(void) {
  if(!__atomic_load_n(&native_input_at[0],__ATOMIC_ACQUIRE)&&!__atomic_load_n(&native_input_at[1],__ATOMIC_ACQUIRE))return 0;
  uint64_t at=mono_checked_us();return at?native_input_mask_at((uint32_t)(at/1000u)):0;
 }
-static void native_observed_position(int d,struct xz_shell_deck *deck,int32_t source_ms) {
+static void native_observed_position(int d,struct xz_shell_deck *deck,int32_t source_ms,uint32_t source_at,int32_t ui_ms) {
+ int32_t clamped=source_ms<0?0:source_ms;
  xz_shrt_position_reset(&position[d]);
- deck->elapsed_ms=source_ms<0?0:source_ms;deck->elapsed_at_ms=0;
+ position[d].valid=1;position[d].base_us=(int64_t)clamped*1000;position[d].base_at=source_at;
+ position[d].read_at=source_at;position[d].read_ms=ui_ms;
+ deck->elapsed_ms=clamped;deck->elapsed_at_ms=0;
 }
 /* The stock UTILITY items (shell_utility.h). raw/known are written on the owner tick under the mutex.
    trial: a --ram-settings run; stock saves every UTILITY set to flash within 20 ms, so there the items
@@ -306,7 +309,7 @@ static int current_media(int slot,struct xz_shmedia *out) {
  pthread_mutex_lock(&media_lock);
  int found=xz_shmedia_refresh(&xz_shmedia_system,slot,&media_guard[slot],out);
  uint32_t generation=__atomic_load_n(&media_published[slot],__ATOMIC_RELAXED);
- if(found&&(!generation||!xz_shmedia_same(&observed_media[slot],out))){
+ if(found&&(!generation||!xz_shmedia_same_mount(&observed_media[slot],out))){
   if(media_counter[slot]==UINT32_MAX){found=0;out->probe_error=2;}
   else generation=++media_counter[slot];
  }
@@ -497,7 +500,15 @@ static void look_set_locked(int id, int choice, uint32_t now) {
   if(choice==0||choice==1){xz_shell_restore_setting(&shell,item,choice);save_display(item,choice);}else refuse();
   return;}
  case LOOK_THEME:if(choice==0)ui_action_locked(XZ_UI_SET_MODERN_THEME,-1,choice,0,now);else refuse();return;
- case LOOK_WAVE:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_WAVE_MODE,-1,choice,0,now);else refuse();return;
+ case LOOK_WAVE:
+  if(choice>=0&&choice<3){
+   ui_action_locked(XZ_UI_WAVE_MODE,-1,choice,0,now);
+   if(choice==2){xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_STEMS);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
+   else if(choice==1){xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_3BAND);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
+   else xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_ALL);
+   dirty_flag=1;
+  }else refuse();
+  return;
  case LOOK_KEY_FORMAT:if(choice>=0&&choice<3)ui_action_locked(XZ_UI_KEY_FORMAT,-1,choice,0,now);else refuse();return;
  case LOOK_KEY_FEEDBACK:ui_action_locked(XZ_UI_KEY_FEEDBACK,-1,0,choice?1.f:0.f,now);return;
  case LOOK_TRAFFIC:ui_action_locked(XZ_UI_BROWSE_TRAFFIC,-1,0,choice?1.f:0.f,now);return;
@@ -1083,7 +1094,7 @@ static void prefetch_drop(int d) { free(prefetch[d].b.scroll);free(prefetch[d].b
 static int media_still_current(int slot,const struct xz_shmedia *expected);
 static void run_prefetch(int d, int slot, uint32_t id, uint64_t posted_us, const struct xz_shmedia *media) {
  prefetch_drop(d);
- if(!media->generation||usb[slot].generation!=media->generation||!xz_shmedia_same(&usb[slot].media,media)||!media_still_current(slot,media))return;
+ if(!media->generation||usb[slot].generation!=media->generation||!xz_shmedia_same_mount(&usb[slot].media,media)||!media_still_current(slot,media))return;
  struct xz_shlib *lib=usb[slot].lib; /* only this thread frees libraries */
  const struct xz_shlib_track *t=lib?xz_shlib_track(lib,id):NULL;
  const char *rel=t?xz_shlib_text(lib,t->file_path):NULL;
@@ -1113,7 +1124,7 @@ static struct xz_shell_column *stem_columns(const char *source, uint32_t *n, uin
 static int wave_expected_path(const struct wave_request *request,char *path,size_t capacity) {
  int slot=request->device_kind==2?0:request->device_kind==3?1:-1;
  if(slot<0||!request->track_id||request->track_id==UINT32_MAX||!request->media.generation||
-    usb[slot].generation!=request->media.generation||!usb[slot].lib||!xz_shmedia_same(&usb[slot].media,&request->media))return -1;
+    usb[slot].generation!=request->media.generation||!usb[slot].lib||!xz_shmedia_same_mount(&usb[slot].media,&request->media))return -1;
  const struct xz_shlib_track *t=xz_shlib_track(usb[slot].lib,request->track_id);
  const char *rel=t?xz_shlib_text(usb[slot].lib,t->file_path):NULL;
  if(!rel||strncmp(rel,"/Contents/",10)||snprintf(path,capacity,"%s%s",request->media.root,rel)>=(int)capacity)return -1;
@@ -1142,7 +1153,7 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, const struct wa
   struct binned b;memset(&b,0,sizeof b);uint32_t resolve_ms=0,read_ms=0,built=0;int used_prefetch=0,slot=expected_slot;
   uint64_t posted_us=0;
   if(prefetch[d].path[0]&&!strcmp(prefetch[d].path,s.path)&&prefetch[d].track_id==request->track_id&&
-     prefetch[d].slot==expected_slot&&xz_shmedia_same(&prefetch[d].media,&request->media)&&
+     prefetch[d].slot==expected_slot&&xz_shmedia_same_mount(&prefetch[d].media,&request->media)&&
      prefetch[d].media.generation==request->media.generation&&prefetch[d].signature==analysis[expected_slot].signature){
    b=prefetch[d].b;memset(&prefetch[d].b,0,sizeof prefetch[d].b);used_prefetch=1;read_ms=prefetch[d].read_ms;posted_us=prefetch[d].posted_us;
   }else{
@@ -1220,7 +1231,7 @@ static int wave_step(int d, uint32_t gen, uint64_t requested_us, const struct wa
 static int safe_file(const char *path, struct stat *out) { return !lstat(path,out)&&S_ISREG(out->st_mode); }
 static int same_file(const struct stat *a,const struct stat *b) { return xz_shmedia_same_file(a,b); }
 static int media_still_current(int slot,const struct xz_shmedia *expected) {
- struct xz_shmedia now;return current_media(slot,&now)&&expected->generation==now.generation&&xz_shmedia_same(expected,&now);
+ struct xz_shmedia now;return current_media(slot,&now)&&expected->generation==now.generation&&xz_shmedia_same_mount(expected,&now);
 }
 /* Everything the worker holds for a stick that went away: prefetched waves for decks that came from it. */
 static void forget_root(const char *root) {
@@ -1236,7 +1247,7 @@ static void scan_usb(void) {
   struct xz_shmedia media;int found=current_media((int)slot,&media);
   const char *path=media.database;struct stat st=media.file;
   int same_mount=found&&xz_shmedia_same_mount(&seen[slot],&media);
-  if(found&&xz_shmedia_same(&seen[slot],&media)&&usb[slot].generation==xz_extra_source_generation((int)slot+1)&&(usb[slot].lib||usb[slot].status==USB_ERROR))continue;
+  if(same_mount&&usb[slot].generation==xz_extra_source_generation((int)slot+1)&&(usb[slot].lib||(usb[slot].status==USB_ERROR&&xz_shmedia_same(&seen[slot],&media))))continue;
   if(!found&&!seen[slot].mount_id)continue;
   struct xz_shlib *next=NULL;uint64_t free_bytes=0,total_bytes=0;int space=0,rdonly=0;char root[1024]="";
   if(found){
@@ -1374,7 +1385,7 @@ int xz_extra_resolve_track(int source, uint32_t track_id, struct xz_extra_track 
  char track[1024]="",root[1024]="",dir[1024];
  pthread_mutex_lock(&mutex);
  struct xz_shlib *lib=usb[slot].lib;
- if(lib&&(!xz_shmedia_same(&usb[slot].media,&current)||usb[slot].generation!=current.generation)){lib=NULL;scan_soon=1;pthread_cond_signal(&wake);}
+ if(lib&&(!xz_shmedia_same_mount(&usb[slot].media,&current)||usb[slot].generation!=current.generation)){lib=NULL;scan_soon=1;pthread_cond_signal(&wake);}
  if(lib){
   shell_lib=1;
   const struct xz_shlib_track *t=xz_shlib_track(lib,track_id);
@@ -1418,7 +1429,7 @@ int xz_extra_resolve_track_checked(int source,uint32_t id,uint64_t generation,st
  struct xz_shmedia before,after;
  if(!current_media(source-1,&before)||before.generation!=generation)return -1;
  int rc=xz_extra_resolve_track(source,id,out);
- if(rc||!current_media(source-1,&after)||!xz_shmedia_same(&before,&after)||after.generation!=generation){
+ if(rc||!current_media(source-1,&after)||!xz_shmedia_same_mount(&before,&after)||after.generation!=generation){
   memset(out,0,sizeof *out);return -1;
  }
  return 0;
@@ -2096,7 +2107,14 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   }
   case XZ_SHELL_ACT_SET_SETTING:
    /* Shell-owned display settings are already applied in the shell: keep them for the next start. */
-   if(xz_shrt_shell_owned_setting(a->id)){save_display(a->id,a->value);break;}
+   if(xz_shrt_shell_owned_setting(a->id)){
+    save_display(a->id,a->value);
+    if(a->id==XZ_SHELL_SET_WAVE_COLOR){
+     xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);
+     ui_action_locked(XZ_UI_WAVE_MODE,-1,a->value==XZ_SHELL_WAVE_STEMS?2:a->value==XZ_SHELL_WAVE_3BAND?1:0,0,now);
+    }
+    break;
+   }
    {
     int u=xz_shut_find(xz_shut_defs,XZ_SHUT_DEFS,a->id);
     if(u>=0){
@@ -2321,6 +2339,13 @@ static void extra_refresh_locked(uint32_t now) {
   shell.deck&=1;dirty_flag=1;
  }
 }
+static void extra_source_look_locked(void) {
+ for(int i=0;i<XZ_EXTRA_DECKS;i++)if(extra.route_up&&extra.deck[i].loaded&&(extra.deck[i].source==1||extra.deck[i].source==2)&&xz_shms_any(&mys[extra.deck[i].source-1])){
+  struct xz_shell_deck *ed=&model.deck[XZ_SHELL_NATIVE_DECKS+i];
+  ed->look.has_background=0;ed->look.background_rgb=0;ed->look.wave_color=xz_shms_wave_color(&mys[extra.deck[i].source-1]);
+  ed->known|=K(SOURCE_LOOK);
+ }
+}
 
 /* Native SYNC consumers copy this cache. Only the existing UI publisher reads native memory. */
 /* Clock publication belongs to the native owner tick, independently of screen ownership.
@@ -2482,19 +2507,19 @@ static void native_sync_observe_locked(int d,const struct loaded *l) {
      xz_extra_source_generation(slot+1)==usb[slot].generation){
    if(native_sync_source[d].observed_media.generation&&
       (native_sync_source[d].observed_media.generation!=usb[slot].generation||
-       !xz_shmedia_same(&native_sync_source[d].observed_media,&usb[slot].media)))changed=1;
+       !xz_shmedia_same_mount(&native_sync_source[d].observed_media,&usb[slot].media)))changed=1;
    native_sync_source[d].observed_media=usb[slot].media;
   }
   if(changed&&native_sync_source[d].observation<UINT32_MAX)native_sync_source[d].observation++;
   native_sync_source[d].observed_load=*l;
  }
  int same_media=slot<0||(native_sync_source[d].media.generation==usb[slot].generation&&
-  xz_shmedia_same(&native_sync_source[d].media,&usb[slot].media));
+  xz_shmedia_same_mount(&native_sync_source[d].media,&usb[slot].media));
  if((l->known||native_sync_source[d].admitted)&&(!settled(l)||!native_sync_same_load(&native_sync_source[d].load,l)||!same_media))native_sync_source[d].valid=0;
  if(native_sync_source[d].pending&&l->known){
   const struct native_sync_load_boundary *b=&native_sync_source[d].boundary;
   int media_changed=slot>=0&&b->media.generation&&
-   (b->media.generation!=usb[slot].generation||!xz_shmedia_same(&b->media,&usb[slot].media));
+   (b->media.generation!=usb[slot].generation||!xz_shmedia_same_mount(&b->media,&usb[slot].media));
   if(!settled(l)||(b->load.known&&!native_sync_same_load(&b->load,l))||media_changed)native_sync_source[d].pending=0;
  }
 }
@@ -2566,7 +2591,7 @@ static void native_sync_refresh_locked(void) {
    generation[slot]==usb[slot].generation&&usb[slot].media.generation==usb[slot].generation;
   int same=native_sync_source[d].load.id==after.id&&native_sync_source[d].load.device_kind==after.device_kind&&
    native_sync_source[d].track==next.track_identity&&
-   (slot<0||(native_sync_source[d].media.generation==usb[slot].generation&&xz_shmedia_same(&native_sync_source[d].media,&usb[slot].media)));
+   (slot<0||(native_sync_source[d].media.generation==usb[slot].generation&&xz_shmedia_same_mount(&native_sync_source[d].media,&usb[slot].media)));
   pthread_mutex_lock(&native_sync_mutex);
   int boundary=native_sync_boundary(&next,before,&after,generation);
   pthread_mutex_unlock(&native_sync_mutex);
@@ -2578,7 +2603,7 @@ static void native_sync_refresh_locked(void) {
      native_sync_source[d].boundary.track!=next.track_identity)native_sync_source[d].pending=0;
   /* A reused media generation with different identity is never a new qualified source. */
   if(slot>=0&&native_sync_source[d].media.generation==usb[slot].generation&&
-     native_sync_source[d].media.generation&&!xz_shmedia_same(&native_sync_source[d].media,&usb[slot].media))coherent=0;
+     native_sync_source[d].media.generation&&!xz_shmedia_same_mount(&native_sync_source[d].media,&usb[slot].media))coherent=0;
   if(!coherent||native_sync_source[d].observation==UINT32_MAX||((!same||!native_sync_source[d].valid)&&native_sync_revision==UINT32_MAX)){
    SYO_INC(NATIVE_UNQUALIFIED);
    if(coherent||boundary)native_sync_source[d].valid=0;
@@ -2703,7 +2728,7 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  }
  apply_waves_locked();
  unsigned changed=xz_shell_model_refresh(&model,storage,model_read,now);
- extra_refresh_locked(now);
+ extra_refresh_locked(now);extra_source_look_locked();
  matching_follow();
  if(debug){
   /* BEAT FX channel selector and the rest of the record, raw, on change: the channel label mapping is not
@@ -2756,8 +2781,15 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   }
   /* A jog hold, scratch or brake moves the engine position at a speed other than the pitch speed: the
      playhead then follows each engine reading with no extrapolation (and the model refreshes every frame). */
-  if(input_follow>>d&1u){native_observed_position(d,k,source_ms);following|=1u<<d;}
-  else if(xz_shrt_position_step(&position[d],k->playing,source_ms,source_at,rate,from_engine,&k->elapsed_ms,&k->elapsed_at_ms))following|=1u<<d;
+  if((input_follow>>d&1u)&&(from_engine||!position[d].valid)){native_observed_position(d,k,source_ms,source_at,ui_ms);following|=1u<<d;}
+  else if(!k->playing&&!from_engine&&position[d].valid&&ui_ms==position[d].read_ms){
+   int64_t ms=(position[d].base_us+500)/1000;
+   k->elapsed_ms=ms<0?0:ms>INT32_MAX?INT32_MAX:(int32_t)ms;k->elapsed_at_ms=(input_follow>>d&1u)?0:(position[d].base_at?position[d].base_at:1);
+   if(input_follow>>d&1u)following|=1u<<d;
+  }else{
+   if(xz_shrt_position_step(&position[d],k->playing,source_ms,source_at,rate,from_engine,&k->elapsed_ms,&k->elapsed_at_ms))following|=1u<<d;
+   if(from_engine)position[d].read_ms=ui_ms;
+  }
   if(k->playing)moving|=1u<<d;
   if(debug&&k->playing&&now-sync_logged[d]>=1000u){
    sync_logged[d]=now;char line[220];
@@ -2867,7 +2899,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  if(!owned||!refreshed||input_changed||follow_bits||now-last_refresh_ms>=XZ_SHRT_REFRESH_MS){
   uint64_t r0=now_us();refresh_locked(now,in);wf.refresh_us=(uint32_t)(now_us()-r0);
  }else if(extra_changed){
-  extra_refresh_locked(now);
+  extra_refresh_locked(now);extra_source_look_locked();
   __atomic_store_n(&period_ms,xz_shrt_frame_period_ms(xz_shell_screen(&shell),xz_shrt_moving_decks(&model)!=0),__ATOMIC_RELAXED);
  }
  if(!owns_now(in->eligible,in->theme)){set_owns(0);goto done;}
@@ -2881,7 +2913,16 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  model.stem_rgb_known=in->stem_rgb_known;memcpy(model.stem_rgb,in->stem_rgb,sizeof model.stem_rgb);
  /* The colours the DJ picked (not THEME DEFAULT); the rest draw the shell's own defaults. */
  model.stem_rgb_custom=0;
- if(in->look_known)for(int i=0;i<3;i++)if(in->stem_colors[i]>0)model.stem_rgb_custom|=(uint8_t)(1u<<i);
+ if(in->look_known){
+  static int synced_wave_mode=-1;
+  for(int i=0;i<3;i++)if(in->stem_colors[i]>0)model.stem_rgb_custom|=(uint8_t)(1u<<i);
+  if(in->wave_mode!=synced_wave_mode){
+   synced_wave_mode=in->wave_mode;
+   if(in->wave_mode==2){xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_STEMS);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
+   else if(in->wave_mode==1){if(!display_saved[0].set)xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_3BAND);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
+   else if(in->wave_mode==0)xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_ALL);
+  }
+ }
  /* The stem buttons' layout: MODERN's own modern_stems (ui_runtime.c sends it as stems_overlay). */
  model.stem_layout_known=in->look_known&&in->stems_overlay>=0&&in->stems_overlay<XZ_SHELL_STEM_LAYOUTS;
  model.stem_layout=model.stem_layout_known?(enum xz_shell_stem_layout)in->stems_overlay:XZ_SHELL_STEMS_HIDDEN;
