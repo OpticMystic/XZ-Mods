@@ -21,6 +21,7 @@ struct xz_jd_snapshot {
     int16_t tempo_rate; /* Exact signed UiGetPlayTempoRate wire units. */
     uint8_t tempo_range, vinyl_mode, master_tempo, tempo_known;
     uint8_t status_known, cued, master, sync_mode, loop_active, slip;
+    uint8_t loop_edit, slip_active; /* Owned button-lamp state; no loop time wire conversion. */
     uint16_t bpm_x100, track_bpm_x100;
     uint8_t key_code; /* Qualified native spelling code; 0 clears unknown/missing key. */
     uint8_t remain; /* Native TIME MODE flag; position remains elapsed milliseconds. */

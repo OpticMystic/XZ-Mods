@@ -113,7 +113,7 @@ int main(void) {
         assert(p[0x1f]==0xff&&p[0x20]==0xff&&p[0x21]==0xff);
         assert(!(out[3]&0x02u)&&out[0x5d]==0x7f&&out[0x5e]==0x7f);
         assert((out[4]&0x07u)==0x06u&&out[0x50]==1&&(out[0x51]&0x21u)==0x01u);
-        assert((out[5]&0x01u)==0x01u&&!(out[5]&0x0cu));
+        assert((out[5]&0x0du)==0x0du); /* CUE plus both active-loop buttons. */
         assert((out[0x56]&0x90u)==0x90u&&out[0x57]==0);
         rich.bpm_x100=rich.track_bpm_x100=0;
         assert(xz_jd_step(&s,native_right,&rich,1101,out)==XZ_JD_OK);packet(out,p);
