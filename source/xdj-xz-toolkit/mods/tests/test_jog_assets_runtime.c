@@ -76,7 +76,7 @@ static void tick(unsigned side){in_hook=1;hook(objects[side]);in_hook=0;}
 static void native_quad_expected(unsigned side,int master,uint8_t out[148]){
  memcpy(out,original_frame[side],148);out[8]=frame(side)[8];out[9]=frame(side)[9];
  if(master>=0)out[12+(5^3)]=(uint8_t)((out[12+(5^3)]&~0x80u)|(master?0x80u:0u));
- out[2]=(uint8_t)((out[2]&~0x90u)|0x80u);
+ out[2]=(uint8_t)((out[2]&~0xd0u)|0xc0u);
  out[0x4c]=out[8];out[0x4d]=out[9];out[0x4e]=0x40;out[0x4f]|=1;
  memcpy(out+80,out+12,64);out[0x53]=(uint8_t)((out[0x53]&15u)|((side+1)<<4));
  uint32_t crc=xz_jd_crc(out);memcpy(out+144,&crc,4);
