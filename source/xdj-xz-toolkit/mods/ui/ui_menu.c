@@ -4,6 +4,7 @@
    shows up or goes here too. A few controls the panel draws as pictures (pad grids, beat-jump pairs,
    the profile list) become ordinary choices that run the panel's own actions. */
 #include "ui_skin.h"
+#include "ui_about.h"
 #include "ui_menu.h"
 #include "ui_network.h"
 #include "stem_pads.h"
@@ -650,7 +651,7 @@ static int skipped(const struct build *b, const struct xz_ui_widget *a) {
  /* the rail tabs: the MODS screen has its own rail */
  case XZ_UI_PANEL:return xz_ui_page_is_top(a->index)||back_link(b,a);
  /* CONTROLS lists its sibling pages as links; they need no tabs of their own */
- case XZ_UI_CONTROL_SECTION:return u->page!=XZ_UI_CONTROLS||a->index==0||a->index==3;
+ case XZ_UI_CONTROL_SECTION:return u->page!=XZ_UI_CONTROLS||a->index==0;
  /* BEAT JUMP is rebuilt as one choice per pair; the setup steps are the strip */
  case XZ_UI_JUMP_EDIT_PAGE:case XZ_UI_JUMP_PAIR:case XZ_UI_JUMP_STEP:case XZ_UI_JUMP_SIZE:case XZ_UI_SDK_STEP:return 1;
  default:return 0;
@@ -678,6 +679,7 @@ int xz_ui_menu_build(const struct xz_ui *u, const struct xz_ui_model *m, struct 
  /* A top page opened from the rail starts on its first row; a deeper page where the panel's focus is (its
     first control, or after BACK the link that led away), so BACK then push re-enters. */
  b.has_focus=(u->focus_kind!=XZ_UI_NONE||!xz_ui_page_is_top(u->page))&&xz_ui_focused(u,m,&b.focus);
+ if(u->page==XZ_UI_ABOUT){out->layout=XZ_SHELL_MENU_ABOUT;out->step=(uint8_t)u->about_link;}
  page_sections(&b);
  if(u->page==XZ_UI_EXTRAS)profile_choice_rows(&b);
  if(u->page==XZ_UI_BEAT_JUMP)beat_jump_rows(&b);

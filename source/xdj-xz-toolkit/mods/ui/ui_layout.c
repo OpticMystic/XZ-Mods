@@ -1,4 +1,5 @@
 #include "ui_skin.h"
+#include "ui_about.h"
 #include "stem_pads.h"
 #include "wave_viewport.h"
 #include "../key/browser.h"
@@ -59,6 +60,7 @@ static void place_panel(const struct xz_ui *u,const struct xz_ui_model *m,struct
  case XZ_UI_STEM_COLORS:grid(a,2,1,6,1);break;
  case XZ_UI_CONNECTION:put(a,X0,XZ_UI_CY,324,170);break;
  case XZ_UI_GAMES:if(page==XZ_UI_EXTRAS)put(a,468,XZ_UI_CY,324,170);else grid(a,2,1,6,1);break;
+ case XZ_UI_ABOUT:put(a,468,226,324,170);break;
  case XZ_UI_APPS:put(a,X0,226,324,170);break;
  case XZ_UI_UPDATES:if(page==XZ_UI_EXTRAS)put(a,468,226,324,170);else grid(a,2,1,6,1);break;
  case XZ_UI_DOOM_FILES:
@@ -145,6 +147,7 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_VOLUME:put(a,624,250,168,40);break;
   case XZ_UI_SAMPLE_PAD:put(a,X0+k*82,304,76,72);break;
   /* APPEARANCE */
+  case XZ_UI_ABOUT_LINK:xz_about_place(a,k);break;
   case XZ_UI_SET_THEME:grid(a,4,k%4,k/4,1);break;
   case XZ_UI_SET_INTERFACE:appearance(a,0,2,k==XZ_UI_INTERFACE_MODERN?0:1);break;
   case XZ_UI_SET_MODERN_THEME:appearance(a,1,2,0);break;

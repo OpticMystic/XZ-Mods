@@ -3,6 +3,7 @@
    model. Every push turns into one XZ_SHELL_ACT_MOD_MENU for the runtime; the page the runtime publishes
    next is what shows. No push here ever opens another menu. */
 #include "shell_internal.h"
+#include "../ui/ui_about.h"
 #include "shell_settings.h"
 #include <stdio.h>
 #include <string.h>
@@ -151,6 +152,7 @@ struct xz_shell_rect xz_shell_menu_row_rect(const struct xz_shell *u, const stru
  if(!u||!m||u->depth<1||u->depth>XZ_SHELL_STACK||xz_shell_screen(u)!=XZ_SHELL_UTILITY)return none();
  const struct xz_shell_menu *p=menu_of(m,sh_mods_tab(u,m));
  if(!row_at(p,row))return none();
+ if(p->layout==XZ_SHELL_MENU_ABOUT){struct xz_ui_widget w={0};xz_about_place(&w,row);return (struct xz_shell_rect){w.x,w.y,w.w,w.h};}
  if(keyboard(p))return key_rect(p,row);
  struct mstate s=settle(u,p);struct mlist l=list_of(p);
  int at=list_index(&l,row)-s.item_scroll;
@@ -380,6 +382,7 @@ void sh_menu_render(const struct xz_shell *u, const struct xz_shell_model *m, st
   render_page_text(q,p,16,PANE_H-4);
   return;
  }
+ if(p->layout==XZ_SHELL_MENU_ABOUT){xz_about_render(c,p->step,s.row,lit);return;}
  if(keyboard(p)){render_keyboard(c,p,s,lit);return;}
  render_list(c,p,s,lit);
  render_values(c,p,s,lit);
@@ -447,6 +450,10 @@ static void jump(struct mstate *s, const struct xz_shell_menu *p) {
  }
 }
 static int list_row_at(const struct xz_shell_menu *p, struct mstate s, int x, int y) {
+ if(p->layout==XZ_SHELL_MENU_ABOUT){
+  for(int r=0;r<rows_of(p);r++){struct xz_ui_widget w={0};xz_about_place(&w,r);if(x>=w.x&&x<w.x+w.w&&y>=w.y&&y<w.y+w.h)return r;}
+  return -2;
+ }
  if(keyboard(p)){
   for(int r=0;r<rows_of(p);r++)if(sh_inside(key_rect(p,r),x,y))return r;
   return -2;

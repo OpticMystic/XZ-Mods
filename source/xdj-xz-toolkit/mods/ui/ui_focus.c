@@ -116,7 +116,7 @@ const char *xz_ui_page_title(int page){
  case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";case XZ_UI_PC_STEMS:return "PC STEMS";
  case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";case XZ_UI_APPS:return "APPLICATIONS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
  case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "STANDALONE STEMS";
- case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_BUTTONS:return "BUTTONS";default:return "MODS";}
+ case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_ABOUT:return "ABOUT XZ MODS";case XZ_UI_BUTTONS:return "BUTTONS";default:return "MODS";}
 }
 const char *xz_ui_page_body(int page){
  switch(page){
@@ -146,6 +146,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_BEAT_JUMP:return "Custom beat jump sizes for the pads.";
  case XZ_UI_PC_STEMS:return "Switch rekordbox stems on a computer linked by USB cable.";
  case XZ_UI_PROFILE_SETUP:return "Your profile's name, logo and tagline, and creating or editing a profile on the USB.";
+ case XZ_UI_ABOUT:return "Created by VJ OpticMystic. Project links, credits and voluntary support.";
  case XZ_UI_BUTTONS:return "What the REKORDBOX button does, alone and with SHIFT.";
  default:return "Opens this page.";}
 }
@@ -272,6 +273,7 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
   out->title=title;
  }
  out->body=body(u,m,&a);
+ if(a.kind==XZ_UI_ABOUT_LINK)out->body="Push or tap to show this link as a QR. Scan with your phone.";
  if(xz_ui_network_kind(a.kind))out->body=xz_ui_network_help(a.kind);
  if(xz_ui_profile_owns(a.kind)){const char *title=NULL,*text=xz_ui_profile_describe(u,m,&a,&title);if(text)out->body=text;if(title)out->title=title;}
  /* Locked stems name their reason instead of a bare NOT READY. */

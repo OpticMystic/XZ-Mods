@@ -1640,6 +1640,14 @@ static void menu_back_key_hook(void *self,const void *input){
         if(xz_shell_runtime_rekordbox_action)xz_shell_runtime_rekordbox_action(rekordbox_latch.action);
         pthread_mutex_unlock(&ui_mutex);
     }
+    if(key==0x20b&&operation==1){
+        pthread_mutex_lock(&ui_mutex);
+        if(model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&touch.visible){
+            struct xz_ui_action release[XZ_UI_ACTIONS];size_t n=xz_ui_cancel(&ui,release);apply(NULL,release,n);
+            panel_hide_locked(0);inline_layout_publish();xz_native_skin_request_repaint();
+        }
+        pthread_mutex_unlock(&ui_mutex);
+    }
     if(key==0x4208){
         pthread_mutex_lock(&ui_mutex);
         if(play_key_back_contact){consumed=1;if(operation==2||operation==3)play_key_back_contact=0;}

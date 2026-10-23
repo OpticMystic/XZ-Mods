@@ -143,8 +143,17 @@ static void header_button(struct xz_canvas c, int x, int w, const char *label, i
 }
 const enum xz_shell_stem_layout xz_shell_stem_cycle[XZ_SHELL_STEM_LAYOUTS]={XZ_SHELL_STEMS_PADS,XZ_SHELL_STEMS_BELOW_FULL,
  XZ_SHELL_STEMS_BELOW_HALF,XZ_SHELL_STEMS_OUTSIDE_FULL,XZ_SHELL_STEMS_OUTSIDE_HALF,XZ_SHELL_STEMS_HIDDEN};
-void sh_header_buttons(const struct xz_shell_model *m, struct xz_canvas c) {
+static int header_closes(const struct xz_shell *u){
+ return xz_shell_screen(u)!=XZ_SHELL_PLAY||u->popup.kind!=XZ_SHELL_POPUP_NONE||u->panel.kind!=XZ_SHELL_PANEL_NONE;
+}
+static int header_matches(const struct xz_shell *u,const struct xz_shell_model *m){
+ return u->header_frame.valid&&u->header_frame.screen==(int)xz_shell_screen(u)&&u->header_frame.depth==u->depth&&
+  u->header_frame.popup==(int)u->popup.kind&&u->header_frame.panel==(int)u->panel.kind&&
+  u->header_frame.tab==u->mods_view.tab&&u->header_frame.page==(m->menu?m->menu->page:-1);
+}
+void sh_header_buttons(const struct xz_shell *u,const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,XZ_SHELL_HEADER_X-2,0,XZ_SHELL_WIDTH-XZ_SHELL_HEADER_X+2,XZ_SHELL_HEADER_BUTTON_H,SH_CHROME);
+ if(header_closes(u)){header_button(c,XZ_SHELL_MODS_X,XZ_SHELL_MODS_W,"X",0);return;}
  header_button(c,XZ_SHELL_STEMS_X,XZ_SHELL_STEMS_W,"STEMS",m->stems_known&&m->stems_on);
  /* One mark under STEMS per layout, in the order the button steps them, as the classic STEMS button shows its
     choice. */
@@ -255,6 +264,11 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  if(u->popup.kind!=XZ_SHELL_POPUP_NONE&&(k==XZ_SHELL_KEY_BACK||k==XZ_SHELL_KEY_BACK_HOLD||k==XZ_SHELL_KEY_MENU)){
   u->popup.kind=XZ_SHELL_POPUP_NONE;return 0;
  }
+ if(k==XZ_SHELL_KEY_MENU_HOLD&&available(m,XZ_SHELL_UTILITY)){
+  u->popup.kind=XZ_SHELL_POPUP_NONE;close_panels(u);open_mods(u,0);
+  u->stack[u->depth-1]=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
+  return sh_mods_opened(u,m,out,0);
+ }
  if(k==XZ_SHELL_KEY_MODS){
   if(!available(m,XZ_SHELL_UTILITY))return 0;
   u->popup.kind=XZ_SHELL_POPUP_NONE;close_panels(u);
@@ -360,6 +374,15 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
   enum xz_shell_action_kind hit=sh_header_hit(e->x,e->y);
   if(hit!=XZ_SHELL_ACT_NONE){
    u->down=1;u->down_region=XZ_SHELL_TOUCH_HEADER;
+   if(!header_matches(u,m))return 0;
+   if(header_closes(u)){
+    if(hit!=XZ_SHELL_ACT_OPEN_MODS)return 0;
+    if(u->popup.kind!=XZ_SHELL_POPUP_NONE)u->popup.kind=XZ_SHELL_POPUP_NONE;
+    else if(u->panel.kind!=XZ_SHELL_PANEL_NONE)close_panels(u);
+    else if(list_screen_of(xz_shell_screen(u))){sh_browse_remember_return(u,m,0);u->depth=1;close_panels(u);}
+    else{if(u->depth>1)u->depth--;close_panels(u);}
+    u->header_frame.valid=0;return 0;
+   }
    /* With mod tabs to show, MODS opens the shell's own MODS screen on the first of them. */
    if(hit==XZ_SHELL_ACT_OPEN_MODS&&m->mods&&m->mods->count>0&&m->mods->tabs&&available(m,XZ_SHELL_UTILITY)){
     close_panels(u);open_mods(u,1);
@@ -398,10 +421,13 @@ int xz_shell_render(const struct xz_shell *u, const struct xz_shell_model *m, ui
   sh_text_center(c,400,230,"POPUP: DRAWN BY A LATER UNIT",SH_SMALL,SH_DIM);
  }
  sh_notice(u,m,c);
- sh_header_buttons(m,c);
+ sh_header_buttons(u,m,c);
  return 1;
 }
 int xz_shell_render_frame(struct xz_shell *u,const struct xz_shell_model *m,uint16_t *pixels,size_t stride){
  if(!xz_shell_render(u,m,pixels,stride))return 0;
+ u->header_frame.valid=1;u->header_frame.screen=xz_shell_screen(u);u->header_frame.depth=u->depth;
+ u->header_frame.popup=u->popup.kind;u->header_frame.panel=u->panel.kind;u->header_frame.tab=u->mods_view.tab;
+ u->header_frame.page=m->menu?m->menu->page:-1;
  sh_play_key_publish(u,m);return 1;
 }

@@ -127,8 +127,8 @@ static void test_open(void) {
  assert(in_mods(&s)&&s.mods_view.tab==1&&s.mods_view.on_tabs&&ui.page==XZ_UI_GENERAL&&!ui.history_count);
  assert(menu.root==XZ_UI_GENERAL&&menu.depth==0);
  render_check(&s);
- static const int expect[8]={-1,XZ_UI_GENERAL,XZ_UI_CONTROLS,-1,-1,XZ_UI_SETTINGS,XZ_UI_EXTRAS,XZ_UI_NETWORK};
- for(int t=2;t<=7;t++){
+ static const int expect[7]={-1,XZ_UI_GENERAL,XZ_UI_CONTROLS,-1,XZ_UI_SETTINGS,XZ_UI_EXTRAS,XZ_UI_NETWORK};
+ for(int t=2;t<=6;t++){
   size_t n=turn(&s,1);
   assert(s.mods_view.tab==t&&s.mods_view.on_tabs);
   if(expect[t]<0)assert(n==0);
@@ -138,6 +138,7 @@ static void test_open(void) {
  assert(key(&s,XZ_SHELL_KEY_MENU)==0&&s.depth==1);
  assert(key(&s,XZ_SHELL_KEY_MODS)==1&&out[0].id==XZ_SHELL_MENU_OPEN&&in_mods(&s));
  assert(key(&s,XZ_SHELL_KEY_MODS)==0&&s.depth==1);
+ assert(xz_shell_render_frame(&s,&sm,buffer+GUARD+STRIDE,STRIDE));
  assert(tap(&s,XZ_SHELL_MODS_X+20,10)==1&&out[0].id==XZ_SHELL_MENU_OPEN&&in_mods(&s));
  /* held MENU lands on UTILITY, which asks nothing */
  assert(key(&s,XZ_SHELL_KEY_MENU_HOLD)==0&&s.mods_view.tab==0);
@@ -153,7 +154,7 @@ static void test_encoder_never_leaves(void) {
  for(int run=0;run<24;run++){
   struct xz_shell s;fresh(&s);
   key(&s,XZ_SHELL_KEY_MENU);
-  turn(&s,run%7);push(&s);   /* into the tab: BACK leaves its page or closes MODS */
+  turn(&s,run%6);push(&s);   /* into the tab: BACK leaves its page or closes MODS */
   for(int step=0;step<1500;step++){
    seed=seed*1664525u+1013904223u;
    int r=(int)((seed>>16)%10);
@@ -200,14 +201,14 @@ static void test_back(void) {
  assert(push(&s)==0&&pane(&s)==2);
  assert(key(&s,XZ_SHELL_KEY_BACK)==0&&pane(&s)==1&&!s.mods_view.on_tabs&&ui.page==XZ_UI_CONTROLS);
  /* three deep: EXTRAS / GAMES / DOOM, back one level at a time */
- key(&s,XZ_SHELL_KEY_BACK);key(&s,XZ_SHELL_KEY_MENU);turn(&s,5);assert(ui.page==XZ_UI_EXTRAS);push(&s);
+ key(&s,XZ_SHELL_KEY_BACK);key(&s,XZ_SHELL_KEY_MENU);turn(&s,4);assert(ui.page==XZ_UI_EXTRAS);push(&s);
  cursor_to(&s,"GAMES");push(&s);assert(ui.page==XZ_UI_GAMES&&menu.depth==1);
  cursor_to(&s,"CHEX QUEST");push(&s);assert(ui.page==XZ_UI_DOOM&&menu.depth==2&&!strcmp(menu.path,"EXTRAS / GAMES"));
  key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_GAMES&&cursor_row(&s)&&!strcmp(cursor_row(&s)->label,"CHEX QUEST"));
  key(&s,XZ_SHELL_KEY_BACK);assert(ui.page==XZ_UI_EXTRAS&&cursor_row(&s)&&!strcmp(cursor_row(&s)->label,"GAMES"));
  key(&s,XZ_SHELL_KEY_BACK);assert(xz_shell_screen(&s)==XZ_SHELL_PLAY);
  /* the title bar's back arrow is BACK too */
- key(&s,XZ_SHELL_KEY_MENU);turn(&s,5);push(&s);cursor_to(&s,"GAMES");push(&s);
+ key(&s,XZ_SHELL_KEY_MENU);turn(&s,4);push(&s);cursor_to(&s,"GAMES");push(&s);
  struct xz_shell_rect b=xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON);
  assert(send(&s,(struct xz_shell_event){XZ_SHELL_TOUCH_DOWN,b.x+b.w/2,b.y+b.h/2,0,0,-1})==1&&out[0].id==XZ_SHELL_MENU_BACK&&ui.page==XZ_UI_EXTRAS);
  send(&s,(struct xz_shell_event){XZ_SHELL_TOUCH_UP,b.x+b.w/2,b.y+b.h/2,0,0,-1});
@@ -273,7 +274,7 @@ static void test_reach_every_page(void) {
  /* pages only the runtime opens: the setups, reached by their own rows above or the runtime itself */
  for(int p=0;p<XZ_UI_PAGE_COUNT;p++){
   if(p==XZ_UI_KEY_SETUP){assert(!seen[p]);continue;}
-  if(p==XZ_UI_THEMES||p==XZ_UI_BUTTONS||p==XZ_UI_THEME_PICK||p==XZ_UI_BROWSE_SETUP)continue;
+  if(p==XZ_UI_THEMES||p==XZ_UI_THEME_PICK||p==XZ_UI_BROWSE_SETUP)continue;
   if(!seen[p])fprintf(stderr,"page %d (%s) not reached\n",p,xz_ui_page_title(p));
   assert(seen[p]);
  }
@@ -298,7 +299,7 @@ static void test_reach_every_page(void) {
 
 static void test_ipv4_encoder(void) {
  struct xz_shell s;fresh(&s);detected_network();publish();
- key(&s,XZ_SHELL_KEY_MENU);turn(&s,6);push(&s);
+ key(&s,XZ_SHELL_KEY_MENU);turn(&s,5);push(&s);
  assert(ui.page==XZ_UI_NETWORK);cursor_to(&s,"CHOOSE ADAPTER / SETTINGS");push(&s);
  assert(ui.page==XZ_UI_NETWORK_SETUP&&ui.network.initialized);
  cursor_to(&s,"STATIC IP");push(&s);assert(ui.network.trial.policy.order[0].mode==XZ_NET_STATIC);
@@ -370,7 +371,7 @@ static void test_press_parity(void) {
  count_push(&s);cursor_to(&s,"STEM SHORTCUT PAD MODE");count_push(&s);turn(&s,1);count_push(&s);
  assert(ran_count&&ran[ran_count-1].kind==XZ_UI_STEM_PAGE&&pushes<=3);
  /* a game from EXTRAS: old MENU, push, push, link, game = 4 pushes, now 3 */
- fresh(&s);key(&s,XZ_SHELL_KEY_MENU);turn(&s,5);pushes=0;
+ fresh(&s);key(&s,XZ_SHELL_KEY_MENU);turn(&s,4);pushes=0;
  count_push(&s);cursor_to(&s,"GAMES");count_push(&s);cursor_to(&s,"BEAT ARCADE");count_push(&s);
  assert(ran_count&&ran[ran_count-1].kind==XZ_UI_ARCADE_OPEN&&pushes==3);
  /* a beat jump size: old MENU, push, push, section, pair, push-turn-push = 5, now 4 */
