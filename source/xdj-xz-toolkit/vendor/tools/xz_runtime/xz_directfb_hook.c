@@ -23,6 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "mods_bridge.h"
+#include "../../../mods/network/receiver_address.h"
 #include "../../../mods/ui/pixel_font.h"
 
 typedef DFBResult (*DirectFBCreateFn)(IDirectFB **ret_interface);
@@ -127,6 +128,7 @@ static xz_mods_native_color_fn_v1 mods_native_color;
 static xz_mods_native_surface_color_fn_v1 mods_native_surface_color;
 static xz_mods_native_style_fn_v1 mods_native_style;
 static xz_mods_full_frame_fn_v1 mods_full_frame;
+static xz_network_address_fn_v1 mods_network_address;
 static int (*mods_game_active)(void);
 static uint32_t vj_listener_ready;
 static uint32_t vj_discovery_ready;
@@ -295,6 +297,7 @@ static void resolve_mods_bridge(void) {
     mods_native_surface_color = (xz_mods_native_surface_color_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_surface_color_v1");
     mods_native_style = (xz_mods_native_style_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_style_v1");
     mods_full_frame = (xz_mods_full_frame_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_full_frame_v1");
+    mods_network_address = (xz_network_address_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_network_address_v1");
 }
 
 static int mods_panel_visible(void) {
@@ -612,18 +615,8 @@ static void connection_snapshot(struct xz_vj_connection_v1 *out) {
         if (!sampled || elapsed >= 1000u) {
             uint32_t images = __atomic_load_n(&vj_received_image_count, __ATOMIC_RELAXED);
             int fd = socket(AF_INET, SOCK_DGRAM, 0);
-            cached.ipv4[0] = '\0';
-            if (fd >= 0) {
-                struct ifreq request;
-                memset(&request, 0, sizeof(request));
-                strncpy(request.ifr_name, "eth0", IFNAMSIZ - 1);
-                if (ioctl(fd, SIOCGIFADDR, &request) == 0) {
-                    const struct sockaddr_in *address = (const struct sockaddr_in *)&request.ifr_addr;
-                    if (!inet_ntop(AF_INET, &address->sin_addr, cached.ipv4, sizeof(cached.ipv4)))
-                        cached.ipv4[0] = '\0';
-                }
-                close(fd);
-            }
+            xz_receiver_network_ipv4(fd, mods_network_address, cached.ipv4);
+            if (fd >= 0) close(fd);
             if (sampled && elapsed >= 1000u && elapsed <= 5000u) {
                 cached.frame_hz_milli = (uint32_t)((uint64_t)(images - previous_images) * 1000000u / elapsed);
                 cached.stats_valid = 1;
@@ -1623,15 +1616,9 @@ static void *vj_discovery_listener(void *unused) {
         if (count <= 0) continue;
         request[count] = '\0';
         if (strncmp(request, "VJDISCOVER", 10) == 0) {
-            struct ifreq interface_request;
-            char response[96];
-            const char *ip = "0.0.0.0";
-            memset(&interface_request, 0, sizeof(interface_request));
-            strncpy(interface_request.ifr_name, "eth0", IFNAMSIZ - 1);
-            if (ioctl(fd, SIOCGIFADDR, &interface_request) == 0) {
-                struct sockaddr_in *resolved = (struct sockaddr_in *)&interface_request.ifr_addr;
-                ip = inet_ntoa(resolved->sin_addr);
-            }
+            char response[96], ip[16];
+            if (!xz_receiver_network_ipv4(fd, mods_network_address, ip))
+                memcpy(ip, "0.0.0.0", 8);
             snprintf(response, sizeof(response), "VJXZ 1 %s 50005", ip);
             sendto(fd, response, strlen(response), 0, (struct sockaddr *)&peer, peer_length);
         }
