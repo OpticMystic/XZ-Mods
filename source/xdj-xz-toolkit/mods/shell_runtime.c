@@ -2787,11 +2787,18 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
 
 /* ---- entry points ---- */
 int xz_shell_runtime_owns(void) { return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE); }
-int xz_shell_runtime_key_deck(int x, int y) {
+int xz_shell_runtime_key_hit(int x,int y,uint32_t *projection) {
+ *projection=0;
  if(!__atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE))return -1;
  pthread_mutex_lock(&mutex);
  int found=owns_flag?xz_shell_play_key_deck(&shell,&model,x,y):-1;
+ if(found>=0)*projection=xz_shell_play_key_frame(&shell,&model);
  pthread_mutex_unlock(&mutex);return found;
+}
+uint32_t xz_shell_runtime_key_frame(void){
+ if(!__atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE))return 0;
+ pthread_mutex_lock(&mutex);uint32_t frame=owns_flag?xz_shell_play_key_frame(&shell,&model):0;
+ pthread_mutex_unlock(&mutex);return frame;
 }
 int xz_shell_runtime_will_refresh(void) {
  return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE)&&(native_input_mask()||now_ms()-__atomic_load_n(&last_refresh_ms,__ATOMIC_RELAXED)>=XZ_SHRT_REFRESH_MS-XZ_SHRT_PRESENT_LEAD_MS);
@@ -2877,7 +2884,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  }
  publish_notice_locked();
  uint64_t began=now_us();
- result=xz_shell_render(&shell,&model,pixels,stride)?1:-1;
+ result=xz_shell_render_frame(&shell,&model,pixels,stride)?1:-1;
  uint32_t took=(uint32_t)(now_us()-began);
  sec.frames++;sec.render_us+=took;if(took>sec.render_max)sec.render_max=took;
  wf.render_us=took;wf.total_us=(uint32_t)(now_us()-began_us);

@@ -184,12 +184,33 @@ struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_
  }
  return (struct xz_shell_rect){0,0,0,0};
 }
-int xz_shell_play_key_deck(const struct xz_shell *u,const struct xz_shell_model *m,int x,int y){
- if(xz_shell_screen(u)!=XZ_SHELL_PLAY)return -1;
+static uint32_t key_projection(const struct xz_shell *u,const struct xz_shell_model *m){
+ if(xz_shell_screen(u)!=XZ_SHELL_PLAY)return 0;
  struct xz_shell_model view;xz_shell_play_projection(u,m,&view);
- for(int d=0;d<sh_deck_count(&view);d++){
+ /* Bit 0 valid, bit 1 four available, bit 2 four visible, bit 3 mixer order,
+  * bits 4/5 selected sides. Unused geometry values are normalized. */
+ int four=sh_deck_count(&view)==4,lanes=sh_play_deck_count(&view)==4;
+ return 1u|(four?2u:0u)|(lanes?4u:0u)|((four&&lanes&&view.wave_order==1)?8u:0u)|
+  (four?((uint32_t)view.sides_extra&3u)<<4:0u);
+}
+void sh_play_key_publish(struct xz_shell *u,const struct xz_shell_model *m){
+ struct xz_shell_model view;xz_shell_play_projection(u,m,&view);
+ memset(&u->key_frame,0,sizeof u->key_frame);u->key_frame.projection=key_projection(u,m);
+ if(!u->key_frame.projection)return;
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
   struct xz_shell_rect r=xz_shell_play_rect(&view,XZ_SHELL_R_KEY,d);
-  if(r.w&&sh_inside(r,x,y))return d;
+  u->key_frame.key[d].x=r.x;u->key_frame.key[d].y=r.y;u->key_frame.key[d].w=r.w;u->key_frame.key[d].h=r.h;
+ }
+}
+uint32_t xz_shell_play_key_frame(const struct xz_shell *u,const struct xz_shell_model *m){
+ uint32_t current=key_projection(u,m);
+ return current&&u->key_frame.projection==current?current:0;
+}
+int xz_shell_play_key_deck(const struct xz_shell *u,const struct xz_shell_model *m,int x,int y){
+ if(xz_shell_screen(u)!=XZ_SHELL_PLAY||!u->key_frame.projection)return -1;
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  const struct xz_shell_rect r={u->key_frame.key[d].x,u->key_frame.key[d].y,u->key_frame.key[d].w,u->key_frame.key[d].h};
+  if(r.w&&sh_inside(r,x,y))return xz_shell_play_key_frame(u,m)?d:-2;
  }
  return -1;
 }

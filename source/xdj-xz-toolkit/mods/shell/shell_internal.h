@@ -2,6 +2,7 @@
 #define XZ_SHELL_INTERNAL_H
 /* Shared by the shell's screens. Not part of the runtime contract. */
 #include "shell.h"
+void sh_play_key_publish(struct xz_shell *,const struct xz_shell_model *);
 #include "../ui/ui_skin.h"
 #include "../ui/theme_flagship.h"
 

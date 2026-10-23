@@ -61,7 +61,8 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_start
 #pragma weak xz_shell_runtime_stop
 #pragma weak xz_shell_runtime_follow_interface
-#pragma weak xz_shell_runtime_key_deck
+#pragma weak xz_shell_runtime_key_hit
+#pragma weak xz_shell_runtime_key_frame
 #pragma weak xz_shell_runtime_owns
 #pragma weak xz_shell_runtime_idle
 #pragma weak xz_shell_runtime_frame
@@ -117,6 +118,9 @@ static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
 static struct xz_ui ui;
 static struct xz_ui inline_ui;
 static struct xz_play_key play_key;
+static uint64_t play_key_instance;
+static int play_key_raw_down;
+static void play_key_open_locked(int deck){xz_play_key_open(&play_key,deck);play_key.instance=++play_key_instance;}
 static struct xz_classic_key_slots classic_keys;
 static int classic_key_visible;
 static int play_key_dirty;
@@ -850,7 +854,7 @@ static int sync_key(int deck) {
     struct xz_key_snapshot source,master;struct xz_playing_key target;int master_shift,cents;
     if(deck<0||deck>1)return 0;
     if(!key_available){
-        xz_play_key_open(&play_key,deck);play_key.down=0;play_key_dirty=1;
+        play_key_open_locked(deck);play_key.down=0;play_key_dirty=1;
         __atomic_store_n(&play_key_visible,1,__ATOMIC_RELEASE);
         return key_sync_fail(deck,XZ_KEY_SYNC_NO_ENGINE);
     }
@@ -1130,7 +1134,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         case XZ_UI_UNAVAILABLE:
             if(a->index==XZ_UI_STEM){xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);ui.stem_setup_step=0;panel_show_locked();inline_layout_publish();}
             if(a->index&(XZ_UI_KEY|XZ_UI_KEYSYNC)){
-                xz_play_key_open(&play_key,a->deck>=0&&a->deck<4?a->deck:0);play_key.setup=1;play_key.down=0;
+                play_key_open_locked(a->deck>=0&&a->deck<4?a->deck:0);play_key.setup=1;play_key.down=0;
                 play_key_dirty=1;__atomic_store_n(&play_key_visible,1,__ATOMIC_RELEASE);
             }
             break;
@@ -1632,7 +1636,7 @@ static void menu_back_key_hook(void *self,const void *input){
         pthread_mutex_lock(&ui_mutex);
         if(play_key_back_contact){consumed=1;if(operation==2||operation==3)play_key_back_contact=0;}
         else if(operation==0&&play_key.open){
-            if(play_key.setup)play_key.setup=0;else play_key.open=0;
+            if(play_key.setup){play_key.setup=0;xz_play_key_changed(&play_key);}else play_key.open=0;
             __atomic_store_n(&play_key_visible,play_key.open,__ATOMIC_RELEASE);
             play_key_dirty=1;play_key_back_contact=consumed=1;xz_native_skin_request_repaint();
         }
@@ -2258,17 +2262,41 @@ static void play_key_view_locked(struct xz_play_key_view *out){
         snprintf(out->key,sizeof out->key,"%s",play_key_extra_locked(&extra)?xz_classic_metadata(&extra.deck[play_key.deck-2]):"---");
     }
 }
-static int play_key_touch_locked(void *self,const struct xz_touch_status *status){
+static int play_key_binding_valid(const struct xz_play_key *key){
+    if(!key->open)return 1;
+    if(key->source_frame&&(!xz_shell_runtime_key_frame||xz_shell_runtime_key_frame()!=key->source_frame))return 0;
+    if(key->classic_side>=0){
+        struct xz_extra_decks extra;int have=play_key_extra_locked(&extra);
+        if(!have&&(key->source_frame||xz_native_four_order()>=0))return 0;
+        if(xz_classic_key_target(have?&extra:NULL,key->classic_side)!=key->selected_deck)return 0;
+    }
+    return 1;
+}
+static int play_key_source_valid_locked(void){
+    return play_key_binding_valid(&play_key)&&(!play_key.open||
+        (play_key.source_frame?shell_owns_locked():play_key.classic_side<0||model.ui_interface!=XZ_UI_INTERFACE_MODERN));
+}
+static int play_key_touch_locked(void *self,const struct xz_touch_status *status,int fresh){
     int previous_down=((const unsigned char *)self)[4]!=0,deck=-1,side=-1;
+    uint32_t source_frame=0;
     struct xz_extra_decks extra;int have_extra=play_key_extra_locked(&extra);
-    if(play_key.open&&play_key.classic_side>=0&&
-       ((!have_extra&&xz_native_four_order()>=0)||xz_classic_key_target(have_extra?&extra:NULL,play_key.classic_side)!=play_key.deck)){
+    if(!play_key_source_valid_locked()){
         play_key.open=0;play_key.down=!!status->down;play_key_dirty=1;
         __atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);xz_native_skin_request_repaint();return 1;
     }
     if(!play_key.open&&!play_key.down){
-        if(touch.visible||model.fb_takeover||game_locked()!=GAME_NONE||!status->down||previous_down)return 0;
-        if(shell_owns_locked()){if(xz_shell_runtime_key_deck)deck=xz_shell_runtime_key_deck((int)status->x,(int)status->y);}
+        if(touch.visible||model.fb_takeover||game_locked()!=GAME_NONE||!fresh||previous_down||
+           inline_contact||inline_wave_contact||four_contact||touch.capture)return 0;
+        if(shell_owns_locked()){
+            if(xz_shell_runtime_key_hit)deck=xz_shell_runtime_key_hit((int)status->x,(int)status->y,&source_frame);
+            if(deck==-2){play_key.down=1;play_key_dirty=1;return 1;}
+            if(deck>=0){
+                side=deck&1;
+                if(!have_extra||xz_classic_key_target(&extra,side)!=xz_shell_key_frame_selected(source_frame,side)){
+                    play_key.down=1;play_key_dirty=1;return 1;
+                }
+            }
+        }
         else if(xz_native_play_visible()&&(xz_native_inline_active()||xz_native_four_order()>=0)){
             side=xz_classic_key_slot_at(&classic_keys,(int)status->x,(int)status->y);
             if(side>=0){
@@ -2280,7 +2308,8 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
             }
         }
         if(deck<0)return 0;
-        xz_play_key_open(&play_key,deck);play_key.classic_side=side;ui.notice[0]=0;
+        play_key_open_locked(deck);play_key.classic_side=side;play_key.source_frame=source_frame;
+        play_key.selected_deck=source_frame?xz_shell_key_frame_selected(source_frame,side):deck;ui.notice[0]=0;
     }else if(!play_key.open){if(!status->down)play_key.down=0;return 1;}
     struct xz_ui_action action;
     if(xz_play_key_touch(&play_key,&model,(int)status->x,(int)status->y,!!status->down,&action))apply(NULL,&action,1);
@@ -2290,6 +2319,7 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
 static void touch_hook(void *self, const struct xz_touch_status *status, const void *mode) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE)) { stock_touch(self, status, mode); return; }
     pthread_mutex_lock(&ui_mutex);
+    int fresh=status->down&&!play_key_raw_down;play_key_raw_down=!!status->down;
     if(game_locked()!=GAME_NONE)game_nav.visible=0;
     if(xz_rhythm_lab_touch((int)status->x,(int)status->y,!!status->down,xz_game_milliseconds())) {
         touch.capture=0;touch.opening_contact=0;
@@ -2311,7 +2341,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         }else if(!status->down)arcade_touch_owned=0;
         pthread_mutex_unlock(&ui_mutex);return;
     }
-    if(play_key_touch_locked(self,status)){pthread_mutex_unlock(&ui_mutex);return;}
+    if(play_key_touch_locked(self,status,fresh)){pthread_mutex_unlock(&ui_mutex);return;}
     if(shell_touch_locked(self,status,mode)){pthread_mutex_unlock(&ui_mutex);return;}
     sdk_refresh();pc_refresh_locked();
     if(touch.visible||model.deck[0].pc_stems.source!=XZ_UI_SOURCE_PC||model.deck[1].pc_stems.source!=XZ_UI_SOURCE_PC)refresh_local();
@@ -2613,6 +2643,9 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
     }
     /* Between shell frames there is nothing to refresh or draw; the receiver keeps the last frame. */
     int shell_path=xz_shell_runtime_frame&&shell_owns_locked();
+    if(!play_key_source_valid_locked()){
+        play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
+    }
     if(shell_path){classic_keys.shown=0;__atomic_store_n(&classic_key_visible,0,__ATOMIC_RELEASE);}
     if(shell_path&&!play_key.open&&!play_key_dirty&&xz_shell_runtime_idle&&xz_shell_runtime_idle()){pthread_mutex_unlock(&ui_mutex);return 0;}
     /* The shell draws from its own model and reads only the key snapshots from this one, so while it
@@ -2649,7 +2682,20 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         play_key_view_locked(&key_view);play_key_dirty=0;
         pthread_mutex_unlock(&ui_mutex);
         int drawn=xz_shell_runtime_frame(pixels,stride,&in);
-        if(drawn){if(drawn>0)xz_play_key_render(&key_frame,&key_view,pixels,stride);return drawn>0;}
+        if(drawn){
+            int valid=play_key_binding_valid(&key_frame);
+            if(drawn>0&&key_frame.open){
+                if(valid)xz_play_key_render(&key_frame,&key_view,pixels,stride);
+                if(!pthread_mutex_trylock(&ui_mutex)){
+                    if(valid&&play_key_binding_valid(&play_key))xz_play_key_published(&play_key,&key_frame);
+                    else if(play_key.instance==key_frame.instance&&play_key.revision==key_frame.revision){
+                        play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
+                    }
+                    pthread_mutex_unlock(&ui_mutex);
+                }
+            }
+            return drawn>0;
+        }
         if(pthread_mutex_trylock(&ui_mutex)!=0)return 0;
     }
     int result,shell=0;
@@ -2690,8 +2736,10 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         badge(pixels,stride);result=1;
     }
     if(result&&!touch.visible&&game_locked()==GAME_NONE&&!model.fb_takeover){
+        if(!play_key_source_valid_locked()){play_key.open=0;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);}
         struct xz_play_key_view view;play_key_view_locked(&view);
         xz_play_key_render(&play_key,&view,pixels,stride);
+        xz_play_key_published(&play_key,&play_key);
     }
     if(game_locked()!=GAME_NONE&&result){
         xz_game_nav_frame(&game_nav,&game_frame);
@@ -2706,7 +2754,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     static const unsigned char link_guard[8] = {0x70,0x40,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     static const unsigned char rekordbox_guard[8] = {0x38,0x40,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     if (started) return 0;
-    memset(&play_key,0,sizeof play_key);classic_keys.shown=0;play_key_dirty=play_key_back_contact=0;
+    memset(&play_key,0,sizeof play_key);classic_keys.shown=0;play_key_dirty=play_key_back_contact=play_key_raw_down=0;
     __atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);__atomic_store_n(&classic_key_visible,0,__ATOMIC_RELEASE);
     settings_usb[0] = 0; settings_pending = settings_created = 0; settings_flash_at = 0;
     memset(&settings_profile,0,sizeof(settings_profile)); settings_slot=-1;

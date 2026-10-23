@@ -10,6 +10,11 @@
 
 static struct xz_ui_model model;
 static struct xz_ui_action act;
+static uint16_t painted[800*480];
+static void draw_popup(struct xz_play_key *p){
+ struct xz_play_key_view view;xz_play_key_view(p,&model,NULL,&view);
+ xz_play_key_render(p,&view,painted,800);xz_play_key_published(p,p);
+}
 static int click(struct xz_play_key *p,int which){
  struct xz_ui_widget w=xz_play_key_button(which);
  assert(!xz_play_key_touch(p,&model,w.x+w.w/2,w.y+20,1,&act));
@@ -20,12 +25,13 @@ static void controls(void){
   struct xz_play_key p;model.theme=theme;
   for(int k=0;k<2;k++)model.deck[k].ready=XZ_UI_KEY|XZ_UI_KEYSYNC;
   xz_play_key_open(&p,d);assert(!xz_play_key_touch(&p,&model,0,0,0,&act));
+  draw_popup(&p);
   for(int i=0;i<4;i++){
    int got=click(&p,i);assert(got==(d<2));
    if(got){assert(act.deck==d&&act.kind==(i==3?XZ_UI_KEY_SYNC:XZ_UI_KEY_SHIFT));assert(act.index==(i==3?0:i-1));}
   }
   assert(!click(&p,4)&&p.setup==(d>1));
-  if(d>1){for(int s=0;s<4;s++)assert(!click(&p,4));assert(p.setup&&p.step==0);assert(!click(&p,1)&&p.deck==1&&!p.setup);}
+  if(d>1){for(int s=0;s<4;s++)assert(!click(&p,4));assert(p.setup&&p.step==0);draw_popup(&p);assert(!click(&p,1)&&p.deck==1&&!p.setup);}
   assert(!click(&p,5)&&!p.open);
  }
  struct xz_play_key p;model.deck[0].ready=0;xz_play_key_open(&p,0);xz_play_key_touch(&p,&model,0,0,0,&act);
@@ -34,6 +40,7 @@ static void controls(void){
  for(int i=0;i<3;i++){assert(click(&p,4)&&act.kind==XZ_UI_KEY_CHECK&&act.deck==0);}
  assert(p.step==3&&click(&p,4)&&p.setup); /* no fake live verification */
  model.deck[0].ready=XZ_UI_KEY|XZ_UI_KEYSYNC;assert(!click(&p,4)&&!p.setup);
+ draw_popup(&p);
  /* Sliding off a button cancels the whole contact, including a zero-coordinate release. */
  struct xz_ui_widget w=xz_play_key_button(2);
  xz_play_key_touch(&p,&model,w.x+8,w.y+8,1,&act);xz_play_key_touch(&p,&model,10,10,1,&act);
@@ -45,6 +52,7 @@ static void geometry(void){
  struct xz_shell u;struct xz_shell_model m={0},view;
  for(int count=2;count<=4;count+=2)for(int mode=2;mode<=4;mode+=2)for(int sides=0;sides<4;sides++)for(int order=0;order<2;order++){
   xz_shell_init(&u);u.play_decks=mode;m.deck_count=count;m.sides_extra=(uint8_t)sides;m.wave_order=order;
+  assert(xz_shell_render_frame(&u,&m,painted,800));
   xz_shell_play_projection(&u,&m,&view);
   for(int d=0;d<count;d++){
    struct xz_shell_rect r=xz_shell_play_rect(&view,XZ_SHELL_R_KEY,d);
