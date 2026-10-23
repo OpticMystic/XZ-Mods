@@ -25,6 +25,7 @@ struct xz_jd_snapshot {
     uint16_t bpm_x100, track_bpm_x100;
     uint8_t key_code; /* Qualified native spelling code; 0 clears unknown/missing key. */
     uint8_t remain; /* Native TIME MODE flag; position remains elapsed milliseconds. */
+    uint8_t held_playing; /* Transport is still PLAY while Vinyl holds its audio. */
     uint32_t loop_in_ms, loop_out_ms;
 };
 struct xz_jd_family {

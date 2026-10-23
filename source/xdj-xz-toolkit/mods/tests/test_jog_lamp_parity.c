@@ -8,9 +8,9 @@ int main(void){
  const unsigned offsets[]={5,5,4,0x56,5,5,0x51},masks[]={1,2,2,0x10,4,8,1};
  const unsigned times[]={0,249,250,499,500,0xfffffff0u};
  unsigned checks=0,failed=0;
- for(unsigned side=0;side<2;side++)for(unsigned state=0;state<12;state++)for(unsigned t=0;t<sizeof times/sizeof times[0];t++){
+ for(unsigned held=0;held<2;held++)for(unsigned side=0;side<2;side++)for(unsigned state=0;state<12;state++)for(unsigned t=0;t<sizeof times/sizeof times[0];t++){
   reset(0);struct xz_extra_deck *d=&values.deck[side];
-  d->playing=state&1;d->cue_ms=(state&2)?1000:30000;d->vinyl=state&4;
+  d->playing=state&1;d->held_playing=held&&!d->playing;d->cue_ms=(state&2)?1000:30000;d->vinyl=state&4;
   d->sync.requested=1;d->sync.locked=state&1;
   d->slip=state&2;d->slip_active=!!(state&8);
   d->loop.active=!!(state&4);d->loop.in_ms=29000;d->loop.out_ms=40000;d->loop.edit=state/4;

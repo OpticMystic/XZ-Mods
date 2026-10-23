@@ -381,6 +381,7 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
   .tempo_range=range,
   .vinyl_mode=(uint8_t)!!d->vinyl,
   .master_tempo=(uint8_t)!!d->master_tempo,
+  .held_playing=(uint8_t)!!d->held_playing,
   .tempo_known=1,
   .status_known=1,
   .cued=cued,

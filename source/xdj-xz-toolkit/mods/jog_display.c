@@ -41,7 +41,7 @@ static int fresh(const struct xz_jd *s,const struct xz_jd_snapshot *p,uint64_t n
     return p&&p->logical_deck==s->physical_side+2u&&p->paused<=1&&p->remain<=1&&p->tempo_known==1&&p->vinyl_mode<=1&&p->master_tempo<=1&&
         (p->tempo_range==0||p->tempo_range==6||p->tempo_range==10||p->tempo_range==16||p->tempo_range==100)&&
         p->status_known<=1&&(!p->status_known||(p->cued<=1&&p->master<=1&&p->sync_mode<=XZ_JD_SYNC_BLINK&&
-        p->loop_active<=1&&p->slip<=1&&p->slip_active<=1&&p->loop_edit<=2&&(!p->loop_active||p->loop_out_ms>p->loop_in_ms)))&&
+        p->loop_active<=1&&p->slip<=1&&p->slip_active<=1&&p->loop_edit<=2&&p->held_playing<=1&&(!p->loop_active||p->loop_out_ms>p->loop_in_ms)))&&
         p->generation&&p->captured_ms<=now&&now-p->captured_ms<=s->freshness_ms&&p->position_ms<=p->length_ms&&p->length_ms<128u*60000u;
 }
 int xz_jd_select_unavailable(struct xz_jd *s,unsigned deck) {
@@ -134,10 +134,11 @@ static void extra_status(uint8_t *p,const struct xz_jd_snapshot *s,uint64_t now)
     uint8_t blink=(uint8_t)(((uint32_t)now/250u)&1u);
     uint8_t vinyl=s->vinyl_mode?1u:0u;
     uint8_t slip=s->slip?(s->slip_active?blink:1u):0u;
-    uint8_t cue_led=s->paused?(s->cued?1u:blink):1u;
-    uint8_t play_led=s->paused?blink:1u;
+    uint8_t playing=!s->paused||s->held_playing;
+    uint8_t cue_led=playing?1u:(s->cued?1u:blink);
+    uint8_t play_led=playing?1u:blink;
     uint8_t sync_led=s->sync_mode!=XZ_JD_SYNC_OFF?1u:0u;
-    uint8_t loop_led=(!s->paused||s->loop_active)?1u:0u;
+    uint8_t loop_led=(playing||s->loop_active)?1u:0u;
     uint8_t in_led=s->loop_edit?(s->loop_edit==1?blink:0u):loop_led;
     uint8_t out_led=s->loop_edit?(s->loop_edit==2?blink:0u):loop_led;
     uint8_t master_led=s->master?1u:0u;
