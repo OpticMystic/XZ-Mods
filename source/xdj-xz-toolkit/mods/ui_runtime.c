@@ -2249,14 +2249,17 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     int owned,pc_redraw=inline_contact&&model.deck[inline_contact_deck].pc_stems.source==XZ_UI_SOURCE_PC;
     if(inline_contact){
         struct xz_ui_action actions[XZ_UI_ACTIONS];
-        struct xz_wave_layout captured;xz_wave_layout_get(inline_gesture_layout,&captured);
-        if(model.stems_overlay!=inline_gesture_layout&&!inline_cancelled){
+        struct xz_wave_layout captured;
+        int valid=xz_wave_layout_get(inline_gesture_layout,&captured)&&captured.control_height;
+        if((!valid||model.stems_overlay!=inline_gesture_layout)&&!inline_cancelled){
             xz_ui_cancel(&inline_ui,actions);inline_cancelled=1;
         }
-        int row_y=(int)status->y-18-(int)captured.control_y[inline_contact_deck];
-        if(row_y<0)row_y=0;else if(row_y>=(int)captured.control_height)row_y=(int)captured.control_height-1;
-        size_t n=inline_cancelled?0:xz_ui_inline_touch(&inline_ui,&model,536,(int)captured.control_height*2,(int)status->x-131,row_y+inline_contact_deck*(int)captured.control_height,!!status->down,actions);
-        if(n)apply(NULL,actions,n);
+        if(valid&&!inline_cancelled){
+            int row_y=(int)status->y-18-(int)captured.control_y[inline_contact_deck];
+            if(row_y<0)row_y=0;else if(row_y>=(int)captured.control_height)row_y=(int)captured.control_height-1;
+            size_t n=xz_ui_inline_touch(&inline_ui,&model,536,(int)captured.control_height*2,(int)status->x-131,row_y+inline_contact_deck*(int)captured.control_height,!!status->down,actions);
+            if(n)apply(NULL,actions,n);
+        }
         if(!status->down){inline_contact=0;inline_cancelled=0;}
         owned=1;
     }else{
@@ -2645,10 +2648,11 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     if (settings_readonly) model.settings_status = "CHANGES LAST UNTIL REBOOT";
     wave_configure();
     if(audio_ready)xz_audio_set_enabled(requested_stems);
-    for (int i = 0; i < 4; i++) {
+    for(size_t i=0;i<sizeof pads.count/sizeof pads.count[0];i++)pads.count[i]=3;
+    for(size_t i=0;i<sizeof model.deck/sizeof model.deck[0];i++) {
         model.deck[i].groove_active = model.deck[i].sample_active = -1;
         for(unsigned r=0;r<4;r++)model.deck[i].levels[r]=1;
-        model.deck[i].stem_count=pads.count[i]=3;
+        model.deck[i].stem_count=3;
         model.deck[i].sample_volume = 1;
         model.deck[i].track = i < 2 ? "NO TRACK CAPTURED" : "EXTERNAL USB AUDIO";
         model.deck[i].status = i < 2 ? "NATIVE ADAPTER EXPERIMENTAL" : "CONTROL IN REKORDBOX OR SERATO";
