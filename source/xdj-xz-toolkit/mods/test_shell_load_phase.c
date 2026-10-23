@@ -32,15 +32,13 @@ int main(void) {
  struct xz_shell_event browse_event={XZ_SHELL_KEY,0,0,0,XZ_SHELL_KEY_BROWSE,-1};
  xz_shell_input(&u,&m,&browse_event,actions);u.stack[u.depth-1].focus=1;
  uint32_t id=b.rows[0].id;
- assert(!physical(&contacts,&u,&m,1,0)&&sh_browse_load_pending(&u));
- assert(!physical(&contacts,&u,&m,1,0)&&sh_browse_load_pending(&u));
- assert(!physical(&contacts,&u,&m,1,1)&&sh_browse_load_pending(&u));
- assert(!physical(&contacts,&u,&m,1,2)&&sh_browse_load_pending(&u));
- assert(!physical(&contacts,&u,&m,1,2)&&sh_browse_load_pending(&u));
- assert(physical(&contacts,&u,&m,2,0)==1&&actions[0].kind==XZ_SHELL_ACT_LOAD&&actions[0].deck==2&&actions[0].id==(int)id);
- assert(!physical(&contacts,&u,&m,2,0));assert(!physical(&contacts,&u,&m,2,2));
+ for(unsigned channel=1;channel<=2;channel++){
+  memset(&contacts,0,sizeof contacts);xz_shell_init(&u);xz_shell_browse_reset();xz_shell_input(&u,&m,&browse_event,actions);u.stack[u.depth-1].focus=1;
+  assert(physical(&contacts,&u,&m,channel,0)==1&&actions[0].kind==XZ_SHELL_ACT_LOAD&&actions[0].deck==(int)channel-1&&actions[0].id==(int)id);
+  assert(!physical(&contacts,&u,&m,channel,0));assert(!physical(&contacts,&u,&m,channel,1));assert(!physical(&contacts,&u,&m,channel,2));assert(!physical(&contacts,&u,&m,channel,2));
+ }
  const struct xz_shrt_key_map *browse=xz_shrt_key_lookup(0x209,0);
  xz_shrt_contact_press(&contacts,0x209,0,1);assert(xz_shrt_load_duplicate(&contacts,browse,XZ_SHRT_PRESS)==-1);
- puts("PASS physical LOAD phases: first press opens; duplicate/hold/release do not confirm; next numbered press selects; non-LOAD repeats unchanged");
+ puts("PASS physical LOAD phases: one press loads native channel 1/2 to deck 1/2; duplicate/hold/release inert; non-LOAD repeats unchanged");
  return 0;
 }

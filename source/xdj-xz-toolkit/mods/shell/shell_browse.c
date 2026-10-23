@@ -1826,8 +1826,12 @@ size_t sh_browse_load_input(struct xz_shell *u,const struct xz_shell_model *m,co
  int decks=load_choice_decks(p),count=decks+p->has_cues+1,selected=-1;
  if(e->kind==XZ_SHELL_KEY){
   if(e->key==XZ_SHELL_KEY_LOAD&&e->deck>=0&&e->deck<4){
-   if(p->mode==1)selected=e->deck&1;
-   else{p->mode=1;p->first=e->deck&1;p->cursor=0;p->has_cues=0;return 0;}
+   int deck=e->deck;struct xz_shell_load_choice chosen=*p;
+   p->mode=0;u->down=0;
+   if(!(sh_deck_caps(m,deck)&XZ_SHELL_CAP_LOAD)){u->notice="THAT DECK CANNOT LOAD THIS TRACK";u->notice_at_ms=m->clock_ms;return 0;}
+   struct xz_shell_browse_row track={0};track.kind=XZ_SHELL_ROW_TRACK;track.id=chosen.track;
+   u->stack[u->depth-1].cursor=chosen.row;
+   return load(u,m,&track,deck,out,0);
   }else{p->mode=0;return 0;}
  }else if(e->kind==XZ_SHELL_ENCODER_TURN){
   int64_t at=(int64_t)p->cursor+e->delta;p->cursor=at<0?0:at>=count?count-1:(int)at;return 0;
@@ -2123,7 +2127,8 @@ static size_t list_input(struct xz_shell *u, const struct xz_shell_model *m, con
   const struct xz_shell_browse_row *r=xz_shell_browse_highlight(u,m);
   if(!r||r->kind!=XZ_SHELL_ROW_TRACK||e->deck<0||e->deck>=sh_deck_count(m))return 0;
   if((m->capabilities&XZ_SHELL_CAP_LOAD)&&!v->focus)begin(v,b,s);
-  return choose_load(u,m,r,sh_deck_count(m)==4?(e->deck&1):e->deck,out,0);
+  /* The key already identifies its native or software deck. Keep stock one-press LOAD. */
+  return load(u,m,r,e->deck,out,0);
  }
  int depth=u->depth;
  sync(u);

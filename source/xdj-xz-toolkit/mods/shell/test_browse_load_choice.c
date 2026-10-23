@@ -24,11 +24,10 @@ static void expect_load(size_t count,int deck,uint32_t id) {
  assert(count==1&&actions[0].kind==XZ_SHELL_ACT_LOAD&&actions[0].deck==deck&&actions[0].id==(int)id);
 }
 static void pairs(void) {
- for(int initial=0;initial<4;initial++)for(int choose=0;choose<2;choose++){
+ for(int deck=0;deck<4;deck++){
   struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;setup(&u,&m,&b,4);
   uint32_t id=b.rows[0].id;
-  assert(load_key(&u,&m,initial)==0);assert(sh_browse_load_pending(&u));
-  expect_load(load_key(&u,&m,choose),(initial&1)+2*choose,id);
+  expect_load(load_key(&u,&m,deck),deck,id);
   assert(xz_shell_screen(&u)==XZ_SHELL_PLAY&&!sh_browse_load_pending(&u));
  }
 }
@@ -45,7 +44,7 @@ static void encoder_and_frozen_target(void) {
 static void cancellation(void) {
  for(int reason=0;reason<8;reason++){
   struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;setup(&u,&m,&b,4);
-  assert(!load_key(&u,&m,0));
+  assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1));
   switch(reason){
    case 0:assert(!event(&u,&m,XZ_SHELL_KEY,0,XZ_SHELL_KEY_BACK,-1));assert(!sh_browse_load_pending(&u));continue;
    case 1:m.browse=NULL;break;
@@ -53,7 +52,7 @@ static void cancellation(void) {
    case 3:m.deck_count=2;break;
    case 4:b.media_generation++;break;
    case 5:b.list_id++;break;
-   case 6:m.deck[2].caps_off|=XZ_SHELL_CAP_LOAD;break;
+   case 6:m.deck[1].caps_off|=XZ_SHELL_CAP_LOAD;break;
    case 7:b.source_name="USB2";break;
   }
   assert(!load_key(&u,&m,1));assert(!sh_browse_load_pending(&u));
@@ -75,9 +74,10 @@ static void cancel_and_cue_options(void) {
 }
 static void copy_safe(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;setup(&u,&m,&b,4);
- struct xz_shell probe=u;assert(!load_key(&probe,&m,0));assert(sh_browse_load_pending(&probe));assert(!sh_browse_load_pending(&u));
- assert(!load_key(&u,&m,0));probe=u;expect_load(load_key(&probe,&m,1),2,b.rows[0].id);
- assert(sh_browse_load_pending(&u));
+ struct xz_shell probe=u;expect_load(load_key(&probe,&m,2),2,b.rows[0].id);
+ assert(xz_shell_screen(&u)==XZ_SHELL_BROWSE&&!sh_browse_load_pending(&u));
+ assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1));probe=u;
+ expect_load(load_key(&probe,&m,1),1,b.rows[0].id);assert(sh_browse_load_pending(&u));
 }
 static void two_decks_and_touch(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;setup(&u,&m,&b,2);
@@ -94,6 +94,6 @@ static void two_decks_and_touch(void) {
 int main(void) {
  (void)&bx_folders;fx_track_build(&track,1);bx_build(&library);
  pairs();encoder_and_frozen_target();cancellation();cancel_and_cue_options();copy_safe();two_decks_and_touch();
- puts("PASS browse LOAD choices: physical pairs, all-four encoder, frozen target, cancellation/generation/routes, copy probes, two-deck and explicit touch");
+ puts("PASS browse LOAD choices: one-press physical LOAD, all-four encoder, frozen target, cancellation/generation/routes, copy probes, two-deck and explicit touch");
  return 0;
 }

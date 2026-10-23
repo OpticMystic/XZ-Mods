@@ -793,7 +793,7 @@ size_t xz_ui_menu_back(struct xz_ui *u, struct xz_ui_action out[XZ_UI_ACTIONS]) 
  int depth=0;
  if(!u||!out)return 0;
  xz_ui_menu_root(u,&depth);
- if(!depth)return 0;
+ if(!depth)return xz_ui_back(u,out);
  size_t n=xz_ui_back(u,out),k=0;
  for(size_t i=0;i<n;i++)if(out[i].kind!=XZ_UI_CLOSE)out[k++]=out[i];
  return k;

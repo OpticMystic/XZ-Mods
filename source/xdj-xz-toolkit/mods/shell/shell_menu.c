@@ -493,16 +493,15 @@ size_t sh_menu_input(struct xz_shell *u, const struct xz_shell_model *m, const s
   int row=list_row_at(p,s,e->x,e->y);
   if(row>=0){
    s.touch_pane=PANE_ITEMS;
-   /* Touch-down highlights; a second touch on the highlighted row confirms. A key types at once. */
-   if(keyboard(p)||(row==s.row&&s.pane==PANE_ITEMS))s.armed=1;
-   else{s.row=row;s.pane=PANE_ITEMS;s.value=0;s.value_scroll=0;}
-   if(keyboard(p))s.row=row;
+   /* A tap runs the row on release; moving cancels activation. */
+   if(row!=s.row){s.value=0;s.value_scroll=0;}
+   s.row=row;s.pane=PANE_ITEMS;s.armed=1;
    break;
   }
   int v=value_at(p,s,e->x,e->y);
   if(v>=0){
    s.touch_pane=PANE_VALUES;
-   if(v==s.value&&s.pane==PANE_VALUES)s.armed=1;else{s.value=v;s.pane=PANE_VALUES;}
+   s.value=v;s.pane=PANE_VALUES;s.armed=1;
   }
   break;
  }
@@ -541,8 +540,8 @@ size_t sh_menu_input(struct xz_shell *u, const struct xz_shell_model *m, const s
   if(u->down&&s.touch_pane==PANE_PAD)
    n=emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_MOD_MENU,pad_x(e->x)*1024+pad_y(e->y),s.row,XZ_SHELL_MENU_RELEASE});
   else if(u->down&&s.armed&&!s.dragged){
-   if(s.touch_pane==PANE_ITEMS&&(!keyboard(p)||list_row_at(p,s,e->x,e->y)==s.row))n=push_row(&s,p,out);
-   else if(s.touch_pane==PANE_VALUES)n=pick_value(&s,p,out);
+   if(s.touch_pane==PANE_ITEMS&&list_row_at(p,s,e->x,e->y)==s.row)n=push_row(&s,p,out);
+   else if(s.touch_pane==PANE_VALUES&&value_at(p,s,e->x,e->y)==s.value)n=pick_value(&s,p,out);
   }
   u->down=0;u->down_region=XZ_SHELL_TOUCH_NONE;s.touch_pane=-1;s.armed=s.dragged=0;
   break;
@@ -558,11 +557,11 @@ size_t sh_menu_input(struct xz_shell *u, const struct xz_shell_model *m, const s
 }
 size_t sh_menu_back(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_mods_tab *tab, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  const struct xz_shell_menu *p=menu_of(m,tab);
- if(!p){u->mods_view.on_tabs=1;return 0;}
+ if(!p){xz_shell_mods_close(u);return 0;}
  struct mstate s=settle(u,p);
  if(s.pane==PANE_VALUES){s.pane=PANE_ITEMS;pack(u,p,s);return 0;}
  if(p->depth>0){pack(u,p,s);return ask(out,XZ_SHELL_MENU_BACK,p->page,-1);}
  pack(u,p,s);
- u->mods_view.on_tabs=1;
+ xz_shell_mods_close(u);
  return 0;
 }
