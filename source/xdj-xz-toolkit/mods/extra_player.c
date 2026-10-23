@@ -257,7 +257,8 @@ struct deck {
  uint64_t media_generation;
  uint64_t timeline_output_frames, timeline_sink_frame, timeline_wire_completed;
  struct xz_extra_sync sync;
- int sync_initial,sync_hold,sync_rate_active,sync_have_master,sync_lock_count;
+ enum { SYNC_INITIAL_NONE, SYNC_INITIAL_NOW, SYNC_INITIAL_AFTER_COOLDOWN } sync_initial;
+ int sync_hold,sync_rate_active,sync_have_master,sync_lock_count;
  int sync_native_gap_hold, sync_stationary;
  uint32_t master_playing_choice;int master_playing_seen;
  uint32_t handoff_intent_epoch;
@@ -1498,8 +1499,15 @@ static int sync_native_gap_tempo(struct xz_xp_players *p,struct deck *d,
 static void sync_reacquire(struct deck *d,uint32_t now){
  d->sync_hold=0;d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;d->sync_have_master=d->sync_lock_count=0;
  d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
- d->sync_initial=d->quantize&&(!d->sync_snap_at||(uint32_t)(now-d->sync_snap_at)>=XZ_XP_SYNC_RESNAP_MS);
+ /* A cooldown defers the requested re-alignment; it must not discard it. */
+ d->sync_initial=!d->quantize?SYNC_INITIAL_NONE:
+  d->sync_snap_at&&(uint32_t)(now-d->sync_snap_at)<XZ_XP_SYNC_RESNAP_MS?SYNC_INITIAL_AFTER_COOLDOWN:SYNC_INITIAL_NOW;
  d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;
+}
+static int sync_snap_ready(const struct deck *d,uint32_t now){
+ return d->sync_initial==SYNC_INITIAL_NOW||
+  (d->sync_initial==SYNC_INITIAL_AFTER_COOLDOWN&&
+   (uint32_t)(now-d->sync_snap_at)>=XZ_XP_SYNC_RESNAP_MS);
 }
 /* Phase acquisition needs two advancing, coherent observations. A fresh timestamp
    alone is not evidence that a broken clock has recovered. */
@@ -1529,6 +1537,7 @@ static double native_tempo_rate(const struct deck *d,double bpm){
 }
 /* A paused deck has an exact source position but no running output clock. Apply
    the requested alignment once; retain BPM without claiming continuous phase lock. */
+static int sync_snap_ready(const struct deck *,uint32_t);
 static void sync_stationary(struct xz_xp_players *p,struct deck *d,int selected,uint32_t choice,
  double bpm,double master_phase,int phase_known,uint32_t now){
  double rate=native_tempo_rate(d,bpm);
@@ -1537,7 +1546,7 @@ static void sync_stationary(struct xz_xp_players *p,struct deck *d,int selected,
  if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
  if(d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
  if(d->quantize&&!d->sync_grid_den){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
- if(d->quantize&&d->sync_initial){
+ if(d->quantize&&sync_snap_ready(d,now)){
   double phase,period;
   if(!phase_known){d->sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;}
   if(!grid_phase(d,d->heard,&phase,&period)){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
@@ -1694,7 +1703,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   d->sync.phase_error_us=(int32_t)llround(error_seconds*1000000.);
   d->sync_master_clock=(struct sync_clock){.route=d->epoch,.load=d->load_revision,.generation=d->generation};
   d->sync_have_master=1;d->sync_master_id=native.native_deck;d->sync_slave_underrun=d->underrun;d->sync_choice_seen=choice;
-  if(d->sync_initial){
+  if(sync_snap_ready(d,now)){
    uint64_t wire=position->wire_submitted_frames>slave.wire_frame?position->wire_submitted_frames:slave.wire_frame;
    double horizon_sec=(double)(wire-slave.wire_frame)/(double)XZ_USB_RATE;
    double desired=wrapped_beat(target_phase+horizon_sec*master_bps);
@@ -1790,7 +1799,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  double error_seconds=error/(master_step*XZ_USB_RATE);
  d->sync.phase_error_us=(int32_t)llround(error_seconds*1000000.);
  d->sync_master_clock=master;d->sync_have_master=1;d->sync_master_id=selected;d->sync_slave_underrun=d->underrun;d->sync_choice_seen=choice;
- if(d->sync_initial){
+ if(sync_snap_ready(d,now)){
   uint64_t wire=position->wire_submitted_frames?position->wire_submitted_frames:slave.wire_frame;
   double desired,forecast_step;
   if(!segment_at_wire(&master,wire,&desired,&forecast_step,NULL)){
@@ -2694,6 +2703,24 @@ static int emergency_loop(struct xz_xp_players *p,struct deck *d,uint32_t now){
  d->sync_have_master=0;d->sync.locked=0;d->sync_trim=0;d->ramp.active=0;
  jump(d,d->loop.in,now);xz_xp_notice(p,"EMERGENCY LOOP / LOAD NEXT TRACK");return 1;
 }
+/* A missing output anchor prevents phase claims, not fresh native BPM follow.
+ * Keep all source/choice/route guards; accepted PCM retains its own rate history. */
+static void sync_pending_native_tempo(struct xz_xp_players *p,struct deck *d,uint32_t now){
+ if(!p->native_sync_clock||!d->r||d->emergency.active)return;
+ (void)sync_grid_refresh(p,d);
+ uint32_t choice;int selected=sync_selection(p,d,&choice);
+ if(selected!=-1)return;
+ struct xz_sync_native_snapshot native={0};
+ if(!p->native_sync_clock(&native)||!native.available||native.reason==XZ_SYNC_NATIVE_EXTERNAL_MASTER||
+    native.native_deck<0||native.native_deck>1||
+    (p->master_observer&&native.native_deck!=d->master_actual.deck)||
+    !native.source_revision||!native.track_identity||native.manual||!isfinite(native.bpm)||
+    native.bpm<=0||native.bpm>(double)INT32_MAX/100.||
+    (uint32_t)(now-native.captured_ms)>150u||
+    (d->sync_wait_fresh&&(int32_t)(native.captured_ms-d->sync_requested_at)<=0))return;
+ double rate=native_tempo_rate(d,native.bpm);
+ if(rate>0)(void)sync_apply_base(p,d,selected,choice,rate);
+}
 static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  const struct xz_xp_sink *s = &p->env.sink;
  xz_usb_position position={0};
@@ -2727,7 +2754,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   if(d->timeline_valid&&d->timeline_anchor_valid&&!d->need_flush&&age<=150u&&
      (double)age*XZ_USB_RATE/1000.<queued){
    xz_usb_position cached={.wire_submitted_frames=d->sync_wire_submitted};sync_update(p,d,&cached,now);
-  }else{d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;}
+  }else{d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;sync_pending_native_tempo(p,d,now);}
  }
  if(scratch_tail_done(p,d,now)){
   /* Resumed playback must be primed in this pass. An extra worker interval adds
