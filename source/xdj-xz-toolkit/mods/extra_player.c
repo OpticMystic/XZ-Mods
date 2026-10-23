@@ -2518,7 +2518,8 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
     if (d->slip_pause) { d->slip_pause = 0; slip_return(d, now); }
    } else {
     if (d->slip && !d->slip_bg.active) { slip_begin(d, heard_now(d, now), now); d->slip_pause = 1; }
-    ramp_from(d, 1, ramp_factor(d, now), now);
+    if (d->vinyl_level <= -XZ_EXTRA_TEMPO_SPAN + 100) pause_at_heard(d, now);
+    else ramp_from(d, 1, ramp_factor(d, now), now);
    }
    break;
   }
@@ -2931,7 +2932,16 @@ static int mode_input(struct xz_xp_players *p,const struct xz_extra_deck_event *
 int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
  if (!p || !e || e->deck < 0 || e->deck >= XZ_EXTRA_DECKS || (unsigned)e->kind >= XZ_EXTRA_INPUT_COUNT) return 0;
  uint32_t epoch=p->env.sink.link(p->env.sink.ctx);
- if (!epoch) {SP_ONLY(sp_input(&p->deck[e->deck],e,p->env.now_ms(),0,atomic_load(&p->deck[e->deck].published_state),0,XP_SP_NO_ROUTE,XP_SP_UNKNOWN,XP_SP_UNKNOWN,0));return 0;}
+ if (!epoch) {
+  if (e->kind == XZ_EXTRA_IN_VINYL_SPEED) {
+   struct deck *d = &p->deck[e->deck]; int32_t at = e->tempo_position;
+   pthread_mutex_lock(&d->queue_lock);
+   d->vinyl_level = at > XZ_EXTRA_TEMPO_SPAN ? XZ_EXTRA_TEMPO_SPAN : at < -XZ_EXTRA_TEMPO_SPAN ? -XZ_EXTRA_TEMPO_SPAN : at;
+   pthread_mutex_unlock(&d->queue_lock);
+   return 1;
+  }
+  SP_ONLY(sp_input(&p->deck[e->deck],e,p->env.now_ms(),0,atomic_load(&p->deck[e->deck].published_state),0,XP_SP_NO_ROUTE,XP_SP_UNKNOWN,XP_SP_UNKNOWN,0));return 0;
+ }
  if(e->kind==XZ_EXTRA_IN_QUANTIZE||e->kind==XZ_EXTRA_IN_TIME_MODE||e->kind==XZ_EXTRA_IN_AUTO_CUE||e->kind==XZ_EXTRA_IN_MODE_SET)
   return mode_input(p,e,epoch);
  if (e->kind == XZ_EXTRA_IN_LOAD && !p->env.resolve) { SP_ONLY(sp_input(&p->deck[e->deck],e,p->env.now_ms(),epoch,atomic_load(&p->deck[e->deck].published_state),0,XP_SP_NO_RESOLVER,XP_SP_UNKNOWN,XP_SP_UNKNOWN,0));xz_xp_notice(p, "TRACK NOT FOUND"); return 0; }

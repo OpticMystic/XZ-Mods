@@ -335,11 +335,10 @@ struct xz_ds_outcome xz_deck_select_key(struct xz_deck_select *d, const struct x
  }
  if(row->path==XZ_DS_PATH_GLOBAL){if(away)out.verdict=XZ_DS_SWALLOW;return out;}
  if(row->kind==XZ_EXTRA_IN_VINYL_SPEED){
-  if(!away)return out;
   if(k->op!=XZ_DS_OP_FADER||!isfinite(k->value)||k->value<0||k->value>1){if(away)out.verdict=XZ_DS_SWALLOW;return out;}
   if(!d->route_up)return out;
   deliver(&out,k->side,XZ_EXTRA_IN_VINYL_SPEED,k);out.event.tempo_position=fader_position(k->value*2.f-1.f);
-  return out;
+  out.also_stock=!away;return out;
  }
  int stream = row->kind == XZ_EXTRA_IN_JOG_TURN || row->kind == XZ_EXTRA_IN_TEMPO;
  if(stream || k->op == XZ_DS_OP_JOG || k->op == XZ_DS_OP_FADER) {
@@ -380,7 +379,7 @@ struct xz_ds_outcome xz_deck_select_global_player(struct xz_deck_select *d,const
   if(s->owner[XZ_DS_NATIVE]&bit)return pass;
   if(s->target==XZ_DS_NATIVE){if(k->op==0)s->early_native_down|=bit;return pass;}
   if(release&&(s->early_native_release&bit))return pass;
- }else if(s->target!=XZ_DS_EXTRA)return pass;
+ }else if(s->target!=XZ_DS_EXTRA&&row->kind!=XZ_EXTRA_IN_VINYL_SPEED)return pass;
  return xz_deck_select_key(d,k,now);
 }
 
