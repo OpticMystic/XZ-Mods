@@ -13,4 +13,10 @@ size_t xz_ui_network_action(struct xz_ui *,const struct xz_ui_model *,int kind,i
 int xz_ui_network_menu(const struct xz_ui *,const struct xz_ui_model *,struct xz_shell_menu *);
 const char *xz_ui_network_help(int kind);
 const char *xz_ui_network_title(int page);
+/* Pure UI publication. The shell supplies a token only after a successful
+ * interactive frame of its exact menu publication, never a menu build. */
+void xz_ui_network_invalidate(struct xz_ui *);
+uint64_t xz_ui_network_review_token(struct xz_ui *,const struct xz_ui_model *);
+void xz_ui_network_painted(struct xz_ui *,const struct xz_ui_model *,uint64_t);
+int xz_ui_network_take_apply(struct xz_ui *,const struct xz_ui_model *,const struct xz_ui_action *,struct xz_net_trial *);
 #endif

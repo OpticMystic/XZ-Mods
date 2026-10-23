@@ -25,6 +25,15 @@
 #include <time.h>
 #include <unistd.h>
 
+/* A failed removal keeps this RAM journal, including a pending sysctl restore.
+ * Only one worker uses an OS instance. No global/default policy is written. */
+struct xz_net_remove_guard {
+    struct xz_net_identity id;
+    struct xz_net_address survivor[XZ_NET_ADDRESSES];
+    unsigned survivors;
+    int active,original,phase;
+};
+enum { PROMOTE_ACQUIRING=1, PROMOTE_HELD, PROMOTE_RESTORING };
 struct xz_net_linux_os {
     char client_path[256],event_path[256];
     char client_interface[XZ_NET_IFNAME];
@@ -34,6 +43,7 @@ struct xz_net_linux_os {
     uint64_t token,serial;
     unsigned char partial[64];
     size_t partial_bytes;
+    struct xz_net_remove_guard remove_guard;
 };
 static uint64_t milliseconds(void *p){(void)p;struct timespec t;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;return (uint64_t)t.tv_sec*1000+(unsigned long)t.tv_nsec/1000000;}
 static enum xz_net_result failure(struct xz_net_error *e,enum xz_net_result r,const char *text){if(e){e->code=r;snprintf(e->detail,sizeof e->detail,"%s",text);}return r;}
@@ -138,8 +148,82 @@ static enum xz_net_result netlink(struct nlmsghdr *n,const struct xz_net_control
     }
 done:close(fd);return result;
 }
-static enum xz_net_result address(void *p,int add,const struct xz_net_identity *id,const struct xz_net_address *ip,const struct xz_net_control *c){
-    (void)p;if(!valid_identity(id))return XZ_NET_STALE;
+static int promote_value(const char *data,ssize_t bytes,int *value){
+    if(bytes!=1&&bytes!=2)return 0;
+    if((data[0]!='0'&&data[0]!='1')||(bytes==2&&data[1]!='\n'))return 0;
+    *value=data[0]-'0';return 1;
+}
+static enum xz_net_result promote_io(const struct xz_net_identity *id,int write_value,int *value,const struct xz_net_control *c){
+    if(xz_net_control_expired(c))return XZ_NET_TIMEOUT;
+    if(!valid_identity(id)||!strcmp(id->name,"all")||!strcmp(id->name,"default"))return XZ_NET_STALE;
+    char path[96];int length=snprintf(path,sizeof path,"/proc/sys/net/ipv4/conf/%s/promote_secondaries",id->name);
+    if(length<0||(size_t)length>=sizeof path)return XZ_NET_INVALID;
+    int fd=write_value<0?open(path,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK):open(path,O_WRONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    if(fd<0)return XZ_NET_NEEDS_BACKEND;
+    enum xz_net_result r=XZ_NET_OK;
+    if(write_value<0){
+        char data[8];ssize_t bytes=read(fd,data,sizeof data);
+        if(!promote_value(data,bytes,value))r=XZ_NET_VERIFY_FAILED;
+    }else{
+        const char data[2]={(char)('0'+write_value),'\n'};
+        if(write_value>1||write(fd,data,sizeof data)!=(ssize_t)sizeof data)r=XZ_NET_VERIFY_FAILED;
+    }
+    close(fd);
+    if(xz_net_control_expired(c))return XZ_NET_TIMEOUT;
+    return valid_identity(id)?r:XZ_NET_STALE;
+}
+static enum xz_net_result selected_addresses(struct xz_net_linux_os *o,const struct xz_net_identity *id,const struct xz_net_control *c,struct xz_net_adapter *out){
+    struct xz_net_snapshot s={0};struct xz_net_error e={0};
+    if(!valid_identity(id))return XZ_NET_STALE;
+    enum xz_net_result r=inventory(o,c,&s,&e);if(r)return r;
+    if(!valid_identity(id))return XZ_NET_STALE;
+    for(unsigned i=0;i<s.count;i++)if(s.adapter[i].id.ifindex==id->ifindex&&!strcmp(s.adapter[i].id.name,id->name)){
+        if(s.adapter[i].addresses_known!=XZ_NET_YES||s.adapter[i].addresses_truncated)return XZ_NET_INCOMPLETE_SNAPSHOT;
+        *out=s.adapter[i];return XZ_NET_OK;
+    }
+    return XZ_NET_STALE;
+}
+static int same_address(struct xz_net_address a,struct xz_net_address b){return a.prefix==b.prefix&&address_equal(a.ip,b.ip);}
+static int address_present(const struct xz_net_adapter *a,struct xz_net_address ip){
+    for(unsigned i=0;i<a->address_count;i++)if(same_address(a->address[i],ip))return 1;
+    return 0;
+}
+static enum xz_net_result guard_survivors(struct xz_net_linux_os *o,const struct xz_net_control *c){
+    struct xz_net_remove_guard *g=&o->remove_guard;struct xz_net_adapter a;
+    enum xz_net_result r=selected_addresses(o,&g->id,c,&a);if(r)return r;
+    for(unsigned i=0;i<g->survivors;i++)if(!address_present(&a,g->survivor[i]))return XZ_NET_ROLLBACK_FAILED;
+    return XZ_NET_OK;
+}
+static enum xz_net_result guard_finish(struct xz_net_linux_os *o,const struct xz_net_control *c){
+    struct xz_net_remove_guard *g=&o->remove_guard;if(!g->active)return XZ_NET_OK;
+    enum xz_net_result r=guard_survivors(o,c);if(r)return r;
+    int value=-1;r=promote_io(&g->id,-1,&value,c);if(r)return r;
+    /* ACQUIRING may have failed before its write. RESTORING may have written
+     * successfully before a readback timeout. Neither needs a second write. */
+    if(value==g->original&&(g->phase==PROMOTE_ACQUIRING||g->phase==PROMOTE_RESTORING)){
+        r=guard_survivors(o,c);if(r)return r;
+        memset(g,0,sizeof *g);return XZ_NET_OK;
+    }
+    if(value!=1)return XZ_NET_CONFLICT;
+    if(g->original==0){
+        g->phase=PROMOTE_RESTORING;
+        r=promote_io(&g->id,0,NULL,c);if(r)return r;
+        r=promote_io(&g->id,-1,&value,c);if(r)return r;
+        if(value!=g->original)return XZ_NET_CONFLICT;
+    }
+    r=guard_survivors(o,c);if(r)return r;
+    memset(g,0,sizeof *g);return XZ_NET_OK;
+}
+static enum xz_net_result guard_begin(struct xz_net_linux_os *o,const struct xz_net_identity *id,const struct xz_net_control *c){
+    struct xz_net_remove_guard *g=&o->remove_guard;int value=-1;
+    enum xz_net_result r=promote_io(id,-1,&value,c);if(r)return r;
+    *g=(struct xz_net_remove_guard){.id=*id,.active=1,.original=value,.phase=PROMOTE_ACQUIRING};
+    if(!value){r=promote_io(id,1,NULL,c);if(r)return r;}
+    g->phase=PROMOTE_HELD;
+    r=promote_io(id,-1,&value,c);if(r)return r;
+    return value==1?XZ_NET_OK:XZ_NET_CONFLICT;
+}
+static enum xz_net_result address_message(int add,const struct xz_net_identity *id,const struct xz_net_address *ip,const struct xz_net_control *c){
     struct {struct nlmsghdr n;struct ifaddrmsg a;char attrs[128];} msg={0};
     msg.n.nlmsg_len=NLMSG_LENGTH(sizeof msg.a);msg.n.nlmsg_type=add?RTM_NEWADDR:RTM_DELADDR;
     msg.n.nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK|(add?NLM_F_CREATE|NLM_F_EXCL:0);
@@ -147,6 +231,34 @@ static enum xz_net_result address(void *p,int add,const struct xz_net_identity *
     msg.a.ifa_scope=ip->ip.octet[0]==169&&ip->ip.octet[1]==254?RT_SCOPE_LINK:RT_SCOPE_UNIVERSE;
     if(attribute(&msg.n,sizeof msg,IFA_LOCAL,ip->ip.octet,4)||attribute(&msg.n,sizeof msg,IFA_ADDRESS,ip->ip.octet,4))return XZ_NET_INVALID;
     return netlink(&msg.n,c);
+}
+static enum xz_net_result address(void *p,int add,const struct xz_net_identity *id,const struct xz_net_address *ip,const struct xz_net_control *c){
+    struct xz_net_linux_os *o=p;
+    if((add!=0&&add!=1)||!ip||ip->prefix>32)return XZ_NET_INVALID;
+    if(!valid_identity(id))return XZ_NET_STALE;
+    if(xz_net_control_expired(c))return XZ_NET_TIMEOUT;
+    if(add){
+        if(o->remove_guard.active)return XZ_NET_BUSY;
+        return address_message(1,id,ip,c);
+    }
+    if(o->remove_guard.active){
+        if(!xz_net_identity_equal(&o->remove_guard.id,id))return XZ_NET_CONFLICT;
+        enum xz_net_result r=guard_finish(o,c);if(r)return r;
+    }
+    struct xz_net_adapter before;enum xz_net_result r=selected_addresses(o,id,c,&before);if(r)return r;
+    /* Idempotent retry also completes a previous guard restoration when the
+     * address disappeared before its successful readback. */
+    if(!address_present(&before,*ip))return XZ_NET_OK;
+    r=guard_begin(o,id,c);if(r)return r;
+    r=selected_addresses(o,id,c,&before);if(r)return r;
+    for(unsigned i=0;i<before.address_count;i++)if(!same_address(before.address[i],*ip))o->remove_guard.survivor[o->remove_guard.survivors++]=before.address[i];
+    int value=-1;r=promote_io(id,-1,&value,c);if(r)return r;
+    if(value!=1)return XZ_NET_CONFLICT;
+    if(!address_present(&before,*ip))return guard_finish(o,c);
+    r=address_message(0,id,ip,c);if(r)return r;
+    struct xz_net_adapter after;r=selected_addresses(o,id,c,&after);if(r)return r;
+    if(address_present(&after,*ip))return XZ_NET_VERIFY_FAILED;
+    return guard_finish(o,c);
 }
 static int route_present(void *p,const struct xz_net_identity *id,struct xz_net_ipv4 gateway,unsigned metric){
     (void)p;FILE *f=fopen("/proc/net/route","r");if(!f)return 0;char line[512];unsigned lines=0;int found=0;
@@ -221,4 +333,4 @@ enum xz_net_result xz_net_linux_os_create(struct xz_net_linux_os **out,struct xz
     strcpy(o->client_path,client);strcpy(o->event_path,event);o->verified=config&&config->client_contract_verified;o->pipe=o->lifetime=-1;
     *io=(struct xz_net_linux_io){o,milliseconds,inventory,address,route,route_present,client_start,client_poll,client_stop};*out=o;return XZ_NET_OK;
 }
-void xz_net_linux_os_destroy(struct xz_net_linux_os *o){if(o&&o->pid<=0){if(o->pipe>=0)close(o->pipe);if(o->lifetime>=0)close(o->lifetime);free(o);}}
+void xz_net_linux_os_destroy(struct xz_net_linux_os *o){if(o&&o->pid<=0&&!o->remove_guard.active){if(o->pipe>=0)close(o->pipe);if(o->lifetime>=0)close(o->lifetime);free(o);}}

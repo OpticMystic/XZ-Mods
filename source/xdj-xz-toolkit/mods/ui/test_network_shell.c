@@ -19,6 +19,9 @@ int main(void){
         int r=row_kind(XZ_UI_NETWORK_KEY,*p=='.'?10:*p-'0');struct xz_shell_rect box=xz_shell_menu_row_rect(&s,&sm,r);assert(menu.row[r].kind==XZ_SHELL_MENU_KEY);assert(tap(&s,box.x+box.w/2,box.y+box.h/2)==1);
     }assert(!strcmp(ui.network.edit,typed)&&!strcmp(menu.field,typed));render_check(&s);
     cursor_to(&s,"DONE");push(&s);assert(ui.page==XZ_UI_NETWORK_SETUP&&!strcmp(ui.network.ip,typed));cursor_to(&s,"REVIEW CHANGES");push(&s);render_check(&s);
-    cursor_to(&s,"APPLY FOR THIS BOOT");ran_count=0;push(&s);assert(ran_count==1&&ran[0].kind==XZ_UI_NETWORK_APPLY&&in_mods(&s)&&!others&&!refusals);
+    cursor_to(&s,"APPLY FOR THIS BOOT");ran_count=0;push(&s);assert(ran_count==0);
+    assert(xz_shell_render_frame(&s,&sm,buffer+GUARD+STRIDE,STRIDE));
+    xz_ui_network_painted(&ui,&um,xz_ui_network_review_token(&ui,&um));
+    push(&s);assert(ran_count==1&&ran[0].kind==XZ_UI_NETWORK_APPLY&&in_mods(&s)&&!others&&!refusals);
     puts("PASS actual MODERN shell: NETWORK navigation, encoder mode/edit, real keypad touch/geometry/render, review and Apply action");
 }

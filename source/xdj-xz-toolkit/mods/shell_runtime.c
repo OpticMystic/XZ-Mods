@@ -530,6 +530,7 @@ static int mods_page=-1; /* under mutex: the page OPEN_MODS asked for */
 /* The MENU tabs' page as ui_runtime.c last published it, and the commands a push asked for. Under mutex. */
 static struct xz_shell_menu menu_page;
 static int menu_valid;
+static uint64_t network_menu_token,network_shown_token,network_input_sequence,network_shown_sequence;
 static int menu_wanted_flag, mods_open_flag;
 #define MENU_QUEUE 8
 static struct xz_shell_runtime_menu_command menu_queue[MENU_QUEUE];
@@ -2033,6 +2034,10 @@ static void menu_command_locked(const struct xz_shell_action *a, uint32_t now) {
   break;}
  default:refuse();return;
  }
+ if(c.op==XZ_SHELL_MENU_ACTIVATE&&c.target.kind==XZ_UI_NETWORK_APPLY&&network_menu_token&&
+    network_shown_token==network_menu_token&&network_input_sequence>network_shown_sequence){
+  c.network_publication=network_shown_token;network_shown_sequence=network_input_sequence;
+ }
  if(menu_count>=MENU_QUEUE){
   /* A held pad's moves may coalesce; anything else waits for room it never gets: say so. */
   if(c.op==XZ_SHELL_MENU_MOVE&&menu_queue[menu_count-1].op==XZ_SHELL_MENU_MOVE){menu_queue[menu_count-1]=c;return;}
@@ -2248,9 +2253,14 @@ static void note_menu_locked(void) {
  const struct xz_shell_mods_tab *tab=NULL;int t=shell.mods_view.tab;
  if(xz_shell_screen(&shell)==XZ_SHELL_UTILITY&&t>=1&&t<=(int)mods_model.count)tab=&mod_tabs[t-1];
  __atomic_store_n(&menu_wanted_flag,tab&&tab->kind==XZ_SHELL_TAB_MENU,__ATOMIC_RELEASE);
+ if(!menu_wanted_flag)network_shown_token=0;
  __atomic_store_n(&mods_open_flag,xz_shell_screen(&shell)==XZ_SHELL_UTILITY,__ATOMIC_RELEASE);
 }
+static void menu_input_sequence_locked(const struct xz_shell_event *e) {
+ if((e->kind==XZ_SHELL_TOUCH_DOWN&&!shell.down)||e->kind==XZ_SHELL_ENCODER_PUSH)network_input_sequence++;
+}
 static void deliver_locked(const struct xz_shell_event *e, uint32_t now) {
+ menu_input_sequence_locked(e);
  struct xz_shell_action out[XZ_SHELL_ACTIONS];
  size_t n=xz_shell_input(&shell,&model,e,out);
  execute_locked(out,n,now);
@@ -2810,6 +2820,15 @@ int xz_shell_runtime_idle(void) {
     xz_extra_decks_control_revision()!=__atomic_load_n(&shown_extra_control,__ATOMIC_ACQUIRE))return 0;
  return now_ms()-__atomic_load_n(&last_drawn_ms,__ATOMIC_ACQUIRE)<__atomic_load_n(&period_ms,__ATOMIC_RELAXED);
 }
+static int menu_render_frame_locked(uint16_t *pixels,size_t stride) {
+ int result=xz_shell_render_frame(&shell,&model,pixels,stride)?1:-1;
+ if(result>0){
+  uint64_t painted=menu_wanted_flag&&model.menu==&menu_page?network_menu_token:0;
+  if(network_shown_token!=painted)network_shown_sequence=network_input_sequence;
+  network_shown_token=painted;
+ }
+ return result;
+}
 int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shell_runtime_frame_input *in) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!in||!pixels||stride<XZ_SHELL_WIDTH)return 0;
  uint64_t began_us=now_us();
@@ -2884,7 +2903,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  }
  publish_notice_locked();
  uint64_t began=now_us();
- result=xz_shell_render_frame(&shell,&model,pixels,stride)?1:-1;
+ result=menu_render_frame_locked(pixels,stride);
  uint32_t took=(uint32_t)(now_us()-began);
  sec.frames++;sec.render_us+=took;if(took>sec.render_max)sec.render_max=took;
  wf.render_us=took;wf.total_us=(uint32_t)(now_us()-began_us);
@@ -3071,9 +3090,17 @@ int xz_shell_runtime_menu_wanted(void) {
 void xz_shell_runtime_menu(const struct xz_shell_menu *p) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!p)return;
  lock_as("menu");
+ if(network_menu_token){network_menu_token=network_shown_token=0;dirty_flag=1;}
  if(!menu_valid||memcmp(&menu_page,p,sizeof menu_page)){
   menu_page=*p;menu_valid=1;model.menu=&menu_page;dirty_flag=1;
  }
+ pthread_mutex_unlock(&mutex);
+}
+void xz_shell_runtime_menu_network(const struct xz_shell_menu *p,uint64_t token) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!p)return;
+ lock_as("network menu");
+ if(network_menu_token!=token){network_menu_token=token;network_shown_token=0;dirty_flag=1;}
+ if(!menu_valid||memcmp(&menu_page,p,sizeof menu_page)){menu_page=*p;menu_valid=1;model.menu=&menu_page;dirty_flag=1;}
  pthread_mutex_unlock(&mutex);
 }
 int xz_shell_runtime_take_menu_command(struct xz_shell_runtime_menu_command *c) {
@@ -3382,6 +3409,7 @@ static int start_locked(void) {
  model.deck_count=XZ_SHELL_NATIVE_DECKS;extra_reset();
  memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);
  memset(&load_check,0,sizeof load_check);ui_requests=0;ui_requests_at=0;menu_passed=0;menu_inert=0;notice_pending=0;notice_text[0]=0;
+ network_menu_token=network_shown_token=network_input_sequence=network_shown_sequence=0;
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
  ui_action_count=0;look_classic_at=0;stock_key_pending=-1;push_input=0;
  le_count=0;

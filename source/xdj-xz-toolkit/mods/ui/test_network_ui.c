@@ -48,7 +48,8 @@ int main(void){
     assert(target.kind==XZ_UI_NETWORK_APPLY);size_t n=xz_ui_menu_run(&copy,&m,&target,out);assert(n==1&&out[0].kind==XZ_UI_NETWORK_APPLY&&out[0].network_revision==copy.network.revision);
     assert(tap(&u,&m,XZ_UI_NETWORK_APPLY,0,out)==1&&out[0].network_revision==u.network.revision);assert(!tap(&u,&m,XZ_UI_NETWORK_APPLY,0,out));
     /* Encoder uses the identical touch path. */
-    copy.network.step=XZ_NETWORK_REVIEW;copy.focus_kind=XZ_UI_NETWORK_APPLY;copy.focus_index=0;copy.focus_deck=-1;assert(xz_ui_encoder_push(&copy,&m,out)==1&&out[0].kind==XZ_UI_NETWORK_APPLY);
+    copy.network.step=XZ_NETWORK_REVIEW;copy.focus_kind=XZ_UI_NETWORK_APPLY;copy.focus_index=0;copy.focus_deck=-1;
+    assert(!xz_ui_encoder_push(&copy,&m,out));assert(xz_ui_render(&copy,&m,pixels,800*480,800));assert(xz_ui_encoder_push(&copy,&m,out)==1&&out[0].kind==XZ_UI_NETWORK_APPLY);
     /* Stale/renamed inventory cannot retarget an old row. */
     copy=u;copy.network.step=XZ_NETWORK_CHOOSE;m.network.actual.generation++;assert(!tap(&copy,&m,XZ_UI_NETWORK_MODE,XZ_NET_DHCP,out));assert(!copy.network.initialized&&strstr(copy.notice,"CHANGED"));check_layout(&copy,&m);
     /* Capability failure before Apply also opens real setup and keeps static usable. */

@@ -17,6 +17,8 @@ struct xz_net_backend_ticket {
     struct xz_net_address advertised;
     struct xz_net_address owned_address[XZ_NET_ADDRESSES];
     unsigned owned_count;
+    struct xz_net_address removing;
+    int removal_pending;
     int advertisement_pinned;
     struct xz_net_ipv4 gateway;
     uint64_t client,expires,checked_at;
@@ -96,6 +98,23 @@ static enum xz_net_result add_route(struct xz_net_linux *l,struct xz_net_backend
     t->gateway=gateway;r=l->io.route(l->io.context,1,&t->trial.selected,gateway,t->metric,c);
     if(r){if(r==XZ_NET_TIMEOUT)t->uncertain_route=1;return err(e,r,"Additive gateway operation failed or was not acknowledged");}t->created_route=1;return XZ_NET_OK;
 }
+static void forget_owned(struct xz_net_backend_ticket *t,unsigned index){
+    memmove(t->owned_address+index,t->owned_address+index+1,(t->owned_count-index-1)*sizeof *t->owned_address);
+    t->owned_count--;t->created_address=t->owned_count!=0;
+}
+static enum xz_net_result remove_owned(struct xz_net_linux *l,struct xz_net_backend_ticket *t,unsigned index,const struct xz_net_control *c,struct xz_net_error *e){
+    struct xz_net_address ip=t->owned_address[index];
+    if(t->removal_pending&&!addr_equal(t->removing,ip))return err(e,XZ_NET_ROLLBACK_FAILED,"Complete the pending address/policy restoration before another removal");
+    t->removing=ip;t->removal_pending=1;
+    enum xz_net_result r=l->io.address(l->io.context,0,&t->trial.selected,&ip,c);
+    if(r)return err(e,r==XZ_NET_CONFLICT?XZ_NET_ROLLBACK_FAILED:r,"Address/promotion-policy restoration incomplete; owned journal retained, retry Revert");
+    struct xz_net_snapshot s;r=detect(l,c,&s,e);if(r)return r;
+    struct xz_net_adapter *a=adapter(&s,&t->trial.selected);
+    if(!a||a->addresses_known!=XZ_NET_YES||a->addresses_truncated)return err(e,XZ_NET_INCOMPLETE_SNAPSHOT,"Removal readback incomplete; owned journal retained");
+    if(has_address(a,ip))return err(e,XZ_NET_ROLLBACK_FAILED,"Owned address is still present; retry Revert");
+    forget_owned(t,index);t->removal_pending=0;
+    return XZ_NET_OK;
+}
 static enum xz_net_result accept_lease(struct xz_net_linux *l,struct xz_net_backend_ticket *t,const struct xz_net_lease *lease,const struct xz_net_control *c,struct xz_net_error *e){
     if(strcmp(lease->interface,t->trial.selected.name)||lease->kind<XZ_NET_LEASE_BOUND||lease->kind>XZ_NET_LEASE_RENEW)return err(e,XZ_NET_INVALID,"DHCP report does not match the selected adapter");
     unsigned char wire[64];struct xz_net_lease checked;if(xz_net_lease_encode(lease,wire)||xz_net_lease_decode(wire,&checked))return err(e,XZ_NET_INVALID,"Invalid lease report");
@@ -111,8 +130,7 @@ static enum xz_net_result accept_lease(struct xz_net_linux *l,struct xz_net_back
         struct xz_net_snapshot readback;r=detect(l,c,&readback,e);if(r)return r;
         if(!has_address(adapter(&readback,&t->trial.selected),lease->address))return err(e,XZ_NET_VERIFY_FAILED,"Renewed address failed readback");
         if(!has_address(adapter(&readback,&t->trial.selected),previous))return err(e,XZ_NET_CONFLICT,"Old owned lease changed during renewal");
-        r=l->io.address(l->io.context,0,&t->trial.selected,&previous,c);if(r)return err(e,r,"Old owned lease removal failed");
-        for(unsigned i=0;i<t->owned_count;i++)if(addr_equal(t->owned_address[i],previous)){memmove(t->owned_address+i,t->owned_address+i+1,(t->owned_count-i-1)*sizeof *t->owned_address);t->owned_count--;break;}
+        for(unsigned i=0;i<t->owned_count;i++)if(addr_equal(t->owned_address[i],previous)){r=remove_owned(l,t,i,c,e);if(r)return r;break;}
         if(t->advertisement_pinned&&xz_net_identity_equal(&t->advertised_adapter,&t->trial.selected))t->advertised=t->address;
     }
     t->expires=os_now(l)+(uint64_t)lease->seconds*1000;return XZ_NET_OK;
@@ -159,16 +177,25 @@ static enum xz_net_result restore(void *p,struct xz_net_backend_ticket *t,const 
     struct xz_net_linux *l=p;int conflict=0;enum xz_net_result r;
     if(t->client_started){r=l->io.client_stop(l->io.context,t->client,c);if(r)return err(e,r,"Owned DHCP child did not stop within rollback budget");t->client_started=0;}
     struct xz_net_snapshot s;r=detect(l,c,&s,e);if(r)return r;struct xz_net_adapter *a=adapter(&s,&t->trial.selected);
-    if(!a)return err(e,XZ_NET_CONFLICT,"Adapter disappeared; no replacement adapter was changed");
+    if(!a)return err(e,t->owned_count||t->created_route||t->uncertain_address||t->uncertain_route?XZ_NET_ROLLBACK_FAILED:XZ_NET_CONFLICT,"Adapter disappeared; no replacement adapter was changed; retry retained rollback");
     if(t->created_route){
         if(l->io.route_present(l->io.context,&t->trial.selected,t->gateway,t->metric)){
-            r=l->io.route(l->io.context,0,&t->trial.selected,t->gateway,t->metric,c);if(r)return err(e,r,"Owned route removal failed");
+            r=l->io.route(l->io.context,0,&t->trial.selected,t->gateway,t->metric,c);if(r)return err(e,r==XZ_NET_CONFLICT?XZ_NET_ROLLBACK_FAILED:r,"Owned route removal failed; journal retained");
         }else conflict=1;t->created_route=0;
     }
-    while(t->owned_count){struct xz_net_address owned=t->owned_address[t->owned_count-1];
-        if(has_address(a,owned)){r=l->io.address(l->io.context,0,&t->trial.selected,&owned,c);if(r)return err(e,r,"Owned address removal failed");}
-        else conflict=1;t->owned_count--;
-    }t->created_address=0;
+    while(t->owned_count){
+        unsigned index=t->owned_count-1;
+        if(t->removal_pending){
+            for(index=0;index<t->owned_count;index++)if(addr_equal(t->owned_address[index],t->removing))break;
+            if(index==t->owned_count)return err(e,XZ_NET_ROLLBACK_FAILED,"Pending removal journal does not match an owned address");
+        }
+        r=detect(l,c,&s,e);if(r)return r;a=adapter(&s,&t->trial.selected);
+        if(!a||a->addresses_known!=XZ_NET_YES||a->addresses_truncated)return err(e,XZ_NET_INCOMPLETE_SNAPSHOT,"Rollback readback incomplete; owned additions retained");
+        if(!has_address(a,t->owned_address[index])&&!t->removal_pending){conflict=1;forget_owned(t,index);continue;}
+        /* Even an absent pending address must revisit the OS boundary so its
+         * retained per-interface policy journal is restored and verified. */
+        r=remove_owned(l,t,index,c,e);if(r)return r;
+    }
     r=detect(l,c,out,e);if(r)return r;a=adapter(out,&t->trial.selected);
     if(!a)return err(e,XZ_NET_CONFLICT,"Adapter disappeared after restoration");
     a->owned_dhcp_enabled=XZ_NET_NO;
