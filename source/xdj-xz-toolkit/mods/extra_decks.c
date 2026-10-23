@@ -34,6 +34,7 @@ extern void xz_xp_set_quantize_grid(struct xz_xp_players *,unsigned,int) __attri
 extern void xz_xp_set_master_observer(struct xz_xp_players *,xz_master_observer) __attribute__((weak));
 extern void xz_jog_display_runtime_publish(const struct xz_extra_decks *decks,uint32_t now_ms) __attribute__((weak));
 extern void xz_jog_display_runtime_service_assets(void) __attribute__((weak));
+extern void xz_native_led_service_feedback(void) __attribute__((weak));
 extern void xz_sync_link_runtime_poll(const struct xz_extra_decks *decks) __attribute__((weak));
 extern int xz_sync_link_runtime_master_committed(int deck_index) __attribute__((weak));
 extern int xz_sync_link_runtime_master_observe(struct xz_master_observation *) __attribute__((weak));
@@ -341,6 +342,7 @@ static void *connector(void *unused) {
    struct xz_extra_decks snap;
    (void)xz_extra_decks_snapshot(&snap);
    if(xz_jog_display_runtime_service_assets)xz_jog_display_runtime_service_assets();
+   if(xz_native_led_service_feedback)xz_native_led_service_feedback();
   }
   rest(POLL_UP_MS);
  }

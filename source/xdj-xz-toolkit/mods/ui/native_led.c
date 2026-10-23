@@ -114,6 +114,37 @@ void xz_native_led_pad_probe(const void *records,size_t bytes,unsigned count,uns
  }
 }
 
+#ifdef XZ_JOG_DISPLAY_PROOF
+#include <stdio.h>
+extern void xz_log(const char *) __attribute__((weak));
+/* One native input writer; the connector logs only meaningful MT transitions.
+ * Unchanged state leaves the retained observation stable. */
+struct mt_feedback_slot { uint32_t seq, value[7]; };
+static struct mt_feedback_slot mt_feedback[2];
+static void mt_feedback_record(unsigned side,const uint32_t value[7]){
+ struct mt_feedback_slot *s=&mt_feedback[side];int changed=!__atomic_load_n(&s->seq,__ATOMIC_RELAXED);
+ for(unsigned i=0;i<7;i++)changed|=__atomic_load_n(&s->value[i],__ATOMIC_RELAXED)!=value[i];
+ if(!changed)return;
+ __atomic_add_fetch(&s->seq,1,__ATOMIC_ACQ_REL);
+ for(unsigned i=0;i<7;i++)__atomic_store_n(&s->value[i],value[i],__ATOMIC_RELAXED);
+ __atomic_add_fetch(&s->seq,1,__ATOMIC_RELEASE);
+}
+void xz_native_led_service_feedback(void){
+ static uint32_t reported[2];if(!xz_log)return;
+ for(unsigned side=0;side<2;side++){
+  struct mt_feedback_slot *s=&mt_feedback[side];uint32_t v[7];
+  uint32_t before=__atomic_load_n(&s->seq,__ATOMIC_ACQUIRE);
+  if(!before||(before&1u)||before==reported[side])continue;
+  for(unsigned i=0;i<7;i++)v[i]=__atomic_load_n(&s->value[i],__ATOMIC_RELAXED);
+  if(before!=__atomic_load_n(&s->seq,__ATOMIC_ACQUIRE))continue;
+  char line[192];snprintf(line,sizeof line,"MT_LED_STATE: side=%u wanted=%u records=%u before=%u after=%u force=%u raw14=%u loaded=%u",
+   side+1,v[0],v[1],v[2],v[3],v[4],v[5],v[6]);xz_log(line);reported[side]=before;
+ }
+}
+#else
+void xz_native_led_service_feedback(void){}
+#endif
+
 /* Only existing, non-forced records have a proven writable extent. The saved
  * serializer proof does not establish spare record or index-table capacity. */
 size_t xz_native_led_extra_deck(void *records,size_t bytes,
@@ -126,14 +157,27 @@ size_t xz_native_led_extra_deck(void *records,size_t bytes,
  (void)dimmer;
  if(!p||!count_io||!d||channel<1u||channel>2u||
     *count_io>XZ_LED_MAX_RECORDS||bytes<(size_t)*count_io*XZ_LED_RECORD_BYTES)return 0;
+#ifdef XZ_JOG_DISPLAY_PROOF
+ uint32_t mt[7]={!!d->master_tempo,0,0,0,0,0,!!d->loaded};
+#endif
  for(unsigned i=0;i<*count_io;i++){
   unsigned char *r=p+(size_t)i*XZ_LED_RECORD_BYTES;
-  if(word(r+4)!=channel||r[0x18])continue;
+  if(word(r+4)!=channel)continue;
+#ifdef XZ_JOG_DISPLAY_PROOF
+  if(word(r)==XZ_LED_ID_MASTER_TEMPO){mt[1]++;mt[2]=mt[3]=word(r+0x10);mt[4]=r[0x18];mt[5]=word(r+0x14);}
+#endif
+  if(r[0x18])continue;
   int lamp=xz_extra_lamp(d,word(r));
   if(lamp<0)continue;
   uint32_t state=lamp==XZ_LED_STATE_BLINK?((now_ms/250u)&1u):xz_led_written_state(lamp);
   if(word(r+0x10)!=state){put(r+0x10,state);changed++;}
+#ifdef XZ_JOG_DISPLAY_PROOF
+  if(word(r)==XZ_LED_ID_MASTER_TEMPO)mt[3]=word(r+0x10);
+#endif
  }
+#ifdef XZ_JOG_DISPLAY_PROOF
+ mt_feedback_record(channel-1,mt);
+#endif
  return changed;
 }
 
