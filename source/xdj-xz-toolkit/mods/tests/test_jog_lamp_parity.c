@@ -5,7 +5,7 @@
 #include "../ui/native_led.c"
 int main(void){
  const unsigned ids[]={XZ_LED_ID_CUE,XZ_LED_ID_PLAY_PAUSE,XZ_LED_ID_VINYL,XZ_LED_ID_BEAT_SYNC,XZ_LED_ID_LOOP_IN,XZ_LED_ID_LOOP_OUT,XZ_LED_ID_SLIP};
- const unsigned offsets[]={5,5,4,0x56,5,5,0x51},masks[]={1,2,2,0x10,4,8,1};
+ const unsigned offsets[]={5,5,4,0x56,5,5,4},masks[]={1,2,2,0x30,4,8,4};
  const unsigned times[]={0,249,250,499,500,0xfffffff0u};
  unsigned checks=0,failed=0;
  for(unsigned held=0;held<2;held++)for(unsigned side=0;side<2;side++)for(unsigned state=0;state<12;state++)for(unsigned t=0;t<sizeof times/sizeof times[0];t++){

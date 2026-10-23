@@ -73,6 +73,15 @@ enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int side,const struct xz
 static uint8_t *frame(unsigned side){return objects[side]+0x104;}
 static void packet(unsigned side,uint8_t out[64]){for(unsigned i=0;i<64;i++)out[i]=frame(side)[12+(i^3u)];}
 static void tick(unsigned side){in_hook=1;hook(objects[side]);in_hook=0;}
+static void native_quad_expected(unsigned side,int master,uint8_t out[148]){
+ memcpy(out,original_frame[side],148);out[8]=frame(side)[8];out[9]=frame(side)[9];
+ if(master>=0)out[12+(5^3)]=(uint8_t)((out[12+(5^3)]&~0x80u)|(master?0x80u:0u));
+ out[2]=(uint8_t)((out[2]&~0x90u)|0x80u);
+ out[0x4c]=out[8];out[0x4d]=out[9];out[0x4e]=0x40;out[0x4f]|=1;
+ memcpy(out+80,out+12,64);out[0x53]=(uint8_t)((out[0x53]&15u)|((side+1)<<4));
+ uint32_t crc=xz_jd_crc(out);memcpy(out+144,&crc,4);
+}
+
 static void publish(void){values.snapshot_revision=++revision;xz_jog_display_runtime_publish(&values,(uint32_t)clock_ms);}
 static void reset(unsigned count){
  clock_ms=10000;reads=flip_at=flip_kind=copy_clock_step=stop_on_copy=0;memset(copies,0,sizeof copies);
@@ -165,7 +174,7 @@ static void replacement(void){
   selection.deck[0]=1;selection.epoch[0]++;
   for(unsigned n=0;n<30;n++)tick(0);
   assert(jd_state[0].phase==XZ_JD_NATIVE);
-  for(unsigned i=0;i<144;i++)if(i!=8&&i!=9)assert(frame(0)[i]==(i==2?(uint8_t)((original_frame[0][i]&~0x90u)|0x80u):original_frame[0][i]));
+  uint8_t expected[148];native_quad_expected(0,-1,expected);assert(!memcmp(frame(0),expected,148));
  }
  puts("PASS replacement at wave1/37/73, blocked mailbox, delayed old snapshot, missing key/BPM, fresh batch and exact native restoration");
 }
@@ -216,7 +225,7 @@ static void authority(void){
   selection.deck[side]=(int)side+1;selection.epoch[side]++;
   for(unsigned n=0;n<20;n++)tick(side);
   assert(jd_state[side].phase==XZ_JD_NATIVE);
-  for(unsigned i=0;i<144;i++)if(i!=8&&i!=9)assert(frame(side)[i]==(i==2?(uint8_t)((original_frame[side][i]&~0x90u)|0x80u):original_frame[side][i]));
+  uint8_t expected[148];native_quad_expected(side,-1,expected);assert(!memcmp(frame(side),expected,148));
  }
  puts("PASS confirmed MASTER tuple/100ms expiry; UNKNOWN, pending, future and direct-deck-only do not assert; native restoration exact except quad badge presentation and owned sequence/CRC");
 }
