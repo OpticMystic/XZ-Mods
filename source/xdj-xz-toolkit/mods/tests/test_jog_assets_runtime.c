@@ -28,7 +28,7 @@ static uint64_t now(void){
  if(++now_calls==now_flip_at){
   if(now_flip_kind==1)content[0]++;
   if(now_flip_kind==2)selection.epoch[0]+=2;
-  if(now_flip_kind==3)media[0]++;
+  if(now_flip_kind==3){media[0]++;content[0]++;} /* Accepted replacement LOAD. */
   if(now_flip_kind==4)selection.route_epoch++;
   if(now_flip_kind==5)xz_jog_display_runtime_stop();
   if(now_flip_kind==6)clock_ms+=251;
@@ -44,7 +44,7 @@ int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *out){
  if(++reads==flip_at){
   if(flip_kind==1)selection.epoch[0]+=2;
   if(flip_kind==2)content[0]++;
-  if(flip_kind==3)media[0]++;
+  if(flip_kind==3){media[0]++;content[0]++;} /* Accepted replacement LOAD. */
   if(flip_kind==4)clock_ms+=251;
   if(flip_kind==5)return 0;
  }
