@@ -386,7 +386,9 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
   .master=0, /* Only aggregate confirmed authority can set MASTER below. */
   .sync_mode=sync_mode,
   .loop_active=loop_active,
-  .slip=0,
+  .slip=(uint8_t)!!d->slip,
+  .slip_active=(uint8_t)!!d->slip_active,
+  .loop_edit=(uint8_t)(d->loop.edit>=1&&d->loop.edit<=2?d->loop.edit:0),
   .bpm_x100=bpm,
   .track_bpm_x100=track_bpm,
   .key_code=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))?xz_jd_key_code(d->key):0,

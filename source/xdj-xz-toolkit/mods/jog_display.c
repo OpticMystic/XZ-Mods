@@ -41,7 +41,7 @@ static int fresh(const struct xz_jd *s,const struct xz_jd_snapshot *p,uint64_t n
     return p&&p->logical_deck==s->physical_side+2u&&p->paused<=1&&p->remain<=1&&p->tempo_known==1&&p->vinyl_mode<=1&&p->master_tempo<=1&&
         (p->tempo_range==0||p->tempo_range==6||p->tempo_range==10||p->tempo_range==16||p->tempo_range==100)&&
         p->status_known<=1&&(!p->status_known||(p->cued<=1&&p->master<=1&&p->sync_mode<=XZ_JD_SYNC_BLINK&&
-        p->loop_active<=1&&p->slip<=1&&(!p->loop_active||p->loop_out_ms>p->loop_in_ms)))&&
+        p->loop_active<=1&&p->slip<=1&&p->slip_active<=1&&p->loop_edit<=2&&(!p->loop_active||p->loop_out_ms>p->loop_in_ms)))&&
         p->generation&&p->captured_ms<=now&&now-p->captured_ms<=s->freshness_ms&&p->position_ms<=p->length_ms&&p->length_ms<128u*60000u;
 }
 int xz_jd_select_unavailable(struct xz_jd *s,unsigned deck) {
@@ -128,16 +128,21 @@ static void quiet_status(uint8_t *p) {
     p[0x50]=0;p[0x51]&=(uint8_t)~0x21u;p[0x56]&=(uint8_t)~0x90u;p[0x57]=0;
     p[0x5d]=p[0x5e]=0x7f;p[0x84]=p[0x8b]=0;
 }
-static void extra_status(uint8_t *p,const struct xz_jd_snapshot *s) {
-    /* Direct fields only: no unqualified blink cadence, ring warning or loop feedback. */
+static void extra_status(uint8_t *p,const struct xz_jd_snapshot *s,uint64_t now) {
+    /* Match the existing software lamp model using the qualified on/off bits.
+     * Flashing is sampled here; no native timer or blink-record fields are written. */
+    uint8_t blink=(uint8_t)(((uint32_t)now/250u)&1u);
     uint8_t vinyl=s->vinyl_mode?1u:0u;
-    uint8_t slip=s->slip?1u:0u;
-    uint8_t cue_led=s->paused&&s->cued?1u:0u;
-    uint8_t play_led=s->paused?0u:1u;
-    uint8_t sync_led=s->sync_mode==XZ_JD_SYNC_LOCKED?1u:0u;
+    uint8_t slip=s->slip?(s->slip_active?blink:1u):0u;
+    uint8_t cue_led=s->paused?(s->cued?1u:blink):1u;
+    uint8_t play_led=s->paused?blink:1u;
+    uint8_t sync_led=s->sync_mode!=XZ_JD_SYNC_OFF?1u:0u;
+    uint8_t loop_led=(!s->paused||s->loop_active)?1u:0u;
+    uint8_t in_led=s->loop_edit?(s->loop_edit==1?blink:0u):loop_led;
+    uint8_t out_led=s->loop_edit?(s->loop_edit==2?blink:0u):loop_led;
     uint8_t master_led=s->master?1u:0u;
     p[4]=(uint8_t)((p[4]&~7u)|(vinyl<<1)|(slip<<2));
-    p[5]=(uint8_t)((p[5]&~15u)|cue_led|(play_led<<1));
+    p[5]=(uint8_t)((p[5]&~15u)|cue_led|(play_led<<1)|(in_led<<2)|(out_led<<3));
     p[0x50]=vinyl;
     p[0x51]=(uint8_t)((p[0x51]&~0x21u)|slip);
     p[0x56]=(uint8_t)((p[0x56]&~0x90u)|(sync_led?0x10u:0u)|(master_led?0x80u:0u));
@@ -223,7 +228,7 @@ int xz_jd_step(struct xz_jd *s,const uint8_t native[148],const struct xz_jd_snap
         out[0x53]=(uint8_t)((out[0x53]&15u)|((s->selected)<<4));
         if(s->selected==s->physical_side+2u) {
             quiet_status(out);
-            if(!s->unavailable&&snapshot&&snapshot->status_known)extra_status(out,snapshot);
+            if(!s->unavailable&&snapshot&&snapshot->status_known)extra_status(out,snapshot,now);
         }
     }
     if(s->ever_owned) {
