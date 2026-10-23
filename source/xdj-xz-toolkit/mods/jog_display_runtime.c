@@ -818,9 +818,11 @@ static void hook_jog_assemble(void *self){
  /* LINK presentation consumes the secondary display stream. Native selUsbInfo
     uses kind 0x40, sequence +0, ready bit +3 and a word-swapped command at +4.
     Keep the local physical command too; the LINK command uses the logical deck.
-    Certification/USB connection flags and native PC objects stay untouched. */
+    The complete DECK1/3 rekordbox captures use bit6 as well as bit7. Set
+    that serialized rich-stream mode only on our owned output; input ownership,
+    USB connection status and native PC objects remain unchanged. */
  if(route_up){
-  out[2]=(uint8_t)((out[2]&~0x90u)|0x80u|(on_extra?0x10u:0u));
+  out[2]=(uint8_t)((out[2]&~0xd0u)|0xc0u|(on_extra?0x10u:0u));
   out[0x4c]=out[8];out[0x4d]=out[9];out[0x4e]=0x40;out[0x4f]|=1u;
   memcpy(out+0x50,out+0x0c,64);
   out[0x53]=(uint8_t)((out[0x53]&15u)|((on_extra?channel+2u:channel)<<4));
