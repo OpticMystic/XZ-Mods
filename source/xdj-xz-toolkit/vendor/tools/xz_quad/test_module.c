@@ -69,6 +69,14 @@ int main(int argc,char **argv) {
     case 19: hub.level=3;reject=true;break;
     case 20: hub.children[USB_MAXCHILDREN-1]=&child;reject=true;break;
     case 21: hub.descriptor.bNumConfigurations=2;reject=true;break;
+    case 28: apply=false;reject=true;break;
+    case 29: apply=false;hub.descriptor.bDeviceClass=0;reject=true;break;
+    case 30: apply=false;up.descriptor.idProduct=1;reject=true;break;
+    case 31: apply=false;root.children[0]=NULL;reject=true;break;
+    case 32: hub.state=USB_STATE_SUSPENDED;break;
+    case 33: hub.state=USB_STATE_SUSPENDED;hub.actconfig=NULL;reject=true;break;
+    case 34: hub.state=USB_STATE_SUSPENDED;intf.dev.driver=&intf;reject=true;break;
+    case 35: hub.state=USB_STATE_SUSPENDED;hub.children[0]=&child;reject=true;break;
     default:break;
     }
     if(n==24||n==25) {
@@ -90,9 +98,20 @@ int main(int argc,char **argv) {
     assert(root.level==0&&up.level==1&&music.level==0&&music.refs==1);
     if(reject) {
         assert(!target&&hub.level==(n==19?3:2)&&hub.refs==1&&!module_refs&&!queued);
+        if(n==28) assert(scan_stage==5&&reject_reason==19&&observed_level==2&&
+                         observed_state==USB_STATE_CONFIGURED&&observed_device_class==USB_CLASS_HUB&&
+                         observed_speed==USB_SPEED_HIGH&&observed_registered==1&&
+                         observed_interface_driver==0&&observed_child_count==0);
+        if(n==29) assert(scan_stage==5&&reject_reason==12&&observed_device_class==0);
+        if(n==30) assert(scan_stage==3&&reject_reason==5);
+        if(n==31) assert(scan_stage==2&&reject_reason==4);
+        if(n==33) assert(scan_stage==5&&reject_reason==16&&observed_state==USB_STATE_SUSPENDED);
+        if(n==34) assert(scan_stage==5&&reject_reason==17&&observed_interface_driver==1);
+        if(n==35) assert(scan_stage==5&&reject_reason==18&&observed_child_count==1);
         xz_hub_depth_exit();assert(!subscriber&&cancelled==1);puts("PASS refusal/observation/default");return 0;
     }
     assert(target==&hub&&hub.level==1&&hub.refs==2&&module_refs==1);
+    if(n==32) assert(scan_stage==5&&reject_reason==19&&observed_state==USB_STATE_SUSPENDED);
     notify(USB_DEVICE_ADD,&hub);assert(hub.refs==2&&module_refs==1);
     notify(USB_DEVICE_REMOVE,&hub);run_work(&cleanup_work);
     assert(target==&hub&&hub.level==1&&hub.refs==2&&module_refs==1&&queued);
