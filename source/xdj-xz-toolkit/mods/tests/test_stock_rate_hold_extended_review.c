@@ -64,8 +64,8 @@ static void direct_manual_commands(void){
   if(command_kind==0)tempo(d,7000);
   if(command_kind==1)press(d,XZ_EXTRA_IN_TEMPO_RANGE);
   if(command_kind==2)press(d,XZ_EXTRA_IN_TEMPO_RESET);
-  double wanted=command_kind==0?1.07:command_kind==1?1.15:1.;
-  int bpm=command_kind==0?12840:command_kind==1?13800:12000;
+  double wanted=command_kind==0?1.07:command_kind==1?1.09375:1.;
+  int bpm=command_kind==0?12840:command_kind==1?13125:12000;
   rate_is(d,wanted,bpm);advance(300);rate_is(d,wanted,bpm);end();
  }
 }

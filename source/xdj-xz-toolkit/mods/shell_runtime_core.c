@@ -397,7 +397,8 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
   d->sync=!!s->sync.requested;d->sync_master_deck=s->sync.master_deck;
   d->sync_status=!s->sync.requested?XZ_SHELL_SYNC_OFF:s->sync.locked?XZ_SHELL_SYNC_LOCKED:
    s->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE||s->sync.reason==XZ_EXTRA_SYNC_TEMPO_FOLLOW?XZ_SHELL_SYNC_TEMPO_ONLY:
-   s->sync.reason==XZ_EXTRA_SYNC_MASTER_CLOCK?XZ_SHELL_SYNC_MASTER:XZ_SHELL_SYNC_WAITING;
+   s->sync.reason==XZ_EXTRA_SYNC_MASTER_CLOCK?XZ_SHELL_SYNC_MASTER:
+   s->sync.reason==XZ_EXTRA_SYNC_OUT_OF_RANGE?XZ_SHELL_SYNC_RATE_LIMIT:XZ_SHELL_SYNC_WAITING;
   d->known|=SK(SYNC)|SK(SYNC_STATUS);
  }
  if(EK(KEY)&&s->key[0]){d->key=s->key;d->known|=SK(KEY);}

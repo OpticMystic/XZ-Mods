@@ -117,7 +117,7 @@ struct xz_shell_column { uint8_t low, mid, high; };
 struct xz_shell_wave { const struct xz_shell_column *columns; uint32_t count; uint32_t span_ms; };
 struct xz_shell_loop { int active; int beats_num, beats_den; int32_t in_ms, out_ms; };
 
-enum xz_shell_sync_status { XZ_SHELL_SYNC_OFF, XZ_SHELL_SYNC_LOCKED, XZ_SHELL_SYNC_WAITING, XZ_SHELL_SYNC_TEMPO_ONLY, XZ_SHELL_SYNC_MASTER };
+enum xz_shell_sync_status { XZ_SHELL_SYNC_OFF, XZ_SHELL_SYNC_LOCKED, XZ_SHELL_SYNC_WAITING, XZ_SHELL_SYNC_TEMPO_ONLY, XZ_SHELL_SYNC_MASTER, XZ_SHELL_SYNC_RATE_LIMIT };
 
 struct xz_shell_deck {
  uint64_t known;

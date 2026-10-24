@@ -139,7 +139,7 @@ static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_dec
   int w=xz_text_width(c,label,1,12)+8;
   xz_rect(c,3+tag+4,2,w,13,0xff6a00);xz_text(c,3+tag+8,4,label,1,12,0xffffff);
  }else if((d->known&K(SYNC))&&d->sync.requested){
-  const char *label=d->sync.locked?"SYNC":(d->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE||d->sync.reason==XZ_EXTRA_SYNC_TEMPO_FOLLOW)?"BPM":"WAIT";
+  const char *label=d->sync.locked?"SYNC":(d->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE||d->sync.reason==XZ_EXTRA_SYNC_TEMPO_FOLLOW)?"BPM":d->sync.reason==XZ_EXTRA_SYNC_OUT_OF_RANGE?"LIMIT":"WAIT";
   if(d->sync.master_deck>=0&&d->sync.master_deck<4)snprintf(text,sizeof text,"%s %d",label,d->sync.master_deck+1);
   else snprintf(text,sizeof text,"%s",label);
   xz_text(c,3+tag+4,4,text,1,12,d->sync.locked?0x4d9fff:0xffc070);

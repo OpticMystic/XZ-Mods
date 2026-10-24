@@ -38,7 +38,8 @@ struct xz_ds_pickup { int armed, have_prev, require_motion, arm_known; int32_t t
    swallowed, to the FLAGSHIP shell (it loads its highlighted row to the side's software deck), or on to stock
    (the classic interface's one-shot divert sends stock's own load to the software deck). */
 enum xz_ds_load_route { XZ_DS_LOAD_SWALLOW, XZ_DS_LOAD_SHELL, XZ_DS_LOAD_STOCK };
-/* Arms a pickup toward target from where the fader is now (if known). Already there: not armed. */
+/* Arms pickup toward target. Out-of-span targets stay blocked until a new mapping
+   makes them reachable; held target and fresh motion survive side switches. */
 void xz_ds_pickup_arm(struct xz_ds_pickup *, int32_t target, int physical_known, int32_t physical);
 /* One fader position. 1 once the fader has reached the target: deliver this and every later position. */
 int xz_ds_pickup_feed(struct xz_ds_pickup *, int32_t position);

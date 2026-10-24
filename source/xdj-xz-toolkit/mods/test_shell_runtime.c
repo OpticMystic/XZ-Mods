@@ -757,7 +757,20 @@ static void extra_decks(void) {
  assert(!memcmp(&m.deck[0],&two.deck[0],sizeof m.deck[0]));
  s.deck[0].sync.requested=0;xz_shrt_extra_map(&m,&s,parts,500000,10000);
  assert(!m.deck[2].sync&&m.deck[2].sync_status==XZ_SHELL_SYNC_OFF);
- puts("PASS actual SYNC lock versus tempo-only/waiting/master scope; native master labels remain native");
+ for(int side=0;side<2;side++){
+  extra_snapshot(&s);s.deck[side].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
+  s.deck[side].sync=(struct xz_extra_sync){.requested=1,.master_deck=1,.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE};
+  xz_shrt_extra_map(&m,&s,parts,500000,10000);
+  assert(m.deck[side+2].sync&&m.deck[side+2].sync_status!=XZ_SHELL_SYNC_WAITING);
+  assert(m.deck[side+2].sync_status!=XZ_SHELL_SYNC_LOCKED&&m.deck[side+2].sync_status!=XZ_SHELL_SYNC_TEMPO_ONLY);
+  struct xz_shell u;xz_shell_init(&u);
+  static uint16_t limit_pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT],wait_pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];
+  assert(xz_shell_render(&u,&m,limit_pixels,XZ_SHELL_WIDTH));
+  m.deck[side+2].sync_status=XZ_SHELL_SYNC_WAITING;
+  assert(xz_shell_render(&u,&m,wait_pixels,XZ_SHELL_WIDTH));
+  assert(memcmp(limit_pixels,wait_pixels,sizeof limit_pixels));
+ }
+ puts("PASS actual SYNC lock, tempo-only, waiting, rate limit and master scope");
  /* Up, down, up again: down is the two-deck model each time. */
  extra_snapshot(&s);
  for(int flip=0;flip<4;flip++){

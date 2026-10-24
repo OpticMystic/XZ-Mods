@@ -505,12 +505,19 @@ static void test_players(void) {
  master = 15000;
  assert(input(event(0, XZ_EXTRA_IN_SYNC, 1))); step();
  assert(input(event(0, XZ_EXTRA_IN_SYNC, 1))); step();
+ /* The fader range cannot reject a valid matched rate. Legacy BPM has no phase proof. */
+ assert(view.deck[0].sync.reason!=XZ_EXTRA_SYNC_OUT_OF_RANGE&&!view.deck[0].sync.locked);
+ assert(view.deck[0].tempo_x100==2500&&view.deck[0].bpm_x100==15000&&view.deck[0].tempo_range==10);
+ master=25000;
+ assert(input(event(0,XZ_EXTRA_IN_SYNC,1)));step();
+ assert(input(event(0,XZ_EXTRA_IN_SYNC,1)));step();
  assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_OUT_OF_RANGE&&!view.deck[0].sync.locked);
- assert(view.deck[0].tempo_x100 == 500);
+ assert(view.deck[0].tempo_x100==2500);
  assert(input(event(0, XZ_EXTRA_IN_MASTER_TEMPO, 1))); step();
  assert(view.deck[0].master_tempo);
  assert(input(event(0, XZ_EXTRA_IN_MASTER_TEMPO, 1))); step();
  assert(!view.deck[0].master_tempo);
+ press(0,XZ_EXTRA_IN_SYNC); /* Restore manual control for the following independent seek checks. */
  tempo(0, 0);
 
  /* SEEK keeps the play state */

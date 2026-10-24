@@ -95,6 +95,8 @@ void xz_ds_pickup_arm(struct xz_ds_pickup *p, int32_t target, int physical_known
 }
 
 int xz_ds_pickup_feed(struct xz_ds_pickup *p, int32_t position) {
+ /* Out-of-span targets are retained, but physical travel cannot acquire them. */
+ if(p->target< -XZ_EXTRA_TEMPO_SPAN||p->target>XZ_EXTRA_TEMPO_SPAN)return 0;
  if(!p->armed) return 1;
  if(p->require_motion){
   if(!p->arm_known){p->arm_known=1;p->arm_position=position;p->prev=position;p->have_prev=1;return 0;}
@@ -167,7 +169,7 @@ void xz_deck_select_feedback(struct xz_deck_select *d,const struct xz_extra_deck
   if(released)side->fresh_pickup[XZ_DS_EXTRA]=1;
   if(!released&&side->extra_revision_known&&side->extra_revision==deck->tempo_revision)continue;
   int64_t position=(int64_t)deck->tempo_x100*XZ_EXTRA_TEMPO_SPAN/(deck->tempo_range*100);
-  if(position< -XZ_EXTRA_TEMPO_SPAN||position>XZ_EXTRA_TEMPO_SPAN)continue;
+  if(position< -XZ_EXTRA_TEMPO_SPAN||position>XZ_EXTRA_TEMPO_SPAN)side->fresh_pickup[XZ_DS_EXTRA]=1;
   side->extra_revision=deck->tempo_revision;side->extra_revision_known=1;
   side->held[XZ_DS_EXTRA]=(int32_t)position;side->held_known[XZ_DS_EXTRA]=1;
   if(side->target==XZ_DS_EXTRA)arm_side_pickup(side);

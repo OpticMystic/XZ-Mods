@@ -51,7 +51,19 @@ static void sync_label_parity(void){
   d.sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
   fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,68,number,&d,&view,&marks));assert(memcmp(copy,pixels,sizeof pixels));
  }
- puts("PASS Classic tempo following is BPM; unavailable authority remains WAIT on both extra decks");
+ for(unsigned number=3;number<=4;number++){
+  struct xz_extra_deck d=deck();d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
+  d.sync.requested=1;d.sync.master_deck=1;d.sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
+  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,number,&d,&view,&marks));memcpy(copy,pixels,sizeof pixels);
+  d.sync.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE;
+  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,number,&d,&view,&marks));assert(guards_intact(0));
+  unsigned changed=0;
+  for(unsigned r=0;r<64;r++)for(unsigned x=0;x<536;x++)if(at(0,r,x)!=copy[r*STRIDE+x]){
+   assert(x<XZ_EXTRA_LANE_READOUT_W&&r<16);changed++;
+  }
+  assert(changed>0);
+ }
+ puts("PASS Classic tempo-only, authority wait and rate-limit readouts are distinct on both extra decks");
 }
 int main(void){
  sync_label_parity();
