@@ -37,6 +37,7 @@ for obj in sys.argv[3:]:
     for crc,name in re.findall(r'^([0-9a-f]{8}) A __crc_(\w+)$',symbols,re.M):
         if name in crcs and crcs[name]!=crc:raise ValueError('conflicting source CRC '+name)
         crcs[name]=crc
+assert crcs.get('usb_add_hcd') == '6b15adde', 'retained HCD type CRC mismatch'
 text=''.join(f'0x{crc}\t{name}\tvmlinux\tEXPORT_SYMBOL_GPL\n' for name,crc in sorted(crcs.items()))
 (out/'rebuilt.symvers').write_text(text)
 (kernel/'Module.symvers').write_text(text)

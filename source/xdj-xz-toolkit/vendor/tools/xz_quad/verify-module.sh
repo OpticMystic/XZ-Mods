@@ -13,7 +13,7 @@ echo "RAW_EXIT=$rc" >> baseline-red.log
 test "$rc" = 134
 gcc -std=gnu11 -Wall -Wextra -Werror -pthread -g -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie test_module.c -o test-module-host
 arm-linux-gnueabi-gcc -std=gnu11 -Wall -Wextra -Werror -pthread -g -static test_module.c -o test-module-arm
-for n in $(seq 0 27); do
+for n in $(seq 0 35); do
     ./test-module-host "$n" > "module-host-$n.log" 2>&1
     qemu-arm ./test-module-arm "$n" > "module-arm-$n.log" 2>&1
     echo "PASS module host+ARM case=$n"

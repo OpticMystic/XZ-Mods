@@ -196,20 +196,20 @@ start_telnet() {
 
 # PRIVATE_AUTO_BRIDGE_BEGIN
 stage_auto_bridge() {
-    auto_root="/dev/shm/xz-auto-90f8e4b1da24"
+    auto_root="/dev/shm/xz-auto-4bb9db00a2ab"
     [ ! -L "$auto_root" ] || return 1
     mkdir -p "$auto_root" || return 1
     [ "$(cd -P "$auto_root" && pwd -P)" = "$auto_root" ] || return 1
     if [ ! -f "$auto_root/xz-auto-bridge" ]; then
-        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge")" = afe49cfd57ecaaa8fae838331b7a3ad7 ] || return 1
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge")" = a2c30a6397c0ecdacc88fd97187e6499 ] || return 1
         cp "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge" "$auto_root/xz-auto-bridge" || return 1
     fi
-    [ ! -L "$auto_root/xz-auto-bridge" ] && [ "$(file_md5 "$auto_root/xz-auto-bridge")" = afe49cfd57ecaaa8fae838331b7a3ad7 ] || return 1
+    [ ! -L "$auto_root/xz-auto-bridge" ] && [ "$(file_md5 "$auto_root/xz-auto-bridge")" = a2c30a6397c0ecdacc88fd97187e6499 ] || return 1
     if [ ! -f "$auto_root/xz_hub_depth.ko" ]; then
-        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko")" = 6dd14af015ef1f9bea17da852027b52e ] || return 1
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko")" = a9463514dcf4e2b0c3bef40b11a26dad ] || return 1
         cp "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko" "$auto_root/xz_hub_depth.ko" || return 1
     fi
-    [ ! -L "$auto_root/xz_hub_depth.ko" ] && [ "$(file_md5 "$auto_root/xz_hub_depth.ko")" = 6dd14af015ef1f9bea17da852027b52e ] || return 1
+    [ ! -L "$auto_root/xz_hub_depth.ko" ] && [ "$(file_md5 "$auto_root/xz_hub_depth.ko")" = a9463514dcf4e2b0c3bef40b11a26dad ] || return 1
     if [ ! -f "$auto_root/detach" ]; then
         [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/detach")" = ba080b47a9a12ec4dc11eb37807b0533 ] || return 1
         cp "$PAYLOAD_ROOT/tools/auto-bridge/detach" "$auto_root/detach" || return 1
@@ -221,7 +221,7 @@ stage_auto_bridge() {
 start_auto_bridge() {
     auto_pid="$1"
     case "$auto_pid" in ''|*[!0-9]*) return 1;; esac
-    auto_root="/dev/shm/xz-auto-90f8e4b1da24"
+    auto_root="/dev/shm/xz-auto-4bb9db00a2ab"
     if [ -f /dev/shm/xz-four-deck/bridge.pid ]; then
         auto_owner=$(cat /dev/shm/xz-four-deck/bridge.pid)
         case "$auto_owner" in ''|*[!0-9]*) return 1;; esac

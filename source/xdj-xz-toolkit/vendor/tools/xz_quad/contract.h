@@ -1,7 +1,7 @@
 #define RBP_SHA "3a7c6c507ea67b2484d0cbc58136a495374c8ede5eeef1ffdffcfe86c7a3dae3"
 #define RUNTIME_SHA "efa42fc593bc345b536528e35e70e03b48d1ab923836f13cc4e1cf8248588dc8"
 #define RECEIVER_SHA "a8aac19e26f6e7f5ec6fda37feb5e99cfd939a4965220e729fb7610f06ff4348"
-#define MODULE_SHA "4b657e6eede7e3f53b3a792369d3efda413da6867aba18f85d9031c41095c22a"
+#define MODULE_SHA "bde5bb079b8168a3deed3160fcd1f6ae687da1693f9964ba4432f1faba8a6d13"
 #define KERNEL_RELEASE "3.0.101-2790-gc248ed7-svn2808"
 static const struct kernel_crc { const char *name; unsigned int value; } kernel_crcs[] = {
     {"__kcrctab___aeabi_unwind_cpp_pr0", 0xefd6cf06u},
@@ -25,4 +25,6 @@ static const struct kernel_crc { const char *name; unsigned int value; } kernel_
     {"__kcrctab_usb_put_dev", 0x9acb4133u},
     {"__kcrctab_usb_register_notify", 0x3be89d3cu},
     {"__kcrctab_usb_unregister_notify", 0xe9587909u},
+    {"__kcrctab_param_ops_int", 0x3ec8886fu},
+    {"__kcrctab_usb_add_hcd", 0x6b15addeu},
 };

@@ -9,6 +9,13 @@ import shutil
 import subprocess
 from urllib.parse import quote
 
+def cargo_target_root(app):
+    metadata=json.loads(subprocess.check_output(['cargo','metadata','--no-deps','--format-version','1',
+        '--manifest-path',str(app/'src-tauri/Cargo.toml')],cwd=app,text=True))
+    if Path(metadata['workspace_root']).resolve()!=(app/'src-tauri').resolve():
+        raise ValueError('Cargo resolved a different application workspace')
+    return Path(metadata['target_directory']).resolve()
+
 APP=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--output',type=Path,required=True)
@@ -38,10 +45,11 @@ markdown=release_markdown(release)
 if not a.skip_build:
     env=os.environ.copy();env.update(TAURI_SIGNING_PRIVATE_KEY=str(key),TAURI_SIGNING_PRIVATE_KEY_PASSWORD='',RUSTFLAGS='-C target-feature=+crt-static',CARGO_BUILD_JOBS='2')
     subprocess.run(['npx.cmd','--yes','@tauri-apps/cli@2.12.0','build','--target','x86_64-pc-windows-msvc','--bundles','nsis'],cwd=APP,env=env,check=True)
-installer=APP/f'src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/XZ Mods_{version}_x64-setup.exe'
+target_root=cargo_target_root(APP)
+installer=target_root/f'x86_64-pc-windows-msvc/release/bundle/nsis/XZ Mods_{version}_x64-setup.exe'
 if not installer.is_file() or not Path(str(installer)+'.sig').is_file():raise SystemExit('Signed installer is missing.')
 if a.portable:
-    subprocess.run(['python','-X','utf8',str(APP/'tools/package_preview.py'),'--output',str(a.output),'--exe',str(APP/'src-tauri/target/x86_64-pc-windows-msvc/release/xz-mods-builder.exe')],check=True)
+    subprocess.run(['python','-X','utf8',str(APP/'tools/package_preview.py'),'--output',str(a.output),'--exe',str(target_root/'x86_64-pc-windows-msvc/release/xz-mods-builder.exe')],check=True)
 else:a.output.mkdir(parents=True,exist_ok=False)
 # GitHub normalizes spaces in asset names to dots; publish that name explicitly.
 asset_name=installer.name.replace(' ','.')
