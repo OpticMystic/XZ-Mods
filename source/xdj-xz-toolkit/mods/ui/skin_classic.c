@@ -148,6 +148,12 @@ static void render(const struct xz_ui_scene *s){
    chevron(c,a.x+a.w-22,a.y+a.h/2,1,dim);
    continue;
   }
+  if(a.kind==XZ_UI_PANEL&&a.x==XZ_UI_CX&&a.w==XZ_UI_CW&&a.h==64){
+   card(c,theme,a,panel,edge,0);xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+26,a.y+32,p->accent);
+   fit_text(c,a.x+52,a.y+12,a.w-90,a.label,ink);
+   xz_ui_chrome_fit(c,a.x+52,a.y+38,a.w-90,xz_ui_page_body(a.index),1,dim);
+   chevron(c,a.x+a.w-18,a.y+a.h/2,1,dim);continue;
+  }
   int primary=is_primary(a.kind,a.index)&&available,shared=a.kind==XZ_UI_STEM_PAD_CONFIG||a.kind==XZ_UI_JUMP_PAIR||a.kind==XZ_UI_STEMS_OVERLAY||a.kind==XZ_UI_STEM_ORDER;
   uint32_t fill=!available?faint:primary?p->accent:is_choice(a.kind)&&selected?xz_blend(p->bg,p->accent,modern?64:120):panel;
   uint32_t border=primary||(selected&&is_choice(a.kind))?p->accent:edge;

@@ -27,9 +27,9 @@ static void geometry(const struct xz_ui *u,const struct xz_ui_model *m){
   if(w[i].kind==XZ_UI_PANEL&&w[i].x==0&&w[i].y>=40)rails++;
   for(size_t k=i+1;k<n;k++)assert(w[i].x+w[i].w<=w[k].x||w[k].x+w[k].w<=w[i].x||w[i].y+w[i].h<=w[k].y||w[k].y+w[k].h<=w[i].y);
  }
- assert(rails==5);
+ assert(rails==6);
 }
-static void capture(const struct xz_ui *u,const struct xz_ui_model *m,const char *name){
+static void capture(struct xz_ui *u,const struct xz_ui_model *m,const char *name){
  for(int i=800*480;i<800*480+16;i++)frame[i]=0xa55a;
  assert(xz_ui_render(u,m,frame,800*480,800));
  for(int i=800*480;i<800*480+16;i++)assert(frame[i]==0xa55a);
@@ -85,11 +85,11 @@ int main(void){
   m.deck[1].ready=XZ_UI_STEM;
   const struct xz_ui_widget available=find(&u,&m,XZ_UI_ENABLE,XZ_UI_STEM);
   assert(available.x==unavailable.x&&available.y==unavailable.y&&available.w==unavailable.w&&available.h==unavailable.h);
-  /* Row 0: STANDALONE STEMS for all decks beside PC STEMS SETUP; stem settings move to the bottom links. */
+  /* Each feature has a stable row; its settings link stays beside it. */
   const struct xz_ui_widget pc=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS),settings=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS);
   const struct xz_ui_widget keys=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS);
-  assert(pc.y==available.y&&pc.x>available.x&&strstr(available.label,"ALL DECKS"));
-  assert(settings.y==keys.y&&settings.x<keys.x&&settings.y>available.y);
+  assert(pc.y>available.y&&pc.x==available.x&&strstr(available.label,"ALL DECKS"));
+  assert(settings.y==available.y&&settings.x>available.x&&keys.y>pc.y);
   /* An explicit OFF turns on in one tap even though the host cleared every ready bit. */
   m.deck[1].ready=0;m.deck[0].usb_reason=m.deck[1].usb_reason=XZ_UI_USB_WHY_OFF;
   assert(tap(&u,&m,XZ_UI_ENABLE,XZ_UI_STEM,a)==1&&a[0].kind==XZ_UI_ENABLE&&a[0].index==XZ_UI_STEM&&a[0].value==1);

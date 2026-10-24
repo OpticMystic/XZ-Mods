@@ -168,6 +168,8 @@ int sh_settings_item(const struct xz_shell *, const struct xz_shell_model *, int
    share of BACK (the values pane, one page up, then the rail; always taken). sh_mods_opened sends OPEN
    when the open tab is a MENU tab (after shell.c opens MODS); sh_mods_tab is the open mod tab or NULL. */
 struct xz_shell_mods_tab;
+void sh_menu_profile_render(const struct xz_shell *, const struct xz_shell_model *, struct xz_canvas, const struct xz_shell_mods_tab *);
+int sh_menu_profile_input(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t *);
 void sh_menu_render(const struct xz_shell *, const struct xz_shell_model *, struct xz_canvas, const struct xz_shell_mods_tab *, int x, int right);
 size_t sh_menu_enter(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 size_t sh_menu_input(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);

@@ -294,6 +294,16 @@ static int render_help(struct xz_canvas q, const struct xz_shell_menu_row *r, in
  if(r->help[0])y=paragraph(q,14,y,width,bottom,r->help,PLAIN_INK)+6;
  return y;
 }
+static void stem_layout_diagram(struct xz_canvas c,const struct xz_shell_menu *p,int y,const char *name){
+ int x=VALUE_W-82,w=66;int hidden=strstr(name,"HIDDEN")||strstr(name,"OFF"),outer=(strstr(name,"OUTER")!=NULL),compact=strstr(name,"COMPACT")||strstr(name,"HALF")||strstr(name,"SMALL");
+ xz_rect(c,x,y,w,26,0x0c1218);xz_border(c,x,y,w,26,0x505860);
+ for(int d=0;d<2;d++)for(int i=0;i<w-8;i++){int h=1+(i*7+i/4)%4;int cy=y+6+d*12;xz_rect(c,x+4+i,cy-h,1,h*2,0x69899e);}
+ if(strstr(name,"PAD ROW")){for(int s=0;s<3;s++)xz_rect(c,x+w-14,y+3+s*7,10,5,p->preview_rgb[s]);return;}
+ if(!hidden)for(int d=0;d<2;d++)for(int s=0;s<3;s++){
+  int by=outer?(d?y+21:y+1):y+9+d*12;
+  xz_rect(c,x+4+s*20,by,18,compact?2:4,p->preview_rgb[s]);
+ }
+}
 static void render_values(struct xz_canvas c, const struct xz_shell_menu *p, struct mstate s, int lit) {
  struct xz_canvas q=xz_sub(c,VALUE_X,U_Y,VALUE_W,PANE_H);
  xz_rect(q,0,0,VALUE_W,PANE_H,SH_BLACK);
@@ -320,7 +330,9 @@ static void render_values(struct xz_canvas c, const struct xz_shell_menu *p, str
    if(index==cur)xz_disc(q,22,ry+18,4,cursor?SH_WHITE:SH_BLUE);
    int tx=40;
    if(ch->has_rgb){xz_rect(q,tx,ry+9,20,20,ch->rgb&0xffffff);xz_border(q,tx,ry+9,20,20,SH_RAIL);tx+=28;}
-   text_fit(q,tx,ry+12,VALUE_W-tx-16,ch->label,SH_TEXT,ch->available||cursor?SH_WHITE:SH_DIM);
+   int diagram=r->target.kind==XZ_UI_STEMS_OVERLAY;
+   text_fit(q,tx,ry+12,VALUE_W-tx-16-(diagram?80:0),ch->label,SH_TEXT,ch->available||cursor?SH_WHITE:SH_DIM);
+   if(diagram)stem_layout_diagram(q,p,ry+5,ch->label);
   }
   if(n>rows){
    int h=rows*ROW_H-6,thumb=sh_max(16,h*rows/n),travel=h-thumb;
@@ -580,4 +592,124 @@ size_t sh_menu_back(struct xz_shell *u, const struct xz_shell_model *m, const st
  pack(u,p,s);
  xz_shell_mods_close(u);
  return 0;
+}
+
+
+/* The same profile identity stays visible above every MODS list. The popup owns
+ * touch until release; an outside tap or BACK dismisses it without changing a row. */
+enum { PROFILE_X=480, PROFILE_RIGHT=662, PROFILE_POP_X=328, PROFILE_POP_Y=42, PROFILE_POP_W=334,
+ PROFILE_ROW_H=52, PROFILE_VISIBLE=5 };
+static int profile_count(const struct xz_shell_menu *p){return p?sh_min(p->profile_count,XZ_SHELL_MENU_PROFILES):0;}
+static int profile_rows(const struct xz_shell_menu *p){return sh_min(profile_count(p),PROFILE_VISIBLE);}
+static int profile_setup_y(const struct xz_shell_menu *p){return PROFILE_POP_Y+32+profile_rows(p)*PROFILE_ROW_H;}
+static void profile_settle(struct xz_shell *u,const struct xz_shell_menu *p){
+ int count=profile_count(p);u->mods_view.profile_focus=clamp(u->mods_view.profile_focus,0,count);
+ int at=sh_min(u->mods_view.profile_focus,sh_max(0,count-1));
+ u->mods_view.profile_scroll=keep_visible(u->mods_view.profile_scroll,at,count,PROFILE_VISIBLE);
+}
+static void profile_logo(struct xz_canvas c,int x,int y,const struct xz_shell_menu_profile *p){
+ uint32_t accent=p?p->accent:SH_BLUE;
+ xz_round_rect(c,x,y,24,24,5,15,accent);
+ if(p&&p->has_thumb){
+  struct xz_canvas q=xz_sub(c,x,y,24,24);
+  if(q.p)for(int yy=0;yy<q.height&&yy<24;yy++)for(int xx=0;xx<q.width&&xx<24;xx++)q.p[yy*q.stride+xx]=p->thumb[yy*24+xx];
+ }else{
+  char initial[2]={p&&p->name[0]?p->name[0]:'D',0};
+  text_fit_center(c,x+12,y+5,22,initial,SH_SMALL,SH_WHITE);
+ }
+}
+void sh_menu_profile_render(const struct xz_shell *u,const struct xz_shell_model *m,struct xz_canvas c,const struct xz_shell_mods_tab *tab){
+ const struct xz_shell_menu *p=menu_of(m,tab);if(!p||!p->profile_present)return;
+ int count=profile_count(p),cur=p->profile_current;
+ const struct xz_shell_menu_profile *active=cur>=0&&cur<count?&p->profiles[cur]:NULL;
+ xz_round_rect(c,PROFILE_X,4,PROFILE_RIGHT-PROFILE_X,32,16,15,u->mods_view.profile_open?0x194466:0x30383f);
+ profile_logo(c,PROFILE_X+5,8,active);
+ text_fit(c,PROFILE_X+36,8,PROFILE_RIGHT-PROFILE_X-57,active?active->name:"DJ PROFILE",SH_SMALL,SH_WHITE);
+ char label[32];if(active)snprintf(label,sizeof label,"USB %d",active->usb+1);else snprintf(label,sizeof label,"SET UP PROFILE");
+ text_fit(c,PROFILE_X+36,23,PROFILE_RIGHT-PROFILE_X-57,label,SH_SMALL,GREY_TEXT);
+ int cy=20,dir=u->mods_view.profile_open?-1:1;
+ xz_line16(c,(PROFILE_RIGHT-18)*16,(cy-2*dir)*16,(PROFILE_RIGHT-13)*16,(cy+3*dir)*16,24,SH_WHITE);
+ xz_line16(c,(PROFILE_RIGHT-13)*16,(cy+3*dir)*16,(PROFILE_RIGHT-8)*16,(cy-2*dir)*16,24,SH_WHITE);
+ if(!u->mods_view.profile_open)return;
+ int bottom=profile_setup_y(p)+48;
+ xz_round_rect(c,PROFILE_POP_X,PROFILE_POP_Y,PROFILE_POP_W,bottom-PROFILE_POP_Y,8,15,0x35434f);
+ xz_round_rect(c,PROFILE_POP_X+1,PROFILE_POP_Y+1,PROFILE_POP_W-2,bottom-PROFILE_POP_Y-2,7,15,0x171f26);
+ text_fit(c,PROFILE_POP_X+12,PROFILE_POP_Y+10,PROFILE_POP_W-90,"DJ PROFILES",SH_SMALL,SH_WHITE);
+ if(count>PROFILE_VISIBLE)for(int i=0;i<2;i++){
+  int x=PROFILE_POP_X+PROFILE_POP_W-(i?36:72);xz_rect(c,x,PROFILE_POP_Y+4,32,24,0x35434f);
+  text_fit_center(c,x+16,PROFILE_POP_Y+10,28,i?"v":"^",SH_SMALL,SH_WHITE);
+ }
+ int scroll=clamp(u->mods_view.profile_scroll,0,sh_max(0,count-PROFILE_VISIBLE));
+ for(int row=0;row<profile_rows(p);row++){
+  int i=scroll+row,y=PROFILE_POP_Y+32+row*PROFILE_ROW_H;
+  const struct xz_shell_menu_profile *e=&p->profiles[i];int focused=u->mods_view.profile_focus==i;
+  if(focused)xz_rect(c,PROFILE_POP_X+4,y,PROFILE_POP_W-8,PROFILE_ROW_H-2,0x174b70);
+  profile_logo(c,PROFILE_POP_X+12,y+12,e);
+  text_fit(c,PROFILE_POP_X+48,y+8,PROFILE_POP_W-88,e->name,SH_TEXT,e->available?SH_WHITE:GREY_TEXT);
+  snprintf(label,sizeof label,"USB %d%s",e->usb+1,i==cur?" / ACTIVE":e->available?"":" / NOT AVAILABLE");
+  text_fit(c,PROFILE_POP_X+48,y+31,PROFILE_POP_W-66,label,SH_SMALL,GREY_TEXT);
+  if(i==cur)xz_disc(c,PROFILE_POP_X+PROFILE_POP_W-18,y+21,4,e->accent);
+ }
+ int sy=profile_setup_y(p);
+ if(!count)text_fit(c,PROFILE_POP_X+12,sy+7,PROFILE_POP_W-24,"NO PROFILE / SET UP BELOW",SH_SMALL,GREY_TEXT);
+ xz_rect(c,PROFILE_POP_X+4,sy+18,PROFILE_POP_W-8,28,u->mods_view.profile_focus==count?SH_BLUE:0x30383f);
+ text_fit(c,PROFILE_POP_X+14,sy+25,PROFILE_POP_W-28,count?"MANAGE DJ PROFILES  >":"SET UP DJ PROFILE  >",SH_SMALL,SH_WHITE);
+}
+static size_t profile_choose(struct xz_shell *u,const struct xz_shell_menu *p,int at,struct xz_shell_action out[XZ_SHELL_ACTIONS]){
+ int count=profile_count(p);
+ if(at<0||at>count||u->mods_view.profile_revision!=p->profile_revision)return 0;
+ if(at<count&&!p->profiles[at].available)return 0;
+ u->mods_view.profile_open=0;
+ return ask(out,at==count?XZ_SHELL_MENU_PROFILE_SETUP:XZ_SHELL_MENU_PROFILE_PICK,at,-1);
+}
+int sh_menu_profile_input(struct xz_shell *u,const struct xz_shell_model *m,const struct xz_shell_mods_tab *tab,const struct xz_shell_event *e,struct xz_shell_action out[XZ_SHELL_ACTIONS],size_t *n){
+ *n=0;const struct xz_shell_menu *p=menu_of(m,tab);
+ if(e->kind==XZ_SHELL_TOUCH_UP&&u->mods_view.profile_capture){
+  int at=u->mods_view.profile_armed;u->mods_view.profile_capture=0;u->mods_view.profile_armed=-1;
+  if(p&&u->mods_view.profile_open&&at>=0&&u->mods_view.profile_revision==p->profile_revision){
+   int count=profile_count(p),sy=profile_setup_y(p);
+   if(at==count+1||at==count+2){
+    int x=PROFILE_POP_X+PROFILE_POP_W-(at==count+1?72:36);
+    if(e->x>=x&&e->x<x+32&&e->y>=PROFILE_POP_Y+4&&e->y<PROFILE_POP_Y+28){
+     int scroll=clamp(u->mods_view.profile_scroll+(at==count+1?-PROFILE_VISIBLE:PROFILE_VISIBLE),0,sh_max(0,count-PROFILE_VISIBLE));
+     u->mods_view.profile_scroll=scroll;u->mods_view.profile_focus=scroll;
+    }
+    u->down=0;return 1;
+   }
+   int expected=at==count?sy+18:PROFILE_POP_Y+32+(at-u->mods_view.profile_scroll)*PROFILE_ROW_H;
+   int h=at==count?28:PROFILE_ROW_H;
+   if(e->x>=PROFILE_POP_X&&e->x<PROFILE_POP_X+PROFILE_POP_W&&e->y>=expected&&e->y<expected+h)*n=profile_choose(u,p,at,out);
+  }
+  u->down=0;return 1;
+ }
+ if(!p||!p->profile_present){u->mods_view.profile_open=0;return 0;}
+ int chip=e->x>=PROFILE_X&&e->x<PROFILE_RIGHT&&e->y>=0&&e->y<40;
+ if((e->kind==XZ_SHELL_TOUCH_DOWN&&chip)||(u->mods_view.on_tabs&&e->kind==XZ_SHELL_ENCODER_HOLD)){
+  u->mods_view.profile_open=!u->mods_view.profile_open;
+  u->mods_view.profile_focus=p->profile_current>=0?p->profile_current:profile_count(p);
+  u->mods_view.profile_revision=p->profile_revision;
+  profile_settle(u,p);u->mods_view.profile_capture=e->kind==XZ_SHELL_TOUCH_DOWN;u->mods_view.profile_armed=-1;
+  return 1;
+ }
+ if(!u->mods_view.profile_open)return 0;
+ profile_settle(u,p);
+ if(e->kind==XZ_SHELL_ENCODER_TURN){u->mods_view.profile_revision=p->profile_revision;int64_t next=(int64_t)u->mods_view.profile_focus+e->delta;int count=profile_count(p);u->mods_view.profile_focus=next<0?0:next>count?count:(int)next;profile_settle(u,p);return 1;}
+ if(e->kind==XZ_SHELL_ENCODER_PUSH){if(u->mods_view.profile_revision!=p->profile_revision){u->mods_view.profile_revision=p->profile_revision;u->mods_view.profile_focus=p->profile_current>=0?p->profile_current:profile_count(p);profile_settle(u,p);return 1;}*n=profile_choose(u,p,u->mods_view.profile_focus,out);return 1;}
+ if(e->kind==XZ_SHELL_TOUCH_DOWN){
+  u->mods_view.profile_capture=1;u->mods_view.profile_armed=-1;
+  int sy=profile_setup_y(p),count=profile_count(p);u->mods_view.profile_revision=p->profile_revision;
+  if(count>PROFILE_VISIBLE&&e->y>=PROFILE_POP_Y+4&&e->y<PROFILE_POP_Y+28){
+   if(e->x>=PROFILE_POP_X+PROFILE_POP_W-72&&e->x<PROFILE_POP_X+PROFILE_POP_W-40)u->mods_view.profile_armed=count+1;
+   if(e->x>=PROFILE_POP_X+PROFILE_POP_W-36&&e->x<PROFILE_POP_X+PROFILE_POP_W-4)u->mods_view.profile_armed=count+2;
+   return 1;
+  }
+  if(e->x<PROFILE_POP_X||e->x>=PROFILE_POP_X+PROFILE_POP_W||e->y<PROFILE_POP_Y||e->y>=sy+48){u->mods_view.profile_open=0;return 1;}
+  if(e->y>=PROFILE_POP_Y+32&&e->y<sy){
+   int row=(e->y-PROFILE_POP_Y-32)/PROFILE_ROW_H;
+   u->mods_view.profile_armed=u->mods_view.profile_scroll+row;
+  }else if(e->y>=sy+18)u->mods_view.profile_armed=count;
+  if(u->mods_view.profile_armed>=0)u->mods_view.profile_focus=u->mods_view.profile_armed;
+ }
+ if(e->kind==XZ_SHELL_TOUCH_MOVE)u->mods_view.profile_armed=-1;
+ return 1;
 }

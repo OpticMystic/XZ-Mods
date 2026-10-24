@@ -182,6 +182,7 @@ enum xz_shell_menu_op {
  XZ_SHELL_MENU_OPEN,      /* value = the tab's root page: open it, history cleared */
  XZ_SHELL_MENU_ACTIVATE,  /* value = row, deck = choice index or -1 */
  XZ_SHELL_MENU_BACK,      /* one page up */
+ XZ_SHELL_MENU_PROFILE_PICK, XZ_SHELL_MENU_PROFILE_SETUP,
  XZ_SHELL_MENU_PRESS, XZ_SHELL_MENU_MOVE, XZ_SHELL_MENU_RELEASE /* PAD touch: value = row, deck = x * 1024 + y,
                                                                  each 0..1000 across the pad area */
 };
@@ -210,7 +211,18 @@ struct xz_shell_menu_row {
  struct xz_shell_menu_target target;
 };
 struct xz_shell_menu_line { char text[160]; uint8_t tone; };
+enum { XZ_SHELL_MENU_PROFILES=32, XZ_SHELL_PROFILE_THUMB=24 };
+struct xz_shell_menu_profile {
+ char name[64];
+ uint32_t accent;
+ uint8_t usb, available, has_thumb;
+ uint16_t thumb[XZ_SHELL_PROFILE_THUMB*XZ_SHELL_PROFILE_THUMB];
+};
 struct xz_shell_menu {
+ uint32_t profile_revision, preview_rgb[3];
+ uint8_t profile_present, profile_count;
+ int16_t profile_current;
+ struct xz_shell_menu_profile profiles[XZ_SHELL_MENU_PROFILES];
  int32_t page, root;                      /* the open page and the top page (a MENU tab's page) it lives under */
  uint8_t depth, layout, row_count, choice_count, section_count, line_count, step_count, step;
  int16_t focus_row;                       /* where the cursor starts on this page; -1: the first row */
