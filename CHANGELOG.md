@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0-preview.19 - 2026-10-24
+
+- Corrected the beta release numbering from 0.3 to 0.5 across the installer, app, backend and update feed.
+- Includes the same paired controller runtime and automatic four-deck bridge as 0.3.0-preview.19. No controller reflash or loader replacement is required for this numbering change.
+
 ## 0.3.0-preview.19 — 2026-10-24
 
 - Experimental four-deck standalone setup with an animated USB-B to USB-A cable guide and a paired automatic loopback bridge for XDJ-XZ firmware 1.26.
