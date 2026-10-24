@@ -1447,8 +1447,14 @@ static void sync_request(struct xz_xp_players *p,struct deck *d,int on){
  /* Legacy embedders can supply BPM only. It is sampled once, never advertised as phase lock. */
  d->sync_legacy_bpm=on&&atomic_load(&p->sync_master)<0&&!p->native_sync_clock&&p->env.master_bpm?p->env.master_bpm():0;
 }
+static int sync_rate_supported(double rate){
+ /* Engine envelope: WIDE already supports nominal 0..2; leave headroom for
+  * bend/phase trim inside the ordinary completed-timeline rate bound (3.1).
+  * Independent of the manual fader range, not stock octave policy. */
+ return isfinite(rate)&&rate>0&&rate<=2.;
+}
 static int sync_base(struct deck *d,double rate){
- if(!isfinite(rate)||rate<0||fabs(rate-1)>(double)d->tempo_range/100.+1e-9)return 0;
+ if(!sync_rate_supported(rate))return 0;
  int32_t tempo=(int32_t)llround((rate-1)*10000);
  if(tempo!=d->tempo_x100){d->tempo_x100=tempo;d->tempo_revision++;}
  d->tempo_reset=0;d->tempo_position=(int32_t)((int64_t)tempo*XZ_EXTRA_TEMPO_SPAN/(d->tempo_range*100));
@@ -2448,7 +2454,11 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   if(d->sync.requested&&!current_master(p,d))return;
   if (e->pressed) {
    d->tempo_range = d->tempo_range == 6 ? 10 : d->tempo_range == 10 ? 16 : d->tempo_range == 16 ? 100 : 6;
-   set_tempo(d);
+   if(d->sync_rate_active){
+    /* RANGE remaps pickup while the exact matched rate remains held. */
+    d->tempo_position=(int32_t)((int64_t)d->tempo_x100*XZ_EXTRA_TEMPO_SPAN/(d->tempo_range*100));
+    d->tempo_revision++;
+   }else set_tempo(d);
   }
   return;
  }
