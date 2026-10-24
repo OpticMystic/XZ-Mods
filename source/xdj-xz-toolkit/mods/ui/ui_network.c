@@ -53,7 +53,7 @@ void xz_ui_network_place(const struct xz_ui *u,const struct xz_ui_model *m,struc
     (void)m;int secondary=0;
     for(size_t i=0;i<n;i++){
         struct xz_ui_widget *a=&w[i];
-        if(u->page==XZ_UI_GENERAL&&a->kind==XZ_UI_FEATURE_LINK&&(a->index==XZ_UI_NETWORK||a->index==XZ_UI_METRICS_SETUP))put(a,a->index==XZ_UI_NETWORK?472:136,288,320,40);
+
         if(u->page==XZ_UI_CONNECTION&&a->kind==XZ_UI_PANEL&&a->index==XZ_UI_NETWORK)put(a,468,300,324,40);
         int updates=a->kind==XZ_UI_PANEL&&a->index==XZ_UI_UPDATES;
         if(u->page==XZ_UI_NETWORK&&(xz_ui_network_kind(a->kind)||updates)){

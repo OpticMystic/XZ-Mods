@@ -245,7 +245,7 @@ static const char *section_for(const struct build *b, const struct xz_ui_widget 
   if((w->kind==XZ_UI_ENABLE||w->kind==XZ_UI_LOCAL_STEM_SETUP_OPEN)&&k==XZ_UI_STEM)return "STEMS";
   if(w->kind==XZ_UI_FEATURE_LINK&&(k==XZ_UI_PC_STEMS||k==XZ_UI_STEM_COLORS||k==XZ_UI_CONTROLS))return "STEMS";
   if(w->kind==XZ_UI_JUMP_ENABLE||(w->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_BEAT_JUMP))return "BEAT JUMP";
-  if(w->kind==XZ_UI_FEATURE_LINK&&(k==XZ_UI_METRICS_SETUP||k==XZ_UI_SETTINGS))return "SYSTEM";
+  if(w->kind==XZ_UI_FEATURE_LINK&&(k==XZ_UI_METRICS_SETUP||k==XZ_UI_NETWORK||k==XZ_UI_SETTINGS))return "SYSTEM";
   return "CUES AND PADS";
  case XZ_UI_CONTROLS:
   if(w->kind==XZ_UI_STEMS_OVERLAY||w->kind==XZ_UI_FOUR_WAVE_ORDER)return "PLAY SCREEN";
@@ -658,9 +658,33 @@ static int skipped(const struct build *b, const struct xz_ui_widget *a) {
  default:return 0;
  }
 }
+static void profile_model(const struct xz_ui_model *m,struct xz_shell_menu *out){
+ for(int i=0;i<3;i++)out->preview_rgb[i]=xz_ui_model_stem_color(m,i);
+ out->profile_current=-1;
+ if(m->dj){
+  out->profile_present=1;out->profile_revision=2166136261u;
+  out->profile_count=(uint8_t)(m->dj->count<0?0:m->dj->count>XZ_SHELL_MENU_PROFILES?XZ_SHELL_MENU_PROFILES:m->dj->count);
+  if(m->dj->current>=0&&m->dj->current<out->profile_count)out->profile_current=(int16_t)m->dj->current;
+  out->profile_revision=(out->profile_revision^(uint32_t)out->profile_count)*16777619u;
+  out->profile_revision=(out->profile_revision^(uint32_t)m->dj->current)*16777619u;
+  out->profile_revision=(out->profile_revision^(uint32_t)m->dj->pending)*16777619u;
+  for(int i=0;i<out->profile_count;i++){
+   const struct xz_ui_dj_entry *e=&m->dj->entry[i];struct xz_shell_menu_profile *to=&out->profiles[i];
+   copy(to->name,sizeof to->name,e->name&&e->name[0]?e->name:"DJ PROFILE");
+   const char *keys[2]={e->dj_id,e->name};
+   out->profile_revision=(out->profile_revision^(uint32_t)e->usb)*16777619u;
+   out->profile_revision=(out->profile_revision^(uint32_t)!!e->damaged)*16777619u;
+   for(int k=0;k<2;k++){const char *key=keys[k];for(int j=0;key&&j<160&&key[j];j++)out->profile_revision=(out->profile_revision^(unsigned char)key[j])*16777619u;}
+   to->usb=(uint8_t)e->usb;to->available=(uint8_t)(!e->damaged&&m->dj->pending<0);
+   to->accent=e->has_accent?e->accent:0x44aadd;to->has_thumb=e->thumb!=NULL;
+   if(e->thumb)for(int y=0;y<XZ_SHELL_PROFILE_THUMB;y++)for(int x=0;x<XZ_SHELL_PROFILE_THUMB;x++)
+    to->thumb[y*XZ_SHELL_PROFILE_THUMB+x]=e->thumb[(y*XZ_UI_DJ_THUMB/XZ_SHELL_PROFILE_THUMB)*XZ_UI_DJ_THUMB+x*XZ_UI_DJ_THUMB/XZ_SHELL_PROFILE_THUMB];
+  }
+ }
+}
 int xz_ui_menu_build(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_shell_menu *out) {
  if(!u||!m||!out)return 0;
- if(xz_ui_network_page(u->page))return xz_ui_network_menu(u,m,out);
+ if(xz_ui_network_page(u->page)){int ok=xz_ui_network_menu(u,m,out);if(ok)profile_model(m,out);return ok;}
  if(xz_ui_support_page(u->page))return xz_ui_support_menu(u,m,out);
  memset(out,0,sizeof *out);
  struct build b={out,NULL,u,m,0,-1,{0},0,0};
@@ -678,6 +702,7 @@ int xz_ui_menu_build(const struct xz_ui *u, const struct xz_ui_model *m, struct 
   copy(out->field_label,sizeof out->field_label,u->edit_step==XZ_UI_EDIT_NAME?"DJ NAME":"TAGLINE");
   copy(out->field,sizeof out->field,u->edit_step==XZ_UI_EDIT_NAME?u->edit_name:u->edit_tagline);
  }
+ profile_model(m,out);
  /* A top page opened from the rail starts on its first row; a deeper page where the panel's focus is (its
     first control, or after BACK the link that led away), so BACK then push re-enters. */
  b.has_focus=(u->focus_kind!=XZ_UI_NONE||!xz_ui_page_is_top(u->page))&&xz_ui_focused(u,m,&b.focus);

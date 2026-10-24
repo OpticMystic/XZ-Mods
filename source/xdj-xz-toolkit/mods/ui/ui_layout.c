@@ -36,9 +36,27 @@ static int profile_buttons_y(const struct xz_ui *u,const struct xz_ui_model *m){
 int xz_ui_profile_list_bottom(const struct xz_ui *u,const struct xz_ui_model *m){return profile_buttons_y(u,m)+48;}
 /* Pads mirror the two physical rows of four, split into pairs like the hardware. */
 static void pad(struct xz_ui_widget *a,int k){put(a,X0+(k%4)*96+((k%4)/2)*16,192+(k/4)*96,88,88);}
+static int general_row(const struct xz_ui_widget *a,int *side){
+ *side=0;
+ switch(a->kind){
+ case XZ_UI_LOCAL_STEM_SETUP_OPEN:return 0;
+ case XZ_UI_ENABLE:return a->index==XZ_UI_STEM?0:a->index==XZ_UI_GATE?3:a->index==XZ_UI_SMART?4:a->index==XZ_UI_PREVIEW?5:6;
+ case XZ_UI_JUMP_ENABLE:return 2;
+ case XZ_UI_FEATURE_SETUP_OPEN:return a->index==XZ_UI_GATE?3:a->index==XZ_UI_SMART?4:a->index==XZ_UI_PREVIEW?5:6;
+ case XZ_UI_FEATURE_LINK:
+  if(a->index==XZ_UI_PC_STEMS)return 1;
+  if(a->index==XZ_UI_METRICS_SETUP)return 7;
+  if(a->index==XZ_UI_NETWORK){*side=1;return 7;}
+  *side=1;
+  return a->index==XZ_UI_CONTROLS?0:a->index==XZ_UI_BEAT_JUMP?2:a->index==XZ_UI_XPAD?6:8;
+ default:return -1;
+ }
+}
 static void place_panel(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *a){
  int k=a->index,page=u->page;
  if(root(k)){put(a,0,XZ_UI_CY+rail_slot(k)*60,XZ_UI_RAIL_W,56);return;}
+ if(page==XZ_UI_SETTINGS){int row=k==XZ_UI_STEMS?0:k==XZ_UI_XPAD?1:2;put(a,X0,64+row*80,CW,64);return;}
+ if(page==XZ_UI_EXTRAS){int row=k==XZ_UI_ABOUT?0:k==XZ_UI_CONNECTION?1:k==XZ_UI_GAMES?2:3;put(a,X0,56+row*80,CW,64);return;}
  if(page==XZ_UI_THEMES){
   if(k==XZ_UI_THEME_PICK){appearance(a,1,2,0);return;}
   if(k==XZ_UI_BROWSE_SETUP){appearance(a,3,3,1);return;}
@@ -79,6 +97,14 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
  for(size_t i=0;i<n;i++){
   struct xz_ui_widget *a=&w[i];int k=a->index,page=u->page;
   if(xz_ui_profile_place(u,m,a))continue;
+  if(page==XZ_UI_GENERAL&&!u->profile_open){
+   int side=0,row=general_row(a,&side);
+   if(row>=0){
+    int paired=row==0||row==2||row==6||row==7||row==8;
+    if(a->kind==XZ_UI_FEATURE_LINK&&a->index==XZ_UI_SETTINGS){side=0;paired=1;}
+    put(a,X0+(side?448:0),48+row*40,paired?(side?CW-448:440):CW,36);continue;
+   }
+  }
   switch(a->kind){
   case XZ_UI_FEATURE_LINK:
    /* PC STEMS sits beside the STANDALONE STEMS switch; stem settings join the bottom links. */

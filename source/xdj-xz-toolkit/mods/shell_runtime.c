@@ -34,6 +34,7 @@
 #include "ui/native_wave_runtime.h"
 #include "ui/themes.h"
 #include "ui/ui.h"
+#include "ui/ui_menu.h"
 #include "ui/layout_cycle.h"
 #include <dirent.h>
 #include <errno.h>
@@ -2001,6 +2002,12 @@ static void menu_command_locked(const struct xz_shell_action *a, uint32_t now) {
  switch(a->id){
  case XZ_SHELL_MENU_OPEN:c.root=a->value;break;
  case XZ_SHELL_MENU_BACK:break;
+ case XZ_SHELL_MENU_PROFILE_PICK:
+  if(!menu_valid||row<0||row>=p->profile_count||row>=XZ_SHELL_MENU_PROFILES||!p->profiles[row].available){refuse();return;}
+  c.op=XZ_SHELL_MENU_ACTIVATE;c.target=(struct xz_shell_menu_target){XZ_UI_PROFILE_PICK,(int16_t)row,-1,XZ_UI_MENU_DIRECT,0};break;
+ case XZ_SHELL_MENU_PROFILE_SETUP:
+  if(!menu_valid||!p->profile_present){refuse();return;}
+  c.op=XZ_SHELL_MENU_ACTIVATE;c.target=(struct xz_shell_menu_target){XZ_UI_PANEL,XZ_UI_PROFILE_SETUP,-1,XZ_UI_MENU_PAGE,0};break;
  case XZ_SHELL_MENU_ACTIVATE:case XZ_SHELL_MENU_PRESS:case XZ_SHELL_MENU_MOVE:case XZ_SHELL_MENU_RELEASE:{
   if(!menu_valid||row<0||row>=p->row_count||row>=XZ_SHELL_MENU_ROWS){refuse();return;}
   const struct xz_shell_menu_row *r=&p->row[row];

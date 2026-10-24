@@ -476,7 +476,7 @@ struct xz_shell {
  char name[XZ_SHELL_NAME_MAX];       /* a playlist name being typed */
  /* The MODS screen (XZ_SHELL_UTILITY): the open page on its rail (0 = UTILITY, the device's own menu;
     1.. = the mod tabs), and whether the encoder is on the rail (on_tabs) or inside the page. */
- struct { int tab, on_tabs; } mods_view;
+ struct { int tab, on_tabs, profile_open, profile_focus, profile_scroll, profile_capture, profile_armed; uint32_t profile_revision; } mods_view;
  /* On a MENU tab: the model.menu page the content cursor belongs to; a different page in the model starts
     the cursor on that page's focus row, or, for a page this view left by a push, on the row it left from
     (trail[depth]), so BACK lands on the control that led away. */

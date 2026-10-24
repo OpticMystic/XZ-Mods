@@ -323,6 +323,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,"STEM COLORS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_XPAD,0,"X-PAD SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,m->metrics.valid?"METRICS SETTINGS >":"SET UP METRICS >");
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_NETWORK,0,"NETWORK SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS,0,"STEM SETTINGS >");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS,0,"MORE CONTROLS >");
  }else if(u->page==XZ_UI_FEATURE_SETUP){

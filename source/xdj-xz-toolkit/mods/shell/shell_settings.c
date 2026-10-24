@@ -734,7 +734,8 @@ static void utility_render(const struct xz_shell *u, const struct xz_shell_model
  render_pages(u,m,c);
  if(tab&&tab->kind==XZ_SHELL_TAB_MENU){
   /* A mod page the runtime describes: the shell draws its path in the title and the page itself. */
-  sh_menu_render(u,m,c,tab,after,TITLE_RIGHT);
+  sh_menu_render(u,m,c,tab,after,m->menu&&m->menu->profile_present?470:TITLE_RIGHT);
+  sh_menu_profile_render(u,m,c,tab);
   render_status(u,m,c);
   return;
  }
@@ -877,7 +878,7 @@ void xz_shell_mods_show(struct xz_shell *u, const struct xz_shell_model *m, int 
  if(at>=0)u->depth=at+1;
  else{if(u->depth>=XZ_SHELL_STACK)return;u->depth++;}
  u->stack[u->depth-1]=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
- u->mods_view.tab=tab;u->mods_view.on_tabs=0;
+ u->mods_view.tab=tab;u->mods_view.on_tabs=0;u->mods_view.profile_open=0;u->mods_view.profile_capture=0;
  u->menu_view.page=-1;
 }
 void xz_shell_mods_close(struct xz_shell *u) {
@@ -890,6 +891,7 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
  struct ustate s=settle(u,m,unpack(v),&l);
  size_t n=0;
  const struct xz_shell_mods_tab *tab=mods_tab(u,m);
+ if(sh_menu_profile_input(u,m,tab,e,out,&n))return n;
  if(e->kind==XZ_SHELL_TOUCH_DOWN&&sh_inside(xz_shell_settings_rect(XZ_SHELL_SR_BACK_BUTTON),e->x,e->y)){
   if(!tab||tab->kind!=XZ_SHELL_TAB_MENU)pack(v,s);
   return sh_back(u,m,out);
@@ -953,6 +955,7 @@ static size_t utility_input(struct xz_shell *u, const struct xz_shell_model *m, 
 }
 size_t sh_settings_back_step(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_action out[XZ_SHELL_ACTIONS], int *taken) {
  *taken=0;
+ if(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.profile_open){u->mods_view.profile_open=0;u->mods_view.profile_capture=0;*taken=1;return 0;}
  if(u->depth>=1&&u->depth<=XZ_SHELL_STACK&&xz_shell_screen(u)==XZ_SHELL_UTILITY&&!u->mods_view.on_tabs){
   const struct xz_shell_mods_tab *tab=mods_tab(u,m);
   if(tab&&tab->kind==XZ_SHELL_TAB_MENU){*taken=1;return sh_menu_back(u,m,tab,out);}
@@ -963,6 +966,7 @@ size_t sh_settings_back_step(struct xz_shell *u, const struct xz_shell_model *m,
 int xz_shell_settings_back(struct xz_shell *u, const struct xz_shell_model *m) {
  if(!u||!m||u->depth<1||u->depth>XZ_SHELL_STACK||xz_shell_screen(u)!=XZ_SHELL_UTILITY)return 0;
  struct xz_shell_view *v=&u->stack[u->depth-1];
+ if(u->mods_view.profile_open){u->mods_view.profile_open=0;u->mods_view.profile_capture=0;return 1;}
  if(u->mods_view.on_tabs)return 0;
  struct ulayout l;
  struct ustate s=settle(u,m,unpack(v),&l);
