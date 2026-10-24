@@ -100,9 +100,12 @@ def build_usb(volume,rbp,key,resources,job,experimental=False):
                 data=(branding/name).read_bytes()
                 (staging/'branding'/name).write_bytes(data)
                 expected['branding/'+name]=data
-        notices=staging/'licenses';notices.mkdir()
+        notices=staging/'licenses';notices.mkdir(exist_ok=True)
         for path in (resources/'licenses').iterdir():
-            if path.is_file():shutil.copyfile(path,notices/path.name)
+            # Corresponding-source archives ship with the desktop package and release.
+            # Only license notices belong in the small controller boot image.
+            if path.is_file() and not path.name.lower().endswith(('.zip','.tar.gz','.tar.xz','.tar.bz2')):
+                shutil.copyfile(path,notices/path.name)
         image=temporary/'autoexec.bin'
         data=firmware.author_image(staging,secret);image.write_bytes(data)
         job.progress('verify','Verifying the encrypted USB image before installation')
