@@ -39,7 +39,8 @@
 <div id="mod-version-editor" class="mod-version-editor hidden">
 <label>Change mod version<select id="mod-version-select" class="mod-control"></select></label><p id="mod-version-draft" class="fine"></p>
 <label class="check"><input id="mod-version-pin" class="mod-control" type="checkbox" checked> Keep this version on the USB</label>
-<p class="fine">A loader built with this on skips automatic network updates, so the USB stays on this version. Turn it off to let signed network updates change the version when the XZ boots.</p>
+<p id="mod-version-pin-note" class="fine">A loader built with this on skips automatic network updates, so the USB stays on this version. Turn it off to let signed network updates change the version when the XZ boots.</p>
+<button id="mod-version-usb-setup" class="primary hidden" type="button">Update through USB setup</button>
 <p id="mod-version-dirty" class="notice hidden" role="status"></p>
 <div class="actions"><button id="save-mod-version" class="primary mod-control">Save choice</button><button id="revert-mod-version" class="secondary mod-control hidden">Undo change</button><button id="import-mod-version" class="secondary mod-control">Import a build</button></div>
 <p class="fine">Saved on this computer and kept across app updates. Saving does not write to any USB. Only the next loader you build or update changes; the USB in your XZ keeps its current loader until you update it.</p></div>
