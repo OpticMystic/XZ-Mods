@@ -173,6 +173,7 @@ function buildName(version){return isIncluded(version)?'Development build '+Stri
 let buildSaving=false,buildNote='';
 async function saveBuild(id,pinned,origin){
   if(buildSaving||!modInventory)return;
+  if(modVersionById(id)?.network_updates_supported===false)pinned=true;
   buildSaving=true;render();
   await ready();
   const result=await run({method:'select_mod_version',mod_version_id:id,pinned,expected_revision:modInventory.selected.revision},'Saving the build choice',origin,()=>{});

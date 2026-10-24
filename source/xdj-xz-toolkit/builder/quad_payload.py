@@ -55,8 +55,13 @@ def verified_files(resources, expected=None):
     original = profile['bootstrap_utf8'].encode('utf-8')
     if not original.startswith(b'#!/bin/sh\n') or b'\r' in original or sha(original) != profile['resources']['bootstrap.sh']:
         raise ValueError('Original bootstrap identity mismatch')
+    from .mod_versions import OTA_GATE, PINNED_GATE
+    if original.count(PINNED_GATE) == 1 and original.count(OTA_GATE) == 0:
+        if not profile['runtime_manifest'].get('ota_unavailable_reason'):
+            raise ValueError('A fixed quad bootstrap must declare its USB-only update policy')
+        if (root / 'mod-version.json').is_file() and json.loads(_read(root, 'mod-version.json')).get('pinned') is not True:
+            raise ValueError('This quad build cannot allow network updates')
     if files['bootstrap.sh'] != original:
-        from .mod_versions import OTA_GATE, PINNED_GATE
         version = json.loads(_read(root, 'mod-version.json'))
         transformed = original.replace(b'\r\n', b'\n').replace(OTA_GATE, PINNED_GATE)
         if (original.count(OTA_GATE) != 1 or files['bootstrap.sh'] != transformed or version.get('pinned') is not True

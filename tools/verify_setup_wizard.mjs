@@ -53,6 +53,7 @@ function installMock() {
     { id: 'rel', label: '0.2.1 released', runtime_sha256: 'e47166e2aaaa', hardware_qualified: false, source_commit: OLD, archived_at: '2026-10-08T17:00:00Z' }]
     : [{ id: 'v1', label: 'Fixture build', runtime_sha256: 'newsha', hardware_qualified: false, source_commit: savedCommit }];
   fx.selections = [];
+  if(mode==='usb-only')for(const item of builds){item.network_updates_supported=false;item.network_update_reason='This build updates through USB setup.';}
   fx.selected = { id: mode === 'noversion' ? 'missing' : mode === 'builds' ? 'old' : 'v1', pinned: true, revision: 1 };
   const inventory = () => ({ format: 'xz-mod-versions/1', versions: builds, selected: { ...fx.selected }, bundled_id: 'v1' });
   const status = request => {
@@ -587,6 +588,14 @@ try {
   await evaluate(`showPage('advanced')`);
   await check(`document.getElementById('mod-version')&&document.getElementById('setup-games-usb')&&document.getElementById('build')&&document.getElementById('loader-backups')&&!document.getElementById('prepare-usb')&&!document.querySelector('#advanced .intro')&&txt('#advanced .game-downloads summary')==='Game downloads'&&!document.querySelector('#advanced .game-downloads').open&&!document.getElementById('download-myhouse')&&!txt('#advanced').includes('My House')`, 'XZ Mods version page: build panel, loader restore, firmware file, games in one folded section; no Prepare a new USB');
   await shot('11-tools-version');
+
+  await open('usb-only');
+  await idle();
+  await evaluate(`showPage('advanced')`);
+  await check(`document.getElementById('mod-version-pin').disabled&&document.getElementById('mod-version-pin').checked&&txt('#mod-version-pin-note').includes('USB setup')`, 'USB-only build stays pinned with a truthful reason');
+  await check(`document.getElementById('mod-version-usb-setup').checkVisibility()&&document.getElementById('mod-version-usb-setup').classList.contains('primary')`, 'USB-only state has a primary setup action');
+  await evaluate(`document.getElementById('mod-version-usb-setup').click()`);
+  await check(`!document.getElementById('setup').classList.contains('hidden')`, 'USB-only action opens the existing setup wizard');
 
   await open('beta');
   await waitFor(`fx.calls.filter(c=>c==='check_app_update').length===1&&!updateChecking`, 'one automatic beta check on launch');

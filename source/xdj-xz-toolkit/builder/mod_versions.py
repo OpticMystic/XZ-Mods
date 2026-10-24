@@ -95,7 +95,7 @@ def _identity(files):
 
 def _payload(resources):
     from .quad_payload import verified_files
-    verified_files(resources)
+    quad = verified_files(resources)
     manifest = _json(resources / 'runtime/manifest.json')
     _need(manifest.get('firmware') == 'XDJ-XZ 1.26', 'This builder supports XDJ-XZ 1.26 mod bundles only.')
     for name, field in (('libxz-mods.so', 'runtime_sha256'), ('libxz-receiver.so', 'receiver_sha256')):
@@ -114,10 +114,16 @@ def _payload(resources):
     if manifest.get('bootstrap_sha256'):
         _need(_hash(resources / 'bootstrap.sh') == manifest['bootstrap_sha256'], 'Mod bundle startup script does not match its manifest.')
     _need(boot.startswith(b'#!/bin/sh\n'), 'The mod bundle has no valid startup script.')
-    _need(boot.count(OTA_GATE) <= 1, 'The startup script has ambiguous network-update gates.')
-    if (resources / 'runtime/xz-updater').exists():
-        _need(boot.count(OTA_GATE) == 1, 'This startup script does not support version pinning.')
-    return manifest
+    standard, fixed = boot.count(OTA_GATE), boot.count(PINNED_GATE)
+    _need(standard + fixed <= 1, 'The startup script has ambiguous network-update gates.')
+    updater = (resources / 'runtime/xz-updater').exists()
+    reason = manifest.get('ota_unavailable_reason') or ''
+    if updater:
+        _need(standard == 1 or (quad and fixed == 1 and reason),
+              'This startup script does not support version pinning.')
+    supported = bool(updater and standard == 1 and not reason)
+    return {**manifest, 'network_updates_supported': supported,
+            'network_update_reason': '' if supported else reason or 'Update this build through USB setup.'}
 
 
 def _verify(folder):
@@ -131,8 +137,8 @@ def _verify(folder):
     for key in ('label', 'description', 'channel'):
         _need(isinstance(record.get(key), str) and len(record[key]) <= 500, 'Invalid mod version description.')
     _need(_files(folder) == files, 'Archived mod files changed. Import a verified copy before using this version.')
-    _payload(folder)
-    return record
+    policy = _payload(folder)
+    return {**record, **{k: policy[k] for k in ('network_updates_supported', 'network_update_reason')}}
 
 
 def _archive(resources, *, label, channel, description, replace_corrupt=False):
@@ -152,7 +158,8 @@ def _archive(resources, *, label, channel, description, replace_corrupt=False):
               'description': description[:500], 'firmware': 'XDJ-XZ 1.26',
               'runtime_sha256': manifest['runtime_sha256'], 'receiver_sha256': manifest['receiver_sha256'],
               'source_commit': manifest.get('source_commit', ''), 'hardware_qualified': False,
-              'archived_at': datetime.now(timezone.utc).isoformat(), 'files': files}
+              'archived_at': datetime.now(timezone.utc).isoformat(), 'files': files,
+              **{k: manifest[k] for k in ('network_updates_supported', 'network_update_reason')}}
     with tempfile.TemporaryDirectory(prefix='.incoming-', dir=root) as work:
         staging = Path(work) / 'bundle'
         staging.mkdir()
@@ -223,7 +230,8 @@ def choose(resources, request):
         ident = request.get('mod_version_id')
         _need(isinstance(ident, str) and ID.fullmatch(ident), 'Choose a listed mod version.')
         _need(type(request.get('pinned')) is bool, 'Choose whether to keep this mod version pinned.')
-        _verify(root / ident)
+        record = _verify(root / ident)
+        _need(request['pinned'] or record['network_updates_supported'], record['network_update_reason'])
         _write(root / 'selection.json', {'id': ident, 'pinned': request['pinned']})
     return inventory(resources)
 
@@ -269,6 +277,7 @@ def selected_resources(resources, request, job):
     _need(isinstance(ident, str) and ID.fullmatch(ident) and type(pinned) is bool, 'Invalid mod selection.')
     source = _root() / ident
     record = _verify(source)
+    _need(pinned or record['network_updates_supported'], record['network_update_reason'])
     job.progress('mod-version', 'Verifying ' + record['label'])
     with tempfile.TemporaryDirectory(prefix='xz-selected-mod-') as work:
         view = Path(work)

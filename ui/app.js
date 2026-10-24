@@ -1501,6 +1501,8 @@ function updateModVersionControls(locked=false){
   locked=locked||activeJob!==null||appUpdating||!invoke;
   document.querySelectorAll('.mod-control').forEach(control=>control.disabled=locked);
   const ready=Boolean(savedModVersion()),dirty=modDirty();
+  $('mod-version-pin').disabled=locked||!modVersionsReady()||modVersionById(modDraftState().id)?.network_updates_supported===false;
+  $('mod-version-usb-setup').disabled=locked;
   $('save-mod-version').disabled=locked||!dirty;
   $('revert-mod-version').classList.toggle('hidden',!dirty||!ready);
   $('mod-wizard-import').disabled=locked||!modImportFolder;
@@ -1528,10 +1530,15 @@ function renderModVersions(){
       $('mod-version-description').textContent=(modInventory.selected.id?'The saved build '+modInventory.selected.id+' is not on this computer. Import it, or choose another version and save. ':'Choose a version below and save it. ')+'USB writes stay off until then.';
       $('mod-version-hash').textContent='';$('mod-version-hash').title='';
     }
-    const select=$('mod-version-select'),draft=modDraftState();select.replaceChildren();
+    const select=$('mod-version-select');let draft=modDraftState();
+    if(modVersionById(draft.id)?.network_updates_supported===false&&!draft.pinned){modDraft={...draft,pinned:true};draft=modDraft;}
+    select.replaceChildren();
     for(const version of modInventory.versions){const option=node('option',(version.label||version.id)+(version.id===modInventory.bundled_id?' · included with this app':''));option.value=version.id;select.append(option);}
     select.value=draft.id;$('mod-version-pin').checked=draft.pinned;
     const choice=modVersionById(draft.id);
+    const usbOnly=choice?.network_updates_supported===false;
+    $('mod-version-pin-note').textContent=usbOnly?(choice.network_update_reason||'This build updates through USB setup.'):'A loader built with this on skips automatic network updates. Turn it off to allow signed network updates.';
+    $('mod-version-usb-setup').classList.toggle('hidden',!usbOnly);
     $('mod-version-draft').textContent=choice&&choice.id!==saved?.id?[channelText(choice.channel),choice.hardware_qualified===true?'':'Not hardware-verified',choice.description,'Runtime '+shortHash(choice.runtime_sha256)].filter(Boolean).join(' · '):'';
     const dirty=modDirty();$('mod-version-dirty').classList.toggle('hidden',!dirty);
     $('mod-version-dirty').textContent=dirty?'Not saved. USB writes still use '+(saved?(saved.label||saved.id)+', '+pinText(savedPinned()):'no version')+'. Save choice to use '+(choice?.label||draft.id)+', '+pinText(draft.pinned)+'.':'';
@@ -1558,6 +1565,7 @@ function openModWizard(importing){
 }
 $('mod-version-select').onchange=()=>{modDraft={id:$('mod-version-select').value,pinned:$('mod-version-pin').checked};renderModVersions();};
 $('mod-version-pin').onchange=$('mod-version-select').onchange;
+$('mod-version-usb-setup').onclick=()=>{showPage('setup');window.setupWizard?.shown();};
 $('revert-mod-version').onclick=()=>{modDraft=null;renderModVersions();};
 $('save-mod-version').onclick=async()=>{
   if(!modDirty())return;
