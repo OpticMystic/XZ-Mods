@@ -20,7 +20,7 @@
   },
   "builder_source": {
     "repository": "https://github.com/OpticMystic/XZ-Mods",
-    "commit": "f388520927bfda65818b8f3775019e51b69f77d1",
+    "commit": "e4aa5a18f77be2b97c0281b2fb47eb054d1c3ceb",
     "paths": [
       "source/xdj-xz-toolkit/builder"
     ]
@@ -93,6 +93,7 @@
     "builder/tests/stem_waveform_reader.c": "acc0cac63da281b5a3278db890d630307e836dbedd24027648f6f791d404a312",
     "builder/tests/test_audio_formats.py": "9d9f21bda0e1684db63c8e7b0f6ab93041e3d525a145b362cc63384eabc627dc",
     "builder/tests/test_audio_helper.py": "dd67f2c801ad939a075365f15f1ab6a4c1a8f8d3b961099bdbb2b6f5a99456aa",
+    "builder/tests/test_boot_notices.py": "c133397d075c606cc0e268231ae2c0d460fa1b4e03b3b7ae3f24c299bd82740b",
     "builder/tests/test_branding.py": "e20b42555f6a322c53791ad75f21a6cb08299e53e99f8b655e223b121a6d4ec9",
     "builder/tests/test_cache.py": "0f225f093dccb5514eac52205d5f14ba15fa99c61fcc2a5d3be0533d905961c0",
     "builder/tests/test_current_settings.py": "b9a72c869e218af94ea5d738eb3ed422b89dc99855060ef6ad902693815a52ce",
@@ -140,7 +141,7 @@
     "builder/tests/verify_stem_builder.py": "422d2ff725ae62b4c1c60b447c4ea47413b70e559fa06d8ef7496ca1d4a5ec8d",
     "builder/tests/verify_three_band_order.py": "a60fa79c985a5987cb6a1afea9b0e5c1368fc390ec509bc383510fa6a621d7fb",
     "builder/three_band.py": "8f39d729148c7af0239890404568d72d49cd39372e37fd029bfac92565be5369",
-    "builder/usb.py": "92e304c56fa9608d123efc6d25b90a8889d76120ef367956974b3f2871a6759c",
+    "builder/usb.py": "5bbae59fe1507acb40ce3184d427ece6c9671fef692f2bf09746d023db205687",
     "builder/usb_settings.py": "dab923895a5c4cb51e7ac2cb90fcf9f582d4a8464cff07d7a94dabc316bef73c",
     "LICENSE": "d383c1e880f964e0f530e6ae5c24c2add107249d3842dcb2e7418b9e723cdb9e",
     "mods/abi/BEAT_JUMP.md": "e3329aaa1d1b01a4ebd61353b95b959f93c3c16494dcd1a5d1b5c8d2da068d49",
