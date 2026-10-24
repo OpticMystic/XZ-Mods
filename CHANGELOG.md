@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0-preview.19 — 2026-10-24
+
+- Experimental four-deck standalone setup with an animated USB-B to USB-A cable guide and a paired automatic loopback bridge for XDJ-XZ firmware 1.26.
+- One layout control cycles between two decks, four decks in numerical order, and mixer order 3-1-2-4. CLASSIC and FLAGSHIP support encoder navigation and BACK.
+- A dedicated NETWORK tab combines adapter and IPv4 settings with Network Updates. About includes project credits, QR links, licenses and optional support links.
+- Software-deck controls include performance pad modes, reverse/slip, quantize, memory and hot cues, cue persistence, vinyl coast and tempo-slider pickup.
+- SYNC tempo matching is independent of the manual fader range. Disabling SYNC or taking MASTER retains the exact matched speed until fresh slider pickup; RANGE remaps pickup without jumping playback.
+- Validated per-beat tempo metadata prevents nominal BPM from wandering because beat positions were rounded to milliseconds.
+- Four-deck startup and reconnect handling retain exact controller, runtime and device ownership and report why a helper stops.
+- Jog deck badges coexist with BPM, key, elapsed/remaining time and the position indicator. Browse, menu closure and held-input ownership fixes are included.
+
+### Beta limits
+
+- Windows 10/11 x64; XDJ-XZ firmware 1.26. Update the USB loader after updating the desktop app. Keep the music stick in USB2 and use USB1 for loopback after safely removing the boot stick.
+- Four-deck audio and native/software MASTER handoff remain experimental. Offline checks are not a complete performance or hardware acceptance claim; test the build with your tracks before a set.
+- Software Jog waveform/artwork and some physical button lamps remain incomplete. Automatic half/double-BPM matching is not implemented; unsupported playback rates are shown as LIMIT.
+- Full-track/stem RAM carry, removal or swapping of the music USB during playback, software-deck stem mixing and independent software-deck key shifting are not supported in this beta.
+- This trial keeps controller settings writes disabled. Set persistent startup preferences through the USB setup flow. The beta channel is separate from stable 0.2.1.
+
 ## Unreleased local changes
 
 - Private Preview.18 combines the current interface, profiles, loader, four-deck controls, MP3 VFP decoder and beta-update work. Hardware audio acceptance remains pending.

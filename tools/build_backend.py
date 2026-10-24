@@ -13,10 +13,15 @@ import uuid
 APP=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--toolkit',type=Path,default=APP/'source/xdj-xz-toolkit' if (APP/'source/xdj-xz-toolkit').is_dir() else APP.parent/'xdj-xz-toolkit')
+parser.add_argument('--quad-profile-sha256')
 args=parser.parse_args()
 toolkit=args.toolkit.resolve()
 resources=APP/'resources'
 if not (resources/'runtime/manifest.json').is_file():raise ValueError('Prepare the paired runtime before building the backend')
+
+sys.path.insert(0,str(toolkit))
+from builder.quad_payload import verified_files
+quad=verified_files(resources,args.quad_profile_sha256)
 
 source=APP/'third_party/inflate64-1.0.4.tar.gz'
 expected='b398c686960c029777afc0ed281a86f66adb956cfc3fbf6667cc6453f7b407ce'
@@ -35,9 +40,11 @@ for entry in distribution.files or []:
             shutil.copyfile(path,target)
 
 with tempfile.TemporaryDirectory(prefix='xz-backend-package-') as temporary:
+    pin=Path(temporary)/'quad-profile.sha256'
+    pin.write_text(args.quad_profile_sha256 if quad else '')
     subprocess.run([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--debug=noarchive','--noupx',
         '--name','xz-mods-service','--distpath',temporary+'/dist','--workpath',temporary+'/work','--specpath',temporary,
-        '--paths',str(toolkit),'--add-data',str(toolkit/'builder/models.json')+':builder',
+        '--add-data',str(pin)+':builder','--paths',str(toolkit),'--add-data',str(toolkit/'builder/models.json')+':builder',
         str(toolkit/'builder/entry.py')],check=True,env={**os.environ,'PYINSTALLER_CONFIG_DIR':temporary+'/cache'})
     destination=resources/'backend'
     incoming=resources/('.backend-new-'+uuid.uuid4().hex)

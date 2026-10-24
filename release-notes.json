@@ -1,6 +1,30 @@
 {
   "releases": [
     {
+      "version": "0.3.0-preview.19",
+      "date": "2026-10-24",
+      "preview": true,
+      "features": [
+        "Experimental four-deck standalone setup with an animated USB-B to USB-A cable guide and a paired automatic loopback bridge for XDJ-XZ firmware 1.26.",
+        "One layout control cycles between two decks, four decks in numerical order, and mixer order 3-1-2-4. CLASSIC and FLAGSHIP support encoder navigation and BACK.",
+        "A dedicated NETWORK tab combines adapter and IPv4 settings with Network Updates. About includes project credits, QR links, licenses and optional support links.",
+        "Software-deck controls include performance pad modes, reverse/slip, quantize, memory and hot cues, cue persistence, vinyl coast and tempo-slider pickup."
+      ],
+      "fixes": [
+        "SYNC tempo matching is independent of the manual fader range. Disabling SYNC or taking MASTER retains the exact matched speed until fresh slider pickup; RANGE remaps pickup without jumping playback.",
+        "Validated per-beat tempo metadata prevents nominal BPM from wandering because beat positions were rounded to milliseconds.",
+        "Four-deck startup and reconnect handling retain exact controller, runtime and device ownership and report why a helper stops.",
+        "Jog deck badges coexist with BPM, key, elapsed/remaining time and the position indicator. Browse, menu closure and held-input ownership fixes are included."
+      ],
+      "requirements": [
+        "Windows 10/11 x64; XDJ-XZ firmware 1.26. Update the USB loader after updating the desktop app. Keep the music stick in USB2 and use USB1 for loopback after safely removing the boot stick.",
+        "Four-deck audio and native/software MASTER handoff remain experimental. Offline checks are not a complete performance or hardware acceptance claim; test the build with your tracks before a set.",
+        "Software Jog waveform/artwork and some physical button lamps remain incomplete. Automatic half/double-BPM matching is not implemented; unsupported playback rates are shown as LIMIT.",
+        "Full-track/stem RAM carry, removal or swapping of the music USB during playback, software-deck stem mixing and independent software-deck key shifting are not supported in this beta.",
+        "This trial keeps controller settings writes disabled. Set persistent startup preferences through the USB setup flow. The beta channel is separate from stable 0.2.1."
+      ]
+    },
+    {
       "version": "0.3.0-preview.18",
       "date": "2026-10-20",
       "preview": true,
@@ -248,7 +272,7 @@
       "preview": true,
       "features": [
         "MP3 stems are prepared on the player's timeline. The decoder now keeps every MP3 frame, the way the XDJ-XZ does, instead of trimming the LAME encoder delay; the same fix OverCue Desktop 2.2.5 shipped today.",
-        "The stems page marks MP3 bundles made before this build with \"Prepare again ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
+        "The stems page marks MP3 bundles made before this build with \"Prepare again ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
       ],
       "fixes": [
         "Bundles from LAME-tagged MP3s (most MP3s) started 25 ms (1,105 frames) early against the player's full mix. Untagged MP3s, WAV and FLAC were never affected.",

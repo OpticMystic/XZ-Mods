@@ -116,6 +116,9 @@ def verify_image(data,key,expected):
     return {'bytes':len(data),'verified_files':len(expected),'volume':'UsbAuto'}
 
 def stage_payload(tree,application,runtime,receiver,bootstrap):
+    from .quad_payload import payload_files
+    quad=payload_files(Path(runtime).parent.parent,application,bootstrap)
+    if quad and (Path(runtime).read_bytes()!=quad['tools/libxz-mods.so'] or Path(receiver).read_bytes()!=quad['tools/libxz-directfb-hook.so']):raise ValueError('Unpaired quad runtime paths')
     tree=Path(tree);(tree/'tools').mkdir(parents=True)
     files={'autoexec.sh':Path(bootstrap).read_bytes().replace(b'\r\n',b'\n'),
         'rbp.patched':application,'tools/libxz-mods.so':Path(runtime).read_bytes(),
@@ -130,5 +133,7 @@ def stage_payload(tree,application,runtime,receiver,bootstrap):
         if source.is_file():
             files['tools/'+name]=source.read_bytes()
             files['tools/'+name+'.md5']=(hashlib.md5(files['tools/'+name]).hexdigest()+'  '+name+'\n').encode('ascii')
-    for name,data in files.items():(tree/name).write_bytes(data)
+    files.update(quad)
+    for name,data in files.items():
+        target=tree/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
     return files

@@ -390,7 +390,7 @@ function stepProfile(){
 // This guide records a user's observation only. It makes no host/device requests or settings changes.
 function focusStep(){const heading=host.querySelector('.wz-flow-body h3');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}}
 function quadEntry(){return el('div',{class:'wz-quad-entry'},
-  el('span',{},el('strong',{text:'Quad standalone mixer'}),el('small',{text:'Private preview. Requires a paired four-deck loader and bridge. Reopen this guide any time.'})),
+  el('span',{},el('strong',{text:'Quad standalone mixer'}),el('small',{text:'Experimental beta. Requires an exact paired XDJ-XZ 1.26 four-deck loader and bridge. Reopen this guide any time.'})),
   el('button',{type:'button',class:'secondary',id:'wz-quad-open',text:'Set up four decks',onclick:openQuad}));}
 function openQuad(){
   W.quadReturn={view:W.view,flow:W.flow,step:W.step};
@@ -440,7 +440,7 @@ function quadCable(){
 function stepQuad(){
   return [el('h3',{text:'Four decks, one standalone mixer'}),
     el('p',{class:'wz-lead',text:'Decks 3 and 4 send audio back to mixer CH3 and CH4 through a USB-B to USB-A cable. This is the cable guide for after installation.'}),
-    el('p',{class:'notice wz-quad-prereq',text:'Requires the paired private four-deck loader and automatic bridge. The general USB writer does not include this bridge yet. This guide does not install or start quad mode.'}),
+    el('p',{class:'notice wz-quad-prereq',text:'Requires the paired XDJ-XZ 1.26 quad beta resources. The matching loader starts the automatic bridge; this cable guide does not install it or verify the connection. Other saved versions may not include quad support.'}),
     el('figure',{class:'wz-quad-art',dataset:{paused:W.quadPaused?'1':null}},quadCable(),
       el('figcaption',{},el('span',{text:'Rear USB-B → top USB1 · Music stays in USB2'}),
         el('button',{type:'button',class:'text-button',id:'wz-quad-motion','aria-pressed':String(W.quadPaused),text:W.quadPaused?'Replay cable animation':'Pause cable animation',onclick:event=>{
@@ -457,8 +457,8 @@ function stepQuad(){
     el('p',{class:'wz-quad-status',id:'wz-quad-status',role:'status',text:quadStatus()}),
     el('details',{class:'wz-quad-trouble'},el('summary',{text:'Still two decks, or no CH3/CH4 audio?'}),
       el('p',{text:'Confirm the matching four-deck loader and bridge are running. With all decks stopped, check rear USB-B → top USB1, music USB2 and the CH3/CH4 USB selectors. If the cable was connected before boot, leave the rear USB-B end in place and reconnect only the free USB-A end after startup. Stop every deck before reconnecting.'}),
-      el('p',{text:'These USB1 loopback / USB2 music instructions describe the private setup. Other loader/bridge configurations may differ. This guide does not detect your configuration. Reopen it from USB → Set up four decks.'})),
-    el('p',{class:'wz-mono',text:'Keep the music USB connected. Full RAM playback and four-deck stems are still incomplete.'}),
+      el('p',{text:'These USB1 loopback / USB2 music instructions describe the paired quad beta setup. Other loader/bridge configurations may differ. This guide does not detect your configuration. Reopen it from USB → Set up four decks.'})),
+    el('p',{class:'wz-mono',text:'Keep the music USB connected. Music removal and full RAM carry are unsupported. Four-deck stems are still incomplete.'}),
     el('div',{class:'actions wz-nav'},
       el('button',{type:'button',class:'secondary',text:'Back',onclick:W.flow.kind==='quad'?closeQuad:previous}),
       el('button',{type:'button',class:'primary',text:'Next',onclick:quadNext}),

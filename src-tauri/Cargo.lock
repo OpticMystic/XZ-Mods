@@ -5126,7 +5126,7 @@ dependencies = [
 
 [[package]]
 name = "xz-mods-builder"
-version = "0.3.0-preview.18"
+version = "0.3.0-preview.19"
 dependencies = [
  "reqwest",
  "rustls",

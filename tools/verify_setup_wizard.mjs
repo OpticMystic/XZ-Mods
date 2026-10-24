@@ -191,7 +191,7 @@ try {
     }
     await size(1100, 760);
   };
-  const txtQuad = `txt('.wz-quad-prereq').includes('paired private four-deck loader')&&txt('.wz-quad-status').includes('not checked')`;
+  const txtQuad = `txt('.wz-quad-prereq').includes('paired XDJ-XZ 1.26 quad beta resources')&&txt('.wz-quad-status').includes('not checked')`;
   const fits = `document.documentElement.scrollWidth<=innerWidth`;
 
   await open('fresh');

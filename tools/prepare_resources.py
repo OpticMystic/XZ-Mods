@@ -23,10 +23,14 @@ p.add_argument('--zig',type=Path,required=True)
 p.add_argument('--runtime-source',type=Path,help='Native source checkout matching the paired runtime; defaults to toolkit')
 p.add_argument('--version-seeds',type=Path,help='Verified offline mod catalog to retain in a clean package')
 p.add_argument('--doom-wad',type=Path,help='Private local Doom WAD to include in USB images; never uploaded or published')
+p.add_argument('--quad-resources',type=Path)
+p.add_argument('--quad-profile-sha256')
 p.add_argument('--skip-backend',action='store_true',help='Retain an already built backend when only native runtime resources changed')
 p.add_argument('--toolkit',type=Path,default=None,
     help='Path to the xdj-xz-toolkit checkout (default: $XZ_TOOLKIT_DIR, sibling ../xdj-xz-toolkit, or monorepo packages/xdj-xz-toolkit)')
 a=p.parse_args()
+if bool(a.quad_resources)!=bool(a.quad_profile_sha256):raise ValueError('Quad resources and exact profile digest are required together')
+if a.quad_resources and a.skip_backend:raise ValueError('Quad selection requires rebuilding the pinned backend')
 def _resolve_toolkit():
     if a.toolkit:return Path(a.toolkit)
     env=os.environ.get('XZ_TOOLKIT_DIR')
@@ -187,7 +191,12 @@ subprocess.run([sys.executable,str(TOOLKIT/'builder/build_audio_helper.py'),'--z
 subprocess.run([sys.executable,str(TOOLKIT/'builder/build_overcue_check.py'),'--zig',str(a.zig.resolve()),'--output',str(resources/'xz-overcue-check.exe')],check=True)
 if a.skip_backend:
     if not (resources/'backend/xz-mods-service.exe').is_file():raise ValueError('Build the standalone backend before skipping its rebuild')
-else:subprocess.run([sys.executable,str(APP/'tools/build_backend.py'),'--toolkit',str(TOOLKIT)],check=True)
+else:
+    if a.quad_resources:
+        sys.path.insert(0,str(TOOLKIT))
+        from builder.quad_payload import install
+        install(a.quad_resources,resources,a.quad_profile_sha256)
+    subprocess.run([sys.executable,str(APP/'tools/build_backend.py'),'--toolkit',str(TOOLKIT)]+(['--quad-profile-sha256',a.quad_profile_sha256] if a.quad_resources else []),check=True)
 for path in resources.rglob('*'):
     if path.is_file() and (path.suffix.lower() in ('.key','.upd','.pth','.ckpt','.safetensors') or path.name in ('rbp','rbp.patched','autoexec.bin','imagedata.dat','XDJXZ_v126.zip')):
         raise ValueError('Public package contains a prohibited firmware/key asset: '+path.name)
