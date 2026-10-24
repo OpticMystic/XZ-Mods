@@ -14,7 +14,15 @@ p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--portable',action='store_true')
 p.add_argument('--skip-build',action='store_true',help='Package an installer already built from this source')
+p.add_argument('--quad-profile-sha256')
 a=p.parse_args()
+import sys
+sys.path.insert(0,str(APP/'source/xdj-xz-toolkit'))
+from builder.quad_payload import verified_files
+quad=verified_files(APP/'resources',a.quad_profile_sha256)
+if quad:
+    pin=APP/'resources/backend/_internal/builder/quad-profile.sha256'
+    if not pin.is_file() or pin.read_text().strip()!=a.quad_profile_sha256:raise ValueError('Frozen backend quad profile does not match release resources')
 config=json.loads((APP/'src-tauri/tauri.conf.json').read_text())
 version=config['version']
 subprocess.run(['python',str(APP/'tools/verify_release_source.py')],check=True)
@@ -23,7 +31,10 @@ if not key.is_file():raise SystemExit('Updater signing key missing. Set TAURI_SI
 if key.with_suffix(key.suffix+'.pub').read_text().strip()!=config['plugins']['updater']['pubkey'].strip():raise SystemExit('Signing key does not match the app updater public key.')
 notes=json.loads((APP/'release-notes.json').read_text())['releases']
 release=next(r for r in notes if r['version']==version)
-markdown='\n\n'.join('## '+title+'\n'+'\n'.join('- '+line for line in release.get(field,[])) for field,title in [('features','New features'),('fixes','Bug fixes'),('changes','Other changes')] if release.get(field))+'\n'
+def release_markdown(release):
+    return '\n\n'.join('## '+title+'\n'+'\n'.join('- '+line for line in release.get(field,[])) for field,title in [('features','New features'),('fixes','Bug fixes'),('changes','Other changes'),('requirements','Known limitations and setup')] if release.get(field))+'\n'
+
+markdown=release_markdown(release)
 if not a.skip_build:
     env=os.environ.copy();env.update(TAURI_SIGNING_PRIVATE_KEY=str(key),TAURI_SIGNING_PRIVATE_KEY_PASSWORD='',RUSTFLAGS='-C target-feature=+crt-static',CARGO_BUILD_JOBS='2')
     subprocess.run(['npx.cmd','--yes','@tauri-apps/cli@2.12.0','build','--target','x86_64-pc-windows-msvc','--bundles','nsis'],cwd=APP,env=env,check=True)

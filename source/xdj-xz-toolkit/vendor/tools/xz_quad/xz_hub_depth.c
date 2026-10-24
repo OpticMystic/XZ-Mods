@@ -1,0 +1,214 @@
+// SPDX-License-Identifier: GPL-2.0-only
+#ifdef XZ_HOST_TEST
+#include "mock_kernel.h"
+#else
+#include <linux/module.h>
+#include <linux/usb.h>
+#include <linux/usb/hcd.h>
+#include <linux/mutex.h>
+#include <linux/string.h>
+#include <linux/workqueue.h>
+#endif
+
+static bool apply;
+module_param(apply, bool, 0444);
+MODULE_PARM_DESC(apply, "Change the qualified hub level; default is observation only");
+static bool adopt_existing;
+module_param(adopt_existing, bool, 0444);
+MODULE_PARM_DESC(adopt_existing, "Also inspect an existing unbound childless 2-1.2 hub");
+
+static DEFINE_MUTEX(target_lock);
+static struct usb_device *target;
+static bool exiting;
+static void cleanup_target(struct work_struct *work);
+static void inspect_existing(void);
+static DECLARE_DELAYED_WORK(cleanup_work, cleanup_target);
+
+static bool qualified_hub(const struct usb_device *dev)
+{
+    const struct usb_device *parent = dev->parent;
+    const char *name = dev_name(&dev->dev);
+    const char *path = !strcmp(name, "2-1.1") ? "1.1" :
+                       !strcmp(name, "2-1.2") ? "1.2" : NULL;
+
+    return path && dev->level == 2 && dev->speed == USB_SPEED_HIGH &&
+        le16_to_cpu(dev->descriptor.idVendor) == 0x2b73 &&
+        le16_to_cpu(dev->descriptor.idProduct) == 0x002e &&
+        dev->descriptor.bDeviceClass == USB_CLASS_HUB &&
+        !strcmp(dev->devpath, path) && parent &&
+        parent->level == 1 && !strcmp(parent->devpath, "1") &&
+        le16_to_cpu(parent->descriptor.idVendor) == 0x0451 &&
+        le16_to_cpu(parent->descriptor.idProduct) == 0x8027 &&
+        parent->parent && !parent->parent->parent;
+}
+
+/* Caller holds the USB device lock. Interface binding also requires this
+ * parent lock (drivers/base/bus.c driver_bind/driver_unbind). */
+static bool idle_hub(struct usb_device *dev)
+{
+    struct usb_interface *intf;
+    unsigned int i;
+
+    if (!device_is_registered(&dev->dev) || dev->state != USB_STATE_CONFIGURED ||
+        !dev->actconfig || dev->descriptor.bNumConfigurations != 1 ||
+        dev->actconfig->desc.bNumInterfaces != 1)
+        return false;
+    intf = dev->actconfig->interface[0];
+    if (!intf || intf->dev.driver || !intf->cur_altsetting ||
+        intf->cur_altsetting->desc.bInterfaceNumber != 0 ||
+        intf->cur_altsetting->desc.bInterfaceClass != USB_CLASS_HUB)
+        return false;
+    for (i = 0; i < USB_MAXCHILDREN; ++i)
+        if (dev->children[i])
+            return false;
+    return true;
+}
+
+/* USB device lock -> target_lock; never acquire USB locks in the notifier.
+ * No bind, reset, or configuration operations occur in this module. */
+static void consider_locked(struct usb_device *dev, bool existing)
+{
+    mutex_lock(&target_lock);
+    if (!exiting && !target && (!existing || !strcmp(dev_name(&dev->dev), "2-1.2")) &&
+        qualified_hub(dev) && idle_hub(dev)) {
+        printk(KERN_INFO "xz_hub_depth: qualified %s existing=%u apply=%u\n",
+               dev_name(&dev->dev), existing, apply);
+        if (apply && try_module_get(THIS_MODULE)) {
+            target = usb_get_dev(dev);
+            dev->level = 1;
+            /* Monitor even without REMOVE: generic-driver unbind emits REMOVE
+             * while configured, and subsequent disconnect may emit none. */
+            schedule_delayed_work(&cleanup_work, HZ);
+            printk(KERN_INFO "xz_hub_depth: level 2 -> 1; awaiting explicit hub bind\n");
+        }
+    }
+    mutex_unlock(&target_lock);
+}
+
+static void cleanup_target(struct work_struct *work)
+{
+    struct usb_device *dev;
+    bool released = false;
+    (void)work;
+
+    /* Snapshot a temporary reference without holding target_lock while
+     * acquiring the USB device lock. */
+    mutex_lock(&target_lock);
+    dev = usb_get_dev(target);
+    mutex_unlock(&target_lock);
+    if (!dev)
+        return;
+    usb_lock_device(dev);
+    mutex_lock(&target_lock);
+    if (target == dev) {
+        if (dev->state == USB_STATE_NOTATTACHED) {
+            dev->level = 2;
+            target = NULL;
+            released = true;
+            printk(KERN_INFO "xz_hub_depth: physically disconnected; level restored\n");
+        } else if (!exiting) {
+            schedule_delayed_work(&cleanup_work, HZ);
+        }
+    }
+    mutex_unlock(&target_lock);
+    usb_unlock_device(dev);
+    if (released)
+        usb_put_dev(dev); /* ownership reference, after all device locks */
+    usb_put_dev(dev); /* temporary reference */
+    /* ADD may precede this deferred cleanup. While the old self-pin still
+     * protects module text, recover a missed replacement on the supported
+     * adoption path. The scan takes all device locks afresh, never target_lock
+     * -> device lock. The new generation acquires its own independent pin. */
+    if (released && adopt_existing)
+        inspect_existing();
+    /* exit synchronizes with this callback before freeing module text. No
+     * work is queued and no module state is accessed after this final put. */
+    if (released)
+        module_put(THIS_MODULE);
+}
+
+static int hub_event(struct notifier_block *block, unsigned long action, void *data)
+{
+    struct usb_device *dev = data;
+    (void)block;
+    if (action == USB_DEVICE_ADD) {
+        consider_locked(dev, false);
+    } else if (action == USB_DEVICE_REMOVE) {
+        mutex_lock(&target_lock);
+        if (target == dev) {
+            printk(KERN_INFO "xz_hub_depth: REMOVE observed state=%u; cleanup deferred\n",
+                   dev->state);
+            schedule_delayed_work(&cleanup_work, HZ);
+        }
+        mutex_unlock(&target_lock);
+    } else {
+        return NOTIFY_DONE;
+    }
+    return NOTIFY_OK;
+}
+
+static struct notifier_block hub_notifier = { .notifier_call = hub_event };
+
+static void inspect_existing(void)
+{
+    struct usb_bus *bus;
+    /* Match the public usbfs traversal locking in devices.c. Bus-list mutex
+     * also excludes root teardown. Only bus 2 / root port 1 / upstream port 2
+     * is inspected; the music port is never locked or modified. */
+    mutex_lock(&usb_bus_list_lock);
+    list_for_each_entry(bus, &usb_bus_list, bus_list) {
+        struct usb_device *root, *upstream, *dev;
+        if (bus->busnum != 2 || !bus_to_hcd(bus)->rh_registered || !bus->root_hub)
+            continue;
+        root = bus->root_hub;
+        usb_lock_device(root);
+        upstream = root->children[0];
+        if (upstream) {
+            usb_lock_device(upstream);
+            if (upstream->level == 1 && !strcmp(upstream->devpath, "1") &&
+                le16_to_cpu(upstream->descriptor.idVendor) == 0x0451 &&
+                le16_to_cpu(upstream->descriptor.idProduct) == 0x8027) {
+                dev = upstream->children[1];
+                if (dev) {
+                    usb_lock_device(dev);
+                    consider_locked(dev, true);
+                    usb_unlock_device(dev);
+                }
+            }
+            usb_unlock_device(upstream);
+        }
+        usb_unlock_device(root);
+    }
+    mutex_unlock(&usb_bus_list_lock);
+}
+
+static int __init xz_hub_depth_init(void)
+{
+#ifndef XZ_HOST_TEST
+    BUILD_BUG_ON(offsetof(struct usb_device, dev) != 0x68);
+    BUILD_BUG_ON(offsetof(struct usb_device, level) != 0x293);
+    BUILD_BUG_ON(sizeof(struct module) != 320);
+#endif
+    usb_register_notify(&hub_notifier);
+    if (adopt_existing)
+        inspect_existing();
+    /* No failure return after notifier registration, pin, or mutation. */
+    printk(KERN_INFO "xz_hub_depth: registered apply=%u adopt_existing=%u\n",
+           apply, adopt_existing);
+    return 0;
+}
+
+static void __exit xz_hub_depth_exit(void)
+{
+    usb_unregister_notify(&hub_notifier);
+    mutex_lock(&target_lock);
+    exiting = true;
+    mutex_unlock(&target_lock);
+    cancel_delayed_work_sync(&cleanup_work);
+    printk(KERN_INFO "xz_hub_depth: removed\n");
+}
+
+module_init(xz_hub_depth_init);
+module_exit(xz_hub_depth_exit);
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("Volatile XDJ-XZ loopback hub metadata with guarded existing USB1 adoption");

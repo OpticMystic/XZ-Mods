@@ -77,7 +77,7 @@ def _files(resources):
                     paths.append(p)
     licenses = cache._safe_path(resources / 'licenses')
     if licenses.is_dir():
-        paths.extend(p for p in licenses.iterdir() if p.is_file())
+        paths.extend(p for p in licenses.rglob('*') if p.is_file())
     _need(0 < len(paths) <= 2048, 'Unexpected mod payload file count.')
     total = 0
     result = {}
@@ -94,6 +94,8 @@ def _identity(files):
 
 
 def _payload(resources):
+    from .quad_payload import verified_files
+    verified_files(resources)
     manifest = _json(resources / 'runtime/manifest.json')
     _need(manifest.get('firmware') == 'XDJ-XZ 1.26', 'This builder supports XDJ-XZ 1.26 mod bundles only.')
     for name, field in (('libxz-mods.so', 'runtime_sha256'), ('libxz-receiver.so', 'receiver_sha256')):

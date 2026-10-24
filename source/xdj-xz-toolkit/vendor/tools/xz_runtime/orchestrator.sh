@@ -6,6 +6,7 @@ export PATH="/usr/sbin:/usr/bin:/sbin:/bin:/root/pdj:$PATH"
 
 USB="$1"
 export XZ_MODS_USB="$USB"
+export XZ_MODS_DECK_INPUT_TRACE=1
 OUT="$USB/XZ_RUNTIME"
 LOG="$OUT/session.txt"
 RBP="/root/pdj/rbp"
@@ -29,6 +30,7 @@ MODS_MODE=""
 SOURCE_GUI_IP_PATCH="$PAYLOAD_ROOT/tools/xz-gui-ip-patch"
 EXPECTED_GUI_IP_PATCH_MD5_FILE="$PAYLOAD_ROOT/tools/xz-gui-ip-patch.md5"
 GUI_IP_PATCH_RAM="/dev/shm/xz-gui-ip-patch"
+NETWORK_TOOLS_RAM="/dev/shm"
 APPLYING_FLAG="/tmp/xz_mod_applying"
 APPLIED_FLAG="/tmp/xz_mod_applied"
 LOADER_LOCK="/tmp/xz_mod_loader_lock"
@@ -64,8 +66,9 @@ configure_vj_network() {
     if [ -n "$CURRENT_IP" ]; then
         echo "$CURRENT_IP" > /tmp/xz_vj_ip
     else
-        CURRENT_IP=$(cat /tmp/xz_vj_ip 2>/dev/null)
-        [ -n "$CURRENT_IP" ] || CURRENT_IP="169.254.168.59"
+        # A cached address alone has no valid mask/gateway contract.
+        # Keep the known link-local fallback; NETWORK applies an explicit plan.
+        CURRENT_IP="169.254.168.59"
         if ! ifconfig eth0 "$CURRENT_IP" netmask 255.255.0.0 up >> "$LOG" 2>&1; then
             log "FAILED: Could not restore VJ.Tools network address $CURRENT_IP."
             return 1
@@ -190,6 +193,55 @@ start_telnet() {
     fi
 }
 
+
+# PRIVATE_AUTO_BRIDGE_BEGIN
+stage_auto_bridge() {
+    auto_root="/dev/shm/xz-auto-2bd0c6f8f4d1"
+    [ ! -L "$auto_root" ] || return 1
+    mkdir -p "$auto_root" || return 1
+    [ "$(cd -P "$auto_root" && pwd -P)" = "$auto_root" ] || return 1
+    if [ ! -f "$auto_root/xz-auto-bridge" ]; then
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge")" = 84a381dcb479a951f91ac3f8d7719c4a ] || return 1
+        cp "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge" "$auto_root/xz-auto-bridge" || return 1
+    fi
+    [ ! -L "$auto_root/xz-auto-bridge" ] && [ "$(file_md5 "$auto_root/xz-auto-bridge")" = 84a381dcb479a951f91ac3f8d7719c4a ] || return 1
+    if [ ! -f "$auto_root/xz_hub_depth.ko" ]; then
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko")" = 6dd14af015ef1f9bea17da852027b52e ] || return 1
+        cp "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko" "$auto_root/xz_hub_depth.ko" || return 1
+    fi
+    [ ! -L "$auto_root/xz_hub_depth.ko" ] && [ "$(file_md5 "$auto_root/xz_hub_depth.ko")" = 6dd14af015ef1f9bea17da852027b52e ] || return 1
+    if [ ! -f "$auto_root/detach" ]; then
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/detach")" = ba080b47a9a12ec4dc11eb37807b0533 ] || return 1
+        cp "$PAYLOAD_ROOT/tools/auto-bridge/detach" "$auto_root/detach" || return 1
+    fi
+    [ ! -L "$auto_root/detach" ] && [ "$(file_md5 "$auto_root/detach")" = ba080b47a9a12ec4dc11eb37807b0533 ] || return 1
+    chmod 700 "$auto_root/xz-auto-bridge" "$auto_root/detach" || return 1
+}
+
+start_auto_bridge() {
+    auto_pid="$1"
+    case "$auto_pid" in ''|*[!0-9]*) return 1;; esac
+    auto_root="/dev/shm/xz-auto-2bd0c6f8f4d1"
+    if [ -f /dev/shm/xz-four-deck/bridge.pid ]; then
+        auto_owner=$(cat /dev/shm/xz-four-deck/bridge.pid)
+        case "$auto_owner" in ''|*[!0-9]*) return 1;; esac
+        if kill -0 "$auto_owner" 2>/dev/null; then
+            auto_command=$(tr '\000' ' ' < "/proc/$auto_owner/cmdline")
+            if [ "$auto_command" = "$auto_root/xz-auto-bridge --run $auto_pid " ]; then
+                log "AUTO_BRIDGE: existing owner $auto_owner retained; see RAM status."
+                return 0
+            fi
+            log "AUTO_BRIDGE: another owner exists; startup refused."
+            return 1
+        fi
+    fi
+    stage_auto_bridge || return 1
+    printf '%s\n' '#!/bin/sh' "exec nice -n 19 $auto_root/xz-auto-bridge --run $auto_pid > $auto_root/launch.log 2>&1" > "$auto_root/run.sh" || return 1
+    "$auto_root/detach" "$auto_root/run.sh" || return 1
+    log "AUTO_BRIDGE: requested for native PID=$auto_pid; RAM status is /dev/shm/xz-four-deck/status."
+}
+# PRIVATE_AUTO_BRIDGE_END
+
 verify_running_rbp() {
     VERIFY_PID="$1"
     VERIFY_EXPECTED="$2"
@@ -222,6 +274,7 @@ verify_running_rbp() {
         log "FAILED: Requested standalone mod runtime is not mapped."
         return 1
     fi
+    start_auto_bridge "$VERIFY_PID" || log "AUTO_BRIDGE: startup refused; native playback retained."
     return 0
 }
 
@@ -315,7 +368,7 @@ launch_runtime_rbp() {
             MODS_UI=1
             [ "$MODS_MODE" = observer ] && MODS_OBSERVE=1 && MODS_UI=0
             LD_PRELOAD="$HOOK_RAM:$MODS_RAM" XZ_MODS_ENABLE=1 XZ_MODS_OBSERVER="$MODS_OBSERVE" XZ_MODS_UI="$MODS_UI" XZ_MODS_STEMS=1 \
-                XZ_MODS_KEYSHIFT="$MODS_UI" XZ_MODS_NATIVE_VIEW="$MODS_UI" XZ_MODS_SHELL="$MODS_UI" XZ_MODS_SETTINGS_READONLY=0 XZ_MODS_BOOT_RUNTIME="$MODS_EXPECTED:$MODS_MODE" \
+                XZ_MODS_KEYSHIFT="$MODS_UI" XZ_MODS_NATIVE_VIEW="$MODS_UI" XZ_MODS_SHELL="$MODS_UI" XZ_MODS_SETTINGS_READONLY=1 XZ_MODS_BOOT_RUNTIME="$MODS_EXPECTED:$MODS_MODE" \
                 ./rbp $tsc_option $joglcd_option $nfs_options >/tmp/xz_rbp.log 2>&1 &
         else
             LD_PRELOAD="$HOOK_RAM" ./rbp $tsc_option $joglcd_option $nfs_options >/tmp/xz_rbp.log 2>&1 &
@@ -331,7 +384,28 @@ launch_runtime_rbp() {
     return 0
 }
 
+stage_network_tools() {
+    # Validate both payload members before publishing either helper.
+    for NETWORK_FILE in xz-network-udhcpc xz-network-lease-event; do
+        NETWORK_SOURCE="$PAYLOAD_ROOT/tools/$NETWORK_FILE"
+        NETWORK_EXPECTED=$(awk 'NR == 1 {print $1}' "$NETWORK_SOURCE.md5" 2>/dev/null)
+        [ -n "$NETWORK_EXPECTED" ] && [ "$(file_md5 "$NETWORK_SOURCE")" = "$NETWORK_EXPECTED" ] || return 1
+    done
+    for NETWORK_FILE in xz-network-udhcpc xz-network-lease-event; do
+        NETWORK_SOURCE="$PAYLOAD_ROOT/tools/$NETWORK_FILE"
+        NETWORK_EXPECTED=$(awk 'NR == 1 {print $1}' "$NETWORK_SOURCE.md5" 2>/dev/null)
+        cp "$NETWORK_SOURCE" "$NETWORK_TOOLS_RAM/$NETWORK_FILE.next" || return 1
+        [ "$(file_md5 "$NETWORK_TOOLS_RAM/$NETWORK_FILE.next")" = "$NETWORK_EXPECTED" ] || return 1
+        chmod 700 "$NETWORK_TOOLS_RAM/$NETWORK_FILE.next" || return 1
+    done
+    for NETWORK_FILE in xz-network-udhcpc xz-network-lease-event; do
+        mv -f "$NETWORK_TOOLS_RAM/$NETWORK_FILE.next" "$NETWORK_TOOLS_RAM/$NETWORK_FILE" || return 1
+    done
+    log "NETWORK_TOOLS_STAGED: DHCP is idle until on-device Apply."
+}
+
 stage_optional_assets() {
+    stage_network_tools || return 1
     if [ -f "$SOURCE_FB_TOOL" ]; then
         if cp "$SOURCE_FB_TOOL" "$FB_TOOL_RAM" 2>>"$LOG"; then
             chmod 755 "$FB_TOOL_RAM"
@@ -489,6 +563,7 @@ if ! pin_own_payload; then
     exit 1
 fi
 acquire_loader_lock || exit 1
+stage_auto_bridge || { log "AUTO_BRIDGE: RAM staging failed; native runtime untouched."; exit 1; }
 configure_vj_network
 network_snapshot
 usb_gadget_snapshot
@@ -569,7 +644,7 @@ if ! stage_optional_assets; then
 fi
 
 OTA_TRIAL=0
-if [ -x /dev/shm/xz-updater ]; then
+if false; then # XZ Mods: selected version is pinned; skip OTA apply
     if LD_PRELOAD= /dev/shm/xz-updater apply "$USB" >>"$LOG" 2>&1; then
         OTA_TRIAL=1
         log "OTA_TRIAL_READY: verified libraries staged; checking the DJ process before acceptance."
