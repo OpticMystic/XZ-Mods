@@ -659,6 +659,7 @@ static size_t profile_choose(struct xz_shell *u,const struct xz_shell_menu *p,in
  int count=profile_count(p);
  if(at<0||at>count||u->mods_view.profile_revision!=p->profile_revision)return 0;
  if(at<count&&!p->profiles[at].available)return 0;
+ if(at==count){struct mstate previous=settle(u,p);if(previous.row>=0)leave_mark(u,p,previous.row);}
  u->mods_view.profile_open=0;
  return ask(out,at==count?XZ_SHELL_MENU_PROFILE_SETUP:XZ_SHELL_MENU_PROFILE_PICK,at,-1);
 }

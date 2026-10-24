@@ -88,7 +88,7 @@ int main(void){
   /* Each feature has a stable row; its settings link stays beside it. */
   const struct xz_ui_widget pc=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS),settings=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS);
   const struct xz_ui_widget keys=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS);
-  assert(pc.y>available.y&&pc.x==available.x&&strstr(available.label,"ALL DECKS"));
+  assert(pc.y>available.y&&pc.x==available.x&&strstr(available.label,"DECKS 1 + 2"));
   assert(settings.y==available.y&&settings.x>available.x&&keys.y>pc.y);
   /* An explicit OFF turns on in one tap even though the host cleared every ready bit. */
   m.deck[1].ready=0;m.deck[0].usb_reason=m.deck[1].usb_reason=XZ_UI_USB_WHY_OFF;

@@ -34,7 +34,11 @@ int main(int argc,char **argv){
  open_profile();assert(!event(XZ_SHELL_TOUCH_DOWN,400,150,0));size_t n=event(XZ_SHELL_TOUCH_UP,400,150,0);assert(n==1&&out[0].id==XZ_SHELL_MENU_PROFILE_PICK&&out[0].value==1&&!shell.mods_view.profile_open);
  open_profile();assert(!event(XZ_SHELL_TOUCH_DOWN,400,150,0));event(XZ_SHELL_TOUCH_MOVE,400,203,0);assert(!event(XZ_SHELL_TOUCH_UP,400,150,0)&&shell.mods_view.profile_open);
  shell.mods_view.profile_open=0;menu.profiles[1].available=0;open_profile();event(XZ_SHELL_TOUCH_DOWN,400,150,0);assert(!event(XZ_SHELL_TOUCH_UP,400,150,0)&&shell.mods_view.profile_open);
+ int32_t previous_key=menu.row[3].key;shell.stack[shell.depth-1].cursor=previous_key;shell.stack[shell.depth-1].focus=1;shell.menu_view.page=menu.page;
  shell.mods_view.profile_open=0;open_profile();event(XZ_SHELL_ENCODER_TURN,0,0,99);assert(shell.mods_view.profile_focus==3);n=event(XZ_SHELL_ENCODER_PUSH,0,0,0);assert(n==1&&out[0].id==XZ_SHELL_MENU_PROFILE_SETUP);
+ struct xz_ui_action actions[XZ_UI_MENU_ACTIONS];struct xz_shell_menu_target nav={XZ_UI_PANEL,XZ_UI_PROFILE_SETUP,-1,XZ_UI_MENU_PAGE,0};
+ xz_ui_menu_run(&ui,&um,&nav,actions);publish();event(XZ_SHELL_ENCODER_TURN,0,0,0);
+ xz_ui_menu_back(&ui,actions);publish();event(XZ_SHELL_ENCODER_TURN,0,0,0);assert(shell.stack[shell.depth-1].cursor==previous_key);
  um.dj=NULL;publish();assert(!menu.profile_present);assert(!event(XZ_SHELL_TOUCH_DOWN,540,18,0)&&!shell.mods_view.profile_open);event(XZ_SHELL_TOUCH_UP,540,18,0);
  um.dj=&mfx_dj;mfx_dj.count=0;mfx_dj.current=-1;publish();open_profile();render(NULL);n=event(XZ_SHELL_ENCODER_PUSH,0,0,0);assert(n==1&&out[0].id==XZ_SHELL_MENU_PROFILE_SETUP);
  mfx_dj.count=32;for(int i=3;i<32;i++){mfx_dj.entry[i]=mfx_dj.entry[0];mfx_dj.entry[i].name="DJ PROFILE";}mfx_dj.current=31;publish();open_profile();assert(shell.mods_view.profile_scroll==27);render(NULL);event(XZ_SHELL_ENCODER_TURN,0,0,-99);assert(shell.mods_view.profile_focus==0&&shell.mods_view.profile_scroll==0);

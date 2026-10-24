@@ -169,7 +169,7 @@ const char *xz_ui_usb_next_step(enum xz_ui_usb_reason why){
  switch(why){
  case XZ_UI_USB_WHY_NONE:return "STANDALONE STEMS READY ON THIS DECK.";
  case XZ_UI_USB_WHY_ENGINE:return "UPDATE THE USB LOADER WITH XZ MODS ON YOUR COMPUTER, THEN RESTART THE PLAYER.";
- case XZ_UI_USB_WHY_OFF:return "TURN ON STANDALONE STEMS. IT APPLIES TO ALL DECKS.";
+ case XZ_UI_USB_WHY_OFF:return "TURN ON USB STEMS FOR NATIVE DECKS 1 AND 2.";
  case XZ_UI_USB_WHY_NO_TRACK:return "LOAD A TRACK FROM USB ON THIS DECK.";
  case XZ_UI_USB_WHY_NOT_PREPARED:return "PREPARE THIS TRACK IN XZ MODS ON YOUR COMPUTER, THEN LOAD IT AGAIN.";
  case XZ_UI_USB_WHY_LOADING:return "STEMS ARE LOADING FROM USB. WAIT A MOMENT.";
@@ -312,7 +312,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   uint32_t available=m->deck[0].ready|m->deck[1].ready|m->enabled;
   /* One switch for every deck: an installed engine turns on here, no wizard. */
   int engine=xz_ui_usb_engine(m);
-  add(w,&n,engine?XZ_UI_ENABLE:XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM,0,engine?"STANDALONE STEMS / ALL DECKS":"SET UP STANDALONE STEMS");
+  add(w,&n,engine?XZ_UI_ENABLE:XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM,0,engine?"USB STEMS / DECKS 1 + 2":"SET UP STANDALONE STEMS");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS,0,"PC STEMS SETUP >");
   add(w,&n,XZ_UI_JUMP_ENABLE,0,0,"PAGE 1 CUSTOM JUMPS");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BEAT_JUMP,0,"JUMP SETTINGS >");
@@ -357,7 +357,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
      its check passes (step 1) the button turns stems on instead of looping. */
   enum xz_ui_usb_reason why=xz_ui_usb_blocked(m,u->deck<2?u->deck:0);
   int step=why==XZ_UI_USB_WHY_ENGINE?(u->stem_setup_step==1?1:0):why==XZ_UI_USB_WHY_OFF?1:2;
-  add(w,&n,XZ_UI_LOCAL_STEM_SETUP_STEP,step,0,step==0?"CHECK STEM ENGINE":step==1?"TURN ON STANDALONE STEMS / ALL DECKS":
+  add(w,&n,XZ_UI_LOCAL_STEM_SETUP_STEP,step,0,step==0?"CHECK STEM ENGINE":step==1?"TURN ON USB STEMS / DECKS 1 + 2":
    why==XZ_UI_USB_WHY_NONE?"STEMS READY / BACK TO PLAY":"CHECK THIS DECK AGAIN");
  }else if(u->page==XZ_UI_BROWSE_SETUP){
   add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"KEY FEEDBACK");

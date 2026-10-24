@@ -165,7 +165,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_CONTROL_SECTION:return k==0?"Assign stem mutes to four pads in a pad mode.":k==1?"Edit custom beat jump sizes for the pads.":
   k==2?"Switch rekordbox stems on a computer linked by USB cable.":"Choose what the REKORDBOX button does, alone and with SHIFT.";
  case XZ_UI_ENABLE:
-  if(k==XZ_UI_STEM)return "Plays prepared stems from the USB on every deck. Off plays the normal track audio.";
+  if(k==XZ_UI_STEM)return "Plays prepared USB stems on native decks 1 and 2. Software decks 3 and 4 do not mix stems in this beta.";
   if(k==XZ_UI_GATE)return "Hot cue pads play only while held and jump back when released.";
   if(k==XZ_UI_SMART)return "Recalling a hot cue also moves the CUE point to it.";
   if(k==XZ_UI_PREVIEW)return "Hold a hot cue pad to hear it while the deck is paused.";
