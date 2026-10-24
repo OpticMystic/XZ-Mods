@@ -307,6 +307,9 @@ static int observe_music(struct observation *o, int *keep_volume, int *keep_bloc
     if (!read_at(block, 0, sector, sizeof(sector)) || sector[510] != 0x55 || sector[511] != 0xaa ||
         (!strcmp(o->kind, "fuseblk") ? memcmp(sector + 3, "EXFAT   ", 8) != 0 :
          (memcmp(sector + 54, "FAT16   ", 8) && memcmp(sector + 82, "FAT32   ", 8)))) goto done;
+    /* exFAT VolumeFlags and PercentInUse are mutable filesystem status,
+     * excluded from its boot checksum; they are not volume identity. */
+    if (!strcmp(o->kind, "fuseblk")) sector[106] = sector[107] = sector[112] = 0;
     SHA256_CTX ctx;
     sha256_init(&ctx); sha256_update(&ctx, sector, sizeof(sector)); sha256_final(&ctx, o->sector_sha);
     struct file_identity checked;
