@@ -188,7 +188,7 @@ enum xz_shell_menu_op {
 enum xz_shell_menu_kind { XZ_SHELL_MENU_CHOICE, XZ_SHELL_MENU_TOGGLE, XZ_SHELL_MENU_ACTION, XZ_SHELL_MENU_LINK,
  XZ_SHELL_MENU_PAD, XZ_SHELL_MENU_KEY };
 enum xz_shell_menu_tone { XZ_SHELL_TONE_PLAIN, XZ_SHELL_TONE_DIM, XZ_SHELL_TONE_GOOD, XZ_SHELL_TONE_ALERT, XZ_SHELL_TONE_HEAD };
-enum xz_shell_menu_layout { XZ_SHELL_MENU_LIST, XZ_SHELL_MENU_KEYBOARD, XZ_SHELL_MENU_ABOUT };
+enum xz_shell_menu_layout { XZ_SHELL_MENU_LIST, XZ_SHELL_MENU_KEYBOARD, XZ_SHELL_MENU_ABOUT, XZ_SHELL_MENU_SUPPORT };
 enum { XZ_SHELL_MENU_ROWS=48, XZ_SHELL_MENU_CHOICES=96, XZ_SHELL_MENU_SECTIONS=8, XZ_SHELL_MENU_LINES=10,
  XZ_SHELL_MENU_STEPS=6 };
 /* What a row or choice runs, in the runtime's own terms; the shell never reads it. */
@@ -220,6 +220,7 @@ struct xz_shell_menu {
  char status[100];                        /* the last result or what the page waits for; empty: none */
  char field[100];                         /* KEYBOARD: the text typed so far */
  char field_label[24];
+ char report_qr_url[160]; /* owned support receipt URL, never a credential */
  char sections[XZ_SHELL_MENU_SECTIONS][28];
  char steps[XZ_SHELL_MENU_STEPS][20];
  struct xz_shell_menu_line line[XZ_SHELL_MENU_LINES];

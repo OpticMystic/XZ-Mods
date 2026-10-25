@@ -1,10 +1,11 @@
 {
   "releases": [
     {
-      "version": "0.5.0-preview.20",
+      "version": "0.5.0-preview.21",
       "date": "2026-10-25",
       "title": "Recoverable four-deck startup and private diagnostics",
       "changes": [
+        "Complete report previews and receipt QR codes in both CLASSIC and FLAGSHIP. Includes the bridge-recovery and private-reporting changes prepared in preview.20.",
         "The four-deck bridge waits for late music-USB mounting instead of permanently quitting during startup. Normal later partitions, USB drives without serial numbers, and qualified HFS+/HFSX media are supported alongside FAT and exFAT.",
         "The Loader offers a four-deck setup check and explicit selection of the included paired runtime. An older saved build is never replaced silently.",
         "Manually preview and submit sanitized diagnostics from the Loader or on-device Support menu. Logs remain private; a separate GitHub draft lets you submit the public issue.",

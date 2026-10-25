@@ -4,6 +4,8 @@
    next is what shows. No push here ever opens another menu. */
 #include "shell_internal.h"
 #include "../ui/ui_about.h"
+#include "../ui/ui_support.h"
+extern void xz_ui_support_render_qr_box(struct xz_canvas,int,int,int,const char *) __attribute__((weak));
 #include "shell_settings.h"
 #include <stdio.h>
 #include <string.h>
@@ -295,6 +297,13 @@ static int render_help(struct xz_canvas q, const struct xz_shell_menu_row *r, in
 static void render_values(struct xz_canvas c, const struct xz_shell_menu *p, struct mstate s, int lit) {
  struct xz_canvas q=xz_sub(c,VALUE_X,U_Y,VALUE_W,PANE_H);
  xz_rect(q,0,0,VALUE_W,PANE_H,SH_BLACK);
+ if(p->layout==XZ_SHELL_MENU_SUPPORT){
+  if(p->report_qr_url[0]){
+   render_page_text(q,p,12,154);
+   if(xz_ui_support_render_qr_box)xz_ui_support_render_qr_box(c,VALUE_X+(VALUE_W-176)/2,U_Y+166,176,p->report_qr_url);
+  }else render_page_text(q,p,12,PANE_H-4);
+  return;
+ }
  const struct xz_shell_menu_row *r=row_at(p,s.row);
  if(!r){render_page_text(q,p,12,PANE_H-4);return;}
  int y=0,bottom=PANE_H-4;

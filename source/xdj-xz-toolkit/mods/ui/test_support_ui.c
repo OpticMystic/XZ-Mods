@@ -151,7 +151,19 @@ int main(void) {
     assert(!strcmp(req.expected_sha256, m.support.payload_sha256));
     assert(u.support.step == XZ_SUPPORT_STEP_RECEIPT);
 
+    struct xz_shell_menu preview_menu;
+    u.support.step=XZ_SUPPORT_STEP_PREVIEW;
+    for(int i=0;i<XZ_SUPPORT_PREVIEW_LINES;i++)snprintf(m.support.preview[i],XZ_SUPPORT_LINE_CHARS,"EXACT PREVIEW ROW %d",i);
+    assert(xz_ui_menu_build(&u,&m,&preview_menu));
+    assert(preview_menu.layout==XZ_SHELL_MENU_SUPPORT && !preview_menu.report_qr_url[0]);
+    for(int i=0;i<XZ_SUPPORT_PREVIEW_LINES;i++){
+        int found=0;for(int j=0;j<preview_menu.line_count;j++)if(!strcmp(preview_menu.line[j].text,m.support.preview[i]))found++;
+        assert(found==1);
+    }
+    u.support.step=XZ_SUPPORT_STEP_RECEIPT;
     m.support.phase = XZ_SUPPORT_STORED;
+    assert(xz_ui_menu_build(&u,&m,&preview_menu));
+    assert(!strcmp(preview_menu.report_qr_url,m.support.github_url));
     memset(pixels, 0, sizeof(pixels));
     check_step_geometry_and_menu(&u, &m);
 

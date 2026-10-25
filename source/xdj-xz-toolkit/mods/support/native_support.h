@@ -14,8 +14,8 @@ enum xz_support_phase {
     XZ_SUPPORT_ERROR
 };
 
-#define XZ_SUPPORT_PREVIEW_LINES 6
-#define XZ_SUPPORT_LINE_CHARS 76
+#define XZ_SUPPORT_PREVIEW_LINES 4
+#define XZ_SUPPORT_LINE_CHARS 32
 
 struct xz_support_model {
     enum xz_support_phase phase;
