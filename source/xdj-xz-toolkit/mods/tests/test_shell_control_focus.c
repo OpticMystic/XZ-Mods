@@ -6,6 +6,8 @@
 #include <assert.h>
 static struct xz_extra_decks sample;
 int xz_extra_decks_snapshot(struct xz_extra_decks *out){*out=sample;return 1;}
+int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_analysis_hold *h){(void)h;return xz_extra_decks_snapshot(out);}
+void xz_extra_decks_release_analysis(struct xz_extra_decks *out,struct xz_extra_analysis_hold *h){(void)h;for(unsigned i=0;i<2;i++){out->deck[i].wave.columns=NULL;out->deck[i].grid=NULL;}}
 int xz_native_four_mixer_order(void){return 0;}
 void xz_log(const char *message){(void)message;}
 int main(void){

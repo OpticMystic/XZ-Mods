@@ -378,8 +378,14 @@ static void test_players(void) {
  assert(a->track_bpm_x100 == 12000 && a->bpm_x100 == 12000 && a->tempo_x100 == 0 && a->master == 0 && !a->loop.active);
  assert(a->hot_cue[0].set && a->hot_cue[0].ms == 300 && a->hot_cue[0].rgb == 0x305aff && a->hot_cue[7].set && a->hot_cue[7].ms == 1500);
  assert(!a->hot_cue[1].set);
- assert(a->grid_count == 4 && a->grid[2].ms == 1100 && a->grid[2].beat_in_bar == 3);
- assert(a->wave.count == 300 && a->wave.span_ms == 2000 && !memcmp(a->wave.columns, columns, sizeof columns));
+ {
+  struct xz_extra_decks held={0};struct xz_extra_analysis_hold hold={0};assert(xz_xp_read_held(p,&held,&hold));
+  const struct xz_extra_deck *h=&held.deck[0];
+  assert(h->grid_count==4&&h->grid[2].ms==1100&&h->grid[2].beat_in_bar==3);
+  assert(h->wave.count==300&&h->wave.span_ms==2000&&!memcmp(h->wave.columns,columns,sizeof columns));
+  xz_xp_release_analysis(&held,&hold);
+ }
+ assert(!a->grid&&!a->wave.columns);
  assert(a->wave.normalization == xz_wave_normalization(columns, 300, 0) && a->wave.normalization > 0);
  for (int k = 0; k < XZ_EXTRA_FIELD_COUNT; ++k) assert(a->known & XZ_EXTRA_KNOWN(k));
  assert(f.submits[0] == 0);
@@ -552,11 +558,12 @@ static void test_players(void) {
  per_block = (double)(f.last_after[1] - a1) / (f.submits[1] - n0);
  assert(fabs(per_block - 256 * 48000.0 / 44100.0) < 1.0);
 
- /* load while playing: stops, flushes, retires the old arrays for the grace period only */
+ /* A held frame keeps its arrays across LOAD, including beyond the old grace. */
  press(0, XZ_EXTRA_IN_PLAY);
  advance(30);
- const struct xz_extra_column *old_columns = view.deck[0].wave.columns;
- const struct xz_extra_beat *old_grid = view.deck[0].grid;
+ struct xz_extra_decks held={0};struct xz_extra_analysis_hold hold={0};assert(xz_xp_read_held(p,&held,&hold));
+ const struct xz_extra_column *old_columns=held.deck[0].wave.columns;
+ const struct xz_extra_beat *old_grid=held.deck[0].grid;
  before = flushes(0);
  load(0, 2);
  uint32_t loaded_at = clock_ms;
@@ -566,6 +573,8 @@ static void test_players(void) {
  clock_ms = loaded_at + XZ_XP_RETIRE_MS - 1; step();
  assert(debug(0).retired == 1 && !memcmp(old_columns, columns, sizeof columns) && old_grid[3].ms == 1600);
  clock_ms = loaded_at + XZ_XP_RETIRE_MS; step();
+ assert(debug(0).retired==1&&!memcmp(old_columns,columns,sizeof columns)&&old_grid[3].ms==1600);
+ xz_xp_release_analysis(&held,&hold);step();
  assert(debug(0).retired == 0);
 
  /* resolver failure keeps the deck; an unreadable file is an ERROR the deck refuses play in */
@@ -940,7 +949,7 @@ static void *reader(void *arg) {
  struct xz_extra_decks s;
  unsigned long n = 0, wave = 0, b = 0;
  while (!__atomic_load_n(&stop_readers, __ATOMIC_ACQUIRE)) {
-  xz_xp_read(p, &s);
+  struct xz_extra_analysis_hold hold={0};assert(xz_xp_read_held(p,&s,&hold));
   for (int d = 0; d < 2; ++d) {
    const struct xz_extra_deck *k = &s.deck[d];
    if (k->wave.count) {
@@ -950,7 +959,7 @@ static void *reader(void *arg) {
    } else if (k->loaded && k->total_ms) { assert(!strcmp(k->title, "Track B") && !k->grid); b++; }
    if (k->known & XZ_EXTRA_KNOWN(XZ_EXTRA_F_TOTAL)) assert(k->elapsed_ms >= 0 && k->elapsed_ms <= k->total_ms);
   }
-  n++;
+  xz_xp_release_analysis(&s,&hold);n++;
  }
  __atomic_add_fetch(&snapshots, n, __ATOMIC_RELAXED);
  __atomic_add_fetch(&with_wave, wave, __ATOMIC_RELAXED);
