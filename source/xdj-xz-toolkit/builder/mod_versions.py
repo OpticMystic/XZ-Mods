@@ -122,7 +122,7 @@ def _payload(resources):
         _need(standard == 1 or (quad and fixed == 1 and reason),
               'This startup script does not support version pinning.')
     supported = bool(updater and standard == 1 and not reason)
-    return {**manifest, 'network_updates_supported': supported,
+    return {**manifest, 'quad_supported': bool(quad), 'network_updates_supported': supported,
             'network_update_reason': '' if supported else reason or 'Update this build through USB setup.'}
 
 
@@ -138,7 +138,7 @@ def _verify(folder):
         _need(isinstance(record.get(key), str) and len(record[key]) <= 500, 'Invalid mod version description.')
     _need(_files(folder) == files, 'Archived mod files changed. Import a verified copy before using this version.')
     policy = _payload(folder)
-    return {**record, **{k: policy[k] for k in ('network_updates_supported', 'network_update_reason')}}
+    return {**record, **{k: policy[k] for k in ('quad_supported', 'network_updates_supported', 'network_update_reason')}}
 
 
 def _archive(resources, *, label, channel, description, replace_corrupt=False):
@@ -159,7 +159,7 @@ def _archive(resources, *, label, channel, description, replace_corrupt=False):
               'runtime_sha256': manifest['runtime_sha256'], 'receiver_sha256': manifest['receiver_sha256'],
               'source_commit': manifest.get('source_commit', ''), 'hardware_qualified': False,
               'archived_at': datetime.now(timezone.utc).isoformat(), 'files': files,
-              **{k: manifest[k] for k in ('network_updates_supported', 'network_update_reason')}}
+              **{k: manifest[k] for k in ('quad_supported', 'network_updates_supported', 'network_update_reason')}}
     with tempfile.TemporaryDirectory(prefix='.incoming-', dir=root) as work:
         staging = Path(work) / 'bundle'
         staging.mkdir()
@@ -216,6 +216,10 @@ def inventory(resources):
                 continue
             # List metadata cheaply; verify every byte again before selection/build.
             entry = _json(folder / 'bundle.json')
+            if folder.name == _selection(root)['id'] or folder.name == bundled['id']:
+                entry = _verify(folder)
+            else:
+                entry['quad_supported'] = False
             _need(entry.get('id') == folder.name, 'Archived mod identity mismatch.')
             versions.append({k: v for k, v in entry.items() if k not in ('files', 'schema')})
         return {'format': 'xz-mod-versions/1', 'versions': sorted(versions, key=lambda v: v['label']),

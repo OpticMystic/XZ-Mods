@@ -105,8 +105,8 @@ static int m_uname(struct utsname *u) { memset(u,0,sizeof(*u));strcpy(u->release
 static ssize_t m_pread(int fd,void *out,size_t size,off_t offset) {
     assert(fd>=3&&fd<128&&fds[fd].used); const char *path=fds[fd].file->path;
     memset(out,0,size);
-    if(!strcmp(path,"/dev/sdc1")) {
-        assert(offset==0&&size==512);memcpy(out,fds[fd].file->bytes,512);
+    if(!strncmp(path,"/dev/sd",7)) {
+        assert(offset>=0&&size==512&&(size_t)offset+size<=fds[fd].file->size);memcpy(out,fds[fd].file->bytes+offset,size);
         if(fault==1&&++reads==1) find(USB "2-1.1")->st.st_ino++;
         if(fault==2&&++reads==1) txt("/proc/self/mountinfo","51 20 0:42 / /media/usb2/sdc1 rw - fuseblk /dev/sdc1 rw\n");
         return (ssize_t)size;
@@ -144,6 +144,9 @@ static void fixture(unsigned unit) {
     put(USB "2-1.1","",0,S_IFDIR|0700,100+unit,1,0);
     struct mock_file *partition=put("/sys/class/block/sdc1","",0,S_IFDIR|0700,200+unit,1,0);
     strcpy(partition->resolved,"/sys/devices/platform/ehci/usb2/2-1/2-1.1/2-1.1:1.0/host0/target0/block/sdc/sdc1");
+    txt("/sys/class/block/sdc1/partition","1");
+    struct mock_file *by_number=put("/sys/dev/block/8:33","",0,S_IFDIR,200+unit,1,0);
+    strcpy(by_number->resolved,partition->resolved);
     txt("/sys/class/block/sdc/removable","1");txt("/sys/class/block/sdc1/dev","8:33");
     txt("/proc/self/mountinfo","50 20 0:42 / /media/usb2/sdc1 rw - fuseblk /dev/sdc1 rw\n");
     put("/media/usb2/sdc1","",0,S_IFDIR|0700,300+unit,makedev(0,42),0);
@@ -165,17 +168,93 @@ int main(void) { fixture(0); CHECK(qualify_music()); fixture(1); CHECK(qualify_m
 #else
 static struct native native_fixture(void) { struct native n={.memory=-1};CHECK(qualify_kernel());CHECK(qualify_native(&n,42));CHECK(native_stopped(&n));return n; }
 static void finish(struct binding *b,struct native *n) { binding_close(b);if(n->memory>=0)m_close(n->memory); }
+
+static void hfs_fixture(unsigned x) {
+    fixture(0);unsigned char data[1536]={0},*h=data+1024;
+    h[0]='H';h[1]=x?'X':'+';h[3]=x?5:4;h[19]=7;
+    h[42]=0x10;h[46]=0x10;h[111]=1;
+    put("/dev/sdc1",data,sizeof(data),S_IFBLK|0600,400,2,makedev(8,33));
+    txt("/proc/self/mountinfo","50 20 0:42 / /media/usb2/sdc1 rw - hfsplus /dev/sdc1 rw\n");
+}
+static void new_media_tests(void) {
+    for(unsigned x=0;x<2;x++) {
+        unsigned mutable[]={4,8,12,20,24,28,32,36,48,52,56,60,64,68,72,80,96,112,128,208,288,368,448};
+        for(unsigned i=0;i<COUNT(mutable);i++) {
+            hfs_fixture(x);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
+            CHECK(binding_admit(&b,&n)==ADMIT_READY);find("/dev/sdc1")->bytes[1024+mutable[i]]^=1;
+            CHECK(binding_check(&b));finish(&b,&n);
+        }
+        unsigned immutable[]={0,1,2,3,16,19,40,41,42,43,44,45,46,47,104,105,106,107,108,109,110,111};
+        for(unsigned i=0;i<COUNT(immutable);i++) {
+            hfs_fixture(x);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
+            CHECK(binding_admit(&b,&n)==ADMIT_READY);find("/dev/sdc1")->bytes[1024+immutable[i]]^=1;
+            CHECK(!binding_check(&b));CHECK(b.state==BINDING_RETIRED);
+            CHECK(binding_admit(&b,&n)==ADMIT_FATAL);finish(&b,&n);
+        }
+        hfs_fixture(x);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
+        find("/dev/sdc1")->bytes[1024]='B';CHECK(binding_admit(&b,&n)==ADMIT_UNSUPPORTED);
+        CHECK(b.state==BINDING_NEW);find("/dev/sdc1")->bytes[1024]='H';
+        CHECK(binding_admit(&b,&n)==ADMIT_READY);finish(&b,&n);
+    }
+    puts("PASS HFS+/HFSX header identity; mutable dates/counters/forks; wrong signature; permanent active retirement");
+    for(unsigned part=0;part<2;part++) {
+        fixture(0);const char *name=part?"sdaa15":"sdc12",*disk=part?"sdaa":"sdc";
+        char path[128],line[256],ancestry[256];
+        snprintf(ancestry,sizeof(ancestry),"/sys/devices/platform/ehci/usb2/2-1/2-1.1/2-1.1:1.0/host0/target0/block/%s/%s",disk,name);
+        struct mock_file *p=find("/sys/class/block/sdc1");snprintf(p->path,sizeof(p->path),"/sys/class/block/%s",name);strcpy(p->resolved,ancestry);
+        strcpy(find("/sys/dev/block/8:33")->resolved,ancestry);
+        snprintf(find("/sys/class/block/sdc1/dev")->path,512,"/sys/class/block/%s/dev",name);
+        snprintf(find("/sys/class/block/sdc1/partition")->path,512,"/sys/class/block/%s/partition",name);
+        snprintf(path,sizeof(path),"/sys/class/block/%s/partition",name);txt(path,part?"15":"12");
+        snprintf(path,sizeof(path),"/sys/class/block/%s/removable",disk);txt(path,"0");
+        snprintf(find("/dev/sdc1")->path,512,"/dev/%s",name);
+        snprintf(find("/media/usb2/sdc1")->path,512,"/media/usb2/%s",name);
+        snprintf(line,sizeof(line),"50 20 0:42 / /media/usb2/%s rw - fuseblk /dev/%s rw\n",name,name);txt("/proc/self/mountinfo",line);
+        struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
+        CHECK(binding_admit(&b,&n)==ADMIT_READY);CHECK(binding_check(&b));finish(&b,&n);
+    }
+    puts("PASS later partitions, multi-letter sd names and fixed-bit USB2 storage");
+    for(unsigned variant=0;variant<3;variant++) {
+        fixture(0);if(variant==0)strcpy(find(USB "2-1.1/serial")->path,"/absent");
+        else txt(USB "2-1.1/serial",variant==1?"":"Unusual USB / serial: \"quoted\"");
+        struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
+        CHECK(binding_admit(&b,&n)==ADMIT_READY);CHECK((b.identity.serial_length==0)==(variant<2));
+        CHECK(binding_check(&b));find(USB "2-1.1")->st.st_ino++;
+        CHECK(!binding_check(&b));find(USB "2-1.1")->st.st_ino--;
+        CHECK(!binding_check(&b));CHECK(binding_admit(&b,&n)==ADMIT_FATAL);finish(&b,&n);
+    }
+    puts("PASS absent/empty/unusual serial; clone with identical header still retires by USB generation");
+    for(unsigned variant=0;variant<5;variant++) {
+        fixture(0);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
+        if(variant==0)strcpy(find("/sys/dev/block/8:33")->resolved,"/sys/wrong");
+        if(variant==1)txt("/sys/class/block/sdc1/dev","8:34");
+        if(variant==2)txt("/sys/class/block/sdc1/partition","2");
+        if(variant==3)txt("/sys/class/block/sdc/removable","unknown");
+        if(variant==4)txt(USB "2-1.1/busnum","1");
+        CHECK(binding_admit(&b,&n)==ADMIT_UNSUPPORTED);finish(&b,&n);
+    }
+    for(unsigned kind=0;kind<2;kind++) {
+        fixture(0);txt("/proc/self/mountinfo","50 20 0:42 / /media/usb2/sdc1 rw - vfat /dev/sdc1 rw\n");
+        memset(find("/dev/sdc1")->bytes+3,0,8);memcpy(find("/dev/sdc1")->bytes+(kind?82:54),kind?"FAT32   ":"FAT16   ",8);
+        struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
+        CHECK(binding_admit(&b,&n)==ADMIT_READY);find("/dev/sdc1")->bytes[kind?65:37]^=1;
+        CHECK(binding_check(&b));find("/dev/sdc1")->bytes[kind?67:39]^=1;
+        CHECK(!binding_check(&b));finish(&b,&n);
+    }
+    puts("PASS sysfs major/minor/partition/topology negatives; FAT mutable state versus volume ID");
+}
 int main(void) {
     CHECK(self_test()==0);
+    new_media_tests();
     for(unsigned unit=0;unit<2;unit++) {
         fixture(unit);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
-        CHECK(binding_admit(&b,&n));CHECK(binding_check(&b));
+        CHECK(binding_admit(&b,&n) == ADMIT_READY);CHECK(binding_check(&b));
         for(unsigned i=0;i<32;i++)CHECK(binding_check(&b));
-        CHECK(!binding_admit(&b,&n));finish(&b,&n);CHECK(!binding_check(&b));
+        CHECK(binding_admit(&b,&n) != ADMIT_READY);finish(&b,&n);CHECK(!binding_check(&b));
     }
     puts("PASS two synthetic controllers/sticks independently admitted; immutable stable lifetime");
     for(unsigned change=0;change<10;change++) {
-        fixture(0);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};CHECK(binding_admit(&b,&n));
+        fixture(0);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};CHECK(binding_admit(&b,&n) == ADMIT_READY);
         switch(change) {
         case 0: txt(USB "2-1.1/devnum","8");break;
         case 1: find(USB "2-1.1")->st.st_ino++;break;
@@ -188,12 +267,14 @@ int main(void) {
         case 8: txt("/proc/sys/kernel/random/boot_id","22222222-2222-4222-8222-222222222222");break;
         case 9: strcpy(find("/sys/class/block/sdc1")->resolved,"/sys/devices/usb2/2-1/2-1.2/2-1.2:1.0/block/sdc/sdc1");break;
         }
-        CHECK(!binding_check(&b));CHECK(b.state==BINDING_RETIRED);CHECK(!binding_admit(&b,&n));finish(&b,&n);
+        CHECK(!binding_check(&b));CHECK(b.state==BINDING_RETIRED);CHECK(binding_admit(&b,&n) != ADMIT_READY);finish(&b,&n);
     }
     puts("PASS devnum/path reuse, mount/descriptor/volume/topology/unit/boot changes retire");
     for(int f=1;f<=4;f++) {
         fixture(0);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};fault=f;
-        CHECK(!binding_admit(&b,&n));CHECK(b.state==BINDING_RETIRED);finish(&b,&n);
+        CHECK(binding_admit(&b,&n) != ADMIT_READY);CHECK(b.state==BINDING_NEW);
+        CHECK(b.volume_fd==-1&&b.block_fd==-1);fault=0;
+        CHECK(binding_admit(&b,&n)==ADMIT_READY);finish(&b,&n);
     }
     puts("PASS identity/mount/descriptor change during capture and nonstopped admission refuse");
     const char *bad[]={"", "50 20 -1:42 / /media/usb2/sdc1 rw - fuseblk /dev/sdc1 rw\n",
@@ -203,7 +284,7 @@ int main(void) {
         "50 20 0:42 / /media/usb2/sdc1\\040x rw - fuseblk /dev/sdc1 rw\n"};
     for(unsigned i=0;i<COUNT(bad);i++) {
         fixture(0);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};txt("/proc/self/mountinfo",bad[i]);
-        CHECK(!binding_admit(&b,&n));finish(&b,&n);
+        CHECK(binding_admit(&b,&n) != ADMIT_READY);finish(&b,&n);
     }
     for(unsigned i=0;i<4;i++) {
         fixture(0);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
@@ -211,14 +292,14 @@ int main(void) {
         if(i==1)txt(USB "2-1.1/idVendor","zzzz");
         if(i==2)memcpy(find("/dev/sdc1")->bytes+3,"NTFS    ",8);
         if(i==3)strcpy(find(USB "2-1.1/serial")->path,"/removed/serial");
-        CHECK(!binding_admit(&b,&n));finish(&b,&n);
+        CHECK((binding_admit(&b,&n)==ADMIT_READY)==(i==0||i==3));finish(&b,&n);
     }
-    puts("PASS missing serial explicitly unsupported, malformed parsers and non-exFAT fuseblk refuse");
+    puts("PASS absent serial captured without invention explicitly unsupported, malformed parsers and non-exFAT fuseblk refuse");
     for(unsigned kind=0;kind<2;kind++) {
         fixture(0);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
         txt("/proc/self/mountinfo","50 20 0:42 / /media/usb2/sdc1 rw - vfat /dev/sdc1 rw\n");
         memset(find("/dev/sdc1")->bytes+3,0,8);memcpy(find("/dev/sdc1")->bytes+(kind?82:54),kind?"FAT32   ":"FAT16   ",8);
-        CHECK(binding_admit(&b,&n));CHECK(binding_check(&b));finish(&b,&n);
+        CHECK(binding_admit(&b,&n) == ADMIT_READY);CHECK(binding_check(&b));finish(&b,&n);
     }
     puts("PASS loader-supported FAT16/FAT32 volume capture");
     for(unsigned fence=0;fence<10;fence++) {
@@ -239,7 +320,7 @@ int main(void) {
     puts("PASS actual own C exact-app/runtime/receiver/readonly/process/kernel ABI and RAM-only fences");
     for(unsigned mutation=0;mutation<5;mutation++) {
         fixture(0);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
-        CHECK(binding_admit(&b,&n));
+        CHECK(binding_admit(&b,&n) == ADMIT_READY);
         if(mutation==0)find("/dev/sdc1")->bytes[106]^=2;
         if(mutation==1)find("/dev/sdc1")->bytes[107]^=1;
         if(mutation==2)find("/dev/sdc1")->bytes[112]=57;
@@ -249,10 +330,10 @@ int main(void) {
         finish(&b,&n);
     }
     puts("PASS exFAT mutable status retained; serial and geometry changes retire");
-    fixture(0);struct native old=native_fixture();struct binding retired={.volume_fd=-1,.block_fd=-1};CHECK(binding_admit(&retired,&old));
+    fixture(0);struct native old=native_fixture();struct binding retired={.volume_fd=-1,.block_fd=-1};CHECK(binding_admit(&retired,&old) == ADMIT_READY);
     txt("/proc/self/mountinfo","51 20 0:42 / /media/usb2/sdc1 rw - fuseblk /dev/sdc1 rw\n");CHECK(!binding_check(&retired));
-    txt("/proc/self/mountinfo","50 20 0:42 / /media/usb2/sdc1 rw - fuseblk /dev/sdc1 rw\n");CHECK(!binding_check(&retired));CHECK(!binding_admit(&retired,&old));finish(&retired,&old);
-    fixture(1);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};CHECK(binding_admit(&b,&n));finish(&b,&n);
+    txt("/proc/self/mountinfo","50 20 0:42 / /media/usb2/sdc1 rw - fuseblk /dev/sdc1 rw\n");CHECK(!binding_check(&retired));CHECK(binding_admit(&retired,&old) != ADMIT_READY);finish(&retired,&old);
+    fixture(1);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};CHECK(binding_admit(&b,&n) == ADMIT_READY);finish(&b,&n);
     CHECK(!unexpected);for(unsigned i=3;i<128;i++)CHECK(!fds[i].used);
     printf("PASS %u checks; fresh boot qualification; all boundary descriptors closed; no live I/O\n",checks);
     return 0;

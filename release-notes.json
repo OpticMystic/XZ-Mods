@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "0.5.0-preview.20",
+      "date": "2026-10-25",
+      "title": "Recoverable four-deck startup and private diagnostics",
+      "changes": [
+        "The four-deck bridge waits for late music-USB mounting instead of permanently quitting during startup. Normal later partitions, USB drives without serial numbers, and qualified HFS+/HFSX media are supported alongside FAT and exFAT.",
+        "The Loader offers a four-deck setup check and explicit selection of the included paired runtime. An older saved build is never replaced silently.",
+        "Manually preview and submit sanitized diagnostics from the Loader or on-device Support menu. Logs remain private; a separate GitHub draft lets you submit the public issue.",
+        "The maintainer inbox reads private reports with a separate locally protected credential. No logs upload automatically.",
+        "Experimental XDJ-XZ 1.26 only. USB1 is loopback and USB2 is music. Active media removal/RAM carry, software-deck stems/key shifting, and complete software Jog waveform/artwork remain unsupported. Controller acceptance of this revision is pending."
+      ]
+    },
+    {
       "version": "0.5.0-preview.19",
       "date": "2026-10-24",
       "preview": true,
@@ -299,7 +311,7 @@
       "preview": true,
       "features": [
         "MP3 stems are prepared on the player's timeline. The decoder now keeps every MP3 frame, the way the XDJ-XZ does, instead of trimming the LAME encoder delay; the same fix OverCue Desktop 2.2.5 shipped today.",
-        "The stems page marks MP3 bundles made before this build with \"Prepare again ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
+        "The stems page marks MP3 bundles made before this build with \"Prepare again \u00c3\u0192\u00c6\u2019\u00c3\u2020\u00e2\u20ac\u2122\u00c3\u0192\u00e2\u20ac\u00a0\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u201e\u00a2\u00c3\u0192\u00c6\u2019\u00c3\u201a\u00c2\u00a2\u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u201a\u00ac\u00c5\u00a1\u00c3\u201a\u00c2\u00ac\u00c3\u0192\u00e2\u20ac\u00a6\u00c3\u201a\u00c2\u00a1\u00c3\u0192\u00c6\u2019\u00c3\u2020\u00e2\u20ac\u2122\u00c3\u0192\u00c2\u00a2\u00c3\u00a2\u00e2\u20ac\u0161\u00c2\u00ac\u00c3\u2026\u00c2\u00a1\u00c3\u0192\u00c6\u2019\u00c3\u00a2\u00e2\u201a\u00ac\u00c5\u00a1\u00c3\u0192\u00e2\u20ac\u0161\u00c3\u201a\u00c2\u00b7 MP3 timing\" and explains why in the track details. Select those tracks and prepare again; the XDJ-XZ already lined them up live, the stem waveforms and other players did not."
       ],
       "fixes": [
         "Bundles from LAME-tagged MP3s (most MP3s) started 25 ms (1,105 frames) early against the player's full mix. Untagged MP3s, WAV and FLAC were never affected.",

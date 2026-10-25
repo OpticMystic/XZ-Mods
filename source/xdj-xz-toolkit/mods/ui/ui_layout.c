@@ -55,6 +55,7 @@ static void place_panel(const struct xz_ui *u,const struct xz_ui_model *m,struct
  case XZ_UI_XPAD:grid(a,4,1,1,1);break;
  case XZ_UI_KEY_SETUP:if(page==XZ_UI_BROWSE_SETUP)grid(a,3,2,6,1);else grid(a,4,2,1,1);break;
  case XZ_UI_RAM_SETUP:grid(a,4,3,1,1);break;
+ case XZ_UI_SUPPORT:if(page==XZ_UI_SETTINGS)grid(a,4,2,1,1);else grid(a,2,0,6,1);break;
  case XZ_UI_BROWSE_SETUP:grid(a,2,1,5,1);break;
  /* Theme 24 takes the first slot of the last row; STEM COLORS keeps the right half. */
  case XZ_UI_STEM_COLORS:grid(a,2,1,6,1);break;

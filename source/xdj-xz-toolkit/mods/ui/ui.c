@@ -4,6 +4,7 @@
 #include "stem_pads.h"
 #include "wave_viewport.h"
 #include "ui_network.h"
+#include "ui_support.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -263,7 +264,7 @@ static enum xz_ui_page parent_page(enum xz_ui_page page){
  case XZ_UI_NETWORK_SETUP:return XZ_UI_NETWORK;
  case XZ_UI_NETWORK_EDIT:return XZ_UI_NETWORK_SETUP;
  case XZ_UI_CONNECTION:case XZ_UI_GAMES:case XZ_UI_APPS:case XZ_UI_ABOUT:return XZ_UI_EXTRAS;
- case XZ_UI_UPDATE_SETUP:return XZ_UI_UPDATES;
+ case XZ_UI_UPDATE_SETUP:case XZ_UI_SUPPORT:return XZ_UI_UPDATES;
  case XZ_UI_APPS_SETUP:return XZ_UI_APPS;
  case XZ_UI_DOOM:case XZ_UI_DOOM_FILES:case XZ_UI_MYHOUSE_SETUP:return XZ_UI_GAMES;
  case XZ_UI_DOOM_SETUP:return XZ_UI_DOOM;
@@ -347,6 +348,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_PANEL,XZ_UI_STEMS,0,"GROOVE PADS");
   add(w,&n,XZ_UI_PANEL,XZ_UI_XPAD,0,"X-PAD CONTROLS");
   add(w,&n,XZ_UI_PANEL,XZ_UI_RAM_SETUP,0,"RAM TRACKS");
+  add(w,&n,XZ_UI_PANEL,XZ_UI_SUPPORT,0,"REPORT AN ISSUE");
  }else if(u->page==XZ_UI_LOCAL_STEM_SETUP){
   /* The button is the deck's next real step, so a prepared track never repeats DETECT.
      index stays the runtime step: 0 check engine, 1 turn on, 2 check the track.
@@ -406,6 +408,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_UPDATE_CHECK,0,0,m->update.ready&&m->update.phase!=XZ_UPDATE_ERROR?"CHECK FOR UPDATES":"SET UP NETWORK UPDATES");
   add(w,&n,XZ_UI_UPDATE_INSTALL,0,0,"DOWNLOAD UPDATE");
   add(w,&n,XZ_UI_UPDATE_ROLLBACK,0,0,"PREVIOUS VERSION");
+  add(w,&n,XZ_UI_PANEL,XZ_UI_SUPPORT,0,"REPORT AN ISSUE");
   add(w,&n,XZ_UI_PANEL,XZ_UI_UPDATE_SETUP,0,"NETWORK SETUP");
  }else if(u->page==XZ_UI_UPDATE_SETUP){
   add(w,&n,XZ_UI_UPDATE_CHECK,0,0,"DETECT UPDATE SERVER");
@@ -466,6 +469,8 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   }else if(step==XZ_UI_PC_STEP_DONE)add(w,&n,XZ_UI_PC_CHECK,step,0,"RUN SETUP AGAIN");
   else add(w,&n,XZ_UI_PC_CHECK,XZ_UI_PC_STEP_DETECT,0,"DETECT PC");
   for(size_t k=first;k<n;k++)w[k].deck=deck;
+ }else if(xz_ui_support_page(u->page)){
+  n=xz_ui_support_controls(u,m,w,n);
  }else if(xz_ui_network_page(u->page)){
   n=xz_ui_network_controls(u,m,w,n);
   if(u->page==XZ_UI_NETWORK)add(w,&n,XZ_UI_PANEL,XZ_UI_UPDATES,0,"NETWORK UPDATES");
@@ -480,6 +485,7 @@ size_t xz_ui_layout(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_
  xz_ui_place(u,m,w,n);
  xz_sdk_ui_place(u,m,w,n);
  xz_ui_network_place(u,m,w,n);
+ xz_ui_support_place(u,m,w,n);
  return n;
 }
 static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,const struct xz_ui_widget *w){
@@ -513,6 +519,7 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
  const struct xz_theme_palette *p=xz_theme_palette(m->theme);
  struct xz_ui_look l={ready(u,m,deck,a),0,p->accent};
  if(xz_ui_network_kind(a->kind)){l.selected=xz_ui_network_selected(u,a);return l;}
+ if(xz_ui_support_kind(a->kind)){l.selected=xz_ui_support_selected(u,m,a);return l;}
  switch(a->kind){
  case XZ_UI_DECK:l.selected=k==u->deck;break;
  case XZ_UI_FEATURE_LINK:break;
@@ -588,6 +595,7 @@ const char *xz_ui_ram_state_text(enum xz_ui_ram_state state){
  default:return "RAM ENGINE NOT DETECTED";}
 }
 const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m){
+ if(xz_ui_support_page(u->page))return u->notice[0]?u->notice:m->support.status[0]?m->support.status:"PREPARE SANITIZED DRAFT / PREVIEW SHA256 / SEND OR EXPORT";
  if(xz_ui_network_page(u->page))return u->notice[0]?u->notice:m->network.detail[0]?m->network.detail:"SET UP NETWORK / CHANGES LAST UNTIL REBOOT";
  const struct xz_ui_deck *d=&m->deck[u->deck];
  const char *saved=m->settings_status?m->settings_status:"INSERT USB TO SAVE SETTINGS";
@@ -697,6 +705,7 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  if(u->page>=XZ_UI_EXTRAS&&u->page!=XZ_UI_CONNECTION)xz_ui_page_details(&s);
  xz_ui_profile_render(&s);
  if(xz_ui_network_page(u->page))xz_ui_network_render(&s);
+ if(xz_ui_support_page(u->page))xz_ui_support_render(&s);
  if(u->page==XZ_UI_CONTROLS)xz_ui_stem_setup(&s);
  if(u->page==XZ_UI_PC_STEMS)pc_setup_render(&s);
  if(u->page==XZ_UI_METRICS_SETUP){
@@ -769,6 +778,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
  if(press&&xz_ui_focusable(&a)){u->focus_kind=a.kind;u->focus_index=a.index;u->focus_deck=a.deck;u->adjusting=0;}
  if(press&&a.kind==XZ_UI_ABOUT_LINK){u->about_link=a.index;u->capture=-1;return 0;}
  if(press&&xz_ui_network_kind(a.kind))return xz_ui_network_action(u,m,a.kind,a.index,out);
+ if(press&&xz_ui_support_kind(a.kind))return xz_ui_support_action(u,m,a.kind,a.index,out);
  if(!ready(u,m,deck,&a)){
   if(!press)return 0;
   if(a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY)snprintf(u->notice,sizeof(u->notice),"%s CONTROL IS NOT AVAILABLE",a.label);

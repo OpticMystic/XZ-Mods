@@ -1608,3 +1608,70 @@ $('mod-version-wizard').addEventListener('close',()=>{
   feedbackHome=modVersionsReady()?$('save-mod-version'):$('mod-version-setup-reason');positionFeedback();if(feedbackLive)revealFeedback();
 });
 loadModVersions();
+// Reporting is always user initiated. Preparation, receipt lookup and upload are separate actions.
+(()=>{
+ let revision=0,draft=null,baseDraft=null,page=0,seen=new Set(),working=false,volume=null,inboxPage=0,inboxPages=0;
+ const el=id=>$('support-'+id),status=s=>el('status').textContent=s;
+ function controls(){const reviewed=!!draft&&seen.size===draft.pages;
+  el('consent').disabled=working||!reviewed;el('send').disabled=working||!reviewed||!el('consent').checked||!el('private').checked;
+  for(const id of ['export','github'])el(id).disabled=working||!reviewed;
+  for(const id of ['receipt','link','discard'])el(id).disabled=working||!draft;
+  el('next').disabled=working||!draft||page+1>=draft.pages;el('fields').disabled=working;el('preview').disabled=working;
+ }
+ function invalidate(){revision++;if(draft)baseDraft=draft;draft=null;seen.clear();el('consent').checked=false;el('preview-text').textContent='';el('hash').textContent='Draft changed. Prepare and review the resulting JSON.';controls();}
+ el('fields').addEventListener('input',invalidate);el('fields').addEventListener('change',event=>{invalidate();if(event.target===el('private'))baseDraft=null;});el('consent').onchange=controls;
+ el('open').onclick=()=>el('wizard').showModal();el('close').onclick=()=>el('wizard').close();
+ el('connection').onclick=()=>el('network').showModal();el('network-done').onclick=()=>el('network').close();
+ el('usb').onclick=async()=>{try{volume=await invoke('pick_path',{kind:'folder'});el('usb-label').textContent=volume?'Selected USB; only fixed diagnostic files will be read.':'No USB selected';invalidate();baseDraft=null;}catch{status('USB selection failed. Choose again or continue without USB diagnostics.');}};
+ async function previewPage(){
+  const result=await run({method:'support_preview',report_id:draft.report_id,sha256:draft.sha256,page},'Reading sanitized preview',el('preview'));
+  if(!result?.ok)throw Error(result?.error||'Preview unavailable. Prepare again.');
+  const v=result.result;if(v.sha256!==draft.sha256||v.page!==page||v.pages!==draft.pages)throw Error('Stale preview refused. Prepare again.');
+  el('preview-text').textContent=v.text;seen.add(page);el('hash').textContent=`Page ${page+1}/${draft.pages} · SHA256 ${draft.sha256} · ${draft.bytes} bytes`;
+ }
+ el('preview').onclick=async()=>{
+  if(working)return;working=true;el('consent').checked=false;controls();const current=revision;
+  try{
+   const result=await run({method:baseDraft?'support_edit':'support_prepare',report_id:baseDraft?.report_id,title:el('title').value,description:el('description').value,category:el('category').value,include_private:el('private').checked,volume,contact_opt_in:el('contact-opt').checked,contact:el('contact').value,remove_items:[...el('remove').selectedOptions].map(o=>o.value)},'Preparing private sanitized report',el('preview'));
+   if(!result?.ok)throw Error(result?.error||'Preparation did not finish. Try again.');
+   if(current!==revision)throw Error('Draft changed while preparing. Prepare again.');
+   draft=result.result;baseDraft=draft;page=0;seen.clear();await previewPage();status('Review all pages. Nothing sent. Public text is included in this preview.');
+  }catch(e){draft=null;status(String(e));}finally{working=false;controls();}
+ };
+ el('next').onclick=async()=>{if(working||!draft)return;working=true;controls();try{page++;await previewPage();}catch(e){status(String(e));}finally{working=false;controls();}};
+ async function action(name){
+  if(working||!draft)return;working=true;controls();
+  try{
+   const result=await invoke('support_action',{action:name,id:draft.report_id,sha256:draft.sha256,consent:el('consent').checked,issueUrl:el('issue-url').value||null});
+   if(name==='send'||name==='receipt')status(`Private logs: ${result.private_logs||'unconfirmed'}. Public GitHub issue: ${result.public_issue||'pending'}. Open the reviewed draft and submit it on GitHub.`);
+   else if(name==='github')status('GitHub draft opened. Public issue submission is pending until you submit on GitHub.');
+   else if(name==='issue')status('Issue link state: '+(result.public_issue||'user_provided')+'.');
+   else status(result.exported?'Exported reviewed JSON. Privacy: private sanitized diagnostics.':'Export cancelled.');
+  }catch(e){status(String(e)+' Use Set up reporting connection or Export reviewed private JSON.');}
+  finally{working=false;controls();}
+ }
+ for(const name of ['send','export','github','receipt'])el(name).onclick=()=>action(name);
+ el('link').onclick=()=>action('issue');
+ el('discard').onclick=async()=>{if(working||!draft)return;const r=await run({method:'support_discard',report_id:draft.report_id,sha256:draft.sha256},'Discarding local draft',el('discard'));if(r?.ok){baseDraft=null;invalidate();status('Local draft discarded. Private server storage, if any, is separate.');}};
+ el('cancel').onclick=async()=>{try{if(working&&activeJob!==null){await invoke('cancel_job',{id:activeJob});}await invoke('support_cancel');status('Cancellation requested. An upload may already be stored; Check receipt before retrying.');}catch{status('Cancellation could not be confirmed. Check receipt before retrying.');}};
+ el('wizard').addEventListener('cancel',event=>{if(working)event.preventDefault();});
+ el('owner-open').onclick=()=>el('inbox').showModal();el('inbox-close').onclick=()=>el('inbox').close();
+ async function readInboxPage(){const r=await invoke('support_inbox_page',{page:inboxPage});inboxPages=r.pages;el('inbox-text').textContent=r.text;el('inbox-status').textContent=`Private inbox page ${inboxPage+1}/${inboxPages}`;}
+ async function inbox(action){try{const r=await invoke('support_inbox',{action,id:action==='list'?null:el('inbox-id').value});inboxPage=0;inboxPages=r.pages;await readInboxPage();}catch{el('inbox-text').textContent='';el('inbox-status').textContent='Inbox unavailable. Connect your report-only owner key and verify again.';}}
+ el('connect-form').onsubmit=async event=>{event.preventDefault();const input=el('owner-key');let key=input.value;input.value='';try{await invoke('support_connect',{key});key='';await inbox('list');}catch{key='';el('inbox-status').textContent='Owner connection failed. Enter a provisioned report-only key and try again.';}};
+ el('inbox-refresh').onclick=()=>inbox('list');el('inbox-read').onclick=()=>inbox('read');el('inbox-next').onclick=async()=>{if(inboxPage+1<inboxPages){inboxPage++;try{await readInboxPage();}catch{el('inbox-status').textContent='Page unavailable. Read inbox again.';}}};
+ el('inbox-delete').onclick=()=>{if(el('delete-consent').checked){el('delete-consent').checked=false;inbox('delete');}};
+ controls();
+})();
+// Setup callers query the exact saved build; an unsaved dropdown change is never capability evidence.
+window.quadSetupCapability=()=>({saved_id:savedModVersion()?.id||null,supported:savedModVersion()?.quad_supported===true,dirty:modDirty()});
+function renderQuadSetup(){
+ const capability=window.quadSetupCapability(),included=modVersionById(modInventory?.bundled_id);
+ $('quad-state').textContent=capability.supported?'The exact saved build has a verified quad profile. Controller acceptance is separate.':'The saved build does not have a verified quad profile. Choose and save the included quad build to prepare four decks.';
+ $('quad-use').disabled=included?.quad_supported!==true||activeJob!==null;$('quad-save').disabled=!modDirty()||activeJob!==null;
+}
+const quadButton=node('button','Set up four decks','primary');quadButton.id='quad-open';quadButton.type='button';$('mod-version').append(quadButton);
+quadButton.onclick=()=>{renderQuadSetup();$('quad-setup').showModal();};
+$('quad-use').onclick=()=>{const included=modVersionById(modInventory?.bundled_id);if(included?.quad_supported!==true)return;modDraft={id:included.id,pinned:true};renderModVersions();renderQuadSetup();};
+$('quad-save').onclick=async()=>{await $('save-mod-version').onclick();renderQuadSetup();};
+$('quad-close').onclick=()=>$('quad-setup').close();

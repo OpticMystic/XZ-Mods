@@ -201,10 +201,10 @@ stage_auto_bridge() {
     mkdir -p "$auto_root" || return 1
     [ "$(cd -P "$auto_root" && pwd -P)" = "$auto_root" ] || return 1
     if [ ! -f "$auto_root/xz-auto-bridge" ]; then
-        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge")" = a2c30a6397c0ecdacc88fd97187e6499 ] || return 1
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge")" = b990e710d8806aae8d76edf4b90ffe19 ] || return 1
         cp "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge" "$auto_root/xz-auto-bridge" || return 1
     fi
-    [ ! -L "$auto_root/xz-auto-bridge" ] && [ "$(file_md5 "$auto_root/xz-auto-bridge")" = a2c30a6397c0ecdacc88fd97187e6499 ] || return 1
+    [ ! -L "$auto_root/xz-auto-bridge" ] && [ "$(file_md5 "$auto_root/xz-auto-bridge")" = b990e710d8806aae8d76edf4b90ffe19 ] || return 1
     if [ ! -f "$auto_root/xz_hub_depth.ko" ]; then
         [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko")" = a9463514dcf4e2b0c3bef40b11a26dad ] || return 1
         cp "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko" "$auto_root/xz_hub_depth.ko" || return 1
@@ -450,7 +450,7 @@ stage_optional_assets() {
         log "Standalone runtime staged in RAM: mode=$MODS_MODE md5=$MODS_EXPECTED"
         # Games are separate programs, staged from this USB boot image into RAM.
         # No engine/WAD download or computer connection occurs on the XZ.
-        for GAME_FILE in xz-doom doom1.wad xz-updater xz-runtime-smoke xz-pc-wave-receive; do
+        for GAME_FILE in xz-doom doom1.wad xz-updater xz-runtime-smoke xz-pc-wave-receive xz-support; do
             GAME_SOURCE="$PAYLOAD_ROOT/tools/$GAME_FILE"
             if [ -f "$GAME_SOURCE" ]; then
                 GAME_EXPECTED=$(awk '{print $1}' "$GAME_SOURCE.md5" 2>/dev/null)

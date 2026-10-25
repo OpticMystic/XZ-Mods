@@ -73,7 +73,7 @@ def build_usb(volume,rbp,key,resources,job,experimental=False):
     runtime=resources/'runtime'/'libxz-mods.so';receiver=resources/'runtime'/'libxz-receiver.so'
     for name,path in [('runtime_sha256',runtime),('receiver_sha256',receiver)]:
         if sha(path)!=manifest[name]:raise ValueError('Bundled mod files failed integrity verification')
-    for field,name in [('doom_sha256','xz-doom'),('private_doom_wad_sha256','doom1.wad'),('ota_updater_sha256','xz-updater'),('ota_runtime_smoke_sha256','xz-runtime-smoke')]:
+    for field,name in [('doom_sha256','xz-doom'),('private_doom_wad_sha256','doom1.wad'),('ota_updater_sha256','xz-updater'),('ota_runtime_smoke_sha256','xz-runtime-smoke'),('support_sha256','xz-support')]:
         if manifest.get(field) and sha(resources/'runtime'/name)!=manifest[field]:
             raise ValueError('Bundled Doom files failed integrity verification')
     secret=firmware.effective_key(key)

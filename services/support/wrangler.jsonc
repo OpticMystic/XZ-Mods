@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "xz-mods-support",
+  "account_id": "02695c51f439689743ab6a8d96722e50",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "ENABLED": "true",
+    "PUBLIC_ORIGIN": "https://xz-mods-support.will-026.workers.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "xz-mods-support",
+      "database_id": "4e992ff3-b711-42a6-a0f9-20aab1afc701",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "REPORTS",
+      "bucket_name": "xz-mods-support-private"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "*/15 * * * *"
+    ]
+  },
+  "observability": {
+    "enabled": false
+  }
+}
