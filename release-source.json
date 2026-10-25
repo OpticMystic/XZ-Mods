@@ -20,7 +20,7 @@
   },
   "builder_source": {
     "repository": "https://github.com/OpticMystic/XZ-Mods",
-    "commit": "99cdf39a208e154ea6779af0a1cba3e764852eae",
+    "commit": "5b538cb9657a528430ce7a9ce05771158e62bc07",
     "paths": [
       "source/xdj-xz-toolkit/builder"
     ]
