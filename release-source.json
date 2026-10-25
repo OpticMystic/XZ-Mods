@@ -20,7 +20,7 @@
   },
   "builder_source": {
     "repository": "https://github.com/OpticMystic/XZ-Mods",
-    "commit": "7427519b8355c19226f7b553dfbdac788e6e8ab4",
+    "commit": "0a3d6e78739f21381b1bbed3a9766c86b4a8f3ba",
     "paths": [
       "source/xdj-xz-toolkit/builder"
     ]
@@ -55,7 +55,7 @@
     "builder/overcue_roles.py": "3f575176d95b9611af28397e388d92dc672f60ed8fb2b206e12c74ff4ecf2ccc",
     "builder/overcue_windows.c": "9c2b7ce3b10b03c9564d91bcea7084b4b8c220b24f64f224d7762612c038bbcd",
     "builder/overcue_writer.py": "802705721fedbde6b41a680235695cbd3073a15d597ba1e1f2a6825343e53f80",
-    "builder/quad_payload.py": "62c3969e9d35fb8979400b9646f517d9990818c8ac2bd9141766c1e08f256012",
+    "builder/quad_payload.py": "8649647dcb2c8fefeab5826fefa642b35919d228bd3586e3f55073703da5d56d",
     "builder/rekordbox_pdb.py": "1420d9ee5ea09c2ca1cc8c065815a83edf2eb24917ec61b94e123061ff9ce93c",
     "builder/resample_source.py": "ec032939e959583665056c5b546842eb5d35d12e01c3329ed76aae339dcc71a6",
     "builder/runtime_ota.py": "85d3eb3b9b5ea0e2eb30378a513a8dd12510fbfa1e47466cae6d6a899b4c0c76",
