@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "0.5.0-preview.22",
+      "date": "2026-10-25",
+      "title": "Playback data lifetime and report recovery fixes",
+      "fixes": [
+        "Prevent waveform analysis from being freed while CLASSIC or FLAGSHIP still reads it during track changes.",
+        "Refresh cached waveform and beat-grid data when a new track reuses an old allocation address.",
+        "Keep a new software player private until connector startup succeeds.",
+        "Changing the on-device report category or summary clears old approval and requires a matching prepared report.",
+        "Stop stalled reporting helpers after the deadline, including helpers that close their output early. Interrupted uploads remain unconfirmed until checked.",
+        "Reopen, review or explicitly discard saved local reports in the Loader, including recovery from the 32-draft limit.",
+        "Correct the standalone bridge builder receipt filename."
+      ],
+      "requirements": [
+        "Experimental XDJ-XZ 1.26 only. Initial bridge admission requires stopped native decks, loopback in USB1 and music in USB2.",
+        "Controller acceptance of this revision remains pending. Software Jog waveform/artwork, some lamps, automatic half/double BPM, software stems/key shifting and full music-USB removal/RAM carry remain incomplete."
+      ]
+    },
+    {
       "version": "0.5.0-preview.21",
       "date": "2026-10-25",
       "title": "Recoverable four-deck startup and private diagnostics",

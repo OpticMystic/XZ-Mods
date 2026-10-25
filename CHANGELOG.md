@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0-preview.22 - 2026-10-25
+
+- Fixed waveform analysis use-after-free during track changes, stale caches when addresses are reused, and failed connector startup exposing a destroyed player.
+- Fixed native report approval surviving selection changes and helpers bypassing their timeout after closing output.
+- Added saved local report recovery and explicit discard when the draft limit is reached.
+- Corrected the standalone bridge build receipt filename.
+- Host/ARM and sanitizer checks pass; physical controller acceptance remains pending.
+
 ## 0.5.0-preview.21 - 2026-10-25
 
 - Recover automatically when a music USB mounts after bridge startup, while retaining active-device ownership checks.
