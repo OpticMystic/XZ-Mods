@@ -68,6 +68,28 @@ class Reports(unittest.TestCase):
  def test_unexported_ram_and_obsolete_paths_are_not_collected(self):
   usb=self.data/'usb';(usb/'VJ.Tools').mkdir(parents=True);(usb/'VJ.Tools/bridge.log').write_text('reason=READY_CH3_CH4')
   body=json.loads(self.body(self.prepare(volume=str(usb)))['body']);self.assertNotIn('READY_CH3_CH4',json.dumps(body));self.assertNotIn('bridge.log',[i['label'] for i in body['private']['items']])
+ def test_saved_reports_recover_quota_without_losing_reviewed_bytes(self):
+  drafts=[self.prepare(title='Saved report '+str(i),include_private=False) for i in range(32)]
+  self.assertFalse(self.call({'method':'support_prepare','title':'Overflow','include_private':False})['ok'])
+  listing=self.call({'method':'support_list'})['result'];self.assertEqual(len(listing['reports']),32)
+  first=drafts[0];before=self.body(first);entry=next(x for x in listing['reports'] if x['report_id']==first['report_id'])
+  self.assertNotIn(before['key'],json.dumps(listing))
+  self.call({'method':'support_preview',**first,'page':0})
+  marker=self.data/'support-reports'/(first['report_id']+'.review');self.assertTrue(marker.exists())
+  resumed=self.call({'method':'support_resume','report_id':first['report_id'],'sha256':first['sha256']})
+  self.assertTrue(resumed['ok']);self.assertEqual(resumed['result']['sha256'],first['sha256']);self.assertEqual(resumed['result']['fields']['title'],'Saved report 0')
+  self.assertFalse(marker.exists());self.assertEqual(self.body(first),before)
+  stale=self.call({'method':'support_remove','report_id':entry['report_id'],'stored_revision':'0'*64});self.assertFalse(stale['ok']);self.assertEqual(self.body(first),before)
+  removed=self.call({'method':'support_remove','report_id':entry['report_id'],'stored_revision':entry['stored_revision']});self.assertTrue(removed['ok'])
+  self.prepare(title='Recovered after discard',include_private=False)
+ def test_saved_reports_remove_damaged_copy_and_reject_escape(self):
+  d=self.prepare(include_private=False);path=self.data/'support-reports'/(d['report_id']+'.draft');path.write_text('Damaged local JSON')
+  (path.parent/'owner-key.dpapi').write_text('OWNER_CANARY');(path.parent/'not-a-report.draft').write_text('UNKNOWN_CANARY')
+  listing=self.call({'method':'support_list'})['result'];self.assertEqual(len(listing['reports']),1);entry=listing['reports'][0]
+  self.assertFalse(entry['readable']);self.assertNotIn('CANARY',json.dumps(listing))
+  self.assertFalse(self.call({'method':'support_remove','report_id':'../owner-key.dpapi','stored_revision':entry['stored_revision']})['ok'])
+  self.assertTrue(self.call({'method':'support_remove','report_id':entry['report_id'],'stored_revision':entry['stored_revision']})['ok'])
+  self.assertEqual((path.parent/'owner-key.dpapi').read_text(),'OWNER_CANARY');self.assertTrue((path.parent/'not-a-report.draft').exists())
 class NativeSupport(unittest.TestCase):
  @unittest.skipUnless(os.environ.get('XZ_SUPPORT_RUST_TESTS')=='1','Opt in to isolated native module tests')
  def test_native_module(self):

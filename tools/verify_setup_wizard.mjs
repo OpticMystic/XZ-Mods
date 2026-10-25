@@ -58,6 +58,10 @@ function installMock() {
   const inventory = () => ({ format: 'xz-mod-versions/1', versions: builds, selected: { ...fx.selected }, bundled_id: 'v1' });
   const status = request => {
     switch (request.method) {
+      case 'support_list': return {running:false,ok:true,result:{limit:32,reports:fx.savedReportDeleted?[]:[{report_id:'a'.repeat(32),sha256:'b'.repeat(64),stored_revision:'c'.repeat(64),title:'Earlier bridge report',readable:true}]}};
+      case 'support_resume': return {running:false,ok:true,result:{report_id:'a'.repeat(32),sha256:'b'.repeat(64),bytes:24,pages:2,fields:{title:'Earlier bridge report',description:'Reviewed steps',category:'bridge',include_private:true,contact:''}}};
+      case 'support_preview': return {running:false,ok:true,result:{page:request.page,pages:2,sha256:'b'.repeat(64),text:request.page?'LAST REVIEWED PAGE':'FIRST REVIEWED PAGE'}};
+      case 'support_remove': fx.savedReportDeleted=true;return {running:false,ok:true,result:{discarded:true}};
       case 'list_mod_versions': return { running: false, ok: true, result: inventory() };
       case 'select_mod_version': { fx.selected = { id: request.mod_version_id, pinned: request.pinned, revision: fx.selected.revision + 1 }; fx.selections.push(request); return { running: false, ok: true, result: inventory() }; }
       case 'discover_usbs':
@@ -93,6 +97,7 @@ function installMock() {
     fx.calls.push(command);
     if (command === 'app_information') return { version: mode.startsWith('beta') ? '0.3.0-preview.12' : '0.3.0', platform: mode === 'mac' ? 'macos' : 'windows', installed: true, update_channel: mode.startsWith('beta') ? 'beta' : 'stable', release_page: mode.startsWith('beta') ? 'https://beta.xzmods.com/' : 'https://github.com/OpticMystic/XZ-Mods/releases/latest', portable_url: mode.startsWith('beta') ? 'https://github.com/OpticMystic/XZ-Mods/releases/download/v0.3.0-preview.12/XZ-Mods-Builder-preview-win64.zip' : 'https://github.com/OpticMystic/XZ-Mods/releases/latest', release_notes: { releases: [] } };
     if (command === 'check_app_update') { if (mode === 'betaoffline' && !fx.online) throw Error('Beta update service is offline'); return mode.startsWith('beta') ? { phase: 'available', channel: 'beta', latest_version: '0.3.0-preview.13', message: 'A newer XZ Mods beta is ready to install.', notes: { features: ['Beta updates'], fixes: [], changes: [] } } : { phase: 'current', message: 'Up to date' }; }
+    if(command==='support_action'){(fx.supportActions ||= []).push(args);return {private_logs:'stored',public_issue:'pending'};}
     if (command === 'open_link') { (fx.links ||= []).push(args.url); return null; }
     if (command === 'list_volumes') return fx.volumes();
     if (command === 'start_job') { fx.requests.push(args.request); return fx.requests.length; }
@@ -618,6 +623,33 @@ try {
   await shot('12-mac-updates');
   await evaluate(`showPage('tools')`);
   await check(`document.querySelector('.tool-row[data-open=updates] .mac-only').checkVisibility()&&txt('.tool-row[data-open=updates] .mac-only')==='Mac versions download from the release page'&&!document.querySelector('.tool-row[data-open=updates] .win-only').checkVisibility()`, 'Mac: the Tools row says the same in short');
+
+
+  await open('fresh');
+  await evaluate("showPage('licenses')");
+  await click('Report an issue');
+  await click('Saved reports');
+  await waitFor("document.querySelectorAll('#support-saved-choice option').length===1&&!document.getElementById('support-saved-review').disabled",'saved report inventory');
+  await check("document.getElementById('support-saved-choice').textContent.includes('Earlier bridge report')&&document.getElementById('support-saved-remove').disabled",'saved local report is listed, deletion requires explicit choice');
+  await click('Review selected report');
+  await waitFor("txt('#support-preview-text')==='FIRST REVIEWED PAGE'",'resumed first page');
+  await check("document.getElementById('support-title').value==='Earlier bridge report'&&document.getElementById('support-send').disabled&&document.getElementById('support-consent').disabled",'resume restores actual fields and requires every preview page again');
+  await click('Next preview page');
+  await waitFor("!document.getElementById('support-consent').disabled",'last preview page');
+  await evaluate("document.getElementById('support-consent').click()");
+  await click('Send private diagnostics');
+  await waitFor("fx.supportActions?.length===1",'explicit resumed send');
+  await check("fx.supportActions[0].id==='a'.repeat(32)&&fx.supportActions[0].sha256==='b'.repeat(64)&&fx.supportActions[0].consent===true",'resumed upload keeps exact report ID/hash and explicit approval');
+  await waitFor("!document.getElementById('support-fields').disabled",'send complete');
+  await click('Saved reports');
+  await waitFor("!document.getElementById('support-saved-review').disabled",'saved report reload');
+  await evaluate("document.getElementById('support-saved-confirm').click()");
+  await click('Discard selected local copy');
+  await waitFor("document.querySelectorAll('#support-saved-choice option').length===0&&!document.getElementById('support-saved-refresh').disabled",'discarded local report');
+  await check("document.getElementById('support-send').disabled&&fx.requests.filter(r=>r.method==='support_remove').length===1&&fx.supportActions.length===1",'local discard invalidates old Send without another upload');
+  await shot('saved-reports-empty');
+  await click('Back to report');
+  await click('Close');
 
   await cspClean();
   assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));

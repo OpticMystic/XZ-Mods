@@ -51,8 +51,12 @@ static int current_step(const struct xz_ui *u) {
     return (s >= 0 && s < XZ_SUPPORT_STEPS) ? s : XZ_SUPPORT_STEP_PREPARE;
 }
 
+static unsigned report_selection(const struct xz_ui *u) {
+    return 16u | (unsigned)(u->support.category & 3) | (unsigned)((u->support.summary & 3) << 2);
+}
+
 int xz_ui_support_consented(const struct xz_ui *u, const struct xz_ui_model *m) {
-    if (!u || !m || !u->support.consented) return 0;
+    if (!u || !m || !u->support.consented || m->support.prepared_selection != report_selection(u)) return 0;
     if (!m->support.report_id[0] || !m->support.payload_sha256[0]) return 0;
     if (u->support.consented_revision != m->support.draft_revision) return 0;
     return strcmp(u->support.consented_sha256, m->support.payload_sha256) == 0;
@@ -296,10 +300,16 @@ size_t xz_ui_support_action(struct xz_ui *u, const struct xz_ui_model *m, int ki
         return 1;
     }
     if (kind == XZ_UI_SUPPORT_CATEGORY) {
+        if (u->support.category != (index & 3)) {
+            u->support.consented = 0; u->support.consented_sha256[0] = 0;
+        }
         u->support.category = index & 3;
         return 1;
     }
     if (kind == XZ_UI_SUPPORT_SUMMARY) {
+        if (u->support.summary != (index & 3)) {
+            u->support.consented = 0; u->support.consented_sha256[0] = 0;
+        }
         u->support.summary = index & 3;
         return 1;
     }
@@ -312,9 +322,10 @@ size_t xz_ui_support_action(struct xz_ui *u, const struct xz_ui_model *m, int ki
         return 1;
     }
     if (kind == XZ_UI_SUPPORT_CONSENT) {
-        if (!m->support.report_id[0] || !m->support.payload_sha256[0]) {
+        if (!m->support.report_id[0] || !m->support.payload_sha256[0] ||
+            m->support.prepared_selection != report_selection(u)) {
             u->support.consented = 0;
-            snprintf(u->notice, sizeof(u->notice), "PREPARE A SANITIZED DRAFT FIRST BEFORE APPROVING");
+            snprintf(u->notice, sizeof(u->notice), "PREPARE AND REVIEW THE UPDATED SELECTION BEFORE APPROVING");
             return 1;
         }
         if (xz_ui_support_consented(u, m)) {

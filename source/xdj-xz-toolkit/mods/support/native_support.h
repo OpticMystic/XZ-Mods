@@ -23,6 +23,7 @@ struct xz_support_model {
     int usb_writable;
     int clock_ready;
     uint32_t draft_revision;
+    uint32_t prepared_selection; /* bit4 valid; category bits0..1, summary bits2..3 */
     uint32_t payload_bytes;
     uint32_t redactions;
     uint32_t page_index;
