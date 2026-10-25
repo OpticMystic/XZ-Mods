@@ -9,7 +9,8 @@ import zipfile
 
 PIN_PATH = Path(__file__).with_name('quad-profile.sha256')
 PROFILE_SHA256 = PIN_PATH.read_text().strip() if PIN_PATH.is_file() else 'c620ad3027f9a0d55f05e9854e75773a87c30308a1a30ab03c3ad4ad016d5ec6'
-RETAINED_PROFILES = frozenset({'69a2b76e9029f44a5df531826f006fea155918a73e70052355b3e5c5b9943821'})
+RETAINED_PROFILES = frozenset({'69a2b76e9029f44a5df531826f006fea155918a73e70052355b3e5c5b9943821',
+    'd6845d4f5d8e069e93229dc5eed741d83f8113d5d2b2df6e79232d0b373319cb'})
 REQUIRED = {'bootstrap.sh', 'runtime/libxz-mods.so', 'runtime/libxz-receiver.so',
             'runtime/source.zip', 'runtime/quad/xz-auto-bridge',
             'runtime/quad/xz_hub_depth.ko', 'runtime/quad/detach'}
