@@ -73,7 +73,7 @@ static struct {
  int closing;                              /* close timed out: the handle is kept only to retry the close */
  char node[256];
  pthread_t thread;
- int quit, started;
+ int quit, started, published;
 } route = {.lock = PTHREAD_RWLOCK_INITIALIZER};
 
 void xz_extra_decks_publish_sides(int left_on_3, int right_on_4) {
@@ -132,12 +132,12 @@ static void project_master(struct xz_extra_decks *out,uint32_t now){
   else d->known&=~XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER);
  }
 }
-int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
+int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold) {
  SYO_INC(SNAPSHOT);
 #ifdef XZ_JOG_DISPLAY_PROOF
  JDP_INC(xz_mods_jog_proof_v1.snapshot_calls);
 #endif
- if (!out) return 0;
+ if (!out||!hold) return 0;
  memset(out, 0, sizeof *out);
  out->master_actual.deck=XZ_MASTER_UNKNOWN;
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);
@@ -148,7 +148,7 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
 #endif
   out->control_revision=xz_extra_decks_control_revision();return 0;
  }
- xz_xp_read(p, out);
+ if(!xz_xp_read_held(p,out,hold))return 0;
  unsigned c=xz_extra_decks_control_revision();out->control_revision=c;
  out->route_up=!!(c&CONTROL_ROUTE);out->left_on_3=out->route_up&&!!(c&CONTROL_LEFT);
  out->right_on_4=out->route_up&&!!(c&CONTROL_RIGHT);
@@ -167,11 +167,21 @@ int xz_extra_decks_snapshot(struct xz_extra_decks *out) {
  SYO_SOFTWARE(out);
  return out->route_up;
 }
+void xz_extra_decks_release_analysis(struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold){
+ xz_xp_release_analysis(out,hold);
+}
+int xz_extra_decks_snapshot(struct xz_extra_decks *out){
+ struct xz_extra_analysis_hold hold={0};
+ int result=xz_extra_decks_snapshot_held(out,&hold);
+ /* poll's synchronous anchor computation consumes the pinned grid above.
+    Public ordinary snapshots carry scalar values/descriptors only. */
+ xz_extra_decks_release_analysis(out,&hold);return result;
+}
 
 enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int deck,
  const struct xz_extra_wave_key *expected,uint32_t first,struct xz_extra_wave_chunk *out) {
- /* Only the connector calls this. start publishes players before creating it;
-    stop joins it before stopping players. Startup failure has no connector. */
+ /* Only the connector calls this, after successful startup publication.
+    stop joins it before stopping players. Startup failure has no published p. */
  struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
  return p?xz_xp_copy_wave(p,deck,expected,first,out):XZ_EXTRA_WAVE_COPY_ABSENT;
 }
@@ -299,6 +309,10 @@ static void rest(unsigned ms) {
 static void *connector(void *unused) {
  (void)unused;
  xz_extra_thread_place("connector");
+ /* Creation can fail. Keep the new player private until it succeeds, and let
+    this worker enter only after the public pointer and availability agree. */
+ while(!__atomic_load_n(&route.published,__ATOMIC_ACQUIRE)&&!__atomic_load_n(&route.quit,__ATOMIC_ACQUIRE))rest(1);
+ if(__atomic_load_n(&route.quit,__ATOMIC_ACQUIRE))return NULL;
  uint32_t epoch = 0;
  xz_usb_result refused = XZ_USB_OK;
  while (!__atomic_load_n(&route.quit, __ATOMIC_ACQUIRE)) {
@@ -370,16 +384,17 @@ int xz_extra_decks_start(void) {
  if(xz_xp_set_master_observer&&xz_sync_link_runtime_master_observe)
   xz_xp_set_master_observer(p,xz_sync_link_runtime_master_observe);
  if (xz_xp_start(p)) { xz_cues_worker_stop();xz_xp_destroy(p); return -1; }
- __atomic_store_n(&players, p, __ATOMIC_RELEASE);
  __atomic_store_n(&route.quit, 0, __ATOMIC_RELEASE);
+ __atomic_store_n(&route.published, 0, __ATOMIC_RELEASE);
  if (pthread_create(&route.thread, NULL, connector, NULL)) {
-  __atomic_store_n(&players, NULL, __ATOMIC_RELEASE);
   xz_cues_worker_stop();
   xz_xp_destroy(p);
   return -1;
  }
+ __atomic_store_n(&players, p, __ATOMIC_RELEASE);
  route.started = 1;
  control_update(CONTROL_AVAILABLE,CONTROL_AVAILABLE);
+ __atomic_store_n(&route.published, 1, __ATOMIC_RELEASE);
  return 0;
 }
 

@@ -75,8 +75,9 @@ struct reader {
  int cached;
  float pcm[(CACHE + 1) * 2];
 };
-/* Immutable once published; a consumer may hold these pointers until XZ_XP_RETIRE_MS after the next load. */
-struct analysis { struct xz_extra_column *columns; uint32_t count, span_ms, normalization; struct xz_extra_beat *grid; uint32_t grid_count; };
+/* Immutable once published. Readers pin through a held snapshot; time alone is
+   not a lifetime guarantee. Collection stays on the player/lifecycle owner. */
+struct analysis { struct xz_extra_column *columns; uint32_t count, span_ms, normalization; struct xz_extra_beat *grid; uint32_t grid_count; atomic_uint readers; };
 struct hot { int set; uint64_t at; uint32_t rgb; uint64_t end; int loop; }; /* loop: at..end */
 struct memory_point { uint64_t at, end; int loop; uint32_t rgb; int32_t saved_ms,saved_end_ms; };
 /* Accepted output provenance. Worker-owned, bounded, no render-time allocation. */
@@ -295,6 +296,7 @@ struct xz_xp_players {
  struct deck deck[XZ_EXTRA_DECKS];
  pthread_mutex_t publish_lock;
  struct xz_extra_deck view[XZ_EXTRA_DECKS];
+ struct analysis *view_analysis[XZ_EXTRA_DECKS]; /* exact view owner, publish_lock */
  struct xz_extra_deck_event duplicate_source[XZ_EXTRA_DECKS]; /* guarded by publish_lock */
  char notice[64]; uint32_t notice_at, notice_seq;
  pthread_t thread[XZ_EXTRA_DECKS];
@@ -918,6 +920,8 @@ static void prepare_flush(struct xz_xp_players *p,struct deck *d,uint32_t now,ui
 }
 
 static void retire(struct deck *d, uint32_t now) {
+ /* LOAD must unpublish this analysis under publish_lock before retiring it.
+    Existing held readers retain it; no new reader can acquire it afterward. */
  if (d->analysis) {
   d->retired[d->retired_count].a = d->analysis; d->retired[d->retired_count].at = now; d->retired_count++;
  }
@@ -927,7 +931,8 @@ static void free_analysis(struct analysis *a) { if (a) { free(a->columns); free(
 static void collect(struct deck *d, uint32_t now) {
  unsigned kept = 0;
  for (unsigned i = 0; i < d->retired_count; ++i) {
-  if (now - d->retired[i].at >= XZ_XP_RETIRE_MS) free_analysis(d->retired[i].a);
+  if (now - d->retired[i].at >= XZ_XP_RETIRE_MS &&
+      !atomic_load_explicit(&d->retired[i].a->readers,memory_order_acquire)) free_analysis(d->retired[i].a);
   else d->retired[kept++] = d->retired[i];
  }
  d->retired_count = kept;
@@ -1127,6 +1132,7 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
     v.timeline.source_frame==before->timeline.source_frame&&v.timeline.revision==before->timeline.revision){
   v.elapsed_at_ms=before->elapsed_at_ms;v.timeline.at_ms=before->timeline.at_ms;
  }
+ p->view_analysis[d->index]=loaded(s)?d->analysis:NULL;
  if(memcmp(before,&v,sizeof v)){
   p->view[d->index]=v;atomic_fetch_add_explicit(&p->revision,1,memory_order_release);
  }
@@ -1136,6 +1142,7 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
 
 static struct analysis *load_analysis(const char *dir, struct xz_anlz_extra *extra) {
  struct analysis *a = calloc(1, sizeof *a);
+ if(a)atomic_init(&a->readers,0);
  memset(extra, 0, sizeof *extra);
  if (!a || !dir[0]) return a;
  struct xz_wave_load w;
@@ -3037,12 +3044,20 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
  return taken;
 }
 
-void xz_xp_read(struct xz_xp_players *p, struct xz_extra_decks *out) {
- if (!p || !out) return;
+static int read_view(struct xz_xp_players *p,struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold) {
+ if (!p || !out) return 0;
+ if(hold)for(unsigned i=0;i<XZ_EXTRA_DECKS;i++)if(hold->analysis[i])return 0;
  struct xz_master_observation actual={.deck=XZ_MASTER_UNKNOWN};
  if(p->master_observer)copy_master(p,&actual);
  pthread_mutex_lock(&p->publish_lock);
  memcpy(out->deck, p->view, sizeof out->deck);
+ for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
+  struct analysis *a=p->view_analysis[i];
+  if(hold&&a&&(out->deck[i].wave.columns||out->deck[i].grid)&&
+     atomic_load_explicit(&a->readers,memory_order_relaxed)<UINT32_MAX){
+   atomic_fetch_add_explicit(&a->readers,1,memory_order_relaxed);hold->analysis[i]=a;
+  }else{out->deck[i].wave.columns=NULL;out->deck[i].grid=NULL;}
+ }
  memcpy(out->notice, p->notice, sizeof out->notice);
  out->notice_at_ms = p->notice_at; out->notice_seq = p->notice_seq;
  out->snapshot_revision=atomic_load_explicit(&p->revision,memory_order_acquire);
@@ -3059,6 +3074,19 @@ void xz_xp_read(struct xz_xp_players *p, struct xz_extra_decks *out) {
    v->sync.master_scope=actual.deck<0?0:actual.deck<2?XZ_EXTRA_MASTER_SCOPE_NATIVE:XZ_EXTRA_MASTER_SCOPE_NATIVE|XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
    if(actual.deck<0)v->sync.reason=actual.deck==XZ_MASTER_EXTERNAL?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;
   }
+ }
+ return 1;
+}
+void xz_xp_read(struct xz_xp_players *p,struct xz_extra_decks *out){(void)read_view(p,out,NULL);}
+int xz_xp_read_held(struct xz_xp_players *p,struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold){
+ return hold?read_view(p,out,hold):0;
+}
+void xz_xp_release_analysis(struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold){
+ if(!hold)return;
+ for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
+  struct analysis *a=hold->analysis[i];hold->analysis[i]=NULL;
+  if(out){out->deck[i].wave.columns=NULL;out->deck[i].grid=NULL;}
+  if(a)atomic_fetch_sub_explicit(&a->readers,1,memory_order_release);
  }
 }
 
@@ -3190,8 +3218,14 @@ void xz_xp_destroy(struct xz_xp_players *p) {
   xz_extra_order_release(d->order);
   for(unsigned q=0;q<d->count;q++){struct xz_extra_deck_event *e=&d->queue[(d->head+q)%QUEUE_SLOTS].event;if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(e->load.order);}
   xz_stem_media_close(d->r->media);
+  /* Teardown is off callback threads and cannot invalidate an outstanding hold.
+     The owner has stopped new reads before destruction; release needs no p. */
+  while(d->analysis&&atomic_load_explicit(&d->analysis->readers,memory_order_acquire))pause_ms(1);
   free_analysis(d->analysis);
-  for (unsigned k = 0; k < d->retired_count; ++k) free_analysis(d->retired[k].a);
+  for (unsigned k = 0; k < d->retired_count; ++k){
+   while(atomic_load_explicit(&d->retired[k].a->readers,memory_order_acquire))pause_ms(1);
+   free_analysis(d->retired[k].a);
+  }
   pthread_mutex_destroy(&d->queue_lock);
   free(d->r);
  }
