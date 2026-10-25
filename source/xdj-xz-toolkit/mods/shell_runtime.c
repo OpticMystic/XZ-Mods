@@ -2265,7 +2265,10 @@ static void deliver_key_locked(int key, int deck, uint32_t now) {
    converted once per load into these buffers: binned and scaled like the native waves, so both lanes read
    the same. */
 static struct xz_extra_decks extra;
-static struct { const struct xz_extra_column *columns; uint32_t count, span; const struct xz_extra_beat *grid; uint32_t grid_count; } extra_seen[XZ_EXTRA_DECKS];
+static struct {
+ uint64_t media; uint32_t content,route,load,count,span,normalization,grid_count;
+ int source,wave_valid,grid_valid;
+} extra_seen[XZ_EXTRA_DECKS];
 static struct xz_shell_column extra_scroll[XZ_EXTRA_DECKS][WAVE_SCROLL_CAP], extra_overview[XZ_EXTRA_DECKS][WAVE_OVERVIEW];
 static struct xz_shell_beat extra_grid[XZ_EXTRA_DECKS][GRID_CAP];
 static struct xz_shrt_extra_parts extra_parts[XZ_EXTRA_DECKS];
@@ -2275,29 +2278,36 @@ static void extra_reset(void) {
 }
 static void extra_parts_of(int i, const struct xz_extra_deck *d) {
  struct xz_shrt_extra_parts *p=&extra_parts[i];
+ int changed=!d->jog_content_epoch||extra_seen[i].content!=d->jog_content_epoch||
+  extra_seen[i].media!=d->timeline.media_generation||extra_seen[i].route!=d->timeline.route_epoch||
+  extra_seen[i].load!=d->timeline.load_revision||extra_seen[i].source!=d->source;
  int wave=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE))&&d->wave.columns&&d->wave.count&&d->wave.span_ms;
- if(!wave){p->scroll=p->overview=NULL;p->scroll_n=p->overview_n=p->span_ms=0;extra_seen[i].columns=NULL;}
- else if(d->wave.columns!=extra_seen[i].columns||d->wave.count!=extra_seen[i].count||d->wave.span_ms!=extra_seen[i].span){
+ if(!wave){p->scroll=p->overview=NULL;p->scroll_n=p->overview_n=p->span_ms=0;extra_seen[i].wave_valid=0;}
+ else if(changed||!extra_seen[i].wave_valid||d->wave.count!=extra_seen[i].count||d->wave.span_ms!=extra_seen[i].span||d->wave.normalization!=extra_seen[i].normalization){
   const uint8_t *bands=(const uint8_t *)d->wave.columns;
   uint32_t peak=xz_shrt_band_peak(bands,d->wave.count);
   p->scroll_n=xz_shrt_bin_columns(bands,d->wave.count,peak,extra_scroll[i],WAVE_SCROLL_CAP);
   p->overview_n=xz_shrt_bin_columns(bands,d->wave.count,peak,extra_overview[i],WAVE_OVERVIEW);
   p->scroll=extra_scroll[i];p->overview=extra_overview[i];p->span_ms=d->wave.span_ms;
-  extra_seen[i].columns=d->wave.columns;extra_seen[i].count=d->wave.count;extra_seen[i].span=d->wave.span_ms;
+  extra_seen[i].wave_valid=1;extra_seen[i].count=d->wave.count;extra_seen[i].span=d->wave.span_ms;extra_seen[i].normalization=d->wave.normalization;
  }
  /* A grid longer than the buffer is left out whole, as the native grid is. */
  int grid=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_GRID))&&d->grid&&d->grid_count&&d->grid_count<=GRID_CAP;
- if(!grid){p->grid=NULL;p->grid_n=0;extra_seen[i].grid=NULL;}
- else if(d->grid!=extra_seen[i].grid||d->grid_count!=extra_seen[i].grid_count){
+ if(!grid){p->grid=NULL;p->grid_n=0;extra_seen[i].grid_valid=0;}
+ else if(changed||!extra_seen[i].grid_valid||d->grid_count!=extra_seen[i].grid_count){
   for(uint32_t k=0;k<d->grid_count;k++)extra_grid[i][k]=(struct xz_shell_beat){d->grid[k].ms,d->grid[k].beat_in_bar};
   p->grid=extra_grid[i];p->grid_n=d->grid_count;
-  extra_seen[i].grid=d->grid;extra_seen[i].grid_count=d->grid_count;
+  extra_seen[i].grid_valid=1;extra_seen[i].grid_count=d->grid_count;
  }
+ extra_seen[i].content=d->jog_content_epoch;extra_seen[i].media=d->timeline.media_generation;
+ extra_seen[i].route=d->timeline.route_epoch;extra_seen[i].load=d->timeline.load_revision;extra_seen[i].source=d->source;
 }
 static void extra_refresh_locked(uint32_t now) {
  model.wave_order=xz_native_four_mixer_order();model.layout_preference=xz_deck_layout_get()+1;
- if(xz_extra_decks_snapshot(&extra))for(int i=0;i<XZ_EXTRA_DECKS;i++)extra_parts_of(i,&extra.deck[i]);
+ struct xz_extra_analysis_hold hold={0};
+ if(xz_extra_decks_snapshot_held(&extra,&hold))for(int i=0;i<XZ_EXTRA_DECKS;i++)extra_parts_of(i,&extra.deck[i]);
  else{memset(extra_seen,0,sizeof extra_seen);memset(extra_parts,0,sizeof extra_parts);}
+ xz_extra_decks_release_analysis(&extra,&hold);
  /* Pair the two clocks after the snapshot copy. `now` is the start of a refresh,
     possibly before native/model reads or a wait for the publisher. */
  uint32_t wall=now_ms(),mono=(uint32_t)(mono_us()/1000u);

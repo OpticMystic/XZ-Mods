@@ -83,8 +83,12 @@ void xz_xp_step(struct xz_xp_players *, int deck);
    while the route survives, including under a full ordinary queue. Queued work captures the
    route epoch and arrival time privately; a new route discards stale work and resets holds. */
 int xz_xp_input(struct xz_xp_players *, const struct xz_extra_deck_event *);
-/* Fills deck[] and the notice of *out; route and sides are the caller's. */
+/* Fills scalar deck state/descriptors and notice; no wave/grid pointers.
+   The player object must outlive the call. Route and sides are the caller's. */
 void xz_xp_read(struct xz_xp_players *, struct xz_extra_decks *out);
+#define XZ_XP_HAS_ANALYSIS_HOLD 1
+int xz_xp_read_held(struct xz_xp_players *,struct xz_extra_decks *,struct xz_extra_analysis_hold *);
+void xz_xp_release_analysis(struct xz_extra_decks *,struct xz_extra_analysis_hold *);
 /* One publication trylock; copy at most 512 current-view columns (1536 bytes).
    deck is 0/1. NULL expected begins a read; further chunks require the exact key.
    first==column_count checks the final identity and returns count=0.
