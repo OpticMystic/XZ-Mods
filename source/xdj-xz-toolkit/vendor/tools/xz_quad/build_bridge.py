@@ -75,7 +75,7 @@ def main():
     receipt = {"pins": pins, "kernel_crcs": crcs, "binary_sha256": sha(binary),
                "binary_bytes": binary.stat().st_size, "glibc_versions": sorted(versions),
                "arm_self_test_passed": True, "hardware_contacted": False,
-               "sources": {name: sha(source / name) for name in ("build.py", "bridge.c")}}
+               "sources": {name: sha(source / name) for name in ("build_bridge.py", "bridge.c")}}
     (args.output / "build.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(json.dumps(receipt, indent=2))
 
