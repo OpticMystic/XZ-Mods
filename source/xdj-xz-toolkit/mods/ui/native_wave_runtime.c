@@ -33,6 +33,8 @@ static int route_up, four_drawn, notice_up;
 static _Thread_local int four_frame_order,four_frame_layout;
 static uint32_t monotonic_ms(void);
 static _Thread_local struct xz_extra_decks extra;
+static _Thread_local struct xz_extra_analysis_hold extra_hold;
+static _Thread_local uintptr_t extra_hold_window;
 static _Thread_local struct xz_extra_lane_marks extra_marks[XZ_EXTRA_DECKS];
 static _Thread_local uint8_t four_keep[XZ_FOUR_KEEP_BYTES];
 struct xz_inline_proof { uint32_t version,captures,frames,skipped; };
@@ -92,13 +94,16 @@ static int lock_hook(void *window,void **pixels,int *pitch){
             footer.gr=(uintptr_t)window;footer.hw=values[7];footer.thread=(uintptr_t)pthread_self();footer.pixels=*pixels;footer.pitch=*pitch;footer.deck=(int32_t)values[12]>=400;
         }else __atomic_fetch_add(&xz_native_wave_skin_v1[3],1,__ATOMIC_RELAXED);
     }
+    int captured_extra=0;
     if(result==0&&caller==0x1fd058){
-        __atomic_store_n(&route_up,xz_extra_decks_snapshot(&extra)!=0,__ATOMIC_RELEASE);
+        xz_extra_decks_release_analysis(&extra,&extra_hold);extra_hold_window=0;
+        __atomic_store_n(&route_up,xz_extra_decks_snapshot_held(&extra,&extra_hold)!=0,__ATOMIC_RELEASE);
         __atomic_store_n(&notice_up,xz_extra_notice_active(&extra,monotonic_ms()),__ATOMIC_RELEASE);
     }
     struct xz_native_wave_scene current;
     if(result==0&&caller==0x1fd058&&scene(&current)&&current.gr==(uintptr_t)window&&pixels&&pitch&&
        xz_native_wave_capture(&pair,&current,caller,(uintptr_t)pthread_self(),*pixels,*pitch)){
+        captured_extra=1;extra_hold_window=current.hw;
         __atomic_fetch_add(&xz_inline_proof_v1.captures,1,__ATOMIC_RELAXED);
         four_frame_layout=xz_deck_layout_get();
         four_frame_order=four_frame_layout==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED;
@@ -106,6 +111,7 @@ static int lock_hook(void *window,void **pixels,int *pitch){
         if(!__atomic_exchange_n(&observed,1,__ATOMIC_ACQ_REL))
             xz_log("INLINE_WAVE_PROOF: native play scene=2 window=536x268 at=131,18 pitch=1072 caller=1fd058");
     }
+    if(result==0&&caller==0x1fd058&&!captured_extra)xz_extra_decks_release_analysis(&extra,&extra_hold);
     return result;
 }
 static void style_main_wave(uint16_t *pixels,uint32_t count){
@@ -179,6 +185,10 @@ static int unlock_hook(void *window){
         __atomic_store_n(&transformed,drawn&&inline_rows,__ATOMIC_RELEASE);
         if(drawn)__atomic_fetch_add(&xz_inline_proof_v1.frames,1,__ATOMIC_RELAXED);
         else __atomic_fetch_add(&xz_inline_proof_v1.skipped,1,__ATOMIC_RELAXED);
+    }
+    if(extra_hold_window==(uintptr_t)window){
+        xz_extra_decks_release_analysis(&extra,&extra_hold);extra_hold_window=0;
+        for(unsigned i=0;i<XZ_EXTRA_DECKS;i++)extra_marks[i].look.bands=NULL;
     }
     return stock_unlock(window);
 }

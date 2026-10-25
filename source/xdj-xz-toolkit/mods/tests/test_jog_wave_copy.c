@@ -30,6 +30,7 @@ static void *observed_memcpy(void *dst,const void *src,size_t n){
 }
 static void seed(struct xz_xp_players *p,int index,unsigned count){
  struct analysis *a=calloc(1,sizeof *a);assert(a);
+ atomic_init(&a->readers,0);
  a->columns=calloc(count,sizeof *a->columns);assert(a->columns);a->count=count;
  for(unsigned i=0;i<count;i++)a->columns[i]=(struct xz_extra_column){i,i>>8,i^0x55};
  p->deck[index].analysis=a;
@@ -55,7 +56,9 @@ int main(int argc,char **argv){
  assert(!pthread_mutex_init(&fixture->publish_lock,NULL));atomic_init(&fixture->revision,0);
  seed(fixture,0,1025);seed(fixture,1,1);
  if(argc>1){
-  struct xz_extra_decks stale={0};xz_xp_read(fixture,&stale);
+  /* Deliberate legacy borrow bypasses the now pointer-free public reader. */
+  struct xz_extra_decks stale={0};pthread_mutex_lock(&fixture->publish_lock);
+  memcpy(stale.deck,fixture->view,sizeof stale.deck);pthread_mutex_unlock(&fixture->publish_lock);
   replace_and_collect(NULL);
   /* Sanitizer witness for the old shallow-borrow design; expected failure. */
   volatile unsigned low=stale.deck[0].wave.columns[0].low;

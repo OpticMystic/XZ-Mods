@@ -18,6 +18,10 @@ static int copied,order;
 static unsigned checks,failures;
 #define CHECK(x) do{checks++;if(!(x)){failures++;fprintf(stderr,"FAIL %d: %s\n",__LINE__,#x);}}while(0)
 void xz_xp_read(struct xz_xp_players *p,struct xz_extra_decks *out){(void)p;order=order*10+1;*out=supplied;}
+int xz_xp_read_held(struct xz_xp_players *p,struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold){(void)hold;xz_xp_read(p,out);return 1;}
+void xz_xp_release_analysis(struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold){
+ (void)hold;for(unsigned i=0;i<2;i++){out->deck[i].wave.columns=NULL;out->deck[i].grid=NULL;}
+}
 void xz_sync_link_runtime_poll(const struct xz_extra_decks *s){(void)s;order=order*10+2;}
 int xz_sync_link_runtime_master_observe(struct xz_master_observation *out){order=order*10+3;*out=actual;return copied;}
 void xz_jog_display_runtime_publish(const struct xz_extra_decks *s,uint32_t now){(void)now;order=order*10+4;published=*s;}

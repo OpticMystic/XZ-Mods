@@ -6,8 +6,8 @@
    draws it into the native waveform surface. The players publish it; the interfaces only read it.
 
    Every readout carries a known bit, as in the shell model: a clear bit draws the blank convention,
-   never a guess. Text is copied into the snapshot; wave, grid and cue arrays are runtime-owned and
-   stay valid until the next snapshot of the same deck. */
+   never a guess. Text and cues are copied. Ordinary snapshots contain wave/grid descriptors but
+   no array pointers. A held snapshot pins immutable analysis until its matching release. */
 #include <stdint.h>
 #include "sync_master.h"
 
@@ -34,6 +34,10 @@ struct xz_extra_column { uint8_t low, mid, high; };
    low+mid+high sum drawn at full height, ui/layered_wave_source.c xz_wave_normalization() (the 99.5th
    percentile), computed once by the player so the draw thread never ranks a whole track; 0 = 765. */
 struct xz_extra_wave { const struct xz_extra_column *columns; uint32_t count; uint32_t span_ms; uint32_t normalization; };
+/* Caller-owned, zero-initialized, non-copyable hold. Release before reuse.
+   Release clears the snapshot's pointers and only decrements atomic reader counts;
+   the player worker performs collection, never the drawing/serializer callback. */
+struct xz_extra_analysis_hold { void *analysis[XZ_EXTRA_DECKS]; };
 #define XZ_EXTRA_WAVE_CHUNK_COLUMNS 512u
 struct xz_extra_wave_key {
  uint64_t media_generation;
@@ -160,6 +164,8 @@ struct xz_extra_decks {
    and every interface keeps its two-deck screen. Never blocks the caller on IO. left_on_3 and
    right_on_4 are only ever set while route_up is. */
 int xz_extra_decks_snapshot(struct xz_extra_decks *out);
+int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_analysis_hold *);
+void xz_extra_decks_release_analysis(struct xz_extra_decks *,struct xz_extra_analysis_hold *);
 /* Connector service only. Its owner joins the connector before stopping the players.
    deck is 0/1. Copies values, never lends analysis pointers. See xz_xp_copy_wave. */
 enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int deck,
