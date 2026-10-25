@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64
 #include "native_support.h"
+#include "../clock_compat.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -27,6 +28,21 @@ static struct xz_support_model state = {
 };
 static char cached_draft[262144];
 static size_t cached_draft_len = 0;
+static pid_t pending_helper;
+#ifndef XZ_SUPPORT_WORKER_TIMEOUT_MS
+#define XZ_SUPPORT_WORKER_TIMEOUT_MS 45000u
+#endif
+static uint64_t worker_millis(void) {
+    struct timespec t;
+    if (xz_clock_gettime_compat(CLOCK_MONOTONIC, &t)) return 0;
+    return (uint64_t)t.tv_sec * 1000u + (uint32_t)t.tv_nsec / 1000000u;
+}
+static void reap_helper_locked(void) {
+    if (!pending_helper) return;
+    int status;
+    pid_t got = waitpid(pending_helper, &status, WNOHANG);
+    if (got == pending_helper || (got < 0 && errno == ECHILD)) pending_helper = 0;
+}
 
 static const char *category_slug(int idx) {
     static const char *const slugs[4] = {"bridge", "other", "audio", "display"};
@@ -211,6 +227,7 @@ static void reload_draft_locked(int bump_revision) {
 void xz_support_read(struct xz_support_model *out, int requested_page) {
     if (!out) return;
     pthread_mutex_lock(&mutex);
+    reap_helper_locked();
     state.ready = helper_ready();
     state.usb_writable = usb_ready();
     state.clock_ready = check_clock_ready();
@@ -288,7 +305,7 @@ static void *worker_run(void *arg) {
         env[out_env] = "LD_PRELOAD=";
     }
 
-    int pipefd[2] = {-1, -1}, spawn_rc = -1, wstatus = 0;
+    int pipefd[2] = {-1, -1}, spawn_rc = -1, wstatus = 0, timed_out = 0, child_done = 0;
     char text[4096] = {0};
     pid_t pid = 0;
     if (env && pipe(pipefd) == 0) {
@@ -305,38 +322,57 @@ static void *worker_run(void *arg) {
         if (spawn_rc == 0) {
             size_t used = 0;
             char buf[512];
-            ssize_t n;
-            unsigned polls=0;
+            int output_open = 1;
+            uint64_t begun = worker_millis();
             for (;;) {
-                if (++polls > 180) { kill(pid, SIGKILL); break; }
+                if (!child_done) {
+                    pid_t got = waitpid(pid, &wstatus, WNOHANG);
+                    if (got == pid) child_done = 1;
+                    else if (got < 0 && errno != EINTR) { child_done = 1; wstatus = -1; }
+                }
+                if (child_done && !output_open) break;
+                uint64_t now = worker_millis();
+                if (!begun || !now || now < begun || now-begun >= XZ_SUPPORT_WORKER_TIMEOUT_MS) {
+                    timed_out = 1;
+                    if (!child_done) {
+                        kill(pid, SIGKILL);
+                        pid_t got = waitpid(pid, &wstatus, WNOHANG);
+                        if (got == pid || (got < 0 && errno == ECHILD)) child_done = 1;
+                    }
+                    break;
+                }
+                unsigned remaining = XZ_SUPPORT_WORKER_TIMEOUT_MS-(unsigned)(now-begun);
+                int delay = remaining < 50 ? (int)remaining : 50;
                 struct pollfd ready = { .fd=pipefd[0], .events=POLLIN };
-                int polled=poll(&ready,1,250);
+                int polled=poll(output_open ? &ready : NULL, output_open ? 1 : 0, delay);
                 if(polled<0 && errno==EINTR)continue;
-                if(polled<0) { kill(pid,SIGKILL); break; }
-                if(!polled)continue;
-                n=read(pipefd[0],buf,sizeof(buf));
+                if(polled<0) { output_open=0;continue; }
+                if(!polled || !output_open)continue;
+                ssize_t n=read(pipefd[0],buf,sizeof(buf));
                 if(n<0 && errno==EINTR)continue;
-                if(n<=0)break;
+                if(n<=0){output_open=0;continue;}
                 size_t keep = (size_t)n;
                 if (keep > sizeof(text) - 1 - used) keep = sizeof(text) - 1 - used;
                 memcpy(text + used, buf, keep);
                 used += keep;
             }
-            while (waitpid(pid, &wstatus, 0) < 0 && errno == EINTR) {}
         }
     }
     if (pipefd[0] >= 0) close(pipefd[0]);
     if (pipefd[1] >= 0) close(pipefd[1]);
     free(env);
 
-    int exit_code = (spawn_rc == 0 && WIFEXITED(wstatus)) ? WEXITSTATUS(wstatus) : -1;
+    int exit_code = (spawn_rc == 0 && child_done && wstatus != -1 && !timed_out && WIFEXITED(wstatus)) ? WEXITSTATUS(wstatus) : -1;
+    if(timed_out && (req.op==XZ_SUPPORT_OP_SEND || req.op==XZ_SUPPORT_OP_CHECK)) exit_code=4;
     char *msg = text;
     if (strncmp(msg, "XZ_SUPPORT_ERROR ", 17) == 0) msg += 17;
     msg[strcspn(msg, "\r\n")] = 0;
 
     pthread_mutex_lock(&mutex);
+    if(spawn_rc == 0 && !child_done) pending_helper=pid;
     if (req.op == XZ_SUPPORT_OP_PREPARE && exit_code == 0) {
         reload_draft_locked(1);
+        state.prepared_selection = cached_draft_len ? 16u | (unsigned)(req.category & 3) | (unsigned)((req.summary & 3) << 2) : 0;
         state.phase = cached_draft_len ? XZ_SUPPORT_PREPARED : XZ_SUPPORT_ERROR;
         snprintf(state.status, sizeof(state.status), "DRAFT READY (%u BYTES, %u REDACTIONS) / REVIEW SHA256",
                  state.payload_bytes, state.redactions);
@@ -374,7 +410,8 @@ static void *worker_run(void *arg) {
 int xz_support_request(const struct xz_support_request_args *req) {
     if (!req) return -1;
     pthread_mutex_lock(&mutex);
-    if (state.phase == XZ_SUPPORT_WORKING) {
+    reap_helper_locked();
+    if (state.phase == XZ_SUPPORT_WORKING || pending_helper) {
         pthread_mutex_unlock(&mutex);
         return -1;
     }

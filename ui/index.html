@@ -143,6 +143,7 @@
 
 <dialog id="support-wizard" class="repair-dialog" aria-labelledby="support-heading">
 <h2 id="support-heading">Report an issue</h2>
+<button id="support-saved-open" class="secondary" type="button">Saved reports</button>
 <p>1. Describe the problem. 2. Review the resulting JSON. 3. Choose Send or Export.</p>
 <p>Private diagnostics go to the maintainer for 14 days. The GitHub issue is a separate public draft that you submit on GitHub.</p>
 <fieldset id="support-fields"><label>Public title<input id="support-title" maxlength="160"></label>
@@ -159,6 +160,7 @@
 <label>Optional submitted issue link<input id="support-issue-url" placeholder="https://github.com/OpticMystic/XZ-Mods/issues/123"></label><button id="support-link" class="secondary" disabled>Verify issue link</button>
 <p id="support-status" role="status">Nothing collected or sent.</p><button id="support-connection" class="secondary">Set up reporting connection</button><button id="support-close" class="secondary">Close</button>
 </dialog>
+<dialog id="support-saved" class="repair-dialog" aria-labelledby="support-saved-heading"><h2 id="support-saved-heading">Saved reports</h2><p>Reopen a local report to review it, check its receipt or export it. Up to 32 reports are kept on this computer.</p><label>Local report<select id="support-saved-choice" size="6" aria-label="Saved local reports"></select></label><p id="support-saved-status" role="status"></p><div class="actions"><button id="support-saved-review" class="primary" disabled>Review selected report</button><button id="support-saved-refresh" class="secondary">Refresh</button></div><label class="check"><input id="support-saved-confirm" type="checkbox">Discard the selected local copy. Uploaded logs and public issues remain unchanged.</label><button id="support-saved-remove" class="secondary" disabled>Discard selected local copy</button><button id="support-saved-close" class="secondary">Back to report</button></dialog>
 <dialog id="support-network" class="repair-dialog" aria-labelledby="support-network-heading"><h2 id="support-network-heading">Set up reporting connection</h2><p>1. Connect this computer to the internet and check its date and time.</p><p>2. Choose Check receipt for an earlier send, or explicitly retry Send with the same reviewed draft. A cancelled request may already be stored.</p><p>3. If the service is unavailable, Export reviewed private JSON works offline. Decline diagnostics for a public issue only.</p><button id="support-network-done" class="primary">Return to reviewed report</button></dialog>
 <dialog id="support-inbox" class="repair-dialog" aria-labelledby="support-inbox-heading"><h2 id="support-inbox-heading">Private maintainer inbox</h2><p>Owner access is separate from report receipts. Connect a report-only owner key provisioned by the maintainer; it is stored with Windows user protection.</p>
 <form id="support-connect-form"><label>Report-only owner key<input id="support-owner-key" type="password" autocomplete="off"></label><button class="primary" type="submit">Connect and verify</button></form>

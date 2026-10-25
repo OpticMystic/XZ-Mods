@@ -1610,7 +1610,7 @@ $('mod-version-wizard').addEventListener('close',()=>{
 loadModVersions();
 // Reporting is always user initiated. Preparation, receipt lookup and upload are separate actions.
 (()=>{
- let revision=0,draft=null,baseDraft=null,page=0,seen=new Set(),working=false,volume=null,inboxPage=0,inboxPages=0;
+ let revision=0,draft=null,baseDraft=null,page=0,seen=new Set(),working=false,volume=null,inboxPage=0,inboxPages=0,saved=[];
  const el=id=>$('support-'+id),status=s=>el('status').textContent=s;
  function controls(){const reviewed=!!draft&&seen.size===draft.pages;
   el('consent').disabled=working||!reviewed;el('send').disabled=working||!reviewed||!el('consent').checked||!el('private').checked;
@@ -1621,6 +1621,40 @@ loadModVersions();
  function invalidate(){revision++;if(draft)baseDraft=draft;draft=null;seen.clear();el('consent').checked=false;el('preview-text').textContent='';el('hash').textContent='Draft changed. Prepare and review the resulting JSON.';controls();}
  el('fields').addEventListener('input',invalidate);el('fields').addEventListener('change',event=>{invalidate();if(event.target===el('private'))baseDraft=null;});el('consent').onchange=controls;
  el('open').onclick=()=>el('wizard').showModal();el('close').onclick=()=>el('wizard').close();
+ function selectedSaved(){return saved.find(item=>item.report_id===el('saved-choice').value);}
+ function savedControls(){const selected=selectedSaved();el('saved-review').disabled=working||!selected?.readable;el('saved-remove').disabled=working||!selected||!el('saved-confirm').checked;el('saved-refresh').disabled=working;el('saved-choice').disabled=working;}
+ async function listSaved(){
+  const result=await run({method:'support_list'},'Reading saved reports',el('saved-refresh'),()=>{});
+  if(!result?.ok)throw Error(result?.error||'Saved reports unavailable. Refresh to try again.');
+  saved=result.result.reports;el('saved-choice').replaceChildren();
+  for(const item of saved){const option=document.createElement('option');option.value=item.report_id;option.textContent=item.title+' · '+item.report_id.slice(0,8);el('saved-choice').append(option);}
+  if(saved.length)el('saved-choice').selectedIndex=0;
+  el('saved-confirm').checked=false;el('saved-status').textContent=saved.length+` of ${result.result.limit} local reports. Deleting a local copy does not delete server logs.`;
+ }
+ async function refreshSaved(){if(working)return;working=true;controls();savedControls();try{await listSaved();}catch(e){el('saved-status').textContent=String(e);}finally{working=false;controls();savedControls();}}
+ el('saved-open').onclick=()=>{if(working)return;el('saved').showModal();refreshSaved();};
+ el('saved-refresh').onclick=refreshSaved;el('saved-close').onclick=()=>el('saved').close();
+ el('saved-choice').onchange=()=>{el('saved-confirm').checked=false;savedControls();};el('saved-confirm').onchange=savedControls;
+ el('saved-review').onclick=async()=>{
+  const selected=selectedSaved();if(working||!selected?.readable)return;working=true;controls();savedControls();
+  try{
+   const result=await run({method:'support_resume',report_id:selected.report_id,sha256:selected.sha256},'Opening saved report',el('saved-review'),()=>{});
+   if(!result?.ok)throw Error(result?.error||'Saved report unavailable. Refresh to try again.');
+   draft=result.result;baseDraft=draft;page=0;seen.clear();revision++;volume=null;
+   const f=draft.fields;el('title').value=f.title;el('description').value=f.description;el('category').value=f.category;el('private').checked=f.include_private;el('contact').value=f.contact;el('contact-opt').checked=!!f.contact;el('consent').checked=false;
+   for(const option of el('remove').options)option.selected=false;
+   el('saved').close();await previewPage();status('Saved report reopened. Review all pages before sending. Check receipt for an earlier upload.');
+  }catch(e){el('saved-status').textContent=String(e);status(String(e));}finally{working=false;controls();savedControls();}
+ };
+ el('saved-remove').onclick=async()=>{
+  const selected=selectedSaved();if(working||!selected||!el('saved-confirm').checked)return;working=true;controls();savedControls();
+  try{
+   const result=await run({method:'support_remove',report_id:selected.report_id,stored_revision:selected.stored_revision},'Discarding selected local report',el('saved-remove'),()=>{});
+   if(!result?.ok)throw Error(result?.error||'Discard failed. Refresh before retrying.');
+   if(draft?.report_id===selected.report_id||baseDraft?.report_id===selected.report_id){baseDraft=null;invalidate();}
+   await listSaved();status('Selected local copy discarded. Uploaded logs remain unchanged.');
+  }catch(e){el('saved-status').textContent=String(e);}finally{working=false;controls();savedControls();}
+ };
  el('connection').onclick=()=>el('network').showModal();el('network-done').onclick=()=>el('network').close();
  el('usb').onclick=async()=>{try{volume=await invoke('pick_path',{kind:'folder'});el('usb-label').textContent=volume?'Selected USB; only fixed diagnostic files will be read.':'No USB selected';invalidate();baseDraft=null;}catch{status('USB selection failed. Choose again or continue without USB diagnostics.');}};
  async function previewPage(){

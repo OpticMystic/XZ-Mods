@@ -162,7 +162,7 @@ def three_band_waveforms(request,job,restore):
         **report,'failed':failed[:50],'failed_count':len(failed)}
 
 def dispatch(request,job):
-    if request.get('method') in ('support_prepare','support_edit','support_preview','support_discard'):
+    if request.get('method') in ('support_prepare','support_edit','support_preview','support_discard','support_list','support_resume','support_remove'):
         from . import support_reports
         return support_reports.dispatch(request,job)
     from . import mod_versions

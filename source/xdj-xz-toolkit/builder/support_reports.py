@@ -169,14 +169,49 @@ def save(body):
     raw=json.dumps(body,ensure_ascii=True,separators=(',',':')).encode('utf-8')
     need(len(raw)<=CAP,'Report exceeds 512 KiB; remove private items')
     entries=list(root().iterdir())
-    need(len(entries)<160 and sum(p.name.endswith('.draft') for p in entries)<32,'Local draft limit reached. Discard an older draft before preparing another.')
+    need(len(entries)<160 and sum(p.name.endswith('.draft') for p in entries)<32,'Local draft limit reached. Open Saved reports to resume or discard a local copy.')
     ident=body['report_id'];d={'body':raw.decode(),'sha256':hashlib.sha256(raw).hexdigest(),'key':secrets.token_hex(32)}
     path=root()/(ident+'.draft')
     with path.open('x',encoding='utf-8',newline='') as f:json.dump(d,f,separators=(',',':'))
     return {'report_id':ident,'sha256':d['sha256'],'bytes':len(raw),'pages':(len(d['body'])+PAGE-1)//PAGE,'privacy':'Private sanitized diagnostics; public summary is reviewed separately'}
 
+def saved_reports(job):
+    reports=[]
+    for path in sorted(root().glob('*.draft')):
+        job.check()
+        if not HEX.fullmatch(path.stem):continue
+        if len(reports)>=32:break
+        try:
+            raw,_=bounded(path,CAP*2+4096)
+            entry={'report_id':path.stem,'stored_revision':hashlib.sha256(raw).hexdigest(),
+                   'title':'Unreadable local report','readable':False}
+            try:
+                draft=load(path.stem);body=json.loads(draft['body'])
+                entry.update(title=text(body['public_issue']['title'],160,True),sha256=draft['sha256'],readable=True)
+            except (OSError,ValueError,KeyError,TypeError):pass
+            reports.append(entry)
+        except (OSError,ValueError):continue
+    return {'reports':reports,'limit':32}
+
 def dispatch(r,job):
     job.check();method=r['method']
+    if method=='support_list':return saved_reports(job)
+    if method=='support_remove':
+        ident=r.get('report_id');need(type(ident) is str and HEX.fullmatch(ident),'Invalid report ID')
+        raw,_=bounded(root()/(ident+'.draft'),CAP*2+4096)
+        need(hashlib.sha256(raw).hexdigest()==r.get('stored_revision'),'Local report changed; refresh saved reports')
+        job.check()
+        for suffix in ('.draft','.review','.receipt','.attempt'):(root()/(ident+suffix)).unlink(missing_ok=True)
+        return {'discarded':True}
+    if method=='support_resume':
+        draft=load(r.get('report_id'));need(draft['sha256']==r.get('sha256'),'Local report changed; refresh saved reports')
+        body=json.loads(draft['body']);ident=r['report_id']
+        (root()/(ident+'.review')).unlink(missing_ok=True)
+        return {'report_id':ident,'sha256':draft['sha256'],'bytes':len(draft['body'].encode()),
+                'pages':(len(draft['body'])+PAGE-1)//PAGE,
+                'fields':{'title':body['public_issue']['title'],'description':body['public_issue']['description'],
+                          'category':body['category'],'include_private':bool(body['private']['items'] or body['private']['contact']),
+                          'contact':body['private']['contact'] or ''}}
     if method=='support_prepare' or method=='support_edit':
         old=json.loads(load(r['report_id'])['body']) if method=='support_edit' else None
         private=r.get('include_private') is True

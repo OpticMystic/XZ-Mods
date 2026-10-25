@@ -98,6 +98,7 @@ int main(void) {
     m.support.usb_writable = 1;
     m.support.clock_ready = 0;
     m.support.draft_revision = 1;
+    m.support.prepared_selection = 16u | 1u | (2u << 2);
     m.support.payload_bytes = 2048;
     m.support.redactions = 7;
     m.support.page_index = 0;
@@ -105,7 +106,7 @@ int main(void) {
     strcpy(m.support.report_id, "r1234567890abcdef");
     strcpy(m.support.payload_sha256, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
     strcpy(m.support.github_url, "https://xz-mods-support.will-026.workers.dev/r/r1234567890abcdef/github");
-    strcpy(m.support.preview[0], "{\"schema\": \"xz-support-report/1\", \"mac\": \"<redacted-mac>\"}");
+    snprintf(m.support.preview[0], XZ_SUPPORT_LINE_CHARS, "{\"schema\":");
     check_step_geometry_and_menu(&u, &m);
 
     /* Paging preview works and clamps. */
@@ -121,6 +122,30 @@ int main(void) {
     assert(strstr(u.notice, "APPROVE"));
 
     /* Approve consent bound to exact SHA-256 and revision. */
+    tap(&u, &m, XZ_UI_SUPPORT_CONSENT, 0);
+    assert(xz_ui_support_consented(&u, &m));
+
+    /* An edit cannot reapprove an older draft, including an older preparation completing late. */
+    tap(&u, &m, XZ_UI_SUPPORT_STEP, XZ_SUPPORT_STEP_PREPARE);
+    tap(&u, &m, XZ_UI_SUPPORT_SUMMARY, 3);
+    assert(!xz_ui_support_consented(&u, &m));
+    tap(&u, &m, XZ_UI_SUPPORT_STEP, XZ_SUPPORT_STEP_PREVIEW);
+    tap(&u, &m, XZ_UI_SUPPORT_CONSENT, 0);
+    assert(!xz_ui_support_consented(&u, &m));
+    m.support.draft_revision++;
+    tap(&u, &m, XZ_UI_SUPPORT_CONSENT, 0);
+    assert(!xz_ui_support_consented(&u, &m));
+    m.support.prepared_selection = 16u | 1u | (3u << 2);
+    tap(&u, &m, XZ_UI_SUPPORT_CONSENT, 0);
+    assert(xz_ui_support_consented(&u, &m));
+    tap(&u, &m, XZ_UI_SUPPORT_STEP, XZ_SUPPORT_STEP_PREPARE);
+    tap(&u, &m, XZ_UI_SUPPORT_CATEGORY, 2);
+    assert(!xz_ui_support_consented(&u, &m));
+    tap(&u, &m, XZ_UI_SUPPORT_STEP, XZ_SUPPORT_STEP_PREVIEW);
+    tap(&u, &m, XZ_UI_SUPPORT_CONSENT, 0);
+    assert(!xz_ui_support_consented(&u, &m));
+    m.support.prepared_selection = 16u | 2u | (3u << 2);
+    m.support.draft_revision++;
     tap(&u, &m, XZ_UI_SUPPORT_CONSENT, 0);
     assert(xz_ui_support_consented(&u, &m));
 
