@@ -26,7 +26,7 @@ def resources():
     if not configured:raise ValueError('Builder resources are not configured')
     return Path(configured).resolve()
 
-VERSION='0.5.0-preview.19'
+VERSION='0.5.0-preview.20'
 SOURCE_FORMATS=['WAV','FLAC','MP3']
 # 96 kHz roles are capped at 4096 pages; resample_poly(320/147) output is ceil(frames*320/147).
 MAX_SOURCE_FRAMES=overcue_writer.MAX_FRAMES*147//320
@@ -162,6 +162,9 @@ def three_band_waveforms(request,job,restore):
         **report,'failed':failed[:50],'failed_count':len(failed)}
 
 def dispatch(request,job):
+    if request.get('method') in ('support_prepare','support_edit','support_preview','support_discard'):
+        from . import support_reports
+        return support_reports.dispatch(request,job)
     from . import mod_versions
     method=request.get('method')
     if method=='list_mod_versions':return mod_versions.inventory(resources())

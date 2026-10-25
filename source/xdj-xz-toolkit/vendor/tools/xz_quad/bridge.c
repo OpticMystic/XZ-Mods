@@ -155,11 +155,13 @@ static int process_set(pid_t pid)
 
 /* Process-local, immutable boot/media ownership; never persisted or caller supplied. */
 enum binding_state { BINDING_NEW, BINDING_ACTIVE, BINDING_RETIRED };
+enum admission_result { ADMIT_WAIT, ADMIT_READY, ADMIT_UNSUPPORTED, ADMIT_RACE, ADMIT_FATAL };
 struct file_identity { uint64_t device, inode, rdev; };
 struct observation {
     char boot[40], mac[32], vendor[8], product[8], serial[132];
     char source[32], mount[64], kind[16], mount_line[1024], ancestry[PATH_MAX];
     unsigned long devnum, busnum;
+    int serial_length; /* Zero records absence; no synthesized identity. */
     struct file_identity usb, partition, block, volume;
     unsigned char sector_sha[32];
 };
@@ -167,6 +169,7 @@ struct binding {
     enum binding_state state;
     struct observation identity;
     int volume_fd, block_fd;
+    const char *reason;
 };
 
 static struct file_identity file_identity(const struct stat *s)
@@ -223,10 +226,12 @@ static int device_numbers(const char *text, unsigned *a, unsigned *b)
     return 1;
 }
 
-static int music_mount(struct observation *o, unsigned *mount_major, unsigned *mount_minor)
+static enum admission_result music_mount(struct observation *o, unsigned *mount_major,
+    unsigned *mount_minor, const char **reason)
 {
+    *reason = "WAIT_MUSIC_MOUNT";
     FILE *file = fopen("/proc/self/mountinfo", "r");
-    if (!file) { puts("UNSUPPORTED_MOUNTINFO_REQUIRED"); return 0; }
+    if (!file) return ADMIT_WAIT;
     char line[1024];
     unsigned lines = 0, matches = 0;
     int ok = 1;
@@ -246,80 +251,142 @@ static int music_mount(struct observation *o, unsigned *mount_major, unsigned *m
         if (strcmp(fields[4], "/media/usb2") && strncmp(fields[4], "/media/usb2/", 12)) continue;
         unsigned dash = 6;
         while (dash < n && strcmp(fields[dash], "-")) dash++;
-        if (++matches != 1 || dash + 4 != n || strcmp(fields[3], "/") ||
-            (strcmp(fields[dash + 1], "vfat") && strcmp(fields[dash + 1], "fuseblk"))) { ok = 0; break; }
-        const char *block = fields[dash + 2];
-        /* Keep the established single sd-letter, first-partition layout. */
-        if (strlen(block) != 9 || strncmp(block, "/dev/sd", 7) || block[7] < 'a' ||
-            block[7] > 'z' || block[8] != '1' || strcmp(fields[4] + 12, block + 5)) { ok = 0; break; }
-        strcpy(o->source, block);
-        strcpy(o->mount, fields[4]);
-        strcpy(o->kind, fields[dash + 1]);
+        if (++matches != 1 || dash + 4 != n || strcmp(fields[3], "/")) { ok = 0; break; }
+        const char *kind = fields[dash + 1], *block = fields[dash + 2];
+        if (strcmp(kind, "vfat") && strcmp(kind, "fuseblk") && strcmp(kind, "exfat") &&
+            strcmp(kind, "hfsplus")) { ok = 0; break; }
+        /* Ordinary sd partitions, including later partitions; sysfs corroborates below. */
+        if (strncmp(block, "/dev/sd", 7) || strlen(block) >= sizeof(o->source)) { ok = 0; break; }
+        const char *p = block + 7;
+        while (*p >= 'a' && *p <= 'z') p++;
+        unsigned long partition;
+        if (p == block + 7 || *p == '0' || !decimal(p, &partition) || !partition || partition > 1048575 ||
+            strncmp(fields[4], "/media/usb2/", 12) || strcmp(fields[4] + 12, block + 5) ||
+            strlen(fields[4]) >= sizeof(o->mount)) { ok = 0; break; }
+        strcpy(o->source, block); strcpy(o->mount, fields[4]); strcpy(o->kind, kind);
         strcpy(o->mount_line, line);
     }
-    if (!lines) puts("UNSUPPORTED_MOUNTINFO_REQUIRED");
-    ok = ok && !ferror(file) && matches == 1;
+    if (ferror(file)) ok = 0;
     fclose(file);
-    /* Parse the retained row, not a later unrelated row's device numbers. */
-    return ok && sscanf(o->mount_line, "%*u %*u %u:%u", mount_major, mount_minor) == 2;
+    if (!ok) { *reason = "UNSUPPORTED_MUSIC_MOUNT"; return ADMIT_UNSUPPORTED; }
+    if (!matches) return ADMIT_WAIT;
+    if (sscanf(o->mount_line, "%*u %*u %u:%u", mount_major, mount_minor) != 2) {
+        *reason = "UNSUPPORTED_MUSIC_MOUNT"; return ADMIT_UNSUPPORTED;
+    }
+    return ADMIT_READY;
 }
 
-static int observe_music(struct observation *o, int *keep_volume, int *keep_block)
+static uint32_t be32(const unsigned char *p)
+{
+    return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
+}
+
+static int volume_identity(int block, const char *kind, unsigned char digest[32])
+{
+    unsigned char header[512];
+    SHA256_CTX ctx;
+    sha256_init(&ctx);
+    if (!strcmp(kind, "hfsplus")) {
+        /* TN1150 / Linux hfsplus_raw.h: direct volume header at byte 1024.
+         * Hash signature/version, creation, geometry and Finder volume ID only.
+         * Attributes, journal/mount state, dates, counters, allocation, Finder
+         * windows and special-file forks change during normal filesystem use. */
+        if (!read_at(block, 1024, header, sizeof(header)) ||
+            !((header[0] == 'H' && header[1] == '+' && header[2] == 0 && header[3] == 4) ||
+              (header[0] == 'H' && header[1] == 'X' && header[2] == 0 && header[3] == 5))) return 0;
+        uint32_t size = be32(header + 40), count = be32(header + 44);
+        if (size < 512 || size > (1u << 30) || (size & (size - 1)) || !count) return 0;
+        sha256_update(&ctx, header, 4);
+        sha256_update(&ctx, header + 16, 4);
+        sha256_update(&ctx, header + 40, 8);
+        sha256_update(&ctx, header + 104, 8);
+    } else {
+        if (!read_at(block, 0, header, sizeof(header)) || header[510] != 0x55 || header[511] != 0xaa) return 0;
+        if (!strcmp(kind, "vfat")) {
+            if (!memcmp(header + 54, "FAT16   ", 8)) header[37] = 0;
+            else if (!memcmp(header + 82, "FAT32   ", 8)) header[65] = 0;
+            else return 0;
+        } else {
+            if (memcmp(header + 3, "EXFAT   ", 8)) return 0;
+            /* exFAT boot-checksum exclusions: flags and percent in use. */
+            header[106] = header[107] = header[112] = 0;
+        }
+        sha256_update(&ctx, header, sizeof(header));
+    }
+    sha256_final(&ctx, digest);
+    return 1;
+}
+
+static enum admission_result observe_music(struct observation *o, int *keep_volume,
+    int *keep_block, const char **reason)
 {
     memset(o, 0, sizeof(*o));
     unsigned mount_major, mount_minor, block_major, block_minor;
     unsigned long bus, number;
-    char path[128], dev[40];
-    int volume = -1, block = -1, ok = 0;
-    if (!unit_identity(o) || !music_mount(o, &mount_major, &mount_minor) ||
+    char path[128], dev[40], by_number[PATH_MAX], disk[32];
+    int volume = -1, block = -1;
+    enum admission_result result = music_mount(o, &mount_major, &mount_minor, reason);
+    if (result != ADMIT_READY) return result;
+    result = ADMIT_UNSUPPORTED;
+    *reason = "UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY";
+    if (!unit_identity(o) ||
         !attribute("2-1", "idVendor", "0451") || !attribute("2-1", "idProduct", "8027") ||
         !number_file(USB "2-1.1/devnum", &number) || number < 1 || number > 127 ||
         !number_file(USB "2-1.1/busnum", &bus) || bus != 2 ||
         text_file(USB "2-1.1/idVendor", o->vendor, sizeof(o->vendor)) != 4 || !hex_text(o->vendor, 4) ||
         text_file(USB "2-1.1/idProduct", o->product, sizeof(o->product)) != 4 || !hex_text(o->product, 4)) goto done;
-    /* Serial-less devices are unsupported; there is no inferred or override serial. */
-    int serial_length = text_file(USB "2-1.1/serial", o->serial, sizeof(o->serial));
-    if (serial_length < 1 || serial_length > 128) {
-        puts("UNSUPPORTED_MUSIC_SERIAL_REQUIRED");
-        goto done;
+    *reason = "UNSUPPORTED_MUSIC_SERIAL_LENGTH";
+    errno = 0;
+    int length = text_file(USB "2-1.1/serial", o->serial, sizeof(o->serial));
+    if (length < 0) {
+        if (!errno) goto done; /* Bounded text_file rejected a long attribute. */
+        if (errno != ENOENT) { *reason = "WAIT_MUSIC_SERIAL_READ"; result = ADMIT_WAIT; goto done; }
+        memset(o->serial, 0, sizeof(o->serial)); length = 0;
     }
-    for (const char *p = o->serial; *p; p++)
-        if (!isalnum((unsigned char)*p) && *p != '_' && *p != '-') goto done;
+    if (length > 128) goto done;
+    o->serial_length = length;
     struct stat usb, partition;
+    *reason = "UNSUPPORTED_USB2_BLOCK_ANCESTRY";
     if (stat(USB "2-1.1", &usb) || !S_ISDIR(usb.st_mode)) goto done;
-    o->usb = file_identity(&usb);
-    o->busnum = bus; o->devnum = number;
+    o->usb = file_identity(&usb); o->busnum = bus; o->devnum = number;
     snprintf(path, sizeof(path), "/sys/class/block/%s", o->source + 5);
     if (!realpath(path, o->ancestry) ||
         !strstr(o->ancestry, "/usb2/2-1/2-1.1/2-1.1:1.0/") || stat(path, &partition)) goto done;
     o->partition = file_identity(&partition);
-    snprintf(path, sizeof(path), "/sys/class/block/sd%c/removable", o->source[7]);
-    if (!equals(path, "1")) goto done;
+    strcpy(disk, o->source + 5);
+    char *digits = disk + 2;
+    while (*digits >= 'a' && *digits <= 'z') digits++;
+    unsigned long expected_partition, actual_partition;
+    if (!decimal(digits, &expected_partition)) goto done;
+    *digits = 0;
+    snprintf(path, sizeof(path), "/sys/class/block/%s/partition", o->source + 5);
+    if (!number_file(path, &actual_partition) || actual_partition != expected_partition) goto done;
+    snprintf(path, sizeof(path), "/sys/class/block/%s/removable", disk);
+    if (!equals(path, "0") && !equals(path, "1")) goto done;
     snprintf(path, sizeof(path), "/sys/class/block/%s/dev", o->source + 5);
     if (text_file(path, dev, sizeof(dev)) < 1 || !device_numbers(dev, &block_major, &block_minor)) goto done;
+    snprintf(path, sizeof(path), "/sys/dev/block/%u:%u", block_major, block_minor);
+    if (!realpath(path, by_number) || strcmp(by_number, o->ancestry)) goto done;
+    *reason = "WAIT_MUSIC_DESCRIPTORS"; result = ADMIT_WAIT;
     volume = open(o->mount, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     block = open(o->source, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-    if (volume < 0 || block < 0 || !same_file(volume, o->mount, &o->volume, S_IFDIR) ||
+    if (volume < 0 || block < 0) goto done;
+    *reason = "RACE_MUSIC_DESCRIPTORS"; result = ADMIT_RACE;
+    if (!same_file(volume, o->mount, &o->volume, S_IFDIR) ||
         !same_file(block, o->source, &o->block, S_IFBLK) ||
         o->volume.device != (uint64_t)makedev(mount_major, mount_minor) ||
         o->block.rdev != (uint64_t)makedev(block_major, block_minor)) goto done;
-    unsigned char sector[512];
-    if (!read_at(block, 0, sector, sizeof(sector)) || sector[510] != 0x55 || sector[511] != 0xaa ||
-        (!strcmp(o->kind, "fuseblk") ? memcmp(sector + 3, "EXFAT   ", 8) != 0 :
-         (memcmp(sector + 54, "FAT16   ", 8) && memcmp(sector + 82, "FAT32   ", 8)))) goto done;
-    /* exFAT VolumeFlags and PercentInUse are mutable filesystem status,
-     * excluded from its boot checksum; they are not volume identity. */
-    if (!strcmp(o->kind, "fuseblk")) sector[106] = sector[107] = sector[112] = 0;
-    SHA256_CTX ctx;
-    sha256_init(&ctx); sha256_update(&ctx, sector, sizeof(sector)); sha256_final(&ctx, o->sector_sha);
+    *reason = "UNSUPPORTED_MUSIC_FILESYSTEM"; result = ADMIT_UNSUPPORTED;
+    if (!volume_identity(block, o->kind, o->sector_sha)) goto done;
     struct file_identity checked;
+    *reason = "RACE_MUSIC_DESCRIPTORS"; result = ADMIT_RACE;
     if (!same_file(volume, o->mount, &checked, S_IFDIR) || memcmp(&checked, &o->volume, sizeof(checked)) ||
         !same_file(block, o->source, &checked, S_IFBLK) || memcmp(&checked, &o->block, sizeof(checked))) goto done;
-    ok = 1;
+    *reason = "MUSIC_READY"; result = ADMIT_READY;
 done:
-    if (ok && keep_volume && keep_block) { *keep_volume = volume; *keep_block = block; }
+    if (result == ADMIT_READY && keep_volume && keep_block) { *keep_volume = volume; *keep_block = block; }
     else { if (volume >= 0) close(volume); if (block >= 0) close(block); }
-    return ok;
+    return result;
 }
 
 static void binding_close(struct binding *binding)
@@ -334,12 +401,14 @@ static int binding_check(struct binding *binding)
 {
     struct observation now, again;
     struct file_identity volume, block;
+    const char *reason;
     if (binding->state == BINDING_ACTIVE &&
         same_file(binding->volume_fd, binding->identity.mount, &volume, S_IFDIR) &&
         !memcmp(&volume, &binding->identity.volume, sizeof(volume)) &&
         same_file(binding->block_fd, binding->identity.source, &block, S_IFBLK) &&
         !memcmp(&block, &binding->identity.block, sizeof(block)) &&
-        observe_music(&now, NULL, NULL) && observe_music(&again, NULL, NULL) &&
+        observe_music(&now, NULL, NULL, &reason) == ADMIT_READY &&
+        observe_music(&again, NULL, NULL, &reason) == ADMIT_READY &&
         !memcmp(&now, &again, sizeof(now)) && !memcmp(&now, &binding->identity, sizeof(now))) return 1;
     binding_close(binding);
     return 0;
@@ -372,22 +441,36 @@ static int native_stopped(const struct native *native)
         read_at(native->memory, range[0], players, 8) && !memcmp(players, native->players, 8);
 }
 
-/* Admission has no caller readiness bit and cannot revive a retired binding. */
-static int binding_admit(struct binding *binding, const struct native *native)
+/* Only a fully captured temporary candidate can become ACTIVE. Never revive RETIRED. */
+static enum admission_result binding_admit(struct binding *binding, const struct native *native)
 {
-    if (binding->state != BINDING_NEW) return 0;
-    binding->state = BINDING_RETIRED;
-    binding->volume_fd = binding->block_fd = -1;
+    if (binding->state != BINDING_NEW) { binding->reason = "FATAL_BINDING_NOT_NEW"; return ADMIT_FATAL; }
+    struct binding candidate = {.volume_fd = -1, .block_fd = -1};
     struct observation second;
-    if (!process_set(native->pid) || !native_stopped(native) ||
-        !observe_music(&binding->identity, &binding->volume_fd, &binding->block_fd) ||
-        !observe_music(&second, NULL, NULL) || memcmp(&binding->identity, &second, sizeof(second)) ||
-        !process_set(native->pid) || !native_stopped(native)) {
-        binding_close(binding);
-        return 0;
-    }
-    binding->state = BINDING_ACTIVE;
-    return 1;
+    enum admission_result result = ADMIT_FATAL;
+    const char *reason = "FATAL_PROCESS_SET_CHANGE";
+    if (!process_set(native->pid)) goto done;
+    reason = "WAIT_NATIVE_PAUSED"; result = ADMIT_WAIT;
+    if (!native_stopped(native)) goto done;
+    result = observe_music(&candidate.identity, &candidate.volume_fd, &candidate.block_fd, &reason);
+    if (result != ADMIT_READY) goto done;
+    result = observe_music(&second, NULL, NULL, &reason);
+    if (result != ADMIT_READY) goto done;
+    reason = "RACE_MUSIC_CAPTURE"; result = ADMIT_RACE;
+    if (memcmp(&candidate.identity, &second, sizeof(second))) goto done;
+    reason = "FATAL_PROCESS_SET_CHANGE"; result = ADMIT_FATAL;
+    if (!process_set(native->pid)) goto done;
+    reason = "WAIT_NATIVE_PAUSED"; result = ADMIT_WAIT;
+    if (!native_stopped(native)) goto done;
+    candidate.state = BINDING_ACTIVE;
+    if (!binding_check(&candidate)) { reason = "RACE_MUSIC_CAPTURE"; result = ADMIT_RACE; goto done; }
+    candidate.reason = "MUSIC_READY";
+    *binding = candidate;
+    return ADMIT_READY;
+done:
+    binding_close(&candidate);
+    binding->reason = reason;
+    return result;
 }
 
 static int mapped_library(pid_t pid, const char *path, const char *digest)
@@ -672,8 +755,42 @@ static int remove_node(struct route *route)
     return 1;
 }
 
+static unsigned status_attempt;
+static int status_route_ready;
+static char status_terminal[160];
+
+static void status_json(const char *message)
+{
+    /* All strings are internal literals. Never serialize an observation or raw ID. */
+    if (!strncmp(message, "TERMINATED_", 11) && !*status_terminal)
+        snprintf(status_terminal, sizeof(status_terminal), "%s", message);
+    const char *state = !strncmp(message, "STOPPED", 7) ? "stopped" :
+        !strncmp(message, "TERMINATED_", 11) || !strncmp(message, "CLEANUP_", 8) ? "stopping" :
+        !strncmp(message, "STOP_PENDING", 12) ? "stopping" :
+        status_route_ready ? "ready" : "waiting";
+    int retryable = !*status_terminal && !status_route_ready;
+    char json[768];
+    int n = snprintf(json, sizeof(json),
+        "{\"schema\":\"xz-bridge-status/1\",\"state\":\"%s\",\"reason\":\"%s\","
+        "\"terminal_reason\":%s%s%s,\"retryable\":%s,\"attempt\":%u,\"route_ready\":%s}\n",
+        state, message, *status_terminal ? "\"" : "", *status_terminal ? status_terminal : "null",
+        *status_terminal ? "\"" : "", retryable ? "true" : "false", status_attempt,
+        status_route_ready ? "true" : "false");
+    if (n < 1 || n >= (int)sizeof(json)) return;
+    int fd = open(RUN "/status.json.tmp", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0 && errno == EEXIST) {
+        if (unlink(RUN "/status.json.tmp")) return;
+        fd = open(RUN "/status.json.tmp", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    }
+    if (fd < 0) return;
+    int ok = write(fd, json, (size_t)n) == n;
+    close(fd);
+    if (!ok || rename(RUN "/status.json.tmp", RUN "/status.json")) unlink(RUN "/status.json.tmp");
+}
+
 static void state_log(const char *message)
 {
+    status_json(message);
     static char previous[160];
     if (!strcmp(previous, message)) return;
     snprintf(previous, sizeof(previous), "%s", message);
@@ -697,6 +814,7 @@ static int run_bridge(struct native *native, const char *module, struct binding 
     int lock = open(RUN "/owner.lock", O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (lock < 0) return 1;
     if (flock(lock, LOCK_EX | LOCK_NB)) { puts("ALREADY_OWNED; no changes"); close(lock); return 2; }
+    status_attempt = 0; status_route_ready = 0; status_terminal[0] = 0;
     const char *refusal = access(MODULE, F_OK) == 0 ? "TERMINATED_FOREIGN_MODULE" :
         access(NODE, F_OK) == 0 ? "TERMINATED_FOREIGN_NODE" :
         access(RUN "/stop", F_OK) == 0 ? "TERMINATED_STOP_MARKER" :
@@ -735,7 +853,14 @@ admission:
         if (!process_set(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; goto done; }
         if (binding->state == BINDING_NEW) {
             if (!native_stopped(native)) { state_log("WAIT_NATIVE_PAUSED"); event_wait(events, 1000); continue; }
-            if (!binding_admit(binding, native)) { reason = "TERMINATED_STOPPED_MEDIA_ADMISSION"; failed = 1; goto done; }
+            if (status_attempt < UINT_MAX) status_attempt++;
+            enum admission_result admission = binding_admit(binding, native);
+            if (admission != ADMIT_READY) {
+                if (admission == ADMIT_FATAL) { reason = "TERMINATED_STOPPED_MEDIA_ADMISSION"; failed = 1; goto done; }
+                state_log(binding->reason);
+                event_wait(events, 1000);
+                continue;
+            }
         }
         if (!binding_check(binding)) { reason = "TERMINATED_MUSIC_IDENTITY"; failed = 1; goto done; }
         if (access(MODULE, F_OK) == 0 || access(NODE, F_OK) == 0) {
@@ -765,6 +890,7 @@ admission:
         enum action action = next_action(&route, &device, 1);
         if (action == CLEAR) {
             if (!remove_node(&route)) { reason = "TERMINATED_NODE_REMOVE_FAILURE"; failed = 1; break; }
+            status_route_ready = 0;
             state_log("ROUTE_DISCONNECTED");
             continue;
         }
@@ -792,11 +918,13 @@ admission:
             if (!binding_check(binding)) { reason = "TERMINATED_MUSIC_IDENTITY"; failed = 1; break; }
             if (mknod(NODE, S_IFCHR | 0600, makedev(189, 127 + device.number))) { reason = "TERMINATED_NODE_WRITE_FAILURE"; failed = 1; break; }
             route.published = device;
+            status_route_ready = 1;
             state_log("READY_CH3_CH4");
         } else if (!*device.hub) state_log("WAIT_LOOPBACK");
         event_wait(events, 2000);
     }
 done:
+    status_route_ready = 0;
     binding_close(binding);
     if (!reason) reason = stopping ? "TERMINATED_SIGNAL" :
         access(RUN "/stop", F_OK) == 0 ? "TERMINATED_STOP_MARKER" :
@@ -887,7 +1015,7 @@ int main(int argc, char **argv)
     int result = 0;
     if (!strcmp(argv[1], "--run")) result = run_bridge(&native, module, &binding);
     else {
-        if (!binding_admit(&binding, &native)) { close(native.memory); puts("REFUSED_STOPPED_UNIT_MUSIC_BINDING"); return 1; }
+        if (binding_admit(&binding, &native) != ADMIT_READY) { close(native.memory); puts("REFUSED_STOPPED_UNIT_MUSIC_BINDING"); return 1; }
         printf("NATIVE_PAUSED=%d\n", native_stopped(&native));
     }
     binding_close(&binding);

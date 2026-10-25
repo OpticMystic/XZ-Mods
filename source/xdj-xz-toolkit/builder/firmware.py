@@ -128,7 +128,7 @@ def stage_payload(tree,application,runtime,receiver,bootstrap):
         files[name+'.md5']=(hashlib.md5(files[name]).hexdigest()+'  '+Path(name).name+'\n').encode('ascii')
     # Optional standalone game and privately supplied WAD. These arrive from
     # the same locally verified resource directory as the paired runtime.
-    for name in ('xz-doom','doom1.wad','xz-updater','xz-runtime-smoke'):
+    for name in ('xz-doom','doom1.wad','xz-updater','xz-runtime-smoke','xz-support'):
         source=Path(runtime).parent/name
         if source.is_file():
             files['tools/'+name]=source.read_bytes()

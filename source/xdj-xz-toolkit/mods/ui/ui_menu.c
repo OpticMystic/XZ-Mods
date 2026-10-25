@@ -7,6 +7,7 @@
 #include "ui_about.h"
 #include "ui_menu.h"
 #include "ui_network.h"
+#include "ui_support.h"
 #include "stem_pads.h"
 #include "wave_viewport.h"
 #include <stdarg.h>
@@ -252,7 +253,7 @@ static const char *section_for(const struct build *b, const struct xz_ui_widget 
   return "STEM SHORTCUTS";
  case XZ_UI_SETTINGS:
   if(w->kind==XZ_UI_PANEL&&(k==XZ_UI_STEMS||k==XZ_UI_XPAD))return "PADS";
-  if(w->kind==XZ_UI_PANEL&&k==XZ_UI_RAM_SETUP)return "MEMORY";
+  if(w->kind==XZ_UI_PANEL&&(k==XZ_UI_RAM_SETUP||k==XZ_UI_SUPPORT))return "MEMORY";
   return "PADS";
  case XZ_UI_EXTRAS:return "EXTRAS";
  case XZ_UI_CONNECTION:return w->kind==XZ_UI_TAKEOVER_TOGGLE||w->kind==XZ_UI_TAKEOVER_ASSIGN?"SCREEN":"CONNECTION";
@@ -660,6 +661,7 @@ static int skipped(const struct build *b, const struct xz_ui_widget *a) {
 int xz_ui_menu_build(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_shell_menu *out) {
  if(!u||!m||!out)return 0;
  if(xz_ui_network_page(u->page))return xz_ui_network_menu(u,m,out);
+ if(xz_ui_support_page(u->page))return xz_ui_support_menu(u,m,out);
  memset(out,0,sizeof *out);
  struct build b={out,NULL,u,m,0,-1,{0},0,0};
  int chain[24],n=chain_of(u,chain),depth=n-1;
@@ -756,6 +758,7 @@ size_t xz_ui_menu_run(struct xz_ui *u, const struct xz_ui_model *m, const struct
   return total;}
  case XZ_UI_MENU_DIRECT:case XZ_UI_MENU_SLIDE:
   if(xz_ui_network_kind(t->kind))return take(out,total,XZ_UI_MENU_ACTIONS,a,xz_ui_network_action(u,m,t->kind,t->index,a));
+  if(xz_ui_support_kind(t->kind))return take(out,total,XZ_UI_MENU_ACTIONS,a,xz_ui_support_action(u,m,t->kind,t->index,a));
   if(t->kind==XZ_UI_FEATURE_SETUP_OPEN){
    /* the X-PAD page's way into its setup, as GENERAL's SET UP X-PAD opens it */
    enum xz_ui_page old=u->page;xz_ui_navigate(u,XZ_UI_FEATURE_SETUP);u->feature_cap=t->index;u->feature_step=0;

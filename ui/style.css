@@ -291,3 +291,5 @@ tr.st-drawer td{padding:2px 12px 14px 42px;background:#131614;border-bottom:1px 
 .tool-text{display:grid;gap:3px;min-width:0}.tool-text strong{font-size:14px;color:#eef0ec}.tool-text>span{color:var(--muted);font-size:13px;font-weight:400;line-height:1.4}
 .tool-chevron{color:#6d7473}.tool-row:hover .tool-chevron{color:var(--yellow)}
 .game-downloads .game-dl{border-top:1px solid var(--line);padding:14px 0 6px}.game-downloads .game-dl h3{margin:0 0 4px}.game-downloads .game-dl:first-of-type{border-top:0;padding-top:0}
+
+#support-preview-text,#support-inbox-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:32vh;overflow:auto;padding:12px;border:1px solid currentColor}#support-wizard,#support-inbox{max-width:760px;width:90vw}#support-fields{border:0;padding:0}#support-fields textarea{width:100%;box-sizing:border-box}#support-fields input:not([type=checkbox]){width:100%;box-sizing:border-box}

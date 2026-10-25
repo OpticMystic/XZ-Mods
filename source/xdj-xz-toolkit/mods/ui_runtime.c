@@ -5,6 +5,7 @@
 #pragma weak xz_extra_decks_snapshot
 #include "network/runtime.h"
 #include "ui/ui_network.h"
+#include "ui/ui_support.h"
 #include "metrics_runtime.h"
 /* Portable UI harnesses omit the OS sampler. */
 #pragma weak xz_metrics_start
@@ -1068,11 +1069,25 @@ static void network_apply(const struct xz_ui_action *a) {
     enum xz_net_result result=xz_net_runtime_submit?xz_net_runtime_submit(&command):XZ_NET_NEEDS_BACKEND;
     if(result!=XZ_NET_OK)snprintf(ui.notice,sizeof ui.notice,"%s",xz_net_result_text(result));
 }
+static void support_refresh(void) {
+    if (xz_support_read) xz_support_read(&model.support, ui.support.preview_page);
+}
+static void support_apply(const struct xz_ui_action *a) {
+    struct xz_support_request_args req;
+    if (!xz_ui_support_take_request(&ui, &model, a, &req)) return;
+    if (!xz_support_request || xz_support_request(&req) != 0) {
+        if (xz_support_read) xz_support_read(&model.support, ui.support.preview_page);
+        if (model.support.status[0]) snprintf(ui.notice, sizeof ui.notice, "%.95s", model.support.status);
+    } else if (xz_support_read) {
+        xz_support_read(&model.support, ui.support.preview_page);
+    }
+}
 static void apply(void *context, const struct xz_ui_action *actions, size_t count) {
     (void)context;
     for (size_t i = 0; i < count; i++) {
         const struct xz_ui_action *a = &actions[i];
         if(xz_ui_network_kind(a->kind)){network_apply(a);continue;}
+        if(xz_ui_support_kind(a->kind)){support_apply(a);continue;}
         if (xz_sdk_ui_kind(a->kind)) { sdk_apply(a); continue; }
         if (sdk_refuses_game(a)) continue;
         switch (a->kind) {
@@ -1190,11 +1205,13 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_UPDATE_CHECK:
             xz_update_read(&model.update);
+    support_refresh();
             if(!model.update.ready || (ui.page!=XZ_UI_UPDATE_SETUP&&model.update.phase==XZ_UPDATE_ERROR)){xz_ui_navigate(&ui,XZ_UI_UPDATE_SETUP);snprintf(ui.notice,sizeof(ui.notice),"DETECT THE UPDATE SERVER IN SETUP");}
             else xz_update_request(0);
             break;
         case XZ_UI_UPDATE_INSTALL:
             xz_update_read(&model.update);
+    support_refresh();
             if(model.update.phase==XZ_UPDATE_AVAILABLE)xz_update_request(1);
             else snprintf(ui.notice,sizeof(ui.notice),"CHECK FOR AN AVAILABLE UPDATE FIRST");
             break;
@@ -1878,6 +1895,7 @@ static void refresh_local(void) {
     model.doom_ready=xz_doom_ready();
     xz_doom_browser_read(ui.wad_offset,&model.doom);ui.wad_offset=model.doom.offset;
     xz_update_read(&model.update);
+    support_refresh();
     if(!doom_phase && xz_doom_running()) {
         doom_previous_takeover=model.fb_takeover; doom_phase=2; model.fb_takeover=1;
         __atomic_store_n(&fb_takeover_active,1,__ATOMIC_RELEASE);

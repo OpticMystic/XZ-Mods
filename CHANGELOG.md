@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0-preview.20 - 2026-10-25
+
+- Recover automatically when a music USB mounts after bridge startup, while retaining active-device ownership checks.
+- Recognize normal later USB partitions, missing serials and qualified HFS+/HFSX media.
+- Add manual, previewed diagnostic reports, private log storage, a separate public GitHub issue draft and a protected maintainer inbox.
+- Add on-device report preview, explicit UTC certificate-date setup and offline export. No automatic log uploads.
+- Controller acceptance is pending. Existing beta limitations, including music USB removal and complete software Jog waveforms, remain.
+
 ## 0.5.0-preview.19 - 2026-10-24
 
 - Corrected the beta release numbering from 0.3 to 0.5 across the installer, app, backend and update feed.

@@ -243,6 +243,7 @@ def main() -> None:
                *lab_objects, str(ROOT / "arcade/rhythm_lab_runtime.c"),
                str(ROOT / "doom/wad_catalog.c"),
                str(ROOT / "ota/native_update.c"),
+               str(ROOT / "support/native_support.c"),
                *(str(ROOT / "network" / name) for name in ("lease.c", "service.c", "linux.c", "linux_os.c", "runtime.c")),
                str(ROOT / "ui_runtime.c"), str(ROOT / "metrics_runtime.c"), str(ROOT / "pc_control/stems.c"), str(ROOT / "pc_control/native.c"), str(ROOT / "pc_control/wave.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
                str(ROOT / "ui/stem_pads.c"), str(ROOT / "ui/beat_jump.c"),
@@ -319,6 +320,7 @@ def main() -> None:
     tests = {
         "runtime-smoke": [str(ROOT / "runtime_smoke.c"), "-ldl"],
         "beat-jump-test": [str(ROOT / "ui/beat_jump.c"),str(ROOT / "ui/test_beat_jump.c")],
+        "support-ui-test": [*(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/test_support_ui.c")],
         "cue-test": [str(ROOT / "cue/cue.c"), str(ROOT / "cue/test_cue.c")],
         "deck-select-test": [str(ROOT / "deck_select.c"), str(ROOT / "test_deck_select.c")],
         "deck-switch-idle-test": [str(ROOT / "deck_select.c"), str(ROOT / "tests/test_idle_jog_shift.c")],

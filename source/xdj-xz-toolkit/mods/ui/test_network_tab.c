@@ -5,7 +5,7 @@
 #include "ui_network.h"
 #include <stdlib.h>
 
-_Static_assert(XZ_UI_NETWORK==30&&XZ_UI_NETWORK_SETUP==31&&XZ_UI_NETWORK_EDIT==32&&XZ_UI_PAGE_COUNT==34,"persistent page IDs unchanged");
+_Static_assert(XZ_UI_NETWORK==30&&XZ_UI_NETWORK_SETUP==31&&XZ_UI_NETWORK_EDIT==32&&XZ_UI_SUPPORT==34&&XZ_UI_PAGE_COUNT==35,"persistent page IDs unchanged");
 _Static_assert(XZ_UI_NETWORK_SETUP_OPEN==114&&XZ_UI_NETWORK_CANCEL==124,"action IDs unchanged");
 
 static void snapshot(struct xz_shell *s,const char *dir,const char *name,int classic){

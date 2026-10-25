@@ -1,0 +1,20 @@
+{
+  "name": "xz-mods-support",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "types": "wrangler types --include-runtime false --strict-vars false",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/service.test.mjs"
+  },
+  "dependencies": {
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "esbuild": "latest",
+    "miniflare": "5.20261019.2-beta",
+    "typescript": "latest",
+    "wrangler": "latest"
+  }
+}

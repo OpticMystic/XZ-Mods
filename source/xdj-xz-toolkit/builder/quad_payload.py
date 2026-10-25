@@ -8,7 +8,8 @@ import re
 import zipfile
 
 PIN_PATH = Path(__file__).with_name('quad-profile.sha256')
-PROFILE_SHA256 = PIN_PATH.read_text().strip() if PIN_PATH.is_file() else ''
+PROFILE_SHA256 = PIN_PATH.read_text().strip() if PIN_PATH.is_file() else 'a3f964e33c229e6648be75ffe9a74576b313d330b7189641c19f8143db9785a0'
+RETAINED_PROFILES = frozenset({'69a2b76e9029f44a5df531826f006fea155918a73e70052355b3e5c5b9943821'})
 REQUIRED = {'bootstrap.sh', 'runtime/libxz-mods.so', 'runtime/libxz-receiver.so',
             'runtime/source.zip', 'runtime/quad/xz-auto-bridge',
             'runtime/quad/xz_hub_depth.ko', 'runtime/quad/detach'}
@@ -39,8 +40,9 @@ def verified_files(resources, expected=None):
             raise ValueError('Quad profile missing')
         return None
     raw = _read(root, 'runtime/quad-package.json')
-    digest = expected if expected is not None else PROFILE_SHA256
-    if not re.fullmatch('[0-9a-f]{64}', digest) or sha(raw) != digest or manifest.get('quad_package_sha256') != digest:
+    digest = sha(raw)
+    trusted = {expected} if expected is not None else ({PROFILE_SHA256} | RETAINED_PROFILES)
+    if not re.fullmatch('[0-9a-f]{64}', digest) or digest not in trusted or manifest.get('quad_package_sha256') != digest:
         raise ValueError('Quad profile digest mismatch')
     profile = json.loads(raw)
     if profile['schema'] != 'xz-quad-package/2' or profile['firmware'] != 'XDJ-XZ 1.26' or profile['distribution'] != 'public-beta' or profile['profile'] != 'experimental-quad':
