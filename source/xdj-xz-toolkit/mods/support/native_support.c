@@ -147,7 +147,7 @@ static void fill_preview_page_locked(struct xz_support_model *out, int requested
     if ((uint32_t)page >= pages) page = (int)pages - 1;
     out->page_index = (uint32_t)page;
     if (cached_draft_len == 0) {
-        snprintf(out->preview[0], XZ_SUPPORT_LINE_CHARS, "NO SANITIZED DRAFT PREPARED YET.");
+        snprintf(out->preview[0], XZ_SUPPORT_LINE_CHARS, "NO REPORT PREPARED YET.");
         return;
     }
     uint32_t start_line = (uint32_t)page * XZ_SUPPORT_PREVIEW_LINES;

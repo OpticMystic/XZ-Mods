@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0-preview.20 - 2026-10-25
+## 0.5.0-preview.21 - 2026-10-25
 
 - Recover automatically when a music USB mounts after bridge startup, while retaining active-device ownership checks.
 - Recognize normal later USB partitions, missing serials and qualified HFS+/HFSX media.

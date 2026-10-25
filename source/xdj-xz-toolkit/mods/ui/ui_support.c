@@ -423,6 +423,9 @@ const char *xz_ui_support_help(int kind) {
 int xz_ui_support_menu(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_shell_menu *out) {
     memset(out, 0, sizeof(*out));
     out->page = u->page;
+    out->layout = XZ_SHELL_MENU_SUPPORT;
+    if(current_step(u)==XZ_SUPPORT_STEP_RECEIPT && m->support.phase==XZ_SUPPORT_STORED)
+        snprintf(out->report_qr_url,sizeof(out->report_qr_url),"%s",m->support.github_url);
     int depth = 0;
     out->root = xz_ui_menu_root(u, &depth);
     out->depth = (uint8_t)depth;
@@ -478,7 +481,7 @@ int xz_ui_support_menu(const struct xz_ui *u, const struct xz_ui_model *m, struc
         ln = &out->line[out->line_count++];
         snprintf(ln->text,sizeof(ln->text),"UTC %04d-%02d-%02d %02d:%02d",v[0],v[1],v[2],v[3],v[4]);
     } else if (current_step(u) == XZ_SUPPORT_STEP_PREVIEW && m->support.report_id[0]) {
-        for (int i = 0; i < 4 && out->line_count < XZ_SHELL_MENU_LINES; i++) {
+        for (int i = 0; i < XZ_SUPPORT_PREVIEW_LINES && out->line_count < XZ_SHELL_MENU_LINES; i++) {
             if (!m->support.preview[i][0]) continue;
             ln = &out->line[out->line_count++];
             ln->tone = XZ_SHELL_TONE_DIM;
