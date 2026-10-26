@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "deck_view.h"
+#include "route_card.h"
 
 /* Design section 4. MODERN: the button at (504,0,120,26) answers y 0..43 like the other top-bar
    controls; the picker sits under the top bar's right half, like the shell's notice box. CLASSIC: the
@@ -204,4 +205,14 @@ int xz_deck_view_ready_notice_take(uint32_t ready_revision) {
  do{ if(seen==ready_revision)return 0; }
  while(!__atomic_compare_exchange_n(&notified_ready,&seen,ready_revision,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE));
  return 1;
+}
+int xz_deck_view_route_notice(int view, uint32_t ready_revision, uint32_t now_ms, struct xz_deck_view_notice *out) {
+ if(!out||!xz_deck_view_ready_notice_take(ready_revision))return 0;
+ if(xz_deck_view_valid(view)==XZ_LAYOUT_TWO)*out=(struct xz_deck_view_notice){XZ_DECK_VIEW_READY_NOTICE,now_ms,3500};
+ else *out=(struct xz_deck_view_notice){XZ_DECK_VIEW_SUCCESS_NOTICE,
+  now_ms+(uint32_t)(XZ_ROUTE_CARD_READY_HOLD_MS+XZ_ROUTE_CARD_WIPE_MS),2500};
+ return 1;
+}
+const char *xz_deck_view_notice_text(const struct xz_deck_view_notice *n, uint32_t now_ms) {
+ return n&&n->text&&n->ms&&now_ms-n->from_ms<n->ms?n->text:NULL;
 }

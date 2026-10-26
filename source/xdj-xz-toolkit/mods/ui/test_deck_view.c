@@ -3,6 +3,7 @@
 #error DECK VIEW acceptance requires active assertions
 #endif
 #include "deck_view.h"
+#include "route_card.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -106,4 +107,21 @@ static void test_notice_latch(void) {
  assert(xz_deck_view_ready_notice_take(0xffffffffu)&&xz_deck_view_ready_notice_take(1));
  puts("PASS route-up notice latch: one notice per ready revision, shared by both interfaces, never for 0");
 }
-int main(void) { test_words();test_button();test_picker();test_notice_latch();return 0; }
+static void test_route_notice(void) {
+ struct xz_deck_view_notice n={0};
+ assert(!xz_deck_view_notice_text(&n,0)&&!xz_deck_view_notice_text(NULL,0));
+ /* 2 DECKS: the ready notice from the edge for 3.5 s, once per ready revision. */
+ assert(xz_deck_view_route_notice(XZ_LAYOUT_TWO,100,5000,&n)&&!strcmp(n.text,XZ_DECK_VIEW_READY_NOTICE));
+ assert(xz_deck_view_notice_text(&n,5000)&&xz_deck_view_notice_text(&n,8499)&&!xz_deck_view_notice_text(&n,8500)&&!xz_deck_view_notice_text(&n,4999));
+ assert(!xz_deck_view_route_notice(XZ_LAYOUT_TWO,100,6000,&n)&&!xz_deck_view_route_notice(XZ_LAYOUT_FOUR,0,6000,&n));
+ /* A four-deck view: the success notice once the READY hold and the wipe end, for 2.5 s. */
+ uint32_t after=XZ_ROUTE_CARD_READY_HOLD_MS+XZ_ROUTE_CARD_WIPE_MS;
+ assert(xz_deck_view_route_notice(XZ_LAYOUT_MIXER,101,0xfffffe00u,&n)&&!strcmp(n.text,XZ_DECK_VIEW_SUCCESS_NOTICE));
+ assert(!xz_deck_view_notice_text(&n,0xfffffe00u+after-1)&&xz_deck_view_notice_text(&n,0xfffffe00u+after)&&
+        xz_deck_view_notice_text(&n,0xfffffe00u+after+2499)&&!xz_deck_view_notice_text(&n,0xfffffe00u+after+2500));
+ /* Both fit the Classic banner (14 px in, 536 px surface). */
+ uint16_t px[8];struct xz_canvas c={px,8,8,1,0};
+ assert(xz_text_width(c,XZ_DECK_VIEW_READY_NOTICE,1,99)<=536-28&&strlen(XZ_DECK_VIEW_READY_NOTICE)<=63);
+ puts("PASS route-up banner: 2 DECKS notice for 3.5 s from the edge, four-deck success notice after the hold and wipe for 2.5 s, once per revision, wraps, fits the banner");
+}
+int main(void) { test_words();test_button();test_picker();test_notice_latch();test_route_notice();return 0; }

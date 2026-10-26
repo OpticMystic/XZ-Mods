@@ -65,4 +65,14 @@ void xz_deck_view_mini_screen(struct xz_canvas c, const struct xz_deck_view_styl
    ready_revision is xz_extra_route_status.ready_revision; 0 (never up) and an already taken edge give 0.
    Lock-free; the only state in this module. */
 int xz_deck_view_ready_notice_take(uint32_t ready_revision);
+/* Shown when the route comes up under the decks 3 and 4 card (design 5.1, after the wipe). */
+#define XZ_DECK_VIEW_SUCCESS_NOTICE "DECKS 3 AND 4 ARE READY"
+/* CLASSIC's banner for a route-up. The draw thread calls this once the route is up and its ready revision
+   is known: it takes the shared latch and, the first time for that revision, fills out. 2 DECKS: the
+   ready notice from now for 3.5 s. A four-deck view: the success notice for 2.5 s once the card's READY
+   hold and wipe end, so the banner never covers the card. */
+struct xz_deck_view_notice { const char *text; uint32_t from_ms, ms; };
+int xz_deck_view_route_notice(int view, uint32_t ready_revision, uint32_t now_ms, struct xz_deck_view_notice *out);
+/* The notice's text at now_ms, or NULL outside its window (one clock domain, wrapping at 32 bits). */
+const char *xz_deck_view_notice_text(const struct xz_deck_view_notice *, uint32_t now_ms);
 #endif

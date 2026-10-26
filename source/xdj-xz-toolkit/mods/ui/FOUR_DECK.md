@@ -182,6 +182,11 @@ screen, 2 DECKS included; its touch reaches y 39. One tap opens the picker
 (140,22,500,206); a picture applies, a tap outside or BACK closes it, and six
 seconds without input close it. The encoder turns and pushes inside the open
 picker. 2 DECKS frames differ from the stock screen only in the button rect.
+When decks 3 and 4 come up while 2 DECKS shows, the wave surface's notice
+banner says "DECKS 3 AND 4 ARE READY. TAP DECKS AT THE TOP FOR FOUR DECKS."
+for 3.5 s, once per route-up; the view does not change by itself. The latch
+(`xz_deck_view_ready_notice_take`) is shared with MODERN, so one route-up raises
+one notice.
 
 ## Decks 3 and 4 not connected
 
@@ -197,7 +202,8 @@ blend. Its still is cached once per state; each frame copies it and draws the
 pulse, the scanning ring and the sweep, which rest 60 s after the card appears
 or after the last input. When the route comes up under the card it turns
 READY for 700 ms and wipes away in 8 frames; the side tags and channels of
-decks 3 and 4 go live after it. The draw thread publishes the painted card
+decks 3 and 4 go live after it, and the banner says "DECKS 3 AND 4 ARE READY"
+for 2.5 s. The draw thread publishes the painted card
 (`xz_native_four_card`) and touch acts only on that; the encoder's focus on the
 card is reported back with `xz_native_four_card_input`. While the card shows,
 an encoder push focuses RESCAN; turn moves across the card's buttons and the

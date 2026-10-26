@@ -2332,7 +2332,7 @@ static void deck_view_route_locked(uint32_t now, const struct xz_extra_route_sta
  uint32_t at=now?now:1;
  if(up&&!card_seen.up&&card_seen.card){
   model.route_card_ready_at_ms=at;
-  xz_deck_view_ready_notice_take(route->ready_revision);notice_locked(now,"DECKS 3 AND 4 ARE READY");
+  xz_deck_view_ready_notice_take(route->ready_revision);notice_locked(now,XZ_DECK_VIEW_SUCCESS_NOTICE);
  }
  if(!up)model.route_card_ready_at_ms=0;
  if(card&&(!card_seen.card||(int)route->state!=card_seen.state))model.route_card_since_ms=at;
