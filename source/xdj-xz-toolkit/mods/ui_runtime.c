@@ -3306,7 +3306,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         xz_arcade_proof_v1.live=arcade.live;xz_arcade_proof_v1.deck=arcade.clock_deck;
         xz_arcade_proof_v1.bpm=arcade.bpm;xz_arcade_proof_v1.x=arcade.x;xz_arcade_proof_v1.y=arcade.y;
     }
-    else if (touch.visible) result = xz_ui_render(&ui, &model, pixels, (size_t)stride * height, stride);
+    else if (touch.visible) { model.clock_ms = xz_game_milliseconds(); result = xz_ui_render(&ui, &model, pixels, (size_t)stride * height, stride); }
     else if (xz_shell_runtime_frame&&(shell=xz_shell_runtime_frame(pixels,stride,&shell_input))!=0) result = shell>0;
     else {
         xz_key_frame_cache_store(&key_frame_cache,model.theme,model.key_feedback,model.fb_takeover,key_strip);

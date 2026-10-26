@@ -72,8 +72,19 @@ void xz_pic_stem_layout(struct xz_canvas c, int x, int y, int w, int h, int layo
 void xz_pic_wave_swatch(struct xz_canvas c, int x, int y, int w, int h, int scheme, const uint32_t stem_rgb[3]);
 /* The media buttons above the browse encoder: USB 1, USB 2, LINK and the button next to it (lit). */
 void xz_pic_media_buttons(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h);
-/* The loopback route, top down: route state as enum xz_ui_route_state, phase 0..1023 along the cable. */
-void xz_pic_route(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h, int state, int fail_part, int phase, int labels);
+/* The loopback route picture, state as enum xz_ui_route_state. With anim (memory for a w x h picture) it is
+   the cable explainer (cable_anim.h) at anim's clock, moving while anim->moving and resting on its main shot
+   otherwise; it redraws only when its frame changes (anim keeps the frame it holds) and skips a frame over
+   the budget. Without anim it is the flat top-down drawing, phase 0..1023 along the cable. */
+struct xz_pic_route_anim {
+ uint16_t *px; uint8_t *cov; int cap;     /* the caller's picture memory: cap pixels each */
+ uint32_t key, base;                      /* the frame it holds, kept by xz_pic_route */
+ uint32_t now_ms, step_ms; int moving;    /* this frame: the clock, the frame step (0: 16 ms), may it move */
+ uint32_t bg;                             /* the card behind the picture */
+};
+#define XZ_PIC_ROUTE_BUDGET 170000u       /* pixel operations per picture frame, menus (cable-anim/RESEARCH.md) */
+void xz_pic_route(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h, int state, int fail_part, int phase, int labels,
+ struct xz_pic_route_anim *anim);
 /* HOME tile pictures, 74 x 44. section is the page. */
 void xz_pic_home_icon(struct xz_canvas c, const struct xz_pic_style *s, int section, int x, int y, const struct xz_pic_home *h);
 /* The 4 DECKS grid: rows xz_ui_grid_features, columns decks 3 1 2 4. focus = the row ringed, -1 none. */

@@ -256,6 +256,7 @@ struct xz_ui_model {
     int ui_interface, classic_theme, modern_theme; /* enum xz_interface and its theme lists (settings.h) */
     const char *server_address;
     unsigned blink;
+    uint32_t clock_ms;      /* the panel's frame clock (monotonic ms), for its moving pictures */
     struct xz_ui_connection connection;
     int stem_page, shift_pages, pad_feedback, shift_keysync;
     int fb_takeover, takeover_assign, stems_overlay; /* stems_overlay: enum xz_stem_layout */

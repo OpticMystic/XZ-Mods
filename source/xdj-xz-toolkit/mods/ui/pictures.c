@@ -2,6 +2,7 @@
 /* The MODS menu's pictures (pictures.h). Ported from the design mockups (design/_src, the Python scripts): the same
    geometry, drawn with the renderer's own primitives and fonts. */
 #include "pictures.h"
+#include "cable_anim.h"
 #include "theme_flagship.h"
 #include "wave_viewport.h"
 #include "stem_pads.h"
@@ -425,9 +426,29 @@ void xz_pic_media_buttons(struct xz_canvas c, const struct xz_pic_style *s, int 
   }
  }
 }
+/* The explainer in the menu's colours: MODERN as the play card, CLASSIC in the theme's own (dark or light). */
+static void route_anim(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h, int state, int part, int labels,
+ struct xz_pic_route_anim *a) {
+ uint32_t bg=a->bg,ink=s->modern?0xffffff:s->ink;
+ struct xz_cable_palette pal={bg,xz_blend(bg,ink,14),xz_blend(bg,0x000000,160),s->modern?0x9a9a9a:s->dim,M_AMBER,
+  s->modern?M_BLUE:s->select,s->modern?0xffffff:s->ink,s->modern?M_GREEN:s->good,s->modern?M_RED:s->alarm,
+  s->modern?0x5a5a5a:s->faint,labels?(s->modern?0xb8b8b8:s->dim):0,0xffffff,c.theme};
+ struct xz_cable_look look;xz_cable_look_of(&look,&pal,state,part);
+ struct xz_cable_picture pic={a->px,a->cov,w,h};
+ uint32_t t,h32=2166136261u;int signal;
+ const uint32_t v[6]={(uint32_t)state<<4|(uint32_t)part,bg,s->select,s->ink,(uint32_t)c.theme,(uint32_t)(w<<12|h)};
+ for(int i=0;i<6;i++){h32^=v[i];h32*=16777619u;}
+ uint32_t base=h32|1u,key=xz_cable_frame_of(state,part,a->now_ms,a->moving,a->step_ms,&t,&signal)^base*2654435761u;
+ if(a->key!=key||a->base!=base){
+  if(xz_cable_draw(&pic,t,&look,signal,a->moving&&a->base==base?XZ_PIC_ROUTE_BUDGET:0u)){a->key=key;a->base=base;}
+ }
+ xz_cable_blit(c,x,y,&pic);
+}
 /* The route: state as enum xz_ui_route_state. */
-void xz_pic_route(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h, int state, int part, int phase, int labels) {
+void xz_pic_route(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h, int state, int part, int phase, int labels,
+ struct xz_pic_route_anim *anim) {
  if(state==XZ_UI_ROUTE_NO_ENGINE)return;
+ if(anim&&anim->px&&anim->cov&&w>0&&h>0&&w*h<=anim->cap){route_anim(c,s,x,y,w,h,state,part,labels,anim);return;}
  int modern=s->modern;
  uint32_t edge=modern?0x9a9a9a:0xa8b0b8,body=modern?0x161616:0x0e1216,ok=M_GREEN,warn=M_AMBER,bad=M_RED,accent=modern?M_BLUE:s->select;
  int ready=state==XZ_UI_ROUTE_READY,failed=state==XZ_UI_ROUTE_FAILED||state==XZ_UI_ROUTE_LOST;

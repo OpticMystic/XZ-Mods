@@ -166,10 +166,15 @@ static void test_encoder(void){
 static void test_motion_and_success(void){
  struct xz_shell u;struct xz_shell_model m,view;
  xz_shell_init(&u);route_down(&m,XZ_LAYOUT_FOUR,XZ_EXTRA_ROUTE_NOT_DETECTED);
- assert(xz_shell_play_motion_ms(&u,&m)==XZ_ROUTE_CARD_FRAME_MS);
+ m.deck[0].playing=m.deck[1].playing=0;m.frame_late=0;
+ assert(xz_shell_play_motion_ms(&u,&m)==XZ_ROUTE_CARD_FRAME_MS&&xz_shell_motion_ms(&u,&m)==XZ_ROUTE_CARD_FRAME_MS);
+ /* The picture steps down while a native deck plays (30 fps) and after a late frame (15 fps). */
+ m.deck[1].playing=1;assert(xz_shell_play_motion_ms(&u,&m)==33u);
+ m.frame_late=1;assert(xz_shell_play_motion_ms(&u,&m)==66u);m.frame_late=0;m.deck[1].playing=0;
  m.clock_ms=m.route_card_since_ms+XZ_ROUTE_CARD_REST_MS;assert(!xz_shell_play_motion_ms(&u,&m));
  u.deck_view.input_at=m.clock_ms-5;assert(xz_shell_play_motion_ms(&u,&m)==XZ_ROUTE_CARD_FRAME_MS);
- m.route_state=XZ_EXTRA_ROUTE_FAILED;assert(!xz_shell_play_motion_ms(&u,&m));
+ /* Failed plays the explainer too: the DJ has a cable to fix. */
+ m.route_state=XZ_EXTRA_ROUTE_FAILED;assert(xz_shell_play_motion_ms(&u,&m)==XZ_ROUTE_CARD_FRAME_MS);
  m.layout_preference=XZ_LAYOUT_TWO+1;m.route_state=XZ_EXTRA_ROUTE_NOT_DETECTED;assert(!xz_shell_play_motion_ms(&u,&m));
  /* Route up under the card: READY holds, the card wipes away, then decks 3 and 4 are live. */
  xz_shell_init(&u);fx_model_four(&m,&track);m.layout_preference=XZ_LAYOUT_FOUR+1;m.route_state=XZ_EXTRA_ROUTE_READY;
