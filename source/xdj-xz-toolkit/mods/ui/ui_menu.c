@@ -138,6 +138,7 @@ static const char *reason_of(const struct xz_ui *u, const struct xz_ui_model *m,
  case XZ_UI_STRIP:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_VOLUME:case XZ_UI_SAMPLE_PAD:
   return "THIS USB LOADER HAS NO X-PAD SAMPLE ENGINE.";
  case XZ_UI_KEY_SHIFT:return "LOAD AN ANALYSED TRACK ON THIS DECK.";
+ case XZ_UI_ROUTE_RESCAN:return m->route.state==XZ_UI_ROUTE_SCANNING?"STILL LOOKING FOR THE CABLE.":"THIS USB LOADER CANNOT PLAY FOUR DECKS.";
  case XZ_UI_KEY_SYNC:return "BOTH DECKS NEED ANALYSED KEYS.";
  default:break;
  }

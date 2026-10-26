@@ -10,7 +10,21 @@
 #undef main
 #include <stdio.h>
 void xz_layered_wave_configure(int mode,const uint32_t rgb[3]){(void)mode;(void)rgb;}
-int xz_read_memory(uint32_t address,void *out,size_t n){(void)address;(void)out;(void)n;return -1;}
+/* The two local players' memory map (as test_play_key_runtime_r1.c), only while every_row_works runs: KEY SYNC
+   needs a player to act on. Otherwise nothing is readable. */
+static int rows_players;
+int xz_read_memory(uint32_t address,void *out,size_t n){
+    uint32_t value=0;
+    if(!rows_players)return -1;
+    if(n==4){
+        if(address==0x1c8a308)value=0x200000;else if(address==0x200040)value=0x210000;else if(address==0x200048)value=2;
+        else if(address==0x210000)value=0x220000;else if(address==0x210004)value=0x221000;
+        else if(address==0x220138)value=0x230000;else if(address==0x221138)value=0x231000;else return -1;
+        memcpy(out,&value,4);return 0;
+    }
+    if(n==1&&(address==0x230026||address==0x231026)){*(unsigned char *)out=address==0x230026?1:2;return 0;}
+    return -1;
+}
 
 /* The stand-in shell's MODS screen: which MENU tab root it shows, the page it was given, its commands. */
 /* Off while the existing suite runs: it proves the runtime without these hooks (an older shell). */
@@ -189,6 +203,7 @@ static void classic_keeps_panel(void){
     puts("PASS CLASSIC: setups open the panel as before");
 }
 
+#include "test_section_rows_runtime.h"
 #ifndef XZ_MENU_RUNTIME_MAIN
 #define XZ_MENU_RUNTIME_MAIN main
 #endif
@@ -196,6 +211,7 @@ int XZ_MENU_RUNTIME_MAIN(void){
     existing_runtime_controls();
     fake_menu_on=1;
     menu_walk();
+    every_row_works();
     setups_open_in_shell();
     games_return();
     back_one_level();
