@@ -26,7 +26,7 @@ int main(void){
  fixture_extra.deck[0].loaded=1;fixture_extra.deck[0].known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE);
  fixture_extra.deck[0].wave=(struct xz_extra_wave){wave_columns,188,300000,270};
  assert(!xz_classic_mixer_runtime_start());
- const char *keys[2]={"4A","9B"};
+ const struct xz_classic_mixer_key keys[2]={{1,"4A","2A",-21},{1,"9B","9B",0}};
  assert(xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1000,keys));
  assert(xz_classic_mixer_runtime_visible());
  assert(!active_holds&&acquires==releases&&xz_classic_mixer_runtime_layout()==XZ_LAYOUT_MIXER);
@@ -59,11 +59,17 @@ int main(void){
  assert(!overview_sequence[0]&&!pending_invalidation);
  xz_classic_mixer_native_overview(0,footer_pixels,300*34,7,423);
  assert(xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1220,keys)&&overview_sequence[0]);
+ /* The side column: four tags beside the lanes (MIXER: 3 1 2 4), and the band's top rows cleared. */
+ for(int y=309;y<311;y++)for(int x=0;x<800;x++)assert(!pixels[y*800+x]);
+ int tags=0;for(int y=22;y<309;y++)for(int x=0;x<130;x++)tags+=pixels[y*800+x]!=0;
+ assert(tags>3000);
+ /* Decks 3 and 4 down with DECK VIEW four: the band stays, decks 3 and 4 NOT CONNECTED; never a hide. */
  unsigned before=repaints;
  fixture_extra.route_up=0;
- assert(!xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1230,keys));
- assert(!xz_classic_mixer_runtime_visible()&&repaints==before+1);
- xz_classic_mixer_runtime_hide();assert(repaints==before+1);
+ assert(xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1230,keys));
+ assert(xz_classic_mixer_runtime_visible()&&repaints==before&&!active_holds&&acquires==releases);
+ uint16_t dim=(uint16_t)(((0x16>>3)<<11)|((0x1c>>2)<<5)|(0x26>>3));
+ assert(pixels[312*800+60]==dim&&pixels[312*800+660]==dim&&pixels[312*800+260]!=dim);
  fixture_extra.route_up=1;
  assert(xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1300,keys));
  put32(0x3eaff7c,1);
@@ -76,6 +82,6 @@ int main(void){
  xz_classic_mixer_runtime_stop();
  assert(!xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1500,keys));
  assert(!active_holds&&acquires==releases);
- puts("PASS held analysis through drawing, route-down/caution/TWO/shutdown releases; actual Classic mixer runtime: guarded native fields, 10Hz refresh, captured geometry, overview copy/load invalidation under contention, route loss and caution repaint, shutdown");
+ puts("PASS held analysis through drawing, route-down/caution/TWO/shutdown releases; actual Classic mixer runtime: guarded native fields, 10Hz refresh, captured geometry, overview copy/load invalidation under contention, side column and band rows, decks 3/4 NOT CONNECTED while down, caution repaint, shutdown");
  return 0;
 }

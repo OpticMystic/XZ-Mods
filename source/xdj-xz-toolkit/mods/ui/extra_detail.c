@@ -367,7 +367,17 @@ static void lane_numbers(uint16_t *pixels,const struct xz_four_layout *g,const s
 }
 int xz_four_frame_draw(uint16_t *pixels,size_t count,const struct xz_four_frame *f,struct xz_extra_lane_marks *marks){
  struct xz_four_layout g;
- if(!pixels||!f||!f->decks||count<(size_t)XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT||!xz_four_layout_get(f->order,&g))return 0;
+ if(!pixels||!f||(!f->decks&&!f->placeholders)||count<(size_t)XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT||!xz_four_layout_get(f->order,&g))return 0;
+ if(f->placeholders){
+  /* The native sides drive DECK 1 and 2; DECK 3 and 4 keep no data to draw. */
+  xz_four_badge_draw(pixels,XZ_WAVE_WIDTH,count,g.lane_y[0],1,1);
+  xz_four_badge_draw(pixels,XZ_WAVE_WIDTH,count,g.lane_y[1],2,1);
+  for(int d=2;d<4;d++)for(unsigned r=0;r<XZ_FOUR_LANE_HEIGHT;r++){
+   uint16_t *row=pixels+(size_t)(g.lane_y[d]+r)*XZ_WAVE_WIDTH;
+   for(unsigned x=0;x<XZ_WAVE_WIDTH;x++)row[x]=0x0841; /* #080808 */
+  }
+  return 1;
+ }
  const struct xz_extra_decks *s=f->decks;
  struct xz_extra_lane_view view={f->now_ms,f->column_us,f->background,0};
  for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){

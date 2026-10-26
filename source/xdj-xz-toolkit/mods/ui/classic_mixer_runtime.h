@@ -5,9 +5,13 @@
 #include <stdint.h>
 int xz_classic_mixer_runtime_start(void);
 void xz_classic_mixer_runtime_stop(void);
-/* Called after stock/badges, never over MODS, a game, a native dialog or a takeover. */
+/* The native decks' keys as the Classic key strip reads them (key_strip.h); valid 0 when unknown. */
+struct xz_classic_mixer_key { int valid; char effective[8], original[8]; int cents; };
+/* Called after stock/badges, never over MODS, a game, a native dialog or a takeover. In a four-deck DECK VIEW
+   it owns the side column (x 0..129, y 22..308) and the channel band (y 309..479): four tags beside the lanes
+   and four channels in mixer order 3 1 2 4, decks 3 and 4 NOT CONNECTED while their route is down. */
 int xz_classic_mixer_runtime_frame(uint16_t *,size_t stride,size_t count,int eligible,int theme,uint32_t now_ms,
-                                  const char *keys[2]);
+                                  const struct xz_classic_mixer_key keys[2]);
 void xz_classic_mixer_runtime_hide(void);
 int xz_classic_mixer_runtime_visible(void);
 int xz_classic_mixer_runtime_layout(void);

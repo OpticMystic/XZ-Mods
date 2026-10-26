@@ -82,7 +82,10 @@ void xz_shell_runtime_owner_tick(void);
    STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
    right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
 enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u,
- XZ_SHELL_UI_MENU=32u };
+ XZ_SHELL_UI_MENU=32u, XZ_SHELL_UI_DECK_VIEW=64u };
+/* XZ_SHELL_UI_DECK_VIEW: the DECK VIEW the PLAY picker or the decks 3 and 4 card chose (enum xz_deck_layout),
+   or -1. Taken once; ui_runtime.c applies it through its one DECK VIEW entry point. */
+int xz_shell_runtime_take_deck_view(void);
 /* The MODS screen's MENU tabs (GENERAL, CONTROLS, ADVANCED, EXTRAS) are the MODS panel's own pages, drawn by
    the shell (ui/ui_menu.h describes them). ui_runtime.c publishes the panel's open page whenever menu_wanted
    says the shell shows a MENU tab (every frame, and right after it runs a command, so the next input already

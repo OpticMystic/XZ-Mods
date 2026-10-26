@@ -71,7 +71,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='xz-four-preview-') as folder:
         folder = Path(folder)
         exe = folder / 'preview.exe'
-        sources = ['preview_four_deck.c', 'extra_lane.c', 'extra_detail.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c']
+        sources = ['preview_four_deck.c', 'extra_lane.c', 'extra_detail.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c', 'route_card.c']
         subprocess.run([args.zig, 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
                         *[str(here / s) for s in sources], '-lm', '-o', str(exe)], check=True)
         (folder / 'native.raw').write_bytes(native_surface(screen))

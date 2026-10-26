@@ -19,4 +19,18 @@ void xz_native_four_set_detail(int deck);
 void xz_native_four_detail_notice(int notice);
 int xz_native_focus_deck(void);
 int xz_native_play_visible(void);
+/* DECK VIEW 4 DECKS while decks 3 and 4 are not up: the four lanes stay, decks 3 and 4 greyed, and the
+   card (route_card.h) in their lanes, drawn inside the wave transaction after the theme pass.
+   card: what the last completed four-deck frame drew, for touch: 0 none, else XZ_NATIVE_CARD_SHOWN with
+   its lane order, route state and buttons (macros below). card_input: a play-screen touch or encoder
+   input at now_ms (the pulse rests 60 s after the last one) and the encoder's focus on the card
+   (XZ_ROUTE_CARD_HIT_PRIMARY / _TWO, or -1). card_success: while the READY hold and wipe after the route
+   came up under the card last, its start (monotonic ms), else 0; decks 3 and 4 panels wait for it. */
+#define XZ_NATIVE_CARD_SHOWN 1u
+#define XZ_NATIVE_CARD_ORDER(w) ((int)(((w)>>1)&7u))
+#define XZ_NATIVE_CARD_STATE(w) ((int)(((w)>>4)&15u))
+#define XZ_NATIVE_CARD_SUCCESS 256u
+uint32_t xz_native_four_card(void);
+void xz_native_four_card_input(uint32_t now_ms,int focus);
+uint32_t xz_native_four_card_success(uint32_t now_ms);
 #endif

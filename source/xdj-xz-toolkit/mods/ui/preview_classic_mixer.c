@@ -30,13 +30,13 @@ int main(int argc,char **argv){
  static uint16_t surface[XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT];
  f=fopen(argv[4],"rb");if(!f)return 8;n=fread(surface,2,XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT,f);fclose(f);if(n!=XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT)return 9;
  xz_four_layout_pixels(surface,XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT,XZ_WAVE_WIDTH,order);
- struct xz_four_frame frame={&extra,order,1000,XZ_EXTRA_LANE_COLUMN_US,1,-1,0};
+ struct xz_four_frame frame={&extra,order,1000,XZ_EXTRA_LANE_COLUMN_US,1,-1,0,0};
  if(!xz_four_frame_draw(surface,XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT,&frame,NULL))return 10;
  for(int y=0;y<XZ_WAVE_HEIGHT;y++)for(int x=0;x<XZ_WAVE_WIDTH;x++){
   int sx=131+x,sy=18+y;if(sy<24&&sx>=282&&sx<672)continue;
   pixels[sy*800+sx]=surface[y*XZ_WAVE_WIDTH+x];
  }
- struct xz_classic_mixer_view v={native,&extra,1000,0,layout,{overview[0],overview[1]}};
+ struct xz_classic_mixer_view v={native,&extra,1000,0,layout,{overview[0],overview[1]},0};
  if(!xz_classic_mixer_draw(pixels,800,800*480,&v))return 5;
  f=fopen(argv[2],"wb");if(!f)return 6;n=fwrite(pixels,2,800*480,f);fclose(f);return n==800*480?0:7;
 }

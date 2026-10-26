@@ -5,6 +5,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include "extra_lane.h"
 #include "extra_detail.h"
+#include "route_card.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,7 +68,7 @@ static void synced(struct xz_extra_deck *d,int master_deck,enum xz_extra_sync_re
 static void render(const struct xz_extra_decks *decks,int order,int detail,int notice){
  memcpy(surface,native,sizeof(surface));
  xz_four_layout_pixels(surface,PIXELS,XZ_WAVE_WIDTH,order);
- struct xz_four_frame frame={decks,order,NOW,XZ_EXTRA_LANE_COLUMN_US,1,detail,notice};
+ struct xz_four_frame frame={decks,order,NOW,XZ_EXTRA_LANE_COLUMN_US,1,detail,notice,0};
  xz_four_frame_draw(surface,PIXELS,&frame,marks);
  struct xz_four_layout g;xz_four_layout_get(order,&g);
  struct xz_four_marks m={0};
@@ -93,7 +94,8 @@ int main(int argc,char **argv){
  synced(&full.deck[1],2,XZ_EXTRA_SYNC_LOCKED,XZ_EXTRA_MASTER_SCOPE_SOFTWARE);
  if(argc>3){
   /* Best of five rounds per step, so a busy host does not inflate one number. */
-  int frames=atoi(argv[3]);double best[6]={1e9,1e9,1e9,1e9,1e9,1e9};
+  int frames=atoi(argv[3]);double best[9]={1e9,1e9,1e9,1e9,1e9,1e9,1e9,1e9,1e9};
+  static struct xz_route_card_cache card_cache;
   struct xz_four_layout g;xz_four_layout_get(XZ_FOUR_ORDER,&g);
   struct xz_four_marks two={0},four={0};
   for(int round=0;round<5;round++){
@@ -101,14 +103,14 @@ int main(int argc,char **argv){
    for(int i=0;i<frames;i++)memcpy(surface,native,sizeof(surface));
    double copy=seconds()-t0;t0=seconds();
    for(int i=0;i<frames;i++){memcpy(surface,native,sizeof(surface));xz_four_layout_pixels(surface,PIXELS,XZ_WAVE_WIDTH,XZ_FOUR_ORDER);}
-   double step[6]={copy,seconds()-t0-copy,0,0,0,0};t0=seconds();
+   double step[9]={copy,seconds()-t0-copy,0,0,0,0,0,0,0};t0=seconds();
    for(int i=0;i<frames;i++){
-    struct xz_four_frame frame={&full,XZ_FOUR_ORDER,NOW+(uint32_t)i*16,XZ_EXTRA_LANE_COLUMN_US,1,-1,0};
+    struct xz_four_frame frame={&full,XZ_FOUR_ORDER,NOW+(uint32_t)i*16,XZ_EXTRA_LANE_COLUMN_US,1,-1,0,0};
     xz_four_frame_draw(surface,PIXELS,&frame,marks);
    }
    step[2]=seconds()-t0;t0=seconds();
    for(int i=0;i<frames;i++){
-    struct xz_four_frame frame={&full,XZ_FOUR_ORDER,NOW+(uint32_t)i*16,XZ_EXTRA_LANE_COLUMN_US,1,0,0};
+    struct xz_four_frame frame={&full,XZ_FOUR_ORDER,NOW+(uint32_t)i*16,XZ_EXTRA_LANE_COLUMN_US,1,0,0,0};
     xz_four_frame_draw(surface,PIXELS,&frame,marks);
    }
    step[3]=seconds()-t0;
@@ -118,11 +120,31 @@ int main(int argc,char **argv){
    step[4]=seconds()-t0;t0=seconds();
    for(int i=0;i<frames;i++){xz_four_protect(&g,&four,surface,keep);xz_four_restore(&g,&four,surface,keep);}
    step[5]=seconds()-t0;
-   for(int s=0;s<6;s++)if(step[s]<best[s])best[s]=step[s];
+   /* DECK VIEW 4 DECKS with decks 3 and 4 down: native tags and the lane tint, then the card (route_card.h)
+      after the theme, its pulse moving: copied from its cached still, and drawn whole every frame. */
+   t0=seconds();
+   for(int i=0;i<frames;i++){
+    struct xz_four_frame frame={NULL,XZ_FOUR_ORDER,NOW+(uint32_t)i*16,XZ_EXTRA_LANE_COLUMN_US,1,-1,0,1};
+    xz_four_frame_draw(surface,PIXELS,&frame,NULL);
+   }
+   step[6]=seconds()-t0;t0=seconds();
+   for(int i=0;i<frames;i++){
+    struct xz_route_card_input in={XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.",NOW+(uint32_t)i*50,NOW,0,-1};
+    xz_route_card_draw((struct xz_canvas){surface,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0},&xz_route_card_classic,(int)g.lane_y[2],(int)g.lane_y[3],&in,&card_cache);
+   }
+   step[7]=seconds()-t0;t0=seconds();
+   for(int i=0;i<frames;i++){
+    struct xz_route_card_input in={XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.",NOW+(uint32_t)i*50,NOW,0,-1};
+    xz_route_card_draw((struct xz_canvas){surface,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0},&xz_route_card_classic,(int)g.lane_y[2],(int)g.lane_y[3],&in,NULL);
+   }
+   step[8]=seconds()-t0;
+   for(int s=0;s<9;s++)if(step[s]<best[s])best[s]=step[s];
   }
   printf("host us/frame, best of 5 x %d frames: surface copy %.1f, four layout %.1f, two extra lanes + tags %.1f, "
    "same with the detail panel open %.1f, theme protect+restore DECK 3/4 %.1f, all four lanes layered %.1f\n",frames,
    best[0]*1e6/frames,best[1]*1e6/frames,best[2]*1e6/frames,best[3]*1e6/frames,best[4]*1e6/frames,best[5]*1e6/frames);
+  printf("host us/frame, DECK VIEW 4 DECKS with decks 3/4 down: native tags + lane tint %.1f, card from its cached still %.1f, "
+   "card drawn whole %.1f\n",best[6]*1e6/frames,best[7]*1e6/frames,best[8]*1e6/frames);
   return 0;
  }
  /* Plates: DECK 3 the 3/4 clock master, DECK 4 locked to it; stock modes (REMAIN, A.CUE, Q, VINYL, MT). */
