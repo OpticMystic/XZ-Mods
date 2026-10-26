@@ -139,8 +139,9 @@ removal, the real UBIFS mount or physical power-loss behaviour.
 
 Open MODS > PLAY > BEAT JUMP PADS. Choose
 PAGE 1 or PAGE 2, then tap either pad in a pair. The editor mirrors
-the physical two rows of four pads. UP/DOWN or the browse encoder changes
-the selected pair's size; the selection stops at the smallest/largest size. A/B, C/D,
+the physical two rows of four pads. Tap a size in the row of sizes along the
+bottom, or push the pair and turn the browse encoder to step its size (it stops
+at the smallest and largest size). A/B, C/D,
 E/F and G/H are independent pairs. The first pad jumps backward and the
 second jumps forward by the same amount. Assignments apply to both decks.
 

@@ -446,7 +446,7 @@ static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,cons
  if(w->kind==XZ_UI_INFO||w->kind==XZ_UI_HOME_SETUP||w->kind==XZ_UI_DECK_VIEW||w->kind==XZ_UI_DECK_VIEW_BUTTON)return 1;
  if(w->kind==XZ_UI_ROUTE_RESCAN)return m->route.state!=XZ_UI_ROUTE_SCANNING&&m->route.state!=XZ_UI_ROUTE_NO_ENGINE;
  /* Page 1 on STOCK plays the player's own 1 2 4 8: nothing to edit there. */
- if((w->kind==XZ_UI_JUMP_PAIR||w->kind==XZ_UI_JUMP_SIZE||w->kind==XZ_UI_JUMP_STEP)&&u->page==XZ_UI_BEAT_JUMP&&!u->jump_edit_page&&!m->jump.enabled)return 0;
+ if((w->kind==XZ_UI_JUMP_PAIR||w->kind==XZ_UI_JUMP_SIZE)&&u->page==XZ_UI_BEAT_JUMP&&!u->jump_edit_page&&!m->jump.enabled)return 0;
  if(w->kind==XZ_UI_MUTE||w->kind==XZ_UI_BYPASS||w->kind==XZ_UI_LEVEL)return deck<2&&usb_playable(m,deck);
  uint32_t available=d->ready;
  if(w->kind==XZ_UI_ENABLE)
@@ -727,7 +727,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
    snprintf(u->notice,sizeof(u->notice),"%s",why==XZ_UI_USB_WHY_ERROR&&error&&*error?error:xz_ui_usb_next_step(why));
    u->notice_deck=deck;out[n++]=action(XZ_UI_UNAVAILABLE,XZ_UI_PRESS,deck,XZ_UI_STEM,0,0);return n;
   }
-  else if(a.kind==XZ_UI_JUMP_PAIR||a.kind==XZ_UI_JUMP_SIZE||a.kind==XZ_UI_JUMP_STEP)snprintf(u->notice,sizeof(u->notice),"PAGE 1 USES THE PLAYER'S OWN JUMPS. CHOOSE MY SIZES TO CHANGE THEM.");
+  else if(a.kind==XZ_UI_JUMP_PAIR||a.kind==XZ_UI_JUMP_SIZE)snprintf(u->notice,sizeof(u->notice),"PAGE 1 USES THE PLAYER'S OWN JUMPS. CHOOSE MY SIZES TO CHANGE THEM.");
   else if(a.kind==XZ_UI_ROUTE_RESCAN)snprintf(u->notice,sizeof(u->notice),"%s",m->route.state==XZ_UI_ROUTE_SCANNING?"STILL LOOKING FOR THE CABLE.":"DECKS 3 AND 4 ARE NOT RUNNING ON THIS PLAYER.");
   else snprintf(u->notice,sizeof(u->notice),"%s / NOT READY - CHECK FEATURE, MEDIA AND RUNTIME",a.label[0]?a.label:"CONTROL");
   out[n++]=action(XZ_UI_UNAVAILABLE,XZ_UI_PRESS,deck,(int)a.requires,0,0);return n;
