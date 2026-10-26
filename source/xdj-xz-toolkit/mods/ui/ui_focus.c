@@ -236,7 +236,6 @@ static const char *grid_body(const struct xz_ui_model *m,unsigned f){
   return xz_deck_cap_reason(m,(on&1u)?1:0,f);
  }
  if((on&12u)==12u)return "Works on all four decks.";
- if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)return "Works on decks 1 and 2. Decks 3 and 4 are not running on this player.";
  switch(f){
  case XZ_DECK_CAN_PLAYING_KEY:return "Decks 3 and 4 show the track's own key: it does not follow their tempo in this version.";
  case XZ_DECK_CAN_KEY_SYNC:return "Decks 3 and 4 cannot shift key in this version, so key sync stays on decks 1 and 2.";
