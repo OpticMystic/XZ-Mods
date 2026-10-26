@@ -4,6 +4,7 @@
 #include "four_deck_fixtures.h"
 #include "shell_internal.h"
 #include "../ui/layout_cycle.h"
+#include "../ui/deck_view.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -61,7 +62,10 @@ static void test_views(void){
   struct xz_shell_rect button=xz_shell_play_rect(&m,XZ_SHELL_R_VIEW_TWO,0);
   assert(button.w>=44&&button.h>0&&!xz_shell_play_rect(&m,XZ_SHELL_R_VIEW_FOUR,0).w);
   assert(xz_shell_render_frame(&u,&m,frame(a),STRIDE));
-  assert(tap(&u,&m,button.x+button.w/2,43,out)==1&&out[0].kind==XZ_SHELL_ACT_DECK_LAYOUT&&out[0].value==wanted);
+  assert(!tap(&u,&m,button.x+button.w/2,43,out)&&u.deck_view.open);
+  assert(xz_shell_render_frame(&u,&m,frame(a),STRIDE));
+  struct xz_dv_rect tile=xz_deck_view_tile(&xz_deck_view_modern,wanted);
+  assert(tap(&u,&m,tile.x+tile.w/2,tile.y+tile.h-4,out)==1&&out[0].kind==XZ_SHELL_ACT_DECK_LAYOUT&&out[0].value==wanted);
   m.layout_preference=out[0].value+1;
   assert(!tap(&u,&m,button.x+button.w/2,43,out));
   assert(u.deck==focus&&m.sides_extra==sides);
@@ -94,7 +98,7 @@ static void test_views(void){
    if(count==2)assert(!xz_shell_play_rect(&view,XZ_SHELL_R_LANE,d^2).w);
   }
  }
- puts("PASS cycle view:44px painted cycle hits, all pairs/orders/focuses, complete guarded frames, large logical numbers/titles, fixed3/1/2/4, correct seek targets");
+ puts("PASS DECK VIEW pair:44px painted button and picture hits, all pairs/orders/focuses, complete guarded frames, large logical numbers/titles, fixed3/1/2/4, correct seek targets");
 }
 static void test_grid_focus(void){
  for(int sides=0;sides<4;sides++)for(int focus=0;focus<4;focus++){
