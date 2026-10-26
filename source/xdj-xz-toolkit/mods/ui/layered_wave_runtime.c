@@ -252,10 +252,11 @@ static void XZ_WAVE_ABI column(unsigned deck,unsigned x,unsigned first,unsigned 
 }
 /* Rows d above the centre line, then their mirror below it. */
 static unsigned row_of(unsigned deck,unsigned r){return r<EXTENT?CENTER(deck)-r:CENTER(deck)+1+(r-EXTENT);}
-void xz_layered_wave_protect(const uint16_t *pixels){
+void xz_layered_wave_protect(const uint16_t *pixels){xz_layered_wave_protect_decks(pixels,3u);}
+void xz_layered_wave_protect_decks(const uint16_t *pixels,unsigned decks){
  memset(keep,0,sizeof(keep));
  if(!drawn.any||!pixels)return;
- for(unsigned deck=0;deck<2;deck++)for(unsigned x=0;x<WIDTH;x++){
+ for(unsigned deck=0;deck<2;deck++)if(decks&(1u<<deck))for(unsigned x=0;x<WIDTH;x++){
   const struct xz_layered_col *c=&drawn.col[deck][x];if(!c->valid)continue;
   for(unsigned r=0;r<2*EXTENT;r++){
    int want=xz_layered_pixel(&drawn.look[deck],c,r%EXTENT);

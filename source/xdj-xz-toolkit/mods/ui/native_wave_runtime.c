@@ -65,6 +65,18 @@ static int card_focus=-1,card_route_seen;
 static int ready_seen_up,ready_pending;
 static uint32_t ready_edge_at,ready_from,ready_ms;
 static const char *ready_text;
+/* 2 DECKS shows the decks the sides control (extra_lane.h xz_two_frame). two_frame_pair: the pair this frame
+   draws, from the snapshot taken at the lock; two_painted: the pair the last completed frame painted, for the
+   side column, the bottom panels and touch; revoked with the play scene. */
+static _Thread_local unsigned two_frame_pair;
+static unsigned two_painted;
+/* A side switching deck while the route stays up and 2 DECKS shows raises one banner saying where it went
+   (deck_view.h xz_deck_view_pair_notice). Seen only while wave frames run back to back, so returning to the
+   play screen after a switch elsewhere says nothing. Draw thread only. */
+static unsigned pair_seen;
+static int pair_seen_valid;
+static uint32_t pair_seen_at,pair_from;
+static const char *pair_text;
 static _Thread_local uint8_t four_keep[XZ_FOUR_KEEP_BYTES];
 struct xz_inline_proof { uint32_t version,captures,frames,skipped; };
 __attribute__((visibility("default"))) struct xz_inline_proof xz_inline_proof_v1={1,0,0,0};
@@ -111,6 +123,20 @@ static const char *ready_banner(uint32_t now){
  n.text=__atomic_load_n(&ready_text,__ATOMIC_RELAXED);n.from_ms=__atomic_load_n(&ready_from,__ATOMIC_RELAXED);
  return xz_deck_view_notice_text(&n,now);
 }
+static unsigned sides_of(const struct xz_extra_decks *s){
+ return s->route_up?(s->left_on_3?1u:0u)|(s->right_on_4?2u:0u):0u;
+}
+/* Route loss ends the banner: the players' own ROUTE LOST notice says what happened. */
+static void pair_route(int up,unsigned sides,uint32_t now){
+ if(!up){pair_seen_valid=0;pair_text=NULL;return;}
+ if(pair_seen_valid&&now-pair_seen_at<500u&&sides!=pair_seen&&xz_deck_layout_get()==XZ_LAYOUT_TWO){
+  pair_text=xz_deck_view_pair_notice(pair_seen,sides);pair_from=now;
+ }
+ pair_seen=sides;pair_seen_valid=1;pair_seen_at=now;
+}
+static const char *pair_banner(uint32_t now){
+ return pair_text&&now-pair_from<XZ_DECK_VIEW_PAIR_NOTICE_MS?pair_text:NULL;
+}
 uint32_t xz_native_four_card(void){return xz_native_four_order()<0?0:__atomic_load_n(&card_painted,__ATOMIC_ACQUIRE);}
 void xz_native_four_card_input(uint32_t now_ms,int focus){
  __atomic_store_n(&card_input_at,now_ms?now_ms:1,__ATOMIC_RELEASE);
@@ -138,6 +164,11 @@ int xz_native_four_order(void){
         __atomic_store_n(&four_drawn,0,__ATOMIC_RELEASE);xz_native_four_set_detail(-1);return -1;
     }
     return __atomic_load_n(&four_drawn,__ATOMIC_ACQUIRE)-1;
+}
+unsigned xz_native_two_pair(void){
+    struct xz_native_wave_scene current;
+    if(!scene(&current)){__atomic_store_n(&two_painted,0,__ATOMIC_RELEASE);return 0;}
+    return __atomic_load_n(&two_painted,__ATOMIC_ACQUIRE);
 }
 int xz_native_four_mixer_order(void){return xz_deck_layout_get()==XZ_LAYOUT_MIXER;}
 void xz_native_four_set_mixer_order(int mixer){xz_deck_layout_set(mixer?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR);}
@@ -188,7 +219,8 @@ static int lock_hook(void *window,void **pixels,int *pitch){
         int up=xz_extra_decks_snapshot_held(&extra,&extra_hold)!=0;uint32_t now=monotonic_ms();
         __atomic_store_n(&route_up,up,__ATOMIC_RELEASE);
         ready_route(up,now);
-        __atomic_store_n(&notice_up,xz_extra_notice_active(&extra,now)||ready_banner(now),__ATOMIC_RELEASE);
+        pair_route(up,sides_of(&extra),now);
+        __atomic_store_n(&notice_up,xz_extra_notice_active(&extra,now)||ready_banner(now)||pair_banner(now),__ATOMIC_RELEASE);
     }
     struct xz_native_wave_scene current;
     if(result==0&&caller==0x1fd058&&scene(&current)&&current.gr==(uintptr_t)window&&pixels&&pitch&&
@@ -210,10 +242,12 @@ static void style_main_wave(uint16_t *pixels,uint32_t count){
  xz_native_skin_wave_pixels(pixels,536,268,-1);
  xz_layered_wave_restore(pixels);
 }
-/* The route-up banner, else the player's notice, in the same place. */
+/* The route-up banner, else the newer of a side's switch and the player's notice, in the same place. */
 static void notice_banner(uint16_t *pixels,uint32_t count){
- uint32_t now=monotonic_ms();const char *ready=ready_banner(now);
- if(ready)xz_extra_banner_draw(pixels,536,count,ready);else xz_extra_notice_draw(pixels,536,count,&extra,now);
+ uint32_t now=monotonic_ms();const char *ready=ready_banner(now),*side=pair_banner(now);
+ if(ready)xz_extra_banner_draw(pixels,536,count,ready);
+ else if(side&&!(xz_extra_notice_active(&extra,now)&&(int32_t)(extra.notice_at_ms-pair_from)>0))xz_extra_banner_draw(pixels,536,count,side);
+ else xz_extra_notice_draw(pixels,536,count,&extra,now);
 }
 static void style_main_notice(uint16_t *pixels,uint32_t count){
  if(xz_mods_native_style_v1())style_main_wave(pixels,count);
@@ -248,6 +282,21 @@ static void draw_extra(uint16_t *pixels,uint32_t count){
  struct xz_four_frame frame={&extra,four_frame_order,now,0,1,four_frame_detail,detail_notice_now(now),!four_frame_live};
  xz_layered_wave_view(&frame.column_us,&frame.background);
  xz_four_frame_draw(pixels,count,&frame,extra_marks);
+}
+/* 2 DECKS with a side on DECK 3 or 4: its half before the theme, the one theme pass with the native decks'
+   and the software halves' layer pixels kept, then the banner over the finished surface. */
+static void draw_two(uint16_t *pixels,uint32_t count){
+ struct xz_two_frame f={&extra,two_frame_pair,monotonic_ms(),0,1};
+ xz_layered_wave_view(&f.column_us,&f.background);
+ xz_two_frame_draw(pixels,count,&f,extra_marks);
+}
+static void style_two(uint16_t *pixels,uint32_t count){
+ if(count!=XZ_NATIVE_WAVE_PIXELS||!xz_mods_native_style_v1())return;
+ xz_layered_wave_protect_decks(pixels,~two_frame_pair&3u);
+ xz_two_protect(two_frame_pair,extra_marks,pixels,four_keep);
+ xz_native_skin_wave_pixels(pixels,536,268,-1);
+ xz_layered_wave_restore(pixels);
+ xz_two_restore(two_frame_pair,extra_marks,pixels,four_keep);
 }
 static uint32_t card_word(void){
  if(!xz_route_card_visible(&card_frame))return 0;
@@ -302,6 +351,8 @@ static int unlock_hook(void *window){
            chooses four lanes; decks 3 and 4 are live only while their route is up. */
         int four=four_frame_layout!=XZ_LAYOUT_TWO;
         four_frame_live=__atomic_load_n(&route_up,__ATOMIC_ACQUIRE);
+        /* 2 DECKS shows the decks the sides control: a side on DECK 3 or 4 replaces its stock half. */
+        two_frame_pair=four?0u:sides_of(&extra);
         int inline_rows=four||!requested?XZ_STEM_LAYOUT_HIDDEN:requested();
         /* Two decks again, or decks 3 and 4 down: the DECK 3/4 panel has nothing to show and closes. */
         if(!four||!four_frame_live)xz_native_four_set_detail(-1);
@@ -309,6 +360,8 @@ static int unlock_hook(void *window){
         if(scene(&current)&&!observe_only){
             if(four)drawn=xz_native_wave_finish_four(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,four_frame_order,draw_extra,style_four);
+            else if(two_frame_pair)drawn=xz_native_wave_finish_pair(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
+                scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,inline_rows,two_frame_pair,draw_two,style_two,notice_banner);
             else drawn=xz_native_wave_finish_styled(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,
                 (xz_mods_native_style_v1()||__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE))?style_main_notice:NULL,inline_rows);
@@ -318,6 +371,7 @@ static int unlock_hook(void *window){
         __atomic_store_n(&drawn_layout,drawn?inline_rows:0,__ATOMIC_RELEASE);
         __atomic_store_n(&card_painted,drawn&&four?card_word():0u,__ATOMIC_RELEASE);
         __atomic_store_n(&four_drawn,drawn&&four?four_frame_order+1:0,__ATOMIC_RELEASE);
+        __atomic_store_n(&two_painted,drawn?two_frame_pair:0u,__ATOMIC_RELEASE);
         __atomic_store_n(&transformed,drawn&&inline_rows,__ATOMIC_RELEASE);
         if(drawn)__atomic_fetch_add(&xz_inline_proof_v1.frames,1,__ATOMIC_RELAXED);
         else __atomic_fetch_add(&xz_inline_proof_v1.skipped,1,__ATOMIC_RELAXED);

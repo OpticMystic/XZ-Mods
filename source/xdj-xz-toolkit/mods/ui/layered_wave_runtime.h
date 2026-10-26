@@ -23,6 +23,9 @@ const struct xz_layered_col *xz_layered_wave_drawn(unsigned deck,struct xz_layer
 /* Around a theme recolour of the 536x268 surface: keep drawn layer pixels exact
  * while cue, beat and playhead marks the stock drew over them stay themed. */
 void xz_layered_wave_protect(const uint16_t *pixels);
+/* The same for the native decks in the mask only (bit 0 DECK 1, bit 1 DECK 2): a 2 DECKS half drawn over by a
+   software deck keeps none of the native layer pixels it covered. */
+void xz_layered_wave_protect_decks(const uint16_t *pixels,unsigned decks);
 void xz_layered_wave_restore(uint16_t *pixels);
 /* Bottom overview (300x34, stride 300, drawn bottom-up by stock) for one deck, inside its
  lock. Returns 1 if layers were drawn; call _restore after any theme recolour. */

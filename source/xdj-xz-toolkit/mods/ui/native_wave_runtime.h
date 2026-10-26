@@ -7,6 +7,10 @@ int xz_native_inline_active(void);
 /* The four-deck lane order the play screen shows (wave_viewport.h), or -1 for two decks. Touch
    threads map waveform contacts against it; it is revoked as soon as the play scene goes. */
 int xz_native_four_order(void);
+/* 2 DECKS: the sides whose half the last completed frame drew as DECK 3 or 4 (bit 0 left on DECK 3, bit 1 right
+   on DECK 4), 0 when it drew the stock two decks or the play scene is gone. The side column, the bottom panels
+   and touch follow this, so the whole half switches with the waveform. */
+unsigned xz_native_two_pair(void);
 /* Session preference, shared by Classic and FLAGSHIP. Touch geometry continues
    to use four_order(), the last completed frame, never this pending preference. */
 int xz_native_four_mixer_order(void);

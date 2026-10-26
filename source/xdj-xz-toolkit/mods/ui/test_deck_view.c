@@ -84,11 +84,17 @@ static void test_button(void) {
     else assert(!lit&&dim>0);
    }
   }
-  /* A 2 DECKS pair names the decks the sides drive; not while 3 and 4 are down. */
-  clear();xz_deck_view_button_draw(canvas(),s,0,1,1,0,0);assert(fnv()!=seen[1]);
+  /* A 2 DECKS pair names the decks the sides drive, DECK 3 and 4 in their colours, 1 and 2 still plain; not
+     while 3 and 4 are down. */
+  clear();xz_deck_view_button_draw(canvas(),s,0,1,1,0,0);assert(fnv()!=seen[1]);only_inside(s->button,0);
+  assert(count_colour(s->button,xz_deck_colour(2))>0&&!count_colour(s->button,xz_deck_colour(0))&&!count_colour(s->button,xz_deck_colour(1)));
+  clear();xz_deck_view_button_draw(canvas(),s,0,1,2,0,0);
+  assert(count_colour(s->button,xz_deck_colour(3))>0&&!count_colour(s->button,xz_deck_colour(2)));
+  clear();xz_deck_view_button_draw(canvas(),s,0,1,3,0,0);
+  assert(count_colour(s->button,xz_deck_colour(2))>0&&count_colour(s->button,xz_deck_colour(3))>0);
   clear();xz_deck_view_button_draw(canvas(),s,0,0,3,0,0);assert(fnv()==seen[0]);
  }
- puts("PASS deck view button: design rects, touch bands >= 40 px, writes only its rect, 2/4/4 x ready/not, open and focus looks, deck colours in four-deck views only");
+ puts("PASS deck view button: design rects, touch bands >= 40 px, writes only its rect, 2/4/4 x ready/not, open and focus looks, deck colours in four-deck views and for DECK 3/4 in a 2 DECKS pair");
 }
 static void test_picker(void) {
  const struct xz_deck_view_style *styles[2]={&xz_deck_view_modern,&xz_deck_view_classic};
@@ -148,4 +154,16 @@ static void test_route_notice(void) {
  assert(xz_text_width(c,XZ_DECK_VIEW_READY_NOTICE,1,99)<=536-28&&strlen(XZ_DECK_VIEW_READY_NOTICE)<=63);
  puts("PASS route-up banner: 2 DECKS notice for 3.5 s from the edge, four-deck success notice after the hold and wipe for 2.5 s, once per revision, wraps, fits the banner");
 }
-int main(void) { test_words();test_button();test_picker();test_notice_latch();test_route_notice();return 0; }
+static void test_pair_notice(void) {
+ assert(!xz_deck_view_pair_notice(0,0)&&!xz_deck_view_pair_notice(1,1)&&!xz_deck_view_pair_notice(3,3)&&!xz_deck_view_pair_notice(2,6));
+ assert(!strcmp(xz_deck_view_pair_notice(0,1),"LEFT: DECK 3")&&!strcmp(xz_deck_view_pair_notice(1,0),"LEFT: DECK 1"));
+ assert(!strcmp(xz_deck_view_pair_notice(2,3),"LEFT: DECK 3")&&!strcmp(xz_deck_view_pair_notice(3,2),"LEFT: DECK 1"));
+ assert(!strcmp(xz_deck_view_pair_notice(0,2),"RIGHT: DECK 4")&&!strcmp(xz_deck_view_pair_notice(3,1),"RIGHT: DECK 2"));
+ assert(!strcmp(xz_deck_view_pair_notice(0,3),"LEFT: DECK 3  RIGHT: DECK 4")&&!strcmp(xz_deck_view_pair_notice(3,0),"LEFT: DECK 1  RIGHT: DECK 2"));
+ assert(!strcmp(xz_deck_view_pair_notice(1,2),"LEFT: DECK 1  RIGHT: DECK 4")&&!strcmp(xz_deck_view_pair_notice(2,1),"LEFT: DECK 3  RIGHT: DECK 2"));
+ /* Every text fits the CLASSIC banner (63 characters) and the shell's notice. */
+ for(unsigned a=0;a<4;a++)for(unsigned b=0;b<4;b++){const char *t=xz_deck_view_pair_notice(a,b);assert(!t||strlen(t)<=40);}
+ assert(XZ_DECK_VIEW_PAIR_NOTICE_MS==2000u);
+ puts("PASS 2 DECKS switch notice: LEFT/RIGHT/both, to software and back, nothing when no side changed");
+}
+int main(void) { test_words();test_button();test_picker();test_notice_latch();test_route_notice();test_pair_notice();return 0; }
