@@ -673,7 +673,7 @@ static struct xz_shell_menu_row *part_row(struct build *b, const struct xz_ui_wi
  return r;
 }
 static void jump_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
- struct xz_pic_jump_geo g;xz_pic_jump_geometry(100,48,690,290,&g);
+ struct xz_pic_jump_geo g;xz_pic_jump_geometry(100,48,690,312,&g);
  b->p->layout=XZ_SHELL_MENU_PICTURE;b->p->picture=XZ_SHELL_PIC_BEAT_JUMP;
  xz_ui_jump_picture(b->u,b->m,-1,&b->p->pic.jump);
  for(size_t i=0;i<n;i++){
@@ -681,9 +681,7 @@ static void jump_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
   if(a->kind==XZ_UI_JUMP_EDIT_PAGE&&(k==0||k==1))part_row(b,a,g.tabs[k],k?"PAGE 2 (SHIFT + BEAT JUMP)":"PAGE 1 (BEAT JUMP)");
   else if(a->kind==XZ_UI_JUMP_ENABLE)part_row(b,a,k==2?g.stock:g.mine,a->label);
   else if(a->kind==XZ_UI_JUMP_PAIR&&k>=0&&k<8)part_row(b,a,g.frames[k/2],NULL);
-  else if(a->kind==XZ_UI_JUMP_SIZE){for(int j=0;j<XZ_PIC_JUMP_CHIPS;j++)if(xz_pic_jump_ids[j]==k){
-   char label[24];snprintf(label,sizeof label,"%d BEAT%s",xz_jump_beats(k),xz_jump_beats(k)==1?"":"S");
-   part_row(b,a,g.chips[j],label);}}
+  else if(a->kind==XZ_UI_JUMP_STEP)part_row(b,a,k>0?g.up:g.down,k>0?"UP +":"DOWN -");
  }
 }
 static void stem_pad_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {

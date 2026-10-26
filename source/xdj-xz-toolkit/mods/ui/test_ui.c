@@ -295,7 +295,7 @@ static void parity(void){
     /* BACK reports where it went: the parent page, or CLOSE from a root page. */
     if(w[i].kind==XZ_UI_FEATURE_LINK||w[i].kind==XZ_UI_FEATURE_SETUP_OPEN||w[i].kind==XZ_UI_HOME_SETUP)expected=XZ_UI_PANEL;
     /* STOCK page 1 is the player's own 1 2 4 8: its pads and sizes say so instead of editing. */
-    if((w[i].kind==XZ_UI_JUMP_PAIR||w[i].kind==XZ_UI_JUMP_SIZE)&&!m.jump.enabled&&!t.jump_edit_page)expected=XZ_UI_UNAVAILABLE;
+    if((w[i].kind==XZ_UI_JUMP_PAIR||w[i].kind==XZ_UI_JUMP_STEP)&&!m.jump.enabled&&!t.jump_edit_page)expected=XZ_UI_UNAVAILABLE;
     if(w[i].kind==XZ_UI_BACK)expected=xz_ui_page_is_top(page)?XZ_UI_CLOSE:XZ_UI_PANEL;
     if(a[0].kind!=expected)fprintf(stderr,"page %d widget kind %d index %d: got %d, expected %d\n",page,w[i].kind,w[i].index,a[0].kind,expected);
     assert(a[0].kind==expected&&a[0].phase==XZ_UI_PRESS);

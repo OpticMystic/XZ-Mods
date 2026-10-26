@@ -35,18 +35,20 @@ void xz_pic_box(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect
 /* WORKS ON chips for logical decks in mixer order 3 1 2 4 (bit d = deck d+1). Returns the x after the last chip. */
 int xz_pic_works_on(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int size, unsigned works_on, int label);
 
-/* ---- PLAY > BEAT JUMP PADS ---- */
-enum { XZ_PIC_JUMP_CHIPS=9 };
-extern const int xz_pic_jump_ids[XZ_PIC_JUMP_CHIPS];  /* the offered sizes, as settings jump IDs (no ID 7) */
+/* ---- PLAY > BEAT JUMP PADS ----
+   The editor is the pads themselves, laid out as on the unit (A B C D over E F G H, in pairs A/B, C/D, E/F,
+   G/H): each pad shows which way it jumps and how far, in beats and in bars. Pick a pair, then UP or DOWN
+   steps its size (the encoder turns through the same sizes); the readout between them names the pair and its
+   size. The tabs choose the page of sizes being edited, page 1 can keep the player's own sizes (STOCK), and
+   the last row shows the pad page each deck is on now. */
 struct xz_pic_jump_geo {
- struct xz_rect tabs[2], stock, mine, frames[4], pads[8], chips[XZ_PIC_JUMP_CHIPS], live[4], ruler;
- int name_x, name_y, right;
+ struct xz_rect tabs[2], stock, mine, frames[4], pads[8], up, down, decks[4];
+ int name_x, name_y, right, decks_y;
 };
-/* The editor in the box from x, y, w wide (MODERN 100, 48, 690; CLASSIC 138, 50, 652). */
-void xz_pic_jump_geometry(int x, int y, int w, int ruler_y, struct xz_pic_jump_geo *g);
+/* The editor in the box from x, y, w wide (MODERN 100, 48, 690; CLASSIC 138, 50, 652); decks_y is the deck
+   page row (MODERN 312, CLASSIC 316). pads[2p], pads[2p+1] and frames[p] are pair p. */
+void xz_pic_jump_geometry(int x, int y, int w, int decks_y, struct xz_pic_jump_geo *g);
 void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_jump_geo *g, const struct xz_pic_jump *j);
-/* The ruler for one pair: NOW in the middle, the back and forward jumps of beats. */
-void xz_pic_ruler(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect r, int beats, const char *back, const char *fwd);
 
 /* ---- STEMS > STEM PADS ---- */
 struct xz_pic_stem_geo { struct xz_rect modes[4], pads[8], bank[2], order[3], lights[2]; int x, w, caption_y[4], rule_y; };
