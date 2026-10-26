@@ -2,6 +2,9 @@
 /* The loopback-cable explainer (cable_anim.h). Every frame: interpolate the baked camera and plug poses,
    fill the solids back to front, then draw the visible parts of the feature lines and the cable's two
    silhouettes into a coverage plane and tint it per layer. All memory is the caller's picture. */
+/* No fused multiply-add: a host built for its own CPU (FMA) and the A9 (none) must agree to the bit, or the
+   golden frames differ by target. */
+#pragma STDC FP_CONTRACT OFF
 #include "cable_anim.h"
 #include "cable_anim_data.h"
 #include <math.h>
@@ -26,6 +29,18 @@ static int iceil(float v) { int i = (int)v; return i + (v > (float)i); }
 static float minf(float a, float b) { return a < b ? a : b; }
 static float maxf(float a, float b) { return a > b ? a : b; }
 static float absf(float a) { return a < 0 ? -a : a; }
+/* sin and cos without libm: the C libraries' differ by target (Windows host, ARM glibc), and the picture must
+   come out the same bits everywhere (golden frames run on both). Odd polynomial to x^13 on [-pi/2, pi/2]
+   after folding; error under 1e-7 for the angles used here (|x| <= pi). */
+static float dsin(float x) {
+ const float pi = 3.14159265f;
+ while (x > pi) x -= 2 * pi;
+ while (x < -pi) x += 2 * pi;
+ if (x > pi / 2) x = pi - x; else if (x < -pi / 2) x = -pi - x;
+ float x2 = x * x;
+ return x * (1.0f + x2 * (-1.0f / 6 + x2 * (1.0f / 120 + x2 * (-1.0f / 5040 + x2 * (1.0f / 362880 + x2 * (-1.0f / 39916800 + x2 * (1.0f / 6227020800.0f)))))));
+}
+static float dcos(float x) { return dsin(x + 1.57079633f); }
 static const float DEG = 3.14159265f / 180.0f;
 enum { NEAR_MM = 5, MAX_IV = 64, CABLE_N = 96, HALO = 6 };  /* HALO: the cable's glow, a layer under every line */
 
@@ -37,13 +52,13 @@ struct pose { v3 o, x, y, z; };
 struct frame { v3 cam, target; struct pose a, b; float gain[XZ_CABLE_LAYERS], label[2], signal; int label_left, f0, f1; float t; };
 static struct pose pose_a(float x, float y, float z, float tilt) {
  float t = tilt * DEG; struct pose p;
- p.o = V(x, y, z); p.z = V(0, sinf(t), cosf(t)); p.x = V(1, 0, 0); p.y = cross(p.z, p.x);
+ p.o = V(x, y, z); p.z = V(0, dsin(t), dcos(t)); p.x = V(1, 0, 0); p.y = cross(p.z, p.x);
  return p;
 }
 static struct pose pose_b(float x, float y, float z, float yaw, float roll) {
  float w = yaw * DEG, r = roll * DEG; struct pose p;
- p.o = V(x, y, z); p.z = norm(V(sinf(w), cosf(w), 0));
- p.x = norm(V(-cosf(w) * cosf(r), sinf(w) * cosf(r), sinf(r))); p.y = cross(p.z, p.x);
+ p.o = V(x, y, z); p.z = norm(V(dsin(w), dcos(w), 0));
+ p.x = norm(V(-dcos(w) * dcos(r), dsin(w) * dcos(r), dsin(r))); p.y = cross(p.z, p.x);
  return p;
 }
 static void frame_at(uint32_t t_ms, struct frame *fr) {
@@ -103,7 +118,7 @@ struct view { v3 pos, d, r, u; float f, cx, cy; int w, h; };
 static void view_make(struct view *v, const struct frame *fr, int w, int h) {
  v->pos = fr->cam; v->d = norm(sub(fr->target, fr->cam));
  v->r = norm(cross(v->d, V(0, 0, 1))); v->u = cross(v->r, v->d);
- float aspect = (float)w / (float)h, th = tanf(XZ_CA_HFOV_DEG * 0.5f * DEG);
+ float aspect = (float)w / (float)h, th = dsin(XZ_CA_HFOV_DEG * 0.5f * DEG) / dcos(XZ_CA_HFOV_DEG * 0.5f * DEG);
  float half_w = th * (aspect > XZ_CA_SAFE_ASPECT ? aspect / XZ_CA_SAFE_ASPECT : 1.0f);
  v->f = (float)w / (2.0f * half_w); v->cx = (float)w * 0.5f; v->cy = (float)h * 0.5f; v->w = w; v->h = h;
 }
