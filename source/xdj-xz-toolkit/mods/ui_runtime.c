@@ -3,6 +3,8 @@
 #include "ui/play_key.h"
 #include "ui/play_key_classic.h"
 #pragma weak xz_extra_decks_snapshot
+#pragma weak xz_extra_decks_route_status
+#pragma weak xz_extra_decks_rescan
 #include "network/runtime.h"
 #include "ui/ui_network.h"
 #include "ui/ui_support.h"
@@ -1118,6 +1120,9 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         if (xz_sdk_ui_kind(a->kind)) { sdk_apply(a); continue; }
         if (sdk_refuses_game(a)) continue;
         switch (a->kind) {
+        case XZ_UI_ROUTE_RESCAN:
+            if(xz_extra_decks_rescan)xz_extra_decks_rescan();
+            break;
         case XZ_UI_PC_SETUP:case XZ_UI_PC_CHECK:case XZ_UI_PC_TEST:case XZ_UI_PC_CONFIRM:case XZ_UI_PC_TOGGLE:
             pc_apply(a);break;
         case XZ_UI_PROFILE:
@@ -1917,6 +1922,12 @@ static void stem_generation_sync_locked(int deck,const struct xz_audio_status *s
 }
 
 static void refresh_local(void) {
+    struct xz_extra_route_status route_status={0};
+    if(xz_extra_decks_route_status)route_status=xz_extra_decks_route_status();
+    model.route_state=route_status.state;model.route_fail_part=route_status.fail_part;
+    memcpy(model.route_reason,route_status.reason,sizeof model.route_reason);
+    model.route_checked_at_ms=route_status.checked_at_ms;model.route_revision=route_status.revision;
+    model.route_ready_revision=route_status.ready_revision;
     model.four_wave_mixer=xz_native_four_mixer_order();
     model.settings_flash=settings_flash_at&&(uint32_t)(xz_game_milliseconds()-settings_flash_at)<3000u;
     model.doom_ready=xz_doom_ready();

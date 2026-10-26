@@ -86,7 +86,8 @@ enum xz_ui_action_kind {
     XZ_UI_NETWORK_APPLY, XZ_UI_NETWORK_REVERT, XZ_UI_NETWORK_CANCEL, XZ_UI_ABOUT_LINK,
     XZ_UI_SUPPORT_STEP, XZ_UI_SUPPORT_CATEGORY, XZ_UI_SUPPORT_SUMMARY, XZ_UI_SUPPORT_PREPARE,
     XZ_UI_SUPPORT_PAGE, XZ_UI_SUPPORT_CONSENT, XZ_UI_SUPPORT_CLOCK, XZ_UI_SUPPORT_SEND,
-    XZ_UI_SUPPORT_EXPORT, XZ_UI_SUPPORT_CHECK
+    XZ_UI_SUPPORT_EXPORT, XZ_UI_SUPPORT_CHECK,
+    XZ_UI_ROUTE_RESCAN /* connector wake only */
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
@@ -258,6 +259,10 @@ struct xz_ui_model {
     const struct xz_ui_dj *dj; /* NULL: this runtime has no DJ Profile support, so no header chip */
     int four_wave_mixer; /* Session preference; never persisted in settings. */
     struct xz_net_view network;
+    /* Connector observation only; does not change playable deck_count or capabilities. */
+    int route_state, route_fail_part;
+    char route_reason[81];
+    uint32_t route_checked_at_ms, route_revision, route_ready_revision;
 };
 struct xz_ui {
     enum xz_ui_page page;
