@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* DECK 3 / DECK 4 in the runtime: the players (extra_player.c) and the route connector that owns the
-   CH3/CH4 USB transport (audio/usb_transport). The connector polls for the route node about once a
-   second, opens it, and reports the route up only once the transport runs; a lost route closes and
+   CH3/CH4 USB transport (audio/usb_transport). The connector watches for the route node, opens it,
+   and reports the route up only once the transport runs; a lost route closes and
    retries. Adapted from the route worker of VJToolsLibrary tools/xz-four-deck-poc/player.c (dae68bec).
    Without the node nothing changes: the route stays down and every interface keeps two decks. */
 #define _GNU_SOURCE
@@ -48,6 +48,12 @@ extern int xz_sync_link_runtime_master_observe(struct xz_master_observation *) _
 #endif
 #ifndef POLL_UP_MS
 #define POLL_UP_MS 50
+#endif
+#ifndef XZ_EXTRA_SHM_DIR
+#define XZ_EXTRA_SHM_DIR "/dev/shm"
+#endif
+#ifndef XZ_EXTRA_PROC_DIR
+#define XZ_EXTRA_PROC_DIR "/proc"
 #endif
 
 /* glibc 2.13 has clock_gettime only in librt; the transport is built with -Dclock_gettime=this. */
@@ -279,12 +285,12 @@ static int usb_node(const char *path) {
 static int find_node(char *out, size_t cap) {
  const char *forced = getenv("XZ_MODS_EXTRA_USB_NODE");
  if (forced && forced[0]) return snprintf(out, cap, "%s", forced) < (int)cap && usb_node(out);
- if (usb_node(XZ_EXTRA_USB_NODE_DEFAULT)) return snprintf(out, cap, "%s", XZ_EXTRA_USB_NODE_DEFAULT) < (int)cap;
- DIR *dir = opendir("/dev/shm");
+ if (usb_node(XZ_EXTRA_SHM_DIR "/xz-four-deck/usb-audio")) return snprintf(out, cap, "%s", XZ_EXTRA_SHM_DIR "/xz-four-deck/usb-audio") < (int)cap;
+ DIR *dir = opendir(XZ_EXTRA_SHM_DIR);
  if (!dir) return 0;
  int found = 0;
  for (struct dirent *e; !found && (e = readdir(dir));)
-  found = !strncmp(e->d_name, "xz-poc-", 7) && snprintf(out, cap, "/dev/shm/%s/audio-usb", e->d_name) < (int)cap && usb_node(out);
+  found = !strncmp(e->d_name, "xz-poc-", 7) && snprintf(out, cap, XZ_EXTRA_SHM_DIR "/%s/audio-usb", e->d_name) < (int)cap && usb_node(out);
  closedir(dir);
  return found;
 }
@@ -314,6 +320,7 @@ static int close_route(void) {
 #include "extra_route_status.h"
 static pthread_mutex_t route_wake_lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t route_wake_cond=PTHREAD_COND_INITIALIZER;
+static void route_signal_locked(void);
 static unsigned route_scan; /* 0 idle, 1 requested, 2 attempt done / minimum display */
 static uint32_t route_scan_at;
 static unsigned route_status_token; /* revision in high bits, slot in low two bits */
@@ -374,7 +381,7 @@ void xz_extra_decks_rescan(void) {
  pthread_mutex_lock(&route_wake_lock);
  if(!__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE)) {
   route_scan_at=now_ms();__atomic_store_n(&route_scan,1,__ATOMIC_RELEASE);
-  pthread_cond_signal(&route_wake_cond);
+  route_signal_locked();
  }
  pthread_mutex_unlock(&route_wake_lock);
 }
@@ -387,7 +394,7 @@ static void route_scan_finish(uint32_t now,unsigned attempted) {
 static void route_check_status(int node,xz_usb_result refused,unsigned attempted) {
  int up=!!__atomic_load_n(&link_epoch,__ATOMIC_ACQUIRE);
  struct route_bridge b={0};
- if(!up)b=route_bridge_read("/dev/shm/xz-four-deck","/proc");
+ if(!up)b=route_bridge_read(XZ_EXTRA_SHM_DIR "/xz-four-deck",XZ_EXTRA_PROC_DIR);
  uint32_t now=now_ms();
  route_status_publish(route_observed(&b,node,up,route_ever_up,route_faults,refused),now,up);
  route_scan_finish(now,attempted);
@@ -408,6 +415,7 @@ static void rest(unsigned ms) {
  }
  pthread_mutex_unlock(&route_wake_lock);
 }
+#include "extra_route_events.h"
 static void *connector(void *unused) {
  (void)unused;
  xz_extra_thread_place("connector");
@@ -419,6 +427,8 @@ static void *connector(void *unused) {
  uint32_t epoch = 0;
  xz_usb_result refused = XZ_USB_OK;
  while (!__atomic_load_n(&route.quit, __ATOMIC_ACQUIRE)) {
+  /* Arm before discovery, so a publication during the attempt stays queued. */
+  if(!route.usb)route_events_refresh();
   unsigned attempted=__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE);
   if (route.closing) { close_route(); route_check_status(0,XZ_USB_OK,attempted); rest(POLL_DOWN_MS); continue; }
   if (!route.usb) {
@@ -441,7 +451,7 @@ static void *connector(void *unused) {
     if(r!=XZ_USB_BUSY&&r!=XZ_USB_WRONG_DEVICE&&route_faults<3u)route_faults++;
    } else refused=XZ_USB_OK;
    route_check_status(node_found,refused,attempted);
-   rest(POLL_DOWN_MS);
+   route_events_wait();
    continue;
   }
   xz_usb_position p;
@@ -454,7 +464,7 @@ static void *connector(void *unused) {
    if(p.state==XZ_USB_FAULTED&&route_faults<3u)route_faults++;
    close_route();
    route_check_status(0,XZ_USB_OK,attempted);
-   rest(POLL_DOWN_MS);
+   if(route.closing)rest(POLL_DOWN_MS);else route_events_wait();
    continue;
   }
   if (p.state == XZ_USB_RUNNING && !__atomic_load_n(&link_epoch, __ATOMIC_ACQUIRE)) {
@@ -498,7 +508,9 @@ int xz_extra_decks_start(void) {
  if (xz_xp_start(p)) { xz_cues_worker_stop();xz_xp_destroy(p); return -1; }
  __atomic_store_n(&route.quit, 0, __ATOMIC_RELEASE);
  __atomic_store_n(&route.published, 0, __ATOMIC_RELEASE);
+ route_events_init();
  if (pthread_create(&route.thread, NULL, connector, NULL)) {
+  route_events_close();
   xz_cues_worker_stop();
   xz_xp_destroy(p);
   return -1;
@@ -515,8 +527,9 @@ void xz_extra_decks_stop(void) {
  if (!route.started) return;
  control_update(CONTROL_AVAILABLE,0);
  __atomic_store_n(&route.quit, 1, __ATOMIC_RELEASE);
- pthread_mutex_lock(&route_wake_lock);pthread_cond_signal(&route_wake_cond);pthread_mutex_unlock(&route_wake_lock);
+ pthread_mutex_lock(&route_wake_lock);route_signal_locked();pthread_mutex_unlock(&route_wake_lock);
  pthread_join(route.thread, NULL);
+ pthread_mutex_lock(&route_wake_lock);route_events_close();pthread_mutex_unlock(&route_wake_lock);
  xz_xp_stop(players);
  xz_cues_worker_stop();
  route.started = 0;
