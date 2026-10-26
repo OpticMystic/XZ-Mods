@@ -301,10 +301,105 @@ static int close_route(void) {
  if (r == XZ_USB_TIMEOUT) xz_log("DECK 3/4 route: USB worker did not stop; close retried");
  return route.closing;
 }
-static void rest(unsigned ms) {
- for (unsigned t = 0; t < ms && !__atomic_load_n(&route.quit, __ATOMIC_ACQUIRE); t += 10) {
-  struct timespec d = {0, 10000000L}; nanosleep(&d, NULL);
+/* Wake/request mutex is independent of the transport and both UI mutexes.
+   Only the connector writes the three-slot mailbox. Readers pin an immutable
+   slot with atomics; the connector skips occupied slots instead of waiting. */
+#include "extra_route_status.h"
+static pthread_mutex_t route_wake_lock=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t route_wake_cond=PTHREAD_COND_INITIALIZER;
+static unsigned route_scan; /* 0 idle, 1 requested, 2 attempt done / minimum display */
+static uint32_t route_scan_at;
+static unsigned route_status_token; /* revision in high bits, slot in low two bits */
+static struct { unsigned users;struct xz_extra_route_status status; } route_status_slots[3];
+static struct xz_extra_route_status route_last;
+static int route_ever_up,route_last_up;
+static unsigned route_faults;
+static void route_status_publish(struct xz_extra_route_status s,uint32_t now,int up) {
+ s.checked_at_ms=now;s.revision=route_last.revision+1u;if(!s.revision)s.revision=1;
+ s.ready_revision=route_last.ready_revision;
+ if(up&&!route_last_up)s.ready_revision=s.revision;
+ route_last_up=up;if(up)route_ever_up=1;
+ route_last=s;
+ unsigned current=__atomic_load_n(&route_status_token,__ATOMIC_ACQUIRE)&3u;
+ for(unsigned i=0;i<3u;i++)if(i!=current) {
+  unsigned empty=0;
+  if(!__atomic_compare_exchange_n(&route_status_slots[i].users,&empty,UINT_MAX,0,__ATOMIC_ACQUIRE,__ATOMIC_RELAXED))continue;
+  route_status_slots[i].status=s;
+  __atomic_store_n(&route_status_slots[i].users,0,__ATOMIC_RELEASE);
+  __atomic_store_n(&route_status_token,(s.revision<<2)|i,__ATOMIC_RELEASE);
+  return;
  }
+ /* Readers still own both spare slots. Keep the observation/edge in route_last;
+    the next connector publication carries it. Never wait for a renderer. */
+}
+
+struct xz_extra_route_status xz_extra_decks_route_status(void) {
+ struct xz_extra_route_status s;
+ for(;;) {
+  unsigned token=__atomic_load_n(&route_status_token,__ATOMIC_ACQUIRE),slot=token&3u;
+  unsigned users=__atomic_load_n(&route_status_slots[slot].users,__ATOMIC_RELAXED);
+  if(users==UINT_MAX||!__atomic_compare_exchange_n(&route_status_slots[slot].users,&users,users+1u,0,__ATOMIC_ACQUIRE,__ATOMIC_RELAXED))continue;
+  int current=token==__atomic_load_n(&route_status_token,__ATOMIC_ACQUIRE);
+  if(current)s=route_status_slots[slot].status;
+  __atomic_sub_fetch(&route_status_slots[slot].users,1,__ATOMIC_RELEASE);
+  if(current)break;
+ }
+
+ unsigned control=xz_extra_decks_control_revision();
+ if(!(control&CONTROL_AVAILABLE)) {
+  struct xz_extra_route_status no=route_message(XZ_EXTRA_ROUTE_NO_ENGINE,XZ_EXTRA_ROUTE_PART_NONE,"The software players are unavailable or have not been started.");
+  no.revision=s.revision;no.ready_revision=s.ready_revision;no.checked_at_ms=s.checked_at_ms;s=no;
+ } else if(__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE)) {
+  s.state=XZ_EXTRA_ROUTE_SCANNING;s.fail_part=XZ_EXTRA_ROUTE_PART_NONE;
+  memcpy(s.reason,"Checking the loopback cable and audio route now.",sizeof "Checking the loopback cable and audio route now.");
+ } else if(s.state==XZ_EXTRA_ROUTE_READY&&!(control&CONTROL_ROUTE)) {
+  s.state=XZ_EXTRA_ROUTE_LOST;s.fail_part=XZ_EXTRA_ROUTE_PART_CABLE;
+  memcpy(s.reason,"The audio route was disconnected; check the loopback cable.",sizeof "The audio route was disconnected; check the loopback cable.");
+ } else if(!s.revision) s=route_message(XZ_EXTRA_ROUTE_STARTING,XZ_EXTRA_ROUTE_PART_NONE,"The software players are starting; the audio route has not been checked yet.");
+ return s;
+}
+int xz_extra_decks_route_up_since(uint32_t revision) {
+ uint32_t ready=xz_extra_decks_route_status().ready_revision;
+ return ready&&(int32_t)(ready-revision)>0;
+}
+void xz_extra_decks_rescan(void) {
+ if(!(xz_extra_decks_control_revision()&CONTROL_AVAILABLE))return;
+ pthread_mutex_lock(&route_wake_lock);
+ if(!__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE)) {
+  route_scan_at=now_ms();__atomic_store_n(&route_scan,1,__ATOMIC_RELEASE);
+  pthread_cond_signal(&route_wake_cond);
+ }
+ pthread_mutex_unlock(&route_wake_lock);
+}
+static void route_scan_finish(uint32_t now,unsigned attempted) {
+ pthread_mutex_lock(&route_wake_lock);
+ if(attempted&&__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE))
+  __atomic_store_n(&route_scan,(uint32_t)(now-route_scan_at)>=600u?0:2,__ATOMIC_RELEASE);
+ pthread_mutex_unlock(&route_wake_lock);
+}
+static void route_check_status(int node,xz_usb_result refused,unsigned attempted) {
+ int up=!!__atomic_load_n(&link_epoch,__ATOMIC_ACQUIRE);
+ struct route_bridge b={0};
+ if(!up)b=route_bridge_read("/dev/shm/xz-four-deck","/proc");
+ uint32_t now=now_ms();
+ route_status_publish(route_observed(&b,node,up,route_ever_up,route_faults,refused),now,up);
+ route_scan_finish(now,attempted);
+}
+static void rest(unsigned ms) {
+ pthread_mutex_lock(&route_wake_lock);
+ unsigned scanning=__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE);
+ if(scanning==2) {
+  uint32_t elapsed=(uint32_t)(now_ms()-route_scan_at);
+  if(elapsed<600u&&ms>600u-elapsed)ms=600u-elapsed;
+ }
+ struct timespec deadline;
+ if(!xz_clock_gettime_compat(CLOCK_REALTIME,&deadline)) {
+  deadline.tv_sec+=ms/1000u;deadline.tv_nsec+=(long)(ms%1000u)*1000000L;
+  if(deadline.tv_nsec>=1000000000L){deadline.tv_sec++;deadline.tv_nsec-=1000000000L;}
+  if(!__atomic_load_n(&route.quit,__ATOMIC_ACQUIRE)&&scanning!=1)
+   pthread_cond_timedwait(&route_wake_cond,&route_wake_lock,&deadline);
+ }
+ pthread_mutex_unlock(&route_wake_lock);
 }
 static void *connector(void *unused) {
  (void)unused;
@@ -313,13 +408,16 @@ static void *connector(void *unused) {
     this worker enter only after the public pointer and availability agree. */
  while(!__atomic_load_n(&route.published,__ATOMIC_ACQUIRE)&&!__atomic_load_n(&route.quit,__ATOMIC_ACQUIRE))rest(1);
  if(__atomic_load_n(&route.quit,__ATOMIC_ACQUIRE))return NULL;
+ route_ever_up=route_last_up=0;route_faults=0;
  uint32_t epoch = 0;
  xz_usb_result refused = XZ_USB_OK;
  while (!__atomic_load_n(&route.quit, __ATOMIC_ACQUIRE)) {
-  if (route.closing) { close_route(); rest(POLL_DOWN_MS); continue; }
+  unsigned attempted=__atomic_load_n(&route_scan,__ATOMIC_ACQUIRE);
+  if (route.closing) { close_route(); route_check_status(0,XZ_USB_OK,attempted); rest(POLL_DOWN_MS); continue; }
   if (!route.usb) {
    char node[sizeof route.node];
-   if (find_node(node, sizeof node)) {
+   int node_found=find_node(node, sizeof node);
+   if (node_found) {
     xz_usb_transport *usb = NULL;
     xz_usb_result r = xz_usb_transport_open(node, &usb);
     if (r == XZ_USB_OK) {
@@ -327,12 +425,15 @@ static void *connector(void *unused) {
      route.usb = usb; memcpy(route.node, node, sizeof node);
      pthread_rwlock_unlock(&route.lock);
      refused = XZ_USB_OK;
+     route_check_status(1,refused,attempted);
      continue;
     }
     if ((r == XZ_USB_BUSY || r == XZ_USB_WRONG_DEVICE) && r != refused)
      say(r == XZ_USB_BUSY ? "DECK 3/4 ROUTE IS IN USE" : "DECK 3/4 ROUTE IS NOT THE MIXER");
     refused = r;
-   }
+    if(r!=XZ_USB_BUSY&&r!=XZ_USB_WRONG_DEVICE&&route_faults<3u)route_faults++;
+   } else refused=XZ_USB_OK;
+   route_check_status(node_found,refused,attempted);
    rest(POLL_DOWN_MS);
    continue;
   }
@@ -343,7 +444,9 @@ static void *connector(void *unused) {
    int was_up = __atomic_load_n(&link_epoch, __ATOMIC_ACQUIRE) != 0;
    set_link(0);
    if (was_up) say("DECK 3/4 ROUTE LOST");
+   if(p.state==XZ_USB_FAULTED&&route_faults<3u)route_faults++;
    close_route();
+   route_check_status(0,XZ_USB_OK,attempted);
    rest(POLL_DOWN_MS);
    continue;
   }
@@ -352,6 +455,8 @@ static void *connector(void *unused) {
    set_link(epoch);
    xz_log("DECK 3/4 route up");
   }
+  if(p.state==XZ_USB_RUNNING)route_faults=0;
+  route_check_status(1,XZ_USB_OK,attempted);
   if (p.state == XZ_USB_RUNNING) {
    struct xz_extra_decks snap;
    (void)xz_extra_decks_snapshot(&snap);
@@ -403,8 +508,10 @@ void xz_extra_decks_stop(void) {
  if (!route.started) return;
  control_update(CONTROL_AVAILABLE,0);
  __atomic_store_n(&route.quit, 1, __ATOMIC_RELEASE);
+ pthread_mutex_lock(&route_wake_lock);pthread_cond_signal(&route_wake_cond);pthread_mutex_unlock(&route_wake_lock);
  pthread_join(route.thread, NULL);
  xz_xp_stop(players);
  xz_cues_worker_stop();
  route.started = 0;
+ __atomic_store_n(&route_scan,0,__ATOMIC_RELEASE);
 }
