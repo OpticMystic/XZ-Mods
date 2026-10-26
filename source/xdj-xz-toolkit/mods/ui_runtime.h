@@ -2,6 +2,9 @@
 #define XZ_UI_RUNTIME_H
 struct xz_cue_event;
 struct xz_settings;
+struct xz_jump_snapshot;
+/* logical_deck 0..3; no UI drawing or device calls. */
+int xz_ui_runtime_jump_snapshot(int logical_deck,struct xz_jump_snapshot *out);
 int xz_ui_runtime_pad_color(int deck,int pad,unsigned *rgb,int *enabled);
 void xz_ui_runtime_pad_native_page(int deck,int page);
 int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags);

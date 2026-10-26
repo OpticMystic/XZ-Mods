@@ -213,6 +213,13 @@ void xz_extra_decks_native_master_selected(unsigned native_deck){
  struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
  if(p&&native_deck<2&&xz_xp_native_master_selected)xz_xp_native_master_selected(p,native_deck);
 }
+void xz_extra_decks_set_performance_settings(const struct xz_performance_settings *settings){
+ struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
+ if(p)xz_xp_set_performance_settings(p,settings);
+}
+int xz_extra_decks_jump_snapshot(int deck,struct xz_jump_snapshot *out){
+ return xz_xp_jump_snapshot(__atomic_load_n(&players,__ATOMIC_ACQUIRE),deck,out);
+}
 void xz_extra_decks_set_quantize_grid(unsigned denominator,int known){
  struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
  if(p&&xz_xp_set_quantize_grid)xz_xp_set_quantize_grid(p,denominator,known);
