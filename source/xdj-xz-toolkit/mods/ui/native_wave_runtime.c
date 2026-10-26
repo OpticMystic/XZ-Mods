@@ -3,6 +3,8 @@
 #include "native_wave_runtime.h"
 #include "layout_cycle.h"
 #include "extra_lane.h"
+#include "extra_detail.h"
+#include "classic_mixer_runtime.h"
 #include "native_skin_runtime.h"
 #include "native_raw_skin.h"
 #include "layered_wave_runtime.h"
@@ -23,7 +25,7 @@ static xz_native_wave_render renderer;
 static void *renderer_context;
 static _Thread_local struct xz_native_wave_pair pair;
 static _Thread_local uint16_t scratch[XZ_NATIVE_WAVE_PIXELS];
-static _Thread_local struct {uintptr_t gr,hw,thread;uint16_t *pixels;int pitch,deck;} footer;
+static _Thread_local struct {uintptr_t gr,hw,thread;uint16_t *pixels;int pitch,deck,x,y;} footer;
 static _Thread_local uint16_t footer_scratch[300*34];
 __attribute__((visibility("default"))) uint32_t xz_native_wave_skin_v1[4]={1};
 static int transformed, drawn_layout, observed, observe_only, focus_verified;
@@ -31,6 +33,13 @@ static int transformed, drawn_layout, observed, observe_only, focus_verified;
    lane order + 1 after a successful four-deck frame, the geometry touches map against. */
 static int route_up, four_drawn, notice_up;
 static _Thread_local int four_frame_order,four_frame_layout;
+/* The DECK 3/4 detail panel (extra_detail.h): the touch thread opens, switches and closes it, and raises
+   a refusal as (sequence << 8) | notice; the draw thread reads both once per four-deck frame. */
+static int detail_deck=-1;
+static uint32_t detail_notice;
+static _Thread_local int four_frame_detail=-1;
+static _Thread_local uint32_t detail_notice_seen,detail_notice_until;
+static _Thread_local int detail_notice_shown;
 static uint32_t monotonic_ms(void);
 static _Thread_local struct xz_extra_decks extra;
 static _Thread_local struct xz_extra_analysis_hold extra_hold;
@@ -67,11 +76,30 @@ int xz_native_play_visible(void){
 }
 int xz_native_four_order(void){
     struct xz_native_wave_scene current;
-    if(!scene(&current)){__atomic_store_n(&four_drawn,0,__ATOMIC_RELEASE);return -1;}
+    if(!scene(&current)){
+        __atomic_store_n(&four_drawn,0,__ATOMIC_RELEASE);xz_native_four_set_detail(-1);return -1;
+    }
     return __atomic_load_n(&four_drawn,__ATOMIC_ACQUIRE)-1;
 }
 int xz_native_four_mixer_order(void){return xz_deck_layout_get()==XZ_LAYOUT_MIXER;}
 void xz_native_four_set_mixer_order(int mixer){xz_deck_layout_set(mixer?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR);}
+int xz_native_four_detail(void){return __atomic_load_n(&detail_deck,__ATOMIC_ACQUIRE);}
+void xz_native_four_set_detail(int deck){
+    int next=deck==0||deck==1?deck:-1;
+    if(__atomic_exchange_n(&detail_deck,next,__ATOMIC_ACQ_REL)!=next)xz_native_four_detail_notice(XZ_EXTRA_DETAIL_NOTICE_NONE);
+}
+void xz_native_four_detail_notice(int notice){
+    if(notice<XZ_EXTRA_DETAIL_NOTICE_NONE||notice>=XZ_EXTRA_DETAIL_NOTICES)return;
+    uint32_t old=__atomic_load_n(&detail_notice,__ATOMIC_ACQUIRE),next;
+    do next=(((old>>8)+1u)<<8)|(uint32_t)notice;
+    while(!__atomic_compare_exchange_n(&detail_notice,&old,next,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE));
+}
+/* Draw thread: a newly raised refusal shows for 2.5 s from the first frame that sees it. */
+static int detail_notice_now(uint32_t now){
+    uint32_t word=__atomic_load_n(&detail_notice,__ATOMIC_ACQUIRE);
+    if(word!=detail_notice_seen){detail_notice_seen=word;detail_notice_shown=(int)(word&255u);detail_notice_until=now+2500u;}
+    return detail_notice_shown&&(int32_t)(now-detail_notice_until)<0?detail_notice_shown:0;
+}
 int xz_native_focus_deck(void){
     uint32_t deck;
     if(!focus_verified||word(0x02205d10,&deck)||deck<1||deck>2)return -1;
@@ -86,12 +114,14 @@ static int lock_hook(void *window,void **pixels,int *pitch){
     uintptr_t caller=(uintptr_t)__builtin_return_address(0);
     int result=stock_lock(window,pixels,pitch);
     xz_native_raw_skin_locked(window,pixels,pitch,caller,result);
-    if((caller==0x22ee4c||caller==0x22f7bc)&&(xz_mods_native_style_v1()||xz_layered_wave_active())){
+    if((caller==0x22ee4c||caller==0x22f7bc)&&(xz_mods_native_style_v1()||xz_layered_wave_active()||
+        __atomic_load_n(&route_up,__ATOMIC_ACQUIRE))){
         memset(&footer,0,sizeof(footer));uint32_t values[16];
         if(result==0&&pixels&&*pixels&&pitch&&*pitch>=600&&*pitch<=4096&&!(*pitch&1)&&!((uintptr_t)*pixels&1)&&
            !xz_read_memory((uint32_t)(uintptr_t)window,values,sizeof(values))&&
            (values[0]&65535)==300&&(values[0]>>16)==34&&values[2]==9&&values[7]){
             footer.gr=(uintptr_t)window;footer.hw=values[7];footer.thread=(uintptr_t)pthread_self();footer.pixels=*pixels;footer.pitch=*pitch;footer.deck=(int32_t)values[12]>=400;
+            footer.x=(int32_t)values[12];footer.y=(int32_t)values[13];
         }else __atomic_fetch_add(&xz_native_wave_skin_v1[3],1,__ATOMIC_RELAXED);
     }
     int captured_extra=0;
@@ -129,26 +159,28 @@ static uint32_t monotonic_ms(void){
  struct timespec t;if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;
  return (uint32_t)((uint64_t)t.tv_sec*1000u+(uint64_t)t.tv_nsec/1000000u);
 }
+/* Both DECK 3/4 lanes, the native lanes' deck tags and the open detail panel (extra_detail.h), before the theme. */
 static void draw_extra(uint16_t *pixels,uint32_t count){
- struct xz_four_layout g;xz_four_layout_get(four_frame_order,&g);
- struct xz_extra_lane_view view={monotonic_ms(),0,1,0};
- xz_layered_wave_view(&view.column_us,&view.background);
- for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
-  view.lit=i?extra.right_on_4:extra.left_on_3;
-  xz_extra_lane_draw(pixels,536,count,g.lane_y[2+i],3+i,&extra.deck[i],&view,&extra_marks[i]);
- }
+ uint32_t now=monotonic_ms();
+ four_frame_detail=__atomic_load_n(&detail_deck,__ATOMIC_ACQUIRE);
+ struct xz_four_frame frame={&extra,four_frame_order,now,0,1,four_frame_detail,detail_notice_now(now)};
+ xz_layered_wave_view(&frame.column_us,&frame.background);
+ xz_four_frame_draw(pixels,count,&frame,extra_marks);
 }
+/* The theme over the whole surface with layer pixels kept exact, then the player's notice banner. An open
+   panel carries the notice in its own status row instead, so the banner never covers its controls. */
 static void style_four(uint16_t *pixels,uint32_t count){
  if(count!=XZ_NATIVE_WAVE_PIXELS)return;
- if(!xz_mods_native_style_v1()){xz_extra_notice_draw(pixels,536,count,&extra,monotonic_ms());return;}
- struct xz_four_layout g;xz_four_layout_get(four_frame_order,&g);
- struct xz_four_marks m;memset(&m,0,sizeof(m));
- for(unsigned d=0;d<2;d++)m.col[d]=xz_layered_wave_drawn(d,&m.look[d]);
- for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){m.look[2+i]=extra_marks[i].look;m.col[2+i]=extra_marks[i].col;}
- xz_four_protect(&g,&m,pixels,four_keep);
- xz_native_skin_wave_pixels(pixels,536,268,-1);
- xz_four_restore(&g,&m,pixels,four_keep);
- xz_extra_notice_draw(pixels,536,count,&extra,monotonic_ms());
+ if(xz_mods_native_style_v1()){
+  struct xz_four_layout g;xz_four_layout_get(four_frame_order,&g);
+  struct xz_four_marks m;memset(&m,0,sizeof(m));
+  for(unsigned d=0;d<2;d++)m.col[d]=xz_layered_wave_drawn(d,&m.look[d]);
+  for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){m.look[2+i]=extra_marks[i].look;m.col[2+i]=extra_marks[i].col;}
+  xz_four_protect(&g,&m,pixels,four_keep);
+  xz_native_skin_wave_pixels(pixels,536,268,-1);
+  xz_four_restore(&g,&m,pixels,four_keep);
+ }
+ if(four_frame_detail<0)xz_extra_notice_draw(pixels,536,count,&extra,monotonic_ms());
 }
 static int unlock_hook(void *window){
     xz_native_raw_skin_before_unlock(window);
@@ -160,6 +192,7 @@ static int unlock_hook(void *window){
             int layered=xz_layered_overview(footer_scratch,(unsigned)footer.deck);
             if(xz_mods_native_style_v1())xz_native_skin_wave_pixels(footer_scratch,300,34,footer.deck);
             if(layered)xz_layered_overview_restore(footer_scratch);
+            xz_classic_mixer_native_overview(footer.deck,footer_scratch,300u*34u,footer.x,footer.y);
             for(int y=0;y<34;y++)memcpy((unsigned char*)footer.pixels+y*footer.pitch,footer_scratch+y*300,600);
             __atomic_fetch_add(&xz_native_wave_skin_v1[2],1,__ATOMIC_RELAXED);
         }
@@ -171,6 +204,8 @@ static int unlock_hook(void *window){
         /* Four decks hide the stem rows; the saved layout returns on the first frame after. */
         int four=__atomic_load_n(&route_up,__ATOMIC_ACQUIRE)&&four_frame_layout!=XZ_LAYOUT_TWO;
         int inline_rows=four||!requested?XZ_STEM_LAYOUT_HIDDEN:requested();
+        /* Two decks again (route down): the DECK 3/4 panel has nothing to show and closes. */
+        if(!four)xz_native_four_set_detail(-1);
         if(scene(&current)&&!observe_only){
             if(four)drawn=xz_native_wave_finish_four(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,four_frame_order,draw_extra,style_four);
