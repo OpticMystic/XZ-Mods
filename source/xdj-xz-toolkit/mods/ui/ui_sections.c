@@ -423,10 +423,10 @@ static void home(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  }
 }
 /* The 4 DECKS cable picture: its memory, and its clock's rest. It moves (30 fps steps) until 60 s after the
-   page appeared, its focus last moved or the route changed state, then rests on its main shot. The panel
+   page appeared, its focus last moved or the route changed state, then plays on to its main shot and rests. The panel
    draws on one thread at a time. */
 static uint16_t four_px[196*74];static uint8_t four_cov[196*74];
-static struct xz_pic_route_anim four_anim={four_px,four_cov,196*74,0,0,0,0,0,0};
+static struct xz_pic_route_anim four_anim={.px=four_px,.cov=four_cov,.cap=196*74};
 static struct { uint32_t since, drawn; int state, focus, shown; } four_motion;
 enum { FOUR_REST_MS=60000 };   /* the play card's rest (route_card.h) */
 static void route_card(const struct xz_ui_scene *sc, const struct xz_pic_style *s){

@@ -167,18 +167,48 @@ static void test_budget_and_policy(void) {
  assert(xz_cable_motion_of(1) == XZ_CABLE_LOOP && xz_cable_motion_of(6) == XZ_CABLE_LOOP && xz_cable_motion_of(7) == XZ_CABLE_LOOP);
  assert(xz_cable_motion_of(2) == XZ_CABLE_SIGNAL && xz_cable_motion_of(3) == XZ_CABLE_SIGNAL && xz_cable_motion_of(4) == XZ_CABLE_SIGNAL);
  assert(xz_cable_motion_of(5) == XZ_CABLE_STILL && xz_cable_motion_of(0) == XZ_CABLE_HIDDEN && xz_cable_motion_of(99) == XZ_CABLE_HIDDEN);
- uint32_t k0 = xz_cable_frame_of(1, 0, 100000u, 0, 0, &t, &sig); assert(t == 0 && sig == XZ_CABLE_SIGNAL_NONE);
- assert(xz_cable_frame_of(1, 0, 900000u, 0, 0, &t, &sig) == k0);                         /* rested: one still */
- xz_cable_frame_of(6, 4, 100000u, 0, 0, &t, &sig); assert(t == 10200u);                   /* selectors: overview */
- uint32_t a = xz_cable_frame_of(1, 0, 100000u, 1, 0, &t, &sig); assert(t == 100000u / 16u * 16u % 13000u && sig == XZ_CABLE_SIGNAL_LOOP);
- assert(xz_cable_frame_of(1, 0, 100000u + 15u - 100000u % 16u, 1, 0, &t, &sig) == a);     /* same 16 ms step */
- assert(xz_cable_frame_of(1, 0, 100016u, 1, 0, &t, &sig) != a);
- uint32_t s33 = xz_cable_frame_of(1, 0, 99990u, 1, 33u, &t, &sig); assert(t == 99990u / 33u * 33u % 13000u);
- assert(xz_cable_frame_of(1, 0, 99990u / 33u * 33u + 32u, 1, 33u, &t, &sig) == s33);     /* 30 fps steps */
+ uint32_t k0 = xz_cable_frame_of(1, 0, 100000u, 0, 0, NULL, &t, &sig); assert(t == 0 && sig == XZ_CABLE_SIGNAL_NONE);
+ assert(xz_cable_frame_of(1, 0, 900000u, 0, 0, NULL, &t, &sig) == k0);                         /* rested: one still */
+ xz_cable_frame_of(6, 4, 100000u, 0, 0, NULL, &t, &sig); assert(t == 10200u);                   /* selectors: overview */
+ uint32_t a = xz_cable_frame_of(1, 0, 100000u, 1, 0, NULL, &t, &sig); assert(t == 100000u / 16u * 16u % 13000u && sig == XZ_CABLE_SIGNAL_LOOP);
+ assert(xz_cable_frame_of(1, 0, 100000u + 15u - 100000u % 16u, 1, 0, NULL, &t, &sig) == a);     /* same 16 ms step */
+ assert(xz_cable_frame_of(1, 0, 100016u, 1, 0, NULL, &t, &sig) != a);
+ uint32_t s33 = xz_cable_frame_of(1, 0, 99990u, 1, 33u, NULL, &t, &sig); assert(t == 99990u / 33u * 33u % 13000u);
+ assert(xz_cable_frame_of(1, 0, 99990u / 33u * 33u + 32u, 1, 33u, NULL, &t, &sig) == s33);     /* 30 fps steps */
  for (uint32_t now = 0; now < 2400u; now += 5) {
-  xz_cable_frame_of(2, 0, now, 1, 0, &t, &sig); assert(t == 0 && sig >= 0 && sig <= 1160);
+  xz_cable_frame_of(2, 0, now, 1, 0, NULL, &t, &sig); assert(t == 0 && sig >= 0 && sig <= 1160);
  }
+ /* The loop's clock: it starts on the main shot, follows the clock in steps, plays on to the still once it
+    may no longer move (never more than one loop, never backwards), holds it, and starts over on the main
+    shot when it moves again or after a gap in the frames. Frames come every 16 ms unless a gap is meant. */
+ struct xz_cable_clock c = {0};
+ uint32_t t0 = 123457u, at = t0, last = 0;
+ xz_cable_frame_of(1, 0, at, 1, 0, &c, &t, &sig); assert(t == 0 && sig == XZ_CABLE_SIGNAL_LOOP && xz_cable_clock_running(&c));
+ while (at - t0 < 5000u) { at += 16u; xz_cable_frame_of(1, 0, at, 1, 0, &c, &t, &sig); }
+ assert(t == (at - t0) / 16u * 16u);
+ while (at - t0 < 13040u) { at += 16u; xz_cable_frame_of(1, 0, at, 1, 0, &c, &t, &sig); }
+ assert(t == (at - t0) / 16u * 16u % 13000u && t < 100u);                                  /* round the seam */
+ uint32_t stop_from = at;
+ for (int i = 0; i < 2000 && xz_cable_clock_running(&c); i++) {
+  last = t; at += 16u; xz_cable_frame_of(1, 0, at, 0, 0, &c, &t, &sig);
+  assert(xz_cable_clock_running(&c) ? sig == XZ_CABLE_SIGNAL_LOOP && t > last : t == 0 && sig == XZ_CABLE_SIGNAL_NONE);
+ }
+ assert(!xz_cable_clock_running(&c) && at - stop_from <= 13000u && t == 0);
+ at += 16u; xz_cable_frame_of(1, 0, at, 0, 0, &c, &t, &sig); assert(t == 0 && !xz_cable_clock_running(&c));
+ at += 16u; xz_cable_frame_of(1, 0, at, 1, 0, &c, &t, &sig); assert(t == 0 && xz_cable_clock_running(&c));
+ uint32_t go = at;
+ while (at - go < 1000u) { at += 33u; xz_cable_frame_of(1, 0, at, 1, 33u, &c, &t, &sig); }
+ assert(t == (at - go) / 33u * 33u);                                                       /* 30 fps steps */
+ at += 2000u; xz_cable_frame_of(1, 0, at, 1, 0, &c, &t, &sig); assert(t == 0);            /* a 2 s gap: from the top */
+ /* the selectors' rest is the overview: the loop plays on to it */
+ struct xz_cable_clock d = {0};
+ at = 5000u; xz_cable_frame_of(6, 4, at, 1, 0, &d, &t, &sig); assert(t == 0);
+ while (xz_cable_clock_running(&d) && at < 40000u) { at += 16u; xz_cable_frame_of(6, 4, at, at < 7000u, 0, &d, &t, &sig); }
+ assert(t == 10200u && at - 5000u >= 10200u && at - 5000u < 10200u + 16u);
+ /* signal states leave the clock stopped: a running loop that turns into a signal stops on the spot */
+ xz_cable_frame_of(1, 0, 90000u, 1, 0, &c, &t, &sig); assert(xz_cable_clock_running(&c));
+ xz_cable_frame_of(2, 0, 90016u, 1, 0, &c, &t, &sig); assert(!xz_cable_clock_running(&c) && t == 0 && sig >= 0);
  free(b.px); free(b.cov);
- puts("PASS cable budget and policy: over budget keeps the last picture; rest still; 16/33 ms steps from the clock; signal 0..1160");
+ puts("PASS cable budget and policy: over budget keeps the last picture; rest still; 16/33 ms steps; signal 0..1160; the loop starts on the main shot and plays on to its rest");
 }
 int main(void) { test_streams(); test_clock(); test_bounds_and_seam(); test_tints_and_marks(); test_budget_and_policy(); return 0; }

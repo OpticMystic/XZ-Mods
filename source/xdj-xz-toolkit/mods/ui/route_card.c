@@ -106,10 +106,16 @@ static uint32_t pulse_period(enum xz_route_card_kind k) {
 static int pulsing(const struct xz_route_card_input *in, enum xz_route_card_kind k) {
  return pulse_period(k)&&(k==XZ_ROUTE_CARD_SCANNING||since(in,in->rest_from_ms)<XZ_ROUTE_CARD_REST_MS);
 }
-/* The picture moves: its loop or its signal, until it rests (scanning never rests). */
-static int moving(const struct xz_route_card_input *in, enum xz_route_card_kind k) {
+/* The picture wants to move: its loop or its signal, until it rests (scanning never rests). */
+static int wants_motion(const struct xz_route_card_input *in, enum xz_route_card_kind k) {
  enum xz_cable_motion m=xz_cable_motion_of(in->state);
  return (m==XZ_CABLE_LOOP||m==XZ_CABLE_SIGNAL)&&(k==XZ_ROUTE_CARD_SCANNING||since(in,in->rest_from_ms)<XZ_ROUTE_CARD_REST_MS);
+}
+/* The picture is drawn every frame: while it wants to move, and for one loop more, in which its loop plays on
+   to the still it rests on (cable_anim.h clock) and then holds it. */
+static int moving(const struct xz_route_card_input *in, enum xz_route_card_kind k) {
+ return wants_motion(in,k)||(xz_cable_motion_of(in->state)==XZ_CABLE_LOOP&&
+  since(in,in->rest_from_ms)<(uint32_t)XZ_ROUTE_CARD_REST_MS+xz_cable_loop_ms());
 }
 uint32_t xz_route_card_motion_ms(const struct xz_route_card_input *in) {
  if(!xz_route_card_visible(in))return 0;
@@ -309,17 +315,20 @@ static void picture_look(const struct xz_route_card_style *s, const struct xz_ro
   xz_blend(s->body,s->grey,170),s->labels?0xb8b8b8:0,s->white,s->theme};
  xz_cable_look_of(look,&pal,in->state,in->fail_part);
 }
-/* The picture into the cache's copy when its frame changed (a frame over the budget keeps the last one of
-   the same state), then onto the pen. */
+/* The picture into the cache's copy when its frame changed (a moving frame over the budget keeps the last
+   one of the same state), then onto the pen. move: drawn each frame on the cache's loop clock; else the
+   still it rests on, for the cached still card. */
 static void route_picture(struct pen p, const struct xz_route_card_style *s, int bx, int by,
  const struct xz_route_card_input *in, struct xz_route_card_cache *cache, int move) {
  struct xz_cable_picture pic={cache->pic,cache->pic_cov,s->picture.w,s->picture.h};
  uint32_t t;int signal;
  uint32_t base=((uint32_t)in->state<<8|(uint32_t)in->fail_part<<1|(uint32_t)s->classic)+1u;
- uint32_t key=xz_cable_frame_of(in->state,in->fail_part,in->now_ms,move,in->step_ms,&t,&signal)^base*2654435761u;
+ uint32_t key=xz_cable_frame_of(in->state,in->fail_part,in->now_ms,move&&wants_motion(in,xz_route_card_kind(in->state)),in->step_ms,
+  move?&cache->pic_clock:NULL,&t,&signal)^base*2654435761u;
  if(cache->pic_key!=key||cache->pic_base!=base){
   struct xz_cable_look look;picture_look(s,in,&look);
-  if(xz_cable_draw(&pic,t,&look,signal,move&&cache->pic_base==base?XZ_ROUTE_CARD_PIC_BUDGET:0u)){cache->pic_key=key;cache->pic_base=base;}
+  int live=signal!=XZ_CABLE_SIGNAL_NONE&&cache->pic_base==base;
+  if(xz_cable_draw(&pic,t,&look,signal,live?XZ_ROUTE_CARD_PIC_BUDGET:0u)){cache->pic_key=key;cache->pic_base=base;}
  }
  xz_cable_blit(p.c,bx-p.ox,by-p.oy,&pic);
 }

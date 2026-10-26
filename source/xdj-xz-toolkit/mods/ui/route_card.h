@@ -11,14 +11,16 @@
    invents one. The picture is the cable explainer (cable_anim.h): the unit in true perspective with the
    loopback cable, playing its loop while the DJ has a cable to fix (not detected, failed, lost), showing
    its main shot with the signal running along the cable while the route comes up, tinted by the state,
-   the failing part red and marked. Everything moving is a pure function of the frame clock and rests
-   60 s after the card appears or after the last input, on the main shot. The still card is drawn once
+   the failing part red and marked. The loop starts on the main shot when the picture starts moving (its
+   clock is kept in the cache), and 60 s after the card appears or after the last input it plays on to the
+   main shot and rests there; the rest of the motion is a pure function of the frame clock. The still card is drawn once
    per state into a caller-owned cache and copied each frame; the picture is redrawn into the cache's own
    copy only when its frame changes, at the caller's step. Without a cache the picture is the earlier
    flat drawing, still.
    Pure: no IO, no allocation, no clock of its own. */
 #include "ui_skin.h"
 #include "../extra_decks.h"
+#include "cable_anim.h"
 
 enum xz_route_card_kind {
  XZ_ROUTE_CARD_NOT_DETECTED, XZ_ROUTE_CARD_SCANNING, XZ_ROUTE_CARD_STARTING, XZ_ROUTE_CARD_WAITING,
@@ -62,6 +64,7 @@ enum { XZ_ROUTE_CARD_HIT_NONE=-1, XZ_ROUTE_CARD_HIT_CARD=0, XZ_ROUTE_CARD_HIT_PR
 struct xz_route_card_cache {
  uint32_t key; uint16_t row[2][XZ_ROUTE_CARD_ROW_MAX];
  uint32_t pic_key, pic_base;  /* the picture's frame, and its state and part */
+ struct xz_cable_clock pic_clock;  /* its loop's clock */
  uint16_t pic[XZ_ROUTE_CARD_PIC_MAX]; uint8_t pic_cov[XZ_ROUTE_CARD_PIC_MAX];
 };
 

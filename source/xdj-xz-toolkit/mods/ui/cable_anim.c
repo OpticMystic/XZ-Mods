@@ -716,15 +716,40 @@ void xz_cable_look_of(struct xz_cable_look *l, const struct xz_cable_palette *p,
  if (l->ink[XZ_CABLE_USB2] != p->dim) l->ink[XZ_CABLE_USB2] = xz_blend(p->edge, l->ink[XZ_CABLE_USB1] == p->red ? accent : l->ink[XZ_CABLE_USB1], 120);
 }
 static uint32_t mix(uint32_t h, uint32_t v) { h ^= v; return h * 16777619u; }
-uint32_t xz_cable_frame_of(int state, int part, uint32_t now_ms, int moving, uint32_t step_ms, uint32_t *t_ms, int *signal) {
+/* The loop's own clock: it starts on the main shot when the picture starts moving; once the caller's rest
+   rule says stop, it plays on to the still the picture rests on and stops there, so the picture never jumps.
+   A picture not drawn for a second (the card hid, the page closed) starts over on the main shot. */
+static uint32_t clock_loop_t(struct xz_cable_clock *c, uint32_t now, int moving, uint32_t step, uint32_t rest, int *running) {
+ const uint32_t loop = (uint32_t)XZ_CA_LOOP_MS;
+ if (!c->running || now - c->seen_ms > 1000u) { c->running = (uint8_t)(moving != 0); c->stopping = 0; c->start_ms = now; }
+ c->seen_ms = now;
+ *running = 0;
+ if (!c->running) return rest;
+ uint32_t e = (now - c->start_ms) / step * step;
+ if (moving) c->stopping = 0;
+ else {
+  if (!c->stopping) { c->stop_at = e + (rest + loop - e % loop) % loop; c->stopping = 1; }
+  if (e >= c->stop_at) { c->running = 0; return rest; }
+ }
+ *running = 1;
+ return e % loop;
+}
+uint32_t xz_cable_frame_of(int state, int part, uint32_t now_ms, int moving, uint32_t step_ms, struct xz_cable_clock *clock,
+ uint32_t *t_ms, int *signal) {
  enum xz_cable_motion m = xz_cable_motion_of(state);
  uint32_t step = step_ms ? step_ms : 16u, rest = xz_cable_rest_ms(state == 6 && part == 4 ? XZ_CABLE_MARK_SELECTOR : 0);
  uint32_t q = now_ms / step * step;
  *t_ms = rest; *signal = XZ_CABLE_SIGNAL_NONE;
- if (moving && m == XZ_CABLE_LOOP) { *t_ms = q % (uint32_t)XZ_CA_LOOP_MS; *signal = XZ_CABLE_SIGNAL_LOOP; }
+ if (m == XZ_CABLE_LOOP && clock) {
+  int running; *t_ms = clock_loop_t(clock, now_ms, moving, step, rest, &running);
+  if (running) *signal = XZ_CABLE_SIGNAL_LOOP;
+ }
+ else if (clock) clock->running = 0;
+ if (!clock && moving && m == XZ_CABLE_LOOP) { *t_ms = q % (uint32_t)XZ_CA_LOOP_MS; *signal = XZ_CABLE_SIGNAL_LOOP; }
  else if (moving && m == XZ_CABLE_SIGNAL) {
   uint32_t period = state == 2 ? 800u : 1200u;
   *signal = (int)(q % period * 1160u / period);
  }
  return mix(mix(mix(mix(2166136261u, (uint32_t)state), (uint32_t)part), *t_ms), (uint32_t)(*signal + 3)) | 1u;
 }
+int xz_cable_clock_running(const struct xz_cable_clock *c) { return c && c->running; }
