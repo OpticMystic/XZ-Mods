@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include "sha256.h"
 #include "contract.h"
+#include "port_layout.h"
 
 /* Firmware libc predates the C99 scanf symbol added in glibc 2.7. */
 extern int legacy_sscanf(const char *, const char *, ...) __asm__("sscanf");
@@ -161,6 +162,7 @@ struct observation {
     char boot[40], mac[32], vendor[8], product[8], serial[132];
     char source[32], mount[64], kind[16], mount_line[1024], ancestry[PATH_MAX];
     unsigned long devnum, busnum;
+    unsigned music_port;
     int serial_length; /* Zero records absence; no synthesized identity. */
     struct file_identity usb, partition, block, volume;
     unsigned char sector_sha[32];
@@ -248,7 +250,15 @@ static enum admission_result music_mount(struct observation *o, unsigned *mount_
         unsigned long id, parent;
         if (!decimal(fields[0], &id) || !id || !decimal(fields[1], &parent) ||
             !device_numbers(fields[2], mount_major, mount_minor)) { ok = 0; break; }
-        if (strcmp(fields[4], "/media/usb2") && strncmp(fields[4], "/media/usb2/", 12)) continue;
+        const struct xz_quad_port *port = NULL;
+        for (unsigned top = 1; top <= 2; top++) {
+            const struct xz_quad_port *candidate = xz_quad_port(top);
+            size_t length = strlen(candidate->mount);
+            if (!strncmp(fields[4], candidate->mount, length) &&
+                (!fields[4][length] || fields[4][length] == '/')) port = candidate;
+        }
+        if (!port) continue;
+        size_t mount_length = strlen(port->mount);
         unsigned dash = 6;
         while (dash < n && strcmp(fields[dash], "-")) dash++;
         if (++matches != 1 || dash + 4 != n || strcmp(fields[3], "/")) { ok = 0; break; }
@@ -261,9 +271,10 @@ static enum admission_result music_mount(struct observation *o, unsigned *mount_
         while (*p >= 'a' && *p <= 'z') p++;
         unsigned long partition;
         if (p == block + 7 || *p == '0' || !decimal(p, &partition) || !partition || partition > 1048575 ||
-            strncmp(fields[4], "/media/usb2/", 12) || strcmp(fields[4] + 12, block + 5) ||
+            fields[4][mount_length] != '/' || strcmp(fields[4] + mount_length + 1, block + 5) ||
             strlen(fields[4]) >= sizeof(o->mount)) { ok = 0; break; }
         strcpy(o->source, block); strcpy(o->mount, fields[4]); strcpy(o->kind, kind);
+        o->music_port = port->top;
         strcpy(o->mount_line, line);
     }
     if (ferror(file)) ok = 0;
@@ -327,17 +338,24 @@ static enum admission_result observe_music(struct observation *o, int *keep_volu
     int volume = -1, block = -1;
     enum admission_result result = music_mount(o, &mount_major, &mount_minor, reason);
     if (result != ADMIT_READY) return result;
+    const struct xz_quad_port *port = xz_quad_port(o->music_port);
     result = ADMIT_UNSUPPORTED;
+    /* Keep the diagnostic IDs understood by existing report/status readers. */
     *reason = "UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY";
+    snprintf(path, sizeof(path), USB "%s/devnum", port->usb);
+    if (!number_file(path, &number) || number < 1 || number > 127) goto done;
+    snprintf(path, sizeof(path), USB "%s/busnum", port->usb);
+    if (!number_file(path, &bus) || bus != 2) goto done;
+    snprintf(path, sizeof(path), USB "%s/idVendor", port->usb);
+    if (text_file(path, o->vendor, sizeof(o->vendor)) != 4 || !hex_text(o->vendor, 4)) goto done;
+    snprintf(path, sizeof(path), USB "%s/idProduct", port->usb);
     if (!unit_identity(o) ||
         !attribute("2-1", "idVendor", "0451") || !attribute("2-1", "idProduct", "8027") ||
-        !number_file(USB "2-1.1/devnum", &number) || number < 1 || number > 127 ||
-        !number_file(USB "2-1.1/busnum", &bus) || bus != 2 ||
-        text_file(USB "2-1.1/idVendor", o->vendor, sizeof(o->vendor)) != 4 || !hex_text(o->vendor, 4) ||
-        text_file(USB "2-1.1/idProduct", o->product, sizeof(o->product)) != 4 || !hex_text(o->product, 4)) goto done;
+        text_file(path, o->product, sizeof(o->product)) != 4 || !hex_text(o->product, 4)) goto done;
     *reason = "UNSUPPORTED_MUSIC_SERIAL_LENGTH";
     errno = 0;
-    int length = text_file(USB "2-1.1/serial", o->serial, sizeof(o->serial));
+    snprintf(path, sizeof(path), USB "%s/serial", port->usb);
+    int length = text_file(path, o->serial, sizeof(o->serial));
     if (length < 0) {
         if (!errno) goto done; /* Bounded text_file rejected a long attribute. */
         if (errno != ENOENT) { *reason = "WAIT_MUSIC_SERIAL_READ"; result = ADMIT_WAIT; goto done; }
@@ -347,11 +365,12 @@ static enum admission_result observe_music(struct observation *o, int *keep_volu
     o->serial_length = length;
     struct stat usb, partition;
     *reason = "UNSUPPORTED_USB2_BLOCK_ANCESTRY";
-    if (stat(USB "2-1.1", &usb) || !S_ISDIR(usb.st_mode)) goto done;
+    snprintf(path, sizeof(path), USB "%s", port->usb);
+    if (stat(path, &usb) || !S_ISDIR(usb.st_mode)) goto done;
     o->usb = file_identity(&usb); o->busnum = bus; o->devnum = number;
     snprintf(path, sizeof(path), "/sys/class/block/%s", o->source + 5);
     if (!realpath(path, o->ancestry) ||
-        !strstr(o->ancestry, "/usb2/2-1/2-1.1/2-1.1:1.0/") || stat(path, &partition)) goto done;
+        !strstr(o->ancestry, port->ancestry) || stat(path, &partition)) goto done;
     o->partition = file_identity(&partition);
     strcpy(disk, o->source + 5);
     char *digits = disk + 2;
@@ -576,14 +595,17 @@ static int loopback_present(void)
            (attribute("2-1.2", "idVendor", "2b73") && attribute("2-1.2", "idProduct", "002e"));
 }
 
-static int scan_device(struct device *device)
+static int scan_device(struct device *device, unsigned loopback_port)
 {
     memset(device, 0, sizeof(*device));
+    const struct xz_quad_port *selected = xz_quad_port(loopback_port);
+    if (!selected) return -1;
     if (!attribute("2-1", "idVendor", "0451") || !attribute("2-1", "idProduct", "8027")) return -1;
     for (unsigned port = 1; port <= 2; port++) {
         char hub[16], path[256];
         snprintf(hub, sizeof(hub), "2-1.%u", port);
         if (!attribute(hub, "idVendor", "2b73") || !attribute(hub, "idProduct", "002e")) continue;
+        if (strcmp(hub, selected->usb)) return -1;
         if (*device->hub || !attribute(hub, "bDeviceClass", "09") || !attribute(hub, "speed", "480")) return -1;
         strcpy(device->hub, hub);
         snprintf(path, sizeof(path), USB "%s", hub);
@@ -614,11 +636,12 @@ static int scan_device(struct device *device)
     return 0;
 }
 
-static int admission_loopback_safe(void)
+static int admission_loopback_safe(unsigned loopback_port)
 {
+    if (!xz_quad_port(loopback_port)) return 0;
     if (!loopback_present()) return 1;
     struct device device;
-    if (scan_device(&device) || strcmp(device.hub, "2-1.2") || device.bound || device.number) return 0;
+    if (scan_device(&device, loopback_port) || device.bound || device.number) return 0;
     char path[256];
     struct stat driver;
     snprintf(path, sizeof(path), USB "%s/%s:1.0/driver", device.hub, device.hub);
@@ -629,7 +652,8 @@ static int admission_loopback_safe(void)
     int safe = 1;
     errno = 0;
     while ((entry = readdir(dir))) {
-        if (!strncmp(entry->d_name, "2-1.2.", 6)) { safe = 0; break; }
+        size_t length = strlen(device.hub);
+        if (!strncmp(entry->d_name, device.hub, length) && entry->d_name[length] == '.') { safe = 0; break; }
     }
     if (errno) safe = 0;
     if (closedir(dir)) safe = 0;
@@ -646,13 +670,13 @@ static int write_text(const char *path, const char *text, int flags)
     return ok;
 }
 
-static int command(const char *program, const char *arg, const char *option, const char *extra)
+static int command(const char *program, const char *arg, const char *option, const char *extra, const char *selection)
 {
     pid_t child = fork();
     if (child < 0) return 0;
     if (!child) {
         unsetenv("LD_PRELOAD");
-        execl(program, program, arg, option, extra, (char *)NULL);
+        execl(program, program, arg, option, extra, selection, (char *)NULL);
         _exit(127);
     }
     int status;
@@ -843,6 +867,8 @@ static int run_bridge(struct native *native, const char *module, struct binding 
         close(events); close(lock); return 1;
     }
     int loaded = 0, failed = 0;
+    unsigned loopback_port = 0;
+    char port_option[32], port_value[16];
     const char *reason = NULL;
     struct route route = {0};
 admission:
@@ -863,30 +889,33 @@ admission:
             }
         }
         if (!binding_check(binding)) { reason = "TERMINATED_MUSIC_IDENTITY"; failed = 1; goto done; }
+        loopback_port = 3 - binding->identity.music_port;
         if (access(MODULE, F_OK) == 0 || access(NODE, F_OK) == 0) {
             reason = "TERMINATED_FOREIGN_MODULE_OR_NODE"; failed = 1; goto done;
         }
         if (!native_stopped(native)) state_log("WAIT_NATIVE_PAUSED");
-        else if (!admission_loopback_safe()) state_log("WAIT_SAFE_LOOPBACK_DISCONNECT");
+        else if (!admission_loopback_safe(loopback_port)) state_log("WAIT_SAFE_LOOPBACK_DISCONNECT");
         else break;
         event_wait(events, 1000);
     }
-    if (!command("/sbin/insmod", module, "apply=0", NULL)) { reason = "TERMINATED_PROBE_LOAD_FAILURE"; failed = 1; goto done; }
+    snprintf(port_option, sizeof(port_option), "loopback_port=%u", loopback_port);
+    snprintf(port_value, sizeof(port_value), "%u", loopback_port);
+    if (!command("/sbin/insmod", module, "apply=0", port_option, NULL)) { reason = "TERMINATED_PROBE_LOAD_FAILURE"; failed = 1; goto done; }
     loaded = 1;
-    if (!command("/sbin/rmmod", "xz_hub_depth", NULL, NULL)) { reason = "TERMINATED_PROBE_UNLOAD_FAILURE"; failed = 1; goto done; }
+    if (!command("/sbin/rmmod", "xz_hub_depth", NULL, NULL, NULL)) { reason = "TERMINATED_PROBE_UNLOAD_FAILURE"; failed = 1; goto done; }
     loaded = 0;
     if (!debounce_wait(300)) { reason = stopping ? "TERMINATED_SIGNAL" : access(RUN "/stop", F_OK) == 0 ? "TERMINATED_STOP_MARKER" : "TERMINATED_ADMISSION_DEBOUNCE_FAILURE"; goto done; }
     /* Repeat all admission guards before metadata-only existing-hub adoption. */
     if (stopping || access(RUN "/stop", F_OK) == 0 || !native_alive(native) ||
-        !native_stopped(native) || !admission_loopback_safe() || !process_set(native->pid) ||
+        !native_stopped(native) || !admission_loopback_safe(loopback_port) || !process_set(native->pid) ||
         !binding_check(binding) || access(MODULE, F_OK) == 0 || access(NODE, F_OK) == 0) goto admission;
-    if (!command("/sbin/insmod", module, "apply=1", "adopt_existing=1")) { reason = "TERMINATED_APPLY_LOAD_FAILURE"; failed = 1; goto done; }
+    if (!command("/sbin/insmod", module, "apply=1", "adopt_existing=1", port_option)) { reason = "TERMINATED_APPLY_LOAD_FAILURE"; failed = 1; goto done; }
     loaded = 1;
     state_log("WAIT_LOOPBACK");
     while (!stopping && native_alive(native) && access(RUN "/stop", F_OK) != 0) {
         if (!binding_check(binding)) { reason = "TERMINATED_MUSIC_IDENTITY"; failed = 1; break; }
         struct device device;
-        if (scan_device(&device)) { reason = "TERMINATED_SCAN_FAILURE"; failed = 1; break; }
+        if (scan_device(&device, loopback_port)) { reason = "TERMINATED_SCAN_FAILURE"; failed = 1; break; }
         enum action action = next_action(&route, &device, 1);
         if (action == CLEAR) {
             if (!remove_node(&route)) { reason = "TERMINATED_NODE_REMOVE_FAILURE"; failed = 1; break; }
@@ -899,13 +928,14 @@ admission:
             if (!native_stopped(native)) { state_log("WAIT_NATIVE_PAUSED"); event_wait(events, 300); continue; }
             if (!debounce_wait(300)) { reason = stopping ? "TERMINATED_SIGNAL" : access(RUN "/stop", F_OK) == 0 ? "TERMINATED_STOP_MARKER" : "TERMINATED_BIND_DEBOUNCE_FAILURE"; break; }
             struct device fresh;
-            if (scan_device(&fresh) || !same_hub(&fresh, &device)) continue;
+            if (scan_device(&fresh, loopback_port) || !same_hub(&fresh, &device)) continue;
             if (!native_alive(native)) { reason = "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE"; failed = 1; break; }
             if (!process_set(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; break; }
             if (!native_stopped(native)) { state_log("WAIT_NATIVE_PAUSED"); event_wait(events, 300); continue; }
             if (!binding_check(binding)) { reason = "TERMINATED_MUSIC_IDENTITY"; failed = 1; break; }
             if (!number_file(MODULE "refcnt", &references) || references != 1 ||
-                !equals(MODULE "parameters/apply", "Y") || fresh.bound) { reason = "TERMINATED_MODULE_ADMISSION_FAILURE"; failed = 1; break; }
+                !equals(MODULE "parameters/apply", "Y") ||
+                !equals(MODULE "parameters/loopback_port", port_value) || fresh.bound) { reason = "TERMINATED_MODULE_ADMISSION_FAILURE"; failed = 1; break; }
             if (stopping || access(RUN "/stop", F_OK) == 0) break;
             char interface[32];
             snprintf(interface, sizeof(interface), "%s:1.0", fresh.hub);
@@ -937,7 +967,7 @@ done:
             state_log("STOP_PENDING_DISCONNECT; module retained, no force unload");
             while (loopback_present() || !number_file(MODULE "refcnt", &references) || references) event_wait(events, 2000);
         }
-        if (!command("/sbin/rmmod", "xz_hub_depth", NULL, NULL)) { state_log("CLEANUP_MODULE_UNLOAD_FAILURE"); failed = 1; }
+        if (!command("/sbin/rmmod", "xz_hub_depth", NULL, NULL, NULL)) { state_log("CLEANUP_MODULE_UNLOAD_FAILURE"); failed = 1; }
     }
     state_log(failed ? "STOPPED_WITH_ERROR" : "STOPPED");
     unlink(RUN "/bridge.pid");

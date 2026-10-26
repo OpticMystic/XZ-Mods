@@ -1,6 +1,7 @@
 #ifndef MOCK_KERNEL_H
 #define MOCK_KERNEL_H
 #include <assert.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -87,6 +88,7 @@ static void run_work(struct delayed_work *w) {
 struct notifier_block {int (*notifier_call)(struct notifier_block *,unsigned long,void *);};
 static pthread_rwlock_t notify_lock=PTHREAD_RWLOCK_INITIALIZER;
 static struct notifier_block *subscriber;
+static unsigned notify_registered;
 static struct usb_device *on_register;
 static void notify(unsigned long action,struct usb_device *d) {
     pthread_rwlock_rdlock(&notify_lock);usb_lock_device(d);
@@ -95,10 +97,12 @@ static void notify(unsigned long action,struct usb_device *d) {
 }
 static void usb_register_notify(struct notifier_block *n) {
     pthread_rwlock_wrlock(&notify_lock);assert(!subscriber);subscriber=n;pthread_rwlock_unlock(&notify_lock);
+    __atomic_store_n(&notify_registered,1,__ATOMIC_RELEASE);
     if(on_register)notify(USB_DEVICE_ADD,on_register);
 }
 static void usb_unregister_notify(struct notifier_block *n) {
     assert(depth==0);pthread_rwlock_wrlock(&notify_lock);assert(subscriber==n);subscriber=NULL;pthread_rwlock_unlock(&notify_lock);
+    __atomic_store_n(&notify_registered,0,__ATOMIC_RELEASE);
 }
 struct usb_hcd {int rh_registered;};
 struct usb_bus {int busnum;struct usb_device *root_hub;struct usb_hcd hcd;struct usb_bus *next;};
