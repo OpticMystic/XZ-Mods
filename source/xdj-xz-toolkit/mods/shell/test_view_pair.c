@@ -5,6 +5,7 @@
 #include "shell_internal.h"
 #include "../ui/layout_cycle.h"
 #include "../ui/deck_view.h"
+#include "../ui/deck_colour.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,10 +35,10 @@ static size_t tap(struct xz_shell *u,const struct xz_shell_model *m,int x,int y,
  for(size_t i=0;i<k&&n<XZ_SHELL_ACTIONS;i++)out[n++]=rest[i];
  return n;
 }
-static void number_at(int x,int y,int deck,uint32_t background){
+static void number_at(int x,int y,int deck,uint32_t background,uint32_t colour){
  for(int i=0;i<800*480;i++)mask[i]=rgb565(background);
  struct xz_canvas c={mask,800,800,480,XZ_THEME_FLAGSHIP};char text[8];snprintf(text,sizeof text,"%d",deck+1);
- sh_num(c,x,y,text,SH_NUM_MID,SH_WHITE);int ink=0;
+ sh_num(c,x,y,text,SH_NUM_MID,colour);int ink=0;
  for(int yy=y;yy<y+sh_num_cap(SH_NUM_MID);yy++)for(int xx=x;xx<x+20;xx++)if(mask[yy*800+xx]!=rgb565(background)){
   ink++;assert(frame(a)[yy*STRIDE+xx]==mask[yy*800+xx]);
  }
@@ -80,11 +81,21 @@ static void test_views(void){
    assert(tag.y==26+row*(count==2?119:78));
    assert(strip.x==(count==2?(d&1)*400:columns[d]*200)+2);
    uint32_t fill=selected?SH_BLUE:SH_RAIL;
-   number_at(6,tag.y+1,d,fill);title_at(tag.y,m.deck[d].title);
    char text[8];snprintf(text,sizeof text,"%d",d+1);
    int width=count==2?64:56,pad=count==2?8:6,by=count==2?5:2;
+   if(count==4){
+    /* Four lanes: the number in its deck's colour box (deck_colour.h), the same on its strip; the side's fill
+       beside it says who drives the deck. */
+    int bx=(24-sh_num_width(SH_NUM_MID,text))/2;
+    number_at(bx,tag.y+1,d,xz_deck_colour(d),XZ_DECK_COLOUR_INK);title_at(tag.y,m.deck[d].title);
+    number_at(strip.x+pad+bx,strip.y+by+1,d,xz_deck_colour(d),XZ_DECK_COLOUR_INK);
+    assert(frame(a)[(tag.y+1)*STRIDE+1]==rgb565(xz_deck_colour(d))&&frame(a)[(strip.y+by+20)*STRIDE+strip.x+pad+1]==rgb565(xz_deck_colour(d)));
+    assert(frame(a)[(tag.y+20)*STRIDE+27]==rgb565(fill)&&frame(a)[(strip.y+by+20)*STRIDE+strip.x+pad+27]==rgb565(fill));
+    continue;
+   }
+   number_at(6,tag.y+1,d,fill,SH_WHITE);title_at(tag.y,m.deck[d].title);
    int nx=selected?5:(width-sh_num_width(SH_NUM_MID,text))/2;
-   number_at(strip.x+pad+nx,strip.y+by+1,d,fill);
+   number_at(strip.x+pad+nx,strip.y+by+1,d,fill,SH_WHITE);
   }
   for(int slot=0;slot<count;slot++){
    int d=count==2?slot+2*((sides>>slot)&1):slot;
@@ -98,7 +109,7 @@ static void test_views(void){
    if(count==2)assert(!xz_shell_play_rect(&view,XZ_SHELL_R_LANE,d^2).w);
   }
  }
- puts("PASS DECK VIEW pair:44px painted button and picture hits, all pairs/orders/focuses, complete guarded frames, large logical numbers/titles, fixed3/1/2/4, correct seek targets");
+ puts("PASS DECK VIEW pair:44px painted button and picture hits, all pairs/orders/focuses, complete guarded frames, large logical numbers/titles, four-deck numbers in their deck colour boxes, fixed3/1/2/4, correct seek targets");
 }
 static void test_grid_focus(void){
  for(int sides=0;sides<4;sides++)for(int focus=0;focus<4;focus++){

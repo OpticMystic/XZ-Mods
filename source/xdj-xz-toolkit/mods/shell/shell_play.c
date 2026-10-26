@@ -13,6 +13,7 @@
 #include "../ui/layout_cycle.h"
 #include "../ui/deck_view.h"
 #include "../ui/route_card.h"
+#include "../ui/deck_colour.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -334,6 +335,14 @@ static enum xz_shell_time_mode time_mode_of(const struct xz_shell_model *m, cons
 static int playhead_x(const struct xz_shell *u) {
  return WAVE_X+(sh_wave_position(u)==XZ_SHELL_POSITION_LEFT?WAVE_W*27/100:WAVE_W/2);
 }
+/* A four-deck lane's or strip's deck number in its deck's colour box (deck_colour.h), dimmed while the deck
+   is not live (bg is what it sits on); a black column parts it from the rest of the tag. */
+enum { NUMBER_BOX_W=24 };
+static void number_box(struct xz_canvas c, int x, int y, int h, int deck, int live, uint32_t bg) {
+ char text[4];snprintf(text,sizeof text,"%d",deck+1);
+ xz_rect(c,x,y,NUMBER_BOX_W,h,xz_deck_box_fill(deck,live,bg));xz_rect(c,x+NUMBER_BOX_W,y,1,h,SH_BLACK);
+ sh_num(c,x+(NUMBER_BOX_W-sh_num_width(SH_NUM_MID,text))/2,y+(h-sh_num_cap(SH_NUM_MID))/2,text,SH_NUM_MID,xz_deck_box_ink(deck,live,bg));
+}
 static uint32_t cue_color(const struct xz_shell_cue *q) { return q->is_loop?SH_LOOP:q->rgb&0xffffff; }
 static uint32_t ink_on(uint32_t fill) { return xz_theme_luma(fill)>150?SH_BLACK:SH_WHITE; }
 
@@ -517,10 +526,12 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  int filled=sh_four_view(m)?control:active;
  uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=filled?accent:SH_RAIL,ink=sh_ink_on(tile);
  xz_rect(c,0,ly,COL_W,L->tag_h,tile);
- if(!filled&&accent!=SH_BLUE)xz_rect(c,0,ly,4,L->tag_h,accent);
+ /* Four lanes: the number in its deck's colour box; the USB colour stripe moves to the box's right. */
+ if(L==&four_deck){number_box(c,0,ly,L->tag_h,deck,1,tile);if(!filled&&accent!=SH_BLUE)xz_rect(c,NUMBER_BOX_W+1,ly,4,L->tag_h,accent);}
+ else if(!filled&&accent!=SH_BLUE)xz_rect(c,0,ly,4,L->tag_h,accent);
  snprintf(text,sizeof text,"DECK %d",deck+1);
  if(sh_four_view(m)){
-  snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,ink);
+  if(L!=&four_deck){snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,ink);}
   if(control)sh_control_arrow(c,30,ly+1,deck&1);
   else sh_text(c,30,ly+5,"DECK",SH_SMALL,ink);
   if(control)sh_text(c,30,ly+10,"CONTROL",SH_SMALL,ink);
@@ -861,14 +872,24 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  int badge_h=sh_four_view(m)?22:S->badge_h;
  int by0=s.y+S->badge_y,ty=s.y+S->title_y;
  xz_rect(c,sx,by0,badge_w,badge_h,tile);
- if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,sx,by0,3,badge_h,accent);
- if(sh_four_view(m)){
-  snprintf(text,sizeof text,"%d",deck+1);
-  int nx=control?sx+5:sx+(badge_w-sh_num_width(SH_NUM_MID,text))/2;
-  sh_num(c,nx,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
-  if(control)sh_control_arrow(c,sx+badge_w-27,by0+6,deck&1);
+ if(L==&four_deck){
+  /* The same colour box and DECK as the deck's lane tag; a side that drives it: the arrow on its fill. */
+  int seg=sx+NUMBER_BOX_W+1,seg_w=badge_w-NUMBER_BOX_W-1;
+  number_box(c,sx,by0,badge_h,deck,1,tile);
+  if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,seg,by0,3,badge_h,accent);
+  if(control)sh_control_arrow(c,seg+(seg_w-27)/2,by0+6,deck&1);
+  else sh_text_center(c,seg+seg_w/2+1,by0+(badge_h-SH_CAP_SMALL)/2,"DECK",SH_SMALL,sh_ink_on(tile));
   if(u->deck==deck)xz_border(c,sx,by0,badge_w,badge_h,SH_WHITE);
- }else{snprintf(text,sizeof text,"DECK %d",deck+1);sh_text(c,sx+5,by0+3,text,SH_SMALL,sh_ink_on(tile));}
+ }else{
+  if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,sx,by0,3,badge_h,accent);
+  if(sh_four_view(m)){
+   snprintf(text,sizeof text,"%d",deck+1);
+   int nx=control?sx+5:sx+(badge_w-sh_num_width(SH_NUM_MID,text))/2;
+   sh_num(c,nx,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
+   if(control)sh_control_arrow(c,sx+badge_w-27,by0+6,deck&1);
+   if(u->deck==deck)xz_border(c,sx,by0,badge_w,badge_h,SH_WHITE);
+  }else{snprintf(text,sizeof text,"DECK %d",deck+1);sh_text(c,sx+5,by0+3,text,SH_SMALL,sh_ink_on(tile));}
+ }
  int tx=sx+badge_w+8;
  enum sh_face title_face=L==&four_deck?SH_SMALL:SH_TEXT;
  if(control&&L==&four_deck)sh_text(c,tx,by0+12,"CONTROL",SH_SMALL,SH_WHITE);
@@ -1145,9 +1166,9 @@ static void render_pad_row(const struct xz_shell *u, const struct xz_shell_model
 enum { HOLD_INK=0x6a6a6a, HOLD_FILL=0x101010, HOLD_AMBER=0xffa82e };
 static int card_lane(const struct xz_shell_model *m, int deck) { return lane_y(&four_deck,m,deck); }
 static void render_placeholder_column(const struct play_layout *L, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
- int ly=lane_y(L,m,deck);char text[4];
+ int ly=lane_y(L,m,deck);
  xz_rect(c,0,ly,COL_W,L->lane_h,HOLD_FILL);
- snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,0x4a4a4a);
+ number_box(c,0,ly,L->tag_h,deck,0,HOLD_FILL);
  xz_rect(c,30,ly+3,40,14,0x262626);sh_text(c,36,ly+5,"DECK",SH_SMALL,HOLD_INK);
  sh_text(c,6,ly+L->lane_h-34,"NOT",SH_SMALL,HOLD_AMBER);sh_text(c,6,ly+L->lane_h-20,"CONNECTED",SH_SMALL,HOLD_AMBER);
 }
@@ -1157,10 +1178,11 @@ static void render_placeholder_lane(const struct play_layout *L, const struct xz
  xz_rect(c,WAVE_X,ly+L->lane_h/2,WAVE_W,1,0x2e2e2e);
 }
 static void render_placeholder_strip(const struct xz_shell_model *m, struct xz_canvas c, int deck) {
- struct xz_shell_rect s=xz_shell_play_rect(m,XZ_SHELL_R_STRIP,deck);char text[4];
+ struct xz_shell_rect s=xz_shell_play_rect(m,XZ_SHELL_R_STRIP,deck);
+ const struct strip_layout *S=&four_deck.strip;
  xz_rect(c,s.x,s.y,s.w,s.h,0x0e0e0e);
- xz_rect(c,s.x+4,s.y+5,40,26,0x262626);
- snprintf(text,sizeof text,"%d",deck+1);sh_text_center(c,s.x+24,s.y+11,text,SH_TEXT,HOLD_INK);
+ /* Where the live strip's number box sits, dimmed: it lights in place when the deck comes up. */
+ number_box(c,s.x+S->pad,s.y+S->badge_y,S->badge_h,deck,0,0x0e0e0e);
  sh_text(c,s.x+52,s.y+10,"NOT CONNECTED",SH_SMALL,HOLD_AMBER);
  sh_text(c,s.x+10,s.y+53,"Waiting for the",SH_SMALL,0x8c8c8c);
  sh_text(c,s.x+10,s.y+69,"loopback cable.",SH_SMALL,0x8c8c8c);
