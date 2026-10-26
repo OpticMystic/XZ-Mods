@@ -2,10 +2,18 @@
  * DESIGN 7.6, every row must work: each setting row of the MODS sections and their picture pages, pushed
  * or picked through the shell's MENU command path, reaches the real ui_runtime.c action, the published
  * model changes, and the page published next shows the confirmed value. Included by test_menu_runtime.c. */
-static int fake_route_on,fake_wakes,rows_mt_calls;
+static int fake_route_on,rows_mt_calls;
 static int rows_mt_set(void *player,int on){(void)player;(void)on;rows_mt_calls++;return 0;}
 struct xz_extra_route xz_extra_decks_route(void){return (struct xz_extra_route){fake_route_on,0};}
-void xz_extra_decks_wake(void){fake_wakes++;}
+/* The connector is test_deck_view_runtime.h's fixture (fixture_route, fixture_rescans): with fake_route_on its
+   players run and find no cable; without it NO_ENGINE. */
+static void rows_route(int on){
+    fake_route_on=on;fixture_route=(struct xz_extra_route_status){0};
+    fixture_route.state=on?XZ_EXTRA_ROUTE_NOT_DETECTED:XZ_EXTRA_ROUTE_NO_ENGINE;
+    fixture_route.fail_part=on?XZ_EXTRA_ROUTE_PART_CABLE:XZ_EXTRA_ROUTE_PART_NONE;
+    snprintf(fixture_route.reason,sizeof fixture_route.reason,"%s",on?"The loopback audio route has not been detected.":
+        "The software players are unavailable or have not been started.");
+}
 
 /* Everything a MODS setting row can change: the published model, the panel's own edit state, the key engine. */
 struct row_state {
@@ -24,7 +32,7 @@ static struct row_state row_state_now(void){
     for(int i=0;i<3;i++)s.stem_colors[i]=model.stem_colors[i];
     s.edit_page=ui.jump_edit_page;s.edit_pair=ui.jump_edit_pair;s.adjusting=ui.adjusting;s.deck=ui.deck;
     s.key_synced[0]=model.deck[0].key_synced;s.key_synced[1]=model.deck[1].key_synced;s.mt_calls=rows_mt_calls;s.stems_overlay=model.stems_overlay;s.wave_mode=model.wave_mode;
-    s.key_requests=fixture_key_requests;s.wakes=fake_wakes;s.enabled=model.enabled;s.scanning=model.route.scanning_since;s.jump=model.jump;
+    s.key_requests=fixture_key_requests;s.wakes=fixture_rescans;s.enabled=model.enabled;s.scanning=model.route.state==XZ_UI_ROUTE_SCANNING;s.jump=model.jump;
     return s;
 }
 static void publish_now(void){pthread_mutex_lock(&ui_mutex);refresh_local();menu_publish_locked();pthread_mutex_unlock(&ui_mutex);}
@@ -43,7 +51,7 @@ static int setting_row(const struct xz_shell_menu *p,const struct xz_shell_menu_
 static int rows_checked_74,rows_unavailable_74;
 /* MODERN, the cable's engine present but no cable, analysed keys on both decks (deck 2 master): every row can act. */
 static void rows_fixture(void){
-    modern();fake_route_on=1;model.deck_view=0;model.route.scanning_since=0;key_available=1;native_master_tempo_on=rows_mt_set;
+    modern();rows_route(1);model.deck_view=0;key_available=1;native_master_tempo_on=rows_mt_set;
     memset(key_sync,0,sizeof key_sync);
     for(int d=0;d<2;d++){
         model.deck[d].ready|=XZ_UI_GATE|XZ_UI_SMART|XZ_UI_KEY|XZ_UI_KEYSYNC;model.deck[d].key_synced=0;
@@ -152,7 +160,7 @@ static void every_row_works(void){
     every_row_on(XZ_UI_STEM_SECTION,XZ_UI_STEM_COLORS);
     every_row_on(XZ_UI_SCREEN,XZ_UI_SCREEN);
     every_row_on(XZ_UI_FOUR_DECKS,XZ_UI_FOUR_DECKS);
-    fake_route_on=0;model.route.scanning_since=0;rows_players=0;
+    rows_route(0);rows_players=0;
     for(int d=0;d<2;d++)fixture_key_valid[d]=0;
     native_master_tempo_on=NULL;
     assert(rows_checked_74>=40);

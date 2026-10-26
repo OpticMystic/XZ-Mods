@@ -18,9 +18,6 @@ void xz_deck_view_button_load(int shown){__atomic_store_n(&button_shown,!!shown,
 const char *xz_deck_layout_name(int layout){
  return layout==XZ_LAYOUT_FOUR?"4 DECKS, NUMBER ORDER":layout==XZ_LAYOUT_MIXER?"4 DECKS, MIXER ORDER":"2 DECKS";
 }
-const char *xz_deck_layout_order(int layout){
- return layout==XZ_LAYOUT_FOUR?"1 2 3 4":layout==XZ_LAYOUT_MIXER?"3 1 2 4":"1 2";
-}
 int xz_classic_layout_hit(int x,int y){return x>=XZ_CLASSIC_LAYOUT_X&&x<XZ_CLASSIC_LAYOUT_X+XZ_CLASSIC_LAYOUT_W&&y>=0&&y<XZ_CLASSIC_LAYOUT_H;}
 void xz_deck_layout_draw(struct xz_canvas c,int x,int y,int width,int height,int layout,int classic){
  const char *label=layout==XZ_LAYOUT_TWO?(classic?"2 / NATIVE 1-2":"2 DECKS"):layout==XZ_LAYOUT_MIXER?"4 / 3-1-2-4":"4 / 1-2-3-4";

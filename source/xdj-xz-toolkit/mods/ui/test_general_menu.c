@@ -57,8 +57,8 @@ static void no_retired_switches(const struct xz_ui *u,const struct xz_ui_model *
 int main(void){
  const int caps[]={XZ_UI_STEM,XZ_UI_GATE,XZ_UI_SMART,XZ_UI_PREVIEW,XZ_UI_SAMPLE};
  static const struct { enum xz_ui_page from, link; } links[]={
-  {XZ_UI_PLAY,XZ_UI_BEAT_JUMP},{XZ_UI_PLAY,XZ_UI_KEY_SETUP},{XZ_UI_PLAY,XZ_UI_XPAD},{XZ_UI_PLAY,XZ_UI_RAM_SETUP},{XZ_UI_PLAY,XZ_UI_BUTTONS},
-  {XZ_UI_STEM_SECTION,XZ_UI_PC_STEMS},{XZ_UI_STEM_SECTION,XZ_UI_STEM_PADS},{XZ_UI_STEM_SECTION,XZ_UI_STEMS},{XZ_UI_STEM_SECTION,XZ_UI_STEM_COLORS},
+  {XZ_UI_PLAY,XZ_UI_BEAT_JUMP},{XZ_UI_PLAY,XZ_UI_KEY_SETUP},{XZ_UI_PLAY,XZ_UI_RAM_SETUP},{XZ_UI_PLAY,XZ_UI_BUTTONS},
+  {XZ_UI_STEM_SECTION,XZ_UI_PC_STEMS},{XZ_UI_STEM_SECTION,XZ_UI_STEM_PADS},{XZ_UI_STEM_SECTION,XZ_UI_STEM_COLORS},
   {XZ_UI_SCREEN,XZ_UI_METRICS_SETUP}};
  struct xz_ui u;struct xz_ui_model m={0};struct xz_ui_action a[XZ_UI_ACTIONS];
  m.deck[0].track="TEST TRACK";m.deck[0].groove_active=m.deck[0].sample_active=-1;
@@ -86,9 +86,11 @@ int main(void){
    assert(tap(&u,&m,XZ_UI_ENABLE,caps[k],a)==1&&a[0].kind==XZ_UI_ENABLE&&a[0].index==caps[k]&&a[0].value==1);
    assert(!memcmp(&m,&saved,sizeof(m)));
   }
-  /* Additive features have no switch: hot cue preview opens its check, X-PAD its page. */
-  assert(find(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_PREVIEW).kind==XZ_UI_FEATURE_SETUP_OPEN);
-  assert(listed(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_XPAD)&&!listed(&u,&m,XZ_UI_ENABLE,XZ_UI_PREVIEW)&&!listed(&u,&m,XZ_UI_ENABLE,XZ_UI_SAMPLE));
+  /* No preview or sampler engine runs in this runtime (MENU-AUDIT defect 5): every ready bit set still gives
+     one explanation per row and nothing to press. */
+  assert(listed(&u,&m,XZ_UI_INFO,XZ_UI_INFO_PREVIEW)&&listed(&u,&m,XZ_UI_INFO,XZ_UI_INFO_XPAD));
+  assert(!listed(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_PREVIEW)&&!listed(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_XPAD));
+  assert(!listed(&u,&m,XZ_UI_ENABLE,XZ_UI_PREVIEW)&&!listed(&u,&m,XZ_UI_ENABLE,XZ_UI_SAMPLE));
   tap(&u,&m,XZ_UI_PANEL,XZ_UI_STEM_SECTION,a);
   {struct xz_ui_model saved=m;assert(tap(&u,&m,XZ_UI_ENABLE,XZ_UI_STEM,a)==1&&a[0].value==1&&!memcmp(&m,&saved,sizeof(m)));}
   m.enabled=0x3fff;m.jump.enabled=1;m.metrics_enabled=1;
@@ -142,11 +144,11 @@ int main(void){
   /* It lands on the slot it left from, which now holds the switch. */
   struct xz_ui_widget focused;assert(xz_ui_focused(&u,&m,&focused)&&focused.kind==XZ_UI_ENABLE&&focused.index==caps[k]);
  }
- /* HOT CUE PREVIEW, once a loader has it, is checked without a switch and ends back on PLAY. */
- {xz_ui_init(&u);memset(&m,0,sizeof(m));m.deck[0].ready=XZ_UI_PREVIEW;m.deck[0].track="READY ACTION TRACK";tap(&u,&m,XZ_UI_PANEL,XZ_UI_PLAY,a);
-  assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_PREVIEW,a)==1);
-  for(int step=0;step<3;step++)assert(tap(&u,&m,XZ_UI_FEATURE_SETUP_STEP,step,a)==0&&u.feature_step==step+1);
-  assert(!m.enabled&&tap(&u,&m,XZ_UI_FEATURE_SETUP_STEP,3,a)==1&&u.page==XZ_UI_PLAY);}
+ /* A ready bit is not an engine: with PREVIEW reported, PLAY still explains HOT CUE PREVIEW and opens no check. */
+ {xz_ui_init(&u);memset(&m,0,sizeof(m));m.deck[0].ready=XZ_UI_PREVIEW|XZ_UI_SAMPLE|XZ_UI_GROOVE;m.deck[0].track="READY ACTION TRACK";
+  tap(&u,&m,XZ_UI_PANEL,XZ_UI_PLAY,a);
+  assert(listed(&u,&m,XZ_UI_INFO,XZ_UI_INFO_PREVIEW)&&!listed(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_PREVIEW));
+  for(int d=0;d<4;d++)assert(!(xz_deck_caps(&m,d)&(XZ_DECK_CAN_CUE_PREVIEW|XZ_DECK_CAN_XPAD|XZ_DECK_CAN_GROOVE)));}
  puts("PASS sections: HOME tiles and SET UP, PLAY and STEMS switches and setup gates, links with BACK history and the lit rail, encoder, bounds in every theme");
  return 0;
 }

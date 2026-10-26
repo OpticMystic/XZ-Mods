@@ -156,7 +156,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_DOOM_SETUP:return "Check the engine and USB game files step by step.";
  case XZ_UI_MYHOUSE_SETUP:return "Check the native GZDoom engine and My House files.";
  case XZ_UI_APPS_SETUP:return "Walk through detecting, installing and testing an XZ SDK app.";
- case XZ_UI_BEAT_JUMP:return "How far each pad pair jumps in BEAT JUMP mode, on page 1 and page 2 (SHIFT + BEAT JUMP). The first pad of a pair jumps back, the second forward. These sizes are separate from BEAT JUMP BEAT VALUE in UTILITY.";
+ case XZ_UI_BEAT_JUMP:return "How far each pad pair jumps in BEAT JUMP mode on all four decks. SHIFT + BEAT JUMP selects page 2: release SHIFT, then press a pad. The first pad of a pair jumps back, the second forward. SHIFT on a pad uses stock on decks 1/2 and does nothing on decks 3/4. These sizes are separate from BEAT JUMP BEAT VALUE in UTILITY.";
  case XZ_UI_STEM_PADS:return "Which pad mode button gives stem pads, which four pads carry them, their order, and the pad lights.";
  case XZ_UI_PC_STEMS:return "When a deck plays from a computer over USB, the stem pads switch the DJ software's stems instead. Setup checks the link and tests one switch.";
  case XZ_UI_LOCAL_STEM_SETUP:return "Plays prepared stem files from the USB so pads and stem buttons can mute vocals, harmonics and drums.";
@@ -226,18 +226,19 @@ static const char *jump_pair_body(const struct xz_ui *u,const struct xz_ui_model
 /* The 4 DECKS grid: what one feature does on each deck, from the capabilities only. */
 static const char *grid_body(const struct xz_ui_model *m,unsigned f){
  unsigned on=0;for(int d=0;d<4;d++)if(xz_deck_caps(m,d)&f)on|=1u<<d;
- if((on&3u)!=3u){
+ if(xz_deck_cap_absent(f)){
   if(f==XZ_DECK_CAN_CUE_PREVIEW)return "Hot cue preview is not in this version of XZ Mods, on any deck.";
   if(f==XZ_DECK_CAN_XPAD)return "The X-PAD sampler is not in this version of XZ Mods, on any deck.";
-  if(f==XZ_DECK_CAN_GROOVE)return "Groove pads are not in this version of XZ Mods, on any deck.";
+  return "Groove pads are not in this version of XZ Mods, on any deck.";
+ }
+ if((on&3u)!=3u){
   if(f==XZ_DECK_CAN_STEMS)return "This USB loader has no stem engine. USB STEMS setup in STEMS checks it.";
   return xz_deck_cap_reason(m,(on&1u)?1:0,f);
  }
  if((on&12u)==12u)return "Works on all four decks.";
- if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)return "Works on decks 1 and 2. Decks 3 and 4 need a newer USB loader.";
+ if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)return "Works on decks 1 and 2. Decks 3 and 4 are not running on this player.";
  switch(f){
- case XZ_DECK_CAN_BEAT_JUMP:return "Decks 3 and 4 jump 1, 2, 4 and 8 beats in this version; your sizes work on decks 1 and 2.";
- case XZ_DECK_CAN_GATE_CUE:case XZ_DECK_CAN_SMART_CUE:return "Decks 3 and 4 keep the normal hot cues in this version.";
+ case XZ_DECK_CAN_PLAYING_KEY:return "Decks 3 and 4 show the track's own key: it does not follow their tempo in this version.";
  case XZ_DECK_CAN_KEY_SYNC:return "Decks 3 and 4 cannot shift key in this version, so key sync stays on decks 1 and 2.";
  case XZ_DECK_CAN_STEMS:return "Decks 3 and 4 are software players. They cannot split a track into stems in this version, so the stem pads and stem buttons stay on decks 1 and 2.";
  case XZ_DECK_CAN_RAM:return "Decks 3 and 4 always read the USB: RAM tracks copy decks 1 and 2 only.";
@@ -255,8 +256,8 @@ static const char *section_body(const struct xz_ui *u,const struct xz_ui_model *
    k==XZ_UI_INFO_COLUMNS?"Tap a column title in the track list, or press MENU there, to choose its columns and sort.":
    "Press SHIFT twice on a side to switch it between decks 1 and 3 (left) or 2 and 4 (right). LOAD loads into the deck that side controls.";
  case XZ_UI_HOME_SETUP:return k==XZ_UI_STEM_SECTION?"Opens USB STEMS setup: it checks the stem engine, turns stems on and checks a loaded track.":
-  "Opens 4 DECKS: the cable's state and RESCAN, which checks USB 1 for the loopback cable now.";
- case XZ_UI_ROUTE_RESCAN:return "Checks USB 1 for the loopback cable now. The XZ also keeps looking on its own.";
+  "Opens 4 DECKS: the cable's state and RESCAN, which checks the loopback cable and audio route now.";
+ case XZ_UI_ROUTE_RESCAN:return "Checks the loopback cable and audio route again now. The XZ also keeps checking on its own.";
  case XZ_UI_DECK_VIEW:return "How many decks the play screen shows and in what order. Mixer order puts them top to bottom as the mixer channels run left to right: 3 1 2 4. Sound and controls do not change.";
  case XZ_UI_DECK_VIEW_BUTTON:return "Shows or hides the DECKS button at the top of the play screen. This setting still works when it is hidden.";
  case XZ_UI_JUMP_PAIR:if(u->page==XZ_UI_BEAT_JUMP)return jump_pair_body(u,m,(k/2)&3);break;
@@ -264,8 +265,11 @@ static const char *section_body(const struct xz_ui *u,const struct xz_ui_model *
  case XZ_UI_JUMP_EDIT_PAGE:return k?"Edit page 2: the sizes SHIFT + BEAT JUMP gives. Page 2 always uses your sizes.":"Edit page 1: the sizes BEAT JUMP gives.";
  case XZ_UI_STEM_ORDER:if(u->page==XZ_UI_STEM_PADS)return "Pads A, B and C mute stems in this order, and the stem buttons on the screen follow it. D (or H) is BYPASS: the original track. A 4-stem track puts bass on D or H.";break;
  case XZ_UI_STEM_BANK:return "Which four pads carry the stems in that mode. The other four keep their normal job.";
- case XZ_UI_STEM_PAGE:if(u->page==XZ_UI_STEM_PADS)return "The pad mode button that gives stem pads. SHIFT + HOT CUE, BEAT LOOP or SLIP LOOP always gives stem pads too.";break;
- case XZ_UI_PAD_FEEDBACK:if(k)return "STEM COLOURS lights stem pads in their stem colours and dims muted stems. OFF leaves the pad lights to the player.";break;
+ case XZ_UI_STEM_PAGE:
+  if(u->page!=XZ_UI_STEM_PADS)break;
+  if(k==3)return "BEAT JUMP gives stem pads, but page 2 jumps always win its pads and page 1 jumps win while page 1 is MY SIZES. With page 1 on STOCK, its pads use this mode's stem bank.";
+  return "The pad mode button that gives stem pads. SHIFT + HOT CUE, BEAT LOOP or SLIP LOOP always gives stem pads too.";
+ case XZ_UI_PAD_FEEDBACK:if(k)return "On decks 1 and 2, STEM COLOURS lights stem pads in their stem colours and dims muted stems. OFF leaves the pad lights to the player.";break;
  case XZ_UI_STEMS_OVERLAY:if(k)return "Where the stem buttons sit on the play screen. Tap a button to mute that stem; drag along it to set its level. The STEMS button on the play screen steps through these.";break;
  case XZ_UI_BROWSE_TRAFFIC:return "Colours keys in the track list green or amber by how well they mix with the master deck.";
  case XZ_UI_BROWSE_KEY_PREFIX:return "Shows the key in front of each title in the track list.";
@@ -298,13 +302,15 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_STEM_PAGE:return "Pad mode that holds the stem shortcuts. Shortcuts replace that mode's pads.";
  case XZ_UI_STEM_PAD_CONFIG:return "Push to move stem shortcuts between pads A-D and E-H.";
  case XZ_UI_STEM_BANK:return "Which four pads carry the stem shortcuts.";
- case XZ_UI_PAD_FEEDBACK:return "Pad lights show stem colors and dim muted stems.";
+ case XZ_UI_PAD_FEEDBACK:return "Stem pad lights on decks 1 and 2 show colors and dim muted stems.";
  case XZ_UI_SHIFT_PAGES:return "SHIFT + a pad mode button gives the four stem actions in that order.";
  case XZ_UI_SHIFT_KEYSYNC:return "SHIFT + SYNC matches this deck's key to the master deck.";
  case XZ_UI_KEY_SHIFT:return k<0?"Lowers the deck key one semitone.":k>0?"Raises the deck key one semitone.":"Returns the deck to its original key.";
  case XZ_UI_KEY_SYNC:return "Shifts this deck to a key compatible with the master deck.";
  case XZ_UI_KEY_CHECK:return "Checks that both decks report analyzed keys. SHIFT + SYNC is always available.";
- case XZ_UI_KEY_FEEDBACK:return "Shows the key the track plays in now, after tempo and key shift (CLASSIC: where the beat countdown sits; MODERN: the big key). Off brings the countdown back.";
+ case XZ_UI_KEY_FEEDBACK:return m->ui_interface==XZ_UI_INTERFACE_MODERN?
+  "Shows the key the track plays in now, after tempo and key shift, as the big key. Off shows the track's original key.":
+  "Shows the key the track plays in now, after tempo and key shift, where the beat countdown sits. Off brings the countdown back.";
  case XZ_UI_KEY_FORMAT:return "How keys are written everywhere MODS draws them: AS ON THE USB, MUSICAL (Am) or WHEEL (8A).";
  case XZ_UI_RAM_DEBUG:return "Shows free memory beside the STEMS button.";
  case XZ_UI_REKORDBOX_KEY:return xz_ui_rekordbox_choice_help(m->rekordbox_assign[0]);
@@ -399,7 +405,7 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
  if(a.kind==XZ_UI_DECK_VIEW){static const char *const names[3]={"DECK VIEW: 2 DECKS","DECK VIEW: 4 DECKS, 1 2 3 4","DECK VIEW: 4 DECKS, 3 1 2 4"};out->title=names[a.index>=0&&a.index<3?a.index:0];}
  else if(a.kind==XZ_UI_JUMP_PAIR&&u->page==XZ_UI_BEAT_JUMP){static char title[24];snprintf(title,sizeof title,"PADS %c / %c",'A'+2*((a.index/2)&3),'B'+2*((a.index/2)&3));out->title=title;}
  else if(a.kind==XZ_UI_STEMS_OVERLAY&&a.index){static char title[48];snprintf(title,sizeof title,"STEM BUTTONS: %s",a.label);out->title=title;}
- else if(a.kind==XZ_UI_PAD_FEEDBACK&&a.index)out->title=a.index==1?"PAD LIGHTS: STEM COLOURS":"PAD LIGHTS: OFF";
+ else if(a.kind==XZ_UI_PAD_FEEDBACK&&a.index)out->title=a.index==1?"STEM PAD LIGHTS: STEM COLOURS":"STEM PAD LIGHTS: OFF";
  else if(a.kind==XZ_UI_STEM_ORDER&&u->page==XZ_UI_STEM_PADS){static char title[48];snprintf(title,sizeof title,"ORDER  |  %s",xz_stem_order_name(m->stem_order));out->title=title;}
  out->body=body(u,m,&a);
  coverage(m,&a,out);

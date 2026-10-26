@@ -35,9 +35,11 @@ const char *xz_ui_save_state(const struct xz_ui_model *m, int *alert){
  if(alert)*alert=bad;
  return out;
 }
+/* Through xz_deck_caps, so a ready bit for an engine this runtime does not run never opens its controls. */
 int xz_ui_has_engine(const struct xz_ui_model *m, uint32_t cap){
- if(!m)return 0;
- for(int d=0;d<4;d++)if(m->deck[d].ready&cap)return 1;
+ unsigned feature=cap==XZ_UI_PREVIEW?XZ_DECK_CAN_CUE_PREVIEW:cap==XZ_UI_SAMPLE?XZ_DECK_CAN_XPAD:cap==XZ_UI_GROOVE?XZ_DECK_CAN_GROOVE:0u;
+ if(!m||!feature)return 0;
+ for(int d=0;d<4;d++)if(xz_deck_caps(m,d)&feature)return 1;
  return 0;
 }
 int xz_ui_section_page(int page){
@@ -320,7 +322,7 @@ int xz_ui_home_status(const struct xz_ui_model *m, int section, char *out, size_
  case XZ_UI_FOUR_DECKS:
   switch(m->route.state){
   case XZ_UI_ROUTE_READY:snprintf(out,cap,"Ready  |  %s",m->deck_view?"4 decks shown":"2 decks shown");*tone=1;return 0;
-  case XZ_UI_ROUTE_NO_ENGINE:snprintf(out,cap,"Needs a newer USB loader");return 0;
+  case XZ_UI_ROUTE_NO_ENGINE:snprintf(out,cap,"Not available on this player");return 0;
   case XZ_UI_ROUTE_SCANNING:snprintf(out,cap,"Looking for the cable");return 0;
   case XZ_UI_ROUTE_STARTING:case XZ_UI_ROUTE_WAITING_NATIVE_STOP:snprintf(out,cap,"Starting decks 3 and 4");return 0;
   case XZ_UI_ROUTE_FAILED:snprintf(out,cap,"Could not start");*tone=2;return 1;
@@ -348,7 +350,8 @@ void xz_ui_jump_picture(const struct xz_ui *u, const struct xz_ui_model *m, int 
  j->focus_pair=focus_pair>=0?focus_pair:u->jump_edit_pair;j->adjusting=u->adjusting;
  for(int d=0;d<4;d++){
   j->deck_live[d]=d<2||m->route.state==XZ_UI_ROUTE_READY;
-  /* A deck without the custom sizes jumps 1 2 4 8 whatever page it is on. */
+  /* Every deck uses these sizes (the shared resolver); its live page is the one the runtime reports, -1 while
+     a software player has not reported one. */
   j->deck_page[d]=(xz_deck_caps(m,d)&XZ_DECK_CAN_BEAT_JUMP)?m->jump_page[d]:-1;
   if(d<2&&j->deck_page[d]<0)j->deck_page[d]=0;
  }
@@ -357,7 +360,7 @@ void xz_ui_stem_picture(const struct xz_ui_model *m, int focus, struct xz_pic_st
  memset(p,0,sizeof *p);
  p->mode=m->stem_page;p->bank=m->stem_bank;p->order=m->stem_order;p->lights=m->pad_feedback;
  p->four=xz_ui_stem_count(m,0)==4||xz_ui_stem_count(m,1)==4;
- p->jump_wins=m->stem_page==3&&m->jump.enabled;p->focus=focus;
+ p->jump_wins=m->stem_page==3;p->focus=focus; /* page 2 jumps always win BEAT JUMP's pads */
  for(int i=0;i<4;i++)p->rgb[i]=xz_ui_model_local_stem_color(m,i);
 }
 
@@ -383,20 +386,25 @@ void xz_ui_home_picture(const struct xz_ui_model *m, struct xz_pic_home *h){
  }
 }
 const char *xz_ui_route_title(int state){
- static const char *const titles[XZ_UI_ROUTE_STATES]={"FOUR DECKS NEED A NEWER USB LOADER","NO CABLE FOUND","LOOKING FOR THE CABLE...",
-  "CABLE FOUND. STARTING DECKS 3 AND 4","CABLE FOUND. STOP DECKS 1 AND 2","DECKS 3 AND 4 ARE READY","COULD NOT START DECKS 3 AND 4","DECKS 3 AND 4 DISCONNECTED"};
+ /* The play screen's card titles (ui/route_card.c): STARTING and WAITING never claim the cable was found,
+    because the connector reports them before it checks the cable. */
+ static const char *const titles[XZ_UI_ROUTE_STATES]={"FOUR DECKS ARE NOT AVAILABLE","NO CABLE FOUND","LOOKING FOR THE CABLE...",
+  "STARTING DECKS 3 AND 4","STOP DECKS 1 AND 2","DECKS 3 AND 4 ARE READY","COULD NOT START DECKS 3 AND 4","DECKS 3 AND 4 DISCONNECTED"};
  return state>=0&&state<XZ_UI_ROUTE_STATES?titles[state]:titles[1];
 }
+/* Where only the connector knows the cause (scanning, starting, failed, lost, not available) its own sentence
+   (model.route.reason) is the line; the fixed lines are the design's, as on the play screen's card. */
 const char *xz_ui_route_line(const struct xz_ui_model *m){
- int state=m->route.state;
+ int state=m->route.state;const char *why=m->route.reason[0]?m->route.reason:NULL;
  return state==XZ_UI_ROUTE_READY?"Loopback cable found on USB 1. Set CH3 and CH4 to USB to hear them. Press SHIFT twice on a side to switch it between decks 1 and 3 or 2 and 4.":
-  state==XZ_UI_ROUTE_NO_ENGINE?"Update the USB loader with the XZ Mods app on your computer.":
-  state==XZ_UI_ROUTE_SCANNING?"Checking USB 1 and the rear USB socket.":
-  state==XZ_UI_ROUTE_STARTING?"This takes a few seconds.":
-  state==XZ_UI_ROUTE_WAITING_NATIVE_STOP?"Decks 3 and 4 start once decks 1 and 2 are both stopped.":
+  state==XZ_UI_ROUTE_WAITING_NATIVE_STOP?"Decks 3 and 4 start once decks 1 and 2 are both stopped. This changes by itself once they stop.":
   state==XZ_UI_ROUTE_NOT_DETECTED?"The XZ keeps looking on its own. RESCAN checks right now. Keep the music stick in USB 2.":
+  why?why:
+  state==XZ_UI_ROUTE_NO_ENGINE?"Decks 3 and 4 are not running on this player.":
+  state==XZ_UI_ROUTE_SCANNING?"Checking for the loopback cable now.":
+  state==XZ_UI_ROUTE_STARTING?"This takes a few seconds.":
   state==XZ_UI_ROUTE_LOST?"The loopback cable was unplugged or lost power.":
-  m->route.reason[0]?m->route.reason:"Rear USB socket to USB 1 on top. CH3 and CH4 input switches to USB.";
+  "Rear USB socket to USB 1 on top. CH3 and CH4 input switches to USB.";
 }
 static void home(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  struct xz_canvas c=sc->c;const struct xz_ui_model *m=sc->m;char status[96];

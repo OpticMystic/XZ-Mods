@@ -176,6 +176,9 @@ uint32_t xz_extra_decks_control_revision(void); /* packed route/sides/availabili
 int xz_extra_decks_needs_native_sync(void); /* atomic; cached native clock publisher demand */
 int xz_extra_decks_use_native_master(void); /* withdraw software intent; not an explicit native press */
 void xz_extra_decks_native_master_selected(unsigned native_deck);
+struct xz_performance_settings;struct xz_jump_snapshot;
+void xz_extra_decks_set_performance_settings(const struct xz_performance_settings *);
+int xz_extra_decks_jump_snapshot(int deck,struct xz_jump_snapshot *);
 void xz_extra_decks_set_quantize_grid(unsigned denominator,int known);
 struct xz_sync_native_snapshot;
 int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *); /* cache copy only, never native I/O */
@@ -184,6 +187,27 @@ int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *); /* cache copy 
    CH3/CH4 route is live. Lock-free. */
 struct xz_extra_route { int available, route_up; };
 struct xz_extra_route xz_extra_decks_route(void);
+/* Detailed connector observation, separate from the input-layer two-bit contract.
+   READY is transport-running only. checked_at_ms is monotonic and wraps at 32 bits.
+   revision/ready_revision use serial-number arithmetic; retain the last revision, not a bitfield. */
+enum xz_extra_route_state {
+ XZ_EXTRA_ROUTE_NO_ENGINE, XZ_EXTRA_ROUTE_NOT_DETECTED, XZ_EXTRA_ROUTE_SCANNING,
+ XZ_EXTRA_ROUTE_STARTING, XZ_EXTRA_ROUTE_WAITING_NATIVE_STOP, XZ_EXTRA_ROUTE_READY,
+ XZ_EXTRA_ROUTE_FAILED, XZ_EXTRA_ROUTE_LOST
+};
+enum xz_extra_route_part {
+ XZ_EXTRA_ROUTE_PART_NONE, XZ_EXTRA_ROUTE_PART_PORT, XZ_EXTRA_ROUTE_PART_CABLE,
+ XZ_EXTRA_ROUTE_PART_SOCKET, XZ_EXTRA_ROUTE_PART_SELECTOR
+};
+struct xz_extra_route_status {
+ enum xz_extra_route_state state;
+ enum xz_extra_route_part fail_part;
+ char reason[81]; /* at most 80 characters plus terminator */
+ uint32_t checked_at_ms, revision, ready_revision;
+};
+struct xz_extra_route_status xz_extra_decks_route_status(void); /* atomic copy, no IO or mutex */
+int xz_extra_decks_route_up_since(uint32_t revision); /* edge survives subsequent route loss */
+void xz_extra_decks_rescan(void); /* wake connector only; repeated presses while scanning do nothing */
 /* The input layer says which decks the controls drive; the snapshot carries it to both interfaces. */
 void xz_extra_decks_publish_sides(int left_on_3, int right_on_4);
 

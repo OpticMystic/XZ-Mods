@@ -1,3 +1,4 @@
+#include "../ui/stem_pads.h"
 /* PLAY screen at 800x480, dark mode, after the flagship's two- and four-deck
    views (the 2026-10-18 flagship UI study in docs/research, sections 4.4, 5
    and 6.2): a slim top bar of global chips and the BEAT FX readout, one
@@ -10,6 +11,8 @@
 #include "shell_internal.h"
 #include "shell_axis.h"
 #include "../ui/layout_cycle.h"
+#include "../ui/deck_view.h"
+#include "../ui/route_card.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -18,7 +21,9 @@ enum {
  STEM_X=46, STEM_W=62, STEM_GAP=6, STEM_H=22, LAMP_W=14, LAMP_GAP=3,
  CHIP_Y=5, CHIP_H=16, CHIP_GAP=8,
  INFO_W=44, INFO_X=XZ_SHELL_HEADER_X-INFO_W-2, FX_Y=2, FX_H=22, FX_GAP=10,
- ALERT_BTN_W=150, GRID_BTN_W=78, GRID_BTN_GAP=4, HIT_H=44
+ ALERT_BTN_W=150, GRID_BTN_W=78, GRID_BTN_GAP=4, HIT_H=44,
+ /* The BEAT FX strip ends here in every view: the DECK VIEW button follows it (deck_view.h). */
+ FX_END=498
 };
 /* Play-screen geometry for one deck count, chosen once per call (layout_of). The drawing and the hit
    tests read every position from here; an element a view leaves out has a negative position or no
@@ -84,12 +89,20 @@ static const struct play_layout four_deck={
   .bpm_dx=90, .bpm_dy=27, .bpm_h=50, .chip_dy=100, .overview_dy=113, .overview_h=24, .scale=0}
 };
 static const struct play_layout *layout_of(const struct xz_shell_model *m) { return sh_play_deck_count(m)==4?&four_deck:&two_deck; }
+/* The route came up under the decks 3 and 4 card: READY holds, then the card wipes away (route_card.h). */
+static int card_success(const struct xz_shell_model *m) {
+ return sh_deck_count(m)==4&&m->route_card_ready_at_ms&&
+  m->clock_ms-m->route_card_ready_at_ms<(uint32_t)(XZ_ROUTE_CARD_READY_HOLD_MS+XZ_ROUTE_CARD_WIPE_MS);
+}
+/* DECK VIEW chooses the geometry alone: four slots even while only two decks play, decks 3 and 4 then
+   drawn as placeholders. TWO keeps MODERN's assigned pair. Audio deck_count never changes here. */
 void xz_shell_play_projection(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_model *view) {
- *view=*m;
+ *view=*m;view->play_placeholders=0;
  if(m->layout_preference>0){
-  int layout=m->layout_preference-1;
-  view->play_view_count=sh_deck_count(m)==4&&layout!=XZ_LAYOUT_TWO?4:2;
+  int layout=xz_deck_view_valid(m->layout_preference-1);
+  view->play_view_count=layout!=XZ_LAYOUT_TWO?4:2;
   view->wave_order=layout==XZ_LAYOUT_MIXER;
+  if(view->play_view_count==4&&(sh_deck_count(m)!=4||card_success(m)))view->play_placeholders=0xc;
  }else view->play_view_count=sh_deck_count(m)==4&&u->play_decks!=2?4:2;
 }
 static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256};
@@ -108,12 +121,13 @@ static void top_chips(struct chip out[3]) {
  out[2]=(struct chip){{x,CHIP_Y,w2,CHIP_H},XZ_SHELL_SET_AUTO_CUE};
 }
 static int fx_left(void) { struct chip k[3];top_chips(k);return k[2].r.x+k[2].r.w+FX_GAP; }
-static int fx_right(void) { return INFO_X-FX_GAP; }
+/* With the DECKS button hidden the strip runs to the info button, as before the button existed. */
+static int view_button_shown(const struct xz_shell_model *m) { return !m||m->deck_view_button_hidden!=1; }
+static int fx_right(const struct xz_shell_model *m) { return view_button_shown(m)?FX_END:INFO_X-FX_GAP; }
 static int mode_lamps(const struct xz_shell *u) { return sh_indicator_shown(u,XZ_SHELL_IND_MODE_LAMPS); }
 /* The BEAT FX strip as drawn: XZ_SHELL_R_FX, reaching to the bar's left edge while the mode lamps are hidden. */
 static struct xz_shell_rect fx_rect(const struct xz_shell *u, const struct xz_shell_model *m) {
- struct xz_shell_rect r=xz_shell_play_rect(NULL,XZ_SHELL_R_FX,0);
- if(sh_deck_count(m)==4)r.w=INFO_X-104-r.x;
+ struct xz_shell_rect r=xz_shell_play_rect(m,XZ_SHELL_R_FX,0);
  if(!mode_lamps(u)){r.w+=r.x-PAD;r.x=PAD;}
  return r;
 }
@@ -147,7 +161,7 @@ struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *m, int deck)
 }
 /* The waveform's part of a deck's band: all of it, less the stem row. */
 static int wave_title_shown(const struct xz_shell *u,const struct xz_shell_model *m) {
- return sh_deck_count(m)==4&&sh_indicator_shown(u,XZ_SHELL_IND_WAVE_TITLES);
+ return sh_four_view(m)&&sh_indicator_shown(u,XZ_SHELL_IND_WAVE_TITLES);
 }
 static struct xz_shell_rect wave_band(const struct play_layout *L,const struct xz_shell *u, const struct xz_shell_model *m, int deck) {
  struct xz_shell_rect row=xz_shell_stem_row(m,deck),w={WAVE_X,lane_y(L,m,deck),WAVE_W,L->lane_h};
@@ -161,14 +175,26 @@ static struct xz_shell_rect hit_up(struct xz_shell_rect r) {
  if(r.h<HIT_H){r.y-=HIT_H-r.h;r.h=HIT_H;}
  return r;
 }
+/* The lowest lane that shows a playing deck: ZOOM / GRID sit at its foot (beside the card while decks 3
+   and 4 are placeholders). */
+static int zoom_deck(const struct xz_shell_model *m) {
+ for(int slot=sh_play_deck_count(m)-1;slot>0;slot--)if(!sh_play_placeholder(m,sh_play_deck(m,slot)))return sh_play_deck(m,slot);
+ return sh_play_deck(m,0);
+}
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_shell_play_region r, int deck) {
  const struct play_layout *L=layout_of(m);
  const struct strip_layout *S=&L->strip;
- int ly=lane_y(L,m,deck),sx=strip_x(L,deck),last=m?sh_play_deck(m,sh_play_deck_count(m)-1):1;
+ int ly=lane_y(L,m,deck),sx=strip_x(L,deck),last=m?zoom_deck(m):1;
  if(m&&!sh_play_visible(m,deck)&&r!=XZ_SHELL_R_TOP_BAR&&r!=XZ_SHELL_R_ZOOM&&r!=XZ_SHELL_R_INFO_BUTTON&&r!=XZ_SHELL_R_FX&&r!=XZ_SHELL_R_VIEW_TWO&&r!=XZ_SHELL_R_VIEW_FOUR)return (struct xz_shell_rect){0,0,0,0};
+ /* A placeholder keeps its column, lane and strip for drawing; nothing on it answers touch. */
+ if(sh_play_placeholder(m,deck)&&r!=XZ_SHELL_R_INFO_COLUMN&&r!=XZ_SHELL_R_LANE&&r!=XZ_SHELL_R_STRIP&&r!=XZ_SHELL_R_TOP_BAR&&
+    r!=XZ_SHELL_R_ZOOM&&r!=XZ_SHELL_R_INFO_BUTTON&&r!=XZ_SHELL_R_FX&&r!=XZ_SHELL_R_VIEW_TWO&&r!=XZ_SHELL_R_VIEW_FOUR)return (struct xz_shell_rect){0,0,0,0};
  switch(r){
- case XZ_SHELL_R_VIEW_TWO:
-  return m&&sh_deck_count(m)==4?(struct xz_shell_rect){INFO_X-98,0,92,TOP_H}:(struct xz_shell_rect){0,0,0,0};
+ case XZ_SHELL_R_VIEW_TWO:{
+  if(m&&!view_button_shown(m))return (struct xz_shell_rect){0,0,0,0};
+  const struct xz_dv_rect b=xz_deck_view_modern.button;
+  return (struct xz_shell_rect){b.x,b.y,b.w,b.h};
+ }
  case XZ_SHELL_R_VIEW_FOUR:return (struct xz_shell_rect){0,0,0,0};
  case XZ_SHELL_R_TOP_BAR:return (struct xz_shell_rect){0,0,XZ_SHELL_WIDTH,TOP_H};
  case XZ_SHELL_R_INFO_COLUMN:return (struct xz_shell_rect){0,ly,COL_W,L->lane_h};
@@ -180,7 +206,7 @@ struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_
  case XZ_SHELL_R_OVERVIEW:return (struct xz_shell_rect){sx+S->pad,S->y+S->overview_dy,S->w-2*S->pad,S->overview_h};
  case XZ_SHELL_R_ZOOM:return (struct xz_shell_rect){XZ_SHELL_WIDTH-84,lane_y(L,m,last)+L->lane_h-17,82,15};
  case XZ_SHELL_R_INFO_BUTTON:return (struct xz_shell_rect){INFO_X,0,INFO_W,TOP_H};
- case XZ_SHELL_R_FX:{int x=fx_left();return (struct xz_shell_rect){x,FX_Y,fx_right()-x,FX_H};}
+ case XZ_SHELL_R_FX:{int x=fx_left();return (struct xz_shell_rect){x,FX_Y,fx_right(m)-x,FX_H};}
  case XZ_SHELL_R_PAD_ROW:return L->pad_row_h?(struct xz_shell_rect){sx,L->pad_row_y,S->w,L->pad_row_h}:(struct xz_shell_rect){0,0,0,0};
  case XZ_SHELL_R_ALERT_BUTTON:return (struct xz_shell_rect){XZ_SHELL_WIDTH-2-ALERT_BTN_W-6,ly+L->lane_h/2-22,ALERT_BTN_W,HIT_H};
  case XZ_SHELL_R_GRID_RESET:case XZ_SHELL_R_GRID_SNAP:case XZ_SHELL_R_GRID_SHIFT:{
@@ -233,6 +259,62 @@ static int overview_x(struct xz_shell_rect ov, int32_t ms, int32_t total) {
  return ov.x+(int)((int64_t)ms*(ov.w-1)/total);
 }
 
+/* ---- DECK VIEW: the top-bar button, its picker and the decks 3 and 4 card (ui/deck_view.h, ui/route_card.h) ----
+   All three read the PLAY projection. The picker and the encoder focus are shell state; the card is the
+   model's route observation. A touch acts only on the overlay last painted (deck_view.painted). */
+static int view_of(const struct xz_shell_model *m) {
+ return sh_play_deck_count(m)==2?XZ_LAYOUT_TWO:m->wave_order==1?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
+}
+static int recent(const struct xz_shell *u, const struct xz_shell_model *m) {
+ return m->clock_ms-u->deck_view.input_at<(uint32_t)XZ_DECK_VIEW_PICKER_TIMEOUT_MS;
+}
+static int picker_live(const struct xz_shell *u, const struct xz_shell_model *m) {
+ return xz_shell_screen(u)==XZ_SHELL_PLAY&&u->deck_view.open&&view_button_shown(m)&&recent(u,m);
+}
+static int focus_live(const struct xz_shell *u, const struct xz_shell_model *m) {
+ return xz_shell_screen(u)==XZ_SHELL_PLAY&&!u->deck_view.open&&u->deck_view.focus!=XZ_SHELL_FOCUS_NONE&&recent(u,m);
+}
+static int card_shown(const struct xz_shell_model *m) { return sh_play_deck_count(m)==4&&(m->play_placeholders&0xc)==0xc; }
+/* The card's input: the route as the runtime reports it. A READY report the deck count has not caught
+   up with yet reads as starting; the success hold only ever follows a real route-up. */
+static struct xz_route_card_input card_input(const struct xz_shell *u, const struct xz_shell_model *m) {
+ struct xz_route_card_input in={0};
+ int up=sh_deck_count(m)==4;
+ in.state=up?XZ_EXTRA_ROUTE_READY:m->route_state==XZ_EXTRA_ROUTE_READY?XZ_EXTRA_ROUTE_STARTING:m->route_state;
+ in.fail_part=m->route_fail_part;in.reason=m->route_reason;in.now_ms=m->clock_ms;
+ uint32_t input=u->deck_view.input_at,since=m->route_card_since_ms;
+ in.rest_from_ms=!input?since:!since?input:(int32_t)(input-since)>0?input:since;
+ in.ready_at_ms=up?m->route_card_ready_at_ms:0;
+ in.focus=!focus_live(u,m)?-1:u->deck_view.focus==XZ_SHELL_FOCUS_CARD_PRIMARY?XZ_ROUTE_CARD_HIT_PRIMARY:
+  u->deck_view.focus==XZ_SHELL_FOCUS_CARD_TWO?XZ_ROUTE_CARD_HIT_TWO:-1;
+ return in;
+}
+static int card_lane(const struct xz_shell_model *m, int deck);
+static int card_hit(const struct xz_shell *u, const struct xz_shell_model *m, int x, int y) {
+ if(!card_shown(m))return XZ_ROUTE_CARD_HIT_NONE;
+ struct xz_route_card_input in=card_input(u,m);
+ return xz_route_card_hit(&xz_route_card_modern,card_lane(m,2),card_lane(m,3),&in,x,y);
+}
+/* What a touch must match: view, readiness, the picker, and the card's state and buttons. */
+static uint32_t overlay_token(const struct xz_shell *u, const struct xz_shell_model *m) {
+ if(xz_shell_screen(u)!=XZ_SHELL_PLAY)return 0;
+ uint32_t t=1u|(uint32_t)view_of(m)<<1|(uint32_t)(sh_deck_count(m)==4)<<3|(uint32_t)picker_live(u,m)<<4|
+  (uint32_t)view_button_shown(m)<<12;
+ if(card_shown(m)){
+  struct xz_route_card_input in=card_input(u,m);
+  if(xz_route_card_visible(&in))t|=1u<<5|(uint32_t)xz_route_card_kind(in.state)<<6|
+   (uint32_t)xz_route_card_offers(&in,XZ_ROUTE_CARD_HIT_PRIMARY)<<10|(uint32_t)xz_route_card_offers(&in,XZ_ROUTE_CARD_HIT_TWO)<<11;
+ }
+ return t;
+}
+uint32_t xz_shell_play_motion_ms(const struct xz_shell *u, const struct xz_shell_model *m) {
+ if(!u||!m||xz_shell_screen(u)!=XZ_SHELL_PLAY)return 0;
+ struct xz_shell_model view;xz_shell_play_projection(u,m,&view);
+ if(!card_shown(&view))return 0;
+ struct xz_route_card_input in=card_input(u,&view);
+ return xz_route_card_motion_ms(&in);
+}
+
 /* Readout text. Unknown values take the flagship's dash conventions. */
 static void fmt_time(char *out, size_t cap, int32_t ms, char *frac, size_t frac_cap) {
  if(ms<0)ms=0;
@@ -268,11 +350,9 @@ static void render_top(const struct xz_shell *u, const struct xz_shell_model *m,
  xz_rect(c,0,0,c.width,TOP_H,SH_CHROME);
  xz_rect(c,0,TOP_H-1,c.width,1,SH_BLACK);
  render_fx(m,c,fx_rect(u,m));
- if(sh_deck_count(m)==4){
-  struct xz_shell_rect r=xz_shell_play_rect(m,XZ_SHELL_R_VIEW_TWO,0);
-  int layout=sh_play_deck_count(m)==2?XZ_LAYOUT_TWO:m->wave_order?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
-  xz_deck_layout_draw(c,r.x,r.y,r.w,r.h,layout,0);
- }
+ /* DECK VIEW, on PLAY unless SCREEN > DECK VIEW BUTTON hides it: 2 DECKS names the pair the sides drive. */
+ if(view_button_shown(m))xz_deck_view_button_draw(c,&xz_deck_view_modern,view_of(m),sh_deck_count(m)==4,sh_deck_count(m)==4?m->sides_extra&3:0,
+  picker_live(u,m),focus_live(u,m)&&u->deck_view.focus==XZ_SHELL_FOCUS_DECK_VIEW);
  sh_info_icon(c,INFO_X+INFO_W/2,TOP_H/2,SH_WHITE);
  if(!mode_lamps(u))return;
  int mode_known=sh_setting(m,XZ_SHELL_SET_PLAY_MODE);
@@ -386,6 +466,12 @@ static int same_key(const char *a, const char *b) {
  return a&&b&&!strcmp(a,b);
 }
 static void render_key(const struct play_layout *L, const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_deck *d, int ly) {
+ struct xz_shell_deck original;
+ if(m->mods_settings_known&&!m->key_feedback){
+  original=*d;
+  if(sh_has(d,XZ_SHELL_F_KEY_ORIGINAL)&&d->key_original&&*d->key_original)original.key=d->key_original;
+  original.key_cents=original.key_shift=original.key_synced=0;d=&original;
+ }
  int y=ly+L->key_caption_y,ny=ly+L->key_name_y;
  char text[16],key[8],from[8];
  if(L->key_caption_y>=0){
@@ -396,7 +482,7 @@ static void render_key(const struct play_layout *L, const struct xz_shell *u, co
  /* The master's own key is the reference, so plain. */
  int is_master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
  uint32_t ink=is_master?SH_WHITE:sh_key_ink(m,d->key,d->key_matches_master,SH_WHITE);
- const char *shown=sh_key_text(d->key,sh_key_display(u),key,sizeof key);
+ const char *shown=sh_key_text(d->key,sh_key_display(u,m),key,sizeof key);
  int analysed=sh_has(d,XZ_SHELL_F_KEY_ORIGINAL);
  /* Right of the name: the tuning in cents, or (older runtime) the key-shift step. */
  int tail=0;
@@ -418,7 +504,7 @@ static void render_key(const struct play_layout *L, const struct xz_shell *u, co
  if(analysed&&d->key_original&&*d->key_original&&!same_key(d->key,d->key_original)){
   int w=sh_text_width(c,"ORIGINAL",SH_SMALL)+5;
   sh_text(c,6,ly+L->key_original_y,"ORIGINAL",SH_SMALL,SH_DIM);
-  sh_text_fit(c,6+w,ly+L->key_original_y,KEY_RIGHT-6-w,sh_key_text(d->key_original,sh_key_display(u),from,sizeof from),SH_SMALL,SH_WHITE);
+  sh_text_fit(c,6+w,ly+L->key_original_y,KEY_RIGHT-6-w,sh_key_text(d->key_original,sh_key_display(u,m),from,sizeof from),SH_SMALL,SH_WHITE);
  }
 }
 static void render_column(const struct play_layout *L, const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
@@ -428,12 +514,12 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  xz_rect(c,0,ly,COL_W,L->lane_h,SH_CHROME);
  /* The deck tile takes the colour of the stick its track came from (USB COLORS); inactive, a stripe. */
  int control=sh_control_active(m,deck);
- int filled=sh_deck_count(m)==4?control:active;
+ int filled=sh_four_view(m)?control:active;
  uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=filled?accent:SH_RAIL,ink=sh_ink_on(tile);
  xz_rect(c,0,ly,COL_W,L->tag_h,tile);
  if(!filled&&accent!=SH_BLUE)xz_rect(c,0,ly,4,L->tag_h,accent);
  snprintf(text,sizeof text,"DECK %d",deck+1);
- if(sh_deck_count(m)==4){
+ if(sh_four_view(m)){
   snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,ink);
   if(control)sh_control_arrow(c,30,ly+1,deck&1);
   else sh_text(c,30,ly+5,"DECK",SH_SMALL,ink);
@@ -441,7 +527,7 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  }else sh_text(c,6+(!filled&&accent!=SH_BLUE?2:0),ly+L->tag_text_dy,text,SH_TEXT,ink);
  if(sh_has(d,XZ_SHELL_F_BAR_PHASE))for(int b=0;b<4;b++)
   xz_rect(c,COL_W-30+b*7,ly+(control?3:L->phase_dy),5,4,d->bar_phase==b+1?ink:xz_blend(tile,ink,80));
- if(sh_deck_count(m)==4&&active)xz_border(c,0,ly,COL_W,L->tag_h,SH_WHITE);
+ if(sh_four_view(m)&&active)xz_border(c,0,ly,COL_W,L->tag_h,SH_WHITE);
  xz_rect(c,0,ly+L->tag_h,COL_W,1,SH_BLACK);xz_rect(c,0,ly+L->key_rule_y,COL_W,1,SH_BLACK);
  /* source */
  const char *source=sh_has(d,XZ_SHELL_F_SOURCE)?
@@ -640,7 +726,7 @@ static void render_alert(const struct play_layout *L, const struct xz_shell_mode
  xz_rect(c,WAVE_X,y,4,L->alert_h,SH_RED);
  int x=WAVE_X+14,room=b.x-x-10;
  char head[64];
- snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" Â· ":"",d->alert.code?d->alert.code:"");
+ snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" Ãƒâ€šÃ‚Â· ":"",d->alert.code?d->alert.code:"");
  sh_text_fit(c,x,y+8,room,head,SH_TEXT,SH_WHITE);
  sh_text_fit(c,x,y+30,room,d->alert.text?d->alert.text:line[d->alert.kind],SH_SMALL,0xffc8b4);
  xz_rect(c,b.x,b.y,b.w,b.h,SH_WHITE);
@@ -670,8 +756,8 @@ static void render_grid_buttons(const struct play_layout *L, const struct xz_she
 }
 /* The ZOOM/GRID box sits at the foot of the lowest deck's waveform, above a stem row there. */
 static struct xz_shell_rect zoom_box(const struct xz_shell_model *m) {
- struct xz_shell_rect r=xz_shell_play_rect(m,XZ_SHELL_R_ZOOM,0),row=xz_shell_stem_row(m,sh_play_deck(m,sh_play_deck_count(m)-1));
- if(row.h)r.y-=stem_buttons(m,sh_play_deck(m,sh_play_deck_count(m)-1))?sh_max(row.h,HIT_H):row.h;
+ struct xz_shell_rect r=xz_shell_play_rect(m,XZ_SHELL_R_ZOOM,0),row=xz_shell_stem_row(m,zoom_deck(m));
+ if(row.h)r.y-=stem_buttons(m,zoom_deck(m))?sh_max(row.h,HIT_H):row.h;
  return r;
 }
 static void render_zoom(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
@@ -770,13 +856,13 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  xz_rect(c,s.x,s.y,s.w,s.h,SH_CHROME);
  /* title row */
  int control=sh_control_active(m,deck);
- uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=(sh_deck_count(m)==4?control:u->deck==deck)?accent:SH_RAIL;
- int badge_w=sh_deck_count(m)==4&&L==&two_deck?64:S->badge_w;
- int badge_h=sh_deck_count(m)==4?22:S->badge_h;
+ uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=(sh_four_view(m)?control:u->deck==deck)?accent:SH_RAIL;
+ int badge_w=sh_four_view(m)&&L==&two_deck?64:S->badge_w;
+ int badge_h=sh_four_view(m)?22:S->badge_h;
  int by0=s.y+S->badge_y,ty=s.y+S->title_y;
  xz_rect(c,sx,by0,badge_w,badge_h,tile);
  if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,sx,by0,3,badge_h,accent);
- if(sh_deck_count(m)==4){
+ if(sh_four_view(m)){
   snprintf(text,sizeof text,"%d",deck+1);
   int nx=control?sx+5:sx+(badge_w-sh_num_width(SH_NUM_MID,text))/2;
   sh_num(c,nx,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
@@ -904,7 +990,14 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
    dimmed, and the MUTE caption turns red while any stem is muted. BYPASS sits
    after the stems, white like its pad: lit, the original track plays and every
    stem button goes dark, as the pads do; the mutes come back on its release. */
-static const int stem_slot[3]={0,2,1};   /* screen order DRUMS, VOCAL, INST -> stem index */
+static int stem_at(const struct xz_shell_model *m,int slot){
+ int order=m->mods_settings_known&&((unsigned)m->stem_order<XZ_STEM_ORDER_COUNT)?m->stem_order:4;
+ return xz_stem_pad_role(order,3,slot);
+}
+static int stem_slot_of(const struct xz_shell_model *m,int stem){
+ for(int slot=0;slot<3;slot++)if(stem_at(m,slot)==stem)return slot;
+ return -1;
+}
 static const char *const stem_name[3]={"DRUMS","INST","VOCAL"};
 enum { BYPASS_ROW_W=96, PAD_STEM_W=54, PAD_STEM_GAP=5, PAD_BYPASS_GAP=8 };
 static int stem_buttons(const struct xz_shell_model *m, int deck) {
@@ -951,7 +1044,7 @@ static struct xz_shell_rect drawn_button(const struct xz_shell *u, const struct 
 }
 struct xz_shell_rect xz_shell_stem_button(const struct xz_shell *u, const struct xz_shell_model *m, int deck, int stem) {
  if(!m||!sh_play_visible(m,deck)||stem<0||stem>2||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
- int slot=0;while(stem_slot[slot]!=stem)slot++;
+ int slot=stem_slot_of(m,stem);
  return button_target(m,deck,drawn_button(u,m,deck,slot));
 }
 struct xz_shell_rect xz_shell_bypass_button(const struct xz_shell *u, const struct xz_shell_model *m, int deck) {
@@ -983,7 +1076,7 @@ static void render_stem_row(const struct xz_shell *u, const struct xz_shell_mode
  }
  int full=row.h>=STEM_ROW_FULL,gain_known=sh_has(d,XZ_SHELL_F_STEM_GAIN),by=bypassed(u,m,deck);
  for(int slot=0;slot<3;slot++){
-  int stem=stem_slot[slot],muted=by||((d->stem_muted>>stem)&1);
+  int stem=stem_at(m,slot),muted=by||((d->stem_muted>>stem)&1);
   struct xz_shell_rect b=row_button(u,m,deck,slot);
   uint32_t bright=stem_rgb(m,stem),dark=sh_stem_dark(bright);
   int gain=gain_known?sh_min(d->stem_gain[stem],XZ_SHELL_STEM_GAIN_MAX):XZ_SHELL_STEM_GAIN_MAX;
@@ -1011,7 +1104,7 @@ static void render_pad_row(const struct xz_shell *u, const struct xz_shell_model
   int by=bypassed(u,m,deck);
   if(!bypass_shown(u,m,deck))sh_text(c,r.x+8,ty,"MUTE",SH_SMALL,d->stem_muted&7?SH_RED:SH_DIM);
   for(int slot=0;slot<3;slot++){
-   int stem=stem_slot[slot],muted=by||((d->stem_muted>>stem)&1);
+   int stem=stem_at(m,slot),muted=by||((d->stem_muted>>stem)&1);
    uint32_t rgb=stem_rgb(m,stem);
    struct xz_shell_rect b=pad_button(u,m,deck,slot);
    if(muted){
@@ -1046,6 +1139,43 @@ static void render_pad_row(const struct xz_shell *u, const struct xz_shell_model
  }
 }
 
+/* ---- decks 3 and 4 not connected: placeholders and the card (design 5.1) ----
+   A placeholder is drawn from fixed words, never from deck data: the column and the strip say NOT
+   CONNECTED, the lane is covered by the card. */
+enum { HOLD_INK=0x6a6a6a, HOLD_FILL=0x101010, HOLD_AMBER=0xffa82e };
+static int card_lane(const struct xz_shell_model *m, int deck) { return lane_y(&four_deck,m,deck); }
+static void render_placeholder_column(const struct play_layout *L, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
+ int ly=lane_y(L,m,deck);char text[4];
+ xz_rect(c,0,ly,COL_W,L->lane_h,HOLD_FILL);
+ snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,0x4a4a4a);
+ xz_rect(c,30,ly+3,40,14,0x262626);sh_text(c,36,ly+5,"DECK",SH_SMALL,HOLD_INK);
+ sh_text(c,6,ly+L->lane_h-34,"NOT",SH_SMALL,HOLD_AMBER);sh_text(c,6,ly+L->lane_h-20,"CONNECTED",SH_SMALL,HOLD_AMBER);
+}
+static void render_placeholder_lane(const struct play_layout *L, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
+ int ly=lane_y(L,m,deck);
+ xz_rect(c,COL_W,ly,c.width-COL_W,L->lane_h,0x0a0a0a);
+ xz_rect(c,WAVE_X,ly+L->lane_h/2,WAVE_W,1,0x2e2e2e);
+}
+static void render_placeholder_strip(const struct xz_shell_model *m, struct xz_canvas c, int deck) {
+ struct xz_shell_rect s=xz_shell_play_rect(m,XZ_SHELL_R_STRIP,deck);char text[4];
+ xz_rect(c,s.x,s.y,s.w,s.h,0x0e0e0e);
+ xz_rect(c,s.x+4,s.y+5,40,26,0x262626);
+ snprintf(text,sizeof text,"%d",deck+1);sh_text_center(c,s.x+24,s.y+11,text,SH_TEXT,HOLD_INK);
+ sh_text(c,s.x+52,s.y+10,"NOT CONNECTED",SH_SMALL,HOLD_AMBER);
+ sh_text(c,s.x+10,s.y+53,"Waiting for the",SH_SMALL,0x8c8c8c);
+ sh_text(c,s.x+10,s.y+69,"loopback cable.",SH_SMALL,0x8c8c8c);
+ xz_rect(c,s.x+10,s.y+113,s.w-20,1,0x2a2a2a);
+}
+/* The route picture's still, drawn once per state. PLAY renders on one thread at a time. */
+static struct xz_route_card_cache card_cache;
+static void render_card(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ if(!card_shown(m))return;
+ struct xz_route_card_input in=card_input(u,m);
+ xz_route_card_draw(c,&xz_route_card_modern,card_lane(m,2),card_lane(m,3),&in,&card_cache);
+}
+static void render_picker(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
+ if(picker_live(u,m))xz_deck_view_picker_draw(c,&xz_deck_view_modern,view_of(m),sh_deck_count(m)==4,u->deck_view.tile);
+}
 static void play_render_model(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  const struct play_layout *L=layout_of(m);
  int decks=sh_play_deck_count(m),last=lane_y(L,m,sh_play_deck(m,decks-1))+L->lane_h,below=L->pad_row_h?L->pad_row_y:L->strip.y;
@@ -1058,12 +1188,21 @@ static void play_render_model(const struct xz_shell *u, const struct xz_shell_mo
  render_top(u,m,c);
  for(int slot=0;slot<decks;slot++){
   int deck=sh_play_deck(m,slot);
+  if(sh_play_placeholder(m,deck)){
+   /* While the card wipes away the live lane shows beside it; the column and strip go live after. */
+   render_placeholder_column(L,m,c,deck);
+   if(sh_deck_count(m)==4)render_lane(L,u,m,c,deck);else render_placeholder_lane(L,m,c,deck);
+   render_placeholder_strip(m,c,deck);
+   continue;
+  }
   render_column(L,u,m,c,deck);
   render_lane(L,u,m,c,deck);
   render_pad_row(u,m,c,deck);
   render_strip(L,u,m,c,deck);
  }
+ render_card(u,m,c);
  render_zoom(u,m,c);
+ render_picker(u,m,c);
 }
 
 /* ---- input ---- */
@@ -1090,14 +1229,105 @@ static size_t seek(struct xz_shell *u, const struct xz_shell_model *m, int deck,
 /* Top-bar controls answer in their own column from y 0 down to XZ_SHELL_HEADER_HIT_H, so each is 44 px
    tall; below the bar that band is the top of deck 1's lane, which only activates the deck. */
 static int header_band(int x, int y, struct xz_shell_rect r) { return x>=r.x&&x<r.x+r.w&&y>=0&&y<XZ_SHELL_HEADER_HIT_H; }
+/* ---- DECK VIEW input: the picker, the button and the card answer before anything under them ---- */
+static void note_input(struct xz_shell *u, const struct xz_shell_model *m) { u->deck_view.input_at=m->clock_ms?m->clock_ms:1; }
+/* Choosing a view: one action; the runtime applies it through its one DECK VIEW entry point. */
+static size_t choose_view(struct xz_shell *u, int view, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ u->deck_view.open=0;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_DECK_LAYOUT,-1,xz_deck_view_valid(view),0});
+}
+static void open_picker(struct xz_shell *u, const struct xz_shell_model *m) {
+ u->deck_view.open=view_button_shown(m);u->deck_view.tile=view_of(m);u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+}
+static size_t card_press(struct xz_shell *u, int hit, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ if(hit==XZ_ROUTE_CARD_HIT_PRIMARY)return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_ROUTE_RESCAN,-1,0,0});
+ if(hit==XZ_ROUTE_CARD_HIT_TWO)return choose_view(u,XZ_LAYOUT_TWO,out);
+ return 0;
+}
+/* 1 when the overlay owns this contact (it keeps it until release); *n actions in out. */
+static int overlay_touch_down(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t *n) {
+ *n=0;
+ int open=picker_live(u,m),button=view_button_shown(m)&&xz_deck_view_button_hit(&xz_deck_view_modern,x,y),card=card_hit(u,m,x,y);
+ if(!open&&!button&&card==XZ_ROUTE_CARD_HIT_NONE)return 0;
+ u->deck_view.contact=1;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ /* The overlay under the finger must be the one on screen. */
+ if(overlay_token(u,m)!=u->deck_view.painted)return 1;
+ note_input(u,m);
+ if(open){
+  int hit=xz_deck_view_picker_hit(&xz_deck_view_modern,x,y);
+  if(hit>=0)*n=choose_view(u,hit,out);
+  else if(hit==XZ_DECK_VIEW_HIT_OUTSIDE)u->deck_view.open=0;
+  return 1;
+ }
+ if(button){open_picker(u,m);return 1;}
+ *n=card_press(u,card,out);
+ return 1;
+}
+/* The encoder on PLAY. Open picker: turn moves, push picks. Otherwise the first push puts a focus ring on
+   the card's buttons (RESCAN first) and the DECK VIEW button; turn moves it, push presses it. A hold, or
+   six seconds without input, gives the encoder back to zoom and GRID. */
+static int focus_list(const struct xz_shell *u, const struct xz_shell_model *m, int out[3]) {
+ int n=0;
+ if(card_shown(m)){
+  struct xz_route_card_input in=card_input(u,m);int order[2],k=xz_route_card_visible(&in)?xz_route_card_focus_order(&in,order):0;
+  for(int i=0;i<k;i++)out[n++]=order[i]==XZ_ROUTE_CARD_HIT_PRIMARY?XZ_SHELL_FOCUS_CARD_PRIMARY:XZ_SHELL_FOCUS_CARD_TWO;
+ }
+ if(view_button_shown(m))out[n++]=XZ_SHELL_FOCUS_DECK_VIEW;
+ return n;
+}
+static int overlay_encoder(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t *n) {
+ *n=0;
+ if(picker_live(u,m)){
+  if(e->kind==XZ_SHELL_ENCODER_TURN)u->deck_view.tile=xz_deck_view_focus_step(u->deck_view.tile,e->delta);
+  else if(e->kind==XZ_SHELL_ENCODER_PUSH)*n=choose_view(u,u->deck_view.tile,out);
+  note_input(u,m);return 1;
+ }
+ if(e->kind==XZ_SHELL_ENCODER_HOLD){u->deck_view.focus=XZ_SHELL_FOCUS_NONE;return 0;}
+ int list[3],count=focus_list(u,m,list),at=-1;
+ if(!count){u->deck_view.focus=XZ_SHELL_FOCUS_NONE;return 0;} /* nothing to focus: the push stays the player's */
+ if(focus_live(u,m))for(int i=0;i<count;i++)if(list[i]==u->deck_view.focus)at=i;
+ if(e->kind==XZ_SHELL_ENCODER_TURN){
+  if(at<0){u->deck_view.focus=XZ_SHELL_FOCUS_NONE;return 0;}
+  at+=e->delta<-3?-3:e->delta>3?3:e->delta;at=at<0?0:at>=count?count-1:at;
+  u->deck_view.focus=list[at];note_input(u,m);return 1;
+ }
+ if(e->kind!=XZ_SHELL_ENCODER_PUSH)return 0;
+ note_input(u,m);
+ if(at<0){u->deck_view.focus=list[0];return 1;}
+ int focus=list[at];
+ if(focus==XZ_SHELL_FOCUS_DECK_VIEW){open_picker(u,m);return 1;}
+ *n=card_press(u,focus==XZ_SHELL_FOCUS_CARD_PRIMARY?XZ_ROUTE_CARD_HIT_PRIMARY:XZ_ROUTE_CARD_HIT_TWO,out);
+ return 1;
+}
+int sh_play_overlay_owns(const struct xz_shell *u, const struct xz_shell_model *m, int x, int y) {
+ if(!u||!m||xz_shell_screen(u)!=XZ_SHELL_PLAY)return 0;
+ struct xz_shell_model view;xz_shell_play_projection(u,m,&view);
+ return picker_live(u,&view)&&xz_deck_view_picker_hit(&xz_deck_view_modern,x,y)!=XZ_DECK_VIEW_HIT_OUTSIDE;
+}
+int sh_play_dismiss(struct xz_shell *u, int back) {
+ int had=u->deck_view.open||u->deck_view.focus!=XZ_SHELL_FOCUS_NONE;
+ u->deck_view.open=0;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ return back&&had;
+}
+void sh_play_overlay_publish(struct xz_shell *u, const struct xz_shell_model *m) {
+ struct xz_shell_model view;xz_shell_play_projection(u,m,&view);
+ if(!picker_live(u,&view))u->deck_view.open=0;
+ if(!focus_live(u,&view))u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ u->deck_view.painted=overlay_token(u,&view);
+}
+
 static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  const struct play_layout *L=layout_of(m);
  size_t n=0;
  u->down=1;u->down_region=XZ_SHELL_TOUCH_OTHER;u->down_deck=u->deck;
- if(sh_deck_count(m)==4&&header_band(x,y,xz_shell_play_rect(m,XZ_SHELL_R_VIEW_TWO,0))){
-  if(!xz_shell_play_key_frame(u,m))return 0;
-  int layout=sh_play_deck_count(m)==2?XZ_LAYOUT_TWO:m->wave_order?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
-  return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_DECK_LAYOUT,-1,xz_deck_layout_next(layout),0});
+ if(overlay_touch_down(u,m,x,y,out,&n))return n;
+ note_input(u,m);u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ /* A placeholder's column, lane and strip take the touch and do nothing. */
+ for(int slot=0;slot<sh_play_deck_count(m);slot++){
+  int deck=sh_play_deck(m,slot);
+  if(sh_play_placeholder(m,deck)&&(sh_inside(xz_shell_play_rect(m,XZ_SHELL_R_INFO_COLUMN,deck),x,y)||
+     sh_inside(xz_shell_play_rect(m,XZ_SHELL_R_LANE,deck),x,y)||sh_inside(xz_shell_play_rect(m,XZ_SHELL_R_STRIP,deck),x,y)))return 0;
  }
  for(int slot=0;slot<sh_play_deck_count(m);slot++)
   if(sh_inside(xz_shell_play_rect(m,XZ_SHELL_R_INFO_COLUMN,sh_play_deck(m,slot)),x,y))return activate(u,sh_play_deck(m,slot),out,n);
@@ -1167,15 +1397,24 @@ static size_t stem_slide(struct xz_shell *u, const struct xz_shell_model *m, int
  int dx=x-u->stem_touch.x0;
  if(!u->stem_touch.slid&&dx<STEM_SLIDE&&dx>-STEM_SLIDE)return 0;
  u->stem_touch.slid=1;
- int slot=0;while(stem_slot[slot]!=stem)slot++;
+ int slot=stem_slot_of(m,stem);
  int w=sh_max(1,row_button(u,m,deck,slot).w);
  int gain=sh_max(0,sh_min(XZ_SHELL_STEM_GAIN_MAX,u->stem_touch.gain0+dx*XZ_SHELL_STEM_GAIN_MAX/w));
  if(gain==m->deck[deck].stem_gain[stem])return 0;
  return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_STEM_GAIN,deck,gain,stem});
 }
 static size_t play_input_model(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ if(e->kind==XZ_SHELL_ENCODER_TURN||e->kind==XZ_SHELL_ENCODER_PUSH||e->kind==XZ_SHELL_ENCODER_HOLD){
+  size_t n;if(overlay_encoder(u,m,e,out,&n))return n;
+  note_input(u,m);
+ }
+ /* A contact the overlay took stays with it until release. */
+ if((e->kind==XZ_SHELL_TOUCH_MOVE||e->kind==XZ_SHELL_TOUCH_UP)&&u->deck_view.contact){
+  if(e->kind==XZ_SHELL_TOUCH_UP){u->deck_view.contact=0;u->down=0;u->down_region=XZ_SHELL_TOUCH_NONE;}
+  return 0;
+ }
  switch(e->kind){
- case XZ_SHELL_TOUCH_DOWN:return touch_down(u,m,e->x,e->y,out);
+ case XZ_SHELL_TOUCH_DOWN:u->deck_view.contact=0;return touch_down(u,m,e->x,e->y,out);
  case XZ_SHELL_TOUCH_MOVE:
   if(u->down&&u->down_region==XZ_SHELL_TOUCH_STEM)return stem_slide(u,m,e->x,out);
   if(u->down&&u->down_region==XZ_SHELL_TOUCH_OVERVIEW&&!sh_needle_locked(m,&m->deck[u->down_deck]))return seek(u,m,u->down_deck,e->x,out,0);

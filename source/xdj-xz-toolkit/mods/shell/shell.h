@@ -77,6 +77,7 @@ enum xz_shell_field {
  XZ_SHELL_F_KEY_ORIGINAL, XZ_SHELL_F_KEY_SYNC,
  XZ_SHELL_F_STEM_BYPASS,
  XZ_SHELL_F_PLAYBACK_RATE, XZ_SHELL_F_MOTION, XZ_SHELL_F_SYNC_STATUS,
+ XZ_SHELL_F_AUTO_CUE,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -146,6 +147,7 @@ struct xz_shell_deck {
  int key_cents;                      /* with XZ_SHELL_F_KEY_ORIGINAL: key's tuning offset in cents, -50..+50 */
  int key_synced;                     /* XZ_SHELL_F_KEY_SYNC: KEY SYNC holds this deck's key; MASTER TEMPO blinks */
  int quantize_on, quantize_num, quantize_den;
+ int auto_cue;
  int beat_jump_num, beat_jump_den;   /* beats */
  struct xz_shell_loop loop;
  struct xz_shell_cue hot_cue[XZ_SHELL_HOT_CUES];
@@ -258,13 +260,14 @@ struct xz_shell_model {
  int deck_count;                     /* decks the unit plays now: 4 while the runtime's extra deck route is up;
                                         any other value means 2, so a zero-initialised model has two decks. The
                                         screens draw and accept decks 0..count-1 only */
- int layout_preference;              /* 0 unpublished; 1 TWO, 2 FOUR, 3 MIXER. Session state. */
+ int layout_preference;              /* 0 unpublished; 1 TWO, 2 FOUR, 3 MIXER: DECK VIEW + 1 (ui/deck_view.h) */
  int play_view_count;                /* transient PLAY projection only: 2 or 4; deck_count remains audio availability */
  uint32_t capabilities;
  struct xz_shell_settings settings;
  int link_known, link_connected;
  struct xz_shell_fx fx;
  int stems_known, stems_on;          /* lights the STEMS header button */
+ int mods_settings_known,stem_order,key_format,key_feedback,browse_traffic; /* shared MODS policy, zero = legacy caller */
  int stem_rgb_known;
  uint32_t stem_rgb[3];               /* stem pad colours: drums, harmonics, vocal (0xRRGGBB) */
  uint8_t stem_rgb_custom;            /* bit per stem: stem_rgb holds a colour the DJ picked; clear bits draw the
@@ -291,6 +294,21 @@ struct xz_shell_model {
  uint8_t sides_extra;
  int wave_order; /* 0: numeric 1/2/3/4, 1: mixer 3/1/2/4; logical deck IDs never move */
  const struct xz_shell_menu *menu;        /* the mod page a MENU tab shows (shell_settings.h); NULL: none read yet */
+    /* Connector observation only; does not change playable deck_count or capabilities. */
+    int route_state, route_fail_part;
+    char route_reason[81];
+    uint32_t route_checked_at_ms, route_revision, route_ready_revision;
+ /* Transient PLAY projection only: bit d set draws deck d as a NOT CONNECTED placeholder (decks 3 and 4
+    while a four-deck DECK VIEW waits for them). Never fabricated deck data. */
+ uint8_t play_placeholders;
+ /* The decks 3 and 4 card (ui/route_card.h), in the clock_ms domain, set by the runtime: when the card
+    appeared or its state changed (the motion rests 60 s after it or the last input), and when the route
+    came up under the card (the READY hold and wipe), 0 when it did not. */
+ uint32_t route_card_since_ms, route_card_ready_at_ms;
+ /* SCREEN > DECK VIEW BUTTON set to HIDE (settings deck_view_button 0): the top bar draws as it did before the
+    DECKS button existed (the BEAT FX strip runs to the info button), the picker cannot open and the encoder
+    skips the button. DECK VIEW itself still applies. 1 hides; any other value (zero by default) shows it. */
+ int deck_view_button_hidden;
 };
 
 enum xz_shell_event_kind {
@@ -360,7 +378,8 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_MOD_MENU     /* a MODS menu page (shell_settings.h XZ_SHELL_TAB_MENU): id = enum xz_shell_menu_op,
                               value = the root page (OPEN) or a row of model.menu, deck = the choice or the touch */,
  XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, session display preference */
- XZ_SHELL_ACT_DECK_LAYOUT /* value enum xz_deck_layout; display only, no deck assignment */
+ XZ_SHELL_ACT_DECK_LAYOUT, /* DECK VIEW: value enum xz_deck_layout; display only, no deck assignment */
+ XZ_SHELL_ACT_ROUTE_RESCAN /* connector wake only */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */
@@ -490,7 +509,13 @@ struct xz_shell {
  uint32_t notice_at_ms;
  struct { int valid, screen, depth, popup, panel, tab, page; } header_frame;
  struct xz_shell_key_frame key_frame; /* last successfully rendered C buffer; value-owned for copy probes */
+ /* DECK VIEW on PLAY: the picker (open, the encoder's tile), the encoder's focus on the play screen's own
+    DECK VIEW controls (enum xz_shell_play_focus), a touch the overlay owns until release, the last PLAY
+    input (clock_ms; the card's motion rests 60 s after it) and the token of the last painted overlay,
+    which a touch must match. */
+ struct { int open, tile, focus, contact; uint32_t input_at, painted; } deck_view;
 };
+enum xz_shell_play_focus { XZ_SHELL_FOCUS_NONE, XZ_SHELL_FOCUS_CARD_PRIMARY, XZ_SHELL_FOCUS_CARD_TWO, XZ_SHELL_FOCUS_DECK_VIEW };
 
 void xz_shell_init(struct xz_shell *);
 enum xz_shell_screen xz_shell_screen(const struct xz_shell *);
@@ -516,7 +541,9 @@ enum xz_shell_play_region {
  XZ_SHELL_R_PAD_ROW,  /* per deck, between the lanes and the strips: stem mute buttons and hot-cue lamps.
                          The four-deck view has none (zero size) */
  XZ_SHELL_R_ALERT_BUTTON, /* per deck, while F_ALERT holds: CHOOSE TRACK, into BROWSE */
- XZ_SHELL_R_GRID_RESET, XZ_SHELL_R_GRID_SNAP, XZ_SHELL_R_GRID_SHIFT, XZ_SHELL_R_VIEW_TWO, XZ_SHELL_R_VIEW_FOUR /* the active deck's lane in GRID mode */,
+ XZ_SHELL_R_GRID_RESET, XZ_SHELL_R_GRID_SNAP, XZ_SHELL_R_GRID_SHIFT, /* the active deck's lane in GRID mode */
+ XZ_SHELL_R_VIEW_TWO,  /* the DECK VIEW button (top bar, every PLAY view); its touch band reaches XZ_SHELL_HEADER_HIT_H */
+ XZ_SHELL_R_VIEW_FOUR, /* retired: zero size */
  XZ_SHELL_R_KEY /* PLAY key readout, retaining logical deck IDs in selected-pair views */
 };
 /* Build the same immutable PLAY projection used by rendering and input. Logical deck IDs and
@@ -526,6 +553,9 @@ int xz_shell_play_key_deck(const struct xz_shell *, const struct xz_shell_model 
 /* Current projection must match the last rendered key frame. Zero means no published/matching PLAY view.
  * key_deck returns -2 for an old key rectangle awaiting a replacement frame, -1 for no key. */
 uint32_t xz_shell_play_key_frame(const struct xz_shell *, const struct xz_shell_model *);
+/* DECK VIEW: the frame period PLAY's motion wants now (the decks 3 and 4 card at 20 fps, its success
+   wipe), or 0 when nothing on PLAY moves by itself. The runtime draws at least this often. */
+uint32_t xz_shell_play_motion_ms(const struct xz_shell *, const struct xz_shell_model *);
 /* Selection encoded by the published semantic projection, side 0 or 1. */
 static inline int xz_shell_key_frame_selected(uint32_t projection,int side){return side+2*(int)((projection>>(4+side))&1u);}
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *, enum xz_shell_play_region, int deck);

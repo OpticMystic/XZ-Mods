@@ -391,7 +391,8 @@ static void test_reach_every_page(void) {
  mfx_model(&um);
  if(variant==1){um.enabled=0;for(int d=0;d<2;d++){um.deck[d].ready&=~(uint32_t)XZ_UI_STEM;um.deck[d].usb_reason=XZ_UI_USB_WHY_ENGINE;}}
  if(variant==2)detected_network();
- /* engines a loader may have: the sampler, grooves, hot cue preview; and decks 3 and 4 not yet connected */
+ /* ready bits for engines this runtime does not run (the sampler, grooves, hot cue preview): they open nothing;
+    and decks 3 and 4 not yet connected */
  if(variant==3)for(int d=0;d<2;d++)um.deck[d].ready|=XZ_UI_SAMPLE|XZ_UI_GROOVE|XZ_UI_HOTCUE|XZ_UI_PREVIEW;
  if(variant==4){um.route.state=XZ_UI_ROUTE_NOT_DETECTED;um.deck_view=1;for(int d=0;d<2;d++)um.deck[d].ready&=~(uint32_t)(XZ_UI_GATE|XZ_UI_SMART);um.enabled=0;}
  for(int i=0;i<7;i++){xz_ui_init(&queue[tail].u);xz_ui_menu_open(&queue[tail].u,(enum xz_ui_page)roots[i]);tail++;}
@@ -430,8 +431,11 @@ static void test_reach_every_page(void) {
  /* pages only the runtime opens: the setups, reached by their own rows above or the runtime itself */
  /* retired pages (their old ids open their new place), the CLASSIC theme grid, and the BUTTON NEXT TO LINK
     page (MODERN sets it in place on PLAY) are not MODERN pages */
+ /* GROOVE PADS and X-PAD belong to engines no deck runs in this build (xz_deck_caps): no row opens them. */
+ assert(!seen[XZ_UI_STEMS]&&!seen[XZ_UI_XPAD]);
  for(int p=0;p<XZ_UI_PAGE_COUNT;p++){
-  if(p==XZ_UI_GENERAL||p==XZ_UI_CONTROLS||p==XZ_UI_SETTINGS||p==XZ_UI_THEMES||p==XZ_UI_THEME_PICK||p==XZ_UI_BROWSE_SETUP||p==XZ_UI_BUTTONS)continue;
+  if(p==XZ_UI_GENERAL||p==XZ_UI_CONTROLS||p==XZ_UI_SETTINGS||p==XZ_UI_THEMES||p==XZ_UI_THEME_PICK||p==XZ_UI_BROWSE_SETUP||p==XZ_UI_BUTTONS||
+     p==XZ_UI_STEMS||p==XZ_UI_XPAD)continue;
   if(!seen[p])fprintf(stderr,"page %d (%s) not reached\n",p,xz_ui_page_title(p));
   assert(seen[p]);
  }

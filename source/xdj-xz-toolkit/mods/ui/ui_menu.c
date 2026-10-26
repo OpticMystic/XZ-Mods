@@ -138,7 +138,7 @@ static const char *reason_of(const struct xz_ui *u, const struct xz_ui_model *m,
  case XZ_UI_STRIP:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_VOLUME:case XZ_UI_SAMPLE_PAD:
   return "THIS USB LOADER HAS NO X-PAD SAMPLE ENGINE.";
  case XZ_UI_KEY_SHIFT:return "LOAD AN ANALYSED TRACK ON THIS DECK.";
- case XZ_UI_ROUTE_RESCAN:return m->route.state==XZ_UI_ROUTE_SCANNING?"STILL LOOKING FOR THE CABLE.":"THIS USB LOADER CANNOT PLAY FOUR DECKS.";
+ case XZ_UI_ROUTE_RESCAN:return m->route.state==XZ_UI_ROUTE_SCANNING?"STILL LOOKING FOR THE CABLE.":"DECKS 3 AND 4 ARE NOT RUNNING ON THIS PLAYER.";
  case XZ_UI_KEY_SYNC:return "BOTH DECKS NEED ANALYSED KEYS.";
  default:break;
  }
@@ -465,7 +465,7 @@ static void page_text(struct build *b) {
   line(b,XZ_SHELL_TONE_PLAIN,"SOURCE: %s",track?track:"NO TRACK REPORTED");
   line(b,XZ_SHELL_TONE_PLAIN,"%s",r->message[0]?r->message:hints[state]);
   if(r->bytes)line(b,XZ_SHELL_TONE_DIM,"%.1f / %.1f MB COPIED",(double)r->copied/1048576.0,(double)r->bytes/1048576.0);
-  line(b,XZ_SHELL_TONE_DIM,"%s","One track per deck, original audio only. Stems and 3-band waves still read the USB.");
+  line(b,XZ_SHELL_TONE_DIM,"%s",xz_ui_ram_scope(r));
   break;}
  case XZ_UI_CONNECTION:{
   const struct xz_ui_connection *v=&m->connection;
@@ -520,8 +520,11 @@ static void page_text(struct build *b) {
  case XZ_UI_BROWSE_SETUP:
   line(b,XZ_SHELL_TONE_DIM,"%s","Used by the deck key strips. Saved to your USB profile.");
   break;
- case XZ_UI_CONTROLS:
-  if(m->stem_page==3&&m->jump.enabled)line(b,XZ_SHELL_TONE_ALERT,"%s","BEAT JUMP HAS PRIORITY ON ITS PADS: CHOOSE ANOTHER PAD MODE.");
+ case XZ_UI_CONTROLS:case XZ_UI_STEM_PADS:
+  if(m->stem_page==3){
+    line(b,XZ_SHELL_TONE_ALERT,"%s","PAGE 2 ALWAYS HAS JUMP PRIORITY. PAGE 1 DOES WHEN CUSTOM JUMPS ARE ON.");
+    line(b,XZ_SHELL_TONE_DIM,"%s","WITH CUSTOM PAGE 1 OFF, STEM PADS USE THIS MODE'S STEM BANK.");
+   }
   if(!(m->enabled&XZ_UI_STEM))line(b,XZ_SHELL_TONE_ALERT,"%s","STEM AUDIO IS OFF.");
   break;
  case XZ_UI_APPS_SETUP:{
@@ -748,7 +751,7 @@ static const char *dead_reason(const struct build *b, const struct xz_ui_widget 
  switch(a->kind){
  case XZ_UI_GROOVE_PAD:case XZ_UI_HOTCUE_PAD:case XZ_UI_STRIP:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_VOLUME:case XZ_UI_SAMPLE_PAD:
   {int deck=a->deck>=0?a->deck:deck_of(b->u);if((b->m->deck[deck].ready&a->requires)==a->requires)return NULL;}
-  return a->kind==XZ_UI_GROOVE_PAD||a->kind==XZ_UI_HOTCUE_PAD?"THIS USB LOADER HAS NO GROOVE PAD ENGINE YET.":"THIS USB LOADER HAS NO X-PAD SAMPLE ENGINE.";
+  return a->kind==XZ_UI_HOTCUE_PAD?reason_of(b->u,b->m,a):a->kind==XZ_UI_GROOVE_PAD?"THIS USB LOADER HAS NO GROOVE PAD ENGINE YET.":"THIS USB LOADER HAS NO X-PAD SAMPLE ENGINE.";
  case XZ_UI_CONNECTION_ENABLE:case XZ_UI_DISCOVERY:
   return b->m->connection.ready?NULL:"THE VJ.TOOLS CONNECTION SERVICE IS NOT RUNNING IN THIS LOADER.";
  default:return NULL;
