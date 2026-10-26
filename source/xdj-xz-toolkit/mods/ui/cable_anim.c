@@ -3,8 +3,11 @@
    fill the solids back to front, then draw the visible parts of the feature lines and the cable's two
    silhouettes into a coverage plane and tint it per layer. All memory is the caller's picture. */
 /* No fused multiply-add: a host built for its own CPU (FMA) and the A9 (none) must agree to the bit, or the
-   golden frames differ by target. */
+   golden frames differ by target. The device and the golden tests build with zig cc (clang); gcc, which the
+   Linux sanitizer harnesses use, does not know the pragma and needs no FMA guard on a baseline x86-64. */
+#if defined(__clang__)
 #pragma STDC FP_CONTRACT OFF
+#endif
 #include "cable_anim.h"
 #include "cable_anim_data.h"
 #include <math.h>
