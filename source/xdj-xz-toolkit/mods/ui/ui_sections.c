@@ -211,7 +211,11 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
    else if(a->kind==XZ_UI_DECK_VIEW_BUTTON)left(a,144);
    else if((a->kind==XZ_UI_PANEL&&k==XZ_UI_THEME_PICK)||a->kind==XZ_UI_SET_MODERN_THEME)right(a,144);
    else if(a->kind==XZ_UI_WAVE_MODE)segment(a,X0,HALF,208,RH,3,k);
-   else if(a->kind==XZ_UI_KEY_FORMAT)segment(a,X0+HALF+8,HALF,208,RH,3,k);
+   else if(a->kind==XZ_UI_KEY_FORMAT){
+    /* AS ON THE USB needs the widest box; MUSICAL and WHEEL share the rest with their example key */
+    int x=X0+HALF+8,w0=128,w1=(HALF-w0-16)/2;
+    put(a,k==0?x:k==1?x+w0+8:x+w0+8+w1+8,208,k==0?w0:w1,RH);
+   }
    else if(a->kind==XZ_UI_KEY_FEEDBACK)left(a,272);
    else if(a->kind==XZ_UI_BROWSE_TRAFFIC)right(a,272);
    else if(a->kind==XZ_UI_BROWSE_KEY_PREFIX)left(a,318);
@@ -475,7 +479,9 @@ static void screen(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
   }else if(a->kind==XZ_UI_WAVE_MODE){
    xz_pic_wave_swatch(c,a->x+a->w-38,a->y+8,30,a->h-16,a->index,rgb);
   }else if(a->kind==XZ_UI_KEY_FORMAT){
-   if(a->index)xz_pic_text_right(c,a->x+a->w-10,a->y+13,xz_ui_key_example(a->index),12,sel?s->ink:s->dim);
+   /* the example key, clear of the label and of the selected mark; the dock says it when it does not fit */
+   const char *key=xz_ui_key_example(a->index);int right=a->x+a->w-(sel?28:10);
+   if(a->index&&a->x+12+xz_pic_text_width(c,a->label,12)+6+xz_pic_text_width(c,key,12)<=right)xz_pic_text_right(c,right,a->y+13,key,12,sel?s->ink:s->dim);
   }
  }
  for(size_t i=0;i<sc->n;i++){
