@@ -265,6 +265,7 @@ struct xz_shell_model {
  int link_known, link_connected;
  struct xz_shell_fx fx;
  int stems_known, stems_on;          /* lights the STEMS header button */
+ int mods_settings_known,stem_order,key_format,key_feedback,browse_traffic; /* shared MODS policy, zero = legacy caller */
  int stem_rgb_known;
  uint32_t stem_rgb[3];               /* stem pad colours: drums, harmonics, vocal (0xRRGGBB) */
  uint8_t stem_rgb_custom;            /* bit per stem: stem_rgb holds a colour the DJ picked; clear bits draw the

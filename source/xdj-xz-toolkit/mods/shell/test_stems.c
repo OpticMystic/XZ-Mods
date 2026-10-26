@@ -4,6 +4,7 @@
 /* Stem rows on PLAY: the five layouts shared with the classic interface, full rows as faders, the
    header STEMS button, and the two-tone stem colours. */
 #include "fixtures.h"
+#include "../ui/stem_pads.h"
 #include "shell_internal.h"
 #include "shell_settings.h"
 #include <assert.h>
@@ -145,6 +146,7 @@ static void test_header_toggle(void) {
  for(int i=0;i<XZ_SHELL_STEM_LAYOUTS;i++){
   enum xz_shell_stem_layout layout=xz_shell_stem_cycle[i];
   model(&m,layout);
+  assert(xz_shell_render_frame(&u,&m,pixels,XZ_SHELL_WIDTH));
   /* The header button asks the runtime to step the layout, as the classic STEMS button does. */
   assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,XZ_SHELL_STEMS_X+10,10)==1&&out[0].kind==XZ_SHELL_ACT_TOGGLE_STEMS);
   send(&u,&m,XZ_SHELL_TOUCH_UP,XZ_SHELL_STEMS_X+10,10);
@@ -229,8 +231,32 @@ static void test_bypass(void) {
  puts("PASS stem BYPASS: after the stems in every layout, touch-down toggles, lit white darkens the stems, APPEARANCE hides it");
 }
 
+static void test_mods_order(void){
+ struct xz_shell u;struct xz_shell_model m;
+ for(int order=0;order<6;order++)for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
+  xz_shell_init(&u);model(&m,(enum xz_shell_stem_layout)layout);m.mods_settings_known=1;m.stem_order=order;
+  for(int deck=0;deck<2;deck++){
+   int last=-1;
+   for(int slot=0;slot<3;slot++){
+    int stem=xz_stem_at(order,slot);struct xz_shell_rect b=xz_shell_stem_button(&u,&m,deck,stem);
+    if(layout==XZ_SHELL_STEMS_HIDDEN){assert(!b.w);continue;}
+    assert(b.w>0&&b.x>last);last=b.x;
+    render(&u,&m,pixels);assert(count(pixels,b,sh_stem_bright(&m,stem))>0);
+    size_t down=send(&u,&m,XZ_SHELL_TOUCH_DOWN,b.x+b.w/2,b.y+b.h/2);
+    struct xz_shell_action action=out[0];
+    size_t up=send(&u,&m,XZ_SHELL_TOUCH_UP,b.x+b.w/2,b.y+b.h/2);
+    if(up)action=out[0];
+    assert((down||up)&&action.kind==XZ_SHELL_ACT_STEM_MUTE&&action.id==stem&&action.deck==deck);
+   }
+  }
+  assert(xz_stem_pad_role(order,4,3)==XZ_STEM_BASS);
+ }
+ puts("PASS MODS stem order: all six orders, both native lanes, all layouts, drawing and action hit targets; bass stays fourth");
+}
+
 int main(void) {
  fx_track_build(&track,7);
+ test_mods_order();
  test_layouts();
  test_faders_and_taps();
  test_bypass();

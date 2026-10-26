@@ -1,3 +1,4 @@
+#include "../key/notation.h"
 /* Waveforms, playhead extrapolation and key text, shared by every screen so a
    deck reads the same on the play screen, the status strips and the lists.
 
@@ -460,8 +461,6 @@ int sh_deck_quarters(const struct xz_shell *u, const struct xz_shell_model *m, s
 
 /* Key notation. Alphanumeric numbers step a fifth (7 semitones) per number;
    8A is A minor, 8B is C major. 7 is its own inverse modulo 12. */
-static const char *const minor_names[12]={"Cm","Dbm","Dm","Ebm","Em","Fm","F#m","Gm","Abm","Am","Bbm","Bm"};
-static const char *const major_names[12]={"C","Db","D","Eb","E","F","F#","G","Ab","A","Bb","B"};
 /* Pitch class 0..11 and minor flag, or 0 when the text is neither notation. */
 static int parse_key(const char *s, int *pc, int *minor) {
  if(!s)return 0;
@@ -490,13 +489,9 @@ static int parse_key(const char *s, int *pc, int *minor) {
 const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *buffer, size_t cap) {
  int pc,minor;
  if(!key||mode==XZ_SHELL_KEY_AS_DECK||!parse_key(key,&pc,&minor)||cap<4)return key;
- if(mode==XZ_SHELL_KEY_CLASSIC)return minor?minor_names[pc]:major_names[pc];
- int n=(pc*7+(minor?4:7))%12+1;
- buffer[0]=(char)(n>=10?'1':'0'+n);
- size_t i=1;
- if(n>=10)buffer[i++]=(char)('0'+n-10);
- buffer[i++]=minor?'A':'B';buffer[i]=0;
- return buffer;
+ char formatted[8];xz_key_notation_format(pc,minor,mode==XZ_SHELL_KEY_ALPHANUMERIC,formatted);
+ if(strlen(formatted)+1>cap)return key;
+ memcpy(buffer,formatted,strlen(formatted)+1);return buffer;
 }
 
 /* ---- key traffic light ----
@@ -519,6 +514,7 @@ const char *xz_shell_master_key(const struct xz_shell_model *m) {
  return NULL;
 }
 uint32_t sh_key_ink(const struct xz_shell_model *m, const char *key, int matches_master, uint32_t plain) {
+ if(m&&m->mods_settings_known&&!m->browse_traffic)return plain;
  const char *master=xz_shell_master_key(m);
  if(!master)return matches_master?SH_GREEN:plain;
  switch(xz_shell_key_match(key,master)){
