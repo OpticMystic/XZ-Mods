@@ -75,6 +75,8 @@ void xz_pic_route(struct xz_canvas c, const struct xz_pic_style *s, int x, int y
 void xz_pic_home_icon(struct xz_canvas c, const struct xz_pic_style *s, int section, int x, int y, const struct xz_pic_home *h);
 /* The 4 DECKS grid: rows xz_ui_grid_features, columns decks 3 1 2 4. focus = the row ringed, -1 none. */
 struct xz_pic_grid_geo { struct xz_rect rows[10]; int x[2], header_y; };
+/* MODERN 4 DECKS: the grid under the route card, its legend line under the rows. */
+enum { XZ_PIC_DECKS_GRID_Y=198, XZ_PIC_DECKS_ROW_H=24, XZ_PIC_DECKS_LEGEND_Y=XZ_PIC_DECKS_GRID_Y+16+5*XZ_PIC_DECKS_ROW_H+3 };
 void xz_pic_grid_geometry(int x, int y, int w, int row_h, struct xz_pic_grid_geo *g);
 void xz_pic_grid_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_grid_geo *g, const unsigned caps[4], int focus);
 #endif

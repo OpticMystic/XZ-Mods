@@ -717,7 +717,7 @@ static void colour_rows(struct build *b, const struct xz_ui_widget *w, size_t n)
  }
 }
 /* 4 DECKS (mockup 15): the route card with RESCAN and the DECK VIEW segments, then the grid. */
-enum { DECKS_TEXT_X=424, DECKS_SEG_Y=130, DECKS_GRID_Y=198, DECKS_ROW_H=26 };
+enum { DECKS_TEXT_X=424, DECKS_SEG_Y=130 };
 static void four_deck_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
  const struct xz_ui_model *m=b->m;
  b->p->layout=XZ_SHELL_MENU_PICTURE;b->p->picture=XZ_SHELL_PIC_FOUR_DECKS;
@@ -726,7 +726,7 @@ static void four_deck_rows(struct build *b, const struct xz_ui_widget *w, size_t
  for(int k=0;k<4;k++)d->caps[k]=xz_deck_caps(m,k);
  line(b,XZ_SHELL_TONE_HEAD,"%s",xz_ui_route_title(m->route.state));
  line(b,XZ_SHELL_TONE_PLAIN,"%s",xz_ui_route_line(m));
- struct xz_pic_grid_geo g;xz_pic_grid_geometry(100,DECKS_GRID_Y,690,DECKS_ROW_H,&g);
+ struct xz_pic_grid_geo g;xz_pic_grid_geometry(100,XZ_PIC_DECKS_GRID_Y,690,XZ_PIC_DECKS_ROW_H,&g);
  for(size_t i=0;i<n;i++){
   const struct xz_ui_widget *a=&w[i];int k=a->index;
   if(a->kind==XZ_UI_ROUTE_RESCAN)part_row(b,a,(struct xz_rect){676,58,110,40},NULL);
