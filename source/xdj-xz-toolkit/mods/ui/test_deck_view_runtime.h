@@ -88,9 +88,12 @@ static void deck_view_runtime_check(void *self){
     fixture_card=dv_card(XZ_FOUR_MIXER,XZ_EXTRA_ROUTE_NOT_DETECTED);
     dv_tap(self,40,30);assert(fixture_detail==-1&&stock_calls==calls);
     fixture_card=0;fixture_mixer_visible=saved_visible;
-    /* The top band (top_bar.h). */
+    /* The top band (top_bar.h). An OUTER stem row under DECKS keeps its touches below y 17; the band stays DECKS. */
     xz_deck_layout_set(XZ_LAYOUT_TWO);native_four=-1;native_active=1;native_play=1;memset(&dv,0,sizeof dv);
-    int saved_layout=model.stems_overlay;
+    int saved_layout=model.stems_overlay;model.stems_overlay=XZ_STEM_LAYOUT_OUTER_HALF;dv_paint();
+    contact(self,170,30,1);assert(inline_contact&&!dv.open&&!dv.contact);contact(self,170,30,0);assert(!inline_contact&&!dv.open);
+    dv_paint();dv_tap(self,170,10);assert(dv.open);dv_paint();dv_tap(self,700,400);assert(!dv.open);
+    model.stems_overlay=XZ_STEM_LAYOUT_BELOW;dv_paint();dv_tap(self,170,30);assert(dv.open);dv_paint();dv_tap(self,700,400);assert(!dv.open);
     /* VJ.TOOLS ends at y 17: stock DECK 1 select ({0,18,115,140}) gets y 18 on, and the deck it selects is seen. */
     int saved_enabled=model.connection.enabled,saved_connected=model.connection.connected;
     model.connection.enabled=model.connection.connected=1;ui.deck=inline_ui.deck=1;calls=stock_calls;
@@ -107,5 +110,5 @@ static void deck_view_runtime_check(void *self){
     assert(xz_deck_layout_get()==XZ_LAYOUT_FOUR&&fixture_shell_view==-1);
     xz_deck_layout_set(XZ_LAYOUT_TWO);memset(&dv,0,sizeof dv);
     model.ui_interface=saved_interface;native_four=saved_four;native_active=saved_active;native_play=1;
-    puts("PASS DECK VIEW CLASSIC: button on every play screen, picker by touch/encoder/BACK, no press on an unpainted view or card state, RESCAN and TWO DECKS from the painted card, encoder only while the card shows, column tags, top band: stock DECK 1 select from y 18, STEMS to y 39 on the play screen, MODERN request through the one entry point");
+    puts("PASS DECK VIEW CLASSIC: button on every play screen, picker by touch/encoder/BACK, no press on an unpainted view or card state, RESCAN and TWO DECKS from the painted card, encoder only while the card shows, column tags, top band: OUTER stem row keeps its touches under DECKS, stock DECK 1 select from y 18, STEMS to y 39 on the play screen, MODERN request through the one entry point");
 }

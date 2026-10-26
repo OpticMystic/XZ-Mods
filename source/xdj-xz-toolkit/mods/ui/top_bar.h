@@ -20,7 +20,7 @@
      screens they keep y 0..23.
    - The metrics readout and METRICS keep y 0..23. The waveform under them carries the OUTER stem row, the
      four-deck lanes and the deck 3/4 panel's CLOSE key, which must keep their own touches.
-   - DECKS reaches y 39 (deck_view.c). */
+   - DECKS reaches y 39 (deck_view.c) except over a stem row (ui_runtime.c). */
 enum {
  XZ_TOP_BAR_H=18,          /* painted rows 0..17 */
  XZ_TOP_BAR_TOUCH_H=24,    /* default touch depth, the height the buttons used to paint */
