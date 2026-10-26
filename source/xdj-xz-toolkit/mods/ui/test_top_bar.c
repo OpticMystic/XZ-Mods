@@ -10,6 +10,8 @@
 #include "native_touch.h"
 #include "deck_view.h"
 #include "transient_notice.h"
+#include "native_asset_theme.h"
+#include "native_palette.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -138,6 +140,22 @@ static void label_contrast(void){
  puts("PASS every top-bar label reads against its fill, off and on, in all 25 themes");
 }
 
+/* The BEAT FX header sprite (969, 120x31) is drawn at y 15, so its rows 0..2 are the band's y 15..17. The stock
+   sprite leaves them black and the header starts at row 3 (y 18). Every theme's artwork keeps rows 0..2 plain too,
+   so STEMS and MODS never cover header art. */
+static void beat_fx_header(void){
+ static uint16_t source[124*31],dest[124*31],lut[65536];
+ for(int theme=0;theme<XZ_THEME_COUNT;theme++){
+  for(unsigned p=0;p<65536;p++)lut[p]=xz_native_palette_pixel(theme,(uint16_t)p);
+  for(int i=0;i<124*31;i++)source[i]=i/124<3?0:0x3186;
+  assert(xz_native_asset_theme_render(969,theme,source,120,31,124,dest,124,124*31,lut,1,0xf81f,0)>=1);
+  for(int y=0;y<3;y++)for(int x=0;x<120;x++)if(dest[y*124+x]!=dest[0]){
+   fprintf(stderr,"FAIL BEAT FX header art in its top rows: theme %d (%d,%d)\n",theme,x,y);assert(0);
+  }
+ }
+ puts("PASS the BEAT FX header starts at y 18 under STEMS and MODS in every theme's artwork");
+}
+
 /* Touch: the depths top_bar.h gives, and nothing over stock's DECK 1 select rect {0,18,115,140}. */
 static struct xz_ui_action last;static int actions;
 struct solver { uint32_t owner; struct xz_touch_status previous; int calls; };
@@ -183,6 +201,6 @@ static void touch_targets(void){
 }
 
 int main(void){
- paint_band();row_geometry();label_contrast();touch_targets();
+ paint_band();row_geometry();label_contrast();beat_fx_header();touch_targets();
  return 0;
 }
