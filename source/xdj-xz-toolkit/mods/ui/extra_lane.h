@@ -10,11 +10,16 @@
 /* A software deck (DECK 3 or 4) drawn into its 64-row lane of the classic 536x268 wave surface,
    as the native lanes look after they shrink: the same 132-row lane geometry (cue bands, beat
    ticks, layered 3-band body around row 65) resampled with xz_wave_lane_row, the playhead at the
-   native column, and a compact readout at the left edge because these decks have no info panel. */
+   native column, and a deck plate at the left edge because these decks have no info panel. */
 #define XZ_EXTRA_LANE_PLAYHEAD_X 268
 /* Native zoom when no native column has been seen: one PWV7 sample (1/150 s) per column. */
 #define XZ_EXTRA_LANE_COLUMN_US 6667u
-#define XZ_EXTRA_LANE_READOUT_W 116
+/* The deck plate: tag, SYNC/MASTER, key, clock, BPM, tempo and mode lamps, title. It darkens the
+   oldest part of the lane only; the playhead and everything after it stay clear. */
+#define XZ_EXTRA_LANE_READOUT_W 208
+/* Rows of the plate's top line (deck tag and SYNC/MASTER chip): a side switch or a SYNC change
+   redraws only these. */
+#define XZ_EXTRA_LANE_TAG_ROWS 16
 
 struct xz_extra_lane_view {
  uint32_t now_ms;      /* the players' monotonic clock (elapsed_at_ms) */
@@ -32,9 +37,35 @@ int xz_extra_lane_position_ms(const struct xz_extra_deck *,uint32_t now_ms,int32
    pixel is written. NULL deck draws as unloaded. marks may be NULL. */
 int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
  const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
+/* Four-channel layout: waveform and deck tag only; the main readouts live in the bottom mixer panels. */
+int xz_extra_lane_draw_wave(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
+/* Native DECK 1 or 2 in four-deck mode: the same deck tag the software lanes carry, in the lane's
+   top-left corner, lit while that side's controls drive the native deck. The native left column no
+   longer lines up with the lanes, so every lane names its deck. Writes only the tag's pixels. */
+int xz_four_badge_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,int lit);
 /* A transient player/route notice on the existing Classic play surface, including after route loss. */
 int xz_extra_notice_active(const struct xz_extra_decks *,uint32_t now_ms);
 int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *,uint32_t now_ms);
+
+/* The SYNC/MASTER state of a software deck, as the plate and the detail panel say it. */
+enum xz_extra_sync_class {
+ XZ_EXTRA_SYNC_CLASS_NONE,     /* SYNC off and not master (or unknown) */
+ XZ_EXTRA_SYNC_CLASS_MASTER,   /* the clock master; 3/4 scope never drives DECK 1/2 */
+ XZ_EXTRA_SYNC_CLASS_LOCKED,   /* beat and tempo locked to the master */
+ XZ_EXTRA_SYNC_CLASS_TEMPO,    /* tempo only: QUANTIZE off, or the native beat position unavailable */
+ XZ_EXTRA_SYNC_CLASS_WAIT,     /* finding the master or the beat again; clears by itself */
+ XZ_EXTRA_SYNC_CLASS_BLOCKED   /* cannot lock until the DJ changes something (grid, BPM, range, loop, master) */
+};
+enum xz_extra_sync_class xz_extra_sync_class(const struct xz_extra_deck *);
+/* Short caps text for the chip ("SYNC 1", "BPM 2", "3/4 MASTER", "WAIT", "NO GRID"); "" for NONE. */
+const char *xz_extra_sync_chip(const struct xz_extra_deck *,char *out,size_t size);
+/* What pads A..H do now, for the plate ("BEAT LOOP 1/4"); "" when unloaded or NULL. */
+const char *xz_extra_pad_text(const struct xz_extra_deck *,char *out,size_t size);
+/* One pad's meaning in the deck's pad mode: hot cue letter, loop length or jump; "" when inert. */
+const char *xz_extra_pad_label(const struct xz_extra_deck *,int pad,char *out,size_t size);
+/* Same fallback colours as the physical pad lamps for cues without a rekordbox colour. */
+uint32_t xz_extra_cue_color(const struct xz_extra_cue *);
 
 /* Theme pass over the four-deck surface (stride 536), the LAYERED_WAVE.md rule for four lanes:
    protect marks pixels that still hold the layer colour this frame drew for a deck (cue, beat and
