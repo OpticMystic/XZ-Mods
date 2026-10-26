@@ -36,8 +36,9 @@
 #define XZ_SHELL_MEMORY_CUES 16
 #define XZ_SHELL_ZOOM_MAX 6
 #define XZ_SHELL_ZOOM_DEFAULT 3
-/* Mod header buttons, drawn last on every shell screen in the place and size
-   of the stock-mode header (mods/ui render_buttons): STEMS x 674..741 and MODS
+/* Mod header buttons, drawn last on every shell screen in the columns of the
+   stock-mode header (mods/ui render_buttons, top_bar.h, which paints only y 0..17
+   there because stock furniture starts at y 18): STEMS x 674..741 and MODS
    x 744..799, y 0..23. The touch target reaches down to XZ_SHELL_HEADER_HIT_H
    so each is 44 px tall; the gap at x 742..743 splits between them. Screens
    keep x >= XZ_SHELL_HEADER_X clear above y XZ_SHELL_HEADER_BUTTON_H. A touch

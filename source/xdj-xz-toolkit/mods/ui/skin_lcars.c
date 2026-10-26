@@ -203,20 +203,20 @@ static void render_inline(const struct xz_ui_scene *s){
  xz_ui_stem_rows(s);
 }
 
-static void render_buttons(struct xz_canvas c,int stems,int vj_visible,int vj_active){
- const struct xz_theme_palette *p=xz_theme_palette(c.theme);uint32_t ice=XZ_LCARS_ICE;
- struct xz_ui_widget buttons[3]={{744,0,56,24,XZ_UI_NONE,0,0,"MODS",-1},{674,0,68,24,XZ_UI_NONE,0,0,"STEMS",-1},{0,0,112,24,XZ_UI_NONE,0,0,vj_active?"EXIT VJ":"VJ.TOOLS",-1}};
- for(int i=0;i<(vj_visible?3:2);i++){
-  struct xz_ui_widget a=buttons[i];int lit=i==1?stems:i==2?vj_active:0;
-  xz_rect(c,a.x,a.y,a.w,a.h,0);
-  block(c,a.x+1,a.y+1,a.w-2,a.h-2,11,ALL,lit?ice:p->ink,0,a.label,1,ALIGN_C,6);
- }
+/* A pill like the panel's blocks: butterscotch, ice while on, black label. */
+static struct xz_top_face top_button(struct xz_canvas c,int x,int w,const char *label,int lit){
+ uint32_t col=lit?XZ_LCARS_ICE:xz_theme_palette(c.theme)->ink;
+ xz_rect(c,x,0,w,XZ_TOP_BAR_H,0);block(c,x+1,1,w-2,XZ_TOP_BAR_H-2,11,ALL,col,0,NULL,1,ALIGN_C,6);
+ return xz_top_bar_label(c,x,w,label,col,0);
 }
-const struct xz_ui_skin xz_skin_lcars={xz_ui_place,render,render_inline,render_buttons};
+const struct xz_ui_skin xz_skin_lcars={xz_ui_place,render,render_inline,top_button};
 
+/* Drawn under the top bar: an end cap in the black between VJ.TOOLS and DECKS, and the title bar in the
+   metrics readout's slot, which the readout covers while METRICS shows. */
 void xz_ui_render_lcars_play_header(uint16_t *pixels,size_t stride){
  if(!pixels||stride<800)return;
- struct xz_canvas c={pixels,stride,800,480,XZ_THEME_LCARS};uint32_t color=XZ_LCARS_NATIVE_AMBER;
+ struct xz_canvas c=xz_top_bar_canvas(pixels,stride,XZ_THEME_LCARS);uint32_t color=XZ_LCARS_NATIVE_AMBER;
  xz_rect(c,114,0,558,17,0);shape(c,118,3,16,11,5,ALL,color);
- xz_text(c,142,3,"LCARS / PERFORMANCE",1,32,color);shape(c,282,3,385,11,5,RIGHT,color);
+ shape(c,XZ_METRICS_READOUT_X,3,XZ_METRICS_READOUT_W,11,5,RIGHT,color);
+ xz_text(c,XZ_METRICS_READOUT_X+10,XZ_TOP_BAR_LABEL_Y,"LCARS / PERFORMANCE",1,32,0);
 }

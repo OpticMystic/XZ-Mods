@@ -64,8 +64,9 @@ static void render_inline(const struct xz_ui_scene *s){
  xz_ui_stem_rows(s);
 }
 
-static void render_buttons(struct xz_canvas c,int stems,int vj_visible,int vj_active){
- const int x[3]={744,674,0},w[3]={56,68,112};const char *label[3]={"MODS","STEMS",vj_active?"EXIT VJ":"VJ.TOOLS"};
- for(int i=0;i<(vj_visible?3:2);i++){int on=i==1?stems:i==2?vj_active:0;xz_rect(c,x[i],0,w[i],24,on?GREEN:0);xz_border(c,x[i],0,w[i],24,GREEN);txt(c,x[i]+6,8,w[i]-12,label[i],1,on?0:HEAD);}
+/* A green-ruled box, filled green with black type while on. */
+static struct xz_top_face top_button(struct xz_canvas c,int x,int w,const char *label,int lit){
+ xz_rect(c,x,0,w,XZ_TOP_BAR_H,lit?GREEN:0);xz_border(c,x,0,w,XZ_TOP_BAR_H,GREEN);
+ return xz_top_bar_label(c,x,w,label,lit?GREEN:0,lit?0:HEAD);
 }
-const struct xz_ui_skin xz_skin_matrix={xz_ui_place,render,render_inline,render_buttons};
+const struct xz_ui_skin xz_skin_matrix={xz_ui_place,render,render_inline,top_button};

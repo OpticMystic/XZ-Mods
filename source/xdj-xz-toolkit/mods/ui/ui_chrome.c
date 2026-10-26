@@ -121,6 +121,19 @@ void xz_ui_chrome_switch(struct xz_canvas c,int x,int y,int on,int available,uin
  xz_round_rect(c,x,y,36,20,10,15,fill);
  xz_disc(c,on?x+26:x+10,y+10,7,available?knob:xz_blend(track,knob,120));
 }
+/* Every top-bar painter draws through this canvas, so no frame style can reach the stock furniture below. */
+struct xz_canvas xz_top_bar_canvas(uint16_t *pixels,size_t stride,int theme){
+ return (struct xz_canvas){pixels,stride,800,XZ_TOP_BAR_H,theme};
+}
+struct xz_top_face xz_top_bar_label(struct xz_canvas c,int x,int w,const char *label,uint32_t fill,uint32_t ink){
+ int tw=xz_text_width(c,label,1,40),tx=x+(w-tw)/2;
+ xz_text(c,tx,xz_theme_pixel_text(c.theme)?XZ_TOP_BAR_PIXEL_Y:XZ_TOP_BAR_LABEL_Y,label,1,40,ink);
+ return (struct xz_top_face){tx,tw,fill,ink};
+}
+void xz_top_bar_marks(struct xz_canvas c,struct xz_top_face stems,int layout){
+ int current=layout>0&&layout<5?layout-1:4,pitch=stems.text_w/5,x=stems.text_x+(stems.text_w-5*pitch+1)/2;
+ for(int i=0;i<5;i++)xz_rect(c,x+i*pitch,XZ_TOP_BAR_MARK_Y,pitch-1,2,i==current?stems.ink:xz_blend(stems.fill,stems.ink,80));
+}
 /* The 4 DECKS rail cell's amber dot: a four-deck view is chosen and decks 3 and 4 are not connected. */
 int xz_ui_four_decks_attention(const struct xz_ui_model *m){
  return m&&m->deck_view!=0&&m->route.state!=XZ_UI_ROUTE_READY&&m->route.state!=XZ_UI_ROUTE_NO_ENGINE;

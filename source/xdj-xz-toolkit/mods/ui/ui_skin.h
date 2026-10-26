@@ -12,13 +12,17 @@ struct xz_ui_scene {
 };
 /* page_controls() in ui.c decides which controls exist. place() only assigns
    x,y,w,h to them; it never adds, drops or relabels a control. */
+/* A top-bar label as drawn: its columns and colours, so the STEMS marks can sit under it. */
+struct xz_top_face { int text_x, text_w; uint32_t fill, ink; };
 struct xz_ui_skin {
  void (*place)(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *w, size_t n);
  void (*render)(const struct xz_ui_scene *s);
  /* Geometry is fixed by xz_ui_inline_layout. look.selected is muted (MUTE) or
     bypass (BYPASS); s->d is deck 0, so use m->deck[w.deck]. */
  void (*render_inline)(const struct xz_ui_scene *s);
- void (*render_buttons)(struct xz_canvas c, int stems, int vj_visible, int vj_active);
+ /* One top-bar button on stock-drawn screens (VJ.TOOLS, METRICS, STEMS, MODS) in columns x..x+w-1 of c,
+    which is clipped to the band (top_bar.h); lit is its on state. Returns where its label went. */
+ struct xz_top_face (*top_button)(struct xz_canvas c, int x, int w, const char *label, int lit);
 };
 void xz_ui_place(const struct xz_ui *,const struct xz_ui_model *,struct xz_ui_widget *,size_t);
 void xz_ui_stem_rows(const struct xz_ui_scene *);
@@ -70,6 +74,14 @@ void xz_ui_chrome_rail_marks(const struct xz_ui_scene *s);
 int xz_ui_section_page_notice(const struct xz_ui *u);
 void xz_ui_chrome_dock(const struct xz_ui_scene *s, uint32_t bg, uint32_t ink, uint32_t dim, uint32_t accent, uint32_t alarm);
 void xz_ui_chrome_switch(struct xz_canvas c, int x, int y, int on, int available, uint32_t track, uint32_t knob, uint32_t accent);
+/* The top bar (top_bar.h). xz_top_bar_canvas is clipped to the band. xz_ui_top_button draws one button in
+   c.theme's skin. xz_top_bar_label centres a label in columns x..x+w-1 on the band's text row over fill.
+   xz_top_bar_marks underlines the STEMS label in five segments, one per stem layout in the order STEMS
+   steps them (BELOW, BELOW HALF, OUTER, OUTER HALF, HIDDEN): the current one in ink, the rest dimmed. */
+struct xz_canvas xz_top_bar_canvas(uint16_t *pixels, size_t stride, int theme);
+struct xz_top_face xz_ui_top_button(struct xz_canvas c, int x, int w, const char *label, int lit);
+struct xz_top_face xz_top_bar_label(struct xz_canvas c, int x, int w, const char *label, uint32_t fill, uint32_t ink);
+void xz_top_bar_marks(struct xz_canvas c, struct xz_top_face stems, int layout);
 
 extern const char *const xz_ui_lengths[6];
 const char *xz_ui_footer_text(const struct xz_ui *u, const struct xz_ui_model *m);

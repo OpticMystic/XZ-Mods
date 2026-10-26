@@ -7,7 +7,7 @@
 
 int xz_metrics_temperature_level(int celsius){return celsius>=90?2:celsius>=80?1:0;}
 int xz_metrics_fresh(const struct xz_metrics_sample *s,uint32_t now){return s&&s->valid&&(uint32_t)(now-s->sampled_ms)<3500;}
-int xz_metrics_hit(int x,int y){return x>=XZ_METRICS_X&&x<XZ_METRICS_X+XZ_METRICS_W&&y>=0&&y<24;}
+int xz_metrics_hit(int x,int y){return x>=XZ_METRICS_X&&x<XZ_METRICS_X+XZ_METRICS_W&&y>=0&&y<XZ_TOP_BAR_TOUCH_H;}
 static uint64_t memory(const char *text,const char *key,int *found){
  size_t n=strlen(key);*found=0;
  for(const char *p=text;p&&*p;){

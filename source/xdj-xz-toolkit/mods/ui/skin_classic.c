@@ -209,32 +209,27 @@ static void render_inline(const struct xz_ui_scene *s){
  xz_ui_stem_rows(s);
 }
 
-void xz_ui_render_badge(uint16_t *pixels,size_t stride){
- if(!pixels||stride<800)return;
- struct xz_canvas c={pixels,stride,800,480,0};
- xz_rect(c,744,0,56,24,0x15191e);xz_border(c,744,0,56,24,0xa8ceff);
- xz_text(c,751,5,"MODS",2,4,0xf4f5f6);
+/* ORIGINAL keeps the stock-looking box: dark fill, one-pixel pale blue outline, green while on. The other
+   themes use their own button frame, with their selected-text colour while on. */
+static struct xz_top_face top_button(struct xz_canvas c,int x,int w,const char *label,int lit){
+ if(!c.theme){
+  uint32_t fill=lit?0x123c2a:0x15191e,edge=lit?0x52d794:0xa8ceff,ink=lit?0x52d794:0xf4f5f6;
+  xz_rect(c,x,0,w,XZ_TOP_BAR_H,fill);xz_border(c,x,0,w,XZ_TOP_BAR_H,edge);
+  return xz_top_bar_label(c,x,w,label,fill,ink);
+ }
+ const struct xz_theme *t=xz_theme(c.theme);
+ xz_frame(c,c.theme,(struct xz_ui_widget){x,0,w,XZ_TOP_BAR_H,XZ_UI_NONE,0,0,label,-1},t->palette.bg,lit);
+ return xz_top_bar_label(c,x,w,label,t->palette.bg,lit&&t->sel_ink?t->sel_ink:t->palette.ink);
 }
-void xz_ui_render_stems_button(uint16_t *pixels,size_t stride,int enabled){
+void xz_ui_render_badge(uint16_t *pixels,size_t stride){
+ if(pixels&&stride>=800)top_button(xz_top_bar_canvas(pixels,stride,0),XZ_TOP_MODS_X,XZ_TOP_MODS_W,"MODS",0);
+}
+void xz_ui_render_stems_button(uint16_t *pixels,size_t stride,int layout){
  if(!pixels||stride<800)return;
- struct xz_canvas c={pixels,stride,800,480,0};uint32_t color=enabled?0x52d794:0xa8ceff;
- xz_rect(c,674,0,68,24,enabled?0x123c2a:0x15191e);xz_border(c,674,0,68,24,color);
- xz_text(c,681,5,"STEMS",2,5,color);
+ struct xz_canvas c=xz_top_bar_canvas(pixels,stride,0);
+ xz_top_bar_marks(c,top_button(c,XZ_TOP_STEMS_X,XZ_TOP_STEMS_W,"STEMS",layout!=0),layout);
 }
 void xz_ui_render_vj_button(uint16_t *pixels,size_t stride,int takeover_active){
- if(!pixels||stride<800)return;
- struct xz_canvas c={pixels,stride,800,480,0};
- uint32_t border_col=takeover_active?0x52d794:0xa8ceff;
- xz_rect(c,0,0,112,24,0x15191e);xz_border(c,0,0,112,24,border_col);
- xz_text(c,7,5,takeover_active?"EXIT VJ":"VJ.TOOLS",2,8,takeover_active?0x52d794:0xf4f5f6);
+ if(pixels&&stride>=800)top_button(xz_top_bar_canvas(pixels,stride,0),XZ_TOP_VJ_X,XZ_TOP_VJ_W,takeover_active?"EXIT VJ":"VJ.TOOLS",takeover_active);
 }
-static void render_buttons(struct xz_canvas c,int stems,int vj_visible,int vj_active){
- if(!c.theme){xz_ui_render_badge(c.p,c.stride);xz_ui_render_stems_button(c.p,c.stride,stems);if(vj_visible)xz_ui_render_vj_button(c.p,c.stride,vj_active);return;}
- const struct xz_theme_palette *p=xz_theme_palette(c.theme);
- struct xz_ui_widget buttons[3]={{744,0,56,24,XZ_UI_NONE,0,0,"MODS",-1},{674,0,68,24,XZ_UI_NONE,0,0,"STEMS",-1},{0,0,112,24,XZ_UI_NONE,0,0,vj_active?"EXIT VJ":"VJ.TOOLS",-1}};
- for(int i=0;i<(vj_visible?3:2);i++){
-  struct xz_ui_widget a=buttons[i];xz_frame(c,c.theme,a,p->bg,i==1?stems:i==2?vj_active:0);
-  xz_text(c,a.x+6,a.y+7,a.label,1,(a.w-12)/6,p->ink);
- }
-}
-const struct xz_ui_skin xz_skin_classic={xz_ui_place,render,render_inline,render_buttons};
+const struct xz_ui_skin xz_skin_classic={xz_ui_place,render,render_inline,top_button};
