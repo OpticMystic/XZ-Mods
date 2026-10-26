@@ -46,6 +46,9 @@ static uint32_t ram_debug_sample_ms;
 #include "ui/layered_wave_runtime.h"
 #include "ui/native_skin_runtime.h"
 #include "ui/wave_viewport.h"
+#include "ui/extra_detail.h"
+#include "ui/classic_mixer.h"
+#include "ui/classic_mixer_runtime.h"
 #include "settings.h"
 #include "settings_internal.h"
 #include "usb_profile.h"
@@ -57,6 +60,22 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_runtime_deck_early_key
 #pragma weak xz_runtime_deck_games_pending
 #pragma weak xz_shell_runtime_extra_load_key
+/* The classic four-deck detail panel: its state (ui/native_wave_runtime.c), the DECK 3/4 players
+   (extra_decks.c) and DECK SELECT (runtime.c). Weak like the rest: without them the panel never opens. */
+#pragma weak xz_native_four_detail
+#pragma weak xz_native_four_set_detail
+#pragma weak xz_native_four_detail_notice
+#pragma weak xz_extra_decks_snapshot
+#pragma weak xz_extra_deck_input
+#pragma weak xz_runtime_deck_select_target
+#pragma weak xz_classic_mixer_runtime_start
+#pragma weak xz_classic_mixer_runtime_stop
+#pragma weak xz_classic_mixer_runtime_frame
+#pragma weak xz_classic_mixer_runtime_layout
+#pragma weak xz_classic_mixer_runtime_visible
+#pragma weak xz_classic_mixer_runtime_hide
+#pragma weak xz_classic_mixer_runtime_native_point
+#pragma weak xz_extra_detail_notice_text
 #include "ui/ui_menu.h"
 #include "ui/layout_cycle.h"
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
@@ -209,8 +228,12 @@ static uint32_t followed_generation;
 static int inline_gesture_layout=XZ_STEM_LAYOUT_BELOW;
 static int inline_redraw_pending;
 static int inline_requested, inline_contact, inline_contact_deck, inline_wave_contact, inline_wave_deck, inline_cancelled;
-/* A contact that began on the four-deck surface keeps the lane order and lane it began on. */
+/* A contact that began on the four-deck surface keeps the lane order and lane it began on. One that began
+   on the open DECK 3/4 detail panel (ui/extra_detail.h) keeps the panel control and deck it began on; one
+   that began on a DECK 3/4 lane is a tap that opens, switches or closes the panel while it keeps to that lane. */
 static int four_contact, four_contact_order, four_contact_deck;
+static int four_panel_hit=-1, four_panel_deck=-1, four_tap, four_seek_column=-1, four_seek_noticed;
+static struct { int active,deck,kind,cancelled,native_down,last_x,last_y,layout; } mixer_contact;
 static uint32_t displayed_generation[2], reported_generation[2];
 static unsigned char overview[2][192];
 struct prepared_proof_deck { uint32_t state,rate,frames,mixed,missed; int32_t lag; float correlation; };
@@ -616,6 +639,10 @@ static struct xz_pc_stems pc_stems;
 static pthread_mutex_t pc_mutex=PTHREAD_MUTEX_INITIALIZER;
 static int pc_observing,pc_present,pc_map_confirmed[4],pc_setup_step[2],pc_last_link;
 static void inline_layout_publish(void) {
+    if((touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||(model.fb_takeover&&model.connection.connected))&&
+       xz_native_four_detail&&xz_native_four_set_detail&&xz_native_four_detail()>=0)xz_native_four_set_detail(-1);
+    if((touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||(model.fb_takeover&&model.connection.connected))&&
+       xz_classic_mixer_runtime_hide)xz_classic_mixer_runtime_hide();
     int layout=(unsigned)model.stems_overlay<XZ_STEM_LAYOUT_COUNT?model.stems_overlay:XZ_STEM_LAYOUT_HIDDEN;
     __atomic_store_n(&inline_requested,(requested_stems||pc_present)&&!touch.visible?layout:XZ_STEM_LAYOUT_HIDDEN,__ATOMIC_RELEASE);
 }
@@ -2291,7 +2318,7 @@ static int classic_native_two(void){return model.ui_interface==XZ_UI_INTERFACE_C
 static int layout_button_touch_locked(const struct xz_touch_status *status,int fresh){
  if(layout_button_contact){if(!status->down)layout_button_contact=0;return 1;}
  if(!fresh||!status->down||model.ui_interface!=XZ_UI_INTERFACE_CLASSIC||touch.visible||model.fb_takeover||
-    play_key.open||game_locked()!=GAME_NONE||!xz_classic_layout_hit((int)status->x,(int)status->y))return 0;
+    play_key.open||mixer_contact.active||four_contact||inline_contact||inline_wave_contact||touch.capture||game_locked()!=GAME_NONE||!xz_classic_layout_hit((int)status->x,(int)status->y))return 0;
  if(!layout_button_painted)return 0;
  layout_button_contact=1;if(!layout_button_shown)return 1;
  struct xz_extra_decks extra;
@@ -2337,7 +2364,7 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
     }
     if(!play_key.open&&!play_key.down){
         if(touch.visible||model.fb_takeover||game_locked()!=GAME_NONE||!fresh||previous_down||
-           inline_contact||inline_wave_contact||four_contact||touch.capture)return 0;
+           inline_contact||inline_wave_contact||four_contact||mixer_contact.active||touch.capture)return 0;
         if(shell_owns_locked()){
             if(xz_shell_runtime_key_hit)deck=xz_shell_runtime_key_hit((int)status->x,(int)status->y,&source_frame);
             if(deck==-2){play_key.down=1;play_key_dirty=1;return 1;}
@@ -2367,10 +2394,107 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
     __atomic_store_n(&play_key_visible,play_key.open,__ATOMIC_RELEASE);
     play_key_dirty=1;xz_native_skin_request_repaint();return 1;
 }
+/* The MODS header strip over the wave surface's top rows (metrics readout, METRICS) keeps its own
+   touches whichever lane lies underneath. Same tests as xz_native_touch_dispatch. */
+static int four_header_strip(const struct xz_touch_status *s) {
+    return s->y<24&&(xz_metrics_hit((int)s->x,(int)s->y)||
+        (model.metrics_enabled&&s->x>=XZ_METRICS_READOUT_X&&s->x<XZ_METRICS_X));
+}
+/* Needle search from the panel's strip (ui_mutex held; the players only enqueue). The deck must be loaded,
+   its length known and paused or physically held: stock NEEDLE LOCK still blocks released platter coast.
+   One search per strip column; a refusal raises its notice once per contact. */
+static void four_seek(int deck, int x, int mixer) {
+    struct xz_extra_detail_box b=xz_extra_detail_box(XZ_EXTRA_DETAIL_OVERVIEW);
+    if(mixer){struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(mixer_contact.layout,deck+2);b=(struct xz_extra_detail_box){r.x,r.y,r.w,r.h};}
+    int column=x<b.x?b.x:x>=b.x+b.w?b.x+b.w-1:x;
+    if(column==four_seek_column)return;
+    four_seek_column=column;
+    int refusal=XZ_EXTRA_DETAIL_NOTICE_UNAVAILABLE;
+    struct xz_extra_decks now;
+    if(deck>=0&&deck<XZ_EXTRA_DECKS&&xz_extra_decks_snapshot&&xz_extra_deck_input&&xz_extra_decks_snapshot(&now)){
+        refusal=xz_extra_detail_seek_refusal(&now.deck[deck]);
+        if(refusal==XZ_EXTRA_DETAIL_NOTICE_NONE){
+            struct xz_extra_deck_event event;memset(&event,0,sizeof(event));
+            event.deck=deck;event.kind=XZ_EXTRA_IN_SEEK;event.pressed=1;
+            event.seek_ms=mixer?xz_classic_mixer_seek_ms(mixer_contact.layout,deck+2,column,now.deck[deck].total_ms):
+                               xz_extra_detail_seek_ms(column,now.deck[deck].total_ms);
+            if(xz_extra_deck_input(&event))return;
+            refusal=XZ_EXTRA_DETAIL_NOTICE_REFUSED;
+        }
+    }
+    if(!four_seek_noticed){
+        if(xz_native_four_detail_notice)xz_native_four_detail_notice(refusal);
+        if(mixer){
+            char line[64];const char *message=xz_extra_detail_notice_text?
+                xz_extra_detail_notice_text(refusal,(unsigned)deck+3,line,sizeof line):"NEEDLE LOCK: PAUSE THE DECK TO SEARCH";
+            xz_ui_notice_set(&async_notice,message,xz_game_milliseconds());
+        }
+        four_seek_noticed=1;
+    }
+}
+/* The panel's DECK SELECT, after ui_mutex is released: the side switches only while it drives the other deck. */
+static void four_side_select(int side, int want_extra) {
+    if((!xz_runtime_deck_select_target||xz_runtime_deck_select_target(side,want_extra)!=1)&&xz_native_four_detail_notice)
+        xz_native_four_detail_notice(XZ_EXTRA_DETAIL_NOTICE_SELECT_FAILED);
+}
+/* Bottom channels keep the logical deck of the initial contact, even across channel boundaries. */
+static int mixer_touch(void *self,const struct xz_touch_status *status,const void *mode,int active,int previous_down){
+    int x=(int)status->x,y=(int)status->y;
+    if(!mixer_contact.active){
+        if(!active||!status->down||previous_down||four_contact||inline_contact||inline_wave_contact||touch.capture)return 0;
+        mixer_contact.layout=xz_deck_layout_get();
+        if(!xz_classic_mixer_runtime_layout||xz_classic_mixer_runtime_layout()!=mixer_contact.layout)return 0;
+        int deck=xz_classic_mixer_channel_at(mixer_contact.layout,x,y);if(deck<0)return 0;
+        struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(mixer_contact.layout,deck);
+        mixer_contact.active=1;mixer_contact.deck=deck;mixer_contact.cancelled=0;mixer_contact.native_down=0;
+        mixer_contact.kind=x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h?1:deck>=2&&y<336?2:0;
+        four_seek_column=-1;four_seek_noticed=0;
+        if(deck<2)ui.deck=inline_ui.deck=deck;
+    }
+    if(!active||mixer_contact.layout!=xz_deck_layout_get())mixer_contact.cancelled=1;
+    int deck=mixer_contact.deck;
+    if(mixer_contact.kind==2&&(status->down||status->x||status->y)&&
+       (xz_classic_mixer_channel_at(mixer_contact.layout,x,y)!=deck||y>=336))mixer_contact.cancelled=1;
+    if(mixer_contact.kind==1&&!mixer_contact.cancelled&&status->down){
+        if(deck>=2)four_seek(deck-2,x,1);
+        else{
+            struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(mixer_contact.layout,deck);
+            if(x<r.x)x=r.x;else if(x>=r.x+r.w)x=r.x+r.w-1;
+            if(y<r.y)y=r.y;else if(y>=r.y+r.h)y=r.y+r.h-1;
+            int local_x,local_y,stock_x,stock_y;
+            if(xz_classic_mixer_native_point(mixer_contact.layout,deck,x,y,&local_x,&local_y)&&xz_classic_mixer_runtime_native_point&&
+               xz_classic_mixer_runtime_native_point(deck,local_x,local_y,&stock_x,&stock_y)){
+                struct xz_touch_status mapped=*status;mapped.x=(uint32_t)stock_x;mapped.y=(uint32_t)stock_y;
+                stock_touch(self,&mapped,mode);mixer_contact.native_down=1;
+                mixer_contact.last_x=stock_x;mixer_contact.last_y=stock_y;
+            }else{
+                mixer_contact.cancelled=1;
+                xz_ui_notice_set(&async_notice,"WAIT FOR THE NATIVE WAVEFORM TO REFRESH",xz_game_milliseconds());
+            }
+        }
+    }
+    if(mixer_contact.native_down&&(!status->down||mixer_contact.cancelled)){
+        struct xz_touch_status up={0};up.x=(uint32_t)mixer_contact.last_x;up.y=(uint32_t)mixer_contact.last_y;
+        stock_touch(self,&up,mode);mixer_contact.native_down=0;
+    }
+    if(!status->down){
+        if(!mixer_contact.cancelled&&mixer_contact.kind==2&&xz_native_four_set_detail){
+            int current=xz_native_four_detail?xz_native_four_detail():-1;
+            xz_native_four_set_detail(current==deck-2?-1:deck-2);
+        }
+        mixer_contact.active=0;
+    }
+    return 1;
+}
 static void touch_hook(void *self, const struct xz_touch_status *status, const void *mode) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE)) { stock_touch(self, status, mode); return; }
     pthread_mutex_lock(&ui_mutex);
     int fresh=status->down&&!play_key_raw_down;play_key_raw_down=!!status->down;
+    if(mixer_contact.active&&(play_key.open||play_key.down||layout_button_contact||touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||
+       (model.fb_takeover&&model.connection.connected)||game_locked()!=GAME_NONE||
+       !xz_native_play_visible()||xz_native_four_order()<0||mixer_contact.layout!=xz_deck_layout_get())){
+        mixer_touch(self,status,mode,0,0);pthread_mutex_unlock(&ui_mutex);return;
+    }
     if(game_locked()!=GAME_NONE)game_nav.visible=0;
     if(xz_rhythm_lab_touch((int)status->x,(int)status->y,!!status->down,xz_game_milliseconds())) {
         touch.capture=0;touch.opening_contact=0;
@@ -2408,8 +2532,15 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     int stock_screen=!touch.visible&&!(model.fb_takeover&&model.connection.connected);
     int active=stock_screen&&xz_native_inline_active();
     int four=stock_screen?xz_native_four_order():-1;
+    int mixer=stock_screen&&!play_key.open&&four>=0&&xz_classic_mixer_runtime_visible&&xz_classic_mixer_runtime_visible();
+    if(mixer_touch(self,status,mode,mixer,previous_down)){
+        inline_layout_publish();pthread_mutex_unlock(&ui_mutex);xz_native_skin_request_repaint();return;
+    }
+    /* The detail panel lives on the four-deck surface: MODS, a takeover or a revoked layout closes it. */
+    int detail=xz_native_four_detail?xz_native_four_detail():-1,four_repaint=0,four_select=-1;
+    if(four<0&&detail>=0){if(xz_native_four_set_detail)xz_native_four_set_detail(-1);detail=-1;four_repaint=1;}
     /* A revoked layout retires native-lane mapping; a contact the mod owns stays owned until release. */
-    if(four<0&&four_contact&&four_contact_deck>=0&&four_contact_deck<2)four_contact=0;
+    if(four<0&&four_contact&&four_contact_deck>=0&&four_contact_deck<2&&four_panel_hit<0)four_contact=0;
     /* A resized/modal/browse scene owns raw coordinates. Retire only the wave
      * mapping; a captured mod control consumes its cancelled up event. */
     if(!active){
@@ -2443,13 +2574,19 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         owned=1;
     }else{
         struct xz_four_layout four_geometry;
+        int sx=(int)status->x-131,sy=(int)status->y-18;
         /* Stock never sees an owned contact, so its previous-down byte stays clear: four_contact,
            not previous_down, says whether this contact already began. */
         if(!previous_down&&status->down&&!four_contact){
-            four_contact=four>=0&&status->x>=131&&status->x<667&&status->y>=18&&status->y<18+XZ_WAVE_HEIGHT&&
+            four_contact=four>=0&&sx>=0&&sx<XZ_WAVE_WIDTH&&sy>=0&&sy<XZ_WAVE_HEIGHT&&!four_header_strip(status)&&
                 xz_four_layout_get(four,&four_geometry);
-            four_contact_order=four;
-            if(four_contact)four_contact_deck=xz_four_layout_lane_at(&four_geometry,(int)status->y-18);
+            four_contact_order=four;four_panel_hit=four_panel_deck=-1;four_tap=0;four_seek_column=-1;four_seek_noticed=0;
+            if(four_contact){
+                four_contact_deck=xz_four_layout_lane_at(&four_geometry,sy);
+                if(detail>=0)four_panel_hit=xz_extra_detail_hit(sx,sy);
+                if(four_panel_hit>=0)four_panel_deck=detail;
+                four_tap=four_panel_hit<0&&(four_contact_deck==2||four_contact_deck==3);
+            }
         }
         if(!previous_down&&status->down){
             inline_wave_deck=xz_wave_layout_lane_at(&geometry,(int)status->y-18);
@@ -2457,8 +2594,36 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
             inline_wave_contact=!four_contact&&active&&status->x>=131&&status->x<667&&inline_wave_deck>=0;
         }
         struct xz_touch_status mapped=*status;
-        /* DECK 3/4 lanes and the gaps between lanes are mod surface: never a native deck touch. */
-        int four_owned=four_contact&&(four_contact_deck<0||four_contact_deck>=2);
+        /* DECK 3/4 lanes, the gaps between lanes and the open panel are mod surface: never a native deck touch. */
+        int four_owned=four_contact&&(four_panel_hit>=0||four_contact_deck<0||four_contact_deck>=2);
+        /* Cleared release coordinates keep the last point. A supplied endpoint must still match the control. */
+        if(four_contact&&four!=four_contact_order){
+            four_tap=0;
+            if(four_panel_hit>=0)four_panel_hit=XZ_EXTRA_DETAIL_PANEL;
+        }
+        if(four_contact&&(status->down||status->x||status->y)){
+            if(four_panel_hit==XZ_EXTRA_DETAIL_OVERVIEW&&four_panel_deck==detail&&status->down){
+                four_seek(four_panel_deck,sx,0);four_repaint=1;
+            }
+            else if(four_panel_hit>XZ_EXTRA_DETAIL_PANEL&&four_panel_hit!=XZ_EXTRA_DETAIL_OVERVIEW&&
+                    xz_extra_detail_hit(sx,sy)!=four_panel_hit)four_panel_hit=XZ_EXTRA_DETAIL_PANEL;
+            if(four_tap&&(sx<0||sx>=XZ_WAVE_WIDTH||sy<0||sy>=XZ_WAVE_HEIGHT||four!=four_contact_order||
+               !xz_four_layout_get(four_contact_order,&four_geometry)||xz_four_layout_lane_at(&four_geometry,sy)!=four_contact_deck))
+                four_tap=0;
+        }
+        /* A release acts once: a panel key still under the finger, or a lane tap on the order it began on. */
+        if(four_contact&&!status->down){
+            if(four_panel_hit>XZ_EXTRA_DETAIL_PANEL&&four_panel_deck>=0&&four_panel_deck==detail){
+                if(four_panel_hit==XZ_EXTRA_DETAIL_CLOSE&&xz_native_four_set_detail){xz_native_four_set_detail(-1);four_repaint=1;}
+                else if(four_panel_hit==XZ_EXTRA_DETAIL_NATIVE_SIDE||four_panel_hit==XZ_EXTRA_DETAIL_EXTRA_SIDE){
+                    four_select=four_panel_deck*2+(four_panel_hit==XZ_EXTRA_DETAIL_EXTRA_SIDE);four_repaint=1;
+                }
+            }else if(four_tap&&four>=0&&four==four_contact_order&&xz_native_four_set_detail){
+                int index=four_contact_deck-2;
+                xz_native_four_set_detail(detail==index?-1:index);four_repaint=1;
+            }
+            four_panel_hit=four_panel_deck=-1;four_tap=0;
+        }
         if(four_contact&&!four_owned&&(status->down||status->x||status->y)&&xz_four_layout_get(four_contact_order,&four_geometry)){
             int row=(int)mapped.y-18-(int)four_geometry.lane_y[four_contact_deck];
             if(row<0)row=0;else if(row>=XZ_FOUR_LANE_HEIGHT)row=XZ_FOUR_LANE_HEIGHT-1;
@@ -2487,7 +2652,8 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     }
     if(inline_redraw_pending){pc_redraw=1;inline_redraw_pending=0;}
     pthread_mutex_unlock(&ui_mutex);
-    if(pc_redraw)xz_native_skin_request_repaint();
+    if(four_select>=0)four_side_select(four_select>>1,four_select&1);
+    if(pc_redraw||four_repaint)xz_native_skin_request_repaint();
 }
 
 /* The receiver treats a shell-owned screen exactly like the open panel. */
@@ -2665,6 +2831,15 @@ void xz_ui_runtime_on_source_key(int source) {
     pthread_mutex_unlock(&ui_mutex);
 }
 
+static int classic_mixer_present(uint16_t *pixels,size_t stride,size_t count,int eligible,int theme,
+                                const struct xz_key_strip_deck keys[2]) {
+    if(!xz_classic_mixer_runtime_frame)return 0;
+    const char *names[2]={keys&&keys[0].valid?keys[0].effective:NULL,keys&&keys[1].valid?keys[1].effective:NULL};
+    int layout=xz_deck_layout_get(),order=xz_native_four_order();
+    eligible=eligible&&xz_native_play_visible()&&layout!=XZ_LAYOUT_TWO&&
+        order==(layout==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED);
+    return xz_classic_mixer_runtime_frame(pixels,stride,count,eligible,theme,xz_game_milliseconds(),names);
+}
 __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, uint32_t width,
         uint32_t height, uint32_t stride, const struct xz_vj_connection_v1 *connection) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE) || !pixels || width != 800 || height != 480 || stride < 800 || stride > 16384)
@@ -2696,6 +2871,8 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
             }
             if(__atomic_load_n(&xz_mods_key_feedback_proof_v1.enabled,__ATOMIC_ACQUIRE))
                 drawn|=xz_key_frame_cache_draw(&key_frame_cache,pixels,stride);
+            drawn|=classic_mixer_present(pixels,stride,(size_t)stride*height,badge_frame_cache.valid,
+                                        badge_frame_cache.theme,key_frame_cache.valid?key_frame_cache.deck:NULL);
             if(drawn){__atomic_add_fetch(&xz_mods_key_present_proof_v1.cached,1,__ATOMIC_RELAXED);return 1;}
         }
         return 0;
@@ -2757,7 +2934,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         }
         if(pthread_mutex_trylock(&ui_mutex)!=0)return 0;
     }
-    int result,shell=0;
+    int result,shell=0,classic=0;
     key_frame_cache.enabled=0;
     badge_frame_cache.valid=0;
     game_frame.count=0;
@@ -2793,7 +2970,10 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
         badge_frame_cache.selected=model.wave_mode==2?3:model.wave_mode==1?2:shortcut_stock_rgb();
         for(int i=0;i<3;i++)badge_frame_cache.colors[i]=xz_ui_model_stem_color(&model,i);
         badge(pixels,stride);result=1;
+        classic=model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!model.fb_takeover;
+        classic_mixer_present(pixels,stride,(size_t)stride*height,classic,model.theme,key_strip);
     }
+    if(!classic&&xz_classic_mixer_runtime_hide)xz_classic_mixer_runtime_hide();
     if(result&&!touch.visible&&game_locked()==GAME_NONE&&!model.fb_takeover){
         if(!play_key_source_valid_locked()){play_key.open=0;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);}
         struct xz_play_key_view view;play_key_view_locked(&view);
@@ -2820,6 +3000,8 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     __atomic_store_n(&profile_slot,~0u,__ATOMIC_RELAXED);
     forward_touch = (void (*)(int,int,int))dlsym(RTLD_DEFAULT, "xz_vj_touch_v1");
     if (!forward_touch) { xz_log("UI unavailable: receiver does not expose the optional display bridge"); return -1; }
+    if(xz_classic_mixer_runtime_start&&xz_classic_mixer_runtime_start())
+        xz_log("Classic four-channel readouts: snapshot allocation failed");
     audio_available = audio_ready;
     key_available = key_ready;
     if(xz_key_browser_start())xz_log("Key browser index worker unavailable");
@@ -2947,6 +3129,7 @@ void xz_ui_runtime_stop(void) {
     xz_native_led_stop();
     __atomic_store_n(&started, 0, __ATOMIC_RELEASE);
     __atomic_store_n(&visible, 0, __ATOMIC_RELEASE);
+    if(xz_classic_mixer_runtime_stop)xz_classic_mixer_runtime_stop();
     pthread_mutex_lock(&ui_mutex);
     arcade_present=0;arcade_contact_count=0;memset(arcade_contacts,0,sizeof arcade_contacts);arcade_input_publish_locked();memset(&arcade_input,0,sizeof(arcade_input));
     xz_wave_rider_close();arcade_input_publish_locked();

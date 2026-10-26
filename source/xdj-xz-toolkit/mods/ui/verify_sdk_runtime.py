@@ -10,6 +10,7 @@ with tempfile.TemporaryDirectory(prefix='xz-sdk-runtime-') as temporary:
     sources = [HERE / 'test_sdk_ui_runtime.c', *(HERE / name for name in UI_SOURCES), HERE / 'native_touch.c', HERE / 'stem_pads.c',
                HERE / 'beat_jump.c', HERE / 'wave_viewport.c', HERE.parent / 'settings.c', HERE.parent / 'usb_profile.c',
                HERE.parent / 'doom/native_bridge.c', HERE.parent / 'doom/wad_catalog.c', HERE.parent / 'ota/native_update.c']
+    sources += [HERE/name for name in ('extra_detail.c','extra_lane.c','layered_wave.c')]
     sources += [HERE.parent / 'key' / name for name in ('music.c', 'browser.c', 'catalog.c', 'traffic.c')]
     sources += [HERE.parent / 'arcade' / name for name in ('arcade.c', 'render.c', 'input.c', 'clock.c', 'native_clock.c')]
     sources += [HERE.parent / 'audio/vendor/sha256/sha256.c', HERE.parent / 'pc_control/stems.c']

@@ -8,8 +8,8 @@
 /* Parent integration: native must contain two guarded shell snapshots, including
    XZ_SHELL_F_AUTO_CUE/auto_cue. No native reads occur here. Overview inputs are
    immutable, validated 300x34 RGB565 caches, including their original markers.
-   Only overview rectangles answer seeking; titles/status are not buttons.
-   Physical controls and the parent's DECK3/4 detail overlay own other actions. */
+   Only overview rectangles answer seeking. Software title taps open detail;
+   status rows are labels. Physical controls own transport and modes. */
 struct xz_classic_mixer_view {
  const struct xz_shell_deck *native;
  const struct xz_extra_decks *extra;
