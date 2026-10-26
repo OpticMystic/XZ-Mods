@@ -252,6 +252,22 @@ try {
   await click('Next');
   await view('flow', 'quad');
   await check(txtQuad, 'quad guide retains paired-loader prerequisite');
+  // The cable guide's picture is the deck's own explainer, a looping video under the app's CSP.
+  const quadVideo = `document.querySelector('.wz-quad-art video')`;
+  await check(`(()=>{const v=${quadVideo};return Boolean(v)&&v.muted&&v.loop&&v.autoplay&&v.playsInline&&!v.controls&&v.getAttribute('src')==='assets/wizard/loopback-cable.mp4'&&v.getAttribute('poster')==='assets/wizard/loopback-cable-poster.webp'&&v.getAttribute('aria-label')==='One USB-B to USB-A cable loops back into the same XDJ-XZ'&&txt('#wz-quad-desc').includes('square USB-B plug with beveled top corners')&&!document.querySelector('.wz-quad-art svg');})()`, 'quad guide: the cable explainer plays muted, looping, without controls, with a poster and a text description');
+  await waitFor(`(()=>{const v=${quadVideo};return Boolean(v)&&v.readyState>=2&&v.videoWidth===1280&&v.videoHeight===400&&Math.abs(v.duration-13)<0.05;})()`, 'the cable video decodes under the app CSP (13 s, 1280 x 400)');
+  await evaluate(`(()=>{const v=${quadVideo};v.currentTime=v.duration-0.3;v.play();})()`);
+  await waitFor(`(()=>{const v=${quadVideo};return !v.paused&&v.currentTime>0&&v.currentTime<3;})()`, 'the cable video loops: past its end it plays from the start again');
+  await shot('05d-flow-quad');
+  await click('Pause cable animation');
+  await check(`${quadVideo}.paused&&document.querySelector('.wz-quad-art').dataset.paused==='1'&&button('Play cable animation').getAttribute('aria-pressed')==='true'`, 'Pause stops the cable picture where it is');
+  await click('Play cable animation');
+  await waitFor(`!${quadVideo}.paused&&!document.querySelector('.wz-quad-art').dataset.paused`, 'Play starts it again');
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  await click('Back'); await view('flow', 'look'); await click('Next'); await view('flow', 'quad');
+  await check(`!document.querySelector('.wz-quad-art video')&&document.querySelector('.wz-quad-art img').getAttribute('src')==='assets/wizard/loopback-cable-poster.webp'&&document.querySelector('.wz-quad-art img').alt.includes('rear USB-B socket')&&!button('Pause cable animation')`, 'reduced motion: the guide shows the still with its description and no motion control');
+  await shot('05e-flow-quad-reduced-motion');
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
   await click('Skip for now');
   await view('flow', 'review');
   await check(`plan().join('|')==='Add the XZ Mods loader (Fixture build)|Add 3 free games: Doom shareware, Chex Quest and Freedoom Phase 2|Use the new interface on the XZ|Create the settings file'&&txt('.wz-safe')==='Music, playlists and prepared stems are never touched.'&&txt('.wz-flow-count')==='Step 4 of 7'`, 'review: a plain checklist of what will happen, then the reassurance line');
@@ -593,6 +609,15 @@ try {
   await evaluate(`showPage('advanced')`);
   await check(`document.getElementById('mod-version')&&document.getElementById('setup-games-usb')&&document.getElementById('build')&&document.getElementById('loader-backups')&&!document.getElementById('prepare-usb')&&!document.querySelector('#advanced .intro')&&txt('#advanced .game-downloads summary')==='Game downloads'&&!document.querySelector('#advanced .game-downloads').open&&!document.getElementById('download-myhouse')&&!txt('#advanced').includes('My House')`, 'XZ Mods version page: build panel, loader restore, firmware file, games in one folded section; no Prepare a new USB');
   await shot('11-tools-version');
+  // The four-deck dialog shows the same cable picture: it plays while open and stops when it closes.
+  await evaluate(`document.getElementById('quad-open').click()`);
+  await waitFor(`(()=>{const d=document.getElementById('quad-setup'),v=document.getElementById('quad-video');return d.open&&v.readyState>=2&&!v.paused&&v.loop&&v.muted&&!v.controls&&v.videoWidth===1280&&v.getAttribute('aria-describedby')==='quad-video-desc';})()`, 'four-deck dialog: the cable explainer plays under the app CSP');
+  await evaluate(`(()=>{const v=document.getElementById('quad-video');v.currentTime=v.duration-0.3;})()`);
+  await waitFor(`(()=>{const v=document.getElementById('quad-video');return !v.paused&&v.currentTime>0&&v.currentTime<3;})()`, 'four-deck dialog: the cable video loops');
+  await check(`txt('#quad-setup figcaption').startsWith('The cable four decks use: rear USB-B socket to top USB1.')&&document.querySelector('#quad-setup figure').getBoundingClientRect().width<=document.getElementById('quad-setup').getBoundingClientRect().width`, 'four-deck dialog: the picture fits the dialog and says plainly what the cable is');
+  await shot('11b-quad-dialog');
+  await evaluate(`document.getElementById('quad-close').click()`);
+  await waitFor(`!document.getElementById('quad-setup').open&&document.getElementById('quad-video').paused`, 'closing the four-deck dialog stops the cable picture');
 
   await open('usb-only');
   await idle();

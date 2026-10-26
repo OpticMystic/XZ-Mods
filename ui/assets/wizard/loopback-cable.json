@@ -1,0 +1,17 @@
+{
+  "generator": "tools/build_cable_media.py",
+  "device_access": false,
+  "renderer": "mods/ui cable_anim.c, the loopback-cable explainer the XZ draws, baked from the Blender scene in cable-anim/",
+  "width": 1280,
+  "height": 400,
+  "fps": 60,
+  "frames": 780,
+  "seconds": 13,
+  "crf": 30,
+  "source_sha256": {
+    "source/xdj-xz-toolkit/mods/ui/cable_anim.c": "13fa2d697e709b04ec65871f12dca6336beb47b7782b11cff5f849e263a48f78",
+    "source/xdj-xz-toolkit/mods/ui/cable_anim_data.h": "24597c94a2c6e6207490776ac0c93be4ac5d9104f2bb964a4b395d39d6ff1414",
+    "source/xdj-xz-toolkit/mods/ui/ui_draw.c": "dbf17a3cae8ab4ece038b67f1e0798c559e07160de809be656e737de4bbd8393",
+    "tools/wizard_media/cable_motion.c": "7a4cd7712c141c890d1adb610d828d8f318773b32ececd7666d3af95dc90d2e4"
+  }
+}
