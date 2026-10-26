@@ -356,7 +356,7 @@ static void test_notice(void) {
  sh_notice_rect(texts[2],&lines);assert(lines==2);
  puts("PASS notice toast: timing, wrap, every screen, inside its box, under the header");
 }
-/* Held MENU opens MODS > UTILITY wherever it is not already there, and closes it from there; a short
+/* Held MENU opens MODS > UTILITY and remains there on another hold; a short
    MENU on PLAY does nothing. The runtime's key probe reads exactly this: an effect without HAND_OFF
    means SWALLOW, so a held MENU never reaches the stock menu while the shell draws. */
 static void test_menu_hold(void) {
@@ -371,7 +371,7 @@ static void test_menu_hold(void) {
   if(screen==XZ_SHELL_UTILITY){
    assert(n==0&&memcmp(&u,&before,sizeof u)&&u.depth==2&&u.mods_view.tab==0&&u.mods_view.on_tabs);
    struct xz_shell at_row=u;
-   assert(press(&u,&m,XZ_SHELL_KEY_MENU_HOLD,out)==0&&memcmp(&u,&at_row,sizeof u)&&u.depth==1);
+   assert(press(&u,&m,XZ_SHELL_KEY_MENU_HOLD,out)==0&&!memcmp(&u,&at_row,sizeof u)&&u.depth==2);
   }
   else assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==before.depth+1&&u.mods_view.tab==0&&u.mods_view.on_tabs);
   render_checked(&u,&m,buffer_a);
@@ -601,6 +601,36 @@ static void test_hidden_indicators(void) {
   &&out[0].value==1&&out[0].deck==-1&&!sh_indicator_shown(&u,XZ_SHELL_IND_MODE_LAMPS));
  puts("PASS hidden indicators: mode lamps and their touch, QUANTIZE lamp, restore values, settings items");
 }
+static void same_key_blocks(const struct xz_shell_model *m){
+ for(int deck=0;deck<(m->deck_count==4?4:2);deck++){
+  struct xz_shell_rect b=xz_shell_play_rect(m,XZ_SHELL_R_INFO_COLUMN,deck);b.y+=47;b.h-=47;
+  for(int y=b.y;y<b.y+b.h;y++)for(int x=b.x;x<b.x+b.w;x++)assert(at(frame(buffer_a),x,y)==at(frame(buffer_b),x,y));
+ }
+}
+static void test_mods_key_policy(void){
+ struct xz_shell u,ref;struct xz_shell_model m,expected;
+ for(int count=2;count<=4;count+=2){
+  xz_shell_init(&u);fx_model_full(&m,&track);m.deck_count=count;
+  for(int deck=0;deck<count;deck++){
+   m.deck[deck]=m.deck[0];m.deck[deck].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_SYNC);
+   m.deck[deck].master=0;m.deck[deck].key="Fm";m.deck[deck].key_original="Am";m.deck[deck].key_cents=12;m.deck[deck].key_synced=1;m.deck[deck].key_matches_master=0;
+  }
+  m.mods_settings_known=1;m.key_feedback=0;m.browse_traffic=0;m.stem_order=4;
+  render_checked(&u,&m,buffer_a);expected=m;expected.mods_settings_known=0;
+  for(int deck=0;deck<count;deck++){expected.deck[deck].key="Am";expected.deck[deck].key_cents=0;expected.deck[deck].key_shift=0;expected.deck[deck].key_synced=0;}
+  render_checked(&u,&expected,buffer_b);same_key_blocks(&m);
+  m.key_feedback=1;m.key_format=2;u.display.key_display=XZ_SHELL_KEY_CLASSIC;
+  ref=u;ref.display.key_display=XZ_SHELL_KEY_ALPHANUMERIC;expected=m;expected.mods_settings_known=0;
+  render_checked(&u,&m,buffer_a);render_checked(&ref,&expected,buffer_b);same_key_blocks(&m);
+  m.key_format=1;u.display.key_display=XZ_SHELL_KEY_ALPHANUMERIC;ref=u;ref.display.key_display=XZ_SHELL_KEY_CLASSIC;
+  render_checked(&u,&m,buffer_a);render_checked(&ref,&expected,buffer_b);same_key_blocks(&m);
+ }
+ m.deck[0].master=1;m.deck[0].key="Fm";
+ assert(sh_key_ink(&m,"Fm",1,SH_WHITE)==SH_WHITE);
+ m.browse_traffic=1;assert(sh_key_ink(&m,"Fm",1,SH_WHITE)==SH_KEY_GREEN);
+ puts("PASS MODS key policy: original key with feedback off, shared notation on all four lanes, traffic colors off/on");
+}
+
 int main(void) {
  fx_track_build(&track,7);
  test_header_buttons();
@@ -608,6 +638,7 @@ int main(void) {
  test_fx_readout();
  test_extrapolation();
  test_scroll_is_stable();
+ test_mods_key_policy();
  test_key_display();
  test_shortcut_items();
  test_notice();

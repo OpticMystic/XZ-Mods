@@ -453,5 +453,11 @@ int main(void){
     stem_layout_runtime_check();
     usb_stem_reason_runtime_check();
     rekordbox_runtime_check();
+    /* Frame publication carries MODS order and reports the original key when feedback is OFF. */
+    model.stem_order=5;model.key_feedback=0;model.key_format=1;key_valid[0]=1;
+    key_snapshot[0]=(struct xz_key_snapshot){.loaded=1,.original={9,1},.format=XZ_KEY_CAMELOT,.tempo_ratio=1.06};
+    struct xz_shell_runtime_frame_input policy;shell_frame_input_locked(&policy);
+    assert(policy.stem_order==5&&policy.key[0].valid&&!strcmp(policy.key[0].text,"Am")&&!policy.key[0].cents);
+    model.key_format=2;shell_frame_input_locked(&policy);assert(!strcmp(policy.key[0].text,"8A"));
     puts("PASS two-deck stem controls, waveform gestures, VJ view, all theme/page/bank LEDs and touch ownership");return 0;
 }

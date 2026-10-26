@@ -1,3 +1,4 @@
+#include "../ui/stem_pads.h"
 /* PLAY screen at 800x480, dark mode, after the flagship's two- and four-deck
    views (the 2026-10-18 flagship UI study in docs/research, sections 4.4, 5
    and 6.2): a slim top bar of global chips and the BEAT FX readout, one
@@ -386,6 +387,12 @@ static int same_key(const char *a, const char *b) {
  return a&&b&&!strcmp(a,b);
 }
 static void render_key(const struct play_layout *L, const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_deck *d, int ly) {
+ struct xz_shell_deck original;
+ if(m->mods_settings_known&&!m->key_feedback){
+  original=*d;
+  if(sh_has(d,XZ_SHELL_F_KEY_ORIGINAL)&&d->key_original&&*d->key_original)original.key=d->key_original;
+  original.key_cents=original.key_shift=original.key_synced=0;d=&original;
+ }
  int y=ly+L->key_caption_y,ny=ly+L->key_name_y;
  char text[16],key[8],from[8];
  if(L->key_caption_y>=0){
@@ -396,7 +403,7 @@ static void render_key(const struct play_layout *L, const struct xz_shell *u, co
  /* The master's own key is the reference, so plain. */
  int is_master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
  uint32_t ink=is_master?SH_WHITE:sh_key_ink(m,d->key,d->key_matches_master,SH_WHITE);
- const char *shown=sh_key_text(d->key,sh_key_display(u),key,sizeof key);
+ const char *shown=sh_key_text(d->key,sh_key_display(u,m),key,sizeof key);
  int analysed=sh_has(d,XZ_SHELL_F_KEY_ORIGINAL);
  /* Right of the name: the tuning in cents, or (older runtime) the key-shift step. */
  int tail=0;
@@ -418,7 +425,7 @@ static void render_key(const struct play_layout *L, const struct xz_shell *u, co
  if(analysed&&d->key_original&&*d->key_original&&!same_key(d->key,d->key_original)){
   int w=sh_text_width(c,"ORIGINAL",SH_SMALL)+5;
   sh_text(c,6,ly+L->key_original_y,"ORIGINAL",SH_SMALL,SH_DIM);
-  sh_text_fit(c,6+w,ly+L->key_original_y,KEY_RIGHT-6-w,sh_key_text(d->key_original,sh_key_display(u),from,sizeof from),SH_SMALL,SH_WHITE);
+  sh_text_fit(c,6+w,ly+L->key_original_y,KEY_RIGHT-6-w,sh_key_text(d->key_original,sh_key_display(u,m),from,sizeof from),SH_SMALL,SH_WHITE);
  }
 }
 static void render_column(const struct play_layout *L, const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, int deck) {
@@ -640,7 +647,7 @@ static void render_alert(const struct play_layout *L, const struct xz_shell_mode
  xz_rect(c,WAVE_X,y,4,L->alert_h,SH_RED);
  int x=WAVE_X+14,room=b.x-x-10;
  char head[64];
- snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" Â· ":"",d->alert.code?d->alert.code:"");
+ snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" Ãƒâ€šÃ‚Â· ":"",d->alert.code?d->alert.code:"");
  sh_text_fit(c,x,y+8,room,head,SH_TEXT,SH_WHITE);
  sh_text_fit(c,x,y+30,room,d->alert.text?d->alert.text:line[d->alert.kind],SH_SMALL,0xffc8b4);
  xz_rect(c,b.x,b.y,b.w,b.h,SH_WHITE);
@@ -904,7 +911,14 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
    dimmed, and the MUTE caption turns red while any stem is muted. BYPASS sits
    after the stems, white like its pad: lit, the original track plays and every
    stem button goes dark, as the pads do; the mutes come back on its release. */
-static const int stem_slot[3]={0,2,1};   /* screen order DRUMS, VOCAL, INST -> stem index */
+static int stem_at(const struct xz_shell_model *m,int slot){
+ int order=m->mods_settings_known&&((unsigned)m->stem_order<XZ_STEM_ORDER_COUNT)?m->stem_order:4;
+ return xz_stem_pad_role(order,3,slot);
+}
+static int stem_slot_of(const struct xz_shell_model *m,int stem){
+ for(int slot=0;slot<3;slot++)if(stem_at(m,slot)==stem)return slot;
+ return -1;
+}
 static const char *const stem_name[3]={"DRUMS","INST","VOCAL"};
 enum { BYPASS_ROW_W=96, PAD_STEM_W=54, PAD_STEM_GAP=5, PAD_BYPASS_GAP=8 };
 static int stem_buttons(const struct xz_shell_model *m, int deck) {
@@ -951,7 +965,7 @@ static struct xz_shell_rect drawn_button(const struct xz_shell *u, const struct 
 }
 struct xz_shell_rect xz_shell_stem_button(const struct xz_shell *u, const struct xz_shell_model *m, int deck, int stem) {
  if(!m||!sh_play_visible(m,deck)||stem<0||stem>2||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
- int slot=0;while(stem_slot[slot]!=stem)slot++;
+ int slot=stem_slot_of(m,stem);
  return button_target(m,deck,drawn_button(u,m,deck,slot));
 }
 struct xz_shell_rect xz_shell_bypass_button(const struct xz_shell *u, const struct xz_shell_model *m, int deck) {
@@ -983,7 +997,7 @@ static void render_stem_row(const struct xz_shell *u, const struct xz_shell_mode
  }
  int full=row.h>=STEM_ROW_FULL,gain_known=sh_has(d,XZ_SHELL_F_STEM_GAIN),by=bypassed(u,m,deck);
  for(int slot=0;slot<3;slot++){
-  int stem=stem_slot[slot],muted=by||((d->stem_muted>>stem)&1);
+  int stem=stem_at(m,slot),muted=by||((d->stem_muted>>stem)&1);
   struct xz_shell_rect b=row_button(u,m,deck,slot);
   uint32_t bright=stem_rgb(m,stem),dark=sh_stem_dark(bright);
   int gain=gain_known?sh_min(d->stem_gain[stem],XZ_SHELL_STEM_GAIN_MAX):XZ_SHELL_STEM_GAIN_MAX;
@@ -1011,7 +1025,7 @@ static void render_pad_row(const struct xz_shell *u, const struct xz_shell_model
   int by=bypassed(u,m,deck);
   if(!bypass_shown(u,m,deck))sh_text(c,r.x+8,ty,"MUTE",SH_SMALL,d->stem_muted&7?SH_RED:SH_DIM);
   for(int slot=0;slot<3;slot++){
-   int stem=stem_slot[slot],muted=by||((d->stem_muted>>stem)&1);
+   int stem=stem_at(m,slot),muted=by||((d->stem_muted>>stem)&1);
    uint32_t rgb=stem_rgb(m,stem);
    struct xz_shell_rect b=pad_button(u,m,deck,slot);
    if(muted){
@@ -1167,7 +1181,7 @@ static size_t stem_slide(struct xz_shell *u, const struct xz_shell_model *m, int
  int dx=x-u->stem_touch.x0;
  if(!u->stem_touch.slid&&dx<STEM_SLIDE&&dx>-STEM_SLIDE)return 0;
  u->stem_touch.slid=1;
- int slot=0;while(stem_slot[slot]!=stem)slot++;
+ int slot=stem_slot_of(m,stem);
  int w=sh_max(1,row_button(u,m,deck,slot).w);
  int gain=sh_max(0,sh_min(XZ_SHELL_STEM_GAIN_MAX,u->stem_touch.gain0+dx*XZ_SHELL_STEM_GAIN_MAX/w));
  if(gain==m->deck[deck].stem_gain[stem])return 0;

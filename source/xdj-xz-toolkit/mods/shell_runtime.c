@@ -2086,6 +2086,10 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    break;
   }
   case XZ_SHELL_ACT_SET_SETTING:
+   if(a->id==XZ_SHELL_ITEM_KEY_DISPLAY){
+    if(a->value>=0&&a->value<=2)ui_action_locked(XZ_UI_KEY_FORMAT,-1,a->value,0,now);else refuse();
+    break;
+   }
    /* Shell-owned display settings are already applied in the shell: keep them for the next start. */
    if(xz_shrt_shell_owned_setting(a->id)){
     save_display(a->id,a->value);
@@ -2918,6 +2922,8 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
   }
  }
  /* The stem buttons' layout: MODERN's own modern_stems (ui_runtime.c sends it as stems_overlay). */
+ model.mods_settings_known=in->look_known;model.stem_order=in->stem_order;
+ model.key_format=in->key_format;model.key_feedback=in->key_feedback;model.browse_traffic=in->browse_traffic;
  model.stem_layout_known=in->look_known&&in->stems_overlay>=0&&in->stems_overlay<XZ_SHELL_STEM_LAYOUTS;
  model.stem_layout=model.stem_layout_known?(enum xz_shell_stem_layout)in->stems_overlay:XZ_SHELL_STEMS_HIDDEN;
  for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)if(in->stem_level_known[d]){

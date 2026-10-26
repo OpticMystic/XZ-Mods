@@ -1509,7 +1509,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     }
     in->stem_rgb_known=1;for(int i=0;i<3;i++)in->stem_rgb[i]=xz_ui_model_stem_color(&model,i);
     in->look_known=1;in->ui_interface=model.ui_interface;in->modern_theme=model.modern_theme;in->wave_mode=model.wave_mode;
-    in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
+    in->stem_order=model.stem_order;in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
     for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
     in->stems_overlay=model.modern_stems;
     in->rekordbox_known=1;in->rekordbox_assign[0]=model.rekordbox_assign[0];in->rekordbox_assign[1]=model.rekordbox_assign[1];
@@ -1531,6 +1531,10 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
         struct xz_shell_runtime_key *k=&in->key[deck];int other=1-deck,cents=0,other_cents=0;
         int format=model.key_format==1?XZ_KEY_CLASSIC:model.key_format==2?XZ_KEY_CAMELOT:key_snapshot[deck].format;
         xz_music_key_format(key_snapshot[deck].original,format,k->original);
+        if(!model.key_feedback){
+            memcpy(k->text,k->original,sizeof k->text);k->valid=1;
+            continue;
+        }
         if(key_available)xz_key_get_applied_cents(deck,key_snapshot[deck].epoch,&cents);
         k->shift=(int)round(cents*.01);
         struct xz_playing_key mine,master;
