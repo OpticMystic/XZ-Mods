@@ -3,6 +3,7 @@
 #error Classic column acceptance requires active assertions
 #endif
 #include "classic_column.h"
+#include "deck_colour.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,6 +48,8 @@ int main(void){
  /* The driven decks (1 left, 4 right) wear the pale blue tab; in mixer order DECK 1's tag is second. */
  assert(count(3,22+68+2,100,22+68+20,0x94bef6)>800&&count(3,22+3*68+2,100,22+3*68+20,0x94bef6)>800);
  assert(count(3,22+2,100,22+20,0x94bef6)==0&&count(3,22+2,100,22+20,0x29344a)>800);
+ /* Each tag's number box in its deck's colour, the same as its channel's: mixer order reads 3 1 2 4 down. */
+ for(int k=0;k<4;k++)assert(count(4,22+68*k+2,24,22+68*k+20,xz_deck_colour(mixer[k]))>200);
  /* Cents in orange beside the native keys. */
  assert(warm(60,22+68+44,130,22+68+62)>10&&!warm(0,22+44,130,22+62));
  /* Number order puts DECK 1 first. */
@@ -57,11 +60,14 @@ int main(void){
  assert(count(3,22+2,100,22+20,0x161c26)>800&&count(3,22+3*68+2,100,22+3*68+20,0x161c26)>800);
  assert(warm(0,22+26,130,22+40)>20&&warm(0,22+3*68+26,130,22+3*68+40)>20);
  assert(count(3,22+68+2,100,22+68+20,0x94bef6)>800);
+ /* Waiting decks keep their colour, dimmed. */
+ assert(count(4,22+2,24,22+20,xz_deck_colour_dim_fill(2,0x161c26))>200&&count(4,22+2,24,22+20,xz_deck_colour(2))==0);
+ assert(count(4,22+3*68+2,24,22+3*68+20,xz_deck_colour_dim_fill(3,0x161c26))>200);
  /* Guards. */
  v.layout=XZ_LAYOUT_TWO;clear();assert(!xz_classic_column_draw(pixels,W,W*H,&v));
  for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)assert(pixels[i]==SENTINEL);
  v.layout=XZ_LAYOUT_MIXER;assert(!xz_classic_column_draw(pixels,799,W*H,&v)&&!xz_classic_column_draw(pixels,W,W*H-1,&v)&&!xz_classic_column_draw(NULL,W,W*H,&v));
  v.layout=7;assert(!xz_classic_column_draw(pixels,W,W*H,&v));
- puts("PASS Classic side column: four tags beside the lanes in DECK VIEW order, driven sides lit, cents, NOT CONNECTED decks 3/4, writes only x 0..129 y 22..308, nothing in 2 DECKS");
+ puts("PASS Classic side column: four tags beside the lanes in DECK VIEW order, driven sides lit, deck colour boxes, cents, NOT CONNECTED decks 3/4, writes only x 0..129 y 22..308, nothing in 2 DECKS");
  return 0;
 }

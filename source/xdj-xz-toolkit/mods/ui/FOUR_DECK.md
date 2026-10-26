@@ -38,6 +38,24 @@ route-up notice points to DECK VIEW in MODS. Every lane names its deck. A pale b
 shows which deck the left or right physical controls drive.
 `preview_four_deck.py` checks the upper waveform layout in both orders.
 
+### Deck colours
+
+The channels stay in mixer order while DECK VIEW reorders the lanes, so in
+number order the lane over channel "1" is DECK 1 and the channel under it is
+DECK 3. Every four-deck screen therefore draws each deck's number in a box of
+that deck's own colour (`deck_colour.h`), the same in both interfaces: DECK 1
+`#ffe23a` yellow, DECK 2 `#48eef0` aqua, DECK 3 `#e87c92` rose, DECK 4
+`#ad78ff` violet (warm for the left side's decks, cool for the right side's).
+The box always carries the digit, so colour is never the only cue; a deck
+that is not connected keeps its colour dimmed. The boxes sit on the lane tags
+(MODERN info column, CLASSIC side column and wave lane tags), on the channels
+(MODERN strip badge, CLASSIC title band), in the detail panel's header and
+lane numbers, and the DECKS button and picker colour their numbers the same
+way. The driven-deck highlight (blue or pale blue fill with the arrow, LEFT
+or RIGHT) and USB stick colours stay on the rest of the tag. The CLASSIC
+theme pass recolours the wave surface, so `style_four` puts the boxes back
+afterwards (`xz_four_identity_draw`). 2 DECKS screens are unchanged.
+
 In a four-deck view the native side column (x 0..129, y 22..308) is the mod's:
 `classic_column.c` clears it and draws four stock-style tags, one beside each
 lane in the lanes' order (so mixer order reads 3, 1, 2, 4): the deck tag (pale

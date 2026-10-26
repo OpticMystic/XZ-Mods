@@ -72,7 +72,13 @@ int main(void){
  for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x5a5a;
  assert(xz_classic_mixer_draw(pixels,807,807*480,&down));
  uint16_t dim=(uint16_t)(((0x16>>3)<<11)|((0x1c>>2)<<5)|(0x26>>3)),band=(uint16_t)(((0x12>>3)<<11)|((0x34>>2)<<5)|(0x61>>3));
- assert(pixels[312*807+60]==dim&&pixels[312*807+600+60]==dim&&pixels[312*807+200+60]==band&&pixels[312*807+400+60]==band);
+ /* Probed right of where titles are cut (x0 + 29 + 166), so only the band shows there. */
+ assert(pixels[312*807+197]==dim&&pixels[312*807+600+197]==dim&&pixels[312*807+200+197]==band&&pixels[312*807+400+197]==band);
+ /* Every channel's number sits in its deck's colour box (deck_colour.h), dimmed for 3 and 4. */
+ for(int s=0;s<4;s++){
+  int id=xz_classic_mixer_order()[s];uint32_t want=id<2?xz_deck_colour(id):xz_deck_colour_dim_fill(id,0x161c26);
+  assert(pixels[314*807+s*200+4]==(uint16_t)(((want>>19)&31)<<11|((want>>10)&63)<<5|((want>>3)&31)));
+ }
  int amber=0;for(int yy=313;yy<330;yy++)for(int xx=30;xx<120;xx++)amber+=pixels[yy*807+xx]!=dim;
  assert(amber>30);
  for(int yy=0;yy<480;yy++)for(int xx=0;xx<807;xx++)if(yy<311||xx>=800)assert(pixels[yy*807+xx]==0x5a5a);
