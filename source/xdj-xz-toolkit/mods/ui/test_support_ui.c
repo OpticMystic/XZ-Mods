@@ -73,9 +73,10 @@ int main(void) {
     memset(&m, 0, sizeof(m));
     xz_ui_init(&u);
 
-    /* Reachable from ADVANCED (XZ_UI_SETTINGS) and NETWORK UPDATES (XZ_UI_UPDATES). */
-    tap(&u, &m, XZ_UI_PANEL, XZ_UI_SETTINGS);
-    assert(u.page == XZ_UI_SETTINGS);
+    /* Reachable from EXTRAS (opened from HOME's section rail) and NETWORK UPDATES (XZ_UI_UPDATES). */
+    assert(u.page == XZ_UI_HOME);
+    tap(&u, &m, XZ_UI_PANEL, XZ_UI_EXTRAS);
+    assert(u.page == XZ_UI_EXTRAS);
     tap(&u, &m, XZ_UI_PANEL, XZ_UI_SUPPORT);
     assert(u.page == XZ_UI_SUPPORT && u.support.step == XZ_SUPPORT_STEP_PREPARE);
     check_step_geometry_and_menu(&u, &m);
