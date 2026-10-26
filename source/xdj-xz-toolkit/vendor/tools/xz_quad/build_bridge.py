@@ -57,12 +57,19 @@ def main():
     header += "};\n"
     (args.output / "contract.h").write_text(header)
     shutil.copyfile(module, args.output / module.name)
+    # Quoted includes search the source directory first. Compile a staged copy
+    # so the generated contract, rather than the retained example, is used.
+    for name in ("bridge.c", "port_layout.h"):
+        shutil.copyfile(source / name, args.output / name)
     command = [str(args.zig), "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
                "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fno-pie", "-no-pie",
                "-I" + str(args.output), "-I" + str(args.sha_source),
-               str(source / "bridge.c"), str(args.sha_source / "sha256.c")]
+               str(args.output / "bridge.c"), str(args.sha_source / "sha256.c")]
     binary = args.output / "xz-auto-bridge"
     subprocess.run([*command, "-s", "-o", str(binary)], check=True)
+    binary_bytes = binary.read_bytes()
+    for name, value in pins.items():
+        assert value.encode("ascii") in binary_bytes, "Compiled bridge lost generated pin: " + name
     with binary.open("rb") as stream:
         elf = ELFFile(stream)
         assert elf.elfclass == 32 and elf["e_machine"] == "EM_ARM" and not elf["e_flags"] & 0x400
@@ -75,7 +82,9 @@ def main():
     receipt = {"pins": pins, "kernel_crcs": crcs, "binary_sha256": sha(binary),
                "binary_bytes": binary.stat().st_size, "glibc_versions": sorted(versions),
                "arm_self_test_passed": True, "hardware_contacted": False,
-               "sources": {name: sha(source / name) for name in ("build_bridge.py", "bridge.c")}}
+               "compiled_pins_verified": True,
+               "contract_sha256": sha(args.output / "contract.h"),
+               "sources": {name: sha(source / name) for name in ("build_bridge.py", "bridge.c", "port_layout.h")}}
     (args.output / "build.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(json.dumps(receipt, indent=2))
 
