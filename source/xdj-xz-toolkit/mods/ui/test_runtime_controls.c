@@ -43,6 +43,7 @@ int xz_native_led_start(void){return 0;}
 void xz_native_led_stop(void){}
 void xz_log(const char *s){(void)s;}
 unsigned xz_runtime_cue_flags(void){return 0;}
+static uint64_t fixture_retained_stems;
 static int jump_calls,jump_deck,jump_beats,jump_accept=1;
 int xz_runtime_beat_jump(int deck,int beats){jump_calls++;jump_deck=deck;jump_beats=beats;return jump_accept;}
 int xz_runtime_set_cues(int a,int b){(void)a;(void)b;return 0;}
@@ -81,7 +82,7 @@ void xz_audio_set_levels4(int deck,const float value[4]){
 int xz_audio_set_levels4_for_generation(int deck,uint32_t generation,const float value[4]){
     if(generation!=fixture_generation)return -1;xz_audio_set_levels4(deck,value);return 0;
 }
-int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));if(fixture_loaded&(1<<deck))snprintf(out->path,sizeof(out->path),"/media/usb2/test-track.mp3");out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
+int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));if(fixture_loaded&(1<<deck))snprintf(out->path,sizeof(out->path),"/media/usb2/test-track.mp3");out->retained_stems_bytes=fixture_retained_stems;out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
 const char *xz_audio_state_name(enum xz_audio_state state){(void)state;return "ready";}
 int xz_audio_waveform(int deck,unsigned role,unsigned char *bins,size_t count,float *progress){
     (void)role;if(deck<0||deck>1)return 0;
@@ -122,7 +123,10 @@ static void ram_tracks(void){
     fixture_ram[1].state=XZ_RAM_DETACHED;
     struct xz_ui_action release={.kind=XZ_UI_RAM_RELEASE,.deck=1};apply(NULL,&release,1);
     assert(!fixture_ram_calls[2]&&strstr(ui.notice,"RELEASE NEEDS THE USB SOURCE"));
-    fixture_ram[1].state=XZ_RAM_READY;refresh();ram_tap(XZ_UI_RAM_RELEASE,0);
+    fixture_retained_stems=4096;fixture_ram[1].state=XZ_RAM_READY;refresh();
+    assert(model.deck[1].ram.retained_stems_bytes==4096&&strstr(model.deck[1].ram.message,"PREPARED STEMS IN RAM"));
+    fixture_retained_stems=0;refresh();assert(!model.deck[1].ram.retained_stems_bytes);
+    ram_tap(XZ_UI_RAM_RELEASE,0);
     assert(fixture_ram_calls[2]==1&&model.deck[1].ram.state==XZ_UI_RAM_READY&&!strcmp(ui.notice,"DECK 2: RAM RELEASE REQUESTED"));
     fixture_ram[1].state=XZ_RAM_EMPTY;refresh();assert(model.deck[1].ram.state==XZ_UI_RAM_EMPTY);
     release.deck=2;apply(NULL,&release,1);assert(fixture_ram_calls[2]==1);

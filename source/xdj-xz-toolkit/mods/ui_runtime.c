@@ -1031,10 +1031,11 @@ static void ram_refresh(int deck) {
     case XZ_RAM_ERROR:r->state=XZ_UI_RAM_ERROR;break;
     case XZ_RAM_DETACHED:r->state=XZ_UI_RAM_DETACHED;break;
     default:r->state=XZ_UI_RAM_UNAVAILABLE;break;}
-    r->copied=s.copied;r->bytes=s.bytes;
+    r->copied=s.copied;r->bytes=s.bytes;r->retained_stems_bytes=0;
     s.message[sizeof(s.message)-1]=0;snprintf(r->message,sizeof(r->message),"%s",s.message);
     if(s.state==XZ_RAM_READY||s.state==XZ_RAM_DETACHED){
         struct xz_audio_status audio={0};xz_audio_get_status(deck,&audio);
+        r->retained_stems_bytes=audio.retained_stems_bytes;
         snprintf(r->message,sizeof(r->message),"ORIGINAL IN RAM / %s",audio.retained_stems_bytes?"PREPARED STEMS IN RAM":"STEMS STILL NEED USB");
     }
 }
