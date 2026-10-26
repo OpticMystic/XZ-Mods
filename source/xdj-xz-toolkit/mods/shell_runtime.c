@@ -2908,8 +2908,8 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   last_caution_logged=caution;
  }
  uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),(moving|input_follow)!=0);
- /* The decks 3 and 4 card moves at 20 fps while both native decks may stand still. */
- uint32_t motion=xz_shell_play_motion_ms(&shell,&model);if(motion&&motion<period)period=motion;
+ /* The decks 3 and 4 card and the MODS 4 DECKS picture move while both native decks may stand still. */
+ uint32_t motion=xz_shell_motion_ms(&shell,&model);if(motion&&motion<period)period=motion;
  if(period<__atomic_load_n(&period_ms,__ATOMIC_RELAXED))dirty_flag=1; /* playback started: draw now */
  __atomic_store_n(&period_ms,period,__ATOMIC_RELAXED);
  refreshed=1;
@@ -2997,7 +2997,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
   uint64_t r0=now_us();refresh_locked(now,in);wf.refresh_us=(uint32_t)(now_us()-r0);
  }else if(extra_changed){
   extra_refresh_locked(now);extra_source_look_locked();
-  uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),xz_shrt_moving_decks(&model)!=0),motion=xz_shell_play_motion_ms(&shell,&model);
+  uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),xz_shrt_moving_decks(&model)!=0),motion=xz_shell_motion_ms(&shell,&model);
   __atomic_store_n(&period_ms,motion&&motion<period?motion:period,__ATOMIC_RELAXED);
  }
  if(!owns_now(in->eligible,in->theme)){set_owns(0);goto done;}
@@ -3047,9 +3047,11 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  model.layout_preference=xz_deck_layout_get()+1;model.wave_order=model.layout_preference-1==XZ_LAYOUT_MIXER;
  model.deck_view_button_hidden=!xz_deck_view_button_shown();
  publish_notice_locked();
+ /* A frame that took more than half a vsync makes moving pictures step down (sh_picture_step_ms). */
+ static uint32_t last_render_us;model.frame_late=last_render_us>XZ_SHRT_LATE_RENDER_US;
  uint64_t began=now_us();
  result=menu_render_frame_locked(pixels,stride);
- uint32_t took=(uint32_t)(now_us()-began);
+ uint32_t took=(uint32_t)(now_us()-began);last_render_us=took;
  sec.frames++;sec.render_us+=took;if(took>sec.render_max)sec.render_max=took;
  wf.render_us=took;wf.total_us=(uint32_t)(now_us()-began_us);
  if(wf.total_us>=worst_pending.total_us){

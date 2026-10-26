@@ -8,10 +8,14 @@
    one card; in mixer order they are two strips with the same content. Decks 1 and 2 are never covered.
 
    Every state comes from the runtime's xz_extra_route_status (state, fail_part, reason); the card never
-   invents one. Motion is mild and cheap: a three-dot pulse along the cable, a ring and a sweep while
-   scanning, all a pure function of the frame clock, resting 60 s after the card appears or after the
-   last input. The still card is drawn once per state into a caller-owned cache and copied each frame;
-   only the moving parts are drawn on top.
+   invents one. The picture is the cable explainer (cable_anim.h): the unit in true perspective with the
+   loopback cable, playing its loop while the DJ has a cable to fix (not detected, failed, lost), showing
+   its main shot with the signal running along the cable while the route comes up, tinted by the state,
+   the failing part red and marked. Everything moving is a pure function of the frame clock and rests
+   60 s after the card appears or after the last input, on the main shot. The still card is drawn once
+   per state into a caller-owned cache and copied each frame; the picture is redrawn into the cache's own
+   copy only when its frame changes, at the caller's step. Without a cache the picture is the earlier
+   flat drawing, still.
    Pure: no IO, no allocation, no clock of its own. */
 #include "ui_skin.h"
 #include "../extra_decks.h"
@@ -45,6 +49,8 @@ struct xz_route_card_input {
  uint32_t rest_from_ms;     /* card appeared, its state changed, or the last touch / encoder input */
  uint32_t ready_at_ms;      /* the route came up under the card (state READY), 0 when not */
  int focus;                 /* encoder focus: XZ_ROUTE_CARD_HIT_PRIMARY / _TWO, or -1 */
+ uint32_t step_ms;          /* the picture's frame step: 0 = XZ_ROUTE_CARD_FRAME_MS; more while a native
+                               deck plays or frames run late (the picture then changes less often) */
 };
 /* Hit results. PRIMARY is RESCAN or TRY AGAIN; TWO is TWO DECKS; CARD is the rest of the card. */
 enum { XZ_ROUTE_CARD_HIT_NONE=-1, XZ_ROUTE_CARD_HIT_CARD=0, XZ_ROUTE_CARD_HIT_PRIMARY=1, XZ_ROUTE_CARD_HIT_TWO=2 };
@@ -52,12 +58,20 @@ enum { XZ_ROUTE_CARD_HIT_NONE=-1, XZ_ROUTE_CARD_HIT_CARD=0, XZ_ROUTE_CARD_HIT_PR
 /* The card's still picture (everything but the motion), one buffer per row, cached by the caller between
    frames: drawn at a change of state, focus or sentence, copied every frame, the motion drawn over it. */
 #define XZ_ROUTE_CARD_ROW_MAX (702*78)
-struct xz_route_card_cache { uint32_t key; uint16_t row[2][XZ_ROUTE_CARD_ROW_MAX]; };
+#define XZ_ROUTE_CARD_PIC_MAX (262*68)
+struct xz_route_card_cache {
+ uint32_t key; uint16_t row[2][XZ_ROUTE_CARD_ROW_MAX];
+ uint32_t pic_key, pic_base;  /* the picture's frame, and its state and part */
+ uint16_t pic[XZ_ROUTE_CARD_PIC_MAX]; uint8_t pic_cov[XZ_ROUTE_CARD_PIC_MAX];
+};
 
 enum xz_route_card_kind xz_route_card_kind(int state);
 /* The success hold and wipe after the route comes up under the card. */
 enum { XZ_ROUTE_CARD_READY_HOLD_MS=700, XZ_ROUTE_CARD_WIPE_FRAMES=8, XZ_ROUTE_CARD_WIPE_MS=240,
-       XZ_ROUTE_CARD_REST_MS=60000, XZ_ROUTE_CARD_FRAME_MS=50 };
+       XZ_ROUTE_CARD_REST_MS=60000, XZ_ROUTE_CARD_FRAME_MS=16 };
+/* The most pixel operations one picture frame may cost (cable_anim.h budget): a frame over it is skipped and
+   the last one stays. Host bench and qemu numbers: cable-anim/RESEARCH.md. */
+#define XZ_ROUTE_CARD_PIC_BUDGET 90000u
 /* Whether the card shows at all this frame: always while the route is not ready, and for the success
    hold and wipe after ready_at_ms. */
 int xz_route_card_visible(const struct xz_route_card_input *);
@@ -67,7 +81,7 @@ int xz_route_card_wipe_x(const struct xz_route_card_style *, const struct xz_rou
 int xz_route_card_offers(const struct xz_route_card_input *, int hit);
 /* The encoder's focus order: actionable buttons left to right; returns how many (0..2). */
 int xz_route_card_focus_order(const struct xz_route_card_input *, int out[2]);
-/* 0 when nothing on the card moves at now_ms; else the frame period the motion wants (20 fps). */
+/* 0 when nothing on the card moves at now_ms; else the frame period the motion wants (the picture's step). */
 uint32_t xz_route_card_motion_ms(const struct xz_route_card_input *);
 /* Draws the card for the lanes whose tops are ya (deck 3) and yb (deck 4), in canvas coordinates; the rows
    join when yb == ya + pitch. cache may be NULL (the picture is then drawn directly). Writes only the card. */

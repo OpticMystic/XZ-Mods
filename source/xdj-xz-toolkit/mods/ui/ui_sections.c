@@ -4,6 +4,7 @@
 #include "stem_pads.h"
 #include "wave_viewport.h"
 #include "layout_cycle.h"
+#include "cable_anim.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -397,7 +398,7 @@ const char *xz_ui_route_line(const struct xz_ui_model *m){
   state==XZ_UI_ROUTE_SCANNING?"Checking for the loopback cable now.":
   state==XZ_UI_ROUTE_STARTING?"This takes a few seconds.":
   state==XZ_UI_ROUTE_LOST?"The loopback cable was unplugged or lost power.":
-  "Rear USB socket to USB 1 on top. CH3 and CH4 input switches to USB.";
+  "Rear USB socket to USB 1 or 2 on top. CH3 and CH4 input switches to USB.";
 }
 static void home(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  struct xz_canvas c=sc->c;const struct xz_ui_model *m=sc->m;char status[96];
@@ -421,6 +422,13 @@ static void home(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
   xz_pic_text_center(c,a->x+a->w/2,a->y+13,a->label,20,s->on_select);
  }
 }
+/* The 4 DECKS cable picture: its memory, and its clock's rest. It moves (30 fps steps) until 60 s after the
+   page appeared, its focus last moved or the route changed state, then rests on its main shot. The panel
+   draws on one thread at a time. */
+static uint16_t four_px[196*74];static uint8_t four_cov[196*74];
+static struct xz_pic_route_anim four_anim={four_px,four_cov,196*74,0,0,0,0,0,0};
+static struct { uint32_t since, drawn; int state, focus, shown; } four_motion;
+enum { FOUR_REST_MS=60000 };   /* the play card's rest (route_card.h) */
 static void route_card(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  struct xz_canvas c=sc->c;const struct xz_ui_model *m=sc->m;int state=m->route.state;
  uint32_t accent=state==XZ_UI_ROUTE_READY?s->good:state==XZ_UI_ROUTE_FAILED||state==XZ_UI_ROUTE_LOST?s->alarm:
@@ -429,7 +437,14 @@ static void route_card(const struct xz_ui_scene *sc, const struct xz_pic_style *
  xz_rect(c,X0+6,49,CW-12,2,accent);
  const char *title=xz_ui_route_title(state);
  int tx=X0+12;
- if(state!=XZ_UI_ROUTE_NO_ENGINE){xz_pic_route(c,s,X0+10,56,196,74,state,m->route.fail_part,600,0);tx=X0+218;}
+ if(state!=XZ_UI_ROUTE_NO_ENGINE){
+  struct xz_ui_widget f;int focus=xz_ui_focused(sc->u,m,&f)?(int)f.kind*64+f.index:-1;uint32_t now=m->clock_ms;
+  if(!four_motion.shown||now-four_motion.drawn>500u||state!=four_motion.state||focus!=four_motion.focus)four_motion.since=now;
+  four_motion.shown=1;four_motion.drawn=now;four_motion.state=state;four_motion.focus=focus;
+  four_anim.now_ms=now;four_anim.step_ms=33u;four_anim.bg=s->row;
+  four_anim.moving=state==XZ_UI_ROUTE_SCANNING||now-four_motion.since<(uint32_t)FOUR_REST_MS;
+  xz_pic_route(c,s,X0+10,56,196,74,state,m->route.fail_part,600,0,&four_anim);tx=X0+218;
+ }
  xz_disc(c,tx+5,66,5,accent);
  xz_pic_text(c,tx+16,59,title,20,state==XZ_UI_ROUTE_READY?s->good:s->ink);
  const char *line=xz_ui_route_line(m);

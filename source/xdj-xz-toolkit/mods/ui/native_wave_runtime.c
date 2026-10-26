@@ -274,6 +274,8 @@ static void card_prepare(uint32_t now){
  card_frame.state=state;card_frame.fail_part=card_status.fail_part;card_frame.reason=card_status.reason;
  card_frame.now_ms=now;card_frame.rest_from_ms=input&&(int32_t)(input-card_since)>0?input:card_since;
  card_frame.ready_at_ms=success;card_frame.focus=__atomic_load_n(&card_focus,__ATOMIC_ACQUIRE);
+ /* The picture steps at 30 fps here: the wave surface's own rate is not known, so it is never asked for 60. */
+ card_frame.step_ms=33u;
 }
 /* Both DECK 3/4 lanes, the native lanes' deck tags and the open detail panel (extra_detail.h), before the
    theme. Decks 3 and 4 down: the native tags and a dark tint in their lanes; the card comes after the theme. */

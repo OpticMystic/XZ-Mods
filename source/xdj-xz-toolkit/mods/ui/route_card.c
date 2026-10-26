@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "route_card.h"
+#include "cable_anim.h"
 #include <string.h>
 
 /* Design section 5.1. MODERN: the card spans the lanes right of the info column, x 98..799. CLASSIC:
@@ -105,10 +106,15 @@ static uint32_t pulse_period(enum xz_route_card_kind k) {
 static int pulsing(const struct xz_route_card_input *in, enum xz_route_card_kind k) {
  return pulse_period(k)&&(k==XZ_ROUTE_CARD_SCANNING||since(in,in->rest_from_ms)<XZ_ROUTE_CARD_REST_MS);
 }
+/* The picture moves: its loop or its signal, until it rests (scanning never rests). */
+static int moving(const struct xz_route_card_input *in, enum xz_route_card_kind k) {
+ enum xz_cable_motion m=xz_cable_motion_of(in->state);
+ return (m==XZ_CABLE_LOOP||m==XZ_CABLE_SIGNAL)&&(k==XZ_ROUTE_CARD_SCANNING||since(in,in->rest_from_ms)<XZ_ROUTE_CARD_REST_MS);
+}
 uint32_t xz_route_card_motion_ms(const struct xz_route_card_input *in) {
  if(!xz_route_card_visible(in))return 0;
  enum xz_route_card_kind k=xz_route_card_kind(in->state);
- if(pulsing(in,k))return XZ_ROUTE_CARD_FRAME_MS;
+ if(moving(in,k))return in->step_ms?in->step_ms:XZ_ROUTE_CARD_FRAME_MS;
  if(k==XZ_ROUTE_CARD_READY&&in->ready_at_ms)return 30;
  return 0;
 }
@@ -293,6 +299,31 @@ static void route_pulse(struct pen p, const struct xz_route_card_style *s, int b
  }
 }
 
+/* The cache that can hold this style's picture, or NULL (the flat drawing). */
+static struct xz_route_card_cache *pic_cache(const struct xz_route_card_style *s, struct xz_route_card_cache *cache) {
+ return cache&&s->picture.w>0&&s->picture.h>0&&s->picture.w*s->picture.h<=XZ_ROUTE_CARD_PIC_MAX?cache:NULL;
+}
+/* The explainer (cable_anim.h) in the card's colours. */
+static void picture_look(const struct xz_route_card_style *s, const struct xz_route_card_input *in, struct xz_cable_look *look) {
+ struct xz_cable_palette pal={s->fill,s->body,xz_blend(s->fill,0x000000,150),s->body_edge,s->amber,s->blue,s->white,s->green,s->red,
+  xz_blend(s->body,s->grey,170),s->labels?0xb8b8b8:0,s->white,s->theme};
+ xz_cable_look_of(look,&pal,in->state,in->fail_part);
+}
+/* The picture into the cache's copy when its frame changed (a frame over the budget keeps the last one of
+   the same state), then onto the pen. */
+static void route_picture(struct pen p, const struct xz_route_card_style *s, int bx, int by,
+ const struct xz_route_card_input *in, struct xz_route_card_cache *cache, int move) {
+ struct xz_cable_picture pic={cache->pic,cache->pic_cov,s->picture.w,s->picture.h};
+ uint32_t t;int signal;
+ uint32_t base=((uint32_t)in->state<<8|(uint32_t)in->fail_part<<1|(uint32_t)s->classic)+1u;
+ uint32_t key=xz_cable_frame_of(in->state,in->fail_part,in->now_ms,move,in->step_ms,&t,&signal)^base*2654435761u;
+ if(cache->pic_key!=key||cache->pic_base!=base){
+  struct xz_cable_look look;picture_look(s,in,&look);
+  if(xz_cable_draw(&pic,t,&look,signal,move&&cache->pic_base==base?XZ_ROUTE_CARD_PIC_BUDGET:0u)){cache->pic_key=key;cache->pic_base=base;}
+ }
+ xz_cable_blit(p.c,bx-p.ox,by-p.oy,&pic);
+}
+
 /* ---- rows ---- */
 struct xz_route_card_rect xz_route_card_row(const struct xz_route_card_style *s, int ya, int yb, int row) {
  int joined=yb==ya+s->pitch;
@@ -364,8 +395,9 @@ static void primary_button(struct pen p, const struct xz_route_card_style *s, st
  text(p,cx+r+(s->classic?9:10),b.y+(b.h-14)/2,k==XZ_ROUTE_CARD_FAILED?"TRY AGAIN":"RESCAN",2,s->primary_ink);
 }
 static void steps(struct pen p, const struct xz_route_card_style *s, int x, int y, int classic) {
- /* 1 Rear USB socket to USB 1 on top (USB-B to USB-A cable).  2 CH3 and CH4 input switches to USB. */
- static const char *const first[2][4]={{"Rear USB socket to ","USB 1"," on top (USB-B to USB-A cable).",NULL},{"Rear USB socket to ","USB 1"," on top.",NULL}};
+ /* 1 Rear USB socket to USB 1 or 2 on top (USB-B to USB-A cable).  2 CH3 and CH4 input switches to USB.
+    Either top slot works; USB 1, the one most DJs use, stands out. */
+ static const char *const first[2][4]={{"Rear USB socket to ","USB 1"," or 2 on top (USB-B to USB-A cable).",NULL},{"Rear USB socket to ","USB 1"," or 2 on top.",NULL}};
  static const char *const second[4]={"CH3"," and ","CH4"," input switches to "};
  int tx=x;text(p,tx,y,"1",1,s->amber);tx+=width(p,"1",1)+7;
  for(int i=0;first[classic][i];i++){text(p,tx,y,first[classic][i],1,i==1?s->white:s->step_text);tx+=width(p,first[classic][i],1);}
@@ -375,8 +407,10 @@ static void steps(struct pen p, const struct xz_route_card_style *s, int x, int 
  text(p,tx,y2,"USB",1,s->white);tx+=width(p,"USB",1);text(p,tx,y2,".",1,s->step_text);
 }
 
-/* Everything on the card that does not move: frame, picture, words, buttons, focus ring. */
-static void draw_still(struct pen p, const struct xz_route_card_style *s, int ya, int yb, const struct xz_route_card_input *in) {
+/* Everything on the card that does not move: frame, picture (its still; a moving picture comes in the
+   motion), words, buttons, focus ring. cache: the picture's memory, NULL for the flat drawing. */
+static void draw_still(struct pen p, const struct xz_route_card_style *s, int ya, int yb, const struct xz_route_card_input *in,
+ struct xz_route_card_cache *cache) {
  enum xz_route_card_kind k=xz_route_card_kind(in->state);
  struct words wd=words_of(k,s->classic);
  uint32_t accent=accent_of(s,k);
@@ -390,7 +424,9 @@ static void draw_still(struct pen p, const struct xz_route_card_style *s, int ya
  if(k!=XZ_ROUTE_CARD_NO_ENGINE){
   int bx=x+s->picture.x,by=ya+s->picture.y;
   rect(p,bx,by,s->picture.w,s->picture.h,s->fill);
-  route_still(p,s,bx,by,s->picture.w,s->picture.h,k,in->fail_part);
+  struct xz_route_card_cache *pc=pic_cache(s,cache);
+  if(!pc)route_still(p,s,bx,by,s->picture.w,s->picture.h,k,in->fail_part);
+  else if(!moving(in,k))route_picture(p,s,bx,by,in,pc,0);
   text(p,x+s->head_x,ya+s->head_dy,"CONNECT THE LOOPBACK CABLE",2,s->ink);
   steps(p,s,x+s->head_x,ya+s->step_dy[0],s->classic);
  }else{
@@ -420,10 +456,15 @@ static void draw_still(struct pen p, const struct xz_route_card_style *s, int ya
  if(offers_primary)primary_button(p,s,pb,k,in->focus==XZ_ROUTE_CARD_HIT_PRIMARY);
  if(offers_two)two_button(p,s,tb,k==XZ_ROUTE_CARD_NO_ENGINE,in->focus==XZ_ROUTE_CARD_HIT_TWO);
 }
-/* What moves: the pulse on the picture, the scanning ring round the state dot and the sweep. */
-static void draw_motion(struct pen p, const struct xz_route_card_style *s, int ya, int yb, const struct xz_route_card_input *in) {
+/* What moves: the picture (or the flat drawing's pulse), the scanning ring round the state dot and the sweep. */
+static void draw_motion(struct pen p, const struct xz_route_card_style *s, int ya, int yb, const struct xz_route_card_input *in,
+ struct xz_route_card_cache *cache) {
  enum xz_route_card_kind k=xz_route_card_kind(in->state);
- if(k!=XZ_ROUTE_CARD_NO_ENGINE)route_pulse(p,s,s->x+s->picture.x,ya+s->picture.y,in,k);
+ if(k!=XZ_ROUTE_CARD_NO_ENGINE){
+  struct xz_route_card_cache *pc=pic_cache(s,cache);
+  if(!pc)route_pulse(p,s,s->x+s->picture.x,ya+s->picture.y,in,k);
+  else if(moving(in,k))route_picture(p,s,s->x+s->picture.x,ya+s->picture.y,in,pc,1);
+ }
  if(k!=XZ_ROUTE_CARD_SCANNING)return;
  static const unsigned shades[3]={120,180,240};
  unsigned shade=shades[(frame_clock(in)/300u)%3u];
@@ -436,8 +477,9 @@ static void draw_motion(struct pen p, const struct xz_route_card_style *s, int y
 /* The cached still: one buffer per row, drawn whole at a cache miss, copied every frame. */
 static uint32_t still_key(const struct xz_route_card_style *s, int ya, int yb, const struct xz_route_card_input *in) {
  uint32_t h=2166136261u;
- const int v[7]={s->classic,ya,yb,xz_route_card_kind(in->state),in->fail_part,in->focus,s->x};
- for(int i=0;i<7;i++){h^=(uint32_t)v[i];h*=16777619u;}
+ enum xz_route_card_kind k=xz_route_card_kind(in->state);
+ const int v[8]={s->classic,ya,yb,k,in->fail_part,in->focus,s->x,moving(in,k)};
+ for(int i=0;i<8;i++){h^=(uint32_t)v[i];h*=16777619u;}
  for(const char *c=in->reason?in->reason:"";*c;c++){h^=(unsigned char)*c;h*=16777619u;}
  return h|1u;
 }
@@ -453,7 +495,7 @@ static int fill_cache(const struct xz_route_card_style *s, int ya, int yb, const
  for(int row=0;row<2;row++){
   int y,h;row_bounds(s,ya,yb,row,&y,&h);
   struct pen still={{cache->row[row],(size_t)s->w,s->w,h,s->theme},s->x,y};
-  draw_still(still,s,ya,yb,in);
+  draw_still(still,s,ya,yb,in,cache);
  }
  cache->key=key;
  return 1;
@@ -478,9 +520,8 @@ void xz_route_card_draw(struct xz_canvas c, const struct xz_route_card_style *s,
  if(edge>=s->x+s->w)return;
  struct pen p={c,0,0};
  if(edge>s->x){p.c=xz_sub(c,edge,0,c.width-edge,c.height);p.ox=edge;if(!p.c.width)return;}
- if(cache&&fill_cache(s,ya,yb,in,cache))blit_rows(p,s,ya,yb,cache);
- else draw_still(p,s,ya,yb,in);
- draw_motion(p,s,ya,yb,in);
+ if(cache&&fill_cache(s,ya,yb,in,cache)){blit_rows(p,s,ya,yb,cache);draw_motion(p,s,ya,yb,in,cache);}
+ else{draw_still(p,s,ya,yb,in,NULL);draw_motion(p,s,ya,yb,in,NULL);}
 }
 int xz_route_card_hit(const struct xz_route_card_style *s, int ya, int yb, const struct xz_route_card_input *in, int x, int y) {
  if(!s||!in||!xz_route_card_visible(in))return XZ_ROUTE_CARD_HIT_NONE;

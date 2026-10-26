@@ -280,6 +280,7 @@ struct xz_shell_model {
  const char *notice;                 /* one short caps sentence, e.g. "DECK 1 DID NOT LOAD THE TRACK"; NULL = none */
  uint32_t notice_at_ms;              /* clock_ms when it was raised; shown while clock_ms - notice_at_ms < XZ_SHELL_NOTICE_MS */
  uint32_t clock_ms;                  /* animation and playhead extrapolation */
+ uint8_t frame_late;                 /* the last frame took more than half a vsync: moving pictures step down */
  const struct xz_shell_browse_model *browse;
  const struct xz_shell_settings_model *settings_screen;
  const struct xz_shell_source_model *source;
@@ -557,6 +558,9 @@ uint32_t xz_shell_play_key_frame(const struct xz_shell *, const struct xz_shell_
 /* DECK VIEW: the frame period PLAY's motion wants now (the decks 3 and 4 card at 20 fps, its success
    wipe), or 0 when nothing on PLAY moves by itself. The runtime draws at least this often. */
 uint32_t xz_shell_play_motion_ms(const struct xz_shell *, const struct xz_shell_model *);
+/* The frame period whatever moves on screen wants: the decks 3 and 4 card on PLAY, the cable picture on the
+   MODS 4 DECKS page; 0 when nothing moves. */
+uint32_t xz_shell_motion_ms(const struct xz_shell *, const struct xz_shell_model *);
 /* Selection encoded by the published semantic projection, side 0 or 1. */
 static inline int xz_shell_key_frame_selected(uint32_t projection,int side){return side+2*(int)((projection>>(4+side))&1u);}
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *, enum xz_shell_play_region, int deck);

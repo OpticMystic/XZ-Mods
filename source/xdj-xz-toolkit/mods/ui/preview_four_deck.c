@@ -129,12 +129,12 @@ int main(int argc,char **argv){
    }
    step[6]=seconds()-t0;t0=seconds();
    for(int i=0;i<frames;i++){
-    struct xz_route_card_input in={XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.",NOW+(uint32_t)i*50,NOW,0,-1};
+    struct xz_route_card_input in={XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.",NOW+(uint32_t)i*50,NOW,0,-1,0};
     xz_route_card_draw((struct xz_canvas){surface,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0},&xz_route_card_classic,(int)g.lane_y[2],(int)g.lane_y[3],&in,&card_cache);
    }
    step[7]=seconds()-t0;t0=seconds();
    for(int i=0;i<frames;i++){
-    struct xz_route_card_input in={XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.",NOW+(uint32_t)i*50,NOW,0,-1};
+    struct xz_route_card_input in={XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.",NOW+(uint32_t)i*50,NOW,0,-1,0};
     xz_route_card_draw((struct xz_canvas){surface,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0},&xz_route_card_classic,(int)g.lane_y[2],(int)g.lane_y[3],&in,NULL);
    }
    step[8]=seconds()-t0;

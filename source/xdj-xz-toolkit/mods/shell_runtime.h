@@ -265,6 +265,8 @@ int xz_shrt_quantize_index(int quantize_den);
    XZ_SHRT_REFRESH_MS; the renderer extrapolates the playhead in between. */
 #define XZ_SHRT_FRAME_LIVE_MS 12u
 #define XZ_SHRT_FRAME_IDLE_MS 100u
+/* A render longer than this (half a 60 Hz vsync) marks the next frame late: moving pictures step down. */
+#define XZ_SHRT_LATE_RENDER_US 8000u
 #define XZ_SHRT_REFRESH_MS 33u
 /* model.clock_ms leads the render time by one presenter period: the receiver shows a frame on the vblank
    after it was drawn (present-then-prepare, 61.6 Hz measured on the deck). */

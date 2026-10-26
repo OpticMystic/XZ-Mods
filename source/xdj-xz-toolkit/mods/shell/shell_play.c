@@ -288,7 +288,13 @@ static struct xz_route_card_input card_input(const struct xz_shell *u, const str
  in.ready_at_ms=up?m->route_card_ready_at_ms:0;
  in.focus=!focus_live(u,m)?-1:u->deck_view.focus==XZ_SHELL_FOCUS_CARD_PRIMARY?XZ_ROUTE_CARD_HIT_PRIMARY:
   u->deck_view.focus==XZ_SHELL_FOCUS_CARD_TWO?XZ_ROUTE_CARD_HIT_TWO:-1;
+ in.step_ms=sh_picture_step_ms(m);
  return in;
+}
+uint32_t sh_picture_step_ms(const struct xz_shell_model *m) {
+ if(m->frame_late)return 66u;
+ for(int d=0;d<2;d++)if(m->deck[d].playing)return 33u;   /* the native decks 1 and 2 */
+ return XZ_ROUTE_CARD_FRAME_MS;
 }
 static int card_lane(const struct xz_shell_model *m, int deck);
 static int card_hit(const struct xz_shell *u, const struct xz_shell_model *m, int x, int y) {
@@ -307,6 +313,11 @@ static uint32_t overlay_token(const struct xz_shell *u, const struct xz_shell_mo
    (uint32_t)xz_route_card_offers(&in,XZ_ROUTE_CARD_HIT_PRIMARY)<<10|(uint32_t)xz_route_card_offers(&in,XZ_ROUTE_CARD_HIT_TWO)<<11;
  }
  return t;
+}
+uint32_t xz_shell_motion_ms(const struct xz_shell *u, const struct xz_shell_model *m) {
+ if(!u||!m)return 0;
+ uint32_t a=xz_shell_play_motion_ms(u,m),b=xz_shell_screen(u)==XZ_SHELL_PLAY?0:sh_menu_motion_ms(m);
+ return a&&b?(a<b?a:b):a?a:b;
 }
 uint32_t xz_shell_play_motion_ms(const struct xz_shell *u, const struct xz_shell_model *m) {
  if(!u||!m||xz_shell_screen(u)!=XZ_SHELL_PLAY)return 0;

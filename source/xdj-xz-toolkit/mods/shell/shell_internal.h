@@ -179,6 +179,11 @@ struct xz_shell_mods_tab;
 void sh_menu_profile_render(const struct xz_shell *, const struct xz_shell_model *, struct xz_canvas, const struct xz_shell_mods_tab *);
 int sh_menu_profile_input(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t *);
 void sh_menu_render(const struct xz_shell *, const struct xz_shell_model *, struct xz_canvas, const struct xz_shell_mods_tab *, int x, int right);
+/* The 4 DECKS cable picture's frame period while it is on screen and moving, else 0. */
+uint32_t sh_menu_motion_ms(const struct xz_shell_model *);
+/* A moving picture's frame step: 60 fps while the native decks stand still, 30 while one plays, 15 when
+   frames run late. */
+uint32_t sh_picture_step_ms(const struct xz_shell_model *);
 size_t sh_menu_enter(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 size_t sh_menu_input(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, const struct xz_shell_event *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 size_t sh_menu_back(struct xz_shell *, const struct xz_shell_model *, const struct xz_shell_mods_tab *, struct xz_shell_action out[XZ_SHELL_ACTIONS]);

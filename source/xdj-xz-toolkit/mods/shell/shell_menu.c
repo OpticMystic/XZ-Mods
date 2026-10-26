@@ -6,6 +6,8 @@
 #include "../ui/ui_about.h"
 #include "../ui/ui_support.h"
 #include "../ui/pictures.h"
+#include "../ui/cable_anim.h"
+#include "../ui/route_card.h"
 extern void xz_ui_support_render_qr_box(struct xz_canvas,int,int,int,const char *) __attribute__((weak));
 #include "shell_settings.h"
 #include <stdio.h>
@@ -527,8 +529,23 @@ static void render_home(struct xz_canvas c, const struct xz_shell_menu *p, struc
  }
  render_band(c,p,row_at(p,s.row));
 }
+/* The 4 DECKS cable picture: its memory, and its clock's rest. It moves until 60 s after the page appeared,
+   its cursor last moved or the route changed state (the play card's rule), then rests on its main shot.
+   The shell renders on one thread at a time. */
+static uint16_t four_px[300*116];static uint8_t four_cov[300*116];
+static struct xz_pic_route_anim four_anim={four_px,four_cov,300*116,0,0,0,0,0,0};
+static struct { uint32_t since, drawn; int state, row, shown; } four_motion;
+static int four_moving(uint32_t now) {
+ return four_motion.state==XZ_UI_ROUTE_SCANNING||now-four_motion.since<(uint32_t)XZ_ROUTE_CARD_REST_MS;
+}
+uint32_t sh_menu_motion_ms(const struct xz_shell_model *m) {
+ if(!four_motion.shown||m->clock_ms-four_motion.drawn>200u)return 0;
+ enum xz_cable_motion k=xz_cable_motion_of(four_motion.state);
+ return (k==XZ_CABLE_LOOP||k==XZ_CABLE_SIGNAL)&&four_moving(m->clock_ms)?sh_picture_step_ms(m):0;
+}
 /* 4 DECKS (mockup 15): the route card, DECK VIEW, then what works on each deck. */
-static void render_four_decks(struct xz_canvas c, const struct xz_shell_menu *p, const struct xz_pic_style *st, const struct xz_shell_menu_row *cursor) {
+static void render_four_decks(struct xz_canvas c, const struct xz_shell_menu *p, const struct xz_pic_style *st, const struct xz_shell_menu_row *cursor,
+ const struct xz_shell_model *m) {
  const struct xz_pic_decks *d=&p->pic.decks;int state=d->state;
  uint32_t accent=state==XZ_UI_ROUTE_READY?SH_GREEN:state==XZ_UI_ROUTE_FAILED||state==XZ_UI_ROUTE_LOST?SH_RED:
   state==XZ_UI_ROUTE_SCANNING?SH_BLUE:state==XZ_UI_ROUTE_NO_ENGINE?GREY_TEXT:AMBER;
@@ -536,7 +553,13 @@ static void render_four_decks(struct xz_canvas c, const struct xz_shell_menu *p,
  int rescan=0;
  for(int i=0;i<rows_of(p);i++)if(p->row[i].target.kind==XZ_UI_ROUTE_RESCAN)rescan=1;
  int tx=state==XZ_UI_ROUTE_NO_ENGINE?110:424,right=rescan?668:786;
- if(state!=XZ_UI_ROUTE_NO_ENGINE)xz_pic_route(c,st,104,56,300,116,state,d->fail_part,600,1);
+ if(state!=XZ_UI_ROUTE_NO_ENGINE){
+  uint32_t now=m->clock_ms;int row=cursor?(int)(cursor-p->row):-1;
+  if(!four_motion.shown||now-four_motion.drawn>500u||state!=four_motion.state||row!=four_motion.row)four_motion.since=now;
+  four_motion.shown=1;four_motion.drawn=now;four_motion.state=state;four_motion.row=row;
+  four_anim.now_ms=now;four_anim.moving=four_moving(now);four_anim.step_ms=sh_picture_step_ms(m);four_anim.bg=0x1a1a1a;
+  xz_pic_route(c,st,104,56,300,116,state,d->fail_part,600,1,&four_anim);
+ }
  const char *title=p->line_count>0?p->line[0].text:"",*text=p->line_count>1?p->line[1].text:"";
  xz_disc(c,tx+5,67,5,accent);
  int y=58;
@@ -561,7 +584,7 @@ static void render_four_decks(struct xz_canvas c, const struct xz_shell_menu *p,
  xz_pic_grid_draw(c,st,&g,d->caps,focus);
  text_fit(c,100,XZ_PIC_DECKS_LEGEND_Y,690,"Check = works on that deck. Dash = not on that deck in this version; focus it to see why.",SH_SMALL,GREY_TEXT);
 }
-static void render_picture(struct xz_canvas c, const struct xz_shell_menu *p, struct mstate s, int lit) {
+static void render_picture(struct xz_canvas c, const struct xz_shell_menu *p, struct mstate s, int lit, const struct xz_shell_model *m) {
  struct xz_pic_style st=xz_pic_style_modern();
  const struct xz_shell_menu_row *cur=row_at(p,s.row);
  xz_rect(c,LIST_X,U_Y,W-LIST_X,PANE_H,SH_BLACK);
@@ -572,7 +595,7 @@ static void render_picture(struct xz_canvas c, const struct xz_shell_menu *p, st
   int k=cur?cur->target.kind:-1;
   sp.focus=!lit?-1:k==XZ_UI_STEM_PAGE?XZ_PIC_STEM_MODE:k==XZ_UI_STEM_BANK?XZ_PIC_STEM_BANK:k==XZ_UI_STEM_ORDER?XZ_PIC_STEM_ORDER:k==XZ_UI_PAD_FEEDBACK?XZ_PIC_STEM_LIGHTS:-1;
   xz_pic_stem_draw(c,&st,&g,&sp);break;}
- case XZ_SHELL_PIC_FOUR_DECKS:render_four_decks(c,p,&st,lit?cur:NULL);break;
+ case XZ_SHELL_PIC_FOUR_DECKS:render_four_decks(c,p,&st,lit?cur:NULL,m);break;
  case XZ_SHELL_PIC_STEM_COLOURS:{struct xz_pic_colour_geo g;xz_pic_colour_geometry(100,48,690,&g);xz_pic_colour_draw(c,&st,&g,&p->pic.colours);break;}
  default:break;
  }
@@ -602,7 +625,7 @@ void sh_menu_render(const struct xz_shell *u, const struct xz_shell_model *m, st
  if(p->layout==XZ_SHELL_MENU_ABOUT){xz_about_render(c,p->step,s.row,lit);return;}
  if(keyboard(p)){render_keyboard(c,p,s,lit);return;}
  if(p->layout==XZ_SHELL_MENU_HOME){render_home(c,p,s,lit);return;}
- if(p->layout==XZ_SHELL_MENU_PICTURE){render_picture(c,p,s,lit);return;}
+ if(p->layout==XZ_SHELL_MENU_PICTURE){render_picture(c,p,s,lit,m);return;}
  render_list(c,p,s,lit);
  render_values(c,p,s,lit);
 }
