@@ -335,6 +335,12 @@ enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *, con
 /* 1 when s carries a notice not shown yet and still fresh (raised less than XZ_SHELL_NOTICE_MS before
    mono_now). *seen keeps the last notice_seq looked at. */
 int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now);
+/* 2 DECKS shows the decks the sides control; when a side switches deck the shell says where it went, the same
+   words as the CLASSIC banner (deck_view.h xz_deck_view_pair_notice): the notice for this refresh, or NULL.
+   seen keeps the last pair and when it was looked at. The route down, a refresh gap of a second or more (the
+   shell was not drawing) and any view but 2 DECKS adopt the new pair silently. */
+struct xz_shrt_pair_seen { int valid; unsigned pair; uint32_t at_ms; };
+const char *xz_shrt_pair_notice(struct xz_shrt_pair_seen *, const struct xz_shell_model *, int deck_view, uint32_t now_ms);
 /* The resolver's answer from a library row: path = root + rel (rel starts "/Contents/"), the text fields
    truncated to their arrays on a character boundary. anlz_dir is left empty. 0, or -1 when rel is empty or
    the path does not fit. */

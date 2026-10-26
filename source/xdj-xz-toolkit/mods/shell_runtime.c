@@ -2354,6 +2354,7 @@ static struct xz_shell_column extra_scroll[XZ_EXTRA_DECKS][WAVE_SCROLL_CAP], ext
 static struct xz_shell_beat extra_grid[XZ_EXTRA_DECKS][GRID_CAP];
 static struct xz_shrt_extra_parts extra_parts[XZ_EXTRA_DECKS];
 static uint32_t extra_notice_seen;
+static struct xz_shrt_pair_seen pair_seen;
 static void extra_reset(void) {
  memset(extra_seen,0,sizeof extra_seen);memset(extra_parts,0,sizeof extra_parts);memset(&extra,0,sizeof extra);
 }
@@ -2416,6 +2417,9 @@ static void extra_refresh_locked(uint32_t now) {
  uint32_t wall=now_ms(),mono=(uint32_t)(mono_us()/1000u);
  xz_shrt_extra_map(&model,&extra,extra_parts,wall,mono);
  deck_view_route_locked(now,&route_status);
+ /* 2 DECKS: a side switching deck says where it went, as the CLASSIC banner does. */
+ const char *switched=xz_shrt_pair_notice(&pair_seen,&model,xz_deck_view_valid(xz_deck_layout_get()),mono);
+ if(switched)notice_locked(now,switched);
  fill_extra_info();
  if(xz_shrt_extra_notice(&extra_notice_seen,&extra,mono))notice_locked(now,extra.notice);
  /* Physical assignments have their own indicators; preserve independent browse/grid focus.

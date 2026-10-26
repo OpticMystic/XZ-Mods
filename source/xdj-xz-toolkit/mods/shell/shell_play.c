@@ -338,6 +338,9 @@ static int playhead_x(const struct xz_shell *u) {
 /* A four-deck lane's or strip's deck number in its deck's colour box (deck_colour.h), dimmed while the deck
    is not live (bg is what it sits on); a black column parts it from the rest of the tag. */
 enum { NUMBER_BOX_W=24 };
+/* 2 DECKS shows the decks the sides control: DECK 3 or 4 there carries its colour box like on a four-deck screen,
+   so "3 2" reads as decks 3 and 2 at a glance; DECK 1 and 2 keep the plain number (FOUR_DECK.md). */
+static int two_deck_box(const struct play_layout *L, int deck) { return L==&two_deck&&deck>=2; }
 static void number_box(struct xz_canvas c, int x, int y, int h, int deck, int live, uint32_t bg) {
  char text[4];snprintf(text,sizeof text,"%d",deck+1);
  xz_rect(c,x,y,NUMBER_BOX_W,h,xz_deck_box_fill(deck,live,bg));xz_rect(c,x+NUMBER_BOX_W,y,1,h,SH_BLACK);
@@ -527,11 +530,11 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=filled?accent:SH_RAIL,ink=sh_ink_on(tile);
  xz_rect(c,0,ly,COL_W,L->tag_h,tile);
  /* Four lanes: the number in its deck's colour box; the USB colour stripe moves to the box's right. */
- if(L==&four_deck){number_box(c,0,ly,L->tag_h,deck,1,tile);if(!filled&&accent!=SH_BLUE)xz_rect(c,NUMBER_BOX_W+1,ly,4,L->tag_h,accent);}
+ if(L==&four_deck||two_deck_box(L,deck)){number_box(c,0,ly,L->tag_h,deck,1,tile);if(!filled&&accent!=SH_BLUE)xz_rect(c,NUMBER_BOX_W+1,ly,4,L->tag_h,accent);}
  else if(!filled&&accent!=SH_BLUE)xz_rect(c,0,ly,4,L->tag_h,accent);
  snprintf(text,sizeof text,"DECK %d",deck+1);
  if(sh_four_view(m)){
-  if(L!=&four_deck){snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,ink);}
+  if(L!=&four_deck&&!two_deck_box(L,deck)){snprintf(text,sizeof text,"%d",deck+1);sh_num(c,6,ly+1,text,SH_NUM_MID,ink);}
   if(control)sh_control_arrow(c,30,ly+1,deck&1);
   else sh_text(c,30,ly+5,"DECK",SH_SMALL,ink);
   if(control)sh_text(c,30,ly+10,"CONTROL",SH_SMALL,ink);
@@ -881,11 +884,12 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
   else sh_text_center(c,seg+seg_w/2+1,by0+(badge_h-SH_CAP_SMALL)/2,"DECK",SH_SMALL,sh_ink_on(tile));
   if(u->deck==deck)xz_border(c,sx,by0,badge_w,badge_h,SH_WHITE);
  }else{
-  if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,sx,by0,3,badge_h,accent);
+  if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,two_deck_box(L,deck)?sx+NUMBER_BOX_W+1:sx,by0,3,badge_h,accent);
   if(sh_four_view(m)){
    snprintf(text,sizeof text,"%d",deck+1);
    int nx=control?sx+5:sx+(badge_w-sh_num_width(SH_NUM_MID,text))/2;
-   sh_num(c,nx,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
+   if(two_deck_box(L,deck))number_box(c,sx,by0,badge_h,deck,1,tile);
+   else sh_num(c,nx,by0+1,text,SH_NUM_MID,sh_ink_on(tile));
    if(control)sh_control_arrow(c,sx+badge_w-27,by0+6,deck&1);
    if(u->deck==deck)xz_border(c,sx,by0,badge_w,badge_h,SH_WHITE);
   }else{snprintf(text,sizeof text,"DECK %d",deck+1);sh_text(c,sx+5,by0+3,text,SH_SMALL,sh_ink_on(tile));}
