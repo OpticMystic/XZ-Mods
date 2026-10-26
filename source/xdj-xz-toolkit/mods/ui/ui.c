@@ -392,7 +392,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_RHYTHM_LAB_OPEN,0,0,"RHYTHM LAB / 10 STUDIES");
   add(w,&n,XZ_UI_GLYPH_RUN_OPEN,0,0,"STATIC SURFER");
  }else if(u->page==XZ_UI_MYHOUSE_SETUP){
-  add(w,&n,XZ_UI_MYHOUSE_CHECK,0,0,"CHECK ENGINE AND USB FILES");
+  add(w,&n,XZ_UI_MYHOUSE_CHECK,0,0,"CHECK ENGINE");
   add(w,&n,XZ_UI_PANEL,XZ_UI_GAMES,0,"BACK TO GAMES");
  }else if(u->page==XZ_UI_DOOM){
   add(w,&n,XZ_UI_DOOM_START,0,0,m->doom.chex?(m->doom_ready?"START CHEX QUEST":"SET UP CHEX QUEST"):(m->doom_ready?"START DOOM":"SET UP DOOM"));
@@ -418,7 +418,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_STEMS_OVERLAY,0,0,"STEM ROW LAYOUT");
   add(w,&n,XZ_UI_FOUR_WAVE_ORDER,0,0,m->four_wave_mixer?"WAVE ORDER: 3 1 2 4":"WAVE ORDER: 1 2 3 4");
   for(i=0;i<8;i++)add(w,&n,XZ_UI_STEM_PAD_CONFIG,i,0,"");
-  add(w,&n,XZ_UI_PAD_FEEDBACK,0,0,"PAD LIGHTS");
+  add(w,&n,XZ_UI_PAD_FEEDBACK,0,0,"STEM PAD LIGHTS");
   add(w,&n,XZ_UI_STEM_ORDER,0,0,"STEM ORDER");
   for(i=0;i<4;i++)add(w,&n,XZ_UI_STEM_PAGE,i,0,stem_pages[i]);
  }else if(u->page==XZ_UI_BUTTONS){
@@ -595,6 +595,11 @@ const char *xz_ui_ram_state_text(enum xz_ui_ram_state state){
  case XZ_UI_RAM_DETACHED:return "USB OUT / RAM COPY ONLY";
  default:return "RAM ENGINE NOT DETECTED";}
 }
+const char *xz_ui_ram_scope(const struct xz_ui_ram *r){
+ if(r->state==XZ_UI_RAM_READY||r->state==XZ_UI_RAM_DETACHED)
+  return r->retained_stems_bytes?"ORIGINAL + PREPARED STEMS IN RAM / WAVES STILL USE USB":"ORIGINAL IN RAM / STEMS AND WAVES STILL USE USB";
+ return "RAM COPIES ORIGINAL AUDIO / STEMS AND WAVES STILL USE USB";
+}
 const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m){
  if(xz_ui_support_page(u->page))return u->notice[0]?u->notice:m->support.status[0]?m->support.status:"PREPARE SANITIZED DRAFT / PREVIEW SHA256 / SEND OR EXPORT";
  if(xz_ui_network_page(u->page))return u->notice[0]?u->notice:m->network.detail[0]?m->network.detail:"SET UP NETWORK / CHANGES LAST UNTIL REBOOT";
@@ -618,7 +623,7 @@ const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m)
  if(u->page==XZ_UI_DOOM||u->page==XZ_UI_DOOM_SETUP)return m->doom_ready?"DOOM READY / GAME RUNS ENTIRELY ON THE XZ":"OPEN SETUP TO CHECK THE USB GAME FILES";
  if(u->page==XZ_UI_DOOM_FILES)return m->doom.status;
  if(u->page==XZ_UI_UPDATES||u->page==XZ_UI_UPDATE_SETUP)return m->update.status;
- if(u->page==XZ_UI_RAM_SETUP)return "RAM TRACKS HOLD ORIGINAL AUDIO ONLY / NOTHING IS SAVED";
+ if(u->page==XZ_UI_RAM_SETUP)return xz_ui_ram_scope(&d->ram);
  return d->status?d->status:"LOAD A TRACK TO USE DECK CONTROLS";
 }
 static struct xz_ui_scene scene(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_canvas c,
