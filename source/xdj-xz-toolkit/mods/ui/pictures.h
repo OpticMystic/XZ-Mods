@@ -15,7 +15,7 @@ static inline int xz_rect_hit(struct xz_rect r, int x, int y) { return r.w>0&&x>
    rows in the theme's own colours, its accent as the selection. */
 struct xz_pic_style {
  int modern, radius;
- uint32_t bg, row, row_edge, ink, dim, faint, select, on_select, focus, good, warn, alarm, ruler, ruler_major;
+ uint32_t bg, row, row_edge, ink, dim, faint, select, on_select, focus, good, warn, alarm;
 };
 struct xz_pic_style xz_pic_style_modern(void);
 struct xz_pic_style xz_pic_style_classic(int theme);
@@ -36,18 +36,19 @@ void xz_pic_box(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect
 int xz_pic_works_on(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int size, unsigned works_on, int label);
 
 /* ---- PLAY > BEAT JUMP PADS ----
-   The editor is the pads themselves, laid out as on the unit (A B C D over E F G H, in pairs A/B, C/D, E/F,
-   G/H): each pad shows which way it jumps and how far, in beats and in bars. Pick a pair, then UP or DOWN
-   steps its size (the encoder turns through the same sizes); the readout between them names the pair and its
-   size. The tabs choose the page of sizes being edited, page 1 can keep the player's own sizes (STOCK), and
-   the last row shows the pad page each deck is on now. */
+   The pads as on the unit (A B C D over E F G H, in pairs A/B, C/D, E/F, G/H): each pad shows which way it
+   jumps and how far, in beats and in bars, and the pair being edited is outlined. Beside the pads, that pair and
+   its size; along the bottom, every size, one tap each (the encoder also steps the pair: push it, then turn).
+   The tabs choose the page of sizes being edited; page 1 can keep the player's own sizes (STOCK). */
+enum { XZ_PIC_JUMP_CHIPS=9 };
+extern const int xz_pic_jump_ids[XZ_PIC_JUMP_CHIPS];  /* the offered sizes, as settings jump IDs (no ID 7) */
 struct xz_pic_jump_geo {
- struct xz_rect tabs[2], stock, mine, frames[4], pads[8], up, down, decks[4];
- int name_x, name_y, right, decks_y;
+ struct xz_rect tabs[2], stock, mine, frames[4], pads[8], chips[XZ_PIC_JUMP_CHIPS];
+ int name_x, name_y, name_h, right;
 };
-/* The editor in the box from x, y, w wide (MODERN 100, 48, 690; CLASSIC 138, 50, 652); decks_y is the deck
-   page row (MODERN 312, CLASSIC 316). pads[2p], pads[2p+1] and frames[p] are pair p. */
-void xz_pic_jump_geometry(int x, int y, int w, int decks_y, struct xz_pic_jump_geo *g);
+/* The editor in the box from x, y, w wide down to bottom (MODERN 100, 48, 690, 346; CLASSIC 138, 50, 652, 400).
+   pads[2p], pads[2p+1] and frames[p] are pair p. */
+void xz_pic_jump_geometry(int x, int y, int w, int bottom, struct xz_pic_jump_geo *g);
 void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_jump_geo *g, const struct xz_pic_jump *j);
 
 /* ---- STEMS > STEM PADS ---- */

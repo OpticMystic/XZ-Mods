@@ -38,7 +38,7 @@ turning moves the menu focus. On the beat-jump editor, pushing a pair enters
 an edit where turning applies the same clamped size step as the touch
 controls and queues the same preference save. Closed MODS, an open game and
 a stopped runtime forward the original delta to the native function. Encoder
-failure leaves touch editing available and the menu displays USE UP / DOWN.
+failure leaves touch editing available: a tap on a size sets it.
 
 `UiKey_EncoderPush` at `0xdec08` starts `70402de90040a0e1`: push
 {r4,r5,r6,lr}; mov r4,r0. Neither instruction is PC-relative, so it uses the

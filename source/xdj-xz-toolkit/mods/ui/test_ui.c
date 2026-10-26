@@ -270,8 +270,8 @@ static void parity(void){
     assert(w[i].kind==base[i].kind&&w[i].index==base[i].index&&w[i].requires==base[i].requires&&!strcmp(w[i].label,base[i].label));
     if(w[i].kind==XZ_UI_CLOSE)assert(w[i].x==720&&w[i].y==0);
     assert(w[i].x==base[i].x&&w[i].y==base[i].y&&w[i].w==base[i].w&&w[i].h==base[i].h);
-    /* The beat jump size strip is DESIGN 2.1's nine chips, 28 wide and 40 tall; the encoder steps the same sizes. */
-    assert(w[i].x>=0&&w[i].y>=0&&w[i].x+w[i].w<=800&&w[i].y+w[i].h<=480&&(w[i].w>=56||w[i].kind==XZ_UI_JUMP_SIZE)&&w[i].h>=36);
+    /* Every control is a full touch target, the beat jump size chips included. */
+    assert(w[i].x>=0&&w[i].y>=0&&w[i].x+w[i].w<=800&&w[i].y+w[i].h<=480&&w[i].w>=56&&w[i].h>=36);
     /* Controls stay out of the info dock (y 412..480) in every theme. */
     assert(w[i].y+w[i].h<=404);
     for(size_t k=i+1;k<n;k++)
@@ -295,7 +295,7 @@ static void parity(void){
     /* BACK reports where it went: the parent page, or CLOSE from a root page. */
     if(w[i].kind==XZ_UI_FEATURE_LINK||w[i].kind==XZ_UI_FEATURE_SETUP_OPEN||w[i].kind==XZ_UI_HOME_SETUP)expected=XZ_UI_PANEL;
     /* STOCK page 1 is the player's own 1 2 4 8: its pads and sizes say so instead of editing. */
-    if((w[i].kind==XZ_UI_JUMP_PAIR||w[i].kind==XZ_UI_JUMP_STEP)&&!m.jump.enabled&&!t.jump_edit_page)expected=XZ_UI_UNAVAILABLE;
+    if((w[i].kind==XZ_UI_JUMP_PAIR||w[i].kind==XZ_UI_JUMP_SIZE)&&!m.jump.enabled&&!t.jump_edit_page)expected=XZ_UI_UNAVAILABLE;
     if(w[i].kind==XZ_UI_BACK)expected=xz_ui_page_is_top(page)?XZ_UI_CLOSE:XZ_UI_PANEL;
     if(a[0].kind!=expected)fprintf(stderr,"page %d widget kind %d index %d: got %d, expected %d\n",page,w[i].kind,w[i].index,a[0].kind,expected);
     assert(a[0].kind==expected&&a[0].phase==XZ_UI_PRESS);
