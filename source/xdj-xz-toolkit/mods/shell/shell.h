@@ -291,6 +291,10 @@ struct xz_shell_model {
  uint8_t sides_extra;
  int wave_order; /* 0: numeric 1/2/3/4, 1: mixer 3/1/2/4; logical deck IDs never move */
  const struct xz_shell_menu *menu;        /* the mod page a MENU tab shows (shell_settings.h); NULL: none read yet */
+    /* Connector observation only; does not change playable deck_count or capabilities. */
+    int route_state, route_fail_part;
+    char route_reason[81];
+    uint32_t route_checked_at_ms, route_revision, route_ready_revision;
 };
 
 enum xz_shell_event_kind {
@@ -360,7 +364,8 @@ enum xz_shell_action_kind {
  XZ_SHELL_ACT_MOD_MENU     /* a MODS menu page (shell_settings.h XZ_SHELL_TAB_MENU): id = enum xz_shell_menu_op,
                               value = the root page (OPEN) or a row of model.menu, deck = the choice or the touch */,
  XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, session display preference */
- XZ_SHELL_ACT_DECK_LAYOUT /* value enum xz_deck_layout; display only, no deck assignment */
+ XZ_SHELL_ACT_DECK_LAYOUT, /* value enum xz_deck_layout; display only, no deck assignment */
+ XZ_SHELL_ACT_ROUTE_RESCAN /* connector wake only */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */
