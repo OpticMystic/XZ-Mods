@@ -390,7 +390,7 @@ const char *xz_ui_route_title(int state){
    (model.route.reason) is the line; the fixed lines are the design's, as on the play screen's card. */
 const char *xz_ui_route_line(const struct xz_ui_model *m){
  int state=m->route.state;const char *why=m->route.reason[0]?m->route.reason:NULL;
- return state==XZ_UI_ROUTE_READY?"Loopback cable found on USB 1. Set CH3 and CH4 to USB to hear them. Press SHIFT twice on a side to switch it between decks 1 and 3 or 2 and 4.":
+ return state==XZ_UI_ROUTE_READY?"Loopback cable found. Set CH3 and CH4 to USB to hear them. Press SHIFT twice on a side to switch it between decks 1 and 3 or 2 and 4.":
   state==XZ_UI_ROUTE_WAITING_NATIVE_STOP?"Decks 3 and 4 start once decks 1 and 2 are both stopped. This changes by itself once they stop.":
   state==XZ_UI_ROUTE_NOT_DETECTED?"The XZ keeps looking on its own. RESCAN checks right now. Keep the music stick in USB 2.":
   why?why:
