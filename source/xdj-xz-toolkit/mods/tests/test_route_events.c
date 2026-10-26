@@ -11,9 +11,10 @@
 #define XZ_SYNC_OBSERVATION 0
 #include "../extra_decks.c"
 #include <assert.h>
+#include <stdarg.h>
 
 static unsigned opens,log_fallback;
-static int no_inotify,miss_events,fail_watch;
+static int no_inotify,miss_events,fail_watch,fail_pipe_flags;
 int __real_inotify_init(void);
 int __wrap_inotify_init(void) {
  if(no_inotify){errno=ENOSYS;return -1;}
@@ -24,8 +25,18 @@ int __wrap_inotify_add_watch(int fd,const char *path,uint32_t mask) {
  if(fail_watch){errno=EACCES;return -1;}
  return __real_inotify_add_watch(fd,miss_events?"quiet":path,mask);
 }
+int __real_fcntl(int,int,...);
+int __wrap_fcntl(int fd,int command,...) {
+ if(command==F_GETFL||command==F_GETFD)return __real_fcntl(fd,command);
+ assert(command==F_SETFL||command==F_SETFD);
+ va_list ap;va_start(ap,command);int flags=va_arg(ap,int);va_end(ap);
+#ifndef ROUTE_EVENT_BASELINE
+ if(fail_pipe_flags&&fd==route_events.wake[1]&&command==F_SETFL){errno=EPERM;return -1;}
+#endif
+ return __real_fcntl(fd,command,flags);
+}
 void xz_log(const char *s) {
- if(strstr(s,"polling every")&&(strstr(s,"Function not implemented")||strstr(s,"Permission denied")))
+ if(strstr(s,"polling every")&&(strstr(s,"Function not implemented")||strstr(s,"Permission denied")||strstr(s,"Operation not permitted")))
   __atomic_add_fetch(&log_fallback,1,__ATOMIC_RELEASE);
 }
 struct xz_usb_transport { int dummy; };
@@ -70,7 +81,7 @@ static void start(void) {
  uint32_t began=now_ms();while(revision()==before&&(uint32_t)(now_ms()-began)<500u)wait_ms(1);
  assert(revision()!=before);wait_ms(30); /* initial discovery completed, wait is armed */
 #ifndef ROUTE_EVENT_BASELINE
- if(!no_inotify&&!fail_watch) {
+ if(!no_inotify&&!fail_watch&&!fail_pipe_flags) {
   assert(route_events.fd>=0);
   int fds[]={route_events.fd,route_events.wake[0],route_events.wake[1]};
   for(unsigned i=0;i<sizeof fds/sizeof *fds;i++) {
@@ -191,6 +202,11 @@ int main(void) {
  while(revision()==rev&&(uint32_t)(now_ms()-began)<50u)wait_ms(1);
  assert(revision()!=rev);assert(__atomic_load_n(&log_fallback,__ATOMIC_ACQUIRE)>=2u);
  printf("watch_failure_rescan_ms=%u\n",now_ms()-began);stop();fail_watch=0;
+ fail_pipe_flags=1;start();assert(route_events.fd==-1&&route_events.wake[0]==-1&&route_events.wake[1]==-1);
+ rev=revision();began=now_ms();xz_extra_decks_rescan();
+ while(revision()==rev&&(uint32_t)(now_ms()-began)<50u)wait_ms(1);
+ assert(revision()!=rev);assert(__atomic_load_n(&log_fallback,__ATOMIC_ACQUIRE)>=3u);
+ printf("pipe_flags_failure_rescan_ms=%u\n",now_ms()-began);stop();fail_pipe_flags=0;
  start();before=revision();began=now_ms();
  for(int i=0;i<1000;i++){put("shm/xz-four-deck/storm","x",1);assert(!unlink("shm/xz-four-deck/storm"));}
  wait_ms(80);unsigned checks=revision()-before;assert(checks<100u);

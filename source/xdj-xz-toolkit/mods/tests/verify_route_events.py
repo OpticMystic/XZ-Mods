@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix='xz-route-events-') as tmp:
                     '-fno-sanitize-recover=all', '-fno-pie', '-no-pie',
                     '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
                     str(ROOT / 'tests/test_route_events.c'),
-                    '-Wl,--wrap=inotify_init,--wrap=inotify_add_watch', '-lm', '-o', str(binary)], check=True)
+                    '-Wl,--wrap=inotify_init,--wrap=inotify_add_watch,--wrap=fcntl', '-lm', '-o', str(binary)], check=True)
     run = (['setarch', 'x86_64', '-R'] if args.tsan_no_aslr else []) + [str(binary)]
     for attempt in range(3 if args.tsan else 1):
         result = subprocess.run(run, cwd=tmp, capture_output=True, text=True, timeout=40)
