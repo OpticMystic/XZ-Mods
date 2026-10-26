@@ -2485,7 +2485,8 @@ static int classic_native_two(void){return model.ui_interface==XZ_UI_INTERFACE_C
    them; 0 in four-deck views, MODERN or without the wave transaction. The column, panels, key slots and touch
    all follow this one value, so a half switches as a whole. */
 static unsigned classic_pair(void){
-    return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&xz_native_two_pair&&xz_native_four_order()<0?xz_native_two_pair()&3u:0u;
+    /* The wave publishes a pair only for 2 DECKS frames; the view test keeps a stale one out of a four-deck view. */
+    return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&xz_native_two_pair&&xz_deck_layout_get()==XZ_LAYOUT_TWO?xz_native_two_pair()&3u:0u;
 }
 /* The software decks the CLASSIC key slots address: every side's in a four-deck view; in 2 DECKS only a side whose
    half shows its software deck, so the slot over a stock half stays that native deck's. */
@@ -2791,9 +2792,9 @@ static int pair_touch(const struct xz_touch_status *status,int previous_down){
     if(!pair_contact.active){
         if(!status->down||previous_down||touch.visible||(model.fb_takeover&&model.connection.connected)||
            game_locked()!=GAME_NONE||play_key.open||touch.capture||inline_contact||inline_wave_contact||four_contact||
-           mixer_contact.active||!xz_native_play_visible())return 0;
+           mixer_contact.active)return 0;
         unsigned pair=classic_pair();int side=pair?pair_half_at(status):-1;
-        if(side<0||!(pair&(1u<<side)))return 0;
+        if(side<0||!(pair&(1u<<side))||!xz_native_play_visible())return 0;
         struct xz_classic_mixer_rect r=xz_classic_half_overview_rect(side);
         pair_contact.active=1;pair_contact.side=side;four_seek_column=-1;four_seek_noticed=0;
         pair_contact.seek=(int)status->x>=r.x&&(int)status->x<r.x+r.w&&(int)status->y>=r.y&&(int)status->y<r.y+r.h;
@@ -3174,7 +3175,8 @@ static int classic_mixer_present(uint16_t *pixels,size_t stride,size_t count,int
     }
     int layout=xz_deck_layout_get(),order=xz_native_four_order();
     if(layout==XZ_LAYOUT_TWO&&xz_classic_mixer_runtime_pair_frame){
-        unsigned pair=eligible&&xz_native_play_visible()?classic_pair():0u;
+        unsigned pair=eligible?classic_pair():0u;
+        if(pair&&!xz_native_play_visible())pair=0;
         return xz_classic_mixer_runtime_pair_frame(pixels,stride,count,eligible&&pair,theme,xz_game_milliseconds(),names,pair);
     }
     if(!xz_classic_mixer_runtime_frame)return 0;

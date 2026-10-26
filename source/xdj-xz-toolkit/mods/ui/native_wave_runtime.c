@@ -165,10 +165,12 @@ int xz_native_four_order(void){
     }
     return __atomic_load_n(&four_drawn,__ATOMIC_ACQUIRE)-1;
 }
+/* No memory reads while both sides are native (the usual case): the scene is probed only to revoke a pair. */
 unsigned xz_native_two_pair(void){
+    unsigned pair=__atomic_load_n(&two_painted,__ATOMIC_ACQUIRE);
     struct xz_native_wave_scene current;
-    if(!scene(&current)){__atomic_store_n(&two_painted,0,__ATOMIC_RELEASE);return 0;}
-    return __atomic_load_n(&two_painted,__ATOMIC_ACQUIRE);
+    if(pair&&!scene(&current)){__atomic_store_n(&two_painted,0,__ATOMIC_RELEASE);return 0;}
+    return pair;
 }
 int xz_native_four_mixer_order(void){return xz_deck_layout_get()==XZ_LAYOUT_MIXER;}
 void xz_native_four_set_mixer_order(int mixer){xz_deck_layout_set(mixer?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR);}
