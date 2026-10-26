@@ -26,7 +26,38 @@ static struct xz_classic_column_view fixture(int layout,int live34){
  }
  return v;
 }
+/* 2 DECKS following the sides: a software deck's half of the stock column. */
+static void halves(void){
+ for(int side=0;side<2;side++){
+  int y0=xz_classic_column_half_y(side),y1=y0+xz_classic_column_half_h(side);
+  assert(xz_classic_column_half_at(0,y0)==side&&xz_classic_column_half_at(129,y1-1)==side&&xz_classic_column_half_at(130,y0)==-1);
+  struct xz_classic_column_deck d;memset(&d,0,sizeof d);d.live=d.driven=1;d.source=1+side;strcpy(d.key,side?"5A":"8A");
+  clear();assert(xz_classic_column_half_draw(pixels,W,(size_t)W*H,2+side,&d));
+  int inside=0;
+  for(int y=0;y<H;y++)for(int x=0;x<W;x++){
+   int in=x<130&&y>=y0&&y<y1;
+   if(!in)assert(pixels[y*W+x]==SENTINEL);else inside+=pixels[y*W+x]!=SENTINEL;
+  }
+  assert(inside==130*(y1-y0)&&pixels[W*H]==SENTINEL&&pixels[W*H+1]==SENTINEL);
+  /* The tab where the stock DECK 1 / DECK 2 tab is, its number box in the deck's colour, the key slot's line. */
+  int ty=18+side*XZ_CLASSIC_HALF_STEP;
+  assert(count(4,ty+5,28,ty+33,xz_deck_colour(2+side))>300&&!count(0,y0,130,y1,xz_deck_colour(3-side)));
+  assert(count(0,ty+1,100,ty+38,0x293c52)+count(0,ty+1,100,ty+38,0x203041)<3800);
+  int slot=0;for(int y=119+side*143;y<154+side*143;y++)for(int x=4;x<111;x++)slot+=pixels[y*W+x]!=0;assert(slot>100);
+  uint32_t drawn=fnv();
+  clear();xz_classic_column_half_identity(pixels,W,(size_t)W*H,2+side);
+  for(int y=0;y<H;y++)for(int x=0;x<W;x++)if(pixels[y*W+x]!=SENTINEL)assert(x>=4&&x<28&&y>=ty+5&&y<ty+33);
+  assert(count(4,ty+5,28,ty+33,xz_deck_colour(2+side))>300);
+  clear();assert(xz_classic_column_half_draw(pixels,W,(size_t)W*H,2+side,&d)&&fnv()==drawn);
+ }
+ struct xz_classic_column_deck d;memset(&d,0,sizeof d);
+ assert(!xz_classic_column_half_draw(pixels,W,(size_t)W*H,1,&d)&&!xz_classic_column_half_draw(pixels,W,(size_t)W*H,4,&d));
+ assert(!xz_classic_column_half_draw(NULL,W,(size_t)W*H,2,&d)&&!xz_classic_column_half_draw(pixels,W,(size_t)W*H,2,NULL));
+ assert(!xz_classic_column_half_draw(pixels,799,(size_t)W*H,2,&d)&&!xz_classic_column_half_draw(pixels,W,(size_t)W*H-1,2,&d));
+ puts("PASS 2 DECKS column half: exact half writes, stock tab place with the deck's box, key slot drawn, identity box only, guards");
+}
 int main(void){
+ halves();
  /* Rows beside the lanes: 22 + 68 k, 64 tall; the gaps and the outside are nothing. */
  for(int k=0;k<4;k++){
   assert(xz_classic_column_row_at(0,22+68*k)==k&&xz_classic_column_row_at(129,22+68*k+63)==k);
