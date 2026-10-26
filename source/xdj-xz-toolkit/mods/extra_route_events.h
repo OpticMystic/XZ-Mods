@@ -42,8 +42,12 @@ static void route_events_init(void) {
  if(route_events.fd<0){route_events_fallback("inotify_init unavailable");return;}
  if(route_fd_flags(route_events.fd)<0){route_events_fallback("inotify fcntl failed");return;}
  if(pipe(route_events.wake)<0){route_events_fallback("wake pipe failed");return;}
- if(route_fd_flags(route_events.wake[0])<0||route_fd_flags(route_events.wake[1])<0)
+ if(route_fd_flags(route_events.wake[0])<0||route_fd_flags(route_events.wake[1])<0) {
+  int error=errno;
+  close(route_events.wake[0]);close(route_events.wake[1]);
+  route_events.wake[0]=route_events.wake[1]=-1;errno=error;
   route_events_fallback("wake pipe fcntl failed");
+ }
 }
 static void route_signal_locked(void) {
  pthread_cond_signal(&route_wake_cond);
