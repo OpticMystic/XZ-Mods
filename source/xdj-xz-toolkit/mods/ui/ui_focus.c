@@ -324,8 +324,8 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_JUMP_ENABLE:return "STOCK keeps the player's own 1, 2, 4, 8 beats on page 1. MY SIZES uses yours. Page 2 always uses yours.";
  case XZ_UI_JUMP_SHIFT:return "SHIFT + BEAT JUMP selects page 2 sizes.";
  case XZ_UI_JUMP_EDIT_PAGE:return "Choose which page of sizes to edit.";
- case XZ_UI_JUMP_PAIR:return u->adjusting?"Turn to change the size. Push or BACK when done.":"Push, then turn to change this pair's jump size. The first pad jumps back.";
- case XZ_UI_JUMP_STEP:return k>0?"Next larger jump size for the selected pair.":"Next smaller jump size for the selected pair.";
+ case XZ_UI_JUMP_PAIR:return u->adjusting?"Turn to change the size. Push or BACK when done.":"Pick a pair, then UP or DOWN changes how far it jumps. The first pad jumps back.";
+ case XZ_UI_JUMP_STEP:return k>0?"The chosen pair jumps further: the next size up.":"The chosen pair jumps less far: the next size down.";
  case XZ_UI_TAKEOVER_TOGGLE:return "Shows the computer's VJ.Tools screen instead of the player screen.";
  case XZ_UI_TAKEOVER_ASSIGN:return k==0?"The LINK key switches the VJ.Tools screen.":k==1?"The button next to LINK switches the VJ.Tools screen when it is set to VJ.TOOLS SCREEN.":"An onscreen button switches the VJ.Tools screen.";
  case XZ_UI_CONNECTION_ENABLE:return "Lets VJ.Tools on a computer connect to this player.";

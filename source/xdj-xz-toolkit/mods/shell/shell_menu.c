@@ -566,7 +566,7 @@ static void render_picture(struct xz_canvas c, const struct xz_shell_menu *p, st
  const struct xz_shell_menu_row *cur=row_at(p,s.row);
  xz_rect(c,LIST_X,U_Y,W-LIST_X,PANE_H,SH_BLACK);
  switch(p->picture){
- case XZ_SHELL_PIC_BEAT_JUMP:{struct xz_pic_jump_geo g;xz_pic_jump_geometry(100,48,690,290,&g);xz_pic_jump_draw(c,&st,&g,&p->pic.jump);break;}
+ case XZ_SHELL_PIC_BEAT_JUMP:{struct xz_pic_jump_geo g;xz_pic_jump_geometry(100,48,690,312,&g);xz_pic_jump_draw(c,&st,&g,&p->pic.jump);break;}
  case XZ_SHELL_PIC_STEM_PADS:{
   struct xz_pic_stem_geo g;xz_pic_stem_geometry(100,690,&g);struct xz_pic_stem_pads sp=p->pic.stem;
   int k=cur?cur->target.kind:-1;

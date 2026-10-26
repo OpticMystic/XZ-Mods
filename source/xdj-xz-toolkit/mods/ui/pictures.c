@@ -121,74 +121,41 @@ int xz_pic_works_on(struct xz_canvas c, const struct xz_pic_style *s, int x, int
 }
 
 /* ---- BEAT JUMP PADS ---- */
-const int xz_pic_jump_ids[XZ_PIC_JUMP_CHIPS]={0,1,2,3,4,5,6,8,9};
-void xz_pic_jump_geometry(int x, int y, int w, int ruler_y, struct xz_pic_jump_geo *g) {
+void xz_pic_jump_geometry(int x, int y, int w, int decks_y, struct xz_pic_jump_geo *g) {
  memset(g,0,sizeof *g);
  g->tabs[0]=(struct xz_rect){x,y,176,40};g->tabs[1]=(struct xz_rect){x+182,y,176,40};
  g->stock=(struct xz_rect){x+w-290,y,140,40};g->mine=(struct xz_rect){x+w-146,y,146,40};
- int py0=y+56;
- for(int p=0;p<4;p++){
-  int px=x+(p%2)*184,py=py0+(p/2)*88;
-  g->frames[p]=(struct xz_rect){px-4,py-4,170,82};
-  g->pads[2*p]=(struct xz_rect){px,py,78,74};g->pads[2*p+1]=(struct xz_rect){px+84,py,78,74};
- }
- int rx=x+372,rw=x+w-rx;
- g->name_x=rx;g->name_y=py0-2;g->right=rx+rw;
- for(int i=0;i<XZ_PIC_JUMP_CHIPS;i++){
-  int a=rx+i*(rw+3)/9,b=rx+(i+1)*(rw+3)/9;
-  g->chips[i]=(struct xz_rect){a,py0+64,b-a-3,40};
- }
- for(int k=0;k<4;k++){
-  int cw=(rw-4)/2;
-  g->live[k]=(struct xz_rect){rx+(k%2)*(cw+4),py0+64+52+15+(k/2)*22,cw,19};
- }
- g->ruler=(struct xz_rect){x,ruler_y,w,58};
+ /* The pads as on the unit: 88 px squares 8 apart, pairs 16 further apart. */
+ int py0=y+58;
+ for(int pad=0;pad<8;pad++){int col=pad%4;g->pads[pad]=(struct xz_rect){x+4+col*96+(col/2)*16,py0+(pad/4)*96,88,88};}
+ for(int p=0;p<4;p++){struct xz_rect a=g->pads[2*p];g->frames[p]=(struct xz_rect){a.x-4,a.y-4,192,96};}
+ int rx=x+420,rw=x+w-rx;
+ g->up=(struct xz_rect){rx,py0-4,rw,40};g->down=(struct xz_rect){rx,py0+148,rw,40};
+ g->name_x=rx;g->name_y=py0+46;g->right=rx+rw;
+ g->decks_y=decks_y;
+ int cx0=x+150,cw=(x+w-cx0)/4;
+ for(int k=0;k<4;k++)g->decks[k]=(struct xz_rect){cx0+k*cw,decks_y,cw-6,22};
 }
 static const char *const pad_letters="ABCDEFGH";
+/* One pad as the original editor drew it: letter and direction, the jump in beats, and under it in bars. */
 static void jump_pad(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect r, int pad, int beats, int focused, int stock) {
  uint32_t fill=focused?(s->modern?0x1f3550:xz_blend(s->row,s->select,60)):s->row;
- if(s->radius){xz_round_rect(c,r.x,r.y,r.w,r.h,s->radius,15,s->row_edge);xz_round_rect(c,r.x+1,r.y+1,r.w-2,r.h-2,s->radius-1,15,fill);}
+ uint32_t well=s->modern?(focused?0x2a4668:0x262626):xz_blend(fill,s->ink,36);
+ if(s->radius){xz_round_rect(c,r.x,r.y,r.w,r.h,s->radius,15,focused?s->select:s->row_edge);xz_round_rect(c,r.x+2,r.y+2,r.w-4,r.h-4,s->radius-1,15,fill);}
  else xz_rect(c,r.x,r.y,r.w,r.h,fill);
- uint32_t ink=stock?(s->modern?0x6a6a6a:s->faint):s->ink,dim=s->modern?M_GREY:s->dim;
- char letter[2]={pad_letters[pad],0};
- xz_pic_text(c,r.x+8,r.y+7,letter,12,dim);
- if(!(pad&1)){xz_pic_triangle(c,r.x+r.w-40,r.y+11,4,'l',ink);xz_pic_text(c,r.x+r.w-33,r.y+7,"BACK",12,ink);}
- else{xz_pic_text(c,r.x+r.w-36,r.y+7,"FWD",12,ink);xz_pic_triangle(c,r.x+r.w-12,r.y+11,4,'r',ink);}
- char n[8];snprintf(n,sizeof n,"%d",beats);
- xz_pic_text_right(c,r.x+r.w-8,r.y+30,n,28,ink);
- xz_pic_text_right(c,r.x+r.w-8,r.y+56,beats==1?"BEAT":"BEATS",12,dim);
-}
-static void bars_text(int beats, char *out, size_t cap) {
- if(beats<4){out[0]=0;return;}
- snprintf(out,cap,"= %d BAR%s",beats/4,beats>=8?"S":"");
-}
-void xz_pic_ruler(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect r, int beats, const char *back, const char *fwd) {
- if(beats<1)beats=1;
- /* positions in 1/16 px so a 256-beat jump and a 1-beat jump both read */
- int cx=r.x+r.w/2,base=r.y+34,half16=(r.w/2-8)*16;
- int span100=beats*135; /* span = beats * 1.35, in hundredths */
- #define BX(b) (cx+(int)((int64_t)(b)*half16*100/span100/16))
- xz_rect(c,r.x,base,r.w,1,s->ruler);
- int step=1;while((int64_t)step*half16*100/span100/16<7)step*=2;
- int bar=4;while((int64_t)bar*half16*100/span100/16<26)bar*=4;
- int span=span100/100+1;
- for(int b=-span;b<=span;b++){
-  if(b%step)continue;
-  int px=BX(b);if(px<r.x||px>=r.x+r.w)continue;
-  int major=b%bar==0;
-  xz_rect(c,px,base-(major?10:6),1,major?10:6,major?s->ruler_major:s->ruler);
- }
- int lx=BX(-beats),rx=BX(beats),ay=base-18;
- uint32_t arrow=s->modern?0x4aa8ff:s->select;
- xz_rect(c,lx+6,ay-1,cx-4-(lx+6),2,arrow);xz_pic_triangle(c,lx+4,ay,5,'l',arrow);
- xz_rect(c,cx+4,ay-1,rx-6-(cx+4),2,arrow);xz_pic_triangle(c,rx-4,ay,5,'r',arrow);
- xz_rect(c,lx,base-12,2,16,arrow);xz_rect(c,rx-1,base-12,2,16,arrow);
- uint32_t now=s->modern?0xff3030:s->alarm;
- xz_rect(c,cx-1,r.y+4,2,36,now);
- xz_pic_text_center(c,cx,r.y+44,"NOW",12,now);
- xz_pic_text_center(c,lx,r.y+44,back,12,arrow);
- xz_pic_text_center(c,rx,r.y+44,fwd,12,arrow);
- #undef BX
+ uint32_t ink=stock?(s->modern?0x6a6a6a:s->faint):s->ink,dim=stock?ink:(s->modern?M_GREY:s->dim);
+ char text[16]={pad_letters[pad],0};
+ xz_pic_text(c,r.x+9,r.y+9,text,12,dim);
+ xz_pic_triangle(c,r.x+24,r.y+13,4,pad&1?'r':'l',ink);
+ xz_pic_text(c,r.x+32,r.y+9,pad&1?"FWD":"BACK",12,dim);
+ snprintf(text,sizeof text,"%d",beats);
+ xz_pic_text(c,r.x+8,r.y+28,text,20,ink);
+ xz_pic_text(c,r.x+45,r.y+33,beats==1?"BEAT":"BEATS",12,ink);
+ if(s->radius)xz_round_rect(c,r.x+4,r.y+56,r.w-8,26,6,15,well);else xz_rect(c,r.x+4,r.y+56,r.w-8,26,well);
+ if(beats>=4){
+  snprintf(text,sizeof text,"%d",beats/4);
+  xz_pic_text(c,r.x+8,r.y+60,text,20,ink);xz_pic_text(c,r.x+45,r.y+65,beats==4?"BAR":"BARS",12,ink);
+ }else xz_pic_text(c,r.x+8,r.y+64,beats==1?"1/4 BAR":"1/2 BAR",12,ink);
 }
 void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_jump_geo *g, const struct xz_pic_jump *given) {
  static const char *const tab_a[2]={"PAGE 1","PAGE 2"},*const tab_b[2]={"BEAT JUMP","SHIFT + BEAT JUMP"};
@@ -205,10 +172,12 @@ void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
  xz_pic_text_center(c,g->stock.x+g->stock.w/2,g->stock.y+15,"PAGE 1: STOCK",12,!j->enabled?s->on_select:s->ink);
  xz_pic_box(c,s,g->mine,j->enabled,0);
  xz_pic_text_center(c,g->mine.x+g->mine.w/2,g->mine.y+15,"PAGE 1: MY SIZES",12,j->enabled?s->on_select:s->ink);
+ /* Page 1 on STOCK plays the player's own sizes: shown, greyed, not editable. */
  int stock=j->edit_page==0&&!j->enabled;
  struct xz_jump_settings defaults=xz_jump_defaults();
+ int pair=j->focus_pair>=0?j->focus_pair:0;
  for(int p=0;p<4;p++){
-  int foc=p==j->focus_pair;struct xz_rect f=g->frames[p];
+  int foc=p==pair&&!stock;struct xz_rect f=g->frames[p];
   if(s->radius){
    uint32_t edge=foc?s->select:s->row_edge;
    xz_round_rect(c,f.x,f.y,f.w,f.h,9,15,edge);xz_round_rect(c,f.x+(foc?2:1),f.y+(foc?2:1),f.w-(foc?4:2),f.h-(foc?4:2),foc?7:8,15,s->bg);
@@ -216,45 +185,43 @@ void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
    xz_rect(c,f.x,f.y,f.w,f.h,s->bg);
    xz_border(c,f.x,f.y,f.w,f.h,foc?0xffffff:M_EDGE);if(foc)xz_border(c,f.x+1,f.y+1,f.w-2,f.h-2,0xffffff);
   }
-  int id=stock?defaults.sizes[p]:j->sizes[j->edit_page*4+p];int beats=xz_jump_beats(id);
+  int beats=xz_jump_beats(stock?defaults.sizes[p]:j->sizes[j->edit_page*4+p]);
   jump_pad(c,s,g->pads[2*p],2*p,beats,foc,stock);
   jump_pad(c,s,g->pads[2*p+1],2*p+1,beats,foc,stock);
  }
- int pair=j->focus_pair>=0&&j->focus_pair<4?j->focus_pair:0;
- int id=stock?defaults.sizes[pair]:j->sizes[j->edit_page*4+pair],beats=xz_jump_beats(id);
+ /* UP and DOWN with the chosen pair between them. */
+ uint32_t key=stock?(s->modern?0x6a6a6a:s->faint):s->ink;
+ xz_pic_box(c,s,g->up,0,1);xz_pic_box(c,s,g->down,0,1);
+ xz_pic_text_center(c,g->up.x+g->up.w/2,g->up.y+13,"UP  +",20,key);
+ xz_pic_text_center(c,g->down.x+g->down.w/2,g->down.y+13,"DOWN  -",20,key);
+ int beats=xz_jump_beats(stock?defaults.sizes[pair]:j->sizes[j->edit_page*4+pair]);
  char text[48];
- snprintf(text,sizeof text,"PADS %c / %c",pad_letters[pair*2],pad_letters[pair*2+1]);
- xz_pic_text(c,g->name_x,g->name_y,text,20,s->ink);
- snprintf(text,sizeof text,"PAGE %d",j->edit_page+1);
- xz_pic_text_right(c,g->right,g->name_y+4,text,12,s->dim);
- snprintf(text,sizeof text,"%d",beats);
- int vx=g->name_x+xz_pic_text(c,g->name_x,g->name_y+28,text,34,j->adjusting?s->select:s->ink)+8;
- vx+=xz_pic_text(c,vx,g->name_y+38,beats==1?"BEAT":"BEATS",20,s->ink)+10;
- bars_text(beats,text,sizeof text);
- if(text[0])xz_pic_text(c,vx,g->name_y+43,text,12,s->dim);
- for(int i=0;i<XZ_PIC_JUMP_CHIPS;i++){
-  int sel=xz_jump_beats(xz_pic_jump_ids[i])==beats;
-  xz_pic_box(c,s,g->chips[i],sel,0);
-  snprintf(text,sizeof text,"%d",xz_jump_beats(xz_pic_jump_ids[i]));
-  xz_pic_text_center(c,g->chips[i].x+g->chips[i].w/2,g->chips[i].y+15,text,12,sel?s->on_select:(stock?s->faint:s->ink));
+ if(stock){
+  xz_pic_text(c,g->name_x,g->name_y,"PAGE 1: STOCK",20,s->ink);
+  xz_pic_wrap(c,g->name_x,g->name_y+28,g->right-g->name_x,15,4,"Page 1 jumps 1, 2, 4 and 8 beats, as the player does. Choose MY SIZES to set your own.",s->dim);
+ }else{
+  snprintf(text,sizeof text,"PADS %c / %c",pad_letters[pair*2],pad_letters[pair*2+1]);
+  xz_pic_text(c,g->name_x,g->name_y,text,20,s->ink);
+  snprintf(text,sizeof text,"%d",beats);
+  int vx=g->name_x+xz_pic_text(c,g->name_x,g->name_y+24,text,34,j->adjusting?s->select:s->ink)+8;
+  xz_pic_text(c,vx,g->name_y+34,beats==1?"BEAT":"BEATS",20,s->ink);
+  if(beats>=4)snprintf(text,sizeof text,"= %d %s",beats/4,beats==4?"BAR":"BARS");
+  else snprintf(text,sizeof text,"= %s BAR",beats==1?"1/4":"1/2");
+  xz_pic_text(c,g->name_x,g->name_y+58,text,20,s->ink);
+  xz_pic_text(c,g->name_x,g->name_y+82,"4 BEATS = 1 BAR",12,s->dim);
  }
- xz_pic_text(c,g->name_x,g->live[0].y-15,"PAD PAGE EACH DECK IS ON NOW",12,s->dim);
+ /* The page each deck's pads are on now, decks in mixer order in their colour boxes (deck_colour.h). */
+ static const int order[4]={2,0,1,3};
+ xz_pic_text(c,g->decks[0].x-150,g->decks_y+7,"PAD PAGE NOW",12,s->dim);
  for(int k=0;k<4;k++){
-  struct xz_rect r=g->live[k];int page=j->deck_page[k],live=j->deck_live[k];
-  if(!live)snprintf(text,sizeof text,"DECK %d: NOT CONNECTED",k+1);
-  else if(page<0)snprintf(text,sizeof text,"DECK %d: PAGE -",k+1);
-  else snprintf(text,sizeof text,"DECK %d: PAGE %d",k+1,page+1);
-  uint32_t col=!live?(s->modern?0x5a5a5a:s->faint):page>=0&&page!=j->edit_page?s->warn:s->dim;
-  if(s->radius){xz_round_rect(c,r.x,r.y,r.w,r.h,4,15,col);xz_round_rect(c,r.x+1,r.y+1,r.w-2,r.h-2,3,15,s->bg);}
-  else xz_border(c,r.x,r.y,r.w,r.h,col);
-  xz_pic_text_center(c,r.x+r.w/2,r.y+5,text,12,live?col:(s->modern?0x6a6a6a:s->faint));
+  int d=order[k],page=j->deck_page[d],live=j->deck_live[d];struct xz_rect r=g->decks[k];
+  xz_deck_box(c,r.x,r.y+3,16,16,d,live,s->bg,1,live&&luma(s->bg)>140?s->ink:0);
+  if(!live)xz_pic_text(c,r.x+22,r.y+7,"NOT CONNECTED",12,s->modern?0x6a6a6a:s->faint);
+  else{
+   if(page<0)snprintf(text,sizeof text,"PAGE -");else snprintf(text,sizeof text,"PAGE %d",page+1);
+   xz_pic_text(c,r.x+22,r.y+7,text,12,page==j->edit_page?s->ink:s->dim);
+  }
  }
- snprintf(text,sizeof text,"HOW FAR PADS %c AND %c JUMP",pad_letters[pair*2],pad_letters[pair*2+1]);
- xz_pic_text(c,g->ruler.x,g->ruler.y-2,text,12,s->dim);
- char back[16],fwd[16];
- snprintf(back,sizeof back,"%c  -%d",pad_letters[pair*2],beats);snprintf(fwd,sizeof fwd,"%c  +%d",pad_letters[pair*2+1],beats);
- struct xz_rect ruler=g->ruler;ruler.y+=4;
- xz_pic_ruler(c,s,ruler,beats,back,fwd);
 }
 
 /* ---- STEM COLOURS ---- */

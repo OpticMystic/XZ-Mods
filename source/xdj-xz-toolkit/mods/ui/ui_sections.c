@@ -135,7 +135,7 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   add(w,&n,XZ_UI_JUMP_EDIT_PAGE,0,0,"PAGE 1");add(w,&n,XZ_UI_JUMP_EDIT_PAGE,1,0,"PAGE 2");
   add(w,&n,XZ_UI_JUMP_ENABLE,2,0,"PAGE 1: STOCK");add(w,&n,XZ_UI_JUMP_ENABLE,1,0,"PAGE 1: MY SIZES");
   for(i=0;i<4;i++)add(w,&n,XZ_UI_JUMP_PAIR,2*i,0,"");
-  for(i=0;i<XZ_PIC_JUMP_CHIPS;i++)add(w,&n,XZ_UI_JUMP_SIZE,xz_pic_jump_ids[i],0,xz_jump_label(xz_pic_jump_ids[i]));
+  add(w,&n,XZ_UI_JUMP_STEP,1,0,"UP +");add(w,&n,XZ_UI_JUMP_STEP,-1,0,"DOWN -");
   break;
  case XZ_UI_BUTTONS:
   for(int slot=0;slot<2;slot++)for(i=0;i<XZ_UI_RB_CHOICES;i++){
@@ -169,7 +169,7 @@ static int screen_layout_y(void){return 66;}
 void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *w, size_t n){
  (void)m;
  struct xz_pic_jump_geo jg;struct xz_pic_stem_geo sg;struct xz_pic_grid_geo gg;
- if(u->page==XZ_UI_BEAT_JUMP)xz_pic_jump_geometry(XZ_UI_JUMP_X,XZ_UI_JUMP_Y,XZ_UI_JUMP_W,XZ_UI_JUMP_RULER_Y,&jg);
+ if(u->page==XZ_UI_BEAT_JUMP)xz_pic_jump_geometry(XZ_UI_JUMP_X,XZ_UI_JUMP_Y,XZ_UI_JUMP_W,XZ_UI_JUMP_DECKS_Y,&jg);
  if(u->page==XZ_UI_STEM_PADS)xz_pic_stem_geometry(XZ_UI_STEM_X,XZ_UI_STEM_W,&sg);
  if(u->page==XZ_UI_FOUR_DECKS)xz_pic_grid_geometry(X0+4,204,CW-8,36,&gg);
  for(size_t i=0;i<n;i++){
@@ -243,7 +243,7 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
    if(a->kind==XZ_UI_JUMP_EDIT_PAGE&&(k==0||k==1)){struct xz_rect r=jg.tabs[k];put(a,r.x,r.y,r.w,r.h);}
    else if(a->kind==XZ_UI_JUMP_ENABLE){struct xz_rect r=k==1?jg.mine:jg.stock;put(a,r.x,r.y,r.w,r.h);}
    else if(a->kind==XZ_UI_JUMP_PAIR&&k>=0&&k<8){struct xz_rect r=jg.frames[k/2];put(a,r.x,r.y,r.w,r.h);}
-   else if(a->kind==XZ_UI_JUMP_SIZE){for(int j=0;j<XZ_PIC_JUMP_CHIPS;j++)if(xz_pic_jump_ids[j]==k){struct xz_rect r=jg.chips[j];put(a,r.x,r.y,r.w,r.h);}}
+   else if(a->kind==XZ_UI_JUMP_STEP){struct xz_rect r=k>0?jg.up:jg.down;put(a,r.x,r.y,r.w,r.h);}
    break;
   case XZ_UI_BUTTONS:
    if(a->kind==XZ_UI_REKORDBOX_ASSIGN){
@@ -541,7 +541,7 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
   xz_rect(c,X0,XZ_UI_CY,CW,XZ_UI_CB-XZ_UI_CY,s.bg);
   xz_pic_stem_draw(c,&s,&g,&p);break;}
  case XZ_UI_BEAT_JUMP:{
-  struct xz_pic_jump_geo g;xz_pic_jump_geometry(XZ_UI_JUMP_X,XZ_UI_JUMP_Y,XZ_UI_JUMP_W,XZ_UI_JUMP_RULER_Y,&g);
+  struct xz_pic_jump_geo g;xz_pic_jump_geometry(XZ_UI_JUMP_X,XZ_UI_JUMP_Y,XZ_UI_JUMP_W,XZ_UI_JUMP_DECKS_Y,&g);
   struct xz_pic_jump j;xz_ui_jump_picture(u,m,-1,&j);
   xz_rect(c,X0,XZ_UI_CY,CW,XZ_UI_CB-XZ_UI_CY,s.bg);
   xz_pic_jump_draw(c,&s,&g,&j);break;}

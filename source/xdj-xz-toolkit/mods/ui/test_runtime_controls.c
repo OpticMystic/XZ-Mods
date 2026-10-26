@@ -322,22 +322,23 @@ int main(void){
         assert(xz_ui_runtime_pad_color(deck,bank*4+1,&rgb,&lit)&&!lit);
         xz_ui_runtime_pad_native_page(deck,(page+1)%4);assert(!xz_ui_runtime_pad_color(deck,bank*4,&rgb,&lit));
     }
-    /* Drive the actual size chips and runtime apply path for every assignment. */
+    /* Drive the actual UP and DOWN keys and the runtime apply path through every size, for every pair and page:
+       up from 1 beat to 256, then back down, the other seven pairs untouched. */
     ui.page=XZ_UI_BEAT_JUMP;model.jump=xz_jump_defaults();settings_readonly=1;
     for(int theme=0;theme<XZ_THEME_COUNT;theme++)for(int page=0;page<2;page++)for(int pair=0;pair<4;pair++){
         model.theme=theme;ui.jump_edit_page=page;ui.jump_edit_pair=pair;
         static const int ordered[]={0,1,2,3,4,5,6,8,9};
-        for(int step=0;step<9;step++){
-            int size=ordered[step];
+        model.jump.sizes[page*4+pair]=ordered[0];
+        for(int dir=1;dir>=-1;dir-=2)for(int step=1;step<9;step++){
+            int size=ordered[dir>0?step:8-step];
             struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&ui,&model,widgets);
-            model.jump.sizes[page*4+pair]=ordered[step?step-1:0];
             struct xz_jump_settings prior=model.jump;int found=0;
-            for(size_t i=0;i<n;i++)if(widgets[i].kind==XZ_UI_JUMP_SIZE&&widgets[i].index==size){
+            for(size_t i=0;i<n;i++)if(widgets[i].kind==XZ_UI_JUMP_STEP&&widgets[i].index==dir){
                 struct xz_ui_action actions[XZ_UI_ACTIONS];
                 assert(xz_ui_touch(&ui,&model,widgets[i].x+10,widgets[i].y+10,1,actions)==1);
-                apply(NULL,actions,1);xz_ui_touch(&ui,&model,0,0,0,actions);found=1;
+                apply(NULL,actions,1);xz_ui_touch(&ui,&model,0,0,0,actions);found++;
             }
-            assert(found&&model.jump.sizes[page*4+pair]==size);
+            assert(found==1&&xz_jump_beats(model.jump.sizes[page*4+pair])==xz_jump_beats(size));
             for(int other=0;other<8;other++)if(other!=page*4+pair)assert(model.jump.sizes[other]==prior.sizes[other]);
         }
     }
