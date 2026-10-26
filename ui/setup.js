@@ -404,39 +404,18 @@ function closeQuad(){
 }
 function quadNext(){if(W.flow.kind==='quad')closeQuad();else goto(W.flow.steps[W.flow.steps.indexOf('quad')+1]);}
 function quadStatus(){return W.quadConfirmed?'User confirmation: you saw four decks. This app has not detected or verified the cable connection.':'Connection not checked by this app. Confirm the result on the XZ.';}
+// The cable guide's picture: the deck's own loopback-cable explainer (source/.../mods/ui/cable_anim.c), rendered for
+// the app by tools/build_cable_media.py. Muted, looping, no controls; with reduced motion, its first frame.
+const QUAD_VIDEO='assets/wizard/loopback-cable.mp4',QUAD_POSTER='assets/wizard/loopback-cable-poster.webp';
+const QUAD_TITLE='One USB-B to USB-A cable loops back into the same XDJ-XZ';
+const QUAD_DESC='The XDJ-XZ seen from behind and above, with one cable from the rear USB-B socket over the back edge into top USB1. The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of USB1 and goes back in. USB2 is beside it. The loop ends where it began, both ends connected. No computer is involved.';
 function quadCable(){
-  const svg=document.createElementNS(SVG_NS,'svg');
-  svg.setAttribute('viewBox','0 0 700 300');svg.setAttribute('class','wz-quad-svg');
-  svg.setAttribute('role','img');svg.setAttribute('aria-labelledby','wz-quad-svg-title wz-quad-svg-desc');
-  // Fixed markup only. The USB-B has square sides and beveled top corners; USB-A has a metal tongue and retention holes.
-  svg.innerHTML=`<title id="wz-quad-svg-title">One USB-B to USB-A cable loops back into the same XDJ-XZ</title>
-    <desc id="wz-quad-svg-desc">The square USB-B plug with beveled top corners stays in the rear USB-B socket. Only the rectangular male USB-A free end moves into top USB1, after the boot stick is safely removed. The music stick stays in top USB2. No computer is connected.</desc>
-    <rect x="20" y="48" width="238" height="145" rx="10" class="wq-panel"/>
-    <text x="38" y="73" class="wq-label">REAR PANEL</text>
-    <text x="38" y="94">USB-B stays connected</text>
-    <path d="M117 110 L157 110 L167 120 L167 166 L107 166 L107 120 Z" class="wq-socket"/>
-    <g class="wq-b-fixed"><path d="M124 116 L150 116 L160 126 L160 160 L114 160 L114 126 Z" class="wq-metal"/>
-      <path d="M127 126 H147 V143 H127 Z" class="wq-insulator"/>
-      <path d="M130 128 V133 M144 128 V133 M130 137 V141 M144 137 V141" class="wq-contact"/>
-      <rect x="124" y="160" width="26" height="16" rx="3" class="wq-grip"/></g>
-    <rect x="348" y="48" width="332" height="145" rx="10" class="wq-panel"/>
-    <text x="366" y="73" class="wq-label">TOP PANEL</text>
-    <text x="473" y="99" class="wq-label wq-accent">USB1</text><text x="579" y="99" class="wq-label">USB2</text>
-    <rect x="464" y="108" width="54" height="22" rx="2" class="wq-socket"/>
-    <rect x="570" y="108" width="54" height="22" rx="2" class="wq-socket"/>
-    <path class="wq-cable" d="M137 176 C137 270 491 286 491 211"/>
-    <g class="wq-a-move"><rect x="473" y="154" width="36" height="24" class="wq-metal"/>
-      <rect x="481" y="161" width="6" height="6" class="wq-hole"/><rect x="495" y="161" width="6" height="6" class="wq-hole"/>
-      <path d="M479 156 H503" class="wq-contact"/>
-      <rect x="471" y="178" width="40" height="33" rx="4" class="wq-grip"/>
-      <path d="M479 190 H503 M479 196 H503 M479 202 H503" class="wq-ridge"/></g>
-    <path d="M465 107 H517 V115 H465 Z" class="wq-port-lip"/>
-    <rect x="580" y="115" width="34" height="61" rx="4" class="wq-music"/>
-    <text x="597" y="143" text-anchor="middle" class="wq-music-text">MUSIC</text>
-    <text x="597" y="160" text-anchor="middle" class="wq-music-text">STAYS</text>
-    <text x="350" y="28" text-anchor="middle" class="wq-label wq-accent">Only the free USB-A end moves</text>
-    <text x="350" y="282" text-anchor="middle">Same XDJ-XZ. No computer.</text>`;
-  return svg;
+  const still=reducedMotion();
+  const media=still?el('img',{class:'wz-quad-video',src:QUAD_POSTER,alt:QUAD_TITLE+'. '+QUAD_DESC,width:1280,height:400})
+    :el('video',{class:'wz-quad-video',id:'wz-quad-video',src:QUAD_VIDEO,poster:QUAD_POSTER,muted:true,loop:true,autoplay:W.quadPaused?null:true,playsinline:true,
+      preload:'auto',width:1280,height:400,'aria-label':QUAD_TITLE,'aria-describedby':'wz-quad-desc'});
+  if(!still){media.muted=true;if(!W.quadPaused)media.play?.().catch(()=>{});}
+  return [media,el('p',{class:'visually-hidden',id:'wz-quad-desc',text:QUAD_DESC})];
 }
 function stepQuad(){
   return [el('h3',{text:'Four decks, one standalone mixer'}),
@@ -444,10 +423,11 @@ function stepQuad(){
     el('p',{class:'notice wz-quad-prereq',text:'Requires the paired XDJ-XZ 1.26 quad beta resources. The matching loader starts the automatic bridge; this cable guide does not install it or verify the connection. Other saved versions may not include quad support.'}),
     el('figure',{class:'wz-quad-art',dataset:{paused:W.quadPaused?'1':null}},quadCable(),
       el('figcaption',{},el('span',{text:'Rear USB-B → top USB1 · Music stays in USB2'}),
-        el('button',{type:'button',class:'text-button',id:'wz-quad-motion','aria-pressed':String(W.quadPaused),text:W.quadPaused?'Replay cable animation':'Pause cable animation',onclick:event=>{
+        reducedMotion()?null:el('button',{type:'button',class:'text-button',id:'wz-quad-motion','aria-pressed':String(W.quadPaused),text:W.quadPaused?'Play cable animation':'Pause cable animation',onclick:event=>{
           W.quadPaused=!W.quadPaused;
-          const figure=event.currentTarget.closest('figure');if(W.quadPaused)figure.dataset.paused='1';else{delete figure.dataset.paused;figure.querySelector('svg').replaceWith(quadCable());}
-          event.currentTarget.textContent=W.quadPaused?'Replay cable animation':'Pause cable animation';event.currentTarget.setAttribute('aria-pressed',String(W.quadPaused));
+          const figure=event.currentTarget.closest('figure'),video=figure.querySelector('video');
+          if(W.quadPaused){figure.dataset.paused='1';video?.pause();}else{delete figure.dataset.paused;video?.play?.().catch(()=>{});}
+          event.currentTarget.textContent=W.quadPaused?'Play cable animation':'Pause cable animation';event.currentTarget.setAttribute('aria-pressed',String(W.quadPaused));
         }}))),
     el('ol',{class:'wz-quad-steps'},
       el('li',{},el('strong',{text:'Boot first. '}),'Keep the boot stick in USB1 until XZ Mods has finished starting. Keep the music stick in USB2. Leave the square, beveled USB-B end plugged into the rear USB-B socket; leave its rectangular USB-A end free.'),

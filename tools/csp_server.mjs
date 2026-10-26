@@ -4,7 +4,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 
 // Serves ui/ with the Content-Security-Policy the desktop app ships, so the headless verifiers see what the
 // installed WebView sees. file:// pages have no CSP and once let blocked inline styles pass.
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json', '.woff2': 'font/woff2' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json', '.woff2': 'font/woff2', '.mp4': 'video/mp4', '.webp': 'image/webp' };
 
 export async function serveUi(app) {
   const csp = JSON.parse(await readFile(join(app, 'src-tauri/tauri.conf.json'), 'utf8')).app.security.csp;

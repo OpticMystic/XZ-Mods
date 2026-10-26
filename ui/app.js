@@ -1705,7 +1705,10 @@ function renderQuadSetup(){
  $('quad-use').disabled=included?.quad_supported!==true||activeJob!==null;$('quad-save').disabled=!modDirty()||activeJob!==null;
 }
 const quadButton=node('button','Set up four decks','primary');quadButton.id='quad-open';quadButton.type='button';$('mod-version').append(quadButton);
-quadButton.onclick=()=>{renderQuadSetup();$('quad-setup').showModal();};
+// The dialog's cable picture plays while it is open (a still with reduced motion) and stops when it closes.
+const quadVideo=$('quad-video');
+quadButton.onclick=()=>{renderQuadSetup();$('quad-setup').showModal();if(!matchMedia('(prefers-reduced-motion: reduce)').matches){quadVideo.muted=true;quadVideo.play?.().catch(()=>{});}};
+$('quad-setup').addEventListener('close',()=>quadVideo.pause());
 $('quad-use').onclick=()=>{const included=modVersionById(modInventory?.bundled_id);if(included?.quad_supported!==true)return;modDraft={id:included.id,pinned:true};renderModVersions();renderQuadSetup();};
 $('quad-save').onclick=async()=>{await $('save-mod-version').onclick();renderQuadSetup();};
 $('quad-close').onclick=()=>$('quad-setup').close();
