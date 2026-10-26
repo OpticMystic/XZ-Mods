@@ -22,14 +22,18 @@ static const char *pc_targets[4]={"PC1","PC2","PC3","PC4"};
 static const int pc_slots[XZ_UI_PC_ROLES]={XZ_UI_PC_VOCAL,XZ_UI_PC_INST,XZ_UI_PC_BASS,XZ_UI_PC_DRUMS};
 static const char *control_sections[4]={"STEM SHORTCUTS","BEAT JUMP","PC STEMS","BUTTONS"};
 static const enum xz_ui_page section_pages[4]={XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ_UI_PC_STEMS,XZ_UI_BUTTONS};
-static const char *const rekordbox_names[XZ_UI_RB_CHOICES]={"MODS MENU","EXPORT MODE PLAYBACK","INTERFACE","VJ.TOOLS SCREEN","STEMS","NOTHING"};
+/* The button next to LINK. Stored numbers are settings.h enum xz_rekordbox_action; MODS lists them in
+   xz_ui_rekordbox_order. The code keeps the name REKORDBOX; the screen never says it. */
+static const char *const rekordbox_names[XZ_UI_RB_CHOICES]={"MODS MENU","ITS OWN JOB","INTERFACE","VJ.TOOLS SCREEN","STEMS","NOTHING","DECK VIEW"};
 static const char *const rekordbox_help[XZ_UI_RB_CHOICES]={
  "Opens and closes MODS. Works with the encoder and BACK.",
- "Opens the stock screen to play a laptop's or phone's library over the network (or USB).",
- "Switches between the FLAGSHIP and CLASSIC interfaces.",
+ "What the button does without MODS: the screen for playing a computer's library.",
+ "Switches between the MODERN and CLASSIC interfaces.",
  "Switches to the VJ.Tools screen and back. Needs the VJ.Tools link.",
- "Shows or hides the stem rows on the play screen.",
- "The button does nothing."};
+ "Steps the stem buttons on the play screen through their places.",
+ "The button does nothing.",
+ "Steps DECK VIEW: 2 decks, 4 decks in number order, 4 decks in mixer order."};
+const int xz_ui_rekordbox_order[XZ_UI_RB_CHOICES]={XZ_UI_RB_MODS,XZ_UI_RB_STOCK,XZ_UI_RB_INTERFACE,XZ_UI_RB_VJ_SCREEN,XZ_UI_RB_STEMS,XZ_UI_RB_DECK_VIEW,XZ_UI_RB_NOTHING};
 const char *xz_ui_rekordbox_choice_name(int choice){return choice>=0&&choice<XZ_UI_RB_CHOICES?rekordbox_names[choice]:NULL;}
 const char *xz_ui_rekordbox_choice_help(int choice){return choice>=0&&choice<XZ_UI_RB_CHOICES?rekordbox_help[choice]:NULL;}
 const char *const xz_ui_lengths[6]={"1/16","1/8","1/4","1/2","1","2"};

@@ -86,11 +86,22 @@ enum xz_ui_action_kind {
     XZ_UI_NETWORK_APPLY, XZ_UI_NETWORK_REVERT, XZ_UI_NETWORK_CANCEL, XZ_UI_ABOUT_LINK,
     XZ_UI_SUPPORT_STEP, XZ_UI_SUPPORT_CATEGORY, XZ_UI_SUPPORT_SUMMARY, XZ_UI_SUPPORT_PREPARE,
     XZ_UI_SUPPORT_PAGE, XZ_UI_SUPPORT_CONSENT, XZ_UI_SUPPORT_CLOCK, XZ_UI_SUPPORT_SEND,
-    XZ_UI_SUPPORT_EXPORT, XZ_UI_SUPPORT_CHECK
+    XZ_UI_SUPPORT_EXPORT, XZ_UI_SUPPORT_CHECK,
+    /* DECK VIEW (settings deck_view): value 0 2 DECKS, 1 4 DECKS 1 2 3 4, 2 4 DECKS 3 1 2 4. Saved. */
+    XZ_UI_DECK_VIEW,
+    /* The DECKS button on the play screen: value 1 SHOW, 0 HIDE. Saved. */
+    XZ_UI_DECK_VIEW_BUTTON,
+    /* A MODERN-only display setting the shell owns (mode lamps, waveform colours...). The shell runtime runs
+       it itself; index = the shell's item, value = choice. The panel never sees it. */
+    XZ_UI_SHELL_LOOK,
+    /* 4 DECKS > RESCAN: wake the four-deck connector for an immediate check. Keep last (merge note). */
+    XZ_UI_ROUTE_RESCAN
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
-    XZ_UI_RB_NOTHING, XZ_UI_RB_CHOICES };
+    XZ_UI_RB_NOTHING, XZ_UI_RB_DECK_VIEW, XZ_UI_RB_CHOICES };
+/* The choices in the order MODS lists them (DECK VIEW before NOTHING). */
+extern const int xz_ui_rekordbox_order[XZ_UI_RB_CHOICES];
 /* Short caps label and one line on what the button then does; NULL outside 0..XZ_UI_RB_CHOICES-1. */
 const char *xz_ui_rekordbox_choice_name(int choice);
 const char *xz_ui_rekordbox_choice_help(int choice);
@@ -256,9 +267,32 @@ struct xz_ui_model {
     int metrics_enabled;
     struct xz_metrics_sample metrics;
     const struct xz_ui_dj *dj; /* NULL: this runtime has no DJ Profile support, so no header chip */
-    int four_wave_mixer; /* Session preference; never persisted in settings. */
+    int four_wave_mixer; /* deck_view == MIXER, for the retired FOUR_WAVE_ORDER readers */
     struct xz_net_view network;
+    /* DECK VIEW (settings.h enum xz_deck_view) and whether the play screen shows its DECKS button. */
+    int deck_view, deck_view_button;
+    /* The pad page each logical deck's BEAT JUMP pads are on now: 0 page 1, 1 page 2 (SHIFT + BEAT JUMP),
+       -1 unknown (deck not running, or its player does not report it). */
+    int jump_page[4];
+    /* Decks 3 and 4: the loopback route as the four-deck connector reports it (enum xz_ui_route_state), one
+       sentence on why when it is not ready (<= 80 characters), and the part that failed (enum xz_ui_route_part). */
+    struct { int state; char reason[81]; int fail_part; uint32_t scanning_since; } route;
 };
+/* Decks 3 and 4's route, as the connector publishes it. NO_ENGINE: this loader has no four-deck support. */
+enum xz_ui_route_state { XZ_UI_ROUTE_NO_ENGINE, XZ_UI_ROUTE_NOT_DETECTED, XZ_UI_ROUTE_SCANNING, XZ_UI_ROUTE_STARTING,
+    XZ_UI_ROUTE_WAITING_NATIVE_STOP, XZ_UI_ROUTE_READY, XZ_UI_ROUTE_FAILED, XZ_UI_ROUTE_LOST, XZ_UI_ROUTE_STATES };
+enum xz_ui_route_part { XZ_UI_ROUTE_PART_NONE, XZ_UI_ROUTE_PART_PORT, XZ_UI_ROUTE_PART_CABLE, XZ_UI_ROUTE_PART_SOCKET,
+    XZ_UI_ROUTE_PART_SELECTOR };
+/* What works on each logical deck (0..3), one bit per feature. The menu's WORKS ON chips and the 4 DECKS grid
+   read only this, so a deck is never shown as able to do what it cannot. ui/deck_caps.c. */
+enum xz_deck_feature {
+    XZ_DECK_CAN_BEAT_JUMP=1u, XZ_DECK_CAN_GATE_CUE=2u, XZ_DECK_CAN_SMART_CUE=4u, XZ_DECK_CAN_CUE_PREVIEW=8u,
+    XZ_DECK_CAN_PLAYING_KEY=16u, XZ_DECK_CAN_KEY_SYNC=32u, XZ_DECK_CAN_STEMS=64u, XZ_DECK_CAN_XPAD=128u,
+    XZ_DECK_CAN_GROOVE=256u, XZ_DECK_CAN_RAM=512u, XZ_DECK_CAN_DISPLAY=1024u
+};
+unsigned xz_deck_caps(const struct xz_ui_model *, int logical_deck);
+/* One sentence on why feature cannot work on logical_deck, or NULL when it can. */
+const char *xz_deck_cap_reason(const struct xz_ui_model *, int logical_deck, unsigned feature);
 struct xz_ui {
     enum xz_ui_page page;
     int deck, down, capture, jump_edit_page, jump_edit_pair;
