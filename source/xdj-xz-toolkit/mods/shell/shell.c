@@ -369,9 +369,10 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
    u->load_choice.mode=0; /* Navigation keys still perform their ordinary action on this press. */
   else return sh_browse_load_input(u,m,e,out);
  }
- /* The header buttons sit over every screen and popup; the rest of their touch stays with them. */
+ /* The header buttons sit over every screen and popup; the rest of their touch stays with them. The open
+    DECK VIEW picker reaches into their padded band below the bar: there the picker answers. */
  if(e->kind==XZ_SHELL_TOUCH_DOWN){
-  enum xz_shell_action_kind hit=sh_header_hit(e->x,e->y);
+  enum xz_shell_action_kind hit=e->y>=XZ_SHELL_HEADER_BUTTON_H&&sh_play_overlay_owns(u,m,e->x,e->y)?XZ_SHELL_ACT_NONE:sh_header_hit(e->x,e->y);
   if(hit!=XZ_SHELL_ACT_NONE){
    u->down=1;u->down_region=XZ_SHELL_TOUCH_HEADER;
    if(!header_matches(u,m))return 0;
@@ -398,6 +399,8 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
  /* LOAD belongs only to list input; all other screens leave it inert. */
  if(e->kind==XZ_SHELL_KEY&&e->key==XZ_SHELL_KEY_LOAD&&lists_back[xz_shell_screen(u)])
   return screen_of(u)->input(u,m,e,out);
+ /* On PLAY a key first closes the DECK VIEW picker or its encoder focus; BACK does only that. */
+ if(e->kind==XZ_SHELL_KEY&&xz_shell_screen(u)==XZ_SHELL_PLAY&&sh_play_dismiss(u,e->key==XZ_SHELL_KEY_BACK))return 0;
  if(e->kind==XZ_SHELL_KEY&&(e->key==XZ_SHELL_KEY_BACK||e->key==XZ_SHELL_KEY_BACK_HOLD)&&u->popup.kind==XZ_SHELL_POPUP_NONE){
   enum xz_shell_screen s=xz_shell_screen(u);
   if(e->key==XZ_SHELL_KEY_BACK)return sh_back(u,m,out);
@@ -429,5 +432,5 @@ int xz_shell_render_frame(struct xz_shell *u,const struct xz_shell_model *m,uint
  u->header_frame.valid=1;u->header_frame.screen=xz_shell_screen(u);u->header_frame.depth=u->depth;
  u->header_frame.popup=u->popup.kind;u->header_frame.panel=u->panel.kind;u->header_frame.tab=u->mods_view.tab;
  u->header_frame.page=m->menu?m->menu->page:-1;
- sh_play_key_publish(u,m);return 1;
+ sh_play_key_publish(u,m);sh_play_overlay_publish(u,m);return 1;
 }

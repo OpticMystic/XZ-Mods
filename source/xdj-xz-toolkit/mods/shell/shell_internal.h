@@ -38,17 +38,24 @@ size_t sh_source_back_step(struct xz_shell *, const struct xz_shell_model *, str
 
 /* The only reader of model.deck_count (shell.h). */
 static inline int sh_deck_count(const struct xz_shell_model *m) { return m->deck_count==4?4:2; }
-/* PLAY geometry can show two slots while four logical audio decks remain available. */
+/* PLAY geometry can show two slots while four logical audio decks remain available, and four slots
+   while only two play (DECK VIEW 4 DECKS with decks 3 and 4 not connected). */
 static inline int sh_play_deck_count(const struct xz_shell_model *m) {
- return m&&m->play_view_count==2?2:m?sh_deck_count(m):2;
+ return m&&m->play_view_count==2?2:m&&m->play_view_count==4?4:m?sh_deck_count(m):2;
 }
 static inline int sh_play_deck(const struct xz_shell_model *m, int slot) {
  return sh_deck_count(m)==4&&sh_play_deck_count(m)==2?slot+2*((m->sides_extra>>slot)&1):slot;
 }
 static inline int sh_play_visible(const struct xz_shell_model *m, int deck) {
- return (unsigned)deck<(unsigned)sh_deck_count(m)&&
-  (sh_play_deck_count(m)==4||sh_deck_count(m)==2||deck==sh_play_deck(m,deck&1));
+ if(sh_play_deck_count(m)==4)return (unsigned)deck<4u;
+ return (unsigned)deck<(unsigned)sh_deck_count(m)&&(sh_deck_count(m)==2||deck==sh_play_deck(m,deck&1));
 }
+/* A four-deck PLAY view draws decks 3 and 4 as NOT CONNECTED placeholders (projection only). */
+static inline int sh_play_placeholder(const struct xz_shell_model *m, int deck) {
+ return m&&(unsigned)deck<4u&&((m->play_placeholders>>deck)&1);
+}
+/* The four-deck look: four decks play, or the PLAY view shows four slots. */
+static inline int sh_four_view(const struct xz_shell_model *m) { return sh_deck_count(m)==4||sh_play_deck_count(m)==4; }
 /* Logical deck to horizontal mixer column: DECK 3, 1, 2, 4. */
 static inline int sh_strip_column(int count, int deck) {
  static const unsigned char columns[4]={1,2,0,3};
@@ -226,6 +233,12 @@ enum { SH_KEY_GREEN=0x52d794, SH_KEY_AMBER=0xffbd59 };
 uint32_t sh_key_ink(const struct xz_shell_model *m, const char *key, int matches_master, uint32_t plain);
 /* The key in the chosen notation; key itself when it is NULL, already in it, or neither notation. */
 const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *buffer, size_t cap);
+/* DECK VIEW on PLAY (shell_play.c): a point the open picker owns although the header band covers it;
+   BACK and other keys first close the picker or the encoder focus (1: BACK was used); the overlay token
+   input must match is published after each complete frame. */
+int sh_play_overlay_owns(const struct xz_shell *, const struct xz_shell_model *, int x, int y);
+int sh_play_dismiss(struct xz_shell *, int back);
+void sh_play_overlay_publish(struct xz_shell *, const struct xz_shell_model *);
 /* Mod header buttons (shell.c): drawn over every screen; hit tests padded to XZ_SHELL_HEADER_HIT_H. */
 void sh_header_buttons(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
 enum xz_shell_action_kind sh_header_hit(int x, int y);
