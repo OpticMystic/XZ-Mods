@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 /* The CLASSIC top bar (top_bar.h): in every theme, every state of VJ.TOOLS / EXIT VJ, DECKS, the metrics
    readout, METRICS, STEMS, MODS, the LOAD ERR notice, the RAM readout and the LCARS play header paints only
-   rows 0..17 and only inside its own columns; labels fit; the row shares one height and two-pixel gaps; and
-   each touch target answers exactly as far down as top_bar.h says. */
+   rows 0..17 and only inside its own columns; labels fit and read against their fill, off and on; the row
+   shares one height and two-pixel gaps; themed BEAT FX header art stays below the band; and each touch target
+   answers exactly as far down as top_bar.h says. */
 #ifdef NDEBUG
 #error Top bar acceptance requires assertions
 #endif
