@@ -184,7 +184,8 @@ popup/key/layout busy-owner guard.
 `deck_view.h` draws the button and the three-picture picker for both
 interfaces from one style each. CLASSIC: the button (162,0,116,18) sits in the
 empty black between VJ.TOOLS and the METRICS readout on every Classic play
-screen, 2 DECKS included; its touch reaches y 39. One tap opens the picker
+screen, 2 DECKS included; its touch reaches y 39, except where an OUTER stem
+row lies under it (the row keeps its touches). One tap opens the picker
 (140,22,500,206); a picture applies, a tap outside or BACK closes it, and six
 seconds without input close it. The encoder turns and pushes inside the open
 picker. 2 DECKS frames differ from the stock screen only in the button rect.

@@ -2499,6 +2499,14 @@ static int dv_card_current(uint32_t word,int view){
 static int dv_eligible(void){
     return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!touch.visible&&!model.fb_takeover&&game_locked()==GAME_NONE&&xz_native_play_visible();
 }
+/* The deck whose stem row lies under (x,y) on the two-deck play screen, else -1. OUTER layouts put deck 1's
+   row at the top of the waveform, under the DECKS button's touch band; the row keeps its touches there. */
+static int stem_row_at_locked(int x,int y){
+    if(touch.visible||(model.fb_takeover&&model.connection.connected)||!xz_native_inline_active()||
+       xz_native_four_order()>=0||x<131||x>=667)return -1;
+    struct xz_wave_layout g;
+    return xz_wave_layout_get(model.stems_overlay,&g)?xz_wave_layout_control_at(&g,y-18):-1;
+}
 /* DECK VIEW touch in CLASSIC, before every other play-screen owner: the open picker takes any touch (a tile
    applies, outside closes), the button opens it, the card's RESCAN / TRY AGAIN wakes the connector and its
    TWO DECKS applies 2 DECKS. The contact stays owned until release. */
@@ -2507,7 +2515,8 @@ static int deck_view_touch_locked(const struct xz_touch_status *status,int fresh
     if(!fresh||!status->down||!dv_eligible()||play_key.open||mixer_contact.active||four_contact||inline_contact||
        inline_wave_contact||touch.capture)return 0;
     uint32_t now=xz_game_milliseconds(),word=0;int x=(int)status->x,y=(int)status->y;
-    int open=dv.painted&&dv.painted_open,button=dv.painted&&xz_deck_view_button_hit(&xz_deck_view_classic,x,y);
+    int open=dv.painted&&dv.painted_open,button=dv.painted&&xz_deck_view_button_hit(&xz_deck_view_classic,x,y)&&
+        (y<XZ_TOP_BAR_H||stem_row_at_locked(x,y)<0);
     int card=open||button?XZ_ROUTE_CARD_HIT_NONE:dv_card_hit(x,y,&word);
     if(!open&&!button&&card==XZ_ROUTE_CARD_HIT_NONE){
         /* Any other touch on the play screen wakes the card's motion and gives the encoder back. */
@@ -2810,8 +2819,8 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     }
     struct xz_wave_layout geometry;
     if(!xz_wave_layout_get(model.stems_overlay,&geometry))xz_wave_layout_get(XZ_STEM_LAYOUT_HIDDEN,&geometry);
-    int pressed_deck=xz_wave_layout_control_at(&geometry,(int)status->y-18);
-    if(active&&four<0&&!inline_contact&&!previous_down&&status->down&&status->x>=131&&status->x<667&&pressed_deck>=0){
+    int pressed_deck=stem_row_at_locked((int)status->x,(int)status->y);
+    if(!inline_contact&&!previous_down&&status->down&&pressed_deck>=0){
         inline_contact=1;inline_contact_deck=pressed_deck;inline_cancelled=0;inline_gesture_layout=model.stems_overlay;
     }
     int owned,pc_redraw=inline_contact&&model.deck[inline_contact_deck].pc_stems.source==XZ_UI_SOURCE_PC;
