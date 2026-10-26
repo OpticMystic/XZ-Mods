@@ -559,7 +559,7 @@ static void render_four_decks(struct xz_canvas c, const struct xz_shell_menu *p,
  struct xz_pic_grid_geo g;xz_pic_grid_geometry(100,XZ_PIC_DECKS_GRID_Y,690,XZ_PIC_DECKS_ROW_H,&g);
  int focus=cursor&&cursor->target.kind==XZ_UI_INFO&&cursor->target.index>=XZ_UI_INFO_GRID?cursor->target.index-XZ_UI_INFO_GRID:-1;
  xz_pic_grid_draw(c,st,&g,d->caps,focus);
- text_fit(c,100,XZ_PIC_DECKS_LEGEND_Y,690,"Check = works now. Dash = not on that deck in this version; focus it to see why.",SH_SMALL,GREY_TEXT);
+ text_fit(c,100,XZ_PIC_DECKS_LEGEND_Y,690,"Check = works on that deck. Dash = not on that deck in this version; focus it to see why.",SH_SMALL,GREY_TEXT);
 }
 static void render_picture(struct xz_canvas c, const struct xz_shell_menu *p, struct mstate s, int lit) {
  struct xz_pic_style st=xz_pic_style_modern();
