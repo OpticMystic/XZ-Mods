@@ -4,6 +4,7 @@
 #include "wave_viewport.h"
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 static uint16_t pixels[540*268+8];
 static void fill(void) {
  for(unsigned y=0;y<268;y++)for(unsigned x=0;x<540;x++)pixels[y*540+x]=x<536?(uint16_t)(y*127+x):0xbeef;
@@ -33,14 +34,26 @@ int main(void) {
    }
    for(unsigned i=540*268;i<sizeof(pixels)/sizeof(*pixels);i++)assert(pixels[i]==0xabcd);
   }
+  /* One deck only (2 DECKS with the other side on a software deck): its half matches the full transform,
+     the other half is untouched. */
+  static uint16_t full[540*268];
+  fill();assert(xz_wave_layout_pixels(pixels,540*268,540,mode));memcpy(full,pixels,sizeof full);
+  for(unsigned decks=0;decks<4;decks++){
+   fill();assert(xz_wave_layout_pixels_decks(pixels,540*268,540,mode,decks));
+   for(unsigned y=0;y<268;y++)for(unsigned x=0;x<540;x++){
+    int deck=y>=132;
+    assert(pixels[y*540+x]==((decks&(1u<<deck))?full[y*540+x]:x<536?(uint16_t)(y*127+x):0xbeef));
+   }
+  }
   mode=xz_wave_layout_next(mode);
  }
  assert(mode==XZ_STEM_LAYOUT_BELOW);
+ assert(!xz_wave_layout_pixels_decks(pixels,10,540,1,1));
  assert(!xz_wave_layout_get(-1,&(struct xz_wave_layout){0}));
  assert(!xz_wave_layout_get(5,&(struct xz_wave_layout){0}));
  assert(!xz_wave_layout_pixels(pixels,10,540,1));
  assert(!xz_wave_layout_pixels(pixels,540*268,530,1));
  assert(!xz_wave_layout_pixels(pixels,SIZE_MAX,SIZE_MAX,1));
  assert(!xz_wave_layout_pixels(pixels,540*268,540,5));
- puts("PASS five layouts, larger half-height waves, downward relocation, fixed cue bands, inverse mapping and stride guards");
+ puts("PASS five layouts, larger half-height waves, downward relocation, fixed cue bands, inverse mapping and stride guards; one deck's half alone");
 }

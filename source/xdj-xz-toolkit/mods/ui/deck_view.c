@@ -91,8 +91,9 @@ void xz_deck_view_button_draw(struct xz_canvas c, const struct xz_deck_view_styl
  for(int i=0;i<n;i++){
   char digit[2]={(char)('0'+lanes[i]),0};
   int live=lanes[i]<=2||ready;
-  /* Four decks: each number in its deck's colour (deck_colour.h), dimmed while it waits; 2 DECKS as before. */
-  xz_text(c,tx,ty,digit,1,99,view!=XZ_LAYOUT_TWO?xz_deck_colour_text(lanes[i]-1,live,fill):live?s->ink:0x6a6a6a);
+  /* Four decks: each number in its deck's colour (deck_colour.h), dimmed while it waits. 2 DECKS: DECK 3 or 4
+     in its colour when a side controls it, DECK 1 and 2 as before. */
+  xz_text(c,tx,ty,digit,1,99,view!=XZ_LAYOUT_TWO||lanes[i]>2?xz_deck_colour_text(lanes[i]-1,live,fill):live?s->ink:0x6a6a6a);
   tx+=xz_text_width(c,digit,1,99)+4;
  }
  triangle_down(c,x+w-10,y+h/2-1,4,s->ink);
@@ -216,6 +217,13 @@ int xz_deck_view_ready_notice_take(uint32_t ready_revision) {
  do{ if(seen==ready_revision)return 0; }
  while(!__atomic_compare_exchange_n(&notified_ready,&seen,ready_revision,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE));
  return 1;
+}
+const char *xz_deck_view_pair_notice(unsigned before, unsigned after) {
+ static const char *const left[2]={"LEFT: DECK 1","LEFT: DECK 3"},*const right[2]={"RIGHT: DECK 2","RIGHT: DECK 4"};
+ static const char *const both[4]={"LEFT: DECK 1  RIGHT: DECK 2","LEFT: DECK 3  RIGHT: DECK 2",
+  "LEFT: DECK 1  RIGHT: DECK 4","LEFT: DECK 3  RIGHT: DECK 4"};
+ unsigned changed=(before^after)&3u;after&=3u;
+ return changed==1?left[after&1u]:changed==2?right[after>>1]:changed==3?both[after]:NULL;
 }
 int xz_deck_view_route_notice(int view, uint32_t ready_revision, uint32_t now_ms, struct xz_deck_view_notice *out) {
  if(!out||!xz_deck_view_ready_notice_take(ready_revision))return 0;

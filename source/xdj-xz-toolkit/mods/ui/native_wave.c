@@ -71,6 +71,31 @@ int xz_native_wave_finish_four(struct xz_native_wave_pair *p,const struct xz_nat
     memcpy(saved.pixels,scratch,bytes);
     return 1;
 }
+int xz_native_wave_finish_pair(struct xz_native_wave_pair *p,const struct xz_native_wave_scene *s,
+                         uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,
+                         xz_native_wave_render render,void *context,int inline_rows,unsigned pair,
+                         xz_native_wave_style halves,xz_native_wave_style style,xz_native_wave_style after) {
+    struct xz_native_wave_pair saved;
+    if(!p || !claim(p,s,thread,hw,scratch,count,&saved) || (unsigned)inline_rows>=XZ_STEM_LAYOUT_COUNT ||
+       (inline_rows&&!render) || !(pair&3u) || (pair&~3u) || !halves)return 0;
+    size_t bytes=XZ_NATIVE_WAVE_PIXELS*sizeof(*scratch);
+    memcpy(scratch,saved.pixels,bytes);
+    /* The software halves go in where the stock lanes are, so the one theme pass sees the whole surface in the
+       stock geometry; only then does the native half take its stem layout and rows. */
+    halves(scratch,XZ_NATIVE_WAVE_PIXELS);
+    if(style)style(scratch,XZ_NATIVE_WAVE_PIXELS);
+    unsigned native=~pair&3u;
+    if(inline_rows&&native){
+        struct xz_wave_layout g;if(!xz_wave_layout_get(inline_rows,&g))return 0;
+        size_t row_pixels=536*g.control_height;
+        if(!xz_wave_layout_pixels_decks(scratch,XZ_NATIVE_WAVE_PIXELS,536,inline_rows,native) ||
+           !render(context,rows,row_pixels*2,536,536,(int)g.control_height*2))return 0;
+        for(unsigned d=0;d<2;d++)if(native&(1u<<d))memcpy(scratch+536*g.control_y[d],rows+d*row_pixels,row_pixels*sizeof(*rows));
+    }
+    if(after)after(scratch,XZ_NATIVE_WAVE_PIXELS);
+    memcpy(saved.pixels,scratch,bytes);
+    return 1;
+}
 int xz_native_wave_finish(struct xz_native_wave_pair *p,const struct xz_native_wave_scene *s,
                          uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,
                          xz_native_wave_render render,void *context){

@@ -69,6 +69,9 @@ unsigned xz_wave_layout_source_row(const struct xz_wave_layout *,unsigned row);
 unsigned xz_wave_lane_row(unsigned row,unsigned height);
 /* Native draw lock only. Directional moves preserve source rows while shrinking. */
 int xz_wave_layout_pixels(uint16_t *,size_t count,size_t stride,int mode);
+/* The same for the decks in the mask only (bit 0 DECK 1, bit 1 DECK 2): a deck's half of the surface (rows
+   0..131, 132..267) is the only part read or written for it, so the other half is left as it is. */
+int xz_wave_layout_pixels_decks(uint16_t *,size_t count,size_t stride,int mode,unsigned decks);
 
 /* Four decks (../extra_decks.h). DECK 3 and DECK 4 have no native lane: the 268 rows hold four 64-row
    lanes with 4-row gaps, and native DECK 1 and DECK 2 shrink into theirs as the stem layouts do.

@@ -39,9 +39,9 @@ static inline int xz_deck_view_valid(int view) { return (unsigned)view<XZ_LAYOUT
 
 /* The top-bar button: lane glyph, DECKS, the deck numbers in screen order (3 and 4 grey while not ready),
    a down triangle, and an amber dot while a four-deck view waits for decks 3 and 4. pair names the decks a
-   2 DECKS view shows when the sides drive decks 3 or 4 (bit 0: left on 3, bit 1: right on 4; MODERN shows
-   the assigned pair). open draws it lit (the picker is showing); focused draws the encoder ring. Writes
-   only the button rectangle. */
+   2 DECKS view shows when the sides drive decks 3 or 4 (bit 0: left on 3, bit 1: right on 4; both interfaces
+   show that pair, DECK 3 and 4 in their colours). open draws it lit (the picker is showing); focused draws
+   the encoder ring. Writes only the button rectangle. */
 void xz_deck_view_button_draw(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, int pair, int open, int focused);
 /* The button's touch target: its columns, from y 0 to button_touch_h. */
 int xz_deck_view_button_hit(const struct xz_deck_view_style *s, int x, int y);
@@ -67,6 +67,12 @@ void xz_deck_view_mini_screen(struct xz_canvas c, const struct xz_deck_view_styl
    ready_revision is xz_extra_route_status.ready_revision; 0 (never up) and an already taken edge give 0.
    Lock-free; the only state in this module. */
 int xz_deck_view_ready_notice_take(uint32_t ready_revision);
+/* 2 DECKS shows the decks the two sides control. When a side switches (SHIFT pressed twice, SHORTCUT > DECK
+   SELECT, a panel's DECK SELECT) while the route is up and 2 DECKS shows, both interfaces say where it went
+   for this long: "LEFT: DECK 3", "RIGHT: DECK 2", or both sides when both changed at once. before and after
+   are pairs as the button's; NULL when no side changed. */
+#define XZ_DECK_VIEW_PAIR_NOTICE_MS 2000u
+const char *xz_deck_view_pair_notice(unsigned before, unsigned after);
 /* Shown when the route comes up under the decks 3 and 4 card (design 5.1, after the wipe). */
 #define XZ_DECK_VIEW_SUCCESS_NOTICE "DECKS 3 AND 4 ARE READY"
 /* CLASSIC's banner for a route-up. The draw thread calls this once the route is up and its ready revision

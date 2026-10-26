@@ -55,4 +55,12 @@ int xz_native_wave_finish_styled(struct xz_native_wave_pair *,const struct xz_na
 int xz_native_wave_finish_four(struct xz_native_wave_pair *,const struct xz_native_wave_scene *,
                          uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,int order,
                          xz_native_wave_style extra,xz_native_wave_style style);
+/* 2 DECKS with a side on DECK 3 or 4 (pair as extra_lane.h xz_two_frame): halves draws the software halves over
+   the stock surface, style themes it once (layer pixels kept), then the native side alone takes its stem layout
+   and rows, and after draws over the finished surface (the notice banner). Same pairing, identity and
+   transactional rules as finish_styled. */
+int xz_native_wave_finish_pair(struct xz_native_wave_pair *,const struct xz_native_wave_scene *,
+                         uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,
+                         xz_native_wave_render,void *context,int stem_layout,unsigned pair,
+                         xz_native_wave_style halves,xz_native_wave_style style,xz_native_wave_style after);
 #endif
