@@ -9,6 +9,7 @@
    load or CUE, wherever PLAY paused it otherwise. SAMPLING is CUE held from CUED at the cue: it plays
    until CUE is released, then returns to the cue (the manual's Cue Sampler). */
 #include <stdint.h>
+#include "ui/beat_jump.h"
 #include "extra_decks.h"
 #include "extra_cue_store.h"
 #include "audio/usb_transport/usb_transport.h"
@@ -68,6 +69,9 @@ struct xz_xp_env {
 struct xz_xp_players;
 #define XZ_XP_HAS_QUANTIZE_GRID 1
 /* Unknown or invalid settings inhibit phase alignment while retaining BPM follow. */
+/* Publication and admission use the player queue locks, never the UI mutex on a worker. */
+void xz_xp_set_performance_settings(struct xz_xp_players *,const struct xz_performance_settings *);
+int xz_xp_jump_snapshot(struct xz_xp_players *,int deck,struct xz_jump_snapshot *);
 void xz_xp_set_quantize_grid(struct xz_xp_players *,unsigned denominator,int known);
 void xz_xp_set_master_observer(struct xz_xp_players *,xz_master_observer);
 void xz_xp_native_master_selected(struct xz_xp_players *,unsigned native_deck);

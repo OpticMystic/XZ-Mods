@@ -129,7 +129,8 @@ static inline enum xz_shell_wave_color sh_wave_color(const struct xz_shell *u) {
 static inline enum xz_shell_wave_position sh_wave_position(const struct xz_shell *u) {
  return u->display.wave_position==XZ_SHELL_POSITION_LEFT?XZ_SHELL_POSITION_LEFT:XZ_SHELL_POSITION_CENTER;
 }
-static inline enum xz_shell_key_display sh_key_display(const struct xz_shell *u) {
+static inline enum xz_shell_key_display sh_key_display(const struct xz_shell *u,const struct xz_shell_model *m) {
+ if(m&&m->mods_settings_known)return m->key_format==1?XZ_SHELL_KEY_CLASSIC:m->key_format==2?XZ_SHELL_KEY_ALPHANUMERIC:XZ_SHELL_KEY_AS_DECK;
  return (unsigned)u->display.key_display<=XZ_SHELL_KEY_ALPHANUMERIC?u->display.key_display:XZ_SHELL_KEY_AS_DECK;
 }
 static inline enum xz_shell_usb_colors sh_usb_colors(const struct xz_shell *u) {
