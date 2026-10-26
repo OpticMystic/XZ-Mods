@@ -17,7 +17,17 @@
 #define XZ_UI_WIDGETS 64
 #define XZ_UI_ACTIONS 4
 
-enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_CONNECTION, XZ_UI_CONTROLS, XZ_UI_BEAT_JUMP, XZ_UI_EXTRAS, XZ_UI_DOOM, XZ_UI_DOOM_SETUP, XZ_UI_DOOM_FILES, XZ_UI_UPDATES, XZ_UI_UPDATE_SETUP, XZ_UI_GAMES, XZ_UI_MYHOUSE_SETUP, XZ_UI_KEY_SETUP, XZ_UI_BROWSE_SETUP, XZ_UI_PC_STEMS, XZ_UI_STEM_COLORS, XZ_UI_APPS, XZ_UI_APPS_SETUP, XZ_UI_RAM_SETUP, XZ_UI_LOCAL_STEM_SETUP, XZ_UI_METRICS_SETUP, XZ_UI_PROFILE_SETUP, XZ_UI_PROFILE_EDIT, XZ_UI_GENERAL, XZ_UI_FEATURE_SETUP, XZ_UI_THEME_PICK, XZ_UI_BUTTONS, XZ_UI_NETWORK, XZ_UI_NETWORK_SETUP, XZ_UI_NETWORK_EDIT, XZ_UI_ABOUT, XZ_UI_SUPPORT, XZ_UI_PAGE_COUNT };
+enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_CONNECTION, XZ_UI_CONTROLS, XZ_UI_BEAT_JUMP, XZ_UI_EXTRAS, XZ_UI_DOOM, XZ_UI_DOOM_SETUP, XZ_UI_DOOM_FILES, XZ_UI_UPDATES, XZ_UI_UPDATE_SETUP, XZ_UI_GAMES, XZ_UI_MYHOUSE_SETUP, XZ_UI_KEY_SETUP, XZ_UI_BROWSE_SETUP, XZ_UI_PC_STEMS, XZ_UI_STEM_COLORS, XZ_UI_APPS, XZ_UI_APPS_SETUP, XZ_UI_RAM_SETUP, XZ_UI_LOCAL_STEM_SETUP, XZ_UI_METRICS_SETUP, XZ_UI_PROFILE_SETUP, XZ_UI_PROFILE_EDIT, XZ_UI_GENERAL, XZ_UI_FEATURE_SETUP, XZ_UI_THEME_PICK, XZ_UI_BUTTONS, XZ_UI_NETWORK, XZ_UI_NETWORK_SETUP, XZ_UI_NETWORK_EDIT, XZ_UI_ABOUT, XZ_UI_SUPPORT,
+    /* The MODS sections (the rail, top to bottom), then the STEM PADS picture page. GENERAL, CONTROLS, THEMES
+       (APPEARANCE) and SETTINGS (ADVANCED) are retired: opening one opens its replacement (xz_ui_page_current). */
+    XZ_UI_HOME, XZ_UI_PLAY, XZ_UI_STEM_SECTION, XZ_UI_SCREEN, XZ_UI_FOUR_DECKS, XZ_UI_CONNECT, XZ_UI_STEM_PADS,
+    XZ_UI_PAGE_COUNT };
+/* The section rail in order; EXTRAS is the old page of that name. */
+enum { XZ_UI_SECTIONS=7 };
+extern const enum xz_ui_page xz_ui_sections[XZ_UI_SECTIONS];
+const char *xz_ui_section_label(int page);
+/* A retired page's replacement, or page itself. */
+enum xz_ui_page xz_ui_page_current(enum xz_ui_page page);
 enum xz_ui_cap {
     XZ_UI_GATE=1u, XZ_UI_SMART=2u, XZ_UI_PREVIEW=4u, XZ_UI_STEM=8u,
     XZ_UI_GROOVE=16u, XZ_UI_SAMPLE=32u, XZ_UI_THEME=64u, XZ_UI_SERVER=128u,
@@ -94,6 +104,11 @@ enum xz_ui_action_kind {
     /* A MODERN-only display setting the shell owns (mode lamps, waveform colours...). The shell runtime runs
        it itself; index = the shell's item, value = choice. The panel never sees it. */
     XZ_UI_SHELL_LOOK,
+    /* Something the menu explains but cannot change (a feature not in this version, a fact, a row of the 4 DECKS
+       grid): focusing it explains it, pressing it does nothing. index = enum xz_ui_info_topic. */
+    XZ_UI_INFO,
+    /* A HOME tile's SET UP button: index = the section that needs the DJ; it opens that section's fix. */
+    XZ_UI_HOME_SETUP,
     /* 4 DECKS > RESCAN: wake the four-deck connector for an immediate check. Keep last (merge note). */
     XZ_UI_ROUTE_RESCAN
 };
@@ -293,6 +308,9 @@ enum xz_deck_feature {
 unsigned xz_deck_caps(const struct xz_ui_model *, int logical_deck);
 /* One sentence on why feature cannot work on logical_deck, or NULL when it can. */
 const char *xz_deck_cap_reason(const struct xz_ui_model *, int logical_deck, unsigned feature);
+/* 4 DECKS needs the DJ: a four-deck view is chosen and decks 3 and 4 are not connected (the rail's amber dot,
+   DESIGN 1.1, in both interfaces). */
+int xz_ui_four_decks_attention(const struct xz_ui_model *);
 struct xz_ui {
     enum xz_ui_page page;
     int deck, down, capture, jump_edit_page, jump_edit_pair;
@@ -360,8 +378,18 @@ size_t xz_ui_encoder_turn(struct xz_ui *, const struct xz_ui_model *, int delta,
 size_t xz_ui_encoder_push(struct xz_ui *, const struct xz_ui_model *, struct xz_ui_action out[XZ_UI_ACTIONS]);
 /* The focused control after resolving identity against the current layout; 0 when the page has none. */
 int xz_ui_focused(const struct xz_ui *, const struct xz_ui_model *, struct xz_ui_widget *out);
-/* What the info box says about the focused control. Strings are static or point into the model. */
-struct xz_ui_info { const char *title, *body, *state; int available, selected; };
+/* What the info box says about the focused control. Strings are static or point into the model.
+   feature: the enum xz_deck_feature the control belongs to, 0 for the whole player. works_on: bit d set when
+   it works on logical deck d now (xz_deck_caps). excluded: why a deck is left out, one sentence, or NULL. */
+struct xz_ui_info { const char *title, *body, *state; int available, selected; unsigned feature, works_on; const char *excluded; };
+enum xz_ui_info_topic { XZ_UI_INFO_PREVIEW, XZ_UI_INFO_XPAD, XZ_UI_INFO_GROOVE, XZ_UI_INFO_SIDES, XZ_UI_INFO_COLUMNS,
+    XZ_UI_INFO_ROUTE, XZ_UI_INFO_GRID=16 /* + row of xz_ui_grid_features */ };
+/* The 4 DECKS grid's rows, top to bottom then the second column. */
+enum { XZ_UI_GRID_ROWS=10 };
+extern const unsigned xz_ui_grid_features[XZ_UI_GRID_ROWS];
+const char *xz_ui_grid_name(int row);
+/* The save line of every explanation area (DESIGN 3.4), from the runtime's settings_status. */
+const char *xz_ui_save_state(const struct xz_ui_model *, int *tone_alert);
 int xz_ui_describe(const struct xz_ui *, const struct xz_ui_model *, struct xz_ui_info *out);
 /* The same for any control of the current layout, focused or not. */
 int xz_ui_describe_widget(const struct xz_ui *, const struct xz_ui_model *, const struct xz_ui_widget *, struct xz_ui_info *out);

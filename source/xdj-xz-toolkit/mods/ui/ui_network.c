@@ -218,7 +218,7 @@ void xz_ui_network_render(const struct xz_ui_scene *s){
 }
 int xz_ui_network_menu(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_shell_menu *out){
     memset(out,0,sizeof *out);out->page=u->page;int depth=0;out->root=xz_ui_menu_root(u,&depth);out->depth=(uint8_t)depth;out->focus_row=-1;
-    snprintf(out->title,sizeof out->title,"%s",xz_ui_network_title(u->page));snprintf(out->path,sizeof out->path,"%s",u->page==XZ_UI_NETWORK?"":u->page==XZ_UI_NETWORK_SETUP?"NETWORK":"NETWORK / NETWORK SETUP");out->section_count=1;strcpy(out->sections[0],"NETWORK");
+    snprintf(out->title,sizeof out->title,"%s",xz_ui_network_title(u->page));snprintf(out->path,sizeof out->path,"%s",u->page==XZ_UI_NETWORK?"CONNECT":u->page==XZ_UI_NETWORK_SETUP?"CONNECT / NETWORK":"CONNECT / NETWORK / NETWORK SETUP");out->section_count=1;strcpy(out->sections[0],"NETWORK");
     static const char *steps[]={"DETECT","CHOOSE","APPLY","VERIFY"};out->step_count=u->page==XZ_UI_NETWORK?0:4;out->step=(uint8_t)u->network.step;for(unsigned i=0;i<4;i++)strcpy(out->steps[i],steps[i]);
     struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(u,m,w);
     for(size_t i=0;i<n&&out->row_count<XZ_SHELL_MENU_ROWS;i++)if(xz_ui_network_kind(w[i].kind)||(w[i].kind==XZ_UI_PANEL&&w[i].index==XZ_UI_UPDATES)){

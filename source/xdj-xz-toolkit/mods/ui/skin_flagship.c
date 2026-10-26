@@ -79,6 +79,10 @@ static const char *tagline(const struct xz_ui_widget *a){
   case XZ_UI_UPDATES:return "SIGNED UPDATES, ACTIVE NEXT BOOT";
   case XZ_UI_DOOM_FILES:return "BASE GAME + ADD-ON";
   case XZ_UI_MYHOUSE_SETUP:return "NEEDS THE NATIVE GZDOOM PORT";
+  case XZ_UI_PROFILE_SETUP:return "YOUR NAME AND LOGO FOR VJ SCREENS";
+  case XZ_UI_NETWORK:return "ADAPTER, ADDRESS, APPLY FOR THIS BOOT";
+  case XZ_UI_SUPPORT:return "PREPARE, CHECK AND SEND A REPORT";
+  case XZ_UI_ABOUT:return "CREDITS, LINKS AND SUPPORT";
   default:return NULL;}
  case XZ_UI_GAME_SELECT:return a->index?"ORIGINAL GAME + PATCH":"DOOM AND DOOM II DATA";
  case XZ_UI_ARCADE_OPEN:return "BEAT-SYNCED, JOG WHEEL";
@@ -87,23 +91,8 @@ static const char *tagline(const struct xz_ui_widget *a){
  case XZ_UI_GLYPH_RUN_OPEN:return "RUNNER SET TO THE TRACK";
  default:return NULL;}
 }
-static const char *section_title(enum xz_ui_page page){
- switch(page){
- case XZ_UI_GENERAL:return "GENERAL";case XZ_UI_FEATURE_SETUP:return "FEATURE SETUP";
- case XZ_UI_CONTROLS:case XZ_UI_BEAT_JUMP:case XZ_UI_PC_STEMS:case XZ_UI_BUTTONS:return "CONTROLS";
- case XZ_UI_THEMES:return "APPEARANCE";case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";
- case XZ_UI_SETTINGS:return "ADVANCED";case XZ_UI_EXTRAS:return "EXTRAS";
- case XZ_UI_STEMS:return "GROOVE PADS";case XZ_UI_XPAD:return "X-PAD";
- case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";
- case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_CONNECTION:return "VJ.TOOLS";
- case XZ_UI_GAMES:case XZ_UI_DOOM:case XZ_UI_DOOM_FILES:case XZ_UI_DOOM_SETUP:case XZ_UI_MYHOUSE_SETUP:return "GAMES";
- case XZ_UI_UPDATES:case XZ_UI_UPDATE_SETUP:return "UPDATES";
- case XZ_UI_APPS:case XZ_UI_APPS_SETUP:return "APPS";
- case XZ_UI_LOCAL_STEM_SETUP:return "STEM SETUP";
- case XZ_UI_METRICS_SETUP:return "METRICS SETUP";
- case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";
- default:return "MODS";}
-}
+/* The header names the open page, as the MODERN path line does. */
+static const char *section_title(enum xz_ui_page page){return xz_ui_page_title((int)page);}
 static enum style style_of(const struct xz_ui_widget *a){
  enum style s=(unsigned)a->kind<=(unsigned)XZ_UI_SET_MODERN_THEME?(enum style)kind_style[a->kind]:ROW;
  if(a->kind==XZ_UI_PANEL&&a->x<XZ_UI_RAIL_W)return RAIL_CELL;
@@ -292,8 +281,8 @@ static void render(const struct xz_ui_scene *s){
   case SHARED:break;
   case RAIL_CELL:
    xz_rect(c,a.x,a.y,a.w,a.h,selected?RAIL_ON:RAIL);xz_rect(c,a.x,a.y+a.h,a.w,1,BLACK);xz_rect(c,a.x,a.y-1,a.w,1,BLACK);
-   xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+a.w/2,a.y+24,WHITE);
-   text(c,a.x+2,a.y+a.h-20,a.w-4,12,a.label,1,ALIGN_C,WHITE);
+   xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+a.w/2,a.y+15,WHITE);
+   text(c,a.x+2,a.y+a.h-19,a.w-4,12,a.label,1,ALIGN_C,WHITE);
    break;
   case KEY:{
    int bx=a.kind==XZ_UI_BACK?a.x+8:a.x+a.w-42,cy=a.y+a.h/2;

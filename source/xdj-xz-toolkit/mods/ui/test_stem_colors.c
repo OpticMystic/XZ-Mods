@@ -34,8 +34,8 @@ int main(int argc,char **argv){
  assert(xz_ui_stem_color(0,2)==0x30d158);
  for(int theme=0;theme<XZ_THEME_COUNT;theme++){
   struct xz_ui u;struct xz_ui_model m={0};xz_ui_init(&u);m.theme=theme;
-  u.page=XZ_UI_THEMES;
-  struct xz_ui_widget link=find(&u,&m,XZ_UI_PANEL,XZ_UI_STEM_COLORS);
+  u.page=XZ_UI_STEM_SECTION;
+  struct xz_ui_widget link=find(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS);
   struct xz_ui_action actions[XZ_UI_ACTIONS];
   assert(xz_ui_touch(&u,&m,link.x+10,link.y+10,1,actions)==1&&u.page==XZ_UI_STEM_COLORS);
   xz_ui_touch(&u,&m,0,0,0,actions);

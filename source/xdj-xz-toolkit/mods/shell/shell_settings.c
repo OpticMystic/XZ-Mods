@@ -568,8 +568,9 @@ static const char *tab_label(const struct xz_shell_model *m, int t) {
  return l?l:"---";
 }
 static int open_tab(const struct xz_shell *u, const struct xz_shell_model *m) { return sh_max(0,sh_min(u->mods_view.tab,tab_count(m)-1)); }
-/* Entries that fit: UTILITY, the divider, then the mod pages; the mod pages scroll to keep the open one in view. */
-enum { RAIL_GAP=8, RAIL_FIT=(ROWS*ROW_H-RAIL_GAP)/RAIL_H };
+/* Entries that fit: UTILITY, the divider, then the mod pages (44 px cells at a 46 px pitch, DESIGN 3.1: HOME
+   to EXTRAS fit without scrolling); the mod pages scroll to keep the open one in view. */
+enum { RAIL_GAP=6, TAB_PITCH=46, TAB_Y=U_Y+RAIL_H+RAIL_GAP, RAIL_FIT=1+(U_Y+ROWS*ROW_H-TAB_Y)/TAB_PITCH };
 static int rail_first(const struct xz_shell *u, const struct xz_shell_model *m) {
  int n=tab_count(m)-1,shown=RAIL_FIT-1,t=u?open_tab(u,m):0;
  return n<=shown||t<1?0:clamp(t-shown,0,n-shown);
@@ -579,19 +580,19 @@ struct xz_shell_rect xz_shell_mods_tab_rect(const struct xz_shell *u, const stru
  if(tab==0)return (struct xz_shell_rect){0,U_Y,RAIL_W,RAIL_H};
  int slot=tab-1-rail_first(u,m);
  if(slot<0||slot>=RAIL_FIT-1)return (struct xz_shell_rect){0,0,0,0};
- return (struct xz_shell_rect){0,U_Y+RAIL_H+RAIL_GAP+slot*RAIL_H,RAIL_W,RAIL_H};
+ return (struct xz_shell_rect){0,TAB_Y+slot*TAB_PITCH,RAIL_W,TAB_PITCH};
 }
 struct xz_shell_rect xz_shell_mods_page_button(void) { return (struct xz_shell_rect){LIST_X+(W-LIST_X)/2-150,U_Y+190,300,48}; }
 /* A page name in a rail cell: one line when it fits, else split at the space nearest the middle. */
 static void rail_label(struct xz_canvas c, int y, const char *name, uint32_t ink) {
  int room=RAIL_W-8;
- if(sh_text_width(measure,name,SH_SMALL)<=room){text_fit_center(c,RAIL_W/2,y+RAIL_H/2-6,room,name,SH_SMALL,ink);return;}
+ if(sh_text_width(measure,name,SH_SMALL)<=room){text_fit_center(c,RAIL_W/2,y+TAB_PITCH/2-6,room,name,SH_SMALL,ink);return;}
  size_t len=strlen(name),best=0;
  for(size_t i=1;i<len&&i<63;i++)if(name[i]==' '&&(!best||(i>len/2?i-len/2:len/2-i)<(best>len/2?best-len/2:len/2-best)))best=i;
- if(!best){text_fit_center(c,RAIL_W/2,y+RAIL_H/2-6,room,name,SH_SMALL,ink);return;}
+ if(!best){text_fit_center(c,RAIL_W/2,y+TAB_PITCH/2-6,room,name,SH_SMALL,ink);return;}
  char first[64];memcpy(first,name,best);first[best]=0;
- text_fit_center(c,RAIL_W/2,y+RAIL_H/2-13,room,first,SH_SMALL,ink);
- text_fit_center(c,RAIL_W/2,y+RAIL_H/2+1,room,name+best+1,SH_SMALL,ink);
+ text_fit_center(c,RAIL_W/2,y+TAB_PITCH/2-13,room,first,SH_SMALL,ink);
+ text_fit_center(c,RAIL_W/2,y+TAB_PITCH/2+1,room,name+best+1,SH_SMALL,ink);
 }
 static void render_pages(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c) {
  int cur=open_tab(u,m),n=tab_count(m),first=rail_first(u,m);
@@ -607,7 +608,11 @@ static void render_pages(const struct xz_shell *u, const struct xz_shell_model *
    /* The player's own menu, said in a caption under its name. */
    text_fit_center(c,RAIL_W/2,r.y+10,RAIL_W-8,"UTILITY",SH_SMALL,ink);
    text_fit_center(c,RAIL_W/2,r.y+26,RAIL_W-8,"STOCK",SH_SMALL,selected?0xc8dcff:0x8c8c8c);
-  }else rail_label(c,r.y,tab_label(m,t),ink);
+  }else{
+   rail_label(c,r.y,tab_label(m,t),ink);
+   /* something on that page needs the DJ (4 DECKS: a four-deck view with decks 3 and 4 not connected) */
+   if(m->mods->tabs[t-1].attention)xz_disc(c,r.x+r.w-12,r.y+10,3,0xffa82e);
+  }
  }
  /* The divider between the stock menu and the mod pages, labelled MODS when there are any. */
  int dy=U_Y+RAIL_H;

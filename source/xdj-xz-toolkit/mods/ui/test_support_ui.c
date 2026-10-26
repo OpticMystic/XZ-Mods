@@ -8,7 +8,7 @@
 #error Assertions required
 #endif
 
-_Static_assert(XZ_UI_SUPPORT == 34 && XZ_UI_PAGE_COUNT == 35, "append-only support page ID");
+_Static_assert(XZ_UI_SUPPORT == 34 && XZ_UI_HOME == 35 && XZ_UI_PAGE_COUNT == 42, "append-only page IDs: support, then the MODS sections");
 
 static uint16_t pixels[800 * 480];
 

@@ -21,13 +21,9 @@ struct xz_ui_skin {
  void (*render_buttons)(struct xz_canvas c, int stems, int vj_visible, int vj_active);
 };
 void xz_ui_place(const struct xz_ui *,const struct xz_ui_model *,struct xz_ui_widget *,size_t);
-void xz_ui_stem_setup(const struct xz_ui_scene *);
 void xz_ui_stem_rows(const struct xz_ui_scene *);
 void xz_ui_stem_colors(const struct xz_ui_scene *);
 void xz_ui_page_details(const struct xz_ui_scene *);
-void xz_ui_appearance_details(const struct xz_ui_scene *);
-/* CONTROLS > BUTTONS: each slot's caption and the line on what its chosen action does. */
-void xz_ui_buttons_details(const struct xz_ui_scene *);
 extern const struct xz_ui_skin xz_skin_classic, xz_skin_lcars, xz_skin_matrix, xz_skin_analog, xz_skin_flagship;
 
 /* Shared screen grid. Header 0..HEAD, section rail 0..RAIL_W, content
@@ -68,6 +64,10 @@ struct xz_ui_look xz_ui_widget_look(const struct xz_ui *, const struct xz_ui_mod
    focus ring on the encoder's control and the info dock. */
 void xz_ui_chrome_icon(struct xz_canvas c, enum xz_ui_page page, int cx, int cy, uint32_t color);
 void xz_ui_chrome_focus(const struct xz_ui_scene *s, uint32_t color);
+/* The rail's attention dots, drawn over every skin (xz_ui_four_decks_attention, ui.h). */
+void xz_ui_chrome_rail_marks(const struct xz_ui_scene *s);
+/* 1 when the dock shows the page's notice on the left (the section pages), keeping the save state on the right. */
+int xz_ui_section_page_notice(const struct xz_ui *u);
 void xz_ui_chrome_dock(const struct xz_ui_scene *s, uint32_t bg, uint32_t ink, uint32_t dim, uint32_t accent, uint32_t alarm);
 void xz_ui_chrome_switch(struct xz_canvas c, int x, int y, int on, int available, uint32_t track, uint32_t knob, uint32_t accent);
 

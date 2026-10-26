@@ -13,7 +13,8 @@ enum xz_ui_menu_how {
  XZ_UI_MENU_DIRECT,  /* the action {kind, index, value} at once, phase PRESS */
  XZ_UI_MENU_SLIDE,   /* the same, phase MOVE (a slider) */
  XZ_UI_MENU_CYCLE,   /* the control's own step, repeated until its value is index */
- XZ_UI_MENU_PAGE     /* open page index below this one */
+ XZ_UI_MENU_PAGE,    /* open page index below this one */
+ XZ_UI_MENU_PUSH     /* the panel's encoder push on the control {kind, index, deck} (a picture part) */
 };
 #define XZ_UI_MENU_ACTIONS 8
 /* The top page the open page lives under, and how many pages below it. */
@@ -24,6 +25,8 @@ void xz_ui_menu_open(struct xz_ui *, enum xz_ui_page top);
 int xz_ui_menu_build(const struct xz_ui *, const struct xz_ui_model *, struct xz_shell_menu *out);
 /* Runs a row or choice target; returns the panel actions the runtime applies, as after a touch. */
 size_t xz_ui_menu_run(struct xz_ui *, const struct xz_ui_model *, const struct xz_shell_menu_target *, struct xz_ui_action out[XZ_UI_MENU_ACTIONS]);
+/* The encoder while the open page is adjusting a value (a BEAT JUMP pair): the panel's own turn. */
+size_t xz_ui_menu_turn(struct xz_ui *, const struct xz_ui_model *, int delta, struct xz_ui_action out[XZ_UI_ACTIONS]);
 /* A held pad: down 1 presses (or moves) at x, y (0..1000 across the control), 0 releases. */
 size_t xz_ui_menu_pad(struct xz_ui *, const struct xz_ui_model *, const struct xz_shell_menu_target *, int x, int y, int down, struct xz_ui_action out[XZ_UI_ACTIONS]);
 /* One page up, as the panel's BACK; a top page returns CLOSE. */

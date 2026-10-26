@@ -105,12 +105,12 @@ static void test_contract(void) {
  assert(xz_shell_mods_tab_rect(&u,&m,0).h>=44&&xz_shell_mods_tab_rect(&u,&m,1).w==0);
  /* Eleven mod pages do not fit: the mod entries scroll so the open one shows, UTILITY stays on top. */
  static const struct xz_shell_mods_tab many[11]={
-  {"CLASSIC THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,NULL},{"MODERN THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL},
-  {"INTERFACE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL},{"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL},
-  {"STEMS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,5,NULL},{"BEAT JUMP",XZ_SHELL_TAB_PAGE,NULL,NULL,0,6,NULL},
-  {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,7,NULL},{"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,8,NULL},
-  {"PERFORMANCE PADS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,9,NULL},{"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,10,NULL},
-  {"ABOUT THIS MOD",XZ_SHELL_TAB_PAGE,NULL,NULL,0,11,NULL},
+  {"CLASSIC THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,1,NULL,0},{"MODERN THEMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,2,NULL,0},
+  {"INTERFACE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,3,NULL,0},{"APPEARANCE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,4,NULL,0},
+  {"STEMS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,5,NULL,0},{"BEAT JUMP",XZ_SHELL_TAB_PAGE,NULL,NULL,0,6,NULL,0},
+  {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,7,NULL,0},{"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,8,NULL,0},
+  {"PERFORMANCE PADS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,9,NULL,0},{"ADVANCED",XZ_SHELL_TAB_PAGE,NULL,NULL,0,10,NULL,0},
+  {"ABOUT THIS MOD",XZ_SHELL_TAB_PAGE,NULL,NULL,0,11,NULL,0},
  };
  static const struct xz_shell_mods_model many_mods={11,many};
  m.mods=&many_mods;
@@ -161,7 +161,7 @@ static void test_held_menu_and_back_chain(void) {
  xz_shell_init(&u);hold_menu(&u,&m);
  static const struct xz_shell_setting_item one[]={{7,0,"ONLY",fxs_off_on,2,0,1,1}};
  static const struct xz_shell_settings_model one_model={1,one,NULL};
- static const struct xz_shell_mods_tab one_tab[]={{"ONE",XZ_SHELL_TAB_ITEMS,&one_model,NULL,0,0,NULL}};
+ static const struct xz_shell_mods_tab one_tab[]={{"ONE",XZ_SHELL_TAB_ITEMS,&one_model,NULL,0,0,NULL,0}};
  static const struct xz_shell_mods_model one_mods={1,one_tab};
  m.mods=&one_mods;
  enter_tab(&u,&m,1);assert(pane(&u)==ITEMS_PANE);
@@ -447,12 +447,12 @@ static void test_probe_and_wild(void) {
  static const struct xz_shell_settings_model odd_model={4,odd,NULL},zero_model={0,odd,NULL},null_items={3,NULL,NULL};
  static const char *const few[]={"ONE",NULL};
  static const struct xz_shell_mods_tab wild[]={
-  {NULL,XZ_SHELL_TAB_ITEMS,&odd_model,few,2,0,NULL},
-  {"NO ITEMS",XZ_SHELL_TAB_ITEMS,NULL,NULL,0,0,NULL},
-  {"ZERO",XZ_SHELL_TAB_ITEMS,&zero_model,NULL,0,0,NULL},
-  {"NULL ITEMS",XZ_SHELL_TAB_ITEMS,&null_items,NULL,0,0,NULL},
-  {NULL,XZ_SHELL_TAB_PAGE,NULL,NULL,0,-5,NULL},
-  {"A VERY LONG TAB LABEL THAT CANNOT FIT",(enum xz_shell_mods_tab_kind)9,NULL,NULL,0,0,"A SUMMARY FAR TOO LONG FOR ITS LINE ON THIS SMALL SCREEN, IT MUST BE CUT"},
+  {NULL,XZ_SHELL_TAB_ITEMS,&odd_model,few,2,0,NULL,0},
+  {"NO ITEMS",XZ_SHELL_TAB_ITEMS,NULL,NULL,0,0,NULL,0},
+  {"ZERO",XZ_SHELL_TAB_ITEMS,&zero_model,NULL,0,0,NULL,0},
+  {"NULL ITEMS",XZ_SHELL_TAB_ITEMS,&null_items,NULL,0,0,NULL,0},
+  {NULL,XZ_SHELL_TAB_PAGE,NULL,NULL,0,-5,NULL,0},
+  {"A VERY LONG TAB LABEL THAT CANNOT FIT",(enum xz_shell_mods_tab_kind)9,NULL,NULL,0,0,"A SUMMARY FAR TOO LONG FOR ITS LINE ON THIS SMALL SCREEN, IT MUST BE CUT",0},
  };
  static const struct xz_shell_mods_model wild_mods={sizeof wild/sizeof *wild,wild};
  m.mods=&wild_mods;

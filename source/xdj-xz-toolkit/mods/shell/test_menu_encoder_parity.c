@@ -57,7 +57,7 @@ static void top_back_return(void){
 int main(void){
  setvbuf(stdout,NULL,_IONBF,0);fx_track_build(&track,7);fx_model_full(&sm,&track);sm.settings_screen=fxs_reset();sm.mods=&mfx_mods;sm.menu=&menu;
  (void)&bx_folders;physical_load_parity();visible_menu_rows();pending_navigation();top_back_return();
- test_open();test_encoder_never_leaves();test_back();test_render_every_page();test_press_parity();test_touch();test_wild();
+ test_open();test_encoder_never_leaves();test_back();test_home();test_pictures();test_render_every_page();test_press_parity();test_touch();test_wild();
  printf("encoder parity: %u checks, %u failures\n",ep_checks,ep_failures);
  return ep_failures?1:0;
 }

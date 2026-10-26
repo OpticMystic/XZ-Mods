@@ -64,6 +64,7 @@
    and BEAT JUMP and QUANTIZE BEAT VALUE (from the active deck) when the table
    lacks them, read only unless model.settings.writable says otherwise. */
 #include "shell.h"
+#include "../ui/picture_data.h"
 
 enum xz_shell_item_id {
  XZ_SHELL_ITEM_TIME_MODE=XZ_SHELL_SET_TIME_MODE,
@@ -145,13 +146,14 @@ struct xz_shell_settings_model {
    the shell; page is its root page id. */
 enum xz_shell_mods_tab_kind { XZ_SHELL_TAB_ITEMS, XZ_SHELL_TAB_PAGE, XZ_SHELL_TAB_MENU };
 struct xz_shell_mods_tab {
- const char *label;                       /* caps, short: "STEMS", "APPEARANCE" */
+ const char *label;                       /* caps, short: "STEMS", "SCREEN" */
  enum xz_shell_mods_tab_kind kind;
  const struct xz_shell_settings_model *items; /* TAB_ITEMS: the tab's items; their categories are its sections */
  const char *const *sections;             /* TAB_ITEMS: section names by category number; NULL = the UTILITY names */
  int section_count;
  int page;                                /* TAB_PAGE: the page OPEN_MODS opens */
  const char *summary;                     /* TAB_PAGE: one line on what the page holds */
+ int attention;                           /* an amber dot on the rail entry: something there needs the DJ */
 };
 /* The mod tabs, in order. Built from the mod settings (no hard-coded list in the shell). A TAB_ITEMS
    tab's sections become its rail; a long section name wraps to two lines. */
@@ -168,11 +170,23 @@ struct xz_shell_mods_model { uint32_t count; const struct xz_shell_mods_tab *tab
      LINK    push opens a deeper page (ACTIVATE); the runtime publishes that page with depth + 1
      PAD     a performance pad: push taps it; on its pad area a touch holds it (PRESS, MOVE, RELEASE)
      KEY     a keyboard key (layout KEYBOARD): drawn as a key grid, push or a tap types it
+     INFO    explains something that has no setting: push does nothing
+     PART    a part of the page's picture (layouts HOME and PICTURE), drawn at rect: push runs it as the
+             panel's encoder push (ACTIVATE row, -1), a tap as the panel's touch (TAP row)
    An unavailable row still takes the cursor and shows its reason; push asks the runtime anyway (it
    answers with its setup page or a notice), so a missing capability is never a dead control.
    The values pane shows a CHOICE or TOGGLE row's choices, the row's help, then the page's status and
    lines; for the other rows the status, the lines, then the help. A setup flow names its steps
-   (steps, step) and the shell draws them as a strip above the list.
+   (steps, step) and the shell draws them as a strip above the list. A row with picture set draws its
+   choices as pictures (mini play screens, waveform swatches, key examples, the media buttons).
+   Under every explanation: WORKS ON chips for decks 3 1 2 4 when chips is set (bit d of works_on = deck
+   d + 1 works), excluded in amber when a deck is left out, and the save line (save, save_tone).
+
+   Layouts. HOME: rows are the section tiles (LINK, at rect, value = the live state, tone its dot) and
+   their SET UP buttons (PART, at rect inside the tile); turn moves tile to tile and into a tile's button.
+   PICTURE: picture names the page's picture (BEAT_JUMP, STEM_PADS, FOUR_DECKS), drawn from pic; every row
+   is a PART of it at rect, and a band under it explains the focused row. While adjusting the panel
+   changes a value with the encoder: turns go to the runtime (TURN, value = detents), push or BACK ends it.
 
    Encoder: on the rail turn picks a tab (a MENU tab sends OPEN), push enters the page on its focus row;
    in the list turn moves, push acts as above, hold jumps to the next section; in the values pane turn
@@ -183,19 +197,28 @@ enum xz_shell_menu_op {
  XZ_SHELL_MENU_ACTIVATE,  /* value = row, deck = choice index or -1 */
  XZ_SHELL_MENU_BACK,      /* one page up */
  XZ_SHELL_MENU_PROFILE_PICK, XZ_SHELL_MENU_PROFILE_SETUP,
- XZ_SHELL_MENU_PRESS, XZ_SHELL_MENU_MOVE, XZ_SHELL_MENU_RELEASE /* PAD touch: value = row, deck = x * 1024 + y,
-                                                                 each 0..1000 across the pad area */
+ XZ_SHELL_MENU_PRESS, XZ_SHELL_MENU_MOVE, XZ_SHELL_MENU_RELEASE, /* PAD touch: value = row, deck = x * 1024 + y,
+                                                                  each 0..1000 across the pad area */
+ XZ_SHELL_MENU_TAP,       /* value = row: a tap on a PART */
+ XZ_SHELL_MENU_TURN       /* value = encoder detents while the page is adjusting */
 };
 enum xz_shell_menu_kind { XZ_SHELL_MENU_CHOICE, XZ_SHELL_MENU_TOGGLE, XZ_SHELL_MENU_ACTION, XZ_SHELL_MENU_LINK,
- XZ_SHELL_MENU_PAD, XZ_SHELL_MENU_KEY };
+ XZ_SHELL_MENU_PAD, XZ_SHELL_MENU_KEY, XZ_SHELL_MENU_INFO, XZ_SHELL_MENU_PART };
 enum xz_shell_menu_tone { XZ_SHELL_TONE_PLAIN, XZ_SHELL_TONE_DIM, XZ_SHELL_TONE_GOOD, XZ_SHELL_TONE_ALERT, XZ_SHELL_TONE_HEAD };
-enum xz_shell_menu_layout { XZ_SHELL_MENU_LIST, XZ_SHELL_MENU_KEYBOARD, XZ_SHELL_MENU_ABOUT, XZ_SHELL_MENU_SUPPORT };
+enum xz_shell_menu_layout { XZ_SHELL_MENU_LIST, XZ_SHELL_MENU_KEYBOARD, XZ_SHELL_MENU_ABOUT, XZ_SHELL_MENU_SUPPORT,
+ XZ_SHELL_MENU_HOME, XZ_SHELL_MENU_PICTURE };
+/* Pictures: a PICTURE page's own (menu.picture), or how a CHOICE row draws its choices (row.picture). */
+enum xz_shell_menu_picture { XZ_SHELL_PIC_NONE, XZ_SHELL_PIC_BEAT_JUMP, XZ_SHELL_PIC_STEM_PADS, XZ_SHELL_PIC_FOUR_DECKS,
+ XZ_SHELL_PIC_INTERFACE, XZ_SHELL_PIC_DECK_VIEW, XZ_SHELL_PIC_STEM_LAYOUT, XZ_SHELL_PIC_WAVE_COLOURS,
+ XZ_SHELL_PIC_KEY_NOTATION, XZ_SHELL_PIC_MEDIA_BUTTON };
 enum { XZ_SHELL_MENU_ROWS=48, XZ_SHELL_MENU_CHOICES=96, XZ_SHELL_MENU_SECTIONS=8, XZ_SHELL_MENU_LINES=10,
  XZ_SHELL_MENU_STEPS=6 };
 /* What a row or choice runs, in the runtime's own terms; the shell never reads it. */
 struct xz_shell_menu_target { int16_t kind, index; int8_t deck, how; int16_t value; };
 struct xz_shell_menu_choice {
  char label[28];
+ char detail[28];                         /* a picture choice's second line: "MIXER ORDER 3 1 2 4", "8A" */
+ int16_t value;                           /* a picture choice's own value (layout, wave scheme, view) */
  uint8_t available, has_rgb;
  uint32_t rgb;                            /* a colour swatch beside the label (0xRRGGBB) when has_rgb */
  struct xz_shell_menu_target target;
@@ -205,9 +228,12 @@ struct xz_shell_menu_row {
  int16_t first_choice, current;                   /* choices first_choice..+count; current: the lit one, -1 none */
  int32_t key;                                     /* the same control keeps its key across refreshes */
  char label[40];                                  /* caps */
- char value[28];                                  /* right of the label: the lit choice, ON / OFF, a state */
- char help[176];                                  /* what it does, 1-3 short sentences */
+ char value[56];                                  /* right of the label: the lit choice, ON / OFF, a state */
+ char help[256];                                  /* what it does, 1-3 short sentences */
  char reason[88];                                 /* unavailable: why, one line */
+ char excluded[64];                               /* the decks it leaves out and why, one line */
+ uint8_t picture, chips, works_on, tone;          /* enum xz_shell_menu_picture; WORKS ON chips; tone: HOME state dot */
+ struct xz_shell_rect rect;                       /* HOME and PICTURE layouts: where the row is drawn and touched */
  struct xz_shell_menu_target target;
 };
 struct xz_shell_menu_line { char text[160]; uint8_t tone; };
@@ -226,7 +252,8 @@ struct xz_shell_menu {
  int32_t page, root;                      /* the open page and the top page (a MENU tab's page) it lives under */
  uint8_t depth, layout, row_count, choice_count, section_count, line_count, step_count, step;
  int16_t focus_row;                       /* where the cursor starts on this page; -1: the first row */
- uint8_t status_tone;
+ uint8_t status_tone, save_tone, picture, adjusting;
+ char save[72];                           /* whether a change survives a restart: "SAVED TO USB 1" */
  char title[32];                          /* the page's name */
  char path[64];                           /* the pages above it, "GENERAL" or "EXTRAS / GAMES" */
  char status[100];                        /* the last result or what the page waits for; empty: none */
@@ -238,6 +265,7 @@ struct xz_shell_menu {
  struct xz_shell_menu_line line[XZ_SHELL_MENU_LINES];
  struct xz_shell_menu_row row[XZ_SHELL_MENU_ROWS];
  struct xz_shell_menu_choice choice[XZ_SHELL_MENU_CHOICES];
+ struct { struct xz_pic_jump jump; struct xz_pic_stem_pads stem; struct xz_pic_home home; struct xz_pic_decks decks; } pic;
 };
 /* Opens MODS on tab (an index into the rail: 0 UTILITY, 1.. the mod tabs) with the encoder inside its
    page, as the runtime asks when one of its own controls led to a mod page. Sends nothing. */

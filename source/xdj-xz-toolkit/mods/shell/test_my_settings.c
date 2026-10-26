@@ -235,7 +235,7 @@ static void test_mods_title(void) {
  static const char *const long_sections[]={"CLASSIC THEMES","MODERN THEMES AND COLOURS","GROUPED"};
  static const struct xz_shell_setting_item look[]={{1,0,"THEME",fxs_off_on,2,0,1,1},{2,1,"ACCENT",fxs_off_on,2,0,1,1},{3,2,"X",fxs_off_on,2,0,1,1}};
  static const struct xz_shell_settings_model look_model={3,look,NULL};
- static const struct xz_shell_mods_tab tabs[]={{"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,long_sections,3,0,NULL}};
+ static const struct xz_shell_mods_tab tabs[]={{"APPEARANCE",XZ_SHELL_TAB_ITEMS,&look_model,long_sections,3,0,NULL,0}};
  static const struct xz_shell_mods_model mods={1,tabs};
  m.mods=&mods;
  key(&u,&m,XZ_SHELL_KEY_BACK);key(&u,&m,XZ_SHELL_KEY_BACK);

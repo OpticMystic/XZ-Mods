@@ -688,16 +688,15 @@ static void menu_publish_locked(void){
         else xz_shell_runtime_menu(&menu_scratch);
     }
 }
-/* The page ui.page sits under must be a MENU tab (GENERAL, CONTROLS, ADVANCED, EXTRAS); a page reached from
-   the two item tabs (APPEARANCE, BUTTONS) is filed under GENERAL, which links to it too. */
-static int menu_top(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS||page==XZ_UI_NETWORK;}
+/* The page ui.page sits under must be a MENU tab: one of the MODS sections (HOME ... EXTRAS). */
+static int menu_top(int page){return xz_ui_page_is_top(page);}
 static void panel_show_locked(void){
     play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
     if(menu_in_shell_locked()){
         /* Opened from outside MODS: the page sits under its own parents, not wherever the panel was. */
         if(!(xz_shell_runtime_menu_wanted&&xz_shell_runtime_menu_wanted()))ui.history_count=0;
         if(!menu_top(xz_ui_menu_root(&ui,NULL))&&ui.history_count<16){
-            memmove(ui.history+1,ui.history,ui.history_count*sizeof(*ui.history));ui.history[0]=XZ_UI_GENERAL;ui.history_count++;
+            memmove(ui.history+1,ui.history,ui.history_count*sizeof(*ui.history));ui.history[0]=XZ_UI_HOME;ui.history_count++;
         }
         if(xz_shell_runtime_show_mods(xz_ui_menu_root(&ui,NULL))){menu_publish_locked();return;}
     }
@@ -1555,6 +1554,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
         in->stem_muted[d]=model.deck[d].muted;in->stem_bypass[d]=model.deck[d].bypass!=0;
     }
     in->stem_rgb_known=1;for(int i=0;i<3;i++)in->stem_rgb[i]=xz_ui_model_stem_color(&model,i);
+    in->four_decks_attention=xz_ui_four_decks_attention(&model);
     in->look_known=1;in->ui_interface=model.ui_interface;in->modern_theme=model.modern_theme;in->wave_mode=model.wave_mode;
     in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
     for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
@@ -1597,6 +1597,7 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
    opening_contact capture does. */
 static void menu_command_locked(const struct xz_shell_runtime_menu_command *c){
     struct xz_ui_action actions[XZ_UI_MENU_ACTIONS];size_t n=0;
+    int root_before=xz_ui_menu_root(&ui,NULL);
     if(xz_ui_network_page(ui.page))xz_ui_network_painted(&ui,&model,c->network_publication);
     switch(c->op){
     case XZ_SHELL_MENU_OPEN:
@@ -1606,12 +1607,20 @@ static void menu_command_locked(const struct xz_shell_runtime_menu_command *c){
         xz_ui_menu_open(&ui,(enum xz_ui_page)c->root);
         break;
     case XZ_SHELL_MENU_ACTIVATE:n=xz_ui_menu_run(&ui,&model,&c->target,actions);break;
+    case XZ_SHELL_MENU_TAP:{
+        /* a tap on a picture part is the panel's own touch on that control */
+        struct xz_shell_menu_target t=c->target;t.how=XZ_UI_MENU_TOUCH;
+        n=xz_ui_menu_run(&ui,&model,&t,actions);break;}
+    case XZ_SHELL_MENU_TURN:n=xz_ui_menu_turn(&ui,&model,c->x,actions);break;
     case XZ_SHELL_MENU_BACK:n=xz_ui_menu_back(&ui,actions);break;
     case XZ_SHELL_MENU_PRESS:case XZ_SHELL_MENU_MOVE:n=xz_ui_menu_pad(&ui,&model,&c->target,c->x,c->y,1,actions);break;
     case XZ_SHELL_MENU_RELEASE:n=xz_ui_menu_pad(&ui,&model,&c->target,c->x,c->y,0,actions);break;
     default:return;
     }
     if(n)apply(NULL,actions,n);
+    /* A HOME tile or a link into another section: the rail follows to that section's tab. */
+    int root=xz_ui_menu_root(&ui,NULL);
+    if(c->op!=XZ_SHELL_MENU_OPEN&&root!=root_before&&menu_in_shell_locked())xz_shell_runtime_show_mods(root);
 }
 static void shell_ui_requests_locked(void){
     unsigned requests=xz_shell_runtime_take_ui_requests?xz_shell_runtime_take_ui_requests():0;
@@ -1826,7 +1835,7 @@ static int rekordbox_run_locked(int action){
             const char *why=!v->ready||!v->enabled?"VJ.TOOLS LINK IS OFF":"VJ.TOOLS IS NOT CONNECTED";
             if(modern&&!touch.visible&&shell_owns_locked()&&xz_shell_runtime_notice)xz_shell_runtime_notice(why);
             else{
-                if(menu_in_shell_locked())xz_ui_menu_open(&ui,XZ_UI_EXTRAS);
+                if(menu_in_shell_locked())xz_ui_menu_open(&ui,XZ_UI_CONNECT);
                 xz_ui_navigate(&ui,XZ_UI_CONNECTION);
                 if(!touch.visible)mods_panel_open_locked();
                 snprintf(ui.notice,sizeof(ui.notice),"%s",why);

@@ -401,7 +401,7 @@ void xz_sdk_ui_render(const struct xz_ui_scene *s){
  struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;struct inks k=inks(s);char buf[96];
  if(u->page==XZ_UI_EXTRAS){
   /* The APPLICATIONS card carries its own title; only live state is added here. */
-  if(m->sdk.foreground)text(c,X0+16,226+146,292,"AN APP IS RUNNING / OPEN TO STOP IT",1,k.accent);
+  if(m->sdk.foreground)text(c,468+16,48+146,292,"AN APP IS RUNNING / OPEN TO STOP IT",1,k.accent);
   return;
  }
  if(u->page==XZ_UI_APPS)browser(s,&k);

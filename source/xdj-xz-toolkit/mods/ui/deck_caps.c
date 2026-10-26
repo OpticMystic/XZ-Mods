@@ -34,29 +34,25 @@ unsigned xz_deck_caps(const struct xz_ui_model *m, int deck) {
  if(m->deck[0].ram.state!=XZ_UI_RAM_UNAVAILABLE||m->deck[1].ram.state!=XZ_UI_RAM_UNAVAILABLE)caps|=XZ_DECK_CAN_RAM;
  return caps;
 }
+/* One short sentence (it fits one line of the CLASSIC dock): why feature is not on logical_deck now. */
 const char *xz_deck_cap_reason(const struct xz_ui_model *m, int deck, unsigned feature) {
  if(!m||deck<0||deck>3||(xz_deck_caps(m,deck)&feature))return NULL;
  if(deck>=2){
   if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)return "Decks 3 and 4 need a newer USB loader.";
   switch(feature){
-  case XZ_DECK_CAN_BEAT_JUMP:return "Decks 3 and 4 jump 1, 2, 4 and 8 beats; your sizes are not on them in this version.";
-  case XZ_DECK_CAN_GATE_CUE:case XZ_DECK_CAN_SMART_CUE:return "Decks 3 and 4 keep the normal hot cues in this version.";
-  case XZ_DECK_CAN_KEY_SYNC:return "Decks 3 and 4 cannot shift key in this version.";
-  case XZ_DECK_CAN_STEMS:case XZ_DECK_CAN_GROOVE:
-   return "Decks 3 and 4 are software players. They cannot split a track into stems in this version.";
+  case XZ_DECK_CAN_BEAT_JUMP:return "Decks 3 and 4 jump 1, 2, 4, 8 beats only.";
+  case XZ_DECK_CAN_KEY_SYNC:return "Decks 3 and 4 cannot shift key yet.";
+  case XZ_DECK_CAN_STEMS:case XZ_DECK_CAN_GROOVE:return "Decks 3 and 4: no stems in this version.";
   case XZ_DECK_CAN_XPAD:return "The sampler plays on decks 1 and 2.";
   case XZ_DECK_CAN_RAM:return "Decks 3 and 4 always read the USB.";
-  case XZ_DECK_CAN_CUE_PREVIEW:return "Hot cue preview is not on decks 3 and 4 in this version.";
   default:return "Not on decks 3 and 4 in this version.";
   }
  }
  switch(feature){
  case XZ_DECK_CAN_STEMS:return "This USB loader has no stem engine.";
- case XZ_DECK_CAN_KEY_SYNC:return "The key engine has not reported in yet.";
- case XZ_DECK_CAN_CUE_PREVIEW:return "This USB loader has no hot cue preview engine.";
- case XZ_DECK_CAN_XPAD:return "This USB loader has no X-PAD sampler engine.";
- case XZ_DECK_CAN_GROOVE:return "This USB loader has no groove pad engine.";
- case XZ_DECK_CAN_RAM:return "The RAM track engine has not reported in yet.";
+ case XZ_DECK_CAN_KEY_SYNC:return "The key engine has not reported yet.";
+ case XZ_DECK_CAN_CUE_PREVIEW:case XZ_DECK_CAN_XPAD:case XZ_DECK_CAN_GROOVE:return "Not in this version of XZ Mods.";
+ case XZ_DECK_CAN_RAM:return "The RAM engine has not reported yet.";
  default:return "Not on this deck in this version.";
  }
 }

@@ -129,11 +129,11 @@ static const struct xz_shell_settings_model fxm_stems={sizeof fxm_stem_items/siz
 static const struct xz_shell_settings_model fxm_look={sizeof fxm_look_items/sizeof *fxm_look_items,fxm_look_items,NULL};
 static const struct xz_shell_settings_model fxm_jump_model={sizeof fxm_jump_items/sizeof *fxm_jump_items,fxm_jump_items,NULL};
 static const struct xz_shell_mods_tab fxm_tabs[]={
- {"STEMS",XZ_SHELL_TAB_ITEMS,&fxm_stems,fxm_stem_sections,2,0,NULL},
- {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&fxm_look,fxm_look_sections,4,0,NULL},
- {"BEAT JUMP",XZ_SHELL_TAB_ITEMS,&fxm_jump_model,fxm_jump_sections,2,0,NULL},
- {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,24,"YOUR NAME, LOGO AND COLORS ON THE USB STICK"},
- {"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,13,"ARCADE GAMES FOR THE BREAK"},
+ {"STEMS",XZ_SHELL_TAB_ITEMS,&fxm_stems,fxm_stem_sections,2,0,NULL,0},
+ {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&fxm_look,fxm_look_sections,4,0,NULL,0},
+ {"BEAT JUMP",XZ_SHELL_TAB_ITEMS,&fxm_jump_model,fxm_jump_sections,2,0,NULL,0},
+ {"DJ PROFILE",XZ_SHELL_TAB_PAGE,NULL,NULL,0,24,"YOUR NAME, LOGO AND COLORS ON THE USB STICK",0},
+ {"GAMES",XZ_SHELL_TAB_PAGE,NULL,NULL,0,13,"ARCADE GAMES FOR THE BREAK",0},
 };
 static const struct xz_shell_mods_model fxm_model={sizeof fxm_tabs/sizeof *fxm_tabs,fxm_tabs};
 /* The runtime's descriptions for the two indicator items (scope: APPEARANCE's tab index + 1). */

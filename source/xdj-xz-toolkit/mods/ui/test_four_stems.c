@@ -229,7 +229,7 @@ int main(void){
     /* STEM ORDER readout names the fixed bass pad only while a four-stem deck is loaded. */
     for(int count=3;count<=4;count++){
         m=local_model(3,count);
-        struct xz_ui c;xz_ui_init(&c);c.page=XZ_UI_CONTROLS;
+        struct xz_ui c;xz_ui_init(&c);c.page=XZ_UI_STEM_PADS;
         struct xz_ui_widget all[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&c,&m,all);int found=0;
         for(size_t i=0;i<n;i++)if(all[i].kind==XZ_UI_STEM_ORDER){c.focus_kind=all[i].kind;c.focus_index=all[i].index;c.focus_deck=all[i].deck;found=1;}
         assert(found);

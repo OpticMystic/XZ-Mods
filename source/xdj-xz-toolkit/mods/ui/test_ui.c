@@ -1,6 +1,9 @@
 #include "ui.h"
 #include "ui_skin.h"
 #include "play_key.h"
+#include "wave_viewport.h"
+#include "ui_network.h"
+#include "ui_support.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +26,7 @@ static struct xz_ui_action tap(struct xz_ui *u,struct xz_ui_model *m,enum xz_ui_
  size_t n=xz_ui_touch(u,m,w.x+w.w/2,w.y+w.h/2,1,a);assert(n==1);result=a[0];
  xz_ui_touch(u,m,0,0,0,a);return result;
 }
+static size_t press(struct xz_ui *u,struct xz_ui_model *m,enum xz_ui_action_kind kind,int index,struct xz_ui_action a[XZ_UI_ACTIONS]);
 static void ppm(const char *path){
  FILE *f=fopen(path,"wb");size_t i;assert(f);fprintf(f,"P6\n800 480\n255\n");
  for(i=0;i<800*480;i++){unsigned v=frame[i];unsigned char b[3]={(unsigned char)(((v>>11)&31)*255/31),(unsigned char)(((v>>5)&63)*255/63),(unsigned char)((v&31)*255/31)};assert(fwrite(b,1,3,f)==3);}
@@ -34,18 +38,30 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  assert(xz_ui_stem_color(0,0)==0x2997ff&&xz_ui_stem_color(0,1)==0xff3b30&&xz_ui_stem_color(0,2)==0x30d158);
  assert(xz_ui_stem_color(-1,9)==xz_ui_stem_color(0,0));
  for(i=0;i<4;i++){m->deck[i].groove_active=-1;m->deck[i].sample_active=-1;m->deck[i].sample_volume=1;for(j=0;j<3;j++)m->deck[i].levels[j]=1;}
- assert(u->page==XZ_UI_GENERAL);
- {struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,widgets);int tabs=0;
+ assert(u->page==XZ_UI_HOME);
+ /* MODS opens on HOME: the seven-section rail, six tiles, no deck controls. */
+ {struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,widgets);int tabs=0,tiles=0;
   for(size_t k=0;k<count;k++){
-   if(widgets[k].kind==XZ_UI_PANEL){tabs++;assert(widgets[k].index!=XZ_UI_STEMS&&widgets[k].index!=XZ_UI_XPAD&&widgets[k].index!=XZ_UI_CONNECTION);}
+   if(widgets[k].kind==XZ_UI_PANEL){tabs++;assert(xz_ui_page_is_top(widgets[k].index));}
+   if(widgets[k].kind==XZ_UI_FEATURE_LINK){tiles++;assert(xz_ui_page_is_top(widgets[k].index)&&widgets[k].index!=XZ_UI_HOME);}
    assert(widgets[k].kind!=XZ_UI_DECK&&widgets[k].kind!=XZ_UI_LEVEL&&widgets[k].kind!=XZ_UI_MUTE);
-  }assert(tabs==5);}
- assert(tap(u,m,XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM).kind==XZ_UI_LOCAL_STEM_SETUP_OPEN);
+  }assert(tabs==XZ_UI_SECTIONS&&tiles==XZ_UI_SECTIONS-1);}
+ /* No stem engine: the STEMS tile carries the one SET UP button, straight into USB STEMS setup. */
+ result=tap(u,m,XZ_UI_HOME_SETUP,XZ_UI_STEM_SECTION);assert(result.kind==XZ_UI_PANEL&&u->page==XZ_UI_LOCAL_STEM_SETUP);
+ assert(xz_ui_back(u,a)==1&&u->page==XZ_UI_HOME&&xz_ui_focused(u,m,&w)&&w.kind==XZ_UI_HOME_SETUP);
  m->enabled=XZ_UI_STEM|XZ_UI_SAMPLE;m->deck[0].ready=0x3fff;
+ {struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,widgets);
+  for(size_t k=0;k<count;k++)assert(widgets[k].kind!=XZ_UI_HOME_SETUP);}
+ /* A tile opens its section; BACK returns HOME. */
+ result=tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_STEM_SECTION);assert(result.kind==XZ_UI_PANEL&&u->page==XZ_UI_STEM_SECTION);
  assert(tap(u,m,XZ_UI_ENABLE,XZ_UI_STEM).kind==XZ_UI_ENABLE);
- tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS);
- assert(tap(u,m,XZ_UI_STEMS_OVERLAY,0).kind==XZ_UI_STEMS_OVERLAY);
- tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);tap(u,m,XZ_UI_PANEL,XZ_UI_STEMS);
+ /* STEM BUTTONS ON SCREEN: a picture runs the STEMS button's own step until its layout is reached. */
+ m->stems_overlay=XZ_STEM_LAYOUT_HIDDEN;
+ {size_t n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_BELOW,a);assert(n==1&&a[0].kind==XZ_UI_STEMS_OVERLAY);
+  n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_OUTER_HALF,a);assert(n==4);
+  n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_HIDDEN,a);assert(n==0);}
+ /* Groove pads open once a loader reports the engine. */
+ assert(tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_STEMS).value==XZ_UI_STEMS&&u->page==XZ_UI_STEMS);
  m->deck[0].groove_assigned=255;m->deck[0].groove_loaded=255;m->deck[0].sample_loaded=255;m->deck[0].loop_index=3;
  for(i=0;i<8;i++)assert(tap(u,m,XZ_UI_GROOVE_PAD,i).index==i);
  m->deck[0].groove_assigned=254;
@@ -53,7 +69,7 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  m->deck[0].groove_assigned=255;m->deck[0].groove_loaded=254;
  assert(tap(u,m,XZ_UI_GROOVE_PAD,0).kind==XZ_UI_UNAVAILABLE);
  m->deck[0].groove_loaded=255;
- tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);assert(tap(u,m,XZ_UI_PANEL,XZ_UI_XPAD).value==XZ_UI_XPAD);
+ tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);assert(tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_XPAD).value==XZ_UI_XPAD);
  for(i=0;i<6;i++){
   w=find(u,m,XZ_UI_STRIP,0);int x=w.x+i*(w.w/6)+w.w/12;
   assert(xz_ui_touch(u,m,x,w.y,1,a)==1&&a[0].index==i&&a[0].secondary==12);
@@ -66,18 +82,34 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  for(i=0;i<8;i++)assert(tap(u,m,XZ_UI_SAMPLE_PAD,i).index==i);
  m->deck[0].sample_loaded=1;
  assert(tap(u,m,XZ_UI_SAMPLE_PAD,7).kind==XZ_UI_UNAVAILABLE);
- tap(u,m,XZ_UI_PANEL,XZ_UI_GENERAL);
+ tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);
  for(i=0;i<2;i++){int flags[2]={XZ_UI_GATE,XZ_UI_SMART};assert(tap(u,m,XZ_UI_ENABLE,flags[i]).kind==XZ_UI_ENABLE);}
- tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);
- /* Key actions live in PLAY; no settings page links back to KEY SETUP. */
+ /* Without an engine, hot cue preview and the sampler explain themselves; they offer no dead control. */
+ {struct xz_ui_model none=*m;for(int d=0;d<4;d++)none.deck[d].ready&=~(uint32_t)(XZ_UI_PREVIEW|XZ_UI_SAMPLE);
+  struct xz_ui_widget controls[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,&none,controls);int infos=0;
+  for(size_t k=0;k<count;k++){
+   if(controls[k].kind==XZ_UI_INFO)infos++;
+   assert(!(controls[k].kind==XZ_UI_FEATURE_LINK&&controls[k].index==XZ_UI_XPAD));
+   assert(!(controls[k].kind==XZ_UI_FEATURE_SETUP_OPEN&&controls[k].index==XZ_UI_PREVIEW));
+  }
+  assert(infos==2);
+  w=find(u,&none,XZ_UI_INFO,XZ_UI_INFO_XPAD);assert(xz_ui_touch(u,&none,w.x+5,w.y+5,1,a)==0);xz_ui_touch(u,&none,0,0,0,a);
+  struct xz_ui_info info;assert(xz_ui_describe(u,&none,&info)&&!strcmp(info.state,"NOT IN THIS VERSION")&&strstr(info.body,"Not in this version"));}
+ /* KEYS lives under PLAY: its key buttons only there, and only PLAY links to it. */
  for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
   struct xz_ui copy=*u;copy.page=(enum xz_ui_page)page;struct xz_ui_widget controls[XZ_UI_WIDGETS];
   size_t count=xz_ui_layout(&copy,m,controls);
   for(size_t k=0;k<count;k++){
-   assert(controls[k].kind!=XZ_UI_KEY_SHIFT&&controls[k].kind!=XZ_UI_KEY_SYNC);
-   assert(!((controls[k].kind==XZ_UI_PANEL||controls[k].kind==XZ_UI_FEATURE_LINK)&&controls[k].index==XZ_UI_KEY_SETUP));
+   if(page!=XZ_UI_KEY_SETUP)assert(controls[k].kind!=XZ_UI_KEY_SHIFT&&controls[k].kind!=XZ_UI_KEY_SYNC);
+   if(page!=XZ_UI_PLAY)assert(!((controls[k].kind==XZ_UI_PANEL||controls[k].kind==XZ_UI_FEATURE_LINK)&&controls[k].index==XZ_UI_KEY_SETUP));
   }
  }
+ assert(tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_KEY_SETUP).value==XZ_UI_KEY_SETUP&&u->page==XZ_UI_KEY_SETUP);
+ m->deck[0].ready|=XZ_UI_KEY|XZ_UI_KEYSYNC;
+ for(i=-1;i<=1;i++){result=tap(u,m,XZ_UI_KEY_SHIFT,i);assert(result.kind==XZ_UI_KEY_SHIFT&&result.index==i&&result.deck==0);}
+ assert(tap(u,m,XZ_UI_KEY_SYNC,0).kind==XZ_UI_KEY_SYNC);
+ m->deck[0].ready&=~(uint32_t)XZ_UI_KEYSYNC;assert(tap(u,m,XZ_UI_KEY_SYNC,0).kind==XZ_UI_UNAVAILABLE);
+ tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);
  for(int deck=0;deck<2;deck++){
   struct xz_play_key play;xz_play_key_open(&play,deck);xz_play_key_touch(&play,m,0,0,0,&result);
   m->deck[deck].ready|=XZ_UI_KEY|XZ_UI_KEYSYNC;
@@ -91,26 +123,26 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
   m->deck[deck].ready&=~XZ_UI_KEYSYNC;w=xz_play_key_button(3);
   assert(!xz_play_key_touch(&play,m,w.x+10,w.y+10,1,&result)&&!xz_play_key_touch(&play,m,0,0,0,&result));
  }
- tap(u,m,XZ_UI_PANEL,XZ_UI_CONTROLS);
+ /* STEM PADS: pad mode, bank and the pad lights as two pictures. */
+ tap(u,m,XZ_UI_PANEL,XZ_UI_STEM_SECTION);tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_STEM_PADS);assert(u->page==XZ_UI_STEM_PADS);
  for(i=0;i<4;i++){
   result=tap(u,m,XZ_UI_STEM_PAGE,i);
   assert(result.kind==XZ_UI_STEM_PAGE&&result.index==i&&result.value==i);
  }
  assert(m->stem_page==0);
- tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);
-
- tap(u,m,XZ_UI_PANEL,XZ_UI_CONTROLS);assert(tap(u,m,XZ_UI_PAD_FEEDBACK,0).value==1);
- m->pad_feedback=1;assert(tap(u,m,XZ_UI_PAD_FEEDBACK,0).value==0);
- tap(u,m,XZ_UI_PANEL,XZ_UI_SETTINGS);
+ for(i=0;i<2;i++){result=tap(u,m,XZ_UI_STEM_BANK,i);assert(result.kind==XZ_UI_STEM_BANK&&result.index==i);}
+ assert(tap(u,m,XZ_UI_STEM_ORDER,0).kind==XZ_UI_STEM_ORDER);
+ assert(tap(u,m,XZ_UI_PAD_FEEDBACK,1).value==1&&tap(u,m,XZ_UI_PAD_FEEDBACK,2).value==0);
+ m->pad_feedback=1;assert(tap(u,m,XZ_UI_PAD_FEEDBACK,1).value==1&&tap(u,m,XZ_UI_PAD_FEEDBACK,2).value==0);
 
  /* Settings stay editable with no loaded track, and never mutate the snapshot. */
- m->deck[0].ready=0;tap(u,m,XZ_UI_PANEL,XZ_UI_CONTROLS);
+ m->deck[0].ready=0;
  assert(tap(u,m,XZ_UI_STEM_PAGE,2).value==2&&m->stem_page==0);
  m->settings_status="USB IS READ ONLY / SETTINGS NOT SAVED";
  assert(xz_ui_render(u,m,frame,800*480,800));
  m->deck[0].ready=0x7ff;
- tap(u,m,XZ_UI_PANEL,XZ_UI_THEMES);
- /* APPEARANCE: INTERFACE first; THEME lists only the selected interface's themes. */
+ tap(u,m,XZ_UI_PANEL,XZ_UI_SCREEN);
+ /* SCREEN: INTERFACE first; THEME lists only the selected interface's themes. */
  {int saved_interface=m->ui_interface;
   m->ui_interface=XZ_UI_INTERFACE_MODERN;
   result=tap(u,m,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC);assert(result.kind==XZ_UI_SET_INTERFACE&&result.value==XZ_UI_INTERFACE_CLASSIC);
@@ -122,14 +154,25 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
   result=tap(u,m,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN);assert(result.value==XZ_UI_INTERFACE_MODERN);
   {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);
    for(size_t k=0;k<count;k++)assert(all[k].kind!=XZ_UI_SET_MODERN_THEME);}
+  /* DECK VIEW needs the four-deck connector; with it, three pictures and the DECKS button switch. */
+  {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);
+   for(size_t k=0;k<count;k++)assert(all[k].kind!=XZ_UI_DECK_VIEW&&all[k].kind!=XZ_UI_DECK_VIEW_BUTTON);}
+  m->route.state=XZ_UI_ROUTE_NOT_DETECTED;
+  for(i=0;i<3;i++){result=tap(u,m,XZ_UI_DECK_VIEW,i);assert(result.kind==XZ_UI_DECK_VIEW&&result.value==i);}
+  m->deck_view_button=1;assert(tap(u,m,XZ_UI_DECK_VIEW_BUTTON,0).value==0);
+  m->deck_view_button=0;assert(tap(u,m,XZ_UI_DECK_VIEW_BUTTON,0).value==1);
+  for(i=0;i<3;i++){assert(tap(u,m,XZ_UI_WAVE_MODE,i).value==i);assert(tap(u,m,XZ_UI_KEY_FORMAT,i).kind==XZ_UI_KEY_FORMAT);}
+  assert(tap(u,m,XZ_UI_KEY_FEEDBACK,0).kind==XZ_UI_KEY_FEEDBACK&&tap(u,m,XZ_UI_BROWSE_TRAFFIC,0).kind==XZ_UI_BROWSE_TRAFFIC);
+  assert(tap(u,m,XZ_UI_BROWSE_KEY_PREFIX,0).kind==XZ_UI_BROWSE_KEY_PREFIX);
+  m->route.state=XZ_UI_ROUTE_NO_ENGINE;
   assert(tap(u,m,XZ_UI_PANEL,XZ_UI_THEME_PICK).value==XZ_UI_THEME_PICK&&u->page==XZ_UI_THEME_PICK);
   {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);int tiles=0;
    for(size_t k=0;k<count;k++)if(all[k].kind==XZ_UI_SET_THEME){tiles++;assert(all[k].index!=XZ_THEME_FLAGSHIP);}
    assert(tiles==XZ_THEME_FLAGSHIP);}
   for(i=0;i<XZ_THEME_FLAGSHIP;i++){result=tap(u,m,XZ_UI_SET_THEME,i);assert(result.kind==XZ_UI_SET_THEME&&result.value==i);}
-  assert(xz_ui_back(u,a)==1&&a[0].kind==XZ_UI_PANEL&&u->page==XZ_UI_THEMES);
+  assert(xz_ui_back(u,a)==1&&a[0].kind==XZ_UI_PANEL&&u->page==XZ_UI_SCREEN);
   m->ui_interface=saved_interface;}
- tap(u,m,XZ_UI_PANEL,XZ_UI_EXTRAS);
+ tap(u,m,XZ_UI_PANEL,XZ_UI_CONNECT);
  assert(tap(u,m,XZ_UI_PANEL,XZ_UI_CONNECTION).value==XZ_UI_CONNECTION);
  assert(u->page==XZ_UI_CONNECTION);
  assert(tap(u,m,XZ_UI_CONNECTION_ENABLE,0).kind==XZ_UI_UNAVAILABLE);
@@ -159,7 +202,7 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  assert(tap(u,m,XZ_UI_CONNECTION_ENABLE,0).kind==XZ_UI_CONNECTION_ENABLE);
  u->deck=0;
 }
-/* RAM TRACKS: entry from ADVANCED, one next step per state, release only while the USB source is present. */
+/* RAM TRACKS: entry from PLAY, one next step per state, release only while the USB source is present. */
 static int has(struct xz_ui *u,struct xz_ui_model *m,enum xz_ui_action_kind kind){
  struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(u,m,w);
  for(size_t i=0;i<n;i++)if(w[i].kind==kind)return 1;
@@ -169,8 +212,8 @@ static void ram(void){
  struct xz_ui u;struct xz_ui_model m;struct xz_ui_action a;
  static const enum xz_ui_action_kind next[6]={XZ_UI_RAM_REQUEST,XZ_UI_RAM_REQUEST,XZ_UI_RAM_CANCEL,XZ_UI_RAM_RELEASE,XZ_UI_RAM_REQUEST,XZ_UI_NONE};
  memset(&m,0,sizeof(m));xz_ui_init(&u);
- tap(&u,&m,XZ_UI_PANEL,XZ_UI_SETTINGS);
- a=tap(&u,&m,XZ_UI_PANEL,XZ_UI_RAM_SETUP);
+ tap(&u,&m,XZ_UI_PANEL,XZ_UI_PLAY);
+ a=tap(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP);
  assert(a.kind==XZ_UI_PANEL&&a.value==XZ_UI_RAM_SETUP&&u.page==XZ_UI_RAM_SETUP);
  /* Deck choice is local UI state and reports the deck it left. */
  a=tap(&u,&m,XZ_UI_RAM_DECK,1);assert(a.kind==XZ_UI_RAM_DECK&&a.deck==0&&a.index==1&&u.deck==1);
@@ -221,7 +264,8 @@ static void parity(void){
     assert(w[i].kind==base[i].kind&&w[i].index==base[i].index&&w[i].requires==base[i].requires&&!strcmp(w[i].label,base[i].label));
     if(w[i].kind==XZ_UI_CLOSE)assert(w[i].x==720&&w[i].y==0);
     assert(w[i].x==base[i].x&&w[i].y==base[i].y&&w[i].w==base[i].w&&w[i].h==base[i].h);
-    assert(w[i].x>=0&&w[i].y>=0&&w[i].x+w[i].w<=800&&w[i].y+w[i].h<=480&&w[i].w>=56&&w[i].h>=36);
+    /* The beat jump size strip is DESIGN 2.1's nine chips, 28 wide and 40 tall; the encoder steps the same sizes. */
+    assert(w[i].x>=0&&w[i].y>=0&&w[i].x+w[i].w<=800&&w[i].y+w[i].h<=480&&(w[i].w>=56||w[i].kind==XZ_UI_JUMP_SIZE)&&w[i].h>=36);
     /* Controls stay out of the info dock (y 412..480) in every theme. */
     assert(w[i].y+w[i].h<=404);
     for(size_t k=i+1;k<n;k++)
@@ -229,14 +273,25 @@ static void parity(void){
     struct xz_ui t=u;struct xz_ui_action a[XZ_UI_ACTIONS];
     size_t pressed=xz_ui_touch(&t,&m,w[i].x+w[i].w/2,w[i].y+w[i].h/2,1,a);
     if(w[i].kind==XZ_UI_FEATURE_SETUP_STEP){assert(pressed==0);xz_ui_touch(&t,&m,0,0,0,a);continue;}
+    /* Explanations act on nothing; a layout picture runs as many STEMS steps as it takes. */
+    if(w[i].kind==XZ_UI_INFO){assert(pressed==0&&t.focus_kind==XZ_UI_INFO);xz_ui_touch(&t,&m,0,0,0,a);continue;}
+    /* The network wizard runs its own steps (ui_network.c): a press emits its step's request or nothing. */
+    if(xz_ui_network_kind(w[i].kind)){assert(pressed<=1&&(!pressed||xz_ui_network_kind(a[0].kind)));xz_ui_touch(&t,&m,0,0,0,a);continue;}
+    if(xz_ui_support_kind(w[i].kind)){assert(pressed<=1);xz_ui_touch(&t,&m,0,0,0,a);continue;}
+    /* ABOUT shows the touched link's QR on the page itself. */
+    if(w[i].kind==XZ_UI_ABOUT_LINK){assert(pressed==0&&t.about_link==w[i].index);xz_ui_touch(&t,&m,0,0,0,a);continue;}
+    if(w[i].kind==XZ_UI_STEMS_OVERLAY&&w[i].index){assert(pressed<XZ_UI_ACTIONS+1);for(size_t k=0;k<pressed;k++)assert(a[k].kind==XZ_UI_STEMS_OVERLAY);xz_ui_touch(&t,&m,0,0,0,a);continue;}
+    if(pressed!=1)fprintf(stderr,"page %d widget kind %d index %d: %zu actions\n",page,w[i].kind,w[i].index,pressed);
     assert(pressed==1);
     enum xz_ui_action_kind expected=live||!w[i].requires?w[i].kind:XZ_UI_UNAVAILABLE;
     /* Profile controls depend on the USBs, not the decks. */
     if(xz_ui_profile_owns(w[i].kind))expected=xz_ui_widget_ready(&t,&m,&w[i])?w[i].kind:XZ_UI_UNAVAILABLE;
     /* BACK reports where it went: the parent page, or CLOSE from a root page. */
-    if(w[i].kind==XZ_UI_FEATURE_LINK||w[i].kind==XZ_UI_FEATURE_SETUP_OPEN)expected=XZ_UI_PANEL;
-    if(w[i].kind==XZ_UI_BACK)expected=page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_THEMES||page==XZ_UI_EXTRAS?
-     XZ_UI_CLOSE:XZ_UI_PANEL;
+    if(w[i].kind==XZ_UI_FEATURE_LINK||w[i].kind==XZ_UI_FEATURE_SETUP_OPEN||w[i].kind==XZ_UI_HOME_SETUP)expected=XZ_UI_PANEL;
+    /* STOCK page 1 is the player's own 1 2 4 8: its pads and sizes say so instead of editing. */
+    if((w[i].kind==XZ_UI_JUMP_PAIR||w[i].kind==XZ_UI_JUMP_SIZE)&&!m.jump.enabled&&!t.jump_edit_page)expected=XZ_UI_UNAVAILABLE;
+    if(w[i].kind==XZ_UI_BACK)expected=xz_ui_page_is_top(page)?XZ_UI_CLOSE:XZ_UI_PANEL;
+    if(a[0].kind!=expected)fprintf(stderr,"page %d widget kind %d index %d: got %d, expected %d\n",page,w[i].kind,w[i].index,a[0].kind,expected);
     assert(a[0].kind==expected&&a[0].phase==XZ_UI_PRESS);
     size_t released=xz_ui_touch(&t,&m,0,0,0,a);
     if(expected!=XZ_UI_UNAVAILABLE&&held(expected))assert(released==1&&a[0].kind==expected&&a[0].phase==XZ_UI_RELEASE);
@@ -246,18 +301,17 @@ static void parity(void){
   }
  }
 }
-/* PC STEMS setup page: reachable from CONTROLS, one primary action per step,
+/* STEMS IN DJ SOFTWARE setup page: reachable from STEMS, one primary action per step,
    every button emits its own action and nothing advances without the runtime. */
 static void pc_setup(void){
  struct xz_ui u;struct xz_ui_model m,snapshot;struct xz_ui_action result;
  memset(&m,0,sizeof(m));xz_ui_init(&u);
  for(int d=0;d<4;d++){m.deck[d].groove_active=m.deck[d].sample_active=-1;for(int k=0;k<3;k++)m.deck[d].levels[k]=1;}
- tap(&u,&m,XZ_UI_PANEL,XZ_UI_CONTROLS);
- result=tap(&u,&m,XZ_UI_CONTROL_SECTION,2);
- assert(result.kind==XZ_UI_CONTROL_SECTION&&u.page==XZ_UI_PC_STEMS);
- assert(tap(&u,&m,XZ_UI_CONTROL_SECTION,0).kind==XZ_UI_CONTROL_SECTION&&u.page==XZ_UI_CONTROLS);
- tap(&u,&m,XZ_UI_CONTROL_SECTION,1);assert(u.page==XZ_UI_BEAT_JUMP);
- tap(&u,&m,XZ_UI_CONTROL_SECTION,2);assert(u.page==XZ_UI_PC_STEMS);
+ tap(&u,&m,XZ_UI_PANEL,XZ_UI_STEM_SECTION);
+ result=tap(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS);
+ assert(result.kind==XZ_UI_PANEL&&u.page==XZ_UI_PC_STEMS);
+ {struct xz_ui_action back[XZ_UI_ACTIONS];assert(xz_ui_back(&u,back)==1&&u.page==XZ_UI_STEM_SECTION);}
+ tap(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS);assert(u.page==XZ_UI_PC_STEMS);
  /* Each step offers exactly one primary action (confirm adds its "no" answer). */
  static const enum xz_ui_action_kind primary[5]={XZ_UI_PC_CHECK,XZ_UI_PC_CHECK,XZ_UI_PC_TEST,XZ_UI_PC_CONFIRM,XZ_UI_PC_CHECK};
  static const int primary_index[5]={XZ_UI_PC_STEP_DETECT,XZ_UI_PC_STEP_MAPPING,XZ_UI_PC_DRUMS,1,XZ_UI_PC_STEP_DONE};
@@ -320,8 +374,8 @@ static void encoder(void){
  memset(&m,0,sizeof(m));xz_ui_init(&u);
  for(int d=0;d<4;d++){m.deck[d].groove_active=m.deck[d].sample_active=-1;m.deck[d].sample_volume=.5f;for(int k=0;k<3;k++)m.deck[d].levels[k]=1;}
  m.enabled=XZ_UI_STEM;m.deck[0].ready=m.deck[1].ready=0x3fff;m.rekordbox_assign[0]=XZ_UI_RB_INTERFACE;m.rekordbox_assign[1]=XZ_UI_RB_STOCK;
- /* General starts on its first feature. */
- assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_ENABLE&&f.index==XZ_UI_STEM);
+ /* HOME starts on its first tile. */
+ assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_FEATURE_LINK&&f.index==XZ_UI_PLAY);
  for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
   u.page=(enum xz_ui_page)page;u.focus_kind=XZ_UI_NONE;u.adjusting=0;
   size_t n=xz_ui_layout(&u,&m,w),focusable=0;
@@ -341,23 +395,20 @@ static void encoder(void){
  xz_ui_init(&u);u.page=XZ_UI_BUTTONS;u.focus_kind=XZ_UI_REKORDBOX_ASSIGN;u.focus_index=XZ_UI_RB_CHOICES+XZ_UI_RB_STEMS;u.focus_deck=-1;
  assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].kind==XZ_UI_REKORDBOX_ASSIGN&&a[0].index==1&&a[0].value==XZ_UI_RB_STEMS&&!u.down);
  u.focus_index=XZ_UI_RB_NOTHING;assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].index==0&&a[0].value==XZ_UI_RB_NOTHING);
- xz_ui_init(&u);u.page=XZ_UI_SETTINGS;u.focus_deck=-1;
+ xz_ui_init(&u);u.page=XZ_UI_PLAY;u.focus_deck=-1;
  /* A link opens its page; BACK returns to the link so push re-enters it. */
- u.focus_kind=XZ_UI_PANEL;u.focus_index=XZ_UI_RAM_SETUP;
+ u.focus_kind=XZ_UI_FEATURE_LINK;u.focus_index=XZ_UI_RAM_SETUP;
  assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].kind==XZ_UI_PANEL&&u.page==XZ_UI_RAM_SETUP);
  assert(xz_ui_focused(&u,&m,&f)&&f.y>=40&&f.x>=124);
- assert(xz_ui_back(&u,a)==1&&a[0].kind==XZ_UI_PANEL&&u.page==XZ_UI_SETTINGS);
- assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_PANEL&&f.index==XZ_UI_RAM_SETUP);
+ assert(xz_ui_back(&u,a)==1&&a[0].kind==XZ_UI_PANEL&&u.page==XZ_UI_PLAY);
+ assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_FEATURE_LINK&&f.index==XZ_UI_RAM_SETUP);
  /* Rail tabs open their section at its first control. */
- u.focus_kind=XZ_UI_PANEL;u.focus_index=XZ_UI_THEMES;
- assert(xz_ui_encoder_push(&u,&m,a)==1&&u.page==XZ_UI_THEMES);
+ u.focus_kind=XZ_UI_PANEL;u.focus_index=XZ_UI_SCREEN;
+ assert(xz_ui_encoder_push(&u,&m,a)==1&&u.page==XZ_UI_SCREEN);
  assert(xz_ui_focused(&u,&m,&f)&&f.x>=124);
- /* Section tabs keep focus across the page they switch to. */
- u.page=XZ_UI_CONTROLS;u.focus_kind=XZ_UI_CONTROL_SECTION;u.focus_index=1;
- assert(xz_ui_encoder_push(&u,&m,a)==1&&u.page==XZ_UI_BEAT_JUMP);
- assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_CONTROL_SECTION&&f.index==1);
  /* Beat jump pairs: push selects and starts editing, turning sends size steps, BACK stops editing. */
- u.focus_kind=XZ_UI_JUMP_PAIR;u.focus_index=5;
+ u.page=XZ_UI_BEAT_JUMP;m.jump.enabled=1;
+ u.focus_kind=XZ_UI_JUMP_PAIR;u.focus_index=4;
  assert(xz_ui_encoder_push(&u,&m,a)==1&&a[0].kind==XZ_UI_JUMP_PAIR&&u.jump_edit_pair==2&&u.adjusting);
  assert(xz_ui_encoder_turn(&u,&m,3,a)==1&&a[0].kind==XZ_UI_JUMP_STEP&&a[0].index==3);
  assert(xz_ui_encoder_turn(&u,&m,-1,a)==1&&a[0].kind==XZ_UI_JUMP_STEP&&a[0].index==-1);
@@ -370,7 +421,7 @@ static void encoder(void){
  assert(xz_ui_encoder_turn(&u,&m,1,a)==1&&a[0].kind==XZ_UI_VOLUME&&a[0].value>.5f&&a[0].value<.6f);
  assert(xz_ui_encoder_push(&u,&m,a)==0&&!u.adjusting);
  /* A touch moves focus to what was touched. */
- u.page=XZ_UI_THEMES;{struct xz_ui_widget t=find(&u,&m,XZ_UI_KEY_FEEDBACK,0);
+ u.page=XZ_UI_SCREEN;{struct xz_ui_widget t=find(&u,&m,XZ_UI_KEY_FEEDBACK,0);
   xz_ui_touch(&u,&m,t.x+t.w/2,t.y+t.h/2,1,a);xz_ui_touch(&u,&m,0,0,0,a);
   assert(xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_KEY_FEEDBACK);}
  /* The focus ring and info dock render in every theme. */
@@ -384,7 +435,7 @@ static void profile(void){
  struct xz_ui_dj dj;memset(&dj,0,sizeof(dj));
  memset(&m,0,sizeof(m));xz_ui_init(&u);
  /* No reader: no chip, deck pickers keep their full width. */
- u.page=XZ_UI_SETTINGS;size_t n=xz_ui_layout(&u,&m,w);
+ u.page=XZ_UI_KEY_SETUP;size_t n=xz_ui_layout(&u,&m,w);
  for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_PROFILE);
  assert(find(&u,&m,XZ_UI_DECK,1).x==510);
  dj.current=-1;dj.pending=-1;m.dj=&dj;
@@ -406,7 +457,7 @@ static void profile(void){
  static const char *names[7]={"DJ KAI","KAI B2B LENA","ALIAS 3","ALIAS 4","ALIAS 5","LENA B","LENA LIVE"};
  dj.count=7;dj.current=5;dj.usb_present=3;
  for(int i=0;i<7;i++)dj.entry[i]=(struct xz_ui_dj_entry){names[i],"",names[i],i>=5,i==0||i==5,0,i==3,0xff2a6d,i&1,i==0?thumb:NULL,0};
- xz_ui_init(&u);u.page=XZ_UI_THEMES;
+ xz_ui_init(&u);u.page=XZ_UI_SCREEN;
  r=tap(&u,&m,XZ_UI_PROFILE,0);assert(u.profile_open&&u.profile_offset==5);
  assert(xz_ui_focused(&u,&m,w)&&w[0].kind==XZ_UI_PROFILE_PICK&&w[0].index==5);
  struct xz_ui_info info;assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.state,"ACTIVE"));
@@ -429,13 +480,13 @@ static void profile(void){
  /* Picking names the entry, closes the list and returns focus to the chip. */
  r=tap(&u,&m,XZ_UI_PROFILE_PICK,1);assert(r.kind==XZ_UI_PROFILE_PICK&&r.index==1&&!u.profile_open);
  assert(xz_ui_focused(&u,&m,w)&&w[0].kind==XZ_UI_PROFILE);
- assert(u.page==XZ_UI_THEMES);
+ assert(u.page==XZ_UI_SCREEN);
  /* A tap outside closes without acting on the page underneath. */
  tap(&u,&m,XZ_UI_PROFILE,0);assert(u.profile_open);
  assert(xz_ui_touch(&u,&m,200,200,1,a)==0&&!u.profile_open);xz_ui_touch(&u,&m,0,0,0,a);
- assert(u.page==XZ_UI_THEMES);
+ assert(u.page==XZ_UI_SCREEN);
  /* BACK closes the list before it leaves the page. */
- tap(&u,&m,XZ_UI_PROFILE,0);assert(xz_ui_back(&u,a)==0&&!u.profile_open&&u.page==XZ_UI_THEMES);
+ tap(&u,&m,XZ_UI_PROFILE,0);assert(xz_ui_back(&u,a)==0&&!u.profile_open&&u.page==XZ_UI_SCREEN);
  /* Encoder: push opens on the header's profile, a turn moves, push picks. */
  u.focus_kind=XZ_UI_PROFILE;u.focus_index=0;u.focus_deck=-1;
  xz_ui_encoder_push(&u,&m,a);assert(u.profile_open);
@@ -446,7 +497,7 @@ static void profile(void){
  struct xz_ui_widget busy=find(&u,&m,XZ_UI_PROFILE_PICK,6);
  assert(xz_ui_touch(&u,&m,busy.x+5,busy.y+5,1,a)==1&&a[0].kind==XZ_UI_UNAVAILABLE&&strstr(u.notice,"SWITCHING"));xz_ui_touch(&u,&m,0,0,0,a);
  xz_ui_back(&u,a);dj.pending=-1;
- dj.status="LENA LIVE IS ACTIVE ON USB 2";dj.flash=1;u.page=XZ_UI_CONTROLS;
+ dj.status="LENA LIVE IS ACTIVE ON USB 2";dj.flash=1;u.page=XZ_UI_PLAY;
  assert(!strcmp(xz_ui_footer_text(&u,&m),dj.status));dj.flash=0;assert(strcmp(xz_ui_footer_text(&u,&m),dj.status));
  /* Every theme draws the chip and the open list. */
  for(int t=0;t<XZ_THEME_COUNT;t++){m.theme=t;u.profile_open=0;assert(xz_ui_render(&u,&m,frame,800*480,800));u.profile_open=1;assert(xz_ui_render(&u,&m,frame,800*480,800));}
@@ -584,17 +635,16 @@ static void editor(void){
  assert(u.page==XZ_UI_PROFILE_EDIT&&u.edit_entry==1&&!u.edit_id[0]&&!strcmp(u.edit_name,"LENA B")&&u.edit_logo==XZ_UI_LOGO_KEEP);
 }
 static int rb_overlap(struct xz_ui_widget a,struct xz_ui_widget b){return a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;}
-/* CONTROLS > BUTTONS: two slots of six choices, reachable from every CONTROLS section, no overlap in any
-   theme, labels that fit, one help line per slot; ADVANCED and VJ.TOOLS no longer offer the old switches. */
+/* PLAY > BUTTON NEXT TO LINK: two slots of seven choices, no overlap in any theme, labels that fit, one help
+   line per slot; no brand name on screen; PLAY and VJ.TOOLS no longer offer the old switches. */
 static void rekordbox_buttons(void){
  struct xz_ui u;struct xz_ui_model m;struct xz_ui_widget w[XZ_UI_WIDGETS];struct xz_ui_info info;
  memset(&m,0,sizeof(m));xz_ui_init(&u);m.rekordbox_assign[0]=XZ_UI_RB_INTERFACE;m.rekordbox_assign[1]=XZ_UI_RB_STOCK;
- static const char *const names[XZ_UI_RB_CHOICES]={"MODS MENU","EXPORT MODE PLAYBACK","INTERFACE","VJ.TOOLS SCREEN","STEMS","NOTHING"};
- for(int k=0;k<XZ_UI_RB_CHOICES;k++)assert(!strcmp(xz_ui_rekordbox_choice_name(k),names[k])&&xz_ui_rekordbox_choice_help(k)[0]);
+ static const char *const names[XZ_UI_RB_CHOICES]={"MODS MENU","ITS OWN JOB","INTERFACE","VJ.TOOLS SCREEN","STEMS","NOTHING","DECK VIEW"};
+ for(int k=0;k<XZ_UI_RB_CHOICES;k++)assert(!strcmp(xz_ui_rekordbox_choice_name(k),names[k])&&xz_ui_rekordbox_choice_help(k)[0]&&!strstr(xz_ui_rekordbox_choice_help(k),"REKORDBOX"));
  assert(!xz_ui_rekordbox_choice_name(XZ_UI_RB_CHOICES)&&!xz_ui_rekordbox_choice_help(-1));
- static const enum xz_ui_page family[4]={XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ_UI_PC_STEMS,XZ_UI_BUTTONS};
- for(int f=0;f<4;f++){u.page=family[f];struct xz_ui_action a=tap(&u,&m,XZ_UI_CONTROL_SECTION,3);assert(a.kind==XZ_UI_CONTROL_SECTION&&u.page==XZ_UI_BUTTONS);}
- struct xz_ui_action back[XZ_UI_ACTIONS];u.history_count=0;assert(xz_ui_back(&u,back)==1&&u.page==XZ_UI_CONTROLS);
+ u.page=XZ_UI_PLAY;{struct xz_ui_action a=tap(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_BUTTONS);assert(a.kind==XZ_UI_PANEL&&u.page==XZ_UI_BUTTONS);}
+ struct xz_ui_action back[XZ_UI_ACTIONS];assert(xz_ui_back(&u,back)==1&&u.page==XZ_UI_PLAY);
  u.page=XZ_UI_BUTTONS;
  for(int theme=0;theme<XZ_THEME_COUNT;theme++){
   m.theme=theme;size_t n=xz_ui_layout(&u,&m,w);int choices=0;
@@ -617,16 +667,16 @@ static void rekordbox_buttons(void){
  }
  /* The info box names the slot and says what the button will do. */
  u.focus_kind=XZ_UI_REKORDBOX_ASSIGN;u.focus_index=XZ_UI_RB_CHOICES+XZ_UI_RB_STOCK;u.focus_deck=-1;
- assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.title,"SHIFT + REKORDBOX: EXPORT MODE PLAYBACK")&&!strcmp(info.state,"SELECTED"));
+ assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.title,"SHIFT + PRESS: ITS OWN JOB")&&!strcmp(info.state,"SELECTED"));
  assert(!strcmp(info.body,xz_ui_rekordbox_choice_help(XZ_UI_RB_STOCK)));
- u.focus_index=XZ_UI_RB_MODS;assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.title,"REKORDBOX: MODS MENU")&&!info.state[0]);
- /* The retired switches are gone from ADVANCED and VJ.TOOLS. */
- u.page=XZ_UI_SETTINGS;{size_t n=xz_ui_layout(&u,&m,w);for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_REKORDBOX_KEY);}
+ u.focus_index=XZ_UI_RB_MODS;assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.title,"PRESS: MODS MENU")&&!info.state[0]);
+ /* The retired switches are gone from PLAY and VJ.TOOLS. */
+ u.page=XZ_UI_PLAY;{size_t n=xz_ui_layout(&u,&m,w);for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_REKORDBOX_KEY);}
  u.page=XZ_UI_CONNECTION;{size_t n=xz_ui_layout(&u,&m,w);int assign=0;
   for(size_t i=0;i<n;i++)if(w[i].kind==XZ_UI_TAKEOVER_ASSIGN){assert(w[i].index!=1);assign++;
    for(size_t j=0;j<n;j++)if(j!=i)assert(!rb_overlap(w[i],w[j]));}
   assert(assign==2);}
- puts("PASS CONTROLS > BUTTONS: 2 x 6 REKORDBOX choices, 4 section tabs, 25 themes without overlap, slot/value taps, help, retired switches gone");
+ puts("PASS PLAY > BUTTON NEXT TO LINK: 2 x 7 choices, 25 themes without overlap, slot/value taps, help, no brand name, retired switches gone");
 }
 int main(int argc,char **argv){
  struct xz_ui u;struct xz_ui_model m;int i,j;
@@ -647,7 +697,7 @@ int main(int argc,char **argv){
  /* Save status remains visible even when another notice occupies the footer. */
  {
   uint16_t saved[800*30];
-  u.page=XZ_UI_CONTROLS;strcpy(u.notice,"OTHER NOTICE");m.settings_status="SETTINGS SAVED TO USB";
+  u.page=XZ_UI_PLAY;strcpy(u.notice,"OTHER NOTICE");m.settings_status="SETTINGS SAVED TO USB";
   assert(xz_ui_render(&u,&m,frame,800*480,800));memcpy(saved,frame+800*416,sizeof(saved));
   m.settings_status="SETTINGS NOT SAVED: CHECK USB";
   assert(xz_ui_render(&u,&m,frame,800*480,800));assert(memcmp(saved,frame+800*416,sizeof(saved)));
@@ -655,7 +705,7 @@ int main(int argc,char **argv){
  }
  /* A fresh save result takes the footer on every page, then the page's own text returns. */
  {
-  enum xz_ui_page pages[]={XZ_UI_THEMES,XZ_UI_EXTRAS,XZ_UI_CONNECTION};
+  enum xz_ui_page pages[]={XZ_UI_THEME_PICK,XZ_UI_GAMES,XZ_UI_CONNECTION};
   m.settings_status="SAVED TO USB 2";m.theme_status="THEME READY";
   for(unsigned i=0;i<sizeof(pages)/sizeof(pages[0]);i++){
    u.page=pages[i];strcpy(u.notice,"OTHER NOTICE");

@@ -26,7 +26,7 @@ int xz_shell_runtime_take_menu_command(struct xz_shell_runtime_menu_command *c){
 }
 int xz_shell_runtime_show_mods(int root){
     if(!fake_menu_on||!fake_shell_running)return 0;
-    if(root!=XZ_UI_GENERAL&&root!=XZ_UI_CONTROLS&&root!=XZ_UI_SETTINGS&&root!=XZ_UI_EXTRAS&&root!=XZ_UI_NETWORK)return 0;
+    if(!xz_ui_page_is_top(root))return 0;   /* one MENU tab per MODS section */
     fake_shows++;fake_mods_open=1;fake_menu_tab_root=root;return 1;
 }
 void xz_shell_runtime_close_mods(void){fake_closes++;fake_mods_open=0;}
@@ -63,11 +63,11 @@ static void modern(void){
 }
 static int panel_shut(void){return !touch.visible&&!__atomic_load_n(&visible,__ATOMIC_ACQUIRE);}
 
-/* Every row of every page the four MENU tabs reach runs on the panel; the panel never shows. */
+/* Every row of every page the seven MENU tabs reach runs on the panel; the panel never shows. */
 static void menu_walk(void){
-    static const int roots[5]={XZ_UI_GENERAL,XZ_UI_CONTROLS,XZ_UI_SETTINGS,XZ_UI_EXTRAS,XZ_UI_NETWORK};
+    static const int roots[7]={XZ_UI_HOME,XZ_UI_PLAY,XZ_UI_STEM_SECTION,XZ_UI_SCREEN,XZ_UI_FOUR_DECKS,XZ_UI_CONNECT,XZ_UI_EXTRAS};
     int seen[XZ_UI_PAGE_COUNT]={0},rows=0;
-    for(int t=0;t<5;t++){
+    for(int t=0;t<7;t++){
         modern();open_tab(roots[t]);
         /* breadth first over links, one row run per visit, from a fresh copy of the page each time */
         static struct xz_ui queue[96];int head=0,tail=0;queue[tail++]=ui;
@@ -82,6 +82,8 @@ static void menu_walk(void){
                 if(row->target.kind==XZ_UI_ARCADE_OPEN||row->target.kind==XZ_UI_WAVE_RIDER_OPEN||row->target.kind==XZ_UI_RHYTHM_LAB_OPEN||
                    row->target.kind==XZ_UI_GLYPH_RUN_OPEN||row->target.kind==XZ_UI_DOOM_START||row->target.kind==XZ_UI_TAKEOVER_TOGGLE||
                    row->target.kind==XZ_UI_SET_INTERFACE||row->target.kind==XZ_UI_PROFILE_SAVE)continue;
+                /* the shell's own look rows never reach the panel: shell_runtime.c applies them */
+                if(row->target.kind==XZ_UI_SHELL_LOOK)continue;
                 ui=at;fake_menu=page;
                 activate(r,row->kind==XZ_SHELL_MENU_TOGGLE||row->kind==XZ_SHELL_MENU_CHOICE?(row->current==0?1:0):-1);
                 rows++;
@@ -100,27 +102,31 @@ static void setups_open_in_shell(void){
     modern();
     struct xz_ui_action a={.kind=XZ_UI_LOCAL_STEM_SETUP_OPEN,.phase=XZ_UI_PRESS,.deck=1};
     apply(NULL,&a,1);
-    /* opened from outside MODS: under its own parent, CONTROLS */
-    assert(panel_shut()&&fake_shows==1&&fake_menu_tab_root==XZ_UI_CONTROLS&&ui.page==XZ_UI_LOCAL_STEM_SETUP&&ui.deck==1);
-    assert(fake_menu.page==XZ_UI_LOCAL_STEM_SETUP&&fake_menu.root==XZ_UI_CONTROLS&&fake_menu.depth==1);
-    /* opened from GENERAL's own row inside MODS: under GENERAL, BACK returns there */
+    /* opened from outside MODS: under its own section, STEMS */
+    assert(panel_shut()&&fake_shows==1&&fake_menu_tab_root==XZ_UI_STEM_SECTION&&ui.page==XZ_UI_LOCAL_STEM_SETUP&&ui.deck==1);
+    assert(fake_menu.page==XZ_UI_LOCAL_STEM_SETUP&&fake_menu.root==XZ_UI_STEM_SECTION&&fake_menu.depth==1);
+    /* opened from STEMS's own row inside MODS: under STEMS, BACK returns there */
     modern();for(int d=0;d<2;d++){model.deck[d].ready&=~(uint32_t)XZ_UI_STEM;model.deck[d].usb_reason=XZ_UI_USB_WHY_ENGINE;}
-    audio_available=0;model.enabled=0;open_tab(XZ_UI_GENERAL);
-    activate(row_named("SET UP STANDALONE STEMS"),-1);
-    assert(panel_shut()&&ui.page==XZ_UI_LOCAL_STEM_SETUP&&fake_menu.root==XZ_UI_GENERAL&&fake_menu.depth==1);
-    back();assert(ui.page==XZ_UI_GENERAL);
+    audio_available=0;model.enabled=0;open_tab(XZ_UI_STEM_SECTION);
+    activate(row_named("SET UP USB STEMS"),-1);
+    assert(panel_shut()&&ui.page==XZ_UI_LOCAL_STEM_SETUP&&fake_menu.root==XZ_UI_STEM_SECTION&&fake_menu.depth==1);
+    back();assert(ui.page==XZ_UI_STEM_SECTION);
+    /* a HOME tile opens its section, and the shell's rail follows to that section's tab */
+    modern();open_tab(XZ_UI_HOME);fake_shows=0;
+    activate(row_named("SCREEN"),-1);
+    assert(panel_shut()&&ui.page==XZ_UI_SCREEN&&fake_menu.root==XZ_UI_SCREEN&&fake_menu.depth==0&&fake_shows==1&&fake_menu_tab_root==XZ_UI_SCREEN);
     audio_available=1;
     modern();
     a=(struct xz_ui_action){.kind=XZ_UI_UNAVAILABLE,.phase=XZ_UI_PRESS,.index=XZ_UI_STEM};apply(NULL,&a,1);
     assert(panel_shut()&&fake_shows==1&&ui.page==XZ_UI_LOCAL_STEM_SETUP);
     modern();
     a=(struct xz_ui_action){.kind=XZ_UI_PC_SETUP,.phase=XZ_UI_PRESS,.deck=0,.index=XZ_UI_PC_WHY_SOURCE};apply(NULL,&a,1);
-    assert(panel_shut()&&fake_shows==1&&ui.page==XZ_UI_PC_STEMS&&fake_menu_tab_root==XZ_UI_CONTROLS);
+    assert(panel_shut()&&fake_shows==1&&ui.page==XZ_UI_PC_STEMS&&fake_menu_tab_root==XZ_UI_STEM_SECTION);
     modern();
     a=(struct xz_ui_action){.kind=XZ_UI_METRICS_SETUP_OPEN,.phase=XZ_UI_PRESS};apply(NULL,&a,1);
     assert(panel_shut()&&fake_shows==1&&ui.page==XZ_UI_METRICS_SETUP);
     /* every step of the stem setup, inside MODS: never the panel */
-    modern();open_tab(XZ_UI_GENERAL);xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);
+    modern();open_tab(XZ_UI_STEM_SECTION);xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);
     for(int step=0;step<3;step++){a=(struct xz_ui_action){.kind=XZ_UI_LOCAL_STEM_SETUP_STEP,.phase=XZ_UI_PRESS,.index=step};apply(NULL,&a,1);assert(panel_shut());}
     /* a REKORDBOX key set to MODS while the VJ takeover holds the screen: the shell's MODS, over it */
     modern();model.fb_takeover=1;__atomic_store_n(&fb_takeover_active,1,__ATOMIC_RELEASE);
@@ -130,7 +136,7 @@ static void setups_open_in_shell(void){
     pthread_mutex_lock(&ui_mutex);eligible=shell_eligible_locked();pthread_mutex_unlock(&ui_mutex);
     assert(!eligible);   /* MODS closed: the takeover shows again */
     model.fb_takeover=0;__atomic_store_n(&fb_takeover_active,0,__ATOMIC_RELEASE);
-    puts("PASS MODERN: stem, PC and metrics setups and MODS over the VJ view open in the shell's MODS, under the tab they belong to");
+    puts("PASS MODERN: stem, PC and metrics setups, HOME tiles and MODS over the VJ view open in the shell's MODS, under the tab they belong to");
 }
 
 /* A game started from MODS takes the screen and gives it back to the same MODS page. */
@@ -150,13 +156,14 @@ static void games_return(void){
 
 /* BACK runs one level up, then closes top-level MODS to its prior screen. */
 static void back_one_level(void){
-    modern();open_tab(XZ_UI_SETTINGS);
-    for(int row=0;row<fake_menu.row_count;row++)assert(strcmp(fake_menu.row[row].label,"KEY SETUP"));
-    open_tab(XZ_UI_NETWORK);
-    activate(row_named("NETWORK UPDATES"),-1);assert(ui.page==XZ_UI_UPDATES);
+    /* KEYS lives under PLAY (DESIGN 1.2) */
+    modern();open_tab(XZ_UI_PLAY);
+    activate(row_named("KEYS"),-1);assert(ui.page==XZ_UI_KEY_SETUP&&fake_menu.depth==1&&fake_menu.root==XZ_UI_PLAY);
+    open_tab(XZ_UI_CONNECT);
+    activate(row_named("UPDATES"),-1);assert(ui.page==XZ_UI_UPDATES);
     activate(row_named("NETWORK SETUP"),-1);assert(ui.page==XZ_UI_UPDATE_SETUP&&fake_menu.depth==2);
     back();assert(ui.page==XZ_UI_UPDATES&&panel_shut());
-    back();assert(ui.page==XZ_UI_NETWORK&&panel_shut());
+    back();assert(ui.page==XZ_UI_CONNECT&&panel_shut());
     int closed=fake_closes;
     back();assert(panel_shut()&&!fake_mods_open&&fake_closes==closed+1);
     puts("PASS menu BACK: one page up; top-level MODS closes to the prior screen");
@@ -166,10 +173,10 @@ static void back_one_level(void){
    once, not on the next input. */
 static void rekordbox_mods_reads_page(void){
     modern();xz_ui_navigate(&ui,XZ_UI_DOOM_FILES);
-    fake_queue[fake_queued++]=(struct xz_shell_runtime_menu_command){.op=XZ_SHELL_MENU_OPEN,.root=XZ_UI_GENERAL};
+    fake_queue[fake_queued++]=(struct xz_shell_runtime_menu_command){.op=XZ_SHELL_MENU_OPEN,.root=XZ_UI_HOME};
     fake_requests|=XZ_SHELL_UI_MENU;
     pthread_mutex_lock(&ui_mutex);int stock=rekordbox_run_locked(XZ_REKORDBOX_MODS);pthread_mutex_unlock(&ui_mutex);
-    assert(!stock&&fake_mods_calls==1&&!fake_queued&&ui.page==XZ_UI_GENERAL&&panel_shut());
+    assert(!stock&&fake_mods_calls==1&&!fake_queued&&ui.page==XZ_UI_HOME&&panel_shut());
     puts("PASS REKORDBOX = MODS: the shell's MODS opens with its page read in the same press");
 }
 /* CLASSIC keeps its panel exactly: the same setup opens the panel, and nothing goes to the shell. */

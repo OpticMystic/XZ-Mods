@@ -34,12 +34,16 @@ int main(int argc,char **argv){
  model.connection.protocol="VJFS / VJVP / VJTE + VJXZ";
  model.connection.status="WAITING FOR VJ.Tools";
  model.rekordbox_assign[0]=XZ_UI_RB_INTERFACE;model.rekordbox_assign[1]=XZ_UI_RB_STOCK; /* the defaults */
- static const char *names[]={"stems","xpad","settings","themes","connection","controls","beat-jump","extras","doom","doom-setup","wad-loader","network-updates","update-setup","games","myhouse-setup","key-setup","browse-setup","pc-stems","stem-colors","applications","applications-setup","ram-setup","stem-setup","metrics-setup","profile-setup","profile-edit","general","feature-setup","theme-pick","buttons"};
+ model.route.state=XZ_UI_ROUTE_NOT_DETECTED;model.deck_view=0;model.deck_view_button=1;
+ for(int deck=0;deck<4;deck++)model.jump_page[deck]=deck<2?0:-1;
+ static const char *names[]={"stems","xpad","settings","themes","connection","controls","beat-jump","extras","doom","doom-setup","wad-loader","network-updates","update-setup","games","myhouse-setup","key-setup","browse-setup","pc-stems","stem-colors","applications","applications-setup","ram-setup","stem-setup","metrics-setup","profile-setup","profile-edit","general","feature-setup","theme-pick","buttons","network","network-setup","network-edit","about","support",
+  "home","play","stems-section","screen","four-decks","connect","stem-pads"};
  _Static_assert(sizeof(names)/sizeof(*names)==XZ_UI_PAGE_COUNT,"preview names every page");
  char name[80];
  for(int theme=0;theme<XZ_THEME_COUNT;theme++){
   model.theme=theme;
   for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
+   if(xz_ui_page_current((enum xz_ui_page)page)!=(enum xz_ui_page)page)continue; /* retired: opens its replacement */
    ui.page=(enum xz_ui_page)page;
    if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
    snprintf(name,sizeof(name),"theme-%d-%s",theme,names[page]);save(argv[1],name,800,480);
@@ -57,7 +61,7 @@ int main(int argc,char **argv){
   model=baseline;model.theme=theme;model.enabled=XZ_UI_STEM|XZ_UI_SAMPLE;model.stems_overlay=1;
   for(int j=0;j<2;j++){model.deck[j].ready=0x3fff;model.deck[j].groove_assigned=255;model.deck[j].groove_loaded=255;model.deck[j].sample_loaded=255;model.deck[j].groove_active=2;model.deck[j].sample_active=3;model.deck[j].wave_peaks=peaks;model.deck[j].wave_count=256;model.deck[j].sample_volume=.62f;model.deck[j].pitch=3.5f;model.deck[j].loop_index=3;for(int k=0;k<8;k++)model.deck[j].groove_stem[k]=(unsigned char)(k%3);}
   model.connection.connected=model.connection.stats_valid=model.connection.can_enable=model.connection.can_discover=1;model.connection.frame_hz=47.8f;model.connection.status="CONNECTED / PREVIEW FIXTURE";
-  for(int page=0;page<XZ_UI_PAGE_COUNT;page++){ui.page=(enum xz_ui_page)page;xz_ui_render(&ui,&model,pixels,800*480,800);snprintf(name,sizeof(name),"theme-%d-active-%s",theme,names[page]);save(argv[1],name,800,480);}
+  for(int page=0;page<XZ_UI_PAGE_COUNT;page++){if(xz_ui_page_current((enum xz_ui_page)page)!=(enum xz_ui_page)page)continue;ui.page=(enum xz_ui_page)page;xz_ui_render(&ui,&model,pixels,800*480,800);snprintf(name,sizeof(name),"theme-%d-active-%s",theme,names[page]);save(argv[1],name,800,480);}
   model=baseline;model.theme=theme;ui.page=XZ_UI_STEMS;ui.deck=2;xz_ui_render(&ui,&model,pixels,800*480,800);snprintf(name,sizeof(name),"theme-%d-external",theme);save(argv[1],name,800,480);
   ui.deck=0;model.enabled=0;model.deck[0].ready=0;model.deck[0].track="NO TRACK LOADED";model.deck[0].bpm=0;model.deck[0].status="LOAD A TRACK WITH A STEM CACHE";
   xz_ui_render(&ui,&model,pixels,800*480,800);snprintf(name,sizeof(name),"theme-%d-unavailable",theme);save(argv[1],name,800,480);
