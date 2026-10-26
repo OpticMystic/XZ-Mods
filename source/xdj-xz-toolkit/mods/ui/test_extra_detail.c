@@ -204,11 +204,32 @@ int main(void){
   }
   frame.detail=-1;
  }
+ /* After a theme pass the number boxes go back in their own colours, and nothing else does: closed (every
+    lane's tag box), with the panel open (its header box and the lane numbers), and with 3/4 not connected. */
+ for(int order=XZ_FOUR_STACKED;order<=XZ_FOUR_MIXER;order++)for(int state=0;state<4;state++){
+  struct xz_four_layout g;assert(xz_four_layout_get(order,&g));
+  int detail=state==1?0:state==2?1:-1,down=state==3;
+  struct xz_four_frame frame={&s,order,1000,XZ_EXTRA_LANE_COLUMN_US,1,detail,0,down};
+  for(size_t i=0;i<PIXELS;i++)closed[i]=(uint16_t)(0x1357+i%5);
+  assert(xz_four_frame_draw(closed,PIXELS,&frame,marks));
+  for(size_t i=0;i<PIXELS;i++)open[i]=(uint16_t)~closed[i];
+  xz_four_identity_draw(open,PIXELS,&frame);
+  unsigned kept=0;
+  for(size_t i=0;i<PIXELS;i++){
+   int x=(int)(i%XZ_WAVE_WIDTH),y=(int)(i/XZ_WAVE_WIDTH),box=0;
+   if(detail>=0){
+    box=x>=6&&x<28&&y>=7&&y<29;
+    for(int d=0;d<4;d++){int ny=(int)g.lane_y[d]+(g.lane_y[d]?2:8)+1;box|=x>=XZ_WAVE_WIDTH-14&&x<XZ_WAVE_WIDTH-4&&y>=ny&&y<ny+11;}
+   }else for(int d=0;d<(down?2:4);d++)box|=x>=3&&x<3+XZ_FOUR_NUMBER_BOX&&y>=(int)g.lane_y[d]+2&&y<(int)g.lane_y[d]+2+XZ_FOUR_NUMBER_BOX;
+   if(box){assert(open[i]==closed[i]);kept++;}else assert(open[i]==(uint16_t)~closed[i]);
+  }
+  assert(kept==(detail>=0?22u*22u+4u*10u*11u:(down?2u:4u)*XZ_FOUR_NUMBER_BOX*XZ_FOUR_NUMBER_BOX));
+ }
  struct xz_four_frame bad={&s,7,1000,0,1,-1,0,0};
  assert(!xz_four_frame_draw(closed,PIXELS,&bad,marks));bad.order=XZ_FOUR_STACKED;
  assert(!xz_four_frame_draw(closed,PIXELS-1,&bad,marks)&&!xz_four_frame_draw(NULL,PIXELS,&bad,marks));
  bad.decks=NULL;assert(!xz_four_frame_draw(closed,PIXELS,&bad,marks));
  puts("PASS DECK 3/4 detail panel: shared touch geometry, strip seek inverse, NEEDLE LOCK rule, notices, panel-only writes, "
-      "41 states drawn apart, notice priority, frame = lanes + tags when closed, lanes right of an open panel untouched in both orders");
+      "41 states drawn apart, notice priority, frame = lanes + tags when closed, lanes right of an open panel untouched in both orders, number boxes restored after a theme pass and nothing else");
  return 0;
 }

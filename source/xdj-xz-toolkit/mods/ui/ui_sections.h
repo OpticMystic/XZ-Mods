@@ -30,5 +30,5 @@ const char *xz_ui_key_example(int format);
 /* Engines this loader may not have at all. */
 int xz_ui_has_engine(const struct xz_ui_model *, uint32_t cap);
 /* CLASSIC geometry of the picture pages, shared by place and render. */
-enum { XZ_UI_JUMP_X=138, XZ_UI_JUMP_Y=50, XZ_UI_JUMP_W=652, XZ_UI_JUMP_RULER_Y=304, XZ_UI_STEM_X=138, XZ_UI_STEM_W=652 };
+enum { XZ_UI_JUMP_X=138, XZ_UI_JUMP_Y=50, XZ_UI_JUMP_W=652, XZ_UI_JUMP_BOTTOM=400, XZ_UI_STEM_X=138, XZ_UI_STEM_W=652 };
 #endif

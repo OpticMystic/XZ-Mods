@@ -673,7 +673,7 @@ static struct xz_shell_menu_row *part_row(struct build *b, const struct xz_ui_wi
  return r;
 }
 static void jump_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
- struct xz_pic_jump_geo g;xz_pic_jump_geometry(100,48,690,290,&g);
+ struct xz_pic_jump_geo g;xz_pic_jump_geometry(100,48,690,346,&g);
  b->p->layout=XZ_SHELL_MENU_PICTURE;b->p->picture=XZ_SHELL_PIC_BEAT_JUMP;
  xz_ui_jump_picture(b->u,b->m,-1,&b->p->pic.jump);
  for(size_t i=0;i<n;i++){

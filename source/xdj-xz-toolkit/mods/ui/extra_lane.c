@@ -2,6 +2,7 @@
 #include "extra_lane.h"
 #include "ui_skin.h"
 #include "native_led.h"
+#include "deck_colour.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -246,17 +247,21 @@ static int chip(struct xz_canvas c,int x,int y,int h,const char *text,uint32_t f
  return w;
 }
 static int chip_width(struct xz_canvas c,const char *text){return xz_text_width(c,text,1,24)+8;}
-/* The deck tag shared by software plates and native lane badges, lit while that side's controls drive the
-   deck. more adds the arrow that says touching the lane opens the deck's detail. */
+void xz_four_number_box(struct xz_canvas c,int x,int y,unsigned number){
+ xz_deck_box(c,x,y,XZ_FOUR_NUMBER_BOX,XZ_FOUR_NUMBER_BOX,(int)number-1,1,0,1,0);
+}
+/* The deck tag shared by software plates and native lane badges: the deck's number box, then DECK, lit
+   while that side's controls drive the deck. more adds the arrow that says touching the lane opens the
+   deck's detail. Returns the width from x 3. */
 static int tag(struct xz_canvas c,unsigned number,int lit,int more){
- char text[8];snprintf(text,sizeof(text),"DECK %u",number);
- int w=xz_text_width(c,text,1,12)+10+(more?7:0);
+ int x=3+XZ_FOUR_NUMBER_BOX+1,w=xz_text_width(c,"DECK",1,12)+10+(more?7:0);
  uint32_t ink=lit?0x0a1626:0xb4bcc4;
- if(lit)xz_rect(c,3,2,w,13,0x9cc8ff);
- else{xz_rect(c,3,2,w,13,0x1c2632);xz_border(c,3,2,w,13,0x55606c);}
- xz_text(c,8,4,text,1,12,ink);
- if(more)for(int i=0;i<4;i++)xz_rect(c,3+w-9+i,5+i,1,7-2*i,ink);
- return w;
+ xz_four_number_box(c,3,2,number);
+ if(lit)xz_rect(c,x,2,w,13,0x9cc8ff);
+ else{xz_rect(c,x,2,w,13,0x1c2632);xz_border(c,x,2,w,13,0x55606c);}
+ xz_text(c,x+5,4,"DECK",1,12,ink);
+ if(more)for(int i=0;i<4;i++)xz_rect(c,x+w-9+i,5+i,1,7-2*i,ink);
+ return x-3+w;
 }
 static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_deck *d,int loaded,int placed,int32_t pos,int lit){
  char text[48];

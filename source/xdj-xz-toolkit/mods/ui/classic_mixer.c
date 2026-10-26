@@ -2,6 +2,7 @@
 #include "classic_mixer.h"
 #include "ui_skin.h"
 #include "extra_lane.h"
+#include "deck_colour.h"
 #include "../shell/shell_font.h"
 #include <stdio.h>
 #include <string.h>
@@ -95,14 +96,13 @@ static void digits(struct xz_canvas c,int x,int y,const char *s,int big,int end,
   x+=g->advance;
  }
 }
-/* DECK 3 or 4 while the loopback route is down (design 6.3): a dim title band with NOT CONNECTED, one
-   plain line, and an empty overview where the deck's would be. */
+/* DECK 3 or 4 while the loopback route is down (design 6.3): a dim title band with the deck's number box
+   dimmed and NOT CONNECTED, one plain line, and an empty overview where the deck's would be. */
 static void not_connected(struct xz_canvas c,int id){
  char b[32];
  xz_rect(c,0,0,200,169,0x030506);xz_rect(c,199,0,1,169,0x52606c);
  xz_rect(c,0,0,199,22,0x161c26);xz_rect(c,0,22,199,1,0x2a3038);
- xz_rect(c,3,2,20,18,0x232a36);snprintf(b,sizeof b,"%d",id+1);
- xz_text(c,13-xz_text_width(c,b,2,2)/2,4,b,2,2,0x5a6270);
+ xz_deck_box(c,3,2,20,18,id,0,0x161c26,2,0);
  text(c,30,6,166,"NOT CONNECTED",1,0xffa82e);
  snprintf(b,sizeof b,"DECK %d WAITS FOR THE",id+1);text(c,8,39,186,b,1,0x8a929a);
  text(c,8,55,186,"LOOPBACK CABLE.",1,0x8a929a);
@@ -117,7 +117,9 @@ int xz_classic_mixer_draw(uint16_t *pixels,size_t stride,size_t count,const stru
   if(id>=2&&!live){not_connected(c,id);continue;}
   struct panel p=project(v,id);
   xz_rect(c,0,0,200,169,0x030506);xz_rect(c,0,0,199,22,0x123461);xz_rect(c,199,0,1,169,0x52606c);xz_rect(c,0,22,199,1,0x536376);
-  const char *title=p.load_known&&!p.loaded?"NO TRACK":p.title_known&&p.title?p.title:"--";text(c,6,1,188,title,2,WHITE);
+  /* The deck's number in its colour box (deck_colour.h), matching its tag beside the lanes. */
+  xz_deck_box(c,3,2,20,18,id,1,0x123461,2,0);
+  const char *title=p.load_known&&!p.loaded?"NO TRACK":p.title_known&&p.title?p.title:"--";text(c,29,1,166,title,2,WHITE);
   snprintf(b,sizeof b,"DECK %d",id+1);text(c,6,25,54,b,1,WHITE);
   if(p.master_known&&p.master)text(c,72,25,120,id>=2&&p.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MASTER":"MASTER",1,ORANGE);
   const char *source=p.source_known?(p.source==1?"USB1":p.source==2?"USB2":p.source==3?"LINK":p.source==4?"PC":"--"):"--";

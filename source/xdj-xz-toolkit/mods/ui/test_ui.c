@@ -270,8 +270,8 @@ static void parity(void){
     assert(w[i].kind==base[i].kind&&w[i].index==base[i].index&&w[i].requires==base[i].requires&&!strcmp(w[i].label,base[i].label));
     if(w[i].kind==XZ_UI_CLOSE)assert(w[i].x==720&&w[i].y==0);
     assert(w[i].x==base[i].x&&w[i].y==base[i].y&&w[i].w==base[i].w&&w[i].h==base[i].h);
-    /* The beat jump size strip is DESIGN 2.1's nine chips, 28 wide and 40 tall; the encoder steps the same sizes. */
-    assert(w[i].x>=0&&w[i].y>=0&&w[i].x+w[i].w<=800&&w[i].y+w[i].h<=480&&(w[i].w>=56||w[i].kind==XZ_UI_JUMP_SIZE)&&w[i].h>=36);
+    /* Every control is a full touch target, the beat jump size chips included. */
+    assert(w[i].x>=0&&w[i].y>=0&&w[i].x+w[i].w<=800&&w[i].y+w[i].h<=480&&w[i].w>=56&&w[i].h>=36);
     /* Controls stay out of the info dock (y 412..480) in every theme. */
     assert(w[i].y+w[i].h<=404);
     for(size_t k=i+1;k<n;k++)
@@ -421,6 +421,11 @@ static void encoder(void){
  assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.state,"ADJUSTING"));
  assert(xz_ui_back(&u,a)==0&&!u.adjusting&&u.page==XZ_UI_BEAT_JUMP);
  assert(xz_ui_encoder_turn(&u,&m,1,a)==0&&xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_JUMP_PAIR&&f.index==6);
+ /* Page 1 on STOCK plays the player's own sizes: push on a greyed pair says so and does not start editing. */
+ m.jump.enabled=0;u.jump_edit_page=0;u.focus_kind=XZ_UI_JUMP_PAIR;u.focus_index=0;u.focus_deck=-1;
+ assert(xz_ui_encoder_push(&u,&m,a)>=1&&a[0].kind==XZ_UI_UNAVAILABLE&&!u.adjusting);
+ assert(xz_ui_encoder_turn(&u,&m,1,a)==0);
+ m.jump.enabled=1;
  /* The X-PAD volume slider is edited by turning, never jumped to the middle. */
  u.page=XZ_UI_XPAD;m.enabled|=XZ_UI_SAMPLE;u.focus_kind=XZ_UI_VOLUME;u.focus_index=0;u.focus_deck=-1;
  assert(xz_ui_encoder_push(&u,&m,a)==0&&u.adjusting);

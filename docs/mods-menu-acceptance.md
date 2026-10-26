@@ -12,8 +12,8 @@ list checks what only the unit can show: sound, pads, lights and the play screen
 | HOME | SET UP (STEMS) | Use a USB loader without the stem engine | STEMS tile shows SET UP; it opens the USB stems setup | - |
 | PLAY | BEAT JUMP PADS | Open it, choose PAGE 1: MY SIZES, set pads C / D to 16, press BEAT JUMP, play pad C then D | The deck jumps back 16 beats, then forward 16 | 1 2 3 4 |
 | PLAY | PAGE 1: STOCK | Choose STOCK, play pads A to H in BEAT JUMP | The player's own 1 2 4 8 jumps; page 1 pads greyed in the editor | 1 2 3 4 |
-| PLAY | PAGE 2 | SHIFT + BEAT JUMP on a deck, release SHIFT, play a pad | The page 2 size from the editor; PAD PAGE EACH DECK IS ON NOW says PAGE 2 for that deck | 1 2 3 4 |
-| PLAY | Size chips / encoder | Push a pair, turn, push | The size steps 1..256 as you turn; the ruler and pads follow | - |
+| PLAY | PAGE 2 | SHIFT + BEAT JUMP on a deck, release SHIFT, play a pad | The page 2 size from the editor | 1 2 3 4 |
+| PLAY | Size chips / encoder | Tap a size; then push a pair, turn, push | The tap sets that size at once; turning steps 1..256; the pads, the PADS readout and the lit size follow | - |
 | PLAY | GATE CUE | Turn on, hold and release a hot cue | Plays while held, back to the hot cue on release | 1 2 3 4 |
 | PLAY | SMART CUE | Turn on, press a hot cue, press CUE | CUE returns to that hot cue | 1 2 3 4 |
 | PLAY | HOT CUE PREVIEW | Check the row | One line: NOT IN THIS VERSION, no control (no engine in this runtime) | - |

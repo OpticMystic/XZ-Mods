@@ -9,8 +9,6 @@
 /* PLAY > BEAT JUMP PADS */
 struct xz_pic_jump {
  int sizes[8], enabled, edit_page, focus_pair, adjusting;
- int deck_page[4];      /* the page each deck is on now; -1 unknown */
- int deck_live[4];      /* the deck exists now (decks 3 and 4 over the cable) */
 };
 /* STEMS > STEM PADS */
 struct xz_pic_stem_pads {
