@@ -321,7 +321,7 @@ def main() -> None:
     tests = {
         "runtime-smoke": [str(ROOT / "runtime_smoke.c"), "-ldl"],
         "beat-jump-test": [str(ROOT / "ui/beat_jump.c"),str(ROOT / "ui/test_beat_jump.c")],
-        "support-ui-test": [*(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/test_support_ui.c")],
+        "support-ui-test": [*(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/test_support_ui.c"), "-lm"],
         "cue-test": [str(ROOT / "cue/cue.c"), str(ROOT / "cue/test_cue.c")],
         "deck-select-test": [str(ROOT / "deck_select.c"), str(ROOT / "test_deck_select.c")],
         "deck-switch-idle-test": [str(ROOT / "deck_select.c"), str(ROOT / "tests/test_idle_jog_shift.c")],
@@ -330,7 +330,8 @@ def main() -> None:
         "classic-mixer-test": [str(ROOT / "ui" / name) for name in ("extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c", "test_classic_mixer.c")],
         "classic-mixer-runtime-test": ["-pthread", str(ROOT / "shell_model.c"), *(str(ROOT / "ui" / name) for name in ("test_classic_mixer_runtime.c", "classic_mixer.c", "classic_column.c", "extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c")), "-lm"],
         "deck-view-test": [str(ROOT / "ui" / name) for name in ("ui_draw.c", "deck_view.c", "test_deck_view.c")],
-        "route-card-test": [str(ROOT / "ui" / name) for name in ("ui_draw.c", "route_card.c", "test_route_card.c")],
+        "route-card-test": [*(str(ROOT / "ui" / name) for name in ("ui_draw.c", "route_card.c", "cable_anim.c", "test_route_card.c")), "-lm"],
+        "cable-anim-test": [*(str(ROOT / "ui" / name) for name in ("ui_draw.c", "test_cable_anim.c")), "-lm"],
         "extra-player-test": ["-DXZ_XP_TEST_RENDER_HOOK", "-pthread", *(str(ROOT / name) for name in (
             "extra_player.c", "deck_select.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c", "ui/layered_wave.c",
             "audio/stem_media.c", "audio/stem_decode.c", "test_extra_player.c")), str(mp3_object), "-lm"],
