@@ -36,7 +36,8 @@ struct xz_shell_runtime_frame_input {
  int cached;                  /* ui_runtime.c's UI lock was busy: this is the previous frame's input */
  /* DJ profiles on the sticks: dj_runtime's view, copied (entry i = view entry i). */
  int dj_known, dj_count;
- /* The appearance settings the MODS > APPEARANCE tab shows (ui_runtime.c's model). */
+ int four_decks_attention;   /* a four-deck view is chosen and decks 3 and 4 are not connected: 4 DECKS gets a dot */
+ /* The look settings MY SETTINGS and the shell follow (ui_runtime.c's model). */
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
  int stems_overlay;           /* MODERN's stem layout (settings modern_stems): enum xz_shell_stem_layout */
  int rekordbox_known, rekordbox_assign[2]; /* the REKORDBOX button's press and SHIFT + press (enum xz_rekordbox_action) */

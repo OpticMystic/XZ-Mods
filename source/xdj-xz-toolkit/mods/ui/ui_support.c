@@ -442,7 +442,7 @@ int xz_ui_support_menu(const struct xz_ui *u, const struct xz_ui_model *m, struc
     out->depth = (uint8_t)depth;
     out->focus_row = -1;
     snprintf(out->title, sizeof(out->title), "%s", xz_ui_support_title(u->page));
-    snprintf(out->path, sizeof(out->path), "%s", out->root == XZ_UI_SETTINGS ? "ADVANCED" : "NETWORK / NETWORK UPDATES");
+    snprintf(out->path, sizeof(out->path), "%s", out->root == XZ_UI_CONNECT ? "CONNECT / UPDATES" : "EXTRAS");
     out->section_count = 1;
     strcpy(out->sections[0], "ISSUE REPORT");
     out->step_count = XZ_SUPPORT_STEPS;

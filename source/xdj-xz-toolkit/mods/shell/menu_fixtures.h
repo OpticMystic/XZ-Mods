@@ -31,7 +31,7 @@ static void mfx_model(struct xz_ui_model *m) {
  m->connection=(struct xz_ui_connection){1,1,1,1,1,1,1,"192.168.1.40","VJFS / VJVP / VJTE + VJXZ","CONNECTION SERVICE CONFIGURED BY THE MOD LOADER",50005,29.97f};
  m->takeover_assign=2;m->stems_overlay=1;m->pad_feedback=1;m->stem_page=1;m->stem_order=0;
  m->stem_colors[0]=1;m->rekordbox_assign[0]=XZ_UI_RB_INTERFACE;m->rekordbox_assign[1]=XZ_UI_RB_STOCK;
- m->jump=xz_jump_defaults();m->jump_encoder=1;m->key_feedback=1;m->browse_traffic=1;m->key_format=2;
+ m->jump=xz_jump_defaults();m->jump_encoder=1;m->deck_view_button=1;m->jump_page[0]=m->jump_page[1]=m->jump_page[2]=m->jump_page[3]=0;m->key_feedback=1;m->browse_traffic=1;m->key_format=2;
  m->settings_status="SETTINGS SAVED TO USB 1";
  m->doom_ready=1;
  m->doom=(struct xz_doom_browser){{"DOOM2.WAD","SIGIL_V1_21.WAD","ALIENS-TC.WAD"},{"BASE GAME / 14.6 MB","ADD-ON MAP / 2.1 MB","ADD-ON / 5.0 MB"},
@@ -63,18 +63,22 @@ static void mfx_model(struct xz_ui_model *m) {
  mfx_dj.images=mfx_image_list;mfx_dj.image_count=3;mfx_dj.images_usb=0;
  m->dj=&mfx_dj;
 }
-/* The rail shell_runtime.c publishes; BUTTONS and APPEARANCE are item tabs drawn from their own items. */
-static const char *const mfx_show_hide[2]={"SHOW","HIDE"};
-static const struct xz_shell_setting_item mfx_look_items[1]={{1,0,"MODE LAMPS",mfx_show_hide,2,0,1,1}};
-static const struct xz_shell_settings_model mfx_look={1,mfx_look_items,NULL};
-static const struct xz_shell_mods_tab mfx_tabs[6]={
- {"GENERAL",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_GENERAL,NULL},
- {"CONTROLS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_CONTROLS,NULL},
- {"APPEARANCE",XZ_SHELL_TAB_ITEMS,&mfx_look,NULL,0,XZ_UI_THEMES,NULL},
- {"ADVANCED",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_SETTINGS,NULL},
- {"EXTRAS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_EXTRAS,NULL},
- {"NETWORK",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_NETWORK,NULL}};
-static const struct xz_shell_mods_model mfx_mods={6,mfx_tabs};
+/* The rail shell_runtime.c publishes: one MENU tab per MODS section. */
+static struct xz_shell_mods_tab mfx_tabs[7]={
+ {"HOME",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_HOME,NULL,0},
+ {"PLAY",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_PLAY,NULL,0},
+ {"STEMS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_STEM_SECTION,NULL,0},
+ {"SCREEN",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_SCREEN,NULL,0},
+ {"4 DECKS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_FOUR_DECKS,NULL,0},
+ {"CONNECT",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_CONNECT,NULL,0},
+ {"EXTRAS",XZ_SHELL_TAB_MENU,NULL,NULL,0,XZ_UI_EXTRAS,NULL,0}};
+static const struct xz_shell_mods_model mfx_mods={7,mfx_tabs};
+/* What shell_runtime.c does to a published page: the rows for the shell's own settings show its values
+   (here WAVEFORM COLOURS 3-BAND, TRACK COLOURS DECK + WAVE, every lamp and button shown). */
+static inline void mfx_look_values(struct xz_shell_menu *p) {
+ for(int i=0;i<p->row_count&&i<XZ_SHELL_MENU_ROWS;i++)
+  if(p->row[i].target.kind==XZ_UI_SHELL_LOOK)p->row[i].current=(int16_t)(p->row[i].target.index==XZ_SHELL_SET_WAVE_COLOR?XZ_SHELL_WAVE_3BAND:0);
+}
 /* The rail entry (1..) of the MENU tab a top page belongs to; 0 when none. */
-static int mfx_tab_of(int top) { for(int t=0;t<6;t++)if(mfx_tabs[t].kind==XZ_SHELL_TAB_MENU&&mfx_tabs[t].page==top)return t+1; return 0; }
+static int mfx_tab_of(int top) { for(int t=0;t<7;t++)if(mfx_tabs[t].kind==XZ_SHELL_TAB_MENU&&mfx_tabs[t].page==top)return t+1; return 0; }
 #endif

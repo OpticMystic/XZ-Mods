@@ -5,12 +5,10 @@
 #include "wave_viewport.h"
 #include "ui_network.h"
 #include "ui_support.h"
+#include "ui_sections.h"
 #include <stdio.h>
 #include <string.h>
 
-static const enum xz_ui_page menu_pages[6]={XZ_UI_GENERAL,XZ_UI_CONTROLS,XZ_UI_THEMES,XZ_UI_SETTINGS,XZ_UI_EXTRAS,XZ_UI_NETWORK};
-static const char *menu_names[6]={"GENERAL","CONTROLS","APPEARANCE","ADVANCED","EXTRAS","NETWORK"};
-static const char *stem_pages[4]={"HOT CUE","BEAT LOOP","SLIP LOOP","BEAT JUMP"};
 static const char *stems[3]={"DRUMS","HARMONICS","VOCALS"};
 /* Four-stem rows: harmonics without bass reads INST, same column and colour. */
 static const char *stems4[4]={"DRUMS","INST","VOCALS","BASS"};
@@ -20,7 +18,6 @@ static const char *pc_roles[XZ_UI_PC_ROLES]={"DRUMS","INST","BASS","VOCAL"};
 static const char *pc_targets[4]={"PC1","PC2","PC3","PC4"};
 /* PC row slots left to right; vocals lead and rhythm follows, like the local row. */
 static const int pc_slots[XZ_UI_PC_ROLES]={XZ_UI_PC_VOCAL,XZ_UI_PC_INST,XZ_UI_PC_BASS,XZ_UI_PC_DRUMS};
-static const char *control_sections[4]={"STEM SHORTCUTS","BEAT JUMP","PC STEMS","BUTTONS"};
 static const enum xz_ui_page section_pages[4]={XZ_UI_CONTROLS,XZ_UI_BEAT_JUMP,XZ_UI_PC_STEMS,XZ_UI_BUTTONS};
 /* The button next to LINK. Stored numbers are settings.h enum xz_rekordbox_action; MODS lists them in
    xz_ui_rekordbox_order. The code keeps the name REKORDBOX; the screen never says it. */
@@ -119,7 +116,7 @@ const char *xz_ui_pc_reason_text(enum xz_ui_pc_reason why){
  case XZ_UI_PC_WHY_LINK:return "PC LINK LOST / NOTHING SENT";
  case XZ_UI_PC_WHY_UNVERIFIED:return "NOT TESTED YET / TAP TO SET UP";
  case XZ_UI_PC_WHY_NO_LEVEL:return "PC STEMS SWITCH ON/OFF ONLY / NO LEVEL";
- case XZ_UI_PC_WHY_NO_BYPASS:return "REKORDBOX HAS NO STEM BYPASS OVER USB";
+ case XZ_UI_PC_WHY_NO_BYPASS:return "THE DJ SOFTWARE HAS NO STEM BYPASS OVER USB";
  case XZ_UI_PC_WHY_ROLE:return "STEM COUNT NOT REPORTED YET / TAP TO SET UP";
  case XZ_UI_PC_WHY_TAG:break;
  }
@@ -205,16 +202,18 @@ static const char *pc_page_status(const struct xz_ui_model *m,int deck){
  return why==XZ_UI_PC_WHY_SOURCE?"NO PC DECK DETECTED YET":why==XZ_UI_PC_WHY_UNVERIFIED?"STEM SWITCHING NOT TESTED YET":xz_ui_pc_reason_text(why);
 }
 static int pc_deck(const struct xz_ui *u){return u->deck>=0&&u->deck<2?u->deck:0;}
-void xz_ui_init(struct xz_ui *u){memset(u,0,sizeof(*u));u->capture=-1;u->page=XZ_UI_GENERAL;u->profile_view=-1;u->edit_entry=-1;u->edit_logo=XZ_UI_LOGO_KEEP;}
+void xz_ui_init(struct xz_ui *u){memset(u,0,sizeof(*u));u->capture=-1;u->page=XZ_UI_HOME;u->profile_view=-1;u->edit_entry=-1;u->edit_logo=XZ_UI_LOGO_KEEP;}
 static void add(struct xz_ui_widget *w,size_t *n,enum xz_ui_action_kind kind,int index,uint32_t cap,const char *label){
  w[*n]=(struct xz_ui_widget){0,0,0,0,kind,index,cap,label,-1};(*n)++;
 }
 static struct xz_ui_action action(enum xz_ui_action_kind,enum xz_ui_phase,int,int,float,float);
 static int root_page(enum xz_ui_page page){
- return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_SETTINGS||page==XZ_UI_THEMES||page==XZ_UI_EXTRAS||page==XZ_UI_NETWORK;
+ for(int i=0;i<XZ_UI_SECTIONS;i++)if(xz_ui_sections[i]==page)return 1;
+ return 0;
 }
 void xz_ui_navigate(struct xz_ui *u,enum xz_ui_page page){
  xz_ui_network_invalidate(u);
+ page=xz_ui_page_current(page);
  if(!u||(unsigned)page>=XZ_UI_PAGE_COUNT||u->page==page)return;
  if(root_page(page))u->history_count=0;
  else{
@@ -231,7 +230,7 @@ void xz_ui_navigate(struct xz_ui *u,enum xz_ui_page page){
  u->page=page;u->capture=-1;u->notice[0]=0;u->focus_kind=XZ_UI_NONE;u->adjusting=0;u->profile_open=0;
 }
 int xz_ui_header_decks(enum xz_ui_page page){
- return page==XZ_UI_STEMS||page==XZ_UI_XPAD||page==XZ_UI_SETTINGS||page==XZ_UI_LOCAL_STEM_SETUP||page==XZ_UI_FEATURE_SETUP;
+ return page==XZ_UI_STEMS||page==XZ_UI_XPAD||page==XZ_UI_KEY_SETUP||page==XZ_UI_LOCAL_STEM_SETUP||page==XZ_UI_FEATURE_SETUP;
 }
 int xz_ui_profile_window(const struct xz_ui *u,const struct xz_ui_model *m,int *first){
  int count=m&&m->dj?m->dj->count:0,offset=u?u->profile_offset:0;
@@ -257,18 +256,16 @@ static enum xz_ui_page parent_page(enum xz_ui_page page);
 int xz_ui_page_parent(int page){return (unsigned)page<XZ_UI_PAGE_COUNT?(int)parent_page((enum xz_ui_page)page):page;}
 static enum xz_ui_page parent_page(enum xz_ui_page page){
  switch(page){
- case XZ_UI_STEMS:case XZ_UI_XPAD:case XZ_UI_KEY_SETUP:case XZ_UI_BROWSE_SETUP:case XZ_UI_RAM_SETUP:return XZ_UI_SETTINGS;
- case XZ_UI_BEAT_JUMP:case XZ_UI_PC_STEMS:case XZ_UI_LOCAL_STEM_SETUP:case XZ_UI_BUTTONS:return XZ_UI_CONTROLS;
- case XZ_UI_STEM_COLORS:case XZ_UI_THEME_PICK:return XZ_UI_THEMES;
- case XZ_UI_METRICS_SETUP:return XZ_UI_SETTINGS;
- case XZ_UI_PROFILE_SETUP:return XZ_UI_EXTRAS;
+ case XZ_UI_BEAT_JUMP:case XZ_UI_KEY_SETUP:case XZ_UI_XPAD:case XZ_UI_RAM_SETUP:case XZ_UI_BUTTONS:case XZ_UI_FEATURE_SETUP:return XZ_UI_PLAY;
+ case XZ_UI_STEMS:case XZ_UI_PC_STEMS:case XZ_UI_LOCAL_STEM_SETUP:case XZ_UI_STEM_COLORS:case XZ_UI_STEM_PADS:return XZ_UI_STEM_SECTION;
+ case XZ_UI_THEME_PICK:case XZ_UI_BROWSE_SETUP:case XZ_UI_METRICS_SETUP:return XZ_UI_SCREEN;
+ case XZ_UI_PROFILE_SETUP:case XZ_UI_CONNECTION:case XZ_UI_NETWORK:case XZ_UI_UPDATES:return XZ_UI_CONNECT;
  case XZ_UI_PROFILE_EDIT:return XZ_UI_PROFILE_SETUP;
- case XZ_UI_FEATURE_SETUP:return XZ_UI_GENERAL;
- case XZ_UI_UPDATES:return XZ_UI_NETWORK;
  case XZ_UI_NETWORK_SETUP:return XZ_UI_NETWORK;
  case XZ_UI_NETWORK_EDIT:return XZ_UI_NETWORK_SETUP;
- case XZ_UI_CONNECTION:case XZ_UI_GAMES:case XZ_UI_APPS:case XZ_UI_ABOUT:return XZ_UI_EXTRAS;
- case XZ_UI_UPDATE_SETUP:case XZ_UI_SUPPORT:return XZ_UI_UPDATES;
+ case XZ_UI_GAMES:case XZ_UI_APPS:case XZ_UI_ABOUT:case XZ_UI_SUPPORT:return XZ_UI_EXTRAS;
+ case XZ_UI_UPDATE_SETUP:return XZ_UI_UPDATES;
+ case XZ_UI_GENERAL:case XZ_UI_CONTROLS:case XZ_UI_THEMES:case XZ_UI_SETTINGS:return XZ_UI_HOME;
  case XZ_UI_APPS_SETUP:return XZ_UI_APPS;
  case XZ_UI_DOOM:case XZ_UI_DOOM_FILES:case XZ_UI_MYHOUSE_SETUP:return XZ_UI_GAMES;
  case XZ_UI_DOOM_SETUP:return XZ_UI_DOOM;
@@ -292,45 +289,27 @@ size_t xz_ui_back(struct xz_ui *u,struct xz_ui_action out[XZ_UI_ACTIONS]){
  if(target==old)out[n++]=action(XZ_UI_CLOSE,XZ_UI_PRESS,u->deck,0,0,0);
  else{
   u->page=target;out[n++]=action(XZ_UI_PANEL,XZ_UI_PRESS,u->deck,(int)old,(float)target,0);
-  /* Land on the control that led to the page just left, so BACK then PUSH re-enters it. */
-  u->focus_kind=target==XZ_UI_GENERAL?XZ_UI_FEATURE_LINK:XZ_UI_PANEL;
+  /* Land on the control that led to the page just left, so BACK then PUSH re-enters it: the section lists and
+     HOME link with FEATURE_LINK, the card pages (CONNECT, EXTRAS, GAMES...) with PANEL. */
+  int listed=target==XZ_UI_HOME||target==XZ_UI_PLAY||target==XZ_UI_STEM_SECTION||target==XZ_UI_SCREEN;
+  u->focus_kind=listed?XZ_UI_FEATURE_LINK:XZ_UI_PANEL;
   u->focus_index=(int)old;u->focus_deck=-1;u->adjusting=0;
-  if(target==XZ_UI_GENERAL&&old==XZ_UI_FEATURE_SETUP){u->focus_kind=XZ_UI_FEATURE_SETUP_OPEN;u->focus_index=u->feature_cap;}
-  if(target==XZ_UI_GENERAL&&old==XZ_UI_LOCAL_STEM_SETUP){u->focus_kind=XZ_UI_LOCAL_STEM_SETUP_OPEN;u->focus_index=XZ_UI_STEM;}
+  if(old==XZ_UI_FEATURE_SETUP){u->focus_kind=XZ_UI_FEATURE_SETUP_OPEN;u->focus_index=u->feature_cap;}
+  if(old==XZ_UI_LOCAL_STEM_SETUP){u->focus_kind=target==XZ_UI_HOME?XZ_UI_HOME_SETUP:XZ_UI_LOCAL_STEM_SETUP_OPEN;u->focus_index=target==XZ_UI_HOME?XZ_UI_STEM_SECTION:XZ_UI_STEM;}
  }
  return n;
 }
 static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget w[XZ_UI_WIDGETS]){
  size_t n=0;int i;
  if(u->profile_open&&m->dj)return profile_controls(u,m,w);
- for(i=0;i<6;i++)add(w,&n,XZ_UI_PANEL,menu_pages[i],0,menu_names[i]);
+ for(i=0;i<XZ_UI_SECTIONS;i++)add(w,&n,XZ_UI_PANEL,xz_ui_sections[i],0,xz_ui_section_label(xz_ui_sections[i]));
  add(w,&n,XZ_UI_CLOSE,0,0,"CLOSE");
  add(w,&n,XZ_UI_BACK,0,0,"< BACK");
  if(m->dj)add(w,&n,XZ_UI_PROFILE,0,0,"DJ PROFILE");
- if(u->page==XZ_UI_CONTROLS||u->page==XZ_UI_BEAT_JUMP||u->page==XZ_UI_PC_STEMS||u->page==XZ_UI_BUTTONS){
-  for(i=0;i<4;i++)add(w,&n,XZ_UI_CONTROL_SECTION,i,0,control_sections[i]);
- }
  if(xz_ui_header_decks(u->page))
   for(i=0;i<2;i++)add(w,&n,XZ_UI_DECK,i,0,"USB DECK");
- if(u->page==XZ_UI_GENERAL){
-  uint32_t available=m->deck[0].ready|m->deck[1].ready|m->enabled;
-  /* One switch for every deck: an installed engine turns on here, no wizard. */
-  int engine=xz_ui_usb_engine(m);
-  add(w,&n,engine?XZ_UI_ENABLE:XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM,0,engine?"USB STEMS / DECKS 1 + 2":"SET UP STANDALONE STEMS");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS,0,"PC STEMS SETUP >");
-  add(w,&n,XZ_UI_JUMP_ENABLE,0,0,"PAGE 1 CUSTOM JUMPS");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BEAT_JUMP,0,"JUMP SETTINGS >");
-  static const int caps[4]={XZ_UI_GATE,XZ_UI_SMART,XZ_UI_PREVIEW,XZ_UI_SAMPLE};
-  static const char *names[4]={"GATE CUE","SMART CUE","HOT-CUE PREVIEW","X-PAD ENGINE"};
-  static const char *setups[4]={"SET UP GATE CUE","SET UP SMART CUE","SET UP CUE PREVIEW","SET UP X-PAD"};
-  for(i=0;i<4;i++){int toggle=i<2&&(available&(uint32_t)caps[i]);add(w,&n,toggle?XZ_UI_ENABLE:XZ_UI_FEATURE_SETUP_OPEN,caps[i],toggle?(uint32_t)caps[i]:0,toggle?names[i]:setups[i]);}
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,"STEM COLORS >");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_XPAD,0,"X-PAD SETTINGS >");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,m->metrics.valid?"METRICS SETTINGS >":"SET UP METRICS >");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_NETWORK,0,"NETWORK SETTINGS >");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_CONTROLS,0,"STEM SETTINGS >");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SETTINGS,0,"MORE CONTROLS >");
- }else if(u->page==XZ_UI_FEATURE_SETUP){
+ if(xz_ui_section_page(u->page))return xz_ui_section_controls(u,m,w,n);
+ if(u->page==XZ_UI_FEATURE_SETUP){
   static const char *steps[4]={"DETECT FEATURE","USE SELECTED DECK","ENABLE FEATURE","I TESTED IT / DONE"};
   int additive=u->feature_cap==XZ_UI_PREVIEW||u->feature_cap==XZ_UI_SAMPLE;
   add(w,&n,XZ_UI_FEATURE_SETUP_STEP,u->feature_step,0,additive&&u->feature_step==2?"VERIFY FEATURE":steps[u->feature_step>=0&&u->feature_step<4?u->feature_step:0]);
@@ -349,11 +328,6 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   add(w,&n,XZ_UI_OVERDUB,0,XZ_UI_SAMPLE,"OVERDUB");
   add(w,&n,XZ_UI_VOLUME,0,XZ_UI_SAMPLE,"");
   for(i=0;i<8;i++)add(w,&n,XZ_UI_SAMPLE_PAD,i,XZ_UI_SAMPLE,pads[i]);
- }else if(u->page==XZ_UI_SETTINGS){
-  add(w,&n,XZ_UI_PANEL,XZ_UI_STEMS,0,"GROOVE PADS");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_XPAD,0,"X-PAD CONTROLS");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_RAM_SETUP,0,"RAM TRACKS");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_SUPPORT,0,"REPORT AN ISSUE");
  }else if(u->page==XZ_UI_LOCAL_STEM_SETUP){
   /* The button is the deck's next real step, so a prepared track never repeats DETECT.
      index stays the runtime step: 0 check engine, 1 turn on, 2 check the track.
@@ -381,11 +355,6 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   case XZ_UI_RAM_DETACHED:break;}
  }else if(u->page==XZ_UI_ABOUT){
   for(int i=0;i<XZ_ABOUT_LINKS;i++)add(w,&n,XZ_UI_ABOUT_LINK,i,0,xz_about_links[i].label);
- }else if(u->page==XZ_UI_EXTRAS){
-  add(w,&n,XZ_UI_PANEL,XZ_UI_ABOUT,0,"ABOUT XZ MODS");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_CONNECTION,0,"VJ.TOOLS");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_GAMES,0,"GAMES");
-  n=xz_sdk_ui_controls(u,m,w,n);
  }else if(u->page==XZ_UI_GAMES){
   add(w,&n,XZ_UI_GAME_SELECT,0,0,"DOOM / CHOOSE WAD");
   add(w,&n,XZ_UI_GAME_SELECT,1,0,"CHEX QUEST");
@@ -418,40 +387,10 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
  }else if(u->page==XZ_UI_UPDATE_SETUP){
   add(w,&n,XZ_UI_UPDATE_CHECK,0,0,"DETECT UPDATE SERVER");
   add(w,&n,XZ_UI_PANEL,XZ_UI_UPDATES,0,"BACK TO UPDATES");
- }else if(u->page==XZ_UI_CONTROLS){
-  add(w,&n,XZ_UI_STEMS_OVERLAY,0,0,"STEM ROW LAYOUT");
-  add(w,&n,XZ_UI_FOUR_WAVE_ORDER,0,0,m->four_wave_mixer?"WAVE ORDER: 3 1 2 4":"WAVE ORDER: 1 2 3 4");
-  for(i=0;i<8;i++)add(w,&n,XZ_UI_STEM_PAD_CONFIG,i,0,"");
-  add(w,&n,XZ_UI_PAD_FEEDBACK,0,0,"PAD LIGHTS");
-  add(w,&n,XZ_UI_STEM_ORDER,0,0,"STEM ORDER");
-  for(i=0;i<4;i++)add(w,&n,XZ_UI_STEM_PAGE,i,0,stem_pages[i]);
- }else if(u->page==XZ_UI_BUTTONS){
-  /* The physical REKORDBOX key: a plain press, then with SHIFT. Captions and the help lines are drawn
-     by xz_ui_buttons_details (ui_layout.c). */
-  for(int slot=0;slot<2;slot++)for(i=0;i<XZ_UI_RB_CHOICES;i++)add(w,&n,XZ_UI_REKORDBOX_ASSIGN,slot*XZ_UI_RB_CHOICES+i,0,rekordbox_names[i]);
- }else if(u->page==XZ_UI_BEAT_JUMP){
-  add(w,&n,XZ_UI_JUMP_EDIT_PAGE,0,0,"EDIT PAGE 1");
-  add(w,&n,XZ_UI_JUMP_EDIT_PAGE,1,0,"EDIT PAGE 2");
-  for(i=0;i<8;i++)add(w,&n,XZ_UI_JUMP_PAIR,i,0,"");
-  add(w,&n,XZ_UI_JUMP_STEP,1,0,"UP +");
-  add(w,&n,XZ_UI_JUMP_STEP,-1,0,"DOWN -");
  }else if(u->page==XZ_UI_STEM_COLORS){
   for(int stem=0;stem<3;stem++)for(i=0;i<XZ_STEM_COLOR_CHOICES;i++)
    add(w,&n,XZ_UI_STEM_COLOR,stem*XZ_STEM_COLOR_CHOICES+i,0,xz_stem_palette_name(i));
   add(w,&n,XZ_UI_STEM_COLORS_RESET,0,0,"RESET STEM COLORS");
- }else if(u->page==XZ_UI_THEMES){
-  /* APPEARANCE: the interface first, then its themes, then the other looks.
-     Section headers are drawn by xz_ui_appearance_details (ui_layout.c). */
-  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,"FLAGSHIP");
-  add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC,0,"CLASSIC");
-  if(m->ui_interface==XZ_UI_INTERFACE_MODERN)add(w,&n,XZ_UI_SET_MODERN_THEME,0,0,"STANDARD");
-  else add(w,&n,XZ_UI_PANEL,XZ_UI_THEME_PICK,0,xz_theme_name(m->classic_theme>=0&&m->classic_theme<XZ_THEME_FLAGSHIP?m->classic_theme:0));
-  add(w,&n,XZ_UI_WAVE_MODE,0,0,"STOCK WAVE");
-  add(w,&n,XZ_UI_WAVE_MODE,1,0,"3-BAND");
-  add(w,&n,XZ_UI_WAVE_MODE,2,0,"STEMS");
-  add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"KEY FEEDBACK");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_BROWSE_SETUP,0,"KEY FORMAT");
-  add(w,&n,XZ_UI_PANEL,XZ_UI_STEM_COLORS,0,"STEM COLORS");
  }else if(u->page==XZ_UI_THEME_PICK){
   /* Classic themes only: FLAGSHIP is the modern interface's own look. */
   for(i=0;i<XZ_THEME_FLAGSHIP;i++)add(w,&n,XZ_UI_SET_THEME,i,0,xz_theme_name(i));
@@ -504,6 +443,10 @@ static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,cons
  }
  if(w->kind==XZ_UI_PROFILE_PAGE||w->kind==XZ_UI_PROFILE)return m->dj!=NULL;
  if(w->kind==XZ_UI_ENABLE&&w->index==XZ_UI_STEM)return xz_ui_usb_engine(m);
+ if(w->kind==XZ_UI_INFO||w->kind==XZ_UI_HOME_SETUP||w->kind==XZ_UI_DECK_VIEW||w->kind==XZ_UI_DECK_VIEW_BUTTON)return 1;
+ if(w->kind==XZ_UI_ROUTE_RESCAN)return m->route.state!=XZ_UI_ROUTE_SCANNING&&m->route.state!=XZ_UI_ROUTE_NO_ENGINE;
+ /* Page 1 on STOCK plays the player's own 1 2 4 8: nothing to edit there. */
+ if((w->kind==XZ_UI_JUMP_PAIR||w->kind==XZ_UI_JUMP_SIZE)&&u->page==XZ_UI_BEAT_JUMP&&!u->jump_edit_page&&!m->jump.enabled)return 0;
  if(w->kind==XZ_UI_MUTE||w->kind==XZ_UI_BYPASS||w->kind==XZ_UI_LEVEL)return deck<2&&usb_playable(m,deck);
  uint32_t available=d->ready;
  if(w->kind==XZ_UI_ENABLE)
@@ -546,7 +489,10 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
   l.color=xz_stem_palette_color(choice,xz_ui_stem_color(m->theme,stem));
   l.selected=m->stem_colors[stem]==choice;break;}
 
- case XZ_UI_JUMP_ENABLE:l.selected=m->jump.enabled;break;
+ case XZ_UI_JUMP_ENABLE:l.selected=k==2?!m->jump.enabled:m->jump.enabled;break;
+ case XZ_UI_DECK_VIEW:l.selected=k==m->deck_view;break;
+ case XZ_UI_DECK_VIEW_BUTTON:l.selected=m->deck_view_button;break;
+ case XZ_UI_HOME_SETUP:l.selected=1;break;
  case XZ_UI_JUMP_SHIFT:l.selected=m->jump.shift_page;break;
  case XZ_UI_JUMP_EDIT_PAGE:l.selected=k==u->jump_edit_page;break;
  case XZ_UI_JUMP_PAIR:l.selected=k/2==u->jump_edit_pair;break;
@@ -554,9 +500,9 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
  case XZ_UI_STEM_PAGE:l.selected=k==m->stem_page;break;
  case XZ_UI_WAVE_MODE:l.selected=k==m->wave_mode;break;
  case XZ_UI_SHIFT_PAGES:l.selected=m->shift_pages;break;
- case XZ_UI_PAD_FEEDBACK:l.selected=m->pad_feedback;break;
+ case XZ_UI_PAD_FEEDBACK:l.selected=k==2?!m->pad_feedback:m->pad_feedback;break;
  case XZ_UI_FOUR_WAVE_ORDER:l.selected=!!m->four_wave_mixer;break;
- case XZ_UI_STEMS_OVERLAY:l.selected=m->stems_overlay;break;
+ case XZ_UI_STEMS_OVERLAY:l.selected=k?m->stems_overlay==k-1:m->stems_overlay;break;
  case XZ_UI_STEM_ORDER:l.selected=0;break;
  case XZ_UI_SHIFT_KEYSYNC:l.selected=m->shift_keysync;break;
  case XZ_UI_KEY_SYNC:l.color=0x52d794;l.selected=deck<2&&d->key_synced;break;
@@ -599,6 +545,7 @@ const char *xz_ui_ram_state_text(enum xz_ui_ram_state state){
  case XZ_UI_RAM_DETACHED:return "USB OUT / RAM COPY ONLY";
  default:return "RAM ENGINE NOT DETECTED";}
 }
+int xz_ui_section_page_notice(const struct xz_ui *u){return u&&(xz_ui_section_page(u->page)||u->page==XZ_UI_STEM_COLORS);}
 const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m){
  if(xz_ui_support_page(u->page))return u->notice[0]?u->notice:m->support.status[0]?m->support.status:"PREPARE SANITIZED DRAFT / PREVIEW SHA256 / SEND OR EXPORT";
  if(xz_ui_network_page(u->page))return u->notice[0]?u->notice:m->network.detail[0]?m->network.detail:"SET UP NETWORK / CHANGES LAST UNTIL REBOOT";
@@ -607,14 +554,14 @@ const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m)
  if(m->settings_flash)return saved;
  if(m->dj&&m->dj->flash&&m->dj->status)return m->dj->status;
  if((u->profile_open||u->page==XZ_UI_PROFILE_SETUP||u->page==XZ_UI_PROFILE_EDIT)&&m->dj)return xz_ui_profile_footer(u,m);
- if((u->page==XZ_UI_THEMES||u->page==XZ_UI_THEME_PICK)&&m->theme_status)return m->theme_status;
- if(u->page==XZ_UI_GENERAL||u->page==XZ_UI_CONTROLS||u->page==XZ_UI_STEM_COLORS||u->page==XZ_UI_BUTTONS)return saved;
+ if(u->page==XZ_UI_THEME_PICK&&m->theme_status)return m->theme_status;
+ if(xz_ui_section_page(u->page)||u->page==XZ_UI_STEM_COLORS)return xz_ui_save_state(m,NULL)[0]?xz_ui_save_state(m,NULL):saved;
  if(u->notice[0])return u->notice;
  if(u->page==XZ_UI_LOCAL_STEM_SETUP)return xz_ui_usb_reason_text(xz_ui_usb_blocked(m,u->deck<2?u->deck:0));
  if(xz_sdk_ui_page(u->page))return xz_sdk_ui_footer(u,m);
  if(u->page==XZ_UI_BEAT_JUMP)return saved;
  if(u->page==XZ_UI_PC_STEMS)return pc_page_status(m,pc_deck(u));
- if(u->page==XZ_UI_SETTINGS||u->page==XZ_UI_BROWSE_SETUP)return saved;
+ if(u->page==XZ_UI_BROWSE_SETUP)return saved;
  if(u->page==XZ_UI_CONNECTION)
   return m->connection.status?m->connection.status:m->connection.ready&&m->connection.connected?"VJ.Tools CONNECTED":"VJ.Tools CONNECTION AVAILABLE";
  if(u->page==XZ_UI_ABOUT)return "TURN TO CHOOSE / PUSH OR TAP TO SHOW QR / SCAN WITH YOUR PHONE";
@@ -639,14 +586,14 @@ static void pc_setup_render(const struct xz_ui_scene *s){
  int deck=pc_deck(u);const struct xz_ui_pc_stems *pc=&m->deck[deck].pc_stems;
  int step=pc->setup_step<XZ_UI_PC_STEP_DETECT||pc->setup_step>XZ_UI_PC_STEP_DONE?XZ_UI_PC_STEP_DETECT:pc->setup_step;
  enum xz_ui_pc_reason why=xz_ui_pc_blocked(m,deck);char line[96];
- snprintf(line,sizeof(line),"DECK %d SOURCE: %s",deck+1,pc->source==XZ_UI_SOURCE_PC?"PC / REKORDBOX PERFORMANCE":
+ snprintf(line,sizeof(line),"DECK %d SOURCE: %s",deck+1,pc->source==XZ_UI_SOURCE_PC?"COMPUTER / DJ SOFTWARE":
   pc->source==XZ_UI_SOURCE_LOCAL?"XZ USB / STANDALONE STEMS":"NOT CONFIRMED");
  xz_text(c,560,98,line,1,38,ink);
  snprintf(line,sizeof(line),"PC LINK: %s",pc->source!=XZ_UI_SOURCE_PC?"--":pc->connected?"CONNECTED":"LOST / NOTHING SENT");
  xz_text(c,560,112,line,1,38,pc->source==XZ_UI_SOURCE_PC&&!pc->connected?p->alarm:ink);
  snprintf(line,sizeof(line),"STEM SWITCHING: %s",why==XZ_UI_PC_WHY_NONE?"TESTED":"NOT TESTED");
  xz_text(c,560,126,line,1,38,ink);
- static const char *names[4]={"1 DETECT","2 REKORDBOX","3 LIVE TEST","4 CONFIRM"};
+ static const char *names[4]={"1 DETECT","2 MAP STEMS","3 LIVE TEST","4 CONFIRM"};
  for(int i=0;i<4;i++){
   int x=XZ_UI_CX+i*166,current=i==step,done=i<step;uint32_t edge=current?p->accent:done?xz_blend(bg,p->accent,150):xz_blend(bg,ink,70);
   xz_round_rect(c,x,148,158,28,8,15,edge);xz_round_rect(c,x+1,149,156,26,7,15,xz_blend(bg,current?p->accent:ink,current?60:done?30:12));
@@ -702,8 +649,6 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  struct xz_ui_scene skin=s;skin.w=skin_w;skin.look=skin_looks;skin.n=skin_n;
  skin_for(m->theme)->render(&skin);
  if(u->page==XZ_UI_STEM_COLORS)xz_ui_stem_colors(&s);
- if(u->page==XZ_UI_THEMES)xz_ui_appearance_details(&s);
- if(u->page==XZ_UI_BUTTONS)xz_ui_buttons_details(&s);
  if(u->page==XZ_UI_ABOUT){struct xz_ui_widget focus;int f=xz_ui_focused(u,m,&focus)&&focus.kind==XZ_UI_ABOUT_LINK?focus.index:-1;
   xz_about_render(s.c,u->about_link,f,1);}
  xz_key_display_panel(pixels,stride,u,m);
@@ -711,7 +656,6 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  xz_ui_profile_render(&s);
  if(xz_ui_network_page(u->page))xz_ui_network_render(&s);
  if(xz_ui_support_page(u->page))xz_ui_support_render(&s);
- if(u->page==XZ_UI_CONTROLS)xz_ui_stem_setup(&s);
  if(u->page==XZ_UI_PC_STEMS)pc_setup_render(&s);
  if(u->page==XZ_UI_METRICS_SETUP){
   xz_rect(s.c,136,48,656,278,palette.bg);
@@ -731,35 +675,10 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  }
 
  if(u->page==XZ_UI_EXTRAS||xz_sdk_ui_page(u->page))xz_sdk_ui_render(&s);
- if(u->page==XZ_UI_BEAT_JUMP){
-  const struct xz_theme_palette *p=xz_theme_palette(m->theme);
-  uint32_t text_ink=m->theme==XZ_THEME_ANALOG?0x3a3020:p->ink;
-  for(size_t i=0;i<n;i++)if(w[i].kind==XZ_UI_JUMP_PAIR){
-   struct xz_ui_widget a=w[i];int pad=a.index,selected=pad/2==u->jump_edit_pair;
-   uint32_t edge=selected?p->accent:xz_blend(p->bg,p->ink,100);
-   uint32_t fill=xz_blend(p->bg,p->accent,selected?64:16);char label[24];
-   int size=m->jump.sizes[u->jump_edit_page*4+pad/2];
-   xz_round_rect(s.c,a.x,a.y,a.w,a.h,10,15,edge);xz_round_rect(s.c,a.x+2,a.y+2,a.w-4,a.h-4,8,15,fill);
-   snprintf(label,sizeof(label),"%c   %s",'A'+pad,pad%2?">":"<");xz_text(s.c,a.x+9,a.y+9,label,1,16,p->ink);
-   int beats=xz_jump_beats(size);snprintf(label,sizeof(label),"%d",beats);
-   xz_text(s.c,a.x+8,a.y+28,label,2,6,p->ink);
-   xz_text(s.c,a.x+45,a.y+33,beats==1?"BEAT":"BEATS",1,8,p->ink);
-   xz_round_rect(s.c,a.x+4,a.y+56,a.w-8,26,6,15,xz_blend(p->bg,p->ink,36));
-   if(beats>=4){
-    snprintf(label,sizeof(label),"%d",beats/4);xz_text(s.c,a.x+8,a.y+60,label,2,6,p->ink);
-    xz_text(s.c,a.x+45,a.y+65,beats==4?"BAR":"BARS",1,8,p->ink);
-   }else xz_text(s.c,a.x+8,a.y+64,beats==1?"1/4 BAR":"1/2 BAR",1,14,p->ink);
-  }
-  char selected[40];snprintf(selected,sizeof(selected),"PAIR %c / %c",'A'+u->jump_edit_pair*2,'B'+u->jump_edit_pair*2);
-  xz_text(s.c,552,244,"4 BEATS = 1 BAR",1,40,xz_blend(p->bg,text_ink,170));
-  xz_text(s.c,552,262,selected,1,40,text_ink);
-  int beats=xz_jump_beats(m->jump.sizes[u->jump_edit_page*4+u->jump_edit_pair]);
-  snprintf(selected,sizeof(selected),"%d BEATS",beats);xz_text(s.c,552,278,selected,2,20,u->adjusting?p->accent:text_ink);
-  if(beats>=4){snprintf(selected,sizeof(selected),"= %d %s",beats/4,beats==4?"BAR":"BARS");xz_text(s.c,552,298,selected,2,20,text_ink);}
-  xz_text(s.c,552,320,m->jump_encoder?"PUSH A PAIR, TURN TO SIZE":"USE UP / DOWN",1,40,xz_blend(p->bg,text_ink,170));
- }
+ if(xz_ui_section_page(u->page))xz_ui_section_render(&s);
  uint32_t bg,ink,accent;xz_ui_chrome_colors(m,&palette,&bg,&ink,&accent);
  xz_ui_chrome_profile(&s,bg,ink,xz_blend(bg,ink,160),accent,palette.alarm);
+ xz_ui_chrome_rail_marks(&s);
  if(!chrome)return;
  /* Flagship selection is already blue, so its focus ring is white. */
  xz_ui_chrome_focus(&s,u->adjusting?palette.alarm:m->theme==XZ_THEME_FLAGSHIP?0xffffff:palette.accent);
@@ -782,6 +701,8 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
  deck=a.deck>=0?a.deck:u->deck;d=&m->deck[deck];
  if(press&&xz_ui_focusable(&a)){u->focus_kind=a.kind;u->focus_index=a.index;u->focus_deck=a.deck;u->adjusting=0;}
  if(press&&a.kind==XZ_UI_ABOUT_LINK){u->about_link=a.index;u->capture=-1;return 0;}
+ /* Explanations only: the touch moves focus there and the dock says what it is. */
+ if(a.kind==XZ_UI_INFO){u->capture=-1;return 0;}
  if(press&&xz_ui_network_kind(a.kind))return xz_ui_network_action(u,m,a.kind,a.index,out);
  if(press&&xz_ui_support_kind(a.kind))return xz_ui_support_action(u,m,a.kind,a.index,out);
  if(!ready(u,m,deck,&a)){
@@ -801,6 +722,8 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
    snprintf(u->notice,sizeof(u->notice),"%s",why==XZ_UI_USB_WHY_ERROR&&error&&*error?error:xz_ui_usb_next_step(why));
    u->notice_deck=deck;out[n++]=action(XZ_UI_UNAVAILABLE,XZ_UI_PRESS,deck,XZ_UI_STEM,0,0);return n;
   }
+  else if(a.kind==XZ_UI_JUMP_PAIR||a.kind==XZ_UI_JUMP_SIZE)snprintf(u->notice,sizeof(u->notice),"PAGE 1 USES THE PLAYER'S OWN JUMPS. CHOOSE MY SIZES TO CHANGE THEM.");
+  else if(a.kind==XZ_UI_ROUTE_RESCAN)snprintf(u->notice,sizeof(u->notice),"%s",m->route.state==XZ_UI_ROUTE_SCANNING?"STILL LOOKING FOR THE CABLE.":"FOUR DECKS NEED A NEWER USB LOADER.");
   else snprintf(u->notice,sizeof(u->notice),"%s / NOT READY - CHECK FEATURE, MEDIA AND RUNTIME",a.label[0]?a.label:"CONTROL");
   out[n++]=action(XZ_UI_UNAVAILABLE,XZ_UI_PRESS,deck,(int)a.requires,0,0);return n;
  }
@@ -844,6 +767,19 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   u->notice_deck=deck;u->capture=-1;out[0]=action(XZ_UI_PC_SETUP,XZ_UI_PRESS,deck,(int)why,0,0);return 1;
  }
  if(a.kind==XZ_UI_JUMP_EDIT_PAGE){u->jump_edit_page=a.index;u->capture=-1;out[0]=action(a.kind,XZ_UI_PRESS,deck,a.index,0,0);return 1;}
+ if(a.kind==XZ_UI_HOME_SETUP){
+  /* The one fix a HOME tile needs: USB stems' setup, or the 4 DECKS page with its RESCAN. */
+  enum xz_ui_page old=u->page;
+  if(a.index==XZ_UI_STEM_SECTION){xz_ui_navigate(u,XZ_UI_LOCAL_STEM_SETUP);if(u->deck>1)u->deck=0;}
+  else{xz_ui_navigate(u,XZ_UI_FOUR_DECKS);u->history[u->history_count++]=old;}
+  u->capture=-1;out[0]=action(XZ_UI_PANEL,XZ_UI_PRESS,u->deck,(int)old,(float)u->page,0);return 1;
+ }
+ if(a.kind==XZ_UI_STEMS_OVERLAY&&a.index>0){
+  /* A layout picture: the STEMS button's own step, as many times as it takes to reach this layout. */
+  int now=m->stems_overlay;size_t k=0;
+  for(int step=0;step<XZ_STEM_LAYOUT_COUNT&&now!=a.index-1&&k<XZ_UI_ACTIONS;step++){out[k++]=action(a.kind,XZ_UI_PRESS,deck,0,0,0);now=xz_wave_layout_next(now);}
+  u->capture=-1;return k;
+ }
  if(a.kind==XZ_UI_JUMP_PAIR){u->jump_edit_pair=a.index/2;u->capture=-1;out[0]=action(a.kind,XZ_UI_PRESS,deck,a.index,0,0);return 1;}
  if(a.kind==XZ_UI_STEM_COLOR){out[0]=action(a.kind,XZ_UI_PRESS,deck,a.index/XZ_STEM_COLOR_CHOICES,(float)(a.index%XZ_STEM_COLOR_CHOICES),0);return 1;}
  if(a.kind==XZ_UI_REKORDBOX_ASSIGN){out[0]=action(a.kind,XZ_UI_PRESS,deck,a.index/XZ_UI_RB_CHOICES,(float)(a.index%XZ_UI_RB_CHOICES),0);return 1;}
@@ -876,10 +812,12 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   switch(a.kind){case XZ_UI_ENABLE:value=(m->enabled&(uint32_t)a.index)?0:1;break;case XZ_UI_BYPASS:value=d->bypass?0:1;break;
   case XZ_UI_HOLD:value=d->hold?0:1;break;case XZ_UI_OVERDUB:value=d->overdub?0:1;break;case XZ_UI_SERVER_AUTO:value=m->server_auto?0:1;break;
   case XZ_UI_CONNECTION_ENABLE:value=m->connection.enabled?0:1;break;case XZ_UI_DISCOVERY:value=m->connection.discoverable?0:1;break;
-  case XZ_UI_JUMP_ENABLE:value=m->jump.enabled?0:1;break;
+  case XZ_UI_JUMP_ENABLE:value=a.index==1?1:a.index==2?0:m->jump.enabled?0:1;break;
+  case XZ_UI_DECK_VIEW:value=(float)a.index;break;
+  case XZ_UI_DECK_VIEW_BUTTON:value=m->deck_view_button?0:1;break;
   case XZ_UI_JUMP_SHIFT:value=m->jump.shift_page?0:1;break;
   case XZ_UI_SHIFT_PAGES:value=m->shift_pages?0:1;break;
-  case XZ_UI_PAD_FEEDBACK:value=m->pad_feedback?0:1;break;
+  case XZ_UI_PAD_FEEDBACK:value=a.index==1?1:a.index==2?0:m->pad_feedback?0:1;break;
   case XZ_UI_SHIFT_KEYSYNC:value=m->shift_keysync?0:1;break;
   case XZ_UI_RAM_DEBUG:value=m->ram_debug?0:1;break;
   case XZ_UI_KEY_FEEDBACK:value=m->key_feedback?0:1;break;

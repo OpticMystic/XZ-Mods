@@ -3,6 +3,7 @@
 #include "stem_pads.h"
 #include "wave_viewport.h"
 #include "../key/browser.h"
+#include "ui_sections.h"
 #include <stdio.h>
 enum {X0=XZ_UI_CX,CW=XZ_UI_CW,TOP=XZ_UI_HEAD,ROW=48,GAP=8};
 static void put(struct xz_ui_widget *a,int x,int y,int w,int h){a->x=x;a->y=y;a->w=w;a->h=h;}
@@ -25,8 +26,8 @@ static void buttons(struct xz_ui_widget *a,int k){
  int slot=k/XZ_UI_RB_CHOICES,choice=k%XZ_UI_RB_CHOICES,pitch=CW+GAP;
  put(a,X0+(choice%3)*pitch/3,BUTTONS_HEAD(slot)+16+(choice/3)*ROW,pitch/3-GAP,BUTTONS_H);
 }
-static int root(int page){return page==XZ_UI_GENERAL||page==XZ_UI_CONTROLS||page==XZ_UI_THEMES||page==XZ_UI_SETTINGS||page==XZ_UI_EXTRAS||page==XZ_UI_NETWORK;}
-static int rail_slot(int page){return page==XZ_UI_GENERAL?0:page==XZ_UI_CONTROLS?1:page==XZ_UI_THEMES?2:page==XZ_UI_SETTINGS?3:page==XZ_UI_EXTRAS?4:5;}
+/* The section rail: seven cells, icon over label (DESIGN 3.2). */
+static int rail_slot(int page){for(int i=0;i<XZ_UI_SECTIONS;i++)if((int)xz_ui_sections[i]==page)return i;return -1;}
 /* The DJ Profile list hangs from the header's right corner: rows of 52 on a 56 pitch,
    then one row of buttons. With no profiles it holds a message and the setup button. */
 static int profile_buttons_y(const struct xz_ui *u,const struct xz_ui_model *m){
@@ -54,7 +55,7 @@ static int general_row(const struct xz_ui_widget *a,int *side){
 }
 static void place_panel(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *a){
  int k=a->index,page=u->page;
- if(root(k)){put(a,0,XZ_UI_CY+rail_slot(k)*60,XZ_UI_RAIL_W,56);return;}
+ if(rail_slot(k)>=0){put(a,6,46+rail_slot(k)*50,112,46);return;}
  if(page==XZ_UI_SETTINGS){int row=k==XZ_UI_STEMS?0:k==XZ_UI_XPAD?1:2;put(a,X0,64+row*80,CW,64);return;}
  if(page==XZ_UI_EXTRAS){int row=k==XZ_UI_ABOUT?0:k==XZ_UI_CONNECTION?1:k==XZ_UI_GAMES?2:3;put(a,X0,56+row*80,CW,64);return;}
  if(page==XZ_UI_THEMES){
@@ -205,39 +206,13 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_UPDATE_ROLLBACK:put(a,468,248,324,48);break;
   default:grid(a,1,0,6,1);break;}
  }
+ if(xz_ui_section_page(u->page))xz_ui_section_place(u,m,w,n);
 }
 
-/* APPEARANCE section captions with a hairline to the right edge, in every skin's own colours. */
-void xz_ui_appearance_details(const struct xz_ui_scene *s){
- uint32_t bg,ink,accent;xz_ui_chrome_colors(s->m,s->p,&bg,&ink,&accent);(void)accent;
- uint32_t dim=xz_blend(bg,ink,150),rule=xz_blend(bg,ink,48);
- static const char *const heads[4]={"INTERFACE","THEME","WAVEFORM","KEYS AND STEMS"};
- for(int row=0;row<4;row++){
-  int y=APPEARANCE_HEAD(row),w=xz_text_width(s->c,heads[row],1,40);
-  xz_text(s->c,X0,y,heads[row],1,40,dim);
-  xz_rect(s->c,X0+w+10,y+5,CW-w-10,1,rule);
- }
- if(s->m->ui_interface==XZ_UI_INTERFACE_MODERN){
-  int pitch=CW+GAP,x=X0+pitch/2,y=APPEARANCE_HEAD(1)+16+(APPEARANCE_H-9)/2;
-  xz_text(s->c,x,y,"MORE MODERN THEMES ARE COMING",1,40,dim);
- }
-}
 static void label(struct xz_canvas c,int x,int y,int width,const char *value,int scale,uint32_t color){
  struct xz_canvas box=xz_sub(c,x,y,width,c.height-y);
  if(xz_text_width(box,value,scale,200)>width)scale=1;
  xz_text(box,0,0,value,scale,200,color);
-}
-void xz_ui_buttons_details(const struct xz_ui_scene *s){
- uint32_t bg,ink,accent;xz_ui_chrome_colors(s->m,s->p,&bg,&ink,&accent);(void)accent;
- uint32_t dim=xz_blend(bg,ink,150),rule=xz_blend(bg,ink,48);
- static const char *const heads[2]={"REKORDBOX BUTTON","SHIFT + REKORDBOX"};
- for(int slot=0;slot<2;slot++){
-  int y=BUTTONS_HEAD(slot),w=xz_text_width(s->c,heads[slot],1,40);
-  xz_text(s->c,X0,y,heads[slot],1,40,dim);
-  xz_rect(s->c,X0+w+10,y+5,CW-w-10,1,rule);
-  const char *help=xz_ui_rekordbox_choice_help(s->m->rekordbox_assign[slot]);
-  label(s->c,X0,BUTTONS_HELP(slot),CW,help?help:"",1,ink);
- }
 }
 /* Live state only. What a control does is the info dock's job. */
 void xz_ui_page_details(const struct xz_ui_scene *s){
@@ -383,51 +358,6 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
   label(c,468,312,324,"vj.tools",2,ink);
   label(c,X0,380,CW,"DJ MODS: CDJ3K-MODS / NSAINTOT + CONTRIBUTORS",1,dim);
  }
-}
-
-static void chevron(struct xz_canvas c,int x,int y,int dir,uint32_t color){
- xz_line16(c,x*16,(y-5)*16,(x+5*dir)*16,y*16,28,color);xz_line16(c,(x+5*dir)*16,y*16,x*16,(y+5)*16,28,color);
-}
-void xz_ui_stem_setup(const struct xz_ui_scene *s){
- struct xz_canvas c=s->c;const struct xz_ui_model *m=s->m;const struct xz_theme_palette *p=s->p;
- uint32_t ink=m->theme==XZ_THEME_ANALOG?0x3a3020:p->ink,bg=m->theme==XZ_THEME_ANALOG?0xd9c9a3:p->bg;
- for(size_t i=0;i<s->n;i++)if(s->w[i].kind==XZ_UI_STEMS_OVERLAY){
-  struct xz_ui_widget a=s->w[i];
-  xz_frame(c,m->theme,a,bg,m->stems_overlay!=0);
-  xz_rect(c,a.x+2,a.y+2,a.w-4,a.h-4,bg);
-  label(c,a.x+10,a.y+5,a.w-60,"STEM ROW LAYOUT",1,xz_blend(bg,ink,170));
-  label(c,a.x+10,a.y+19,a.w-60,xz_wave_layout_name(m->stems_overlay),2,ink);
-  chevron(c,a.x+a.w-38,a.y+a.h/2,-1,p->accent);chevron(c,a.x+a.w-20,a.y+a.h/2,1,p->accent);
- }
- for(size_t i=0;i<s->n;i++)if(s->w[i].kind==XZ_UI_STEM_ORDER){
-  struct xz_ui_widget a=s->w[i];static const char *chip[3]={"DRUM","HARM","VOC"};
-  xz_frame(c,m->theme,a,bg,0);xz_rect(c,a.x+2,a.y+2,a.w-4,a.h-4,bg);
-  label(c,a.x+10,a.y+5,a.w-60,"STEM ORDER",1,xz_blend(bg,ink,170));
-  for(int col=0;col<3;col++){int st=xz_stem_at(m->stem_order,col);int x=a.x+10+col*60;uint32_t sc=p->stem[st];
-   xz_round_rect(c,x,a.y+19,56,16,4,15,sc);
-   label(c,x+6,a.y+23,44,chip[st],1,xz_theme_luma(sc)>142?0x000000:0xffffff);}
-  chevron(c,a.x+a.w-38,a.y+a.h/2,-1,p->accent);chevron(c,a.x+a.w-20,a.y+a.h/2,1,p->accent);
- }
- static const char *roles[]={"DRUMS","HARMONICS","VOCALS"};
- static const char *modes[]={"HOT CUE","BEAT LOOP","SLIP LOOP","BEAT JUMP"};
- int conflict=m->stem_page==3&&m->jump.enabled;
- for(size_t i=0;i<s->n;i++)if(s->w[i].kind==XZ_UI_STEM_PAD_CONFIG){
-  struct xz_ui_widget a=s->w[i];int pad=a.index,assigned=pad/4==m->stem_bank,k=pad%4;
-  int st=k<3?xz_stem_at(m->stem_order,k):-1;uint32_t role=st>=0?p->stem[st]:p->accent;
-  uint32_t fill=xz_blend(p->bg,assigned?role:p->ink,assigned?60:14);
-  xz_round_rect(c,a.x,a.y,a.w,a.h,10,15,assigned?role:xz_blend(p->bg,p->ink,60));
-  xz_round_rect(c,a.x+2,a.y+2,a.w-4,a.h-4,8,15,fill);
-  if(assigned)xz_round_rect(c,a.x+8,a.y+a.h-10,a.w-16,4,2,15,role);
-  char letter[2]={(char)('A'+pad),0};xz_text(c,a.x+10,a.y+8,letter,2,2,p->ink);
-  label(c,a.x+10,a.y+34,a.w-20,assigned?(st>=0?roles[st]:"BYPASS"):"NATIVE",1,p->ink);
-  /* Slot 3 is BASS on a 4-stem deck; say so only while one is loaded. */
-  int bass=k==3&&(xz_ui_stem_count(m,0)==4||xz_ui_stem_count(m,1)==4);
-  label(c,a.x+10,a.y+52,a.w-20,assigned?(conflict?"OVERRIDDEN":k<3?"MUTE":bass?"4-STEM: BASS":"BYPASS"):modes[m->stem_page],1,xz_blend(p->bg,p->ink,170));
- }
- label(c,552,292,240,"STEMS USE",1,xz_blend(bg,ink,170));label(c,552,306,240,m->stem_bank?"PADS E-H":"PADS A-D",2,ink);
- if(conflict){label(c,552,336,240,"BEAT JUMP HAS PRIORITY",1,p->alarm);label(c,552,352,240,"CHOOSE ANOTHER PAD MODE",1,ink);}
- else{label(c,552,336,240,"OTHER PADS KEEP",1,ink);label(c,552,352,240,"THEIR NORMAL ACTION",1,ink);}
- if(!(m->enabled&XZ_UI_STEM))label(c,552,376,240,"STEM AUDIO IS OFF",1,p->alarm);
 }
 
 /* Shared color editor keeps identical touch targets in all skins. */

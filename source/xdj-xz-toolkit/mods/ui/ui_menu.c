@@ -8,6 +8,8 @@
 #include "ui_menu.h"
 #include "ui_network.h"
 #include "ui_support.h"
+#include "ui_sections.h"
+#include "layout_cycle.h"
 #include "stem_pads.h"
 #include "wave_viewport.h"
 #include <stdarg.h>
@@ -105,6 +107,10 @@ static int chain_of(const struct xz_ui *u, int out[24]) {
  while(k>0&&n<20)out[n++]=up[--k];
  for(unsigned i=0;i<u->history_count&&i<16&&n<23;i++)out[n++]=u->history[i];
  out[n++]=u->page;
+ /* A section reached from another (a HOME tile) is its own tab: the chain starts at the last section in it. */
+ int last=0;
+ for(int i=0;i<n;i++)if(xz_ui_page_is_top(out[i]))last=i;
+ if(last){memmove(out,out+last,(size_t)(n-last)*sizeof *out);n-=last;}
  return n;
 }
 int xz_ui_menu_root(const struct xz_ui *u, int *depth) {
@@ -141,11 +147,17 @@ static const char *reason_of(const struct xz_ui *u, const struct xz_ui_model *m,
 }
 
 /* ---- one control, one row ---- */
+/* WORKS ON chips and the one-line reason a deck is left out (DESIGN 3.1), from the panel's own description. */
+static void coverage_of(const struct xz_ui_info *info, struct xz_shell_menu_row *r) {
+ if(info->feature){r->chips=1;r->works_on=(uint8_t)(info->works_on&15u);}
+ if(info->excluded)copy(r->excluded,sizeof r->excluded,info->excluded);
+}
 static struct xz_shell_menu_row *control_row(struct build *b, const struct xz_ui_widget *w, int kind, const char *label) {
  struct xz_ui_info info;xz_ui_describe_widget(b->u,b->m,w,&info);
  struct xz_shell_menu_row *r=add_row(b,kind,widget_key(w),label?label:info.title);
  if(!r)return NULL;
  r->available=(uint8_t)!!info.available;
+ coverage_of(&info,r);
  r->target=touch_of(w);
  /* the panel's catch-all line says how to use a control, not what it does: leave it out */
  if(info.body&&strcmp(info.body,"Push to use this control."))copy(r->help,sizeof r->help,info.body);
@@ -175,6 +187,7 @@ static int group_of(const struct xz_ui_widget *w) {
  switch(w->kind){
  case XZ_UI_KEY_FORMAT:case XZ_UI_WAVE_MODE:case XZ_UI_SET_INTERFACE:case XZ_UI_SET_THEME:case XZ_UI_STEM_PAGE:
  case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_SDK_CHOICE:case XZ_UI_DECK:case XZ_UI_RAM_DECK:case XZ_UI_SET_MODERN_THEME:
+ case XZ_UI_DECK_VIEW:
   return (int)w->kind<<4;
  case XZ_UI_REKORDBOX_ASSIGN:return ((int)w->kind<<4)|(w->index/XZ_UI_RB_CHOICES);
  case XZ_UI_STEM_COLOR:return ((int)w->kind<<4)|(w->index/XZ_STEM_COLOR_CHOICES);
@@ -182,17 +195,18 @@ static int group_of(const struct xz_ui_widget *w) {
  }
 }
 static const char *group_label(const struct build *b, const struct xz_ui_widget *w) {
- static const char *const stems[3]={"DRUMS COLOR","HARMONICS COLOR","VOCALS COLOR"};
+ static const char *const stems[3]={"DRUMS COLOUR","HARMONICS COLOUR","VOCALS COLOUR"};
  switch(w->kind){
- case XZ_UI_KEY_FORMAT:return "KEY FORMAT";
- case XZ_UI_WAVE_MODE:return "WAVEFORM";
+ case XZ_UI_KEY_FORMAT:return "KEY NOTATION";
+ case XZ_UI_WAVE_MODE:return "WAVEFORM COLOURS";
+ case XZ_UI_DECK_VIEW:return "DECK VIEW";
  case XZ_UI_SET_INTERFACE:return "INTERFACE";
  case XZ_UI_SET_THEME:return "CLASSIC THEME";
  case XZ_UI_SET_MODERN_THEME:return "THEME";
  case XZ_UI_STEM_PAGE:return "STEM SHORTCUT PAD MODE";
  case XZ_UI_TAKEOVER_ASSIGN:return "SCREEN SWITCH KEY";
  case XZ_UI_SDK_CHOICE:return "START APPS";
- case XZ_UI_REKORDBOX_ASSIGN:return w->index<XZ_UI_RB_CHOICES?"REKORDBOX BUTTON":"SHIFT + REKORDBOX";
+ case XZ_UI_REKORDBOX_ASSIGN:return w->index<XZ_UI_RB_CHOICES?"BUTTON NEXT TO LINK":"SHIFT + BUTTON NEXT TO LINK";
  case XZ_UI_STEM_COLOR:return stems[w->index/XZ_STEM_COLOR_CHOICES<3?w->index/XZ_STEM_COLOR_CHOICES:0];
  case XZ_UI_DECK:case XZ_UI_RAM_DECK:return b->u->page==XZ_UI_PC_STEMS?"DECK TO SET UP":"DECK";
  default:return "";
@@ -202,7 +216,27 @@ static void choice_label(const struct build *b, const struct xz_ui_widget *w, ch
  if(w->kind==XZ_UI_DECK&&b->u->page==XZ_UI_PC_STEMS)snprintf(out,cap,"DECK %d: %s",w->index+1,w->label?w->label:"");
  else if(w->kind==XZ_UI_DECK)snprintf(out,cap,"DECK %d",w->index+1);
  else if(w->kind==XZ_UI_SDK_CHOICE)copy(out,cap,w->index?"ON USB INSERT":"WHEN I TAP RUN");
+ else if(w->kind==XZ_UI_DECK_VIEW)copy(out,cap,w->index?"4 DECKS":"2 DECKS");
  else copy(out,cap,w->label);
+}
+/* The picture a group's choices are drawn as, and each choice's second line. */
+static int group_picture(const struct xz_ui_widget *w) {
+ switch(w->kind){
+ case XZ_UI_DECK_VIEW:return XZ_SHELL_PIC_DECK_VIEW;
+ case XZ_UI_SET_INTERFACE:return XZ_SHELL_PIC_INTERFACE;
+ case XZ_UI_KEY_FORMAT:return XZ_SHELL_PIC_KEY_NOTATION;
+ case XZ_UI_REKORDBOX_ASSIGN:return XZ_SHELL_PIC_MEDIA_BUTTON;
+ default:return XZ_SHELL_PIC_NONE;
+ }
+}
+static void choice_detail(const struct xz_ui_widget *w, struct xz_shell_menu_choice *c) {
+ if(w->kind==XZ_UI_DECK_VIEW){
+  static const char *const sub[XZ_LAYOUT_COUNT]={"DECKS 1 2","NUMBER ORDER 1 2 3 4","MIXER ORDER 3 1 2 4"};
+  if(w->index>=0&&w->index<XZ_LAYOUT_COUNT)copy(c->detail,sizeof c->detail,sub[w->index]);
+ }
+ if(w->kind==XZ_UI_KEY_FORMAT)copy(c->detail,sizeof c->detail,w->index==0?"Am / 8A":xz_ui_key_example(w->index));
+ if(w->kind==XZ_UI_SET_INTERFACE)copy(c->detail,sizeof c->detail,w->index==XZ_UI_INTERFACE_MODERN?"FULL SCREEN, BIG WAVEFORMS":"THE PLAYER'S OWN SCREEN");
+ c->value=(int16_t)w->index;
 }
 static void group_row(struct build *b, const struct xz_ui_widget *w, size_t n, int *used, size_t at) {
  int g=group_of(&w[at]),count=0;
@@ -212,14 +246,17 @@ static void group_row(struct build *b, const struct xz_ui_widget *w, size_t n, i
  if(!r)return;
  if(w[at].kind==XZ_UI_STEM_COLOR)copy(r->help,sizeof r->help,"The colour for this stem on the pads, the stem rows and the STEMS waveform.");
  else if(w[at].kind==XZ_UI_DECK&&b->u->page!=XZ_UI_PC_STEMS)copy(r->help,sizeof r->help,"The deck the controls on this page act on.");
- else if(w[at].kind==XZ_UI_REKORDBOX_ASSIGN)copy(r->help,sizeof r->help,w[at].index<XZ_UI_RB_CHOICES?"What the REKORDBOX button does.":"What the REKORDBOX button does while SHIFT is held on either deck.");
+ else if(w[at].kind==XZ_UI_REKORDBOX_ASSIGN)copy(r->help,sizeof r->help,w[at].index<XZ_UI_RB_CHOICES?"What the media button next to LINK does.":"What the media button next to LINK does while SHIFT is held on either deck.");
  /* the panel describes each choice of these; the row says what the choice is about */
- else if(w[at].kind==XZ_UI_KEY_FORMAT)copy(r->help,sizeof r->help,"How the deck key strips write keys: as the player's own setting, as note names, or as wheel numbers.");
+ else if(w[at].kind==XZ_UI_KEY_FORMAT)copy(r->help,sizeof r->help,"How keys are written everywhere MODS draws them: as on the USB, as note names (Am) or as wheel numbers (8A).");
+ else if(w[at].kind==XZ_UI_DECK_VIEW)copy(r->help,sizeof r->help,"How many decks the play screen shows and in what order. Mixer order puts them top to bottom as the mixer channels run left to right: 3 1 2 4. Sound and controls do not change.");
  else if(w[at].kind==XZ_UI_TAKEOVER_ASSIGN)copy(r->help,sizeof r->help,"Which control switches between the play screen and the VJ.Tools screen.");
  else if(w[at].kind==XZ_UI_WAVE_MODE)copy(r->help,sizeof r->help,"How the scrolling waveform is drawn.");
- else if(w[at].kind==XZ_UI_SET_INTERFACE)copy(r->help,sizeof r->help,"Who draws the player screen.");
+ else if(w[at].kind==XZ_UI_SET_INTERFACE)copy(r->help,sizeof r->help,"CLASSIC keeps the player's own play screen with MODS added. MODERN is a full-screen layout with bigger waveforms and a browse sidebar.");
  else if(w[at].kind==XZ_UI_SDK_CHOICE)copy(r->help,sizeof r->help,"How the apps on a USB start.");
  else copy(r->help,sizeof r->help,info.body);
+ coverage_of(&info,r);
+ r->picture=(uint8_t)group_picture(&w[at]);
  int any=0;
  for(size_t i=at;i<n;i++){
   if(group_of(&w[i])!=g)continue;
@@ -228,6 +265,7 @@ static void group_row(struct build *b, const struct xz_ui_widget *w, size_t n, i
   char label[40];choice_label(b,&w[i],label,sizeof label);
   struct xz_shell_menu_choice *c=add_choice(b,r,label,touch_of(&w[i]),look.available);
   if(!c)break;
+  if(r->picture)choice_detail(&w[i],c);
   any|=look.available;
   if(w[i].kind==XZ_UI_STEM_COLOR){c->has_rgb=1;c->rgb=look.color&0xffffff;}
   if(look.selected&&r->current<0)r->current=(int16_t)(r->choice_count-1);
@@ -235,27 +273,32 @@ static void group_row(struct build *b, const struct xz_ui_widget *w, size_t n, i
  }
  r->available=(uint8_t)any;
  if(!any)copy(r->reason,sizeof r->reason,reason_of(b->u,b->m,&w[at]));
+ if(w[at].kind==XZ_UI_DECK_VIEW){
+  static const char *const value[XZ_LAYOUT_COUNT]={"2 DECKS","4 | 1 2 3 4","4 | 3 1 2 4"};
+  int v=b->m->deck_view>=0&&b->m->deck_view<XZ_LAYOUT_COUNT?b->m->deck_view:0;
+  copy(r->value,sizeof r->value,value[v]);
+ }
 }
 
 /* ---- sections, per page ---- */
 static const char *section_for(const struct build *b, const struct xz_ui_widget *w) {
  int page=b->u->page,k=w->index;
  switch(page){
- case XZ_UI_GENERAL:
-  if((w->kind==XZ_UI_ENABLE||w->kind==XZ_UI_LOCAL_STEM_SETUP_OPEN)&&k==XZ_UI_STEM)return "STEMS";
-  if(w->kind==XZ_UI_FEATURE_LINK&&(k==XZ_UI_PC_STEMS||k==XZ_UI_STEM_COLORS||k==XZ_UI_CONTROLS))return "STEMS";
-  if(w->kind==XZ_UI_JUMP_ENABLE||(w->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_BEAT_JUMP))return "BEAT JUMP";
-  if(w->kind==XZ_UI_FEATURE_LINK&&(k==XZ_UI_METRICS_SETUP||k==XZ_UI_NETWORK||k==XZ_UI_SETTINGS))return "SYSTEM";
-  return "CUES AND PADS";
- case XZ_UI_CONTROLS:
-  if(w->kind==XZ_UI_STEMS_OVERLAY||w->kind==XZ_UI_FOUR_WAVE_ORDER)return "PLAY SCREEN";
-  if(w->kind==XZ_UI_CONTROL_SECTION)return "MORE CONTROLS";
-  return "STEM SHORTCUTS";
- case XZ_UI_SETTINGS:
-  if(w->kind==XZ_UI_PANEL&&(k==XZ_UI_STEMS||k==XZ_UI_XPAD))return "PADS";
-  if(w->kind==XZ_UI_PANEL&&(k==XZ_UI_RAM_SETUP||k==XZ_UI_SUPPORT))return "MEMORY";
-  return "PADS";
- case XZ_UI_EXTRAS:return "EXTRAS";
+ case XZ_UI_PLAY:
+  if(w->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_BUTTONS)return "BUTTON NEXT TO LINK";
+  if((w->kind==XZ_UI_FEATURE_LINK&&(k==XZ_UI_KEY_SETUP||k==XZ_UI_XPAD||k==XZ_UI_RAM_SETUP))||(w->kind==XZ_UI_INFO&&k==XZ_UI_INFO_XPAD))
+   return "KEYS, SAMPLER, MEMORY";
+  return "PADS AND CUES";
+ case XZ_UI_STEM_SECTION:
+  if(w->kind==XZ_UI_ENABLE||w->kind==XZ_UI_LOCAL_STEM_SETUP_OPEN||(w->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_PC_STEMS))return "STEM AUDIO";
+  if((w->kind==XZ_UI_FEATURE_LINK&&(k==XZ_UI_STEM_PADS||k==XZ_UI_STEMS))||(w->kind==XZ_UI_INFO&&k==XZ_UI_INFO_GROOVE))return "PADS";
+  return "SCREEN";
+ case XZ_UI_SCREEN:
+  if(w->kind==XZ_UI_WAVE_MODE||w->kind==XZ_UI_SHELL_LOOK)return w->kind==XZ_UI_SHELL_LOOK&&(k==XZ_SHELL_ITEM_MODE_LAMPS||k==XZ_SHELL_ITEM_QUANTIZE_LAMP)?"TOP BAR":"WAVEFORMS";
+  if(w->kind==XZ_UI_KEY_FORMAT||w->kind==XZ_UI_KEY_FEEDBACK||w->kind==XZ_UI_BROWSE_TRAFFIC||w->kind==XZ_UI_BROWSE_KEY_PREFIX||w->kind==XZ_UI_INFO)return "KEYS";
+  if(w->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_METRICS_SETUP)return "TOP BAR";
+  return "LAYOUT";
+ case XZ_UI_CONNECT:return w->kind==XZ_UI_PANEL&&k==XZ_UI_PROFILE_SETUP?"DJ PROFILE":"VJ.TOOLS AND NETWORK";
  case XZ_UI_CONNECTION:return w->kind==XZ_UI_TAKEOVER_TOGGLE||w->kind==XZ_UI_TAKEOVER_ASSIGN?"SCREEN":"CONNECTION";
  case XZ_UI_XPAD:return w->kind==XZ_UI_SAMPLE_PAD?"SAMPLE PADS":"LOOP";
  case XZ_UI_STEMS:return w->kind==XZ_UI_DECK?"":"PADS";
@@ -266,19 +309,19 @@ static const char *section_for(const struct build *b, const struct xz_ui_widget 
 }
 /* Sections in the order a page lists them. */
 static void page_sections(struct build *b) {
- static const char *const general[]={"STEMS","CUES AND PADS","BEAT JUMP","SYSTEM",NULL};
- static const char *const controls[]={"STEM SHORTCUTS","PLAY SCREEN","MORE CONTROLS",NULL};
- static const char *const advanced[]={"PADS","MEMORY",NULL};
- static const char *const extras[]={"DJ PROFILE","EXTRAS",NULL};
  static const char *const apps[]={"APPS ON USB","MANAGE",NULL};
  static const char *const connection[]={"SCREEN","CONNECTION",NULL};
  static const char *const xpad[]={"LOOP","SAMPLE PADS",NULL};
+ static const char *const play[]={"PADS AND CUES","KEYS, SAMPLER, MEMORY","BUTTON NEXT TO LINK",NULL};
+ static const char *const stems[]={"STEM AUDIO","PADS","SCREEN",NULL};
+ static const char *const screen[]={"LAYOUT","WAVEFORMS","KEYS","TOP BAR",NULL};
+ static const char *const connect[]={"DJ PROFILE","VJ.TOOLS AND NETWORK",NULL};
  const char *const *list=NULL;
  switch(b->u->page){
- case XZ_UI_GENERAL:list=general;break;
- case XZ_UI_CONTROLS:list=controls;break;
- case XZ_UI_SETTINGS:list=advanced;break;
- case XZ_UI_EXTRAS:list=extras;break;
+ case XZ_UI_PLAY:list=play;break;
+ case XZ_UI_STEM_SECTION:list=stems;break;
+ case XZ_UI_SCREEN:list=screen;break;
+ case XZ_UI_CONNECT:list=connect;break;
  case XZ_UI_APPS:list=apps;break;
  case XZ_UI_CONNECTION:list=connection;break;
  case XZ_UI_XPAD:list=xpad;break;
@@ -288,31 +331,6 @@ static void page_sections(struct build *b) {
 }
 
 /* ---- the controls the panel draws as pictures ---- */
-static const int jump_order[]={0,1,2,3,4,5,6,8,9};
-static void beat_jump_rows(struct build *b) {
- const struct xz_ui_model *m=b->m;
- static const char *const pairs[4]={"PADS A / B","PADS C / D","PADS E / F","PADS G / H"};
- section(b,"");
- struct xz_shell_menu_row *on=add_row(b,XZ_SHELL_MENU_TOGGLE,0x50000001,"CUSTOM JUMPS ON PAGE 1");
- if(on){
-  copy(on->help,sizeof on->help,"Page 1 uses the sizes below instead of the player's own. SHIFT + BEAT JUMP page 2 always uses them.");
-  add_choice(b,on,"OFF",direct(XZ_UI_JUMP_ENABLE,0,0),1);add_choice(b,on,"ON",direct(XZ_UI_JUMP_ENABLE,0,1),1);
-  on->current=(int16_t)!!m->jump.enabled;
- }
- for(int page=0;page<2;page++){
-  section(b,page?"PAGE 2 (SHIFT + BEAT JUMP)":"PAGE 1");
-  for(int pair=0;pair<4;pair++){
-   int slot=page*4+pair,size=m->jump.sizes[slot];
-   struct xz_shell_menu_row *r=add_row(b,XZ_SHELL_MENU_CHOICE,0x50000100|slot,pairs[pair]);
-   if(!r)return;
-   copy(r->help,sizeof r->help,"How far this pair jumps. The first pad jumps back, the second forward. 4 beats are 1 bar.");
-   for(size_t i=0;i<sizeof jump_order/sizeof *jump_order;i++){
-    add_choice(b,r,xz_jump_label(jump_order[i]),direct(XZ_UI_JUMP_SIZE,slot,jump_order[i]),1);
-    if(xz_jump_beats(jump_order[i])==xz_jump_beats(size)&&r->current<0)r->current=(int16_t)i;
-   }
-  }
- }
-}
 static void stem_pad_row(struct build *b, const struct xz_ui_widget *w) {
  struct xz_shell_menu_row *r=add_row(b,XZ_SHELL_MENU_TOGGLE,0x50000200,"STEM SHORTCUT PADS");
  if(!r)return;
@@ -542,6 +560,164 @@ static void page_text(struct build *b) {
  }
 }
 
+/* ---- the MODS sections in MODERN (DESIGN 1 and 3.1) ---- */
+/* Settings the shell owns (shell_settings.h items): the runtime fills in their current value and runs them
+   itself (shell_runtime.c), so they need no panel control. choices: SHOW / HIDE unless given. */
+static struct xz_shell_menu_row *look_row(struct build *b, int item, const char *label, const char *help,
+ const char *const *choices, int count, const char *section_name) {
+ static const char *const show_hide[2]={"SHOW","HIDE"};
+ section(b,section_name);
+ if(!choices){choices=show_hide;count=2;}
+ struct xz_shell_menu_row *r=add_row(b,count==2?XZ_SHELL_MENU_TOGGLE:XZ_SHELL_MENU_CHOICE,0x50000500|item,label);
+ if(!r)return NULL;
+ copy(r->help,sizeof r->help,help);
+ r->target=direct(XZ_UI_SHELL_LOOK,item,0);
+ for(int i=0;i<count;i++){struct xz_shell_menu_choice *c=add_choice(b,r,choices[i],direct(XZ_UI_SHELL_LOOK,item,i),1);if(c)c->value=(int16_t)i;}
+ r->chips=1;r->works_on=15;
+ return r;
+}
+static void wave_look_row(struct build *b) {
+ static const char *const waves[4]={"STOCK","RGB","3-BAND","STEMS"};
+ struct xz_shell_menu_row *r=look_row(b,XZ_SHELL_ITEM_WAVE_COLOR,"WAVEFORM COLOURS",
+  "How the scrolling waveforms are coloured: STOCK blue, RGB, 3-BAND lows, mids and highs, or STEMS in the stem colours (3-band where a track has no stems). UTILITY's WAVEFORM COLOR is the same setting.",
+  waves,4,"WAVEFORMS");
+ if(r){r->picture=XZ_SHELL_PIC_WAVE_COLOURS;copy(r->excluded,sizeof r->excluded,"Decks 3 and 4 draw 3-band for STOCK and STEMS.");}
+}
+static void screen_look_rows(struct build *b) {
+ static const char *const usb[3]={"DECK + WAVE","DECK ONLY","OFF"};
+ look_row(b,XZ_SHELL_ITEM_WAVE_TITLES,"TITLES IN WAVEFORMS","Track titles inside the waveform lanes.",NULL,0,"WAVEFORMS");
+ look_row(b,XZ_SHELL_ITEM_USB_COLORS,"TRACK COLOURS","Shows each track's colour from your library on the deck tag and the waveform.",usb,3,"WAVEFORMS");
+ look_row(b,XZ_SHELL_ITEM_MODE_LAMPS,"MODE LAMPS","The top bar's SINGLE / CONTINUE, A. HOT CUE and A. CUE lamps.",NULL,0,"TOP BAR");
+ look_row(b,XZ_SHELL_ITEM_QUANTIZE_LAMP,"QUANTIZE LAMP","Each deck's QUANTIZE lamp and beat value above its time.",NULL,0,"TOP BAR");
+}
+/* STEM BUTTONS ON SCREEN: MODERN's own six layouts, in the order the STEMS button steps through them. */
+static void stem_layout_row(struct build *b, const struct xz_ui_widget *w) {
+ static const char *const names[XZ_MODERN_STEMS_COUNT]={"HIDDEN","BELOW, FULL","BELOW, HALF","OUTSIDE, FULL","OUTSIDE, HALF","SMALL, BY CUES"};
+ struct xz_ui_info info;xz_ui_describe_widget(b->u,b->m,w,&info);
+ struct xz_shell_menu_row *r=add_row(b,XZ_SHELL_MENU_CHOICE,widget_key(w),"STEM BUTTONS ON SCREEN");
+ if(!r)return;
+ r->picture=XZ_SHELL_PIC_STEM_LAYOUT;coverage_of(&info,r);
+ copy(r->help,sizeof r->help,"Where the stem buttons sit on the play screen. Tap a button to mute that stem; drag along it to set its level. The STEMS button on the play screen steps through these.");
+ for(int i=0;i<XZ_MODERN_STEMS_COUNT;i++){
+  int value=xz_modern_stems_order[i];
+  struct xz_shell_menu_target t={XZ_UI_STEMS_OVERLAY,(int16_t)value,-1,XZ_UI_MENU_CYCLE,0};
+  struct xz_shell_menu_choice *c=add_choice(b,r,names[value],t,1);
+  if(c)c->value=(int16_t)value;
+ }
+ int now=xz_modern_stems_position(b->m->modern_stems);
+ r->current=(int16_t)(now>=0&&now<XZ_MODERN_STEMS_COUNT?now:-1);
+ if(is_focus(b,w))b->focus_key=r->key;
+}
+static void bypass_row(struct build *b) {
+ struct xz_shell_menu_row *r=look_row(b,XZ_SHELL_ITEM_BYPASS_BUTTON,"BYPASS BUTTON",
+  "The BYPASS button after each deck's stem buttons: lit, the original track plays instead of the stems.",NULL,0,"SCREEN");
+ if(r){r->works_on=3;copy(r->excluded,sizeof r->excluded,xz_deck_cap_reason(b->m,2,XZ_DECK_CAN_STEMS));}
+}
+/* PLAY: the button next to LINK, set in place (the CLASSIC panel gives it its own page). */
+static void button_rows(struct build *b, const struct xz_ui_widget *link) {
+ for(int slot=0;slot<2;slot++){
+  struct xz_shell_menu_row *r=add_row(b,XZ_SHELL_MENU_CHOICE,0x50000600|slot,slot?"SHIFT + BUTTON NEXT TO LINK":"BUTTON NEXT TO LINK");
+  if(!r)return;
+  r->picture=XZ_SHELL_PIC_MEDIA_BUTTON;
+  copy(r->help,sizeof r->help,slot?"What the media button next to LINK does while SHIFT is held on either deck.":
+   "What the media button next to LINK does: open MODS, its own job (the computer library), switch interface, the VJ.Tools screen, stems, DECK VIEW, or nothing.");
+  for(int i=0;i<XZ_UI_RB_CHOICES;i++){
+   int choice=xz_ui_rekordbox_order[i];
+   struct xz_shell_menu_choice *c=add_choice(b,r,xz_ui_rekordbox_choice_name(choice),direct(XZ_UI_REKORDBOX_ASSIGN,slot,choice),1);
+   if(c)c->value=(int16_t)choice;
+   if(choice==b->m->rekordbox_assign[slot])r->current=(int16_t)i;
+  }
+  if(!slot&&is_focus(b,link))b->focus_key=r->key;
+ }
+}
+/* HOME: six tiles and their SET UP buttons (DESIGN 3.3). */
+static struct xz_shell_rect home_tile(int section) {
+ int k=0;for(int i=1;i<XZ_UI_SECTIONS;i++)if((int)xz_ui_sections[i]==section)k=i-1;
+ return (struct xz_shell_rect){96+(k%3)*236,48+(k/3)*154,226,146};
+}
+static void home_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
+ b->p->layout=XZ_SHELL_MENU_HOME;
+ xz_ui_home_picture(b->m,&b->p->pic.home);
+ for(int i=1;i<XZ_UI_SECTIONS;i++){
+  int section=xz_ui_sections[i];
+  for(size_t k=0;k<n;k++){
+   const struct xz_ui_widget *a=&w[k];
+   if(a->kind!=XZ_UI_FEATURE_LINK||a->index!=section)continue;
+   struct xz_shell_menu_row *r=control_row(b,a,XZ_SHELL_MENU_LINK,xz_ui_section_label(section));
+   if(!r)return;
+   int tone=0;char status[80];
+   xz_ui_home_status(b->m,section,status,sizeof status,&tone);
+   copy(r->value,sizeof r->value,status);copy(r->help,sizeof r->help,xz_ui_section_purpose(section));
+   r->tone=(uint8_t)(tone==1?XZ_SHELL_TONE_GOOD:tone==2?XZ_SHELL_TONE_ALERT:XZ_SHELL_TONE_DIM);
+   r->rect=home_tile(section);r->chips=0;
+   for(size_t j=0;j<n;j++){
+    const struct xz_ui_widget *s=&w[j];
+    if(s->kind!=XZ_UI_HOME_SETUP||s->index!=section)continue;
+    struct xz_shell_menu_row *q=control_row(b,s,XZ_SHELL_MENU_PART,"SET UP");
+    if(!q)return;
+    struct xz_shell_rect t=home_tile(section);
+    q->rect=(struct xz_shell_rect){t.x+t.w-104,t.y+t.h-52,96,44};q->target.how=XZ_UI_MENU_PUSH;
+   }
+  }
+ }
+}
+/* A picture page's parts: the panel's own controls, placed where the MODERN picture draws them. */
+static struct xz_shell_menu_row *part_row(struct build *b, const struct xz_ui_widget *w, struct xz_rect at, const char *label) {
+ struct xz_shell_menu_row *r=control_row(b,w,XZ_SHELL_MENU_PART,label);
+ if(!r)return NULL;
+ r->rect=(struct xz_shell_rect){at.x,at.y,at.w,at.h};r->target.how=XZ_UI_MENU_PUSH;
+ return r;
+}
+static void jump_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
+ struct xz_pic_jump_geo g;xz_pic_jump_geometry(100,48,690,290,&g);
+ b->p->layout=XZ_SHELL_MENU_PICTURE;b->p->picture=XZ_SHELL_PIC_BEAT_JUMP;
+ xz_ui_jump_picture(b->u,b->m,-1,&b->p->pic.jump);
+ for(size_t i=0;i<n;i++){
+  const struct xz_ui_widget *a=&w[i];int k=a->index;
+  if(a->kind==XZ_UI_JUMP_EDIT_PAGE&&(k==0||k==1))part_row(b,a,g.tabs[k],k?"PAGE 2 (SHIFT + BEAT JUMP)":"PAGE 1 (BEAT JUMP)");
+  else if(a->kind==XZ_UI_JUMP_ENABLE)part_row(b,a,k==2?g.stock:g.mine,a->label);
+  else if(a->kind==XZ_UI_JUMP_PAIR&&k>=0&&k<8)part_row(b,a,g.frames[k/2],NULL);
+  else if(a->kind==XZ_UI_JUMP_SIZE){for(int j=0;j<XZ_PIC_JUMP_CHIPS;j++)if(xz_pic_jump_ids[j]==k){
+   char label[24];snprintf(label,sizeof label,"%d BEAT%s",xz_jump_beats(k),xz_jump_beats(k)==1?"":"S");
+   part_row(b,a,g.chips[j],label);}}
+ }
+}
+static void stem_pad_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
+ struct xz_pic_stem_geo g;xz_pic_stem_geometry(100,690,&g);
+ b->p->layout=XZ_SHELL_MENU_PICTURE;b->p->picture=XZ_SHELL_PIC_STEM_PADS;
+ xz_ui_stem_picture(b->m,-1,&b->p->pic.stem);
+ for(size_t i=0;i<n;i++){
+  const struct xz_ui_widget *a=&w[i];int k=a->index;
+  if(a->kind==XZ_UI_STEM_PAGE&&k>=0&&k<4)part_row(b,a,g.modes[k],NULL);
+  else if(a->kind==XZ_UI_STEM_BANK&&(k==0||k==1))part_row(b,a,g.bank[k],NULL);
+  else if(a->kind==XZ_UI_STEM_ORDER){
+   struct xz_rect r=g.order[0];r.w=g.order[2].x+g.order[2].w-r.x;
+   part_row(b,a,r,NULL);
+  }else if(a->kind==XZ_UI_PAD_FEEDBACK&&(k==1||k==2))part_row(b,a,g.lights[k-1],NULL);
+ }
+}
+/* 4 DECKS (mockup 15): the route card with RESCAN and the DECK VIEW segments, then the grid. */
+enum { DECKS_TEXT_X=424, DECKS_SEG_Y=130, DECKS_GRID_Y=198, DECKS_ROW_H=26 };
+static void four_deck_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
+ const struct xz_ui_model *m=b->m;
+ b->p->layout=XZ_SHELL_MENU_PICTURE;b->p->picture=XZ_SHELL_PIC_FOUR_DECKS;
+ struct xz_pic_decks *d=&b->p->pic.decks;
+ d->state=m->route.state;d->fail_part=m->route.fail_part;d->view=m->deck_view;
+ for(int k=0;k<4;k++)d->caps[k]=xz_deck_caps(m,k);
+ line(b,XZ_SHELL_TONE_HEAD,"%s",xz_ui_route_title(m->route.state));
+ line(b,XZ_SHELL_TONE_PLAIN,"%s",xz_ui_route_line(m));
+ struct xz_pic_grid_geo g;xz_pic_grid_geometry(100,DECKS_GRID_Y,690,DECKS_ROW_H,&g);
+ for(size_t i=0;i<n;i++){
+  const struct xz_ui_widget *a=&w[i];int k=a->index;
+  if(a->kind==XZ_UI_ROUTE_RESCAN)part_row(b,a,(struct xz_rect){676,58,110,40},NULL);
+  else if(a->kind==XZ_UI_DECK_VIEW&&k>=0&&k<XZ_LAYOUT_COUNT){
+   static const char *const names[XZ_LAYOUT_COUNT]={"2 DECKS","4 | 1 2 3 4","4 | 3 1 2 4"};
+   struct xz_shell_menu_row *r=part_row(b,a,(struct xz_rect){DECKS_TEXT_X+k*124,DECKS_SEG_Y,118,40},names[k]);
+   if(r)r->current=(int16_t)(k==m->deck_view);
+  }else if(a->kind==XZ_UI_INFO&&k>=XZ_UI_INFO_GRID&&k<XZ_UI_INFO_GRID+XZ_UI_GRID_ROWS)part_row(b,a,g.rows[k-XZ_UI_INFO_GRID],NULL);
+ }
+}
+
 /* ---- the page ---- */
 static int back_link(const struct build *b, const struct xz_ui_widget *w) {
  return w->kind==XZ_UI_PANEL&&w->index==b->came_from;
@@ -564,12 +740,38 @@ static void control(struct build *b, const struct xz_ui_widget *w, size_t n, int
  const char *dead=dead_reason(b,a);
  if(dead){b->dead=dead;return;}
  section(b,section_for(b,a));
+ /* SCREEN: MODERN's waveform colours are the shell's own four (STOCK, RGB, 3-BAND, STEMS), its look rows follow */
+ if(a->kind==XZ_UI_WAVE_MODE&&u->page==XZ_UI_SCREEN){
+  for(size_t k=i;k<n;k++)if(w[k].kind==XZ_UI_WAVE_MODE)used[k]=1;
+  wave_look_row(b);screen_look_rows(b);return;
+ }
+ if(a->kind==XZ_UI_STEMS_OVERLAY){
+  for(size_t k=i;k<n;k++)if(w[k].kind==XZ_UI_STEMS_OVERLAY)used[k]=1;
+  stem_layout_row(b,a);bypass_row(b);return;
+ }
+ if(a->kind==XZ_UI_FEATURE_LINK&&a->index==XZ_UI_BUTTONS&&u->page==XZ_UI_PLAY){button_rows(b,a);return;}
  if(group_of(a)){group_row(b,w,n,used,i);return;}
  switch(a->kind){
  case XZ_UI_PANEL:case XZ_UI_FEATURE_LINK:{
   link_label(a->label,label,sizeof label);
   struct xz_shell_menu_row *r=control_row(b,a,XZ_SHELL_MENU_LINK,label[0]?label:xz_ui_page_title(a->index));
-  if(r)copy(r->help,sizeof r->help,xz_ui_page_body(a->index));
+  if(r){
+   char value[64];const char *v=xz_ui_section_value(b->m,a,value,sizeof value);
+   copy(r->help,sizeof r->help,xz_ui_page_body(a->index));
+   if(v)copy(r->value,sizeof r->value,v);
+  }
+  return;}
+ case XZ_UI_INFO:{
+  struct xz_shell_menu_row *r=control_row(b,a,XZ_SHELL_MENU_INFO,a->label);
+  char value[32];const char *v=xz_ui_section_value(b->m,a,value,sizeof value);
+  if(r&&v)copy(r->value,sizeof r->value,v);
+  return;}
+ case XZ_UI_DECK_VIEW_BUTTON:{
+  struct xz_shell_menu_row *r=control_row(b,a,XZ_SHELL_MENU_TOGGLE,"DECK VIEW BUTTON");
+  if(r){
+   add_choice(b,r,"SHOW",direct(XZ_UI_DECK_VIEW_BUTTON,0,1),r->available);add_choice(b,r,"HIDE",direct(XZ_UI_DECK_VIEW_BUTTON,0,0),r->available);
+   r->current=(int16_t)(b->m->deck_view_button?0:1);
+  }
   return;}
  case XZ_UI_CONTROL_SECTION:{
   static const char *const names[4]={"STEM SHORTCUTS","BEAT JUMP","PC STEMS","BUTTONS"};
@@ -578,21 +780,11 @@ static void control(struct build *b, const struct xz_ui_widget *w, size_t n, int
  case XZ_UI_FEATURE_SETUP_OPEN:case XZ_UI_LOCAL_STEM_SETUP_OPEN:case XZ_UI_METRICS_SETUP_OPEN:
   control_row(b,a,XZ_SHELL_MENU_LINK,a->label);return;
  case XZ_UI_ENABLE:
-  toggle_row(b,a,a->index==XZ_UI_STEM?"STANDALONE STEMS":a->label);return;
- case XZ_UI_JUMP_ENABLE:toggle_row(b,a,"CUSTOM JUMPS ON PAGE 1");return;
- case XZ_UI_FOUR_WAVE_ORDER:{
-  struct xz_shell_menu_row *r=control_row(b,a,XZ_SHELL_MENU_CHOICE,"FOUR-DECK WAVE ORDER");
-  if(r){
-   add_choice(b,r,"1 2 3 4 / NUMERIC",direct(XZ_UI_FOUR_WAVE_ORDER,0,0),1);
-   add_choice(b,r,"3 1 2 4 / MIXER",direct(XZ_UI_FOUR_WAVE_ORDER,0,1),1);
-   r->current=(int16_t)!!b->m->four_wave_mixer;
-   copy(r->help,sizeof r->help,"Shared waveform order in Classic and Modern, until reboot. Audio channels and jog control sides stay unchanged.");
-  }
-  return;
- }
+  toggle_row(b,a,a->index==XZ_UI_STEM?"USB STEMS":a->label);return;
+ case XZ_UI_JUMP_ENABLE:toggle_row(b,a,"PAGE 1: MY SIZES");return;
  case XZ_UI_PAD_FEEDBACK:case XZ_UI_KEY_FEEDBACK:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_TAKEOVER_TOGGLE:
  case XZ_UI_CONNECTION_ENABLE:case XZ_UI_DISCOVERY:case XZ_UI_BROWSE_KEY_PREFIX:case XZ_UI_BROWSE_TRAFFIC:
- case XZ_UI_SHIFT_KEYSYNC:case XZ_UI_KEY_SYNC:case XZ_UI_METRICS_TOGGLE:
+ case XZ_UI_KEY_SYNC:
   toggle_row(b,a,a->label);return;
  case XZ_UI_SDK_AUTOLOAD:toggle_row(b,a,"AUTOLOAD");return;
  case XZ_UI_STEMS_OVERLAY:case XZ_UI_STEM_ORDER:cycle_row(b,a);return;
@@ -649,8 +841,10 @@ static int skipped(const struct build *b, const struct xz_ui_widget *a) {
  const struct xz_ui *u=b->u;
  switch(a->kind){
  case XZ_UI_NONE:case XZ_UI_CLOSE:case XZ_UI_BACK:case XZ_UI_PROFILE:return 1;
+ case XZ_UI_JUMP_SHIFT:case XZ_UI_SHIFT_PAGES:case XZ_UI_SHIFT_KEYSYNC:case XZ_UI_RAM_DEBUG:case XZ_UI_METRICS_TOGGLE:
+ case XZ_UI_FOUR_WAVE_ORDER:return 1;
  /* the rail tabs: the MODS screen has its own rail */
- case XZ_UI_PANEL:return xz_ui_page_is_top(a->index)||back_link(b,a);
+ case XZ_UI_PANEL:return xz_ui_page_is_top(a->index)||back_link(b,a)||(u->page==XZ_UI_CONNECT&&a->index==XZ_UI_PROFILE_SETUP&&b->m->dj);
  /* CONTROLS lists its sibling pages as links; they need no tabs of their own */
  case XZ_UI_CONTROL_SECTION:return u->page!=XZ_UI_CONTROLS||a->index==0;
  /* BEAT JUMP is rebuilt as one choice per pair; the setup steps are the strip */
@@ -692,7 +886,7 @@ int xz_ui_menu_build(const struct xz_ui *u, const struct xz_ui_model *m, struct 
  out->page=u->page;out->root=chain[0];out->depth=(uint8_t)(depth>255?255:depth);
  b.came_from=n>1?chain[n-2]:-1;
  copy(out->title,sizeof out->title,u->page==XZ_UI_PROFILE_EDIT?(u->edit_entry<0?"NEW PROFILE":"EDIT PROFILE"):
-  u->page==XZ_UI_METRICS_SETUP?"METRICS":xz_ui_page_title(u->page));
+  u->page==XZ_UI_HOME?"WHAT DO YOU WANT TO DO?":xz_ui_page_title(u->page));
  for(int i=0;i<n-1;i++){
   size_t at=strlen(out->path);
   snprintf(out->path+at,sizeof out->path-at,"%s%s",i?" / ":"",xz_ui_page_title(chain[i]));
@@ -705,17 +899,24 @@ int xz_ui_menu_build(const struct xz_ui *u, const struct xz_ui_model *m, struct 
  profile_model(m,out);
  /* A top page opened from the rail starts on its first row; a deeper page where the panel's focus is (its
     first control, or after BACK the link that led away), so BACK then push re-enters. */
- b.has_focus=(u->focus_kind!=XZ_UI_NONE||!xz_ui_page_is_top(u->page))&&xz_ui_focused(u,m,&b.focus);
+ /* A page just opened (no focus yet) starts on its first row: a setup's step, a list's first setting. */
+ b.has_focus=u->focus_kind!=XZ_UI_NONE&&xz_ui_focused(u,m,&b.focus);
  if(u->page==XZ_UI_ABOUT){out->layout=XZ_SHELL_MENU_ABOUT;out->step=(uint8_t)u->about_link;}
  page_sections(&b);
- if(u->page==XZ_UI_EXTRAS)profile_choice_rows(&b);
- if(u->page==XZ_UI_BEAT_JUMP)beat_jump_rows(&b);
+ if(u->page==XZ_UI_CONNECT)profile_choice_rows(&b);
  struct xz_ui_widget w[XZ_UI_WIDGETS];int used[XZ_UI_WIDGETS]={0};
  size_t count=xz_ui_layout(u,m,w);
- for(size_t i=0;i<count;i++){
+ /* HOME and the picture pages draw their own controls; the lists come from the panel's controls */
+ if(u->page==XZ_UI_HOME)home_rows(&b,w,count);
+ else if(u->page==XZ_UI_BEAT_JUMP)jump_rows(&b,w,count);
+ else if(u->page==XZ_UI_STEM_PADS)stem_pad_rows(&b,w,count);
+ else if(u->page==XZ_UI_FOUR_DECKS)four_deck_rows(&b,w,count);
+ else for(size_t i=0;i<count;i++){
   if(used[i]||skipped(&b,&w[i]))continue;
   used[i]=1;control(&b,w,count,used,i);
  }
+ out->adjusting=(uint8_t)!!u->adjusting;
+ {int alert=0;copy(out->save,sizeof out->save,xz_ui_save_state(m,&alert));out->save_tone=(uint8_t)(alert?XZ_SHELL_TONE_ALERT:XZ_SHELL_TONE_DIM);}
  if(b.dead){
   /* the deck picker only served the controls that left */
   if(u->page==XZ_UI_STEMS||u->page==XZ_UI_XPAD){
@@ -772,6 +973,12 @@ size_t xz_ui_menu_run(struct xz_ui *u, const struct xz_ui_model *m, const struct
  if(!u||!m||!t||!out)return 0;
  struct xz_ui_action a[XZ_UI_ACTIONS];size_t total=take(out,0,XZ_UI_MENU_ACTIONS,a,xz_ui_cancel(u,a));
  switch(t->how){
+ case XZ_UI_MENU_PUSH:{
+  struct xz_ui_widget w;
+  if(!find(u,m,t,&w)){snprintf(u->notice,sizeof u->notice,"%s","THAT CONTROL HAS CHANGED: LOOK AGAIN");return total;}
+  /* exactly the panel's encoder push on that control (BEAT JUMP pairs start adjusting) */
+  u->focus_kind=w.kind;u->focus_index=w.index;u->focus_deck=w.deck;
+  return take(out,total,XZ_UI_MENU_ACTIONS,a,xz_ui_encoder_push(u,m,a));}
  case XZ_UI_MENU_TOUCH:{
   struct xz_ui_widget w;
   if(!find(u,m,t,&w)){snprintf(u->notice,sizeof u->notice,"%s","THAT CONTROL HAS CHANGED: LOOK AGAIN");return total;}
@@ -810,6 +1017,10 @@ size_t xz_ui_menu_run(struct xz_ui *u, const struct xz_ui_model *m, const struct
   return total;}
  default:return total;
  }
+}
+size_t xz_ui_menu_turn(struct xz_ui *u, const struct xz_ui_model *m, int delta, struct xz_ui_action out[XZ_UI_ACTIONS]) {
+ if(!u||!m||!out||!u->adjusting)return 0;
+ return xz_ui_encoder_turn(u,m,delta,out);
 }
 size_t xz_ui_menu_pad(struct xz_ui *u, const struct xz_ui_model *m, const struct xz_shell_menu_target *t, int x, int y, int down, struct xz_ui_action out[XZ_UI_ACTIONS]) {
  if(!u||!m||!t||!out)return 0;

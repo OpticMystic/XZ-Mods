@@ -5,6 +5,7 @@
 #include "shell_internal.h"
 #include "../ui/ui_about.h"
 #include "../ui/ui_support.h"
+#include "../ui/pictures.h"
 extern void xz_ui_support_render_qr_box(struct xz_canvas,int,int,int,const char *) __attribute__((weak));
 #include "shell_settings.h"
 #include <stdio.h>
@@ -14,7 +15,7 @@ enum {
  W=XZ_SHELL_WIDTH, TITLE_H=40, U_Y=42, ROW_H=XZ_SHELL_SETTINGS_ROW_H, ROWS=XZ_SHELL_SETTINGS_ROWS,
  RAIL_W=88, LIST_X=RAIL_W+2, LIST_W=408, VALUE_X=LIST_X+LIST_W+2, VALUE_W=W-VALUE_X, PANE_H=ROWS*ROW_H,
  GREY_TEXT=0x8c8c8c, READ_ONLY_GREY=0x6e6e6e, PLAIN_INK=0xd8d8d8, DONE_FILL=0x0b3f6b,
- LINE_H=14, PAD_H=136,
+ LINE_H=14, PAD_H=136, AMBER=0xffa82e, BAND_Y=350, TILE_FILL=0x232323, PICK_FILL=0x0c2a48,
  /* KEYBOARD: the typed text, five key rows, the buttons */
  KB_X=LIST_X+6, KB_W=W-KB_X-6, KB_FIELD_Y=U_Y+4, KB_FIELD_H=48, KB_Y=U_Y+58, KB_PITCH=46, KB_KEY_H=42,
  KB_BUTTON_Y=KB_Y+5*KB_PITCH+4, KB_BUTTON_H=44
@@ -44,6 +45,8 @@ static int has_values(const struct xz_shell_menu *p, const struct xz_shell_menu_
  return r&&(r->kind==XZ_SHELL_MENU_CHOICE||r->kind==XZ_SHELL_MENU_TOGGLE)&&choices_of(p,r)>0;
 }
 static int keyboard(const struct xz_shell_menu *p) { return p&&p->layout==XZ_SHELL_MENU_KEYBOARD; }
+/* HOME and the picture pages place every row at its own rect; there is no list. */
+static int pictured(const struct xz_shell_menu *p) { return p&&(p->layout==XZ_SHELL_MENU_HOME||p->layout==XZ_SHELL_MENU_PICTURE); }
 static const char *section_name(const struct xz_shell_menu *p, int s) {
  return s>=0&&s<sh_min(p->section_count,XZ_SHELL_MENU_SECTIONS)?p->sections[s]:"";
 }
@@ -74,6 +77,7 @@ static int keep_visible(int scroll, int index, int count, int rows) {
 }
 /* Value rows the values pane gives a row's choices before its text starts. */
 static int value_rows(const struct xz_shell_menu *p, const struct xz_shell_menu_row *r) {
+ if(r&&r->picture)return sh_max(1,choices_of(p,r));   /* pictures show every choice */
  return sh_max(2,sh_min(choices_of(p,r),ROWS-3));
 }
 static struct mstate settle(const struct xz_shell *u, const struct xz_shell_menu *p) {
@@ -93,12 +97,12 @@ static struct mstate settle(const struct xz_shell *u, const struct xz_shell_menu
   s.pane=PANE_ITEMS;s.item_scroll=s.value_scroll=0;s.armed=s.dragged=0;s.touch_pane=-1;
  }
  const struct xz_shell_menu_row *r=&p->row[s.row];
- if(s.pane==PANE_RAIL||s.pane==PANE_PAD)s.pane=PANE_ITEMS;
+ if(s.pane==PANE_RAIL||s.pane==PANE_PAD||pictured(p))s.pane=PANE_ITEMS;
  if(s.pane==PANE_VALUES&&!has_values(p,r))s.pane=PANE_ITEMS;
  int k=choices_of(p,r);
  s.value=clamp(s.value,0,sh_max(0,k-1));
  s.value_scroll=keep_visible(s.value_scroll,s.value,k,value_rows(p,r));
- if(!keyboard(p)){
+ if(!keyboard(p)&&!pictured(p)){
   struct mlist l=list_of(p);
   int at=list_index(&l,s.row);
   s.item_scroll=keep_visible(s.item_scroll,at,l.n,l.slots);
@@ -156,6 +160,7 @@ struct xz_shell_rect xz_shell_menu_row_rect(const struct xz_shell *u, const stru
  if(!row_at(p,row))return none();
  if(p->layout==XZ_SHELL_MENU_ABOUT){struct xz_ui_widget w={0};xz_about_place(&w,row);return (struct xz_shell_rect){w.x,w.y,w.w,w.h};}
  if(keyboard(p))return key_rect(p,row);
+ if(pictured(p))return p->row[row].rect;
  struct mstate s=settle(u,p);struct mlist l=list_of(p);
  int at=list_index(&l,row)-s.item_scroll;
  if(at<0||at>=l.slots)return none();
@@ -230,7 +235,8 @@ static void render_steps(struct xz_canvas c, const struct xz_shell_menu *p) {
 }
 static const char *row_value(const struct xz_shell_menu *p, const struct xz_shell_menu_row *r) {
  const struct xz_shell_menu_choice *ch=choice_at(p,r,current_of(p,r));
- if(has_values(p,r))return ch?ch->label:"---";
+ /* a row may say its value its own way ("4 | 3 1 2 4" for the DECK VIEW tile 4 DECKS, MIXER ORDER) */
+ if(has_values(p,r))return r->value[0]?r->value:ch?ch->label:"---";
  return r->value;
 }
 static void render_list(struct xz_canvas c, const struct xz_shell_menu *p, struct mstate s, int lit) {
@@ -294,6 +300,91 @@ static int render_help(struct xz_canvas q, const struct xz_shell_menu_row *r, in
  if(r->help[0])y=paragraph(q,14,y,width,bottom,r->help,PLAIN_INK)+6;
  return y;
 }
+/* ---- pictures in the values pane (DESIGN 2.3 - 2.8), pane coordinates ---- */
+static struct xz_shell_rect choice_box(const struct xz_shell_menu_row *r, int i) {
+ int w=VALUE_W-12;
+ switch(r->picture){
+ case XZ_SHELL_PIC_DECK_VIEW:case XZ_SHELL_PIC_INTERFACE:return (struct xz_shell_rect){6,4+i*82,w,78};
+ case XZ_SHELL_PIC_STEM_LAYOUT:{int cw=(w-6)/2;return (struct xz_shell_rect){6+(i%2)*(cw+6),4+(i/2)*80,cw,76};}
+ case XZ_SHELL_PIC_WAVE_COLOURS:case XZ_SHELL_PIC_KEY_NOTATION:return (struct xz_shell_rect){6,4+i*46,w,42};
+ case XZ_SHELL_PIC_MEDIA_BUTTON:return (struct xz_shell_rect){6,58+i*34,w,32};
+ default:return (struct xz_shell_rect){0,i*ROW_H,VALUE_W,ROW_H-2};
+ }
+}
+static int choices_bottom(const struct xz_shell_menu *p, const struct xz_shell_menu_row *r) {
+ int bottom=0;
+ for(int i=0;i<choices_of(p,r);i++){struct xz_shell_rect b=choice_box(r,i);bottom=sh_max(bottom,b.y+b.h);}
+ return bottom+6;
+}
+static void radio(struct xz_canvas q, int cx, int cy, int on, int available) {
+ xz_ring(q,cx,cy,8,1,available?SH_WHITE:READ_ONLY_GREY);
+ if(on)xz_disc(q,cx,cy,4,SH_BLUE);
+}
+static void ring2(struct xz_canvas c, struct xz_shell_rect b, uint32_t ink) {
+ xz_border(c,b.x-2,b.y-2,b.w+4,b.h+4,ink);xz_border(c,b.x-1,b.y-1,b.w+2,b.h+2,ink);
+}
+/* The waveform swatch for a shell wave colour (enum xz_shell_wave_color) in pictures.c's own order. */
+static int swatch_scheme(int wave) { return wave==XZ_SHELL_WAVE_RGB?3:wave==XZ_SHELL_WAVE_3BAND?1:wave==XZ_SHELL_WAVE_STEMS?2:0; }
+static void render_choice_pictures(struct xz_canvas q, const struct xz_shell_menu *p, const struct xz_shell_menu_row *r, struct mstate s, int lit) {
+ struct xz_pic_style st=xz_pic_style_modern();
+ int n=choices_of(p,r),cur=current_of(p,r);
+ if(r->picture==XZ_SHELL_PIC_MEDIA_BUTTON)xz_pic_media_buttons(q,&st,6,4,VALUE_W-12,48);
+ for(int i=0;i<n;i++){
+  const struct xz_shell_menu_choice *ch=choice_at(p,r,i);struct xz_shell_rect b=choice_box(r,i);
+  int sel=i==cur,cursor=lit&&s.pane==PANE_VALUES&&i==s.value;
+  uint32_t ink=ch->available||cursor?SH_WHITE:SH_DIM;
+  switch(r->picture){
+  case XZ_SHELL_PIC_DECK_VIEW:case XZ_SHELL_PIC_INTERFACE:{
+   xz_rect(q,b.x,b.y,b.w,b.h,sel?PICK_FILL:SH_CHROME);
+   if(sel)ring2(q,(struct xz_shell_rect){b.x+2,b.y+2,b.w-4,b.h-4},SH_BLUE);
+   int view=r->picture==XZ_SHELL_PIC_DECK_VIEW?ch->value:0,modern=r->picture==XZ_SHELL_PIC_INTERFACE?ch->value==XZ_UI_INTERFACE_MODERN:1;
+   xz_pic_mini_screen(q,b.x+6,b.y+6,112,66,view,modern,p->pic.home.decks34);
+   text_fit(q,b.x+128,b.y+14,b.w-160,ch->label,SH_TEXT,ink);
+   text_fit(q,b.x+128,b.y+44,b.w-136,ch->detail,SH_SMALL,GREY_TEXT);
+   radio(q,b.x+b.w-18,b.y+22,sel,ch->available);
+   break;}
+  case XZ_SHELL_PIC_STEM_LAYOUT:
+   xz_rect(q,b.x,b.y,b.w,b.h,sel?PICK_FILL:SH_CHROME);
+   if(sel)ring2(q,(struct xz_shell_rect){b.x+2,b.y+2,b.w-4,b.h-4},SH_BLUE);
+   xz_pic_stem_layout(q,b.x+6,b.y+6,b.w-12,46,ch->value,p->preview_rgb);
+   text_fit_center(q,b.x+b.w/2,b.y+58,b.w-8,ch->label,SH_SMALL,ink);
+   break;
+  case XZ_SHELL_PIC_WAVE_COLOURS:
+   xz_rect(q,b.x,b.y,b.w,b.h,sel?PICK_FILL:SH_CHROME);
+   xz_pic_wave_swatch(q,b.x+4,b.y+4,136,b.h-8,swatch_scheme(ch->value),p->preview_rgb);
+   text_fit(q,b.x+150,b.y+14,b.w-180,ch->label,SH_TEXT,ink);
+   radio(q,b.x+b.w-18,b.y+b.h/2,sel,ch->available);
+   break;
+  case XZ_SHELL_PIC_KEY_NOTATION:
+   xz_rect(q,b.x,b.y,b.w,b.h,sel?PICK_FILL:SH_CHROME);
+   text_fit(q,b.x+12,b.y+14,b.w-130,ch->label,SH_TEXT,ink);
+   text_fit_right(q,b.x+b.w-36,b.y+14,90,ch->detail,SH_TEXT,sel?SH_WHITE:GREY_TEXT);
+   radio(q,b.x+b.w-18,b.y+b.h/2,sel,ch->available);
+   break;
+  default:
+   xz_rect(q,b.x,b.y,b.w,b.h,sel?PICK_FILL:SH_CHROME);
+   radio(q,b.x+16,b.y+b.h/2,sel,ch->available);
+   text_fit(q,b.x+34,b.y+(b.h-SH_CAP_TEXT)/2,b.w-44,ch->label,SH_TEXT,ink);
+   break;
+  }
+  if(cursor)ring2(q,b,SH_WHITE);
+ }
+}
+/* Under every explanation (DESIGN 3.1): WORKS ON chips, the reason a deck is left out, the save line. */
+static int footer_h(const struct xz_shell_menu *p, const struct xz_shell_menu_row *r) {
+ return (p->save[0]?16:0)+(r&&r->excluded[0]?15:0)+(r&&r->chips?22:0);
+}
+static void render_footer(struct xz_canvas q, const struct xz_shell_menu *p, const struct xz_shell_menu_row *r, int x, int width, int bottom) {
+ struct xz_pic_style st=xz_pic_style_modern();
+ int y=bottom-footer_h(p,r);
+ if(r&&r->chips){xz_pic_works_on(q,&st,x,y,16,r->works_on,1);y+=22;}
+ if(r&&r->excluded[0]){text_fit(q,x,y,width,r->excluded,SH_SMALL,AMBER);y+=15;}
+ if(p->save[0]){
+  int alert=p->save_tone==XZ_SHELL_TONE_ALERT,ox=0;
+  if(!alert){xz_pic_check(q,x,y,GREY_TEXT);ox=14;}
+  text_fit(q,x+ox,y,width-ox,p->save,SH_SMALL,alert?AMBER:GREY_TEXT);
+ }
+}
 static void stem_layout_diagram(struct xz_canvas c,const struct xz_shell_menu *p,int y,const char *name){
  int x=VALUE_W-82,w=66;int hidden=strstr(name,"HIDDEN")||strstr(name,"OFF"),outer=(strstr(name,"OUTER")!=NULL),compact=strstr(name,"COMPACT")||strstr(name,"HALF")||strstr(name,"SMALL");
  xz_rect(c,x,y,w,26,0x0c1218);xz_border(c,x,y,w,26,0x505860);
@@ -316,7 +407,16 @@ static void render_values(struct xz_canvas c, const struct xz_shell_menu *p, str
  }
  const struct xz_shell_menu_row *r=row_at(p,s.row);
  if(!r){render_page_text(q,p,12,PANE_H-4);return;}
- int y=0,bottom=PANE_H-4;
+ int y=0,bottom=PANE_H-4-footer_h(p,r);
+ render_footer(q,p,r,14,VALUE_W-28,PANE_H-4);
+ if(has_values(p,r)&&r->picture){
+  render_choice_pictures(q,p,r,s,lit);
+  y=choices_bottom(p,r);
+  xz_rect(q,12,y-2,VALUE_W-24,1,SH_RAIL);
+  y=render_help(q,r,y+6,bottom);
+  render_page_text(q,p,y,bottom);
+  return;
+ }
  if(has_values(p,r)){
   int n=choices_of(p,r),rows=value_rows(p,r),cur=current_of(p,r);
   for(int i=0;i<rows;i++){
@@ -383,6 +483,100 @@ static void render_keyboard(struct xz_canvas c, const struct xz_shell_menu *p, s
  int y=KB_BUTTON_Y+KB_BUTTON_H+6;
  if(p->status[0])text_fit(c,KB_X,y,KB_W,p->status,SH_SMALL,tone_ink(p->status_tone));
 }
+/* ---- HOME and the picture pages (DESIGN 3.1, 3.3) ---- */
+/* The band under a picture: the focused item in blue, what it does, WORKS ON and the save line on the right. */
+static void render_band(struct xz_canvas c, const struct xz_shell_menu *p, const struct xz_shell_menu_row *r) {
+ int bottom=U_Y+PANE_H,right_x=566;
+ xz_rect(c,LIST_X,BAND_Y,W-LIST_X,bottom-BAND_Y,SH_BLACK);
+ xz_rect(c,LIST_X+6,BAND_Y,W-LIST_X-12,1,SH_RAIL);
+ if(!r)return;
+ int tw=right_x-LIST_X-16;
+ text_fit(c,LIST_X+8,BAND_Y+7,tw,r->label,SH_SMALL,SH_BLUE);
+ const char *text=!r->available&&r->reason[0]?r->reason:r->help;
+ paragraph(c,LIST_X+8,BAND_Y+23,tw,bottom-2,text,!r->available&&r->reason[0]?AMBER:PLAIN_INK);
+ if(p->adjusting&&r->kind==XZ_SHELL_MENU_PART)text_fit_right(c,right_x-8,BAND_Y+7,120,"ADJUSTING",SH_SMALL,SH_WHITE);
+ struct xz_canvas q=xz_sub(c,right_x,BAND_Y+4,W-right_x-6,bottom-BAND_Y-6);
+ render_footer(q,p,r,0,q.width,q.height);
+}
+static int tile_has_button(const struct xz_shell_menu *p, struct xz_shell_rect t) {
+ for(int i=0;i<rows_of(p);i++)if(p->row[i].kind==XZ_SHELL_MENU_PART&&sh_inside(t,p->row[i].rect.x,p->row[i].rect.y))return 1;
+ return 0;
+}
+static void render_home(struct xz_canvas c, const struct xz_shell_menu *p, struct mstate s, int lit) {
+ struct xz_pic_style st=xz_pic_style_modern();
+ xz_rect(c,LIST_X,U_Y,W-LIST_X,PANE_H,SH_BLACK);
+ for(int i=0;i<rows_of(p);i++){
+  const struct xz_shell_menu_row *r=&p->row[i];struct xz_shell_rect t=r->rect;
+  if(r->kind!=XZ_SHELL_MENU_LINK||!t.w)continue;
+  int button=tile_has_button(p,t);
+  xz_rect(c,t.x,t.y,t.w,t.h,TILE_FILL);
+  if(lit&&i==s.row){xz_border(c,t.x,t.y,t.w,t.h,SH_WHITE);xz_border(c,t.x+1,t.y+1,t.w-2,t.h-2,SH_WHITE);}
+  text_fit(c,t.x+14,t.y+14,t.w-112,r->label,SH_TEXT,SH_WHITE);
+  xz_pic_home_icon(c,&st,r->target.index,t.x+t.w-88,t.y+12,&p->pic.home);
+  paragraph(c,t.x+14,t.y+60,t.w-28,t.y+t.h-(button?52:28),r->help,PLAIN_INK);
+  uint32_t dot=r->tone==XZ_SHELL_TONE_GOOD?SH_GREEN:r->tone==XZ_SHELL_TONE_ALERT?AMBER:GREY_TEXT;
+  xz_disc(c,t.x+18,t.y+t.h-19,4,dot);
+  text_fit(c,t.x+28,t.y+t.h-24,t.w-42-(button?104:0),r->value,SH_SMALL,r->tone==XZ_SHELL_TONE_ALERT?AMBER:PLAIN_INK);
+ }
+ for(int i=0;i<rows_of(p);i++){
+  const struct xz_shell_menu_row *r=&p->row[i];struct xz_shell_rect b=r->rect;
+  if(r->kind!=XZ_SHELL_MENU_PART||!b.w)continue;
+  xz_rect(c,b.x,b.y,b.w,b.h,SH_BLUE);
+  text_fit_center(c,b.x+b.w/2,b.y+(b.h-SH_CAP_TEXT)/2,b.w-8,r->label,SH_TEXT,SH_WHITE);
+  if(lit&&i==s.row)ring2(c,b,SH_WHITE);
+ }
+ render_band(c,p,row_at(p,s.row));
+}
+/* 4 DECKS (mockup 15): the route card, DECK VIEW, then what works on each deck. */
+static void render_four_decks(struct xz_canvas c, const struct xz_shell_menu *p, const struct xz_pic_style *st, const struct xz_shell_menu_row *cursor) {
+ const struct xz_pic_decks *d=&p->pic.decks;int state=d->state;
+ uint32_t accent=state==XZ_UI_ROUTE_READY?SH_GREEN:state==XZ_UI_ROUTE_FAILED||state==XZ_UI_ROUTE_LOST?SH_RED:
+  state==XZ_UI_ROUTE_SCANNING?SH_BLUE:state==XZ_UI_ROUTE_NO_ENGINE?GREY_TEXT:AMBER;
+ xz_rect(c,96,46,698,136,0x1a1a1a);xz_rect(c,96,46,698,2,accent);
+ int rescan=0;
+ for(int i=0;i<rows_of(p);i++)if(p->row[i].target.kind==XZ_UI_ROUTE_RESCAN)rescan=1;
+ int tx=state==XZ_UI_ROUTE_NO_ENGINE?110:424,right=rescan?668:786;
+ if(state!=XZ_UI_ROUTE_NO_ENGINE)xz_pic_route(c,st,104,56,300,116,state,d->fail_part,600,1);
+ const char *title=p->line_count>0?p->line[0].text:"",*text=p->line_count>1?p->line[1].text:"";
+ xz_disc(c,tx+5,67,5,accent);
+ int y=58;
+ if(sh_text_width(measure,title,SH_TEXT)<=right-tx-18){text_fit(c,tx+16,y,right-tx-18,title,SH_TEXT,state==XZ_UI_ROUTE_READY?SH_GREEN:SH_WHITE);y+=26;}
+ else y=paragraph(c,tx+16,y+2,right-tx-18,y+32,title,SH_WHITE)+4;
+ paragraph(c,tx,y,(state==XZ_UI_ROUTE_NO_ENGINE?786:right)-tx,state==XZ_UI_ROUTE_NO_ENGINE?178:116,text,PLAIN_INK);
+ if(state!=XZ_UI_ROUTE_NO_ENGINE)text_fit(c,424,117,200,"DECK VIEW",SH_SMALL,GREY_TEXT);
+ for(int i=0;i<rows_of(p);i++){
+  const struct xz_shell_menu_row *r=&p->row[i];struct xz_shell_rect b=r->rect;
+  if(r->target.kind==XZ_UI_DECK_VIEW){
+   int on=r->current==1;
+   xz_rect(c,b.x,b.y,b.w,b.h,on?SH_BLUE:0x2a2a2a);
+   text_fit_center(c,b.x+b.w/2,b.y+(b.h-SH_CAP_SMALL)/2,b.w-8,r->label,SH_SMALL,SH_WHITE);
+  }else if(r->target.kind==XZ_UI_ROUTE_RESCAN){
+   xz_rect(c,b.x,b.y,b.w,b.h,r->available?SH_BLUE:0x2a2a2a);
+   text_fit_center(c,b.x+b.w/2,b.y+(b.h-SH_CAP_TEXT)/2,b.w-8,r->available?r->label:"SCANNING",SH_TEXT,r->available?SH_WHITE:SH_DIM);
+  }
+ }
+ text_fit(c,100,184,300,"WHAT WORKS ON EACH DECK",SH_SMALL,GREY_TEXT);
+ struct xz_pic_grid_geo g;xz_pic_grid_geometry(100,198,690,26,&g);
+ int focus=cursor&&cursor->target.kind==XZ_UI_INFO&&cursor->target.index>=XZ_UI_INFO_GRID?cursor->target.index-XZ_UI_INFO_GRID:-1;
+ xz_pic_grid_draw(c,st,&g,d->caps,focus);
+}
+static void render_picture(struct xz_canvas c, const struct xz_shell_menu *p, struct mstate s, int lit) {
+ struct xz_pic_style st=xz_pic_style_modern();
+ const struct xz_shell_menu_row *cur=row_at(p,s.row);
+ xz_rect(c,LIST_X,U_Y,W-LIST_X,PANE_H,SH_BLACK);
+ switch(p->picture){
+ case XZ_SHELL_PIC_BEAT_JUMP:{struct xz_pic_jump_geo g;xz_pic_jump_geometry(100,48,690,290,&g);xz_pic_jump_draw(c,&st,&g,&p->pic.jump);break;}
+ case XZ_SHELL_PIC_STEM_PADS:{
+  struct xz_pic_stem_geo g;xz_pic_stem_geometry(100,690,&g);struct xz_pic_stem_pads sp=p->pic.stem;
+  int k=cur?cur->target.kind:-1;
+  sp.focus=!lit?-1:k==XZ_UI_STEM_PAGE?XZ_PIC_STEM_MODE:k==XZ_UI_STEM_BANK?XZ_PIC_STEM_BANK:k==XZ_UI_STEM_ORDER?XZ_PIC_STEM_ORDER:k==XZ_UI_PAD_FEEDBACK?XZ_PIC_STEM_LIGHTS:-1;
+  xz_pic_stem_draw(c,&st,&g,&sp);break;}
+ case XZ_SHELL_PIC_FOUR_DECKS:render_four_decks(c,p,&st,lit?cur:NULL);break;
+ default:break;
+ }
+ if(lit&&cur&&cur->rect.w)ring2(c,cur->rect,SH_WHITE);
+ render_band(c,p,cur);
+}
 void sh_menu_render(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_mods_tab *tab, int x, int right) {
  const struct xz_shell_menu *p=menu_of(m,tab);
  /* The title bar names the page and the pages above it. */
@@ -405,6 +599,8 @@ void sh_menu_render(const struct xz_shell *u, const struct xz_shell_model *m, st
  }
  if(p->layout==XZ_SHELL_MENU_ABOUT){xz_about_render(c,p->step,s.row,lit);return;}
  if(keyboard(p)){render_keyboard(c,p,s,lit);return;}
+ if(p->layout==XZ_SHELL_MENU_HOME){render_home(c,p,s,lit);return;}
+ if(p->layout==XZ_SHELL_MENU_PICTURE){render_picture(c,p,s,lit);return;}
  render_list(c,p,s,lit);
  render_values(c,p,s,lit);
 }
@@ -444,6 +640,7 @@ static size_t push_row(struct mstate *s, const struct xz_shell_menu *p, struct x
   return 0;
  }
  if(r->kind==XZ_SHELL_MENU_TOGGLE&&has_values(p,r))return ask(out,XZ_SHELL_MENU_ACTIVATE,s->row,current_of(p,r)==1?0:1);
+ if(r->kind==XZ_SHELL_MENU_INFO)return 0;   /* an explanation: nothing to run */
  return ask(out,XZ_SHELL_MENU_ACTIVATE,s->row,-1);
 }
 static size_t pick_value(struct mstate *s, const struct xz_shell_menu *p, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
@@ -479,6 +676,12 @@ static int list_row_at(const struct xz_shell_menu *p, struct mstate s, int x, in
   for(int r=0;r<rows_of(p);r++)if(sh_inside(key_rect(p,r),x,y))return r;
   return -2;
  }
+ if(pictured(p)){
+  /* a tile's SET UP button sits inside the tile: the button wins */
+  int hit=-2;
+  for(int r=0;r<rows_of(p);r++)if(sh_inside(p->row[r].rect,x,y)&&(hit<0||p->row[r].kind==XZ_SHELL_MENU_PART))hit=r;
+  return hit;
+ }
  struct mlist l=list_of(p);
  if(x<LIST_X||x>=LIST_X+LIST_W||y<U_Y+l.first_slot*ROW_H||y>=U_Y+PANE_H)return -2;
  int index=s.item_scroll+(y-U_Y)/ROW_H-l.first_slot;
@@ -486,7 +689,11 @@ static int list_row_at(const struct xz_shell_menu *p, struct mstate s, int x, in
 }
 static int value_at(const struct xz_shell_menu *p, struct mstate s, int x, int y) {
  const struct xz_shell_menu_row *r=row_at(p,s.row);
- if(keyboard(p)||!has_values(p,r)||x<VALUE_X||y<U_Y)return -1;
+ if(keyboard(p)||pictured(p)||!has_values(p,r)||x<VALUE_X||y<U_Y)return -1;
+ if(r->picture){
+  for(int i=0;i<choices_of(p,r);i++){struct xz_shell_rect b=choice_box(r,i);if(sh_inside((struct xz_shell_rect){VALUE_X+b.x,U_Y+b.y,b.w,b.h},x,y))return i;}
+  return -1;
+ }
  int i=(y-U_Y)/ROW_H;
  if(i>=value_rows(p,r))return -1;
  int index=s.value_scroll+i;
@@ -505,7 +712,11 @@ size_t sh_menu_input(struct xz_shell *u, const struct xz_shell_model *m, const s
  size_t n=0;
  if(!rows_of(p)){pack(u,p,s);return 0;}
  switch(e->kind){
- case XZ_SHELL_ENCODER_TURN:if(e->delta)move(&s,p,e->delta);break;
+ case XZ_SHELL_ENCODER_TURN:
+  /* while the page adjusts a value the panel turns it (a BEAT JUMP pair's size) */
+  if(e->delta&&p->adjusting&&pictured(p))n=emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_MOD_MENU,-1,e->delta,XZ_SHELL_MENU_TURN});
+  else if(e->delta)move(&s,p,e->delta);
+  break;
  case XZ_SHELL_ENCODER_PUSH:n=s.pane==PANE_VALUES?pick_value(&s,p,out):push_row(&s,p,out);break;
  case XZ_SHELL_ENCODER_HOLD:jump(&s,p);break;
  case XZ_SHELL_TOUCH_DOWN:{
@@ -541,7 +752,7 @@ size_t sh_menu_input(struct xz_shell *u, const struct xz_shell_model *m, const s
   }
   int dy=e->y-u->down_deck;
   if(!s.dragged&&(dy>=8||dy<=-8))s.dragged=1;
-  if(!s.dragged||keyboard(p))break;
+  if(!s.dragged||keyboard(p)||pictured(p))break;
   int steps=dy/ROW_H;
   if(!steps)break;
   u->down_deck+=steps*ROW_H;
@@ -568,14 +779,18 @@ size_t sh_menu_input(struct xz_shell *u, const struct xz_shell_model *m, const s
   if(u->down&&s.touch_pane==PANE_PAD)
    n=emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_MOD_MENU,pad_x(e->x)*1024+pad_y(e->y),s.row,XZ_SHELL_MENU_RELEASE});
   else if(u->down&&s.armed&&!s.dragged){
-   if(s.touch_pane==PANE_ITEMS&&list_row_at(p,s,e->x,e->y)==s.row)n=push_row(&s,p,out);
+   if(s.touch_pane==PANE_ITEMS&&list_row_at(p,s,e->x,e->y)==s.row){
+    /* a picture part runs as the panel's own touch */
+    if(pictured(p)&&p->row[s.row].kind==XZ_SHELL_MENU_PART)n=emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_MOD_MENU,-1,s.row,XZ_SHELL_MENU_TAP});
+    else n=push_row(&s,p,out);
+   }
    else if(s.touch_pane==PANE_VALUES&&value_at(p,s,e->x,e->y)==s.value)n=pick_value(&s,p,out);
   }
   u->down=0;u->down_region=XZ_SHELL_TOUCH_NONE;s.touch_pane=-1;s.armed=s.dragged=0;
   break;
  default:break;
  }
- for(size_t i=0;i<n;i++)if(out[i].kind==XZ_SHELL_ACT_MOD_MENU&&out[i].id==XZ_SHELL_MENU_ACTIVATE)leave_mark(u,p,out[i].value);
+ for(size_t i=0;i<n;i++)if(out[i].kind==XZ_SHELL_ACT_MOD_MENU&&(out[i].id==XZ_SHELL_MENU_ACTIVATE||out[i].id==XZ_SHELL_MENU_TAP))leave_mark(u,p,out[i].value);
  /* Settle again so the cursor row stays in view; the gesture state survives it. */
  pack(u,p,s);
  struct mstate again=settle(u,p);

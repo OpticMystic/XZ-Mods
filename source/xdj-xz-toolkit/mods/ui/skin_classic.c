@@ -20,7 +20,7 @@ static void theme_card(struct xz_canvas c,const struct xz_ui_widget *a,int selec
  if(selected)xz_text(own,a->x+10,a->y+24,"SELECTED",1,12,sample->accent);
 }
 static int is_toggle(enum xz_ui_action_kind k){
- return k==XZ_UI_ENABLE||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||
+ return k==XZ_UI_ENABLE||k==XZ_UI_DECK_VIEW_BUTTON||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||
   k==XZ_UI_SHIFT_KEYSYNC||k==XZ_UI_TAKEOVER_TOGGLE||k==XZ_UI_KEY_FEEDBACK||k==XZ_UI_RAM_DEBUG||k==XZ_UI_REKORDBOX_KEY||
   k==XZ_UI_CONNECTION_ENABLE||k==XZ_UI_DISCOVERY||k==XZ_UI_HOLD||k==XZ_UI_OVERDUB||k==XZ_UI_METRICS_TOGGLE;
 }
@@ -28,11 +28,12 @@ static int is_toggle(enum xz_ui_action_kind k){
 static int is_choice(enum xz_ui_action_kind k){
  return k==XZ_UI_STEM_PAGE||k==XZ_UI_WAVE_MODE||k==XZ_UI_KEY_FORMAT||k==XZ_UI_TAKEOVER_ASSIGN||k==XZ_UI_CONTROL_SECTION||
   k==XZ_UI_JUMP_EDIT_PAGE||k==XZ_UI_RAM_DECK||k==XZ_UI_SDK_STEP||k==XZ_UI_SDK_CHOICE||k==XZ_UI_WAD_SELECT||
-  k==XZ_UI_SET_INTERFACE||k==XZ_UI_SET_MODERN_THEME||k==XZ_UI_REKORDBOX_ASSIGN;
+  k==XZ_UI_SET_INTERFACE||k==XZ_UI_SET_MODERN_THEME||k==XZ_UI_REKORDBOX_ASSIGN||k==XZ_UI_DECK_VIEW||k==XZ_UI_STEM_BANK||k==XZ_UI_JUMP_ENABLE;
 }
 /* The one thing to do next on a setup or launch page. */
 static int is_primary(enum xz_ui_action_kind k,int index){
  if(k==XZ_UI_PC_CONFIRM)return index==1;
+ if(k==XZ_UI_HOME_SETUP||k==XZ_UI_ROUTE_RESCAN)return 1;
  return k==XZ_UI_DOOM_START||k==XZ_UI_UPDATE_CHECK||k==XZ_UI_RAM_REQUEST||k==XZ_UI_PC_CHECK||k==XZ_UI_PC_TEST||
   k==XZ_UI_KEY_CHECK||k==XZ_UI_LOCAL_STEM_SETUP_STEP||k==XZ_UI_METRICS_CHECK||k==XZ_UI_MYHOUSE_CHECK||k==XZ_UI_DOOM_CHECK||k==XZ_UI_FEATURE_SETUP_OPEN||k==XZ_UI_FEATURE_SETUP_STEP||k==XZ_UI_LOCAL_STEM_SETUP_OPEN;
 }
@@ -46,6 +47,10 @@ static const char *tagline(const struct xz_ui_widget *a){
   case XZ_UI_UPDATES:return "SIGNED UPDATES, ACTIVE NEXT BOOT";
   case XZ_UI_DOOM_FILES:return "BASE GAME + ADD-ON";
   case XZ_UI_MYHOUSE_SETUP:return "NEEDS THE NATIVE GZDOOM PORT";
+  case XZ_UI_PROFILE_SETUP:return "YOUR NAME AND LOGO FOR VJ SCREENS";
+  case XZ_UI_NETWORK:return "ADAPTER, ADDRESS, APPLY FOR THIS BOOT";
+  case XZ_UI_SUPPORT:return "PREPARE, CHECK AND SEND A REPORT";
+  case XZ_UI_ABOUT:return "CREDITS, LINKS AND SUPPORT";
   default:return NULL;}
  case XZ_UI_GAME_SELECT:return a->index?"ORIGINAL GAME + PATCH":"DOOM AND DOOM II DATA";
  case XZ_UI_ARCADE_OPEN:return "BEAT-SYNCED, JOG WHEEL";
@@ -65,23 +70,8 @@ static void fit_text(struct xz_canvas c,int x,int y,int w,const char *s,uint32_t
  if(w>=96&&xz_text_width(c,s,2,100)<=w){xz_text(c,x,y,s,2,100,color);return;}
  xz_text(c,x,y+3,s,1,w/6,color);
 }
-static const char *section_title(enum xz_ui_page page){
- switch(page){
- case XZ_UI_GENERAL:return "GENERAL";case XZ_UI_FEATURE_SETUP:return "FEATURE SETUP";
- case XZ_UI_CONTROLS:case XZ_UI_BEAT_JUMP:case XZ_UI_PC_STEMS:case XZ_UI_BUTTONS:return "CONTROLS";
- case XZ_UI_THEMES:return "APPEARANCE";case XZ_UI_STEM_COLORS:return "STEM COLORS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";
- case XZ_UI_SETTINGS:return "ADVANCED";case XZ_UI_EXTRAS:return "EXTRAS";
- case XZ_UI_STEMS:return "GROOVE PADS";case XZ_UI_XPAD:return "X-PAD";
- case XZ_UI_KEY_SETUP:return "KEY SETUP";case XZ_UI_BROWSE_SETUP:return "KEY FORMAT";
- case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_CONNECTION:return "VJ.TOOLS";
- case XZ_UI_GAMES:case XZ_UI_DOOM:case XZ_UI_DOOM_FILES:case XZ_UI_DOOM_SETUP:case XZ_UI_MYHOUSE_SETUP:return "GAMES";
- case XZ_UI_UPDATES:case XZ_UI_UPDATE_SETUP:return "UPDATES";
- case XZ_UI_APPS:case XZ_UI_APPS_SETUP:return "APPS";
- case XZ_UI_LOCAL_STEM_SETUP:return "STANDALONE STEMS";
- case XZ_UI_METRICS_SETUP:return "METRICS SETUP";
- case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";
- default:return "MODS";}
-}
+/* The header names the open page, as the MODERN path line does. */
+static const char *section_title(enum xz_ui_page page){return xz_ui_page_title((int)page);}
 static void render(const struct xz_ui_scene *s){
  struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;
  const struct xz_ui_deck *d=s->d;const struct xz_theme_palette *p=s->p;char buf[96];size_t i;
@@ -108,12 +98,12 @@ static void render(const struct xz_ui_scene *s){
    /* Section rail: icon over label, accent bar on the open section. */
    if(!modern)xz_frame(c,theme,a,panel,selected);
    else if(selected){
-    xz_round_rect(c,a.x+6,a.y,a.w-12,a.h,10,15,xz_blend(p->bg,p->accent,48));
-    xz_round_rect(c,a.x,a.y+16,4,a.h-32,2,15,p->accent);
+    xz_round_rect(c,a.x,a.y,a.w,a.h,10,15,xz_blend(p->bg,p->accent,48));
+    xz_round_rect(c,0,a.y+9,4,a.h-18,2,15,p->accent);
    }
    uint32_t tone=selected?(modern?p->accent:ink):dim;
-   xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+a.w/2,a.y+25,tone);
-   int tw=xz_text_width(c,a.label,1,14);xz_text(c,a.x+(a.w-tw)/2,a.y+a.h-17,a.label,1,14,selected?ink:dim);
+   xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+a.w/2,a.y+15,tone);
+   int tw=xz_text_width(c,a.label,1,14);xz_text(c,a.x+(a.w-tw)/2,a.y+29,a.label,1,14,selected?ink:dim);
    continue;
   }
   if(a.kind==XZ_UI_BACK||a.kind==XZ_UI_CLOSE){

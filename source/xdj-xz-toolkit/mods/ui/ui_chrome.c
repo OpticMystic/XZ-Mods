@@ -22,6 +22,47 @@ static void outline(struct xz_canvas c,int x,int y,int w,int h,int r,uint32_t co
 /* 24 px line icons centred on (cx,cy), drawn from primitives so every theme can tint them. */
 void xz_ui_chrome_icon(struct xz_canvas c,enum xz_ui_page page,int cx,int cy,uint32_t color){
  switch(page){
+ case XZ_UI_HOME:
+  /* A house: roof, walls, door. */
+  for(int r=0;r<9;r++)xz_rect(c,cx-r,cy-8+r,2*r+1,1,color);
+  xz_rect(c,cx-6,cy+1,12,8,color);xz_rect(c,cx-2,cy+4,4,5,0);
+  break;
+ case XZ_UI_PLAY:case XZ_UI_BEAT_JUMP:
+  /* The pad grid, two rows of four. */
+  for(int k=0;k<8;k++)xz_rect(c,cx-10+(k%4)*6,cy-5+(k/4)*6,4,4,color);
+  break;
+ case XZ_UI_STEM_SECTION:case XZ_UI_STEM_PADS:
+  /* Three stem bars. */
+  {static const int h[3]={10,16,12};for(int k=0;k<3;k++)xz_rect(c,cx-8+k*6,cy+7-h[k],4,h[k],color);}
+  break;
+ case XZ_UI_SCREEN:
+  xz_border(c,cx-10,cy-7,20,13,color);xz_border(c,cx-9,cy-6,18,11,color);xz_rect(c,cx-4,cy+7,8,2,color);
+  break;
+ case XZ_UI_FOUR_DECKS:
+  /* Four lanes, the lower two dimmer. */
+  for(int k=0;k<4;k++)xz_rect(c,cx-9,cy-7+k*4,18,2,k<2?color:xz_blend(0,color,110));
+  break;
+ case XZ_UI_CONNECT:
+  xz_ring(c,cx-4,cy,5,2,color);xz_ring(c,cx+4,cy,5,2,color);
+  break;
+ case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:
+  /* Head and shoulders. */
+  xz_disc(c,cx,cy-5,5,color);
+  {struct xz_canvas q=xz_sub(c,cx-10,cy+2,21,9);xz_disc(q,10,10,10,color);}
+  break;
+ case XZ_UI_NETWORK:case XZ_UI_NETWORK_SETUP:case XZ_UI_NETWORK_EDIT:
+  /* Three linked nodes. */
+  line(c,cx-8,cy+6,cx,cy-6,24,color);line(c,cx,cy-6,cx+8,cy+6,24,color);line(c,cx-8,cy+6,cx+8,cy+6,24,color);
+  xz_disc(c,cx,cy-6,3,color);xz_disc(c,cx-8,cy+6,3,color);xz_disc(c,cx+8,cy+6,3,color);
+  break;
+ case XZ_UI_SUPPORT:
+  /* A report: a page with lines. */
+  xz_border(c,cx-8,cy-10,16,20,color);xz_border(c,cx-7,cy-9,14,18,color);
+  for(int k=0;k<3;k++)xz_rect(c,cx-4,cy-5+k*5,8,2,color);
+  break;
+ case XZ_UI_ABOUT:
+  xz_ring(c,cx,cy,10,2,color);xz_rect(c,cx-1,cy-6,3,3,color);xz_rect(c,cx-1,cy-1,3,8,color);
+  break;
  case XZ_UI_CONTROLS:case XZ_UI_STEMS:case XZ_UI_XPAD:
   /* Performance pads: two rows of four, split into pairs like the hardware. */
   for(int k=0;k<8;k++){int x=cx-13+(k%4)*6+((k%4)/2)*2,y=cy-6+(k/4)*7;xz_round_rect(c,x,y,5,5,1,15,color);}
@@ -80,6 +121,15 @@ void xz_ui_chrome_switch(struct xz_canvas c,int x,int y,int on,int available,uin
  xz_round_rect(c,x,y,36,20,10,15,fill);
  xz_disc(c,on?x+26:x+10,y+10,7,available?knob:xz_blend(track,knob,120));
 }
+/* The 4 DECKS rail cell's amber dot: a four-deck view is chosen and decks 3 and 4 are not connected. */
+int xz_ui_four_decks_attention(const struct xz_ui_model *m){
+ return m&&m->deck_view!=0&&m->route.state!=XZ_UI_ROUTE_READY&&m->route.state!=XZ_UI_ROUTE_NO_ENGINE;
+}
+void xz_ui_chrome_rail_marks(const struct xz_ui_scene *s){
+ if(!xz_ui_four_decks_attention(s->m))return;
+ for(size_t i=0;i<s->n;i++)if(s->w[i].kind==XZ_UI_PANEL&&s->w[i].index==XZ_UI_FOUR_DECKS&&s->w[i].x<XZ_UI_RAIL_W)
+  xz_disc(s->c,s->w[i].x+s->w[i].w-18,s->w[i].y+9,3,0xffa82e);
+}
 void xz_ui_chrome_focus(const struct xz_ui_scene *s,uint32_t color){
  struct xz_ui_widget a;
  if(!xz_ui_focused(s->u,s->m,&a))return;
@@ -131,13 +181,32 @@ void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint
   xz_round_rect(c,chip_x,y+9,chip_w,16,8,15,xz_blend(bg,tone,70));
   xz_text(c,chip_x+8,y+13,info.state,1,20,tone==dim?ink:tone);
  }
- wrap(c,16,y+34,532,2,14,info.body,dim);
- /* Right: save state or the latest notice, then the hardware keys. */
+ /* The last result (a notice) takes the explanation's second line; the save state stays on the right. */
+ int noticed=u->notice[0]&&xz_ui_section_page_notice(u);
+ wrap(c,16,y+34,532,noticed?1:2,14,info.body,dim);
+ if(noticed)wrap(c,16,y+48,532,1,14,u->notice,alarm);
+ /* Right: which decks it works on (or the save state), why a deck is left out, then the hardware keys.
+    A fresh save result takes the first two lines. */
  xz_rect(c,560,y+10,1,48,xz_blend(bg,ink,40));
  const char *status=xz_ui_footer_text(u,m);
- wrap(c,574,y+8,218,2,13,status,u->notice[0]?alarm:dim);
+ int news=m->settings_flash||(m->dj&&m->dj->flash&&m->dj->status)||(u->notice[0]&&!noticed);
+ int ky=y+40;
+ if(info.feature&&!news){
+  /* Chips, the save state, then the amber reason a deck is left out: DESIGN 3.2 and 3.4. */
+  int x=574;
+  x+=xz_text_width(c,"WORKS ON",1,20)+8;xz_text(c,574,y+9,"WORKS ON",1,20,dim);
+  static const int order[4]={2,0,1,3};
+  for(int k=0;k<4;k++){
+   int d=order[k];char num[2]={(char)('1'+d),0};int lit=(info.works_on>>d)&1;
+   if(lit){xz_rect(c,x,y+6,16,16,ink);xz_text(c,x+(16-xz_text_width(c,num,1,2))/2,y+9,num,1,2,bg);}
+   else{xz_border(c,x,y+6,16,16,xz_blend(bg,ink,70));xz_text(c,x+(16-xz_text_width(c,num,1,2))/2,y+9,num,1,2,xz_blend(bg,ink,90));}
+   x+=19;
+  }
+  wrap(c,574,y+26,218,1,13,status,dim);
+  if(info.excluded){wrap(c,574,y+39,218,1,13,info.excluded,0xffa82e);ky=y+51;}
+ }else wrap(c,574,y+8,218,2,13,status,u->notice[0]?alarm:dim);
  static const char *keys[3][2]={{"TURN","MOVE"},{"PUSH","SELECT"},{"BACK","UP"}};
- int x=574,ky=y+40;
+ int x=574;
  for(int k=0;k<3;k++){
   const char *cap=k==0&&u->adjusting?"TURN":keys[k][0],*word=k==0&&u->adjusting?"EDIT":keys[k][1];
   int cw=xz_text_width(c,cap,1,8)+10;

@@ -26,7 +26,7 @@ static void render(const char *path){
  if(path){FILE *f=fopen(path,"wb");assert(f);fprintf(f,"P6\n800 480\n255\n");for(int i=0;i<800*480;i++){unsigned p=frame[i];unsigned char c[3]={(unsigned char)(((p>>11)&31)*255/31),(unsigned char)(((p>>5)&63)*255/63),(unsigned char)((p&31)*255/31)};fwrite(c,1,3,f);}fclose(f);}
 }
 int main(int argc,char **argv){
- (void)fxs_item;fx_track_build(&track,7);fx_model_full(&sm,&track);mfx_model(&um);xz_ui_init(&ui);xz_ui_menu_open(&ui,XZ_UI_GENERAL);publish();sm.menu=&menu;sm.mods=&mfx_mods;sm.settings_screen=fxs_reset();xz_shell_init(&shell);xz_shell_mods_show(&shell,&sm,mfx_tab_of(XZ_UI_GENERAL));
+ (void)fxs_item;fx_track_build(&track,7);fx_model_full(&sm,&track);mfx_model(&um);xz_ui_init(&ui);xz_ui_menu_open(&ui,XZ_UI_PLAY);publish();sm.menu=&menu;sm.mods=&mfx_mods;sm.settings_screen=fxs_reset();xz_shell_init(&shell);xz_shell_mods_show(&shell,&sm,mfx_tab_of(XZ_UI_PLAY));
  assert(menu.profile_present&&menu.profile_count==3&&menu.profile_current==0);
  open_profile();render(argc>1?argv[1]:NULL);
  int depth=shell.depth;int taken=0;sh_settings_back_step(&shell,&sm,out,&taken);assert(taken&&!shell.mods_view.profile_open&&shell.depth==depth);

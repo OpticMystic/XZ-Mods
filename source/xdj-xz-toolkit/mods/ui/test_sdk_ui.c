@@ -82,7 +82,7 @@ static void sane(const struct xz_ui *u,struct xz_ui_model *m){
   assert(!memcmp(&scratch,m,sizeof(*m))); /* touch never edits the snapshot */
  }
 }
-static void render(const struct xz_ui *u,struct xz_ui_model *m){
+static void render(struct xz_ui *u,struct xz_ui_model *m){
  for(int i=0;i<16;i++)frame[800*480+i]=0xdead;
  scratch=*m;
  assert(xz_ui_render(u,m,frame,800*480,800));
@@ -114,9 +114,9 @@ static void extras_tile(void){
  struct xz_ui u;struct xz_ui_model m;setup(&u,&m,EMPTY);
  u.page=XZ_UI_EXTRAS;
  struct xz_ui_widget games=find(&u,&m,XZ_UI_PANEL,XZ_UI_GAMES),apps=find(&u,&m,XZ_UI_PANEL,XZ_UI_APPS);
- /* EXTRAS is a 2x2 grid of equal launch cards; APPLICATIONS sits under VJ.TOOLS, beside UPDATES. */
- assert(!strcmp(apps.label,"APPLICATIONS")&&games.w==apps.w&&games.h==apps.h&&apps.y>=games.y+games.h&&apps.x+apps.w<=games.x);
- assert(lookup(&u,&m,XZ_UI_PANEL,XZ_UI_CONNECTION,NULL)&&lookup(&u,&m,XZ_UI_PANEL,XZ_UI_UPDATES,NULL));
+ /* EXTRAS is a 2x2 grid of equal launch cards: GAMES, USB APPS beside it, then REPORT AN ISSUE and ABOUT. */
+ assert(!strcmp(apps.label,"USB APPS")&&games.w==apps.w&&games.h==apps.h&&apps.y==games.y&&apps.x>=games.x+games.w);
+ assert(lookup(&u,&m,XZ_UI_PANEL,XZ_UI_SUPPORT,NULL)&&lookup(&u,&m,XZ_UI_PANEL,XZ_UI_ABOUT,NULL));
  assert(tap(&u,&m,XZ_UI_PANEL,XZ_UI_APPS).value==XZ_UI_APPS&&u.page==XZ_UI_APPS);
  u.page=XZ_UI_EXTRAS;assert(tap(&u,&m,XZ_UI_PANEL,XZ_UI_GAMES).value==XZ_UI_GAMES&&u.page==XZ_UI_GAMES);
 }

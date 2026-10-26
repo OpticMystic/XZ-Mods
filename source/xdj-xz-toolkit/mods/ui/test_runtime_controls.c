@@ -96,7 +96,8 @@ static void ram_tap(enum xz_ui_action_kind kind,int index){
     struct xz_ui_widget w[XZ_UI_WIDGETS];struct xz_ui_action a[XZ_UI_ACTIONS];size_t n=xz_ui_layout(&ui,&model,w);
     xz_ui_cancel(&ui,a);
     for(size_t i=0;i<n;i++)if(w[i].kind==kind&&w[i].index==index){
-        assert(xz_ui_touch(&ui,&model,w[i].x+w[i].w/2,w[i].y+w[i].h/2,1,a)==1&&a[0].kind==kind);
+        /* a link answers with the page change it makes */
+        assert(xz_ui_touch(&ui,&model,w[i].x+w[i].w/2,w[i].y+w[i].h/2,1,a)==1&&a[0].kind==(kind==XZ_UI_FEATURE_LINK?XZ_UI_PANEL:kind));
         apply(NULL,a,1);xz_ui_touch(&ui,&model,0,0,0,a);return;
     }
     assert(!"missing RAM widget");
@@ -106,7 +107,7 @@ static void ram_tracks(void){
     const char *saved=model.settings_status;int pending=settings_pending;
     memset(fixture_ram,0,sizeof(fixture_ram));refresh();
     assert(model.deck[0].ram.state==XZ_UI_RAM_UNAVAILABLE&&model.deck[1].ram.state==XZ_UI_RAM_UNAVAILABLE);
-    ui.page=XZ_UI_SETTINGS;ram_tap(XZ_UI_PANEL,XZ_UI_RAM_SETUP);assert(ui.page==XZ_UI_RAM_SETUP);
+    ui.page=XZ_UI_PLAY;ram_tap(XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP);assert(ui.page==XZ_UI_RAM_SETUP);
     ram_tap(XZ_UI_RAM_DECK,1);assert(ui.deck==1&&inline_ui.deck==1);
     fixture_ram_rc=-1;ram_tap(XZ_UI_RAM_REQUEST,0);
     assert(fixture_ram_calls[0]==1&&strstr(ui.notice,"RAM ENGINE NOT IN THIS LOADER"));
@@ -128,7 +129,7 @@ static void ram_tracks(void){
     memset(fixture_ram[0].message,'W',sizeof(fixture_ram[0].message));fixture_ram[0].state=99;refresh();
     assert(strlen(model.deck[0].ram.message)==sizeof(model.deck[0].ram.message)-1&&model.deck[0].ram.state==XZ_UI_RAM_UNAVAILABLE);
     assert(model.settings_status==saved&&settings_pending==pending);
-    memset(fixture_ram,0,sizeof(fixture_ram));refresh();ui.page=XZ_UI_CONTROLS;ui.notice[0]=0;
+    memset(fixture_ram,0,sizeof(fixture_ram));refresh();ui.page=XZ_UI_STEM_PADS;ui.notice[0]=0;
 }
 static void stock(void *self,const struct xz_touch_status *s,const void *mode){(void)mode;stock_calls++;last_stock=*s;memcpy((char*)self+4,s,sizeof(*s));}
 static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_status s={(uint8_t)down,{0},x,y};touch_hook(self,&s,NULL);}
@@ -308,7 +309,7 @@ int main(void){
         assert(xz_ui_runtime_pad_color(deck,bank*4+1,&rgb,&lit)&&!lit);
         xz_ui_runtime_pad_native_page(deck,(page+1)%4);assert(!xz_ui_runtime_pad_color(deck,bank*4,&rgb,&lit));
     }
-    /* Drive the actual picker and runtime apply path for every assignment. */
+    /* Drive the actual size chips and runtime apply path for every assignment. */
     ui.page=XZ_UI_BEAT_JUMP;model.jump=xz_jump_defaults();settings_readonly=1;
     for(int theme=0;theme<XZ_THEME_COUNT;theme++)for(int page=0;page<2;page++)for(int pair=0;pair<4;pair++){
         model.theme=theme;ui.jump_edit_page=page;ui.jump_edit_pair=pair;
@@ -318,7 +319,7 @@ int main(void){
             struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&ui,&model,widgets);
             model.jump.sizes[page*4+pair]=ordered[step?step-1:0];
             struct xz_jump_settings prior=model.jump;int found=0;
-            for(size_t i=0;i<n;i++)if(widgets[i].kind==XZ_UI_JUMP_STEP&&widgets[i].index==(size?1:-1)){
+            for(size_t i=0;i<n;i++)if(widgets[i].kind==XZ_UI_JUMP_SIZE&&widgets[i].index==size){
                 struct xz_ui_action actions[XZ_UI_ACTIONS];
                 assert(xz_ui_touch(&ui,&model,widgets[i].x+10,widgets[i].y+10,1,actions)==1);
                 apply(NULL,actions,1);xz_ui_touch(&ui,&model,0,0,0,actions);found=1;
@@ -329,7 +330,7 @@ int main(void){
     }
     /* Encoder: pushing a pair starts a size edit; turning steps it; a closed menu forwards. */
     touch.visible=1;ui.jump_edit_page=1;ui.jump_edit_pair=0;model.jump.sizes[7]=4;
-    ui.focus_kind=XZ_UI_JUMP_PAIR;ui.focus_index=7;ui.focus_deck=-1;ui.adjusting=0;
+    ui.focus_kind=XZ_UI_JUMP_PAIR;ui.focus_index=6;ui.focus_deck=-1;ui.adjusting=0;   /* pads G / H */
     /* Only the press phase acts: a release, a hold or a later pass of the same click is swallowed and
        leaves focus alone (one click once activated the control twice). */
     {uint32_t release[4]={0,0,2,0},hold[4]={0,0,3,0},press[4]={1,0,2,0};
@@ -395,17 +396,18 @@ int main(void){
     assert(!model.fb_takeover&&stock_calls==passed+2);
     native_play=1;contact(self,40,10,1);contact(self,40,10,0);assert(model.fb_takeover);
     native_play=0;contact(self,40,10,1);contact(self,40,10,0);assert(!model.fb_takeover);
-    /* Each settings pad chooses a bank without muting audio or editing jumps. */
+    /* STEM PADS: STEMS ON PADS A-D / PADS E-H chooses a bank without muting audio or editing jumps. */
     for(int theme=0;theme<XZ_THEME_COUNT;theme++){
-        ui.page=XZ_UI_CONTROLS;model.theme=theme;
-        for(int pad=0;pad<8;pad++){
+        ui.page=XZ_UI_STEM_PADS;model.theme=theme;
+        for(int pass=0;pass<4;pass++){
+            int bank=pass&1;
             struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&ui,&model,widgets);int found=0;
             unsigned muted=model.deck[0].muted;struct xz_jump_settings jump=model.jump;
-            for(size_t i=0;i<n;i++)if(widgets[i].kind==XZ_UI_STEM_PAD_CONFIG&&widgets[i].index==pad){
+            for(size_t i=0;i<n;i++)if(widgets[i].kind==XZ_UI_STEM_BANK&&widgets[i].index==bank){
                 struct xz_ui_action action[XZ_UI_ACTIONS];assert(xz_ui_touch(&ui,&model,widgets[i].x+20,widgets[i].y+20,1,action)==1);
                 apply(NULL,action,1);xz_ui_touch(&ui,&model,0,0,0,action);found=1;
             }
-            assert(found&&model.stem_bank==pad/4&&pads.bank==pad/4&&model.deck[0].muted==muted&&!memcmp(&jump,&model.jump,sizeof(jump)));
+            assert(found&&model.stem_bank==bank&&pads.bank==bank&&model.deck[0].muted==muted&&!memcmp(&jump,&model.jump,sizeof(jump)));
         }
     }
     /* A different four-stem track starts neutral; count-only publication is tested separately. */
