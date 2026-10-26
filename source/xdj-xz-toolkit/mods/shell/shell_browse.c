@@ -657,7 +657,7 @@ static void render_row(const struct xz_shell *u, const struct xz_shell_model *m,
     char key[8];uint32_t ink=sh_key_ink(m,r->key,r->key_matches_master,SH_WHITE);
     /* On the blue cursor row the light moves into a bar beside the key, where it still reads. */
     if(selected&&ink!=SH_WHITE){xz_rect(c,x-6,y+10,3,ROW_H-20,ink);ink=SH_WHITE;}
-    sh_text_fit(c,x,ty,room,sh_key_text(r->key,sh_key_display(u),key,sizeof key),SH_TEXT,ink);
+    sh_text_fit(c,x,ty,room,sh_key_text(r->key,sh_key_display(u,m),key,sizeof key),SH_TEXT,ink);
    }
    break;
   case XZ_SHELL_COL_ALBUM:
@@ -717,7 +717,7 @@ static void render_info_pane(const struct xz_shell *u, const struct xz_shell_mod
   text[0]=0;
   switch(i){
   case 0:known=rknown(r,XZ_SHELL_RF_BPM)&&r->bpm_x100>0;if(known)snprintf(text,sizeof text,"%d.%02d",(int)(sh_min(r->bpm_x100,99999)/100),(int)(sh_min(r->bpm_x100,99999)%100));break;
-  case 1:known=rknown(r,XZ_SHELL_RF_KEY)&&r->key;if(known){char key[8];snprintf(text,sizeof text,"%.20s",sh_key_text(r->key,sh_key_display(u),key,sizeof key));ink=sh_key_ink(m,r->key,r->key_matches_master,SH_WHITE);}break;
+  case 1:known=rknown(r,XZ_SHELL_RF_KEY)&&r->key;if(known){char key[8];snprintf(text,sizeof text,"%.20s",sh_key_text(r->key,sh_key_display(u,m),key,sizeof key));ink=sh_key_ink(m,r->key,r->key_matches_master,SH_WHITE);}break;
   case 2:known=rknown(r,XZ_SHELL_RF_DURATION)&&r->duration_ms>=0;if(known)snprintf(text,sizeof text,"%d:%02d",(int)sh_min(r->duration_ms/60000,999),(int)(r->duration_ms/1000%60));break;
   case 3:
    known=rknown(r,XZ_SHELL_RF_RATING);
@@ -1040,7 +1040,7 @@ static int filter_items(const struct xz_shell *u, const struct xz_shell_model *m
  n=add(out,n,PK_F_KEY,0,"MATCH MASTER KEY");
  out[n-1].on=f->key_compatible;
  const char *master=xz_shell_master_key(m);
- if(master){char key[8];snprintf(out[n-1].text,sizeof out[n-1].text,"%s",sh_key_text(master,sh_key_display(u),key,sizeof key));}
+ if(master){char key[8];snprintf(out[n-1].text,sizeof out[n-1].text,"%s",sh_key_text(master,sh_key_display(u,m),key,sizeof key));}
  n=add(out,n,PK_HEAD,0,"RATING");
  n=add(out,n,PK_F_RATING,0,"AT LEAST");
  stars_text(out[n-1].text,sizeof out[n-1].text,f->rating_min);
@@ -1644,7 +1644,7 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
    sh_text(c,px,y+23,text,SH_SMALL,SH_WHITE);
   }else sh_text(c,px,y+23,"--.--%",SH_SMALL,SH_DIM);
   char key[8];
-  if(loaded&&sh_has(d,XZ_SHELL_F_KEY)&&d->key)sh_text_fit(c,px,y+37,44,sh_key_text(d->key,sh_key_display(u),key,sizeof key),SH_TEXT,
+  if(loaded&&sh_has(d,XZ_SHELL_F_KEY)&&d->key)sh_text_fit(c,px,y+37,44,sh_key_text(d->key,sh_key_display(u,m),key,sizeof key),SH_TEXT,
    sh_has(d,XZ_SHELL_F_MASTER)&&d->master?SH_WHITE:sh_key_ink(m,d->key,d->key_matches_master,SH_WHITE));
   else sh_text(c,px,y+37,"--",SH_TEXT,SH_DIM);
   /* BPM box */

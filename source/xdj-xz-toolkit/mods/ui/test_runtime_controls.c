@@ -43,8 +43,9 @@ int xz_native_led_start(void){return 0;}
 void xz_native_led_stop(void){}
 void xz_log(const char *s){(void)s;}
 unsigned xz_runtime_cue_flags(void){return 0;}
-static int jump_calls,jump_deck,jump_beats;
-int xz_runtime_beat_jump(int deck,int beats){jump_calls++;jump_deck=deck;jump_beats=beats;return 1;}
+static uint64_t fixture_retained_stems;
+static int jump_calls,jump_deck,jump_beats,jump_accept=1;
+int xz_runtime_beat_jump(int deck,int beats){jump_calls++;jump_deck=deck;jump_beats=beats;return jump_accept;}
 int xz_runtime_set_cues(int a,int b){(void)a;(void)b;return 0;}
 int xz_key_get_desired_semitones(int d,int *out){(void)d;*out=0;return 0;}
 int xz_key_set_desired_semitones(int d,int n){(void)d;(void)n;return 0;}
@@ -81,7 +82,7 @@ void xz_audio_set_levels4(int deck,const float value[4]){
 int xz_audio_set_levels4_for_generation(int deck,uint32_t generation,const float value[4]){
     if(generation!=fixture_generation)return -1;xz_audio_set_levels4(deck,value);return 0;
 }
-int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));if(fixture_loaded&(1<<deck))snprintf(out->path,sizeof(out->path),"/media/usb2/test-track.mp3");out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
+int xz_audio_get_status(int deck,struct xz_audio_status *out){assert(deck>=0&&deck<2);fixture_audio_status_calls[deck]++;memset(out,0,sizeof(*out));if(fixture_loaded&(1<<deck))snprintf(out->path,sizeof(out->path),"/media/usb2/test-track.mp3");out->retained_stems_bytes=fixture_retained_stems;out->generation=fixture_generation;out->prepared=fixture_prepared;out->stem_count=fixture_stem_count[deck];out->state=fixture_prepared?XZ_AUDIO_EXPERIMENTAL_READY:XZ_AUDIO_CACHE_MISSING;return 0;}
 const char *xz_audio_state_name(enum xz_audio_state state){(void)state;return "ready";}
 int xz_audio_waveform(int deck,unsigned role,unsigned char *bins,size_t count,float *progress){
     (void)role;if(deck<0||deck>1)return 0;
@@ -122,7 +123,10 @@ static void ram_tracks(void){
     fixture_ram[1].state=XZ_RAM_DETACHED;
     struct xz_ui_action release={.kind=XZ_UI_RAM_RELEASE,.deck=1};apply(NULL,&release,1);
     assert(!fixture_ram_calls[2]&&strstr(ui.notice,"RELEASE NEEDS THE USB SOURCE"));
-    fixture_ram[1].state=XZ_RAM_READY;refresh();ram_tap(XZ_UI_RAM_RELEASE,0);
+    fixture_retained_stems=4096;fixture_ram[1].state=XZ_RAM_READY;refresh();
+    assert(model.deck[1].ram.retained_stems_bytes==4096&&strstr(model.deck[1].ram.message,"PREPARED STEMS IN RAM"));
+    fixture_retained_stems=0;refresh();assert(!model.deck[1].ram.retained_stems_bytes);
+    ram_tap(XZ_UI_RAM_RELEASE,0);
     assert(fixture_ram_calls[2]==1&&model.deck[1].ram.state==XZ_UI_RAM_READY&&!strcmp(ui.notice,"DECK 2: RAM RELEASE REQUESTED"));
     fixture_ram[1].state=XZ_RAM_EMPTY;refresh();assert(model.deck[1].ram.state==XZ_UI_RAM_EMPTY);
     release.deck=2;apply(NULL,&release,1);assert(fixture_ram_calls[2]==1);
@@ -383,6 +387,15 @@ int main(void){
     model.jump.enabled=1;je.operation=0;
     assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==2&&jump_beats==-1);
     je.operation=2;assert(xz_ui_runtime_pad(&je,&jf));
+    /* Refusal is visible with MODS closed, and shell delivery cannot hold ui_mutex. */
+    jump_accept=0;int calls_before=jump_calls;touch.visible=0;
+    je.pad=1;je.operation=0;assert(xz_ui_runtime_pad(&je,&jf));
+    assert(jump_calls==calls_before+1&&strstr(async_notice.text,"JUMP UNAVAILABLE"));
+    assert(!strcmp(async_notice.text,fake_notice));
+    assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==calls_before+1);
+    je.operation=2;assert(xz_ui_runtime_pad(&je,&jf));jump_accept=1;
+    struct xz_jump_snapshot jump_view;assert(xz_ui_runtime_jump_snapshot(0,&jump_view)&&jump_view.page==0&&jump_view.signed_beats[1]==1);
+    assert(!xz_ui_runtime_jump_snapshot(4,&jump_view));
     model.jump.enabled=1;model.jump.shift_page=1;jump_state.page[0]=1;jump_state.page[1]=0;
     deck_page[0]=deck_page[1]=3;
     for(int pad=0;pad<8;pad++){
@@ -448,5 +461,11 @@ int main(void){
     stem_layout_runtime_check();
     usb_stem_reason_runtime_check();
     rekordbox_runtime_check();
+    /* Frame publication carries MODS order and reports the original key when feedback is OFF. */
+    model.stem_order=5;model.key_feedback=0;model.key_format=1;key_valid[0]=1;
+    key_snapshot[0]=(struct xz_key_snapshot){.loaded=1,.original={9,1},.format=XZ_KEY_CAMELOT,.tempo_ratio=1.06};
+    struct xz_shell_runtime_frame_input policy;shell_frame_input_locked(&policy);
+    assert(policy.stem_order==5&&policy.key[0].valid&&!strcmp(policy.key[0].text,"Am")&&!policy.key[0].cents);
+    model.key_format=2;shell_frame_input_locked(&policy);assert(!strcmp(policy.key[0].text,"8A"));
     puts("PASS two-deck stem controls, waveform gestures, VJ view, all theme/page/bank LEDs and touch ownership");return 0;
 }

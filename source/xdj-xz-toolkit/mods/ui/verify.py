@@ -36,6 +36,7 @@ with tempfile.TemporaryDirectory(prefix='xz-ui-test-') as folder:
         'four-stems': [*UI_SOURCES, 'stem_pads.c', 'test_four_stems.c'],
         'ui': [*UI_SOURCES, 'test_ui.c'],
         'general-menu': [*UI_SOURCES, 'test_general_menu.c'],
+        'help-parity': [*UI_SOURCES, 'test_help_parity.c'],
         'sdk-ui': [*UI_SOURCES, 'test_sdk_ui.c'],
         'stem-colors': [*UI_SOURCES, 'layered_wave.c', 'test_stem_colors.c'],
         'stem-order': [*UI_SOURCES, 'stem_pads.c', 'wave_viewport.c', 'test_stem_order.c'],

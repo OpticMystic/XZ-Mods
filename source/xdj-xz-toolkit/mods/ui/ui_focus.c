@@ -145,7 +145,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_DOOM_SETUP:return "Check the engine and USB game files step by step.";
  case XZ_UI_MYHOUSE_SETUP:return "Check the native GZDoom engine and My House files.";
  case XZ_UI_APPS_SETUP:return "Walk through detecting, installing and testing an XZ SDK app.";
- case XZ_UI_BEAT_JUMP:return "Custom beat jump sizes for the pads.";
+ case XZ_UI_BEAT_JUMP:return "All four decks: SHIFT + BEAT JUMP selects page 2. Release SHIFT, then press a pad. SHIFT on a pad uses stock on decks 1/2 and does nothing on decks 3/4.";
  case XZ_UI_PC_STEMS:return "Switch rekordbox stems on a computer linked by USB cable.";
  case XZ_UI_PROFILE_SETUP:return "Your profile's name, logo and tagline, and creating or editing a profile on the USB.";
  case XZ_UI_ABOUT:return "Created by VJ OpticMystic. Project links, credits and voluntary support.";
@@ -177,13 +177,14 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_STEM_PAGE:return "Pad mode that holds the stem shortcuts. Shortcuts replace that mode's pads.";
  case XZ_UI_STEM_PAD_CONFIG:return "Push to move stem shortcuts between pads A-D and E-H.";
  case XZ_UI_STEM_BANK:return "Which four pads carry the stem shortcuts.";
- case XZ_UI_PAD_FEEDBACK:return "Pad lights show stem colors and dim muted stems.";
+ case XZ_UI_PAD_FEEDBACK:return "Stem pad lights on decks 1 and 2 show colors and dim muted stems.";
  case XZ_UI_SHIFT_PAGES:return "SHIFT + a pad mode button gives the four stem actions in that order.";
  case XZ_UI_SHIFT_KEYSYNC:return "SHIFT + SYNC matches this deck's key to the master deck.";
  case XZ_UI_KEY_SHIFT:return k<0?"Lowers the deck key one semitone.":k>0?"Raises the deck key one semitone.":"Returns the deck to its original key.";
  case XZ_UI_KEY_SYNC:return "Shifts this deck to a key compatible with the master deck.";
  case XZ_UI_KEY_CHECK:return "Checks that both decks report analyzed keys. SHIFT + SYNC is always available.";
- case XZ_UI_KEY_FEEDBACK:return "Shows the playing key where the countdown sits. Off restores the countdown.";
+ case XZ_UI_KEY_FEEDBACK:return m->ui_interface==XZ_UI_INTERFACE_MODERN?
+  "Shows the effective playing key. Off shows the track's original key.":"Shows the playing key where the countdown sits. Off restores the countdown.";
  case XZ_UI_KEY_FORMAT:return k==0?"Use the format set in the player's own settings.":k==1?"Musical keys such as Am and F#.":"Camelot wheel keys such as 8A and 2B.";
  case XZ_UI_RAM_DEBUG:return "Shows free memory beside the STEMS button.";
  case XZ_UI_REKORDBOX_KEY:return xz_ui_rekordbox_choice_help(m->rekordbox_assign[0]);

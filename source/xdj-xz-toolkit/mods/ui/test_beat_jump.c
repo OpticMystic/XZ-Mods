@@ -39,5 +39,22 @@ int main(void){
  state.page[0]=0;cfg.shift_page=0;cfg.sizes[0]=1;e.operation=0;assert(xz_jump_event(&state,&cfg,&e,&beats)&&beats==-2);
  e.operation=2;xz_jump_event(&state,&cfg,&e,&beats);
  e.deck=2;e.operation=0;assert(!xz_jump_event(&state,&cfg,&e,&beats));
+ /* Four independent logical decks use the same resolver and UI snapshot. */
+ struct xz_jump_deck_state logical[4]={0};cfg=xz_jump_defaults();
+ for(int deck=0;deck<4;deck++){
+  struct xz_jump_input input={.mode_button=3,.pad=-1,.shift=deck%2};
+  struct xz_jump_result result=xz_jump_resolve(&logical[deck],&cfg,&input);
+  assert(result.decision==XZ_JUMP_FORWARD&&result.page==(unsigned)deck%2);
+  input.operation=2;xz_jump_resolve(&logical[deck],&cfg,&input);
+  struct xz_jump_snapshot snapshot=xz_jump_snapshot(&cfg,logical[deck].page);
+  for(int pad=0;pad<8;pad++){
+   input=(struct xz_jump_input){.mode_button=-1,.pad=pad,.pad_page=3};
+   result=xz_jump_resolve(&logical[deck],&cfg,&input);
+   assert(result.decision==XZ_JUMP_COMMAND&&result.signed_beats==snapshot.signed_beats[pad]);
+   input.operation=2;result=xz_jump_resolve(&logical[deck],&cfg,&input);assert(result.decision==XZ_JUMP_OWNED&&!result.signed_beats);
+  }
+ }
+ cfg.enabled=0;cfg.sizes[0]=9;
+ assert(xz_jump_snapshot(&cfg,0).signed_beats[1]==1&&xz_jump_snapshot(&cfg,1).signed_beats[7]==128);
  puts("PASS both pages, decks, all pair sizes/directions, duplicate presses, repeat suppression, shift and release ownership");
 }

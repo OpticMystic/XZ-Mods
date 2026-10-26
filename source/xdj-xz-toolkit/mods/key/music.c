@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "music.h"
+#include "notation.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,10 +36,7 @@ int xz_music_key_parse(const char *text,struct xz_music_key *out){
     *out=k;return 1;
 }
 void xz_music_key_format(struct xz_music_key key,int format,char out[8]){
-    static const char *names[12]={"C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"};
-    if(!valid(key)){snprintf(out,8,"--");return;}
-    if(format==XZ_KEY_CAMELOT)snprintf(out,8,"%d%c",wheel(key)+1,key.minor?'A':'B');
-    else snprintf(out,8,"%s%s",names[key.root],key.minor?"m":"");
+    xz_key_notation_format(key.root,key.minor,format==XZ_KEY_CAMELOT,out);
 }
 int xz_key_playing(const struct xz_key_snapshot *snapshot,int shift_cents,struct xz_playing_key *out){
     if(!snapshot||!out||!snapshot->loaded||!valid(snapshot->original)||

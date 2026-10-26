@@ -152,8 +152,10 @@ enum xz_ui_ram_state { XZ_UI_RAM_UNAVAILABLE, XZ_UI_RAM_EMPTY, XZ_UI_RAM_LOADING
 struct xz_ui_ram {
     enum xz_ui_ram_state state;
     uint32_t copied, bytes;
+    uint64_t retained_stems_bytes; /* live prepared-stem retention, never serialized */
     char message[96];
 };
+const char *xz_ui_ram_scope(const struct xz_ui_ram *);
 struct xz_ui_deck {
     uint32_t ready;
     const char *track, *status;
