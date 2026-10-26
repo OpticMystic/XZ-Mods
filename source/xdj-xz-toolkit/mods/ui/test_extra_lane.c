@@ -242,8 +242,75 @@ static void plate_modes(void){
       "LOOP IN/OUT adjust and stored loop marks, native deck tags");
 }
 
+/* 2 DECKS: a side on DECK 3 or 4 fills that side's half with a whole native lane, without a tag. */
+static void two_deck_halves(void){
+ static uint16_t s[536*268],before[536*268],drawn[536*268];static uint8_t keep[XZ_FOUR_KEEP_BYTES];
+ static struct xz_extra_lane_marks halves[2];
+ struct xz_extra_deck d=deck();
+ for(unsigned i=0;i<3000;i++)columns[i]=(struct xz_extra_column){(uint8_t)(60+i%50),40,(uint8_t)(20+i%9)};
+ /* The full lane: guards, native rows one to one (ticks in rows 4..13 and 118..127, the cue triangle in the bottom
+    six rows, the playhead through all 132), and no tag in the top-left corner. */
+ for(unsigned y=0;y<=136;y+=136){
+  for(unsigned i=0;i<536*268;i++)s[i]=(uint16_t)(0x1111+i%7);
+  assert(xz_extra_lane_draw_full(s,536,536*268,y,3,&d,&view,&halves[0]));
+  for(unsigned i=0;i<536*268;i++)if(i/536<y||i/536>=y+132)assert(s[i]==(uint16_t)(0x1111+i%7));
+  for(unsigned r=0;r<132;r++)assert(s[(y+r)*536+268]==0xf800&&s[(y+r)*536+269]==0xf800);
+  unsigned spacing=(unsigned)(500000/XZ_EXTRA_LANE_COLUMN_US),tx=268+spacing;
+  uint16_t t=s[(y+6)*536+tx]==0xce59||s[(y+6)*536+tx]==0xf800?s[(y+6)*536+tx]:s[(y+6)*536+tx+1];
+  assert(t==0xce59||t==0xf800);
+  unsigned x=s[(y+6)*536+tx]==t?tx:tx+1;
+  for(unsigned r=4;r<=13;r++)assert(s[(y+r)*536+x]==t);
+  for(unsigned r=118;r<=127;r++)assert(s[(y+r)*536+x]==t);
+  assert(s[(y+65)*536+400]==0xffff&&s[(y+20)*536+x]!=t);
+  unsigned cue=268-(unsigned)((1000000+XZ_EXTRA_LANE_COLUMN_US-1)/XZ_EXTRA_LANE_COLUMN_US);
+  assert(s[(y+131)*536+cue]==0xfc60&&s[(y+126)*536+cue]==0xfc60);
+  for(unsigned r=0;r<16;r++)for(unsigned cx=0;cx<60;cx++)assert(s[(y+r)*536+cx]!=0xebf2&&s[(y+r)*536+cx]!=0x9e5f&&s[(y+r)*536+cx]!=0x1926);
+  assert(!xz_extra_lane_draw_full(s,536,536*268,137,3,&d,&view,NULL));
+  assert(!xz_extra_lane_draw_full(s,536,536*267,136,3,&d,&view,NULL));
+ }
+ /* Unloaded: NO TRACK centred in the whole lane. */
+ struct xz_extra_deck empty=deck();empty.loaded=0;
+ memset(s,0,sizeof s);assert(xz_extra_lane_draw_full(s,536,536*268,0,4,&empty,&view,NULL));
+ unsigned ink=0,left=536,right=0;
+ for(unsigned r=0;r<132;r++)for(unsigned x=0;x<536;x++)if(s[r*536+x]){ink++;if(x<left)left=x;if(x>right)right=x;}
+ assert(ink>50&&left>200&&right<336&&left+right>500&&left+right<572);
+ /* The frame: each pair writes exactly its halves; the right half's separator rows go black. */
+ struct xz_extra_decks x;memset(&x,0,sizeof x);x.route_up=1;x.deck[0]=d;x.deck[1]=d;
+ for(unsigned pair=0;pair<4;pair++){
+  for(unsigned i=0;i<536*268;i++)s[i]=before[i]=(uint16_t)(0x2222+i%5);
+  struct xz_two_frame f={&x,pair,500,XZ_EXTRA_LANE_COLUMN_US,1};
+  assert(xz_two_frame_draw(s,536*268,&f,halves)==(pair!=0));
+  for(unsigned i=0;i<536*268;i++){
+   unsigned row=i/536;int side=row>=132;
+   if(!(pair&(1u<<side)))assert(s[i]==before[i]);
+   else if(side&&row<136)assert(s[i]==0);
+  }
+  for(unsigned side=0;side<2;side++)if(!(pair&(1u<<side)))for(unsigned c=0;c<536;c++)assert(!halves[side].col[c].valid);
+ }
+ struct xz_two_frame bad={&x,4,500,XZ_EXTRA_LANE_COLUMN_US,1};
+ assert(!xz_two_frame_draw(s,536*268,&bad,halves));bad.pair=1;bad.decks=NULL;assert(!xz_two_frame_draw(s,536*268,&bad,halves));
+ bad.decks=&x;assert(!xz_two_frame_draw(s,536*268-1,&bad,halves));
+ /* Theme pass over both halves: layer pixels exact, everything else themed. */
+ struct xz_two_frame both={&x,3,500,XZ_EXTRA_LANE_COLUMN_US,1};
+ memset(s,0,sizeof s);assert(xz_two_frame_draw(s,536*268,&both,halves));memcpy(drawn,s,sizeof drawn);
+ xz_two_protect(3,halves,s,keep);for(unsigned i=0;i<536*268;i++)s[i]=(uint16_t)~s[i];xz_two_restore(3,halves,s,keep);
+ unsigned kept[2]={0,0},themed=0;
+ for(unsigned i=0;i<536*268;i++){
+  if(keep[i>>3]&(1u<<(i&7))){assert(s[i]==drawn[i]);kept[i/536>=132]++;}
+  else{assert(s[i]==(uint16_t)~drawn[i]);themed++;}
+ }
+ assert(kept[0]>20000&&kept[1]>20000&&themed>10000);
+ assert(!(keep[(65*536+268)>>3]&(1u<<((65*536+268)&7))));
+ /* A side not in pair keeps nothing, though its marks are still there. */
+ xz_two_protect(1,halves,drawn,keep);
+ for(unsigned i=132*536;i<536*268;i++)assert(!(keep[i>>3]&(1u<<(i&7))));
+ xz_two_protect(3,NULL,drawn,keep);for(unsigned i=0;i<XZ_FOUR_KEEP_BYTES;i++)assert(!keep[i]);
+ xz_two_restore(3,halves,NULL,keep);xz_two_protect(3,halves,drawn,NULL);
+ puts("PASS 2 DECKS halves: whole native lane rows one to one, no tag, NO TRACK centred, exact half writes per pair, black separator, theme keep per side");
+}
 int main(void){
  sync_label_parity();
+ two_deck_halves();
  struct xz_extra_deck d=deck();int32_t pos;
  assert(xz_extra_lane_position_ms(&d,500,&pos)&&pos==10000);
  assert(xz_extra_lane_position_ms(&d,900,&pos)&&pos==10400);

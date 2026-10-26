@@ -40,6 +40,10 @@ int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane
 /* Four-channel layout: waveform and deck tag only; the main readouts live in the bottom mixer panels. */
 int xz_extra_lane_draw_wave(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
  const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
+/* 2 DECKS with a side on this deck: a whole native lane, XZ_WAVE_NATIVE_LANE_HEIGHT rows at lane_y, drawn as the
+   native lane it replaces (no tag: the side column beside it names the deck, as it names DECK 1 and 2). */
+int xz_extra_lane_draw_full(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
 /* A lane's deck number (1..4) in its identity colour box (deck_colour.h), XZ_FOUR_NUMBER_BOX square at x, y:
    the first part of every lane tag, and of the lane numbers beside an open detail panel. */
 #define XZ_FOUR_NUMBER_BOX 13
@@ -82,4 +86,25 @@ struct xz_four_marks { struct xz_layered_data look[XZ_FOUR_DECKS]; const struct 
 #define XZ_FOUR_KEEP_BYTES (XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT/8)
 void xz_four_protect(const struct xz_four_layout *,const struct xz_four_marks *,const uint16_t *pixels,uint8_t *keep);
 void xz_four_restore(const struct xz_four_layout *,const struct xz_four_marks *,uint16_t *pixels,const uint8_t *keep);
+
+/* 2 DECKS shows the two decks the physical sides control (FOUR_DECK.md "2 DECKS follows the sides"). pair says
+   which side controls a software deck now: bit 0 the left side DECK 3, bit 1 the right side DECK 4 (as
+   xz_deck_view_button_draw's pair and the shell's sides_extra). Such a side's half of the stock surface is the
+   software deck's: the left half rows 0..131, the right half rows 132..267 with its lane from row 136, where
+   native DECK 2's lane sits (rows 132..135 are the stock separator, left black). */
+#define XZ_TWO_HALF_Y(side) ((side)?132u:0u)
+#define XZ_TWO_LANE_Y(side) ((side)?136u:0u)
+#define XZ_TWO_HALF_H(side) ((side)?136u:132u)
+struct xz_two_frame {
+ const struct xz_extra_decks *decks;
+ unsigned pair;             /* nonzero: bit 0 left on DECK 3, bit 1 right on DECK 4 */
+ uint32_t now_ms, column_us;
+ unsigned background;       /* the native column background mode */
+};
+/* Draws every half pair names, before the theme (the stock halves of the other sides are left alone).
+   marks: two, by side, cleared first (a side not in pair stays clear), or NULL. */
+int xz_two_frame_draw(uint16_t *pixels,size_t count,const struct xz_two_frame *,struct xz_extra_lane_marks marks[2]);
+/* The theme pass rule (LAYERED_WAVE.md) for the software halves of pair, keep as xz_four_protect's. */
+void xz_two_protect(unsigned pair,const struct xz_extra_lane_marks marks[2],const uint16_t *pixels,uint8_t *keep);
+void xz_two_restore(unsigned pair,const struct xz_extra_lane_marks marks[2],uint16_t *pixels,const uint8_t *keep);
 #endif

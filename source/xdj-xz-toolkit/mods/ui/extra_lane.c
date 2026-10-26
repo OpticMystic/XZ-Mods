@@ -182,24 +182,27 @@ int xz_extra_lane_position_ms(const struct xz_extra_deck *d,uint32_t now_ms,int3
  *out=(int32_t)p;return 1;
 }
 
-static void column_rows(uint16_t *lane,size_t stride,int x,int width,const unsigned *rows,int (*want)(unsigned),uint16_t color){
+/* Lanes are LANE rows in four-deck views and a whole native lane (FULL) in a 2 DECKS half; rows[] maps each
+   row to the native lane row it shows. */
+#define FULL XZ_WAVE_NATIVE_LANE_HEIGHT
+static void column_rows(uint16_t *lane,size_t stride,unsigned height,int x,int width,const unsigned *rows,int (*want)(unsigned),uint16_t color){
  for(int dx=0;dx<width;dx++){
   int cx=x+dx;if(cx<0||cx>=WIDTH)continue;
-  for(unsigned r=0;r<LANE;r++)if(want(rows[r]))lane[r*stride+(unsigned)cx]=color;
+  for(unsigned r=0;r<height;r++)if(want(rows[r]))lane[r*stride+(unsigned)cx]=color;
  }
 }
 static int any_row(unsigned s){(void)s;return 1;}
 static int body_row(unsigned s){return body_d(s)>=0;}
 static int x_of(int64_t ms,int32_t pos,uint32_t column_us){return PLAYHEAD+(int)floor_div((ms-pos)*1000,column_us);}
 
-static void beat_ticks(uint16_t *lane,size_t stride,const unsigned *rows,const struct xz_extra_deck *d,int32_t pos,uint32_t column_us){
+static void beat_ticks(uint16_t *lane,size_t stride,unsigned height,const unsigned *rows,const struct xz_extra_deck *d,int32_t pos,uint32_t column_us){
  if(!(d->known&K(GRID))||!d->grid||!d->grid_count)return;
  int64_t lo=pos+floor_div(-(int64_t)PLAYHEAD*column_us,1000)-1,hi=pos+(int64_t)(WIDTH-PLAYHEAD)*column_us/1000+1;
  uint32_t a=0,b=d->grid_count;
  while(a<b){uint32_t m=a+(b-a)/2;if(d->grid[m].ms<lo)a=m+1;else b=m;}
  for(uint32_t i=a;i<d->grid_count&&d->grid[i].ms<=hi;i++){
   int bar=d->grid[i].beat_in_bar==1;
-  column_rows(lane,stride,x_of(d->grid[i].ms,pos,column_us),bar?2:1,rows,tick_row,bar?BAR_TICK:BEAT_TICK);
+  column_rows(lane,stride,height,x_of(d->grid[i].ms,pos,column_us),bar?2:1,rows,tick_row,bar?BAR_TICK:BEAT_TICK);
  }
 }
 static void cue_marks(struct xz_canvas c,const struct xz_extra_deck *d,int32_t pos,uint32_t column_us){
@@ -213,20 +216,20 @@ static void cue_marks(struct xz_canvas c,const struct xz_extra_deck *d,int32_t p
  }
  if((d->known&K(CUE))&&d->cue_ms>=0){
   int x=x_of(d->cue_ms,pos,column_us);
-  for(int h=0;h<6;h++)xz_rect(c,x-h,LANE-6+h,2*h+1,1,0xff8c00);
+  for(int h=0;h<6;h++)xz_rect(c,x-h,c.height-6+h,2*h+1,1,0xff8c00);
  }
 }
 /* LOOP IN / OUT adjust: the edge the jog now moves is drawn wide and labelled in the bottom band. */
 static void loop_edit_mark(struct xz_canvas c,uint16_t *lane,size_t stride,const unsigned *rows,const struct xz_extra_deck *d,
  int32_t pos,uint32_t column_us){
- int out=d->loop.edit==2;
+ int out=d->loop.edit==2,h=c.height;
  int x=x_of(out?d->loop.out_ms:d->loop.in_ms,pos,column_us)-out;
- column_rows(lane,stride,x-1,3,rows,any_row,0xffe0);
+ column_rows(lane,stride,(unsigned)h,x-1,3,rows,any_row,0xffe0);
  const char *label=out?"OUT ADJUST":"IN ADJUST";
  int w=xz_text_width(c,label,1,12)+6,lx=out?x-2-w:x+3;
  if(lx<PLATE+2)lx=x+3;
  if(lx+w>WIDTH)lx=WIDTH-w;
- xz_rect(c,lx,LANE-12,w,12,0x302a00);xz_text(c,lx+3,LANE-11,label,1,12,0xffe600);
+ xz_rect(c,lx,h-12,w,12,0x302a00);xz_text(c,lx+3,h-11,label,1,12,0xffe600);
 }
 static void darken(uint16_t *lane,size_t stride,unsigned width){
  for(unsigned r=0;r<LANE;r++)for(unsigned x=0;x<width;x++){
@@ -351,13 +354,16 @@ static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_dec
  }
 }
 
-static int draw_lane(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
- const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks,int plate){
+/* What a lane carries besides the waveform: the deck tag (four-deck lanes), the readout plate, or nothing (a
+   2 DECKS half, where the side column beside it names the deck as it names a native one). */
+enum lane_label { LABEL_TAG, LABEL_PLATE, LABEL_NONE };
+static int draw_lane(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned height,unsigned number,
+ const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks,enum lane_label plate){
  if(marks)memset(marks,0,sizeof(*marks));
- if(!pixels||!view||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||lane_y>XZ_WAVE_HEIGHT-LANE||
-    count<stride*(lane_y+LANE)||number<3||number>4)return 0;
+ if(!pixels||!view||(height!=LANE&&height!=FULL)||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||lane_y>XZ_WAVE_HEIGHT-height||
+    count<stride*(lane_y+height)||number<3||number>4)return 0;
  uint16_t *lane=pixels+(size_t)lane_y*stride;
- unsigned rows[LANE];for(unsigned r=0;r<LANE;r++)rows[r]=xz_wave_lane_row(r,LANE);
+ unsigned rows[FULL];for(unsigned r=0;r<height;r++)rows[r]=xz_wave_lane_row(r,height);
  int loaded=d&&d->loaded;
  int32_t pos=0;int placed=loaded&&xz_extra_lane_position_ms(d,view->now_ms,&pos);
  uint32_t column_us=view->column_us?view->column_us:XZ_EXTRA_LANE_COLUMN_US;
@@ -384,7 +390,7 @@ static int draw_lane(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y
   }
   if(looped)tinted[x]=t0>=(int64_t)d->loop.in_ms*1000&&t0<(int64_t)d->loop.out_ms*1000;
  }
- for(unsigned r=0;r<LANE;r++){
+ for(unsigned r=0;r<height;r++){
   uint16_t *row=lane+r*stride;int k=loaded?body_d(rows[r]):-1;
   if(k<0){memset(row,0,WIDTH*sizeof(*row));continue;}
   for(unsigned x=0;x<WIDTH;x++){
@@ -393,33 +399,37 @@ static int draw_lane(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y
   }
  }
  if(marks){marks->look=look;marks->look.bands=NULL;}
- struct xz_canvas c={lane,stride,WIDTH,LANE,0};
+ struct xz_canvas c={lane,stride,WIDTH,(int)height,0};
  if(looped)for(int edge=0;edge<2;edge++)
-  column_rows(lane,stride,x_of(edge?d->loop.out_ms:d->loop.in_ms,pos,column_us)-edge,1,rows,body_row,0xfd20);
+  column_rows(lane,stride,height,x_of(edge?d->loop.out_ms:d->loop.in_ms,pos,column_us)-edge,1,rows,body_row,0xfd20);
  /* A stored loop RELOOP returns to, outside the loop: its ends stay marked, dimmer and untinted. */
  else if(placed&&(d->known&K(LOOP))&&d->loop.stored&&d->loop.out_ms>d->loop.in_ms)for(int edge=0;edge<2;edge++)
-  column_rows(lane,stride,x_of(edge?d->loop.out_ms:d->loop.in_ms,pos,column_us)-edge,1,rows,body_row,0x8c40);
- if(placed){beat_ticks(lane,stride,rows,d,pos,column_us);cue_marks(c,d,pos,column_us);}
+  column_rows(lane,stride,height,x_of(edge?d->loop.out_ms:d->loop.in_ms,pos,column_us)-edge,1,rows,body_row,0x8c40);
+ if(placed){beat_ticks(lane,stride,height,rows,d,pos,column_us);cue_marks(c,d,pos,column_us);}
  if(looped&&(d->loop.edit==1||d->loop.edit==2))loop_edit_mark(c,lane,stride,rows,d,pos,column_us);
- if(loaded)column_rows(lane,stride,PLAYHEAD,2,rows,any_row,(d->known&K(PLAYING))&&d->playing?0xf800:0xffff);
+ if(loaded)column_rows(lane,stride,height,PLAYHEAD,2,rows,any_row,(d->known&K(PLAYING))&&d->playing?0xf800:0xffff);
  else{
   const char *none="NO TRACK";
   int w=xz_text_width(c,none,2,12);
-  xz_text(c,(PLATE+WIDTH-w)/2,(LANE-14)/2,none,2,12,0x9aa2aa);
+  xz_text(c,((plate==LABEL_NONE?0:PLATE)+WIDTH-w)/2,((int)height-14)/2,none,2,12,0x9aa2aa);
  }
- if(plate){
+ if(plate==LABEL_PLATE){
   if(loaded)darken(lane,stride,PLATE);
   readout(c,number,d,loaded,placed,pos,view->lit);
- }else tag(c,number,view->lit,1);
+ }else if(plate==LABEL_TAG)tag(c,number,view->lit,1);
  return 1;
 }
 int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
  const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks){
- return draw_lane(pixels,stride,count,lane_y,number,d,view,marks,1);
+ return draw_lane(pixels,stride,count,lane_y,LANE,number,d,view,marks,LABEL_PLATE);
 }
 int xz_extra_lane_draw_wave(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
  const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks){
- return draw_lane(pixels,stride,count,lane_y,number,d,view,marks,0);
+ return draw_lane(pixels,stride,count,lane_y,LANE,number,d,view,marks,LABEL_TAG);
+}
+int xz_extra_lane_draw_full(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks){
+ return draw_lane(pixels,stride,count,lane_y,FULL,number,d,view,marks,LABEL_NONE);
 }
 
 int xz_four_badge_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,int lit){
@@ -430,16 +440,18 @@ int xz_four_badge_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane
  return 1;
 }
 
-/* Visits every body pixel a deck's column drew in a layer colour, with that colour. */
-static void each_body_pixel(const struct xz_four_layout *g,const struct xz_four_marks *m,const uint16_t *read,uint16_t *write,uint8_t *set,const uint8_t *keep){
+/* Visits every body pixel a lane's column drew in a layer colour, with that colour: lanes of height rows
+   (LANE or FULL) at lane_y[i]; a NULL col[i] is skipped. */
+static void each_body_pixel(unsigned lanes,unsigned height,const unsigned *lane_y,const struct xz_layered_data *looks,
+ const struct xz_layered_col *const *col,const uint16_t *read,uint16_t *write,uint8_t *set,const uint8_t *keep){
  uint16_t layer[3];three_band(layer);
- int k_of[LANE];for(unsigned r=0;r<LANE;r++)k_of[r]=body_d(xz_wave_lane_row(r,LANE));
- for(unsigned deck=0;deck<XZ_FOUR_DECKS;deck++){
-  const struct xz_layered_col *cols=m->col[deck];if(!cols)continue;
-  const struct xz_layered_data *look=&m->look[deck];int fast=look->kind==XZ_LAYERED_THREE_BAND;
-  for(unsigned r=0;r<LANE;r++){
+ int k_of[FULL];for(unsigned r=0;r<height;r++)k_of[r]=body_d(xz_wave_lane_row(r,height));
+ for(unsigned deck=0;deck<lanes;deck++){
+  const struct xz_layered_col *cols=col[deck];if(!cols)continue;
+  const struct xz_layered_data *look=&looks[deck];int fast=look->kind==XZ_LAYERED_THREE_BAND;
+  for(unsigned r=0;r<height;r++){
    if(k_of[r]<0)continue;
-   unsigned k=(unsigned)k_of[r];size_t base=(size_t)(g->lane_y[deck]+r)*WIDTH;
+   unsigned k=(unsigned)k_of[r];size_t base=(size_t)(lane_y[deck]+r)*WIDTH;
    for(unsigned x=0;x<WIDTH;x++){
     const struct xz_layered_col *c=&cols[x];
     if(!c->valid||k>=c->h[0])continue;
@@ -455,8 +467,38 @@ static void each_body_pixel(const struct xz_four_layout *g,const struct xz_four_
 void xz_four_protect(const struct xz_four_layout *g,const struct xz_four_marks *m,const uint16_t *pixels,uint8_t *keep){
  if(!keep)return;
  memset(keep,0,XZ_FOUR_KEEP_BYTES);
- if(g&&m&&pixels)each_body_pixel(g,m,pixels,NULL,keep,NULL);
+ if(g&&m&&pixels)each_body_pixel(XZ_FOUR_DECKS,LANE,g->lane_y,m->look,m->col,pixels,NULL,keep,NULL);
 }
 void xz_four_restore(const struct xz_four_layout *g,const struct xz_four_marks *m,uint16_t *pixels,const uint8_t *keep){
- if(g&&m&&pixels&&keep)each_body_pixel(g,m,NULL,pixels,NULL,keep);
+ if(g&&m&&pixels&&keep)each_body_pixel(XZ_FOUR_DECKS,LANE,g->lane_y,m->look,m->col,NULL,pixels,NULL,keep);
+}
+
+/* 2 DECKS with a side on DECK 3 or 4 (extra_lane.h). */
+static const unsigned two_lane_y[2]={XZ_TWO_LANE_Y(0),XZ_TWO_LANE_Y(1)};
+int xz_two_frame_draw(uint16_t *pixels,size_t count,const struct xz_two_frame *f,struct xz_extra_lane_marks marks[2]){
+ if(marks)memset(marks,0,2*sizeof *marks);
+ if(!pixels||!f||!f->decks||count<(size_t)WIDTH*XZ_WAVE_HEIGHT||!(f->pair&3u)||(f->pair&~3u))return 0;
+ struct xz_extra_lane_view view={f->now_ms,f->column_us,f->background,1};
+ for(unsigned side=0;side<2;side++){
+  if(!(f->pair&(1u<<side)))continue;
+  /* The right half starts at the separator rows above native DECK 2's lane; they stay black, as stock leaves them. */
+  if(side)memset(pixels+(size_t)XZ_TWO_HALF_Y(1)*WIDTH,0,(size_t)(XZ_TWO_LANE_Y(1)-XZ_TWO_HALF_Y(1))*WIDTH*sizeof *pixels);
+  xz_extra_lane_draw_full(pixels,WIDTH,count,two_lane_y[side],3+side,&f->decks->deck[side],&view,marks?&marks[side]:NULL);
+ }
+ return 1;
+}
+static void two_marks(unsigned pair,const struct xz_extra_lane_marks marks[2],struct xz_layered_data look[2],const struct xz_layered_col *col[2]){
+ for(unsigned side=0;side<2;side++){look[side]=marks[side].look;col[side]=pair&(1u<<side)?marks[side].col:NULL;}
+}
+void xz_two_protect(unsigned pair,const struct xz_extra_lane_marks marks[2],const uint16_t *pixels,uint8_t *keep){
+ if(!keep)return;
+ memset(keep,0,XZ_FOUR_KEEP_BYTES);
+ if(!marks||!pixels)return;
+ struct xz_layered_data look[2];const struct xz_layered_col *col[2];two_marks(pair,marks,look,col);
+ each_body_pixel(2,FULL,two_lane_y,look,col,pixels,NULL,keep,NULL);
+}
+void xz_two_restore(unsigned pair,const struct xz_extra_lane_marks marks[2],uint16_t *pixels,const uint8_t *keep){
+ if(!marks||!pixels||!keep)return;
+ struct xz_layered_data look[2];const struct xz_layered_col *col[2];two_marks(pair,marks,look,col);
+ each_body_pixel(2,FULL,two_lane_y,look,col,NULL,pixels,NULL,keep);
 }
