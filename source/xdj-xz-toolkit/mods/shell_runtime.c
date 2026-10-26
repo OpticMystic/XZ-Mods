@@ -156,6 +156,8 @@ extern int xz_ui_runtime_stock_source_key(int which, int run) __attribute__((wea
 /* runtime.c: SHORTCUT DECK SELECT (runtime.h). Weak: host fixtures have no runtime.c. */
 #pragma weak xz_runtime_deck_select_toggle
 #pragma weak xz_extra_decks_set_quantize_grid
+#pragma weak xz_extra_decks_route_status
+#pragma weak xz_extra_decks_rescan
 static struct { uint32_t second, lines, dropped; } key_log;
 
 /* ---- clocks and reads ---- */
@@ -2071,6 +2073,9 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    continue;
   }
   switch(a->kind){
+  case XZ_SHELL_ACT_ROUTE_RESCAN:
+   if(xz_extra_decks_rescan)xz_extra_decks_rescan();
+   dirty_flag=1;break;
   case XZ_SHELL_ACT_DECK_LAYOUT:
    if(model.deck_count==4&&(unsigned)a->value<XZ_LAYOUT_COUNT){
     xz_deck_layout_set(a->value);model.layout_preference=a->value+1;model.wave_order=a->value==XZ_LAYOUT_MIXER;dirty_flag=1;
@@ -2310,6 +2315,12 @@ static void extra_parts_of(int i, const struct xz_extra_deck *d) {
  extra_seen[i].route=d->timeline.route_epoch;extra_seen[i].load=d->timeline.load_revision;extra_seen[i].source=d->source;
 }
 static void extra_refresh_locked(uint32_t now) {
+    struct xz_extra_route_status route_status={0};
+    if(xz_extra_decks_route_status)route_status=xz_extra_decks_route_status();
+    model.route_state=route_status.state;model.route_fail_part=route_status.fail_part;
+    memcpy(model.route_reason,route_status.reason,sizeof model.route_reason);
+    model.route_checked_at_ms=route_status.checked_at_ms;model.route_revision=route_status.revision;
+    model.route_ready_revision=route_status.ready_revision;
  model.wave_order=xz_native_four_mixer_order();model.layout_preference=xz_deck_layout_get()+1;
  struct xz_extra_analysis_hold hold={0};
  if(xz_extra_decks_snapshot_held(&extra,&hold))for(int i=0;i<XZ_EXTRA_DECKS;i++)extra_parts_of(i,&extra.deck[i]);
