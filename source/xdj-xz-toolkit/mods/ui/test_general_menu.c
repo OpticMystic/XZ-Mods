@@ -31,7 +31,7 @@ static void geometry(const struct xz_ui *u,const struct xz_ui_model *m){
  assert(n<=XZ_UI_WIDGETS);
  for(size_t i=0;i<n;i++){
   assert(w[i].x>=0&&w[i].y>=0&&w[i].x+w[i].w<=800&&w[i].y+w[i].h<=404);
-  assert((w[i].w>=56||w[i].kind==XZ_UI_JUMP_SIZE)&&w[i].h>=36);
+  assert(w[i].w>=56&&w[i].h>=36);
   if(w[i].kind==XZ_UI_PANEL&&w[i].x<XZ_UI_RAIL_W&&w[i].y>=40){rails++;assert(w[i].h>=40);}
   for(size_t k=i+1;k<n;k++)assert(w[i].x+w[i].w<=w[k].x||w[k].x+w[k].w<=w[i].x||w[i].y+w[i].h<=w[k].y||w[k].y+w[k].h<=w[i].y);
  }

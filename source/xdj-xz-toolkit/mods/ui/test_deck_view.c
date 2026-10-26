@@ -4,6 +4,7 @@
 #endif
 #include "deck_view.h"
 #include "route_card.h"
+#include "deck_colour.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -21,6 +22,15 @@ static void only_inside(struct xz_dv_rect r, int grow) {
 }
 static int changed_inside(struct xz_dv_rect r) {
  int n=0;for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++)n+=pixels[y*W+x]!=SENTINEL;return n;
+}
+/* Pixels within about 12 % of a colour per channel: 12 px digits are antialiased, a thin 1 has no solid pixel. */
+static int count_colour(struct xz_dv_rect r, uint32_t c) {
+ int n=0,wr=(int)((c>>19)&31),wg=(int)((c>>10)&63),wb=(int)((c>>3)&31);
+ for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++){
+  int p=pixels[y*W+x],dr=((p>>11)&31)-wr,dg=((p>>5)&63)-wg,db=(p&31)-wb;
+  n+=dr>=-4&&dr<=4&&dg>=-8&&dg<=8&&db>=-4&&db<=4;
+ }
+ return n;
 }
 static uint32_t fnv(void) { uint32_t h=2166136261u;for(int i=0;i<W*H;i++){h^=pixels[i];h*=16777619u;}return h; }
 
@@ -63,11 +73,22 @@ static void test_button(void) {
   clear();xz_deck_view_button_draw(canvas(),s,1,0,0,1,0);only_inside(s->button,0);uint32_t open=fnv();
   clear();xz_deck_view_button_draw(canvas(),s,1,0,0,0,1);only_inside(s->button,0);uint32_t focus=fnv();
   assert(open!=seen[2]&&focus!=seen[2]&&open!=focus);
+  /* Four decks: every number in its deck's colour, 3 and 4 dimmed while they wait; 2 DECKS keeps plain ink. */
+  for(int view=0;view<3;view++)for(int ready=0;ready<2;ready++){
+   clear();xz_deck_view_button_draw(canvas(),s,view,ready,0,0,0);
+   for(int d=0;d<4;d++){
+    int lit=count_colour(s->button,xz_deck_colour(d)),dim=count_colour(s->button,xz_deck_colour_text(d,0,s->button_fill));
+    /* A lit digit's antialiased edge may pass near the dim value, so only these hold. */
+    if(view==XZ_LAYOUT_TWO)assert(!lit);
+    else if(d<2||ready)assert(lit>0);
+    else assert(!lit&&dim>0);
+   }
+  }
   /* A 2 DECKS pair names the decks the sides drive; not while 3 and 4 are down. */
   clear();xz_deck_view_button_draw(canvas(),s,0,1,1,0,0);assert(fnv()!=seen[1]);
   clear();xz_deck_view_button_draw(canvas(),s,0,0,3,0,0);assert(fnv()==seen[0]);
  }
- puts("PASS deck view button: design rects, touch bands >= 40 px, writes only its rect, 2/4/4 x ready/not, open and focus looks");
+ puts("PASS deck view button: design rects, touch bands >= 40 px, writes only its rect, 2/4/4 x ready/not, open and focus looks, deck colours in four-deck views only");
 }
 static void test_picker(void) {
  const struct xz_deck_view_style *styles[2]={&xz_deck_view_modern,&xz_deck_view_classic};
@@ -92,11 +113,14 @@ static void test_picker(void) {
    if(ready==0&&focus==1)golden[i][view]=fnv();
   }
  }
- /* Golden pictures of the picker: chosen view, decks 3/4 not connected, encoder on the middle tile. */
- static const uint32_t expected[2][3]={{0x4bc053b9u,0xd5e37c55u,0xf78a8060u},{0xc686895cu,0xb7053c71u,0x60620f48u}};
+ /* Golden pictures of the picker: chosen view, decks 3/4 not connected, encoder on the middle tile. The four-deck
+    tiles carry the deck colours (deck_colour.h) on their lane and channel numbers. */
+ static const uint32_t expected[2][3]={{0xb101706du,0x467b2c49u,0xba177454u},{0xf039c607u,0x1fd27ea2u,0xf2487bffu}};
+ int changed=0;
  for(int i=0;i<2;i++)for(int v=0;v<3;v++)if(golden[i][v]!=expected[i][v]){
-  printf("golden picker %d view %d: 0x%08x, expected 0x%08x\n",i,v,golden[i][v],expected[i][v]);assert(!"picker golden frame changed");
+  printf("golden picker %d view %d: 0x%08x, expected 0x%08x\n",i,v,golden[i][v],expected[i][v]);changed=1;
  }
+ fflush(stdout);assert(!changed&&"picker golden frame changed");
  assert(xz_deck_view_focus_step(0,-1)==0&&xz_deck_view_focus_step(0,1)==1&&xz_deck_view_focus_step(2,5)==2&&xz_deck_view_focus_step(-1,0)==0&&xz_deck_view_focus_step(9,-1)==1&&xz_deck_view_focus_step(0,2)==2&&xz_deck_view_focus_step(2,-99)==0);
  puts("PASS deck view picker: three 156x166 tiles, panel absorbs, outside closes, full panel paint, golden frames, encoder clamps");
 }

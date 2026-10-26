@@ -169,7 +169,7 @@ static int screen_layout_y(void){return 66;}
 void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *w, size_t n){
  (void)m;
  struct xz_pic_jump_geo jg;struct xz_pic_stem_geo sg;struct xz_pic_grid_geo gg;
- if(u->page==XZ_UI_BEAT_JUMP)xz_pic_jump_geometry(XZ_UI_JUMP_X,XZ_UI_JUMP_Y,XZ_UI_JUMP_W,XZ_UI_JUMP_RULER_Y,&jg);
+ if(u->page==XZ_UI_BEAT_JUMP)xz_pic_jump_geometry(XZ_UI_JUMP_X,XZ_UI_JUMP_Y,XZ_UI_JUMP_W,XZ_UI_JUMP_BOTTOM,&jg);
  if(u->page==XZ_UI_STEM_PADS)xz_pic_stem_geometry(XZ_UI_STEM_X,XZ_UI_STEM_W,&sg);
  if(u->page==XZ_UI_FOUR_DECKS)xz_pic_grid_geometry(X0+4,204,CW-8,36,&gg);
  for(size_t i=0;i<n;i++){
@@ -348,13 +348,6 @@ void xz_ui_jump_picture(const struct xz_ui *u, const struct xz_ui_model *m, int 
  memcpy(j->sizes,m->jump.sizes,sizeof j->sizes);
  j->enabled=m->jump.enabled;j->edit_page=u->jump_edit_page?1:0;
  j->focus_pair=focus_pair>=0?focus_pair:u->jump_edit_pair;j->adjusting=u->adjusting;
- for(int d=0;d<4;d++){
-  j->deck_live[d]=d<2||m->route.state==XZ_UI_ROUTE_READY;
-  /* Every deck uses these sizes (the shared resolver); its live page is the one the runtime reports, -1 while
-     a software player has not reported one. */
-  j->deck_page[d]=(xz_deck_caps(m,d)&XZ_DECK_CAN_BEAT_JUMP)?m->jump_page[d]:-1;
-  if(d<2&&j->deck_page[d]<0)j->deck_page[d]=0;
- }
 }
 void xz_ui_stem_picture(const struct xz_ui_model *m, int focus, struct xz_pic_stem_pads *p){
  memset(p,0,sizeof *p);
@@ -541,7 +534,7 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
   xz_rect(c,X0,XZ_UI_CY,CW,XZ_UI_CB-XZ_UI_CY,s.bg);
   xz_pic_stem_draw(c,&s,&g,&p);break;}
  case XZ_UI_BEAT_JUMP:{
-  struct xz_pic_jump_geo g;xz_pic_jump_geometry(XZ_UI_JUMP_X,XZ_UI_JUMP_Y,XZ_UI_JUMP_W,XZ_UI_JUMP_RULER_Y,&g);
+  struct xz_pic_jump_geo g;xz_pic_jump_geometry(XZ_UI_JUMP_X,XZ_UI_JUMP_Y,XZ_UI_JUMP_W,XZ_UI_JUMP_BOTTOM,&g);
   struct xz_pic_jump j;xz_ui_jump_picture(u,m,-1,&j);
   xz_rect(c,X0,XZ_UI_CY,CW,XZ_UI_CB-XZ_UI_CY,s.bg);
   xz_pic_jump_draw(c,&s,&g,&j);break;}

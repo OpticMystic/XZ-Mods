@@ -266,6 +266,9 @@ static void style_four(uint16_t *pixels,uint32_t count){
   xz_four_protect(&g,&m,pixels,four_keep);
   xz_native_skin_wave_pixels(pixels,536,268,-1);
   xz_four_restore(&g,&m,pixels,four_keep);
+  /* The deck number boxes keep their identity colours in every theme (deck_colour.h). */
+  struct xz_four_frame frame={&extra,four_frame_order,0,0,0,four_frame_detail,0,!four_frame_live};
+  xz_four_identity_draw(pixels,count,&frame);
  }
  /* The card after the theme, in its own colours; it says what a route notice would. */
  if(xz_route_card_visible(&card_frame)){

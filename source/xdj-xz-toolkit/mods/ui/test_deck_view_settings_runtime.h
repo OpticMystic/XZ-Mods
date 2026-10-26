@@ -67,12 +67,13 @@ static void deck_view_settings_check(void) {
     assert((xz_deck_caps(&model,2)&(XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE))==(XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE));
     struct xz_ui_action rescan={.kind=XZ_UI_ROUTE_RESCAN,.phase=XZ_UI_PRESS,.deck=-1};
     int rescans=fixture_rescans;apply(NULL,&rescan,1);assert(fixture_rescans==rescans+1);
-    /* Without the connector's players: NO_ENGINE with the connector's own sentence; decks 3 and 4 can do nothing. */
+    /* Without the connector's players: NO_ENGINE with the connector's own sentence. What works on decks 3 and 4
+       (WORKS ON) does not change with it. */
     fixture_route=(struct xz_extra_route_status){.state=XZ_EXTRA_ROUTE_NO_ENGINE};
     snprintf(fixture_route.reason,sizeof fixture_route.reason,"%s","The software players are unavailable or have not been started.");
     refresh_local();
     assert(model.route.state==XZ_UI_ROUTE_NO_ENGINE&&strstr(model.route.reason,"software players"));
-    assert(xz_deck_caps(&model,2)==0&&xz_deck_cap_reason(&model,3,XZ_DECK_CAN_DISPLAY));
+    assert((xz_deck_caps(&model,2)&XZ_DECK_CAN_BEAT_JUMP)&&!xz_deck_cap_reason(&model,3,XZ_DECK_CAN_DISPLAY));
     /* The pad page each deck is on: native decks from the jump state, decks 3 and 4 from their own players
        through xz_ui_runtime_jump_snapshot; -1 while a player reports none. */
     jump_state.page[0]=0;jump_state.page[1]=1;refresh_local();

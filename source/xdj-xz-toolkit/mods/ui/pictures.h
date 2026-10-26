@@ -15,7 +15,7 @@ static inline int xz_rect_hit(struct xz_rect r, int x, int y) { return r.w>0&&x>
    rows in the theme's own colours, its accent as the selection. */
 struct xz_pic_style {
  int modern, radius;
- uint32_t bg, row, row_edge, ink, dim, faint, select, on_select, focus, good, warn, alarm, ruler, ruler_major;
+ uint32_t bg, row, row_edge, ink, dim, faint, select, on_select, focus, good, warn, alarm;
 };
 struct xz_pic_style xz_pic_style_modern(void);
 struct xz_pic_style xz_pic_style_classic(int theme);
@@ -35,18 +35,21 @@ void xz_pic_box(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect
 /* WORKS ON chips for logical decks in mixer order 3 1 2 4 (bit d = deck d+1). Returns the x after the last chip. */
 int xz_pic_works_on(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int size, unsigned works_on, int label);
 
-/* ---- PLAY > BEAT JUMP PADS ---- */
+/* ---- PLAY > BEAT JUMP PADS ----
+   The pads as on the unit (A B C D over E F G H, in pairs A/B, C/D, E/F, G/H): each pad shows which way it
+   jumps and how far, in beats and in bars, and the pair being edited is outlined. Beside the pads, that pair and
+   its size; along the bottom, every size, one tap each (the encoder also steps the pair: push it, then turn).
+   The tabs choose the page of sizes being edited; page 1 can keep the player's own sizes (STOCK). */
 enum { XZ_PIC_JUMP_CHIPS=9 };
 extern const int xz_pic_jump_ids[XZ_PIC_JUMP_CHIPS];  /* the offered sizes, as settings jump IDs (no ID 7) */
 struct xz_pic_jump_geo {
- struct xz_rect tabs[2], stock, mine, frames[4], pads[8], chips[XZ_PIC_JUMP_CHIPS], live[4], ruler;
- int name_x, name_y, right;
+ struct xz_rect tabs[2], stock, mine, frames[4], pads[8], chips[XZ_PIC_JUMP_CHIPS];
+ int name_x, name_y, name_h, right;
 };
-/* The editor in the box from x, y, w wide (MODERN 100, 48, 690; CLASSIC 138, 50, 652). */
-void xz_pic_jump_geometry(int x, int y, int w, int ruler_y, struct xz_pic_jump_geo *g);
+/* The editor in the box from x, y, w wide down to bottom (MODERN 100, 48, 690, 346; CLASSIC 138, 50, 652, 400).
+   pads[2p], pads[2p+1] and frames[p] are pair p. */
+void xz_pic_jump_geometry(int x, int y, int w, int bottom, struct xz_pic_jump_geo *g);
 void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_jump_geo *g, const struct xz_pic_jump *j);
-/* The ruler for one pair: NOW in the middle, the back and forward jumps of beats. */
-void xz_pic_ruler(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect r, int beats, const char *back, const char *fwd);
 
 /* ---- STEMS > STEM PADS ---- */
 struct xz_pic_stem_geo { struct xz_rect modes[4], pads[8], bank[2], order[3], lights[2]; int x, w, caption_y[4], rule_y; };

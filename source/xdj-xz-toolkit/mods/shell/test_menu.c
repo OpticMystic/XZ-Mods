@@ -296,9 +296,12 @@ static void test_pictures(void) {
  assert(menu.row_count==17);
  for(int i=0;i<menu.row_count;i++){
   const struct xz_shell_menu_row *r=&menu.row[i];
-  assert(r->kind==XZ_SHELL_MENU_PART&&r->rect.h>=40&&r->rect.x>=96&&r->rect.x+r->rect.w<=800&&r->rect.y>=42&&r->rect.y+r->rect.h<=350);
+  assert(r->kind==XZ_SHELL_MENU_PART&&r->rect.w>=40&&r->rect.h>=40&&r->rect.x>=96&&r->rect.x+r->rect.w<=800&&r->rect.y>=42&&r->rect.y+r->rect.h<=350);
   assert(r->chips&&(r->works_on&3u)==3u);
  }
+ /* the encoder reaches every size */
+ static const char *const sizes[]={"1 BEAT","2 BEATS","4 BEATS","8 BEATS","16 BEATS","32 BEATS","64 BEATS","128 BEATS","256 BEATS"};
+ for(int i=0;i<9;i++){cursor_to(&s,sizes[i]);assert(cursor_row(&s)->target.kind==XZ_UI_JUMP_SIZE);}
  cursor_to(&s,"PADS E / F");
  ran_count=0;assert(push(&s)==1&&ui.adjusting&&menu.adjusting&&ui.jump_edit_pair==2);
  /* the turn goes to the panel: JUMP_STEP on that pair; push ends it */
@@ -307,11 +310,13 @@ static void test_pictures(void) {
  push(&s);assert(!ui.adjusting&&!menu.adjusting);
  render_check(&s);
  /* a tap on a size chip sets the pair the panel edits */
+ int chips=0;
  for(int i=0;i<menu.row_count;i++)if(menu.row[i].target.kind==XZ_UI_JUMP_SIZE&&menu.row[i].target.index==9){
-  struct xz_shell_rect r=menu.row[i].rect;ran_count=0;
+  struct xz_shell_rect r=menu.row[i].rect;ran_count=0;chips++;
   assert(tap(&s,r.x+r.w/2,r.y+r.h/2)==1&&out[0].id==XZ_SHELL_MENU_TAP);
   assert(ran_count==1&&ran[0].kind==XZ_UI_JUMP_SIZE&&ran[0].index==2&&ran[0].value==9);
  }
+ assert(chips==1);
  /* adjusting, BACK ends it and stays */
  cursor_to(&s,"PADS A / B");push(&s);assert(ui.adjusting);
  assert(key(&s,XZ_SHELL_KEY_BACK)==1&&out[0].id==XZ_SHELL_MENU_BACK&&!ui.adjusting&&ui.page==XZ_UI_BEAT_JUMP);

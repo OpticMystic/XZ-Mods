@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: MIT */
 #include "classic_column.h"
 #include "ui_skin.h"
+#include "deck_colour.h"
 #include <stdio.h>
 #include <string.h>
 
-/* The stock tag look: navy tab, pale outline; the deck a side drives is pale blue with dark text. */
+/* The stock tag look: navy tab, pale outline; the deck a side drives is pale blue with dark text. The deck's
+   number sits in its colour box (deck_colour.h) where the stock tag has its bar, as on its channel below. */
 enum { TAB=0x29344a, TAB_EDGE=0xacaeb4, DRIVEN=0x94bef6, DRIVEN_INK=0x081420, INK=0xffffff, SOFT=0xc8ccd0,
        CENTS=0xffb020, SOFTWARE=0x7a8290, OFF_TAB=0x161c26, OFF_EDGE=0x3a4250, OFF_INK=0x5a6270,
        AMBER=0xffa82e, OFF_NOTE=0x6a7280 };
@@ -31,10 +33,10 @@ static const char *source_name(int source) {
 static void deck_tag(struct xz_canvas c, int k, int id, const struct xz_classic_column_deck *d) {
  int ty=22+68*k;char text[24];
  int live=d->live,driven=live&&d->driven;
- tab(c,ty,driven?DRIVEN:live?TAB:OFF_TAB,live?TAB_EDGE:OFF_EDGE);
- xz_rect(c,6,ty+5,3,12,driven?DRIVEN_INK:live?TAB_EDGE:OFF_EDGE);
- snprintf(text,sizeof text,"DECK %d",id+1);
- xz_text(c,15,ty+4,text,2,99,driven?DRIVEN_INK:live?INK:OFF_INK);
+ uint32_t fill=driven?DRIVEN:live?TAB:OFF_TAB;
+ tab(c,ty,fill,live?TAB_EDGE:OFF_EDGE);
+ xz_deck_box(c,4,ty+2,20,18,id,live,fill,2,0);
+ xz_text(c,28,ty+4,"DECK",2,99,driven?DRIVEN_INK:live?INK:OFF_INK);
  if(driven)xz_text(c,74,ty+8,(id&1)?"RIGHT":"LEFT",1,99,DRIVEN_INK);
  if(!live){
   xz_text(c,6,ty+28,"NOT CONNECTED",1,99,AMBER);

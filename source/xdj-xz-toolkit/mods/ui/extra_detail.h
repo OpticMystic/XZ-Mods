@@ -108,4 +108,7 @@ struct xz_four_frame {
                                covers them after the theme); decks may be NULL */
 };
 int xz_four_frame_draw(uint16_t *pixels,size_t count,const struct xz_four_frame *,struct xz_extra_lane_marks *marks);
+/* After a theme pass over the drawn frame: the deck number boxes (deck_colour.h) again, in their own colours,
+   where xz_four_frame_draw put them for the same frame. */
+void xz_four_identity_draw(uint16_t *pixels,size_t count,const struct xz_four_frame *);
 #endif

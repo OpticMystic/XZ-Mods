@@ -3,6 +3,7 @@
 #include "extra_lane.h"
 #include "layered_wave.h"
 #include "ui_skin.h"
+#include "deck_colour.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -84,16 +85,17 @@ static void ms_text(char *out,size_t n,int32_t ms){
  snprintf(out,n,"%d:%02d.%d",(int)(ms/60000),(int)(ms/1000%60),(int)(ms/100%10));
 }
 
-/* DECK n, whether it plays, CLOSE. */
+/* The deck's number box (deck_colour.h) and DECK, whether it plays, CLOSE. */
+enum { HEAD_BOX=22 };
 static void header(struct xz_canvas c,unsigned number,const struct xz_extra_deck *d,int lit){
- char text[16];snprintf(text,sizeof text,"DECK %u",number);
- int w=xz_text_width(c,text,2,8)+14;
- if(lit)xz_rect(c,6,ROW_HEAD,w,22,LIT);
- else{xz_rect(c,6,ROW_HEAD,w,22,KEY_FILL);xz_border(c,6,ROW_HEAD,w,22,0x55606c);}
- xz_text(c,13,ROW_HEAD+4,text,2,8,lit?LIT_INK:LABEL);
+ int x=6+HEAD_BOX+1,w=xz_text_width(c,"DECK",2,8)+14;
+ xz_deck_box(c,6,ROW_HEAD,HEAD_BOX,22,(int)number-1,1,0,2,0);
+ if(lit)xz_rect(c,x,ROW_HEAD,w,22,LIT);
+ else{xz_rect(c,x,ROW_HEAD,w,22,KEY_FILL);xz_border(c,x,ROW_HEAD,w,22,0x55606c);}
+ xz_text(c,x+7,ROW_HEAD+4,"DECK",2,8,lit?LIT_INK:LABEL);
  int playing=(d->known&K(PLAYING))&&d->playing;
  const char *state=!d->loaded?"NO TRACK":playing?"PLAYING":d->held_playing?(d->platter_contact?"HELD":"COAST"):(d->known&K(PLAYING))?"PAUSED":"";
- xz_text(c,6+w+8,ROW_HEAD+7,state,1,10,playing?INK:d->held_playing?WAIT_AMBER:LABEL);
+ xz_text(c,x+w+8,ROW_HEAD+7,state,1,10,playing?INK:d->held_playing?WAIT_AMBER:LABEL);
  key(c,xz_extra_detail_box(XZ_EXTRA_DETAIL_CLOSE),"CLOSE",0);
 }
 /* Which deck this side's controls drive: the DECK SELECT of SHIFT pressed twice, by touch. */
@@ -353,16 +355,19 @@ static void status(struct xz_canvas c,const struct xz_extra_decks *s,const struc
   "THE STRIP SEARCHES WHILE THE DECK IS PAUSED",1,SOFT);
 }
 
-/* While the panel covers the lanes' left halves, each lane's number rides at its right end instead, lit
-   like its tag while that side's controls drive it. */
+/* While the panel covers the lanes' left halves, each lane's number rides at its right end instead: its
+   colour box (deck_colour.h) in a one-pixel ring, lit like its tag while that side's controls drive it. */
+enum { LANE_NUMBER_X=XZ_WAVE_WIDTH-15 };
+static int lane_number_y(const struct xz_four_layout *g,int deck){return (int)g->lane_y[deck]+(g->lane_y[deck]?2:8);}
+static void lane_number_box(struct xz_canvas c,const struct xz_four_layout *g,int deck){
+ xz_deck_box(c,LANE_NUMBER_X+1,lane_number_y(g,deck)+1,10,11,deck,1,0,1,0);
+}
 static void lane_numbers(uint16_t *pixels,const struct xz_four_layout *g,const struct xz_extra_decks *s){
  struct xz_canvas c={pixels,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0};
  for(int deck=0;deck<XZ_FOUR_DECKS;deck++){
   int lit=deck==0?!s->left_on_3:deck==1?!s->right_on_4:deck==2?s->left_on_3:s->right_on_4;
-  char text[2]={(char)('1'+deck),0};
-  int x=XZ_WAVE_WIDTH-15,y=(int)g->lane_y[deck]+(g->lane_y[deck]?2:8);
-  if(lit)xz_rect(c,x,y,12,13,LIT);else{xz_rect(c,x,y,12,13,KEY_FILL);xz_border(c,x,y,12,13,0x55606c);}
-  xz_text(c,x+(12-xz_text_width(c,text,1,1))/2,y+2,text,1,1,lit?LIT_INK:LABEL);
+  xz_border(c,LANE_NUMBER_X,lane_number_y(g,deck),12,13,lit?LIT:0x55606c);
+  lane_number_box(c,g,deck);
  }
 }
 int xz_four_frame_draw(uint16_t *pixels,size_t count,const struct xz_four_frame *f,struct xz_extra_lane_marks *marks){
@@ -392,6 +397,20 @@ int xz_four_frame_draw(uint16_t *pixels,size_t count,const struct xz_four_frame 
   lane_numbers(pixels,&g,s);
  }
  return 1;
+}
+/* The theme pass recolours the whole surface; the number boxes go back on in their own colours, exactly
+   where xz_four_frame_draw put them. Writes only those boxes. */
+void xz_four_identity_draw(uint16_t *pixels,size_t count,const struct xz_four_frame *f){
+ struct xz_four_layout g;
+ if(!pixels||!f||count<(size_t)XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT||!xz_four_layout_get(f->order,&g))return;
+ struct xz_canvas c={pixels,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0};
+ if(!f->placeholders&&f->decks&&(f->detail==0||f->detail==1)){
+  xz_deck_box(c,6,ROW_HEAD,HEAD_BOX,22,2+f->detail,1,0,2,0);
+  for(int deck=0;deck<XZ_FOUR_DECKS;deck++)lane_number_box(c,&g,deck);
+  return;
+ }
+ /* DECK 3 and 4 not connected: their lanes carry no tag (the route card covers them). */
+ for(int deck=0;deck<(f->placeholders?2:XZ_FOUR_DECKS);deck++)xz_four_number_box(c,3,(int)g.lane_y[deck]+2,(unsigned)deck+1);
 }
 int xz_extra_detail_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *s,int deck,
  const struct xz_extra_detail_view *v){
