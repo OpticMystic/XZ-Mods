@@ -71,7 +71,7 @@ static struct xz_shell_setting_item own_item(const struct xz_shell *u, const str
  switch(id){
  case XZ_SHELL_ITEM_WAVE_COLOR:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM COLOR",wave_color_choices,4,(int)sh_wave_color(u));break;
  case XZ_SHELL_ITEM_WAVE_POSITION:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM CURRENT POSITION",position_choices,2,(int)sh_wave_position(u));break;
- case XZ_SHELL_ITEM_KEY_DISPLAY:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"KEY DISPLAY FORMAT",key_display_choices,3,(int)sh_key_display(u));break;
+ case XZ_SHELL_ITEM_KEY_DISPLAY:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"KEY DISPLAY FORMAT",key_display_choices,3,(int)sh_key_display(u,m));break;
  case XZ_SHELL_ITEM_WAVE_ZOOM:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"WAVEFORM ZOOM",zoom_choices,XZ_SHELL_ZOOM_MAX+1,sh_max(0,sh_min(u->zoom,XZ_SHELL_ZOOM_MAX)));break;
  case XZ_SHELL_ITEM_USB_COLORS:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"USB COLORS",usb_colors_choices,3,(int)sh_usb_colors(u));break;
  case XZ_SHELL_ITEM_MODE_LAMPS:it=make_item(id,XZ_SHELL_SETTING_CAT_DISPLAY_LCD,"MODE LAMPS",show_hide_choices,2,!sh_indicator_shown(u,XZ_SHELL_IND_MODE_LAMPS));break;

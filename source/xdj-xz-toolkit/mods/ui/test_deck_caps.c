@@ -1,0 +1,69 @@
+/* SPDX-License-Identifier: MIT */
+/* xz_deck_caps is the only source of the 4 DECKS grid, the WORKS ON chips and the "left out" reasons. Each bit
+   follows what the runtime can carry out (merged-evidence/REPORT.md, capability table): engines this runtime
+   does not run never light, whatever ready bits a model carries; decks 3 and 4 have the parity features once
+   their players run and nothing while they do not. */
+#include "ui.h"
+#include "ui_sections.h"
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+#ifdef NDEBUG
+#error Capability acceptance requires active assertions
+#endif
+enum { ABSENT=XZ_DECK_CAN_CUE_PREVIEW|XZ_DECK_CAN_XPAD|XZ_DECK_CAN_GROOVE,
+       PARITY=XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE };
+static const unsigned all[]={XZ_DECK_CAN_BEAT_JUMP,XZ_DECK_CAN_GATE_CUE,XZ_DECK_CAN_SMART_CUE,XZ_DECK_CAN_CUE_PREVIEW,
+ XZ_DECK_CAN_PLAYING_KEY,XZ_DECK_CAN_KEY_SYNC,XZ_DECK_CAN_STEMS,XZ_DECK_CAN_XPAD,XZ_DECK_CAN_GROOVE,XZ_DECK_CAN_RAM,XZ_DECK_CAN_DISPLAY};
+/* Every feature a deck lacks has one short reason; one it has has none. */
+static void reasons(const struct xz_ui_model *m){
+ for(int d=0;d<4;d++)for(size_t f=0;f<sizeof all/sizeof *all;f++){
+  const char *why=xz_deck_cap_reason(m,d,all[f]);
+  if(xz_deck_caps(m,d)&all[f])assert(!why);else assert(why&&*why&&strlen(why)<=48);
+ }
+}
+int main(void){
+ struct xz_ui_model m;memset(&m,0,sizeof m);
+ /* Every ready bit a loader could report, both native decks, the RAM engine, decks 3 and 4 connected. */
+ m.deck[0].ready=m.deck[1].ready=0xffffffffu;m.deck[0].ram.state=XZ_UI_RAM_EMPTY;m.route.state=XZ_UI_ROUTE_READY;
+ for(int d=0;d<4;d++)assert(!(xz_deck_caps(&m,d)&ABSENT));
+ for(size_t f=0;f<3;f++){unsigned a=(unsigned[]){XZ_DECK_CAN_CUE_PREVIEW,XZ_DECK_CAN_XPAD,XZ_DECK_CAN_GROOVE}[f];
+  assert(xz_deck_cap_absent(a));assert(!strcmp(xz_deck_cap_reason(&m,0,a),"Not in this version of XZ Mods, on any deck."));}
+ assert(!xz_ui_has_engine(&m,XZ_UI_PREVIEW)&&!xz_ui_has_engine(&m,XZ_UI_SAMPLE)&&!xz_ui_has_engine(&m,XZ_UI_GROOVE));
+ for(int d=0;d<2;d++)assert((xz_deck_caps(&m,d)&(PARITY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC|XZ_DECK_CAN_RAM|XZ_DECK_CAN_DISPLAY))==
+  (PARITY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC|XZ_DECK_CAN_RAM|XZ_DECK_CAN_DISPLAY));
+ /* Decks 3 and 4: the shared beat jump, Gate Cue and Smart Cue, and the display; not the playing key, key
+    sync, stems or RAM. The same while the route is down or starting: the players run. */
+ for(int s=XZ_UI_ROUTE_NOT_DETECTED;s<XZ_UI_ROUTE_STATES;s++){
+  m.route.state=s;
+  for(int d=2;d<4;d++)assert(xz_deck_caps(&m,d)==(PARITY|XZ_DECK_CAN_DISPLAY));
+  reasons(&m);
+ }
+ assert(!strcmp(xz_deck_cap_reason(&m,2,XZ_DECK_CAN_PLAYING_KEY),"Decks 3 and 4 show the track's own key."));
+ /* Players not running: no decks 3 and 4 at all, said once. */
+ m.route.state=XZ_UI_ROUTE_NO_ENGINE;
+ for(int d=2;d<4;d++){assert(!xz_deck_caps(&m,d));assert(!strcmp(xz_deck_cap_reason(&m,d,XZ_DECK_CAN_DISPLAY),"Decks 3 and 4 are not running on this player."));}
+ reasons(&m);
+ /* Native decks: each engine-backed bit follows the runtime's report on that deck. */
+ memset(&m,0,sizeof m);m.route.state=XZ_UI_ROUTE_NOT_DETECTED;
+ assert(xz_deck_caps(&m,0)==(XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_DISPLAY));
+ m.deck[1].ready=XZ_UI_GATE|XZ_UI_SMART;
+ assert(!(xz_deck_caps(&m,0)&(XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE))&&(xz_deck_caps(&m,1)&(XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE))==(XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE));
+ m.deck[0].ready=XZ_UI_KEY;assert(xz_deck_caps(&m,1)&XZ_DECK_CAN_KEY_SYNC);
+ m.deck[1].ram.state=XZ_UI_RAM_READY;assert(xz_deck_caps(&m,0)&XZ_DECK_CAN_RAM);
+ assert(!(xz_deck_caps(&m,0)&XZ_DECK_CAN_STEMS)&&!strcmp(xz_deck_cap_reason(&m,0,XZ_DECK_CAN_STEMS),"This USB loader has no stem engine."));
+ m.deck[0].ready|=XZ_UI_STEM;assert(xz_deck_caps(&m,0)&XZ_DECK_CAN_STEMS);
+ reasons(&m);
+ /* The grid rows and the chips read the same function: the picture's 4 DECKS grid never shows a check
+    xz_deck_caps does not give. */
+ struct xz_ui u;xz_ui_init(&u);m.deck[0].ready=m.deck[1].ready=0xffffffffu;m.route.state=XZ_UI_ROUTE_READY;
+ struct xz_ui_info info;struct xz_ui_widget w[XZ_UI_WIDGETS];xz_ui_navigate(&u,XZ_UI_FOUR_DECKS);size_t n=xz_ui_layout(&u,&m,w);int rows=0;
+ for(size_t i=0;i<n;i++)if(w[i].kind==XZ_UI_INFO&&w[i].index>=XZ_UI_INFO_GRID&&xz_ui_describe_widget(&u,&m,&w[i],&info)){
+  rows++;unsigned on=0;for(int d=0;d<4;d++)if(xz_deck_caps(&m,d)&info.feature)on|=1u<<d;
+  assert(info.works_on==on);
+  if(info.feature&ABSENT)assert(!on&&strstr(info.body,"not in this version"));
+ }
+ assert(rows==XZ_UI_GRID_ROWS);
+ puts("PASS deck caps: no preview/X-PAD/groove engine on any deck whatever the ready bits, decks 3/4 parity and display only, native bits follow the runtime, one short reason per missing feature, grid = caps");
+ return 0;
+}

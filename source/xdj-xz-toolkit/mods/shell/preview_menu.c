@@ -97,7 +97,8 @@ int main(int argc, char **argv) {
  page("menu-beat-jump",CHAIN(XZ_UI_PLAY,XZ_UI_BEAT_JUMP),NULL,0);
  {
   struct xz_ui_model saved=ui_model;
-  ui_model.jump.enabled=1;ui_model.jump_page[1]=1;ui_model.route.state=XZ_UI_ROUTE_READY;
+  /* decks 3 and 4 connected, each on the page its software player reports */
+  ui_model.jump.enabled=1;ui_model.jump_page[1]=1;ui_model.jump_page[2]=1;ui_model.jump_page[3]=0;ui_model.route.state=XZ_UI_ROUTE_READY;
   reach(&u,CHAIN(XZ_UI_PLAY,XZ_UI_BEAT_JUMP));u.jump_edit_pair=1;open_shell(&s,&u,0);cursor_to(&s,"PADS C / D");shot(&s,"menu-beat-jump-pair");
   u.adjusting=1;u.focus_kind=XZ_UI_JUMP_PAIR;u.focus_index=2;u.focus_deck=-1;ui_model.jump.sizes[1]=8;
   open_shell(&s,&u,0);cursor_to(&s,"PADS C / D");shot(&s,"menu-beat-jump-adjusting");
@@ -106,14 +107,14 @@ int main(int argc, char **argv) {
  page("menu-keys",CHAIN(XZ_UI_PLAY,XZ_UI_KEY_SETUP),NULL,0);
  reach(&u,CHAIN(XZ_UI_PLAY,XZ_UI_FEATURE_SETUP));u.feature_cap=XZ_UI_PREVIEW;u.feature_step=0;open_shell(&s,&u,0);shot(&s,"menu-feature-setup-detect");
  u.feature_cap=XZ_UI_GATE;u.feature_step=3;open_shell(&s,&u,0);shot(&s,"menu-feature-setup-test");
- page("menu-xpad-no-engine",CHAIN(XZ_UI_PLAY,XZ_UI_XPAD),NULL,0);
  page("menu-ram-tracks",CHAIN(XZ_UI_PLAY,XZ_UI_RAM_SETUP),NULL,0);
  {
+  /* a loader reporting the sampler, groove and preview bits: no engine runs them, so PLAY and STEMS still
+     explain them in one line and open nothing */
   struct xz_ui_model saved=ui_model;
-  for(int d=0;d<2;d++)ui_model.deck[d].ready|=XZ_UI_SAMPLE|XZ_UI_GROOVE|XZ_UI_HOTCUE;
-  ui_model.deck[0].sample_loaded=0x0f;ui_model.deck[0].groove_assigned=0x05;ui_model.deck[0].groove_loaded=0x05;
-  page("menu-xpad",CHAIN(XZ_UI_PLAY,XZ_UI_XPAD),"LOOP STRIP",0);
-  page("menu-groove-pads",CHAIN(XZ_UI_STEM_SECTION,XZ_UI_STEMS),"PAD A",0);
+  for(int d=0;d<2;d++)ui_model.deck[d].ready|=XZ_UI_SAMPLE|XZ_UI_GROOVE|XZ_UI_HOTCUE|XZ_UI_PREVIEW;
+  page("menu-play-engine-bits-reported",CHAIN(XZ_UI_PLAY),"X-PAD SAMPLER",0);
+  page("menu-stems-engine-bits-reported",CHAIN(XZ_UI_STEM_SECTION),"GROOVE PADS",0);
   ui_model=saved;
  }
  /* STEMS */
@@ -142,14 +143,22 @@ int main(int argc, char **argv) {
  page("menu-metrics-setup",CHAIN(XZ_UI_SCREEN,XZ_UI_METRICS_SETUP),NULL,0);
  /* 4 DECKS in its states */
  {
-  static const int states[]={XZ_UI_ROUTE_READY,XZ_UI_ROUTE_NOT_DETECTED,XZ_UI_ROUTE_SCANNING,XZ_UI_ROUTE_WAITING_NATIVE_STOP,XZ_UI_ROUTE_FAILED,XZ_UI_ROUTE_NO_ENGINE};
-  static const char *const names[]={"menu-four-decks-ready","menu-four-decks-not-detected","menu-four-decks-scanning","menu-four-decks-waiting","menu-four-decks-failed","menu-four-decks-no-engine"};
+  /* each state with the connector's own part and sentence (extra_route_status.h) */
+  static const struct { int state, part; const char *reason, *name; } st[]={
+   {XZ_UI_ROUTE_READY,XZ_UI_ROUTE_PART_NONE,"Decks 3 and 4 are ready.","menu-four-decks-ready"},
+   {XZ_UI_ROUTE_NOT_DETECTED,XZ_UI_ROUTE_PART_CABLE,"The loopback cable has not been detected.","menu-four-decks-not-detected"},
+   {XZ_UI_ROUTE_SCANNING,XZ_UI_ROUTE_PART_NONE,"Checking the loopback cable and audio route now.","menu-four-decks-scanning"},
+   {XZ_UI_ROUTE_STARTING,XZ_UI_ROUTE_PART_SOCKET,"The cable was found and the audio input is starting.","menu-four-decks-starting"},
+   {XZ_UI_ROUTE_WAITING_NATIVE_STOP,XZ_UI_ROUTE_PART_SELECTOR,"Stop or pause decks 1 and 2 so decks 3 and 4 can start.","menu-four-decks-waiting"},
+   {XZ_UI_ROUTE_FAILED,XZ_UI_ROUTE_PART_PORT,"The music drive could not be confirmed on USB 2.","menu-four-decks-failed"},
+   {XZ_UI_ROUTE_LOST,XZ_UI_ROUTE_PART_CABLE,"The audio route was disconnected; check the loopback cable.","menu-four-decks-lost"},
+   {XZ_UI_ROUTE_NO_ENGINE,XZ_UI_ROUTE_PART_NONE,"The software players are unavailable or have not been started.","menu-four-decks-no-engine"}};
   struct xz_ui_model saved=ui_model;
-  for(size_t i=0;i<sizeof states/sizeof *states;i++){
-   ui_model.route.state=states[i];ui_model.route.fail_part=states[i]==XZ_UI_ROUTE_FAILED?XZ_UI_ROUTE_PART_PORT:XZ_UI_ROUTE_PART_NONE;
-   snprintf(ui_model.route.reason,sizeof ui_model.route.reason,"%s",states[i]==XZ_UI_ROUTE_FAILED?"USB 1 gave no audio device. Plug the cable into USB 1 on top.":"");
+  for(size_t i=0;i<sizeof st/sizeof *st;i++){
+   ui_model.route.state=st[i].state;ui_model.route.fail_part=st[i].part;
+   snprintf(ui_model.route.reason,sizeof ui_model.route.reason,"%s",st[i].reason);
    mfx_tabs[4].attention=xz_ui_four_decks_attention(&ui_model);
-   page(names[i],CHAIN(XZ_UI_FOUR_DECKS),i==0?"STEMS":NULL,0);
+   page(st[i].name,CHAIN(XZ_UI_FOUR_DECKS),i==0?"STEMS":NULL,0);
   }
   mfx_tabs[4].attention=0;
   ui_model=saved;

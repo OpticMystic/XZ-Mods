@@ -223,6 +223,8 @@ neither. A record without them loads with the defaults, and overlaid on the appl
 settings (boot restore, a stick's profile) it leaves the DJ's current DECK VIEW as it
 is. DECK VIEW replaced the session-only four-deck layout preference: `ui/layout_cycle.c`
 keeps the `xz_deck_layout_*` calls, and every `xz_deck_layout_set` is now saved here.
+The play-screen picker, the decks 3 and 4 card's TWO DECKS, MODS and the button next to
+LINK all apply it through `deck_view_apply()` in `ui_runtime.c`, which saves it at once.
 
 `wave_mode` is an optional trailing field after `stems_overlay`: 0 stock
 scrolling waveform, 1 CDJ-3000 style layered 3-band (default, also for older

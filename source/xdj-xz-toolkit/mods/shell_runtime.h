@@ -39,6 +39,7 @@ struct xz_shell_runtime_frame_input {
  int four_decks_attention;   /* a four-deck view is chosen and decks 3 and 4 are not connected: 4 DECKS gets a dot */
  /* The look settings MY SETTINGS and the shell follow (ui_runtime.c's model). */
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
+ int stem_order;
  int stems_overlay;           /* MODERN's stem layout (settings modern_stems): enum xz_shell_stem_layout */
  int rekordbox_known, rekordbox_assign[2]; /* the REKORDBOX button's press and SHIFT + press (enum xz_rekordbox_action) */
  int stem_level_known[XZ_SHELL_NATIVE_DECKS]; float stem_level[XZ_SHELL_NATIVE_DECKS][3]; /* the stem levels 0..1 (drums, harmonics, vocal) */
@@ -82,7 +83,10 @@ void xz_shell_runtime_owner_tick(void);
    STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
    right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
 enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u,
- XZ_SHELL_UI_MENU=32u };
+ XZ_SHELL_UI_MENU=32u, XZ_SHELL_UI_DECK_VIEW=64u };
+/* XZ_SHELL_UI_DECK_VIEW: the DECK VIEW the PLAY picker or the decks 3 and 4 card chose (enum xz_deck_layout),
+   or -1. Taken once; ui_runtime.c applies it through its one DECK VIEW entry point. */
+int xz_shell_runtime_take_deck_view(void);
 /* The MODS screen's MENU tabs (GENERAL, CONTROLS, ADVANCED, EXTRAS) are the MODS panel's own pages, drawn by
    the shell (ui/ui_menu.h describes them). ui_runtime.c publishes the panel's open page whenever menu_wanted
    says the shell shows a MENU tab (every frame, and right after it runs a command, so the next input already

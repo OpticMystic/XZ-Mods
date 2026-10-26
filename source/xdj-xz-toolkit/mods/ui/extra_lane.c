@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "extra_lane.h"
 #include "ui_skin.h"
+#include "native_led.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -9,6 +10,7 @@ _Static_assert(sizeof(struct xz_extra_column)==3,"PWV7 columns are three packed 
 #define LANE XZ_FOUR_LANE_HEIGHT
 #define WIDTH XZ_WAVE_WIDTH
 #define PLAYHEAD XZ_EXTRA_LANE_PLAYHEAD_X
+#define PLATE XZ_EXTRA_LANE_READOUT_W
 /* Native lane geometry (LAYERED_WAVE.md): body rows 14..117 around the centre line under row 65,
    beat ticks in rows 4..13 and 118..127, cue bands in the outer ten rows. */
 #define CENTER 65u
@@ -16,21 +18,115 @@ _Static_assert(sizeof(struct xz_extra_column)==3,"PWV7 columns are three packed 
 #define LOOP_TINT 0xb300
 #define BEAT_TICK 0xce59
 #define BAR_TICK 0xf800
+/* Plate colours (0xRRGGBB), the native panels' conventions: white values, grey labels, red QUANTIZE,
+   MT and WIDE, orange MASTER, blue SYNC, amber for anything still waiting. */
+#define INK 0xffffff
+#define LABEL 0xb4bcc4
+#define DIM 0x6a747e
+#define BLANK 0x9aa2aa
+#define RED 0xe8402c
+#define MASTER_ORANGE 0xff6a00
+#define SYNC_BLUE 0x2f7ff0
+#define SYNC_INK 0x6fb2ff
+#define WAIT_AMBER 0xffc070
+#define LOOP_ORANGE 0xff9a30
+#define SLIP_AMBER 0xffbd59
+#define DARK_INK 0x1a1206
 
 int xz_extra_notice_active(const struct xz_extra_decks *s,uint32_t now_ms) {
  return s&&s->notice_seq&&s->notice[0]&&(uint32_t)(now_ms-s->notice_at_ms)<3500u;
 }
-int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *s,uint32_t now_ms) {
- if(!pixels||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||count<stride*XZ_WAVE_HEIGHT||
-    !xz_extra_notice_active(s,now_ms))return 0;
- char text[sizeof s->notice];memcpy(text,s->notice,sizeof text);text[sizeof text-1]=0;
+int xz_extra_banner_draw(uint16_t *pixels,size_t stride,size_t count,const char *text) {
+ if(!pixels||!text||!text[0]||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||count<stride*XZ_WAVE_HEIGHT)return 0;
  struct xz_canvas c={pixels,stride,WIDTH,XZ_WAVE_HEIGHT,0};
  xz_rect(c,6,244,WIDTH-12,22,0x151515);
  xz_border(c,6,244,WIDTH-12,22,0xff9a30);
  xz_text(c,14,251,text,1,63,0xffffff);
  return 1;
 }
+int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *s,uint32_t now_ms) {
+ if(!xz_extra_notice_active(s,now_ms))return 0;
+ char text[sizeof s->notice];memcpy(text,s->notice,sizeof text);text[sizeof text-1]=0;
+ return xz_extra_banner_draw(pixels,stride,count,text);
+}
 
+enum xz_extra_sync_class xz_extra_sync_class(const struct xz_extra_deck *d){
+ if(!d)return XZ_EXTRA_SYNC_CLASS_NONE;
+ if((d->known&K(MASTER))&&d->master)return XZ_EXTRA_SYNC_CLASS_MASTER;
+ if(!(d->known&K(SYNC))||!d->sync.requested)return XZ_EXTRA_SYNC_CLASS_NONE;
+ if(d->sync.locked)return XZ_EXTRA_SYNC_CLASS_LOCKED;
+ switch(d->sync.reason){
+ case XZ_EXTRA_SYNC_TEMPO_FOLLOW:case XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:return XZ_EXTRA_SYNC_CLASS_TEMPO;
+ case XZ_EXTRA_SYNC_MASTER_CLOCK:return XZ_EXTRA_SYNC_CLASS_MASTER;
+ case XZ_EXTRA_SYNC_NO_GRID:case XZ_EXTRA_SYNC_NO_SOURCE_BPM:case XZ_EXTRA_SYNC_OUT_OF_RANGE:
+ case XZ_EXTRA_SYNC_LOOP_UNALIGNED:case XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:return XZ_EXTRA_SYNC_CLASS_BLOCKED;
+ default:return XZ_EXTRA_SYNC_CLASS_WAIT;
+ }
+}
+const char *xz_extra_sync_chip(const struct xz_extra_deck *d,char *out,size_t size){
+ if(!out||!size)return "";
+ out[0]=0;
+ enum xz_extra_sync_class k=xz_extra_sync_class(d);
+ if(k==XZ_EXTRA_SYNC_CLASS_NONE)return out;
+ int n=d->sync.master_deck>=0&&d->sync.master_deck<XZ_FOUR_DECKS?d->sync.master_deck+1:0;
+ const char *label=NULL;
+ switch(k){
+ case XZ_EXTRA_SYNC_CLASS_MASTER:{
+  uint32_t scope=(d->known&K(MASTER))&&d->master?d->master_scope:d->sync.master_scope;
+  label=scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MASTER":"MASTER";n=0;break;
+ }
+ case XZ_EXTRA_SYNC_CLASS_LOCKED:label="SYNC";break;
+ case XZ_EXTRA_SYNC_CLASS_TEMPO:label="BPM";break;
+ case XZ_EXTRA_SYNC_CLASS_WAIT:label="WAIT";break;
+ default:
+  n=0;
+  label=d->sync.reason==XZ_EXTRA_SYNC_NO_GRID?"NO BEAT GRID":d->sync.reason==XZ_EXTRA_SYNC_NO_SOURCE_BPM?"NO TRACK BPM":
+   d->sync.reason==XZ_EXTRA_SYNC_OUT_OF_RANGE?"OUT OF RANGE":d->sync.reason==XZ_EXTRA_SYNC_LOOP_UNALIGNED?"LOOP OFF GRID":"EXT MASTER";
+ }
+ if(n)snprintf(out,size,"%s %d",label,n);else snprintf(out,size,"%s",label);
+ return out;
+}
+/* The pads' meaning per mode, as the players apply it (extra_player.c beat_loop_beats, slip_loop_beats and
+   pad_jump; manual pp.56, 59, 62). */
+static const char *const beat_loop_sizes[XZ_EXTRA_HOT_CUES]={"1/4","1/2","1","2","4","8","16","32"};
+static const char *const slip_loop_sizes[XZ_EXTRA_HOT_CUES]={"1/16","1/8","1/4","1/2","1","2","1/3","3/4"};
+static const char *const jump_sizes[XZ_EXTRA_HOT_CUES]={"-1","+1","-2","+2","-4","+4","-8","+8"};
+const char *xz_extra_pad_text(const struct xz_extra_deck *d,char *out,size_t size){
+ if(!out||!size)return "";
+ out[0]=0;
+ if(!d||!d->loaded)return out;
+ int active=d->active_pad>=0&&d->active_pad<XZ_EXTRA_HOT_CUES;
+ switch(d->pad_mode){
+ case XZ_EXTRA_PAD_HOT_CUE:snprintf(out,size,"HOT CUE");break;
+ case XZ_EXTRA_PAD_BEAT_LOOP:
+  if(active)snprintf(out,size,"BEAT LOOP %s",beat_loop_sizes[d->active_pad]);else snprintf(out,size,"BEAT LOOP");break;
+ case XZ_EXTRA_PAD_SLIP_LOOP:
+  if(active)snprintf(out,size,"SLIP LOOP %s",slip_loop_sizes[d->active_pad]);else snprintf(out,size,"SLIP LOOP");break;
+ case XZ_EXTRA_PAD_BEAT_JUMP:snprintf(out,size,"BEAT JUMP");break;
+ case XZ_EXTRA_PAD_CALL:snprintf(out,size,"HOT CUE CALL");break;
+ case XZ_EXTRA_PAD_NONE:snprintf(out,size,"PADS OFF");break;
+ default:break;
+ }
+ return out;
+}
+const char *xz_extra_pad_label(const struct xz_extra_deck *d,int pad,char *out,size_t size){
+ if(!out||!size)return "";
+ out[0]=0;
+ if(!d||!d->loaded||pad<0||pad>=XZ_EXTRA_HOT_CUES)return out;
+ switch(d->pad_mode){
+ case XZ_EXTRA_PAD_HOT_CUE:case XZ_EXTRA_PAD_CALL:snprintf(out,size,"%c",'A'+pad);break;
+ case XZ_EXTRA_PAD_BEAT_LOOP:snprintf(out,size,"%s",beat_loop_sizes[pad]);break;
+ case XZ_EXTRA_PAD_SLIP_LOOP:snprintf(out,size,"%s",slip_loop_sizes[pad]);break;
+ case XZ_EXTRA_PAD_BEAT_JUMP:snprintf(out,size,"%s",jump_sizes[pad]);break;
+ default:break;
+ }
+ return out;
+}
+
+uint32_t xz_extra_cue_color(const struct xz_extra_cue *cue){
+ uint32_t color=cue->rgb&0xffffffu;
+ return color?color:cue->end_ms>cue->ms?XZ_EXTRA_PAD_LOOP_DEFAULT_RGB:XZ_EXTRA_PAD_DEFAULT_RGB;
+}
 static uint16_t rgb(unsigned r,unsigned g,unsigned b){return (uint16_t)(((r>>3)<<11)|((g>>2)<<5)|(b>>3));}
 /* Rows above the centre line for a native lane row, or -1 outside the body. */
 static int body_d(unsigned s){
@@ -110,7 +206,8 @@ static void cue_marks(struct xz_canvas c,const struct xz_extra_deck *d,int32_t p
   const struct xz_extra_cue *q=&d->hot_cue[i];if(!q->set)continue;
   int x=x_of(q->ms,pos,column_us);if(x<-9||x>=WIDTH)continue;
   /* A flag hanging right of the cue column in the top cue band, lettered A-H. */
-  xz_rect(c,x,0,9,10,q->rgb&0xffffff);xz_rect(c,x,10,1,4,q->rgb&0xffffff);
+  uint32_t color=xz_extra_cue_color(q);
+  xz_rect(c,x,0,9,10,color);xz_rect(c,x,10,1,4,color);
   char letter[2]={(char)('A'+i),0};xz_pixel_text(c,x+2,1,letter,1,1,0x000000);
  }
  if((d->known&K(CUE))&&d->cue_ms>=0){
@@ -118,60 +215,139 @@ static void cue_marks(struct xz_canvas c,const struct xz_extra_deck *d,int32_t p
   for(int h=0;h<6;h++)xz_rect(c,x-h,LANE-6+h,2*h+1,1,0xff8c00);
  }
 }
+/* LOOP IN / OUT adjust: the edge the jog now moves is drawn wide and labelled in the bottom band. */
+static void loop_edit_mark(struct xz_canvas c,uint16_t *lane,size_t stride,const unsigned *rows,const struct xz_extra_deck *d,
+ int32_t pos,uint32_t column_us){
+ int out=d->loop.edit==2;
+ int x=x_of(out?d->loop.out_ms:d->loop.in_ms,pos,column_us)-out;
+ column_rows(lane,stride,x-1,3,rows,any_row,0xffe0);
+ const char *label=out?"OUT ADJUST":"IN ADJUST";
+ int w=xz_text_width(c,label,1,12)+6,lx=out?x-2-w:x+3;
+ if(lx<PLATE+2)lx=x+3;
+ if(lx+w>WIDTH)lx=WIDTH-w;
+ xz_rect(c,lx,LANE-12,w,12,0x302a00);xz_text(c,lx+3,LANE-11,label,1,12,0xffe600);
+}
 static void darken(uint16_t *lane,size_t stride,unsigned width){
  for(unsigned r=0;r<LANE;r++)for(unsigned x=0;x<width;x++){
   uint16_t *p=&lane[r*stride+x];*p=(uint16_t)((*p>>2)&0x39e7);
  }
 }
-static void clock_text(char *out,size_t n,int known,int32_t ms){
+static void clock_text(char *out,size_t n,int known,int32_t ms,int remain){
  if(!known){snprintf(out,n,"-:--.-");return;}
  if(ms<0)ms=0;
- snprintf(out,n,"-%d:%02d.%d",(int)(ms/60000),(int)(ms/1000%60),(int)(ms/100%10));
+ snprintf(out,n,"%s%d:%02d.%d",remain?"-":"",(int)(ms/60000),(int)(ms/1000%60),(int)(ms/100%10));
+}
+/* A caps chip in the native panels' style: fill 0 draws no fill, edge 0 no border. Returns the width. */
+static int chip(struct xz_canvas c,int x,int y,int h,const char *text,uint32_t fill,uint32_t edge,uint32_t ink){
+ int w=xz_text_width(c,text,1,24)+8;
+ if(fill)xz_rect(c,x,y,w,h,fill);
+ if(edge)xz_border(c,x,y,w,h,edge);
+ xz_text(c,x+4,y+(h-9)/2,text,1,24,ink);
+ return w;
+}
+static int chip_width(struct xz_canvas c,const char *text){return xz_text_width(c,text,1,24)+8;}
+/* The deck tag shared by software plates and native lane badges, lit while that side's controls drive the
+   deck. more adds the arrow that says touching the lane opens the deck's detail. */
+static int tag(struct xz_canvas c,unsigned number,int lit,int more){
+ char text[8];snprintf(text,sizeof(text),"DECK %u",number);
+ int w=xz_text_width(c,text,1,12)+10+(more?7:0);
+ uint32_t ink=lit?0x0a1626:0xb4bcc4;
+ if(lit)xz_rect(c,3,2,w,13,0x9cc8ff);
+ else{xz_rect(c,3,2,w,13,0x1c2632);xz_border(c,3,2,w,13,0x55606c);}
+ xz_text(c,8,4,text,1,12,ink);
+ if(more)for(int i=0;i<4;i++)xz_rect(c,3+w-9+i,5+i,1,7-2*i,ink);
+ return w;
 }
 static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_deck *d,int loaded,int placed,int32_t pos,int lit){
- char text[48];snprintf(text,sizeof(text),"DECK %u",number);
- int tag=xz_text_width(c,text,1,12)+10;
- if(lit){xz_rect(c,3,2,tag,13,0x9cc8ff);xz_text(c,8,4,text,1,12,0x0a1626);}
- else{xz_rect(c,3,2,tag,13,0x1c2632);xz_border(c,3,2,tag,13,0x55606c);xz_text(c,8,4,text,1,12,0xb4bcc4);}
+ char text[48];
+ int x=3+tag(c,number,lit,1)+4;
  if(!loaded)return;
- if((d->known&K(MASTER))&&d->master){
-  const char *label=d->master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MST":"MASTER";
-  int w=xz_text_width(c,label,1,12)+8;
-  xz_rect(c,3+tag+4,2,w,13,0xff6a00);xz_text(c,3+tag+8,4,label,1,12,0xffffff);
- }else if((d->known&K(SYNC))&&d->sync.requested){
-  const char *label=d->sync.locked?"SYNC":(d->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE||d->sync.reason==XZ_EXTRA_SYNC_TEMPO_FOLLOW)?"BPM":d->sync.reason==XZ_EXTRA_SYNC_OUT_OF_RANGE?"LIMIT":"WAIT";
-  if(d->sync.master_deck>=0&&d->sync.master_deck<4)snprintf(text,sizeof text,"%s %d",label,d->sync.master_deck+1);
-  else snprintf(text,sizeof text,"%s",label);
-  xz_text(c,3+tag+4,4,text,1,12,d->sync.locked?0x4d9fff:0xffc070);
- }else{
-  char range[8]="";
-  if(d->known&K(TEMPO_RANGE)){
-   if(d->tempo_range==100)snprintf(range,sizeof range,"WIDE");
-   else if(d->tempo_range==6||d->tempo_range==10||d->tempo_range==16)snprintf(range,sizeof range,"%d%%",d->tempo_range);
-  }
-  snprintf(text,sizeof text,"%s%s%s",range,
-           (d->known&K(MASTER_TEMPO))&&d->master_tempo?" MT":"",
-           (d->known&K(VINYL))&&d->vinyl?" V":"");
-  xz_text(c,3+tag+4,4,text,1,10,0xffc070);
+ /* Line 1: what SYNC follows or MASTER, then source and key at the right edge. */
+ enum xz_extra_sync_class k=xz_extra_sync_class(d);
+ if(k!=XZ_EXTRA_SYNC_CLASS_NONE){
+  uint32_t fill=0,edge=0,ink=INK;
+  if(k==XZ_EXTRA_SYNC_CLASS_MASTER)fill=MASTER_ORANGE;
+  else if(k==XZ_EXTRA_SYNC_CLASS_LOCKED)fill=SYNC_BLUE;
+  else if(k==XZ_EXTRA_SYNC_CLASS_TEMPO)edge=ink=SYNC_INK;
+  else if(k==XZ_EXTRA_SYNC_CLASS_WAIT)edge=ink=WAIT_AMBER;
+  else{fill=WAIT_AMBER;ink=DARK_INK;}
+  chip(c,x,2,13,xz_extra_sync_chip(d,text,sizeof text),fill,edge,ink);
  }
- int timed=placed&&(d->known&K(TOTAL))&&d->total_ms>0;
- clock_text(text,sizeof(text),timed,timed?d->total_ms-pos:0);
- xz_text(c,4,18,text,2,8,timed?0xffffff:0x9aa2aa);
+ /* Line 2: the clock in the deck's TIME MODE (remaining with a minus, elapsed without), source and key, the
+    playing BPM. Nothing sits right of column 150 on line 1: the header strip covers it when this lane is on top. */
+ int mode=(d->known&K(TIME_MODE))!=0,remain=!mode||d->remain;
+ int timed=placed&&(!remain||((d->known&K(TOTAL))&&d->total_ms>0));
+ clock_text(text,sizeof(text),timed,remain?d->total_ms-pos:pos,remain);
+ xz_text(c,4,17,text,2,10,timed?INK:BLANK);
+ int left=4+xz_text_width(c,text,2,10)+8;
  int bpm=(d->known&K(BPM))&&d->bpm_x100>0;
  if(bpm)snprintf(text,sizeof(text),"%d.%d",(int)(d->bpm_x100/100),(int)(d->bpm_x100%100/10));
  else snprintf(text,sizeof(text),"---.-");
- xz_text(c,4,35,text,2,6,bpm?0xffffff:0x9aa2aa);
- int x=4+xz_text_width(c,text,2,6)+5;
+ int right=PLATE-4-xz_text_width(c,text,2,6);
+ xz_text(c,right,17,text,2,6,bpm?INK:BLANK);
+ right-=8;
+ if((d->known&K(KEY))&&d->key[0]){
+  char key[sizeof d->key];memcpy(key,d->key,sizeof key);key[sizeof key-1]=0;
+  int w=xz_text_width(c,key,1,8);
+  if(right-w>=left){xz_text(c,right-w,21,key,1,8,INK);right-=w+6;}
+ }
+ if((d->known&K(SOURCE))&&(d->source==1||d->source==2)){
+  const char *usb=d->source==1?"USB1":"USB2";int w=xz_text_width(c,usb,1,8);
+  if(right-w>=left)xz_text(c,right-w,21,usb,1,8,LABEL);
+ }
+ /* Line 3: REMAIN or TIME and A.CUE, as the native panel labels them; tempo, its range (or TEMPO RESET) and MT. */
+ int lx=4;
+ if(mode){
+  const char *name=d->remain?"REMAIN":"TIME";
+  xz_text(c,lx,34,name,1,8,LABEL);lx+=xz_text_width(c,name,1,8)+5;
+  lx+=chip(c,lx,32,11,"A.CUE",0,d->auto_cue?INK:DIM,d->auto_cue?INK:DIM)+4;
+ }
+ int rx=PLATE-4;
+ if(d->known&K(MASTER_TEMPO)){
+  rx-=chip_width(c,"MT");chip(c,rx,32,11,"MT",0,d->master_tempo?RED:DIM,d->master_tempo?RED:DIM);rx-=4;
+ }
+ if(d->tempo_reset){rx-=chip_width(c,"RESET");chip(c,rx,32,11,"RESET",INK,0,DARK_INK);rx-=4;}
+ else if(d->known&K(TEMPO_RANGE)){
+  if(d->tempo_range==100){rx-=chip_width(c,"WIDE");chip(c,rx,32,11,"WIDE",RED,0,INK);rx-=4;}
+  else if(d->tempo_range==6||d->tempo_range==10||d->tempo_range==16){
+   snprintf(text,sizeof text,"\xc2\xb1%d",d->tempo_range);
+   rx-=chip_width(c,text);chip(c,rx,32,11,text,0,DIM,LABEL);rx-=4;
+  }
+ }
  if(d->known&K(TEMPO)){
   int32_t t=d->tempo_x100,a=t<0?-t:t;
   snprintf(text,sizeof(text),"%c%d.%02d%%",t<0?'-':t>0?'+':' ',(int)(a/100),(int)(a%100));
  }else snprintf(text,sizeof(text),"--.--%%");
- xz_text(c,x,40,text,1,8,(d->known&K(TEMPO))?0xd8dde2:0x9aa2aa);
- if((d->known&K(TITLE))&&d->title[0])xz_text(c,4,52,d->title,1,(XZ_EXTRA_LANE_READOUT_W-8)/6,0xc8ced4);
+ int tw=xz_text_width(c,text,1,8);
+ if(rx-tw>=lx)xz_text(c,rx-tw,34,text,1,8,(d->known&K(TEMPO))?0xd8dde2:BLANK);
+ /* Line 4: what the pads do, then REV, SLIP (filled while playback runs on underneath), QUANTIZE, VINYL. */
+ lx=3;
+ if(xz_extra_pad_text(d,text,sizeof text)[0]){
+  int looping=(d->pad_mode==XZ_EXTRA_PAD_BEAT_LOOP||d->pad_mode==XZ_EXTRA_PAD_SLIP_LOOP)&&
+   d->active_pad>=0&&d->active_pad<XZ_EXTRA_HOT_CUES;
+  if(d->pad_mode==XZ_EXTRA_PAD_NONE)lx+=chip(c,lx,44,11,text,0,DIM,BLANK)+3;
+  else if(looping)lx+=chip(c,lx,44,11,text,LOOP_ORANGE,0,DARK_INK)+3;
+  else lx+=chip(c,lx,44,11,text,0x2a3440,0,INK)+3;
+ }
+ lx+=(d->reverse?chip(c,lx,44,11,"REV",0xff5a3c,0,INK):chip(c,lx,44,11,"REV",0,DIM,DIM))+3;
+ if(d->slip_active)lx+=chip(c,lx,44,11,"SLIP",SLIP_AMBER,0,DARK_INK)+3;
+ else lx+=chip(c,lx,44,11,"SLIP",0,d->slip?SLIP_AMBER:DIM,d->slip?SLIP_AMBER:DIM)+3;
+ if(d->known&K(QUANTIZE))lx+=(d->quantize?chip(c,lx,44,11,"Q",RED,0,INK):chip(c,lx,44,11,"Q",0,DIM,DIM))+3;
+ if((d->known&K(VINYL))&&lx+chip_width(c,"VINYL")<=PLATE)chip(c,lx,44,11,"VINYL",0,d->vinyl?INK:DIM,d->vinyl?INK:DIM);
+ /* Line 5: title, then the artist when there is room. */
+ int ty=55,end=4;
+ if((d->known&K(TITLE))&&d->title[0]){
+  xz_text(c,4,ty,d->title,1,(PLATE-8)/6,0xc8ced4);end=4+xz_text_width(c,d->title,1,(PLATE-8)/6);
+ }
+ if((d->known&K(ARTIST))&&d->artist[0]&&end+24<PLATE-4){
+  int ax=end>4?end+5:4;
+  if(end>4){xz_text(c,end+4,ty,"\xc2\xb7",1,1,LABEL);ax=end+11;}
+  xz_text(c,ax,ty,d->artist,1,(PLATE-4-ax)/6,0x8a949e);
+ }
 }
 
-int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
- const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks){
+static int draw_lane(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks,int plate){
  if(marks)memset(marks,0,sizeof(*marks));
  if(!pixels||!view||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||lane_y>XZ_WAVE_HEIGHT-LANE||
     count<stride*(lane_y+LANE)||number<3||number>4)return 0;
@@ -215,15 +391,37 @@ int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane
  struct xz_canvas c={lane,stride,WIDTH,LANE,0};
  if(looped)for(int edge=0;edge<2;edge++)
   column_rows(lane,stride,x_of(edge?d->loop.out_ms:d->loop.in_ms,pos,column_us)-edge,1,rows,body_row,0xfd20);
+ /* A stored loop RELOOP returns to, outside the loop: its ends stay marked, dimmer and untinted. */
+ else if(placed&&(d->known&K(LOOP))&&d->loop.stored&&d->loop.out_ms>d->loop.in_ms)for(int edge=0;edge<2;edge++)
+  column_rows(lane,stride,x_of(edge?d->loop.out_ms:d->loop.in_ms,pos,column_us)-edge,1,rows,body_row,0x8c40);
  if(placed){beat_ticks(lane,stride,rows,d,pos,column_us);cue_marks(c,d,pos,column_us);}
+ if(looped&&(d->loop.edit==1||d->loop.edit==2))loop_edit_mark(c,lane,stride,rows,d,pos,column_us);
  if(loaded)column_rows(lane,stride,PLAYHEAD,2,rows,any_row,(d->known&K(PLAYING))&&d->playing?0xf800:0xffff);
  else{
   const char *none="NO TRACK";
   int w=xz_text_width(c,none,2,12);
-  xz_text(c,(XZ_EXTRA_LANE_READOUT_W+WIDTH-w)/2,(LANE-14)/2,none,2,12,0x9aa2aa);
+  xz_text(c,(PLATE+WIDTH-w)/2,(LANE-14)/2,none,2,12,0x9aa2aa);
  }
- if(loaded)darken(lane,stride,XZ_EXTRA_LANE_READOUT_W);
- readout(c,number,d,loaded,placed,pos,view->lit);
+ if(plate){
+  if(loaded)darken(lane,stride,PLATE);
+  readout(c,number,d,loaded,placed,pos,view->lit);
+ }else tag(c,number,view->lit,1);
+ return 1;
+}
+int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks){
+ return draw_lane(pixels,stride,count,lane_y,number,d,view,marks,1);
+}
+int xz_extra_lane_draw_wave(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
+ const struct xz_extra_deck *d,const struct xz_extra_lane_view *view,struct xz_extra_lane_marks *marks){
+ return draw_lane(pixels,stride,count,lane_y,number,d,view,marks,0);
+}
+
+int xz_four_badge_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,int lit){
+ if(!pixels||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||lane_y>XZ_WAVE_HEIGHT-LANE||
+    count<stride*(lane_y+LANE)||number<1||number>2)return 0;
+ struct xz_canvas c={pixels+(size_t)lane_y*stride,stride,WIDTH,LANE,0};
+ tag(c,number,lit,0);
  return 1;
 }
 

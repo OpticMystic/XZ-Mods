@@ -3,9 +3,10 @@
 The capture must show stem rows in BELOW / HALF layout (stems_overlay 2), as
 E:/Codex/xz-four-deck-20261016/live-screen.png does. Its two shrunk native lanes are
 resampled back to the 132-row native surface, run through the real C layout and
-DECK 3/4 renderer for each fixture scenario, and pasted back at the surface's
+DECK 3/4 composition the runtime draws (xz_four_frame_draw: lanes, deck tags,
+detail panel) for each fixture scenario, and pasted back at the surface's
 native offset (131,18). The mod header strip that overlaps the surface top is
-restored on top, as on the device. Nothing contacts the device.
+restored on top, as on the device (STRIP below). Nothing contacts the device.
 """
 import argparse
 from pathlib import Path
@@ -17,7 +18,10 @@ from PIL import Image
 
 X, Y, W, H = 131, 18, 536, 268
 HALF_LANE = 108
-HEADER = (282, 0, 592, 23)
+# The mod header strip (metrics readout and METRICS button) the receiver draws over the surface's
+# top rows. The capture has it baked into native DECK 1's cue band; orders that move that lane down
+# would carry it along, so those pixels are rebuilt as the empty cue band they cover.
+STRIP = (282, 0, 672, 24)
 
 
 def lane_row(row, height):
@@ -41,7 +45,8 @@ def native_surface(screen):
     pixels = bytearray()
     for screen_y in rows:
         for x in range(W):
-            r, g, b = (0, 0, 0) if screen_y is None else screen.getpixel((X + x, screen_y))
+            covered = screen_y is not None and screen_y < STRIP[3] and STRIP[0] <= X + x < STRIP[2]
+            r, g, b = (0, 0, 0) if screen_y is None or covered else screen.getpixel((X + x, screen_y))
             pixels += struct.pack('<H', ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3))
     return bytes(pixels)
 
@@ -66,7 +71,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='xz-four-preview-') as folder:
         folder = Path(folder)
         exe = folder / 'preview.exe'
-        sources = ['preview_four_deck.c', 'extra_lane.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c']
+        sources = ['preview_four_deck.c', 'extra_lane.c', 'extra_detail.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c', 'route_card.c']
         subprocess.run([args.zig, 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
                         *[str(here / s) for s in sources], '-lm', '-o', str(exe)], check=True)
         (folder / 'native.raw').write_bytes(native_surface(screen))
@@ -76,7 +81,7 @@ def main():
         for raw in sorted(folder.glob('[0-9]*.raw')):
             frame = screen.copy()
             frame.paste(to_image(raw.read_bytes()), (X, Y))
-            frame.paste(screen.crop(HEADER), HEADER[:2])
+            frame.paste(screen.crop(STRIP), STRIP[:2])
             frame.save(args.output / (raw.stem + '.png'))
             frame.crop((0, 0, 800, 310)).resize((1600, 620), Image.NEAREST).save(args.output / (raw.stem + '-zoom.png'))
     print('wrote', args.output)

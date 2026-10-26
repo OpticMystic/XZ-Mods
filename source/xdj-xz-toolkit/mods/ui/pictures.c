@@ -239,7 +239,7 @@ void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
  for(int k=0;k<4;k++){
   struct xz_rect r=g->live[k];int page=j->deck_page[k],live=j->deck_live[k];
   if(!live)snprintf(text,sizeof text,"DECK %d: NOT CONNECTED",k+1);
-  else if(page<0)snprintf(text,sizeof text,"DECK %d: 1 2 4 8 ONLY",k+1);
+  else if(page<0)snprintf(text,sizeof text,"DECK %d: PAGE -",k+1);
   else snprintf(text,sizeof text,"DECK %d: PAGE %d",k+1,page+1);
   uint32_t col=!live?(s->modern?0x5a5a5a:s->faint):page>=0&&page!=j->edit_page?s->warn:s->dim;
   if(s->radius){xz_round_rect(c,r.x,r.y,r.w,r.h,4,15,col);xz_round_rect(c,r.x+1,r.y+1,r.w-2,r.h-2,3,15,s->bg);}
@@ -365,7 +365,7 @@ void xz_pic_stem_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
   xz_pic_text_center(c,r.x+r.w/2,r.y+15,names[stem],12,s->modern?0xffffff:s->ink);
  }
  xz_pic_text(c,g->bank[0].x,g->caption_y[2]+62,p->focus==XZ_PIC_STEM_ORDER?"TURN TO CHANGE THE ORDER":"PUSH, THEN TURN TO CHANGE THE ORDER",12,s->modern?M_GREY:s->dim);
- xz_pic_text(c,g->bank[0].x,g->caption_y[3],"PAD LIGHTS",12,s->dim);
+ xz_pic_text(c,g->bank[0].x,g->caption_y[3],"STEM PAD LIGHTS, DECKS 1 AND 2",12,s->dim);
  xz_pic_text(c,g->x,g->rule_y,"SHIFT + HOT CUE, BEAT LOOP OR SLIP LOOP ALWAYS GIVES STEM PADS.",12,s->modern?0xc8c8c8:s->ink);
 }
 

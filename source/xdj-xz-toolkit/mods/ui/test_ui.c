@@ -60,8 +60,12 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  {size_t n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_BELOW,a);assert(n==1&&a[0].kind==XZ_UI_STEMS_OVERLAY);
   n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_OUTER_HALF,a);assert(n==4);
   n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_HIDDEN,a);assert(n==0);}
- /* Groove pads open once a loader reports the engine. */
- assert(tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_STEMS).value==XZ_UI_STEMS&&u->page==XZ_UI_STEMS);
+ /* No groove engine runs in this runtime: even with every ready bit set, GROOVE PADS explains itself and opens
+    nothing. Its page's own pads are checked directly, for a runtime that adds the engine. */
+ find(u,m,XZ_UI_INFO,XZ_UI_INFO_GROOVE);
+ {struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,widgets);
+  for(size_t k=0;k<count;k++)assert(!(widgets[k].kind==XZ_UI_FEATURE_LINK&&widgets[k].index==XZ_UI_STEMS));}
+ xz_ui_navigate(u,XZ_UI_STEMS);assert(u->page==XZ_UI_STEMS);
  m->deck[0].groove_assigned=255;m->deck[0].groove_loaded=255;m->deck[0].sample_loaded=255;m->deck[0].loop_index=3;
  for(i=0;i<8;i++)assert(tap(u,m,XZ_UI_GROOVE_PAD,i).index==i);
  m->deck[0].groove_assigned=254;
@@ -69,7 +73,9 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  m->deck[0].groove_assigned=255;m->deck[0].groove_loaded=254;
  assert(tap(u,m,XZ_UI_GROOVE_PAD,0).kind==XZ_UI_UNAVAILABLE);
  m->deck[0].groove_loaded=255;
- tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);assert(tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_XPAD).value==XZ_UI_XPAD);
+ /* The same for the X-PAD sampler: PLAY explains it; the page is checked directly. */
+ tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);find(u,m,XZ_UI_INFO,XZ_UI_INFO_XPAD);find(u,m,XZ_UI_INFO,XZ_UI_INFO_PREVIEW);
+ xz_ui_navigate(u,XZ_UI_XPAD);assert(u->page==XZ_UI_XPAD);
  for(i=0;i<6;i++){
   w=find(u,m,XZ_UI_STRIP,0);int x=w.x+i*(w.w/6)+w.w/12;
   assert(xz_ui_touch(u,m,x,w.y,1,a)==1&&a[0].index==i&&a[0].secondary==12);

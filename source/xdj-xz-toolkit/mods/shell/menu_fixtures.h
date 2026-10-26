@@ -26,7 +26,7 @@ static void mfx_model(struct xz_ui_model *m) {
   k->pc_stems=(struct xz_ui_pc_stems){.source=XZ_UI_SOURCE_LOCAL,.target=-1,.setup_step=XZ_UI_PC_STEP_DETECT};
   k->stem_format="OVERCUE 3";
  }
- m->deck[0].ram=(struct xz_ui_ram){XZ_UI_RAM_LOADING,3u<<20,9u<<20,""};
+ m->deck[0].ram=(struct xz_ui_ram){.state=XZ_UI_RAM_LOADING,.copied=3u<<20,.bytes=9u<<20};
  m->enabled=XZ_UI_STEM|XZ_UI_GATE;
  m->connection=(struct xz_ui_connection){1,1,1,1,1,1,1,"192.168.1.40","VJFS / VJVP / VJTE + VJXZ","CONNECTION SERVICE CONFIGURED BY THE MOD LOADER",50005,29.97f};
  m->takeover_assign=2;m->stems_overlay=1;m->pad_feedback=1;m->stem_page=1;m->stem_order=0;

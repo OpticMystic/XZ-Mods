@@ -155,7 +155,7 @@ struct sync_clock {
 #define MODE_SLOTS 3u
 #define QUEUE_SLOTS (XZ_XP_QUEUE + RELEASE_SLOTS + MODE_SLOTS)
 #define CONTROL_BUDGET (XZ_XP_QUEUE + 3u) /* Preserve the existing per-pass bound. */
-struct queued_control { struct xz_extra_deck_event event; uint32_t epoch, at, master_choice, operator_epoch; };
+struct queued_control { struct xz_extra_deck_event event; uint32_t epoch, at, master_choice, operator_epoch; struct xz_performance_settings settings; int jump_beats; };
 static unsigned release_bit(const struct xz_extra_deck_event *e) {
  if(e->kind==XZ_EXTRA_IN_HOT_CUE)
   return e->hot_cue>=0&&e->hot_cue<XZ_EXTRA_HOT_CUES?1u<<(4u+(unsigned)e->hot_cue):0u;
@@ -180,6 +180,9 @@ struct deck {
  unsigned mode_pending[MODE_SLOTS];
  int mode_target[MODE_SLOTS];
  uint32_t queue_epoch;
+ struct xz_performance_settings settings; /* queue_lock; copied into every accepted command */
+ struct xz_jump_deck_state jump_input; int input_pad_mode; /* queue_lock */
+ struct xz_performance_settings command_settings; int command_jump_beats; /* worker only */
  atomic_int published_state;
  /* Worker only below. */
  enum xz_xp_state state;
@@ -236,6 +239,7 @@ struct deck {
  uint32_t native_observed_identity,native_observed_revision,native_observed_choice;
  int native_observed_deck,native_observed_known,native_playing_seen;
  enum pad_hold pad_hold; /* Current action owner; mode selection cannot change it. */
+ struct { unsigned held; int latched,latest; uint64_t at; } gate;
  unsigned control_down; /* Physical pad/REV edges, including superseded and inert holds. */
  int reverse, slip, slip_reverse;
  struct { int active; uint64_t anchor; uint32_t at; double rate; uint32_t reverse_ms; } slip_bg;
@@ -325,6 +329,19 @@ struct xz_xp_players {
 #define SP_READ(r,at,n,pcm) xz_stem_media_read((r)->media,at,n,pcm)
 #endif
 uint32_t xz_xp_revision(const struct xz_xp_players *p){return p?atomic_load_explicit(&p->revision,memory_order_acquire):0;}
+void xz_xp_set_performance_settings(struct xz_xp_players *p,const struct xz_performance_settings *settings){
+ if(!p||!settings)return;
+ /* Publish to both admission queues as a single revision. No worker acquires UI state. */
+ pthread_mutex_lock(&p->deck[0].queue_lock);pthread_mutex_lock(&p->deck[1].queue_lock);
+ for(int i=0;i<2;i++)p->deck[i].settings=*settings;
+ pthread_mutex_unlock(&p->deck[1].queue_lock);pthread_mutex_unlock(&p->deck[0].queue_lock);
+}
+int xz_xp_jump_snapshot(struct xz_xp_players *p,int deck,struct xz_jump_snapshot *out){
+ if(!p||!out||(unsigned)deck>=2)return 0;
+ struct deck *d=&p->deck[deck];pthread_mutex_lock(&d->queue_lock);
+ *out=xz_jump_snapshot(&d->settings.jump,d->jump_input.page);
+ pthread_mutex_unlock(&d->queue_lock);return 1;
+}
 void xz_xp_set_quantize_grid(struct xz_xp_players *p,unsigned denominator,int known){
  if(!p)return;
  unsigned value=known&&(denominator==1||denominator==2||denominator==4||denominator==8)?denominator:0;
@@ -1196,6 +1213,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  d->jog_load_pending=1;
  d->state = XZ_XP_LOADING; d->track = t;
  d->emergency.active=0;d->emergency.count=0;
+ memset(&d->gate,0,sizeof d->gate);
  memset(&d->loop, 0, sizeof d->loop);
  memset(d->hot, 0, sizeof d->hot);
  if(d->slip_reverse)d->reverse=0;
@@ -1305,7 +1323,7 @@ static void cue_button(struct deck *d, int pressed, uint32_t now) {
  if(d->state==XZ_XP_SCRATCHING&&(pressed||d->scratch.resume==XZ_XP_SAMPLING))
   scratch_release(d,now);
  if (pressed) {
-  d->search=0;
+  memset(&d->gate,0,sizeof d->gate);d->search=0;
   if(d->slip_reverse)d->reverse=0;
   d->pad_hold=PAD_HOLD_NONE;
   d->loop.active = 0; d->loop.edit = 0; d->active_pad = d->slip_pad = d->loop_pad = -1; d->slip_bg.active = d->slip_reverse = 0;
@@ -2072,26 +2090,44 @@ static void pad_loop(struct xz_xp_players *p, struct deck *d, int pad, int press
  d->active_pad = pad;
  if (!streaming(d->state)) jump(d, in, now);
 }
-/* BEAT JUMP (pp.56-57): pads A..H are back/forward 1, 2, 4 and 8 beats; with a loop set, the loop moves. */
-static void pad_jump(struct xz_xp_players *p, struct deck *d, int pad, uint32_t now) {
- uint64_t at = heard_now(d, now);
- double delta = (pad & 1 ? 1.0 : -1.0) * (double)(1 << (pad >> 1)) * beat_frames(d, at);
- if (d->loop.active) {
-  double in = (double)d->loop.in + delta, out = (double)d->loop.out + delta;
-  if (in < 0 || out > (double)d->r->frames) { xz_xp_notice(p, "LOOP MOVE OUT OF TRACK"); return; }
+/* Walk beat coordinates, preserving fractional phase and the edge interval outside the grid. */
+static int jump_target(const struct deck *d,uint64_t at,int beats,double *target){
+ const struct analysis *a=d->analysis;
+ if(a&&a->grid_count>=2){
+  double ms=(double)at*1000/d->r->rate;unsigned lo=0,hi=a->grid_count;
+  while(lo<hi){unsigned mid=lo+(hi-lo)/2;if(a->grid[mid].ms<=ms)lo=mid+1;else hi=mid;}
+  unsigned index=lo?lo-1:0;
+  unsigned edge=index+1<a->grid_count?index:index-1;
+  double length=(double)a->grid[edge+1].ms-a->grid[edge].ms;
+  if(length<=0)return 0;
+  double coordinate=index+(ms-a->grid[index].ms)/length+beats;
+  double base=floor(coordinate),fraction=coordinate-base,result;
+  if(base<0)result=a->grid[0].ms+coordinate*(a->grid[1].ms-a->grid[0].ms);
+  else if(base>=a->grid_count-1)result=a->grid[a->grid_count-1].ms+
+   (coordinate-(a->grid_count-1))*(a->grid[a->grid_count-1].ms-a->grid[a->grid_count-2].ms);
+  else{unsigned i=(unsigned)base;result=a->grid[i].ms+fraction*(a->grid[i+1].ms-a->grid[i].ms);}
+  *target=result*d->r->rate/1000;return isfinite(*target);
+ }
+ if(d->track.track_bpm_x100<=0)return 0;
+ *target=(double)at+beats*(double)d->r->rate*6000/d->track.track_bpm_x100;return isfinite(*target);
+}
+static void pad_jump_beats(struct xz_xp_players *p,struct deck *d,int beats,uint32_t now){
+ uint64_t at=heard_now(d,now);double to;
+ if(!jump_target(d,at,beats,&to)){xz_xp_notice(p,"JUMP UNAVAILABLE: NO BEAT GRID OR BPM");return;}
+ double delta=to-(double)at;
+ if(d->loop.active){
+  double in=(double)d->loop.in+delta,out=(double)d->loop.out+delta;
+  if(in<0||out>(double)d->r->frames){xz_xp_notice(p,"JUMP UNAVAILABLE: LOOP MOVE OUT OF TRACK");return;}
   if(d->slip_reverse){d->slip_reverse=0;d->reverse=0;}
   d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;
-  d->loop.in = (uint64_t)llround(in); d->loop.out = (uint64_t)llround(out); d->loop.edit = 0;
-  jump(d, loop_frame(d, (uint64_t)llround((double)at + delta)), now);
-  loop_pad_store(p,d);
-  return;
+  d->loop.in=(uint64_t)llround(in);d->loop.out=(uint64_t)llround(out);d->loop.edit=0;
+  jump(d,loop_frame(d,(uint64_t)llround(to)),now);loop_pad_store(p,d);return;
  }
- double to = (double)at + delta;
- if (to < 0) to = 0;
- if (to > (double)d->r->frames) to = (double)d->r->frames;
+ if(to<0){xz_xp_notice(p,"JUMP UNAVAILABLE: BEFORE TRACK START");return;}
+ if(to>=(double)d->r->frames){xz_xp_notice(p,"JUMP UNAVAILABLE: AFTER TRACK END");return;}
  if(d->slip_reverse){d->slip_reverse=0;d->reverse=0;}
  d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;d->slip_bg.active=0;
- jump(d, (uint64_t)to, now);
+ jump(d,(uint64_t)llround(to),now);
 }
 /* Pads A..H in the deck's pad mode. With SLIP on, a held hot cue plays from the cue and its release
    returns to the background position (p.58). */
@@ -2113,6 +2149,15 @@ static void pad(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
   }
   {
    struct hot before=d->hot[index];hot_cue(d,e,now);
+   /* Native follow-memory applies only to a successful recall of an existing cue. */
+   if(before.set&&!e->shift&&d->hot[index].set&&d->hot[index].at==before.at){
+    if(d->command_settings.smart)d->cue=before.at;
+    if(d->command_settings.gate){
+     if(!d->gate.held)d->gate.latched=0;
+     d->gate.held|=1u<<index;d->gate.latest=index;d->gate.at=before.at;
+     d->slip_bg.active=0;d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;
+    }else memset(&d->gate,0,sizeof d->gate);
+   }
    const struct hot *after=&d->hot[index];
    if(before.set!=after->set||before.at!=after->at||before.end!=after->end||before.rgb!=after->rgb||before.loop!=after->loop){
     d->saved_hot[index]=*after;
@@ -2122,7 +2167,7 @@ static void pad(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
   break;
  case XZ_EXTRA_PAD_BEAT_LOOP: pad_loop(p, d, index, e->pressed, 0, now); break;
  case XZ_EXTRA_PAD_SLIP_LOOP: pad_loop(p, d, index, e->pressed, 1, now); break;
- case XZ_EXTRA_PAD_BEAT_JUMP: if (e->pressed) pad_jump(p, d, index, now); break;
+ case XZ_EXTRA_PAD_BEAT_JUMP: if(e->pressed&&d->command_jump_beats)pad_jump_beats(p,d,d->command_jump_beats,now); break;
  default: break;
  }
 }
@@ -2238,6 +2283,13 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
 }
 
 static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, uint32_t arrived,uint32_t master_choice,uint32_t operator_epoch) {
+ if(e->kind==XZ_EXTRA_IN_PLAY&&e->pressed&&!e->held&&d->gate.held&&!d->gate.latched){
+  d->gate.latched=1;return; /* Native Gate Cue consumes PLAY to latch the recall. */
+ }
+ if(e->kind==XZ_EXTRA_IN_SYNC&&e->shift){
+  if(e->pressed&&!e->held)xz_xp_notice(p,"KEY SYNC: DECKS 1 AND 2 ONLY FOR NOW");
+  return;
+ }
  if(e->kind==XZ_EXTRA_IN_MEMORY||e->kind==XZ_EXTRA_IN_MEMORY_DELETE){
   if(!e->pressed||e->held||!loaded(d->state)||d->emergency.active)return;
   uint64_t at=d->loop.active?d->loop.in:d->cue,end=d->loop.active?d->loop.out:0;
@@ -2342,9 +2394,19 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
    d->control_down|=bit;
    /* Ordinary HOT CUE also has one-shot callers. Only a momentary action needs an up edge. */
    if(e->kind==XZ_EXTRA_IN_HOT_CUE&&d->pad_mode==XZ_EXTRA_PAD_HOT_CUE&&
-      (!d->slip||e->shift||!d->hot[e->hot_cue].set||d->state!=XZ_XP_PLAYING))d->control_down&=~bit;
+      (!d->slip||e->shift||!d->hot[e->hot_cue].set||d->state!=XZ_XP_PLAYING)&&
+       !(d->command_settings.gate&&!e->shift&&d->hot[e->hot_cue].set))d->control_down&=~bit;
   }else{
    d->control_down&=~bit;
+   if(e->kind==XZ_EXTRA_IN_HOT_CUE&&(d->gate.held&(1u<<e->hot_cue))){
+    d->gate.held&=~(1u<<e->hot_cue);
+    const struct hot *latest=&d->hot[d->gate.latest];
+    if(!d->gate.held&&!d->gate.latched&&latest->set&&latest->at==d->gate.at){
+     pause_at_heard(d,now);d->loop.active=0;d->ramp.active=0;
+     d->slip_bg.active=0;d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;
+     jump(d,d->gate.at,now);d->state=XZ_XP_CUED;
+    }
+   }
    if(e->kind==XZ_EXTRA_IN_REVERSE)reverse_button(d,0,now);
    else if(d->slip_pad==e->hot_cue){
     if(d->pad_hold==PAD_HOLD_LOOP)loop_off(d,now);
@@ -2490,10 +2552,10 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
    else d->pad_mode=XZ_EXTRA_PAD_HOT_CUE;
    return;
   }
-  /* SHIFT + HOT CUE is CALL: pads inert. Other SHIFT functions of these buttons are not provided. */
+  /* SHIFT+BEAT JUMP selects page 2; SHIFT on a jump pad is inert (native forwards to stock). */
   if (e->pressed && e->hot_cue >= XZ_EXTRA_PAD_HOT_CUE && e->hot_cue <= XZ_EXTRA_PAD_BEAT_JUMP &&
-      (!e->shift || e->hot_cue == XZ_EXTRA_PAD_HOT_CUE))
-   d->pad_mode = e->shift ? XZ_EXTRA_PAD_NONE : e->hot_cue;
+      (!e->shift || e->hot_cue == XZ_EXTRA_PAD_HOT_CUE || e->hot_cue == XZ_EXTRA_PAD_BEAT_JUMP))
+   d->pad_mode = e->shift && e->hot_cue==XZ_EXTRA_PAD_HOT_CUE ? XZ_EXTRA_PAD_NONE : e->hot_cue;
   return;
  }
  if (e->kind == XZ_EXTRA_IN_QUANTIZE || e->kind == XZ_EXTRA_IN_TIME_MODE || e->kind == XZ_EXTRA_IN_AUTO_CUE ||
@@ -2905,6 +2967,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   d->loop.in_down=d->loop.held=0;
   if(d->pad_hold==PAD_HOLD_LOOP){d->loop.active=0;d->loop.edit=0;d->active_pad=-1;}
   if(d->slip_reverse)d->reverse=0;
+  memset(&d->gate,0,sizeof d->gate);
   d->auto_button.down=0;d->track_prev_known=0;d->search=0;d->control_down=0;d->pad_hold=PAD_HOLD_NONE;d->slip_pad=-1;d->slip_bg.active=d->slip_reverse=0;
  }
  (void)sync_grid_refresh(p,d);
@@ -2917,6 +2980,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   if(q.event.kind==XZ_EXTRA_IN_LOAD&&!q.event.load.route_epoch)q.event.load.route_epoch=q.epoch;
   if(q.epoch && q.epoch==d->epoch && q.epoch==s->link(s->ctx)){
    SP_ONLY(if(q.event.kind==XZ_EXTRA_IN_JOG_TOUCH){if(q.event.pressed&&!d->sp.contact)d->sp.attempt++;d->sp.contact=!!q.event.pressed;d->sp.history_dirty=1;});
+   d->command_settings=q.settings;d->command_jump_beats=q.jump_beats;
    command(p,d,&q.event,now,q.at,q.master_choice,q.operator_epoch);
    SP_ONLY(sp_capture(d,now));
   }
@@ -2957,6 +3021,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
 static void queue_epoch(struct xz_xp_players *p,struct deck *d,uint32_t epoch){
  if(d->queue_epoch==epoch)return;
  d->queue_epoch=epoch;d->release_owed=0;
+ d->jump_input.down=d->jump_input.owned=d->jump_input.mode_down=0;
  pthread_mutex_lock(&p->publish_lock);
  d->mode_target[0]=p->view[d->index].quantize;d->mode_target[1]=p->view[d->index].remain;
  d->mode_target[2]=p->view[d->index].auto_cue;
@@ -3009,7 +3074,7 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
                e->kind == XZ_EXTRA_IN_TEMPO_RESET || e->kind == XZ_EXTRA_IN_VINYL ||
                e->kind == XZ_EXTRA_IN_MASTER_TEMPO || e->kind == XZ_EXTRA_IN_PAD_MODE ||
                e->kind == XZ_EXTRA_IN_REVERSE || e->kind == XZ_EXTRA_IN_SLIP || e->kind == XZ_EXTRA_IN_VINYL_SPEED ||
-               e->kind == XZ_EXTRA_IN_QUANTIZE || e->kind == XZ_EXTRA_IN_MODE_SET ||
+               e->kind == XZ_EXTRA_IN_QUANTIZE || e->kind == XZ_EXTRA_IN_MODE_SET || (e->kind==XZ_EXTRA_IN_SYNC&&e->shift) ||
                e->kind == XZ_EXTRA_IN_TIME_MODE || e->kind == XZ_EXTRA_IN_AUTO_CUE;
  if ((state == XZ_XP_EMPTY || state == XZ_XP_ERROR) && !release && e->kind != XZ_EXTRA_IN_LOAD && e->kind!=XZ_EXTRA_IN_INSTANT_DOUBLES && !setting)
   {SP_ONLY(sp_input(d,e,p->env.now_ms(),epoch,state,0,XP_SP_STATE_REFUSED,XP_SP_UNKNOWN,XP_SP_UNKNOWN,0));return 0;}
@@ -3033,7 +3098,20 @@ int xz_xp_input(struct xz_xp_players *p, const struct xz_extra_deck_event *e) {
  }
  if (taken) {
   if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_retain(e->load.order);
-  d->queue[(d->head+d->count)%QUEUE_SLOTS]=(struct queued_control){.event=*e,.epoch=epoch,.at=p->env.now_ms(),.master_choice=master_choice,.operator_epoch=operator_epoch};
+   int jump_beats=0;
+   if(e->kind==XZ_EXTRA_IN_PAD_MODE||e->kind==XZ_EXTRA_IN_HOT_CUE){
+    struct xz_jump_input ji={.mode_button=-1,.pad=-1,.pad_page=d->input_pad_mode,.shift=e->shift,.operation=e->pressed?(e->held?1:0):2};
+    if(e->kind==XZ_EXTRA_IN_PAD_MODE){
+     ji.mode_button=e->hot_cue;
+     if(e->pressed&&!e->held&&(!e->shift||e->hot_cue==XZ_EXTRA_PAD_BEAT_JUMP||e->hot_cue==XZ_EXTRA_PAD_HOT_CUE))
+      d->input_pad_mode=e->shift&&e->hot_cue==XZ_EXTRA_PAD_HOT_CUE?XZ_EXTRA_PAD_NONE:e->hot_cue;
+    }else ji.pad=e->hot_cue;
+    struct xz_jump_settings cfg=d->settings.jump;
+    /* No firmware fallback exists here: page-1 OFF resolves through shared stock defaults. */
+    if(!d->jump_input.page&&!cfg.enabled)cfg=xz_jump_defaults();
+    jump_beats=xz_jump_resolve(&d->jump_input,&cfg,&ji).signed_beats;
+   }
+   d->queue[(d->head+d->count)%QUEUE_SLOTS]=(struct queued_control){.event=*e,.epoch=epoch,.at=p->env.now_ms(),.master_choice=master_choice,.operator_epoch=operator_epoch,.settings=d->settings,.jump_beats=jump_beats};
   d->count++;d->release_owed=owed;
  }
  SP_ONLY(uint32_t at=taken?d->queue[(d->head+d->count-1)%QUEUE_SLOTS].at:p->env.now_ms();
@@ -3138,6 +3216,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
  if (pthread_mutex_init(&p->publish_lock, NULL)) { free(p); return NULL; }
  for (; mutexes < XZ_EXTRA_DECKS; ++mutexes) {
   struct deck *d = &p->deck[mutexes];
+  d->settings=(struct xz_performance_settings){.revision=1,.jump=xz_jump_defaults()};
   d->index = mutexes; d->generation = XZ_USB_INITIAL_GENERATION;
   d->tempo_range = 10;
   d->sync.master_deck=-1;

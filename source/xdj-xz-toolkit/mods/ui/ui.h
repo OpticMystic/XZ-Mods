@@ -177,8 +177,10 @@ enum xz_ui_ram_state { XZ_UI_RAM_UNAVAILABLE, XZ_UI_RAM_EMPTY, XZ_UI_RAM_LOADING
 struct xz_ui_ram {
     enum xz_ui_ram_state state;
     uint32_t copied, bytes;
+    uint64_t retained_stems_bytes; /* live prepared-stem retention, never serialized */
     char message[96];
 };
+const char *xz_ui_ram_scope(const struct xz_ui_ram *);
 struct xz_ui_deck {
     uint32_t ready;
     const char *track, *status;
@@ -289,11 +291,15 @@ struct xz_ui_model {
     /* The pad page each logical deck's BEAT JUMP pads are on now: 0 page 1, 1 page 2 (SHIFT + BEAT JUMP),
        -1 unknown (deck not running, or its player does not report it). */
     int jump_page[4];
-    /* Decks 3 and 4: the loopback route as the four-deck connector reports it (enum xz_ui_route_state), one
-       sentence on why when it is not ready (<= 80 characters), and the part that failed (enum xz_ui_route_part). */
-    struct { int state; char reason[81]; int fail_part; uint32_t scanning_since; } route;
+    /* Decks 3 and 4: a copy of the connector's struct xz_extra_route_status (extra_decks.h), field for field.
+       state is enum xz_ui_route_state (numbered as enum xz_extra_route_state), fail_part enum xz_ui_route_part,
+       reason one sentence (<= 80 characters) from the connector. checked_at_ms is monotonic; revision and
+       ready_revision use serial-number arithmetic. An observation only: it does not change playable deck_count
+       or capabilities. */
+    struct xz_ui_route { int state, fail_part; char reason[81]; uint32_t checked_at_ms, revision, ready_revision; } route;
 };
-/* Decks 3 and 4's route, as the connector publishes it. NO_ENGINE: this loader has no four-deck support. */
+/* Decks 3 and 4's route, as the connector publishes it (enum xz_extra_route_state). NO_ENGINE: the software
+   players are not running (unavailable or not started). */
 enum xz_ui_route_state { XZ_UI_ROUTE_NO_ENGINE, XZ_UI_ROUTE_NOT_DETECTED, XZ_UI_ROUTE_SCANNING, XZ_UI_ROUTE_STARTING,
     XZ_UI_ROUTE_WAITING_NATIVE_STOP, XZ_UI_ROUTE_READY, XZ_UI_ROUTE_FAILED, XZ_UI_ROUTE_LOST, XZ_UI_ROUTE_STATES };
 enum xz_ui_route_part { XZ_UI_ROUTE_PART_NONE, XZ_UI_ROUTE_PART_PORT, XZ_UI_ROUTE_PART_CABLE, XZ_UI_ROUTE_PART_SOCKET,
@@ -308,6 +314,8 @@ enum xz_deck_feature {
 unsigned xz_deck_caps(const struct xz_ui_model *, int logical_deck);
 /* One sentence on why feature cannot work on logical_deck, or NULL when it can. */
 const char *xz_deck_cap_reason(const struct xz_ui_model *, int logical_deck, unsigned feature);
+/* 1 when no deck can have feature in this build (no engine in this runtime), whatever ready bits say. */
+int xz_deck_cap_absent(unsigned feature);
 /* 4 DECKS needs the DJ: a four-deck view is chosen and decks 3 and 4 are not connected (the rail's amber dot,
    DESIGN 1.1, in both interfaces). */
 int xz_ui_four_decks_attention(const struct xz_ui_model *);

@@ -31,4 +31,7 @@ int xz_runtime_deck_select_toggle(int side);
 struct xz_ds_selection;
 /* Nonblocking own-state copy; 0 unavailable/contended, output unchanged. */
 int xz_runtime_deck_selection_snapshot(struct xz_ds_selection *);
+/* Absolute selection for named DECK buttons. Checks the target under the same lock as hardware switches.
+   1 selected or already selected; 0 no route; -1 unavailable or invalid. */
+int xz_runtime_deck_select_target(int side, int extra);
 #endif
