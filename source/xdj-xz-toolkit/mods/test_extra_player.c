@@ -1800,6 +1800,20 @@ static void test_mods_jump(void){
  puts("PASS MODS jump: both software decks, revision capture, pages, stock defaults, SHIFT, refusal, variable grid phase and edge extrapolation, BPM-only fallback");
 }
 
+static void test_mods_sync_gesture(void){
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
+ p=xz_xp_create(&env);assert(p);fake_route(9914);step();load(0,1);load(1,1);
+ for(int deck=0;deck<2;deck++){
+  struct xz_extra_deck_event e=event(deck,XZ_EXTRA_IN_SYNC,1);e.shift=1;
+  assert(!view.deck[deck].sync.requested);assert(input(e));step();
+  assert(!view.deck[deck].sync.requested&&!strcmp(view.notice,"KEY SYNC: DECKS 1 AND 2 ONLY FOR NOW"));
+  e.shift=0;assert(input(e));step();assert(view.deck[deck].sync.requested);
+  e.shift=1;assert(input(e));step();assert(view.deck[deck].sync.requested);
+  e.shift=0;assert(input(e));step();assert(!view.deck[deck].sync.requested);
+ }
+ xz_xp_destroy(p);p=NULL;puts("PASS MODS SHIFT+SYNC leaves tempo sync unchanged on both software decks; plain SYNC toggles");
+}
+
 int main(int argc, char **argv) {
  assert(argc == 2 || argc == 3);
  assert(!pthread_mutex_init(&f.lock, NULL));
@@ -1809,6 +1823,7 @@ int main(int argc, char **argv) {
  if(argc==3){if(!strcmp(argv[2],"held-controls"))return test_held_controls()?0:1;assert(!strcmp(argv[2],"controls-coast"));test_coast_control_interactions();return 0;}
  test_parsers();
  test_mods_jump();
+ test_mods_sync_gesture();
  test_players();
  test_loop_and_range();
  test_vinyl();
