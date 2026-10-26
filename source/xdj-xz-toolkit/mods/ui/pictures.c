@@ -6,6 +6,7 @@
 #include "wave_viewport.h"
 #include "stem_pads.h"
 #include "stem_colors.h"
+#include "deck_colour.h"
 #include "../shell/shell_internal.h"
 #include <stdio.h>
 #include <string.h>
@@ -99,16 +100,18 @@ void xz_pic_box(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect
  xz_rect(c,r.x,r.y,r.w,r.h,selected?s->select:s->row);
  if(outlined&&!selected)xz_border(c,r.x,r.y,r.w,r.h,s->row_edge);
 }
+/* A deck number box on a menu (deck_colour.h); a light theme gets a one-pixel ink edge round it. */
+static void deck_box(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int size, int deck) {
+ xz_deck_box(c,x,y,size,size,deck,1,s->bg,1,luma(s->bg)>140?s->ink:0);
+}
 int xz_pic_works_on(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int size, unsigned works_on, int label) {
  static const int order[4]={2,0,1,3};
  if(label)x+=xz_pic_text(c,x,y+(size-9)/2,"WORKS ON",12,s->dim)+8;
  for(int k=0;k<4;k++){
   int d=order[k];char n[2]={(char)('1'+d),0};
-  uint32_t on=s->modern?0xffffff:s->ink;
-  if(works_on&(1u<<d)){
-   xz_rect(c,x,y,size,size,on);
-   xz_pic_text_center(c,x+size/2,y+(size-9)/2,n,12,s->modern?0x000000:s->bg);
-  }else{
+  /* Works there: the deck's colour box, as on the four-deck screens. Not there: a plain grey outline. */
+  if(works_on&(1u<<d))deck_box(c,s,x,y,size,d);
+  else{
    xz_border(c,x,y,size,size,s->modern?0x4a4a4a:s->faint);
    xz_pic_text_center(c,x+size/2,y+(size-9)/2,n,12,s->modern?M_GREY:s->faint);
   }
@@ -562,7 +565,7 @@ void xz_pic_grid_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
  static const int order[4]={2,0,1,3};
  for(int b=0;b<2;b++){
   int col0=g->x[b]+(g->rows[b*5].w+4)-128;
-  for(int j=0;j<4;j++){char n[2]={(char)('1'+order[j]),0};xz_pic_text_center(c,col0+j*30,g->header_y,n,12,s->modern?0xffffff:s->ink);}
+  for(int j=0;j<4;j++)deck_box(c,s,col0+j*30-6,g->header_y-2,13,order[j]);
   for(int r=0;r<5;r++){
    int row=b*5+r;struct xz_rect rr=g->rows[row];
    uint32_t fill=row==focus?(s->modern?0x0c2a48:xz_blend(s->bg,s->select,60)):r%2==0?s->row:s->bg;

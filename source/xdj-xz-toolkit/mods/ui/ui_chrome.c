@@ -2,6 +2,7 @@
 /* Chrome shared by every MODS skin: section icons, the hardware focus ring,
    toggle switches and the info dock that explains the focused control. */
 #include "ui_skin.h"
+#include "deck_colour.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -198,7 +199,8 @@ void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint
   static const int order[4]={2,0,1,3};
   for(int k=0;k<4;k++){
    int d=order[k];char num[2]={(char)('1'+d),0};int lit=(info.works_on>>d)&1;
-   if(lit){xz_rect(c,x,y+6,16,16,ink);xz_text(c,x+(16-xz_text_width(c,num,1,2))/2,y+9,num,1,2,bg);}
+   /* Works there: the deck's colour box (deck_colour.h), with an ink edge on a light theme. */
+   if(lit)xz_deck_box(c,x,y+6,16,16,d,1,bg,1,xz_theme_luma(bg)>140?ink:0);
    else{xz_border(c,x,y+6,16,16,xz_blend(bg,ink,70));xz_text(c,x+(16-xz_text_width(c,num,1,2))/2,y+9,num,1,2,xz_blend(bg,ink,90));}
    x+=19;
   }
