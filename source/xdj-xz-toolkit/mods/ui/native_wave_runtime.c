@@ -6,6 +6,7 @@
 #include "extra_detail.h"
 #include "classic_mixer_runtime.h"
 #include "route_card.h"
+#include "deck_view.h"
 #include "native_skin_runtime.h"
 #include "native_raw_skin.h"
 #include "layered_wave_runtime.h"
@@ -58,6 +59,12 @@ static _Thread_local struct xz_route_card_input card_frame;
 static _Thread_local struct xz_extra_route_status card_status;
 static uint32_t card_painted,card_input_at,card_success_at;
 static int card_focus=-1,card_route_seen;
+/* The DECK VIEW route-up banner (deck_view.h). The draw thread that sees the route come up keeps asking for
+   up to 5 s (the connector may publish the new ready revision a frame later), takes the shared latch and
+   publishes the notice; every draw thread reads it. The route going down ends it. */
+static int ready_seen_up,ready_pending;
+static uint32_t ready_edge_at,ready_from,ready_ms;
+static const char *ready_text;
 static _Thread_local uint8_t four_keep[XZ_FOUR_KEEP_BYTES];
 struct xz_inline_proof { uint32_t version,captures,frames,skipped; };
 __attribute__((visibility("default"))) struct xz_inline_proof xz_inline_proof_v1={1,0,0,0};
@@ -83,6 +90,25 @@ static int four_view(void){return xz_deck_layout_get()!=XZ_LAYOUT_TWO;}
 static int scene(struct xz_native_wave_scene *s){
  return ((requested&&requested())||xz_mods_native_style_v1()||xz_layered_wave_active()||
          __atomic_load_n(&route_up,__ATOMIC_ACQUIRE)||__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE)||four_view())&&play_scene(s);
+}
+static void ready_route(int up,uint32_t now){
+ if(__atomic_exchange_n(&ready_seen_up,up,__ATOMIC_ACQ_REL)!=up){
+  __atomic_store_n(&ready_edge_at,now,__ATOMIC_RELAXED);__atomic_store_n(&ready_pending,up,__ATOMIC_RELEASE);
+  if(!up)__atomic_store_n(&ready_ms,0,__ATOMIC_RELEASE);
+ }
+ if(!up||!__atomic_load_n(&ready_pending,__ATOMIC_ACQUIRE))return;
+ if(now-__atomic_load_n(&ready_edge_at,__ATOMIC_RELAXED)>=5000u){__atomic_store_n(&ready_pending,0,__ATOMIC_RELEASE);return;}
+ struct xz_deck_view_notice n;
+ if(!xz_deck_view_route_notice(xz_deck_layout_get(),xz_extra_decks_route_status().ready_revision,now,&n))return;
+ __atomic_store_n(&ready_pending,0,__ATOMIC_RELEASE);
+ __atomic_store_n(&ready_ms,0,__ATOMIC_RELEASE);
+ __atomic_store_n(&ready_text,n.text,__ATOMIC_RELAXED);__atomic_store_n(&ready_from,n.from_ms,__ATOMIC_RELAXED);
+ __atomic_store_n(&ready_ms,n.ms,__ATOMIC_RELEASE);
+}
+static const char *ready_banner(uint32_t now){
+ struct xz_deck_view_notice n;n.ms=__atomic_load_n(&ready_ms,__ATOMIC_ACQUIRE);
+ n.text=__atomic_load_n(&ready_text,__ATOMIC_RELAXED);n.from_ms=__atomic_load_n(&ready_from,__ATOMIC_RELAXED);
+ return xz_deck_view_notice_text(&n,now);
 }
 uint32_t xz_native_four_card(void){return xz_native_four_order()<0?0:__atomic_load_n(&card_painted,__ATOMIC_ACQUIRE);}
 void xz_native_four_card_input(uint32_t now_ms,int focus){
@@ -158,8 +184,10 @@ static int lock_hook(void *window,void **pixels,int *pitch){
     int captured_extra=0;
     if(result==0&&caller==0x1fd058){
         xz_extra_decks_release_analysis(&extra,&extra_hold);extra_hold_window=0;
-        __atomic_store_n(&route_up,xz_extra_decks_snapshot_held(&extra,&extra_hold)!=0,__ATOMIC_RELEASE);
-        __atomic_store_n(&notice_up,xz_extra_notice_active(&extra,monotonic_ms()),__ATOMIC_RELEASE);
+        int up=xz_extra_decks_snapshot_held(&extra,&extra_hold)!=0;uint32_t now=monotonic_ms();
+        __atomic_store_n(&route_up,up,__ATOMIC_RELEASE);
+        ready_route(up,now);
+        __atomic_store_n(&notice_up,xz_extra_notice_active(&extra,now)||ready_banner(now),__ATOMIC_RELEASE);
     }
     struct xz_native_wave_scene current;
     if(result==0&&caller==0x1fd058&&scene(&current)&&current.gr==(uintptr_t)window&&pixels&&pitch&&
@@ -181,9 +209,14 @@ static void style_main_wave(uint16_t *pixels,uint32_t count){
  xz_native_skin_wave_pixels(pixels,536,268,-1);
  xz_layered_wave_restore(pixels);
 }
+/* The route-up banner, else the player's notice, in the same place. */
+static void notice_banner(uint16_t *pixels,uint32_t count){
+ uint32_t now=monotonic_ms();const char *ready=ready_banner(now);
+ if(ready)xz_extra_banner_draw(pixels,536,count,ready);else xz_extra_notice_draw(pixels,536,count,&extra,now);
+}
 static void style_main_notice(uint16_t *pixels,uint32_t count){
  if(xz_mods_native_style_v1())style_main_wave(pixels,count);
- xz_extra_notice_draw(pixels,536,count,&extra,monotonic_ms());
+ notice_banner(pixels,count);
 }
 /* The raw syscall, as shell_runtime.c: clock_gettime is GLIBC_2.17 and librt is not an allowed dependency. */
 static uint32_t monotonic_ms(void){
@@ -240,7 +273,7 @@ static void style_four(uint16_t *pixels,uint32_t count){
   xz_route_card_draw((struct xz_canvas){pixels,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0},&xz_route_card_classic,
    (int)g.lane_y[2],(int)g.lane_y[3],&card_frame,cached?&card_cache:NULL);
   if(cached)__atomic_store_n(&card_cache_busy,0,__ATOMIC_RELEASE);
- }else if(four_frame_detail<0)xz_extra_notice_draw(pixels,536,count,&extra,monotonic_ms());
+ }else if(four_frame_detail<0)notice_banner(pixels,count);
 }
 static int unlock_hook(void *window){
     xz_native_raw_skin_before_unlock(window);

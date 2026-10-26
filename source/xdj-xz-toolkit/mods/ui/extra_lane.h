@@ -47,6 +47,8 @@ int xz_four_badge_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane
 /* A transient player/route notice on the existing Classic play surface, including after route loss. */
 int xz_extra_notice_active(const struct xz_extra_decks *,uint32_t now_ms);
 int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *,uint32_t now_ms);
+/* The same banner with any text (up to 63 characters), e.g. the DECK VIEW route-up notice (deck_view.h). */
+int xz_extra_banner_draw(uint16_t *pixels,size_t stride,size_t count,const char *text);
 
 /* The SYNC/MASTER state of a software deck, as the plate and the detail panel say it. */
 enum xz_extra_sync_class {

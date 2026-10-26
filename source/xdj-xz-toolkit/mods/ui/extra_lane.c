@@ -36,15 +36,18 @@ _Static_assert(sizeof(struct xz_extra_column)==3,"PWV7 columns are three packed 
 int xz_extra_notice_active(const struct xz_extra_decks *s,uint32_t now_ms) {
  return s&&s->notice_seq&&s->notice[0]&&(uint32_t)(now_ms-s->notice_at_ms)<3500u;
 }
-int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *s,uint32_t now_ms) {
- if(!pixels||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||count<stride*XZ_WAVE_HEIGHT||
-    !xz_extra_notice_active(s,now_ms))return 0;
- char text[sizeof s->notice];memcpy(text,s->notice,sizeof text);text[sizeof text-1]=0;
+int xz_extra_banner_draw(uint16_t *pixels,size_t stride,size_t count,const char *text) {
+ if(!pixels||!text||!text[0]||stride<WIDTH||stride>SIZE_MAX/XZ_WAVE_HEIGHT||count<stride*XZ_WAVE_HEIGHT)return 0;
  struct xz_canvas c={pixels,stride,WIDTH,XZ_WAVE_HEIGHT,0};
  xz_rect(c,6,244,WIDTH-12,22,0x151515);
  xz_border(c,6,244,WIDTH-12,22,0xff9a30);
  xz_text(c,14,251,text,1,63,0xffffff);
  return 1;
+}
+int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_extra_decks *s,uint32_t now_ms) {
+ if(!xz_extra_notice_active(s,now_ms))return 0;
+ char text[sizeof s->notice];memcpy(text,s->notice,sizeof text);text[sizeof text-1]=0;
+ return xz_extra_banner_draw(pixels,stride,count,text);
 }
 
 enum xz_extra_sync_class xz_extra_sync_class(const struct xz_extra_deck *d){
