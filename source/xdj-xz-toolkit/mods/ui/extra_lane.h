@@ -40,6 +40,11 @@ int xz_extra_lane_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane
 /* Four-channel layout: waveform and deck tag only; the main readouts live in the bottom mixer panels. */
 int xz_extra_lane_draw_wave(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
  const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
+/* A lane's deck number (1..4) in its identity colour box (deck_colour.h), XZ_FOUR_NUMBER_BOX square at x, y:
+   the first part of every lane tag, and of the lane numbers beside an open detail panel. */
+#define XZ_FOUR_NUMBER_BOX 13
+struct xz_canvas;
+void xz_four_number_box(struct xz_canvas c,int x,int y,unsigned number);
 /* Native DECK 1 or 2 in four-deck mode: the same deck tag the software lanes carry, in the lane's
    top-left corner, lit while that side's controls drive the native deck. The native left column no
    longer lines up with the lanes, so every lane names its deck. Writes only the tag's pixels. */
