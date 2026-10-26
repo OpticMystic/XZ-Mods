@@ -239,6 +239,7 @@ struct deck {
  uint32_t native_observed_identity,native_observed_revision,native_observed_choice;
  int native_observed_deck,native_observed_known,native_playing_seen;
  enum pad_hold pad_hold; /* Current action owner; mode selection cannot change it. */
+ struct { unsigned held; int latched,latest; uint64_t at; } gate;
  unsigned control_down; /* Physical pad/REV edges, including superseded and inert holds. */
  int reverse, slip, slip_reverse;
  struct { int active; uint64_t anchor; uint32_t at; double rate; uint32_t reverse_ms; } slip_bg;
@@ -1212,6 +1213,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  d->jog_load_pending=1;
  d->state = XZ_XP_LOADING; d->track = t;
  d->emergency.active=0;d->emergency.count=0;
+ memset(&d->gate,0,sizeof d->gate);
  memset(&d->loop, 0, sizeof d->loop);
  memset(d->hot, 0, sizeof d->hot);
  if(d->slip_reverse)d->reverse=0;
@@ -1321,7 +1323,7 @@ static void cue_button(struct deck *d, int pressed, uint32_t now) {
  if(d->state==XZ_XP_SCRATCHING&&(pressed||d->scratch.resume==XZ_XP_SAMPLING))
   scratch_release(d,now);
  if (pressed) {
-  d->search=0;
+  memset(&d->gate,0,sizeof d->gate);d->search=0;
   if(d->slip_reverse)d->reverse=0;
   d->pad_hold=PAD_HOLD_NONE;
   d->loop.active = 0; d->loop.edit = 0; d->active_pad = d->slip_pad = d->loop_pad = -1; d->slip_bg.active = d->slip_reverse = 0;
@@ -2147,6 +2149,15 @@ static void pad(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
   }
   {
    struct hot before=d->hot[index];hot_cue(d,e,now);
+   /* Native follow-memory applies only to a successful recall of an existing cue. */
+   if(before.set&&!e->shift&&d->hot[index].set&&d->hot[index].at==before.at){
+    if(d->command_settings.smart)d->cue=before.at;
+    if(d->command_settings.gate){
+     if(!d->gate.held)d->gate.latched=0;
+     d->gate.held|=1u<<index;d->gate.latest=index;d->gate.at=before.at;
+     d->slip_bg.active=0;d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;
+    }else memset(&d->gate,0,sizeof d->gate);
+   }
    const struct hot *after=&d->hot[index];
    if(before.set!=after->set||before.at!=after->at||before.end!=after->end||before.rgb!=after->rgb||before.loop!=after->loop){
     d->saved_hot[index]=*after;
@@ -2272,6 +2283,9 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
 }
 
 static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, uint32_t arrived,uint32_t master_choice,uint32_t operator_epoch) {
+ if(e->kind==XZ_EXTRA_IN_PLAY&&e->pressed&&!e->held&&d->gate.held&&!d->gate.latched){
+  d->gate.latched=1;return; /* Native Gate Cue consumes PLAY to latch the recall. */
+ }
  if(e->kind==XZ_EXTRA_IN_SYNC&&e->shift){
   if(e->pressed&&!e->held)xz_xp_notice(p,"KEY SYNC: DECKS 1 AND 2 ONLY FOR NOW");
   return;
@@ -2380,9 +2394,19 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
    d->control_down|=bit;
    /* Ordinary HOT CUE also has one-shot callers. Only a momentary action needs an up edge. */
    if(e->kind==XZ_EXTRA_IN_HOT_CUE&&d->pad_mode==XZ_EXTRA_PAD_HOT_CUE&&
-      (!d->slip||e->shift||!d->hot[e->hot_cue].set||d->state!=XZ_XP_PLAYING))d->control_down&=~bit;
+      (!d->slip||e->shift||!d->hot[e->hot_cue].set||d->state!=XZ_XP_PLAYING)&&
+       !(d->command_settings.gate&&!e->shift&&d->hot[e->hot_cue].set))d->control_down&=~bit;
   }else{
    d->control_down&=~bit;
+   if(e->kind==XZ_EXTRA_IN_HOT_CUE&&(d->gate.held&(1u<<e->hot_cue))){
+    d->gate.held&=~(1u<<e->hot_cue);
+    const struct hot *latest=&d->hot[d->gate.latest];
+    if(!d->gate.held&&!d->gate.latched&&latest->set&&latest->at==d->gate.at){
+     pause_at_heard(d,now);d->loop.active=0;d->ramp.active=0;
+     d->slip_bg.active=0;d->slip_pad=-1;d->pad_hold=PAD_HOLD_NONE;
+     jump(d,d->gate.at,now);d->state=XZ_XP_CUED;
+    }
+   }
    if(e->kind==XZ_EXTRA_IN_REVERSE)reverse_button(d,0,now);
    else if(d->slip_pad==e->hot_cue){
     if(d->pad_hold==PAD_HOLD_LOOP)loop_off(d,now);
@@ -2943,6 +2967,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   d->loop.in_down=d->loop.held=0;
   if(d->pad_hold==PAD_HOLD_LOOP){d->loop.active=0;d->loop.edit=0;d->active_pad=-1;}
   if(d->slip_reverse)d->reverse=0;
+  memset(&d->gate,0,sizeof d->gate);
   d->auto_button.down=0;d->track_prev_known=0;d->search=0;d->control_down=0;d->pad_hold=PAD_HOLD_NONE;d->slip_pad=-1;d->slip_bg.active=d->slip_reverse=0;
  }
  (void)sync_grid_refresh(p,d);
