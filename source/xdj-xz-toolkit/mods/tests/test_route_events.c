@@ -13,7 +13,7 @@
 #include <assert.h>
 
 static unsigned opens,log_fallback;
-static int no_inotify,miss_events;
+static int no_inotify,miss_events,fail_watch;
 int __real_inotify_init(void);
 int __wrap_inotify_init(void) {
  if(no_inotify){errno=ENOSYS;return -1;}
@@ -21,10 +21,12 @@ int __wrap_inotify_init(void) {
 }
 int __real_inotify_add_watch(int,const char *,uint32_t);
 int __wrap_inotify_add_watch(int fd,const char *path,uint32_t mask) {
+ if(fail_watch){errno=EACCES;return -1;}
  return __real_inotify_add_watch(fd,miss_events?"quiet":path,mask);
 }
 void xz_log(const char *s) {
- if(strstr(s,"polling every")&&strstr(s,"Function not implemented"))__atomic_add_fetch(&log_fallback,1,__ATOMIC_RELEASE);
+ if(strstr(s,"polling every")&&(strstr(s,"Function not implemented")||strstr(s,"Permission denied")))
+  __atomic_add_fetch(&log_fallback,1,__ATOMIC_RELEASE);
 }
 struct xz_usb_transport { int dummy; };
 xz_usb_result xz_usb_transport_open(const char *path,xz_usb_transport **out) {
@@ -67,6 +69,16 @@ static void start(void) {
  unsigned before=revision();assert(!xz_extra_decks_start());
  uint32_t began=now_ms();while(revision()==before&&(uint32_t)(now_ms()-began)<500u)wait_ms(1);
  assert(revision()!=before);wait_ms(30); /* initial discovery completed, wait is armed */
+#ifndef ROUTE_EVENT_BASELINE
+ if(!no_inotify&&!fail_watch) {
+  assert(route_events.fd>=0);
+  int fds[]={route_events.fd,route_events.wake[0],route_events.wake[1]};
+  for(unsigned i=0;i<sizeof fds/sizeof *fds;i++) {
+   assert((fcntl(fds[i],F_GETFL)&O_NONBLOCK)!=0);
+   assert((fcntl(fds[i],F_GETFD)&FD_CLOEXEC)!=0);
+  }
+ }
+#endif
 }
 static void stop(void) {
 #ifndef ROUTE_EVENT_BASELINE
@@ -89,7 +101,14 @@ static void node_check(const char *path,const char *label) {
 #ifndef ROUTE_EVENT_BASELINE
  assert(elapsed<50u);
 #endif
- stop();assert(!unlink(path));
+ /* Deleting the candidate must immediately clear the busy-node observation. */
+ assert(!unlink(path));began=now_ms();
+ while(xz_extra_decks_route_status().state!=XZ_EXTRA_ROUTE_NOT_DETECTED&&(uint32_t)(now_ms()-began)<1600u)wait_ms(1);
+ assert(xz_extra_decks_route_status().state==XZ_EXTRA_ROUTE_NOT_DETECTED);
+#ifndef ROUTE_EVENT_BASELINE
+ assert((uint32_t)(now_ms()-began)<50u);
+#endif
+ stop();
 }
 static void helper_status(const char *reason,int atomic_replace) {
  char text[512];snprintf(text,sizeof text,"{\"schema\":\"xz-bridge-status/1\",\"state\":\"waiting\",\"reason\":\"%s\",\"terminal_reason\":null,\"retryable\":true,\"attempt\":1,\"route_ready\":false}\n",reason);
@@ -138,8 +157,22 @@ int main(void) {
  make_node("shm/xz-four-deck/usb-audio");start();before=count();wait_ms(100);assert(count()==before);stop();
  assert(!unlink("shm/xz-four-deck/usb-audio"));unsetenv("XZ_MODS_EXTRA_USB_NODE");
 #ifndef ROUTE_EVENT_BASELINE
+ /* A directory event precedes the node by a separate connector iteration. */
+ assert(!rmdir("shm/xz-four-deck"));start();unsigned rev=revision();
+ assert(!mkdir("shm/xz-four-deck",0700));began=now_ms();
+ while(revision()==rev&&(uint32_t)(now_ms()-began)<50u)wait_ms(1);
+ assert(revision()!=rev);wait_ms(30);before=count();began=now_ms();
+ make_node("shm/xz-four-deck/usb-audio");until_open(before,100);
+ assert((uint32_t)(now_ms()-began)<50u);printf("late_directory_then_node_ms=%u\n",now_ms()-began);
+ stop();assert(!unlink("shm/xz-four-deck/usb-audio"));
+ start();rev=revision();assert(!mkdir("shm/xz-poc-late",0700));began=now_ms();
+ while(revision()==rev&&(uint32_t)(now_ms()-began)<50u)wait_ms(1);
+ assert(revision()!=rev);wait_ms(30);before=count();began=now_ms();
+ make_node("shm/xz-poc-late/audio-usb");until_open(before,100);
+ assert((uint32_t)(now_ms()-began)<50u);printf("late_fallback_then_node_ms=%u\n",now_ms()-began);
+ stop();assert(!unlink("shm/xz-poc-late/audio-usb"));
  /* The same RESCAN called by the four-deck card must interrupt the event wait. */
- start();unsigned rev=revision();began=now_ms();xz_extra_decks_rescan();
+ start();rev=revision();began=now_ms();xz_extra_decks_rescan();
  assert(xz_extra_decks_route_status().state==XZ_EXTRA_ROUTE_SCANNING);
  while(revision()==rev&&(uint32_t)(now_ms()-began)<50u)wait_ms(1);
  assert(revision()!=rev);printf("rescan_ms=%u\n",now_ms()-began);
@@ -154,6 +187,10 @@ int main(void) {
  no_inotify=1;start();before=count();began=now_ms();make_node("shm/xz-four-deck/usb-audio");until_open(before,1300);
  assert((uint32_t)(now_ms()-began)>=800u);assert(__atomic_load_n(&log_fallback,__ATOMIC_ACQUIRE)>0);
  printf("inotify_unavailable_ms=%u\n",now_ms()-began);stop();no_inotify=0;assert(!unlink("shm/xz-four-deck/usb-audio"));
+ fail_watch=1;start();assert(route_events.fd<0);rev=revision();began=now_ms();xz_extra_decks_rescan();
+ while(revision()==rev&&(uint32_t)(now_ms()-began)<50u)wait_ms(1);
+ assert(revision()!=rev);assert(__atomic_load_n(&log_fallback,__ATOMIC_ACQUIRE)>=2u);
+ printf("watch_failure_rescan_ms=%u\n",now_ms()-began);stop();fail_watch=0;
  start();before=revision();began=now_ms();
  for(int i=0;i<1000;i++){put("shm/xz-four-deck/storm","x",1);assert(!unlink("shm/xz-four-deck/storm"));}
  wait_ms(80);unsigned checks=revision()-before;assert(checks<100u);
