@@ -1134,6 +1134,7 @@ static void support_apply(const struct xz_ui_action *a) {
         xz_support_read(&model.support, ui.support.preview_page);
     }
 }
+static void deck_view_apply(int view);
 static void apply(void *context, const struct xz_ui_action *actions, size_t count) {
     (void)context;
     for (size_t i = 0; i < count; i++) {
@@ -1377,9 +1378,10 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             if (a->index >= 0 && a->index < XZ_MODERN_THEME_COUNT) model.modern_theme = a->index;
             break;
         case XZ_UI_FOUR_WAVE_ORDER:
+            /* The session order row is a DECK VIEW change too: the one entry point applies it. */
             if(a->value==0||a->value==1){
-                xz_native_four_set_mixer_order(a->value!=0);
-                model.four_wave_mixer=xz_native_four_mixer_order();
+                deck_view_apply(a->value?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR);
+                model.four_wave_mixer=xz_deck_layout_get()==XZ_LAYOUT_MIXER;
                 snprintf(ui.notice,sizeof(ui.notice),"WAVE ORDER: %s",model.four_wave_mixer?"3 1 2 4 / MIXER":"1 2 3 4 / NUMERIC");
                 xz_native_skin_request_repaint();
             }
