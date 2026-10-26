@@ -35,7 +35,7 @@ def main():
         ("seek", [args.build / "stem-media-vfp.o", ROOT / "audio/stem_mp3.c",
                   ROOT / "audio/stem_decode.c", ROOT / "audio/tests/test_media_seek.c"], []),
         ("player", [args.build / "extra-player-vfp.o", args.build / "stem-media-vfp.o",
-                    *[ROOT / name for name in ("anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c",
+                    *[ROOT / name for name in ("deck_select.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c",
                                                "ui/layered_wave.c", "audio/stem_mp3.c",
                                                "audio/stem_decode.c", "test_extra_player.c")]], []),
     ):
