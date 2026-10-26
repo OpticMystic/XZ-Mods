@@ -182,7 +182,7 @@ int main(void){
     (playheads, waveforms, marks) as closed. */
  for(int order=XZ_FOUR_STACKED;order<=XZ_FOUR_MIXER;order++){
   struct xz_four_layout g;assert(xz_four_layout_get(order,&g));
-  struct xz_four_frame frame={&s,order,1000,XZ_EXTRA_LANE_COLUMN_US,1,-1,0};
+  struct xz_four_frame frame={&s,order,1000,XZ_EXTRA_LANE_COLUMN_US,1,-1,0,0};
   for(size_t i=0;i<PIXELS;i++)closed[i]=manual[i]=(uint16_t)(0x1357+i%5);
   assert(xz_four_frame_draw(closed,PIXELS,&frame,marks));
   struct xz_extra_lane_view lv={1000,XZ_EXTRA_LANE_COLUMN_US,1,0};
@@ -204,7 +204,7 @@ int main(void){
   }
   frame.detail=-1;
  }
- struct xz_four_frame bad={&s,7,1000,0,1,-1,0};
+ struct xz_four_frame bad={&s,7,1000,0,1,-1,0,0};
  assert(!xz_four_frame_draw(closed,PIXELS,&bad,marks));bad.order=XZ_FOUR_STACKED;
  assert(!xz_four_frame_draw(closed,PIXELS-1,&bad,marks)&&!xz_four_frame_draw(NULL,PIXELS,&bad,marks));
  bad.decks=NULL;assert(!xz_four_frame_draw(closed,PIXELS,&bad,marks));

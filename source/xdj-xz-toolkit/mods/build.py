@@ -328,7 +328,7 @@ def main() -> None:
         "classic-lane-test": [str(ROOT / "ui" / name) for name in ("extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c", "test_extra_lane.c")],
         "classic-detail-test": [str(ROOT / "ui" / name) for name in ("extra_detail.c", "extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c", "test_extra_detail.c")],
         "classic-mixer-test": [str(ROOT / "ui" / name) for name in ("extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c", "test_classic_mixer.c")],
-        "classic-mixer-runtime-test": ["-pthread", str(ROOT / "shell_model.c"), *(str(ROOT / "ui" / name) for name in ("test_classic_mixer_runtime.c", "classic_mixer.c", "extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c")), "-lm"],
+        "classic-mixer-runtime-test": ["-pthread", str(ROOT / "shell_model.c"), *(str(ROOT / "ui" / name) for name in ("test_classic_mixer_runtime.c", "classic_mixer.c", "classic_column.c", "extra_lane.c", "wave_viewport.c", "layered_wave.c", "ui_draw.c")), "-lm"],
         "deck-view-test": [str(ROOT / "ui" / name) for name in ("ui_draw.c", "deck_view.c", "test_deck_view.c")],
         "route-card-test": [str(ROOT / "ui" / name) for name in ("ui_draw.c", "route_card.c", "test_route_card.c")],
         "extra-player-test": ["-DXZ_XP_TEST_RENDER_HOOK", "-pthread", *(str(ROOT / name) for name in (

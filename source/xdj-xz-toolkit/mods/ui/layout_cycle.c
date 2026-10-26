@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "layout_cycle.h"
-static int preference=XZ_LAYOUT_FOUR;
+static int preference=XZ_LAYOUT_TWO;
 int xz_deck_layout_get(void){return __atomic_load_n(&preference,__ATOMIC_ACQUIRE);}
 void xz_deck_layout_set(int layout){if((unsigned)layout<XZ_LAYOUT_COUNT)__atomic_store_n(&preference,layout,__ATOMIC_RELEASE);}
 int xz_deck_layout_next(int layout){return (unsigned)layout<XZ_LAYOUT_COUNT?(layout+1)%XZ_LAYOUT_COUNT:XZ_LAYOUT_FOUR;}

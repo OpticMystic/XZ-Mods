@@ -64,12 +64,14 @@ static void classic_mixer_touch_check(void *self){
   play_key.open=play_key.down=0;model.ui_interface=XZ_UI_INTERFACE_CLASSIC;arcade_present=0;
   model.fb_takeover=model.connection.connected=0;
  }
- /* Numeric panels use the same IDs as numeric upper lanes, with captured drag ownership. */
+ /* Number order keeps the mixer's channels 3 1 2 4 (decision D3b): DECK 1 is still the second channel and
+    DECK 3 the first, with captured drag ownership. */
  xz_deck_layout_set(XZ_LAYOUT_FOUR);native_four=XZ_FOUR_STACKED;
- contact(self,6,440,1);assert(stock_calls==++calls&&last_stock.x==7);
+ contact(self,206,440,1);assert(stock_calls==++calls&&last_stock.x==7);
  contact(self,790,473,1);assert(stock_calls==++calls&&last_stock.x==306);
  fdr_release_cleared(self);assert(stock_calls==++calls&&!last_stock.down);
- fixture_detail=-1;fdr_tap(self,450,320);assert(fixture_detail==0);
+ fixture_detail=-1;fdr_tap(self,50,320);assert(fixture_detail==0);
+ fdr_tap(self,450,320);assert(fixture_detail==0&&stock_calls==calls);
  xz_deck_layout_set(XZ_LAYOUT_FOUR);fixture_mixer_visible=0;fixture_detail=-1;native_four=old_four;native_active=old_active;
- puts("PASS Classic mixer touches: 3,1,2,4 titles, captured native overview mapping, software needle lock, crossing channels, route revocation, MODS, upper-lane ownership and two-deck passthrough");
+ puts("PASS Classic mixer touches: 3,1,2,4 channels in both orders, titles, captured native overview mapping, software needle lock, crossing channels, route revocation, MODS, upper-lane ownership and two-deck passthrough");
 }

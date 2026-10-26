@@ -8,7 +8,7 @@
 static uint16_t pixels[807*480+2],saved[807*480+2],native_wave[300*34];
 int main(void){
  const unsigned char *order=xz_deck_layout_order(XZ_LAYOUT_MIXER);
- struct xz_shell_deck native[2]={0};struct xz_extra_decks extra={0};struct xz_classic_mixer_view v={native,&extra,2000,0,XZ_LAYOUT_MIXER,{native_wave,NULL}};
+ struct xz_shell_deck native[2]={0};struct xz_extra_decks extra={0};struct xz_classic_mixer_view v={native,&extra,2000,0,XZ_LAYOUT_MIXER,{native_wave,NULL},0};
  for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x5a5a;
  memcpy(saved,pixels,sizeof pixels);assert(!xz_classic_mixer_draw(pixels,807,807*480,&v));assert(!memcmp(saved,pixels,sizeof pixels));extra.route_up=1;
  assert(!xz_classic_mixer_draw(pixels,799,807*480,&v));assert(!xz_classic_mixer_draw(pixels,SIZE_MAX,807*480,&v));assert(!xz_classic_mixer_draw(pixels,807,807*480-1,&v));assert(!xz_classic_mixer_draw(NULL,807,807*480,&v));
@@ -16,13 +16,15 @@ int main(void){
  assert(xz_classic_mixer_channel_at(XZ_LAYOUT_MIXER,800,400)==-1);assert(xz_classic_mixer_channel_at(XZ_LAYOUT_MIXER,0,310)==-1);assert(xz_classic_mixer_channel_at(XZ_LAYOUT_MIXER,-1,400)==-1);assert(xz_classic_mixer_channel_at(XZ_LAYOUT_MIXER,0,480)==-1);
  for(int d=0;d<4;d++){struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(XZ_LAYOUT_MIXER,d);assert(r.x==(d==2?0:d==0?1:d==1?2:3)*200+6&&r.y==440&&r.w==188&&r.h==34);assert(xz_classic_mixer_seek_ms(XZ_LAYOUT_MIXER,d,r.x-10,1000)==0);assert(xz_classic_mixer_seek_ms(XZ_LAYOUT_MIXER,d,r.x+187,1000)==1000);assert(xz_classic_mixer_seek_ms(XZ_LAYOUT_MIXER,d,r.x+93,1000)==497);}
  int x,y;assert(xz_classic_mixer_native_point(XZ_LAYOUT_MIXER,0,206,440,&x,&y)&&x==0&&y==0);assert(xz_classic_mixer_native_point(XZ_LAYOUT_MIXER,0,393,473,&x,&y)&&x==299&&y==33);assert(!xz_classic_mixer_native_point(XZ_LAYOUT_MIXER,2,6,440,&x,&y));assert(!xz_classic_mixer_native_point(XZ_LAYOUT_MIXER,0,205,440,&x,&y));assert(xz_classic_mixer_seek_ms(XZ_LAYOUT_MIXER,-1,0,1000)==-1);
+ /* Decision D3b: the channels mirror the physical mixer, 3 1 2 4, in both four-deck views; only the upper
+    lanes follow DECK VIEW. */
  for(int layout=XZ_LAYOUT_FOUR;layout<=XZ_LAYOUT_MIXER;layout++){
   struct xz_four_layout lanes;assert(xz_four_layout_get(layout==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED,&lanes));
   for(int slot=0;slot<4;slot++){
-   int id=xz_deck_layout_order(layout)[slot];
+   int id=order[slot];
    assert(xz_classic_mixer_channel_at(layout,slot*200+10,450)==id);
    struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(layout,id);
-   assert(r.x==slot*200+6&&lanes.lane_y[id]==(unsigned)slot*68);
+   assert(r.x==slot*200+6&&lanes.lane_y[xz_deck_layout_order(layout)[slot]]==(unsigned)slot*68);
    assert(xz_classic_mixer_seek_ms(layout,id,r.x+187,1234)==1234);
    if(id<2){int nx,ny;assert(xz_classic_mixer_native_point(layout,id,r.x+187,r.y+33,&nx,&ny)&&nx==299&&ny==33);}
   }
@@ -61,7 +63,21 @@ int main(void){
  native[0].track_no=0;assert(xz_classic_mixer_draw(pixels,807,807*480,&v));assert(!memcmp(saved,pixels,sizeof pixels));
  /* All panels share identical blank backgrounds, title bars and overview bounds. */
  for(int s=0;s<4;s++){assert(pixels[311*807+s*200]==pixels[311*807]);assert(pixels[439*807+s*200+4]==pixels[439*807+4]);}
- puts("classic_mixer: geometry, guards, known fields, position, parity and padding PASS");return 0;
+ /* Number order draws the very same channels (D3b). */
+ memcpy(saved,pixels,sizeof pixels);v.layout=XZ_LAYOUT_FOUR;assert(xz_classic_mixer_draw(pixels,807,807*480,&v));
+ assert(!memcmp(saved,pixels,sizeof pixels));v.layout=XZ_LAYOUT_MIXER;
+ /* Decks 3 and 4 not connected: their channels say so in a dim band; decks 1 and 2 stay live. The software
+    snapshot is not read (NULL is fine); without placeholders a down route draws nothing. */
+ struct xz_classic_mixer_view down=v;down.extra=NULL;down.placeholders=1;
+ for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x5a5a;
+ assert(xz_classic_mixer_draw(pixels,807,807*480,&down));
+ uint16_t dim=(uint16_t)(((0x16>>3)<<11)|((0x1c>>2)<<5)|(0x26>>3)),band=(uint16_t)(((0x12>>3)<<11)|((0x34>>2)<<5)|(0x61>>3));
+ assert(pixels[312*807+60]==dim&&pixels[312*807+600+60]==dim&&pixels[312*807+200+60]==band&&pixels[312*807+400+60]==band);
+ int amber=0;for(int yy=313;yy<330;yy++)for(int xx=30;xx<120;xx++)amber+=pixels[yy*807+xx]!=dim;
+ assert(amber>30);
+ for(int yy=0;yy<480;yy++)for(int xx=0;xx<807;xx++)if(yy<311||xx>=800)assert(pixels[yy*807+xx]==0x5a5a);
+ down.placeholders=0;down.extra=&extra;extra.route_up=0;assert(!xz_classic_mixer_draw(pixels,807,807*480,&down));extra.route_up=1;
+ puts("classic_mixer: geometry, guards, known fields, position, parity, padding, channels 3 1 2 4 in both orders and NOT CONNECTED channels PASS");return 0;
 }
 
 

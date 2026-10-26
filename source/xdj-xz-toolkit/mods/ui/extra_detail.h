@@ -104,6 +104,8 @@ struct xz_four_frame {
  uint32_t now_ms, column_us;
  unsigned background;       /* the native column background mode */
  int detail, notice;        /* open panel (-1 none) and its enum xz_extra_detail_notice */
+ int placeholders;          /* DECK 3 and 4 not connected: native tags lit, their lanes a dark tint (route_card.h
+                               covers them after the theme); decks may be NULL */
 };
 int xz_four_frame_draw(uint16_t *pixels,size_t count,const struct xz_four_frame *,struct xz_extra_lane_marks *marks);
 #endif

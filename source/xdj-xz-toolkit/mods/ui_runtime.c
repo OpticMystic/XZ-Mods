@@ -80,6 +80,12 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_extra_detail_notice_text
 #include "ui/ui_menu.h"
 #include "ui/layout_cycle.h"
+#include "ui/deck_view.h"
+#include "ui/route_card.h"
+#include "ui/classic_column.h"
+#pragma weak xz_native_four_card
+#pragma weak xz_native_four_card_input
+#pragma weak xz_shell_runtime_take_deck_view
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
 #pragma weak xz_shell_runtime_start
 #pragma weak xz_shell_runtime_stop
@@ -857,6 +863,7 @@ static _Thread_local struct {
     int metrics_enabled;struct xz_metrics_sample metrics;
     uint32_t scene,colors[3];
     struct xz_ui_transient_notice notice;
+    int dv,dv_view,dv_ready,dv_open,dv_tile,dv_focus; /* the DECK VIEW button and picker badge() painted */
 } badge_frame_cache;
 static struct xz_ui_transient_notice async_notice;
 static _Thread_local struct xz_ui_notice_pixels notice_pixels;
@@ -1603,8 +1610,36 @@ static void menu_command_locked(const struct xz_shell_runtime_menu_command *c){
     }
     if(n)apply(NULL,actions,n);
 }
+/* ---- DECK VIEW (ui/deck_view.h, ui/route_card.h) ----
+   deck_view_apply is the one entry point every view change takes: the picker's tiles and its encoder and
+   the decks 3 and 4 card's TWO DECKS, in both interfaces (MODERN reaches it through XZ_SHELL_UI_DECK_VIEW,
+   taken just below on the same input thread). Called with ui_mutex held. The preference is session state
+   in layout_cycle.c today; the saved deck_view setting replaces this body.
+   CLASSIC keeps its picker and the encoder's focus here. badge() paints the button and the picker; the wave
+   transaction (native_wave_runtime.c) paints the card and publishes it for touch. */
+enum { DV_FOCUS_NONE, DV_FOCUS_PRIMARY, DV_FOCUS_TWO, DV_FOCUS_BUTTON };
+static struct { int open,tile,focus,contact,back_contact,painted,painted_open,painted_view; uint32_t input_at; } dv;
+static void dv_publish_card(void){
+    if(xz_native_four_card_input)xz_native_four_card_input(dv.input_at,
+        dv.focus==DV_FOCUS_PRIMARY?XZ_ROUTE_CARD_HIT_PRIMARY:dv.focus==DV_FOCUS_TWO?XZ_ROUTE_CARD_HIT_TWO:-1);
+}
+static void dv_input(uint32_t now){dv.input_at=now?now:1;dv_publish_card();}
+static int dv_recent(uint32_t now){return dv.input_at&&now-dv.input_at<(uint32_t)XZ_DECK_VIEW_PICKER_TIMEOUT_MS;}
+static int dv_picker_live(uint32_t now){return dv.open&&dv_recent(now);}
+static int dv_focus_live(uint32_t now){return !dv.open&&dv.focus!=DV_FOCUS_NONE&&dv_recent(now);}
+static int deck_view_encoder_locked(int delta,int push,int press);
+static void deck_view_apply(int view){
+    if((unsigned)view>=XZ_LAYOUT_COUNT)return;
+    xz_deck_layout_set(view);
+    dv.open=0;dv.focus=DV_FOCUS_NONE;dv_publish_card();
+    xz_native_skin_request_repaint();
+}
 static void shell_ui_requests_locked(void){
     unsigned requests=xz_shell_runtime_take_ui_requests?xz_shell_runtime_take_ui_requests():0;
+    if((requests&XZ_SHELL_UI_DECK_VIEW)&&xz_shell_runtime_take_deck_view){
+        int view=xz_shell_runtime_take_deck_view();
+        if(view>=0)deck_view_apply(view);
+    }
     if(requests&XZ_SHELL_UI_TOGGLE_STEMS){
         struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&act,1);
         /* The layout changes as on the stock button, but rows only appear once stems are on. */
@@ -1717,6 +1752,16 @@ static void menu_back_key_hook(void *self,const void *input){
             panel_hide_locked(0);inline_layout_publish();xz_native_skin_request_repaint();
         }
         pthread_mutex_unlock(&ui_mutex);
+    }
+    if(key==0x4208){
+        pthread_mutex_lock(&ui_mutex);
+        uint32_t now=xz_game_milliseconds();
+        if(dv.back_contact){consumed=1;if(operation==2||operation==3)dv.back_contact=0;}
+        else if(operation==0&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&
+                (dv_picker_live(now)||(dv.painted&&dv.painted_open)||dv_focus_live(now))){
+            dv.open=0;dv.focus=DV_FOCUS_NONE;dv_publish_card();dv.back_contact=consumed=1;xz_native_skin_request_repaint();
+        }
+        pthread_mutex_unlock(&ui_mutex);if(consumed)return;
     }
     if(key==0x4208){
         pthread_mutex_lock(&ui_mutex);
@@ -1852,6 +1897,7 @@ static int encoder_rotate_hook(int delta) {
     if(__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
         pthread_mutex_lock(&ui_mutex);
         if(play_key.open){pthread_mutex_unlock(&ui_mutex);return 1;}
+        if(deck_view_encoder_locked(delta,0,0)){pthread_mutex_unlock(&ui_mutex);return 1;}
         int owned=menu_owns_keys_locked(),shell=0;
         if(owned&&delta){
             struct xz_ui_action actions[XZ_UI_ACTIONS];
@@ -1886,6 +1932,7 @@ static int encoder_push_hook(void *arg0,void *arg1,void *arg2,void *arg3) {
            still swallow the rest, or one click activates the focused control twice. */
         uint32_t flags=1;if(arg0)memcpy(&flags,arg0,sizeof(flags));
         int press=flags==1;
+        if(deck_view_encoder_locked(0,1,press)){pthread_mutex_unlock(&ui_mutex);return 1;}
         if(owned){
             if(press){
                 struct xz_ui_action actions[XZ_UI_ACTIONS];
@@ -2351,19 +2398,95 @@ static int browse_head_touch(const struct xz_touch_status *status, int previous_
     }
     return 1;
 }
-static int layout_button_shown,layout_button_painted,layout_button_preference,layout_button_order,layout_button_contact;
 static int classic_native_two(void){return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&xz_native_four_order()<0;}
-static int layout_button_touch_locked(const struct xz_touch_status *status,int fresh){
- if(layout_button_contact){if(!status->down)layout_button_contact=0;return 1;}
- if(!fresh||!status->down||model.ui_interface!=XZ_UI_INTERFACE_CLASSIC||touch.visible||model.fb_takeover||
-    play_key.open||mixer_contact.active||four_contact||inline_contact||inline_wave_contact||touch.capture||game_locked()!=GAME_NONE||!xz_classic_layout_hit((int)status->x,(int)status->y))return 0;
- if(!layout_button_painted)return 0;
- layout_button_contact=1;if(!layout_button_shown)return 1;
- struct xz_extra_decks extra;
- if(!xz_native_play_visible()||!xz_extra_decks_snapshot||!xz_extra_decks_snapshot(&extra)||!extra.route_up||
-    xz_deck_layout_get()!=layout_button_preference||xz_native_four_order()!=layout_button_order){__atomic_store_n(&layout_button_shown,0,__ATOMIC_RELEASE);return 1;}
- xz_deck_layout_set(xz_deck_layout_next(layout_button_preference));__atomic_store_n(&layout_button_shown,0,__ATOMIC_RELEASE);
- xz_native_skin_request_repaint();return 1;
+/* The card the wave transaction last painted, hit in its surface (screen 131,18). word: what was painted. */
+static int dv_card_hit(int x,int y,uint32_t *word_out){
+    uint32_t word=xz_native_four_card?xz_native_four_card():0;
+    *word_out=word;
+    struct xz_four_layout g;
+    if(!(word&XZ_NATIVE_CARD_SHOWN)||!xz_four_layout_get(XZ_NATIVE_CARD_ORDER(word),&g))return XZ_ROUTE_CARD_HIT_NONE;
+    struct xz_route_card_input in={0};in.state=XZ_NATIVE_CARD_STATE(word);in.focus=-1;
+    if(word&XZ_NATIVE_CARD_SUCCESS){in.state=XZ_EXTRA_ROUTE_READY;in.ready_at_ms=in.now_ms=1;}
+    return xz_route_card_hit(&xz_route_card_classic,(int)g.lane_y[2],(int)g.lane_y[3],&in,x-131,y-18);
+}
+/* The painted card still shows this view and this route state; otherwise the next frame repaints it first. */
+static int dv_card_current(uint32_t word,int view){
+    if(view==XZ_LAYOUT_TWO||XZ_NATIVE_CARD_ORDER(word)!=(view==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED))return 0;
+    if(word&XZ_NATIVE_CARD_SUCCESS)return 1;
+    int state=xz_extra_decks_route_status?(int)xz_extra_decks_route_status().state:XZ_EXTRA_ROUTE_NO_ENGINE;
+    if(state==XZ_EXTRA_ROUTE_READY)state=XZ_EXTRA_ROUTE_STARTING;
+    return state==XZ_NATIVE_CARD_STATE(word);
+}
+static int dv_eligible(void){
+    return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!touch.visible&&!model.fb_takeover&&game_locked()==GAME_NONE&&xz_native_play_visible();
+}
+/* DECK VIEW touch in CLASSIC, before every other play-screen owner: the open picker takes any touch (a tile
+   applies, outside closes), the button opens it, the card's RESCAN / TRY AGAIN wakes the connector and its
+   TWO DECKS applies 2 DECKS. The contact stays owned until release. */
+static int deck_view_touch_locked(const struct xz_touch_status *status,int fresh){
+    if(dv.contact){if(!status->down)dv.contact=0;return 1;}
+    if(!fresh||!status->down||!dv_eligible()||play_key.open||mixer_contact.active||four_contact||inline_contact||
+       inline_wave_contact||touch.capture)return 0;
+    uint32_t now=xz_game_milliseconds(),word=0;int x=(int)status->x,y=(int)status->y;
+    int open=dv.painted&&dv.painted_open,button=dv.painted&&xz_deck_view_button_hit(&xz_deck_view_classic,x,y);
+    int card=open||button?XZ_ROUTE_CARD_HIT_NONE:dv_card_hit(x,y,&word);
+    if(!open&&!button&&card==XZ_ROUTE_CARD_HIT_NONE){
+        /* Any other touch on the play screen wakes the card's motion and gives the encoder back. */
+        if(dv.focus!=DV_FOCUS_NONE){dv.focus=DV_FOCUS_NONE;xz_native_skin_request_repaint();}
+        dv_input(now);return 0;
+    }
+    dv.contact=1;
+    int view=xz_deck_view_valid(xz_deck_layout_get());
+    if((open||button)&&dv.painted_view!=view)return 1;
+    if(card!=XZ_ROUTE_CARD_HIT_NONE&&!dv_card_current(word,view))return 1;
+    dv.focus=DV_FOCUS_NONE;dv_input(now);
+    if(open){
+        int hit=xz_deck_view_picker_hit(&xz_deck_view_classic,x,y);
+        if(hit>=0)deck_view_apply(hit);
+        else if(hit==XZ_DECK_VIEW_HIT_OUTSIDE){dv.open=0;xz_native_skin_request_repaint();}
+        else dv.open=1;
+        return 1;
+    }
+    if(button){dv.open=1;dv.tile=view;xz_native_skin_request_repaint();return 1;}
+    if(card==XZ_ROUTE_CARD_HIT_PRIMARY){if(xz_extra_decks_rescan)xz_extra_decks_rescan();xz_native_skin_request_repaint();}
+    else if(card==XZ_ROUTE_CARD_HIT_TWO)deck_view_apply(XZ_LAYOUT_TWO);
+    return 1;
+}
+/* The encoder in CLASSIC. While the picker is open it owns turn and push. While the card shows, a push
+   focuses its first button (RESCAN or TRY AGAIN, else TWO DECKS); turn then moves across the card's buttons
+   and the DECK VIEW button, push presses, BACK or six idle seconds give the encoder back to the player.
+   Without the card the encoder stays the player's. Returns 1 when it took the event (every push phase). */
+static int deck_view_encoder_locked(int delta,int push,int press){
+    if(!dv_eligible()||play_key.open)return 0;
+    uint32_t now=xz_game_milliseconds();
+    if(dv_picker_live(now)||(dv.painted&&dv.painted_open)){
+        if(delta){dv.tile=xz_deck_view_focus_step(dv.tile,delta);dv.open=1;dv_input(now);xz_native_skin_request_repaint();}
+        else if(push&&press){dv_input(now);deck_view_apply(dv.tile);}
+        return delta||push;
+    }
+    uint32_t word=xz_native_four_card?xz_native_four_card():0;
+    int view=xz_deck_view_valid(xz_deck_layout_get());
+    int card=(word&XZ_NATIVE_CARD_SHOWN)&&!(word&XZ_NATIVE_CARD_SUCCESS)&&dv_card_current(word,view);
+    int list[3],n=0;
+    if(card){
+        struct xz_route_card_input in={0};in.state=XZ_NATIVE_CARD_STATE(word);in.focus=-1;int order[2];
+        int k=xz_route_card_focus_order(&in,order);
+        for(int i=0;i<k;i++)list[n++]=order[i]==XZ_ROUTE_CARD_HIT_PRIMARY?DV_FOCUS_PRIMARY:DV_FOCUS_TWO;
+    }
+    list[n++]=DV_FOCUS_BUTTON;
+    if(dv_focus_live(now)){
+        int at=0;for(int i=0;i<n;i++)if(list[i]==dv.focus)at=i;
+        if(delta){at+=delta<-3?-3:delta>3?3:delta;at=at<0?0:at>=n?n-1:at;dv.focus=list[at];dv_input(now);xz_native_skin_request_repaint();}
+        else if(push&&press){
+            int focus=list[at];dv.focus=DV_FOCUS_NONE;dv_input(now);
+            if(focus==DV_FOCUS_BUTTON){dv.open=1;dv.tile=view;xz_native_skin_request_repaint();}
+            else if(focus==DV_FOCUS_PRIMARY){if(xz_extra_decks_rescan)xz_extra_decks_rescan();xz_native_skin_request_repaint();}
+            else deck_view_apply(XZ_LAYOUT_TWO);
+        }
+        return delta||push;
+    }
+    if(card&&push){if(press){dv.focus=list[0];dv_input(now);xz_native_skin_request_repaint();}return 1;}
+    return 0;
 }
 static int play_key_extra_locked(struct xz_extra_decks *out){
     return xz_extra_decks_snapshot&&xz_extra_decks_snapshot(out);
@@ -2482,17 +2605,26 @@ static int mixer_touch(void *self,const struct xz_touch_status *status,const voi
         if(!active||!status->down||previous_down||four_contact||inline_contact||inline_wave_contact||touch.capture)return 0;
         mixer_contact.layout=xz_deck_layout_get();
         if(!xz_classic_mixer_runtime_layout||xz_classic_mixer_runtime_layout()!=mixer_contact.layout)return 0;
-        int deck=xz_classic_mixer_channel_at(mixer_contact.layout,x,y);if(deck<0)return 0;
+        int deck=xz_classic_mixer_channel_at(mixer_contact.layout,x,y),column=-1;
+        if(deck<0)deck=column=xz_classic_column_deck_at(mixer_contact.layout,x,y);
+        if(deck<0)return 0;
         struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(mixer_contact.layout,deck);
         mixer_contact.active=1;mixer_contact.deck=deck;mixer_contact.cancelled=0;mixer_contact.native_down=0;
-        mixer_contact.kind=x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h?1:deck>=2&&y<336?2:0;
+        mixer_contact.kind=column>=0?3:x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h?1:deck>=2&&y<336?2:0;
         four_seek_column=-1;four_seek_noticed=0;
         if(deck<2)ui.deck=inline_ui.deck=deck;
+        /* A tag for DECK 1 or 2 is the stock column's own tap at that deck's point (60,40) or (60,180). */
+        if(mixer_contact.kind==3&&deck<2){
+            struct xz_touch_status mapped=*status;mapped.x=60;mapped.y=deck?180:40;
+            stock_touch(self,&mapped,mode);mixer_contact.native_down=1;mixer_contact.last_x=60;mixer_contact.last_y=deck?180:40;
+        }
     }
     if(!active||mixer_contact.layout!=xz_deck_layout_get())mixer_contact.cancelled=1;
     int deck=mixer_contact.deck;
     if(mixer_contact.kind==2&&(status->down||status->x||status->y)&&
        (xz_classic_mixer_channel_at(mixer_contact.layout,x,y)!=deck||y>=336))mixer_contact.cancelled=1;
+    if(mixer_contact.kind==3&&(status->down||status->x||status->y)&&xz_classic_column_deck_at(mixer_contact.layout,x,y)!=deck)
+        mixer_contact.cancelled=1;
     if(mixer_contact.kind==1&&!mixer_contact.cancelled&&status->down){
         if(deck>=2)four_seek(deck-2,x,1);
         else{
@@ -2516,6 +2648,12 @@ static int mixer_touch(void *self,const struct xz_touch_status *status,const voi
         stock_touch(self,&up,mode);mixer_contact.native_down=0;
     }
     if(!status->down){
+        /* DECK 3 or 4 open their detail from the tag as from their channel title; not while NOT CONNECTED. */
+        uint32_t card=xz_native_four_card?xz_native_four_card():0;
+        if(!mixer_contact.cancelled&&mixer_contact.kind==3&&deck>=2&&!(card&XZ_NATIVE_CARD_SHOWN)&&xz_native_four_set_detail){
+            int current=xz_native_four_detail?xz_native_four_detail():-1;
+            xz_native_four_set_detail(current==deck-2?-1:deck-2);
+        }
         if(!mixer_contact.cancelled&&mixer_contact.kind==2&&xz_native_four_set_detail){
             int current=xz_native_four_detail?xz_native_four_detail():-1;
             xz_native_four_set_detail(current==deck-2?-1:deck-2);
@@ -2528,7 +2666,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE)) { stock_touch(self, status, mode); return; }
     pthread_mutex_lock(&ui_mutex);
     int fresh=status->down&&!play_key_raw_down;play_key_raw_down=!!status->down;
-    if(mixer_contact.active&&(play_key.open||play_key.down||layout_button_contact||touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||
+    if(mixer_contact.active&&(play_key.open||play_key.down||dv.contact||touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||
        (model.fb_takeover&&model.connection.connected)||game_locked()!=GAME_NONE||
        !xz_native_play_visible()||xz_native_four_order()<0||mixer_contact.layout!=xz_deck_layout_get())){
         mixer_touch(self,status,mode,0,0);pthread_mutex_unlock(&ui_mutex);return;
@@ -2554,7 +2692,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         }else if(!status->down)arcade_touch_owned=0;
         pthread_mutex_unlock(&ui_mutex);return;
     }
-    if(layout_button_touch_locked(status,fresh)){pthread_mutex_unlock(&ui_mutex);return;}
+    if(deck_view_touch_locked(status,fresh)){pthread_mutex_unlock(&ui_mutex);return;}
     if(play_key_touch_locked(self,status,fresh)){pthread_mutex_unlock(&ui_mutex);return;}
     if(shell_touch_locked(self,status,mode)){pthread_mutex_unlock(&ui_mutex);return;}
     sdk_refresh();pc_refresh_locked();
@@ -2563,7 +2701,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     int previous_down=((const unsigned char *)self)[4]!=0;
     if(shortcut_touch(self,status,mode,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
     if(browse_head_touch(status,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
-    if(!touch.visible&&!previous_down&&status->down&&status->x<115&&status->y>=24){
+    if(!touch.visible&&!previous_down&&status->down&&status->x<115&&status->y>=24&&xz_native_four_order()<0){
         if(status->y>=18&&status->y<159)ui.deck=inline_ui.deck=0;
         else if(status->y>=161&&status->y<302)ui.deck=inline_ui.deck=1;
     }
@@ -2804,12 +2942,19 @@ static void badge(uint16_t *pixels, uint32_t stride) {
     struct xz_extra_decks extra;int have_extra=play_key_extra_locked(&extra);
     xz_classic_key_render(&classic_keys,&model,have_extra&&!classic_native_two()?&extra:NULL,play&&!model.fb_takeover,
         xz_native_four_order(),pixels,stride);
-    __atomic_store_n(&layout_button_shown,0,__ATOMIC_RELEASE);layout_button_painted=0;
-    if(play&&!model.fb_takeover&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&have_extra&&extra.route_up){
-        int order=xz_native_four_order(),actual=order<0?XZ_LAYOUT_TWO:order==XZ_FOUR_MIXER?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
-        xz_deck_layout_draw((struct xz_canvas){pixels,stride,800,480,model.theme},XZ_CLASSIC_LAYOUT_X,0,XZ_CLASSIC_LAYOUT_W,XZ_CLASSIC_LAYOUT_H,actual,1);
-        layout_button_preference=xz_deck_layout_get();layout_button_order=order;layout_button_painted=1;
-        __atomic_store_n(&layout_button_shown,actual==layout_button_preference,__ATOMIC_RELEASE);
+    dv.painted=0;badge_frame_cache.dv=0;
+    if(play&&!model.fb_takeover&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC){
+        /* DECK VIEW: the button in every view, decks 3 and 4 grey while their route is down; the open picker. */
+        uint32_t now=xz_game_milliseconds();
+        int view=xz_deck_view_valid(xz_deck_layout_get()),ready=have_extra&&extra.route_up;
+        if(!dv_picker_live(now))dv.open=0;
+        if(dv.focus!=DV_FOCUS_NONE&&!dv_focus_live(now)){dv.focus=DV_FOCUS_NONE;dv_publish_card();}
+        struct xz_canvas c={pixels,stride,800,480,model.theme};
+        xz_deck_view_button_draw(c,&xz_deck_view_classic,view,ready,0,dv.open,dv.focus==DV_FOCUS_BUTTON);
+        if(dv.open)xz_deck_view_picker_draw(c,&xz_deck_view_classic,view,ready,dv.tile);
+        dv.painted=1;dv.painted_open=dv.open;dv.painted_view=view;
+        badge_frame_cache.dv=1;badge_frame_cache.dv_view=view;badge_frame_cache.dv_ready=ready;
+        badge_frame_cache.dv_open=dv.open;badge_frame_cache.dv_tile=dv.tile;badge_frame_cache.dv_focus=dv.focus==DV_FOCUS_BUTTON;
     }
     __atomic_store_n(&classic_key_visible,!!classic_keys.shown,__ATOMIC_RELEASE);
 }
@@ -2872,7 +3017,12 @@ void xz_ui_runtime_on_source_key(int source) {
 static int classic_mixer_present(uint16_t *pixels,size_t stride,size_t count,int eligible,int theme,
                                 const struct xz_key_strip_deck keys[2]) {
     if(!xz_classic_mixer_runtime_frame)return 0;
-    const char *names[2]={keys&&keys[0].valid?keys[0].effective:NULL,keys&&keys[1].valid?keys[1].effective:NULL};
+    struct xz_classic_mixer_key names[2];memset(names,0,sizeof names);
+    for(int d=0;d<2;d++)if(keys&&keys[d].valid){
+        names[d].valid=1;names[d].cents=keys[d].cents;
+        snprintf(names[d].effective,sizeof names[d].effective,"%s",keys[d].effective);
+        snprintf(names[d].original,sizeof names[d].original,"%s",keys[d].original);
+    }
     int layout=xz_deck_layout_get(),order=xz_native_four_order();
     eligible=eligible&&xz_native_play_visible()&&layout!=XZ_LAYOUT_TWO&&
         order==(layout==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED);
@@ -2883,7 +3033,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE) || !pixels || width != 800 || height != 480 || stride < 800 || stride > 16384)
         return 0;
     if (pthread_mutex_trylock(&ui_mutex) != 0) {
-        if(__atomic_load_n(&play_key_visible,__ATOMIC_ACQUIRE)||__atomic_load_n(&classic_key_visible,__ATOMIC_ACQUIRE)||__atomic_load_n(&layout_button_shown,__ATOMIC_ACQUIRE))return 0;
+        if(__atomic_load_n(&play_key_visible,__ATOMIC_ACQUIRE)||__atomic_load_n(&classic_key_visible,__ATOMIC_ACQUIRE))return 0;
         __atomic_add_fetch(&xz_mods_key_present_proof_v1.busy,1,__ATOMIC_RELAXED);
         /* The shell needs nothing from the UI model for one frame: draw it from the previous input. */
         if(shell_input_cached&&xz_shell_runtime_frame&&xz_shell_runtime_owns&&xz_shell_runtime_owns()&&
@@ -2903,6 +3053,13 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
                     badge_frame_cache.vj,badge_frame_cache.takeover);
                 xz_ui_notice_badge(pixels,stride,badge_frame_cache.theme,&badge_frame_cache.notice,xz_game_milliseconds(),&notice_pixels);
                 xz_metrics_draw(pixels,stride,badge_frame_cache.theme,badge_frame_cache.metrics_enabled,&badge_frame_cache.metrics,xz_game_milliseconds());
+                if(badge_frame_cache.dv){
+                    struct xz_canvas c={pixels,stride,800,480,badge_frame_cache.theme};
+                    xz_deck_view_button_draw(c,&xz_deck_view_classic,badge_frame_cache.dv_view,badge_frame_cache.dv_ready,0,
+                        badge_frame_cache.dv_open,badge_frame_cache.dv_focus);
+                    if(badge_frame_cache.dv_open)xz_deck_view_picker_draw(c,&xz_deck_view_classic,badge_frame_cache.dv_view,
+                        badge_frame_cache.dv_ready,badge_frame_cache.dv_tile);
+                }
                 if(__atomic_load_n(&xz_mods_ram_debug_v1.enabled,__ATOMIC_ACQUIRE))
                     xz_ui_render_ram_debug(pixels,stride,badge_frame_cache.theme,badge_frame_cache.ram_debug&&!badge_frame_cache.metrics_enabled,badge_frame_cache.ram_valid,badge_frame_cache.ram_free_mib);
                 drawn=1;

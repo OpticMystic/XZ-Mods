@@ -144,6 +144,7 @@ static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_s
 #include "test_rekordbox_runtime.h"
 #include "test_four_detail_runtime.h"
 #include "test_classic_mixer_touch.h"
+#include "test_deck_view_runtime.h"
 static void generation_pad_consistency(void){
     started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;fixture_prepared=1;
     model.jump.enabled=0;model.stem_page=0;model.shift_pages=0;model.stem_order=0;
@@ -240,6 +241,7 @@ int main(void){
     }
     four_detail_runtime_check(self);
     classic_mixer_touch_check(self);
+    deck_view_runtime_check(self);
     contact(self,200,260,1);fixture_generation++;contact(self,650,260,1);
     assert(model.deck[1].levels[2]==1&&inline_cancelled&&!inline_ui.down);
     contact(self,650,260,0);assert(!inline_contact);

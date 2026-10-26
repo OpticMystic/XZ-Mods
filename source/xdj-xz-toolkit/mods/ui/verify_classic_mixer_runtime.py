@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parent
-sources = ['test_classic_mixer_runtime.c', '../shell_model.c', 'classic_mixer.c',
+sources = ['test_classic_mixer_runtime.c', '../shell_model.c', 'classic_mixer.c', 'classic_column.c',
            'extra_lane.c', 'ui_draw.c', 'layered_wave.c', 'wave_viewport.c']
 with tempfile.TemporaryDirectory(prefix='xz-classic-mixer-') as folder:
     binary = Path(folder) / 'runtime-test'

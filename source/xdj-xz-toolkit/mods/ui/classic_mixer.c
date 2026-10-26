@@ -95,10 +95,27 @@ static void digits(struct xz_canvas c,int x,int y,const char *s,int big,int end,
   x+=g->advance;
  }
 }
+/* DECK 3 or 4 while the loopback route is down (design 6.3): a dim title band with NOT CONNECTED, one
+   plain line, and an empty overview where the deck's would be. */
+static void not_connected(struct xz_canvas c,int id){
+ char b[32];
+ xz_rect(c,0,0,200,169,0x030506);xz_rect(c,199,0,1,169,0x52606c);
+ xz_rect(c,0,0,199,22,0x161c26);xz_rect(c,0,22,199,1,0x2a3038);
+ xz_rect(c,3,2,20,18,0x232a36);snprintf(b,sizeof b,"%d",id+1);
+ xz_text(c,13-xz_text_width(c,b,2,2)/2,4,b,2,2,0x5a6270);
+ text(c,30,6,166,"NOT CONNECTED",1,0xffa82e);
+ snprintf(b,sizeof b,"DECK %d WAITS FOR THE",id+1);text(c,8,39,186,b,1,0x8a929a);
+ text(c,8,55,186,"LOOPBACK CABLE.",1,0x8a929a);
+ xz_rect(c,6,129,188,34,0x0a0c10);xz_rect(c,6,161,188,2,0x2a3038);xz_rect(c,6,165,188,1,0x58616a);
+}
 int xz_classic_mixer_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_classic_mixer_view *v){
- if(!pixels||!v||!v->extra||!v->extra->route_up||v->layout==XZ_LAYOUT_TWO||stride<800||stride>SIZE_MAX/480||count<stride*480)return 0;
+ if(!pixels||!v||v->layout==XZ_LAYOUT_TWO||stride<800||stride>SIZE_MAX/480||count<stride*480)return 0;
+ int live=!v->placeholders&&v->extra&&v->extra->route_up;
+ if(!live&&!v->placeholders)return 0;
  for(int s=0;s<4;s++){
-  int id=xz_deck_layout_order(v->layout)[s];struct panel p=project(v,id);struct xz_canvas c={pixels+311*stride+s*200,stride,200,169,v->theme};char b[96];
+  int id=xz_classic_mixer_order()[s];struct xz_canvas c={pixels+311*stride+s*200,stride,200,169,v->theme};char b[96];
+  if(id>=2&&!live){not_connected(c,id);continue;}
+  struct panel p=project(v,id);
   xz_rect(c,0,0,200,169,0x030506);xz_rect(c,0,0,199,22,0x123461);xz_rect(c,199,0,1,169,0x52606c);xz_rect(c,0,22,199,1,0x536376);
   const char *title=p.load_known&&!p.loaded?"NO TRACK":p.title_known&&p.title?p.title:"--";text(c,6,1,188,title,2,WHITE);
   snprintf(b,sizeof b,"DECK %d",id+1);text(c,6,25,54,b,1,WHITE);

@@ -36,6 +36,7 @@
 #include "ui/ui.h"
 #include "ui/ui_menu.h"
 #include "ui/layout_cycle.h"
+#include "ui/deck_view.h"
 #include <dirent.h>
 #include <errno.h>
 #include <dlfcn.h>
@@ -133,6 +134,7 @@ static struct { int32_t last[XZ_SHELL_NATIVE_DECKS]; uint32_t last_clock; int va
 static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256}; /* shell_play.c lane pixels per second */
 static uint32_t last_caution_logged;
 static unsigned ui_requests;
+static int deck_view_request=-1; /* XZ_SHELL_UI_DECK_VIEW, under the mutex */
 static int menu_passed;
 static int quick_return; /* a key passed to stock that leaves stock on PLAY (TAG TRACK) */
 static struct { int pending, deck, tries; uint32_t id, before, at; uint8_t device_kind; } load_check;
@@ -2077,9 +2079,13 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    if(xz_extra_decks_rescan)xz_extra_decks_rescan();
    dirty_flag=1;break;
   case XZ_SHELL_ACT_DECK_LAYOUT:
-   if(model.deck_count==4&&(unsigned)a->value<XZ_LAYOUT_COUNT){
-    xz_deck_layout_set(a->value);model.layout_preference=a->value+1;model.wave_order=a->value==XZ_LAYOUT_MIXER;dirty_flag=1;
-   }break;
+   /* DECK VIEW from the PLAY picker or the card's TWO DECKS, with or without decks 3 and 4: ui_runtime.c
+      applies it (its one entry point); the next frame shows the shared value it confirms. */
+   if((unsigned)a->value<XZ_LAYOUT_COUNT){
+    deck_view_request=a->value;
+    __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_DECK_VIEW,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;dirty_flag=1;
+   }else refuse();
+   break;
   case XZ_SHELL_ACT_WAVE_ORDER:
    if(model.deck_count==4&&(a->value==0||a->value==1)){xz_native_four_set_mixer_order(a->value);model.wave_order=a->value;dirty_flag=1;}
    break;
@@ -2318,6 +2324,21 @@ static void extra_parts_of(int i, const struct xz_extra_deck *d) {
  extra_seen[i].content=d->jog_content_epoch;extra_seen[i].media=d->timeline.media_generation;
  extra_seen[i].route=d->timeline.route_epoch;extra_seen[i].load=d->timeline.load_revision;extra_seen[i].source=d->source;
 }
+/* DECK VIEW and the decks 3 and 4 card (shell.h route_card_*): when the card appeared or changed state, the
+   route coming up under it (READY, then the wipe), and one notice per route-up while 2 DECKS shows. */
+static struct { int card, state, up; } card_seen;
+static void deck_view_route_locked(uint32_t now, const struct xz_extra_route_status *route) {
+ int layout=xz_deck_view_valid(xz_deck_layout_get()),up=model.deck_count==4,card=layout!=XZ_LAYOUT_TWO&&!up;
+ uint32_t at=now?now:1;
+ if(up&&!card_seen.up&&card_seen.card){
+  model.route_card_ready_at_ms=at;
+  xz_deck_view_ready_notice_take(route->ready_revision);notice_locked(now,"DECKS 3 AND 4 ARE READY");
+ }
+ if(!up)model.route_card_ready_at_ms=0;
+ if(card&&(!card_seen.card||(int)route->state!=card_seen.state))model.route_card_since_ms=at;
+ if(layout==XZ_LAYOUT_TWO&&up&&xz_deck_view_ready_notice_take(route->ready_revision))notice_locked(now,XZ_DECK_VIEW_READY_NOTICE);
+ card_seen.card=card;card_seen.state=(int)route->state;card_seen.up=up;
+}
 static void extra_refresh_locked(uint32_t now) {
     struct xz_extra_route_status route_status={0};
     if(xz_extra_decks_route_status)route_status=xz_extra_decks_route_status();
@@ -2334,6 +2355,7 @@ static void extra_refresh_locked(uint32_t now) {
     possibly before native/model reads or a wait for the publisher. */
  uint32_t wall=now_ms(),mono=(uint32_t)(mono_us()/1000u);
  xz_shrt_extra_map(&model,&extra,extra_parts,wall,mono);
+ deck_view_route_locked(now,&route_status);
  fill_extra_info();
  if(xz_shrt_extra_notice(&extra_notice_seen,&extra,mono))notice_locked(now,extra.notice);
  /* Physical assignments have their own indicators; preserve independent browse/grid focus.
@@ -2822,6 +2844,8 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
   last_caution_logged=caution;
  }
  uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),(moving|input_follow)!=0);
+ /* The decks 3 and 4 card moves at 20 fps while both native decks may stand still. */
+ uint32_t motion=xz_shell_play_motion_ms(&shell,&model);if(motion&&motion<period)period=motion;
  if(period<__atomic_load_n(&period_ms,__ATOMIC_RELAXED))dirty_flag=1; /* playback started: draw now */
  __atomic_store_n(&period_ms,period,__ATOMIC_RELAXED);
  refreshed=1;
@@ -2909,7 +2933,8 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
   uint64_t r0=now_us();refresh_locked(now,in);wf.refresh_us=(uint32_t)(now_us()-r0);
  }else if(extra_changed){
   extra_refresh_locked(now);extra_source_look_locked();
-  __atomic_store_n(&period_ms,xz_shrt_frame_period_ms(xz_shell_screen(&shell),xz_shrt_moving_decks(&model)!=0),__ATOMIC_RELAXED);
+  uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),xz_shrt_moving_decks(&model)!=0),motion=xz_shell_play_motion_ms(&shell,&model);
+  __atomic_store_n(&period_ms,motion&&motion<period?motion:period,__ATOMIC_RELAXED);
  }
  if(!owns_now(in->eligible,in->theme)){set_owns(0);goto done;}
  set_owns(1);
@@ -2944,7 +2969,8 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  /* Header requests ui_runtime.c never took (its weak hook missing, or no input thread ran) cannot run. */
  if(ui_requests_at&&now-ui_requests_at>=500u){
   unsigned stale=__atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL);ui_requests_at=0;
-  if(stale)notice_locked(now,stale&XZ_SHELL_UI_OPEN_MODS?"THE MODS PANEL DID NOT OPEN":stale&XZ_SHELL_UI_MENU?"MODS DID NOT ANSWER: PUSH AGAIN":"THE STEMS ROW DID NOT CHANGE");
+  if(stale)notice_locked(now,stale&XZ_SHELL_UI_OPEN_MODS?"THE MODS PANEL DID NOT OPEN":stale&XZ_SHELL_UI_MENU?"MODS DID NOT ANSWER: PUSH AGAIN":
+   stale&XZ_SHELL_UI_DECK_VIEW?"DECK VIEW DID NOT CHANGE":"THE STEMS ROW DID NOT CHANGE");
  }
  /* The frame's clock is the moment it is scanned out: the receiver's next vblank (it shows this frame
     then), plus the time the beam takes to reach the middle of the screen. Without the receiver's clock,
@@ -2953,6 +2979,8 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
   uint64_t present=next_present?next_present():0,t=now_us();
   model.clock_ms=present>t&&present-t<100000u?(uint32_t)((present+SCANOUT_MID_US)/1000u):(uint32_t)(t/1000u)+XZ_SHRT_PRESENT_LEAD_MS;
  }
+ /* DECK VIEW is the shared value ui_runtime.c confirmed (one atomic read): a choice shows on the next frame. */
+ model.layout_preference=xz_deck_layout_get()+1;model.wave_order=model.layout_preference-1==XZ_LAYOUT_MIXER;
  publish_notice_locked();
  uint64_t began=now_us();
  result=menu_render_frame_locked(pixels,stride);
@@ -3224,6 +3252,11 @@ void xz_shell_runtime_stock_key_ran(int which, int ran) {
  pthread_mutex_unlock(&mutex);
 }
 unsigned xz_shell_runtime_take_ui_requests(void) { ui_requests_at=0;return __atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL); }
+int xz_shell_runtime_take_deck_view(void) {
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE))return -1;
+ pthread_mutex_lock(&mutex);int view=deck_view_request;deck_view_request=-1;pthread_mutex_unlock(&mutex);
+ return view;
+}
 /* ui_runtime.c reports a header action it took but could not carry out (one short caps sentence). */
 void xz_shell_runtime_notice(const char *text) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!text)return;
