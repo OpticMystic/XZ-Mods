@@ -31,8 +31,12 @@ enum xz_rekordbox_action {
     XZ_REKORDBOX_VJ_SCREEN = 3, /* switches the VJ.Tools screen */
     XZ_REKORDBOX_STEMS = 4,     /* shows or hides the stem rows */
     XZ_REKORDBOX_NOTHING = 5,
-    XZ_REKORDBOX_ACTIONS = 6
+    XZ_REKORDBOX_DECK_VIEW = 6, /* steps DECK VIEW 2 -> 4 (1 2 3 4) -> 4 (3 1 2 4) -> 2 */
+    XZ_REKORDBOX_ACTIONS = 7
 };
+/* DECK VIEW: what the play screen shows. Display only: sound, mixer channels and which deck each side
+   controls do not change. Values are ui/layout_cycle.h enum xz_deck_layout. */
+enum xz_deck_view { XZ_DECK_VIEW_TWO = 0, XZ_DECK_VIEW_FOUR = 1, XZ_DECK_VIEW_MIXER = 2, XZ_DECK_VIEW_COUNT = 3 };
 struct xz_settings {
     /* theme is derived, never chosen: xz_settings_look(ui_interface, classic_theme).
        It keeps its wire slot so older records migrate (24 = MODERN). */
@@ -53,6 +57,8 @@ struct xz_settings {
     int modern_theme; /* 0..XZ_MODERN_THEME_COUNT-1, used while MODERN */
     int rekordbox_press, rekordbox_shift; /* enum xz_rekordbox_action; a record without them migrates (SETTINGS.md) */
     int modern_stems; /* MODERN's stem layout: enum xz_stem_layout or XZ_MODERN_STEMS_PADS (ui/wave_viewport.h) */
+    int deck_view; /* enum xz_deck_view; a record without it keeps the current view (2 DECKS by default) */
+    int deck_view_button; /* 1 shows the DECKS button at the top of the play screen, 0 hides it */
 };
 /* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
 int xz_settings_look(int ui_interface, int classic_theme);

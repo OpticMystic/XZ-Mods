@@ -34,9 +34,8 @@ int xz_native_play_visible(void){return native_play;}
 int xz_native_inline_active(void){return native_active;}
 static int native_four=-1;
 int xz_native_four_order(void){return native_four;}
-static int fixture_mixer_order;
-int xz_native_four_mixer_order(void){return fixture_mixer_order;}
-void xz_native_four_set_mixer_order(int mixer){fixture_mixer_order=!!mixer;}
+int xz_native_four_mixer_order(void){return xz_deck_layout_get()==XZ_LAYOUT_MIXER;}
+void xz_native_four_set_mixer_order(int mixer){xz_deck_layout_set(mixer?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR);}
 int xz_native_inline_start(int(*on)(void),xz_native_wave_render draw,void *context){(void)on;(void)draw;(void)context;return 0;}
 int xz_hook_arm(uint32_t a,const unsigned char g[8],void *r,void **o){(void)a;(void)g;(void)r;(void)o;return 0;}
 int xz_native_led_start(void){return 0;}
@@ -138,6 +137,7 @@ static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_s
 #include "test_stem_layout_runtime.h"
 #include "test_usb_stem_reason_runtime.h"
 #include "test_rekordbox_runtime.h"
+#include "test_deck_view_runtime.h"
 static void generation_pad_consistency(void){
     started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;fixture_prepared=1;
     model.jump.enabled=0;model.stem_page=0;model.shift_pages=0;model.stem_order=0;
@@ -163,9 +163,9 @@ int main(void){
     unsigned char self[32]={0};started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;model.stems_overlay=1;
     xz_ui_init(&ui);xz_ui_init(&inline_ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);stock_touch=stock;
     struct xz_ui_action order_action={.kind=XZ_UI_FOUR_WAVE_ORDER,.value=1};
-    apply(NULL,&order_action,1);assert(fixture_mixer_order==1&&model.four_wave_mixer==1);
-    order_action.value=2;apply(NULL,&order_action,1);assert(fixture_mixer_order==1);
-    order_action.value=0;apply(NULL,&order_action,1);assert(fixture_mixer_order==0&&model.four_wave_mixer==0);
+    apply(NULL,&order_action,1);assert(xz_native_four_mixer_order()&&model.four_wave_mixer==1&&model.deck_view==XZ_DECK_VIEW_MIXER);
+    order_action.value=2;apply(NULL,&order_action,1);assert(xz_native_four_mixer_order());
+    order_action.value=0;apply(NULL,&order_action,1);assert(!xz_native_four_mixer_order()&&model.four_wave_mixer==0&&model.deck_view==XZ_DECK_VIEW_FOUR);
     struct xz_ui_action color_action={.kind=XZ_UI_STEM_COLOR,.index=0,.value=4};apply(NULL,&color_action,1);
     assert(model.stem_colors[0]==4&&xz_ui_model_stem_color(&model,0)==0xff9f0a);
 #ifdef XZ_STEM_COLOR_CAPTURE_TEST
@@ -444,5 +444,6 @@ int main(void){
     stem_layout_runtime_check();
     usb_stem_reason_runtime_check();
     rekordbox_runtime_check();
+    deck_view_runtime_check();
     puts("PASS two-deck stem controls, waveform gestures, VJ view, all theme/page/bank LEDs and touch ownership");return 0;
 }

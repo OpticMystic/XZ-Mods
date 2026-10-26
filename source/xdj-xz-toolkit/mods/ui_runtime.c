@@ -296,7 +296,9 @@ static int uikey_rekordbox_hook(void *,void *,void *,void *);
 static void *key_player(int deck);
 _Static_assert((int)XZ_UI_RB_MODS==(int)XZ_REKORDBOX_MODS&&(int)XZ_UI_RB_STOCK==(int)XZ_REKORDBOX_STOCK&&(int)XZ_UI_RB_INTERFACE==(int)XZ_REKORDBOX_INTERFACE&&
     (int)XZ_UI_RB_VJ_SCREEN==(int)XZ_REKORDBOX_VJ_SCREEN&&(int)XZ_UI_RB_STEMS==(int)XZ_REKORDBOX_STEMS&&(int)XZ_UI_RB_NOTHING==(int)XZ_REKORDBOX_NOTHING&&
-    (int)XZ_UI_RB_CHOICES==(int)XZ_REKORDBOX_ACTIONS,"one REKORDBOX action numbering");
+    (int)XZ_UI_RB_DECK_VIEW==(int)XZ_REKORDBOX_DECK_VIEW&&(int)XZ_UI_RB_CHOICES==(int)XZ_REKORDBOX_ACTIONS,"one REKORDBOX action numbering");
+_Static_assert((int)XZ_LAYOUT_TWO==(int)XZ_DECK_VIEW_TWO&&(int)XZ_LAYOUT_FOUR==(int)XZ_DECK_VIEW_FOUR&&(int)XZ_LAYOUT_MIXER==(int)XZ_DECK_VIEW_MIXER&&
+    (int)XZ_LAYOUT_COUNT==(int)XZ_DECK_VIEW_COUNT,"one DECK VIEW numbering");
 
 static void arcade_contact_update_locked(unsigned channel,uint16_t key,unsigned op,int consumed){
  if(!key||channel<1||channel>2||(op!=0&&op!=2&&op!=3))return;
@@ -434,7 +436,8 @@ static struct xz_settings settings_snapshot(void) {
         .browse_columns={model.browse_columns[0],model.browse_columns[1],model.browse_columns[2]},
         .browse_key_prefix=model.browse_key_prefix, .browse_traffic=model.browse_traffic, .key_format=model.key_format,
         .stem_colors={model.stem_colors[0],model.stem_colors[1],model.stem_colors[2]},.stem_order=model.stem_order,.key_feedback=model.key_feedback,.ram_debug=model.ram_debug,
-        .rekordbox_menu=model.rekordbox_assign[0]==XZ_REKORDBOX_MODS,.rekordbox_press=model.rekordbox_assign[0],.rekordbox_shift=model.rekordbox_assign[1],.metrics_enabled=model.metrics_enabled};
+        .rekordbox_menu=model.rekordbox_assign[0]==XZ_REKORDBOX_MODS,.rekordbox_press=model.rekordbox_assign[0],.rekordbox_shift=model.rekordbox_assign[1],.metrics_enabled=model.metrics_enabled,
+        .deck_view=model.deck_view,.deck_view_button=model.deck_view_button};
 }
 /* Profile values that only the UI owns. The backend already rejects invalid profiles. */
 static void browse_settings(const struct xz_settings *saved) {
@@ -495,6 +498,57 @@ static void settings_restore_usb_locked(const char *usb,int restored){
         if(rc<0)model.settings_status="INVALID USB SETTINGS: KEPT CURRENT";
         else if(rc&&!restored)model.settings_status="USB SETTINGS READY";
     }
+}
+/* ---- DECK VIEW, the pad page per deck, and decks 3/4's route ---- */
+#pragma weak xz_extra_decks_route
+void xz_extra_decks_wake(void);
+#pragma weak xz_extra_decks_wake
+static unsigned layout_seen; /* the xz_deck_layout_revision the settings hold */
+static void settings_queue(void);
+static void deck_view_apply_locked(int view,int notice){
+    if((unsigned)view>=XZ_DECK_VIEW_COUNT)return;
+    xz_deck_layout_set(view);layout_seen=xz_deck_layout_revision();
+    model.deck_view=view;model.four_wave_mixer=view==XZ_DECK_VIEW_MIXER;
+    if(notice)snprintf(ui.notice,sizeof(ui.notice),"DECK VIEW: %s",xz_deck_layout_name(view));
+    xz_native_skin_request_repaint();
+}
+/* Any xz_deck_layout_set (the play-screen button, the classic DECKS button) is saved like a MODS change. */
+static void deck_view_follow_locked(void){
+    unsigned now=xz_deck_layout_revision();
+    if(now==layout_seen)return;
+    layout_seen=now;
+    int view=xz_deck_layout_get();
+    if(view==model.deck_view)return;
+    model.deck_view=view;model.four_wave_mixer=view==XZ_DECK_VIEW_MIXER;settings_queue();
+}
+/* MERGE HOOK (parity branch claude/xz-parity-fixes-20261026): decks 3 and 4 report their BEAT JUMP pad page
+   through xz_extra_decks_jump_snapshot there (struct xz_jump_snapshot .page). Until it merges they are unknown. */
+static int extra_jump_page(int logical_deck){(void)logical_deck;return -1;}
+/* MERGE HOOK (route branch claude/xz-route-state-20261026): replace the body with the connector's published
+   state, reason and failed part. Until then it says what extra_decks.c already knows: no connector, route up,
+   or not found; a route that drops while up is LOST until it is back or RESCAN runs. */
+static void route_refresh_locked(void){
+    static int was_up;
+    struct xz_extra_route r=xz_extra_decks_route?xz_extra_decks_route():(struct xz_extra_route){0,0};
+    int state=!r.available?XZ_UI_ROUTE_NO_ENGINE:r.route_up?XZ_UI_ROUTE_READY:
+        (was_up||model.route.state==XZ_UI_ROUTE_LOST)?XZ_UI_ROUTE_LOST:XZ_UI_ROUTE_NOT_DETECTED;
+    was_up=r.route_up;
+    if(model.route.scanning_since){
+        /* RESCAN shows SCANNING until a result or 8 s. */
+        if(state==XZ_UI_ROUTE_READY||(uint32_t)(xz_game_milliseconds()-model.route.scanning_since)>=8000u)model.route.scanning_since=0;
+        else if(state!=XZ_UI_ROUTE_NO_ENGINE)state=XZ_UI_ROUTE_SCANNING;
+    }
+    model.route.state=state;model.route.fail_part=XZ_UI_ROUTE_PART_NONE;
+    snprintf(model.route.reason,sizeof(model.route.reason),"%s",
+        state==XZ_UI_ROUTE_NO_ENGINE?"Four decks need a newer USB loader.":
+        state==XZ_UI_ROUTE_LOST?"The loopback cable was unplugged or lost power.":
+        state==XZ_UI_ROUTE_NOT_DETECTED?"No loopback cable found on USB 1.":"");
+}
+static void deck_status_refresh_locked(void){
+    deck_view_follow_locked();
+    model.deck_view_button=xz_deck_view_button_shown();
+    for(int deck=0;deck<4;deck++)model.jump_page[deck]=deck<2?jump_state.page[deck]:extra_jump_page(deck);
+    route_refresh_locked();
 }
 static void settings_queue(void) {
     settings_revision++;
@@ -1321,13 +1375,20 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         case XZ_UI_SET_MODERN_THEME:
             if (a->index >= 0 && a->index < XZ_MODERN_THEME_COUNT) model.modern_theme = a->index;
             break;
-        case XZ_UI_FOUR_WAVE_ORDER:
-            if(a->value==0||a->value==1){
-                xz_native_four_set_mixer_order(a->value!=0);
-                model.four_wave_mixer=xz_native_four_mixer_order();
-                snprintf(ui.notice,sizeof(ui.notice),"WAVE ORDER: %s",model.four_wave_mixer?"3 1 2 4 / MIXER":"1 2 3 4 / NUMERIC");
-                xz_native_skin_request_repaint();
-            }
+        case XZ_UI_FOUR_WAVE_ORDER: /* retired: DECK VIEW replaced it; 0 number order, 1 mixer order */
+            if(a->value==0||a->value==1)deck_view_apply_locked(a->value!=0?XZ_DECK_VIEW_MIXER:XZ_DECK_VIEW_FOUR,1);
+            break;
+        case XZ_UI_DECK_VIEW:
+            if(a->value>=0&&a->value<XZ_DECK_VIEW_COUNT&&(float)(int)a->value==a->value)deck_view_apply_locked((int)a->value,1);
+            break;
+        case XZ_UI_DECK_VIEW_BUTTON:
+            model.deck_view_button=a->value!=0;xz_deck_view_button_load(model.deck_view_button);xz_native_skin_request_repaint();
+            break;
+        case XZ_UI_ROUTE_RESCAN:
+            /* Wakes the connector for a check now; the card shows SCANNING until a result or 8 s. */
+            {uint32_t now=xz_game_milliseconds();model.route.scanning_since=now?now:1u;}
+            if(xz_extra_decks_wake)xz_extra_decks_wake();
+            route_refresh_locked();
             break;
         case XZ_UI_WAVE_MODE:
             if (a->index >= 0 && a->index < XZ_WAVE_MODE_COUNT) {
@@ -1376,13 +1437,13 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_REKORDBOX_KEY: /* the retired switch: on = MODS MENU, off = the stock action */
             model.rekordbox_assign[0] = a->value != 0 ? XZ_REKORDBOX_MODS : XZ_REKORDBOX_STOCK;
-            snprintf(ui.notice, sizeof(ui.notice), "REKORDBOX BUTTON: %s", xz_ui_rekordbox_choice_name(model.rekordbox_assign[0]));
+            snprintf(ui.notice, sizeof(ui.notice), "BUTTON NEXT TO LINK: %s", xz_ui_rekordbox_choice_name(model.rekordbox_assign[0]));
             break;
         case XZ_UI_REKORDBOX_ASSIGN: {
             int choice = (int)a->value;
             if ((a->index == 0 || a->index == 1) && choice >= 0 && choice < XZ_REKORDBOX_ACTIONS && (float)choice == a->value) {
                 model.rekordbox_assign[a->index] = choice;
-                snprintf(ui.notice, sizeof(ui.notice), "%s: %s", a->index ? "SHIFT + REKORDBOX" : "REKORDBOX BUTTON", xz_ui_rekordbox_choice_name(choice));
+                snprintf(ui.notice, sizeof(ui.notice), "%s: %s", a->index ? "SHIFT + BUTTON NEXT TO LINK" : "BUTTON NEXT TO LINK", xz_ui_rekordbox_choice_name(choice));
             }
             break;
         }
@@ -1423,7 +1484,8 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             a->kind == XZ_UI_TAKEOVER_TOGGLE || a->kind == XZ_UI_TAKEOVER_ASSIGN ||
             a->kind == XZ_UI_BROWSE_COLUMN || a->kind == XZ_UI_BROWSE_KEY_PREFIX || a->kind == XZ_UI_BROWSE_TRAFFIC ||
             a->kind == XZ_UI_KEY_FORMAT || a->kind == XZ_UI_KEY_FEEDBACK || a->kind == XZ_UI_RAM_DEBUG ||
-            a->kind == XZ_UI_REKORDBOX_KEY || a->kind == XZ_UI_REKORDBOX_ASSIGN) settings_queue();
+            a->kind == XZ_UI_REKORDBOX_KEY || a->kind == XZ_UI_REKORDBOX_ASSIGN || a->kind == XZ_UI_DECK_VIEW ||
+            a->kind == XZ_UI_DECK_VIEW_BUTTON || a->kind == XZ_UI_FOUR_WAVE_ORDER) settings_queue();
     }
 }
 
@@ -1774,6 +1836,15 @@ static int rekordbox_run_locked(int action){
         }
         struct xz_ui_action act={.kind=XZ_UI_TAKEOVER_TOGGLE,.phase=XZ_UI_PRESS,.deck=-1};
         apply(NULL,&act,1);xz_native_skin_request_repaint();return 0;}
+    case XZ_REKORDBOX_DECK_VIEW:{
+        /* 2 -> 4 (1 2 3 4) -> 4 (3 1 2 4) -> 2, saved, and said where the DJ is looking. */
+        struct xz_ui_action act={.kind=XZ_UI_DECK_VIEW,.phase=XZ_UI_PRESS,.deck=-1,.value=(float)xz_deck_layout_next(model.deck_view)};
+        apply(NULL,&act,1);
+        char text[64];snprintf(text,sizeof(text),"DECK VIEW: %s",xz_deck_layout_name(model.deck_view));
+        if(modern&&!touch.visible&&xz_shell_runtime_notice)xz_shell_runtime_notice(text);
+        else{xz_ui_notice_set(&async_notice,text,xz_game_milliseconds());snprintf(ui.notice,sizeof ui.notice,"%s",async_notice.text);}
+        xz_native_skin_request_repaint();
+        return 0;}
     case XZ_REKORDBOX_STEMS:{
         /* The STEMS button's own layout step, and the shell header's note when rows cannot show yet. */
         struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&act,1);
@@ -1890,7 +1961,7 @@ static void stem_generation_sync_locked(int deck,const struct xz_audio_status *s
 }
 
 static void refresh_local(void) {
-    model.four_wave_mixer=xz_native_four_mixer_order();
+    deck_status_refresh_locked();
     model.settings_flash=settings_flash_at&&(uint32_t)(xz_game_milliseconds()-settings_flash_at)<3000u;
     model.doom_ready=xz_doom_ready();
     xz_doom_browser_read(ui.wad_offset,&model.doom);ui.wad_offset=model.doom.offset;
@@ -2637,6 +2708,9 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     model.shift_keysync = 1; model.takeover_assign = saved->takeover_assign == XZ_TAKEOVER_REKORDBOX ? XZ_TAKEOVER_LINK : saved->takeover_assign;
     model.rekordbox_assign[0] = (unsigned)saved->rekordbox_press < XZ_REKORDBOX_ACTIONS ? saved->rekordbox_press : XZ_REKORDBOX_INTERFACE;
     model.rekordbox_assign[1] = (unsigned)saved->rekordbox_shift < XZ_REKORDBOX_ACTIONS ? saved->rekordbox_shift : XZ_REKORDBOX_STOCK;
+    model.deck_view = (unsigned)saved->deck_view < XZ_DECK_VIEW_COUNT ? saved->deck_view : XZ_DECK_VIEW_TWO;
+    model.deck_view_button = !!saved->deck_view_button; model.four_wave_mixer = model.deck_view == XZ_DECK_VIEW_MIXER;
+    xz_deck_layout_load(model.deck_view); xz_deck_view_button_load(model.deck_view_button); layout_seen = xz_deck_layout_revision();
     model.stem_bank = saved->stem_bank; pads.bank = saved->stem_bank;
     model.stem_order = (unsigned)saved->stem_order < XZ_STEM_ORDER_COUNT ? saved->stem_order : 0; pads.order = model.stem_order;
     browse_settings(saved);

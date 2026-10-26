@@ -70,24 +70,26 @@ A record with the block ignores the value in the `theme` slot. The shipped
 loader starts the runtime with the shell armed (`XZ_MODS_SHELL` follows
 `XZ_MODS_UI`, like the other UI attachments), so `interface` alone decides.
 
-## REKORDBOX button
+## Button next to LINK (`rekordbox_press`, `rekordbox_shift`)
 
-The physical REKORDBOX key has two slots: `rekordbox_press` for a plain press and
+MODS calls the media button next to LINK BUTTON NEXT TO LINK; the code and the wire
+keys keep the name REKORDBOX. It has two slots: `rekordbox_press` for a plain press and
 `rekordbox_shift` for a press while either deck's SHIFT is held. Each holds one
 of these (stored numbers never change):
 
 | value | MODS label | the key |
 |---|---|---|
 | 0 | MODS MENU | opens and closes MODS: the shell's own MODS screen in MODERN (as a short MENU press there), the MODS panel in CLASSIC; both work with the browse encoder and BACK |
-| 1 | EXPORT MODE PLAYBACK | the key's stock action: the stock screen for a laptop's or phone's library over the network (or USB). In MODERN the shell steps aside visibly until stock is back on its play screen |
+| 1 | ITS OWN JOB | the key's stock action: the stock screen for a laptop's or phone's library over the network (or USB). In MODERN the shell steps aside visibly until stock is back on its play screen |
 | 2 | INTERFACE | switches MODERN and CLASSIC, with the same notice as MODS > APPEARANCE |
 | 3 | VJ.TOOLS SCREEN | switches the VJ.Tools screen; without an enabled, connected VJ.Tools link it says so instead |
 | 4 | STEMS | shows or hides the stem rows (the shell's STEMS header button in MODERN, the STEMS button's layout toggle in CLASSIC) |
 | 5 | NOTHING | the key does nothing; stock never sees it |
+| 6 | DECK VIEW | steps DECK VIEW 2 DECKS, 4 DECKS (1 2 3 4), 4 DECKS (3 1 2 4), then 2 DECKS, saves it and shows the new view in a short notice |
 
 Defaults: `rekordbox_press=2` (INTERFACE), `rekordbox_shift=1` (stock). MODS >
-CONTROLS > BUTTONS sets both; the shell's MODS screen has the same two rows on its
-BUTTONS tab.
+PLAY > BUTTON NEXT TO LINK sets both, in both interfaces. Value 6 is newer than the
+DECK VIEW block below; older runtimes refuse a record that holds it.
 
 Recovery without a touchscreen: in CLASSIC, REKORDBOX (INTERFACE) switches to
 MODERN, where the hardware MENU key opens the shell's MODS screen, and MODS is
@@ -135,15 +137,15 @@ removal, the real UBIFS mount or physical power-loss behaviour.
 
 ## Beat-jump pad assignments
 
-Open MODS > GENERAL > JUMP SETTINGS. Choose
-EDIT PAGE 1 or EDIT PAGE 2, then tap either pad in a pair. The editor mirrors
+Open MODS > PLAY > BEAT JUMP PADS. Choose
+PAGE 1 or PAGE 2, then tap either pad in a pair. The editor mirrors
 the physical two rows of four pads. UP/DOWN or the browse encoder changes
 the selected pair's size; the selection stops at the smallest/largest size. A/B, C/D,
 E/F and G/H are independent pairs. The first pad jumps backward and the
 second jumps forward by the same amount. Assignments apply to both decks.
 
-Available sizes are 1, 2, 4, 8, 16, 32 and 64 beats, plus 16, 32 and 64 bars.
-A bar means four beats, so the bar choices send 64, 128 and 256 beats.
+Available sizes are 1, 2, 4, 8, 16, 32, 64, 128 and 256 beats; the editor shows
+the bars beside the beats (4 beats = 1 bar).
 
 Press BEAT JUMP to select page 1. Hold Shift and tap the physical Beat Jump mode button to select page 2.
 Release Shift before pressing the pads. Selection is independent for each deck.
@@ -158,7 +160,9 @@ optional Shift + Beat Jump stem-bypass shortcut. Page-2 selection always wins th
 The version-1 record appends `jump_enabled`, `jump_shift_page` and
 `jump_1` through `jump_8`. The first four assignments belong to page 1;
 the last four belong to page 2. Values 0 through 6 mean 1/2/4/8/16/32/64 beats;
-7/8/9 mean 16/32/64 bars. Older records receive the defaults. The complete
+8 and 9 mean 128 and 256 beats. 7 is the older "16 BARS" choice, also 64 beats: it
+still loads and shows as 64 beats, and nothing offers it any more (the schema marks
+it `"offered": false`). Older records receive the defaults. The complete
 new block must be present when supplied. The settings worker saves changes;
 read-only RAM trials keep changes only until restart.
 
@@ -199,6 +203,26 @@ values the PC transport does not report.
 the pad row beside the hot-cue lamps (the default, also for records without
 it). The header STEMS button, a REKORDBOX button set to STEMS and MODS step it
 5, 1, 2, 3, 4, 0, then 5. It is the optional 44th field.
+
+## DECK VIEW
+
+`deck_view` is what the play screen shows; it changes neither sound, mixer channels
+nor which deck a side controls:
+
+| value | MODS label | waveform lanes, top to bottom | bottom panels |
+|---|---|---|---|
+| 0 | 2 DECKS (default) | 1, 2 | 1, 2 |
+| 1 | 4 DECKS, NUMBER ORDER 1 2 3 4 | 1, 2, 3, 4 | 3 1 2 4 |
+| 2 | 4 DECKS, MIXER ORDER 3 1 2 4 | 3, 1, 2, 4 | 3 1 2 4 |
+
+`deck_view_button` is 1 (default) to show the DECKS button at the top of the play
+screen, 0 to hide it; MODS > SCREEN > DECK VIEW still works while it is hidden.
+
+The two are one block after `modern_stems` (fields 45 and 46); a record holds both or
+neither. A record without them loads with the defaults, and overlaid on the applied
+settings (boot restore, a stick's profile) it leaves the DJ's current DECK VIEW as it
+is. DECK VIEW replaced the session-only four-deck layout preference: `ui/layout_cycle.c`
+keeps the `xz_deck_layout_*` calls, and every `xz_deck_layout_set` is now saved here.
 
 `wave_mode` is an optional trailing field after `stems_overlay`: 0 stock
 scrolling waveform, 1 CDJ-3000 style layered 3-band (default, also for older

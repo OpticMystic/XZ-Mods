@@ -289,8 +289,9 @@ static void test_wave_order(void) {
   render_both(&u,&m);
   deck_key(&u,&m,XZ_SHELL_KEY_SHORTCUT,-1,out);
   render_both(&u,&m);
+  /* DECK VIEW replaced SHORTCUT's WAVE ORDER toggle: the title bar there sends nothing. */
   size_t n=tap(&u,&m,550,20,out);
-  assert(n==1&&out[0].kind==XZ_SHELL_ACT_WAVE_ORDER&&out[0].value==!order&&out[0].deck==-1);
+  assert(n==0||out[0].kind!=XZ_SHELL_ACT_WAVE_ORDER);
   deck_key(&u,&m,XZ_SHELL_KEY_BACK,-1,out);
  }
  m.deck_count=2;m.wave_order=1;

@@ -128,9 +128,9 @@ static void rekordbox_runtime_check(void) {
     /* MODS panel rows: the assignment saves, both slots, with the panel's notice. */
     settings_readonly=0;settings_running=0;settings_pending=0;
     struct xz_ui_action set={.kind=XZ_UI_REKORDBOX_ASSIGN,.phase=XZ_UI_PRESS,.index=1,.value=XZ_REKORDBOX_VJ_SCREEN};apply(NULL,&set,1);
-    assert(model.rekordbox_assign[1]==XZ_REKORDBOX_VJ_SCREEN&&!strcmp(ui.notice,"SHIFT + REKORDBOX: VJ.TOOLS SCREEN"));
+    assert(model.rekordbox_assign[1]==XZ_REKORDBOX_VJ_SCREEN&&!strcmp(ui.notice,"SHIFT + BUTTON NEXT TO LINK: VJ.TOOLS SCREEN"));
     set.index=0;set.value=XZ_REKORDBOX_MODS;apply(NULL,&set,1);
-    assert(model.rekordbox_assign[0]==XZ_REKORDBOX_MODS&&!strcmp(ui.notice,"REKORDBOX BUTTON: MODS MENU"));
+    assert(model.rekordbox_assign[0]==XZ_REKORDBOX_MODS&&!strcmp(ui.notice,"BUTTON NEXT TO LINK: MODS MENU"));
     set.value=XZ_REKORDBOX_ACTIONS;apply(NULL,&set,1);assert(model.rekordbox_assign[0]==XZ_REKORDBOX_MODS);
     set.index=2;set.value=0;apply(NULL,&set,1);assert(model.rekordbox_assign[0]==XZ_REKORDBOX_MODS&&model.rekordbox_assign[1]==XZ_REKORDBOX_VJ_SCREEN);
     struct xz_settings snap=settings_snapshot();

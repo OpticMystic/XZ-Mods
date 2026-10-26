@@ -18,18 +18,18 @@ static void rekordbox_buttons(void) {
     for(int press=0;press<XZ_REKORDBOX_ACTIONS;press++)for(int shift=0;shift<XZ_REKORDBOX_ACTIONS;shift++){
         struct xz_settings w=a;w.rekordbox_press=press;w.rekordbox_shift=shift;w.rekordbox_menu=press==XZ_REKORDBOX_MODS;
         assert(xz_settings_format(&w,text,sizeof(text))>0&&strstr(text,press==XZ_REKORDBOX_MODS?"rekordbox_menu=1\n":"rekordbox_menu=0\n"));
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==44&&!memcmp(&w,&b,sizeof(w)));
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==46&&!memcmp(&w,&b,sizeof(w)));
     }
     { struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_ACTIONS;assert(xz_settings_format(&w,text,sizeof(text))<0);
       w=a;w.rekordbox_shift=-1;assert(xz_settings_format(&w,text,sizeof(text))<0); }
     assert(xz_settings_format(&a,text,sizeof(text))>0);
-    { char bad[1024];strcpy(bad,text);field(bad,"rekordbox_shift=",'6');assert(xz_settings_parse(bad,&b)<0);
+    { char bad[1024];strcpy(bad,text);field(bad,"rekordbox_shift=",'7');assert(xz_settings_parse(bad,&b)<0);
       /* The pair is all or nothing. */
       strcpy(bad,text);cut(bad,"rekordbox_shift=");assert(xz_settings_parse(bad,&b)<0); }
     /* modern_stems: MODERN's own stem layout, PADS by default; a record without it keeps PADS; 0..5 only. */
     { char bad[1024];assert(a.modern_stems==XZ_MODERN_STEMS_PADS&&a.stems_overlay==XZ_STEM_LAYOUT_BELOW);
       for(int mode=0;mode<XZ_MODERN_STEMS_COUNT;mode++){struct xz_settings w=a;w.modern_stems=mode;
-        assert(xz_settings_format(&w,bad,sizeof(bad))>0&&!xz_settings_parse_present(bad,&b,&present)&&present==44&&b.modern_stems==mode);}
+        assert(xz_settings_format(&w,bad,sizeof(bad))>0&&!xz_settings_parse_present(bad,&b,&present)&&present==46&&b.modern_stems==mode);}
       strcpy(bad,text);field(bad,"modern_stems=",'6');assert(xz_settings_parse(bad,&b)<0);
       strcpy(bad,text);field(bad,"modern_stems=",'0');cut(bad,"modern_stems=");
       assert(!xz_settings_parse_present(bad,&b,&present)&&present==43&&b.modern_stems==XZ_MODERN_STEMS_PADS);
@@ -71,9 +71,59 @@ static void rekordbox_buttons(void) {
       struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_STEMS;w.rekordbox_shift=XZ_REKORDBOX_NOTHING;assert(xz_settings_format(&w,old,sizeof(old))>0);
       assert(!xz_settings_parse_present(old,&record,&present)&&!xz_settings_overlay(&current,&record,present));
       assert(current.rekordbox_press==XZ_REKORDBOX_STEMS&&current.rekordbox_shift==XZ_REKORDBOX_NOTHING&&!current.rekordbox_menu); }
-    puts("PASS REKORDBOX buttons: 36 pairs round-trip, derived rekordbox_menu, range and pair refusal, migration from rekordbox_menu/takeover_assign, overlay");
+    puts("PASS REKORDBOX buttons: 49 pairs round-trip, derived rekordbox_menu, range and pair refusal, migration from rekordbox_menu/takeover_assign, overlay");
+}
+/* DECK VIEW: deck_view and deck_view_button are one block after modern_stems. A record without it (44 fields)
+   still loads with the defaults; overlaying it keeps the view the DJ has now; half a block, a value out of range or
+   a DECK VIEW choice on an older field is refused. The longest record stays inside the internal store's 1023 bytes. */
+static void deck_view_block(void) {
+    struct xz_settings a,b;char text[1024];unsigned present=0;
+    xz_settings_default(&a);
+    assert(a.deck_view==XZ_DECK_VIEW_TWO&&a.deck_view_button==1);
+    for(int view=0;view<XZ_DECK_VIEW_COUNT;view++)for(int button=0;button<2;button++){
+        struct xz_settings w=a;w.deck_view=view;w.deck_view_button=button;
+        assert(xz_settings_format(&w,text,sizeof(text))>0);
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==46&&!memcmp(&w,&b,sizeof(w)));
+    }
+    { struct xz_settings w=a;w.deck_view=XZ_DECK_VIEW_COUNT;assert(xz_settings_format(&w,text,sizeof(text))<0);
+      w=a;w.deck_view=-1;assert(xz_settings_format(&w,text,sizeof(text))<0);
+      w=a;w.deck_view_button=2;assert(xz_settings_format(&w,text,sizeof(text))<0); }
+    struct xz_settings mixer=a;mixer.deck_view=XZ_DECK_VIEW_MIXER;mixer.deck_view_button=0;
+    assert(xz_settings_format(&mixer,text,sizeof(text))>0);
+    char bad[1024];
+    strcpy(bad,text);field(bad,"deck_view=",'3');assert(xz_settings_parse(bad,&b)<0);
+    strcpy(bad,text);field(bad,"deck_view_button=",'2');assert(xz_settings_parse(bad,&b)<0);
+    /* Half the block is refused. */
+    strcpy(bad,text);cut(bad,"deck_view_button=");assert(xz_settings_parse(bad,&b)<0);
+    /* An older 44-field record loads with the defaults... */
+    char old[1024];strcpy(old,text);cut(old,"deck_view=");
+    assert(!xz_settings_parse_present(old,&b,&present)&&present==44&&b.deck_view==XZ_DECK_VIEW_TWO&&b.deck_view_button==1);
+    /* ...and overlaying it keeps the DECK VIEW the DJ has now. */
+    { struct xz_settings current=a,record;current.deck_view=XZ_DECK_VIEW_MIXER;current.deck_view_button=0;
+      assert(!xz_settings_parse_present(old,&record,&present)&&!xz_settings_overlay(&current,&record,present));
+      assert(current.deck_view==XZ_DECK_VIEW_MIXER&&current.deck_view_button==0);
+      /* A current record sets both. */
+      struct xz_settings w=a;w.deck_view=XZ_DECK_VIEW_FOUR;w.deck_view_button=1;assert(xz_settings_format(&w,text,sizeof(text))>0);
+      assert(!xz_settings_parse_present(text,&record,&present)&&!xz_settings_overlay(&current,&record,present));
+      assert(current.deck_view==XZ_DECK_VIEW_FOUR&&current.deck_view_button==1); }
+    /* DECK VIEW on the button next to LINK, alone and with SHIFT. */
+    { struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_DECK_VIEW;w.rekordbox_shift=XZ_REKORDBOX_DECK_VIEW;
+      assert(xz_settings_format(&w,text,sizeof(text))>0&&strstr(text,"rekordbox_press=6\nrekordbox_shift=6\n"));
+      assert(!xz_settings_parse(text,&b)&&b.rekordbox_press==XZ_REKORDBOX_DECK_VIEW&&b.rekordbox_shift==XZ_REKORDBOX_DECK_VIEW&&!b.rekordbox_menu);
+      strcpy(bad,text);field(bad,"rekordbox_press=",'7');assert(xz_settings_parse(bad,&b)<0); }
+    /* The retired 16 BARS jump ID (7, also 64 beats) still loads. */
+    { struct xz_settings w=a;w.jump.sizes[3]=7;assert(xz_settings_format(&w,text,sizeof(text))>0);
+      assert(!xz_settings_parse(text,&b)&&b.jump.sizes[3]==7&&xz_jump_beats(7)==64); }
+    /* The longest record: every two-digit field at its largest value. */
+    { struct xz_settings w=a;for(int i=0;i<8;i++)w.jump.sizes[i]=9;w.ui_interface=XZ_INTERFACE_CLASSIC;w.classic_theme=XZ_CLASSIC_THEME_COUNT-1;
+      w.theme=w.classic_theme;w.modern_stems=XZ_MODERN_STEMS_COUNT-1;w.stems_overlay=XZ_STEM_LAYOUT_COUNT-1;w.stem_order=XZ_STEM_ORDER_COUNT-1;
+      w.deck_view=XZ_DECK_VIEW_MIXER;for(int i=0;i<3;i++)w.stem_colors[i]=XZ_STEM_COLOR_CHOICES-1;
+      int n=xz_settings_format(&w,text,sizeof(text));assert(n>0&&n<=1023);
+      printf("longest settings record: %d bytes (limit 1023)\n",n); }
+    puts("PASS DECK VIEW: 6 values round-trip, range refusal, block refusal, 44-field records load, overlay keeps the view, DECK VIEW button choice, old jump ID 7, record size");
 }
 int main(void) {
+    deck_view_block();
     rekordbox_buttons();
     struct xz_settings a,b;
     char text[1024], root[]="/dev/shm/xz-settings-XXXXXX",path[1024];
@@ -94,7 +144,7 @@ int main(void) {
         current.key_feedback=1;current.wave_mode=2;
         assert(!xz_settings_overlay(&current,&record,present)&&current.key_feedback==1&&current.wave_mode==2);
         struct xz_settings off=current;off.key_feedback=0;off.wave_mode=0;
-        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==44);
+        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==46);
         assert(!xz_settings_overlay(&current,&record,present)&&!current.key_feedback&&!current.wave_mode);
         record=current;record.theme=XZ_THEME_COUNT;struct xz_settings kept=current;
         assert(xz_settings_overlay(&current,&record,38)<0&&!memcmp(&kept,&current,sizeof(kept)));

@@ -19,7 +19,8 @@
     38,
     41,
     43,
-    44
+    44,
+    46
   ],
   "fields": [
     {
@@ -197,6 +198,50 @@
       ]
     },
     {
+      "key": "deck_view",
+      "label": "Deck view",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "2 DECKS"
+        },
+        {
+          "value": 1,
+          "label": "4 DECKS, NUMBER ORDER 1 2 3 4"
+        },
+        {
+          "value": 2,
+          "label": "4 DECKS, MIXER ORDER 3 1 2 4"
+        }
+      ]
+    },
+    {
+      "key": "deck_view_button",
+      "label": "Deck view button on the play screen",
+      "group": "appearance",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "HIDE"
+        },
+        {
+          "value": 1,
+          "label": "SHOW"
+        }
+      ]
+    },
+    {
       "key": "stem_page",
       "label": "Stem shortcut pad mode",
       "group": "stems",
@@ -344,7 +389,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -396,7 +442,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -448,7 +495,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -500,7 +548,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -552,7 +601,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -604,7 +654,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -656,7 +707,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -708,7 +760,8 @@
         },
         {
           "value": 7,
-          "label": "16 bars / 64 beats"
+          "label": "64 beats (older 16 bars)",
+          "offered": false
         },
         {
           "value": 8,
@@ -1096,11 +1149,11 @@
     },
     {
       "key": "rekordbox_press",
-      "label": "REKORDBOX button",
+      "label": "Button next to LINK",
       "group": "advanced",
       "default": 2,
       "min": 0,
-      "max": 5,
+      "max": 6,
       "kind": "choice",
       "readonly": false,
       "choices": [
@@ -1110,7 +1163,7 @@
         },
         {
           "value": 1,
-          "label": "EXPORT MODE PLAYBACK"
+          "label": "ITS OWN JOB"
         },
         {
           "value": 2,
@@ -1123,6 +1176,10 @@
         {
           "value": 4,
           "label": "STEMS"
+        },
+        {
+          "value": 6,
+          "label": "DECK VIEW"
         },
         {
           "value": 5,
@@ -1132,11 +1189,11 @@
     },
     {
       "key": "rekordbox_shift",
-      "label": "SHIFT + REKORDBOX button",
+      "label": "SHIFT + button next to LINK",
       "group": "advanced",
       "default": 1,
       "min": 0,
-      "max": 5,
+      "max": 6,
       "kind": "choice",
       "readonly": false,
       "choices": [
@@ -1146,7 +1203,7 @@
         },
         {
           "value": 1,
-          "label": "EXPORT MODE PLAYBACK"
+          "label": "ITS OWN JOB"
         },
         {
           "value": 2,
@@ -1159,6 +1216,10 @@
         {
           "value": 4,
           "label": "STEMS"
+        },
+        {
+          "value": 6,
+          "label": "DECK VIEW"
         },
         {
           "value": 5,
@@ -1247,7 +1308,9 @@
     "modern_theme",
     "rekordbox_press",
     "rekordbox_shift",
-    "modern_stems"
+    "modern_stems",
+    "deck_view",
+    "deck_view_button"
   ],
   "retired_fields": {
     "jump_shift_page": {
@@ -1319,7 +1382,7 @@
     },
     "rekordbox_menu": {
       "key": "rekordbox_menu",
-      "label": "REKORDBOX key opens MODS (read by older runtimes)",
+      "label": "Button next to LINK opens MODS (read by older runtimes)",
       "group": "advanced",
       "default": 0,
       "min": 0,
