@@ -1814,6 +1814,35 @@ static void test_mods_sync_gesture(void){
  xz_xp_destroy(p);p=NULL;puts("PASS MODS SHIFT+SYNC leaves tempo sync unchanged on both software decks; plain SYNC toggles");
 }
 
+static void test_mods_cue(void){
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
+ p=xz_xp_create(&env);assert(p);fake_route(9915);step();load(0,1);load(1,1);
+ struct xz_performance_settings settings={.revision=21,.jump=xz_jump_defaults(),.gate=1,.smart=1};
+ xz_xp_set_performance_settings(p,&settings);
+ for(int deck=0;deck<2;deck++){
+  mode(deck,XZ_EXTRA_PAD_HOT_CUE,1);mode(deck,XZ_EXTRA_PAD_BEAT_LOOP,0);mode(deck,XZ_EXTRA_PAD_HOT_CUE,0);
+  pad_key(deck,0,1);assert(debug(deck).state==XZ_XP_PLAYING&&debug(deck).cue==ms_frames(deck,300));
+  advance(30);pad_key(deck,0,0);
+  assert(debug(deck).state==XZ_XP_CUED&&debug(deck).position==ms_frames(deck,300));
+  pad_key(deck,0,1);pad_key(deck,7,1);pad_key(deck,0,0);assert(debug(deck).state==XZ_XP_PLAYING);
+  pad_key(deck,7,0);assert(debug(deck).state==XZ_XP_CUED&&debug(deck).position==ms_frames(deck,1500));
+  pad_key(deck,0,1);hold(deck,XZ_EXTRA_IN_PLAY,1);assert(debug(deck).state==XZ_XP_PLAYING);
+  pad_key(deck,0,0);assert(debug(deck).state==XZ_XP_PLAYING);hold(deck,XZ_EXTRA_IN_PLAY,1);
+  seek(deck,900);uint64_t before=debug(deck).cue;pad_key(deck,2,1);pad_key(deck,2,0);
+  assert(debug(deck).cue==before&&debug(deck).state==XZ_XP_CUED); /* setting is not recall */
+  struct xz_extra_deck_event clear=event(deck,XZ_EXTRA_IN_HOT_CUE,1);clear.hot_cue=2;clear.shift=1;
+  assert(input(clear));step();clear.pressed=0;assert(input(clear));step();assert(debug(deck).cue==before);
+  /* A queued press owns its settings, and its release survives disabling Gate. */
+  struct xz_extra_deck_event key=event(deck,XZ_EXTRA_IN_HOT_CUE,1);key.hot_cue=0;assert(input(key));
+  settings.gate=0;settings.revision++;xz_xp_set_performance_settings(p,&settings);step();
+  key.pressed=0;assert(input(key));step();assert(debug(deck).state==XZ_XP_CUED&&debug(deck).position==ms_frames(deck,300));
+  pad_key(deck,7,1);pad_key(deck,7,0);assert(debug(deck).state==XZ_XP_PLAYING&&debug(deck).cue==ms_frames(deck,1500));
+  hold(deck,XZ_EXTRA_IN_PLAY,1);settings.gate=1;settings.revision++;xz_xp_set_performance_settings(p,&settings);
+ }
+ pad_key(0,0,1);load(0,2);pad_key(0,0,0);assert(debug(0).state==XZ_XP_CUED&&debug(0).position==0);
+ xz_xp_destroy(p);p=NULL;puts("PASS MODS Gate/Smart Cue: both software decks, release return, overlapping pads, PLAY latch, recall-only follow, queued policy and load reset");
+}
+
 int main(int argc, char **argv) {
  assert(argc == 2 || argc == 3);
  assert(!pthread_mutex_init(&f.lock, NULL));
@@ -1852,6 +1881,7 @@ int main(int argc, char **argv) {
  test_quantize_parity();
  test_stock_parity_b();
  test_completed_rate();
+ test_mods_cue();
  printf("PASS anlz parsers; load/CUED, play/pause at heard, CUE set/sampler/back cue, hot cue store/jump/clear, "
         "tempo rate, jog bend decay and search, SYNC, MASTER TEMPO, SEEK, EOF, 44.1/48 kHz, load while playing, "
         "retire grace, resolver and read failures, route down, full queue, threaded snapshots (%lu)\n", snapshots);
