@@ -9,13 +9,17 @@
 #include <linux/string.h>
 #include <linux/workqueue.h>
 #endif
+#include "port_layout.h"
 
 static bool apply;
 module_param(apply, bool, 0444);
 MODULE_PARM_DESC(apply, "Change the qualified hub level; default is observation only");
 static bool adopt_existing;
 module_param(adopt_existing, bool, 0444);
-MODULE_PARM_DESC(adopt_existing, "Also inspect an existing unbound childless 2-1.2 hub");
+MODULE_PARM_DESC(adopt_existing, "Also inspect an existing unbound childless loopback hub");
+static unsigned int loopback_port;
+module_param(loopback_port, uint, 0444);
+MODULE_PARM_DESC(loopback_port, "Required top USB port (1 or 2), opposite the admitted music drive");
 
 /* Read-only, bounded admission trace. Values are reset only by module load.
  * These fields describe the last existing-device scan, not device addresses. */
@@ -35,13 +39,14 @@ module_param(observed_interface_driver, int, 0444);
 module_param(observed_child_count, int, 0444);
 
 /* 1=no bus2, 2=HCD root unregistered, 3=no root, 4=no upstream,
- * 5=upstream mismatch, 6=no USB1, 7=exiting/owned, 8=name/path,
+ * 5=upstream mismatch, 6=no selected hub, 7=exiting/owned, 8=name/path,
  * 9=level, 10=speed, 11=VID/PID, 12=device class,
  * 13=parent topology, 14=unregistered, 15=state,
  * 16=configuration, 17=interface absent/bound/descriptor,
  * 18=children present, 19=qualified. */
 static void diagnose_existing(struct usb_device *dev)
 {
+    const struct xz_quad_port *port = xz_quad_port(loopback_port);
     const struct usb_device *parent = dev->parent;
     const struct usb_interface *intf = dev->actconfig &&
         dev->actconfig->desc.bNumInterfaces == 1 ?
@@ -59,8 +64,8 @@ static void diagnose_existing(struct usb_device *dev)
     for (i = 0; i < USB_MAXCHILDREN; ++i)
         observed_child_count += !!dev->children[i];
 
-    if (strcmp(dev_name(&dev->dev), "2-1.2") ||
-        strcmp(dev->devpath, "1.2")) reject_reason = 8;
+    if (!port || strcmp(dev_name(&dev->dev), port->usb) ||
+        strcmp(dev->devpath, port->devpath)) reject_reason = 8;
     else if (dev->level != 2) reject_reason = 9;
     else if (dev->speed != USB_SPEED_HIGH) reject_reason = 10;
     else if (le16_to_cpu(dev->descriptor.idVendor) != 0x2b73 ||
@@ -93,15 +98,14 @@ static DECLARE_DELAYED_WORK(cleanup_work, cleanup_target);
 static bool qualified_hub(const struct usb_device *dev)
 {
     const struct usb_device *parent = dev->parent;
-    const char *name = dev_name(&dev->dev);
-    const char *path = !strcmp(name, "2-1.1") ? "1.1" :
-                       !strcmp(name, "2-1.2") ? "1.2" : NULL;
+    const struct xz_quad_port *port = xz_quad_port(loopback_port);
 
-    return path && dev->level == 2 && dev->speed == USB_SPEED_HIGH &&
+    return port && !strcmp(dev_name(&dev->dev), port->usb) &&
+        dev->level == 2 && dev->speed == USB_SPEED_HIGH &&
         le16_to_cpu(dev->descriptor.idVendor) == 0x2b73 &&
         le16_to_cpu(dev->descriptor.idProduct) == 0x002e &&
         dev->descriptor.bDeviceClass == USB_CLASS_HUB &&
-        !strcmp(dev->devpath, path) && parent &&
+        !strcmp(dev->devpath, port->devpath) && parent &&
         parent->level == 1 && !strcmp(parent->devpath, "1") &&
         le16_to_cpu(parent->descriptor.idVendor) == 0x0451 &&
         le16_to_cpu(parent->descriptor.idProduct) == 0x8027 &&
@@ -143,7 +147,7 @@ static void consider_locked(struct usb_device *dev, bool existing)
         if (exiting || target) reject_reason = 7;
         else diagnose_existing(dev);
     }
-    if (!exiting && !target && (!existing || !strcmp(dev_name(&dev->dev), "2-1.2")) &&
+    if (!exiting && !target &&
         qualified_hub(dev) && idle_hub(dev)) {
         printk(KERN_INFO "xz_hub_depth: qualified %s existing=%u apply=%u\n",
                dev_name(&dev->dev), existing, apply);
@@ -226,8 +230,9 @@ static struct notifier_block hub_notifier = { .notifier_call = hub_event };
 static void inspect_existing(void)
 {
     struct usb_bus *bus;
+    const struct xz_quad_port *port = xz_quad_port(loopback_port);
     /* Match the public usbfs traversal locking in devices.c. Bus-list mutex
-     * also excludes root teardown. Only bus 2 / root port 1 / upstream port 2
+     * also excludes root teardown. Only bus 2 / root port 1 / selected child
      * is inspected; the music port is never locked or modified. */
     scan_stage = 0;
     reject_reason = 1;
@@ -249,7 +254,7 @@ static void inspect_existing(void)
             if (upstream->level == 1 && !strcmp(upstream->devpath, "1") &&
                 le16_to_cpu(upstream->descriptor.idVendor) == 0x0451 &&
                 le16_to_cpu(upstream->descriptor.idProduct) == 0x8027) {
-                dev = upstream->children[1];
+                dev = upstream->children[port->child];
                 if (dev) {
                     scan_stage = 4;
                     usb_lock_device(dev);
@@ -266,6 +271,8 @@ static void inspect_existing(void)
 
 static int __init xz_hub_depth_init(void)
 {
+    if (!xz_quad_port(loopback_port))
+        return -EINVAL;
 #ifndef XZ_HOST_TEST
     BUILD_BUG_ON(offsetof(struct usb_device, dev) != 0x68);
     BUILD_BUG_ON(offsetof(struct usb_device, level) != 0x293);
@@ -275,8 +282,8 @@ static int __init xz_hub_depth_init(void)
     if (adopt_existing)
         inspect_existing();
     /* No failure return after notifier registration, pin, or mutation. */
-    printk(KERN_INFO "xz_hub_depth: registered apply=%u adopt_existing=%u\n",
-           apply, adopt_existing);
+    printk(KERN_INFO "xz_hub_depth: registered apply=%u adopt_existing=%u loopback_port=%u\n",
+           apply, adopt_existing, loopback_port);
     return 0;
 }
 
@@ -293,4 +300,4 @@ static void __exit xz_hub_depth_exit(void)
 module_init(xz_hub_depth_init);
 module_exit(xz_hub_depth_exit);
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Volatile XDJ-XZ loopback hub metadata with guarded existing USB1 adoption");
+MODULE_DESCRIPTION("Volatile XDJ-XZ loopback hub metadata with guarded selected-port adoption");

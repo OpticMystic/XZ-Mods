@@ -44,7 +44,7 @@ text=''.join(f'0x{crc}\t{name}\tvmlinux\tEXPORT_SYMBOL_GPL\n' for name,crc in so
 (out/'rebuilt-crcs.json').write_text(json.dumps(crcs,indent=2)+'\n')
 (out/'exporting-objects.json').write_text(json.dumps(objects,indent=2)+'\n')
 PY
-cp xz_hub_depth.c Makefile "$out/"
+cp xz_hub_depth.c port_layout.h Makefile "$out/"
 make "${args[@]}" M="$out" modules
 arm-linux-gnueabi-nm -u "$out/xz_hub_depth.ko" > "$out/imports.txt"
 arm-linux-gnueabi-readelf -p .modinfo "$out/xz_hub_depth.ko" > "$out/modinfo.txt"
