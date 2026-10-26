@@ -2087,7 +2087,11 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    }else refuse();
    break;
   case XZ_SHELL_ACT_WAVE_ORDER:
-   if(model.deck_count==4&&(a->value==0||a->value==1)){xz_native_four_set_mixer_order(a->value);model.wave_order=a->value;dirty_flag=1;}
+   /* The session order row is a DECK VIEW change too: queued for the same one entry point. */
+   if(model.deck_count==4&&(a->value==0||a->value==1)){
+    deck_view_request=a->value?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR;
+    __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_DECK_VIEW,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;dirty_flag=1;
+   }
    break;
   case XZ_SHELL_ACT_DECK_SELECT:{
    int rc=xz_runtime_deck_select_toggle?xz_runtime_deck_select_toggle(a->deck):-1;

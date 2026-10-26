@@ -170,9 +170,11 @@ int main(void){
     unsigned char self[32]={0};started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;model.stems_overlay=1;
     xz_ui_init(&ui);xz_ui_init(&inline_ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);stock_touch=stock;
     struct xz_ui_action order_action={.kind=XZ_UI_FOUR_WAVE_ORDER,.value=1};
-    apply(NULL,&order_action,1);assert(fixture_mixer_order==1&&model.four_wave_mixer==1);
-    order_action.value=2;apply(NULL,&order_action,1);assert(fixture_mixer_order==1);
-    order_action.value=0;apply(NULL,&order_action,1);assert(fixture_mixer_order==0&&model.four_wave_mixer==0);
+    /* The order row goes through deck_view_apply: DECK VIEW 4 DECKS in mixer or number order. */
+    apply(NULL,&order_action,1);assert(xz_deck_layout_get()==XZ_LAYOUT_MIXER&&model.four_wave_mixer==1);
+    order_action.value=2;apply(NULL,&order_action,1);assert(xz_deck_layout_get()==XZ_LAYOUT_MIXER);
+    order_action.value=0;apply(NULL,&order_action,1);assert(xz_deck_layout_get()==XZ_LAYOUT_FOUR&&model.four_wave_mixer==0);
+    xz_deck_layout_set(XZ_LAYOUT_TWO);
     struct xz_ui_action color_action={.kind=XZ_UI_STEM_COLOR,.index=0,.value=4};apply(NULL,&color_action,1);
     assert(model.stem_colors[0]==4&&xz_ui_model_stem_color(&model,0)==0xff9f0a);
 #ifdef XZ_STEM_COLOR_CAPTURE_TEST
