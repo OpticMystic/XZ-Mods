@@ -76,15 +76,17 @@ int xz_wave_layout_pixels(uint16_t *,size_t count,size_t stride,int mode);
    as the controller's left (1/3) and right (2/4) sides; stacked is 1, 2, 3, 4. Mixer order is 3, 1, 2, 4. Decks are
    zero-based here: 0 and 1 native, 2 and 3 the software players. */
 enum xz_four_order { XZ_FOUR_INTERLEAVED=0, XZ_FOUR_STACKED=1, XZ_FOUR_MIXER=2, XZ_FOUR_ORDER_COUNT=3 };
+#include "deck_layout.h"
 #define XZ_FOUR_ORDER XZ_FOUR_STACKED
 #define XZ_FOUR_DECKS 4
 #define XZ_FOUR_LANE_HEIGHT 64
 #define XZ_FOUR_GAP 4
 struct xz_four_layout { unsigned lane_y[XZ_FOUR_DECKS]; };
 static inline int xz_four_layout_get(int order,struct xz_four_layout *out) {
- static const unsigned char slot[XZ_FOUR_ORDER_COUNT][XZ_FOUR_DECKS]={{0,2,1,3},{0,1,2,3},{1,2,0,3}};
  if(!out||(unsigned)order>=XZ_FOUR_ORDER_COUNT)return 0;
- for(int d=0;d<XZ_FOUR_DECKS;d++)out->lane_y[d]=slot[order][d]*(XZ_FOUR_LANE_HEIGHT+XZ_FOUR_GAP);
+ const unsigned char *decks=order==XZ_FOUR_INTERLEAVED?(const unsigned char[]){0,2,1,3}:
+  xz_deck_layout_order(order==XZ_FOUR_MIXER?XZ_LAYOUT_MIXER:XZ_LAYOUT_FOUR);
+ for(int slot=0;slot<XZ_FOUR_DECKS;slot++)out->lane_y[decks[slot]]=slot*(XZ_FOUR_LANE_HEIGHT+XZ_FOUR_GAP);
  return 1;
 }
 static inline int xz_four_layout_lane_at(const struct xz_four_layout *g,int row) {

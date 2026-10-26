@@ -393,7 +393,7 @@ int xz_runtime_deck_global_key(uint16_t code, unsigned channel, unsigned operati
     return r;
 }
 
-int xz_runtime_deck_select_toggle(int side) {
+static int deck_select_apply(int side, int want_extra) {
     if (!installed || observer || side < 0 || side > 1) return -1;
     struct xz_extra_route route = xz_extra_decks_route();
     if (!route.available) return -1;
@@ -404,13 +404,21 @@ int xz_runtime_deck_select_toggle(int side) {
     pthread_mutex_lock(&deck_mutex);
     if(have_feedback)xz_deck_select_feedback(&deck_select,&feedback);
     xz_deck_select_route_instance(&deck_select, route.route_up,xz_extra_decks_epoch());
-    xz_deck_select_toggle(&deck_select, side, &outcome);
+    int already=want_extra>=0&&(deck_select.side[side].target==XZ_DS_EXTRA)==want_extra;
+    if(!already)xz_deck_select_toggle(&deck_select, side, &outcome);
     int left = deck_select.side[0].target == XZ_DS_EXTRA, right = deck_select.side[1].target == XZ_DS_EXTRA;
     pthread_mutex_unlock(&deck_mutex);
     xz_extra_decks_publish_sides(left, right);
     if (outcome.toggled) (void)xz_extra_decks_snapshot(&feedback);
     if (outcome.notice == XZ_DS_NOTICE_NO_ROUTE) { xz_log(XZ_DS_NO_ROUTE_TEXT); return 0; }
-    return outcome.toggled ? 1 : -1;
+    return already || outcome.toggled ? 1 : -1;
+}
+int xz_runtime_deck_select_toggle(int side) {
+    return deck_select_apply(side,-1);
+}
+int xz_runtime_deck_select_target(int side, int extra) {
+    if(extra!=0&&extra!=1)return -1;
+    return deck_select_apply(side,extra);
 }
 
 static int physical_priority(void *self, const void *input) {
