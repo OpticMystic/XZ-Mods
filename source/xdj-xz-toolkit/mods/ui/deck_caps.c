@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: MIT */
 /* What works on each logical deck. Decks 1 and 2 are the player's own decks, 3 and 4 the software players
    reached over the loopback cable. The MODS menu's WORKS ON chips and the 4 DECKS grid are built from
-   xz_deck_caps only, so the menu never claims a feature works on a deck where it does not. Pure: reads the
-   UI model, no device calls. Each bit's evidence is in merged-evidence/REPORT.md (capability table). */
+   xz_deck_caps only, so the menu never claims a feature works on a deck where it does not. A bit says the
+   feature works on that deck whenever the deck plays: whether decks 3 and 4 are connected right now is the
+   4 DECKS page's to say, not every setting's. Pure: reads the UI model, no device calls. Each bit's evidence
+   is in merged-evidence/REPORT.md (capability table). */
 #include "ui.h"
 
 /* What the software players on decks 3 and 4 run beyond the display: the shared beat jump resolver with the
@@ -29,11 +31,8 @@ static unsigned engine(const struct xz_ui_model *m, int deck, uint32_t ready_bit
 }
 unsigned xz_deck_caps(const struct xz_ui_model *m, int deck) {
  if(!m||deck<0||deck>3)return 0;
- if(deck>=2){
-  /* The software players are not running (unavailable or not started): no decks 3 and 4 at all. */
-  if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)return 0;
-  return deck34_now|XZ_DECK34_PARITY;
- }
+ /* Decks 3 and 4 have these whenever they play, connected now or not. */
+ if(deck>=2)return deck34_now|XZ_DECK34_PARITY;
  /* Native beat jump interception and the display settings are part of the runtime itself. */
  unsigned caps=XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_DISPLAY;
  /* The rest light only once the runtime reports them (refresh_local's ready bits and engine states). */
@@ -55,7 +54,6 @@ const char *xz_deck_cap_reason(const struct xz_ui_model *m, int deck, unsigned f
  if(!m||deck<0||deck>3||(xz_deck_caps(m,deck)&feature))return NULL;
  if(xz_deck_cap_absent(feature))return "Not in this version of XZ Mods, on any deck.";
  if(deck>=2){
-  if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)return "Decks 3 and 4 are not running on this player.";
   switch(feature){
   case XZ_DECK_CAN_PLAYING_KEY:return "Decks 3 and 4 show the track's own key.";
   case XZ_DECK_CAN_KEY_SYNC:return "Decks 3 and 4 cannot shift key yet.";

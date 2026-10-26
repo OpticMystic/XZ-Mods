@@ -67,9 +67,10 @@ int main(void){
   reasons(&m);
  }
  assert(!strcmp(xz_deck_cap_reason(&m,2,XZ_DECK_CAN_PLAYING_KEY),"Decks 3 and 4 show the track's own key."));
- /* Players not running: no decks 3 and 4 at all, said once. */
+ /* Players not running right now: the same features, since WORKS ON says what works on a deck when it plays;
+    whether decks 3 and 4 are connected is the 4 DECKS page's to say. */
  m.route.state=XZ_UI_ROUTE_NO_ENGINE;
- for(int d=2;d<4;d++){assert(!xz_deck_caps(&m,d));assert(!strcmp(xz_deck_cap_reason(&m,d,XZ_DECK_CAN_DISPLAY),"Decks 3 and 4 are not running on this player."));}
+ for(int d=2;d<4;d++){assert(xz_deck_caps(&m,d)==(PARITY|XZ_DECK_CAN_DISPLAY));assert(!xz_deck_cap_reason(&m,d,XZ_DECK_CAN_BEAT_JUMP));}
  reasons(&m);
  /* Native decks: each engine-backed bit follows the runtime's report on that deck. */
  memset(&m,0,sizeof m);m.route.state=XZ_UI_ROUTE_NOT_DETECTED;
