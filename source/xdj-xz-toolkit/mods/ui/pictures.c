@@ -438,9 +438,10 @@ static void route_anim(struct xz_canvas c, const struct xz_pic_style *s, int x, 
  uint32_t t,h32=2166136261u;int signal;
  const uint32_t v[6]={(uint32_t)state<<4|(uint32_t)part,bg,s->select,s->ink,(uint32_t)c.theme,(uint32_t)(w<<12|h)};
  for(int i=0;i<6;i++){h32^=v[i];h32*=16777619u;}
- uint32_t base=h32|1u,key=xz_cable_frame_of(state,part,a->now_ms,a->moving,a->step_ms,&t,&signal)^base*2654435761u;
+ uint32_t base=h32|1u,key=xz_cable_frame_of(state,part,a->now_ms,a->moving,a->step_ms,&a->clock,&t,&signal)^base*2654435761u;
  if(a->key!=key||a->base!=base){
-  if(xz_cable_draw(&pic,t,&look,signal,a->moving&&a->base==base?XZ_PIC_ROUTE_BUDGET:0u)){a->key=key;a->base=base;}
+  int live=signal!=XZ_CABLE_SIGNAL_NONE&&a->base==base;
+  if(xz_cable_draw(&pic,t,&look,signal,live?XZ_PIC_ROUTE_BUDGET:0u)){a->key=key;a->base=base;}
  }
  xz_cable_blit(c,x,y,&pic);
 }

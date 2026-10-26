@@ -59,10 +59,18 @@ struct xz_cable_palette { uint32_t bg, body, hole, edge, amber, blue, white, gre
 void xz_cable_look_of(struct xz_cable_look *, const struct xz_cable_palette *, int state, int part);
 /* The frame a placement shows at now_ms (its presentation clock): moving = the state moves and has not
    rested. step_ms: the frame step (0 = 16 ms, 60 fps; callers pass more while native decks play or frames
-   run late). Fills the loop time and signal to draw and returns a key that changes exactly when the
-   picture does, so a caller redraws on a change and copies its picture otherwise. */
+   run late). clock: the picture's own loop clock, kept by the caller with its picture memory (zeroed at
+   first): the loop then starts on the main shot when the picture starts moving and, after moving turns
+   0, plays on to the still it rests on before it stops (at most one loop). NULL: the loop runs off now_ms
+   and cuts to the still when moving turns 0. Fills the loop time and signal to draw (signal is not
+   XZ_CABLE_SIGNAL_NONE while the picture moves) and returns a key that changes exactly when the picture
+   does, so a caller redraws on a change and copies its picture otherwise. */
 enum { XZ_CABLE_SIGNAL_LOOP=-1, XZ_CABLE_SIGNAL_NONE=-2 };
-uint32_t xz_cable_frame_of(int state, int part, uint32_t now_ms, int moving, uint32_t step_ms, uint32_t *t_ms, int *signal);
+struct xz_cable_clock { uint32_t start_ms, seen_ms, stop_at; uint8_t running, stopping; };
+uint32_t xz_cable_frame_of(int state, int part, uint32_t now_ms, int moving, uint32_t step_ms, struct xz_cable_clock *clock,
+ uint32_t *t_ms, int *signal);
+/* Whether the clock's loop is still playing (its caller keeps drawing frames until it stops). */
+int xz_cable_clock_running(const struct xz_cable_clock *);
 /* Copies the picture into the canvas with its top left at (x, y), clipped. */
 void xz_cable_blit(struct xz_canvas c, int x, int y, const struct xz_cable_picture *);
 /* Where a mark's part is in the picture at t_ms (pixels), 0 when it is behind the camera or outside. */

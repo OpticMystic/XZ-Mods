@@ -171,7 +171,9 @@ static void test_motion_and_success(void){
  /* The picture steps down while a native deck plays (30 fps) and after a late frame (15 fps). */
  m.deck[1].playing=1;assert(xz_shell_play_motion_ms(&u,&m)==33u);
  m.frame_late=1;assert(xz_shell_play_motion_ms(&u,&m)==66u);m.frame_late=0;m.deck[1].playing=0;
- m.clock_ms=m.route_card_since_ms+XZ_ROUTE_CARD_REST_MS;assert(!xz_shell_play_motion_ms(&u,&m));
+ /* 60 s on, the picture's loop plays on to its main shot (at most one loop more); then nothing moves. */
+ m.clock_ms=m.route_card_since_ms+XZ_ROUTE_CARD_REST_MS;assert(xz_shell_play_motion_ms(&u,&m)==XZ_ROUTE_CARD_FRAME_MS);
+ m.clock_ms=m.route_card_since_ms+XZ_ROUTE_CARD_REST_MS+xz_cable_loop_ms();assert(!xz_shell_play_motion_ms(&u,&m));
  u.deck_view.input_at=m.clock_ms-5;assert(xz_shell_play_motion_ms(&u,&m)==XZ_ROUTE_CARD_FRAME_MS);
  /* Failed plays the explainer too: the DJ has a cable to fix. */
  m.route_state=XZ_EXTRA_ROUTE_FAILED;assert(xz_shell_play_motion_ms(&u,&m)==XZ_ROUTE_CARD_FRAME_MS);
@@ -186,7 +188,7 @@ static void test_motion_and_success(void){
  xz_shell_play_projection(&u,&m,&view);assert(!view.play_placeholders&&!xz_shell_play_motion_ms(&u,&m));
  /* Four decks up without a success edge: no card, frames as before. */
  m.route_card_ready_at_ms=0;xz_shell_play_projection(&u,&m,&view);assert(!view.play_placeholders);
- puts("PASS DECK VIEW motion: 20 fps while the card moves, rest after 60 s from appearance or input, still states and 2 DECKS idle; success hold and wipe then live decks");
+ puts("PASS DECK VIEW motion: 20 fps while the card moves, rest after 60 s from appearance or input and one loop more, still states and 2 DECKS idle; success hold and wipe then live decks");
 }
 /* SCREEN > DECK VIEW BUTTON set to HIDE: no button, the BEAT FX strip runs to the info button as before the
    button existed, a tap where it was opens nothing, the push stays the player's without the card, and the

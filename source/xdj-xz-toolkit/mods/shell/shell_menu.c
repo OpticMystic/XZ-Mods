@@ -530,10 +530,10 @@ static void render_home(struct xz_canvas c, const struct xz_shell_menu *p, struc
  render_band(c,p,row_at(p,s.row));
 }
 /* The 4 DECKS cable picture: its memory, and its clock's rest. It moves until 60 s after the page appeared,
-   its cursor last moved or the route changed state (the play card's rule), then rests on its main shot.
+   its cursor last moved or the route changed state (the play card's rule), then plays on to its main shot and rests.
    The shell renders on one thread at a time. */
 static uint16_t four_px[300*116];static uint8_t four_cov[300*116];
-static struct xz_pic_route_anim four_anim={four_px,four_cov,300*116,0,0,0,0,0,0};
+static struct xz_pic_route_anim four_anim={.px=four_px,.cov=four_cov,.cap=300*116};
 static struct { uint32_t since, drawn; int state, row, shown; } four_motion;
 static int four_moving(uint32_t now) {
  return four_motion.state==XZ_UI_ROUTE_SCANNING||now-four_motion.since<(uint32_t)XZ_ROUTE_CARD_REST_MS;
@@ -541,7 +541,8 @@ static int four_moving(uint32_t now) {
 uint32_t sh_menu_motion_ms(const struct xz_shell_model *m) {
  if(!four_motion.shown||m->clock_ms-four_motion.drawn>200u)return 0;
  enum xz_cable_motion k=xz_cable_motion_of(four_motion.state);
- return (k==XZ_CABLE_LOOP||k==XZ_CABLE_SIGNAL)&&four_moving(m->clock_ms)?sh_picture_step_ms(m):0;
+ /* and while its loop plays on to the still it rests on */
+ return ((k==XZ_CABLE_LOOP||k==XZ_CABLE_SIGNAL)&&four_moving(m->clock_ms))||xz_cable_clock_running(&four_anim.clock)?sh_picture_step_ms(m):0;
 }
 /* 4 DECKS (mockup 15): the route card, DECK VIEW, then what works on each deck. */
 static void render_four_decks(struct xz_canvas c, const struct xz_shell_menu *p, const struct xz_pic_style *st, const struct xz_shell_menu_row *cursor,

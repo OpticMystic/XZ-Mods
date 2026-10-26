@@ -98,10 +98,10 @@ static void test_draw(void) {
   clear(other);xz_route_card_draw(canvas(other),styles[s],l.ya,l.yb,&in,&cache);assert(!memcmp(pixels,other,sizeof pixels));
   if(order==0&&part==(states[i]==XZ_EXTRA_ROUTE_FAILED?XZ_EXTRA_ROUTE_PART_PORT:0))golden[s][i]=fnv(pixels);
  }
- /* Golden frames at a fixed clock, number order. */
+ /* Golden frames at a fixed clock, number order (the loop states on their main shot: a fresh clock). */
  static const uint32_t expected[2][7]={
-  {0xbd95aa72u,0xf645811du,0xa78d547fu,0x16b4dcd3u,0x37a6de21u,0xe0395847u,0xc454e4f9u},
-  {0x6e1897ebu,0xb91511d8u,0x7ebb1d16u,0x4c5966ffu,0xf806319fu,0xac50464du,0x294ac714u}};
+  {0xbd95aa72u,0x2f2c2fedu,0xa78d547fu,0x16b4dcd3u,0x37a6de21u,0x96731db1u,0xff5d521eu},
+  {0x6e1897ebu,0x7edb0d12u,0x7ebb1d16u,0x4c5966ffu,0xf806319fu,0xf8feef54u,0xd588f7a0u}};
  for(int s=0;s<2;s++)for(int i=0;i<7;i++)if(golden[s][i]!=expected[s][i]){
   printf("golden card %d state %d: 0x%08x, expected 0x%08x\n",s,states[i],golden[s][i],expected[s][i]);assert(!"card golden frame changed");
  }
@@ -110,26 +110,40 @@ static void test_draw(void) {
 static void test_motion(void) {
  const struct xz_route_card_style *s=&xz_route_card_modern;
  struct xz_route_card_rect picture={s->x+s->picture.x,182+s->picture.y,s->picture.w,s->picture.h};
- /* The explainer moves inside the picture box only, in 16 ms (60 fps) steps of the frame clock. */
- struct xz_route_card_input a=input(XZ_EXTRA_ROUTE_NOT_DETECTED,0,100000u),b=a;b.now_ms=100400u;
+ /* The explainer moves inside the picture box only, in 16 ms (60 fps) steps; a fresh card starts on the main
+    shot, the picture it rests on. */
+ memset(&cache,0,sizeof cache);
+ struct xz_route_card_input a=input(XZ_EXTRA_ROUTE_NOT_DETECTED,0,100000u),b=a;
  clear(pixels);xz_route_card_draw(canvas(pixels),s,182,260,&a,&cache);
- clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);
- assert(diff_within(picture)>0);
+ const uint32_t main_shot=fnv(pixels);
  b.now_ms=100015u;clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(!memcmp(pixels,other,sizeof pixels));
  b.now_ms=100016u;clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(diff_within(picture)>0);
+ b.now_ms=100400u;clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(diff_within(picture)>0);
  assert(xz_route_card_motion_ms(&a)==XZ_ROUTE_CARD_FRAME_MS&&XZ_ROUTE_CARD_FRAME_MS==16);
  /* A caller that steps down (a native deck plays, frames run late) gets fewer, longer frames. */
- a.step_ms=b.step_ms=33u;a.now_ms=100023u;b.now_ms=100055u;assert(xz_route_card_motion_ms(&a)==33u);   /* 100023 = 3031 x 33 */
+ a.step_ms=b.step_ms=33u;a.now_ms=100429u;b.now_ms=100461u;assert(xz_route_card_motion_ms(&a)==33u);   /* 429 = 13 x 33 into the loop */
  clear(pixels);xz_route_card_draw(canvas(pixels),s,182,260,&a,&cache);
  clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(!memcmp(pixels,other,sizeof pixels));
- b.now_ms=100056u;clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(diff_within(picture)>0);
- a.step_ms=b.step_ms=0;a.now_ms=100000u;
- /* Rest: 60 s after the card appeared or the last input, nothing moves; any input restarts it. */
- a.now_ms=100000u+XZ_ROUTE_CARD_REST_MS;b=a;b.now_ms+=400;
- clear(pixels);xz_route_card_draw(canvas(pixels),s,182,260,&a,&cache);
- clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);
- assert(!memcmp(pixels,other,sizeof pixels)&&!xz_route_card_motion_ms(&a));
+ b.now_ms=100462u;clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(diff_within(picture)>0);
+ a.step_ms=b.step_ms=0;
+ /* Rest: 60 s after the card appeared or the last input the loop plays on to the main shot (at most one loop
+    more, the card asking for frames that long) and holds it, never jumping; then nothing moves and the still
+    card shows the same picture. Any input restarts it from the main shot. */
+ uint32_t rest=100000u+XZ_ROUTE_CARD_REST_MS,loop=xz_cable_loop_ms(),held=0;
+ for(uint32_t at=100478u;at<rest+loop+64u;at+=16u){
+  a.now_ms=at;clear(pixels);xz_route_card_draw(canvas(pixels),s,182,260,&a,&cache);only_card(s,modern_lanes[0]);
+  uint32_t h=fnv(pixels);
+  if(at<rest)assert(xz_route_card_motion_ms(&a)==16u);
+  else if(at<rest+loop)assert(xz_route_card_motion_ms(&a)==16u);
+  else assert(!xz_route_card_motion_ms(&a)&&h==main_shot);
+  if(at>=rest&&h==main_shot&&!held)held=at;
+  if(held)assert(h==main_shot);
+ }
+ assert(held>=rest&&held<rest+loop);
+ b=a;b.now_ms=rest+loop+400u;clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(!memcmp(pixels,other,sizeof pixels));
  b.rest_from_ms=b.now_ms-10;assert(xz_route_card_motion_ms(&b));
+ clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(fnv(other)==main_shot);
+ b.now_ms+=16;clear(other);xz_route_card_draw(canvas(other),s,182,260,&b,&cache);assert(diff_within(picture)>0);
  /* Scanning: the pulse, the ring and the sweep move; the rest of the card does not. */
  struct xz_route_card_input sc=input(XZ_EXTRA_ROUTE_SCANNING,0,100000u),sd=sc;sd.now_ms=100350u;
  clear(pixels);xz_route_card_draw(canvas(pixels),s,182,260,&sc,&cache);
@@ -148,7 +162,7 @@ static void test_motion(void) {
   clear(pixels);xz_route_card_draw(canvas(pixels),s,182,260,&f,&cache);
   clear(other);xz_route_card_draw(canvas(other),s,182,260,&g,&cache);
   assert(diff_within(picture)>0&&xz_route_card_motion_ms(&f)==XZ_ROUTE_CARD_FRAME_MS);
-  f.now_ms=g.now_ms=100000u+XZ_ROUTE_CARD_REST_MS;g.now_ms+=700;assert(!xz_route_card_motion_ms(&f));
+  f.now_ms=g.now_ms=100000u+XZ_ROUTE_CARD_REST_MS+xz_cable_loop_ms();g.now_ms+=700;assert(!xz_route_card_motion_ms(&f));
   clear(pixels);xz_route_card_draw(canvas(pixels),s,182,260,&f,&cache);
   clear(other);xz_route_card_draw(canvas(other),s,182,260,&g,&cache);assert(!memcmp(pixels,other,sizeof pixels));
  }
@@ -156,7 +170,7 @@ static void test_motion(void) {
  clear(pixels);xz_route_card_draw(canvas(pixels),s,182,260,&f,&cache);
  clear(other);xz_route_card_draw(canvas(other),s,182,260,&g,&cache);
  assert(!memcmp(pixels,other,sizeof pixels)&&!xz_route_card_motion_ms(&f));
- puts("PASS route card motion: the explainer only in the picture box in 16 ms steps (33 when stepped down), rests after 60 s, input restarts it; scanning ring and sweep; failed and lost move, no engine stands still");
+ puts("PASS route card motion: the explainer only in the picture box in 16 ms steps (33 when stepped down), starts on the main shot, plays on to it and rests after 60 s, input restarts it; scanning ring and sweep; failed and lost move, no engine stands still");
 }
 static void test_success(void) {
  const struct xz_route_card_style *s=&xz_route_card_modern;

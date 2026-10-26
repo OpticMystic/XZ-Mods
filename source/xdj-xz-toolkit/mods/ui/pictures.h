@@ -7,6 +7,7 @@
    targets the drawing uses, so the two interfaces hit-test exactly what they draw. */
 #include "ui_skin.h"
 #include "picture_data.h"
+#include "cable_anim.h"
 
 struct xz_rect { int x, y, w, h; };
 static inline int xz_rect_hit(struct xz_rect r, int x, int y) { return r.w>0&&x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h; }
@@ -81,6 +82,7 @@ struct xz_pic_route_anim {
  uint32_t key, base;                      /* the frame it holds, kept by xz_pic_route */
  uint32_t now_ms, step_ms; int moving;    /* this frame: the clock, the frame step (0: 16 ms), may it move */
  uint32_t bg;                             /* the card behind the picture */
+ struct xz_cable_clock clock;             /* its loop's clock, kept by xz_pic_route */
 };
 #define XZ_PIC_ROUTE_BUDGET 170000u       /* pixel operations per picture frame, menus (cable-anim/RESEARCH.md) */
 void xz_pic_route(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h, int state, int fail_part, int phase, int labels,
