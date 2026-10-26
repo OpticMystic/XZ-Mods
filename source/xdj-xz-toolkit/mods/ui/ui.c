@@ -39,23 +39,23 @@ static const struct xz_ui_skin *skin_for(int theme){
  return theme==XZ_THEME_LCARS?&xz_skin_lcars:theme==XZ_THEME_MATRIX?&xz_skin_matrix:theme==XZ_THEME_ANALOG?&xz_skin_analog:
   theme==XZ_THEME_FLAGSHIP?&xz_skin_flagship:&xz_skin_classic;
 }
+struct xz_top_face xz_ui_top_button(struct xz_canvas c,int x,int w,const char *label,int lit){
+ return skin_for(c.theme)->top_button(c,x,w,label,lit);
+}
 void xz_ui_render_native_buttons(uint16_t *pixels,size_t stride,int theme,int stems,int vj_visible,int vj_active){
  if(!pixels||stride<800)return;
- struct xz_canvas c={pixels,stride,800,480,theme};
- skin_for(theme)->render_buttons(c,stems!=XZ_STEM_LAYOUT_HIDDEN,vj_visible,vj_active);
- const struct xz_theme_palette *p=xz_theme_palette(theme);
- int selected=stems?stems-1:4;
- for(int i=0;i<5;i++)xz_rect(c,682+i*11,20,7,2,i==selected?p->accent:xz_blend(p->bg,p->ink,80));
+ struct xz_canvas c=xz_top_bar_canvas(pixels,stride,theme);
+ xz_ui_top_button(c,XZ_TOP_MODS_X,XZ_TOP_MODS_W,"MODS",0);
+ xz_top_bar_marks(c,xz_ui_top_button(c,XZ_TOP_STEMS_X,XZ_TOP_STEMS_W,"STEMS",stems!=XZ_STEM_LAYOUT_HIDDEN),stems);
+ if(vj_visible)xz_ui_top_button(c,XZ_TOP_VJ_X,XZ_TOP_VJ_W,vj_active?"EXIT VJ":"VJ.TOOLS",vj_active);
 }
 void xz_ui_render_ram_debug(uint16_t *pixels,size_t stride,int theme,int enabled,int valid,uint32_t free_mib){
  if(!enabled||!pixels||stride<800)return;
- struct xz_canvas c={pixels,stride,800,480,theme};const struct xz_theme_palette *p=xz_theme_palette(theme);
- char text[32];uint32_t edge=xz_blend(p->bg,p->accent,150);
- xz_rect(c,488,0,104,24,xz_blend(p->bg,p->ink,20));
- xz_rect(c,488,0,104,1,edge);xz_rect(c,488,23,104,1,edge);
- xz_rect(c,488,0,1,24,edge);xz_rect(c,591,0,1,24,edge);
+ struct xz_canvas c=xz_top_bar_canvas(pixels,stride,theme);const struct xz_theme_palette *p=xz_theme_palette(theme);
+ char text[32];
+ xz_rect(c,488,0,104,XZ_TOP_BAR_H,xz_blend(p->bg,p->ink,20));xz_border(c,488,0,104,XZ_TOP_BAR_H,xz_blend(p->bg,p->accent,150));
  if(valid)snprintf(text,sizeof(text),"FREE %u MiB",free_mib);else snprintf(text,sizeof(text),"FREE --");
- xz_text(c,494,8,text,1,15,p->ink);
+ xz_text(c,494,xz_theme_pixel_text(theme)?XZ_TOP_BAR_PIXEL_Y:XZ_TOP_BAR_LABEL_Y,text,1,15,p->ink);
 }
 const char *xz_ui_theme_name(int theme){return xz_theme_name(theme);}
 uint32_t xz_ui_stem_color(int theme,int index){

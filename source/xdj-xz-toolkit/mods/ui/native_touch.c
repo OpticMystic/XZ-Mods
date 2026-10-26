@@ -7,8 +7,9 @@ _Static_assert(offsetof(struct xz_touch_status,x)==4,"XZ touch x offset");
 _Static_assert(offsetof(struct xz_touch_status,y)==8,"XZ touch y offset");
 void xz_native_touch_init(struct xz_native_touch*t,struct xz_ui*ui,const struct xz_ui_model*model,xz_touch_actions apply,void*ctx) {
  memset(t,0,sizeof(*t));t->ui=ui;t->model=model;t->apply=apply;t->context=ctx;
- t->badge_x=744;t->badge_y=0;t->badge_w=56;t->badge_h=24;
- t->vj_btn_x=0;t->vj_btn_y=0;t->vj_btn_w=112;t->vj_btn_h=24;
+ t->badge_x=XZ_TOP_MODS_X;t->badge_w=XZ_TOP_MODS_W;t->reach=XZ_TOP_BAR_TOUCH_H;
+ /* VJ.TOOLS stops above stock's DECK 1 select rect, which starts at y 18. */
+ t->vj_btn_x=XZ_TOP_VJ_X;t->vj_btn_y=0;t->vj_btn_w=XZ_TOP_VJ_W;t->vj_btn_h=XZ_TOP_BAR_H;
 }
 void xz_native_touch_visible(struct xz_native_touch*t,int visible) {
  if(t->visible&&!visible) {
@@ -18,8 +19,10 @@ void xz_native_touch_visible(struct xz_native_touch*t,int visible) {
  } else t->visible=!!visible;
 }
 static int badge(const struct xz_native_touch*t,const struct xz_touch_status*s) {
- return s->x>=(uint32_t)t->badge_x&&s->y>=(uint32_t)t->badge_y&&
-        s->x<(uint32_t)(t->badge_x+t->badge_w)&&s->y<(uint32_t)(t->badge_y+t->badge_h);
+ return s->x>=(uint32_t)t->badge_x&&s->x<(uint32_t)(t->badge_x+t->badge_w)&&s->y<(uint32_t)t->reach;
+}
+static int stems_btn(const struct xz_native_touch*t,const struct xz_touch_status*s) {
+ return s->x>=(uint32_t)XZ_TOP_STEMS_X&&s->x<(uint32_t)(XZ_TOP_STEMS_X+XZ_TOP_STEMS_W)&&s->y<(uint32_t)t->reach;
 }
 static int vj_btn(const struct xz_native_touch*t,const struct xz_touch_status*s) {
  if(!t->model||!t->model->connection.enabled||!t->model->connection.connected)return 0;
@@ -47,12 +50,12 @@ int xz_native_touch_dispatch(struct xz_native_touch*t,void*self,const struct xz_
   struct xz_ui_action act={.kind=XZ_UI_METRICS_SETUP_OPEN};
   if(t->apply)t->apply(t->context,&act,1);
  }
- if(!t->visible&&!t->capture&&s->down&&!previous.down&&t->model&&t->model->metrics_enabled&&s->x>=XZ_METRICS_READOUT_X&&s->x<XZ_METRICS_X&&s->y<24) {
+ if(!t->visible&&!t->capture&&s->down&&!previous.down&&t->model&&t->model->metrics_enabled&&s->x>=XZ_METRICS_READOUT_X&&s->x<XZ_METRICS_X&&s->y<XZ_TOP_BAR_TOUCH_H) {
   t->capture=1;t->opening_contact=1;
   struct xz_ui_action act={.kind=XZ_UI_METRICS_SETUP_OPEN};
   if(t->apply)t->apply(t->context,&act,1);
  }
- if(!t->visible&&!t->capture&&s->down&&!previous.down&&s->x>=674&&s->x<742&&s->y<24) {
+ if(!t->visible&&!t->capture&&s->down&&!previous.down&&stems_btn(t,s)) {
   t->capture=1;t->opening_contact=1;
   struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};
   if(t->apply)t->apply(t->context,&act,1);

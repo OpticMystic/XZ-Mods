@@ -88,10 +88,24 @@ static void deck_view_runtime_check(void *self){
     fixture_card=dv_card(XZ_FOUR_MIXER,XZ_EXTRA_ROUTE_NOT_DETECTED);
     dv_tap(self,40,30);assert(fixture_detail==-1&&stock_calls==calls);
     fixture_card=0;fixture_mixer_visible=saved_visible;
+    /* The top band (top_bar.h). */
+    xz_deck_layout_set(XZ_LAYOUT_TWO);native_four=-1;native_active=1;native_play=1;memset(&dv,0,sizeof dv);
+    int saved_layout=model.stems_overlay;
+    /* VJ.TOOLS ends at y 17: stock DECK 1 select ({0,18,115,140}) gets y 18 on, and the deck it selects is seen. */
+    int saved_enabled=model.connection.enabled,saved_connected=model.connection.connected;
+    model.connection.enabled=model.connection.connected=1;ui.deck=inline_ui.deck=1;calls=stock_calls;
+    dv_paint();dv_tap(self,60,XZ_TOP_BAR_H);assert(stock_calls==calls+2&&ui.deck==0&&!touch.capture);
+    /* STEMS answers to y 39 on the play screen, to y 23 elsewhere. */
+    int layout=model.stems_overlay;calls=stock_calls;
+    dv_tap(self,700,XZ_TOP_BAR_DEEP_H-1);assert(model.stems_overlay!=layout&&stock_calls==calls);
+    native_play=0;layout=model.stems_overlay;
+    dv_tap(self,700,XZ_TOP_BAR_TOUCH_H);assert(model.stems_overlay==layout&&stock_calls==calls+2);
+    dv_tap(self,700,XZ_TOP_BAR_TOUCH_H-1);assert(model.stems_overlay!=layout);
+    native_play=1;model.stems_overlay=saved_layout;model.connection.enabled=saved_enabled;model.connection.connected=saved_connected;
     /* MODERN asks through the shell; the same entry point applies it under ui_mutex. */
     fixture_shell_view=XZ_LAYOUT_FOUR;fake_requests|=XZ_SHELL_UI_DECK_VIEW;shell_ui_requests_locked();
     assert(xz_deck_layout_get()==XZ_LAYOUT_FOUR&&fixture_shell_view==-1);
     xz_deck_layout_set(XZ_LAYOUT_TWO);memset(&dv,0,sizeof dv);
     model.ui_interface=saved_interface;native_four=saved_four;native_active=saved_active;native_play=1;
-    puts("PASS DECK VIEW CLASSIC: button on every play screen, picker by touch/encoder/BACK, no press on an unpainted view or card state, RESCAN and TWO DECKS from the painted card, encoder only while the card shows, column tags, MODERN request through the one entry point");
+    puts("PASS DECK VIEW CLASSIC: button on every play screen, picker by touch/encoder/BACK, no press on an unpainted view or card state, RESCAN and TWO DECKS from the painted card, encoder only while the card shows, column tags, top band: stock DECK 1 select from y 18, STEMS to y 39 on the play screen, MODERN request through the one entry point");
 }

@@ -456,8 +456,10 @@ size_t xz_ui_inline_layout(const struct xz_ui *,const struct xz_ui_model *,int w
 int xz_ui_inline_render(const struct xz_ui *,const struct xz_ui_model *,uint16_t *,size_t count,size_t stride,int width,int height);
 size_t xz_ui_inline_touch(struct xz_ui *,const struct xz_ui_model *,int width,int height,int x,int y,int down,struct xz_ui_action out[XZ_UI_ACTIONS]);
 void xz_ui_render_lcars_play_header(uint16_t *pixels,size_t stride);
+/* The ORIGINAL theme's MODS, STEMS (layout 0 hidden, with its layout marks) and VJ.TOOLS / EXIT VJ boxes,
+   inside the top band (top_bar.h). */
 void xz_ui_render_badge(uint16_t *pixels,size_t stride);
-void xz_ui_render_stems_button(uint16_t *pixels,size_t stride,int enabled);
+void xz_ui_render_stems_button(uint16_t *pixels,size_t stride,int layout);
 void xz_ui_render_vj_button(uint16_t *pixels,size_t stride,int takeover_active);
 void xz_ui_render_ram_debug(uint16_t *pixels,size_t stride,int theme,int enabled,int valid,uint32_t free_mib);
 void xz_ui_render_native_buttons(uint16_t *pixels,size_t stride,int theme,int stems,int vj_visible,int vj_active);

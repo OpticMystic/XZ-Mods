@@ -69,8 +69,10 @@ static void render_inline(const struct xz_ui_scene *s){
  xz_ui_stem_rows(s);
 }
 
-static void render_buttons(struct xz_canvas c,int stems,int vj_visible,int vj_active){
- const int x[3]={744,674,0},w[3]={56,68,112};const char *labels[3]={"MODS","STEMS",vj_active?"EXIT VJ":"VJ.TOOLS"};
- for(int i=0;i<(vj_visible?3:2);i++){int on=i==1?stems:i==2?vj_active:0;xz_rect(c,x[i],0,w[i],24,METAL);xz_border(c,x[i],0,w[i],24,INK);xz_rect(c,x[i]+3,3,4,18,on?AMBER:INK);txt(c,x[i]+12,8,w[i]-14,labels[i],1,INK);}
+/* A metal plate with a lamp strip at its left edge, amber while on; the label centres beside the lamp. */
+static struct xz_top_face top_button(struct xz_canvas c,int x,int w,const char *label,int lit){
+ int h=XZ_TOP_BAR_H;
+ xz_rect(c,x,0,w,h,METAL);xz_border(c,x,0,w,h,INK);xz_rect(c,x+3,3,4,h-6,lit?AMBER:INK);
+ return xz_top_bar_label(c,x+8,w-9,label,METAL,INK);
 }
-const struct xz_ui_skin xz_skin_analog={xz_ui_place,render,render_inline,render_buttons};
+const struct xz_ui_skin xz_skin_analog={xz_ui_place,render,render_inline,top_button};

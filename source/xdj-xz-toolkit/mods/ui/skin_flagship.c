@@ -336,13 +336,10 @@ static void render_inline(const struct xz_ui_scene *s){
  xz_rect(s->c,0,0,s->c.width,s->c.height,BLACK);
  xz_ui_stem_rows(s);
 }
-static void render_buttons(struct xz_canvas c,int stems,int vj_visible,int vj_active){
- struct xz_ui_widget buttons[3]={{744,0,56,24,XZ_UI_NONE,0,0,"MODS",-1},{674,0,68,24,XZ_UI_NONE,0,0,"STEMS",-1},{0,0,112,24,XZ_UI_NONE,0,0,vj_active?"EXIT VJ":"VJ.TOOLS",-1}};
- for(int i=0;i<(vj_visible?3:2);i++){
-  struct xz_ui_widget a=buttons[i];int lit=i==1?stems:i==2?vj_active:0;
-  xz_rect(c,a.x,a.y,a.w,a.h,BLACK);
-  if(lit)xz_rect(c,a.x+1,a.y+1,a.w-2,a.h-2,BLUE);else xz_border(c,a.x+1,a.y+1,a.w-2,a.h-2,WHITE);
-  text(c,a.x+1,a.y+1,a.w-2,a.h-2,a.label,1,ALIGN_C,WHITE);
- }
+/* Black with a white rule, solid blue while on. */
+static struct xz_top_face top_button(struct xz_canvas c,int x,int w,const char *label,int lit){
+ int h=XZ_TOP_BAR_H;xz_rect(c,x,0,w,h,BLACK);
+ if(lit)xz_rect(c,x+1,1,w-2,h-2,BLUE);else xz_border(c,x+1,1,w-2,h-2,WHITE);
+ return xz_top_bar_label(c,x,w,label,lit?BLUE:BLACK,WHITE);
 }
-const struct xz_ui_skin xz_skin_flagship={xz_ui_place,render,render_inline,render_buttons};
+const struct xz_ui_skin xz_skin_flagship={xz_ui_place,render,render_inline,top_button};

@@ -377,6 +377,17 @@ Native-view touches stay native; streamed-view touches go to the desktop.
 A gesture keeps its owner until release even when it crosses the view button
 or a source shortcut changes the view.
 
+## Top bar on stock screens
+
+VJ.TOOLS or EXIT VJ, DECKS, the metrics readout, METRICS, STEMS and MODS form one
+row, 18 pixels tall, in the black band above the stock play screen's waveform,
+DECK 1 tab and BEAT FX header. `top_bar.h` holds the row's geometry, where each
+stock bound comes from, and how far down each control answers a touch: VJ.TOOLS
+stops at y 17 (stock DECK 1 select starts at y 18), STEMS and MODS reach y 39 on
+the play screen, METRICS and the readout keep y 0..23. Every painter draws
+through `xz_top_bar_canvas`, so no frame style reaches below the band.
+`test_top_bar.c` checks the band for all 25 themes and the touch depths.
+
 ## Shared MODS layout
 
 All themes use the LCARS control positions from `ui_layout.c`: left navigation,

@@ -96,7 +96,7 @@ static void ram_debug_box(void){
   xz_ui_render_ram_debug(pixels,832,theme,1,1,540);
   unsigned painted=0;
   for(unsigned y=0;y<480;y++)for(unsigned x=0;x<832;x++){
-   if(x>=568&&x<672&&y<24)painted+=pixels[y*832+x]!=0x1234;
+   if(x>=488&&x<592&&y<XZ_TOP_BAR_H)painted+=pixels[y*832+x]!=0x1234;
    else assert(pixels[y*832+x]==0x1234);
   }
   assert(painted>100);
@@ -108,7 +108,7 @@ static void ram_debug_box(void){
  memset(normal,0,sizeof(normal));assert(xz_mods_render_v1(normal,800,480,800,NULL));
  for(unsigned i=0;i<800*480;i++)busy[i]=0x1234;
  pthread_mutex_lock(&ui_mutex);assert(xz_mods_render_v1(busy,800,480,800,NULL));pthread_mutex_unlock(&ui_mutex);
- for(unsigned y=0;y<24;y++)for(unsigned x=568;x<800;x++)if(normal[y*800+x])assert(normal[y*800+x]==busy[y*800+x]);
+ for(unsigned y=0;y<24;y++)for(unsigned x=488;x<800;x++)if(normal[y*800+x])assert(normal[y*800+x]==busy[y*800+x]);
  toggle.value=0;apply(NULL,&toggle,1);assert(settings_snapshot().ram_debug);
  struct xz_ui_widget controls[XZ_UI_WIDGETS];ui.page=XZ_UI_RAM_SETUP;size_t count=xz_ui_layout(&ui,&model,controls);
  for(size_t i=0;i<count;i++)assert(controls[i].kind!=XZ_UI_RAM_DEBUG);

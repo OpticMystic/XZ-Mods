@@ -2445,7 +2445,7 @@ static int head_shown, head_contact = -1, head_pressed = -1, head_cancelled;
 static uint32_t head_notice_until;
 static int browse_head_touch(const struct xz_touch_status *status, int previous_down) {
     if (head_contact < 0) {
-        if(status->y<24&&((status->x>=XZ_METRICS_X&&status->x<XZ_METRICS_X+XZ_METRICS_W)||
+        if(status->y<XZ_TOP_BAR_TOUCH_H&&((status->x>=XZ_METRICS_X&&status->x<XZ_METRICS_X+XZ_METRICS_W)||
            (model.metrics_enabled&&status->x>=XZ_METRICS_READOUT_X&&status->x<XZ_METRICS_X)))return 0;
         if (previous_down || !status->down || touch.visible || touch.capture || !head_shown || !xz_native_browse_open_sort) return 0;
         head_contact = xz_browse_head_hit((int)status->x, (int)status->y);
@@ -2638,7 +2638,7 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
 /* The MODS header strip over the wave surface's top rows (metrics readout, METRICS) keeps its own
    touches whichever lane lies underneath. Same tests as xz_native_touch_dispatch. */
 static int four_header_strip(const struct xz_touch_status *s) {
-    return s->y<24&&(xz_metrics_hit((int)s->x,(int)s->y)||
+    return s->y<XZ_TOP_BAR_TOUCH_H&&(xz_metrics_hit((int)s->x,(int)s->y)||
         (model.metrics_enabled&&s->x>=XZ_METRICS_READOUT_X&&s->x<XZ_METRICS_X));
 }
 /* Needle search from the panel's strip (ui_mutex held; the players only enqueue). The deck must be loaded,
@@ -2777,11 +2777,13 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     if(shell_touch_locked(self,status,mode)){pthread_mutex_unlock(&ui_mutex);return;}
     sdk_refresh();pc_refresh_locked();
     if(touch.visible||model.deck[0].pc_stems.source!=XZ_UI_SOURCE_PC||model.deck[1].pc_stems.source!=XZ_UI_SOURCE_PC)refresh_local();
-    touch.vj_btn_w=(model.fb_takeover||xz_native_play_visible())?112:0;
+    touch.vj_btn_w=(model.fb_takeover||xz_native_play_visible())?XZ_TOP_VJ_W:0;
+    touch.reach=xz_native_play_visible()&&!model.fb_takeover?XZ_TOP_BAR_DEEP_H:XZ_TOP_BAR_TOUCH_H;
     int previous_down=((const unsigned char *)self)[4]!=0;
     if(shortcut_touch(self,status,mode,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
     if(browse_head_touch(status,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
-    if(!touch.visible&&!previous_down&&status->down&&status->x<115&&status->y>=24&&xz_native_four_order()<0){
+    /* Stock DECK 1 / DECK 2 select ({0,18,115,140} and {0,161,115,140}); VJ.TOOLS ends above it. */
+    if(!touch.visible&&!previous_down&&status->down&&status->x<115&&status->y>=XZ_TOP_BAR_H&&xz_native_four_order()<0){
         if(status->y>=18&&status->y<159)ui.deck=inline_ui.deck=0;
         else if(status->y>=161&&status->y<302)ui.deck=inline_ui.deck=1;
     }
