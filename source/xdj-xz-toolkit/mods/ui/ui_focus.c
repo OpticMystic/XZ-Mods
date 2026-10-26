@@ -314,7 +314,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_SET_THEME:return "Restyles the classic player screen and this menu.";
  case XZ_UI_SET_INTERFACE:return "CLASSIC keeps the player's own play screen with MODS added. MODERN is a full-screen layout with bigger waveforms and a browse sidebar.";
  case XZ_UI_SET_MODERN_THEME:return "The modern interface's look. More modern themes are coming.";
- case XZ_UI_STEM_COLOR:return "Color for this stem on pads and waveforms.";
+ case XZ_UI_STEM_COLOR:return "The colour of this stem on the pads, the stem buttons and the STEMS waveform.";
  case XZ_UI_STEM_COLORS_RESET:return "Puts every stem back to the theme's colors.";
  case XZ_UI_JUMP_ENABLE:return "STOCK keeps the player's own 1, 2, 4, 8 beats on page 1. MY SIZES uses yours. Page 2 always uses yours.";
  case XZ_UI_JUMP_SHIFT:return "SHIFT + BEAT JUMP selects page 2 sizes.";

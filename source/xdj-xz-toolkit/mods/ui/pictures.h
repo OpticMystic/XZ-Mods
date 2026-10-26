@@ -53,6 +53,11 @@ struct xz_pic_stem_geo { struct xz_rect modes[4], pads[8], bank[2], order[3], li
 void xz_pic_stem_geometry(int x, int w, struct xz_pic_stem_geo *g);
 void xz_pic_stem_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_stem_geo *g, const struct xz_pic_stem_pads *p);
 
+/* ---- STEMS > STEM COLOURS (MODERN, full width) ---- */
+struct xz_pic_colour_geo { struct xz_rect swatches[3][9], preview, reset; int name_x[3], name_y, bass_x, bass_y; };
+void xz_pic_colour_geometry(int x, int y, int w, struct xz_pic_colour_geo *g);
+void xz_pic_colour_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_colour_geo *g, const struct xz_pic_colours *p);
+
 /* ---- small pictures for choice tiles and HOME ---- */
 /* A miniature play screen. view: 0 two decks, 1 four 1 2 3 4, 2 four 3 1 2 4; interface 1 MODERN, 0 CLASSIC.
    decks34: decks 3 and 4 are live (else greyed). */

@@ -697,6 +697,25 @@ static void stem_pad_rows(struct build *b, const struct xz_ui_widget *w, size_t 
   }else if(a->kind==XZ_UI_PAD_FEEDBACK&&(k==1||k==2))part_row(b,a,g.lights[k-1],NULL);
  }
 }
+/* STEM COLOURS (DESIGN 2.4): the panel's swatches, full width, with the live STEMS waveform and RESET. */
+static void colour_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
+ struct xz_pic_colour_geo g;xz_pic_colour_geometry(100,48,690,&g);
+ b->p->layout=XZ_SHELL_MENU_PICTURE;b->p->picture=XZ_SHELL_PIC_STEM_COLOURS;
+ struct xz_pic_colours *c=&b->p->pic.colours;
+ static const char *const stems[3]={"DRUMS","HARMONICS","VOCALS"};
+ for(int s=0;s<3;s++)c->current[s]=b->m->stem_colors[s]>=0&&b->m->stem_colors[s]<XZ_STEM_COLOR_CHOICES?b->m->stem_colors[s]:0;
+ c->bass=xz_ui_model_local_stem_color(b->m,XZ_STEM_BASS);
+ for(size_t i=0;i<n;i++){
+  const struct xz_ui_widget *a=&w[i];
+  if(a->kind==XZ_UI_STEM_COLOR){
+   int stem=a->index/XZ_STEM_COLOR_CHOICES,choice=a->index%XZ_STEM_COLOR_CHOICES;
+   if(stem<0||stem>2)continue;
+   c->rgb[stem][choice]=xz_ui_widget_look(b->u,b->m,a).color&0xffffff;
+   char label[40];snprintf(label,sizeof label,"%s: %s",stems[stem],xz_stem_palette_name(choice));
+   part_row(b,a,g.swatches[stem][choice],label);
+  }else if(a->kind==XZ_UI_STEM_COLORS_RESET)part_row(b,a,g.reset,"RESET STEM COLOURS");
+ }
+}
 /* 4 DECKS (mockup 15): the route card with RESCAN and the DECK VIEW segments, then the grid. */
 enum { DECKS_TEXT_X=424, DECKS_SEG_Y=130, DECKS_GRID_Y=198, DECKS_ROW_H=26 };
 static void four_deck_rows(struct build *b, const struct xz_ui_widget *w, size_t n) {
@@ -912,6 +931,7 @@ int xz_ui_menu_build(const struct xz_ui *u, const struct xz_ui_model *m, struct 
  else if(u->page==XZ_UI_BEAT_JUMP)jump_rows(&b,w,count);
  else if(u->page==XZ_UI_STEM_PADS)stem_pad_rows(&b,w,count);
  else if(u->page==XZ_UI_FOUR_DECKS)four_deck_rows(&b,w,count);
+ else if(u->page==XZ_UI_STEM_COLORS)colour_rows(&b,w,count);
  else for(size_t i=0;i<count;i++){
   if(used[i]||skipped(&b,&w[i]))continue;
   used[i]=1;control(&b,w,count,used,i);

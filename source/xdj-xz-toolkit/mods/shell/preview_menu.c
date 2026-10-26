@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
  page("menu-stems-buttons",CHAIN(XZ_UI_STEM_SECTION),"STEM BUTTONS ON SCREEN",1);
  page("menu-stem-pads",CHAIN(XZ_UI_STEM_SECTION,XZ_UI_STEM_PADS),NULL,0);
  page("menu-stem-pads-order",CHAIN(XZ_UI_STEM_SECTION,XZ_UI_STEM_PADS),"ORDER",0);
- page("menu-stem-colors",CHAIN(XZ_UI_STEM_SECTION,XZ_UI_STEM_COLORS),"DRUMS COLOUR",1);
+ page("menu-stem-colors",CHAIN(XZ_UI_STEM_SECTION,XZ_UI_STEM_COLORS),"DRUMS: BLUE",0);
  page("menu-pc-stems",CHAIN(XZ_UI_STEM_SECTION,XZ_UI_PC_STEMS),NULL,0);
  {
   struct xz_ui_model saved=ui_model;

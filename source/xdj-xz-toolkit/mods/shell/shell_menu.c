@@ -572,6 +572,7 @@ static void render_picture(struct xz_canvas c, const struct xz_shell_menu *p, st
   sp.focus=!lit?-1:k==XZ_UI_STEM_PAGE?XZ_PIC_STEM_MODE:k==XZ_UI_STEM_BANK?XZ_PIC_STEM_BANK:k==XZ_UI_STEM_ORDER?XZ_PIC_STEM_ORDER:k==XZ_UI_PAD_FEEDBACK?XZ_PIC_STEM_LIGHTS:-1;
   xz_pic_stem_draw(c,&st,&g,&sp);break;}
  case XZ_SHELL_PIC_FOUR_DECKS:render_four_decks(c,p,&st,lit?cur:NULL);break;
+ case XZ_SHELL_PIC_STEM_COLOURS:{struct xz_pic_colour_geo g;xz_pic_colour_geometry(100,48,690,&g);xz_pic_colour_draw(c,&st,&g,&p->pic.colours);break;}
  default:break;
  }
  if(lit&&cur&&cur->rect.w)ring2(c,cur->rect,SH_WHITE);

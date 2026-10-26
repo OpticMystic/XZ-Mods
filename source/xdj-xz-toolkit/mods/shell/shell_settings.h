@@ -184,7 +184,7 @@ struct xz_shell_mods_model { uint32_t count; const struct xz_shell_mods_tab *tab
 
    Layouts. HOME: rows are the section tiles (LINK, at rect, value = the live state, tone its dot) and
    their SET UP buttons (PART, at rect inside the tile); turn moves tile to tile and into a tile's button.
-   PICTURE: picture names the page's picture (BEAT_JUMP, STEM_PADS, FOUR_DECKS), drawn from pic; every row
+   PICTURE: picture names the page's picture (BEAT_JUMP, STEM_PADS, FOUR_DECKS, STEM_COLOURS), drawn from pic; every row
    is a PART of it at rect, and a band under it explains the focused row. While adjusting the panel
    changes a value with the encoder: turns go to the runtime (TURN, value = detents), push or BACK ends it.
 
@@ -210,7 +210,7 @@ enum xz_shell_menu_layout { XZ_SHELL_MENU_LIST, XZ_SHELL_MENU_KEYBOARD, XZ_SHELL
 /* Pictures: a PICTURE page's own (menu.picture), or how a CHOICE row draws its choices (row.picture). */
 enum xz_shell_menu_picture { XZ_SHELL_PIC_NONE, XZ_SHELL_PIC_BEAT_JUMP, XZ_SHELL_PIC_STEM_PADS, XZ_SHELL_PIC_FOUR_DECKS,
  XZ_SHELL_PIC_INTERFACE, XZ_SHELL_PIC_DECK_VIEW, XZ_SHELL_PIC_STEM_LAYOUT, XZ_SHELL_PIC_WAVE_COLOURS,
- XZ_SHELL_PIC_KEY_NOTATION, XZ_SHELL_PIC_MEDIA_BUTTON };
+ XZ_SHELL_PIC_KEY_NOTATION, XZ_SHELL_PIC_MEDIA_BUTTON, XZ_SHELL_PIC_STEM_COLOURS };
 enum { XZ_SHELL_MENU_ROWS=48, XZ_SHELL_MENU_CHOICES=96, XZ_SHELL_MENU_SECTIONS=8, XZ_SHELL_MENU_LINES=10,
  XZ_SHELL_MENU_STEPS=6 };
 /* What a row or choice runs, in the runtime's own terms; the shell never reads it. */
@@ -265,7 +265,7 @@ struct xz_shell_menu {
  struct xz_shell_menu_line line[XZ_SHELL_MENU_LINES];
  struct xz_shell_menu_row row[XZ_SHELL_MENU_ROWS];
  struct xz_shell_menu_choice choice[XZ_SHELL_MENU_CHOICES];
- struct { struct xz_pic_jump jump; struct xz_pic_stem_pads stem; struct xz_pic_home home; struct xz_pic_decks decks; } pic;
+ struct { struct xz_pic_jump jump; struct xz_pic_stem_pads stem; struct xz_pic_home home; struct xz_pic_decks decks; struct xz_pic_colours colours; } pic;
 };
 /* Opens MODS on tab (an index into the rail: 0 UTILITY, 1.. the mod tabs) with the encoder inside its
    page, as the runtime asks when one of its own controls led to a mod page. Sends nothing. */

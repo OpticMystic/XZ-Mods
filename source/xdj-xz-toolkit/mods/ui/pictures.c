@@ -5,6 +5,7 @@
 #include "theme_flagship.h"
 #include "wave_viewport.h"
 #include "stem_pads.h"
+#include "stem_colors.h"
 #include "../shell/shell_internal.h"
 #include <stdio.h>
 #include <string.h>
@@ -251,6 +252,48 @@ void xz_pic_jump_draw(struct xz_canvas c, const struct xz_pic_style *s, const st
  snprintf(back,sizeof back,"%c  -%d",pad_letters[pair*2],beats);snprintf(fwd,sizeof fwd,"%c  +%d",pad_letters[pair*2+1],beats);
  struct xz_rect ruler=g->ruler;ruler.y+=4;
  xz_pic_ruler(c,s,ruler,beats,back,fwd);
+}
+
+/* ---- STEM COLOURS ---- */
+void xz_pic_colour_geometry(int x, int y, int w, struct xz_pic_colour_geo *g) {
+ memset(g,0,sizeof *g);
+ int cw=(w-24)/3,sw=(cw-12)/3;
+ for(int s=0;s<3;s++){
+  int cx=x+s*(cw+12);g->name_x[s]=cx;
+  for(int i=0;i<9;i++)g->swatches[s][i]=(struct xz_rect){cx+(i%3)*(sw+6),y+24+(i/3)*46,sw,40};
+ }
+ g->name_y=y+4;
+ g->preview=(struct xz_rect){x,y+168,w,60};
+ g->reset=(struct xz_rect){x,y+244,200,44};
+ g->bass_x=x+216;g->bass_y=y+260;
+}
+static uint32_t ink_on(uint32_t rgb) { return luma(rgb)>140?0x000000:0xffffff; }
+void xz_pic_colour_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_colour_geo *g, const struct xz_pic_colours *p) {
+ static const char *const names[3]={"DRUMS","HARMONICS","VOCALS"};
+ uint32_t now[3];
+ for(int stem=0;stem<3;stem++){
+  int cur=p->current[stem]>=0&&p->current[stem]<9?p->current[stem]:0;now[stem]=p->rgb[stem][cur]&0xffffff;
+  /* the stem's name in its colour, as the pads and buttons show it */
+  xz_rect(c,g->name_x[stem],g->name_y+2,8,12,now[stem]);
+  xz_pic_text(c,g->name_x[stem]+14,g->name_y+3,names[stem],12,now[stem]);
+  for(int i=0;i<9;i++){
+   struct xz_rect r=g->swatches[stem][i];uint32_t rgb=p->rgb[stem][i]&0xffffff;
+   xz_rect(c,r.x,r.y,r.w,r.h,rgb);
+   if(i==cur){for(int k=0;k<3;k++)xz_border(c,r.x-3+k,r.y-3+k,r.w+6-2*k,r.h+6-2*k,k==2?0x000000:s->select);xz_pic_check(c,r.x+r.w-14,r.y+5,ink_on(rgb));}
+   xz_pic_text_center(c,r.x+r.w/2,r.y+r.h-14,xz_stem_palette_name(i),12,ink_on(rgb));
+  }
+ }
+ /* the STEMS waveform with these colours: drums outside, harmonics, vocals inside */
+ struct xz_rect w=g->preview;int mid=w.y+w.h/2;
+ xz_rect(c,w.x,w.y,w.w,w.h,s->modern?0x101010:s->row);
+ for(int x=0;x<w.w;x+=2){
+  int a=w.h/2-4;int h=a/3+(int)((unsigned)(x*37+x/9*11)%(unsigned)(a-a/3+1));
+  xz_rect(c,w.x+x,mid-h,1,h*2,now[0]);xz_rect(c,w.x+x,mid-h*2/3,1,h*4/3,now[1]);xz_rect(c,w.x+x,mid-h/3,1,h*2/3,now[2]);
+ }
+ xz_rect(c,g->reset.x,g->reset.y,g->reset.w,g->reset.h,s->modern?0x2a2a2a:s->row);
+ xz_pic_text_center(c,g->reset.x+g->reset.w/2,g->reset.y+(g->reset.h-14)/2,"RESET",20,s->ink);
+ xz_rect(c,g->bass_x,g->bass_y,8,12,p->bass&0xffffff);
+ xz_pic_text(c,g->bass_x+14,g->bass_y+1,"BASS ON 4-STEM TRACKS FOLLOWS THE THEME",12,s->dim);
 }
 
 /* ---- STEM PADS ---- */

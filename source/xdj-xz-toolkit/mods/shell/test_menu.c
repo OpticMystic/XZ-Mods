@@ -321,6 +321,17 @@ static void test_pictures(void) {
  ran_count=0;cursor_to(&s,"SLIP LOOP");push(&s);
  assert(ran_count&&ran[ran_count-1].kind==XZ_UI_STEM_PAGE&&ran[ran_count-1].index==2);
  render_check(&s);
+ /* STEM COLOURS: a swatch tap picks that colour for that stem; RESET runs the panel's reset */
+ fresh(&s);key(&s,XZ_SHELL_KEY_MENU);turn(&s,2);push(&s);cursor_to(&s,"STEM COLOURS");push(&s);
+ assert(ui.page==XZ_UI_STEM_COLORS&&menu.picture==XZ_SHELL_PIC_STEM_COLOURS&&menu.row_count==28);
+ for(int i=0;i<menu.row_count;i++){
+  const struct xz_shell_menu_row *r=&menu.row[i];
+  assert(r->kind==XZ_SHELL_MENU_PART&&r->rect.h>=40&&r->rect.x>=96&&r->rect.x+r->rect.w<=800&&r->rect.y+r->rect.h<=350);
+  if(!strcmp(r->label,"HARMONICS: GREEN")){ran_count=0;
+   assert(tap(&s,r->rect.x+r->rect.w/2,r->rect.y+r->rect.h/2)==1&&ran_count==1&&ran[0].kind==XZ_UI_STEM_COLOR&&ran[0].index==1&&ran[0].value==3);}
+ }
+ ran_count=0;cursor_to(&s,"RESET STEM COLOURS");push(&s);assert(ran_count&&ran[ran_count-1].kind==XZ_UI_STEM_COLORS_RESET);
+ render_check(&s);
  /* 4 DECKS: RESCAN and the DECK VIEW segments */
  fresh(&s);um.route.state=XZ_UI_ROUTE_NOT_DETECTED;publish();key(&s,XZ_SHELL_KEY_MENU);turn(&s,4);push(&s);
  assert(menu.picture==XZ_SHELL_PIC_FOUR_DECKS&&menu.line_count>=2);
@@ -331,7 +342,7 @@ static void test_pictures(void) {
  }
  render_check(&s);
  assert(!others&&!refusals);
- puts("PASS pictures: BEAT JUMP parts, push adjusts and the encoder turns the size, a tap on a chip, BACK ends adjusting; STEM PADS modes; 4 DECKS RESCAN and DECK VIEW");
+ puts("PASS pictures: BEAT JUMP parts, push adjusts and the encoder turns the size, a tap on a chip, BACK ends adjusting; STEM PADS modes; STEM COLOURS swatches and RESET; 4 DECKS RESCAN and DECK VIEW");
 }
 
 /* The shell's own look settings live on SCREEN and STEMS as rows; a pick goes to the shell, not the panel. */
@@ -594,7 +605,7 @@ static void test_wild(void) {
  wild.field[sizeof wild.field-1]=0;wild.field_label[sizeof wild.field_label-1]=0;
  sm.menu=&wild;
  static const int layouts[4]={XZ_SHELL_MENU_LIST,XZ_SHELL_MENU_KEYBOARD,XZ_SHELL_MENU_HOME,XZ_SHELL_MENU_PICTURE};
- for(int li=0;li<4;li++)for(int picture=0;picture<=XZ_SHELL_PIC_MEDIA_BUTTON;picture+=(li==3?1:XZ_SHELL_PIC_MEDIA_BUTTON+1)){
+ for(int li=0;li<4;li++)for(int picture=0;picture<=XZ_SHELL_PIC_STEM_COLOURS;picture+=(li==3?1:XZ_SHELL_PIC_STEM_COLOURS+1)){
   wild.layout=(uint8_t)layouts[li];wild.picture=(uint8_t)picture;
   struct xz_shell w;xz_shell_init(&w);xz_shell_mods_show(&w,&sm,1);
   for(int i=0;i<40;i++){

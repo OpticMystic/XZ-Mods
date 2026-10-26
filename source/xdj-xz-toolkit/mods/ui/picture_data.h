@@ -26,6 +26,12 @@ struct xz_pic_home {
  int decks34;           /* decks 3 and 4 are live */
  char letter;           /* the active DJ profile's initial, 0 none */
 };
+/* STEMS > STEM COLOURS: each stem's nine choices (as they draw now) and the one picked */
+struct xz_pic_colours {
+ uint32_t rgb[3][9];
+ int current[3];        /* drums, harmonics, vocals */
+ uint32_t bass;         /* 4-stem bass: follows the theme */
+};
 /* 4 DECKS: the cable route and what works on each deck */
 struct xz_pic_decks {
  int state, fail_part;  /* enum xz_ui_route_state, enum xz_ui_route_part */
