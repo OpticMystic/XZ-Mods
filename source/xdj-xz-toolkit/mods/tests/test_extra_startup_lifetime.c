@@ -39,5 +39,6 @@ int main(void){
  unsetenv("XZ_MODS_FOUR_DECK");assert(xz_extra_decks_start()==-1);
  fprintf(stderr,"startup-failure snapshots=%u destroyed=%u\n",read_calls,destroy_calls);
  assert(!read_calls&&"PARTIAL_STARTUP_VISIBLE");assert(destroy_calls==1&&!players&&!route.started);
+ assert(route_events.fd==-1&&route_events.wake[0]==-1&&route_events.wake[1]==-1);
  puts("PASS failing connector creation never publishes the private player");return 0;
 }
