@@ -50,6 +50,8 @@ with tempfile.TemporaryDirectory(prefix='xz-ui-test-') as folder:
         'extra-lane': ['extra_lane.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c', 'test_extra_lane.c'],
         'extra-detail': ['extra_detail.c', 'extra_lane.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c', 'test_extra_detail.c'],
         'classic-mixer': ['extra_lane.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c', 'test_classic_mixer.c'],
+        'deck-view': ['ui_draw.c', 'deck_view.c', 'test_deck_view.c'],
+        'route-card': ['ui_draw.c', 'route_card.c', 'test_route_card.c'],
         'native-wave': ['native_wave.c', 'wave_viewport.c', 'test_native_wave.c'],
         'native-wave-four': ['native_wave.c', 'wave_viewport.c', 'test_native_wave_four.c'],
         'inline': [*UI_SOURCES, 'test_inline_stems.c'],
