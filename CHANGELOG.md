@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0-preview.22.1 - 2026-10-26
+
+- Redesigned MODS menu organised by what you want to do: HOME, PLAY, STEMS, SCREEN, 4 DECKS, CONNECT, and EXTRAS, with explanations and picture controls.
+- Saved DECK VIEW choices: 2 DECKS, 4 DECKS 1 2 3 4, and 4 DECKS MIXER ORDER 3 1 2 4. Added a play-screen button and a picker in both interfaces.
+- Four-deck view can be selected without the loopback cable. A status card offers RESCAN and TWO DECKS.
+- Classic four-deck layout has four bottom channels in mixer order and four deck tags.
+- Gate Cue and Smart Cue are available on software decks 3 and 4.
+- Beat jump uses the set distances on all four decks. Software decks 3 and 4 previously used fixed 1/2/4/8 distances and ignored page 2.
+- Jump refusals are shown on the play screen.
+- MODERN honours stem order, effective key display, and colour-compatible keys.
+- Experimental XDJ-XZ 1.26 only.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22 - 2026-10-25
 
 - Fixed waveform analysis use-after-free during track changes, stale caches when addresses are reused, and failed connector startup exposing a destroyed player.
