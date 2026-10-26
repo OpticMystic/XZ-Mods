@@ -9,7 +9,9 @@
    the BEAT FX header (x 690..799, y 18..45) and the DECK 1 tab (x 0..115, drawn from about y 22,
    classic_column.h). The band and the BEAT FX header were measured on the live capture behind the CLASSIC
    previews (E:/Codex/xz-four-deck-20261016/live-screen.png): between the old STEMS and MODS boxes, x 742..743
-   is black to y 17 and BEAT FX grey from y 18.
+   is black to y 17 and BEAT FX grey from y 18. The header sprite (969, 120x31) spans y 15..45 (the FLAGSHIP
+   art keeps its rows 0..8 black because the old 24-row buttons covered them), so its first three rows show
+   black in the band; the themed header artwork keeps them plain too (native_main_theme.h, native_retro_theme.h).
 
    Touch: a control answers from y 0 down to a depth that depends on what lies under it.
    - VJ.TOOLS stops at y 17: stock registers DECK 1 select at {0,18,115,140} (NATIVE_WAVE_ABI.md).

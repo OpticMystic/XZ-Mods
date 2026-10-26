@@ -92,11 +92,13 @@ static inline int xz_native_main_art(unsigned id,int theme,struct xz_asset_role_
  }
  xz_theme_fill(s,whole,p->bg);
  if(fx){
-  if(theme==XZ_THEME_LCARS){xz_main_round(s,0,0,width,height,15,p->ink);xz_main_round(s,6,3,width-12,height-6,11,p->bg);}
-  else if(theme==XZ_THEME_MATRIX)xz_theme_matrix_bracket(s,whole,8,2,p->ink);
-  else {xz_theme_brushed(s,whole,0xd9c9a3);xz_theme_fill(s,(struct xz_theme_rect){3,3,width-6,height-6},p->bg);}
-  if(theme==XZ_THEME_MATRIX)xz_main_text(s,18,11,"BEAT FX",2,p->ink);
-  else xz_main_atlas(s,28,8,"BEAT FX",1,p->ink);
+  /* Rows 0..2 lie at y 15..17, the overlay's top band (top_bar.h); the stock header starts at row 3. */
+  struct xz_theme_rect head={0,3,width,height-3};
+  if(theme==XZ_THEME_LCARS){xz_main_round(s,0,3,width,height-3,15,p->ink);xz_main_round(s,6,6,width-12,height-9,11,p->bg);}
+  else if(theme==XZ_THEME_MATRIX)xz_theme_matrix_bracket(s,head,8,2,p->ink);
+  else {xz_theme_brushed(s,head,0xd9c9a3);xz_theme_fill(s,(struct xz_theme_rect){3,6,width-6,height-9},p->bg);}
+  if(theme==XZ_THEME_MATRIX)xz_main_text(s,18,14,"BEAT FX",2,p->ink);
+  else xz_main_atlas(s,28,11,"BEAT FX",1,p->ink);
   return 1;
  }
  if(compact){
