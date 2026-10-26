@@ -96,7 +96,7 @@ static void release(struct guarded_storage *s){
 }
 static void assert_native(const struct xz_shell_model *m){
  uint64_t expected=K(LOADED)|K(TITLE)|K(TRACK_NO)|K(BPM)|K(TRACK_BPM)|K(TEMPO)|K(MASTER_TEMPO)|K(MASTER)|K(SYNC)|
-  K(ELAPSED)|K(TOTAL)|K(TIME_MODE)|K(QUANTIZE)|K(BEAT_JUMP)|K(LOOP)|K(HOT_CUES)|K(CUE_POINT);
+  K(ELAPSED)|K(TOTAL)|K(TIME_MODE)|K(QUANTIZE)|K(BEAT_JUMP)|K(LOOP)|K(HOT_CUES)|K(CUE_POINT)|K(AUTO_CUE);
  for(unsigned deck=0;deck<2;deck++){
   const struct xz_shell_deck *d=m->deck+deck;assert(d->known==expected);assert(d->loaded==1);
   assert(!strcmp(d->title,"DJ \xc3\xa9\xe4\xb8\xad\xf0\x9f\x98\x80"));assert(d->track_no==(int)(21+deck));
@@ -104,6 +104,7 @@ static void assert_native(const struct xz_shell_model *m){
   assert(d->master_tempo==1&&d->master==(int)!deck&&d->sync==(int)deck);
   assert(d->elapsed_ms==(int32_t)(32000+deck*1000)&&d->total_ms==(int32_t)(240000+deck*1000));
   assert(d->time_mode==XZ_SHELL_TIME_REMAIN&&d->quantize_on==1&&d->quantize_num==1&&d->quantize_den==4);
+  assert(d->auto_cue);
   assert(d->beat_jump_num==-16&&d->beat_jump_den==1);
   assert(d->loop.active&&d->loop.beats_num==3&&d->loop.beats_den==2&&d->loop.in_ms==2200&&d->loop.out_ms==4400&&d->cue_ms==2200);
   for(unsigned cue=0;cue<8;cue++){
@@ -287,6 +288,8 @@ static void test_invalid_data(void){
  fixture();put32(0x3201088+0x8c*2,0x100);*at(frame(1)+0x2e,1)=0x80;
  xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(m.deck[1].time_mode==XZ_SHELL_TIME_ELAPSED);
  assert(!(m.settings.known&(S(TIME_MODE)|S(AUTO_CUE))));
+ assert((m.deck[0].known&K(AUTO_CUE))&&m.deck[0].auto_cue);
+ assert((m.deck[1].known&K(AUTO_CUE))&&!m.deck[1].auto_cue);
  put32(total(0)+0x24,0);xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(!(m.deck[0].known&K(TRACK_NO)));
  put32(0x3201000+0x8c*4,0x62);xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(!(m.deck[0].known&K(QUANTIZE)));
  xz_shell_model_refresh(&m,s.storage,NULL,0);assert(!m.deck[0].known&&!m.deck[1].known&&!m.settings.known);

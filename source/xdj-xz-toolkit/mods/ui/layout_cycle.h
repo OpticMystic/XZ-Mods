@@ -2,7 +2,7 @@
 #ifndef XZ_LAYOUT_CYCLE_H
 #define XZ_LAYOUT_CYCLE_H
 #include "ui_skin.h"
-enum xz_deck_layout { XZ_LAYOUT_TWO, XZ_LAYOUT_FOUR, XZ_LAYOUT_MIXER, XZ_LAYOUT_COUNT };
+#include "deck_layout.h"
 /* Session only. Neither route loss nor a different interface resets this preference. */
 int xz_deck_layout_get(void);
 void xz_deck_layout_set(int layout);

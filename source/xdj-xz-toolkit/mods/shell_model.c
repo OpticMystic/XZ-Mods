@@ -405,6 +405,7 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
                 have_native=0;d->known&=~K(TITLE);d->title=NULL;
             }else {
                 frame_fields(d,v,&n,now_ms);auto_known[deck]=1;auto_value[deck]=!!(n.frame[0x2e]&2);
+                d->auto_cue=auto_value[deck];d->known|=K(AUTO_CUE);
                 if(!s->slip_guard_ok)s->slip_guard_ok=slip_guards(read);
                 if(s->slip_guard_ok)slip_fields(d,&n,now_ms);
             }
