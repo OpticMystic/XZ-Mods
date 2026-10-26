@@ -49,9 +49,10 @@ that deck's own colour (`deck_colour.h`), the same in both interfaces: DECK 1
 The box always carries the digit, so colour is never the only cue; a deck
 that is not connected keeps its colour dimmed. The boxes sit on the lane tags
 (MODERN info column, CLASSIC side column and wave lane tags), on the channels
-(MODERN strip badge, CLASSIC title band), in the detail panel's header and
-lane numbers, and the DECKS button and picker colour their numbers the same
-way. The driven-deck highlight (blue or pale blue fill with the arrow, LEFT
+(MODERN strip badge, CLASSIC title band, and the MODERN four-deck strip under
+browse and the menus), in the detail panel's header and lane numbers, on the
+WORKS ON chips and the 4 DECKS grid's column heads in MODS, and the DECKS
+button and picker colour their numbers the same way. The driven-deck highlight (blue or pale blue fill with the arrow, LEFT
 or RIGHT) and USB stick colours stay on the rest of the tag. The CLASSIC
 theme pass recolours the wave surface, so `style_four` puts the boxes back
 afterwards (`xz_four_identity_draw`). 2 DECKS screens are unchanged.
