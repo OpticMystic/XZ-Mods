@@ -6,30 +6,48 @@ the runtime changes. It requires no permanent controller or PC app install.
 DECK 3 and DECK 4 are software players in the runtime, heard on mixer CH3 and
 CH4 through the USB loopback route. The players publish `struct xz_extra_decks`
 (`../extra_decks.h`); this page is how the classic (Pioneer-drawn) play screen
-shows them. When the route is down, or TWO is selected, the screen uses the
-unchanged native two-deck path with the saved stem layout.
+shows them. DECK VIEW (`deck_view.h`) chooses what the play screen shows: 2 DECKS
+keeps the unchanged native two-deck path with the saved stem layout; 4 DECKS in
+number order (1 2 3 4) or mixer order (3 1 2 4) shows four lanes whether or not
+decks 3 and 4 are connected. While they are not, their lanes carry the card
+described under "Decks 3 and 4 not connected".
 
 ## Layout
 
-While `route_up` is set and the shared layout is FOUR or MIXER, the 536x268 scrolling-waveform surface at screen
+While DECK VIEW is FOUR or MIXER (route up or not), the 536x268 scrolling-waveform surface at screen
 (131,18) holds four 64-row lanes with 4-row gaps (`wave_viewport.h`,
 `xz_four_layout_*`). Native DECK 1 and DECK 2 shrink into their lanes with the
 same row map the stem layouts use (`xz_wave_lane_row`: the ten cue rows at each
 lane edge keep their size, the 112 interior rows are resampled). The wave
 transformation stays inside that surface. The framebuffer is not scaled.
 
-The shared `xz_deck_layout_get()` preference selects TWO, FOUR (1 2 3 4),
-or MIXER (3 1 2 4). The wave lock freezes it in `four_frame_layout`.
-`xz_deck_layout_order(layout)` in `deck_layout.h` is the pure order function
-used by upper-lane geometry, bottom rendering and bottom touch geometry.
-Changing preference storage belongs in `xz_deck_layout_get()`, not another
-mixer-order state. Every
-lane names its deck. A pale blue tag shows which deck the left or right
-physical controls drive. The native side columns still describe DECK 1 and
-DECK 2. `preview_four_deck.py` checks the upper waveform layout in both orders.
+The shared `xz_deck_layout_get()` preference is DECK VIEW: TWO (default),
+FOUR (1 2 3 4) or MIXER (3 1 2 4). The wave lock freezes it in
+`four_frame_layout`, and the draw thread's scene predicate admits a four-deck
+view on its own, so four lanes are drawn even with the route down.
+`xz_deck_layout_order(layout)` in `deck_layout.h` orders the upper lanes.
+Every view change goes through `deck_view_apply()` in `ui_runtime.c`, the one
+entry point (CLASSIC picker and card, MODERN through `XZ_SHELL_UI_DECK_VIEW`);
+the saved setting replaces its body. Every lane names its deck. A pale blue tag
+shows which deck the left or right physical controls drive.
+`preview_four_deck.py` checks the upper waveform layout in both orders.
 
-The lower 169 rows are four equal 200-pixel channels in the same order as
-the upper lanes: **1, 2, 3, 4** in FOUR, **3, 1, 2, 4** in MIXER.
+In a four-deck view the native side column (x 0..129, y 22..308) is the mod's:
+`classic_column.c` clears it and draws four stock-style tags, one beside each
+lane in the lanes' order (so mixer order reads 3, 1, 2, 4): the deck tag (pale
+blue with LEFT or RIGHT for the deck a side drives), source and key, and for
+DECK 1 and 2 the analysed key, a triangle, the playing key and its cents;
+DECK 3 and 4 say SOFTWARE DECK, or NOT CONNECTED / SEE THE CARD while down.
+A tag for DECK 1 or 2 is the stock column's own tap at (60,40) or (60,180);
+DECK 3 or 4 open their detail panel as their channel title does.
+
+The lower 169 rows (and rows 309..310 above them) are four equal 200-pixel
+channels that always mirror the physical mixer, **3, 1, 2, 4**, in both
+four-deck views (decision D3b); DECK VIEW reorders only the upper lanes.
+While decks 3 and 4 are down their channels show a dim band with NOT
+CONNECTED and "DECK n WAITS FOR THE LOOPBACK CABLE."; decks 1 and 2 stay live.
+The column and band are repainted on every overlay frame, so stock text under
+them never shows through.
 `classic_mixer.c` draws matching blue title strips, 28-pixel clocks, BPM,
 pitch, range, mode indicators and full-track overviews. Native and software
 decks use the same layout. The native clock and title come from the existing
@@ -155,12 +173,46 @@ overview receives exactly one synthetic release; the cancelled contact remains
 owned through its physical release. The cached-render path retains the existing
 popup/key/layout busy-owner guard.
 
+## DECK VIEW button and picker
+
+`deck_view.h` draws the button and the three-picture picker for both
+interfaces from one style each. CLASSIC: the button (162,0,116,18) sits in the
+empty black between VJ.TOOLS and the METRICS readout on every Classic play
+screen, 2 DECKS included; its touch reaches y 39. One tap opens the picker
+(140,22,500,206); a picture applies, a tap outside or BACK closes it, and six
+seconds without input close it. The encoder turns and pushes inside the open
+picker. 2 DECKS frames differ from the stock screen only in the button rect.
+
+## Decks 3 and 4 not connected
+
+`route_card.h` draws the card in the lanes of decks 3 and 4 only: one card in
+number order, two strips in mixer order. Row A: the cable route picture and the
+two steps. Row B: the state from `xz_extra_decks_route_status()` (NOT DETECTED,
+SCANNING, STARTING, WAITING for decks 1 and 2 to stop, FAILED with the failed
+part marked, LOST, NO ENGINE), the runtime's sentence, RESCAN or TRY AGAIN, and
+TWO DECKS. RESCAN only wakes the connector (`xz_extra_decks_rescan`); it never
+restarts the helper. The card is drawn inside the wave transaction: the lane
+tint before the theme, the card after protect/restore, never a full-screen
+blend. Its still is cached once per state; each frame copies it and draws the
+pulse, the scanning ring and the sweep, which rest 60 s after the card appears
+or after the last input. When the route comes up under the card it turns
+READY for 700 ms and wipes away in 8 frames; the side tags and channels of
+decks 3 and 4 go live after it. The draw thread publishes the painted card
+(`xz_native_four_card`) and touch acts only on that; the encoder's focus on the
+card is reported back with `xz_native_four_card_input`. While the card shows,
+an encoder push focuses RESCAN; turn moves across the card's buttons and the
+DECK VIEW button; push presses; BACK or six idle seconds give the encoder back
+to the player. Without the card the encoder stays the player's.
+
 ## Cost
 
 `preview_four_deck.py --bench N` times the layout, the two extra lanes and the
-four-lane protect/restore on the host. The theme pass in four-deck mode visits
-fewer body pixels than the two-deck pass (four lanes of 41 body rows against
-two of 104) and runs only while a native theme is active.
+four-lane protect/restore on the host, and with decks 3 and 4 down the native
+tags with the lane tint and the card (copied from its cached still, and drawn
+whole for comparison). The theme pass in four-deck mode visits fewer body
+pixels than the two-deck pass (four lanes of 41 body rows against two of 104)
+and runs only while a native theme is active. MODERN's `shell/bench_deck_view.c`
+times PLAY frames with the card, 2 DECKS and the open picker.
 
 ## Verification
 
