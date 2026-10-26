@@ -108,6 +108,114 @@ static void not_connected(struct xz_canvas c,int id){
  text(c,8,55,186,"LOOPBACK CABLE.",1,0x8a929a);
  xz_rect(c,6,129,188,34,0x0a0c10);xz_rect(c,6,161,188,2,0x2a3038);xz_rect(c,6,165,188,1,0x58616a);
 }
+/* ---- 2 DECKS: a side's stock deck panel for DECK 3 or 4 (classic_mixer.h) ----
+   Measured on the retained stock capture (the DECK 2 panel, offsets from its left edge): title band rows
+   312..341 #103062 with the note and title, body #080c08 from row 342; DECK and REMAIN / QUANTIZE / TEMPO
+   labels on row 349; TRACK and its number at x 17; the A.HOTCUE / A.CUE boxes at x 68..124; the clock from
+   x 133, rows 368..402; tempo at x 312; the BPM box x 313..392, rows 401..445; END under the clock; the
+   whole-track overview x 10..309, rows 423..456 and the position bar under it. Panel-local y below is the
+   screen y minus 309. The deck's number box takes the note's place; source and key take TRACK's. */
+#define HALF_TITLE 0x103062
+#define HALF_BODY 0x080c08
+#define HALF_DIM 0x59616a
+enum { HALF_BOX_X=8, HALF_BOX_Y=6, HALF_BOX_S=24 };
+static void lamp_box(struct xz_canvas c,int x,int y,int w,int h,const char *s,int known,int on,uint32_t color){
+ uint32_t ink=known&&on?color:HALF_DIM;
+ xz_border(c,x,y,w,h,ink);
+ int tw=xz_text_width(c,s,1,99);xz_text(c,x+(w-tw+1)/2,y+(h-9+1)/2,s,1,99,ink);
+}
+/* The overview of the software deck over 300 columns, its cue marks, the position line and the bar under it. */
+static void half_overview(struct xz_canvas c,const struct xz_extra_deck *d,struct panel p){
+ enum { X=10, Y=114, W=300, H=34, BAR=151 };
+ if(p.loaded&&p.wave&&p.wave->columns&&p.wave->count){
+  const struct xz_extra_wave *w=p.wave;
+  for(unsigned x=0;x<W;x++){uint32_t a=(uint32_t)((uint64_t)x*w->count/W),b=(uint32_t)((uint64_t)(x+1)*w->count/W);if(b<=a)b=a+1;unsigned samples=b-a;if(samples>8)samples=8;
+   struct xz_extra_column sample[8];
+   for(unsigned i=0;i<samples;i++)sample[i]=w->columns[a+(uint32_t)((uint64_t)i*(b-a)/samples)];
+   struct xz_layered_data data={(const uint8_t *)sample,samples,w->normalization?w->normalization:765,XZ_LAYERED_THREE_BAND,{0,0,0}};
+   struct xz_layered_col col;xz_layered_heights(&data,0,samples,H,&col);
+   for(unsigned y=0;y<H;y++){int color=xz_layered_pixel(&data,&col,H-1-y);if(color>=0)c.p[(size_t)(Y+y)*c.stride+X+x]=(uint16_t)color;}
+  }
+ }else{text(c,X,Y+12,W,p.loaded?"NO WAVEFORM YET":"NO TRACK",1,GRAY);}
+ xz_rect(c,X,BAR,W,3,0x5a5a5a);
+ if(!p.loaded||!p.total_known||p.total<=0)return;
+ if(d->known&E(HOT_CUES))for(int i=0;i<XZ_EXTRA_HOT_CUES;i++)if(d->hot_cue[i].set){
+  int64_t ms=d->hot_cue[i].ms;if(ms<0||ms>p.total)continue;
+  xz_rect(c,X+(int)(ms*(W-1)/p.total),Y-2,1,6,xz_extra_cue_color(&d->hot_cue[i]));
+ }
+ if((d->known&E(LOOP))&&(d->loop.active||d->loop.stored)&&d->loop.out_ms>d->loop.in_ms){
+  int64_t a=d->loop.in_ms,b=d->loop.out_ms;if(a<0)a=0;if(b>p.total)b=p.total;
+  if(a<=b)xz_rect(c,X+(int)(a*(W-1)/p.total),Y-2,(int)((b-a)*(W-1)/p.total)+1,2,d->loop.active?ORANGE:GRAY);
+ }
+ if((d->known&E(CUE))&&d->cue_ms>=0&&d->cue_ms<=p.total){
+  int x=X+(int)((int64_t)d->cue_ms*(W-1)/p.total);for(int r=0;r<4;r++)xz_rect(c,x-r,BAR+3+r,2*r+1,1,ORANGE);
+ }
+ for(int64_t m=60000;m<p.total;m+=60000)xz_rect(c,X+(int)(m*(W-1)/p.total),BAR+4,1,4,0x8a8a8a);
+ if(p.time_known){
+  int64_t e=p.elapsed;if(e<0)e=0;if(e>p.total)e=p.total;int x=X+(int)(e*(W-1)/p.total);
+  xz_rect(c,X,BAR,x-X+1,3,WHITE);xz_rect(c,x,Y,1,H,WHITE);
+ }
+}
+int xz_classic_mixer_half_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_classic_mixer_view *v,int deck){
+ if(!pixels||!v||!v->extra||(deck!=2&&deck!=3)||stride<800||stride>SIZE_MAX/480||count<stride*480)return 0;
+ int side=deck-2,x0=side?3:0,x1=side?400:398;char b[64];
+ struct xz_canvas c={pixels+(size_t)XZ_CLASSIC_HALF_PANEL_Y*stride+xz_classic_half_panel_x(side),stride,400,480-XZ_CLASSIC_HALF_PANEL_Y,v->theme};
+ struct panel p=project(v,deck);const struct xz_extra_deck *d=&v->extra->deck[side];
+ /* The frame: black above the band, a navy edge toward the other panel, title band and body. */
+ xz_rect(c,0,0,400,171,0x000000);
+ xz_rect(c,side?2:398,3,1,168,HALF_TITLE);
+ xz_rect(c,x0,3,x1-x0,30,HALF_TITLE);xz_rect(c,x0,33,x1-x0,138,HALF_BODY);
+ xz_deck_box(c,HALF_BOX_X+x0,HALF_BOX_Y,HALF_BOX_S,HALF_BOX_S,deck,1,HALF_TITLE,2,0);
+ const char *title=p.load_known&&!p.loaded?"NO TRACK":p.title_known&&p.title&&p.title[0]?p.title:"--";
+ text(c,x0+40,11,x1-x0-48,title,2,p.loaded?WHITE:GRAY);
+ /* Row 349: DECK n, the time mode, QUANTIZE, TEMPO and its range. */
+ snprintf(b,sizeof b,"DECK %d",deck+1);text(c,17,40,60,b,1,WHITE);
+ text(c,137,40,56,p.time_known?(p.remain?"REMAIN":"TIME"):"--",1,p.time_known?WHITE:GRAY);
+ lamp(c,197,40,60,"QUANTIZE",p.quant_known,p.quant,RED);
+ text(c,315,40,40,"TEMPO",1,WHITE);
+ if(p.range_known&&p.range==100)text(c,358,40,36,"WIDE",1,RED);
+ else if(p.range_known){
+  xz_rect(c,358,43,5,1,GRAY);xz_rect(c,360,41,1,5,GRAY);xz_rect(c,358,47,5,1,GRAY);
+  snprintf(b,sizeof b,"%d",p.range);text(c,365,40,30,b,1,GRAY);
+ }else text(c,358,40,36,"--",1,GRAY);
+ /* Source and key where the stock panel has TRACK and its number; AUTO CUE and MASTER TEMPO as its boxes. */
+ const char *source=p.source_known?(p.source==1?"USB1":p.source==2?"USB2":"--"):"--";
+ text(c,17,62,46,source,1,GRAY);text(c,17,75,48,p.key_known&&p.key&&p.key[0]?p.key:"--",2,WHITE);
+ lamp_box(c,68,60,57,13,"A.CUE",p.acue_known,p.acue,WHITE);
+ lamp_box(c,68,79,57,13,"MT",p.mt_known,p.mt,RED);
+ /* The clock in the deck's TIME MODE. */
+ int ended=p.loaded&&p.time_known&&p.total_known&&p.total>0&&p.elapsed>=p.total;
+ if(p.loaded&&p.time_known&&(!p.remain||p.total_known)){int64_t t=p.remain?(int64_t)p.total-p.elapsed:p.elapsed;if(t<0)t=0;if(t>5999999)t=5999999;snprintf(b,sizeof b,"%02d:%02d.%02d",(int)(t/60000),(int)(t/1000%60),(int)(t/10%100));}else strcpy(b,"--:--.--");
+ digits(c,137,63,b,1,305,p.loaded&&p.time_known?WHITE:GRAY);
+ /* Under the clock: END as stock, else what SYNC follows, what the pads do and the running modes. */
+ if(ended)text(c,137,101,80,"END",2,RED);
+ else if(p.loaded){
+  int x=137;
+  if(p.master_known&&p.master){const char *m=p.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MASTER":"MASTER";text(c,x,101,80,m,1,ORANGE);x+=xz_text_width(c,m,1,99)+10;}
+  else if(p.sync[0]){text(c,x,101,80,p.sync,1,0x73b6ff);x+=xz_text_width(c,p.sync,1,99)+10;}
+  char pad[48];xz_extra_pad_text(d,pad,sizeof pad);
+  if(pad[0]&&x<280){text(c,x,101,300-x,pad,1,GRAY);x+=xz_text_width(c,pad,1,99)+10;}
+  const char *mode=p.rev?"REV":p.slip?"SLIP":p.loop?"LOOP":p.call?"CALL":"";
+  if(mode[0]&&x<280)text(c,x,101,300-x,mode,1,WHITE);
+ }
+ /* Tempo and the BPM box; MASTER fills its foot orange, as stock. */
+ if(p.tempo_known&&p.loaded){int64_t t=p.tempo;snprintf(b,sizeof b,"%c%lld.%02lld%%",t<0?'-':'+',(long long)(t<0?-t:t)/100,(long long)(t<0?-t:t)%100);}else strcpy(b,"--.--%");
+ text(c,312,65,86,b,2,p.tempo_known&&p.loaded?WHITE:GRAY);
+ int master=p.master_known&&p.master;
+ xz_border(c,313,92,80,45,master?ORANGE:WHITE);
+ if(p.loaded&&p.bpm_known&&p.bpm>0)snprintf(b,sizeof b,"%d.%01d",p.bpm/100,p.bpm/10%10);else strcpy(b,"---.-");
+ digits(c,318,96,b,0,390,master?ORANGE:WHITE);
+ if(master){xz_rect(c,314,124,78,12,ORANGE);text(c,336,126,56,"MASTER",1,0x1a1206);}
+ else text(c,368,126,26,"BPM",1,WHITE);
+ half_overview(c,d,p);
+ return 1;
+}
+void xz_classic_mixer_half_identity(uint16_t *pixels,size_t stride,size_t count,int deck){
+ if(!pixels||(deck!=2&&deck!=3)||stride<800||stride>SIZE_MAX/480||count<stride*480)return;
+ int side=deck-2;
+ struct xz_canvas c={pixels+(size_t)XZ_CLASSIC_HALF_PANEL_Y*stride+xz_classic_half_panel_x(side),stride,400,480-XZ_CLASSIC_HALF_PANEL_Y,0};
+ xz_deck_box(c,HALF_BOX_X+(side?3:0),HALF_BOX_Y,HALF_BOX_S,HALF_BOX_S,deck,1,HALF_TITLE,2,0);
+}
 int xz_classic_mixer_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_classic_mixer_view *v){
  if(!pixels||!v||v->layout==XZ_LAYOUT_TWO||stride<800||stride>SIZE_MAX/480||count<stride*480)return 0;
  int live=!v->placeholders&&v->extra&&v->extra->route_up;

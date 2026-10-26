@@ -19,6 +19,7 @@ static struct xz_shell_model_storage *storage;
 static struct xz_shell_model native;
 static uint32_t refreshed_at;
 static int refreshed,visible,drawn_layout;
+static unsigned drawn_pair; /* 2 DECKS: the sides whose halves the last frame drew */
 static struct { uint16_t pixels[OVERVIEW_PIXELS]; uint32_t sequence; int x,y; } captured[2];
 static uint16_t overview[2][OVERVIEW_PIXELS];
 static uint32_t overview_sequence[2],invalidated_sequence[2];
@@ -38,6 +39,9 @@ static unsigned loaded_device(int deck){
 /* The READY hold and wipe after decks 3 and 4 came up under the card: they stay NOT CONNECTED until it ends.
    Weak: hosts without the wave transaction have no card. */
 #pragma weak xz_native_four_card_success
+/* The native theme map (native_skin_runtime.c); hosts without it draw the halves in the stock colours. */
+#pragma weak xz_mods_native_style_v1
+#pragma weak xz_mods_native_pixels_v1
 int xz_classic_mixer_runtime_start(void){
  pthread_mutex_lock(&state_mutex);
  if(!storage)storage=calloc(1,xz_shell_model_storage_size());
@@ -46,8 +50,10 @@ int xz_classic_mixer_runtime_start(void){
  return ok?0:-1;
 }
 void xz_classic_mixer_runtime_hide(void){
+ __atomic_store_n(&drawn_pair,0u,__ATOMIC_RELEASE);
  if(__atomic_exchange_n(&visible,0,__ATOMIC_ACQ_REL))xz_native_skin_request_repaint();
 }
+unsigned xz_classic_mixer_runtime_pair(void){return __atomic_load_n(&drawn_pair,__ATOMIC_ACQUIRE);}
 int xz_classic_mixer_runtime_layout(void){return __atomic_load_n(&drawn_layout,__ATOMIC_ACQUIRE);}
 int xz_classic_mixer_runtime_visible(void){return __atomic_load_n(&visible,__ATOMIC_ACQUIRE);}
 void xz_classic_mixer_runtime_stop(void){
@@ -70,6 +76,64 @@ int xz_classic_mixer_runtime_native_point(int deck,int local_x,int local_y,int *
  if(valid){*x=captured[deck].x+local_x;*y=captured[deck].y+local_y;}
  pthread_mutex_unlock(&overview_mutex);return valid;
 }
+/* The guarded native model at most ten times a second (state_mutex held); the changed decks. */
+static unsigned refresh_native(uint32_t now,const struct xz_classic_mixer_key keys[2]){
+ unsigned changed=0;
+ if(!refreshed||(uint32_t)(now-refreshed_at)>=100u){
+  for(int d=0;d<2;d++){
+   struct xz_shell_deck input={0};
+   if(keys&&keys[d].valid&&keys[d].effective[0]){input.known=XZ_SHELL_KNOWN(XZ_SHELL_F_KEY);input.key=keys[d].effective;}
+   unsigned device=loaded_device(d);if(device)input.known|=XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE);
+   xz_shell_model_set_input(storage,d,&input,device);
+  }
+  changed=xz_shell_model_refresh(&native,storage,native_read,now);
+  refreshed=1;refreshed_at=now;
+ }
+ return changed;
+}
+/* 2 DECKS following the sides: the halves of the sides that both the wave (pair) and this snapshot put on DECK 3
+   or 4, mapped through the active theme like the stock halves beside them, their number boxes in their own
+   colours. A half returning to stock (a switch, route loss, MODS, a caution) asks for a native repaint. */
+int xz_classic_mixer_runtime_pair_frame(uint16_t *pixels,size_t stride,size_t count,int eligible,int theme,uint32_t now,
+ const struct xz_classic_mixer_key keys[2],unsigned pair){
+ if(!eligible||!(pair&3u)){xz_classic_mixer_runtime_hide();return 0;}
+ if(!pixels||stride<800||stride>SIZE_MAX/480||count<stride*480)return 0;
+ if(pthread_mutex_trylock(&state_mutex))return 0;
+ struct xz_extra_decks extra={0};struct xz_extra_analysis_hold hold={0};
+ if(!storage||xz_deck_layout_get()!=XZ_LAYOUT_TWO){
+  pthread_mutex_unlock(&state_mutex);xz_classic_mixer_runtime_hide();return 0;
+ }
+ int up=xz_extra_decks_snapshot_held(&extra,&hold);
+ unsigned sides=up?pair&((extra.left_on_3?1u:0u)|(extra.right_on_4?2u:0u)):0u;
+ /* The native model still refreshes: a caution owns the screen, and a later four-deck view needs fresh overviews. */
+ pending_invalidation|=refresh_native(now,keys);
+ if(!sides||xz_shell_model_caution(storage)){
+  xz_extra_decks_release_analysis(&extra,&hold);
+  pthread_mutex_unlock(&state_mutex);xz_classic_mixer_runtime_hide();return 0;
+ }
+ struct xz_classic_mixer_view view={.extra=&extra,.now_ms=now,.theme=theme,.layout=XZ_LAYOUT_TWO};
+ int themed=xz_mods_native_style_v1&&xz_mods_native_pixels_v1&&xz_mods_native_style_v1();
+ for(int side=0;side<2;side++){
+  if(!(sides&(1u<<side)))continue;
+  const struct xz_extra_deck *x=&extra.deck[side];
+  struct xz_classic_column_deck column={.live=1,.driven=1,.source=x->source==1||x->source==2?x->source:0};
+  if((x->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))&&x->key[0])snprintf(column.key,sizeof column.key,"%s",x->key);
+  xz_classic_column_half_draw(pixels,stride,count,2+side,&column);
+  xz_classic_mixer_half_draw(pixels,stride,count,&view,2+side);
+  if(themed){
+   for(int y=xz_classic_column_half_y(side);y<xz_classic_column_half_y(side)+xz_classic_column_half_h(side);y++)
+    xz_mods_native_pixels_v1(pixels+(size_t)y*stride+XZ_CLASSIC_COLUMN_X,XZ_CLASSIC_COLUMN_W);
+   for(int y=XZ_CLASSIC_HALF_PANEL_Y;y<480;y++)xz_mods_native_pixels_v1(pixels+(size_t)y*stride+xz_classic_half_panel_x(side),400);
+   xz_classic_column_half_identity(pixels,stride,count,2+side);
+   xz_classic_mixer_half_identity(pixels,stride,count,2+side);
+  }
+ }
+ xz_extra_decks_release_analysis(&extra,&hold);
+ if(__atomic_exchange_n(&drawn_pair,sides,__ATOMIC_ACQ_REL)&~sides)xz_native_skin_request_repaint();
+ __atomic_store_n(&drawn_layout,XZ_LAYOUT_TWO,__ATOMIC_RELEASE);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
+ pthread_mutex_unlock(&state_mutex);
+ return 1;
+}
 int xz_classic_mixer_runtime_frame(uint16_t *pixels,size_t stride,size_t count,int eligible,int theme,uint32_t now,
  const struct xz_classic_mixer_key keys[2]){
  if(!eligible){xz_classic_mixer_runtime_hide();return 0;}
@@ -83,17 +147,7 @@ int xz_classic_mixer_runtime_frame(uint16_t *pixels,size_t stride,size_t count,i
  }
  /* DECK VIEW alone chooses four channels; decks 3 and 4 are live only with their route up. */
  int live=xz_extra_decks_snapshot_held(&extra,&hold)&&!(xz_native_four_card_success&&xz_native_four_card_success(now));
- unsigned changed=0;
- if(!refreshed||(uint32_t)(now-refreshed_at)>=100u){
-  for(int d=0;d<2;d++){
-   struct xz_shell_deck input={0};
-   if(keys&&keys[d].valid&&keys[d].effective[0]){input.known=XZ_SHELL_KNOWN(XZ_SHELL_F_KEY);input.key=keys[d].effective;}
-   unsigned device=loaded_device(d);if(device)input.known|=XZ_SHELL_KNOWN(XZ_SHELL_F_SOURCE);
-   xz_shell_model_set_input(storage,d,&input,device);
-  }
-  changed=xz_shell_model_refresh(&native,storage,native_read,now);
-  refreshed=1;refreshed_at=now;
- }
+ unsigned changed=refresh_native(now,keys);
  if(xz_shell_model_caution(storage)){
   xz_extra_decks_release_analysis(&extra,&hold);
   pthread_mutex_unlock(&state_mutex);xz_classic_mixer_runtime_hide();return 0;
@@ -144,7 +198,7 @@ int xz_classic_mixer_runtime_frame(uint16_t *pixels,size_t stride,size_t count,i
   xz_classic_column_draw(pixels,stride,count,&column);
  }
  xz_extra_decks_release_analysis(&extra,&hold);
- if(drawn){__atomic_store_n(&drawn_layout,layout,__ATOMIC_RELEASE);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);}
+ if(drawn){__atomic_store_n(&drawn_pair,0u,__ATOMIC_RELEASE);__atomic_store_n(&drawn_layout,layout,__ATOMIC_RELEASE);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);}
  pthread_mutex_unlock(&state_mutex);
  return drawn;
 }

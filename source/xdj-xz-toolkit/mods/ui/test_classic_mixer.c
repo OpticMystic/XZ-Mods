@@ -6,7 +6,53 @@
 #include <assert.h>
 #include <stdlib.h>
 static uint16_t pixels[807*480+2],saved[807*480+2],native_wave[300*34];
+/* 2 DECKS following the sides: a software deck's stock-look panel. */
+static struct xz_extra_column half_wave[3000];
+static void halves(void){
+ for(int i=0;i<3000;i++)half_wave[i]=(struct xz_extra_column){(uint8_t)(80+i%60),50,30};
+ struct xz_extra_decks extra;memset(&extra,0,sizeof extra);extra.route_up=1;
+ for(int i=0;i<2;i++){
+  struct xz_extra_deck *d=&extra.deck[i];d->known=UINT32_MAX;d->loaded=1;snprintf(d->title,sizeof d->title,"Half %d",i);
+  strcpy(d->key,"8A");d->source=1;d->remain=1;d->total_ms=240000;d->elapsed_ms=60000;d->bpm_x100=12800;d->tempo_x100=-150;d->tempo_range=10;
+  d->wave=(struct xz_extra_wave){half_wave,3000,240000,400};d->master=i==1;d->hot_cue[0]=(struct xz_extra_cue){1,30000,0,0};d->cue_ms=59000;
+ }
+ struct xz_classic_mixer_view v={NULL,&extra,1000,0,XZ_LAYOUT_TWO,{NULL,NULL},0};
+ for(int side=0;side<2;side++){
+  assert(xz_classic_half_panel_at(side*400,309)==side&&xz_classic_half_panel_at(side*400+399,479)==side&&xz_classic_half_panel_at(0,308)==-1);
+  struct xz_classic_mixer_rect r=xz_classic_half_overview_rect(side);
+  assert(r.x==side*400+10&&r.y==421&&r.w==300&&r.h==46);
+  assert(xz_classic_half_seek_ms(side,r.x-5,1000)==0&&xz_classic_half_seek_ms(side,r.x+r.w+5,1000)==1000&&xz_classic_half_seek_ms(side,r.x+150,299)==150);
+  for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x5a5a;
+  assert(xz_classic_mixer_half_draw(pixels,807,807*480,&v,2+side));
+  unsigned inside=0,wave=0;
+  for(int y=0;y<480;y++)for(int x=0;x<807;x++){
+   int in=y>=309&&x>=side*400&&x<side*400+400;
+   if(!in)assert(pixels[y*807+x]==0x5a5a);else inside+=pixels[y*807+x]!=0x5a5a;
+  }
+  assert(inside==400u*171u&&pixels[807*480]==0x5a5a);
+  /* The overview has the deck's waveform; the title band carries the deck's number box. */
+  for(int y=423;y<457;y++)for(int x=r.x;x<r.x+300;x++)wave+=pixels[y*807+x]!=(uint16_t)(((0x08>>3)<<11)|((0x0c>>2)<<5)|(0x08>>3));
+  assert(wave>3000);
+  uint16_t box=(uint16_t)(((xz_deck_colour(2+side)>>8)&0xf800)|((xz_deck_colour(2+side)>>5)&0x7e0)|((xz_deck_colour(2+side)>>3)&31));
+  assert(pixels[(309+8)*807+side*400+(side?3:0)+10]==box);
+  memcpy(saved,pixels,sizeof pixels);
+  for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x5a5a;
+  xz_classic_mixer_half_identity(pixels,807,807*480,2+side);
+  for(int y=0;y<480;y++)for(int x=0;x<807;x++)if(pixels[y*807+x]!=0x5a5a)
+   assert(y>=315&&y<339&&x>=side*400+(side?3:0)+8&&x<side*400+(side?3:0)+32);
+ }
+ /* A master deck's BPM box is orange, a following one white; unknown fields stay blank. */
+ for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x5a5a;
+ assert(xz_classic_mixer_half_draw(pixels,807,807*480,&v,3));
+ assert(pixels[(309+92)*807+400+313]==(uint16_t)0xfbc0);
+ assert(!xz_classic_mixer_half_draw(pixels,807,807*480,&v,1)&&!xz_classic_mixer_half_draw(pixels,807,807*480,&v,4));
+ v.extra=NULL;assert(!xz_classic_mixer_half_draw(pixels,807,807*480,&v,2));v.extra=&extra;
+ assert(!xz_classic_mixer_half_draw(pixels,799,807*480,&v,2)&&!xz_classic_mixer_half_draw(pixels,807,807*480-1,&v,2));
+ assert(xz_classic_half_seek_ms(2,0,1000)==-1&&xz_classic_half_seek_ms(0,0,0)==-1);
+ puts("PASS 2 DECKS panel half: exact panel writes, overview waveform, number box, master BPM box, identity box only, seek geometry, guards");
+}
 int main(void){
+ halves();
  const unsigned char *order=xz_deck_layout_order(XZ_LAYOUT_MIXER);
  struct xz_shell_deck native[2]={0};struct xz_extra_decks extra={0};struct xz_classic_mixer_view v={native,&extra,2000,0,XZ_LAYOUT_MIXER,{native_wave,NULL},0};
  for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x5a5a;

@@ -77,6 +77,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_classic_mixer_runtime_visible
 #pragma weak xz_classic_mixer_runtime_hide
 #pragma weak xz_classic_mixer_runtime_native_point
+#pragma weak xz_classic_mixer_runtime_pair_frame
 #pragma weak xz_extra_detail_notice_text
 #include "ui/ui_menu.h"
 #include "ui/layout_cycle.h"
@@ -85,6 +86,8 @@ static uint32_t ram_debug_sample_ms;
 #include "ui/classic_column.h"
 #pragma weak xz_native_four_card
 #pragma weak xz_native_four_card_input
+/* 2 DECKS follows the sides (FOUR_DECK.md): the halves the wave last painted as DECK 3 or 4. */
+#pragma weak xz_native_two_pair
 #pragma weak xz_shell_runtime_take_deck_view
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
 #pragma weak xz_shell_runtime_start
@@ -917,7 +920,7 @@ static _Thread_local struct {
     int metrics_enabled;struct xz_metrics_sample metrics;
     uint32_t scene,colors[3];
     struct xz_ui_transient_notice notice;
-    int dv,dv_view,dv_ready,dv_open,dv_tile,dv_focus; /* the DECK VIEW button and picker badge() painted */
+    int dv,dv_view,dv_ready,dv_open,dv_tile,dv_focus,dv_pair; /* the DECK VIEW button and picker badge() painted */
 } badge_frame_cache;
 static struct xz_ui_transient_notice async_notice;
 static _Thread_local struct xz_ui_notice_pixels notice_pixels;
@@ -2478,6 +2481,21 @@ static int browse_head_touch(const struct xz_touch_status *status, int previous_
     return 1;
 }
 static int classic_native_two(void){return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&xz_native_four_order()<0;}
+/* CLASSIC 2 DECKS: the sides whose half shows DECK 3 or 4 now (bit 0 left, bit 1 right), as the wave last painted
+   them; 0 in four-deck views, MODERN or without the wave transaction. The column, panels, key slots and touch
+   all follow this one value, so a half switches as a whole. */
+static unsigned classic_pair(void){
+    return model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&xz_native_two_pair&&xz_native_four_order()<0?xz_native_two_pair()&3u:0u;
+}
+/* The software decks the CLASSIC key slots address: every side's in a four-deck view; in 2 DECKS only a side whose
+   half shows its software deck, so the slot over a stock half stays that native deck's. */
+static const struct xz_extra_decks *classic_key_extra(struct xz_extra_decks *extra,int have){
+    if(!have)return NULL;
+    if(!classic_native_two())return extra;
+    unsigned pair=classic_pair();if(!pair)return NULL;
+    extra->left_on_3=extra->left_on_3&&(pair&1u);extra->right_on_4=extra->right_on_4&&(pair&2u);
+    return extra;
+}
 /* The card the wave transaction last painted, hit in its surface (screen 131,18). word: what was painted. */
 static int dv_card_hit(int x,int y,uint32_t *word_out){
     uint32_t word=xz_native_four_card?xz_native_four_card():0;
@@ -2505,7 +2523,9 @@ static int stem_row_at_locked(int x,int y){
     if(touch.visible||(model.fb_takeover&&model.connection.connected)||!xz_native_inline_active()||
        xz_native_four_order()>=0||x<131||x>=667)return -1;
     struct xz_wave_layout g;
-    return xz_wave_layout_get(model.stems_overlay,&g)?xz_wave_layout_control_at(&g,y-18):-1;
+    int deck=xz_wave_layout_get(model.stems_overlay,&g)?xz_wave_layout_control_at(&g,y-18):-1;
+    /* A half showing DECK 3 or 4 has no stem rows. */
+    return deck>=0&&(classic_pair()&(1u<<deck))?-1:deck;
 }
 /* DECK VIEW touch in CLASSIC, before every other play-screen owner: the open picker takes any touch (a tile
    applies, outside closes), the button opens it, the card's RESCAN / TRY AGAIN wakes the connector and its
@@ -2596,7 +2616,7 @@ static int play_key_binding_valid(const struct xz_play_key *key){
     if(key->classic_side>=0){
         struct xz_extra_decks extra;int have=play_key_extra_locked(&extra);
         if(!have&&(key->source_frame||xz_native_four_order()>=0))return 0;
-        if(xz_classic_key_target(have&&!classic_native_two()?&extra:NULL,key->classic_side)!=key->selected_deck)return 0;
+        if(xz_classic_key_target(classic_key_extra(&extra,have),key->classic_side)!=key->selected_deck)return 0;
     }
     return 1;
 }
@@ -2628,7 +2648,7 @@ static int play_key_touch_locked(void *self,const struct xz_touch_status *status
         else if(xz_native_play_visible()&&(xz_native_inline_active()||xz_native_four_order()>=0)){
             side=xz_classic_key_slot_at(&classic_keys,(int)status->x,(int)status->y);
             if(side>=0){
-                int target=xz_classic_key_target(have_extra&&!classic_native_two()?&extra:NULL,side);
+                int target=xz_classic_key_target(classic_key_extra(&extra,have_extra),side);
                 if((!have_extra&&xz_native_four_order()>=0)||target!=classic_keys.deck[side]){
                     play_key.down=1;classic_keys.shown=0;xz_native_skin_request_repaint();return 1;
                 }
@@ -2653,9 +2673,11 @@ static int four_header_strip(const struct xz_touch_status *s) {
 /* Needle search from the panel's strip (ui_mutex held; the players only enqueue). The deck must be loaded,
    its length known and paused or physically held: stock NEEDLE LOCK still blocks released platter coast.
    One search per strip column; a refusal raises its notice once per contact. */
+enum { SEEK_PANEL, SEEK_MIXER, SEEK_HALF };
 static void four_seek(int deck, int x, int mixer) {
     struct xz_extra_detail_box b=xz_extra_detail_box(XZ_EXTRA_DETAIL_OVERVIEW);
-    if(mixer){struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(mixer_contact.layout,deck+2);b=(struct xz_extra_detail_box){r.x,r.y,r.w,r.h};}
+    if(mixer==SEEK_MIXER){struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(mixer_contact.layout,deck+2);b=(struct xz_extra_detail_box){r.x,r.y,r.w,r.h};}
+    if(mixer==SEEK_HALF){struct xz_classic_mixer_rect r=xz_classic_half_overview_rect(deck);b=(struct xz_extra_detail_box){r.x,r.y,r.w,r.h};}
     int column=x<b.x?b.x:x>=b.x+b.w?b.x+b.w-1:x;
     if(column==four_seek_column)return;
     four_seek_column=column;
@@ -2666,7 +2688,8 @@ static void four_seek(int deck, int x, int mixer) {
         if(refusal==XZ_EXTRA_DETAIL_NOTICE_NONE){
             struct xz_extra_deck_event event;memset(&event,0,sizeof(event));
             event.deck=deck;event.kind=XZ_EXTRA_IN_SEEK;event.pressed=1;
-            event.seek_ms=mixer?xz_classic_mixer_seek_ms(mixer_contact.layout,deck+2,column,now.deck[deck].total_ms):
+            event.seek_ms=mixer==SEEK_HALF?xz_classic_half_seek_ms(deck,column,now.deck[deck].total_ms):
+                          mixer?xz_classic_mixer_seek_ms(mixer_contact.layout,deck+2,column,now.deck[deck].total_ms):
                                xz_extra_detail_seek_ms(column,now.deck[deck].total_ms);
             if(xz_extra_deck_input(&event))return;
             refusal=XZ_EXTRA_DETAIL_NOTICE_REFUSED;
@@ -2715,7 +2738,7 @@ static int mixer_touch(void *self,const struct xz_touch_status *status,const voi
     if(mixer_contact.kind==3&&(status->down||status->x||status->y)&&xz_classic_column_deck_at(mixer_contact.layout,x,y)!=deck)
         mixer_contact.cancelled=1;
     if(mixer_contact.kind==1&&!mixer_contact.cancelled&&status->down){
-        if(deck>=2)four_seek(deck-2,x,1);
+        if(deck>=2)four_seek(deck-2,x,SEEK_MIXER);
         else{
             struct xz_classic_mixer_rect r=xz_classic_mixer_overview_rect(mixer_contact.layout,deck);
             if(x<r.x)x=r.x;else if(x>=r.x+r.w)x=r.x+r.w-1;
@@ -2749,6 +2772,34 @@ static int mixer_touch(void *self,const struct xz_touch_status *status,const voi
         }
         mixer_contact.active=0;
     }
+    return 1;
+}
+/* CLASSIC 2 DECKS: a side whose half shows DECK 3 or 4 owns every contact that begins on that half: its wave half,
+   its half of the side column and its bottom panel. Stock never sees such a contact as a DECK 1 or 2 touch. The
+   panel's overview searches the software deck under the NEEDLE LOCK rule (a refusal says why); the key slot went
+   to the key controls before this; the rest of the half is inert. The contact keeps its side and stays owned to
+   its release, also when the half returns to stock under the finger (a switch, route loss). */
+static struct { int active,side,seek; } pair_contact;
+static int pair_half_at(const struct xz_touch_status *s){
+    int x=(int)s->x,y=(int)s->y;
+    if(x>=131&&x<131+XZ_WAVE_WIDTH&&y>=18&&y<18+XZ_WAVE_HEIGHT)
+        return four_header_strip(s)?-1:y-18>=XZ_WAVE_SECOND_LANE_Y; /* the right half from the separator row */
+    int side=xz_classic_column_half_at(x,y);
+    return side>=0?side:xz_classic_half_panel_at(x,y);
+}
+static int pair_touch(const struct xz_touch_status *status,int previous_down){
+    if(!pair_contact.active){
+        if(!status->down||previous_down||touch.visible||(model.fb_takeover&&model.connection.connected)||
+           game_locked()!=GAME_NONE||play_key.open||touch.capture||inline_contact||inline_wave_contact||four_contact||
+           mixer_contact.active||!xz_native_play_visible())return 0;
+        unsigned pair=classic_pair();int side=pair?pair_half_at(status):-1;
+        if(side<0||!(pair&(1u<<side)))return 0;
+        struct xz_classic_mixer_rect r=xz_classic_half_overview_rect(side);
+        pair_contact.active=1;pair_contact.side=side;four_seek_column=-1;four_seek_noticed=0;
+        pair_contact.seek=(int)status->x>=r.x&&(int)status->x<r.x+r.w&&(int)status->y>=r.y&&(int)status->y<r.y+r.h;
+    }
+    if(pair_contact.seek&&status->down&&(classic_pair()&(1u<<pair_contact.side)))four_seek(pair_contact.side,(int)status->x,SEEK_HALF);
+    if(!status->down)pair_contact.active=0;
     return 1;
 }
 static void touch_hook(void *self, const struct xz_touch_status *status, const void *mode) {
@@ -2791,6 +2842,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     int previous_down=((const unsigned char *)self)[4]!=0;
     if(shortcut_touch(self,status,mode,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
     if(browse_head_touch(status,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
+    if(pair_touch(status,previous_down)){pthread_mutex_unlock(&ui_mutex);return;}
     /* Stock DECK 1 / DECK 2 select ({0,18,115,140} and {0,161,115,140}); VJ.TOOLS ends above it. */
     if(!touch.visible&&!previous_down&&status->down&&status->x<115&&status->y>=XZ_TOP_BAR_H&&xz_native_four_order()<0){
         if(status->y>=18&&status->y<159)ui.deck=inline_ui.deck=0;
@@ -2870,7 +2922,7 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
         }
         if(four_contact&&(status->down||status->x||status->y)){
             if(four_panel_hit==XZ_EXTRA_DETAIL_OVERVIEW&&four_panel_deck==detail&&status->down){
-                four_seek(four_panel_deck,sx,0);four_repaint=1;
+                four_seek(four_panel_deck,sx,SEEK_PANEL);four_repaint=1;
             }
             else if(four_panel_hit>XZ_EXTRA_DETAIL_PANEL&&four_panel_hit!=XZ_EXTRA_DETAIL_OVERVIEW&&
                     xz_extra_detail_hit(sx,sy)!=four_panel_hit)four_panel_hit=XZ_EXTRA_DETAIL_PANEL;
@@ -3031,7 +3083,7 @@ static void badge(uint16_t *pixels, uint32_t stride) {
     if(!model.fb_takeover)xz_ui_notice_badge(pixels,stride,model.theme,&async_notice,xz_game_milliseconds(),&notice_pixels);
     xz_metrics_draw(pixels,stride,model.theme,model.metrics_enabled,&model.metrics,xz_game_milliseconds());
     struct xz_extra_decks extra;int have_extra=play_key_extra_locked(&extra);
-    xz_classic_key_render(&classic_keys,&model,have_extra&&!classic_native_two()?&extra:NULL,play&&!model.fb_takeover,
+    xz_classic_key_render(&classic_keys,&model,classic_key_extra(&extra,have_extra),play&&!model.fb_takeover,
         xz_native_four_order(),pixels,stride);
     dv.painted=0;badge_frame_cache.dv=0;
     if(play&&!model.fb_takeover&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!model.deck_view_button)dv.open=0;
@@ -3043,10 +3095,11 @@ static void badge(uint16_t *pixels, uint32_t stride) {
         if(!dv_picker_live(now))dv.open=0;
         if(dv.focus!=DV_FOCUS_NONE&&!dv_focus_live(now)){dv.focus=DV_FOCUS_NONE;dv_publish_card();}
         struct xz_canvas c={pixels,stride,800,480,model.theme};
-        xz_deck_view_button_draw(c,&xz_deck_view_classic,view,ready,0,dv.open,dv.focus==DV_FOCUS_BUTTON);
+        int pair=view==XZ_LAYOUT_TWO?(int)classic_pair():0;
+        xz_deck_view_button_draw(c,&xz_deck_view_classic,view,ready,pair,dv.open,dv.focus==DV_FOCUS_BUTTON);
         if(dv.open)xz_deck_view_picker_draw(c,&xz_deck_view_classic,view,ready,dv.tile);
         dv.painted=1;dv.painted_open=dv.open;dv.painted_view=view;
-        badge_frame_cache.dv=1;badge_frame_cache.dv_view=view;badge_frame_cache.dv_ready=ready;
+        badge_frame_cache.dv=1;badge_frame_cache.dv_view=view;badge_frame_cache.dv_ready=ready;badge_frame_cache.dv_pair=pair;
         badge_frame_cache.dv_open=dv.open;badge_frame_cache.dv_tile=dv.tile;badge_frame_cache.dv_focus=dv.focus==DV_FOCUS_BUTTON;
     }
     __atomic_store_n(&classic_key_visible,!!classic_keys.shown,__ATOMIC_RELEASE);
@@ -3112,7 +3165,7 @@ void xz_ui_runtime_on_source_key(int source) {
 
 static int classic_mixer_present(uint16_t *pixels,size_t stride,size_t count,int eligible,int theme,
                                 const struct xz_key_strip_deck keys[2]) {
-    if(!xz_classic_mixer_runtime_frame)return 0;
+    if(!xz_classic_mixer_runtime_frame&&!xz_classic_mixer_runtime_pair_frame)return 0;
     struct xz_classic_mixer_key names[2];memset(names,0,sizeof names);
     for(int d=0;d<2;d++)if(keys&&keys[d].valid){
         names[d].valid=1;names[d].cents=keys[d].cents;
@@ -3120,6 +3173,11 @@ static int classic_mixer_present(uint16_t *pixels,size_t stride,size_t count,int
         snprintf(names[d].original,sizeof names[d].original,"%s",keys[d].original);
     }
     int layout=xz_deck_layout_get(),order=xz_native_four_order();
+    if(layout==XZ_LAYOUT_TWO&&xz_classic_mixer_runtime_pair_frame){
+        unsigned pair=eligible&&xz_native_play_visible()?classic_pair():0u;
+        return xz_classic_mixer_runtime_pair_frame(pixels,stride,count,eligible&&pair,theme,xz_game_milliseconds(),names,pair);
+    }
+    if(!xz_classic_mixer_runtime_frame)return 0;
     eligible=eligible&&xz_native_play_visible()&&layout!=XZ_LAYOUT_TWO&&
         order==(layout==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED);
     return xz_classic_mixer_runtime_frame(pixels,stride,count,eligible,theme,xz_game_milliseconds(),names);
@@ -3151,7 +3209,7 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
                 xz_metrics_draw(pixels,stride,badge_frame_cache.theme,badge_frame_cache.metrics_enabled,&badge_frame_cache.metrics,xz_game_milliseconds());
                 if(badge_frame_cache.dv){
                     struct xz_canvas c={pixels,stride,800,480,badge_frame_cache.theme};
-                    xz_deck_view_button_draw(c,&xz_deck_view_classic,badge_frame_cache.dv_view,badge_frame_cache.dv_ready,0,
+                    xz_deck_view_button_draw(c,&xz_deck_view_classic,badge_frame_cache.dv_view,badge_frame_cache.dv_ready,badge_frame_cache.dv_pair,
                         badge_frame_cache.dv_open,badge_frame_cache.dv_focus);
                     if(badge_frame_cache.dv_open)xz_deck_view_picker_draw(c,&xz_deck_view_classic,badge_frame_cache.dv_view,
                         badge_frame_cache.dv_ready,badge_frame_cache.dv_tile);

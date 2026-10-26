@@ -34,4 +34,22 @@ static inline int xz_classic_mixer_native_point(int layout,int d,int x,int y,int
 /* Returns 1 only when drawn: decks 3 and 4 live (extra->route_up), or placeholders. Requires full 800x480
    capacity; no writes outside x0..799,y311..479 or to stride padding. No allocation, IO or model mutation. */
 int xz_classic_mixer_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_classic_mixer_view *view);
+
+/* 2 DECKS while a side controls DECK 3 or 4 (FOUR_DECK.md "2 DECKS follows the sides"): that side's stock deck
+   panel, x 0..399 (left) or 400..799 (right) from y 309, is the mod's, in the stock look. The whole-track
+   overview and the bar under it search the software deck (the NEEDLE LOCK rule of extra_detail.h). */
+#define XZ_CLASSIC_HALF_PANEL_Y 309
+static inline int xz_classic_half_panel_x(int side){return side?400:0;}
+static inline int xz_classic_half_panel_at(int x,int y){return x>=0&&x<800&&y>=XZ_CLASSIC_HALF_PANEL_Y&&y<480?x/400:-1;}
+static inline struct xz_classic_mixer_rect xz_classic_half_overview_rect(int side){return (struct xz_classic_mixer_rect){xz_classic_half_panel_x(side)+10,421,300,46};}
+/* Track position under x (clamped to the overview), or -1 for a bad side or unknown length. */
+static inline int32_t xz_classic_half_seek_ms(int side,int x,int32_t total){
+ if(side<0||side>1||total<=0)return -1;
+ struct xz_classic_mixer_rect r=xz_classic_half_overview_rect(side);int64_t p=(int64_t)x-r.x;if(p<0)p=0;if(p>=r.w)p=r.w-1;
+ return (int32_t)(p*total/(r.w-1));
+}
+/* deck 2 (DECK 3, left) or 3 (DECK 4, right) from view->extra. Writes only that panel. 1 when drawn. */
+int xz_classic_mixer_half_draw(uint16_t *pixels,size_t stride,size_t count,const struct xz_classic_mixer_view *view,int deck);
+/* After a theme map over the panel: its number box again, in its own colours. Writes only the box. */
+void xz_classic_mixer_half_identity(uint16_t *pixels,size_t stride,size_t count,int deck);
 #endif

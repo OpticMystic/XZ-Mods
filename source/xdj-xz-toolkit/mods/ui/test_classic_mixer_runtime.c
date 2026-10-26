@@ -19,6 +19,25 @@ void xz_extra_decks_release_analysis(struct xz_extra_decks *out,struct xz_extra_
  for(int i=0;i<2;i++){out->deck[i].wave.columns=NULL;out->deck[i].grid=NULL;}
 }
 void xz_native_skin_request_repaint(void){repaints++;}
+/* The native theme map: off unless a test turns it on; then it flips the low bits of each mapped pixel. */
+static int fixture_theme;static unsigned mapped_pixels;
+int xz_mods_native_style_v1(void){return fixture_theme;}
+void xz_mods_native_pixels_v1(uint16_t *p,uint32_t n){mapped_pixels+=n;for(uint32_t i=0;i<n;i++)p[i]^=0x0841;}
+/* 2 DECKS following the sides: a pixel of a side's half (column x 0..129, y 18..159 / 160..308; panel from y 309). */
+static int in_half(int side,int x,int y){
+ return (x<130&&y>=xz_classic_column_half_y(side)&&y<xz_classic_column_half_y(side)+xz_classic_column_half_h(side))||
+        (y>=309&&x>=side*400&&x<side*400+400);
+}
+static uint16_t pair_base[800*480],pair_plain[800*480];
+static void pair_fill(uint16_t *p){for(unsigned i=0;i<800*480;i++)p[i]=pair_base[i];}
+/* Pixels the frame changed, each inside a half of sides; returns how many. */
+static unsigned pair_changed(const uint16_t *p,unsigned sides){
+ unsigned n=0;
+ for(int y=0;y<480;y++)for(int x=0;x<800;x++)if(p[y*800+x]!=pair_base[y*800+x]){
+  assert(((sides&1u)&&in_half(0,x,y))||((sides&2u)&&in_half(1,x,y)));n++;
+ }
+ return n;
+}
 static uint16_t pixels[800*480],footer_pixels[300*34];
 int main(void){
  fixture();put32(0x3eaff7c,0);fixture_extra.route_up=1;
@@ -78,6 +97,69 @@ int main(void){
  assert(!active_holds&&acquires==releases);
  fixture_layout=XZ_LAYOUT_TWO;unsigned held_before=acquires;
  assert(!xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1450,keys)&&held_before==acquires);
+ fixture_layout=XZ_LAYOUT_FOUR;
+
+ /* 2 DECKS following the sides. */
+ put32(0x3eaff7c,0);fixture_layout=XZ_LAYOUT_TWO;
+ fixture_extra.route_up=1;fixture_extra.left_on_3=1;fixture_extra.right_on_4=0;
+ fixture_extra.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TITLE)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY);
+ snprintf(fixture_extra.deck[0].title,sizeof fixture_extra.deck[0].title,"Fixture");strcpy(fixture_extra.deck[0].key,"8A");
+ fixture_extra.deck[1]=fixture_extra.deck[0];
+ for(unsigned i=0;i<800*480;i++)pair_base[i]=(uint16_t)(i*2654435761u>>9);
+ /* Left on DECK 3: exactly its column half and its panel. */
+ pair_fill(pixels);
+ assert(xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2000,keys,1u));
+ assert(xz_classic_mixer_runtime_pair()==1u&&xz_classic_mixer_runtime_visible()&&!active_holds&&acquires==releases);
+ assert(pair_changed(pixels,1u)>50000);
+ memcpy(pair_plain,pixels,sizeof pair_plain);
+ /* The wave painted both sides, the snapshot says only the left: only the left is drawn. */
+ pair_fill(pixels);assert(xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2010,keys,3u));
+ assert(xz_classic_mixer_runtime_pair()==1u&&pair_changed(pixels,1u)>50000);
+ /* The snapshot has both, the wave painted the left only: only the left. */
+ fixture_extra.right_on_4=1;
+ pair_fill(pixels);assert(xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2020,keys,1u));
+ assert(xz_classic_mixer_runtime_pair()==1u&&pair_changed(pixels,1u)>50000);
+ /* Both. */
+ unsigned before_pair=repaints;
+ pair_fill(pixels);assert(xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2030,keys,3u));
+ assert(xz_classic_mixer_runtime_pair()==3u&&pair_changed(pixels,3u)>100000&&repaints==before_pair);
+ /* The right side back on DECK 2: one native repaint gives its stock half back. */
+ fixture_extra.right_on_4=0;
+ pair_fill(pixels);assert(xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2040,keys,1u));
+ assert(xz_classic_mixer_runtime_pair()==1u&&repaints==before_pair+1&&pair_changed(pixels,1u));
+ /* Route loss: nothing drawn, hidden, one repaint, the hold released. */
+ fixture_extra.route_up=0;fixture_extra.left_on_3=0;
+ pair_fill(pixels);assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2050,keys,1u));
+ assert(!xz_classic_mixer_runtime_visible()&&!xz_classic_mixer_runtime_pair()&&repaints==before_pair+2&&!pair_changed(pixels,0));
+ assert(!active_holds&&acquires==releases);
+ /* MODS, a game or a takeover (not eligible), or the wave painting no pair: hidden without a snapshot. */
+ fixture_extra.route_up=1;fixture_extra.left_on_3=1;
+ assert(xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2060,keys,1u));
+ unsigned taken=acquires;before_pair=repaints;
+ pair_fill(pixels);assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,0,0,2070,keys,1u));
+ assert(!xz_classic_mixer_runtime_visible()&&repaints==before_pair+1&&acquires==taken&&!pair_changed(pixels,0));
+ assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2080,keys,0u)&&acquires==taken);
+ /* A native caution owns the screen. */
+ put32(0x3eaff7c,1);refreshed=0;
+ assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2090,keys,1u)&&!xz_classic_mixer_runtime_visible());
+ put32(0x3eaff7c,0);refreshed=0;
+ /* A four-deck view has no halves. */
+ fixture_layout=XZ_LAYOUT_FOUR;assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2100,keys,1u));
+ fixture_layout=XZ_LAYOUT_TWO;
+ /* A theme maps the halves like the stock beside them, then the number boxes go back in their own colours. */
+ fixture_theme=1;mapped_pixels=0;
+ pair_fill(pixels);assert(xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2110,keys,1u));
+ assert(mapped_pixels==130u*142u+400u*171u);
+ uint16_t rose=(uint16_t)(((0xe8>>3)<<11)|((0x7c>>2)<<5)|(0x92>>3));
+ assert(pixels[(18+10)*800+6]==rose&&pixels[(309+10)*800+10]==rose);
+ unsigned themed=0;for(int y=0;y<480;y++)for(int x=0;x<800;x++){
+  if(!in_half(0,x,y))assert(pixels[y*800+x]==pair_base[y*800+x]);
+  else if(pixels[y*800+x]==(uint16_t)(pair_plain[y*800+x]^0x0841))themed++;
+ }
+ assert(themed>50000);
+ fixture_theme=0;
+ assert(!active_holds&&acquires==releases);
+ puts("PASS 2 DECKS pair frame: only halves both the wave and the snapshot put on DECK 3/4, repaint when a half goes back, route loss / not eligible / caution / four-deck hide, theme map with boxes kept, holds balanced");
  fixture_layout=XZ_LAYOUT_FOUR;
  xz_classic_mixer_runtime_stop();
  assert(!xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1500,keys));
