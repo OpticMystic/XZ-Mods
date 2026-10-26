@@ -421,6 +421,11 @@ static void encoder(void){
  assert(xz_ui_describe(&u,&m,&info)&&!strcmp(info.state,"ADJUSTING"));
  assert(xz_ui_back(&u,a)==0&&!u.adjusting&&u.page==XZ_UI_BEAT_JUMP);
  assert(xz_ui_encoder_turn(&u,&m,1,a)==0&&xz_ui_focused(&u,&m,&f)&&f.kind==XZ_UI_JUMP_PAIR&&f.index==6);
+ /* Page 1 on STOCK plays the player's own sizes: push on a greyed pair says so and does not start editing. */
+ m.jump.enabled=0;u.jump_edit_page=0;u.focus_kind=XZ_UI_JUMP_PAIR;u.focus_index=0;u.focus_deck=-1;
+ assert(xz_ui_encoder_push(&u,&m,a)>=1&&a[0].kind==XZ_UI_UNAVAILABLE&&!u.adjusting);
+ assert(xz_ui_encoder_turn(&u,&m,1,a)==0);
+ m.jump.enabled=1;
  /* The X-PAD volume slider is edited by turning, never jumped to the middle. */
  u.page=XZ_UI_XPAD;m.enabled|=XZ_UI_SAMPLE;u.focus_kind=XZ_UI_VOLUME;u.focus_index=0;u.focus_deck=-1;
  assert(xz_ui_encoder_push(&u,&m,a)==0&&u.adjusting);

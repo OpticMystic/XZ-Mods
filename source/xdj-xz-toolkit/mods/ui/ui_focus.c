@@ -101,7 +101,8 @@ size_t xz_ui_encoder_push(struct xz_ui *u,const struct xz_ui_model *m,struct xz_
  size_t released=xz_ui_touch(u,m,a.x+a.w/2,a.y+a.h/2,0,release),total=0;
  for(size_t k=0;k<pressed&&total<XZ_UI_ACTIONS;k++)out[total++]=press[k];
  for(size_t k=0;k<released&&total<XZ_UI_ACTIONS;k++)out[total++]=release[k];
- if(a.kind==XZ_UI_JUMP_PAIR&&u->page==XZ_UI_BEAT_JUMP)u->adjusting=1;
+ /* A pair STOCK greys out cannot be edited: its push only says why. */
+ if(a.kind==XZ_UI_JUMP_PAIR&&u->page==XZ_UI_BEAT_JUMP&&xz_ui_widget_ready(u,m,&a))u->adjusting=1;
  /* Section tabs inside a page survive the page change, so focus stays on the one pushed.
     Rail tabs and links open a new page and start at its first control. */
  if(a.kind==XZ_UI_CONTROL_SECTION){u->focus_kind=a.kind;u->focus_index=a.index;u->focus_deck=a.deck;}
