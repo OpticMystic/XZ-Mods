@@ -4,6 +4,7 @@
 #include "shell/shell_settings.h"
 #include "shell/shell_browse.h"
 #include "settings.h"
+#include "ui/deck_view.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -483,6 +484,14 @@ enum xz_shrt_extra_route xz_shrt_extra_action(const struct xz_shell_model *m, co
   e->kind=XZ_EXTRA_IN_SEEK;e->seek_ms=a->value;return XZ_SHRT_EXTRA_INPUT;
  }
  return XZ_SHRT_EXTRA_REFUSE;
+}
+const char *xz_shrt_pair_notice(struct xz_shrt_pair_seen *seen, const struct xz_shell_model *m, int deck_view, uint32_t now_ms) {
+ if(!seen||!m)return NULL;
+ if(m->deck_count!=XZ_SHELL_DECKS){seen->valid=0;return NULL;}
+ unsigned pair=m->sides_extra&3u;const char *text=NULL;
+ if(seen->valid&&now_ms-seen->at_ms<1000u&&deck_view==XZ_LAYOUT_TWO)text=xz_deck_view_pair_notice(seen->pair,pair);
+ seen->valid=1;seen->pair=pair;seen->at_ms=now_ms;
+ return text;
 }
 int xz_shrt_extra_notice(uint32_t *seen, const struct xz_extra_decks *s, uint32_t mono_now) {
  if(!s||s->notice_seq==*seen)return 0;

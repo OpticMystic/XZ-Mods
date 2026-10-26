@@ -6,6 +6,7 @@
 #error Shell runtime acceptance requires active assertions
 #endif
 #include "shell_runtime.h"
+#include "ui/deck_layout.h"
 #include "settings.h"
 #include "shell_library.h"
 #include "shell/fixtures.h"
@@ -860,6 +861,23 @@ static void extra_decks(void) {
  s.notice_seq=2;s.notice_at_ms=1000;assert(!xz_shrt_extra_notice(&seen,&s,1000+XZ_SHELL_NOTICE_MS)&&seen==2);
  s.notice_seq=3;s.notice[0]=0;assert(!xz_shrt_extra_notice(&seen,&s,1000));
  assert(!xz_shrt_extra_notice(&seen,NULL,1000));
+ /* 2 DECKS: a side switching deck while the shell draws says where it went, once; four-deck views, a refresh
+    gap and the route going down say nothing. */
+ {
+  struct xz_shell_model pm;memset(&pm,0,sizeof pm);struct xz_shrt_pair_seen ps={0};
+  pm.deck_count=XZ_SHELL_DECKS;
+  assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,100));
+  pm.sides_extra=1;assert(!strcmp(xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,150),"LEFT: DECK 3"));
+  assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,200));
+  pm.sides_extra=3;assert(!strcmp(xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,250),"RIGHT: DECK 4"));
+  pm.sides_extra=0;assert(!strcmp(xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,300),"LEFT: DECK 1  RIGHT: DECK 2"));
+  pm.sides_extra=2;assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_FOUR,350));
+  pm.sides_extra=0;assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,2000));
+  pm.sides_extra=1;assert(!strcmp(xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,2100),"LEFT: DECK 3"));
+  pm.deck_count=2;pm.sides_extra=0;assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,2150));
+  pm.deck_count=XZ_SHELL_DECKS;assert(!xz_shrt_pair_notice(&ps,&pm,XZ_LAYOUT_TWO,2200));
+  assert(!xz_shrt_pair_notice(NULL,&pm,XZ_LAYOUT_TWO,2250)&&!xz_shrt_pair_notice(&ps,NULL,XZ_LAYOUT_TWO,2250));
+ }
  /* The resolver's row copy. */
  struct xz_extra_track t;
  assert(!xz_shrt_extra_track(&t,2,99,"/media/usb2/sda1","/Contents/A/b.mp3","Title","Artist","Fm",12850));

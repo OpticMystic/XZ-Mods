@@ -7,7 +7,9 @@ DECK 3 and DECK 4 are software players in the runtime, heard on mixer CH3 and
 CH4 through the USB loopback route. The players publish `struct xz_extra_decks`
 (`../extra_decks.h`); this page is how the classic (Pioneer-drawn) play screen
 shows them. DECK VIEW (`deck_view.h`) chooses what the play screen shows: 2 DECKS
-keeps the unchanged native two-deck path with the saved stem layout; 4 DECKS in
+shows the two decks the physical sides control (see "2 DECKS follows the sides";
+with both sides on DECK 1 and 2 it is the unchanged native two-deck path with the
+saved stem layout); 4 DECKS in
 number order (1 2 3 4) or mixer order (3 1 2 4) shows four lanes whether or not
 decks 3 and 4 are connected. While they are not, their lanes carry the card
 described under "Decks 3 and 4 not connected".
@@ -55,7 +57,78 @@ WORKS ON chips and the 4 DECKS grid's column heads in MODS, and the DECKS
 button and picker colour their numbers the same way. The driven-deck highlight (blue or pale blue fill with the arrow, LEFT
 or RIGHT) and USB stick colours stay on the rest of the tag. The CLASSIC
 theme pass recolours the wave surface, so `style_four` puts the boxes back
-afterwards (`xz_four_identity_draw`). 2 DECKS screens are unchanged.
+afterwards (`xz_four_identity_draw`). 2 DECKS screens with both sides on DECK 1
+and 2 are unchanged; a 2 DECKS half showing DECK 3 or 4 carries its box (below).
+
+## 2 DECKS follows the sides
+
+2 DECKS shows the decks the two physical sides control now. SHIFT pressed twice
+on a side (`deck_select.h`, the stock-style switch; same presses as stock) or
+SHORTCUT > DECK SELECT moves the left side between DECK 1 and DECK 3 and the
+right side between DECK 2 and DECK 4 while the CH3/CH4 route is up, and the
+screen follows: the whole half of that side switches, waveform, side column and
+bottom panel together. No new gesture: a double press of SHORTCUT would change a
+stock press sequence (decision D11).
+
+CLASSIC. The stock firmware draws DECK 1 and DECK 2, so a side on DECK 3 or 4
+gets a mod-drawn half in the stock look; the other side stays stock:
+
+- Wave surface: the side's half (rows 0..131 left, 132..267 right) is the
+  software deck as a whole 132-row native lane (`xz_extra_lane_draw_full`, the
+  row map is one to one), drawn in the wave transaction before the one theme
+  pass (`xz_native_wave_finish_pair`): the native side's layered pixels are kept
+  for the native side only (`xz_layered_wave_protect_decks`), the software layers
+  by `xz_two_protect`, then the native side alone takes its stem layout and rows
+  (`xz_wave_layout_pixels_decks`). A software half has no stem rows and no lane
+  tag: the side column beside it names the deck, as it names DECK 1 and 2. The
+  right half's separator rows 132..135 stay black. The draw thread publishes the
+  pair it painted (`xz_native_two_pair`, bit 0 left on DECK 3, bit 1 right on
+  DECK 4), revoked with the play scene; everything else follows that one value.
+- Side column: the side's half (x 0..129, y 18..159 or 160..308) is redrawn as
+  the stock tag (`xz_classic_column_half_draw`): the stock tab shape and gradient
+  with the deck's colour box where the stock tab has its bar, DECK 3 or DECK 4,
+  source, key, and the key slot that opens the key controls for that deck.
+- Bottom panel: the side's 400-pixel stock panel (`xz_classic_mixer_half_draw`):
+  title band with the deck's colour box where the note is, DECK n, the time mode,
+  QUANTIZE, TEMPO and range, source and key where TRACK is, A.CUE and MT boxes,
+  the clock, what SYNC follows and what the pads do under it (END when the track
+  ends), tempo, the BPM box (orange with MASTER for a master deck) and the
+  whole-track overview with cue marks, position line and bar.
+- The column and panel halves are drawn by `xz_classic_mixer_runtime_pair_frame`
+  only for sides both the painted pair and the players' snapshot put on DECK 3
+  or 4, never over MODS, a game, a native caution or a takeover. In a theme they
+  go through the active theme map like the stock halves beside them, then the
+  number boxes are drawn again in their own colours. A half returning to stock
+  (a switch back, route loss, MODS) asks for one native repaint.
+- Touch: a contact that begins on a software half (its wave rows, its column
+  half, its panel) is the mod's until release, also if the half returns to stock
+  under the finger; stock never sees it as a DECK 1 or 2 touch. The panel's
+  overview and bar (x 10..309 of the panel, y 421..466) needle-search the
+  software deck under NEEDLE LOCK, a refusal raising its line in the top bar's
+  notice; the key slot opens the key controls first; the rest is inert. The
+  header strip keeps its touches. The DECKS button names the pair ("DECKS 3 2").
+- Route loss: the players drop both sides to DECK 1 and 2 (`deck_select` epoch);
+  the next wave frame is the stock frame, the halves hide and a repaint returns
+  the stock column and panel.
+
+MODERN. The shell already draws the assigned pair from one model, so the
+waveform lane, info column and bottom strip switch in the same frame; DECK 3 or
+4 there now carries its colour box on its tag and strip badge.
+
+Colour boxes in 2 DECKS: DECK 3 and DECK 4 carry their identity box (and their
+coloured digit on the DECKS button) whenever they are on screen; DECK 1 and 2
+keep the plain stock number. A 2 DECKS screen can now read 1 2, 3 2, 1 4 or 3 4,
+so the box tells at a glance that a half shows a software deck and which one,
+the same rose 3 / violet 4 the DJ meets on the four-deck screens and the
+mixer. Keeping 1 and 2 plain leaves the normal case byte-identical and puts the
+colour only where something differs from the stock screen.
+
+Switch notice: when a side switches while 2 DECKS shows and the route stays up,
+both interfaces say where it went for 2 s (`xz_deck_view_pair_notice`):
+"LEFT: DECK 3", "RIGHT: DECK 2", or both sides when both changed. CLASSIC uses
+the wave surface's banner (the newer of it and a player notice shows), MODERN
+the shell's notice. Four-deck views say nothing (the lanes do not move), and
+route loss leaves the players' "DECK 3/4 ROUTE LOST".
 
 In a four-deck view the native side column (x 0..129, y 22..308) is the mod's:
 `classic_column.c` clears it and draws four stock-style tags, one beside each
@@ -207,7 +280,8 @@ screen, 2 DECKS included; its touch reaches y 39, except where an OUTER stem
 row lies under it (the row keeps its touches). One tap opens the picker
 (140,22,500,206); a picture applies, a tap outside or BACK closes it, and six
 seconds without input close it. The encoder turns and pushes inside the open
-picker. 2 DECKS frames differ from the stock screen only in the button rect.
+picker. 2 DECKS frames with both sides on DECK 1 and 2 differ from the stock
+screen only in the button rect.
 When decks 3 and 4 come up while 2 DECKS shows, the wave surface's notice
 banner says "DECKS 3 AND 4 ARE READY. TAP DECKS AT THE TOP FOR FOUR DECKS."
 for 3.5 s, once per route-up; the view does not change by itself. The latch
