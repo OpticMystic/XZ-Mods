@@ -47,6 +47,8 @@ with tempfile.TemporaryDirectory(prefix='xz-ui-test-') as folder:
         'notice-badge': [*UI_SOURCES, 'test_notice_badge.c'],
         'four-order-control': [*UI_SOURCES, 'test_four_order_control.c'],
         'extra-lane': ['extra_lane.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c', 'test_extra_lane.c'],
+        'extra-detail': ['extra_detail.c', 'extra_lane.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c', 'test_extra_detail.c'],
+        'classic-mixer': ['extra_lane.c', 'wave_viewport.c', 'layered_wave.c', 'ui_draw.c', 'test_classic_mixer.c'],
         'native-wave': ['native_wave.c', 'wave_viewport.c', 'test_native_wave.c'],
         'native-wave-four': ['native_wave.c', 'wave_viewport.c', 'test_native_wave_four.c'],
         'inline': [*UI_SOURCES, 'test_inline_stems.c'],

@@ -65,6 +65,183 @@ static void sync_label_parity(void){
  }
  puts("PASS Classic tempo-only, authority wait and rate-limit readouts are distinct on both extra decks");
 }
+#define K(f) XZ_EXTRA_KNOWN(XZ_EXTRA_F_##f)
+#define PLATE XZ_EXTRA_LANE_READOUT_W
+/* Lane pixels that differ from copy. Every difference must lie left of xmax in rows r0..r1: a readout change
+   never reaches the waveform, the marks or the playhead. */
+static unsigned changed_in(unsigned lane_y,unsigned xmax,unsigned r0,unsigned r1){
+ unsigned n=0;
+ for(unsigned r=0;r<64;r++)for(unsigned x=0;x<536;x++)if(at(lane_y,r,x)!=copy[(lane_y+r)*STRIDE+x]){
+  if(x>=xmax||r<r0||r>r1){fprintf(stderr,"unexpected change at x=%u row=%u\n",x,r);assert(0);}
+  n++;
+ }
+ return n;
+}
+static void draw_lane(const struct xz_extra_deck *d){
+ fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,3,d,&view,&marks));assert(guards_intact(0));
+}
+static void keep(const struct xz_extra_deck *d){draw_lane(d);memcpy(copy,pixels,sizeof pixels);}
+static struct xz_extra_deck published(void){
+ struct xz_extra_deck d=deck();
+ d.known=(1u<<XZ_EXTRA_FIELD_COUNT)-1u;d.known&=~K(TIMELINE);
+ d.remain=d.quantize=d.vinyl=d.master_tempo=d.auto_cue=1;d.tempo_range=10;d.active_pad=-1;
+ snprintf(d.key,sizeof d.key,"8A");d.source=1;snprintf(d.artist,sizeof d.artist,"Artist");
+ return d;
+}
+static void sync_as(struct xz_extra_deck *d,int reason,int locked,int master_deck){
+ d->sync=(struct xz_extra_sync){.requested=1,.locked=locked,.master_deck=master_deck,.reason=reason};
+}
+static uint32_t lane_hash(void){
+ uint32_t h=2166136261u;
+ for(unsigned r=0;r<64;r++)for(unsigned x=0;x<536;x++)h=(h^at(0,r,x))*16777619u;
+ return h;
+}
+/* The plate shows every published mode, in the deck's TIME MODE, and nothing it does not know. */
+static void plate_modes(void){
+ char text[32];
+ struct xz_extra_deck d=published();d.master=0;
+ /* TIME MODE: remaining with a minus or elapsed, and the REMAIN / TIME label, on lines 2 and 3 only. */
+ keep(&d);d.remain=0;draw_lane(&d);assert(changed_in(0,PLATE,15,43)>100);
+ int32_t pos;assert(xz_extra_lane_position_ms(&d,view.now_ms,&pos)&&pos==10000);
+ /* Unknown TIME MODE: the remaining clock with no label and no A.CUE lamp, whatever the hidden values say. */
+ d.known&=~K(TIME_MODE);d.remain=0;d.auto_cue=0;keep(&d);d.remain=1;d.auto_cue=1;draw_lane(&d);assert(!changed_in(0,0,0,0));
+ d=published();d.master=0;keep(&d);d.auto_cue=0;draw_lane(&d);assert(changed_in(0,PLATE,30,44)>0);
+
+ /* SYNC classes: every reason the players raise, and the MASTER bit first. */
+ static const struct { int reason,locked; enum xz_extra_sync_class klass; } table[]={
+  {XZ_EXTRA_SYNC_OFF,0,XZ_EXTRA_SYNC_CLASS_WAIT},{XZ_EXTRA_SYNC_WAIT_MASTER,0,XZ_EXTRA_SYNC_CLASS_WAIT},
+  {XZ_EXTRA_SYNC_WAIT_ANCHOR,0,XZ_EXTRA_SYNC_CLASS_WAIT},{XZ_EXTRA_SYNC_NO_GRID,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},
+  {XZ_EXTRA_SYNC_MANUAL,0,XZ_EXTRA_SYNC_CLASS_WAIT},{XZ_EXTRA_SYNC_DISCONTINUITY,0,XZ_EXTRA_SYNC_CLASS_WAIT},
+  {XZ_EXTRA_SYNC_LOOP_UNALIGNED,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},{XZ_EXTRA_SYNC_OUT_OF_RANGE,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},
+  {XZ_EXTRA_SYNC_ACQUIRING,0,XZ_EXTRA_SYNC_CLASS_WAIT},{XZ_EXTRA_SYNC_LOCKED,1,XZ_EXTRA_SYNC_CLASS_LOCKED},
+  {XZ_EXTRA_SYNC_LOCKED,0,XZ_EXTRA_SYNC_CLASS_WAIT},
+  {XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,0,XZ_EXTRA_SYNC_CLASS_TEMPO},{XZ_EXTRA_SYNC_MASTER_CLOCK,0,XZ_EXTRA_SYNC_CLASS_MASTER},
+  {XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},{XZ_EXTRA_SYNC_NO_SOURCE_BPM,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},
+  {XZ_EXTRA_SYNC_TEMPO_FOLLOW,0,XZ_EXTRA_SYNC_CLASS_TEMPO}};
+ assert(xz_extra_sync_class(NULL)==XZ_EXTRA_SYNC_CLASS_NONE&&!xz_extra_sync_chip(NULL,text,sizeof text)[0]);
+ for(size_t i=0;i<sizeof table/sizeof *table;i++){
+  sync_as(&d,table[i].reason,table[i].locked,0);assert(xz_extra_sync_class(&d)==table[i].klass);
+ }
+ d.known&=~K(SYNC);assert(xz_extra_sync_class(&d)==XZ_EXTRA_SYNC_CLASS_NONE);d.known|=K(SYNC);
+ d.sync.requested=0;assert(xz_extra_sync_class(&d)==XZ_EXTRA_SYNC_CLASS_NONE);
+ d.master=1;d.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;assert(xz_extra_sync_class(&d)==XZ_EXTRA_SYNC_CLASS_MASTER);
+ assert(!strcmp(xz_extra_sync_chip(&d,text,sizeof text),"3/4 MASTER"));
+ d.master_scope=0;assert(!strcmp(xz_extra_sync_chip(&d,text,sizeof text),"MASTER"));
+ d.known&=~K(MASTER);assert(xz_extra_sync_class(&d)==XZ_EXTRA_SYNC_CLASS_NONE);d.known|=K(MASTER);d.master=0;
+ static const struct { int reason,locked,master_deck; const char *chip; } chips[]={
+  {XZ_EXTRA_SYNC_LOCKED,1,0,"SYNC 1"},{XZ_EXTRA_SYNC_LOCKED,1,3,"SYNC 4"},{XZ_EXTRA_SYNC_LOCKED,1,-1,"SYNC"},
+  {XZ_EXTRA_SYNC_TEMPO_FOLLOW,0,1,"BPM 2"},{XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,0,0,"BPM 1"},
+  {XZ_EXTRA_SYNC_WAIT_ANCHOR,0,0,"WAIT 1"},{XZ_EXTRA_SYNC_WAIT_MASTER,0,-1,"WAIT"},
+  {XZ_EXTRA_SYNC_NO_GRID,0,2,"NO BEAT GRID"},{XZ_EXTRA_SYNC_NO_SOURCE_BPM,0,2,"NO TRACK BPM"},
+  {XZ_EXTRA_SYNC_OUT_OF_RANGE,0,0,"OUT OF RANGE"},{XZ_EXTRA_SYNC_LOOP_UNALIGNED,0,0,"LOOP OFF GRID"},
+  {XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED,0,-1,"EXT MASTER"}};
+ for(size_t i=0;i<sizeof chips/sizeof *chips;i++){
+  sync_as(&d,chips[i].reason,chips[i].locked,chips[i].master_deck);
+  if(strcmp(xz_extra_sync_chip(&d,text,sizeof text),chips[i].chip)){fprintf(stderr,"chip %u: %s\n",(unsigned)i,text);assert(0);}
+ }
+ sync_as(&d,XZ_EXTRA_SYNC_MASTER_CLOCK,0,2);d.sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
+ assert(!strcmp(xz_extra_sync_chip(&d,text,sizeof text),"3/4 MASTER"));
+ /* Drawn: tempo-only reads apart from waiting and from locked, the two tempo-only reasons alike (the panel tells
+    them apart), transient waits alike; each on line 1 only. */
+ d.sync.requested=0;keep(&d);
+ uint32_t hash[6];
+ sync_as(&d,XZ_EXTRA_SYNC_LOCKED,1,0);draw_lane(&d);assert(changed_in(0,PLATE,0,15));hash[0]=lane_hash();
+ sync_as(&d,XZ_EXTRA_SYNC_TEMPO_FOLLOW,0,0);draw_lane(&d);assert(changed_in(0,PLATE,0,15));hash[1]=lane_hash();
+ sync_as(&d,XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,0,0);draw_lane(&d);hash[2]=lane_hash();
+ sync_as(&d,XZ_EXTRA_SYNC_WAIT_ANCHOR,0,0);draw_lane(&d);assert(changed_in(0,PLATE,0,15));hash[3]=lane_hash();
+ sync_as(&d,XZ_EXTRA_SYNC_ACQUIRING,0,0);draw_lane(&d);hash[4]=lane_hash();
+ sync_as(&d,XZ_EXTRA_SYNC_NO_GRID,0,0);draw_lane(&d);assert(changed_in(0,PLATE,0,15));hash[5]=lane_hash();
+ assert(hash[1]==hash[2]&&hash[3]==hash[4]);
+ assert(hash[0]!=hash[1]&&hash[1]!=hash[3]&&hash[0]!=hash[3]&&hash[5]!=hash[3]&&hash[5]!=hash[1]);
+ d.sync.requested=0;d.master=1;d.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;draw_lane(&d);assert(changed_in(0,PLATE,0,15));
+ uint32_t software=lane_hash();d.master_scope=0;draw_lane(&d);assert(lane_hash()!=software);d.master=0;
+
+ /* Pads, as the players apply them. */
+ static const char *const loops[8]={"1/4","1/2","1","2","4","8","16","32"};
+ static const char *const slips[8]={"1/16","1/8","1/4","1/2","1","2","1/3","3/4"};
+ static const char *const jumps[8]={"-1","+1","-2","+2","-4","+4","-8","+8"};
+ d=published();
+ d.pad_mode=XZ_EXTRA_PAD_HOT_CUE;assert(!strcmp(xz_extra_pad_text(&d,text,sizeof text),"HOT CUE"));
+ for(int i=0;i<8;i++){char want[2]={(char)('A'+i),0};assert(!strcmp(xz_extra_pad_label(&d,i,text,sizeof text),want));}
+ d.pad_mode=XZ_EXTRA_PAD_BEAT_LOOP;assert(!strcmp(xz_extra_pad_text(&d,text,sizeof text),"BEAT LOOP"));
+ for(int i=0;i<8;i++)assert(!strcmp(xz_extra_pad_label(&d,i,text,sizeof text),loops[i]));
+ d.active_pad=1;assert(!strcmp(xz_extra_pad_text(&d,text,sizeof text),"BEAT LOOP 1/2"));
+ d.pad_mode=XZ_EXTRA_PAD_SLIP_LOOP;d.active_pad=6;assert(!strcmp(xz_extra_pad_text(&d,text,sizeof text),"SLIP LOOP 1/3"));
+ for(int i=0;i<8;i++)assert(!strcmp(xz_extra_pad_label(&d,i,text,sizeof text),slips[i]));
+ d.active_pad=8;assert(!strcmp(xz_extra_pad_text(&d,text,sizeof text),"SLIP LOOP"));
+ d.pad_mode=XZ_EXTRA_PAD_BEAT_JUMP;d.active_pad=-1;assert(!strcmp(xz_extra_pad_text(&d,text,sizeof text),"BEAT JUMP"));
+ for(int i=0;i<8;i++)assert(!strcmp(xz_extra_pad_label(&d,i,text,sizeof text),jumps[i]));
+ d.pad_mode=XZ_EXTRA_PAD_CALL;assert(!strcmp(xz_extra_pad_text(&d,text,sizeof text),"HOT CUE CALL"));
+ struct xz_extra_cue colorless={1,1000,0,0};assert(xz_extra_cue_color(&colorless)==0x00ff00);
+ colorless.end_ms=2000;assert(xz_extra_cue_color(&colorless)==0xff8000);
+ colorless.rgb=0xabcdef;assert(xz_extra_cue_color(&colorless)==0xabcdef);
+ for(int i=0;i<8;i++){char want[2]={(char)('A'+i),0};assert(!strcmp(xz_extra_pad_label(&d,i,text,sizeof text),want));}
+ d.pad_mode=XZ_EXTRA_PAD_NONE;assert(!strcmp(xz_extra_pad_text(&d,text,sizeof text),"PADS OFF"));
+ for(int i=0;i<8;i++)assert(!xz_extra_pad_label(&d,i,text,sizeof text)[0]);
+ assert(!xz_extra_pad_label(&d,8,text,sizeof text)[0]&&!xz_extra_pad_label(&d,-1,text,sizeof text)[0]);
+ d.loaded=0;d.pad_mode=XZ_EXTRA_PAD_HOT_CUE;assert(!xz_extra_pad_text(&d,text,sizeof text)[0]&&!xz_extra_pad_label(&d,0,text,sizeof text)[0]);
+
+ /* Each mode, the key, the source and the artist change the plate and never the lane right of it. */
+ struct xz_extra_deck base=published();base.master=0;
+ for(int change=0;change<17;change++){
+  d=base;keep(&d);
+  switch(change){
+  case 0:d.reverse=1;break;
+  case 1:d.slip=1;break;
+  case 2:d.slip=d.slip_active=1;break;
+  case 3:d.quantize=0;break;
+  case 4:d.vinyl=0;break;
+  case 5:d.master_tempo=0;break;
+  case 6:d.tempo_reset=1;d.tempo_x100=0;break;
+  case 7:d.tempo_range=100;break;
+  case 8:d.tempo_range=16;break;
+  case 9:d.pad_mode=XZ_EXTRA_PAD_BEAT_LOOP;break;
+  case 10:d.pad_mode=XZ_EXTRA_PAD_BEAT_LOOP;d.active_pad=4;break;
+  case 11:d.pad_mode=XZ_EXTRA_PAD_NONE;break;
+  case 12:snprintf(d.key,sizeof d.key,"11B");break;
+  case 13:d.source=2;break;
+  case 14:snprintf(d.artist,sizeof d.artist,"Someone Else");break;
+  case 15:d.pad_mode=XZ_EXTRA_PAD_BEAT_JUMP;break;
+  default:d.tempo_x100=-333;break;
+  }
+  draw_lane(&d);
+  if(!changed_in(0,PLATE,0,63)){fprintf(stderr,"mode change %d drew nothing\n",change);assert(0);}
+ }
+ /* Never a guess: with their bits clear, hidden key, source, artist, range, QUANTIZE, VINYL and MT draw nothing. */
+ d=base;d.known&=~(K(KEY)|K(SOURCE)|K(ARTIST)|K(TEMPO_RANGE)|K(QUANTIZE)|K(VINYL)|K(MASTER_TEMPO));keep(&d);
+ snprintf(d.key,sizeof d.key,"3B");d.source=2;snprintf(d.artist,sizeof d.artist,"Hidden");d.tempo_range=100;
+ d.quantize=!d.quantize;d.vinyl=!d.vinyl;d.master_tempo=!d.master_tempo;draw_lane(&d);assert(!changed_in(0,0,0,0));
+
+ /* LOOP IN / OUT adjust: the edge the jog moves is drawn wide in yellow; a stored loop keeps dim ends. */
+ unsigned in_x=268+(unsigned)(200000/XZ_EXTRA_LANE_COLUMN_US),out_x=268+(unsigned)(800000/XZ_EXTRA_LANE_COLUMN_US)-1;
+ d=deck();d.loop.active=d.loop.stored=1;d.loop.in_ms=10200;d.loop.out_ms=10800;
+ draw_lane(&d);assert(at(0,20,in_x)==0xfd20);
+ d.loop.edit=1;draw_lane(&d);for(unsigned r=0;r<64;r+=7)assert(at(0,r,in_x)==0xffe0);assert(at(0,20,out_x)!=0xffe0);
+ d.loop.edit=2;draw_lane(&d);assert(at(0,20,out_x)==0xffe0&&at(0,20,in_x)!=0xffe0);
+ d.loop.active=0;d.loop.edit=0;draw_lane(&d);assert(at(0,20,in_x)==0x8c40&&at(0,20,out_x)==0x8c40&&at(0,20,in_x+30)!=0xb300);
+ d.loop.stored=0;draw_lane(&d);assert(at(0,20,in_x)!=0x8c40);
+ d.loop.stored=1;d.known&=~K(LOOP);draw_lane(&d);assert(at(0,20,in_x)!=0x8c40);
+
+ /* Native DECK 1 / 2 tags: only the tag's pixels, lit and unlit apart, guarded. */
+ fill();memcpy(copy,pixels,sizeof pixels);
+ assert(xz_four_badge_draw(pixels,STRIDE,STRIDE*268,68,1,1));
+ unsigned tag=0;
+ for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)if(pixels[i]!=copy[i]){
+  size_t x=i%STRIDE,y=i/STRIDE;assert(x>=3&&x<60&&y>=68+2&&y<68+15);tag++;
+ }
+ assert(tag>100);
+ uint16_t lit_pixel=at(68,3,4);
+ fill();assert(xz_four_badge_draw(pixels,STRIDE,STRIDE*268,68,2,0));assert(at(68,3,4)!=lit_pixel);
+ fill();memcpy(copy,pixels,sizeof pixels);
+ assert(!xz_four_badge_draw(pixels,STRIDE,STRIDE*268,68,3,1)&&!xz_four_badge_draw(pixels,STRIDE,STRIDE*268,205,1,1)&&
+        !xz_four_badge_draw(pixels,STRIDE,STRIDE*100,68,1,1)&&!xz_four_badge_draw(NULL,STRIDE,STRIDE*268,0,1,1)&&
+        !xz_four_badge_draw(pixels,530,STRIDE*268,0,1,1));
+ assert(!memcmp(copy,pixels,sizeof pixels));
+ puts("PASS Classic plate: TIME MODE clock and label, every SYNC reason class and chip, 3/4 vs native MASTER scope, "
+      "pad tables per mode, REV/SLIP/Q/VINYL/MT/RESET/range/key/source/artist inside the plate only, hidden fields blank, "
+      "LOOP IN/OUT adjust and stored loop marks, native deck tags");
+}
+
 int main(void){
  sync_label_parity();
  struct xz_extra_deck d=deck();int32_t pos;
@@ -216,5 +393,6 @@ int main(void){
  assert(xz_extra_notice_active(&notice,20));
  memset(notice.notice,'X',sizeof notice.notice);
  assert(xz_extra_notice_draw(pixels,STRIDE,STRIDE*268,&notice,20));
+ plate_modes();
  puts("PASS extra-deck lane: position extrapolation, guards and lane-only writes, playhead, zoom-scaled ticks, loop tint, NULL/unknown wave, unloaded, blank readouts, lit tag, theme protect/restore");
 }
