@@ -27,7 +27,10 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
 }
 unsigned xz_shell_runtime_take_ui_requests(void) { unsigned r=fake_requests;fake_requests=0;return r; }
 int xz_shell_runtime_mods_key(int eligible, int theme) { (void)theme;if(!fake_shell_running||!eligible)return 0;fake_mods_calls++;return 1; }
-void xz_shell_runtime_notice(const char *text) { snprintf(fake_notice,sizeof(fake_notice),"%s",text); }
+void xz_shell_runtime_notice(const char *text) {
+ if(strstr(text,"JUMP UNAVAILABLE")){assert(!pthread_mutex_trylock(&ui_mutex));pthread_mutex_unlock(&ui_mutex);}
+ snprintf(fake_notice,sizeof(fake_notice),"%s",text);
+}
 static int fake_shift_held(void) { return fake_shift; }
 static int fake_stock_rekordbox(void *a,void *b,void *c,void *d) {
     const uint32_t *entry=a;(void)b;(void)c;(void)d;

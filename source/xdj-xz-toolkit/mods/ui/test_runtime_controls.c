@@ -43,8 +43,8 @@ int xz_native_led_start(void){return 0;}
 void xz_native_led_stop(void){}
 void xz_log(const char *s){(void)s;}
 unsigned xz_runtime_cue_flags(void){return 0;}
-static int jump_calls,jump_deck,jump_beats;
-int xz_runtime_beat_jump(int deck,int beats){jump_calls++;jump_deck=deck;jump_beats=beats;return 1;}
+static int jump_calls,jump_deck,jump_beats,jump_accept=1;
+int xz_runtime_beat_jump(int deck,int beats){jump_calls++;jump_deck=deck;jump_beats=beats;return jump_accept;}
 int xz_runtime_set_cues(int a,int b){(void)a;(void)b;return 0;}
 int xz_key_get_desired_semitones(int d,int *out){(void)d;*out=0;return 0;}
 int xz_key_set_desired_semitones(int d,int n){(void)d;(void)n;return 0;}
@@ -379,6 +379,15 @@ int main(void){
     model.jump.enabled=1;je.operation=0;
     assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==2&&jump_beats==-1);
     je.operation=2;assert(xz_ui_runtime_pad(&je,&jf));
+    /* Refusal is visible with MODS closed, and shell delivery cannot hold ui_mutex. */
+    jump_accept=0;int calls_before=jump_calls;touch.visible=0;
+    je.pad=1;je.operation=0;assert(xz_ui_runtime_pad(&je,&jf));
+    assert(jump_calls==calls_before+1&&strstr(async_notice.text,"JUMP UNAVAILABLE"));
+    assert(!strcmp(async_notice.text,fake_notice));
+    assert(xz_ui_runtime_pad(&je,&jf)&&jump_calls==calls_before+1);
+    je.operation=2;assert(xz_ui_runtime_pad(&je,&jf));jump_accept=1;
+    struct xz_jump_snapshot jump_view;assert(xz_ui_runtime_jump_snapshot(0,&jump_view)&&jump_view.page==0&&jump_view.signed_beats[1]==1);
+    assert(!xz_ui_runtime_jump_snapshot(4,&jump_view));
     model.jump.enabled=1;model.jump.shift_page=1;jump_state.page[0]=1;jump_state.page[1]=0;
     deck_page[0]=deck_page[1]=3;
     for(int pad=0;pad<8;pad++){

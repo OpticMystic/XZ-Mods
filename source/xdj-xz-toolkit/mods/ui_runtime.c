@@ -496,8 +496,23 @@ static void settings_restore_usb_locked(const char *usb,int restored){
         else if(rc&&!restored)model.settings_status="USB SETTINGS READY";
     }
 }
+#pragma weak xz_extra_decks_set_performance_settings
+#pragma weak xz_extra_decks_jump_snapshot
+static void performance_publish_locked(void){
+ if(xz_extra_decks_set_performance_settings){
+  struct xz_performance_settings settings={.revision=settings_revision,.jump=model.jump,
+   .gate=!!(model.enabled&XZ_UI_GATE),.smart=!!(model.enabled&XZ_UI_SMART)};
+  xz_extra_decks_set_performance_settings(&settings);
+ }
+}
+int xz_ui_runtime_jump_snapshot(int deck,struct xz_jump_snapshot *out){
+ if(!out||(unsigned)deck>=4)return 0;
+ if(deck>=2)return xz_extra_decks_jump_snapshot?xz_extra_decks_jump_snapshot(deck-2,out):0;
+ pthread_mutex_lock(&ui_mutex);*out=xz_jump_snapshot(&model.jump,jump_state.page[deck]);
+ pthread_mutex_unlock(&ui_mutex);return 1;
+}
 static void settings_queue(void) {
-    settings_revision++;
+    settings_revision++;performance_publish_locked();
     if (settings_readonly) { model.settings_status = "CHANGES LAST UNTIL REBOOT"; return; }
     if (!settings_running) { model.settings_status = "SETTINGS SAVE UNAVAILABLE"; return; }
     if (!settings_profile.root[0] && !xz_settings_internal_save) { model.settings_status = "SETTINGS NOT SAVED: INSERT A USB"; return; }
@@ -2168,7 +2183,7 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
     *trace_flags = 1u | (touch.visible ? 2u : 0) | (ui.page == XZ_UI_STEMS ? 4u : 0) |
         (ui.deck == event->deck ? 8u : 0) | (model.enabled & XZ_UI_STEM ? 16u : 0) |
         (audio_available ? 32u : 0) | (event->hotcue_mode ? 64u : 0);
-    int toggle,beats=0;
+    int toggle,beats=0,jump_failed=0;
     int shifted_mode=event->shift&&event->mode_button>=0&&event->mode_button<3;
     int active=stem_controls_active(event->deck)||(audio_available&&shifted_mode);
     int jump_mode=event->mode_button==3;
@@ -2179,8 +2194,11 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
     int jump_consumed=stem_mode_press?0:xz_jump_event(&jump_state,&model.jump,event,&beats);
     if(jump_consumed){
         *trace_flags|=16384u;
-        if(beats&&!xz_runtime_beat_jump(event->deck,beats))
-            snprintf(ui.notice,sizeof(ui.notice),"JUMP UNAVAILABLE: TRACK EDGE, BUFFER OR DECK STATE");
+        if(beats&&!xz_runtime_beat_jump(event->deck,beats)){
+            jump_failed=1;
+            xz_ui_notice_set(&async_notice,"JUMP UNAVAILABLE: TRACK EDGE, BUFFER OR DECK STATE",xz_game_milliseconds());
+            snprintf(ui.notice,sizeof ui.notice,"%s",async_notice.text);
+        }
     }
     if (consumed) *trace_flags |= 128u;
     if (toggle >= 0) *trace_flags |= 256u;
@@ -2203,6 +2221,10 @@ int xz_ui_runtime_pad(const struct xz_cue_event *event,unsigned *trace_flags) {
         if (audio_status[event->deck].state == XZ_AUDIO_EXPERIMENTAL_READY) *trace_flags |= 8192u;
     }
     pthread_mutex_unlock(&ui_mutex);
+    if(jump_failed){
+        xz_native_skin_request_repaint();
+        if(xz_shell_runtime_notice)xz_shell_runtime_notice("JUMP UNAVAILABLE: TRACK EDGE, BUFFER OR DECK STATE");
+    }
     return consumed||jump_consumed;
 }
 
@@ -2642,7 +2664,7 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     browse_settings(saved);
     memcpy(model.stem_colors,saved->stem_colors,sizeof(model.stem_colors));
     xz_runtime_set_cues(saved->gate, saved->smart);
-    model.enabled = xz_runtime_cue_flags();
+    model.enabled = xz_runtime_cue_flags();performance_publish_locked();
     if (audio_available) { xz_audio_set_enabled(saved->stems); if (saved->stems) model.enabled |= XZ_UI_STEM; }
     model.fb_takeover=xz_sdk_ui_session_profile(&sdk_session,saved->fb_takeover);
     __atomic_store_n(&fb_takeover_active,model.fb_takeover,__ATOMIC_RELEASE);
@@ -2864,7 +2886,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     const char *ram_settings = getenv("XZ_MODS_SETTINGS_READONLY");
     settings_readonly = ram_settings && !strcmp(ram_settings,"1");
     if (settings_readonly) model.settings_status = "CHANGES LAST UNTIL REBOOT";
-    wave_configure();
+    performance_publish_locked();wave_configure();
     if(audio_ready)xz_audio_set_enabled(requested_stems);
     for(size_t i=0;i<sizeof pads.count/sizeof pads.count[0];i++)pads.count[i]=3;
     for(size_t i=0;i<sizeof model.deck/sizeof model.deck[0];i++) {

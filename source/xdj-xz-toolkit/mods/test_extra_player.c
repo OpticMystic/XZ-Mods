@@ -705,7 +705,7 @@ static void test_controls(void) {
  /* Settings work before a track is loaded. */
  assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_HOT_CUE && view.deck[0].active_pad == -1);
  mode(0, XZ_EXTRA_PAD_BEAT_LOOP, 0); assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_BEAT_LOOP);
- mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 1); assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_BEAT_LOOP);
+ mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 1); assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_BEAT_JUMP);
  mode(0, XZ_EXTRA_PAD_HOT_CUE, 1); assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_NONE);
  load(0, 1); load(1, 2);
  assert(view.deck[0].pad_mode == XZ_EXTRA_PAD_NONE && view.deck[0].active_pad == -1);
@@ -730,12 +730,17 @@ static void test_controls(void) {
  assert(!debug(0).loop_active && view.deck[0].active_pad == -1 && debug(0).state == XZ_XP_PLAYING);
  hold(0, XZ_EXTRA_IN_PLAY, 1);
 
+ /* SHIFT+BEAT JUMP selects the second page on software decks too. */
+ mode(0, XZ_EXTRA_PAD_BEAT_LOOP, 0);
+ mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 1);
+ assert(view.deck[0].pad_mode==XZ_EXTRA_PAD_BEAT_JUMP);
+ mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 0);
  /* BEAT JUMP: A/B are -/+1 beat, C/D 2, E/F 4, G/H 8; a set loop moves with the jump. */
  mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 0); seek(0, 1000);
  pad_key(0, 1, 1); pad_key(0, 1, 0); assert(debug(0).position == ms_frames(0, 1500));
  pad_key(0, 0, 1); pad_key(0, 0, 0); assert(debug(0).position == ms_frames(0, 1000));
  pad_key(0, 2, 1); pad_key(0, 2, 0); assert(debug(0).position == 0);
- pad_key(0, 7, 1); pad_key(0, 7, 0); assert(debug(0).position == ms_frames(0, 2000));
+ pad_key(0, 7, 1); pad_key(0, 7, 0); assert(debug(0).position == 0); /* refuse, never shorten */
  mode(0, XZ_EXTRA_PAD_BEAT_LOOP, 0); seek(0, 600); pad_key(0, 2, 1); pad_key(0, 2, 0);
  in = debug(0).loop_in;
  mode(0, XZ_EXTRA_PAD_BEAT_JUMP, 0); pad_key(0, 1, 1); pad_key(0, 1, 0);
@@ -1745,6 +1750,56 @@ static void test_threads(void) {
 #include "test_extra_player_held_controls.h"
 
 #include "test_extra_player_completed_rate.h"
+static void test_mods_jump(void){
+ struct xz_xp_env env={{NULL,fake_link,fake_submit,fake_flush,fake_position,fake_transition},now_ms,resolve,master_bpm,NULL,NULL,0,0};
+ p=xz_xp_create(&env);assert(p);fake_route(9911);step();load(0,1);load(1,1);
+ struct xz_performance_settings settings={.revision=7,.jump=xz_jump_defaults()};
+ settings.jump.sizes[0]=1;settings.jump.sizes[4]=0;
+ xz_xp_set_performance_settings(p,&settings);
+ for(int deck=0;deck<2;deck++){
+  struct xz_jump_snapshot snapshot;
+  mode(deck,XZ_EXTRA_PAD_BEAT_JUMP,0);seek(deck,200);
+  struct xz_extra_deck_event key=event(deck,XZ_EXTRA_IN_HOT_CUE,1);key.hot_cue=1;
+  assert(input(key)); /* Captures +2, even if the settings change before the worker runs. */
+  settings.jump.sizes[0]=0;settings.revision++;xz_xp_set_performance_settings(p,&settings);step();
+  key.pressed=0;assert(input(key));step();assert(debug(deck).position==ms_frames(deck,1200));
+  mode(deck,XZ_EXTRA_PAD_BEAT_JUMP,1);assert(view.deck[deck].pad_mode==XZ_EXTRA_PAD_BEAT_JUMP);
+  assert(xz_xp_jump_snapshot(p,deck,&snapshot)&&snapshot.page==1&&snapshot.signed_beats[1]==1&&snapshot.signed_beats[7]==128);
+  seek(deck,200);pad_key(deck,1,1);pad_key(deck,1,0);assert(debug(deck).position==ms_frames(deck,700));
+  key.pressed=1;key.shift=1;assert(input(key));step();key.pressed=0;assert(input(key));step();
+  assert(debug(deck).position==ms_frames(deck,700)); /* SHIFT pad is consumed without a jump. */
+  mode(deck,XZ_EXTRA_PAD_BEAT_JUMP,0);settings.jump.enabled=0;settings.jump.sizes[0]=9;settings.revision++;
+  xz_xp_set_performance_settings(p,&settings);
+  assert(xz_xp_jump_snapshot(p,deck,&snapshot)&&snapshot.page==0&&snapshot.signed_beats[1]==1);
+  seek(deck,770);pad_key(deck,1,1);pad_key(deck,1,0);assert(debug(deck).position==ms_frames(deck,1270));
+  seek(deck,1700);pad_key(deck,7,1);pad_key(deck,7,0);
+  assert(debug(deck).position==ms_frames(deck,1700)&&!strcmp(view.notice,"JUMP UNAVAILABLE: AFTER TRACK END"));
+  seek(deck,200);pad_key(deck,0,1);pad_key(deck,0,0);
+  assert(debug(deck).position==ms_frames(deck,200)&&!strcmp(view.notice,"JUMP UNAVAILABLE: BEFORE TRACK START"));
+  settings.jump.enabled=1;settings.jump.sizes[0]=1;settings.revision++;xz_xp_set_performance_settings(p,&settings);
+ }
+ xz_xp_destroy(p);p=NULL;
+ /* Variable intervals: 100,400,900,1600. 250ms is halfway through interval 0. */
+ struct buf variable;file_start(&variable);uint32_t section=open_section(&variable,"PQTZ",24);
+ u32(&variable,0);u32(&variable,0x80000);u32(&variable,4);
+ int points[]={100,400,900,1600};for(int i=0;i<4;i++){u16(&variable,i+1);u16(&variable,12000);u32(&variable,(unsigned)points[i]);}
+ close_section(&variable,section);file_end(&variable);write_file("ANLZ0000.DAT",&variable);
+ p=xz_xp_create(&env);assert(p);fake_route(9912);step();load(0,1);mode(0,XZ_EXTRA_PAD_BEAT_JUMP,0);
+ seek(0,250);pad_key(0,1,1);pad_key(0,1,0);assert(debug(0).position==ms_frames(0,650));
+ pad_key(0,1,1);pad_key(0,1,0);assert(debug(0).position==ms_frames(0,1250));
+ pad_key(0,0,1);pad_key(0,0,0);assert(debug(0).position==ms_frames(0,650));
+ seek(0,50);pad_key(0,1,1);pad_key(0,1,0);assert(debug(0).position==ms_frames(0,350));
+ seek(0,1700);pad_key(0,0,1);pad_key(0,0,0);assert(debug(0).position==ms_frames(0,1000));
+ xz_xp_destroy(p);p=NULL;write_file("ANLZ0000.DAT",&dat);
+ /* No grid: use BPM only; without BPM refuse instead of inventing 120 BPM. */
+ p=xz_xp_create(&env);assert(p);fake_route(9913);step();load(0,4);load(1,2);
+ mode(0,XZ_EXTRA_PAD_BEAT_JUMP,0);seek(0,300);pad_key(0,1,1);pad_key(0,1,0);assert(debug(0).position==ms_frames(0,800));
+ mode(1,XZ_EXTRA_PAD_BEAT_JUMP,0);seek(1,300);pad_key(1,1,1);pad_key(1,1,0);
+ assert(debug(1).position==ms_frames(1,300)&&!strcmp(view.notice,"JUMP UNAVAILABLE: NO BEAT GRID OR BPM"));
+ xz_xp_destroy(p);p=NULL;
+ puts("PASS MODS jump: both software decks, revision capture, pages, stock defaults, SHIFT, refusal, variable grid phase and edge extrapolation, BPM-only fallback");
+}
+
 int main(int argc, char **argv) {
  assert(argc == 2 || argc == 3);
  assert(!pthread_mutex_init(&f.lock, NULL));
@@ -1753,6 +1808,7 @@ int main(int argc, char **argv) {
  build_analysis();
  if(argc==3){if(!strcmp(argv[2],"held-controls"))return test_held_controls()?0:1;assert(!strcmp(argv[2],"controls-coast"));test_coast_control_interactions();return 0;}
  test_parsers();
+ test_mods_jump();
  test_players();
  test_loop_and_range();
  test_vinyl();

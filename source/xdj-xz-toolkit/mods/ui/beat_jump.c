@@ -3,26 +3,9 @@ int xz_jump_event(struct xz_jump_state *s,const struct xz_jump_settings *cfg,con
  *beats=0;
  if(e->deck<0||e->deck>1)return 0;
  int d=e->deck;
- if(e->mode_button>=0&&e->mode_button<4){
-  unsigned bit=1u<<e->mode_button;
-  if(e->operation==2||e->operation==3)s->mode_down[d]&=~bit;
-  else if(e->operation==0&&!(s->mode_down[d]&bit)){
-   s->mode_down[d]|=bit;
-   s->page[d]=e->shift&&e->mode_button==3?1:0;
-  }
-  return 0; /* Stock selects BEAT JUMP, including when SHIFT is held. */
- }
- if(e->pad<0||e->pad>=8)return 0;
- unsigned bit=1u<<e->pad;
- int owned=!!(s->owned[d]&bit);
- if(e->operation==2||e->operation==3){s->down[d]&=~bit;s->owned[d]&=~bit;return owned;}
- if(e->operation!=0||s->down[d]&bit)return owned;
- s->down[d]|=bit;
- int page=s->page[d];
- if((!page&&!cfg->enabled)||e->pad_page!=3||e->shift)return 0;
- int amount=xz_jump_beats(cfg->sizes[page*4+e->pad/2]);
- if(!amount)return 0;
- s->owned[d]|=bit;
- *beats=e->pad%2?amount:-amount;
- return 1;
+ struct xz_jump_deck_state state={s->down[d],s->owned[d],s->mode_down[d],s->page[d]};
+ struct xz_jump_input input={e->mode_button,e->pad,e->pad_page,e->shift,e->operation};
+ struct xz_jump_result result=xz_jump_resolve(&state,cfg,&input);
+ s->down[d]=state.down;s->owned[d]=state.owned;s->mode_down[d]=state.mode_down;s->page[d]=state.page;
+ *beats=result.signed_beats;return result.decision!=XZ_JUMP_FORWARD;
 }

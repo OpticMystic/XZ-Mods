@@ -176,6 +176,9 @@ uint32_t xz_extra_decks_control_revision(void); /* packed route/sides/availabili
 int xz_extra_decks_needs_native_sync(void); /* atomic; cached native clock publisher demand */
 int xz_extra_decks_use_native_master(void); /* withdraw software intent; not an explicit native press */
 void xz_extra_decks_native_master_selected(unsigned native_deck);
+struct xz_performance_settings;struct xz_jump_snapshot;
+void xz_extra_decks_set_performance_settings(const struct xz_performance_settings *);
+int xz_extra_decks_jump_snapshot(int deck,struct xz_jump_snapshot *);
 void xz_extra_decks_set_quantize_grid(unsigned denominator,int known);
 struct xz_sync_native_snapshot;
 int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *); /* cache copy only, never native I/O */
