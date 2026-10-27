@@ -2059,6 +2059,13 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    continue;
   }
   switch(a->kind){
+  case XZ_SHELL_ACT_BROWSE_PREVIEW:
+   if((unsigned)a->value<=1&&ui_action_count<8){
+    ui_action_locked(XZ_UI_BROWSE_PREVIEW,-1,0,(float)a->value,now);
+    model.browse_preview=a->value;dirty_flag=1;
+   }
+   else refuse();
+   break;
   case XZ_SHELL_ACT_ROUTE_RESCAN:
    if(xz_extra_decks_rescan)xz_extra_decks_rescan();
    dirty_flag=1;break;
@@ -2916,6 +2923,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  }
  if(!owns_now(in->eligible,in->theme)){set_owns(0);goto done;}
  set_owns(1);
+ model.browse_preview=!!in->browse_preview;
  model.stems_known=in->stems_known;model.stems_on=in->stems_on;
  /* Stem mute state and pad colours from the UI model (the deck's own refresh does not read them). */
  for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)if(in->stem_muted_known[d]){

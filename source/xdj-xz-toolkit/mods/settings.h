@@ -59,6 +59,7 @@ struct xz_settings {
     int modern_stems; /* MODERN's stem layout: enum xz_stem_layout or XZ_MODERN_STEMS_PADS (ui/wave_viewport.h) */
     int deck_view; /* enum xz_deck_view; a record without it keeps the current view (2 DECKS by default) */
     int deck_view_button; /* retired: the DECKS button always shows; reads as 1, written as 1 */
+    int browse_preview; /* MODERN browse tile: 0 hidden/collapsed (default), 1 shown */
 };
 /* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
 int xz_settings_look(int ui_interface, int classic_theme);

@@ -306,6 +306,7 @@ struct xz_shell_model {
     appeared or its state changed (the motion rests 60 s after it or the last input), and when the route
     came up under the card (the READY hold and wipe), 0 when it did not. */
  uint32_t route_card_since_ms, route_card_ready_at_ms;
+ int browse_preview; /* saved MODERN browse display preference, 0 collapsed */
 };
 
 enum xz_shell_event_kind {
@@ -374,7 +375,8 @@ enum xz_shell_action_kind {
                               XZ_SHELL_CAP_STEM_BYPASS */
  XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, session display preference */
  XZ_SHELL_ACT_DECK_LAYOUT, /* DECK VIEW: value enum xz_deck_layout; display only, no deck assignment */
- XZ_SHELL_ACT_ROUTE_RESCAN /* connector wake only */
+ XZ_SHELL_ACT_ROUTE_RESCAN, /* connector wake only */
+ XZ_SHELL_ACT_BROWSE_PREVIEW /* value 0 hidden/collapsed, 1 shown; queued settings edit */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */

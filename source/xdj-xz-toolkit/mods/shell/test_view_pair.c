@@ -84,26 +84,26 @@ static void test_views(void){
    char text[8];snprintf(text,sizeof text,"%d",d+1);
    int width=count==2?64:56,pad=count==2?8:6,by=count==2?5:2;
    if(count==4){
-    /* Four lanes: the number in its deck's colour box (deck_colour.h), the same on its strip; the side's fill
-       beside it says who drives the deck. */
+    /* Four lanes: the number in its badge (deck_colour.h), the same on its strip; the side's fill beside it says
+       who drives the deck. */
     int bx=(24-sh_num_width(SH_NUM_MID,text))/2;
-    number_at(bx,tag.y+1,d,xz_deck_colour(d),XZ_DECK_COLOUR_INK);title_at(tag.y,m.deck[d].title);
-    number_at(strip.x+pad+bx,strip.y+by+1,d,xz_deck_colour(d),XZ_DECK_COLOUR_INK);
-    assert(frame(a)[(tag.y+1)*STRIDE+1]==rgb565(xz_deck_colour(d))&&frame(a)[(strip.y+by+20)*STRIDE+strip.x+pad+1]==rgb565(xz_deck_colour(d)));
+    number_at(bx,tag.y+1,d,xz_deck_box_fill(d,1,0),xz_deck_box_ink(d,1,0));title_at(tag.y,m.deck[d].title);
+    number_at(strip.x+pad+bx,strip.y+by+1,d,xz_deck_box_fill(d,1,0),xz_deck_box_ink(d,1,0));
+    assert(frame(a)[(tag.y+1)*STRIDE+1]==rgb565(xz_deck_box_fill(d,1,0))&&frame(a)[(strip.y+by+20)*STRIDE+strip.x+pad+1]==rgb565(xz_deck_box_fill(d,1,0)));
     assert(frame(a)[(tag.y+20)*STRIDE+27]==rgb565(fill)&&frame(a)[(strip.y+by+20)*STRIDE+strip.x+pad+27]==rgb565(fill));
     continue;
    }
    if(d>=2){
-    /* 2 DECKS with a side on DECK 3 or 4: that deck's number in its colour box on its tag and its strip, the
-       lane, the info column and the strip of the same frame all naming it. */
+    /* 2 DECKS with a side on DECK 3 or 4: that deck's number in its badge on its tag and its strip, the lane, the
+       info column and the strip of the same frame all naming it. */
     int bx=(24-sh_num_width(SH_NUM_MID,text))/2;
-    number_at(bx,tag.y+1,d,xz_deck_colour(d),XZ_DECK_COLOUR_INK);title_at(tag.y,m.deck[d].title);
-    number_at(strip.x+pad+bx,strip.y+by+1,d,xz_deck_colour(d),XZ_DECK_COLOUR_INK);
-    assert(frame(a)[(tag.y+1)*STRIDE+1]==rgb565(xz_deck_colour(d))&&frame(a)[(strip.y+by+20)*STRIDE+strip.x+pad+1]==rgb565(xz_deck_colour(d)));
+    number_at(bx,tag.y+1,d,xz_deck_box_fill(d,1,0),xz_deck_box_ink(d,1,0));title_at(tag.y,m.deck[d].title);
+    number_at(strip.x+pad+bx,strip.y+by+1,d,xz_deck_box_fill(d,1,0),xz_deck_box_ink(d,1,0));
+    assert(frame(a)[(tag.y+1)*STRIDE+1]==rgb565(xz_deck_box_fill(d,1,0))&&frame(a)[(strip.y+by+20)*STRIDE+strip.x+pad+1]==rgb565(xz_deck_box_fill(d,1,0)));
     continue;
    }
    number_at(6,tag.y+1,d,fill,SH_WHITE);title_at(tag.y,m.deck[d].title);
-   assert(frame(a)[(tag.y+1)*STRIDE+1]!=rgb565(xz_deck_colour(d)));
+   assert(frame(a)[(tag.y+1)*STRIDE+1]==rgb565(fill));
    int nx=selected?5:(width-sh_num_width(SH_NUM_MID,text))/2;
    number_at(strip.x+pad+nx,strip.y+by+1,d,fill,SH_WHITE);
   }
@@ -119,7 +119,7 @@ static void test_views(void){
    if(count==2)assert(!xz_shell_play_rect(&view,XZ_SHELL_R_LANE,d^2).w);
   }
  }
- puts("PASS DECK VIEW pair:44px painted button and picture hits, all pairs/orders/focuses, complete guarded frames, large logical numbers/titles, four-deck numbers and a 2 DECKS DECK 3/4 in their deck colour boxes, lane/column/strip of one frame name the same deck, fixed3/1/2/4, correct seek targets");
+ puts("PASS DECK VIEW pair:44px painted button and picture hits, all pairs/orders/focuses, complete guarded frames, large logical numbers/titles, four-deck numbers and a 2 DECKS DECK 3/4 in their deck badges, lane/column/strip of one frame name the same deck, fixed3/1/2/4, correct seek targets");
 }
 static void test_grid_focus(void){
  for(int sides=0;sides<4;sides++)for(int focus=0;focus<4;focus++){

@@ -20,7 +20,8 @@
     41,
     43,
     44,
-    46
+    46,
+    47
   ],
   "fields": [
     {
@@ -218,6 +219,26 @@
         {
           "value": 2,
           "label": "4 DECKS, MIXER ORDER 3 1 2 4"
+        }
+      ]
+    },
+    {
+      "key": "browse_preview",
+      "label": "Preview waveform in MODERN browse",
+      "group": "browse",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "HIDE"
+        },
+        {
+          "value": 1,
+          "label": "SHOW"
         }
       ]
     },
@@ -1290,7 +1311,8 @@
     "rekordbox_shift",
     "modern_stems",
     "deck_view",
-    "deck_view_button"
+    "deck_view_button",
+    "browse_preview"
   ],
   "retired_fields": {
     "jump_shift_page": {

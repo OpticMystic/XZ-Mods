@@ -31,7 +31,7 @@ int main(void) {
  s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=11;s.theme=0;
  assert(xz_settings_format(&s,text,sizeof text)>0);
  assert(strstr(text,"\ntheme=11\n")&&strstr(text,"\ninterface=0\nclassic_theme=11\nmodern_theme=0\n"));
- assert(!xz_settings_parse_present(text,&loaded,&present)&&present==46);
+ assert(!xz_settings_parse_present(text,&loaded,&present)&&present==47);
  assert(loaded.ui_interface==XZ_INTERFACE_CLASSIC&&loaded.classic_theme==11&&loaded.theme==11);
  s.ui_interface=XZ_INTERFACE_MODERN;
  assert(xz_settings_format(&s,text,sizeof text)>0&&strstr(text,"\ntheme=24\n"));
@@ -62,7 +62,7 @@ int main(void) {
   assert(current.ui_interface==(theme==XZ_THEME_FLAGSHIP?XZ_INTERFACE_MODERN:XZ_INTERFACE_CLASSIC));
   /* Saving the migrated settings round-trips through the new format. */
   assert(xz_settings_format(&current,text,sizeof text)>0);
-  assert(!xz_settings_parse_present(text,&loaded,&present)&&present==46);
+  assert(!xz_settings_parse_present(text,&loaded,&present)&&present==47);
   assert(loaded.ui_interface==current.ui_interface&&loaded.classic_theme==current.classic_theme&&loaded.theme==current.theme);
  }
  /* A record shorter than the theme slot leaves the appearance as it is. */

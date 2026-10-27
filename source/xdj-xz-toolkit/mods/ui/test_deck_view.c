@@ -23,16 +23,20 @@ static void only_inside(struct xz_dv_rect r, int grow) {
 static int changed_inside(struct xz_dv_rect r) {
  int n=0;for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++)n+=pixels[y*W+x]!=SENTINEL;return n;
 }
-/* Pixels within about 12 % of a colour per channel: 12 px digits are antialiased, a thin 1 has no solid pixel. */
-static int count_colour(struct xz_dv_rect r, uint32_t c) {
- int n=0,wr=(int)((c>>19)&31),wg=(int)((c>>10)&63),wb=(int)((c>>3)&31);
- for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++){
-  int p=pixels[y*W+x],dr=((p>>11)&31)-wr,dg=((p>>5)&63)-wg,db=(p&31)-wb;
-  n+=dr>=-4&&dr<=4&&dg>=-8&&dg<=8&&db>=-4&&db<=4;
- }
- return n;
-}
 static uint32_t fnv(void) { uint32_t h=2166136261u;for(int i=0;i<W*H;i++){h^=pixels[i];h*=16777619u;}return h; }
+/* The button's number in slot (lanes left to right) is exactly the badge (deck_colour.h) for that deck, drawn
+   alone at the same place: digit, fill and polarity all checked. */
+static uint16_t ref[W*H];
+static int button_badge(const struct xz_deck_view_style *s, const unsigned char *lanes, int slot, int live) {
+ struct xz_canvas c={ref,W,W,H,s->theme};const struct xz_dv_rect b=s->button;
+ int tx=b.x+26+xz_text_width(c,"DECKS",1,99)+5,ty=b.y+(b.h-9)/2;
+ for(int i=0;i<slot;i++){char d[2]={(char)('0'+lanes[i]),0};tx+=xz_text_width(c,d,1,99)+4;}
+ char digit[2]={(char)('0'+lanes[slot]),0};int dw=xz_text_width(c,digit,1,99);
+ for(int i=0;i<W*H;i++)ref[i]=SENTINEL;
+ xz_deck_box(c,tx-1,ty-1,dw+3,11,lanes[slot]-1,live,s->button_fill,1,0);
+ for(int y=ty-1;y<ty+10;y++)for(int x=tx-1;x<tx+dw+2;x++)if(pixels[y*W+x]!=ref[y*W+x])return 0;
+ return 1;
+}
 
 static void test_words(void) {
  assert(!strcmp(xz_deck_view_name(XZ_LAYOUT_TWO),"2 DECKS")&&!strcmp(xz_deck_view_name(XZ_LAYOUT_FOUR),"4 DECKS")&&!strcmp(xz_deck_view_name(XZ_LAYOUT_MIXER),"4 DECKS"));
@@ -73,28 +77,22 @@ static void test_button(void) {
   clear();xz_deck_view_button_draw(canvas(),s,1,0,0,1,0);only_inside(s->button,0);uint32_t open=fnv();
   clear();xz_deck_view_button_draw(canvas(),s,1,0,0,0,1);only_inside(s->button,0);uint32_t focus=fnv();
   assert(open!=seen[2]&&focus!=seen[2]&&open!=focus);
-  /* Four decks: every number in its deck's colour, 3 and 4 dimmed while they wait; 2 DECKS keeps plain ink. */
+  /* Four decks: every number in its badge, 3 and 4 dimmed while they wait; 2 DECKS keeps plain ink. */
   for(int view=0;view<3;view++)for(int ready=0;ready<2;ready++){
    clear();xz_deck_view_button_draw(canvas(),s,view,ready,0,0,0);
-   for(int d=0;d<4;d++){
-    int lit=count_colour(s->button,xz_deck_colour(d)),dim=count_colour(s->button,xz_deck_colour_text(d,0,s->button_fill));
-    /* A lit digit's antialiased edge may pass near the dim value, so only these hold. */
-    if(view==XZ_LAYOUT_TWO)assert(!lit);
-    else if(d<2||ready)assert(lit>0);
-    else assert(!lit&&dim>0);
-   }
+   unsigned char lanes[4];int lanes_n=xz_deck_view_lanes(view,lanes);
+   for(int k=0;k<lanes_n;k++)assert(button_badge(s,lanes,k,lanes[k]<=2||ready)==(view!=XZ_LAYOUT_TWO));
   }
-  /* A 2 DECKS pair names the decks the sides drive, DECK 3 and 4 in their colours, 1 and 2 still plain; not
+  /* A 2 DECKS pair names the decks the sides drive, DECK 3 and 4 in their badges, 1 and 2 still plain; not
      while 3 and 4 are down. */
-  clear();xz_deck_view_button_draw(canvas(),s,0,1,1,0,0);assert(fnv()!=seen[1]);only_inside(s->button,0);
-  assert(count_colour(s->button,xz_deck_colour(2))>0&&!count_colour(s->button,xz_deck_colour(0))&&!count_colour(s->button,xz_deck_colour(1)));
-  clear();xz_deck_view_button_draw(canvas(),s,0,1,2,0,0);
-  assert(count_colour(s->button,xz_deck_colour(3))>0&&!count_colour(s->button,xz_deck_colour(2)));
-  clear();xz_deck_view_button_draw(canvas(),s,0,1,3,0,0);
-  assert(count_colour(s->button,xz_deck_colour(2))>0&&count_colour(s->button,xz_deck_colour(3))>0);
+  static const unsigned char pair_lanes[4][2]={{1,2},{3,2},{1,4},{3,4}};
+  for(int pair=1;pair<4;pair++){
+   clear();xz_deck_view_button_draw(canvas(),s,0,1,pair,0,0);assert(fnv()!=seen[1]);only_inside(s->button,0);
+   for(int k=0;k<2;k++)assert(button_badge(s,pair_lanes[pair],k,1)==(pair_lanes[pair][k]>2));
+  }
   clear();xz_deck_view_button_draw(canvas(),s,0,0,3,0,0);assert(fnv()==seen[0]);
  }
- puts("PASS deck view button: design rects, touch bands >= 40 px, writes only its rect, 2/4/4 x ready/not, open and focus looks, deck colours in four-deck views and for DECK 3/4 in a 2 DECKS pair");
+ puts("PASS deck view button: design rects, touch bands >= 40 px, writes only its rect, 2/4/4 x ready/not, open and focus looks, deck badges in four-deck views and for DECK 3/4 in a 2 DECKS pair");
 }
 static void test_picker(void) {
  const struct xz_deck_view_style *styles[2]={&xz_deck_view_modern,&xz_deck_view_classic};
@@ -120,8 +118,8 @@ static void test_picker(void) {
   }
  }
  /* Golden pictures of the picker: chosen view, decks 3/4 not connected, encoder on the middle tile. The four-deck
-    tiles carry the deck colours (deck_colour.h) on their lane and channel numbers. */
- static const uint32_t expected[2][3]={{0xb101706du,0x467b2c49u,0xba177454u},{0xf039c607u,0x1fd27ea2u,0xf2487bffu}};
+    tiles carry the deck badges (deck_colour.h) on their lane and channel numbers. */
+ static const uint32_t expected[2][3]={{0xa7e8dbebu,0x24e8ed63u,0x557a7782u},{0xbcad9c3fu,0xa1c635beu,0xfca8ae53u}};
  int changed=0;
  for(int i=0;i<2;i++)for(int v=0;v<3;v++)if(golden[i][v]!=expected[i][v]){
   printf("golden picker %d view %d: 0x%08x, expected 0x%08x\n",i,v,golden[i][v],expected[i][v]);changed=1;
