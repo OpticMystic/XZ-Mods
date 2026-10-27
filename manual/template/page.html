@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<meta name="description" content="{{description}}">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="/assets/brand/xz-mods-mark.png">
+<link rel="stylesheet" href="/assets/fonts/fonts.css">
+<link rel="stylesheet" href="{{base}}manual.css">
+<script>try{document.documentElement.dataset.iface=localStorage.getItem('xz-manual-iface')||'modern'}catch(e){document.documentElement.dataset.iface='modern'}</script>
+<script src="{{base}}manual.js" defer></script>
+</head>
+<body class="manual" data-base="{{base}}">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button class="top__menu" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Chapters">
+    <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  </button>
+  <a class="top__brand" href="{{base}}">
+    <img src="/assets/brand/xz-mods-mark.webp" alt="" width="40" height="32">
+    <span>XZ Mods <b>Manual</b></span>
+  </a>
+  <span class="top__version" title="This manual describes XZ Mods {{version}}">{{version}}</span>
+  <button class="top__search" type="button" data-open-search>
+    <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m13 13 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span>Search the manual</span><kbd>/</kbd>
+  </button>
+  <div class="iface" role="radiogroup" aria-label="Show instructions for this interface">
+    <button type="button" role="radio" data-iface-set="modern">Modern</button>
+    <button type="button" role="radio" data-iface-set="classic">Classic</button>
+  </div>
+  <a class="top__site" href="/">xzmods.com</a>
+</header>
+<div class="shell">
+  <nav class="sidebar" id="sidebar" aria-label="Chapters">{{nav}}</nav>
+  <main id="content" class="content">{{draft}}{{main}}
+    <nav class="pager" aria-label="Chapters">{{pager}}</nav>
+    <footer class="foot">
+      <p>Every screen in this manual is drawn by the XZ Mods firmware's own display code, from source {{stamp}}. When the interface changes, the manual is checked and updated before a release ships.</p>
+      <p><a href="https://github.com/OpticMystic/XZ-Mods/issues">Report a mistake in the manual</a> · <a href="/">XZ Mods home</a></p>
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page"><p>On this page</p><ul>{{toc}}</ul></aside>
+</div>
+<dialog class="search" aria-label="Search the manual">
+  <form method="dialog" class="search__box">
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m13 13 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <input type="search" placeholder="Beat jump, stems, four decks…" aria-label="Search" autocomplete="off" spellcheck="false">
+    <button value="close" aria-label="Close search">Esc</button>
+  </form>
+  <ol class="search__results" role="listbox"></ol>
+  <p class="search__empty" hidden>Nothing matches. Try a control name like <kbd>MENU</kbd> or a feature like stems.</p>
+</dialog>
+<dialog class="lightbox" aria-label="Enlarged screen"><button class="lightbox__close" aria-label="Close">×</button><img alt=""></dialog>
+</body>
+</html>
