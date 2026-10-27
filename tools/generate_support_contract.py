@@ -94,12 +94,13 @@ def main():
             if path.exists() and b'\r\n' in path.read_bytes():
                 expected = expected.replace(b'\n', b'\r\n')
             path.write_bytes(expected)
-    # The v1 transport is deliberately unchanged until phase 3. Its common cap
-    # must still match the contract. New consumers import the generated modules.
-    cap = json.loads((ROOT / 'spec/support-contract.json').read_text())['limits']['report_bytes']
+    # The desktop transport imports its cap from the generated module, never a literal.
     rust = (ROOT / 'src-tauri/src/support.rs').read_text()
-    if not re.search(r'const CAP:usize=' + str(cap) + r';', rust):
-        bad.append('src-tauri/src/support.rs: v1 transport cap')
+    if not re.search(r'const CAP:usize=crate::support_contract::REPORT_BYTES;', rust):
+        bad.append('src-tauri/src/support.rs: transport cap')
+    main = (ROOT / 'src-tauri/src/main.rs').read_text()
+    if '#[path="../../spec/generated/support_contract.rs"]' not in main:
+        bad.append('src-tauri/src/main.rs: generated contract module')
     migration = ROOT / 'services/support/migrations/0002_bugdesk_tracking.sql'
     if migration.exists():
         contract = json.loads((ROOT / 'spec/support-contract.json').read_text())
@@ -111,7 +112,7 @@ def main():
                 bad.append('0002_bugdesk_tracking.sql: ' + field)
     if bad:
         raise SystemExit('Support contract drift: ' + ', '.join(bad))
-    print('Support contracts match all generated consumers and the v1 transport cap.')
+    print('Support contracts match all generated consumers and the desktop transport cap.')
 
 if __name__ == '__main__':
     main()

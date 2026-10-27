@@ -267,12 +267,7 @@ def dispatch(r,job):
     if method=='support_preview':
         page=r.get('page',0);pages=(len(d['body'])+PAGE-1)//PAGE
         need(type(page) is int and 0<=page<pages,'Invalid preview page')
-        # TODO phase 3: remove mandatory all-page review in Python, Rust and JS
-        # together, replacing it with explicit consent to this exact frozen hash.
-        # Complete preview is tracked in a bounded separate marker, never in uploaded bytes.
-        marker=root()/(r['report_id']+'.review')
-        seen=set(json.loads(marker.read_text())['pages']) if marker.exists() else set()
-        seen.add(page);marker.write_text(json.dumps({'sha256':d['sha256'],'pages':sorted(seen),'complete':len(seen)==pages}))
+        # Viewing is optional. Consent is the explicit Send bound to the exact bytes (consent()).
         return {'page':page,'pages':pages,'sha256':d['sha256'],'text':d['body'][page*PAGE:(page+1)*PAGE]}
     raise ValueError('Unknown support operation')
 
