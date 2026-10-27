@@ -216,11 +216,15 @@ try {
   const size = (width, height) => send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   await size(1100, 760);
   const shots = process.env.XZ_SUPPORT_SHOTS; if (shots) await mkdir(shots, { recursive: true });
-  const shot = async name => {
+  // Each shot can record the boxes of named elements, so manual callouts sit beside what they name.
+  const boxes = {};
+  const shot = async (name, marks = {}) => {
     if (!shots) return;
     await new Promise(done => setTimeout(done, 200));
     const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: 1100, height: 760, scale: 1 } });
     await writeFile(join(shots, name + '.png'), Buffer.from(image.data, 'base64'));
+    boxes[name] = await evaluate(`(()=>{const out={};for(const [key,selector] of Object.entries(${JSON.stringify(marks)})){const item=[...document.querySelectorAll(selector)].find(e=>e.checkVisibility());if(item){const range=document.createRange();range.selectNodeContents(item);const r=['BUTTON','INPUT','PRE','TEXTAREA','DL'].includes(item.tagName)?item.getBoundingClientRect():range.getBoundingClientRect();out[key]=[Math.round(r.left),Math.round(r.top),Math.round(r.right),Math.round(r.bottom)];}}return out;})()`);
+    await writeFile(join(shots, 'boxes.json'), JSON.stringify(boxes, null, 1));
   };
   const idle = () => waitFor(`activeJob===null`, 'no job running');
   const click = async (text, root = 'wiz()') => { assert(await evaluate(`Boolean(button(${JSON.stringify(text)},${root}))`), 'button "' + text + '" is visible\n  ' + await context()); await evaluate(`button(${JSON.stringify(text)},${root}).click()`); };
@@ -237,15 +241,20 @@ try {
 
   await open();
   await check(`txt('#report-tool-row strong')==='Report a problem or share an idea'&&Boolean(document.querySelector('.tool-row[data-open="my-reports"]:not(#report-tool-row)'))`, 'Tools lists Report a problem or share an idea and My reports');
+  await evaluate(`showPage('tools')`);
+  await shot('00-tools', Object.fromEntries([...['dj-profile', 'library-repair', 'device-updates', 'advanced', 'updates'].map(id => [id, '.tool-row[data-open="' + id + '"] strong']),
+    ['report', '#report-tool-row strong'], ['my-reports', '.tool-row[data-open="my-reports"]:not(#report-tool-row) strong'], ['licenses', '.tool-row[data-open="licenses"] strong']]));
+  await evaluate(`showPage('licenses')`);
+  await shot('00-about', { report: '#support-open', mine: '#my-reports-open', inbox: '#support-owner-open', updates: '#about-updates', licenses: '#open-licenses' });
   await check(`!document.getElementById('support-wizard')&&!document.getElementById('support-consent')&&!document.querySelector('[id^=support-preview]')`, 'the old form, its page-by-page preview and consent checkbox are gone');
   await waitFor(`(fx.checks||[]).includes('launch')`, 'status check at launch');
   await evaluate(`document.getElementById('check-app-update').click()`);
   await waitFor(`(fx.checks||[]).includes('update')`, 'status check after the update check');
-  await check(`fx.checks.filter(c=>c==='update').length>=1&&fx.checks.includes('launch')`, 'My reports checks status at launch and on the app update check');
+  await check(`fx.checks.filter(c=>c==='update').length>=1&&fx.checks.includes('launch')&&!fx.requests.some(r=>r.method==='support_list')&&yieldingMethods.includes('support_collect')`, 'My reports checks status at launch and on the app update check, without holding the job slot');
   await startReport();
   await check(`[...wiz().querySelectorAll('.sr-choice')].map(b=>b.dataset.key.slice(2)).join()===XZ_SUPPORT_CONTRACT.reporter_hints.topic.join()&&document.activeElement.classList.contains('sr-choice')`, 'screen 1 offers the five topics in contract order, focus on the first');
   await check(`txt('#report-wizard .st-steps')==='1 Topic2 Describe'&&Boolean(button('Not sure'))&&Boolean(button('Cancel'))`, 'every screen has Not sure; the step strip shows where the box is');
-  await shot('01-topic');
+  await shot('01-topic', { steps: '#report-wizard .st-steps', worse: '[data-key="c-GOT_WORSE"] strong', broken: '[data-key="c-NOT_WORKING"] strong', differently: '[data-key="c-WORK_DIFFERENTLY"] strong', idea: '[data-key="c-NEW_IDEA"] strong', question: '[data-key="c-HOW_DO_I"] strong', skip: '[data-key="skip"]' });
   await click('Not sure');
   await waitFor(`reportWizard.state().screen==='describe'`, 'Not sure skips to the box');
   await check(`txt('#report-wizard-title')==='What happened?'&&document.activeElement.classList.contains('sr-box')`, 'Not sure on the topic goes straight to What happened? with the box focused');
@@ -269,7 +278,7 @@ try {
   await evaluate(`type('Decks 3 and 4 are silent after I plug in the cable')`);
   await waitFor(`wiz().querySelectorAll('.sr-answer').length===1`, 'Is this it? card');
   await check(`txt('.sr-answers h3')==='Is this it?'&&txt('.sr-answer strong')==='Decks 3 and 4 need the loopback cable'&&Boolean(button('Set up four decks'))&&Boolean(button('That answers it'))`, 'Is this it? shows the direct answer with its setup action');
-  await shot('03-is-this-it');
+  await shot('03-is-this-it', { context: '.sr-context', change: '[data-key="change"]', box: '.sr-box', card: '.sr-answer strong', action: '.sr-answer .actions button', answers: '[data-key^="ok-"]', details: '.sr-details summary b', meta: '.sr-details summary .sr-meta', send: '[data-key="send"]', privacy: '.sr-privacy' });
   await click('Set up four decks');
   await check(`document.getElementById('quad-setup').open`, 'the answer action opens the four-deck setup');
   await evaluate(`document.getElementById('quad-setup').close()`);
@@ -285,13 +294,13 @@ try {
   await waitFor(`reportWizard.state().scan.digest!==${JSON.stringify(before)}`, 'digest updates');
   await check(`txt('.sr-details summary .sr-meta').startsWith('5 of 6 sources')&&txt('.sr-fingerprint').includes(reportWizard.state().scan.digest)`, 'unticking a source updates the count and the displayed selection SHA256');
   await evaluate(`wiz().querySelector('.sr-details').scrollIntoView({block:'start'})`);
-  await shot('04-details-expanded');
+  await shot('04-details-expanded', { summary: '.sr-details summary b', meta: '.sr-details summary .sr-meta', tick: '.sr-item input', name: '.sr-item label', show: '.sr-item .text-button', preview: '.sr-preview', omitted: '.sr-item[data-omitted] label' });
   await click('Send privately');
   await waitFor(`reportWizard.state().screen==='done'`, 'sent');
   await check(`(async()=>{const r=last('support_prepare_v2');const s=fx.scans.get(r.scan_generation);const kept=s.items.filter(i=>i.eligible&&!r.omit_item_ids.includes(i.item_id));return r.consent==='private-report/v2'&&r.omit_item_ids.join()===${JSON.stringify(first)}&&r.selection_sha256===await digestOf(kept)&&r.description.startsWith('Decks 3 and 4')&&r.collect===undefined;})()`, 'Send freezes the shown selection: omitted source out, selection SHA256 and consent bound');
   await check(`fx.lastSend.id===fx.lastDraft.report_id&&fx.lastSend.sha256===fx.lastDraft.sha256&&fx.sends===1`, 'Send uploads exactly the sealed draft by its ID and SHA256, once');
   await check(`txt('.sr-receipt strong')==='Your receipt'&&txt('.sr-receipt dd').startsWith('Report '+fx.lastDraft.report_id.slice(0,8))&&Boolean(button('Track my report'))&&button('Done').classList.contains('primary')`, 'success shows the receipt, Track my report and Done');
-  await shot('05-received');
+  await shot('05-received', { receipt: '.sr-receipt strong', status: '.sr-receipt p', id: '.sr-receipt dd', track: '[data-key="track"]', done: '[data-key="done"]' });
   await click('Done');
   await check(`!wiz().open&&window.myReports.state().reports.length===1`, 'Done closes; the receipt is in My reports');
 
@@ -307,7 +316,7 @@ try {
   await evaluate(`fx.volumes=['C:\\\\','E:\\\\','F:\\\\']`);
   await waitFor(`wiz().querySelectorAll('.sr-stick').length===2&&reportWizard.state().scan.state==='ready'`, 'second stick detected live', 20);
   await check(`txt('.sr-stick:nth-child(2) strong')==='Music stick (F:)'&&txt('.sr-stick:nth-child(2) span')==='No diary on this stick'&&last('support_sources').supersedes`, 'a stick plugged in now appears by itself, says when it has no diary, and replaces the old scan');
-  await shot('07-usb-sticks');
+  await shot('07-usb-sticks', { title: '#report-wizard-title', loader: '.sr-stick:nth-child(1) strong', diary: '.sr-stick:nth-child(1) span', music: '.sr-stick:nth-child(2) strong', none: '.sr-stick:nth-child(2) span', all: '[data-key="done-sticks"]', skip: '[data-key="skip"]' });
   await click("That's all of them");
   await waitFor(`reportWizard.state().screen==='describe'`, 'describe');
   await check(`count('support_collect')===4&&last('support_collect').reporter_hints.degradation_timing==='DURING_SET_OVER_TIME'`, 'the box reuses the sticks scan instead of collecting again');
@@ -383,7 +392,7 @@ try {
   const failedId = await evaluate(`fx.lastDraft.report_id`);
   await click('Set up reporting connection');
   await check(`document.getElementById('report-connection').open&&txt('#report-connection .st-steps')==='1 Connection2 Clock3 Send again'`, 'the setup walks connection, clock and send again');
-  await shot('14-connection-setup');
+  await shot('14-connection-setup', { online: '#report-connection .st-note', clock: '#report-connection h3:nth-of-type(2)', again: '#report-connection [data-key="conn-send"]' });
   await evaluate(`fx.sendMode='ok'`);
   await click('Send again', `document.getElementById('report-connection')`);
   await waitFor(`reportWizard.state().screen==='done'`, 'sent after setup');
@@ -400,12 +409,12 @@ try {
   await evaluate(`showPage('my-reports')`);
   await waitFor(`document.querySelectorAll('.sr-reports .sr-report').length===4`, 'my reports list');
   await check(`txt('.sr-report[data-unseen] .sr-status')==='New: A fix is in progress.'&&[...document.querySelectorAll('.sr-reports .sr-badge')].map(b=>b.textContent).includes('Idea')`, 'My reports shows each report with its kind and status in plain words');
-  await shot('16-my-reports');
+  await shot('16-my-reports', { notice: '#report-notice-text', view: '#report-notice-view', kind: '.sr-reports .sr-badge', words: '.sr-reports .sr-report strong', status: '.sr-report[data-unseen] .sr-status', sent: '.sr-reports .sr-when', check: '[data-key="check-now"]', report: '[data-key="new-report"]' });
   await evaluate(`document.getElementById('report-notice-view').click()`);
   await waitFor(`document.getElementById('report-track').open`, 'tracking view');
   await waitFor(`fx.seen===${JSON.stringify(tracked)}&&document.getElementById('report-notice').classList.contains('hidden')`, 'seen');
   await check(`txt('#report-track .sr-track-status')==='A fix is in progress.'&&txt('#report-track .st-steps').startsWith('1 Received2 Confirmed3 Fix in progress')`, 'the tracking view shows where the report is, read-only');
-  await shot('17-tracking');
+  await shot('17-tracking', { steps: '#report-track .st-steps', title: '#report-track h2', words: '#report-track .sr-track-words', status: '#report-track .sr-track-status', dates: '#report-track .sr-dates', more: '#report-track .sr-more summary', check: '#report-track [data-key="check-now"]' });
   await evaluate(`document.querySelector('#report-track .sr-more summary').click()`);
   await click('Copy status link', `document.getElementById('report-track')`);
   await waitFor(`fx.clipboard.length===1`, 'copied');

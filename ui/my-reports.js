@@ -5,7 +5,7 @@ window.myReports = (() => {
   const C = window.XZ_SUPPORT_CONTRACT;
   const host = $('my-reports-host'), track = $('report-track'), inbox = $('support-inbox');
   titles['my-reports'] = 'My reports'; toolPages.add('my-reports');
-  pageShown['my-reports'] = () => { render(); check('open'); };
+  pageShown['my-reports'] = () => { render(); check('open', null, true); };
   const day = iso => iso ? new Date(typeof iso === 'number' ? iso * 1000 : iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown';
   function icon(id) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
@@ -27,25 +27,27 @@ window.myReports = (() => {
       default: return 'Status unknown';
     }
   }
-  let reports = [], drafts = [], saved = [], loaded = false, loading = false, error = '';
+  let reports = [], drafts = [], saved = [], loaded = false, draftsLoaded = false, loading = false, error = '';
 
-  async function load() {
+  // Background checks read receipts from the host only. Saved drafts come from the collector, which is a job, so
+  // they are read only when My reports or a report is opened; a launch check never holds the job slot.
+  async function load(withDrafts = true) {
     if (loading) return;
     loading = true;
     try {
       const result = await invoke('support_reports'); reports = result.reports; error = '';
-      const listed = await run({ method: 'support_list' }, 'Reading saved reports', null, () => {});
-      if (listed?.ok) saved = listed.result.reports;
+      const listed = withDrafts ? await run({ method: 'support_list' }, 'Reading saved reports', null, () => {}) : null;
+      if (listed?.ok) { saved = listed.result.reports; draftsLoaded = true; }
       drafts = saved.filter(d => !reports.some(r => r.report_id === d.report_id));
     } catch (failure) { error = String(failure); }
     finally { loading = false; loaded = true; }
     render(); notice();
   }
-  async function check(reason, id = null) {
+  async function check(reason, id = null, withDrafts = false) {
     if (!invoke) return null;
     try {
       const result = await invoke('support_check_statuses', { reason, id });
-      if (result.checked || !loaded) await load(); else notice(result.unseen);
+      if (result.checked || !loaded || withDrafts) await load(withDrafts); else notice(result.unseen);
       return result;
     } catch { return null; }
   }
@@ -123,7 +125,7 @@ window.myReports = (() => {
   }
   let current = null;
   async function show(id) {
-    if (!reports.some(r => r.report_id === id)) await load();
+    if (!reports.some(r => r.report_id === id) || !draftsLoaded) await load();
     current = { id, confirm: false, message: '' };
     renderTrack();
     if (!track.open) track.showModal();
