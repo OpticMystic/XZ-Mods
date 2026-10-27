@@ -71,8 +71,22 @@ static void ui_quantum(void){
   CHECK(m.deck[side+2].quantize_num==known);
  }
 }
+static void sync_facts(void){
+ for(int mode=0;mode<5;mode++){
+  reset(0);supplied.master_actual=actual;
+  supplied.deck[0].sync=(struct xz_extra_sync){.requested=1,.tempo_matched=1,.source=XZ_EXTRA_SYNC_SOURCE_LIVE,.master_paused=1};
+  if(mode==1){actual.deck=XZ_MASTER_NONE;actual.revision++;}
+  if(mode==2)clock_ms+=XZ_MASTER_MAX_AGE_MS+1;
+  if(mode==3){actual.revision++;supplied.deck[0].sync.source=XZ_EXTRA_SYNC_SOURCE_EMERGENCY;}
+  if(mode==4)actual.operator_epoch++;
+  struct xz_extra_decks out;CHECK(xz_extra_decks_snapshot(&out));
+  CHECK(out.deck[0].sync.tempo_matched==(mode==0));
+  CHECK(out.deck[0].sync.source==(mode==0?XZ_EXTRA_SYNC_SOURCE_LIVE:mode==1?XZ_EXTRA_SYNC_SOURCE_NONE:mode==3?XZ_EXTRA_SYNC_SOURCE_EMERGENCY:XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST));
+  CHECK(out.deck[0].sync.master_paused==(mode==0));
+ }
+}
 int main(void){
- ui_quantum();
+ sync_facts();ui_quantum();
  for(int d=0;d<4;d++)for(int fresh=0;fresh<2;fresh++)for(int route_up=0;route_up<2;route_up++)
   ui_projection(d,fresh,route_up);
  for(int d=0;d<4;d++){

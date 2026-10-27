@@ -23,6 +23,7 @@ int fixture_snapshot(struct xz_extra_decks *o){xz_xp_read(p,o);o->route_up=!!fak
 void fixture_sides(int l,int r){(void)l;(void)r;}
 int fixture_native_master(void){return xz_xp_use_native_master(p);}
 int xz_extra_decks_needs_native_sync(void){return xz_xp_needs_native_sync(p);}
+void xz_extra_decks_set_quantize_grid(unsigned den,int known){xz_xp_set_quantize_grid(p,den,known);}
 uint32_t xz_extra_decks_revision(void){return 0;}
 uint32_t xz_extra_decks_control_revision(void){return 0;}
 static int fixture_stock_global,started;
@@ -35,6 +36,10 @@ int xz_runtime_deck_global_input(void *,const void *);
 int xz_runtime_deck_global_key(uint16_t,unsigned,unsigned);
 static int shell_eligible_locked(void){assert(0);return 0;}
 int xz_shell_runtime_extra_load_key(int a,int b,int c){(void)a;(void)b;(void)c;assert(0);return 0;}
+static int stock_dialog_up(void){return 0;}
+static void (*stock_global_key)(void *,const void *);
+uint32_t xz_extra_decks_epoch(void){return fake_link(NULL);}
+void xz_extra_decks_native_master_selected(unsigned d){xz_xp_native_master_selected(p,d);}
 static void shell_ui_requests_locked(void){assert(0);}
 #include "dispatcher.inc"
 static unsigned checks,failed;
@@ -63,7 +68,7 @@ static void positive(void){
   if(mode==3){fixture_frame(1,XZ_THEME_FLAGSHIP);tick(1,XZ_THEME_FLAGSHIP,100,1,1);CHECK(xz_shell_runtime_owns());CHECK(xz_shell_runtime_follow_interface(0)==0);CHECK(!xz_shell_runtime_owns());fixture_frame(1,XZ_THEME_FLAGSHIP);CHECK(!xz_shell_runtime_owns());eligible=0;theme=0;}
   if(mode==5){fixture_frame(1,XZ_THEME_FLAGSHIP);fixture_handoff();eligible=1;}
   unsigned polls_before=fixture_native_polls();
-  dispatch(side,0);step();CHECK(!view.deck[side].sync.requested);CHECK(fixture_delivered()==0);
+  dispatch(side,0);step();CHECK(view.deck[side].sync.requested);CHECK(fixture_delivered()==1);
   dispatch(side,2);step();CHECK(view.deck[side].sync.requested&&fixture_delivered()==1);CHECK(fake_link(NULL)==997);
   if(mode==6)CHECK(fixture_toggle((int)side)==1);
   tick(eligible,theme,2500,mode!=4,1);
@@ -75,7 +80,7 @@ static void positive(void){
   CHECK(fixture_native_polls()>polls_before);CHECK(fixture_native_polls()-polls_before<=63u);
   if(mode!=1&&mode!=3&&mode!=5)CHECK(fixture_waves()==0);
   if(mode==6)CHECK(fixture_toggle((int)side)==1);
-  tap(side);CHECK(!view.deck[side].sync.requested);tick(eligible,theme,40,mode!=4,1);CHECK(!xz_extra_native_sync_clock(&c));
+  tap(side);CHECK(!view.deck[side].sync.requested);tick(eligible,theme,40,mode!=4,1);CHECK(xz_extra_native_sync_clock(&c));
   finish();
  }
 }
@@ -85,17 +90,18 @@ static void negative(void){
   struct xz_sync_native_snapshot c;CHECK(xz_extra_native_sync_clock(&c));
   switch(mode){case 0:fixture_load_state(7);break;case 1:fixture_media_generation(0);break;case 2:fixture_native_bad_guard(1);break;case 3:fixture_native_change_master(1);break;case 4:fixture_native_change_source(1);break;case 5:fixture_torn_load();break;case 6:clock_ms=c.captured_ms+151;break;case 7:clock_ms=c.captured_ms-1;break;case 8:fixture_media_reuse();break;case 9:fixture_media_publication(43);break;case 10:fixture_native_external(2);break;}
   if(mode<6||mode>7)tick(0,0,40,1,1);
-  CHECK(!xz_extra_native_sync_clock(&c));CHECK(!c.available&&!c.phase_available);
+  if(mode==6){CHECK(xz_extra_native_sync_clock(&c)&&c.available&&!c.phase_available);}
+  else{CHECK(!xz_extra_native_sync_clock(&c));CHECK(!c.available&&!c.phase_available);}
   printf("negative mode=%d available=%d reason=%d\n",mode,c.available,c.reason);finish();
  }
 }
 static void coherence(void){
  struct xz_sync_native_snapshot c;unsigned previous;
- init_case(0,0);tick(0,0,100,1,1);CHECK(!fixture_native_polls()&&!fixture_waves());
+ init_case(0,0);tick(0,0,100,1,1);CHECK(fixture_native_polls()&&!fixture_waves());
  tap(0);tick(0,0,80,1,1);CHECK(xz_extra_native_sync_clock(&c));previous=c.source_revision;
  CHECK(previous>0&&!fixture_waves()&&!fixture_wave_revision());
  tick(0,0,80,0,1);CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision==previous);
- clock_ms=c.captured_ms+150;CHECK(xz_extra_native_sync_clock(&c));clock_ms++;CHECK(!xz_extra_native_sync_clock(&c));
+ clock_ms=c.captured_ms+150;CHECK(xz_extra_native_sync_clock(&c)&&c.phase_available);clock_ms++;CHECK(xz_extra_native_sync_clock(&c)&&!c.phase_available);
  tick(0,0,40,0,1);CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision==previous);
  fixture_load_state(7);tick(0,0,40,0,1);CHECK(!xz_extra_native_sync_clock(&c));
  fixture_load_state(0);tick(0,0,40,0,1);CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision>previous);previous=c.source_revision;
@@ -113,9 +119,9 @@ static void coherence(void){
  tick(0,0,200,0,1);CHECK(!xz_extra_native_sync_clock(&c));
  fixture_load_state(9);tick(0,0,40,0,1);CHECK(!xz_extra_native_sync_clock(&c));
  fixture_load_state(0);tick(0,0,40,0,1);CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision>previous);previous=c.source_revision;
- tap(0);tick(0,0,10,0,1);CHECK(!xz_extra_native_sync_clock(&c));
- unsigned polls=fixture_native_polls();tick(0,0,100,0,1);CHECK(fixture_native_polls()==polls);
- tap(0);tick(0,0,40,0,1);CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision>previous);previous=c.source_revision;
+ tap(0);tick(0,0,10,0,1);CHECK(xz_extra_native_sync_clock(&c));
+ unsigned polls=fixture_native_polls();tick(0,0,100,0,1);CHECK(fixture_native_polls()>polls);
+ tap(0);tick(0,0,40,0,1);CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision==previous);previous=c.source_revision;
  fixture_revision_limit();fixture_load_state(7);tick(0,0,40,0,1);fixture_load_state(0);tick(0,0,40,0,1);CHECK(!xz_extra_native_sync_clock(&c));
  printf("coherence revisions_advanced_from=%u no_waves=%d polls=%u\n",previous,fixture_waves(),fixture_native_polls());
  finish();
@@ -125,7 +131,8 @@ static void uncertainty(void){
  init_case(0,0);fixture_native_read_window(3000);tap(0);tick(0,0,200,0,1);
  CHECK(xz_extra_native_sync_clock(&c)&&c.available&&!c.phase_available&&c.uncertainty_us==1500);
  CHECK(view.deck[0].tempo_x100==500&&!view.deck[0].sync.locked&&view.deck[0].sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE);
- fixture_native_read_window(20001);tick(0,0,40,0,1);CHECK(!xz_extra_native_sync_clock(&c)&&c.reason==XZ_SYNC_NATIVE_TIME_INVALID);
+ fixture_native_read_window(20001);tick(0,0,40,0,1);CHECK(xz_extra_native_sync_clock(&c)&&c.available&&!c.phase_available);
+ CHECK(view.deck[0].sync.tempo_matched&&view.deck[0].tempo_x100==500&&!view.deck[0].sync.locked);
  printf("uncertainty tempo_only_then_invalid=%d\n",!c.available);finish();
 }
 #include "load_cases.inc"

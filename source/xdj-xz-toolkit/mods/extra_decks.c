@@ -129,9 +129,18 @@ static void project_master(struct xz_extra_decks *out,uint32_t now){
    (out->master_intent.deck!=a.deck||out->master_intent.epoch==a.request_epoch);
  }
  if(!valid)a=(struct xz_master_observation){.deck=XZ_MASTER_UNKNOWN};
+ int same=out->master_actual.deck==a.deck&&out->master_actual.revision==a.revision&&
+  out->master_actual.operator_epoch==a.operator_epoch&&out->master_actual.request_epoch==a.request_epoch&&
+  out->master_actual.lease_generation==a.lease_generation&&out->master_actual.route_epoch==a.route_epoch&&
+  out->master_actual.load_revision==a.load_revision&&out->master_actual.transport_generation==a.transport_generation;
  out->master_actual=a;
  for(int i=0;i<XZ_EXTRA_DECKS;i++){
   struct xz_extra_deck *d=&out->deck[i];
+  d->sync.quantum_unknown=d->quantize&&!d->quantize_den;
+  if(d->sync.requested&&(!same||!valid||a.deck<0)){
+   d->sync.tempo_matched=0;d->sync.locked=0;d->sync.correction_ppm=0;d->sync.master_paused=0;
+   if(d->sync.source!=XZ_EXTRA_SYNC_SOURCE_EMERGENCY)d->sync.source=a.deck==XZ_MASTER_NONE?XZ_EXTRA_SYNC_SOURCE_NONE:XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
+  }
   d->master=valid&&a.deck==i+XZ_EXTRA_FIRST_DECK;
   d->master_scope=d->master?(XZ_EXTRA_MASTER_SCOPE_SOFTWARE|XZ_EXTRA_MASTER_SCOPE_NATIVE):0;
   if(valid)d->known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER);
