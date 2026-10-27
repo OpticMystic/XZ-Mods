@@ -96,13 +96,13 @@ for ext in (['wav', *(x[0] for x in formats)] if args.suite in ('all', 'codecs')
 if args.suite in ('all', 'player'):
     (out / 'anlz').mkdir(exist_ok=True)
     player_objects = []
-    for name in ['extra_player.c', 'key/keyshift.c', 'key/music.c', 'key/control.c', 'deck_select.c',
+    for name in ['tests/ram_player_engine.c', 'key/keyshift.c', 'key/music.c', 'key/control.c', 'deck_select.c',
                  'anlz_extra.c', 'shell_analysis.c', 'ui/layered_wave_source.c', 'ui/layered_wave.c']:
         obj = out / (name.replace('/', '_') + '.o')
         run('compile-player-' + obj.stem, flags + ['-DXZ_XP_TEST_RENDER_HOOK', '-c', linux(ROOT / name), '-o', linux(obj)])
         player_objects.append(linux(obj))
     run('link-player', flags + ['-DXZ_XP_TEST_RENDER_HOOK', linux(ROOT / 'tests/test_ram_player.c'),
-                               *objects, *player_objects, '-lm', '-o', linux(out / 'test-player')])
+                               *objects, *player_objects, '-Wl,--wrap=pread64', '-lm', '-o', linux(out / 'test-player')])
     run('player', [linux(out / 'test-player'), linux(out), linux(wav)])
 if args.suite in ('all', 'native'):
     for name, sources in [('runtime', ['ram/cache.c', 'ram/budget.c']), ('pin', ['ram/pin.c'])]:
