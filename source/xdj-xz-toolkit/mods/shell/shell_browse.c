@@ -30,7 +30,7 @@ enum target { T_NONE, T_LIST, T_RAIL, T_KEY, T_OTHER };
 enum { FOCUS_LIST=1, FOCUS_RAIL=2, FOCUS_KEYBOARD=3, FOCUS_FIELD=4 };
 static struct {
  int touched, jump, pressed;
- int hide_preview, side_open, keyboard_hidden, key_cursor;
+ int side_open, keyboard_hidden, key_cursor;
  char query[XZ_SHELL_BROWSE_QUERY];
  int32_t last_request;
  int rail_first, rail_cursor;
@@ -100,9 +100,9 @@ static int window_has_tracks(const struct xz_shell_browse_model *b, enum xz_shel
  for(int i=0;i<b->window_count&&i<XZ_SHELL_BROWSE_WINDOW;i++)if(row_at(b,s,b->window_start+i)&&b->rows[i].kind==XZ_SHELL_ROW_TRACK)return 1;
  return 0;
 }
-static int layout_columns(const struct xz_shell_browse_model *b, enum xz_shell_screen s, struct col out[MAX_COLS]) {
+static int layout_columns(const struct xz_shell_browse_model *b, enum xz_shell_screen s, int preview, struct col out[MAX_COLS]) {
  int kinds[MAX_COLS],n=0,have_title=0,seen[COL_KINDS]={0};
- if(!st.hide_preview&&window_has_tracks(b,s)){kinds[n++]=COL_PREVIEW;seen[COL_PREVIEW]=1;}
+ if(preview&&window_has_tracks(b,s)){kinds[n++]=COL_PREVIEW;seen[COL_PREVIEW]=1;}
  int first=n;
  if(bknown(b,XZ_SHELL_BF_COLUMNS)&&b->column_count>0){
   for(int i=0;i<b->column_count&&i<XZ_SHELL_BROWSE_COLUMNS;i++){
@@ -137,8 +137,8 @@ static int layout_columns(const struct xz_shell_browse_model *b, enum xz_shell_s
  }
  return n;
 }
-static struct col title_col(const struct xz_shell_browse_model *b, enum xz_shell_screen s) {
- struct col cols[MAX_COLS];int n=layout_columns(b,s,cols);
+static struct col title_col(const struct xz_shell_browse_model *b, enum xz_shell_screen s, int preview) {
+ struct col cols[MAX_COLS];int n=layout_columns(b,s,preview,cols);
  for(int i=0;i<n;i++)if(cols[i].kind==XZ_SHELL_COL_TITLE)return cols[i];
  return (struct col){XZ_SHELL_COL_TITLE,list_x(s),list_w(s)};
 }
@@ -199,7 +199,7 @@ struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *u, const struct
   if(s!=XZ_SHELL_BROWSE||index<0||index>=RAIL_SLOTS)return none;
   return (struct xz_shell_rect){0,HEAD_H+index*RAIL_ITEM,RAIL_W,RAIL_ITEM};
  case XZ_SHELL_BR_COLUMN:{
-  struct col cols[MAX_COLS];int n=layout_columns(b,s,cols);
+  struct col cols[MAX_COLS];int n=layout_columns(b,s,m&&m->browse_preview,cols);
   if(index<0||index>=n)return none;
   /* 36 px drawn, padded up to 44 into the header's lower margin. */
   return (struct xz_shell_rect){cols[index].x,HEAD_HIT,cols[index].w,LIST_Y-HEAD_HIT};
@@ -214,7 +214,7 @@ struct xz_shell_rect xz_shell_browse_rect(const struct xz_shell *u, const struct
   if(u->browse_resume||different_media(u,b)||index<0||index>sh_deck_count(m)||!v->focus||st.touched<0||st.touched!=v->cursor||i<0||i>=rows)return none;
   const struct xz_shell_browse_row *t_row=row_at(b,s,st.touched);
   if(!t_row||t_row->kind!=XZ_SHELL_ROW_TRACK)return none;
-  struct col t=title_col(b,s);
+  struct col t=title_col(b,s,m&&m->browse_preview);
   int right=t.x+t.w-6,x=right-LOAD_W-sh_deck_count(m)*LOAD_DECK_W;
   int y=LIST_Y+i*ROW_H;
   if(index==0)return (struct xz_shell_rect){x,y,LOAD_W,ROW_H};
@@ -462,7 +462,11 @@ static void render_header(const struct xz_shell *u, const struct xz_shell_model 
  back_arrow(c,BACK_X+4,2,SH_WHITE);
  struct xz_shell_rect pv=xz_shell_browse_rect(u,m,XZ_SHELL_BR_PREVIEW,0),in=xz_shell_browse_rect(u,m,XZ_SHELL_BR_INFO,0);
  struct xz_shell_rect fl=xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER,0),chip=xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER_CHIP,0);
- tile(c,pv,"PREVIEW",!st.hide_preview);
+ tile(c,pv,m->browse_preview?"PREVIEW":"",m->browse_preview);
+ if(!m->browse_preview){
+  sh_text_fit(c,pv.x+3,pv.y+4,pv.w-6,"PREVIEW OFF",SH_SMALL,SH_WHITE);
+  sh_text_fit(c,pv.x+3,pv.y+18,pv.w-6,"TAP TO SHOW",SH_SMALL,SH_DIM);
+ }
  tile(c,in,"INFO",u->panel.kind==XZ_SHELL_PANEL_INFO);
  for(int i=0;i<5;i++)xz_rect(c,in.x+12-i,in.y+13+i,1,9-2*i,SH_WHITE);
  if(fl.w){
@@ -819,7 +823,7 @@ static void render_list(const struct xz_shell *u, const struct xz_shell_model *m
   if(panel_open(u))render_panel(u,m,c);
   return;
  }
- struct col cols[MAX_COLS];int n=layout_columns(b,s,cols);
+ struct col cols[MAX_COLS];int n=layout_columns(b,s,m->browse_preview,cols);
  int rows=xz_shell_browse_rows_visible(u);
  render_columns(u,m,c,cols,n);
  for(int i=0;i<rows;i++)render_row(u,m,c,cols,n,v->scroll+i,LIST_Y+i*ROW_H,v);
@@ -1960,7 +1964,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
  if(y<HEAD_HIT||(y<HEAD_H&&x<SRC_W)){
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_SOURCE,0),x,y))return sh_key(u,m,XZ_SHELL_KEY_SOURCE,-1,out);
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_BACK,0),x,y))return sh_back(u,m,out);
-  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_PREVIEW,0),x,y)){st.hide_preview=!st.hide_preview;return n;}
+  if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_PREVIEW,0),x,y)){return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_BROWSE_PREVIEW,-1,!m->browse_preview,0});}
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_INFO,0),x,y))return sh_key(u,m,XZ_SHELL_KEY_INFO,-1,out);
   if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_FILTER,0),x,y)){
    enum xz_shell_panel_kind was=u->panel.kind;
@@ -2010,7 +2014,7 @@ static size_t touch_down(struct xz_shell *u, const struct xz_shell_model *m, int
   u->grab.to=row;v->cursor=row;
   return n;
  }
- struct col cols[MAX_COLS];int count=layout_columns(b,s,cols);
+ struct col cols[MAX_COLS];int count=layout_columns(b,s,m->browse_preview,cols);
  for(int i=0;i<count;i++)if(sh_inside(xz_shell_browse_rect(u,m,XZ_SHELL_BR_COLUMN,i),x,y)){
   if(cols[i].kind==COL_PREVIEW||!matches(b,s))return n;
   int desc=bknown(b,XZ_SHELL_BF_SORT)&&(int)b->sort_column==cols[i].kind?!b->sort_descending:0;
