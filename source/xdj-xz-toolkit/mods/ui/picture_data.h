@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #ifndef XZ_UI_PICTURE_DATA_H
 #define XZ_UI_PICTURE_DATA_H
-/* What the MODS menu's pictures show, as plain values. The CLASSIC panel fills them from its model and draws
-   them itself; the MODERN menu carries them to the shell inside struct xz_shell_menu (no pointers), where
-   shell_menu.c draws them with the same code (pictures.h). */
+/* What the MODS menu's pictures show, as plain values. The panel fills them from its model and draws them
+   (pictures.h). */
 #include <stdint.h>
 
 /* PLAY > BEAT JUMP PADS */

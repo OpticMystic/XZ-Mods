@@ -33,6 +33,12 @@ extern const struct xz_ui_skin xz_skin_classic, xz_skin_lcars, xz_skin_matrix, x
 /* Shared screen grid. Header 0..HEAD, section rail 0..RAIL_W, content
    CX..CX+CW by CY..CB, info dock DOCK_Y..480. Controls never enter the dock. */
 enum { XZ_UI_HEAD=40, XZ_UI_RAIL_W=124, XZ_UI_CX=136, XZ_UI_CW=656, XZ_UI_CY=48, XZ_UI_CB=404, XZ_UI_DOCK_Y=412 };
+/* MODERN's rail: UTILITY above this line, the sections below it. */
+enum { XZ_UI_RAIL_DIVIDER_Y=88 };
+/* The dock's explanation: three lines of the small face from DOCK_Y + BODY_Y, BODY_W wide. */
+enum { XZ_UI_DOCK_BODY_Y=28, XZ_UI_DOCK_BODY_W=532, XZ_UI_DOCK_LINES=3 };
+/* Rows text takes in the dock's word wrap at width px (99 when one word does not fit). */
+int xz_ui_wrap_lines(struct xz_canvas c, int width, const char *text);
 /* DJ Profile list panel under the header's right corner. */
 enum { XZ_UI_PROFILE_LIST_X=432, XZ_UI_PROFILE_LIST_Y=44, XZ_UI_PROFILE_LIST_W=360 };
 int xz_ui_profile_list_bottom(const struct xz_ui *, const struct xz_ui_model *);

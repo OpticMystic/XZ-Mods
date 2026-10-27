@@ -376,14 +376,13 @@ static void test_menu_hold(void) {
   else assert(xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==before.depth+1&&u.mods_view.tab==0&&u.mods_view.on_tabs);
   render_checked(&u,&m,buffer_a);
  }
- /* Short MENU on PLAY opens MODS (UTILITY here: this model has no mod tabs); short MENU there closes it. */
+ /* Short MENU on PLAY asks for the one MODS menu (the runtime's panel); the shell stays on PLAY under it. */
  struct xz_shell u;xz_shell_init(&u);
- assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.depth==2&&u.mods_view.tab==0&&u.mods_view.on_tabs);
- assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==0&&u.depth==1);
+ assert(press(&u,&m,XZ_SHELL_KEY_MENU,out)==1&&out[0].kind==XZ_SHELL_ACT_OPEN_MODS&&out[0].value==-1&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1);
  /* Only without the settings slot does held MENU go to the stock UTILITY. */
  m.settings_screen=NULL;
  assert(press(&u,&m,XZ_SHELL_KEY_MENU_HOLD,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_UTILITY);
- puts("PASS held MENU opens MODS > UTILITY on every screen; short MENU on PLAY opens MODS");
+ puts("PASS held MENU opens UTILITY on every screen; short MENU on PLAY opens the one MODS menu");
 }
 
 /* STEMS: the stem layer in the stem pad colours, muted stems grey, 3BAND while a deck has no layer. */

@@ -20,9 +20,6 @@ static uint64_t report_epoch(const int *v) {
 static const char *const step_labels[XZ_SUPPORT_STEPS] = {
     "1 PREPARE", "2 PREVIEW", "3 RECEIPT"
 };
-static const char *const menu_steps[XZ_SUPPORT_STEPS] = {
-    "PREPARE", "PREVIEW", "RECEIPT"
-};
 static const char *const category_labels[4] = {
     "FOUR-DECK BRIDGE", "USB MEDIA", "AUDIO / STEMS", "DISPLAY / MENU"
 };
@@ -431,79 +428,3 @@ const char *xz_ui_support_help(int kind) {
     }
 }
 
-int xz_ui_support_menu(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_shell_menu *out) {
-    memset(out, 0, sizeof(*out));
-    out->page = u->page;
-    out->layout = XZ_SHELL_MENU_SUPPORT;
-    if(current_step(u)==XZ_SUPPORT_STEP_RECEIPT && m->support.phase==XZ_SUPPORT_STORED)
-        snprintf(out->report_qr_url,sizeof(out->report_qr_url),"%s",m->support.github_url);
-    int depth = 0;
-    out->root = xz_ui_menu_root(u, &depth);
-    out->depth = (uint8_t)depth;
-    out->focus_row = -1;
-    snprintf(out->title, sizeof(out->title), "%s", xz_ui_support_title(u->page));
-    snprintf(out->path, sizeof(out->path), "%s", out->root == XZ_UI_CONNECT ? "CONNECT / UPDATES" : "EXTRAS");
-    out->section_count = 1;
-    strcpy(out->sections[0], "ISSUE REPORT");
-    out->step_count = XZ_SUPPORT_STEPS;
-    out->step = (uint8_t)current_step(u);
-    for (int i = 0; i < XZ_SUPPORT_STEPS; i++) strcpy(out->steps[i], menu_steps[i]);
-
-    struct xz_ui_widget w[XZ_UI_WIDGETS];
-    size_t n = xz_ui_layout(u, m, w);
-    for (size_t i = 0; i < n && out->row_count < XZ_SHELL_MENU_ROWS; i++) {
-        if (!xz_ui_support_kind(w[i].kind)) continue;
-        struct xz_shell_menu_row *r = &out->row[out->row_count++];
-        r->kind = XZ_SHELL_MENU_ACTION;
-        r->available = 1;
-        r->current = -1;
-        r->key = ((int32_t)w[i].kind << 16) ^ (w[i].index & 0xffff);
-        snprintf(r->label, sizeof(r->label), "%s", w[i].label);
-        snprintf(r->help, sizeof(r->help), "%s", xz_ui_support_help(w[i].kind));
-        if (xz_ui_support_selected(u, m, &w[i])) strcpy(r->value, "SELECTED");
-        r->target = (struct xz_shell_menu_target){(int16_t)w[i].kind, (int16_t)w[i].index, -1, XZ_UI_MENU_TOUCH, 0};
-        if (u->focus_kind == w[i].kind && u->focus_index == w[i].index) {
-            out->focus_row = (int16_t)(out->row_count - 1);
-        }
-    }
-
-    struct xz_shell_menu_line *ln = &out->line[out->line_count++];
-    ln->tone = XZ_SHELL_TONE_HEAD;
-    snprintf(ln->text, sizeof(ln->text), "PRIVATE LOGS: %s", private_log_state_text(m->support.phase));
-    ln = &out->line[out->line_count++];
-    ln->tone = XZ_SHELL_TONE_PLAIN;
-    snprintf(ln->text, sizeof(ln->text), "GITHUB ISSUE: PENDING USER SUBMISSION");
-
-    if (m->support.report_id[0] && out->line_count < XZ_SHELL_MENU_LINES) {
-        ln = &out->line[out->line_count++];
-        snprintf(ln->text, sizeof(ln->text), "ID %s (%u B, %u REDACTED)",
-                 m->support.report_id, m->support.payload_bytes, m->support.redactions);
-    }
-    if (m->support.payload_sha256[0] && out->line_count < XZ_SHELL_MENU_LINES) {
-        ln = &out->line[out->line_count++];
-        snprintf(ln->text, sizeof(ln->text), "SHA256 %.32s", m->support.payload_sha256);
-        if (out->line_count < XZ_SHELL_MENU_LINES) {
-            ln = &out->line[out->line_count++];
-            snprintf(ln->text, sizeof(ln->text), "       %.32s", m->support.payload_sha256 + 32);
-        }
-    }
-    if (u->support.clock_edit && out->line_count < XZ_SHELL_MENU_LINES) {
-        const int *v=u->support.clock_field;
-        ln = &out->line[out->line_count++];
-        snprintf(ln->text,sizeof(ln->text),"UTC %04d-%02d-%02d %02d:%02d",v[0],v[1],v[2],v[3],v[4]);
-    } else if (current_step(u) == XZ_SUPPORT_STEP_PREVIEW && m->support.report_id[0]) {
-        for (int i = 0; i < XZ_SUPPORT_PREVIEW_LINES && out->line_count < XZ_SHELL_MENU_LINES; i++) {
-            if (!m->support.preview[i][0]) continue;
-            ln = &out->line[out->line_count++];
-            ln->tone = XZ_SHELL_TONE_DIM;
-            snprintf(ln->text, sizeof(ln->text), "%.72s", m->support.preview[i]);
-        }
-    } else if (current_step(u) == XZ_SUPPORT_STEP_RECEIPT && m->support.github_url[0] && out->line_count < XZ_SHELL_MENU_LINES) {
-        ln = &out->line[out->line_count++];
-        ln->tone = XZ_SHELL_TONE_GOOD;
-        snprintf(ln->text, sizeof(ln->text), "GITHUB: %.68s", m->support.github_url);
-    }
-    snprintf(out->status, sizeof(out->status), "%.99s",
-             u->notice[0] ? u->notice : m->support.status[0] ? m->support.status : "PUBLIC GITHUB ISSUE + PRIVATE LOGS");
-    return 1;
-}

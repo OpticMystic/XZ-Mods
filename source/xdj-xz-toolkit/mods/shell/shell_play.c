@@ -122,9 +122,8 @@ static void top_chips(struct chip out[3]) {
  out[2]=(struct chip){{x,CHIP_Y,w2,CHIP_H},XZ_SHELL_SET_AUTO_CUE};
 }
 static int fx_left(void) { struct chip k[3];top_chips(k);return k[2].r.x+k[2].r.w+FX_GAP; }
-/* With the DECKS button hidden the strip runs to the info button, as before the button existed. */
-static int view_button_shown(const struct xz_shell_model *m) { return !m||m->deck_view_button_hidden!=1; }
-static int fx_right(const struct xz_shell_model *m) { return view_button_shown(m)?FX_END:INFO_X-FX_GAP; }
+/* The BEAT FX strip ends before the DECKS button, which is always there. */
+static int fx_right(const struct xz_shell_model *m) { (void)m;return FX_END; }
 static int mode_lamps(const struct xz_shell *u) { return sh_indicator_shown(u,XZ_SHELL_IND_MODE_LAMPS); }
 /* The BEAT FX strip as drawn: XZ_SHELL_R_FX, reaching to the bar's left edge while the mode lamps are hidden. */
 static struct xz_shell_rect fx_rect(const struct xz_shell *u, const struct xz_shell_model *m) {
@@ -192,7 +191,6 @@ struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *m, enum xz_
     r!=XZ_SHELL_R_ZOOM&&r!=XZ_SHELL_R_INFO_BUTTON&&r!=XZ_SHELL_R_FX&&r!=XZ_SHELL_R_VIEW_TWO&&r!=XZ_SHELL_R_VIEW_FOUR)return (struct xz_shell_rect){0,0,0,0};
  switch(r){
  case XZ_SHELL_R_VIEW_TWO:{
-  if(m&&!view_button_shown(m))return (struct xz_shell_rect){0,0,0,0};
   const struct xz_dv_rect b=xz_deck_view_modern.button;
   return (struct xz_shell_rect){b.x,b.y,b.w,b.h};
  }
@@ -270,7 +268,7 @@ static int recent(const struct xz_shell *u, const struct xz_shell_model *m) {
  return m->clock_ms-u->deck_view.input_at<(uint32_t)XZ_DECK_VIEW_PICKER_TIMEOUT_MS;
 }
 static int picker_live(const struct xz_shell *u, const struct xz_shell_model *m) {
- return xz_shell_screen(u)==XZ_SHELL_PLAY&&u->deck_view.open&&view_button_shown(m)&&recent(u,m);
+ return xz_shell_screen(u)==XZ_SHELL_PLAY&&u->deck_view.open&&recent(u,m);
 }
 static int focus_live(const struct xz_shell *u, const struct xz_shell_model *m) {
  return xz_shell_screen(u)==XZ_SHELL_PLAY&&!u->deck_view.open&&u->deck_view.focus!=XZ_SHELL_FOCUS_NONE&&recent(u,m);
@@ -305,8 +303,7 @@ static int card_hit(const struct xz_shell *u, const struct xz_shell_model *m, in
 /* What a touch must match: view, readiness, the picker, and the card's state and buttons. */
 static uint32_t overlay_token(const struct xz_shell *u, const struct xz_shell_model *m) {
  if(xz_shell_screen(u)!=XZ_SHELL_PLAY)return 0;
- uint32_t t=1u|(uint32_t)view_of(m)<<1|(uint32_t)(sh_deck_count(m)==4)<<3|(uint32_t)picker_live(u,m)<<4|
-  (uint32_t)view_button_shown(m)<<12;
+ uint32_t t=1u|(uint32_t)view_of(m)<<1|(uint32_t)(sh_deck_count(m)==4)<<3|(uint32_t)picker_live(u,m)<<4|1u<<12;
  if(card_shown(m)){
   struct xz_route_card_input in=card_input(u,m);
   if(xz_route_card_visible(&in))t|=1u<<5|(uint32_t)xz_route_card_kind(in.state)<<6|
@@ -315,9 +312,7 @@ static uint32_t overlay_token(const struct xz_shell *u, const struct xz_shell_mo
  return t;
 }
 uint32_t xz_shell_motion_ms(const struct xz_shell *u, const struct xz_shell_model *m) {
- if(!u||!m)return 0;
- uint32_t a=xz_shell_play_motion_ms(u,m),b=xz_shell_screen(u)==XZ_SHELL_PLAY?0:sh_menu_motion_ms(m);
- return a&&b?(a<b?a:b):a?a:b;
+ return u&&m?xz_shell_play_motion_ms(u,m):0;
 }
 uint32_t xz_shell_play_motion_ms(const struct xz_shell *u, const struct xz_shell_model *m) {
  if(!u||!m||xz_shell_screen(u)!=XZ_SHELL_PLAY)return 0;
@@ -373,8 +368,8 @@ static void render_top(const struct xz_shell *u, const struct xz_shell_model *m,
  xz_rect(c,0,0,c.width,TOP_H,SH_CHROME);
  xz_rect(c,0,TOP_H-1,c.width,1,SH_BLACK);
  render_fx(m,c,fx_rect(u,m));
- /* DECK VIEW, on PLAY unless SCREEN > DECK VIEW BUTTON hides it: 2 DECKS names the pair the sides drive. */
- if(view_button_shown(m))xz_deck_view_button_draw(c,&xz_deck_view_modern,view_of(m),sh_deck_count(m)==4,sh_deck_count(m)==4?m->sides_extra&3:0,
+ /* DECK VIEW, always on PLAY: 2 DECKS names the pair the sides drive. */
+ xz_deck_view_button_draw(c,&xz_deck_view_modern,view_of(m),sh_deck_count(m)==4,sh_deck_count(m)==4?m->sides_extra&3:0,
   picker_live(u,m),focus_live(u,m)&&u->deck_view.focus==XZ_SHELL_FOCUS_DECK_VIEW);
  sh_info_icon(c,INFO_X+INFO_W/2,TOP_H/2,SH_WHITE);
  if(!mode_lamps(u))return;
@@ -1274,7 +1269,7 @@ static size_t choose_view(struct xz_shell *u, int view, struct xz_shell_action o
  return emit(out,0,(struct xz_shell_action){XZ_SHELL_ACT_DECK_LAYOUT,-1,xz_deck_view_valid(view),0});
 }
 static void open_picker(struct xz_shell *u, const struct xz_shell_model *m) {
- u->deck_view.open=view_button_shown(m);u->deck_view.tile=view_of(m);u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
+ u->deck_view.open=1;u->deck_view.tile=view_of(m);u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
 }
 static size_t card_press(struct xz_shell *u, int hit, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
@@ -1285,7 +1280,7 @@ static size_t card_press(struct xz_shell *u, int hit, struct xz_shell_action out
 /* 1 when the overlay owns this contact (it keeps it until release); *n actions in out. */
 static int overlay_touch_down(struct xz_shell *u, const struct xz_shell_model *m, int x, int y, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t *n) {
  *n=0;
- int open=picker_live(u,m),button=view_button_shown(m)&&xz_deck_view_button_hit(&xz_deck_view_modern,x,y),card=card_hit(u,m,x,y);
+ int open=picker_live(u,m),button=xz_deck_view_button_hit(&xz_deck_view_modern,x,y),card=card_hit(u,m,x,y);
  if(!open&&!button&&card==XZ_ROUTE_CARD_HIT_NONE)return 0;
  u->deck_view.contact=1;u->deck_view.focus=XZ_SHELL_FOCUS_NONE;
  /* The overlay under the finger must be the one on screen. */
@@ -1310,7 +1305,7 @@ static int focus_list(const struct xz_shell *u, const struct xz_shell_model *m, 
   struct xz_route_card_input in=card_input(u,m);int order[2],k=xz_route_card_visible(&in)?xz_route_card_focus_order(&in,order):0;
   for(int i=0;i<k;i++)out[n++]=order[i]==XZ_ROUTE_CARD_HIT_PRIMARY?XZ_SHELL_FOCUS_CARD_PRIMARY:XZ_SHELL_FOCUS_CARD_TWO;
  }
- if(view_button_shown(m))out[n++]=XZ_SHELL_FOCUS_DECK_VIEW;
+ out[n++]=XZ_SHELL_FOCUS_DECK_VIEW;
  return n;
 }
 static int overlay_encoder(struct xz_shell *u, const struct xz_shell_model *m, const struct xz_shell_event *e, struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t *n) {

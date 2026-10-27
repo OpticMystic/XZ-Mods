@@ -20,7 +20,7 @@ static void theme_card(struct xz_canvas c,const struct xz_ui_widget *a,int selec
  if(selected)xz_text(own,a->x+10,a->y+24,"SELECTED",1,12,sample->accent);
 }
 static int is_toggle(enum xz_ui_action_kind k){
- return k==XZ_UI_ENABLE||k==XZ_UI_DECK_VIEW_BUTTON||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||
+ return k==XZ_UI_ENABLE||k==XZ_UI_PAD_FEEDBACK||k==XZ_UI_JUMP_ENABLE||k==XZ_UI_JUMP_SHIFT||k==XZ_UI_SHIFT_PAGES||
   k==XZ_UI_SHIFT_KEYSYNC||k==XZ_UI_TAKEOVER_TOGGLE||k==XZ_UI_KEY_FEEDBACK||k==XZ_UI_RAM_DEBUG||k==XZ_UI_REKORDBOX_KEY||
   k==XZ_UI_CONNECTION_ENABLE||k==XZ_UI_DISCOVERY||k==XZ_UI_HOLD||k==XZ_UI_OVERDUB||k==XZ_UI_METRICS_TOGGLE;
 }
@@ -94,16 +94,17 @@ static void render(const struct xz_ui_scene *s){
  for(i=0;i<s->n;i++){
   struct xz_ui_widget a=s->w[i];int available=s->look[i].available,selected=s->look[i].selected;uint32_t color=s->look[i].color;
   uint32_t text=available?ink:dim;
-  if(a.kind==XZ_UI_PANEL&&a.x<XZ_UI_RAIL_W){
-   /* Section rail: icon over label, accent bar on the open section. */
+  if((a.kind==XZ_UI_PANEL||a.kind==XZ_UI_OPEN_UTILITY)&&a.x<XZ_UI_RAIL_W){
+   /* Section rail: icon over label, accent bar on the open section. MODERN's UTILITY cell sits above a divider. */
+   if(a.kind==XZ_UI_OPEN_UTILITY){a.index=XZ_UI_SETTINGS;xz_rect(c,6,XZ_UI_RAIL_DIVIDER_Y,a.w,1,edge);}
    if(!modern)xz_frame(c,theme,a,panel,selected);
    else if(selected){
     xz_round_rect(c,a.x,a.y,a.w,a.h,10,15,xz_blend(p->bg,p->accent,48));
     xz_round_rect(c,0,a.y+9,4,a.h-18,2,15,p->accent);
    }
    uint32_t tone=selected?(modern?p->accent:ink):dim;
-   xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+a.w/2,a.y+15,tone);
-   int tw=xz_text_width(c,a.label,1,14);xz_text(c,a.x+(a.w-tw)/2,a.y+29,a.label,1,14,selected?ink:dim);
+   xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+a.w/2,a.y+(a.h<46?13:15),tone);
+   int tw=xz_text_width(c,a.label,1,14);xz_text(c,a.x+(a.w-tw)/2,a.y+(a.h<46?27:29),a.label,1,14,selected?ink:dim);
    continue;
   }
   if(a.kind==XZ_UI_BACK||a.kind==XZ_UI_CLOSE){

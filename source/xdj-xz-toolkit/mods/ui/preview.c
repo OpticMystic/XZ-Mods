@@ -34,7 +34,7 @@ int main(int argc,char **argv){
  model.connection.protocol="VJFS / VJVP / VJTE + VJXZ";
  model.connection.status="WAITING FOR VJ.Tools";
  model.rekordbox_assign[0]=XZ_UI_RB_INTERFACE;model.rekordbox_assign[1]=XZ_UI_RB_STOCK; /* the defaults */
- model.route.state=XZ_UI_ROUTE_NOT_DETECTED;model.deck_view=0;model.deck_view_button=1;
+ model.route.state=XZ_UI_ROUTE_NOT_DETECTED;model.deck_view=0;
  for(int deck=0;deck<4;deck++)model.jump_page[deck]=deck<2?0:-1;
  static const char *names[]={"stems","xpad","settings","themes","connection","controls","beat-jump","extras","doom","doom-setup","wad-loader","network-updates","update-setup","games","myhouse-setup","key-setup","browse-setup","pc-stems","stem-colors","applications","applications-setup","ram-setup","stem-setup","metrics-setup","profile-setup","profile-edit","general","feature-setup","theme-pick","buttons","network","network-setup","network-edit","about","support",
   "home","play","stems-section","screen","four-decks","connect","stem-pads"};

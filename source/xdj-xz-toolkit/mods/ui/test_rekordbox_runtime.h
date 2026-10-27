@@ -3,22 +3,35 @@
    shell runtime's documented contract (shell_runtime.h xz_shrt_rekordbox_verdict, whose own table test is
    in test_shell_runtime.c): while it owns the screen it swallows MODS and STEMS, hands off visibly for the
    stock action and passes the rest untouched. Included once by test_runtime_controls.c. */
-static int fake_shell_running, fake_owns, fake_action=-1, fake_hand_offs, fake_mods_keys, fake_mods_calls, fake_swallow;
+static int fake_shell_running, fake_owns, fake_action=-1, fake_hand_offs, fake_mods_keys, fake_swallow;
 static unsigned fake_requests;
 static char fake_notice[64];
 static int fake_shift, fake_stock_calls, fake_global_calls;
 static const struct xz_shrt_key_map fake_rekordbox_map={0x202,0,XZ_SHRT_ASSIGNED,-1,-1,-1};
-const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel) { (void)channel;return code==0x202?&fake_rekordbox_map:NULL; }
+/* The shell's MENU, BROWSE and BACK keys exist only for the one-menu suite (fake_keys_all), so the suites before it
+   run as they always have. */
+static int fake_keys_all;
+static const struct xz_shrt_key_map fake_menu_map={0x20b,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_MENU,XZ_SHELL_KEY_MENU_HOLD,-1},
+ fake_browse_map={0x209,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BROWSE,XZ_SHELL_KEY_BROWSE_HOLD,-1},
+ fake_back_map={0x4208,0,XZ_SHRT_ON_RELEASE,XZ_SHELL_KEY_BACK,XZ_SHELL_KEY_BACK_HOLD,-1};
+const struct xz_shrt_key_map *xz_shrt_key_lookup(uint16_t code, unsigned channel) {
+    (void)channel;
+    if(code==0x202)return &fake_rekordbox_map;
+    if(!fake_keys_all)return NULL;
+    return code==0x20b?&fake_menu_map:code==0x209?&fake_browse_map:code==0x4208?&fake_back_map:NULL;
+}
+static int fake_shell_keys;   /* presses of other keys the shell took while eligible */
 int xz_shell_runtime_follow_interface(int modern) { fake_shell_running=modern;return 0; }
 int xz_shell_runtime_owns(void) { return fake_shell_running&&fake_owns; }
 void xz_shell_runtime_rekordbox_action(int action) { fake_action=action; }
 int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channel, unsigned op) {
     (void)theme;(void)channel;
+    if(fake_shell_running&&code!=0x202&&eligible&&(op&15)==0)fake_shell_keys++;
     if(!fake_shell_running||code!=0x202)return 0;
     if((op&15)==0){
         fake_swallow=0;
         if(eligible&&fake_owns){
-            if(fake_action==XZ_REKORDBOX_MODS){fake_swallow=1;fake_mods_keys++;}
+            if(fake_action==XZ_REKORDBOX_MODS){fake_swallow=1;fake_mods_keys++;fake_requests|=XZ_SHELL_UI_OPEN_MODS;}
             else if(fake_action==XZ_REKORDBOX_STEMS){fake_swallow=1;fake_requests|=XZ_SHELL_UI_TOGGLE_STEMS;}
             else if(fake_action==XZ_REKORDBOX_STOCK)fake_hand_offs++;
         }
@@ -26,7 +39,6 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
     return fake_swallow;
 }
 unsigned xz_shell_runtime_take_ui_requests(void) { unsigned r=fake_requests;fake_requests=0;return r; }
-int xz_shell_runtime_mods_key(int eligible, int theme) { (void)theme;if(!fake_shell_running||!eligible)return 0;fake_mods_calls++;return 1; }
 void xz_shell_runtime_notice(const char *text) {
  if(strstr(text,"JUMP UNAVAILABLE")){assert(!pthread_mutex_trylock(&ui_mutex));pthread_mutex_unlock(&ui_mutex);}
  snprintf(fake_notice,sizeof(fake_notice),"%s",text);
@@ -59,7 +71,7 @@ static void rekordbox_reset(int interface, int press, int shift) {
     model.ui_interface=interface;model.theme=interface==XZ_UI_INTERFACE_MODERN?XZ_THEME_FLAGSHIP:0;
     fake_shell_running=interface==XZ_UI_INTERFACE_MODERN;fake_owns=fake_shell_running;
     model.rekordbox_assign[0]=press;model.rekordbox_assign[1]=shift;
-    fake_action=-1;fake_hand_offs=fake_mods_keys=fake_mods_calls=fake_stock_calls=0;fake_notice[0]=0;fake_requests=0;
+    fake_action=-1;fake_hand_offs=fake_mods_keys=fake_stock_calls=0;fake_notice[0]=0;fake_requests=0;
     memset(&model.connection,0,sizeof(model.connection));
 }
 static void rekordbox_runtime_check(void) {
@@ -92,11 +104,12 @@ static void rekordbox_runtime_check(void) {
     assert(!fake_stock_calls&&!strcmp(ui.notice,"INTERFACE: FLAGSHIP"));
 
     /* MODERN, the shell owning the screen. MODS and STEMS are the shell's own: swallowed at the key, the
-       handler never runs and stock never sees the key. */
+       handler never runs and stock never sees the key. MODS asks for the one menu, which opens over the shell. */
     rekordbox_reset(XZ_UI_INTERFACE_MODERN,XZ_REKORDBOX_MODS,XZ_REKORDBOX_STEMS);
     int global=fake_global_calls;
-    assert(rekordbox_contact(0,0)==-1&&fake_action==XZ_REKORDBOX_MODS&&fake_mods_keys==1&&!fake_mods_calls&&!touch.visible);
+    assert(rekordbox_contact(0,0)==-1&&fake_action==XZ_REKORDBOX_MODS&&fake_mods_keys==1&&touch.visible);
     assert(fake_global_calls==global&&!rekordbox_latch.valid&&!fake_stock_calls);
+    touch.visible=0;__atomic_store_n(&visible,0,__ATOMIC_RELEASE);
     /* MODERN steps its own layout (modern_stems): PADS -> BELOW; CLASSIC's stems_overlay stays. */
     model.stems_overlay=XZ_STEM_LAYOUT_BELOW;model.modern_stems=XZ_MODERN_STEMS_PADS;
     assert(rekordbox_contact(1,1)==-1&&fake_action==XZ_REKORDBOX_STEMS&&model.modern_stems==XZ_STEM_LAYOUT_BELOW&&model.stems_overlay==XZ_STEM_LAYOUT_BELOW&&!fake_stock_calls);
@@ -114,15 +127,15 @@ static void rekordbox_runtime_check(void) {
     /* VJ.TOOLS SCREEN without a link: the shell's notice says why. */
     rekordbox_reset(XZ_UI_INTERFACE_MODERN,XZ_REKORDBOX_VJ_SCREEN,XZ_REKORDBOX_STOCK);model.connection.ready=model.connection.enabled=1;
     assert(rekordbox_contact(0,0)==1&&!strcmp(fake_notice,"VJ.TOOLS IS NOT CONNECTED")&&!touch.visible&&!fake_hand_offs);
-    /* MODS while the shell has handed the screen to stock: the handler asks the shell to come back with MODS. */
+    /* MODS while the shell has handed the screen to stock: the handler opens the one menu itself. */
     rekordbox_reset(XZ_UI_INTERFACE_MODERN,XZ_REKORDBOX_MODS,XZ_REKORDBOX_STOCK);fake_owns=0;
-    assert(rekordbox_contact(0,0)==1&&fake_mods_calls==1&&!fake_mods_keys&&!touch.visible&&!fake_stock_calls);
-    /* MODS with the MODS panel open over the shell closes the panel. */
+    assert(rekordbox_contact(0,0)==1&&!fake_mods_keys&&touch.visible&&!fake_stock_calls);
+    /* MODS with the menu open over the shell closes it. */
     rekordbox_reset(XZ_UI_INTERFACE_MODERN,XZ_REKORDBOX_MODS,XZ_REKORDBOX_STOCK);touch.visible=1;
-    assert(rekordbox_contact(0,0)==1&&!touch.visible&&!fake_mods_calls&&!fake_mods_keys);
-    /* Shell absent or not running in MODERN: MODS falls back to the MODS panel, still by hardware. */
+    assert(rekordbox_contact(0,0)==1&&!touch.visible&&!fake_mods_keys);
+    /* Shell absent or not running in MODERN: the same menu, by hardware. */
     rekordbox_reset(XZ_UI_INTERFACE_MODERN,XZ_REKORDBOX_MODS,XZ_REKORDBOX_STOCK);fake_shell_running=0;
-    assert(rekordbox_contact(0,0)==1&&touch.visible&&!fake_mods_calls);
+    assert(rekordbox_contact(0,0)==1&&touch.visible);
     /* A stale latch (no onKey press seen for 2 s) is not used: the handler decides itself. */
     rekordbox_reset(XZ_UI_INTERFACE_CLASSIC,XZ_REKORDBOX_STOCK,XZ_REKORDBOX_NOTHING);
     rekordbox_latch.valid=1;rekordbox_latch.action=XZ_REKORDBOX_NOTHING;rekordbox_latch.at=xz_game_milliseconds()-5000u;
@@ -150,5 +163,5 @@ static void rekordbox_runtime_check(void) {
     (void)stems;
     rekordbox_reset(XZ_UI_INTERFACE_CLASSIC,XZ_REKORDBOX_INTERFACE,XZ_REKORDBOX_STOCK);fake_shell_running=0;
     model.stems_overlay=saved_overlay;model.modern_stems=saved_modern;stock_uikey_rekordbox=NULL;stock_global_key=NULL;rekordbox_shift_held=rekordbox_shift_native;
-    puts("PASS REKORDBOX button: CLASSIC handler only, MODERN shell swallows MODS/STEMS, stock hands off once, others run once, SHIFT slot latched at the press");
+    puts("PASS REKORDBOX button: CLASSIC handler only, MODERN shell swallows MODS/STEMS and MODS opens the one menu, stock hands off once, others run once, SHIFT slot latched at the press");
 }

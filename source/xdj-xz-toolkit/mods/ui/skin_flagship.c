@@ -54,6 +54,7 @@ static const unsigned char kind_style[XZ_UI_REKORDBOX_ASSIGN+1]={
  [XZ_UI_ENABLE]=TOGGLE,[XZ_UI_PAD_FEEDBACK]=TOGGLE,[XZ_UI_JUMP_ENABLE]=TOGGLE,[XZ_UI_JUMP_SHIFT]=TOGGLE,
  [XZ_UI_SHIFT_PAGES]=TOGGLE,[XZ_UI_SHIFT_KEYSYNC]=TOGGLE,[XZ_UI_TAKEOVER_TOGGLE]=TOGGLE,[XZ_UI_KEY_FEEDBACK]=TOGGLE,
  [XZ_UI_RAM_DEBUG]=TOGGLE,[XZ_UI_REKORDBOX_KEY]=TOGGLE,[XZ_UI_CONNECTION_ENABLE]=TOGGLE,[XZ_UI_DISCOVERY]=TOGGLE,
+ [XZ_UI_BROWSE_TRAFFIC]=TOGGLE,[XZ_UI_BROWSE_KEY_PREFIX]=TOGGLE,
  [XZ_UI_HOLD]=TOGGLE,[XZ_UI_OVERDUB]=TOGGLE,[XZ_UI_METRICS_TOGGLE]=TOGGLE,[XZ_UI_MUTE]=TOGGLE,[XZ_UI_BYPASS]=TOGGLE,
  [XZ_UI_STEM_PAGE]=CHOICE,[XZ_UI_WAVE_MODE]=CHOICE,[XZ_UI_KEY_FORMAT]=CHOICE,[XZ_UI_TAKEOVER_ASSIGN]=CHOICE,
  [XZ_UI_CONTROL_SECTION]=CHOICE,[XZ_UI_JUMP_EDIT_PAGE]=CHOICE,[XZ_UI_RAM_DECK]=CHOICE,[XZ_UI_SDK_STEP]=CHOICE,
@@ -93,9 +94,14 @@ static const char *tagline(const struct xz_ui_widget *a){
 }
 /* The header names the open page, as the MODERN path line does. */
 static const char *section_title(enum xz_ui_page page){return xz_ui_page_title((int)page);}
+/* MODERN's look rows: a SHOW / HIDE switch, or one of WAVEFORM COLOURS' or TRACK COLOURS' choices. */
+static int look_choice(const struct xz_ui_widget *a){return a->kind==XZ_UI_SHELL_LOOK&&(a->index/8==XZ_UI_LOOK_WAVE_COLOR||a->index/8==XZ_UI_LOOK_USB_COLORS);}
+static int show_hide(const struct xz_ui_widget *a){return a->kind==XZ_UI_SHELL_LOOK&&!look_choice(a);}
 static enum style style_of(const struct xz_ui_widget *a){
  enum style s=(unsigned)a->kind<=(unsigned)XZ_UI_SET_MODERN_THEME?(enum style)kind_style[a->kind]:ROW;
- if(a->kind==XZ_UI_PANEL&&a->x<XZ_UI_RAIL_W)return RAIL_CELL;
+ if((a->kind==XZ_UI_PANEL||a->kind==XZ_UI_OPEN_UTILITY)&&a->x<XZ_UI_RAIL_W)return RAIL_CELL;
+ if(show_hide(a))return TOGGLE;
+ if(look_choice(a))return CHOICE;
  if(a->kind==XZ_UI_PC_CONFIRM&&a->index!=1)return ROW;
  if(a->kind==XZ_UI_KEY_SHIFT&&a->index==0)return READOUT;
  if((s==LINK||s==CARD)&&tagline(a)&&a->h>=72)return CARD;
@@ -238,6 +244,10 @@ static void card(struct xz_canvas c,const struct xz_ui_widget *a,int available,i
 /* UTILITY list row: label left, the current value right, blue when selected. */
 static void row(struct xz_canvas c,const struct xz_ui_widget *a,enum style s,int available,int selected,const char *value,uint32_t value_col,const char *blocked){
  int tall=a->h>=56,cy=a->y+a->h/2,right=a->x+a->w-10;
+ /* A narrow choice tile (waveform colours, key notation, track colours) uses the small face, as CLASSIC does, and
+    leaves its right end to the swatch or key example the section draws there. */
+ int tile=s==CHOICE&&a->w<200&&!tall,scale=tile?1:2,strip=tile&&a->kind==XZ_UI_SHELL_LOOK&&a->index/8==XZ_UI_LOOK_WAVE_COLOR;
+ if(tile&&a->kind==XZ_UI_WAVE_MODE)right-=32;
  uint32_t fill=s==PRIMARY&&available?BLUE:s==CHOICE&&selected&&available?BLUE:CHROME;
  uint32_t ink=!available?DIM:WHITE;
  xz_rect(c,a->x,a->y,a->w,a->h,fill);hline(c,a->x,a->y+a->h-1,a->w,BLACK);
@@ -246,7 +256,7 @@ static void row(struct xz_canvas c,const struct xz_ui_widget *a,enum style s,int
   if(a->w>=150)right-=tag(c,right,tall?a->y+a->h-14:cy,blocked,RED)+8;
   else{xz_disc(c,right-4,cy,3,RED);right-=12;}
  }else if(s==TOGGLE){
-  int cw=a->w<200?40:48;chip(c,right-cw,cy-10,cw,20,selected?"ON":"OFF",selected,DIM);right-=cw+8;
+  int cw=a->w<200?40:48;chip(c,right-cw,cy-10,cw,20,show_hide(a)?(selected?"SHOW":"HIDE"):selected?"ON":"OFF",selected,DIM);right-=cw+8;
  }else if(s==CHOICE&&a->w>=120){radio(c,right-8,cy,selected,WHITE);right-=24;}
  else if(s==LINK){chevron(c,right-8,cy,1,WHITE);right-=20;}
  if(value&&*value){
@@ -260,7 +270,8 @@ static void row(struct xz_canvas c,const struct xz_ui_widget *a,enum style s,int
  if(s==LINK&&n>2&&n<sizeof(plain)&&!strcmp(a->label+n-2," >")){memcpy(plain,a->label,n-2);plain[n-2]=0;}
  else{strncpy(plain,a->label,sizeof(plain)-1);plain[sizeof(plain)-1]=0;}
  if(s==PRIMARY&&available)text(c,a->x+10,a->y,a->w-20,a->h,plain,2,ALIGN_C,WHITE);
- else text(c,a->x+10,tall?a->y+8:a->y,lw,tall?16:a->h,plain,2,ALIGN_L,ink);
+ else if(strip)text(c,a->x+8,a->y+3,a->w-16,14,plain,1,ALIGN_L,ink);   /* the swatch strip takes the lower half */
+ else text(c,a->x+10,tall?a->y+8:a->y,lw,tall?16:a->h,plain,scale,ALIGN_L,ink);
 }
 
 static void render(const struct xz_ui_scene *s){
@@ -279,11 +290,14 @@ static void render(const struct xz_ui_scene *s){
   const char *blocked=a.kind==XZ_UI_CONNECTION_ENABLE||a.kind==XZ_UI_DISCOVERY?"READ ONLY":"NOT READY";
   switch(style_of(&a)){
   case SHARED:break;
-  case RAIL_CELL:
+  case RAIL_CELL:{
+   /* MODERN's eight cells are 40 px; UTILITY sits above a divider with the faders icon. */
+   int short_cell=a.h<46;enum xz_ui_page icon=a.kind==XZ_UI_OPEN_UTILITY?XZ_UI_SETTINGS:(enum xz_ui_page)a.index;
    xz_rect(c,a.x,a.y,a.w,a.h,selected?RAIL_ON:RAIL);xz_rect(c,a.x,a.y+a.h,a.w,1,BLACK);xz_rect(c,a.x,a.y-1,a.w,1,BLACK);
-   xz_ui_chrome_icon(c,(enum xz_ui_page)a.index,a.x+a.w/2,a.y+15,WHITE);
-   text(c,a.x+2,a.y+a.h-19,a.w-4,12,a.label,1,ALIGN_C,WHITE);
-   break;
+   xz_ui_chrome_icon(c,icon,a.x+a.w/2,a.y+(short_cell?13:15),WHITE);
+   text(c,a.x+2,a.y+a.h-(short_cell?15:19),a.w-4,12,a.label,1,ALIGN_C,WHITE);
+   if(a.kind==XZ_UI_OPEN_UTILITY)xz_rect(c,0,XZ_UI_RAIL_DIVIDER_Y,XZ_UI_RAIL_W,2,DIM);
+   break;}
   case KEY:{
    int bx=a.kind==XZ_UI_BACK?a.x+8:a.x+a.w-42,cy=a.y+a.h/2;
    xz_border(c,bx,a.y+6,34,28,WHITE);

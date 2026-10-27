@@ -150,12 +150,29 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  tap(u,m,XZ_UI_PANEL,XZ_UI_SCREEN);
  /* SCREEN: INTERFACE first; THEME lists only the selected interface's themes. */
  {int saved_interface=m->ui_interface;
-  m->ui_interface=XZ_UI_INTERFACE_MODERN;
+  m->ui_interface=XZ_UI_INTERFACE_MODERN;m->modern_look.known=1;
   result=tap(u,m,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC);assert(result.kind==XZ_UI_SET_INTERFACE&&result.value==XZ_UI_INTERFACE_CLASSIC);
-  assert(tap(u,m,XZ_UI_SET_MODERN_THEME,0).kind==XZ_UI_SET_MODERN_THEME);
+  /* MODERN has one look: no THEME row; its slot leads to LAMPS AND TITLES, and WAVEFORM COLOURS has RGB. */
   {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);
-   for(size_t k=0;k<count;k++)assert(all[k].kind!=XZ_UI_SET_THEME&&!(all[k].kind==XZ_UI_PANEL&&all[k].index==XZ_UI_THEME_PICK));}
+   for(size_t k=0;k<count;k++)assert(all[k].kind!=XZ_UI_SET_THEME&&all[k].kind!=XZ_UI_SET_MODERN_THEME&&all[k].kind!=XZ_UI_WAVE_MODE&&
+    !(all[k].kind==XZ_UI_PANEL&&all[k].index==XZ_UI_THEME_PICK));}
+  for(i=0;i<XZ_UI_WAVE_COLORS;i++){result=tap(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_COLOR*8+i);assert(result.kind==XZ_UI_SHELL_LOOK&&result.index==XZ_UI_LOOK_WAVE_COLOR&&result.value==i);}
+  m->modern_look.wave_color=XZ_UI_WAVE_RGB;
+  {struct xz_ui_widget rgb=find(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_COLOR*8+XZ_UI_WAVE_RGB);assert(xz_ui_widget_look(u,m,&rgb).selected);}
   assert(xz_ui_render(u,m,frame,800*480,800));
+  /* LAMPS AND TITLES: one switch per part (on = shown) and TRACK COLOURS' three choices; BACK returns to SCREEN. */
+  assert(tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_SCREEN_LOOK).kind==XZ_UI_PANEL&&u->page==XZ_UI_SCREEN_LOOK);
+  m->modern_look.hidden=1u<<XZ_UI_LOOK_MODE_LAMPS;
+  result=tap(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_MODE_LAMPS*8);assert(result.index==XZ_UI_LOOK_MODE_LAMPS&&result.value==0);
+  result=tap(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_QUANTIZE_LAMP*8);assert(result.index==XZ_UI_LOOK_QUANTIZE_LAMP&&result.value==1);
+  result=tap(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_TITLES*8);assert(result.index==XZ_UI_LOOK_WAVE_TITLES&&result.value==1);
+  for(i=0;i<3;i++){result=tap(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_USB_COLORS*8+i);assert(result.index==XZ_UI_LOOK_USB_COLORS&&result.value==i);}
+  assert(xz_ui_render(u,m,frame,800*480,800));
+  assert(xz_ui_back(u,a)==1&&u->page==XZ_UI_SCREEN&&xz_ui_focused(u,m,&w)&&w.kind==XZ_UI_FEATURE_LINK&&w.index==XZ_UI_SCREEN_LOOK);
+  /* Without the shell the MODERN rows stay on screen but say NOT READY instead of acting. */
+  m->modern_look.known=0;
+  {struct xz_ui_widget rgb=find(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_COLOR*8+XZ_UI_WAVE_RGB);assert(!xz_ui_widget_ready(u,m,&rgb));}
+  m->modern_look.known=1;
   m->ui_interface=XZ_UI_INTERFACE_CLASSIC;
   result=tap(u,m,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN);assert(result.value==XZ_UI_INTERFACE_MODERN);
   {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);
@@ -165,8 +182,8 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
    for(size_t k=0;k<count;k++)assert(all[k].kind!=XZ_UI_DECK_VIEW&&all[k].kind!=XZ_UI_DECK_VIEW_BUTTON);}
   m->route.state=XZ_UI_ROUTE_NOT_DETECTED;
   for(i=0;i<3;i++){result=tap(u,m,XZ_UI_DECK_VIEW,i);assert(result.kind==XZ_UI_DECK_VIEW&&result.value==i);}
-  m->deck_view_button=1;assert(tap(u,m,XZ_UI_DECK_VIEW_BUTTON,0).value==0);
-  m->deck_view_button=0;assert(tap(u,m,XZ_UI_DECK_VIEW_BUTTON,0).value==1);
+  /* The DECKS button is always on the play screen: no setting hides it. */
+  {struct xz_ui_widget all[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,all);for(size_t k=0;k<count;k++)assert(all[k].kind!=XZ_UI_DECK_VIEW_BUTTON);}
   for(i=0;i<3;i++){assert(tap(u,m,XZ_UI_WAVE_MODE,i).value==i);assert(tap(u,m,XZ_UI_KEY_FORMAT,i).kind==XZ_UI_KEY_FORMAT);}
   assert(tap(u,m,XZ_UI_KEY_FEEDBACK,0).kind==XZ_UI_KEY_FEEDBACK&&tap(u,m,XZ_UI_BROWSE_TRAFFIC,0).kind==XZ_UI_BROWSE_TRAFFIC);
   assert(tap(u,m,XZ_UI_BROWSE_KEY_PREFIX,0).kind==XZ_UI_BROWSE_KEY_PREFIX);
@@ -252,9 +269,11 @@ static void parity(void){
  static const unsigned grooves[3]={0,255,0x5a};
  /* With and without the DJ Profile chip in the header. */
  static struct xz_ui_dj dj={.current=-1,.pending=-1};
- for(int chip=0;chip<2;chip++)for(int g=0;g<3;g++)for(int live=0;live<2;live++)for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
+ /* Both interfaces: MODERN adds UTILITY to the rail and its own look rows, which act only with the shell (live). */
+ for(int iface=0;iface<2;iface++)for(int chip=0;chip<2;chip++)for(int g=0;g<3;g++)for(int live=0;live<2;live++)for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
   struct xz_ui u;struct xz_ui_model m;struct xz_ui_widget base[XZ_UI_WIDGETS];
   memset(&m,0,sizeof(m));xz_ui_init(&u);u.page=(enum xz_ui_page)page;m.dj=chip?&dj:NULL;
+  m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.modern_look.known=iface&&live;
   for(int d=0;d<4;d++){m.deck[d].groove_active=m.deck[d].sample_active=-1;m.deck[d].sample_volume=1;for(int k=0;k<3;k++)m.deck[d].levels[k]=1;}
   m.deck[0].groove_assigned=grooves[g];
   if(live){
@@ -297,6 +316,7 @@ static void parity(void){
     /* STOCK page 1 is the player's own 1 2 4 8: its pads and sizes say so instead of editing. */
     if((w[i].kind==XZ_UI_JUMP_PAIR||w[i].kind==XZ_UI_JUMP_SIZE)&&!m.jump.enabled&&!t.jump_edit_page)expected=XZ_UI_UNAVAILABLE;
     if(w[i].kind==XZ_UI_BACK)expected=xz_ui_page_is_top(page)?XZ_UI_CLOSE:XZ_UI_PANEL;
+    if((w[i].kind==XZ_UI_SHELL_LOOK||w[i].kind==XZ_UI_OPEN_UTILITY)&&!m.modern_look.known)expected=XZ_UI_UNAVAILABLE;
     if(a[0].kind!=expected)fprintf(stderr,"page %d widget kind %d index %d: got %d, expected %d\n",page,w[i].kind,w[i].index,a[0].kind,expected);
     assert(a[0].kind==expected&&a[0].phase==XZ_UI_PRESS);
     size_t released=xz_ui_touch(&t,&m,0,0,0,a);
@@ -689,6 +709,33 @@ static void rekordbox_buttons(void){
   assert(assign==2);}
  puts("PASS PLAY > BUTTON NEXT TO LINK: 2 x 7 choices, 25 themes without overlap, slot/value taps, help, no brand name, retired switches gone");
 }
+/* Every explanation the dock shows fits its three lines, so nothing is cut mid-word (the room MODERN's detail pane
+   gave): every focusable control of every page, both interfaces, every theme's face. */
+static void dock_fits(void){
+ static struct xz_ui_dj dj={.count=1,.current=0,.pending=-1,.detail=-1,.preview=-1,.images_usb=-1};
+ dj.entry[0]=(struct xz_ui_dj_entry){.name="ANNA",.usb=0,.stick_active=1};
+ int bad=0,checked=0;
+ for(int iface=0;iface<2;iface++)for(int route=0;route<2;route++)for(int theme=0;theme<XZ_THEME_COUNT;theme++)for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
+  if(iface!=(theme==XZ_THEME_FLAGSHIP))continue;   /* each interface draws its own looks */
+  struct xz_ui u;struct xz_ui_model m;memset(&m,0,sizeof m);xz_ui_init(&u);u.page=(enum xz_ui_page)page;
+  m.theme=theme;m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.modern_look.known=1;m.dj=&dj;
+  m.enabled=XZ_UI_STEM|XZ_UI_GATE;m.deck[0].ready=m.deck[1].ready=0x3fff;m.connection.ready=1;
+  m.route.state=route?XZ_UI_ROUTE_READY:XZ_UI_ROUTE_NOT_DETECTED;m.settings_status="SETTINGS SAVED TO USB 1";
+  for(int d=0;d<4;d++){m.deck[d].groove_active=m.deck[d].sample_active=-1;m.deck[d].sample_volume=1;}
+  struct xz_canvas c={frame,800,800,480,theme};
+  struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&u,&m,w);
+  for(size_t i=0;i<n;i++){
+   if(!xz_ui_focusable(&w[i]))continue;
+   struct xz_ui_info info;xz_ui_describe_widget(&u,&m,&w[i],&info);
+   int lines=xz_ui_wrap_lines(c,XZ_UI_DOCK_BODY_W,info.body);checked++;
+   /* the amber line on the right, why a deck is left out, is one line of the right column */
+   if(info.excluded&&xz_ui_wrap_lines(c,218,info.excluded)>1){bad++;fprintf(stderr,"dock: theme %d page %d %s: excluded too long: %s\n",theme,page,info.title,info.excluded);}
+   if(lines>XZ_UI_DOCK_LINES){bad++;fprintf(stderr,"dock: theme %d page %d %s: %d lines: %s\n",theme,page,info.title,lines,info.body);}
+  }
+ }
+ assert(!bad);
+ printf("PASS dock: %d explanations fit three lines in both interfaces and every theme\n",checked);
+}
 int main(int argc,char **argv){
  struct xz_ui u;struct xz_ui_model m;int i,j;
  if(argc>1&&strcmp(argv[1],"--prove-assertions")==0){assert(!"assertions-active");return 1;}
@@ -701,6 +748,7 @@ int main(int argc,char **argv){
  rekordbox_buttons();
  profile();
  editor();
+ dock_fits();
  assert(!xz_ui_render(&u,&m,frame,10,800));assert(!xz_ui_render(&u,&m,frame,800*480,799));
  for(i=0;i<16;i++)frame[800*480+i]=0xdead;
  for(i=0;i<XZ_THEME_COUNT;i++)for(j=0;j<XZ_UI_PAGE_COUNT;j++){m.theme=i;u.page=(enum xz_ui_page)j;assert(xz_ui_render(&u,&m,frame,800*480,800));}

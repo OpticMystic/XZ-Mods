@@ -258,7 +258,7 @@ static enum xz_ui_page parent_page(enum xz_ui_page page){
  switch(page){
  case XZ_UI_BEAT_JUMP:case XZ_UI_KEY_SETUP:case XZ_UI_XPAD:case XZ_UI_RAM_SETUP:case XZ_UI_BUTTONS:case XZ_UI_FEATURE_SETUP:return XZ_UI_PLAY;
  case XZ_UI_STEMS:case XZ_UI_PC_STEMS:case XZ_UI_LOCAL_STEM_SETUP:case XZ_UI_STEM_COLORS:case XZ_UI_STEM_PADS:return XZ_UI_STEM_SECTION;
- case XZ_UI_THEME_PICK:case XZ_UI_BROWSE_SETUP:case XZ_UI_METRICS_SETUP:return XZ_UI_SCREEN;
+ case XZ_UI_THEME_PICK:case XZ_UI_BROWSE_SETUP:case XZ_UI_METRICS_SETUP:case XZ_UI_SCREEN_LOOK:return XZ_UI_SCREEN;
  case XZ_UI_PROFILE_SETUP:case XZ_UI_CONNECTION:case XZ_UI_NETWORK:case XZ_UI_UPDATES:return XZ_UI_CONNECT;
  case XZ_UI_PROFILE_EDIT:return XZ_UI_PROFILE_SETUP;
  case XZ_UI_NETWORK_SETUP:return XZ_UI_NETWORK;
@@ -302,6 +302,8 @@ size_t xz_ui_back(struct xz_ui *u,struct xz_ui_action out[XZ_UI_ACTIONS]){
 static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget w[XZ_UI_WIDGETS]){
  size_t n=0;int i;
  if(u->profile_open&&m->dj)return profile_controls(u,m,w);
+ /* MODERN's rail starts with the player's own settings, above the sections. */
+ if(xz_ui_modern_menu(m))add(w,&n,XZ_UI_OPEN_UTILITY,0,0,"UTILITY");
  for(i=0;i<XZ_UI_SECTIONS;i++)add(w,&n,XZ_UI_PANEL,xz_ui_sections[i],0,xz_ui_section_label(xz_ui_sections[i]));
  add(w,&n,XZ_UI_CLOSE,0,0,"CLOSE");
  add(w,&n,XZ_UI_BACK,0,0,"< BACK");
@@ -443,7 +445,8 @@ static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,cons
  }
  if(w->kind==XZ_UI_PROFILE_PAGE||w->kind==XZ_UI_PROFILE)return m->dj!=NULL;
  if(w->kind==XZ_UI_ENABLE&&w->index==XZ_UI_STEM)return xz_ui_usb_engine(m);
- if(w->kind==XZ_UI_INFO||w->kind==XZ_UI_HOME_SETUP||w->kind==XZ_UI_DECK_VIEW||w->kind==XZ_UI_DECK_VIEW_BUTTON)return 1;
+ if(w->kind==XZ_UI_INFO||w->kind==XZ_UI_HOME_SETUP||w->kind==XZ_UI_DECK_VIEW)return 1;
+ if(w->kind==XZ_UI_SHELL_LOOK||w->kind==XZ_UI_OPEN_UTILITY)return m->modern_look.known;
  if(w->kind==XZ_UI_ROUTE_RESCAN)return m->route.state!=XZ_UI_ROUTE_SCANNING&&m->route.state!=XZ_UI_ROUTE_NO_ENGINE;
  /* Page 1 on STOCK plays the player's own 1 2 4 8: nothing to edit there. */
  if((w->kind==XZ_UI_JUMP_PAIR||w->kind==XZ_UI_JUMP_SIZE)&&u->page==XZ_UI_BEAT_JUMP&&!u->jump_edit_page&&!m->jump.enabled)return 0;
@@ -491,7 +494,6 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
 
  case XZ_UI_JUMP_ENABLE:l.selected=k==2?!m->jump.enabled:m->jump.enabled;break;
  case XZ_UI_DECK_VIEW:l.selected=k==m->deck_view;break;
- case XZ_UI_DECK_VIEW_BUTTON:l.selected=m->deck_view_button;break;
  case XZ_UI_HOME_SETUP:l.selected=1;break;
  case XZ_UI_JUMP_SHIFT:l.selected=m->jump.shift_page;break;
  case XZ_UI_JUMP_EDIT_PAGE:l.selected=k==u->jump_edit_page;break;
@@ -502,7 +504,13 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
  case XZ_UI_SHIFT_PAGES:l.selected=m->shift_pages;break;
  case XZ_UI_PAD_FEEDBACK:l.selected=k==2?!m->pad_feedback:m->pad_feedback;break;
  case XZ_UI_FOUR_WAVE_ORDER:l.selected=!!m->four_wave_mixer;break;
- case XZ_UI_STEMS_OVERLAY:l.selected=k?m->stems_overlay==k-1:m->stems_overlay;break;
+ case XZ_UI_STEMS_OVERLAY:{int now=xz_ui_modern_menu(m)?m->modern_stems:m->stems_overlay;l.selected=k?now==k-1:now;break;}
+ case XZ_UI_SHELL_LOOK:{
+  /* a switch is on while its part shows; a choice is lit while it is the shell's value */
+  int item=k/8,choice=k%8;
+  l.selected=item==XZ_UI_LOOK_WAVE_COLOR?m->modern_look.wave_color==choice:item==XZ_UI_LOOK_USB_COLORS?m->modern_look.usb_colors==choice:
+   item>=0&&item<XZ_UI_LOOK_ITEMS&&!((m->modern_look.hidden>>item)&1u);
+  break;}
  case XZ_UI_STEM_ORDER:l.selected=0;break;
  case XZ_UI_SHIFT_KEYSYNC:l.selected=m->shift_keysync;break;
  case XZ_UI_KEY_SYNC:l.color=0x52d794;l.selected=deck<2&&d->key_synced;break;
@@ -779,6 +787,15 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   else{xz_ui_navigate(u,XZ_UI_FOUR_DECKS);u->history[u->history_count++]=old;}
   u->capture=-1;out[0]=action(XZ_UI_PANEL,XZ_UI_PRESS,u->deck,(int)old,(float)u->page,0);return 1;
  }
+ if(a.kind==XZ_UI_STEMS_OVERLAY&&a.index>0&&xz_ui_modern_menu(m)){
+  /* MODERN's six layouts: the layout itself (value = layout + 1); the runtime sets it. */
+  u->capture=-1;out[0]=action(a.kind,XZ_UI_PRESS,deck,0,(float)a.index,0);return 1;
+ }
+ if(a.kind==XZ_UI_SHELL_LOOK){
+  int item=a.index/8,choice=a.index%8;
+  if(item!=XZ_UI_LOOK_WAVE_COLOR&&item!=XZ_UI_LOOK_USB_COLORS)choice=(int)((m->modern_look.hidden>>item)&1u)?0:1; /* 0 SHOW, 1 HIDE */
+  u->capture=-1;out[0]=action(a.kind,XZ_UI_PRESS,deck,item,(float)choice,0);return 1;
+ }
  if(a.kind==XZ_UI_STEMS_OVERLAY&&a.index>0){
   /* A layout picture: the STEMS button's own step, as many times as it takes to reach this layout. */
   int now=m->stems_overlay;size_t k=0;
@@ -819,7 +836,6 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   case XZ_UI_CONNECTION_ENABLE:value=m->connection.enabled?0:1;break;case XZ_UI_DISCOVERY:value=m->connection.discoverable?0:1;break;
   case XZ_UI_JUMP_ENABLE:value=a.index==1?1:a.index==2?0:m->jump.enabled?0:1;break;
   case XZ_UI_DECK_VIEW:value=(float)a.index;break;
-  case XZ_UI_DECK_VIEW_BUTTON:value=m->deck_view_button?0:1;break;
   case XZ_UI_JUMP_SHIFT:value=m->jump.shift_page?0:1;break;
   case XZ_UI_SHIFT_PAGES:value=m->shift_pages?0:1;break;
   case XZ_UI_PAD_FEEDBACK:value=a.index==1?1:a.index==2?0:m->pad_feedback?0:1;break;

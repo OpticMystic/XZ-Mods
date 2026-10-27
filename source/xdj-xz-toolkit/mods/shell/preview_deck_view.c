@@ -45,11 +45,6 @@ int main(int argc, char **argv) {
  m.layout_preference=XZ_LAYOUT_TWO+1;m.sides_extra=1;shot(&u,&m,"deckview-05-two-decks-pair-3-2");
  m.layout_preference=XZ_LAYOUT_TWO+1;m.sides_extra=0;m.notice=XZ_DECK_VIEW_READY_NOTICE;m.notice_at_ms=m.clock_ms-200;
  shot(&u,&m,"deckview-06-two-decks-ready-notice");
- /* SCREEN > DECK VIEW BUTTON set to HIDE: the top bar as before the button, and the notice pointing to MODS */
- m.deck_view_button_hidden=1;m.notice=XZ_DECK_VIEW_READY_NOTICE_HIDDEN;
- shot(&u,&m,"deckview-07-two-decks-button-hidden-ready-notice");
- m.notice=NULL;shot(&u,&m,"deckview-08-two-decks-button-hidden");
- m.deck_view_button_hidden=0;
  m.clock_ms=123456+450;
  route_down(&m,XZ_LAYOUT_FOUR,XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.");
  m.clock_ms+=650;shot(&u,&m,"card-01-not-detected");

@@ -190,27 +190,17 @@ static void test_motion_and_success(void){
  m.route_card_ready_at_ms=0;xz_shell_play_projection(&u,&m,&view);assert(!view.play_placeholders);
  puts("PASS DECK VIEW motion: 20 fps while the card moves, rest after 60 s from appearance or input and one loop more, still states and 2 DECKS idle; success hold and wipe then live decks");
 }
-/* SCREEN > DECK VIEW BUTTON set to HIDE: no button, the BEAT FX strip runs to the info button as before the
-   button existed, a tap where it was opens nothing, the push stays the player's without the card, and the
-   card still works with the encoder ring skipping the missing button. */
-static void test_hidden(void){
- struct xz_shell u;struct xz_shell_model m,shown;struct xz_shell_action out[XZ_SHELL_ACTIONS];
- xz_shell_init(&u);route_down(&m,XZ_LAYOUT_TWO,XZ_EXTRA_ROUTE_NOT_DETECTED);shown=m;m.deck_view_button_hidden=1;
- struct xz_shell_rect b=xz_shell_play_rect(&m,XZ_SHELL_R_VIEW_TWO,0),fx=xz_shell_play_rect(&m,XZ_SHELL_R_FX,0);
- struct xz_shell_rect info=xz_shell_play_rect(&m,XZ_SHELL_R_INFO_BUTTON,0);
- assert(!b.w&&!b.h&&fx.x+fx.w==info.x-10); /* the strip's pre-button end, FX_GAP before the info button */
- /* The two frames differ only in the top bar. */
- render(&u,&shown);static uint16_t with[SIZE];memcpy(with,a,sizeof with);
- render(&u,&m);
- for(int y=0;y<480;y++)for(int x=0;x<800;x++)if(frame(a)[y*STRIDE+x]!=frame(with)[y*STRIDE+x])assert(y<26);
- paint(&u,&m);
- down_up(&u,&m,560,10,out);assert(!u.deck_view.open);
- assert(!enc(&u,&m,XZ_SHELL_ENCODER_PUSH,0,out)&&u.deck_view.focus==XZ_SHELL_FOCUS_NONE&&!u.deck_view.open);
- xz_shell_init(&u);route_down(&m,XZ_LAYOUT_FOUR,XZ_EXTRA_ROUTE_NOT_DETECTED);m.deck_view_button_hidden=1;paint(&u,&m);
- assert(!enc(&u,&m,XZ_SHELL_ENCODER_PUSH,0,out)&&u.deck_view.focus==XZ_SHELL_FOCUS_CARD_PRIMARY);
- assert(!enc(&u,&m,XZ_SHELL_ENCODER_TURN,1,out)&&u.deck_view.focus==XZ_SHELL_FOCUS_CARD_TWO);
- assert(!enc(&u,&m,XZ_SHELL_ENCODER_TURN,1,out)&&u.deck_view.focus==XZ_SHELL_FOCUS_CARD_TWO);
- assert(enc(&u,&m,XZ_SHELL_ENCODER_PUSH,0,out)==1&&out[0].kind==XZ_SHELL_ACT_DECK_LAYOUT&&out[0].value==XZ_LAYOUT_TWO);
- puts("PASS DECK VIEW BUTTON HIDE: no button, FX strip to the info button, only the top bar differs, tap and push stay the player's, card works without the button");
+/* The DECKS button is always on the play screen: its rect is there in every view and the BEAT FX strip ends
+   before it. */
+static void test_always_shown(void){
+ struct xz_shell u;struct xz_shell_model m;struct xz_shell_action out[XZ_SHELL_ACTIONS];
+ for(int view=0;view<XZ_LAYOUT_COUNT;view++){
+  xz_shell_init(&u);route_down(&m,view,XZ_EXTRA_ROUTE_NOT_DETECTED);
+  struct xz_shell_rect b=xz_shell_play_rect(&m,XZ_SHELL_R_VIEW_TWO,0),fx=xz_shell_play_rect(&m,XZ_SHELL_R_FX,0);
+  assert(b.w&&b.h&&fx.x+fx.w<=b.x);
+ }
+ xz_shell_init(&u);route_down(&m,XZ_LAYOUT_TWO,XZ_EXTRA_ROUTE_NOT_DETECTED);paint(&u,&m);
+ down_up(&u,&m,560,10,out);assert(u.deck_view.open);
+ puts("PASS DECKS button always on the play screen, BEAT FX strip ends before it, a tap opens the picker");
 }
-int main(void){fx_track_build(&track,7);test_placeholders();test_button_and_picker();test_encoder();test_motion_and_success();test_hidden();return 0;}
+int main(void){fx_track_build(&track,7);test_placeholders();test_button_and_picker();test_encoder();test_motion_and_success();test_always_shown();return 0;}

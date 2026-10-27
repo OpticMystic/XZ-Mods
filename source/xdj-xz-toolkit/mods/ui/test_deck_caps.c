@@ -55,7 +55,7 @@ int main(void){
  m.deck[0].ready=m.deck[1].ready=0xffffffffu;m.deck[0].ram.state=XZ_UI_RAM_EMPTY;m.route.state=XZ_UI_ROUTE_READY;
  for(int d=0;d<4;d++)assert(!(xz_deck_caps(&m,d)&ABSENT));
  for(size_t f=0;f<3;f++){unsigned a=(unsigned[]){XZ_DECK_CAN_CUE_PREVIEW,XZ_DECK_CAN_XPAD,XZ_DECK_CAN_GROOVE}[f];
-  assert(xz_deck_cap_absent(a));assert(!strcmp(xz_deck_cap_reason(&m,0,a),"Not in this version of XZ Mods, on any deck."));}
+  assert(xz_deck_cap_absent(a));assert(!strcmp(xz_deck_cap_reason(&m,0,a),"Not in this version, on any deck."));}
  assert(!xz_ui_has_engine(&m,XZ_UI_PREVIEW)&&!xz_ui_has_engine(&m,XZ_UI_SAMPLE)&&!xz_ui_has_engine(&m,XZ_UI_GROOVE));
  for(int d=0;d<2;d++)assert((xz_deck_caps(&m,d)&(PARITY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC|XZ_DECK_CAN_RAM|XZ_DECK_CAN_DISPLAY))==
   (PARITY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC|XZ_DECK_CAN_RAM|XZ_DECK_CAN_DISPLAY));
@@ -66,7 +66,7 @@ int main(void){
   for(int d=2;d<4;d++)assert(xz_deck_caps(&m,d)==(PARITY|XZ_DECK_CAN_DISPLAY));
   reasons(&m);
  }
- assert(!strcmp(xz_deck_cap_reason(&m,2,XZ_DECK_CAN_PLAYING_KEY),"Decks 3 and 4 show the track's own key."));
+ assert(!strcmp(xz_deck_cap_reason(&m,2,XZ_DECK_CAN_PLAYING_KEY),"Decks 3 and 4 show the file's key."));
  /* Players not running right now: the same features, since WORKS ON says what works on a deck when it plays;
     whether decks 3 and 4 are connected is the 4 DECKS page's to say. */
  m.route.state=XZ_UI_ROUTE_NO_ENGINE;

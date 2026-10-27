@@ -61,7 +61,7 @@ int main(void) {
       big.deck_view=XZ_DECK_VIEW_MIXER;big.deck_view_button=0;big.rekordbox_press=XZ_REKORDBOX_DECK_VIEW;big.rekordbox_shift=XZ_REKORDBOX_DECK_VIEW;
       assert(xz_settings_internal_save(&big)==XZ_INTERNAL_SETTINGS_OK);
       assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&present==46&&loaded.deck_view==XZ_DECK_VIEW_MIXER&&
-       !loaded.deck_view_button&&loaded.rekordbox_shift==XZ_REKORDBOX_DECK_VIEW);
+       loaded.deck_view_button==1&&loaded.rekordbox_shift==XZ_REKORDBOX_DECK_VIEW);
       assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK); }
     unlink(slot0);unlink(slot1);
 

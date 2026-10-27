@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "layout_cycle.h"
-/* DECK VIEW (settings deck_view) and the DECKS button (deck_view_button), as the saved settings last set them
-   or a control changed them since. Atomics: the shell, the classic screen and the UI runtime read these on
-   their own threads. */
-static int preference=XZ_LAYOUT_TWO,button_shown=1;
+/* DECK VIEW (settings deck_view), as the saved settings last set it or a control changed it since. Atomics: the
+   shell, the classic screen and the UI runtime read it on their own threads. */
+static int preference=XZ_LAYOUT_TWO;
 static unsigned revision;
 int xz_deck_layout_get(void){return __atomic_load_n(&preference,__ATOMIC_ACQUIRE);}
 void xz_deck_layout_set(int layout){
@@ -13,8 +12,6 @@ void xz_deck_layout_set(int layout){
 void xz_deck_layout_load(int layout){if((unsigned)layout<XZ_LAYOUT_COUNT)__atomic_store_n(&preference,layout,__ATOMIC_RELEASE);}
 unsigned xz_deck_layout_revision(void){return __atomic_load_n(&revision,__ATOMIC_ACQUIRE);}
 int xz_deck_layout_next(int layout){return (unsigned)layout<XZ_LAYOUT_COUNT?(layout+1)%XZ_LAYOUT_COUNT:XZ_LAYOUT_FOUR;}
-int xz_deck_view_button_shown(void){return __atomic_load_n(&button_shown,__ATOMIC_ACQUIRE);}
-void xz_deck_view_button_load(int shown){__atomic_store_n(&button_shown,!!shown,__ATOMIC_RELEASE);}
 const char *xz_deck_layout_name(int layout){
  return layout==XZ_LAYOUT_FOUR?"4 DECKS, NUMBER ORDER":layout==XZ_LAYOUT_MIXER?"4 DECKS, MIXER ORDER":"2 DECKS";
 }

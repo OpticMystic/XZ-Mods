@@ -2,7 +2,6 @@
 #ifndef XZ_UI_SUPPORT_H
 #define XZ_UI_SUPPORT_H
 #include "ui_skin.h"
-#include "ui_menu.h"
 
 enum xz_support_step {
     XZ_SUPPORT_STEP_PREPARE = 0,
@@ -20,7 +19,6 @@ int xz_ui_support_selected(const struct xz_ui *u, const struct xz_ui_model *m, c
 void xz_ui_support_render(const struct xz_ui_scene *s);
 void xz_ui_support_render_qr_box(struct xz_canvas c, int x, int y, int box_side, const char *url);
 size_t xz_ui_support_action(struct xz_ui *u, const struct xz_ui_model *m, int kind, int index, struct xz_ui_action *out);
-int xz_ui_support_menu(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_shell_menu *out);
 const char *xz_ui_support_help(int kind);
 const char *xz_ui_support_title(int page);
 int xz_ui_support_take_request(struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_action *a, struct xz_support_request_args *out);

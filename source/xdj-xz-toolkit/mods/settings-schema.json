@@ -222,26 +222,6 @@
       ]
     },
     {
-      "key": "deck_view_button",
-      "label": "Deck view button on the play screen",
-      "group": "appearance",
-      "default": 1,
-      "min": 0,
-      "max": 1,
-      "kind": "choice",
-      "readonly": false,
-      "choices": [
-        {
-          "value": 0,
-          "label": "HIDE"
-        },
-        {
-          "value": 1,
-          "label": "SHOW"
-        }
-      ]
-    },
-    {
       "key": "stem_page",
       "label": "Stem shortcut pad mode",
       "group": "stems",
@@ -1357,6 +1337,16 @@
       "key": "shift_keysync",
       "label": "Shift + Sync",
       "group": "advanced",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "kind": "boolean",
+      "readonly": true
+    },
+    "deck_view_button": {
+      "key": "deck_view_button",
+      "label": "Deck view button on the play screen",
+      "group": "appearance",
       "default": 1,
       "min": 0,
       "max": 1,

@@ -2,6 +2,7 @@
 #include "shell_settings.h"
 #include "shell_browse.h"
 #include "shell_source.h"
+#include "../ui/menu_key.h"
 #include <string.h>
 
 static const char *const screen_names[XZ_SHELL_SCREEN_COUNT]={
@@ -146,10 +147,10 @@ const enum xz_shell_stem_layout xz_shell_stem_cycle[XZ_SHELL_STEM_LAYOUTS]={XZ_S
 static int header_closes(const struct xz_shell *u){
  return xz_shell_screen(u)!=XZ_SHELL_PLAY||u->popup.kind!=XZ_SHELL_POPUP_NONE||u->panel.kind!=XZ_SHELL_PANEL_NONE;
 }
-static int header_matches(const struct xz_shell *u,const struct xz_shell_model *m){
+static int header_matches(const struct xz_shell *u){
  return u->header_frame.valid&&u->header_frame.screen==(int)xz_shell_screen(u)&&u->header_frame.depth==u->depth&&
   u->header_frame.popup==(int)u->popup.kind&&u->header_frame.panel==(int)u->panel.kind&&
-  u->header_frame.tab==u->mods_view.tab&&u->header_frame.page==(m->menu?m->menu->page:-1);
+  u->header_frame.tab==u->mods_view.tab;
 }
 void sh_header_buttons(const struct xz_shell *u,const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,XZ_SHELL_HEADER_X-2,0,XZ_SHELL_WIDTH-XZ_SHELL_HEADER_X+2,XZ_SHELL_HEADER_BUTTON_H,SH_CHROME);
@@ -190,19 +191,24 @@ static int on_stack(const struct xz_shell *u, enum xz_shell_screen s) {
  for(int i=0;i<u->depth;i++)if(u->stack[i].screen==s)return 1;
  return 0;
 }
-/* The MODS screen (XZ_SHELL_UTILITY) on a page, with the encoder on its rail. Already open, it
-   switches tab in place; lower in the stack, the screens above it close. */
-static void open_mods(struct xz_shell *u, int tab) {
+/* UTILITY (XZ_SHELL_UTILITY, the player's own settings) with the encoder on its rail. Already open, it comes
+   back to its first entry; lower in the stack, the screens above it close. */
+static void open_utility(struct xz_shell *u) {
  int at=-1;
  for(int i=0;i<u->depth;i++)if(u->stack[i].screen==XZ_SHELL_UTILITY)at=i;
  if(at>=0)u->depth=at+1;else push(u,XZ_SHELL_UTILITY);
  if(xz_shell_screen(u)!=XZ_SHELL_UTILITY)return;
- if(u->mods_view.tab!=tab)u->stack[u->depth-1]=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
- u->mods_view.tab=tab;u->mods_view.on_tabs=1;
+ if(u->mods_view.tab!=0)u->stack[u->depth-1]=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
+ u->mods_view.tab=0;u->mods_view.on_tabs=1;
 }
+/* MODS is the runtime's panel, the one menu of both interfaces: it opens on the page it was last on. */
+static size_t open_mods(size_t n, struct xz_shell_action out[XZ_SHELL_ACTIONS]);
 static size_t emit(struct xz_shell_action out[XZ_SHELL_ACTIONS], size_t n, struct xz_shell_action a) {
  if(n<XZ_SHELL_ACTIONS)out[n++]=a;
  return n;
+}
+static size_t open_mods(size_t n, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
+ return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_OPEN_MODS,-1,-1,0});
 }
 static enum xz_shell_time_mode shown_time_mode(const struct xz_shell_model *m, int deck) {
  const struct xz_shell_deck *d=&m->deck[deck];
@@ -254,6 +260,20 @@ static void toggle_panel(struct xz_shell *u, const struct xz_shell_model *m, enu
  close_panels(u);
  if(was!=k)u->panel.kind=k;
 }
+/* Where a short MENU lands on the shell (ui/menu_key.h): an open popup or panel first, then the screen. */
+static enum xz_menu_place menu_place(const struct xz_shell *u) {
+ if(u->popup.kind!=XZ_SHELL_POPUP_NONE||u->panel.kind!=XZ_SHELL_PANEL_NONE)return XZ_MENU_AT_STOCK_MENU;
+ switch(xz_shell_screen(u)){
+ case XZ_SHELL_PLAY:return u->grid_mode?XZ_MENU_AT_GRID_ADJUST:XZ_MENU_AT_PLAY;
+ case XZ_SHELL_BROWSE:case XZ_SHELL_PLAYLIST:case XZ_SHELL_SEARCH:return XZ_MENU_AT_TRACK_LIST;
+ case XZ_SHELL_TAG_LIST:return XZ_MENU_AT_TAG_LIST;
+ case XZ_SHELL_SOURCE:return XZ_MENU_AT_SOURCE;
+ case XZ_SHELL_INFO:return XZ_MENU_AT_INFO;
+ case XZ_SHELL_SHORTCUT:return XZ_MENU_AT_SHORTCUT;
+ case XZ_SHELL_UTILITY:return XZ_MENU_AT_UTILITY;
+ default:return XZ_MENU_AT_OTHER;
+ }
+}
 size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k, int event_deck, struct xz_shell_action out[XZ_SHELL_ACTIONS]) {
  size_t n=0;
  if((int)k<0||k>=XZ_SHELL_KEY_COUNT)return 0;
@@ -264,17 +284,23 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  if(u->popup.kind!=XZ_SHELL_POPUP_NONE&&(k==XZ_SHELL_KEY_BACK||k==XZ_SHELL_KEY_BACK_HOLD||k==XZ_SHELL_KEY_MENU)){
   u->popup.kind=XZ_SHELL_POPUP_NONE;return 0;
  }
+ /* A short MENU: stock first (ui/menu_key.h). MODS opens only where MENU has no job of its own; elsewhere
+    the screen's own MENU runs below (its menu panel, closing a popup or UTILITY). */
+ if(k==XZ_SHELL_KEY_MENU){
+  enum xz_menu_place at=menu_place(u);
+  if(xz_menu_rule(at)->job==XZ_MENU_JOB_MODS){close_panels(u);return open_mods(0,out);}
+  /* GRID ADJUST: the beat grid commands are on the screen (RESET, SNAP, SHIFT); MODS does not cover them */
+  if(at==XZ_MENU_AT_GRID_ADJUST)return 0;
+ }
  if(k==XZ_SHELL_KEY_MENU_HOLD&&available(m,XZ_SHELL_UTILITY)){
-  u->popup.kind=XZ_SHELL_POPUP_NONE;close_panels(u);open_mods(u,0);
+  u->popup.kind=XZ_SHELL_POPUP_NONE;close_panels(u);open_utility(u);
   u->stack[u->depth-1]=(struct xz_shell_view){XZ_SHELL_UTILITY,0,0,0};
-  return sh_mods_opened(u,m,out,0);
+  return 0;
  }
  if(k==XZ_SHELL_KEY_MODS){
-  if(!available(m,XZ_SHELL_UTILITY))return 0;
   u->popup.kind=XZ_SHELL_POPUP_NONE;close_panels(u);
   if(xz_shell_screen(u)==XZ_SHELL_UTILITY){if(u->depth>1)u->depth--;return 0;}
-  open_mods(u,m->mods&&m->mods->tabs&&m->mods->count>0?1:0);
-  return sh_mods_opened(u,m,out,0);
+  return open_mods(0,out);
  }
  uint16_t packed=nav[xz_shell_screen(u)][k];
  struct { enum nav_kind kind; enum xz_shell_screen screen; enum xz_shell_setting setting; } t={(enum nav_kind)(packed&15),(enum xz_shell_screen)(packed>>4),(enum xz_shell_setting)(packed>>4)};
@@ -285,11 +311,11 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
   if(!available(m,t.screen))return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,(int)t.screen});
   open_screen(u,m,t.screen);break;
  case NAV_PUSH:
-  /* Held MENU lands on MODS > UTILITY, the rail holding the encoder; held there again it closes
-     MODS, as SHORTCUT does, so the key always has an effect and never reaches the stock menu. */
+  /* Held MENU lands on UTILITY, the rail holding the encoder; held there again it closes UTILITY, as
+     SHORTCUT does, so the key always has an effect and never reaches the stock menu. */
   if(t.screen==XZ_SHELL_UTILITY&&available(m,t.screen)){
    if(xz_shell_screen(u)==XZ_SHELL_UTILITY&&u->mods_view.tab==0&&u->mods_view.on_tabs&&u->depth>1)u->depth--;
-   else{open_mods(u,0);n=sh_mods_opened(u,m,out,n);}
+   else open_utility(u);
    return n;
   }
   if(on_stack(u,t.screen))break;
@@ -299,12 +325,7 @@ size_t sh_key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_
  case NAV_HOME:sh_browse_remember_return(u,m,0);u->depth=1;close_panels(u);break;
  case NAV_STICK:return stick(u,m,(int)(packed>>4),out);
  case NAV_PANEL:toggle_panel(u,m,(enum xz_shell_panel_kind)(packed>>4));break;
- case NAV_MODS:
-  if(!available(m,XZ_SHELL_UTILITY))break;
-  close_panels(u);
-  open_mods(u,m->mods&&m->mods->tabs&&m->mods->count>0?1:0);
-  n=sh_mods_opened(u,m,out,n);
-  break;
+ case NAV_MODS:close_panels(u);return open_mods(n,out);
  case NAV_FILTER:return track_filter(u,m,out);
  case NAV_HAND_OFF:return emit(out,n,(struct xz_shell_action){XZ_SHELL_ACT_HAND_OFF,-1,0,XZ_SHELL_HAND_OFF_MENU});
  case NAV_SETTING:
@@ -375,7 +396,7 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
   enum xz_shell_action_kind hit=e->y>=XZ_SHELL_HEADER_BUTTON_H&&sh_play_overlay_owns(u,m,e->x,e->y)?XZ_SHELL_ACT_NONE:sh_header_hit(e->x,e->y);
   if(hit!=XZ_SHELL_ACT_NONE){
    u->down=1;u->down_region=XZ_SHELL_TOUCH_HEADER;
-   if(!header_matches(u,m))return 0;
+   if(!header_matches(u))return 0;
    if(header_closes(u)){
     if(hit!=XZ_SHELL_ACT_OPEN_MODS)return 0;
     if(u->popup.kind!=XZ_SHELL_POPUP_NONE)u->popup.kind=XZ_SHELL_POPUP_NONE;
@@ -384,11 +405,8 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
     else{if(u->depth>1)u->depth--;close_panels(u);}
     u->header_frame.valid=0;return 0;
    }
-   /* With mod tabs to show, MODS opens the shell's own MODS screen on the first of them. */
-   if(hit==XZ_SHELL_ACT_OPEN_MODS&&m->mods&&m->mods->count>0&&m->mods->tabs&&available(m,XZ_SHELL_UTILITY)){
-    close_panels(u);open_mods(u,1);
-    return sh_mods_opened(u,m,out,0);
-   }
+   /* MODS: the runtime's panel, on the page it was last on. */
+   if(hit==XZ_SHELL_ACT_OPEN_MODS){close_panels(u);return open_mods(0,out);}
    return emit(out,0,(struct xz_shell_action){hit,-1,0,0});
   }
  }
@@ -431,6 +449,5 @@ int xz_shell_render_frame(struct xz_shell *u,const struct xz_shell_model *m,uint
  if(!xz_shell_render(u,m,pixels,stride))return 0;
  u->header_frame.valid=1;u->header_frame.screen=xz_shell_screen(u);u->header_frame.depth=u->depth;
  u->header_frame.popup=u->popup.kind;u->header_frame.panel=u->panel.kind;u->header_frame.tab=u->mods_view.tab;
- u->header_frame.page=m->menu?m->menu->page:-1;
  sh_play_key_publish(u,m);sh_play_overlay_publish(u,m);return 1;
 }
