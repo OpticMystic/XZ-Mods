@@ -146,12 +146,12 @@ int main(void){
  /* A four-deck view has no halves. */
  fixture_layout=XZ_LAYOUT_FOUR;assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2100,keys,1u));
  fixture_layout=XZ_LAYOUT_TWO;
- /* A theme maps the halves like the stock beside them, then the number boxes go back in their own colours. */
+ /* A theme maps the halves like the stock beside them, then DECK 3's badges go back in their own colours (white). */
  fixture_theme=1;mapped_pixels=0;
  pair_fill(pixels);assert(xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2110,keys,1u));
  assert(mapped_pixels==130u*142u+400u*171u);
- uint16_t rose=(uint16_t)(((0xe8>>3)<<11)|((0x7c>>2)<<5)|(0x92>>3));
- assert(pixels[(18+10)*800+6]==rose&&pixels[(309+10)*800+10]==rose);
+ uint16_t badge=0xffff;
+ assert(pixels[(18+10)*800+6]==badge&&pixels[(309+10)*800+10]==badge);
  unsigned themed=0;for(int y=0;y<480;y++)for(int x=0;x<800;x++){
   if(!in_half(0,x,y))assert(pixels[y*800+x]==pair_base[y*800+x]);
   else if(pixels[y*800+x]==(uint16_t)(pair_plain[y*800+x]^0x0841))themed++;

@@ -225,7 +225,7 @@ int xz_classic_mixer_draw(uint16_t *pixels,size_t stride,size_t count,const stru
   if(id>=2&&!live){not_connected(c,id);continue;}
   struct panel p=project(v,id);
   xz_rect(c,0,0,200,169,0x030506);xz_rect(c,0,0,199,22,0x123461);xz_rect(c,199,0,1,169,0x52606c);xz_rect(c,0,22,199,1,0x536376);
-  /* The deck's number in its colour box (deck_colour.h), matching its tag beside the lanes. */
+  /* The deck's number in its badge (deck_colour.h), matching its tag beside the lanes. */
   xz_deck_box(c,3,2,20,18,id,1,0x123461,2,0);
   const char *title=p.load_known&&!p.loaded?"NO TRACK":p.title_known&&p.title?p.title:"--";text(c,29,1,166,title,2,WHITE);
   snprintf(b,sizeof b,"DECK %d",id+1);text(c,6,25,54,b,1,WHITE);

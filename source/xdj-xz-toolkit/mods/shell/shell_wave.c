@@ -407,12 +407,12 @@ static void quarter(const struct xz_shell *u, const struct xz_shell_model *m, st
  int control=sh_control_active(m,deck);
  uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=control?accent:SH_RAIL,badge_ink=sh_ink_on(tile);
  xz_rect(c,bx,by,Q_BADGE_W,bh,tile);
- /* The deck's number in its colour box (deck_colour.h), as on the four-deck play strips; under it, the
-    side's fill, arrow and USB stick stripe say who drives the deck and where its track came from. */
- xz_rect(c,bx,by,Q_BADGE_W,22,xz_deck_colour(deck));xz_rect(c,bx,by+22,Q_BADGE_W,1,SH_BLACK);
+ /* The deck's number in its badge (deck_colour.h), as on the four-deck play strips; under it, the side's
+    fill, arrow and USB stick stripe say who drives the deck and where its track came from. */
+ xz_rect(c,bx,by,Q_BADGE_W,22,xz_deck_box_fill(deck,1,tile));xz_rect(c,bx,by+22,Q_BADGE_W,1,SH_BLACK);
  if(!control&&accent!=SH_BLUE)xz_rect(c,bx,by+23,3,bh-23,accent);
  snprintf(text,sizeof text,"%d",deck+1);
- sh_num(c,bx+(Q_BADGE_W-sh_num_width(SH_NUM_MID,text))/2,by+1,text,SH_NUM_MID,XZ_DECK_COLOUR_INK);
+ sh_num(c,bx+(Q_BADGE_W-sh_num_width(SH_NUM_MID,text))/2,by+1,text,SH_NUM_MID,xz_deck_box_ink(deck,1,tile));
  if(control){
   sh_control_arrow(c,bx+(Q_BADGE_W-27)/2,by+bh-20,deck&1);
   sh_text_center(c,bx+Q_BADGE_W/2,by+bh-10,"CONTROL",SH_SMALL,badge_ink);

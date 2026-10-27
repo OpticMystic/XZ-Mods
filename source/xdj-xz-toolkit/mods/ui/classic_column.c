@@ -6,7 +6,7 @@
 #include <string.h>
 
 /* The stock tag look: navy tab, pale outline; the deck a side drives is pale blue with dark text. The deck's
-   number sits in its colour box (deck_colour.h) where the stock tag has its bar, as on its channel below. */
+   number sits in its badge (deck_colour.h) where the stock tag has its bar, as on its channel below. */
 enum { TAB=0x29344a, TAB_EDGE=0xacaeb4, DRIVEN=0x94bef6, DRIVEN_INK=0x081420, INK=0xffffff, SOFT=0xc8ccd0,
        CENTS=0xffb020, SOFTWARE=0x7a8290, OFF_TAB=0x161c26, OFF_EDGE=0x3a4250, OFF_INK=0x5a6270,
        AMBER=0xffa82e, OFF_NOTE=0x6a7280 };

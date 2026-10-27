@@ -44,7 +44,7 @@ int xz_extra_lane_draw_wave(uint16_t *pixels,size_t stride,size_t count,unsigned
    native lane it replaces (no tag: the side column beside it names the deck, as it names DECK 1 and 2). */
 int xz_extra_lane_draw_full(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y,unsigned number,
  const struct xz_extra_deck *,const struct xz_extra_lane_view *,struct xz_extra_lane_marks *marks);
-/* A lane's deck number (1..4) in its identity colour box (deck_colour.h), XZ_FOUR_NUMBER_BOX square at x, y:
+/* A lane's deck number (1..4) in its badge (deck_colour.h), XZ_FOUR_NUMBER_BOX square at x, y:
    the first part of every lane tag, and of the lane numbers beside an open detail panel. */
 #define XZ_FOUR_NUMBER_BOX 13
 struct xz_canvas;

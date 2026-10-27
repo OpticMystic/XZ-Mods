@@ -295,3 +295,17 @@ depends on whether the trigger is inert on stock, even when its action changes
 audio. An explicit shift stem action activates the same audio state when needed;
 it is not defeated by the automatic stem-on-load preference. See
 [the complete decision table](../../../docs/feature-toggle-audit.md).
+
+## Preview waveform in MODERN browse
+
+`browse_preview` is field 47, appended after the DECK VIEW block. It is 0 by
+default, hiding the preview waveform column completely so the remaining columns
+use its space. 1 shows the waveform column. A fresh start or an older settings
+record without this field starts hidden. Overlaying an older profile preserves
+the currently applied choice; an explicit 0 hides it.
+
+The PREVIEW tile in the browse header is the only on-screen control. One tap
+shows or hides the column and queues the preference through the shell's action
+queue to `ui_runtime.c` and its settings worker. Rendering never writes files.
+The off tile says PREVIEW OFF / TAP TO SHOW. Browse encoder navigation is
+unchanged; PREVIEW is touch-only. CLASSIC browse does not use this preference.

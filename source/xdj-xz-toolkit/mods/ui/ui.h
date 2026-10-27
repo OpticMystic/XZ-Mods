@@ -113,8 +113,9 @@ enum xz_ui_action_kind {
     XZ_UI_INFO,
     /* A HOME tile's SET UP button: index = the section that needs the DJ; it opens that section's fix. */
     XZ_UI_HOME_SETUP,
-    /* 4 DECKS > RESCAN: wake the four-deck connector for an immediate check. Keep last (merge note). */
-    XZ_UI_ROUTE_RESCAN
+    /* 4 DECKS > RESCAN: wake the four-deck connector for an immediate check. */
+    XZ_UI_ROUTE_RESCAN,
+    XZ_UI_BROWSE_PREVIEW, /* MODERN browse tile only; value 0 hidden, 1 shown. Saved. */
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
@@ -293,6 +294,7 @@ struct xz_ui_model {
     struct xz_net_view network;
     /* DECK VIEW (settings.h enum xz_deck_view). */
     int deck_view;
+    int browse_preview; /* MODERN browse preview column: 0 hidden (default), 1 shown. Saved. */
     /* The pad page each logical deck's BEAT JUMP pads are on now: 0 page 1, 1 page 2 (SHIFT + BEAT JUMP),
        -1 unknown (deck not running, or its player does not report it). */
     int jump_page[4];
