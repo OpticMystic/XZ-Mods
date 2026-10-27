@@ -128,6 +128,8 @@ static xz_mods_native_color_fn_v1 mods_native_color;
 static xz_mods_native_surface_color_fn_v1 mods_native_surface_color;
 static xz_mods_native_style_fn_v1 mods_native_style;
 static xz_mods_full_frame_fn_v1 mods_full_frame;
+static unsigned (*mods_stock_counter_mask)(void);
+static void (*mods_native_frame)(const uint16_t *,uint32_t,uint32_t,uint32_t);
 static xz_network_address_fn_v1 mods_network_address;
 static int (*mods_game_active)(void);
 static uint32_t vj_listener_ready;
@@ -297,6 +299,8 @@ static void resolve_mods_bridge(void) {
     mods_native_surface_color = (xz_mods_native_surface_color_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_surface_color_v1");
     mods_native_style = (xz_mods_native_style_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_native_style_v1");
     mods_full_frame = (xz_mods_full_frame_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_full_frame_v1");
+    mods_stock_counter_mask=(unsigned(*)(void))dlsym(RTLD_DEFAULT,"xz_mods_stock_counter_mask_v1");
+    mods_native_frame=(void(*)(const uint16_t*,uint32_t,uint32_t,uint32_t))dlsym(RTLD_DEFAULT,"xz_mods_native_frame_v1");
     mods_network_address = (xz_network_address_fn_v1)dlsym(RTLD_DEFAULT, "xz_mods_network_address_v1");
 }
 
@@ -1162,11 +1166,24 @@ static int draw_mods_on_surface(IDirectFBSurface *surface) {
     return drawn;
 }
 
+/* Capture only the native stock backbuffer, before a presenter can suppress
+ * its Flip. DSLF_WRITE selects that backbuffer; this function only reads it. */
+static void capture_mods_native(IDirectFBSurface *surface){
+    if(!mods_native_frame||!mods_stock_counter_mask||!mods_stock_counter_mask())return;
+    int width=0,height=0,pitch=0;void *pixels=NULL;DFBSurfacePixelFormat format=DSPF_UNKNOWN;
+    if(surface->GetSize(surface,&width,&height)!=DFB_OK||width!=800||height!=480||
+       surface->GetPixelFormat(surface,&format)!=DFB_OK||format!=DSPF_RGB16)return;
+    if(surface->Lock(surface,DSLF_WRITE,&pixels,&pitch)!=DFB_OK)return;
+    if(pixels&&pitch>=1600&&pitch<=32768&&!(pitch&1))mods_native_frame(pixels,800,480,(uint32_t)pitch/2);
+    surface->Unlock(surface);
+}
+
 static DFBResult hooked_primary_flip(
     IDirectFBSurface *thiz,
     const DFBRegion *region,
     DFBSurfaceFlipFlags flags
 ) {
+    capture_mods_native(thiz);
     int overlay_enabled = overlay_is_active();
     int mods_drawn;
     DFBResult result;

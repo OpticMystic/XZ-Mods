@@ -7,6 +7,9 @@
 #include "native_skin_runtime.h"
 #include "../shell_model.h"
 #include "../runtime.h"
+#include "../stock_dialog.h"
+#pragma weak xz_stock_dialog_active
+static int stock_window_up(void){return xz_stock_dialog_active&&xz_stock_dialog_active();}
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -107,7 +110,7 @@ int xz_classic_mixer_runtime_pair_frame(uint16_t *pixels,size_t stride,size_t co
  unsigned sides=up?pair&((extra.left_on_3?1u:0u)|(extra.right_on_4?2u:0u)):0u;
  /* The native model still refreshes: a caution owns the screen, and a later four-deck view needs fresh overviews. */
  pending_invalidation|=refresh_native(now,keys);
- if(!sides||xz_shell_model_caution(storage)){
+ if(!sides||stock_window_up()){
   xz_extra_decks_release_analysis(&extra,&hold);
   pthread_mutex_unlock(&state_mutex);xz_classic_mixer_runtime_hide();return 0;
  }
@@ -148,7 +151,7 @@ int xz_classic_mixer_runtime_frame(uint16_t *pixels,size_t stride,size_t count,i
  /* DECK VIEW alone chooses four channels; decks 3 and 4 are live only with their route up. */
  int live=xz_extra_decks_snapshot_held(&extra,&hold)&&!(xz_native_four_card_success&&xz_native_four_card_success(now));
  unsigned changed=refresh_native(now,keys);
- if(xz_shell_model_caution(storage)){
+ if(stock_window_up()){
   xz_extra_decks_release_analysis(&extra,&hold);
   pthread_mutex_unlock(&state_mutex);xz_classic_mixer_runtime_hide();return 0;
  }

@@ -90,7 +90,7 @@ enum xz_shell_source { XZ_SHELL_SRC_NONE, XZ_SHELL_SRC_USB1, XZ_SHELL_SRC_USB2, 
    p.131 E-8302 / E-8304 / E-8305): the deck shows a banner with the code, one line, and one button into
    BROWSE to choose another track. */
 enum xz_shell_alert_kind { XZ_SHELL_ALERT_NONE, XZ_SHELL_ALERT_EMERGENCY_LOOP, XZ_SHELL_ALERT_READ_ERROR,
- XZ_SHELL_ALERT_UNSUPPORTED_FILE };
+ XZ_SHELL_ALERT_UNSUPPORTED_FILE, XZ_SHELL_ALERT_DEVICE_ERROR };
 /* HOT CUE AUTO LOAD (XZ manual pp.55, 123): ON loads every track's hot cues, LIBRARY loads them only for
    tracks the library marks for it. The A. HOT CUE lamp reads red for ON, white for LIBRARY. */
 enum xz_shell_hot_cue_auto_load { XZ_SHELL_HCAL_OFF, XZ_SHELL_HCAL_ON, XZ_SHELL_HCAL_LIBRARY };
