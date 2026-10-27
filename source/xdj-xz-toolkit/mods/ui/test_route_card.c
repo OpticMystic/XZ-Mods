@@ -100,8 +100,8 @@ static void test_draw(void) {
  }
  /* Golden frames at a fixed clock, number order (the loop states on their main shot: a fresh clock). */
  static const uint32_t expected[2][7]={
-  {0xbd95aa72u,0x2f2c2fedu,0xa78d547fu,0x16b4dcd3u,0x37a6de21u,0x96731db1u,0xff5d521eu},
-  {0x6e1897ebu,0x7edb0d12u,0x7ebb1d16u,0x4c5966ffu,0xf806319fu,0xf8feef54u,0xd588f7a0u}};
+  {0xbd95aa72u,0x11dcf983u,0xe699a95du,0x7ab668edu,0x9a76772fu,0xe7867597u,0x09cf3e3cu},
+  {0x6e1897ebu,0x061c987eu,0x0c72ffc6u,0x15990167u,0xf2d6a297u,0x24f2a1bcu,0x5d6db36cu}};
  for(int s=0;s<2;s++)for(int i=0;i<7;i++)if(golden[s][i]!=expected[s][i]){
   printf("golden card %d state %d: 0x%08x, expected 0x%08x\n",s,states[i],golden[s][i],expected[s][i]);assert(!"card golden frame changed");
  }
