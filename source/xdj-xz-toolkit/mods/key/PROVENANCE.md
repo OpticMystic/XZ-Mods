@@ -36,3 +36,14 @@ python packages/xdj-xz-toolkit/mods/key/verify.py --zig .tmp/cdj-zig/ziglang/zig
 
 The verifier rejects disabled assertions, runs optimized host tone and state
 tests, and compiles the engine for ARM32 soft-float. It never opens a device.
+
+The bounded-cost revision caches the mono sum in a mirrored ring and evaluates
+four candidate lags together. Each accumulator keeps the original sample order,
+and candidate comparison keeps the original tie order. It still evaluates at
+most 14,592 correlation products per wrap. The two-head geometry permits at
+most one wrap per 256 frames at the supported ratios. No reduced-search
+approximation is used. The additional mono ring is 32 KiB per shifter.
+
+`test_alignment.c` compares every selected offset with the prior scalar search
+on synthetic drums, bass, chords, vocals, mixed material, impulses, and ring
+boundaries. The stock and software paths both call `xz_key_shift_process`.

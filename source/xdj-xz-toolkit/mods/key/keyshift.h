@@ -18,6 +18,8 @@
  * device API. Keep this object out of the audio thread's stack. */
 struct xz_key_shift {
     float history[XZ_KEY_SHIFT_HISTORY_FRAMES * XZ_KEY_SHIFT_CHANNELS];
+    /* Mirrored mono ring makes every alignment window contiguous. */
+    float mono_history[XZ_KEY_SHIFT_HISTORY_FRAMES * 2u];
     float hann[XZ_KEY_SHIFT_WINDOW_POINTS];
     uint64_t written;
     float phase;
