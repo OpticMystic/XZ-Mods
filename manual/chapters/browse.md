@@ -1,6 +1,6 @@
 ---
 interface: both
-settings: browse_preview, browse_1, browse_2, browse_3, browse_key_prefix, browse_traffic
+settings: browse_preview, browse_1, browse_2, browse_3, browse_key_prefix, browse_traffic, modern_browse_columns
 ---
 
 This chapter covers finding a track and putting it on a deck. MODERN has its own browse screens, built for touch and the rotary encoder. CLASSIC uses the player's own browse screens and adds the key, colours for compatible keys and a few labels to them.
@@ -30,7 +30,7 @@ The TRACK category of USB1, sorted by title, with PREVIEW on and a row touched.
 | Control | What it does |
 |---|---|
 | Turn the encoder | Moves the highlight one row |
-| Push the encoder | Opens a folder. On a track, opens a choice of decks with the active deck highlighted, so a second push loads it there |
+| Push the encoder | Opens a folder. On a track, opens the track menu: LOAD TO DECK for each deck, CUE / LOOP LIST when the track has memory points and the deck can load at one, and CANCEL. The active deck is highlighted, so a second push loads it there |
 | Hold the encoder | Turns letter jump on. Turning then jumps by first letter, or by page where the list has no index. Push or hold again to stop |
 | Drag or flick the list | Scrolls |
 | Tap a row | Highlights it and shows LOAD |
@@ -272,6 +272,7 @@ These additions only use tracks on a USB with a rekordbox export. A track XZ Mod
 | `browse_traffic` | **SCREEN**, KEY MATCH COLOURS | Colours keys that mix with the master deck's key, in both interfaces | On |
 | `browse_key_prefix` | **SCREEN**, KEY BEFORE TITLE | Puts the key first in each CLASSIC browse row | On |
 | `browse_1`, `browse_2`, `browse_3` | none | The three fields in each CLASSIC browse row, in order. Each is TITLE, ARTIST, KEY or BPM | TITLE, KEY, BPM |
+| `modern_browse_columns` | COLUMNS in the MODERN [[MENU]] panel | The columns of the MODERN track list. TITLE always shows | Automatic |
 
 MODS has no control for the three CLASSIC row fields in this version. They keep the values stored on the USB. In MODERN, choose columns from the [[MENU]] panel instead.
 

@@ -112,7 +112,7 @@ INTERFACE is the first choice on the SCREEN page.
 1 @ 200,53 INTERFACE | The interface the XZ shows. The change saves to the USB.
 2 @ 199,140 CLASSIC | The player's own screen with MODS.
 3 @ 329,140 MODERN | The full-screen XZ Mods layout.
-4 @ 462,164 THEME | The classic theme. See Screen, interfaces and themes.
+4 @ 360,164 THEME | The classic theme. See Screen, interfaces and themes.
 5 @ 165,425 Explanation | What the highlighted choice does.
 6 @ 715,442 Save state | Confirms the change is saved to the USB.
 ```

@@ -1,6 +1,6 @@
 ---
 interface: both
-settings: wave_mode
+settings: wave_mode, wave_position, wave_zoom
 ---
 
 The play screen is where you spend the set. XZ Mods gives you two ways to draw it. MODERN replaces the whole screen with its own layout. CLASSIC keeps the player's own screen and adds a row of buttons, the playing key and the stem rows to it. You choose between them in MODS under **SCREEN** (see [Screen, interfaces and themes](screen-and-themes)).
@@ -53,12 +53,12 @@ Each deck gets an info column and a scrolling waveform. The playhead is the red 
 12 @ 245,277 Hot-cue lamps | Pads A to H in their cue colours. A dark lamp is an empty pad.
 ```
 
-Turn the rotary encoder on the play screen to zoom both lanes together. There are seven zoom steps. The zoom is kept when you leave the screen.
+Turn the rotary encoder on the play screen to zoom both lanes together. There are seven zoom steps. The zoom is kept when you leave the screen, and saved to the USB with your other settings.
 
 ```gallery {modern}
 modern:play-zoom-in Zoomed fully in on deck 2
 modern:play-zoom-out Zoomed fully out
-modern:play-left WAVEFORM CURRENT POSITION set to LEFT: more of what is coming up
+modern:play-left WAVEFORM CURRENT POSITION set to LEFT: more of what is coming up. This choice is saved to the USB too
 ```
 
 ### Deck strip {modern}
@@ -92,7 +92,7 @@ modern:play-unknown The first frame after start, before anything has been read: 
 
 ### Key and KEY SYNC {modern}
 
-The large key in each deck's column is the key the deck plays right now. Tempo with MASTER TEMPO off, a key shift and KEY SYNC all move it. Its colour compares it with the master deck's key. Green means the same key or its relative major or minor. Amber means one step away on the key wheel. White means neither, and the master deck itself is always white. The cents beside it show how far it sits off the semitone, so you can match by ear. Once the playing key leaves the track's analysed key, ORIGINAL shows the analysed key below it.
+The large key in each deck's column is the key the deck plays right now. Tempo with MASTER TEMPO off, a key shift and KEY SYNC all move it. Its colour compares it with the master deck's key. Green means it mixes with the master's key: the same key, its relative major or minor, or one step away on the key wheel, tuned within 25 cents of the master. Amber means it would mix, but it is detuned by more than 25 cents. White means neither, and the master deck itself is always white. Turn KEY MATCH COLOURS off in **SCREEN** and every key is white. The cents beside it show how far it sits off the semitone, so you can match by ear. Once the playing key leaves the track's analysed key, ORIGINAL shows the analysed key below it.
 
 While KEY SYNC holds a deck's key, the KEY caption becomes a blue **KEY SYNC** chip and the deck's **MT** lamp blinks, half a second lit and half a second dark.
 
@@ -111,13 +111,13 @@ You choose how keys are written (as on the USB, musical or wheel numbers) and wh
 
 ### Waveform colours {modern}
 
-MODS under **SCREEN** offers four waveform colours for MODERN. They change the lanes and the overviews together.
+MODS under **SCREEN** offers four waveform colours for MODERN. They change the lanes and the overviews together. Your choice is saved to the USB. **3-BAND COLOURS**, beside LAMPS AND TITLES, changes the colour of each band; see [3-band colours](screen-and-themes#3-band-colours).
 
 | Choice | What you see |
 |---|---|
 | STOCK | One blue waveform with white peaks |
 | RGB | Lows red, mids green, highs blue |
-| 3-BAND | Lows blue, mids amber, highs white |
+| 3-BAND | Lows blue, mids amber, highs white, or the colours you chose in **3-BAND COLOURS** |
 | STEMS | Drums, harmonics and vocals in their stem colours. A track without stems shows 3-BAND |
 
 ```gallery {modern}
@@ -210,7 +210,7 @@ In CLASSIC, **SCREEN** offers three scrolling waveforms. The setting is `wave_mo
 | Choice | What you see |
 |---|---|
 | STOCK | The player's own scrolling waveform |
-| 3-BAND | Layered lows, mids and highs (the default) |
+| 3-BAND | Layered lows, mids and highs (the default). **3-BAND COLOURS** chooses their colours; see [3-band colours](screen-and-themes#3-band-colours) |
 | STEMS | Drums, harmonics and vocals layered in their stem colours. A track without prepared stems shows 3-BAND |
 
 The overview in each deck strip stays the player's own in every choice.

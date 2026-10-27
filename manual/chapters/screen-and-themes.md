@@ -1,27 +1,28 @@
 ---
 interface: both
-settings: classic_theme, modern_theme, key_format
+settings: classic_theme, modern_theme, key_format, key_display, modern_wave_color, band_low_color, band_mid_color, band_high_color, usb_colors, hidden_parts
 ---
 
-SCREEN is the MODS section for how the player looks. Here you choose between the MODERN and CLASSIC interfaces, pick a theme, set the waveform colours and decide how keys are written. Nothing on this page changes how a track sounds.
+SCREEN is the MODS section for how the player looks. Here you choose between the MODERN and CLASSIC interfaces, pick a theme, set the waveform colours and the 3-band colours, and decide how keys are written. Nothing on this page changes how a track sounds.
 
 Open MODS with [[MENU]], then choose **SCREEN** in the section rail.
 
 ## The SCREEN page
 
 ```figure classic:theme-{look}-screen MODS · SCREEN
-The SCREEN page with CLASSIC chosen. Under MODERN, the THEME row reads LAMPS AND TITLES and WAVEFORM COLOURS offers four choices.
+The SCREEN page with CLASSIC chosen. Under MODERN, the THEME row reads LAMPS AND TITLES, 3-BAND COLOURS sits beside it, and WAVEFORM COLOURS offers four choices.
 1 @ 250,53 INTERFACE | MODERN or CLASSIC. The framed picture is the one in use.
 2 @ 470,53 DECK VIEW | How many decks the play screen shows and in what order. See [Four decks](four-decks).
 3 @ 330,163 THEME | Opens CLASSIC THEMES. The value is the theme in use. Under MODERN this row is LAMPS AND TITLES.
-4 @ 675,163 SYSTEM READOUT | CPU, memory and temperature on the top bar. Reads SET UP until you have run its setup.
+4 @ 675,163 3-BAND COLOURS | Opens the 3-BAND COLOURS page. The three squares are the colours of the lows, mids and highs now.
 5 @ 300,196 WAVEFORM COLOURS | How the scrolling waveforms are coloured.
 6 @ 620,196 KEY NOTATION | How keys are written everywhere MODS draws them.
 7 @ 345,292 PLAYING KEY | Shows the key a track plays in after tempo and key shift.
-8 @ 695,292 KEY MATCH COLOURS | Colours keys in the track list by how well they mix with the master deck.
+8 @ 695,292 KEY MATCH COLOURS | Colours keys by how well they mix with the master deck.
 9 @ 345,338 KEY BEFORE TITLE | Shows the key in front of each title in the track list.
 10 @ 720,338 TRACK LIST COLUMNS | Tells you where to change the columns of the track list.
-11 @ 720,425 WORKS ON | The decks the highlighted control applies to, in mixer order 3 1 2 4.
+11 @ 400,384 SYSTEM READOUT | CPU, memory and temperature on the top bar. Reads SET UP until you have run its setup.
+12 @ 720,425 WORKS ON | The decks the highlighted control applies to, in mixer order 3 1 2 4.
 ```
 
 | Control | Choices | What it changes |
@@ -30,13 +31,14 @@ The SCREEN page with CLASSIC chosen. Under MODERN, the THEME row reads LAMPS AND
 | DECK VIEW | 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order | Which decks the play screen shows. Sound and controls do not change. Hidden on a player that cannot run decks 3 and 4 |
 | THEME (CLASSIC) | 24 classic themes | The look of the player's own screen and of MODS |
 | LAMPS AND TITLES (MODERN) | A page of switches | Which parts of the MODERN play screen you see |
+| 3-BAND COLOURS | A page of colours | The colours of the lows, mids and highs in every 3-BAND waveform. See [3-band colours](#3-band-colours) |
 | WAVEFORM COLOURS | STOCK, 3-BAND, STEMS (MODERN adds RGB) | The colours of the scrolling waveforms |
 | KEY NOTATION | AS ON THE USB, MUSICAL, WHEEL | How keys are written |
 | PLAYING KEY | ON, OFF | The key a track plays in now, or its original key |
-| KEY MATCH COLOURS | ON, OFF | Green or amber keys in the track list |
+| KEY MATCH COLOURS | ON, OFF | Green or amber keys on the play screen and in the track list |
 | KEY BEFORE TITLE | ON, OFF | The key in front of each title in the track list |
-| SYSTEM READOUT | Opens its setup | CPU, RAM and temperature on the top bar |
 | TRACK LIST COLUMNS | Information only | Tap a column title in the track list, or press [[MENU]] there, to choose its columns and sort |
+| SYSTEM READOUT | Opens its setup | CPU, RAM and temperature on the top bar. It has the last row of the page to itself |
 
 The HOME card for SCREEN sums the page up in one line, for example **Classic | 3-band | Am keys**.
 
@@ -124,6 +126,8 @@ Instead of THEME, the SCREEN page offers **LAMPS AND TITLES**. Its row shows **A
 
 A hidden lamp also stops answering touch.
 
+Your LAMPS AND TITLES choices, TRACK COLOURS and the **BYPASS BUTTON** switch are saved to the USB with your other settings, so they come back after the player restarts. So are MODERN's waveform colour, its waveform position and zoom, and how it writes keys.
+
 ```gallery {modern}
 modern:play-full Every lamp shown
 modern:key-indicators-hidden MODE LAMPS and QUANTIZE LAMP hidden
@@ -142,13 +146,45 @@ The **BYPASS BUTTON** switch for MODERN sits with the stem buttons in **STEMS**.
 |---|---|
 | STOCK | The player's own waveform colours |
 | RGB | The full-colour waveform. MODERN only |
-| 3-BAND | Lows, mids and highs as layers: blue lows outside, amber mids around them, white highs at the core |
+| 3-BAND | Lows, mids and highs as layers: lows outside, mids around them, highs at the core. Blue, amber and white unless you choose your own [3-band colours](#3-band-colours) |
 | STEMS | Drums outside, harmonics around them, vocals at the core, in your stem colours |
 
 - 3-BAND and STEMS read the analysis rekordbox and the XZ Mods stem builder already put on the USB. You do not prepare anything extra.
 - A track without stems shows 3-BAND under STEMS. A track with four stems also shows 3-BAND, because its stems carry no waveform data yet.
 - Stem colours are set in **STEMS** › **STEM COLOURS**. See [Stems](stems).
-- In MODERN, UTILITY's **WAVEFORM COLOR** is the same setting.
+- In MODERN, UTILITY's **WAVEFORM COLOR** is the same setting. Your choice is saved to the USB and comes back after a restart.
+
+## 3-band colours
+
+**3-BAND COLOURS** chooses the colour of each band in the 3-BAND waveform: the lows, the mids and the highs. On the SCREEN page it sits beside **THEME** in CLASSIC and beside **LAMPS AND TITLES** in MODERN. Its row shows the three colours in use.
+
+```figure classic:theme-{look}-band-colors MODS · 3-BAND COLOURS
+Every band on STANDARD, the interface's own colours.
+1 @ 212,63 LOWS | The colour of the lows, the outer layer of the waveform.
+2 @ 432,63 MIDS | The colour of the mids, the middle layer.
+3 @ 657,63 HIGHS | The colour of the highs, at the core.
+4 @ 128,118 STANDARD | Keeps the interface's own colour for that band. The highlighted choice in each band is the colour in use.
+5 @ 276,178 Colour choices | BLUE, RED, GREEN, AMBER, PURPLE, CYAN, PINK and WHITE. Tap one to give it to that band.
+6 @ 470,298 Preview | A strip drawn the way the 3-BAND waveform stacks the bands, in the colours you chose.
+7 @ 360,367 RESET 3-BAND COLOURS | Puts all three bands back to STANDARD.
+8 @ 720,425 WORKS ON | 3-band colours apply on all four decks.
+```
+
+1. Open MODS > **SCREEN** > **3-BAND COLOURS**.
+2. Tap a colour under **LOWS**, **MIDS** or **HIGHS**. Without the touch screen, turn the encoder to a colour and push.
+3. Close MODS to see the play screen in the new colours.
+
+| Band | Choices | Default |
+|---|---|---|
+| LOWS | STANDARD, BLUE, RED, GREEN, AMBER, PURPLE, CYAN, PINK, WHITE | STANDARD |
+| MIDS | The same nine | STANDARD |
+| HIGHS | The same nine | STANDARD |
+
+- The colours apply to every 3-BAND waveform: the MODERN lanes and overviews, the CLASSIC scrolling waveform, decks 3 and 4, and the browse preview.
+- STANDARD is not one fixed colour. It is the colour the interface itself uses for that band, so MODERN and CLASSIC can differ a little.
+- The 3-BAND pictures under **WAVEFORM COLOURS** on the SCREEN page are drawn in your colours too.
+- Stem colours are separate. Set them in **STEMS** › **STEM COLOURS**.
+- The colours are saved to the USB with your other settings.
 
 ## Keys
 
@@ -173,7 +209,7 @@ With **PLAYING KEY** on, each deck shows the key the track plays in now, after t
 
 - In MODERN the playing key is the big key in each deck's column. Off shows the track's original key there.
 - In CLASSIC the playing key sits where the beat countdown is. Off brings the countdown back.
-- On decks 3 and 4 the key shown is the track's own key. It does not follow their tempo in this version.
+- Decks 3 and 4 show their playing key too. Until a software deck reports it, the deck shows the track's own key, marked TRACK KEY in CLASSIC.
 
 ```gallery {modern}
 modern:key-tempo-cents Deck 2 sped up with MT off. It still plays in Am, 38 cents sharp
@@ -184,7 +220,7 @@ The key readout and Key Sync are explained in [The play screen](play-screen) and
 
 ### Key match colours and key before title
 
-**KEY MATCH COLOURS** colours keys in the track list green or amber by how well they mix with the master deck. **KEY BEFORE TITLE** puts the key in front of each title. Both apply to the track list. See [Browsing and loading](browse).
+**KEY MATCH COLOURS** colours keys green or amber by how well they mix with the master deck, in the track list and on the play screen. Green means the key mixes with the master's key and sits within 25 cents of it. Amber means it would mix, but it is detuned by more than 25 cents. **KEY BEFORE TITLE** puts the key in front of each title in the track list. See [Browsing and loading](browse).
 
 ## Deck colours
 
@@ -226,4 +262,4 @@ After setup the row on the SCREEN page reads **ON**. On the top bar, **METRICS S
 | DECK VIEW is missing from SCREEN | This player's USB loader cannot run decks 3 and 4. See [Four decks](four-decks) |
 | STEMS waveforms look like 3-BAND | The track has no prepared stems, or it has four stems. See [Stems](stems) |
 | Keys show in the wrong notation | Set KEY NOTATION. AS ON THE USB follows your library's own setting |
-| The playing key on deck 3 or 4 does not move with tempo | Expected in this version. Decks 3 and 4 show the track's own key |
+| The waveform colours are not the ones you expect | Check 3-BAND COLOURS. RESET 3-BAND COLOURS puts every band back to STANDARD |

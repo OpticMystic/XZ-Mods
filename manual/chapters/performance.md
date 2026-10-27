@@ -15,7 +15,7 @@ The PLAY page with the default settings: gate cue and smart cue off, the default
 2 @ 250,132 GATE CUE | Hot cues play only while you hold the pad. Off by default.
 3 @ 600,132 SMART CUE | A hot cue press also moves the CUE point there. Off by default.
 4 @ 318,180 HOT CUE PREVIEW | Not in this version of XZ Mods.
-5 @ 545,180 KEYS | Opens the key page: key shift and KEY SYNC for decks 1 and 2.
+5 @ 545,180 KEYS | Opens the key page: key shift and KEY SYNC for all four decks.
 6 @ 310,244 X-PAD SAMPLER | Not in this version of XZ Mods.
 7 @ 605,244 RAM TRACKS | Opens RAM TRACKS: copy a deck's track into memory.
 8 @ 350,308 BUTTON NEXT TO LINK | What the media button above LINK does, alone and with SHIFT. See Controls on the player.
@@ -132,51 +132,61 @@ If the status still asks you to load a USB track while one is loaded, prepare th
 
 ## Keys and KEY SYNC
 
-XZ Mods can move the key of decks 1 and 2 a semitone at a time, and match one deck's key to the other with KEY SYNC. The key display then shows the key the track plays in now.
+XZ Mods can move the key of any deck a semitone at a time, and match a deck's key to the master deck with KEY SYNC. The master can be any deck, 1 to 4. The key display then shows the key the track plays in now.
 
 ### From the deck
 
-1. Load tracks with analysed keys on decks 1 and 2.
-2. Hold [[SHIFT]] and press [[SYNC]] on the deck you want to move.
-3. The deck shifts to a key that fits the other deck and MASTER TEMPO turns on. A notice shows the new key and the target deck, with RELATIVE KEY when it matches the relative major or minor.
+1. Load tracks with analysed keys, and make the deck you want to match to the tempo master.
+2. Hold [[SHIFT]] and press [[SYNC]] on the deck you want to move. On a side that drives deck 3 or 4, this moves that deck.
+3. The deck shifts to a key that fits the master deck and MASTER TEMPO turns on. A notice shows the new key and the master deck, with RELATIVE KEY when it matches the relative major or minor.
 
 To end KEY SYNC, press [[SHIFT]] + [[SYNC]] again, or press [[MASTER TEMPO]]. Both return the deck to its own key and put MASTER TEMPO back the way it was. After that, [[MASTER TEMPO]] works as on a stock player.
 
-If KEY SYNC cannot work, the deck's key display shows why for a few seconds:
+KEY SYNC changes the key only. The tempo, SYNC and the master deck stay as they were.
+
+Only one of decks 3 and 4 can hold a key shift at a time, to leave the player enough processing power. A key shift or KEY SYNC on the other software deck then shows **KEY CPU LIMIT / RESET OTHER SOFTWARE DECK**. Press RESET on the KEYS page for the deck that holds the shift, then try again. Decks 1 and 2 have no such limit.
+
+If KEY SYNC cannot work, a notice or the deck's key display shows why for a few seconds:
 
 | Message | What to do |
 |---|---|
-| KEY ENGINE OFF: SET UP KEYS | This USB loader has no key engine. Open MODS > PLAY > KEYS, or prepare the USB again with the current XZ Mods app. |
-| DECK 1 TRACK HAS NO KEY (or DECK 2) | The track on this deck has no analysed key. Analyse it in rekordbox. |
-| LOAD A KEYED TRACK ON DECK 2 (or DECK 1) | The other deck has no track with an analysed key. |
-| SHIFT OUT OF RANGE | The key that fits is further away than the deck can shift. |
+| KEY ENGINE OFF: SET UP KEYS | This USB loader has no key engine. Open MODS > PLAY > KEYS and press SET UP KEYS, or prepare the USB again with the current XZ Mods app. |
+| DECK 1 TRACK HAS NO KEY (or another deck) | The track on this deck has no analysed key. Analyse it in rekordbox. |
+| LOAD AN ANALYZED TRACK / SET UP KEYS | The deck has no track with an analysed key. Load one. |
+| LOAD A KEYED TRACK ON DECK 2 (or another deck) | The master deck has no track with an analysed key. |
+| THIS DECK IS MASTER, MAKE DECK 2 MASTER FIRST | The deck you pressed is the master, so there is nothing to match. Make another deck the master. |
+| SELECT ONE LOCAL MASTER / SET UP KEYS | No deck on this player is the tempo master. Press [[MASTER]] on the deck to match to. |
+| VERIFY MASTER PLAYING KEY / SET UP KEYS | The master deck's playing key is not known yet. Let it play a moment, then try again. |
+| MASTER CHANGED / RETRY KEY SYNC, TRACK CHANGED / RETRY KEY CONTROL | The master or the track changed before the key moved. Press again. |
+| KEY CPU LIMIT / RESET OTHER SOFTWARE DECK | The other software deck holds a key shift. Reset it first. |
+| SHIFT OUT OF RANGE, KEY RANGE IS -12 TO +12 SEMITONES | The key that fits is further away than the deck can shift. |
+| EMERGENCY LOOP / LOAD NEXT TRACK | The deck lost its track and loops. Load another track first. |
 
 ### The KEYS page
 
-MODS > PLAY > KEYS does the same from the screen, and adds key shift by semitones.
+MODS > PLAY > KEYS does the same from the screen, and adds key shift by semitones. On the play screen, tapping a deck's key opens the same controls for that deck.
 
 ```figure classic:theme-{look}-active-key-setup MODS · KEYS
 The KEYS page for deck 1 with the key engine ready. The deck is in its own key.
-1 @ 410,20 Deck | Choose deck 1 or deck 2.
+1 @ 242,20 Deck | Choose deck 1, 2, 3 or 4. Under each number: USB DECK for decks 1 and 2, SOFTWARE DECK for decks 3 and 4.
 2 @ 197,186 KEY DOWN | Lowers the deck's key one semitone.
 3 @ 333,186 RESET | Shows the current shift. Press it to return the deck to its own key.
 4 @ 471,186 KEY UP | Raises the deck's key one semitone.
-5 @ 660,186 KEY SYNC | Shifts the deck to a key that fits the other deck, as SHIFT + SYNC does.
-6 @ 300,276 Deck keys | Each deck's own key, the key it plays in now, the cents and SYNC or MASTER.
-7 @ 562,456 Reason | Why some decks are left out. Here decks 3 and 4 cannot shift key yet.
-8 @ 718,425 Works on | Key shift and KEY SYNC work on decks 1 and 2.
+5 @ 660,186 KEY SYNC | Shifts the deck to a key that fits the master deck, as SHIFT + SYNC does.
+6 @ 300,276 Deck keys | Each deck's own key, the key it plays in now, the cents and SYNC or MASTER. The rows are empty in this picture.
+7 @ 718,425 Works on | Key shift and KEY SYNC work on all four decks.
 ```
 
 With MASTER TEMPO on, the key holds while the tempo moves. Without it, the tempo changes the key too, and the key display shows that.
 
-When the key engine has not reported, the buttons show an amber dot and the dock says NOT READY:
+When the key engine has not reported, the buttons show an amber dot, the dock says NOT READY and **SET UP KEYS** appears. It opens a short setup that checks the key engine and the chosen deck's track, and ends with a live test:
 
 ```gallery {modern}
-classic:theme-24-key-setup The KEYS page before the key engine reports
+classic:theme-24-key-setup The KEYS page before the key engine reports, with SET UP KEYS
 ```
 
 ```gallery {classic}
-classic:theme-0-key-setup The KEYS page before the key engine reports
+classic:theme-0-key-setup The KEYS page before the key engine reports, with SET UP KEYS
 ```
 
 ### The key on the MODERN play screen {modern}
@@ -193,7 +203,7 @@ Deck 2 holds KEY SYNC: it plays Bb minor, moved up from its own A minor, 12 cent
 | Part of the key panel | Meaning |
 |---|---|
 | KEY SYNC | KEY SYNC holds on this deck. |
-| The big key, amber | The key the deck plays in now. Amber means it differs from the track's own key. |
+| The big key | The key the deck plays in now. Green or amber compares it with the master deck's key; see [Key and KEY SYNC](play-screen#key-and-key-sync). |
 | +12¢ | Cents between the playing key and the nearest semitone. |
 | ORIGINAL | The track's own key, shown when the playing key differs. |
 | ▲1 | The key shift in semitones, on older USB loaders that do not report the analysed key. |
@@ -216,52 +226,66 @@ In CLASSIC, XZ Mods draws the playing key where the player shows its beat countd
 | What you see | Meaning |
 |---|---|
 | KEY and a key | The track plays in its own key. |
+| TRACK KEY | Deck 3 or 4 shows the track's own key until it reports the key it plays in. |
 | Own key ▸ playing key | The tempo or a key shift moved the key. |
-| SYNC | KEY SYNC holds on this deck. The key shows in green. |
-| MASTER | This deck is the reference for the other deck's KEY SYNC. |
+| SYNC | KEY SYNC holds on this deck. The tile turns green while the key matches the master. |
+| MASTER | This deck is the master that KEY SYNC matches to. |
 | +12c in amber | Cents between the playing key and the nearest semitone. |
+| Green or amber key | The playing key compared with the master deck's key, as KEY MATCH COLOURS sets it. |
 | A message in red | KEY SYNC could not work; see the table above. |
 
 ### PLAYING KEY
 
 PLAYING KEY is on by default. Turn it off in MODS > SCREEN to show the track's own key instead. In CLASSIC, off brings the beat countdown back. Key notation (AS ON THE USB, MUSICAL or WHEEL) is set on the same page; see [Screen, interfaces and themes](screen-and-themes).
 
-Decks 3 and 4 always show the track's own key. It does not follow their tempo, and they cannot shift key in this version.
+Decks 3 and 4 show their playing key too, after tempo and key shift. Until a software deck reports it, the deck shows the track's own key.
 
 ## RAM tracks {experimental}
 
-RAM TRACKS copies the track on deck 1 or deck 2 into the player's memory. The deck then plays from memory, so it keeps playing if the USB goes out.
+RAM TRACKS copies the track on a deck into the player's memory. The deck then plays from memory, so it keeps playing if the music USB goes out. It works on all four decks. Decks 3 and 4 need the loopback cable connected to start a copy.
 
 ```figure classic:theme-{look}-ram-setup MODS · RAM TRACKS
 Deck 1 on a USB loader without the RAM engine.
-1 @ 240,116 Deck | Choose the deck whose track goes into RAM.
+1 @ 240,116 Deck | Choose deck 1, 2, 3 or 4.
 2 @ 450,155 State | The deck and the state of its RAM copy.
-3 @ 325,175 Source | The track loaded on that deck.
-4 @ 590,194 What to do | The next step, or why the last one failed.
-5 @ 260,230 Progress | How much of the track is copied.
-6 @ 330,308 Action | The one next step for this state: check, load, cancel, retry or release.
-7 @ 445,358 Limits | One track per deck. Only the original audio goes into RAM.
-8 @ 548,452 Reason | Decks 3 and 4 always read the USB.
+3 @ 358,180 Source | The track loaded on that deck, or what to do next.
+4 @ 590,218 Progress | How much of the track is copied, in MiB.
+5 @ 375,242 Memory | How much of the 128 MiB the copies use, prepared stems apart, then each deck's copy and state.
+6 @ 330,308 Action | The one next step for this state: set up, choose a track, load, cancel, retry or release.
+7 @ 495,355 Limits | What a RAM copy holds. Only the original audio goes into RAM.
+8 @ 548,452 Reason | Why the feature is not available. Here the RAM engine is missing.
 ```
 
-1. Load a track from USB on deck 1 or deck 2.
+1. Load a track from USB on the deck.
 2. Open MODS > PLAY > RAM TRACKS and choose that deck.
 3. Press LOAD TRACK INTO RAM. Keep the USB connected while it copies.
 4. Wait for ORIGINAL AUDIO IN RAM.
 
+A track that plays is also copied on its own when there is room. CANCEL COPY or RELEASE RAM COPY stops that for the loaded track.
+
 | State | Button | What it means |
 |---|---|---|
-| RAM ENGINE NOT DETECTED | CHECK RAM ENGINE | This USB loader has no RAM engine, or it has not reported yet. If it stays, prepare the USB again with the current XZ Mods app. |
+| RAM ENGINE NOT DETECTED | SET UP RAM TRACKS | This USB loader has no RAM engine, or it has not reported yet. The setup checks the engine. If it stays, prepare the USB again with the current XZ Mods app. |
+| LOOPBACK CABLE NOT CONNECTED | SET UP FOUR DECKS | Deck 3 or 4 is chosen and decks 3 and 4 are not running. The button opens 4 DECKS. |
 | NOT IN RAM | LOAD TRACK INTO RAM | The deck plays from USB. |
 | COPYING TO RAM | CANCEL COPY | The copy is running. Cancel leaves the track playing from USB. |
 | ORIGINAL AUDIO IN RAM | RELEASE RAM COPY | The deck plays from memory. Release frees the memory and needs the USB still connected. |
 | COPY FAILED | RETRY LOAD INTO RAM | The track keeps playing from USB. Retry; if it fails again, load the track again from USB. |
-| USB OUT / RAM COPY ONLY | None | The USB is out and the deck plays from memory. Load another track to release the copy. |
+| USB OUT / RAM COPY ONLY | BACK TO PLAY | The USB is out and the deck plays from memory. Load another track to release the copy. |
 
-- One track per deck. Each file can be up to 64 MB, and both decks together up to 128 MB.
-- Only the original audio goes into RAM. Stems and the 3-band waveform still read the USB.
+When a copy does not fit, the page says why and offers the next step:
+
+| Message | What to do |
+|---|---|
+| This file exceeds the 64 MiB RAM limit. | Press CHOOSE ANOTHER TRACK. |
+| Other RAM tracks leave too little space for this file. | Press MANAGE RAM TRACKS, choose a deck with a copy and release it. |
+| Free RAM cannot keep the 64 MiB safety reserve. | Release another copy the same way. |
+
+- One track per deck. Each file can be up to 64 MiB, and all four decks together up to 128 MiB. The player always keeps 64 MiB of its memory free.
+- Only the original audio goes into RAM. Stems and new waveform data still read the USB.
+- On decks 3 and 4 the waveform, beat grid and cues already loaded stay with the copy when the USB goes out. Cues you change then are kept for the session and not written to a USB.
+- If the loopback cable goes out, decks 3 and 4 keep their copies and pause, as they do without RAM. They do not start again on their own when the cable returns.
 - Loading another track on the deck drops its RAM copy.
-- Decks 3 and 4 always read the USB.
 
 > **Experimental.** Playing on from RAM after the USB goes out has not been confirmed on a player yet. Keep the USB in during a set.
 

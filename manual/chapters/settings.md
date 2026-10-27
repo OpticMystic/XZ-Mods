@@ -29,11 +29,13 @@ The player follows the same rules as its own MY SETTINGS:
 
 The player's own MY SETTINGS, which rekordbox writes to the USB, are a separate set. XZ Mods settings never change them, and loading MY SETTINGS does not change XZ Mods settings.
 
-Things you do during a set, such as muting a stem, BYPASS or a KEY SYNC, are not settings. They start fresh every time the player starts.
+MODERN's own display choices are settings too: its waveform colour, waveform position and zoom, how it writes keys, the TRACK COLOURS choice, the LAMPS AND TITLES and BYPASS BUTTON switches, and the columns of its track list. So are the 3-band colours. They are saved to the USB with everything else and come back after the player restarts.
+
+Things you do during a set, such as muting a stem, BYPASS, a key shift, KEY SYNC or a RAM copy, are not settings. They start fresh every time the player starts.
 
 ## Going back to the defaults
 
-There is no single button that resets every setting. Set each one back in MODS, using the Default column below. Some pages have their own way back: PAGE 1: STOCK for beat jump page 1, and RESET STEM COLORS for the stem colours.
+There is no single button that resets every setting. Set each one back in MODS, using the Default column below. Some pages have their own way back: PAGE 1: STOCK for beat jump page 1, RESET STEM COLORS for the stem colours, and RESET 3-BAND COLOURS for the 3-band colours.
 
 > **Note.** Deleting the settings file from the USB does not reset anything. The player keeps the settings it has, and saves them to the USB again with your next change.
 

@@ -59,7 +59,7 @@ The HOME page with stems ready and four decks not connected yet.
 | CONNECT | Your DJ profile and its USB, and whether VJ.Tools is connected |
 | EXTRAS | The games and how many USB apps are on the stick |
 
-Two setup buttons can appear on HOME. **SET UP USB STEMS** opens the USB stems guide when the stem engine is not ready. **SET UP FOUR DECKS** opens 4 DECKS when no cable is found, a start failed or the cable was lost.
+Two setup buttons can appear on HOME. **SET UP USB STEMS** opens the USB stems guide when the stem engine is not ready. **SET UP FOUR DECKS** opens 4 DECKS when no cable is found, a start failed, the cable was lost, or the USB loader has no four-deck engine.
 
 ## PLAY
 
@@ -98,9 +98,11 @@ SCREEN sets how the play screen looks.
 1 @ 128,100 INTERFACE | CLASSIC or MODERN. The picture shows each one.
 2 @ 530,54 DECK VIEW | 2 DECKS, 4 DECKS in number order, or 4 DECKS in mixer order.
 3 @ 128,164 THEME | The CLASSIC theme. In MODERN this place holds LAMPS AND TITLES instead.
-4 @ 128,228 WAVEFORM COLOURS | STOCK, 3-BAND or STEMS. MODERN adds RGB.
-5 @ 790,198 KEY NOTATION | AS ON THE USB, MUSICAL or WHEEL, each with an example key.
-6 @ 128,292 Keys and the track list | PLAYING KEY, KEY MATCH COLOURS, KEY BEFORE TITLE and TRACK LIST COLUMNS.
+4 @ 680,164 3-BAND COLOURS | A colour for the lows, mids and highs of the 3-BAND waveform. The squares show the colours in use.
+5 @ 128,228 WAVEFORM COLOURS | STOCK, 3-BAND or STEMS. MODERN adds RGB.
+6 @ 790,198 KEY NOTATION | AS ON THE USB, MUSICAL or WHEEL, each with an example key.
+7 @ 128,292 Keys and the track list | PLAYING KEY, KEY MATCH COLOURS, KEY BEFORE TITLE and TRACK LIST COLUMNS.
+8 @ 128,384 SYSTEM READOUT | CPU, memory and temperature on the top bar, on its own row at the bottom of the page.
 ```
 
 [Screen, interfaces and themes](screen-and-themes) explains every item on this page. DECK VIEW is explained in [Four decks](four-decks#deck-view).

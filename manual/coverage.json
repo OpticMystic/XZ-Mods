@@ -243,6 +243,26 @@
    "why": "four-deck failure sentences"
   },
   {
+   "path": "source/xdj-xz-toolkit/mods/ui/extra_lane.h",
+   "chapter": "four-decks",
+   "why": "SYNC labels and detail lines on decks 3 and 4"
+  },
+  {
+   "path": "source/xdj-xz-toolkit/mods/key/control.c",
+   "chapter": "performance",
+   "why": "key shift and KEY SYNC refusal messages"
+  },
+  {
+   "path": "source/xdj-xz-toolkit/mods/ram/extra.c",
+   "chapter": "performance",
+   "why": "RAM TRACKS limit messages"
+  },
+  {
+   "path": "source/xdj-xz-toolkit/mods/ui/band_colors.h",
+   "chapter": "screen-and-themes",
+   "why": "the 3-BAND COLOURS choices"
+  },
+  {
    "path": "source/xdj-xz-toolkit/mods/ui/deck_view.c",
    "chapter": "four-decks",
    "why": "DECK VIEW choices"
