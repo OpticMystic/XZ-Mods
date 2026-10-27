@@ -1,0 +1,20 @@
+{
+ "title": "The XZ Mods manual",
+ "summary": "Every screen, control and setting XZ Mods adds to the XDJ-XZ, with pictures drawn by the firmware itself. Pick your interface at the top and the manual shows only what applies to you.",
+ "chapters": [
+  {"slug": "getting-started", "group": "Start here", "title": "Getting started", "summary": "What XZ Mods changes on the XDJ-XZ, what you need, and your first start from a prepared USB."},
+  {"slug": "hardware", "group": "Start here", "title": "Controls on the player", "summary": "Which buttons, pads and knobs do something new, and what each one does with XZ Mods running."},
+  {"slug": "play-screen", "group": "On the player", "title": "The play screen", "summary": "Every part of the play screen in both interfaces: decks, waveforms, key, tempo, notices and the top bar."},
+  {"slug": "browse", "group": "On the player", "title": "Browsing and loading", "summary": "Finding tracks, search, filters, track info, tag lists, playlists and loading to any deck."},
+  {"slug": "stems", "group": "On the player", "title": "Stems", "summary": "Muting vocals, harmonics and drums live, stem layouts and pads, and how to prepare stems for a USB."},
+  {"slug": "performance", "group": "On the player", "title": "Beat jump and performance features", "summary": "Beat jump distances, gate cue, smart cue, key sync, the sampler and RAM tracks."},
+  {"slug": "four-decks", "group": "On the player", "title": "Four decks", "summary": "Playing decks 3 and 4 over the loopback cable: setup, deck view, what decks 3 and 4 can do, and every status."},
+  {"slug": "mods-menu", "group": "MODS menu", "title": "The MODS menu", "summary": "How to open MODS, move around it with the encoder or touch, and what is on every section page."},
+  {"slug": "screen-and-themes", "group": "MODS menu", "title": "Screen, interfaces and themes", "summary": "MODERN or CLASSIC, the 25 themes, waveform colours, key notation, deck view and the play screen's parts."},
+  {"slug": "connect", "group": "MODS menu", "title": "Connect and DJ profiles", "summary": "Your DJ profile on the USB, VJ.Tools, the network and over-the-air updates."},
+  {"slug": "extras", "group": "MODS menu", "title": "Extras", "summary": "Games, USB apps, reporting a problem and the About page."},
+  {"slug": "desktop-app", "group": "On your computer", "title": "The XZ Mods app", "summary": "Preparing a USB, building stems, watching the XZ screen live and the tools in the desktop app."},
+  {"slug": "troubleshooting", "group": "Help", "title": "Messages and troubleshooting", "summary": "What every notice and warning means, and what to do about it."},
+  {"slug": "settings", "group": "Help", "title": "Settings reference", "summary": "Every setting XZ Mods stores on the USB, its values, its default and where it is explained."}
+ ]
+}
