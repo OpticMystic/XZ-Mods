@@ -471,11 +471,13 @@ Each stick appears by itself as you plug it in. Press **That's all of them** whe
 
 ```figure app:report-received XZ Mods app · Report received
 The receipt after sending.
-1 @ 419,289 Your receipt | Every report and idea gets one. It is kept on this computer under Windows protection.
-2 @ 509,312 Status | Where the report is now.
-3 @ 519,341 Report number | The first part of the report's number, also shown in My reports.
+1 @ 556,285 Your reference | The permanent reference for this report, also shown in My reports.
+2 @ 519,309 Status | Where the report is now.
+3 @ 575,341 Copy | Copies the reference so you can quote it to the maintainer.
 4 @ 688,477 Track my report | Opens it in My reports.
 ```
+
+Every accepted report or idea gets its own reference, such as **R-4F7K-2M9Q**. Quote it when asking about that report. **Copy** copies the reference. The reference stays the same if you send again after a connection failure. It does not let anyone read your report or its status.
 
 If the app cannot confirm that a report arrived, it says **Not confirmed yet**. Nothing is lost. **Set up reporting connection** checks the internet connection and the computer's clock, then **Send again** sends the same report. If the first attempt did arrive, you get its receipt and nothing arrives twice. **Save to a file** keeps a copy without sending.
 
@@ -496,29 +498,46 @@ Four reports, one with news.
 2 @ 345,293 Kind | Such as Problem, Got worse, Works differently, Idea or Question.
 3 @ 666,280 Your words | The start of what you wrote. It stays on this computer.
 4 @ 584,537 Status | Where the report is now. New marks a change you have not opened yet.
-5 @ 900,293 Sent | The day you sent it.
+5 @ 908,280 Reference and date | Your report reference and the day you sent it. Part of XZ-1042 appears when the maintainer assigns an item.
 6 @ 755,226 Check now | Checks every report at once.
 7 @ 938,226 Report a problem or share an idea | Starts a new report.
 ```
 
 The app checks for news when it starts, after it checks for app updates, and when you open My reports, at most every 15 minutes for each report. **Check now** checks at once. If you are offline, the last known status stays.
 
-Open a report to see where it is. The view is read-only.
+Open a report to see where it is. The view is read-only. Once the maintainer assigns it, **Part of XZ-1042** names the bug, feature or question it belongs to. Reports about the same item share that item number. If the maintainer moves your report to another item, this number changes; your R reference stays the same. Item numbers remain after the report's details are deleted.
 
 ```figure app:report-tracking XZ Mods app · My reports
 A problem the maintainer confirmed, with a fix in progress.
-1 @ 550,186 Progress | Received, Confirmed, Fix in progress, Ready to test, In an update. Ideas and questions show Received, Looked at, Decided.
-2 @ 481,252 Report | Its kind and number.
-3 @ 501,291 Your words | The start of what you wrote.
-4 @ 417,338 Status | Where it is now, in plain words.
+1 @ 550,177 Progress | Received, Confirmed, Fix in progress, Ready to test, In an update. Ideas and questions show Received, Looked at, Decided.
+2 @ 467,238 Reference | This report's permanent reference and kind.
+3 @ 510,309 Your words | The start of what you wrote.
+4 @ 428,355 Status | Where it is now, in plain words.
 5 @ 600,425 Dates | When you sent it, the last change, when its details are deleted and how long tracking lasts.
-6 @ 429,481 Status link and forgetting | The status link, and Forget this report.
-7 @ 711,512 Check now | Checks this report at once.
+6 @ 443,497 Status link and forgetting | The status link, and Forget this report.
+7 @ 711,524 Check now | Checks this report at once.
+8 @ 370,267 Part of | The item this report belongs to, such as XZ-1042.
 ```
 
 - If the maintainer needs one more detail, the question appears in the report. **Answer in a new report** starts a report that names this one.
-- **Open status page** and **Copy status link** give a read-only web page with the same status. It shows none of your words or details. Anyone with the link can read the status. **Turn off status links** stops every link for this report; the app still checks it.
+- **Open status page** and **Copy status link** give a read-only web page with the same status, report reference and item number. It shows none of your words or details. Anyone with the link can read the status. **Turn off status links** stops every link for this report; the app still checks it.
 - **Forget this report** removes its receipt from this computer. The maintainer keeps the report.
 - A report saved, but not sent, by an older version of the app appears under **Saved, not sent**. **Use this text** starts a new report with its words.
 
 Details are deleted 14 days after you send them. Tracking lasts while a report is open, up to one year without news, then 180 days after it closes. A fix in a local test build is not a published update.
+
+### Maintainer inbox
+
+**Maintainer inbox** in About is for the maintainer. Connect it with the report-only owner key. The short setup checks that key by reading the inbox.
+
+Enter a report reference or item number in the search box and choose **Find**. You can type either case, with or without spaces and dashes. For a report reference, I or L also means 1, and O means 0. A report reference finds one report; an item number finds the reports assigned to that item. **Clear** returns to the inbox.
+
+```figure app:maintainer-inbox XZ Mods app · Maintainer inbox
+The inbox, scrolled right to show Reference and Item.
+1 @ 997,141 Find | Searches the whole inbox by report reference or item number.
+2 @ 774,236 Reference | The permanent reference for each report.
+3 @ 991,236 Item | The bug, feature or question the report belongs to. A dash means it has not been assigned yet.
+4 @ 670,594 Scroll | Scroll right or left to see every column.
+```
+
+The reference and item number identify a report; the owner key is still required to read the inbox.

@@ -71,6 +71,8 @@ pub(crate) fn begin_send(dir:&Path,r:&Receipt)->Result<(),String>{
  update(dir,&r.report_id,|s|if s["state"]!="accepted"{s["state"]=json!("sending");})?;Ok(())
 }
 pub(crate) fn accept(dir:&Path,id:&str,receipt:&Value,at:u64)->Result<Value,String>{
+ let (_,previous)=load(dir,id)?;
+ if previous["tracking"]["report_reference"].is_string()&&previous["tracking"]["report_reference"]!=receipt["tracking"]["report_reference"]{return Err("Report reference changed; keeping the saved receipt".into())}
  let revision=receipt["tracking"]["revision"].as_u64().unwrap_or(1);
  update(dir,id,|s|{s["state"]=json!("accepted");s["accepted_at"]=receipt["accepted_at"].clone();s["diagnostics_expires_at"]=receipt["diagnostics_expires_at"].clone();
   s["private_logs"]=receipt["private_logs"].clone();s["tracking"]=receipt["tracking"].clone();s["seen_revision"]=json!(revision);
@@ -90,7 +92,7 @@ pub(crate) fn seen(dir:&Path,id:&str)->Result<Value,String>{update(dir,id,|s|{le
 pub(crate) fn view(r:&Receipt,s:&Value)->Value{
  let t=&s["tracking"];let revision=t["revision"].as_u64().unwrap_or(0);
  json!({"report_id":r.report_id,"state":s["state"].as_str().unwrap_or("unknown"),"protocol":r.protocol,"kind_hint":r.kind_hint,"topic":r.topic,"summary":r.summary,
-  "classified_kind":t["classified_kind"],"lifecycle":t["lifecycle"],"status_text_key":t["status_text_key"],"status_text":t["status_text"],"question":t["question"],"revision":revision,
+  "report_reference":t["report_reference"],"item_number":t["item_number"],"classified_kind":t["classified_kind"],"lifecycle":t["lifecycle"],"status_text_key":t["status_text_key"],"status_text":t["status_text"],"question":t["question"],"revision":revision,
   "created_at":r.created_at,"accepted_at":s["accepted_at"],"updated_at":t["updated_at"],"retention_until":t["retention_until"],"diagnostics_expires_at":s["diagnostics_expires_at"],
   "unseen":revision>s["seen_revision"].as_u64().unwrap_or(revision),"checked_at":s["checked_at"],"last_error":s["last_error"],"links_revoked":s["links_revoked"]==true})
 }
@@ -151,6 +153,10 @@ pub fn support_forget(app:tauri::AppHandle,id:String)->Result<Value,String>{let 
   let tracking=crate::support_tracking::tests::status(&"a".repeat(32),1,"received","received");
   let view=accept(&dir,&"a".repeat(32),&json!({"accepted_at":"2026-10-27T10:00:00.000Z","diagnostics_expires_at":"2026-11-10T10:00:00.000Z","private_logs":"stored","tracking":tracking}),1000).unwrap();
   let text=view.to_string();assert!(!text.contains(&"b".repeat(64)));assert!(!text.contains(&"c".repeat(64)));assert_eq!(view["unseen"],false);assert_eq!(view["lifecycle"],"received");
+  assert_eq!(view["report_reference"],"R-4F7K-2M9Q");assert_eq!(view["item_number"],Value::Null);
+  let mut changed=json!({"tracking":tracking});changed["tracking"]["report_reference"]=json!("R-4F7K-2M9R");
+  assert!(accept(&dir,&r.report_id,&changed,1001).unwrap_err().contains("reference changed"));
+  assert_eq!(view_of(&dir,&r.report_id).unwrap()["report_reference"],"R-4F7K-2M9Q");
   // Retrying with the same key and digest is allowed; another key for the same ID is not.
   begin_send(&dir,&r).unwrap();let mut other=r.clone();other.key="d".repeat(64);assert!(begin_send(&dir,&other).is_err());
   assert_eq!(load(&dir,&"a".repeat(32)).unwrap().1["state"],"accepted","an accepted receipt never returns to sending");

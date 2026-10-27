@@ -3,7 +3,7 @@ const head = {
   'X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 };
 const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Track an XZ Mods report</title>
-<main><h1>Your report</h1><p id="status" role="status">Opening your private status link...</p><p id="question"></p><p id="retention"></p>
+<main><h1>Your report</h1><p id="reference"></p><p id="item"></p><p id="status" role="status">Opening your private status link...</p><p id="question"></p><p id="retention"></p>
 <button id="refresh" type="button" hidden>Check for updates</button><button id="setup" type="button">Open a saved status link</button>
 <section id="connection" hidden aria-label="Open report status"><h2>Connect to your report</h2><p>Choose the status link saved with your receipt. We will check that it still works.</p>
 <label for="link">Saved status link</label><input id="link" type="url" autocomplete="off"><button id="connect" type="button">Check this link</button><p id="connection-status" role="status"></p></section>
@@ -37,6 +37,8 @@ const js = `'use strict';
       if (!response.ok) throw new Error();
       const data = await response.json();
       status.textContent = data.status_text;
+      document.getElementById('reference').textContent = 'Your reference ' + data.report_reference;
+      document.getElementById('item').textContent = data.item_number ? 'Part of ' + data.item_number : '';
       document.getElementById('question').textContent = data.question || '';
       document.getElementById('retention').textContent = 'Tracking available until ' + data.retention_until;
     } catch { status.textContent = 'This status link is unavailable. Open My reports in XZ Mods to get a new link.'; }

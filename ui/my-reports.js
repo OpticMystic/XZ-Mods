@@ -2,7 +2,7 @@
 // Rust holds every receipt key and makes every request; this page sees only the safe projection.
 'use strict';
 window.myReports = (() => {
-  const C = window.XZ_SUPPORT_CONTRACT;
+  const C = window.XZ_SUPPORT_CONTRACT, ID = window.XZ_SUPPORT_IDENTIFIERS;
   const host = $('my-reports-host'), track = $('report-track'), inbox = $('support-inbox');
   titles['my-reports'] = 'My reports'; toolPages.add('my-reports');
   pageShown['my-reports'] = () => { render(); check('open', null, true); };
@@ -66,8 +66,8 @@ window.myReports = (() => {
       loaded ? el('span', { text: 'When you send a report or an idea, its receipt appears here so you can follow it.' }) : null));
     if (reports.length) parts.push(el('ul', { class: 'sr-reports', 'aria-label': 'Sent reports' }, ...reports.map(r => el('li', {},
       el('button', { type: 'button', class: 'sr-report', dataset: { unseen: r.unseen ? '' : undefined, key: 'r-' + r.report_id }, onclick: () => show(r.report_id) },
-        badge(r), el('strong', { text: r.summary || 'Report ' + r.report_id.slice(0, 8) }), el('span', { class: 'sr-status', text: (r.unseen ? 'New: ' : '') + words(r) }),
-        el('span', { class: 'sr-when', text: 'Sent ' + day(r.created_at) }), icon('i-chevron'))))));
+        badge(r), el('strong', { text: r.summary || r.report_reference || 'Report' }), el('span', { class: 'sr-status', text: (r.unseen ? 'New: ' : '') + words(r) }),
+        el('span', { class: 'sr-when' }, el('span', { class: 'sr-reference', text: r.report_reference || 'Reference after receipt' }), r.item_number ? el('span', { class: 'sr-item-number', text: 'Part of ' + r.item_number }) : null, 'Sent ' + day(r.created_at)), icon('i-chevron'))))));
     if (unconfirmed.length) parts.push(el('p', { class: 'fine', text: 'Not confirmed means the app could not tell whether a report arrived. Open it to check again; it is never sent twice.' }));
     if (drafts.length) {
       parts.push(el('h3', { class: 'sr-section-title', text: 'Saved, not sent' }));
@@ -137,9 +137,10 @@ window.myReports = (() => {
     if (!r) { track.close(); return; }
     const draft = saved.find(d => d.report_id === r.report_id && d.readable && d.schema === 'xz-support-report/2');
     const body = [el('p', { class: 'sr-track-words', text: r.summary || '(no summary kept)' }), el('p', { class: 'sr-track-status', text: words(r) })];
+    if (r.item_number) body.unshift(el('p', { class: 'sr-item-number', text: 'Part of ' + r.item_number }));
     if (r.state === 'accepted' && r.question) body.push(el('div', { class: 'sr-question' }, el('strong', { text: r.question }),
       'Replies from the app come in a later update. For now, answer in a new report that mentions this one.',
-      el('div', { class: 'actions' }, plainButton('Answer in a new report', () => { track.close(); window.reportWizard.open({ text: 'About report ' + r.report_id.slice(0, 8) + ': ' }); }, { key: 'answer' }))));
+      el('div', { class: 'actions' }, plainButton('Answer in a new report', () => { track.close(); window.reportWizard.open({ text: 'About ' + (r.report_reference || 'my report') + ': ' }); }, { key: 'answer' }))));
     if (r.state === 'unconfirmed' || r.state === 'not_received' || r.state === 'sending') {
       body.push(el('div', { class: 'st-note', dataset: { tone: 'warn' } }, el('strong', { text: r.state === 'not_received' ? 'This report did not arrive. ' : 'Not confirmed yet. ' }),
         draft ? 'Set up the reporting connection and send the same report again. If it already arrived, you get its receipt and nothing arrives twice.'
@@ -164,7 +165,7 @@ window.myReports = (() => {
         : plainButton('Check again', () => act('check'), { primary: true, key: 'check' });
     const focused = track.contains(document.activeElement) ? document.activeElement.dataset.key : null;
     track.replaceChildren(r.state === 'accepted' ? progress(r) : el('span'),
-      el('h2', { id: 'report-track-title', tabindex: '-1' }, badge(r), ' Report ' + r.report_id.slice(0, 8)), ...body, more,
+      el('h2', { id: 'report-track-title', tabindex: '-1' }, badge(r), ' ' + (r.report_reference || 'Report awaiting receipt')), ...body, more,
       el('p', { class: 'visually-hidden', role: 'status', text: current.message }),
       el('div', { class: 'st-foot' }, el('span', { class: 'st-foot-left', text: current.message }), r.state === 'accepted' ? plainButton('Check now', () => act('check'), { key: 'check-now' }) : null,
         r.state === 'accepted' ? null : plainButton('Close', () => track.close(), { key: 'close-2' }), primary));
@@ -200,9 +201,9 @@ window.myReports = (() => {
     for (const value of values) if (!words[value]) console.error('Maintainer inbox has no words for', list, value);
   }
   const tag = (text, tone) => el('span', { class: 'sr-tag', dataset: { tone }, text });
-  let box = { rows: [], cursor: null, changed: new Map(), state: 'idle', message: '', reader: null, confirmDelete: false };
+  let box = { rows: [], cursor: null, query: '', changed: new Map(), state: 'idle', message: '', reader: null, confirmDelete: false };
   async function openInbox() {
-    box = { rows: [], cursor: null, changed: new Map(), state: 'idle', message: '', reader: null, confirmDelete: false };
+    box = { rows: [], cursor: null, query: '', changed: new Map(), state: 'idle', message: '', reader: null, confirmDelete: false };
     if (!inbox.open) inbox.showModal();
     let connected = false;
     try { connected = (await invoke('support_owner_status')).connected; } catch {}
@@ -212,7 +213,7 @@ window.myReports = (() => {
   async function list(more = false) {
     box.state = 'loading'; box.message = more ? 'Reading more...' : 'Reading the inbox...'; renderInbox();
     try {
-      const page = await invoke('support_inbox', { action: more ? 'more' : 'list', id: null, cursor: more ? box.cursor : null });
+      const page = await invoke('support_inbox', { action: more ? 'more' : box.query ? 'search' : 'list', id: more ? null : box.query || null, cursor: more ? box.cursor : null });
       const seen = new Set(box.rows.map(row => row.report_id));
       box.rows = more ? [...box.rows, ...page.reports.filter(row => !seen.has(row.report_id))] : page.reports;
       box.cursor = page.next_cursor; box.state = 'ready'; box.message = '';
@@ -221,6 +222,13 @@ window.myReports = (() => {
       box.state = box.rows.length ? 'ready' : 'setup'; box.message = 'Inbox unavailable: ' + String(failure).replace(/^Error: /, '');
     }
     renderInbox();
+  }
+  function search(value) {
+    if (box.state === 'loading') return;
+    const ref = ID.parseReportReference(value), item = ID.parseItemNumber(value);
+    if (value.trim() && ref === null && item === null) { box.message = 'Enter a reference like R-4F7K-2M9Q or XZ-1042.'; renderInbox(); return; }
+    box.query = ref !== null ? ID.formatReportReference(ref) : item !== null ? ID.formatItemNumber(item) : '';
+    box.reader = null; list();
   }
   async function changes() {
     box.message = 'Checking for changes...'; renderInbox();
@@ -253,7 +261,7 @@ window.myReports = (() => {
     const desk = r.desk || {}, features = desk.affected_features || [], reach = desk.reach || { versions: [], interfaces: [], decks: [] };
     const flagged = r.impact === 'CHANGES_DEFAULT' || r.impact === 'BREAKS';
     return el('tr', { dataset: { changed: box.changed.has(r.report_id) ? '' : undefined, flag: flagged ? '' : undefined } },
-      el('td', {}, LABEL.kinds[r.kind] || 'Unclassified', el('small', { text: r.report_id.slice(0, 8) })),
+      el('td', {}, LABEL.kinds[r.kind] || 'Unclassified'),
       el('td', {}, r.severity ? tag(LABEL.severities[r.severity], r.severity === 'LIVE_SET_STOPPER' ? 'stop' : undefined) : '-'),
       el('td', {}, r.impact ? tag(LABEL.impacts[r.impact], flagged ? 'flag' : r.impact === 'OPT_IN_CHANGE' ? 'warn' : 'good') : '-',
         r.impact === 'OPT_IN_CHANGE' && desk.proposed_setting ? el('small', { text: 'Adds a setting: ' + LABEL.features[desk.proposed_setting] }) : null,
@@ -265,7 +273,8 @@ window.myReports = (() => {
         el('small', { text: [reach.versions.join(', '), reach.interfaces.join(', '), reach.decks.length ? 'decks ' + reach.decks.join(', ') : ''].filter(Boolean).join(' · ') || ' ' })),
       el('td', {}, LABEL.lifecycles[r.lifecycle], box.changed.has(r.report_id) ? tag('Updated', 'warn') : null,
         r.automatic_fix_eligible ? el('small', { text: 'Fix rule: eligible' + (r.automation_enabled ? '' : ' · automation off') }) : null,
-        plainButton('Read', () => read(r.report_id), { text: true, key: 'read-' + r.report_id })));
+        plainButton('Read', () => read(r.report_id), { text: true, key: 'read-' + r.report_id })),
+      el('td', { class: 'sr-reference', text: r.report_reference }), el('td', { class: 'sr-item-number', text: r.item_number || '-' }));
   }
   function renderInbox() {
     const parts = [el('h2', { id: 'support-inbox-title', tabindex: '-1', text: 'Maintainer inbox' })];
@@ -282,17 +291,20 @@ window.myReports = (() => {
       input.focus();
       return;
     }
+    const find = el('input', { type: 'search', id: 'support-inbox-search', value: box.query, placeholder: 'R-4F7K-2M9Q or XZ-1042', maxlength: '64', dataset: { key: 'inbox-query' }, 'aria-label': 'Find a report reference or item number' });
+    find.onkeydown = event => { if (event.key === 'Enter') search(find.value); };
+    parts.push(el('div', { class: 'sr-inbox-search' }, find, plainButton('Find', () => search(find.value), { key: 'inbox-search', disabled: box.state === 'loading' }), box.query ? plainButton('Clear', () => search(''), { key: 'inbox-clear', disabled: box.state === 'loading' }) : null));
     parts.push(el('div', { class: 'sr-inbox-tools' }, plainButton('Refresh', () => list(), { key: 'inbox-refresh', disabled: box.state === 'loading' }),
       plainButton('Check for changes', changes, { key: 'inbox-changes' }),
       el('span', { class: 'sr-meta', role: 'status', text: box.message || box.rows.length + ' report' + (box.rows.length === 1 ? '' : 's') + ' · highest priority first' })));
     parts.push(el('div', { class: 'sr-table-wrap' }, el('table', { class: 'sr-table' },
-      el('colgroup', {}, ...['kind', 'sev', 'impact', 'base', 'feat', 'since', 'reach', 'status'].map(name => el('col', { class: 'c-' + name }))),
-      el('thead', {}, el('tr', {}, ...['Kind', 'Severity', 'Impact', 'Baseline', 'Affected features', 'In use since', 'Reach', 'Status'].map(text => el('th', { scope: 'col', text })))),
-      el('tbody', {}, ...(box.rows.length ? box.rows.map(row) : [el('tr', {}, el('td', { colspan: '8', text: box.state === 'loading' ? 'Reading...' : 'No reports.' }))])))));
+      el('colgroup', {}, ...['kind', 'sev', 'impact', 'base', 'feat', 'since', 'reach', 'status', 'reference', 'item'].map(name => el('col', { class: 'c-' + name }))),
+      el('thead', {}, el('tr', {}, ...['Kind', 'Severity', 'Impact', 'Baseline', 'Affected features', 'In use since', 'Reach', 'Status', 'Reference', 'Item'].map(text => el('th', { scope: 'col', text })))),
+      el('tbody', {}, ...(box.rows.length ? box.rows.map(row) : [el('tr', {}, el('td', { colspan: '10', text: box.state === 'loading' ? 'Reading...' : 'No reports.' }))])))));
     if (box.cursor) parts.push(el('div', { class: 'actions' }, plainButton('Load more', () => list(true), { key: 'inbox-more' })));
     if (box.reader) {
       const r = box.reader;
-      parts.push(el('h3', { text: 'Private report ' + r.id.slice(0, 8) }), el('pre', { tabindex: '0', 'aria-label': 'Verified private report', text: r.text }),
+      parts.push(el('h3', { text: 'Private report ' + (box.rows.find(row => row.report_id === r.id)?.report_reference || '') }), el('pre', { tabindex: '0', 'aria-label': 'Verified private report', text: r.text }),
         el('div', { class: 'actions' }, r.pages > 1 ? plainButton('Previous page', () => read(r.id, r.page - 1), { key: 'p-prev', disabled: r.page === 0 }) : null,
           r.pages > 1 ? plainButton('Next page', () => read(r.id, r.page + 1), { key: 'p-next', disabled: r.page + 1 >= r.pages }) : null,
           r.pages ? el('span', { class: 'fine', text: 'Page ' + (r.page + 1) + ' of ' + r.pages }) : null,
