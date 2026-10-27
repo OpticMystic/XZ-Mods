@@ -327,7 +327,7 @@ def bridge(raw, bounds, current=False):
 
 def item(source, slot, facts=None, reason=None, truncated=False, omitted=0):
     facts=facts or []
-    value={'item_id':secrets.token_hex(16),'source_id':source,'source_slot':slot,'parser_version':1,'capture':'at_collection',
+    value={'item_id':secrets.token_hex(16),'source_id':source,'source_slot':slot,'parser_version':REGISTRY.get(source,{}).get('parser_version',1),'capture':'at_collection',
            'clock_confidence':'current' if facts and all(f['clock_basis']=='current' for f in facts) else 'known' if facts and all(f['window_match']=='inside' for f in facts) else 'unknown',
            'selected':True,'facts':facts,'missing_reason':reason,'truncated':truncated,'omission_count':min(omitted,1000000)}
     while len(value['facts'])>512 or len(encoded(value))>LIMITS['item_bytes']:
@@ -395,7 +395,14 @@ def diary(stick, budget, bounds):
             if checked_path(path).stat().st_size>spec['segment_max_bytes']:raise SourceError('oversized')
             header_raw,_=budget.read(path,spec['header_max_bytes'],root=base,expected=stick['identity'],head=True)
             if b'\n' not in header_raw:raise SourceError('invalid')
-            header=json.loads(header_raw.split(b'\n',1)[0]);validate(header,spec['session_header'])
+            header=json.loads(header_raw.split(b'\n',1)[0])
+            if not isinstance(header,dict):raise SourceError('invalid')
+            version=header.get('schema')
+            family=spec.get('versions',{}).get(version)
+            if family is None:
+                if version!=spec['schema']:raise SourceError('invalid')
+                family=spec
+            validate(header,family['session_header'])
             if header['deck_view'] not in (2,4):raise SourceError('invalid')
             raw,clipped=budget.read(path,spec['collector_segment_tail_bytes'],root=base,expected=stick['identity'],tail=True)
             truncated|=clipped;found=True
@@ -411,8 +418,10 @@ def diary(stick, budget, bounds):
                     if entry==header:continue
                     kind=entry.get('type')
                     if kind not in ('event','metrics'):raise ValueError('Unknown diary line')
-                    validate(entry,spec[kind+'_line'])
-                    if kind=='metrics' and len(entry['sync_phase_error_ms'])!=4:raise ValueError('Four deck metrics required')
+                    validate(entry,family[kind+'_line'])
+                    if kind=='metrics':
+                        arrays=('sync_phase_error_ms',) if version=='xz-mods-diary/1' else ('sync_phase_error_ms','key_shift_max_us','audio_underrun_frames')
+                        if any(len(entry[key])!=4 for key in arrays):raise ValueError('Four deck metrics required')
                     mono=entry['monotonic_ms']
                     if mono<header['monotonic_ms']:raise ValueError('Invalid session time')
                     key=(header['session_id'],entry['sequence'])
