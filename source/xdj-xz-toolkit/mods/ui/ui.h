@@ -308,6 +308,10 @@ struct xz_ui_model {
        runs (those rows and the UTILITY rail cell say NOT READY). wave_color: XZ_UI_WAVE_*; usb_colors: 0 DECK +
        WAVE, 1 DECK ONLY, 2 OFF; hidden: bit enum xz_ui_look_item set while that part is hidden. */
     struct xz_ui_modern_look { int known, wave_color, usb_colors; unsigned hidden; } modern_look;
+    /* Known stock counter errors on decks 1 and 2 (stock_counter.h): the code and the firmware's English text, or
+       NULL. The runtime sets them in MODERN only, where the dock keeps them in view while MODS is open (stock
+       errors are never covered). CLASSIC leaves the stock deck area itself visible instead. */
+    struct xz_ui_counter_error { const char *code, *text; } counter_error[2];
 };
 /* MODERN's look items (XZ_UI_SHELL_LOOK). WAVE_COLOR is the same setting as UTILITY's WAVEFORM COLOR. */
 enum xz_ui_look_item { XZ_UI_LOOK_WAVE_COLOR, XZ_UI_LOOK_USB_COLORS, XZ_UI_LOOK_MODE_LAMPS, XZ_UI_LOOK_QUANTIZE_LAMP,
@@ -315,6 +319,10 @@ enum xz_ui_look_item { XZ_UI_LOOK_WAVE_COLOR, XZ_UI_LOOK_USB_COLORS, XZ_UI_LOOK_
 enum xz_ui_wave_color { XZ_UI_WAVE_STOCK, XZ_UI_WAVE_RGB, XZ_UI_WAVE_3BAND, XZ_UI_WAVE_STEMS, XZ_UI_WAVE_COLORS };
 /* 1 in MODERN: the UTILITY rail cell and the MODERN look rows show (they act once modern_look.known). */
 int xz_ui_modern_menu(const struct xz_ui_model *);
+/* Bit d set: deck d has a known stock counter error that the MODS dock shows (MODERN only, counter_error). */
+unsigned xz_ui_counter_errors(const struct xz_ui_model *);
+/* XZ_UI_CLOSE's index on the dock's counter error strip; the header CLOSE is index 0. */
+enum { XZ_UI_CLOSE_COUNTER=1 };
 /* Decks 3 and 4's route, as the connector publishes it (enum xz_extra_route_state). NO_ENGINE: the software
    players are not running (unavailable or not started). */
 enum xz_ui_route_state { XZ_UI_ROUTE_NO_ENGINE, XZ_UI_ROUTE_NOT_DETECTED, XZ_UI_ROUTE_SCANNING, XZ_UI_ROUTE_STARTING,

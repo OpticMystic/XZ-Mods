@@ -426,12 +426,23 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
  }else if(xz_sdk_ui_page(u->page))n=xz_sdk_ui_controls(u,m,w,n);
  return n;
 }
+unsigned xz_ui_counter_errors(const struct xz_ui_model *m){
+ unsigned bits=0;
+ if(xz_ui_modern_menu(m))for(int d=0;d<2;d++)if(m->counter_error[d].code&&m->counter_error[d].text)bits|=1u<<d;
+ return bits;
+}
 size_t xz_ui_layout(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget w[XZ_UI_WIDGETS]){
  size_t n=page_controls(u,m,w);
  xz_ui_place(u,m,w,n);
  xz_sdk_ui_place(u,m,w,n);
  xz_ui_network_place(u,m,w,n);
  xz_ui_support_place(u,m,w,n);
+ /* Last, so it never shifts focus or takes a touch from a control: touch only (CLOSE is not focusable), it closes
+    MODS onto the play screen, where the deck shows the error and CHOOSE TRACK. */
+ if(xz_ui_counter_errors(m)&&n<XZ_UI_WIDGETS){
+  add(w,&n,XZ_UI_CLOSE,XZ_UI_CLOSE_COUNTER,0,"COUNTER ERROR");
+  w[n-1].x=0;w[n-1].y=XZ_UI_COUNTER_Y;w[n-1].w=XZ_UI_COUNTER_W;w[n-1].h=XZ_UI_COUNTER_H;
+ }
  return n;
 }
 static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,const struct xz_ui_widget *w){
@@ -657,8 +668,10 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  struct xz_ui_widget w[XZ_UI_WIDGETS],skin_w[XZ_UI_WIDGETS];struct xz_ui_look looks[XZ_UI_WIDGETS],skin_looks[XZ_UI_WIDGETS];struct xz_theme_palette palette;
  size_t n=xz_ui_layout(u,m,w),skin_n=0;
  struct xz_ui_scene s=scene(u,m,(struct xz_canvas){pixels,stride,800,480,m->theme},&m->deck[u->deck],w,looks,n,&palette);
- /* Skins never see the profile chip; shared chrome draws it the same in every theme. */
- for(size_t i=0;i<n;i++)if(!profile_kind(w[i].kind)){skin_w[skin_n]=w[i];skin_looks[skin_n++]=looks[i];}
+ /* Skins never see the profile chip or the counter error strip; shared chrome draws them the same in every theme. */
+ for(size_t i=0;i<n;i++)if(!profile_kind(w[i].kind)&&!(w[i].kind==XZ_UI_CLOSE&&w[i].index==XZ_UI_CLOSE_COUNTER)){
+  skin_w[skin_n]=w[i];skin_looks[skin_n++]=looks[i];
+ }
  struct xz_ui_scene skin=s;skin.w=skin_w;skin.look=skin_looks;skin.n=skin_n;
  skin_for(m->theme)->render(&skin);
  if(u->page==XZ_UI_STEM_COLORS)xz_ui_stem_colors(&s);

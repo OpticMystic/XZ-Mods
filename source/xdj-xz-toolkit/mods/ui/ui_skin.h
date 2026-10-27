@@ -31,12 +31,15 @@ void xz_ui_page_details(const struct xz_ui_scene *);
 extern const struct xz_ui_skin xz_skin_classic, xz_skin_lcars, xz_skin_matrix, xz_skin_analog, xz_skin_flagship;
 
 /* Shared screen grid. Header 0..HEAD, section rail 0..RAIL_W, content
-   CX..CX+CW by CY..CB, info dock DOCK_Y..480. Controls never enter the dock. */
+   CX..CX+CW by CY..CB, info dock DOCK_Y..480. Controls never enter the dock, except MODERN's counter error
+   strip, which takes the dock's title row (COUNTER_*) while a deck has one. */
 enum { XZ_UI_HEAD=40, XZ_UI_RAIL_W=124, XZ_UI_CX=136, XZ_UI_CW=656, XZ_UI_CY=48, XZ_UI_CB=404, XZ_UI_DOCK_Y=412 };
 /* MODERN's rail: UTILITY above this line, the sections below it. */
 enum { XZ_UI_RAIL_DIVIDER_Y=88 };
 /* The dock's explanation: three lines of the small face from DOCK_Y + BODY_Y, BODY_W wide. */
 enum { XZ_UI_DOCK_BODY_Y=28, XZ_UI_DOCK_BODY_W=532, XZ_UI_DOCK_LINES=3 };
+/* The counter error strip: the dock's title row, left of the WORKS ON column; the explanation stays below it. */
+enum { XZ_UI_COUNTER_Y=XZ_UI_DOCK_Y+1, XZ_UI_COUNTER_W=556, XZ_UI_COUNTER_H=25 };
 /* Rows text takes in the dock's word wrap at width px (99 when one word does not fit). */
 int xz_ui_wrap_lines(struct xz_canvas c, int width, const char *text);
 /* DJ Profile list panel under the header's right corner. */

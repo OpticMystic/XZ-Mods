@@ -194,6 +194,29 @@ static int wrap(struct xz_canvas c,int x,int y,int width,int lines,int pitch,con
  }
  return used;
 }
+/* MODERN keeps a known stock counter error in view while MODS is open: one red row in place of the dock's title,
+   with each deck's badge, the code and the firmware's own text (as the play screen's alert has them), and SHOW DECK,
+   because a tap closes MODS onto that deck's alert and CHOOSE TRACK. The explanation and the right column stay. */
+static void counter_strip(struct xz_canvas c,const struct xz_ui_model *m,unsigned errors){
+ enum { FILL=0x5a0c0c, EDGE=0xff4619, TEXT=0xffc8b4, H=XZ_UI_COUNTER_H }; /* the play screen alert's colours */
+ int y=XZ_UI_COUNTER_Y,ty=y+(H-9)/2,count=(errors&1)+(errors>>1&1);
+ xz_rect(c,0,y,XZ_UI_COUNTER_W,H,FILL);
+ xz_rect(c,0,y,4,H,EDGE);
+ const char *go=count>1?"SHOW DECKS":"SHOW DECK";
+ int go_w=xz_text_width(c,go,1,40)+20,go_x=XZ_UI_COUNTER_W-6-go_w;
+ xz_round_rect(c,go_x,y+4,go_w,H-8,4,15,0xffffff);
+ xz_text(c,go_x+10,ty,go,1,40,FILL);
+ int x=14,room=(go_x-12-x-(count-1)*20)/count;
+ for(int d=0;d<2;d++){
+  if(!(errors>>d&1))continue;
+  const struct xz_ui_counter_error *e=&m->counter_error[d];
+  xz_deck_box(c,x,y+(H-16)/2,16,16,d,1,FILL,1,0);
+  int cx=x+24,code_w=xz_text_width(c,e->code,1,40),tx=cx+code_w+8;
+  xz_text(c,cx,ty,e->code,1,40,0xffffff);
+  xz_text(c,tx,ty,e->text,1,(x+room-tx)/6,TEXT); /* the limit is room in 6 px steps */
+  x+=room+20;
+ }
+}
 void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint32_t dim,uint32_t accent,uint32_t alarm){
  struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;
  struct xz_ui_info info;xz_ui_describe(u,m,&info);
@@ -202,10 +225,12 @@ void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint
  xz_rect(c,0,y,XZ_UI_WIDTH,XZ_UI_HEIGHT-y,xz_blend(bg,ink,16));
  xz_rect(c,0,y,XZ_UI_WIDTH,1,xz_blend(bg,ink,60));
  xz_rect(c,0,y+1,4,XZ_UI_HEIGHT-y-1,info.available?accent:alarm);
- /* Left: what the focused control is and does. */
+ /* Left: what the focused control is and does; a deck's counter error takes the title row (MODERN). */
+ unsigned errors=xz_ui_counter_errors(m);
  int title_w=xz_text_width(c,info.title,2,40);if(title_w>360)title_w=360;
- xz_text(c,16,y+6,info.title,title_w<360?2:1,40,ink);
- if(info.state&&info.state[0]){
+ if(errors)counter_strip(c,m,errors);
+ else xz_text(c,16,y+6,info.title,title_w<360?2:1,40,ink);
+ if(!errors&&info.state&&info.state[0]){
   int chip_w=xz_text_width(c,info.state,1,20)+16,chip_x=16+title_w+12;
   uint32_t tone=!info.available?alarm:(info.selected||!strcmp(info.state,"ADJUSTING"))?accent:dim;
   xz_round_rect(c,chip_x,y+7,chip_w,16,8,15,xz_blend(bg,tone,70));
