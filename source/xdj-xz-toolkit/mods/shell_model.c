@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "shell_model.h"
+#include "stock_counter.h"
 #include <limits.h>
 #include <string.h>
 
@@ -443,6 +444,13 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
             }else if(!transient||(uint32_t)(now_ms-v->held_at)>=HOLD_MS)v->held_valid=0;
         }
         input_fields(d,&v->input);
+        {
+            static const unsigned char counter_guard[16]=XZ_STOCK_COUNTER_GUARD_BYTES;
+            uint32_t ignored=0;unsigned char ids[8],again_ids[8];
+            if(guard(read,0xe1d80,counter_guard,&ignored)&&stable(read,0x222c668,ids,again_ids,8)&&
+               xz_stock_counter_alert(u32(ids+deck*4),&d->alert))d->known|=K(ALERT);
+            else{d->known&=~K(ALERT);memset(&d->alert,0,sizeof d->alert);}
+        }
         if(identity(d,v)){changed|=1u<<deck;v->scroll_count=v->overview_count=v->stems_count=0;}
         /* Hide old data while identity is unreadable, without declaring a new
          * track on a transient failed/torn read. */
