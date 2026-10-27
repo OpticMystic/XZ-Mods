@@ -38,6 +38,40 @@ class Sources(unittest.TestCase):
         if canary:lines += [{'type':'event','sequence':3,'monotonic_ms':121000,'code':'CANARY title /music/song.wav 192.168.1.2 serial-secret'}]
         (directory/'segment-00.jsonl').write_bytes(b''.join(s.encoded(v)+b'\n' for v in lines))
         return header
+
+    def test_diary_v2_and_v1_are_both_read_and_private(self):
+        root=self.usb();header=self.diary(root)
+        directory=root/'VJ.Tools/XZ-Mods-diary'
+        v2={**header,'schema':'xz-mods-diary/2','session_id':'e'*32,'segment_generation':1}
+        metrics={'type':'metrics','sequence':10,'monotonic_ms':90000,'cpu_percent':None,'free_ram_kib':50000,
+                 'audio_underrun_frames':[None,None,256,0],'sync_phase_error_ms':[None,None,-4,1],
+                 'key_shift_max_us':[None,None,781,234],'usb_read_latency_us':None,'dropped_records':2}
+        event={'type':'event','sequence':11,'monotonic_ms':110000,'component':'sync','state':'following',
+               'reason':'clock_lost','notice':'none','deck':3,'slot':0,'detail_code':0}
+        bad={**event,'sequence':12,'notice':'CANARY /music/title.wav SERIAL 192.168.1.2'}
+        extra={**metrics,'sequence':13,'title':'CANARY'}
+        short={**metrics,'sequence':14,'key_shift_max_us':[0]}
+        lines=[v2,metrics,event,bad,extra,short]
+        (directory/'segment-01.jsonl').write_bytes(b''.join(s.encoded(v)+b'\n' for v in lines)+b'{"partial":')
+        found=self.discover(root)
+        snapshot=s.collect({'scan_generation':found['scan_generation'],'category':'audio'},self.job)
+        result=next(i for i in snapshot['items'] if i['source_id']=='usb_diary')
+        raw=json.dumps(result);self.assertIn('WAIT_LOOPBACK',raw);self.assertIn('clock_lost',raw);self.assertIn('781',raw)
+        self.assertNotIn('CANARY',raw);self.assertNotIn('partial',raw);self.assertNotIn('segment_generation',raw)
+        self.assertIsNotNone(snapshot['diary_coverage']['usb_a']['start_utc'])
+        _,body=self.draft(scan_generation=found['scan_generation'],category='audio',kind_hint='DEGRADATION')
+        validate_report(body);self.assertNotIn(v2['session_id'],json.dumps(body))
+
+    def test_diary_unknown_version_and_v2_fields_in_v1_are_refused(self):
+        root=self.usb();header=self.diary(root);path=root/'VJ.Tools/XZ-Mods-diary/segment-00.jsonl'
+        lines=path.read_bytes().splitlines();bad=json.loads(lines[1]);bad['notice']='other'
+        path.write_bytes(s.encoded(header)+b'\n'+s.encoded(bad)+b'\n')
+        result,_=s.diary({'root':str(root),'identity':s.identity(root),'slot':'usb_a'},s.Budget(self.job),s.window({}))
+        self.assertNotIn('WAIT_LOOPBACK',json.dumps(result))
+        header['schema']='xz-mods-diary/999';path.write_bytes(s.encoded(header)+b'\n')
+        _,coverage=s.diary({'root':str(root),'identity':s.identity(root),'slot':'usb_a'},s.Budget(self.job),s.window({}))
+        self.assertEqual(coverage['state'],'unavailable')
+
     def test_metadata_discovery_never_calls_full_inspection_and_bounds_sticks(self):
         roots=[self.usb(str(i)) for i in range(6)];plain=self.base/'plain';plain.mkdir()
         with patch('builder.managed_usb.inspect',side_effect=AssertionError('music inspection')),patch('builder.managed_usb.support_candidates',return_value=[{'volume':str(p)} for p in [plain,*roots]]):
@@ -128,7 +162,7 @@ class Sources(unittest.TestCase):
         self.assertEqual(partial['unfinished_sources'],1);self.assertEqual(partial['items'][0]['missing_reason'],'cancelled')
         first,body=self.draft(kind_hint='FEATURE',description='"\\\n'*1000);self.assertLessEqual(first['bytes'],524288)
         self.assertGreater(first['bytes'],len(body['description'].encode()))
-        with self.assertRaises(ValueError):self.draft(kind_hint='FEATURE',description='😀'*1025)
+        with self.assertRaises(ValueError):self.draft(kind_hint='FEATURE',description='ðŸ˜€'*1025)
     def test_native_code_only_bridge_legacy_import_and_metadata_bounds(self):
         facts,omitted=s.bridge(b'WAIT_LOOPBACK\nREADY_CH3_CH4\n',s.window({}));self.assertEqual(len(facts),2)
         with self.assertRaises(s.SourceError):s.bridge(b'WAIT_LOOPBACK PRIVATE\n',s.window({}))

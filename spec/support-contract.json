@@ -175,7 +175,9 @@
                   ]
                 },
                 "parser_version": {
-                  "const": 1
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2
                 },
                 "capture": {
                   "const": "at_collection"
@@ -277,7 +279,21 @@
                           "route_ready",
                           "stopped",
                           "stopping",
-                          "waiting"
+                          "waiting",
+                          "unknown",
+                          "started",
+                          "present",
+                          "removed",
+                          "changed",
+                          "empty",
+                          "loading",
+                          "playing",
+                          "paused",
+                          "error",
+                          "off",
+                          "following",
+                          "locked",
+                          "shown"
                         ]
                       },
                       "attempt": {
@@ -307,7 +323,7 @@
                       },
                       "slot": {
                         "type": "integer",
-                        "minimum": 1,
+                        "minimum": 0,
                         "maximum": 2
                       },
                       "elapsed_ms": {
@@ -325,7 +341,12 @@
                           "loader",
                           "receiver",
                           "settings",
-                          "unknown"
+                          "unknown",
+                          "usb",
+                          "deck",
+                          "sync",
+                          "ram",
+                          "ui"
                         ]
                       },
                       "version": {
@@ -417,14 +438,28 @@
                         ]
                       },
                       "cpu_percent": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "free_ram_kib": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 1048576
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1048576
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "audio_underruns": {
                         "type": "integer",
@@ -448,9 +483,16 @@
                         "maxItems": 4
                       },
                       "usb_read_latency_us": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 1000000
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "firmware": {
                         "type": "string",
@@ -470,6 +512,117 @@
                         "type": "integer",
                         "minimum": 2,
                         "maximum": 4
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "observed",
+                          "track_load",
+                          "ram_copy",
+                          "read_busy",
+                          "space_low",
+                          "read_only",
+                          "io_error",
+                          "queue_full",
+                          "source_changed",
+                          "no_grid",
+                          "manual",
+                          "clock_lost",
+                          "range_limit",
+                          "no_master",
+                          "phase_unavailable",
+                          "discontinuity",
+                          "loop",
+                          "aligning",
+                          "external_master",
+                          "no_bpm",
+                          "tempo_only"
+                        ]
+                      },
+                      "notice": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "other",
+                          "track_missing",
+                          "track_read",
+                          "source_changed",
+                          "route_changed",
+                          "key_busy",
+                          "key_pending",
+                          "jump_limit",
+                          "cues_session",
+                          "cues_invalid",
+                          "scratch_truncated"
+                        ]
+                      },
+                      "deck": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "detail_code": {
+                        "anyOf": [
+                          {
+                            "const": 0
+                          },
+                          {
+                            "const": 7206
+                          },
+                          {
+                            "const": 8302
+                          },
+                          {
+                            "const": 8304
+                          },
+                          {
+                            "const": 8305
+                          },
+                          {
+                            "const": 8306
+                          },
+                          {
+                            "const": 8307
+                          }
+                        ]
+                      },
+                      "audio_underrun_frames": {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 2147483647
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxItems": 4
+                      },
+                      "key_shift_max_us": {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1000000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxItems": 4
+                      },
+                      "dropped_records": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000000
                       }
                     },
                     "required": [

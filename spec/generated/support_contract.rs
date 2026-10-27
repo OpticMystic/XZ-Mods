@@ -2,7 +2,7 @@
 // Phase 3 includes this module; JSON is the authoritative wire schema.
 pub const CONTRACT_JSON: &str = include_str!("../support-contract.json");
 pub const SOURCES_JSON: &str = include_str!("../support-sources.json");
-pub const CONTRACT_SHA256: &str = "f4eeba128d6709e95cdf4f633445e4f217c011bbbfbab203330c90f3a632b526";
+pub const CONTRACT_SHA256: &str = "808126ac7036b37e34df01b7d4e7b6ef45287f3d161f7ceaa4dd3917eab5fb51";
 pub const REPORT_BYTES: usize = 524288;
 pub const DESCRIPTION_BYTES: usize = 4096;
 pub const ITEM_BYTES: usize = 32768;
