@@ -8,6 +8,14 @@
 static char ram_path[2][512];
 static atomic_uint ram_generation_value=99;
 static unsigned saves;
+static atomic_uint copy_gate, copy_waiting;
+ssize_t __real_pread64(int fd,void *out,size_t bytes,off64_t offset);
+ssize_t __wrap_pread64(int fd,void *out,size_t bytes,off64_t offset){
+ while(atomic_load(&copy_gate)){
+  atomic_store(&copy_waiting,1);struct timespec delay={0,1000000};nanosleep(&delay,NULL);
+ }
+ return __real_pread64(fd,out,bytes,offset);
+}
 static uint64_t pcm_hash[2],pcm_frames[2];
 static float reference_pcm[2][700000*2];
 static uint64_t reference_after[2][6000];
@@ -53,7 +61,29 @@ static void lose_sources(void){
  atomic_store(&ram_generation_value,100);
 }
 static struct xz_ram_status ram_state(struct xz_ram_extra *s,unsigned d){struct xz_ram_status r;xz_ram_extra_status(s,d,&r);return r;}
+static uint64_t ram_wall_ms(void){
+ struct timespec t;assert(!clock_gettime(CLOCK_MONOTONIC,&t));
+ return (uint64_t)t.tv_sec*1000u+(unsigned long)t.tv_nsec/1000000u;
+}
+static void ram_wait_tick(uint64_t deadline){
+ assert(ram_wall_ms()<deadline);step();
+ struct timespec delay={0,1000000};nanosleep(&delay,NULL);
+}
+static void wait_ready(struct xz_ram_extra *service){
+ uint64_t deadline=ram_wall_ms()+10000;
+ for(;;){
+  struct xz_ram_status a=ram_state(service,0),b=ram_state(service,1);
+  if(a.state==XZ_RAM_READY&&b.state==XZ_RAM_READY)return;
+  if(a.state==XZ_RAM_ERROR||b.state==XZ_RAM_ERROR||ram_wall_ms()>=deadline){
+   fprintf(stderr,"RAM not ready: d=0 state=%d phase=%d copied=%u/%u reason=%d; d=1 state=%d phase=%d copied=%u/%u reason=%d\n",
+    a.state,a.phase,a.copied,a.bytes,a.reason,b.state,b.phase,b.copied,b.bytes,b.reason);
+   assert(0);
+  }
+  ram_wait_tick(deadline);
+ }
+}
 static void run_player(const char *reference,int ram,int destroy,int controls){
+ uint64_t before_copy[2]={0};
  build_analysis();
  clock_ms=1000;master=12000;wire_horizon=0;position_interval=position_noise=position_blocked=threaded_clock=hold_flush=0;
  atomic_store(&ram_generation_value,99);saves=0;
@@ -81,17 +111,34 @@ static void run_player(const char *reference,int ram,int destroy,int controls){
  for(unsigned t=0;t<13000;t+=10){
   if(controls){
    if(t==1000)press(0,XZ_EXTRA_IN_SYNC);
+   if(t==1500&&ram){
+    atomic_store(&copy_waiting,0);atomic_store(&copy_gate,1);
+    for(unsigned d=0;d<2;d++)before_copy[d]=pcm_frames[d];
+   }
    if(t==1500&&ram)for(unsigned d=0;d<2;d++){
     struct xz_ram_status s=ram_state(service,d);assert(xz_ram_extra_command(service,d,XZ_RAM_LOAD,&s.key)==XZ_RAM_ACCEPTED);
    }
-   if(t==2000){struct xz_extra_deck_event e=event(0,XZ_EXTRA_IN_KEY,1);e.key.kind=XZ_KEY_STEP;e.key.step=1;e.key.source_owner=view.deck[0].key_state.owner;assert(input(e));step();}
+   if(t==2000){struct xz_extra_deck_event e=event(0,XZ_EXTRA_IN_KEY,1);e.key.kind=XZ_KEY_STEP;e.key.step=1;e.key.source_owner=view.deck[0].key_state.owner;assert(input(e));step();assert(view.deck[0].key_state.desired_cents==100);}
    if(t==3000)hold(0,XZ_EXTRA_IN_REVERSE,1);
    if(t==3500)hold(0,XZ_EXTRA_IN_REVERSE,0);
    if(t==4000)press(1,XZ_EXTRA_IN_LOOP_IN);
    if(t==4500)press(1,XZ_EXTRA_IN_LOOP_OUT);
    if(t==5500)press(1,XZ_EXTRA_IN_RELOOP);
   }
-  if(t==3000&&ram){assert(ram_state(service,0).state==XZ_RAM_READY);assert(ram_state(service,1).state==XZ_RAM_READY);}
+  if(t==3000&&ram){
+   if(controls){
+    uint64_t deadline=ram_wall_ms()+10000;
+    while(!atomic_load(&copy_waiting))ram_wait_tick(deadline);
+    for(unsigned d=0;d<2;d++){
+     struct xz_ram_status s=ram_state(service,d);
+     assert(s.state==XZ_RAM_LOADING&&!s.copied&&pcm_frames[d]>before_copy[d]);
+    }
+    /* Loading is asynchronous; keep playback running while the copy is delayed. */
+    atomic_store(&copy_gate,0);
+   }
+   /* Pump attachment at a fixed audio time. Bound worker liveness in real time. */
+   wait_ready(service);
+  }
   if(t==4000&&destroy)lose_sources();
   advance(10);
   if(ram&&t<3000){struct timespec delay={0,1000000};nanosleep(&delay,NULL);}
