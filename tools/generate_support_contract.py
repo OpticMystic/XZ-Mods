@@ -100,6 +100,15 @@ def main():
     rust = (ROOT / 'src-tauri/src/support.rs').read_text()
     if not re.search(r'const CAP:usize=' + str(cap) + r';', rust):
         bad.append('src-tauri/src/support.rs: v1 transport cap')
+    migration = ROOT / 'services/support/migrations/0002_bugdesk_tracking.sql'
+    if migration.exists():
+        contract = json.loads((ROOT / 'spec/support-contract.json').read_text())
+        expected = {'kind': 'kinds', 'classified_kind': 'kinds', 'previous_kind': 'kinds',
+                    'new_kind': 'kinds', 'kind_hint': 'kind_hints', 'expectation': 'expectations',
+                    'impact': 'impacts', 'severity': 'severities', 'outcome': 'outcomes'}
+        for field, values in re.findall(r'CHECK\((\w+) IN \(([^)]+)\)\)', migration.read_text()):
+            if field in expected and set(re.findall(r"'([^']+)'", values)) != set(contract[expected[field]]):
+                bad.append('0002_bugdesk_tracking.sql: ' + field)
     if bad:
         raise SystemExit('Support contract drift: ' + ', '.join(bad))
     print('Support contracts match all generated consumers and the v1 transport cap.')
