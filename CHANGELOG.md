@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0-preview.22.5 - 2026-10-26
+
+- With the loopback cable plugged in, the player shows E-8307 HUBS ARE NOT SUPPORTED (or UNSUPPORTED DEVICE) and keeps it up. MODS no longer disappears behind it: the bottom of MODS shows the code and says it comes from the loopback cable, and whether decks 3 and 4 are ready. CLASSIC keeps the player's own banner visible. Other stock warnings still take the screen.
+- In MODERN, pushing the rotary selector on a track opens the track menu with two decks too (LOAD TO DECK 1, LOAD TO DECK 2, CUE/LOOP LIST, CANCEL), as the stock screen does. The cursor starts on the deck you are on, so two pushes load there. LOAD 1 and LOAD 2 still load directly.
+- MODERN deck alerts without the firmware text show a clean separator between the alert name and the code.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.4 - 2026-10-26
 
 - In MODERN, a deck error (E-7206, E-8302, E-8304, E-8305, E-8306) stays visible while MODS is open: a red line at the bottom of MODS names the deck and the code; tapping it returns to the play screen.
