@@ -13,6 +13,7 @@
 #include "shell_model.h"
 #include "stock_dialog.h"
 #pragma weak xz_stock_dialog_active
+#pragma weak xz_stock_usb_hub_text
 #include "sync_native.h"
 #include "clock_compat.h"
 #include "shell_library.h"
@@ -2822,6 +2823,10 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  moving=xz_shrt_moving_decks(&model);
  sec.moving|=moving;follow_bits=following;sec.following|=following;
  uint32_t raw_caution=xz_stock_dialog_active&&xz_stock_dialog_active()?1u:0u,caution=raw_caution;
+ /* The player's E-8307 hub warning does not take the screen (stock_dialog.h); say it once when it appears. */
+ {static const char *hub_said;const char *hub=xz_stock_usb_hub_text?xz_stock_usb_hub_text():NULL;
+  if(hub&&hub!=hub_said)notice_locked(now,"E-8307 HUBS ARE NOT SUPPORTED: FROM THE LOOPBACK CABLE");
+  hub_said=hub;}
  if(caution!=raw_caution)xz_mods_shell_proof_v1.caution_filtered++;
  xz_shrt_handoff_caution(&handoff,caution);
  xz_mods_shell_proof_v1.caution=caution;

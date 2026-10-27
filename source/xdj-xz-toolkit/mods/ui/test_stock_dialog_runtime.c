@@ -146,6 +146,27 @@ int main(int argc,char **argv){
   fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;model.ui_interface=XZ_UI_INTERFACE_CLASSIC;
  }
  ids[0]=ids[1]=0;
+ /* The loopback cable's E-8307 hub warning stays up while the cable is in: MODS keeps the screen, its keys and its
+    touches in both interfaces, and the dock carries the warning. Any other E-8307 text still yields. */
+ for(int iface=0;iface<2;iface++){
+  memset(&model,0,sizeof model);model.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;
+  model.theme=iface?XZ_THEME_FLAGSHIP:0;model.modern_look.known=1;
+  fake_shell_running=fake_owns=fixture_shell_live=iface;touch.visible=visible=1;touch.capture=0;
+  fb_takeover_active=network_connected=network_enabled=0;play_key.open=play_key_visible=0;dv.open=dv.painted=dv.painted_open=0;
+  xz_ui_init(&ui);ui.page=XZ_UI_PLAY;
+  status=0x1adb118;caution_text(status_text,"E-8307: HUBS ARE NOT SUPPORTED");
+  memset(frame,0x55,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL)&&xz_mods_visible_v1());
+  assert(model.usb_hub&&!strcmp(model.usb_hub,"E-8307: HUBS ARE NOT SUPPORTED"));
+  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb(0x5a0c0c));
+  image(dir,iface?"modern-mods-hub-warning":"classic-mods-hub-warning");
+  int stock_before=stock_calls,rotate_before=rotate_calls;
+  assert(encoder_rotate_hook(1)==1&&rotate_calls==rotate_before&&touch.visible);
+  contact(self,60,200,1);contact(self,60,200,0);assert(stock_calls==stock_before&&touch.visible&&visible);
+  caution_text(status_text,"E-8307: USB ACCESS ERROR");memcpy(native_frame,frame,sizeof frame);yields(NULL,NULL);
+  status=0;caution_text(status_text,NULL);
+  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&!model.usb_hub);
+ }
+ fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;
  no_dialog:
  /* Closing the stock dialog resumes the unchanged panel state and rendering. */
  memset(&model,0,sizeof model);model.ui_interface=XZ_UI_INTERFACE_CLASSIC;model.theme=0;
@@ -159,7 +180,7 @@ int main(int argc,char **argv){
  fake_shell_running=fake_owns=fixture_shell_live=1;model.ui_interface=XZ_UI_INTERFACE_MODERN;
  memset(frame,0,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL));image(dir,"no-dialog-modern");
  fake_shell_running=fake_owns=fixture_shell_live=0;
- puts("PASS real runtime all overlay priority, busy cache, modern native fallback, touch release, stock keys, MODERN counter strip and resume");
+ puts("PASS real runtime all overlay priority, busy cache, modern native fallback, touch release, stock keys, MODERN counter strip, E-8307 hub warning kept in MODS, and resume");
  return 0;
 }
 

@@ -810,6 +810,47 @@ static void counter_strip(void){
  }
  printf("PASS counter strip: %d MODERN cases (one deck, the other, both) change only the dock's title row; CLASSIC unchanged\n",shown);
 }
+/* The player's E-8307 hub warning (the loopback cable) takes the dock's title row in both interfaces, adds no
+   control and changes nothing else; a deck's counter error keeps the row; READY changes only the reason. */
+static void hub_strip(void){
+ static uint16_t plain[800*480],ready[800*480];
+ static const enum xz_ui_page pages[]={XZ_UI_HOME,XZ_UI_PLAY,XZ_UI_FOUR_DECKS,XZ_UI_SCREEN};
+ int shown=0;
+ for(int iface=0;iface<2;iface++)for(size_t p=0;p<sizeof pages/sizeof pages[0];p++){
+  struct xz_ui u;struct xz_ui_model m;memset(&m,0,sizeof m);xz_ui_init(&u);u.page=pages[p];
+  m.theme=iface?XZ_THEME_FLAGSHIP:0;m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.modern_look.known=1;
+  m.route.state=XZ_UI_ROUTE_STARTING;
+  for(int d=0;d<4;d++){m.deck[d].groove_active=m.deck[d].sample_active=-1;m.deck[d].sample_volume=1;}
+  struct xz_ui_model hub=m;hub.usb_hub="E-8307: HUBS ARE NOT SUPPORTED";
+  struct xz_ui_widget before[XZ_UI_WIDGETS],after[XZ_UI_WIDGETS];
+  size_t nb=xz_ui_layout(&u,&m,before),na=xz_ui_layout(&u,&hub,after);
+  assert(!xz_ui_usb_hub_notice(&m)&&xz_ui_usb_hub_notice(&hub)&&na==nb&&!memcmp(before,after,nb*sizeof *before));
+  assert(xz_ui_render(&u,&m,frame,800*480,800));memcpy(plain,frame,sizeof plain);
+  assert(xz_ui_render(&u,&hub,frame,800*480,800));
+  for(int y=0;y<480;y++)for(int x=0;x<800;x++)
+   if(!(x<XZ_UI_COUNTER_W&&y>=XZ_UI_COUNTER_Y&&y<XZ_UI_COUNTER_Y+XZ_UI_COUNTER_H))assert(frame[y*800+x]==plain[y*800+x]);
+  assert(frame[(XZ_UI_COUNTER_Y+2)*800+1]==rgb565(0xff4619)&&frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb565(0x5a0c0c));
+  memcpy(plain,frame,sizeof plain);
+  hub.route.state=XZ_UI_ROUTE_READY;assert(xz_ui_render(&u,&hub,frame,800*480,800));memcpy(ready,frame,sizeof ready);
+  assert(memcmp(plain,ready,sizeof plain));
+  if(getenv("XZ_HUB_PREVIEW")&&p<2){
+   char path[512];
+   for(int r=0;r<2;r++){
+    snprintf(path,sizeof path,"%s/hub-%s-%s-%s.ppm",getenv("XZ_HUB_PREVIEW"),iface?"modern":"classic",p?"play":"home",r?"ready":"starting");
+    FILE *f=fopen(path,"wb");assert(f);fprintf(f,"P6\n800 480\n255\n");
+    const uint16_t *px=r?ready:plain;
+    for(int i=0;i<800*480;i++){unsigned v=px[i];unsigned char c[3]={(unsigned char)((v>>11)*255/31),(unsigned char)((v>>5&63)*255/63),(unsigned char)((v&31)*255/31)};fwrite(c,1,3,f);}
+    fclose(f);
+   }
+  }
+  if(iface){
+   struct xz_ui_model both=hub;both.counter_error[0]=(struct xz_ui_counter_error){"E-8304","UNSUPPORTED"};
+   assert(xz_ui_counter_errors(&both)&&!xz_ui_usb_hub_notice(&both));
+  }
+  shown++;
+ }
+ printf("PASS hub strip: %d cases, both interfaces, title row only, no new control, counter errors keep the row\n",shown);
+}
 int main(int argc,char **argv){
  struct xz_ui u;struct xz_ui_model m;int i,j;
  if(argc>1&&strcmp(argv[1],"--prove-assertions")==0){assert(!"assertions-active");return 1;}
@@ -824,6 +865,7 @@ int main(int argc,char **argv){
  editor();
  dock_fits();
  counter_strip();
+ hub_strip();
  assert(!xz_ui_render(&u,&m,frame,10,800));assert(!xz_ui_render(&u,&m,frame,800*480,799));
  for(i=0;i<16;i++)frame[800*480+i]=0xdead;
  for(i=0;i<XZ_THEME_COUNT;i++)for(j=0;j<XZ_UI_PAGE_COUNT;j++){m.theme=i;u.page=(enum xz_ui_page)j;assert(xz_ui_render(&u,&m,frame,800*480,800));}

@@ -1797,12 +1797,16 @@ static int load_choice_valid(const struct xz_shell *u,const struct xz_shell_mode
 }
 static size_t choose_load(struct xz_shell *u,const struct xz_shell_model *m,
                          const struct xz_shell_browse_row *r,int pair,struct xz_shell_action out[XZ_SHELL_ACTIONS],size_t n) {
- if(sh_deck_count(m)!=4)return load(u,m,r,pair>=0?pair:sh_active_deck(u,m),out,n);
+ /* A LOAD key names its deck. The rotary selector opens the track menu with every deck, as stock does with two
+    (XDJ-XZ manual p.81: LOAD TO DECK1, LOAD TO DECK2, CUE/LOOP LIST, CANCEL). */
+ if(sh_deck_count(m)!=4&&pair>=0)return load(u,m,r,pair,out,n);
  if(!r||r->kind!=XZ_SHELL_ROW_TRACK)return n;
  if(!(m->capabilities&XZ_SHELL_CAP_LOAD))return hand_off(out,n,xz_shell_screen(u));
  if(!bknown(m->browse,XZ_SHELL_BF_LIST))return n;
  struct xz_shell_load_choice *p=&u->load_choice;memset(p,0,sizeof *p);
- p->mode=pair>=0?1:2;p->first=pair>=0?pair:sh_active_deck(u,m);p->deck_count=4;p->screen=xz_shell_screen(u);
+ p->mode=pair>=0?1:2;p->first=pair>=0?pair:sh_active_deck(u,m);p->deck_count=sh_deck_count(m);p->screen=xz_shell_screen(u);
+ /* The cursor starts on the deck in focus, so two pushes load where the DJ is working. */
+ if(p->mode==2)p->cursor=p->first;
  p->row=top_view(u)->cursor;p->track=r->id;p->list=m->browse->list_id;
  p->media_generation=m->browse->media_generation;
  p->has_cues=pair<0&&(sh_deck_caps(m,sh_active_deck(u,m))&XZ_SHELL_CAP_CUE_LIST)&&
@@ -1811,7 +1815,7 @@ static size_t choose_load(struct xz_shell *u,const struct xz_shell_model *m,
  snprintf(p->title,sizeof p->title,"%s",r->title?r->title:"SELECTED TRACK");
  return n;
 }
-static int load_choice_decks(const struct xz_shell_load_choice *p) { return p->mode==1?2:4; }
+static int load_choice_decks(const struct xz_shell_load_choice *p) { return p->mode==1?2:p->deck_count; }
 static struct xz_shell_rect load_choice_rect(int row) { return (struct xz_shell_rect){190,150+row*44,420,40}; }
 static void render_load_choice(const struct xz_shell *u,const struct xz_shell_model *m,struct xz_canvas c) {
  if(!load_choice_valid(u,m))return;

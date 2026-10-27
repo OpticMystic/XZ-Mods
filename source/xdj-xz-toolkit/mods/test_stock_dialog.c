@@ -35,8 +35,26 @@ int main(void){
  status=0x1adb118;mismatch_at=0x146fcc;assert(xz_stock_dialog_active());status=0;mismatch_at=0;
  assert(!xz_stock_dialog_active()&&!xz_stock_counter_ids(NULL));
  assert(xz_stock_dialog_observe(NULL)==-1);
+ /* The loopback cable's hub warning stays visible through MODS instead of taking the screen; any other E-8307 text,
+    an unreadable or torn text, or a second live window still yields. */
+ assert(!xz_stock_usb_hub_text());
+ status=0x1adb118;caution_text(status_text,"E-8307: UNSUPPORTED DEVICE");n=logs;
+ assert(!xz_stock_dialog_active()&&!strcmp(xz_stock_usb_hub_text(),"E-8307: UNSUPPORTED DEVICE"));
+ assert(logs==n+1&&strstr(last_log,"hub warning E-8307: UNSUPPORTED DEVICE"));
+ caution_text(status_text,"E-8307: HUBS ARE NOT SUPPORTED");
+ assert(!xz_stock_dialog_active()&&!strcmp(xz_stock_usb_hub_text(),"E-8307: HUBS ARE NOT SUPPORTED"));
+ caution_text(status_text,"E-8307: USB ACCESS ERROR");assert(xz_stock_dialog_active()&&!xz_stock_usb_hub_text());
+ caution_text(status_text,"E-8307: UNSUPPORTED DEVICES");assert(xz_stock_dialog_active());
+ caution_text(status_text,"E-8307: UNSUPPORTED");assert(xz_stock_dialog_active());
+ caution_text(status_text,"E-8307: UNSUPPORTED DEVICE");torn_at=0x1ada718;assert(xz_stock_dialog_active());torn_at=0;
+ failed_at=0x1ada718;assert(xz_stock_dialog_active());failed_at=0;
+ browse=0x1adb0d8;assert(xz_stock_dialog_active()&&!xz_stock_usb_hub_text());
+ caution_text(browse_text,"E-8307: HUBS ARE NOT SUPPORTED");assert(!xz_stock_dialog_active()&&xz_stock_usb_hub_text());
+ status=0;caution_text(status_text,NULL);assert(!xz_stock_dialog_active()&&xz_stock_usb_hub_text());
+ browse=0;caution_text(browse_text,NULL);n=logs;assert(!xz_stock_dialog_active()&&!xz_stock_usb_hub_text());
+ assert(logs==n+1&&strstr(last_log,"hub warning cleared"));
  assert(xz_stock_counter_hit(1,0,311)&&xz_stock_counter_hit(1,399,479));
  assert(!xz_stock_counter_hit(1,400,311)&&!xz_stock_counter_hit(1,0,310)&&!xz_stock_counter_hit(3,800,479));
- puts("PASS fail-open reason logs, live windows, exact known error mapping, unknown id once, counter bounds");
+ puts("PASS fail-open reason logs, live windows, exact known error mapping, unknown id once, counter bounds, E-8307 hub warning shown by MODS");
  return 0;
 }

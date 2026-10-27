@@ -119,9 +119,29 @@ on the strip closes MODS onto the play screen; the encoder never stops on it, an
 the page's controls and the explanation below stay as they were. CLASSIC keeps the
 affected stock deck area visible through MODS instead.
 
-No connector observation links a specific native warning to the four-deck
-cable. Route-up and E-8307 occurring together do not prove that cable caused it.
-There is no cable-specific explanatory sentence in this change.
+## E-8307 from the loopback cable
+
+The XZ's own rear-port hub (`2b73:002e`) sits at the second hub level when the
+loopback cable is in a top port. The kernel refuses it once (`hub nested too
+deep`, `HUBERR=1` uevent) before the four-deck helper rebinds it, and the
+firmware answers that uevent with an E-8307 status caution that stays up while
+the cable is in (seen on the owner's unit 2026-10-26, preview.22.4). Yielding
+to it meant MODS never came back with the cable plugged in.
+
+`stock_dialog.c` therefore reads the live window's UTF-16 text
+(`sCautionBrowseString` `0x01ada958`, `sCautionStatusString` `0x01ada718`,
+64 bytes, read twice). Exactly `E-8307: HUBS ARE NOT SUPPORTED` or
+`E-8307: UNSUPPORTED DEVICE` (the firmware's English
+`STR_CHAR_DEV_UNSUPPORTED` texts) does not take the screen. Every other text,
+including `E-8307: USB ACCESS ERROR` and `E-8307: DEVICE NO RESPONSE`, other
+languages, and unreadable or torn text, still yields. The warning is never
+hidden: `xz_stock_usb_hub_text()` feeds the MODS dock's title row in both
+interfaces (code, the firmware text, then "FROM THE LOOPBACK CABLE. DECKS 3 AND
+4 ARE READY." when the route is up, or "FROM THE LOOPBACK CABLE OR A HUB IN A
+TOP USB PORT." otherwise), MODERN's play screen raises one notice when it
+appears, and CLASSIC's stock banner stays on the stock screen. Stopping the
+firmware from raising it at all would need the kernel-side refusal avoided,
+which is outside this runtime.
 
 ## Verification and limits
 

@@ -747,7 +747,7 @@ static void render_alert(const struct play_layout *L, const struct xz_shell_mode
  int x=WAVE_X+14,room=b.x-x-10;
  char head[64];
  if(d->alert.text)snprintf(head,sizeof head,"%s",d->alert.code?d->alert.code:title[d->alert.kind]);
- else snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" Ãƒâ€šÃ‚Â· ":"",d->alert.code?d->alert.code:"");
+ else snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" \xc2\xb7 ":"",d->alert.code?d->alert.code:"");
  sh_text_fit(c,x,y+8,room,head,SH_TEXT,SH_WHITE);
  sh_text_fit(c,x,y+30,room,d->alert.text?d->alert.text:line[d->alert.kind],SH_SMALL,0xffc8b4);
  xz_rect(c,b.x,b.y,b.w,b.h,SH_WHITE);
