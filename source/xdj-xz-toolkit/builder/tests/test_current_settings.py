@@ -53,3 +53,20 @@ class CurrentSettingsTests(unittest.TestCase):
         values=usb_settings.defaults(SCHEMA)
         values.update(stem_order=5,stem_page=2,stem_bank=1,jump_5=9)
         self.assertEqual(usb_settings.parse(usb_settings.serialize(values,SCHEMA),SCHEMA),values)
+
+    def test_browse_preview(self):
+        values=usb_settings.defaults(SCHEMA)
+        self.assertEqual(values['browse_preview'],0)
+        self.assertEqual(SCHEMA['wire_order'][-1],'browse_preview')
+        for shown in (0,1):
+            chosen={**values,'browse_preview':shown}
+            wire=usb_settings.serialize(chosen,SCHEMA)
+            self.assertEqual(usb_settings.parse(wire,SCHEMA),chosen)
+            self.assertLessEqual(len(wire),usb_settings.MAX_RECORD_BYTES)
+            for count in SCHEMA['accepted_field_counts']:
+                if count<47:
+                    old=b''.join(wire.splitlines(keepends=True)[:count+1])
+                    self.assertEqual(usb_settings.parse(old,SCHEMA)['browse_preview'],0)
+        for invalid in (-1,2):
+            with self.assertRaises(ValueError):
+                usb_settings.serialize({**values,'browse_preview':invalid},SCHEMA)
