@@ -2,6 +2,7 @@
 #include "ui_runtime.h"
 #include "ui/play_key.h"
 #include "ui/play_key_classic.h"
+#include "ui/menu_key.h"
 #pragma weak xz_extra_decks_snapshot
 #pragma weak xz_extra_decks_route_status
 #pragma weak xz_extra_decks_rescan
@@ -79,7 +80,6 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_classic_mixer_runtime_native_point
 #pragma weak xz_classic_mixer_runtime_pair_frame
 #pragma weak xz_extra_detail_notice_text
-#include "ui/ui_menu.h"
 #include "ui/layout_cycle.h"
 #include "ui/deck_view.h"
 #include "ui/route_card.h"
@@ -110,14 +110,12 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_shell_runtime_take_dj_pick
 #pragma weak xz_shell_runtime_take_ui_action
 #pragma weak xz_shell_runtime_rekordbox_action
-#pragma weak xz_shell_runtime_mods_key
 #pragma weak xz_shell_runtime_take_stock_key
 #pragma weak xz_shell_runtime_stock_key_ran
-#pragma weak xz_shell_runtime_menu_wanted
-#pragma weak xz_shell_runtime_menu
-#pragma weak xz_shell_runtime_take_menu_command
-#pragma weak xz_shell_runtime_menu_network
-#pragma weak xz_shell_runtime_show_mods
+#pragma weak xz_shell_runtime_show_utility
+#pragma weak xz_shell_runtime_stock_play
+#pragma weak xz_shell_runtime_look
+#pragma weak xz_shell_runtime_look_set
 #pragma weak xz_shell_runtime_close_mods
 #pragma weak xz_shell_runtime_mods_open
 #pragma weak xz_shrt_key_lookup
@@ -153,6 +151,7 @@ static struct xz_ui inline_ui;
 static struct xz_play_key play_key;
 static uint64_t play_key_instance;
 static int play_key_raw_down;
+static int panel_contact; /* the current contact began on MODS in MODERN */
 static void play_key_open_locked(int deck){xz_play_key_open(&play_key,deck);play_key.instance=++play_key_instance;}
 static struct xz_classic_key_slots classic_keys;
 static int classic_key_visible;
@@ -480,7 +479,7 @@ static struct xz_settings settings_snapshot(void) {
         .browse_key_prefix=model.browse_key_prefix, .browse_traffic=model.browse_traffic, .key_format=model.key_format,
         .stem_colors={model.stem_colors[0],model.stem_colors[1],model.stem_colors[2]},.stem_order=model.stem_order,.key_feedback=model.key_feedback,.ram_debug=model.ram_debug,
         .rekordbox_menu=model.rekordbox_assign[0]==XZ_REKORDBOX_MODS,.rekordbox_press=model.rekordbox_assign[0],.rekordbox_shift=model.rekordbox_assign[1],.metrics_enabled=model.metrics_enabled,
-        .deck_view=model.deck_view,.deck_view_button=model.deck_view_button};
+        .deck_view=model.deck_view,.deck_view_button=1};
 }
 /* Profile values that only the UI owns. The backend already rejects invalid profiles. */
 static void browse_settings(const struct xz_settings *saved) {
@@ -596,7 +595,7 @@ static void route_refresh_locked(void){
 }
 static void deck_status_refresh_locked(void){
     deck_view_follow_locked();
-    model.deck_view_button=xz_deck_view_button_shown();
+    if(!xz_shell_runtime_look||!xz_shell_runtime_look(&model.modern_look))memset(&model.modern_look,0,sizeof model.modern_look);
     for(int deck=0;deck<4;deck++)model.jump_page[deck]=deck<2?jump_state.page[deck]:extra_jump_page(deck);
     route_refresh_locked();
 }
@@ -727,39 +726,18 @@ static void inline_layout_publish(void) {
     int layout=(unsigned)model.stems_overlay<XZ_STEM_LAYOUT_COUNT?model.stems_overlay:XZ_STEM_LAYOUT_HIDDEN;
     __atomic_store_n(&inline_requested,(requested_stems||pc_present)&&!touch.visible?layout:XZ_STEM_LAYOUT_HIDDEN,__ATOMIC_RELEASE);
 }
-/* ---- MODS in the MODERN interface ----
-   The shell draws MODS (its MENU tabs are this panel's pages, ui/ui_menu.h), so in MODERN the panel never
-   opens: every place that would show a panel page shows it in the shell's MODS screen instead. CLASSIC, or a
-   build without the shell, keeps the panel. */
-static int menu_in_shell_locked(void){
-    return model.ui_interface==XZ_UI_INTERFACE_MODERN&&xz_shell_runtime_show_mods&&xz_shell_runtime_menu;
-}
-static struct xz_shell_menu menu_scratch; /* under ui_mutex */
-static void menu_publish_locked(void){
-    if(xz_shell_runtime_menu&&xz_ui_menu_build(&ui,&model,&menu_scratch)){
-        uint64_t review=xz_ui_network_review_token(&ui,&model);
-        if(review&&xz_shell_runtime_menu_network)xz_shell_runtime_menu_network(&menu_scratch,review);
-        else xz_shell_runtime_menu(&menu_scratch);
-    }
-}
-/* The page ui.page sits under must be a MENU tab: one of the MODS sections (HOME ... EXTRAS). */
-static int menu_top(int page){return xz_ui_page_is_top(page);}
+/* ---- MODS ----
+   One menu, this panel, in both interfaces: MODERN draws it in the FLAGSHIP skin over the shell (the shell is
+   not eligible while it shows, shell_eligible_locked). Closing it in MODERN also closes the shell's UTILITY when
+   it was under the panel, so MODS always closes to the screen it was opened from. */
 static void panel_show_locked(void){
     play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
-    if(menu_in_shell_locked()){
-        /* Opened from outside MODS: the page sits under its own parents, not wherever the panel was. */
-        if(!(xz_shell_runtime_menu_wanted&&xz_shell_runtime_menu_wanted()))ui.history_count=0;
-        if(!menu_top(xz_ui_menu_root(&ui,NULL))&&ui.history_count<16){
-            memmove(ui.history+1,ui.history,ui.history_count*sizeof(*ui.history));ui.history[0]=XZ_UI_HOME;ui.history_count++;
-        }
-        if(xz_shell_runtime_show_mods(xz_ui_menu_root(&ui,NULL))){menu_publish_locked();return;}
-    }
     xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
 }
-/* A setup that ends back on the play screen (to_play) closes MODS; others stay on their page in MODERN. */
+/* A setup that ends back on the play screen (to_play) closes MODS. */
 static void panel_hide_locked(int to_play){
-    if(menu_in_shell_locked()&&!touch.visible){if(to_play&&xz_shell_runtime_close_mods)xz_shell_runtime_close_mods();return;}
     xz_native_touch_visible(&touch,0);__atomic_store_n(&visible,0,__ATOMIC_RELEASE);
+    if(to_play&&model.ui_interface==XZ_UI_INTERFACE_MODERN&&xz_shell_runtime_close_mods)xz_shell_runtime_close_mods();
 }
 static uint32_t pc_link_epoch=1;
 static unsigned pc_available_roles;
@@ -1344,7 +1322,12 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_STEMS_OVERLAY:
             /* MODERN has its own layout (the shell draws it); CLASSIC's native rows keep stems_overlay. */
-            if(model.ui_interface==XZ_UI_INTERFACE_MODERN){model.modern_stems=xz_modern_stems_next(model.modern_stems);break;}
+            /* A MODERN layout picture carries its layout (value = layout + 1); the STEMS button steps. */
+            if(model.ui_interface==XZ_UI_INTERFACE_MODERN){
+                int pick=(int)a->value-1;
+                model.modern_stems=pick>=0&&xz_modern_stems_position(pick)>=0?pick:xz_modern_stems_next(model.modern_stems);
+                break;
+            }
             model.stems_overlay=xz_wave_layout_next(model.stems_overlay);
             stem_layout_actions++;stem_layout_revision++;stem_layout_origin="layout-control";
             inline_redraw_pending=1;
@@ -1363,7 +1346,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
                 model.deck[0].stem_count==4||model.deck[1].stem_count==4?" +BASS":"");
             break;
         case XZ_UI_CLOSE:
-            if(menu_in_shell_locked()&&xz_shell_runtime_close_mods)xz_shell_runtime_close_mods();
+            if(model.ui_interface==XZ_UI_INTERFACE_MODERN&&xz_shell_runtime_close_mods)xz_shell_runtime_close_mods();
             ui.history_count=0;
             xz_native_skin_request_repaint();
             xz_native_touch_visible(&touch, 0);
@@ -1448,8 +1431,23 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
                 snprintf(ui.notice,sizeof(ui.notice),"DECK VIEW: %s",xz_deck_layout_name(model.deck_view));
             }
             break;
-        case XZ_UI_DECK_VIEW_BUTTON:
-            model.deck_view_button=a->value!=0;xz_deck_view_button_load(model.deck_view_button);xz_native_skin_request_repaint();
+        case XZ_UI_SHELL_LOOK:{
+            /* A MODERN play-screen part the shell owns: it applies and saves it; WAVEFORM COLOURS also sets the
+               panel's own waveform mode (STOCK and RGB follow the player's colour, 3-BAND and STEMS are MODS's). */
+            int choice=(int)a->value;
+            if(!xz_shell_runtime_look_set||!xz_shell_runtime_look_set(a->index,choice)){snprintf(ui.notice,sizeof(ui.notice),"%s","THAT PART DID NOT CHANGE");break;}
+            if(a->index==XZ_UI_LOOK_WAVE_COLOR){
+                model.wave_mode=choice==XZ_UI_WAVE_STEMS?2:choice==XZ_UI_WAVE_3BAND?1:0;wave_configure();settings_queue();
+                static const char *const names[XZ_UI_WAVE_COLORS]={"STOCK","RGB","3-BAND","STEMS"};
+                snprintf(ui.notice,sizeof(ui.notice),"WAVEFORM: %s",choice>=0&&choice<XZ_UI_WAVE_COLORS?names[choice]:"STOCK");
+            }
+            if(xz_shell_runtime_look)xz_shell_runtime_look(&model.modern_look);
+            break;}
+        case XZ_UI_OPEN_UTILITY:
+            /* The player's own settings: MODS steps aside (it reopens where it was) and the shell shows UTILITY. */
+            if(!xz_shell_runtime_show_utility||!xz_shell_runtime_show_utility()){snprintf(ui.notice,sizeof(ui.notice),"%s","UTILITY IS NOT AVAILABLE NOW");break;}
+            xz_native_touch_visible(&touch,0);__atomic_store_n(&visible,0,__ATOMIC_RELEASE);
+            xz_native_skin_request_repaint();
             break;
         case XZ_UI_WAVE_MODE:
             if (a->index >= 0 && a->index < XZ_WAVE_MODE_COUNT) {
@@ -1545,8 +1543,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             a->kind == XZ_UI_TAKEOVER_TOGGLE || a->kind == XZ_UI_TAKEOVER_ASSIGN ||
             a->kind == XZ_UI_BROWSE_COLUMN || a->kind == XZ_UI_BROWSE_KEY_PREFIX || a->kind == XZ_UI_BROWSE_TRAFFIC ||
             a->kind == XZ_UI_KEY_FORMAT || a->kind == XZ_UI_KEY_FEEDBACK || a->kind == XZ_UI_RAM_DEBUG ||
-            a->kind == XZ_UI_REKORDBOX_KEY || a->kind == XZ_UI_REKORDBOX_ASSIGN ||
-            a->kind == XZ_UI_DECK_VIEW_BUTTON) settings_queue(); /* DECK VIEW saves in deck_view_apply */
+            a->kind == XZ_UI_REKORDBOX_KEY || a->kind == XZ_UI_REKORDBOX_ASSIGN) settings_queue(); /* DECK VIEW saves in deck_view_apply */
     }
 }
 
@@ -1622,8 +1619,6 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
     in->stems_overlay=model.modern_stems;
     in->rekordbox_known=1;in->rekordbox_assign[0]=model.rekordbox_assign[0];in->rekordbox_assign[1]=model.rekordbox_assign[1];
-    /* The MODS screen's MENU tab shows the panel's open page: published while the shell shows one. */
-    if(xz_shell_runtime_menu_wanted&&xz_shell_runtime_menu_wanted())menu_publish_locked();
     for(int d=0;d<2;d++){in->stem_level_known[d]=in->stem_muted_known[d];for(int i=0;i<3;i++)in->stem_level[d][i]=model.deck[d].levels[i];}
     /* DJ profiles for the shell's MY SETTINGS panel, copied (the view changes under this lock). */
     if(model.dj){
@@ -1657,37 +1652,6 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
         }
     }
 }
-/* The shell's MODS and STEMS header buttons, run on the input thread under ui_mutex exactly as the
-   stock-mode badge (native_touch.c: visible=1) and STEMS button (XZ_UI_STEMS_OVERLAY) do. The rest of
-   an opening contact stays with the shell's touch owner, so the panel never sees it, as the badge's
-   opening_contact capture does. */
-static void menu_command_locked(const struct xz_shell_runtime_menu_command *c){
-    struct xz_ui_action actions[XZ_UI_MENU_ACTIONS];size_t n=0;
-    int root_before=xz_ui_menu_root(&ui,NULL);
-    if(xz_ui_network_page(ui.page))xz_ui_network_painted(&ui,&model,c->network_publication);
-    switch(c->op){
-    case XZ_SHELL_MENU_OPEN:
-        if(!menu_top(c->root))return;
-        n=xz_ui_cancel(&ui,actions);apply(NULL,actions,n);n=0;
-        refresh_local();sdk_refresh();
-        xz_ui_menu_open(&ui,(enum xz_ui_page)c->root);
-        break;
-    case XZ_SHELL_MENU_ACTIVATE:n=xz_ui_menu_run(&ui,&model,&c->target,actions);break;
-    case XZ_SHELL_MENU_TAP:{
-        /* a tap on a picture part is the panel's own touch on that control */
-        struct xz_shell_menu_target t=c->target;t.how=XZ_UI_MENU_TOUCH;
-        n=xz_ui_menu_run(&ui,&model,&t,actions);break;}
-    case XZ_SHELL_MENU_TURN:n=xz_ui_menu_turn(&ui,&model,c->x,actions);break;
-    case XZ_SHELL_MENU_BACK:n=xz_ui_menu_back(&ui,actions);break;
-    case XZ_SHELL_MENU_PRESS:case XZ_SHELL_MENU_MOVE:n=xz_ui_menu_pad(&ui,&model,&c->target,c->x,c->y,1,actions);break;
-    case XZ_SHELL_MENU_RELEASE:n=xz_ui_menu_pad(&ui,&model,&c->target,c->x,c->y,0,actions);break;
-    default:return;
-    }
-    if(n)apply(NULL,actions,n);
-    /* A HOME tile or a link into another section: the rail follows to that section's tab. */
-    int root=xz_ui_menu_root(&ui,NULL);
-    if(c->op!=XZ_SHELL_MENU_OPEN&&root!=root_before&&menu_in_shell_locked())xz_shell_runtime_show_mods(root);
-}
 /* ---- DECK VIEW (ui/deck_view.h, ui/route_card.h) ----
    deck_view_apply is the one entry point every view change takes: the picker's tiles and its encoder and
    the decks 3 and 4 card's TWO DECKS, in both interfaces (MODERN reaches it through XZ_SHELL_UI_DECK_VIEW,
@@ -1704,7 +1668,7 @@ static void dv_publish_card(void){
 }
 static void dv_input(uint32_t now){dv.input_at=now?now:1;dv_publish_card();}
 static int dv_recent(uint32_t now){return dv.input_at&&now-dv.input_at<(uint32_t)XZ_DECK_VIEW_PICKER_TIMEOUT_MS;}
-static int dv_picker_live(uint32_t now){return dv.open&&model.deck_view_button&&dv_recent(now);}
+static int dv_picker_live(uint32_t now){return dv.open&&dv_recent(now);}
 static int dv_focus_live(uint32_t now){return !dv.open&&dv.focus!=DV_FOCUS_NONE&&dv_recent(now);}
 static int deck_view_encoder_locked(int delta,int push,int press);
 static void deck_view_apply(int view){
@@ -1747,24 +1711,15 @@ static void shell_ui_requests_locked(void){
             if(muted!=value){struct xz_ui_action act={.kind=XZ_UI_MUTE,.phase=XZ_UI_PRESS,.deck=deck,.index=stem};apply(NULL,&act,1);}
         }
     }
-    /* The shell's MENU tabs: each push, run on the panel's own state and actions, then the page it leads to
-       published before the next input. */
-    if((requests&XZ_SHELL_UI_MENU)&&xz_shell_runtime_take_menu_command){
-        struct xz_shell_runtime_menu_command c;
-        while(xz_shell_runtime_take_menu_command(&c))menu_command_locked(&c);
-        inline_layout_publish();
-        menu_publish_locked();
-    }
-    /* The shell's MODS screen opens a panel page (a mod tab's button); the header asks for the panel itself. */
+    /* MODS from the shell: the MODS key, MENU or the MODS button (the page MODS was last on), or a MODS section
+       on UTILITY's rail (that section, focus on its first control). The opening contact stays the shell's. */
     int mods_page=(requests&XZ_SHELL_UI_OPEN_MODS)&&xz_shell_runtime_take_mods_page?xz_shell_runtime_take_mods_page():-1;
-    if((requests&XZ_SHELL_UI_OPEN_MODS)&&touch.visible&&mods_page<0&&xz_shell_runtime_notice)xz_shell_runtime_notice("THE MODS PANEL IS ALREADY OPEN");
-    if((requests&XZ_SHELL_UI_OPEN_MODS)&&touch.visible&&mods_page>=0)xz_ui_navigate(&ui,(enum xz_ui_page)mods_page);
     if((requests&XZ_SHELL_UI_OPEN_MODS)&&!touch.visible){
-        touch.visible=1;
-        if(mods_page>=0)xz_ui_navigate(&ui,(enum xz_ui_page)mods_page);
+        refresh_local();sdk_refresh();
+        if(mods_page>=0){xz_ui_navigate(&ui,(enum xz_ui_page)mods_page);ui.focus_kind=XZ_UI_NONE;}
         else if(sdk_session.active&&ui.page!=XZ_UI_APPS_SETUP)xz_ui_navigate(&ui,XZ_UI_APPS);
-        __atomic_store_n(&visible,1,__ATOMIC_RELEASE);
-        inline_layout_publish();
+        panel_show_locked();
+        inline_layout_publish();xz_native_skin_request_repaint();
     }
 }
 static int shell_touch_locked(void *self,const struct xz_touch_status *status,const void *mode){
@@ -1795,6 +1750,26 @@ static int rekordbox_decide_locked(void){
     return action>=0&&action<XZ_REKORDBOX_ACTIONS?action:XZ_REKORDBOX_STOCK;
 }
 static int menu_back_contact;
+/* MENU pressed while MODS showed in MODERN: 1 until it is held or let go, 2 once the hold opened UTILITY. */
+static int modern_menu_contact;
+/* CLASSIC MENU (key 0x20b), decided at the press by ui/menu_key.h: 1 opens MODS and 2 closes it at a short
+   release; 0 leaves the press to stock (its own job there), and a hold always does. */
+#define MENU_KEY_CODE 0x20bu
+static int classic_menu_contact;
+static void mods_panel_open_locked(void);
+static enum game game_locked(void);
+/* Where a CLASSIC short MENU lands: MODS, a game, the VJ view, then the stock screen. The stock probe (shell
+   runtime) says the play screen shows with no stock menu over it; GRID ADJUST cannot be read, so the play
+   screen counts as PLAY (menu_key.h flags that row for the owner to confirm). */
+static enum xz_menu_place classic_menu_place_locked(void){
+    if(touch.visible)return XZ_MENU_AT_MODS;
+    if(game_locked()!=GAME_NONE||xz_doom_running())return XZ_MENU_AT_GAME;
+    if(model.fb_takeover)return XZ_MENU_AT_TAKEOVER;
+    if(!xz_native_play_visible())return XZ_MENU_AT_OTHER;
+    int play=xz_shell_runtime_stock_play?xz_shell_runtime_stock_play():-1;
+    return play==0?XZ_MENU_AT_STOCK_MENU:XZ_MENU_AT_PLAY;
+}
+static int menu_owns_keys_locked(void);
 static void menu_back_key_hook(void *self,const void *input){
     uint16_t key=0;unsigned operation=0;
     if(input){memcpy(&key,(const unsigned char *)input+8,2);operation=((const unsigned char *)input)[11]&15;}
@@ -1822,6 +1797,51 @@ static void menu_back_key_hook(void *self,const void *input){
         pthread_mutex_lock(&ui_mutex);
         rekordbox_latch.action=rekordbox_decide_locked();rekordbox_latch.at=xz_game_milliseconds();rekordbox_latch.valid=1;
         if(xz_shell_runtime_rekordbox_action)xz_shell_runtime_rekordbox_action(rekordbox_latch.action);
+        pthread_mutex_unlock(&ui_mutex);
+    }
+    /* MODERN with MODS open: the screen keys the shell owns leave MODS and do their job on the screen under it,
+       in the same press (as they did from MODERN's own MODS screen); a short MENU closes MODS, a held MENU opens
+       UTILITY. BACK stays the menu's, the button next to LINK has its own path. */
+    if(input&&xz_shrt_key_lookup&&__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
+        const struct xz_shrt_key_map *map=xz_shrt_key_lookup(key,channel);
+        if(map&&map->key!=XZ_SHELL_KEY_BACK&&key!=REKORDBOX_KEY_CODE){
+            pthread_mutex_lock(&ui_mutex);
+            int menu=map->key==XZ_SHELL_KEY_MENU,own=model.ui_interface==XZ_UI_INTERFACE_MODERN&&menu_owns_keys_locked();
+            if(menu&&(own||modern_menu_contact)){
+                if(operation==0)modern_menu_contact=1;
+                else if(operation==1&&modern_menu_contact==1){
+                    modern_menu_contact=2;
+                    struct xz_ui_action open={.kind=XZ_UI_OPEN_UTILITY,.phase=XZ_UI_PRESS,.deck=-1};apply(NULL,&open,1);
+                }else if(operation>=2){
+                    if(modern_menu_contact==1&&touch.visible){struct xz_ui_action close={.kind=XZ_UI_CLOSE};apply(NULL,&close,1);}
+                    modern_menu_contact=0;
+                }
+                xz_native_skin_request_repaint();pthread_mutex_unlock(&ui_mutex);return;
+            }
+            if(own&&operation==0){
+                struct xz_ui_action release[XZ_UI_ACTIONS];size_t n=xz_ui_cancel(&ui,release);apply(NULL,release,n);
+                struct xz_ui_action close={.kind=XZ_UI_CLOSE};apply(NULL,&close,1);
+                inline_layout_publish();xz_native_skin_request_repaint();
+            }
+            pthread_mutex_unlock(&ui_mutex);
+        }
+    }
+    /* CLASSIC: a short MENU opens and closes MODS where it has no stock job (ui/menu_key.h, the table MODERN's
+       shell reads too). The key always reaches stock whole, so its own jobs run and a held MENU opens stock's
+       UTILITY with no extra press (and closes MODS, just below). */
+    if(input&&key==MENU_KEY_CODE&&__atomic_load_n(&started,__ATOMIC_ACQUIRE)){
+        pthread_mutex_lock(&ui_mutex);
+        if(model.ui_interface!=XZ_UI_INTERFACE_CLASSIC)classic_menu_contact=0;
+        else if(operation==0){
+            enum xz_menu_job job=xz_menu_rule(classic_menu_place_locked())->job;
+            classic_menu_contact=job==XZ_MENU_JOB_MODS?1:job==XZ_MENU_JOB_CLOSE_MODS?2:0;
+        }else if(operation==1)classic_menu_contact=0;
+        else{
+            if(classic_menu_contact==1&&!touch.visible&&game_locked()==GAME_NONE)mods_panel_open_locked();
+            else if(classic_menu_contact==2&&touch.visible){struct xz_ui_action close={.kind=XZ_UI_CLOSE};apply(NULL,&close,1);}
+            if(classic_menu_contact){inline_layout_publish();xz_native_skin_request_repaint();}
+            classic_menu_contact=0;
+        }
         pthread_mutex_unlock(&ui_mutex);
     }
     if(key==0x20b&&operation==1){
@@ -1923,11 +1943,7 @@ static int rekordbox_run_locked(int action){
     int modern=model.ui_interface==XZ_UI_INTERFACE_MODERN;
     switch(action){
     case XZ_REKORDBOX_MODS:
-        /* MODERN: the shell's own MODS screen, as its MENU key opens it; the panel when the shell cannot show it. */
-        if(modern&&!touch.visible&&shell_eligible_locked()&&xz_shell_runtime_mods_key&&xz_shell_runtime_mods_key(1,model.theme)){
-            shell_ui_requests_locked();   /* the MENU tab's page, before the next input */
-            return 0;
-        }
+        /* The one MODS menu, in both interfaces: opens it on the page it was last on, or closes it. */
         mods_panel_toggle_locked();return 0;
     case XZ_REKORDBOX_INTERFACE:{
         struct xz_ui_action act={.kind=XZ_UI_SET_INTERFACE,.phase=XZ_UI_PRESS,.deck=-1,
@@ -1940,7 +1956,6 @@ static int rekordbox_run_locked(int action){
             const char *why=!v->ready||!v->enabled?"VJ.TOOLS LINK IS OFF":"VJ.TOOLS IS NOT CONNECTED";
             if(modern&&!touch.visible&&shell_owns_locked()&&xz_shell_runtime_notice)xz_shell_runtime_notice(why);
             else{
-                if(menu_in_shell_locked())xz_ui_menu_open(&ui,XZ_UI_CONNECT);
                 xz_ui_navigate(&ui,XZ_UI_CONNECTION);
                 if(!touch.visible)mods_panel_open_locked();
                 snprintf(ui.notice,sizeof(ui.notice),"%s",why);
@@ -2582,7 +2597,7 @@ static int deck_view_encoder_locked(int delta,int push,int press){
         int k=xz_route_card_focus_order(&in,order);
         for(int i=0;i<k;i++)list[n++]=order[i]==XZ_ROUTE_CARD_HIT_PRIMARY?DV_FOCUS_PRIMARY:DV_FOCUS_TWO;
     }
-    if(model.deck_view_button)list[n++]=DV_FOCUS_BUTTON;
+    list[n++]=DV_FOCUS_BUTTON;
     if(!n){dv.focus=DV_FOCUS_NONE;return 0;}
     if(dv_focus_live(now)){
         int at=0;for(int i=0;i<n;i++)if(list[i]==dv.focus)at=i;
@@ -2807,6 +2822,11 @@ static void touch_hook(void *self, const struct xz_touch_status *status, const v
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE)) { stock_touch(self, status, mode); return; }
     pthread_mutex_lock(&ui_mutex);
     int fresh=status->down&&!play_key_raw_down;play_key_raw_down=!!status->down;
+    /* A touch that closes MODS in MODERN (CLOSE, UTILITY, a setup that ends on the play screen) keeps the rest
+       of its contact: the shell under it never sees it as a tap on its own MODS button. */
+    if(fresh)panel_contact=touch.visible&&model.ui_interface==XZ_UI_INTERFACE_MODERN;
+    if(panel_contact&&!touch.visible){if(!status->down)panel_contact=0;pthread_mutex_unlock(&ui_mutex);return;}
+    if(!status->down)panel_contact=0;
     if(mixer_contact.active&&(play_key.open||play_key.down||dv.contact||touch.visible||model.ui_interface==XZ_UI_INTERFACE_MODERN||
        (model.fb_takeover&&model.connection.connected)||game_locked()!=GAME_NONE||
        !xz_native_play_visible()||xz_native_four_order()<0||mixer_contact.layout!=xz_deck_layout_get())){
@@ -3087,10 +3107,8 @@ static void badge(uint16_t *pixels, uint32_t stride) {
     xz_classic_key_render(&classic_keys,&model,classic_key_extra(&extra,have_extra),play&&!model.fb_takeover,
         xz_native_four_order(),pixels,stride);
     dv.painted=0;badge_frame_cache.dv=0;
-    if(play&&!model.fb_takeover&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&!model.deck_view_button)dv.open=0;
-    else if(play&&!model.fb_takeover&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC){
-        /* DECK VIEW: the button in every view unless SCREEN > DECK VIEW BUTTON hides it (then nothing is drawn
-           here, as before the button existed), decks 3 and 4 grey while their route is down; the open picker. */
+    if(play&&!model.fb_takeover&&model.ui_interface==XZ_UI_INTERFACE_CLASSIC){
+        /* DECK VIEW: the button in every view, decks 3 and 4 grey while their route is down; the open picker. */
         uint32_t now=xz_game_milliseconds();
         int view=xz_deck_view_valid(xz_deck_layout_get()),ready=have_extra&&extra.route_up;
         if(!dv_picker_live(now))dv.open=0;
@@ -3134,8 +3152,8 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     model.rekordbox_assign[0] = (unsigned)saved->rekordbox_press < XZ_REKORDBOX_ACTIONS ? saved->rekordbox_press : XZ_REKORDBOX_INTERFACE;
     model.rekordbox_assign[1] = (unsigned)saved->rekordbox_shift < XZ_REKORDBOX_ACTIONS ? saved->rekordbox_shift : XZ_REKORDBOX_STOCK;
     model.deck_view = (unsigned)saved->deck_view < XZ_DECK_VIEW_COUNT ? saved->deck_view : XZ_DECK_VIEW_TWO;
-    model.deck_view_button = !!saved->deck_view_button; model.four_wave_mixer = model.deck_view == XZ_DECK_VIEW_MIXER;
-    xz_deck_layout_load(model.deck_view); xz_deck_view_button_load(model.deck_view_button); layout_seen = xz_deck_layout_revision();
+    model.four_wave_mixer = model.deck_view == XZ_DECK_VIEW_MIXER;
+    xz_deck_layout_load(model.deck_view); layout_seen = xz_deck_layout_revision();
     model.stem_bank = saved->stem_bank; pads.bank = saved->stem_bank;
     model.stem_order = (unsigned)saved->stem_order < XZ_STEM_ORDER_COUNT ? saved->stem_order : 0; pads.order = model.stem_order;
     browse_settings(saved);

@@ -83,29 +83,25 @@ void xz_shell_runtime_owner_tick(void);
    STEMS overlay). Set by shell input; ui_runtime.c takes them under its UI mutex on the same input thread
    right after the shell call and runs them exactly as the stock-mode badge and STEMS button do. */
 enum { XZ_SHELL_UI_OPEN_MODS=1u, XZ_SHELL_UI_TOGGLE_STEMS=2u, XZ_SHELL_UI_STEM_MUTE=4u, XZ_SHELL_UI_DJ_PICK=8u, XZ_SHELL_UI_ACTION=16u,
- XZ_SHELL_UI_MENU=32u, XZ_SHELL_UI_DECK_VIEW=64u };
+ XZ_SHELL_UI_DECK_VIEW=64u };
 /* XZ_SHELL_UI_DECK_VIEW: the DECK VIEW the PLAY picker or the decks 3 and 4 card chose (enum xz_deck_layout),
    or -1. Taken once; ui_runtime.c applies it through its one DECK VIEW entry point. */
 int xz_shell_runtime_take_deck_view(void);
-/* The MODS screen's MENU tabs (GENERAL, CONTROLS, ADVANCED, EXTRAS) are the MODS panel's own pages, drawn by
-   the shell (ui/ui_menu.h describes them). ui_runtime.c publishes the panel's open page whenever menu_wanted
-   says the shell shows a MENU tab (every frame, and right after it runs a command, so the next input already
-   sees the page a push opened). XZ_SHELL_UI_MENU: the commands a push asked for, oldest first; ui_runtime.c
-   runs them on the panel state under its UI lock. */
-struct xz_shell_menu;
-int xz_shell_runtime_menu_wanted(void);
-void xz_shell_runtime_menu(const struct xz_shell_menu *);
-/* NETWORK's review token is acknowledged only by an actual interactive menu
- * frame and a later fresh input sequence. A build/publication is not a paint. */
-void xz_shell_runtime_menu_network(const struct xz_shell_menu *,uint64_t review_token);
-/* op: enum xz_shell_menu_op. OPEN: root; ACTIVATE: target; BACK; PRESS/MOVE/RELEASE: target, x, y (0..1000). */
-struct xz_shell_runtime_menu_command { int op, root, x, y; struct xz_shell_menu_target target; uint64_t network_publication; };
-int xz_shell_runtime_take_menu_command(struct xz_shell_runtime_menu_command *);
-/* A panel control led to a mod page (a setup the runtime opens itself): MODS opens on the MENU tab whose
-   root holds it, inside the page. 0 when the shell cannot show it (no such tab, not running). close: MODS
-   leaves the screen (a setup finished with "back to play"). */
-int xz_shell_runtime_show_mods(int root);
+/* MODS is ui_runtime.c's panel in both interfaces. The shell's own MODS screen is UTILITY (the player's own
+   settings), whose rail opens the panel's sections (XZ_SHELL_UI_OPEN_MODS). show_utility: the panel's UTILITY
+   rail cell, the shell shows UTILITY; 0 when it cannot (not running). close_mods: MODS closed, UTILITY leaves
+   the screen too when it was under it. */
+int xz_shell_runtime_show_utility(void);
 void xz_shell_runtime_close_mods(void);
+/* The MODERN play screen's own parts the panel shows and sets (ui.h struct xz_ui_modern_look, XZ_UI_SHELL_LOOK).
+   look: their values now, 0 (known 0) when the shell is not running. look_set: item enum xz_ui_look_item,
+   choice as the panel's; applied and saved as the UTILITY row of the same item; 0 when refused. */
+struct xz_ui_modern_look;
+int xz_shell_runtime_look(struct xz_ui_modern_look *out);
+int xz_shell_runtime_look_set(int item, int choice);
+/* Stock is on its own play screen with no stock menu over it: 1, 0 when not, -1 when it cannot be read. For the
+   CLASSIC MENU key (ui/menu_key.h); reads only, any thread. */
+int xz_shell_runtime_stock_play(void);
 /* MODS is the shell's top screen (it then draws over the VJ takeover, as the panel does in CLASSIC). */
 int xz_shell_runtime_mods_open(void);
 /* XZ_SHELL_UI_ACTION: MODS-panel actions the shell's item tabs asked for, oldest first (kind = enum
@@ -118,18 +114,15 @@ unsigned xz_shell_runtime_take_ui_requests(void);
 /* XZ_SHELL_UI_STEM_MUTE: the stem mutes the shell asked for, oldest first; 0 when none is left.
    value 1 = muted, 0 = playing. ui_runtime.c runs them through its own stem mute path. */
 int xz_shell_runtime_take_stem_mute(int *deck, int *stem, int *value);
-/* XZ_SHELL_UI_OPEN_MODS: the MODS panel page the shell's MODS screen asked for (enum xz_ui_page), or -1 for
-   the panel's own start page. Taken once. */
+/* XZ_SHELL_UI_OPEN_MODS: the MODS panel page asked for (enum xz_ui_page, a UTILITY rail tab's section), or -1 for
+   the page MODS was last on (the MODS key, MENU, the MODS button). Taken once. */
 int xz_shell_runtime_take_mods_page(void);
 /* A header action ui_runtime.c took but could not carry out: shown as the shell's notice toast. */
 void xz_shell_runtime_notice(const char *text);
 /* REKORDBOX button (ui_runtime.c decides; see xz_shrt_rekordbox_verdict).
    rekordbox_action: the action of the press about to reach xz_shell_runtime_key, set under the UI lock on the
-   same input thread just before it. mods_key: the MODS action outside the key path (the shell yielded to
-   stock, or the press reached the native handler): ends a hand-off and opens or closes the shell's MODS
-   screen as XZ_SHELL_KEY_MODS does. 0 when the shell cannot show it (not running, not eligible). */
+   same input thread just before it. */
 void xz_shell_runtime_rekordbox_action(int action);
-int xz_shell_runtime_mods_key(int eligible, int theme);
 /* SOURCE screen LINK and EXPORT MODE tiles. A select queues the slot's stock key (0 LINK, 1 REKORDBOX); it
    runs only on the native key task, where stock's own key handlers run: ui_runtime.c takes it right after
    the encoder push that selected it (UiKey_EncoderPush runs on Ui_EventTask) and calls the stock handler.

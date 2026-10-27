@@ -255,7 +255,7 @@ struct xz_shell_fx {
 };
 /* Filled by later units; opaque here. NULL hands the screen to the stock UI. */
 struct xz_shell_browse_model; struct xz_shell_settings_model; struct xz_shell_source_model; struct xz_shell_info_model;
-struct xz_shell_mods_model; struct xz_shell_my_settings_model; struct xz_shell_help_model; struct xz_shell_menu;
+struct xz_shell_mods_model; struct xz_shell_my_settings_model; struct xz_shell_help_model;
 struct xz_shell_model {
  struct xz_shell_deck deck[XZ_SHELL_DECKS];
  int deck_count;                     /* decks the unit plays now: 4 while the runtime's extra deck route is up;
@@ -295,7 +295,6 @@ struct xz_shell_model {
     DECK 3 instead of DECK 1; bit 1: the right side DECK 4 instead of DECK 2. */
  uint8_t sides_extra;
  int wave_order; /* 0: numeric 1/2/3/4, 1: mixer 3/1/2/4; logical deck IDs never move */
- const struct xz_shell_menu *menu;        /* the mod page a MENU tab shows (shell_settings.h); NULL: none read yet */
     /* Connector observation only; does not change playable deck_count or capabilities. */
     int route_state, route_fail_part;
     char route_reason[81];
@@ -307,10 +306,6 @@ struct xz_shell_model {
     appeared or its state changed (the motion rests 60 s after it or the last input), and when the route
     came up under the card (the READY hold and wipe), 0 when it did not. */
  uint32_t route_card_since_ms, route_card_ready_at_ms;
- /* SCREEN > DECK VIEW BUTTON set to HIDE (settings deck_view_button 0): the top bar draws as it did before the
-    DECKS button existed (the BEAT FX strip runs to the info button), the picker cannot open and the encoder
-    skips the button. DECK VIEW itself still applies. 1 hides; any other value (zero by default) shows it. */
- int deck_view_button_hidden;
 };
 
 enum xz_shell_event_kind {
@@ -377,8 +372,6 @@ enum xz_shell_action_kind {
                               XZ_SHELL_CAP_DECK_SELECT */
  XZ_SHELL_ACT_STEM_BYPASS, /* deck, value = 1 bypass (the original track plays), 0 the stems play. Needs
                               XZ_SHELL_CAP_STEM_BYPASS */
- XZ_SHELL_ACT_MOD_MENU     /* a MODS menu page (shell_settings.h XZ_SHELL_TAB_MENU): id = enum xz_shell_menu_op,
-                              value = the root page (OPEN) or a row of model.menu, deck = the choice or the touch */,
  XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, session display preference */
  XZ_SHELL_ACT_DECK_LAYOUT, /* DECK VIEW: value enum xz_deck_layout; display only, no deck assignment */
  XZ_SHELL_ACT_ROUTE_RESCAN /* connector wake only */
@@ -496,12 +489,9 @@ struct xz_shell {
  struct xz_shell_filter filter;
  char name[XZ_SHELL_NAME_MAX];       /* a playlist name being typed */
  /* The MODS screen (XZ_SHELL_UTILITY): the open page on its rail (0 = UTILITY, the device's own menu;
-    1.. = the mod tabs), and whether the encoder is on the rail (on_tabs) or inside the page. */
- struct { int tab, on_tabs, profile_open, profile_focus, profile_scroll, profile_capture, profile_armed; uint32_t profile_revision; } mods_view;
- /* On a MENU tab: the model.menu page the content cursor belongs to; a different page in the model starts
-    the cursor on that page's focus row, or, for a page this view left by a push, on the row it left from
-    (trail[depth]), so BACK lands on the control that led away. */
- struct { int page, trail_count; struct { int page, key; } trail[XZ_SHELL_STACK]; } menu_view;
+    1.. = the MODS sections, which open the runtime's panel), and whether the encoder is on the rail (on_tabs)
+    or inside the page. */
+ struct { int tab, on_tabs; } mods_view;
  /* A stem button under the finger (XZ_SHELL_TOUCH_STEM, down_deck): which stem, where the touch began,
     the level then, and whether it has slid (a slide sets the level, a tap toggles the mute on release). */
  struct { int stem, x0, gain0, slid; } stem_touch;
@@ -509,7 +499,7 @@ struct xz_shell {
     model.notice; the runtime may also read it as the reason for a hand-off. */
  const char *notice;
  uint32_t notice_at_ms;
- struct { int valid, screen, depth, popup, panel, tab, page; } header_frame;
+ struct { int valid, screen, depth, popup, panel, tab; } header_frame;
  struct xz_shell_key_frame key_frame; /* last successfully rendered C buffer; value-owned for copy probes */
  /* DECK VIEW on PLAY: the picker (open, the encoder's tile), the encoder's focus on the play screen's own
     DECK VIEW controls (enum xz_shell_play_focus), a touch the overlay owns until release, the last PLAY

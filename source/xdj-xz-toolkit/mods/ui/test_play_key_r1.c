@@ -3,7 +3,6 @@
 #error PLAY key acceptance requires active assertions
 #endif
 #include "play_key.h"
-#include "ui_menu.h"
 #include "../shell/shell_internal.h"
 #include <assert.h>
 #include <stdio.h>
@@ -80,8 +79,6 @@ static void menus(void){
    assert(u.page!=XZ_UI_RAM_SETUP);
 #endif
    struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&u,&model,w);
-   struct xz_shell_menu menu;assert(xz_ui_menu_build(&u,&model,&menu));
-   for(int r=0;r<menu.row_count;r++)assert(strcmp(menu.row[r].label,"KEY SETUP")&&strcmp(menu.row[r].label,"KEY -")&&strcmp(menu.row[r].label,"KEY +")&&strcmp(menu.row[r].label,"KEY SYNC"));
    for(size_t i=0;i<n;i++){
     assert(w[i].kind!=XZ_UI_KEY_SHIFT&&w[i].kind!=XZ_UI_KEY_SYNC);
 #ifdef XZ_R1_REMOVE_RAM

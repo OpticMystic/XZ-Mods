@@ -26,8 +26,13 @@ static void buttons(struct xz_ui_widget *a,int k){
  int slot=k/XZ_UI_RB_CHOICES,choice=k%XZ_UI_RB_CHOICES,pitch=CW+GAP;
  put(a,X0+(choice%3)*pitch/3,BUTTONS_HEAD(slot)+16+(choice/3)*ROW,pitch/3-GAP,BUTTONS_H);
 }
-/* The section rail: seven cells, icon over label (DESIGN 3.2). */
+/* The section rail: seven cells, icon over label (DESIGN 3.2). MODERN puts UTILITY on top, above a divider
+   (XZ_UI_RAIL_DIVIDER_Y), so its eight cells are 40 px tall on a 44 px pitch. */
 static int rail_slot(int page){for(int i=0;i<XZ_UI_SECTIONS;i++)if((int)xz_ui_sections[i]==page)return i;return -1;}
+static void rail_cell(const struct xz_ui_model *m,struct xz_ui_widget *a,int slot){
+ if(xz_ui_modern_menu(m))put(a,6,slot<0?44:XZ_UI_RAIL_DIVIDER_Y+4+slot*44,112,40);
+ else put(a,6,46+slot*50,112,46);
+}
 /* The DJ Profile list hangs from the header's right corner: rows of 52 on a 56 pitch,
    then one row of buttons. With no profiles it holds a message and the setup button. */
 static int profile_buttons_y(const struct xz_ui *u,const struct xz_ui_model *m){
@@ -55,7 +60,7 @@ static int general_row(const struct xz_ui_widget *a,int *side){
 }
 static void place_panel(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *a){
  int k=a->index,page=u->page;
- if(rail_slot(k)>=0){put(a,6,46+rail_slot(k)*50,112,46);return;}
+ if(rail_slot(k)>=0){rail_cell(m,a,rail_slot(k));return;}
  if(page==XZ_UI_SETTINGS){int row=k==XZ_UI_STEMS?0:k==XZ_UI_XPAD?1:2;put(a,X0,64+row*80,CW,64);return;}
  if(page==XZ_UI_EXTRAS){int row=k==XZ_UI_ABOUT?0:k==XZ_UI_CONNECTION?1:k==XZ_UI_GAMES?2:3;put(a,X0,56+row*80,CW,64);return;}
  if(page==XZ_UI_THEMES){
@@ -117,6 +122,7 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_FEATURE_SETUP_STEP:grid(a,1,0,6,1);break;
   case XZ_UI_METRICS_TOGGLE:grid(a,2,0,5,1);break;
   case XZ_UI_PANEL:place_panel(u,m,a);break;
+  case XZ_UI_OPEN_UTILITY:rail_cell(m,a,-1);break;
   case XZ_UI_BACK:put(a,0,0,XZ_UI_RAIL_W,TOP);break;
   case XZ_UI_CLOSE:put(a,720,0,80,TOP);break;
   /* Header deck pickers give up width to the DJ Profile chip when there is one. */

@@ -192,16 +192,15 @@ static void test_usb_colors(void) {
  puts("PASS USB colours: the stick's tile and waveform colours per deck; DECK ONLY and OFF; unknown looks unread");
 }
 
+/* key() returns how many actions the key emitted; MODS is the runtime's panel (XZ_SHELL_ACT_OPEN_MODS). */
 static void test_short_menu(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
  xz_shell_init(&u);
- assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.mods_view.tab==1&&u.mods_view.on_tabs);
- assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&u.depth==1);
+ assert(key(&u,&m,XZ_SHELL_KEY_MENU)==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY&&u.depth==1);
  m.mods=NULL;
- assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.mods_view.tab==0);
+ assert(key(&u,&m,XZ_SHELL_KEY_MENU)==1&&xz_shell_screen(&u)==XZ_SHELL_PLAY);
  /* Held MENU always goes to UTILITY, including another hold from UTILITY. */
- m.mods=&fxm_model;key(&u,&m,XZ_SHELL_KEY_BACK);key(&u,&m,XZ_SHELL_KEY_MENU);
- assert(u.mods_view.tab==1);
+ m.mods=&fxm_model;
  assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.mods_view.tab==0&&u.mods_view.on_tabs&&u.depth==2);
  assert(key(&u,&m,XZ_SHELL_KEY_MENU_HOLD)==0&&u.depth==2&&u.mods_view.tab==0);
  /* Screens without a MENU panel of their own take MENU the same way. */
@@ -209,22 +208,20 @@ static void test_short_menu(void) {
  for(size_t i=0;i<sizeof openers/sizeof *openers;i++){
   xz_shell_init(&u);key(&u,&m,openers[i]);
   enum xz_shell_screen under=xz_shell_screen(&u);assert(under!=XZ_SHELL_PLAY);
-  assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&u.mods_view.tab==1);
-  assert(key(&u,&m,XZ_SHELL_KEY_MENU)==0&&xz_shell_screen(&u)==under);
+  assert(key(&u,&m,XZ_SHELL_KEY_MENU)==1&&xz_shell_screen(&u)==under);
  }
  xz_shell_init(&u);
- /* A probe copy sees the effect: the key is the shell's, never the stock deck's. */
+ /* The key is the shell's, never the stock deck's: it asks for the one MODS menu (an action the probe counts). */
  struct xz_shell probe=u;
- key(&probe,&m,XZ_SHELL_KEY_MENU);
- assert(memcmp(&probe,&u,sizeof u)!=0&&u.depth==1);
- puts("PASS short MENU on PLAY, SHORTCUT and SOURCE opens MODS on the first mod tab (UTILITY without mods); MENU again closes");
+ assert(key(&probe,&m,XZ_SHELL_KEY_MENU)==1&&u.depth==1);
+ puts("PASS short MENU on PLAY, SHORTCUT and SOURCE asks for the one MODS menu; held MENU opens UTILITY");
 }
 
 static void test_mods_title(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);
  xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);
  render(&u,&m,pixels);
- key(&u,&m,XZ_SHELL_KEY_MENU);key(&u,&m,XZ_SHELL_KEY_MENU);
+ xz_shell_mods_show(&u,&m,1);
  assert(u.mods_view.tab==1);
  render(&u,&m,other);
  /* UTILITY and a mod tab differ in the title bar (title, the line under it, the version). */
@@ -239,7 +236,7 @@ static void test_mods_title(void) {
  static const struct xz_shell_mods_model mods={1,tabs};
  m.mods=&mods;
  key(&u,&m,XZ_SHELL_KEY_BACK);key(&u,&m,XZ_SHELL_KEY_BACK);
- xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU);
+ xz_shell_init(&u);key(&u,&m,XZ_SHELL_KEY_MENU_HOLD);xz_shell_mods_show(&u,&m,1);
  assert(u.mods_view.tab==1);
  render(&u,&m,pixels);
  struct xz_shell_rect rail=xz_shell_settings_rect(XZ_SHELL_SR_RAIL),items=xz_shell_settings_rect(XZ_SHELL_SR_ITEMS);

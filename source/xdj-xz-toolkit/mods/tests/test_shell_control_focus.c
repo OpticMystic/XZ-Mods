@@ -22,41 +22,27 @@ int main(void){
   assert(model.deck_count==2&&shell.deck==(focus&1));
  }
  puts("PASS actual runtime side changes preserve independent browse/grid focus");
- /* SCREEN's TITLES IN WAVEFORMS row (ui/ui_menu.c) and MY SETTINGS expose the same shell-owned choice. */
+ /* MODS's TITLES IN WAVEFORMS (the panel's XZ_UI_SHELL_LOOK) and MY SETTINGS expose the same shell-owned choice. */
  xz_shell_init(&shell);fill_look();
  int waveform=0;
  for(uint32_t i=0;i<wave_model.count;i++)if(wave_model.items[i].id==LOOK_WAVE_TITLES)waveform++;
  assert(waveform==1&&xz_shrt_shell_owned_setting(XZ_SHELL_ITEM_WAVE_TITLES));
- /* a published SCREEN page with the shell's look rows, as ui_menu.c builds them */
- static struct xz_shell_menu page;memset(&page,0,sizeof page);
- page.root=page.page=XZ_UI_SCREEN;page.row_count=2;page.choice_count=6;
- page.row[0]=(struct xz_shell_menu_row){.kind=XZ_SHELL_MENU_TOGGLE,.choice_count=2,.first_choice=0,.current=-1,.available=1,
-  .target={XZ_UI_SHELL_LOOK,XZ_SHELL_ITEM_WAVE_TITLES,-1,XZ_UI_MENU_DIRECT,0}};
- page.row[1]=(struct xz_shell_menu_row){.kind=XZ_SHELL_MENU_CHOICE,.choice_count=4,.first_choice=2,.current=-1,.available=1,
-  .target={XZ_UI_SHELL_LOOK,XZ_SHELL_SET_WAVE_COLOR,-1,XZ_UI_MENU_DIRECT,0}};
- for(int i=0;i<2;i++)page.choice[i].target=(struct xz_shell_menu_target){XZ_UI_SHELL_LOOK,XZ_SHELL_ITEM_WAVE_TITLES,-1,XZ_UI_MENU_DIRECT,(int16_t)i};
- for(int i=0;i<4;i++)page.choice[2+i].target=(struct xz_shell_menu_target){XZ_UI_SHELL_LOOK,XZ_SHELL_SET_WAVE_COLOR,-1,XZ_UI_MENU_DIRECT,(int16_t)i};
- menu_raw=page;menu_page=page;menu_valid=1;look_patch_locked();
- /* the rows show the shell's own values, not the panel's */
- assert(menu_page.row[0].current==0&&menu_page.row[1].current==(int)shell.display.wave_color);
- /* HIDE through the MENU command path: applied here, kept for the next start, nothing queued for the panel */
- ui_action_count=0;menu_count=0;
- menu_command_locked(&(struct xz_shell_action){.kind=XZ_SHELL_ACT_MOD_MENU,.deck=1,.value=0,.id=XZ_SHELL_MENU_ACTIVATE},1002);
- assert(!sh_indicator_shown(&shell,XZ_SHELL_IND_WAVE_TITLES)&&menu_page.row[0].current==1&&!ui_action_count&&!menu_count);
+ /* the panel reads the shell's own values */
+ assert(look_current(XZ_SHELL_ITEM_WAVE_TITLES)==0&&look_current(XZ_SHELL_SET_WAVE_COLOR)==(int)shell.display.wave_color);
+ /* HIDE through the panel's path: applied here, kept for the next start, nothing queued back for the panel */
+ ui_action_count=0;
+ assert(look_apply_locked(XZ_SHELL_ITEM_WAVE_TITLES,1));
+ assert(!sh_indicator_shown(&shell,XZ_SHELL_IND_WAVE_TITLES)&&look_current(XZ_SHELL_ITEM_WAVE_TITLES)==1&&!ui_action_count);
  xz_shell_init(&shell);restore_display();
  assert(!sh_indicator_shown(&shell,XZ_SHELL_IND_WAVE_TITLES));
  /* MY SETTINGS sets the same choice back; the row follows */
  look_set_locked(LOOK_WAVE_TITLES,0,1003);look_set_locked(LOOK_WAVE_TITLES,2,1004);
- look_patch_locked();
- assert(sh_indicator_shown(&shell,XZ_SHELL_IND_WAVE_TITLES)&&menu_page.row[0].current==0&&!ui_action_count);
- /* WAVEFORM COLOURS is UTILITY's WAVEFORM COLOR: RGB applies in the shell and tells the panel STOCK */
- menu_command_locked(&(struct xz_shell_action){.kind=XZ_SHELL_ACT_MOD_MENU,.deck=1,.value=1,.id=XZ_SHELL_MENU_ACTIVATE},1005);
- assert(shell.display.wave_color==XZ_SHELL_WAVE_RGB&&menu_page.row[1].current==XZ_SHELL_WAVE_RGB&&!menu_count);
- assert(ui_action_count==1&&ui_actions[0].kind==XZ_UI_WAVE_MODE&&ui_actions[0].index==0);
- /* a pick past the choices is refused; a row-level push on a look row is refused */
- ui_action_count=0;
- menu_command_locked(&(struct xz_shell_action){.kind=XZ_SHELL_ACT_MOD_MENU,.deck=7,.value=1,.id=XZ_SHELL_MENU_ACTIVATE},1006);
- menu_command_locked(&(struct xz_shell_action){.kind=XZ_SHELL_ACT_MOD_MENU,.deck=-1,.value=0,.id=XZ_SHELL_MENU_ACTIVATE},1007);
- assert(shell.display.wave_color==XZ_SHELL_WAVE_RGB&&!ui_action_count&&!menu_count);
- puts("PASS actual SCREEN look rows: shell values shown, MENU picks applied in the shell and kept, MY SETTINGS shares them, WAVEFORM COLOURS is UTILITY's");
+ assert(sh_indicator_shown(&shell,XZ_SHELL_IND_WAVE_TITLES)&&look_current(XZ_SHELL_ITEM_WAVE_TITLES)==0&&!ui_action_count);
+ /* WAVEFORM COLOURS is UTILITY's WAVEFORM COLOR: RGB applies in the shell (the panel sets its own twin itself) */
+ assert(look_apply_locked(XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_RGB));
+ assert(shell.display.wave_color==XZ_SHELL_WAVE_RGB&&look_current(XZ_SHELL_SET_WAVE_COLOR)==XZ_SHELL_WAVE_RGB&&!ui_action_count);
+ /* a pick past the choices is refused */
+ assert(!look_apply_locked(XZ_SHELL_SET_WAVE_COLOR,7)&&!look_apply_locked(XZ_SHELL_ITEM_MODE_LAMPS,2)&&!look_apply_locked(-1,0));
+ assert(shell.display.wave_color==XZ_SHELL_WAVE_RGB&&!ui_action_count);
+ puts("PASS actual MODS look rows: shell values shown, picks applied in the shell and kept, MY SETTINGS shares them, WAVEFORM COLOURS is UTILITY's");
 }

@@ -38,7 +38,8 @@ static int valid(const struct xz_settings *s) {
    The REKORDBOX block (rekordbox_press, rekordbox_shift) is all or nothing too;
    a record without it migrates from rekordbox_menu (rekordbox_migrate). A record without modern_stems
    keeps the default, PADS. The DECK VIEW block (deck_view, deck_view_button) is all or nothing; a record
-   without it leaves both as they are (overlay) or at their defaults (parse). */
+   without it leaves both as they are (overlay) or at their defaults (parse). deck_view_button is retired (the
+   DECKS button always shows): any stored value reads as 1, and 1 is written. */
 #define FIELDS 46
 #define APPEARANCE_BLOCK 38
 #define REKORDBOX_MENU 35
@@ -107,7 +108,7 @@ int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigne
     if (s.takeover_assign == XZ_TAKEOVER_REKORDBOX) s.takeover_assign = XZ_TAKEOVER_LINK;
     s.rekordbox_menu = s.rekordbox_press == XZ_REKORDBOX_MODS;
     s.theme = xz_settings_look(s.ui_interface,s.classic_theme);
-    s.jump.shift_page=1;s.ram_debug=1;s.metrics_enabled=1;s.shift_pages=1;s.shift_keysync=1;
+    s.jump.shift_page=1;s.ram_debug=1;s.metrics_enabled=1;s.shift_pages=1;s.shift_keysync=1;s.deck_view_button=1;
     *out = s; if (present) *present = i; return 0;
 }
 int xz_settings_overlay(struct xz_settings *current, const struct xz_settings *record, unsigned present) {
@@ -127,7 +128,7 @@ int xz_settings_overlay(struct xz_settings *current, const struct xz_settings *r
     if (merged.takeover_assign == XZ_TAKEOVER_REKORDBOX) merged.takeover_assign = XZ_TAKEOVER_LINK;
     merged.rekordbox_menu = merged.rekordbox_press == XZ_REKORDBOX_MODS;
     merged.theme = xz_settings_look(merged.ui_interface,merged.classic_theme);
-    merged.jump.shift_page=1;merged.ram_debug=1;merged.metrics_enabled=1;merged.shift_pages=1;merged.shift_keysync=1;
+    merged.jump.shift_page=1;merged.ram_debug=1;merged.metrics_enabled=1;merged.shift_pages=1;merged.shift_keysync=1;merged.deck_view_button=1;
     if (!valid(&merged)) return -1;
     *current = merged; return 0;
 }

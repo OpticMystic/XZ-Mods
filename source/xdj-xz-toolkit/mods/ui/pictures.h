@@ -1,10 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 #ifndef XZ_UI_PICTURES_H
 #define XZ_UI_PICTURES_H
-/* The MODS menu's pictures, shared by both interfaces: the CLASSIC panel (ui/) and the MODERN shell's MENU tab
-   (shell/shell_menu.c) draw them with the same code and only a different style. Pure drawing: a picture reads
-   the plain data it is given and the canvas it draws on, nothing else. Geometry functions give the touch
-   targets the drawing uses, so the two interfaces hit-test exactly what they draw. */
+/* The MODS menu's pictures. One menu draws them in both interfaces, in each skin's style (the FLAGSHIP style in
+   MODERN). Pure drawing: a picture reads the plain data it is given and the canvas it draws on, nothing else.
+   Geometry functions give the touch targets the drawing uses, so the menu hit-tests exactly what it draws. */
 #include "ui_skin.h"
 #include "picture_data.h"
 #include "cable_anim.h"

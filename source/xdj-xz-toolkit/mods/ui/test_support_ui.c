@@ -8,7 +8,7 @@
 #error Assertions required
 #endif
 
-_Static_assert(XZ_UI_SUPPORT == 34 && XZ_UI_HOME == 35 && XZ_UI_PAGE_COUNT == 42, "append-only page IDs: support, then the MODS sections");
+_Static_assert(XZ_UI_SUPPORT == 34 && XZ_UI_HOME == 35 && XZ_UI_SCREEN_LOOK == 42 && XZ_UI_PAGE_COUNT == 43, "append-only page IDs: support, the MODS sections, then LAMPS AND TITLES");
 
 static uint16_t pixels[800 * 480];
 
@@ -57,14 +57,7 @@ static void check_step_geometry_and_menu(struct xz_ui *u, struct xz_ui_model *m)
         assert(support_widgets >= 5);
         assert(xz_ui_render(u, m, pixels, 800 * 480, 800));
     }
-    struct xz_shell_menu menu;
-    assert(xz_ui_menu_build(u, m, &menu) && menu.row_count > 0);
-    assert(!strcmp(menu.title, "REPORT AN ISSUE") && menu.step_count == 3);
-    int found_pending = 0;
-    for (int i = 0; i < menu.line_count; i++) {
-        if (strstr(menu.line[i].text, "GITHUB ISSUE: PENDING USER SUBMISSION")) found_pending = 1;
-    }
-    assert(found_pending);
+    assert(!strcmp(xz_ui_page_title(u->page), "REPORT AN ISSUE"));
 }
 
 int main(void) {
@@ -177,19 +170,15 @@ int main(void) {
     assert(!strcmp(req.expected_sha256, m.support.payload_sha256));
     assert(u.support.step == XZ_SUPPORT_STEP_RECEIPT);
 
-    struct xz_shell_menu preview_menu;
     u.support.step=XZ_SUPPORT_STEP_PREVIEW;
     for(int i=0;i<XZ_SUPPORT_PREVIEW_LINES;i++)snprintf(m.support.preview[i],XZ_SUPPORT_LINE_CHARS,"EXACT PREVIEW ROW %d",i);
-    assert(xz_ui_menu_build(&u,&m,&preview_menu));
-    assert(preview_menu.layout==XZ_SHELL_MENU_SUPPORT && !preview_menu.report_qr_url[0]);
-    for(int i=0;i<XZ_SUPPORT_PREVIEW_LINES;i++){
-        int found=0;for(int j=0;j<preview_menu.line_count;j++)if(!strcmp(preview_menu.line[j].text,m.support.preview[i]))found++;
-        assert(found==1);
+    for(int iface=0;iface<2;iface++){
+        m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.theme=iface?XZ_THEME_FLAGSHIP:0;
+        assert(xz_ui_render(&u,&m,pixels,800*480,800));
     }
+    m.ui_interface=XZ_UI_INTERFACE_CLASSIC;m.theme=0;
     u.support.step=XZ_SUPPORT_STEP_RECEIPT;
     m.support.phase = XZ_SUPPORT_STORED;
-    assert(xz_ui_menu_build(&u,&m,&preview_menu));
-    assert(!strcmp(preview_menu.report_qr_url,m.support.github_url));
     memset(pixels, 0, sizeof(pixels));
     check_step_geometry_and_menu(&u, &m);
 

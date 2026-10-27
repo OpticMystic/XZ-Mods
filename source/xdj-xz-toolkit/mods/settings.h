@@ -58,7 +58,7 @@ struct xz_settings {
     int rekordbox_press, rekordbox_shift; /* enum xz_rekordbox_action; a record without them migrates (SETTINGS.md) */
     int modern_stems; /* MODERN's stem layout: enum xz_stem_layout or XZ_MODERN_STEMS_PADS (ui/wave_viewport.h) */
     int deck_view; /* enum xz_deck_view; a record without it keeps the current view (2 DECKS by default) */
-    int deck_view_button; /* 1 shows the DECKS button at the top of the play screen, 0 hides it */
+    int deck_view_button; /* retired: the DECKS button always shows; reads as 1, written as 1 */
 };
 /* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
 int xz_settings_look(int ui_interface, int classic_theme);

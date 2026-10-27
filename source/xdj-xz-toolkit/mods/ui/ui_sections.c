@@ -47,7 +47,7 @@ int xz_ui_has_engine(const struct xz_ui_model *m, uint32_t cap){
 int xz_ui_section_page(int page){
  switch(page){
  case XZ_UI_HOME:case XZ_UI_PLAY:case XZ_UI_STEM_SECTION:case XZ_UI_SCREEN:case XZ_UI_FOUR_DECKS:case XZ_UI_CONNECT:
- case XZ_UI_EXTRAS:case XZ_UI_STEM_PADS:case XZ_UI_BEAT_JUMP:case XZ_UI_BUTTONS:case XZ_UI_KEY_SETUP:return 1;
+ case XZ_UI_EXTRAS:case XZ_UI_STEM_PADS:case XZ_UI_BEAT_JUMP:case XZ_UI_BUTTONS:case XZ_UI_KEY_SETUP:case XZ_UI_SCREEN_LOOK:return 1;
  default:return 0;
  }
 }
@@ -59,6 +59,21 @@ static int four_needs_you(const struct xz_ui_model *m){
 }
 /* The STEMS button's order for each interface's own layouts. */
 static const int classic_layouts[5]={XZ_STEM_LAYOUT_BELOW,XZ_STEM_LAYOUT_BELOW_HALF,XZ_STEM_LAYOUT_OUTER,XZ_STEM_LAYOUT_OUTER_HALF,XZ_STEM_LAYOUT_HIDDEN};
+int xz_ui_modern_menu(const struct xz_ui_model *m){return m&&m->ui_interface==XZ_UI_INTERFACE_MODERN;}
+/* The interface's own stem layouts, in the order its STEMS button steps them; returns how many. */
+static int stem_layouts_of(const struct xz_ui_model *m,const int **order){
+ if(xz_ui_modern_menu(m)){*order=xz_modern_stems_order;return XZ_MODERN_STEMS_COUNT;}
+ *order=classic_layouts;return 5;
+}
+static const char *stem_layout_label(const struct xz_ui_model *m,int layout){
+ static const char *const modern[XZ_MODERN_STEMS_COUNT]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF","BY THE CUES"};
+ if(xz_ui_modern_menu(m)&&layout>=0&&layout<XZ_MODERN_STEMS_COUNT)return modern[layout];
+ return xz_wave_layout_name(layout);
+}
+/* MODERN's look rows: one switch per part (on = shown), or the choices of WAVEFORM COLOURS and TRACK COLOURS. */
+static const char *const wave_names[XZ_UI_WAVE_COLORS]={"STOCK","RGB","3-BAND","STEMS"};
+static const char *const usb_names[3]={"DECK + WAVE","DECK ONLY","OFF"};
+static void look_switch(struct xz_ui_widget *w,size_t *n,int item,const char *label){add(w,n,XZ_UI_SHELL_LOOK,item*8,0,label);}
 size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *w, size_t n){
  int i;
  switch(u->page){
@@ -87,25 +102,37 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_PADS,0,"STEM PADS");
   if(xz_ui_has_engine(m,XZ_UI_GROOVE))add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEMS,0,"GROOVE PADS");
   else add(w,&n,XZ_UI_INFO,XZ_UI_INFO_GROOVE,0,"GROOVE PADS");
-  for(i=0;i<5;i++)add(w,&n,XZ_UI_STEMS_OVERLAY,1+classic_layouts[i],0,xz_wave_layout_name(classic_layouts[i]));
+  {const int *order;int count=stem_layouts_of(m,&order);
+   for(i=0;i<count;i++)add(w,&n,XZ_UI_STEMS_OVERLAY,1+order[i],0,stem_layout_label(m,order[i]));}
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,"STEM COLOURS");
+  if(xz_ui_modern_menu(m))look_switch(w,&n,XZ_UI_LOOK_BYPASS,"BYPASS BUTTON");
   break;
  case XZ_UI_SCREEN:
   add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_CLASSIC,0,"CLASSIC");
   add(w,&n,XZ_UI_SET_INTERFACE,XZ_UI_INTERFACE_MODERN,0,"MODERN");
   if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE){
    for(i=0;i<XZ_LAYOUT_COUNT;i++)add(w,&n,XZ_UI_DECK_VIEW,i,0,i?"4 DECKS":"2 DECKS");
-   add(w,&n,XZ_UI_DECK_VIEW_BUTTON,0,0,"DECK VIEW BUTTON");
   }
-  if(m->ui_interface==XZ_UI_INTERFACE_MODERN)add(w,&n,XZ_UI_SET_MODERN_THEME,0,0,"STANDARD");
-  else add(w,&n,XZ_UI_PANEL,XZ_UI_THEME_PICK,0,"THEME");
-  add(w,&n,XZ_UI_WAVE_MODE,0,0,"STOCK");add(w,&n,XZ_UI_WAVE_MODE,1,0,"3-BAND");add(w,&n,XZ_UI_WAVE_MODE,2,0,"STEMS");
+  /* MODERN has one look, so no THEME: its slot leads to the MODERN play screen's own parts instead. */
+  if(xz_ui_modern_menu(m)){
+   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SCREEN_LOOK,0,"LAMPS AND TITLES");
+   for(i=0;i<XZ_UI_WAVE_COLORS;i++)add(w,&n,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_COLOR*8+i,0,wave_names[i]);
+  }else{
+   add(w,&n,XZ_UI_PANEL,XZ_UI_THEME_PICK,0,"THEME");
+   add(w,&n,XZ_UI_WAVE_MODE,0,0,"STOCK");add(w,&n,XZ_UI_WAVE_MODE,1,0,"3-BAND");add(w,&n,XZ_UI_WAVE_MODE,2,0,"STEMS");
+  }
   add(w,&n,XZ_UI_KEY_FORMAT,0,0,"AS ON THE USB");add(w,&n,XZ_UI_KEY_FORMAT,1,0,"MUSICAL");add(w,&n,XZ_UI_KEY_FORMAT,2,0,"WHEEL");
   add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"PLAYING KEY");
   add(w,&n,XZ_UI_BROWSE_TRAFFIC,0,0,"KEY MATCH COLOURS");
   add(w,&n,XZ_UI_BROWSE_KEY_PREFIX,0,0,"KEY BEFORE TITLE");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,"SYSTEM READOUT");
   add(w,&n,XZ_UI_INFO,XZ_UI_INFO_COLUMNS,0,"TRACK LIST COLUMNS");
+  break;
+ case XZ_UI_SCREEN_LOOK:
+  if(!xz_ui_modern_menu(m))break;   /* CLASSIC has none of these parts */
+  look_switch(w,&n,XZ_UI_LOOK_MODE_LAMPS,"MODE LAMPS");look_switch(w,&n,XZ_UI_LOOK_QUANTIZE_LAMP,"QUANTIZE LAMP");
+  look_switch(w,&n,XZ_UI_LOOK_WAVE_TITLES,"TITLES IN WAVEFORMS");
+  for(i=0;i<3;i++)add(w,&n,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_USB_COLORS*8+i,0,usb_names[i]);
   break;
  case XZ_UI_FOUR_DECKS:
   if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE){
@@ -205,16 +232,22 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
    else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_PC_STEMS)right(a,64);
    else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_STEM_PADS)left(a,128);
    else if((a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_STEMS)||(a->kind==XZ_UI_INFO&&k==XZ_UI_INFO_GROOVE))right(a,128);
-   else if(a->kind==XZ_UI_STEMS_OVERLAY){int at=0;for(int j=0;j<5;j++)if(classic_layouts[j]==k-1)at=j;segment(a,X0,CW,192,86,5,at);}
-   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_STEM_COLORS)full(a,296);
+   else if(a->kind==XZ_UI_STEMS_OVERLAY){
+    const int *order;int count=stem_layouts_of(m,&order),at=0;
+    for(int j=0;j<count;j++)if(order[j]==k-1)at=j;
+    segment(a,X0,CW,192,86,count,at);
+   }
+   /* MODERN: STEM COLOURS shares its row with the BYPASS BUTTON switch. */
+   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_STEM_COLORS){if(xz_ui_modern_menu(m))left(a,296);else full(a,296);}
+   else if(a->kind==XZ_UI_SHELL_LOOK)right(a,296);
    break;
   case XZ_UI_SCREEN:{
    int y=screen_layout_y();
    if(a->kind==XZ_UI_SET_INTERFACE)segment(a,X0,CW,y,70,5,k==XZ_UI_INTERFACE_CLASSIC?0:1);
    else if(a->kind==XZ_UI_DECK_VIEW)segment(a,X0,CW,y,70,5,2+k);
-   else if(a->kind==XZ_UI_DECK_VIEW_BUTTON)left(a,144);
-   else if((a->kind==XZ_UI_PANEL&&k==XZ_UI_THEME_PICK)||a->kind==XZ_UI_SET_MODERN_THEME)right(a,144);
+   else if((a->kind==XZ_UI_PANEL&&k==XZ_UI_THEME_PICK)||(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_SCREEN_LOOK))left(a,144);
    else if(a->kind==XZ_UI_WAVE_MODE)segment(a,X0,HALF,208,RH,3,k);
+   else if(a->kind==XZ_UI_SHELL_LOOK)segment(a,X0,HALF,208,RH,XZ_UI_WAVE_COLORS,k%8);
    else if(a->kind==XZ_UI_KEY_FORMAT){
     /* AS ON THE USB needs the widest box; MUSICAL and WHEEL share the rest with their example key */
     int x=X0+HALF+8,w0=128,w1=(HALF-w0-16)/2;
@@ -223,9 +256,17 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
    else if(a->kind==XZ_UI_KEY_FEEDBACK)left(a,272);
    else if(a->kind==XZ_UI_BROWSE_TRAFFIC)right(a,272);
    else if(a->kind==XZ_UI_BROWSE_KEY_PREFIX)left(a,318);
-   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_METRICS_SETUP)right(a,318);
-   else if(a->kind==XZ_UI_INFO)full(a,364);
+   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_METRICS_SETUP)right(a,144);
+   else if(a->kind==XZ_UI_INFO)right(a,318);
    break;}
+  case XZ_UI_SCREEN_LOOK:
+   if(a->kind!=XZ_UI_SHELL_LOOK)break;
+   switch(k/8){
+   case XZ_UI_LOOK_MODE_LAMPS:left(a,64);break;case XZ_UI_LOOK_QUANTIZE_LAMP:right(a,64);break;
+   case XZ_UI_LOOK_WAVE_TITLES:left(a,128);break;
+   default:segment(a,X0,CW,192,RH,3,k%8);break;
+   }
+   break;
   case XZ_UI_FOUR_DECKS:
    if(a->kind==XZ_UI_ROUTE_RESCAN)put(a,X0+CW-160,90,156,40);
    else if(a->kind==XZ_UI_DECK_VIEW)segment(a,X0,CW,158,RH,3,k);
@@ -285,6 +326,10 @@ const char *xz_ui_section_value(const struct xz_ui_model *m, const struct xz_ui_
   int done=m->deck[0].pc_stems.setup_step==XZ_UI_PC_STEP_DONE||m->deck[1].pc_stems.setup_step==XZ_UI_PC_STEP_DONE;
   return done?"READY":"SET UP";}
  case XZ_UI_METRICS_SETUP:return m->metrics.valid?"ON":"SET UP";
+ case XZ_UI_SCREEN_LOOK:{
+  int hidden=0;for(int i=XZ_UI_LOOK_MODE_LAMPS;i<XZ_UI_LOOK_ITEMS;i++)hidden+=i!=XZ_UI_LOOK_BYPASS&&((m->modern_look.hidden>>i)&1u);
+  if(!hidden)return "ALL SHOWN";
+  snprintf(buf,cap,"%d HIDDEN",hidden);return buf;}
  case XZ_UI_KEY_SETUP:return NULL;
  default:return NULL;
  }
@@ -495,6 +540,10 @@ static void screen(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
    xz_pic_text_center(c,a->x+a->w/2,a->y+a->h-16,name,12,sel?s->ink:s->dim);
   }else if(a->kind==XZ_UI_WAVE_MODE){
    xz_pic_wave_swatch(c,a->x+a->w-38,a->y+8,30,a->h-16,a->index,rgb);
+  }else if(a->kind==XZ_UI_SHELL_LOOK){
+   /* MODERN's four tiles are narrow: the name on top, the swatch as a strip under it (scheme 3 is RGB) */
+   static const int scheme[XZ_UI_WAVE_COLORS]={0,3,1,2};
+   if(a->index/8==XZ_UI_LOOK_WAVE_COLOR)xz_pic_wave_swatch(c,a->x+8,a->y+20,a->w-16,a->h-24,scheme[a->index%8&3],rgb);
   }else if(a->kind==XZ_UI_KEY_FORMAT){
    /* the example key, clear of the label and of the selected mark; the dock says it when it does not fit */
    const char *key=xz_ui_key_example(a->index);int right=a->x+a->w-(sel?28:10);
@@ -505,10 +554,6 @@ static void screen(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
   const struct xz_ui_widget *a=&sc->w[i];char buf[64];
   if(a->kind==XZ_UI_PANEL&&a->index==XZ_UI_THEME_PICK)row_value(c,s,a,xz_ui_section_value(m,a,buf,sizeof buf),1);
   if(a->kind==XZ_UI_FEATURE_LINK)row_value(c,s,a,xz_ui_section_value(m,a,buf,sizeof buf),1);
-  if(a->kind==XZ_UI_INFO&&a->index==XZ_UI_INFO_COLUMNS){
-   struct xz_canvas box=xz_sub(c,a->x+190,a->y,a->w-200,a->h);
-   xz_pic_text(box,0,(a->h-9)/2,"Tap a column title in the track list, or press MENU there.",12,s->dim);
-  }
  }
  (void)wave_name;
 }
@@ -522,7 +567,7 @@ static void stem_layouts(const struct xz_ui_scene *sc, const struct xz_pic_style
  uint32_t rgb[3];for(int i=0;i<3;i++)rgb[i]=xz_ui_model_stem_color(sc->m,i);
  for(size_t i=0;i<sc->n;i++){
   const struct xz_ui_widget *a=&sc->w[i];if(a->kind!=XZ_UI_STEMS_OVERLAY)continue;
-  int sel=sc->m->stems_overlay==a->index-1;
+  int sel=sc->look[i].selected;
   if(sel){xz_round_rect(sc->c,a->x,a->y,a->w,a->h,s->radius,15,s->select);xz_round_rect(sc->c,a->x+2,a->y+2,a->w-4,a->h-4,s->radius-1,15,xz_blend(s->row,s->select,40));}
   else xz_pic_box(sc->c,s,(struct xz_rect){a->x,a->y,a->w,a->h},0,1);
   xz_pic_stem_layout(sc->c,a->x+6,a->y+6,a->w-12,a->h-28,a->index-1,rgb);
@@ -574,6 +619,10 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
   xz_pic_wrap(c,X0,86,CW,15,3,"Shift the chosen deck's key a semitone at a time, put it back with RESET, or match it to the master deck with KEY SYNC. SHIFT + SYNC on a deck does the same match.",s.dim);
   xz_pic_wrap(c,X0,140,CW,15,2,"With MASTER TEMPO on, the key holds while the tempo moves; without it, the tempo changes the key too.",s.dim);
   break;}
+ case XZ_UI_SCREEN_LOOK:
+  caption(c,&s,X0,48,CW,"TOP BAR");caption(c,&s,X0,112,CW,"WAVEFORMS");caption(c,&s,X0,176,CW,"TRACK COLOURS");
+  xz_pic_wrap(c,X0,244,CW,15,2,"What the MODERN play screen shows. A hidden lamp also stops answering touch.",s.dim);
+  break;
  case XZ_UI_CONNECT:case XZ_UI_EXTRAS:break;
  default:break;
  }

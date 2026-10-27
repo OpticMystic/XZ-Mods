@@ -75,7 +75,8 @@ static void rekordbox_buttons(void) {
 }
 /* DECK VIEW: deck_view and deck_view_button are one block after modern_stems. A record without it (44 fields)
    still loads with the defaults; overlaying it keeps the view the DJ has now; half a block, a value out of range or
-   a DECK VIEW choice on an older field is refused. The longest record stays inside the internal store's 1023 bytes. */
+   a DECK VIEW choice on an older field is refused. deck_view_button is retired (the DECKS button always shows): a
+   stored 0 reads as 1. The longest record stays inside the internal store's 1023 bytes. */
 static void deck_view_block(void) {
     struct xz_settings a,b;char text[1024];unsigned present=0;
     xz_settings_default(&a);
@@ -83,7 +84,8 @@ static void deck_view_block(void) {
     for(int view=0;view<XZ_DECK_VIEW_COUNT;view++)for(int button=0;button<2;button++){
         struct xz_settings w=a;w.deck_view=view;w.deck_view_button=button;
         assert(xz_settings_format(&w,text,sizeof(text))>0);
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==46&&!memcmp(&w,&b,sizeof(w)));
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==46&&b.deck_view_button==1);
+        w.deck_view_button=1;assert(!memcmp(&w,&b,sizeof(w)));
     }
     { struct xz_settings w=a;w.deck_view=XZ_DECK_VIEW_COUNT;assert(xz_settings_format(&w,text,sizeof(text))<0);
       w=a;w.deck_view=-1;assert(xz_settings_format(&w,text,sizeof(text))<0);
@@ -98,10 +100,10 @@ static void deck_view_block(void) {
     /* An older 44-field record loads with the defaults... */
     char old[1024];strcpy(old,text);cut(old,"deck_view=");
     assert(!xz_settings_parse_present(old,&b,&present)&&present==44&&b.deck_view==XZ_DECK_VIEW_TWO&&b.deck_view_button==1);
-    /* ...and overlaying it keeps the DECK VIEW the DJ has now. */
+    /* ...and overlaying it keeps the DECK VIEW the DJ has now; the retired button reads as shown. */
     { struct xz_settings current=a,record;current.deck_view=XZ_DECK_VIEW_MIXER;current.deck_view_button=0;
       assert(!xz_settings_parse_present(old,&record,&present)&&!xz_settings_overlay(&current,&record,present));
-      assert(current.deck_view==XZ_DECK_VIEW_MIXER&&current.deck_view_button==0);
+      assert(current.deck_view==XZ_DECK_VIEW_MIXER&&current.deck_view_button==1);
       /* A current record sets both. */
       struct xz_settings w=a;w.deck_view=XZ_DECK_VIEW_FOUR;w.deck_view_button=1;assert(xz_settings_format(&w,text,sizeof(text))>0);
       assert(!xz_settings_parse_present(text,&record,&present)&&!xz_settings_overlay(&current,&record,present));

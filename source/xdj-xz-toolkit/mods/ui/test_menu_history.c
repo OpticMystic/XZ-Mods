@@ -2,7 +2,6 @@
 #error Menu history acceptance requires active assertions
 #endif
 #include "ui.h"
-#include "ui_menu.h"
 #include <assert.h>
 #include <stdio.h>
 
@@ -18,11 +17,11 @@ int main(void){
   }
   for(int step=0;step<2;step++){
    static const enum xz_ui_page want[]={XZ_UI_NETWORK,XZ_UI_NETWORK};
-   size_t n=interface?xz_ui_menu_back(&u,out):xz_ui_back(&u,out);
+   (void)interface;size_t n=xz_ui_back(&u,out);   /* one MODS menu: the same BACK in both interfaces */
    assert(n==1&&u.page==want[step]&&out[0].kind==(step==1?XZ_UI_CLOSE:XZ_UI_PANEL));checks++;
   }
   assert(!u.history_count);checks++;
  }
- puts("PASS menu history: CLASSIC and FLAGSHIP BACK, 64 repeated IP/MASK/GATEWAY ancestor returns, 576 assertions; root closes in one BACK");
+ puts("PASS menu history: one BACK for both interfaces, 64 repeated IP/MASK/GATEWAY ancestor returns, 576 assertions; root closes in one BACK");
  assert(checks==576);return 0;
 }

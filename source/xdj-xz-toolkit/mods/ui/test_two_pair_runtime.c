@@ -71,7 +71,6 @@ void xz_layered_overview_restore(uint16_t *p){(void)p;}
 void xz_classic_mixer_native_overview(int d,const uint16_t *p,size_t n,int x,int y){(void)d;(void)p;(void)n;(void)x;(void)y;}
 int xz_deck_layout_get(void){return layout;}
 void xz_deck_layout_set(int l){layout=l;}
-int xz_deck_view_button_shown(void){return 1;}
 int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold){
  assert(!holds);*out=fixture;hold->analysis[0]=columns;holds=1;return out->route_up;
 }

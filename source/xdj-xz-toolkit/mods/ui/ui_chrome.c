@@ -160,6 +160,22 @@ void xz_ui_chrome_focus(const struct xz_ui_scene *s,uint32_t color){
  }
 }
 /* Greedy word wrap into at most `lines` rows of `width` px; returns rows used. */
+int xz_ui_wrap_lines(struct xz_canvas c,int width,const char *text){
+ char row[160];int used=0;
+ while(text&&*text){
+  while(*text==' ')text++;
+  if(!*text)break;
+  size_t fit=0,last_space=0,n=strlen(text);
+  for(size_t k=1;k<=n&&k<sizeof(row);k++){
+   memcpy(row,text,k);row[k]=0;
+   if(xz_text_width(c,row,1,200)>width)break;
+   fit=k;if(text[k]==' '||text[k]==0)last_space=k;
+  }
+  if(!fit)return 99;
+  text+=fit==n?fit:last_space?last_space:fit;used++;
+ }
+ return used;
+}
 static int wrap(struct xz_canvas c,int x,int y,int width,int lines,int pitch,const char *text,uint32_t color){
  char row[160];int used=0;
  while(text&&*text&&used<lines){
@@ -188,17 +204,18 @@ void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint
  xz_rect(c,0,y+1,4,XZ_UI_HEIGHT-y-1,info.available?accent:alarm);
  /* Left: what the focused control is and does. */
  int title_w=xz_text_width(c,info.title,2,40);if(title_w>360)title_w=360;
- xz_text(c,16,y+8,info.title,title_w<360?2:1,40,ink);
+ xz_text(c,16,y+6,info.title,title_w<360?2:1,40,ink);
  if(info.state&&info.state[0]){
   int chip_w=xz_text_width(c,info.state,1,20)+16,chip_x=16+title_w+12;
   uint32_t tone=!info.available?alarm:(info.selected||!strcmp(info.state,"ADJUSTING"))?accent:dim;
-  xz_round_rect(c,chip_x,y+9,chip_w,16,8,15,xz_blend(bg,tone,70));
-  xz_text(c,chip_x+8,y+13,info.state,1,20,tone==dim?ink:tone);
+  xz_round_rect(c,chip_x,y+7,chip_w,16,8,15,xz_blend(bg,tone,70));
+  xz_text(c,chip_x+8,y+11,info.state,1,20,tone==dim?ink:tone);
  }
- /* The last result (a notice) takes the explanation's second line; the save state stays on the right. */
+ /* Three lines say what it does (the room MODERN's detail pane gave); the last result (a notice) takes the
+    third. The save state stays on the right. */
  int noticed=u->notice[0]&&xz_ui_section_page_notice(u);
- wrap(c,16,y+34,532,noticed?1:2,14,info.body,dim);
- if(noticed)wrap(c,16,y+48,532,1,14,u->notice,alarm);
+ wrap(c,16,y+XZ_UI_DOCK_BODY_Y,XZ_UI_DOCK_BODY_W,noticed?XZ_UI_DOCK_LINES-1:XZ_UI_DOCK_LINES,14,info.body,dim);
+ if(noticed)wrap(c,16,y+XZ_UI_DOCK_BODY_Y+14*(XZ_UI_DOCK_LINES-1),XZ_UI_DOCK_BODY_W,1,14,u->notice,alarm);
  /* Right: which decks it works on (or the save state), why a deck is left out, then the hardware keys.
     A fresh save result takes the first two lines. */
  xz_rect(c,560,y+10,1,48,xz_blend(bg,ink,40));

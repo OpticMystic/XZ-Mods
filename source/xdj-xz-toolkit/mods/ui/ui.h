@@ -21,6 +21,8 @@ enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_C
     /* The MODS sections (the rail, top to bottom), then the STEM PADS picture page. GENERAL, CONTROLS, THEMES
        (APPEARANCE) and SETTINGS (ADVANCED) are retired: opening one opens its replacement (xz_ui_page_current). */
     XZ_UI_HOME, XZ_UI_PLAY, XZ_UI_STEM_SECTION, XZ_UI_SCREEN, XZ_UI_FOUR_DECKS, XZ_UI_CONNECT, XZ_UI_STEM_PADS,
+    /* SCREEN > LAMPS AND TITLES: the MODERN play screen's own parts (model.modern_look). MODERN only. */
+    XZ_UI_SCREEN_LOOK,
     XZ_UI_PAGE_COUNT };
 /* The section rail in order; EXTRAS is the old page of that name. */
 enum { XZ_UI_SECTIONS=7 };
@@ -99,11 +101,13 @@ enum xz_ui_action_kind {
     XZ_UI_SUPPORT_EXPORT, XZ_UI_SUPPORT_CHECK,
     /* DECK VIEW (settings deck_view): value 0 2 DECKS, 1 4 DECKS 1 2 3 4, 2 4 DECKS 3 1 2 4. Saved. */
     XZ_UI_DECK_VIEW,
-    /* The DECKS button on the play screen: value 1 SHOW, 0 HIDE. Saved. */
+    /* Retired (the DECKS button is always on the play screen): nothing lays it out or runs it. Kept for numbering. */
     XZ_UI_DECK_VIEW_BUTTON,
-    /* A MODERN-only display setting the shell owns (mode lamps, waveform colours...). The shell runtime runs
-       it itself; index = the shell's item, value = choice. The panel never sees it. */
+    /* A MODERN-only play-screen part the shell owns (model.modern_look). Widget index = enum xz_ui_look_item * 8 +
+       choice; the action carries index = the item, value = the choice. The runtime hands it to the shell. */
     XZ_UI_SHELL_LOOK,
+    /* MODERN's rail: UTILITY, the player's own settings. The runtime closes MODS and shows that screen. */
+    XZ_UI_OPEN_UTILITY,
     /* Something the menu explains but cannot change (a feature not in this version, a fact, a row of the 4 DECKS
        grid): focusing it explains it, pressing it does nothing. index = enum xz_ui_info_topic. */
     XZ_UI_INFO,
@@ -287,8 +291,8 @@ struct xz_ui_model {
     const struct xz_ui_dj *dj; /* NULL: this runtime has no DJ Profile support, so no header chip */
     int four_wave_mixer; /* deck_view == MIXER, for the retired FOUR_WAVE_ORDER readers */
     struct xz_net_view network;
-    /* DECK VIEW (settings.h enum xz_deck_view) and whether the play screen shows its DECKS button. */
-    int deck_view, deck_view_button;
+    /* DECK VIEW (settings.h enum xz_deck_view). */
+    int deck_view;
     /* The pad page each logical deck's BEAT JUMP pads are on now: 0 page 1, 1 page 2 (SHIFT + BEAT JUMP),
        -1 unknown (deck not running, or its player does not report it). */
     int jump_page[4];
@@ -298,7 +302,17 @@ struct xz_ui_model {
        ready_revision use serial-number arithmetic. An observation only: it does not change playable deck_count
        or capabilities. */
     struct xz_ui_route { int state, fail_part; char reason[81]; uint32_t checked_at_ms, revision, ready_revision; } route;
+    /* The MODERN play screen's own parts, as the shell has them now (shell_settings.h items). known 0: no shell
+       runs (those rows and the UTILITY rail cell say NOT READY). wave_color: XZ_UI_WAVE_*; usb_colors: 0 DECK +
+       WAVE, 1 DECK ONLY, 2 OFF; hidden: bit enum xz_ui_look_item set while that part is hidden. */
+    struct xz_ui_modern_look { int known, wave_color, usb_colors; unsigned hidden; } modern_look;
 };
+/* MODERN's look items (XZ_UI_SHELL_LOOK). WAVE_COLOR is the same setting as UTILITY's WAVEFORM COLOR. */
+enum xz_ui_look_item { XZ_UI_LOOK_WAVE_COLOR, XZ_UI_LOOK_USB_COLORS, XZ_UI_LOOK_MODE_LAMPS, XZ_UI_LOOK_QUANTIZE_LAMP,
+    XZ_UI_LOOK_BYPASS, XZ_UI_LOOK_WAVE_TITLES, XZ_UI_LOOK_ITEMS };
+enum xz_ui_wave_color { XZ_UI_WAVE_STOCK, XZ_UI_WAVE_RGB, XZ_UI_WAVE_3BAND, XZ_UI_WAVE_STEMS, XZ_UI_WAVE_COLORS };
+/* 1 in MODERN: the UTILITY rail cell and the MODERN look rows show (they act once modern_look.known). */
+int xz_ui_modern_menu(const struct xz_ui_model *);
 /* Decks 3 and 4's route, as the connector publishes it (enum xz_extra_route_state). NO_ENGINE: the software
    players are not running (unavailable or not started). */
 enum xz_ui_route_state { XZ_UI_ROUTE_NO_ENGINE, XZ_UI_ROUTE_NOT_DETECTED, XZ_UI_ROUTE_SCANNING, XZ_UI_ROUTE_STARTING,

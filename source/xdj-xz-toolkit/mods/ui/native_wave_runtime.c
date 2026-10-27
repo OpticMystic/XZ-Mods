@@ -112,7 +112,6 @@ static void ready_route(int up,uint32_t now){
  if(now-__atomic_load_n(&ready_edge_at,__ATOMIC_RELAXED)>=5000u){__atomic_store_n(&ready_pending,0,__ATOMIC_RELEASE);return;}
  struct xz_deck_view_notice n;
  if(!xz_deck_view_route_notice(xz_deck_layout_get(),xz_extra_decks_route_status().ready_revision,now,&n))return;
- if(!strcmp(n.text,XZ_DECK_VIEW_READY_NOTICE)&&!xz_deck_view_button_shown())n.text=XZ_DECK_VIEW_READY_NOTICE_HIDDEN;
  __atomic_store_n(&ready_pending,0,__ATOMIC_RELEASE);
  __atomic_store_n(&ready_ms,0,__ATOMIC_RELEASE);
  __atomic_store_n(&ready_text,n.text,__ATOMIC_RELAXED);__atomic_store_n(&ready_from,n.from_ms,__ATOMIC_RELAXED);

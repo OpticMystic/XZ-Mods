@@ -126,7 +126,7 @@ const char *xz_ui_page_title(int page){
  case XZ_UI_STEM_COLORS:return "STEM COLOURS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";case XZ_UI_APPS:return "USB APPS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
  case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";case XZ_UI_METRICS_SETUP:return "SYSTEM READOUT";
  case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_ABOUT:return "ABOUT XZ MODS";case XZ_UI_BUTTONS:return "BUTTON NEXT TO LINK";
- case XZ_UI_STEM_PADS:return "STEM PADS";
+ case XZ_UI_STEM_PADS:return "STEM PADS";case XZ_UI_SCREEN_LOOK:return "LAMPS AND TITLES";
  default:return "MODS";}
 }
 const char *xz_ui_page_body(int page){
@@ -157,7 +157,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_DOOM_SETUP:return "Check the engine and USB game files step by step.";
  case XZ_UI_MYHOUSE_SETUP:return "Check the native GZDoom engine and My House files.";
  case XZ_UI_APPS_SETUP:return "Walk through detecting, installing and testing an XZ SDK app.";
- case XZ_UI_BEAT_JUMP:return "How far each pad pair jumps in BEAT JUMP mode on all four decks. SHIFT + BEAT JUMP selects page 2: release SHIFT, then press a pad. The first pad of a pair jumps back, the second forward. SHIFT on a pad uses stock on decks 1/2 and does nothing on decks 3/4. These sizes are separate from BEAT JUMP BEAT VALUE in UTILITY.";
+ case XZ_UI_BEAT_JUMP:return "How far each pad pair jumps in BEAT JUMP mode, on all four decks. The first pad jumps back, the second forward. SHIFT + BEAT JUMP gives page 2: let go of SHIFT, then press a pad. SHIFT + pad is stock on decks 1 and 2. UTILITY's BEAT JUMP BEAT VALUE is separate.";
  case XZ_UI_STEM_PADS:return "Which pad mode button gives stem pads, which four pads carry them, their order, and the pad lights.";
  case XZ_UI_PC_STEMS:return "When a deck plays from a computer over USB, the stem pads switch the DJ software's stems instead. Setup checks the link and tests one switch.";
  case XZ_UI_LOCAL_STEM_SETUP:return "Plays prepared stem files from the USB so pads and stem buttons can mute vocals, harmonics and drums.";
@@ -166,6 +166,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_ABOUT:return "Created by VJ OpticMystic. Credits, project links, licences and voluntary support.";
  case XZ_UI_SUPPORT:return "Prepares a cleaned-up diagnostic report, shows it, then uploads it or saves it to USB.";
  case XZ_UI_BUTTONS:return "What the media button next to LINK does, alone and while SHIFT is held on either deck.";
+ case XZ_UI_SCREEN_LOOK:return "The MODERN play screen's top bar lamps, waveform titles and track colours: show or hide each one.";
  default:return "Opens this page.";}
 }
 /* The deck feature a control belongs to (enum xz_deck_feature), 0 for the whole player. */
@@ -192,9 +193,11 @@ static unsigned feature_of(const struct xz_ui_widget *a){
  case XZ_UI_GROOVE_PAD:return XZ_DECK_CAN_GROOVE;
  case XZ_UI_STRIP:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_VOLUME:case XZ_UI_SAMPLE_PAD:return XZ_DECK_CAN_XPAD;
  case XZ_UI_RAM_DECK:case XZ_UI_RAM_REQUEST:case XZ_UI_RAM_CANCEL:case XZ_UI_RAM_RELEASE:return XZ_DECK_CAN_RAM;
- case XZ_UI_SET_INTERFACE:case XZ_UI_SET_THEME:case XZ_UI_SET_MODERN_THEME:case XZ_UI_DECK_VIEW:case XZ_UI_DECK_VIEW_BUTTON:case XZ_UI_WAVE_MODE:
- case XZ_UI_KEY_FORMAT:case XZ_UI_BROWSE_TRAFFIC:case XZ_UI_BROWSE_KEY_PREFIX:case XZ_UI_STEM_COLOR:case XZ_UI_STEM_COLORS_RESET:case XZ_UI_SHELL_LOOK:
+ case XZ_UI_SET_INTERFACE:case XZ_UI_SET_THEME:case XZ_UI_SET_MODERN_THEME:case XZ_UI_DECK_VIEW:case XZ_UI_WAVE_MODE:
+ case XZ_UI_KEY_FORMAT:case XZ_UI_BROWSE_TRAFFIC:case XZ_UI_BROWSE_KEY_PREFIX:case XZ_UI_STEM_COLOR:case XZ_UI_STEM_COLORS_RESET:
   return XZ_DECK_CAN_DISPLAY;
+ /* the BYPASS button belongs to the stem buttons; the other MODERN parts are display */
+ case XZ_UI_SHELL_LOOK:return k/8==XZ_UI_LOOK_BYPASS?XZ_DECK_CAN_STEMS:XZ_DECK_CAN_DISPLAY;
  default:return 0;
  }
 }
@@ -259,7 +262,6 @@ static const char *section_body(const struct xz_ui *u,const struct xz_ui_model *
   "Opens 4 DECKS: the cable's state and RESCAN, which checks the loopback cable and audio route now.";
  case XZ_UI_ROUTE_RESCAN:return "Checks the loopback cable and audio route again now. The XZ also keeps checking on its own.";
  case XZ_UI_DECK_VIEW:return "How many decks the play screen shows and in what order. Mixer order puts them top to bottom as the mixer channels run left to right: 3 1 2 4. Sound and controls do not change.";
- case XZ_UI_DECK_VIEW_BUTTON:return "Shows or hides the DECKS button at the top of the play screen. This setting still works when it is hidden.";
  case XZ_UI_JUMP_PAIR:if(u->page==XZ_UI_BEAT_JUMP)return jump_pair_body(u,m,(k/2)&3);break;
  case XZ_UI_JUMP_SIZE:{static char text[96];snprintf(text,sizeof text,"Makes pads %c and %c jump %d beat%s.",'A'+2*u->jump_edit_pair,'B'+2*u->jump_edit_pair,xz_jump_beats(k),xz_jump_beats(k)==1?"":"s");return text;}
  case XZ_UI_JUMP_EDIT_PAGE:return k?"Edit page 2: the sizes SHIFT + BEAT JUMP gives. Page 2 always uses your sizes.":"Edit page 1: the sizes BEAT JUMP gives.";
@@ -272,6 +274,19 @@ static const char *section_body(const struct xz_ui *u,const struct xz_ui_model *
  case XZ_UI_PAD_FEEDBACK:if(k)return "On decks 1 and 2, STEM COLOURS lights stem pads in their stem colours and dims muted stems. OFF leaves the pad lights to the player.";break;
  case XZ_UI_STEMS_OVERLAY:if(k)return "Where the stem buttons sit on the play screen. Tap a button to mute that stem; drag along it to set its level. The STEMS button on the play screen steps through these.";break;
  case XZ_UI_BROWSE_TRAFFIC:return "Colours keys in the track list green or amber by how well they mix with the master deck.";
+ case XZ_UI_OPEN_UTILITY:return "The player's own settings: quantize, auto cue, play mode, the display and more. MODS closes and they open.";
+ case XZ_UI_SHELL_LOOK:
+  switch(k/8){
+  case XZ_UI_LOOK_WAVE_COLOR:return "How the scrolling waveforms are coloured: STOCK blue, RGB, 3-BAND lows, mids and highs, or STEMS in the stem colours. UTILITY's WAVEFORM COLOR is the same setting.";
+  case XZ_UI_LOOK_USB_COLORS:return k%8==0?"Each track's colour from your library shows on its deck tag and its waveform.":
+   k%8==1?"Each track's colour from your library shows on its deck tag only.":"Track colours from your library are not shown.";
+  case XZ_UI_LOOK_MODE_LAMPS:return "The top bar's SINGLE / CONTINUE, A. HOT CUE and A. CUE lamps.";
+  case XZ_UI_LOOK_QUANTIZE_LAMP:return "Each deck's QUANTIZE lamp and beat value above its time.";
+  case XZ_UI_LOOK_BYPASS:return "The BYPASS button after each deck's stem buttons: lit, the original track plays instead of the stems.";
+  case XZ_UI_LOOK_WAVE_TITLES:return "Track titles inside the waveform lanes.";
+  default:break;
+  }
+  break;
  case XZ_UI_BROWSE_KEY_PREFIX:return "Shows the key in front of each title in the track list.";
  default:break;
  }
@@ -316,6 +331,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_REKORDBOX_KEY:return xz_ui_rekordbox_choice_help(m->rekordbox_assign[0]);
  case XZ_UI_REKORDBOX_ASSIGN:return xz_ui_rekordbox_choice_help(k%XZ_UI_RB_CHOICES);
  case XZ_UI_WAVE_MODE:return "How the scrolling waveform is coloured: STOCK blue, 3-BAND low, mid and high, STEMS drums, harmonics and vocals (3-band on tracks without stems).";
+ case XZ_UI_OPEN_UTILITY:return "The player's own settings.";
  case XZ_UI_MUTE:return k==XZ_STEM_BASS?"Mutes the bass stem of this 4-stem track. Pad D (or H) does the same.":"Push to mute this stem. Drag sideways to set its level.";
  case XZ_UI_SET_THEME:return "Restyles the classic player screen and this menu.";
  case XZ_UI_SET_INTERFACE:return "CLASSIC keeps the player's own play screen with MODS added. MODERN is a full-screen layout with bigger waveforms and a browse sidebar.";
@@ -406,9 +422,12 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
  else if(a.kind==XZ_UI_JUMP_PAIR&&u->page==XZ_UI_BEAT_JUMP){static char title[24];snprintf(title,sizeof title,"PADS %c / %c",'A'+2*((a.index/2)&3),'B'+2*((a.index/2)&3));out->title=title;}
  else if(a.kind==XZ_UI_STEMS_OVERLAY&&a.index){static char title[48];snprintf(title,sizeof title,"STEM BUTTONS: %s",a.label);out->title=title;}
  else if(a.kind==XZ_UI_PAD_FEEDBACK&&a.index)out->title=a.index==1?"STEM PAD LIGHTS: STEM COLOURS":"STEM PAD LIGHTS: OFF";
+ else if(a.kind==XZ_UI_SHELL_LOOK&&(a.index/8==XZ_UI_LOOK_WAVE_COLOR||a.index/8==XZ_UI_LOOK_USB_COLORS)){
+  static char title[48];snprintf(title,sizeof title,"%s: %s",a.index/8==XZ_UI_LOOK_WAVE_COLOR?"WAVEFORM COLOURS":"TRACK COLOURS",a.label);out->title=title;}
  else if(a.kind==XZ_UI_STEM_ORDER&&u->page==XZ_UI_STEM_PADS){static char title[48];snprintf(title,sizeof title,"ORDER  |  %s",xz_stem_order_name(m->stem_order));out->title=title;}
  out->body=body(u,m,&a);
  coverage(m,&a,out);
+ if(a.kind==XZ_UI_SHELL_LOOK&&a.index/8==XZ_UI_LOOK_WAVE_COLOR&&((out->works_on>>2)&3u))out->excluded="Decks 3 and 4: 3-band for STOCK and STEMS.";
  if(a.kind==XZ_UI_ABOUT_LINK)out->body="Push or tap to show this link as a QR. Scan with your phone.";
  if(xz_ui_network_kind(a.kind))out->body=xz_ui_network_help(a.kind);
  if(xz_ui_support_kind(a.kind))out->body=xz_ui_support_help(a.kind);
@@ -438,7 +457,7 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
  case XZ_UI_PANEL:case XZ_UI_CONTROL_SECTION:out->state=l.selected?"OPEN":"";break;
  case XZ_UI_FEATURE_LINK:out->state=u->page==XZ_UI_HOME?"OPEN":"";break;
  case XZ_UI_DECK_VIEW:case XZ_UI_JUMP_ENABLE:case XZ_UI_JUMP_SIZE:case XZ_UI_STEM_BANK:out->state=l.selected?"SELECTED":"";break;
- case XZ_UI_DECK_VIEW_BUTTON:out->state=l.selected?"SHOW":"HIDE";break;
+ case XZ_UI_SHELL_LOOK:out->state=a.index/8==XZ_UI_LOOK_WAVE_COLOR||a.index/8==XZ_UI_LOOK_USB_COLORS?(l.selected?"SELECTED":""):l.selected?"SHOW":"HIDE";break;
  case XZ_UI_HOME_SETUP:out->state="NEEDS YOU";break;
  case XZ_UI_PROFILE_PICK:out->state=l.selected?"ACTIVE":"";break;
  default:out->state="";}

@@ -1,4 +1,4 @@
-"""Run MODS in the MODERN interface (the shell's MENU tabs over the panel's pages) inside the real UI runtime on a Linux host (gcc, ASan, UBSan)."""
+"""Run the one MODS menu in both interfaces inside the real UI runtime on a Linux host (gcc, ASan, UBSan)."""
 from pathlib import Path
 import subprocess
 import tempfile

@@ -2,7 +2,7 @@
 /* C-rendered fixture evidence only. Never loaded on a controller. */
 #include "play_key.h"
 #include "../shell/four_deck_fixtures.h"
-#include "../shell/menu_fixtures.h"
+#include "mods_fixtures.h"
 #include <assert.h>
 #include <stdlib.h>
 static uint16_t frame[800*480];
@@ -35,7 +35,6 @@ int main(int argc,char **argv){
  xz_ui_init(&u);u.page=XZ_UI_SETTINGS;assert(xz_ui_render(&u,&um,frame,800*480,800));save("classic-advanced-key-page-removed-ram-retained");
  u.page=XZ_UI_THEMES;assert(xz_ui_render(&u,&um,frame,800*480,800));save("classic-appearance-key-format");
  u.page=XZ_UI_SETTINGS;um.theme=XZ_THEME_FLAGSHIP;um.ui_interface=XZ_UI_INTERFACE_MODERN;
- struct xz_shell_menu menu;assert(xz_ui_menu_build(&u,&um,&menu));fx_model_full(&m,&track);m.menu=&menu;m.mods=&mfx_mods;
- xz_shell_init(&s);xz_shell_mods_show(&s,&m,mfx_tab_of(menu.root));assert(xz_shell_render(&s,&m,frame,800));save("modern-advanced-key-page-removed-ram-retained");
+ assert(xz_ui_render(&u,&um,frame,800*480,800));save("modern-advanced-key-page-removed-ram-retained");
  puts("PASS C-rendered key popup and actual settings layouts; classic popup backdrop intentionally empty");return 0;
 }

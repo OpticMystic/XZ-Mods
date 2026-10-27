@@ -71,7 +71,7 @@ static void two_pair_runtime_check(void *self){
     native_four=XZ_FOUR_STACKED;e.left_on_3=e.right_on_4=1;fixture_two_pair=0;assert(classic_key_extra(&e,1)==&e);native_four=-1;
 
     /* The overlay frame and the DECKS button take the painted pair; MODS and MODERN get no pair frame. */
-    static uint16_t frame_pixels[800*480];int saved_button=model.deck_view_button;model.deck_view_button=1;
+    static uint16_t frame_pixels[800*480];
     fixture_extra.route_up=1;fixture_extra.left_on_3=1;fixture_two_pair=1;fixture_pair_frames=0;
     assert(xz_mods_render_v1(frame_pixels,800,480,800,NULL));
     assert(fixture_pair_frames==1&&fixture_pair_frame_pair==1&&fixture_pair_frame_eligible&&badge_frame_cache.dv_pair==1);
@@ -81,7 +81,7 @@ static void two_pair_runtime_check(void *self){
     touch.visible=0;model.fb_takeover=1;xz_mods_render_v1(frame_pixels,800,480,800,NULL);
     assert(fixture_pair_frames==3&&!fixture_pair_frame_eligible);model.fb_takeover=0;
     xz_deck_layout_set(XZ_LAYOUT_FOUR);xz_mods_render_v1(frame_pixels,800,480,800,NULL);assert(fixture_pair_frames==3);
-    xz_deck_layout_set(XZ_LAYOUT_TWO);model.deck_view_button=saved_button;
+    xz_deck_layout_set(XZ_LAYOUT_TWO);
     puts("PASS 2 DECKS pair overlay: the pair frame and DECKS button follow the painted pair, not over MODS, a takeover or four-deck views");
 
     fixture_two_pair=0;memset(&fixture_extra,0,sizeof fixture_extra);fixture_event_count=0;

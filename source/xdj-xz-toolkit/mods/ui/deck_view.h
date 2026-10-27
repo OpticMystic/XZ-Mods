@@ -61,8 +61,6 @@ void xz_deck_view_mini_screen(struct xz_canvas c, const struct xz_deck_view_styl
 
 /* Shown once per route-up while DECK VIEW is 2 DECKS (decision D2). */
 #define XZ_DECK_VIEW_READY_NOTICE "DECKS 3 AND 4 ARE READY. TAP DECKS AT THE TOP FOR FOUR DECKS."
-/* The same notice while SCREEN > DECK VIEW BUTTON hides the DECKS button: it points to MODS instead. */
-#define XZ_DECK_VIEW_READY_NOTICE_HIDDEN "DECKS 3 AND 4 ARE READY. DECK VIEW IN MODS SHOWS FOUR DECKS."
 /* Both interfaces share one latch, so a route-up raises one notice whichever interface sees it first.
    ready_revision is xz_extra_route_status.ready_revision; 0 (never up) and an already taken edge give 0.
    Lock-free; the only state in this module. */

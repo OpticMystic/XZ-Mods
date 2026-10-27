@@ -52,12 +52,12 @@ int xz_deck_cap_absent(unsigned feature) {
 /* One short sentence (it fits one line of the CLASSIC dock): why feature is not on logical_deck now. */
 const char *xz_deck_cap_reason(const struct xz_ui_model *m, int deck, unsigned feature) {
  if(!m||deck<0||deck>3||(xz_deck_caps(m,deck)&feature))return NULL;
- if(xz_deck_cap_absent(feature))return "Not in this version of XZ Mods, on any deck.";
+ if(xz_deck_cap_absent(feature))return "Not in this version, on any deck.";
  if(deck>=2){
   switch(feature){
-  case XZ_DECK_CAN_PLAYING_KEY:return "Decks 3 and 4 show the track's own key.";
+  case XZ_DECK_CAN_PLAYING_KEY:return "Decks 3 and 4 show the file's key.";
   case XZ_DECK_CAN_KEY_SYNC:return "Decks 3 and 4 cannot shift key yet.";
-  case XZ_DECK_CAN_STEMS:return "Decks 3 and 4: no stems in this version.";
+  case XZ_DECK_CAN_STEMS:return "Decks 3 and 4 have no stems.";
   case XZ_DECK_CAN_RAM:return "Decks 3 and 4 always read the USB.";
   default:return "Not on decks 3 and 4 in this version.";
   }

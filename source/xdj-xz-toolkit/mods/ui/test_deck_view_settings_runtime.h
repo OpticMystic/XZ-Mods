@@ -27,14 +27,12 @@ static void deck_view_settings_check(void) {
     /* Restoring saved settings applies the view without saving it back. */
     struct xz_settings saved=settings_snapshot();saved.deck_view=XZ_DECK_VIEW_FOUR;saved.deck_view_button=0;
     profile_apply_locked(&saved,"deck-view-test");revision=settings_revision;
-    assert(model.deck_view==XZ_DECK_VIEW_FOUR&&xz_deck_layout_get()==XZ_LAYOUT_FOUR&&!model.deck_view_button&&!xz_deck_view_button_shown());
+    assert(model.deck_view==XZ_DECK_VIEW_FOUR&&xz_deck_layout_get()==XZ_LAYOUT_FOUR);
     refresh_local();assert(settings_revision==revision&&model.deck_view==XZ_DECK_VIEW_FOUR);
-    /* The DECKS button on the play screen. */
-    struct xz_ui_action button={.kind=XZ_UI_DECK_VIEW_BUTTON,.phase=XZ_UI_PRESS,.deck=-1,.value=1};
-    apply(NULL,&button,1);assert(model.deck_view_button&&xz_deck_view_button_shown()&&settings_snapshot().deck_view_button==1&&settings_revision==revision+1);
-    button.value=0;apply(NULL,&button,1);assert(!model.deck_view_button&&!xz_deck_view_button_shown()&&!settings_snapshot().deck_view_button);
-    refresh_local();assert(!model.deck_view_button);
-    button.value=1;apply(NULL,&button,1);
+    /* The DECKS button is always on the play screen: an old HIDE record and the retired action change nothing. */
+    assert(settings_snapshot().deck_view_button==1);
+    struct xz_ui_action button={.kind=XZ_UI_DECK_VIEW_BUTTON,.phase=XZ_UI_PRESS,.deck=-1,.value=0};
+    apply(NULL,&button,1);assert(settings_snapshot().deck_view_button==1&&settings_revision==revision);
     /* The retired FOUR-DECK WAVE ORDER action still lands on DECK VIEW. */
     struct xz_ui_action order={.kind=XZ_UI_FOUR_WAVE_ORDER,.phase=XZ_UI_PRESS,.deck=-1,.value=1};
     apply(NULL,&order,1);assert(model.deck_view==XZ_DECK_VIEW_MIXER);
@@ -85,30 +83,23 @@ static void deck_view_settings_check(void) {
     jump_state.page[1]=0;fixture_route=(struct xz_extra_route_status){0};fixture_route.state=XZ_EXTRA_ROUTE_NOT_DETECTED;
     puts("PASS DECK VIEW: MODS action, play-screen change saved once, restore without save, DECKS button, retired wave order, button next to LINK in both interfaces, RESCAN, pad page per deck");
 }
-/* SCREEN > DECK VIEW BUTTON set to HIDE on the CLASSIC play screen: nothing is painted where the button was, a
-   tap there and the encoder stay the player's, and the card (which needs no button) still works. */
+/* The DECKS button is always on the CLASSIC play screen: a record saved with the retired HIDE loads with it shown,
+   the retired action does nothing, a tap opens the picker, and with the card the encoder ring reaches both. */
 static void deck_view_hidden_check(void *self){
     int saved_interface=model.ui_interface,saved_four=native_four,saved_active=native_active;
     model.ui_interface=XZ_UI_INTERFACE_CLASSIC;touch.visible=0;model.fb_takeover=0;native_play=1;native_active=1;native_four=-1;
     fixture_card=0;fixture_route=(struct xz_extra_route_status){0};fixture_route.state=XZ_EXTRA_ROUTE_NOT_DETECTED;
     memset(&dv,0,sizeof dv);xz_deck_layout_set(XZ_LAYOUT_TWO);
-    struct xz_ui_action button={.kind=XZ_UI_DECK_VIEW_BUTTON,.phase=XZ_UI_PRESS,.deck=-1,.value=0};
-    apply(NULL,&button,1);assert(!model.deck_view_button);
-    int calls=stock_calls;
-    dv_paint();assert(!dv.painted&&dv_button_inked()==0);
-    dv_tap(self,170,10);assert(!dv.open&&stock_calls==calls+2); /* the stock screen gets the tap */
-    calls=stock_calls;
-    assert(!dv_push(1)&&dv.focus==DV_FOCUS_NONE);assert(!encoder_rotate_hook(1)||dv.focus==DV_FOCUS_NONE);
-    /* The card still offers RESCAN and TWO DECKS; with no button the encoder ring skips it. */
+    struct xz_settings old=settings_snapshot();old.deck_view_button=0;profile_apply_locked(&old,"old-hide");
+    struct xz_ui_action button={.kind=XZ_UI_DECK_VIEW_BUTTON,.phase=XZ_UI_PRESS,.deck=-1,.value=0};apply(NULL,&button,1);
+    assert(settings_snapshot().deck_view_button==1);
+    dv_paint();assert(dv.painted&&dv_button_inked()>200);
+    dv_tap(self,170,10);assert(dv.open);
+    memset(&dv,0,sizeof dv);
     native_four=XZ_FOUR_MIXER;native_active=0;xz_deck_layout_set(XZ_LAYOUT_MIXER);
     fixture_card=dv_card(XZ_FOUR_MIXER,XZ_EXTRA_ROUTE_NOT_DETECTED);
     assert(dv_push(1)==1&&dv.focus==DV_FOCUS_PRIMARY);dv_push(0);
-    assert(encoder_rotate_hook(1)==1&&dv.focus==DV_FOCUS_TWO);
-    assert(encoder_rotate_hook(1)==1&&dv.focus==DV_FOCUS_TWO);
-    assert(dv_push(1)==1&&xz_deck_layout_get()==XZ_LAYOUT_TWO);
-    fixture_card=0;button.value=1;apply(NULL,&button,1);assert(model.deck_view_button);
-    native_four=-1;native_active=1;dv_paint();assert(dv.painted&&dv_button_inked()>200);
-    memset(&dv,0,sizeof dv);xz_deck_layout_set(XZ_LAYOUT_TWO);
-    model.ui_interface=saved_interface;native_four=saved_four;native_active=saved_active;native_play=1;(void)calls;
-    puts("PASS DECK VIEW BUTTON HIDE CLASSIC: nothing painted, tap and encoder stay the player's, card works without the button");
+    fixture_card=0;memset(&dv,0,sizeof dv);xz_deck_layout_set(XZ_LAYOUT_TWO);
+    model.ui_interface=saved_interface;native_four=saved_four;native_active=saved_active;native_play=1;
+    puts("PASS DECK VIEW button always on the CLASSIC play screen: an old HIDE record and the retired action change nothing, tap opens the picker");
 }
