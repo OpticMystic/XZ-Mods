@@ -279,7 +279,7 @@ struct deck {
  uint64_t media_generation;
  uint64_t timeline_output_frames, timeline_sink_frame, timeline_wire_completed;
  struct xz_extra_sync sync;
- enum { SYNC_INITIAL_NONE, SYNC_INITIAL_NOW, SYNC_INITIAL_AFTER_COOLDOWN } sync_initial;
+ enum { SYNC_INITIAL_NONE, SYNC_INITIAL_NOW, SYNC_INITIAL_AFTER_COOLDOWN, SYNC_INITIAL_EXPLICIT } sync_initial;
  int sync_hold,sync_rate_active,sync_have_master,sync_lock_count;
  int sync_native_gap_hold, sync_stationary;
  uint32_t master_playing_choice;int master_playing_seen;
@@ -295,8 +295,8 @@ struct deck {
  uint64_t sync_wire_submitted;
  int32_t sync_legacy_bpm;
  uint32_t sync_native_identity,sync_native_source_revision;
- uint32_t sync_requested_at;
- int sync_wait_fresh;unsigned sync_grid_seen,sync_grid_den;
+ int sync_native_deck;
+ unsigned sync_grid_seen,sync_grid_den;
  struct { int have,ready; uint64_t at; double phase,bpm; } native_phase;
  uint64_t sync_native_captured_us;
  double sync_native_bar_phase,sync_native_bpm;
@@ -1630,11 +1630,10 @@ static void jog(struct xz_xp_players *p,struct deck *d,int32_t delta,float platt
 
 static void sync_request(struct xz_xp_players *p,struct deck *d,int on){
  d->sync=(struct xz_extra_sync){.requested=!!on,.master_deck=-1,.reason=on?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OFF};
- d->sync_initial=on&&d->quantize;d->sync_hold=d->sync_have_master=d->sync_lock_count=0;d->sync_stationary=0;
+ d->sync_initial=on&&d->quantize?SYNC_INITIAL_EXPLICIT:SYNC_INITIAL_NONE;d->sync_hold=d->sync_have_master=d->sync_lock_count=0;d->sync_stationary=0;
  d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
  d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;
  d->sync_trim=0;d->tempo_native_identity=d->tempo_native_revision=0;
- d->sync_requested_at=p->env.now_ms();d->sync_wait_fresh=!!on;d->native_phase.have=d->native_phase.ready=0;
  if(on)atomic_fetch_or(&p->sync_requests,1u<<d->index);else atomic_fetch_and(&p->sync_requests,~(1u<<d->index));
  /* Legacy embedders can supply BPM only. It is sampled once, never advertised as phase lock. */
  d->sync_legacy_bpm=on&&atomic_load(&p->sync_master)<0&&!p->native_sync_clock&&p->env.master_bpm?p->env.master_bpm():0;
@@ -1729,13 +1728,14 @@ static int sync_native_gap_tempo(struct xz_xp_players *p,struct deck *d,
 static void sync_reacquire(struct deck *d,uint32_t now){
  d->sync_hold=0;d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;d->sync_have_master=d->sync_lock_count=0;
  d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
- /* A cooldown defers the requested re-alignment; it must not discard it. */
+ /* An explicit alignment survives phase gaps and bypasses the automatic cooldown. */
  d->sync_initial=!d->quantize?SYNC_INITIAL_NONE:
+  d->sync_initial==SYNC_INITIAL_EXPLICIT?SYNC_INITIAL_EXPLICIT:
   d->sync_snap_at&&(uint32_t)(now-d->sync_snap_at)<XZ_XP_SYNC_RESNAP_MS?SYNC_INITIAL_AFTER_COOLDOWN:SYNC_INITIAL_NOW;
  d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;
 }
 static int sync_snap_ready(const struct deck *d,uint32_t now){
- return d->sync_initial==SYNC_INITIAL_NOW||
+ return d->sync_initial==SYNC_INITIAL_EXPLICIT||d->sync_initial==SYNC_INITIAL_NOW||
   (d->sync_initial==SYNC_INITIAL_AFTER_COOLDOWN&&
    (uint32_t)(now-d->sync_snap_at)>=XZ_XP_SYNC_RESNAP_MS);
 }
@@ -1795,7 +1795,8 @@ static unsigned sync_grid_refresh(struct xz_xp_players *p,struct deck *d){
  unsigned packed=atomic_load_explicit(&p->sync_grid,memory_order_acquire),denominator=packed&15u;
  if(denominator!=1&&denominator!=2&&denominator!=4&&denominator!=8)denominator=0;
  if(d->sync_grid_seen!=packed){
-  d->sync_grid_seen=packed;d->sync_grid_den=denominator;d->sync_initial=d->quantize;
+  d->sync_grid_seen=packed;d->sync_grid_den=denominator;
+  if(d->sync_initial!=SYNC_INITIAL_EXPLICIT)d->sync_initial=d->quantize;
   d->sync_have_master=0;d->sync_lock_count=0;
  }
  return denominator;
@@ -1846,14 +1847,14 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
     d->tempo_native_identity==native.track_identity&&d->tempo_native_revision==native.source_revision;
    if(!fresh&&!retained){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
    if(!fresh)native.bpm=(float)d->tempo_native_bpm;
-   if(!fresh||(d->sync_wait_fresh&&(int32_t)(native.captured_ms-d->sync_requested_at)<=0))native.phase_available=0;
-   else d->sync_wait_fresh=0;
+   if(!fresh)native.phase_available=0;
    if(d->sync_native_identity!=native.track_identity||d->sync_native_source_revision!=native.source_revision||
-      (d->sync_have_master&&d->sync_master_id!=native.native_deck)){
+      d->sync_native_deck!=native.native_deck){
     sync_reacquire(d,now);d->native_phase.have=d->native_phase.ready=0;
     d->sync_have_master=d->sync_lock_count=0;
     d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
     d->sync_native_identity=native.track_identity;d->sync_native_source_revision=native.source_revision;
+    d->sync_native_deck=native.native_deck;
    }
    bpm=(int32_t)llround(native.bpm*100);d->sync.master_deck=native.native_deck;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE;
   }
@@ -1867,7 +1868,9 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    return;}
   if(p->native_sync_clock)d->tempo_native_bpm=native.bpm;
   if(native.manual||d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0){
-   d->native_phase.have=d->native_phase.ready=0;d->sync_hold=1;
+   if(native.manual)d->native_phase.have=d->native_phase.ready=0;
+   if(d->quantize&&(d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0))d->sync_initial=SYNC_INITIAL_EXPLICIT;
+   d->sync_hold=1;
    d->sync_native_gap_hold=d->sync_have_master?SYNC_NATIVE_GAP_WAIT_PHASE:SYNC_NATIVE_GAP_NONE;
    d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;
   }
@@ -1878,7 +1881,8 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    if(native.playing)phase+=((double)(uint32_t)(now-native.captured_ms)/1000.-native.output_latency_us/1000000.)*native.bpm/60.;
    sync_stationary(p,d,selected,choice,native.bpm,wrapped_beat(phase),phase_known,now);return;
   }
-  if(d->sync_stationary){d->sync_stationary=0;sync_reacquire(d,now);d->sync_initial=d->quantize;}
+  if(d->sync_stationary){d->sync_stationary=0;sync_reacquire(d,now);
+   if(d->sync_initial!=SYNC_INITIAL_EXPLICIT)d->sync_initial=d->quantize;}
   if(d->quantize&&!grid){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
   if(!position){d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;}
   if(p->native_sync_clock&&native.phase_available&&d->quantize&&!native_phase_ready(d,&native)){
@@ -2011,14 +2015,18 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_ACQUIRING:XZ_EXTRA_SYNC_OUT_OF_RANGE;
   if(applied<0)d->sync.source=XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
   return;}
- if(master.manual||slave.manual){d->sync_hold=1;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
+ if(master.manual||slave.manual){
+  if(slave.manual&&d->quantize)d->sync_initial=SYNC_INITIAL_EXPLICIT;
+  d->sync_hold=1;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;
+ }
  if(d->quantize&&!grid){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(!master.playing||d->state==XZ_XP_CUED||d->state==XZ_XP_ENDED){
   int phase_known=master.period_frames>0&&(!master.playing||master.available)&&
    (uint32_t)(now-master.at_ms)<=150u;
   sync_stationary(p,d,selected,choice,bpm,master.phase,phase_known,now);return;
  }
- if(d->sync_stationary){d->sync_stationary=0;sync_reacquire(d,now);d->sync_initial=d->quantize;}
+ if(d->sync_stationary){d->sync_stationary=0;sync_reacquire(d,now);
+   if(d->sync_initial!=SYNC_INITIAL_EXPLICIT)d->sync_initial=d->quantize;}
  if(!d->quantize||!position){d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;}
  if(!master.period_frames){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(!master.available||(uint32_t)(now-master.at_ms)>150u){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
@@ -3099,6 +3107,8 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
    xz_usb_position cached={.wire_submitted_frames=d->sync_wire_submitted};sync_update(p,d,&cached,now);
   }else sync_update(p,d,NULL,now);
  }
+ /* A SYNC jump targets this pass's wire horizon; submit it before that horizon moves. */
+ if(d->need_flush){prepare_flush(p,d,now,d->epoch);applied=0;staged=0;}
  if(scratch_tail_done(p,d,now)){
   /* Resumed playback must be primed in this pass. An extra worker interval adds
      silence/phase lag after a tail whose last block has already completed. */

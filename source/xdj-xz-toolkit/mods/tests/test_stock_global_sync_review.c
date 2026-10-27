@@ -166,8 +166,9 @@ static void grid_aba(void){
   live_native_state=(struct xz_sync_native_snapshot){.available=1,.phase_available=1,.native_deck=0,.master_id=0,
    .source_revision=61,.track_identity=321,.bpm=126,.bar_phase=1,.uncertainty_us=500};
   xz_xp_set_native_sync_clock(p,grid_native);xz_xp_use_native_master(p);grid_pulse=0;
+  live_native_state.phase_available=0; /* Inject the race on the first usable phase, not after an immediate press snap. */
   press(d,XZ_EXTRA_IN_SYNC);unsigned gen=debug(d).generation;
-  grid_pulse=pulse;clock_ms+=10;step();CHECK(!grid_pulse);
+  live_native_state.phase_available=1;grid_pulse=pulse;clock_ms+=10;step();CHECK(!grid_pulse);
   CHECK(pulse==3?debug(d).generation!=gen:debug(d).generation==gen);
   CHECK(debug(d).position==ms_frames(d,pulse==3?600:805));
   clock_ms+=10;step();CHECK(debug(d).position==ms_frames(d,600));

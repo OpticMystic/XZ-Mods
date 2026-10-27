@@ -32,7 +32,7 @@ objects=[]
 for name in ['runtime_adapter','shell_adapter','native_adapter','integration']:
  obj=build/(name+'.o');run([cc,*flags,'-c',linux(build/(name+'.c')),'-o',linux(obj)]);objects.append(linux(obj))
  if name=='runtime_adapter':run([oc,'--remove-section=.init_array','--remove-section=.fini_array',linux(obj)])
-sources=['extra_player.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c','deck_select.c','settings.c','shell_runtime_core.c','sync_native.c','arcade/native_clock.c']
+sources=['extra_player.c','key/keyshift.c','key/music.c','key/control.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c','deck_select.c','settings.c','shell_runtime_core.c','sync_native.c','arcade/native_clock.c']
 binary=build/'integration';run([cc,*flags,'-Wl,--gc-sections',*objects,*[linux(src/n) for n in sources],'-lm','-o',linux(binary)])
 results={}
 for mode in ['positive','negative','coherence','uncertainty','refusal','fence','master','prefence','drawing','observation','completion','boundary','guards'] if a.mode=='all' else [a.mode]:

@@ -153,6 +153,11 @@
  ],
  "watch": [
   {
+   "path": "source/xdj-xz-toolkit/mods/extra_player.c",
+   "chapter": "four-decks",
+   "why": "software deck SYNC engage, tempo and beat alignment"
+  },
+  {
    "path": "source/xdj-xz-toolkit/mods/ui/menu_key.c",
    "chapter": "mods-menu",
    "why": "what MENU does on each screen"
