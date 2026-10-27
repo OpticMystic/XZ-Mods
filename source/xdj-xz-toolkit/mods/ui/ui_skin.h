@@ -31,6 +31,8 @@ void xz_ui_stem_colors(const struct xz_ui_scene *);
 void xz_ui_band_colors(const struct xz_ui_scene *);
 uint32_t xz_ui_band_standard(const struct xz_ui_model *,int band);
 uint32_t xz_ui_model_band_color(const struct xz_ui_model *,int band);
+/* A deck's RAM state in words, naming a missing loopback route on decks 3/4 rather than a missing engine. */
+const char *xz_ui_ram_status_text(const struct xz_ui_ram *);
 void xz_ui_page_details(const struct xz_ui_scene *);
 extern const struct xz_ui_skin xz_skin_classic, xz_skin_lcars, xz_skin_matrix, xz_skin_analog, xz_skin_flagship;
 

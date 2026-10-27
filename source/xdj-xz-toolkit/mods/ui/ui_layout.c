@@ -323,20 +323,24 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
   unsigned state=(unsigned)r->state<6?(unsigned)r->state:0;
   label(c,X0,52,CW,"RAM TRACKS",2,ink);
   label(c,X0,78,CW,u->ram_setup?"1 DETECT / 2 CHOOSE / 3 CONNECT / 4 LIVE VERIFY":"ONE ORIGINAL FILE PER DECK / COPIES LAST UNTIL UNLOAD",1,dim);
-  snprintf(buf,sizeof(buf),"DECK %d / %s",selected+1,xz_ui_ram_state_text((enum xz_ui_ram_state)state));
+  snprintf(buf,sizeof(buf),"DECK %d / %s",selected+1,xz_ui_ram_status_text(r));
   label(c,X0,148,CW,buf,2,state==XZ_UI_RAM_ERROR?p->alarm:ink);
   label(c,X0,174,CW,r->message[0]?r->message:"Choose a deck to inspect its loaded source.",1,ink);
-  int fill=r->bytes?(int)((uint64_t)(r->copied<r->bytes?r->copied:r->bytes)*(unsigned)CW/r->bytes):0;
+  /* The bar shows a copy in progress or held; other states show the track's size only. */
+  int copying=state==XZ_UI_RAM_LOADING||state==XZ_UI_RAM_READY||state==XZ_UI_RAM_DETACHED;
+  int fill=copying&&r->bytes?(int)((uint64_t)(r->copied<r->bytes?r->copied:r->bytes)*(unsigned)CW/r->bytes):0;
   xz_round_rect(c,X0,198,CW,8,4,15,xz_blend(bg,ink,48));
   if(fill)xz_round_rect(c,X0,198,fill,8,4,15,p->accent);
-  snprintf(buf,sizeof(buf),"%.1f / %.1f MiB copied",(double)r->copied/1048576.0,(double)r->bytes/1048576.0);
+  if(copying)snprintf(buf,sizeof(buf),"%.1f / %.1f MiB copied",(double)r->copied/1048576.0,(double)r->bytes/1048576.0);
+  else if(r->bytes)snprintf(buf,sizeof(buf),"Track %.1f MiB",(double)r->bytes/1048576.0);
+  else buf[0]=0;
   label(c,X0,218,CW,buf,1,dim);
   snprintf(buf,sizeof(buf),"Originals %.1f / 128 MiB / prepared stems %.1f MiB",(double)m->ram_original_bytes/1048576.0,(double)m->ram_asset_bytes/1048576.0);
   label(c,X0,238,CW,buf,1,ink);
   for(int deck=0;deck<4;deck++){
    const struct xz_ui_ram *other=&m->deck[deck].ram;
-   snprintf(buf,sizeof(buf),"D%d %.1f MiB / %s",deck+1,(double)other->bytes/1048576.0,xz_ui_ram_state_text(other->state));
-   label(c,X0+(deck%2)*(CW/2),260+(deck/2)*18,CW/2-4,buf,1,dim);
+   snprintf(buf,sizeof(buf),"D%d %.1f MiB / %s",deck+1,(double)other->bytes/1048576.0,xz_ui_ram_status_text(other));
+   label(c,X0+(deck%2)*(CW/2),254+(deck/2)*16,CW/2-4,buf,1,dim);
   }
   if(u->ram_setup&&!r->supported){
    label(c,X0,342,CW,"Use the XZ Mods desktop app to rebuild the USB loader.",1,ink);

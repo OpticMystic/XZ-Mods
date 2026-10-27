@@ -597,6 +597,11 @@ const char *xz_ui_ram_state_text(enum xz_ui_ram_state state){
  case XZ_UI_RAM_DETACHED:return "USB OUT / RAM COPY ONLY";
  default:return "RAM ENGINE NOT DETECTED";}
 }
+const char *xz_ui_ram_status_text(const struct xz_ui_ram *r){
+ if(!r->supported)return "RAM ENGINE NOT DETECTED";
+ if(r->software&&!r->route_up&&(r->state==XZ_UI_RAM_UNAVAILABLE||r->state==XZ_UI_RAM_EMPTY))return "LOOPBACK CABLE NOT CONNECTED";
+ return xz_ui_ram_state_text(r->state);
+}
 int xz_ui_section_page_notice(const struct xz_ui *u){return u&&(xz_ui_section_page(u->page)||u->page==XZ_UI_STEM_COLORS||u->page==XZ_UI_BAND_COLORS);}
 const char *xz_ui_ram_scope(const struct xz_ui_ram *r){
  if(r->software){
@@ -604,7 +609,7 @@ const char *xz_ui_ram_scope(const struct xz_ui_ram *r){
    if(!r->route_up)return "RAM retained; the loopback audio connection is down.";
    return r->retained_assets&XZ_RAM_WAVE?"Original audio, loaded waveform and cues are retained.":"Original audio and session cues are retained; no waveform was loaded.";
   }
-  return "64 MiB per file / 128 MiB shared originals / 64 MiB free reserve";
+  return "Up to 64 MiB a track, 128 MiB in all.";
  }
  if(r->state==XZ_UI_RAM_READY||r->state==XZ_UI_RAM_DETACHED)
   return r->retained_stems_bytes?"ORIGINAL + PREPARED STEMS IN RAM / LOADED WAVES KEPT WHEN PRESENT":"ORIGINAL IN RAM / UNPINNED STEMS AND NEW WAVE DATA NEED USB";
