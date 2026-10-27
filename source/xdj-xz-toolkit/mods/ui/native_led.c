@@ -152,6 +152,45 @@ void xz_native_led_service_feedback(void){
 void xz_native_led_service_feedback(void){}
 #endif
 
+void xz_native_led_sync_master_release(struct xz_led_sync_master_owner *owner,void *records,
+                                       size_t bytes,unsigned count,unsigned channel){
+ if(!owner)return;
+ int valid=records&&channel>=1&&channel<=2&&count<=XZ_LED_MAX_RECORDS&&
+           bytes>=(size_t)count*XZ_LED_RECORD_BYTES;
+ for(unsigned i=0;i<2;i++){
+  struct xz_led_lamp_owner *o=&owner->lamp[i];
+  if(valid&&o->active&&o->records==(uintptr_t)records&&o->row<count){
+   unsigned char *r=(unsigned char *)records+(size_t)o->row*XZ_LED_RECORD_BYTES;
+   if(word(r+4)==channel&&!memcmp(r,o->after,XZ_LED_RECORD_BYTES))
+    memcpy(r,o->before,XZ_LED_RECORD_BYTES);
+  }
+  o->active=0;
+ }
+}
+size_t xz_native_led_sync_master_apply(struct xz_led_sync_master_owner *owner,void *records,
+                                     size_t bytes,unsigned count,unsigned channel,const struct xz_extra_deck *d){
+ if(!owner||!records||!d||channel<1||channel>2||count>XZ_LED_MAX_RECORDS||
+    bytes<(size_t)count*XZ_LED_RECORD_BYTES)return 0;
+ size_t changed=0;
+ for(unsigned slot=0;slot<2;slot++){
+  unsigned id=slot?XZ_LED_ID_MASTER:XZ_LED_ID_BEAT_SYNC,found=0,row=0;
+  for(unsigned i=0;i<count;i++){
+   unsigned char *r=(unsigned char *)records+(size_t)i*XZ_LED_RECORD_BYTES;
+   if(word(r)==id&&word(r+4)==channel){found++;row=i;}
+  }
+  /* No allocation/index-table contract, and no ownership of foreign forced rows. */
+  if(found!=1)continue;
+  unsigned char *r=(unsigned char *)records+(size_t)row*XZ_LED_RECORD_BYTES;
+  if(r[0x18])continue;
+  struct xz_led_lamp_owner *o=&owner->lamp[slot];
+  o->records=(uintptr_t)records;o->row=row;
+  memcpy(o->before,r,XZ_LED_RECORD_BYTES);
+  put(r+0x10,xz_led_written_state(xz_extra_lamp(d,id)));r[0x18]=1;
+  memcpy(o->after,r,XZ_LED_RECORD_BYTES);o->active=1;changed++;
+ }
+ return changed;
+}
+
 /* Only existing, non-forced records have a proven writable extent. The saved
  * serializer proof does not establish spare record or index-table capacity. */
 size_t xz_native_led_extra_deck(void *records,size_t bytes,
@@ -227,7 +266,7 @@ int xz_extra_lamp(const struct xz_extra_deck *d,uint32_t id){
 #ifndef XZ_LED_PORTABLE_TEST
 #include "../runtime.h"
 #include "../ui_runtime.h"
-#if !defined(__arm__) || defined(__aarch64__)
+#if (!defined(__arm__) || defined(__aarch64__)) && !defined(XZ_LED_CALLBACK_TEST)
 #error Native LED adapter requires verified 32-bit ARM ABI
 #endif
 _Static_assert(sizeof(void*)==4,"XZ LED pointer ABI");
@@ -240,12 +279,29 @@ __attribute__((visibility("default"))) uint32_t xz_mods_led_trace_v1[12] = {1};
 
 /* The LED hook runs on one native input thread, so the snapshot is private to it. */
 static struct xz_extra_decks extra;static int extra_side;
+static struct xz_led_sync_master_owner sync_master_owner[2];
+/* The pointer is borrowed only for this callback. Retained addresses are compared,
+   never dereferenced without validating the current packet extent again. */
+static void release_sync_master(void *player,void *packet){
+ if(!player||!packet)return;
+ unsigned channel=((const unsigned char *)player)[0x26];
+ if(channel<1||channel>2)return;
+ uint16_t count;uint32_t pointer;
+ memcpy(&count,(const unsigned char *)packet+8,2);
+ memcpy(&pointer,(const unsigned char *)packet+0xc,4);
+ int valid=count<=XZ_LED_MAX_RECORDS&&pointer&&!(pointer&3)&&
+           pointer<=UINT32_MAX-(uint32_t)count*XZ_LED_RECORD_BYTES;
+ xz_native_led_sync_master_release(&sync_master_owner[channel-1],
+  valid?(void *)(uintptr_t)pointer:NULL,valid?(size_t)count*XZ_LED_RECORD_BYTES:0,count,channel);
+}
 static int extra_pad_color(int deck,int pad,uint32_t *rgb,int *lit){
  (void)deck;return xz_extra_pad_led(&extra.deck[extra_side],pad,rgb,lit);
 }
 
 static void led_hook(void *player,void *packet) {
  unsigned char *p=packet;uint16_t count;uint32_t pointer,dimmer=0,now_ms=0,innards,mode;unsigned channel;
+ /* Release even after stop, before stock has a chance to see our force flag. */
+ release_sync_master(player,packet);
  original_led(player,packet);
  TRACE(1);
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||!player||!packet)return;
@@ -283,6 +339,8 @@ static void led_hook(void *player,void *packet) {
                       :!!(extra.control_revision&(channel==1?1u:2u));
   if(on_extra){
    extra_side=(int)channel-1;color=extra_pad_color;
+   if(snap_ok)changed+=xz_native_led_sync_master_apply(&sync_master_owner[extra_side],
+     (void *)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,&extra.deck[extra_side]);
    changed+=xz_native_led_extra_deck((void*)(uintptr_t)pointer,
                                      (size_t)count*XZ_LED_RECORD_BYTES,&count,
                                      NULL,0,0,dimmer,now_ms,
