@@ -746,12 +746,13 @@ static struct xz_sync_link_observation runtime_observation(uint32_t leased_id){
   .current_master_id=atomic_load(&rt_observed_master_id)
  };
 }
-static void release_runtime_lease(void){
+static void release_runtime_lease(int native_return){
  if(!rt_lease.active)return;
  uint32_t id=rt_lease.claim.source_id;
  struct xz_sync_link_observation obs=runtime_observation(id);
  struct xz_sync_link_cleanup clean={0};
  xz_sync_link_lease_release(&rt_lease,&obs,&clean);
+ if(clean.restore_master&&(unsigned)native_return<2)clean.restore_input_id=native_return+1;
  apply_cleanup(&clean,id,&obs);
 }
 
@@ -867,8 +868,8 @@ static void runtime_step_locked(const struct xz_extra_decks *decks,const struct 
      if(xz_va_offer(&rt_va,&bundle,ticket)){
       SYO_INC(OFFER_OK);syo_outcome=0;
       if(plan.request_master){SYO_INC(MASTER_PENDING);xz_va_explicit_request(&rt_va);}
-     }else{SYO_INC(OFFER_FAIL);syo_outcome=12;release_runtime_lease();}
-    }else{if(!ticket)SYO_INC(NO_TICKET);else{SYO_INC(BUILD_FAIL);SYO_REASON(PLAN_REASON_0,plan.reason,12);}syo_outcome=ticket?13:14;release_runtime_lease();}
+     }else{SYO_INC(OFFER_FAIL);syo_outcome=12;release_runtime_lease(-1);}
+    }else{if(!ticket)SYO_INC(NO_TICKET);else{SYO_INC(BUILD_FAIL);SYO_REASON(PLAN_REASON_0,plan.reason,12);}syo_outcome=ticket?13:14;release_runtime_lease(-1);}
    }
  }
  SYO_LINK(syo_outcome);(void)syo_outcome;
@@ -903,8 +904,17 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
    atomic_store(&rt_va.active,0);atomic_store(&rt_va.pending,0);
    rt_lease.master_committed=0;atomic_store(&rt_committed_deck,-1);
    if(!xz_va_claim(&rt_va,side+3,atomic_load(&rt_slot_absent[side]),
-                   (uint32_t)rt_lease.claim.external_writer_epoch))release_runtime_lease();
-  }else release_runtime_lease();
+                   (uint32_t)rt_lease.claim.external_writer_epoch))release_runtime_lease(-1);
+  }else{
+   int native_return=-1;
+   /* An automatic stop handoff can choose a playing stock deck other than the
+      lease's old master. The usual operator/foreign/current-master restore
+      guards still decide whether the consumer may perform that return. */
+   if(decks&&decks->route_up&&!decks->deck[side].playing&&!decks->master_intent.explicit_choice&&
+      (unsigned)decks->master_intent.deck<2&&operator_epoch==rt_lease.claim.master_choice_epoch)
+    native_return=decks->master_intent.deck;
+   release_runtime_lease(native_return);
+  }
  }
  runtime_step_locked(decks,clock_pair);
  uint32_t op=atomic_load(&rt_va.operator_epoch);
