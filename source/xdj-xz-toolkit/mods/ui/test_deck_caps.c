@@ -25,7 +25,7 @@ static void reasons(const struct xz_ui_model *m){
  }
 }
 /* The WORKS ON chips and the grid's column heads name decks the way the four-deck screens do: a deck it works on
-   gets its colour box (deck_colour.h), one it does not a plain outline; on a light theme the box has an ink edge. */
+   gets its badge (deck_colour.h), one it does not a plain outline; on a light theme the box has an ink edge. */
 static uint16_t chip_px[800*300];
 static int has(uint32_t c,int x0,int x1){
  uint16_t want=(uint16_t)(((c>>19)&31)<<11|((c>>10)&63)<<5|((c>>3)&31));int n=0;
@@ -38,13 +38,14 @@ static void chips(void){
   struct xz_canvas c={chip_px,800,800,300,theme?1:0};
   int x=xz_pic_works_on(c,&st,0,4,16,3u,0);assert(x==4*19);
   static const int order[4]={2,0,1,3};
-  for(int k=0;k<4;k++){int d=order[k],x0=k*19,lit=has(xz_deck_colour(d),x0,x0+16);assert(d<2?lit>100:lit==0);}
+  /* Decks 1 and 2 work: their grey badges with the white digit; 3 and 4 do not: no white badge, only an outline. */
+  for(int k=0;k<4;k++){int d=order[k],x0=k*19,lit=has(xz_deck_box_fill(d,1,0),x0,x0+16);assert(d<2?lit>100:lit==0);}
   if(theme)assert(has(st.ink,19,35)>=40);
-  /* The grid heads: four boxes over each half, every deck's colour present in the header row. */
+  /* The grid heads: four badges over each half, both badge fills present in the header row. */
   for(int i=0;i<800*300;i++)chip_px[i]=0;
   struct xz_pic_grid_geo g;xz_pic_grid_geometry(10,20,780,24,&g);unsigned caps[4]={0};
   xz_pic_grid_draw(c,&st,&g,caps,-1);
-  for(int d=0;d<4;d++){int n=0;uint32_t k=xz_deck_colour(d);uint16_t want=(uint16_t)(((k>>19)&31)<<11|((k>>10)&63)<<5|((k>>3)&31));
+  for(int d=0;d<4;d++){int n=0;uint32_t k=xz_deck_box_fill(d,1,0);uint16_t want=(uint16_t)(((k>>19)&31)<<11|((k>>10)&63)<<5|((k>>3)&31));
    for(int y=g.header_y-2;y<g.header_y+11;y++)for(int x=0;x<800;x++)n+=chip_px[y*800+x]==want;assert(n>=2*60);}
  }
 }
@@ -92,6 +93,6 @@ int main(void){
   if(info.feature&ABSENT)assert(!on&&strstr(info.body,"not in this version"));
  }
  assert(rows==XZ_UI_GRID_ROWS);
- puts("PASS deck caps: no preview/X-PAD/groove engine on any deck whatever the ready bits, decks 3/4 parity and display only, native bits follow the runtime, one short reason per missing feature, grid = caps, WORKS ON chips in deck colours");
+ puts("PASS deck caps: no preview/X-PAD/groove engine on any deck whatever the ready bits, decks 3/4 parity and display only, native bits follow the runtime, one short reason per missing feature, grid = caps, WORKS ON chips as deck badges");
  return 0;
 }

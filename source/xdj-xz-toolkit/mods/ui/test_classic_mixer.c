@@ -33,7 +33,7 @@ static void halves(void){
   /* The overview has the deck's waveform; the title band carries the deck's number box. */
   for(int y=423;y<457;y++)for(int x=r.x;x<r.x+300;x++)wave+=pixels[y*807+x]!=(uint16_t)(((0x08>>3)<<11)|((0x0c>>2)<<5)|(0x08>>3));
   assert(wave>3000);
-  uint16_t box=(uint16_t)(((xz_deck_colour(2+side)>>8)&0xf800)|((xz_deck_colour(2+side)>>5)&0x7e0)|((xz_deck_colour(2+side)>>3)&31));
+  uint32_t fill=xz_deck_box_fill(2+side,1,0);uint16_t box=(uint16_t)(((fill>>8)&0xf800)|((fill>>5)&0x7e0)|((fill>>3)&31));
   assert(pixels[(309+8)*807+side*400+(side?3:0)+10]==box);
   memcpy(saved,pixels,sizeof pixels);
   for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)pixels[i]=0x5a5a;
@@ -120,9 +120,9 @@ int main(void){
  uint16_t dim=(uint16_t)(((0x16>>3)<<11)|((0x1c>>2)<<5)|(0x26>>3)),band=(uint16_t)(((0x12>>3)<<11)|((0x34>>2)<<5)|(0x61>>3));
  /* Probed right of where titles are cut (x0 + 29 + 166), so only the band shows there. */
  assert(pixels[312*807+197]==dim&&pixels[312*807+600+197]==dim&&pixels[312*807+200+197]==band&&pixels[312*807+400+197]==band);
- /* Every channel's number sits in its deck's colour box (deck_colour.h), dimmed for 3 and 4. */
+ /* Every channel's number sits in its badge (deck_colour.h), dimmed for 3 and 4. */
  for(int s=0;s<4;s++){
-  int id=xz_classic_mixer_order()[s];uint32_t want=id<2?xz_deck_colour(id):xz_deck_colour_dim_fill(id,0x161c26);
+  int id=xz_classic_mixer_order()[s];uint32_t want=xz_deck_box_fill(id,id<2,0x161c26);
   assert(pixels[314*807+s*200+4]==(uint16_t)(((want>>19)&31)<<11|((want>>10)&63)<<5|((want>>3)&31)));
  }
  int amber=0;for(int yy=313;yy<330;yy++)for(int xx=30;xx<120;xx++)amber+=pixels[yy*807+xx]!=dim;

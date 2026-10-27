@@ -91,10 +91,12 @@ void xz_deck_view_button_draw(struct xz_canvas c, const struct xz_deck_view_styl
  for(int i=0;i<n;i++){
   char digit[2]={(char)('0'+lanes[i]),0};
   int live=lanes[i]<=2||ready;
-  /* Four decks: each number in its deck's colour (deck_colour.h), dimmed while it waits. 2 DECKS: DECK 3 or 4
-     in its colour when a side controls it, DECK 1 and 2 as before. */
-  xz_text(c,tx,ty,digit,1,99,view!=XZ_LAYOUT_TWO||lanes[i]>2?xz_deck_colour_text(lanes[i]-1,live,fill):live?s->ink:0x6a6a6a);
-  tx+=xz_text_width(c,digit,1,99)+4;
+  /* Four decks: each number in its badge (deck_colour.h), dimmed while it waits. 2 DECKS: DECK 3 or 4 in its
+     badge when a side controls it, DECK 1 and 2 as before. */
+  int dw=xz_text_width(c,digit,1,99);
+  if(view!=XZ_LAYOUT_TWO||lanes[i]>2)xz_deck_box(c,tx-1,ty-1,dw+3,11,lanes[i]-1,live,fill,1,0);
+  else xz_text(c,tx,ty,digit,1,99,live?s->ink:0x6a6a6a);
+  tx+=dw+4;
  }
  triangle_down(c,x+w-10,y+h/2-1,4,s->ink);
  if(view!=XZ_LAYOUT_TWO&&!ready)xz_disc(c,x+w-4,y+5,3,s->amber);
@@ -138,7 +140,7 @@ void xz_deck_view_mini_screen(struct xz_canvas c, const struct xz_deck_view_styl
   int d=lanes[i],alive=d<=2||ready;
   xz_rect(c,x+1,ly,col_w,lh,alive?(classic?0x1a2638:0x1e1e1e):0x101010);
   if(view!=XZ_LAYOUT_TWO){
-   /* The lane's number box in its deck's colour, as on the play screen. */
+   /* The lane's number in its badge, as on the play screen. */
    int bw=lh+1<col_w?lh+1:col_w;char t[2]={(char)('0'+d),0};
    xz_rect(c,x+1,ly,bw,lh,xz_deck_box_fill(d-1,alive,0x000000));
    if(lh>=9)text_center(c,x+1+bw/2,ly+(lh-9)/2,t,1,xz_deck_box_ink(d-1,alive,0x000000));
@@ -166,9 +168,9 @@ void xz_deck_view_mini_screen(struct xz_canvas c, const struct xz_deck_view_styl
   int alive=panels[i]<=2||ready;
   xz_rect(c,px,bottom+1,pw,ph-1,alive?0x1a1a1a:0x0e0e0e);
   if(classic)xz_rect(c,px,bottom+1,pw,4,alive?0x103462:0x161c26);
-  /* Four decks: the channel's number box in its deck's colour, matching its lane above. */
-  int lx=view==XZ_LAYOUT_TWO?px+3:px+10,lw=view==XZ_LAYOUT_TWO?pw-6:pw-13;
-  if(view!=XZ_LAYOUT_TWO)xz_rect(c,px+1,bottom+1,7,7,xz_deck_box_fill(panels[i]-1,alive,0x000000));
+  /* Four decks: the channel's number in its badge, matching its lane above. */
+  int lx=view==XZ_LAYOUT_TWO?px+3:px+12,lw=view==XZ_LAYOUT_TWO?pw-6:pw-15;
+  if(view!=XZ_LAYOUT_TWO)xz_deck_box(c,px+1,bottom+1,9,11,panels[i]-1,alive,0x000000,1,0);
   if(alive){
    xz_rect(c,lx,bottom+7,lw,2,0x8c8c8c);
    xz_rect(c,lx,bottom+11,lw/2,3,0xffffff);
