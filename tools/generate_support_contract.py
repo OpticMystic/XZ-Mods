@@ -58,6 +58,9 @@ export function inboxPriority(kind: string | null, impact: string | null, expect
         + "\ndef automatic_fix_eligible(kind, impact):\n    return kind in CONTRACT['automatic_fix']['kinds'] and impact in CONTRACT['automatic_fix']['impacts']\n")
     yield 'spec/generated/support-contract.mjs', stamp + 'export const {contract, sources} = ' + encoded + ';\n' + (
         'export const automaticFixEligible = (kind, impact) => contract.automatic_fix.kinds.includes(kind) && contract.automatic_fix.impacts.includes(impact);\n')
+    # The renderer cannot import modules under the app's CSP; it reads the same contract from a classic script.
+    yield 'ui/support-contract.js', (
+        stamp + "'use strict';\nwindow.XZ_SUPPORT_CONTRACT = Object.freeze(" + json.dumps(contract, separators=(',', ':'), ensure_ascii=True) + ');\n')
     yield 'spec/generated/support_contract.rs', (
         stamp + '// Phase 3 includes this module; JSON is the authoritative wire schema.\n'
         + 'pub const CONTRACT_JSON: &str = include_str!("../support-contract.json");\n'
