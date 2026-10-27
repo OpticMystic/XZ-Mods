@@ -51,7 +51,7 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  assert(xz_ui_back(u,a)==1&&u->page==XZ_UI_HOME&&xz_ui_focused(u,m,&w)&&w.kind==XZ_UI_HOME_SETUP);
  m->enabled=XZ_UI_STEM|XZ_UI_SAMPLE;m->deck[0].ready=0x3fff;
  {struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,widgets);
-  for(size_t k=0;k<count;k++)assert(widgets[k].kind!=XZ_UI_HOME_SETUP);}
+  for(size_t k=0;k<count;k++)assert(widgets[k].kind!=XZ_UI_HOME_SETUP||widgets[k].index==XZ_UI_FOUR_DECKS);}
  /* A tile opens its section; BACK returns HOME. */
  result=tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_STEM_SECTION);assert(result.kind==XZ_UI_PANEL&&u->page==XZ_UI_STEM_SECTION);
  assert(tap(u,m,XZ_UI_ENABLE,XZ_UI_STEM).kind==XZ_UI_ENABLE);
@@ -246,34 +246,43 @@ static int has(struct xz_ui *u,struct xz_ui_model *m,enum xz_ui_action_kind kind
  return 0;
 }
 static void ram(void){
- struct xz_ui u;struct xz_ui_model m;struct xz_ui_action a;
- static const enum xz_ui_action_kind next[6]={XZ_UI_RAM_REQUEST,XZ_UI_RAM_REQUEST,XZ_UI_RAM_CANCEL,XZ_UI_RAM_RELEASE,XZ_UI_RAM_REQUEST,XZ_UI_NONE};
- memset(&m,0,sizeof(m));xz_ui_init(&u);
- tap(&u,&m,XZ_UI_PANEL,XZ_UI_PLAY);
- a=tap(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP);
- assert(a.kind==XZ_UI_PANEL&&a.value==XZ_UI_RAM_SETUP&&u.page==XZ_UI_RAM_SETUP);
- /* Deck choice is local UI state and reports the deck it left. */
- a=tap(&u,&m,XZ_UI_RAM_DECK,1);assert(a.kind==XZ_UI_RAM_DECK&&a.deck==0&&a.index==1&&u.deck==1);
- for(int state=0;state<6;state++){
-  m.deck[1].ram.state=(enum xz_ui_ram_state)state;
-  for(int k=XZ_UI_RAM_REQUEST;k<=XZ_UI_RAM_RELEASE;k++)
-   assert(has(&u,&m,(enum xz_ui_action_kind)k)==(k==(int)next[state]));
-  if(next[state]!=XZ_UI_NONE){a=tap(&u,&m,next[state],0);assert(a.kind==next[state]&&a.deck==1&&a.phase==XZ_UI_PRESS);}
-  m.deck[1].ram.copied=state*1048576u;m.deck[1].ram.bytes=5*1048576u;
-  for(int theme=0;theme<XZ_THEME_COUNT;theme++){m.theme=theme;assert(xz_ui_render(&u,&m,frame,800*480,800));}
-  m.theme=0;
+ struct xz_ui u;struct xz_ui_model m;struct xz_ui_action a,out[XZ_UI_ACTIONS];
+ memset(&m,0,sizeof(m));xz_ui_init(&u);u.deck=1;
+ tap(&u,&m,XZ_UI_PANEL,XZ_UI_PLAY);tap(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP);
+ for(int deck=0;deck<4;deck++){
+  a=tap(&u,&m,XZ_UI_RAM_DECK,deck);assert(a.deck==deck&&u.ram_deck==deck&&u.deck==1);
+  for(int state=0;state<6;state++){
+   struct xz_ui_ram *r=&m.deck[deck].ram;memset(r,0,sizeof(*r));
+   r->state=(enum xz_ui_ram_state)state;r->supported=state!=XZ_UI_RAM_UNAVAILABLE;r->route_up=1;
+   r->source_current=state!=XZ_UI_RAM_DETACHED;
+   r->can_request=state==XZ_UI_RAM_EMPTY||state==XZ_UI_RAM_ERROR;r->can_release=state==XZ_UI_RAM_READY;
+   r->key.session=100+(unsigned)deck;r->copied=UINT32_MAX;r->bytes=7;
+   memset(r->message,'W',sizeof(r->message)-1);
+   u.ram_setup=0;
+   enum xz_ui_action_kind expected=state==XZ_UI_RAM_UNAVAILABLE?XZ_UI_RAM_SETUP_OPEN:
+    state==XZ_UI_RAM_LOADING?XZ_UI_RAM_CANCEL:state==XZ_UI_RAM_READY?XZ_UI_RAM_RELEASE:
+    state==XZ_UI_RAM_DETACHED?XZ_UI_RAM_SETUP_STEP:XZ_UI_RAM_REQUEST;
+   assert(has(&u,&m,expected));
+   if(state==XZ_UI_RAM_UNAVAILABLE){assert(press(&u,&m,expected,0,out)==0&&u.ram_setup);}
+   else {a=tap(&u,&m,expected,state==XZ_UI_RAM_DETACHED?4:0);assert(a.deck==deck);
+    if(state!=XZ_UI_RAM_DETACHED)assert(a.ram_key.session==r->key.session);}
+   for(int theme=0;theme<XZ_THEME_COUNT;theme++){m.theme=theme;assert(xz_ui_render(&u,&m,frame,800*480,800));}
+  }
  }
- /* Statuses never claim that removing the USB is safe. */
  for(int state=0;state<6;state++)assert(!strstr(xz_ui_ram_state_text((enum xz_ui_ram_state)state),"SAFE"));
- assert(!strcmp(xz_ui_ram_state_text(XZ_UI_RAM_READY),"ORIGINAL AUDIO IN RAM"));
- /* A detached copy offers no release; the other deck keeps its own state. */
- m.deck[1].ram.state=XZ_UI_RAM_DETACHED;m.deck[0].ram.state=XZ_UI_RAM_READY;
- assert(!has(&u,&m,XZ_UI_RAM_RELEASE));
- a=tap(&u,&m,XZ_UI_RAM_DECK,0);assert(u.deck==0&&has(&u,&m,XZ_UI_RAM_RELEASE));
- /* Copied bytes beyond the total and long backend messages stay inside the frame. */
- m.deck[0].ram.copied=UINT32_MAX;m.deck[0].ram.bytes=7;memset(m.deck[0].ram.message,'W',sizeof(m.deck[0].ram.message)-1);
- assert(xz_ui_render(&u,&m,frame,800*480,800));
- u.deck=3;assert(!has(&u,&m,XZ_UI_RAM_REQUEST)&&!has(&u,&m,XZ_UI_RAM_CANCEL)&&xz_ui_render(&u,&m,frame,800*480,800));
+ u.ram_deck=2;u.ram_setup=0;
+ m.deck[2].ram=(struct xz_ui_ram){.state=XZ_UI_RAM_EMPTY,.supported=1,.software=1,.reason=XZ_RAM_NO_ROUTE};
+ assert(press(&u,&m,XZ_UI_RAM_SETUP_OPEN,0,out)==0&&u.ram_setup);
+ tap(&u,&m,XZ_UI_RAM_SETUP_STEP,0);assert(u.ram_step==1);
+ assert(u.ram_step==1);
+ assert(press(&u,&m,XZ_UI_RAM_CONNECT,0,out)==0&&u.page==XZ_UI_FOUR_DECKS);
+ assert(xz_ui_back(&u,out)==1&&u.page==XZ_UI_RAM_SETUP&&u.ram_deck==2&&u.deck==1);
+ m.deck[2].ram.route_up=1;m.deck[2].ram.reason=XZ_RAM_TOO_LARGE;
+ assert(has(&u,&m,XZ_UI_RAM_CHOOSE)&&!has(&u,&m,XZ_UI_RAM_REQUEST));
+ m.deck[2].ram.reason=XZ_RAM_NO_SOURCE;assert(tap(&u,&m,XZ_UI_RAM_CHOOSE,0).deck==2);
+ m.deck[2].ram.reason=XZ_RAM_OK;m.deck[2].ram.source_current=1;tap(&u,&m,XZ_UI_RAM_SETUP_STEP,1);
+ tap(&u,&m,XZ_UI_RAM_SETUP_STEP,2);assert(u.ram_step==3);
+ m.deck[2].ram.can_request=1;assert(tap(&u,&m,XZ_UI_RAM_REQUEST,0).deck==2);
 }
 static int held(enum xz_ui_action_kind kind){
  return kind==XZ_UI_MUTE||kind==XZ_UI_SAMPLE_PAD||kind==XZ_UI_HOTCUE_PAD||kind==XZ_UI_STRIP;
@@ -311,6 +320,7 @@ static void parity(void){
      assert(w[i].x+w[i].w<=w[k].x||w[k].x+w[k].w<=w[i].x||w[i].y+w[i].h<=w[k].y||w[k].y+w[k].h<=w[i].y);
     struct xz_ui t=u;struct xz_ui_action a[XZ_UI_ACTIONS];
     size_t pressed=xz_ui_touch(&t,&m,w[i].x+w[i].w/2,w[i].y+w[i].h/2,1,a);
+    if(w[i].kind==XZ_UI_RAM_SETUP_OPEN||w[i].kind==XZ_UI_RAM_MANAGE||w[i].kind==XZ_UI_RAM_CONNECT){assert(pressed==0);xz_ui_touch(&t,&m,0,0,0,a);continue;}
     if(w[i].kind==XZ_UI_FEATURE_SETUP_STEP){assert(pressed==0);xz_ui_touch(&t,&m,0,0,0,a);continue;}
     /* Explanations act on nothing; a layout picture runs as many STEMS steps as it takes. */
     if(w[i].kind==XZ_UI_INFO){assert(pressed==0&&t.focus_kind==XZ_UI_INFO);xz_ui_touch(&t,&m,0,0,0,a);continue;}

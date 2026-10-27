@@ -55,7 +55,7 @@ static void add(struct xz_ui_widget *w, size_t *n, enum xz_ui_action_kind kind, 
  if(*n<XZ_UI_WIDGETS)w[(*n)++]=(struct xz_ui_widget){0,0,0,0,kind,index,requires,label,-1};
 }
 static int four_needs_you(const struct xz_ui_model *m){
- int s=m->route.state;return s==XZ_UI_ROUTE_NOT_DETECTED||s==XZ_UI_ROUTE_LOST||s==XZ_UI_ROUTE_FAILED;
+ int s=m->route.state;return s==XZ_UI_ROUTE_NO_ENGINE||s==XZ_UI_ROUTE_NOT_DETECTED||s==XZ_UI_ROUTE_LOST||s==XZ_UI_ROUTE_FAILED;
 }
 /* The STEMS button's order for each interface's own layouts. */
 static const int classic_layouts[5]={XZ_STEM_LAYOUT_BELOW,XZ_STEM_LAYOUT_BELOW_HALF,XZ_STEM_LAYOUT_OUTER,XZ_STEM_LAYOUT_OUTER_HALF,XZ_STEM_LAYOUT_HIDDEN};
@@ -137,6 +137,7 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   for(i=0;i<3;i++)add(w,&n,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_USB_COLORS*8+i,0,usb_names[i]);
   break;
  case XZ_UI_FOUR_DECKS:
+  if(m->route.state==XZ_UI_ROUTE_NO_ENGINE)add(w,&n,XZ_UI_ROUTE_RESCAN,0,0,"CHECK INSTALLED ENGINE");
   if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE){
    if(m->route.state!=XZ_UI_ROUTE_READY)add(w,&n,XZ_UI_ROUTE_RESCAN,0,0,m->route.state==XZ_UI_ROUTE_FAILED?"TRY AGAIN":"RESCAN");
    for(i=0;i<XZ_LAYOUT_COUNT;i++)add(w,&n,XZ_UI_DECK_VIEW,i,0,i?"4 DECKS":"2 DECKS");
@@ -446,7 +447,7 @@ const char *xz_ui_route_line(const struct xz_ui_model *m){
   state==XZ_UI_ROUTE_WAITING_NATIVE_STOP?"Decks 3 and 4 start once decks 1 and 2 are both stopped. This changes by itself once they stop.":
   state==XZ_UI_ROUTE_NOT_DETECTED?"The XZ keeps looking on its own. RESCAN checks right now. Keep the music stick in USB 2.":
   why?why:
-  state==XZ_UI_ROUTE_NO_ENGINE?"Decks 3 and 4 are not running on this player.":
+  state==XZ_UI_ROUTE_NO_ENGINE?"Rebuild the USB loader in the XZ Mods desktop app, restart it, then check the installed engine.":
   state==XZ_UI_ROUTE_SCANNING?"Checking for the loopback cable now.":
   state==XZ_UI_ROUTE_STARTING?"This takes a few seconds.":
   state==XZ_UI_ROUTE_LOST?"The loopback cable was unplugged or lost power.":
@@ -500,7 +501,7 @@ static void route_card(const struct xz_ui_scene *sc, const struct xz_pic_style *
  xz_disc(c,tx+5,66,5,accent);
  xz_pic_text(c,tx+16,59,title,20,state==XZ_UI_ROUTE_READY?s->good:s->ink);
  const char *line=xz_ui_route_line(m);
- int wrap_w=state==XZ_UI_ROUTE_READY||state==XZ_UI_ROUTE_NO_ENGINE?X0+CW-12-tx:X0+CW-176-tx;
+ int wrap_w=state==XZ_UI_ROUTE_READY?X0+CW-12-tx:X0+CW-176-tx;
  xz_pic_wrap(c,tx,82,wrap_w,14,4,line,s->dim);
 }
 static void four_decks(const struct xz_ui_scene *sc, const struct xz_pic_style *s){

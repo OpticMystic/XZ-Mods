@@ -169,8 +169,9 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_BROWSE_COLUMN:put(a,236+(k%4)*139,96+(k/4)*52,131,44);break;
   case XZ_UI_BROWSE_KEY_PREFIX:grid(a,2,0,4,1);break;
   case XZ_UI_BROWSE_TRAFFIC:grid(a,2,1,4,1);break;
-  case XZ_UI_RAM_DECK:grid(a,2,k,1,1);break;
-  case XZ_UI_RAM_REQUEST:case XZ_UI_RAM_CANCEL:case XZ_UI_RAM_RELEASE:grid(a,1,0,5,1);break;
+  case XZ_UI_RAM_DECK:grid(a,4,k,1,1);break;
+  case XZ_UI_RAM_REQUEST:case XZ_UI_RAM_CANCEL:case XZ_UI_RAM_RELEASE:
+  case XZ_UI_RAM_SETUP_OPEN:case XZ_UI_RAM_SETUP_STEP:case XZ_UI_RAM_CHOOSE:case XZ_UI_RAM_CONNECT:case XZ_UI_RAM_MANAGE:grid(a,1,0,5,1);break;
   case XZ_UI_LOCAL_STEM_SETUP_STEP:grid(a,1,0,6,1);break;
   case XZ_UI_METRICS_CHECK:grid(a,1,0,6,1);break;
   /* GROOVE PADS and X-PAD */
@@ -317,34 +318,33 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
   label(c,X0,78,CW,"USED BY THE DECK KEY STRIPS / SAVED TO YOUR USB PROFILE",1,dim);
   label(c,X0,98,CW,"BROWSE COLUMNS AND SORT: TAP A COLUMN ABOVE THE TRACK LIST, OR PRESS MENU",1,dim);
  }else if(u->page==XZ_UI_RAM_SETUP){
-  label(c,X0,52,CW,"RAM TRACKS",2,ink);
-  label(c,X0,78,CW,"1 CHOOSE A DECK   2 LOAD INTO RAM   3 WAIT FOR READY",1,dim);
-  if(u->deck>1){label(c,X0,160,CW,"CHOOSE DECK 1 OR DECK 2",2,ink);return;}
-  const struct xz_ui_ram *r=&m->deck[u->deck].ram;
-  static const char *hints[]={
-   "CHECK AGAIN. IF IT STAYS HERE, REBUILD THE USB LOADER WITH THE CURRENT XZ MODS APP",
-   "LOAD A USB TRACK ON THIS DECK, THEN LOAD IT INTO RAM",
-   "KEEP THE USB CONNECTED UNTIL THIS SAYS ORIGINAL AUDIO IN RAM",
-   "USB STILL CONNECTED / RELEASE FREES THE MEMORY",
-   "RETRY. IF IT FAILS AGAIN, RELOAD THE TRACK FROM USB",
-   "LOAD ANOTHER TRACK TO RELEASE THIS RAM COPY"};
+  int selected=u->ram_deck>=0&&u->ram_deck<4?u->ram_deck:0;
+  const struct xz_ui_ram *r=&m->deck[selected].ram;
   unsigned state=(unsigned)r->state<6?(unsigned)r->state:0;
-  uint32_t tone=state==XZ_UI_RAM_ERROR?p->alarm:ink;
-  snprintf(buf,sizeof(buf),"DECK %d / %s",u->deck+1,xz_ui_ram_state_text((enum xz_ui_ram_state)state));
-  label(c,X0,148,CW,buf,2,tone);
-  snprintf(buf,sizeof(buf),"SOURCE: %s",d->track&&*d->track?d->track:"NO TRACK REPORTED");
-  label(c,X0,172,CW,buf,1,ink);
-  label(c,X0,190,CW,r->message[0]?r->message:hints[state],1,tone);
-  int fill=0;
-  if(r->bytes)fill=(int)((uint64_t)(r->copied<r->bytes?r->copied:r->bytes)*(unsigned)CW/r->bytes);
-  xz_round_rect(c,X0,210,CW,8,4,15,xz_blend(bg,ink,48));
-  if(fill)xz_round_rect(c,X0,210,fill,8,4,15,state==XZ_UI_RAM_ERROR?p->alarm:p->accent);
-  if(r->bytes)snprintf(buf,sizeof(buf),"%.1f / %.1f MB COPIED",(double)r->copied/1048576.0,(double)r->bytes/1048576.0);
-  else snprintf(buf,sizeof(buf),"NOTHING COPIED YET");
-  label(c,X0,226,CW,buf,1,dim);
-  if(state==XZ_UI_RAM_DETACHED)label(c,X0,254,CW,"RELEASE IS OFF WHILE THE USB IS OUT",2,ink);
-  label(c,468,346,324,"ONE TRACK PER DECK / ORIGINAL AUDIO ONLY",1,dim);
-  label(c,468,362,324,"STEMS AND 3-BAND WAVES STILL READ THE USB",1,dim);
+  label(c,X0,52,CW,"RAM TRACKS",2,ink);
+  label(c,X0,78,CW,u->ram_setup?"1 DETECT / 2 CHOOSE / 3 CONNECT / 4 LIVE VERIFY":"ONE ORIGINAL FILE PER DECK / COPIES LAST UNTIL UNLOAD",1,dim);
+  snprintf(buf,sizeof(buf),"DECK %d / %s",selected+1,xz_ui_ram_state_text((enum xz_ui_ram_state)state));
+  label(c,X0,148,CW,buf,2,state==XZ_UI_RAM_ERROR?p->alarm:ink);
+  label(c,X0,174,CW,r->message[0]?r->message:"Choose a deck to inspect its loaded source.",1,ink);
+  int fill=r->bytes?(int)((uint64_t)(r->copied<r->bytes?r->copied:r->bytes)*(unsigned)CW/r->bytes):0;
+  xz_round_rect(c,X0,198,CW,8,4,15,xz_blend(bg,ink,48));
+  if(fill)xz_round_rect(c,X0,198,fill,8,4,15,p->accent);
+  snprintf(buf,sizeof(buf),"%.1f / %.1f MiB copied",(double)r->copied/1048576.0,(double)r->bytes/1048576.0);
+  label(c,X0,218,CW,buf,1,dim);
+  snprintf(buf,sizeof(buf),"Originals %.1f / 128 MiB / prepared stems %.1f MiB",(double)m->ram_original_bytes/1048576.0,(double)m->ram_asset_bytes/1048576.0);
+  label(c,X0,238,CW,buf,1,ink);
+  for(int deck=0;deck<4;deck++){
+   const struct xz_ui_ram *other=&m->deck[deck].ram;
+   snprintf(buf,sizeof(buf),"D%d %.1f MiB / %s",deck+1,(double)other->bytes/1048576.0,xz_ui_ram_state_text(other->state));
+   label(c,X0+(deck%2)*(CW/2),260+(deck/2)*18,CW/2-4,buf,1,dim);
+  }
+  if(u->ram_setup&&!r->supported){
+   label(c,X0,342,CW,"Use the XZ Mods desktop app to rebuild the USB loader.",1,ink);
+   label(c,X0,360,CW,"Restart with that loader, then check the installed engine here.",1,dim);
+  }else if(u->ram_setup&&(r->reason==XZ_RAM_BUDGET_FULL||r->reason==XZ_RAM_FREE_LOW)){
+   label(c,X0,342,CW,"Choose a READY deck above and release its restorable copy.",1,ink);
+   label(c,X0,360,CW,"Detached copies stay held until that track is replaced or unloaded.",1,dim);
+  }else label(c,X0,350,CW,xz_ui_ram_scope(r),1,dim);
  }else if(u->page==XZ_UI_CONNECTION){
   const struct xz_ui_connection *v=&m->connection;
   label(c,X0,52,320,"VJ.TOOLS CONNECTION",2,ink);

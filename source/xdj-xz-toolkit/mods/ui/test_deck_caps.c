@@ -73,6 +73,13 @@ int main(void){
  m.route.state=XZ_UI_ROUTE_NO_ENGINE;
  for(int d=2;d<4;d++){assert(xz_deck_caps(&m,d)==(PARITY|XZ_DECK_CAN_DISPLAY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC));assert(!xz_deck_cap_reason(&m,d,XZ_DECK_CAN_BEAT_JUMP));}
  reasons(&m);
+ for(int d=2;d<4;d++){
+  m.deck[d].ram.supported=1;assert(xz_deck_caps(&m,d)&XZ_DECK_CAN_RAM);
+  assert(!(xz_deck_caps(&m,d)&XZ_DECK_CAN_STEMS));
+  m.deck[d].ram.state=XZ_UI_RAM_DETACHED;m.route.state=XZ_UI_ROUTE_LOST;
+  assert(xz_deck_caps(&m,d)&XZ_DECK_CAN_RAM);
+  m.deck[d].ram.supported=0;assert(!(xz_deck_caps(&m,d)&XZ_DECK_CAN_RAM));
+ }
  /* Native decks: each engine-backed bit follows the runtime's report on that deck. */
  memset(&m,0,sizeof m);m.route.state=XZ_UI_ROUTE_NOT_DETECTED;
  assert(xz_deck_caps(&m,0)==(XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_DISPLAY));

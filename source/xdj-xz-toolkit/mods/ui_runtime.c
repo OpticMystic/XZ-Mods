@@ -46,6 +46,10 @@ __attribute__((visibility("default"),used)) struct {
 } xz_mods_ram_debug_v1={.version=1};
 static uint32_t ram_debug_sample_ms;
 #include "ram/runtime.h"
+#include "ram/decks.h"
+#pragma weak xz_ram_deck_status
+#pragma weak xz_ram_deck_command
+#pragma weak xz_ram_usage
 #include "ui/native_touch.h"
 #include "ui/stem_pads.h"
 #include "pc_control/stems.h"
@@ -1220,7 +1224,8 @@ static void sdk_stop(void) {
 
 static void ram_refresh(int deck) {
     struct xz_ram_status s;memset(&s,0,sizeof(s));
-    xz_ram_status(deck,&s);
+    if(xz_ram_deck_status)xz_ram_deck_status((unsigned)deck,&s);
+    else if(deck<2)xz_ram_status(deck,&s);
     struct xz_ui_ram *r=&model.deck[deck].ram;
     switch(s.state){
     case XZ_RAM_EMPTY:r->state=XZ_UI_RAM_EMPTY;break;
@@ -1230,8 +1235,11 @@ static void ram_refresh(int deck) {
     case XZ_RAM_DETACHED:r->state=XZ_UI_RAM_DETACHED;break;
     default:r->state=XZ_UI_RAM_UNAVAILABLE;break;}
     r->copied=s.copied;r->bytes=s.bytes;r->retained_stems_bytes=0;
+    r->reason=s.reason;r->phase=s.phase;r->key=s.key;r->supported=s.supported;
+    r->route_up=s.route_up;r->source_current=s.source_current;r->can_request=s.can_request;r->can_release=s.can_release;
+    r->retained_assets=s.retained_assets;r->software=deck>=2;
     s.message[sizeof(s.message)-1]=0;snprintf(r->message,sizeof(r->message),"%s",s.message);
-    if(s.state==XZ_RAM_READY||s.state==XZ_RAM_DETACHED){
+    if(deck<2&&(s.state==XZ_RAM_READY||s.state==XZ_RAM_DETACHED)){
         struct xz_audio_status audio={0};xz_audio_get_status(deck,&audio);
         r->retained_stems_bytes=audio.retained_stems_bytes;
         snprintf(r->message,sizeof(r->message),"ORIGINAL IN RAM / %s",audio.retained_stems_bytes?"PREPARED STEMS IN RAM":"STEMS STILL NEED USB");
@@ -1241,23 +1249,18 @@ static void ram_refresh(int deck) {
 /* The worker copies asynchronously; these only start, stop or free it and report the next step. */
 static void ram_action(const struct xz_ui_action *a) {
     int deck=a->deck;
-    if(deck<0||deck>1)return;
-    ram_refresh(deck);
-    if(a->kind==XZ_UI_RAM_REQUEST){
-        if(xz_ram_request(deck)==0)snprintf(ui.notice,sizeof(ui.notice),"DECK %d: COPYING ORIGINAL AUDIO TO RAM",deck+1);
-        else{
-            ram_refresh(deck);
-            if(model.deck[deck].ram.state==XZ_UI_RAM_UNAVAILABLE)
-                snprintf(ui.notice,sizeof(ui.notice),"RAM ENGINE NOT IN THIS LOADER / REBUILD THE USB WITH THE XZ MODS APP");
-            else snprintf(ui.notice,sizeof(ui.notice),"DECK %d: RAM COPY DID NOT START / SEE STATUS ABOVE",deck+1);
-        }
-    }else if(a->kind==XZ_UI_RAM_CANCEL){
-        snprintf(ui.notice,sizeof(ui.notice),xz_ram_cancel(deck)==0?"DECK %d: RAM COPY CANCELLED":"DECK %d: NO RAM COPY TO CANCEL",deck+1);
-    }else if(model.deck[deck].ram.state!=XZ_UI_RAM_READY){
-        snprintf(ui.notice,sizeof(ui.notice),"DECK %d: RELEASE NEEDS THE USB SOURCE CONNECTED",deck+1);
-    }else{
-        snprintf(ui.notice,sizeof(ui.notice),xz_ram_release(deck)==0?"DECK %d: RAM RELEASE REQUESTED":"DECK %d: RAM COPY STILL HELD / TRY AGAIN",deck+1);
+    if(deck<0||deck>=4)return;
+    enum xz_ram_command command=a->kind==XZ_UI_RAM_REQUEST?XZ_RAM_LOAD:a->kind==XZ_UI_RAM_CANCEL?XZ_RAM_CANCEL:XZ_RAM_RELEASE;
+    enum xz_ram_result result=XZ_RAM_REFUSED;
+    if(xz_ram_deck_command)result=xz_ram_deck_command((unsigned)deck,command,&a->ram_key);
+    else if(deck<2){
+        int rc=command==XZ_RAM_LOAD?xz_ram_request(deck):command==XZ_RAM_CANCEL?xz_ram_cancel(deck):xz_ram_release(deck);
+        result=rc?XZ_RAM_REFUSED:XZ_RAM_ACCEPTED;
     }
+    const char *message=result==XZ_RAM_ACCEPTED?(command==XZ_RAM_LOAD?"RAM COPY QUEUED":command==XZ_RAM_CANCEL?"COPY CANCELLATION REQUESTED":"RAM RELEASE REQUESTED"):
+        result==XZ_RAM_ALREADY_HELD?"RAM ATTACHMENT COMPLETED; COPY RETAINED":result==XZ_RAM_STALE?"TRACK CHANGED; CHECK THE SELECTED DECK":
+        result==XZ_RAM_ROUTE_DOWN?"CONNECT THE FOUR-DECK AUDIO ROUTE":result==XZ_RAM_SOURCE_MISSING?"LOAD A CURRENT USB TRACK":"RAM REQUEST REFUSED; CHECK STATUS";
+    snprintf(ui.notice,sizeof(ui.notice),"DECK %d: %s",deck+1,message);
     ram_refresh(deck);
 }
 
@@ -1479,8 +1482,19 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             xz_native_touch_visible(&touch, 0);
             __atomic_store_n(&visible, 0, __ATOMIC_RELEASE);
             break;
-        case XZ_UI_DECK:
         case XZ_UI_RAM_DECK:
+            if(a->index>=0&&a->index<4)ui.ram_deck=a->index;
+            break;
+        case XZ_UI_RAM_SETUP_STEP:
+            for(int deck=0;deck<4;deck++)ram_refresh(deck);
+            break;
+        case XZ_UI_RAM_CHOOSE:
+            if(xz_shell_runtime_key_setup_load&&xz_shell_runtime_key_setup_load(a->deck)){
+                xz_native_touch_visible(&touch,0);__atomic_store_n(&visible,0,__ATOMIC_RELEASE);
+                ui.ram_setup=1;ui.ram_step=1;
+            }else snprintf(ui.notice,sizeof(ui.notice),"Track browser unavailable; check the loaded source.");
+            break;
+        case XZ_UI_DECK:
             if (a->index >= 0 && a->index < 2) { ui.deck = a->index; inline_ui.deck = a->index; }
             break;
         case XZ_UI_RAM_REQUEST:
@@ -2310,8 +2324,8 @@ static void refresh_local(void) {
     inline_layout_publish();
     __atomic_add_fetch(&xz_prepared_proof_v1.sequence,1,__ATOMIC_SEQ_CST);
     __atomic_add_fetch(&xz_mods_key_proof_v1.sequence,1,__ATOMIC_SEQ_CST);
+    for(int deck=0;deck<4;deck++)ram_refresh(deck);
     for (int deck = 0; deck < 2; deck++) {
-        ram_refresh(deck);
         if(model.deck[deck].pc_stems.source!=XZ_UI_SOURCE_LOCAL){key_valid[deck]=0;continue;}
         model.deck[deck].ready = XZ_UI_GATE | XZ_UI_SMART | XZ_UI_THEME;
         model.deck[deck].usb_reason = XZ_UI_USB_WHY_ENGINE;
@@ -3440,6 +3454,8 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE) || !pixels || width != 800 || height != 480 || stride < 800 || stride > 16384)
         return 0;
     if(stock_dialog_up())return 0;
+    struct xz_ram_usage ram_usage={0};
+    if(xz_ram_usage)xz_ram_usage(&ram_usage);
     if (pthread_mutex_trylock(&ui_mutex) != 0) {
         if(__atomic_load_n(&play_key_visible,__ATOMIC_ACQUIRE)||__atomic_load_n(&classic_key_visible,__ATOMIC_ACQUIRE))return 0;
         __atomic_add_fetch(&xz_mods_key_present_proof_v1.busy,1,__ATOMIC_RELAXED);
@@ -3480,6 +3496,8 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
         }
         return 0;
     }
+    model.ram_original_bytes=ram_usage.original_pending+ram_usage.original_held;
+    model.ram_asset_bytes=ram_usage.assets_pending+ram_usage.assets_held;
     /* Between shell frames there is nothing to refresh or draw; the receiver keeps the last frame. */
     int shell_path=xz_shell_runtime_frame&&shell_owns_locked();
     if(!play_key_source_valid_locked()){

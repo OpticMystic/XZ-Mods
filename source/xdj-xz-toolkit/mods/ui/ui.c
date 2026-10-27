@@ -354,16 +354,30 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
      this page keeps only the key format the deck key strips use. */
   for(i=0;i<3;i++)add(w,&n,XZ_UI_KEY_FORMAT,i,0,key_formats[i]);
  }else if(u->page==XZ_UI_RAM_SETUP){
-  add(w,&n,XZ_UI_RAM_DECK,0,0,"DECK 1");
-  add(w,&n,XZ_UI_RAM_DECK,1,0,"DECK 2");
-  /* One next step per state. Release needs the USB source, so a detached copy offers none. */
-  if(u->deck<2)switch(m->deck[u->deck].ram.state){
-  case XZ_UI_RAM_UNAVAILABLE:add(w,&n,XZ_UI_RAM_REQUEST,0,0,"CHECK RAM ENGINE");break;
-  case XZ_UI_RAM_EMPTY:add(w,&n,XZ_UI_RAM_REQUEST,0,0,"LOAD TRACK INTO RAM");break;
-  case XZ_UI_RAM_LOADING:add(w,&n,XZ_UI_RAM_CANCEL,0,0,"CANCEL COPY");break;
-  case XZ_UI_RAM_READY:add(w,&n,XZ_UI_RAM_RELEASE,0,0,"RELEASE RAM COPY");break;
-  case XZ_UI_RAM_ERROR:add(w,&n,XZ_UI_RAM_REQUEST,0,0,"RETRY LOAD INTO RAM");break;
-  case XZ_UI_RAM_DETACHED:break;}
+  static const char *names[]={"DECK 1","DECK 2","DECK 3","DECK 4"};
+  for(i=0;i<4;i++)add(w,&n,XZ_UI_RAM_DECK,i,0,names[i]);
+  int selected=u->ram_deck>=0&&u->ram_deck<4?u->ram_deck:0;
+  const struct xz_ui_ram *r=&m->deck[selected].ram;
+  if(r->state==XZ_UI_RAM_LOADING)add(w,&n,XZ_UI_RAM_CANCEL,0,0,"CANCEL COPY");
+  else if(u->ram_setup&&u->ram_step<3){
+   if(u->ram_step==0)add(w,&n,XZ_UI_RAM_SETUP_STEP,0,0,"DETECT RAM AND SOURCE");
+   else if(!r->supported)add(w,&n,XZ_UI_RAM_SETUP_STEP,1,0,"CHECK INSTALLED ENGINE");
+   else if(selected>=2&&!r->route_up)add(w,&n,XZ_UI_RAM_CONNECT,0,0,"OPEN FOUR-DECK SETUP");
+   else if(!r->source_current||r->reason==XZ_RAM_NO_SOURCE||r->reason==XZ_RAM_TOO_LARGE||r->reason==XZ_RAM_PIN_FAILED)add(w,&n,XZ_UI_RAM_CHOOSE,0,0,"CHOOSE TRACK");
+   else if(u->ram_step==1)add(w,&n,XZ_UI_RAM_SETUP_STEP,1,0,"USE THIS TRACK");
+   else add(w,&n,XZ_UI_RAM_SETUP_STEP,2,0,"VERIFY RAM ATTACHMENT");
+  }else if(!r->supported)add(w,&n,XZ_UI_RAM_SETUP_OPEN,0,0,"SET UP RAM TRACKS");
+  else if(selected>=2&&!r->route_up)add(w,&n,XZ_UI_RAM_SETUP_OPEN,0,0,"SET UP FOUR DECKS");
+  else if(r->state==XZ_UI_RAM_DETACHED)add(w,&n,XZ_UI_RAM_SETUP_STEP,4,0,"BACK TO PLAY");
+  else if(u->ram_setup&&u->ram_step==3&&r->state==XZ_UI_RAM_READY)add(w,&n,XZ_UI_RAM_SETUP_STEP,4,0,"RAM VERIFIED / BACK TO PLAY");
+  else if(r->can_release)add(w,&n,XZ_UI_RAM_RELEASE,0,0,"RELEASE RAM COPY");
+  else if(!r->source_current||r->reason==XZ_RAM_NO_SOURCE||r->reason==XZ_RAM_TOO_LARGE)add(w,&n,XZ_UI_RAM_CHOOSE,0,0,"CHOOSE ANOTHER TRACK");
+  else if((r->reason==XZ_RAM_BUDGET_FULL||r->reason==XZ_RAM_FREE_LOW)&&!u->ram_setup)add(w,&n,XZ_UI_RAM_MANAGE,0,0,"MANAGE RAM TRACKS");
+  else if(r->reason==XZ_RAM_PIN_FAILED&&!u->ram_setup)add(w,&n,XZ_UI_RAM_SETUP_OPEN,0,0,"OPEN RAM SETUP");
+  else if(r->can_request)add(w,&n,XZ_UI_RAM_REQUEST,0,0,r->state==XZ_UI_RAM_ERROR?"RETRY LOAD INTO RAM":"LOAD TRACK INTO RAM");
+  else add(w,&n,XZ_UI_RAM_SETUP_OPEN,0,0,"CHECK RAM STATUS");
+  for(size_t j=0;j<n;j++)if(w[j].kind==XZ_UI_RAM_REQUEST||w[j].kind==XZ_UI_RAM_CANCEL||w[j].kind==XZ_UI_RAM_RELEASE||
+      (w[j].kind>=XZ_UI_RAM_SETUP_OPEN&&w[j].kind<=XZ_UI_RAM_MANAGE))w[j].deck=selected;
  }else if(u->page==XZ_UI_ABOUT){
   for(int i=0;i<XZ_ABOUT_LINKS;i++)add(w,&n,XZ_UI_ABOUT_LINK,i,0,xz_about_links[i].label);
  }else if(u->page==XZ_UI_GAMES){
@@ -474,7 +488,7 @@ static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,cons
  if(w->kind==XZ_UI_ENABLE&&w->index==XZ_UI_STEM)return xz_ui_usb_engine(m);
  if(w->kind==XZ_UI_INFO||w->kind==XZ_UI_HOME_SETUP||w->kind==XZ_UI_DECK_VIEW)return 1;
  if(w->kind==XZ_UI_SHELL_LOOK||w->kind==XZ_UI_OPEN_UTILITY)return m->modern_look.known;
- if(w->kind==XZ_UI_ROUTE_RESCAN)return m->route.state!=XZ_UI_ROUTE_SCANNING&&m->route.state!=XZ_UI_ROUTE_NO_ENGINE;
+ if(w->kind==XZ_UI_ROUTE_RESCAN)return m->route.state!=XZ_UI_ROUTE_SCANNING;
  /* Page 1 on STOCK plays the player's own 1 2 4 8: nothing to edit there. */
  if((w->kind==XZ_UI_JUMP_PAIR||w->kind==XZ_UI_JUMP_SIZE)&&u->page==XZ_UI_BEAT_JUMP&&!u->jump_edit_page&&!m->jump.enabled)return 0;
  if(w->kind==XZ_UI_MUTE||w->kind==XZ_UI_BYPASS||w->kind==XZ_UI_LEVEL)return deck<2&&usb_playable(m,deck);
@@ -506,7 +520,7 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
   /* A section tab stays lit on every page below it. */
   enum xz_ui_page at=u->page;for(int hop=0;hop<4&&!root_page(at);hop++)at=parent_page(at);
   l.selected=k==(int)u->page||(root_page((enum xz_ui_page)k)&&k==(int)at);break;}
- case XZ_UI_RAM_DECK:l.selected=k==u->deck;break;
+ case XZ_UI_RAM_DECK:l.selected=k==u->ram_deck;break;
  case XZ_UI_RAM_REQUEST:l.selected=1;break;
  case XZ_UI_PROFILE:l.selected=u->profile_open;break;
  case XZ_UI_PROFILE_PICK:l.selected=m->dj&&k>=0&&k<m->dj->count&&m->dj->entry[k].stick_active;
@@ -585,9 +599,16 @@ const char *xz_ui_ram_state_text(enum xz_ui_ram_state state){
 }
 int xz_ui_section_page_notice(const struct xz_ui *u){return u&&(xz_ui_section_page(u->page)||u->page==XZ_UI_STEM_COLORS||u->page==XZ_UI_BAND_COLORS);}
 const char *xz_ui_ram_scope(const struct xz_ui_ram *r){
+ if(r->software){
+  if(r->retained_assets&XZ_RAM_AUDIO){
+   if(!r->route_up)return "RAM retained; the loopback audio connection is down.";
+   return r->retained_assets&XZ_RAM_WAVE?"Original audio, loaded waveform and cues are retained.":"Original audio and session cues are retained; no waveform was loaded.";
+  }
+  return "64 MiB per file / 128 MiB shared originals / 64 MiB free reserve";
+ }
  if(r->state==XZ_UI_RAM_READY||r->state==XZ_UI_RAM_DETACHED)
-  return r->retained_stems_bytes?"ORIGINAL + PREPARED STEMS IN RAM / WAVES STILL USE USB":"ORIGINAL IN RAM / STEMS AND WAVES STILL USE USB";
- return "RAM COPIES ORIGINAL AUDIO / STEMS AND WAVES STILL USE USB";
+  return r->retained_stems_bytes?"ORIGINAL + PREPARED STEMS IN RAM / LOADED WAVES KEPT WHEN PRESENT":"ORIGINAL IN RAM / UNPINNED STEMS AND NEW WAVE DATA NEED USB";
+ return "RAM COPIES ORIGINAL AUDIO / STEMS AND NEW WAVE DATA ARE SEPARATE";
 }
 const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m){
  if(xz_ui_support_page(u->page))return u->notice[0]?u->notice:m->support.status[0]?m->support.status:"PREPARE SANITIZED DRAFT / PREVIEW SHA256 / SEND OR EXPORT";
@@ -612,7 +633,7 @@ const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m)
  if(u->page==XZ_UI_DOOM||u->page==XZ_UI_DOOM_SETUP)return m->doom_ready?"DOOM READY / GAME RUNS ENTIRELY ON THE XZ":"OPEN SETUP TO CHECK THE USB GAME FILES";
  if(u->page==XZ_UI_DOOM_FILES)return m->doom.status;
  if(u->page==XZ_UI_UPDATES||u->page==XZ_UI_UPDATE_SETUP)return m->update.status;
- if(u->page==XZ_UI_RAM_SETUP)return xz_ui_ram_scope(&d->ram);
+ if(u->page==XZ_UI_RAM_SETUP)return xz_ui_ram_scope(&m->deck[u->ram_deck>=0&&u->ram_deck<4?u->ram_deck:0].ram);
  return d->status?d->status:"LOAD A TRACK TO USE DECK CONTROLS";
 }
 static struct xz_ui_scene scene(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_canvas c,
@@ -857,12 +878,30 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
   }
   u->feature_step++;return 0;
  }
+ if(a.kind==XZ_UI_RAM_DECK){
+  u->ram_deck=a.index;u->capture=-1;
+  out[0]=action(a.kind,XZ_UI_PRESS,u->ram_deck,a.index,0,0);return 1;
+ }
+ if(a.kind==XZ_UI_RAM_SETUP_OPEN||a.kind==XZ_UI_RAM_MANAGE){
+  u->ram_setup=1;u->ram_step=a.kind==XZ_UI_RAM_MANAGE?4:0;u->capture=-1;return 0;
+ }
+ if(a.kind==XZ_UI_RAM_SETUP_STEP){
+  if(a.index==4){u->ram_setup=0;out[0]=action(XZ_UI_CLOSE,XZ_UI_PRESS,u->ram_deck,0,0,0);return 1;}
+  const struct xz_ui_ram *r=&m->deck[u->ram_deck].ram;
+  if(r->supported&&u->ram_step<3)u->ram_step++;
+  out[0]=action(a.kind,XZ_UI_PRESS,u->ram_deck,u->ram_step,0,0);return 1;
+ }
+ if(a.kind==XZ_UI_RAM_CONNECT){xz_ui_navigate(u,XZ_UI_FOUR_DECKS);u->history[u->history_count++]=XZ_UI_RAM_SETUP;return 0;}
+ if(a.kind==XZ_UI_RAM_REQUEST||a.kind==XZ_UI_RAM_CANCEL||a.kind==XZ_UI_RAM_RELEASE||a.kind==XZ_UI_RAM_CHOOSE){
+  out[0]=action(a.kind,XZ_UI_PRESS,u->ram_deck,a.index,1,0);
+  out[0].ram_key=m->deck[u->ram_deck].ram.key;return 1;
+ }
  if(a.kind==XZ_UI_PANEL||a.kind==XZ_UI_FEATURE_LINK){
   enum xz_ui_page old=u->page;xz_ui_navigate(u,(enum xz_ui_page)a.index);
   if(a.kind==XZ_UI_FEATURE_LINK&&root_page(u->page))u->history[u->history_count++]=old;
   u->capture=-1;out[n++]=action(XZ_UI_PANEL,XZ_UI_PRESS,u->deck,(int)old,(float)u->page,0);
  }
- else if(a.kind==XZ_UI_DECK||a.kind==XZ_UI_RAM_DECK){int old=u->deck;u->deck=a.index;u->capture=-1;out[n++]=action(a.kind,XZ_UI_PRESS,old,a.index,0,0);}
+ else if(a.kind==XZ_UI_DECK){int old=u->deck;u->deck=a.index;u->capture=-1;out[n++]=action(a.kind,XZ_UI_PRESS,old,a.index,0,0);}
  else if(a.kind==XZ_UI_MUTE||a.kind==XZ_UI_SAMPLE_PAD||a.kind==XZ_UI_HOTCUE_PAD){u->held_kind=a.kind;u->held_deck=deck;u->held_index=a.index;out[n++]=action(a.kind,XZ_UI_PRESS,deck,a.index,1,0);}
  else{float value=1;
   switch(a.kind){case XZ_UI_ENABLE:value=(m->enabled&(uint32_t)a.index)?0:1;break;case XZ_UI_BYPASS:value=d->bypass?0:1;break;
