@@ -176,6 +176,8 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
  case XZ_UI_KEY_SETUP:
   add(w,&n,XZ_UI_KEY_SHIFT,-1,XZ_UI_KEY,"KEY DOWN");add(w,&n,XZ_UI_KEY_SHIFT,0,XZ_UI_KEY,"RESET");add(w,&n,XZ_UI_KEY_SHIFT,1,XZ_UI_KEY,"KEY UP");
   add(w,&n,XZ_UI_KEY_SYNC,0,XZ_UI_KEYSYNC,"KEY SYNC");
+  if((m->deck[u->deck].ready&(XZ_UI_KEY|XZ_UI_KEYSYNC))!=(XZ_UI_KEY|XZ_UI_KEYSYNC))
+   add(w,&n,XZ_UI_KEY_CHECK,0,0,"SET UP KEYS");
   break;
  default:break;
  }
@@ -302,6 +304,7 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
   case XZ_UI_KEY_SETUP:
    if(a->kind==XZ_UI_KEY_SHIFT){if(k<0)put(a,X0,200,120,40);else if(!k)put(a,X0+128,200,140,40);else put(a,X0+276,200,120,40);}
    else if(a->kind==XZ_UI_KEY_SYNC)put(a,X0+404,200,CW-404,40);
+   else if(a->kind==XZ_UI_KEY_CHECK)put(a,X0,344,CW,40);
    break;
   default:break;
   }

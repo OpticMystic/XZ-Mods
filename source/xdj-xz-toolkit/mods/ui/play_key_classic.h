@@ -4,6 +4,7 @@
 #include "play_key.h"
 #include "key_strip.h"
 #include "../extra_decks.h"
+#include "../key/view.h"
 
 /* The four-lane renderer changes only the 536x268 wave surface at 131,18.
  * The reserved stock key-feedback rectangles remain at their original places.
@@ -23,7 +24,7 @@ static inline int xz_classic_key_slot_at(const struct xz_classic_key_slots *slot
  return -1;
 }
 static inline const char *xz_classic_metadata(const struct xz_extra_deck *d){
- return d&&d->loaded&&(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))&&d->key[0]?d->key:"---";
+ return d&&d->loaded&&(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))&&d->key[0]?xz_extra_key_text(d):"---";
 }
 static inline void xz_classic_key_render(struct xz_classic_key_slots *slots,const struct xz_ui_model *m,
  const struct xz_extra_decks *extra,int play,int four,uint16_t *pixels,size_t stride){
@@ -37,12 +38,12 @@ static inline void xz_classic_key_render(struct xz_classic_key_slots *slots,cons
   /* badge() already painted the native feedback. Keep its applied cents,
    * SYNC/master role, colours and two-line errors intact. */
   if(deck<2&&m->key_feedback)continue;
-  char label[32];snprintf(label,sizeof label,deck>1?"D%d TRACK KEY >":"D%d KEY >",deck+1);
-  const char *key=deck>1?xz_classic_metadata(&extra->deck[deck-2]):m->key_feedback?m->deck[deck].key_readout:"OPEN CONTROLS";
+  char label[32];snprintf(label,sizeof label,"D%d KEY >",deck+1);
+  const char *key=m->key_feedback?m->deck[deck].key_readout:deck>1?xz_classic_metadata(&extra->deck[deck-2]):"OPEN CONTROLS";
   if(!key||!*key)key="---";
   xz_rect(c,b.x,b.y,b.w,b.h,pal->bg);
   xz_ui_chrome_fit(c,b.x+3,b.y+2,b.w-6,label,1,pal->accent);
-  xz_ui_chrome_fit(c,b.x+3,b.y+17,b.w-6,key,1,pal->ink);
+  xz_ui_chrome_fit(c,b.x+3,b.y+17,b.w-6,key,1,m->key_feedback&&m->browse_traffic?m->deck[deck].key_color:pal->ink);
  }
 }
 #endif

@@ -20,7 +20,7 @@ spec.loader.exec_module(fixture)
 data = out / 'data'
 data.mkdir(exist_ok=True)
 fixture.fixtures(data)
-sources = [root / n for n in ['extra_player.c', 'deck_select.c', 'anlz_extra.c', 'shell_analysis.c',
+sources = [root / n for n in ['extra_player.c','key/keyshift.c','key/music.c','key/control.c', 'deck_select.c', 'anlz_extra.c', 'shell_analysis.c',
     'ui/layered_wave_source.c', 'ui/layered_wave.c', 'audio/stem_media.c', 'audio/stem_mp3.c',
     'audio/stem_decode.c', 'tests/test_sync_engine.c']]
 receipt = []

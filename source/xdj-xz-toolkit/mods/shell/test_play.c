@@ -497,10 +497,12 @@ static void test_live_key(void) {
   assert(diff_box(frame(buffer_a),frame(buffer_b),&box)>20&&box_inside(box,row));
   assert(box.x>xz_shell_play_rect(&m,XZ_SHELL_R_TIME,d).x+60);   /* right of REMAIN / TIME */
  }
- /* Deck 2 plays Bbm (KEY SYNC, from Am, +12 cents) against the master's Fm: amber, a wheel step away. */
+ /* Nearby compatible keys within 25 cents are green, including wheel neighbours. */
  struct xz_shell_rect k1=key_block(0),k2=key_block(1);
  struct xz_shell_rect name2={k2.x,k2.y+22,60,20},name1={k1.x,k1.y+22,60,20};
- assert(count_in(frame(buffer_a),name2,SH_KEY_AMBER)>40&&count_in(frame(buffer_a),name1,SH_WHITE)>40);
+ assert(count_in(frame(buffer_a),name2,SH_KEY_GREEN)>40&&count_in(frame(buffer_a),name1,SH_WHITE)>40);
+ other=m;other.deck[1].key_cents=40;render_checked(&u,&other,buffer_b);
+ assert(count_in(frame(buffer_b),name2,SH_KEY_AMBER)>40);
  /* The KEY SYNC lamp replaces the KEY caption: blue on deck 2, none on deck 1. */
  struct xz_shell_rect cap2={k2.x,k2.y,k2.w,19},cap1={k1.x,k1.y,k1.w,19};
  assert(count_in(frame(buffer_a),cap2,SH_BLUE)>40&&count_in(frame(buffer_a),cap1,SH_BLUE)==0);
@@ -524,7 +526,7 @@ static void test_live_key(void) {
  struct xz_shell_model old=m;
  for(int d=0;d<2;d++)old.deck[d].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL)|XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_SYNC));
  render_checked(&u,&old,buffer_b);
- assert(count_in(frame(buffer_b),name2,SH_KEY_AMBER)>40&&count_in(frame(buffer_b),cap2,SH_BLUE)==0);
+ assert(count_in(frame(buffer_b),name2,SH_KEY_GREEN)>40&&count_in(frame(buffer_b),cap2,SH_BLUE)==0);
  assert(count_in(frame(buffer_b),from2,SH_CHROME)==from2.w*from2.h&&ink_in(frame(buffer_b),tail)>10);  /* the step, not cents */
  other=old;for(int d=0;d<2;d++){other.deck[d].key_original=(const char *)1;other.deck[d].key_cents=77;other.deck[d].key_synced=1;}
  render_checked(&u,&other,buffer_a);

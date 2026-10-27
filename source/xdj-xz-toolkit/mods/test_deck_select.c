@@ -551,7 +551,21 @@ static void test_global_track_restart(void) {
  }
 }
 
+static void test_shift_sync_owner(void){
+ for(int side=0;side<2;side++){
+  reset(1);double_press(side);
+  struct xz_ds_key k={.side=side,.code=0x4313,.op=0,.shift=1};
+  struct xz_ds_outcome o=xz_deck_select_key(&d,&k,now);
+  assert(o.verdict==XZ_DS_DELIVER&&o.event.kind==XZ_EXTRA_IN_SYNC&&o.event.shift);
+  k.shift=0;assert(xz_deck_select_key(&d,&k,now).verdict==XZ_DS_SWALLOW);
+  xz_deck_select_toggle(&d,side,NULL);
+  assert(xz_deck_select_key(&d,&k,now).verdict==XZ_DS_SWALLOW);k.op=1;
+  assert(xz_deck_select_key(&d,&k,now).verdict==XZ_DS_SWALLOW);
+  k.op=2;assert(xz_deck_select_key(&d,&k,now).verdict==XZ_DS_SWALLOW);
+ }
+}
 int main(void) {
+ test_shift_sync_owner();
  for(int side=0;side<2;side++){
   reset(1);
   for(int end=0;end<3;end++){

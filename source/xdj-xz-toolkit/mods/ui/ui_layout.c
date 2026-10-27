@@ -126,7 +126,7 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_BACK:put(a,0,0,XZ_UI_RAIL_W,TOP);break;
   case XZ_UI_CLOSE:put(a,720,0,80,TOP);break;
   /* Header deck pickers give up width to the DJ Profile chip when there is one. */
-  case XZ_UI_DECK:if(page==XZ_UI_PC_STEMS)put(a,X0+k*208,96,200,40);else if(m->dj)put(a,300+k*176,0,170,TOP);else put(a,k?510:300,0,206,TOP);break;
+  case XZ_UI_DECK:if(page==XZ_UI_KEY_SETUP)put(a,252+k*98,0,94,TOP);else if(page==XZ_UI_PC_STEMS)put(a,X0+k*208,96,200,40);else if(m->dj)put(a,300+k*176,0,170,TOP);else put(a,k?510:300,0,206,TOP);break;
   /* DJ PROFILE: avatar, name and caret in the corner; avatar and caret only beside deck pickers. */
   case XZ_UI_PROFILE:if(xz_ui_header_decks(u->page))put(a,652,0,64,TOP);else put(a,568,0,148,TOP);break;
   case XZ_UI_PROFILE_PICK:{int first;xz_ui_profile_window(u,m,&first);

@@ -231,7 +231,7 @@ void xz_shell_model_set_input(struct xz_shell_model_storage *s,int deck,const st
     if(!input){v->deck.known=0;return;}
     /* Stage before overwriting to permit a previous model deck as input. */
     struct xz_shell_deck d=*input;
-    d.known&=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(KEY_ORIGINAL)|K(KEY_SYNC)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST)|K(MEMORY_CUES)|K(SOURCE_LOOK);
+    d.known&=K(LOADED)|K(PLAYING)|K(KEY)|K(KEY_SHIFT)|K(KEY_ORIGINAL)|K(KEY_SYNC)|K(KEY_PROOF)|K(GRID)|K(BAR_PHASE)|K(SOURCE)|K(ARTIST)|K(MEMORY_CUES)|K(SOURCE_LOOK);
     if(d.known&K(ARTIST)){
         size_t n=0;if(d.artist)while(n<TITLE_BYTES&&d.artist[n])++n;
         if(!n||n>=TITLE_BYTES)d.known&=~K(ARTIST);
@@ -270,6 +270,7 @@ static void input_fields(struct xz_shell_deck *d,struct xz_shell_model_input *v)
     if(i->known&K(PLAYING))d->playing=!!i->playing;
     if(i->known&K(KEY)){d->key=i->key;d->key_matches_master=!!i->key_matches_master;}
     if(i->known&K(KEY_ORIGINAL)){d->key_original=i->key_original;d->key_cents=i->key_cents;}
+    if(i->known&K(KEY_PROOF))d->key_proof=i->key_proof;
     if(i->known&K(KEY_SYNC))d->key_synced=!!i->key_synced;
     if(i->known&K(KEY_SHIFT))d->key_shift=i->key_shift;
     if(i->known&K(GRID)){d->grid=i->grid;d->grid_count=i->grid_count;}

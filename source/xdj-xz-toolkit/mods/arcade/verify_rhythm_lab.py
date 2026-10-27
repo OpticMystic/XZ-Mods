@@ -21,7 +21,7 @@ from ui.ui_sources import UI_SOURCES
 rt=[root/n for n in ('test_rhythm_lab_runtime.c','arcade.c','render.c','input.c','clock.c','native_clock.c','rhythm_lab.c','rhythm_lab_runtime.c','rhythm_lab_render.c','glyph_run.c','glyph_run_render.c','game_motion_draw.c','game_feel_art.c','game_font.c')]
 rt += [root.parent/'ui'/n for n in UI_SOURCES]
 rt += [root.parent/'ui'/n for n in ('native_touch.c','stem_pads.c','beat_jump.c','wave_viewport.c')]
-rt += [root.parent/n for n in ('key/music.c','key/browser.c','key/catalog.c','key/traffic.c','kart/xz_kart_input.c','kart/xz_kart_runtime.c','settings.c','usb_profile.c','doom/native_bridge.c','doom/wad_catalog.c','ota/native_update.c','audio/vendor/sha256/sha256.c','pc_control/stems.c')]
+rt += [root.parent/n for n in ('key/music.c','key/control.c','key/browser.c','key/catalog.c','key/traffic.c','kart/xz_kart_input.c','kart/xz_kart_runtime.c','settings.c','usb_profile.c','doom/native_bridge.c','doom/wad_catalog.c','ota/native_update.c','audio/vendor/sha256/sha256.c','pc_control/stems.c')]
 armrt=out/'lab-runtime-arm';run(common+['-target','arm-linux-gnueabi.2.13','-mcpu=cortex_a9']+rt+['-pthread','-ldl','-lm','-o',armrt])
 proof=inspect(armrt);proof['executed_on_device']=False;(out/'runtime-arm.json').write_text(json.dumps(proof,indent=2)+'\n')
 print('PASS Lab host engine/render and ARM ABI')

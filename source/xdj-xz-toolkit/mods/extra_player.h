@@ -74,6 +74,7 @@ void xz_xp_set_performance_settings(struct xz_xp_players *,const struct xz_perfo
 int xz_xp_jump_snapshot(struct xz_xp_players *,int deck,struct xz_jump_snapshot *);
 void xz_xp_set_quantize_grid(struct xz_xp_players *,unsigned denominator,int known);
 void xz_xp_set_master_observer(struct xz_xp_players *,xz_master_observer);
+void xz_xp_set_key_owner_reader(struct xz_xp_players *,int (*)(int,struct xz_key_owner *));
 void xz_xp_native_master_selected(struct xz_xp_players *,unsigned native_deck);
 struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env);
 void xz_xp_destroy(struct xz_xp_players *);

@@ -1,3 +1,4 @@
+#include "../key/music.h"
 #include "../key/notation.h"
 /* Waveforms, playhead extrapolation and key text, shared by every screen so a
    deck reads the same on the play screen, the status strips and the lists.
@@ -10,6 +11,7 @@
 #include "shell_axis.h"
 #include "../ui/deck_colour.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define C565(c) ((uint16_t)((((c)>>8)&0xf800)|(((c)>>5)&0x7e0)|(((c)>>3)&31)))
@@ -511,26 +513,34 @@ const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *b
 enum xz_shell_key_match xz_shell_key_match(const char *key, const char *master_key) {
  int pc,minor,mpc,mminor;
  if(!parse_key(key,&pc,&minor)||!parse_key(master_key,&mpc,&mminor))return XZ_SHELL_KEY_MATCH_UNKNOWN;
- int n=(pc*7+(minor?4:7))%12,mn=(mpc*7+(mminor?4:7))%12;
- if(n==mn)return XZ_SHELL_KEY_MATCH_GREEN;
- if(minor==mminor&&((n+1)%12==mn||(mn+1)%12==n))return XZ_SHELL_KEY_MATCH_AMBER;
- return XZ_SHELL_KEY_MATCH_NONE;
+ enum xz_key_match match=xz_key_match((struct xz_playing_key){.key={pc,minor}},
+  (struct xz_playing_key){.key={mpc,mminor}});
+ return match==XZ_KEY_COMPATIBLE?XZ_SHELL_KEY_MATCH_GREEN:XZ_SHELL_KEY_MATCH_NONE;
 }
 const char *xz_shell_master_key(const struct xz_shell_model *m) {
  if(!m)return NULL;
  for(int d=0;d<sh_deck_count(m);d++){
   const struct xz_shell_deck *k=&m->deck[d];
-  if(sh_has(k,XZ_SHELL_F_MASTER)&&k->master&&sh_has(k,XZ_SHELL_F_KEY)&&k->key&&(!sh_has(k,XZ_SHELL_F_LOADED)||k->loaded))return k->key;
+  if((!sh_has(k,XZ_SHELL_F_KEY_PROOF)||k->key_proof>=0)&&sh_has(k,XZ_SHELL_F_MASTER)&&k->master&&sh_has(k,XZ_SHELL_F_KEY)&&k->key&&(!sh_has(k,XZ_SHELL_F_LOADED)||k->loaded))return k->key;
  }
  return NULL;
 }
-uint32_t sh_key_ink(const struct xz_shell_model *m, const char *key, int matches_master, uint32_t plain) {
+uint32_t sh_key_ink_cents(const struct xz_shell_model *m,const char *key,int cents,int matches_master,uint32_t plain){
  if(m&&m->mods_settings_known&&!m->browse_traffic)return plain;
  const char *master=xz_shell_master_key(m);
  if(!master)return matches_master?SH_GREEN:plain;
- switch(xz_shell_key_match(key,master)){
+ int residual=0;
+ for(int d=0;d<sh_deck_count(m);d++)if(sh_has(&m->deck[d],XZ_SHELL_F_MASTER)&&m->deck[d].master&&
+    sh_has(&m->deck[d],XZ_SHELL_F_KEY_ORIGINAL))residual=m->deck[d].key_cents;
+ enum xz_shell_key_match match=xz_shell_key_match(key,master);
+ if(match==XZ_SHELL_KEY_MATCH_GREEN&&abs(cents-residual)>25)match=XZ_SHELL_KEY_MATCH_AMBER;
+ switch(match){
  case XZ_SHELL_KEY_MATCH_GREEN:return SH_KEY_GREEN;
  case XZ_SHELL_KEY_MATCH_AMBER:return SH_KEY_AMBER;
  default:return plain;
  }
+}
+
+uint32_t sh_key_ink(const struct xz_shell_model *m,const char *key,int matches_master,uint32_t plain){
+ return sh_key_ink_cents(m,key,0,matches_master,plain);
 }

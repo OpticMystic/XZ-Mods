@@ -103,6 +103,7 @@ static uint32_t last_drawn_ms, period_ms=100;
 static uint32_t shown_extra_revision, shown_extra_control;
 static uint32_t native_input_at[2],native_input_revision,shown_native_input;
 static struct xz_shell shell;
+static int key_setup_browser; /* mutex; temporary browser, never a saved interface change */
 static struct xz_shell_model model;
 static struct xz_shell_model_storage *storage;
 static int refreshed;
@@ -1745,7 +1746,7 @@ static void *worker(void *unused) {
 }
 
 /* ---- ownership, proof ---- */
-static int candidate(int eligible, int theme) { return enabled&&__atomic_load_n(&interface_modern,__ATOMIC_ACQUIRE)&&eligible&&theme==XZ_THEME_FLAGSHIP; }
+static int candidate(int eligible, int theme) { return enabled&&eligible&&(key_setup_browser||(__atomic_load_n(&interface_modern,__ATOMIC_ACQUIRE)&&theme==XZ_THEME_FLAGSHIP)); }
 static int owns_now(int eligible, int theme) { return candidate(eligible,theme)&&refreshed&&!xz_shrt_handoff_yields(&handoff); }
 static void set_owns(int owns) {
  int was=__atomic_exchange_n(&owns_flag,owns,__ATOMIC_ACQ_REL);
@@ -2282,6 +2283,7 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
 }
 /* UTILITY on top: the shell draws it over the VJ takeover, as the panel does. */
 static void note_menu_locked(void) {
+ if(key_setup_browser&&xz_shell_screen(&shell)==XZ_SHELL_PLAY)key_setup_browser=0;
  __atomic_store_n(&mods_open_flag,xz_shell_screen(&shell)==XZ_SHELL_UTILITY,__ATOMIC_RELEASE);
 }
 static void deliver_locked(const struct xz_shell_event *e, uint32_t now) {
@@ -3123,6 +3125,18 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
 }
 /* LOAD of a side driving DECK 3 / 4 while the shell owns the screen (runtime.c decided it): the press loads
    the highlighted row to that player. 1 when the shell owned the screen and took it. */
+int xz_shell_runtime_key_setup_load(int deck){
+ if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||(unsigned)deck>=4)return 0;
+ lock_as("key_setup");
+ int ok=storage&&deck<model.deck_count;
+ if(ok){
+  xz_shrt_handoff_end(&handoff);shell.deck=deck;
+  deliver_key_locked(XZ_SHELL_KEY_BROWSE,deck,now_ms());
+  key_setup_browser=xz_shell_screen(&shell)!=XZ_SHELL_PLAY;ok=key_setup_browser;
+  dirty_flag=1;
+ }
+ pthread_mutex_unlock(&mutex);return ok;
+}
 int xz_shell_runtime_extra_load_key(int eligible, int theme, int side) {
  if(!__atomic_load_n(&enabled,__ATOMIC_ACQUIRE)||side<0||side>=XZ_EXTRA_DECKS)return 0;
  uint32_t now=now_ms();
@@ -3508,7 +3522,7 @@ static int start_locked(void) {
  /* calloc: shell_model.c requires zeroed storage. */
  storage=calloc(1,xz_shell_model_storage_size());
  if(!storage){xz_log("FLAGSHIP shell unavailable: no memory for the model");return -1;}
- xz_shell_init(&shell);
+ xz_shell_init(&shell);key_setup_browser=0;
  display_input_known=0;wave_color_explicit=0;
  memset(&model,0,sizeof model);memset(&handoff,0,sizeof handoff);memset(&queue,0,sizeof queue);
  model.deck_count=XZ_SHELL_NATIVE_DECKS;extra_reset();

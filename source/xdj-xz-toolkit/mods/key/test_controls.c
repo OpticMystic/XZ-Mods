@@ -21,7 +21,7 @@ static void keys(void){
     fixture_keys[0]=(struct xz_key_snapshot){.original={2,0},.epoch=1,.tempo_ratio=1,.loaded=1,.master=1};
     fixture_keys[1]=(struct xz_key_snapshot){.original={0,0},.epoch=2,.tempo_ratio=1,.loaded=1};
     fixture_key_cents[0]=fixture_key_cents[1]=fixture_key_requests=0;fixture_key_applied[0]=fixture_key_applied[1]=0;
-    started=key_available=1;model.shift_keysync=1;sync_down=sync_owned=0;
+    started=key_available=1;model.shift_keysync=1;model.key_feedback=1;model.key_format=0;sync_down=sync_owned=0;
     master_tempo_down=master_tempo_owned=0;memset(key_sync,0,sizeof(key_sync));
 }
 static int fixture_mt_stock_calls,fixture_mt_on_calls;
@@ -40,6 +40,7 @@ static void toggle_test(void){
     native_master_tempo_on=fixture_master_tempo_on;stock_master_tempo_key=fixture_master_tempo_stock;
     for(int mt=0;mt<2;mt++)for(int master=0;master<2;master++){
         keys();fixture_keys[1].master_tempo=mt;fixture_keys[1].master=master;fixture_keys[0].master=!master;
+        if(master){assert(!sync_key(1));continue;}
         fixture_keys[1].tempo_ratio=1.08;
         fixture_keys[0].tempo_ratio=exp2(.23/12);fixture_key_applied[0]=100;
         assert(sync_key(1));assert(key_sync[1].valid&&fixture_keys[1].master_tempo==1);
@@ -62,7 +63,7 @@ static void toggle_test(void){
         assert(!key_sync[1].valid&&fixture_keys[1].master_tempo==mt&&fixture_key_cents[1]==0);
     }
     for(int deck=0;deck<2;deck++)for(int mt=0;mt<2;mt++){
-        keys();self[0x26]=(unsigned char)(deck+1);fixture_keys[deck].master_tempo=mt;
+        keys();fixture_keys[deck].master=0;fixture_keys[1-deck].master=1;self[0x26]=(unsigned char)(deck+1);fixture_keys[deck].master_tempo=mt;
         assert(sync_key(deck));fixture_key_apply(deck);int applied=fixture_key_applied[deck];
         /* SHIFT+MASTER TEMPO stays stock and leaves KEY SYNC on. */
         int before=fixture_mt_stock_calls;self[0x34]=1;input[11]=0;master_tempo_key_hook(self,input);
@@ -79,7 +80,7 @@ static void toggle_test(void){
     }
     self[0x26]=2;
     keys();fixture_keys[1].original.minor=1;assert(sync_key(1)&&fixture_key_cents[1]==-100);
-    assert(sync_key(1));fixture_keys[0].master=fixture_keys[1].master=0;assert(sync_key(0));
+    assert(sync_key(1));fixture_keys[0].master=fixture_keys[1].master=0;assert(!sync_key(0));
     keys();fixture_keys[1].tempo_ratio=exp2(1.23/12);refresh();
     struct xz_shell_runtime_frame_input frame;shell_frame_input_locked(&frame);
     assert(!strcmp(frame.key[1].text,"Db")&&frame.key[1].cents==23&&!frame.key[1].synced);
@@ -98,7 +99,7 @@ static void toggle_test(void){
 }
 static void metadata_gap_test(void){
     for(int deck=0;deck<2;deck++)for(int mt=0;mt<2;mt++)for(int button=0;button<2;button++){
-        keys();native_master_tempo_on=fixture_master_tempo_on;stock_master_tempo_key=fixture_master_tempo_stock;
+        keys();fixture_keys[deck].master=0;fixture_keys[1-deck].master=1;native_master_tempo_on=fixture_master_tempo_on;stock_master_tempo_key=fixture_master_tempo_stock;
         fixture_keys[deck].master_tempo=mt;
         assert(sync_key(deck));fixture_key_apply(deck);
         fixture_key_valid[deck]=0;refresh();
@@ -130,4 +131,7 @@ static void badge_test(void){
         touch.visible=0;native_play=1;
     }
 }
-int main(void){existing_controls_test();toggle_test();metadata_gap_test();badge_test();return 0;}
+int main(int argc,char **argv){
+    if(argc==2&&!strcmp(argv[1],"key-only")){toggle_test();metadata_gap_test();return 0;}
+    existing_controls_test();toggle_test();metadata_gap_test();badge_test();return 0;
+}

@@ -7,7 +7,7 @@ def linux(p):
  s=p.resolve().as_posix();return '/mnt/'+s[0].lower()+s[2:]
 files=[M/'extra_cue_store.c',M/'tests/test_extra_cue_store.c']
 if a.player:
- files=[M/n for n in ['extra_player.c','deck_select.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c','extra_cue_store.c','tests/test_stock_cues_review.c']]
+ files=[M/n for n in ['extra_player.c','key/keyshift.c','key/music.c','key/control.c','deck_select.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c','extra_cue_store.c','tests/test_stock_cues_review.c']]
  spec=importlib.util.spec_from_file_location('cue_fixtures',M/'extra_player_fixtures.py');fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture);fixture.fixtures(O/'data')
 flags=['-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-pthread','-I'+linux(M)]
 if a.player:flags+=['-DXZ_XP_TEST_RENDER_HOOK','-Wno-unused-function']

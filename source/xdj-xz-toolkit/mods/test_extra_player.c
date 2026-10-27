@@ -1730,6 +1730,10 @@ static void test_threads(void) {
    struct xz_extra_deck_event pitch = event(d, XZ_EXTRA_IN_TEMPO, 1);
    pitch.tempo_position = (i & 1) ? 5000 : -5000;
    (void)xz_xp_input(p, &pitch);
+   struct xz_extra_decks keys={0};xz_xp_read(p,&keys);
+   struct xz_extra_deck_event key=event(d,XZ_EXTRA_IN_KEY,1);
+   key.key=(struct xz_key_command){.kind=(i&1)?XZ_KEY_RESET:XZ_KEY_STEP,.step=1,.source_owner=keys.deck[d].key_state.owner};
+   (void)xz_xp_input(p,&key);
   }
   struct timespec t = {0, 40000000}; nanosleep(&t, NULL);
  }
@@ -1808,7 +1812,7 @@ static void test_mods_sync_gesture(void){
  for(int deck=0;deck<2;deck++){
   struct xz_extra_deck_event e=event(deck,XZ_EXTRA_IN_SYNC,1);e.shift=1;
   assert(!view.deck[deck].sync.requested);assert(input(e));step();
-  assert(!view.deck[deck].sync.requested&&!strcmp(view.notice,"KEY SYNC: DECKS 1 AND 2 ONLY FOR NOW"));
+  assert(!view.deck[deck].sync.requested&&!strcmp(view.notice,"SET UP KEYS / KEY TARGET NOT CAPTURED"));
   e.shift=0;assert(input(e));step();assert(view.deck[deck].sync.requested);
   e.shift=1;assert(input(e));step();assert(view.deck[deck].sync.requested);
   e.shift=0;assert(input(e));step();assert(!view.deck[deck].sync.requested);

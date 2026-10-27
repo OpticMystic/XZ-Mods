@@ -322,9 +322,9 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_PAD_FEEDBACK:return "Stem pad lights on decks 1 and 2 show colors and dim muted stems.";
  case XZ_UI_SHIFT_PAGES:return "SHIFT + a pad mode button gives the four stem actions in that order.";
  case XZ_UI_SHIFT_KEYSYNC:return "SHIFT + SYNC matches this deck's key to the master deck.";
- case XZ_UI_KEY_SHIFT:return k<0?"Lowers the deck key one semitone.":k>0?"Raises the deck key one semitone.":"Returns the deck to its original key.";
+ case XZ_UI_KEY_SHIFT:return k<0?"Lowers the deck key one semitone.":k>0?"Raises the deck key one semitone.":"Removes explicit key shift. With Master Tempo off, tempo can still change the key.";
  case XZ_UI_KEY_SYNC:return "Shifts this deck to a key compatible with the master deck.";
- case XZ_UI_KEY_CHECK:return "Checks that both decks report analyzed keys. SHIFT + SYNC is always available.";
+ case XZ_UI_KEY_CHECK:return "Detects this deck, opens connection or track loading, and verifies processed key output.";
  case XZ_UI_KEY_FEEDBACK:return m->ui_interface==XZ_UI_INTERFACE_MODERN?
   "Shows the key the track plays in now, after tempo and key shift, as the big key. Off shows the track's original key.":
   "Shows the key the track plays in now, after tempo and key shift, where the beat countdown sits. Off brings the countdown back.";

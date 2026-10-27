@@ -1,3 +1,4 @@
+#include "../key/view.h"
 /* SPDX-License-Identifier: MIT */
 #include "extra_detail.h"
 #include "extra_lane.h"
@@ -111,9 +112,9 @@ static void track(struct xz_canvas c,const struct xz_extra_deck *d){
  int titled=(d->known&K(TITLE))&&d->title[0];
  fit(c,6,ROW_TITLE,RIGHT,titled?d->title:"--",2,titled?INK:BLANK);
  int right=RIGHT;
- char k[sizeof d->key];
- if((d->known&K(KEY))&&d->key[0]){memcpy(k,d->key,sizeof k);k[sizeof k-1]=0;}else snprintf(k,sizeof k,"--");
- int w=xz_text_width(c,k,1,8);xz_text(c,right-w,ROW_ARTIST,k,1,8,k[0]=='-'?BLANK:INK);right-=w+4;
+ char k[24];
+ if((d->known&K(KEY))&&d->key[0]){xz_extra_key_label(d,k,sizeof k);}else snprintf(k,sizeof k,"--");
+ int w=xz_text_width(c,k,1,20);xz_text(c,right-w,ROW_ARTIST,k,1,20,k[0]=='-'?BLANK:xz_extra_key_ink(d,INK));right-=w+4;
  w=xz_text_width(c,"KEY",1,4);xz_text(c,right-w,ROW_ARTIST,"KEY",1,4,LABEL);right-=w+10;
  if((d->known&K(SOURCE))&&(d->source==1||d->source==2)){
   const char *usb=d->source==1?"USB1":"USB2";w=xz_text_width(c,usb,1,4);

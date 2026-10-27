@@ -20,7 +20,7 @@ all_sources=[]
 for suite in ['phase','generation']:
  sources=[M/f'tests/test_completed_{suite}.c']
  if suite=='phase':sources += [M/'sync_link_plan.c',M/'sync_link_runtime.c']
- else:sources += [M/n for n in ['extra_player.c','deck_select.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c']]
+ else:sources += [M/n for n in ['extra_player.c','key/keyshift.c','key/music.c','key/control.c','deck_select.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c']]
  all_sources+=sources
  rc=run(['wsl','-d','Ubuntu','--exec',cc,*flags,*map(linux,sources),'-Wl,--gc-sections','-lm','-pthread','-o',linux(O/suite)])
  if not rc:rc=run(['wsl','-d','Ubuntu','--cd',linux(O),'--exec',*(['qemu-arm','-cpu','cortex-a9','-L','/usr/arm-linux-gnueabi'] if a.arch=='arm' else []),linux(O/suite),*([linux(O/'data')] if suite=='generation' else [])])

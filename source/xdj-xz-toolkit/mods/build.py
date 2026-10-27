@@ -266,7 +266,7 @@ def main() -> None:
                str(ROOT / "dj_json.c"), str(ROOT / "dj_name_key.c"),
                str(ROOT / "ui/wave_viewport.c"),
                str(key_object), str(ROOT / "key/runtime.c"),
-               str(ROOT / "key/music.c"), str(ROOT / "key/native.c"), str(ROOT / "key/native_browse.c"), str(ROOT / "key/traffic.c"),
+               str(ROOT / "key/control.c"), str(ROOT / "key/native.c"), str(ROOT / "key/native_browse.c"), str(ROOT / "key/traffic.c"),
                str(ROOT / "key/catalog.c"), str(ROOT / "key/browser.c"),
                str(audio_runtime_object), str(ROOT / "audio/native_reader.c"),
                str(ROOT / "audio/trace.c"),
@@ -333,7 +333,7 @@ def main() -> None:
         "route-card-test": [*(str(ROOT / "ui" / name) for name in ("ui_draw.c", "route_card.c", "cable_anim.c", "test_route_card.c")), "-lm"],
         "cable-anim-test": [*(str(ROOT / "ui" / name) for name in ("ui_draw.c", "test_cable_anim.c")), "-lm"],
         "extra-player-test": ["-DXZ_XP_TEST_RENDER_HOOK", "-pthread", *(str(ROOT / name) for name in (
-            "extra_player.c", "deck_select.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c", "ui/layered_wave.c",
+            "extra_player.c", "key/keyshift.c", "key/music.c", "key/control.c", "deck_select.c", "anlz_extra.c", "shell_analysis.c", "ui/layered_wave_source.c", "ui/layered_wave.c",
             "audio/stem_media.c", "audio/stem_decode.c", "test_extra_player.c")), str(mp3_object), "-lm"],
         "settings-test": [str(ROOT / "settings.c"), str(ROOT / "tests/test_settings.c")],
         "my-settings-test": [str(ROOT / "my_settings.c"), str(ROOT / "test_my_settings.c")],

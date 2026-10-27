@@ -384,7 +384,7 @@ static void test_key_wheel(void) {
   const char *master=ml?major[n]:minor[n],*key=kl?major[k]:minor[k];
   enum xz_shell_key_match want=XZ_SHELL_KEY_MATCH_NONE;
   if(k==n)want=XZ_SHELL_KEY_MATCH_GREEN;
-  else if(kl==ml&&((k+1)%12==n||(n+1)%12==k))want=XZ_SHELL_KEY_MATCH_AMBER;
+  else if(kl==ml&&((k+1)%12==n||(n+1)%12==k))want=XZ_SHELL_KEY_MATCH_GREEN;
   assert(xz_shell_key_match(key,master)==want);
   /* The same answer in alphanumeric notation. */
   char a[8],b2[8];
@@ -396,7 +396,12 @@ static void test_key_wheel(void) {
  /* The master is the deck flagged master with a known key; rows and the other deck colour against it. */
  struct xz_shell_model m;fx_model_full(&m,&track);
  assert(!strcmp(xz_shell_master_key(&m),"Fm"));
- assert(sh_key_ink(&m,"Cm",0,SH_WHITE)==SH_KEY_AMBER&&sh_key_ink(&m,"Ab",0,SH_WHITE)==SH_KEY_GREEN&&sh_key_ink(&m,"E",1,SH_WHITE)==SH_WHITE);
+ m.deck[0].key_cents=40;m.deck[0].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_ORIGINAL);
+ assert(sh_key_ink(&m,"Cm",0,SH_WHITE)==SH_KEY_AMBER);
+ assert(sh_key_ink_cents(&m,"Cm",40,0,SH_WHITE)==SH_KEY_GREEN);
+ m.deck[0].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_KEY_PROOF);m.deck[0].key_proof=-1;
+ assert(!xz_shell_master_key(&m));m.deck[0].key_proof=1;m.deck[0].key_cents=0;
+ assert(sh_key_ink(&m,"Cm",0,SH_WHITE)==SH_KEY_GREEN&&sh_key_ink(&m,"Ab",0,SH_WHITE)==SH_KEY_GREEN&&sh_key_ink(&m,"E",1,SH_WHITE)==SH_WHITE);
  m.deck[0].master=0;
  assert(xz_shell_master_key(&m)==NULL&&sh_key_ink(&m,"E",1,SH_WHITE)==SH_GREEN&&sh_key_ink(&m,"Cm",0,SH_WHITE)==SH_WHITE);
  puts("PASS key wheel: 24 x 24 keys, both notations, master lookup, runtime fallback");
@@ -502,8 +507,9 @@ static void test_two_line_rows(void) {
  assert(artist>8&&count(frame(buffer_b),below,SH_DIM)<artist);
  puts("PASS browse rows: artist under the title unless the ARTIST column shows");
 }
-int main(void) {
+int main(int argc,char **argv) {
  fx_track_build(&track,7);
+ if(argc==2&&!strcmp(argv[1],"keys-only")){test_key_wheel();return 0;}
  bx_build(&lib);
  test_back_chain();
  test_stick_keys();

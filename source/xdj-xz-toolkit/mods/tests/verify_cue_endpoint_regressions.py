@@ -6,7 +6,7 @@ p=argparse.ArgumentParser();p.add_argument('--arch',choices=['host','arm'],defau
 O=a.output.resolve();O.mkdir(parents=True,exist_ok=False)
 def linux(p):
  s=p.resolve().as_posix();return '/mnt/'+s[0].lower()+s[2:]
-names=['extra_player.c','deck_select.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c','extra_cue_store.c']
+names=['extra_player.c','key/keyshift.c','key/music.c','key/control.c','deck_select.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c','extra_cue_store.c']
 files=[M/n for n in names]+[R/'test_cue_endpoint_regressions.c']
 flags=['-x','c','-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-unused-function','-pthread','-I'+linux(M),'-DXZ_XP_TEST_RENDER_HOOK']
 if a.arch=='host':cc='gcc';flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-no-pie'];runner=[]

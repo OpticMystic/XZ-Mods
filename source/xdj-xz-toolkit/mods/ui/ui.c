@@ -318,7 +318,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
  add(w,&n,XZ_UI_BACK,0,0,"< BACK");
  if(m->dj)add(w,&n,XZ_UI_PROFILE,0,0,"DJ PROFILE");
  if(xz_ui_header_decks(u->page))
-  for(i=0;i<2;i++)add(w,&n,XZ_UI_DECK,i,0,"USB DECK");
+  for(i=0;i<(u->page==XZ_UI_KEY_SETUP?4:2);i++)add(w,&n,XZ_UI_DECK,i,0,i<2?"USB DECK":"SOFTWARE DECK");
  if(xz_ui_section_page(u->page))return xz_ui_section_controls(u,m,w,n);
  if(u->page==XZ_UI_FEATURE_SETUP){
   static const char *steps[4]={"DETECT FEATURE","USE SELECTED DECK","ENABLE FEATURE","I TESTED IT / DONE"};
@@ -543,7 +543,7 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
   break;}
  case XZ_UI_STEM_ORDER:l.selected=0;break;
  case XZ_UI_SHIFT_KEYSYNC:l.selected=m->shift_keysync;break;
- case XZ_UI_KEY_SYNC:l.color=0x52d794;l.selected=deck<2&&d->key_synced;break;
+ case XZ_UI_KEY_SYNC:l.color=0x52d794;l.selected=deck<4&&d->key_synced;break;
  case XZ_UI_BROWSE_COLUMN:l.selected=m->browse_columns[k/4]==k%4;break;
  case XZ_UI_BROWSE_KEY_PREFIX:l.selected=m->browse_key_prefix;break;
  case XZ_UI_BROWSE_TRAFFIC:l.selected=m->browse_traffic;break;
