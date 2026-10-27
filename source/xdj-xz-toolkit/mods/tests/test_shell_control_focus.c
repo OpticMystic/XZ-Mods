@@ -22,6 +22,17 @@ int main(void){
   assert(model.deck_count==2&&shell.deck==(focus&1));
  }
  puts("PASS actual runtime side changes preserve independent browse/grid focus");
+ /* The browse tile uses the existing shell-to-UI action queue, once per tap. */
+ __atomic_store_n(&enabled,1,__ATOMIC_RELEASE);ui_action_count=0;ui_requests=0;
+ for(int shown=1;shown>=0;shown--){
+  ui_action_locked(XZ_UI_BROWSE_PREVIEW,-1,0,(float)shown,1000);
+  assert(xz_shell_runtime_take_ui_requests()==XZ_SHELL_UI_ACTION);
+  int kind,deck,index;float value;
+  assert(xz_shell_runtime_take_ui_action(&kind,&deck,&index,&value));
+  assert(kind==XZ_UI_BROWSE_PREVIEW&&deck==-1&&index==0&&value==(float)shown);
+  assert(!xz_shell_runtime_take_ui_action(&kind,&deck,&index,&value)&&!xz_shell_runtime_take_ui_requests());
+ }
+ puts("PASS actual browse preview runtime queue: shown/hidden forwarded once to the UI settings action");
  /* SCREEN's TITLES IN WAVEFORMS row (ui/ui_menu.c) and MY SETTINGS expose the same shell-owned choice. */
  xz_shell_init(&shell);fill_look();
  int waveform=0;

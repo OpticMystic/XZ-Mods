@@ -28,6 +28,7 @@ struct xz_shell_runtime_frame_input {
  int eligible, theme;
  int key_controls_open; /* transient PLAY overlay, forces a clean frame beneath it */
  struct xz_shell_runtime_key key[XZ_SHELL_NATIVE_DECKS];
+ int browse_preview; /* applied saved preference from ui_runtime, default collapsed */
  int stems_known, stems_on;   /* the STEMS overlay layout (lights the shell's STEMS header button) */
  int stem_muted_known[XZ_SHELL_NATIVE_DECKS];  /* the deck plays 3-stem local stems: stem_muted is meaningful */
  unsigned stem_muted[XZ_SHELL_NATIVE_DECKS];   /* bit 0 drums, 1 harmonics, 2 vocal */
