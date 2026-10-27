@@ -245,7 +245,8 @@ vocals green in the Original theme. Each theme keeps its original shades.
 Choose a color for each stem, or THEME to follow appearance. RESET STEM
 COLORS restores all three theme defaults. Choices update the stem rows,
 pad LEDs, prepared STEMS waveform and waveform shortcut preview together.
-The frequency-based 3-BAND waveform keeps its blue/amber/white palette.
+The frequency-based 3-BAND waveform uses the saved low, mid and high choices in
+MODS > SCREEN > 3-BAND COLOURS. STANDARD preserves each renderer's original palette.
 
 `stem_drums_color`, `stem_harmonics_color` and `stem_vocals_color` append
 after `key_format`. Each is 0 theme default, 1 blue, 2 red, 3 green, 4 amber,
@@ -309,3 +310,77 @@ shows or hides the column and queues the preference through the shell's action
 queue to `ui_runtime.c` and its settings worker. Rendering never writes files.
 The off tile says PREVIEW OFF / TAP TO SHOW. Browse encoder navigation is
 unchanged; PREVIEW is touch-only. CLASSIC browse does not use this preference.
+
+
+## 3-BAND colours and MODERN display preferences (fields 48 to 57)
+
+Two all-or-none blocks follow `browse_preview`. Fields 48 to 50 are
+`band_low_color`, `band_mid_color`, `band_high_color`, in that order. Each
+accepts 0 STANDARD, 1 BLUE, 2 RED, 3 GREEN, 4 AMBER, 5 PURPLE, 6 CYAN,
+7 PINK or 8 WHITE. All three default to 0. STANDARD keeps each renderer's
+original colour, including the white browse preview highs, cream MODERN lane
+highs and CLASSIC's own blue/amber/white shades. The played part of MODERN
+overviews stays grey. Custom LOW also supplies the darker low shade of the
+native FLAGSHIP waveform. Stem colours remain independent.
+
+Fields 51 to 56 are a second block. It stores the shell's display choices,
+including changes made in UTILITY, MODS > SCREEN and the waveform zoom control:
+
+| Field | Key | Values | Default |
+|---|---|---|---|
+| 51 | `modern_wave_color` | 0 BLUE, 1 RGB, 2 3-BAND, 3 STEMS | 2 |
+| 52 | `wave_position` | 0 CENTRE, 1 LEFT | 0 |
+| 53 | `key_display` | 0 AS THE DECK SHOWS IT, 1 CLASSIC, 2 ALPHANUMERIC | 0 |
+| 54 | `wave_zoom` | 0 to 6 | 3 |
+| 55 | `usb_colors` | 0 TILE AND WAVEFORM, 1 TILE ONLY, 2 OFF | 0 |
+| 56 | `hidden_parts` | 0 to 15, bitmask below | 0 |
+
+`hidden_parts` has four independent bits: 1 HIDE MODE LAMPS, 2 HIDE QUANTIZE
+LAMP, 4 HIDE BYPASS BUTTON and 8 HIDE WAVEFORM TITLES. Add the chosen bits;
+0 shows all four parts and 15 hides them all. The desktop schema has no
+bitmask/checkbox-group control, so this is one advanced numeric field.
+
+The audit also found MODERN's browse column mask in RAM. Optional field 57,
+`modern_browse_columns`, now saves it. 0 keeps the automatic columns. Values
+1 to 2047 select bits in this order: NUMBER, TITLE, ARTIST, BPM, KEY, RATING,
+COLOR, TIME, ALBUM, GENRE, DATE ADDED. TITLE is always included when a custom
+mask is applied. This is an advanced numeric field in the desktop schema.
+The on-deck browse column picker remains the normal way to choose columns.
+
+Records may stop at 47, 50, 56 or 57 fields. A partial colour or display block
+is invalid. An absent block receives its defaults on parse, and leaves the
+current values unchanged on profile overlay. The maximum valid complete
+record is 829 bytes, below the internal store's 1023-byte payload limit.
+An older runtime refuses the newer record as a whole and keeps its current
+settings, as with the earlier append-only additions. It does not truncate or
+partially apply the file.
+
+The shell applies the first known settings frame, then only incoming values
+that differ from the last applied input. A cached old frame cannot undo a
+local edit while its save is pending. An explicit UTILITY WAVEFORM COLOR
+choice still wins over the automatic 3-BAND default. Changes queue to the
+existing settings worker; rendering never writes files. USB ownership,
+internal fallback and `XZ_MODS_SETTINGS_READONLY=1` follow the rules above.
+Read-only trials change the live display without writing USB or internal slots.
+
+## Remaining RAM-state audit
+
+| State | Result |
+|---|---|
+| MODERN waveform colour, position, key display, zoom, USB colours and four hide switches | Saved in fields 51 to 56. |
+| MODERN browse column selection | Saved in field 57. |
+| `XZ_UI_FOUR_WAVE_ORDER`, shell WAVE ORDER, play-screen deck layout | Already routed through saved `deck_view`; no extra setting. |
+| MODERN browse preview | Already saved as `browse_preview`, field 47. |
+| CLASSIC browse columns, key prefix/traffic, key notation, themes, stem order/colours/layout, jump assignments, button assignments | Already in the settings record. |
+| MODERN browse sort column/direction | Per-list request state. Category, folder and source navigation deliberately reset it. Left session-only; a global or per-category sort policy needs a separate contract, rather than changing this reset behavior. |
+| MODERN FILTER choices and enable state | Active query state, including BPM/key matching derived from the current master deck. Left session-only; restoring fixed filter defaults separately from a live query needs a separate contract. |
+| Browse/search category, path, query, selection, active source, panel/tab/focus, GRID EDIT and active deck | Navigation or live working state, left session-only. |
+| TAG LIST, playlist and PLAYED/UNPLAYED edits | Already written to the selected USB sidecar. These are library edits, not preferences in this record. |
+| Stock UTILITY settings and MY SETTINGS | Firmware-owned; stock persists its settings and MY SETTINGS uses the stick's own export data. MODS does not duplicate those fields. |
+| Arcade clock source, style, quiet, difficulty and jog sensitivity; Rhythm Lab/Wave Rider setup, game choice, player mode, action bindings and jog calibration | Still RAM-only game preferences. They are outside DJ display settings and require separate game preference schema and runtime bindings; no game state was added to this record. |
+| SDK app configuration/autostart and DJ profile metadata | Owned by their existing USB app manifests/profile files, not by the shell display table. |
+| Mutes, levels, bypass, key shift/sync, loaded tracks, transport, loops, pad page, GRID EDIT changes in progress, RAM copies, games in progress | Performance or working state. Never restored as preferences. |
+
+Host checks cover the codec, desktop schema, rendering, live action publication,
+USB worker and internal CRC slots on disposable volumes. They do not establish
+controller, physical USB removal, real UBIFS or reboot acceptance.
