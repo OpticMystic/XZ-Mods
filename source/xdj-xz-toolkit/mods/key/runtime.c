@@ -224,6 +224,11 @@ int xz_key_runtime_start(void)
     __atomic_store_n(&started, 1, __ATOMIC_RELEASE);
     return 0;
 }
+int xz_key_has_applied(int deck,uint32_t epoch){
+    if((unsigned)deck>=XZ_KEY_DECKS||!epoch||!__atomic_load_n(&started,__ATOMIC_ACQUIRE)||
+       __atomic_load_n(&observe_only,__ATOMIC_ACQUIRE))return 0;
+    return __atomic_load_n(&xz_mods_key_audio_proof_v1.deck[deck].epoch,__ATOMIC_ACQUIRE)==epoch;
+}
 int xz_key_get_applied_cents(int deck,uint32_t epoch,int *out)
 {
     if(deck<0||deck>=XZ_KEY_DECKS||!epoch||!out)return -1;

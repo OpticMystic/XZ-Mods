@@ -46,6 +46,7 @@ int xz_audio_waveform(int deck, unsigned role, unsigned char *bins, size_t count
  * Atomic 32-bit reads only. The returned generation changes only for a true
  * stream discontinuity: load, unload, or runtime stop. Stem enable/disable does
  * not invalidate the identity. */
+uint32_t xz_audio_output_epoch(unsigned deck); /* Published owner only; no native reads. */
 int xz_audio_output_deck(const void *manager, uint32_t *rate_out,
                          uint32_t *generation_out);
 const char *xz_audio_state_name(enum xz_audio_state state);

@@ -21,7 +21,7 @@ int xz_music_key_parse(const char *text,struct xz_music_key *out){
     struct xz_music_key k={-1,0};
     if(text[0]>='1'&&text[0]<='9'){
         char *end;long number=strtol(text,&end,10);
-        if(number<1||number>12||end[1]||(end[0]!='A'&&end[0]!='B'))return 0;
+        if(number<1||number>12||(end[0]!='A'&&end[0]!='B')||end[1])return 0;
         k.minor=end[0]=='A';
         if(k.minor)k.root=minor_roots[number-1];else k.root=major_roots[number-1];
     }else{
@@ -40,7 +40,7 @@ void xz_music_key_format(struct xz_music_key key,int format,char out[8]){
 }
 int xz_key_playing(const struct xz_key_snapshot *snapshot,int shift_cents,struct xz_playing_key *out){
     if(!snapshot||!out||!snapshot->loaded||!valid(snapshot->original)||
-        !isfinite(snapshot->tempo_ratio)||snapshot->tempo_ratio<.25||snapshot->tempo_ratio>4||
+        !isfinite(snapshot->tempo_ratio)||snapshot->tempo_ratio<=0||
         shift_cents < -1200||shift_cents>1200)return 0;
     double total=shift_cents+(snapshot->master_tempo?0:1200*log2(snapshot->tempo_ratio));
     int nearest=(int)round(total/100);

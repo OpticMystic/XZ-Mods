@@ -703,6 +703,14 @@ int xz_audio_waveform(int index, unsigned role, unsigned char *bins, size_t coun
     return available;
 }
 
+uint32_t xz_audio_output_epoch(unsigned index){
+    if(index>=DECKS)return 0;
+    struct deck_state *d=&decks[index];
+    uint32_t epoch=__atomic_load_n(&d->output_epoch,__ATOMIC_ACQUIRE);
+    if(!epoch||epoch!=__atomic_load_n(&d->published_output_epoch,__ATOMIC_ACQUIRE)||
+       __atomic_load_n(&d->output_rate,__ATOMIC_RELAXED)!=44100)return 0;
+    return epoch==__atomic_load_n(&d->output_epoch,__ATOMIC_ACQUIRE)?epoch:0;
+}
 int xz_audio_output_deck(const void *manager, uint32_t *rate_out,
                          uint32_t *generation_out)
 {

@@ -15,6 +15,7 @@ int xz_key_get_desired_cents(int deck, uint32_t epoch, int *cents);
 int xz_key_clear_desired_cents(int deck, uint32_t epoch, int expected_cents);
 /* Last pitch ratio actually processed for this loaded track; pending requests
  * and another track's proof must never change the displayed playing key. */
+int xz_key_has_applied(int deck,uint32_t epoch);
 int xz_key_get_applied_cents(int deck, uint32_t epoch, int *cents);
 struct xz_key_audio_deck_proof { uint32_t epoch, blocks, ratio_bits; int32_t cents; };
 struct xz_key_audio_proof { uint32_t version;struct xz_key_audio_deck_proof deck[2]; };
