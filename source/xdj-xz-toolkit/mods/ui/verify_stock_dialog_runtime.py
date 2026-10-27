@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='xz-controls-') as temporary:
     subprocess.run([str(binary),str(current),'baseline'],check=True)
     reference=Path(temporary)/'reference'
     subprocess.run(['gcc','-std=c11','-O1','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
-        '-fsanitize=address,undefined','-fno-sanitize-recover=all','-I'+str(HERE),'-I'+str(HERE.parent),
+        '-fsanitize=address,undefined','-fno-sanitize-recover=all','-DXZ_STOCK_DIALOG_REFERENCE','-I'+str(HERE),'-I'+str(HERE.parent),
         str(probe),*map(str,sources[1:]),'-pthread','-ldl','-lm','-o',str(reference)],check=True)
     subprocess.run([str(reference),str(previous),'baseline'],check=True)
     for name in ['no-dialog-panel','no-dialog-classic','no-dialog-modern']:
@@ -53,3 +53,16 @@ with tempfile.TemporaryDirectory(prefix='xz-stock-wave-') as temporary:
         '-fsanitize=address,undefined','-fno-sanitize-recover=all',*[str(HERE/f) for f in files],
         '-pthread','-lm','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
+
+with tempfile.TemporaryDirectory(prefix='xz-stock-model-') as temporary:
+    import sys
+    sys.path.insert(0,str(HERE.parent/'shell'))
+    from shell_sources import SHELL_SOURCES
+    binary=Path(temporary)/'model'
+    # GCC's fortified snprintf warns about unchanged bounded UI strings in the
+    # complete shell. Keep those warnings visible; sanitizers and all other warnings stay fatal.
+    subprocess.run(['gcc','-std=c11','-O1','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
+        '-fsanitize=address,undefined','-fno-sanitize-recover=all',str(HERE.parent/'test_stock_counter_model.c'),
+        str(HERE.parent/'shell_model.c'),*[str(HERE.parent/'shell'/f) for f in SHELL_SOURCES],
+        '-Wno-error=format-truncation','-lm','-o',str(binary)],check=True)
+    subprocess.run([str(binary),*sys.argv[1:]],check=True)

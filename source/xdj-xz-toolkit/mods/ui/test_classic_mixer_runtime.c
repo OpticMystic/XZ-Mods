@@ -7,6 +7,9 @@
 static struct xz_extra_decks fixture_extra;
 static unsigned repaints,acquires,releases,active_holds;
 static int fixture_layout=XZ_LAYOUT_MIXER;
+/* This fixture flag represents a live global window, not a latched message ID. */
+static int fixture_window_up;
+int xz_stock_dialog_active(void){return fixture_window_up;}
 int xz_deck_layout_get(void){return fixture_layout;}
 static struct xz_extra_column wave_columns[188];
 int xz_read_memory(uint32_t address,void *out,size_t count){return read_memory(address,out,count);}
@@ -40,7 +43,7 @@ static unsigned pair_changed(const uint16_t *p,unsigned sides){
 }
 static uint16_t pixels[800*480],footer_pixels[300*34];
 int main(void){
- fixture();put32(0x3eaff7c,0);fixture_extra.route_up=1;
+ fixture();fixture_window_up=0;fixture_extra.route_up=1;
  for(unsigned i=0;i<188;i++)wave_columns[i]=(struct xz_extra_column){150,80,40};
  fixture_extra.deck[0].loaded=1;fixture_extra.deck[0].known=XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE);
  fixture_extra.deck[0].wave=(struct xz_extra_wave){wave_columns,188,300000,270};
@@ -91,7 +94,7 @@ int main(void){
  assert(pixels[312*800+60]==dim&&pixels[312*800+660]==dim&&pixels[312*800+260]!=dim);
  fixture_extra.route_up=1;
  assert(xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1300,keys));
- put32(0x3eaff7c,1);
+ fixture_window_up=1;
  assert(!xz_classic_mixer_runtime_frame(pixels,800,800*480,1,0,1400,keys));
  assert(!xz_classic_mixer_runtime_visible());
  assert(!active_holds&&acquires==releases);
@@ -100,7 +103,7 @@ int main(void){
  fixture_layout=XZ_LAYOUT_FOUR;
 
  /* 2 DECKS following the sides. */
- put32(0x3eaff7c,0);fixture_layout=XZ_LAYOUT_TWO;
+ fixture_window_up=0;fixture_layout=XZ_LAYOUT_TWO;
  fixture_extra.route_up=1;fixture_extra.left_on_3=1;fixture_extra.right_on_4=0;
  fixture_extra.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TITLE)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY);
  snprintf(fixture_extra.deck[0].title,sizeof fixture_extra.deck[0].title,"Fixture");strcpy(fixture_extra.deck[0].key,"8A");
@@ -140,9 +143,9 @@ int main(void){
  assert(!xz_classic_mixer_runtime_visible()&&repaints==before_pair+1&&acquires==taken&&!pair_changed(pixels,0));
  assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2080,keys,0u)&&acquires==taken);
  /* A native caution owns the screen. */
- put32(0x3eaff7c,1);refreshed=0;
+ fixture_window_up=1;refreshed=0;
  assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2090,keys,1u)&&!xz_classic_mixer_runtime_visible());
- put32(0x3eaff7c,0);refreshed=0;
+ fixture_window_up=0;refreshed=0;
  /* A four-deck view has no halves. */
  fixture_layout=XZ_LAYOUT_FOUR;assert(!xz_classic_mixer_runtime_pair_frame(pixels,800,800*480,1,0,2100,keys,1u));
  fixture_layout=XZ_LAYOUT_TWO;

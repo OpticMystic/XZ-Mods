@@ -19,15 +19,26 @@ int xz_stock_dialog_snapshot(xz_stock_dialog_read read,struct xz_stock_dialog_st
  static const unsigned char browse[16]={0xf0,0x4f,0x2d,0xe9,0x04,0x8b,0x2d,0xed,0xfc,0xd0,0x4d,0xe2,0x59,0x6b,0xfe,0xeb};
  static const unsigned char status[16]={0xf0,0x4f,0x2d,0xe9,0xa4,0xd0,0x4d,0xe2,0x55,0x67,0xfe,0xeb,0x00,0x00,0x50,0xe3};
  static const unsigned char counter[16]=XZ_STOCK_COUNTER_GUARD_BYTES;
- uint32_t windows[2];int a,b;
+ uint32_t window;int a;
  memset(s,0,sizeof *s);
  if(!read){s->failure=XZ_STOCK_NO_READER;return -1;}
- a=guard(read,0x146fcc,browse);if(a){s->failure=a==1?XZ_STOCK_BROWSE_CODE_READ:XZ_STOCK_BROWSE_GUARD;return -1;}
- a=guard(read,0x147f08,status);if(a){s->failure=a==1?XZ_STOCK_STATUS_CODE_READ:XZ_STOCK_STATUS_GUARD;return -1;}
- a=stable(read,0x1adae30,windows,4);b=stable(read,0x1adaea4,windows+1,4);
- if(a||b){s->failure=a==1||b==1?XZ_STOCK_WINDOW_READ:XZ_STOCK_WINDOW_TORN;return -1;}
- /* A live window wins even if the counter guard/read would fail. */
- if(windows[0]||windows[1]){s->window=1;return 1;}
+ const unsigned char *const expected[2]={browse,status};
+ const uint32_t code[2]={0x146fcc,0x147f08},cell[2]={0x1adae30,0x1adaea4};
+ const enum xz_stock_dialog_failure code_read[2]={XZ_STOCK_BROWSE_CODE_READ,XZ_STOCK_STATUS_CODE_READ};
+ const enum xz_stock_dialog_failure mismatch[2]={XZ_STOCK_BROWSE_GUARD,XZ_STOCK_STATUS_GUARD};
+ for(unsigned i=0;i<2;i++){
+  enum xz_stock_dialog_failure failure=XZ_STOCK_OK;
+  a=guard(read,code[i],expected[i]);
+  if(a)failure=a==1?code_read[i]:mismatch[i];
+  else{
+   a=stable(read,cell[i],&window,4);
+   if(a)failure=a==1?XZ_STOCK_WINDOW_READ:XZ_STOCK_WINDOW_TORN;
+   else if(window){s->window=1;s->failure=XZ_STOCK_OK;return 1;}
+  }
+  if(!s->failure)s->failure=failure;
+ }
+ /* Either proven live window wins over a failure in the other family. */
+ if(s->failure)return -1;
  a=guard(read,0xe1d80,counter);if(a){s->failure=a==1?XZ_STOCK_COUNTER_CODE_READ:XZ_STOCK_COUNTER_GUARD;return -1;}
  a=stable(read,0x222c668,s->counter,sizeof s->counter);
  if(a){s->counter[0]=s->counter[1]=0;s->failure=a==1?XZ_STOCK_COUNTER_READ:XZ_STOCK_COUNTER_TORN;return -1;}

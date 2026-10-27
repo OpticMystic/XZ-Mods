@@ -30,7 +30,9 @@ int main(void){
  torn_at=0x1adae30;assert(!xz_stock_dialog_active()&&strstr(last_log,"window read torn"));torn_at=0;
  failed_at=0x222c668;assert(!xz_stock_dialog_active()&&strstr(last_log,"counter read failed"));failed_at=0;
  /* Counter failure must not suppress a proven live global window. */
- browse=0x1adb0d8;mismatch_at=0xe1d80;assert(xz_stock_dialog_active());browse=0;mismatch_at=0;
+ browse=0x1adb0d8;mismatch_at=0xe1d80;assert(xz_stock_dialog_active());
+ mismatch_at=0x147f08;assert(xz_stock_dialog_active());browse=0;
+ status=0x1adb118;mismatch_at=0x146fcc;assert(xz_stock_dialog_active());status=0;mismatch_at=0;
  assert(!xz_stock_dialog_active()&&!xz_stock_counter_ids(NULL));
  assert(xz_stock_dialog_observe(NULL)==-1);
  assert(xz_stock_counter_hit(1,0,311)&&xz_stock_counter_hit(1,399,479));
