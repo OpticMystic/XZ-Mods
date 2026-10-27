@@ -5,6 +5,7 @@
 #include "../clock_compat.h"
 #include "../extra_decks.h"
 #include "../audio/vendor/sha256/sha256.h"
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <mntent.h>
@@ -125,13 +126,27 @@ static void discover(uint32_t now){
   mounts[i].new_mount=0;event(now,XZ_DIARY_USB,XZ_DIARY_PRESENT,XZ_DIARY_OBSERVED,0,0,mounts[i].slot,0);
  }
 }
+/* Up to max unsigned decimal fields after an optional literal prefix. Not sscanf: this toolchain links sscanf to
+   __isoc99_sscanf@GLIBC_2.7, and the XZ has only GLIBC 2.4. */
+static int read_u64s(const char *text,const char *prefix,unsigned long long *out,int max){
+ size_t n=strlen(prefix);if(strncmp(text,prefix,n))return 0;text+=n;
+ int got=0;
+ while(got<max){
+  while(*text==' '||*text=='\t')text++;
+  if(*text<'0'||*text>'9')break;
+  char *end;errno=0;unsigned long long v=strtoull(text,&end,10);
+  if(end==text||errno)break;
+  out[got++]=v;text=end;
+ }
+ return got;
+}
 static void disk(struct mount *m,uint32_t now){
  char path[128],text[512];snprintf(path,sizeof path,"/sys/dev/block/%u:%u/stat",major(m->store.device),minor(m->store.device));
  FILE *f=fopen(path,"r");m->disk_safe=0;m->latency=-1;if(!f)return;
  int ok=fgets(text,sizeof text,f)!=NULL;fclose(f);if(!ok)return;
- unsigned long long reads,merged,sectors,ticks,writes,wmerged,wsectors,wticks,flight,total,weighted;
- int n=sscanf(text,"%llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu",&reads,&merged,&sectors,&ticks,&writes,&wmerged,&wsectors,&wticks,&flight,&total,&weighted);
- if(n!=11)return;
+ unsigned long long v[11];
+ if(read_u64s(text,"",v,11)!=11)return;
+ unsigned long long reads=v[0],sectors=v[2],ticks=v[3],flight=v[8];
  if(!m->have_disk||reads<m->reads||sectors<m->sectors||ticks<m->ticks){m->quiet_at=now;}
  else {
   uint64_t count=reads-m->reads;
@@ -173,7 +188,7 @@ static void metrics(uint32_t now,int emit){
  struct xz_diary_metrics m;xz_diary_metrics_unknown(&m);
  char text[512];FILE *f=fopen("/proc/stat","r");
  if(f){if(fgets(text,sizeof text,f)){
-  unsigned long long c[8]={0};if(sscanf(text,"cpu %llu %llu %llu %llu %llu %llu %llu %llu",&c[0],&c[1],&c[2],&c[3],&c[4],&c[5],&c[6],&c[7])>=4){
+  unsigned long long c[8]={0};if(read_u64s(text,"cpu ",c,8)>=4){
    uint64_t total=0,idle=c[3]+c[4];for(unsigned i=0;i<8;i++)total+=c[i];
    if(cpu_total&&total>cpu_total&&idle>=cpu_idle&&idle-cpu_idle<=total-cpu_total)m.cpu_percent=(int)(100u-100u*(idle-cpu_idle)/(total-cpu_total));
    cpu_total=total;cpu_idle=idle;
