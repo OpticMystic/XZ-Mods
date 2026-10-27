@@ -431,6 +431,9 @@ unsigned xz_ui_counter_errors(const struct xz_ui_model *m){
  if(xz_ui_modern_menu(m))for(int d=0;d<2;d++)if(m->counter_error[d].code&&m->counter_error[d].text)bits|=1u<<d;
  return bits;
 }
+int xz_ui_usb_hub_notice(const struct xz_ui_model *m){
+ return m->usb_hub&&m->usb_hub[0]&&!xz_ui_counter_errors(m);
+}
 size_t xz_ui_layout(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget w[XZ_UI_WIDGETS]){
  size_t n=page_controls(u,m,w);
  xz_ui_place(u,m,w,n);

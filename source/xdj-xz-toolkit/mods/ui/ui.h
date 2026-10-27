@@ -312,6 +312,10 @@ struct xz_ui_model {
        NULL. The runtime sets them in MODERN only, where the dock keeps them in view while MODS is open (stock
        errors are never covered). CLASSIC leaves the stock deck area itself visible instead. */
     struct xz_ui_counter_error { const char *code, *text; } counter_error[2];
+    /* The live E-8307 hub warning's exact firmware text ("E-8307: HUBS ARE NOT SUPPORTED"), or NULL. The player
+       raises it when it refuses the loopback cable's hub and keeps it up while the cable is in, so it does not take
+       the screen (stock_dialog.h); the dock shows it in both interfaces instead. */
+    const char *usb_hub;
 };
 /* MODERN's look items (XZ_UI_SHELL_LOOK). WAVE_COLOR is the same setting as UTILITY's WAVEFORM COLOR. */
 enum xz_ui_look_item { XZ_UI_LOOK_WAVE_COLOR, XZ_UI_LOOK_USB_COLORS, XZ_UI_LOOK_MODE_LAMPS, XZ_UI_LOOK_QUANTIZE_LAMP,
@@ -321,6 +325,8 @@ enum xz_ui_wave_color { XZ_UI_WAVE_STOCK, XZ_UI_WAVE_RGB, XZ_UI_WAVE_3BAND, XZ_U
 int xz_ui_modern_menu(const struct xz_ui_model *);
 /* Bit d set: deck d has a known stock counter error that the MODS dock shows (MODERN only, counter_error). */
 unsigned xz_ui_counter_errors(const struct xz_ui_model *);
+/* 1: the dock shows the E-8307 hub warning (usb_hub set and no counter error takes the strip). */
+int xz_ui_usb_hub_notice(const struct xz_ui_model *);
 /* XZ_UI_CLOSE's index on the dock's counter error strip; the header CLOSE is index 0. */
 enum { XZ_UI_CLOSE_COUNTER=1 };
 /* Decks 3 and 4's route, as the connector publishes it (enum xz_extra_route_state). NO_ENGINE: the software

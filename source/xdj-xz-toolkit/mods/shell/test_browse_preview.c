@@ -65,6 +65,7 @@ int main(void) {
   assert(!send(&u,&m,XZ_SHELL_ENCODER_TURN,0,0,XZ_SHELL_CAT_TRACK));
   assert(!send(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,0));
   assert(!send(&u,&m,XZ_SHELL_ENCODER_TURN,0,0,2));
+  assert(!send(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,0)&&u.load_choice.mode==2);
   assert(send(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,0)==1&&out[0].kind==XZ_SHELL_ACT_LOAD);
   if(!shown){expected=u;load=out[0];}
   else {assert(!memcmp(&u,&expected,sizeof u));assert(!memcmp(&load,&out[0],sizeof load));}

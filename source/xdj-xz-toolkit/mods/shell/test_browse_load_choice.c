@@ -82,7 +82,16 @@ static void copy_safe(void) {
 static void two_decks_and_touch(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;setup(&u,&m,&b,2);
  expect_load(load_key(&u,&m,1),1,b.rows[0].id);
- setup(&u,&m,&b,2);expect_load(event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1),0,b.rows[0].id);
+ /* Two decks: the rotary selector opens stock's track menu (DECK 1, DECK 2, CANCEL) on the deck in focus. */
+ setup(&u,&m,&b,2);assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1)&&sh_browse_load_pending(&u));
+ assert(u.load_choice.deck_count==2&&u.load_choice.cursor==u.deck);
+ expect_load(event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1),u.deck,b.rows[0].id);
+ setup(&u,&m,&b,2);assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1));
+ u.load_choice.cursor=0;event(&u,&m,XZ_SHELL_ENCODER_TURN,1,0,-1);expect_load(event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1),1,b.rows[0].id);
+ setup(&u,&m,&b,2);assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1));
+ event(&u,&m,XZ_SHELL_ENCODER_TURN,9,0,-1);assert(u.load_choice.cursor==2);
+ assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1)&&!sh_browse_load_pending(&u)&&xz_shell_screen(&u)==XZ_SHELL_BROWSE);
+ setup(&u,&m,&b,2);assert(!event(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,-1));expect_load(load_key(&u,&m,0),0,b.rows[0].id);
  setup(&u,&m,&b,4);
  struct xz_shell_rect row=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,0);
  struct xz_shell_event down={XZ_SHELL_TOUCH_DOWN,row.x+row.w/2,row.y+row.h/2,0,0,-1};
@@ -94,6 +103,6 @@ static void two_decks_and_touch(void) {
 int main(void) {
  (void)&bx_folders;fx_track_build(&track,1);bx_build(&library);
  pairs();encoder_and_frozen_target();cancellation();cancel_and_cue_options();copy_safe();two_decks_and_touch();
- puts("PASS browse LOAD choices: one-press physical LOAD, all-four encoder, frozen target, cancellation/generation/routes, copy probes, two-deck and explicit touch");
+ puts("PASS browse LOAD choices: one-press physical LOAD, all-four encoder, frozen target, cancellation/generation/routes, copy probes, two-deck track menu and explicit touch");
  return 0;
 }

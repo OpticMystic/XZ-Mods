@@ -172,12 +172,14 @@ static void test_touch_load_and_return(void) {
  press(&u,&m,XZ_SHELL_KEY_BROWSE);b.list_id=999;
  assert(press(&u,&m,XZ_SHELL_KEY_BROWSE)==0&&send(&u,&m,XZ_SHELL_ENCODER_TURN,0,0,0)==0&&u.stack[1].cursor==0);
  b.list_id=XZ_SHELL_BROWSE*100u+7u;
- /* The deck chips pick the deck; the encoder push loads to the active deck. */
+ /* The deck chips pick the deck; the encoder push opens the track menu on the active deck (stock's LOAD TO DECK1 /
+    DECK2 / CANCEL), and a second push loads there. */
  open_screen(&u,&m,XZ_SHELL_KEY_BROWSE,XZ_SHELL_BROWSE);u.deck=0;
  tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,1));
  assert(down_at(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_LOAD,2))==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==1&&out[0].id==(int)lib.tracks[1].id);
  open_screen(&u,&m,XZ_SHELL_KEY_BROWSE,XZ_SHELL_BROWSE);u.deck=1;
  send(&u,&m,XZ_SHELL_ENCODER_TURN,0,0,2);
+ assert(send(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,0)==0&&u.load_choice.mode==2&&u.load_choice.deck_count==2&&u.load_choice.cursor==1);
  assert(send(&u,&m,XZ_SHELL_ENCODER_PUSH,0,0,0)==1&&out[0].kind==XZ_SHELL_ACT_LOAD&&out[0].deck==1&&out[0].id==(int)lib.tracks[2].id&&u.depth==1);
  open_screen(&u,&m,XZ_SHELL_KEY_BROWSE,XZ_SHELL_BROWSE);
  assert(send(&u,&noload,XZ_SHELL_ENCODER_PUSH,0,0,0)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&u.depth==2);

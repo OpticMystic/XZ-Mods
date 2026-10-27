@@ -27,7 +27,8 @@ MENU a job it keeps it; MODS opens only where it has none. A held MENU always op
 | MODS rail | UTILITY (top cell, above a line) | MODS closes, the player's own settings open; their rail's HOME ... EXTRAS open MODS on that section | MODERN |
 | HOME | SET UP FOUR DECKS | 4 DECKS opens with RESCAN ringed | both |
 | Play screen | Look for the DECKS button | Always at the top, in every DECK VIEW and both interfaces (a unit saved with the old HIDE shows it again) | both |
-| MODS open, a stock warning window appears (for example E-8307 UNSUPPORTED DEVICE) | Keys, touches, the encoder | The stock window fills the screen and takes every press; once stock closes it, MODS is back on the same page | both |
+| MODS open, a stock warning window appears (for example E-8307 USB ACCESS ERROR) | Keys, touches, the encoder | The stock window fills the screen and takes every press; once stock closes it, MODS is back on the same page | both |
+| Loopback cable plugged in; the player shows E-8307 HUBS ARE NOT SUPPORTED or E-8307 UNSUPPORTED DEVICE and keeps it up | Open MODS, use the play screen | The screen stays usable. The MODS dock shows the code and the player's text with "FROM THE LOOPBACK CABLE", plus "DECKS 3 AND 4 ARE READY" once they are; MODERN's play screen says it once when it appears; CLASSIC's stock banner stays visible | both |
 | MODS open, a deck shows a counter error (for example E-8304) | Look, then tap the red strip | CLASSIC: that deck's own stock area shows through MODS. MODERN: a red strip at the top of the explanation shows the deck's badge, the code and its text (both decks side by side); the page's controls still work; tapping it closes MODS and the deck shows the error with CHOOSE TRACK | both |
 
 

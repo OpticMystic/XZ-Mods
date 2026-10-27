@@ -143,6 +143,7 @@ extern int xz_settings_internal_save(const struct xz_settings *) __attribute__((
 #include "stock_dialog.h"
 #pragma weak xz_stock_dialog_active
 #pragma weak xz_stock_counter_ids
+#pragma weak xz_stock_usb_hub_text
 static int stock_dialog_up(void){return xz_stock_dialog_active&&xz_stock_dialog_active();}
 static int stock_counter_classic=1;
 static unsigned stock_counter_mask(uint32_t ids[2]){return xz_stock_counter_ids?xz_stock_counter_ids(ids):0;}
@@ -3249,6 +3250,7 @@ static void counter_errors_locked(void){
         if(!(mask>>d&1u)||!xz_stock_counter_alert(ids[d],&a))a.code=a.text=NULL;
         model.counter_error[d]=(struct xz_ui_counter_error){a.code,a.text};
     }
+    model.usb_hub=xz_stock_usb_hub_text?xz_stock_usb_hub_text():NULL;
 }
 static int render_mods_frame(uint16_t *pixels, uint32_t width,
         uint32_t height, uint32_t stride, const struct xz_vj_connection_v1 *connection) {

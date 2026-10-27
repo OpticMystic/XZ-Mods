@@ -1,5 +1,8 @@
 /* Native firmware-1.26 UI read fixtures, shared by observer and real runtime tests. */
 static uint32_t browse,status,ids[2];
+/* sCautionBrowseString / sCautionStatusString, UTF-16; all zero = no text. */
+static uint16_t browse_text[32],status_text[32];
+static inline void caution_text(uint16_t out[32],const char *ascii){memset(out,0,64);for(int i=0;ascii&&ascii[i]&&i<31;i++)out[i]=(unsigned char)ascii[i];}
 static int failed,torn,calls;
 static uint32_t failed_at,mismatch_at,torn_at;
 static const unsigned char guards[3][16]={
@@ -15,6 +18,8 @@ int xz_read_memory(uint32_t at,void *out,size_t n){
  if(at==0x1adae30&&n==4)p=&browse;
  if(at==0x1adaea4&&n==4)p=&status;
  if(at==0x222c668&&n==8)p=ids;
+ if(at==0x1ada958&&n==64)p=browse_text;
+ if(at==0x1ada718&&n==64)p=status_text;
  if(!p)return -1;memcpy(out,p,n);
  if(at==mismatch_at||(torn&&++calls%2)||(at==torn_at&&++calls%2))((unsigned char*)out)[0]^=1;
  return 0;

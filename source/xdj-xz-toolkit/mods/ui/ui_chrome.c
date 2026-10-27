@@ -217,6 +217,22 @@ static void counter_strip(struct xz_canvas c,const struct xz_ui_model *m,unsigne
   x+=room+20;
  }
 }
+/* The E-8307 hub warning in the counter strip's place and colours: the firmware's code and text, then what it is
+   about. No control: RESCAN and the cable steps live on the 4 DECKS page. */
+static void hub_strip(struct xz_canvas c,const struct xz_ui_model *m){
+ enum { FILL=0x5a0c0c, EDGE=0xff4619, TEXT=0xffc8b4, H=XZ_UI_COUNTER_H };
+ int y=XZ_UI_COUNTER_Y,ty=y+(H-9)/2,x=14;
+ xz_rect(c,0,y,XZ_UI_COUNTER_W,H,FILL);
+ xz_rect(c,0,y,4,H,EDGE);
+ const char *colon=strchr(m->usb_hub,':'),*rest=colon?colon+1:"";
+ while(*rest==' ')rest++;
+ char code[12];snprintf(code,sizeof code,"%.*s",colon?(int)(colon-m->usb_hub):6,m->usb_hub);
+ xz_text(c,x,ty,code,1,40,0xffffff);x+=xz_text_width(c,code,1,40)+8;
+ xz_text(c,x,ty,rest,1,40,TEXT);x+=xz_text_width(c,rest,1,40)+14;
+ const char *why=m->route.state==XZ_UI_ROUTE_READY?"FROM THE LOOPBACK CABLE. DECKS 3 AND 4 ARE READY.":
+  "FROM THE LOOPBACK CABLE OR A HUB IN A TOP USB PORT.";
+ if(x<XZ_UI_COUNTER_W-12)xz_text(c,x,ty,why,1,(XZ_UI_COUNTER_W-8-x)/6,0xffffff);
+}
 void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint32_t dim,uint32_t accent,uint32_t alarm){
  struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;
  struct xz_ui_info info;xz_ui_describe(u,m,&info);
@@ -226,11 +242,12 @@ void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint
  xz_rect(c,0,y,XZ_UI_WIDTH,1,xz_blend(bg,ink,60));
  xz_rect(c,0,y+1,4,XZ_UI_HEIGHT-y-1,info.available?accent:alarm);
  /* Left: what the focused control is and does; a deck's counter error takes the title row (MODERN). */
- unsigned errors=xz_ui_counter_errors(m);
+ unsigned errors=xz_ui_counter_errors(m);int hub=xz_ui_usb_hub_notice(m);
  int title_w=xz_text_width(c,info.title,2,40);if(title_w>360)title_w=360;
  if(errors)counter_strip(c,m,errors);
+ else if(hub)hub_strip(c,m);
  else xz_text(c,16,y+6,info.title,title_w<360?2:1,40,ink);
- if(!errors&&info.state&&info.state[0]){
+ if(!errors&&!hub&&info.state&&info.state[0]){
   int chip_w=xz_text_width(c,info.state,1,20)+16,chip_x=16+title_w+12;
   uint32_t tone=!info.available?alarm:(info.selected||!strcmp(info.state,"ADJUSTING"))?accent:dim;
   xz_round_rect(c,chip_x,y+7,chip_w,16,8,15,xz_blend(bg,tone,70));
