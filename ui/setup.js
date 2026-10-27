@@ -659,7 +659,7 @@ function stepDone(){
     r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
-      el('li',{text:'Touch MODS at the top right to open the menu; in the Modern screen a short press of MENU opens it too. HOME is the first page.'}),el('li',{text:'The button next to LINK switches between the Classic and Modern screens.'}),el('li',{text:'Test the loader before you use it in a set.'}))):null,
+      el('li',{text:'Press MENU or touch MODS at the top right to open the menu. Hold MENU for the player’s own settings. HOME is the first page.'}),el('li',{text:'The button next to LINK switches between the Classic and Modern screens.'}),el('li',{text:'Test the loader before you use it in a set.'}))):null,
     el('div',{class:'actions'},
       failed.length?el('button',{type:'button',class:'primary',text:'Retry the failed games',onclick:()=>retryGames(failed)}):null,
       offerEject?el('button',{type:'button',class:'primary wz-eject',id:'wz-eject',disabled:ejecting?true:null,'aria-busy':ejecting?'true':null,onclick:ejectUsb},
