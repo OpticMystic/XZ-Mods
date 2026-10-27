@@ -40,7 +40,7 @@ void xz_shell_model_set_stems(struct xz_shell_model_storage *storage, int deck,
                               const struct xz_shell_column *stems, size_t count, uint32_t span_ms);
 int xz_shell_model_has_stems(const struct xz_shell_model_storage *storage, int deck);
 
-/* The stock caution currently showing (0 = none); while non-zero the runtime gives the screen to stock. */
+/* Legacy raw browse caution ID for diagnostics. Visibility is owned by stock_dialog.c live-window reads. */
 uint32_t xz_shell_model_caution(const struct xz_shell_model_storage *storage);
 
 /* Values the runtime already reads elsewhere (key snapshot, native clock grid and bar phase, loaded and
