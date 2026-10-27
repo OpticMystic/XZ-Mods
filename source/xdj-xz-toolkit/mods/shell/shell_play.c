@@ -346,10 +346,10 @@ static enum xz_shell_time_mode time_mode_of(const struct xz_shell_model *m, cons
 static int playhead_x(const struct xz_shell *u) {
  return WAVE_X+(sh_wave_position(u)==XZ_SHELL_POSITION_LEFT?WAVE_W*27/100:WAVE_W/2);
 }
-/* A four-deck lane's or strip's deck number in its deck's colour box (deck_colour.h), dimmed while the deck
-   is not live (bg is what it sits on); a black column parts it from the rest of the tag. */
+/* A four-deck lane's or strip's deck number in its badge (deck_colour.h), dimmed while the deck is not live
+   (bg is what it sits on); a black column parts it from the rest of the tag. */
 enum { NUMBER_BOX_W=24 };
-/* 2 DECKS shows the decks the sides control: DECK 3 or 4 there carries its colour box like on a four-deck screen,
+/* 2 DECKS shows the decks the sides control: DECK 3 or 4 there carries its badge like on a four-deck screen,
    so "3 2" reads as decks 3 and 2 at a glance; DECK 1 and 2 keep the plain number (FOUR_DECK.md). */
 static int two_deck_box(const struct play_layout *L, int deck) { return L==&two_deck&&deck>=2; }
 static void number_box(struct xz_canvas c, int x, int y, int h, int deck, int live, uint32_t bg) {
@@ -540,7 +540,7 @@ static void render_column(const struct play_layout *L, const struct xz_shell *u,
  int filled=sh_four_view(m)?control:active;
  uint32_t accent=sh_deck_accent(u,d,SH_BLUE),tile=filled?accent:SH_RAIL,ink=sh_ink_on(tile);
  xz_rect(c,0,ly,COL_W,L->tag_h,tile);
- /* Four lanes: the number in its deck's colour box; the USB colour stripe moves to the box's right. */
+ /* Four lanes: the number in its badge; the USB colour stripe moves to the badge's right. */
  if(L==&four_deck||two_deck_box(L,deck)){number_box(c,0,ly,L->tag_h,deck,1,tile);if(!filled&&accent!=SH_BLUE)xz_rect(c,NUMBER_BOX_W+1,ly,4,L->tag_h,accent);}
  else if(!filled&&accent!=SH_BLUE)xz_rect(c,0,ly,4,L->tag_h,accent);
  snprintf(text,sizeof text,"DECK %d",deck+1);
@@ -887,7 +887,7 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  int by0=s.y+S->badge_y,ty=s.y+S->title_y;
  xz_rect(c,sx,by0,badge_w,badge_h,tile);
  if(L==&four_deck){
-  /* The same colour box and DECK as the deck's lane tag; a side that drives it: the arrow on its fill. */
+  /* The same badge and DECK as the deck's lane tag; a side that drives it: the arrow on its fill. */
   int seg=sx+NUMBER_BOX_W+1,seg_w=badge_w-NUMBER_BOX_W-1;
   number_box(c,sx,by0,badge_h,deck,1,tile);
   if(tile!=accent&&accent!=SH_BLUE)xz_rect(c,seg,by0,3,badge_h,accent);
