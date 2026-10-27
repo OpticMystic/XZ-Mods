@@ -12,6 +12,7 @@ root = Path(__file__).resolve().parent
 common = [str(Path(args.zig).resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror']
 with tempfile.TemporaryDirectory(prefix='xz-ui-test-') as folder:
     for name, sources in {
+        'stock-dialog': ['../stock_dialog.c', '../test_stock_dialog.c'],
         'pads': ['stem_pads.c', 'test_stem_pads.c'],
         'beat-jump': ['beat_jump.c', 'test_beat_jump.c'],
         'themes': ['test_themes.c'],

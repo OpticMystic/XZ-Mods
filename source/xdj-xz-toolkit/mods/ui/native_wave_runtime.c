@@ -15,6 +15,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../stock_dialog.h"
+#pragma weak xz_stock_dialog_active
+#pragma weak xz_stock_counter_ids
+static int stock_dialog_up(void){return xz_stock_dialog_active&&xz_stock_dialog_active();}
 #include <sys/syscall.h>
 #include "../clock_compat.h"
 #include <time.h>
@@ -83,6 +87,7 @@ __attribute__((visibility("default"))) struct xz_inline_proof xz_inline_proof_v1
 
 static int word(uint32_t address,uint32_t *out){return xz_read_memory(address,out,4);}
 static int play_scene(struct xz_native_wave_scene *s){
+    if(stock_dialog_up())return 0;
     uint32_t table,controls,index,visible,gr,set,clear;
     memset(s,0,sizeof(*s));
     if(word(0x3eba54c,&table)||table!=0x4d200c||
@@ -334,6 +339,7 @@ static void style_four(uint16_t *pixels,uint32_t count){
 }
 static int unlock_hook(void *window){
     xz_native_raw_skin_before_unlock(window);
+    if(stock_dialog_up()||(xz_stock_counter_ids&&(xz_stock_counter_ids(NULL)&(1u<<(unsigned)footer.deck))))memset(&footer,0,sizeof footer);
     if(footer.hw==(uintptr_t)window&&footer.thread==(uintptr_t)pthread_self()&&footer.pixels){
         uint32_t values[16];
         if(!xz_read_memory((uint32_t)footer.gr,values,sizeof(values))&&values[7]==footer.hw&&

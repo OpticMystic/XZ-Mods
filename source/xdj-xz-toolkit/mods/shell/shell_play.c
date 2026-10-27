@@ -740,18 +740,19 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
 }
 /* ---- persistent deck conditions and GRID mode buttons ---- */
 static int alert_on(const struct xz_shell_deck *d) {
- return sh_has(d,XZ_SHELL_F_ALERT)&&d->alert.kind>XZ_SHELL_ALERT_NONE&&d->alert.kind<=XZ_SHELL_ALERT_UNSUPPORTED_FILE;
+ return sh_has(d,XZ_SHELL_F_ALERT)&&d->alert.kind>XZ_SHELL_ALERT_NONE&&d->alert.kind<=XZ_SHELL_ALERT_DEVICE_ERROR;
 }
 static void render_alert(const struct play_layout *L, const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_deck *d, int deck) {
- static const char *const title[]={"","EMERGENCY LOOP","CANNOT READ THE TRACK","UNSUPPORTED FILE"};
- static const char *const line[]={"","THE DECK LOOPS UNTIL YOU LOAD A TRACK","THE MEDIUM DID NOT ANSWER","THIS FILE CANNOT PLAY HERE"};
+ static const char *const title[]={"","EMERGENCY LOOP","CANNOT READ THE TRACK","UNSUPPORTED FILE","DEVICE ERROR"};
+ static const char *const line[]={"","THE DECK LOOPS UNTIL YOU LOAD A TRACK","THE MEDIUM DID NOT ANSWER","THIS FILE CANNOT PLAY HERE",""};
  int ly=lane_y(L,m,deck),y=ly+(L->lane_h-L->alert_h)/2;
  struct xz_shell_rect b=xz_shell_play_rect(m,XZ_SHELL_R_ALERT_BUTTON,deck);
  xz_rect(c,WAVE_X,y,WAVE_W,L->alert_h,0x5a0c0c);
  xz_rect(c,WAVE_X,y,4,L->alert_h,SH_RED);
  int x=WAVE_X+14,room=b.x-x-10;
  char head[64];
- snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" Ãƒâ€šÃ‚Â· ":"",d->alert.code?d->alert.code:"");
+ if(d->alert.text)snprintf(head,sizeof head,"%s",d->alert.code?d->alert.code:title[d->alert.kind]);
+ else snprintf(head,sizeof head,"%s%s%s",title[d->alert.kind],d->alert.code?" Ãƒâ€šÃ‚Â· ":"",d->alert.code?d->alert.code:"");
  sh_text_fit(c,x,y+8,room,head,SH_TEXT,SH_WHITE);
  sh_text_fit(c,x,y+30,room,d->alert.text?d->alert.text:line[d->alert.kind],SH_SMALL,0xffc8b4);
  xz_rect(c,b.x,b.y,b.w,b.h,SH_WHITE);

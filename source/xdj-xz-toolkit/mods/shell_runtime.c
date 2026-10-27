@@ -11,6 +11,8 @@
 #include "sync_observation.h"
 #include "shell_runtime.h"
 #include "shell_model.h"
+#include "stock_dialog.h"
+#pragma weak xz_stock_dialog_active
 #include "sync_native.h"
 #include "clock_compat.h"
 #include "shell_library.h"
@@ -2899,7 +2901,7 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  }
  moving=xz_shrt_moving_decks(&model);
  sec.moving|=moving;follow_bits=following;sec.following|=following;
- uint32_t raw_caution=xz_shell_model_caution(storage),caution=xz_shrt_caution_filter(&caution_state,raw_caution);
+ uint32_t raw_caution=xz_stock_dialog_active&&xz_stock_dialog_active()?1u:0u,caution=raw_caution;
  if(caution!=raw_caution)xz_mods_shell_proof_v1.caution_filtered++;
  xz_shrt_handoff_caution(&handoff,caution);
  xz_mods_shell_proof_v1.caution=caution;
