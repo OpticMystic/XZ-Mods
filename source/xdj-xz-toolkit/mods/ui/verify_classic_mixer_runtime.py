@@ -8,7 +8,7 @@ root = Path(__file__).resolve().parent
 sources = ['test_classic_mixer_runtime.c', '../shell_model.c', 'classic_mixer.c', 'classic_column.c',
            'extra_lane.c', 'ui_draw.c', 'layered_wave.c', 'wave_viewport.c']
 pair_sources = ['test_two_pair_runtime.c', 'native_wave.c', 'wave_viewport.c', 'extra_lane.c', 'extra_detail.c',
-                'layered_wave.c', 'ui_draw.c', 'route_card.c', 'deck_view.c']
+                'layered_wave.c', 'ui_draw.c', 'route_card.c', 'cable_anim.c', 'deck_view.c']
 with tempfile.TemporaryDirectory(prefix='xz-classic-mixer-') as folder:
     for name, files in (('runtime-test', sources), ('two-pair-test', pair_sources)):
         binary = Path(folder) / name
