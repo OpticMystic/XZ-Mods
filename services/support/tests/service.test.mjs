@@ -10,9 +10,10 @@ const origin='https://xz-mods-support.will-026.workers.dev';
 const admin='a'.repeat(64), key='b'.repeat(64);
 let mf, db, bucket, github = {status:503,body:{}}, outbound=[];
 before(async () => {
-  await mkdir('.test',{recursive:true});
-  await build({entryPoints:['tests/entry.ts'],outfile:'.test/worker.mjs',bundle:true,format:'esm',platform:'browser',target:'es2022'});
-  mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.test/worker.mjs',compatibilityDate:'2026-10-24',
+  const out=process.env.XZ_SUPPORT_TEST_OUTPUT; if(!out) throw new Error('XZ_SUPPORT_TEST_OUTPUT must name scratch output');
+  await mkdir(out,{recursive:true});
+  await build({entryPoints:['tests/entry.ts'],outfile:process.env.XZ_SUPPORT_TEST_OUTPUT+'/worker-v1.mjs',bundle:true,format:'esm',platform:'browser',target:'es2022'});
+  mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:await readFile(process.env.XZ_SUPPORT_TEST_OUTPUT+'/worker-v1.mjs','utf8'),compatibilityDate:'2026-10-24',
     d1Databases:['DB'],r2Buckets:['REPORTS'],unsafeEphemeralDurableObjects:true,
     bindings:{ENABLED:'true',PUBLIC_ORIGIN:origin,ADMIN_TOKEN_SHA256:sha(admin),RATE_KEY:'local-test-rate-key-only-'.repeat(3)},
     outboundService: async req => {
@@ -20,12 +21,13 @@ before(async () => {
       return new Response(JSON.stringify(github.body),{status:github.status,headers:{'Content-Type':'application/json'}});
     }}));
   db=await mf.getD1Database('DB'); bucket=await mf.getR2Bucket('REPORTS');
-  const sql=await readFile('migrations/0001_reports.sql','utf8');
+  const sql=(await readFile('migrations/0001_reports.sql','utf8'))+'\n'+(await readFile('migrations/0002_bugdesk_tracking.sql','utf8'));
   // Separate top-level CREATE statements, retaining the entire trigger body.
-  for(const statement of sql.split(/;\s*(?=CREATE)/)) await db.prepare(statement).run();
+  for(const statement of sql.split(/;\s*(?=(?:--[^\n]*\n\s*)*(?:CREATE|ALTER|INSERT))/)) await db.prepare(statement).run();
 });
 after(async () => { await mf?.dispose(); });
 beforeEach(async () => {
+  await db.prepare('DELETE FROM report_tracking').run();
   await db.prepare('DELETE FROM reports').run();
   const list=await bucket.list();
   for(const object of list.objects) await bucket.delete(object.key);
@@ -167,6 +169,7 @@ test('global count and retained-byte reservations enforce limits atomically',asy
   await seed({count:99,size:1});
   const race=await Promise.all([upload(draft(),{ip:'203.0.113.8'}),upload(draft(),{ip:'203.0.113.9'})]);
   assert.deepEqual(race.map(r=>r.status).sort(),[200,429]);
+  await db.prepare('DELETE FROM report_tracking').run();
   await db.prepare('DELETE FROM reports').run();
   // Distinct days avoid daily quotas while filling retained reservations to exactly 1 GiB.
   for(let d=1;d<=21;d++) await seed({count:d===21?48:100,day:`2026-09-${String(d).padStart(2,'0')}`});

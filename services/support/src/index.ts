@@ -1,47 +1,10 @@
+import { parseReportV2 } from './schema-v2';
+import { fingerprint } from './classification';
+import { initialTracking, trackingRow, ownerHistory, receiptV2, readTracking, ownerInbox, ownerMutation, cleanupTracking, revokeCapabilities, trackingSession } from './tracking';
+import { trackingPage } from './tracking-page';
 import { encoder, reportSchema, publicSchema, issueSchema } from './schema';
 
-type Env = Cloudflare.Env & { ADMIN_TOKEN_SHA256: string; RATE_KEY: string };
-type DB = ReturnType<Env['DB']['withSession']>;
-type Row = {
-  id: string; digest: string; key_hash: string; object_key: string; bytes: number;
-  state: 'reserved' | 'accepted' | 'deleting' | 'gone'; reserved_at: number;
-  accepted_at: number | null; expires_at: number | null; gone_at: number | null;
-  public_json: string | null; issue_state: 'pending' | 'user_provided' | 'verified'; issue_url: string | null;
-};
-const DAY = 86400000;
-const MAX = 524288;
-const ID = '[a-f0-9]{32}';
-const SECRET = /^[a-f0-9]{64}$/;
-class HttpError extends Error {
-  constructor(readonly status: number, readonly code: string) { super(code); }
-}
-function fail(status: number, code: string): never { throw new HttpError(status,code); }
-const headers = {
-  'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
-  'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'"
-};
-function json(value: unknown, status = 200): Response {
-  const body = JSON.stringify(value);
-  if (encoder.encode(body).length >= 65536) fail(500,'response_limit');
-  return new Response(body,{status,headers:{...headers,'Content-Type':'application/json'}});
-}
-const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2,'0')).join('');
-const sha = async (value: string | Uint8Array) => hex(await crypto.subtle.digest('SHA-256',typeof value === 'string' ? encoder.encode(value) : value));
-function equal(a: string, b: string): boolean {
-  return a.length === b.length && crypto.subtle.timingSafeEqual(encoder.encode(a),encoder.encode(b));
-}
-async function ipHash(env: Env, day: string, ip: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw',encoder.encode(env.RATE_KEY),{name:'HMAC',hash:'SHA-256'},false,['sign']);
-  return hex(await crypto.subtle.sign('HMAC',key,encoder.encode(`${day}\n${ip}`)));
-}
-function bearer(req: Request): string {
-  const match = /^Bearer ([a-f0-9]{64})$/.exec(req.headers.get('Authorization') ?? '');
-  return match?.[1] ?? fail(401,'unauthorized');
-}
-async function owner(req: Request, env: Env): Promise<void> {
-  const match=/^Bearer ([a-zA-Z0-9_-]{32,256})$/.exec(req.headers.get('Authorization') ?? '');
-  if (!match || !equal(await sha(match[1]),env.ADMIN_TOKEN_SHA256)) fail(401,'unauthorized');
-}
+import { Env, DB, Row, DAY, MAX, ID, SECRET, HttpError, fail, json, headers, sha, equal, bearer, owner, ipHash, bodyLength, bytes, parse } from './http';
 const row = (db: DB, id: string) => db.prepare('SELECT * FROM reports WHERE id=?').bind(id).first<Row>();
 function active(r: Row, now: number): void {
   if (r.state === 'gone' || r.state === 'deleting' || r.expires_at !== null && r.expires_at <= now ||
@@ -61,51 +24,15 @@ function receipt(r: Row, env: Env) {
     accepted_at:new Date(r.accepted_at).toISOString(),expires_at:new Date(r.expires_at).toISOString(),
     private_logs:'stored',public_issue:r.issue_state,github_draft_url:`${env.PUBLIC_ORIGIN}/r/${r.id}/github`,issue_url:r.issue_url};
 }
-function bodyLength(req: Request, max: number): number {
-  if (req.headers.get('Content-Type') !== 'application/json' || req.headers.has('Content-Encoding') ||
-      req.headers.has('Transfer-Encoding')) fail(415,'unsupported_encoding');
-  const raw = req.headers.get('Content-Length') ?? '';
-  if (!/^[1-9][0-9]{0,6}$/.test(raw)) fail(411,'length_required');
-  const length = Number(raw);
-  if (length > max) fail(413,'too_large');
-  return length;
-}
-async function bytes(req: Request, length: number): Promise<Uint8Array> {
-  if (!req.body) fail(400,'length_mismatch');
-  const reader = req.body.getReader();
-  const out = new Uint8Array(length);
-  let total = 0;
-  const timeout = AbortSignal.timeout(15000);
-  const timedOut = new Promise<never>((_,reject) => {
-    timeout.addEventListener('abort',() => reject(new HttpError(408,'body_timeout')),{once:true});
-  });
-  try {
-    while (true) {
-      const next = await Promise.race([
-        reader.read(),
-        timedOut
-      ]);
-      if (next.done) break;
-      total += next.value.byteLength;
-      if (total > length) fail(400,'length_mismatch');
-      out.set(next.value,total-next.value.byteLength);
-    }
-    if (total !== length) fail(400,'length_mismatch');
-    return out;
-  } finally { void reader.cancel().catch(() => {}); }
-}
-function parse(raw: Uint8Array): unknown {
-  try { return JSON.parse(new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(raw)); }
-  catch { return fail(400,'invalid_json'); }
-}
-async function submit(req: Request, env: Env, db: DB, now: number): Promise<Response> {
+async function submit(req: Request, env: Env, db: DB, now: number, v2 = false): Promise<Response> {
   const length = bodyLength(req,MAX);
   const id = req.headers.get('X-Report-ID') ?? '';
   const digest = req.headers.get('X-Report-SHA256') ?? '';
   if (!new RegExp(`^${ID}$`).test(id) || !SECRET.test(digest) ||
-      req.headers.get('X-Report-Consent') !== 'public-summary-private-logs/v1') fail(400,'invalid_headers');
+      req.headers.get('X-Report-Consent') !== (v2 ? 'private-report/v2' : 'public-summary-private-logs/v1')) fail(400,'invalid_headers');
   const keyHash = await sha(bearer(req));
   let previous = await row(db,id);
+  if(!previous && await trackingRow(db,id)) fail(409,'retained_report_id');
   if (previous && (!equal(previous.key_hash,keyHash) || previous.digest !== digest || previous.bytes !== length)) fail(409,'conflict');
   if (previous && previous.state !== 'accepted') active(previous,now);
   if (!previous) {
@@ -127,29 +54,40 @@ async function submit(req: Request, env: Env, db: DB, now: number): Promise<Resp
   }
   const raw = await bytes(req,length);
   if (await sha(raw) !== digest) fail(400,'digest_mismatch');
-  const parsed = reportSchema.safeParse(parse(raw));
-  if (!parsed.success || parsed.data.report_id !== id) fail(400,'invalid_report');
-  if (previous.state === 'accepted') { active(previous,Date.now()); return json(receipt(previous,env)); }
+  const value = parse(raw);
+  const v2Report = v2 ? parseReportV2(value) : null;
+  const parsed = reportSchema.safeParse(value);
+  if (v2 ? !v2Report || v2Report.report_id !== id : !parsed.success || parsed.data.report_id !== id) fail(400,'invalid_report');
+  if (previous.state === 'accepted') { active(previous,Date.now()); return json(v2 ? await receiptV2(db,id) : receipt(previous,env)); }
   // Conditional R2 creation allows one writer, even when requests race the D1 insert.
-  const report = parsed.data;
-  const publicFields = {title:report.public_issue.title, description:report.public_issue.description,
+  const report = parsed.success ? parsed.data : null;
+  const publicFields = report && !v2 ? {title:report.public_issue.title, description:report.public_issue.description,
     origin:report.origin,category:report.category,
-    version:/^[a-zA-Z0-9.+_-]{0,64}$/.test(report.build.app_version) ? report.build.app_version : ''};
+    version:/^[a-zA-Z0-9.+_-]{0,64}$/.test(report.build.app_version) ? report.build.app_version : ''} : null;
   const stored = await env.REPORTS.put(previous.object_key,raw,{onlyIf:{etagDoesNotMatch:'*'},sha256:digest});
   if (!stored) fail(503,'outcome_unknown');
   const accepted = Date.now();
-  const result = await db.prepare(`UPDATE reports SET state='accepted',accepted_at=?,expires_at=?,public_json=?
-    WHERE id=? AND state='reserved' AND reserved_at>?`).bind(accepted,accepted+14*DAY,JSON.stringify(publicFields),id,accepted-900000).run();
-  if (result.meta.changes !== 1) fail(503,'outcome_unknown');
+  // Acceptance and initial tracking commit together. A failed batch never
+  // advertises an accepted receipt. R2 orphans retain the existing cleanup path.
+  const statements = [db.prepare(`UPDATE reports SET state='accepted',accepted_at=?,expires_at=?,public_json=?,protocol_version=?,legacy_public_consent=?
+    WHERE id=? AND state='reserved' AND reserved_at>?`).bind(accepted,accepted+14*DAY,publicFields ? JSON.stringify(publicFields) : null,v2?2:1,v2?0:1,id,accepted-900000),
+    initialTracking(db,id,keyHash,digest,accepted,v2Report?.kind_hint)];
+  const signature = v2Report ? await fingerprint(v2Report) : null;
+  if (signature) statements.push(db.prepare(`INSERT INTO report_signatures(report_id,exact_hash,family_hash,component)
+    SELECT report_id,?,?,? FROM report_tracking WHERE report_id=? AND payload_sha256=? ON CONFLICT DO NOTHING`)
+    .bind(signature.exact,signature.family,signature.component,id,digest));
+  const result = await db.batch(statements);
+  if (result[0].meta.changes !== 1) fail(503,'outcome_unknown');
   const done = await row(db,id);
   if (!done) fail(503,'outcome_unknown');
-  return json(receipt(done,env));
+  return json(v2 ? await receiptV2(db,id) : receipt(done,env));
 }
 
 async function githubDraft(db: DB, id: string, now: number): Promise<Response> {
   const r = await row(db,id);
   if (!r) fail(404,'not_found');
   active(r,now);
+  if (r.protocol_version !== 1 || r.legacy_public_consent !== 1) fail(404,'not_found');
   const p = publicSchema.parse(JSON.parse(r.public_json ?? 'null'));
   const url = new URL('https://github.com/OpticMystic/XZ-Mods/issues/new');
   url.searchParams.set('title',p.title);
@@ -159,6 +97,7 @@ async function githubDraft(db: DB, id: string, now: number): Promise<Response> {
 
 async function linkIssue(req: Request, env: Env, db: DB, id: string, now: number): Promise<Response> {
   const r = await reporter(req,db,id,now);
+  if (r.protocol_version !== 1 || r.legacy_public_consent !== 1) fail(404,'not_found');
   const parsed = issueSchema.safeParse(parse(await bytes(req,bodyLength(req,1024))));
   if (!parsed.success) fail(400,'invalid_issue');
   const match = /^https:\/\/github\.com\/OpticMystic\/XZ-Mods\/issues\/([1-9][0-9]{0,9})$/.exec(parsed.data.issue_url);
@@ -209,6 +148,7 @@ export async function cleanup(env: Env, now = Date.now()): Promise<void> {
   await db.prepare(`UPDATE reports SET state='deleting',gone_at=? WHERE
     (state='accepted' AND expires_at<=?) OR (state='reserved' AND reserved_at<=?)`).bind(now,now,now-900000).run();
   const pending = await db.prepare(`SELECT * FROM reports WHERE state IN ('deleting','gone') ORDER BY last_swept LIMIT 200`).all<Row>();
+  await cleanupTracking(db,now);
   if(!pending.results.length) return;
   await env.REPORTS.delete(pending.results.map(r=>r.object_key));
   const ids=JSON.stringify(pending.results.map(r=>r.id));
@@ -243,7 +183,7 @@ async function ownerPage(req: Request, env: Env, db: DB, id: string, search: str
   const next=offset+length;
   return json({schema:'xz-support-owner-page/1',report_id:r.id,payload_sha256:r.digest,
     total_bytes:r.bytes,offset,encoding:'base64',data_base64:btoa(String.fromCharCode(...data)),
-    next_offset:next<r.bytes?next:null,receipt:receipt(latest,env)});
+    next_offset:next<r.bytes?next:null,receipt:latest.protocol_version===2 ? await receiptV2(db,id) : receipt(latest,env)});
 }
 
 async function dispatch(req: Request, env: Env): Promise<Response> {
@@ -255,12 +195,29 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
   for(const [name,value] of req.headers) { headerSize+=name.length+value.length; if(value.length>1024) fail(431,'headers_too_large'); }
   if(headerSize>8192 || url.href.length>1024) fail(431,'headers_too_large');
   const db=env.DB.withSession('first-primary'); const now=Date.now(); const path=url.pathname;
+  if(req.method==='GET' && (path==='/track' || path==='/track.js') && !url.search) return trackingPage(path);
+  if(path==='/v2/admin/reports' && req.method==='GET') return ownerInbox(req,env,db,url);
+  const v2Page=new RegExp(`^/v2/admin/reports/(${ID})$`).exec(path);
+  if(v2Page && req.method==='GET') return ownerPage(req,env,db,v2Page[1],url.search);
+  if(!url.search) {
+    if(path==='/v2/reports' && req.method==='POST') return submit(req,env,db,now,true);
+    if(path==='/v2/tracking/session' && req.method==='POST') return trackingSession(req,db);
+    const status=new RegExp(`^/v2/reports/(${ID})/(receipt|status)$`).exec(path);
+    if(status && req.method==='GET') return readTracking(req,db,status[1],status[2]==='receipt'?'receipt':'status');
+    const read=new RegExp(`^/v2/tracking/(${ID})$`).exec(path);
+    if(read && req.method==='GET') return readTracking(req,db,read[1],'read');
+    const caps=new RegExp(`^/v2/reports/(${ID})/capabilities$`).exec(path);
+    if(caps && req.method==='POST') return revokeCapabilities(req,db,caps[1]);
+    const mutation=new RegExp(`^/v2/admin/reports/(${ID})/(triage|notes|status|history)$`).exec(path);
+    if(mutation && req.method==='GET') return ownerHistory(req,env,db,mutation[1],mutation[2]);
+    if(mutation && req.method==='POST') return ownerMutation(req,env,db,mutation[1],mutation[2]);
+  }
   const ownerPath=new RegExp(`^/v1/admin/reports/(${ID})$`).exec(path);
   if(ownerPath && req.method==='GET') return ownerPage(req,env,db,ownerPath[1],url.search);
   if(url.search) fail(400,'invalid_query');
   if(req.method==='POST' && path==='/v1/reports') return submit(req,env,db,now);
   let m=new RegExp(`^/v1/reports/(${ID})/receipt$`).exec(path);
-  if(m && req.method==='GET') return json(receipt(await reporter(req,db,m[1],now),env));
+  if(m && req.method==='GET') { const r=await reporter(req,db,m[1],now); if(r.protocol_version!==1) fail(404,'not_found'); return json(receipt(r,env)); }
   m=new RegExp(`^/r/(${ID})/github$`).exec(path);
   if(m && req.method==='GET') return githubDraft(db,m[1],now);
   m=new RegExp(`^/v1/reports/(${ID})/issue$`).exec(path);

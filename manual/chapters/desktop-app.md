@@ -416,3 +416,17 @@ The report window.
 4. **Open reviewed GitHub draft** opens the public issue for you to submit on GitHub.
 
 Nothing is sent until you approve it. If sending fails, **Set up reporting connection** walks through the fix, and the export works offline. You can also report from the player. See [Report an issue](extras#report-an-issue).
+
+
+### Private receipt status links
+
+A receipt status link, when provided, opens a read-only page with the report's classification and progress.
+It never shows the original description, contact details, logs, or another person's report. Anonymous
+reporters can use the same tracking link. Keep your recovery receipt private.
+
+If the link is unavailable, **Open a saved status link** lets you choose another receipt link and check it.
+Private diagnostics expire after 14 days. Safe tracking lasts while a report is active, up to one year
+without activity, then 180 days after closure. A local test build is not a published update.
+
+The desktop report form above still uses its existing preview and send steps. The new one-box form and
+My reports integration require the matching desktop update. A status page does not post to GitHub.
