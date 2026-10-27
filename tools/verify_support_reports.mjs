@@ -80,22 +80,22 @@ function installMock() {
     if (request.consent !== 'private-report/v2') return fail('Send needs consent to this private report');
     const id = hex(16), body = JSON.stringify({ description: request.description, items: included.map(i => i.item_id) });
     fx.lastDraft = { report_id: id, sha256: await sha(body), bytes: body.length, request, included: included.map(i => i.item_id) };
-    fx.drafts.push({ report_id: id, sha256: fx.lastDraft.sha256, bytes: body.length, schema: 'xz-support-report/2', readable: true, title: request.description.slice(0, 40), topic: request.reporter_hints?.topic || null, attempted: false, saved_at: '2026-10-27T13:00:00Z', stored_revision: hex(32) });
+    fx.drafts.push({ report_reference: window.XZ_SUPPORT_IDENTIFIERS.formatReportReference(window.XZ_SUPPORT_IDENTIFIERS.parseReportReference('R-4F7K-2M9Q') + fx.drafts.length), report_id: id, sha256: fx.lastDraft.sha256, bytes: body.length, schema: 'xz-support-report/2', readable: true, title: request.description.slice(0, 40), topic: request.reporter_hints?.topic || null, attempted: false, saved_at: '2026-10-27T13:00:00Z', stored_revision: hex(32) });
     return ok({ report_id: id, sha256: fx.lastDraft.sha256, bytes: body.length, pages: 1, selection_sha256: digest, consent: 'private-report/v2' });
   };
-  const view = (draft, extra = {}) => ({ report_id: draft.report_id, state: 'accepted', protocol: 2, kind_hint: { GOT_WORSE: 'REGRESSION', NEW_IDEA: 'FEATURE', HOW_DO_I: 'QUESTION', WORK_DIFFERENTLY: 'EXPECTATION' }[draft.topic] || 'BUG', topic: draft.topic,
+  const view = (draft, extra = {}) => ({ report_id: draft.report_id, state: 'accepted', report_reference: draft.report_reference, item_number: null, protocol: 2, kind_hint: { GOT_WORSE: 'REGRESSION', NEW_IDEA: 'FEATURE', HOW_DO_I: 'QUESTION', WORK_DIFFERENTLY: 'EXPECTATION' }[draft.topic] || 'BUG', topic: draft.topic,
     summary: draft.title, classified_kind: null, lifecycle: 'received', status_text_key: 'received', status_text: 'Received privately. Track it here.', question: null, revision: 1, created_at: Math.floor(Date.now() / 1000),
     accepted_at: '2026-10-27T13:00:00.000Z', updated_at: '2026-10-27T13:00:00.000Z', retention_until: '2027-10-27T13:00:00.000Z', diagnostics_expires_at: '2026-11-10T13:00:00.000Z', unseen: false, checked_at: Math.floor(Date.now() / 1000), last_error: null, links_revoked: false, ...extra });
   const rows = () => [
-    { report_id: 'a'.repeat(32), revision: 4, kind: 'REGRESSION', severity: 'LIVE_SET_STOPPER', impact: 'RESTORES_EXPECTED', expectation: 'XZ_MODS_PREVIOUS', outcome: 'CLASSIFIED', lifecycle: 'triaged', reach_count: 6, automatic_fix_eligible: true, automation_enabled: false, created_at: 1761559200000,
+    { report_id: 'a'.repeat(32), report_reference: 'R-4F7K-2M9Q', item_number: 'XZ-1042', revision: 4, kind: 'REGRESSION', severity: 'LIVE_SET_STOPPER', impact: 'RESTORES_EXPECTED', expectation: 'XZ_MODS_PREVIOUS', outcome: 'CLASSIFIED', lifecycle: 'triaged', reach_count: 6, automatic_fix_eligible: true, automation_enabled: false, created_at: 1761559200000,
       desk: { expectation: 'XZ_MODS_PREVIOUS', impact: 'RESTORES_EXPECTED', severity: 'LIVE_SET_STOPPER', affected_features: ['sync_lamp', 'master_handoff'], in_use_since: '0.5.0-preview.21', reach: { versions: ['0.5.0-preview.22.6'], interfaces: ['MODERN', 'CLASSIC'], decks: [3, 4] }, proposed_setting: null } },
-    { report_id: 'b'.repeat(32), revision: 2, kind: 'EXPECTATION', severity: 'ANNOYANCE', impact: 'RESTORES_EXPECTED', expectation: 'STOCK_XZ', outcome: 'CLASSIFIED', lifecycle: 'triaged', reach_count: 3, automatic_fix_eligible: false, automation_enabled: false, created_at: 1761559300000,
+    { report_id: 'b'.repeat(32), report_reference: 'R-0110-0001', item_number: 'XZ-1043', revision: 2, kind: 'EXPECTATION', severity: 'ANNOYANCE', impact: 'RESTORES_EXPECTED', expectation: 'STOCK_XZ', outcome: 'CLASSIFIED', lifecycle: 'triaged', reach_count: 3, automatic_fix_eligible: false, automation_enabled: false, created_at: 1761559300000,
       desk: { expectation: 'STOCK_XZ', impact: 'RESTORES_EXPECTED', severity: 'ANNOYANCE', affected_features: ['beat_jump_pads'], in_use_since: '0.5.0-preview.19', reach: { versions: ['0.5.0-preview.22.6'], interfaces: ['MODERN'], decks: [1, 2] }, proposed_setting: null } },
-    { report_id: 'c'.repeat(32), revision: 3, kind: 'EXPECTATION', severity: 'COSMETIC', impact: 'OPT_IN_CHANGE', expectation: 'DJ_CONVENTION', outcome: 'CLASSIFIED', lifecycle: 'triaged', reach_count: 2, automatic_fix_eligible: false, automation_enabled: false, created_at: 1761559400000,
+    { report_id: 'c'.repeat(32), report_reference: 'R-4F7K-2M9R', item_number: 'XZ-1044', revision: 3, kind: 'EXPECTATION', severity: 'COSMETIC', impact: 'OPT_IN_CHANGE', expectation: 'DJ_CONVENTION', outcome: 'CLASSIFIED', lifecycle: 'triaged', reach_count: 2, automatic_fix_eligible: false, automation_enabled: false, created_at: 1761559400000,
       desk: { expectation: 'DJ_CONVENTION', impact: 'OPT_IN_CHANGE', severity: 'COSMETIC', affected_features: ['sync_lamp'], in_use_since: '0.5.0-preview.20', reach: { versions: ['0.5.0-preview.22.6'], interfaces: ['MODERN'], decks: [1, 2, 3, 4] }, proposed_setting: 'sync_lamp' } },
-    { report_id: 'd'.repeat(32), revision: 1, kind: 'FEATURE', severity: null, impact: 'CHANGES_DEFAULT', expectation: 'PREFERENCE', outcome: 'CLASSIFIED', lifecycle: 'triaged', reach_count: 9, automatic_fix_eligible: false, automation_enabled: false, created_at: 1761559500000,
+    { report_id: 'd'.repeat(32), report_reference: 'R-4F7K-2M9S', item_number: 'XZ-1045', revision: 1, kind: 'FEATURE', severity: null, impact: 'CHANGES_DEFAULT', expectation: 'PREFERENCE', outcome: 'CLASSIFIED', lifecycle: 'triaged', reach_count: 9, automatic_fix_eligible: false, automation_enabled: false, created_at: 1761559500000,
       desk: { expectation: 'PREFERENCE', impact: 'CHANGES_DEFAULT', severity: null, affected_features: ['appearance'], in_use_since: 'unknown', reach: { versions: [], interfaces: [], decks: [] }, proposed_setting: null } },
-    { report_id: 'e'.repeat(32), revision: 1, kind: null, severity: null, impact: null, expectation: null, outcome: null, lifecycle: 'received', reach_count: 1, automatic_fix_eligible: false, automation_enabled: false, created_at: 1761559600000, desk: null }
+    { report_id: 'e'.repeat(32), report_reference: 'R-4F7K-2M9T', item_number: null, revision: 1, kind: null, severity: null, impact: null, expectation: null, outcome: null, lifecycle: 'received', reach_count: 1, automatic_fix_eligible: false, automation_enabled: false, created_at: 1761559600000, desk: null }
   ];
   const status = request => {
     switch (request.method) {
@@ -135,7 +135,7 @@ function installMock() {
         fx.sends = (fx.sends || 0) + 1; fx.lastSend = args;
         const draft = fx.drafts.find(d => d.report_id === args.id);
         if (!draft || draft.sha256 !== args.sha256) throw 'Stale preview or changed draft';
-        if (fx.sendMode === 'fail') { if (!fx.receipts.some(r => r.report_id === args.id)) fx.receipts.push(view(draft, { state: 'unconfirmed', status_text: null, lifecycle: null, last_error: 'outcome_unknown' })); throw 'OutcomeUnknown: connection failed. Check receipt before retrying.'; }
+        if (fx.sendMode === 'fail') { if (!fx.receipts.some(r => r.report_id === args.id)) fx.receipts.push(view(draft, { state: 'unconfirmed', report_reference: null, status_text: null, lifecycle: null, last_error: 'outcome_unknown' })); throw 'OutcomeUnknown: connection failed. Check receipt before retrying.'; }
         const receipt = view(draft);
         fx.receipts = fx.receipts.filter(r => r.report_id !== args.id).concat(receipt);
         return receipt;
@@ -157,9 +157,14 @@ function installMock() {
       case 'support_owner_status': return { connected: fx.owner };
       case 'support_connect': if (args.key.length < 32) throw 'Invalid report-only owner key'; fx.owner = true; return { connected: true };
       case 'support_inbox':
+        if (args.action === 'search') {
+          const I=window.XZ_SUPPORT_IDENTIFIERS, ref=I.parseReportReference(args.id), item=I.parseItemNumber(args.id);
+          fx.lastSearch=args.id;
+          return { reports: rows().filter(r => ref!==null ? I.parseReportReference(r.report_reference)===ref : item!==null && I.parseItemNumber(r.item_number)===item), next_cursor:null, high_water:5 };
+        }
         if (args.action === 'list') return { reports: rows().slice(0, 3), next_cursor: 'eyJ2IjoyfQ==', high_water: 5 };
         if (args.action === 'more') return { reports: rows().slice(3), next_cursor: null, high_water: 5 };
-        if (args.action === 'changes') return { baseline: false, complete: true, changed: [{ report_id: 'c'.repeat(32), revision: 3 }] };
+        if (args.action === 'changes') return { baseline: false, complete: true, changed: [{ report_id: 'c'.repeat(32), report_reference: 'R-4F7K-2M9R', item_number: 'XZ-1044', revision: 3 }] };
         if (args.action === 'read') { fx.inboxReads++; return { pages: 2 }; }
         if (args.action === 'delete') return { report_id: args.id, state: 'gone' };
         throw 'Invalid inbox action';
@@ -299,8 +304,11 @@ try {
   await waitFor(`reportWizard.state().screen==='done'`, 'sent');
   await check(`(async()=>{const r=last('support_prepare_v2');const s=fx.scans.get(r.scan_generation);const kept=s.items.filter(i=>i.eligible&&!r.omit_item_ids.includes(i.item_id));return r.consent==='private-report/v2'&&r.omit_item_ids.join()===${JSON.stringify(first)}&&r.selection_sha256===await digestOf(kept)&&r.description.startsWith('Decks 3 and 4')&&r.collect===undefined;})()`, 'Send freezes the shown selection: omitted source out, selection SHA256 and consent bound');
   await check(`fx.lastSend.id===fx.lastDraft.report_id&&fx.lastSend.sha256===fx.lastDraft.sha256&&fx.sends===1`, 'Send uploads exactly the sealed draft by its ID and SHA256, once');
-  await check(`txt('.sr-receipt strong')==='Your receipt'&&txt('.sr-receipt dd').startsWith('Report '+fx.lastDraft.report_id.slice(0,8))&&Boolean(button('Track my report'))&&button('Done').classList.contains('primary')`, 'success shows the receipt, Track my report and Done');
+  await check(`txt('.sr-receipt strong')==='Your reference R-4F7K-2M9Q'&&txt('.sr-receipt dd').startsWith('R-4F7K-2M9Q')&&Boolean(button('Track my report'))&&button('Done').classList.contains('primary')`, 'success shows the receipt, Track my report and Done');
   await shot('05-received', { receipt: '.sr-receipt strong', status: '.sr-receipt p', id: '.sr-receipt dd', track: '[data-key="track"]', done: '[data-key="done"]' });
+  await click('Copy');
+  await check(`fx.clipboard.at(-1)==='R-4F7K-2M9Q'&&button('Copied')`, 'Copy copies only the public reference');
+  await evaluate(`fx.clipboard=[]`);
   await click('Done');
   await check(`!wiz().open&&window.myReports.state().reports.length===1`, 'Done closes; the receipt is in My reports');
 
@@ -401,7 +409,7 @@ try {
 
   // My reports, the status notice and the tracking view.
   const tracked = await evaluate(`fx.receipts[0].report_id`);
-  await evaluate(`fx.unseen=[{report_id:${JSON.stringify(tracked)},lifecycle:'fix_in_progress',status_text_key:'fix_in_progress',status_text:'A fix is in progress.',revision:3,classified_kind:'BUG',updated_at:'2026-10-29T09:00:00.000Z'}];myReports.check('update')`);
+  await evaluate(`fx.unseen=[{report_id:${JSON.stringify(tracked)},item_number:'XZ-1042',lifecycle:'fix_in_progress',status_text_key:'fix_in_progress',status_text:'A fix is in progress.',revision:3,classified_kind:'BUG',updated_at:'2026-10-29T09:00:00.000Z'}];myReports.check('update')`);
   await waitFor(`!document.getElementById('report-notice').classList.contains('hidden')`, 'notice');
   await check(`txt('#report-notice-text')==='Update on your report: A fix is in progress.'`, 'a status change shows a notice in plain words');
   await evaluate(`showPage('updates');window.scrollTo(0,0)`);
@@ -409,11 +417,16 @@ try {
   await evaluate(`showPage('my-reports')`);
   await waitFor(`document.querySelectorAll('.sr-reports .sr-report').length===4`, 'my reports list');
   await check(`txt('.sr-report[data-unseen] .sr-status')==='New: A fix is in progress.'&&[...document.querySelectorAll('.sr-reports .sr-badge')].map(b=>b.textContent).includes('Idea')`, 'My reports shows each report with its kind and status in plain words');
+  await check(`txt('.sr-report[data-unseen] .sr-reference')==='R-4F7K-2M9Q'&&txt('.sr-report[data-unseen] .sr-item-number')==='Part of XZ-1042'`, 'My reports shows the report reference and assigned item');
   await shot('16-my-reports', { notice: '#report-notice-text', view: '#report-notice-view', kind: '.sr-reports .sr-badge', words: '.sr-reports .sr-report strong', status: '.sr-report[data-unseen] .sr-status', sent: '.sr-reports .sr-when', check: '[data-key="check-now"]', report: '[data-key="new-report"]' });
+  await size(700,760);
+  await check(`document.querySelector('.sr-report[data-unseen] .sr-reference').checkVisibility()&&document.querySelector('.sr-report[data-unseen] .sr-item-number').checkVisibility()`, 'narrow My reports rows keep both identifiers visible');
+  await size(1100,760);
   await evaluate(`document.getElementById('report-notice-view').click()`);
   await waitFor(`document.getElementById('report-track').open`, 'tracking view');
   await waitFor(`fx.seen===${JSON.stringify(tracked)}&&document.getElementById('report-notice').classList.contains('hidden')`, 'seen');
   await check(`txt('#report-track .sr-track-status')==='A fix is in progress.'&&txt('#report-track .st-steps').startsWith('1 Received2 Confirmed3 Fix in progress')`, 'the tracking view shows where the report is, read-only');
+  await check(`txt('#report-track h2').includes('R-4F7K-2M9Q')&&txt('#report-track .sr-item-number')==='Part of XZ-1042'`, 'tracking shows both identifiers');
   await shot('17-tracking', { steps: '#report-track .st-steps', title: '#report-track h2', words: '#report-track .sr-track-words', status: '#report-track .sr-track-status', dates: '#report-track .sr-dates', more: '#report-track .sr-more summary', check: '#report-track [data-key="check-now"]' });
   await evaluate(`document.querySelector('#report-track .sr-more summary').click()`);
   await click('Copy status link', `document.getElementById('report-track')`);
@@ -433,7 +446,7 @@ try {
   await waitFor(`document.querySelectorAll('#support-inbox tbody tr').length===3`, 'inbox rows');
   await click('Load more', `document.getElementById('support-inbox')`);
   await waitFor(`document.querySelectorAll('#support-inbox tbody tr').length===5`, 'more rows');
-  await check(`[...document.querySelectorAll('#support-inbox th')].map(t=>t.textContent).join()==='Kind,Severity,Impact,Baseline,Affected features,In use since,Reach,Status'`, 'inbox columns follow the taxonomy order');
+  await check(`[...document.querySelectorAll('#support-inbox th')].map(t=>t.textContent).join()==='Kind,Severity,Impact,Baseline,Affected features,In use since,Reach,Status,Reference,Item'`, 'inbox columns follow the taxonomy order');
   await check(`(()=>{const c=[...document.querySelector('#support-inbox tbody tr').cells].map(td=>td.textContent);return c[0].startsWith('Regression')&&c[1]==='Live-set stopper'&&c[2]==='Restores expected'&&c[3]==='Earlier XZ Mods'&&c[4]==='SYNC lampMASTER hand-off'&&c[5]==='0.5.0-preview.21'&&c[6].startsWith('6 reports')&&c[6].includes('MODERN, CLASSIC')&&c[6].includes('decks 3, 4')&&c[7].startsWith('Triaged')&&c[7].includes('Fix rule: eligible · automation off');})()`, 'a row reads kind, severity, impact, baseline, features, in use since, reach and status');
   await check(`txt('#support-inbox tbody tr:nth-child(3) td:nth-child(3)').includes('Adds a setting: SYNC lamp')&&document.querySelector('#support-inbox tbody tr:nth-child(4)').hasAttribute('data-flag')&&txt('#support-inbox tbody tr:nth-child(4) td:nth-child(3)').includes('Never automatic')`, 'opt-in changes show their setting; changes to defaults are flagged for the owner');
   await click('Check for changes', `document.getElementById('support-inbox')`);
@@ -441,6 +454,17 @@ try {
   await evaluate(`document.querySelector('#support-inbox [data-key="read-${'a'.repeat(32)}"]').click()`);
   await waitFor(`txt('#support-inbox pre').includes('SYNC lamp stays dark')`, 'report read');
   await shot('19-inbox');
+  await evaluate(`document.querySelector('#support-inbox .sr-table-wrap').scrollLeft=9999`);
+  await shot('20-inbox-identifiers');
+  for (const [query,expected] of [[' r 4f7k - 2m9q ','R-4F7K-2M9Q'],['r oilo 0001','R-0110-0001'],[' xz - 1 042 ','R-4F7K-2M9Q']]) {
+    await evaluate(`document.getElementById('support-inbox-search').value=${JSON.stringify(query)};button('Find',document.getElementById('support-inbox')).click()`);
+    await waitFor(`document.querySelectorAll('#support-inbox tbody tr').length===1`, 'identifier search');
+    await check(`txt('#support-inbox tbody .sr-reference')===${JSON.stringify(expected)}`, 'inbox tolerant lookup: '+query.trim());
+    await click('Clear', `document.getElementById('support-inbox')`);
+    await waitFor(`document.querySelectorAll('#support-inbox tbody tr').length===3`, 'clear search');
+  }
+  await evaluate(`document.getElementById('support-inbox-search').value='XZ-1000';button('Find',document.getElementById('support-inbox')).click()`);
+  await check(`txt('#support-inbox [role=status]').includes('Enter a reference')`, 'invalid identifier gets a useful search message');
   await evaluate(`document.getElementById('support-inbox').close()`);
 
   assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));

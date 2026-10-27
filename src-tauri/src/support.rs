@@ -109,8 +109,11 @@ pub(crate) fn validate_receipt(r:&Value,id:&str,sha:&str,fresh:bool)->Result<Val
  if r["schema"]!="xz-support-receipt/2"||r["report_id"]!=id||r["payload_sha256"]!=sha||r["publication_mode"]!="none"||!(logs=="stored"||(!fresh&&logs=="gone")){
   return Err("Unexpected receipt; private storage not confirmed".into())
  }
+ let (reference,item)=tracking::identifiers(r)?;
+ let projection=tracking::projection(&r["tracking"],id)?;
+ if projection["report_reference"]!=reference||projection["item_number"]!=item{return Err("Receipt identifiers do not match status".into())}
  Ok(json!({"accepted_at":iso(&r["accepted_at"]).ok_or("Unexpected receipt time")?,"diagnostics_expires_at":iso(&r["expires_at"]).ok_or("Unexpected receipt time")?,
-  "private_logs":logs,"tracking":tracking::projection(&r["tracking"],id)?}))
+  "private_logs":logs,"tracking":projection}))
 }
 pub(crate) async fn submit(origin:&str,id:&str,sha:&str,d:&Draft,cancel:&AtomicBool)->Result<Value,String>{
  let extra=[("X-Report-ID",id.to_string()),("X-Report-SHA256",sha.to_string()),("X-Report-Consent",consent_text().to_string())];
@@ -240,6 +243,7 @@ fn bounded_list(v:&Value,max:usize,item:impl Fn(&Value)->Option<Value>)->Result<
 // Owner rows are rebuilt from validated fields only: kind, severity, impact, baseline, affected features,
 // in use since, reach and status (FEEDBACK-TAXONOMY.md section 5). Eligibility is the contract rule only.
 fn owner_row(r:&Value)->Result<Value,String>{
+ let (reference,item)=tracking::identifiers(r)?;
  let id=r["report_id"].as_str().filter(|s|valid_id(s)).ok_or("Unexpected owner report ID")?;
  let desk=if r["desk"].is_null(){Value::Null}else{
   let d=&r["desk"];let reach=&d["reach"];
@@ -253,7 +257,7 @@ fn owner_row(r:&Value)->Result<Value,String>{
     "decks":bounded_list(&reach["decks"],4,|x|x.as_u64().filter(|n|(1..=4).contains(n)).map(|n|json!(n)))?}})
  };
  let lifecycle=r["lifecycle"].as_str().filter(|s|listed("lifecycles",s)).ok_or("Unexpected owner lifecycle")?;
- Ok(json!({"report_id":id,"revision":r["revision"].as_u64().ok_or("Unexpected owner revision")?,
+ Ok(json!({"report_id":id,"report_reference":reference,"item_number":item,"revision":r["revision"].as_u64().ok_or("Unexpected owner revision")?,
   "kind":enum_or_null(&r["kind"],"kinds")?,"severity":enum_or_null(&r["severity"],"severities")?,"impact":enum_or_null(&r["impact"],"impacts")?,
   "expectation":enum_or_null(&r["expectation"],"expectations")?,"outcome":enum_or_null(&r["outcome"],"outcomes")?,"lifecycle":lifecycle,"desk":desk,
   "reach_count":r["reach_count"].as_u64().filter(|n|*n<=1_000_000).ok_or("Unexpected owner reach")?,
@@ -295,6 +299,12 @@ pub async fn support_inbox(app:tauri::AppHandle,state:tauri::State<'_,Support>,a
  let report=||->Result<String,String>{let id=id.clone().ok_or("Choose a report")?;if !valid_id(&id){return Err("Invalid report ID".into())}Ok(id)};
  match action.as_str(){
   "list"=>owner_list(&exchange(ORIGIN,reqwest::Method::GET,"/v2/admin/reports?limit=50",key,None,&[],65535,&state.cancel).await?),
+  "search"=>{
+   let raw=id.as_deref().filter(|s|s.len()<=64).ok_or("Enter a report reference or item number")?;
+   let reference=crate::support_contract::parse_report_reference(raw).and_then(crate::support_contract::format_report_reference)
+    .or_else(||crate::support_contract::parse_item_number(raw).and_then(crate::support_contract::format_item_number)).ok_or("Enter a reference like R-4F7K-2M9Q or XZ-1042")?;
+   owner_list(&exchange(ORIGIN,reqwest::Method::GET,&format!("/v2/admin/reports?limit=50&q={}",query(&reference)),key,None,&[],65535,&state.cancel).await?)
+  },
   "more"=>{
    let cursor=cursor.filter(|c|!c.is_empty()&&c.len()<=1024).ok_or("Invalid inbox cursor")?;
    owner_list(&exchange(ORIGIN,reqwest::Method::GET,&format!("/v2/admin/reports?limit=50&cursor={}",query(&cursor)),key,None,&[],65535,&state.cancel).await?)
@@ -347,7 +357,7 @@ pub fn support_inbox_page(state:tauri::State<Support>,page:usize)->Result<Value,
    stream.write_all(response.as_bytes()).unwrap();seen.push(String::from_utf8_lossy(&all).to_string())}seen});(origin,t)
  }
  pub(crate) fn ok(body:&Value)->String{let b=serde_json::to_string(body).unwrap();format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{b}",b.len())}
- pub(crate) fn receipt(id:&str,sha:&str,revision:u64,lifecycle:&str,key:&str)->Value{json!({"schema":"xz-support-receipt/2","report_id":id,"payload_sha256":sha,"accepted_at":"2026-10-27T10:00:00.000Z","expires_at":"2026-11-10T10:00:00.000Z","private_logs":"stored","publication_mode":"none","tracking":crate::support_tracking::tests::status(id,revision,lifecycle,key)})}
+ pub(crate) fn receipt(id:&str,sha:&str,revision:u64,lifecycle:&str,key:&str)->Value{json!({"schema":"xz-support-receipt/2","report_id":id,"report_reference":"R-4F7K-2M9Q","item_number":null,"payload_sha256":sha,"accepted_at":"2026-10-27T10:00:00.000Z","expires_at":"2026-11-10T10:00:00.000Z","private_logs":"stored","publication_mode":"none","tracking":crate::support_tracking::tests::status(id,revision,lifecycle,key)})}
  #[tokio::test]async fn actual_loopback_send_uses_v2_headers_and_exact_bytes(){
   let (b,c,sha)=fixture();let id="a".repeat(32);let d=checked(&b,&c,&id,&sha).unwrap();
   let (origin,t)=server(vec![ok(&receipt(&id,&sha,1,"received","received"))]);
@@ -357,7 +367,7 @@ pub fn support_inbox_page(state:tauri::State<Support>,page:usize)->Result<Value,
   assert!(lower.contains(&format!("x-report-sha256: {sha}")));assert!(lower.contains(&format!("x-report-id: {id}")));
   assert!(request.ends_with(&String::from_utf8(d.body.clone()).unwrap()),"submitted bytes equal the consented body");
   // A receipt for other bytes, or one that does not confirm private storage, is not acceptance.
-  for (field,value) in [("payload_sha256",json!("0".repeat(64))),("private_logs",json!("gone")),("schema",json!("xz-support-receipt/1")),("publication_mode",json!("public"))]{
+  for (field,value) in [("report_reference",json!("R-4F7K-2M9R")),("item_number",json!("XZ-1042")),("payload_sha256",json!("0".repeat(64))),("private_logs",json!("gone")),("schema",json!("xz-support-receipt/1")),("publication_mode",json!("public"))]{
    let mut bad=receipt(&id,&sha,1,"received","received");bad[field]=value;assert!(validate_receipt(&bad,&id,&sha,true).is_err(),"{field}");
   }
  }
@@ -371,7 +381,7 @@ pub fn support_inbox_page(state:tauri::State<Support>,page:usize)->Result<Value,
   }
  }
  #[test]fn owner_rows_keep_only_validated_taxonomy(){
-  let row=json!({"report_id":"a".repeat(32),"revision":3,"kind":"REGRESSION","severity":"LIVE_SET_STOPPER","impact":"RESTORES_EXPECTED","expectation":"STOCK_XZ",
+  let row=json!({"report_id":"a".repeat(32),"report_reference":"R-4F7K-2M9Q","item_number":"XZ-1042","revision":3,"kind":"REGRESSION","severity":"LIVE_SET_STOPPER","impact":"RESTORES_EXPECTED","expectation":"STOCK_XZ",
    "desk":{"expectation":"STOCK_XZ","impact":"RESTORES_EXPECTED","severity":"LIVE_SET_STOPPER","affected_features":["sync_lamp","master_handoff"],"in_use_since":"0.5.0-preview.21",
     "reach":{"versions":["0.5.0-preview.22.6"],"interfaces":["MODERN"],"decks":[3,4]},"proposed_setting":null},
    "reach_count":4,"lifecycle":"triaged","outcome":"CLASSIFIED","automatic_fix_eligible":true,"automation_enabled":false,"created_at":1761559200000u64,"private_note":"never shown"});

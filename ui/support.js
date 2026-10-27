@@ -413,8 +413,12 @@ window.reportWizard = (() => {
     const r = rw.receipt;
     return {
       title: idea() ? 'Idea received' : 'Report received',
-      body: [el('div', { class: 'sr-receipt' }, icon('i-check'), el('strong', { text: 'Your receipt' }), el('p', { text: r.status_text || 'Received privately. Track it here.' }),
-        el('dl', {}, el('dt', { text: 'Receipt' }), el('dd', { text: 'Report ' + r.report_id.slice(0, 8) }),
+      body: [el('div', { class: 'sr-receipt' }, icon('i-check'), el('strong', { text: 'Your reference ' + r.report_reference }), el('p', { text: r.status_text || 'Received privately. Track it here.' }),
+        el('dl', {}, el('dt', { text: 'Reference' }), el('dd', { class: 'sr-reference' }, r.report_reference, plainButton('Copy', async () => {
+          const button = dialog.querySelector('[data-key="copy-reference"]');
+          try { await navigator.clipboard.writeText(r.report_reference); button.textContent = 'Copied'; }
+          catch { button.textContent = 'Copy failed. Try again'; }
+        }, { key: 'copy-reference' })),
           ...(idea() ? [] : [el('dt', { text: 'Details deleted' }), el('dd', { text: day(r.diagnostics_expires_at) })]),
           el('dt', { text: 'Tracking until' }), el('dd', { text: r.retention_until ? day(r.retention_until) + ', or longer while it is open' : 'While it is open' }))),
       el('p', { text: 'Your receipt is kept on this computer, protected by Windows. XZ Mods checks for news when it starts and shows a notice here when the status changes.' })],

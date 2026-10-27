@@ -20,15 +20,22 @@ fn optional(v:&Value,list:&str)->Result<Value,String>{
 }
 // The status projection is rebuilt from validated fields. Text comes from the contract's fixed status text,
 // so a status response can never put its own words on the reporter's screen.
+pub(crate) fn identifiers(v:&Value)->Result<(Value,Value),String>{
+ use crate::support_contract::{parse_report_reference,format_report_reference,parse_item_number,format_item_number};
+ let reference=v["report_reference"].as_str().and_then(parse_report_reference).and_then(format_report_reference).filter(|s|v["report_reference"]==s.as_str()).ok_or("Unexpected report reference")?;
+ let item=if v["item_number"].is_null(){Value::Null}else{json!(v["item_number"].as_str().and_then(parse_item_number).and_then(format_item_number).filter(|s|v["item_number"]==s.as_str()).ok_or("Unexpected item number")?)};
+ Ok((json!(reference),item))
+}
 pub(crate) fn projection(v:&Value,id:&str)->Result<Value,String>{
  let c=contract();
+ let (reference,item)=identifiers(v)?;
  if v["schema"]!="xz-support-status/2"||v["report_id"]!=id{return Err("Unexpected report status".into())}
  let revision=v["revision"].as_u64().filter(|r|*r>=1).ok_or("Unexpected status revision")?;
  let lifecycle=v["lifecycle"].as_str().filter(|s|listed("lifecycles",s)).ok_or("Unexpected status lifecycle")?;
  let key=v["status_text_key"].as_str().filter(|k|c["status_text"].get(*k).is_some()).ok_or("Unexpected status text")?;
  let question=match v["question"].as_str(){None if v["question"].is_null()=>Value::Null,Some(q) if c["questions"].as_object().is_some_and(|o|o.values().any(|x|x==q))=>json!(q),_=>return Err("Unexpected status question".into())};
  let kind_hint=if v["kind_hint"].is_null(){Value::Null}else{optional(&v["kind_hint"],"kind_hints")?};
- Ok(json!({"schema":"xz-support-status/2","report_id":id,"revision":revision,"classified_kind":optional(&v["classified_kind"],"kinds")?,"kind_hint":kind_hint,
+ Ok(json!({"schema":"xz-support-status/2","report_id":id,"report_reference":reference,"item_number":item,"revision":revision,"classified_kind":optional(&v["classified_kind"],"kinds")?,"kind_hint":kind_hint,
   "outcome":optional(&v["outcome"],"outcomes")?,"lifecycle":lifecycle,"status_text_key":key,"status_text":c["status_text"][key].clone(),"question":question,
   "created_at":timestamp(&v["created_at"])?,"updated_at":timestamp(&v["updated_at"])?,"retention_until":timestamp(&v["retention_until"])?,
   "diagnostics_expires_at":timestamp(&v["diagnostics_expires_at"])?}))
@@ -45,12 +52,13 @@ async fn check_one(origin:&str,dir:&Path,r:&Receipt,state:&Value,now:u64,cancel:
   "accepted"=>{
    let revision=state["tracking"]["revision"].as_u64().unwrap_or(0);
    let etag=[("If-None-Match",format!("\"{revision}\""))];
-   let reply=support::call(origin,reqwest::Method::GET,&format!("/v2/reports/{id}/status"),&r.key,None,if revision>0{&etag[..]}else{&[]},65536,cancel).await;
+   let reply=support::call(origin,reqwest::Method::GET,&format!("/v2/reports/{id}/status"),&r.key,None,if revision>0&&state["tracking"]["report_reference"].is_string(){&etag[..]}else{&[]},65536,cancel).await;
    let reply=match reply{Err(e) if e.contains("HTTP 404")=>{store::update(dir,id,|s|{s["state"]=json!("expired");s["next_check_at"]=json!(u64::MAX/2);})?;return Ok(true)},other=>other?};
    let Some(value)=reply.value else{store::update(dir,id,|s|{s["checked_at"]=json!(now);s["next_check_at"]=json!(now+interval(s["tracking"]["lifecycle"].as_str().unwrap_or("")));s["failures"]=json!(0);s["links_ready"]=json!(true);})?;return Ok(false)};
    let next=projection(&value,id)?;let newer=next["revision"].as_u64().unwrap_or(0)>revision;
    if next["revision"].as_u64().unwrap_or(0)<revision{return Err("Report status went back; keeping the last one".into())}
-   store::update(dir,id,|s|{if newer{s["tracking"]=next.clone();}s["checked_at"]=json!(now);s["next_check_at"]=json!(now+interval(next["lifecycle"].as_str().unwrap_or("")));s["failures"]=json!(0);s["links_ready"]=json!(true);})?;
+   if state["tracking"]["report_reference"].is_string()&&state["tracking"]["report_reference"]!=next["report_reference"]{return Err("Report reference changed; keeping the last one".into())}
+   store::update(dir,id,|s|{s["tracking"]=next.clone();s["checked_at"]=json!(now);s["next_check_at"]=json!(now+interval(next["lifecycle"].as_str().unwrap_or("")));s["failures"]=json!(0);s["links_ready"]=json!(true);})?;
    Ok(newer)
   },
   // An uncertain send: ask the service whether it holds these exact bytes. Never upload again from here.
@@ -120,15 +128,28 @@ pub async fn support_revoke_links(app:tauri::AppHandle,id:String)->Result<Value,
 #[cfg(test)]pub(crate) mod tests{
  use super::*;
  use crate::support::focused_tests::{ok,server,receipt};
- pub(crate) fn status(id:&str,revision:u64,lifecycle:&str,key:&str)->Value{json!({"schema":"xz-support-status/2","report_id":id,"revision":revision,"classified_kind":null,"kind_hint":"BUG","outcome":null,
+ pub(crate) fn status(id:&str,revision:u64,lifecycle:&str,key:&str)->Value{json!({"schema":"xz-support-status/2","report_id":id,"report_reference":"R-4F7K-2M9Q","item_number":null,"revision":revision,"classified_kind":null,"kind_hint":"BUG","outcome":null,
   "lifecycle":lifecycle,"status_text_key":key,"status_text":contract()["status_text"][key],"question":null,"created_at":"2026-10-27T10:00:00.000Z","updated_at":"2026-10-27T11:00:00.000Z",
   "retention_until":"2027-10-27T10:00:00.000Z","diagnostics_expires_at":"2026-11-10T10:00:00.000Z"})}
  #[test]fn projection_uses_contract_text_and_rejects_unknown_values(){
   let id="a".repeat(32);let mut v=status(&id,2,"needs_info","needs_info");v["status_text"]=json!("<b>Click here</b>");v["question"]=json!("Were decks 1 and 2 stopped?");v["extra"]=json!("C:/Users/secret");
   let p=projection(&v,&id).unwrap();assert_eq!(p["status_text"],"We need one more detail.");assert!(p.get("extra").is_none());assert_eq!(p["question"],"Were decks 1 and 2 stopped?");
-  for (field,value) in [("lifecycle",json!("fixed")),("status_text_key",json!("hacked")),("question",json!("Type your password")),("revision",json!(0)),("report_id",json!("b".repeat(32))),("classified_kind",json!("bug")),("updated_at",json!("yesterday"))]{
+  for (field,value) in [("report_reference",json!("R-1234-567U")),("item_number",json!("XZ-1000")),("lifecycle",json!("fixed")),("status_text_key",json!("hacked")),("question",json!("Type your password")),("revision",json!(0)),("report_id",json!("b".repeat(32))),("classified_kind",json!("bug")),("updated_at",json!("yesterday"))]{
    let mut bad=status(&id,2,"received","received");bad[field]=value;assert!(projection(&bad,&id).is_err(),"{field}");
   }
+ }
+ #[cfg(windows)]#[tokio::test]async fn old_cached_status_gets_identifiers_without_an_etag_and_reference_cannot_change(){
+  let dir=crate::support_store::tests::temp("identifier-upgrade");let id="a".repeat(32);let sha="c".repeat(64);
+  let r=Receipt::from_report(&id,&"b".repeat(64),&sha,10,&json!({"schema":"xz-support-report/2","description":"x"}));store::begin_send(&dir,&r).unwrap();
+  let first=support::validate_receipt(&receipt(&id,&sha,1,"received","received"),&id,&sha,true).unwrap();store::accept(&dir,&id,&first,store::now()).unwrap();
+  store::update(&dir,&id,|s|{s["tracking"].as_object_mut().unwrap().remove("report_reference");}).unwrap();
+  let mut next=status(&id,1,"received","received");next["item_number"]=json!("XZ-1042");
+  let (origin,t)=server(vec![ok(&next)]);check_all(&origin,&dir,true,None,&AtomicBool::new(false)).await;
+  assert!(!t.join().unwrap()[0].to_lowercase().contains("if-none-match"));
+  let view=store::view_of(&dir,&id).unwrap();assert_eq!(view["report_reference"],"R-4F7K-2M9Q");assert_eq!(view["item_number"],"XZ-1042");
+  next["revision"]=json!(2);next["report_reference"]=json!("R-4F7K-2M9R");
+  let (origin,t)=server(vec![ok(&next)]);assert_eq!(check_all(&origin,&dir,true,None,&AtomicBool::new(false)).await["failed"],1);t.join().unwrap();
+  assert_eq!(store::view_of(&dir,&id).unwrap()["report_reference"],"R-4F7K-2M9Q");
  }
  #[test]fn read_link_uses_the_contract_domain_in_a_fragment(){
   let key="0123456789abcdef".repeat(4);let url=tracking_url("https://support.example",&"a".repeat(32),&key);

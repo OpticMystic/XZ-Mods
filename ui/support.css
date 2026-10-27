@@ -167,3 +167,18 @@
 .sr-key{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin:8px 0}
 .sr-key label{margin:0}
 @media(max-width:760px){.sr-choices.sr-two{grid-template-columns:1fr}.sr-report{grid-template-columns:minmax(0,1fr) 20px}.sr-report .sr-badge,.sr-report .sr-when{display:none}}
+
+.sr-reference{font-variant-numeric:tabular-nums;white-space:nowrap}
+.sr-receipt .sr-reference button{margin-left:10px;padding:3px 9px;font-size:12px}
+.sr-when .sr-reference,.sr-when .sr-item-number{display:block;margin-bottom:3px}
+.sr-inbox-search{display:flex;gap:8px;margin-bottom:12px}
+.sr-inbox-search input{min-width:0;flex:1}
+.sr-table{min-width:1250px}
+.sr-table col.c-reference{width:130px}.sr-table col.c-item{width:90px}
+
+.sr-item-number{white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:760px){
+ .sr-report strong,.sr-report .sr-status{grid-column:1}
+ .sr-report .sr-when{display:block;grid-row:3;grid-column:1;text-align:left}
+ .sr-report .icon{grid-column:2}
+}
