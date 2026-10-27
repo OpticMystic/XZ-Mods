@@ -1,47 +1,82 @@
 # RAM tracks on XDJ-XZ
 
-The firmware 1.26 adapter holds one complete original track per internal deck
-in pinned system RAM. It keeps the stock decoder, tempo processing, cues and
-transport. The MODS panel provides loading progress, cancellation and retry.
+RAM tracks retain one complete original audio file per loaded deck in pinned,
+unlinked tmpfs. Decks 1 and 2 use the native adapter. Decks 3 and 4 keep their
+running software decoder, buffers, PCM cache, tempo processing, key shift,
+SYNC, cues, and queued output when the backing file changes.
 
-## Use the control
+## Load and release a track
 
-1. Load a local USB track on Deck 1 or Deck 2.
-2. Open **MODS > ADVANCED > RAM TRACKS** and choose that deck.
-3. Tap **LOAD TRACK INTO RAM**. Keep the USB connected during copying.
-4. Wait for **ORIGINAL AUDIO IN RAM**. Copy failure leaves USB playback intact.
+1. Load a local USB track on the selected deck.
+2. Open **MODS > PLAY > RAM TRACKS** in CLASSIC or MODERN.
+3. Choose Deck 1, 2, 3, or 4. For a new deck 3/4 copy, connect the loopback audio route.
+4. Tap **LOAD TRACK INTO RAM**. Keep the music USB connected until **ORIGINAL AUDIO IN RAM** appears.
 
-The removal adapter retains a completed RAM track instead of entering the
-stock emergency loop or unloading it. Loading another track invalidates the
-old copy immediately. After USB removal, the copy stays held until a new load.
-**RELEASE RAM COPY** returns to USB reads only after the worker verifies that
-the original source is still present.
+Playing an eligible track also requests RAM automatically. **CANCEL COPY** or
+**RELEASE RAM COPY** suppresses automatic copying for that loaded track.
+An error needs an explicit retry. The setup flow detects the engine and source,
+opens the existing track browser or four-deck connection page when needed,
+and verifies the player's RAM attachment. It does not test by ejecting a USB.
 
-Each original file must fit within 64 MiB. Both decks share a 128 MiB limit,
-and allocation leaves at least 64 MiB of free system RAM. Memory is pinned
-before copying; a failed pin or insufficient memory never reports readiness.
-Prepared stem files and USB waveform assets are separate dependencies and
-are not included in the original-track copy.
+READY requires a complete immutable copy, attachment to the existing reader,
+and background closure of the old source descriptors. Cancelling after
+attachment retains that live copy. RELEASE first verifies the current source
+and restores it at the physical file offset without resetting the decoder.
 
-## Verification
+After music-source removal, completed copies become DETACHED and stay loaded
+until replacement, explicit lifecycle unload, or shutdown. Reinsertion is a
+new source generation and does not make an old detached copy releasable.
+Loaded software waveform, grid, and cues stay with their track; a missing
+waveform stays missing. Detached cue edits remain in the session and are not
+saved to a reinserted source.
 
-From the repository root on Windows:
+Losing the loopback route keeps the RAM audio but applies the player's existing
+pause/reset. Reconnection does not start playback automatically. New requests
+and unattached candidates require the same live route epoch. CANCEL and
+cleanup remain usable while that route is down.
+
+## Shared memory limits
+
+Original files on all four decks share one ledger:
+
+- 64 MiB maximum per file, measured from the actual encoded file size.
+- 128 MiB for pending and held original-file allocations together.
+- At least 64 MiB free RAM after admission, including all pending reservations.
+
+Reservations are page-rounded. Pending copies and retired mappings remain
+charged until cleanup finishes. Held pages already reduce the OS free count,
+so they are not subtracted twice. No held track is evicted to admit another.
+The ledger is initialized independently of the native adapter.
+
+Prepared native stems use the same ledger with separate pending/held totals.
+Their existing seven-file atomic pin preserves the unused original-file
+allowance. Original-audio READY does not mean that unpinned stems or new USB
+analysis assets are retained. Software decks have no prepared-stem mixer.
+The page shows original and prepared-stem totals separately.
+
+Native and software copy workers share a materialization arbiter. Only one
+original file copies at a time; queued manual requests precede queued automatic
+copies. Playback workers only capture ownership and attach prepared descriptors.
+Copying, pinning, final source closes, unmapping, and budget credit run in the
+background. Replacement and shutdown drain that ownership before releasing it.
+
+## Source-only verification
+
+Run from the repository root with Windows Python and Ubuntu WSL:
 
 ```powershell
-python packages/xdj-xz-toolkit/mods/ram/verify.py --zig .tmp/cdj-zig/ziglang/zig.exe --output E:/Codex/xz-ram-verification
+python source/xdj-xz-toolkit/mods/ram/verify_extra.py --out E:/scratch/ram-tests --sanitizer address,undefined
 ```
 
-The verifier checks the exact firmware hash and eight ARM prologues, rejects
-disabled assertions, runs the worker with ASan/UBSan, then runs its ARM32 build
-under QEMU through the Ubuntu WSL distribution. Tests cover short reads,
-partial-copy failure, cancellation, source deletion, byte identity, seeks,
-EOF, two-deck eject acknowledgement, normal unload, replacement and cleanup.
-The ARM test exercises the actual source-stream capture adapter with a real
-`FILE*`, not just the portable copy helper.
+This verifier uses generated audio, disposable files, fake routes, and source
+callbacks. It never opens firmware, discovers devices, or mounts storage.
+The separate `ram/verify.py` wrapper inspects firmware and is not required for
+these host checks. Its native tests also run through the source-only verifier.
 
-Physical USB eject, uninterrupted real-song audio, jog/cue behavior after
-removal and cold USB boot remain separate acceptance gates. Tests do not
-modify the controller, a physical USB or firmware.
+Controller CPU headroom, pinned-memory availability, copy time, attachment
+latency, audible continuity, physical USB removal, route reconnection, and cold
+boot require separately authorized hardware checks. Host PCM equality does not
+establish real-time hardware acceptance.
 
 ## Firmware removal boundary
 

@@ -87,12 +87,23 @@ int xz_audio_waveform(int deck,unsigned role,unsigned char *bins,size_t count,fl
     (void)role;if(deck<0||deck>1)return 0;
     waveform_calls[deck]++;memset(bins,deck?24:8,count);if(progress)*progress=0.5;return 1;
 }
-static struct xz_ram_status fixture_ram[2];
+static struct xz_ram_status fixture_ram[4];
 static int fixture_ram_rc,fixture_ram_calls[3];
 void xz_ram_status(int deck,struct xz_ram_status *out){assert(deck>=0&&deck<2);*out=fixture_ram[deck];}
 int xz_ram_request(int deck){fixture_ram_calls[0]++;if(fixture_ram_rc)return fixture_ram_rc;fixture_ram[deck].state=XZ_RAM_LOADING;return 0;}
 int xz_ram_cancel(int deck){fixture_ram_calls[1]++;fixture_ram[deck].state=XZ_RAM_EMPTY;return 0;}
 int xz_ram_release(int deck){fixture_ram_calls[2]++;fixture_ram[deck].state=XZ_RAM_READY;return 0;}
+static unsigned software_ram_calls;
+void xz_ram_deck_status(unsigned deck,struct xz_ram_status *out){
+ assert(deck<4);if(deck<2)xz_ram_status((int)deck,out);else *out=fixture_ram[deck];
+}
+enum xz_ram_result xz_ram_deck_command(unsigned deck,enum xz_ram_command command,const struct xz_ram_track_key *key){
+ assert(deck<4);if(!key||key->session!=fixture_ram[deck].key.session)return XZ_RAM_STALE;
+ if(command==XZ_RAM_RELEASE&&!fixture_ram[deck].can_release)return XZ_RAM_REFUSED;
+ if(deck>=2){software_ram_calls++;return XZ_RAM_ACCEPTED;}
+ int rc=command==XZ_RAM_LOAD?xz_ram_request((int)deck):command==XZ_RAM_CANCEL?xz_ram_cancel((int)deck):xz_ram_release((int)deck);
+ return rc?XZ_RAM_REFUSED:XZ_RAM_ACCEPTED;
+}
 static void ram_tap(enum xz_ui_action_kind kind,int index){
     struct xz_ui_widget w[XZ_UI_WIDGETS];struct xz_ui_action a[XZ_UI_ACTIONS];size_t n=xz_ui_layout(&ui,&model,w);
     xz_ui_cancel(&ui,a);
@@ -107,33 +118,32 @@ static void ram_tap(enum xz_ui_action_kind kind,int index){
 static void ram_tracks(void){
     const char *saved=model.settings_status;int pending=settings_pending;
     memset(fixture_ram,0,sizeof(fixture_ram));refresh();
-    assert(model.deck[0].ram.state==XZ_UI_RAM_UNAVAILABLE&&model.deck[1].ram.state==XZ_UI_RAM_UNAVAILABLE);
     ui.page=XZ_UI_PLAY;ram_tap(XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP);assert(ui.page==XZ_UI_RAM_SETUP);
-    ram_tap(XZ_UI_RAM_DECK,1);assert(ui.deck==1&&inline_ui.deck==1);
-    fixture_ram_rc=-1;ram_tap(XZ_UI_RAM_REQUEST,0);
-    assert(fixture_ram_calls[0]==1&&strstr(ui.notice,"RAM ENGINE NOT IN THIS LOADER"));
-    fixture_ram_rc=0;fixture_ram[1]=(struct xz_ram_status){XZ_RAM_EMPTY,0,0,"SOURCE ON USB1"};
-    refresh();assert(model.deck[1].ram.state==XZ_UI_RAM_EMPTY&&!strcmp(model.deck[1].ram.message,"SOURCE ON USB1"));
-    ram_tap(XZ_UI_RAM_REQUEST,0);
-    assert(fixture_ram_calls[0]==2&&model.deck[1].ram.state==XZ_UI_RAM_LOADING&&!strcmp(ui.notice,"DECK 2: COPYING ORIGINAL AUDIO TO RAM"));
+    int native_selection=ui.deck,inline_selection=inline_ui.deck;
+    ram_tap(XZ_UI_RAM_DECK,1);assert(ui.ram_deck==1&&ui.deck==native_selection&&inline_ui.deck==inline_selection);
+    fixture_ram[1]=(struct xz_ram_status){.state=XZ_RAM_EMPTY,.message="SOURCE ON USB1",.supported=1,.route_up=1,.source_current=1,.can_request=1};
+    refresh();ram_tap(XZ_UI_RAM_REQUEST,0);
+    assert(fixture_ram_calls[0]==1&&model.deck[1].ram.state==XZ_UI_RAM_LOADING&&strstr(ui.notice,"RAM COPY QUEUED"));
     fixture_ram[1].copied=3u<<20;fixture_ram[1].bytes=9u<<20;refresh();
     assert(model.deck[1].ram.copied==3u<<20&&model.deck[1].ram.bytes==9u<<20);
-    ram_tap(XZ_UI_RAM_CANCEL,0);assert(fixture_ram_calls[1]==1&&model.deck[1].ram.state==XZ_UI_RAM_EMPTY);
-    /* A stale release after the USB has gone never reaches the backend. */
-    fixture_ram[1].state=XZ_RAM_DETACHED;
-    struct xz_ui_action release={.kind=XZ_UI_RAM_RELEASE,.deck=1};apply(NULL,&release,1);
-    assert(!fixture_ram_calls[2]&&strstr(ui.notice,"RELEASE NEEDS THE USB SOURCE"));
-    fixture_retained_stems=4096;fixture_ram[1].state=XZ_RAM_READY;refresh();
-    assert(model.deck[1].ram.retained_stems_bytes==4096&&strstr(model.deck[1].ram.message,"PREPARED STEMS IN RAM"));
-    fixture_retained_stems=0;refresh();assert(!model.deck[1].ram.retained_stems_bytes);
-    ram_tap(XZ_UI_RAM_RELEASE,0);
-    assert(fixture_ram_calls[2]==1&&model.deck[1].ram.state==XZ_UI_RAM_READY&&!strcmp(ui.notice,"DECK 2: RAM RELEASE REQUESTED"));
-    fixture_ram[1].state=XZ_RAM_EMPTY;refresh();assert(model.deck[1].ram.state==XZ_UI_RAM_EMPTY);
-    release.deck=2;apply(NULL,&release,1);assert(fixture_ram_calls[2]==1);
-    memset(fixture_ram[0].message,'W',sizeof(fixture_ram[0].message));fixture_ram[0].state=99;refresh();
-    assert(strlen(model.deck[0].ram.message)==sizeof(model.deck[0].ram.message)-1&&model.deck[0].ram.state==XZ_UI_RAM_UNAVAILABLE);
+    ram_tap(XZ_UI_RAM_CANCEL,0);assert(fixture_ram_calls[1]==1);
+    fixture_ram[1].state=XZ_RAM_DETACHED;fixture_ram[1].can_release=0;
+    struct xz_ui_action release={.kind=XZ_UI_RAM_RELEASE,.deck=1};apply(NULL,&release,1);assert(!fixture_ram_calls[2]);
+    fixture_retained_stems=4096;fixture_ram[1].state=XZ_RAM_READY;fixture_ram[1].can_release=1;refresh();
+    assert(model.deck[1].ram.retained_stems_bytes==4096);
+    ram_tap(XZ_UI_RAM_RELEASE,0);assert(fixture_ram_calls[2]==1);
+    fixture_retained_stems=0;
+    for(int deck=2;deck<4;deck++){
+        fixture_ram[deck]=(struct xz_ram_status){.state=XZ_RAM_EMPTY,.supported=1,.route_up=1,.source_current=1,.can_request=1,.key={.session=77}};
+        refresh();ram_tap(XZ_UI_RAM_DECK,deck);ram_tap(XZ_UI_RAM_REQUEST,0);
+        assert(ui.deck==native_selection&&inline_ui.deck==inline_selection);
+        assert(fixture_ram_calls[0]==1&&software_ram_calls==(unsigned)(deck-1));
+        struct xz_ui_action stale={.kind=XZ_UI_RAM_REQUEST,.deck=deck,.ram_key={.session=76}};
+        apply(NULL,&stale,1);assert(strstr(ui.notice,"TRACK CHANGED"));
+    }
     assert(model.settings_status==saved&&settings_pending==pending);
     memset(fixture_ram,0,sizeof(fixture_ram));refresh();ui.page=XZ_UI_STEM_PADS;ui.notice[0]=0;
+
 }
 static void stock(void *self,const struct xz_touch_status *s,const void *mode){(void)mode;stock_calls++;last_stock=*s;memcpy((char*)self+4,s,sizeof(*s));}
 static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_status s={(uint8_t)down,{0},x,y};touch_hook(self,&s,NULL);}

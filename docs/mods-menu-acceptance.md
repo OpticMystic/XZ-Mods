@@ -46,7 +46,7 @@ MENU a job it keeps it; MODS opens only where it has none. A held MENU always op
 | PLAY | HOT CUE PREVIEW | Check the row | One line: NOT IN THIS VERSION, no control (no engine in this runtime) | - |
 | PLAY | KEYS | KEY UP, KEY DOWN, RESET, KEY SYNC | Key moves a semitone each press; KEY SYNC matches the master deck | 1 2 |
 | PLAY | X-PAD SAMPLER | Check the row | One line: NOT IN THIS VERSION, no control (no engine in this runtime) | - |
-| PLAY | RAM TRACKS | LOAD INTO RAM, pull the USB | Playback carries on | 1 2 |
+| PLAY | RAM TRACKS | LOAD/CANCEL/RETRY/RELEASE on each deck; verify READY before source removal | Originals share 64 MiB/file, 128 MiB total and a 64 MiB free floor; 3/4 admission needs loopback; completed copies survive source/route loss until release or unload. Hardware audio remains unqualified. | 1 2 3 4 |
 | PLAY | BUTTON NEXT TO LINK | Set DECK VIEW, press the button three times | 2 decks, 4 decks 1 2 3 4, 4 decks 3 1 2 4, each with a notice | - |
 | PLAY | SHIFT + BUTTON NEXT TO LINK | Set STEMS, hold SHIFT and press | The stem layout steps | - |
 | STEMS | USB STEMS | Turn off, then on, with a prepared track | Off: pads back to normal; on: stem pads mute stems | 1 2 |

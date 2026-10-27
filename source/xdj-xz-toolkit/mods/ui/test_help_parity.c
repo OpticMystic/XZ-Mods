@@ -30,9 +30,9 @@ int main(void){
  u.page=XZ_UI_MYHOUSE_SETUP;CHECK(!strcmp(label(&u,&m,XZ_UI_MYHOUSE_CHECK),"CHECK ENGINE"));
  u.page=XZ_UI_RAM_SETUP;m.deck[0].ram.state=XZ_UI_RAM_READY;m.deck[0].ram.retained_stems_bytes=1234;
  CHECK(strstr(xz_ui_footer_text(&u,&m),"PREPARED STEMS IN RAM"));
- CHECK(strstr(xz_ui_footer_text(&u,&m),"WAVES STILL USE USB"));
+ CHECK(strstr(xz_ui_footer_text(&u,&m),"LOADED WAVES KEPT WHEN PRESENT"));
  m.deck[0].ram.retained_stems_bytes=0;CHECK(!strstr(xz_ui_footer_text(&u,&m),"PREPARED STEMS IN RAM"));
- CHECK(strstr(xz_ui_footer_text(&u,&m),"STEMS AND WAVES STILL USE USB"));
+ CHECK(strstr(xz_ui_footer_text(&u,&m),"UNPINNED STEMS AND NEW WAVE DATA NEED USB"));
  /* BEAT JUMP as the stem pad mode: page 2's jumps win its pads, page 1's with MY SIZES, in both interfaces */
  for(int iface=0;iface<2;iface++){
   m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.theme=iface?XZ_THEME_FLAGSHIP:0;

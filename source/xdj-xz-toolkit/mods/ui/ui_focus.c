@@ -150,7 +150,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_NETWORK:return "Adapter, DHCP or static IP and priority. Apply for this boot, or revert.";
  case XZ_UI_KEY_SETUP:return "Shift a deck's key a semitone at a time, reset it, or match it to the master deck. SHIFT + SYNC on the deck does the match too.";
  case XZ_UI_BROWSE_SETUP:return "How keys are written: as on the USB, musical (Am) or wheel (8A).";
- case XZ_UI_RAM_SETUP:return "Copies the loaded track's audio into the XZ's memory so playback carries on if the USB is pulled. One track per deck; stems and waveforms still read the USB.";
+ case XZ_UI_RAM_SETUP:return "Retains original audio, up to 64 MiB per file and 128 MiB shared. New deck 3/4 copies need loopback. Loaded waves and cues stay with the track.";
  case XZ_UI_STEM_COLORS:return "The colour of each stem on pads, stem buttons and the STEMS waveform. Bass on 4-stem tracks follows the theme.";
  case XZ_UI_BAND_COLORS:return "The colours of the 3-BAND waveform's lows, mids and highs, in both interfaces and on decks 3 and 4. Saved to the USB.";
  case XZ_UI_DOOM:return "Start the selected game. It runs entirely on the XZ.";
@@ -193,7 +193,8 @@ static unsigned feature_of(const struct xz_ui_widget *a){
  case XZ_UI_KEY_FEEDBACK:return XZ_DECK_CAN_PLAYING_KEY;
  case XZ_UI_GROOVE_PAD:return XZ_DECK_CAN_GROOVE;
  case XZ_UI_STRIP:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_VOLUME:case XZ_UI_SAMPLE_PAD:return XZ_DECK_CAN_XPAD;
- case XZ_UI_RAM_DECK:case XZ_UI_RAM_REQUEST:case XZ_UI_RAM_CANCEL:case XZ_UI_RAM_RELEASE:return XZ_DECK_CAN_RAM;
+ case XZ_UI_RAM_DECK:case XZ_UI_RAM_REQUEST:case XZ_UI_RAM_CANCEL:case XZ_UI_RAM_RELEASE:
+ case XZ_UI_RAM_SETUP_OPEN:case XZ_UI_RAM_SETUP_STEP:case XZ_UI_RAM_CHOOSE:case XZ_UI_RAM_CONNECT:case XZ_UI_RAM_MANAGE:return XZ_DECK_CAN_RAM;
  case XZ_UI_SET_INTERFACE:case XZ_UI_SET_THEME:case XZ_UI_SET_MODERN_THEME:case XZ_UI_DECK_VIEW:case XZ_UI_WAVE_MODE:
  case XZ_UI_KEY_FORMAT:case XZ_UI_BROWSE_TRAFFIC:case XZ_UI_BROWSE_KEY_PREFIX:case XZ_UI_STEM_COLOR:case XZ_UI_STEM_COLORS_RESET:
  case XZ_UI_BAND_COLOR:case XZ_UI_BAND_COLORS_RESET:
@@ -246,7 +247,7 @@ static const char *grid_body(const struct xz_ui_model *m,unsigned f){
  case XZ_DECK_CAN_PLAYING_KEY:return "Decks 3 and 4 show the track's own key: it does not follow their tempo in this version.";
  case XZ_DECK_CAN_KEY_SYNC:return "Decks 3 and 4 cannot shift key in this version, so key sync stays on decks 1 and 2.";
  case XZ_DECK_CAN_STEMS:return "Decks 3 and 4 are software players. They cannot split a track into stems in this version, so the stem pads and stem buttons stay on decks 1 and 2.";
- case XZ_DECK_CAN_RAM:return "Decks 3 and 4 always read the USB: RAM tracks copy decks 1 and 2 only.";
+ case XZ_DECK_CAN_RAM:return "RAM tracks need the RAM engine; new deck 3/4 copies also need the loopback route.";
  default:return "Works on decks 1 and 2 in this version.";
  }
 }
@@ -373,6 +374,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_UPDATE_CHECK:return "Asks the update server for a newer signed runtime.";
  case XZ_UI_UPDATE_INSTALL:return "Downloads the update to USB. It activates after a power cycle.";
  case XZ_UI_UPDATE_ROLLBACK:return "Goes back to the previous mod version at the next power cycle.";
+ case XZ_UI_RAM_SETUP_OPEN:case XZ_UI_RAM_SETUP_STEP:case XZ_UI_RAM_CHOOSE:case XZ_UI_RAM_CONNECT:case XZ_UI_RAM_MANAGE:return "Detect the RAM engine, choose a track, connect its route and verify attachment.";
  case XZ_UI_RAM_DECK:return "Choose the deck whose track goes into RAM.";
  case XZ_UI_RAM_REQUEST:return "Copies the loaded track's audio into RAM.";
  case XZ_UI_RAM_CANCEL:return "Stops the copy. The track keeps playing from USB.";

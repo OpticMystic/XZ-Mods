@@ -26,7 +26,7 @@ static unsigned engine(const struct xz_ui_model *m, int deck, uint32_t ready_bit
 unsigned xz_deck_caps(const struct xz_ui_model *m, int deck) {
  if(!m||deck<0||deck>3)return 0;
  /* Decks 3 and 4 have these whenever they play, connected now or not. */
- if(deck>=2)return deck34_now|XZ_DECK34_PARITY;
+ if(deck>=2)return deck34_now|XZ_DECK34_PARITY|(m->deck[deck].ram.supported?XZ_DECK_CAN_RAM:0u);
  /* Native beat jump interception and the display settings are part of the runtime itself. */
  unsigned caps=XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_DISPLAY;
  /* The rest light only once the runtime reports them (refresh_local's ready bits and engine states). */
@@ -50,7 +50,7 @@ const char *xz_deck_cap_reason(const struct xz_ui_model *m, int deck, unsigned f
  if(deck>=2){
   switch(feature){
   case XZ_DECK_CAN_STEMS:return "Decks 3 and 4 have no stems.";
-  case XZ_DECK_CAN_RAM:return "Decks 3 and 4 always read the USB.";
+  case XZ_DECK_CAN_RAM:return "The software RAM engine is missing.";
   default:return "Not on decks 3 and 4 in this version.";
   }
  }

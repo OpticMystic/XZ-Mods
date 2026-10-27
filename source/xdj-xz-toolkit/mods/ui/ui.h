@@ -2,6 +2,7 @@
 #define XZ_MOD_UI_H
 #include <stddef.h>
 #include <stdint.h>
+#include "../ram/status.h"
 #include "themes.h"
 #include "band_colors.h"
 #include "stem_colors.h"
@@ -124,6 +125,7 @@ enum xz_ui_action_kind {
     XZ_UI_BAND_COLOR, XZ_UI_BAND_COLORS_RESET,
     XZ_UI_SHELL_DISPLAY, /* appended: shell item id in index, stored choice in value */
     XZ_UI_SHELL_BROWSE_COLUMNS, /* appended: MODERN column mask in value; zero means automatic */
+    XZ_UI_RAM_SETUP_OPEN, XZ_UI_RAM_SETUP_STEP, XZ_UI_RAM_CHOOSE, XZ_UI_RAM_CONNECT, XZ_UI_RAM_MANAGE,
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
@@ -182,6 +184,7 @@ struct xz_ui_action {
     uint64_t network_revision; /* immutable draft revision at submission */
     uint64_t network_publication; /* one consumed successful review paint */
     uint32_t sdk_generation; /* catalog generation an SDK row action was made from */
+    struct xz_ram_track_key ram_key;
 };
 /* Mirrors enum xz_ram_state in ../ram/runtime.h so the panel builds without the RAM backend.
    READY means the original compressed audio is fully copied while the USB source is still present;
@@ -192,6 +195,10 @@ struct xz_ui_ram {
     uint32_t copied, bytes;
     uint64_t retained_stems_bytes; /* live prepared-stem retention, never serialized */
     char message[96];
+    enum xz_ram_reason reason;
+    enum xz_ram_phase phase;
+    struct xz_ram_track_key key;
+    unsigned supported, route_up, source_current, can_request, can_release, retained_assets, software;
 };
 const char *xz_ui_ram_scope(const struct xz_ui_ram *);
 struct xz_ui_deck {
@@ -296,6 +303,7 @@ struct xz_ui_model {
     struct xz_sdk_ui_model sdk;
     int ram_debug, ram_debug_valid;
     uint32_t ram_free_mib;
+    uint64_t ram_original_bytes, ram_asset_bytes;
     int metrics_enabled;
     struct xz_metrics_sample metrics;
     const struct xz_ui_dj *dj; /* NULL: this runtime has no DJ Profile support, so no header chip */
@@ -362,6 +370,7 @@ int xz_ui_four_decks_attention(const struct xz_ui_model *);
 struct xz_ui {
     enum xz_ui_page page;
     int deck, down, capture, jump_edit_page, jump_edit_pair;
+    int ram_deck, ram_setup, ram_step;
     enum xz_ui_action_kind held_kind;
     int held_index, held_deck, held_pc_target;
     uint32_t held_pc_epoch;
