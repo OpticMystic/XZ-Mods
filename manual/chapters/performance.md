@@ -168,7 +168,7 @@ MODS > PLAY > KEYS does the same from the screen, and adds key shift by semitone
 
 ```figure classic:theme-{look}-active-key-setup MODS · KEYS
 The KEYS page for deck 1 with the key engine ready. The deck is in its own key.
-1 @ 242,20 Deck | Choose deck 1, 2, 3 or 4. Under each number: USB DECK for decks 1 and 2, SOFTWARE DECK for decks 3 and 4.
+1 @ 242,20 Deck | Choose deck 1, 2, 3 or 4. Where there is room, a tab adds USB DECK for decks 1 and 2 and SOFTWARE for decks 3 and 4.
 2 @ 197,186 KEY DOWN | Lowers the deck's key one semitone.
 3 @ 333,186 RESET | Shows the current shift. Press it to return the deck to its own key.
 4 @ 471,186 KEY UP | Raises the deck's key one semitone.
@@ -252,7 +252,7 @@ Deck 1 on a USB loader without the RAM engine.
 4 @ 590,218 Progress | How much of the track is copied, in MiB.
 5 @ 375,242 Memory | How much of the 128 MiB the copies use, prepared stems apart, then each deck's copy and state.
 6 @ 330,308 Action | The one next step for this state: set up, choose a track, load, cancel, retry or release.
-7 @ 495,355 Limits | What a RAM copy holds. Only the original audio goes into RAM.
+7 @ 325,355 Scope | What RAM holds for this deck. COPIES AUDIO / STEMS STAY ON USB means only the original audio goes into RAM.
 8 @ 548,452 Reason | Why the feature is not available. Here the RAM engine is missing.
 ```
 
@@ -282,10 +282,16 @@ When a copy does not fit, the page says why and offers the next step:
 | Free RAM cannot keep the 64 MiB safety reserve. | Release another copy the same way. |
 
 - One track per deck. Each file can be up to 64 MiB, and all four decks together up to 128 MiB. The player always keeps 64 MiB of its memory free.
-- Only the original audio goes into RAM. Stems and new waveform data still read the USB.
+- RAM TRACKS copies the original audio. On decks 1 and 2, the line under the action button says what else is held; see the table below.
 - On decks 3 and 4 the waveform, beat grid and cues already loaded stay with the copy when the USB goes out. Cues you change then are kept for the session and not written to a USB.
 - If the loopback cable goes out, decks 3 and 4 keep their copies and pause, as they do without RAM. They do not start again on their own when the cable returns.
 - Loading another track on the deck drops its RAM copy.
+
+| Line under the button, decks 1 and 2 | What it means |
+|---|---|
+| COPIES AUDIO / STEMS STAY ON USB | No copy yet. RAM TRACKS copies the audio, not the stems. |
+| AUDIO IN RAM / STEMS NEED USB | The audio is in RAM. The stems still read the USB. |
+| AUDIO + STEMS IN RAM / WAVES KEPT | The deck's prepared stems are held in RAM as well, and the loaded waveforms stay. |
 
 > **Experimental.** Playing on from RAM after the USB goes out has not been confirmed on a player yet. Keep the USB in during a set.
 
