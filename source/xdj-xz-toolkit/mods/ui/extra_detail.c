@@ -287,6 +287,7 @@ static void overview(struct xz_canvas c,const struct xz_extra_deck *d,uint32_t n
  if(wave){
   struct xz_layered_data look={(const uint8_t *)d->wave.columns,d->wave.count,d->wave.normalization?d->wave.normalization:765,
    XZ_LAYERED_THREE_BAND,{0,0,0}};
+  xz_layered_band_colors(look.colors);
   unsigned half=(unsigned)(b.h/2-1);
   int cy=b.y+b.h/2;
   for(int x=0;x<b.w;x++){

@@ -556,7 +556,7 @@ static void render_columns(const struct xz_shell *u, const struct xz_shell_model
 }
 static void render_preview_cell(struct xz_canvas c, const struct xz_shell_browse_row *r, const struct col *k, int y) {
  if(!rknown(r,XZ_SHELL_RF_PREVIEW)||!r->preview||!r->preview_count)return;
- static const uint32_t band[3]={SH_WAVE_LOW,SH_WAVE_MID,SH_WHITE};
+ const uint32_t *band=sh_wave_band_rgb();
  int x0=k->x+4,w=k->w-8,h=ROW_H-8,base=y+ROW_H-4;
  for(int x=0;x<w;x++){
   uint32_t from=(uint32_t)((uint64_t)x*r->preview_count/(uint32_t)w),to=(uint32_t)((uint64_t)(x+1)*r->preview_count/(uint32_t)w);

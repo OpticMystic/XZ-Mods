@@ -16,7 +16,14 @@
 static inline uint16_t c565(uint32_t c) { return C565(c); }
 
 /* Front to back: high over mid over low, as the flagship's 3BAND draws. The played part of an overview greys out. */
-static const uint16_t band_ink[2][3]={{C565(SH_WAVE_LOW),C565(SH_WAVE_MID),C565(SH_WAVE_HIGH)},{C565(0x343434),C565(0x5c5c5c),C565(0x8c8c8c)}};
+static _Thread_local uint16_t band_ink[2][3]={{C565(SH_WAVE_LOW),C565(SH_WAVE_MID),C565(SH_WAVE_HIGH)},{C565(0x343434),C565(0x5c5c5c),C565(0x8c8c8c)}};
+static _Thread_local uint32_t band_rgb[3]={SH_WAVE_LOW,SH_WAVE_MID,SH_WAVE_HIGH};
+static _Thread_local uint32_t preview_rgb[3]={SH_WAVE_LOW,SH_WAVE_MID,SH_WHITE};
+void sh_wave_colors(const struct xz_shell_model *m){
+ static const uint32_t standard[3]={SH_WAVE_LOW,SH_WAVE_MID,SH_WAVE_HIGH};
+ for(int i=0;i<3;i++){band_rgb[i]=m->wave_band_rgb[i]?m->wave_band_rgb[i]:standard[i];band_ink[0][i]=c565(band_rgb[i]);preview_rgb[i]=m->wave_band_rgb[i]?m->wave_band_rgb[i]:i==2?SH_WHITE:standard[i];}
+}
+const uint32_t *sh_wave_band_rgb(void){return preview_rgb;}
 enum { SHADES=16 };
 /* BLUE: one blue per column, whitening with the share of highs. */
 static uint16_t blue_shade(int high, int peak) {

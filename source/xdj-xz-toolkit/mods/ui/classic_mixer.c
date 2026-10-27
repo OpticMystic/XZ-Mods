@@ -65,6 +65,7 @@ static void overview(struct xz_canvas c,const struct xz_classic_mixer_view *v,in
    struct xz_extra_column sample[8];
    for(unsigned i=0;i<samples;i++)sample[i]=w->columns[a+(uint32_t)((uint64_t)i*(b-a)/samples)];
    struct xz_layered_data data={(const uint8_t *)sample,samples,w->normalization?w->normalization:765,XZ_LAYERED_THREE_BAND,{0,0,0}};
+   xz_layered_band_colors(data.colors);
    struct xz_layered_col col;xz_layered_heights(&data,0,samples,32,&col);
    for(unsigned y=0;y<32;y++){int color=xz_layered_pixel(&data,&col,31-y);if(color>=0)c.p[(size_t)(130+y)*c.stride+6+x]=(uint16_t)color;}
 
@@ -133,6 +134,7 @@ static void half_overview(struct xz_canvas c,const struct xz_extra_deck *d,struc
    struct xz_extra_column sample[8];
    for(unsigned i=0;i<samples;i++)sample[i]=w->columns[a+(uint32_t)((uint64_t)i*(b-a)/samples)];
    struct xz_layered_data data={(const uint8_t *)sample,samples,w->normalization?w->normalization:765,XZ_LAYERED_THREE_BAND,{0,0,0}};
+   xz_layered_band_colors(data.colors);
    struct xz_layered_col col;xz_layered_heights(&data,0,samples,H,&col);
    for(unsigned y=0;y<H;y++){int color=xz_layered_pixel(&data,&col,H-1-y);if(color>=0)c.p[(size_t)(Y+y)*c.stride+X+x]=(uint16_t)color;}
   }

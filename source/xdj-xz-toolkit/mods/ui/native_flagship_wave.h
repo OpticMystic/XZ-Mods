@@ -4,16 +4,22 @@
 /* Three-band look on the stock waveform: each source colour is classed by its
    dominant channel (blue lows, warm mids, green/white highs) and scaled by its
    strongest channel. Run during snapshot preparation, never per frame. */
-static inline uint16_t xz_flagship_wave_pixel(uint16_t source){
+static inline uint16_t xz_flagship_wave_band_pixel(uint16_t source,const uint32_t colors[3]){
  uint32_t rgb=xz_theme_rgb888(source);unsigned r=rgb>>16,g=(rgb>>8)&255,b=rgb&255,hi=r>g?r:g,lo=r<g?r:g;
  if(b>hi)hi=b;if(b<lo)lo=b;
  /* The stock lane ground is a dim grey gradient; the flagship lane is black. */
  if(hi<40||(hi<64&&hi-lo<=28))return 0;
  uint32_t band;
- if(hi-lo<=28||(g>=r&&g>=b))band=XZ_FLAGSHIP_WAVE_HIGH;
- else if(b>=r)band=hi<128?XZ_FLAGSHIP_WAVE_LOW_DEEP:XZ_FLAGSHIP_WAVE_LOW;
- else band=XZ_FLAGSHIP_WAVE_MID;
+ if(hi-lo<=28||(g>=r&&g>=b))band=colors[2]?colors[2]:XZ_FLAGSHIP_WAVE_HIGH;
+ else if(b>=r)band=colors[0]?(hi<128?xz_theme_mix(0,colors[0],160):colors[0]):hi<128?XZ_FLAGSHIP_WAVE_LOW_DEEP:XZ_FLAGSHIP_WAVE_LOW;
+ else band=colors[1]?colors[1]:XZ_FLAGSHIP_WAVE_MID;
  return xz_theme_rgb565(xz_theme_mix(0,band,hi*256/255));
+}
+static inline uint16_t xz_flagship_wave_pixel(uint16_t source){
+ static const uint32_t standard[3]={0,0,0};return xz_flagship_wave_band_pixel(source,standard);
+}
+static inline void xz_flagship_wave_band_maps(uint16_t *maps,const uint32_t colors[3]){
+ for(unsigned i=0;i<65536;i++)maps[i]=xz_flagship_wave_band_pixel((uint16_t)i,colors);
 }
 /* One deck-independent 65536-entry map. */
 static inline void xz_flagship_wave_maps(uint16_t *maps){
