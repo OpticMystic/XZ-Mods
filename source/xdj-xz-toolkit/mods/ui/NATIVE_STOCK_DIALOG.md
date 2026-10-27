@@ -1,9 +1,13 @@
 # Stock warning priority, firmware 1.26
 
-The mod compositor must yield the whole screen and unchanged input while stock
-shows an error or warning. This includes CLASSIC panels, MODERN, games and video
-takeover. A read failure also yields. This observer writes no firmware memory
-and installs no instruction hook.
+Live browse/status caution windows own the entire display and input in both
+interfaces. Known per-deck counter errors have a narrower policy: CLASSIC keeps
+the stock deck info/counter region visible and passes its touches to stock;
+MODERN publishes exact firmware code/text through the existing per-deck shell
+alert and CHOOSE TRACK control. Failed/torn reads and mismatched prologues fail
+open, with a runtime diagnostic when the reason changes. Unmapped IDs are
+ignored and logged once per ID. The observer writes no firmware memory and
+installs no instruction hook.
 
 ## Native UI evidence
 
@@ -56,20 +60,54 @@ popup rows. Existing native-skin wide-string/window hooks confirm the drawing
 path, but do not associate a complete translated caution with its current
 buttons, parameters and lifecycle.
 
-## Observation and fallback
+## Observation and policies
 
-`stock_dialog.c` checks exact 16-byte prologues for all three UI families and
-reads each observation twice. Live browse/status handles yield immediately.
-Counter warnings yield on either deck. The observer does not depend on the
-latched `TotalCou_GetBrowseDispMessageID` at `0x03eaff7c`, which the existing
-shell-model caution filter can acknowledge while it remains set.
+`stock_dialog.c` checks exact UI prologues and reads mutable fields twice. A
+proven live browse OR status window yields the whole screen even when another
+observation family is unreadable. If no window is proven live and an observation
+fails, `xz_stock_dialog_observe` returns -1 and `xz_stock_dialog_active` returns
+false. The runtime log records the actual failure family/reason once per change,
+including recovery. Firmware mismatch therefore cannot permanently remove the
+MODERN screen. The old shell caution filter and mixer's latched-ID gating are
+no longer the runtime authority.
 
-The complete translated dialog cannot yet be mapped reliably into the shell's
-single-line, per-deck alert model. Runtime substitutions, multi-row text, native
-icons, global versus deck scope and dismissal controls have no complete proven
-alert mapping. MODERN therefore takes the required native-screen fallback for
-all these dialogs. It never supplies the shell renderer's default alert words
-or invents an E-code. Stock alone dismisses its own warning.
+Only the complete, evidenced counter error IDs 101..105 are mapped, in
+`stock_counter.h`:
+
+| ID | Code | Exact English text | Shell kind |
+| --- | --- | --- | --- |
+| 101 | E-7206 | AUTH CHIP ERROR | DEVICE_ERROR |
+| 102 | E-8302 | CANNOT PLAY TRACK | READ_ERROR |
+| 103 | E-8304 | UNSUPPORTED | UNSUPPORTED_FILE |
+| 104 | E-8305 | UNSUPPORTED | UNSUPPORTED_FILE |
+| 105 | E-8306 | NO FILE | READ_ERROR |
+
+Unknown or unmapped counter IDs produce no handoff, no protected region and no
+alert. The native ID space is logged once per ID per boot; the diagnostic also
+has a bounded set for non-native wider values. Parameterized strings are not
+flattened into guessed alerts. The shell model reads the current counter IDs
+with their guard and stable-read checks, and clears the alert on clear, unknown,
+read failure or guard mismatch. The alert shows the exact code and English text
+without a substitute default explanation.
+
+CLASSIC protects x=0..399 / 400..799, y=311..479 for the corresponding deck.
+The actual stock caution windows are 304x60 at (10,409) and (410,409), proven by
+`ui_Counter_CreateCautionWindow` and constants at `0x46ffd0..0x46ffe7`.
+Protecting the complete stock deck info/counter area also keeps its native context.
+Only contacts starting in the protected region are routed to stock; an owned mod
+drag remains with its owner. A stock contact retains ownership through release.
+
+The display bridge captures the native backbuffer before its primary-Flip
+suppression paths. The mod renderer restores only the affected region from that
+capture after drawing, so a background video/presenter frame cannot substitute
+its own pixels for the stock error. The rest of the interface continues drawing,
+including the other deck, wave, menus and games. Native footer transforms leave
+an affected deck's counter area alone. Runtime and display bridge from the same
+build are required for this background-presenter protection.
+
+Live global windows always use the native-screen fallback. Their translated
+multi-row text, runtime substitutions, buttons and scope still have no complete
+proven mapping to the per-deck alert model. Stock alone dismisses them.
 
 No connector observation links a specific native warning to the four-deck
 cable. Route-up and E-8307 occurring together do not prove that cable caused it.
@@ -80,8 +118,11 @@ There is no cable-specific explanatory sentence in this change.
 `ui/verify.py` runs the portable guarded-read fixtures.
 `ui/verify_stock_dialog_runtime.py` runs the real compositor and touch/key
 entry points with ASan/UBSan and can write fixture PPM previews to its first
-argument. The known native rectangles remain byte-identical while overlays
-are enabled. Fixture previews are not controller screenshots.
+argument. Protected CLASSIC counter regions and global-window frames preserve the supplied
+native pixels; the rest of CLASSIC continues to draw. No-error frames are compared
+byte-for-byte with the assigned base. `test_stock_counter_model.c` exercises the
+real model, real shell renderer and CHOOSE TRACK navigation. `tests/verify_stock_counter_bridge.py`
+checks the actual backbuffer capture helper. Fixture previews are not controller screenshots.
 
 Physical confirmation is still required for actual native-window lifetimes,
 all languages, dialog-dismissal keys, game/video takeover transitions, USB

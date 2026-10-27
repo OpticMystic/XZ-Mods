@@ -144,7 +144,10 @@ extern int xz_settings_internal_save(const struct xz_settings *) __attribute__((
 #include <string.h>
 #include "stock_dialog.h"
 #pragma weak xz_stock_dialog_active
+#pragma weak xz_stock_counter_ids
 static int stock_dialog_up(void){return xz_stock_dialog_active&&xz_stock_dialog_active();}
+static int stock_counter_classic=1;
+static unsigned stock_counter_mask(uint32_t ids[2]){return xz_stock_counter_ids?xz_stock_counter_ids(ids):0;}
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -513,6 +516,7 @@ static void shell_follow_interface_locked(void) {
         xz_log("FLAGSHIP shell unavailable; the restyled stock screen stays");
 }
 static void appearance_changed(void) {
+    __atomic_store_n(&stock_counter_classic,model.ui_interface==XZ_UI_INTERFACE_CLASSIC,__ATOMIC_RELEASE);
     int look = xz_settings_look(model.ui_interface, model.classic_theme);
     if (look == model.theme) return;
     model.theme = look; xz_native_skin_request(look); wave_configure();
@@ -2813,7 +2817,13 @@ static int pair_touch(const struct xz_touch_status *status,int previous_down){
 static int stock_dialog_contact;
 static void touch_hook(void *self, const struct xz_touch_status *status, const void *mode) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE)) { stock_touch(self, status, mode); return; }
-    if(stock_dialog_up()||stock_dialog_contact){
+    unsigned counter_mask=stock_counter_mask(NULL);int counter_touch=0;
+    if(counter_mask){
+        pthread_mutex_lock(&ui_mutex);
+        counter_touch=model.ui_interface==XZ_UI_INTERFACE_CLASSIC&&status->down&&!play_key_raw_down&&!touch.capture&&!ui.down&&!inline_contact&&!inline_wave_contact&&!four_contact&&!pair_contact.active&&xz_stock_counter_hit(counter_mask,status->x,status->y);
+        pthread_mutex_unlock(&ui_mutex);
+    }
+    if(stock_dialog_up()||stock_dialog_contact||counter_touch){
         pthread_mutex_lock(&ui_mutex);
         stock_dialog_contact=!!status->down;
         /* Revoke all mod contact owners before stock receives the unchanged contact. */
@@ -3205,7 +3215,7 @@ static int classic_mixer_present(uint16_t *pixels,size_t stride,size_t count,int
         order==(layout==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED);
     return xz_classic_mixer_runtime_frame(pixels,stride,count,eligible,theme,xz_game_milliseconds(),names);
 }
-__attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, uint32_t width,
+static int render_mods_frame(uint16_t *pixels, uint32_t width,
         uint32_t height, uint32_t stride, const struct xz_vj_connection_v1 *connection) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE) || !pixels || width != 800 || height != 480 || stride < 800 || stride > 16384)
         return 0;
@@ -3359,6 +3369,58 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels, u
     }
     pthread_mutex_unlock(&ui_mutex);
     return result;
+}
+
+/* The receiver supplies the stock backbuffer before any overlay/suppressed flip.
+   A presenter frame can start from video pixels, so its native warning region
+   must come from this capture, never from a previously composited mod frame. */
+static pthread_mutex_t stock_counter_mutex=PTHREAD_MUTEX_INITIALIZER;
+static uint16_t stock_counter_pixels[2][XZ_STOCK_COUNTER_W*XZ_STOCK_COUNTER_H];
+static uint32_t stock_counter_cached_ids[2];
+static unsigned stock_counter_valid;
+__attribute__((visibility("default"))) unsigned xz_mods_stock_counter_mask_v1(void){return stock_counter_mask(NULL);}
+__attribute__((visibility("default"))) void xz_mods_native_frame_v1(const uint16_t *pixels,uint32_t width,uint32_t height,uint32_t stride){
+    if(!pixels||width!=800||height!=480||stride<800||stride>16384)return;
+    uint32_t ids[2]={0};unsigned mask=stock_counter_mask(ids);
+    pthread_mutex_lock(&stock_counter_mutex);
+    stock_counter_valid=mask;
+    for(unsigned d=0;d<2;d++)if(mask&(1u<<d)){
+        for(unsigned y=0;y<XZ_STOCK_COUNTER_H;y++)memcpy(stock_counter_pixels[d]+y*400,
+            pixels+(y+XZ_STOCK_COUNTER_Y)*(size_t)stride+d*400,400*sizeof *pixels);
+        stock_counter_cached_ids[d]=ids[d];
+    }
+    pthread_mutex_unlock(&stock_counter_mutex);
+}
+__attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels,uint32_t width,
+        uint32_t height,uint32_t stride,const struct xz_vj_connection_v1 *connection){
+    if(!__atomic_load_n(&started,__ATOMIC_ACQUIRE))return 0;
+    if(!pixels||width!=800||height!=480||stride<800||stride>16384)return 0;
+    uint32_t ids[2]={0};unsigned mask=stock_counter_mask(ids);
+    int classic=__atomic_load_n(&stock_counter_classic,__ATOMIC_ACQUIRE);
+    if(mask&&!pthread_mutex_trylock(&ui_mutex)){
+        classic=model.ui_interface==XZ_UI_INTERFACE_CLASSIC;
+        __atomic_store_n(&stock_counter_classic,classic,__ATOMIC_RELEASE);
+        pthread_mutex_unlock(&ui_mutex);
+    }
+    static _Thread_local unsigned previous_mask;
+    if(!mask&&previous_mask){
+        pthread_mutex_lock(&stock_counter_mutex);stock_counter_valid=0;pthread_mutex_unlock(&stock_counter_mutex);
+    }
+    previous_mask=mask;
+    if(!mask||!classic)return render_mods_frame(pixels,width,height,stride,connection);
+    static _Thread_local uint16_t saved[2][XZ_STOCK_COUNTER_W*XZ_STOCK_COUNTER_H];
+    pthread_mutex_lock(&stock_counter_mutex);
+    for(unsigned d=0;d<2;d++)if(mask&(1u<<d)){
+        if((stock_counter_valid&(1u<<d))&&stock_counter_cached_ids[d]==ids[d])memcpy(saved[d],stock_counter_pixels[d],sizeof saved[d]);
+        else for(unsigned y=0;y<XZ_STOCK_COUNTER_H;y++)memcpy(saved[d]+y*400,
+            pixels+(y+XZ_STOCK_COUNTER_Y)*(size_t)stride+d*400,400*sizeof *pixels);
+    }
+    pthread_mutex_unlock(&stock_counter_mutex);
+    int drawn=render_mods_frame(pixels,width,height,stride,connection);
+    /* Even an idle/busy renderer must publish freshly captured native error pixels. */
+    for(unsigned d=0;d<2;d++)if(mask&(1u<<d))for(unsigned y=0;y<XZ_STOCK_COUNTER_H;y++)
+        memcpy(pixels+(y+XZ_STOCK_COUNTER_Y)*(size_t)stride+d*400,saved[d]+y*400,400*sizeof *pixels);
+    return stock_dialog_up()?0:drawn?drawn:1;
 }
 
 int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {

@@ -20,7 +20,9 @@ int main(void){
   sides(0,0,0);frame(34000+layout*1000);assert(stock_rows(0,267));
  }
  browse=0;status=0x1adb118;frame(38000);assert(stock_rows(0,267));status=0;
- ids[0]=102;frame(39000);assert(stock_rows(0,267));ids[0]=0;
- puts("PASS actual native wave: cable/route card, inline, side pair, four lanes, mixer/detail/notices yield stock pixels");
+ ids[0]=102;layout=XZ_LAYOUT_TWO;sides(1,1,0);frame(39000);
+ assert(!stock_rows(0,267)); /* Counter errors preserve the rest of the mod interface. */
+ ids[0]=0;failed=1;frame(40000);assert(!stock_rows(0,267));failed=0;
+ puts("PASS actual native wave: cable/route card, inline, side pair, four lanes, mixer/detail/notices yield only for windows; counters/failures retain wave");
  return 0;
 }

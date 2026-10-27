@@ -382,8 +382,8 @@ unsigned xz_shell_model_refresh(struct xz_shell_model *m,struct xz_shell_model_s
     }
     if(read)fx_fields(&m->fx,s,read);
     unsigned char caution[4],again[4];
-    /* Unknown caution must hand off too. UINT32_MAX is a fail-closed sentinel,
-     * distinct from any 16-bit native browse caution id. */
+    /* Legacy raw-ID diagnostics use UINT32_MAX for an unavailable observation.
+     * This value is not a visibility gate; stock_dialog.c owns the fail-open window policy. */
     s->caution=UINT32_MAX;
     if(ok[3]&&stable(read,0x3eaff7c,caution,again,4))s->caution=u32(caution)&0xffff;
     if(ok[1])ok[1]=settings(read,list,&count);
