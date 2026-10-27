@@ -101,7 +101,7 @@ void xz_pic_box(struct xz_canvas c, const struct xz_pic_style *s, struct xz_rect
  xz_rect(c,r.x,r.y,r.w,r.h,selected?s->select:s->row);
  if(outlined&&!selected)xz_border(c,r.x,r.y,r.w,r.h,s->row_edge);
 }
-/* A deck number box on a menu (deck_colour.h); a light theme gets a one-pixel ink edge round it. */
+/* A deck badge on a menu (deck_colour.h); a light theme gets a one-pixel ink edge round it. */
 static void deck_box(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int size, int deck) {
  xz_deck_box(c,x,y,size,size,deck,1,s->bg,1,luma(s->bg)>140?s->ink:0);
 }
@@ -110,7 +110,7 @@ int xz_pic_works_on(struct xz_canvas c, const struct xz_pic_style *s, int x, int
  if(label)x+=xz_pic_text(c,x,y+(size-9)/2,"WORKS ON",12,s->dim)+8;
  for(int k=0;k<4;k++){
   int d=order[k];char n[2]={(char)('1'+d),0};
-  /* Works there: the deck's colour box, as on the four-deck screens. Not there: a plain grey outline. */
+  /* Works there: the deck's badge, as on the four-deck screens. Not there: a plain grey outline. */
   if(works_on&(1u<<d))deck_box(c,s,x,y,size,d);
   else{
    xz_border(c,x,y,size,size,s->modern?0x4a4a4a:s->faint);
