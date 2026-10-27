@@ -2,6 +2,7 @@ import { randomReportReference, publicationItem } from '../src/identifiers';
 import { HttpError, json } from '../src/http';
 import * as identifiers from '../src/contract.generated';
 import worker, { cleanup, submit } from '../src/index';
+const triageBarriers = new Map<string,{count:number;ready:Promise<void>;release:()=>void}>();
 export default {
   async fetch(req: Request, env: Parameters<typeof worker.fetch>[1], ctx: ExecutionContext) {
     // This wrapper is bundled only by local tests, never by wrangler.jsonc.
@@ -25,6 +26,28 @@ export default {
         if(error instanceof HttpError) return json({error:error.code},error.status);
         throw error;
       }
+    }
+    const barrierId=req.headers.get('test-triage-barrier');
+    if(barrierId) {
+      let barrier=triageBarriers.get(barrierId);
+      if(!barrier) {
+        const pending=Promise.withResolvers<void>();
+        barrier={count:0,ready:pending.promise,release:()=>pending.resolve()};triageBarriers.set(barrierId,barrier);
+      }
+      const rendezvous=barrier;
+      env={...env,DB:new Proxy(env.DB,{get(target,key){
+        if(key==='withSession') return (...args:Parameters<typeof target.withSession>)=>{
+          const session=target.withSession(...args);
+          return new Proxy(session,{get(db,key){
+            if(key==='batch') return async (statements:D1PreparedStatement[])=>{
+              if(++rendezvous.count===8){triageBarriers.delete(barrierId);rendezvous.release();}
+              await rendezvous.ready;return db.batch(statements);
+            };
+            const value=Reflect.get(db,key);return typeof value==='function'?value.bind(db):value;
+          }});
+        };
+        const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+      }})};
     }
     // Exercise Worker-side framing separately from undici's transport-level rejection.
     if (req.headers.has('test-declared-length')) {

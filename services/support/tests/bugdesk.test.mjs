@@ -294,3 +294,21 @@ test('all triaged kinds get durable items; duplicate moves keep history and neve
   assert.ok(parseItemNumber(nr.item_number)>parseItemNumber(br.item_number));
   assert.equal((await upload(a)).status,409);
 });
+
+test('concurrent identical triage operations allocate exactly one weak-fact item',async()=>{
+  const r=await accepted(),body=triage('FEATURE'),path='/v2/admin/reports/'+r.report_id+'/triage';
+  const replies=await Promise.all(Array.from({length:8},()=>send(path,body,admin,{'test-triage-barrier':r.report_id})));
+  for(const reply of replies) assert.equal(reply.status,200,await reply.clone().text());
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM bug_groups').first()).n,1);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM report_item_history WHERE report_id=?').bind(r.report_id).first()).n,1);
+  const status=await (await get('/v2/reports/'+r.report_id+'/status')).json();
+  for(const reply of replies) assert.equal((await reply.json()).item_number,status.item_number);
+});
+test('concurrent different triage bodies sharing an operation cannot change the winning item',async()=>{
+  const r=await accepted(),first=triage('FEATURE'),second={...triage('QUESTION'),operation_id:first.operation_id};
+  const replies=await Promise.all(Array.from({length:8},(_,i)=>send('/v2/admin/reports/'+r.report_id+'/triage',i%2?first:second,admin,{'test-triage-barrier':r.report_id})));
+  assert.ok(replies.some(r=>r.status===200));assert.ok(replies.every(r=>[200,409].includes(r.status)));
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM bug_groups').first()).n,1);
+  const row=await db.prepare('SELECT t.classified_kind,g.kind FROM report_tracking t JOIN report_group_members m ON m.report_id=t.report_id JOIN bug_groups g ON g.id=m.group_id WHERE t.report_id=?').bind(r.report_id).first();
+  assert.equal(row.classified_kind,row.kind);
+});
