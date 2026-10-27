@@ -57,7 +57,7 @@ class CurrentSettingsTests(unittest.TestCase):
     def test_browse_preview(self):
         values=usb_settings.defaults(SCHEMA)
         self.assertEqual(values['browse_preview'],0)
-        self.assertEqual(SCHEMA['wire_order'][-1],'browse_preview')
+        self.assertEqual(SCHEMA['wire_order'][46],'browse_preview')
         for shown in (0,1):
             chosen={**values,'browse_preview':shown}
             wire=usb_settings.serialize(chosen,SCHEMA)
@@ -70,3 +70,39 @@ class CurrentSettingsTests(unittest.TestCase):
         for invalid in (-1,2):
             with self.assertRaises(ValueError):
                 usb_settings.serialize({**values,'browse_preview':invalid},SCHEMA)
+
+    def test_band_and_modern_display_blocks(self):
+        defaults=usb_settings.defaults(SCHEMA)
+        keys=['band_low_color','band_mid_color','band_high_color','modern_wave_color','wave_position',
+              'key_display','wave_zoom','usb_colors','hidden_parts','modern_browse_columns']
+        self.assertEqual([defaults[k] for k in keys],[0,0,0,2,0,0,3,0,0,0])
+        fields={f['key']:f for f in SCHEMA['fields']}
+        expected=['STANDARD','BLUE','RED','GREEN','AMBER','PURPLE','CYAN','PINK','WHITE']
+        for k in keys[:3]:
+            self.assertEqual([c['label'] for c in fields[k]['choices']],expected)
+            self.assertEqual(fields[k]['group'],fields['stem_drums_color']['group'])
+        maximum={k:f['max'] for k,f in fields.items()}
+        maximum.update(browse_1=3,browse_2=2,browse_3=1)
+        wire=usb_settings.serialize(maximum,SCHEMA)
+        self.assertLessEqual(len(wire),1023)
+        self.assertEqual(usb_settings.parse(wire,SCHEMA),maximum)
+        lines=wire.splitlines(keepends=True)
+        for count in range(47,58):
+            with self.subTest(fields=count):
+                if count not in (47,50,56,57):
+                    with self.assertRaises(ValueError):usb_settings.parse(b''.join(lines[:count+1]),SCHEMA)
+                else:
+                    got=usb_settings.parse(b''.join(lines[:count+1]),SCHEMA)
+                    for i,k in enumerate(keys):
+                        self.assertEqual(got[k],maximum[k] if 47+i<count else defaults[k])
+        for k in keys:
+            for invalid in (-1,fields[k]['max']+1):
+                with self.subTest(key=k,value=invalid),self.assertRaises(ValueError):
+                    usb_settings.serialize({**defaults,k:invalid},SCHEMA)
+        # A runtime predating the append-only extension rejects it, preserving the original file.
+        import copy
+        old=copy.deepcopy(SCHEMA)
+        old['wire_order']=old['wire_order'][:47]
+        old['fields']=[f for f in old['fields'] if f['key'] in old['wire_order']]
+        old['accepted_field_counts']=[n for n in old['accepted_field_counts'] if n<=47]
+        with self.assertRaises(ValueError):usb_settings.parse(wire,old)

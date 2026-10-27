@@ -16,16 +16,19 @@ int xz_settings_look(int ui_interface, int classic_theme) {
     return ui_interface==XZ_INTERFACE_MODERN?XZ_THEME_FLAGSHIP:classic_theme;
 }
 void xz_settings_default(struct xz_settings *s) {
-    *s = (struct xz_settings){.stems=1,.ui_interface=XZ_INTERFACE_MODERN,.theme=XZ_THEME_FLAGSHIP,.shift_pages=1,.shift_keysync=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1,.browse_columns={XZ_BROWSE_TITLE,XZ_BROWSE_KEY,XZ_BROWSE_BPM},.browse_key_prefix=1,.browse_traffic=1,.key_feedback=1,.rekordbox_menu=0,.ram_debug=1,.metrics_enabled=1,.rekordbox_press=XZ_REKORDBOX_INTERFACE,.rekordbox_shift=XZ_REKORDBOX_STOCK,.modern_stems=XZ_MODERN_STEMS_PADS,.deck_view=XZ_DECK_VIEW_TWO,.deck_view_button=1};
+    *s = (struct xz_settings){.stems=1,.ui_interface=XZ_INTERFACE_MODERN,.theme=XZ_THEME_FLAGSHIP,.shift_pages=1,.shift_keysync=1,.pad_feedback=1,.jump=xz_jump_defaults(),.stems_overlay=1,.wave_mode=1,.browse_columns={XZ_BROWSE_TITLE,XZ_BROWSE_KEY,XZ_BROWSE_BPM},.browse_key_prefix=1,.browse_traffic=1,.key_feedback=1,.rekordbox_menu=0,.ram_debug=1,.metrics_enabled=1,.rekordbox_press=XZ_REKORDBOX_INTERFACE,.rekordbox_shift=XZ_REKORDBOX_STOCK,.modern_stems=XZ_MODERN_STEMS_PADS,.deck_view=XZ_DECK_VIEW_TWO,.deck_view_button=1,.band_colors={0,0,0},.modern_wave_color=2,.wave_position=0,.key_display=0,.wave_zoom=3,.usb_colors=0,.hidden_parts=0};
 }
 static int valid(const struct xz_settings *s) {
     for (int i=0;i<8;i++) if ((unsigned)s->jump.sizes[i]>=XZ_JUMP_SIZES) return 0;
     for (int i=0;i<3;i++) {
+        if ((unsigned)s->band_colors[i]>=XZ_BAND_COLOR_CHOICES) return 0;
         if ((unsigned)s->stem_colors[i]>=XZ_STEM_COLOR_CHOICES) return 0;
         if ((unsigned)s->browse_columns[i]>=XZ_BROWSE_COLUMN_COUNT) return 0;
         for (int j=0;j<i;j++) if(s->browse_columns[i]==s->browse_columns[j]) return 0;
     }
-    return (unsigned)s->ui_interface<=XZ_INTERFACE_MODERN && (unsigned)s->classic_theme<XZ_CLASSIC_THEME_COUNT && (unsigned)s->modern_theme<XZ_MODERN_THEME_COUNT &&
+    return (unsigned)s->modern_wave_color<=3 && (unsigned)s->wave_position<=1 && (unsigned)s->key_display<=2 &&
+        (unsigned)s->wave_zoom<=6 && (unsigned)s->usb_colors<=2 && (unsigned)s->hidden_parts<=15 && (unsigned)s->modern_browse_columns<=2047 &&
+        (unsigned)s->ui_interface<=XZ_INTERFACE_MODERN && (unsigned)s->classic_theme<XZ_CLASSIC_THEME_COUNT && (unsigned)s->modern_theme<XZ_MODERN_THEME_COUNT &&
         (unsigned)s->stem_order<XZ_STEM_ORDER_COUNT && (unsigned)s->metrics_enabled<=1 && (unsigned)s->rekordbox_menu<=1 && (unsigned)s->rekordbox_press<XZ_REKORDBOX_ACTIONS && (unsigned)s->rekordbox_shift<XZ_REKORDBOX_ACTIONS && (unsigned)s->ram_debug<=1 && (unsigned)s->key_feedback<=1 && (unsigned)s->browse_key_prefix<=1 && (unsigned)s->browse_traffic<=1 && (unsigned)s->key_format<=XZ_KEY_FORMAT_CAMELOT && (unsigned)s->stems_overlay<XZ_STEM_LAYOUT_COUNT && (unsigned)s->modern_stems<XZ_MODERN_STEMS_COUNT && (unsigned)s->deck_view<XZ_DECK_VIEW_COUNT && (unsigned)s->deck_view_button<=1 && (unsigned)s->browse_preview<=1 && (unsigned)s->wave_mode<=2 && (unsigned)s->jump.enabled<=1 && (unsigned)s->jump.shift_page<=1 && (unsigned)s->stems <= 1 && (unsigned)s->gate <= 1 &&
         (unsigned)s->smart <= 1 && (unsigned)s->theme < XZ_THEME_COUNT &&
         (unsigned)s->stem_page <= 3 && (unsigned)s->shift_pages <= 1 &&
@@ -40,8 +43,13 @@ static int valid(const struct xz_settings *s) {
    keeps the default, PADS. The DECK VIEW block (deck_view, deck_view_button) is all or nothing; a record
    without it leaves both as they are (overlay) or at their defaults (parse). deck_view_button is retired (the
    DECKS button always shows): any stored value reads as 1, and 1 is written.
-   browse_preview is appended alone: absent means hidden on parse, unchanged on overlay. */
-#define FIELDS 47
+   browse_preview is appended alone: absent means hidden on parse, unchanged on overlay.
+   The band colours (48..50) and MODERN display (51..56) are separate all-or-none blocks;
+   absent blocks use defaults on parse and preserve the applied values on overlay. */
+#define FIELDS 57
+#define MODERN_COLUMNS_FIELD 56
+#define BAND_COLORS_BLOCK 47
+#define MODERN_DISPLAY_BLOCK 50
 #define BROWSE_PREVIEW_BLOCK 46
 #define APPEARANCE_BLOCK 38
 #define REKORDBOX_MENU 35
@@ -60,7 +68,9 @@ static void fields(struct xz_settings *s, int *values[FIELDS]) {
         &s->shift_pages,&s->pad_feedback,&s->shift_keysync,
         &s->fb_takeover,&s->takeover_assign,&s->spare_eq,&s->stem_bank,
         &s->jump.enabled,&s->jump.shift_page,&s->jump.sizes[0],&s->jump.sizes[1],&s->jump.sizes[2],&s->jump.sizes[3],&s->jump.sizes[4],&s->jump.sizes[5],&s->jump.sizes[6],&s->jump.sizes[7],&s->stems_overlay,&s->wave_mode,&s->browse_columns[0],&s->browse_columns[1],&s->browse_columns[2],&s->browse_key_prefix,&s->browse_traffic,&s->key_format,&s->stem_colors[0],&s->stem_colors[1],&s->stem_colors[2],&s->key_feedback,&s->ram_debug,&s->rekordbox_menu,&s->metrics_enabled,&s->stem_order,&s->ui_interface,&s->classic_theme,&s->modern_theme,
-        &s->rekordbox_press,&s->rekordbox_shift,&s->modern_stems,&s->deck_view,&s->deck_view_button,&s->browse_preview
+        &s->rekordbox_press,&s->rekordbox_shift,&s->modern_stems,&s->deck_view,&s->deck_view_button,&s->browse_preview,
+        &s->band_colors[0],&s->band_colors[1],&s->band_colors[2],
+        &s->modern_wave_color,&s->wave_position,&s->key_display,&s->wave_zoom,&s->usb_colors,&s->hidden_parts,&s->modern_browse_columns
     };
     memcpy(values,all,sizeof(all));
 }
@@ -74,7 +84,9 @@ int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigne
         "stems=","gate=","smart=","theme=","stem_page=",
         "shift_pages=","pad_feedback=","shift_keysync=",
         "fb_takeover=","takeover_assign=","spare_eq=","stem_bank=",
-        "jump_enabled=","jump_shift_page=","jump_1=","jump_2=","jump_3=","jump_4=","jump_5=","jump_6=","jump_7=","jump_8=","stems_overlay=","wave_mode=","browse_1=","browse_2=","browse_3=","browse_key_prefix=","browse_traffic=","key_format=","stem_drums_color=","stem_harmonics_color=","stem_vocals_color=","key_feedback=","ram_debug=","rekordbox_menu=","metrics_enabled=","stem_order=","interface=","classic_theme=","modern_theme=","rekordbox_press=","rekordbox_shift=","modern_stems=","deck_view=","deck_view_button=","browse_preview="
+        "jump_enabled=","jump_shift_page=","jump_1=","jump_2=","jump_3=","jump_4=","jump_5=","jump_6=","jump_7=","jump_8=","stems_overlay=","wave_mode=","browse_1=","browse_2=","browse_3=","browse_key_prefix=","browse_traffic=","key_format=","stem_drums_color=","stem_harmonics_color=","stem_vocals_color=","key_feedback=","ram_debug=","rekordbox_menu=","metrics_enabled=","stem_order=","interface=","classic_theme=","modern_theme=","rekordbox_press=","rekordbox_shift=","modern_stems=","deck_view=","deck_view_button=","browse_preview=",
+        "band_low_color=","band_mid_color=","band_high_color=",
+        "modern_wave_color=","wave_position=","key_display=","wave_zoom=","usb_colors=","hidden_parts=","modern_browse_columns="
     };
     int *values[FIELDS];
     fields(&s,values);
@@ -83,7 +95,7 @@ int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigne
     xz_settings_default(&s);
     unsigned i;
     for (i=0;i<FIELDS;i++) {
-        if (((i >= 8 && i <= 12)||i==22||i==23||i==24||i==30||i==33||i==34||i==35||i==36||i==37||i==APPEARANCE_BLOCK||i==REKORDBOX_BLOCK||i==MODERN_STEMS_BLOCK||i==DECK_VIEW_BLOCK||i==BROWSE_PREVIEW_BLOCK) && *text == '\0') break;
+        if (((i >= 8 && i <= 12)||i==22||i==23||i==24||i==30||i==33||i==34||i==35||i==36||i==37||i==APPEARANCE_BLOCK||i==REKORDBOX_BLOCK||i==MODERN_STEMS_BLOCK||i==DECK_VIEW_BLOCK||i==BROWSE_PREVIEW_BLOCK||i==BAND_COLORS_BLOCK||i==MODERN_DISPLAY_BLOCK||i==MODERN_COLUMNS_FIELD) && *text == '\0') break;
         size_t size = strlen(keys[i]);
         if (strncmp(text,keys[i],size)) return -1;
         text += size;
@@ -93,6 +105,7 @@ int xz_settings_parse_present(const char *text, struct xz_settings *out, unsigne
             if (!value) return -1;
             value = value*10 + *text++ - '0';
         }
+        if(i==MODERN_COLUMNS_FIELD)for(int digit=2;digit<4&&*text>='0'&&*text<='9';digit++)value=value*10+*text++-'0';
         if (*text++ != '\n') return -1;
         *values[i] = value;
     }
@@ -137,10 +150,11 @@ int xz_settings_overlay(struct xz_settings *current, const struct xz_settings *r
 int xz_settings_format(const struct xz_settings *s, char *out, size_t size) {
     if (!valid(s)) return -1;
     int look = xz_settings_look(s->ui_interface,s->classic_theme);
-    int n = snprintf(out,size,"XZ_MODS_SETTINGS 1\nstems=%d\ngate=%d\nsmart=%d\ntheme=%d\nstem_page=%d\nshift_pages=%d\npad_feedback=%d\nshift_keysync=%d\nfb_takeover=%d\ntakeover_assign=%d\nspare_eq=%d\nstem_bank=%d\njump_enabled=%d\njump_shift_page=%d\njump_1=%d\njump_2=%d\njump_3=%d\njump_4=%d\njump_5=%d\njump_6=%d\njump_7=%d\njump_8=%d\nstems_overlay=%d\nwave_mode=%d\nbrowse_1=%d\nbrowse_2=%d\nbrowse_3=%d\nbrowse_key_prefix=%d\nbrowse_traffic=%d\nkey_format=%d\nstem_drums_color=%d\nstem_harmonics_color=%d\nstem_vocals_color=%d\nkey_feedback=%d\nram_debug=%d\nrekordbox_menu=%d\nmetrics_enabled=%d\nstem_order=%d\ninterface=%d\nclassic_theme=%d\nmodern_theme=%d\nrekordbox_press=%d\nrekordbox_shift=%d\nmodern_stems=%d\ndeck_view=%d\ndeck_view_button=%d\nbrowse_preview=%d\n",
+    int n = snprintf(out,size,"XZ_MODS_SETTINGS 1\nstems=%d\ngate=%d\nsmart=%d\ntheme=%d\nstem_page=%d\nshift_pages=%d\npad_feedback=%d\nshift_keysync=%d\nfb_takeover=%d\ntakeover_assign=%d\nspare_eq=%d\nstem_bank=%d\njump_enabled=%d\njump_shift_page=%d\njump_1=%d\njump_2=%d\njump_3=%d\njump_4=%d\njump_5=%d\njump_6=%d\njump_7=%d\njump_8=%d\nstems_overlay=%d\nwave_mode=%d\nbrowse_1=%d\nbrowse_2=%d\nbrowse_3=%d\nbrowse_key_prefix=%d\nbrowse_traffic=%d\nkey_format=%d\nstem_drums_color=%d\nstem_harmonics_color=%d\nstem_vocals_color=%d\nkey_feedback=%d\nram_debug=%d\nrekordbox_menu=%d\nmetrics_enabled=%d\nstem_order=%d\ninterface=%d\nclassic_theme=%d\nmodern_theme=%d\nrekordbox_press=%d\nrekordbox_shift=%d\nmodern_stems=%d\ndeck_view=%d\ndeck_view_button=%d\nbrowse_preview=%d\nband_low_color=%d\nband_mid_color=%d\nband_high_color=%d\nmodern_wave_color=%d\nwave_position=%d\nkey_display=%d\nwave_zoom=%d\nusb_colors=%d\nhidden_parts=%d\nmodern_browse_columns=%d\n",
         s->stems,s->gate,s->smart,look,s->stem_page,s->shift_pages,s->pad_feedback,s->shift_keysync,s->fb_takeover,s->takeover_assign,s->spare_eq,s->stem_bank,s->jump.enabled,s->jump.shift_page,
         s->jump.sizes[0],s->jump.sizes[1],s->jump.sizes[2],s->jump.sizes[3],s->jump.sizes[4],s->jump.sizes[5],s->jump.sizes[6],s->jump.sizes[7],s->stems_overlay,s->wave_mode,s->browse_columns[0],s->browse_columns[1],s->browse_columns[2],s->browse_key_prefix,s->browse_traffic,s->key_format,s->stem_colors[0],s->stem_colors[1],s->stem_colors[2],s->key_feedback,s->ram_debug,s->rekordbox_press==XZ_REKORDBOX_MODS,s->metrics_enabled,s->stem_order,s->ui_interface,s->classic_theme,s->modern_theme,
-        s->rekordbox_press,s->rekordbox_shift,s->modern_stems,s->deck_view,s->deck_view_button,s->browse_preview);
+        s->rekordbox_press,s->rekordbox_shift,s->modern_stems,s->deck_view,s->deck_view_button,s->browse_preview,
+        s->band_colors[0],s->band_colors[1],s->band_colors[2],s->modern_wave_color,s->wave_position,s->key_display,s->wave_zoom,s->usb_colors,s->hidden_parts,s->modern_browse_columns);
     return n < 0 || (size_t)n >= size ? -1 : n;
 }
 static int paths(const char *usb, char *dir, char *file) {

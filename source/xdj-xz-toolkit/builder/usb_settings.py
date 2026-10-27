@@ -78,7 +78,7 @@ def parse(data,schema):
         prefix=field['key']+'='
         if not line.startswith(prefix):raise ValueError('Unknown or out-of-order settings field; original file was preserved')
         value=line[len(prefix):]
-        if not value.isascii() or not value.isdigit() or len(value)>2 or (len(value)>1 and value[0]=='0'):
+        if not value.isascii() or not value.isdigit() or len(value)>max(2,len(str(field['max']))) or (len(value)>1 and value[0]=='0'):
             raise ValueError('Invalid native settings integer')
         number=int(value)
         if not field['min']<=number<=field['max']:raise ValueError('Invalid native settings integer')
@@ -103,5 +103,6 @@ def serialize(values,schema):
     values=validate(values,schema)
     wire=legacy_values(values,schema)
     data=(schema['header']+'\n'+''.join(f"{f['key']}={wire.get(f['key'],f['default'])}\n" for f in wire_fields(schema))).encode('ascii')
+    if len(data)>MAX_RECORD_BYTES:raise ValueError('Settings file is too large for this runtime')
     if parse(data,schema)!=values:raise ValueError('Settings round-trip failed')
     return data
