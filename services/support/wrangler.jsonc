@@ -11,6 +11,8 @@
   "preview_urls": false,
   "vars": {
     "ENABLED": "true",
+    "AUTOMATION_ENABLED": "false",
+    "PUBLIC_POSTING_ENABLED": "false",
     "PUBLIC_ORIGIN": "https://xz-mods-support.will-026.workers.dev"
   },
   "d1_databases": [

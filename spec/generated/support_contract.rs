@@ -2,7 +2,7 @@
 // Phase 3 includes this module; JSON is the authoritative wire schema.
 pub const CONTRACT_JSON: &str = include_str!("../support-contract.json");
 pub const SOURCES_JSON: &str = include_str!("../support-sources.json");
-pub const CONTRACT_SHA256: &str = "49b45ca7de015be9fa7950c874622dce7c7020bbbd719571729269f805dafc42";
+pub const CONTRACT_SHA256: &str = "f4eeba128d6709e95cdf4f633445e4f217c011bbbfbab203330c90f3a632b526";
 pub const REPORT_BYTES: usize = 524288;
 pub const DESCRIPTION_BYTES: usize = 4096;
 pub const ITEM_BYTES: usize = 32768;
@@ -15,4 +15,7 @@ pub const STICKS: usize = 4;
 pub const EXPORT_ENTRIES: usize = 64;
 pub const SCAN_SECONDS: usize = 10;
 pub const UNKNOWN_TAIL_EVENTS: usize = 32;
-pub const REPORT_KINDS: &[&str] = &["BUG","FEATURE_REQUEST","NOT_A_BUG","SUPPORT_QUESTION"];
+pub const REPORT_KINDS: &[&str] = &["REGRESSION","DEGRADATION","BUG","EXPECTATION","FEATURE","NOT_A_BUG","QUESTION"];
+pub fn automatic_fix_eligible(kind: &str, impact: &str) -> bool {
+    matches!(kind, "BUG" | "REGRESSION" | "DEGRADATION") && matches!(impact, "ADDITIVE" | "RESTORES_EXPECTED")
+}
