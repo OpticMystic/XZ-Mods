@@ -44,7 +44,7 @@ static int tick_at(unsigned lane_y,unsigned x){return at(lane_y,6,x)==0xce59||at
 static void sync_label_parity(void){
  for(unsigned number=3;number<=4;number++){
   struct xz_extra_deck d=deck();d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
-  d.sync.requested=1;d.sync.master_deck=1;d.sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;
+  d.sync.requested=1;d.sync.tempo_matched=1;d.sync.master_deck=1;d.sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;
   fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,68,number,&d,&view,&marks));memcpy(copy,pixels,sizeof pixels);
   d.sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;
   fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,68,number,&d,&view,&marks));assert(!memcmp(copy,pixels,sizeof pixels));
@@ -53,7 +53,7 @@ static void sync_label_parity(void){
  }
  for(unsigned number=3;number<=4;number++){
   struct xz_extra_deck d=deck();d.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
-  d.sync.requested=1;d.sync.master_deck=1;d.sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
+  d.sync.requested=1;d.sync.tempo_matched=1;d.sync.master_deck=1;d.sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
   fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,number,&d,&view,&marks));memcpy(copy,pixels,sizeof pixels);
   d.sync.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE;
   fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,number,&d,&view,&marks));assert(guards_intact(0));
@@ -63,7 +63,7 @@ static void sync_label_parity(void){
   }
   assert(changed>0);
  }
- puts("PASS Classic tempo-only, authority wait and rate-limit readouts are distinct on both extra decks");
+ puts("PASS Classic tempo-only, enabled request and rate-limit readouts are distinct on both extra decks");
 }
 #define K(f) XZ_EXTRA_KNOWN(XZ_EXTRA_F_##f)
 #define PLATE XZ_EXTRA_LANE_READOUT_W
@@ -89,7 +89,7 @@ static struct xz_extra_deck published(void){
  return d;
 }
 static void sync_as(struct xz_extra_deck *d,int reason,int locked,int master_deck){
- d->sync=(struct xz_extra_sync){.requested=1,.locked=locked,.master_deck=master_deck,.reason=reason};
+ d->sync=(struct xz_extra_sync){.requested=1,.locked=locked,.master_deck=master_deck,.reason=reason,.tempo_matched=1};
 }
 static uint32_t lane_hash(void){
  uint32_t h=2166136261u;
@@ -109,12 +109,12 @@ static void plate_modes(void){
 
  /* SYNC classes: every reason the players raise, and the MASTER bit first. */
  static const struct { int reason,locked; enum xz_extra_sync_class klass; } table[]={
-  {XZ_EXTRA_SYNC_OFF,0,XZ_EXTRA_SYNC_CLASS_WAIT},{XZ_EXTRA_SYNC_WAIT_MASTER,0,XZ_EXTRA_SYNC_CLASS_WAIT},
-  {XZ_EXTRA_SYNC_WAIT_ANCHOR,0,XZ_EXTRA_SYNC_CLASS_WAIT},{XZ_EXTRA_SYNC_NO_GRID,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},
-  {XZ_EXTRA_SYNC_MANUAL,0,XZ_EXTRA_SYNC_CLASS_WAIT},{XZ_EXTRA_SYNC_DISCONTINUITY,0,XZ_EXTRA_SYNC_CLASS_WAIT},
-  {XZ_EXTRA_SYNC_LOOP_UNALIGNED,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},{XZ_EXTRA_SYNC_OUT_OF_RANGE,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},
-  {XZ_EXTRA_SYNC_ACQUIRING,0,XZ_EXTRA_SYNC_CLASS_WAIT},{XZ_EXTRA_SYNC_LOCKED,1,XZ_EXTRA_SYNC_CLASS_LOCKED},
-  {XZ_EXTRA_SYNC_LOCKED,0,XZ_EXTRA_SYNC_CLASS_WAIT},
+  {XZ_EXTRA_SYNC_OFF,0,XZ_EXTRA_SYNC_CLASS_ENABLED},{XZ_EXTRA_SYNC_WAIT_MASTER,0,XZ_EXTRA_SYNC_CLASS_ENABLED},
+  {XZ_EXTRA_SYNC_WAIT_ANCHOR,0,XZ_EXTRA_SYNC_CLASS_ENABLED},{XZ_EXTRA_SYNC_NO_GRID,0,XZ_EXTRA_SYNC_CLASS_TEMPO},
+  {XZ_EXTRA_SYNC_MANUAL,0,XZ_EXTRA_SYNC_CLASS_ENABLED},{XZ_EXTRA_SYNC_DISCONTINUITY,0,XZ_EXTRA_SYNC_CLASS_ENABLED},
+  {XZ_EXTRA_SYNC_LOOP_UNALIGNED,0,XZ_EXTRA_SYNC_CLASS_TEMPO},{XZ_EXTRA_SYNC_OUT_OF_RANGE,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},
+  {XZ_EXTRA_SYNC_ACQUIRING,0,XZ_EXTRA_SYNC_CLASS_ENABLED},{XZ_EXTRA_SYNC_LOCKED,1,XZ_EXTRA_SYNC_CLASS_LOCKED},
+  {XZ_EXTRA_SYNC_LOCKED,0,XZ_EXTRA_SYNC_CLASS_ENABLED},
   {XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,0,XZ_EXTRA_SYNC_CLASS_TEMPO},{XZ_EXTRA_SYNC_MASTER_CLOCK,0,XZ_EXTRA_SYNC_CLASS_MASTER},
   {XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},{XZ_EXTRA_SYNC_NO_SOURCE_BPM,0,XZ_EXTRA_SYNC_CLASS_BLOCKED},
   {XZ_EXTRA_SYNC_TEMPO_FOLLOW,0,XZ_EXTRA_SYNC_CLASS_TEMPO}};
@@ -131,9 +131,9 @@ static void plate_modes(void){
  static const struct { int reason,locked,master_deck; const char *chip; } chips[]={
   {XZ_EXTRA_SYNC_LOCKED,1,0,"SYNC 1"},{XZ_EXTRA_SYNC_LOCKED,1,3,"SYNC 4"},{XZ_EXTRA_SYNC_LOCKED,1,-1,"SYNC"},
   {XZ_EXTRA_SYNC_TEMPO_FOLLOW,0,1,"BPM 2"},{XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,0,0,"BPM 1"},
-  {XZ_EXTRA_SYNC_WAIT_ANCHOR,0,0,"WAIT 1"},{XZ_EXTRA_SYNC_WAIT_MASTER,0,-1,"WAIT"},
-  {XZ_EXTRA_SYNC_NO_GRID,0,2,"NO BEAT GRID"},{XZ_EXTRA_SYNC_NO_SOURCE_BPM,0,2,"NO TRACK BPM"},
-  {XZ_EXTRA_SYNC_OUT_OF_RANGE,0,0,"OUT OF RANGE"},{XZ_EXTRA_SYNC_LOOP_UNALIGNED,0,0,"LOOP OFF GRID"},
+  {XZ_EXTRA_SYNC_WAIT_ANCHOR,0,0,"SYNC 1"},{XZ_EXTRA_SYNC_WAIT_MASTER,0,-1,"SYNC"},
+  {XZ_EXTRA_SYNC_NO_GRID,0,2,"BPM 3"},{XZ_EXTRA_SYNC_NO_SOURCE_BPM,0,2,"NO BPM"},
+  {XZ_EXTRA_SYNC_OUT_OF_RANGE,0,0,"LIMIT"},{XZ_EXTRA_SYNC_LOOP_UNALIGNED,0,0,"BPM 1"},
   {XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED,0,-1,"EXT MASTER"}};
  for(size_t i=0;i<sizeof chips/sizeof *chips;i++){
   sync_as(&d,chips[i].reason,chips[i].locked,chips[i].master_deck);
@@ -141,8 +141,7 @@ static void plate_modes(void){
  }
  sync_as(&d,XZ_EXTRA_SYNC_MASTER_CLOCK,0,2);d.sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
  assert(!strcmp(xz_extra_sync_chip(&d,text,sizeof text),"3/4 MASTER"));
- /* Drawn: tempo-only reads apart from waiting and from locked, the two tempo-only reasons alike (the panel tells
-    them apart), transient waits alike; each on line 1 only. */
+ /* Phase acquisition and lock share enabled styling. Established BPM-only cases share BPM styling. */
  d.sync.requested=0;keep(&d);
  uint32_t hash[6];
  sync_as(&d,XZ_EXTRA_SYNC_LOCKED,1,0);draw_lane(&d);assert(changed_in(0,PLATE,0,15));hash[0]=lane_hash();
@@ -152,7 +151,7 @@ static void plate_modes(void){
  sync_as(&d,XZ_EXTRA_SYNC_ACQUIRING,0,0);draw_lane(&d);hash[4]=lane_hash();
  sync_as(&d,XZ_EXTRA_SYNC_NO_GRID,0,0);draw_lane(&d);assert(changed_in(0,PLATE,0,15));hash[5]=lane_hash();
  assert(hash[1]==hash[2]&&hash[3]==hash[4]);
- assert(hash[0]!=hash[1]&&hash[1]!=hash[3]&&hash[0]!=hash[3]&&hash[5]!=hash[3]&&hash[5]!=hash[1]);
+ assert(hash[0]!=hash[1]&&hash[0]==hash[3]&&hash[5]==hash[1]);
  d.sync.requested=0;d.master=1;d.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;draw_lane(&d);assert(changed_in(0,PLATE,0,15));
  uint32_t software=lane_hash();d.master_scope=0;draw_lane(&d);assert(lane_hash()!=software);d.master=0;
 
@@ -414,7 +413,7 @@ int main(void){
  assert(status_hash[0]!=status_hash[1]&&status_hash[1]!=status_hash[2]&&status_hash[0]!=status_hash[2]);
  d.master=1;d.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
  fill();assert(xz_extra_lane_draw(pixels,STRIDE,STRIDE*268,0,3,&d,&view,&marks));assert(guards_intact(0));
- puts("PASS Classic SYNC/BPM/WAIT status and3/4master bounds; changingstatus cannotmove waveforms");
+ puts("PASS Classic SYNC/BPM/armed status and 3/4 master bounds; status cannot move waveforms");
 
  /* Theme pass: layer pixels come back exactly; background, marks and readout stay themed. */
  static uint16_t surface[536*268];static uint8_t keep[XZ_FOUR_KEEP_BYTES];

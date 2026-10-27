@@ -20,7 +20,7 @@ _Static_assert(sizeof(struct xz_extra_column)==3,"PWV7 columns are three packed 
 #define BEAT_TICK 0xce59
 #define BAR_TICK 0xf800
 /* Plate colours (0xRRGGBB), the native panels' conventions: white values, grey labels, red QUANTIZE,
-   MT and WIDE, orange MASTER, blue SYNC, amber for anything still waiting. */
+   MT and WIDE, orange MASTER, blue SYNC, amber for a tempo or source limitation. */
 #define INK 0xffffff
 #define LABEL 0xb4bcc4
 #define DIM 0x6a747e
@@ -28,8 +28,7 @@ _Static_assert(sizeof(struct xz_extra_column)==3,"PWV7 columns are three packed 
 #define RED 0xe8402c
 #define MASTER_ORANGE 0xff6a00
 #define SYNC_BLUE 0x2f7ff0
-#define SYNC_INK 0x6fb2ff
-#define WAIT_AMBER 0xffc070
+#define LIMIT_AMBER 0xffc070
 #define LOOP_ORANGE 0xff9a30
 #define SLIP_AMBER 0xffbd59
 #define DARK_INK 0x1a1206
@@ -52,39 +51,11 @@ int xz_extra_notice_draw(uint16_t *pixels,size_t stride,size_t count,const struc
 }
 
 enum xz_extra_sync_class xz_extra_sync_class(const struct xz_extra_deck *d){
- if(!d)return XZ_EXTRA_SYNC_CLASS_NONE;
- if((d->known&K(MASTER))&&d->master)return XZ_EXTRA_SYNC_CLASS_MASTER;
- if(!(d->known&K(SYNC))||!d->sync.requested)return XZ_EXTRA_SYNC_CLASS_NONE;
- if(d->sync.locked)return XZ_EXTRA_SYNC_CLASS_LOCKED;
- switch(d->sync.reason){
- case XZ_EXTRA_SYNC_TEMPO_FOLLOW:case XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:return XZ_EXTRA_SYNC_CLASS_TEMPO;
- case XZ_EXTRA_SYNC_MASTER_CLOCK:return XZ_EXTRA_SYNC_CLASS_MASTER;
- case XZ_EXTRA_SYNC_NO_GRID:case XZ_EXTRA_SYNC_NO_SOURCE_BPM:case XZ_EXTRA_SYNC_OUT_OF_RANGE:
- case XZ_EXTRA_SYNC_LOOP_UNALIGNED:case XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:return XZ_EXTRA_SYNC_CLASS_BLOCKED;
- default:return XZ_EXTRA_SYNC_CLASS_WAIT;
- }
+ return xz_extra_sync_present(d).klass;
 }
 const char *xz_extra_sync_chip(const struct xz_extra_deck *d,char *out,size_t size){
  if(!out||!size)return "";
- out[0]=0;
- enum xz_extra_sync_class k=xz_extra_sync_class(d);
- if(k==XZ_EXTRA_SYNC_CLASS_NONE)return out;
- int n=d->sync.master_deck>=0&&d->sync.master_deck<XZ_FOUR_DECKS?d->sync.master_deck+1:0;
- const char *label=NULL;
- switch(k){
- case XZ_EXTRA_SYNC_CLASS_MASTER:{
-  uint32_t scope=(d->known&K(MASTER))&&d->master?d->master_scope:d->sync.master_scope;
-  label=scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MASTER":"MASTER";n=0;break;
- }
- case XZ_EXTRA_SYNC_CLASS_LOCKED:label="SYNC";break;
- case XZ_EXTRA_SYNC_CLASS_TEMPO:label="BPM";break;
- case XZ_EXTRA_SYNC_CLASS_WAIT:label="WAIT";break;
- default:
-  n=0;
-  label=d->sync.reason==XZ_EXTRA_SYNC_NO_GRID?"NO BEAT GRID":d->sync.reason==XZ_EXTRA_SYNC_NO_SOURCE_BPM?"NO TRACK BPM":
-   d->sync.reason==XZ_EXTRA_SYNC_OUT_OF_RANGE?"OUT OF RANGE":d->sync.reason==XZ_EXTRA_SYNC_LOOP_UNALIGNED?"LOOP OFF GRID":"EXT MASTER";
- }
- if(n)snprintf(out,size,"%s %d",label,n);else snprintf(out,size,"%s",label);
+ snprintf(out,size,"%s",xz_extra_sync_present(d).label);
  return out;
 }
 /* The pads' meaning per mode, as the players apply it (extra_player.c beat_loop_beats, slip_loop_beats and
@@ -275,10 +246,8 @@ static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_dec
  if(k!=XZ_EXTRA_SYNC_CLASS_NONE){
   uint32_t fill=0,edge=0,ink=INK;
   if(k==XZ_EXTRA_SYNC_CLASS_MASTER)fill=MASTER_ORANGE;
-  else if(k==XZ_EXTRA_SYNC_CLASS_LOCKED)fill=SYNC_BLUE;
-  else if(k==XZ_EXTRA_SYNC_CLASS_TEMPO)edge=ink=SYNC_INK;
-  else if(k==XZ_EXTRA_SYNC_CLASS_WAIT)edge=ink=WAIT_AMBER;
-  else{fill=WAIT_AMBER;ink=DARK_INK;}
+  else if(k==XZ_EXTRA_SYNC_CLASS_LOCKED||k==XZ_EXTRA_SYNC_CLASS_ENABLED||k==XZ_EXTRA_SYNC_CLASS_TEMPO)fill=SYNC_BLUE;
+  else{fill=LIMIT_AMBER;ink=DARK_INK;}
   chip(c,x,2,13,xz_extra_sync_chip(d,text,sizeof text),fill,edge,ink);
  }
  /* Line 2: the clock in the deck's TIME MODE (remaining with a minus, elapsed without), source and key, the

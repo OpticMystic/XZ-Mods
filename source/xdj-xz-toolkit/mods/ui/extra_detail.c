@@ -12,7 +12,7 @@
 #define H XZ_EXTRA_DETAIL_H
 #define RIGHT (W-6)
 /* The plate's palette (extra_lane.c): white values, grey labels, red QUANTIZE/MT/WIDE, orange MASTER,
-   blue SYNC, amber for waiting, the pale blue of a lit deck tag. */
+   blue SYNC, amber for limitations, the pale blue of a lit deck tag. */
 #define BG 0x0d1115
 #define EDGE 0x3a4652
 #define RULE 0x222a32
@@ -24,8 +24,7 @@
 #define RED 0xe8402c
 #define MASTER_ORANGE 0xff6a00
 #define SYNC_BLUE 0x2f7ff0
-#define SYNC_INK 0x6fb2ff
-#define WAIT_AMBER 0xffc070
+#define LIMIT_AMBER 0xffc070
 #define LOOP_ORANGE 0xff9a30
 #define SLIP_AMBER 0xffbd59
 #define ADJUST_YELLOW 0xffe600
@@ -95,7 +94,7 @@ static void header(struct xz_canvas c,unsigned number,const struct xz_extra_deck
  xz_text(c,x+7,ROW_HEAD+4,"DECK",2,8,lit?LIT_INK:LABEL);
  int playing=(d->known&K(PLAYING))&&d->playing;
  const char *state=!d->loaded?"NO TRACK":playing?"PLAYING":d->held_playing?(d->platter_contact?"HELD":"COAST"):(d->known&K(PLAYING))?"PAUSED":"";
- xz_text(c,x+w+8,ROW_HEAD+7,state,1,10,playing?INK:d->held_playing?WAIT_AMBER:LABEL);
+ xz_text(c,x+w+8,ROW_HEAD+7,state,1,10,playing?INK:d->held_playing?LIMIT_AMBER:LABEL);
  key(c,xz_extra_detail_box(XZ_EXTRA_DETAIL_CLOSE),"CLOSE",0);
 }
 /* Which deck this side's controls drive: the DECK SELECT of SHIFT pressed twice, by touch. */
@@ -159,63 +158,18 @@ static void clock(struct xz_canvas c,const struct xz_extra_deck *d,uint32_t now_
   if(RIGHT-w>=x)xz_text(c,RIGHT-w,ROW_TEMPO+2,text,1,16,LABEL);
  }
 }
-/* What SYNC or MASTER means for this deck now, in words: up to two lines after the chip. */
-static void sync_lines(const struct xz_extra_deck *d,char *a,size_t an,char *b,size_t bn){
- a[0]=b[0]=0;
- int n=d->sync.master_deck>=0&&d->sync.master_deck<XZ_FOUR_DECKS?d->sync.master_deck+1:0;
- switch(xz_extra_sync_class(d)){
- case XZ_EXTRA_SYNC_CLASS_NONE:snprintf(a,an,(d->known&K(SYNC))?"OFF":"NOT REPORTED");break;
- case XZ_EXTRA_SYNC_CLASS_MASTER:{
-  uint32_t scope=(d->known&K(MASTER))&&d->master?d->master_scope:d->sync.master_scope;
-  if(scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE){snprintf(a,an,"TEMPO MASTER OF DECK 3 AND 4");snprintf(b,bn,"DECK 1 AND 2 SYNC CANNOT FOLLOW IT");}
-  else snprintf(a,an,"TEMPO MASTER");
-  break;
- }
- case XZ_EXTRA_SYNC_CLASS_LOCKED:
-  if(n)snprintf(a,an,"LOCKED TO DECK %d",n);else snprintf(a,an,"LOCKED TO THE MASTER");
-  snprintf(b,bn,"BEAT AND TEMPO FOLLOW THE MASTER");break;
- case XZ_EXTRA_SYNC_CLASS_TEMPO:
-  if(n)snprintf(a,an,"FOLLOWS DECK %d TEMPO ONLY",n);else snprintf(a,an,"FOLLOWS THE MASTER TEMPO ONLY");
-  snprintf(b,bn,"%s",d->sync.reason==XZ_EXTRA_SYNC_TEMPO_FOLLOW?"QUANTIZE OFF: BEAT POSITION LEFT AS IS":
-   "THE MASTER BEAT POSITION IS NOT AVAILABLE");break;
- case XZ_EXTRA_SYNC_CLASS_WAIT:
-  switch(d->sync.reason){
-  case XZ_EXTRA_SYNC_WAIT_MASTER:snprintf(a,an,"WAITING FOR A PLAYING MASTER");snprintf(b,bn,"PLAY THE MASTER OR PRESS MASTER ON A DECK");break;
-  case XZ_EXTRA_SYNC_WAIT_ANCHOR:snprintf(a,an,"LOCKS ONCE THIS DECK PLAYS");break;
-  case XZ_EXTRA_SYNC_ACQUIRING:snprintf(a,an,"FINDING THE MASTER BEAT");break;
-  case XZ_EXTRA_SYNC_DISCONTINUITY:snprintf(a,an,"FINDING THE BEAT AGAIN");snprintf(b,bn,"AFTER A JUMP, PAUSE OR MASTER CHANGE");break;
-  case XZ_EXTRA_SYNC_MANUAL:snprintf(a,an,"WAITS WHILE A DECK IS HELD");snprintf(b,bn,"OR WHILE THE MASTER IS NOT PLAYING");break;
-  default:snprintf(a,an,"ON");break;
-  }
-  break;
- case XZ_EXTRA_SYNC_CLASS_BLOCKED:
-  switch(d->sync.reason){
-  case XZ_EXTRA_SYNC_NO_GRID:snprintf(a,an,"CANNOT LOCK THIS TRACK");snprintf(b,bn,"IT HAS NO BEAT GRID: ANALYSE IT FIRST");break;
-  case XZ_EXTRA_SYNC_NO_SOURCE_BPM:snprintf(a,an,"NOTHING TO FOLLOW WITH");snprintf(b,bn,"THE TRACK HAS NO BPM: ANALYSE IT FIRST");break;
-  case XZ_EXTRA_SYNC_OUT_OF_RANGE:snprintf(a,an,"MASTER TEMPO OUT OF RANGE");snprintf(b,bn,"PRESS TEMPO RANGE FOR A WIDER RANGE");break;
-  case XZ_EXTRA_SYNC_LOOP_UNALIGNED:snprintf(a,an,"LOOP IS OFF THE BEAT GRID");snprintf(b,bn,"EXIT THE LOOP TO LOCK AGAIN");break;
-  default:snprintf(a,an,"NOT SUPPORTED");snprintf(b,bn,"PRESS MASTER ON DECK 1, 2, 3 OR 4");break;
-  }
-  break;
- }
-}
+/* The shared decision supplies both lines; the panel never reclassifies an engine reason. */
 static void sync(struct xz_canvas c,const struct xz_extra_deck *d){
- char text[24],a[48],b[48];
- enum xz_extra_sync_class k=xz_extra_sync_class(d);
+ struct xz_extra_sync_presentation p=xz_extra_sync_present(d);
  int x=6;
- if(k==XZ_EXTRA_SYNC_CLASS_NONE)x+=chip(c,x,ROW_SYNC,14,"SYNC",0,DIM,DIM)+6;
+ if(p.klass==XZ_EXTRA_SYNC_CLASS_NONE)x+=chip(c,x,ROW_SYNC,14,"SYNC",0,DIM,DIM)+6;
  else{
-  uint32_t fill=0,edge=0,ink=INK;
-  if(k==XZ_EXTRA_SYNC_CLASS_MASTER)fill=MASTER_ORANGE;
-  else if(k==XZ_EXTRA_SYNC_CLASS_LOCKED)fill=SYNC_BLUE;
-  else if(k==XZ_EXTRA_SYNC_CLASS_TEMPO)edge=ink=SYNC_INK;
-  else if(k==XZ_EXTRA_SYNC_CLASS_WAIT)edge=ink=WAIT_AMBER;
-  else{fill=WAIT_AMBER;ink=DARK_INK;}
-  x+=chip(c,x,ROW_SYNC,14,xz_extra_sync_chip(d,text,sizeof text),fill,edge,ink)+6;
+  uint32_t fill=p.klass==XZ_EXTRA_SYNC_CLASS_MASTER?MASTER_ORANGE:
+   p.klass==XZ_EXTRA_SYNC_CLASS_BLOCKED?LIMIT_AMBER:SYNC_BLUE;
+  x+=chip(c,x,ROW_SYNC,14,p.label,fill,0,p.klass==XZ_EXTRA_SYNC_CLASS_BLOCKED?DARK_INK:INK)+6;
  }
- sync_lines(d,a,sizeof a,b,sizeof b);
- fit(c,x,ROW_SYNC+3,RIGHT,a,1,k==XZ_EXTRA_SYNC_CLASS_NONE?LABEL:INK);
- if(b[0])fit(c,6,ROW_SYNC2,RIGHT,b,1,k==XZ_EXTRA_SYNC_CLASS_BLOCKED||k==XZ_EXTRA_SYNC_CLASS_WAIT?WAIT_AMBER:SOFT);
+ fit(c,x,ROW_SYNC+3,RIGHT,p.line1,1,p.klass==XZ_EXTRA_SYNC_CLASS_NONE?LABEL:INK);
+ fit(c,6,ROW_SYNC2,RIGHT,p.line2,1,p.klass==XZ_EXTRA_SYNC_CLASS_BLOCKED?LIMIT_AMBER:SOFT);
 }
 /* What each pad A..H does in the pad mode: hot cues in their colours (a bar under loop cues), loop lengths
    with the running one lit, jump sizes; CALL recalls saved pads without moving playback. */
@@ -342,7 +296,7 @@ static void status(struct xz_canvas c,const struct xz_extra_decks *s,const struc
  const struct xz_extra_detail_view *v){
  char text[sizeof s->notice+8];
  if(v->notice>XZ_EXTRA_DETAIL_NOTICE_NONE&&v->notice<XZ_EXTRA_DETAIL_NOTICES){
-  fit(c,6,ROW_STATUS,RIGHT,xz_extra_detail_notice_text(v->notice,number,text,sizeof text),1,WAIT_AMBER);return;
+  fit(c,6,ROW_STATUS,RIGHT,xz_extra_detail_notice_text(v->notice,number,text,sizeof text),1,LIMIT_AMBER);return;
  }
  if(xz_extra_notice_active(s,v->now_ms)){
   memcpy(text,s->notice,sizeof s->notice);text[sizeof s->notice-1]=0;

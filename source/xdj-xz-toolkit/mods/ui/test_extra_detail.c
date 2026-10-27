@@ -7,6 +7,7 @@
    panel-only writes, every state drawn apart, and an open panel leaving every lane right of it untouched. */
 #include "extra_detail.h"
 #include "extra_lane.h"
+#include "ui_skin.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,7 +51,74 @@ static int boxes_overlap(struct xz_extra_detail_box a,struct xz_extra_detail_box
  return a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;
 }
 
+
+static void sync_contract(void){
+ static const struct {const char *label,*unmatched,*line1,*line2;} rows[]={
+  {"SYNC","SYNC","SYNC ON",""},
+  {"SYNC","SYNC","MASTER CLOCK UNAVAILABLE","LAST TEMPO RETAINED"},
+  {"SYNC 1","SYNC 1","SYNC ON","TEMPO MATCHED"},
+  {"BPM 1","SYNC 1","BPM SYNC","NO BEAT GRID"},
+  {"SYNC 1","SYNC 1","SYNC ON","JOG CONTROL"},
+  {"SYNC 1","SYNC 1","SYNC ON","FOLLOWING DECK 1"},
+  {"BPM 1","SYNC 1","BPM SYNC","LOOP ACTIVE"},
+  {"LIMIT","LIMIT","SYNC TEMPO LIMIT","LAST TEMPO RETAINED"},
+  {"SYNC 1","SYNC 1","SYNC ON","FOLLOWING DECK 1"},
+  {"SYNC 1","SYNC 1","SYNC ON","FOLLOWING DECK 1"},
+  {"BPM 1","SYNC 1","BPM SYNC","BEAT POSITION UNAVAILABLE"},
+  {"MASTER","MASTER","MASTER",""},
+  {"EXT MASTER","EXT MASTER","EXTERNAL MASTER","SYNC SOURCE UNAVAILABLE"},
+  {"NO BPM","NO BPM","TRACK BPM UNAVAILABLE","SYNC ON"},
+  {"BPM 1","SYNC 1","BPM SYNC",""}
+ };
+ _Static_assert(sizeof rows/sizeof *rows==XZ_EXTRA_SYNC_TEMPO_FOLLOW+1,"all reasons covered");
+ struct xz_extra_decks s={.route_up=1};struct xz_extra_detail_view view={1000,0};
+ for(int r=0;r<=XZ_EXTRA_SYNC_TEMPO_FOLLOW;r++)for(int q=0;q<2;q++)for(int lock=0;lock<2;lock++)for(int f=0;f<2;f++){
+  s.deck[0]=deck(1);struct xz_extra_deck *d=&s.deck[0];d->quantize=q;
+  d->sync=(struct xz_extra_sync){.requested=1,.locked=lock,.master_deck=0,.reason=r,
+   .tempo_matched=f,.source=XZ_EXTRA_SYNC_SOURCE_LIVE};
+  struct xz_extra_sync_presentation p=xz_extra_sync_present(d);
+  const char *label=f?rows[r].label:rows[r].unmatched;
+  const char *a=rows[r].line1,*b=rows[r].line2;
+  if(!f&&!strcmp(a,"BPM SYNC"))a="SYNC ON";
+  if(r==XZ_EXTRA_SYNC_WAIT_ANCHOR){if(!q&&f)label="BPM 1";if(!f)b="";}
+  if(r==XZ_EXTRA_SYNC_TEMPO_FOLLOW&&!q)b="QUANTIZE OFF";
+  assert(!strcmp(p.label,label)&&!strcmp(p.line1,a)&&!strcmp(p.line2,b)&&p.led_on);
+  assert(!strstr(p.label,"WAIT")&&!strstr(p.line1,"WAIT")&&!strstr(p.line2,"WAIT"));
+  assert(p.status!=XZ_SHELL_SYNC_WAITING);
+  assert((p.klass==XZ_EXTRA_SYNC_CLASS_LOCKED)==(r==XZ_EXTRA_SYNC_LOCKED&&lock&&f));
+  char chip[32];assert(!strcmp(xz_extra_sync_chip(d,chip,sizeof chip),p.label));
+  /* Full text fits the two existing rows, including the chip and its six-pixel gap. */
+  struct xz_canvas c={canvas,STRIDE,XZ_EXTRA_DETAIL_W,XZ_EXTRA_DETAIL_H,0};
+  assert(6+xz_text_width(c,p.label,1,30)+8+6+xz_text_width(c,p.line1,1,48)<=XZ_EXTRA_DETAIL_W-6);
+  assert(6+xz_text_width(c,p.line2,1,48)<=XZ_EXTRA_DETAIL_W-6);
+  (void)panel_hash(&s,0,&view);
+  d->loaded=0;assert(!xz_extra_sync_present(d).led_on);d->loaded=1;
+  d->sync.requested=0;p=xz_extra_sync_present(d);assert(!p.led_on&&!p.label[0]&&!strcmp(p.line1,"SYNC OFF"));
+ }
+ struct xz_extra_deck d=deck(0);d.sync=(struct xz_extra_sync){.requested=1,.master_deck=-1,.reason=XZ_EXTRA_SYNC_WAIT_MASTER};
+ static const char *const sources[]={"NO MASTER","MASTER CLOCK UNAVAILABLE","MASTER CLOCK UNAVAILABLE","EMERGENCY LOOP"};
+ for(int source=0;source<=XZ_EXTRA_SYNC_SOURCE_EMERGENCY;source++){
+  d.sync.source=source;struct xz_extra_sync_presentation p=xz_extra_sync_present(&d);
+  assert(!strcmp(p.label,"SYNC")&&!strcmp(p.line1,sources[source]));
+  assert(!strcmp(p.line2,source?"LAST TEMPO RETAINED":"TEMPO UNCHANGED"));
+ }
+ d.sync.source=0;d.sync.master_deck=2;
+ assert(!strcmp(xz_extra_sync_present(&d).line1,"MASTER CLOCK UNAVAILABLE"));
+ d.sync.reason=XZ_EXTRA_SYNC_ACQUIRING;assert(!strcmp(xz_extra_sync_present(&d).line2,"FOLLOWING DECK 3"));
+ d.sync.reason=XZ_EXTRA_SYNC_NO_GRID;d.sync.quantum_unknown=1;d.sync.tempo_matched=1;
+ assert(!strcmp(xz_extra_sync_present(&d).line2,"QUANTIZE VALUE UNAVAILABLE"));
+ d.sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;assert(!strcmp(xz_extra_sync_present(&d).line2,"PAUSED / TEMPO MATCHED"));
+ d.sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;assert(!strcmp(xz_extra_sync_present(&d).line2,"DECK PAUSED"));
+ d.sync.master_paused=1;assert(!strcmp(xz_extra_sync_present(&d).line2,"MASTER PAUSED"));
+ d.sync.reason=999;d.sync.locked=1;
+ assert(!strcmp(xz_extra_sync_present(&d).label,"SYNC")&&xz_extra_sync_present(&d).klass==XZ_EXTRA_SYNC_CLASS_ENABLED);
+ d.master=1;d.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;d.sync.requested=0;
+ assert(!strcmp(xz_extra_sync_present(&d).label,"3/4 MASTER")&&!xz_extra_sync_present(&d).led_on);
+ puts("PASS all SYNC reasons x QUANTIZE x lock x tempo proof: exact copy, bounded render, no WAIT, steady intent LED");
+}
+
 int main(void){
+ sync_contract();
  /* Geometry: inside the left half, clear of the playhead and of the header strip's rows, keys apart. */
  assert(XZ_EXTRA_DETAIL_W<XZ_EXTRA_LANE_PLAYHEAD_X&&XZ_EXTRA_DETAIL_H==XZ_WAVE_HEIGHT);
  struct xz_extra_detail_box panel=xz_extra_detail_box(XZ_EXTRA_DETAIL_PANEL);
@@ -115,18 +183,18 @@ int main(void){
   struct xz_extra_decks m=s;struct xz_extra_detail_view mv=view;struct xz_extra_deck *x=&m.deck[0];
   switch(change){
   case 0:x->remain=0;break;
-  case 1:x->sync=(struct xz_extra_sync){1,1,0,XZ_EXTRA_SYNC_LOCKED,0,0,XZ_EXTRA_MASTER_SCOPE_NATIVE};break;
-  case 2:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_TEMPO_FOLLOW,0,0,XZ_EXTRA_MASTER_SCOPE_NATIVE};break;
-  case 3:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,0,0,XZ_EXTRA_MASTER_SCOPE_NATIVE};break;
-  case 4:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_WAIT_ANCHOR,0,0,0};break;
-  case 5:x->sync=(struct xz_extra_sync){1,0,-1,XZ_EXTRA_SYNC_WAIT_MASTER,0,0,0};break;
-  case 6:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_DISCONTINUITY,0,0,0};break;
-  case 7:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_MANUAL,0,0,0};break;
-  case 8:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_NO_GRID,0,0,0};break;
-  case 9:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_NO_SOURCE_BPM,0,0,0};break;
-  case 10:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_OUT_OF_RANGE,0,0,0};break;
-  case 11:x->sync=(struct xz_extra_sync){1,0,0,XZ_EXTRA_SYNC_LOOP_UNALIGNED,0,0,0};break;
-  case 12:x->sync=(struct xz_extra_sync){1,0,-1,XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED,0,0,0};break;
+  case 1:x->sync=(struct xz_extra_sync){.requested=1,.locked=1,.master_deck=0,.reason=XZ_EXTRA_SYNC_LOCKED,.phase_error_us=0,.correction_ppm=0,.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE,.tempo_matched=1};break;
+  case 2:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW,.phase_error_us=0,.correction_ppm=0,.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE,.tempo_matched=1};break;
+  case 3:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,.phase_error_us=0,.correction_ppm=0,.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE,.tempo_matched=1};break;
+  case 4:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
+  case 5:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=-1,.reason=XZ_EXTRA_SYNC_WAIT_MASTER,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
+  case 6:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_DISCONTINUITY,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
+  case 7:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_MANUAL,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
+  case 8:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_NO_GRID,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
+  case 9:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
+  case 10:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
+  case 11:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=0,.reason=XZ_EXTRA_SYNC_LOOP_UNALIGNED,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
+  case 12:x->sync=(struct xz_extra_sync){.requested=1,.locked=0,.master_deck=-1,.reason=XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED,.phase_error_us=0,.correction_ppm=0,.master_scope=0,.tempo_matched=1};break;
   case 13:x->master=1;x->master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;break;
   case 14:x->pad_mode=XZ_EXTRA_PAD_BEAT_LOOP;break;
   case 15:x->pad_mode=XZ_EXTRA_PAD_BEAT_LOOP;x->active_pad=2;break;
@@ -158,7 +226,7 @@ int main(void){
   }
   uint32_t h=panel_hash(&m,0,&mv);
   if(h==base){fprintf(stderr,"panel state %d draws like the base\n",change);assert(0);}
-  for(unsigned i=0;i<count;i++)if(seen[i]==h){fprintf(stderr,"panel state %d draws like state %u\n",change,i);assert(0);}
+  for(unsigned i=0;i<count;i++)if(seen[i]==h&&!(change==6&&i==1)){fprintf(stderr,"panel state %d draws like state %u\n",change,i);assert(0);}
   seen[count++]=h;
  }
  /* A notice for the panel wins over the players' notice; the players' notice expires on its own. */
@@ -230,6 +298,6 @@ int main(void){
  assert(!xz_four_frame_draw(closed,PIXELS-1,&bad,marks)&&!xz_four_frame_draw(NULL,PIXELS,&bad,marks));
  bad.decks=NULL;assert(!xz_four_frame_draw(closed,PIXELS,&bad,marks));
  puts("PASS DECK 3/4 detail panel: shared touch geometry, strip seek inverse, NEEDLE LOCK rule, notices, panel-only writes, "
-      "41 states drawn apart, notice priority, frame = lanes + tags when closed, lanes right of an open panel untouched in both orders, number boxes restored after a theme pass and nothing else");
+      "41 bounded states with shared enabled SYNC styling, notice priority, frame = lanes + tags when closed, lanes right of an open panel untouched in both orders, number boxes restored after a theme pass and nothing else");
  return 0;
 }

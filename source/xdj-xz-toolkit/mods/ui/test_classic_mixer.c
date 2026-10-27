@@ -51,7 +51,27 @@ static void halves(void){
  assert(xz_classic_half_seek_ms(2,0,1000)==-1&&xz_classic_half_seek_ms(0,0,0)==-1);
  puts("PASS 2 DECKS panel half: exact panel writes, overview waveform, number box, master BPM box, identity box only, seek geometry, guards");
 }
+static void sync_presentation(void){
+ struct xz_shell_deck native[2]={0};struct xz_extra_decks extra={0};
+ struct xz_classic_mixer_view v={.native=native,.extra=&extra};
+ static const char *const labels[]={"SYNC","SYNC 2","SYNC","BPM 2","","LIMIT","SYNC 2","EXT MASTER","NO BPM"};
+ for(int side=0;side<2;side++)for(int status=0;status<=XZ_SHELL_SYNC_NO_BPM;status++){
+  native[side].known=N(SYNC)|N(SYNC_STATUS);native[side].sync=1;
+  native[side].sync_status=status;native[side].sync_master_deck=1;
+  struct panel p=project(&v,side);assert(!strcmp(p.sync,labels[status])&&!strstr(p.sync,"WAIT"));
+  native[side].sync=0;assert(!project(&v,side).sync[0]);
+ }
+ native[0].sync=1;native[0].sync_status=999;assert(!strcmp(project(&v,0).sync,"SYNC"));
+ native[0].known=N(SYNC);assert(!strcmp(project(&v,0).sync,"SYNC"));
+ for(int side=0;side<2;side++)for(int r=0;r<=XZ_EXTRA_SYNC_TEMPO_FOLLOW;r++)for(int q=0;q<2;q++)for(int lock=0;lock<2;lock++){
+  struct xz_extra_deck *d=&extra.deck[side];d->known=E(SYNC)|E(QUANTIZE);d->loaded=1;d->quantize=q;
+  d->sync=(struct xz_extra_sync){.requested=1,.locked=lock,.master_deck=0,.reason=r,.tempo_matched=1};
+  assert(!strcmp(project(&v,side+2).sync,xz_extra_sync_present(d).label));
+ }
+ puts("PASS Classic native shell status compatibility and software SYNC presentation parity");
+}
 int main(void){
+ sync_presentation();
  halves();
  const unsigned char *order=xz_deck_layout_order(XZ_LAYOUT_MIXER);
  struct xz_shell_deck native[2]={0};struct xz_extra_decks extra={0};struct xz_classic_mixer_view v={native,&extra,2000,0,XZ_LAYOUT_MIXER,{native_wave,NULL},0};
@@ -86,8 +106,8 @@ int main(void){
  assert(xz_classic_mixer_draw(pixels,807,807*480,&v));
  for(int yy=378;yy<406;yy++)for(int xx=6;xx<194;xx++)assert(pixels[yy*807+xx]==pixels[yy*807+200+xx]);
  native[0].known|=N(MASTER_TEMPO)|N(QUANTIZE)|N(TEMPO_RANGE)|N(TEMPO)|N(KEY)|N(SOURCE)|N(MASTER);
- native[0].master_tempo=1;native[0].quantize_on=1;native[0].tempo_range=100;native[0].tempo_x100=-1450;native[0].source=XZ_SHELL_SRC_USB2;native[0].master=1;
- p=project(&v,0);assert(p.mt_known&&p.mt&&p.quant_known&&p.quant&&p.range==100&&p.tempo==-1450&&p.source==2&&p.master);
+ native[0].master_tempo=1;native[0].quantize_on=1;native[0].tempo_range=100;native[0].tempo_x100=-1450;native[0].source=XZ_SHELL_SRC_USB2;native[0].master=1;native[0].master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
+ p=project(&v,0);assert(p.mt_known&&p.mt&&p.quant_known&&p.quant&&p.range==100&&p.tempo==-1450&&p.source==2&&p.master&&p.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE);
  extra.deck[0].known|=E(MASTER_TEMPO)|E(QUANTIZE)|E(TEMPO_RANGE)|E(TEMPO);extra.deck[0].master_tempo=1;extra.deck[0].quantize=1;extra.deck[0].tempo_range=100;extra.deck[0].tempo_x100=-1450;
  p=project(&v,2);assert(p.mt_known&&p.mt&&p.quant_known&&p.quant&&p.range==100&&p.tempo==-1450);
  extra.deck[0].known|=E(PLAYING);extra.deck[0].playing=1;extra.deck[0].tempo_x100=0;extra.deck[0].elapsed_at_ms=1900;assert(project(&v,2).elapsed==42100);

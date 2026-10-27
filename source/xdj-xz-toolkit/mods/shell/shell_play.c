@@ -982,11 +982,9 @@ static void render_strip(const struct play_layout *L, const struct xz_shell *u, 
  if(sh_has(d,XZ_SHELL_F_SYNC)&&d->sync){
   if(sh_has(d,XZ_SHELL_F_SYNC_STATUS)){
    if(d->sync_status!=XZ_SHELL_SYNC_MASTER){
-    const char *label=d->sync_status==XZ_SHELL_SYNC_LOCKED?"SYNC":d->sync_status==XZ_SHELL_SYNC_TEMPO_ONLY?"BPM":d->sync_status==XZ_SHELL_SYNC_RATE_LIMIT?"LIMIT":"WAIT";
-    char status[12];
-    if(d->sync_master_deck>=0&&d->sync_master_deck<4)snprintf(status,sizeof status,"%s %d",label,d->sync_master_deck+1);
-    else snprintf(status,sizeof status,"%s",label);
-    sh_chip(c,mx,my,status,d->sync_status==XZ_SHELL_SYNC_LOCKED?SH_BLUE:SH_LOOP,SH_WHITE,0);
+    const char *label=xz_shell_sync_label(d->sync_status,d->sync_master_deck);
+    int limited=d->sync_status==XZ_SHELL_SYNC_RATE_LIMIT||d->sync_status==XZ_SHELL_SYNC_EXTERNAL_MASTER||d->sync_status==XZ_SHELL_SYNC_NO_BPM;
+    sh_chip(c,mx,my,label,limited?SH_LOOP:SH_BLUE,SH_WHITE,0);
    }
   }else sh_chip(c,mx,my,"SYNC",SH_BLUE,SH_WHITE,0);
  }
