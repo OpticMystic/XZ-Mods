@@ -1145,8 +1145,8 @@ static void test_native_phase_sync(void){
   assert(fabs(actual_native_sync_error(slave))>.05);
   unsigned flush_before_sync=f.flushes[slave];
   press(slave,XZ_EXTRA_IN_SYNC);
-  /* A cached observation from before the press cannot trigger a jump. Two
-     coherent fresh samples qualify acquisition before the first transition. */
+  /* With no prior phase proof, two coherent observations qualify the first transition.
+     A re-engage can reuse that proof while its source and timing remain valid. */
   assert(f.flushes[slave]==flush_before_sync&&!view.deck[slave].sync.locked);
   step();assert(f.flushes[slave]==flush_before_sync&&!view.deck[slave].sync.locked);
   advance(50);assert(f.flushes[slave]==flush_before_sync+1);
@@ -1300,7 +1300,8 @@ static void test_sync_coordinator(void){
   fprintf(stderr,"SYNC loop restore reason=%d actual_ms=%g\n",view.deck[slave].sync.reason,actual_sync_error(master_deck,slave)*1000);
   assert(view.deck[slave].sync.locked&&fabs(actual_sync_error(master_deck,slave))<=.001);
   position_blocked=1;advance(200);assert(view.deck[slave].sync.requested&&!view.deck[slave].sync.locked);
-  position_blocked=0;advance(100);assert(view.deck[slave].sync.requested&&!view.deck[slave].sync.locked);
+  position_blocked=0;advance(100);assert(view.deck[slave].sync.requested);
+  if(view.deck[slave].sync.locked)assert(fabs(actual_sync_error(master_deck,slave))<=.001);
   advance(2000);assert(view.deck[slave].sync.requested&&view.deck[slave].sync.locked); /* recovers without a press */
   press(slave,XZ_EXTRA_IN_MASTER);press(master_deck,XZ_EXTRA_IN_SYNC);advance(2000);
   fprintf(stderr,"handoff req=%d locked=%d reason=%d actual_us=%g underrun=%llu/%llu\n",view.deck[master_deck].sync.requested,view.deck[master_deck].sync.locked,view.deck[master_deck].sync.reason,actual_sync_error(slave,master_deck)*1000000,(unsigned long long)f.position.deck[0].underrun_frames,(unsigned long long)f.position.deck[1].underrun_frames);

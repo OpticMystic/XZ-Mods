@@ -47,7 +47,7 @@ extern void xz_extra_decks_set_quantize_grid(unsigned,int);
 static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t wake=PTHREAD_COND_INITIALIZER;
 static int enabled,owns_flag,refreshed,dirty_flag;
-static int interface_modern=1;
+static int interface_modern=1,key_setup_browser;
 int xz_shell_runtime_owns(void){return __atomic_load_n(&owns_flag,__ATOMIC_ACQUIRE);}
 static unsigned follow_bits;
 static uint32_t last_call_ms,last_drawn_ms,last_refresh_ms,last_pump_ms,period_ms=100;

@@ -309,8 +309,11 @@ Hot cues and memory points you set on decks 3 and 4 are saved on the music stick
 
 Press [[SYNC]] and the deck takes the master deck's BPM at once. The SYNC button stays lit for as long as SYNC is on. With QUANTIZE on and a beat grid on both tracks, the deck also locks to the master's beat. Press [[SYNC]] again to turn it off.
 
-- The tempo follows even when the master or the synced deck is paused. The beat locks once both play.
+If the beats drift apart, press [[SYNC]] off and on again. With QUANTIZE on, every engage snaps to the nearest position at the selected beat value, even for a small drift. The beat value can be 1, 1/2, 1/4 or 1/8 beat. With QUANTIZE off, only the tempo follows.
+
+- The tempo follows even when the master or the synced deck is paused. If the beat position is available, the paused deck aligns once. If it is unavailable, alignment happens as soon as it can be read. Continuous beat lock resumes when both decks play.
 - A pause, a jump, a loop or a new master never turns SYNC off. The deck follows again on its own, with no second press.
+- Bending or scratching takes control of the deck. When you let go, QUANTIZE snaps it back into alignment as soon as beat timing is available.
 - The tempo fader does not move the deck while SYNC is on.
 
 The bottom channel, the lane and the detail panel say what SYNC is doing:

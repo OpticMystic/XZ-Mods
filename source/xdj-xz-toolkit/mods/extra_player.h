@@ -31,7 +31,7 @@ enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_
    clockwise; the centre is ~300 ms. Provisional until timed against a stock deck. */
 #define XZ_XP_SCAN_RATE 4.0            /* SEARCH held during playback: scan speed (provisional; not in the manual) */
 #define XZ_XP_TRACK_PREV_MS 500u      /* TRACK SEARCH back twice within this: previous track (provisional) */
-#define XZ_XP_SYNC_RESNAP_MS 1000u    /* QUANTIZE re-snaps after a SYNC break at most this often */
+#define XZ_XP_SYNC_RESNAP_MS 1000u    /* Automatic QUANTIZE re-snaps; explicit SYNC engages bypass this cooldown */
 #define XZ_XP_MASTER_HANDOFF_MS 300u  /* a stopped native master must stay stopped this long before a software deck takes over */
 #define XZ_XP_RAMP_FAST_MS 30
 #define XZ_XP_RAMP_SLOW_MS 3000

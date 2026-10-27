@@ -124,9 +124,10 @@ static void phase_limits_keep_pcm_tempo(void){
  position_blocked=0;engine_end();
  puts("PASS missing grid and fractional loop update completed PCM without seeks; software tempo follows without output anchors");
 }
+#include "test_sync_snap.h"
 int main(int argc,char **argv){
  assert(argc==2);assert(!pthread_mutex_init(&f.lock,NULL));
  snprintf(fixtures,sizeof fixtures,"%s",argv[1]);snprintf(anlz_dir,sizeof anlz_dir,"%s/anlz",argv[1]);build_analysis();
- immediate_tempo();retained_tempo();manual_and_anchor();recopy_and_range();phase_limits_keep_pcm_tempo();test_native_sync_cache();
+ explicit_snap();immediate_tempo();retained_tempo();manual_and_anchor();recopy_and_range();phase_limits_keep_pcm_tempo();test_native_sync_cache();
  pthread_mutex_destroy(&f.lock);puts("PASS S1-S9 engine regressions");return 0;
 }

@@ -397,6 +397,7 @@
  },
  "watch": {
   "source/xdj-xz-toolkit/mods/deck_select.c": "4fb5b6db6b40ffc293bdb6a30a67ee5f40cbb23fa0710687c23e20bb752ad320",
+  "source/xdj-xz-toolkit/mods/extra_player.c": "b42b2b4a9cb47b1a12d0821c53af340273b92d1029f5c5d2f8b1c55161a7c327",
   "source/xdj-xz-toolkit/mods/extra_route_status.h": "8411cee1d8249d088eb2794ff6b700ca48010269f8cfee8b2b0207ffdc87687c",
   "source/xdj-xz-toolkit/mods/key/control.c": "e9b6239df26f2368ca4dc9503e5227048a336288dc2bcbf9fa72002e00635145",
   "source/xdj-xz-toolkit/mods/ram/extra.c": "647da1a37cb73c26790aabe92cc097ca6b6fd23faca88b08467939dd33701367",
