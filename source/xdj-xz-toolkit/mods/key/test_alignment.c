@@ -57,10 +57,10 @@ static float reference_align(const struct xz_key_shift *state, int64_t outgoing,
 }
 
 
-static unsigned wraps;
+static unsigned wraps,reference_pass;
 static float compare_align(const struct xz_key_shift *s,int64_t out,int64_t in) {
  float a=align_head(s,out,in),b=reference_align(s,out,in);
- assert(a==b);++wraps;return a;
+ assert(a==b);if(reference_pass)return b;++wraps;return a;
 }
 static uint32_t noise=1;
 static float audio(unsigned n,int kind,unsigned c){
@@ -75,20 +75,38 @@ static float audio(unsigned n,int kind,unsigned c){
 }
 
 int main(void) {
- static struct xz_key_shift state;
+ static struct xz_key_shift state,reference;
+ static float input[44100*4*2];
  int cents[]={-1200,-600,-100,-137,100,123,600,1200};
- for(int kind=0;kind<6;kind++)for(unsigned c=0;c<8;c++) {
-  xz_key_shift_init(&state);noise=1;
+ for(int kind=0;kind<6;kind++){
+  noise=1;
+  for(unsigned n=0;n<44100*4;n++)for(unsigned ch=0;ch<2;ch++)input[n*2+ch]=audio(n,kind,ch);
+  for(unsigned c=0;c<8;c++) {
+  xz_key_shift_init(&state);xz_key_shift_init(&reference);
   assert(!xz_key_shift_set_cents(&state,cents[c]));
-  unsigned first=wraps;
+  assert(!xz_key_shift_set_cents(&reference,cents[c]));
+  unsigned first=wraps,onsets[2]={0};float previous[2]={0};int above[2]={0};
   for(unsigned n=0;n<44100*4;n+=256) {
-   float pcm[512];unsigned frames=44100*4-n;if(frames>256)frames=256;
-   for(unsigned i=0;i<frames;i++)for(unsigned ch=0;ch<2;ch++)pcm[2*i+ch]=audio(n+i,kind,ch);
+   float pcm[512],original[512];unsigned frames=44100*4-n;if(frames>256)frames=256;
+   memcpy(pcm,input+n*2,frames*2*sizeof(float));
+   memcpy(original,pcm,frames*2*sizeof(float));
    assert(!xz_key_shift_process(&state,pcm,frames));
+   reference_pass=1;assert(!xz_key_shift_process(&reference,original,frames));reference_pass=0;
+   assert(!memcmp(pcm,original,frames*2*sizeof(float)));
+   for(unsigned i=0;i<frames;i++){
+    assert(pcm[i*2]-previous[0]==original[i*2]-previous[1]);
+    previous[0]=pcm[i*2];previous[1]=original[i*2];
+    if(kind==5)for(unsigned j=0;j<2;j++){
+     int high=fabsf(j?original[i*2]:pcm[i*2])>.02f;
+     if(high&&!above[j])++onsets[j];above[j]=high;
+    }
+    assert(onsets[0]==onsets[1]);
+   }
    for(unsigned i=0;i<frames*2;i++)assert(isfinite(pcm[i])&&fabsf(pcm[i])<2);
   }
   assert(wraps>first);
-  printf("PASS material=%d cents=%d wraps=%u exact reference offsets\n",kind,cents[c],wraps-first);
+  printf("PASS material=%d cents=%d wraps=%u exact reference offsets, bit-exact output, identical onset/click deltas\n",kind,cents[c],wraps-first);
+ }
  }
  /* Ring wrap, long-running lifetime counter, negative correlations and ties. */
  for(unsigned trial=0;trial<1000;trial++) {
