@@ -29,9 +29,9 @@ int main(void){
  CHECK(!strncmp(title_of(&u,&m,XZ_UI_PAD_FEEDBACK,2),"STEM PAD LIGHTS",15));
  u.page=XZ_UI_MYHOUSE_SETUP;CHECK(!strcmp(label(&u,&m,XZ_UI_MYHOUSE_CHECK),"CHECK ENGINE"));
  u.page=XZ_UI_RAM_SETUP;m.deck[0].ram.state=XZ_UI_RAM_READY;m.deck[0].ram.retained_stems_bytes=1234;
- CHECK(strstr(xz_ui_footer_text(&u,&m),"PREPARED STEMS IN RAM"));
- CHECK(strstr(xz_ui_footer_text(&u,&m),"LOADED WAVES KEPT WHEN PRESENT"));
- m.deck[0].ram.retained_stems_bytes=0;CHECK(!strstr(xz_ui_footer_text(&u,&m),"PREPARED STEMS IN RAM"));
+ CHECK(strstr(xz_ui_footer_text(&u,&m),"STEMS IN RAM"));
+ CHECK(strstr(xz_ui_footer_text(&u,&m),"WAVES KEPT"));
+ m.deck[0].ram.retained_stems_bytes=0;CHECK(!strstr(xz_ui_footer_text(&u,&m),"STEMS IN RAM"));
  CHECK(strstr(xz_ui_footer_text(&u,&m),"STEMS NEED USB"));
  /* BEAT JUMP as the stem pad mode: page 2's jumps win its pads, page 1's with MY SIZES, in both interfaces */
  for(int iface=0;iface<2;iface++){

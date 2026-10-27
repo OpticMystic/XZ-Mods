@@ -612,7 +612,7 @@ const char *xz_ui_ram_scope(const struct xz_ui_ram *r){
   return "Up to 64 MiB a track, 128 MiB in all.";
  }
  if(r->state==XZ_UI_RAM_READY||r->state==XZ_UI_RAM_DETACHED)
-  return r->retained_stems_bytes?"AUDIO + PREPARED STEMS IN RAM":"AUDIO IN RAM / STEMS NEED USB";
+  return r->retained_stems_bytes?"AUDIO + STEMS IN RAM / WAVES KEPT":"AUDIO IN RAM / STEMS NEED USB";
  return "COPIES AUDIO / STEMS STAY ON USB";
 }
 const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m){
