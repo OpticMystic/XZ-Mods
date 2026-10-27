@@ -736,6 +736,80 @@ static void dock_fits(void){
  assert(!bad);
  printf("PASS dock: %d explanations fit three lines in both interfaces and every theme\n",checked);
 }
+static uint16_t rgb565(uint32_t c){return (uint16_t)((c>>19&31)<<11|(c>>10&63)<<5|(c>>3&31));}
+/* The encoder's stops from the page's first control, 40 turns on. */
+static void stops(struct xz_ui u,struct xz_ui_model *m,struct xz_ui_widget out[40]){
+ struct xz_ui_action a[XZ_UI_ACTIONS];
+ for(int i=0;i<40;i++){xz_ui_encoder_turn(&u,m,1,a);memset(&out[i],0,sizeof out[i]);xz_ui_focused(&u,m,&out[i]);}
+}
+/* MODERN keeps a known stock counter error in the dock's title row while MODS is open (stock errors are never
+   covered). Nothing outside the strip changes, the encoder stops where it did, every control answers a touch as
+   before and a touch on the strip closes MODS. CLASSIC (the stock deck area shows there) draws and acts as before. */
+static void counter_strip(void){
+ static uint16_t plain[800*480];
+ static const enum xz_ui_page pages[]={XZ_UI_HOME,XZ_UI_PLAY,XZ_UI_BEAT_JUMP,XZ_UI_STEM_SECTION,XZ_UI_SCREEN,XZ_UI_SCREEN_LOOK,XZ_UI_FOUR_DECKS,XZ_UI_CONNECT,XZ_UI_EXTRAS};
+ static const struct xz_ui_counter_error unsupported={"E-8304","UNSUPPORTED"},cannot={"E-8302","CANNOT PLAY TRACK"};
+ int shown=0;
+ for(int iface=0;iface<2;iface++)for(size_t p=0;p<sizeof pages/sizeof pages[0];p++)for(int which=1;which<4;which++){
+  struct xz_ui u;struct xz_ui_model m;memset(&m,0,sizeof m);xz_ui_init(&u);u.page=pages[p];
+  m.theme=iface?XZ_THEME_FLAGSHIP:0;m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.modern_look.known=1;
+  m.enabled=XZ_UI_STEM|XZ_UI_GATE;m.deck[0].ready=m.deck[1].ready=0x3fff;m.settings_status="SETTINGS SAVED TO USB 1";
+  for(int d=0;d<4;d++){m.deck[d].groove_active=m.deck[d].sample_active=-1;m.deck[d].sample_volume=1;}
+  struct xz_ui_model err=m;
+  if(which&1)err.counter_error[0]=unsupported;
+  if(which&2)err.counter_error[1]=cannot;
+  struct xz_ui_widget before[XZ_UI_WIDGETS],after[XZ_UI_WIDGETS],stop_plain[40],stop_err[40];
+  size_t nb=xz_ui_layout(&u,&m,before),na=xz_ui_layout(&u,&err,after);
+  assert(!xz_ui_counter_errors(&m));
+  assert(xz_ui_render(&u,&m,frame,800*480,800));memcpy(plain,frame,sizeof plain);
+  assert(xz_ui_render(&u,&err,frame,800*480,800));
+  stops(u,&m,stop_plain);stops(u,&err,stop_err);
+  assert(!memcmp(stop_plain,stop_err,sizeof stop_plain));
+  if(!iface){assert(!xz_ui_counter_errors(&err)&&na==nb&&!memcmp(before,after,nb*sizeof *before)&&!memcmp(plain,frame,sizeof plain));continue;}
+  assert(xz_ui_counter_errors(&err)==(unsigned)which);
+  /* One more widget, last: the strip on the dock's title row, touch only. Every other widget stays where it was. */
+  assert(na==nb+1&&!memcmp(before,after,nb*sizeof *before));
+  struct xz_ui_widget s=after[nb];
+  assert(s.kind==XZ_UI_CLOSE&&s.index==XZ_UI_CLOSE_COUNTER&&!xz_ui_focusable(&s));
+  assert(s.x==0&&s.y==XZ_UI_COUNTER_Y&&s.w==XZ_UI_COUNTER_W&&s.h==XZ_UI_COUNTER_H&&s.y+s.h<=XZ_UI_DOCK_Y+XZ_UI_DOCK_BODY_Y);
+  /* Only the strip's pixels change: page, rail, header, explanation and the right column stay as they were. */
+  for(int y=0;y<480;y++)for(int x=0;x<800;x++)
+   if(!(x<s.x+s.w&&y>=s.y&&y<s.y+s.h))assert(frame[y*800+x]==plain[y*800+x]);
+  assert(frame[(s.y+2)*800+1]==rgb565(0xff4619)&&frame[(s.y+1)*800+300]==rgb565(0x5a0c0c));
+  assert(memcmp(frame+s.y*800,plain+s.y*800,(size_t)s.h*800*sizeof *frame));
+  /* Each deck's code is drawn: the strip differs between one deck and the other. */
+  /* Every control answers a touch exactly as it did without the error. */
+  for(size_t i=0;i<nb;i++){
+   struct xz_ui t1=u,t2=u;struct xz_ui_action a1[XZ_UI_ACTIONS],a2[XZ_UI_ACTIONS];memset(a1,0,sizeof a1);memset(a2,0,sizeof a2);
+   int x=before[i].x+before[i].w/2,y=before[i].y+before[i].h/2;
+   size_t n1=xz_ui_touch(&t1,&m,x,y,1,a1),n2=xz_ui_touch(&t2,&err,x,y,1,a2);
+   assert(n1==n2&&!memcmp(a1,a2,n1*sizeof *a1)&&t1.focus_kind==t2.focus_kind&&t1.focus_index==t2.focus_index&&t1.page==t2.page);
+  }
+  /* A touch anywhere on the strip closes MODS (the runtime's CLOSE), and moves no focus. */
+  int xs[3]={2,s.w/2,s.w-8};
+  for(int k=0;k<3;k++){
+   struct xz_ui t=u;struct xz_ui_action a[XZ_UI_ACTIONS];
+   assert(xz_ui_touch(&t,&err,xs[k],s.y+s.h/2,1,a)==1&&a[0].kind==XZ_UI_CLOSE&&a[0].phase==XZ_UI_PRESS);
+   assert(t.focus_kind==u.focus_kind&&t.focus_index==u.focus_index&&t.page==u.page);xz_ui_touch(&t,&err,0,0,0,a);
+  }
+  /* The error leaving takes the strip with it. */
+  struct xz_ui_model clear=err;memset(clear.counter_error,0,sizeof clear.counter_error);
+  assert(xz_ui_layout(&u,&clear,after)==nb&&xz_ui_render(&u,&clear,frame,800*480,800)&&!memcmp(plain,frame,sizeof plain));
+  shown++;
+ }
+ /* The two decks' rows differ: each shows its own badge, code and text. */
+ {
+  struct xz_ui u;struct xz_ui_model m;memset(&m,0,sizeof m);xz_ui_init(&u);u.page=XZ_UI_PLAY;
+  m.theme=XZ_THEME_FLAGSHIP;m.ui_interface=XZ_UI_INTERFACE_MODERN;m.modern_look.known=1;
+  static uint16_t one[800*XZ_UI_COUNTER_H];
+  m.counter_error[0]=unsupported;assert(xz_ui_render(&u,&m,frame,800*480,800));memcpy(one,frame+XZ_UI_COUNTER_Y*800,sizeof one);
+  memset(m.counter_error,0,sizeof m.counter_error);m.counter_error[1]=unsupported;assert(xz_ui_render(&u,&m,frame,800*480,800));
+  assert(memcmp(one,frame+XZ_UI_COUNTER_Y*800,sizeof one));
+  /* A code or text missing is not an error to show. */
+  m.counter_error[1].text=NULL;assert(!xz_ui_counter_errors(&m));
+ }
+ printf("PASS counter strip: %d MODERN cases (one deck, the other, both) change only the dock's title row; CLASSIC unchanged\n",shown);
+}
 int main(int argc,char **argv){
  struct xz_ui u;struct xz_ui_model m;int i,j;
  if(argc>1&&strcmp(argv[1],"--prove-assertions")==0){assert(!"assertions-active");return 1;}
@@ -749,6 +823,7 @@ int main(int argc,char **argv){
  profile();
  editor();
  dock_fits();
+ counter_strip();
  assert(!xz_ui_render(&u,&m,frame,10,800));assert(!xz_ui_render(&u,&m,frame,800*480,799));
  for(i=0;i<16;i++)frame[800*480+i]=0xdead;
  for(i=0;i<XZ_THEME_COUNT;i++)for(j=0;j<XZ_UI_PAGE_COUNT;j++){m.theme=i;u.page=(enum xz_ui_page)j;assert(xz_ui_render(&u,&m,frame,800*480,800));}
