@@ -469,7 +469,8 @@ int main(int argc, char **argv)
     assert(status.state == XZ_RAM_LOADING && status.copied < sizeof(fixture));
     assert(!xz_ram_cancel(0)); wait_state(0, XZ_RAM_EMPTY); assert(!xz_ram_preserve_usb(0, 2));
     assert(!unlink(test_path)); assert(!xz_ram_request(0)); wait_state(0, XZ_RAM_ERROR);
-    xz_ram_stop(); assert(!allocated);
+    xz_ram_stop(); struct xz_ram_usage usage; xz_ram_usage(&usage);
+    assert(!usage.original_pending && !usage.original_held);
     for (unsigned i = 0; i < 2; ++i) fclose(files[i]);
     puts("PASS actual RAM worker, compressed-byte identity, source deletion, seeks/EOF, two-deck deferred eject, explicit unload, replacement, cancel, failure and retirement");
     return 0;

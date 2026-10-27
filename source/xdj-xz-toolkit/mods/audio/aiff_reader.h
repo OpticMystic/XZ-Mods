@@ -23,10 +23,10 @@ static int xz_aiff_seek(struct xz_aiff *a, uint64_t frame) {
  uint64_t offset = a->data + frame * a->channels * (a->bits / 8);
  return !fseeko(a->file, (int64_t)offset, SEEK_SET);
 }
-static int xz_aiff_open(struct xz_aiff *a, const char *path) {
+static int xz_aiff_init(struct xz_aiff *a, FILE *file) {
  unsigned char h[24];
  memset(a, 0, sizeof *a);
- a->file = fopen(path, "rb");
+ a->file = file;
  if (!a->file) return 0;
  if (fseeko(a->file, 0, SEEK_END)) return 0;
  int64_t bytes = ftello(a->file);
@@ -81,6 +81,10 @@ static int xz_aiff_open(struct xz_aiff *a, const char *path) {
  if (!common || !sound || (compressed && !version) ||
      a->frames * a->channels * (a->bits / 8) > data_bytes) return 0;
  return xz_aiff_seek(a, 0);
+}
+/* Path wrapper retains the historical caller-owned close, including failure. */
+static inline int xz_aiff_open(struct xz_aiff *a, const char *path) {
+ return xz_aiff_init(a, fopen(path, "rb"));
 }
 static uint64_t xz_aiff_read(struct xz_aiff *a, size_t frames, float *out) {
  unsigned char buffer[4096];

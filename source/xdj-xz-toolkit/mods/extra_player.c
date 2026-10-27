@@ -308,6 +308,8 @@ struct xz_xp_players {
  int sp_enabled;uint32_t sp_id;
 #endif
  struct xz_xp_env env;
+ struct xz_ram_player_service ram;
+ uint64_t (*source_generation)(unsigned);
  struct deck deck[XZ_EXTRA_DECKS];
  pthread_mutex_t publish_lock;
  struct xz_extra_deck view[XZ_EXTRA_DECKS];
@@ -372,6 +374,18 @@ void xz_xp_set_master_observer(struct xz_xp_players *p,xz_master_observer observ
 }
 void xz_xp_set_native_sync_clock(struct xz_xp_players *p,int (*read)(struct xz_sync_native_snapshot *)){
  if(p&&!p->threads)p->native_sync_clock=read;
+}
+void xz_xp_set_ram_service(struct xz_xp_players *p,const struct xz_ram_player_service *ram){
+ if(p&&!p->threads)p->ram=ram?*ram:(struct xz_ram_player_service){0};
+}
+void xz_xp_set_source_generation(struct xz_xp_players *p,uint64_t (*generation)(unsigned)){
+ if(p&&!p->threads)p->source_generation=generation;
+}
+static void retire_reader(struct xz_xp_players *p,struct deck *d){
+ struct xz_stem_media *media=d->r->media;d->r->media=NULL;d->r->cached=0;
+ if(!media)return;
+ if(p->ram.retire)p->ram.retire(p->ram.context,(unsigned)d->index,media);
+ else xz_stem_media_close(media);
 }
 void xz_xp_set_cue_store(struct xz_xp_players *p,xz_cue_read_fn read,xz_cue_write_fn write){
  if(p&&!p->threads){p->cue_read=read;p->cue_write=write;}
@@ -546,6 +560,9 @@ static void cue_snapshot(const struct deck *d,struct xz_saved_cues *out){
 }
 static void cue_save(struct xz_xp_players *p,struct deck *d,const struct xz_cue_edit *edit){
  if(!p->cue_write)return;
+ if(p->source_generation&&p->source_generation((unsigned)d->track.source)!=d->media_generation){
+  xz_xp_notice(p,"CUES KEPT FOR THIS SESSION");return;
+ }
  struct xz_saved_cues snapshot;cue_snapshot(d,&snapshot);
  if(!p->cue_write(d->index,&d->track,d->media_generation,to_ms(d,d->r->frames),&snapshot,edit))
   xz_xp_notice(p,"CUES KEPT FOR THIS SESSION");
@@ -1243,6 +1260,7 @@ static struct analysis *load_analysis(const char *dir, struct xz_anlz_extra *ext
 }
 
 static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, int next) {
+ if(p->ram.invalidate)p->ram.invalidate(p->ram.context,(unsigned)d->index);
  struct xz_extra_track t;
  if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return 0; }
  memset(&t, 0, sizeof t);
@@ -1292,8 +1310,7 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  d->track_prev_known=0;
  d->slip = 0; d->slip_pause = 0; d->search = 0;   /* p.60: loading a track cancels SLIP */
  publish(p, d, now);
- xz_stem_media_close(d->r->media);
- d->r->media = NULL; d->r->cached = 0;
+ retire_reader(p,d);
  retire(d, now);
  struct xz_stem_media *media = prepared?prepared:xz_stem_media_open(t.path, 0);
  if (!media) { xz_extra_order_release(d->order);d->order=NULL;d->state = XZ_XP_ERROR; xz_xp_notice(p, "TRACK CANNOT BE READ"); return 0; }
@@ -1353,6 +1370,12 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  jump(d, d->cue, now);
  d->state = XZ_XP_CUED;
  d->load_revision++;d->media_generation=e->load.media_generation;
+ if(p->ram.bind){
+  unsigned assets=XZ_RAM_CUES;
+  if(d->analysis&&d->analysis->columns)assets|=XZ_RAM_WAVE;
+  if(d->analysis&&d->analysis->grid_count)assets|=XZ_RAM_GRID;
+  p->ram.bind(p->ram.context,(unsigned)d->index,media,(unsigned)e->load.source,e->load.track_id,d->media_generation,t.path,assets);
+ }
  SP_ONLY(sp_newsession(d,now));
  struct xz_extra_order *order=xz_extra_order_matches(e->load.order,e->load.source,e->load.media_generation,e->load.order_index,e->load.track_id)?e->load.order:NULL;
  xz_extra_order_retain(order);xz_extra_order_release(d->order);d->order=order;
@@ -3110,6 +3133,9 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
  if (d->loop.edit && now - d->loop.edit_at >= 10000u) { d->loop.edit = 0; loop_pad_store(p,d); }
  collect(d, now);
  uint32_t link = s->link(s->ctx);
+ if(p->ram.step&&d->r->media&&p->ram.step(p->ram.context,(unsigned)index,d->r->media,d->state==XZ_XP_PLAYING)<0){
+  pause_at_heard(d,now);d->state=XZ_XP_ERROR;xz_xp_notice(p,"RAM HANDOFF FAILED / LOAD ANOTHER TRACK");
+ }
  if (link != d->epoch) {
   /* A new route instance starts its queues at the initial generation; a lost one took the audio. */
   if (streaming(d->state)) pause_at_heard(d, now);
@@ -3452,6 +3478,10 @@ void xz_xp_stop(struct xz_xp_players *p) {
  SP_ONLY(for(unsigned i=0;i<2;i++)atomic_fetch_add(&xz_mods_xp_service_proof_v1.deck[i].counter[XP_SP_COUNTER_STOP_REQUESTS],1));
  atomic_store(&p->quit, 1);
  while (p->threads) pthread_join(p->thread[--p->threads], NULL);
+ if(p->ram.retire)for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
+  struct deck *d=&p->deck[i];retire_reader(p,d);d->state=XZ_XP_EMPTY;
+  publish(p,d,p->env.now_ms());
+ }
 }
 
 void xz_xp_destroy(struct xz_xp_players *p) {
@@ -3461,7 +3491,7 @@ void xz_xp_destroy(struct xz_xp_players *p) {
   struct deck *d = &p->deck[i];
   xz_extra_order_release(d->order);
   for(unsigned q=0;q<d->count;q++){struct xz_extra_deck_event *e=&d->queue[(d->head+q)%QUEUE_SLOTS].event;if(e->kind==XZ_EXTRA_IN_LOAD)xz_extra_order_release(e->load.order);}
-  xz_stem_media_close(d->r->media);
+  retire_reader(p,d);
   /* Teardown is off callback threads and cannot invalidate an outstanding hold.
      The owner has stopped new reads before destruction; release needs no p. */
   while(d->analysis&&atomic_load_explicit(&d->analysis->readers,memory_order_acquire))pause_ms(1);

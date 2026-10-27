@@ -24,7 +24,7 @@ int main(void){
     }
     allow=0;assert(!xz_ram_files_pin(files,pins,7));assert(!pending&&!held);
     for(unsigned i=0;i<7;i++){struct stat now;assert(!fstat(fileno(files[i]),&now));assert(now.st_dev==old[i].st_dev&&now.st_ino==old[i].st_ino);}
-    allow=1;assert(xz_ram_files_pin(files,pins,7)==1&&!pending&&held==7*sizeof(bytes));
+    allow=1;assert(xz_ram_files_pin(files,pins,7)==1&&!pending&&held==7*73728u);
     for(unsigned i=0;i<7;i++){
         assert(ftell(files[i])==1234);assert(!unlink(names[i]));assert(!fseek(files[i],0,SEEK_SET));
         assert(fread(readback,1,sizeof(readback),files[i])==sizeof(readback));

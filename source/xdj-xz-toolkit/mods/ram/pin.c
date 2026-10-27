@@ -12,6 +12,10 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+static uint64_t pin_charge(uint64_t n) {
+    long page = sysconf(_SC_PAGESIZE); uint64_t p = page > 0 ? (uint64_t)page : 4096;
+    return (n + p - 1) / p * p;
+}
 extern int xz_ram_assets_reserve(uint64_t) __attribute__((weak));
 extern void xz_ram_assets_publish(uint64_t) __attribute__((weak));
 extern void xz_ram_assets_cancel(uint64_t) __attribute__((weak));
@@ -20,7 +24,7 @@ struct stage {int fd,backup,target,flags;off_t position;struct stat identity;str
 void xz_ram_file_unpin(struct xz_ram_file_pin *p){
     if(!p||!p->mapping)return;
     munlock(p->mapping,p->bytes);munmap(p->mapping,p->bytes);
-    if(xz_ram_assets_release)xz_ram_assets_release(p->bytes);memset(p,0,sizeof(*p));
+    if(xz_ram_assets_release)xz_ram_assets_release(pin_charge(p->bytes));memset(p,0,sizeof(*p));
 }
 int xz_ram_files_pin(FILE *const files[],struct xz_ram_file_pin pins[],size_t count){
     if(!files||!pins||!count||count>32||!xz_ram_assets_reserve||!xz_ram_assets_publish||!xz_ram_assets_cancel||!xz_ram_assets_release)return 0;
@@ -32,7 +36,7 @@ int xz_ram_files_pin(FILE *const files[],struct xz_ram_file_pin pins[],size_t co
         s[i].target=fileno(files[i]);s[i].flags=fcntl(s[i].target,F_GETFD);s[i].position=lseek(s[i].target,0,SEEK_CUR);
         if(s[i].flags<0||s[i].position<0||fstat(s[i].target,&s[i].identity)||!S_ISREG(s[i].identity.st_mode)||s[i].identity.st_size<=0||
            (uint64_t)s[i].identity.st_size>512u*1024u*1024u-total)goto done;
-        s[i].pin.bytes=(size_t)s[i].identity.st_size;total+=s[i].pin.bytes;
+        s[i].pin.bytes=(size_t)s[i].identity.st_size;total+=pin_charge(s[i].pin.bytes);
     }
     if(!xz_ram_assets_reserve(total))goto done;reserved=1;
     struct rlimit limit={RLIM_INFINITY,RLIM_INFINITY};(void)setrlimit(RLIMIT_MEMLOCK,&limit);
