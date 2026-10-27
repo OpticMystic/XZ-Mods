@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0-preview.22.7 - 2026-10-27
+
+- Every deck can key shift and KEY SYNC at the same time. Decks 3 and 4 no longer share one key shift. A new shift is refused only if the XZ measures too little audio time to spare, with KEY SHIFT REFUSED: AUDIO LOAD TOO HIGH; a shift already playing is never cut.
+- MODS > SCREEN > SYSTEM READOUT shows the audio load of decks 3 and 4 and how many decks are key shifting.
+- Turning SYNC off and on again on deck 3 or 4 snaps it straight to the master's nearest beat (or the QUANTIZE beat value), as the stock decks do, even when it was only slightly off.
+- The SYNC button lights while deck 3 or 4 has SYNC on, and the MASTER button lights on the side showing the master deck, including deck 3 or 4 when it takes over.
+- Key shifting uses less than half the processor time it did, with exactly the same sound.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.6 - 2026-10-27
 
 - KEY shift and KEY SYNC on decks 3 and 4: KEY UP, KEY DOWN and RESET from MODS > PLAY > KEYS, the play-screen key popup or SHIFT + SYNC. Any deck can match its key to the master deck, whether the master is deck 1, 2, 3 or 4. One of decks 3 and 4 can hold a key shift at a time.
