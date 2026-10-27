@@ -1,5 +1,6 @@
 import { before, after, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
+import {applyMigration} from './migrations.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFile, mkdir } from 'node:fs/promises';
 import { build } from 'esbuild';
@@ -21,9 +22,7 @@ before(async () => {
       return new Response(JSON.stringify(github.body),{status:github.status,headers:{'Content-Type':'application/json'}});
     }}));
   db=await mf.getD1Database('DB'); bucket=await mf.getR2Bucket('REPORTS');
-  const sql=(await readFile('migrations/0001_reports.sql','utf8'))+'\n'+(await readFile('migrations/0002_bugdesk_tracking.sql','utf8'));
-  // Separate top-level CREATE statements, retaining the entire trigger body.
-  for(const statement of sql.split(/;\s*(?=(?:--[^\n]*\n\s*)*(?:CREATE|ALTER|INSERT))/)) await db.prepare(statement).run();
+  for(const name of ['0001_reports.sql','0002_bugdesk_tracking.sql','0003_support_identifiers.sql']) await applyMigration(db,name);
 });
 after(async () => { await mf?.dispose(); });
 beforeEach(async () => {

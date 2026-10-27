@@ -12,6 +12,23 @@ from builder.support_contract import CONTRACT, SOURCES, automatic_fix_eligible
 from builder.support_validation import validate_report
 from builder.jobs import Job
 
+class Identifiers(unittest.TestCase):
+    def test_shared_identifier_vectors(self):
+        from builder import support_contract as c
+        for name in ('report_reference', 'item_number'):
+            parse, format_value = getattr(c, 'parse_' + name), getattr(c, 'format_' + name)
+            for vector in CONTRACT['identifiers'][name]['vectors']:
+                with self.subTest(name=name, value=vector):
+                    self.assertEqual(parse(vector['input']), vector['value'])
+                    if vector['value'] is not None:
+                        self.assertEqual(format_value(vector['value']), vector['canonical'])
+            for bad in (None, True, 1.5, -1, {}, []):
+                self.assertIsNone(parse(bad))
+                self.assertIsNone(format_value(bad))
+        self.assertIsNone(c.format_report_reference(2**40))
+        self.assertIsNone(c.format_item_number(1000))
+        self.assertIsNone(c.format_item_number(2**53))
+
 class Sources(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(dir=os.environ.get('XZ_SUPPORT_TEST_OUTPUT',tempfile.gettempdir()))

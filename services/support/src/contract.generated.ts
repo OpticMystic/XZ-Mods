@@ -1579,6 +1579,185 @@ export const CONTRACT = {
     "FOUR_DECKS_LOOPBACK": "bridge",
     "CRASH_FREEZE": "other",
     "OTHER": "other"
+  },
+  "identifiers": {
+    "report_reference": {
+      "format": "R-XXXX-XXXX",
+      "alphabet": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+      "bits": 40,
+      "allocation": "Worker CSPRNG, five bytes, big endian; D1 unique index and collision retry at atomic acceptance.",
+      "parsing": "ASCII case insensitive; ignore ASCII spaces and dashes; R prefix required; map I/L to 1 and O to 0 in the eight symbols; reject all other characters.",
+      "authority": "None. Receipt-key and derived-capability authorization is unchanged.",
+      "backfill": "First ten hexadecimal report_id characters as a big-endian 40-bit integer; ascending report_id order; probe +1 modulo 2^40 until unused.",
+      "vectors": [
+        {
+          "input": "R-4F7K-2M9Q",
+          "value": 153799971127,
+          "canonical": "R-4F7K-2M9Q"
+        },
+        {
+          "input": " r 4f7k - 2m9q ",
+          "value": 153799971127,
+          "canonical": "R-4F7K-2M9Q"
+        },
+        {
+          "input": "R-OIl0-0001",
+          "value": 1107296257,
+          "canonical": "R-0110-0001"
+        },
+        {
+          "input": "r00000000",
+          "value": 0,
+          "canonical": "R-0000-0000"
+        },
+        {
+          "input": "R-ZZZZ-ZZZZ",
+          "value": 1099511627775,
+          "canonical": "R-ZZZZ-ZZZZ"
+        },
+        {
+          "input": "",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "4F7K2M9Q",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "R-4F7K-2M9U",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "R-1234-567",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "R-1234-56789",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "R-1234/5678",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "R-1234_5678",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "R-1234\t5678",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "R-\uff11\uff12\uff13\uff14-5678",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "R-1234-567\u017f",
+          "value": null,
+          "canonical": null
+        }
+      ]
+    },
+    "item_number": {
+      "format": "XZ-<decimal>",
+      "minimum": 1001,
+      "maximum": 9007199254740991,
+      "allocation": "D1 AUTOINCREMENT, retained allocation ledger; never reused, including after payload or tracking expiry.",
+      "parsing": "ASCII case insensitive; ignore ASCII spaces and dashes; XZ prefix and decimal digits required; leading zeros normalize.",
+      "vectors": [
+        {
+          "input": "XZ-1001",
+          "value": 1001,
+          "canonical": "XZ-1001"
+        },
+        {
+          "input": " xz - 1 042 ",
+          "value": 1042,
+          "canonical": "XZ-1042"
+        },
+        {
+          "input": "XZ-0001042",
+          "value": 1042,
+          "canonical": "XZ-1042"
+        },
+        {
+          "input": "XZ-9007199254740991",
+          "value": 9007199254740991,
+          "canonical": "XZ-9007199254740991"
+        },
+        {
+          "input": "",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "1001",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-1000",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-0",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-1O42",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-1.042",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-1e4",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-+1042",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-9007199254740992",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-\uff11\uff10\uff14\uff12",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "XZ-10\t42",
+          "value": null,
+          "canonical": null
+        }
+      ]
+    },
+    "tracking_fields": [
+      "report_reference",
+      "item_number"
+    ],
+    "publication_fields": {
+      "item_number": "Required canonical XZ item number, copied into the approved outbox projection. Prefix issue titles [XZ-1042]. PR Support reference uses XZ-1042, never report_id."
+    }
   }
 } as const;
 export const SOURCES = {
@@ -3111,4 +3290,31 @@ export function inboxPriority(kind: string | null, impact: string | null, expect
   if (CONTRACT.automatic_fix.kinds.some(k => k === kind)) return 4;
   if (kind === 'FEATURE' && impact === 'ADDITIVE') return 5;
   return 6;
+}
+const REFERENCE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function compactIdentifier(value: unknown): string | null {
+  return typeof value === 'string' && /^[a-zA-Z0-9 -]+$/.test(value) ? value.replace(/[ -]/g, '').toUpperCase() : null;
+}
+export function formatReportReference(value: number): string | null {
+  if (!Number.isSafeInteger(value) || value < 0 || value > 1099511627775) return null;
+  let symbols = '';
+  for (let i = 0; i < 8; i++) { symbols = REFERENCE_ALPHABET[value % 32] + symbols; value = Math.floor(value / 32); }
+  return 'R-' + symbols.slice(0, 4) + '-' + symbols.slice(4);
+}
+export function parseReportReference(value: unknown): number | null {
+  const compact = compactIdentifier(value);
+  if (!compact || compact.length !== 9 || compact[0] !== 'R') return null;
+  const symbols = compact.slice(1).replace(/[IL]/g, '1').replace(/O/g, '0');
+  let result = 0;
+  for (const symbol of symbols) { const digit = REFERENCE_ALPHABET.indexOf(symbol); if (digit < 0) return null; result = result * 32 + digit; }
+  return result;
+}
+export function formatItemNumber(value: number): string | null {
+  return Number.isSafeInteger(value) && value >= 1001 && value <= 9007199254740991 ? 'XZ-' + value : null;
+}
+export function parseItemNumber(value: unknown): number | null {
+  const compact = compactIdentifier(value);
+  if (!compact || !/^XZ[0-9]+$/.test(compact)) return null;
+  const number = Number(compact.slice(2));
+  return formatItemNumber(number) === null ? null : number;
 }

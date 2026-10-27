@@ -1,12 +1,13 @@
 import {before,after,beforeEach,test} from 'node:test';
 import assert from 'node:assert/strict';
+import {applyMigration} from './migrations.mjs';
 import {createHash,randomBytes} from 'node:crypto';
 import {readFile,mkdir} from 'node:fs/promises';
 import {build} from 'esbuild';
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {execFileSync} from 'node:child_process';
 import {Script} from 'node:vm';
-import {contract,automaticFixEligible} from '../../../spec/generated/support-contract.mjs';
+import {contract,automaticFixEligible,formatReportReference,parseReportReference,formatItemNumber,parseItemNumber} from '../../../spec/generated/support-contract.mjs';
 
 const origin='https://support.test',key='b'.repeat(64),admin='a'.repeat(64),sha=v=>createHash('sha256').update(v).digest('hex');
 const id=()=>randomBytes(16).toString('hex');
@@ -38,13 +39,23 @@ before(async()=>{
     bindings:{ENABLED:'true',PUBLIC_ORIGIN:origin,ADMIN_TOKEN_SHA256:sha(admin),RATE_KEY:'synthetic-rate-key-'.repeat(4),GITHUB_BOT_TOKEN:'NEVER-USED-CANARY',AUTOMATION_ENABLED:'false',PUBLIC_POSTING_ENABLED:'false'},
     outboundService:async request=>{outbound.push(request.url);return new Response('{}',{status:503});}}));
   db=await mf.getD1Database('DB');bucket=await mf.getR2Bucket('REPORTS');
-  const apply=async name=>{for(const statement of (await readFile('migrations/'+name,'utf8')).split(/;\s*(?=(?:--[^\n]*\n\s*)*(?:CREATE|ALTER|INSERT))/)) await db.prepare(statement).run();};
+  const apply=name=>applyMigration(db,name);
   await apply('0001_reports.sql');
   const legacy='1'.repeat(32),now=Date.now();
   await db.prepare(`INSERT INTO reports(id,digest,key_hash,object_key,ip_hash,day,bytes,state,reserved_at,accepted_at,expires_at,public_json)
     VALUES(?,?,?,?,?,?,?,'accepted',?,?,?,?)`).bind(legacy,'c'.repeat(64),sha(key),'legacy','ip','old',100,now,now,now+14*86400000,JSON.stringify({title:'PRIVATE-MIGRATION',description:'SECRET'})).run();
   await apply('0002_bugdesk_tracking.sql');
-  migration={row:await db.prepare('SELECT * FROM report_tracking').first(),redirect:(await get('/r/'+legacy+'/github')).status,receipt:await (await get('/v2/reports/'+legacy+'/receipt')).json()};
+  // Existing v2 rows deliberately share the first 40 report-id bits.
+  for(const report of ['123456789a'+'0'.repeat(22),'123456789a'+'0'.repeat(21)+'1']) {
+    await db.prepare(`INSERT INTO reports(id,digest,key_hash,object_key,ip_hash,day,bytes,state,reserved_at,accepted_at,expires_at,protocol_version)
+      VALUES(?,?,?,?,?,?,?,'accepted',?,?,?,2)`).bind(report,'c'.repeat(64),sha(key),report,'ip',report,100,now,now,now+14*86400000).run();
+    await db.prepare(`INSERT INTO report_tracking(report_id,receipt_key_hash,payload_sha256,created_at,updated_at,retention_until,diagnostics_expires_at,last_operation,last_operation_hash)
+      VALUES(?,?,?,?,?,?,?,'accepted',?)`).bind(report,sha(key),'c'.repeat(64),now,now,now+365*86400000,now+14*86400000,'c'.repeat(64)).run();
+  }
+  for(const group of ['3'.repeat(32),'2'.repeat(32)]) await db.prepare(`INSERT INTO bug_groups(id,kind,component,created_at) VALUES(?,'BUG','bridge',?)`).bind(group,now).run();
+  await db.prepare('INSERT INTO report_group_members(report_id,group_id,triage_revision,joined_at) VALUES(?,?,1,?)').bind('123456789a'+'0'.repeat(22),'2'.repeat(32),now).run();
+  await apply('0003_support_identifiers.sql');
+  migration={references:(await db.prepare('SELECT * FROM report_references ORDER BY report_id').all()).results,items:(await db.prepare('SELECT id,item_number FROM bug_groups ORDER BY id').all()).results,row:await db.prepare('SELECT * FROM report_tracking').first(),redirect:(await get('/r/'+legacy+'/github')).status,receipt:await (await get('/v2/reports/'+legacy+'/receipt')).json()};
 });
 after(async()=>{await mf?.dispose();});
 beforeEach(async()=>{
@@ -127,14 +138,14 @@ test('fingerprints use selected safe facts, keep kinds separate and never reveal
   for(const r of [a,b]) {const response=await send('/v2/admin/reports/'+r.report_id+'/triage',triage());assert.equal(response.status,200,await response.text());}
   assert.equal((await db.prepare('SELECT count(*) AS n FROM bug_groups').first()).n,1);
   assert.equal((await send('/v2/admin/reports/'+idea.report_id+'/triage',triage('FEATURE'))).status,200);
-  assert.equal((await db.prepare('SELECT count(*) AS n FROM report_group_members').first()).n,2);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM report_group_members').first()).n,3);
   const duplicate=triage('BUG',2);duplicate.outcome='DUPLICATE';let response=await send('/v2/admin/reports/'+b.report_id+'/triage',duplicate);assert.equal(response.status,200,await response.clone().text());
   const visible=await (await get('/v2/reports/'+b.report_id+'/status')).text();assert.ok(!visible.includes(a.report_id));assert.ok(!visible.includes('CONTACT'));assert.equal(outbound.length,0);
 });
 test('owner keyset inbox crosses 100 tied records, excludes later inserts, survives deletion, and exposes event cursor',async()=>{
   const now=Date.now(),ids=Array.from({length:125},()=>id()).sort();
-  for(const report of ids) await db.prepare(`INSERT INTO report_tracking(report_id,receipt_key_hash,payload_sha256,created_at,updated_at,retention_until,diagnostics_expires_at,last_operation,last_operation_hash)
-    VALUES(?,?,?,?,?,?,?,'accepted',?)`).bind(report,sha(key),'c'.repeat(64),now,now,now+365*86400000,now+14*86400000,'c'.repeat(64)).run();
+  for(const report of ids) await db.prepare(`INSERT INTO report_tracking(report_reference,report_id,receipt_key_hash,payload_sha256,created_at,updated_at,retention_until,diagnostics_expires_at,last_operation,last_operation_hash)
+    VALUES(?,?,?,?,?,?,?,?,'accepted',?)`).bind(formatReportReference(Number.parseInt(report.slice(0,10),16)),report,sha(key),'c'.repeat(64),now,now,now+365*86400000,now+14*86400000,'c'.repeat(64)).run();
   let page=await (await get('/v2/admin/reports?limit=50',admin)).json();assert.equal(page.reports.length,50);const seen=page.reports.map(r=>r.report_id);
   const later=await accepted();await db.prepare('DELETE FROM report_tracking WHERE report_id=?').bind(ids[60]).run();
   await db.prepare('UPDATE report_tracking SET priority=0 WHERE report_id=?').bind(ids[90]).run();
@@ -190,4 +201,96 @@ test('owner note retrieval stays bounded with JSON escaping and requires owner a
   const response=await get(path+'?operation_id='+ids[0],admin);assert.equal(response.status,200);
   assert.equal((await response.json()).note.content,'\n'.repeat(3000));
   assert.equal((await get(path+'?operation_id='+ids[0],key)).status,401);
+});
+
+test('identifier vectors match Worker TS, shared JS, and classic app JS',async()=>{
+  const actual=await (await get('/__test/identifiers')).json();
+  const context={window:{}};
+  new Script(await readFile('../../ui/support-contract.js','utf8')).runInNewContext(context);
+  for(const name of ['report_reference','item_number']) {
+    const parse=name==='report_reference'?parseReportReference:parseItemNumber;
+    const format=name==='report_reference'?formatReportReference:formatItemNumber;
+    const appParse=context.window.XZ_SUPPORT_IDENTIFIERS[name==='report_reference'?'parseReportReference':'parseItemNumber'];
+    const appFormat=context.window.XZ_SUPPORT_IDENTIFIERS[name==='report_reference'?'formatReportReference':'formatItemNumber'];
+    const vectors=contract.identifiers[name].vectors;
+    assert.deepEqual(actual[name],vectors.map(({value,canonical})=>({value,canonical})));
+    for(const v of vectors) {
+      assert.equal(parse(v.input),v.value,v.input);assert.equal(appParse(v.input),v.value,v.input);
+      if(v.value!==null) {assert.equal(format(v.value),v.canonical);assert.equal(appFormat(v.value),v.canonical);}
+    }
+    for(const bad of [null,{},true,[],42]) assert.equal(parse(bad),null);
+    for(const bad of [-1,NaN,Infinity,1.5,2**53]) assert.equal(format(bad),null);
+  }
+});
+test('migration deterministically probes prefix collisions and numbers existing groups',()=>{
+  assert.equal(migration.references[1].report_reference,formatReportReference(0x123456789a));
+  assert.equal(migration.references[2].report_reference,formatReportReference(0x123456789b));
+  assert.deepEqual(migration.items,[{id:'2'.repeat(32),item_number:1001},{id:'3'.repeat(32),item_number:1002}]);
+});
+test('concurrent acceptance creates unique immutable references; resend retains its reference',async()=>{
+  const drafts=Array.from({length:24},()=>draft());
+  const responses=await Promise.all(drafts.map(r=>upload(r)));
+  const receipts=[];
+  for(const response of responses) {assert.equal(response.status,200,await response.clone().text());receipts.push(await response.json());}
+  assert.equal(new Set(receipts.map(r=>r.report_reference)).size,24);
+  for(const r of receipts) {assert.notEqual(parseReportReference(r.report_reference),null);assert.equal(r.report_reference,r.tracking.report_reference);assert.equal(r.item_number,null);}
+  const concurrent=draft();const sends=await Promise.all(Array.from({length:8},()=>upload(concurrent)));
+  assert.ok(sends.some(r=>r.status===200));assert.ok(sends.every(r=>[200,503].includes(r.status)));
+  const one=await (await upload(concurrent)).json();
+  for(const response of sends.filter(r=>r.status===200)) assert.equal((await response.json()).report_reference,one.report_reference);
+  assert.deepEqual(await (await upload(drafts[0])).json(),receipts[0]);
+  await assert.rejects(db.prepare('UPDATE report_tracking SET report_reference=? WHERE report_id=?').bind('R-ZZZZ-ZZZZ',drafts[0].report_id).run(),/report_reference_immutable/);
+});
+test('an injected reference collision retries only the atomic acceptance batch',async()=>{
+  const first=await accepted();const reference=(await (await get('/v2/reports/'+first.report_id+'/receipt')).json()).report_reference;
+  const r=draft();const response=await upload(r,JSON.stringify(r),{'test-reference-first':reference});
+  assert.equal(response.status,200,await response.clone().text());const received=await response.json();assert.notEqual(received.report_reference,reference);
+  assert.equal((await (await upload(r)).json()).report_reference,received.report_reference);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM status_events WHERE report_id=?').bind(r.report_id).first()).n,1);
+  const blocked=draft();const failure=await upload(blocked,JSON.stringify(blocked),{'test-reference-first':reference,'test-reference-always':'yes'});
+  assert.equal(failure.status,503);assert.equal((await failure.json()).error,'reference_generation_failed');
+  assert.equal((await db.prepare('SELECT state FROM reports WHERE id=?').bind(blocked.report_id).first()).state,'reserved');
+  assert.equal(await db.prepare('SELECT * FROM report_tracking WHERE report_id=?').bind(blocked.report_id).first(),null);
+});
+test('owner lookup/search accepts both identifiers; identifiers alone grant no read authority',async()=>{
+  const a=await accepted(),b=await accepted();
+  for(const r of [a,b]) assert.equal((await send('/v2/admin/reports/'+r.report_id+'/triage',triage())).status,200);
+  const receipt=await (await get('/v2/reports/'+a.report_id+'/receipt')).json();
+  for(const [query,count] of [[receipt.report_reference,1],[receipt.item_number,2]]) {
+    const q=encodeURIComponent(' '+query.toLowerCase().replaceAll('-',' ')+' ');
+    const search=await get('/v2/admin/reports?q='+q,admin);assert.equal(search.status,200);const page=await search.json();assert.equal(page.reports.length,count);
+    const lookup=await get('/v2/admin/lookup?q='+q,admin);assert.equal(lookup.status,200);assert.equal((await lookup.json()).item_number,receipt.item_number);
+    for(const token of [key,query,null]) {
+      assert.equal((await get('/v2/admin/lookup?q='+q,token)).status,401);
+      assert.equal((await get('/v2/admin/reports?q='+q,token)).status,401);
+    }
+    assert.equal((await get('/v2/reports/'+a.report_id+'/status',query)).status,404);
+    assert.equal((await get('/v2/tracking/'+a.report_id,query)).status,404);
+  }
+  assert.equal((await get('/v2/admin/reports?q=garbage',admin)).status,400);
+  assert.equal((await get('/v2/admin/lookup?q=R-0000-0000',admin)).status,404);
+  const read=await (await get('/v2/tracking/'+a.report_id,readKey)).json();
+  assert.equal(read.report_reference,receipt.report_reference);assert.equal(read.item_number,receipt.item_number);
+  assert.deepEqual(Object.keys(read).sort(),['schema','report_id','report_reference','item_number','revision','classified_kind','kind_hint','outcome','lifecycle','status_text_key','status_text','question','created_at','updated_at','retention_until','diagnostics_expires_at'].sort());
+  for(const secret of ['CANARY','PRIVATE',b.report_id,key,sha(key),'group_id','payload_sha256']) assert.ok(!JSON.stringify(read).includes(secret),secret);
+  const publicItem=await (await get('/__test/publication-item',admin,{'test-report-id':a.report_id})).json();assert.deepEqual(publicItem,{item_number:receipt.item_number});
+});
+test('all triaged kinds get durable items; duplicate moves keep history and never reuse allocations',async()=>{
+  const a=await accepted(),b=await accepted();
+  const first=triage('FEATURE'),second=triage('FEATURE');
+  const pa='/v2/admin/reports/'+a.report_id,pb='/v2/admin/reports/'+b.report_id;
+  const ar=await (await send(pa+'/triage',first)).json(),br=await (await send(pb+'/triage',second)).json();
+  assert.ok(ar.item_number);assert.ok(br.item_number);assert.notEqual(ar.item_number,br.item_number);
+  const move={...triage('FEATURE',2),outcome:'DUPLICATE',item_number:ar.item_number.toLowerCase().replace('-',' ')};
+  const moved=await send(pb+'/triage',move);assert.equal(moved.status,200,await moved.clone().text());assert.equal((await moved.json()).item_number,ar.item_number);
+  assert.equal((await send(pb+'/triage',move)).status,200);
+  const history=await (await get(pb+'/items',admin)).json();assert.equal(history.history.length,2);
+  assert.equal(history.history[0].previous_item_number,br.item_number);assert.equal(history.history[0].item_number,ar.item_number);
+  const now=Date.now();await get('/__test/cleanup',admin,{'test-now':String(now+30*86400000)});
+  assert.equal((await (await get('/v2/reports/'+b.report_id+'/receipt')).json()).item_number,ar.item_number);
+  await get('/__test/cleanup',admin,{'test-now':String(now+400*86400000)});
+  const lookup=await get('/v2/admin/lookup?q='+ar.item_number,admin);assert.equal(lookup.status,200);
+  const next=await accepted();const nr=await (await send('/v2/admin/reports/'+next.report_id+'/triage',triage('QUESTION'))).json();
+  assert.ok(parseItemNumber(nr.item_number)>parseItemNumber(br.item_number));
+  assert.equal((await upload(a)).status,409);
 });

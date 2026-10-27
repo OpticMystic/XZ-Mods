@@ -1,24 +1,24 @@
 import { z } from 'zod';
-import { CONTRACT, type ReportKind, type Lifecycle, type Outcome, type StatusTextKey, type ReportV2, type DeskFields, automaticFixEligible, inboxPriority } from './contract.generated';
+import { CONTRACT, type ReportKind, type Lifecycle, type Outcome, type StatusTextKey, type ReportV2, type DeskFields, automaticFixEligible, inboxPriority, formatReportReference, parseReportReference, formatItemNumber, parseItemNumber } from './contract.generated';
 import { DB, DAY, Env, bearer, bodyLength, bytes, equal, fail, json, owner, parse, sha } from './http';
 import { triageSchema, validTriage } from './classification';
 
 export type Tracking = {
-  seq: number; report_id: string; receipt_key_hash: string; read_key_hash: string | null; reply_key_hash: string | null;
+  report_reference: string; item_number: number | null; seq: number; report_id: string; receipt_key_hash: string; read_key_hash: string | null; reply_key_hash: string | null;
   expectation: string | null; impact: string | null; severity: string | null; taxonomy_json: string | null;
   payload_sha256: string; revision: number; classified_kind: ReportKind | null; kind_hint: ReportV2['kind_hint'] | null;
   outcome: Outcome | null; lifecycle: Lifecycle; status_text_key: StatusTextKey; question_key: keyof typeof QUESTIONS | null;
   created_at: number; updated_at: number; retention_until: number; diagnostics_expires_at: number;
 };
 const QUESTIONS = CONTRACT.questions;
-export const trackingRow = (db: DB, id: string) => db.prepare('SELECT * FROM report_tracking WHERE report_id=?').bind(id).first<Tracking>();
+export const trackingRow = (db: DB, id: string) => db.prepare(`SELECT t.*,g.item_number FROM report_tracking t LEFT JOIN report_group_members m ON m.report_id=t.report_id LEFT JOIN bug_groups g ON g.id=m.group_id WHERE t.report_id=?`).bind(id).first<Tracking>();
 
-export function initialTracking(db: DB, id: string, keyHash: string, digest: string, accepted: number, hint: ReportV2['kind_hint'] = null) {
-  return db.prepare(`INSERT INTO report_tracking(report_id,receipt_key_hash,payload_sha256,kind_hint,created_at,updated_at,retention_until,
+export function initialTracking(db: DB, id: string, keyHash: string, digest: string, accepted: number, reference: string, hint: ReportV2['kind_hint'] = null) {
+  return db.prepare(`INSERT INTO report_tracking(report_reference,report_id,receipt_key_hash,payload_sha256,kind_hint,created_at,updated_at,retention_until,
     diagnostics_expires_at,last_operation,last_operation_hash)
-    SELECT id,key_hash,digest,?,?,?,?,?,'accepted',digest FROM reports
+    SELECT ?,id,key_hash,digest,?,?,?,?,?,'accepted',digest FROM reports
     WHERE id=? AND key_hash=? AND digest=? AND state='accepted' AND accepted_at=? ON CONFLICT(report_id) DO NOTHING`)
-    .bind(hint ?? null,accepted,accepted,accepted+CONTRACT.retention.inactive_tracking_days*DAY,
+    .bind(reference,hint ?? null,accepted,accepted,accepted+CONTRACT.retention.inactive_tracking_days*DAY,
       accepted+CONTRACT.retention.diagnostic_days*DAY,id,keyHash,digest,accepted);
 }
 export async function capabilityHashes(key: string) {
@@ -69,7 +69,7 @@ export async function trackingSession(req: Request, db: DB) {
   return json({session:token,expires_at:expires});
 }
 export function projection(r: Tracking) {
-  return {schema:'xz-support-status/2',report_id:r.report_id,revision:r.revision,classified_kind:r.classified_kind,
+  return {schema:'xz-support-status/2',report_id:r.report_id,report_reference:r.report_reference,item_number:r.item_number === null ? null : formatItemNumber(r.item_number),revision:r.revision,classified_kind:r.classified_kind,
     kind_hint:r.kind_hint,outcome:r.outcome,lifecycle:r.lifecycle,status_text_key:r.status_text_key,
     status_text:CONTRACT.status_text[r.status_text_key],question:r.question_key ? QUESTIONS[r.question_key] : null,
     created_at:new Date(r.created_at).toISOString(),updated_at:new Date(r.updated_at).toISOString(),
@@ -79,7 +79,7 @@ export async function receiptV2(db: DB, id: string) {
   const r = await trackingRow(db,id);
   if (!r || r.retention_until <= Date.now()) fail(404,'not_found');
   const stored = await db.prepare('SELECT state,expires_at FROM reports WHERE id=?').bind(id).first<{state:string;expires_at:number}>();
-  return {schema:'xz-support-receipt/2',report_id:id,payload_sha256:r.payload_sha256,
+  return {schema:'xz-support-receipt/2',report_id:id,report_reference:r.report_reference,item_number:r.item_number === null ? null : formatItemNumber(r.item_number),payload_sha256:r.payload_sha256,
     accepted_at:new Date(r.created_at).toISOString(),expires_at:new Date(r.diagnostics_expires_at).toISOString(),
     private_logs:stored?.state === 'accepted' && stored.expires_at > Date.now() ? 'stored' : 'gone',
     publication_mode:'none',tracking:projection(r)};
@@ -118,6 +118,13 @@ export async function ownerHistory(req: Request, env: Env, db: DB, id: string, a
     }
     const rows=await db.prepare('SELECT operation_id,revision,created_at,expires_at FROM private_notes WHERE report_id=? AND expires_at>? ORDER BY created_at,operation_id LIMIT 12').bind(id,Date.now()).all();
     return json({notes:rows.results});
+  }
+  if(action==='items') {
+    const before=/^\?before=([1-9][0-9]{0,14})$/.exec(search);
+    if(search && !before) fail(400,'invalid_query');
+    const rows=await db.prepare('SELECT revision,previous_item_number,item_number,created_at FROM report_item_history WHERE report_id=? AND revision<? ORDER BY revision DESC LIMIT 50')
+      .bind(id,before ? Number(before[1]) : Number.MAX_SAFE_INTEGER).all<{revision:number;previous_item_number:number|null;item_number:number|null;created_at:number}>();
+    return json({history:rows.results.map(r=>({...r,previous_item_number:r.previous_item_number===null ? null : formatItemNumber(r.previous_item_number),item_number:r.item_number===null ? null : formatItemNumber(r.item_number)})),next_before:rows.results.length===50 ? rows.results.at(-1)?.revision : null});
   }
   if(action==='history') {
     const before=/^\?before=([1-9][0-9]{0,14})$/.exec(search);
@@ -192,7 +199,12 @@ export async function ownerMutation(req: Request, env: Env, db: DB, id: string, 
   if(lifecycle.startsWith('fix_') && !automaticFixEligible(kind,desk?.impact ?? null)) fail(409,'owner_approval_required');
   const candidate=CONTRACT.automatic_fix.kinds.some(k=>k===kind) ? await db.prepare('SELECT * FROM report_signatures WHERE report_id=?').bind(id).first<{exact_hash:string;family_hash:string;component:string}>() : null;
   const signature=candidate ? {...candidate,exact_hash:await sha(JSON.stringify({kind,candidate:candidate.exact_hash})),family_hash:await sha(JSON.stringify({kind,candidate:candidate.family_hash}))} : null;
-  if(lifecycle==='duplicate' && (!signature || !await db.prepare('SELECT group_id FROM bug_fingerprints WHERE kind=? AND exact_hash=?').bind(kind,signature.exact_hash).first())) fail(409,'verified_group_required');
+  const requestedItem=triage?.success ? triage.data.item_number : undefined;
+  const item=requestedItem===undefined ? null : parseItemNumber(requestedItem);
+  if(requestedItem!==undefined && item===null) fail(400,'invalid_item_number');
+  const target=item===null ? null : await db.prepare('SELECT id,kind FROM bug_groups WHERE item_number=?').bind(item).first<{id:string;kind:ReportKind}>();
+  if(item!==null && (!target || target.kind!==kind)) fail(409,'item_kind_mismatch');
+  if(lifecycle==='duplicate' && !target && (!signature || !await db.prepare('SELECT group_id FROM bug_fingerprints WHERE kind=? AND exact_hash=?').bind(kind,signature.exact_hash).first())) fail(409,'verified_group_required');
   const revision=r.revision+1, group=crypto.randomUUID().replaceAll('-','');
   const statements=[db.prepare(`UPDATE report_tracking SET expectation=?,impact=?,severity=?,taxonomy_json=?,priority=?,severity_rank=?,revision=?,classified_kind=?,outcome=?,lifecycle=?,status_text_key=?,question_key=?,updated_at=?,retention_until=?,last_operation=?,last_operation_hash=?
     WHERE report_id=? AND revision=? AND retention_until>?`).bind(desk?.expectation ?? null,desk?.impact ?? null,desk?.severity ?? null,desk ? JSON.stringify(desk) : null,
@@ -208,7 +220,7 @@ export async function ownerMutation(req: Request, env: Env, db: DB, id: string, 
     // Reclassification removes obsolete membership, never changes another report.
     statements.push(db.prepare(`DELETE FROM report_group_members WHERE report_id=? AND EXISTS(SELECT 1 FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=?)`)
       .bind(id,id,revision,operation));
-    if(signature) {
+    if(signature && !target) {
       const guard=`EXISTS(SELECT 1 FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=?)`;
       statements.push(db.prepare(`INSERT INTO bug_groups(id,kind,component,created_at) SELECT ?,?,?,? WHERE ${guard}
         AND NOT EXISTS(SELECT 1 FROM bug_fingerprints WHERE kind=? AND exact_hash=?)`).bind(group,kind,signature.component,now,id,revision,operation,kind,signature.exact_hash));
@@ -218,7 +230,22 @@ export async function ownerMutation(req: Request, env: Env, db: DB, id: string, 
       statements.push(db.prepare(`INSERT INTO report_group_members(report_id,group_id,triage_revision,joined_at)
         SELECT ?,group_id,?,? FROM bug_fingerprints WHERE kind=? AND exact_hash=? AND ${guard} ON CONFLICT DO NOTHING`)
         .bind(id,revision,now,kind,signature.exact_hash,id,revision,operation));
+    } else {
+      const guard=`EXISTS(SELECT 1 FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=?)`;
+      // Reports with weak facts, features and questions still get an item. Keep
+      // an existing same-kind item across re-triage; explicit targets move it.
+      if(!target) statements.push(db.prepare(`INSERT INTO bug_groups(id,kind,component,created_at)
+        SELECT ?,?,'unknown',? WHERE ${guard} AND NOT EXISTS(SELECT 1 FROM bug_groups WHERE item_number=? AND kind=?)`)
+        .bind(group,kind,now,id,revision,operation,r.item_number,kind));
+      statements.push(db.prepare(`INSERT INTO report_group_members(report_id,group_id,triage_revision,joined_at)
+        SELECT ?,id,?,? FROM bug_groups WHERE id=COALESCE(?,(SELECT id FROM bug_groups WHERE item_number=? AND kind=?),?) AND ${guard}`)
+        .bind(id,revision,now,target?.id ?? null,r.item_number,kind,group,id,revision,operation));
     }
+    statements.push(db.prepare(`INSERT INTO report_item_history(report_id,revision,previous_item_number,item_number,created_at)
+      SELECT t.report_id,t.revision,?,g.item_number,? FROM report_tracking t
+      LEFT JOIN report_group_members m ON m.report_id=t.report_id LEFT JOIN bug_groups g ON g.id=m.group_id
+      WHERE t.report_id=? AND t.revision=? AND t.last_operation=? AND g.item_number IS NOT ? ON CONFLICT DO NOTHING`)
+      .bind(r.item_number,now,id,revision,operation,r.item_number));
   }
   const results=await db.batch(statements);
   // D1 changes includes the status-event trigger. Zero means the CAS lost.
@@ -232,9 +259,14 @@ export async function ownerMutation(req: Request, env: Env, db: DB, id: string, 
 const cursorSchema=z.strictObject({v:z.literal(2),snapshot:z.string().regex(/^[a-f0-9]{32}$/),after:z.number().int().nonnegative()});
 export async function ownerInbox(req: Request, env: Env, db: DB, url: URL) {
   await owner(req,env);
-  if([...url.searchParams.keys()].some(k=>!['cursor','limit','events_after'].includes(k)) || [...url.searchParams.keys()].some(k=>url.searchParams.getAll(k).length!==1)) fail(400,'invalid_query');
+  if([...url.searchParams.keys()].some(k=>!['cursor','limit','events_after','q'].includes(k)) || [...url.searchParams.keys()].some(k=>url.searchParams.getAll(k).length!==1)) fail(400,'invalid_query');
   const limitText=url.searchParams.get('limit') ?? '50'; if(!/^(?:[1-9]|[1-9][0-9]|100)$/.test(limitText)) fail(400,'invalid_limit');
   const limit=Number(limitText);
+  const query=url.searchParams.get('q');
+  const ref=query===null ? null : parseReportReference(query);
+  const item=query===null ? null : parseItemNumber(query);
+  if(query!==null && (query.length>64 || ref===null && item===null || url.searchParams.has('cursor') || url.searchParams.has('events_after'))) fail(400,'invalid_identifier');
+  const reference=ref===null ? null : formatReportReference(ref);
   const after=url.searchParams.get('events_after');
   if(after!==null) {
     if(url.searchParams.has('cursor') || !/^(0|[1-9][0-9]{0,14})$/.test(after)) fail(400,'invalid_cursor');
@@ -262,21 +294,21 @@ export async function ownerInbox(req: Request, env: Env, db: DB, url: URL) {
         SELECT ?,row_number() OVER(ORDER BY t.priority,t.severity_rank,
           (SELECT count(*) FROM report_group_members peer WHERE peer.group_id=m.group_id) DESC,t.created_at,t.report_id),t.report_id
         FROM report_tracking t LEFT JOIN report_group_members m ON m.report_id=t.report_id
-        WHERE t.seq<=? AND t.retention_until>?`).bind(cursor.snapshot,high?.high ?? 0,now)
+        WHERE t.seq<=? AND t.retention_until>? AND (? IS NULL OR t.report_reference=? OR m.group_id IN (SELECT id FROM bug_groups WHERE item_number=?))`).bind(cursor.snapshot,high?.high ?? 0,now,query,reference,item)
     ]);
   }
   const snapshot=await db.prepare('SELECT high_water FROM inbox_snapshots WHERE id=? AND expires_at>?').bind(cursor.snapshot,Date.now()).first<{high_water:number}>();
   if(!snapshot) fail(400,'cursor_expired');
-  const rows=await db.prepare(`SELECT t.*,s.ordinal,
+  const rows=await db.prepare(`SELECT t.*,g.item_number,s.ordinal,
     (SELECT count(*) FROM report_group_members peer WHERE peer.group_id=m.group_id) AS reach_count
     FROM inbox_snapshot_rows s JOIN report_tracking t ON t.report_id=s.report_id
-    LEFT JOIN report_group_members m ON m.report_id=t.report_id
+    LEFT JOIN report_group_members m ON m.report_id=t.report_id LEFT JOIN bug_groups g ON g.id=m.group_id
     WHERE s.snapshot_id=? AND s.ordinal>? AND t.retention_until>? ORDER BY s.ordinal LIMIT ?`)
     .bind(cursor.snapshot,cursor.after,Date.now(),limit+1).all<Tracking & {ordinal:number;reach_count:number}>();
   const reports=[];let last:typeof rows.results[number]|undefined;
   // Dense taxonomy rows can hit the response byte cap before the requested count.
   for(const r of rows.results.slice(0,limit)) {
-    const view={report_id:r.report_id,revision:r.revision,kind:r.classified_kind,severity:r.severity,impact:r.impact,
+    const view={report_id:r.report_id,report_reference:r.report_reference,item_number:r.item_number===null ? null : formatItemNumber(r.item_number),revision:r.revision,kind:r.classified_kind,severity:r.severity,impact:r.impact,
     expectation:r.expectation,desk:r.taxonomy_json ? JSON.parse(r.taxonomy_json) : null,reach_count:Math.max(1,r.reach_count),
     lifecycle:r.lifecycle,outcome:r.outcome,automatic_fix_eligible:automaticFixEligible(r.classified_kind,r.impact),
     automation_enabled:env.AUTOMATION_ENABLED==='true',created_at:r.created_at};
