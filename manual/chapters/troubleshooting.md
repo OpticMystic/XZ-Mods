@@ -89,7 +89,7 @@ modern:play-notice-long A long notice wraps onto two lines
 | TOUCH CANNOT OPEN THIS YET: PUSH THE ENCODER | Use the encoder for this item |
 | THAT SETTING CANNOT CHANGE HERE | Change it in the player's own UTILITY. Hold [[MENU]] |
 | DECK 3 AND 4 ARE NOT RUNNING | Set up four decks first. See [Four decks](four-decks) |
-| KEY CPU LIMIT / RESET OTHER SOFTWARE DECK | Only one of decks 3 and 4 can hold a key shift. Reset the other one. See [Keys and KEY SYNC](performance#keys-and-key-sync) |
+| KEY SHIFT REFUSED: AUDIO LOAD TOO HIGH | The measured audio workload leaves too little headroom for a new shift. Current shifts keep running. Check SYSTEM READOUT and retry when the load falls. See [Keys and KEY SYNC](performance#keys-and-key-sync) |
 | THIS DECK IS MASTER | KEY SYNC matches a deck to the master. Make another deck the master first |
 | E-8307 HUBS ARE NOT SUPPORTED: FROM THE LOOPBACK CABLE | Expected with the loopback cable. See [below](#e-8307-hubs-are-not-supported) |
 | THIS DJ PROFILE CANNOT BE READ | Make the profile again in the XZ Mods app. See [Connect and DJ profiles](connect#when-a-profile-will-not-save-or-show) |

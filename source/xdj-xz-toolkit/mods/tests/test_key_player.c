@@ -99,8 +99,8 @@ static void commands_and_owners(void){
  struct xz_extra_deck_event e=key_event(0,XZ_KEY_STEP,1);
  for(int i=0;i<12;i++)assert(input(e));step();assert(view.deck[0].key_state.desired_cents==1200);
  key_press(0,XZ_KEY_STEP,1);assert(view.deck[0].key_state.desired_cents==1200);
- key_press(1,XZ_KEY_STEP,-1);assert(view.deck[1].key_state.desired_cents==0&&strstr(view.notice,"CPU LIMIT"));
- key_press(0,XZ_KEY_RESET,0);key_press(1,XZ_KEY_STEP,-1);assert(view.deck[1].key_state.desired_cents==-100);
+ key_press(1,XZ_KEY_STEP,-1);assert(view.deck[1].key_state.desired_cents==-100&&view.deck[0].key_state.desired_cents==1200);
+ key_press(0,XZ_KEY_RESET,0);key_press(1,XZ_KEY_RESET,0);key_press(1,XZ_KEY_STEP,-1);assert(view.deck[1].key_state.desired_cents==-100);
  key_press(1,XZ_KEY_RESET,0);
  e=key_event(0,XZ_KEY_SYNC_TOGGLE,0);assert(input(e));key_authority.revision++;step();assert(!view.deck[0].key_state.engaged);
  e=key_event(0,XZ_KEY_SYNC_TOGGLE,0);assert(input(e));native_epoch++;step();assert(!view.deck[0].key_state.engaged);
@@ -136,7 +136,7 @@ static void commands_and_owners(void){
  capture_n=tag_n=0;load(0,6);press(0,XZ_EXTRA_IN_PLAY);advance(100);
  assert(capture_n&&!view.deck[0].key_state.desired_cents);
  for(unsigned i=0;i<capture_n;i++)assert(capture_pcm[i]==0);
- end_key();puts("PASS FIFO, range, CPU reservation, route/load/media/master identity, queue full, MT ownership, cue persistence and load reset");
+ end_key();puts("PASS FIFO, range, simultaneous software shifts, route/load/media/master identity, queue full, MT ownership, cue persistence and load reset");
 }
 static void software_master_targets(void){
  for(int source=0;source<2;source++){
@@ -159,7 +159,24 @@ static void software_master_targets(void){
  }
  puts("PASS both software-master directions use completed resampler pitch; target reload rejects captured engagement");
 }
+static void simultaneous_shifts(void){
+ begin_key();
+ key_press(0,XZ_KEY_SYNC_TOGGLE,0);key_press(1,XZ_KEY_SYNC_TOGGLE,0);
+ assert(view.deck[0].key_state.engaged&&view.deck[1].key_state.engaged);
+ assert(view.deck[0].key_state.desired_cents==123&&view.deck[1].key_state.desired_cents==123);
+ press(0,XZ_EXTRA_IN_PLAY);press(1,XZ_EXTRA_IN_PLAY);advance(1200);
+ for(int i=0;i<2;i++){
+  assert(view.deck[i].key_state.audio_state==XZ_KEY_AUDIO_APPLIED);
+  assert(abs(view.deck[i].key_state.applied_cents-123)<=1);
+  assert(view.deck[i].worker_load.samples&&view.deck[i].worker_load.key_active);
+  assert(view.deck[i].worker_load.p99_us<=view.deck[i].worker_load.max_us);
+ }
+ struct xz_worker_load measured[2];assert(xz_xp_worker_load(p,measured));
+ assert(measured[0].key_active&&measured[1].key_active&&measured[0].key_max_us&&measured[1].key_max_us);
+ end_key();
+ puts("PASS simultaneous software KEY SYNC with fractional shift, MT, completed PCM and measured worker readout");
+}
 int main(int argc,char **argv){
  assert(argc==2);snprintf(fixtures,sizeof fixtures,"%s",argv[1]);snprintf(anlz_dir,sizeof anlz_dir,"%s/anlz",fixtures);
- pthread_mutex_init(&f.lock,NULL);build_analysis();pcm_and_tags();commands_and_owners();software_master_targets();pthread_mutex_destroy(&f.lock);return 0;
+ pthread_mutex_init(&f.lock,NULL);build_analysis();pcm_and_tags();commands_and_owners();software_master_targets();simultaneous_shifts();pthread_mutex_destroy(&f.lock);return 0;
 }

@@ -144,7 +144,7 @@ To end KEY SYNC, press [[SHIFT]] + [[SYNC]] again, or press [[MASTER TEMPO]]. Bo
 
 KEY SYNC changes the key only. The tempo, SYNC and the master deck stay as they were.
 
-Only one of decks 3 and 4 can hold a key shift at a time, to leave the player enough processing power. A key shift or KEY SYNC on the other software deck then shows **KEY CPU LIMIT / RESET OTHER SOFTWARE DECK**. Press RESET on the KEYS page for the deck that holds the shift, then try again. Decks 1 and 2 have no such limit.
+All four decks can hold key shifts and KEY SYNC together. Before starting a new shift on deck 3 or 4, the player checks its measured audio workload. If there is too little headroom, it shows **KEY SHIFT REFUSED: AUDIO LOAD TOO HIGH** and leaves the current keys unchanged. Shifts already in use keep running. SYSTEM READOUT shows render times and the number of active key shifters.
 
 If KEY SYNC cannot work, a notice or the deck's key display shows why for a few seconds:
 
@@ -158,7 +158,7 @@ If KEY SYNC cannot work, a notice or the deck's key display shows why for a few 
 | SELECT ONE LOCAL MASTER / SET UP KEYS | No deck on this player is the tempo master. Press [[MASTER]] on the deck to match to. |
 | VERIFY MASTER PLAYING KEY / SET UP KEYS | The master deck's playing key is not known yet. Let it play a moment, then try again. |
 | MASTER CHANGED / RETRY KEY SYNC, TRACK CHANGED / RETRY KEY CONTROL | The master or the track changed before the key moved. Press again. |
-| KEY CPU LIMIT / RESET OTHER SOFTWARE DECK | The other software deck holds a key shift. Reset it first. |
+| KEY SHIFT REFUSED: AUDIO LOAD TOO HIGH | Measured audio work leaves too little headroom for a new shift. Existing shifts keep running. Check SYSTEM READOUT and retry when the load falls. |
 | SHIFT OUT OF RANGE, KEY RANGE IS -12 TO +12 SEMITONES | The key that fits is further away than the deck can shift. |
 | EMERGENCY LOOP / LOAD NEXT TRACK | The deck lost its track and loops. Load another track first. |
 

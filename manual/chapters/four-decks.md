@@ -282,7 +282,7 @@ Decks 3 and 4 are software players. They follow the player's own controls on the
 | Gate cue and smart cue | Yes | Yes |
 | Waveform colours, key notation, titles | Yes | Yes |
 | Playing key | Yes | Yes |
-| Key sync and key shift | Yes | Yes. Only one of decks 3 and 4 can hold a key shift at a time. |
+| Key sync and key shift | Yes | Yes. Both can shift together; new shifts check measured audio headroom. |
 | Stems | Yes, with USB stems set up | No. Decks 3 and 4 have no stems. |
 | RAM tracks | Yes | Yes, while the loopback cable is connected. See [RAM tracks](performance#ram-tracks). |
 | Hot cue preview, X-PAD sampler, groove pads | Not in this version | Not in this version |

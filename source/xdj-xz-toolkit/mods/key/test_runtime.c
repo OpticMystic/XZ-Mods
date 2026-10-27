@@ -192,6 +192,7 @@ int main(void)
     rates[0]=44100;set_active(&managers[0],1);
     assert(installed(&managers[0],1100,a,512,1000)==1137);
     assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired>0&&desired<77);
+    assert(xz_key_active_mask()&1u);
     set_active(&managers[0],0);assert(installed(&managers[0],1137,a,512,1000)==1174);
     assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
     set_active(&managers[0],1);
@@ -204,6 +205,7 @@ int main(void)
     xz_key_runtime_observe(1);
     assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
     xz_key_runtime_observe(0);xz_key_runtime_stop();
+    assert(!xz_key_active_mask());
     assert(xz_key_get_applied_cents(0,generations[0],&desired)==0&&desired==0);
     puts("PASS exact hook guard/ABI, original return, neutral bypass, two decks, generation reset, applied-pitch proof and no-active/rate/owner/stop gates");
     return 0;

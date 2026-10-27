@@ -5,7 +5,7 @@
 static uint32_t tick(void){return 1000;}
 int main(void){
  static struct xz_xp_players p;static struct reader r;struct deck *d=&p.deck[0];
- p.env.now_ms=tick;pthread_mutex_init(&p.publish_lock,NULL);atomic_init(&p.revision,0);atomic_init(&p.key_budget,0);
+ p.env.now_ms=tick;pthread_mutex_init(&p.publish_lock,NULL);atomic_init(&p.revision,0);atomic_init(&p.key_active,0);
  d->r=&r;r.rate=44100;r.frames=44100*60;d->state=XZ_XP_PLAYING;d->epoch=1;d->load_revision=2;d->generation=3;
  key_history_reset(d);
  struct xz_key_owner own={.route_epoch=1,.load_revision=2};

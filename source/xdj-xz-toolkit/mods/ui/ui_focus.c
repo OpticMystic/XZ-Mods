@@ -162,7 +162,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_STEM_PADS:return "Which pad mode button gives stem pads, which four pads carry them, their order, and the pad lights.";
  case XZ_UI_PC_STEMS:return "When a deck plays from a computer over USB, the stem pads switch the DJ software's stems instead. Setup checks the link and tests one switch.";
  case XZ_UI_LOCAL_STEM_SETUP:return "Plays prepared stem files from the USB so pads and stem buttons can mute vocals, harmonics and drums.";
- case XZ_UI_METRICS_SETUP:return "CPU, memory and temperature beside STEMS and MODS. 80 C turns yellow, 90 C flashes red.";
+ case XZ_UI_METRICS_SETUP:return "CPU, memory, temperature and audio render times. Shows the active key shifters on all four decks.";
  case XZ_UI_PROFILE_SETUP:return "Your DJ name and logo for VJ screens, from the USB. The player's own saved settings are MY SETTINGS in UTILITY.";
  case XZ_UI_ABOUT:return "Created by VJ OpticMystic. Credits, project links, licences and voluntary support.";
  case XZ_UI_SUPPORT:return "Prepares a cleaned-up diagnostic report, shows it, then uploads it or saves it to USB.";

@@ -739,9 +739,19 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
   xz_text(s.c,152,166,"CPU 100% = ALL FOUR CORES BUSY",1,90,palette.ink);
   xz_text(s.c,152,190,"RAM EXCLUDES ESTIMATED CACHE; FREE IS SEPARATE",1,90,palette.ink);
   xz_text(s.c,152,214,"80C YELLOW / 90C FLASHING RED + HOT",1,90,palette.ink);
-  xz_text(s.c,152,238,"ONLY THE SOC TEMPERATURE IS EXPOSED BY FIRMWARE",1,90,palette.ink);
-  snprintf(line,sizeof(line),"CPU %s / RAM %s / TEMP %s",m->metrics.valid&1?"FOUND":"WAITING",m->metrics.valid&2?"FOUND":"WAITING",m->metrics.valid&4?"FOUND":"NOT EXPOSED");
-  xz_text(s.c,152,274,line,1,90,palette.accent);
+  for(unsigned i=0;i<2;i++){
+   const struct xz_worker_load *w=&m->metrics.worker[i];
+   if((m->metrics.valid&XZ_METRICS_AUDIO)&&w->samples)
+    snprintf(line,sizeof(line),"D%u RENDER P99 %u / MAX %u US%s",i+3,w->p99_us,w->max_us,
+     (uint32_t)(m->clock_ms-w->sampled_ms)>3500u?" / LAST RUN":"");
+   else snprintf(line,sizeof(line),"D%u RENDER: PLAY TO MEASURE",i+3);
+   xz_text(s.c,152,238+(int)i*18,line,1,90,palette.ink);
+  }
+  unsigned count=0;for(unsigned i=0;i<4;i++)count+=!!(m->metrics.key_active_mask&(1u<<i));
+  uint64_t pair=(uint64_t)m->metrics.worker[0].max_us+m->metrics.worker[1].max_us;
+  snprintf(line,sizeof(line),"KEY SHIFTERS %u / 4 | D3+D4 MAX %u / %u US",count,
+   pair>UINT32_MAX?UINT32_MAX:(unsigned)pair,XZ_RENDER_BLOCK_US);
+  xz_text(s.c,152,278,line,1,90,palette.accent);
   snprintf(line,sizeof(line),"RAM USED %u / TOTAL %u / FREE %u MiB",m->metrics.used_mib,m->metrics.total_mib,m->metrics.free_mib);
   xz_text(s.c,152,298,line,1,90,palette.ink);
  }
