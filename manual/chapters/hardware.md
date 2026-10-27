@@ -90,7 +90,7 @@ The drawing shows the left deck. The right deck has the same controls in the sam
 ```figure hw:xdj-xz-deck XDJ-XZ deck
 One deck from above. The pads are named A to D on the top row and E to H on the bottom row.
 1 @ 155,488 SHIFT | Press twice quickly to switch this side between its two decks. Held, it is the modifier for the combinations below.
-2 @ 655,282 SYNC | SHIFT + SYNC matches this deck's key to the other deck (KEY SYNC). SYNC alone is stock.
+2 @ 655,282 SYNC | SHIFT + SYNC matches this deck's key to the master deck (KEY SYNC). SYNC alone is stock on decks 1 and 2.
 3 @ 684,478 MASTER TEMPO | While KEY SYNC holds, a press returns the deck to its own key.
 4 @ 684,760 TEMPO slider | After you switch decks, the new deck keeps its tempo until the slider reaches it.
 5 @ 232,188 Jog wheel | Stock on decks 1 and 2. Plays decks 3 and 4, and the games.
@@ -104,7 +104,7 @@ One deck from above. The pads are named A to D on the top row and E to H on the 
 | Key | Action with XZ Mods |
 |---|---|
 | [[SHIFT]] twice | Switches the left side between deck 1 and deck 3, or the right side between deck 2 and deck 4. Press it twice within about half a second, without touching anything else. Decks 3 and 4 need the loopback cable; without it the screen says DECK 3 AND 4 NEED THE CH3/CH4 ROUTE. |
-| [[SHIFT]] + [[SYNC]] | KEY SYNC: shifts this deck's key to match the other deck and turns on MASTER TEMPO. Press it again to end KEY SYNC. Decks 1 and 2 only. [[SYNC]] alone keeps its stock job. |
+| [[SHIFT]] + [[SYNC]] | KEY SYNC: shifts the key of the deck this side controls to match the master deck, and turns on MASTER TEMPO. Press it again to end KEY SYNC. Works on all four decks. [[SYNC]] alone keeps its stock job on decks 1 and 2. |
 | [[MASTER TEMPO]] | While KEY SYNC holds on that deck, a press ends KEY SYNC and returns the deck to its own key. Otherwise stock. [[SHIFT]] + [[MASTER TEMPO]] keeps its stock job. |
 | [[HOT CUE]], [[BEAT LOOP]], [[SLIP LOOP]] | Choose the pad mode as on a stock player. The mode set in MODS > STEMS > STEM PADS turns four pads into stem pads. |
 | [[SHIFT]] + [[HOT CUE]] | Mutes or unmutes the first stem in your STEM ORDER (vocals by default) on that deck. |
