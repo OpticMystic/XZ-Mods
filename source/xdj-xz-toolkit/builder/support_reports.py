@@ -8,7 +8,9 @@ import secrets
 import stat
 from datetime import datetime, timezone
 
-CAP=524288
+from .support_contract import CONTRACT
+
+CAP=CONTRACT['limits']['report_bytes']
 PAGE=12000  # JSON escaping still fits the 64 KiB event envelope.
 LABELS={'build.json','loader.json','bridge.json','bridge.log','bootstrap.log','runtime.log','network.json','app.log'}
 HEX=re.compile(r'[0-9a-f]{32}')
@@ -47,7 +49,7 @@ def bounded(path,limit):
 
 def safe(value):
     if type(value) is bool or type(value) is int and 0<=value<=1000000:return value
-    if isinstance(value,str) and (value in STATES or value in REASONS or value in ('xz-bridge-status/1','xz-support-report/1') or re.fullmatch(r'0\.5\.0-preview\.[0-9]{1,4}',value)):
+    if isinstance(value,str) and (value in STATES or value in REASONS or value in ('xz-bridge-status/1','xz-support-report/1') or len(value)<=64 and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.]+)?(?:\+[a-z0-9.]+)?',value)):
         return value
     return None
 
@@ -68,7 +70,16 @@ def sanitize(label,source,truncated=False):
                 if clean is not None:kept.append((k,clean))
                 else:omitted+=1
             content=json.dumps(dict(kept),ensure_ascii=True)
-        except (ValueError,TypeError):content='';omitted=1
+        except (ValueError,TypeError):
+            lines=source.splitlines()
+            if label=='bridge.json' and lines and all(line in REASONS or line in STATES for line in lines):
+                # Actual native v1 exports contain known code lines here.
+                facts={}
+                for line in lines:
+                    if line in REASONS:facts['reason']=line
+                    elif line in STATES:facts['state']=line
+                content=json.dumps(facts,ensure_ascii=True)
+            else:content='';omitted=1
     else:
         for line in source.splitlines():
             m=re.fullmatch(r'(state|reason|terminal_reason|attempt|route_ready|retryable)=(.*)',line)
@@ -187,7 +198,7 @@ def saved_reports(job):
                    'title':'Unreadable local report','readable':False}
             try:
                 draft=load(path.stem);body=json.loads(draft['body'])
-                entry.update(title=text(body['public_issue']['title'],160,True),sha256=draft['sha256'],readable=True)
+                entry.update(title=text(body['description'][:40] if body['schema']=='xz-support-report/2' else body['public_issue']['title'],160,True),sha256=draft['sha256'],readable=True)
             except (OSError,ValueError,KeyError,TypeError):pass
             reports.append(entry)
         except (OSError,ValueError):continue
@@ -195,6 +206,8 @@ def saved_reports(job):
 
 def dispatch(r,job):
     job.check();method=r['method']
+    if method in ('support_sources','support_collect','support_source_preview','support_prepare_v2','support_edit_v2'):
+        return dispatch_v2(r,job)
     if method=='support_list':return saved_reports(job)
     if method=='support_remove':
         ident=r.get('report_id');need(type(ident) is str and HEX.fullmatch(ident),'Invalid report ID')
@@ -207,6 +220,11 @@ def dispatch(r,job):
         draft=load(r.get('report_id'));need(draft['sha256']==r.get('sha256'),'Local report changed; refresh saved reports')
         body=json.loads(draft['body']);ident=r['report_id']
         (root()/(ident+'.review')).unlink(missing_ok=True)
+        if body['schema']=='xz-support-report/2':
+            return {'report_id':ident,'sha256':draft['sha256'],'bytes':len(draft['body'].encode()),'pages':(len(draft['body'])+PAGE-1)//PAGE,
+                    'schema':body['schema'],'fields':{'description':body['description'],'kind_hint':body.get('kind_hint'),
+                    'reporter_hints':body.get('reporter_hints',{}),'category':body['category'],'contact':body['private']['contact'],
+                    'contact_opt_in':body['private']['contact_consent'],'item_ids':[i['item_id'] for i in body['private']['items']]}}
         return {'report_id':ident,'sha256':draft['sha256'],'bytes':len(draft['body'].encode()),
                 'pages':(len(draft['body'])+PAGE-1)//PAGE,
                 'fields':{'title':body['public_issue']['title'],'description':body['public_issue']['description'],
@@ -243,9 +261,76 @@ def dispatch(r,job):
     if method=='support_preview':
         page=r.get('page',0);pages=(len(d['body'])+PAGE-1)//PAGE
         need(type(page) is int and 0<=page<pages,'Invalid preview page')
+        # TODO phase 3: remove mandatory all-page review in Python, Rust and JS
+        # together, replacing it with explicit consent to this exact frozen hash.
         # Complete preview is tracked in a bounded separate marker, never in uploaded bytes.
         marker=root()/(r['report_id']+'.review')
         seen=set(json.loads(marker.read_text())['pages']) if marker.exists() else set()
         seen.add(page);marker.write_text(json.dumps({'sha256':d['sha256'],'pages':sorted(seen),'complete':len(seen)==pages}))
         return {'page':page,'pages':pages,'sha256':d['sha256'],'text':d['body'][page*PAGE:(page+1)*PAGE]}
     raise ValueError('Unknown support operation')
+
+
+def dispatch_v2(request,job):
+    from . import support_sources as sources
+    from .support_validation import validate_report
+    method=request['method']
+    if method=='support_sources':return sources.discover(job)
+    if method=='support_source_preview':
+        record=sources._record(request.get('scan_generation'))
+        snapshot=record.get('snapshot');need(snapshot is not None,'Collection has not completed')
+        selected=next((i for i in snapshot['items'] if i['item_id']==request.get('item_id')),None)
+        need(selected is not None,'Unknown source item')
+        content=sources.encoded(selected).decode();page=request.get('page',0);pages=max(1,(len(content)+PAGE-1)//PAGE)
+        need(type(page) is int and 0<=page<pages,'Invalid source preview page')
+        return {'item_id':selected['item_id'],'page':page,'pages':pages,'text':content[page*PAGE:(page+1)*PAGE]}
+    if method=='support_collect':
+        snapshot=sources.collect(request,job)
+        return {'scan_generation':snapshot['scan_generation'],'incident':snapshot['incident'],
+                'items':[{k:i[k] for k in ('item_id','source_id','source_slot','missing_reason','truncated','omission_count','clock_confidence')}|
+                         {'bytes':len(sources.encoded(i))} for i in snapshot['items']],
+                'diary_coverage':snapshot.get('diary_coverage',{}),'bytes':len(sources.encoded(snapshot['items'])),'omitted_items':snapshot['omitted_items'],'unfinished_sources':snapshot['unfinished_sources']}
+    old=None
+    if method=='support_edit_v2':
+        draft=load(request.get('report_id'));need(draft['sha256']==request.get('sha256'),'Stale preview; prepare and review again')
+        old=json.loads(draft['body']);need(old.get('schema')=='xz-support-report/2','Expected a v2 draft')
+    hints=request.get('reporter_hints',old.get('reporter_hints',{}) if old else {})
+    from .support_validation import validate
+    validate(hints,CONTRACT['report_schema']['properties']['reporter_hints'])
+    hint=request.get('kind_hint',old.get('kind_hint') if old else None)
+    if hint is None:hint={'NEW_IDEA':'FEATURE','HOW_DO_I':'QUESTION','GOT_WORSE':'REGRESSION','WORK_DIFFERENTLY':'EXPECTATION','NOT_WORKING':'BUG'}.get(hints.get('topic'))
+    need(hint is None or hint in CONTRACT['kind_hints'],'Invalid kind hint')
+    if hints.get('topic')=='NEW_IDEA':hint='FEATURE'
+    category=request.get('category',old['category'] if old else CONTRACT['problem_area_categories'].get(hints.get('problem_area'),'other'));need(category in CONTRACT['categories'],'Invalid category')
+    if old:
+        items=old['private']['items'];incident=old['incident'];coverage=old['coverage']
+    elif hint=='FEATURE':
+        items=[];incident={'before_seconds':900,'after_seconds':0,'clock_confidence':'unknown'}
+        coverage={'scan_generation':secrets.token_hex(16),'omitted_items':0,'unfinished_sources':0}
+    else:
+        snapshot=sources.collect({**request,'category':category,'kind_hint':hint},job)
+        items=snapshot['items'];incident=snapshot['incident'];coverage={k:snapshot[k] for k in ('scan_generation','omitted_items','unfinished_sources')}
+    removed=request.get('omit_item_ids',[])
+    need(type(removed) is list and all(type(x) is str and x in {i['item_id'] for i in items} for x in removed),'Unknown omitted item')
+    included=[i for i in items if i['item_id'] not in removed and category in sources.REGISTRY[i['source_id']]['categories']]
+    if hint=='FEATURE':included=[]
+    elif hint=='QUESTION' and request.get('include_diagnostics') is not True:
+        included=[i for i in included if i['source_id'] in ('usb_settings','packaged_manifest','packaged_profile')]
+    coverage={**coverage,'omitted_items':min(1000000,coverage['omitted_items']+len(items)-len(included))}
+    from .service import VERSION
+    desktop=VERSION if len(VERSION)<=64 and sources.VERSION.fullmatch(VERSION) else 'unknown'
+    contact_consent=request.get('contact_opt_in') is True
+    body={'schema':'xz-support-report/2','report_id':secrets.token_hex(16),'origin':'loader','kind_hint':hint,
+          'description':text(request.get('description',old['description'] if old else ''),4096,True),'category':category,'reporter_hints':hints,
+          'build':old['build'] if old else {'desktop_version':desktop,'desktop_provenance':'desktop' if desktop!='unknown' else 'unknown','runtime_version':'unknown','runtime_provenance':'unknown'},
+          'incident':incident,'private':{'contact':text(request.get('contact',''),256) if contact_consent else None,'contact_consent':contact_consent,'items':included},
+          'coverage':coverage,'redactions':{'count':min(1000000,sum(i['omission_count'] for i in included)),
+                                          'omitted_lines':min(1000000,sum(i['omission_count'] for i in included))}}
+    # Measure serialized bytes, including escaping. Remove lowest-priority tails
+    # deterministically before freezing; transmission must never truncate a draft.
+    while len(sources.encoded(body))>CAP and body['private']['items']:
+        body['private']['items'].pop();body['coverage']['omitted_items']+=1
+    validate_report(body)
+    job.check()
+    result=save(body);result['privacy']='Private report. Diagnostics expire after 14 days; safe tracking lasts longer.'
+    return result

@@ -265,3 +265,25 @@ def restore_loader(volume,expected_identity,expected_loader,transaction,resource
             candidate=Path(temp)/'autoexec.bin';shutil.copyfile(previous,candidate)
             result=_commit(volume,expected_identity,'autoexec.bin',expected_loader,candidate,job)
         return {'format':'xz-mods-loader-restored/1',**result,'inspection':inspect(volume,resources)}
+
+
+def support_candidates():
+    """Metadata-only candidates. No loader hashing, music inspection, or writes."""
+    found=[]
+    if os.name=='nt':
+        kernel=ctypes.windll.kernel32
+        mask=kernel.GetLogicalDrives()
+        for number in range(26):
+            if not mask&(1<<number):continue
+            path=Path(chr(65+number)+':/')
+            if kernel.GetDriveTypeW(str(path)) not in (2,3):continue
+            # support_sources validates fixed markers, parents and identities.
+            found.append({'volume':str(path)})
+    elif sys.platform=='darwin':
+        from .host import mac_volume
+        for path in Path('/Volumes').iterdir():
+            if path.is_symlink() or not path.is_dir():continue
+            try:
+                if Path(mac_volume(path)['volume_root'])==path:found.append({'volume':str(path)})
+            except (OSError,ValueError):continue
+    return found

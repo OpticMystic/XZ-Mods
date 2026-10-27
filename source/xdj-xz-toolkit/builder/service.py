@@ -162,7 +162,20 @@ def three_band_waveforms(request,job,restore):
         **report,'failed':failed[:50],'failed_count':len(failed)}
 
 def dispatch(request,job):
-    if request.get('method') in ('support_prepare','support_edit','support_preview','support_discard','support_list','support_resume','support_remove'):
+    from .support_sources import diagnostic_event
+    observed=request.get('method') in ('discover_usbs','prepare_usb','build_usb','update_usb','inspect_usb')
+    component='loader' if request.get('method') in ('prepare_usb','build_usb','update_usb') else 'desktop'
+    if observed:diagnostic_event(component,'started')
+    try:
+        result=_dispatch_request(request,job)
+    except Exception:
+        if observed:diagnostic_event(component,'failed')
+        raise
+    if observed:diagnostic_event(component,'succeeded')
+    return result
+
+def _dispatch_request(request,job):
+    if request.get('method') in ('support_prepare','support_edit','support_preview','support_discard','support_list','support_resume','support_remove','support_sources','support_collect','support_source_preview','support_prepare_v2','support_edit_v2'):
         from . import support_reports
         return support_reports.dispatch(request,job)
     from . import mod_versions
