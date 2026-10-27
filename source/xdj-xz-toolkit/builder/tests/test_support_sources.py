@@ -173,7 +173,9 @@ class Sources(unittest.TestCase):
             with self.assertRaises(ValueError):
                 reports.dispatch({'method':'support_consent','report_id':sent['report_id'],'sha256':sent['sha256'],'bytes':sent['bytes'],
                                   'consent':'private-report/v2',**bad},self.job)
-        # Reopening a draft clears consent so Send must be pressed again.
+        # Viewing pages writes nothing; reopening a draft clears consent so Send must be pressed again.
+        reports.dispatch({'method':'support_preview','report_id':sent['report_id'],'sha256':sent['sha256'],'page':0},self.job)
+        self.assertFalse((reports.root()/(sent['report_id']+'.review')).exists())
         reports.dispatch({'method':'support_resume','report_id':sent['report_id'],'sha256':sent['sha256']},self.job)
         self.assertFalse((reports.root()/(sent['report_id']+'.consent')).exists())
         again=reports.dispatch({'method':'support_consent','report_id':sent['report_id'],'sha256':sent['sha256'],'bytes':sent['bytes'],'consent':'private-report/v2'},self.job)

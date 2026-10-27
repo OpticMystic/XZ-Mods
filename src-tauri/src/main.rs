@@ -1,5 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#[path="../../spec/generated/support_contract.rs"]
+#[allow(dead_code)]
+mod support_contract;
 mod support;
+mod support_store;
+mod support_tracking;
 mod app_updates;
 mod eject;
 mod host;
@@ -8,7 +13,7 @@ mod screen_protocol;
 mod screen_transport;
 mod stream_privacy;
 use serde_json::{json, Value};
-use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Mutex}};
+use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex}, time::{Duration, Instant}};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
@@ -43,6 +48,31 @@ fn resource_root(app: &tauri::AppHandle) -> Result<PathBuf,String> {
     app.path().resource_dir().map(|p|p.join("resources")).map_err(|e|e.to_string())
 }
 
+// Report collection reads removable media. Python checks its budget between reads, but a blocked filesystem
+// call cannot see that, so the host enforces the deadline: after the deadline or a cancel, it waits a short
+// grace for the partial result, then ends the child. A stalled drive never holds the single job slot.
+const SUPPORT_DEADLINE:Duration=Duration::from_secs(20);
+const SUPPORT_GRACE:Duration=Duration::from_millis(2500);
+struct Finished(Arc<AtomicBool>);
+impl Drop for Finished{fn drop(&mut self){self.0.store(true,Ordering::Release);}}
+fn watchdog(child:Arc<Mutex<std::process::Child>>,finished:Arc<AtomicBool>,stalled:Arc<AtomicBool>,cancel:PathBuf,limit:Duration){
+    std::thread::spawn(move||{
+        let started=Instant::now();let mut stopping:Option<Instant>=None;
+        while !finished.load(Ordering::Acquire){
+            if stopping.is_none(){
+                if started.elapsed()>=limit{let _=std::fs::write(&cancel,b"cancel");stopping=Some(Instant::now());}
+                else if cancel.exists(){stopping=Some(Instant::now());}
+            }
+            if stopping.is_some_and(|t|t.elapsed()>=SUPPORT_GRACE){
+                stalled.store(true,Ordering::Release);
+                if let Ok(mut child)=child.lock(){let _=child.kill();}
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+}
+
 #[tauri::command]
 fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
     if !request.is_object(){return Err("Expected a builder operation".into());}
@@ -55,6 +85,7 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
     let folder=app.path().app_local_data_dir().map_err(|e|e.to_string())?.join("jobs");
     std::fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
     let cancel=folder.join(format!("{}-{id}.cancel",std::process::id()));
+    let deadline=matches!(request["method"].as_str(),Some("support_sources"|"support_collect")).then_some(SUPPORT_DEADLINE);
     entries.insert(id,(json!({"running":true,"stage":"starting","message":"Starting operation"}),cancel.clone()));
     drop(entries);
     std::thread::spawn(move || {
@@ -68,8 +99,13 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
             #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
             let mut child=command.spawn().map_err(|e|format!("Builder backend is unavailable: {e}"))?;
             child.stdin.take().ok_or("Backend input unavailable")?.write_all(&serde_json::to_vec(&request).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+            let stdout=child.stdout.take().ok_or("Backend output unavailable")?;
+            let child=Arc::new(Mutex::new(child));
+            let (finished,stalled)=(Arc::new(AtomicBool::new(false)),Arc::new(AtomicBool::new(false)));
+            let _finished=Finished(finished.clone());
+            if let Some(limit)=deadline{watchdog(child.clone(),finished,stalled.clone(),cancel.clone(),limit);}
             let mut final_event:Option<Value>=None;
-            for line in BufReader::new(child.stdout.take().ok_or("Backend output unavailable")?).lines(){
+            for line in BufReader::new(stdout).lines(){
                 let line=line.map_err(|e|e.to_string())?;
                 if line.len()>65536{continue;}
                 if let Ok(mut event)=serde_json::from_str::<Value>(&line){
@@ -78,8 +114,10 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
                     if done{final_event=Some(event.clone());}
                 }
             }
-            let exit=child.wait().map_err(|e|e.to_string())?;
-            let Some(mut event)=final_event else{return Err("Builder backend ended without a result".into());};
+            let exit=child.lock().map_err(|_|"Backend state unavailable")?.wait().map_err(|e|e.to_string())?;
+            let Some(mut event)=final_event else{
+                return Err(if stalled.load(Ordering::Acquire){"Collection stopped: a drive did not answer in time".into()}else{"Builder backend ended without a result".into()});
+            };
             if !exit.success(){return Err("Builder backend exited unexpectedly after its result".into());}
             event["running"]=json!(false);
             app.state::<Jobs>().entries.lock().map_err(|_|"Job state unavailable")?.insert(id,(event,cancel.clone()));
@@ -147,7 +185,7 @@ fn list_volumes()->Vec<String>{
 }
 fn main(){
     tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(support::Support::default()).manage(Jobs::default()).manage(app_updates::Updates::default()).manage(live_stream::LiveStream::default())
-        .invoke_handler(tauri::generate_handler![support::support_action,support::support_cancel,support::support_connect,support::support_inbox,support::support_inbox_page,start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,eject::eject_volume,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
+        .invoke_handler(tauri::generate_handler![support::support_send,support::support_export,support::support_cancel,support::support_connect,support::support_owner_status,support::support_inbox,support::support_inbox_page,support_store::support_reports,support_store::support_report_seen,support_store::support_forget,support_tracking::support_check_statuses,support_tracking::support_tracking_link,support_tracking::support_open_tracking,support_tracking::support_revoke_links,start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,eject::eject_volume,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
         .on_window_event(|window,event|{
             if matches!(event,tauri::WindowEvent::CloseRequested{..}) {
                 let _=live_stream::stop(&window.state::<live_stream::LiveStream>());
