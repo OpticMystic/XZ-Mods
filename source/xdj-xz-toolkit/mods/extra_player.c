@@ -6,6 +6,7 @@
 #include "shell_analysis.h"
 #include "audio/stem_media.h"
 #include "audio/stretch.h"
+#include "key/keyshift.h"
 #include "sync_native.h"
 #include <pthread.h>
 #include <math.h>
@@ -82,7 +83,8 @@ struct hot { int set; uint64_t at; uint32_t rgb; uint64_t end; int loop; }; /* l
 struct memory_point { uint64_t at, end; int loop; uint32_t rgb; int32_t saved_ms,saved_end_ms; };
 /* Accepted output provenance. Worker-owned, bounded, no render-time allocation. */
 #define OUTPUT_SPANS 64u
-struct output_span { uint64_t begin,end,source,step,loop_in,loop_out; };
+struct key_output { uint32_t revision; int cents; double pitch_rate; enum xz_key_audio_state state; };
+struct output_span { uint64_t begin,end,source,step,loop_in,loop_out; struct key_output key; };
 struct output_history {
  struct output_span span[OUTPUT_SPANS],pending;
  unsigned head,count;
@@ -91,10 +93,11 @@ struct output_history {
  double crossing;
  int32_t beat_ms;
  int32_t crossing_ms;
- int rate_valid,beat_valid,crossing_valid;
+ int rate_valid,beat_valid,crossing_valid,key_valid;
+ struct key_output key;
 };
 static void output_reset(struct output_history *h){
- h->head=h->count=0;h->completed=0;h->rate_valid=h->beat_valid=h->crossing_valid=0;
+ h->head=h->count=0;h->completed=0;h->rate_valid=h->beat_valid=h->crossing_valid=h->key_valid=0;
 }
 
 static int output_source(const struct output_span *s,uint64_t frame,uint64_t *source){
@@ -112,6 +115,8 @@ static void output_accept(struct output_history *h,uint64_t begin,unsigned frame
  if(h->count){
   struct output_span *last=&h->span[(h->head+h->count-1)%OUTPUT_SPANS];uint64_t at;
   if(last->end==begin&&last->step==s.step&&last->loop_in==s.loop_in&&last->loop_out==s.loop_out&&
+     last->key.revision==s.key.revision&&last->key.cents==s.key.cents&&
+     last->key.pitch_rate==s.key.pitch_rate&&last->key.state==s.key.state&&
      output_source(last,begin,&at)&&at==s.source&&
      s.end-last->begin<=(UINT64_MAX-last->source)/s.step){last->end=s.end;return;}
  }
@@ -151,7 +156,7 @@ struct sync_clock {
 
 /* Only accepted stateful holds reserve an extra slot for their matching release.
    Ordinary traffic cannot consume these slots. All entries still use one FIFO. */
-#define RELEASE_SLOTS (7u + XZ_EXTRA_HOT_CUES) /* CUE, TOUCH, LOOP_IN, REV, pads, both SEARCH contacts, 4/8BEAT. */
+#define RELEASE_SLOTS (8u + XZ_EXTRA_HOT_CUES) /* CUE, TOUCH, LOOP_IN, REV, pads, SEARCH, 4/8BEAT, MT. */
 #define MODE_SLOTS 3u
 #define QUEUE_SLOTS (XZ_XP_QUEUE + RELEASE_SLOTS + MODE_SLOTS)
 #define CONTROL_BUDGET (XZ_XP_QUEUE + 3u) /* Preserve the existing per-pass bound. */
@@ -162,7 +167,8 @@ static unsigned release_bit(const struct xz_extra_deck_event *e) {
  return e->kind==XZ_EXTRA_IN_CUE?1u:e->kind==XZ_EXTRA_IN_JOG_TOUCH?2u:
         e->kind==XZ_EXTRA_IN_LOOP_IN?4u:e->kind==XZ_EXTRA_IN_REVERSE?8u:
         e->kind==XZ_EXTRA_IN_SEARCH&&e->hot_cue>=0&&e->hot_cue<2?1u<<(4u+XZ_EXTRA_HOT_CUES+(unsigned)e->hot_cue):
-        e->kind==XZ_EXTRA_IN_LOOP_4_8?1u<<(6u+XZ_EXTRA_HOT_CUES):0u;
+        e->kind==XZ_EXTRA_IN_LOOP_4_8?1u<<(6u+XZ_EXTRA_HOT_CUES):
+        e->kind==XZ_EXTRA_IN_MASTER_TEMPO?1u<<(7u+XZ_EXTRA_HOT_CUES):0u;
 }
 static unsigned release_count(unsigned mask) {
  unsigned count=0;for(;mask;mask&=mask-1)count++;return count;
@@ -200,6 +206,8 @@ struct deck {
  int tempo_range, tempo_reset, vinyl, master_tempo;
  uint32_t tempo_revision;
  struct xz_stretch stretch;
+ struct { struct xz_key_shift shift; int desired,engaged,mt_before,target,mode,initialized,ever_rendered,mt_owned,rendered_cents;
+  uint32_t revision; struct xz_key_owner target_owner; } key;
  struct {
   enum xz_xp_state resume;
   uint64_t target,group_origin;
@@ -316,6 +324,8 @@ struct xz_xp_players {
  atomic_int native_intent;
  atomic_uint explicit_intent;
  xz_master_observer master_observer;
+ int (*key_owner_reader)(int,struct xz_key_owner *);
+ atomic_uint key_budget; /* One active software shifter until CPU-2 hardware qualification. */
  uint32_t master_admitted,admitted_operator,operator_floor,intent_operator,acknowledged_intent; /* publish_lock */
  atomic_uint sync_requests;
  atomic_uint sync_choice_epoch, sync_grid;
@@ -494,6 +504,13 @@ int xz_xp_use_native_master(struct xz_xp_players *p){
  return select_sync_master(p,-1);
 }
 
+void xz_xp_set_key_owner_reader(struct xz_xp_players *p,int (*reader)(int,struct xz_key_owner *)){
+ if(p&&!p->threads)p->key_owner_reader=reader;
+}
+static void key_history_reset(struct deck *d){
+ xz_key_shift_init(&d->key.shift);d->key.initialized=1;d->key.mode=-1;
+ (void)xz_key_shift_set_cents(&d->key.shift,d->key.desired);d->key.rendered_cents=d->key.desired;
+}
 static int streaming(enum xz_xp_state s) { return s == XZ_XP_PLAYING || s == XZ_XP_SAMPLING || s == XZ_XP_SCRATCHING; }
 static int loaded(enum xz_xp_state s) { return s == XZ_XP_CUED || streaming(s) || s == XZ_XP_ENDED; }
 static int32_t to_ms(const struct deck *d, uint64_t frames) {
@@ -671,7 +688,7 @@ static void accepted_segment(struct deck *d){
  output_accept(&d->output,d->submitted,d->pending);
  if(!d->emergency.active){
   if(d->state!=XZ_XP_PLAYING||reversed(d)||d->search||d->ramp.active){d->emergency.count=0;}
-  else if(d->pending){
+  else if(d->pending&&d->output.pending.key.revision==d->key.revision){
    unsigned first=EMERGENCY_FRAMES-d->emergency.head;if(first>d->pending)first=d->pending;
    memcpy(d->emergency.pcm+d->emergency.head*2,d->pcm,first*2*sizeof(float));
    memcpy(d->emergency.pcm,d->pcm+first*2,(d->pending-first)*2*sizeof(float));
@@ -694,7 +711,7 @@ static void accepted_segment(struct deck *d){
  }
  d->segment[d->segment_count++]=(struct sync_segment){d->submitted,d->submitted+d->pending,d->pending_phase,d->pending_beat_step,d->pending_nominal_bps};
 }
-static int render(struct deck *d, double rate) {
+static int render_source(struct deck *d, double rate) {
 #ifdef XZ_XP_TEST_RENDER_HOOK
  extern void xz_xp_test_render_hook(void);
  xz_xp_test_render_hook();
@@ -802,6 +819,26 @@ static int render(struct deck *d, double rate) {
  return 1;
 }
 
+/* Every fresh block visits the shifter once. Pending retries retain its PCM and provenance. */
+static int render(struct deck *d,double rate){
+ int mode=d->emergency.active?4:d->state==XZ_XP_SCRATCHING?3:
+  reversed(d)||d->search||d->ramp.active?2:d->master_tempo?1:0;
+ if(!d->key.initialized||d->key.mode!=mode){key_history_reset(d);d->key.mode=mode;}
+ if(!render_source(d,rate))return 0;
+ if(!d->pending)return 1;
+ d->key.ever_rendered=1;
+ struct key_output *k=&d->output.pending.key;
+ k->revision=d->key.revision;k->state=mode==4?XZ_KEY_AUDIO_EMERGENCY:mode>=2?XZ_KEY_AUDIO_TRANSIENT:XZ_KEY_AUDIO_APPLIED;
+ k->pitch_rate=mode==1?1:rate;
+ if(mode==4)return 1; /* The emergency ring already contains processed PCM. */
+ if(d->key.rendered_cents!=d->key.desired){
+  (void)xz_key_shift_set_cents(&d->key.shift,d->key.desired);d->key.rendered_cents=d->key.desired;
+ }
+ if(xz_key_shift_process(&d->key.shift,d->pcm,d->pending))return 0;
+ k->cents=(int)lround(1200.*log2(d->key.shift.ratio));
+ return 1;
+}
+
 /* ---- the deck machine ---- */
 static uint64_t heard_now(const struct deck *d, uint32_t now) {
  uint64_t head = d->pos >> 32;
@@ -823,7 +860,7 @@ static void jump(struct deck *d, uint64_t frame, uint32_t now) {
  if (frame > d->r->frames) frame = d->r->frames;
  d->scratch.releasing=0;d->ramp.active=0;
  d->pos = frame << 32; d->need_flush = 1; d->pending = 0; d->submitted = d->completed = 0;
- d->segment_count=0;output_reset(&d->output);
+ d->segment_count=0;output_reset(&d->output);key_history_reset(d);
  d->heard = frame; d->heard_at = now;
  d->heard_rate=0;d->timeline_valid=d->timeline_anchor_valid=0;d->timeline_revision++;
  d->timeline_output_frames=d->timeline_sink_frame=d->timeline_wire_completed=0;
@@ -875,7 +912,7 @@ static void scratch_finish(struct deck *d,uint32_t now){
  d->scratch.releasing=1;d->scratch.released_at=now;
  d->scratch.release_end=d->completed+SCRATCH_RELEASE_FRAMES;
  if(d->scratch.release_end<d->submitted)d->scratch.release_end=d->submitted;
- if(d->pending>d->scratch.release_end-d->submitted){d->pos=d->block_start;d->pending=0;}
+ if(d->pending>d->scratch.release_end-d->submitted){d->pos=d->block_start;d->pending=0;key_history_reset(d);}
 }
 static void scratch_touch(struct deck *d,int pressed,uint32_t now){
  if(!pressed)d->scratch.contact=0;
@@ -1111,7 +1148,24 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
     v.timeline.flags|=XZ_EXTRA_TIMELINE_BEAT_HISTORY;
    }
   }
-  v.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE);
+  v.known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_TIMELINE)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY_STATE);
+  struct xz_deck_key *k=&v.key_state;
+  k->owner=(struct xz_key_owner){.route_epoch=d->epoch,.load_revision=d->load_revision,.media_generation=d->media_generation};
+  k->metadata_valid=xz_music_key_parse(d->track.key,&k->original);k->engine_ready=d->epoch!=0;
+  k->desired_cents=d->key.desired;k->request_revision=d->key.revision;k->engaged=d->key.engaged;
+  k->mt_before=d->key.mt_before;k->master_tempo=d->master_tempo;k->target_deck=d->key.target;
+  if(d->emergency.active)k->audio_state=XZ_KEY_AUDIO_EMERGENCY;
+  else if(d->epoch&&d->output.key_valid&&(!streaming(s)||(uint32_t)(now-d->heard_at)<=150u)){
+   k->audio_state=d->output.key.state;k->applied_cents=d->output.key.cents;
+   k->applied_revision=d->output.key.revision;k->transport_generation=d->generation;
+   struct xz_key_snapshot ks={.loaded=k->metadata_valid,.original=k->original,.tempo_ratio=d->output.key.pitch_rate};
+   k->playing_valid=k->audio_state==XZ_KEY_AUDIO_APPLIED&&xz_key_playing(&ks,k->applied_cents,&k->playing);
+  }else if(d->epoch&&!d->key.ever_rendered&&!d->key.desired){
+   k->audio_state=XZ_KEY_AUDIO_PREPARED;k->playing.key=k->original;
+   k->playing_valid=k->metadata_valid&&!reversed(d)&&!d->search&&!d->ramp.active&&
+    (d->master_tempo||fabs(speed(d,now)-1.)<1e-10);
+  }
+  if(k->playing_valid)xz_music_key_format(k->playing.key,XZ_KEY_CLASSIC,v.playing_key);
   v.known |= XZ_EXTRA_KNOWN(XZ_EXTRA_F_ELAPSED) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_TOTAL) | XZ_EXTRA_KNOWN(XZ_EXTRA_F_CUE) |
              XZ_EXTRA_KNOWN(XZ_EXTRA_F_LOOP);
   const struct analysis *a = d->analysis;
@@ -1223,6 +1277,9 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
   }
  }
  if (d->r->media&&!next) { jump(d, 0, now); flush(p, d); }
+ if(d->key.engaged)d->master_tempo=d->key.mt_before;
+ atomic_fetch_and(&p->key_budget,~(1u<<d->index));
+ memset(&d->key,0,sizeof d->key);d->key.target=-1;key_history_reset(d);
  d->jog_load_pending=1;
  d->state = XZ_XP_LOADING; d->track = t;
  d->emergency.active=0;d->emergency.count=0;
@@ -2334,12 +2391,61 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
  if(select_sync_master(p,d->index))xz_xp_notice(p,d->index?"MASTER: DECK 4":"MASTER: DECK 3");
 }
 
+static int key_target_current(struct xz_xp_players *p,const struct xz_key_command *c){
+ struct xz_master_observation m;copy_master(p,&m);
+ if(!c->target_valid||!authority_same(&m,&c->master))return 0;
+ struct xz_key_owner owner={0};
+ if(c->target_deck<2){
+  if(!p->key_owner_reader||!p->key_owner_reader(c->target_deck,&owner))return 0;
+ }else if(c->target_deck<4){
+  pthread_mutex_lock(&p->publish_lock);
+  const struct xz_extra_deck *v=&p->view[c->target_deck-2];
+  if(v->loaded&&(v->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY_STATE)))owner=v->key_state.owner;
+  pthread_mutex_unlock(&p->publish_lock);
+ }
+ return xz_key_owner_equal(c->target_deck,c->target_owner,owner);
+}
+static void key_command(struct xz_xp_players *p,struct deck *d,const struct xz_key_command *c){
+ struct xz_key_owner own={.route_epoch=d->epoch,.load_revision=d->load_revision,.media_generation=d->media_generation};
+ if(!loaded(d->state)||!xz_key_owner_equal(d->index+2,own,c->source_owner)){
+  xz_xp_notice(p,"TRACK CHANGED / RETRY KEY CONTROL");return;
+ }
+ if(d->emergency.active){xz_xp_notice(p,xz_key_refusal_text(XZ_KEY_EMERGENCY));return;}
+ int cents=d->key.desired,mt=d->master_tempo,engaged=0,mt_before=d->key.mt_before;
+ if(c->kind==XZ_KEY_RESET)cents=0;
+ else if(c->kind==XZ_KEY_STEP&&(c->step==-1||c->step==1))cents+=100*c->step;
+ else if(c->kind==XZ_KEY_SYNC_TOGGLE){
+  if(d->key.engaged){cents=0;mt=d->key.mt_before;}
+  else{
+   if(!key_target_current(p,c)){xz_xp_notice(p,"MASTER CHANGED / RETRY KEY SYNC");return;}
+   struct xz_key_snapshot s={.loaded=1,.tempo_ratio=1,.master_tempo=1};
+   if(!xz_music_key_parse(d->track.key,&s.original)||!xz_key_sync_cents(&s,&c->target,&cents)){
+    xz_xp_notice(p,xz_key_refusal_text(XZ_KEY_NO_SOURCE));return;
+   }
+   mt_before=mt;mt=1;engaged=1;
+  }
+ }else return;
+ if(cents < -1200||cents>1200){xz_xp_notice(p,xz_key_refusal_text(XZ_KEY_RANGE));return;}
+ unsigned bit=1u<<d->index,budget=atomic_load(&p->key_budget);
+ if(cents){
+  do{
+   if(budget&~bit){xz_xp_notice(p,"KEY CPU LIMIT / RESET OTHER SOFTWARE DECK");return;}
+  }while(!atomic_compare_exchange_weak(&p->key_budget,&budget,budget|bit));
+ }
+ if(mt!=d->master_tempo)xz_stretch_reset(&d->stretch);
+ d->master_tempo=mt;d->key.desired=cents;d->key.engaged=engaged;d->key.mt_before=mt_before;
+ d->key.target=engaged?c->target_deck:-1;d->key.target_owner=c->target_owner;d->key.revision++;
+ d->emergency.count=0;
+ if(!cents&&!streaming(d->state))key_history_reset(d);
+ xz_xp_notice(p,cents?"KEY REQUEST QUEUED / PLAY TO VERIFY":"KEY RESET QUEUED");
+}
 static void command(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, uint32_t arrived,uint32_t master_choice,uint32_t operator_epoch) {
  if(e->kind==XZ_EXTRA_IN_PLAY&&e->pressed&&!e->held&&d->gate.held&&!d->gate.latched){
   d->gate.latched=1;return; /* Native Gate Cue consumes PLAY to latch the recall. */
  }
+ if(e->kind==XZ_EXTRA_IN_KEY){if(e->pressed&&!e->held)key_command(p,d,&e->key);return;}
  if(e->kind==XZ_EXTRA_IN_SYNC&&e->shift){
-  if(e->pressed&&!e->held)xz_xp_notice(p,"KEY SYNC: DECKS 1 AND 2 ONLY FOR NOW");
+  if(e->pressed&&!e->held)xz_xp_notice(p,"SET UP KEYS / KEY TARGET NOT CAPTURED");
   return;
  }
  if(e->kind==XZ_EXTRA_IN_MEMORY||e->kind==XZ_EXTRA_IN_MEMORY_DELETE){
@@ -2646,6 +2752,13 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
  }
  if (e->kind == XZ_EXTRA_IN_REVERSE && !loaded(d->state)) { if (e->pressed) d->reverse = !d->reverse; return; }
  if (e->kind == XZ_EXTRA_IN_MASTER_TEMPO) {
+  if(d->key.mt_owned){if(!e->pressed)d->key.mt_owned=0;return;}
+  if(e->pressed&&!e->held&&!e->shift&&d->key.engaged){
+   struct xz_key_command c={.kind=XZ_KEY_SYNC_TOGGLE,.source_owner={.route_epoch=d->epoch,
+    .load_revision=d->load_revision,.media_generation=d->media_generation}};
+   key_command(p,d,&c);if(!d->key.engaged)d->key.mt_owned=1;return;
+  }
+  if(d->emergency.active){if(e->pressed)xz_xp_notice(p,xz_key_refusal_text(XZ_KEY_EMERGENCY));return;}
   if(e->pressed){
    if(loaded(d->state))jump(d,heard_now(d,now),now);
    d->master_tempo=!d->master_tempo;
@@ -2753,9 +2866,13 @@ static int take(struct xz_xp_players *p,struct deck *d, struct queued_control *q
 }
 
 static void completed_output(struct deck *d,const xz_usb_deck_position *q){
- struct output_history *h=&d->output;h->rate_valid=h->beat_valid=0;
+ struct output_history *h=&d->output;h->rate_valid=h->beat_valid=h->key_valid=0;
  uint64_t end=q->source_completed_output_frames;
  if(!end||end>q->completed_frames||end<h->completed||q->applied_generation!=d->generation){h->crossing_valid=0;return;}
+ for(unsigned i=0;i<h->count;i++){
+  const struct output_span *s=&h->span[(h->head+i)%OUTPUT_SPANS];
+  if(end>s->begin&&end<=s->end){h->key=s->key;h->key_valid=1;break;}
+ }
  const struct analysis *a=d->analysis;
  for(unsigned i=0;i<h->count;i++){
   const struct output_span *s=&h->span[(h->head+i)%OUTPUT_SPANS];uint64_t source,first;
@@ -2785,7 +2902,7 @@ static void completed_output(struct deck *d,const xz_usb_deck_position *q){
   }else h->crossing_valid=0;
   }else h->crossing_valid=0;
   if(last==end){
-   if((source>>32)!=q->source_after_completed){h->crossing_valid=0;return;}
+   if((source>>32)!=q->source_after_completed){h->key_valid=h->crossing_valid=0;return;}
    h->rate=(double)s->step/(double)ONE*XZ_USB_RATE/d->r->rate;h->rate_valid=1;
    h->beat_valid=h->crossing_valid&&h->crossing_ms==h->beat_ms&&h->crossing<=(double)end;
    if(h->beat_valid)h->beat_age=(double)end-h->crossing;
@@ -2865,8 +2982,9 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   const xz_usb_deck_position *q = &position.deck[d->index];
   d->sync_wire_submitted=position.wire_submitted_frames;
   applied = q->applied_generation == d->generation;
+  if(!applied)d->output.key_valid=0;
   if (applied) {
-   if(d->underrun!=q->underrun_frames)output_reset(&d->output);
+   if(d->underrun!=q->underrun_frames){output_reset(&d->output);key_history_reset(d);}
    d->underrun=q->underrun_frames;
    staged = q->staged_frames;
    if ((q->source_valid & 2) && q->completed_frames != d->completed) {
@@ -2970,9 +3088,9 @@ render_ready:
   if (r == XZ_USB_OK) { accepted_segment(d);accepted_scratch(d);d->submitted += d->pending; d->pending = 0; continue; }
   if (r == XZ_USB_STALE) {
    if(d->scratch.releasing){scratch_release(d,now);xz_xp_notice(p,"SCRATCH RELEASE TRUNCATED");}
-   else {d->pos=d->block_start;d->pending=0;d->need_flush=1;}
+   else {d->pos=d->block_start;d->pending=0;d->need_flush=1;key_history_reset(d);}
   }
-  else if (r != XZ_USB_AGAIN && r != XZ_USB_BUSY) { d->pos = d->block_start; d->pending = 0; }
+  else if (r != XZ_USB_AGAIN && r != XZ_USB_BUSY) { d->pos = d->block_start; d->pending = 0; key_history_reset(d); }
   return;
  }
 }
@@ -2996,9 +3114,9 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
   /* A new route instance starts its queues at the initial generation; a lost one took the audio. */
   if (streaming(d->state)) pause_at_heard(d, now);
   SP_ONLY(d->sp.contact=0;d->sp.history_dirty=1);
-  d->epoch = link; d->generation = XZ_USB_INITIAL_GENERATION;
+  d->epoch = link; d->generation = XZ_USB_INITIAL_GENERATION;d->key.mt_owned=0;
   d->timeline_revision++;d->timeline_valid=d->timeline_anchor_valid=0;d->heard_rate=0;
-  output_reset(&d->output);
+  output_reset(&d->output);key_history_reset(d);
   d->need_flush = 0; d->pending = 0; d->submitted = d->completed = 0;
   d->loop.in_down=d->loop.held=0;
   if(d->pad_hold==PAD_HOLD_LOOP){d->loop.active=0;d->loop.edit=0;d->active_pad=-1;}
@@ -3041,6 +3159,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
  prepare_flush(p,d,now,link);
  if (streaming(d->state) && link && !d->need_flush) stream(p, d, now);
  if(scratch_tail_done(p,d,now))flush(p,d);
+ if(!d->key.desired&&fabsf(d->key.shift.ratio-1.f)<=.0001f)atomic_fetch_and(&p->key_budget,~(1u<<d->index));
  publish(p, d, now);
  SP_ONLY(struct xp_sp_private *v=&d->sp;uint32_t end=p->env.now_ms();
   uint32_t cost=sp_elapsed(end,v->step_begin,&v->clock_future);
@@ -3269,7 +3388,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
   d->vinyl = !!env->start_in_vinyl; d->quantize = !!env->start_with_quantize;
   d->auto_cue = 1; d->loop_pad = -1;
   d->mode_target[0]=d->quantize;d->mode_target[1]=d->remain;d->mode_target[2]=d->auto_cue;
-  xz_stretch_reset(&d->stretch);
+  xz_stretch_reset(&d->stretch);key_history_reset(d);
   atomic_init(&d->published_state, XZ_XP_EMPTY);
   atomic_init(&d->vinyl_level,0);
   if (!(d->r = calloc(1, sizeof *d->r)) || pthread_mutex_init(&d->queue_lock, NULL)) { free(d->r); break; }
@@ -3294,6 +3413,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
   sp_publish(&w->first.seq,w->first.word,zero,XP_SP_LATCH_WORDS);
   sp_publish(&w->previous.seq,w->previous.word,zero,XP_SP_LATCH_WORDS);
  });
+ atomic_init(&p->key_budget,0);
  atomic_init(&p->quit, 0);
  atomic_init(&p->revision,0);
  atomic_init(&p->sync_master,-1);atomic_init(&p->sync_requests,0);

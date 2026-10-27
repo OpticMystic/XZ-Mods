@@ -78,6 +78,9 @@ int xz_shell_runtime_key(int eligible, int theme, uint16_t code, unsigned channe
 /* LOAD of a side whose controls drive DECK 3 / 4 (side 0 left, 1 right), decided by runtime.c's deck select:
    the press loads the highlighted row to that player. 1 when the shell owns the screen and took it. */
 int xz_shell_runtime_extra_load_key(int eligible, int theme, int side);
+/* Opens the existing track browser for this logical deck, including a temporary
+   browser over CLASSIC. Returns to the saved interface on PLAY. Never loads a row. */
+int xz_shell_runtime_key_setup_load(int deck);
 int xz_shell_runtime_encoder_turn(int eligible, int theme, int delta);
 /* UiKey_EncoderPush entry words: flags (+0) and state (+8). */
 int xz_shell_runtime_encoder_push(int eligible, int theme, uint32_t flags, uint32_t state);

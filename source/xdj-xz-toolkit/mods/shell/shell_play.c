@@ -494,12 +494,12 @@ static void render_key(const struct play_layout *L, const struct xz_shell *u, co
  char text[16],key[8],from[8];
  if(L->key_caption_y>=0){
   if(sh_has(d,XZ_SHELL_F_KEY_SYNC)&&d->key_synced)sh_chip(c,6,y+2,"KEY SYNC",SH_BLUE,SH_WHITE,0);
-  else sh_text(c,6,y+5,"KEY",SH_SMALL,SH_DIM);
+  else sh_text(c,6,y+5,(sh_has(d,XZ_SHELL_F_KEY_PROOF)&&d->key_proof<0)?"TRACK KEY":"KEY",SH_SMALL,SH_DIM);
  }
  if(!sh_has(d,XZ_SHELL_F_KEY)||!d->key||!*d->key){sh_num(c,6,ny,"--",SH_NUM_MID,0x5a5a5a);return;}
  /* The master's own key is the reference, so plain. */
  int is_master=sh_has(d,XZ_SHELL_F_MASTER)&&d->master;
- uint32_t ink=is_master?SH_WHITE:sh_key_ink(m,d->key,d->key_matches_master,SH_WHITE);
+ uint32_t ink=is_master||(sh_has(d,XZ_SHELL_F_KEY_PROOF)&&d->key_proof<0)?SH_WHITE:sh_key_ink_cents(m,d->key,sh_has(d,XZ_SHELL_F_KEY_ORIGINAL)?d->key_cents:0,d->key_matches_master,SH_WHITE);
  const char *shown=sh_key_text(d->key,sh_key_display(u,m),key,sizeof key);
  int analysed=sh_has(d,XZ_SHELL_F_KEY_ORIGINAL);
  /* Right of the name: the tuning in cents, or (older runtime) the key-shift step. */

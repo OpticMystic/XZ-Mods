@@ -75,12 +75,13 @@ static void short_error(const char *error,char out[32]) {
 static void render_key_tile(uint16_t *pixels,int theme,int deck,const struct xz_key_strip_deck *d,struct xz_key_strip_box box) {
     struct xz_canvas c={pixels,(size_t)box.w,box.w,box.h,0};
     uint16_t bg=stock(theme,box.kind==XZ_KEY_STRIP_PLAY?0:BROWSE_HEAD_BG);
-    int linked=d->valid&&!d->error[0]&&(d->synced||d->sync_master);
+    int linked=d->valid&&!d->error[0]&&d->synced&&(!d->match_color||d->match_color==0x52d794);
     if(linked)bg=(uint16_t)((0x14>>3)<<11|(0x67>>2)<<5|(0x43>>3));
     fill565(c,0,0,box.w,box.h,bg);
     uint32_t bg_rgb=rgb(bg);int light=(int)((bg_rgb>>16&255)*3+(bg_rgb>>8&255)*6+(bg_rgb&255))>1600;
     const uint32_t muted=linked?0xd4eedf:light?0x52657a:0x9fb2cf,ink=light?0x142235:0xffffff,green=linked?0xffffff:light?0x087849:0x52d794;
     const uint32_t amber=light?0x945505:0xf0c46a,error_color=light?0x8e2020:0xff8f86;
+    uint32_t key_ink=d->match_color?d->match_color:ink;
     char cents[12]="";if(d->valid&&d->cents)snprintf(cents,sizeof(cents),"%+dc",d->cents);
     if(box.kind==XZ_KEY_STRIP_PLAY) {
         if(d->error[0]){error_lines(c,d->error,error_color);return;}
@@ -88,7 +89,7 @@ static void render_key_tile(uint16_t *pixels,int theme,int deck,const struct xz_
         const char *first=d->valid&&d->moved?d->original:"KEY";
         xz_text(c,x,4,first,1,8,muted);x+=xz_text_width(c,first,1,8)+5;
         if(d->valid&&d->moved){triangle(c,x,6,3,0,muted);x+=10;}
-        xz_text(c,x,0,d->valid?d->effective:"--",2,4,d->synced?green:ink);
+        xz_text(c,x,0,d->valid?d->effective:"--",2,4,key_ink);
         x=3;
         if(d->synced||d->sync_master){const char *role=d->synced?"SYNC":"MASTER";int w=xz_text_width(c,role,1,8)+8;xz_round_rect(c,x,17,w,17,2,15,light?0xdef4e8:0x0b2b1e);xz_text(c,x+4,18,role,1,8,green);x+=w+6;}
         if(cents[0])xz_text(c,x,18,cents,1,10,d->synced?green:amber);
@@ -97,7 +98,7 @@ static void render_key_tile(uint16_t *pixels,int theme,int deck,const struct xz_
         if(d->error[0]){char line[32];short_error(d->error,line);xz_text(c,x,-1,line,1,20,error_color);return;}
         const char *original=d->valid?d->original:"--";
         xz_text(c,x,-1,original,1,4,d->synced?green:d->moved?muted:ink);x+=xz_text_width(c,original,1,4)+4;
-        if(d->valid&&d->moved){triangle(c,x,4,2,0,muted);x+=8;xz_text(c,x,-1,d->effective,1,4,d->synced?green:ink);x+=xz_text_width(c,d->effective,1,4)+4;}
+        if(d->valid&&d->moved){triangle(c,x,4,2,0,muted);x+=8;xz_text(c,x,-1,d->effective,1,4,key_ink);x+=xz_text_width(c,d->effective,1,4)+4;}
         if(cents[0]){xz_text(c,x,-1,cents,1,10,d->synced?green:amber);x+=xz_text_width(c,cents,1,10)+4;}
         if(d->synced)xz_text(c,x,-1,"SYNC",1,6,green);
         else if(d->sync_master)xz_text(c,x,-1,"MASTER",1,8,green);

@@ -147,6 +147,7 @@ static void project_master(struct xz_extra_decks *out,uint32_t now){
   else d->known&=~XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER);
  }
 }
+extern void xz_key_project_extra(struct xz_extra_decks *) __attribute__((weak));
 int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold) {
  SYO_INC(SNAPSHOT);
 #ifdef XZ_JOG_DISPLAY_PROOF
@@ -179,6 +180,7 @@ int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_anal
   }
  }
  if(xz_jog_display_runtime_publish)xz_jog_display_runtime_publish(out,now_ms());
+ if(xz_key_project_extra)xz_key_project_extra(out);
  SYO_SOFTWARE(out);
  return out->route_up;
 }
@@ -202,7 +204,26 @@ enum xz_extra_wave_copy_result xz_extra_decks_copy_wave(int deck,
 }
 uint32_t xz_extra_decks_jog_content_epoch(int deck){return xz_xp_jog_content_epoch(deck);}
 
+extern int xz_key_control_request(int,enum xz_key_command_kind,int) __attribute__((weak));
+extern uint32_t xz_audio_output_epoch(unsigned) __attribute__((weak));
+extern void xz_xp_set_key_owner_reader(struct xz_xp_players *,int (*)(int,struct xz_key_owner *)) __attribute__((weak));
+int xz_key_owner_current(int deck,struct xz_key_owner *out){
+ if(!out||(unsigned)deck>=4)return 0;
+ *out=(struct xz_key_owner){0};
+ if(deck<2){out->native_epoch=xz_audio_output_epoch?xz_audio_output_epoch((unsigned)deck):0;return out->native_epoch!=0;}
+ struct xz_extra_decks s={0};
+ struct xz_xp_players *p=__atomic_load_n(&players,__ATOMIC_ACQUIRE);
+ if(!p||!xz_extra_decks_route().route_up)return 0;
+ xz_xp_read(p,&s);
+ const struct xz_extra_deck *d=&s.deck[deck-2];
+ if(!d->loaded||!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY_STATE)))return 0;
+ *out=d->key_state.owner;return out->route_epoch&&out->load_revision;
+}
 int xz_extra_deck_input(const struct xz_extra_deck_event *event) {
+ if(event&&(unsigned)event->deck<2&&event->kind==XZ_EXTRA_IN_SYNC&&event->shift){
+  if(!event->pressed||event->held)return 1;
+  return xz_key_control_request?xz_key_control_request(event->deck+2,XZ_KEY_SYNC_TOGGLE,0):0;
+ }
  struct xz_xp_players *p = __atomic_load_n(&players, __ATOMIC_ACQUIRE);
  int accepted=p ? xz_xp_input(p, event) : 0;
 #if XZ_SYNC_OBSERVATION
@@ -512,6 +533,7 @@ int xz_extra_decks_start(void) {
  (void)xz_cues_worker_start(xz_extra_resolve_track_checked,cue_store_notice,"/media/usb1","/media/usb2");
  xz_xp_set_cue_store(p,xz_cues_restore,xz_cues_enqueue);
  if(xz_extra_native_sync_clock)xz_xp_set_native_sync_clock(p,xz_extra_native_sync_clock);
+ if(xz_xp_set_key_owner_reader)xz_xp_set_key_owner_reader(p,xz_key_owner_current);
  if(xz_xp_set_master_observer&&xz_sync_link_runtime_master_observe)
   xz_xp_set_master_observer(p,xz_sync_link_runtime_master_observe);
  if (xz_xp_start(p)) { xz_cues_worker_stop();xz_xp_destroy(p); return -1; }

@@ -19,6 +19,7 @@ struct xz_classic_column_deck {
  int driven;                              /* a physical side drives it */
  int source;                              /* enum xz_shell_source; 0 unknown */
  char key[8], original[8];                /* playing key and the analysed one; "" unknown */
+ uint32_t key_color;
  int cents, cents_known;                  /* native decks: tuning left after the semitone */
 };
 struct xz_classic_column_view { int layout; struct xz_classic_column_deck deck[4]; };

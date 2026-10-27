@@ -18,6 +18,12 @@
 #include "runtime.h"
 #include "audio/runtime.h"
 #include "key/runtime.h"
+#include "key/control.h"
+#pragma weak xz_key_has_applied
+#pragma weak xz_audio_output_epoch
+extern int xz_sync_link_runtime_master_observe(struct xz_master_observation *) __attribute__((weak));
+#pragma weak xz_extra_decks_route
+
 #include "key/native.h"
 #include "key/display.h"
 #include "key/browser.h"
@@ -63,6 +69,7 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_runtime_deck_early_key
 #pragma weak xz_runtime_deck_games_pending
 #pragma weak xz_shell_runtime_extra_load_key
+#pragma weak xz_shell_runtime_key_setup_load
 /* The classic four-deck detail panel: its state (ui/native_wave_runtime.c), the DECK 3/4 players
    (extra_decks.c) and DECK SELECT (runtime.c). Weak like the rest: without them the panel never opens. */
 #pragma weak xz_native_four_detail
@@ -196,7 +203,7 @@ static int browse_context(void) {
 /* A successful KEY SYNC stays shown until that deck loads another track or its shift changes. */
 static unsigned key_sync_led_mask;
 int xz_ui_runtime_key_synced(int deck){return deck>=0&&deck<2&&!!(__atomic_load_n(&key_sync_led_mask,__ATOMIC_ACQUIRE)&(1u<<deck));}
-static struct { int valid, cents, mt_before; uint32_t epoch; } key_sync[2];
+static struct { int valid,cents,mt_before,target_deck; uint32_t epoch;struct xz_key_owner target_owner; } key_sync[2];
 static unsigned profile_slot = ~0u;
 _Static_assert((int)XZ_BROWSE_TITLE==XZ_KEY_COLUMN_TITLE&&(int)XZ_BROWSE_ARTIST==XZ_KEY_COLUMN_ARTIST&&
     (int)XZ_BROWSE_KEY==XZ_KEY_COLUMN_KEY&&(int)XZ_BROWSE_BPM==XZ_KEY_COLUMN_BPM,"browse column values");
@@ -965,39 +972,137 @@ static int key_sync_end(int deck,void *player,int reset) {
     key_sync[deck].valid=0;model.deck[deck].key_synced=key_strip[deck].synced=0;
     strip_error_until[deck]=0;return 1;
 }
-static int sync_key(int deck) {
-    struct xz_key_snapshot source,master;struct xz_playing_key target;int master_shift,cents;
-    if(deck<0||deck>1)return 0;
-    if(!key_available){
-        play_key_open_locked(deck);play_key.down=0;play_key_dirty=1;
-        __atomic_store_n(&play_key_visible,1,__ATOMIC_RELEASE);
-        return key_sync_fail(deck,XZ_KEY_SYNC_NO_ENGINE);
+static uint32_t key_notice_seen[2];
+static pthread_mutex_t key_projection_mutex=PTHREAD_MUTEX_INITIALIZER;
+static struct { struct xz_deck_key master;int deck,format,feedback,traffic;uint32_t at; } key_projection;
+void xz_key_project_extra(struct xz_extra_decks *extra){
+    struct xz_deck_key master;int md,format,feedback,traffic;uint32_t at;
+    pthread_mutex_lock(&key_projection_mutex);
+    master=key_projection.master;md=key_projection.deck;format=key_projection.format;
+    feedback=key_projection.feedback;traffic=key_projection.traffic;at=key_projection.at;
+    pthread_mutex_unlock(&key_projection_mutex);
+    int valid=master.playing_valid&&(uint32_t)(xz_game_milliseconds()-at)<=250u&&extra->master_actual.deck==md;
+    if(valid&&md<2)valid=xz_audio_output_epoch&&xz_audio_output_epoch((unsigned)md)==master.owner.native_epoch;
+    if(valid&&md>=2)valid=xz_key_owner_equal(md,master.owner,extra->deck[md-2].key_state.owner);
+    for(int i=0;i<2;i++){
+        struct xz_extra_deck *d=&extra->deck[i];d->key_feedback=feedback;d->key_color=0;
+        if(d->key_state.metadata_valid)xz_music_key_format(d->key_state.original,format,d->original_display);
+        if(d->key_state.playing_valid)xz_music_key_format(d->key_state.playing.key,format,d->playing_key);
+        if(valid&&traffic&&md!=i+2&&d->key_state.playing_valid){
+            enum xz_key_match m=xz_key_match(d->key_state.playing,master.playing);
+            d->key_color=m==XZ_KEY_COMPATIBLE?0x52d794:m==XZ_KEY_DETUNED?0xffbd59:0;
+        }
     }
-    void *player=key_player(deck);
-    if(!player||!native_master_tempo_on)return key_sync_fail(deck,XZ_KEY_SYNC_NO_ENGINE);
-    if(key_sync[deck].valid){
-        return key_sync_end(deck,player,1);
+}
+static int deck_key_read(int deck,struct xz_deck_key *out,struct xz_key_snapshot *native){
+    memset(out,0,sizeof *out);
+    if((unsigned)deck>=4)return 0;
+    if(deck>=2){
+        struct xz_extra_decks extra={0};
+        if(!xz_extra_decks_snapshot||!xz_extra_decks_snapshot(&extra))return 0;
+        const struct xz_extra_deck *d=&extra.deck[deck-2];
+        if(!d->loaded||!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY_STATE)))return 0;
+        *out=d->key_state;return out->engine_ready;
     }
-    /* Each failure says on that deck's own key strip what to do; nothing pops up. */
-    if(!xz_key_native_snapshot((unsigned)deck,&source))return key_sync_fail(deck,XZ_KEY_SYNC_NO_KEY);
-    if(!xz_key_native_snapshot((unsigned)(1-deck),&master))return key_sync_fail(deck,XZ_KEY_SYNC_NO_MASTER_KEY);
-    /* Two local decks always target each other. More than two would select the master. */
-    if(xz_key_get_applied_cents(1-deck,master.epoch,&master_shift)||!xz_key_playing(&master,master_shift,&target))
-        return key_sync_fail(deck,XZ_KEY_SYNC_NO_MASTER_KEY);
-    int mt_before=source.master_tempo;source.master_tempo=1;
-    if(!xz_key_sync_cents(&source,&target,&cents))return key_sync_fail(deck,XZ_KEY_SYNC_RANGE);
-    native_master_tempo_on(player,1);
-    if(xz_key_set_desired_cents(deck,source.epoch,cents))
-        {native_master_tempo_on(player,mt_before);return key_sync_fail(deck,XZ_KEY_SYNC_RANGE);}
-    __atomic_fetch_or(&key_sync_led_mask,1u<<deck,__ATOMIC_RELEASE);
-    key_sync[deck].mt_before=mt_before;
-    strip_error_until[deck]=0;
-    __atomic_add_fetch(&xz_mods_key_proof_v1.requests,1,__ATOMIC_RELAXED);
-    key_sync[deck].valid=1;key_sync[deck].epoch=source.epoch;key_sync[deck].cents=cents;model.deck[deck].key_synced=1;
-    char after[48];xz_key_readout(&source,cents,after,sizeof(after));
-    snprintf(ui.notice,sizeof(ui.notice),"D%d KEY %s / TARGET D%d%s",deck+1,after,2-deck,
-        source.original.minor!=master.original.minor?" RELATIVE KEY":"");
-    xz_log(ui.notice);return 1;
+    struct xz_key_snapshot s;
+    if(model.deck[deck].pc_stems.source!=XZ_UI_SOURCE_LOCAL||!xz_key_native_snapshot((unsigned)deck,&s))return 0;
+    if(native)*native=s;
+    out->owner.native_epoch=s.epoch;out->original=s.original;out->metadata_valid=1;
+    out->engine_ready=key_available;out->master_tempo=s.master_tempo;out->engaged=key_sync[deck].valid;out->target_deck=key_sync[deck].target_deck;
+    xz_key_get_desired_cents(deck,s.epoch,&out->desired_cents);
+    out->playing_valid=!xz_key_get_applied_cents(deck,s.epoch,&out->applied_cents)&&
+        xz_key_playing(&s,out->applied_cents,&out->playing);
+    out->audio_state=out->playing_valid&&xz_key_has_applied&&xz_key_has_applied(deck,s.epoch)?XZ_KEY_AUDIO_APPLIED:XZ_KEY_AUDIO_PREPARED;
+    if(out->audio_state==XZ_KEY_AUDIO_PREPARED&&out->desired_cents)out->playing_valid=0;
+    return 1;
+}
+static struct xz_master_observation key_master(void){
+    struct xz_master_observation m={.deck=XZ_MASTER_UNKNOWN};
+    if(xz_sync_link_runtime_master_observe){
+        if(!xz_sync_link_runtime_master_observe(&m)||!m.revision||!m.operator_epoch||
+           (uint32_t)(xz_game_milliseconds()-m.observed_ms)>XZ_MASTER_MAX_AGE_MS)
+            m=(struct xz_master_observation){.deck=XZ_MASTER_UNKNOWN};
+        return m; /* UNKNOWN never falls back to native flags. */
+    }
+    if(xz_extra_decks_route&&xz_extra_decks_route().available)return m;
+    /* Standalone native-only fixtures/builds have no global authority observer. */
+    for(int d=0;d<2;d++){
+        struct xz_key_snapshot s;
+        if(model.deck[d].pc_stems.source==XZ_UI_SOURCE_LOCAL&&xz_key_native_snapshot((unsigned)d,&s)&&s.master){
+            if(m.deck>=0)return (struct xz_master_observation){.deck=XZ_MASTER_UNKNOWN};
+            m.deck=d;m.revision=s.epoch;m.operator_epoch=1;
+        }
+    }
+    return m;
+}
+static int key_master_same(struct xz_master_observation a,struct xz_master_observation b){
+    return a.deck==b.deck&&a.revision==b.revision&&a.operator_epoch==b.operator_epoch&&
+        a.request_epoch==b.request_epoch&&a.lease_generation==b.lease_generation&&
+        a.route_epoch==b.route_epoch&&a.load_revision==b.load_revision&&a.transport_generation==b.transport_generation;
+}
+static int key_request_locked(int deck,enum xz_key_command_kind kind,int step){
+    if((unsigned)deck>=4)return 0;
+    if(deck<2&&kind==XZ_KEY_SYNC_TOGGLE&&key_sync[deck].valid)return key_sync_end(deck,key_player(deck),1);
+    struct xz_master_observation m=key_master();
+    struct xz_deck_key source,target={0},again;struct xz_key_snapshot native={0};
+    struct xz_key_command c={.kind=kind,.step=step,.target_deck=-1};
+    enum xz_key_refusal refusal=XZ_KEY_OK;
+    if(!deck_key_read(deck,&source,&native)||!source.engine_ready)refusal=XZ_KEY_NO_SOURCE;
+    else if(kind==XZ_KEY_SYNC_TOGGLE){
+        if(m.deck>=0&&m.deck<4)(void)deck_key_read(m.deck,&target,NULL);
+        refusal=xz_key_plan_sync(deck,&source,&target,&m,&c);
+    }else if((kind!=XZ_KEY_STEP&&kind!=XZ_KEY_RESET)||(kind==XZ_KEY_STEP&&step!=-1&&step!=1))return 0;
+    else c.source_owner=source.owner;
+    if(refusal!=XZ_KEY_OK){
+        snprintf(ui.notice,sizeof ui.notice,"%s",xz_key_refusal_text(refusal));
+        if(deck<2)key_sync_fail(deck,refusal==XZ_KEY_IS_MASTER?XZ_KEY_SYNC_IS_MASTER:
+            refusal==XZ_KEY_NO_MASTER?XZ_KEY_SYNC_NEED_MASTER:XZ_KEY_SYNC_NO_MASTER_KEY);
+        return 0;
+    }
+    if(!deck_key_read(deck,&again,NULL)||!xz_key_owner_equal(deck,source.owner,again.owner))return 0;
+    if(c.target_valid&&(!key_master_same(m,key_master())||!deck_key_read(c.target_deck,&again,NULL)||
+        !xz_key_owner_equal(c.target_deck,c.target_owner,again.owner)))return 0;
+    if(deck>=2){
+        struct xz_extra_decks before={0};
+        if(xz_extra_decks_snapshot)(void)xz_extra_decks_snapshot(&before);
+        key_notice_seen[deck-2]=before.notice_seq;
+        struct xz_extra_deck_event e={.deck=deck-2,.kind=XZ_EXTRA_IN_KEY,.pressed=1,.key=c};
+        int accepted=xz_extra_deck_input&&xz_extra_deck_input(&e);
+        snprintf(ui.notice,sizeof ui.notice,"%s",accepted?"KEY REQUEST QUEUED / PLAY TO VERIFY":"KEY QUEUE BUSY / RETRY");
+        return accepted;
+    }
+    int cents=kind==XZ_KEY_RESET?0:source.desired_cents+step*100;
+    void *player=NULL;
+    if(kind==XZ_KEY_SYNC_TOGGLE){
+        player=key_player(deck);
+        if(!player||!native_master_tempo_on)return key_sync_fail(deck,XZ_KEY_SYNC_NO_ENGINE);
+        native.master_tempo=1;
+        if(!xz_key_sync_cents(&native,&c.target,&cents))return key_sync_fail(deck,XZ_KEY_SYNC_RANGE);
+        native_master_tempo_on(player,1);
+    }
+    if(xz_key_set_desired_cents(deck,native.epoch,cents)){
+        if(player)native_master_tempo_on(player,source.master_tempo);
+        return key_sync_fail(deck,XZ_KEY_SYNC_RANGE);
+    }
+    key_sync[deck].valid=kind==XZ_KEY_SYNC_TOGGLE;
+    key_sync[deck].target_deck=c.target_deck;key_sync[deck].target_owner=c.target_owner;
+    key_sync[deck].mt_before=source.master_tempo;key_sync[deck].epoch=native.epoch;key_sync[deck].cents=cents;
+    model.deck[deck].key_synced=key_sync[deck].valid;
+    if(key_sync[deck].valid)__atomic_fetch_or(&key_sync_led_mask,1u<<deck,__ATOMIC_RELEASE);
+    else __atomic_fetch_and(&key_sync_led_mask,~(1u<<deck),__ATOMIC_RELEASE);
+    strip_error_until[deck]=0;__atomic_add_fetch(&xz_mods_key_proof_v1.requests,1,__ATOMIC_RELAXED);
+    snprintf(ui.notice,sizeof ui.notice,"D%d KEY %+dc%s",deck+1,cents,kind==XZ_KEY_SYNC_TOGGLE?" / MASTER CAPTURED":"");
+    return 1;
+}
+static int sync_key(int deck){return key_request_locked(deck,XZ_KEY_SYNC_TOGGLE,0);}
+int xz_key_control_request(int deck,enum xz_key_command_kind kind,int step){
+    pthread_mutex_lock(&ui_mutex);
+    int accepted=key_request_locked(deck,kind,step);
+    char notice[sizeof ui.notice];snprintf(notice,sizeof notice,"%s",ui.notice);
+    xz_ui_notice_set(&async_notice,notice,xz_game_milliseconds());
+    pthread_mutex_unlock(&ui_mutex);
+    if(xz_shell_runtime_notice)xz_shell_runtime_notice(notice);
+    xz_native_skin_request_repaint();return accepted;
 }
 
 static int (*stock_master_tempo_key)(void *,const void *);
@@ -1530,13 +1635,27 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         case XZ_UI_SHIFT_PAGES: model.shift_pages = 1; break;
         case XZ_UI_PAD_FEEDBACK: model.pad_feedback = a->value != 0; break;
         case XZ_UI_SHIFT_KEYSYNC: model.shift_keysync = 1; break;
-        case XZ_UI_KEY_CHECK:
-            ui.notice[0]=0;
-            if(key_available&&native_master_tempo_on&&xz_key_native_snapshot(0,&key_snapshot[0])&&xz_key_native_snapshot(1,&key_snapshot[1])){
-                model.shift_keysync=1;
-                snprintf(ui.notice,sizeof(ui.notice),"TWO KEYS + MASTER TEMPO SETTER VERIFIED / SHIFT + SYNC ENABLED");
-            }else snprintf(ui.notice,sizeof(ui.notice),"LOAD ANALYZED LOCAL TRACKS AND VERIFY KEY ENGINE, THEN RETRY");
+        case XZ_UI_KEY_CHECK: {
+            if(!play_key.open){
+                play_key_open_locked(a->deck);play_key.down=0;play_key.setup=1;play_key.step=0;
+                xz_play_key_changed(&play_key);__atomic_store_n(&play_key_visible,1,__ATOMIC_RELEASE);
+            }
+            struct xz_deck_key k;int have=deck_key_read(a->deck,&k,NULL);
+            if(play_key.step==3&&(!have||!k.metadata_valid)){
+                struct xz_extra_route r=xz_extra_decks_route?xz_extra_decks_route():(struct xz_extra_route){0};
+                play_key.open=0;
+                if(a->deck>=2&&!r.route_up){xz_ui_navigate(&ui,XZ_UI_FOUR_DECKS);panel_show_locked();}
+                else if(xz_shell_runtime_key_setup_load&&xz_shell_runtime_key_setup_load(a->deck)){
+                    xz_native_touch_visible(&touch,0);__atomic_store_n(&visible,0,__ATOMIC_RELEASE);
+                }else {play_key.open=1;snprintf(ui.notice,sizeof ui.notice,"TRACK BROWSER UNAVAILABLE / RETRY");}
+            }
+            int live=have&&k.playing_valid&&k.audio_state==XZ_KEY_AUDIO_APPLIED&&
+                k.applied_revision==k.request_revision&&abs(k.desired_cents-k.applied_cents)<=1;
+            snprintf(ui.notice,sizeof ui.notice,"%s",live?"PROCESSED KEY VERIFIED":
+                have?"KEY PREPARED / PLAY TO VERIFY REQUEST":"CONNECT ROUTE / LOAD ANALYZED TRACK");
+            if(live&&play_key.step==3){play_key.setup=0;xz_play_key_changed(&play_key);}
             break;
+        }
         case XZ_UI_KEY_SYNC: sync_key(a->deck); break;
         case XZ_UI_BROWSE_COLUMN:
             if (!xz_key_browser_column_choose(model.browse_columns, a->index/4, a->index%4))
@@ -1567,16 +1686,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             __atomic_store_n(&xz_mods_key_feedback_proof_v1.enabled,model.key_feedback,__ATOMIC_RELEASE);
             break;
         case XZ_UI_KEY_SHIFT:
-            if (key_available && a->deck >= 0 && a->deck < 2) {
-                struct xz_key_snapshot snapshot;int current;
-                if (xz_key_native_snapshot((unsigned)a->deck,&snapshot)&&
-                    xz_key_get_desired_cents(a->deck,snapshot.epoch,&current) == 0) {
-                    int target = a->index == 0 ? 0 : current + a->index*100;
-                    if (xz_key_set_desired_cents(a->deck,snapshot.epoch,target) != 0)
-                        snprintf(ui.notice, sizeof(ui.notice), "KEY RANGE IS -12 TO +12 SEMITONES");
-                    else { key_sync[a->deck].valid = 0; model.deck[a->deck].key_synced = 0; }
-                }
-            }
+            key_request_locked(a->deck,a->index?XZ_KEY_STEP:XZ_KEY_RESET,a->index);
             break;
         case XZ_UI_TAKEOVER_TOGGLE:
             model.fb_takeover = !model.fb_takeover;
@@ -2298,28 +2408,44 @@ static void refresh_local(void) {
             }
         }
     }
-    for(int deck=0;deck<2;deck++)if(key_valid[deck]&&key_valid[1-deck]){
-        int shift[2]={0,0};struct xz_playing_key playing[2];
-        xz_key_get_applied_cents(0,key_snapshot[0].epoch,&shift[0]);
-        xz_key_get_applied_cents(1,key_snapshot[1].epoch,&shift[1]);
-        if(key_available&&native_master_tempo_on)
-            model.deck[deck].ready|=XZ_UI_KEYSYNC;
-        if(xz_key_playing(&key_snapshot[deck],shift[deck],&playing[deck])&&
-            xz_key_playing(&key_snapshot[1-deck],shift[1-deck],&playing[1-deck])){
-            enum xz_key_match match=xz_key_match(playing[deck],playing[1-deck]);
-            model.deck[deck].key_color=key_snapshot[deck].master?0x52d794:
-                key_snapshot[1-deck].master?(match==XZ_KEY_COMPATIBLE?0x52d794:match==XZ_KEY_DETUNED?0xffbd59:0xa8b2bf):0xa8b2bf;
+    struct xz_master_observation authority=key_master();
+    struct xz_deck_key views[4];memset(views,0,sizeof views);
+    for(int d=0;d<4;d++)(void)deck_key_read(d,&views[d],NULL);
+    int have_master=authority.deck>=0&&authority.deck<4&&views[authority.deck].playing_valid;
+    pthread_mutex_lock(&key_projection_mutex);
+    key_projection.master=have_master?views[authority.deck]:(struct xz_deck_key){0};key_projection.deck=authority.deck;
+    key_projection.format=model.key_format==2?XZ_KEY_CAMELOT:model.key_format==1?XZ_KEY_CLASSIC:
+        key_valid[0]?key_snapshot[0].format:key_valid[1]?key_snapshot[1].format:XZ_KEY_CLASSIC;key_projection.feedback=model.key_feedback;
+    key_projection.traffic=model.browse_traffic;key_projection.at=xz_game_milliseconds();
+    pthread_mutex_unlock(&key_projection_mutex);
+    for(int d=0;d<4;d++){
+        struct xz_ui_deck *u=&model.deck[d];const struct xz_deck_key *k=&views[d];
+        if(d>=2){
+            u->ready&=~(XZ_UI_KEY|XZ_UI_KEYSYNC);u->key_synced=k->engaged;u->key_semitones=(int)round(k->desired_cents*.01);
+            if(k->engine_ready&&k->metadata_valid&&k->audio_state!=XZ_KEY_AUDIO_EMERGENCY)u->ready|=XZ_UI_KEY;
+            char original[8],playing[8];int format=key_projection.format;
+            xz_music_key_format(k->original,format,original);xz_music_key_format(k->playing.key,format,playing);
+            if(!k->metadata_valid)snprintf(u->key_readout,sizeof u->key_readout,"KEY --");
+            else if(k->playing_valid&&k->request_revision!=k->applied_revision)
+                snprintf(u->key_readout,sizeof u->key_readout,"%s > %s %+dc / REQ %+dc",original,playing,k->playing.cents,k->desired_cents);
+            else if(k->playing_valid)snprintf(u->key_readout,sizeof u->key_readout,"%s > %s %+dc",original,playing,k->playing.cents);
+            else snprintf(u->key_readout,sizeof u->key_readout,"TRACK %s / REQUEST %+dc",original,k->desired_cents);
+        }
+        u->ready&=~XZ_UI_KEYSYNC;
+        if(k->engine_ready&&(k->engaged||(have_master&&authority.deck!=d&&k->metadata_valid))&&
+            (d>=2||native_master_tempo_on))u->ready|=XZ_UI_KEYSYNC;
+        u->key_color=0xa8b2bf;
+        if(have_master&&d!=authority.deck&&k->playing_valid){
+            enum xz_key_match match=xz_key_match(k->playing,views[authority.deck].playing);
+            u->key_color=match==XZ_KEY_COMPATIBLE?0x52d794:match==XZ_KEY_DETUNED?0xffbd59:0xa8b2bf;
         }
     }
-    for(int deck=0;deck<2;deck++)key_strip[deck].sync_master=key_strip[deck].valid&&key_strip[1-deck].valid&&
-        key_snapshot[deck].master&&!key_snapshot[1-deck].master&&key_strip[1-deck].synced;
-    struct xz_playing_key master_key;int have_master=0,master_format=XZ_KEY_CLASSIC;
-    for(int deck=0;deck<2;deck++)if(key_valid[deck]&&key_snapshot[deck].master){
-        int cents=0;xz_key_get_applied_cents(deck,key_snapshot[deck].epoch,&cents);
-        have_master=xz_key_playing(&key_snapshot[deck],cents,&master_key);master_format=key_snapshot[deck].format;
+    for(int d=0;d<2;d++){
+        key_strip[d].sync_master=have_master&&authority.deck==d;
+        key_strip[d].match_color=model.browse_traffic?model.deck[d].key_color:0;
     }
-    xz_key_browser_master(have_master?&master_key:NULL,master_format);
-    xz_key_traffic_master(have_master?&master_key:NULL);
+    xz_key_browser_master(have_master?&views[authority.deck].playing:NULL,model.key_format==2?XZ_KEY_CAMELOT:XZ_KEY_CLASSIC);
+    xz_key_traffic_master(have_master?&views[authority.deck].playing:NULL);
     xz_key_browser_configure(model.browse_columns,model.browse_key_prefix,model.browse_traffic,model.key_format);
     int focus=xz_native_focus_deck();
     if(focus!=native_focus){native_focus=focus;followed_generation=0;}
@@ -2684,10 +2810,16 @@ static int play_key_extra_locked(struct xz_extra_decks *out){
 static void play_key_view_locked(struct xz_play_key_view *out){
     xz_play_key_view(&play_key,&model,ui.notice,out);out->native_engine=!!key_available;
     out->native_sync=key_available&&native_master_tempo_on;
-    if(play_key.deck>1){
-        struct xz_extra_decks extra;
-        snprintf(out->key,sizeof out->key,"%s",play_key_extra_locked(&extra)?xz_classic_metadata(&extra.deck[play_key.deck-2]):"---");
+    if(play_key.deck>=2&&play_key.deck<4&&xz_extra_decks_snapshot){
+        struct xz_extra_decks extra={0};
+        if(xz_extra_decks_snapshot(&extra)&&extra.notice_seq!=key_notice_seen[play_key.deck-2]&&
+           (uint32_t)(xz_game_milliseconds()-extra.notice_at_ms)<3500u)
+            snprintf(out->notice,sizeof out->notice,"%s",extra.notice);
     }
+    struct xz_deck_key k;
+    if(deck_key_read(play_key.deck,&k,NULL))out->live_verified=k.audio_state==XZ_KEY_AUDIO_APPLIED&&
+        k.playing_valid&&k.applied_revision==k.request_revision&&abs(k.desired_cents-k.applied_cents)<=1;
+
 }
 static int play_key_binding_valid(const struct xz_play_key *key){
     if(!key->open)return 1;

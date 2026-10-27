@@ -41,7 +41,7 @@ runtime = (M / 'runtime.c').read_text()
 begin = runtime.index('static int deck_outcome(')
 end = runtime.index('\nstatic int deck_route(', begin)
 (O / 'runtime-outcome.inc').write_text(runtime[begin:end] + '\n')
-names = ['extra_player.c', 'deck_select.c', 'anlz_extra.c', 'shell_analysis.c',
+names = ['extra_player.c','key/keyshift.c','key/music.c','key/control.c', 'deck_select.c', 'anlz_extra.c', 'shell_analysis.c',
          'ui/layered_wave_source.c', 'ui/layered_wave.c', 'audio/stem_media.c',
          'audio/stem_mp3.c', 'audio/stem_decode.c', 'shell_runtime_core.c']
 sources = [M / n for n in names] + [test_root / ('test_stock_' + a.suite + '_review.c')]

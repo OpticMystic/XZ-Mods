@@ -1,3 +1,4 @@
+#include "../key/view.h"
 /* SPDX-License-Identifier: MIT */
 #include "classic_mixer.h"
 #include "ui_skin.h"
@@ -17,7 +18,7 @@ struct panel {
  int total_known,bpm_known,tempo_known,range,range_known,mt,mt_known,quant,quant_known,acue,acue_known;
  uint32_t master_scope; int master,master_known,source,source_known,loop,slip,rev,call;
  int track_no,track_known;char sync[32];
- const char *title,*key; int title_known,key_known;
+ const char *title,*key; int title_known,key_known; uint32_t key_color; char key_label[24];
  const struct xz_extra_wave *wave;
 };
 static struct panel project(const struct xz_classic_mixer_view *v,int id){
@@ -36,7 +37,7 @@ static struct panel project(const struct xz_classic_mixer_view *v,int id){
  p.load_known=1;p.loaded=d->loaded;p.title_known=EK(TITLE);p.title=d->title;p.remain=d->remain;p.time_known=EK(TIME_MODE)&&xz_extra_lane_position_ms(d,v->now_ms,&p.elapsed);p.total=d->total_ms;p.total_known=EK(TOTAL);
  p.bpm_known=EK(BPM);p.bpm=d->bpm_x100;p.tempo_known=EK(TEMPO);p.tempo=d->tempo_x100;p.range_known=EK(TEMPO_RANGE);p.range=d->tempo_range;p.mt_known=EK(MASTER_TEMPO);p.mt=d->master_tempo;p.quant_known=EK(QUANTIZE);p.quant=d->quantize;
  /* These software modes are value-owned snapshot fields, not native guesses. */
- p.acue_known=EK(TIME_MODE);p.acue=d->auto_cue;p.master_known=EK(MASTER);p.master=p.master_known&&d->master;p.master_scope=d->master_scope;p.source_known=EK(SOURCE);p.source=d->source;p.key_known=EK(KEY);p.key=d->key;p.loop=EK(LOOP)&&d->loop.active;p.slip=d->slip;p.rev=d->reverse;p.call=d->pad_mode==XZ_EXTRA_PAD_CALL;
+ p.acue_known=EK(TIME_MODE);p.acue=d->auto_cue;p.master_known=EK(MASTER);p.master=p.master_known&&d->master;p.master_scope=d->master_scope;p.source_known=EK(SOURCE);p.source=d->source;p.key_known=EK(KEY);p.key=xz_extra_key_text(d);p.key_color=xz_extra_key_ink(d,WHITE);xz_extra_key_label(d,p.key_label,sizeof p.key_label);p.loop=EK(LOOP)&&d->loop.active;p.slip=d->slip;p.rev=d->reverse;p.call=d->pad_mode==XZ_EXTRA_PAD_CALL;
  if(!p.master)xz_extra_sync_chip(d,p.sync,sizeof p.sync);
  if(EK(WAVE))p.wave=&d->wave;
 #undef EK
@@ -182,7 +183,7 @@ int xz_classic_mixer_half_draw(uint16_t *pixels,size_t stride,size_t count,const
  }else text(c,358,40,36,"--",1,GRAY);
  /* Source and key where the stock panel has TRACK and its number; AUTO CUE and MASTER TEMPO as its boxes. */
  const char *source=p.source_known?(p.source==1?"USB1":p.source==2?"USB2":"--"):"--";
- text(c,17,62,46,source,1,GRAY);text(c,17,75,48,p.key_known&&p.key&&p.key[0]?p.key:"--",2,WHITE);
+ text(c,17,62,46,source,1,GRAY);text(c,17,75,48,p.key_known?(p.key_label[0]?p.key_label:p.key):"--",2,p.key_color?p.key_color:WHITE);
  lamp_box(c,68,60,57,13,"A.CUE",p.acue_known,p.acue,WHITE);
  lamp_box(c,68,79,57,13,"MT",p.mt_known,p.mt,RED);
  /* The clock in the deck's TIME MODE. */
@@ -233,7 +234,7 @@ int xz_classic_mixer_draw(uint16_t *pixels,size_t stride,size_t count,const stru
   snprintf(b,sizeof b,"DECK %d",id+1);text(c,6,25,54,b,1,WHITE);
   if(p.master_known&&p.master)text(c,72,25,120,id>=2&&p.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MASTER":"MASTER",1,ORANGE);
   const char *source=p.source_known?(p.source==1?"USB1":p.source==2?"USB2":p.source==3?"LINK":p.source==4?"PC":"--"):"--";
-  text(c,6,39,45,source,1,GRAY);text(c,54,39,42,p.key_known&&p.key?p.key:"--",1,WHITE);text(c,103,39,91,p.sync,1,0x73b6ff);
+  text(c,6,39,45,source,1,GRAY);text(c,54,39,42,p.key_known?(p.key_label[0]?p.key_label:p.key):"--",1,p.key_color?p.key_color:WHITE);text(c,103,39,91,p.sync,1,0x73b6ff);
   text(c,6,53,53,p.time_known?(p.remain?"REMAIN":"TIME"):"--",1,GRAY);
   lamp(c,60,53,46,"A.CUE",p.acue_known,p.acue,WHITE);lamp(c,108,53,22,"MT",p.mt_known,p.mt,RED);lamp(c,132,53,62,"QUANTIZE",p.quant_known,p.quant,RED);
   if(p.loaded&&p.time_known&&(!p.remain||p.total_known)){int64_t t=p.remain?(int64_t)p.total-p.elapsed:p.elapsed;if(t<0)t=0;if(t>5999999)t=5999999;snprintf(b,sizeof b,"%02d:%02d.%02d",(int)(t/60000),(int)(t/1000%60),(int)(t/10%100));}else strcpy(b,"--:--.--");

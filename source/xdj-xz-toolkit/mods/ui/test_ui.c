@@ -482,7 +482,10 @@ static void profile(void){
  /* No reader: no chip, deck pickers keep their full width. */
  u.page=XZ_UI_KEY_SETUP;size_t n=xz_ui_layout(&u,&m,w);
  for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_PROFILE);
- assert(find(&u,&m,XZ_UI_DECK,1).x==510);
+ for(int d=0;d<4;d++){
+  struct xz_ui_widget key_deck=find(&u,&m,XZ_UI_DECK,d);
+  assert(key_deck.x==252+d*98&&key_deck.w==94);
+ }
  dj.current=-1;dj.pending=-1;m.dj=&dj;
  struct xz_ui_widget chip=find(&u,&m,XZ_UI_PROFILE,0),deck=find(&u,&m,XZ_UI_DECK,1);
  assert(chip.y==0&&chip.x+chip.w<=720&&deck.x+deck.w<=chip.x);

@@ -10,6 +10,7 @@
    no array pointers. A held snapshot pins immutable analysis until its matching release. */
 #include <stdint.h>
 #include "sync_master.h"
+#include "key/control.h"
 
 #define XZ_EXTRA_DECKS 2           /* index 0 = DECK 3, 1 = DECK 4 */
 #define XZ_EXTRA_FIRST_DECK 2      /* the zero-based deck number of index 0 */
@@ -23,6 +24,7 @@ enum xz_extra_field {
  XZ_EXTRA_F_CUE, XZ_EXTRA_F_HOT_CUES, XZ_EXTRA_F_GRID, XZ_EXTRA_F_WAVE, XZ_EXTRA_F_LOOP,
  XZ_EXTRA_F_TEMPO_RANGE, XZ_EXTRA_F_MASTER_TEMPO, XZ_EXTRA_F_VINYL, XZ_EXTRA_F_TIMELINE, XZ_EXTRA_F_SYNC,
  XZ_EXTRA_F_QUANTIZE, XZ_EXTRA_F_TIME_MODE, XZ_EXTRA_F_MEMORY_CUES,
+ XZ_EXTRA_F_KEY_STATE,
  XZ_EXTRA_FIELD_COUNT
 };
 #define XZ_EXTRA_KNOWN(field) ((uint32_t)1<<(field))
@@ -132,6 +134,11 @@ struct xz_extra_deck {
  int master;
  uint32_t master_scope;
  char key[8];                          /* as the library writes it, e.g. "Fm" or "4A" */
+ struct xz_deck_key key_state;
+ uint32_t key_color;
+ int key_feedback;
+ char original_display[8];
+ char playing_key[8];                  /* formatted processed endpoint, original metadata stays above */
  int32_t cue_ms;
  struct xz_extra_cue hot_cue[XZ_EXTRA_HOT_CUES];
  struct xz_extra_cue memory_cue[XZ_EXTRA_MEMORY_CUES];unsigned memory_count;
@@ -259,6 +266,7 @@ enum xz_extra_input {
  XZ_EXTRA_IN_INSTANT_DOUBLES,
  XZ_EXTRA_IN_LOOP_4_8,
  XZ_EXTRA_IN_MEMORY, XZ_EXTRA_IN_MEMORY_DELETE,
+ XZ_EXTRA_IN_KEY,
  XZ_EXTRA_INPUT_COUNT
 };
 #define XZ_EXTRA_TEMPO_SPAN 10000  /* tempo position at either end of the fader */
@@ -279,6 +287,7 @@ struct xz_extra_deck_event {
   struct { int source; uint32_t track_id; uint64_t media_generation; uint32_t route_epoch;
            struct xz_extra_order *order; uint32_t order_index; } load;
   int32_t seek_ms;
+  struct xz_key_command key;
  };
 };
 /* 1 when the player took the event, 0 when it refused (no player, deck not ready). Never blocks. */

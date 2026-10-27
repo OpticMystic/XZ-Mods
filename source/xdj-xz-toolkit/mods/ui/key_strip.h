@@ -25,6 +25,7 @@ struct xz_key_strip_deck {
     int moved;          /* effective key differs from the original */
     int synced;         /* last KEY SYNC still holds */
     int sync_master;    /* reference deck for the other deck's KEY SYNC */
+    uint32_t match_color; /* Shared cents-aware match against the selected master. */
     char error[40];     /* inline actionable error; "" when none */
 };
 

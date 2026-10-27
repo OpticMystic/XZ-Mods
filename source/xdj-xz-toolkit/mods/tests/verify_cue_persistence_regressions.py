@@ -4,7 +4,7 @@ R=Path(__file__).resolve().parent;M=R.parent
 p=argparse.ArgumentParser();p.add_argument('--arch',choices=['host','arm'],default='host');p.add_argument('--output',type=Path,required=True);p.add_argument('--mods',type=Path,default=M);p.add_argument('--modes',default='delete-roundtrip,loop-out-edit,readonly,lifecycle,memory-loop');a=p.parse_args();M=a.mods.resolve();O=a.output.resolve();O.mkdir(exist_ok=False)
 def linux(x):
  s=x.resolve().as_posix();return '/mnt/'+s[0].lower()+s[2:]
-names=['extra_player.c','deck_select.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c','extra_cue_store.c'];files=[M/n for n in names]+[R/'test_cue_persistence_regressions.c']
+names=['extra_player.c','key/keyshift.c','key/music.c','key/control.c','deck_select.c','anlz_extra.c','shell_analysis.c','ui/layered_wave_source.c','ui/layered_wave.c','audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c','extra_cue_store.c'];files=[M/n for n in names]+[R/'test_cue_persistence_regressions.c']
 flags=['-std=c11','-O1','-g','-UNDEBUG','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-pthread','-I'+linux(M),'-DXZ_XP_TEST_RENDER_HOOK','-Wno-unused-function']
 if a.arch=='host':cc='gcc';flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-no-pie'];runner=[]
 else:cc='arm-linux-gnueabi-gcc';flags+=['-mcpu=cortex-a9','-mfloat-abi=softfp','-mfpu=vfpv3'];runner=['qemu-arm','-cpu','cortex-a9','-L','/usr/arm-linux-gnueabi']

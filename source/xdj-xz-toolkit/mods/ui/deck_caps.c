@@ -12,10 +12,7 @@
    (extra_player.c, ui/beat_jump.c; parity-evidence/REPORT.md fixes 1 and 3). */
 #define XZ_DECK34_PARITY (XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE)
 
-/* Decks 3 and 4 always: every display setting (waveform style and colours, key notation, titles). Not the
-   playing key: their key shows the track's own key and does not follow tempo (extra_player.c publishes
-   track.key; only decks 1 and 2 have a playing-key snapshot). */
-static const unsigned deck34_now=XZ_DECK_CAN_DISPLAY;
+static const unsigned deck34_now=XZ_DECK_CAN_DISPLAY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC;
 
 /* Engines this runtime runs. A ready bit only lights a feature the runtime can also carry out: the menu audit
    (audit/MENU-AUDIT.md, highest-impact defect 5) found no hot cue preview, X-PAD sampler or groove pad engine on
@@ -23,9 +20,6 @@ static const unsigned deck34_now=XZ_DECK_CAN_DISPLAY;
    their actions. Add a feature's bit here only with the runtime handler that makes it work. */
 #define XZ_DECK_ENGINES_RUN 0u /* of XZ_DECK_CAN_CUE_PREVIEW | XZ_DECK_CAN_XPAD | XZ_DECK_CAN_GROOVE */
 
-static int native_ready(const struct xz_ui_model *m, uint32_t bit) {
- return ((m->deck[0].ready|m->deck[1].ready)&bit)!=0;
-}
 static unsigned engine(const struct xz_ui_model *m, int deck, uint32_t ready_bit, unsigned feature) {
  return (m->deck[deck].ready&ready_bit)&&(XZ_DECK_ENGINES_RUN&feature)?feature:0u;
 }
@@ -38,7 +32,7 @@ unsigned xz_deck_caps(const struct xz_ui_model *m, int deck) {
  /* The rest light only once the runtime reports them (refresh_local's ready bits and engine states). */
  if(m->deck[deck].ready&XZ_UI_GATE)caps|=XZ_DECK_CAN_GATE_CUE;
  if(m->deck[deck].ready&XZ_UI_SMART)caps|=XZ_DECK_CAN_SMART_CUE;
- if(native_ready(m,XZ_UI_KEY|XZ_UI_KEYSYNC))caps|=XZ_DECK_CAN_KEY_SYNC;
+ if((m->deck[deck].ready&(XZ_UI_KEY|XZ_UI_KEYSYNC)))caps|=XZ_DECK_CAN_KEY_SYNC;
  if(xz_ui_usb_engine(m))caps|=XZ_DECK_CAN_STEMS;
  caps|=engine(m,deck,XZ_UI_PREVIEW,XZ_DECK_CAN_CUE_PREVIEW)|engine(m,deck,XZ_UI_SAMPLE,XZ_DECK_CAN_XPAD)|
   engine(m,deck,XZ_UI_GROOVE,XZ_DECK_CAN_GROOVE);
@@ -55,8 +49,6 @@ const char *xz_deck_cap_reason(const struct xz_ui_model *m, int deck, unsigned f
  if(xz_deck_cap_absent(feature))return "Not in this version, on any deck.";
  if(deck>=2){
   switch(feature){
-  case XZ_DECK_CAN_PLAYING_KEY:return "Decks 3 and 4 show the file's key.";
-  case XZ_DECK_CAN_KEY_SYNC:return "Decks 3 and 4 cannot shift key yet.";
   case XZ_DECK_CAN_STEMS:return "Decks 3 and 4 have no stems.";
   case XZ_DECK_CAN_RAM:return "Decks 3 and 4 always read the USB.";
   default:return "Not on decks 3 and 4 in this version.";

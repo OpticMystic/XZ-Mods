@@ -79,6 +79,7 @@ enum xz_shell_field {
  XZ_SHELL_F_STEM_BYPASS,
  XZ_SHELL_F_PLAYBACK_RATE, XZ_SHELL_F_MOTION, XZ_SHELL_F_SYNC_STATUS,
  XZ_SHELL_F_AUTO_CUE,
+ XZ_SHELL_F_KEY_PROOF,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -163,6 +164,7 @@ struct xz_shell_deck {
                                         extrapolation. See XZ_SHELL_EXTRAPOLATE_MAX_MS */
  enum xz_shell_time_mode time_mode;  /* per-deck override of settings.time_mode */
  const char *key;                    /* the key as it plays now (key shift and tempo included), e.g. "Fm" or "4A" */
+ int key_proof;                      /* 0 legacy, 1 processed/prepared software key, -1 metadata only */
  int key_matches_master;             /* fallback only: the shell colours keys itself from the master deck's key */
  int key_shift;                      /* semitones */
  const char *key_original;           /* XZ_SHELL_F_KEY_ORIGINAL: the track's analysed key, same format as key */

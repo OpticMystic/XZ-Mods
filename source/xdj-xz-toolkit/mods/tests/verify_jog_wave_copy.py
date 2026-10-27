@@ -41,7 +41,7 @@ for arch, compiler in [('host', 'gcc'), ('arm', 'arm-linux-gnueabi-gcc')]:
         results.append({'command': run+['unsafe-borrow'], 'returncode': r.returncode, 'expected': 'heap-use-after-free'})
         print('RED: old shallow borrow reports heap-use-after-free after retirement')
     connector=a.out/('connector-'+arch)
-    sources=['extra_decks.c', 'extra_cue_store.c', 'extra_player.c', 'deck_select.c', 'anlz_extra.c', 'shell_analysis.c',
+    sources=['extra_decks.c', 'extra_cue_store.c', 'extra_player.c','key/keyshift.c','key/music.c','key/control.c', 'deck_select.c', 'anlz_extra.c', 'shell_analysis.c',
              'ui/layered_wave_source.c', 'ui/layered_wave.c', 'audio/stem_media.c', 'audio/stem_mp3.c',
              'audio/stem_decode.c', 'test_extra_decks.c']
     command=[compiler,*flags,'-DXZ_XP_TEST_RENDER_HOOK','-DXZ_PLACEMENT_CONNECTOR_TEST',

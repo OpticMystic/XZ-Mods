@@ -259,10 +259,10 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
  uint64_t bit = (uint64_t)1 << slot;
  int away = s->target == XZ_DS_EXTRA;
  if(k->op == 0) {
+  if(row->kind==XZ_EXTRA_IN_SYNC&&(s->owner[XZ_DS_EXTRA]&bit)){out->verdict=XZ_DS_SWALLOW;return;}
   if(!away) { s->owner[XZ_DS_NATIVE] |= bit; return; }
   if(row->kind==XZ_EXTRA_IN_SYNC){
-   if(s->owner[XZ_DS_EXTRA]&bit){out->verdict=XZ_DS_SWALLOW;return;}
-   s->owner[XZ_DS_EXTRA]|=bit;s->sync_held=0;
+   s->owner[XZ_DS_EXTRA]|=bit;s->sync_held=0;s->sync_shift=!!k->shift;
    deliver(out,side,XZ_EXTRA_IN_SYNC,k);out->event.pressed=1;return;
   }
   int pad = k->code >= 0x4119 && k->code <= 0x4120;
@@ -281,7 +281,7 @@ static void button(struct xz_ds_side *s, int side, const struct xz_ds_row *row, 
  if(s->owner[XZ_DS_EXTRA] & bit) {
   if(k->op==1&&row->kind==XZ_EXTRA_IN_SYNC){
    out->verdict=XZ_DS_SWALLOW;
-   if(!s->sync_held){s->sync_held=1;deliver(out,side,XZ_EXTRA_IN_INSTANT_DOUBLES,k);out->event.pressed=1;}
+   if(!s->sync_held&&!s->sync_shift){s->sync_held=1;deliver(out,side,XZ_EXTRA_IN_INSTANT_DOUBLES,k);out->event.pressed=1;}
    return;
   }
   if(k->op == 1 && (row->kind == XZ_EXTRA_IN_LOOP_IN || row->kind == XZ_EXTRA_IN_LOOP_4_8)) {

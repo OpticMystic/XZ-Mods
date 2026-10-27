@@ -21,7 +21,7 @@ sources += [root.parent / "ui" / name for name in (
     "native_touch.c", "stem_pads.c", "beat_jump.c", "wave_viewport.c",
 )]
 sources += [root.parent / name for name in (
-    "key/music.c", "key/browser.c", "key/catalog.c", "key/traffic.c", "settings.c", "usb_profile.c", "doom/native_bridge.c", "doom/wad_catalog.c",
+    "key/music.c", "key/control.c", "key/browser.c", "key/catalog.c", "key/traffic.c", "settings.c", "usb_profile.c", "doom/native_bridge.c", "doom/wad_catalog.c",
     "ota/native_update.c", "audio/vendor/sha256/sha256.c","pc_control/stems.c",
 )]
 binary = args.output.resolve() / "wave-rider-runtime-linux"

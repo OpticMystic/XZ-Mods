@@ -222,6 +222,7 @@ struct xz_shell_rect sh_strip_cell(const struct xz_shell_model *m, struct xz_she
 /* Traffic-light ink for a key against the master deck's key (shell_wave.c): green, amber or plain. With
    no master key read it falls back to the runtime's matches_master flag. */
 enum { SH_KEY_GREEN=0x52d794, SH_KEY_AMBER=0xffbd59 };
+uint32_t sh_key_ink_cents(const struct xz_shell_model *,const char *,int,int,uint32_t);
 uint32_t sh_key_ink(const struct xz_shell_model *m, const char *key, int matches_master, uint32_t plain);
 /* The key in the chosen notation; key itself when it is NULL, already in it, or neither notation. */
 const char *sh_key_text(const char *key, enum xz_shell_key_display mode, char *buffer, size_t cap);

@@ -64,21 +64,21 @@ int main(void){
     sync, stems or RAM. The same while the route is down or starting: the players run. */
  for(int s=XZ_UI_ROUTE_NOT_DETECTED;s<XZ_UI_ROUTE_STATES;s++){
   m.route.state=s;
-  for(int d=2;d<4;d++)assert(xz_deck_caps(&m,d)==(PARITY|XZ_DECK_CAN_DISPLAY));
+  for(int d=2;d<4;d++)assert(xz_deck_caps(&m,d)==(PARITY|XZ_DECK_CAN_DISPLAY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC));
   reasons(&m);
  }
- assert(!strcmp(xz_deck_cap_reason(&m,2,XZ_DECK_CAN_PLAYING_KEY),"Decks 3 and 4 show the file's key."));
+ assert(!xz_deck_cap_reason(&m,2,XZ_DECK_CAN_PLAYING_KEY));
  /* Players not running right now: the same features, since WORKS ON says what works on a deck when it plays;
     whether decks 3 and 4 are connected is the 4 DECKS page's to say. */
  m.route.state=XZ_UI_ROUTE_NO_ENGINE;
- for(int d=2;d<4;d++){assert(xz_deck_caps(&m,d)==(PARITY|XZ_DECK_CAN_DISPLAY));assert(!xz_deck_cap_reason(&m,d,XZ_DECK_CAN_BEAT_JUMP));}
+ for(int d=2;d<4;d++){assert(xz_deck_caps(&m,d)==(PARITY|XZ_DECK_CAN_DISPLAY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC));assert(!xz_deck_cap_reason(&m,d,XZ_DECK_CAN_BEAT_JUMP));}
  reasons(&m);
  /* Native decks: each engine-backed bit follows the runtime's report on that deck. */
  memset(&m,0,sizeof m);m.route.state=XZ_UI_ROUTE_NOT_DETECTED;
  assert(xz_deck_caps(&m,0)==(XZ_DECK_CAN_BEAT_JUMP|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_DISPLAY));
  m.deck[1].ready=XZ_UI_GATE|XZ_UI_SMART;
  assert(!(xz_deck_caps(&m,0)&(XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE))&&(xz_deck_caps(&m,1)&(XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE))==(XZ_DECK_CAN_GATE_CUE|XZ_DECK_CAN_SMART_CUE));
- m.deck[0].ready=XZ_UI_KEY;assert(xz_deck_caps(&m,1)&XZ_DECK_CAN_KEY_SYNC);
+ m.deck[0].ready=XZ_UI_KEY;assert(!(xz_deck_caps(&m,1)&XZ_DECK_CAN_KEY_SYNC));
  m.deck[1].ram.state=XZ_UI_RAM_READY;assert(xz_deck_caps(&m,0)&XZ_DECK_CAN_RAM);
  assert(!(xz_deck_caps(&m,0)&XZ_DECK_CAN_STEMS)&&!strcmp(xz_deck_cap_reason(&m,0,XZ_DECK_CAN_STEMS),"This USB loader has no stem engine."));
  m.deck[0].ready|=XZ_UI_STEM;assert(xz_deck_caps(&m,0)&XZ_DECK_CAN_STEMS);

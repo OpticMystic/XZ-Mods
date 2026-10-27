@@ -1,3 +1,4 @@
+#include "key/view.h"
 /* SPDX-License-Identifier: MIT */
 /* Pure parts of the FLAGSHIP shell runtime. No device, threads or allocation. */
 #include "shell_runtime.h"
@@ -401,7 +402,15 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
   d->sync=!!s->sync.requested;d->sync_master_deck=sync.master_deck;d->sync_status=sync.status;
   d->known|=SK(SYNC)|SK(SYNC_STATUS);
  }
- if(EK(KEY)&&s->key[0]){d->key=s->key;d->known|=SK(KEY);}
+ if(EK(KEY)&&s->key[0]){d->key=EK(KEY_STATE)&&s->key_state.playing_valid&&s->playing_key[0]?s->playing_key:s->key;d->known|=SK(KEY);}
+ if(EK(KEY_STATE)){
+  d->key_proof=s->key_state.playing_valid?1:-1;d->known|=SK(KEY_PROOF);
+  d->key_synced=s->key_state.engaged;d->key_shift=s->key_state.desired_cents/100;
+  d->known|=SK(KEY_SYNC)|SK(KEY_SHIFT);
+  if(s->key_state.playing_valid){
+   d->key_original=s->key;d->key_cents=s->key_state.playing.cents;d->known|=SK(KEY_ORIGINAL);
+  }
+ }
  if(EK(CUE)){d->cue_ms=s->cue_ms;d->known|=SK(CUE_POINT);}
  if(EK(HOT_CUES)){
   for(int i=0;i<XZ_SHELL_HOT_CUES;i++)

@@ -1,3 +1,4 @@
+#include "../key/view.h"
 /* SPDX-License-Identifier: MIT */
 #include "classic_mixer_runtime.h"
 #include "classic_mixer.h"
@@ -120,7 +121,7 @@ int xz_classic_mixer_runtime_pair_frame(uint16_t *pixels,size_t stride,size_t co
   if(!(sides&(1u<<side)))continue;
   const struct xz_extra_deck *x=&extra.deck[side];
   struct xz_classic_column_deck column={.live=1,.driven=1,.source=x->source==1||x->source==2?x->source:0};
-  if((x->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))&&x->key[0])snprintf(column.key,sizeof column.key,"%s",x->key);
+  if((x->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))&&x->key[0])snprintf(column.key,sizeof column.key,"%s",xz_extra_key_text(x));column.cents_known=(x->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY_STATE))&&x->key_feedback&&x->key_state.playing_valid;column.cents=column.cents_known?x->key_state.playing.cents:0;column.key_color=xz_extra_key_ink(x,0);
   xz_classic_column_half_draw(pixels,stride,count,2+side,&column);
   xz_classic_mixer_half_draw(pixels,stride,count,&view,2+side);
   if(themed){
@@ -195,7 +196,7 @@ int xz_classic_mixer_runtime_frame(uint16_t *pixels,size_t stride,size_t count,i
     const struct xz_extra_deck *x=&extra.deck[d-2];
     c->live=1;c->driven=d==2?extra.left_on_3:extra.right_on_4;
     c->source=x->source==1||x->source==2?x->source:0;
-    if((x->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))&&x->key[0])snprintf(c->key,sizeof c->key,"%s",x->key);
+    if((x->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY))&&x->key[0])snprintf(c->key,sizeof c->key,"%s",xz_extra_key_text(x));c->cents_known=(x->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY_STATE))&&x->key_feedback&&x->key_state.playing_valid;c->cents=c->cents_known?x->key_state.playing.cents:0;c->key_color=xz_extra_key_ink(x,0);
    }
   }
   xz_classic_column_draw(pixels,stride,count,&column);

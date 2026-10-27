@@ -1649,7 +1649,7 @@ static void render_strip(const struct xz_shell *u, const struct xz_shell_model *
   }else sh_text(c,px,y+23,"--.--%",SH_SMALL,SH_DIM);
   char key[8];
   if(loaded&&sh_has(d,XZ_SHELL_F_KEY)&&d->key)sh_text_fit(c,px,y+37,44,sh_key_text(d->key,sh_key_display(u,m),key,sizeof key),SH_TEXT,
-   sh_has(d,XZ_SHELL_F_MASTER)&&d->master?SH_WHITE:sh_key_ink(m,d->key,d->key_matches_master,SH_WHITE));
+   (sh_has(d,XZ_SHELL_F_MASTER)&&d->master)||(sh_has(d,XZ_SHELL_F_KEY_PROOF)&&d->key_proof<0)?SH_WHITE:sh_key_ink_cents(m,d->key,sh_has(d,XZ_SHELL_F_KEY_ORIGINAL)?d->key_cents:0,d->key_matches_master,SH_WHITE));
   else sh_text(c,px,y+37,"--",SH_TEXT,SH_DIM);
   /* BPM box */
   int qx=x0+w-62,qw=56,qy=y+4,qh=STRIP_H-10;

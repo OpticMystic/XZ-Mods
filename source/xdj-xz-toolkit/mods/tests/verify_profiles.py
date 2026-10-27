@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='xz-profiles-') as temporary:
         '-fsanitize=address,undefined','-fno-sanitize-recover=all',str(ROOT/'tests/test_settings_internal.c'),str(ROOT/'settings_internal.c'),
         str(ROOT/'settings.c'),str(ROOT/'ui/beat_jump.c'),'-lm','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
-    sources=[ROOT/'tests/test_profile_runtime.c',ROOT/'key/music.c',ROOT/'key/browser.c',ROOT/'key/catalog.c',ROOT/'key/traffic.c']
+    sources=[ROOT/'tests/test_profile_runtime.c',ROOT/'key/music.c',ROOT/'key/control.c',ROOT/'key/browser.c',ROOT/'key/catalog.c',ROOT/'key/traffic.c']
     sources += [ROOT/'ui'/name for name in UI_SOURCES]
     sources += [ROOT/'ui'/name for name in ('native_touch.c','stem_pads.c','beat_jump.c','wave_viewport.c')]
     sources += [ROOT/'arcade'/name for name in ('arcade.c','render.c','input.c','clock.c','native_clock.c')]

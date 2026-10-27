@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 
 MODS=Path(__file__).resolve().parents[1]
-SOURCES=['extra_player.c','deck_select.c','anlz_extra.c','shell_analysis.c',
+SOURCES=['extra_player.c','key/keyshift.c','key/music.c','key/control.c','deck_select.c','anlz_extra.c','shell_analysis.c',
          'ui/layered_wave_source.c','ui/layered_wave.c',
          'audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c',
          'tests/test_jog_calibration.c']

@@ -1,3 +1,4 @@
+#include "../key/view.h"
 /* SPDX-License-Identifier: MIT */
 #include "extra_lane.h"
 #include "ui_skin.h"
@@ -264,9 +265,9 @@ static void readout(struct xz_canvas c,unsigned number,const struct xz_extra_dec
  xz_text(c,right,17,text,2,6,bpm?INK:BLANK);
  right-=8;
  if((d->known&K(KEY))&&d->key[0]){
-  char key[sizeof d->key];memcpy(key,d->key,sizeof key);key[sizeof key-1]=0;
-  int w=xz_text_width(c,key,1,8);
-  if(right-w>=left){xz_text(c,right-w,21,key,1,8,INK);right-=w+6;}
+  char key[24];xz_extra_key_label(d,key,sizeof key);
+  int w=xz_text_width(c,key,1,20);
+  if(right-w>=left){xz_text(c,right-w,21,key,1,20,xz_extra_key_ink(d,INK));right-=w+6;}
  }
  if((d->known&K(SOURCE))&&(d->source==1||d->source==2)){
   const char *usb=d->source==1?"USB1":"USB2";int w=xz_text_width(c,usb,1,8);
