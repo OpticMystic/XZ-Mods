@@ -434,10 +434,10 @@
   "ui/index.html": "6238a3e1c444c5ca54e97cf5f56194fee11a00153304d836baf64923d5218da9",
   "ui/live-stream.js": "b4493d8f4b0b88821506fb74e3f7ee648d967f4e76824be5ab6069119d26da18",
   "ui/mod-update.js": "74ef93a7effd006944debea81e7770039e62a369efb72985013efb80385d5521",
-  "ui/my-reports.js": "f6e7a2c58a6a9c11d0fd7f6c9d8c3d57d9650c0a04e6edba5196217d9fec8c5d",
+  "ui/my-reports.js": "0566a38833c70f971f2e03323fda8f2942fa6d24d38d7e1df117ef851f0097f5",
   "ui/setup.js": "3c21bc159a5ca78c033bd2bc3f16d940a1f1b3e1a48a673ec99a9f68d4b8af14",
   "ui/support-kb.js": "89c683c7547224abf453207eff30482dd6fba3ac485f99e2d0e754dea5ff85cd",
-  "ui/support.js": "5ac7d8b6da190f4f2cb8851d3c9c0469081613c6dee3ec44e771145edca06377",
+  "ui/support.js": "a9c1b052361771129734b5f4a8ef35d15260280c82d0db4eaa65667966ba71ce",
   "ui/usb-tree.js": "b2f8c4f9d4b338be6b99faf1624609db114f11a2a8b16dba0c679308b3598bcc"
  }
 }

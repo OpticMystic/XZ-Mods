@@ -500,7 +500,8 @@ window.reportWizard = (() => {
     if (dialog.open) dialog.close();
   }
   dialog.addEventListener('cancel', event => { event.preventDefault(); if (rw.screen !== 'sending') close(); });
-  dialog.addEventListener('close', () => { stopWatching(); });
+  // A close event is queued; if the window was opened again before it arrives, it belongs to the old session.
+  dialog.addEventListener('close', () => { if (!dialog.open) stopWatching(); });
   $('support-open').onclick = () => open();
   $('report-tool-row').onclick = () => open();
   return { open, openConnection, state: () => rw, watching: () => watch && { volumes: watch.volumes, timer: Boolean(watch.timer) } };
