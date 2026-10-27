@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0-preview.22.2 - 2026-10-26
+
+- Each deck has its own colour on the four-deck screens (1 yellow, 2 aqua, 3 rose, 4 violet), on the waveform tags, the bottom channels, the side tags and the DECKS button, so the reordered top and the mixer-order bottom match at a glance.
+- 2 DECKS shows the two decks the sides control. Pressing SHIFT twice on a side switches the deck and its waveform together; CLASSIC draws decks 3 and 4 in the stock style.
+- A loopback cable animation shows where the cable goes, on the decks 3 and 4 cards, the 4 DECKS pages and the desktop four-deck guide and dialog.
+- The BEAT JUMP PADS page is simpler: the pads show each jump in beats and bars, and one tap on a size sets the selected pair.
+- The CLASSIC top bar buttons fit the black strip and no longer cover the DECK 1 tab, the BEAT FX header or the waveforms.
+- Decks 3 and 4 react to the loopback route as soon as it appears instead of checking once a second.
+- On page 1 STOCK, pushing a greyed pair with the encoder no longer changes sizes you cannot see.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.1 - 2026-10-26
 
 - Redesigned MODS menu organised by what you want to do: HOME, PLAY, STEMS, SCREEN, 4 DECKS, CONNECT, and EXTRAS, with explanations and picture controls.
