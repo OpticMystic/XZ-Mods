@@ -69,7 +69,8 @@ void xz_pic_mini_screen(struct xz_canvas c, int x, int y, int w, int h, int view
    the small buttons by the cues). */
 void xz_pic_stem_layout(struct xz_canvas c, int x, int y, int w, int h, int layout, const uint32_t rgb[3]);
 /* A strip of waveform in one colour scheme: 0 stock blue, 1 3-band, 2 stems, 3 RGB. */
-void xz_pic_wave_swatch(struct xz_canvas c, int x, int y, int w, int h, int scheme, const uint32_t stem_rgb[3]);
+/* scheme 0 blue, 1 3-BAND in band_rgb (low, mid, high), 2 STEMS in stem_rgb, 3 RGB. */
+void xz_pic_wave_swatch(struct xz_canvas c, int x, int y, int w, int h, int scheme, const uint32_t stem_rgb[3], const uint32_t band_rgb[3]);
 /* The media buttons above the browse encoder: USB 1, USB 2, LINK and the button next to it (lit). */
 void xz_pic_media_buttons(struct xz_canvas c, const struct xz_pic_style *s, int x, int y, int w, int h);
 /* The loopback route picture, state as enum xz_ui_route_state. With anim (memory for a w x h picture) it is

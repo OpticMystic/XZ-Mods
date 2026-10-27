@@ -27,6 +27,10 @@ struct xz_ui_skin {
 void xz_ui_place(const struct xz_ui *,const struct xz_ui_model *,struct xz_ui_widget *,size_t);
 void xz_ui_stem_rows(const struct xz_ui_scene *);
 void xz_ui_stem_colors(const struct xz_ui_scene *);
+/* 3-BAND COLOURS: the editor page, and a band's colour as the waveforms draw it (STANDARD is the interface's own). */
+void xz_ui_band_colors(const struct xz_ui_scene *);
+uint32_t xz_ui_band_standard(const struct xz_ui_model *,int band);
+uint32_t xz_ui_model_band_color(const struct xz_ui_model *,int band);
 void xz_ui_page_details(const struct xz_ui_scene *);
 extern const struct xz_ui_skin xz_skin_classic, xz_skin_lcars, xz_skin_matrix, xz_skin_analog, xz_skin_flagship;
 

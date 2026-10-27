@@ -169,6 +169,20 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
   for(i=0;i<3;i++){result=tap(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_USB_COLORS*8+i);assert(result.index==XZ_UI_LOOK_USB_COLORS&&result.value==i);}
   assert(xz_ui_render(u,m,frame,800*480,800));
   assert(xz_ui_back(u,a)==1&&u->page==XZ_UI_SCREEN&&xz_ui_focused(u,m,&w)&&w.kind==XZ_UI_FEATURE_LINK&&w.index==XZ_UI_SCREEN_LOOK);
+  /* 3-BAND COLOURS: nine choices per band, each naming its band and choice; STANDARD is MODERN's own colour. The
+     preview strip draws the chosen colours; RESET clears all three; BACK returns to its SCREEN row. */
+  assert(tap(u,m,XZ_UI_FEATURE_LINK,XZ_UI_BAND_COLORS).kind==XZ_UI_PANEL&&u->page==XZ_UI_BAND_COLORS);
+  for(int band=0;band<XZ_BANDS;band++)for(i=0;i<XZ_BAND_COLOR_CHOICES;i++){
+   result=tap(u,m,XZ_UI_BAND_COLOR,band*XZ_BAND_COLOR_CHOICES+i);assert(result.kind==XZ_UI_BAND_COLOR&&result.index==band&&(int)result.value==i);}
+  m->band_colors[XZ_BAND_MID]=7;
+  {struct xz_ui_widget pick=find(u,m,XZ_UI_BAND_COLOR,XZ_BAND_MID*XZ_BAND_COLOR_CHOICES+7);struct xz_ui_look l=xz_ui_widget_look(u,m,&pick);
+   assert(l.selected&&l.color==xz_stem_palette_color(7,0));
+   pick=find(u,m,XZ_UI_BAND_COLOR,XZ_BAND_LOW*XZ_BAND_COLOR_CHOICES);l=xz_ui_widget_look(u,m,&pick);
+   assert(l.selected&&l.color==XZ_FLAGSHIP_WAVE_LOW&&xz_ui_model_band_color(m,XZ_BAND_LOW)==XZ_FLAGSHIP_WAVE_LOW);}
+  assert(xz_ui_render(u,m,frame,800*480,800)&&frame[319*800+XZ_UI_CX]==xz_theme_rgb565(xz_stem_palette_color(7,0)));
+  assert(tap(u,m,XZ_UI_BAND_COLORS_RESET,0).kind==XZ_UI_BAND_COLORS_RESET);
+  m->band_colors[XZ_BAND_MID]=0;
+  assert(xz_ui_back(u,a)==1&&u->page==XZ_UI_SCREEN&&xz_ui_focused(u,m,&w)&&w.kind==XZ_UI_FEATURE_LINK&&w.index==XZ_UI_BAND_COLORS);
   /* Without the shell the MODERN rows stay on screen but say NOT READY instead of acting. */
   m->modern_look.known=0;
   {struct xz_ui_widget rgb=find(u,m,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_COLOR*8+XZ_UI_WAVE_RGB);assert(!xz_ui_widget_ready(u,m,&rgb));}

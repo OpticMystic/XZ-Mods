@@ -116,17 +116,19 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   /* MODERN has one look, so no THEME: its slot leads to the MODERN play screen's own parts instead. */
   if(xz_ui_modern_menu(m)){
    add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_SCREEN_LOOK,0,"LAMPS AND TITLES");
+   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BAND_COLORS,0,"3-BAND COLOURS");
    for(i=0;i<XZ_UI_WAVE_COLORS;i++)add(w,&n,XZ_UI_SHELL_LOOK,XZ_UI_LOOK_WAVE_COLOR*8+i,0,wave_names[i]);
   }else{
    add(w,&n,XZ_UI_PANEL,XZ_UI_THEME_PICK,0,"THEME");
+   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BAND_COLORS,0,"3-BAND COLOURS");
    add(w,&n,XZ_UI_WAVE_MODE,0,0,"STOCK");add(w,&n,XZ_UI_WAVE_MODE,1,0,"3-BAND");add(w,&n,XZ_UI_WAVE_MODE,2,0,"STEMS");
   }
   add(w,&n,XZ_UI_KEY_FORMAT,0,0,"AS ON THE USB");add(w,&n,XZ_UI_KEY_FORMAT,1,0,"MUSICAL");add(w,&n,XZ_UI_KEY_FORMAT,2,0,"WHEEL");
   add(w,&n,XZ_UI_KEY_FEEDBACK,0,0,"PLAYING KEY");
   add(w,&n,XZ_UI_BROWSE_TRAFFIC,0,0,"KEY MATCH COLOURS");
   add(w,&n,XZ_UI_BROWSE_KEY_PREFIX,0,0,"KEY BEFORE TITLE");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,"SYSTEM READOUT");
   add(w,&n,XZ_UI_INFO,XZ_UI_INFO_COLUMNS,0,"TRACK LIST COLUMNS");
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_METRICS_SETUP,0,"SYSTEM READOUT");
   break;
  case XZ_UI_SCREEN_LOOK:
   if(!xz_ui_modern_menu(m))break;   /* CLASSIC has none of these parts */
@@ -256,7 +258,8 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
    else if(a->kind==XZ_UI_KEY_FEEDBACK)left(a,272);
    else if(a->kind==XZ_UI_BROWSE_TRAFFIC)right(a,272);
    else if(a->kind==XZ_UI_BROWSE_KEY_PREFIX)left(a,318);
-   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_METRICS_SETUP)right(a,144);
+   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_BAND_COLORS)right(a,144);
+   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_METRICS_SETUP)full(a,364);
    else if(a->kind==XZ_UI_INFO)right(a,318);
    break;}
   case XZ_UI_SCREEN_LOOK:
@@ -528,7 +531,7 @@ static void screen(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  if(m->route.state!=XZ_UI_ROUTE_NO_ENGINE)caption(c,s,X0+2*(CW+8)/5,y-16,3*(CW+8)/5-8,"DECK VIEW");
  caption(c,s,X0,192,HALF,"WAVEFORM COLOURS");caption(c,s,X0+HALF+8,192,HALF,"KEY NOTATION");
  caption(c,s,X0,256,CW,"KEYS AND THE TRACK LIST");
- uint32_t rgb[3];for(int i=0;i<3;i++)rgb[i]=xz_ui_model_stem_color(m,i);
+ uint32_t rgb[3],band[XZ_BANDS];for(int i=0;i<3;i++){rgb[i]=xz_ui_model_stem_color(m,i);band[i]=xz_ui_model_band_color(m,i);}
  for(size_t i=0;i<sc->n;i++){
   const struct xz_ui_widget *a=&sc->w[i];int sel=sc->look[i].selected;
   if(a->kind==XZ_UI_SET_INTERFACE||a->kind==XZ_UI_DECK_VIEW){
@@ -539,11 +542,11 @@ static void screen(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
    const char *name=a->kind==XZ_UI_SET_INTERFACE?a->label:a->index==0?"2 DECKS":a->index==1?"4  |  1 2 3 4":"4  |  3 1 2 4";
    xz_pic_text_center(c,a->x+a->w/2,a->y+a->h-16,name,12,sel?s->ink:s->dim);
   }else if(a->kind==XZ_UI_WAVE_MODE){
-   xz_pic_wave_swatch(c,a->x+a->w-38,a->y+8,30,a->h-16,a->index,rgb);
+   xz_pic_wave_swatch(c,a->x+a->w-38,a->y+8,30,a->h-16,a->index,rgb,band);
   }else if(a->kind==XZ_UI_SHELL_LOOK){
    /* MODERN's four tiles are narrow: the name on top, the swatch as a strip under it (scheme 3 is RGB) */
    static const int scheme[XZ_UI_WAVE_COLORS]={0,3,1,2};
-   if(a->index/8==XZ_UI_LOOK_WAVE_COLOR)xz_pic_wave_swatch(c,a->x+8,a->y+20,a->w-16,a->h-24,scheme[a->index%8&3],rgb);
+   if(a->index/8==XZ_UI_LOOK_WAVE_COLOR)xz_pic_wave_swatch(c,a->x+8,a->y+20,a->w-16,a->h-24,scheme[a->index%8&3],rgb,band);
   }else if(a->kind==XZ_UI_KEY_FORMAT){
    /* the example key, clear of the label and of the selected mark; the dock says it when it does not fit */
    const char *key=xz_ui_key_example(a->index);int right=a->x+a->w-(sel?28:10);
@@ -554,6 +557,12 @@ static void screen(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
   const struct xz_ui_widget *a=&sc->w[i];char buf[64];
   if(a->kind==XZ_UI_PANEL&&a->index==XZ_UI_THEME_PICK)row_value(c,s,a,xz_ui_section_value(m,a,buf,sizeof buf),1);
   if(a->kind==XZ_UI_FEATURE_LINK)row_value(c,s,a,xz_ui_section_value(m,a,buf,sizeof buf),1);
+  /* 3-BAND COLOURS shows its three colours, lows to highs, where other rows write a value */
+  if(a->kind==XZ_UI_FEATURE_LINK&&a->index==XZ_UI_BAND_COLORS)
+   for(int b=0;b<XZ_BANDS;b++){
+    int x=a->x+a->w-30-(XZ_BANDS-b)*20,y=a->y+(a->h-14)/2;
+    xz_round_rect(c,x,y,14,14,3,15,s->row_edge);xz_round_rect(c,x+1,y+1,12,12,2,15,band[b]);
+   }
  }
  (void)wave_name;
 }

@@ -126,7 +126,7 @@ const char *xz_ui_page_title(int page){
  case XZ_UI_STEM_COLORS:return "STEM COLOURS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";case XZ_UI_APPS:return "USB APPS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
  case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";case XZ_UI_METRICS_SETUP:return "SYSTEM READOUT";
  case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_ABOUT:return "ABOUT XZ MODS";case XZ_UI_BUTTONS:return "BUTTON NEXT TO LINK";
- case XZ_UI_STEM_PADS:return "STEM PADS";case XZ_UI_SCREEN_LOOK:return "LAMPS AND TITLES";
+ case XZ_UI_STEM_PADS:return "STEM PADS";case XZ_UI_SCREEN_LOOK:return "LAMPS AND TITLES";case XZ_UI_BAND_COLORS:return "3-BAND COLOURS";
  default:return "MODS";}
 }
 const char *xz_ui_page_body(int page){
@@ -152,6 +152,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_BROWSE_SETUP:return "How keys are written: as on the USB, musical (Am) or wheel (8A).";
  case XZ_UI_RAM_SETUP:return "Copies the loaded track's audio into the XZ's memory so playback carries on if the USB is pulled. One track per deck; stems and waveforms still read the USB.";
  case XZ_UI_STEM_COLORS:return "The colour of each stem on pads, stem buttons and the STEMS waveform. Bass on 4-stem tracks follows the theme.";
+ case XZ_UI_BAND_COLORS:return "The colours of the 3-BAND waveform's lows, mids and highs, in both interfaces and on decks 3 and 4. Saved to the USB.";
  case XZ_UI_DOOM:return "Start the selected game. It runs entirely on the XZ.";
  case XZ_UI_DOOM_FILES:return "Choose a base game and optional add-on from USB.";
  case XZ_UI_DOOM_SETUP:return "Check the engine and USB game files step by step.";
@@ -183,7 +184,7 @@ static unsigned feature_of(const struct xz_ui_widget *a){
   switch(k){
   case XZ_UI_BEAT_JUMP:return XZ_DECK_CAN_BEAT_JUMP;case XZ_UI_KEY_SETUP:return XZ_DECK_CAN_KEY_SYNC;case XZ_UI_XPAD:return XZ_DECK_CAN_XPAD;
   case XZ_UI_RAM_SETUP:return XZ_DECK_CAN_RAM;case XZ_UI_PC_STEMS:case XZ_UI_STEM_PADS:case XZ_UI_LOCAL_STEM_SETUP:return XZ_DECK_CAN_STEMS;
-  case XZ_UI_STEMS:return XZ_DECK_CAN_GROOVE;case XZ_UI_STEM_COLORS:case XZ_UI_THEME_PICK:return XZ_DECK_CAN_DISPLAY;
+  case XZ_UI_STEMS:return XZ_DECK_CAN_GROOVE;case XZ_UI_STEM_COLORS:case XZ_UI_THEME_PICK:case XZ_UI_BAND_COLORS:return XZ_DECK_CAN_DISPLAY;
   default:return 0;
   }
  case XZ_UI_LOCAL_STEM_SETUP_OPEN:case XZ_UI_STEM_PAGE:case XZ_UI_STEM_BANK:case XZ_UI_STEM_ORDER:case XZ_UI_PAD_FEEDBACK:case XZ_UI_STEM_PAD_CONFIG:
@@ -195,6 +196,7 @@ static unsigned feature_of(const struct xz_ui_widget *a){
  case XZ_UI_RAM_DECK:case XZ_UI_RAM_REQUEST:case XZ_UI_RAM_CANCEL:case XZ_UI_RAM_RELEASE:return XZ_DECK_CAN_RAM;
  case XZ_UI_SET_INTERFACE:case XZ_UI_SET_THEME:case XZ_UI_SET_MODERN_THEME:case XZ_UI_DECK_VIEW:case XZ_UI_WAVE_MODE:
  case XZ_UI_KEY_FORMAT:case XZ_UI_BROWSE_TRAFFIC:case XZ_UI_BROWSE_KEY_PREFIX:case XZ_UI_STEM_COLOR:case XZ_UI_STEM_COLORS_RESET:
+ case XZ_UI_BAND_COLOR:case XZ_UI_BAND_COLORS_RESET:
   return XZ_DECK_CAN_DISPLAY;
  /* the BYPASS button belongs to the stem buttons; the other MODERN parts are display */
  case XZ_UI_SHELL_LOOK:return k/8==XZ_UI_LOOK_BYPASS?XZ_DECK_CAN_STEMS:XZ_DECK_CAN_DISPLAY;
@@ -338,6 +340,8 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_SET_MODERN_THEME:return "The modern interface's look. More modern themes are coming.";
  case XZ_UI_STEM_COLOR:return "The colour of this stem on the pads, the stem buttons and the STEMS waveform.";
  case XZ_UI_STEM_COLORS_RESET:return "Puts every stem back to the theme's colors.";
+ case XZ_UI_BAND_COLOR:return a->index%XZ_BAND_COLOR_CHOICES?"The colour of this band in the 3-BAND waveform.":"This band in the interface's own colour.";
+ case XZ_UI_BAND_COLORS_RESET:return "Puts every band back to STANDARD.";
  case XZ_UI_JUMP_ENABLE:return "STOCK keeps the player's own 1, 2, 4, 8 beats on page 1. MY SIZES uses yours. Page 2 always uses yours.";
  case XZ_UI_JUMP_SHIFT:return "SHIFT + BEAT JUMP selects page 2 sizes.";
  case XZ_UI_JUMP_EDIT_PAGE:return "Choose which page of sizes to edit.";
@@ -453,6 +457,7 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
  case XZ_UI_TAKEOVER_TOGGLE:case XZ_UI_CONNECTION_ENABLE:case XZ_UI_DISCOVERY:case XZ_UI_HOLD:case XZ_UI_OVERDUB:case XZ_UI_METRICS_TOGGLE:
   out->state=l.selected?"ON":"OFF";break;
  case XZ_UI_SET_THEME:case XZ_UI_SET_INTERFACE:case XZ_UI_SET_MODERN_THEME:case XZ_UI_STEM_PAGE:case XZ_UI_WAVE_MODE:case XZ_UI_KEY_FORMAT:case XZ_UI_TAKEOVER_ASSIGN:case XZ_UI_STEM_COLOR:case XZ_UI_REKORDBOX_ASSIGN:
+ case XZ_UI_BAND_COLOR:
   out->state=l.selected?"SELECTED":"";break;
  case XZ_UI_PANEL:case XZ_UI_CONTROL_SECTION:out->state=l.selected?"OPEN":"";break;
  case XZ_UI_FEATURE_LINK:out->state=u->page==XZ_UI_HOME?"OPEN":"";break;
