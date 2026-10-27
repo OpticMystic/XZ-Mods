@@ -1,4 +1,5 @@
 import { acceptWithReference, ownerLookup } from './identifiers';
+import { formatItemNumber } from './contract.generated';
 import { parseReportV2 } from './schema-v2';
 import { fingerprint } from './classification';
 import { initialTracking, trackingRow, ownerHistory, receiptV2, readTracking, ownerInbox, ownerMutation, cleanupTracking, revokeCapabilities, trackingSession } from './tracking';
@@ -19,9 +20,11 @@ async function reporter(req: Request, db: DB, id: string, now: number): Promise<
   active(r,now);
   return r;
 }
-function receipt(r: Row, env: Env) {
+async function receipt(r: Row, env: Env, db: DB) {
   if (r.accepted_at === null || r.expires_at === null) fail(503,'outcome_unknown');
-  return {schema:'xz-support-receipt/1', report_id:r.id, payload_sha256:r.digest,
+  const tracking=await trackingRow(db,r.id);
+  if(!tracking) fail(503,'outcome_unknown');
+  return {schema:'xz-support-receipt/1', report_reference:tracking.report_reference,item_number:tracking.item_number===null ? null : formatItemNumber(tracking.item_number),report_id:r.id, payload_sha256:r.digest,
     accepted_at:new Date(r.accepted_at).toISOString(),expires_at:new Date(r.expires_at).toISOString(),
     private_logs:'stored',public_issue:r.issue_state,github_draft_url:`${env.PUBLIC_ORIGIN}/r/${r.id}/github`,issue_url:r.issue_url};
 }
@@ -59,7 +62,7 @@ export async function submit(req: Request, env: Env, db: DB, now: number, v2 = f
   const v2Report = v2 ? parseReportV2(value) : null;
   const parsed = reportSchema.safeParse(value);
   if (v2 ? !v2Report || v2Report.report_id !== id : !parsed.success || parsed.data.report_id !== id) fail(400,'invalid_report');
-  if (previous.state === 'accepted') { active(previous,Date.now()); return json(v2 ? await receiptV2(db,id) : receipt(previous,env)); }
+  if (previous.state === 'accepted') { active(previous,Date.now()); return json(v2 ? await receiptV2(db,id) : await receipt(previous,env,db)); }
   // Conditional R2 creation allows one writer, even when requests race the D1 insert.
   const report = parsed.success ? parsed.data : null;
   const publicFields = report && !v2 ? {title:report.public_issue.title, description:report.public_issue.description,
@@ -83,7 +86,7 @@ export async function submit(req: Request, env: Env, db: DB, now: number, v2 = f
   if (result[0].meta.changes !== 1) fail(503,'outcome_unknown');
   const done = await row(db,id);
   if (!done) fail(503,'outcome_unknown');
-  return json(v2 ? await receiptV2(db,id) : receipt(done,env));
+  return json(v2 ? await receiptV2(db,id) : await receipt(done,env,db));
 }
 
 async function githubDraft(db: DB, id: string, now: number): Promise<Response> {
@@ -125,7 +128,7 @@ async function linkIssue(req: Request, env: Env, db: DB, id: string, now: number
   const updated = await row(db,r.id);
   if (!updated) fail(404,'not_found');
   active(updated,Date.now());
-  return json(receipt(updated,env));
+  return json(await receipt(updated,env,db));
 }
 async function boundedResponse(response: Response, limit: number): Promise<string> {
   if (!response.body) throw new Error('empty');
@@ -186,7 +189,7 @@ async function ownerPage(req: Request, env: Env, db: DB, id: string, search: str
   const next=offset+length;
   return json({schema:'xz-support-owner-page/1',report_id:r.id,payload_sha256:r.digest,
     total_bytes:r.bytes,offset,encoding:'base64',data_base64:btoa(String.fromCharCode(...data)),
-    next_offset:next<r.bytes?next:null,receipt:latest.protocol_version===2 ? await receiptV2(db,id) : receipt(latest,env)});
+    next_offset:next<r.bytes?next:null,receipt:latest.protocol_version===2 ? await receiptV2(db,id) : await receipt(latest,env,db)});
 }
 
 async function dispatch(req: Request, env: Env): Promise<Response> {
@@ -223,7 +226,7 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
   if(url.search) fail(400,'invalid_query');
   if(req.method==='POST' && path==='/v1/reports') return submit(req,env,db,now);
   let m=new RegExp(`^/v1/reports/(${ID})/receipt$`).exec(path);
-  if(m && req.method==='GET') { const r=await reporter(req,db,m[1],now); if(r.protocol_version!==1) fail(404,'not_found'); return json(receipt(r,env)); }
+  if(m && req.method==='GET') { const r=await reporter(req,db,m[1],now); if(r.protocol_version!==1) fail(404,'not_found'); return json(await receipt(r,env,db)); }
   m=new RegExp(`^/r/(${ID})/github$`).exec(path);
   if(m && req.method==='GET') return githubDraft(db,m[1],now);
   m=new RegExp(`^/v1/reports/(${ID})/issue$`).exec(path);

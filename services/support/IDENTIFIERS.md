@@ -40,7 +40,7 @@ or an item to its group. `GET /v2/admin/reports?q=<identifier>` searches the inb
 and paginates a stable snapshot. Pass only the returned cursor on later pages.
 Both endpoints require owner authentication and use the shared tolerant parser.
 
-Receipts, status projections, and owner inbox rows expose `report_reference`
+V1 and v2 receipts, status projections, and owner inbox rows expose `report_reference`
 and nullable canonical `item_number`. These identifiers grant no reading,
 tracking, publication, or mutation authority. Receipt keys and their scoped
 derived capabilities retain the existing permission boundaries. Public-safe
