@@ -211,41 +211,44 @@ export async function ownerMutation(req: Request, env: Env, db: DB, id: string, 
       inboxPriority(kind,desk?.impact ?? null,desk?.expectation ?? null,desk?.severity ?? null),desk?.severity ? CONTRACT.severities.indexOf(desk.severity) : 4,revision,kind,outcome,lifecycle,statusKey(kind,lifecycle),question,now,
       now+(lifecycle==='closed'||lifecycle==='released'?180:365)*DAY,operation,hash,id,expected,now)];
   if(triage?.success) {
+    // The completed triage event fences the dependent writes too. Two callers
+    // can read the same old revision before either batch commits, even when
+    // they reuse an operation ID. A losing batch must not move membership.
+    const guard=`EXISTS(SELECT 1 FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=? AND last_operation_hash=?)
+      AND NOT EXISTS(SELECT 1 FROM triage_events WHERE report_id=? AND revision=?)`;
+    const guardValues=[id,revision,operation,hash,id,revision];
     statements.push(db.prepare(`INSERT INTO taxonomy_events(report_id,revision,previous_json,new_json,reason_code,created_at)
-      SELECT report_id,revision,?,?,?,? FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=? ON CONFLICT DO NOTHING`)
-      .bind(r.taxonomy_json ? JSON.stringify({kind:r.classified_kind,...JSON.parse(r.taxonomy_json)}) : null,JSON.stringify({kind,...desk}),triage.data.reason,now,id,revision,operation));
-    statements.push(db.prepare(`INSERT INTO triage_events(report_id,revision,previous_kind,new_kind,outcome,evidence_json,created_at,expires_at)
-      SELECT report_id,revision,?,?,?,?,?,? FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=? AND last_operation_hash=? ON CONFLICT DO NOTHING`)
-      .bind(r.classified_kind,kind,outcome,JSON.stringify(triage.data),now,now+14*DAY,id,revision,operation,hash));
+      SELECT ?,?,?,?,?,? WHERE ${guard} ON CONFLICT DO NOTHING`)
+      .bind(id,revision,r.taxonomy_json ? JSON.stringify({kind:r.classified_kind,...JSON.parse(r.taxonomy_json)}) : null,JSON.stringify({kind,...desk}),triage.data.reason,now,...guardValues));
     // Reclassification removes obsolete membership, never changes another report.
-    statements.push(db.prepare(`DELETE FROM report_group_members WHERE report_id=? AND EXISTS(SELECT 1 FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=?)`)
-      .bind(id,id,revision,operation));
+    statements.push(db.prepare(`DELETE FROM report_group_members WHERE report_id=? AND ${guard}`).bind(id,...guardValues));
     if(signature && !target) {
-      const guard=`EXISTS(SELECT 1 FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=?)`;
       statements.push(db.prepare(`INSERT INTO bug_groups(id,kind,component,created_at) SELECT ?,?,?,? WHERE ${guard}
-        AND NOT EXISTS(SELECT 1 FROM bug_fingerprints WHERE kind=? AND exact_hash=?)`).bind(group,kind,signature.component,now,id,revision,operation,kind,signature.exact_hash));
+        AND NOT EXISTS(SELECT 1 FROM bug_fingerprints WHERE kind=? AND exact_hash=?)`).bind(group,kind,signature.component,now,...guardValues,kind,signature.exact_hash));
       statements.push(db.prepare(`INSERT INTO bug_fingerprints(fingerprint_version,kind,exact_hash,family_hash,group_id)
         SELECT 1,?,?,?,? WHERE ${guard} AND EXISTS(SELECT 1 FROM bug_groups WHERE id=?) ON CONFLICT DO NOTHING`)
-        .bind(kind,signature.exact_hash,signature.family_hash,group,id,revision,operation,group));
+        .bind(kind,signature.exact_hash,signature.family_hash,group,...guardValues,group));
       statements.push(db.prepare(`INSERT INTO report_group_members(report_id,group_id,triage_revision,joined_at)
         SELECT ?,group_id,?,? FROM bug_fingerprints WHERE kind=? AND exact_hash=? AND ${guard} ON CONFLICT DO NOTHING`)
-        .bind(id,revision,now,kind,signature.exact_hash,id,revision,operation));
+        .bind(id,revision,now,kind,signature.exact_hash,...guardValues));
     } else {
-      const guard=`EXISTS(SELECT 1 FROM report_tracking WHERE report_id=? AND revision=? AND last_operation=?)`;
       // Reports with weak facts, features and questions still get an item. Keep
       // an existing same-kind item across re-triage; explicit targets move it.
       if(!target) statements.push(db.prepare(`INSERT INTO bug_groups(id,kind,component,created_at)
         SELECT ?,?,'unknown',? WHERE ${guard} AND NOT EXISTS(SELECT 1 FROM bug_groups WHERE item_number=? AND kind=?)`)
-        .bind(group,kind,now,id,revision,operation,r.item_number,kind));
+        .bind(group,kind,now,...guardValues,r.item_number,kind));
       statements.push(db.prepare(`INSERT INTO report_group_members(report_id,group_id,triage_revision,joined_at)
         SELECT ?,id,?,? FROM bug_groups WHERE id=COALESCE(?,(SELECT id FROM bug_groups WHERE item_number=? AND kind=?),?) AND ${guard}`)
-        .bind(id,revision,now,target?.id ?? null,r.item_number,kind,group,id,revision,operation));
+        .bind(id,revision,now,target?.id ?? null,r.item_number,kind,group,...guardValues));
     }
     statements.push(db.prepare(`INSERT INTO report_item_history(report_id,revision,previous_item_number,item_number,created_at)
       SELECT t.report_id,t.revision,?,g.item_number,? FROM report_tracking t
       LEFT JOIN report_group_members m ON m.report_id=t.report_id LEFT JOIN bug_groups g ON g.id=m.group_id
-      WHERE t.report_id=? AND t.revision=? AND t.last_operation=? AND g.item_number IS NOT ? ON CONFLICT DO NOTHING`)
-      .bind(r.item_number,now,id,revision,operation,r.item_number));
+      WHERE t.report_id=? AND ${guard} AND g.item_number IS NOT ? ON CONFLICT DO NOTHING`)
+      .bind(r.item_number,now,id,...guardValues,r.item_number));
+    statements.push(db.prepare(`INSERT INTO triage_events(report_id,revision,previous_kind,new_kind,outcome,evidence_json,created_at,expires_at)
+      SELECT ?,?,?,?,?,?,?,? WHERE ${guard} ON CONFLICT DO NOTHING`)
+      .bind(id,revision,r.classified_kind,kind,outcome,JSON.stringify(triage.data),now,now+14*DAY,...guardValues));
   }
   const results=await db.batch(statements);
   // D1 changes includes the status-event trigger. Zero means the CAS lost.
