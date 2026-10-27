@@ -67,8 +67,10 @@ apply on reads even before cleanup. Cleanup removes sessions and inbox snapshots
 Owner bearer authorization is separate on every request. POST `/v2/admin/reports/{id}/triage`, `/notes`,
 or `/status` requires expected_revision and a random 32-hex operation_id. An exact retry is idempotent;
 changing its bytes conflicts. Notes allow 4096 UTF-8 bytes and at most 12 retained notes per report.
-GET on those routes returns current private triage, retained notes, or safe recent status events.
-GET `/history` returns recent safe taxonomy changes. Full historical rows remain in D1 until tracking expiry.
+GET on those routes returns current private triage, retained note metadata, or safe recent status events.
+GET `/notes?operation_id=ID` retrieves one private note, so escaping cannot overrun the response bound.
+GET `/history` returns up to eight safe taxonomy changes. Follow next_before with `?before=REVISION`.
+Historical rows remain in D1 until tracking expiry.
 
 GET `/v2/admin/reports?limit=50` sorts live-set-stopping regressions/degradations first, then restored stock
 XZ behavior, XZ consistency, DJ convention, other problems by severity/reach, and additive ideas by votes.
@@ -101,7 +103,7 @@ npm run typecheck
 npm test
 ```
 
-23 Worker tests pass using real local Miniflare/workerd D1/R2. Existing 10 tests are retained. New tests
+24 Worker tests pass using real local Miniflare/workerd D1/R2. Existing 10 tests are retained. New tests
 cover migration, one-box intake, typed canaries, expiry, capabilities, concurrent updates, kind/impact
 eligibility, priority sorting, >100 pagination, and Python-produced bytes. With XZ_SUPPORT_NATIVE_HELPER
 set to a test-only helper, the roundtrip uses its real prepare/export bytes. That path passed with the

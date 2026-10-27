@@ -107,14 +107,26 @@ const note = z.strictObject({expected_revision:z.number().int().positive(),opera
 export async function ownerHistory(req: Request, env: Env, db: DB, id: string, action: string) {
   await owner(req,env);
   if(!await trackingRow(db,id)) fail(404,'not_found');
+  const search=new URL(req.url).search;
   if(action==='notes') {
-    const rows=await db.prepare('SELECT operation_id,revision,content,created_at,expires_at FROM private_notes WHERE report_id=? AND expires_at>? ORDER BY created_at,operation_id LIMIT 12').bind(id,Date.now()).all();
+    const selected=/^\?operation_id=([a-f0-9]{32})$/.exec(search);
+    if(search && !selected) fail(400,'invalid_query');
+    if(selected) {
+      const note=await db.prepare('SELECT operation_id,revision,content,created_at,expires_at FROM private_notes WHERE report_id=? AND operation_id=? AND expires_at>?').bind(id,selected[1],Date.now()).first();
+      if(!note) fail(404,'not_found');
+      return json({note});
+    }
+    const rows=await db.prepare('SELECT operation_id,revision,created_at,expires_at FROM private_notes WHERE report_id=? AND expires_at>? ORDER BY created_at,operation_id LIMIT 12').bind(id,Date.now()).all();
     return json({notes:rows.results});
   }
   if(action==='history') {
-    const rows=await db.prepare('SELECT revision,previous_json,new_json,reason_code,created_at FROM taxonomy_events WHERE report_id=? ORDER BY revision DESC LIMIT 16').bind(id).all();
-    return json({history:rows.results});
+    const before=/^\?before=([1-9][0-9]{0,14})$/.exec(search);
+    if(search && !before) fail(400,'invalid_query');
+    const rows=await db.prepare('SELECT revision,previous_json,new_json,reason_code,created_at FROM taxonomy_events WHERE report_id=? AND revision<? ORDER BY revision DESC LIMIT 8')
+      .bind(id,before ? Number(before[1]) : Number.MAX_SAFE_INTEGER).all<{revision:number;previous_json:string|null;new_json:string;reason_code:string;created_at:number}>();
+    return json({history:rows.results,next_before:rows.results.length===8 ? rows.results.at(-1)?.revision : null});
   }
+  if(search) fail(400,'invalid_query');
   if(action==='triage') {
     const row=await db.prepare('SELECT revision,evidence_json,created_at,expires_at FROM triage_events WHERE report_id=? AND expires_at>? ORDER BY revision DESC LIMIT 1').bind(id,Date.now()).first();
     return json({triage:row});

@@ -199,6 +199,8 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
   if(path==='/v2/admin/reports' && req.method==='GET') return ownerInbox(req,env,db,url);
   const v2Page=new RegExp(`^/v2/admin/reports/(${ID})$`).exec(path);
   if(v2Page && req.method==='GET') return ownerPage(req,env,db,v2Page[1],url.search);
+  const ownerRead=new RegExp(`^/v2/admin/reports/(${ID})/(triage|notes|status|history)$`).exec(path);
+  if(ownerRead && req.method==='GET') return ownerHistory(req,env,db,ownerRead[1],ownerRead[2]);
   if(!url.search) {
     if(path==='/v2/reports' && req.method==='POST') return submit(req,env,db,now,true);
     if(path==='/v2/tracking/session' && req.method==='POST') return trackingSession(req,db);

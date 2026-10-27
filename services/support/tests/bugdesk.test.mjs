@@ -180,3 +180,14 @@ test('Python collector bytes pass the same Worker contract, including actual nat
   const response=await upload(report,raw);assert.equal(response.status,200,await response.clone().text());assert.equal((await response.json()).payload_sha256,sha(raw));
   assert.ok(!raw.includes('CANARY'));assert.ok(raw.includes('WAIT_LOOPBACK'));
 });
+test('owner note retrieval stays bounded with JSON escaping and requires owner authority',async()=>{
+  const r=await accepted(),path='/v2/admin/reports/'+r.report_id+'/notes',ids=[];
+  for(let n=0;n<12;n++) {
+    const operation=id();ids.push(operation);
+    assert.equal((await send(path,{expected_revision:1,operation_id:operation,content:'\n'.repeat(3000)})).status,200);
+  }
+  const list=await get(path,admin);assert.equal(list.status,200);assert.equal((await list.json()).notes.length,12);
+  const response=await get(path+'?operation_id='+ids[0],admin);assert.equal(response.status,200);
+  assert.equal((await response.json()).note.content,'\n'.repeat(3000));
+  assert.equal((await get(path+'?operation_id='+ids[0],key)).status,401);
+});
