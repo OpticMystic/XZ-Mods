@@ -216,6 +216,19 @@ static void steady(void){
  for(unsigned i=0;i<40;i++){tick();hooks.sync_mgr_sync(fake_sync_mgr);struct xz_master_observation b=actual(2);assert(b.revision==a.revision);assert(b.observed_ms>=a.observed_ms);}
  puts("PASS steady PCM/sample ticks preserve semantic revision");
 }
+static void native_return(void){
+ for(int deck=0;deck<2;deck++)for(int preempt=0;preempt<2;preempt++){
+  acquire(1);actual(3);
+  global_decks.deck[1].playing=0;global_decks.master_intent.deck=deck;
+  global_decks.master_intent.epoch++;global_decks.master_intent.explicit_choice=0;
+  if(preempt){int external=4;hooks.set_master_on(fake_sync_master,&external);}
+  step();hooks.sync_mgr_sync(fake_sync_mgr);
+  if(preempt){int32_t current;memcpy(&current,fake_sync_master+8,4);assert(current==4);}
+  else actual(deck);
+  assert(!xz_sync_link_runtime_master_committed(1));
+ }
+ puts("PASS stop handoff restores the requested playing stock deck; operator/external preemption wins");
+}
 static void paused(void){
  global_reset(0);global_decks.deck[0].playing=0;hooks.sync_mgr_sync(fake_sync_mgr);step();hooks.sync_mgr_sync(fake_sync_mgr);
  actual(0);assert(!xz_sync_link_runtime_master_committed(0));
@@ -282,7 +295,7 @@ int main(int argc,char **argv){
  assert(argc==2);
  if(!strcmp(argv[1],"pending"))pending();else if(!strcmp(argv[1],"local"))local();else if(!strcmp(argv[1],"guards"))guards();
  else if(!strcmp(argv[1],"operator"))operator_test();else if(!strcmp(argv[1],"stale"))stale();else if(!strcmp(argv[1],"reentrant"))reentrant();
- else if(!strcmp(argv[1],"inflight"))inflight();else if(!strcmp(argv[1],"concurrent"))concurrent();else if(!strcmp(argv[1],"steady"))steady();else if(!strcmp(argv[1],"paused"))paused();
+ else if(!strcmp(argv[1],"inflight"))inflight();else if(!strcmp(argv[1],"concurrent"))concurrent();else if(!strcmp(argv[1],"steady"))steady();else if(!strcmp(argv[1],"paused")){paused();native_return();}
  else if(!strcmp(argv[1],"admission"))admission();else if(!strcmp(argv[1],"missing"))missing_snapshot();
  else if(!strcmp(argv[1],"restart-request"))restarted_request();else assert(0);
  return 0;
