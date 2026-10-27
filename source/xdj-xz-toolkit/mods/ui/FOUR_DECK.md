@@ -33,11 +33,9 @@ entry point (CLASSIC picker and card, MODERN through `XZ_SHELL_UI_DECK_VIEW`,
 MODS DECK VIEW, the button next to LINK and the retired wave order actions). It
 applies the saved `deck_view` setting (`deck_view_save_locked`, then
 `settings_queue`); `xz_deck_layout_get()` returns the applied view every frame.
-SCREEN > DECK VIEW BUTTON (`deck_view_button`) HIDE removes the button in both
-interfaces: nothing is drawn in its place (MODERN's BEAT FX strip runs to the
-info button again), the picker cannot open, the encoder skips it, and the
-route-up notice points to DECK VIEW in MODS. Every lane names its deck. A pale blue tag
-shows which deck the left or right physical controls drive.
+The DECKS button is always on the play screen in both interfaces. The retired `deck_view_button` setting
+(SETTINGS.md) is read as shown, so a unit saved with HIDE shows the button again. Every lane names its deck. A pale
+blue tag shows which deck the left or right physical controls drive.
 `preview_four_deck.py` checks the upper waveform layout in both orders.
 
 ### Deck colours

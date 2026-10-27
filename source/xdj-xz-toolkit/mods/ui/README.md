@@ -109,15 +109,16 @@ host-tested; the runtime hooks `UiKey_EncoderRotate` (0xe15b0),
 `UiKey_EncoderPush` (0xdec08) and `UiKey_rekordbox` (0xe0a50) behind their
 prologue guards.
 
-In the MODERN interface this panel never opens. The FLAGSHIP shell's MODS screen
-is the one MODS menu: its GENERAL, CONTROLS, ADVANCED and EXTRAS tabs are this
-panel's pages, described row by row by `ui_menu.c` from `xz_ui_layout` and
-`xz_ui_describe_widget`, and each push runs the row's control exactly as the
-panel's encoder push does (a press and a release at that control), so the
-panel's state, actions and settings save stay the only ones. Every place that
-would show a panel page in MODERN (a setup the runtime opens, a game handing
-back, MODS over the VJ view) shows it in the shell instead; CLASSIC keeps the
-panel unchanged. `shell/test_menu.c` and `verify_menu_runtime.py` cover it.
+This panel is the one MODS menu in both interfaces. MODERN draws it over the
+FLAGSHIP shell in the FLAGSHIP skin (theme 24): the same pages, rows and
+explanations, plus MODERN's own play-screen parts (`xz_ui_modern_menu`: LAMPS AND
+TITLES, BYPASS BUTTON, four waveform colours, six stem layouts), which the shell
+owns and applies (`XZ_UI_SHELL_LOOK`). MODERN's rail starts with UTILITY, the
+player's own settings, drawn by the shell; its rail opens MODS on a section. Every
+way in (the MODS button, MENU, the button next to LINK, UTILITY's rail, setups,
+HOME's SET UP) opens this panel. A short MENU follows `menu_key.h` in both
+interfaces: stock first, MODS only where MENU has no stock job; held MENU is
+UTILITY. `verify_menu_runtime.py` and `shell/test_mods_entry.c` cover it.
 
 Stock delivers every phase to `UiKey_EncoderPush` (press, hold and release,
 and again on later key passes while the entry state it never clears stays

@@ -1,9 +1,33 @@
 # MODS menu: device acceptance list
 
-One line per MODS row (DESIGN 7.6). Run each in both interfaces (CLASSIC panel and MODERN MODS
-screen) with a track loaded on decks 1 and 2, then with the loopback cable for decks 3 and 4.
-The host tests prove the same rows reach the runtime (`ui/test_section_rows_runtime.h`); this
-list checks what only the unit can show: sound, pads, lights and the play screen.
+One line per MODS row (DESIGN 7.6). MODS is one menu in both interfaces (CLASSIC draws it in the chosen
+theme, MODERN in the FLAGSHIP look). Run each row in both, with a track loaded on decks 1 and 2, then with
+the loopback cable for decks 3 and 4. The host tests prove the same rows reach the runtime
+(`ui/test_section_rows_runtime.h`); this list checks what only the unit can show: sound, pads, lights and
+the play screen.
+
+## Ways in, and the MENU key
+
+A short MENU follows one table (`ui/menu_key.h`): stock first. Where the player's own firmware gives a short
+MENU a job it keeps it; MODS opens only where it has none. A held MENU always opens the player's own UTILITY.
+
+| Where | Press | You should see | Interface |
+|---|---|---|---|
+| Play screen, nothing open over it | Short MENU | MODS opens on the page it was last on; short MENU again closes it. **Owner to confirm on the unit:** that stock's short MENU here does nothing else (the manual only says "displays the menu screen") | both |
+| Play screen | Hold MENU | The player's own UTILITY, no extra press; MODS does not open | both |
+| MODS open | Hold MENU | MODS closes, UTILITY opens | both |
+| Track list (browse, playlist, search, history) | Short MENU | The list's own menu (sort, track menu, history colour); MODS does not open | both |
+| TAG LIST | Short MENU | LIST MENU; MODS does not open | both |
+| A menu, popup or dialog open | Short MENU | That menu does its job or closes; MODS does not open | both |
+| GRID ADJUST mode | Short MENU | CLASSIC: the beat grid menu. MODERN: nothing new (RESET, SNAP and SHIFT are on the screen). MODS does not open | both |
+| UTILITY | Short MENU | UTILITY closes | both |
+| SOURCE, INFO, SHORTCUT | Short MENU | MODS opens | MODERN |
+| Any screen | Other keys (BROWSE, TAG LIST, LOAD...) | As before in CLASSIC; in MODERN with MODS open they close MODS and act in the same press | both |
+| Play screen | MODS button (top bar), button next to LINK set to MODS MENU | MODS opens; again closes | both |
+| MODS rail | UTILITY (top cell, above a line) | MODS closes, the player's own settings open; their rail's HOME ... EXTRAS open MODS on that section | MODERN |
+| HOME | SET UP FOUR DECKS | 4 DECKS opens with RESCAN ringed | both |
+| Play screen | Look for the DECKS button | Always at the top, in every DECK VIEW and both interfaces (a unit saved with the old HIDE shows it again) | both |
+
 
 | Section | Row | Press | You should hear or see | Decks |
 |---|---|---|---|---|
@@ -34,8 +58,9 @@ list checks what only the unit can show: sound, pads, lights and the play screen
 | STEMS | STEM COLOURS | Pick a colour per stem | Pads, stem buttons and STEMS waveform use it | all |
 | SCREEN | INTERFACE | Pick the other interface | The play screen switches | all |
 | SCREEN | DECK VIEW | Pick each picture | Play screen lanes change; sound and controls do not | all |
-| SCREEN | DECK VIEW BUTTON | HIDE | The DECKS button leaves the top bar (MODERN: BEAT FX runs to the info button); a tap there and an encoder push do nothing new; the decks 3 and 4 card still offers RESCAN and TWO DECKS | all |
-| SCREEN | THEME | CLASSIC: pick a theme; MODERN: STANDARD | The theme applies | all |
+| SCREEN | THEME (CLASSIC) | Pick a theme | The theme applies to the play screen and MODS | all |
+| SCREEN | LAMPS AND TITLES (MODERN) | Open it | MODE LAMPS, QUANTIZE LAMP, TITLES IN WAVEFORMS and TRACK COLOURS on one page | all |
+| SCREEN | WAVEFORM COLOURS (MODERN: four with RGB) | Each choice | The waveforms change; UTILITY's WAVEFORM COLOR shows the same | all |
 | SCREEN | WAVEFORM COLOURS | Pick each | Scrolling waveforms recolour; UTILITY WAVEFORM COLOR shows the same value | all (3 4 draw 3-band for STOCK and STEMS) |
 | SCREEN | TITLES IN WAVEFORMS (MODERN) | HIDE | Titles leave the lanes | all |
 | SCREEN | TRACK COLOURS (MODERN) | Each choice | Deck tag and waveform use, then drop, the library colour | all |
