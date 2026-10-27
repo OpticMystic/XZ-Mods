@@ -58,6 +58,14 @@ int main(void){
  s=(struct xz_touch_status){1,{0,0,0},760,10};xz_native_touch_dispatch(&touch,&solver,&s,NULL,stock);assert(touch.visible);s.down=0;xz_native_touch_dispatch(&touch,&solver,&s,NULL,stock);
  xz_ui_navigate(&ui,XZ_UI_METRICS_SETUP);model.metrics=sample;assert(xz_ui_render(&ui,&model,pixels+1,800*480,800));
  struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t count=xz_ui_layout(&ui,&model,widgets);int verify=0;for(size_t i=0;i<count;i++)verify+=widgets[i].kind==XZ_UI_METRICS_CHECK;assert(verify==1);
+ model.metrics.valid|=XZ_METRICS_AUDIO;model.metrics.key_active_mask=15;
+ model.metrics.worker[0]=(struct xz_worker_load){.samples=256,.p99_us=1200,.max_us=1800,.sampled_ms=1000};
+ model.metrics.worker[1]=(struct xz_worker_load){.samples=256,.p99_us=UINT32_MAX,.max_us=UINT32_MAX,.sampled_ms=1000};
+ model.clock_ms=6000;
+ for(int theme=0;theme<XZ_THEME_COUNT;theme++){
+  model.theme=theme;assert(xz_ui_render(&ui,&model,pixels+1,800*480,800));
+  assert(pixels[0]==0x5a5a&&pixels[800*480+1]==0x5a5a);
+ }
  puts("PASS metrics counter units, cache accounting, 79/80/89/90 thresholds, red 1Hz flash, stale suppression, all themes, bounds, tap capture, STEMS/MODS preservation and setup");
  return 0;
 }

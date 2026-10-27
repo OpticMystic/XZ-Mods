@@ -236,14 +236,15 @@ No deck owns a colour. Blue and pale blue mark the deck a side of the player con
 
 ## System readout
 
-**SYSTEM READOUT** puts CPU load, memory and temperature beside **STEMS** and **MODS** on the top bar. Use it when you suspect the player is working hard, for example with stems on both decks and four decks running.
+**SYSTEM READOUT** puts CPU load, memory and temperature beside **STEMS** and **MODS** on the top bar. Open it to see deck 3 and 4 audio render times and active key shifters across all four decks. P99 is the time at or below which 99% of the last 256 rendered blocks finished; MAX is the longest. Short blocks are scaled to a full block. D3+D4 MAX adds both maxima and compares them with the 5,805 microseconds available per block. New shifts use a stricter 3,483 microsecond budget, leaving time for other work. These render numbers include decoding, time stretch and key shift; they do not measure the complete output path. Use them when you suspect the player is working hard, for example with stems on both decks and four decks running.
 
 ```figure classic:theme-{look}-metrics-setup SYSTEM READOUT
-The first of four setup steps, before the readings have arrived.
+The first setup step with live readings and four key shifters engaged.
 1 @ 225,105 STEP | Where you are in the setup.
 2 @ 440,206 What the numbers mean | CPU 100% means all four cores are busy. RAM leaves out cache. 80 C turns yellow, 90 C flashes red with HOT.
-3 @ 400,278 Live readings | WAITING until the first readings arrive. TEMP NOT EXPOSED means the firmware gives no temperature.
-4 @ 700,356 DETECT METRICS | Runs the current step. Push to move through the setup.
+3 @ 430,255 Audio render time | Each software deck shows its p99 and maximum render time in microseconds. LAST RUN means the reading is no longer live.
+4 @ 430,282 Key shifters | Counts shifted decks, including decks 1 and 2. The combined software maximum is shown against one audio block.
+5 @ 700,356 DETECT METRICS | Runs the current step. Push to move through the setup.
 ```
 
 1. Choose **SYSTEM READOUT** on the SCREEN page.

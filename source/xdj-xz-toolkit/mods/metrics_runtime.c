@@ -7,6 +7,10 @@
 #include <time.h>
 #include <sys/time.h>
 #include "doom/native_bridge.h"
+#include "extra_decks.h"
+#include "key/runtime.h"
+#pragma weak xz_extra_decks_worker_load
+#pragma weak xz_key_active_mask
 
 static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t changed=PTHREAD_COND_INITIALIZER;
@@ -15,6 +19,26 @@ static int created,running,enabled;
 static struct xz_metrics_sample latest;
 /* Published diagnostic counters are observational; they never control playback. */
 __attribute__((visibility("default"))) struct {uint32_t version,samples,valid,enabled,cpu_permille,used_mib,temperature_c;} xz_mods_metrics_proof_v1={.version=1};
+/* Independent versioned audio readout; old metrics proof layout stays stable. */
+__attribute__((visibility("default"))) struct {
+ uint32_t version,sequence,sampled_ms,period_us,safe_us,key_active_mask;
+ struct xz_worker_load worker[2];
+} xz_mods_audio_load_proof_v1={.version=1,.period_us=XZ_RENDER_BLOCK_US,.safe_us=XZ_RENDER_SAFE_US};
+static void audio_proof(const struct xz_metrics_sample *s) {
+ __atomic_add_fetch(&xz_mods_audio_load_proof_v1.sequence,1,__ATOMIC_ACQ_REL);
+ __atomic_store_n(&xz_mods_audio_load_proof_v1.sampled_ms,s->sampled_ms,__ATOMIC_RELAXED);
+ __atomic_store_n(&xz_mods_audio_load_proof_v1.key_active_mask,s->key_active_mask,__ATOMIC_RELAXED);
+ for(unsigned i=0;i<2;i++){
+  const struct xz_worker_load *v=&s->worker[i];struct xz_worker_load *d=&xz_mods_audio_load_proof_v1.worker[i];
+  __atomic_store_n(&d->samples,v->samples,__ATOMIC_RELAXED);
+  __atomic_store_n(&d->p99_us,v->p99_us,__ATOMIC_RELAXED);
+  __atomic_store_n(&d->max_us,v->max_us,__ATOMIC_RELAXED);
+  __atomic_store_n(&d->key_max_us,v->key_max_us,__ATOMIC_RELAXED);
+  __atomic_store_n(&d->sampled_ms,v->sampled_ms,__ATOMIC_RELAXED);
+  __atomic_store_n(&d->key_active,v->key_active,__ATOMIC_RELAXED);
+ }
+ __atomic_add_fetch(&xz_mods_audio_load_proof_v1.sequence,1,__ATOMIC_RELEASE);
+}
 static uint32_t milliseconds(void){return xz_game_milliseconds();}
 static void read_text(const char *path,char *out,size_t size){
  out[0]=0;FILE *f=fopen(path,"r");if(!f)return;size_t n=fread(out,1,size-1,f);out[n]=0;fclose(f);
@@ -30,8 +54,11 @@ static void *collect(void *unused){
   read_text("/proc/stat",stat,sizeof(stat));read_text("/proc/meminfo",mem,sizeof(mem));
   read_text("/sys/class/thermal/thermal_zone0/temp",temp,sizeof(temp));read_text("/sys/class/thermal/thermal_zone0/type",type,sizeof(type));
   xz_metrics_parse(&previous,&sample,stat,mem,temp,type,milliseconds());
+  if(xz_extra_decks_worker_load&&xz_extra_decks_worker_load(sample.worker))sample.valid|=XZ_METRICS_AUDIO;
+  sample.key_active_mask=xz_key_active_mask?xz_key_active_mask():0;
+  for(unsigned i=0;i<2;i++)if(sample.worker[i].key_active)sample.key_active_mask|=1u<<(i+2);
   pthread_mutex_lock(&mutex);
-  if(enabled){latest=sample;
+  if(enabled){latest=sample;audio_proof(&sample);
    __atomic_add_fetch(&xz_mods_metrics_proof_v1.samples,1,__ATOMIC_RELAXED);
    __atomic_store_n(&xz_mods_metrics_proof_v1.valid,sample.valid,__ATOMIC_RELEASE);
    __atomic_store_n(&xz_mods_metrics_proof_v1.cpu_permille,sample.cpu_permille,__ATOMIC_RELAXED);

@@ -220,6 +220,9 @@ int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_anal
 void xz_extra_decks_release_analysis(struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold){
  xz_xp_release_analysis(out,hold);
 }
+int xz_extra_decks_worker_load(struct xz_worker_load out[2]) {
+ return xz_xp_worker_load(__atomic_load_n(&players,__ATOMIC_ACQUIRE),out);
+}
 int xz_extra_decks_snapshot(struct xz_extra_decks *out){
  struct xz_extra_analysis_hold hold={0};
  int result=xz_extra_decks_snapshot_held(out,&hold);

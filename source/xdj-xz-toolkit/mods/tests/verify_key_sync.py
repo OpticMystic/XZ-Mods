@@ -15,7 +15,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--out', type=Path, required=True)
-parser.add_argument('--suite', default='all', choices=['all', 'music', 'native', 'planner', 'shifter', 'runtime', 'player', 'proof', 'admission', 'router', 'controls', 'ui', 'thread'])
+parser.add_argument('--suite', default='all', choices=['all', 'load', 'alignment', 'music', 'native', 'planner', 'shifter', 'runtime', 'player', 'proof', 'admission', 'router', 'controls', 'ui', 'thread'])
 args = parser.parse_args()
 out = args.out.resolve()
 out.mkdir(parents=True, exist_ok=True)
@@ -59,6 +59,8 @@ controls = [ROOT / n for n in ['key/music.c', 'key/control.c', 'key/browser.c', 
 controls += [ROOT / 'ui' / n for n in UI_SOURCES + ['native_touch.c', 'stem_pads.c', 'beat_jump.c', 'wave_viewport.c']]
 controls += [ROOT / 'arcade' / n for n in ['arcade.c', 'render.c', 'input.c', 'clock.c', 'native_clock.c']]
 groups = {
+    'load': [*player[1:], 'tests/test_key_load.c'],
+    'alignment': ['key/test_alignment.c'],
     'music': ['key/music.c', 'key/test_music.c'],
     'native': ['key/music.c', 'key/native.c', 'key/test_native.c'],
     'planner': ['key/music.c', 'key/control.c', 'key/test_control.c'],

@@ -45,6 +45,14 @@ int main(int argc,char **argv){
   for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
    if(xz_ui_page_current((enum xz_ui_page)page)!=(enum xz_ui_page)page)continue; /* retired: opens its replacement */
    ui.page=(enum xz_ui_page)page;
+   model.metrics=(struct xz_metrics_sample){0};
+   if(page==XZ_UI_METRICS_SETUP){
+    model.clock_ms=1000;
+    model.metrics=(struct xz_metrics_sample){.sampled_ms=1000,.valid=15,.cpu_permille=380,
+     .used_mib=380,.total_mib=993,.free_mib=240,.temperature_c=64,.key_active_mask=15,
+     .worker={{.samples=256,.p99_us=610,.max_us=720,.sampled_ms=1000,.key_active=1},
+              {.samples=256,.p99_us=640,.max_us=760,.sampled_ms=1000,.key_active=1}}};
+   }
    if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
    snprintf(name,sizeof(name),"theme-%d-%s",theme,names[page]);save(argv[1],name,800,480);
   }

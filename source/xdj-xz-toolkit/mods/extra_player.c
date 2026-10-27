@@ -7,6 +7,12 @@
 #include "audio/stem_media.h"
 #include "audio/stretch.h"
 #include "key/keyshift.h"
+#include "audio/render_load.h"
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include "clock_compat.h"
+#endif
 #include "sync_native.h"
 #include <pthread.h>
 #include <math.h>
@@ -206,6 +212,9 @@ struct deck {
  int tempo_range, tempo_reset, vinyl, master_tempo;
  uint32_t tempo_revision;
  struct xz_stretch stretch;
+ struct xz_render_load render_load;
+ struct xz_key_shift key_probe;
+ uint32_t rendered_key_us;
  struct { struct xz_key_shift shift; int desired,engaged,mt_before,target,mode,initialized,ever_rendered,mt_owned,rendered_cents;
   uint32_t revision; struct xz_key_owner target_owner; } key;
  struct {
@@ -327,7 +336,8 @@ struct xz_xp_players {
  atomic_uint explicit_intent;
  xz_master_observer master_observer;
  int (*key_owner_reader)(int,struct xz_key_owner *);
- atomic_uint key_budget; /* One active software shifter until CPU-2 hardware qualification. */
+ atomic_uint key_active; /* Includes requests and the return-to-unity tail. */
+ uint32_t key_reserved_us[2]; /* publish_lock; measured allowance until actual blocks arrive. */
  uint32_t master_admitted,admitted_operator,operator_floor,intent_operator,acknowledged_intent; /* publish_lock */
  atomic_uint sync_requests;
  atomic_uint sync_choice_epoch, sync_grid;
@@ -836,8 +846,24 @@ static int render_source(struct deck *d, double rate) {
  return 1;
 }
 
+#ifndef XZ_XP_RENDER_CLOCK_US
+#define XZ_XP_RENDER_CLOCK_US render_clock_us
+static uint64_t render_clock_us(void) {
+#ifdef _WIN32
+ LARGE_INTEGER ticks,rate;
+ if(!QueryPerformanceCounter(&ticks)||!QueryPerformanceFrequency(&rate))return 0;
+ return (uint64_t)(ticks.QuadPart/(double)rate.QuadPart*1000000.);
+#else
+ struct timespec t;
+ if(xz_clock_gettime_compat(CLOCK_MONOTONIC,&t))return 0;
+ return (uint64_t)t.tv_sec*1000000u+(uint32_t)t.tv_nsec/1000u;
+#endif
+}
+
+#endif
+
 /* Every fresh block visits the shifter once. Pending retries retain its PCM and provenance. */
-static int render(struct deck *d,double rate){
+static int render_audio(struct deck *d,double rate){
  int mode=d->emergency.active?4:d->state==XZ_XP_SCRATCHING?3:
   reversed(d)||d->search||d->ramp.active?2:d->master_tempo?1:0;
  if(!d->key.initialized||d->key.mode!=mode){key_history_reset(d);d->key.mode=mode;}
@@ -851,9 +877,54 @@ static int render(struct deck *d,double rate){
  if(d->key.rendered_cents!=d->key.desired){
   (void)xz_key_shift_set_cents(&d->key.shift,d->key.desired);d->key.rendered_cents=d->key.desired;
  }
+ uint64_t begin=XZ_XP_RENDER_CLOCK_US();
  if(xz_key_shift_process(&d->key.shift,d->pcm,d->pending))return 0;
+ d->rendered_key_us=xz_render_us(begin,XZ_XP_RENDER_CLOCK_US());
  k->cents=(int)lround(1200.*log2(d->key.shift.ratio));
  return 1;
+}
+
+static int render(struct deck *d,double rate) {
+ uint64_t begin=XZ_XP_RENDER_CLOCK_US();d->rendered_key_us=0;
+ int result=render_audio(d,rate);
+ uint64_t end=XZ_XP_RENDER_CLOCK_US();
+ if(begin&&end>=begin) {
+  uint32_t key=d->key.desired||fabsf(d->key.shift.ratio-1.f)>.0001f?d->rendered_key_us:0;
+  xz_render_load_record(&d->render_load,xz_render_us(begin,end),key,
+                       d->pending?d->pending:256u,(uint32_t)(end/1000u));
+ }
+ return result;
+}
+
+/* Exercise a wrap at the fastest supported ratio on private state. A twofold
+ * reserve covers timing variation and the fine-search boundary case. No PCM,
+ * transport, or requested pitch from the live deck is changed. */
+static uint32_t key_probe_us(struct deck *d) {
+ uint32_t peak=0;
+ for(unsigned trial=0;trial<2;trial++) {
+  d->key_probe=d->key.shift;
+  d->key_probe.ratio=d->key_probe.target=2.f;d->key_probe.grain=512.f;d->key_probe.phase=0.f;
+  float pcm[512];memcpy(pcm,d->pcm,sizeof pcm);
+  uint64_t begin=XZ_XP_RENDER_CLOCK_US();
+  (void)xz_key_shift_process(&d->key_probe,pcm,256);
+  uint32_t cost=xz_render_us(begin,XZ_XP_RENDER_CLOCK_US());
+  if(cost>peak)peak=cost;
+ }
+ return peak>UINT32_MAX/2u?UINT32_MAX:peak*2u;
+}
+static int key_admit(struct xz_xp_players *p,struct deck *d) {
+ unsigned bit=1u<<d->index;
+ if(atomic_load(&p->key_active)&bit)return 1;
+ uint32_t probe=key_probe_us(d);
+ pthread_mutex_lock(&p->publish_lock);
+ struct xz_worker_load load[2]={p->view[0].worker_load,p->view[1].worker_load};
+ load[d->index]=d->render_load.latest;
+ unsigned active=atomic_load(&p->key_active);
+ uint64_t projected=xz_render_projected(load,p->key_reserved_us,active,(unsigned)d->index,probe);
+ int allowed=projected<=XZ_RENDER_SAFE_US;
+ if(allowed){p->key_reserved_us[d->index]=probe;atomic_fetch_or(&p->key_active,bit);}
+ pthread_mutex_unlock(&p->publish_lock);
+ return allowed;
 }
 
 /* ---- the deck machine ---- */
@@ -1088,6 +1159,8 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  if(p->master_observer)copy_master(p,&actual);
  struct xz_extra_deck v;
  memset(&v, 0, sizeof v);
+ v.worker_load=d->render_load.latest;
+ v.worker_load.key_active=!!(atomic_load(&p->key_active)&(1u<<d->index));
  enum xz_xp_state s = d->state;
  /* Deck modes hold with or without a track, as the stock lamps show them. */
  v.vinyl = d->vinyl; v.master_tempo = d->master_tempo; v.quantize = d->quantize;v.quantize_den=d->sync_grid_den;
@@ -1296,7 +1369,8 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  }
  if (d->r->media&&!next) { jump(d, 0, now); flush(p, d); }
  if(d->key.engaged)d->master_tempo=d->key.mt_before;
- atomic_fetch_and(&p->key_budget,~(1u<<d->index));
+ atomic_fetch_and(&p->key_active,~(1u<<d->index));
+ memset(&d->render_load,0,sizeof d->render_load);
  memset(&d->key,0,sizeof d->key);d->key.target=-1;key_history_reset(d);
  d->jog_load_pending=1;
  d->state = XZ_XP_LOADING; d->track = t;
@@ -2449,11 +2523,8 @@ static void key_command(struct xz_xp_players *p,struct deck *d,const struct xz_k
   }
  }else return;
  if(cents < -1200||cents>1200){xz_xp_notice(p,xz_key_refusal_text(XZ_KEY_RANGE));return;}
- unsigned bit=1u<<d->index,budget=atomic_load(&p->key_budget);
- if(cents){
-  do{
-   if(budget&~bit){xz_xp_notice(p,"KEY CPU LIMIT / RESET OTHER SOFTWARE DECK");return;}
-  }while(!atomic_compare_exchange_weak(&p->key_budget,&budget,budget|bit));
+ if(cents&&!key_admit(p,d)){
+  xz_xp_notice(p,"KEY SHIFT REFUSED: AUDIO LOAD TOO HIGH");return;
  }
  if(mt!=d->master_tempo)xz_stretch_reset(&d->stretch);
  d->master_tempo=mt;d->key.desired=cents;d->key.engaged=engaged;d->key.mt_before=mt_before;
@@ -3185,7 +3256,7 @@ void xz_xp_step(struct xz_xp_players *p, int index) {
  prepare_flush(p,d,now,link);
  if (streaming(d->state) && link && !d->need_flush) stream(p, d, now);
  if(scratch_tail_done(p,d,now))flush(p,d);
- if(!d->key.desired&&fabsf(d->key.shift.ratio-1.f)<=.0001f)atomic_fetch_and(&p->key_budget,~(1u<<d->index));
+ if(!d->key.desired&&fabsf(d->key.shift.ratio-1.f)<=.0001f)atomic_fetch_and(&p->key_active,~(1u<<d->index));
  publish(p, d, now);
  SP_ONLY(struct xp_sp_private *v=&d->sp;uint32_t end=p->env.now_ms();
   uint32_t cost=sp_elapsed(end,v->step_begin,&v->clock_future);
@@ -3345,6 +3416,12 @@ static int read_view(struct xz_xp_players *p,struct xz_extra_decks *out,struct x
  }
  return 1;
 }
+int xz_xp_worker_load(struct xz_xp_players *p,struct xz_worker_load out[2]) {
+ if(!p||!out||pthread_mutex_trylock(&p->publish_lock))return 0;
+ unsigned active=atomic_load(&p->key_active);
+ for(unsigned i=0;i<2;i++){out[i]=p->view[i].worker_load;out[i].key_active=!!(active&(1u<<i));}
+ pthread_mutex_unlock(&p->publish_lock);return 1;
+}
 void xz_xp_read(struct xz_xp_players *p,struct xz_extra_decks *out){(void)read_view(p,out,NULL);}
 int xz_xp_read_held(struct xz_xp_players *p,struct xz_extra_decks *out,struct xz_extra_analysis_hold *hold){
  return hold?read_view(p,out,hold):0;
@@ -3439,7 +3516,7 @@ struct xz_xp_players *xz_xp_create(const struct xz_xp_env *env) {
   sp_publish(&w->first.seq,w->first.word,zero,XP_SP_LATCH_WORDS);
   sp_publish(&w->previous.seq,w->previous.word,zero,XP_SP_LATCH_WORDS);
  });
- atomic_init(&p->key_budget,0);
+ atomic_init(&p->key_active,0);
  atomic_init(&p->quit, 0);
  atomic_init(&p->revision,0);
  atomic_init(&p->sync_master,-1);atomic_init(&p->sync_requests,0);

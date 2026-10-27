@@ -9,6 +9,7 @@
    never a guess. Text and cues are copied. Ordinary snapshots contain wave/grid descriptors but
    no array pointers. A held snapshot pins immutable analysis until its matching release. */
 #include <stdint.h>
+#include "audio/render_load.h"
 #include "sync_master.h"
 #include "key/control.h"
 
@@ -135,6 +136,7 @@ struct xz_extra_deck {
  uint32_t master_scope;
  char key[8];                          /* as the library writes it, e.g. "Fm" or "4A" */
  struct xz_deck_key key_state;
+ struct xz_worker_load worker_load;
  uint32_t key_color;
  int key_feedback;
  char original_display[8];
@@ -181,6 +183,7 @@ struct xz_extra_decks {
    and every interface keeps its two-deck screen. Never blocks the caller on IO. left_on_3 and
    right_on_4 are only ever set while route_up is. */
 int xz_extra_decks_snapshot(struct xz_extra_decks *out);
+int xz_extra_decks_worker_load(struct xz_worker_load out[2]);
 int xz_extra_decks_snapshot_held(struct xz_extra_decks *out,struct xz_extra_analysis_hold *);
 void xz_extra_decks_release_analysis(struct xz_extra_decks *,struct xz_extra_analysis_hold *);
 /* Connector service only. Its owner joins the connector before stopping the players.

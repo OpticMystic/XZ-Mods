@@ -34,6 +34,17 @@ static int observe_only;
 __attribute__((visibility("default"))) struct xz_key_audio_proof xz_mods_key_audio_proof_v1={.version=1};
 static xz_tsm_operate_fn original_operate;
 
+unsigned xz_key_active_mask(void) {
+ unsigned mask=0;
+ for(unsigned i=0;i<2;i++){
+  const struct xz_key_audio_deck_proof *p=&xz_mods_key_audio_proof_v1.deck[i];
+  uint32_t epoch=__atomic_load_n(&p->epoch,__ATOMIC_ACQUIRE);
+  uint32_t bits=__atomic_load_n(&p->ratio_bits,__ATOMIC_RELAXED);float ratio;memcpy(&ratio,&bits,sizeof ratio);
+  if(epoch&&fabsf(ratio-1.f)>.0001f&&epoch==__atomic_load_n(&p->epoch,__ATOMIC_ACQUIRE))mask|=1u<<i;
+ }
+ return mask;
+}
+
 static uint32_t active_engine(const void *manager)
 {
     return __atomic_load_n((const uint32_t *)((const unsigned char *)manager +

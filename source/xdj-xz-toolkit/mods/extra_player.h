@@ -92,6 +92,7 @@ int xz_xp_input(struct xz_xp_players *, const struct xz_extra_deck_event *);
 /* Fills scalar deck state/descriptors and notice; no wave/grid pointers.
    The player object must outlive the call. Route and sides are the caller's. */
 void xz_xp_read(struct xz_xp_players *, struct xz_extra_decks *out);
+int xz_xp_worker_load(struct xz_xp_players *,struct xz_worker_load out[2]);
 #define XZ_XP_HAS_ANALYSIS_HOLD 1
 int xz_xp_read_held(struct xz_xp_players *,struct xz_extra_decks *,struct xz_extra_analysis_hold *);
 void xz_xp_release_analysis(struct xz_extra_decks *,struct xz_extra_analysis_hold *);
