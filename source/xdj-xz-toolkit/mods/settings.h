@@ -3,6 +3,7 @@
 #define XZ_SETTINGS_H
 #include <stddef.h>
 #include "ui/beat_jump.h"
+#include "ui/band_colors.h"
 #include "ui/stem_colors.h"
 #include "ui/stem_pads.h"
 enum xz_browse_column { XZ_BROWSE_TITLE, XZ_BROWSE_ARTIST, XZ_BROWSE_KEY, XZ_BROWSE_BPM, XZ_BROWSE_COLUMN_COUNT };
@@ -60,6 +61,15 @@ struct xz_settings {
     int deck_view; /* enum xz_deck_view; a record without it keeps the current view (2 DECKS by default) */
     int deck_view_button; /* retired: the DECKS button always shows; reads as 1, written as 1 */
     int browse_preview; /* MODERN browse tile: 0 hidden/collapsed (default), 1 shown */
+    int band_colors[3]; /* 3-BAND colours, enum xz_wave_band order: ui/band_colors.h choices, 0 STANDARD */
+    /* MODERN's own display settings, the shell's (shell/shell.h struct xz_shell_display and its zoom), stored in
+       the shell's numbering. One block: a record holds all six or none. */
+    int modern_wave_color; /* enum xz_shell_wave_color, UTILITY's WAVEFORM COLOR: 0 BLUE, 1 RGB, 2 3BAND (default), 3 STEMS */
+    int wave_position;     /* enum xz_shell_wave_position: 0 CENTER (default), 1 LEFT */
+    int key_display;       /* enum xz_shell_key_display: 0 as the deck shows it (default), 1 classic, 2 alphanumeric */
+    int wave_zoom;         /* 0..XZ_SHELL_ZOOM_MAX (6), default XZ_SHELL_ZOOM_DEFAULT (3) */
+    int usb_colors;        /* enum xz_shell_usb_colors: 0 ALL (default), 1 TILE, 2 OFF */
+    int hidden_parts;      /* bit per enum xz_shell_indicator set: hidden (mode lamps, quantize lamp, bypass, titles) */
 };
 /* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
 int xz_settings_look(int ui_interface, int classic_theme);

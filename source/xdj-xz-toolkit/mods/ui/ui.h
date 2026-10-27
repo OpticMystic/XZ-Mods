@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "themes.h"
+#include "band_colors.h"
 #include "stem_colors.h"
 #include "beat_jump.h"
 #include "../doom/native_bridge.h"
@@ -23,6 +24,8 @@ enum xz_ui_page { XZ_UI_STEMS, XZ_UI_XPAD, XZ_UI_SETTINGS, XZ_UI_THEMES, XZ_UI_C
     XZ_UI_HOME, XZ_UI_PLAY, XZ_UI_STEM_SECTION, XZ_UI_SCREEN, XZ_UI_FOUR_DECKS, XZ_UI_CONNECT, XZ_UI_STEM_PADS,
     /* SCREEN > LAMPS AND TITLES: the MODERN play screen's own parts (model.modern_look). MODERN only. */
     XZ_UI_SCREEN_LOOK,
+    /* SCREEN > 3-BAND COLOURS: a colour per band (model.band_colors), both interfaces. */
+    XZ_UI_BAND_COLORS,
     XZ_UI_PAGE_COUNT };
 /* The section rail in order; EXTRAS is the old page of that name. */
 enum { XZ_UI_SECTIONS=7 };
@@ -116,6 +119,9 @@ enum xz_ui_action_kind {
     /* 4 DECKS > RESCAN: wake the four-deck connector for an immediate check. */
     XZ_UI_ROUTE_RESCAN,
     XZ_UI_BROWSE_PREVIEW, /* MODERN browse tile only; value 0 hidden, 1 shown. Saved. */
+    /* 3-BAND COLOURS. BAND_COLOR: widget index = band * XZ_BAND_COLOR_CHOICES + choice; the action carries
+       index = enum xz_wave_band, value = the choice. BAND_COLORS_RESET puts all three back to STANDARD. Saved. */
+    XZ_UI_BAND_COLOR, XZ_UI_BAND_COLORS_RESET,
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
@@ -270,6 +276,7 @@ struct xz_ui_model {
     int wave_mode; /* 0 stock, 1 3-band, 2 stems */
     int browse_columns[3], browse_key_prefix, browse_traffic;
     int stem_colors[3];
+    int band_colors[3]; /* 3-BAND colour choices, enum xz_wave_band order (band_colors.h); 0 STANDARD */
     int stem_order; /* xz_stem_orders index for the rows and pads A/B/C */
     int key_format; /* 0 stock browser setting, 1 classic, 2 Camelot */
     int key_feedback;
