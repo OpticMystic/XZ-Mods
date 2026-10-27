@@ -76,6 +76,8 @@ class Reports(unittest.TestCase):
   self.assertNotIn(before['key'],json.dumps(listing))
   self.call({'method':'support_preview',**first,'page':0})
   marker=self.data/'support-reports'/(first['report_id']+'.review');self.assertTrue(marker.exists())
+  refused=self.call({'method':'support_consent','report_id':first['report_id'],'sha256':first['sha256'],'bytes':first['bytes'],'consent':'private-report/v2'})
+  self.assertFalse(refused['ok']);self.assertIn('v2',refused['error']);self.assertFalse((marker.parent/(first['report_id']+'.consent')).exists())
   resumed=self.call({'method':'support_resume','report_id':first['report_id'],'sha256':first['sha256']})
   self.assertTrue(resumed['ok']);self.assertEqual(resumed['result']['sha256'],first['sha256']);self.assertEqual(resumed['result']['fields']['title'],'Saved report 0')
   self.assertFalse(marker.exists());self.assertEqual(self.body(first),before)

@@ -139,6 +139,75 @@ class Sources(unittest.TestCase):
         s.diagnostic_event('loader','started');s.diagnostic_event('loader','failed')
         raw=(self.data/'app.log').read_bytes();facts,_=s.events(raw,'app_events',s.window({}))
         self.assertEqual([f['result'] for f in facts],['started','failed']);self.assertNotIn('session',json.dumps(facts));self.assertNotIn('epoch',json.dumps(facts))
+    def collected(self,generation,**request):
+        return reports.dispatch({'method':'support_collect','scan_generation':generation,**request},self.job)
+    def digest(self,items):
+        # The renderer's algorithm: JSON of [item_id, sha256] pairs for the included items, in order.
+        pairs=[[i['item_id'],i['sha256']] for i in items]
+        return hashlib.sha256(json.dumps(pairs,separators=(',',':')).encode()).hexdigest()
+    def test_send_consent_binds_exact_bytes_and_displayed_selection(self):
+        root=self.usb();self.diary(root);found=self.discover(root)
+        summary=self.collected(found['scan_generation'],reporter_hints={'topic':'NOT_WORKING','problem_area':'FOUR_DECKS_LOOPBACK'})
+        self.assertEqual(summary['category'],'bridge');self.assertEqual(summary['kind_hint'],'BUG')
+        shown=[i for i in summary['items'] if i['eligible']];self.assertTrue(shown)
+        omitted=next(i for i in shown if i['source_id']=='usb_session');kept=[i for i in shown if i is not omitted]
+        request={'method':'support_prepare_v2','description':'Decks 3 and 4 went silent.','scan_generation':found['scan_generation'],
+                 'reporter_hints':{'topic':'NOT_WORKING','problem_area':'FOUR_DECKS_LOOPBACK'},'omit_item_ids':[omitted['item_id']]}
+        # A selection that differs from what the reporter saw is refused before anything is saved.
+        before=set(reports.root().iterdir())
+        with self.assertRaisesRegex(ValueError,'Included details changed'):
+            reports.dispatch({**request,'selection_sha256':self.digest(shown),'consent':'private-report/v2'},self.job)
+        self.assertEqual(set(reports.root().iterdir()),before)
+        sent=reports.dispatch({**request,'selection_sha256':self.digest(kept),'consent':'private-report/v2'},self.job)
+        self.assertEqual(sent['selection_sha256'],self.digest(kept));self.assertEqual(sent['consent'],'private-report/v2')
+        saved=reports.load(sent['report_id']);raw=saved['body'].encode()
+        record=json.loads((reports.root()/(sent['report_id']+'.consent')).read_text())
+        self.assertEqual((record['sha256'],record['bytes'],record['report_id']),(hashlib.sha256(raw).hexdigest(),len(raw),sent['report_id']))
+        self.assertEqual(record['selection_sha256'],self.digest(kept))
+        body=json.loads(raw);self.assertEqual([i['item_id'] for i in body['private']['items']],[i['item_id'] for i in kept])
+        self.assertNotIn(omitted['item_id'],saved['body'])
+        for item in body['private']['items']:
+            self.assertEqual(hashlib.sha256(s.encoded(item)).hexdigest(),next(i['sha256'] for i in kept if i['item_id']==item['item_id']))
+        # Consent is to these bytes only: a wrong hash, size, consent string or changed draft is refused.
+        for bad in ({'sha256':'0'*64},{'bytes':len(raw)+1},{'consent':'public-summary-private-logs/v1'},{'selection_sha256':'0'*64}):
+            with self.assertRaises(ValueError):
+                reports.dispatch({'method':'support_consent','report_id':sent['report_id'],'sha256':sent['sha256'],'bytes':sent['bytes'],
+                                  'consent':'private-report/v2',**bad},self.job)
+        # Reopening a draft clears consent so Send must be pressed again.
+        reports.dispatch({'method':'support_resume','report_id':sent['report_id'],'sha256':sent['sha256']},self.job)
+        self.assertFalse((reports.root()/(sent['report_id']+'.consent')).exists())
+        again=reports.dispatch({'method':'support_consent','report_id':sent['report_id'],'sha256':sent['sha256'],'bytes':sent['bytes'],'consent':'private-report/v2'},self.job)
+        self.assertEqual(again['selection_sha256'],self.digest(kept))
+        listing=reports.dispatch({'method':'support_list'},self.job)['reports']
+        entry=next(e for e in listing if e['report_id']==sent['report_id'])
+        self.assertEqual((entry['schema'],entry['kind_hint'],entry['topic'],entry['attempted']),('xz-support-report/2','BUG','NOT_WORKING',False))
+        self.assertNotIn(saved['key'],json.dumps(listing))
+    def test_live_usb_rescan_supersedes_and_lists_sticks_without_diary(self):
+        root=self.usb();music=self.base/'music';music.mkdir();fixed=self.base/'fixed';fixed.mkdir()
+        candidates=[{'volume':str(root),'removable':True},{'volume':str(music),'removable':True},{'volume':str(fixed),'removable':False}]
+        with patch('builder.managed_usb.support_candidates',return_value=candidates):
+            first=reports.dispatch({'method':'support_sources'},self.job)
+            self.assertEqual([o['local_volume'] for o in first['other_sticks']],[str(music)])
+            self.assertTrue((s.store_root()/(first['scan_generation']+'.json')).exists())
+            second=reports.dispatch({'method':'support_sources','supersedes':first['scan_generation']},self.job)
+        self.assertFalse((s.store_root()/(first['scan_generation']+'.json')).exists())
+        with self.assertRaises((ValueError,OSError)):s._record(first['scan_generation'])
+        summary=self.collected(second['scan_generation'],reporter_hints={'topic':'GOT_WORSE','degradation_timing':'DURING_SET_OVER_TIME'})
+        self.assertEqual(summary['kind_hint'],'DEGRADATION');self.assertEqual(summary['diary_coverage']['usb_a']['state'],'absent')
+        # A superseded ID that is not a scan record never deletes anything else.
+        keep=reports.root()/'keep.draft';keep.write_text('x')
+        s.discover(self.job,[],supersedes='../support-reports/keep');self.assertTrue(keep.exists())
+    def test_stalled_collection_sends_without_evidence_and_records_missing_coverage(self):
+        root=self.usb();found=self.discover(root)
+        sent=reports.dispatch({'method':'support_prepare_v2','description':'The screen froze.','scan_generation':found['scan_generation'],'collect':False,
+                               'selection_sha256':self.digest([]),'consent':'private-report/v2'},self.job)
+        body=json.loads(reports.load(sent['report_id'])['body'])
+        self.assertEqual(body['private']['items'],[]);self.assertEqual(body['coverage']['unfinished_sources'],1)
+        self.assertNotEqual(body['coverage']['scan_generation'],found['scan_generation'])
+        idea=reports.dispatch({'method':'support_prepare_v2','description':'Colour themes','reporter_hints':{'topic':'NEW_IDEA','idea_type':'APPEARANCE'},
+                               'selection_sha256':self.digest([]),'consent':'private-report/v2'},self.job)
+        body=json.loads(reports.load(idea['report_id'])['body'])
+        self.assertEqual((body['kind_hint'],body['private']['items'],body['coverage']['unfinished_sources']),('FEATURE',[],0))
     def test_taxonomy_eligibility_all_pairs_and_generated_bytes(self):
         for kind in [None,*CONTRACT['kinds']]:
             for impact in [None,*CONTRACT['impacts']]:
