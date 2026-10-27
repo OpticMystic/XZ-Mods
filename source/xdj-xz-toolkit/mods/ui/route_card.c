@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "route_card.h"
 #include "cable_anim.h"
+#include "loopback_port.h"
 #include <string.h>
 
 /* Design section 5.1. MODERN: the card spans the lanes right of the info column, x 98..799. CLASSIC:
@@ -404,9 +405,9 @@ static void primary_button(struct pen p, const struct xz_route_card_style *s, st
  text(p,cx+r+(s->classic?9:10),b.y+(b.h-14)/2,k==XZ_ROUTE_CARD_FAILED?"TRY AGAIN":"RESCAN",2,s->primary_ink);
 }
 static void steps(struct pen p, const struct xz_route_card_style *s, int x, int y, int classic) {
- /* 1 Rear USB socket to USB 1 or 2 on top (USB-B to USB-A cable).  2 CH3 and CH4 input switches to USB.
-    Either top slot works; USB 1, the one most DJs use, stands out. */
- static const char *const first[2][4]={{"Rear USB socket to ","USB 1"," or 2 on top (USB-B to USB-A cable).",NULL},{"Rear USB socket to ","USB 1"," or 2 on top.",NULL}};
+ /* 1 Rear USB socket to USB 1 on top (USB-B to USB-A cable).  2 CH3 and CH4 input switches to USB.
+    The port name stands out; it comes from loopback_port.h. */
+ static const char *const first[2][4]={{"Rear USB socket to ",XZ_LOOPBACK_PORT," on top (USB-B to USB-A cable).",NULL},{"Rear USB socket to ",XZ_LOOPBACK_PORT," on top.",NULL}};
  static const char *const second[4]={"CH3"," and ","CH4"," input switches to "};
  int tx=x;text(p,tx,y,"1",1,s->amber);tx+=width(p,"1",1)+7;
  for(int i=0;first[classic][i];i++){text(p,tx,y,first[classic][i],1,i==1?s->white:s->step_text);tx+=width(p,first[classic][i],1);}

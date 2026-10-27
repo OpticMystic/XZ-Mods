@@ -5,6 +5,7 @@
 #include "wave_viewport.h"
 #include "layout_cycle.h"
 #include "cable_anim.h"
+#include "loopback_port.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -398,7 +399,7 @@ const char *xz_ui_route_line(const struct xz_ui_model *m){
   state==XZ_UI_ROUTE_SCANNING?"Checking for the loopback cable now.":
   state==XZ_UI_ROUTE_STARTING?"This takes a few seconds.":
   state==XZ_UI_ROUTE_LOST?"The loopback cable was unplugged or lost power.":
-  "Rear USB socket to USB 1 or 2 on top. CH3 and CH4 input switches to USB.";
+  "Rear USB socket to " XZ_LOOPBACK_PORT " on top. CH3 and CH4 input switches to USB.";
 }
 static void home(const struct xz_ui_scene *sc, const struct xz_pic_style *s){
  struct xz_canvas c=sc->c;const struct xz_ui_model *m=sc->m;char status[96];
