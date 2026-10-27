@@ -318,7 +318,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
  add(w,&n,XZ_UI_BACK,0,0,"< BACK");
  if(m->dj)add(w,&n,XZ_UI_PROFILE,0,0,"DJ PROFILE");
  if(xz_ui_header_decks(u->page))
-  for(i=0;i<(u->page==XZ_UI_KEY_SETUP?4:2);i++)add(w,&n,XZ_UI_DECK,i,0,i<2?"USB DECK":"SOFTWARE DECK");
+  for(i=0;i<(u->page==XZ_UI_KEY_SETUP?4:2);i++)add(w,&n,XZ_UI_DECK,i,0,i<2?"USB DECK":"SOFTWARE");
  if(xz_ui_section_page(u->page))return xz_ui_section_controls(u,m,w,n);
  if(u->page==XZ_UI_FEATURE_SETUP){
   static const char *steps[4]={"DETECT FEATURE","USE SELECTED DECK","ENABLE FEATURE","I TESTED IT / DONE"};
@@ -612,8 +612,8 @@ const char *xz_ui_ram_scope(const struct xz_ui_ram *r){
   return "Up to 64 MiB a track, 128 MiB in all.";
  }
  if(r->state==XZ_UI_RAM_READY||r->state==XZ_UI_RAM_DETACHED)
-  return r->retained_stems_bytes?"ORIGINAL + PREPARED STEMS IN RAM / LOADED WAVES KEPT WHEN PRESENT":"ORIGINAL IN RAM / UNPINNED STEMS AND NEW WAVE DATA NEED USB";
- return "RAM COPIES ORIGINAL AUDIO / STEMS AND NEW WAVE DATA ARE SEPARATE";
+  return r->retained_stems_bytes?"AUDIO + PREPARED STEMS IN RAM":"AUDIO IN RAM / STEMS NEED USB";
+ return "COPIES AUDIO / STEMS STAY ON USB";
 }
 const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m){
  if(xz_ui_support_page(u->page))return u->notice[0]?u->notice:m->support.status[0]?m->support.status:"PREPARE SANITIZED DRAFT / PREVIEW SHA256 / SEND OR EXPORT";

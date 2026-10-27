@@ -222,7 +222,8 @@ static void deck_tag(struct xz_canvas c,const struct xz_ui_widget *a,int selecte
  if(selected)xz_rect(c,x,y,w,h,BLUE);else{xz_rect(c,x,y,w,h,CHROME);xz_border(c,x,y,w,h,WHITE);}
  int tw=xz_text_width(c,buf,2,8);
  text(c,x+8,y,w-16,h,buf,2,ALIGN_L,WHITE);
- text(c,x+8+tw+8,y,w-tw-24,h,a->label,1,ALIGN_R,selected?WHITE:DIM);
+ /* the caption only where it fits whole; a clipped word reads as a different one */
+ if(a->label&&xz_text_width(c,a->label,1,40)<=w-tw-24)text(c,x+8+tw+8,y,w-tw-24,h,a->label,1,ALIGN_R,selected?WHITE:DIM);
 }
 static void card(struct xz_canvas c,const struct xz_ui_widget *a,int available,int lit){
  enum xz_ui_page icon=a->kind==XZ_UI_PANEL?(enum xz_ui_page)a->index:XZ_UI_GAMES;

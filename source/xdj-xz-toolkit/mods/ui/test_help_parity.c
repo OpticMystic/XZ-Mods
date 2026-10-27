@@ -32,7 +32,7 @@ int main(void){
  CHECK(strstr(xz_ui_footer_text(&u,&m),"PREPARED STEMS IN RAM"));
  CHECK(strstr(xz_ui_footer_text(&u,&m),"LOADED WAVES KEPT WHEN PRESENT"));
  m.deck[0].ram.retained_stems_bytes=0;CHECK(!strstr(xz_ui_footer_text(&u,&m),"PREPARED STEMS IN RAM"));
- CHECK(strstr(xz_ui_footer_text(&u,&m),"UNPINNED STEMS AND NEW WAVE DATA NEED USB"));
+ CHECK(strstr(xz_ui_footer_text(&u,&m),"STEMS NEED USB"));
  /* BEAT JUMP as the stem pad mode: page 2's jumps win its pads, page 1's with MY SIZES, in both interfaces */
  for(int iface=0;iface<2;iface++){
   m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.theme=iface?XZ_THEME_FLAGSHIP:0;
