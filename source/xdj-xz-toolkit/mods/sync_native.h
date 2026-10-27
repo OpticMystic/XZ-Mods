@@ -34,10 +34,11 @@ struct xz_sync_native_snapshot {
  uint32_t captured_ms;               /* same CLOCK_MONOTONIC domain as player env.now_ms */
  uint32_t uncertainty_us;            /* half-width of the guarded native read window */
  int32_t output_latency_us;          /* calibrated native engine-to-output offset in microseconds */
- float bpm,nominal_bpm,bar_phase,speed; /* bar_phase 0..4; engine/grid time, never an uncalibrated DAC timestamp */
+ float bpm,nominal_bpm,bar_phase,speed; /* steady tempo excludes bend; bar_phase is engine/grid time, not DAC time */
  int playing;
  int manual;                         /* 1 when native deck is scratching or pitch-bending */
  unsigned read_count;
+ unsigned playing_native_mask;       /* coherent stock transport candidates; independent of master availability */
 };
 typedef int (*xz_sync_native_read_fn)(void *,uint32_t,void *,size_t);
 typedef uint64_t (*xz_sync_native_now_us)(void *);

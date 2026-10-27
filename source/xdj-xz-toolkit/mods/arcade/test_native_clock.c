@@ -47,8 +47,10 @@ static void test_partial_clock_evidence(void){
             assert(!out.phase_valid&&!out.bpm&&!out.speed);
         }
         put(grid,0x24,0);
-        assert(!readers[i](read_memory,NULL,0,&out));
-        assert((out.observed&XZ_ARCADE_CLOCK_MANUAL)&&out.manual);
+        int tempo_valid=readers[i](read_memory,NULL,0,&out);
+        assert(tempo_valid==(i==1));
+        assert((out.observed&XZ_ARCADE_CLOCK_MANUAL)&&out.manual&&!out.phase_valid);
+        if(i==1)assert(fabsf(out.bpm-132)<.001f&&fabsf(out.speed-1.1f)<.0001f);
         put(grid,0x24,1);memcpy(tempo+0x38,&zero,8);
         player[0xe66]=0;player[0xe77]=0;
         assert(!readers[i](read_memory,NULL,0,&out));

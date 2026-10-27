@@ -17,7 +17,7 @@ static int fixture_read(void *ctx,uint32_t address,void *out,size_t n){
  if(address==engine_ptr+0x24){assert(n==4);uint32_t p=change_pointer&&++master_pointer_reads>1?0x37100:0x37000;memcpy(out,&p,4);return 0;}
  if(address==0x37008||address==0x37108){assert(n==20);memcpy(out,master_state+8,n);if(change_master&&++master_reads>1)put(out,0,1);return 0;}
  if(address==0x316a0){info_reads++;if(change_source&&info_reads>=3){uint32_t p=0x32100;memcpy(out,&p,4);return 0;}}
- if(address>=0x32100&&address+n<=0x32100+sizeof grid){memcpy(out,grid+address-0x32100,n);return 0;}
+ if(address>=0x32100&&address+n<=0x32100+sizeof grid){memcpy(out,grid+(address-0x32100),n);return 0;}
  int rc=read_memory(NULL,address,out,n);
  if(!rc&&address==0x20e64&&change_paused_position&&++state_reads>1)put(player,0xedc,57330);
  if(!rc&&address==0x35000&&n==8&&(change_paused_phase||change_playing_phase)&&++unit_reads>1)put(out,4,change_playing_phase?1250:1001);
@@ -43,7 +43,19 @@ int main(void){
  reset();bad_time=3;assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out));
  assert(out.available&&!out.phase_available&&out.uncertainty_us==1500);
  reset();double bend=.02;memcpy(tempo+0x38,&bend,8);
- assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.phase_available&&out.manual);
+ assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.phase_available&&out.manual&&fabsf(out.bpm-132)<.001f);
+ for(int paused=0;paused<2;paused++)for(int mode=0;mode<3;mode++){
+  reset();player[0xe77]=(unsigned char)!paused;put(pause_queue,8,paused?4:5);
+  if(mode==0)put(grid,0x24,0);
+  if(mode==1)put(player,paused?0xedc:0xe78,441000);
+  if(mode==2)units[0]=9;
+  assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out));
+  assert(out.available&&!out.phase_available&&fabsf(out.bpm-132)<.001f&&out.track_identity==0x32000);
+  put(grid,0x24,1);put(player,0xe78,60637);units[0]=1;
+ }
+ reset();put(manager,0x10,0x35001);
+ assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&!out.bpm);
+ put(manager,0x10,0x35000);
  reset();double pitch=.5;memcpy(tempo+0x30,&pitch,8);
  for(unsigned i=0;i<4;i++){units[i*8+2]=0x50;units[i*8+3]=0x46;put(units,i*8+4,1000+i*333);}
  put(player,0xe78,55125);
@@ -53,14 +65,14 @@ int main(void){
  reset();player[0xe77]=0;put(pause_queue,8,4);
  assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&!out.playing&&out.position_ms==1250);
  reset();player[0xe77]=0;put(pause_queue,8,4);change_paused_position=1;
- assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_STATE_CHANGED);
+ assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.available&&!out.phase_available&&fabsf(out.bpm-132)<.001f);
  reset();player[0xe77]=0;put(pause_queue,8,4);change_paused_phase=1;
- assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_STATE_CHANGED);
+ assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.available&&!out.phase_available&&fabsf(out.bpm-132)<.001f);
  reset();change_playing_phase=1;
- assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_STATE_CHANGED);
+ assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.available&&!out.phase_available&&fabsf(out.bpm-132)<.001f);
  puts("PASS music270BPM independent of arcade cap; paused/playing phase jumps and wide read window phase gate verified");
  reset();put(master_state,8,1);assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.native_deck==1);
- reset();put(master_state,8,2);assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_EXTERNAL_MASTER);
+ reset();put(master_state,8,2);assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_EXTERNAL_MASTER&&out.playing_native_mask==3);
  reset();put(master_state,8,UINT32_MAX);assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_MASTER_UNAVAILABLE);
  reset();bad_guard=1;assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_BAD_ABI);
  reset();change_master=1;assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_MASTER_CHANGED);
