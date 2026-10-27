@@ -29,13 +29,15 @@ static struct xz_shell_action out[XZ_SHELL_ACTIONS];
 static void key(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_key k) {
  struct xz_shell_event e={XZ_SHELL_KEY,0,0,0,k,-1};xz_shell_input(u,m,&e,out);
 }
-static void event(struct xz_shell *u, const struct xz_shell_model *m, enum xz_shell_event_kind kind, int x, int y, int delta) {
- struct xz_shell_event e={kind,x,y,delta,0,-1};xz_shell_input(u,m,&e,out);
+static void event(struct xz_shell *u, struct xz_shell_model *m, enum xz_shell_event_kind kind, int x, int y, int delta) {
+ struct xz_shell_event e={kind,x,y,delta,0,-1};
+ size_t n=xz_shell_input(u,m,&e,out);
+ for(size_t i=0;i<n;i++)if(out[i].kind==XZ_SHELL_ACT_BROWSE_PREVIEW)m->browse_preview=out[i].value;
 }
-static void tap(struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_rect r) {
+static void tap(struct xz_shell *u, struct xz_shell_model *m, struct xz_shell_rect r) {
  event(u,m,XZ_SHELL_TOUCH_DOWN,r.x+r.w/2,r.y+r.h/2,0);event(u,m,XZ_SHELL_TOUCH_UP,r.x+r.w/2,r.y+r.h/2,0);
 }
-static void type(struct xz_shell *u, const struct xz_shell_model *m, const char *text) {
+static void type(struct xz_shell *u, struct xz_shell_model *m, const char *text) {
  for(;*text;text++)for(int i=0;i<XZ_SHELL_BROWSE_KEYS;i++){
   const char *l=xz_shell_browse_key_label(i);
   if((l[0]==*text&&!l[1])||(*text==' '&&!strcmp(l,"SPACE"))){tap(u,m,xz_shell_browse_rect(u,m,XZ_SHELL_BR_KEY,i));break;}
@@ -60,6 +62,8 @@ int main(int argc, char **argv) {
  open_screen(&u,&m,XZ_SHELL_KEY_BROWSE);
  event(&u,&m,XZ_SHELL_ENCODER_TURN,0,0,3);
  shot(&u,&m,"full");
+ tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_PREVIEW,0));
+ shot(&u,&m,"preview-on");
  /* Touch a row: highlight plus the LOAD chip. */
  tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_ROW,6));
  shot(&u,&m,"touched-load");

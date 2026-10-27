@@ -264,7 +264,7 @@ static void test_folders_and_back(void) {
 
 static void test_drag_sort_jump(void) {
  struct xz_shell u;struct xz_shell_model m;struct xz_shell_browse_model b;
- model(&m,&b);bx_tracks(&b,&lib,XZ_SHELL_BROWSE);
+ model(&m,&b);m.browse_preview=1;bx_tracks(&b,&lib,XZ_SHELL_BROWSE);
  open_screen(&u,&m,XZ_SHELL_KEY_BROWSE,XZ_SHELL_BROWSE);
  struct xz_shell_view *v=&u.stack[1];
  /* Drag scrolls by whole rows and leaves the cursor where it was. */
@@ -375,9 +375,11 @@ static void test_rail_and_toggles(void) {
  tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_INFO,0));
  assert(xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_INFO_PANE,0).w==0);
  struct xz_shell_rect first=xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_COLUMN,0);
- tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_PREVIEW,0));
+ assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_PREVIEW,0))==1&&out[0].kind==XZ_SHELL_ACT_BROWSE_PREVIEW);
+ m.browse_preview=out[0].value;
  assert(xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_COLUMN,0).w!=first.w);
- tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_PREVIEW,0));
+ assert(tap(&u,&m,xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_PREVIEW,0))==1&&out[0].kind==XZ_SHELL_ACT_BROWSE_PREVIEW);
+ m.browse_preview=out[0].value;
  assert(xz_shell_browse_rect(&u,&m,XZ_SHELL_BR_COLUMN,0).w==first.w);
  puts("PASS category rail, blocked categories hand off, PREVIEW and INFO toggles");
 }
