@@ -136,9 +136,9 @@ static int body_d(unsigned s){
  return -1;
 }
 /* The 3-band layer colours, low, mid, high, from the shared renderer rather than a second copy. */
-static void three_band(uint16_t out[3]){
+static void three_band(uint16_t out[3],const struct xz_layered_data *look){
  static const struct xz_layered_col probe={{3,2,1},1};
- for(unsigned k=0;k<3;k++)out[k]=(uint16_t)xz_layered_pixel(&(struct xz_layered_data){0},&probe,2-k);
+ for(unsigned k=0;k<3;k++)out[k]=(uint16_t)xz_layered_pixel(look,&probe,2-k);
 }
 static uint16_t three_band_pixel(const uint16_t layer[3],const struct xz_layered_col *c,unsigned k){
  return layer[k<c->h[2]?2:k<c->h[1]?1:0];
@@ -373,7 +373,8 @@ static int draw_lane(uint16_t *pixels,size_t stride,size_t count,unsigned lane_y
   d->wave.normalization?d->wave.normalization:765,XZ_LAYERED_THREE_BAND,{0,0,0}};
  uint16_t grade[EXTENT];
  for(unsigned k=0;k<EXTENT;k++){unsigned v=EXTENT-k;grade[k]=view->background==1?rgb(v,v,v):rgb(0,v,2*v);}
- uint16_t layer[3];three_band(layer);
+ xz_layered_band_colors(look.colors);
+ uint16_t layer[3];three_band(layer,&look);
  int64_t span_us=wave?(int64_t)d->wave.span_ms*1000:0;
  int looped=placed&&(d->known&K(LOOP))&&d->loop.active&&d->loop.out_ms>d->loop.in_ms;
  static _Thread_local struct xz_layered_col spare[WIDTH];
@@ -444,11 +445,12 @@ int xz_four_badge_draw(uint16_t *pixels,size_t stride,size_t count,unsigned lane
    (LANE or FULL) at lane_y[i]; a NULL col[i] is skipped. */
 static void each_body_pixel(unsigned lanes,unsigned height,const unsigned *lane_y,const struct xz_layered_data *looks,
  const struct xz_layered_col *const *col,const uint16_t *read,uint16_t *write,uint8_t *set,const uint8_t *keep){
- uint16_t layer[3];three_band(layer);
+ uint16_t layer[3];
  int k_of[FULL];for(unsigned r=0;r<height;r++)k_of[r]=body_d(xz_wave_lane_row(r,height));
  for(unsigned deck=0;deck<lanes;deck++){
   const struct xz_layered_col *cols=col[deck];if(!cols)continue;
   const struct xz_layered_data *look=&looks[deck];int fast=look->kind==XZ_LAYERED_THREE_BAND;
+  three_band(layer,look);
   for(unsigned r=0;r<height;r++){
    if(k_of[r]<0)continue;
    unsigned k=(unsigned)k_of[r];size_t base=(size_t)(lane_y[deck]+r)*WIDTH;

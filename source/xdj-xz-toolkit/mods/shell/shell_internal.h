@@ -204,6 +204,8 @@ int sh_browse_at_root(const struct xz_shell *);
 /* Waveforms (shell_wave.c). A lane is mirrored about the middle of r, amp px each way at full scale;
    first_px is the absolute track pixel (ms x pps / 1000) drawn at r.x. An overview rises from the
    bottom of r and greys out left of played_x (-1: nothing played). */
+void sh_wave_colors(const struct xz_shell_model *);
+const uint32_t *sh_wave_band_rgb(void);
 void sh_wave_lane(struct xz_canvas c, struct xz_shell_rect r, int amp, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int64_t first_px, int pps);
 void sh_wave_overview(struct xz_canvas c, struct xz_shell_rect r, const struct xz_shell_wave *w, enum xz_shell_wave_color mode, int played_x);
 /* A deck's lane or overview in the shell's waveform colour, from the data the deck has: STEMS draws

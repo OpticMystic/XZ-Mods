@@ -5,6 +5,16 @@ static uint16_t rgb(unsigned r,unsigned g,unsigned b){return (uint16_t)(((r>>3)<
 #define LOW_BODY rgb(32,83,217)
 #define MID_BODY rgb(242,170,60)
 #define HIGH_CORE rgb(255,255,255)
+static uint16_t band_colors[3];
+void xz_layered_band_configure(const uint32_t colors[3]){
+ for(unsigned i=0;i<3;i++){
+  uint32_t c=colors?colors[i]:0;
+  __atomic_store_n(&band_colors[i],rgb(c>>16,(c>>8)&255,c&255),__ATOMIC_RELAXED);
+ }
+}
+void xz_layered_band_colors(uint16_t out[3]){
+ for(unsigned i=0;i<3;i++)out[i]=__atomic_load_n(&band_colors[i],__ATOMIC_RELAXED);
+}
 uint64_t xz_layered_path_hash(const char *path){
  uint64_t h=UINT64_C(14695981039346656037);
  for(;*path;path++){unsigned char c=(unsigned char)*path;if(c>='A'&&c<='Z')c+=32;h^=c;h*=UINT64_C(1099511628211);}
@@ -28,7 +38,7 @@ int xz_layered_pixel(const struct xz_layered_data *data,const struct xz_layered_
   if(layer==2&&h[1]>h[2]&&h[2]>=4&&d+2>=h[2])f=d+1==h[2]?128u:166u;
   return (uint16_t)((((c>>11)&31)*f>>8)<<11|(((c>>5)&63)*f>>8)<<5|((c&31)*f>>8));
  }
- return layer==2?HIGH_CORE:layer==1?MID_BODY:LOW_BODY;
+ return data->colors[layer]?data->colors[layer]:layer==2?HIGH_CORE:layer==1?MID_BODY:LOW_BODY;
 }
 int xz_layered_heights(const struct xz_layered_data *data,uint32_t first,uint32_t end,unsigned extent,struct xz_layered_col *out){
  out->valid=0;

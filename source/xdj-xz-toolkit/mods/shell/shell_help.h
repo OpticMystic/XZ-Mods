@@ -96,7 +96,7 @@ static const struct sh_help sh_help_table[]={
  /* this shell's own display settings */
  {XZ_SHELL_ITEM_WAVE_COLOR,"WAVEFORM COLOR","Colours of the scrolling and overview waveforms.",
   {{"BLUE","One blue waveform with white peaks."},{"RGB","Lows red, mids green, highs blue."},
-   {"3BAND","Lows blue, mids amber, highs white."},{"STEMS","Drums, harmonics and vocals in their stem colours. Tracks without stems show 3BAND."}}},
+   {"3BAND","Lows, mids and highs in the 3-BAND COLOURS set in MODS > SCREEN."},{"STEMS","Drums, harmonics and vocals in their stem colours. Tracks without stems show 3BAND."}}},
  {XZ_SHELL_ITEM_WAVE_POSITION,"WAVEFORM CURRENT POSITION","Where the playhead sits in the scrolling waveforms.",
   {{"CENTER","As much of the past as of what is coming."},{"LEFT","More of what is coming up."}}},
  {XZ_SHELL_ITEM_KEY_DISPLAY,"KEY DISPLAY FORMAT","How keys are written on screen.",

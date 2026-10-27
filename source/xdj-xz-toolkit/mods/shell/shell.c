@@ -435,6 +435,7 @@ size_t xz_shell_input(struct xz_shell *u, const struct xz_shell_model *m, const 
 }
 int xz_shell_render(const struct xz_shell *u, const struct xz_shell_model *m, uint16_t *pixels, size_t stride) {
  if(!u||!m||!pixels||stride<XZ_SHELL_WIDTH||u->depth<1||u->depth>XZ_SHELL_STACK)return 0;
+ sh_wave_colors(m);
  struct xz_canvas c={pixels,stride,XZ_SHELL_WIDTH,XZ_SHELL_HEIGHT,XZ_THEME_FLAGSHIP};
  screen_of(u)->render(u,m,c);
  if(u->popup.kind!=XZ_SHELL_POPUP_NONE){

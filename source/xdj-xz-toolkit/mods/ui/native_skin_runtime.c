@@ -36,6 +36,7 @@ static atomic_int running,owner_ready,active_theme,status_code;
 static atomic_int repaint_pending;
 static unsigned request_generation;
 static int requested_theme,started,worker_started;
+static uint32_t requested_band_rgb[3];
 static unsigned char *original_pack;
 static size_t pack_size;
 static uint32_t original_base,backend_table[4];
@@ -404,7 +405,9 @@ static struct skin_snapshot *prepare(int theme,unsigned generation){
  s->lut=malloc(65536u*sizeof(*s->lut));s->pack=malloc(pack_size);
  if(!s->lut||!s->pack){free_snapshot(s);return NULL;}
  if(theme==XZ_THEME_LCARS){s->wave_lut=malloc(2u*65536u*sizeof(*s->wave_lut));if(!s->wave_lut){free_snapshot(s);return NULL;}xz_lcars_wave_maps(s->wave_lut);}
- else if(theme==XZ_THEME_FLAGSHIP){s->wave_lut=malloc(65536u*sizeof(*s->wave_lut));if(!s->wave_lut){free_snapshot(s);return NULL;}xz_flagship_wave_maps(s->wave_lut);}
+ else if(theme==XZ_THEME_FLAGSHIP){s->wave_lut=malloc(65536u*sizeof(*s->wave_lut));if(!s->wave_lut){free_snapshot(s);return NULL;}uint32_t band_rgb[3];pthread_mutex_lock(&cache_mutex);
+  memcpy(band_rgb,requested_band_rgb,sizeof band_rgb);pthread_mutex_unlock(&cache_mutex);
+  xz_flagship_wave_band_maps(s->wave_lut,band_rgb);}
  else if(xz_native_wave_style_has_paper(theme)){
   s->wave_lut=malloc(65536u*sizeof(*s->wave_lut));
   if(!s->wave_lut){free_snapshot(s);return NULL;}
@@ -452,6 +455,14 @@ static void *worker(void *unused){
   free_snapshot(s);
  }
  return NULL;
+}
+void xz_native_skin_band_colors(const uint32_t rgb[3]){
+ pthread_mutex_lock(&cache_mutex);
+ if(memcmp(requested_band_rgb,rgb,sizeof requested_band_rgb)){
+  memcpy(requested_band_rgb,rgb,sizeof requested_band_rgb);request_generation++;
+  pthread_cond_signal(&changed);
+ }
+ pthread_mutex_unlock(&cache_mutex);
 }
 void xz_native_skin_request(int theme){
  theme=xz_theme_id(theme);pthread_mutex_lock(&cache_mutex);

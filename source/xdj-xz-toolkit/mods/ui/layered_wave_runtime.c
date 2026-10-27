@@ -229,7 +229,8 @@ void xz_layered_wave_begin(uint16_t *pixels){
    frame.direct[i]=last<UINT32_MAX/16&&flags<=UINT32_MAX-last*16-12&&
     !xz_read_memory(flags+12,&probe,1)&&!xz_read_memory(flags+last*16+12,&probe,1);
    drawn.look[i]=p->data;drawn.look[i].bands=NULL;
-   for(unsigned k=0;k<3;k++)drawn.look[i].colors[k]=__atomic_load_n(&colors[k],__ATOMIC_RELAXED);
+   if(p->data.kind==XZ_LAYERED_THREE_BAND)xz_layered_band_colors(drawn.look[i].colors);
+   else for(unsigned k=0;k<3;k++)drawn.look[i].colors[k]=__atomic_load_n(&colors[k],__ATOMIC_RELAXED);
   }
  }
 }
@@ -287,7 +288,9 @@ int xz_layered_overview(uint16_t *pixels,unsigned deck){
  __atomic_fetch_add(&xz_layered_wave_proof_v1[10],1,__ATOMIC_RELAXED);
  const struct prepared *p=__atomic_load_n(&live[deck],__ATOMIC_ACQUIRE);
  if(p&&p->mode==__atomic_load_n(&mode,__ATOMIC_ACQUIRE)&&still_current(p)){
-  overview.look=p->data;for(unsigned k=0;k<3;k++)overview.look.colors[k]=__atomic_load_n(&colors[k],__ATOMIC_RELAXED);
+  overview.look=p->data;
+  if(p->data.kind==XZ_LAYERED_THREE_BAND)xz_layered_band_colors(overview.look.colors);
+  else for(unsigned k=0;k<3;k++)overview.look.colors[k]=__atomic_load_n(&colors[k],__ATOMIC_RELAXED);
   for(unsigned x=0;x<OVERVIEW_W;x++){
    struct xz_layered_col *c=&overview.col[x];c->valid=0;
    if(cue_column(pixels,x)||cue_column(pixels,x+1)||(x&&cue_column(pixels,x-1)))continue;
