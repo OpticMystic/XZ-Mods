@@ -56,6 +56,8 @@ test('public HTTP privacy, exact R2 bytes and distinct reporter/owner authority'
   const report=draft(), raw=JSON.stringify(report,null,2)+'\n';
   const res=await upload(report,{raw}); assert.equal(res.status,200,await res.clone().text());
   const receipt=await res.json(); assert.equal(receipt.payload_sha256,sha(raw));
+  assert.match(receipt.report_reference,/^R-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);assert.equal(receipt.item_number,null);
+  assert.equal((await (await get(`/v2/reports/${report.report_id}/receipt`)).json()).report_reference,receipt.report_reference);
   assert.equal(receipt.public_issue,'pending'); assert.equal(receipt.issue_url,null);
   const stored=await db.prepare('SELECT * FROM reports').first();
   assert.equal(await (await bucket.get(stored.object_key)).text(),raw);
