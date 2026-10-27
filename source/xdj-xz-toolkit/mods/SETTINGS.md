@@ -216,8 +216,13 @@ nor which deck a side controls:
 | 1 | 4 DECKS, NUMBER ORDER 1 2 3 4 | 1, 2, 3, 4 | 3 1 2 4 |
 | 2 | 4 DECKS, MIXER ORDER 3 1 2 4 | 3, 1, 2, 4 | 3 1 2 4 |
 
-`deck_view_button` is 1 (default) to show the DECKS button at the top of the play
-screen, 0 to hide it; MODS > SCREEN > DECK VIEW still works while it is hidden.
+The MENU key is not a setting. A short MENU opens or closes MODS only where it has no stock job, in both
+interfaces (`ui/menu_key.h`, one table); a held MENU always opens the player's own UTILITY. The button next to
+LINK keeps its saved assignment.
+
+`deck_view_button` is retired (2026-10-26): the DECKS button is always at the top of the play
+screen in both interfaces. Its wire slot stays; a stored 0 reads as 1 and 1 is written. It is in
+`retired_fields` (readonly, default 1) and MODS has no row for it.
 
 The two are one block after `modern_stems` (fields 45 and 46); a record holds both or
 neither. A record without them loads with the defaults, and overlaid on the applied
