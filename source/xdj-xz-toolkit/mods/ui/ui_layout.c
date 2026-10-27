@@ -185,9 +185,9 @@ void xz_ui_place(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_
   case XZ_UI_SET_THEME:grid(a,4,k%4,k/4,1);break;
   case XZ_UI_SET_INTERFACE:appearance(a,0,2,k==XZ_UI_INTERFACE_MODERN?0:1);break;
   case XZ_UI_SET_MODERN_THEME:appearance(a,1,2,0);break;
-  case XZ_UI_STEM_COLOR:{int stem=k/XZ_STEM_COLOR_CHOICES,choice=k%XZ_STEM_COLOR_CHOICES;
-   put(a,X0+stem*221+(choice%3)*72,84+(choice/3)*70,64,62);break;}
-  case XZ_UI_STEM_COLORS_RESET:put(a,X0,348,CW,40);break;
+  case XZ_UI_STEM_COLOR:case XZ_UI_BAND_COLOR:{int role=k/XZ_STEM_COLOR_CHOICES,choice=k%XZ_STEM_COLOR_CHOICES;
+   put(a,X0+role*221+(choice%3)*72,84+(choice/3)*70,64,62);break;}
+  case XZ_UI_STEM_COLORS_RESET:case XZ_UI_BAND_COLORS_RESET:put(a,X0,348,CW,40);break;
   /* VJ.TOOLS: controls on the right, live status on the left */
   case XZ_UI_TAKEOVER_TOGGLE:put(a,468,XZ_UI_CY,324,44);break;
   case XZ_UI_TAKEOVER_ASSIGN:put(a,468+(k?165:0),114,159,40);break; /* LINK, ONSCREEN (REKORDBOX retired) */
@@ -366,25 +366,29 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
  }
 }
 
-/* Shared color editor keeps identical touch targets in all skins. */
-void xz_ui_stem_colors(const struct xz_ui_scene *s){
+/* Shared color editor keeps identical touch targets in all skins: three columns of nine swatches and a reset. */
+static void color_editor(const struct xz_ui_scene *s,const char *const roles[3],const uint32_t role_rgb[3],int pick,int reset){
  struct xz_canvas c=s->c;const struct xz_theme_palette *p=s->p;
- static const char *roles[3]={"DRUMS","HARMONICS","VOCALS"};
  xz_rect(c,X0,XZ_UI_CY,CW,XZ_UI_CB-XZ_UI_CY,p->bg);
- for(int stem=0;stem<3;stem++){
-  int x=X0+stem*221;uint32_t color=p->stem[stem];
-  xz_round_rect(c,x,54,8,20,4,15,color);label(c,x+16,56,190,roles[stem],2,p->ink);
+ for(int role=0;role<3;role++){
+  int x=X0+role*221;
+  xz_round_rect(c,x,54,8,20,4,15,role_rgb[role]);label(c,x+16,56,190,roles[role],2,p->ink);
  }
  for(size_t i=0;i<s->n;i++){
-  struct xz_ui_widget a=s->w[i];if(a.kind!=XZ_UI_STEM_COLOR&&a.kind!=XZ_UI_STEM_COLORS_RESET)continue;
+  struct xz_ui_widget a=s->w[i];if((int)a.kind!=pick&&(int)a.kind!=reset)continue;
   int selected=s->look[i].selected;uint32_t color=s->look[i].color;
   xz_frame(c,s->m->theme,a,xz_blend(p->bg,p->ink,24),selected);
-  if(a.kind==XZ_UI_STEM_COLOR){
+  if((int)a.kind==pick){
    xz_round_rect(c,a.x+8,a.y+7,a.w-16,28,6,15,color);
    if(selected){xz_border(c,a.x+4,a.y+3,a.w-8,36,p->ink);xz_border(c,a.x+5,a.y+4,a.w-10,34,p->bg);}
    label(c,a.x+5,a.y+44,a.w-10,a.label,1,p->ink);
   }else label(c,a.x+12,a.y+13,a.w-24,a.label,2,p->ink);
  }
+}
+void xz_ui_stem_colors(const struct xz_ui_scene *s){
+ struct xz_canvas c=s->c;const struct xz_theme_palette *p=s->p;
+ static const char *const roles[3]={"DRUMS","HARMONICS","VOCALS"};
+ color_editor(s,roles,p->stem,XZ_UI_STEM_COLOR,XZ_UI_STEM_COLORS_RESET);
  /* A readout, not a picker: 4-stem bass takes the theme colour that stays
     clear of the three choices above, the same colour as rekordbox bass. */
  uint32_t bass=xz_ui_model_local_stem_color(s->m,XZ_STEM_BASS);
@@ -396,5 +400,19 @@ void xz_ui_stem_colors(const struct xz_ui_scene *s){
   xz_rect(c,X0+x,322-h,1,h*2,p->stem[0]);
   xz_rect(c,X0+x,322-h*2/3,1,h*4/3,p->stem[1]);
   xz_rect(c,X0+x,322-h/3,1,h*2/3,p->stem[2]);
+ }
+}
+void xz_ui_band_colors(const struct xz_ui_scene *s){
+ struct xz_canvas c=s->c;const struct xz_theme_palette *p=s->p;
+ static const char *const roles[XZ_BANDS]={"LOWS","MIDS","HIGHS"};
+ uint32_t rgb[XZ_BANDS];for(int b=0;b<XZ_BANDS;b++)rgb[b]=xz_ui_model_band_color(s->m,b);
+ color_editor(s,roles,rgb,XZ_UI_BAND_COLOR,XZ_UI_BAND_COLORS_RESET);
+ label(c,X0,295,CW,"THE 3-BAND WAVEFORM IN MODERN, CLASSIC AND ON DECKS 3 AND 4",1,p->ink);
+ /* As the 3-BAND waveform stacks them: lows outside, mids, highs at the core. */
+ for(int x=0;x<CW;x++){
+  int h=7+(x/12)%7;
+  xz_rect(c,X0+x,322-h,1,h*2,rgb[XZ_BAND_LOW]);
+  xz_rect(c,X0+x,322-h*2/3,1,h*4/3,rgb[XZ_BAND_MID]);
+  xz_rect(c,X0+x,322-h/3,1,h*2/3,rgb[XZ_BAND_HIGH]);
  }
 }

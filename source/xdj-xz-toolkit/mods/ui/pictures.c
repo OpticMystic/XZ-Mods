@@ -400,13 +400,13 @@ void xz_pic_stem_layout(struct xz_canvas c, int x, int y, int w, int h, int layo
  xz_rect(c,sx+1,by,sw/2-2,sy+sh-by-1,0x1e1e1e);xz_rect(c,sx+sw/2+1,by,sw/2-2,sy+sh-by-1,0x1e1e1e);
  if(layout==XZ_MODERN_STEMS_PADS)for(int d=0;d<2;d++){int bx=sx+4+d*sw/2;for(int i=0;i<3;i++)xz_rect(c,bx+i*7,by-5,5,4,cols[i]);}
 }
-void xz_pic_wave_swatch(struct xz_canvas c, int x, int y, int w, int h, int scheme, const uint32_t rgb[3]) {
+void xz_pic_wave_swatch(struct xz_canvas c, int x, int y, int w, int h, int scheme, const uint32_t rgb[3], const uint32_t band[3]) {
  xz_rect(c,x,y,w,h,0x000000);
  int mid=y+h/2;
  for(int k=0;k<w;k+=2){
   int amp=wave_amp(k,3,h/2-2);if(amp<1)amp=1;
   if(scheme==0){xz_rect(c,x+k,mid-amp,1,amp*2,0x2a6fe0);xz_rect(c,x+k,mid-amp/3,1,amp*2/3,0x7fb6ff);}
-  else if(scheme==1){xz_rect(c,x+k,mid-amp,1,amp*2,XZ_FLAGSHIP_WAVE_LOW);xz_rect(c,x+k,mid-amp*2/3,1,amp*4/3,XZ_FLAGSHIP_WAVE_MID);xz_rect(c,x+k,mid-amp/3,1,amp*2/3,XZ_FLAGSHIP_WAVE_HIGH);}
+  else if(scheme==1){xz_rect(c,x+k,mid-amp,1,amp*2,band[0]);xz_rect(c,x+k,mid-amp*2/3,1,amp*4/3,band[1]);xz_rect(c,x+k,mid-amp/3,1,amp*2/3,band[2]);}
   else if(scheme==2){xz_rect(c,x+k,mid-amp,1,amp*2,rgb[0]);xz_rect(c,x+k,mid-amp*2/3,1,amp*4/3,rgb[1]);xz_rect(c,x+k,mid-amp/3,1,amp*2/3,rgb[2]);}
   else{int hue=(k*7)%360;uint32_t col=hue<120?0xff4040:hue<240?0x40ff60:0x4080ff;xz_rect(c,x+k,mid-amp,1,amp*2,col);}
  }

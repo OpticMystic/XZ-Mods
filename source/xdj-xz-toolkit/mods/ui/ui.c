@@ -65,6 +65,15 @@ uint32_t xz_ui_model_stem_color(const struct xz_ui_model *m,int index){
  int stem=index>=0&&index<3?index:0;
  return xz_stem_palette_color(m->stem_colors[stem],xz_ui_stem_color(m->theme,stem));
 }
+/* STANDARD is the interface's own band colour: MODERN's flagship palette, CLASSIC's layered_wave.c palette. */
+uint32_t xz_ui_band_standard(const struct xz_ui_model *m,int band){
+ static const uint32_t modern[XZ_BANDS]={XZ_FLAGSHIP_WAVE_LOW,XZ_FLAGSHIP_WAVE_MID,XZ_FLAGSHIP_WAVE_HIGH},classic[XZ_BANDS]={0x2053d9,0xf2aa3c,0xffffff};
+ return (m->ui_interface==XZ_UI_INTERFACE_MODERN?modern:classic)[band>=0&&band<XZ_BANDS?band:0];
+}
+uint32_t xz_ui_model_band_color(const struct xz_ui_model *m,int band){
+ int b=band>=0&&band<XZ_BANDS?band:0;
+ return xz_band_palette_color(m->band_colors[b],xz_ui_band_standard(m,b));
+}
 static unsigned distance(uint32_t a,uint32_t b){
  int r=(int)(a>>16&255)-(int)(b>>16&255),g=(int)(a>>8&255)-(int)(b>>8&255),l=(int)(a&255)-(int)(b&255);
  return (unsigned)(r*r+g*g+l*l);
@@ -258,7 +267,7 @@ static enum xz_ui_page parent_page(enum xz_ui_page page){
  switch(page){
  case XZ_UI_BEAT_JUMP:case XZ_UI_KEY_SETUP:case XZ_UI_XPAD:case XZ_UI_RAM_SETUP:case XZ_UI_BUTTONS:case XZ_UI_FEATURE_SETUP:return XZ_UI_PLAY;
  case XZ_UI_STEMS:case XZ_UI_PC_STEMS:case XZ_UI_LOCAL_STEM_SETUP:case XZ_UI_STEM_COLORS:case XZ_UI_STEM_PADS:return XZ_UI_STEM_SECTION;
- case XZ_UI_THEME_PICK:case XZ_UI_BROWSE_SETUP:case XZ_UI_METRICS_SETUP:case XZ_UI_SCREEN_LOOK:return XZ_UI_SCREEN;
+ case XZ_UI_THEME_PICK:case XZ_UI_BROWSE_SETUP:case XZ_UI_METRICS_SETUP:case XZ_UI_SCREEN_LOOK:case XZ_UI_BAND_COLORS:return XZ_UI_SCREEN;
  case XZ_UI_PROFILE_SETUP:case XZ_UI_CONNECTION:case XZ_UI_NETWORK:case XZ_UI_UPDATES:return XZ_UI_CONNECT;
  case XZ_UI_PROFILE_EDIT:return XZ_UI_PROFILE_SETUP;
  case XZ_UI_NETWORK_SETUP:return XZ_UI_NETWORK;
@@ -393,6 +402,10 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
   for(int stem=0;stem<3;stem++)for(i=0;i<XZ_STEM_COLOR_CHOICES;i++)
    add(w,&n,XZ_UI_STEM_COLOR,stem*XZ_STEM_COLOR_CHOICES+i,0,xz_stem_palette_name(i));
   add(w,&n,XZ_UI_STEM_COLORS_RESET,0,0,"RESET STEM COLORS");
+ }else if(u->page==XZ_UI_BAND_COLORS){
+  for(int band=0;band<XZ_BANDS;band++)for(i=0;i<XZ_BAND_COLOR_CHOICES;i++)
+   add(w,&n,XZ_UI_BAND_COLOR,band*XZ_BAND_COLOR_CHOICES+i,0,xz_band_palette_name(i));
+  add(w,&n,XZ_UI_BAND_COLORS_RESET,0,0,"RESET 3-BAND COLOURS");
  }else if(u->page==XZ_UI_THEME_PICK){
   /* Classic themes only: FLAGSHIP is the modern interface's own look. */
   for(i=0;i<XZ_THEME_FLAGSHIP;i++)add(w,&n,XZ_UI_SET_THEME,i,0,xz_theme_name(i));
@@ -505,6 +518,9 @@ static struct xz_ui_look look(const struct xz_ui *u,const struct xz_ui_model *m,
  case XZ_UI_STEM_COLOR:{int stem=k/XZ_STEM_COLOR_CHOICES,choice=k%XZ_STEM_COLOR_CHOICES;
   l.color=xz_stem_palette_color(choice,xz_ui_stem_color(m->theme,stem));
   l.selected=m->stem_colors[stem]==choice;break;}
+ case XZ_UI_BAND_COLOR:{int band=k/XZ_BAND_COLOR_CHOICES,choice=k%XZ_BAND_COLOR_CHOICES;
+  l.color=xz_band_palette_color(choice,xz_ui_band_standard(m,band));
+  l.selected=m->band_colors[band]==choice;break;}
 
  case XZ_UI_JUMP_ENABLE:l.selected=k==2?!m->jump.enabled:m->jump.enabled;break;
  case XZ_UI_DECK_VIEW:l.selected=k==m->deck_view;break;
@@ -567,7 +583,7 @@ const char *xz_ui_ram_state_text(enum xz_ui_ram_state state){
  case XZ_UI_RAM_DETACHED:return "USB OUT / RAM COPY ONLY";
  default:return "RAM ENGINE NOT DETECTED";}
 }
-int xz_ui_section_page_notice(const struct xz_ui *u){return u&&(xz_ui_section_page(u->page)||u->page==XZ_UI_STEM_COLORS);}
+int xz_ui_section_page_notice(const struct xz_ui *u){return u&&(xz_ui_section_page(u->page)||u->page==XZ_UI_STEM_COLORS||u->page==XZ_UI_BAND_COLORS);}
 const char *xz_ui_ram_scope(const struct xz_ui_ram *r){
  if(r->state==XZ_UI_RAM_READY||r->state==XZ_UI_RAM_DETACHED)
   return r->retained_stems_bytes?"ORIGINAL + PREPARED STEMS IN RAM / WAVES STILL USE USB":"ORIGINAL IN RAM / STEMS AND WAVES STILL USE USB";
@@ -582,7 +598,7 @@ const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m)
  if(m->dj&&m->dj->flash&&m->dj->status)return m->dj->status;
  if((u->profile_open||u->page==XZ_UI_PROFILE_SETUP||u->page==XZ_UI_PROFILE_EDIT)&&m->dj)return xz_ui_profile_footer(u,m);
  if(u->page==XZ_UI_THEME_PICK&&m->theme_status)return m->theme_status;
- if(xz_ui_section_page(u->page)||u->page==XZ_UI_STEM_COLORS)return xz_ui_save_state(m,NULL)[0]?xz_ui_save_state(m,NULL):saved;
+ if(xz_ui_section_page_notice(u))return xz_ui_save_state(m,NULL)[0]?xz_ui_save_state(m,NULL):saved;
  if(u->notice[0])return u->notice;
  if(u->page==XZ_UI_LOCAL_STEM_SETUP)return xz_ui_usb_reason_text(xz_ui_usb_blocked(m,u->deck<2?u->deck:0));
  if(xz_sdk_ui_page(u->page))return xz_sdk_ui_footer(u,m);
@@ -678,6 +694,7 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  struct xz_ui_scene skin=s;skin.w=skin_w;skin.look=skin_looks;skin.n=skin_n;
  skin_for(m->theme)->render(&skin);
  if(u->page==XZ_UI_STEM_COLORS)xz_ui_stem_colors(&s);
+ if(u->page==XZ_UI_BAND_COLORS)xz_ui_band_colors(&s);
  if(u->page==XZ_UI_ABOUT){struct xz_ui_widget focus;int f=xz_ui_focused(u,m,&focus)&&focus.kind==XZ_UI_ABOUT_LINK?focus.index:-1;
   xz_about_render(s.c,u->about_link,f,1);}
  xz_key_display_panel(pixels,stride,u,m);
@@ -820,6 +837,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
  }
  if(a.kind==XZ_UI_JUMP_PAIR){u->jump_edit_pair=a.index/2;u->capture=-1;out[0]=action(a.kind,XZ_UI_PRESS,deck,a.index,0,0);return 1;}
  if(a.kind==XZ_UI_STEM_COLOR){out[0]=action(a.kind,XZ_UI_PRESS,deck,a.index/XZ_STEM_COLOR_CHOICES,(float)(a.index%XZ_STEM_COLOR_CHOICES),0);return 1;}
+ if(a.kind==XZ_UI_BAND_COLOR){out[0]=action(a.kind,XZ_UI_PRESS,deck,a.index/XZ_BAND_COLOR_CHOICES,(float)(a.index%XZ_BAND_COLOR_CHOICES),0);return 1;}
  if(a.kind==XZ_UI_REKORDBOX_ASSIGN){out[0]=action(a.kind,XZ_UI_PRESS,deck,a.index/XZ_UI_RB_CHOICES,(float)(a.index%XZ_UI_RB_CHOICES),0);return 1;}
  if(a.kind==XZ_UI_JUMP_SIZE){out[0]=action(a.kind,XZ_UI_PRESS,deck,u->jump_edit_page*4+u->jump_edit_pair,(float)a.index,0);return 1;}
  if(a.kind==XZ_UI_FEATURE_SETUP_OPEN){
