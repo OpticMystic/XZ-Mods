@@ -3,6 +3,7 @@
 #define _FILE_OFFSET_BITS 64
 #include "runtime.h"
 #include "cache.h"
+#include "budget.h"
 #include "abi.h"
 #include "removal.h"
 #include "presentation.h"
@@ -35,13 +36,14 @@ struct binding {
 struct deck {
     uint32_t epoch, player, reader;
     unsigned device, node;
-    int bound, pending, auto_blocked;
+    int bound, pending, auto_blocked, manual;
     unsigned stock_users;
     struct binding source;
     struct xz126_deck_source source_snapshot;
     struct xz_ram_status status;
     unsigned char *data;
     uint32_t bytes, data_epoch;
+    struct xz_ram_ticket ticket;
     struct stat ram_identity;
     uint32_t music_epoch,music[7];
     uint32_t presentation_epoch;
@@ -55,22 +57,8 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t changed = PTHREAD_COND_INITIALIZER;
 static pthread_t worker;
 static int running, installed, worker_created;
-static size_t allocated;
-static uint64_t assets_pending,assets_held;
 static void *(*stock_create)(void *, const void *);
 static int (*stock_read)(void *, void *, int);
-int xz_ram_assets_reserve(uint64_t bytes){
-    struct sysinfo info;if(!bytes||sysinfo(&info))return 0;
-    uint64_t free_bytes=(uint64_t)info.freeram*info.mem_unit;int ok=0;
-    pthread_mutex_lock(&mutex);
-    uint64_t headroom=XZ_RAM_RESERVE+(allocated<XZ_RAM_TOTAL_LIMIT?XZ_RAM_TOTAL_LIMIT-allocated:0);
-    if(running&&assets_pending<=free_bytes&&headroom<=free_bytes-assets_pending&&bytes<=free_bytes-assets_pending-headroom){assets_pending+=bytes;ok=1;}
-    pthread_mutex_unlock(&mutex);return ok;
-}
-void xz_ram_assets_publish(uint64_t bytes){pthread_mutex_lock(&mutex);assets_pending-=bytes;assets_held+=bytes;pthread_mutex_unlock(&mutex);}
-void xz_ram_assets_cancel(uint64_t bytes){pthread_mutex_lock(&mutex);assets_pending-=bytes;pthread_mutex_unlock(&mutex);}
-void xz_ram_assets_release(uint64_t bytes){pthread_mutex_lock(&mutex);assets_held-=bytes;pthread_mutex_unlock(&mutex);}
-
 static int local_usb(const char *path)
 {
     return path && (!strncmp(path, "/media/usb1/", 12) ||
@@ -329,21 +317,17 @@ static void progress(void *opaque, uint32_t copied)
     pthread_mutex_unlock(&mutex);
 }
 
-static void dispose(unsigned char *data, uint32_t bytes)
+static void dispose(unsigned char *data, uint32_t bytes, struct xz_ram_ticket *ticket)
 {
-    if (!data) return;
-    munlock(data, bytes);
-    munmap(data, bytes);
-    pthread_mutex_lock(&mutex);
-    allocated -= bytes;
-    pthread_mutex_unlock(&mutex);
+    if (data) { munlock(data, bytes); munmap(data, bytes); }
+    xz_ram_return(ticket);
 }
 
 static void load(int index, uint32_t epoch, struct binding source)
 {
     struct copy_context context = {index, -1, epoch};
     struct stat before, after;
-    struct sysinfo memory;
+    struct xz_ram_ticket ticket = {0};
     unsigned char *data = NULL;
     uint32_t bytes = 0;
     int ram_fd = -1;
@@ -354,16 +338,10 @@ static void load(int index, uint32_t epoch, struct binding source)
     if (before.st_size <= 0 || (uint64_t)before.st_size > XZ_RAM_TRACK_LIMIT) goto finish;
     bytes = (uint32_t)before.st_size;
     error = "NOT ENOUGH FREE RAM / KEEP USB CONNECTED";
-    if (sysinfo(&memory)) goto finish;
+    if (xz_ram_reserve(&ticket, XZ_RAM_ORIGINAL, bytes) != XZ_RAM_ADMITTED) goto finish;
     pthread_mutex_lock(&mutex);
-    uint64_t free_bytes=(uint64_t)memory.freeram*memory.mem_unit;
-    int budget = xz_ram_budget(bytes, allocated, free_bytes>assets_pending?free_bytes-assets_pending:0);
-    if (budget) {
-        allocated += bytes;
-        if (decks[index].epoch == epoch) decks[index].status.bytes = bytes;
-    }
+    if (decks[index].epoch == epoch) decks[index].status.bytes = bytes;
     pthread_mutex_unlock(&mutex);
-    if (!budget) goto finish;
     char name[] = "/dev/shm/xz-ram-track-XXXXXX";
     ram_fd = mkstemp(name);
     if (ram_fd >= 0) { unlink(name); fcntl(ram_fd, F_SETFD, FD_CLOEXEC); }
@@ -373,9 +351,6 @@ static void load(int index, uint32_t epoch, struct binding source)
     data = reserved ? mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, ram_fd, 0) : MAP_FAILED;
     if (data == MAP_FAILED) {
         data = NULL;
-        pthread_mutex_lock(&mutex);
-        allocated -= bytes;
-        pthread_mutex_unlock(&mutex);
         goto finish;
     }
     error = "CANNOT PIN TRACK IN RAM / KEEP USB CONNECTED";
@@ -386,10 +361,12 @@ static void load(int index, uint32_t epoch, struct binding source)
         !same_file(&before, &after)) goto finish;
     close(context.fd);
     context.fd = -1;
+    xz_ram_publish(&ticket);
     xz_ram_presentation_snapshot(index,epoch);
     pthread_mutex_lock(&mutex);
     struct deck *deck = &decks[index];
     if (running && deck->bound && deck->epoch == epoch && deck->status.state == XZ_RAM_LOADING) {
+        deck->ticket = ticket; memset(&ticket, 0, sizeof(ticket));
         deck->data = data;
         deck->bytes = bytes;
         deck->data_epoch = epoch;
@@ -414,7 +391,7 @@ static void load(int index, uint32_t epoch, struct binding source)
 finish:
     if (context.fd >= 0) close(context.fd);
     if (ram_fd >= 0) close(ram_fd);
-    dispose(data, bytes);
+    dispose(data, bytes, &ticket);
     if (error) {
         pthread_mutex_lock(&mutex);
         if (decks[index].epoch == epoch && decks[index].status.state == XZ_RAM_LOADING)
@@ -454,12 +431,14 @@ static void *work(void *unused)
         int index = -1;
         unsigned char *old = NULL;
         uint32_t old_bytes = 0;
+        struct xz_ram_ticket old_ticket = {0};
         for (int i = 0; i < 2; ++i) {
             struct deck *deck = &decks[i];
             if (deck->data && (!deck->bound || deck->data_epoch != deck->epoch || (deck->status.state != XZ_RAM_READY &&
                 deck->status.state != XZ_RAM_DETACHED))) {
                 old = deck->data;
                 old_bytes = deck->bytes;
+                old_ticket = deck->ticket; memset(&deck->ticket, 0, sizeof(deck->ticket));
                 deck->data = NULL;
                 deck->bytes = 0;
                 break;
@@ -468,13 +447,13 @@ static void *work(void *unused)
                deck->source.identity.st_size>0&&(uint64_t)deck->source.identity.st_size<=XZ_RAM_TRACK_LIMIT){
                 unsigned char playing=0;
                 if(!xz_read_memory(deck->player+0xe77,&playing,1)&&playing==1){
-                    ++deck->epoch;deck->pending=1;deck->status.copied=deck->status.bytes=0;
+                    ++deck->epoch;deck->pending=1;deck->manual=0;deck->status.copied=deck->status.bytes=0;
                     message(deck,XZ_RAM_LOADING,"AUTO LOADING PLAYING TRACK / KEEP USB CONNECTED");
                 }
             }
-            if (deck->pending) index = i;
+            if (deck->pending && (index < 0 || (deck->manual && !decks[index].manual))) index = i;
         }
-        if (old) { pthread_mutex_unlock(&mutex); dispose(old, old_bytes); continue; }
+        if (old) { pthread_mutex_unlock(&mutex); dispose(old, old_bytes, &old_ticket); continue; }
         if (!running) { pthread_mutex_unlock(&mutex); break; }
         if (index < 0) {
             struct timeval now;gettimeofday(&now,NULL);
@@ -483,13 +462,13 @@ static void *work(void *unused)
             pthread_cond_timedwait(&changed,&mutex,&wake);pthread_mutex_unlock(&mutex);continue;
         }
         struct deck *deck = &decks[index];
-        int kind = deck->pending;
+        int kind = deck->pending, manual = deck->manual;
         deck->pending = 0;
         uint32_t epoch = deck->epoch;
         struct binding source = deck->source;
         pthread_mutex_unlock(&mutex);
         if (kind == 2) release_copy(index, epoch, source);
-        else load(index, epoch, source);
+        else { xz_ram_copy_lock(manual); load(index, epoch, source); xz_ram_copy_unlock(); }
     }
     return NULL;
 }
@@ -502,14 +481,27 @@ void xz_ram_status(int index, struct xz_ram_status *status)
     snprintf(status->message, sizeof(status->message), "RAM ENGINE UNAVAILABLE / REBUILD LOADER IN XZ MODS");
     if (index < 0 || index >= 2) return;
     pthread_mutex_lock(&mutex);
-    if (running) *status = decks[index].status;
+    if (running) {
+        struct deck *d = &decks[index]; *status = d->status;
+        status->supported = status->route_up = 1;
+        status->key.session = d->epoch;
+        status->source_current = d->bound && status->state != XZ_RAM_DETACHED;
+        if (!status->bytes && d->bound && d->source.identity.st_size > 0)
+            status->bytes = (uint64_t)d->source.identity.st_size > UINT32_MAX ? UINT32_MAX : (uint32_t)d->source.identity.st_size;
+        status->can_request = status->source_current && status->bytes && status->bytes <= XZ_RAM_TRACK_LIMIT &&
+            (status->state == XZ_RAM_EMPTY || status->state == XZ_RAM_ERROR);
+        status->can_release = status->state == XZ_RAM_READY;
+        if (status->state == XZ_RAM_READY || status->state == XZ_RAM_DETACHED) status->retained_assets = XZ_RAM_AUDIO;
+        status->reason = !d->bound ? XZ_RAM_NO_SOURCE : status->bytes > XZ_RAM_TRACK_LIMIT ? XZ_RAM_TOO_LARGE : XZ_RAM_OK;
+    }
     pthread_mutex_unlock(&mutex);
 }
-int xz_ram_request(int index)
+static int native_request(int index, const uint64_t *expected)
 {
     if (index < 0 || index >= 2) return -1;
     pthread_mutex_lock(&mutex);
     struct deck *deck = &decks[index];
+    if (expected && *expected != deck->epoch) { pthread_mutex_unlock(&mutex); return -2; }
     int result = -1;
     if (running && deck->bound) {
         result = 0;
@@ -518,18 +510,19 @@ int xz_ram_request(int index)
             ++deck->epoch;
             deck->status.copied = deck->status.bytes = 0;
             message(deck, XZ_RAM_LOADING, "LOADING ORIGINAL TRACK / KEEP USB CONNECTED");
-            deck->pending = 1;
+            deck->pending = 1; deck->manual = 1;
             pthread_cond_signal(&changed);
         }
     }
     pthread_mutex_unlock(&mutex);
     return result;
 }
-int xz_ram_cancel(int index)
+static int native_cancel(int index, const uint64_t *expected)
 {
     if (index < 0 || index >= 2) return -1;
     pthread_mutex_lock(&mutex);
     struct deck *deck = &decks[index];
+    if (expected && *expected != deck->epoch) { pthread_mutex_unlock(&mutex); return -2; }
     int result = -1;
     if (running && deck->status.state == XZ_RAM_LOADING) {
         deck->auto_blocked=1;
@@ -542,11 +535,12 @@ int xz_ram_cancel(int index)
     pthread_mutex_unlock(&mutex);
     return result;
 }
-int xz_ram_release(int index)
+static int native_release(int index, const uint64_t *expected)
 {
     if (index < 0 || index >= 2) return -1;
     pthread_mutex_lock(&mutex);
     struct deck *deck = &decks[index];
+    if (expected && *expected != deck->epoch) { pthread_mutex_unlock(&mutex); return -2; }
     int result = -1;
     if (running && deck->bound && deck->status.state == XZ_RAM_READY) {
         deck->auto_blocked=1;
@@ -559,6 +553,14 @@ int xz_ram_release(int index)
     return result;
 }
 
+int xz_ram_request(int deck) { return native_request(deck, NULL); }
+int xz_ram_cancel(int deck) { return native_cancel(deck, NULL); }
+int xz_ram_release(int deck) { return native_release(deck, NULL); }
+enum xz_ram_result xz_ram_native_command(int deck, enum xz_ram_command command, uint64_t expected) {
+    int result = command == XZ_RAM_LOAD ? native_request(deck, &expected) :
+        command == XZ_RAM_CANCEL ? native_cancel(deck, &expected) : command == XZ_RAM_RELEASE ? native_release(deck, &expected) : -1;
+    return result == -2 ? XZ_RAM_STALE : result ? XZ_RAM_REFUSED : XZ_RAM_ACCEPTED;
+}
 int xz_ram_start(void)
 {
     if (worker_created) return 0;

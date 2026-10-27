@@ -270,7 +270,7 @@ def main() -> None:
                str(ROOT / "key/catalog.c"), str(ROOT / "key/browser.c"),
                str(audio_runtime_object), str(ROOT / "audio/native_reader.c"),
                str(ROOT / "audio/trace.c"),
-               str(ROOT / "ram/cache.c"), str(ROOT / "ram/runtime.c"), str(ROOT / "ram/removal.c"), str(ROOT / "ram/presentation.c"), str(ROOT / "ram/pin.c"),
+               str(ROOT / "ram/cache.c"), str(ROOT / "ram/budget.c"), str(ROOT / "ram/file.c"), str(ROOT / "ram/extra.c"), str(ROOT / "ram/decks.c"), str(ROOT / "ram/runtime.c"), str(ROOT / "ram/removal.c"), str(ROOT / "ram/presentation.c"), str(ROOT / "ram/pin.c"),
                str(ROOT / "audio/stem_cache.c"), str(ROOT / "audio/stem_mix.c"), str(ROOT / "audio/stem_decode.c"),
                str(ROOT / "audio/overcue_file.c"), str(ROOT / "audio/foreign_stems.c"),
                str(mp3_object), str(media_object), str(stream_object),

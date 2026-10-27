@@ -305,6 +305,10 @@ struct xz_extra_track {
    alike. Called only on the players' worker. 0 on success. Weak: without it every LOAD is refused. */
 int xz_extra_resolve_track(int source, uint32_t track_id, struct xz_extra_track *out);
 uint64_t xz_extra_source_generation(int source);
+struct xz_ram_status;
+struct xz_ram_track_key;
+void xz_extra_decks_ram_status(unsigned software_deck, struct xz_ram_status *);
+int xz_extra_decks_ram_command(unsigned software_deck, int command, const struct xz_ram_track_key *);
 int xz_extra_resolve_track_checked(int source, uint32_t track_id, uint64_t media_generation, struct xz_extra_track *out);
 uint32_t xz_extra_decks_epoch(void);
 /* The master deck's playing BPM x100 for SYNC, from the native decks; 0 when no native deck is master

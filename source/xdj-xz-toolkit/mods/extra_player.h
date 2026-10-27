@@ -12,6 +12,7 @@
 #include "ui/beat_jump.h"
 #include "extra_decks.h"
 #include "extra_cue_store.h"
+#include "ram/extra.h"
 #include "audio/usb_transport/usb_transport.h"
 
 enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_SAMPLING, XZ_XP_ENDED, XZ_XP_ERROR, XZ_XP_SCRATCHING };
@@ -105,6 +106,8 @@ uint32_t xz_xp_revision(const struct xz_xp_players *); /* atomic, no locks/IO */
 /* Install only before starting workers. The callback copies a publisher-owned cache; no native I/O. */
 void xz_xp_set_native_sync_clock(struct xz_xp_players *,int (*)(struct xz_sync_native_snapshot *));
 /* Install before workers start. Read runs only during load; write must enqueue. */
+void xz_xp_set_ram_service(struct xz_xp_players *, const struct xz_ram_player_service *);
+void xz_xp_set_source_generation(struct xz_xp_players *, uint64_t (*)(unsigned));
 void xz_xp_set_cue_store(struct xz_xp_players *,xz_cue_read_fn,xz_cue_write_fn);
 int xz_xp_needs_native_sync(const struct xz_xp_players *);
 int xz_xp_use_native_master(struct xz_xp_players *); /* 1 changed, 0 already native-reference mode */

@@ -77,7 +77,7 @@ def linux(path: Path) -> str:
     return '/mnt/' + path.drive[0].lower() + path.as_posix()[2:] if os.name == 'nt' else str(path)
 
 prefix = ['wsl', '-d', 'Ubuntu', '--'] if os.name == 'nt' else []
-sources = [HERE / 'test_runtime.c', HERE / 'cache.c']
+sources = [HERE / 'test_runtime.c', HERE / 'cache.c', HERE / 'budget.c']
 warnings = ['-std=c11', '-O1', '-g', '-UNDEBUG', '-Wall', '-Wextra', '-Werror', '-Wno-misleading-indentation']
 host = output / 'ram-sanitized-test'
 subprocess.run(prefix + ['cc', *warnings, '-fsanitize=address,undefined', '-fno-omit-frame-pointer',

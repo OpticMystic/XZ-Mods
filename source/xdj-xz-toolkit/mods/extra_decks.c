@@ -25,6 +25,14 @@
 #include "jog_display_proof.h"
 #endif
 
+#pragma weak xz_extra_source_generation
+#pragma weak xz_ram_extra_create
+#pragma weak xz_ram_extra_destroy
+#pragma weak xz_ram_extra_player_service
+#pragma weak xz_ram_extra_status
+#pragma weak xz_ram_extra_command
+#pragma weak xz_xp_set_ram_service
+#pragma weak xz_xp_set_source_generation
 #pragma weak xz_extra_resolve_track_checked
 #pragma weak xz_extra_resolve_track
 #pragma weak xz_extra_native_master_bpm
@@ -73,6 +81,31 @@ static void control_update(unsigned mask,unsigned value){
 uint32_t xz_extra_decks_control_revision(void){return __atomic_load_n(&control_state,__ATOMIC_ACQUIRE);}
 static uint32_t link_epoch;                /* nonzero while the transport runs */
 static struct xz_xp_players *players;
+static struct xz_ram_extra *ram;
+static pthread_mutex_t ram_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t ram_generation(void *unused,unsigned source){
+ (void)unused;return xz_extra_source_generation?xz_extra_source_generation((int)source):0;
+}
+static uint64_t cue_generation(unsigned source){return ram_generation(NULL,source);}
+static uint32_t ram_route(void *unused){
+ (void)unused;
+ return xz_extra_decks_route().route_up?__atomic_load_n(&link_epoch,__ATOMIC_ACQUIRE):0;
+}
+void xz_extra_decks_ram_status(unsigned deck,struct xz_ram_status *out){
+ pthread_mutex_lock(&ram_lock);
+ memset(out,0,sizeof(*out));
+ if(ram&&xz_ram_extra_status)xz_ram_extra_status(ram,deck,out);
+ pthread_mutex_unlock(&ram_lock);
+}
+int xz_extra_decks_ram_command(unsigned deck,int command,const struct xz_ram_track_key *expected){
+ pthread_mutex_lock(&ram_lock);
+ int result=ram&&xz_ram_extra_command?xz_ram_extra_command(ram,deck,(enum xz_ram_command)command,expected):XZ_RAM_REFUSED;
+ pthread_mutex_unlock(&ram_lock);return result;
+}
+static void ram_stop(void){
+ pthread_mutex_lock(&ram_lock);struct xz_ram_extra *old=ram;ram=NULL;pthread_mutex_unlock(&ram_lock);
+ if(old&&xz_ram_extra_destroy)xz_ram_extra_destroy(old);
+}
 static struct {
  pthread_rwlock_t lock;                    /* write: the connector replaces or closes usb; read: deck workers */
  xz_usb_transport *usb;
@@ -530,20 +563,29 @@ int xz_extra_decks_start(void) {
                          1, 1}; /* VINYL mode and QUANTIZE on at start, as the stock decks */
  struct xz_xp_players *p = xz_xp_create(&env);
  if (!p) return -1;
+ if(xz_ram_extra_create&&xz_ram_extra_player_service&&xz_xp_set_ram_service){
+  struct xz_ram_extra *service=xz_ram_extra_create(NULL,ram_route,ram_generation);
+  if(service){
+   struct xz_ram_player_service callbacks=xz_ram_extra_player_service(service);
+   xz_xp_set_ram_service(p,&callbacks);
+   pthread_mutex_lock(&ram_lock);ram=service;pthread_mutex_unlock(&ram_lock);
+  }
+ }
+ if(xz_xp_set_source_generation&&xz_extra_source_generation)xz_xp_set_source_generation(p,cue_generation);
  (void)xz_cues_worker_start(xz_extra_resolve_track_checked,cue_store_notice,"/media/usb1","/media/usb2");
  xz_xp_set_cue_store(p,xz_cues_restore,xz_cues_enqueue);
  if(xz_extra_native_sync_clock)xz_xp_set_native_sync_clock(p,xz_extra_native_sync_clock);
  if(xz_xp_set_key_owner_reader)xz_xp_set_key_owner_reader(p,xz_key_owner_current);
  if(xz_xp_set_master_observer&&xz_sync_link_runtime_master_observe)
   xz_xp_set_master_observer(p,xz_sync_link_runtime_master_observe);
- if (xz_xp_start(p)) { xz_cues_worker_stop();xz_xp_destroy(p); return -1; }
+ if (xz_xp_start(p)) { xz_cues_worker_stop();xz_xp_destroy(p); ram_stop(); return -1; }
  __atomic_store_n(&route.quit, 0, __ATOMIC_RELEASE);
  __atomic_store_n(&route.published, 0, __ATOMIC_RELEASE);
  route_events_init();
  if (pthread_create(&route.thread, NULL, connector, NULL)) {
   route_events_close();
   xz_cues_worker_stop();
-  xz_xp_destroy(p);
+  xz_xp_destroy(p); ram_stop();
   return -1;
  }
  __atomic_store_n(&players, p, __ATOMIC_RELEASE);
@@ -562,6 +604,7 @@ void xz_extra_decks_stop(void) {
  pthread_join(route.thread, NULL);
  pthread_mutex_lock(&route_wake_lock);route_events_close();pthread_mutex_unlock(&route_wake_lock);
  xz_xp_stop(players);
+ ram_stop();
  xz_cues_worker_stop();
  route.started = 0;
  __atomic_store_n(&route_scan,0,__ATOMIC_RELEASE);

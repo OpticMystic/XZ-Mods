@@ -14,7 +14,7 @@ void xz_ram_assets_release(uint64_t n){assert(held>=n);held-=n;}
 int main(int argc,char **argv){
     assert(argc==2);struct xz_oc_assets a;char error[256],folder[4096],path[4096];
     assert(!xz_oc_open(argv[1],&a,error,sizeof(error)));assert(!xz_oc_bundle(argv[1],folder,sizeof(folder)));
-    assert(xz_oc_assets_pin(&a)==1&&held==xz_oc_assets_ram_bytes(&a)&&!pending);
+    assert(xz_oc_assets_pin(&a)==1&&held>=xz_oc_assets_ram_bytes(&a)&&held-xz_oc_assets_ram_bytes(&a)<7u*4096u&&!pending);
     const char *names[7]={"drums","harmonics","vocal","full-mix","instrumental","vocals-drums","vocals-harmonics"};
     for(unsigned i=0;i<7;i++){
         int n=snprintf(path,sizeof(path),"%s/stems-sidecar-%s.s16le.pgz",folder,names[i]);assert(n>0&&(size_t)n<sizeof(path));assert(!unlink(path));
