@@ -16,8 +16,17 @@
 #include <time.h>
 static atomic_uint route = 7, generation = 11;
 static atomic_int close_gate, close_entered;
+static atomic_int read_gate, read_entered;
 static struct xz_media_identity close_identity;
 int __real_close(int);
+ssize_t __real_pread64(int,void *,size_t,off64_t);
+ssize_t __wrap_pread64(int fd,void *out,size_t bytes,off64_t offset) {
+    if(atomic_load(&read_gate)){
+        atomic_store(&read_entered,1);
+        while(atomic_load(&read_gate)){struct timespec t={0,1000000};nanosleep(&t,NULL);}
+    }
+    return __real_pread64(fd,out,bytes,offset);
+}
 int __wrap_close(int fd) {
     struct xz_media_identity id;
     if (atomic_load(&close_gate) && xz_media_identify(fd,&id) && xz_media_same(&id,&close_identity)) {
@@ -30,6 +39,16 @@ static uint32_t get_route(void *p) { (void)p; return atomic_load(&route); }
 static uint64_t get_generation(void *p,unsigned source) { (void)p; assert(source==1); return atomic_load(&generation); }
 static void tick(void) { struct timespec t={0,1000000};nanosleep(&t,NULL); }
 static struct xz_ram_status status(struct xz_ram_extra *s,unsigned d) { struct xz_ram_status r;xz_ram_extra_status(s,d,&r);return r; }
+static void block_copy(struct xz_ram_extra *s,struct xz_ram_player_service *ops,struct xz_stem_media *m,unsigned d){
+    atomic_store(&read_entered,0);atomic_store(&read_gate,1);
+    for(unsigned i=0;i<10000&&!atomic_load(&read_entered);i++){ops->step(s,d,m,0);tick();}
+    assert(atomic_load(&read_entered));
+}
+static void await_candidate(struct xz_ram_extra *s,struct xz_ram_player_service *ops,struct xz_stem_media *m,unsigned d){
+    block_copy(s,ops,m,d);atomic_store(&read_gate,0);
+    for(unsigned i=0;i<10000&&status(s,d).phase!=XZ_RAM_ATTACHING;i++)tick();
+    assert(status(s,d).phase==XZ_RAM_ATTACHING);
+}
 static void wait_state(struct xz_ram_extra *s,struct xz_ram_player_service *ops,struct xz_stem_media *m,unsigned d,enum xz_ram_state state) {
     for(unsigned i=0;i<10000;i++) {
         ops->step(s,d,m,0);struct xz_ram_status r=status(s,d);
@@ -69,9 +88,7 @@ int main(int argc,char **argv) {
     ops.step(s,0,m[0],0);atomic_store(&route,8);ops.step(s,0,m[0],0);
     wait_state(s,&ops,m[0],0,XZ_RAM_ERROR);r=status(s,0);
     assert(xz_ram_extra_command(s,0,XZ_RAM_LOAD,&r.key)==XZ_RAM_ACCEPTED);
-    ops.step(s,0,m[0],0);
-    for(unsigned i=0;i<10000&&status(s,0).phase!=XZ_RAM_ATTACHING;i++)tick();
-    assert(status(s,0).phase==XZ_RAM_ATTACHING);
+    await_candidate(s,&ops,m[0],0);
     atomic_store(&route,9);ops.step(s,0,m[0],0);wait_state(s,&ops,m[0],0,XZ_RAM_ERROR);
     r=status(s,0);assert(xz_ram_extra_command(s,0,XZ_RAM_LOAD,&r.key)==XZ_RAM_ACCEPTED);
     wait_state(s,&ops,m[0],0,XZ_RAM_READY);
@@ -81,6 +98,14 @@ int main(int argc,char **argv) {
     wait_state(s,&ops,m[0],0,XZ_RAM_EMPTY);compare(m[0],ref[0],24373,1024);
     int fd;struct xz_media_identity restored;assert(xz_stem_media_source_snapshot(m[0],&restored,&fd));close(fd);
     assert(xz_media_same(&restored,&original[0]));
+    /* Replacing a reader cannot wait for a blocked background USB read. */
+    r=status(s,0);
+    assert(xz_ram_extra_command(s,0,XZ_RAM_LOAD,&r.key)==XZ_RAM_ACCEPTED);block_copy(s,&ops,m[0],0);
+    ops.retire(s,0,m[0]);
+    m[0]=xz_stem_media_open(argv[2],untrimmed);assert(m[0]);
+    ops.bind(s,0,m[0],1,42,11,argv[2],XZ_RAM_CUES|XZ_RAM_WAVE|XZ_RAM_GRID);
+    assert(xz_ram_extra_command(s,0,XZ_RAM_LOAD,&r.key)==XZ_RAM_STALE);
+    atomic_store(&read_gate,0);
     /* Same name, size, generation and track ID, but a different inode must never restore. */
     r=status(s,0);assert(xz_ram_extra_command(s,0,XZ_RAM_LOAD,&r.key)==XZ_RAM_ACCEPTED);
     wait_state(s,&ops,m[0],0,XZ_RAM_READY);
@@ -98,9 +123,7 @@ int main(int argc,char **argv) {
     for(unsigned d=0;d<2;d++) {
         r=status(s,d);assert(xz_ram_extra_command(s,d,XZ_RAM_LOAD,&r.key)==XZ_RAM_ACCEPTED);
         if(d==1){
-            ops.step(s,d,m[d],0);
-            for(unsigned i=0;i<10000&&status(s,d).phase!=XZ_RAM_ATTACHING;i++)tick();
-            assert(status(s,d).phase==XZ_RAM_ATTACHING);
+            await_candidate(s,&ops,m[d],d);
             close_identity=original[d];atomic_store(&close_gate,1);ops.step(s,d,m[d],0);
             for(unsigned i=0;i<10000&&!atomic_load(&close_entered);i++)tick();assert(atomic_load(&close_entered));
             assert(status(s,d).state==XZ_RAM_LOADING);

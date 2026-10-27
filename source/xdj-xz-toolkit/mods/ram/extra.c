@@ -182,7 +182,7 @@ static void retire(void *context, unsigned deck, struct xz_stem_media *media) {
     struct session *s = p->deck[deck];
     if(s){++s->request;s->cancelled=1;s->queued=0;}
     /* Lifecycle only: bound the retired queue even if a source read is blocked. */
-    while ((s && s->busy) || p->retired_count >= 8) pthread_cond_wait(&p->changed, &p->lock);
+    while (p->retired_count >= 8) pthread_cond_wait(&p->changed, &p->lock);
     if (s) {
         s->retired = 1; ++s->request; s->media = media;
         s->next = p->retired; p->retired = s; ++p->retired_count; p->deck[deck] = NULL;

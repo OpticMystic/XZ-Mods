@@ -62,7 +62,7 @@ for name in ['ram/budget.c', 'ram/cache.c', 'ram/file.c', 'ram/extra.c',
 for name, inputs in [('budget', objects[:1]), ('extra', objects)]:
     binary = out / ('test-' + name)
     run('link-' + name, flags + [linux(ROOT / 'ram' / ('test_' + name + '.c')), *inputs,
-                               *(['-Wl,--wrap=close'] if name == 'extra' else []), '-lm', '-o', linux(binary)])
+                               *(['-Wl,--wrap=close', '-Wl,--wrap=pread64'] if name == 'extra' else []), '-lm', '-o', linux(binary)])
 negative = run('assertions-disabled', flags + ['-DNDEBUG', '-c', linux(ROOT / 'ram/test_budget.c'), '-o', linux(out / 'negative.o')], True)
 assert b'RAM acceptance requires active assertions' in negative.stderr
 run('budget', [linux(out / 'test-budget')])
