@@ -8,7 +8,7 @@ import re
 import zipfile
 
 PIN_PATH = Path(__file__).with_name('quad-profile.sha256')
-PROFILE_SHA256 = PIN_PATH.read_text().strip() if PIN_PATH.is_file() else 'd612f61330eca4c2b6448d150268c315538cfdc18a290f19bad5e2d3f5675bdd'
+PROFILE_SHA256 = PIN_PATH.read_text().strip() if PIN_PATH.is_file() else 'aa3eebdc9ea8aa2a4ee617ac2a33341a8dd9a6ae6f85d1f4c3a0766906877ba6'
 RETAINED_PROFILES = frozenset({'d612f61330eca4c2b6448d150268c315538cfdc18a290f19bad5e2d3f5675bdd',
     '86e320f351c9069e261d80c7017b10367943eda8db3ea8731db160270a34aa6e',
     'ad6920e0e633b89ea5043b0734a63966883b098ab538ec801efc3c2c59cdaf7f',
