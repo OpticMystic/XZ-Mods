@@ -1,0 +1,397 @@
+{
+  "schema": "xz-support-sources/1",
+  "sources": [
+    {
+      "source_id": "usb_session",
+      "location": "usb",
+      "path": "XZ_RUNTIME/session.txt",
+      "parser": "events",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio",
+        "display",
+        "app_usb",
+        "other"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "device_local_unknown",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ]
+    },
+    {
+      "source_id": "native_export",
+      "location": "usb",
+      "path": "VJTOOLS/support-reports/xz-support-report-<32lowerhex>.json",
+      "parser": "native_export",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio",
+        "display",
+        "app_usb",
+        "other"
+      ],
+      "max_read_bytes": 524288,
+      "time_basis": "unknown",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ],
+      "max_entries": 64,
+      "max_candidates": 3,
+      "safe_fields_from_items": true
+    },
+    {
+      "source_id": "usb_settings",
+      "location": "usb",
+      "path": "VJ.Tools/XZ-Mods.cfg",
+      "parser": "settings",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio",
+        "display",
+        "app_usb",
+        "other"
+      ],
+      "max_read_bytes": 1023,
+      "time_basis": "current",
+      "safe_fields": [
+        "setting",
+        "value",
+        "valid"
+      ]
+    },
+    {
+      "source_id": "bridge_status",
+      "location": "xz",
+      "path": "/dev/shm/xz-four-deck/status.json",
+      "parser": "bridge_json",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio",
+        "other"
+      ],
+      "max_read_bytes": 768,
+      "time_basis": "current",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ]
+    },
+    {
+      "source_id": "bridge_fallback",
+      "location": "xz",
+      "path": "/dev/shm/xz-four-deck/status",
+      "parser": "events",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio",
+        "other"
+      ],
+      "max_read_bytes": 1024,
+      "time_basis": "current",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ],
+      "fallback_for": "bridge_status"
+    },
+    {
+      "source_id": "bridge_history",
+      "location": "xz",
+      "path": "/dev/shm/xz-four-deck/bridge.log",
+      "parser": "events",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "device_epoch",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ]
+    },
+    {
+      "source_id": "coldplug",
+      "location": "xz",
+      "path": "/dev/shm/xz-usb-coldplug.log",
+      "parser": "coldplug",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "app_usb"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "unknown",
+      "safe_fields": [
+        "result",
+        "slot",
+        "attempt",
+        "elapsed_ms"
+      ]
+    },
+    {
+      "source_id": "runtime_events",
+      "location": "xz",
+      "path": "/dev/shm/xz-mods.log",
+      "parser": "events",
+      "parser_version": 1,
+      "categories": [
+        "audio",
+        "display",
+        "other"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "unknown",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ]
+    },
+    {
+      "source_id": "launcher",
+      "location": "xz",
+      "path": "/dev/shm/xz-auto-4bb9db00a2ab/launch.log",
+      "parser": "events",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "app_usb"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "unknown",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ]
+    },
+    {
+      "source_id": "application_output",
+      "location": "xz",
+      "path": "/tmp/xz_rbp.log",
+      "parser": "exit_codes",
+      "parser_version": 1,
+      "categories": [
+        "audio",
+        "other"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "unknown",
+      "safe_fields": [
+        "error_namespace",
+        "error_code"
+      ]
+    },
+    {
+      "source_id": "receiver",
+      "location": "xz",
+      "path": "/tmp/xz_directfb_hook.log",
+      "parser": "events",
+      "parser_version": 1,
+      "categories": [
+        "display"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "unknown",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ]
+    },
+    {
+      "source_id": "app_events",
+      "location": "app",
+      "path": "app.log",
+      "parser": "app_events",
+      "parser_version": 1,
+      "categories": [
+        "app_usb",
+        "other"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "host_utc",
+      "safe_fields": [
+        "component",
+        "result",
+        "error_namespace",
+        "error_code"
+      ]
+    },
+    {
+      "source_id": "loader_status",
+      "location": "app",
+      "path": "loader-status.json",
+      "parser": "bridge_json",
+      "parser_version": 1,
+      "categories": [
+        "app_usb",
+        "other"
+      ],
+      "max_read_bytes": 32768,
+      "time_basis": "current",
+      "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready"
+      ]
+    },
+    {
+      "source_id": "packaged_manifest",
+      "location": "resources",
+      "path": "runtime/manifest.json",
+      "parser": "identity",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio",
+        "display",
+        "app_usb",
+        "other"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "current",
+      "safe_fields": [
+        "component",
+        "version",
+        "provenance",
+        "sha256"
+      ]
+    },
+    {
+      "source_id": "packaged_profile",
+      "location": "resources",
+      "path": "runtime/quad-package.json",
+      "parser": "identity",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio",
+        "display",
+        "app_usb",
+        "other"
+      ],
+      "max_read_bytes": 131072,
+      "time_basis": "current",
+      "safe_fields": [
+        "component",
+        "sha256",
+        "provenance"
+      ],
+      "requires_digest": "quad_package_sha256"
+    }
+  ],
+  "setting_bounds": {
+    "stems": [
+      0,
+      1
+    ],
+    "gate": [
+      0,
+      1
+    ],
+    "interface": [
+      0,
+      1
+    ],
+    "classic_theme": [
+      0,
+      23
+    ],
+    "deck_view": [
+      0,
+      2
+    ],
+    "browse_preview": [
+      0,
+      1
+    ]
+  },
+  "exclusions": [
+    {
+      "path": "/tmp/xz_telnetd.log",
+      "reason": "redundant_no_telnet"
+    },
+    {
+      "path": "/root/settings/VJ.Tools/preferences.0",
+      "reason": "internal_storage"
+    },
+    {
+      "path": "/root/settings/VJ.Tools/preferences.1",
+      "reason": "internal_storage"
+    },
+    {
+      "path": "XdjSettings.dat",
+      "reason": "stock_preferences"
+    },
+    {
+      "path": "/dev/shm/xz-support-state/draft.json",
+      "reason": "private_state_or_key"
+    },
+    {
+      "path": "/dev/shm/xz-support-state/draft.meta",
+      "reason": "private_state_or_key"
+    },
+    {
+      "path": "/dev/shm/xz-support-state/receipt.json",
+      "reason": "private_state_or_key"
+    },
+    {
+      "path": "/dev/shm/xz-support-state/outcome.txt",
+      "reason": "private_state_or_key"
+    },
+    {
+      "path": "/dev/shm/xz-support-state/clock.txt",
+      "reason": "private_state_or_key"
+    },
+    {
+      "path": "Contents",
+      "reason": "music_or_identity"
+    },
+    {
+      "path": "PIONEER",
+      "reason": "music_or_identity"
+    },
+    {
+      "path": "DJPROFILE",
+      "reason": "music_or_identity"
+    },
+    {
+      "path": "crash files or core dumps",
+      "reason": "no_production_source"
+    }
+  ]
+}
