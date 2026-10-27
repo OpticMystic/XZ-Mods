@@ -40,25 +40,30 @@ route-up notice points to DECK VIEW in MODS. Every lane names its deck. A pale b
 shows which deck the left or right physical controls drive.
 `preview_four_deck.py` checks the upper waveform layout in both orders.
 
-### Deck colours
+### Deck badges
 
 The channels stay in mixer order while DECK VIEW reorders the lanes, so in
 number order the lane over channel "1" is DECK 1 and the channel under it is
-DECK 3. Every four-deck screen therefore draws each deck's number in a box of
-that deck's own colour (`deck_colour.h`), the same in both interfaces: DECK 1
-`#ffe23a` yellow, DECK 2 `#48eef0` aqua, DECK 3 `#e87c92` rose, DECK 4
-`#ad78ff` violet (warm for the left side's decks, cool for the right side's).
-The box always carries the digit, so colour is never the only cue; a deck
-that is not connected keeps its colour dimmed. The boxes sit on the lane tags
-(MODERN info column, CLASSIC side column and wave lane tags), on the channels
-(MODERN strip badge, CLASSIC title band, and the MODERN four-deck strip under
-browse and the menus), in the detail panel's header and lane numbers, on the
-WORKS ON chips and the 4 DECKS grid's column heads in MODS, and the DECKS
-button and picker colour their numbers the same way. The driven-deck highlight (blue or pale blue fill with the arrow, LEFT
-or RIGHT) and USB stick colours stay on the rest of the tag. The CLASSIC
-theme pass recolours the wave surface, so `style_four` puts the boxes back
-afterwards (`xz_four_identity_draw`). 2 DECKS screens with both sides on DECK 1
-and 2 are unchanged; a 2 DECKS half showing DECK 3 or 4 carries its box (below).
+DECK 3. Every four-deck screen therefore draws each deck's number in a badge
+(`deck_colour.h`), the same in both interfaces. The badge follows the stock
+deck indicator on the jog displays, which inverts decks 3 and 4 (owner,
+2026-10-26): DECK 1 and DECK 2 are a white digit on grey `#5a5a5a` (6.9 : 1),
+DECK 3 and DECK 4 a black digit on white (21 : 1). The digit names the deck and
+the polarity names the pair; no deck has a hue of its own, so the badges never
+compete with the colours that already mean something here. A deck that is not
+connected keeps its badge dimmed toward its background, polarity kept. A light
+badge on a light ground (the pale blue driven tab, a light theme's menu) gets a
+dark one-pixel edge. The badges sit on the lane tags (MODERN info column,
+CLASSIC side column and wave lane tags), on the channels (MODERN strip badge,
+CLASSIC title band, and the MODERN four-deck strip under browse and the menus),
+in the detail panel's header and lane numbers, on the WORKS ON chips and the
+4 DECKS grid's column heads in MODS, on the DECKS button's numbers and on the
+picker's lane and channel numbers. The driven-deck highlight (blue or pale blue
+fill with the arrow, LEFT or RIGHT) and USB stick colours stay on the rest of
+the tag. The CLASSIC theme pass recolours the wave surface, so `style_four`
+puts the badges back afterwards (`xz_four_identity_draw`). 2 DECKS screens with
+both sides on DECK 1 and 2 are unchanged; a 2 DECKS half showing DECK 3 or 4
+carries its badge (below).
 
 ## 2 DECKS follows the sides
 
@@ -86,10 +91,10 @@ gets a mod-drawn half in the stock look; the other side stays stock:
   DECK 4), revoked with the play scene; everything else follows that one value.
 - Side column: the side's half (x 0..129, y 18..159 or 160..308) is redrawn as
   the stock tag (`xz_classic_column_half_draw`): the stock tab shape and gradient
-  with the deck's colour box where the stock tab has its bar, DECK 3 or DECK 4,
+  with the deck's badge where the stock tab has its bar, DECK 3 or DECK 4,
   source, key, and the key slot that opens the key controls for that deck.
 - Bottom panel: the side's 400-pixel stock panel (`xz_classic_mixer_half_draw`):
-  title band with the deck's colour box where the note is, DECK n, the time mode,
+  title band with the deck's badge where the note is, DECK n, the time mode,
   QUANTIZE, TEMPO and range, source and key where TRACK is, A.CUE and MT boxes,
   the clock, what SYNC follows and what the pads do under it (END when the track
   ends), tempo, the BPM box (orange with MASTER for a master deck) and the
@@ -98,7 +103,7 @@ gets a mod-drawn half in the stock look; the other side stays stock:
   only for sides both the painted pair and the players' snapshot put on DECK 3
   or 4, never over MODS, a game, a native caution or a takeover. In a theme they
   go through the active theme map like the stock halves beside them, then the
-  number boxes are drawn again in their own colours. A half returning to stock
+  deck badges are drawn again in their own colours. A half returning to stock
   (a switch back, route loss, MODS) asks for one native repaint.
 - Touch: a contact that begins on a software half (its wave rows, its column
   half, its panel) is the mod's until release, also if the half returns to stock
@@ -113,15 +118,14 @@ gets a mod-drawn half in the stock look; the other side stays stock:
 
 MODERN. The shell already draws the assigned pair from one model, so the
 waveform lane, info column and bottom strip switch in the same frame; DECK 3 or
-4 there now carries its colour box on its tag and strip badge.
+4 there now carries its badge on its tag and strip badge.
 
-Colour boxes in 2 DECKS: DECK 3 and DECK 4 carry their identity box (and their
-coloured digit on the DECKS button) whenever they are on screen; DECK 1 and 2
-keep the plain stock number. A 2 DECKS screen can now read 1 2, 3 2, 1 4 or 3 4,
-so the box tells at a glance that a half shows a software deck and which one,
-the same rose 3 / violet 4 the DJ meets on the four-deck screens and the
-mixer. Keeping 1 and 2 plain leaves the normal case byte-identical and puts the
-colour only where something differs from the stock screen.
+Badges in 2 DECKS: DECK 3 and DECK 4 carry their badge (also on the DECKS
+button) whenever they are on screen; DECK 1 and 2 keep the plain stock number.
+A 2 DECKS screen can now read 1 2, 3 2, 1 4 or 3 4, so the white badge tells at
+a glance that a half shows a software deck and which one, the same badge the DJ
+meets on the four-deck screens and the mixer. Keeping 1 and 2 plain leaves the
+normal case byte-identical and marks only what differs from the stock screen.
 
 Switch notice: when a side switches while 2 DECKS shows and the route stays up,
 both interfaces say where it went for 2 s (`xz_deck_view_pair_notice`):

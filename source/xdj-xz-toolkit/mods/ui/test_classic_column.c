@@ -39,15 +39,15 @@ static void halves(void){
    if(!in)assert(pixels[y*W+x]==SENTINEL);else inside+=pixels[y*W+x]!=SENTINEL;
   }
   assert(inside==130*(y1-y0)&&pixels[W*H]==SENTINEL&&pixels[W*H+1]==SENTINEL);
-  /* The tab where the stock DECK 1 / DECK 2 tab is, its number box in the deck's colour, the key slot's line. */
+  /* The tab where the stock DECK 1 / DECK 2 tab is, its number in the badge (black on white), the key slot's line. */
   int ty=18+side*XZ_CLASSIC_HALF_STEP;
-  assert(count(4,ty+5,28,ty+33,xz_deck_colour(2+side))>300&&!count(0,y0,130,y1,xz_deck_colour(3-side)));
+  assert(count(4,ty+5,28,ty+33,xz_deck_box_fill(2+side,1,0))>300&&count(4,ty+5,28,ty+33,xz_deck_box_ink(2+side,1,0))>20);
   assert(count(0,ty+1,100,ty+38,0x293c52)+count(0,ty+1,100,ty+38,0x203041)<3800);
   int slot=0;for(int y=119+side*143;y<154+side*143;y++)for(int x=4;x<111;x++)slot+=pixels[y*W+x]!=0;assert(slot>100);
   uint32_t drawn=fnv();
   clear();xz_classic_column_half_identity(pixels,W,(size_t)W*H,2+side);
   for(int y=0;y<H;y++)for(int x=0;x<W;x++)if(pixels[y*W+x]!=SENTINEL)assert(x>=4&&x<28&&y>=ty+5&&y<ty+33);
-  assert(count(4,ty+5,28,ty+33,xz_deck_colour(2+side))>300);
+  assert(count(4,ty+5,28,ty+33,xz_deck_box_fill(2+side,1,0))>300&&count(4,ty+5,28,ty+33,xz_deck_box_ink(2+side,1,0))>20);
   clear();assert(xz_classic_column_half_draw(pixels,W,(size_t)W*H,2+side,&d)&&fnv()==drawn);
  }
  struct xz_classic_column_deck d;memset(&d,0,sizeof d);
@@ -79,8 +79,11 @@ int main(void){
  /* The driven decks (1 left, 4 right) wear the pale blue tab; in mixer order DECK 1's tag is second. */
  assert(count(3,22+68+2,100,22+68+20,0x94bef6)>800&&count(3,22+3*68+2,100,22+3*68+20,0x94bef6)>800);
  assert(count(3,22+2,100,22+20,0x94bef6)==0&&count(3,22+2,100,22+20,0x29344a)>800);
- /* Each tag's number box in its deck's colour, the same as its channel's: mixer order reads 3 1 2 4 down. */
- for(int k=0;k<4;k++)assert(count(4,22+68*k+2,24,22+68*k+20,xz_deck_colour(mixer[k]))>200);
+ /* Each tag's number in its badge, the same as its channel's: mixer order reads 3 1 2 4 down, 1 and 2 white on
+    grey, 3 and 4 black on white; the light badge on the pale blue tab (DECK 4, driven) carries a dark edge. */
+ for(int k=0;k<4;k++)assert(count(4,22+68*k+2,24,22+68*k+20,xz_deck_box_fill(mixer[k],1,0))>200&&count(4,22+68*k+2,24,22+68*k+20,xz_deck_box_ink(mixer[k],1,0))>10);
+ assert(count(4,22+3*68+2,24,22+3*68+20,XZ_DECK_BADGE_EDGE)>=72&&pixels[(22+3*68+2)*W+4]==rgb(XZ_DECK_BADGE_EDGE));
+ assert(pixels[(22+2)*W+4]==rgb(xz_deck_box_fill(2,1,0)));
  /* Cents in orange beside the native keys. */
  assert(warm(60,22+68+44,130,22+68+62)>10&&!warm(0,22+44,130,22+62));
  /* Number order puts DECK 1 first. */
@@ -91,14 +94,14 @@ int main(void){
  assert(count(3,22+2,100,22+20,0x161c26)>800&&count(3,22+3*68+2,100,22+3*68+20,0x161c26)>800);
  assert(warm(0,22+26,130,22+40)>20&&warm(0,22+3*68+26,130,22+3*68+40)>20);
  assert(count(3,22+68+2,100,22+68+20,0x94bef6)>800);
- /* Waiting decks keep their colour, dimmed. */
- assert(count(4,22+2,24,22+20,xz_deck_colour_dim_fill(2,0x161c26))>200&&count(4,22+2,24,22+20,xz_deck_colour(2))==0);
- assert(count(4,22+3*68+2,24,22+3*68+20,xz_deck_colour_dim_fill(3,0x161c26))>200);
+ /* Waiting decks keep their badge, dimmed. */
+ assert(count(4,22+2,24,22+20,xz_deck_box_fill(2,0,0x161c26))>200&&count(4,22+2,24,22+20,xz_deck_box_fill(2,1,0))==0);
+ assert(count(4,22+3*68+2,24,22+3*68+20,xz_deck_box_fill(3,0,0x161c26))>200);
  /* Guards. */
  v.layout=XZ_LAYOUT_TWO;clear();assert(!xz_classic_column_draw(pixels,W,W*H,&v));
  for(size_t i=0;i<sizeof pixels/sizeof *pixels;i++)assert(pixels[i]==SENTINEL);
  v.layout=XZ_LAYOUT_MIXER;assert(!xz_classic_column_draw(pixels,799,W*H,&v)&&!xz_classic_column_draw(pixels,W,W*H-1,&v)&&!xz_classic_column_draw(NULL,W,W*H,&v));
  v.layout=7;assert(!xz_classic_column_draw(pixels,W,W*H,&v));
- puts("PASS Classic side column: four tags beside the lanes in DECK VIEW order, driven sides lit, deck colour boxes, cents, NOT CONNECTED decks 3/4, writes only x 0..129 y 22..308, nothing in 2 DECKS");
+ puts("PASS Classic side column: four tags beside the lanes in DECK VIEW order, driven sides lit, deck badges, cents, NOT CONNECTED decks 3/4, writes only x 0..129 y 22..308, nothing in 2 DECKS");
  return 0;
 }

@@ -40,7 +40,7 @@ static inline int xz_deck_view_valid(int view) { return (unsigned)view<XZ_LAYOUT
 /* The top-bar button: lane glyph, DECKS, the deck numbers in screen order (3 and 4 grey while not ready),
    a down triangle, and an amber dot while a four-deck view waits for decks 3 and 4. pair names the decks a
    2 DECKS view shows when the sides drive decks 3 or 4 (bit 0: left on 3, bit 1: right on 4; both interfaces
-   show that pair, DECK 3 and 4 in their colours). open draws it lit (the picker is showing); focused draws
+   show that pair, DECK 3 and 4 in their badges). open draws it lit (the picker is showing); focused draws
    the encoder ring. Writes only the button rectangle. */
 void xz_deck_view_button_draw(struct xz_canvas c, const struct xz_deck_view_style *s, int view, int ready, int pair, int open, int focused);
 /* The button's touch target: its columns, from y 0 to button_touch_h. */

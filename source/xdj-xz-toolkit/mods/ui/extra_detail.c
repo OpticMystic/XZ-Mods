@@ -356,7 +356,7 @@ static void status(struct xz_canvas c,const struct xz_extra_decks *s,const struc
 }
 
 /* While the panel covers the lanes' left halves, each lane's number rides at its right end instead: its
-   colour box (deck_colour.h) in a one-pixel ring, lit like its tag while that side's controls drive it. */
+   badge (deck_colour.h) in a one-pixel ring, lit like its tag while that side's controls drive it. */
 enum { LANE_NUMBER_X=XZ_WAVE_WIDTH-15 };
 static int lane_number_y(const struct xz_four_layout *g,int deck){return (int)g->lane_y[deck]+(g->lane_y[deck]?2:8);}
 static void lane_number_box(struct xz_canvas c,const struct xz_four_layout *g,int deck){

@@ -230,8 +230,9 @@ static void plate_modes(void){
   size_t x=i%STRIDE,y=i/STRIDE;assert(x>=3&&x<60&&y>=68+2&&y<68+15);tag++;
  }
  assert(tag>100);
- uint16_t lit_pixel=at(68,3,4);
- fill();assert(xz_four_badge_draw(pixels,STRIDE,STRIDE*268,68,2,0));assert(at(68,3,4)!=lit_pixel);
+ /* Both native decks wear the grey badge (deck_colour.h); the DECK chip beside it is what lights. */
+ uint16_t lit_pixel=at(68,3,19),badge=at(68,3,4);
+ fill();assert(xz_four_badge_draw(pixels,STRIDE,STRIDE*268,68,2,0));assert(at(68,3,19)!=lit_pixel&&at(68,3,4)==badge);
  fill();memcpy(copy,pixels,sizeof pixels);
  assert(!xz_four_badge_draw(pixels,STRIDE,STRIDE*268,68,3,1)&&!xz_four_badge_draw(pixels,STRIDE,STRIDE*268,205,1,1)&&
         !xz_four_badge_draw(pixels,STRIDE,STRIDE*100,68,1,1)&&!xz_four_badge_draw(NULL,STRIDE,STRIDE*268,0,1,1)&&
