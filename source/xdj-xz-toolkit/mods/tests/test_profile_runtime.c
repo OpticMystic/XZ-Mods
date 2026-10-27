@@ -71,6 +71,40 @@ static size_t profile_bytes(const char *root,char out[2048]){
  char path[1100];snprintf(path,sizeof(path),"%s/VJ.Tools/XZ-Mods.cfg",root);FILE *f=fopen(path,"rb");assert(f);
  size_t n=fread(out,1,2048,f);assert(!ferror(f)&&n<2048);fclose(f);return n;
 }
+
+static void appearance_preferences_runtime(void){
+ struct xz_ui_action edits[]={
+  {.kind=XZ_UI_BAND_COLOR,.index=0,.value=2}, {.kind=XZ_UI_BAND_COLOR,.index=1,.value=6},
+  {.kind=XZ_UI_BAND_COLOR,.index=2,.value=5},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_SET_WAVE_COLOR,.value=1},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_SET_WAVE_POSITION,.value=1},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_ITEM_KEY_DISPLAY,.value=2},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_ITEM_WAVE_ZOOM,.value=6},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_ITEM_USB_COLORS,.value=2},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_ITEM_MODE_LAMPS,.value=1},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_ITEM_QUANTIZE_LAMP,.value=1},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_ITEM_BYPASS_BUTTON,.value=1},
+  {.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_ITEM_WAVE_TITLES,.value=1},
+  {.kind=XZ_UI_SHELL_BROWSE_COLUMNS,.value=2047}};
+ int before=model.theme;pthread_mutex_lock(&ui_mutex);apply(NULL,edits,sizeof edits/sizeof *edits);
+ struct xz_settings saved=settings_snapshot();struct xz_shell_runtime_frame_input input;shell_frame_input_locked(&input);
+ assert(input.look_known&&input.band_colors[0]==2&&input.band_colors[1]==6&&input.band_colors[2]==5);
+ assert(input.modern_wave_color==1&&input.wave_position==1&&input.key_display==2&&input.wave_zoom==6&&input.usb_colors==2&&input.hidden_parts==15&&input.modern_browse_columns==2047);
+ pthread_mutex_unlock(&ui_mutex);wait_internal(before,saved.key_format);
+ /* Wait for these fields, rather than accepting an older save with the same theme. */
+ int done=0;for(int i=0;i<300;i++){
+  struct xz_settings got;if(!xz_settings_load(settings_usb,&got)&&got.hidden_parts==15&&got.band_colors[2]==5&&got.modern_browse_columns==2047){done=1;break;}profile_pause(10000000);
+ }assert(done);
+ pthread_mutex_lock(&ui_mutex);settings_readonly=1;
+ struct xz_ui_action reset={.kind=XZ_UI_BAND_COLORS_RESET};apply(NULL,&reset,1);
+ struct xz_ui_action show={.kind=XZ_UI_SHELL_DISPLAY,.index=XZ_SHELL_ITEM_BYPASS_BUTTON,.value=0};apply(NULL,&show,1);
+ assert(!settings_pending&&!model.band_colors[0]&&!model.band_colors[1]&&!model.band_colors[2]&&modern_display.hidden_parts==11);
+ struct xz_settings got;assert(!xz_settings_load(settings_usb,&got)&&got.hidden_parts==15&&got.band_colors[2]==5);
+ profile_apply_locked(&got,"test-restart");assert(!memcmp(model.band_colors,saved.band_colors,sizeof saved.band_colors)&&modern_display.hidden_parts==15);
+ settings_readonly=0;pthread_mutex_unlock(&ui_mutex);
+ puts("PASS band/display action plumbing, frame publication, USB worker save, reboot restore, bit preservation and read-only live edits");
+}
+
 int main(void){
  char a[]="/dev/shm/xz-runtime-profile-a-XXXXXX",b[]="/dev/shm/xz-runtime-profile-b-XXXXXX",internal[]="/dev/shm/xz-runtime-internal-XXXXXX";
  assert(mkdtemp(a)&&mkdtemp(b)&&mkdtemp(internal));xz_settings_internal_test_root(internal);
@@ -126,6 +160,7 @@ int main(void){
  wait_profile("",6,2);wait_status("USB REMOVED: SETTINGS KEPT");pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=10;model.theme=10;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_internal(10,2);wait_status("SAVED ON THIS XZ / NO USB");
  clean(a);assert(!mkdir(a,0755));pthread_mutex_lock(&fixture_mutex);snprintf(fixture_usb[0],1024,"%s",a);pthread_mutex_unlock(&fixture_mutex);pthread_cond_signal(&settings_changed);
  wait_profile(a,10,2);wait_status("USB 1 HAS NO SETTINGS: KEPT CURRENT");pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=11;model.theme=11;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_saved(a,11);wait_internal(11,2);
+ appearance_preferences_runtime();
  char cfg[1100];snprintf(cfg,sizeof(cfg),"%s/VJ.Tools/XZ-Mods.cfg",b);FILE *file=fopen(cfg,"w");assert(file);fputs("XZ_MODS_SETTINGS 1\nstems=7\n",file);fclose(file);
  xz_ui_runtime_profile_usb(1);wait_profile(b,11,2);wait_status("USB 2 SETTINGS INVALID: KEPT CURRENT");pthread_mutex_lock(&ui_mutex);model.ui_interface=XZ_INTERFACE_CLASSIC;model.classic_theme=12;model.theme=12;settings_queue();pthread_mutex_unlock(&ui_mutex);wait_internal(12,2);wait_status("SAVED ON THIS XZ / USB PROFILE KEPT");assert(xz_settings_load(b,&s)<0);
  /* An explicit Apply+Save authorizes replacing the selected USB record. */

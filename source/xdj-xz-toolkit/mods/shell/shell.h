@@ -270,6 +270,7 @@ struct xz_shell_model {
  int stems_known, stems_on;          /* lights the STEMS header button */
  int mods_settings_known,stem_order,key_format,key_feedback,browse_traffic; /* shared MODS policy, zero = legacy caller */
  int stem_rgb_known;
+ uint32_t wave_band_rgb[3];           /* custom 3-BAND low/mid/high RGB888; zero keeps STANDARD */
  uint32_t stem_rgb[3];               /* stem pad colours: drums, harmonics, vocal (0xRRGGBB) */
  uint8_t stem_rgb_custom;            /* bit per stem: stem_rgb holds a colour the DJ picked; clear bits draw the
                                         shell's default stem colours (sh_stem_bright) */
@@ -373,7 +374,7 @@ enum xz_shell_action_kind {
                               XZ_SHELL_CAP_DECK_SELECT */
  XZ_SHELL_ACT_STEM_BYPASS, /* deck, value = 1 bypass (the original track plays), 0 the stems play. Needs
                               XZ_SHELL_CAP_STEM_BYPASS */
- XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, session display preference */
+ XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, saved DECK VIEW preference */
  XZ_SHELL_ACT_DECK_LAYOUT, /* DECK VIEW: value enum xz_deck_layout; display only, no deck assignment */
  XZ_SHELL_ACT_ROUTE_RESCAN, /* connector wake only */
  XZ_SHELL_ACT_BROWSE_PREVIEW /* value 0 hidden/collapsed, 1 shown; queued settings edit */
@@ -396,9 +397,10 @@ struct xz_shell_popup { enum xz_shell_popup_kind kind; int value; };
 enum xz_shell_touch_region { XZ_SHELL_TOUCH_NONE, XZ_SHELL_TOUCH_OVERVIEW, XZ_SHELL_TOUCH_OTHER, XZ_SHELL_TOUCH_HEADER,
  XZ_SHELL_TOUCH_STEM };
 /* Shell-owned display settings. The shell draws its own waveforms and key text, so these are shell
-   state like zoom: a change applies at once and is mirrored as SET_SETTING {deck -1, id, value} (ids
+   USB-backed preferences, including zoom: a change applies at once and is mirrored as SET_SETTING {deck -1, id, value} (ids
    XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION and the shell_settings.h display items) for the
-   runtime to persist. The runtime restores saved values with xz_shell_restore_setting after init. */
+   runtime to persist through ui_runtime. Saved frame-input values restore with xz_shell_restore_setting
+   after init, then only when the incoming preference changes. */
 /* Whether a deck follows the colours of its track's stick (deck.look): tile and waveform, tile only, or
    neither. Setting WAVEFORM COLOR on this unit while it is ALL is a local override: it moves to TILE. */
 enum xz_shell_usb_colors { XZ_SHELL_USB_COLORS_ALL, XZ_SHELL_USB_COLORS_TILE, XZ_SHELL_USB_COLORS_OFF };

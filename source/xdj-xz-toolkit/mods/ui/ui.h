@@ -122,6 +122,8 @@ enum xz_ui_action_kind {
     /* 3-BAND COLOURS. BAND_COLOR: widget index = band * XZ_BAND_COLOR_CHOICES + choice; the action carries
        index = enum xz_wave_band, value = the choice. BAND_COLORS_RESET puts all three back to STANDARD. Saved. */
     XZ_UI_BAND_COLOR, XZ_UI_BAND_COLORS_RESET,
+    XZ_UI_SHELL_DISPLAY, /* appended: shell item id in index, stored choice in value */
+    XZ_UI_SHELL_BROWSE_COLUMNS, /* appended: MODERN column mask in value; zero means automatic */
 };
 /* The REKORDBOX key's choices, numbered as settings.h enum xz_rekordbox_action (stored values). */
 enum xz_ui_rekordbox { XZ_UI_RB_MODS, XZ_UI_RB_STOCK, XZ_UI_RB_INTERFACE, XZ_UI_RB_VJ_SCREEN, XZ_UI_RB_STEMS,
