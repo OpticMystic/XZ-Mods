@@ -9,7 +9,9 @@ and installs no instruction hook.
 
 Read-only static inspection used the existing locally retained firmware ELF at
 `E:/Claude/xz-baseline/packages/xdj-xz-toolkit/vendor/decrypted_iso/pdj/extracted/pdj/rbp`.
-Only UI dialog, text lookup and graphics-window functions were disassembled.
+The ELF SHA-256 is `6571c40b0523954d4091a4649f8200c4c615492fc37bae7f86cc89c6289510d2`,
+matching `abi/xz-1.26-symbols.json`. Only UI dialog, text lookup and
+graphics-window functions were disassembled.
 The evidence directory retains a rerunnable script and its disassembly.
 
 - `ui_com_DrawCautionBrowse`, `0x146fcc`: at `0x146fd8` calls
@@ -19,13 +21,15 @@ The evidence directory retains a rerunnable script and its disassembly.
 - The same function copies the localized UTF-16 message into
   `sCautionBrowseString`, `0x01ada958`, capacity 512 bytes. At `0x1470f8`
   onward it substitutes runtime parameters and divides the string into up to
-  six draw rows. The rectangle is `stCautionBrowseSize`, `0x01adae7c`,
-  with position `0x01adae8c`. Width/height are bounded and computed from text.
+  six draw rows. At `0x147330..0x147338` it writes computed width/height and position to
+  `BrowseCautionWinInfo`, `0x01adae3c`. The live GR window descriptor is
+  the authority for the displayed rectangle.
 - `ui_com_DrawCautionStatus`, `0x147f08`: at `0x147f10` calls
   `Ui_CautionIDCheck_Status`. Zero destroys and clears
   `stiCautionStatusWinID`, `0x01adaea4`, at `0x147f2c..0x147f34`.
   Localized UTF-16 text is `sCautionStatusString`, `0x01ada718`, 512 bytes.
-  Its rectangle/position are `0x01adaecc` and `0x01adaee4`.
+  `StatusCautionWinInfo` at `0x01adaea8` carries its size and position;
+  the live GR descriptor owns the displayed rectangle.
 - `Ui_CautionIDCheck_Status`, `0xe1c6c`, reads the current status caution
   from `g_CmnSystemInfo + 0x153c`; stock owns timeout and clearing.
 - `Ui_CautionIDCheck_Counter`, `0xe1d80`, reads the current deck caution
