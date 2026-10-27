@@ -2461,7 +2461,8 @@ int xz_extra_native_sync_clock(struct xz_sync_native_snapshot *out) {
  uint32_t age=(uint32_t)(now/1000u)-out->captured_ms;
  if(!out->available){SYO_INC(CACHE_UNAVAILABLE);SYO_CACHE(out,now,age,0);return 0;}
  if(!out->source_revision){out->available=0;out->phase_available=0;out->reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;SYO_INC(CACHE_NO_REVISION);SYO_CACHE(out,now,age,0);return 0;}
- if(!now||(int32_t)age<0||age>150u){out->available=0;out->phase_available=0;out->reason=XZ_SYNC_NATIVE_TIME_INVALID;SYO_INC(CACHE_STALE);SYO_CACHE(out,now,age,0);return 0;}
+ if(!now||(int32_t)age<0){out->available=0;out->phase_available=0;out->playing_native_mask=0;out->reason=XZ_SYNC_NATIVE_TIME_INVALID;SYO_INC(CACHE_STALE);SYO_CACHE(out,now,age,0);return 0;}
+ if(age>150u){out->phase_available=0;out->playing_native_mask=0;SYO_INC(CACHE_STALE);}
  SYO_INC(CACHE_OK);SYO_CACHE(out,now,age,1);
  return 1;
 }
@@ -2607,11 +2608,7 @@ static void native_sync_refresh_locked(void) {
  int requalify=native_sync_requalify;native_sync_requalify=0;
  pthread_mutex_unlock(&native_sync_mutex);
  if(requalify)for(int d=0;d<2;d++)native_sync_source[d].valid=0;
- if(!xz_extra_decks_needs_native_sync()){
-  SYO_INC(OWNER_NO_DEMAND);
-  if(__atomic_load_n(&native_sync_requested,__ATOMIC_ACQUIRE))native_sync_clear();
-  return;
- }
+ /* Keep a qualified tempo ready for the first press and software-master handoff. */
  SYO_INC(OWNER_DEMAND);
  uint64_t clock=mono_checked_us();
  if(!clock){SYO_INC(OWNER_NO_CLOCK);native_sync_unavailable_clock();return;}
@@ -2671,8 +2668,23 @@ static void native_sync_refresh_locked(void) {
   pthread_mutex_unlock(&native_sync_mutex);
   if(boundary)for(int d=0;d<2;d++)native_sync_source[d].valid=0;
  }
+ /* A candidate is not a tempo grant and cannot cross an admitted/pending load. */
+ for(int d=0;d<2;d++)if(next.playing_native_mask&(1u<<d)){
+  struct loaded after=read_loaded(d);
+  int slot=after.device_kind==2?0:after.device_kind==3?1:-1;
+  if(!settled(&before[d])||!settled(&after)||before[d].state!=after.state||
+     !native_sync_same_load(&before[d],&after)||native_sync_source[d].admitted||native_sync_source[d].pending||
+     (slot>=0&&(!generation[slot]||generation[slot]!=xz_extra_source_generation(slot+1)||
+      generation[slot]!=usb[slot].generation||usb[slot].media.generation!=usb[slot].generation)))next.playing_native_mask&=~(1u<<d);
+ }
  pthread_mutex_lock(&native_sync_mutex);
- native_sync_cache=next;
+ if(!next.available&&native_sync_fast.valid&&native_sync_cache.available&&
+    native_sync_source[native_sync_fast.native_deck].valid&&
+    !native_sync_source[native_sync_fast.native_deck].pending&&!native_sync_source[native_sync_fast.native_deck].admitted&&
+    !native_sync_boundary(&next,before,NULL,generation)){
+  /* Preserve the original capture time. Only phase proof expires on an uncertain read. */
+  native_sync_cache.phase_available=0;native_sync_cache.playing_native_mask=0;
+ }else native_sync_cache=next;
  if(native_sync_fast.source_revision&&!native_sync_source[native_sync_fast.native_deck].valid)native_sync_fast.valid=0;
  if(next.available&&next.source_revision&&(unsigned)next.native_deck<2){
   int d=next.native_deck;int slot=native_sync_source[d].load.device_kind==2?0:native_sync_source[d].load.device_kind==3?1:-1;
@@ -2693,7 +2705,7 @@ static void native_sync_refresh_locked(void) {
  * LOAD fence; all of those still require native_sync_refresh_locked(). */
 static void native_sync_refresh_contended(void) {
  native_quantize_refresh(0);
- if(!xz_extra_decks_needs_native_sync()){SYO_INC(OWNER_NO_DEMAND);return;}
+ /* Contention may refresh an existing qualification, never create one. */
  SYO_INC(OWNER_DEMAND);
  if(!__atomic_load_n(&native_sync_requested,__ATOMIC_ACQUIRE))return;
  uint64_t clock=mono_checked_us();if(!clock){SYO_INC(OWNER_NO_CLOCK);native_sync_unavailable_clock();return;}
@@ -2705,6 +2717,7 @@ static void native_sync_refresh_contended(void) {
  uint64_t generation[2]={xz_extra_source_generation(1),xz_extra_source_generation(2)};
  struct xz_sync_native_snapshot next={0};int read=xz_sync_native_read(plain_read,NULL,native_sync_now,NULL,&next);
  struct loaded after={0};if(read&&(unsigned)next.native_deck<2)after=read_loaded(next.native_deck);
+ if(!read)next.playing_native_mask=0;
  pthread_mutex_lock(&native_sync_mutex);
  int d=next.native_deck,slot=after.device_kind==2?0:after.device_kind==3?1:-1;
  int boundary=native_sync_boundary(&next,before,read?&after:NULL,generation);
@@ -2719,7 +2732,9 @@ static void native_sync_refresh_contended(void) {
  }else{
   next.available=0;next.phase_available=0;
   if(read)next.reason=XZ_SYNC_NATIVE_SOURCE_CHANGED;
-  native_sync_cache=next;
+  if(!boundary&&native_sync_fast.valid&&native_sync_cache.available){
+   native_sync_cache.phase_available=0;native_sync_cache.playing_native_mask=0;
+  }else native_sync_cache=next;
   /* An observed boundary persists even if admission already suppressed fast
    * publication. An uncertain read alone cannot manufacture a new revision. */
   if(boundary&&native_sync_fast.source_revision){native_sync_requalify=1;native_sync_fast.valid=0;}

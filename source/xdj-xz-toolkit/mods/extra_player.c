@@ -267,7 +267,10 @@ struct deck {
  int sync_native_gap_hold, sync_stationary;
  uint32_t master_playing_choice;int master_playing_seen;
  uint32_t handoff_intent_epoch;
- struct xz_master_observation master_actual;
+ struct xz_master_observation master_actual,tempo_authority;
+ int tempo_native_deck;
+ double tempo_native_bpm;
+ uint32_t tempo_native_identity,tempo_native_revision;
  int sync_master_id;
  enum xz_extra_sync_reason sync_hold_reason;
  uint64_t sync_last_wire;
@@ -300,6 +303,7 @@ struct xz_xp_players {
  struct deck deck[XZ_EXTRA_DECKS];
  pthread_mutex_t publish_lock;
  struct xz_extra_deck view[XZ_EXTRA_DECKS];
+ struct xz_master_observation tempo_view[XZ_EXTRA_DECKS];
  struct analysis *view_analysis[XZ_EXTRA_DECKS]; /* exact view owner, publish_lock */
  struct xz_extra_deck_event duplicate_source[XZ_EXTRA_DECKS]; /* guarded by publish_lock */
  char notice[64]; uint32_t notice_at, notice_seq;
@@ -464,7 +468,7 @@ static int authority_locked(struct xz_xp_players *p,const struct deck *d,int sel
  if(atomic_load_explicit(&p->sync_grid,memory_order_acquire)!=d->sync_grid_seen)return 0;
  if(!p->master_observer)return atomic_load(&p->sync_master)==selected&&atomic_load(&p->sync_choice_epoch)==choice;
  struct xz_master_intent intent=master_intent_locked(p);
- return d->master_actual.revision==choice&&observed_selection(&d->master_actual)==selected&&
+ return d->master_actual.operator_epoch>=p->operator_floor&&d->master_actual.revision==choice&&observed_selection(&d->master_actual)==selected&&
   observation_source_matches(p->view,&intent,&d->master_actual);
 }
 static int select_sync_master(struct xz_xp_players *p,int selected){
@@ -476,6 +480,7 @@ static int select_sync_master(struct xz_xp_players *p,int selected){
   struct xz_extra_deck *v=&p->view[i];v->master=selected==i;
   v->master_scope=v->master?XZ_EXTRA_MASTER_SCOPE_SOFTWARE:0;
   if(v->sync.requested){
+   v->sync.tempo_matched=0;v->sync.master_paused=0;v->sync.source=selected==i?XZ_EXTRA_SYNC_SOURCE_LIVE:XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
    v->sync.locked=0;v->sync.correction_ppm=0;v->sync.master_deck=selected<0?-1:selected+XZ_EXTRA_FIRST_DECK;
    v->sync.master_scope=selected<0?0:XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
    v->sync.reason=selected<0?XZ_EXTRA_SYNC_WAIT_MASTER:selected==i?XZ_EXTRA_SYNC_MASTER_CLOCK:XZ_EXTRA_SYNC_DISCONTINUITY;
@@ -1047,6 +1052,9 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   v.master=atomic_load(&p->sync_master)==d->index;
   v.master_scope=v.master?XZ_EXTRA_MASTER_SCOPE_SOFTWARE:XZ_EXTRA_MASTER_SCOPE_NONE;
   v.sync=d->sync;
+  v.sync.quantum_unknown=d->quantize&&!d->sync_grid_den;
+  if(d->emergency.active){v.sync.source=XZ_EXTRA_SYNC_SOURCE_EMERGENCY;v.sync.tempo_matched=0;v.sync.master_paused=0;}
+  if(p->master_observer&&!authority_same(&actual,&d->tempo_authority))v.sync.tempo_matched=0;
   if(s!=XZ_XP_PLAYING||d->need_flush||!d->timeline_valid){
    v.sync.locked=0;if(v.sync.requested&&v.sync.reason==XZ_EXTRA_SYNC_LOCKED)v.sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;
   }
@@ -1125,9 +1133,11 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  v.master=selected==d->index;v.master_scope=v.master?(XZ_EXTRA_MASTER_SCOPE_SOFTWARE|(p->master_observer?XZ_EXTRA_MASTER_SCOPE_NATIVE:0)):0;
  if(!p->master_observer){
  if(selected<0&&v.sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE){
+  v.sync.tempo_matched=0;v.sync.master_paused=0;v.sync.source=XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
   v.sync.locked=0;v.sync.master_deck=-1;v.sync.master_scope=0;
   if(v.sync.requested)v.sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
  }else if(selected>=0&&v.sync.requested&&v.sync.master_deck!=selected+XZ_EXTRA_FIRST_DECK){
+  v.sync.tempo_matched=0;v.sync.master_paused=0;v.sync.source=selected==d->index?XZ_EXTRA_SYNC_SOURCE_LIVE:XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
   v.sync.locked=0;v.sync.master_deck=selected+XZ_EXTRA_FIRST_DECK;v.sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
   v.sync.reason=selected==d->index?XZ_EXTRA_SYNC_MASTER_CLOCK:XZ_EXTRA_SYNC_DISCONTINUITY;
  }
@@ -1136,11 +1146,14 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   v.sync.locked=0;v.sync.correction_ppm=0;v.sync.reason=XZ_EXTRA_SYNC_DISCONTINUITY;
  }
  }else if(v.sync.requested&&(actual.deck<0||v.sync.master_deck!=actual.deck)){
+  v.sync.tempo_matched=0;v.sync.master_paused=0;
+  if(v.sync.source!=XZ_EXTRA_SYNC_SOURCE_EMERGENCY)v.sync.source=actual.deck==XZ_MASTER_NONE?XZ_EXTRA_SYNC_SOURCE_NONE:XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
   v.sync.locked=0;v.sync.correction_ppm=0;v.sync.master_deck=actual.deck>=0?actual.deck:-1;
   v.sync.master_scope=actual.deck<0?0:actual.deck<2?XZ_EXTRA_MASTER_SCOPE_NATIVE:XZ_EXTRA_MASTER_SCOPE_NATIVE|XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
   v.sync.reason=actual.deck==d->index+2?XZ_EXTRA_SYNC_MASTER_CLOCK:actual.deck==XZ_MASTER_EXTERNAL?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;
  }
- p->clock[d->index]=atomic_load(&p->sync_requests)?sync_clock(d,now):(struct sync_clock){0};
+ p->tempo_view[d->index]=d->tempo_authority;
+ p->clock[d->index]=loaded(d->state)?sync_clock(d,now):(struct sync_clock){0};
  const struct xz_extra_deck *before=&p->view[d->index];
  v.jog_content_epoch=s==XZ_XP_LOADING&&d->jog_load_pending?
   advance_jog_content_epoch(d->index):before->jog_content_epoch;
@@ -1466,7 +1479,7 @@ static void sync_request(struct xz_xp_players *p,struct deck *d,int on){
  d->sync_initial=on&&d->quantize;d->sync_hold=d->sync_have_master=d->sync_lock_count=0;d->sync_stationary=0;
  d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
  d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;
- d->sync_trim=0;
+ d->sync_trim=0;d->tempo_native_identity=d->tempo_native_revision=0;
  d->sync_requested_at=p->env.now_ms();d->sync_wait_fresh=!!on;d->native_phase.have=d->native_phase.ready=0;
  if(on)atomic_fetch_or(&p->sync_requests,1u<<d->index);else atomic_fetch_and(&p->sync_requests,~(1u<<d->index));
  /* Legacy embedders can supply BPM only. It is sampled once, never advertised as phase lock. */
@@ -1488,11 +1501,25 @@ static int sync_base(struct deck *d,double rate){
 static void sync_set_trim(struct deck *d,double trim){
  d->sync_trim=trim;d->sync.correction_ppm=(int32_t)llround(trim*1000000.);
 }
-static int sync_apply_base(struct xz_xp_players *p,struct deck *d,int selected,uint32_t choice,double rate){
+static int sync_apply_base(struct xz_xp_players *p,struct deck *d,int selected,uint32_t *choice,double rate){
  int valid=authority_before(p,d);
+ /* A revision-only publication race can converge here. Operator, source and
+    route changes must be selected again by the worker before issuing a rate. */
+ for(unsigned retry=0;!valid&&p->master_observer&&retry<2;retry++){
+  struct xz_master_observation next,previous=d->master_actual;copy_master(p,&next);
+  previous.revision=next.revision;
+  if(next.deck<0||!authority_same(&previous,&next))break;
+  d->master_actual=next;*choice=next.revision;valid=authority_before(p,d);
+ }
  pthread_mutex_lock(&p->publish_lock);
- valid=valid&&authority_locked(p,d,selected,choice);
- int applied=valid?sync_base(d,rate):-1;pthread_mutex_unlock(&p->publish_lock);return applied;
+ valid=valid&&authority_locked(p,d,selected,*choice);
+ int applied=valid?sync_base(d,rate):-1;
+ if(applied>0){
+  d->tempo_authority=d->master_actual;d->sync.tempo_matched=1;
+  if(selected<0){d->tempo_native_deck=d->sync.master_deck;
+   d->tempo_native_identity=d->sync_native_identity;d->tempo_native_revision=d->sync_native_source_revision;}
+ }else{d->sync.tempo_matched=0;if(applied<0)d->sync.source=XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;}
+ pthread_mutex_unlock(&p->publish_lock);return applied;
 }
 enum {SYNC_NATIVE_GAP_NONE,SYNC_NATIVE_GAP_WAIT_PHASE,SYNC_NATIVE_GAP_HAVE_PHASE};
 enum {SYNC_NATIVE_GAP_BLOCKED,SYNC_NATIVE_GAP_STAY,SYNC_NATIVE_GAP_RELEASE};
@@ -1518,8 +1545,8 @@ static int sync_native_gap_tempo(struct xz_xp_players *p,struct deck *d,
  if(d->track.track_bpm_x100<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return 1;}
  double source_bpm=grid_bpm(d,d->heard);
  double rate=source_bpm>0?(double)native->bpm*100./source_bpm:0.;
- int applied=sync_apply_base(p,d,selected,choice,rate);
- if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return 1;}
+ int applied=sync_apply_base(p,d,selected,&choice,rate);
+ if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_ACQUIRING:XZ_EXTRA_SYNC_OUT_OF_RANGE;return 1;}
  int phase_usable=native->phase_available&&isfinite(native->bar_phase)&&native->bar_phase>=0.f&&native->bar_phase<4.f&&
   native->uncertainty_us<=XZ_SYNC_NATIVE_MAX_PHASE_UNCERTAINTY_US&&slave.available&&slave.period_frames&&slave.loop_aligned;
  if(phase_usable&&d->sync_native_gap_hold==SYNC_NATIVE_GAP_HAVE_PHASE&&cur_us>d->sync_native_captured_us){
@@ -1588,10 +1615,7 @@ static double native_tempo_rate(const struct deck *d,double bpm){
 static int sync_snap_ready(const struct deck *,uint32_t);
 static void sync_stationary(struct xz_xp_players *p,struct deck *d,int selected,uint32_t choice,
  double bpm,double master_phase,int phase_known,uint32_t now){
- double rate=native_tempo_rate(d,bpm);
- if(rate<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
- int applied=sync_apply_base(p,d,selected,choice,rate);
- if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
+ (void)bpm;
  if(d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
  if(d->quantize&&!d->sync_grid_den){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(d->quantize&&sync_snap_ready(d,now)){
@@ -1626,10 +1650,18 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;
  if(!d->sync.requested)return;
  unsigned grid=sync_grid_refresh(p,d);
- if(d->emergency.active){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
+ d->sync.tempo_matched=0;d->sync.master_paused=0;d->sync.quantum_unknown=d->quantize&&!grid;
+ d->sync.source=XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
+ if(d->emergency.active){d->sync.source=XZ_EXTRA_SYNC_SOURCE_EMERGENCY;d->sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;}
  uint32_t choice;int selected=sync_selection(p,d,&choice);
- if(selected< -1){d->sync.reason=selected==-3?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;return;}
- if(selected==d->index){d->sync.master_deck=selected+XZ_EXTRA_FIRST_DECK;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;d->sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;return;}
+ if(selected< -1){
+  d->native_phase.have=d->native_phase.ready=0;
+  if(d->master_actual.deck!=XZ_MASTER_UNKNOWN)d->tempo_native_identity=d->tempo_native_revision=0;
+  if(p->master_observer&&d->master_actual.deck==XZ_MASTER_NONE)d->sync.source=XZ_EXTRA_SYNC_SOURCE_NONE;
+  d->sync.reason=selected==-3?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;return;
+ }
+ if(selected>=0||(p->master_observer&&d->master_actual.deck!=d->tempo_native_deck))d->tempo_native_identity=d->tempo_native_revision=0;
+ if(selected==d->index){d->sync.source=XZ_EXTRA_SYNC_SOURCE_LIVE;d->sync.master_paused=d->state!=XZ_XP_PLAYING&&d->state!=XZ_XP_SCRATCHING&&d->state!=XZ_XP_SAMPLING;d->sync.master_deck=selected+XZ_EXTRA_FIRST_DECK;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;d->sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;return;}
  if(selected<0){
   if(d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE){
    d->sync_hold=d->sync_have_master=0;d->sync.master_scope=0;d->sync.master_deck=-1;
@@ -1639,13 +1671,29 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   int32_t bpm=d->sync_legacy_bpm;
   if(p->native_sync_clock){
    int copied=p->native_sync_clock(&native);
+   if(!copied&&native.reason==XZ_SYNC_NATIVE_TIME_INVALID&&
+      !(native.evidence&XZ_SYNC_NATIVE_BOUNDARY_OBSERVED)&&(int32_t)(now-native.captured_ms)>150&&
+      d->sync_rate_active&&d->tempo_native_identity&&d->tempo_native_deck==native.native_deck&&
+      d->tempo_native_identity==native.track_identity&&d->tempo_native_revision==native.source_revision){
+    /* Older cache adapters report phase expiry as unavailable. No new tempo
+       is accepted from them; reuse only this exact source's applied tempo. */
+    copied=native.available=1;native.phase_available=0;native.bpm=(float)d->tempo_native_bpm;
+   }
    if(native.reason==XZ_SYNC_NATIVE_EXTERNAL_MASTER){d->sync.reason=XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED;d->sync.master_scope=0;return;}
    if(!copied||!native.available||native.native_deck<0||native.native_deck>1||
       (p->master_observer&&native.native_deck!=d->master_actual.deck)||
       !native.source_revision||!native.track_identity||!isfinite(native.bpm)||native.bpm<=0||native.bpm>(double)INT32_MAX/100.||
-      (uint32_t)(now-native.captured_ms)>150u||
-      (d->sync_wait_fresh&&(int32_t)(native.captured_ms-d->sync_requested_at)<=0)){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
-   d->sync_wait_fresh=0;
+      (int32_t)(now-native.captured_ms)<0){
+    if(!p->master_observer&&native.reason==XZ_SYNC_NATIVE_MASTER_UNAVAILABLE&&native.master_id==-1)d->sync.source=XZ_EXTRA_SYNC_SOURCE_NONE;
+    d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;
+   }
+   int fresh=(uint32_t)(now-native.captured_ms)<=150u;
+   int retained=d->sync_rate_active&&d->tempo_native_deck==native.native_deck&&
+    d->tempo_native_identity==native.track_identity&&d->tempo_native_revision==native.source_revision;
+   if(!fresh&&!retained){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
+   if(!fresh)native.bpm=(float)d->tempo_native_bpm;
+   if(!fresh||(d->sync_wait_fresh&&(int32_t)(native.captured_ms-d->sync_requested_at)<=0))native.phase_available=0;
+   else d->sync_wait_fresh=0;
    if(d->sync_native_identity!=native.track_identity||d->sync_native_source_revision!=native.source_revision||
       (d->sync_have_master&&d->sync_master_id!=native.native_deck)){
     sync_reacquire(d,now);d->native_phase.have=d->native_phase.ready=0;
@@ -1655,8 +1703,20 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    }
    bpm=(int32_t)llround(native.bpm*100);d->sync.master_deck=native.native_deck;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE;
   }
-  if(bpm<=0){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
-  if(native.manual){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
+  if(bpm<=0){if(!p->native_sync_clock&&!p->master_observer)d->sync.source=XZ_EXTRA_SYNC_SOURCE_NONE;d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
+  d->sync.source=XZ_EXTRA_SYNC_SOURCE_LIVE;d->sync.master_paused=p->native_sync_clock&&!native.playing;
+  double base=native_tempo_rate(d,p->native_sync_clock?native.bpm:(double)bpm/100.);
+  if(base<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
+  int tempo_applied=sync_apply_base(p,d,selected,&choice,base);
+  if(tempo_applied<=0){d->sync.reason=tempo_applied<0?XZ_EXTRA_SYNC_ACQUIRING:XZ_EXTRA_SYNC_OUT_OF_RANGE;
+   if(tempo_applied<0)d->sync.source=XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
+   return;}
+  if(p->native_sync_clock)d->tempo_native_bpm=native.bpm;
+  if(native.manual||d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0){
+   d->native_phase.have=d->native_phase.ready=0;d->sync_hold=1;
+   d->sync_native_gap_hold=d->sync_have_master?SYNC_NATIVE_GAP_WAIT_PHASE:SYNC_NATIVE_GAP_NONE;
+   d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;
+  }
   if(p->native_sync_clock&&(!native.playing||d->state==XZ_XP_CUED||d->state==XZ_XP_ENDED)){
    int phase_known=native.phase_available&&isfinite(native.bar_phase)&&native.bar_phase>=0&&
     native.bar_phase<4&&native.uncertainty_us<=XZ_SYNC_NATIVE_MAX_PHASE_UNCERTAINTY_US;
@@ -1665,16 +1725,11 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    sync_stationary(p,d,selected,choice,native.bpm,wrapped_beat(phase),phase_known,now);return;
   }
   if(d->sync_stationary){d->sync_stationary=0;sync_reacquire(d,now);d->sync_initial=d->quantize;}
-  if(d->quantize&&!grid){
-   double rate=native_tempo_rate(d,(double)bpm/100.);
-   if(rate>0)(void)sync_apply_base(p,d,selected,choice,rate);
-   d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;
-  }
+  if(d->quantize&&!grid){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
+  if(!position){d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;}
   if(p->native_sync_clock&&native.phase_available&&d->quantize&&!native_phase_ready(d,&native)){
-   double rate=native_tempo_rate(d,native.bpm);
-   if(rate>0)(void)sync_apply_base(p,d,selected,choice,rate);
-   if(d->sync_have_master){d->sync_hold=1;d->sync_native_gap_hold=0;d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;}
-   d->sync.reason=native.manual?XZ_EXTRA_SYNC_MANUAL:!native.playing?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_WAIT_ANCHOR;return;
+   if(d->sync_have_master){d->sync_hold=1;d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;}
+   d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;
   }
   if(d->sync_hold){
    int recovered=sync_native_gap_tempo(p,d,&native,selected,choice,now);
@@ -1685,11 +1740,8 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    }
   }
   if(!native.phase_available||!d->quantize){
-   double rate=native_tempo_rate(d,(double)bpm/100.);
-   if(rate<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
+   d->native_phase.have=d->native_phase.ready=0;d->sync_have_master=0;
    d->sync_native_bpm=native.bpm;
-   int applied=sync_apply_base(p,d,selected,choice,rate);
-   if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;}
    d->sync.reason=d->quantize?XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;
   }
   struct sync_clock slave=sync_clock(d,now);
@@ -1728,10 +1780,6 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    d->sync.reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE;return;
   }
   double master_bps=(double)native.bpm/60.;
-  int base_applied=sync_apply_base(p,d,selected,choice,native_tempo_rate(d,(double)native.bpm));
-  if(base_applied<=0){
-   d->sync.reason=base_applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;
-  }
   if(native.manual||d->state!=XZ_XP_PLAYING||slave.manual){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
   if(!slave.available){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
   if(d->sync_have_master&&(d->epoch!=d->sync_master_clock.route||d->load_revision!=d->sync_master_clock.load||
@@ -1801,34 +1849,27 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  pthread_mutex_lock(&p->publish_lock);master=p->clock[selected];pthread_mutex_unlock(&p->publish_lock);
  struct sync_clock slave=sync_clock(d,now);
  if(!master.loaded){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
- if((uint32_t)(now-master.at_ms)>150u){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
- if(d->quantize&&!grid){
-  double bpm=master.period_frames>0?master.nominal_beats_per_second*60.:master.tempo_bps*60.;
-  double rate=native_tempo_rate(d,bpm);if(rate>0)(void)sync_apply_base(p,d,selected,choice,rate);
-  d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;
- }
+ d->sync.master_paused=!master.playing;
+ d->sync.source=XZ_EXTRA_SYNC_SOURCE_LIVE;
+ double bpm=master.tempo_bps*60.,rate=native_tempo_rate(d,bpm);
+ if(bpm<=0||rate<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
+ int applied=sync_apply_base(p,d,selected,&choice,rate);
+ if(applied<=0){d->sync.reason=applied<0?XZ_EXTRA_SYNC_ACQUIRING:XZ_EXTRA_SYNC_OUT_OF_RANGE;
+  if(applied<0)d->sync.source=XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
+  return;}
+ if(master.manual||slave.manual){d->sync_hold=1;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
+ if(d->quantize&&!grid){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(!master.playing||d->state==XZ_XP_CUED||d->state==XZ_XP_ENDED){
-  double bpm=master.period_frames>0?master.nominal_beats_per_second*60.:master.tempo_bps*60.;
-  int phase_known=master.period_frames>0&&(!master.playing||master.available)&&!master.manual&&
+  int phase_known=master.period_frames>0&&(!master.playing||master.available)&&
    (uint32_t)(now-master.at_ms)<=150u;
   sync_stationary(p,d,selected,choice,bpm,master.phase,phase_known,now);return;
  }
  if(d->sync_stationary){d->sync_stationary=0;sync_reacquire(d,now);d->sync_initial=d->quantize;}
- if(!d->quantize){
-  if((uint32_t)(now-master.at_ms)>150u){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
-  double rate=native_tempo_rate(d,master.tempo_bps*60.);
-  if(master.tempo_bps<=0||rate<=0){d->sync.reason=XZ_EXTRA_SYNC_NO_SOURCE_BPM;return;}
-  int applied=sync_apply_base(p,d,selected,choice,rate);
-  d->sync.reason=applied>0?XZ_EXTRA_SYNC_TEMPO_FOLLOW:applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;
- }
+ if(!d->quantize||!position){d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;}
  if(!master.period_frames){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(!master.available||(uint32_t)(now-master.at_ms)>150u){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
  if(!slave.period_frames){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(!master.loop_aligned||!slave.loop_aligned){d->sync.reason=XZ_EXTRA_SYNC_LOOP_UNALIGNED;return;}
- int base_applied=sync_apply_base(p,d,selected,choice,native_tempo_rate(d,master.nominal_beats_per_second*60.));
- if(base_applied<=0){
-  d->sync.reason=base_applied<0?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OUT_OF_RANGE;return;
- }
  if(!d->quantize){d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;return;}
  if(master.manual||d->state!=XZ_XP_PLAYING||slave.manual){d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;}
  if(!slave.available){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
@@ -2217,11 +2258,12 @@ static int state_playing(int s){return s==XZ_XP_PLAYING||s==XZ_XP_SAMPLING||s==X
    without it the native master's state is unknown and reads as not playing and not absent. */
 static int native_master_playing(struct xz_xp_players *p,uint32_t now,int *absent,struct xz_sync_native_snapshot *stopped){
  struct xz_sync_native_snapshot n={0};*absent=0;
- if(!p->native_sync_clock||!atomic_load(&p->sync_requests))return 0;
+ if(!p->native_sync_clock||(!atomic_load(&p->sync_requests)&&!p->master_observer))return 0;
  int copied=p->native_sync_clock(&n);
- if(!copied)return 0;
- if(n.reason==XZ_SYNC_NATIVE_EXTERNAL_MASTER)return 1; /* never take master from LINK */
  int fresh=(uint32_t)(now-n.captured_ms)<=150u;
+ if(!stopped&&fresh&&n.playing_native_mask)return 1;
+ if(!copied)return 0;
+ if(n.reason==XZ_SYNC_NATIVE_EXTERNAL_MASTER)return 0;
  if(n.reason==XZ_SYNC_NATIVE_MASTER_UNAVAILABLE){*absent=1;return 0;}
  if(!n.available||!fresh)return 0;
  if(stopped)*stopped=n;
@@ -2247,10 +2289,20 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
   if(d->master_playing_choice!=choice){d->master_playing_choice=choice;d->master_playing_seen=0;}
   if(state_playing(d->state)){d->master_playing_seen=1;return;}
   if(loaded(d->state)&&!d->master_playing_seen)return;
-  int native=native_master_playing(p,now,&absent,NULL);
+  struct xz_sync_native_snapshot candidate={0};
+  int native=native_master_playing(p,now,&absent,NULL),native_deck=-1;
+  if(p->master_observer&&p->native_sync_clock){
+   (void)p->native_sync_clock(&candidate);
+   if((uint32_t)(now-candidate.captured_ms)<=150u){
+    if(candidate.playing_native_mask&1u)native_deck=0;
+    else if(candidate.playing_native_mask&2u)native_deck=1;
+    else if(candidate.available&&candidate.playing&&(unsigned)candidate.native_deck<2)native_deck=candidate.native_deck;
+   }
+   native=native_deck>=0;
+  }
   /* After DECK 3 comes DECK 4, then the native decks; after DECK 4 come the native decks, then DECK 3. */
   int next=d->index==0?(other_playing?other:native?-1:d->index):(native?-1:other_playing?other:d->index);
-  if(next!=d->index&&select_sync_master(p,next))xz_xp_notice(p,next<0?"MASTER: NATIVE DECK":next?"MASTER: DECK 4":"MASTER: DECK 3");
+  if(next!=d->index&&(next<0&&p->master_observer?request_master(p,native_deck,0,0,observe_operator(p)):select_sync_master(p,next)))xz_xp_notice(p,next<0?"MASTER: NATIVE DECK":next?"MASTER: DECK 4":"MASTER: DECK 3");
   return;
  }
  if(selected>=0||!state_playing(d->state)||d->state==XZ_XP_SCRATCHING){d->native_idle_pending=0;return;}
@@ -2800,24 +2852,6 @@ static int emergency_loop(struct xz_xp_players *p,struct deck *d,uint32_t now){
  d->sync_have_master=0;d->sync.locked=0;d->sync_trim=0;d->ramp.active=0;
  jump(d,d->loop.in,now);xz_xp_notice(p,"EMERGENCY LOOP / LOAD NEXT TRACK");return 1;
 }
-/* A missing output anchor prevents phase claims, not fresh native BPM follow.
- * Keep all source/choice/route guards; accepted PCM retains its own rate history. */
-static void sync_pending_native_tempo(struct xz_xp_players *p,struct deck *d,uint32_t now){
- if(!p->native_sync_clock||!d->r||d->emergency.active)return;
- (void)sync_grid_refresh(p,d);
- uint32_t choice;int selected=sync_selection(p,d,&choice);
- if(selected!=-1)return;
- struct xz_sync_native_snapshot native={0};
- if(!p->native_sync_clock(&native)||!native.available||native.reason==XZ_SYNC_NATIVE_EXTERNAL_MASTER||
-    native.native_deck<0||native.native_deck>1||
-    (p->master_observer&&native.native_deck!=d->master_actual.deck)||
-    !native.source_revision||!native.track_identity||native.manual||!isfinite(native.bpm)||
-    native.bpm<=0||native.bpm>(double)INT32_MAX/100.||
-    (uint32_t)(now-native.captured_ms)>150u||
-    (d->sync_wait_fresh&&(int32_t)(native.captured_ms-d->sync_requested_at)<=0))return;
- double rate=native_tempo_rate(d,native.bpm);
- if(rate>0)(void)sync_apply_base(p,d,selected,choice,rate);
-}
 static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  const struct xz_xp_sink *s = &p->env.sink;
  xz_usb_position position={0};
@@ -2851,7 +2885,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   if(d->timeline_valid&&d->timeline_anchor_valid&&!d->need_flush&&age<=150u&&
      (double)age*XZ_USB_RATE/1000.<queued){
    xz_usb_position cached={.wire_submitted_frames=d->sync_wire_submitted};sync_update(p,d,&cached,now);
-  }else{d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;sync_pending_native_tempo(p,d,now);}
+  }else sync_update(p,d,NULL,now);
  }
  if(scratch_tail_done(p,d,now)){
   /* Resumed playback must be primed in this pass. An extra worker interval adds
@@ -2863,7 +2897,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
   if (!d->pending) {
    if ((d->state!=XZ_XP_SCRATCHING&&d->pos >> 32 >= d->r->frames) ||
        d->submitted - (applied ? staged : 0) >= XZ_XP_AHEAD_FRAMES) return;
-   if(d->sync.requested&&d->sync_have_master&&!sync_snap_ready(d,now)&&!d->sync_hold&&d->timeline_anchor_valid&&
+   if(d->sync.requested&&d->sync.tempo_matched&&!d->emergency.active&&d->sync_have_master&&!sync_snap_ready(d,now)&&!d->sync_hold&&d->timeline_anchor_valid&&
       d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE&&d->state==XZ_XP_PLAYING){
     struct sync_clock master;
     pthread_mutex_lock(&p->publish_lock);master=p->clock[d->sync_master_id];pthread_mutex_unlock(&p->publish_lock);
@@ -2895,12 +2929,13 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
-    if(sync_apply_base(p,d,selected,choice,nominal_bps*6000./grid_bpm(d,d->pos>>32))<=0){
-     d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE;
+    int applied=sync_apply_base(p,d,selected,&choice,nominal_bps*6000./grid_bpm(d,d->pos>>32));
+    if(applied<=0){
+     d->sync.locked=0;d->sync.reason=applied<0?XZ_EXTRA_SYNC_ACQUIRING:XZ_EXTRA_SYNC_OUT_OF_RANGE;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
     d->render_limit=remaining>XZ_USB_BLOCK_FRAMES?XZ_USB_BLOCK_FRAMES:(unsigned)remaining;
-   }else if(d->sync.requested&&d->sync_have_master&&!sync_snap_ready(d,now)&&!d->sync_hold&&d->timeline_anchor_valid&&
+   }else if(d->sync.requested&&d->sync.tempo_matched&&!d->emergency.active&&d->sync_have_master&&!sync_snap_ready(d,now)&&!d->sync_hold&&d->timeline_anchor_valid&&
             d->sync.master_scope==XZ_EXTRA_MASTER_SCOPE_NATIVE&&d->state==XZ_XP_PLAYING&&d->sync_native_bpm>0){
     double own_phase,period;
     if(!grid_phase(d,d->pos>>32,&own_phase,&period)){
@@ -2912,8 +2947,9 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
      d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
-    if(sync_apply_base(p,d,selected,choice,d->sync_native_bpm*100./grid_bpm(d,d->pos>>32))<=0){
-     d->sync.locked=0;d->sync.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE;
+    int applied=sync_apply_base(p,d,selected,&choice,d->sync_native_bpm*100./grid_bpm(d,d->pos>>32));
+    if(applied<=0){
+     d->sync.locked=0;d->sync.reason=applied<0?XZ_EXTRA_SYNC_ACQUIRING:XZ_EXTRA_SYNC_OUT_OF_RANGE;
      d->sync_trim=0;d->sync.correction_ppm=0;goto render_ready;
     }
    }
@@ -3128,6 +3164,8 @@ static int read_view(struct xz_xp_players *p,struct xz_extra_decks *out,struct x
  struct xz_master_observation actual={.deck=XZ_MASTER_UNKNOWN};
  if(p->master_observer)copy_master(p,&actual);
  pthread_mutex_lock(&p->publish_lock);
+ struct xz_master_observation tempo_view[XZ_EXTRA_DECKS];
+ memcpy(tempo_view,p->tempo_view,sizeof tempo_view);
  memcpy(out->deck, p->view, sizeof out->deck);
  for(unsigned i=0;i<XZ_EXTRA_DECKS;i++){
   struct analysis *a=p->view_analysis[i];
@@ -3147,7 +3185,14 @@ static int read_view(struct xz_xp_players *p,struct xz_extra_decks *out,struct x
   struct xz_extra_deck *v=&out->deck[i];v->master=v->loaded&&actual.deck==i+2;
   v->master_scope=v->master?XZ_EXTRA_MASTER_SCOPE_SOFTWARE|XZ_EXTRA_MASTER_SCOPE_NATIVE:0;
   if(v->sync.requested){
-   if(actual.deck<0||v->sync.master_deck!=actual.deck){v->sync.locked=0;v->sync.correction_ppm=0;}
+   if(!authority_same(&actual,&tempo_view[i])){
+    v->sync.tempo_matched=0;v->sync.locked=0;v->sync.correction_ppm=0;
+   }
+   v->sync.quantum_unknown=v->quantize&&!v->quantize_den;
+   if(actual.deck<0||v->sync.master_deck!=actual.deck){
+    v->sync.locked=0;v->sync.correction_ppm=0;v->sync.tempo_matched=0;v->sync.master_paused=0;
+    if(v->sync.source!=XZ_EXTRA_SYNC_SOURCE_EMERGENCY)v->sync.source=actual.deck==XZ_MASTER_NONE?XZ_EXTRA_SYNC_SOURCE_NONE:XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
+   }
    v->sync.master_deck=actual.deck>=0?actual.deck:-1;
    v->sync.master_scope=actual.deck<0?0:actual.deck<2?XZ_EXTRA_MASTER_SCOPE_NATIVE:XZ_EXTRA_MASTER_SCOPE_NATIVE|XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
    if(actual.deck<0)v->sync.reason=actual.deck==XZ_MASTER_EXTERNAL?XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:XZ_EXTRA_SYNC_WAIT_MASTER;

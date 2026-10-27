@@ -1068,13 +1068,15 @@ static void test_native_sync_cache(void){
  assert(abs(view.deck[0].timeline.rate_ppm-1050000)<5000);
  cached_native.bpm=132;cached_native.captured_ms=clock_ms;cached_native.source_revision=11;cached_native.track_identity=0x5678;cached_native.native_deck=1;
  advance(60);assert(view.deck[0].tempo_x100==1000&&view.deck[0].sync.master_deck==1&&!view.deck[0].sync.locked);
- advance(200);assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_WAIT_MASTER&&view.deck[0].sync.requested);
+ advance(200);assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE&&view.deck[0].sync.requested);
+ assert(view.deck[0].sync.tempo_matched&&view.deck[0].tempo_x100==1000);
  cached_native.captured_ms=clock_ms+1;step();assert(view.deck[0].sync.reason==XZ_EXTRA_SYNC_WAIT_MASTER);
  press(0,XZ_EXTRA_IN_SYNC);unsigned before=native_cache_copies;advance(50);assert(!xz_xp_needs_native_sync(p)&&native_cache_copies==before);
  press(0,XZ_EXTRA_IN_MASTER);press(0,XZ_EXTRA_IN_SYNC);assert(view.deck[0].master&&view.deck[0].sync.requested);
  uint32_t flush_before=f.flushes[0];clock_ms++;cached_native.captured_ms=clock_ms;
  assert(xz_xp_use_native_master(p));xz_xp_read(p,&view);
  assert(!view.deck[0].master&&!view.deck[1].master&&!view.deck[0].sync.locked&&view.deck[0].sync.master_deck==-1);
+ assert(!view.deck[0].sync.tempo_matched&&view.deck[0].sync.source==XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST);
  uint32_t native_revision=view.snapshot_revision;assert(!xz_xp_use_native_master(p)&&xz_xp_revision(p)==native_revision);
  step();assert(view.deck[0].sync.requested&&view.deck[0].sync.master_deck==1&&view.deck[0].sync.master_scope==XZ_EXTRA_MASTER_SCOPE_NATIVE);
  assert(!view.deck[0].sync.locked&&f.flushes[0]==flush_before&&xz_xp_needs_native_sync(p));

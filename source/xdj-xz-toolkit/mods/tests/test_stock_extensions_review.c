@@ -33,9 +33,12 @@ int main(int argc,char **argv){
  loop.pressed=0;assert(input(loop));step();loop.pressed=1;loop.held=0;assert(input(loop));step();CHECK(debug(0).loop_out-debug(0).loop_in==ms_frames(0,2000));
  loop.pressed=0;assert(input(loop));step();loop.pressed=1;loop.shift=1;assert(input(loop));step();CHECK(debug(0).loop_out-debug(0).loop_in==ms_frames(0,4000));
  xz_xp_destroy(p);p=NULL;
- begin_extra();load(0,6);press(0,XZ_EXTRA_IN_PLAY);advance(2500);
+ begin_extra();load(0,6);press(0,XZ_EXTRA_IN_PLAY);master=12600;press(0,XZ_EXTRA_IN_SYNC);advance(2500);
+ int32_t retained_tempo=view.deck[0].tempo_x100;
  char broken[1100];snprintf(broken,sizeof broken,"%s/long44100.wav",fixtures);FILE *gone=fopen(broken,"wb");assert(gone);fclose(gone);
  advance(800);CHECK(debug(0).state==XZ_XP_PLAYING&&debug(0).loop_active);CHECK(strstr(view.notice,"EMERGENCY LOOP")!=NULL);
+ CHECK(view.deck[0].sync.requested&&view.deck[0].sync.source==XZ_EXTRA_SYNC_SOURCE_EMERGENCY&&!view.deck[0].sync.tempo_matched&&!view.deck[0].sync.locked);
+ CHECK(view.deck[0].tempo_x100==retained_tempo);
  f.capture[0]=1;advance(10);CHECK(f.captured_frames[0]>0);float peak=0;for(unsigned i=0;i<f.captured_frames[0]*2;i++)peak=fmaxf(peak,fabsf(f.captured[0][i]));CHECK(peak>.1f);
  xz_xp_destroy(p);p=NULL;
  build_analysis();

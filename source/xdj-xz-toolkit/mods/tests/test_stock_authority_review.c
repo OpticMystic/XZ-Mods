@@ -79,6 +79,7 @@ static void unavailable(void){
   observed.revision++;unsigned gen=debug(1-d).generation;tempo(d,8000);advance(100);
   CHECK(!view.deck[0].master&&!view.deck[1].master);CHECK(view.deck[1-d].tempo_x100==500);
   CHECK(view.deck[1-d].sync.requested&&!view.deck[1-d].sync.locked);CHECK(debug(1-d).generation==gen);
+  CHECK(view.deck[1-d].sync.source==XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST&&!view.deck[1-d].sync.tempo_matched);
   CHECK(view.master_actual.deck==(kind==2?XZ_MASTER_EXTERNAL:XZ_MASTER_UNKNOWN));end();
  }
 }
@@ -170,6 +171,23 @@ static void native_handoff_after_confirmation(void){
  sim_native.playing=0;advance(400);CHECK(view.master_intent.deck==2&&view.master_intent.operator_epoch==2);
  CHECK(view.master_actual.deck==1&&!view.deck[0].master&&!view.deck[1].master);end();
 }
+static int handoff_candidate;
+static int software_master_native_candidates(struct xz_sync_native_snapshot *out){
+ *out=(struct xz_sync_native_snapshot){.reason=XZ_SYNC_NATIVE_EXTERNAL_MASTER,.master_id=3,
+  .native_deck=-1,.captured_ms=clock_ms,.playing_native_mask=1u<<handoff_candidate};
+ return 0; /* Production-shaped: no native master tempo while software owns MASTER. */
+}
+static void software_handoff_to_stock(void){
+ for(int native=0;native<2;native++){
+  begin("deck4-stop-prefers-playing-stock-before-deck3");
+  press(1,XZ_EXTRA_IN_MASTER);confirm(1,view.master_intent.epoch);step();
+  CHECK(view.deck[0].playing&&view.deck[1].playing&&view.master_actual.deck==3);
+  handoff_candidate=native;xz_xp_set_native_sync_clock(p,software_master_native_candidates);
+  step();press(1,XZ_EXTRA_IN_PLAY);
+  CHECK(view.master_intent.deck==native&&!view.master_intent.explicit_choice);
+  CHECK(!view.deck[0].master);end();
+ }
+}
 static void explicit_native(void){
  begin("native-reselection-is-distinct-from-withdrawal");
  CHECK(xz_xp_native_master_selected!=NULL);
@@ -236,7 +254,7 @@ static void pending_output_tempo(void){
   sim_native_set_bpm(132.);advance(40);
   for(int d=0;d<2;d++){
    CHECK(view.deck[d].sync.requested&&!view.deck[d].sync.locked);
-   CHECK(view.deck[d].tempo_x100==(fault?500:1000));
+   CHECK(view.deck[d].tempo_x100==(!fault||fault==2?1000:500));
   }
   xz_xp_set_native_sync_clock(p,copy_sim_native);pending_clock_fault=0;position_blocked=0;advance(3000);
   for(int d=0;d<2;d++)CHECK(view.deck[d].sync.locked&&fabs(actual_native_sync_error(d))<=.002);
@@ -291,7 +309,7 @@ int main(int argc,char **argv){
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"operator"))operator_admission();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"route"))route_retires_admission();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"age"))age_boundary();
- if(!strcmp(argv[2],"all")||!strcmp(argv[2],"native-handoff"))native_handoff_after_confirmation();
+ if(!strcmp(argv[2],"all")||!strcmp(argv[2],"native-handoff")){native_handoff_after_confirmation();software_handoff_to_stock();}
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"rapid-recovery"))rapid_reacquisition();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"pending-output"))pending_output_tempo();
  if(!strcmp(argv[2],"all")||!strcmp(argv[2],"mt-feedback"))master_tempo_feedback();

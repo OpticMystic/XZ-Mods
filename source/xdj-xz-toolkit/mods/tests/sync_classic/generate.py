@@ -26,6 +26,7 @@ prefix=r'''#define _GNU_SOURCE
 #include "shell_runtime.h"
 #include "shell_media.h"
 #include "sync_native.h"
+#include "sync_observation.h"
 #include "ui/themes.h"
 #include <assert.h>
 #include <pthread.h>
@@ -40,6 +41,9 @@ static uint64_t now_us(void){return mono_checked_us();}
 static uint32_t now_ms(void){return fixture_now_ms();}
 static uint64_t mono_us(void){return mono_checked_us();}
 static int plain_read(void *c,uint32_t a,void *o,size_t n){return fixture_memory_read(c,a,o,n);}
+static int model_read(uintptr_t a,void *o,size_t n){return fixture_memory_read(NULL,(uint32_t)a,o,n);}
+int xz_shell_model_quantize_grid(xz_shell_read_fn read,unsigned *den){(void)read;*den=1;return 1;}
+extern void xz_extra_decks_set_quantize_grid(unsigned,int);
 static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t wake=PTHREAD_COND_INITIALIZER;
 static int enabled,owns_flag,refreshed,dirty_flag;
@@ -82,6 +86,12 @@ static void set_owns(int on){owns_flag=on;}
 static void roll_second(uint32_t now){(void)now;}
 static int xz_native_skin_on_owner_thread(void){return 1;}
 static void extra_refresh_locked(uint32_t now){(void)now;}
+/* Display-only dependencies added since this scheduling fixture was written. */
+static int apply_display_input(const struct xz_shell_runtime_frame_input *in){(void)in;return 0;}
+static void extra_source_look_locked(void){}
+uint32_t xz_band_palette_color(unsigned id,uint32_t fallback){(void)id;return fallback;}
+uint32_t xz_shell_motion_ms(const struct xz_shell *a,const struct xz_shell_model *b){(void)a;(void)b;return 0;}
+
 '''
 prefix=prefix.replace('FIXTURE_PROOF_DECLARATION',block(s,'struct xz_shell_proof {')+';\nstatic struct xz_shell_proof xz_mods_shell_proof_v1;')
 prefix+='#include "arcade/native_clock.h"\n#include "shell_utility_table.h"\n#include <stdio.h>\n'

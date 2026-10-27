@@ -33,7 +33,7 @@ static void review_master(void){
  review_load_id(0,10);fixture_native_external(0);clock_ms+=40;fixture_native_update();xz_shell_runtime_owner_tick();
  CHECK(xz_extra_native_sync_clock(&c)&&c.native_deck==0);
  step();printf("review_master observed_nonmaster_ABA old_revision=%u new_revision=%u locked=%d reason=%d\n",revision,c.source_revision,view.deck[0].sync.locked,view.deck[0].sync.reason);
- CHECK(c.source_revision>revision);CHECK(view.deck[0].sync.reason==XZ_EXTRA_SYNC_DISCONTINUITY);finish();
+ CHECK(c.source_revision>revision);CHECK(view.deck[0].sync.requested&&view.deck[0].sync.tempo_matched&&!view.deck[0].sync.locked);finish();
 }
 static void review_prefence(void){
  for(unsigned side=0;side<2;side++)for(int modern=0;modern<2;modern++){
@@ -69,7 +69,7 @@ static void review_observation(void){
   review_command_result(accepted?0:-2);review_execute_hook(hooks[mode]);review_load_generation(0,42,2);xz_shell_runtime_owner_tick();
   review_execute_hook(NULL);CHECK(review_command_calls()==1);CHECK(!xz_extra_native_sync_clock(&c));
   tick(0,0,80,0,1);CHECK(xz_extra_native_sync_clock(&c));CHECK(c.source_revision>previous);
-  CHECK(view.deck[0].sync.reason==XZ_EXTRA_SYNC_DISCONTINUITY);
+  CHECK(view.deck[0].sync.requested&&view.deck[0].sync.tempo_matched&&!view.deck[0].sync.locked);
   printf("observation kind=%u accepted=%d old=%u new=%u reason=%d\n",mode,accepted,previous,c.source_revision,view.deck[0].sync.reason);finish();
  }
 }
@@ -82,7 +82,7 @@ static void review_guards(void){
   review_code_guard(1);fixture_load_state(0);review_load_known(0,1);tick(0,0,80,0,1);
   CHECK(xz_extra_native_sync_clock(&c));
   if(mode==0){CHECK(c.source_revision==revision);CHECK(view.deck[0].sync.locked);}
-  else{CHECK(c.source_revision>revision);CHECK(view.deck[0].sync.reason==XZ_EXTRA_SYNC_DISCONTINUITY);}
+  else{CHECK(c.source_revision>revision);CHECK(view.deck[0].sync.requested&&view.deck[0].sync.tempo_matched&&!view.deck[0].sync.locked);}
   finish();
  }
  review_start(0,0);struct xz_sync_native_snapshot c;review_observation_limit();owner_observe();CHECK(!xz_extra_native_sync_clock(&c));
@@ -95,7 +95,7 @@ static void review_completion(void){
   review_command_result(-2);review_execute_hook(mode==0?observed_load_aba:mode==1?observed_loading_complete:observed_token_aba);
   review_load_generation(0,42,2);xz_shell_runtime_owner_tick();review_execute_hook(NULL);
   CHECK(review_command_calls()==1);tick(1,XZ_THEME_FLAGSHIP,80,modern,1);
-  CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision>previous);CHECK(view.deck[0].sync.reason==XZ_EXTRA_SYNC_DISCONTINUITY);finish();
+  CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision>previous);CHECK(view.deck[0].sync.requested&&view.deck[0].sync.tempo_matched&&!view.deck[0].sync.locked);finish();
  }
 }
 static void review_boundary(void){
@@ -105,7 +105,7 @@ static void review_boundary(void){
   review_command_result(0);review_load_generation(0,42,2);xz_shell_runtime_owner_tick();
   tick(1,XZ_THEME_FLAGSHIP,200,modern,1);CHECK(!xz_extra_native_sync_clock(&c));
   fixture_native_token(0);tick(1,XZ_THEME_FLAGSHIP,80,modern,1);CHECK(xz_extra_native_sync_clock(&c)&&c.source_revision>previous);
-  CHECK(view.deck[side].sync.reason==XZ_EXTRA_SYNC_DISCONTINUITY);finish();
+  CHECK(view.deck[side].sync.requested&&view.deck[side].sync.tempo_matched&&!view.deck[side].sync.locked);finish();
  }
  // An admitted command must not turn a still-settled load-state change into
  // a track incarnation. A real refusal path releases only its own admission.
