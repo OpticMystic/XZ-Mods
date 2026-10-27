@@ -262,11 +262,13 @@ Tools holds everything you need less often. **Tools** in the top left of each to
 ```figure app:tools XZ Mods app · Tools
 Every tool.
 1 @ 405,110 DJ Profile | Your name and logo on the XZ, and the profile track.
-2 @ 430,181 Repair library | Fixes a Rekordbox USB the XZ cannot read.
-3 @ 455,252 Network updates | Sends the newest XZ Mods to XZs on your network.
-4 @ 452,324 XZ Mods version | Picks which build goes on your USB, or imports one.
-5 @ 422,395 App updates | Checks for a newer app.
-6 @ 380,466 About | The version, open-source licenses and Report an issue.
+2 @ 431,181 Repair library | Fixes a Rekordbox USB the XZ cannot read.
+3 @ 456,252 Network updates | Sends the newest XZ Mods to XZs on your network.
+4 @ 453,324 XZ Mods version | Picks which build goes on your USB, or imports one.
+5 @ 424,395 App updates | Checks for a newer app.
+6 @ 572,466 Report a problem or share an idea | Sends a private report or an idea to the maintainer.
+7 @ 413,537 My reports | What you sent and where each report is now.
+8 @ 380,608 About | The version, open-source licenses and reports.
 ```
 
 ### DJ Profile
@@ -386,47 +388,137 @@ On Windows the app checks for updates by itself at launch and shows **Review upd
 
 ### About
 
-About shows the app version and the open-source licenses. **Report an issue** opens the report window.
+About shows the app version and the open-source licenses. **Reports and ideas** at the top opens the report window and My reports.
 
 ```figure app:about XZ Mods app · About
 About.
-1 @ 318,78 Report an issue | Sends a cleaned-up report. See below.
-2 @ 535,105 Maintainer inbox | For the maintainer only.
-3 @ 515,311 App updates and release notes | Opens App updates.
-4 @ 450,482 Open license notices | Every open-source project XZ Mods uses and its license.
+1 @ 400,250 Report a problem or share an idea | Opens the report window. Tools has the same entry.
+2 @ 583,250 My reports | What you sent and where each report is now.
+3 @ 712,250 Maintainer inbox | For the maintainer only.
+4 @ 516,462 App updates and release notes | Opens App updates.
+5 @ 451,633 Open license notices | Every open-source project XZ Mods uses and its license.
 ```
 
-### Report an issue
+### Report a problem or share an idea
 
-```figure app:report-issue XZ Mods app · Report an issue
-The report window.
-1 @ 330,113 Saved reports | Reopens a report kept on this computer. Up to 32 are kept.
-2 @ 268,264 Public title | The title of the public GitHub issue.
-3 @ 345,332 Reproduction steps | What you did and what happened. This part is public.
-4 @ 260,431 Category | Four decks / bridge, Audio, Display or Other.
-5 @ 430,503 Private diagnostics | Includes cleaned-up logs that only the maintainer sees, for 14 days.
-6 @ 555,549 USB diagnostics | Adds the logs from an XZ Mods USB.
-7 @ 360,594 Private contact | A way to reach you, sent privately.
-8 @ 310,697 Omit private items | Leaves chosen logs out.
+Report a problem or share an idea sends a private report to the maintainer: a problem, something that got worse, an idea or a question. Open it from **Tools** or **About**. The only thing you have to fill in is one box. Nothing is posted publicly.
+
+```figure app:report-topic XZ Mods app · Report a problem or share an idea
+The first question.
+1 @ 612,128 Steps | Where you are. The box with Send is always the last step.
+2 @ 415,243 Topic | Pick the closest one. The next question depends on it.
+3 @ 353,532 How do I...? | For a question. Answers from this manual appear as you type.
+4 @ 735,630 Not sure | Skips the question. Every question has it.
+5 @ 296,630 Cancel | Closes the window. What you typed comes back when you open it again.
 ```
 
-1. Describe the problem and choose a category.
-2. Choose **Prepare preview** and read every page of the exact report. **Next preview page** moves through it.
-3. Tick that you reviewed it, then choose **Send private diagnostics**, or **Export reviewed private JSON** to keep a file.
-4. **Open reviewed GitHub draft** opens the public issue for you to submit on GitHub.
+1. Pick what it is about, or **Not sure**.
+2. Answer at most two more short questions, or press **Not sure**.
+3. Write what happened in your own words. One sentence is enough.
+4. Press **Send privately**.
 
-Nothing is sent until you approve it. If sending fails, **Set up reporting connection** walks through the fix, and the export works offline. You can also report from the player. See [Report an issue](extras#report-an-issue).
+| You pick | It then asks |
+|---|---|
+| Something got worse | When it got worse, then for the USB sticks that were in the XZ |
+| Something isn't working | What kind of problem: sound, SYNC or tempo, the screen, buttons and pads, loading and USB, four decks, a crash, or something else |
+| It should work differently | Compared with what: the XZ before XZ Mods, another XZ feature, other DJ gear or software, an earlier XZ Mods version, or just your preference. For gear or another feature, which one |
+| I have a new idea | What kind of idea |
+| How do I...? | Nothing more. Go straight to your question |
 
+```figure app:report-describe XZ Mods app · Report a problem or share an idea
+The box, with an answer from this manual.
+1 @ 664,147 Your answers | What you picked. Change goes back to the first question.
+2 @ 820,190 The box | The only thing you have to fill in. Up to 4,096 bytes; a counter appears near the limit.
+3 @ 524,378 Is this it? | Up to three answers from this manual that match what you typed.
+4 @ 489,492 Answer buttons | Set up four decks opens that setup. That answers it closes without sending anything.
+5 @ 388,554 Included details | What the app collected to send with your words. Closed until you open it.
+6 @ 771,646 Send privately | Sends your words and the details shown, to the maintainer only.
+```
 
-### Private receipt status links
+As you type, **Is this it?** shows answers from this manual. The matching runs on your computer; your words are not sent anywhere for it. If an answer solves it, its button opens the right setup, such as **Set up four decks**, or **That answers it** closes the window. Nothing is sent.
 
-A receipt status link, when provided, opens a read-only page with the report's classification and progress.
-It never shows the original description, contact details, logs, or another person's report. Anonymous
-reporters can use the same tracking link. Keep your recovery receipt private.
+### Included details
 
-If the link is unavailable, **Open a saved status link** lets you choose another receipt link and check it.
-Private diagnostics expire after 14 days. Safe tracking lasts while a report is active, up to one year
-without activity, then 180 days after closure. A local test build is not a published update.
+While you answer and type, the app reads the details that help the maintainer, for at most 10 seconds: the session log and settings on your XZ Mods USB, the diary on each stick, the app's events and the build. Everything is cleaned first. No track names, file paths, serial numbers or network addresses are kept.
 
-The desktop report form above still uses its existing preview and send steps. The new one-box form and
-My reports integration require the matching desktop update. A status page does not post to GitHub.
+```figure app:report-details XZ Mods app · Included details
+Included details, opened, with one source shown and one left out.
+1 @ 388,52 Included details | How many sources are included, their size and the time around the problem they cover.
+2 @ 401,157 A source | What it is and where it comes from. Untick it to leave it out.
+3 @ 762,168 Show | The exact content that would be sent for this source.
+4 @ 434,216 Left out | An unticked source is not sent.
+5 @ 700,290 Exact content | What is sent for this source, after cleaning.
+```
+
+**Send privately** sends exactly your words and the ticked details shown at that moment. If you send before the app has finished reading, it sends what it has read and notes what is missing. **Collect again** reads everything again. Ideas include no details at all, only your words. Details are deleted after 14 days.
+
+### When something got worse
+
+For something that got worse, the app asks you to plug in every USB stick that was in the XZ when it happened. XZ Mods versions that keep a diary write it to each stick while the XZ plays. The app reads only that diary, never your music.
+
+```figure app:report-usb XZ Mods app · Report a problem or share an idea
+Two sticks plugged in: an XZ Mods USB with a diary and a music stick without one.
+1 @ 520,354 XZ Mods USB | A stick with the XZ Mods loader on it.
+2 @ 436,379 Diary | The time range the diary on this stick covers.
+3 @ 425,436 Music stick | A stick with music only.
+4 @ 443,461 No diary on this stick | This stick has no diary, for example from a version that does not keep one.
+5 @ 762,505 That's all of them | Goes on to the box.
+```
+
+Each stick appears by itself as you plug it in. Press **That's all of them** when every stick is in. A missing stick or a missing diary never stops you sending.
+
+### After you send
+
+```figure app:report-received XZ Mods app · Report received
+The receipt after sending.
+1 @ 419,289 Your receipt | Every report and idea gets one. It is kept on this computer under Windows protection.
+2 @ 509,312 Status | Where the report is now.
+3 @ 519,341 Report number | The first part of the report's number, also shown in My reports.
+4 @ 688,477 Track my report | Opens it in My reports.
+```
+
+If the app cannot confirm that a report arrived, it says **Not confirmed yet**. Nothing is lost. **Set up reporting connection** checks the internet connection and the computer's clock, then **Send again** sends the same report. If the first attempt did arrive, you get its receipt and nothing arrives twice. **Save to a file** keeps a copy without sending.
+
+```figure app:report-connection XZ Mods app · Set up reporting connection
+The setup after a send that was not confirmed.
+1 @ 574,306 Connection | Whether this computer is online.
+2 @ 452,363 Clock | Secure connections fail when the date is wrong.
+3 @ 781,551 Send again | Sends the same report again.
+```
+
+### My reports
+
+My reports lists every report and idea sent from this computer, with its kind and where it is now, in plain words. Open it from **Tools** or **About**.
+
+```figure app:my-reports XZ Mods app · My reports
+Four reports, one with news.
+1 @ 611,118 Notice | Appears at the top of the app when a report's status changes. View opens that report.
+2 @ 345,293 Kind | Such as Problem, Got worse, Works differently, Idea or Question.
+3 @ 666,280 Your words | The start of what you wrote. It stays on this computer.
+4 @ 584,537 Status | Where the report is now. New marks a change you have not opened yet.
+5 @ 900,293 Sent | The day you sent it.
+6 @ 755,226 Check now | Checks every report at once.
+7 @ 938,226 Report a problem or share an idea | Starts a new report.
+```
+
+The app checks for news when it starts, after it checks for app updates, and when you open My reports, at most every 15 minutes for each report. **Check now** checks at once. If you are offline, the last known status stays.
+
+Open a report to see where it is. The view is read-only.
+
+```figure app:report-tracking XZ Mods app · My reports
+A problem the maintainer confirmed, with a fix in progress.
+1 @ 550,186 Progress | Received, Confirmed, Fix in progress, Ready to test, In an update. Ideas and questions show Received, Looked at, Decided.
+2 @ 481,252 Report | Its kind and number.
+3 @ 501,291 Your words | The start of what you wrote.
+4 @ 417,338 Status | Where it is now, in plain words.
+5 @ 600,425 Dates | When you sent it, the last change, when its details are deleted and how long tracking lasts.
+6 @ 429,481 Status link and forgetting | The status link, and Forget this report.
+7 @ 711,512 Check now | Checks this report at once.
+```
+
+- If the maintainer needs one more detail, the question appears in the report. **Answer in a new report** starts a report that names this one.
+- **Open status page** and **Copy status link** give a read-only web page with the same status. It shows none of your words or details. Anyone with the link can read the status. **Turn off status links** stops every link for this report; the app still checks it.
+- **Forget this report** removes its receipt from this computer. The maintainer keeps the report.
+- A report saved, but not sent, by an older version of the app appears under **Saved, not sent**. **Use this text** starts a new report with its words.
+
+Details are deleted 14 days after you send them. Tracking lasts while a report is open, up to one year without news, then 180 days after it closes. A fix in a local test build is not a published update.

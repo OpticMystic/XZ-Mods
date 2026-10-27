@@ -166,7 +166,8 @@ Every "needs setup" state in the app comes with one button that starts a short g
 | Set up Live Streamer to connect to your XZ | **Set up Live Streamer** | Finds the XZ on the network and connects |
 | Older USB loaders have no screen service | **Update the USB loader** | Opens the USB page to update the loader |
 | Rekordbox is open on this computer | **Prepare for repair** | Waits for you to close rekordbox, then checks again |
-| A send failed | **Set up reporting connection** | Checks the internet connection and the date, then sends again |
+| Not confirmed yet, after sending a report | **Set up reporting connection** | Checks the internet connection and the clock, then sends the same report again. It never arrives twice |
+| Maintainer inbox, not connected (maintainer only) | **Connect and check** | Keeps the owner key under Windows protection and reads the inbox to check it |
 
 | Message | What to do |
 |---|---|
@@ -191,7 +192,7 @@ Every page of the app is in [The XZ Mods app](desktop-app).
 When something goes wrong, send a report. It helps fix the problem for everyone.
 
 - **On the player.** Open MODS › **EXTRAS** › **REPORT AN ISSUE**. The player builds a cleaned-up report, shows you what it holds, and sends it or saves it to the USB. See [Report an issue](extras#report-an-issue).
-- **On your computer.** In the XZ Mods app, open **Tools** › **About** › **Report an issue**. You can add the logs from your XZ Mods USB. See [Report an issue](desktop-app#report-an-issue).
+- **On your computer.** In the XZ Mods app, open **Tools** › **Report a problem or share an idea**. Only one box is required, and **My reports** shows where your report is afterwards. See [Report a problem or share an idea](desktop-app#report-a-problem-or-share-an-idea).
 - **On GitHub.** Open an issue at https://github.com/OpticMystic/XZ-Mods/issues.
 
-Say what you did, what you expected and what happened, and name your interface, MODERN or CLASSIC. Nothing is sent without your approval, and the public GitHub issue is always a separate step you submit yourself.
+Say what you did, what you expected and what happened. The app adds the cleaned-up details itself, and you can see and untick each one. Nothing is sent until you press **Send privately**, and the app posts nothing publicly. From the player, the public GitHub issue is a separate step you submit yourself.
