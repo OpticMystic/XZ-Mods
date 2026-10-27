@@ -15,6 +15,9 @@
 #define XZ_KEY_ALIGN_MAX 768u
 #define XZ_KEY_ALIGN_WINDOW 256u
 #define XZ_KEY_ALIGN_STRIDE 4u
+#ifndef XZ_KEY_SHIFT_ALIGN
+#define XZ_KEY_SHIFT_ALIGN align_head
+#endif
 
 static const float semitone_ratio[25] = {
     0.500000f, 0.529732f, 0.561231f, 0.594604f, 0.629961f, 0.667420f,
@@ -68,28 +71,28 @@ static float cubic(float a, float b, float c, float d, float t)
     return ((c3 * t + c2) * t + c1) * t + c0;
 }
 
-static float mono(const struct xz_key_shift *state, int64_t position)
-{
-    uint32_t index = (uint32_t)position & XZ_KEY_MASK;
-    return state->history[index * 2u] + state->history[index * 2u + 1u];
-}
-
 static float align_head(const struct xz_key_shift *state, int64_t outgoing,
                         int64_t incoming)
 {
+    const float *out = state->mono_history + ((uint32_t)outgoing & XZ_KEY_MASK);
+    const float *in = state->mono_history + ((uint32_t)(incoming - XZ_KEY_ALIGN_MAX) & XZ_KEY_MASK) + XZ_KEY_ALIGN_MAX;
     int64_t best_lag = 0;
     float best_score = -1.0e30f;
-    unsigned lag;
-    for (lag = 0; lag < XZ_KEY_ALIGN_MAX; lag += XZ_KEY_ALIGN_STRIDE) {
-        float score = 0.0f;
-        unsigned i;
-        for (i = 0; i < XZ_KEY_ALIGN_WINDOW; i += XZ_KEY_ALIGN_STRIDE)
-            score += mono(state, outgoing + (int64_t)i) *
-                     mono(state, incoming - (int64_t)lag + (int64_t)i);
-        if (score > best_score) {
-            best_score = score;
-            best_lag = (int64_t)lag;
+    /* Keep scalar accumulation and lag tie order while sharing outgoing loads. */
+    for (unsigned lag = 0; lag < XZ_KEY_ALIGN_MAX; lag += 16u) {
+        float s0 = 0, s1 = 0, s2 = 0, s3 = 0;
+        const float *p = in - lag;
+        for (unsigned i = 0; i < XZ_KEY_ALIGN_WINDOW; i += 4u) {
+            float x = out[i];
+            s0 += x * p[(int)i];
+            s1 += x * p[(int)i - 4];
+            s2 += x * p[(int)i - 8];
+            s3 += x * p[(int)i - 12];
         }
+        if (s0 > best_score) { best_score = s0; best_lag = lag; }
+        if (s1 > best_score) { best_score = s1; best_lag = lag + 4; }
+        if (s2 > best_score) { best_score = s2; best_lag = lag + 8; }
+        if (s3 > best_score) { best_score = s3; best_lag = lag + 12; }
     }
     if (best_score <= 0.0f) return 0.0f;
     {
@@ -100,16 +103,26 @@ static float align_head(const struct xz_key_shift *state, int64_t outgoing,
         int64_t candidate;
         if (low < 0) low = 0;
         if (high > (int64_t)XZ_KEY_ALIGN_MAX) high = XZ_KEY_ALIGN_MAX;
-        for (candidate = low; candidate <= high; ++candidate) {
-            float score = 0.0f;
-            unsigned i;
-            for (i = 0; i < XZ_KEY_ALIGN_WINDOW; ++i)
-                score += mono(state, outgoing + (int64_t)i) *
-                         mono(state, incoming - candidate + (int64_t)i);
-            if (score > fine_score) {
-                fine_score = score;
-                fine_lag = candidate;
+        for (candidate = low; candidate + 3 <= high; candidate += 4) {
+            float s0 = 0, s1 = 0, s2 = 0, s3 = 0;
+            const float *p = in - candidate;
+            for (unsigned i = 0; i < XZ_KEY_ALIGN_WINDOW; ++i) {
+                float x = out[i];
+                s0 += x * p[(int)i];
+                s1 += x * p[(int)i - 1];
+                s2 += x * p[(int)i - 2];
+                s3 += x * p[(int)i - 3];
             }
+            if (s0 > fine_score) { fine_score = s0; fine_lag = candidate; }
+            if (s1 > fine_score) { fine_score = s1; fine_lag = candidate + 1; }
+            if (s2 > fine_score) { fine_score = s2; fine_lag = candidate + 2; }
+            if (s3 > fine_score) { fine_score = s3; fine_lag = candidate + 3; }
+        }
+        for (; candidate <= high; ++candidate) {
+            float score = 0;
+            for (unsigned i = 0; i < XZ_KEY_ALIGN_WINDOW; ++i)
+                score += out[i] * in[(int)i - (int)candidate];
+            if (score > fine_score) { fine_score = score; fine_lag = candidate; }
         }
         return (float)fine_lag;
     }
@@ -130,6 +143,8 @@ static void absorb(struct xz_key_shift *state, const float *stereo,
         uint32_t slot = (uint32_t)state->written & XZ_KEY_MASK;
         state->history[slot * 2u] = stereo[i * 2u];
         state->history[slot * 2u + 1u] = stereo[i * 2u + 1u];
+        state->mono_history[slot] = state->mono_history[slot + XZ_KEY_SHIFT_HISTORY_FRAMES] =
+            stereo[i * 2u] + stereo[i * 2u + 1u];
         ++state->written;
     }
     state->phase = 0.0f;
@@ -181,6 +196,7 @@ int xz_key_shift_process(struct xz_key_shift *state, float *stereo,
         absorb(state, stereo, frames);
         return 0;
     }
+    const float phase_step = 1.0f / state->grain;
     for (i = 0; i < frames; ++i) {
         uint32_t slot = (uint32_t)state->written & XZ_KEY_MASK;
         float left = 0.0f;
@@ -188,17 +204,19 @@ int xz_key_shift_process(struct xz_key_shift *state, float *stereo,
         unsigned head;
         state->history[slot * 2u] = stereo[i * 2u];
         state->history[slot * 2u + 1u] = stereo[i * 2u + 1u];
+        state->mono_history[slot] = state->mono_history[slot + XZ_KEY_SHIFT_HISTORY_FRAMES] =
+            stereo[i * 2u] + stereo[i * 2u + 1u];
         ++state->written;
         for (head = 0; head < XZ_KEY_SHIFT_HEADS; ++head) {
             float fraction = state->phase +
                 (float)head / (float)XZ_KEY_SHIFT_HEADS;
             float delay, remainder, t, window;
-            uint64_t whole;
+            uint32_t whole;
             int64_t base;
             unsigned channel;
             while (fraction >= 1.0f) fraction -= 1.0f;
             delay = XZ_KEY_MARGIN + fraction * state->grain + state->align[head];
-            whole = (uint64_t)delay;
+            whole = (uint32_t)delay;
             remainder = delay - (float)whole;
             base = (int64_t)state->written - 2 - (int64_t)whole;
             t = 1.0f - remainder;
@@ -220,7 +238,7 @@ int xz_key_shift_process(struct xz_key_shift *state, float *stereo,
         stereo[i * 2u + 1u] = right * XZ_KEY_GAIN;
         {
             float previous = state->phase;
-            state->phase += (1.0f - state->ratio) / state->grain;
+            state->phase += (1.0f - state->ratio) * phase_step;
             while (state->phase >= 1.0f) state->phase -= 1.0f;
             while (state->phase < 0.0f) state->phase += 1.0f;
             for (head = 0; head < XZ_KEY_SHIFT_HEADS; ++head) {
@@ -242,7 +260,7 @@ int xz_key_shift_process(struct xz_key_shift *state, float *stereo,
                                   state->align[other]);
                     incoming = (int64_t)state->written - 2 -
                         (int64_t)(XZ_KEY_MARGIN + after * state->grain);
-                    state->align[head] = align_head(state, outgoing, incoming);
+                    state->align[head] = XZ_KEY_SHIFT_ALIGN(state, outgoing, incoming);
                 }
             }
         }
