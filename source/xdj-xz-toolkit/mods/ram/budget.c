@@ -1,3 +1,6 @@
+#include "../diary/diary.h"
+#pragma weak xz_diary_busy_begin
+#pragma weak xz_diary_busy_end
 /* SPDX-License-Identifier: MIT */
 #include "budget.h"
 #include <pthread.h>
@@ -72,10 +75,12 @@ void xz_ram_copy_lock(int manual) {
     while (copy_active || (!manual && manual_waiters)) pthread_cond_wait(&copy_changed, &copier);
     if (manual) --manual_waiters;
     copy_active = 1;
+    if(xz_diary_busy_begin)xz_diary_busy_begin(3);
     pthread_mutex_unlock(&copier);
 }
 void xz_ram_copy_unlock(void) {
     pthread_mutex_lock(&copier); copy_active = 0;
+    if(xz_diary_busy_end)xz_diary_busy_end(3);
     pthread_cond_broadcast(&copy_changed); pthread_mutex_unlock(&copier);
 }
 int xz_ram_assets_reserve(uint64_t n) {

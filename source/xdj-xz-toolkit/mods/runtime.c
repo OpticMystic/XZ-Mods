@@ -2,6 +2,9 @@
 #define _FILE_OFFSET_BITS 64
 #include "cue/native.h"
 #include "runtime.h"
+#include "diary/diary.h"
+#pragma weak xz_diary_start
+#pragma weak xz_diary_stop
 #include "audio/runtime.h"
 #include "audio/trace.h"
 #include "ram/runtime.h"
@@ -603,10 +606,12 @@ __attribute__((constructor)) static void start(void) {
           xz_log("Network worker unavailable; NETWORK setup remains visible");
       xz_ui_runtime_start(audio_ready,key_ready,1);
     }
+    if(xz_diary_start&&xz_diary_start())xz_log("USB diary worker unavailable");
     { extern int xz_classic_load_start(void); if (xz_classic_load_start()) xz_log("Classic LOAD into DECK 3/4 unavailable: guard or hook slot refused"); }
 }
 
 __attribute__((destructor)) static void stop(void) {
+    if(xz_diary_stop)xz_diary_stop();
     /* No UI lock. Network owns all its state; keep NODELETE/state on failure,
        while continuing UI/engine teardown in the existing order. */
     if(xz_net_runtime_stop(8000)!=XZ_NET_OK)

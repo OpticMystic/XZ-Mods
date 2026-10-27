@@ -8,6 +8,10 @@
    in, so the order is always UI mutex -> mutex. The worker and the native
    owner tick take only `mutex`, and never call native code while holding it. */
 #define _GNU_SOURCE
+#include "diary/runtime.h"
+#pragma weak xz_diary_notice
+#pragma weak xz_diary_notice_code
+#pragma weak xz_diary_error_code
 #include "sync_observation.h"
 #include "shell_runtime.h"
 #include "shell_model.h"
@@ -1866,7 +1870,8 @@ static int apply_display_input(const struct xz_shell_runtime_frame_input *in) {
    notice_at_ms is stamped with the clock of the first frame that shows it, never a later thread's clock
    (a stamp ahead of clock_ms would wrap the renderer's age test and hide the toast). */
 static void notice_locked(uint32_t now, const char *text) {
- (void)now;snprintf(notice_text,sizeof notice_text,"%s",text);notice_pending=1;dirty_flag=1;
+ (void)now;snprintf(notice_text,sizeof notice_text,"%s",text); notice_pending=1;dirty_flag=1;
+ if(xz_diary_notice&&xz_diary_notice_code)xz_diary_notice(XZ_DIARY_UI,xz_diary_notice_code(notice_text));
  if(debug){char line[96];snprintf(line,sizeof line,"SHELL_NOTICE: %s",notice_text);xz_log(line);}
 }
 static void publish_notice_locked(void) {
@@ -3564,4 +3569,18 @@ static void stop_locked(void) {
  xz_mods_shell_proof_v1.enabled=0;
  pthread_mutex_unlock(&mutex);
  drain_retired();
+}
+
+int xz_shell_diary_snapshot(struct xz_diary_view *out) {
+ if(!running||pthread_mutex_trylock(&mutex))return 0;
+ out->have_decks=1;
+ if(xz_diary_error_code)for(unsigned i=0;i<4;i++){
+  unsigned code=xz_diary_error_code(model.deck[i].alert.code);if(code)out->error[i]=code;
+ }
+ for(unsigned i=0;i<2;i++) {
+  const struct xz_shell_deck *d=&model.deck[i];
+  out->deck_state[i]=!d->loaded?XZ_DIARY_EMPTY:d->playing?XZ_DIARY_PLAYING:XZ_DIARY_PAUSED;
+  out->sync_state[i]=!d->sync?XZ_DIARY_OFF:d->sync_status==XZ_SHELL_SYNC_LOCKED?XZ_DIARY_LOCKED:XZ_DIARY_FOLLOWING;
+ }
+ pthread_mutex_unlock(&mutex);return 1;
 }

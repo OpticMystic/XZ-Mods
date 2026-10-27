@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import pathlib
 import shutil
 import subprocess
@@ -151,6 +152,7 @@ def main() -> None:
                         help="Provisional platter counts per revolution, estimated from the owner's 33 s versus 1.8 s travel (default: 6600)")
     parser.add_argument("--host-checks-only", action="store_true",
                         help="Run standalone settings host checks without building or deploying the runtime")
+    parser.add_argument("--diary-version", help="XZ Mods runtime version for the USB diary; defaults to release-source.json")
     args = parser.parse_args()
     if args.host_checks_only:
         from verify_my_settings import host_checks
@@ -227,7 +229,14 @@ def main() -> None:
                         "-fPIC", "-fvisibility=hidden", "-c", str(ROOT / "arcade" / (name + ".c")),
                         "-o", str(target)], check=True)
         lab_objects.append(str(target))
+    diary_version = args.diary_version
+    if diary_version is None:
+        release_source = ROOT.parents[2] / "release-source.json"
+        diary_version = json.loads(release_source.read_text())["version"] if release_source.is_file() else "unknown"
+    if not re.fullmatch(r"unknown|[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.]+)?(?:\+[a-z0-9.]+)?", diary_version):
+        raise ValueError("Invalid diary build version")
     command = [compiler, "cc", "-target", "arm-linux-gnueabi.2.13", "-mcpu=cortex_a9",
+               '-DXZ_DIARY_VERSION="' + diary_version + '"',
                "-O2", "-s", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
                "-fvisibility=hidden", "-Wl,--no-undefined", "-Wl,-z,nodelete",
                "-Wl,-T," + str(ROOT / "xz-relocations.ld"),
@@ -245,7 +254,8 @@ def main() -> None:
                str(ROOT / "ota/native_update.c"),
                str(ROOT / "support/native_support.c"),
                *(str(ROOT / "network" / name) for name in ("lease.c", "service.c", "linux.c", "linux_os.c", "runtime.c")),
-               str(ROOT / "ui_runtime.c"), str(ROOT / "metrics_runtime.c"), str(ROOT / "pc_control/stems.c"), str(ROOT / "pc_control/native.c"), str(ROOT / "pc_control/wave.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
+               str(ROOT / "ui_runtime.c"), str(ROOT / "metrics_runtime.c"),
+               str(ROOT / "diary/format.c"), str(ROOT / "diary/store.c"), str(ROOT / "diary/runtime.c"), str(ROOT / "pc_control/stems.c"), str(ROOT / "pc_control/native.c"), str(ROOT / "pc_control/wave.c"), *(str(ROOT / "ui" / name) for name in UI_SOURCES), str(ROOT / "ui/native_touch.c"),
                str(ROOT / "ui/stem_pads.c"), str(ROOT / "ui/beat_jump.c"),
                str(ROOT / "ui/native_led.c"),
                str(ROOT / "ui/native_wave.c"),

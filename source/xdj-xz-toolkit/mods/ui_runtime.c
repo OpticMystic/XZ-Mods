@@ -10,6 +10,9 @@
 #include "ui/ui_network.h"
 #include "ui/ui_support.h"
 #include "metrics_runtime.h"
+#include "diary/runtime.h"
+#pragma weak xz_diary_notice_code
+#pragma weak xz_diary_error_code
 /* Portable UI harnesses omit the OS sampler. */
 #pragma weak xz_metrics_start
 #pragma weak xz_metrics_stop
@@ -3815,3 +3818,24 @@ void xz_ui_runtime_stop(void) {
     if (dj && xz_dj_runtime_stop) xz_dj_runtime_stop();
 }
 
+
+/* Diary worker only. All text is reduced to fixed codes before leaving this lock. */
+int xz_ui_diary_snapshot(struct xz_diary_view *out) {
+    if(!xz_diary_notice_code||!xz_diary_error_code||!__atomic_load_n(&started,__ATOMIC_ACQUIRE)||pthread_mutex_trylock(&ui_mutex))return 0;
+    out->settings=settings_snapshot();out->have_settings=1;
+    out->notice=xz_diary_notice_code(ui.notice);
+    out->usb_error=model.usb_hub?8307u:0;
+    for(unsigned i=0;i<4;i++) {
+        static const unsigned states[]={XZ_DIARY_UNKNOWN,XZ_DIARY_EMPTY,XZ_DIARY_LOADING,XZ_DIARY_READY,XZ_DIARY_ERROR,XZ_DIARY_REMOVED};
+        unsigned state=(unsigned)model.deck[i].ram.state;
+        out->ram_state[i]=state<sizeof states/sizeof states[0]?states[state]:XZ_DIARY_UNKNOWN;
+        switch(model.deck[i].ram.reason){
+        case XZ_RAM_OK:out->ram_reason[i]=XZ_DIARY_NONE;break;
+        case XZ_RAM_BUDGET_FULL:case XZ_RAM_FREE_LOW:out->ram_reason[i]=XZ_DIARY_SPACE_LOW;break;
+        case XZ_RAM_SOURCE_CHANGED:out->ram_reason[i]=XZ_DIARY_SOURCE_CHANGED;break;
+        default:out->ram_reason[i]=XZ_DIARY_OBSERVED;break;
+        }
+        if(i<2)out->error[i]=xz_diary_error_code(model.counter_error[i].code);
+    }
+    pthread_mutex_unlock(&ui_mutex);return 1;
+}
