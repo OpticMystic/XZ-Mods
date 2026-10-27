@@ -98,7 +98,17 @@ struct xz_extra_sync {
  enum xz_extra_sync_reason reason;
  int32_t phase_error_us,correction_ppm;
  uint32_t master_scope;              /* authority group, not a claim that every deck currently follows */
+ /* Facts for the SYNC display (scratch/sync-4/SPEC.md), set by the player on every publication. */
+ int tempo_matched;                  /* the applied base rate comes from the current master source's tempo */
+ int source;                         /* enum xz_extra_sync_source */
+ int master_paused;                  /* the master is loaded and known, but not playing */
+ int quantum_unknown;                /* QUANTIZE is on but its beat value is not available */
 };
+/* Why a requested SYNC has or lacks a tempo source. NONE: no master is selected anywhere, tempo is left alone.
+   LIVE: a current master source is usable. CLOCK_LOST: a master is selected but its clock or authority is not
+   currently usable; the last tempo is retained. EMERGENCY: the deck plays its emergency loop. */
+enum xz_extra_sync_source { XZ_EXTRA_SYNC_SOURCE_NONE, XZ_EXTRA_SYNC_SOURCE_LIVE, XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST,
+ XZ_EXTRA_SYNC_SOURCE_EMERGENCY };
 
 struct xz_extra_deck {
  uint32_t known;
