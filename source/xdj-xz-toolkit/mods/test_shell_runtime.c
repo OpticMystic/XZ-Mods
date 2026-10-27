@@ -744,12 +744,12 @@ static void extra_decks(void) {
  /* SYNC readouts distinguish actual beat lock from tempo-only and pending state. */
  extra_snapshot(&s);s.deck[0].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
  s.deck[0].sync=(struct xz_extra_sync){.requested=1,.master_deck=0,.master_scope=XZ_EXTRA_MASTER_SCOPE_NATIVE,
-   .reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE};
+   .reason=XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE,.tempo_matched=1};
  xz_shrt_extra_map(&m,&s,parts,500000,10000);
  assert(m.deck[2].sync&&m.deck[2].sync_status==XZ_SHELL_SYNC_TEMPO_ONLY&&m.deck[2].sync_master_deck==0);
  s.deck[0].sync.master_deck=3;s.deck[0].sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
  s.deck[0].sync.reason=XZ_EXTRA_SYNC_ACQUIRING;xz_shrt_extra_map(&m,&s,parts,500000,10000);
- assert(m.deck[2].sync_status==XZ_SHELL_SYNC_WAITING);
+ assert(m.deck[2].sync_status==XZ_SHELL_SYNC_ENABLED);
  s.deck[0].sync.locked=1;s.deck[0].sync.reason=XZ_EXTRA_SYNC_LOCKED;xz_shrt_extra_map(&m,&s,parts,500000,10000);
  assert(m.deck[2].sync_status==XZ_SHELL_SYNC_LOCKED&&m.deck[2].sync_master_deck==3);
  s.deck[0].sync.locked=0;s.deck[0].sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;s.deck[0].master=1;
@@ -762,16 +762,35 @@ static void extra_decks(void) {
   extra_snapshot(&s);s.deck[side].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC);
   s.deck[side].sync=(struct xz_extra_sync){.requested=1,.master_deck=1,.reason=XZ_EXTRA_SYNC_OUT_OF_RANGE};
   xz_shrt_extra_map(&m,&s,parts,500000,10000);
-  assert(m.deck[side+2].sync&&m.deck[side+2].sync_status!=XZ_SHELL_SYNC_WAITING);
+  assert(m.deck[side+2].sync&&m.deck[side+2].sync_status==XZ_SHELL_SYNC_RATE_LIMIT);
   assert(m.deck[side+2].sync_status!=XZ_SHELL_SYNC_LOCKED&&m.deck[side+2].sync_status!=XZ_SHELL_SYNC_TEMPO_ONLY);
   struct xz_shell u;xz_shell_init(&u);
-  static uint16_t limit_pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT],wait_pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];
+  static uint16_t limit_pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT],enabled_pixels[XZ_SHELL_WIDTH*XZ_SHELL_HEIGHT];
   assert(xz_shell_render(&u,&m,limit_pixels,XZ_SHELL_WIDTH));
-  m.deck[side+2].sync_status=XZ_SHELL_SYNC_WAITING;
-  assert(xz_shell_render(&u,&m,wait_pixels,XZ_SHELL_WIDTH));
-  assert(memcmp(limit_pixels,wait_pixels,sizeof limit_pixels));
+  m.deck[side+2].sync_status=XZ_SHELL_SYNC_ENABLED;
+  assert(xz_shell_render(&u,&m,enabled_pixels,XZ_SHELL_WIDTH));
+  assert(memcmp(limit_pixels,enabled_pixels,sizeof limit_pixels));
  }
- puts("PASS actual SYNC lock, tempo-only, waiting, rate limit and master scope");
+
+ static const enum xz_shell_sync_status statuses[]={XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_ENABLED,
+  XZ_SHELL_SYNC_TEMPO_ONLY,XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_TEMPO_ONLY,
+  XZ_SHELL_SYNC_RATE_LIMIT,XZ_SHELL_SYNC_ENABLED,XZ_SHELL_SYNC_LOCKED,XZ_SHELL_SYNC_TEMPO_ONLY,
+  XZ_SHELL_SYNC_MASTER,XZ_SHELL_SYNC_EXTERNAL_MASTER,XZ_SHELL_SYNC_NO_BPM,XZ_SHELL_SYNC_TEMPO_ONLY};
+ _Static_assert(sizeof statuses/sizeof *statuses==XZ_EXTRA_SYNC_TEMPO_FOLLOW+1,"all mapped reasons");
+ for(int side=0;side<2;side++)for(int reason=0;reason<=XZ_EXTRA_SYNC_TEMPO_FOLLOW;reason++)
+ for(int q=0;q<2;q++)for(int locked=0;locked<2;locked++)for(int matched=0;matched<2;matched++){
+  extra_snapshot(&s);s.deck[side].known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC)|XZ_EXTRA_KNOWN(XZ_EXTRA_F_QUANTIZE);
+  s.deck[side].master=0;s.deck[side].quantize=q;
+  s.deck[side].sync=(struct xz_extra_sync){.requested=1,.locked=locked,.master_deck=0,.reason=reason,.tempo_matched=matched};
+  xz_shrt_extra_map(&m,&s,parts,500000,10000);
+  enum xz_shell_sync_status expected=statuses[reason];
+  if(!matched&&expected==XZ_SHELL_SYNC_TEMPO_ONLY)expected=XZ_SHELL_SYNC_ENABLED;
+  if(reason==XZ_EXTRA_SYNC_LOCKED&&(!locked||!matched))expected=XZ_SHELL_SYNC_ENABLED;
+  if(reason==XZ_EXTRA_SYNC_WAIT_ANCHOR&&!q&&matched)expected=XZ_SHELL_SYNC_TEMPO_ONLY;
+  assert(m.deck[side+2].sync_status==expected);
+  assert(m.deck[side+2].sync_status!=XZ_SHELL_SYNC_WAITING);
+ }
+ puts("PASS actual SYNC lock, tempo-only, enabled, rate limit and master scope");
  /* Up, down, up again: down is the two-deck model each time. */
  extra_snapshot(&s);
  for(int flip=0;flip<4;flip++){

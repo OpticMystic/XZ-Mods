@@ -2,6 +2,7 @@
 #ifndef XZ_EXTRA_LANE_H
 #define XZ_EXTRA_LANE_H
 #include "../extra_decks.h"
+#include "../shell/shell.h"
 #include "layered_wave.h"
 #include "wave_viewport.h"
 #include <stddef.h>
@@ -64,12 +65,96 @@ enum xz_extra_sync_class {
  XZ_EXTRA_SYNC_CLASS_NONE,     /* SYNC off and not master (or unknown) */
  XZ_EXTRA_SYNC_CLASS_MASTER,   /* the clock master; 3/4 scope never drives DECK 1/2 */
  XZ_EXTRA_SYNC_CLASS_LOCKED,   /* beat and tempo locked to the master */
- XZ_EXTRA_SYNC_CLASS_TEMPO,    /* tempo only: QUANTIZE off, or the native beat position unavailable */
- XZ_EXTRA_SYNC_CLASS_WAIT,     /* finding the master or the beat again; clears by itself */
- XZ_EXTRA_SYNC_CLASS_BLOCKED   /* cannot lock until the DJ changes something (grid, BPM, range, loop, master) */
+ XZ_EXTRA_SYNC_CLASS_TEMPO,    /* current-source tempo matched without continuous beat following */
+ XZ_EXTRA_SYNC_CLASS_ENABLED,  /* SYNC requested; phase proof is independent */
+ XZ_EXTRA_SYNC_CLASS_BLOCKED   /* tempo limit, missing BPM, or unsupported master source */
 };
+/* One pure presentation decision for lane, detail, Classic and the MODERN projection.
+   Header-local so shell-only builds need no waveform renderer dependency. The LED value is
+   independent of MASTER, known bits and phase; native_led.c retains record ownership. */
+struct xz_extra_sync_presentation {
+ enum xz_extra_sync_class klass;
+ enum xz_shell_sync_status status;
+ int master_deck,led_on;
+ const char *label,*line1,*line2;
+};
+static inline struct xz_extra_sync_presentation xz_extra_sync_present(const struct xz_extra_deck *d){
+ struct xz_extra_sync_presentation p={XZ_EXTRA_SYNC_CLASS_NONE,XZ_SHELL_SYNC_OFF,-1,0,"","SYNC OFF",""};
+ if(!d)return p;
+ p.led_on=!!(d->loaded&&d->sync.requested);
+ int requested=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_SYNC))&&d->sync.requested;
+ int master=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_MASTER))&&d->master;
+ if(master||(requested&&d->sync.reason==XZ_EXTRA_SYNC_MASTER_CLOCK)){
+  unsigned scope=master?d->master_scope:d->sync.master_scope;
+  p.klass=XZ_EXTRA_SYNC_CLASS_MASTER;p.status=requested?XZ_SHELL_SYNC_MASTER:XZ_SHELL_SYNC_OFF;
+  p.label=scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"3/4 MASTER":"MASTER";
+  p.line1="MASTER";p.line2=scope==XZ_EXTRA_MASTER_SCOPE_SOFTWARE?"DECKS 3 AND 4 ONLY":"";
+  return p;
+ }
+ if(!requested)return p;
+ int source=d->sync.source;
+ if(source==XZ_EXTRA_SYNC_SOURCE_NONE&&d->sync.master_deck>=0)source=XZ_EXTRA_SYNC_SOURCE_LIVE;
+ int live=source==XZ_EXTRA_SYNC_SOURCE_LIVE;
+ int matched=live&&d->sync.tempo_matched;
+ int paused=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_PLAYING))&&!d->playing;
+ int tempo_only=(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_QUANTIZE))&&!d->quantize;
+ p.klass=XZ_EXTRA_SYNC_CLASS_ENABLED;p.status=XZ_SHELL_SYNC_ENABLED;p.line1="SYNC ON";
+ p.master_deck=live?d->sync.master_deck:-1;
+ switch(d->sync.reason){
+ case XZ_EXTRA_SYNC_WAIT_MASTER:
+  p.master_deck=-1;
+  /* A legacy WAIT_MASTER with a deck number has lost its usable clock, not its selection. */
+  p.line1=source==XZ_EXTRA_SYNC_SOURCE_NONE?"NO MASTER":source==XZ_EXTRA_SYNC_SOURCE_EMERGENCY?
+   "EMERGENCY LOOP":"MASTER CLOCK UNAVAILABLE";
+  p.line2=source==XZ_EXTRA_SYNC_SOURCE_NONE?"TEMPO UNCHANGED":"LAST TEMPO RETAINED";break;
+ case XZ_EXTRA_SYNC_DISCONTINUITY:
+  if(!live){
+   p.line1=source==XZ_EXTRA_SYNC_SOURCE_NONE?"NO MASTER":source==XZ_EXTRA_SYNC_SOURCE_EMERGENCY?
+    "EMERGENCY LOOP":"MASTER CLOCK UNAVAILABLE";
+   p.line2=source==XZ_EXTRA_SYNC_SOURCE_NONE?"TEMPO UNCHANGED":"LAST TEMPO RETAINED";break;
+  }
+  /* fall through */
+ case XZ_EXTRA_SYNC_ACQUIRING:case XZ_EXTRA_SYNC_LOCKED:{
+  static const char *const following[]={"","FOLLOWING DECK 1","FOLLOWING DECK 2","FOLLOWING DECK 3","FOLLOWING DECK 4"};
+  int n=p.master_deck>=0&&p.master_deck<4?p.master_deck+1:0;p.line2=following[n];
+  if(d->sync.reason==XZ_EXTRA_SYNC_LOCKED&&d->sync.locked&&matched){p.klass=XZ_EXTRA_SYNC_CLASS_LOCKED;p.status=XZ_SHELL_SYNC_LOCKED;}
+  break;
+ }
+ case XZ_EXTRA_SYNC_WAIT_ANCHOR:
+  if(tempo_only&&matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line2=paused?(matched?"PAUSED / TEMPO MATCHED":"PAUSED"):(matched?"TEMPO MATCHED":"");break;
+ case XZ_EXTRA_SYNC_NO_GRID:
+  if(matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line1=matched?"BPM SYNC":"SYNC ON";
+  p.line2=d->sync.quantum_unknown?"QUANTIZE VALUE UNAVAILABLE":"NO BEAT GRID";break;
+ case XZ_EXTRA_SYNC_MANUAL:p.line2="JOG CONTROL";break;
+ case XZ_EXTRA_SYNC_LOOP_UNALIGNED:
+  if(matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line1=matched?"BPM SYNC":"SYNC ON";p.line2="LOOP ACTIVE";break;
+ case XZ_EXTRA_SYNC_OUT_OF_RANGE:
+  p.klass=XZ_EXTRA_SYNC_CLASS_BLOCKED;p.status=XZ_SHELL_SYNC_RATE_LIMIT;
+  p.line1="SYNC TEMPO LIMIT";p.line2="LAST TEMPO RETAINED";break;
+ case XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE:
+  if(matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line1=matched?"BPM SYNC":"SYNC ON";p.line2="BEAT POSITION UNAVAILABLE";break;
+ case XZ_EXTRA_SYNC_NATIVE_MASTER_UNSUPPORTED:
+  p.klass=XZ_EXTRA_SYNC_CLASS_BLOCKED;p.status=XZ_SHELL_SYNC_EXTERNAL_MASTER;
+  p.line1="EXTERNAL MASTER";p.line2="SYNC SOURCE UNAVAILABLE";break;
+ case XZ_EXTRA_SYNC_NO_SOURCE_BPM:
+  p.klass=XZ_EXTRA_SYNC_CLASS_BLOCKED;p.status=XZ_SHELL_SYNC_NO_BPM;
+  p.line1="TRACK BPM UNAVAILABLE";p.line2="SYNC ON";break;
+ case XZ_EXTRA_SYNC_TEMPO_FOLLOW:
+  if(matched)p.status=XZ_SHELL_SYNC_TEMPO_ONLY;
+  p.line1=matched?"BPM SYNC":"SYNC ON";
+  p.line2=tempo_only?"QUANTIZE OFF":d->sync.master_paused?"MASTER PAUSED":paused?"DECK PAUSED":"";break;
+ default:p.master_deck=-1;break;
+ }
+ if(p.status==XZ_SHELL_SYNC_TEMPO_ONLY)p.klass=XZ_EXTRA_SYNC_CLASS_TEMPO;
+ p.label=xz_shell_sync_label(p.status,p.master_deck);
+ return p;
+}
 enum xz_extra_sync_class xz_extra_sync_class(const struct xz_extra_deck *);
-/* Short caps text for the chip ("SYNC 1", "BPM 2", "3/4 MASTER", "WAIT", "NO GRID"); "" for NONE. */
+/* Short caps text for the chip; empty for SYNC off without MASTER. */
 const char *xz_extra_sync_chip(const struct xz_extra_deck *,char *out,size_t size);
 /* What pads A..H do now, for the plate ("BEAT LOOP 1/4"); "" when unloaded or NULL. */
 const char *xz_extra_pad_text(const struct xz_extra_deck *,char *out,size_t size);

@@ -119,7 +119,28 @@ struct xz_shell_column { uint8_t low, mid, high; };
 struct xz_shell_wave { const struct xz_shell_column *columns; uint32_t count; uint32_t span_ms; };
 struct xz_shell_loop { int active; int beats_num, beats_den; int32_t in_ms, out_ms; };
 
-enum xz_shell_sync_status { XZ_SHELL_SYNC_OFF, XZ_SHELL_SYNC_LOCKED, XZ_SHELL_SYNC_WAITING, XZ_SHELL_SYNC_TEMPO_ONLY, XZ_SHELL_SYNC_MASTER, XZ_SHELL_SYNC_RATE_LIMIT };
+enum xz_shell_sync_status {
+ XZ_SHELL_SYNC_OFF=0, XZ_SHELL_SYNC_LOCKED=1,
+ XZ_SHELL_SYNC_WAITING=2, /* reserved legacy value; enabled SYNC when read, never published */
+ XZ_SHELL_SYNC_TEMPO_ONLY=3, XZ_SHELL_SYNC_MASTER=4, XZ_SHELL_SYNC_RATE_LIMIT=5,
+ XZ_SHELL_SYNC_ENABLED=6, XZ_SHELL_SYNC_EXTERNAL_MASTER=7, XZ_SHELL_SYNC_NO_BPM=8
+};
+/* Shared shell text. Call only for an enabled request. MASTER uses the existing BPM badge.
+   Legacy/unknown values retain the enabled indication, without claiming beat lock. */
+static inline const char *xz_shell_sync_label(int status,int master_deck){
+ static const char *const sync[]={"SYNC","SYNC 1","SYNC 2","SYNC 3","SYNC 4"};
+ static const char *const bpm[]={"BPM","BPM 1","BPM 2","BPM 3","BPM 4"};
+ int n=master_deck>=0&&master_deck<4?master_deck+1:0;
+ switch(status){
+ case XZ_SHELL_SYNC_MASTER:return "";
+ case XZ_SHELL_SYNC_TEMPO_ONLY:return bpm[n];
+ case XZ_SHELL_SYNC_RATE_LIMIT:return "LIMIT";
+ case XZ_SHELL_SYNC_EXTERNAL_MASTER:return "EXT MASTER";
+ case XZ_SHELL_SYNC_NO_BPM:return "NO BPM";
+ case XZ_SHELL_SYNC_LOCKED:case XZ_SHELL_SYNC_ENABLED:return sync[n];
+ default:return "SYNC";
+ }
+}
 
 struct xz_shell_deck {
  uint64_t known;

@@ -5,6 +5,7 @@
 #include "shell/shell_browse.h"
 #include "settings.h"
 #include "ui/deck_view.h"
+#include "ui/extra_lane.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -396,11 +397,8 @@ static void map_deck(struct xz_shell_deck *d, const struct xz_extra_deck *s, con
  if(EK(TIME_MODE)){d->time_mode=s->remain?XZ_SHELL_TIME_REMAIN:XZ_SHELL_TIME_ELAPSED;d->known|=SK(TIME_MODE);}
  if(EK(MASTER)){d->master=!!s->master;d->master_scope=s->master_scope;d->known|=SK(MASTER);}
  if(EK(SYNC)){
-  d->sync=!!s->sync.requested;d->sync_master_deck=s->sync.master_deck;
-  d->sync_status=!s->sync.requested?XZ_SHELL_SYNC_OFF:s->sync.locked?XZ_SHELL_SYNC_LOCKED:
-   s->sync.reason==XZ_EXTRA_SYNC_NATIVE_PHASE_UNAVAILABLE||s->sync.reason==XZ_EXTRA_SYNC_TEMPO_FOLLOW?XZ_SHELL_SYNC_TEMPO_ONLY:
-   s->sync.reason==XZ_EXTRA_SYNC_MASTER_CLOCK?XZ_SHELL_SYNC_MASTER:
-   s->sync.reason==XZ_EXTRA_SYNC_OUT_OF_RANGE?XZ_SHELL_SYNC_RATE_LIMIT:XZ_SHELL_SYNC_WAITING;
+  struct xz_extra_sync_presentation sync=xz_extra_sync_present(s);
+  d->sync=!!s->sync.requested;d->sync_master_deck=sync.master_deck;d->sync_status=sync.status;
   d->known|=SK(SYNC)|SK(SYNC_STATUS);
  }
  if(EK(KEY)&&s->key[0]){d->key=s->key;d->known|=SK(KEY);}

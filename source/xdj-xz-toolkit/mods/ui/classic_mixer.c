@@ -28,8 +28,8 @@ static struct panel project(const struct xz_classic_mixer_view *v,int id){
  p.remain=NK(TIME_MODE)&&d->time_mode==XZ_SHELL_TIME_REMAIN;p.time_known=NK(TIME_MODE)&&NK(ELAPSED);p.elapsed=d->elapsed_ms;p.total=d->total_ms;p.total_known=NK(TOTAL);
  p.bpm_known=NK(BPM);p.bpm=d->bpm_x100;p.tempo_known=NK(TEMPO);p.tempo=d->tempo_x100;p.range_known=NK(TEMPO_RANGE);p.range=d->tempo_range;
  p.mt_known=NK(MASTER_TEMPO);p.mt=d->master_tempo;p.quant_known=NK(QUANTIZE);p.quant=d->quantize_on;p.acue_known=NK(AUTO_CUE);p.acue=d->auto_cue;
- snprintf(p.sync,sizeof p.sync,"%s",NK(SYNC_STATUS)?(d->sync_status==XZ_SHELL_SYNC_LOCKED?"SYNC":d->sync_status==XZ_SHELL_SYNC_TEMPO_ONLY?"BPM SYNC":d->sync_status==XZ_SHELL_SYNC_WAITING?"WAIT":""):NK(SYNC)&&d->sync?"SYNC":"");
- p.track_no=d->track_no;p.track_known=NK(TRACK_NO);p.master_known=NK(MASTER);p.master=p.master_known&&d->master;p.source_known=NK(SOURCE);p.source=d->source;p.key_known=NK(KEY);p.key=d->key;p.loop=NK(LOOP)&&d->loop.active;p.slip=NK(SLIP)&&d->slip;
+ if(NK(SYNC)&&d->sync)snprintf(p.sync,sizeof p.sync,"%s",NK(SYNC_STATUS)?xz_shell_sync_label(d->sync_status,d->sync_master_deck):"SYNC");
+ p.track_no=d->track_no;p.track_known=NK(TRACK_NO);p.master_known=NK(MASTER);p.master=p.master_known&&d->master;p.master_scope=d->master_scope;p.source_known=NK(SOURCE);p.source=d->source;p.key_known=NK(KEY);p.key=d->key;p.loop=NK(LOOP)&&d->loop.active;p.slip=NK(SLIP)&&d->slip;
 #undef NK
  }else{const struct xz_extra_deck *d=&v->extra->deck[id-2];
 #define EK(f) ((d->known&E(f))!=0)
