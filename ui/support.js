@@ -6,6 +6,8 @@
 window.reportWizard = (() => {
   const C = window.XZ_SUPPORT_CONTRACT, KB = window.XZ_SUPPORT_KB, K = window.supportKnowledge;
   const dialog = $('report-wizard'), connection = $('report-connection');
+  // Reading report details never refuses another action: a click elsewhere waits for the bounded read instead.
+  yieldingMethods.push('support_sources', 'support_collect', 'support_source_preview', 'support_list');
   const LIMIT = C.limits.description_bytes, encoder = new TextEncoder();
   const byteLength = text => encoder.encode(text).length;
   const kb = bytes => bytes < 1024 ? bytes + ' bytes' : (bytes / 1024).toFixed(bytes < 10240 ? 1 : 0) + ' KB';
