@@ -82,6 +82,18 @@ int xz_extra_lamp(const struct xz_extra_deck *deck, uint32_t id);
 static inline uint32_t xz_led_written_state(int state){
  return state==XZ_LED_STATE_ON?1u:(state==XZ_LED_STATE_BLINK&&XZ_LED_BLINK_QUALIFIED)?(uint32_t)XZ_LED_STATE_BLINK:0u;
 }
+/* The player callback can precede other stock LED writers. Own only existing SYNC/MASTER
+   records until the next callback, so an ordinary later write cannot replace them.
+   Release before stock refresh; a changed/foreign record is never restored. */
+struct xz_led_lamp_owner {
+ uintptr_t records; unsigned row;
+ unsigned char before[XZ_LED_RECORD_BYTES],after[XZ_LED_RECORD_BYTES];
+ int active;
+};
+struct xz_led_sync_master_owner { struct xz_led_lamp_owner lamp[2]; };
+void xz_native_led_sync_master_release(struct xz_led_sync_master_owner *,void *,size_t,unsigned,unsigned);
+size_t xz_native_led_sync_master_apply(struct xz_led_sync_master_owner *,void *,size_t,unsigned,unsigned,
+                                      const struct xz_extra_deck *);
 /* Updates the state word of existing same-channel, non-forced records from xz_extra_lamp().
    No insertion or index writes: a record the native packet does not carry stays missing.
    Hot cue pad colours use apply(). */
