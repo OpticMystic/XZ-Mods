@@ -40,6 +40,9 @@ struct xz_shell_runtime_frame_input {
  int four_decks_attention;   /* a four-deck view is chosen and decks 3 and 4 are not connected: 4 DECKS gets a dot */
  /* The look settings MY SETTINGS and the shell follow (ui_runtime.c's model). */
  int look_known, ui_interface, modern_theme, wave_mode, key_format, key_feedback, browse_traffic, stem_colors[3];
+ int modern_browse_columns;
+ int band_colors[3];
+ int modern_wave_color, wave_position, key_display, wave_zoom, usb_colors, hidden_parts;
  int stem_order;
  int stems_overlay;           /* MODERN's stem layout (settings modern_stems): enum xz_shell_stem_layout */
  int rekordbox_known, rekordbox_assign[2]; /* the REKORDBOX button's press and SHIFT + press (enum xz_rekordbox_action) */

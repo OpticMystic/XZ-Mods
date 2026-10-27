@@ -2,6 +2,7 @@
 #ifndef XZ_LAYERED_RUNTIME_H
 #define XZ_LAYERED_RUNTIME_H
 #include <stdint.h>
+#include "layered_wave.h"
 
 /* Scrolling waveform look. Stems falls back to 3-band on tracks without stems. */
 enum xz_wave_mode {XZ_WAVE_STOCK=0,XZ_WAVE_THREE_BAND=1,XZ_WAVE_STEMS=2,XZ_WAVE_MODE_COUNT=3};

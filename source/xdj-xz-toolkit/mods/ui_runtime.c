@@ -475,6 +475,10 @@ int xz_ui_runtime_stock_source_key(int which, int run) {
     return 0;
 }
 
+/* MODERN display preferences stay under ui_mutex, with the other saved values. */
+static int modern_browse_columns;
+static struct { int modern_wave_color, wave_position, key_display, wave_zoom, usb_colors, hidden_parts; }
+    modern_display = {2,0,0,3,0,0};
 static struct xz_settings settings_snapshot(void) {
     return (struct xz_settings){.stems=requested_stems,
         .gate=!!(model.enabled & XZ_UI_GATE), .smart=!!(model.enabled & XZ_UI_SMART), .theme=model.theme,
@@ -486,7 +490,11 @@ static struct xz_settings settings_snapshot(void) {
         .browse_key_prefix=model.browse_key_prefix, .browse_traffic=model.browse_traffic, .key_format=model.key_format,
         .stem_colors={model.stem_colors[0],model.stem_colors[1],model.stem_colors[2]},.stem_order=model.stem_order,.key_feedback=model.key_feedback,.ram_debug=model.ram_debug,
         .rekordbox_menu=model.rekordbox_assign[0]==XZ_REKORDBOX_MODS,.rekordbox_press=model.rekordbox_assign[0],.rekordbox_shift=model.rekordbox_assign[1],.metrics_enabled=model.metrics_enabled,
-        .deck_view=model.deck_view,.deck_view_button=1,.browse_preview=model.browse_preview};
+        .deck_view=model.deck_view,.deck_view_button=1,.browse_preview=model.browse_preview,
+        .band_colors={model.band_colors[0],model.band_colors[1],model.band_colors[2]},
+        .modern_wave_color=modern_display.modern_wave_color,.wave_position=modern_display.wave_position,
+        .key_display=modern_display.key_display,.wave_zoom=modern_display.wave_zoom,
+        .usb_colors=modern_display.usb_colors,.hidden_parts=modern_display.hidden_parts,.modern_browse_columns=modern_browse_columns};
 }
 /* Profile values that only the UI owns. The backend already rejects invalid profiles. */
 static void browse_settings(const struct xz_settings *saved) {
@@ -502,11 +510,16 @@ static void browse_settings(const struct xz_settings *saved) {
     model.key_feedback = !!saved->key_feedback;
     __atomic_store_n(&xz_mods_key_feedback_proof_v1.enabled,model.key_feedback,__ATOMIC_RELEASE);
 }
+#pragma weak xz_layered_band_configure
+#pragma weak xz_native_skin_band_colors
 /* Stem layers use the saved pad colours: drums, harmonics, vocals. */
 static void wave_configure(void) {
     uint32_t colors[3];
     for (int i = 0; i < 3; i++) colors[i] = xz_ui_model_stem_color(&model, i);
     xz_layered_wave_configure(model.wave_mode, colors);
+    for(int i=0;i<3;i++)colors[i]=xz_band_palette_color(model.band_colors[i],0);
+    if(xz_layered_band_configure)xz_layered_band_configure(colors);
+    if(xz_native_skin_band_colors)xz_native_skin_band_colors(colors);
 }
 /* The interface and classic theme decide the look; every renderer, the shell
    included, reads the derived model.theme. */
@@ -1409,6 +1422,33 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         case XZ_UI_BYPASS:
             if (local_stem_source(a->deck)) { model.deck[a->deck].bypass = a->value != 0; levels(a->deck); inline_redraw_pending=1; }
             break;
+        case XZ_UI_BAND_COLOR:
+            if(a->index>=0&&a->index<3&&a->value>=0&&a->value<XZ_BAND_COLOR_CHOICES){
+                model.band_colors[a->index]=(int)a->value;wave_configure();
+            }
+            break;
+        case XZ_UI_BAND_COLORS_RESET:
+            memset(model.band_colors,0,sizeof model.band_colors);wave_configure();break;
+        case XZ_UI_SHELL_BROWSE_COLUMNS:
+            if(a->value>=0&&a->value<=2047&&a->value==(int)a->value)modern_browse_columns=(int)a->value;
+            break;
+        case XZ_UI_SHELL_DISPLAY: {
+            int value=(int)a->value;
+            if(a->value!=value||value<0)break;
+            switch(a->index){
+            case XZ_SHELL_SET_WAVE_COLOR:if(value<=3)modern_display.modern_wave_color=value;break;
+            case XZ_SHELL_SET_WAVE_POSITION:if(value<=1)modern_display.wave_position=value;break;
+            case XZ_SHELL_ITEM_KEY_DISPLAY:if(value<=2)modern_display.key_display=value;break;
+            case XZ_SHELL_ITEM_WAVE_ZOOM:if(value<=6)modern_display.wave_zoom=value;break;
+            case XZ_SHELL_ITEM_USB_COLORS:if(value<=2)modern_display.usb_colors=value;break;
+            case XZ_SHELL_ITEM_MODE_LAMPS:case XZ_SHELL_ITEM_QUANTIZE_LAMP:
+            case XZ_SHELL_ITEM_BYPASS_BUTTON:case XZ_SHELL_ITEM_WAVE_TITLES: {
+                int bit=a->index==XZ_SHELL_ITEM_MODE_LAMPS?0:a->index==XZ_SHELL_ITEM_QUANTIZE_LAMP?1:a->index==XZ_SHELL_ITEM_BYPASS_BUTTON?2:3;
+                if(value<=1)modern_display.hidden_parts=(modern_display.hidden_parts&~(1<<bit))|(value<<bit);
+                break;}
+            default:break;
+            }
+            break;}
         case XZ_UI_STEM_COLOR:
             if(a->index>=0&&a->index<3&&a->value>=0&&a->value<XZ_STEM_COLOR_CHOICES){
                 model.stem_colors[a->index]=(int)a->value;wave_configure();
@@ -1465,7 +1505,9 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_WAVE_MODE:
             if (a->index >= 0 && a->index < XZ_WAVE_MODE_COUNT) {
-                model.wave_mode = a->index; wave_configure();
+                model.wave_mode = a->index;
+                if(a->index>0)modern_display.modern_wave_color=a->index==2?3:2;
+                wave_configure();
                 snprintf(ui.notice, sizeof(ui.notice), "WAVEFORM: %s", a->index == 2 ? "STEMS" : a->index == 1 ? "3-BAND" : "STOCK");
             }
             break;
@@ -1502,7 +1544,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_BROWSE_KEY_PREFIX: model.browse_key_prefix = a->value != 0; break;
         case XZ_UI_BROWSE_TRAFFIC: model.browse_traffic = a->value != 0; break;
-        case XZ_UI_KEY_FORMAT: if (a->index >= 0 && a->index <= 2) model.key_format = a->index; break;
+        case XZ_UI_KEY_FORMAT: if (a->index >= 0 && a->index <= 2){model.key_format = a->index;modern_display.key_display=a->index;} break;
         case XZ_UI_RAM_DEBUG:
             model.ram_debug=1;
             __atomic_store_n(&xz_mods_ram_debug_v1.enabled,model.ram_debug,__ATOMIC_RELEASE);
@@ -1551,7 +1593,7 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
         default:
             break; /* Unconnected capabilities remain disabled by the model. */
         }
-        if (a->kind == XZ_UI_METRICS_TOGGLE || a->kind == XZ_UI_METRICS_CHECK || a->kind == XZ_UI_STEM_ORDER || a->kind == XZ_UI_STEM_COLOR || a->kind == XZ_UI_STEM_COLORS_RESET || a->kind == XZ_UI_STEM_PAD_CONFIG || a->kind == XZ_UI_STEMS_OVERLAY || a->kind == XZ_UI_STEM_BANK || a->kind == XZ_UI_JUMP_STEP || a->kind == XZ_UI_JUMP_ENABLE || a->kind == XZ_UI_JUMP_SHIFT || a->kind == XZ_UI_JUMP_SIZE || a->kind == XZ_UI_ENABLE || a->kind == XZ_UI_SET_THEME || a->kind == XZ_UI_SET_INTERFACE || a->kind == XZ_UI_SET_MODERN_THEME || a->kind == XZ_UI_WAVE_MODE ||
+        if (a->kind == XZ_UI_BAND_COLOR || a->kind == XZ_UI_BAND_COLORS_RESET || a->kind == XZ_UI_SHELL_DISPLAY || a->kind == XZ_UI_SHELL_BROWSE_COLUMNS || a->kind == XZ_UI_METRICS_TOGGLE || a->kind == XZ_UI_METRICS_CHECK || a->kind == XZ_UI_STEM_ORDER || a->kind == XZ_UI_STEM_COLOR || a->kind == XZ_UI_STEM_COLORS_RESET || a->kind == XZ_UI_STEM_PAD_CONFIG || a->kind == XZ_UI_STEMS_OVERLAY || a->kind == XZ_UI_STEM_BANK || a->kind == XZ_UI_JUMP_STEP || a->kind == XZ_UI_JUMP_ENABLE || a->kind == XZ_UI_JUMP_SHIFT || a->kind == XZ_UI_JUMP_SIZE || a->kind == XZ_UI_ENABLE || a->kind == XZ_UI_SET_THEME || a->kind == XZ_UI_SET_INTERFACE || a->kind == XZ_UI_SET_MODERN_THEME || a->kind == XZ_UI_WAVE_MODE ||
             a->kind == XZ_UI_STEM_PAGE || a->kind == XZ_UI_SHIFT_PAGES ||
             a->kind == XZ_UI_PAD_FEEDBACK || a->kind == XZ_UI_SHIFT_KEYSYNC || a->kind == XZ_UI_KEY_CHECK ||
             a->kind == XZ_UI_TAKEOVER_TOGGLE || a->kind == XZ_UI_TAKEOVER_ASSIGN ||
@@ -1631,7 +1673,11 @@ static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     in->four_decks_attention=xz_ui_four_decks_attention(&model);
     in->look_known=1;in->ui_interface=model.ui_interface;in->modern_theme=model.modern_theme;in->wave_mode=model.wave_mode;
     in->stem_order=model.stem_order;in->key_format=model.key_format;in->key_feedback=model.key_feedback;in->browse_traffic=model.browse_traffic;
-    for(int i=0;i<3;i++)in->stem_colors[i]=model.stem_colors[i];
+    for(int i=0;i<3;i++){in->stem_colors[i]=model.stem_colors[i];in->band_colors[i]=model.band_colors[i];}
+    in->modern_browse_columns=modern_browse_columns;
+    in->modern_wave_color=modern_display.modern_wave_color;in->wave_position=modern_display.wave_position;
+    in->key_display=modern_display.key_display;in->wave_zoom=modern_display.wave_zoom;
+    in->usb_colors=modern_display.usb_colors;in->hidden_parts=modern_display.hidden_parts;
     in->stems_overlay=model.modern_stems;
     in->rekordbox_known=1;in->rekordbox_assign[0]=model.rekordbox_assign[0];in->rekordbox_assign[1]=model.rekordbox_assign[1];
     for(int d=0;d<2;d++){in->stem_level_known[d]=in->stem_muted_known[d];for(int i=0;i<3;i++)in->stem_level[d][i]=model.deck[d].levels[i];}
@@ -3197,6 +3243,11 @@ static void profile_apply_locked(const struct xz_settings *saved,const char *ori
     model.stem_order = (unsigned)saved->stem_order < XZ_STEM_ORDER_COUNT ? saved->stem_order : 0; pads.order = model.stem_order;
     browse_settings(saved);
     memcpy(model.stem_colors,saved->stem_colors,sizeof(model.stem_colors));
+    memcpy(model.band_colors,saved->band_colors,sizeof model.band_colors);
+    modern_browse_columns=saved->modern_browse_columns;
+    modern_display.modern_wave_color=saved->modern_wave_color;modern_display.wave_position=saved->wave_position;
+    modern_display.key_display=saved->key_display;modern_display.wave_zoom=saved->wave_zoom;
+    modern_display.usb_colors=saved->usb_colors;modern_display.hidden_parts=saved->hidden_parts;
     xz_runtime_set_cues(saved->gate, saved->smart);
     model.enabled = xz_runtime_cue_flags();performance_publish_locked();
     if (audio_available) { xz_audio_set_enabled(saved->stems); if (saved->stems) model.enabled |= XZ_UI_STEM; }

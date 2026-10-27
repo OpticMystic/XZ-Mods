@@ -467,13 +467,13 @@ static int look_current(int item) {
  default:return -1;
  }
 }
-/* The panel sets its own twin of WAVEFORM COLOURS (wave_mode) in the same action, so nothing is queued back. */
+/* The panel sets its own twin of WAVEFORM COLOURS (wave_mode) in the same action, and the shell queues its exact colour choice for persistence. */
 static int look_apply_locked(int item, int choice) {
  switch(item){
  case XZ_SHELL_SET_WAVE_COLOR:
   if(choice<XZ_SHELL_WAVE_BLUE||choice>XZ_SHELL_WAVE_STEMS){refuse();return 0;}
   xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,choice);save_display(XZ_SHELL_SET_WAVE_COLOR,choice);
-  xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);
+  xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);save_display(XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);
   break;
  case XZ_SHELL_ITEM_USB_COLORS:
   if(choice<XZ_SHELL_USB_COLORS_ALL||choice>XZ_SHELL_USB_COLORS_OFF){refuse();return 0;}
@@ -487,7 +487,7 @@ static int look_apply_locked(int item, int choice) {
 }
 static void ui_action_locked(int kind, int deck, int index, float value, uint32_t now) {
  /* A stem level slide replaces the same stem's unsent level instead of queueing every step. */
- if(kind==XZ_UI_LEVEL)for(int i=0;i<ui_action_count;i++)if(ui_actions[i].kind==kind&&ui_actions[i].deck==deck&&ui_actions[i].index==index){ui_actions[i].value=value;return;}
+ if(kind==XZ_UI_LEVEL||kind==XZ_UI_SHELL_DISPLAY||kind==XZ_UI_SHELL_BROWSE_COLUMNS)for(int i=0;i<ui_action_count;i++)if(ui_actions[i].kind==kind&&ui_actions[i].deck==deck&&ui_actions[i].index==index){ui_actions[i].value=value;return;}
  if(ui_action_count>=8){refuse();return;}
  ui_actions[ui_action_count].kind=kind;ui_actions[ui_action_count].deck=deck;ui_actions[ui_action_count].index=index;ui_actions[ui_action_count].value=value;ui_action_count++;
  __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_ACTION,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
@@ -509,9 +509,9 @@ static void look_set_locked(int id, int choice, uint32_t now) {
  case LOOK_WAVE:
   if(choice>=0&&choice<3){
    ui_action_locked(XZ_UI_WAVE_MODE,-1,choice,0,now);
-   if(choice==2){xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_STEMS);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
-   else if(choice==1){xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_3BAND);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
-   else xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_ALL);
+   if(choice==2){xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_STEMS);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);save_display(XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
+   else if(choice==1){xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_3BAND);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);save_display(XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
+   else {xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_ALL);save_display(XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_ALL);}
    dirty_flag=1;
   }else refuse();
   return;
@@ -1822,20 +1822,42 @@ static void roll_second(uint32_t now) {
  memset(&sec,0,sizeof sec);sec.start=now;sec.shown.last_us=last_shown;memset(&worst_pending,0,sizeof worst_pending);
 }
 
-/* ---- shell-owned display settings ----
-   Kept in RAM for the life of the process (across XZ_MODS_SHELL stop/start); a reboot starts from the
-   shell's defaults. ids: XZ_SHELL_SET_WAVE_COLOR, XZ_SHELL_SET_WAVE_POSITION, XZ_SHELL_ITEM_KEY_DISPLAY,
-   XZ_SHELL_ITEM_WAVE_ZOOM (the zoom level), XZ_SHELL_ITEM_MODE_LAMPS, XZ_SHELL_ITEM_QUANTIZE_LAMP and
-   XZ_SHELL_ITEM_BYPASS_BUTTON and XZ_SHELL_ITEM_WAVE_TITLES. */
-static struct { int id, value, set; } display_saved[]={{XZ_SHELL_SET_WAVE_COLOR,0,0},{XZ_SHELL_SET_WAVE_POSITION,0,0},
- {XZ_SHELL_ITEM_KEY_DISPLAY,0,0},{XZ_SHELL_ITEM_WAVE_ZOOM,0,0},{XZ_SHELL_ITEM_MODE_LAMPS,0,0},{XZ_SHELL_ITEM_QUANTIZE_LAMP,0,0},
- {XZ_SHELL_ITEM_BYPASS_BUTTON,0,0},{XZ_SHELL_ITEM_WAVE_TITLES,0,0}};
-#define DISPLAY_SAVED (int)(sizeof display_saved/sizeof *display_saved)
+/* ---- USB-backed shell display settings ----
+   Input changes apply at once and queue XZ_UI_SHELL_DISPLAY to ui_runtime's settings worker.
+   Frame inputs are edge-triggered: an unchanged, possibly cached input cannot undo a local pick.
+   The worker observes XZ_MODS_SETTINGS_READONLY; live choices still work in RAM trials. */
+_Static_assert(XZ_SHELL_WAVE_3BAND==2,"stored MODERN 3-BAND value");
+_Static_assert(XZ_SHELL_POSITION_LEFT==1,"stored waveform position");
+_Static_assert(XZ_SHELL_KEY_ALPHANUMERIC==2,"stored key display");
+_Static_assert(XZ_SHELL_ZOOM_MAX==6&&XZ_SHELL_ZOOM_DEFAULT==3,"stored zoom range and default");
+_Static_assert(XZ_SHELL_USB_COLORS_OFF==2,"stored USB colours");
+_Static_assert(XZ_SHELL_INDICATORS==4,"stored hidden-parts bits");
+static const int display_ids[]={XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_SET_WAVE_POSITION,XZ_SHELL_ITEM_KEY_DISPLAY,
+ XZ_SHELL_ITEM_WAVE_ZOOM,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_ITEM_MODE_LAMPS,XZ_SHELL_ITEM_QUANTIZE_LAMP,
+ XZ_SHELL_ITEM_BYPASS_BUTTON,XZ_SHELL_ITEM_WAVE_TITLES};
+static int display_input_known, display_input[9], wave_color_explicit, columns_input;
 static void save_display(int id, int value) {
- for(int i=0;i<DISPLAY_SAVED;i++)if(display_saved[i].id==id){display_saved[i].value=value;display_saved[i].set=1;}
+ if(id==XZ_SHELL_SET_WAVE_COLOR)wave_color_explicit=1;
+ ui_action_locked(XZ_UI_SHELL_DISPLAY,-1,id,(float)value,now_ms());
 }
-static void restore_display(void) {
- for(int i=0;i<DISPLAY_SAVED;i++)if(display_saved[i].set)xz_shell_restore_setting(&shell,display_saved[i].id,display_saved[i].value);
+static int apply_display_input(const struct xz_shell_runtime_frame_input *in) {
+ if(!in->look_known)return 0;
+ const int values[]={in->modern_wave_color,in->wave_position,in->key_display,in->wave_zoom,in->usb_colors,
+  in->hidden_parts&1,(in->hidden_parts>>1)&1,(in->hidden_parts>>2)&1,(in->hidden_parts>>3)&1};
+ int changed=0;
+ for(unsigned i=0;i<sizeof display_ids/sizeof *display_ids;i++){
+  if(!display_input_known||values[i]!=display_input[i]){
+   changed|=xz_shell_restore_setting(&shell,display_ids[i],values[i]);
+   if(i==0)wave_color_explicit=1;
+  }
+  display_input[i]=values[i];
+ }
+ if(!display_input_known||columns_input!=in->modern_browse_columns){
+  columns_input=in->modern_browse_columns;column_mask=(uint32_t)columns_input;
+  if(column_mask)column_mask|=1u<<XZ_SHELL_COL_TITLE;
+  changed=1;
+ }
+ display_input_known=1;return changed;
 }
 
 /* ---- feedback and logs ---- */
@@ -1942,7 +1964,9 @@ static void browse_action(int32_t value, int op) {
  struct list_slot *ls=&lists[k];
  struct xz_shlib_request *r=&ls->req;
  switch(op){
- case XZ_SHELL_BROWSE_SET_COLUMNS:column_mask=(uint32_t)value|(1u<<XZ_SHELL_COL_TITLE);return;
+ case XZ_SHELL_BROWSE_SET_COLUMNS:
+  column_mask=(uint32_t)value|(1u<<XZ_SHELL_COL_TITLE);
+  ui_action_locked(XZ_UI_SHELL_BROWSE_COLUMNS,-1,0,(float)column_mask,now_ms());return;
  case XZ_SHELL_BROWSE_FILTER:apply_filter(value!=0);return;
  case XZ_SHELL_BROWSE_REQUEST_WINDOW:ls->window_start=value<0?0:value;return;
  case XZ_SHELL_BROWSE_OPEN:if(r->depth>=XZ_SHLIB_PATH_DEPTH)return;r->path[r->depth++]=(uint32_t)value;r->sort_set=0;break;
@@ -2096,14 +2120,14 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
   }
   case XZ_SHELL_ACT_SET_SETTING:
    if(a->id==XZ_SHELL_ITEM_KEY_DISPLAY){
-    if(a->value>=0&&a->value<=2)ui_action_locked(XZ_UI_KEY_FORMAT,-1,a->value,0,now);else refuse();
+    if(a->value>=0&&a->value<=2){save_display(a->id,a->value);ui_action_locked(XZ_UI_KEY_FORMAT,-1,a->value,0,now);}else refuse();
     break;
    }
-   /* Shell-owned display settings are already applied in the shell: keep them for the next start. */
+   /* Shell-owned display settings are already applied live: queue the USB preference. */
    if(xz_shrt_shell_owned_setting(a->id)){
     save_display(a->id,a->value);
     if(a->id==XZ_SHELL_SET_WAVE_COLOR){
-     xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);
+     xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);save_display(XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);
      ui_action_locked(XZ_UI_WAVE_MODE,-1,a->value==XZ_SHELL_WAVE_STEMS?2:a->value==XZ_SHELL_WAVE_3BAND?1:0,0,now);
     }
     break;
@@ -2191,7 +2215,7 @@ static void execute_locked(const struct xz_shell_action *out, size_t n, uint32_t
    stem_queue[stem_count].deck=a->deck;stem_queue[stem_count].stem=a->id;stem_queue[stem_count].value=a->value!=0;stem_count++;
    __atomic_or_fetch(&ui_requests,XZ_SHELL_UI_STEM_MUTE,__ATOMIC_ACQ_REL);ui_requests_at=now?now:1;
    break;
-  case XZ_SHELL_ACT_ZOOM:save_display(XZ_SHELL_ITEM_WAVE_ZOOM,a->value);break; /* shell state, kept */
+  case XZ_SHELL_ACT_ZOOM:save_display(XZ_SHELL_ITEM_WAVE_ZOOM,a->value);break; /* live zoom, queued for USB */
   case XZ_SHELL_ACT_MY_SETTINGS:
    if(a->id==XZ_SHELL_MY_LOAD)my_settings_load(a->value,a->deck,now);
    else if(a->id==XZ_SHELL_MY_SAVE)my_settings_save(a->value,now,NULL,0,"SAVED TO USB %d");
@@ -2881,7 +2905,7 @@ int xz_shell_runtime_idle(void) {
 static int menu_render_frame_locked(uint16_t *pixels,size_t stride) {
  /* An explicit layered MODS style applies to all logical decks. USB colours
     still own stock-style choices and deck backgrounds. */
- shell.display.wave_color_override=last_input.look_known&&last_input.wave_mode==1?XZ_SHELL_WAVE_3BAND:
+ shell.display.wave_color_override=last_input.look_known&&last_input.wave_mode==1&&(!wave_color_explicit||shell.display.wave_color==XZ_SHELL_WAVE_3BAND)?XZ_SHELL_WAVE_3BAND:
   last_input.look_known&&last_input.wave_mode==2?XZ_SHELL_WAVE_STEMS:XZ_SHELL_WAVE_BLUE;
  return xz_shell_render_frame(&shell,&model,pixels,stride)?1:-1;
 }
@@ -2908,13 +2932,19 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  if(in->cached)sec.ui_cached++;
  if(xz_native_skin_on_owner_thread()){sec.flips++;xz_mods_shell_proof_v1.stock_flips++;}
  last_call_ms=now;int key_overlay_changed=last_input.key_controls_open!=in->key_controls_open;
- int waveform_changed=last_input.look_known!=in->look_known||last_input.wave_mode!=in->wave_mode;last_input=*in;
+ int waveform_changed=last_input.look_known!=in->look_known||last_input.wave_mode!=in->wave_mode;
+ int display_changed=apply_display_input(in);
+ if(in->look_known)for(int i=0;i<3;i++){
+  uint32_t color=xz_band_palette_color(in->band_colors[i],0);
+  display_changed|=model.wave_band_rgb[i]!=color;model.wave_band_rgb[i]=color;
+ }
+ last_input=*in;
  int result=0;
  if(!enabled||!candidate(in->eligible,in->theme)){set_owns(0);goto done;}
  int extra_changed=xz_extra_decks_revision()!=shown_extra_revision||xz_extra_decks_control_revision()!=shown_extra_control;
  uint32_t input_revision=__atomic_load_n(&native_input_revision,__ATOMIC_ACQUIRE);
  int input_changed=input_revision!=shown_native_input;
- int owned=owns_flag,due=dirty_flag||extra_changed||input_changed||in->key_controls_open||key_overlay_changed||waveform_changed||now-last_drawn_ms>=period_ms;
+ int owned=owns_flag,due=dirty_flag||extra_changed||input_changed||in->key_controls_open||key_overlay_changed||waveform_changed||display_changed||now-last_drawn_ms>=period_ms;
  if(owned&&!due){sec.skipped++;result=-1;goto done;}
  /* Off screen (handed off or yielding to a caution) the model still refreshes, at 10 Hz, to see the way back. */
  if(!owned&&refreshed&&now-last_refresh_ms<100u)goto done;
@@ -2941,18 +2971,15 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  /* The colours the DJ picked (not THEME DEFAULT); the rest draw the shell's own defaults. */
  model.stem_rgb_custom=0;
  if(in->look_known){
-  static int synced_wave_mode=-1;
   for(int i=0;i<3;i++)if(in->stem_colors[i]>0)model.stem_rgb_custom|=(uint8_t)(1u<<i);
-  if(in->wave_mode!=synced_wave_mode){
-   synced_wave_mode=in->wave_mode;
-   if(in->wave_mode==2){xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_STEMS);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
-   else if(in->wave_mode==1){if(!display_saved[0].set)xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_3BAND);xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_TILE);}
-   else if(in->wave_mode==0)xz_shell_restore_setting(&shell,XZ_SHELL_ITEM_USB_COLORS,XZ_SHELL_USB_COLORS_ALL);
+  if(waveform_changed){
+   if(in->wave_mode==2)xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_STEMS);
+   else if(in->wave_mode==1&&!wave_color_explicit)xz_shell_restore_setting(&shell,XZ_SHELL_SET_WAVE_COLOR,XZ_SHELL_WAVE_3BAND);
   }
  }
  /* The stem buttons' layout: MODERN's own modern_stems (ui_runtime.c sends it as stems_overlay). */
  model.mods_settings_known=in->look_known;model.stem_order=in->stem_order;
- model.key_format=in->key_format;model.key_feedback=in->key_feedback;model.browse_traffic=in->browse_traffic;
+ model.key_format=(int)shell.display.key_display;model.key_feedback=in->key_feedback;model.browse_traffic=in->browse_traffic;
  model.stem_layout_known=in->look_known&&in->stems_overlay>=0&&in->stems_overlay<XZ_SHELL_STEM_LAYOUTS;
  model.stem_layout=model.stem_layout_known?(enum xz_shell_stem_layout)in->stems_overlay:XZ_SHELL_STEMS_HIDDEN;
  for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++)if(in->stem_level_known[d]){
@@ -3467,7 +3494,7 @@ static int start_locked(void) {
  storage=calloc(1,xz_shell_model_storage_size());
  if(!storage){xz_log("FLAGSHIP shell unavailable: no memory for the model");return -1;}
  xz_shell_init(&shell);
- restore_display();
+ display_input_known=0;wave_color_explicit=0;
  memset(&model,0,sizeof model);memset(&handoff,0,sizeof handoff);memset(&queue,0,sizeof queue);
  model.deck_count=XZ_SHELL_NATIVE_DECKS;extra_reset();
  memset(position,0,sizeof position);memset(motion,0,sizeof motion);memset(&caution_state,0,sizeof caution_state);

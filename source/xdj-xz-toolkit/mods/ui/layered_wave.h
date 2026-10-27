@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/* RGB888 custom band colours, zero keeps each renderer's standard palette.
+   Configure from the UI settings path; snapshot RGB565 once before drawing. */
+void xz_layered_band_configure(const uint32_t rgb[3]);
+void xz_layered_band_colors(uint16_t out[3]);
 /* What the three bytes of each 1/150 s sample mean, and how they are drawn. */
 enum xz_layered_kind {
  XZ_LAYERED_THREE_BAND=0, /* rekordbox PWV7 low/mid/high, CDJ-3000 colours */
@@ -13,7 +17,7 @@ struct xz_layered_data {
  const uint8_t *bands;
  uint32_t count,normalization;
  unsigned kind;
- uint16_t colors[3]; /* RGB565 per stem, used by XZ_LAYERED_STEMS */
+ uint16_t colors[3]; /* RGB565 per stem or custom band; zero band entries keep the standard colour */
 };
 /* Heights in rows above the centre line, computed once per column. */
 struct xz_layered_col {uint8_t h[3],valid;};
