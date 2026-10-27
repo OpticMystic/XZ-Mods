@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
  m.deck[3].sync=1;m.deck[3].sync_status=XZ_SHELL_SYNC_LOCKED;m.deck[3].sync_master_deck=2;
  shot(&u,&m,"play-4deck-software-sync-status");
  m.deck[2].master=0;m.deck[2].sync_status=XZ_SHELL_SYNC_TEMPO_ONLY;m.deck[2].sync_master_deck=0;
- m.deck[3].sync_status=XZ_SHELL_SYNC_WAITING;
+ m.deck[3].sync_status=XZ_SHELL_SYNC_ENABLED;
  shot(&u,&m,"play-4deck-sync-pending-status");
  fx_model_four(&m,&track);
 

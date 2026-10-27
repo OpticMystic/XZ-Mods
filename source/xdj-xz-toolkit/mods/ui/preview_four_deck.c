@@ -59,10 +59,10 @@ static void fill_deck(struct xz_extra_deck *d,const struct track *t,const char *
 }
 static void master_of_software(struct xz_extra_deck *d,int index){
  d->master=1;d->master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
- d->sync=(struct xz_extra_sync){0,0,index+XZ_EXTRA_FIRST_DECK,XZ_EXTRA_SYNC_OFF,0,0,XZ_EXTRA_MASTER_SCOPE_SOFTWARE};
+ d->sync=(struct xz_extra_sync){.master_deck=index+XZ_EXTRA_FIRST_DECK,.reason=XZ_EXTRA_SYNC_OFF,.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE};
 }
 static void synced(struct xz_extra_deck *d,int master_deck,enum xz_extra_sync_reason reason,uint32_t scope){
- d->sync=(struct xz_extra_sync){1,reason==XZ_EXTRA_SYNC_LOCKED,master_deck,reason,0,0,scope};
+ d->sync=(struct xz_extra_sync){.requested=1,.locked=reason==XZ_EXTRA_SYNC_LOCKED,.master_deck=master_deck,.reason=reason,.master_scope=scope,.tempo_matched=1};
 }
 
 static void render(const struct xz_extra_decks *decks,int order,int detail,int notice){
@@ -155,7 +155,7 @@ int main(int argc,char **argv){
  synced(&modes.deck[0],0,XZ_EXTRA_SYNC_WAIT_ANCHOR,XZ_EXTRA_MASTER_SCOPE_NATIVE);modes.deck[0].playing=0;
  modes.deck[1].quantize=0;modes.deck[1].tempo_range=100;modes.deck[1].master_tempo=0;
  synced(&modes.deck[1],0,XZ_EXTRA_SYNC_TEMPO_FOLLOW,XZ_EXTRA_MASTER_SCOPE_NATIVE);
- render(&modes,XZ_FOUR_MIXER,-1,0);save(argv[2],"02-mixer-time-mode-wait-vs-tempo-only");
+ render(&modes,XZ_FOUR_MIXER,-1,0);save(argv[2],"02-mixer-time-mode-paused-vs-tempo-only");
  /* Pads and transport modes: DECK 3 BEAT LOOP pad 1/2 running under SLIP; DECK 4 REV, SLIP LOOP pads, TEMPO RESET. */
  struct xz_extra_decks pads=full;
  pads.deck[0].pad_mode=XZ_EXTRA_PAD_BEAT_LOOP;pads.deck[0].active_pad=1;pads.deck[0].slip=1;pads.deck[0].slip_active=1;
@@ -217,6 +217,41 @@ int main(int argc,char **argv){
  xz_extra_notice_draw(surface,XZ_WAVE_WIDTH,PIXELS,&notice,NOW);
  save(argv[2],"17-route-lost-two-native-decks");
  render(&loops,XZ_FOUR_STACKED,1,0);save(argv[2],"18-detail-hot-cue-call");
- puts("wrote 18 scenarios");
+ /* SYNC reason atlas: two current-source tempo-proof states for every reason. */
+ for(int reason=0;reason<=XZ_EXTRA_SYNC_TEMPO_FOLLOW;reason++)for(int matched=0;matched<2;matched++){
+  struct xz_extra_decks scene=full;struct xz_extra_deck *d=&scene.deck[0];d->master=0;d->master_scope=0;
+  synced(d,0,(enum xz_extra_sync_reason)reason,XZ_EXTRA_MASTER_SCOPE_NATIVE);
+  d->sync.tempo_matched=matched;d->quantize=reason!=XZ_EXTRA_SYNC_TEMPO_FOLLOW;
+  if(reason==XZ_EXTRA_SYNC_OFF)d->sync.requested=0;
+  if(reason==XZ_EXTRA_SYNC_WAIT_MASTER)d->sync.master_deck=-1;
+  char name[80];
+  render(&scene,XZ_FOUR_STACKED,-1,0);
+  struct xz_extra_lane_view lane={NOW,XZ_EXTRA_LANE_COLUMN_US,1,0};
+  xz_extra_lane_draw(surface,XZ_WAVE_WIDTH,PIXELS,136,3,d,&lane,NULL);
+  snprintf(name,sizeof name,"sync-%02d-f%d-lane",reason,matched);save(argv[2],name);
+  render(&scene,XZ_FOUR_STACKED,0,0);snprintf(name,sizeof name,"sync-%02d-f%d-detail",reason,matched);save(argv[2],name);
+ }
+ for(int variant=0;variant<9;variant++){
+  struct xz_extra_decks scene=full;struct xz_extra_deck *d=&scene.deck[0];d->master=0;d->master_scope=0;
+  synced(d,0,XZ_EXTRA_SYNC_WAIT_MASTER,XZ_EXTRA_MASTER_SCOPE_NATIVE);
+  switch(variant){
+  case 0:d->sync.source=XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;break;
+  case 1:d->sync.source=XZ_EXTRA_SYNC_SOURCE_EMERGENCY;break;
+  case 2:d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;d->sync.quantum_unknown=1;break;
+  case 3:d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;d->playing=0;break;
+  case 4:d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;d->playing=0;d->quantize=0;break;
+  case 5:d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;d->sync.master_paused=1;break;
+  case 6:d->sync.reason=XZ_EXTRA_SYNC_TEMPO_FOLLOW;d->playing=0;break;
+  case 7:d->sync.reason=999;break;
+  case 8:d->sync.reason=XZ_EXTRA_SYNC_MASTER_CLOCK;d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;break;
+  }
+  char name[80];
+  render(&scene,XZ_FOUR_STACKED,-1,0);
+  struct xz_extra_lane_view lane={NOW,XZ_EXTRA_LANE_COLUMN_US,1,0};
+  xz_extra_lane_draw(surface,XZ_WAVE_WIDTH,PIXELS,136,3,d,&lane,NULL);
+  snprintf(name,sizeof name,"sync-variant-%d-lane",variant);save(argv[2],name);
+  render(&scene,XZ_FOUR_STACKED,0,0);snprintf(name,sizeof name,"sync-variant-%d-detail",variant);save(argv[2],name);
+ }
+ puts("wrote 18 layout and 78 SYNC lane/detail scenarios");
  return 0;
 }
