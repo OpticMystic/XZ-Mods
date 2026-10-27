@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0-preview.22.6 - 2026-10-27
+
+- KEY shift and KEY SYNC on decks 3 and 4: KEY UP, KEY DOWN and RESET from MODS > PLAY > KEYS, the play-screen key popup or SHIFT + SYNC. Any deck can match its key to the master deck, whether the master is deck 1, 2, 3 or 4. One of decks 3 and 4 can hold a key shift at a time.
+- RAM TRACKS on decks 3 and 4 while the loopback cable is connected. The track keeps playing from memory if the music USB is pulled. All four decks share one budget: up to 64 MiB a track and 128 MiB in all.
+- MODS > SCREEN > 3-BAND COLOURS: choose the colour of the lows, mids and highs of the 3-band waveform. STANDARD keeps each interface's own colour. The choice applies in MODERN, CLASSIC and on decks 3 and 4.
+- Every MODS setting is now saved to the USB stick, including the MODERN waveform colour, waveform position, key display, zoom, USB colours, the hidden lamps and titles, the browse columns and the 3-band colours. They no longer reset when the player restarts.
+- SYNC never shows WAIT. Pressing SYNC lights the button and matches the master's BPM at once, even when either deck is paused. The beat locks as soon as both decks play. The screen shows SYNC with the master's deck number, BPM when only the tempo can follow, or LIMIT when the master's tempo is out of reach.
+- Decks 3 and 4 keep following the master's tempo when its beat position is briefly unavailable, while it is scratched, after a load, and on tracks without a beat grid or inside a loop.
+- When deck 4 is the tempo master and stops, a playing deck 1 or 2 now takes over before deck 3, as the deck order says. From deck 3, master passes to deck 4 first.
+- The RAM TRACKS page says LOOPBACK CABLE NOT CONNECTED for decks 3 and 4 without the cable, beside its SET UP FOUR DECKS button.
+- SYSTEM READOUT moved to its own row at the bottom of MODS > SCREEN.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.5 - 2026-10-26
 
 - With the loopback cable plugged in, the player shows E-8307 HUBS ARE NOT SUPPORTED (or UNSUPPORTED DEVICE) and keeps it up. MODS no longer disappears behind it: the bottom of MODS shows the code and says it comes from the loopback cable, and whether decks 3 and 4 are ready. CLASSIC keeps the player's own banner visible. Other stock warnings still take the screen.
