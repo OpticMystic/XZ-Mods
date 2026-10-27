@@ -276,14 +276,15 @@ def support_candidates():
         for number in range(26):
             if not mask&(1<<number):continue
             path=Path(chr(65+number)+':/')
-            if kernel.GetDriveTypeW(str(path)) not in (2,3):continue
+            kind=kernel.GetDriveTypeW(str(path))
+            if kind not in (2,3):continue
             # support_sources validates fixed markers, parents and identities.
-            found.append({'volume':str(path)})
+            found.append({'volume':str(path),'removable':kind==2})
     elif sys.platform=='darwin':
         from .host import mac_volume
         for path in Path('/Volumes').iterdir():
             if path.is_symlink() or not path.is_dir():continue
             try:
-                if Path(mac_volume(path)['volume_root'])==path:found.append({'volume':str(path)})
+                if Path(mac_volume(path)['volume_root'])==path:found.append({'volume':str(path),'removable':True})
             except (OSError,ValueError):continue
     return found

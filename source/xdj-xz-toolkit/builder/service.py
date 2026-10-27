@@ -175,7 +175,7 @@ def dispatch(request,job):
     return result
 
 def _dispatch_request(request,job):
-    if request.get('method') in ('support_prepare','support_edit','support_preview','support_discard','support_list','support_resume','support_remove','support_sources','support_collect','support_source_preview','support_prepare_v2','support_edit_v2'):
+    if request.get('method') in ('support_prepare','support_edit','support_preview','support_discard','support_list','support_resume','support_remove','support_sources','support_collect','support_source_preview','support_prepare_v2','support_edit_v2','support_consent'):
         from . import support_reports
         return support_reports.dispatch(request,job)
     from . import mod_versions

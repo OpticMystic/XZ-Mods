@@ -165,11 +165,18 @@ def _save(record):
         file.write(encoded(record))
     os.replace(temporary, path)
 
-def discover(job, roots=None):
+def discover(job, roots=None, supersedes=None):
     from . import managed_usb
     job.check()
     generation = secrets.token_hex(16)
     root = store_root()
+    # A live USB step rescans when sticks change. The superseded scan record is local and unsent.
+    if isinstance(supersedes, str) and HEX.fullmatch(supersedes):
+        for suffix in ('.json', '.lock'):
+            try:
+                checked_path(root / (supersedes + suffix)).unlink()
+            except (OSError, ValueError):
+                pass
     entries = list(root.iterdir())
     # Only local scan records are removed, never USB files or draft/receipt data.
     for entry in entries:
@@ -182,6 +189,7 @@ def discover(job, roots=None):
         raise ValueError('Close old report dialogs before collecting again')
     candidates = managed_usb.support_candidates() if roots is None else roots
     sticks = []
+    others = []
     excess = 0
     for candidate in candidates:
         job.check()
@@ -198,6 +206,10 @@ def discover(job, roots=None):
                 except (OSError, ValueError):
                     availability[key] = False
             if not any(availability.values()):
+                # A removable stick with nothing to read is still listed, so the wizard can say
+                # "no diary on this stick". Fixed disks without markers stay invisible.
+                if candidate.get('removable') and len(others) < 8:
+                    others.append({'label':'USB', 'local_volume':str(path)})
                 continue
             if len(sticks) == LIMITS['sticks']:
                 excess += 1
@@ -210,7 +222,7 @@ def discover(job, roots=None):
     _save(record)
     return {'scan_generation':generation, 'sticks':[{'handle':s['handle'], 'source_slot':s['slot'],
             'label':'USB ' + s['slot'][-1].upper(), 'local_volume':s['root'], 'sources':s['availability']} for s in sticks],
-            'excess_sticks':excess, 'xz':'not_available'}
+            'other_sticks':others, 'excess_sticks':excess, 'xz':'not_available'}
 
 def window(request):
     incident = request.get('incident')
