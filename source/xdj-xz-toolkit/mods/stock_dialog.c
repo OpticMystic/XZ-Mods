@@ -2,6 +2,8 @@
 #include "stock_dialog.h"
 #include "runtime.h"
 #include <string.h>
+#include "ui/native_skin_runtime.h"
+#pragma weak xz_native_skin_request_repaint
 
 static int stable(xz_stock_dialog_read read,uint32_t at,void *out,size_t n){
  unsigned char again[64];
@@ -36,4 +38,12 @@ int xz_stock_dialog_observe(xz_stock_dialog_read read){
  if(!stable(read,0x222c668,ids,sizeof ids))return -1;
  return counter_warning(ids[0])||counter_warning(ids[1]);
 }
-int xz_stock_dialog_active(void){return xz_stock_dialog_observe(xz_read_memory)!=0;}
+int xz_stock_dialog_active(void){
+ static int previous;
+ int active=xz_stock_dialog_observe(xz_read_memory)!=0;
+ /* The native owner thread rebuilds its screen on entry and on return. Never
+    attempt to restore a saved mod framebuffer over a live native window. */
+ void (*repaint)(void)=xz_native_skin_request_repaint;
+ if(__atomic_exchange_n(&previous,active,__ATOMIC_ACQ_REL)!=active&&repaint)repaint();
+ return active;
+}
