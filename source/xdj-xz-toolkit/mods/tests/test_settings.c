@@ -18,7 +18,7 @@ static void rekordbox_buttons(void) {
     for(int press=0;press<XZ_REKORDBOX_ACTIONS;press++)for(int shift=0;shift<XZ_REKORDBOX_ACTIONS;shift++){
         struct xz_settings w=a;w.rekordbox_press=press;w.rekordbox_shift=shift;w.rekordbox_menu=press==XZ_REKORDBOX_MODS;
         assert(xz_settings_format(&w,text,sizeof(text))>0&&strstr(text,press==XZ_REKORDBOX_MODS?"rekordbox_menu=1\n":"rekordbox_menu=0\n"));
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==47&&!memcmp(&w,&b,sizeof(w)));
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==57&&!memcmp(&w,&b,sizeof(w)));
     }
     { struct xz_settings w=a;w.rekordbox_press=XZ_REKORDBOX_ACTIONS;assert(xz_settings_format(&w,text,sizeof(text))<0);
       w=a;w.rekordbox_shift=-1;assert(xz_settings_format(&w,text,sizeof(text))<0); }
@@ -29,7 +29,7 @@ static void rekordbox_buttons(void) {
     /* modern_stems: MODERN's own stem layout, PADS by default; a record without it keeps PADS; 0..5 only. */
     { char bad[1024];assert(a.modern_stems==XZ_MODERN_STEMS_PADS&&a.stems_overlay==XZ_STEM_LAYOUT_BELOW);
       for(int mode=0;mode<XZ_MODERN_STEMS_COUNT;mode++){struct xz_settings w=a;w.modern_stems=mode;
-        assert(xz_settings_format(&w,bad,sizeof(bad))>0&&!xz_settings_parse_present(bad,&b,&present)&&present==47&&b.modern_stems==mode);}
+        assert(xz_settings_format(&w,bad,sizeof(bad))>0&&!xz_settings_parse_present(bad,&b,&present)&&present==57&&b.modern_stems==mode);}
       strcpy(bad,text);field(bad,"modern_stems=",'6');assert(xz_settings_parse(bad,&b)<0);
       strcpy(bad,text);field(bad,"modern_stems=",'0');cut(bad,"modern_stems=");
       assert(!xz_settings_parse_present(bad,&b,&present)&&present==43&&b.modern_stems==XZ_MODERN_STEMS_PADS);
@@ -84,7 +84,7 @@ static void deck_view_block(void) {
     for(int view=0;view<XZ_DECK_VIEW_COUNT;view++)for(int button=0;button<2;button++){
         struct xz_settings w=a;w.deck_view=view;w.deck_view_button=button;
         assert(xz_settings_format(&w,text,sizeof(text))>0);
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==47&&b.deck_view_button==1);
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==57&&b.deck_view_button==1);
         w.deck_view_button=1;assert(!memcmp(&w,&b,sizeof(w)));
     }
     { struct xz_settings w=a;w.deck_view=XZ_DECK_VIEW_COUNT;assert(xz_settings_format(&w,text,sizeof(text))<0);
@@ -130,7 +130,7 @@ static void browse_preview_preference(void) {
     for(int shown=0;shown<=1;shown++){
         a.browse_preview=shown;
         assert(xz_settings_format(&a,text,sizeof text)>0);
-        assert(!xz_settings_parse_present(text,&b,&present)&&present==47&&b.browse_preview==shown);
+        assert(!xz_settings_parse_present(text,&b,&present)&&present==57&&b.browse_preview==shown);
         assert(!xz_settings_overlay(&b,&a,present)&&b.browse_preview==shown);
     }
     a.browse_preview=2;assert(xz_settings_format(&a,text,sizeof text)<0);
@@ -168,7 +168,7 @@ int main(void) {
         current.key_feedback=1;current.wave_mode=2;
         assert(!xz_settings_overlay(&current,&record,present)&&current.key_feedback==1&&current.wave_mode==2);
         struct xz_settings off=current;off.key_feedback=0;off.wave_mode=0;
-        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==47);
+        assert(xz_settings_format(&off,text,sizeof(text))>0&&!xz_settings_parse_present(text,&record,&present)&&present==57);
         assert(!xz_settings_overlay(&current,&record,present)&&!current.key_feedback&&!current.wave_mode);
         record=current;record.theme=XZ_THEME_COUNT;struct xz_settings kept=current;
         assert(xz_settings_overlay(&current,&record,38)<0&&!memcmp(&kept,&current,sizeof(kept)));

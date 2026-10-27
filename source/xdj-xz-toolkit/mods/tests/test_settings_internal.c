@@ -36,7 +36,7 @@ int main(void) {
     assert(xz_settings_internal_load(&loaded,NULL)==XZ_INTERNAL_SETTINGS_MISSING);
     s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=5;s.theme=5;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
     unsigned present=0;
-    assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==5&&present==47);
+    assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&loaded.theme==5&&present==57);
     assert(generation(slot0)==1&&access(slot1,F_OK));
 
     s.ui_interface=XZ_INTERFACE_CLASSIC;s.classic_theme=6;s.theme=6;assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK);
@@ -59,8 +59,10 @@ int main(void) {
     /* The longest record (every two-digit field at its top, DECK VIEW set) fits the 1023-byte payload. */
     { struct xz_settings big=s;for(int i=0;i<8;i++)big.jump.sizes[i]=9;big.classic_theme=XZ_CLASSIC_THEME_COUNT-1;big.theme=big.classic_theme;
       big.browse_preview=1;big.deck_view=XZ_DECK_VIEW_MIXER;big.deck_view_button=0;big.rekordbox_press=XZ_REKORDBOX_DECK_VIEW;big.rekordbox_shift=XZ_REKORDBOX_DECK_VIEW;
+      for(int i=0;i<3;i++)big.band_colors[i]=8;big.modern_wave_color=3;big.wave_position=1;big.key_display=2;big.wave_zoom=6;big.usb_colors=2;big.hidden_parts=15;
       assert(xz_settings_internal_save(&big)==XZ_INTERNAL_SETTINGS_OK);
-      assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&present==47&&loaded.deck_view==XZ_DECK_VIEW_MIXER&&
+      assert(xz_settings_internal_load(&loaded,&present)==XZ_INTERNAL_SETTINGS_OK&&present==57&&loaded.deck_view==XZ_DECK_VIEW_MIXER&&
+       loaded.band_colors[0]==8&&loaded.band_colors[2]==8&&loaded.modern_wave_color==3&&loaded.wave_position==1&&loaded.key_display==2&&loaded.wave_zoom==6&&loaded.usb_colors==2&&loaded.hidden_parts==15&&
        loaded.browse_preview&&loaded.deck_view_button==1&&loaded.rekordbox_shift==XZ_REKORDBOX_DECK_VIEW);
       assert(xz_settings_internal_save(&s)==XZ_INTERNAL_SETTINGS_OK); }
     unlink(slot0);unlink(slot1);

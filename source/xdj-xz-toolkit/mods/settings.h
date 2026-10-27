@@ -70,6 +70,7 @@ struct xz_settings {
     int wave_zoom;         /* 0..XZ_SHELL_ZOOM_MAX (6), default XZ_SHELL_ZOOM_DEFAULT (3) */
     int usb_colors;        /* enum xz_shell_usb_colors: 0 ALL (default), 1 TILE, 2 OFF */
     int hidden_parts;      /* bit per enum xz_shell_indicator set: hidden (mode lamps, quantize lamp, bypass, titles) */
+    int modern_browse_columns; /* optional field 57: shell column bitmask, 0 keeps automatic columns, 0..2047 */
 };
 /* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
 int xz_settings_look(int ui_interface, int classic_theme);

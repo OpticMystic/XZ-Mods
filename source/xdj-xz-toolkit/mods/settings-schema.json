@@ -21,7 +21,10 @@
     43,
     44,
     46,
-    47
+    47,
+    50,
+    56,
+    57
   ],
   "fields": [
     {
@@ -1263,6 +1266,306 @@
           "label": "DRUMS / HARMONICS / VOCALS"
         }
       ]
+    },
+    {
+      "key": "band_low_color",
+      "label": "3-BAND LOW COLOUR",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 8,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "STANDARD"
+        },
+        {
+          "value": 1,
+          "label": "BLUE"
+        },
+        {
+          "value": 2,
+          "label": "RED"
+        },
+        {
+          "value": 3,
+          "label": "GREEN"
+        },
+        {
+          "value": 4,
+          "label": "AMBER"
+        },
+        {
+          "value": 5,
+          "label": "PURPLE"
+        },
+        {
+          "value": 6,
+          "label": "CYAN"
+        },
+        {
+          "value": 7,
+          "label": "PINK"
+        },
+        {
+          "value": 8,
+          "label": "WHITE"
+        }
+      ]
+    },
+    {
+      "key": "band_mid_color",
+      "label": "3-BAND MID COLOUR",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 8,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "STANDARD"
+        },
+        {
+          "value": 1,
+          "label": "BLUE"
+        },
+        {
+          "value": 2,
+          "label": "RED"
+        },
+        {
+          "value": 3,
+          "label": "GREEN"
+        },
+        {
+          "value": 4,
+          "label": "AMBER"
+        },
+        {
+          "value": 5,
+          "label": "PURPLE"
+        },
+        {
+          "value": 6,
+          "label": "CYAN"
+        },
+        {
+          "value": 7,
+          "label": "PINK"
+        },
+        {
+          "value": 8,
+          "label": "WHITE"
+        }
+      ]
+    },
+    {
+      "key": "band_high_color",
+      "label": "3-BAND HIGH COLOUR",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 8,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "STANDARD"
+        },
+        {
+          "value": 1,
+          "label": "BLUE"
+        },
+        {
+          "value": 2,
+          "label": "RED"
+        },
+        {
+          "value": 3,
+          "label": "GREEN"
+        },
+        {
+          "value": 4,
+          "label": "AMBER"
+        },
+        {
+          "value": 5,
+          "label": "PURPLE"
+        },
+        {
+          "value": 6,
+          "label": "CYAN"
+        },
+        {
+          "value": 7,
+          "label": "PINK"
+        },
+        {
+          "value": 8,
+          "label": "WHITE"
+        }
+      ]
+    },
+    {
+      "key": "modern_wave_color",
+      "label": "MODERN WAVEFORM COLOUR",
+      "group": "appearance",
+      "default": 2,
+      "min": 0,
+      "max": 3,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "BLUE"
+        },
+        {
+          "value": 1,
+          "label": "RGB"
+        },
+        {
+          "value": 2,
+          "label": "3-BAND"
+        },
+        {
+          "value": 3,
+          "label": "STEMS"
+        }
+      ]
+    },
+    {
+      "key": "wave_position",
+      "label": "WAVEFORM POSITION",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 1,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "CENTRE"
+        },
+        {
+          "value": 1,
+          "label": "LEFT"
+        }
+      ]
+    },
+    {
+      "key": "key_display",
+      "label": "KEY DISPLAY",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "AS THE DECK SHOWS IT"
+        },
+        {
+          "value": 1,
+          "label": "CLASSIC"
+        },
+        {
+          "value": 2,
+          "label": "ALPHANUMERIC"
+        }
+      ]
+    },
+    {
+      "key": "wave_zoom",
+      "label": "WAVEFORM ZOOM",
+      "group": "appearance",
+      "default": 3,
+      "min": 0,
+      "max": 6,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "0"
+        },
+        {
+          "value": 1,
+          "label": "1"
+        },
+        {
+          "value": 2,
+          "label": "2"
+        },
+        {
+          "value": 3,
+          "label": "3"
+        },
+        {
+          "value": 4,
+          "label": "4"
+        },
+        {
+          "value": 5,
+          "label": "5"
+        },
+        {
+          "value": 6,
+          "label": "6"
+        }
+      ]
+    },
+    {
+      "key": "usb_colors",
+      "label": "USB COLOURS",
+      "group": "appearance",
+      "default": 0,
+      "min": 0,
+      "max": 2,
+      "kind": "choice",
+      "readonly": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "TILE AND WAVEFORM"
+        },
+        {
+          "value": 1,
+          "label": "TILE ONLY"
+        },
+        {
+          "value": 2,
+          "label": "OFF"
+        }
+      ]
+    },
+    {
+      "key": "hidden_parts",
+      "label": "Hidden MODERN parts (bitmask)",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 15,
+      "kind": "number",
+      "readonly": false
+    },
+    {
+      "key": "modern_browse_columns",
+      "label": "MODERN browse columns (bitmask, 0 automatic)",
+      "group": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 2047,
+      "kind": "number",
+      "readonly": false
     }
   ],
   "wire_order": [
@@ -1312,7 +1615,17 @@
     "modern_stems",
     "deck_view",
     "deck_view_button",
-    "browse_preview"
+    "browse_preview",
+    "band_low_color",
+    "band_mid_color",
+    "band_high_color",
+    "modern_wave_color",
+    "wave_position",
+    "key_display",
+    "wave_zoom",
+    "usb_colors",
+    "hidden_parts",
+    "modern_browse_columns"
   ],
   "retired_fields": {
     "jump_shift_page": {
