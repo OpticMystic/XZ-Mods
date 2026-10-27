@@ -1,44 +1,120 @@
-# Report service candidate and paging handoff
+# Private bug desk v2 candidate
 
-The existing standalone Worker implements protocol v1 uploads, private D1/R2 storage, hashed reporter receipts, fixed public GitHub drafts, optional public API linkage, owner authorization/deletion, quotas and expiry cleanup. The intervening provider enabled it and provisioned D1 in this directory. Those configuration/resource changes are preserved. No deployment, secret read, Git operation, device call, Loader edit, or root-source edit was performed by this implementation pass.
+Implemented locally on the dedicated bug-desk branch. Nothing in this change is a deployment receipt.
+No remote D1/R2 operation, secret access, GitHub resource creation, public posting, device access, or
+installation is part of this work. The existing provider configuration is preserved.
 
-Root reports deployed version `98254135-5370-4668-b5fe-ee87e09fc787`. This is provider handoff evidence, not an independently verified deployment receipt. `.wrangler/tmp` contains no retained bundle to compare with that version. Retrieving deployed bytes would require provider access excluded from this task, so deployed-byte equality is **unverified**. The source paging change described below has not been deployed.
+## Contracts and taxonomy
 
-## Concrete fix
+`spec/support-contract.json` is authoritative. `tools/generate_support_contract.py --check` checks generated
+Worker, Python, Rust, JS, and offline binding types. The existing Rust v1 byte cap is checked too.
+Rust and JS v2 consumers are generated under `spec/generated`; phase 3 must import them. Existing UI and
+native transport remain v1. They have not been silently switched to a schema they cannot submit.
 
-The inspected owner GET returned the entire parsed report, exceeding the 64 KiB response cap for otherwise valid large uploads. The approved fix returns authenticated byte pages. [OWNER-PAGING.md](OWNER-PAGING.md) gives the exact JSON shape and Loader acceptance rules. Every page carries report ID, immutable whole-report SHA256, total bytes, current offset, base64 encoding, up to 24576 exact bytes, next offset or null, and the unchanged receipt. Integer offsets are validated; expiry/deletion is rechecked after R2 reads. Public receipts and redirects are unchanged.
+Kinds are REGRESSION, DEGRADATION, BUG, EXPECTATION, FEATURE, NOT_A_BUG, QUESTION. Kind hints and wizard
+topic/problem/baseline/idea/timing hints are optional. They never classify a report. Outcomes remain
+NEEDS_INFO, CANNOT_REPRODUCE, DUPLICATE, CLASSIFIED, separate from lifecycle.
 
-Root owns `src-tauri/src/support.rs`. Its consumer must concatenate bytes, enforce contiguous offsets and immutable metadata, bound requests/total size, and validate the complete SHA256 before parsing/display/export. Local service reassembly tests do not establish Rust consumer acceptance.
+Owner triage records expectation with a source citation, impact, affected features, in-use-since version,
+severity, and reach versions/interfaces/decks. Reporter counts come from private group membership.
+Taxonomy changes retain before/after values and a reason code. Private citation/prose evidence expires
+after 14 days; safe taxonomy history follows tracking retention. Dismissals and moves out of problem kinds
+require an explicit reviewed decision with the same source commit. Citations are owner assertions here;
+the future classifier/reviewer must check the actual cited product behavior.
 
-## Focused evidence
+`automaticFixEligible(kind, impact)` is generated and tested over every pair. Only BUG/REGRESSION/DEGRADATION
+with ADDITIVE or RESTORES_EXPECTED qualify. Eligibility is not execution authority. Both flags are false in
+config and absent values are off. No fixer, scheduler, broker, publisher, or GitHub v2 client exists.
+Fix/test-build/release statuses reject requests until their later evidence gates exist.
 
-`npm run typecheck` passed. Nine tests passed together in 12.46 seconds; the subsequently added exact-limit test passed separately in 1.91 seconds. All ten unique tests passed, covering:
+## Intake and tracking
 
-- HTTP privacy canaries, fixed GitHub URL, reporter/owner separation, exact stored bytes.
-- Large multibyte owner pages, per-page authorization, invalid offsets, expiry, exact reassembly/hash.
-- Concurrent identical uploads, immutable conflicts and receipt recovery; atomic racing IP/global quotas and 1 GiB reserved-ledger boundary.
-- R2 failure and D1 acceptance failure, truthful `outcome_unknown`, orphan cleanup and tombstones.
-- Strict schema/types/UTF-8/digest/framing/encoding limits, exact 512 KiB acceptance.
-- Owner deletion, expiry, late orphan writes, abandoned reservations and seven-day tombstone purge.
-- GitHub API unavailability, mismatched markers, verified markers and no verified-state downgrade.
+POST `/v2/reports` accepts exact UTF-8 bytes, maximum 524288. Headers: Content-Type application/json,
+Content-Length, Authorization Bearer RECEIPT_KEY, X-Report-ID, X-Report-SHA256, and
+X-Report-Consent `private-report/v2`. The description is the only required user input, at most 4096 UTF-8
+bytes. Required machine fields are generated by the collector. Unknown fields, source facts outside their
+allowlists, invalid bounds, and diagnostics on an idea are rejected. There is no v2 public projection.
 
-Tests use real local workerd, D1 and R2 through Miniflare. Only external GitHub responses and explicitly injected storage failures are substituted. A test-only wrapper injects false framing because undici can reject mismatched Content-Length before the Worker runs. No test endpoint is included by Wrangler. Current pinned Miniflare 5 uses its published V4-options converter; the older stable runtime could not run the requested compatibility date.
+R2 conditional writes and the existing quota reservations are retained. Acceptance and initial tracking
+commit in one D1 batch. The event trigger fires only when an optimistic update actually succeeds. Reusing
+a retained report ID after diagnostic deletion cannot allocate a replacement report or expose the old
+receipt. R2/D1 interruption still returns outcome_unknown, not invented acceptance.
 
-Rerun from this directory:
+GET `/v2/reports/{id}/receipt` and `/status` require the full receipt key. Receipts survive diagnostic expiry
+and indicate stored/gone separately. Safe status uses fixed text keys and optional fixed questions, with
+an ETag revision. It contains no prose, contact, private notes, source facts, canonical-report IDs, votes,
+or issue/PR links. These links remain unavailable even when a private report matches another group.
 
-```powershell
+Read capability = SHA256(UTF8(`xz-support/read/v2\n` + receipt_key)). Reply has the distinct
+`xz-support/reply/v2\n` prefix. Store only hashes. Legacy hashes derive these lazily on a full-auth receipt
+request. POST `/v2/reports/{id}/capabilities` with `{"action":"revoke"}` revokes read/reply authority and
+sessions without re-enabling them on the next receipt read. Rotation and replies are later work.
+
+`/track#id=ID&read=CAPABILITY` is a static read-only shell. It clears the fragment before requesting data,
+exchanges the read capability at POST `/v2/tracking/session` with `{"report_id":"ID"}`, and keeps the
+15-minute bearer only in memory. GET `/v2/tracking/{id}` accepts read authority or that scoped session.
+It cannot authorize uploads, owner operations, publication, or replies. Revocation invalidates sessions.
+No cookies, analytics, third-party resources, localStorage, referrers, or report-specific HTML are used.
+The unavailable state has a short saved-link connection flow. Browser replies are intentionally absent
+from this phase's read-only page.
+
+Diagnostics, notes, and private triage evidence expire after 14 days. Tracking has no cascading FK to
+reports, persists up to one year without activity while open, and 180 days after closure. Expiry checks
+apply on reads even before cleanup. Cleanup removes sessions and inbox snapshots too.
+
+## Owner API
+
+Owner bearer authorization is separate on every request. POST `/v2/admin/reports/{id}/triage`, `/notes`,
+or `/status` requires expected_revision and a random 32-hex operation_id. An exact retry is idempotent;
+changing its bytes conflicts. Notes allow 4096 UTF-8 bytes and at most 12 retained notes per report.
+GET on those routes returns current private triage, retained notes, or safe recent status events.
+GET `/history` returns recent safe taxonomy changes. Full historical rows remain in D1 until tracking expiry.
+
+GET `/v2/admin/reports?limit=50` sorts live-set-stopping regressions/degradations first, then restored stock
+XZ behavior, XZ consistency, DJ convention, other problems by severity/reach, and additive ideas by votes.
+The cursor stores an opaque 15-minute ordering snapshot and a keyset ordinal. It excludes later inserts
+and remains stable through changes of priority and deletion. Pages may contain fewer than the requested
+rows to stay below 64 KiB. Up to 100 are requested. At most 32 live snapshots are retained.
+`events_after=SEQUENCE` supplies changed-report revisions, including updates to old reports.
+
+Private exact/family signatures use selected allowlisted facts only, with classification namespace.
+Unknown/weak signatures do not merge. Non-problem proposals are not grouped through bug signatures.
+Group IDs and hashes never appear in reporter projections. Reviewed taxonomy-based feature dedupe,
+group merge/split, KB attachments, and canonical fix-status fanout belong to later phases.
+
+## Migration and compatibility
+
+Apply `0002_bugdesk_tracking.sql` after 0001 only at the owner deployment gate. It backfills accepted v1
+receipts without reading payloads, inferring classification, or inferring publication consent from public_json.
+Backfilled legacy redirects are disabled. New v1 requests retain their explicit legacy public-summary
+consent and existing manual draft/link workflow; none auto-post. All existing tests remain green.
+V2 cannot enter legacy GitHub draft/link routes. Private v2 tests configure a synthetic bot token and
+verify zero outbound calls. Read [OWNER-PAGING.md](OWNER-PAGING.md) before updating the native consumer.
+
+## Local verification
+
+Set TEMP, TMP, and XZ_SUPPORT_TEST_OUTPUT to an isolated scratch directory. Then run:
+
+```
 npm ci --no-audit --no-fund
 npm run typecheck
 npm test
-python tools/byte_patch.py check baseline/index.ts paging.byte-patch.json
 ```
 
-## Integration and remaining gaps
+23 Worker tests pass using real local Miniflare/workerd D1/R2. Existing 10 tests are retained. New tests
+cover migration, one-box intake, typed canaries, expiry, capabilities, concurrent updates, kind/impact
+eligibility, priority sorting, >100 pagination, and Python-produced bytes. With XZ_SUPPORT_NATIVE_HELPER
+set to a test-only helper, the roundtrip uses its real prepare/export bytes. That path passed with the
+unchanged native C helper compiled for Windows against the build script's hash-pinned Mbed TLS 3.6.7.
+This is host protocol evidence, not ARM, installed UI, USB, or hardware qualification.
 
-`baseline/index.ts` is the exact intervening source snapshot, SHA256 `d3e12a8530c12631d348fa1186d7a8a4097dd81ad6bf05ff88241a53033924f2`. Candidate `src/index.ts` is `0552f07b4764772bcc1ead944af9d295edb2be0e6f8dfcfa79f6d4907fc8bd02`. `paging.byte-patch.json` contains three byte-preserving edits. The patch tool refuses any different baseline. It does not use Git or normalize line endings. Root can check/apply it to a matching integration file; do not apply it blindly to independently changed source.
+Source references used: [D1 batch API](https://developers.cloudflare.com/d1/worker-api/d1-database/),
+[Workers best practices](https://developers.cloudflare.com/workers/best-practices/workers-best-practices/).
+Config types are generated offline, without invoking credential discovery.
 
-`wrangler.jsonc` remains enabled with the existing database ID, bucket, account, origin and cron. The migration is unchanged. For root placement in `apps/xz-support-worker`, use source/config/migration/package lock/generated types/tests and these handoff documents. Exclude `node_modules`, caches, `.test`, `.wrangler` and `.local-config`. No broad artifact seal is needed.
+## Owner gates
 
-Root should preserve existing resources/secrets and verify the private bucket has public access disabled plus a 14-day object lifecycle backstop. Cron reaps expired/15-minute abandoned reservations in batches and keeps seven-day tombstones, but local tests cannot prove hosted lifecycle, cron delivery, physical deletion timing or billing. The 1 GiB test proves the D1 reservation ledger; late-object bounds additionally depend on cleanup/lifecycle. Invalid attempted uploads consume daily quota conservatively. The owner list is bounded to 100 records without a cursor; older IDs remain individually addressable. No claim of universal inbox pagination is made.
-
-Primary references checked: [Workers best practices](https://developers.cloudflare.com/workers/best-practices/workers-best-practices/), [D1 binding API](https://developers.cloudflare.com/d1/worker-api/d1-database/), [R2 range/conditional API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/), [R2 lifecycles](https://developers.cloudflare.com/r2/buckets/object-lifecycles/), [GitHub issues API](https://docs.github.com/en/rest/issues/issues#get-an-issue). Current installed Wrangler schema and Workers types were used; generated binding declarations are retained.
+Review migration/privacy/retention, confirm private bucket lifecycle, and approve deployment with both
+flags off. Complete phase 3 and installed-app acceptance before shipping the new form. No public posting,
+autonomous coding, build/install broker, GitHub identities, or diary firmware writer is enabled by this
+change. Those each retain the design's separate owner approval and acceptance requirements.

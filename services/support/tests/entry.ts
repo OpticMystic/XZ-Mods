@@ -28,6 +28,7 @@ export default {
             const session=target.withSession(...args);
             return new Proxy(session,{
               get(db,key) {
+                if(key==='batch') return async () => { throw new Error('injected acceptance failure'); };
                 if(key==='prepare') return (sql: string) => {
                   const statement=db.prepare(sql);
                   if(!sql.includes("SET state='accepted'")) return statement;
