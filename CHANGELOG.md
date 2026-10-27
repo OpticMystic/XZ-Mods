@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0-preview.22.4 - 2026-10-26
+
+- In MODERN, a deck error (E-7206, E-8302, E-8304, E-8305, E-8306) stays visible while MODS is open: a red line at the bottom of MODS names the deck and the code; tapping it returns to the play screen.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.3 - 2026-10-26
 
 - One MODS menu for both screens: the Classic layout, with Modern’s picture choices, UTILITY on the rail and a new LAMPS AND TITLES page.

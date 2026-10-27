@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "0.5.0-preview.22.4",
+      "date": "2026-10-26",
+      "title": "Deck errors stay visible in MODS local test build",
+      "features": [],
+      "fixes": [
+        "In MODERN, a deck error (E-7206, E-8302, E-8304, E-8305, E-8306) stays visible while MODS is open: a red line at the bottom of MODS names the deck and the code; tapping it returns to the play screen."
+      ],
+      "requirements": [
+        "Experimental XDJ-XZ 1.26 only.",
+        "Loopback cable in USB 1, music in USB 2.",
+        "Hardware acceptance of this build is pending.",
+        "Local test build; not published."
+      ]
+    },
+    {
       "version": "0.5.0-preview.22.3",
       "date": "2026-10-26",
       "title": "One MODS menu, jog-style deck badges and visible stock warnings local test build",
