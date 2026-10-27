@@ -25,7 +25,7 @@
 #ifndef XZ_DIARY_VERSION
 #define XZ_DIARY_VERSION "unknown"
 #endif
-#define MOUNTS 16
+#define MOUNTS 2
 static pthread_t thread;
 static unsigned running,created,busy[2],audio_frames[4],audio_key[4],audio_valid[4],notices[XZ_DIARY_COMPONENTS];
 struct mount {
@@ -73,33 +73,54 @@ static void event(uint32_t now,unsigned component,unsigned state,unsigned reason
  char line[XZ_DIARY_LINE_BYTES];struct xz_diary_event e={component,state,reason,notice,deck,slot,value};
  enqueue(line,xz_diary_event_line(line,sizeof line,++sequence,now,&e));
 }
+struct root_choice {char existing[1024],fallback[1024];dev_t device;ino_t inode;int ambiguous;};
+static void root_candidate(struct root_choice *c,const char *path,int diary,dev_t device,ino_t inode){
+ if(!c->fallback[0])strcpy(c->fallback,path);
+ if(!diary)return;
+ if(c->existing[0]){if(c->device!=device||c->inode!=inode)c->ambiguous=1;return;}
+ strcpy(c->existing,path);c->device=device;c->inode=inode;
+}
+static int find_root(unsigned slot,char root[1024]){
+ /* Prefer the existing diary over later settings/loader markers. Ambiguous
+    pre-existing rings are left untouched rather than adding another ring. */
+ FILE *f=setmntent("/proc/mounts","r");if(!f)return -1;
+ struct mntent entry,*e;char buffer[4096];struct root_choice choice={0};
+ while((e=getmntent_r(f,&entry,buffer,sizeof buffer))){
+  if(slot_of(e->mnt_dir)!=(int)slot+1||strlen(e->mnt_dir)>=sizeof choice.existing)continue;
+  char path[1100];struct stat st={0};snprintf(path,sizeof path,"%s/VJ.Tools/XZ-Mods-diary",e->mnt_dir);
+  int diary=!lstat(path,&st)&&S_ISDIR(st.st_mode);
+  root_candidate(&choice,e->mnt_dir,diary,st.st_dev,st.st_ino);
+  if(choice.ambiguous)break;
+ }
+ endmntent(f);
+ if(choice.ambiguous)return -1;
+ if(choice.existing[0]){strcpy(root,choice.existing);return 0;}
+ if(!xz_settings_find_usb(slot,root))return 0;
+ if(choice.fallback[0]){strcpy(root,choice.fallback);return 0;}
+ return 1;
+}
 static void discover(uint32_t now){
- for(unsigned i=0;i<MOUNTS;i++)mounts[i].seen=0;
- FILE *f=setmntent("/proc/mounts","r");if(!f)return;
- struct stat root;int root_ok=!stat("/",&root);struct mntent entry,*e;char buf[4096];
- while((e=getmntent_r(f,&entry,buf,sizeof buf))){
-  unsigned slot=(unsigned)slot_of(e->mnt_dir);struct stat st;
-  if(!slot||strlen(e->mnt_dir)>=1024||!root_ok||lstat(e->mnt_dir,&st)||!S_ISDIR(st.st_mode)||st.st_dev==root.st_dev)continue;
-  unsigned long id=xz_settings_mount_id(e->mnt_dir);if(!id)continue;
-  int found=-1,empty=-1;
-  for(unsigned i=0;i<MOUNTS;i++){
-   struct mount *m=&mounts[i];if(!m->slot){if(empty<0)empty=(int)i;continue;}
-   if(m->seen&&m->store.device==st.st_dev&&m->store.inode==st.st_ino){found=(int)i;break;}
-   if(!strcmp(m->store.root,e->mnt_dir)&&m->store.mount_id==id&&m->store.device==st.st_dev&&m->store.inode==st.st_ino){found=(int)i;break;}
-  }
-  if(found<0){
-   if(empty<0){xz_mods_diary_proof_v1.mount_overflow++;continue;}
-   found=empty;struct mount *m=&mounts[found];memset(m,0,sizeof *m);
-   if(xz_diary_store_init(&m->store,e->mnt_dir,id))continue;
-   m->slot=slot;m->new_mount=1;m->quiet_at=now;m->latency=-1;m->store.context=m;m->store.guard=safe;
-  }
-  mounts[found].seen=1;
- }
- endmntent(f);session.slots=0;
+ struct stat internal;int root_ok=!stat("/",&internal);
  for(unsigned i=0;i<MOUNTS;i++){
-  struct mount *m=&mounts[i];if(m->seen){session.slots|=1u<<(m->slot-1);continue;}
-  if(m->slot){unsigned slot=m->slot;memset(m,0,sizeof *m);event(now,XZ_DIARY_USB,XZ_DIARY_REMOVED,XZ_DIARY_SOURCE_CHANGED,0,0,slot,0);}
+  struct mount *m=&mounts[i];char root[1024]={0};struct stat st;unsigned long id=0;
+  /* One ring per physical slot. Keep its partition while mounted, even if the
+     settings preference or a loader marker appears on another partition. */
+  if(m->slot&&root_ok&&!lstat(m->store.root,&st)&&S_ISDIR(st.st_mode)&&st.st_dev!=internal.st_dev&&
+     (id=xz_settings_mount_id(m->store.root))==m->store.mount_id&&st.st_dev==m->store.device&&st.st_ino==m->store.inode)
+   strcpy(root,m->store.root);
+  else {
+   if(m->slot){unsigned slot=m->slot;memset(m,0,sizeof *m);event(now,XZ_DIARY_USB,XZ_DIARY_REMOVED,XZ_DIARY_SOURCE_CHANGED,0,0,slot,0);}
+   if(!root_ok||find_root(i,root)||slot_of(root)!=(int)i+1||lstat(root,&st)||
+      !S_ISDIR(st.st_mode)||st.st_dev==internal.st_dev||!(id=xz_settings_mount_id(root))){root[0]=0;}
+  }
+  if(!root[0]){m->seen=0;continue;}
+  if(!m->slot){
+   if(xz_diary_store_init(&m->store,root,id))continue;
+   m->slot=i+1;m->new_mount=1;m->quiet_at=now;m->latency=-1;m->store.context=m;m->store.guard=safe;
+  }
+  m->seen=1;
  }
+ session.slots=0;for(unsigned i=0;i<MOUNTS;i++)if(mounts[i].seen)session.slots|=1u<<(mounts[i].slot-1);
  for(unsigned i=0;i<MOUNTS;i++)if(mounts[i].new_mount){
   mounts[i].new_mount=0;event(now,XZ_DIARY_USB,XZ_DIARY_PRESENT,XZ_DIARY_OBSERVED,0,0,mounts[i].slot,0);
  }

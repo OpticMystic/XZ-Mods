@@ -4,10 +4,17 @@
 
 /* No mount discovery or runtime thread is run by this fixture. */
 unsigned long xz_settings_mount_id(const char *path){(void)path;return 7;}
+int xz_settings_find_usb(unsigned slot,char out[1024]){(void)slot;out[0]=0;return 1;}
 int xz_settings_format(const struct xz_settings *s,char *out,size_t n){(void)s;return snprintf(out,n,"XZ_MODS_SETTINGS 1\ninterface=1\n");}
 int main(void){
  assert(!setenv("XZ_MODS_SETTINGS_READONLY","1",1));assert(!xz_diary_start());
  assert(!created&&!running&&!xz_mods_diary_proof_v1.polls);
+ assert(MOUNTS==2&&slot_of("/media/usb1")==1&&slot_of("/media/usb2/p1")==2&&!slot_of("/media/usb12/p1"));
+ struct root_choice choice={0};root_candidate(&choice,"/media/usb1/loader",0,0,0);
+ root_candidate(&choice,"/media/usb1/music",1,42,7);
+ root_candidate(&choice,"/media/usb1/music-alias",1,42,7);
+ assert(!choice.ambiguous&&!strcmp(choice.existing,"/media/usb1/music"));
+ root_candidate(&choice,"/media/usb1/another-ring",1,43,8);assert(choice.ambiguous);
  xz_diary_busy_begin(3);xz_diary_busy_begin(1);assert(busy[0]==2&&busy[1]==1);
  struct mount m={.slot=1,.disk_safe=1};m.store.mount_id=7;running=1;
  assert(!safe(&m,&m.store));xz_diary_busy_end(1);assert(!safe(&m,&m.store));xz_diary_busy_end(3);assert(safe(&m,&m.store)==1);

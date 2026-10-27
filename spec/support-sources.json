@@ -503,7 +503,8 @@
       "keep_previous_session_tail": true,
       "batch_max_bytes": 8192,
       "metrics_interval_seconds": 10,
-      "mount_limit": 16,
+      "mount_limit": 2,
+      "one_journal_per_usb_slot": true,
       "inflight_io": "One admitted syscall cannot be cancelled; no retries after a failure."
     },
     "session_header": {
