@@ -21,7 +21,10 @@
         "state",
         "attempt",
         "retryable",
-        "route_ready"
+        "route_ready",
+        "result",
+        "slot",
+        "elapsed_ms"
       ]
     },
     {
@@ -44,7 +47,10 @@
         "state",
         "attempt",
         "retryable",
-        "route_ready"
+        "route_ready",
+        "result",
+        "slot",
+        "elapsed_ms"
       ],
       "max_entries": 64,
       "max_candidates": 3,
@@ -110,7 +116,10 @@
         "state",
         "attempt",
         "retryable",
-        "route_ready"
+        "route_ready",
+        "result",
+        "slot",
+        "elapsed_ms"
       ],
       "fallback_for": "bridge_status"
     },
@@ -131,7 +140,10 @@
         "state",
         "attempt",
         "retryable",
-        "route_ready"
+        "route_ready",
+        "result",
+        "slot",
+        "elapsed_ms"
       ]
     },
     {
@@ -147,9 +159,13 @@
       "max_read_bytes": 131072,
       "time_basis": "unknown",
       "safe_fields": [
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready",
         "result",
         "slot",
-        "attempt",
         "elapsed_ms"
       ]
     },
@@ -171,7 +187,10 @@
         "state",
         "attempt",
         "retryable",
-        "route_ready"
+        "route_ready",
+        "result",
+        "slot",
+        "elapsed_ms"
       ]
     },
     {
@@ -191,7 +210,10 @@
         "state",
         "attempt",
         "retryable",
-        "route_ready"
+        "route_ready",
+        "result",
+        "slot",
+        "elapsed_ms"
       ]
     },
     {
@@ -227,7 +249,10 @@
         "state",
         "attempt",
         "retryable",
-        "route_ready"
+        "route_ready",
+        "result",
+        "slot",
+        "elapsed_ms"
       ]
     },
     {
@@ -246,7 +271,14 @@
         "component",
         "result",
         "error_namespace",
-        "error_code"
+        "error_code",
+        "code",
+        "state",
+        "attempt",
+        "retryable",
+        "route_ready",
+        "slot",
+        "elapsed_ms"
       ]
     },
     {
@@ -308,10 +340,43 @@
       "time_basis": "current",
       "safe_fields": [
         "component",
-        "sha256",
-        "provenance"
+        "version",
+        "provenance",
+        "sha256"
       ],
       "requires_digest": "quad_package_sha256"
+    },
+    {
+      "source_id": "usb_diary",
+      "location": "usb",
+      "path": "VJ.Tools/XZ-Mods-diary/segment-<00..07>.jsonl",
+      "parser": "diary",
+      "parser_version": 1,
+      "categories": [
+        "bridge",
+        "audio",
+        "display",
+        "app_usb",
+        "other"
+      ],
+      "max_read_bytes": 49152,
+      "max_segments": 8,
+      "time_basis": "session_epoch_monotonic",
+      "missing_is_absent": true,
+      "safe_fields": [
+        "code",
+        "cpu_percent",
+        "free_ram_kib",
+        "audio_underruns",
+        "sync_phase_error_ms",
+        "usb_read_latency_us",
+        "version",
+        "component",
+        "provenance",
+        "firmware",
+        "interface",
+        "deck_view"
+      ]
     }
   ],
   "setting_bounds": {
@@ -393,5 +458,300 @@
       "path": "crash files or core dumps",
       "reason": "no_production_source"
     }
-  ]
+  ],
+  "diary": {
+    "schema": "xz-mods-diary/1",
+    "directory": "VJ.Tools/XZ-Mods-diary/",
+    "segments": [
+      "segment-00.jsonl",
+      "segment-01.jsonl",
+      "segment-02.jsonl",
+      "segment-03.jsonl",
+      "segment-04.jsonl",
+      "segment-05.jsonl",
+      "segment-06.jsonl",
+      "segment-07.jsonl"
+    ],
+    "segment_max_bytes": 524288,
+    "ring_max_bytes": 4194304,
+    "line_max_bytes": 4096,
+    "header_max_bytes": 2048,
+    "collector_segment_tail_bytes": 49152,
+    "writer_policy": {
+      "implemented": false,
+      "all_mounted_usb_slots": true,
+      "no_internal_storage": true,
+      "worker_priority": "low",
+      "batch_append": true,
+      "fsync_interval_seconds": 30,
+      "minimum_free_bytes": 67108864,
+      "pause_during": [
+        "track_load",
+        "ram_copy"
+      ],
+      "on_removed_or_read_only": "skip_without_retry",
+      "keep_previous_session_tail": true
+    },
+    "session_header": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "session"
+        },
+        "schema": {
+          "const": "xz-mods-diary/1"
+        },
+        "session_id": {
+          "type": "string",
+          "maxLength": 32,
+          "x-maxUtf8": 32,
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "epoch": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4102444800
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "monotonic_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800000
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 64,
+          "x-maxUtf8": 64,
+          "pattern": "^(?:unknown|[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-z0-9.]+)?(?:\\+[a-z0-9.]+)?)$"
+        },
+        "firmware": {
+          "type": "string",
+          "enum": [
+            "1.26",
+            "unknown"
+          ]
+        },
+        "settings_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 64,
+              "x-maxUtf8": 64,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "slots": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2
+          },
+          "maxItems": 2
+        },
+        "interface": {
+          "type": "string",
+          "enum": [
+            "MODERN",
+            "CLASSIC"
+          ]
+        },
+        "deck_view": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 4
+        }
+      },
+      "required": [
+        "type",
+        "schema",
+        "session_id",
+        "epoch",
+        "monotonic_ms",
+        "version",
+        "firmware",
+        "settings_sha256",
+        "slots",
+        "interface",
+        "deck_view"
+      ],
+      "additionalProperties": false
+    },
+    "event_line": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "event"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "monotonic_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800000
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "ACTIVE_MISMATCH",
+            "CANCELLED",
+            "CLEANUP_MODULE_UNLOAD_FAILURE",
+            "CLEANUP_NODE_REMOVE_FAILURE",
+            "FAILED",
+            "FATAL_BINDING_NOT_NEW",
+            "FATAL_PROCESS_SET_CHANGE",
+            "MOUNT_AMBIGUOUS",
+            "MUSIC_READY",
+            "NONE",
+            "NOT_READY",
+            "OTA_ACCEPTED",
+            "OTA_BASE_OR_RECOVERY",
+            "OTA_ROLLBACK",
+            "OTA_TRIAL_READY",
+            "OWNER_MISMATCH",
+            "RACE_MUSIC_CAPTURE",
+            "RACE_MUSIC_DESCRIPTORS",
+            "READY",
+            "READY_CH3_CH4",
+            "STOPPED_WITH_ERROR",
+            "STOP_PENDING",
+            "TERMINATED_ADMISSION_DEBOUNCE_FAILURE",
+            "TERMINATED_APPLY_LOAD_FAILURE",
+            "TERMINATED_BIND_DEBOUNCE_FAILURE",
+            "TERMINATED_EVENT_SOCKET_FAILURE",
+            "TERMINATED_FOREIGN_MODULE",
+            "TERMINATED_FOREIGN_MODULE_OR_NODE",
+            "TERMINATED_FOREIGN_NODE",
+            "TERMINATED_MODULE_ADMISSION_FAILURE",
+            "TERMINATED_MUSIC_IDENTITY",
+            "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE",
+            "TERMINATED_NODE_REMOVE_FAILURE",
+            "TERMINATED_NODE_WRITE_FAILURE",
+            "TERMINATED_PID_WRITE_FAILURE",
+            "TERMINATED_PROBE_LOAD_FAILURE",
+            "TERMINATED_PROBE_UNLOAD_FAILURE",
+            "TERMINATED_PROCESS_SET_CHANGE",
+            "TERMINATED_SCAN_FAILURE",
+            "TERMINATED_SIGNAL",
+            "TERMINATED_STOPPED_MEDIA_ADMISSION",
+            "TERMINATED_STOP_MARKER",
+            "TERMINATED_UNSPECIFIED",
+            "UNSUPPORTED_KERNEL",
+            "UNSUPPORTED_MODEL",
+            "UNSUPPORTED_MUSIC_FILESYSTEM",
+            "UNSUPPORTED_MUSIC_MOUNT",
+            "UNSUPPORTED_MUSIC_SERIAL_LENGTH",
+            "UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY",
+            "UNSUPPORTED_USB2_BLOCK_ANCESTRY",
+            "USB_GADGET_PROBE_COMPLETE",
+            "VJ_NETWORK_READY",
+            "WAIT_AUDIO_DEVICE",
+            "WAIT_LOOPBACK",
+            "WAIT_MEDIA",
+            "WAIT_MOUNT",
+            "WAIT_MUSIC_DESCRIPTORS",
+            "WAIT_MUSIC_MOUNT",
+            "WAIT_MUSIC_SERIAL_READ",
+            "WAIT_NATIVE_PAUSED",
+            "WAIT_SAFE_LOOPBACK_DISCONNECT"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "sequence",
+        "monotonic_ms",
+        "code"
+      ],
+      "additionalProperties": false
+    },
+    "metrics_line": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "metrics"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "monotonic_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800000
+        },
+        "cpu_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "free_ram_kib": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1048576
+        },
+        "audio_underruns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "sync_phase_error_ms": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -10000,
+                "maximum": 10000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxItems": 4
+        },
+        "usb_read_latency_us": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      },
+      "required": [
+        "type",
+        "sequence",
+        "monotonic_ms",
+        "cpu_percent",
+        "free_ram_kib",
+        "audio_underruns",
+        "sync_phase_error_ms",
+        "usb_read_latency_us"
+      ],
+      "additionalProperties": false
+    },
+    "rules": [
+      "Every segment starts with a complete session header, including after rotation.",
+      "Subsequent lines are one complete event or metrics object per LF-terminated line.",
+      "A partial final line is ignored and counted, never repaired.",
+      "Session IDs, settings hashes, absolute epochs and local USB identities never enter public tracking.",
+      "Monotonic sequence is unique within a session; repeated ring copies are deduplicated locally.",
+      "Unknown or implausible clock uses bounded context and monotonic coverage duration, never invented wall time.",
+      "The collector reports local wall-clock coverage and uploads only relative coverage bounds or an unknown clock.",
+      "Writer FAT safety and hardware qualification remain separate owner gates."
+    ]
+  }
 }
