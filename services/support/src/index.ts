@@ -1,3 +1,4 @@
+import { acceptWithReference, ownerLookup } from './identifiers';
 import { parseReportV2 } from './schema-v2';
 import { fingerprint } from './classification';
 import { initialTracking, trackingRow, ownerHistory, receiptV2, readTracking, ownerInbox, ownerMutation, cleanupTracking, revokeCapabilities, trackingSession } from './tracking';
@@ -24,7 +25,7 @@ function receipt(r: Row, env: Env) {
     accepted_at:new Date(r.accepted_at).toISOString(),expires_at:new Date(r.expires_at).toISOString(),
     private_logs:'stored',public_issue:r.issue_state,github_draft_url:`${env.PUBLIC_ORIGIN}/r/${r.id}/github`,issue_url:r.issue_url};
 }
-async function submit(req: Request, env: Env, db: DB, now: number, v2 = false): Promise<Response> {
+export async function submit(req: Request, env: Env, db: DB, now: number, v2 = false, referenceGenerator?: () => string): Promise<Response> {
   const length = bodyLength(req,MAX);
   const id = req.headers.get('X-Report-ID') ?? '';
   const digest = req.headers.get('X-Report-SHA256') ?? '';
@@ -32,7 +33,7 @@ async function submit(req: Request, env: Env, db: DB, now: number, v2 = false): 
       req.headers.get('X-Report-Consent') !== (v2 ? 'private-report/v2' : 'public-summary-private-logs/v1')) fail(400,'invalid_headers');
   const keyHash = await sha(bearer(req));
   let previous = await row(db,id);
-  if(!previous && await trackingRow(db,id)) fail(409,'retained_report_id');
+  if(!previous && await db.prepare('SELECT report_id FROM report_references WHERE report_id=?').bind(id).first()) fail(409,'retained_report_id');
   if (previous && (!equal(previous.key_hash,keyHash) || previous.digest !== digest || previous.bytes !== length)) fail(409,'conflict');
   if (previous && previous.state !== 'accepted') active(previous,now);
   if (!previous) {
@@ -69,14 +70,16 @@ async function submit(req: Request, env: Env, db: DB, now: number, v2 = false): 
   const accepted = Date.now();
   // Acceptance and initial tracking commit together. A failed batch never
   // advertises an accepted receipt. R2 orphans retain the existing cleanup path.
+  const signature = v2Report ? await fingerprint(v2Report) : null;
+  const result = await acceptWithReference(db, reference => {
   const statements = [db.prepare(`UPDATE reports SET state='accepted',accepted_at=?,expires_at=?,public_json=?,protocol_version=?,legacy_public_consent=?
     WHERE id=? AND state='reserved' AND reserved_at>?`).bind(accepted,accepted+14*DAY,publicFields ? JSON.stringify(publicFields) : null,v2?2:1,v2?0:1,id,accepted-900000),
-    initialTracking(db,id,keyHash,digest,accepted,v2Report?.kind_hint)];
-  const signature = v2Report ? await fingerprint(v2Report) : null;
+    initialTracking(db,id,keyHash,digest,accepted,reference,v2Report?.kind_hint)];
   if (signature) statements.push(db.prepare(`INSERT INTO report_signatures(report_id,exact_hash,family_hash,component)
     SELECT report_id,?,?,? FROM report_tracking WHERE report_id=? AND payload_sha256=? ON CONFLICT DO NOTHING`)
     .bind(signature.exact,signature.family,signature.component,id,digest));
-  const result = await db.batch(statements);
+  return statements;
+  }, referenceGenerator);
   if (result[0].meta.changes !== 1) fail(503,'outcome_unknown');
   const done = await row(db,id);
   if (!done) fail(503,'outcome_unknown');
@@ -196,10 +199,11 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
   if(headerSize>8192 || url.href.length>1024) fail(431,'headers_too_large');
   const db=env.DB.withSession('first-primary'); const now=Date.now(); const path=url.pathname;
   if(req.method==='GET' && (path==='/track' || path==='/track.js') && !url.search) return trackingPage(path);
+  if(path==='/v2/admin/lookup' && req.method==='GET') return ownerLookup(req,env,db,url);
   if(path==='/v2/admin/reports' && req.method==='GET') return ownerInbox(req,env,db,url);
   const v2Page=new RegExp(`^/v2/admin/reports/(${ID})$`).exec(path);
   if(v2Page && req.method==='GET') return ownerPage(req,env,db,v2Page[1],url.search);
-  const ownerRead=new RegExp(`^/v2/admin/reports/(${ID})/(triage|notes|status|history)$`).exec(path);
+  const ownerRead=new RegExp(`^/v2/admin/reports/(${ID})/(triage|notes|status|history|items)$`).exec(path);
   if(ownerRead && req.method==='GET') return ownerHistory(req,env,db,ownerRead[1],ownerRead[2]);
   if(!url.search) {
     if(path==='/v2/reports' && req.method==='POST') return submit(req,env,db,now,true);
@@ -210,7 +214,7 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
     if(read && req.method==='GET') return readTracking(req,db,read[1],'read');
     const caps=new RegExp(`^/v2/reports/(${ID})/capabilities$`).exec(path);
     if(caps && req.method==='POST') return revokeCapabilities(req,db,caps[1]);
-    const mutation=new RegExp(`^/v2/admin/reports/(${ID})/(triage|notes|status|history)$`).exec(path);
+    const mutation=new RegExp(`^/v2/admin/reports/(${ID})/(triage|notes|status|history|items)$`).exec(path);
     if(mutation && req.method==='GET') return ownerHistory(req,env,db,mutation[1],mutation[2]);
     if(mutation && req.method==='POST') return ownerMutation(req,env,db,mutation[1],mutation[2]);
   }

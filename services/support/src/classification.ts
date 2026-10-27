@@ -11,6 +11,7 @@ export const triageSchema = z.strictObject({
   reason: z.enum(CONTRACT.desk_history.reason_codes),
   expected: privateText, actual: privateText,
   desk: deskSchema,
+  item_number: z.string().max(64).optional(),
   expectation_citation: z.strictObject({path:z.string().regex(/^(?:manual\/chapters\/|docs\/)[a-zA-Z0-9_./-]{1,180}$/).refine(p=>!p.includes('..')),heading:privateText,commit:z.string().regex(/^[a-f0-9]{40}$/)}).nullable(),
   citations: z.array(z.strictObject({
     path: z.string().regex(/^(?:manual\/chapters\/|docs\/|source\/xdj-xz-toolkit\/mods\/)[a-zA-Z0-9_./-]{1,180}$/).refine(p => !p.includes('..')),

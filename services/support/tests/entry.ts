@@ -1,10 +1,30 @@
-import worker, { cleanup } from '../src/index';
+import { randomReportReference, publicationItem } from '../src/identifiers';
+import { HttpError, json } from '../src/http';
+import * as identifiers from '../src/contract.generated';
+import worker, { cleanup, submit } from '../src/index';
 export default {
   async fetch(req: Request, env: Parameters<typeof worker.fetch>[1], ctx: ExecutionContext) {
     // This wrapper is bundled only by local tests, never by wrangler.jsonc.
     if (new URL(req.url).pathname === '/__test/cleanup') {
       await cleanup(env,Number(req.headers.get('test-now')));
       return new Response('ok');
+    }
+    if(new URL(req.url).pathname === '/__test/identifiers') {
+      return json(Object.fromEntries(['report_reference','item_number'].map(name => {
+        const report=name==='report_reference';
+        const vectors=report ? identifiers.CONTRACT.identifiers.report_reference.vectors : identifiers.CONTRACT.identifiers.item_number.vectors;
+        return [name,vectors.map(v=>{const value=report ? identifiers.parseReportReference(v.input) : identifiers.parseItemNumber(v.input);return {value,canonical:value===null ? null : report ? identifiers.formatReportReference(value) : identifiers.formatItemNumber(value)};})];
+      })));
+    }
+    if(new URL(req.url).pathname === '/__test/publication-item') return json(await publicationItem(env.DB.withSession('first-primary'),req.headers.get('test-report-id') ?? ''));
+    if(req.headers.has('test-reference-first')) {
+      let attempts=0;
+      try {
+        return await submit(req,env,env.DB.withSession('first-primary'),Date.now(),true,()=> attempts++===0 || req.headers.has('test-reference-always') ? req.headers.get('test-reference-first')! : randomReportReference());
+      } catch(error) {
+        if(error instanceof HttpError) return json({error:error.code},error.status);
+        throw error;
+      }
     }
     // Exercise Worker-side framing separately from undici's transport-level rejection.
     if (req.headers.has('test-declared-length')) {
