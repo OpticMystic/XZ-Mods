@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0-preview.22.3 - 2026-10-26
+
+- One MODS menu for both screens: the Classic layout, with Modern’s picture choices, UTILITY on the rail and a new LAMPS AND TITLES page.
+- Deck numbers use the jog display style: decks 1 and 2 white on grey, decks 3 and 4 black on white.
+- A short MENU press opens MODS on screens where MENU has no other job; holding MENU still opens the player’s own settings.
+- The MODERN browse screen starts with the preview waveform hidden; PREVIEW shows it and the choice is remembered.
+- The DECKS button is always on the play screen; a saved hide no longer removes it.
+- Stock warnings such as E-8307 UNSUPPORTED DEVICE are never covered: live warning windows take the screen, and per-deck errors show their code on the MODERN play screen.
+- The desktop setup text says how MODS opens and what the button next to LINK does.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.2 - 2026-10-26
 
 - Each deck has its own colour on the four-deck screens (1 yellow, 2 aqua, 3 rose, 4 violet), on the waveform tags, the bottom channels, the side tags and the DECKS button, so the reordered top and the mixer-order bottom match at a glance.
