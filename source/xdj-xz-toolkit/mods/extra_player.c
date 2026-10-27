@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64
+#include "diary/diary.h"
+#pragma weak xz_diary_busy_begin
+#pragma weak xz_diary_busy_end
+#pragma weak xz_diary_audio
+#pragma weak xz_diary_notice
+#pragma weak xz_diary_notice_code
 #include "extra_player.h"
 #include "anlz_extra.h"
 #include "shell_analysis.h"
@@ -601,6 +607,7 @@ static uint64_t loop_frame(const struct deck *d, uint64_t frame) {
 
 void xz_xp_notice(struct xz_xp_players *p, const char *text) {
  if (!p || !text) return;
+ if(xz_diary_notice&&xz_diary_notice_code)xz_diary_notice(XZ_DIARY_DECK,xz_diary_notice_code(text));
  pthread_mutex_lock(&p->publish_lock);
  snprintf(p->notice, sizeof p->notice, "%s", text);
  p->notice_at = p->env.now_ms(); p->notice_seq++;
@@ -1160,6 +1167,7 @@ static void publish(struct xz_xp_players *p, struct deck *d, uint32_t now) {
  struct xz_extra_deck v;
  memset(&v, 0, sizeof v);
  v.worker_load=d->render_load.latest;
+ if(xz_diary_audio)xz_diary_audio((unsigned)d->index+2,d->underrun,v.worker_load.key_max_us,v.worker_load.samples!=0);
  v.worker_load.key_active=!!(atomic_load(&p->key_active)&(1u<<d->index));
  enum xz_xp_state s = d->state;
  /* Deck modes hold with or without a track, as the stock lamps show them. */
@@ -1332,7 +1340,7 @@ static struct analysis *load_analysis(const char *dir, struct xz_anlz_extra *ext
  return a;
 }
 
-static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, int next) {
+static int load_inner(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, int next) {
  if(p->ram.invalidate)p->ram.invalidate(p->ram.context,(unsigned)d->index);
  struct xz_extra_track t;
  if(e->load.route_epoch && e->load.route_epoch != p->env.sink.link(p->env.sink.ctx)) { xz_xp_notice(p,"ROUTE CHANGED / LOAD REFUSED"); return 0; }
@@ -1455,6 +1463,14 @@ static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_d
  xz_extra_order_retain(order);xz_extra_order_release(d->order);d->order=order;
  d->order_index=e->load.order_index;d->order_epoch=e->load.route_epoch;
  return 1;
+}
+
+static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, int next) {
+ unsigned mask=e->load.source==1?1u:e->load.source==2?2u:3u;
+ if(xz_diary_busy_begin)xz_diary_busy_begin(mask);
+ int result=load_inner(p,d,e,now,next);
+ if(xz_diary_busy_end)xz_diary_busy_end(mask);
+ return result;
 }
 
 /* QUANTIZE (manual, Quantize): with it on, cue, loop and hot cue points land on the nearest beat of the

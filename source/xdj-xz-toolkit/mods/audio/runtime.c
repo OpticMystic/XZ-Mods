@@ -2,6 +2,9 @@
 #define _FILE_OFFSET_BITS 64
 #define _POSIX_C_SOURCE 200809L
 #include "runtime.h"
+#include "../diary/diary.h"
+#pragma weak xz_diary_busy_begin
+#pragma weak xz_diary_busy_end
 #include "overcue.h"
 #include "native_reader.h"
 #include "trace.h"
@@ -231,7 +234,9 @@ static int load_hook(void *reader, const void *track)
             generation = cancel_deck(index, XZ_AUDIO_LOADING_TRACK);
         }
     }
+    if(xz_diary_busy_begin)xz_diary_busy_begin(3);
     result = original_load(reader, track);
+    if(xz_diary_busy_end)xz_diary_busy_end(3);
     if (index >= 0) {
         if (result) set_state(&decks[index], generation, XZ_AUDIO_WAITING_TRACK, 0);
         else if (!xz126_deck_source_read(read_worker, NULL, engine, (unsigned)index, &source) &&

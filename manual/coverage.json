@@ -321,6 +321,26 @@
    "path": "ui/usb-tree.js",
    "chapter": "desktop-app",
    "why": "the USB contents view"
+  },
+  {
+   "path": "source/xdj-xz-toolkit/mods/diary/diary.h",
+   "chapter": "troubleshooting",
+   "why": "USB diary contents, retention and write safety"
+  },
+  {
+   "path": "source/xdj-xz-toolkit/mods/diary/runtime.c",
+   "chapter": "troubleshooting",
+   "why": "USB diary contents, retention and write safety"
+  },
+  {
+   "path": "source/xdj-xz-toolkit/mods/diary/store.c",
+   "chapter": "troubleshooting",
+   "why": "USB diary contents, retention and write safety"
+  },
+  {
+   "path": "source/xdj-xz-toolkit/mods/diary/format.c",
+   "chapter": "troubleshooting",
+   "why": "USB diary contents, retention and write safety"
   }
  ]
 }
