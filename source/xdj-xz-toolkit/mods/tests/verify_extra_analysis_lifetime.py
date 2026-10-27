@@ -6,7 +6,7 @@ from extra_player_fixtures import fixtures
 fixtures(a.out)
 def linux(p):
  s=p.resolve().as_posix();return '/mnt/'+s[0].lower()+s[2:]
-units=['tests/test_extra_analysis_lifetime.c','anlz_extra.c','shell_analysis.c','shell_runtime_core.c','sync_link_runtime.c',
+units=['key/keyshift.c','key/music.c','key/control.c','tests/test_extra_analysis_lifetime.c','anlz_extra.c','shell_analysis.c','shell_runtime_core.c','sync_link_runtime.c',
  'ui/layered_wave_source.c','ui/layered_wave.c','ui/extra_lane.c','ui/wave_viewport.c','ui/ui_draw.c',
  'audio/stem_media.c','audio/stem_mp3.c','audio/stem_decode.c']
 rows=[]

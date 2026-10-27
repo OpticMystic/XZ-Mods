@@ -9,6 +9,11 @@ static char ram_path[2][512];
 static atomic_uint ram_generation_value=99;
 static unsigned saves;
 static uint64_t pcm_hash[2],pcm_frames[2];
+static float reference_pcm[2][700000*2];
+static uint64_t reference_after[2][6000];
+static uint32_t reference_frames[2][6000];
+static unsigned block_count[2];
+static int record_reference, compare_reference;
 static uint64_t ram_generation(void *unused,unsigned source){(void)unused;assert(source==1);return atomic_load(&ram_generation_value);}
 static uint64_t cue_generation(unsigned source){return ram_generation(NULL,source);}
 static int ram_resolve(int source,uint32_t id,uint64_t generation,struct xz_extra_track *out){
@@ -20,6 +25,12 @@ static int cue_write(int deck,const struct xz_extra_track *t,uint64_t gen,int32_
  (void)deck;(void)t;(void)gen;(void)length;(void)s;(void)edit;saves++;return 1;
 }
 static void hash_pcm(int d,const float *pcm,uint32_t frames,uint64_t after){
+ if(record_reference||compare_reference){
+  assert(pcm_frames[d]+frames<=700000&&block_count[d]<6000);
+  float *reference=reference_pcm[d]+pcm_frames[d]*2;unsigned block=block_count[d]++;
+  if(record_reference){memcpy(reference,pcm,frames*2*sizeof(float));reference_after[d][block]=after;reference_frames[d][block]=frames;}
+  else{assert(reference_after[d][block]==after&&reference_frames[d][block]==frames);assert(!memcmp(reference,pcm,frames*2*sizeof(float)));}
+ }
  const unsigned char *b=(const unsigned char *)pcm;
  for(size_t i=0;i<frames*2*sizeof(float);i++)pcm_hash[d]=(pcm_hash[d]^b[i])*UINT64_C(1099511628211);
  pcm_hash[d]=(pcm_hash[d]^after)*UINT64_C(1099511628211);pcm_frames[d]+=frames;
@@ -37,13 +48,16 @@ static void copy_source(const char *reference,const char *destination){
 }
 static void lose_sources(void){
  for(unsigned d=0;d<2;d++){int fd=open(ram_path[d],O_WRONLY|O_TRUNC);assert(fd>=0);close(fd);assert(!unlink(ram_path[d]));}
+ const char *names[]={"ANLZ0000.DAT","ANLZ0000.EXT","ANLZ0000.2EX"};
+ for(unsigned i=0;i<3;i++){char path[512];assert(snprintf(path,sizeof path,"%s/%s",anlz_dir,names[i])<(int)sizeof path);assert(!unlink(path));}
  atomic_store(&ram_generation_value,100);
 }
 static struct xz_ram_status ram_state(struct xz_ram_extra *s,unsigned d){struct xz_ram_status r;xz_ram_extra_status(s,d,&r);return r;}
 static void run_player(const char *reference,int ram,int destroy,int controls){
+ build_analysis();
  clock_ms=1000;master=12000;wire_horizon=0;position_interval=position_noise=position_blocked=threaded_clock=hold_flush=0;
  atomic_store(&ram_generation_value,99);saves=0;
- for(unsigned d=0;d<2;d++){copy_source(reference,ram_path[d]);pcm_hash[d]=UINT64_C(1469598103934665603);pcm_frames[d]=0;}
+ for(unsigned d=0;d<2;d++){copy_source(reference,ram_path[d]);pcm_hash[d]=UINT64_C(1469598103934665603);pcm_frames[d]=0;block_count[d]=0;}
  struct xz_xp_env env={{NULL,fake_link,ram_submit,fake_flush,fake_position,ram_transition},now_ms,resolve,master_bpm,NULL,ram_resolve,0,0};
  p=xz_xp_create(&env);assert(p);fake_route(12345);step();
  struct xz_ram_extra *service=ram?xz_ram_extra_create(NULL,fake_link,ram_generation):NULL;
@@ -106,8 +120,9 @@ int main(int argc,char **argv){
  assert(argc==3);assert(!pthread_mutex_init(&f.lock,NULL));
  snprintf(fixtures,sizeof fixtures,"%s",argv[1]);snprintf(anlz_dir,sizeof anlz_dir,"%s/anlz",argv[1]);build_analysis();
  for(unsigned d=0;d<2;d++)snprintf(ram_path[d],sizeof ram_path[d],"%s/player-usb-%u.wav",argv[1],d);
- run_player(argv[2],0,0,1);uint64_t hash[2]={pcm_hash[0],pcm_hash[1]},frames[2]={pcm_frames[0],pcm_frames[1]};
- run_player(argv[2],1,0,1);
+ record_reference=1;run_player(argv[2],0,0,1);record_reference=0;
+ uint64_t hash[2]={pcm_hash[0],pcm_hash[1]},frames[2]={pcm_frames[0],pcm_frames[1]};
+ compare_reference=1;run_player(argv[2],1,0,1);compare_reference=0;
  assert(!memcmp(hash,pcm_hash,sizeof hash)&&!memcmp(frames,pcm_frames,sizeof frames));
  printf("PCM frames=%llu,%llu hashes=%016llx,%016llx\n",(unsigned long long)frames[0],(unsigned long long)frames[1],(unsigned long long)hash[0],(unsigned long long)hash[1]);
  puts("PASS byte-identical sink PCM/source tags across live attachment with SYNC, explicit key shift, reverse, MT and loops");
