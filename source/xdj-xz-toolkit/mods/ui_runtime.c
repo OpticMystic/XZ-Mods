@@ -3240,6 +3240,16 @@ static int classic_mixer_present(uint16_t *pixels,size_t stride,size_t count,int
         order==(layout==XZ_LAYOUT_MIXER?XZ_FOUR_MIXER:XZ_FOUR_STACKED);
     return xz_classic_mixer_runtime_frame(pixels,stride,count,eligible,theme,xz_game_milliseconds(),names);
 }
+/* MODERN's MODS dock keeps a known counter error in view (stock errors are never covered); CLASSIC leaves the stock
+   deck area visible instead. Unknown, failed or torn reads show nothing. */
+static void counter_errors_locked(void){
+    uint32_t ids[2]={0};unsigned mask=model.ui_interface==XZ_UI_INTERFACE_MODERN?stock_counter_mask(ids):0;
+    for(int d=0;d<2;d++){
+        struct xz_shell_alert a={0};
+        if(!(mask>>d&1u)||!xz_stock_counter_alert(ids[d],&a))a.code=a.text=NULL;
+        model.counter_error[d]=(struct xz_ui_counter_error){a.code,a.text};
+    }
+}
 static int render_mods_frame(uint16_t *pixels, uint32_t width,
         uint32_t height, uint32_t stride, const struct xz_vj_connection_v1 *connection) {
     if (!__atomic_load_n(&started, __ATOMIC_ACQUIRE) || !pixels || width != 800 || height != 480 || stride < 800 || stride > 16384)
@@ -3363,7 +3373,7 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
         xz_arcade_proof_v1.live=arcade.live;xz_arcade_proof_v1.deck=arcade.clock_deck;
         xz_arcade_proof_v1.bpm=arcade.bpm;xz_arcade_proof_v1.x=arcade.x;xz_arcade_proof_v1.y=arcade.y;
     }
-    else if (touch.visible) { model.clock_ms = xz_game_milliseconds(); result = xz_ui_render(&ui, &model, pixels, (size_t)stride * height, stride); }
+    else if (touch.visible) { model.clock_ms = xz_game_milliseconds(); counter_errors_locked(); result = xz_ui_render(&ui, &model, pixels, (size_t)stride * height, stride); }
     else if (xz_shell_runtime_frame&&(shell=xz_shell_runtime_frame(pixels,stride,&shell_input))!=0) result = shell>0;
     else {
         xz_key_frame_cache_store(&key_frame_cache,model.theme,model.key_feedback,model.fb_takeover,key_strip);

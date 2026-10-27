@@ -112,9 +112,12 @@ proven mapping to the per-deck alert model. Stock alone dismisses them.
 MODERN opens the same MODS panel as CLASSIC (one MODS menu). A live window hides
 it like any other layer: the screen, touches, keys and the encoder go to stock,
 and the panel comes back open, on the same page, when stock closes the window.
-A counter error stays on MODERN's play screen, on its deck, and the panel covers
-it while MODS is open, as MODERN's old MODS screen did. CLASSIC keeps the affected
-stock deck area visible through MODS.
+A known counter error is never covered. On MODERN's play screen it shows on its
+deck with CHOOSE TRACK. While MODS is open, the dock's title row turns into one red
+strip: each deck's badge, the code and the firmware's own text, and SHOW DECK. A tap
+on the strip closes MODS onto the play screen; the encoder never stops on it, and
+the page's controls and the explanation below stay as they were. CLASSIC keeps the
+affected stock deck area visible through MODS instead.
 
 No connector observation links a specific native warning to the four-deck
 cable. Route-up and E-8307 occurring together do not prove that cable caused it.

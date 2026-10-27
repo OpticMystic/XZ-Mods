@@ -8,7 +8,9 @@ void xz_layered_wave_configure(int mode,const uint32_t rgb[3]){(void)mode;(void)
 #ifdef XZ_STOCK_DIALOG_REFERENCE
 static void xz_mods_native_frame_v1(const uint16_t*p,uint32_t w,uint32_t h,uint32_t stride){(void)p;(void)w;(void)h;(void)stride;}
 #endif
+#include "ui_skin.h"
 static uint16_t native_frame[800*480],frame[800*480];
+static uint16_t rgb(uint32_t c){return (uint16_t)((c>>19&31)<<11|(c>>10&63)<<5|(c>>3&31));}
 static int global_calls,rotate_calls,push_calls;
 static int fixture_shell_live,fixture_shell_frames;
 int xz_shell_runtime_frame(uint16_t *pixels,size_t stride,const struct xz_shell_runtime_frame_input *in){
@@ -115,6 +117,34 @@ int main(int argc,char **argv){
  ids[0]=102;xz_mods_native_frame_v1(native_frame,800,480,800);
  memset(frame,0x33,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL));
  assert(!memcmp(frame+311*800,native_frame+311*800,169*800*sizeof *frame));
+ /* CLASSIC shows the stock deck area, so its dock never carries the error. */
+ assert(!model.counter_error[0].code&&!model.counter_error[1].code);
+ /* MODERN opens the same panel and keeps a known counter error in the dock's title row instead: the rest of the
+    panel draws, the encoder and every other touch stay with MODS, a touch on the strip closes MODS onto the play
+    screen, and an unknown or cleared id shows nothing. */
+ {
+  ids[0]=103;ids[1]=0;memset(&model,0,sizeof model);model.ui_interface=XZ_UI_INTERFACE_MODERN;model.theme=XZ_THEME_FLAGSHIP;
+  model.modern_look.known=1;fake_shell_running=fake_owns=fixture_shell_live=1;touch.visible=visible=1;touch.capture=0;
+  xz_ui_init(&ui);ui.page=XZ_UI_PLAY;
+  memset(frame,0x55,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL)&&xz_mods_visible_v1());
+  assert(model.counter_error[0].code&&!strcmp(model.counter_error[0].code,"E-8304")&&!strcmp(model.counter_error[0].text,"UNSUPPORTED"));
+  assert(!model.counter_error[1].code&&frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb(0x5a0c0c));
+  /* No stock area is pasted over MODS in MODERN: the dock is the panel's own. */
+  assert(memcmp(frame+460*800,native_frame+460*800,400*sizeof *frame));
+  image(dir,"modern-mods-counter-E8304");
+  int stock_before=stock_calls,rotate_before=rotate_calls;
+  assert(encoder_rotate_hook(1)==1&&rotate_calls==rotate_before&&touch.visible);
+  contact(self,60,200,1);contact(self,60,200,0);assert(stock_calls==stock_before&&touch.visible&&visible);
+  ids[1]=102;assert(xz_mods_render_v1(frame,800,480,800,NULL));
+  assert(!strcmp(model.counter_error[1].code,"E-8302")&&!strcmp(model.counter_error[1].text,"CANNOT PLAY TRACK"));
+  image(dir,"modern-mods-counter-both");
+  ids[0]=7777;ids[1]=0;assert(xz_mods_render_v1(frame,800,480,800,NULL));
+  assert(!model.counter_error[0].code&&!model.counter_error[1].code&&frame[(XZ_UI_COUNTER_Y+1)*800+300]!=rgb(0x5a0c0c));
+  ids[0]=105;assert(xz_mods_render_v1(frame,800,480,800,NULL)&&!strcmp(model.counter_error[0].text,"NO FILE"));
+  contact(self,300,XZ_UI_COUNTER_Y+12,1);assert(!touch.visible&&!visible&&stock_calls==stock_before);
+  contact(self,300,XZ_UI_COUNTER_Y+12,0);assert(stock_calls==stock_before);
+  fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;model.ui_interface=XZ_UI_INTERFACE_CLASSIC;
+ }
  ids[0]=ids[1]=0;
  no_dialog:
  /* Closing the stock dialog resumes the unchanged panel state and rendering. */
@@ -129,7 +159,7 @@ int main(int argc,char **argv){
  fake_shell_running=fake_owns=fixture_shell_live=1;model.ui_interface=XZ_UI_INTERFACE_MODERN;
  memset(frame,0,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL));image(dir,"no-dialog-modern");
  fake_shell_running=fake_owns=fixture_shell_live=0;
- puts("PASS real runtime all overlay priority, busy cache, modern native fallback, touch release, stock keys and resume");
+ puts("PASS real runtime all overlay priority, busy cache, modern native fallback, touch release, stock keys, MODERN counter strip and resume");
  return 0;
 }
 

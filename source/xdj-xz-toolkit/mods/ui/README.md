@@ -14,9 +14,16 @@ The panel is a fixed grid shared by every skin (`ui_skin.h`): a 40 px header
 with BACK, the page title, optional deck pickers and CLOSE; a 124 px section
 rail (CONTROLS, APPEARANCE, ADVANCED, EXTRAS) with drawn icons; content in
 x 136..792, y 48..404; and an info dock at y 412..480. Controls never enter
-the dock (`test_ui.c` enforces this for all 25 themes). The dock names the
+the dock (`test_ui.c` enforces this for all 25 themes; one exception below). The dock names the
 focused control, its state (ON, OFF, SELECTED, NOT READY, ADJUSTING), what it
 changes, the save status or latest notice, and the hardware key hints.
+
+In MODERN a known stock counter error (E-7206, E-8302, E-8304, E-8305, E-8306)
+takes the dock's title row while MODS is open, because stock errors are never
+covered: one red strip with each deck's badge, the code, the firmware's own text
+and SHOW DECK. It is the one touch target in the dock: a tap closes MODS onto the
+play screen, the encoder never stops on it, and nothing else on screen moves.
+CLASSIC leaves the stock deck area visible instead.
 
 ### DJ Profile in the header
 
