@@ -158,7 +158,7 @@ window.myReports = (() => {
       current.confirm ? el('div', { class: 'sr-confirm' }, 'Forget removes the receipt from this computer. You will no longer see its status here. The maintainer keeps the report.',
         el('div', { class: 'actions' }, plainButton('Forget this report', () => act('forget'), { primary: true, key: 'forget-yes' }), plainButton('Keep it', () => { current.confirm = false; renderTrack(); }, { key: 'forget-no' }))) : null);
     more.open = Boolean(current.more || current.confirm);
-    more.ontoggle = () => { current.more = more.open; };
+    more.ontoggle = () => { if (current) current.more = more.open; };
     const primary = r.state === 'accepted' || r.state === 'expired' ? plainButton('Close', () => track.close(), { primary: true, key: 'close' })
       : draft && r.state !== 'sending' ? plainButton('Set up reporting connection', () => window.reportWizard.openConnection({ report_id: r.report_id, sha256: draft.sha256 }, async () => { await load(); renderTrack(); }), { primary: true, key: 'setup' })
         : plainButton('Check again', () => act('check'), { primary: true, key: 'check' });
@@ -170,18 +170,19 @@ window.myReports = (() => {
         r.state === 'accepted' ? null : plainButton('Close', () => track.close(), { key: 'close-2' }), primary));
     (focused && track.querySelector('[data-key="' + CSS.escape(focused) + '"]') || track.querySelector('h2')).focus({ preventScroll: true });
   }
+  // The view can close while a request runs; results then go to that view only and are not drawn.
   async function act(action) {
-    const id = current.id;
+    const view = current, id = view.id;
     try {
-      if (action === 'check') { const result = await invoke('support_check_statuses', { reason: 'refresh', id }); await load(); current.message = result?.updated?.length ? 'Status updated.' : 'No change since the last check.'; }
-      if (action === 'open') { await invoke('support_open_tracking', { id }); current.message = 'Opened in your browser.'; }
-      if (action === 'copy') { const { url } = await invoke('support_tracking_link', { id }); await navigator.clipboard.writeText(url); current.message = 'Status link copied.'; }
-      if (action === 'revoke') { const view = await invoke('support_revoke_links', { id }); Object.assign(reports.find(r => r.report_id === id), view); current.message = 'Status links turned off. This app still checks the status.'; }
+      if (action === 'check') { const result = await invoke('support_check_statuses', { reason: 'refresh', id }); await load(); view.message = result?.updated?.length ? 'Status updated.' : 'No change since the last check.'; }
+      if (action === 'open') { await invoke('support_open_tracking', { id }); view.message = 'Opened in your browser.'; }
+      if (action === 'copy') { const { url } = await invoke('support_tracking_link', { id }); await navigator.clipboard.writeText(url); view.message = 'Status link copied.'; }
+      if (action === 'revoke') { const updated = await invoke('support_revoke_links', { id }); Object.assign(reports.find(r => r.report_id === id), updated); view.message = 'Status links turned off. This app still checks the status.'; }
       if (action === 'forget') { await invoke('support_forget', { id }); track.close(); await load(); return; }
-    } catch (failure) { current.message = String(failure).replace(/^Error: /, ''); }
-    renderTrack();
+    } catch (failure) { view.message = String(failure).replace(/^Error: /, ''); }
+    if (current === view) renderTrack();
   }
-  track.addEventListener('close', () => { current = null; });
+  track.addEventListener('close', () => { if (!track.open) current = null; });
 
   // Maintainer inbox. Owner rows only: kind, severity, impact, baseline, affected features, in use since, reach, status.
   const LABEL = {
