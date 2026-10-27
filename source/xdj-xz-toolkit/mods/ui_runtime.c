@@ -480,12 +480,13 @@ static struct xz_settings settings_snapshot(void) {
         .browse_key_prefix=model.browse_key_prefix, .browse_traffic=model.browse_traffic, .key_format=model.key_format,
         .stem_colors={model.stem_colors[0],model.stem_colors[1],model.stem_colors[2]},.stem_order=model.stem_order,.key_feedback=model.key_feedback,.ram_debug=model.ram_debug,
         .rekordbox_menu=model.rekordbox_assign[0]==XZ_REKORDBOX_MODS,.rekordbox_press=model.rekordbox_assign[0],.rekordbox_shift=model.rekordbox_assign[1],.metrics_enabled=model.metrics_enabled,
-        .deck_view=model.deck_view,.deck_view_button=model.deck_view_button};
+        .deck_view=model.deck_view,.deck_view_button=model.deck_view_button,.browse_preview=model.browse_preview};
 }
 /* Profile values that only the UI owns. The backend already rejects invalid profiles. */
 static void browse_settings(const struct xz_settings *saved) {
     if (xz_key_browser_columns_valid(saved->browse_columns))
         memcpy(model.browse_columns, saved->browse_columns, sizeof(model.browse_columns));
+    model.browse_preview = !!saved->browse_preview;
     model.browse_key_prefix = !!saved->browse_key_prefix; model.browse_traffic = !!saved->browse_traffic;
     model.key_format = saved->key_format >= 0 && saved->key_format <= 2 ? saved->key_format : 0;
     model.metrics_enabled=1;
@@ -1448,6 +1449,11 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
                 snprintf(ui.notice,sizeof(ui.notice),"DECK VIEW: %s",xz_deck_layout_name(model.deck_view));
             }
             break;
+        case XZ_UI_BROWSE_PREVIEW:
+            if(a->value==0||a->value==1){
+                model.browse_preview=(int)a->value;settings_queue();xz_native_skin_request_repaint();
+            }
+            break;
         case XZ_UI_DECK_VIEW_BUTTON:
             model.deck_view_button=a->value!=0;xz_deck_view_button_load(model.deck_view_button);xz_native_skin_request_repaint();
             break;
@@ -1609,6 +1615,7 @@ static int shell_eligible_locked(void){
 static int shell_owns_locked(void){return xz_shell_runtime_owns&&shell_eligible_locked()&&xz_shell_runtime_owns();}
 static void shell_frame_input_locked(struct xz_shell_runtime_frame_input *in){
     memset(in,0,sizeof(*in));in->eligible=shell_eligible_locked();in->theme=model.theme;in->key_controls_open=play_key.open;
+    in->browse_preview=model.browse_preview;
     in->stems_known=1;in->stems_on=model.modern_stems!=XZ_STEM_LAYOUT_HIDDEN;
     for(int d=0;d<2;d++){
         /* 3-stem local playback only: with four stems or PC stems the bits mean something else. */

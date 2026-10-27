@@ -146,6 +146,7 @@ static void contact(void *self,unsigned x,unsigned y,int down){struct xz_touch_s
 #include "test_classic_mixer_touch.h"
 #include "test_deck_view_runtime.h"
 #include "test_deck_view_settings_runtime.h"
+#include "test_browse_preview_runtime.h"
 #include "test_two_pair_touch_runtime.h"
 static void generation_pad_consistency(void){
     started=audio_available=requested_stems=1;model.enabled=XZ_UI_STEM;fixture_prepared=1;
@@ -457,13 +458,14 @@ int main(void){
         {.kind=XZ_UI_SET_THEME,.index=14},
         {.kind=XZ_UI_STEM_BANK,.index=1},
         {.kind=XZ_UI_STEMS_OVERLAY},
-        {.kind=XZ_UI_JUMP_SIZE,.index=7,.value=9}
+        {.kind=XZ_UI_JUMP_SIZE,.index=7,.value=9},
+        {.kind=XZ_UI_BROWSE_PREVIEW,.value=1}
     };
-    model.stems_overlay=1;apply(NULL,persist_actions,4);
+    model.stems_overlay=1;apply(NULL,persist_actions,5);
     assert(settings_pending);settings_running=0;pthread_cond_signal(&settings_changed);pthread_mutex_unlock(&ui_mutex);
     assert(!pthread_join(settings_thread,NULL));
     struct xz_settings persisted;assert(!xz_settings_load(settings_usb,&persisted));
-    assert(persisted.theme==14&&persisted.stem_bank==1&&persisted.stems_overlay==XZ_STEM_LAYOUT_BELOW_HALF&&persisted.jump.sizes[7]==9);
+    assert(persisted.browse_preview==1&&persisted.theme==14&&persisted.stem_bank==1&&persisted.stems_overlay==XZ_STEM_LAYOUT_BELOW_HALF&&persisted.jump.sizes[7]==9);
     snprintf(persist_path,sizeof(persist_path),"%s/VJ.Tools/XZ-Mods.cfg",persist_root);assert(!unlink(persist_path));
     snprintf(persist_path,sizeof(persist_path),"%s/VJ.Tools",persist_root);assert(!rmdir(persist_path));assert(!rmdir(persist_root));
     generation_pad_consistency();
@@ -471,6 +473,7 @@ int main(void){
     usb_stem_reason_runtime_check();
     rekordbox_runtime_check();
     deck_view_settings_check();
+    browse_preview_runtime_check();
     /* Frame publication carries MODS order and reports the original key when feedback is OFF. */
     model.stem_order=5;model.key_feedback=0;model.key_format=1;key_valid[0]=1;
     key_snapshot[0]=(struct xz_key_snapshot){.loaded=1,.original={9,1},.format=XZ_KEY_CAMELOT,.tempo_ratio=1.06};

@@ -311,6 +311,7 @@ struct xz_shell_model {
     DECKS button existed (the BEAT FX strip runs to the info button), the picker cannot open and the encoder
     skips the button. DECK VIEW itself still applies. 1 hides; any other value (zero by default) shows it. */
  int deck_view_button_hidden;
+ int browse_preview; /* saved MODERN browse display preference, 0 collapsed */
 };
 
 enum xz_shell_event_kind {
@@ -381,7 +382,8 @@ enum xz_shell_action_kind {
                               value = the root page (OPEN) or a row of model.menu, deck = the choice or the touch */,
  XZ_SHELL_ACT_WAVE_ORDER, /* value 0 numeric or 1 mixer, session display preference */
  XZ_SHELL_ACT_DECK_LAYOUT, /* DECK VIEW: value enum xz_deck_layout; display only, no deck assignment */
- XZ_SHELL_ACT_ROUTE_RESCAN /* connector wake only */
+ XZ_SHELL_ACT_ROUTE_RESCAN, /* connector wake only */
+ XZ_SHELL_ACT_BROWSE_PREVIEW /* value 0 hidden/collapsed, 1 shown; queued settings edit */
 };
 /* TAG LIST edits (XZ manual pp.85-89). Results come back as m->notice ("ADDED 12, 3 ALREADY ON THE LIST",
    "TAG LIST IS FULL: 100 TRACKS"). Tag list to playlist is XZ_SHELL_ACT_PLAYLIST op PL_FROM_TAG_LIST. */
