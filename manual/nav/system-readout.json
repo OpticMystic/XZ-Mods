@@ -1,0 +1,20 @@
+{
+  "section": "screen-and-themes#system-readout",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "SYSTEM READOUT",
+      "expect_page": 23
+    },
+    {
+      "turn": 2
+    }
+  ]
+}

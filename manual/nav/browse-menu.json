@@ -1,0 +1,21 @@
+{
+  "section": "browse#sort-columns-and-the-track-menu",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "turn": 2
+    },
+    {
+      "push": true
+    },
+    {
+      "back": true
+    }
+  ]
+}

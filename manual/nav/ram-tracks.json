@@ -1,0 +1,33 @@
+{
+  "section": "performance#ram-tracks",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "tap": "RAM TRACKS",
+      "expect_page": 21
+    },
+    {
+      "turn": 2
+    },
+    {
+      "select": "LOAD TRACK INTO RAM"
+    },
+    {
+      "wait": 1000
+    },
+    {
+      "fixture": 2,
+      "detail": "offline RAM backend completion snapshot, no USB IO"
+    },
+    {
+      "wait": 1000
+    }
+  ]
+}
