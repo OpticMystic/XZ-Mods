@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0-preview.22.8 - 2026-10-27
+
+- While the XZ plays, XZ Mods keeps a small diary on every USB stick in VJ.Tools/XZ-Mods-diary (at most 4 MB per stick, oldest part replaced first). It holds settings, state changes, the notices shown and a reading every 10 seconds of CPU, RAM, missed audio, SYNC drift, key shift load and USB read speed, so a later bug report can show what happened. It never holds track titles, file paths or serial numbers, never writes to the XZ itself, pauses while a stick loads a track or copies to RAM, and skips read-only or full sticks.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.7 - 2026-10-27
 
 - Every deck can key shift and KEY SYNC at the same time. Decks 3 and 4 no longer share one key shift. A new shift is refused only if the XZ measures too little audio time to spare, with KEY SHIFT REFUSED: AUDIO LOAD TOO HIGH; a shift already playing is never cut.

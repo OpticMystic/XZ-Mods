@@ -661,7 +661,7 @@ static int cmd_prepare(const char *state_dir, const char *category, const char *
     items[0].missing = 0;
     items[0].truncated = 0;
     snprintf(items[0].content, sizeof(items[0].content),
-             "{\"app_version\":\"0.5.0-preview.22.7\",\"runtime_sha256\":%s%s%s,\"bridge_sha256\":%s%s%s,\"module_sha256\":%s%s%s}",
+             "{\"app_version\":\"0.5.0-preview.22.8\",\"runtime_sha256\":%s%s%s,\"bridge_sha256\":%s%s%s,\"module_sha256\":%s%s%s}",
              has_rt ? "\"" : "", has_rt ? runtime_sha : "null", has_rt ? "\"" : "",
              has_br ? "\"" : "", has_br ? bridge_sha : "null", has_br ? "\"" : "",
              has_ko ? "\"" : "", has_ko ? module_sha : "null", has_ko ? "\"" : "");
@@ -708,7 +708,7 @@ static int cmd_prepare(const char *state_dir, const char *category, const char *
         "  \"origin\": \"controller\",\n"
         "  \"category\": \"%s\",\n"
         "  \"build\": {\n"
-        "    \"app_version\": \"0.5.0-preview.22.7\",\n"
+        "    \"app_version\": \"0.5.0-preview.22.8\",\n"
         "    \"runtime_sha256\": %s%s%s,\n"
         "    \"bridge_sha256\": %s%s%s,\n"
         "    \"module_sha256\": %s%s%s\n"
