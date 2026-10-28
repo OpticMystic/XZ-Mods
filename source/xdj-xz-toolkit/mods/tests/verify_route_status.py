@@ -11,12 +11,10 @@ parser.add_argument('--tsan', action='store_true')
 parser.add_argument('--tsan-no-aslr', action='store_true')
 args = parser.parse_args()
 bridge = (ROOT.parent / 'vendor/tools/xz_quad/bridge.c').read_text()
-codes = sorted(set(re.findall(r'"((?:WAIT_|UNSUPPORTED_|RACE_|FATAL_|TERMINATED_|STOPPED|STOP_PENDING|CLEANUP_|BIND_FAILED|ROUTE_DISCONNECTED|READY_CH3_CH4|MUSIC_READY|MUSIC_HUB_)[^"\n]*)"', bridge)))
+codes = sorted(set(re.findall(r'"((?:WAIT_|UNSUPPORTED_|RACE_|FATAL_|TERMINATED_|STOPPED|STOP_PENDING|CLEANUP_|BIND_FAILED|ROUTE_DISCONNECTED|READY_CH3_CH4|MUSIC_READY)[^"\n]*)"', bridge)))
 codes = [code for code in codes if not code.endswith('_') and code != 'STOP_PENDING']
 parts = {
     'WAIT_NATIVE_PAUSED': 'SELECTOR', 'WAIT_AUDIO_DEVICE': 'SOCKET',
-    'WAIT_MUSIC_HUB_PAUSED': 'SELECTOR', 'MUSIC_HUB_BIND_FAILED': 'PORT',
-    'TERMINATED_MUSIC_HUB_IDENTITY': 'PORT',
     'WAIT_LOOPBACK': 'CABLE', 'WAIT_SAFE_LOOPBACK_DISCONNECT': 'CABLE',
     'ROUTE_DISCONNECTED': 'CABLE',
     'TERMINATED_STOPPED_MEDIA_ADMISSION': 'PORT', 'TERMINATED_MUSIC_IDENTITY': 'PORT',
@@ -27,7 +25,7 @@ with tempfile.TemporaryDirectory(prefix='xz-route-status-') as tmp:
     tmp = Path(tmp)
     checks = []
     for code in codes:
-        if code in ('WAIT_NATIVE_PAUSED', 'WAIT_MUSIC_HUB_PAUSED'):
+        if code == 'WAIT_NATIVE_PAUSED':
             state = 'WAITING_NATIVE_STOP'
         elif code in ('WAIT_LOOPBACK', 'ROUTE_DISCONNECTED'):
             state = 'NOT_DETECTED'

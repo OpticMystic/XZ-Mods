@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
  m.clock_ms+=300;shot(&u,&m,"card-03-starting");
  route_down(&m,XZ_LAYOUT_MIXER,XZ_EXTRA_ROUTE_WAITING_NATIVE_STOP,XZ_EXTRA_ROUTE_PART_SELECTOR,"Stop or pause decks 1 and 2 so decks 3 and 4 can start.");
  m.clock_ms+=700;shot(&u,&m,"card-04-waiting-decks-1-2-stop-mixer");
- route_down(&m,XZ_LAYOUT_FOUR,XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_PART_PORT,"Connect music drives to the top USB port opposite the loopback cable.");
+ route_down(&m,XZ_LAYOUT_FOUR,XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_PART_PORT,"The cable is in USB 2. Move it to USB 1 and keep music in USB 2.");
  shot(&u,&m,"card-05-failed-port");
  route_down(&m,XZ_LAYOUT_FOUR,XZ_EXTRA_ROUTE_LOST,XZ_EXTRA_ROUTE_PART_CABLE,"The audio route was disconnected; check the loopback cable.");
  shot(&u,&m,"card-06-lost");

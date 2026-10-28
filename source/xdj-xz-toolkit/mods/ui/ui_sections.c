@@ -432,8 +432,8 @@ const char *xz_ui_route_title(int state){
 const char *xz_ui_route_line(const struct xz_ui_model *m){
  int state=m->route.state;const char *why=m->route.reason[0]?m->route.reason:NULL;
  return state==XZ_UI_ROUTE_READY?"Loopback cable found. Set CH3 and CH4 to USB to hear them. Press SHIFT twice on a side to switch it between decks 1 and 3 or 2 and 4.":
-  state==XZ_UI_ROUTE_WAITING_NATIVE_STOP?(why?why:"Decks 3 and 4 start once decks 1 and 2 are both stopped. This changes by itself once they stop."):
-  state==XZ_UI_ROUTE_NOT_DETECTED?"Connect rear USB to top " XZ_LOOPBACK_PORT ". Music is optional; use the other port.":
+  state==XZ_UI_ROUTE_WAITING_NATIVE_STOP?"Decks 3 and 4 start once decks 1 and 2 are both stopped. This changes by itself once they stop.":
+  state==XZ_UI_ROUTE_NOT_DETECTED?"The XZ keeps looking on its own. RESCAN checks right now. Keep the music stick in USB 2.":
   why?why:
   state==XZ_UI_ROUTE_NO_ENGINE?"Rebuild the USB loader in the XZ Mods desktop app, restart it, then check the installed engine.":
   state==XZ_UI_ROUTE_SCANNING?"Checking for the loopback cable now.":
