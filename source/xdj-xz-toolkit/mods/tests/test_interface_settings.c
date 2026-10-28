@@ -31,7 +31,7 @@ static void display_and_bands(void) {
   s.band_colors[band]=choice;assert(xz_settings_format(&s,wire,sizeof wire)>0);
   assert(!xz_settings_parse_present(wire,&got,&present)&&present==57&&got.band_colors[band]==choice);
  }
- s.modern_wave_color=3;s.wave_position=1;s.key_display=2;s.wave_zoom=6;s.usb_colors=2;s.hidden_parts=15;
+ s.modern_wave_color=3;s.wave_position=1;s.key_display=2;s.wave_zoom=6;s.usb_colors=2;s.hidden_parts=15|XZ_HIDE_FOUR_STEMS;
  assert(xz_settings_format(&s,wire,sizeof wire)>0);
  for(unsigned fields=47;fields<=57;fields++){
   strcpy(cut,wire);char *line=cut;
@@ -44,7 +44,9 @@ static void display_and_bands(void) {
   assert(!memcmp(&current,&s,sizeof s));
  }
  int *slots[]={&s.band_colors[0],&s.band_colors[1],&s.band_colors[2],&s.modern_wave_color,&s.wave_position,&s.key_display,&s.wave_zoom,&s.usb_colors,&s.hidden_parts};
- const int maximum[]={8,8,8,3,1,2,6,2,15};
+ /* hidden_parts: four indicator bits and XZ_HIDE_FOUR_STEMS (16), the 4 DECKS stem buttons. */
+ const int maximum[]={8,8,8,3,1,2,6,2,XZ_HIDDEN_PARTS_MAX};
+ assert(XZ_HIDDEN_PARTS_MAX==31&&XZ_HIDE_FOUR_STEMS==16);
  const char *keys[]={"band_low_color=","band_mid_color=","band_high_color=","modern_wave_color=","wave_position=","key_display=","wave_zoom=","usb_colors=","hidden_parts="};
  for(unsigned i=0;i<9;i++){
   int saved=*slots[i];*slots[i]=-1;assert(xz_settings_format(&s,cut,sizeof cut)<0);
