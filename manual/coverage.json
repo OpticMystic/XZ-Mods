@@ -265,6 +265,21 @@
    "why": "desktop app views and labels"
   },
   {
+   "path": "ui/manual.js",
+   "chapter": "desktop-app",
+   "why": "the Manual page: search, chapter list, numbered points and reading position"
+  },
+  {
+   "path": "ui/manual.css",
+   "chapter": "desktop-app",
+   "why": "the Manual page layout the app:manual shot shows"
+  },
+  {
+   "path": "ui/manual-art.js",
+   "chapter": "four-decks",
+   "why": "the animated explainers draw ports, deck order, SYNC labels, pad colours and band colours; check them against each chapter's explainer blocks"
+  },
+  {
    "path": "ui/style.css",
    "chapter": "desktop-app",
    "why": "the rail, page header and Tools layout every app shot shows"
