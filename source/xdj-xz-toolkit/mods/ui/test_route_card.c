@@ -22,7 +22,7 @@ static int diff_within(struct xz_route_card_rect r) {
 }
 static const char *reason_of(int state) {
  switch(state){
- case XZ_EXTRA_ROUTE_FAILED:return "The cable is in USB 2. Move it to USB 1 and keep music in USB 2.";
+ case XZ_EXTRA_ROUTE_FAILED:return "Connect music drives to the top USB port opposite the loopback cable.";
  case XZ_EXTRA_ROUTE_STARTING:return "The cable was found and the audio input is starting.";
  case XZ_EXTRA_ROUTE_LOST:return "The audio route was disconnected; check the loopback cable.";
  case XZ_EXTRA_ROUTE_NO_ENGINE:return "The software players are unavailable or have not been started.";
@@ -100,8 +100,8 @@ static void test_draw(void) {
  }
  /* Golden frames at a fixed clock, number order (the loop states on their main shot: a fresh clock). */
  static const uint32_t expected[2][7]={
-  {0xbd95aa72u,0x11dcf983u,0xe699a95du,0x7ab668edu,0x9a76772fu,0xe7867597u,0x09cf3e3cu},
-  {0x6e1897ebu,0x061c987eu,0x0c72ffc6u,0x15990167u,0xf2d6a297u,0x24f2a1bcu,0x5d6db36cu}};
+  {0xbd95aa72u,0x5475fd4du,0xd73675f1u,0x8bb5f37du,0x66540737u,0xe99e44adu,0x26a514b8u},
+  {0x6e1897ebu,0xe91f2922u,0xb3e57107u,0xf025279eu,0x3cf7ff7eu,0x50f9a1deu,0x6c7a7541u}};
  for(int s=0;s<2;s++)for(int i=0;i<7;i++)if(golden[s][i]!=expected[s][i]){
   printf("golden card %d state %d: 0x%08x, expected 0x%08x\n",s,states[i],golden[s][i],expected[s][i]);assert(!"card golden frame changed");
  }
@@ -208,4 +208,23 @@ static void test_focus_and_long_reasons(void) {
  }
  puts("PASS route card focus rings and 80-character reasons stay inside the card in both interfaces");
 }
-int main(void) { test_kinds();test_geometry();test_draw();test_motion();test_success();test_focus_and_long_reasons();return 0; }
+static void test_wait_reason(void) {
+ const struct xz_route_card_style *styles[2]={&xz_route_card_modern,&xz_route_card_classic};
+ for(int i=0;i<2;i++){
+  const struct lanes l=(i?classic_lanes:modern_lanes)[0];
+  struct xz_route_card_input in=input(XZ_EXTRA_ROUTE_WAITING_NATIVE_STOP,XZ_EXTRA_ROUTE_PART_SELECTOR,100000u);
+  clear(pixels);xz_route_card_draw(canvas(pixels),styles[i],l.ya,l.yb,&in,&cache);
+  in.reason="";
+  clear(other);xz_route_card_draw(canvas(other),styles[i],l.ya,l.yb,&in,&cache);
+  assert(!memcmp(pixels,other,sizeof pixels));
+  in.reason="Stop or pause decks 1 and 2 so the music hub can connect.";
+  clear(other);xz_route_card_draw(canvas(other),styles[i],l.ya,l.yb,&in,&cache);
+  struct xz_route_card_rect lines={styles[i]->x+styles[i]->line_dx,l.yb+styles[i]->line_dy[0],
+   styles[i]->w-styles[i]->line_dx,28};
+  assert(diff_within(lines)>0);
+  assert(xz_route_card_offers(&in,XZ_ROUTE_CARD_HIT_TWO));
+  assert(!xz_route_card_offers(&in,XZ_ROUTE_CARD_HIT_PRIMARY));
+ }
+ puts("PASS native-stop reason: fallback preserved; music hub explanation drawn in both interfaces without changing controls");
+}
+int main(void) { test_kinds();test_geometry();test_draw();test_motion();test_success();test_focus_and_long_reasons();test_wait_reason();return 0; }
