@@ -121,7 +121,7 @@ classic:hub-card-large The same card in a larger window
 
 When nothing shows that the cable caused it, the warning stays. That happens with four decks off, before decks 3 and 4 find the cable, or with a hub the player refused:
 
-- While MODS is open, the strip at the bottom left of MODS shows the warning with **FROM A HUB OR THE LOOPBACK CABLE IN A TOP USB PORT.**
+- While MODS is open, the strip at the top of the MODS dock shows the warning with **FROM A HUB OR THE LOOPBACK CABLE IN A TOP USB PORT.**
 - In MODERN the play screen shows **E-8307 HUBS ARE NOT SUPPORTED: CHECK THE TOP USB PORTS** once.
 - In CLASSIC the player's own window stays as the player draws it.
 
