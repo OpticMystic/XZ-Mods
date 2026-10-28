@@ -491,18 +491,45 @@ details.wz-custom[open]>summary{margin-bottom:0;border-bottom:1px solid #1f2324}
 .wz-ejected .icon{width:18px;height:18px;color:#6fd389}
 .wz-eject-error{margin:0}
 
-/* Quad guide lives in the USB wizard; connector motion never changes device state. */
-.wz-quad-entry{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:#111314;text-align:left}
-.wz-quad-entry>span{display:grid;gap:4px}.wz-quad-entry small{color:var(--muted);font-size:12px;line-height:1.5}
-.wz-quad-entry button{flex:none}.wz-quad-art{margin:0;border:1px solid var(--line);border-radius:8px;background:#080808;overflow:hidden}
+/* Four decks, design 2026-10-28 (Opus 5.5). Four decks is set up at the player, never while a USB is written, so the
+   USB pages explain it instead of asking for anything: a quiet entry row on the USB list and dashboard (the Tools row
+   look, not a step), and a section under a running write and on the done screen with the cable animation, the three
+   things to do at the player and one button into the explanation. The cable guide (kind quad) stays as the fallback. */
+.wz-fourdeck-entry{display:grid;grid-template-columns:36px minmax(0,1fr) 20px;gap:14px;align-items:center;width:100%;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:#0e1011;color:inherit;font:inherit;font-weight:400;text-align:left;white-space:normal}
+.wz-fourdeck-entry:hover{background:#15170f;border-color:#696828}
+.wz-fourdeck-entry:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.wz-fourdeck-entry-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:9px;background:#1b1d14;box-shadow:inset 0 0 0 1px #3d3f20;color:var(--yellow)}
+.wz-fourdeck-entry-text{display:grid;gap:3px;min-width:0}
+.wz-fourdeck-entry-text strong{display:flex;align-items:center;gap:8px;font-size:14px;color:#eef0ec;font-weight:600}
+.wz-fourdeck-entry-text small{color:var(--muted);font-size:12.5px;line-height:1.4}
+.wz-fourdeck-entry .wz-go{color:#6d7473}.wz-fourdeck-entry:hover .wz-go{color:var(--yellow)}
+.wz-fourdeck-tag{padding:1px 7px;font-size:10.5px;font-weight:550;color:#e0c99a;border-color:#6b5a3a;background:#1d1a12}
+.wz-fourdeck{display:grid;gap:14px;padding:18px;border:1px solid #3d4130;border-radius:10px;background:linear-gradient(180deg,#16180f,#111314 140px)}
+.wz-fourdeck-head{display:grid;gap:6px}
+.wz-fourdeck .wz-eyebrow{color:#a1a5a4;font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase}
+.wz-fourdeck h4{display:flex;align-items:center;gap:10px;margin:0;font-size:17px;letter-spacing:-.2px;color:#eef0ec}
+.wz-fourdeck-head p{margin:0;max-width:72ch;line-height:1.55;color:#c3c9c5;font-size:13.5px}
+.wz-fourdeck-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.wz-fourdeck-steps li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:start;padding:12px;border:1px solid #2a2e30;border-radius:8px;background:#0d0f10;line-height:1.4}
+.wz-fourdeck-steps strong{display:block;font-size:13px;color:#eef0ec;font-weight:600}
+.wz-fourdeck-steps small{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.wz-fourdeck-num{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--yellow);color:#181a02;font-weight:700;font-size:13px}
+.wz-fourdeck .actions{align-items:center}
+.wz-fourdeck-setup{display:grid;gap:10px;padding:12px 14px;border:1px solid #696828;border-radius:8px;background:#1b1d14}
+.wz-fourdeck-setup p{margin:0;color:#e4e0b0;font-size:13px;line-height:1.5}
+.wz-fourdeck :is(button,a):focus-visible{outline:2px solid var(--yellow);outline-offset:3px}
+.wz-flow-body>#wz-support-open{justify-self:center}
+@media(max-width:900px){.wz-fourdeck-steps{grid-template-columns:minmax(0,1fr)}}
+/* the cable figure, shared by the four-deck section and the cable guide */
+.wz-quad-art{margin:0;border:1px solid var(--line);border-radius:8px;background:#080808;overflow:hidden}
 /* the cable explainer video: its background is #080808, so the figure round it is too */
 .wz-quad-video{display:block;width:100%;height:auto;aspect-ratio:16/5;background:#080808}
 .wz-quad-art figcaption{display:flex;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;align-items:center;padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:#c3c9c5}
 .wz-quad-art .text-button{font-size:12px}.wz-quad-steps{margin:0;padding-left:22px;display:grid;gap:10px;line-height:1.55;color:#c3c9c5;font-size:13px}.wz-quad-steps strong{color:#eef0ec}
 .wz-quad-confirm{margin:0;font-size:13px}.wz-quad-status{margin:0;color:#bbc6cd;font-size:12px;line-height:1.5}
 .wz-quad-trouble{font-size:13px}.wz-quad-trouble p{line-height:1.55;color:#c3c9c5}.wz-flow-body h3:focus{outline:none}
-.wz-quad-entry button:focus-visible,.wz-flow[data-step=quad] :is(button,input,summary):focus-visible{outline:2px solid var(--yellow);outline-offset:4px}
-@media(max-width:620px){.wz-quad-entry{align-items:flex-start;flex-direction:column}.wz-quad-art figcaption{padding:10px}}
+.wz-flow[data-step=quad] :is(button,input,summary):focus-visible{outline:2px solid var(--yellow);outline-offset:4px}
+@media(max-width:620px){.wz-quad-art figcaption{padding:10px}}
 @media(prefers-reduced-motion:reduce){.wz-quad-art #wz-quad-motion{display:none}}
 
 .wz-support{max-width:620px;margin:auto;padding:16px 0 8px}.wz-support-logo{float:right;margin:0 0 20px 24px;border-radius:16px}.wz-support .wz-eyebrow{display:block;margin:8px 0;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}.wz-support h3{max-width:440px;font-size:28px;line-height:1.2}.wz-support p{line-height:1.6}.wz-support-link{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:24px 0 8px}.wz-support-link code{font-size:14px}.wz-support-credit{border-top:1px solid var(--border);padding-top:20px;margin-top:24px}.wz-support .actions{margin-top:24px}.wz-support a:focus-visible{outline:2px solid currentColor;outline-offset:4px}@media(max-width:700px){.wz-support-logo{width:80px;height:80px;margin-left:12px}.wz-support h3{font-size:24px}}

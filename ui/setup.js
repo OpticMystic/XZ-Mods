@@ -11,8 +11,11 @@ const FLOWS={
   update:{title:'Update USB',loader:'auto'},
   profile:{title:'Save DJ profile',loader:'keep'},
   games:{title:'Add games',loader:'keep'},
-  quad:{title:'Quad standalone mixer',loader:'keep'}
+  quad:{title:'Four decks',loader:'keep'}
 };
+// The top ports four decks use. The firmware names them in every cable instruction (source/xdj-xz-toolkit/mods/ui/
+// loopback_port.h, XZ_LOOPBACK_PORT); tools/verify_setup_wizard.mjs checks this matches it.
+const LOOPBACK_PORT='USB 1',MUSIC_PORT='USB 2';
 const POLL_MS=2000;
 const W={view:'find',flow:null,step:null,usbs:null,finding:false,opening:null,eject:null,usb:null,left:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,result:null,
   quadReturn:null,quadConfirmed:false,quadPaused:false,
@@ -258,12 +261,12 @@ function viewFind(){
   if(list.length)return el('section',{class:'wz-find wz-find-list'},
     el('h2',{text:list.length>1?'Choose your XZ USB':'Your XZ USB'}),
     el('div',{class:'wz-usb-list',role:'list'},...list.map(usbCard),folderCard()),
-    skippedLine(),quietActions(false),quadEntry(),jobSlot);
+    skippedLine(),quietActions(false),fourDeckEntry(),jobSlot);
   return el('section',{class:'wz-find wz-empty',dataset:{looking:W.finding?'1':null}},
     $('tpl-usb-art').content.firstElementChild.cloneNode(true),
     el('h2',{text:'Plug in your XZ USB'}),
     el('p',{class:'wz-lead',text:'Any USB stick works. XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
-    skippedLine(),quietActions(true),quadEntry(),jobSlot);
+    skippedLine(),quietActions(true),fourDeckEntry(),jobSlot);
 }
 
 // --- device view ---
@@ -342,7 +345,7 @@ function viewDevice(){
     el('div',{class:'wz-card'},driveHeader(),statusBlock(),jobSlot),
     W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.'}):null,
     tiles(),
-    buildLine(),quadEntry(),
+    buildLine(),fourDeckEntry(),
     el('details',{class:'wz-files',open:W.filesOpen?true:null,ontoggle:event=>{W.filesOpen=event.target.open;}},
       el('summary',{text:'Show every file on this USB'}),tree()));
 }
@@ -382,9 +385,10 @@ function afterEject(){
 function startFlow(kind,{profile=false,gamesOpen=false}={}){
   const ins=W.inspection,withProfile=profile||kind==='profile'||(kind==='install'&&!ins.dj_profiles?.count);
   startState(ins);
-  // The screen choice comes with a loader install or update, after the profile and before the review.
+  // The screen choice comes with a loader install or update, after the profile and before the review. Four decks is
+  // not a step: nothing about it happens while writing, so it is explained while the write runs and on the done screen.
   const withLook=(kind==='install'||kind==='update')&&lookAvailable();
-  const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),...((kind==='install'||kind==='update')?['quad']:[]),'review','writing','done',...((kind==='install'||kind==='update')?['support']:[])];
+  const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),'review','writing','done',...((kind==='install'||kind==='update')?['support']:[])];
   if(kind==='profile')W.games=installedGames(ins);
   const entry=gamesOpen?'review':steps[0];
   go({view:'flow',flow:{kind,steps,entry},step:entry,loader:FLOWS[kind].loader,result:null,gamesOpen,quadConfirmed:false,quadPaused:false});focusStep();
@@ -413,9 +417,10 @@ function flowHead(){
   const steps=W.flow.steps,index=steps.indexOf(W.step),cancellable=W.step==='profile'||W.step==='look'||W.step==='review'||W.step==='quad';
   return el('div',{class:'wz-flow-head'},
     el('div',{class:'wz-flow-title'},el('h2',{text:FLOWS[W.flow.kind].title}),W.flow.kind==='quad'?null:el('span',{class:'wz-mono',text:driveLabel()===W.usb?W.usb:driveLabel()+' · '+W.usb})),
-    el('div',{class:'wz-flow-progress'},
+    // A one-page guide (the four-deck cable guide) has no progress to show.
+    steps.length>1?el('div',{class:'wz-flow-progress'},
       el('span',{class:'wz-flow-count',text:'Step '+(index+1)+' of '+steps.length}),
-      el('ol',{class:'wz-dots','aria-hidden':'true'},...steps.map((step,i)=>el('li',{dataset:{state:i<index?'done':i===index?'current':'todo'}})))),
+      el('ol',{class:'wz-dots','aria-hidden':'true'},...steps.map((step,i)=>el('li',{dataset:{state:i<index?'done':i===index?'current':'todo'}})))):null,
     // Cancel leaves the guide for the USB list, so another USB or a folder is one click away.
     cancellable?el('button',{type:'button',class:'text-button wz-cancel',text:'Cancel',onclick:W.flow.kind==='quad'?closeQuad:toList}):null);
 }
@@ -435,8 +440,7 @@ function stepFoot(){
       return foot(previous,action(profile?'Next':'Skip for now',()=>goto(nextStep()),profile?'primary':'secondary'));
     }
     case 'look':return foot(previous,action('Next',()=>goto(nextStep())));
-    case 'quad':return W.flow.kind==='quad'?foot(previous,action('Done',closeQuad)):
-      foot(previous,action('Skip for now',quadNext,'text-button'),action('Next',quadNext));
+    case 'quad':return foot(previous,action('Done',closeQuad));
     case 'review':return foot(previous,action('Write to USB',startWrite,'primary',{id:'wz-write',disabled:nothingToWrite()?true:null}));
     case 'done':return foot(null,...doneActions());
     case 'support':return foot(previous,action('Finish',W.eject?.state==='done'?afterEject:backToDevice,'primary',{id:'wz-support-finish'}));
@@ -453,9 +457,53 @@ function stepProfile(){
 
 // This guide records a user's observation only. It makes no host/device requests or settings changes.
 function focusStep(){const heading=host.querySelector('.wz-flow-body h3');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}}
-function quadEntry(){return el('div',{class:'wz-quad-entry'},
-  el('span',{},el('strong',{text:'Quad standalone mixer'}),el('small',{text:'Experimental beta. Requires an exact paired XDJ-XZ 1.26 four-deck loader and bridge. Reopen this guide any time.'})),
-  el('button',{type:'button',class:'secondary',id:'wz-quad-open',text:'Set up four decks',onclick:openQuad}));}
+// --- four decks ---
+// Four decks is set up at the player, never while a USB is written, so the USB pages only explain it: a calm entry on
+// the USB list and dashboard, and a section while the write runs and on the done screen. Each opens the same
+// explanation, the manual's Four decks chapter (window.openManual, from the Manual page). A host without the manual
+// falls back to the cable guide below, so the button is never dead.
+function openFourDecks(){
+  if(typeof window.openManual==='function'){window.openManual('four-decks');return;}
+  openQuad();
+}
+function fourDeckEntry(){
+  return el('button',{type:'button',class:'wz-fourdeck-entry',id:'wz-fourdeck-open',onclick:openFourDecks},
+    el('span',{class:'wz-fourdeck-entry-icon'},icon('decks')),
+    el('span',{class:'wz-fourdeck-entry-text'},
+      el('strong',{},'Four decks',el('span',{class:'wz-chip wz-fourdeck-tag',text:'Experimental'})),
+      el('small',{text:'Play decks 3 and 4 through one loopback cable. See how it works.'})),
+    icon('chevron','wz-go'));
+}
+// The three things to do at the player, the same as the manual's Four decks chapter and the cable card on the XZ.
+const FOUR_DECK_STEPS=[
+  {title:'Cable from the rear USB-B socket to top '+LOOPBACK_PORT,text:'A USB-B to USB-A cable, the kind a printer uses.'},
+  {title:'Music stick in '+MUSIC_PORT,text:'Decks 3 and 4 play their tracks from it.'},
+  {title:'CH3 and CH4 set to USB',text:'The mixer inputs, so you hear decks 3 and 4.'}
+];
+// writing: while the USB is written, as something to read; done: on the done screen. During a write the button only
+// opens the manual: the cable guide would take the place of the running write.
+function fourDeckSection(where){
+  const writing=where==='writing',manual=typeof window.openManual==='function';
+  // The build just written has no four-deck engine: a setup state, with one button into the build choice when this
+  // app includes a four-deck build, or one sentence when it does not.
+  const capability=window.quadSetupCapability?.(),noEngine=!writing&&capability?.supported===false;
+  const includedQuad=modVersionById(modInventory?.bundled_id)?.quad_supported===true;
+  const how=writing&&!manual?null:el('button',{type:'button',class:noEngine&&includedQuad?'text-button':'primary',id:'wz-fourdeck-how',text:'How four decks work',onclick:openFourDecks});
+  return el('section',{class:'wz-fourdeck',dataset:{where},'aria-labelledby':'wz-fourdeck-title'},
+    el('div',{class:'wz-fourdeck-head'},
+      el('span',{class:'wz-eyebrow',text:writing?'While you wait':'When you want it'}),
+      el('h4',{id:'wz-fourdeck-title'},'Four decks',el('span',{class:'wz-chip wz-fourdeck-tag',text:'Experimental'})),
+      el('p',{text:'Decks 3 and 4 play through mixer CH3 and CH4. One short cable from the back of the XZ to the top carries their sound. There is nothing to do now: set it up at the player when you want four decks.'})),
+    cableFigure('wz-fourdeck',LOOPBACK_PORT_CAPTION),
+    el('ol',{class:'wz-fourdeck-steps'},...FOUR_DECK_STEPS.map((step,index)=>el('li',{},
+      el('span',{class:'wz-fourdeck-num','aria-hidden':'true',text:String(index+1)}),
+      el('span',{},el('strong',{text:step.title}),el('small',{text:step.text}))))),
+    noEngine&&includedQuad?el('div',{class:'wz-fourdeck-setup',role:'status'},
+      el('p',{text:'The build on this USB has no four-deck engine. Choose the four-deck build, then update this USB.'}),
+      el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'wz-fourdeck-build',text:'Choose the four-deck build',onclick:()=>document.getElementById('quad-open')?.click()}),how)):
+    noEngine?el('div',{class:'wz-fourdeck-setup',role:'status'},el('p',{text:'The build on this USB has no four-deck engine, and this app includes none.'}),how?el('div',{class:'actions'},how):null):
+      how?el('div',{class:'actions'},how):null);
+}
 function openQuad(){
   W.quadReturn={view:W.view,flow:W.flow,step:W.step};
   go({view:'flow',flow:{kind:'quad',steps:['quad']},step:'quad',quadConfirmed:false,quadPaused:false});focusStep();
@@ -463,45 +511,48 @@ function openQuad(){
 function closeQuad(){
   const target=W.quadReturn;W.quadReturn=null;
   go(target||{view:W.inspection?'device':'find',flow:null,step:null});
-  host.querySelector('#wz-quad-open')?.focus({preventScroll:true});
+  host.querySelector('#wz-fourdeck-how,#wz-fourdeck-open')?.focus({preventScroll:true});
 }
-function quadNext(){if(W.flow.kind==='quad')closeQuad();else goto(nextStep());}
 function quadStatus(){return W.quadConfirmed?'User confirmation: you saw four decks. This app has not detected or verified the cable connection.':'Connection not checked by this app. Confirm the result on the XZ.';}
 // The cable guide's picture: the deck's own loopback-cable explainer (source/.../mods/ui/cable_anim.c), rendered for
 // the app by tools/build_cable_media.py. Muted, looping, no controls; with reduced motion, its first frame.
 const QUAD_VIDEO='assets/wizard/loopback-cable.mp4',QUAD_POSTER='assets/wizard/loopback-cable-poster.webp';
 const QUAD_TITLE='One USB-B to USB-A cable loops back into the same XDJ-XZ';
-const QUAD_DESC='The XDJ-XZ seen from behind and above, with one cable from the rear USB-B socket over the back edge into top USB1. The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of USB1 and goes back in. USB2 is beside it. The loop ends where it began, both ends connected. No computer is involved.';
-function quadCable(){
+const QUAD_DESC='The XDJ-XZ seen from behind and above, with one cable from the rear USB-B socket over the back edge into top '+LOOPBACK_PORT+'. The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of '+LOOPBACK_PORT+' and goes back in. '+MUSIC_PORT+' is beside it. The loop ends where it began, both ends connected. No computer is involved.';
+const LOOPBACK_PORT_CAPTION='Rear USB-B → top '+LOOPBACK_PORT+' · Music stays in '+MUSIC_PORT;
+// The cable picture with its caption and a pause button; prefix keeps the ids apart (wz-quad in the guide, wz-fourdeck
+// on the USB pages). One pause choice (W.quadPaused) holds for both.
+function cableFigure(prefix,caption){
   const still=reducedMotion();
   const media=still?el('img',{class:'wz-quad-video',src:QUAD_POSTER,alt:QUAD_TITLE+'. '+QUAD_DESC,width:1280,height:400})
-    :el('video',{class:'wz-quad-video',id:'wz-quad-video',src:QUAD_VIDEO,poster:QUAD_POSTER,muted:true,loop:true,autoplay:W.quadPaused?null:true,playsinline:true,
-      preload:'auto',width:1280,height:400,'aria-label':QUAD_TITLE,'aria-describedby':'wz-quad-desc'});
+    :el('video',{class:'wz-quad-video',id:prefix+'-video',src:QUAD_VIDEO,poster:QUAD_POSTER,muted:true,loop:true,autoplay:W.quadPaused?null:true,playsinline:true,
+      preload:'auto',width:1280,height:400,'aria-label':QUAD_TITLE,'aria-describedby':prefix+'-desc'});
   if(!still){media.muted=true;if(!W.quadPaused)media.play?.().catch(()=>{});}
-  return [media,el('p',{class:'visually-hidden',id:'wz-quad-desc',text:QUAD_DESC})];
+  return el('figure',{class:'wz-quad-art '+prefix+'-art',dataset:{paused:W.quadPaused?'1':null}},media,
+    still?null:el('p',{class:'visually-hidden',id:prefix+'-desc',text:QUAD_DESC}),
+    el('figcaption',{},el('span',{text:caption}),
+      still?null:el('button',{type:'button',class:'text-button',id:prefix+'-motion','aria-pressed':String(W.quadPaused),text:W.quadPaused?'Play cable animation':'Pause cable animation',onclick:event=>{
+        W.quadPaused=!W.quadPaused;
+        const figure=event.currentTarget.closest('figure'),video=figure.querySelector('video');
+        if(W.quadPaused){figure.dataset.paused='1';video?.pause();}else{delete figure.dataset.paused;video?.play?.().catch(()=>{});}
+        event.currentTarget.textContent=W.quadPaused?'Play cable animation':'Pause cable animation';event.currentTarget.setAttribute('aria-pressed',String(W.quadPaused));
+      }})));
 }
 function stepQuad(){
   return [el('h3',{text:'Four decks, one standalone mixer'}),
-    el('p',{class:'wz-lead',text:'Decks 3 and 4 send audio back to mixer CH3 and CH4 through a USB-B to USB-A cable. This is the cable guide for after installation.'}),
+    el('p',{class:'wz-lead',text:'Decks 3 and 4 send audio back to mixer CH3 and CH4 through a USB-B to USB-A cable. Follow these steps at the player.'}),
     el('p',{class:'notice wz-quad-prereq',text:'Requires the paired XDJ-XZ 1.26 quad beta resources. The matching loader starts the automatic bridge; this cable guide does not install it or verify the connection. Other saved versions may not include quad support.'}),
-    el('figure',{class:'wz-quad-art',dataset:{paused:W.quadPaused?'1':null}},quadCable(),
-      el('figcaption',{},el('span',{text:'Rear USB-B → top USB1 · Music stays in USB2'}),
-        reducedMotion()?null:el('button',{type:'button',class:'text-button',id:'wz-quad-motion','aria-pressed':String(W.quadPaused),text:W.quadPaused?'Play cable animation':'Pause cable animation',onclick:event=>{
-          W.quadPaused=!W.quadPaused;
-          const figure=event.currentTarget.closest('figure'),video=figure.querySelector('video');
-          if(W.quadPaused){figure.dataset.paused='1';video?.pause();}else{delete figure.dataset.paused;video?.play?.().catch(()=>{});}
-          event.currentTarget.textContent=W.quadPaused?'Play cable animation':'Pause cable animation';event.currentTarget.setAttribute('aria-pressed',String(W.quadPaused));
-        }}))),
+    cableFigure('wz-quad',LOOPBACK_PORT_CAPTION),
     el('ol',{class:'wz-quad-steps'},
-      el('li',{},el('strong',{text:'Boot first. '}),'Keep the boot stick in USB1 until XZ Mods has finished starting. Keep the music stick in USB2. Leave the square, beveled USB-B end plugged into the rear USB-B socket; leave its rectangular USB-A end free.'),
-      el('li',{},el('strong',{text:'Stop every deck. '}),'Hold USB1 STOP for more than 2 seconds. Wait until the USB1 indicator is off, then remove only the boot stick.'),
-      el('li',{},el('strong',{text:'Loop back. '}),'Insert only the free USB-A cable end into top USB1. It connects back to the XZ, not a computer. Keep music USB2 connected.'),
+      el('li',{},el('strong',{text:'Boot first. '}),'Keep the boot stick in '+LOOPBACK_PORT+' until XZ Mods has finished starting. Keep the music stick in '+MUSIC_PORT+'. Leave the square, beveled USB-B end plugged into the rear USB-B socket; leave its rectangular USB-A end free.'),
+      el('li',{},el('strong',{text:'Stop every deck. '}),'Hold '+LOOPBACK_PORT+' STOP for more than 2 seconds. Wait until the '+LOOPBACK_PORT+' indicator is off, then remove only the boot stick.'),
+      el('li',{},el('strong',{text:'Loop back. '}),'Insert only the free USB-A cable end into top '+LOOPBACK_PORT+'. It connects back to the XZ, not a computer. Keep music '+MUSIC_PORT+' connected.'),
       el('li',{},el('strong',{text:'Check on the XZ. '}),'Four decks should appear when the route is ready. Set the CH3 and CH4 input selectors to USB if required. Press left SHIFT twice to switch 1/3; right SHIFT twice to switch 2/4.')),
     el('label',{class:'check wz-quad-confirm'},el('input',{type:'checkbox',id:'wz-quad-confirm',checked:W.quadConfirmed?true:null,onchange:event=>{W.quadConfirmed=event.currentTarget.checked;$('wz-quad-status').textContent=quadStatus();}}),'I can see four decks on the XZ'),
     el('p',{class:'wz-quad-status',id:'wz-quad-status',role:'status',text:quadStatus()}),
     el('details',{class:'wz-quad-trouble'},el('summary',{text:'Still two decks, or no CH3/CH4 audio?'}),
-      el('p',{text:'Confirm the matching four-deck loader and bridge are running. With all decks stopped, check rear USB-B → top USB1, music USB2 and the CH3/CH4 USB selectors. If the cable was connected before boot, leave the rear USB-B end in place and reconnect only the free USB-A end after startup. Stop every deck before reconnecting.'}),
-      el('p',{text:'These USB1 loopback / USB2 music instructions describe the paired quad beta setup. Other loader/bridge configurations may differ. This guide does not detect your configuration. Reopen it from USB → Set up four decks.'})),
+      el('p',{text:'Confirm the matching four-deck loader and bridge are running. With all decks stopped, check rear USB-B → top '+LOOPBACK_PORT+', music '+MUSIC_PORT+' and the CH3/CH4 USB selectors. If the cable was connected before boot, leave the rear USB-B end in place and reconnect only the free USB-A end after startup. Stop every deck before reconnecting.'}),
+      el('p',{text:'These '+LOOPBACK_PORT+' loopback / '+MUSIC_PORT+' music instructions describe the paired quad beta setup. Other loader/bridge configurations may differ. This guide does not detect your configuration. Reopen it from USB → Four decks.'})),
     el('p',{class:'wz-mono',text:'Keep the music USB connected. Music removal and full RAM carry are unsupported. Four-deck stems are still incomplete.'})];
 }
 
@@ -626,7 +677,8 @@ function stepReview(){
     ejectChoice(),
     jobSlot];
 }
-function stepWriting(){return [el('h3',{text:'Writing to '+driveLabel()}),planList(),safeLine(),ejectChoice(),jobSlot];}
+// A loader write takes a while: four decks is explained underneath, as something to read meanwhile.
+function stepWriting(){return [el('h3',{text:'Writing to '+driveLabel()}),planList(),safeLine(),ejectChoice(),jobSlot,W.flow.kind==='install'||W.flow.kind==='update'?fourDeckSection('writing'):null];}
 async function startWrite(){
   if(W.step!=='review'||nothingToWrite())return;
   if(appUpdating){showError('XZ Mods is updating itself. Write to the USB once the update has finished.',jobSlot);return;}
@@ -709,11 +761,13 @@ function stepDone(){
       el('h3',{text:trouble?'Finished, with something to check':'Your USB is ready'})),
     el('ul',{class:'wz-done'},...lines.map(text=>el('li',{text}))),
     ejectStatus(),
-    r.loader?quadEntry():null,
-    r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
-      el('li',{text:'On the play screen, press MENU or touch MODS at the top right to open the menu. Hold MENU for the player’s own settings. HOME is the first page.'}),el('li',{text:'The button next to LINK switches between the Classic and Modern screens.'}),el('li',{text:'Test the loader before you use it in a set.'}))):null,
+      el('li',{text:'On the play screen, press MENU or touch MODS at the top right to open the menu. Hold MENU for the player’s own settings. HOME is the first page.'}),
+      el('li',{text:'Press the rekordbox button above LINK to switch between the CLASSIC and MODERN screens. You can give it another job in MODS > PLAY.'}),
+      el('li',{text:'Test the loader before you use it in a set.'}))):null,
+    r.loader?fourDeckSection('done'):null,
+    r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,
     failed.length||ejected?null:ejectChoice(true),
     jobSlot];
 }
@@ -786,7 +840,7 @@ document.addEventListener('keydown',event=>{
   if(!target||target.disabled)return;
   event.preventDefault();target.click();
 });
-window.setupWizard={state:W,render,shown,refreshNav,goto,startFlow,chooseUsb,findAndChoose,usbCard,usable,driveLabel,loaderChoice,newGames,settingsChanges,onRender:listener=>listeners.push(listener)};
+window.setupWizard={state:W,loopbackPort:LOOPBACK_PORT,musicPort:MUSIC_PORT,openFourDecks,render,shown,refreshNav,goto,startFlow,chooseUsb,findAndChoose,usbCard,usable,driveLabel,loaderChoice,newGames,settingsChanges,onRender:listener=>listeners.push(listener)};
 // Other pages can hand over a USB they already read.
 window.openSetupFor=inspection=>{open(inspection.volume,inspection);showPage('setup');followNewest();};
 shown();
