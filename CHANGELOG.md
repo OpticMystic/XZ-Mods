@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0-preview.22.10 - 2026-10-28
+
+- When the music USB goes out, a deck playing its whole track from RAM shows a card in place of its waveform: WHOLE TRACK IN RAM · PLAYABLE, and how to get the waveform back. Title, time, BPM, tempo, key, lamps and hot cues stay on screen. This works on every deck, in MODERN and CLASSIC.
+- The loopback cable no longer brings up an error. Once decks 3 and 4 have found it, the E-8307 hub warning stays quiet, and in CLASSIC the player's window becomes a calm LOOPBACK CABLE CONNECTED card. A hub the player really refused still shows the warning.
+- Feedback has its own place at the foot of the app rail on every page. Report a problem, request a feature or ask a question there, and follow everything you sent in My reports. A count shows reports waiting from your XZ.
+- The app is laid out as a tool: a compact header, Tools grouped into Your USB, Your XZ and This app, and the version at the foot of the rail.
+- The window opens at a size that fits your screen and can shrink to 760 x 520. Every step of the USB guide has a Back button, and Cancel or Back from the first step opens a list of the USB sticks plugged in, with Write to a folder instead at the end.
+- The loader can go on any writable USB stick, FAT32, exFAT or NTFS.
+- Choose a folder instead now writes the loader into the folder, ready to copy to a USB. It used to stop at the review step with an error.
+- Hot cue marks on decks 1 and 2 in MODERN no longer vanish when one pad holds a cue without an OUT point or a pad is unused.
+- The KEYS page no longer offers KEY SYNC and SET UP KEYS on the master deck.
+- The UTILITY and SHORTCUT pages in the manual match the lock notes and NEEDLE LOCK.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.9 - 2026-10-27
 
 - Tools has a new Report a problem or share an idea page. You fill in one box, and the app adds cleaned-up details from your XZ Mods USB, which you can see and untick before anything is sent. Each report gets a reference such as R-4F7K-2M9Q, and My reports shows where it stands.
