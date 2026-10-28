@@ -11,7 +11,7 @@
 #include <string.h>
 
 int xz_ui_focusable(const struct xz_ui_widget *w){
- return w&&w->kind!=XZ_UI_BACK&&w->kind!=XZ_UI_CLOSE&&w->kind!=XZ_UI_NONE;
+ return w&&w->kind!=XZ_UI_BACK&&w->kind!=XZ_UI_CLOSE&&w->kind!=XZ_UI_NONE&&w->kind!=XZ_UI_SUPPORT_ALERT;
 }
 /* Content in reading order, then header deck pickers, then the section rail. */
 static int zone(const struct xz_ui_widget *w){
@@ -165,7 +165,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_METRICS_SETUP:return "CPU, memory, temperature and audio render times. Shows the active key shifters on all four decks.";
  case XZ_UI_PROFILE_SETUP:return "Your DJ name and logo for VJ screens, from the USB. The player's own saved settings are MY SETTINGS in UTILITY.";
  case XZ_UI_ABOUT:return "Created by VJ OpticMystic. Credits, project links, licences and voluntary support.";
- case XZ_UI_SUPPORT:return "Prepares a cleaned-up diagnostic report, shows it, then uploads it or saves it to USB.";
+ case XZ_UI_SUPPORT:return "Tell the maintainer about a problem or an idea. The player adds its own details; you can add words on your computer.";
  case XZ_UI_BUTTONS:return "What the media button next to LINK does, alone and while SHIFT is held on either deck.";
  case XZ_UI_SCREEN_LOOK:return "The MODERN play screen's top bar lamps, waveform titles and track colours: show or hide each one.";
  default:return "Opens this page.";}
@@ -436,7 +436,7 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
  if(a.kind==XZ_UI_SHELL_LOOK&&a.index/8==XZ_UI_LOOK_WAVE_COLOR&&((out->works_on>>2)&3u))out->excluded="Decks 3 and 4: 3-band for STOCK and STEMS.";
  if(a.kind==XZ_UI_ABOUT_LINK)out->body="Push or tap to show this link as a QR. Scan with your phone.";
  if(xz_ui_network_kind(a.kind))out->body=xz_ui_network_help(a.kind);
- if(xz_ui_support_kind(a.kind))out->body=xz_ui_support_help(a.kind);
+ if(xz_ui_support_kind(a.kind)){const char *title=NULL;out->body=xz_ui_support_describe(u,m,&a,&title);if(title)out->title=title;}
  if(xz_ui_profile_owns(a.kind)){const char *title=NULL,*text=xz_ui_profile_describe(u,m,&a,&title);if(text)out->body=text;if(title)out->title=title;}
  /* Locked stems name their reason instead of a bare NOT READY. */
  if(!l.available&&(a.kind==XZ_UI_MUTE||a.kind==XZ_UI_BYPASS||a.kind==XZ_UI_LEVEL)){

@@ -14,6 +14,38 @@ static void save(const char *directory,const char *name,int width,int height){
  }
  if(fclose(file)!=0)exit(1);
 }
+/* REPORT AN ISSUE: each step and each result, and the error strip's REPORT THIS that opens it. */
+static void report_previews(const char *directory,struct xz_ui_model base,int theme){
+ static const char *const steps[]={"support-text","support-typed","support-send","support-sending","support-sent","support-saved","support-unsaved","support-strip"};
+ char name[80];
+ for(size_t k=0;k<sizeof steps/sizeof *steps;k++){
+  struct xz_ui u;struct xz_ui_model m=base;xz_ui_init(&u);u.page=XZ_UI_SUPPORT;m.theme=theme;
+  u.support.topic=XZ_SUPPORT_NOT_WORKING+1;u.support.entry=XZ_SUPPORT_FROM_EXTRAS;u.kb_shift=1;
+  u.focus_kind=XZ_UI_SUPPORT_SKIP;u.focus_index=0;u.focus_deck=-1;
+  if(k>=1){snprintf(u.support.text,sizeof u.support.text,"Deck 2 stopped when I loaded a track from the second USB");u.kb_shift=0;u.focus_kind=XZ_UI_SUPPORT_NEXT;}
+  u.support.step=k<2?1:k==2?2:3;
+  if(k==2){u.focus_kind=XZ_UI_SUPPORT_SEND;}
+  if(k==3)m.support.phase=XZ_SUPPORT_WORKING;
+  if(k==4){m.support.phase=XZ_SUPPORT_SENT;snprintf(m.support.reference,sizeof m.support.reference,"R-4F7K-2M9Q");
+   snprintf(m.support.tracking_url,sizeof m.support.tracking_url,"https://xz-mods-support.will-026.workers.dev/r/R-4F7K-2M9Q");
+   u.focus_kind=XZ_UI_SUPPORT_DONE;}
+  if(k==5){m.support.phase=XZ_SUPPORT_SAVED;snprintf(m.support.result,sizeof m.support.result,"OFFLINE");u.focus_kind=XZ_UI_SUPPORT_DONE;}
+  if(k==6){m.support.phase=XZ_SUPPORT_UNSAVED;snprintf(m.support.result,sizeof m.support.result,"READ_ONLY");
+   snprintf(m.support.detail,sizeof m.support.detail,"OFFLINE");u.focus_kind=XZ_UI_SUPPORT_RETRY;}
+  if(k==7){u.page=XZ_UI_PLAY;u.focus_kind=XZ_UI_NONE;m.usb_hub="E-8307: HUBS ARE NOT SUPPORTED";m.route.state=XZ_UI_ROUTE_STARTING;}
+  if(k==3||k==4||k==5||k==6)u.support.step=3;
+  if(!xz_ui_render(&u,&m,pixels,800*480,800))exit(1);
+  snprintf(name,sizeof(name),"theme-%d-%s",theme,steps[k]);save(directory,name,800,480);
+ }
+ /* MODERN: a deck's counter error takes the strip, with REPORT THIS beside SHOW DECK. */
+ if(theme==XZ_THEME_FLAGSHIP){
+  struct xz_ui u;struct xz_ui_model m=base;xz_ui_init(&u);u.page=XZ_UI_PLAY;m.theme=theme;
+  m.ui_interface=XZ_UI_INTERFACE_MODERN;m.modern_look.known=1;
+  m.counter_error[1]=(struct xz_ui_counter_error){"E-8302","CANNOT PLAY TRACK"};
+  if(!xz_ui_render(&u,&m,pixels,800*480,800))exit(1);
+  snprintf(name,sizeof(name),"theme-%d-support-strip-counter",theme);save(directory,name,800,480);
+ }
+}
 int main(int argc,char **argv){
  if(argc!=2)return 1;
  struct xz_ui ui;struct xz_ui_model model={0};xz_ui_init(&ui);
@@ -33,6 +65,7 @@ int main(int argc,char **argv){
  model.connection.device_ip="169.254.0.2";model.connection.port=50005;
  model.connection.protocol="VJFS / VJVP / VJTE + VJXZ";
  model.connection.status="WAITING FOR VJ.Tools";
+ snprintf(model.support.loader_id,sizeof model.support.loader_id,"L-4F7K-2M9Q");model.support.loader_state=1;
  model.rekordbox_assign[0]=XZ_UI_RB_INTERFACE;model.rekordbox_assign[1]=XZ_UI_RB_STOCK; /* the defaults */
  model.route.state=XZ_UI_ROUTE_NOT_DETECTED;model.deck_view=0;
  for(int deck=0;deck<4;deck++)model.jump_page[deck]=deck<2?0:-1;
@@ -59,6 +92,7 @@ int main(int argc,char **argv){
   ui.page=XZ_UI_STEMS;model.deck[0].muted=1;model.deck[0].levels[1]=.7f;
   if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
   snprintf(name,sizeof(name),"theme-%d-muted",theme);save(argv[1],name,800,480);
+  report_previews(argv[1],model,theme);
   if(!xz_ui_inline_render(&ui,&model,pixels,536*XZ_WAVE_INLINE_HEIGHT,536,536,XZ_WAVE_INLINE_HEIGHT))return 1;
   snprintf(name,sizeof(name),"theme-%d-inline",theme);save(argv[1],name,536,XZ_WAVE_INLINE_HEIGHT);
   model.deck[0].muted=0;model.deck[0].levels[1]=1;

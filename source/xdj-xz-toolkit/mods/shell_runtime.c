@@ -3571,6 +3571,14 @@ static void stop_locked(void) {
  drain_retired();
 }
 
+int xz_shell_runtime_screen(void) {
+ if(!running)return -1;
+ if(pthread_mutex_trylock(&mutex))return (int)__atomic_load_n(&xz_mods_shell_proof_v1.screen,__ATOMIC_RELAXED);
+ int screen=(int)xz_shell_screen(&shell);
+ pthread_mutex_unlock(&mutex);
+ return screen;
+}
+
 int xz_shell_diary_snapshot(struct xz_diary_view *out) {
  if(!running||pthread_mutex_trylock(&mutex))return 0;
  out->have_decks=1;

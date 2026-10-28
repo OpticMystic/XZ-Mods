@@ -197,7 +197,24 @@ static int wrap(struct xz_canvas c,int x,int y,int width,int lines,int pitch,con
 /* MODERN keeps a known stock counter error in view while MODS is open: one red row in place of the dock's title,
    with each deck's badge, the code and the firmware's own text (as the play screen's alert has them), and SHOW DECK,
    because a tap closes MODS onto that deck's alert and CHOOSE TRACK. The explanation and the right column stay. */
-static void counter_strip(struct xz_canvas c,const struct xz_ui_model *m,unsigned errors){
+int xz_ui_strip_report(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_ui_widget *out){
+ unsigned errors=xz_ui_counter_errors(m);
+ if(!u||u->page==XZ_UI_SUPPORT||(!errors&&!xz_ui_usb_hub_notice(m)))return 0;
+ struct xz_canvas c={NULL,0,XZ_UI_WIDTH,XZ_UI_HEIGHT,m->theme};
+ int right=XZ_UI_COUNTER_W-6,w=xz_text_width(c,"REPORT THIS",1,40)+20;
+ if(errors)right-=xz_text_width(c,(errors&1)&&(errors&2)?"SHOW DECKS":"SHOW DECK",1,40)+20+6;
+ *out=(struct xz_ui_widget){right-w,XZ_UI_COUNTER_Y,w,XZ_UI_COUNTER_H,XZ_UI_SUPPORT_ALERT,0,0,"REPORT THIS",-1};
+ return 1;
+}
+/* REPORT THIS: an outline, so SHOW DECK stays the strip's main button. */
+static int report_button(struct xz_canvas c,const struct xz_ui *u,const struct xz_ui_model *m,int fallback_x){
+ struct xz_ui_widget r;
+ if(!xz_ui_strip_report(u,m,&r))return fallback_x;
+ outline(c,r.x,r.y+4,r.w,r.h-8,4,0xffffff);
+ xz_text(c,r.x+10,r.y+(r.h-9)/2,r.label,1,40,0xffffff);
+ return r.x-6;
+}
+static void counter_strip(struct xz_canvas c,const struct xz_ui *u,const struct xz_ui_model *m,unsigned errors){
  enum { FILL=0x5a0c0c, EDGE=0xff4619, TEXT=0xffc8b4, H=XZ_UI_COUNTER_H }; /* the play screen alert's colours */
  int y=XZ_UI_COUNTER_Y,ty=y+(H-9)/2,count=(errors&1)+(errors>>1&1);
  xz_rect(c,0,y,XZ_UI_COUNTER_W,H,FILL);
@@ -206,7 +223,8 @@ static void counter_strip(struct xz_canvas c,const struct xz_ui_model *m,unsigne
  int go_w=xz_text_width(c,go,1,40)+20,go_x=XZ_UI_COUNTER_W-6-go_w;
  xz_round_rect(c,go_x,y+4,go_w,H-8,4,15,0xffffff);
  xz_text(c,go_x+10,ty,go,1,40,FILL);
- int x=14,room=(go_x-12-x-(count-1)*20)/count;
+ int end=report_button(c,u,m,go_x);
+ int x=14,room=(end-12-x-(count-1)*20)/count;
  for(int d=0;d<2;d++){
   if(!(errors>>d&1))continue;
   const struct xz_ui_counter_error *e=&m->counter_error[d];
@@ -219,7 +237,7 @@ static void counter_strip(struct xz_canvas c,const struct xz_ui_model *m,unsigne
 }
 /* The E-8307 hub warning in the counter strip's place and colours: the firmware's code and text, then what it is
    about. No control: RESCAN and the cable steps live on the 4 DECKS page. */
-static void hub_strip(struct xz_canvas c,const struct xz_ui_model *m){
+static void hub_strip(struct xz_canvas c,const struct xz_ui *u,const struct xz_ui_model *m){
  enum { FILL=0x5a0c0c, EDGE=0xff4619, TEXT=0xffc8b4, H=XZ_UI_COUNTER_H };
  int y=XZ_UI_COUNTER_Y,ty=y+(H-9)/2,x=14;
  xz_rect(c,0,y,XZ_UI_COUNTER_W,H,FILL);
@@ -229,9 +247,11 @@ static void hub_strip(struct xz_canvas c,const struct xz_ui_model *m){
  char code[12];snprintf(code,sizeof code,"%.*s",colon?(int)(colon-m->usb_hub):6,m->usb_hub);
  xz_text(c,x,ty,code,1,40,0xffffff);x+=xz_text_width(c,code,1,40)+8;
  xz_text(c,x,ty,rest,1,40,TEXT);x+=xz_text_width(c,rest,1,40)+14;
- const char *why=m->route.state==XZ_UI_ROUTE_READY?"FROM THE LOOPBACK CABLE. DECKS 3 AND 4 ARE READY.":
-  "FROM THE LOOPBACK CABLE OR A HUB IN A TOP USB PORT.";
- if(x<XZ_UI_COUNTER_W-12)xz_text(c,x,ty,why,1,(XZ_UI_COUNTER_W-8-x)/6,0xffffff);
+ int end=report_button(c,u,m,XZ_UI_COUNTER_W-8),tight=end<XZ_UI_COUNTER_W-8;
+ /* With REPORT THIS beside it the reason says the same in fewer words. */
+ const char *why=m->route.state==XZ_UI_ROUTE_READY?(tight?"FROM THE LOOPBACK CABLE. DECKS 3 AND 4 READY.":"FROM THE LOOPBACK CABLE. DECKS 3 AND 4 ARE READY."):
+  tight?"FROM THE LOOPBACK CABLE OR A HUB IN A TOP PORT.":"FROM THE LOOPBACK CABLE OR A HUB IN A TOP USB PORT.";
+ if(x<end-4)xz_text(c,x,ty,why,1,(end-x)/6,0xffffff);
 }
 void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint32_t dim,uint32_t accent,uint32_t alarm){
  struct xz_canvas c=s->c;const struct xz_ui *u=s->u;const struct xz_ui_model *m=s->m;
@@ -244,8 +264,8 @@ void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint
  /* Left: what the focused control is and does; a deck's counter error takes the title row (MODERN). */
  unsigned errors=xz_ui_counter_errors(m);int hub=xz_ui_usb_hub_notice(m);
  int title_w=xz_text_width(c,info.title,2,40);if(title_w>360)title_w=360;
- if(errors)counter_strip(c,m,errors);
- else if(hub)hub_strip(c,m);
+ if(errors)counter_strip(c,u,m,errors);
+ else if(hub)hub_strip(c,u,m);
  else xz_text(c,16,y+6,info.title,title_w<360?2:1,40,ink);
  if(!errors&&!hub&&info.state&&info.state[0]){
   int chip_w=xz_text_width(c,info.state,1,20)+16,chip_x=16+title_w+12;

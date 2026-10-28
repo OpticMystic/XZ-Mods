@@ -62,6 +62,11 @@ static char *field(struct xz_ui *u,size_t *cap,int *limit){
 static const char *const *layout(const struct xz_ui *u){return u->kb_symbols?symbols:letters;}
 static int key_byte(const struct xz_ui *u,char c){return !u->kb_symbols&&u->kb_shift&&c>='a'&&c<='z'?c-32:c;}
 /* Row and column of a typed byte in the current layout, or -1. */
+static int key_slot(const struct xz_ui *u,int byte);
+/* The same keyboard for REPORT AN ISSUE (ui_support.c). */
+const char *xz_ui_kb_row(const struct xz_ui *u,int row){return row>=0&&row<4?layout(u)[row]:"";}
+int xz_ui_kb_byte(const struct xz_ui *u,char c){return key_byte(u,c);}
+int xz_ui_kb_slot(const struct xz_ui *u,int byte){return key_slot(u,byte);}
 static int key_slot(const struct xz_ui *u,int byte){
  char c=(char)(byte>='A'&&byte<='Z'&&!u->kb_symbols?byte+32:byte);
  for(int r=0;r<4;r++){const char *p=strchr(layout(u)[r],c);if(p&&c)return r*10+(int)(p-layout(u)[r]);}

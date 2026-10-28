@@ -49,7 +49,7 @@ static const char *tagline(const struct xz_ui_widget *a){
   case XZ_UI_MYHOUSE_SETUP:return "NEEDS THE NATIVE GZDOOM PORT";
   case XZ_UI_PROFILE_SETUP:return "YOUR NAME AND LOGO FOR VJ SCREENS";
   case XZ_UI_NETWORK:return "ADAPTER, ADDRESS, APPLY FOR THIS BOOT";
-  case XZ_UI_SUPPORT:return "PREPARE, CHECK AND SEND A REPORT";
+  case XZ_UI_SUPPORT:return "SEND A PROBLEM OR AN IDEA";
   case XZ_UI_ABOUT:return "CREDITS, LINKS AND SUPPORT";
   default:return NULL;}
  case XZ_UI_GAME_SELECT:return a->index?"ORIGINAL GAME + PATCH":"DOOM AND DOOM II DATA";
