@@ -42,7 +42,7 @@ export const CONTRACT = {
         "type": "string",
         "maxLength": 4096,
         "x-maxUtf8": 4096,
-        "minLength": 1
+        "minLength": 0
       },
       "category": {
         "type": "string",
@@ -901,6 +901,176 @@ export const CONTRACT = {
         },
         "required": [],
         "additionalProperties": false
+      },
+      "loader_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 11,
+            "x-maxUtf8": 11,
+            "pattern": "^L-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "installation_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 11,
+            "x-maxUtf8": 11,
+            "pattern": "^I-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "screen_state": {
+        "type": "object",
+        "properties": {
+          "surface": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "STOCK",
+              "MODS"
+            ]
+          },
+          "stock_page": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "BROWSE",
+              "TAG_LIST",
+              "INFO",
+              "MENU",
+              "UTILITY",
+              "PERFORMANCE",
+              "SOURCE",
+              "SEARCH"
+            ]
+          },
+          "mods_page": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "STEMS",
+              "XPAD",
+              "SETTINGS",
+              "THEMES",
+              "CONNECTION",
+              "CONTROLS",
+              "BEAT_JUMP",
+              "EXTRAS",
+              "DOOM",
+              "DOOM_SETUP",
+              "DOOM_FILES",
+              "UPDATES",
+              "UPDATE_SETUP",
+              "GAMES",
+              "MYHOUSE_SETUP",
+              "KEY_SETUP",
+              "BROWSE_SETUP",
+              "PC_STEMS",
+              "STEM_COLORS",
+              "APPS",
+              "APPS_SETUP",
+              "RAM_SETUP",
+              "LOCAL_STEM_SETUP",
+              "METRICS_SETUP",
+              "PROFILE_SETUP",
+              "PROFILE_EDIT",
+              "GENERAL",
+              "FEATURE_SETUP",
+              "THEME_PICK",
+              "BUTTONS",
+              "NETWORK",
+              "NETWORK_SETUP",
+              "NETWORK_EDIT",
+              "ABOUT",
+              "SUPPORT",
+              "HOME",
+              "PLAY",
+              "STEM_SECTION",
+              "SCREEN",
+              "FOUR_DECKS",
+              "CONNECT",
+              "STEM_PADS",
+              "SCREEN_LOOK",
+              "BAND_COLORS"
+            ]
+          },
+          "interface": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "MODERN",
+              "CLASSIC"
+            ]
+          },
+          "deck_view": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "TWO",
+              "FOUR",
+              "MIXER"
+            ]
+          },
+          "alert_code": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "NONE",
+              "UNKNOWN",
+              "EMERGENCY_LOOP",
+              "READ_ERROR",
+              "UNSUPPORTED_FILE",
+              "DEVICE_ERROR",
+              "HUB_UNSUPPORTED"
+            ]
+          },
+          "counter_code": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "NONE",
+              "UNKNOWN",
+              "E-8302",
+              "E-8304",
+              "E-8305",
+              "E-8307"
+            ]
+          }
+        },
+        "required": [
+          "surface",
+          "stock_page",
+          "mods_page",
+          "interface",
+          "deck_view",
+          "alert_code",
+          "counter_code"
+        ],
+        "additionalProperties": false
+      },
+      "comments_pending": {
+        "type": "boolean"
       }
     },
     "required": [
@@ -1757,7 +1927,1382 @@ export const CONTRACT = {
     ],
     "publication_fields": {
       "item_number": "Required canonical XZ item number, copied into the approved outbox projection. Prefix issue titles [XZ-1042]. PR Support reference uses XZ-1042, never report_id."
+    },
+    "installation_id": {
+      "format": "I-XXXX-XXXX",
+      "alphabet": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+      "bits": 40,
+      "allocation": "Worker CSPRNG, five bytes, big endian; D1 unique index and collision retry at atomic acceptance.",
+      "parsing": "ASCII case insensitive; ignore ASCII spaces and dashes; R prefix required; map I/L to 1 and O to 0 in the eight symbols; reject all other characters.",
+      "authority": "None. Receipt-key and derived-capability authorization is unchanged.",
+      "backfill": "First ten hexadecimal report_id characters as a big-endian 40-bit integer; ascending report_id order; probe +1 modulo 2^40 until unused.",
+      "vectors": [
+        {
+          "input": "I-4f7k-2m9q",
+          "value": 153799971127,
+          "canonical": "I-4F7K-2M9Q"
+        },
+        {
+          "input": "i oooI-ooLl",
+          "value": 1048609,
+          "canonical": "I-0001-0011"
+        },
+        {
+          "input": "R-4F7K-2M9Q",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "I-0000-000U",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "I-0000-0000\n",
+          "value": null,
+          "canonical": null
+        }
+      ],
+      "prefix": "I-"
+    },
+    "loader_id": {
+      "format": "L-XXXX-XXXX",
+      "alphabet": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+      "bits": 40,
+      "allocation": "Worker CSPRNG, five bytes, big endian; D1 unique index and collision retry at atomic acceptance.",
+      "parsing": "ASCII case insensitive; ignore ASCII spaces and dashes; R prefix required; map I/L to 1 and O to 0 in the eight symbols; reject all other characters.",
+      "authority": "None. Receipt-key and derived-capability authorization is unchanged.",
+      "backfill": "First ten hexadecimal report_id characters as a big-endian 40-bit integer; ascending report_id order; probe +1 modulo 2^40 until unused.",
+      "vectors": [
+        {
+          "input": "L-4f7k-2m9q",
+          "value": 153799971127,
+          "canonical": "L-4F7K-2M9Q"
+        },
+        {
+          "input": "l oooI-ooLl",
+          "value": 1048609,
+          "canonical": "L-0001-0011"
+        },
+        {
+          "input": "R-4F7K-2M9Q",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "L-0000-000U",
+          "value": null,
+          "canonical": null
+        },
+        {
+          "input": "L-0000-0000\n",
+          "value": null,
+          "canonical": null
+        }
+      ],
+      "prefix": "L-"
     }
+  },
+  "screen_state_schema": {
+    "type": "object",
+    "properties": {
+      "surface": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "enum": [
+          "UNKNOWN",
+          "STOCK",
+          "MODS"
+        ]
+      },
+      "stock_page": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "enum": [
+          "UNKNOWN",
+          "BROWSE",
+          "TAG_LIST",
+          "INFO",
+          "MENU",
+          "UTILITY",
+          "PERFORMANCE",
+          "SOURCE",
+          "SEARCH"
+        ]
+      },
+      "mods_page": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "enum": [
+          "UNKNOWN",
+          "STEMS",
+          "XPAD",
+          "SETTINGS",
+          "THEMES",
+          "CONNECTION",
+          "CONTROLS",
+          "BEAT_JUMP",
+          "EXTRAS",
+          "DOOM",
+          "DOOM_SETUP",
+          "DOOM_FILES",
+          "UPDATES",
+          "UPDATE_SETUP",
+          "GAMES",
+          "MYHOUSE_SETUP",
+          "KEY_SETUP",
+          "BROWSE_SETUP",
+          "PC_STEMS",
+          "STEM_COLORS",
+          "APPS",
+          "APPS_SETUP",
+          "RAM_SETUP",
+          "LOCAL_STEM_SETUP",
+          "METRICS_SETUP",
+          "PROFILE_SETUP",
+          "PROFILE_EDIT",
+          "GENERAL",
+          "FEATURE_SETUP",
+          "THEME_PICK",
+          "BUTTONS",
+          "NETWORK",
+          "NETWORK_SETUP",
+          "NETWORK_EDIT",
+          "ABOUT",
+          "SUPPORT",
+          "HOME",
+          "PLAY",
+          "STEM_SECTION",
+          "SCREEN",
+          "FOUR_DECKS",
+          "CONNECT",
+          "STEM_PADS",
+          "SCREEN_LOOK",
+          "BAND_COLORS"
+        ]
+      },
+      "interface": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "enum": [
+          "UNKNOWN",
+          "MODERN",
+          "CLASSIC"
+        ]
+      },
+      "deck_view": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "enum": [
+          "UNKNOWN",
+          "TWO",
+          "FOUR",
+          "MIXER"
+        ]
+      },
+      "alert_code": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "enum": [
+          "NONE",
+          "UNKNOWN",
+          "EMERGENCY_LOOP",
+          "READ_ERROR",
+          "UNSUPPORTED_FILE",
+          "DEVICE_ERROR",
+          "HUB_UNSUPPORTED"
+        ]
+      },
+      "counter_code": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "enum": [
+          "NONE",
+          "UNKNOWN",
+          "E-8302",
+          "E-8304",
+          "E-8305",
+          "E-8307"
+        ]
+      }
+    },
+    "required": [
+      "surface",
+      "stock_page",
+      "mods_page",
+      "interface",
+      "deck_view",
+      "alert_code",
+      "counter_code"
+    ],
+    "additionalProperties": false
+  },
+  "loader_identity_schema": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "const": 1
+      },
+      "loader_id": {
+        "type": "string",
+        "maxLength": 11,
+        "x-maxUtf8": 11,
+        "pattern": "^L-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$"
+      },
+      "loader_key": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "installation_id": {
+        "type": "string",
+        "maxLength": 11,
+        "x-maxUtf8": 11,
+        "pattern": "^I-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$"
+      },
+      "created_at": {
+        "type": "string",
+        "maxLength": 24,
+        "x-maxUtf8": 24,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+      },
+      "app_version": {
+        "type": "string",
+        "maxLength": 64,
+        "x-maxUtf8": 64,
+        "pattern": "^(?:unknown|[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-z0-9.]+)?(?:\\+[a-z0-9.]+)?)$"
+      }
+    },
+    "required": [
+      "version",
+      "loader_id",
+      "loader_key",
+      "installation_id",
+      "created_at",
+      "app_version"
+    ],
+    "additionalProperties": false
+  },
+  "pending_lifecycles": [
+    "pending_comments",
+    "completed",
+    "completed_without_comments",
+    "expired_reminders"
+  ],
+  "controller_queue": {
+    "reminder_days": 7,
+    "poll_seconds": 180,
+    "loader_daily_reports": 5,
+    "installation_daily_reports": 20,
+    "installation_loader_limit": 64,
+    "installation_daily_registrations_per_ip": 10,
+    "daily_installations": 100,
+    "queue_page_size": 20,
+    "scan_files": 32,
+    "scan_entries": 64,
+    "scan_bytes": 2097152,
+    "typed_characters": 280,
+    "identity_path": "VJ.Tools/loader-identity.json",
+    "identity_bytes": 2048,
+    "pending_path": "VJ.Tools/XZ-Mods-reports/pending",
+    "sent_path": "VJ.Tools/XZ-Mods-reports/sent",
+    "file_pattern": "^[a-f0-9]{32}\\.json$",
+    "receipt_domain": "xz-controller-claim/v1\n",
+    "awaiting_text": "awaiting the DJ's comments"
+  },
+  "pending_report_schema": {
+    "type": "object",
+    "properties": {
+      "schema": {
+        "const": "xz-support-report/2"
+      },
+      "report_id": {
+        "type": "string",
+        "maxLength": 32,
+        "x-maxUtf8": 32,
+        "pattern": "^[a-f0-9]{32}$"
+      },
+      "origin": {
+        "const": "controller"
+      },
+      "kind_hint": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "REGRESSION",
+              "DEGRADATION",
+              "BUG",
+              "EXPECTATION",
+              "FEATURE",
+              "QUESTION"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "description": {
+        "type": "string",
+        "maxLength": 280,
+        "x-maxUtf8": 1120,
+        "minLength": 0
+      },
+      "category": {
+        "type": "string",
+        "enum": [
+          "bridge",
+          "audio",
+          "display",
+          "app_usb",
+          "other"
+        ]
+      },
+      "build": {
+        "type": "object",
+        "properties": {
+          "desktop_version": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "pattern": "^(?:unknown|[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-z0-9.]+)?(?:\\+[a-z0-9.]+)?)$"
+          },
+          "desktop_provenance": {
+            "type": "string",
+            "enum": [
+              "desktop",
+              "unknown"
+            ]
+          },
+          "runtime_version": {
+            "const": "unknown"
+          },
+          "runtime_provenance": {
+            "const": "unknown"
+          }
+        },
+        "required": [
+          "desktop_version",
+          "desktop_provenance",
+          "runtime_version",
+          "runtime_provenance"
+        ],
+        "additionalProperties": false
+      },
+      "incident": {
+        "type": "object",
+        "properties": {
+          "before_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "after_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "clock_confidence": {
+            "type": "string",
+            "enum": [
+              "known",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "before_seconds",
+          "after_seconds",
+          "clock_confidence"
+        ],
+        "additionalProperties": false
+      },
+      "private": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "x-maxUtf8": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contact_consent": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_id": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "x-maxUtf8": 32,
+                  "pattern": "^[a-f0-9]{32}$"
+                },
+                "source_id": {
+                  "type": "string",
+                  "enum": [
+                    "usb_session",
+                    "native_export",
+                    "usb_settings",
+                    "bridge_status",
+                    "bridge_fallback",
+                    "bridge_history",
+                    "coldplug",
+                    "runtime_events",
+                    "launcher",
+                    "application_output",
+                    "receiver",
+                    "app_events",
+                    "loader_status",
+                    "packaged_manifest",
+                    "packaged_profile",
+                    "usb_diary"
+                  ]
+                },
+                "source_slot": {
+                  "type": "string",
+                  "enum": [
+                    "app",
+                    "package",
+                    "usb_a",
+                    "usb_b",
+                    "usb_c",
+                    "usb_d",
+                    "xz_a"
+                  ]
+                },
+                "parser_version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2
+                },
+                "capture": {
+                  "const": "at_collection"
+                },
+                "clock_confidence": {
+                  "type": "string",
+                  "enum": [
+                    "known",
+                    "unknown",
+                    "current"
+                  ]
+                },
+                "selected": {
+                  "const": true
+                },
+                "facts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "enum": [
+                          "ACTIVE_MISMATCH",
+                          "CANCELLED",
+                          "CLEANUP_MODULE_UNLOAD_FAILURE",
+                          "CLEANUP_NODE_REMOVE_FAILURE",
+                          "FAILED",
+                          "FATAL_BINDING_NOT_NEW",
+                          "FATAL_PROCESS_SET_CHANGE",
+                          "MOUNT_AMBIGUOUS",
+                          "MUSIC_READY",
+                          "NONE",
+                          "NOT_READY",
+                          "OTA_ACCEPTED",
+                          "OTA_BASE_OR_RECOVERY",
+                          "OTA_ROLLBACK",
+                          "OTA_TRIAL_READY",
+                          "OWNER_MISMATCH",
+                          "RACE_MUSIC_CAPTURE",
+                          "RACE_MUSIC_DESCRIPTORS",
+                          "READY",
+                          "READY_CH3_CH4",
+                          "STOPPED_WITH_ERROR",
+                          "STOP_PENDING",
+                          "TERMINATED_ADMISSION_DEBOUNCE_FAILURE",
+                          "TERMINATED_APPLY_LOAD_FAILURE",
+                          "TERMINATED_BIND_DEBOUNCE_FAILURE",
+                          "TERMINATED_EVENT_SOCKET_FAILURE",
+                          "TERMINATED_FOREIGN_MODULE",
+                          "TERMINATED_FOREIGN_MODULE_OR_NODE",
+                          "TERMINATED_FOREIGN_NODE",
+                          "TERMINATED_MODULE_ADMISSION_FAILURE",
+                          "TERMINATED_MUSIC_IDENTITY",
+                          "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE",
+                          "TERMINATED_NODE_REMOVE_FAILURE",
+                          "TERMINATED_NODE_WRITE_FAILURE",
+                          "TERMINATED_PID_WRITE_FAILURE",
+                          "TERMINATED_PROBE_LOAD_FAILURE",
+                          "TERMINATED_PROBE_UNLOAD_FAILURE",
+                          "TERMINATED_PROCESS_SET_CHANGE",
+                          "TERMINATED_SCAN_FAILURE",
+                          "TERMINATED_SIGNAL",
+                          "TERMINATED_STOPPED_MEDIA_ADMISSION",
+                          "TERMINATED_STOP_MARKER",
+                          "TERMINATED_UNSPECIFIED",
+                          "UNSUPPORTED_KERNEL",
+                          "UNSUPPORTED_MODEL",
+                          "UNSUPPORTED_MUSIC_FILESYSTEM",
+                          "UNSUPPORTED_MUSIC_MOUNT",
+                          "UNSUPPORTED_MUSIC_SERIAL_LENGTH",
+                          "UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY",
+                          "UNSUPPORTED_USB2_BLOCK_ANCESTRY",
+                          "USB_GADGET_PROBE_COMPLETE",
+                          "VJ_NETWORK_READY",
+                          "WAIT_AUDIO_DEVICE",
+                          "WAIT_LOOPBACK",
+                          "WAIT_MEDIA",
+                          "WAIT_MOUNT",
+                          "WAIT_MUSIC_DESCRIPTORS",
+                          "WAIT_MUSIC_MOUNT",
+                          "WAIT_MUSIC_SERIAL_READ",
+                          "WAIT_NATIVE_PAUSED",
+                          "WAIT_SAFE_LOOPBACK_DISCONNECT"
+                        ]
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "ACTIVE",
+                          "FAILED",
+                          "NEW",
+                          "READY",
+                          "RETIRED",
+                          "STOPPED",
+                          "WAITING",
+                          "ready",
+                          "retryable",
+                          "route_ready",
+                          "stopped",
+                          "stopping",
+                          "waiting",
+                          "unknown",
+                          "started",
+                          "present",
+                          "removed",
+                          "changed",
+                          "empty",
+                          "loading",
+                          "playing",
+                          "paused",
+                          "error",
+                          "off",
+                          "following",
+                          "locked",
+                          "shown"
+                        ]
+                      },
+                      "attempt": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000000
+                      },
+                      "retryable": {
+                        "type": "boolean"
+                      },
+                      "route_ready": {
+                        "type": "boolean"
+                      },
+                      "result": {
+                        "type": "string",
+                        "enum": [
+                          "process-exited",
+                          "notified",
+                          "write-failed",
+                          "watch-complete",
+                          "ready",
+                          "started",
+                          "succeeded",
+                          "failed",
+                          "cancelled"
+                        ]
+                      },
+                      "slot": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 2
+                      },
+                      "elapsed_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3600000
+                      },
+                      "component": {
+                        "type": "string",
+                        "enum": [
+                          "desktop",
+                          "runtime",
+                          "bridge",
+                          "module",
+                          "loader",
+                          "receiver",
+                          "settings",
+                          "unknown",
+                          "usb",
+                          "deck",
+                          "sync",
+                          "ram",
+                          "ui"
+                        ]
+                      },
+                      "version": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "x-maxUtf8": 64,
+                        "pattern": "^(?:unknown|[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-z0-9.]+)?(?:\\+[a-z0-9.]+)?)$"
+                      },
+                      "provenance": {
+                        "type": "string",
+                        "enum": [
+                          "desktop",
+                          "packaged_manifest",
+                          "usb_record",
+                          "native_export",
+                          "running_runtime",
+                          "unknown"
+                        ]
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "x-maxUtf8": 64,
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "setting": {
+                        "type": "string",
+                        "enum": [
+                          "stems",
+                          "gate",
+                          "interface",
+                          "classic_theme",
+                          "deck_view",
+                          "browse_preview"
+                        ]
+                      },
+                      "value": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000000
+                      },
+                      "valid": {
+                        "type": "boolean"
+                      },
+                      "error_namespace": {
+                        "type": "string",
+                        "enum": [
+                          "errno",
+                          "win32",
+                          "xz_display"
+                        ]
+                      },
+                      "error_code": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535
+                      },
+                      "crash_evidence": {
+                        "const": "unavailable"
+                      },
+                      "relative_seconds": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -3600,
+                            "maximum": 3600
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "clock_basis": {
+                        "type": "string",
+                        "enum": [
+                          "host_utc",
+                          "device_utc",
+                          "monotonic_mapped",
+                          "unknown",
+                          "current"
+                        ]
+                      },
+                      "window_match": {
+                        "type": "string",
+                        "enum": [
+                          "inside",
+                          "outside",
+                          "unknown"
+                        ]
+                      },
+                      "cpu_percent": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "free_ram_kib": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1048576
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "audio_underruns": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000000
+                      },
+                      "sync_phase_error_ms": {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -10000,
+                              "maximum": 10000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxItems": 4
+                      },
+                      "usb_read_latency_us": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "firmware": {
+                        "type": "string",
+                        "enum": [
+                          "1.26",
+                          "unknown"
+                        ]
+                      },
+                      "interface": {
+                        "type": "string",
+                        "enum": [
+                          "MODERN",
+                          "CLASSIC"
+                        ]
+                      },
+                      "deck_view": {
+                        "type": "integer",
+                        "minimum": 2,
+                        "maximum": 4
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "observed",
+                          "track_load",
+                          "ram_copy",
+                          "read_busy",
+                          "space_low",
+                          "read_only",
+                          "io_error",
+                          "queue_full",
+                          "source_changed",
+                          "no_grid",
+                          "manual",
+                          "clock_lost",
+                          "range_limit",
+                          "no_master",
+                          "phase_unavailable",
+                          "discontinuity",
+                          "loop",
+                          "aligning",
+                          "external_master",
+                          "no_bpm",
+                          "tempo_only"
+                        ]
+                      },
+                      "notice": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "other",
+                          "track_missing",
+                          "track_read",
+                          "source_changed",
+                          "route_changed",
+                          "key_busy",
+                          "key_pending",
+                          "jump_limit",
+                          "cues_session",
+                          "cues_invalid",
+                          "scratch_truncated"
+                        ]
+                      },
+                      "deck": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      "detail_code": {
+                        "anyOf": [
+                          {
+                            "const": 0
+                          },
+                          {
+                            "const": 7206
+                          },
+                          {
+                            "const": 8302
+                          },
+                          {
+                            "const": 8304
+                          },
+                          {
+                            "const": 8305
+                          },
+                          {
+                            "const": 8306
+                          },
+                          {
+                            "const": 8307
+                          }
+                        ]
+                      },
+                      "audio_underrun_frames": {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 2147483647
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxItems": 4
+                      },
+                      "key_shift_max_us": {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1000000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxItems": 4
+                      },
+                      "dropped_records": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000000
+                      }
+                    },
+                    "required": [
+                      "relative_seconds",
+                      "clock_basis",
+                      "window_match"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 512
+                },
+                "missing_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "missing",
+                        "removed",
+                        "changed",
+                        "unsafe_path",
+                        "oversized",
+                        "invalid",
+                        "not_available",
+                        "cancelled",
+                        "budget",
+                        "category",
+                        "no_matching_schema"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "omission_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                },
+                "coverage": {
+                  "type": "object",
+                  "properties": {
+                    "duration_seconds": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 604800
+                    },
+                    "start_relative_seconds": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -604800,
+                          "maximum": 604800
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "end_relative_seconds": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -604800,
+                          "maximum": 604800
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "clock_confidence": {
+                      "type": "string",
+                      "enum": [
+                        "known",
+                        "unknown"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "duration_seconds",
+                    "start_relative_seconds",
+                    "end_relative_seconds",
+                    "clock_confidence"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "item_id",
+                "source_id",
+                "source_slot",
+                "parser_version",
+                "capture",
+                "clock_confidence",
+                "selected",
+                "facts",
+                "missing_reason",
+                "truncated",
+                "omission_count"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 16
+          }
+        },
+        "required": [
+          "contact",
+          "contact_consent",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "coverage": {
+        "type": "object",
+        "properties": {
+          "omitted_items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "unfinished_sources": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "scan_generation": {
+            "type": "string",
+            "maxLength": 32,
+            "x-maxUtf8": 32,
+            "pattern": "^[a-f0-9]{32}$"
+          }
+        },
+        "required": [
+          "omitted_items",
+          "unfinished_sources",
+          "scan_generation"
+        ],
+        "additionalProperties": false
+      },
+      "redactions": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "omitted_lines": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "count",
+          "omitted_lines"
+        ],
+        "additionalProperties": false
+      },
+      "reporter_hints": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "GOT_WORSE",
+                  "NOT_WORKING",
+                  "WORK_DIFFERENTLY",
+                  "NEW_IDEA",
+                  "HOW_DO_I"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "problem_area": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "SOUND",
+                  "SYNC_TEMPO",
+                  "SCREEN_DISPLAY",
+                  "BUTTONS_PADS_LAMPS",
+                  "LOADING_BROWSING_USB",
+                  "FOUR_DECKS_LOOPBACK",
+                  "CRASH_FREEZE",
+                  "OTHER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectation_baseline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "STOCK_XZ",
+                  "XZ_CONSISTENCY",
+                  "DJ_CONVENTION",
+                  "XZ_MODS_PREVIOUS",
+                  "PREFERENCE",
+                  "NONE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "idea_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "NEW_FEATURE",
+                  "FASTER_WORKFLOW",
+                  "APPEARANCE",
+                  "INTEGRATION",
+                  "OTHER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "degradation_timing": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "AFTER_UPDATE",
+                  "DURING_SET_OVER_TIME",
+                  "AFTER_SETTING",
+                  "SUDDENLY_DURING_SET"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_feature": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CDJ_3000",
+                  "CDJ_2000NXS2",
+                  "XDJ_RX3",
+                  "REKORDBOX",
+                  "SERATO",
+                  "TRAKTOR",
+                  "DECKS_1_2",
+                  "XZ_MODS_FEATURE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "loader_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 11,
+            "x-maxUtf8": 11,
+            "pattern": "^L-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "installation_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 11,
+            "x-maxUtf8": 11,
+            "pattern": "^I-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "screen_state": {
+        "type": "object",
+        "properties": {
+          "surface": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "STOCK",
+              "MODS"
+            ]
+          },
+          "stock_page": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "BROWSE",
+              "TAG_LIST",
+              "INFO",
+              "MENU",
+              "UTILITY",
+              "PERFORMANCE",
+              "SOURCE",
+              "SEARCH"
+            ]
+          },
+          "mods_page": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "STEMS",
+              "XPAD",
+              "SETTINGS",
+              "THEMES",
+              "CONNECTION",
+              "CONTROLS",
+              "BEAT_JUMP",
+              "EXTRAS",
+              "DOOM",
+              "DOOM_SETUP",
+              "DOOM_FILES",
+              "UPDATES",
+              "UPDATE_SETUP",
+              "GAMES",
+              "MYHOUSE_SETUP",
+              "KEY_SETUP",
+              "BROWSE_SETUP",
+              "PC_STEMS",
+              "STEM_COLORS",
+              "APPS",
+              "APPS_SETUP",
+              "RAM_SETUP",
+              "LOCAL_STEM_SETUP",
+              "METRICS_SETUP",
+              "PROFILE_SETUP",
+              "PROFILE_EDIT",
+              "GENERAL",
+              "FEATURE_SETUP",
+              "THEME_PICK",
+              "BUTTONS",
+              "NETWORK",
+              "NETWORK_SETUP",
+              "NETWORK_EDIT",
+              "ABOUT",
+              "SUPPORT",
+              "HOME",
+              "PLAY",
+              "STEM_SECTION",
+              "SCREEN",
+              "FOUR_DECKS",
+              "CONNECT",
+              "STEM_PADS",
+              "SCREEN_LOOK",
+              "BAND_COLORS"
+            ]
+          },
+          "interface": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "MODERN",
+              "CLASSIC"
+            ]
+          },
+          "deck_view": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "UNKNOWN",
+              "TWO",
+              "FOUR",
+              "MIXER"
+            ]
+          },
+          "alert_code": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "NONE",
+              "UNKNOWN",
+              "EMERGENCY_LOOP",
+              "READ_ERROR",
+              "UNSUPPORTED_FILE",
+              "DEVICE_ERROR",
+              "HUB_UNSUPPORTED"
+            ]
+          },
+          "counter_code": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxUtf8": 64,
+            "enum": [
+              "NONE",
+              "UNKNOWN",
+              "E-8302",
+              "E-8304",
+              "E-8305",
+              "E-8307"
+            ]
+          }
+        },
+        "required": [
+          "surface",
+          "stock_page",
+          "mods_page",
+          "interface",
+          "deck_view",
+          "alert_code",
+          "counter_code"
+        ],
+        "additionalProperties": false
+      },
+      "comments_pending": {
+        "const": true
+      }
+    },
+    "required": [
+      "schema",
+      "report_id",
+      "origin",
+      "description",
+      "category",
+      "build",
+      "incident",
+      "private",
+      "coverage",
+      "redactions",
+      "loader_id",
+      "installation_id",
+      "screen_state",
+      "comments_pending"
+    ],
+    "additionalProperties": false
   }
 } as const;
 export const SOURCES = {
@@ -3271,7 +4816,9 @@ export const SOURCES = {
     }
   }
 } as const;
-export type ReportV2 = { "schema": "xz-support-report/2"; "report_id": string; "origin": "loader" | "controller"; "kind_hint"?: "REGRESSION" | "DEGRADATION" | "BUG" | "EXPECTATION" | "FEATURE" | "QUESTION" | null; "description": string; "category": "bridge" | "audio" | "display" | "app_usb" | "other"; "build": { "desktop_version": string; "desktop_provenance": "desktop" | "unknown"; "runtime_version": "unknown"; "runtime_provenance": "unknown" }; "incident": { "before_seconds": number; "after_seconds": number; "clock_confidence": "known" | "unknown" }; "private": { "contact": string | null; "contact_consent": boolean; "items": Array<{ "item_id": string; "source_id": "usb_session" | "native_export" | "usb_settings" | "bridge_status" | "bridge_fallback" | "bridge_history" | "coldplug" | "runtime_events" | "launcher" | "application_output" | "receiver" | "app_events" | "loader_status" | "packaged_manifest" | "packaged_profile" | "usb_diary"; "source_slot": "app" | "package" | "usb_a" | "usb_b" | "usb_c" | "usb_d" | "xz_a"; "parser_version": number; "capture": "at_collection"; "clock_confidence": "known" | "unknown" | "current"; "selected": true; "facts": Array<{ "code"?: "ACTIVE_MISMATCH" | "CANCELLED" | "CLEANUP_MODULE_UNLOAD_FAILURE" | "CLEANUP_NODE_REMOVE_FAILURE" | "FAILED" | "FATAL_BINDING_NOT_NEW" | "FATAL_PROCESS_SET_CHANGE" | "MOUNT_AMBIGUOUS" | "MUSIC_READY" | "NONE" | "NOT_READY" | "OTA_ACCEPTED" | "OTA_BASE_OR_RECOVERY" | "OTA_ROLLBACK" | "OTA_TRIAL_READY" | "OWNER_MISMATCH" | "RACE_MUSIC_CAPTURE" | "RACE_MUSIC_DESCRIPTORS" | "READY" | "READY_CH3_CH4" | "STOPPED_WITH_ERROR" | "STOP_PENDING" | "TERMINATED_ADMISSION_DEBOUNCE_FAILURE" | "TERMINATED_APPLY_LOAD_FAILURE" | "TERMINATED_BIND_DEBOUNCE_FAILURE" | "TERMINATED_EVENT_SOCKET_FAILURE" | "TERMINATED_FOREIGN_MODULE" | "TERMINATED_FOREIGN_MODULE_OR_NODE" | "TERMINATED_FOREIGN_NODE" | "TERMINATED_MODULE_ADMISSION_FAILURE" | "TERMINATED_MUSIC_IDENTITY" | "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE" | "TERMINATED_NODE_REMOVE_FAILURE" | "TERMINATED_NODE_WRITE_FAILURE" | "TERMINATED_PID_WRITE_FAILURE" | "TERMINATED_PROBE_LOAD_FAILURE" | "TERMINATED_PROBE_UNLOAD_FAILURE" | "TERMINATED_PROCESS_SET_CHANGE" | "TERMINATED_SCAN_FAILURE" | "TERMINATED_SIGNAL" | "TERMINATED_STOPPED_MEDIA_ADMISSION" | "TERMINATED_STOP_MARKER" | "TERMINATED_UNSPECIFIED" | "UNSUPPORTED_KERNEL" | "UNSUPPORTED_MODEL" | "UNSUPPORTED_MUSIC_FILESYSTEM" | "UNSUPPORTED_MUSIC_MOUNT" | "UNSUPPORTED_MUSIC_SERIAL_LENGTH" | "UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY" | "UNSUPPORTED_USB2_BLOCK_ANCESTRY" | "USB_GADGET_PROBE_COMPLETE" | "VJ_NETWORK_READY" | "WAIT_AUDIO_DEVICE" | "WAIT_LOOPBACK" | "WAIT_MEDIA" | "WAIT_MOUNT" | "WAIT_MUSIC_DESCRIPTORS" | "WAIT_MUSIC_MOUNT" | "WAIT_MUSIC_SERIAL_READ" | "WAIT_NATIVE_PAUSED" | "WAIT_SAFE_LOOPBACK_DISCONNECT"; "state"?: "ACTIVE" | "FAILED" | "NEW" | "READY" | "RETIRED" | "STOPPED" | "WAITING" | "ready" | "retryable" | "route_ready" | "stopped" | "stopping" | "waiting" | "unknown" | "started" | "present" | "removed" | "changed" | "empty" | "loading" | "playing" | "paused" | "error" | "off" | "following" | "locked" | "shown"; "attempt"?: number; "retryable"?: boolean; "route_ready"?: boolean; "result"?: "process-exited" | "notified" | "write-failed" | "watch-complete" | "ready" | "started" | "succeeded" | "failed" | "cancelled"; "slot"?: number; "elapsed_ms"?: number; "component"?: "desktop" | "runtime" | "bridge" | "module" | "loader" | "receiver" | "settings" | "unknown" | "usb" | "deck" | "sync" | "ram" | "ui"; "version"?: string; "provenance"?: "desktop" | "packaged_manifest" | "usb_record" | "native_export" | "running_runtime" | "unknown"; "sha256"?: string; "setting"?: "stems" | "gate" | "interface" | "classic_theme" | "deck_view" | "browse_preview"; "value"?: number; "valid"?: boolean; "error_namespace"?: "errno" | "win32" | "xz_display"; "error_code"?: number; "crash_evidence"?: "unavailable"; "relative_seconds": number | null; "clock_basis": "host_utc" | "device_utc" | "monotonic_mapped" | "unknown" | "current"; "window_match": "inside" | "outside" | "unknown"; "cpu_percent"?: number | null; "free_ram_kib"?: number | null; "audio_underruns"?: number; "sync_phase_error_ms"?: Array<number | null>; "usb_read_latency_us"?: number | null; "firmware"?: "1.26" | "unknown"; "interface"?: "MODERN" | "CLASSIC"; "deck_view"?: number; "reason"?: "none" | "observed" | "track_load" | "ram_copy" | "read_busy" | "space_low" | "read_only" | "io_error" | "queue_full" | "source_changed" | "no_grid" | "manual" | "clock_lost" | "range_limit" | "no_master" | "phase_unavailable" | "discontinuity" | "loop" | "aligning" | "external_master" | "no_bpm" | "tempo_only"; "notice"?: "none" | "other" | "track_missing" | "track_read" | "source_changed" | "route_changed" | "key_busy" | "key_pending" | "jump_limit" | "cues_session" | "cues_invalid" | "scratch_truncated"; "deck"?: number; "detail_code"?: 0 | 7206 | 8302 | 8304 | 8305 | 8306 | 8307; "audio_underrun_frames"?: Array<number | null>; "key_shift_max_us"?: Array<number | null>; "dropped_records"?: number }>; "missing_reason": "missing" | "removed" | "changed" | "unsafe_path" | "oversized" | "invalid" | "not_available" | "cancelled" | "budget" | "category" | "no_matching_schema" | null; "truncated": boolean; "omission_count": number; "coverage"?: { "duration_seconds": number; "start_relative_seconds": number | null; "end_relative_seconds": number | null; "clock_confidence": "known" | "unknown" } }> }; "coverage": { "omitted_items": number; "unfinished_sources": number; "scan_generation": string }; "redactions": { "count": number; "omitted_lines": number }; "reporter_hints"?: { "topic"?: "GOT_WORSE" | "NOT_WORKING" | "WORK_DIFFERENTLY" | "NEW_IDEA" | "HOW_DO_I" | null; "problem_area"?: "SOUND" | "SYNC_TEMPO" | "SCREEN_DISPLAY" | "BUTTONS_PADS_LAMPS" | "LOADING_BROWSING_USB" | "FOUR_DECKS_LOOPBACK" | "CRASH_FREEZE" | "OTHER" | null; "expectation_baseline"?: "STOCK_XZ" | "XZ_CONSISTENCY" | "DJ_CONVENTION" | "XZ_MODS_PREVIOUS" | "PREFERENCE" | "NONE" | null; "idea_type"?: "NEW_FEATURE" | "FASTER_WORKFLOW" | "APPEARANCE" | "INTEGRATION" | "OTHER" | null; "degradation_timing"?: "AFTER_UPDATE" | "DURING_SET_OVER_TIME" | "AFTER_SETTING" | "SUDDENLY_DURING_SET" | null; "reference_feature"?: "CDJ_3000" | "CDJ_2000NXS2" | "XDJ_RX3" | "REKORDBOX" | "SERATO" | "TRAKTOR" | "DECKS_1_2" | "XZ_MODS_FEATURE" | null } };
+export type ReportV2 = { "schema": "xz-support-report/2"; "report_id": string; "origin": "loader" | "controller"; "kind_hint"?: "REGRESSION" | "DEGRADATION" | "BUG" | "EXPECTATION" | "FEATURE" | "QUESTION" | null; "description": string; "category": "bridge" | "audio" | "display" | "app_usb" | "other"; "build": { "desktop_version": string; "desktop_provenance": "desktop" | "unknown"; "runtime_version": "unknown"; "runtime_provenance": "unknown" }; "incident": { "before_seconds": number; "after_seconds": number; "clock_confidence": "known" | "unknown" }; "private": { "contact": string | null; "contact_consent": boolean; "items": Array<{ "item_id": string; "source_id": "usb_session" | "native_export" | "usb_settings" | "bridge_status" | "bridge_fallback" | "bridge_history" | "coldplug" | "runtime_events" | "launcher" | "application_output" | "receiver" | "app_events" | "loader_status" | "packaged_manifest" | "packaged_profile" | "usb_diary"; "source_slot": "app" | "package" | "usb_a" | "usb_b" | "usb_c" | "usb_d" | "xz_a"; "parser_version": number; "capture": "at_collection"; "clock_confidence": "known" | "unknown" | "current"; "selected": true; "facts": Array<{ "code"?: "ACTIVE_MISMATCH" | "CANCELLED" | "CLEANUP_MODULE_UNLOAD_FAILURE" | "CLEANUP_NODE_REMOVE_FAILURE" | "FAILED" | "FATAL_BINDING_NOT_NEW" | "FATAL_PROCESS_SET_CHANGE" | "MOUNT_AMBIGUOUS" | "MUSIC_READY" | "NONE" | "NOT_READY" | "OTA_ACCEPTED" | "OTA_BASE_OR_RECOVERY" | "OTA_ROLLBACK" | "OTA_TRIAL_READY" | "OWNER_MISMATCH" | "RACE_MUSIC_CAPTURE" | "RACE_MUSIC_DESCRIPTORS" | "READY" | "READY_CH3_CH4" | "STOPPED_WITH_ERROR" | "STOP_PENDING" | "TERMINATED_ADMISSION_DEBOUNCE_FAILURE" | "TERMINATED_APPLY_LOAD_FAILURE" | "TERMINATED_BIND_DEBOUNCE_FAILURE" | "TERMINATED_EVENT_SOCKET_FAILURE" | "TERMINATED_FOREIGN_MODULE" | "TERMINATED_FOREIGN_MODULE_OR_NODE" | "TERMINATED_FOREIGN_NODE" | "TERMINATED_MODULE_ADMISSION_FAILURE" | "TERMINATED_MUSIC_IDENTITY" | "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE" | "TERMINATED_NODE_REMOVE_FAILURE" | "TERMINATED_NODE_WRITE_FAILURE" | "TERMINATED_PID_WRITE_FAILURE" | "TERMINATED_PROBE_LOAD_FAILURE" | "TERMINATED_PROBE_UNLOAD_FAILURE" | "TERMINATED_PROCESS_SET_CHANGE" | "TERMINATED_SCAN_FAILURE" | "TERMINATED_SIGNAL" | "TERMINATED_STOPPED_MEDIA_ADMISSION" | "TERMINATED_STOP_MARKER" | "TERMINATED_UNSPECIFIED" | "UNSUPPORTED_KERNEL" | "UNSUPPORTED_MODEL" | "UNSUPPORTED_MUSIC_FILESYSTEM" | "UNSUPPORTED_MUSIC_MOUNT" | "UNSUPPORTED_MUSIC_SERIAL_LENGTH" | "UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY" | "UNSUPPORTED_USB2_BLOCK_ANCESTRY" | "USB_GADGET_PROBE_COMPLETE" | "VJ_NETWORK_READY" | "WAIT_AUDIO_DEVICE" | "WAIT_LOOPBACK" | "WAIT_MEDIA" | "WAIT_MOUNT" | "WAIT_MUSIC_DESCRIPTORS" | "WAIT_MUSIC_MOUNT" | "WAIT_MUSIC_SERIAL_READ" | "WAIT_NATIVE_PAUSED" | "WAIT_SAFE_LOOPBACK_DISCONNECT"; "state"?: "ACTIVE" | "FAILED" | "NEW" | "READY" | "RETIRED" | "STOPPED" | "WAITING" | "ready" | "retryable" | "route_ready" | "stopped" | "stopping" | "waiting" | "unknown" | "started" | "present" | "removed" | "changed" | "empty" | "loading" | "playing" | "paused" | "error" | "off" | "following" | "locked" | "shown"; "attempt"?: number; "retryable"?: boolean; "route_ready"?: boolean; "result"?: "process-exited" | "notified" | "write-failed" | "watch-complete" | "ready" | "started" | "succeeded" | "failed" | "cancelled"; "slot"?: number; "elapsed_ms"?: number; "component"?: "desktop" | "runtime" | "bridge" | "module" | "loader" | "receiver" | "settings" | "unknown" | "usb" | "deck" | "sync" | "ram" | "ui"; "version"?: string; "provenance"?: "desktop" | "packaged_manifest" | "usb_record" | "native_export" | "running_runtime" | "unknown"; "sha256"?: string; "setting"?: "stems" | "gate" | "interface" | "classic_theme" | "deck_view" | "browse_preview"; "value"?: number; "valid"?: boolean; "error_namespace"?: "errno" | "win32" | "xz_display"; "error_code"?: number; "crash_evidence"?: "unavailable"; "relative_seconds": number | null; "clock_basis": "host_utc" | "device_utc" | "monotonic_mapped" | "unknown" | "current"; "window_match": "inside" | "outside" | "unknown"; "cpu_percent"?: number | null; "free_ram_kib"?: number | null; "audio_underruns"?: number; "sync_phase_error_ms"?: Array<number | null>; "usb_read_latency_us"?: number | null; "firmware"?: "1.26" | "unknown"; "interface"?: "MODERN" | "CLASSIC"; "deck_view"?: number; "reason"?: "none" | "observed" | "track_load" | "ram_copy" | "read_busy" | "space_low" | "read_only" | "io_error" | "queue_full" | "source_changed" | "no_grid" | "manual" | "clock_lost" | "range_limit" | "no_master" | "phase_unavailable" | "discontinuity" | "loop" | "aligning" | "external_master" | "no_bpm" | "tempo_only"; "notice"?: "none" | "other" | "track_missing" | "track_read" | "source_changed" | "route_changed" | "key_busy" | "key_pending" | "jump_limit" | "cues_session" | "cues_invalid" | "scratch_truncated"; "deck"?: number; "detail_code"?: 0 | 7206 | 8302 | 8304 | 8305 | 8306 | 8307; "audio_underrun_frames"?: Array<number | null>; "key_shift_max_us"?: Array<number | null>; "dropped_records"?: number }>; "missing_reason": "missing" | "removed" | "changed" | "unsafe_path" | "oversized" | "invalid" | "not_available" | "cancelled" | "budget" | "category" | "no_matching_schema" | null; "truncated": boolean; "omission_count": number; "coverage"?: { "duration_seconds": number; "start_relative_seconds": number | null; "end_relative_seconds": number | null; "clock_confidence": "known" | "unknown" } }> }; "coverage": { "omitted_items": number; "unfinished_sources": number; "scan_generation": string }; "redactions": { "count": number; "omitted_lines": number }; "reporter_hints"?: { "topic"?: "GOT_WORSE" | "NOT_WORKING" | "WORK_DIFFERENTLY" | "NEW_IDEA" | "HOW_DO_I" | null; "problem_area"?: "SOUND" | "SYNC_TEMPO" | "SCREEN_DISPLAY" | "BUTTONS_PADS_LAMPS" | "LOADING_BROWSING_USB" | "FOUR_DECKS_LOOPBACK" | "CRASH_FREEZE" | "OTHER" | null; "expectation_baseline"?: "STOCK_XZ" | "XZ_CONSISTENCY" | "DJ_CONVENTION" | "XZ_MODS_PREVIOUS" | "PREFERENCE" | "NONE" | null; "idea_type"?: "NEW_FEATURE" | "FASTER_WORKFLOW" | "APPEARANCE" | "INTEGRATION" | "OTHER" | null; "degradation_timing"?: "AFTER_UPDATE" | "DURING_SET_OVER_TIME" | "AFTER_SETTING" | "SUDDENLY_DURING_SET" | null; "reference_feature"?: "CDJ_3000" | "CDJ_2000NXS2" | "XDJ_RX3" | "REKORDBOX" | "SERATO" | "TRAKTOR" | "DECKS_1_2" | "XZ_MODS_FEATURE" | null }; "loader_id"?: string | null; "installation_id"?: string | null; "screen_state"?: { "surface": "UNKNOWN" | "STOCK" | "MODS"; "stock_page": "UNKNOWN" | "BROWSE" | "TAG_LIST" | "INFO" | "MENU" | "UTILITY" | "PERFORMANCE" | "SOURCE" | "SEARCH"; "mods_page": "UNKNOWN" | "STEMS" | "XPAD" | "SETTINGS" | "THEMES" | "CONNECTION" | "CONTROLS" | "BEAT_JUMP" | "EXTRAS" | "DOOM" | "DOOM_SETUP" | "DOOM_FILES" | "UPDATES" | "UPDATE_SETUP" | "GAMES" | "MYHOUSE_SETUP" | "KEY_SETUP" | "BROWSE_SETUP" | "PC_STEMS" | "STEM_COLORS" | "APPS" | "APPS_SETUP" | "RAM_SETUP" | "LOCAL_STEM_SETUP" | "METRICS_SETUP" | "PROFILE_SETUP" | "PROFILE_EDIT" | "GENERAL" | "FEATURE_SETUP" | "THEME_PICK" | "BUTTONS" | "NETWORK" | "NETWORK_SETUP" | "NETWORK_EDIT" | "ABOUT" | "SUPPORT" | "HOME" | "PLAY" | "STEM_SECTION" | "SCREEN" | "FOUR_DECKS" | "CONNECT" | "STEM_PADS" | "SCREEN_LOOK" | "BAND_COLORS"; "interface": "UNKNOWN" | "MODERN" | "CLASSIC"; "deck_view": "UNKNOWN" | "TWO" | "FOUR" | "MIXER"; "alert_code": "NONE" | "UNKNOWN" | "EMERGENCY_LOOP" | "READ_ERROR" | "UNSUPPORTED_FILE" | "DEVICE_ERROR" | "HUB_UNSUPPORTED"; "counter_code": "NONE" | "UNKNOWN" | "E-8302" | "E-8304" | "E-8305" | "E-8307" }; "comments_pending"?: boolean };
+export type PendingReport = { "schema": "xz-support-report/2"; "report_id": string; "origin": "controller"; "kind_hint"?: "REGRESSION" | "DEGRADATION" | "BUG" | "EXPECTATION" | "FEATURE" | "QUESTION" | null; "description": string; "category": "bridge" | "audio" | "display" | "app_usb" | "other"; "build": { "desktop_version": string; "desktop_provenance": "desktop" | "unknown"; "runtime_version": "unknown"; "runtime_provenance": "unknown" }; "incident": { "before_seconds": number; "after_seconds": number; "clock_confidence": "known" | "unknown" }; "private": { "contact": string | null; "contact_consent": boolean; "items": Array<{ "item_id": string; "source_id": "usb_session" | "native_export" | "usb_settings" | "bridge_status" | "bridge_fallback" | "bridge_history" | "coldplug" | "runtime_events" | "launcher" | "application_output" | "receiver" | "app_events" | "loader_status" | "packaged_manifest" | "packaged_profile" | "usb_diary"; "source_slot": "app" | "package" | "usb_a" | "usb_b" | "usb_c" | "usb_d" | "xz_a"; "parser_version": number; "capture": "at_collection"; "clock_confidence": "known" | "unknown" | "current"; "selected": true; "facts": Array<{ "code"?: "ACTIVE_MISMATCH" | "CANCELLED" | "CLEANUP_MODULE_UNLOAD_FAILURE" | "CLEANUP_NODE_REMOVE_FAILURE" | "FAILED" | "FATAL_BINDING_NOT_NEW" | "FATAL_PROCESS_SET_CHANGE" | "MOUNT_AMBIGUOUS" | "MUSIC_READY" | "NONE" | "NOT_READY" | "OTA_ACCEPTED" | "OTA_BASE_OR_RECOVERY" | "OTA_ROLLBACK" | "OTA_TRIAL_READY" | "OWNER_MISMATCH" | "RACE_MUSIC_CAPTURE" | "RACE_MUSIC_DESCRIPTORS" | "READY" | "READY_CH3_CH4" | "STOPPED_WITH_ERROR" | "STOP_PENDING" | "TERMINATED_ADMISSION_DEBOUNCE_FAILURE" | "TERMINATED_APPLY_LOAD_FAILURE" | "TERMINATED_BIND_DEBOUNCE_FAILURE" | "TERMINATED_EVENT_SOCKET_FAILURE" | "TERMINATED_FOREIGN_MODULE" | "TERMINATED_FOREIGN_MODULE_OR_NODE" | "TERMINATED_FOREIGN_NODE" | "TERMINATED_MODULE_ADMISSION_FAILURE" | "TERMINATED_MUSIC_IDENTITY" | "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE" | "TERMINATED_NODE_REMOVE_FAILURE" | "TERMINATED_NODE_WRITE_FAILURE" | "TERMINATED_PID_WRITE_FAILURE" | "TERMINATED_PROBE_LOAD_FAILURE" | "TERMINATED_PROBE_UNLOAD_FAILURE" | "TERMINATED_PROCESS_SET_CHANGE" | "TERMINATED_SCAN_FAILURE" | "TERMINATED_SIGNAL" | "TERMINATED_STOPPED_MEDIA_ADMISSION" | "TERMINATED_STOP_MARKER" | "TERMINATED_UNSPECIFIED" | "UNSUPPORTED_KERNEL" | "UNSUPPORTED_MODEL" | "UNSUPPORTED_MUSIC_FILESYSTEM" | "UNSUPPORTED_MUSIC_MOUNT" | "UNSUPPORTED_MUSIC_SERIAL_LENGTH" | "UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY" | "UNSUPPORTED_USB2_BLOCK_ANCESTRY" | "USB_GADGET_PROBE_COMPLETE" | "VJ_NETWORK_READY" | "WAIT_AUDIO_DEVICE" | "WAIT_LOOPBACK" | "WAIT_MEDIA" | "WAIT_MOUNT" | "WAIT_MUSIC_DESCRIPTORS" | "WAIT_MUSIC_MOUNT" | "WAIT_MUSIC_SERIAL_READ" | "WAIT_NATIVE_PAUSED" | "WAIT_SAFE_LOOPBACK_DISCONNECT"; "state"?: "ACTIVE" | "FAILED" | "NEW" | "READY" | "RETIRED" | "STOPPED" | "WAITING" | "ready" | "retryable" | "route_ready" | "stopped" | "stopping" | "waiting" | "unknown" | "started" | "present" | "removed" | "changed" | "empty" | "loading" | "playing" | "paused" | "error" | "off" | "following" | "locked" | "shown"; "attempt"?: number; "retryable"?: boolean; "route_ready"?: boolean; "result"?: "process-exited" | "notified" | "write-failed" | "watch-complete" | "ready" | "started" | "succeeded" | "failed" | "cancelled"; "slot"?: number; "elapsed_ms"?: number; "component"?: "desktop" | "runtime" | "bridge" | "module" | "loader" | "receiver" | "settings" | "unknown" | "usb" | "deck" | "sync" | "ram" | "ui"; "version"?: string; "provenance"?: "desktop" | "packaged_manifest" | "usb_record" | "native_export" | "running_runtime" | "unknown"; "sha256"?: string; "setting"?: "stems" | "gate" | "interface" | "classic_theme" | "deck_view" | "browse_preview"; "value"?: number; "valid"?: boolean; "error_namespace"?: "errno" | "win32" | "xz_display"; "error_code"?: number; "crash_evidence"?: "unavailable"; "relative_seconds": number | null; "clock_basis": "host_utc" | "device_utc" | "monotonic_mapped" | "unknown" | "current"; "window_match": "inside" | "outside" | "unknown"; "cpu_percent"?: number | null; "free_ram_kib"?: number | null; "audio_underruns"?: number; "sync_phase_error_ms"?: Array<number | null>; "usb_read_latency_us"?: number | null; "firmware"?: "1.26" | "unknown"; "interface"?: "MODERN" | "CLASSIC"; "deck_view"?: number; "reason"?: "none" | "observed" | "track_load" | "ram_copy" | "read_busy" | "space_low" | "read_only" | "io_error" | "queue_full" | "source_changed" | "no_grid" | "manual" | "clock_lost" | "range_limit" | "no_master" | "phase_unavailable" | "discontinuity" | "loop" | "aligning" | "external_master" | "no_bpm" | "tempo_only"; "notice"?: "none" | "other" | "track_missing" | "track_read" | "source_changed" | "route_changed" | "key_busy" | "key_pending" | "jump_limit" | "cues_session" | "cues_invalid" | "scratch_truncated"; "deck"?: number; "detail_code"?: 0 | 7206 | 8302 | 8304 | 8305 | 8306 | 8307; "audio_underrun_frames"?: Array<number | null>; "key_shift_max_us"?: Array<number | null>; "dropped_records"?: number }>; "missing_reason": "missing" | "removed" | "changed" | "unsafe_path" | "oversized" | "invalid" | "not_available" | "cancelled" | "budget" | "category" | "no_matching_schema" | null; "truncated": boolean; "omission_count": number; "coverage"?: { "duration_seconds": number; "start_relative_seconds": number | null; "end_relative_seconds": number | null; "clock_confidence": "known" | "unknown" } }> }; "coverage": { "omitted_items": number; "unfinished_sources": number; "scan_generation": string }; "redactions": { "count": number; "omitted_lines": number }; "reporter_hints"?: { "topic"?: "GOT_WORSE" | "NOT_WORKING" | "WORK_DIFFERENTLY" | "NEW_IDEA" | "HOW_DO_I" | null; "problem_area"?: "SOUND" | "SYNC_TEMPO" | "SCREEN_DISPLAY" | "BUTTONS_PADS_LAMPS" | "LOADING_BROWSING_USB" | "FOUR_DECKS_LOOPBACK" | "CRASH_FREEZE" | "OTHER" | null; "expectation_baseline"?: "STOCK_XZ" | "XZ_CONSISTENCY" | "DJ_CONVENTION" | "XZ_MODS_PREVIOUS" | "PREFERENCE" | "NONE" | null; "idea_type"?: "NEW_FEATURE" | "FASTER_WORKFLOW" | "APPEARANCE" | "INTEGRATION" | "OTHER" | null; "degradation_timing"?: "AFTER_UPDATE" | "DURING_SET_OVER_TIME" | "AFTER_SETTING" | "SUDDENLY_DURING_SET" | null; "reference_feature"?: "CDJ_3000" | "CDJ_2000NXS2" | "XDJ_RX3" | "REKORDBOX" | "SERATO" | "TRAKTOR" | "DECKS_1_2" | "XZ_MODS_FEATURE" | null }; "loader_id": string | null; "installation_id": string | null; "screen_state": { "surface": "UNKNOWN" | "STOCK" | "MODS"; "stock_page": "UNKNOWN" | "BROWSE" | "TAG_LIST" | "INFO" | "MENU" | "UTILITY" | "PERFORMANCE" | "SOURCE" | "SEARCH"; "mods_page": "UNKNOWN" | "STEMS" | "XPAD" | "SETTINGS" | "THEMES" | "CONNECTION" | "CONTROLS" | "BEAT_JUMP" | "EXTRAS" | "DOOM" | "DOOM_SETUP" | "DOOM_FILES" | "UPDATES" | "UPDATE_SETUP" | "GAMES" | "MYHOUSE_SETUP" | "KEY_SETUP" | "BROWSE_SETUP" | "PC_STEMS" | "STEM_COLORS" | "APPS" | "APPS_SETUP" | "RAM_SETUP" | "LOCAL_STEM_SETUP" | "METRICS_SETUP" | "PROFILE_SETUP" | "PROFILE_EDIT" | "GENERAL" | "FEATURE_SETUP" | "THEME_PICK" | "BUTTONS" | "NETWORK" | "NETWORK_SETUP" | "NETWORK_EDIT" | "ABOUT" | "SUPPORT" | "HOME" | "PLAY" | "STEM_SECTION" | "SCREEN" | "FOUR_DECKS" | "CONNECT" | "STEM_PADS" | "SCREEN_LOOK" | "BAND_COLORS"; "interface": "UNKNOWN" | "MODERN" | "CLASSIC"; "deck_view": "UNKNOWN" | "TWO" | "FOUR" | "MIXER"; "alert_code": "NONE" | "UNKNOWN" | "EMERGENCY_LOOP" | "READ_ERROR" | "UNSUPPORTED_FILE" | "DEVICE_ERROR" | "HUB_UNSUPPORTED"; "counter_code": "NONE" | "UNKNOWN" | "E-8302" | "E-8304" | "E-8305" | "E-8307" }; "comments_pending": true };
+export type LoaderIdentity = { "version": 1; "loader_id": string; "loader_key": string; "installation_id": string; "created_at": string; "app_version": string };
 export type ReportKind = typeof CONTRACT.kinds[number];
 export type Lifecycle = typeof CONTRACT.lifecycles[number];
 export type Outcome = typeof CONTRACT.outcomes[number];
@@ -3317,4 +4864,20 @@ export function parseItemNumber(value: unknown): number | null {
   if (!compact || !/^XZ[0-9]+$/.test(compact)) return null;
   const number = Number(compact.slice(2));
   return formatItemNumber(number) === null ? null : number;
+}
+export function formatInstallationId(value: number): string | null {
+  const reference = formatReportReference(value);
+  return reference === null ? null : 'I' + reference.slice(1);
+}
+export function parseInstallationId(value: unknown): number | null {
+  const compact = compactIdentifier(value);
+  return compact?.startsWith('I') ? parseReportReference('R' + compact.slice(1)) : null;
+}
+export function formatLoaderId(value: number): string | null {
+  const reference = formatReportReference(value);
+  return reference === null ? null : 'L' + reference.slice(1);
+}
+export function parseLoaderId(value: unknown): number | null {
+  const compact = compactIdentifier(value);
+  return compact?.startsWith('L') ? parseReportReference('R' + compact.slice(1)) : null;
 }

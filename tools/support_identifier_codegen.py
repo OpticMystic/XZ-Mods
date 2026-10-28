@@ -127,4 +127,39 @@ mod identifier_tests {{
     }}
 }}
 '''
+    for name, pascal, prefix in [('installation_id', 'InstallationId', 'I'), ('loader_id', 'LoaderId', 'L')]:
+        prefix = ids[name]['prefix'].rstrip('-')
+        if ids[name]['alphabet'] != alphabet or ids[name]['bits'] != ids['report_reference']['bits']:
+            raise ValueError('Identity encoding must match report references')
+        extra_ts = f'''export function format{pascal}(value: number): string | null {{
+  const reference = formatReportReference(value);
+  return reference === null ? null : '{prefix}' + reference.slice(1);
+}}
+export function parse{pascal}(value: unknown): number | null {{
+  const compact = compactIdentifier(value);
+  return compact?.startsWith('{prefix}') ? parseReportReference('R' + compact.slice(1)) : null;
+}}
+'''
+        ts += extra_ts
+        js += extra_ts.replace(': unknown', '').replace(': number)', ')').replace('): number | null', ')').replace('): string | null', ')')
+        py += f'''
+def format_{name}(value):
+    reference = format_report_reference(value)
+    return '{prefix}' + reference[1:] if reference is not None else None
+
+def parse_{name}(value):
+    compact = _compact_identifier(value)
+    return parse_report_reference('R' + compact[1:]) if compact and compact.startswith('{prefix}') else None
+'''
+        rust += f'''
+pub fn format_{name}(value: u64) -> Option<String> {{
+    format_report_reference(value).map(|r| format!("{prefix}{{}}", &r[1..]))
+}}
+pub fn parse_{name}(value: &str) -> Option<u64> {{
+    let compact = compact_identifier(value)?;
+    let symbols = compact.strip_prefix('{prefix}')?;
+    parse_report_reference(&format!("R{{symbols}}"))
+}}
+'''
+    rust = rust.replace('("item_number", parse_item_number, format_item_number)', '("item_number", parse_item_number, format_item_number), ("installation_id", parse_installation_id, format_installation_id), ("loader_id", parse_loader_id, format_loader_id)')
     return ts, js, py, rust
