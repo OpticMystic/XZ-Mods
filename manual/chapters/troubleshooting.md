@@ -200,7 +200,7 @@ The diary stays on the sticks. Nothing is sent until you choose to include it in
 
 When something goes wrong, send a report. It helps fix the problem for everyone.
 
-- **On the player.** Open MODS › **EXTRAS** › **REPORT AN ISSUE**. The player builds a cleaned-up report, shows you what it holds, and sends it or saves it to the USB. See [Report an issue](extras#report-an-issue).
+- **On the player.** Open MODS › **EXTRAS** › **REPORT AN ISSUE**, or push **REPORT THIS** beside an error in the dock. Choose a topic, add words if you like, and send. Offline, the report waits on the stick for your computer. See [Report an issue](extras#report-an-issue).
 - **On your computer.** In the XZ Mods app, open **Tools** › **About** › **Report an issue**. You can add the logs from your XZ Mods USB. See [Report an issue](desktop-app#report-an-issue).
 - **On GitHub.** Open an issue at https://github.com/OpticMystic/XZ-Mods/issues.
 

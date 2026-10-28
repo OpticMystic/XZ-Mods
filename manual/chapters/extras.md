@@ -13,7 +13,7 @@ Open MODS with [[MENU]], then choose **EXTRAS** in the section rail.
 The four parts of EXTRAS.
 1 @ 230,88 GAMES | Doom and Chex Quest, Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer.
 2 @ 560,88 USB APPS | XZ SDK apps from a USB.
-3 @ 230,266 REPORT AN ISSUE | Prepare, check and send a report about a problem.
+3 @ 230,266 REPORT AN ISSUE | Send a problem, a question or an idea from the player.
 4 @ 560,266 ABOUT XZ MODS | Credits, links and support.
 5 @ 85,425 Dock | Explains the highlighted card. For GAMES it reminds you that audio keeps playing.
 ```
@@ -193,30 +193,104 @@ Step 1 of SET UP APPS, with the app manager not running.
 
 ## Report an issue
 
-REPORT AN ISSUE builds a cleaned-up report on the player, shows you exactly what it contains, and sends the private logs or saves them to a USB. The public GitHub issue is a separate step you submit yourself from your phone.
+REPORT AN ISSUE sends the maintainer a problem, a question or an idea from the player. You say what it is about and, if you like, what happened. The player adds its own details. A topic and **SEND** take three presses.
+
+1. **What's this about?** Push one of the five topics, or **NOT SURE**.
+2. **What happened?** Type a few words, or push **SKIP, I'LL ADD IT ON MY COMPUTER**.
+3. **Ready to send.** Check the summary, then push **SEND REPORT**.
+
+With the encoder, push three times: the first topic, SKIP, then SEND.
 
 ```figure classic:theme-{look}-support REPORT AN ISSUE
-Step 1, with a category and summary chosen.
-1 @ 130,100 Steps | 1 PREPARE, 2 PREVIEW, 3 RECEIPT.
-2 @ 610,60 What is sent | A public GitHub issue that you submit, and private cleaned-up logs.
-3 @ 130,162 Category | FOUR-DECK BRIDGE, USB MEDIA, AUDIO / STEMS or DISPLAY / MENU.
-4 @ 130,250 Summary | A preset one-line summary. You add the full steps on GitHub.
-5 @ 130,337 PREPARE SANITIZED DRAFT | Builds the report. Hardware addresses, serial numbers, paths and secrets are removed before you see it.
+Step 1: what the report is about.
+1 @ 318,64 WHAT'S THIS ABOUT? | One question. Each topic goes straight to the next step.
+2 @ 128,140 Topics | SOMETHING GOT WORSE, SOMETHING ISN'T WORKING, IT SHOULD WORK DIFFERENTLY, I HAVE A NEW IDEA and HOW DO I...?
+3 @ 795,345 NOT SURE | Skips the question. The report still goes.
+4 @ 628,64 Steps | Where you are: step 1 of 3.
 ```
 
-1. **Prepare.** Choose a category and a summary, then push **PREPARE SANITIZED DRAFT**.
-2. **Preview.** Read the draft. Push **APPROVE EXACT SHA256** to agree to send exactly this draft. Then push **SEND PRIVATE LOGS**, or **EXPORT TO USB** if the player is offline.
-3. **Receipt.** Scan the QR code with your phone to open the prefilled GitHub issue, add what happened, and submit it there. **CHECK RECEIPT** confirms the upload.
+```figure classic:theme-{look}-support-text WHAT HAPPENED?
+Step 2, before you type. SKIP is lit: one push goes on without words.
+1 @ 368,66 OPTIONAL | You can send a report without typing anything.
+2 @ 118,108 Your words | Up to 280 characters. The count is on the right.
+3 @ 118,250 Keyboard | Turn and push the encoder, or tap the keys. The first letter is a capital.
+4 @ 118,380 SKIP, I'LL ADD IT ON MY COMPUTER | Goes on without words. Your computer asks what happened later.
+5 @ 795,380 NEXT | Goes on with what you typed.
+```
 
-| Message | What to do |
-|---|---|
-| NEEDS CURRENT UTC DATE FOR TLS | Push **SET CURRENT UTC DATE**, set the date and time, then send again |
-| APPROVE THE EXACT SHA256 IN PREVIEW BEFORE SENDING OR EXPORTING | Approve the draft in step 2 first |
-| PREPARE AND REVIEW THE UPDATED SELECTION BEFORE APPROVING | You changed the category or summary. Prepare the draft again |
-| OUTCOME UNKNOWN (CHECK RECEIPT) | Push **CHECK RECEIPT**, or **RETRY SEND** |
-| UPLOAD OR HELPER ERROR | Push **RETRY SEND**, or **EXPORT TO USB** and send the file from a computer |
+Once you type, **NEXT** is lit instead.
 
-Nothing is sent without your approval, and nothing is submitted to GitHub for you. You can also report a problem from the XZ Mods app. See [Messages and troubleshooting](troubleshooting).
+```gallery {modern}
+classic:theme-24-support-typed WHAT HAPPENED? with words typed: NEXT is lit
+```
+
+```gallery {classic}
+classic:theme-0-support-typed WHAT HAPPENED? with words typed: NEXT is lit
+```
+
+```figure classic:theme-{look}-support-send READY TO SEND
+Step 3: what will be sent.
+1 @ 116,98 ABOUT | The topic you chose.
+2 @ 116,150 WHAT HAPPENED | Your words, or a note that you add them on your computer.
+3 @ 116,206 ALSO INCLUDED | Added by the player: the XZ Mods version, your settings, this stick's loader ID, the recent USB diary and the screen you were on. No music, track names or file names.
+4 @ 116,262 IT GOES TO | The XZ Mods inbox when the player is online, otherwise this stick.
+5 @ 795,108 CHANGE | Goes back to that step. Your words are kept.
+6 @ 116,370 SEND REPORT | Sends it.
+```
+
+BACK goes back a step. If you leave the page before sending, your words wait for you there.
+
+### After you send
+
+The report goes one of three ways. Whichever it is, nothing is lost and you never type it again.
+
+| The screen says | What happened | What to do |
+|---|---|---|
+| **SENT** and a reference like **R-4F7K-2M9Q** | It reached the XZ Mods inbox | Finish it on your computer: the XZ Mods app reminds you. Scan the code to follow it on your phone |
+| **SAVED ON THIS STICK** | The player is offline, its clock is not set, the loader is from an older XZ Mods app, or the inbox did not take it | Plug the stick into your computer. The XZ Mods app opens the report |
+| **NOT SENT YET** | It could not be sent, and the stick could not take it | Do what the line says (put the stick back, use a writable stick, make room on it), then push **TRY AGAIN** |
+
+```gallery {modern}
+classic:theme-24-support-sent SENT: the reference, and a code to follow it on your phone
+classic:theme-24-support-saved SAVED ON THIS STICK
+classic:theme-24-support-unsaved NOT SENT YET: the reason, TRY AGAIN and EDIT REPORT
+classic:theme-24-support-sending While it sends. You can keep playing and close MODS
+```
+
+```gallery {classic}
+classic:theme-0-support-sent SENT: the reference, and a code to follow it on your phone
+classic:theme-0-support-saved SAVED ON THIS STICK
+classic:theme-0-support-unsaved NOT SENT YET: the reason, TRY AGAIN and EDIT REPORT
+classic:theme-0-support-sending While it sends. You can keep playing and close MODS
+```
+
+A saved report waits in `VJ.Tools/XZ-Mods-reports/pending/` on the stick, up to 32 of them. **TRY AGAIN** sends the same report, so the maintainer gets it once.
+
+### Report an error from the dock
+
+When an error shows in the dock's top row, **REPORT THIS** beside it opens REPORT AN ISSUE at **WHAT HAPPENED?** with SOMETHING ISN'T WORKING chosen. Push **SKIP** and **SEND REPORT**, and the error goes with it. Every report includes an error on screen, however you open it.
+
+```figure classic:theme-{look}-support-strip REPORT THIS
+The E-8307 hub warning in the dock, with REPORT THIS.
+1 @ 510,447 REPORT THIS | Opens REPORT AN ISSUE about this error. Touch only: with the encoder, open EXTRAS › REPORT AN ISSUE.
+```
+
+```figure classic:theme-24-support-strip-counter REPORT THIS {modern}
+In MODERN a deck's counter error keeps the dock's top row, with REPORT THIS beside SHOW DECK.
+1 @ 440,447 REPORT THIS | Reports this error. SHOW DECK closes MODS onto the deck.
+```
+
+### What the player sends
+
+The report holds facts the player can check, never text read from its screens:
+
+- the topic and your words, if any;
+- the XZ Mods version and a fingerprint of your settings, with a few of them (stems, gate cue, interface, theme, deck view, browse preview);
+- the loader ID from ABOUT, so the report reaches your own XZ Mods app;
+- the screen MODS was opened from (PLAY, BROWSE and so on), the interface, the deck view and the code of any error on screen;
+- known status codes from the four-deck bridge and the player, and the recent entries of the USB diary on this stick.
+
+It never holds music, track or playlist names, file names or network addresses. Only the maintainer reads it. You can also report from the XZ Mods app. See [Messages and troubleshooting](troubleshooting).
 
 ## About XZ Mods
 
@@ -227,6 +301,7 @@ The About page with XZMODS.COM highlighted and its QR code shown.
 3 @ 565,210 QR code | The highlighted link as a QR code. Scan it with your phone.
 4 @ 685,325 Address | The link the QR code opens.
 5 @ 445,366 Thanks | Thanks, and a reminder that XZ Mods is an independent project.
+6 @ 262,140 Loader | The ID of this stick's loader, written by the XZ Mods app. Reports from this stick carry it. An older loader shows **Loader: not identified** and can still report.
 ```
 
 Turn the encoder to a link, then push or tap it to show it as a QR code. Scan the code for **CREDITS / NOTICES** to read the full credits, licences and matching source. Support is voluntary. Every feature stays available without it.
