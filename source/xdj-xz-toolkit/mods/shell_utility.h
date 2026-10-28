@@ -37,12 +37,15 @@ int xz_shut_index(const struct xz_shut_def *, int32_t raw);
 /* The setter argument for a choice index; 0 when the index is out of range. */
 int xz_shut_arg(const struct xz_shut_def *, int index, int32_t *arg);
 
+/* Stock setters persist to the player: read-only runs need explicit opt-in. */
+int xz_shut_trial(int settings_readonly, int utility_writes);
+
 /* Why an item cannot be written (NULL: it can). getter_ok/setter_ok: the code guards passed.
-   trial: a --ram-settings run (XZ_MODS_SETTINGS_READONLY=1) without the explicit opt-in. */
+   trial: SETTINGS_READONLY (RAM trial or USB loader) without the stock-write opt-in. */
 const char *xz_shut_reason(const struct xz_shut_def *, int getter_ok, int setter_ok, int trial);
-#define XZ_SHUT_NOTE_TRIAL "FIXED IN THIS TEST BUILD"
-#define XZ_SHUT_NOTE_FIRMWARE "NOT AVAILABLE ON THIS FIRMWARE"
-#define XZ_SHUT_NOTE_STOCK "THE PLAYER RUNS THIS ITSELF"
+#define XZ_SHUT_NOTE_TRIAL "READ-ONLY BUILD"
+#define XZ_SHUT_NOTE_FIRMWARE "FIRMWARE LIMIT"
+#define XZ_SHUT_NOTE_STOCK "PLAYER CONTROLLED"
 
 /* One published row per def, in table order. raw/known: the last reading per def. */
 void xz_shut_items(const struct xz_shut_def *defs, int n, const int32_t *raw, const uint8_t *known,

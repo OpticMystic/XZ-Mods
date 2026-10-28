@@ -268,8 +268,8 @@ static void test_shortcut_items(void) {
   case XZ_SHELL_ITEM_WAVE_POSITION:assert(n==1&&out[0].id==order[i]&&u.display.wave_position==XZ_SHELL_POSITION_LEFT);break;
   case XZ_SHELL_ITEM_KEY_DISPLAY:assert(n==1&&out[0].id==order[i]&&u.display.key_display==XZ_SHELL_KEY_CLASSIC);break;
   case XZ_SHELL_ITEM_WAVE_ZOOM:assert(n==1&&out[0].kind==XZ_SHELL_ACT_ZOOM&&u.zoom==XZ_SHELL_ZOOM_DEFAULT+1);break;
-  default:  /* read only: the stock screen takes over and the shell changes nothing */
-   assert(n==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
+  default:  /* read only: keep the screen and its current value */
+   assert(n==0);
    assert(!memcmp(&before.display,&u.display,sizeof u.display)&&before.zoom==u.zoom);
   }
   struct xz_shell_event next={XZ_SHELL_ENCODER_TURN,0,0,1,0,-1};
@@ -279,7 +279,7 @@ static void test_shortcut_items(void) {
  struct xz_shell_model no_set=m;no_set.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;
  xz_shell_init(&u);press(&u,&no_set,XZ_SHELL_KEY_SHORTCUT,out);
  struct xz_shell_event push={XZ_SHELL_ENCODER_PUSH,0,0,0,0,-1},three={XZ_SHELL_ENCODER_TURN,0,0,3,0,-1};
- assert(xz_shell_input(&u,&no_set,&push,out)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ assert(xz_shell_input(&u,&no_set,&push,out)==0);
  xz_shell_input(&u,&no_set,&three,out);
  assert(xz_shell_input(&u,&no_set,&push,out)==2&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR);
  /* The display settings drive the play screen: BLUE paints no amber in the lanes. */

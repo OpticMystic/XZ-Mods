@@ -233,6 +233,8 @@ int xz_shrt_shell_owned_setting(int id) {
  return id==XZ_SHELL_SET_WAVE_COLOR||id==XZ_SHELL_SET_WAVE_POSITION||id==XZ_SHELL_ITEM_KEY_DISPLAY||id==XZ_SHELL_ITEM_WAVE_ZOOM
   ||id==XZ_SHELL_ITEM_MODE_LAMPS||id==XZ_SHELL_ITEM_QUANTIZE_LAMP||id==XZ_SHELL_ITEM_WAVE_TITLES||id==XZ_SHELL_ITEM_BYPASS_BUTTON||id==XZ_SHELL_ITEM_USB_COLORS;
 }
+/* Legacy deck settings only. Stock UTILITY ids use xz_shut_reason and the guarded
+   XZ_SHRT_CMD_UTILITY path before this fallback, including NEEDLE LOCK. */
 int xz_shrt_setting_writable(int id, int time_mode, int quantize_beat) {
  return id==XZ_SHELL_SET_TIME_MODE?!!time_mode:id==XZ_SHELL_ITEM_QUANTIZE_BEAT?!!quantize_beat:0;
 }
@@ -248,7 +250,7 @@ int xz_shrt_setting_command(const struct xz_shell_action *a, uint32_t now, struc
   if(a->value<0||a->value>3)return 0;
   out->kind=XZ_SHRT_CMD_QUANTIZE_BEAT;out->deck=-1;out->value=3-a->value;return 1;
  default:
-  /* QUANTIZE on/off, PLAY MODE, AUTO CUE, HOT CUE AUTO LOAD and the rest have no C3 setter. */
+  /* Other ids do not use this legacy command path. UTILITY ids are dispatched first. */
   return 0;
  }
 }

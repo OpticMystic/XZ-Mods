@@ -11,6 +11,9 @@ int xz_shut_arg(const struct xz_shut_def *d, int index, int32_t *arg) {
  if(!d||!d->args||index<0||index>=d->count||!arg)return 0;
  *arg=d->args[index];return 1;
 }
+int xz_shut_trial(int settings_readonly, int utility_writes) {
+ return settings_readonly&&!utility_writes;
+}
 const char *xz_shut_reason(const struct xz_shut_def *d, int getter_ok, int setter_ok, int trial) {
  if(!d)return XZ_SHUT_NOTE_FIRMWARE;
  if(!d->set||!d->get)return XZ_SHUT_NOTE_STOCK;
