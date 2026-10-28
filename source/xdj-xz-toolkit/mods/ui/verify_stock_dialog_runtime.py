@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory(prefix='xz-controls-') as temporary:
     binary=Path(temporary)/'controls'
     sources=[HERE/'test_stock_dialog_runtime.c',*(HERE/name for name in UI_SOURCES),HERE/'native_touch.c',HERE/'stem_pads.c',HERE/'beat_jump.c',HERE/'wave_viewport.c',HERE.parent/'settings.c',HERE.parent/'usb_profile.c',HERE.parent/'doom/native_bridge.c',HERE.parent/'doom/wad_catalog.c',HERE.parent/'ota/native_update.c']
     sources += [HERE/name for name in ('extra_detail.c','extra_lane.c','layered_wave.c')]
-    sources += [HERE.parent/'key'/name for name in ('music.c','browser.c','catalog.c','traffic.c')]
+    sources += [HERE.parent/'key'/name for name in ('music.c','control.c','browser.c','catalog.c','traffic.c')]
     sources += [HERE.parent/'arcade'/name for name in ('arcade.c','render.c','input.c','clock.c','native_clock.c')]
     sources += [HERE.parent/'audio/vendor/sha256/sha256.c',HERE.parent/'pc_control/stems.c']
     sources += [HERE.parent/'kart'/name for name in ('xz_kart_input.c','xz_kart_runtime.c')]
@@ -26,6 +26,9 @@ with tempfile.TemporaryDirectory(prefix='xz-controls-') as temporary:
     supplied=os.environ.get('XZ_STOCK_BASE_RUNTIME')
     base.write_bytes(Path(supplied).read_bytes() if supplied else subprocess.check_output(
         ['git','-C',str(HERE),'show',BASE+':source/xdj-xz-toolkit/mods/ui_runtime.c']))
+    # REPORT AN ISSUE (a56ce84) dropped the support preview pages: the base runtime reads page 0, as the current one
+    # does. Support state is not drawn in the no-dialog frames compared below.
+    base.write_bytes(base.read_bytes().replace(b'ui.support.preview_page',b'0'))
     controls=Path(temporary)/'test_runtime_controls.c'
     controls.write_text((HERE/'test_runtime_controls.c').read_text().replace(
         '#include "../ui_runtime.c"','#include "'+str(base)+'"'))
