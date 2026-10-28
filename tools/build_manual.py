@@ -7,6 +7,7 @@
   proof   Draw every figure with its numbered callouts onto PNGs, for checking callout placement.
   site    Check, then write the static manual site.
   app     Check, then write the manual the desktop app shows (ui/manual/). `app --check` fails when it is not current.
+  menu-tree  Import a menu map tree (xz-menu-tree/1: the crawler's, or tools/build_menu_tree.py's) into manual/menu-tree/.
 
 The manual lives in manual/ (see manual/README.md). Screens come from the C renderers, so a pixel change
 in a documented screen fails `check` until a person updates the chapter and runs `accept`.
@@ -28,6 +29,7 @@ MODS = APP / 'source/xdj-xz-toolkit/mods'
 LOCK = MANUAL / 'shots.lock.json'
 SOURCES = {'modern': 'shell', 'classic': 'ui'}  # shot prefix -> folder the renderers write inside the render directory
 STATIC = {'app': MANUAL / 'app-shots', 'capture': MANUAL / 'captures', 'hw': MANUAL / 'hardware'}  # curated pictures
+MENU_FORMAT = 'xz-menu-tree/1'
 
 
 def sha256(path):
@@ -176,7 +178,7 @@ def problems(render_dir):
             out.append(f"watched source {row['path']} is gone: update chapter {row['chapter']} and coverage.json")
         elif lock['watch'].get(row['path']) != sha256(path):
             out.append(f"{row['chapter']}: {row['path']} changed ({row['why']}). Check the chapter still matches, then accept.")
-    return out + media_problems(chapters)
+    return out + media_problems(chapters) + menu_problems(chapters)
 
 
 def check(render_dir):
@@ -217,13 +219,18 @@ def inline(text):
 
 
 def site_link_tag(label, target):
+    if target.startswith(MAP_LINK): return label
     return f'<a href="{link(target)}">{label}</a>'
+
+
+MAP_LINK = 'menu-map#'  # [words](menu-map#<screen>) opens the app's menu map at a screen; <screen> is its path, slugified
 
 
 LINK_TAG = site_link_tag  # the app build swaps in its own (app_link_tag)
 
 
 def link(target):
+    if target.startswith(MAP_LINK): return '#'  # the website has no menu map; site_link_tag shows the words only
     if re.match(r'^[a-z0-9-]+(#[\w-]+)?$', target):  # another chapter, optionally a section in it
         slug, _, anchor = target.partition('#')
         return BASE + slug + ('#' + anchor if anchor else '')
@@ -508,7 +515,7 @@ EXPLAINERS = {'four-deck-setup': 'steps', 'loopback-cable': 'scenes', 'loopback-
 MEDIA_JS = 'ui/assets/manual/media.js'  # under APP
 MEDIA_PREFIX = 'window.XZ_MANUAL_MEDIA='
 ASSETS = 'ui/assets'  # under APP; tour pictures may name a file here as asset:<path>, such as a poster of the Blender model
-_APP = {'slug': '', 'links': []}  # the chapter being written, and every chapter link it makes (checked after the build)
+_APP = {'slug': '', 'links': [], 'map_links': []}  # the chapter being written, and every chapter link it makes (checked after the build)
 
 
 def explainer_scenes(chapters):
@@ -563,6 +570,9 @@ def media_problems(chapters, media=None, roots=None):
 
 
 def app_link_tag(label, target):
+    if target.startswith(MAP_LINK):
+        _APP['map_links'].append((_APP['slug'], target[len(MAP_LINK):]))
+        return f'<a class="m-link m-maplink" href="#manual" data-map="{html.escape(target[len(MAP_LINK):])}">{label}</a>'
     if target.startswith('#') or re.match(r'^[a-z0-9-]+(#[\w-]+)?$', target):
         slug, anchor = (_APP['slug'], target[1:]) if target.startswith('#') else target.partition('#')[::2]
         _APP['links'].append((_APP['slug'], slug, anchor))
@@ -575,9 +585,11 @@ def app_link_tag(label, target):
 
 def app_image_bytes(value):
     """A shot as the app ships it: lossless WebP, so the firmware's pixel text stays sharp; SVG as it is. A tour
-    picture comes as (path, crop box)."""
+    picture comes as (path, crop box); a menu map screen as ('copy', path), its WebP as it is, or ('thumb', path)."""
     from io import BytesIO
     from PIL import Image
+    if isinstance(value, tuple) and value[0] == 'copy': return value[1].read_bytes()
+    if isinstance(value, tuple) and value[0] == 'thumb': return map_thumb(value[1])
     path, box = value if isinstance(value, tuple) else (value, None)
     if path.suffix == '.svg': return path.read_bytes()
     out = BytesIO()
@@ -670,7 +682,7 @@ def app_manual(render_dir, stale):
     explained = {key: c for c in chapters for key in c['meta']['settings']}
     entries, search, anchors = [], [], {}
     saved, LINK_TAG = LINK_TAG, app_link_tag
-    _APP['links'] = []
+    _APP['links'], _APP['map_links'] = [], []
     try:
         for c in chapters:
             _APP['slug'] = c['slug']; counter['figure'] = 0
@@ -697,6 +709,10 @@ def app_manual(render_dir, stale):
     for source, slug, anchor in _APP['links']:
         if slug not in anchors: raise SystemExit(f'{source}: link to chapter {slug!r}, which does not exist')
         if anchor and anchor not in anchors[slug]: raise SystemExit(f'{source}: link to {slug}#{anchor}, which has no such heading')
+    tree = load_menu_tree()
+    map_data, map_images = menu_map(tree, book, chapters) if tree else (None, {})
+    for source, key in _APP['map_links']:
+        if not map_data or key not in map_data['summary']['keys']: raise SystemExit(f'{source}: link to menu-map#{key}, which is no screen on the menu map')
     tour, refs = [], referenced(chapters)
     for item in book.get('tour', []):
         slug, _, anchor = item['link'].partition('#')
@@ -708,9 +724,12 @@ def app_manual(render_dir, stale):
         tour.append({'title': item['title'], 'text': re.sub(r'<[^>]+>', '', inline(item['text'])), 'link': item['link'],
                      'img': src, 'w': w, 'h': h, 'tag': item.get('tag', '')})
     index = {'format': APP_FORMAT, 'draft': bool(stale), 'title': book['title'], 'summary': book['summary'], 'chapters': entries, 'tour': tour}
+    if map_data: index['map'] = map_data['summary']
     files['index.js'] = script('window.XZ_MANUAL=', index)
     files['search.js'] = script('window.XZ_MANUAL_SEARCH=', search)
+    if map_data: files['map.js'] = script('window.XZ_MENU_MAP=', map_data['map'])
     files.update(sorted(images.items()))
+    files.update(sorted(map_images.items()))
     files['manifest.json'] = (json.dumps({'format': APP_FORMAT, 'generator': 'tools/build_manual.py app', 'draft': bool(stale),
                                           'sources': {name: picture_source(value) for name, value in sorted(images.items())}}, indent=1) + '\n').encode('utf-8')
     return files
@@ -742,6 +761,7 @@ def tour_image(item, images, render_dir):
 
 def picture_source(value):
     if isinstance(value, Path): return sha256(value)
+    if value[0] in ('copy', 'thumb'): return sha256(value[1]) + ' ' + value[0]
     path, box = value
     return sha256(path) + ' crop ' + ','.join(str(v) for v in box)
 
@@ -812,6 +832,140 @@ def app_problems(render_dir, out=None):
     return found + (['embedded manual: run tools/build_manual.py app --render <render-dir> and commit ui/manual/'] if found else [])
 
 
+# ---------------------------------------------------------------- menu map
+
+# The Manual page's menu map shows every screen the player can reach and the control that leads to it. Its tree comes
+# from the menu crawler (xz-menu-tree/1), which drives the firmware's own C in the offline capture harness; until the
+# crawler's tree lands, tools/build_menu_tree.py makes one from the navigation captures. `menu-tree` imports either
+# into manual/menu-tree/. The tree records the firmware sources it was captured from: when one changes, the screens
+# may have changed, and check fails until the tree is captured again and imported.
+MAP_THUMB = (240, 144)  # a map card's picture: the same render downscaled, sharp at twice the card's 120 x 72
+
+
+def menu_tree_dir():
+    """The menu map: menu-tree.json and nodes/*.webp, every node a screen the firmware drew."""
+    return MANUAL / 'menu-tree'
+
+
+def load_menu_tree():
+    path = menu_tree_dir() / 'menu-tree.json'
+    return load_json(path) if path.is_file() else None
+
+
+def source_matches(path, recorded):
+    """A source hash as the capture recorded it: of the file's bytes, or with LF line ends."""
+    if not path.is_file(): return False
+    data = path.read_bytes()
+    return recorded in (hashlib.sha256(data).hexdigest(), hashlib.sha256(data.replace(b'\r\n', b'\n')).hexdigest())
+
+
+def headings(chapters):
+    """{slug: {anchor: heading text}} for every ##, ### and #### heading, as the app and the site name them."""
+    found = {}
+    for c in chapters:
+        found[c['slug']] = {slugify(IFACE.sub('', m.group(1))): plain(inline(IFACE.sub('', m.group(1))))
+                            for m in re.finditer(r'^#{2,4}\s+(.+)$', c['body'], re.M)}
+    return found
+
+
+def tree_problems(tree, root, chapters):
+    """What is wrong with a menu tree on its own: its format, pictures, moves and chapter links."""
+    if tree.get('format') != MENU_FORMAT: return [f'menu map: menu-tree.json is {tree.get("format")!r}, not {MENU_FORMAT}']
+    out, ids, anchors = [], {n['id'] for n in tree['nodes']}, headings(chapters)
+    for node in tree['nodes']:
+        if node.get('interface') not in ('modern', 'classic'): out.append(f"menu map: screen {node['id']} has no interface")
+        if not node.get('path'): out.append(f"menu map: screen {node['id']} has no path")
+        if not (root / node['image']).is_file(): out.append(f"menu map: screen {node['id']} has no picture {node['image']}")
+        slug, _, anchor = (node.get('chapter') or '').partition('#')
+        if slug and (slug not in anchors or (anchor and anchor not in anchors[slug])):
+            out.append(f"menu map: screen {node['id']} ({node.get('title')}) points at {node['chapter']}, which is no chapter or heading")
+    for edge in tree['edges']:
+        if edge['from'] not in ids or edge['to'] not in ids: out.append(f"menu map: a move {edge['from']} -> {edge['to']} names a screen the tree does not have")
+    for item in tree.get('roots', []):
+        if item['id'] not in ids: out.append(f"menu map: root {item['label']} names a screen the tree does not have")
+    return out
+
+
+def menu_problems(chapters):
+    tree = load_menu_tree()
+    if not tree: return ['menu map: manual/menu-tree/menu-tree.json is missing. Crawl the menus, then run build_manual.py menu-tree --from <dir>']
+    out = tree_problems(tree, menu_tree_dir(), chapters)
+    changed = [path for path, digest in sorted(tree.get('sources', {}).items()) if not source_matches(APP / path, digest)]
+    if changed:
+        out.append(f'menu map: {len(changed)} firmware source(s) changed since its screens were captured ({", ".join(changed[:3])}'
+                   f'{", ..." if len(changed) > 3 else ""}). Crawl the menus again, then run build_manual.py menu-tree --from <dir>')
+    if not tree.get('sources'): out.append('menu map: menu-tree.json records no firmware sources, so nobody can tell when it is stale')
+    return out
+
+
+def import_menu_tree(source):
+    """Replace manual/menu-tree/ with the tree in `source`, after checking it."""
+    source = Path(source)
+    tree = load_json(source / 'menu-tree.json')
+    chapters = [{'slug': p.stem, 'body': parse_chapter(p)[1]} for p in sorted((MANUAL / 'chapters').glob('*.md'))]
+    found = tree_problems(tree, source, chapters)
+    for line in found: print('BAD ' + line)
+    if found: return 1
+    if menu_tree_dir().exists(): shutil.rmtree(menu_tree_dir())
+    for node in tree['nodes']:
+        target = menu_tree_dir() / node['image']
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / node['image'], target)
+    (menu_tree_dir() / 'menu-tree.json').write_text(json.dumps(tree, indent=1) + '\n', encoding='utf-8')
+    print(f"{menu_tree_dir()}: {len(tree['nodes'])} screens and {len(tree['edges'])} moves. Run build_manual.py check, then app.")
+    return 0
+
+
+def map_key(path):
+    """A screen's address on the menu map: its path, slugified (mods-play-beat-jump-pads)."""
+    return slugify(' '.join(path))
+
+
+def map_thumb(path):
+    from io import BytesIO
+    from PIL import Image
+    out = BytesIO()
+    with Image.open(path) as image:
+        image.convert('RGB').resize(MAP_THUMB, Image.LANCZOS).save(out, 'WEBP', quality=82, method=4)
+    return out.getvalue()
+
+
+def menu_map(tree, book, chapters):
+    """The menu map as the app ships it: map.js with the tree (pictures named by their source's hash, chapter and
+    section titles resolved), a summary for index.js, and every screen with its card picture."""
+    titles, anchors = {c['slug']: c['title'] for c in book['chapters']}, headings(chapters)
+    files, nodes, sections = {}, [], {}
+    for node in tree['nodes']:
+        path = menu_tree_dir() / node['image']
+        digest = sha256(path)[:16]
+        files[f'map/{digest}.webp'], files[f'map/t-{digest}.webp'] = ('copy', path), ('thumb', path)
+        w, h = png_size(path)
+        chapter = node.get('chapter') or ''
+        slug, _, anchor = chapter.partition('#')
+        where = (titles.get(slug, '') + (' · ' + anchors.get(slug, {}).get(anchor, '') if anchor else '')) if slug else ''
+        if anchor: sections.setdefault(chapter, map_key(node['path']))
+        nodes.append({'id': node['id'], 'i': node['interface'], 't': node['title'], 'p': node['path'], 'k': node.get('kind', 'page'),
+                      'img': APP_SRC + f'map/{digest}.webp', 'th': APP_SRC + f'map/t-{digest}.webp', 'w': w, 'h': h,
+                      'f': [[f['label'], f.get('rect')] for f in node.get('focusables', [])], 'c': chapter, 'ct': where})
+    edges = [[e['from'], e['to'], e['control'], e['action'], e.get('target') or '', e.get('rect')] for e in tree['edges']]
+    # The start page's doorway shows one real path: the play screen, the screen MENU opens, and the first screen a
+    # tap there opens, with the controls between them.
+    by_id, preview = {n['id']: n for n in nodes}, []
+    here = next((r['id'] for r in tree.get('roots', []) if by_id.get(r['id'], {}).get('i') == 'modern'), None)
+    move = None
+    while here:
+        preview.append({'th': by_id[here]['th'], 't': by_id[here]['p'][-1], 'move': move})
+        if len(preview) == 3: break
+        step = next((e for e in tree['edges'] if e['from'] == here and by_id[e['to']]['p'] != by_id[here]['p'] and by_id[e['to']]['i'] == 'modern'
+                     and (e['control'] == 'MENU' and e['action'] == 'press' if len(preview) == 1 else e['control'] == 'touch' and e.get('target'))), None)
+        if not step: break
+        move, here = [step['control'], step['action'], step.get('target') or ''], step['to']
+    screens = {i: len({tuple(n['p']) for n in nodes if n['i'] == i}) for i in ('modern', 'classic')}
+    summary = {'screens': screens, 'preview': preview,
+               'sections': sections, 'keys': sorted({map_key(n['p']) for n in nodes})}
+    return {'map': {'format': MENU_FORMAT, 'nodes': nodes, 'edges': edges, 'roots': tree.get('roots', [])}, 'summary': summary}, files
+
+
 # ---------------------------------------------------------------- proof sheets
 
 def proof(render_dir, out):
@@ -866,6 +1020,8 @@ def main():
     sub = p.add_subparsers(dest='cmd', required=True)
     r = sub.add_parser('render'); r.add_argument('--zig', type=Path); r.add_argument('--out', type=Path, required=True)
     sub.add_parser('gate', help='render into a temporary folder and check; releases run this')
+    m = sub.add_parser('menu-tree', help='import a menu map tree into manual/menu-tree/')
+    m.add_argument('--from', dest='source', type=Path, required=True, help='a folder with menu-tree.json and nodes/')
     for name in ('check', 'accept', 'proof', 'site', 'app'):
         s = sub.add_parser(name); s.add_argument('--render', type=Path, required=True)
         if name in ('proof', 'site'): s.add_argument('--out', type=Path, required=True)
@@ -880,6 +1036,7 @@ def main():
     a = p.parse_args()
     if a.cmd == 'render': return render(a.zig or default_zig(), a.out)
     if a.cmd == 'gate': return gate()
+    if a.cmd == 'menu-tree': return import_menu_tree(a.source)
     if a.cmd == 'check': return check(a.render)
     if a.cmd == 'accept': return accept(a.render, set(a.only))
     if a.cmd == 'proof': return proof(a.render, a.out)

@@ -22,6 +22,8 @@ screens, MODS pages, settings, button and pad behaviour, notices, and the deskto
 | A MODS page has no figure | Show it, usually in `mods-menu.md` or the chapter of its feature |
 | A setting in `settings-schema.json` is not listed under `settings:` in any chapter | Explain it and list it in that chapter's front matter |
 | A watched behaviour file changed (`coverage.json` `watch`) | Re-read the chapter named in the entry, fix it, then `accept` |
+| A firmware source the menu map was captured from changed, or the map is missing | Crawl the menus again and import the tree (see [The menu map](#the-menu-map)) |
+| A menu map screen points at a chapter or heading that does not exist | Fix the crawler's section for it, or the heading |
 
 `accept` only records that a person reviewed the chapter. Never run it to make `check` pass without
 reading the figures it lists. Releases run `check` and refuse to package a stale manual.
@@ -35,6 +37,7 @@ python tools/build_manual.py proof  --render <render-dir> --out <dir>     # ever
 python tools/build_manual.py accept --render <render-dir> [shot or path ...]
 python tools/build_manual.py site   --render <render-dir> --out <dir> [--draft] [--base /manual/]
 python tools/build_manual.py app    --render <render-dir> [--draft] [--check]  # the copy inside the desktop app
+python tools/build_manual.py menu-tree --from <tree-dir>                    # import a menu map tree into manual/menu-tree/
 ```
 
 `site` refuses to build while `check` fails; `--draft` builds anyway for local review. Never publish a draft.
@@ -46,6 +49,59 @@ with the chapter. `build_manual.py gate` (run by `tools/build_release.py`) fails
 not match what `app` makes from the source being released. `node tools/verify_manual_tab.mjs` checks the page.
 The monorepo's `tools/sync-xz-manual.mjs` copies a built site into `website/xz-manual/` for xzmods.com.
 
+## The menu map
+
+The app's Manual page has a **Menu map**: every screen the player can reach, laid out as a flow chart from the play
+screen, each branch labelled with the control that opens it. It is not drawn by hand. Every screen on it is a frame the
+firmware's own C drew in the offline capture harness, and the moves between them are the inputs that harness sent.
+
+The map comes from one file, `manual/menu-tree/menu-tree.json` (format `xz-menu-tree/1`), and its screens,
+`manual/menu-tree/nodes/<id>.webp`:
+
+```
+{ "format": "xz-menu-tree/1", "interfaces": ["modern", "classic"],
+  "nodes": [{ "id", "interface", "title", "path": ["MODS", "PLAY", ...], "kind": "page|picker|keyboard|dialog|list|play|browse",
+              "image": "nodes/<id>.webp", "focusables": [{ "label", "rect": [x, y, w, h] or null }], "chapter": "slug#anchor" or null }],
+  "edges": [{ "from", "to", "control", "action": "turn+|turn-|push|press|hold|tap", "target", "rect": [x, y, w, h] or null }],
+  "roots": [{ "id", "label" }],
+  "sources": { "<repo path>": "<sha256 the screens were captured from>" } }
+```
+
+- `path` places a screen on the map: frames with the same interface and path are one screen, and its frames are its
+  states (the highlight moved, a value changed). The map lays screens out breadth first from `roots`.
+- `chapter` is the section of the manual that explains the screen. That chapter's heading gets **On the menu map**, and
+  the screen's panel gets **Read in the manual**.
+- `sources` lists the firmware sources the screens came from, with their hashes. `check` and the release `gate` fail when
+  one of them changed or is gone: the screens may no longer be what the player shows. The tree is then captured again;
+  nobody edits it by hand.
+
+To put a new tree in, one command checks it (format, pictures, moves, chapter links) and replaces `manual/menu-tree/`:
+
+```
+python tools/build_manual.py menu-tree --from <folder with menu-tree.json and nodes/>
+python tools/build_manual.py check --render <render-dir>
+python tools/build_manual.py app --render <render-dir>        # writes ui/manual/map.js and ui/manual/map/
+```
+
+The tree in the repo now is **provisional**: `tools/build_menu_tree.py` made it from the navigation captures (one folder
+per flow with `frame-NNNN.png`, `frames.json`, `timeline.json` and the capture's `manifest.json`):
+
+```
+python tools/build_menu_tree.py --captures <nav-capture-dir> --flows <flow specs: manual/nav/*.json> --out <tree-dir>
+```
+
+It joins identical frames into one node, joins each settled frame to the next by the control between them, and takes each
+flow's manual section from its spec. The menu crawler writes the same format directly from every reachable screen;
+when its tree lands, import it with `menu-tree --from` and commit `manual/menu-tree/` and `ui/manual/` together.
+
+A chapter can open the map at a screen with a link to `menu-map#<screen>`, where `<screen>` is the screen's path
+slugified: `[the BEAT JUMP PADS page](menu-map#mods-play-beat-jump-pads)`. `app` fails when no screen has that path. The
+website has no map, so the site shows the link's words only. The desktop app also opens it with
+`openManual('menu-map', '<screen>')` or `data-manual-open="menu-map#<screen>"`.
+
+`node tools/verify_manual_tab.mjs` drives the map under the app's CSP: the tree, pan and zoom, keys, find, the screen
+panel, links both ways, every state, CLASSIC, window sizes and reduced motion.
+
 ## Files
 
 - `manual.json`: chapter order, groups, titles and one-line summaries.
@@ -53,6 +109,7 @@ The monorepo's `tools/sync-xz-manual.mjs` copies a built site into `website/xz-m
 - `coverage.json`: screens deliberately left out (each with a reason), settings deliberately left out, and
   behaviour files whose changes must trigger a review (each naming its chapter).
 - `shots.lock.json`: written by `accept`. The screen and file hashes the chapters were last reviewed against.
+- `menu-tree/`: the menu map's tree and screens (see [The menu map](#the-menu-map)). Replace it with `menu-tree --from`.
 - `app-shots/`, `captures/`, `hardware/`: curated pictures (desktop app screenshots, photos of the player's
   screen, the top-panel drawing). Watch the sources they depict in `coverage.json`. The top-panel
   drawings come from `tools/draw_xz_panel.py manual/hardware`; edit that, not the SVGs.

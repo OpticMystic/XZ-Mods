@@ -34,6 +34,14 @@ with tempfile.TemporaryDirectory(prefix='xz-manual-test-') as temp:
         'watch':[{'path':'src/menu_key.c','chapter':'one','why':'MENU table'}]}))
     chapter='---\ninterface: both\nsettings: stems\n---\n## Play {modern}\n```figure modern:play-full The play screen\nCaption line.\n1 @ 10,20 Deck | The deck strip.\n```\n## Menu\n```figure classic:theme-{look}-home\n1 @ 5,5 Back | Goes back.\n```\n'
     write(manual/'chapters/one.md',chapter)
+    # A one-screen menu map, captured from src/screen.c as it is now.
+    write(root/'src/screen.c','draw v1')
+    def tree(chapter='one#menu',source=b'draw v1'):
+        return {'format':'xz-menu-tree/1','interfaces':['modern','classic'],'roots':[{'id':'m-1','label':'Play screen'}],
+                'nodes':[{'id':'m-1','interface':'modern','title':'HOME','path':['MODS','HOME'],'kind':'page','image':'nodes/m-1.webp','focusables':[],'chapter':chapter}],
+                'edges':[],'sources':{'src/screen.c':hashlib.sha256(source).hexdigest()}}
+    write(manual/'menu-tree/menu-tree.json',json.dumps(tree()))
+    write(manual/'menu-tree/nodes/m-1.webp',b'webp')
 
     _,chapters=bm.load_manual(render)
     figs=chapters[0]['figures']
@@ -71,6 +79,26 @@ with tempfile.TemporaryDirectory(prefix='xz-manual-test-') as temp:
     write(mods/'settings-schema.json',json.dumps({'fields':[{'key':'stems','label':'Stem audio'},{'key':'gate','label':'Gate cue'}]}))
     assert any('setting gate (Gate cue)' in p for p in bm.problems(render)),bm.problems(render)
     print('ok a setting no chapter explains fails')
+    write(mods/'settings-schema.json',json.dumps({'fields':[{'key':'stems','label':'Stem audio','kind':'boolean','default':1,'min':0,'max':1}]}))
+
+    menu=lambda:[p for p in bm.problems(render) if p.startswith('menu map')]
+    assert menu()==[],menu()
+    write(root/'src/screen.c','draw v2')
+    assert len(menu())==1 and 'src/screen.c' in menu()[0] and 'changed since its screens were captured' in menu()[0],menu()
+    (root/'src/screen.c').unlink()
+    assert len(menu())==1,menu()
+    print('ok the menu map is stale when a firmware source it was captured from changes or goes')
+
+    incoming=root/'crawl'
+    write(incoming/'menu-tree.json',json.dumps(tree('one#no-such-heading',b'draw v3')))
+    write(incoming/'nodes/m-1.webp',b'webp v3')
+    assert quiet(bm.import_menu_tree,incoming)==1 and json.loads((manual/'menu-tree/menu-tree.json').read_text())==tree(),'a bad tree is refused and the old one kept'
+    write(incoming/'menu-tree.json',json.dumps(tree('one',b'draw v3')))
+    write(root/'src/screen.c','draw v3')
+    assert quiet(bm.import_menu_tree,incoming)==0 and (manual/'menu-tree/nodes/m-1.webp').read_bytes()==b'webp v3' and menu()==[],menu()
+    (manual/'menu-tree/menu-tree.json').unlink()
+    assert len(menu())==1 and 'is missing' in menu()[0],menu()
+    print('ok menu-tree refuses a tree that links to a missing heading, imports a good one, and a missing tree fails')
 
 bm.BASE='/manual/'
 html,toc=bm.blocks('## Stems {classic}\nPress [[MENU]] {experimental}, see [pads](hardware#pads).\n1. One\n2. Two\n',{'figure':None})
