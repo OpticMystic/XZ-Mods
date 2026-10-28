@@ -1785,13 +1785,13 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_REKORDBOX_KEY: /* the retired switch: on = MODS MENU, off = the stock action */
             model.rekordbox_assign[0] = a->value != 0 ? XZ_REKORDBOX_MODS : XZ_REKORDBOX_STOCK;
-            snprintf(ui.notice, sizeof(ui.notice), "BUTTON NEXT TO LINK: %s", xz_ui_rekordbox_choice_name(model.rekordbox_assign[0]));
+            snprintf(ui.notice, sizeof(ui.notice), "REKORDBOX BUTTON: %s", xz_ui_rekordbox_choice_name(model.rekordbox_assign[0]));
             break;
         case XZ_UI_REKORDBOX_ASSIGN: {
             int choice = (int)a->value;
             if ((a->index == 0 || a->index == 1) && choice >= 0 && choice < XZ_REKORDBOX_ACTIONS && (float)choice == a->value) {
                 model.rekordbox_assign[a->index] = choice;
-                snprintf(ui.notice, sizeof(ui.notice), "%s: %s", a->index ? "SHIFT + BUTTON NEXT TO LINK" : "BUTTON NEXT TO LINK", xz_ui_rekordbox_choice_name(choice));
+                snprintf(ui.notice, sizeof(ui.notice), "%s: %s", a->index ? "SHIFT + REKORDBOX BUTTON" : "REKORDBOX BUTTON", xz_ui_rekordbox_choice_name(choice));
             }
             break;
         }
