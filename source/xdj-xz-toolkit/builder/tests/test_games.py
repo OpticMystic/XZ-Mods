@@ -43,7 +43,7 @@ class GameSetupTests(unittest.TestCase):
 
     def test_invalid_destination_rejected_before_download(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(games.usb,'target_info',return_value={'direct_usb_root':False}),patch.object(games,'obtain') as obtain:
-            with self.assertRaisesRegex(ValueError,'FAT/FAT32'):games.install('doom',temp,Job())
+            with self.assertRaisesRegex(ValueError,'root of a USB drive'):games.install('doom',temp,Job())
             obtain.assert_not_called()
 
     def test_reconnected_usb_rejected_before_first_write(self):

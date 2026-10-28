@@ -61,7 +61,7 @@ is available for download. Extract the ZIP and run `XZ Mods.exe` with its `resou
 beside it. Windows requires WebView2. VJ.Tools and a developer Python
 installation are not required.
 
-Plug in a FAT/FAT32 USB and choose **Prepare USB â†’ Choose USB and prepare loader**.
+Plug in a USB stick and choose **Prepare USB â†’ Choose USB and prepare loader**.
 The app downloads the official 1.26 firmware and the boot support it needs, checks
 their hashes, then writes and verifies `autoexec.bin` in the USB root. It never
 formats the drive or replaces an existing loader. Firmware and boot support stay

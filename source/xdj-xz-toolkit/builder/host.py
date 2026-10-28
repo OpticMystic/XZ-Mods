@@ -122,4 +122,4 @@ def mac_volume(path):
         filesystem = filesystem.upper()
     return {'volume_root': mount, 'filesystem': filesystem,
             'volume_serial': info.get('VolumeUUID') or info.get('DiskUUID'),
-            'writable': info.get('WritableVolume') is True}
+            'writable': info.get('WritableVolume') is True, 'internal': info.get('Internal')}
