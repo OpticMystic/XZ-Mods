@@ -299,7 +299,7 @@ window.reportWizard = (() => {
     if (!ui.answers?.isConnected) return;
     rw.cards = K.match(KB, rw.text, 3);
     ui.answers.replaceChildren(...(rw.cards.length ? [el('h3', { text: 'Is this it?' }), ...rw.cards.map(entry => el('article', { class: 'sr-answer', dataset: { entry: entry.entry_id } },
-      el('strong', { text: entry.title }), el('p', { text: entry.answer }), el('small', { class: 'sr-source', text: entry.source }),
+      el('strong', { text: entry.title }), el('p', {}, ...xzText(entry.answer)), el('small', { class: 'sr-source', text: entry.source }),
       el('div', { class: 'actions' }, entry.action && ACTIONS[entry.action.id] ? plainButton(entry.action.label, () => ACTIONS[entry.action.id](), { key: 'a-' + entry.entry_id }) : null,
         plainButton('That answers it', () => go('answered'), { text: true, key: 'ok-' + entry.entry_id }))))] : []));
   }
