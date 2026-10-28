@@ -288,3 +288,11 @@ def support_candidates():
                 if Path(mac_volume(path)['volume_root'])==path:found.append({'volume':str(path),'removable':True})
             except (OSError,ValueError):continue
     return found
+
+
+def attach_loader_identity(result,prepared):
+    """Commit the host's staged identity immediately after loader readback."""
+    if prepared is not None:
+        from . import controller_queue
+        result['loader_identity']=controller_queue.finish_loader_request(prepared)
+    return result
