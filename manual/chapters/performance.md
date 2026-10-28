@@ -34,6 +34,12 @@ You get two pages of sizes:
 | Page 1 | Press [[BEAT JUMP]] | 1, 2, 4, 8 beats |
 | Page 2 | Hold [[SHIFT]], press [[BEAT JUMP]], let go of [[SHIFT]] | 16, 32, 64, 128 beats (4, 8, 16, 32 bars) |
 
+```explainer beat-jump Beat jump, page 1 and page 2
+Page 1 | 1 2 4 8 | Press [[BEAT JUMP]]. With the default sizes the pairs A/B, C/D, E/F and G/H jump 1, 2, 4 and 8 beats. The first pad of a pair jumps back, the second forward.
+Page 2 | 16 32 64 128 | shift | Hold [[SHIFT]], press [[BEAT JUMP]], let go of [[SHIFT]]. The pairs jump 16, 32, 64 and 128 beats, and the pads light warm red and amber.
+With a loop on | 1 2 4 8 | loop | With a loop on, the loop moves by the jump instead.
+```
+
 1. Press [[BEAT JUMP]] for page 1, or [[SHIFT]] + [[BEAT JUMP]] for page 2.
 2. Let go of [[SHIFT]].
 3. Press a pad. The first pad of a pair jumps back, the second forward.
@@ -286,6 +292,13 @@ When a copy does not fit, the page says why and offers the next step:
 - Loading another track on the deck drops its RAM copy.
 
 ### When the music USB goes out {experimental}
+
+```explainer ram-usb A deck playing from RAM when the USB goes out
+NOT IN RAM | The deck plays from USB.
+COPYING TO RAM | 38 | Press LOAD TRACK INTO RAM. Keep the USB connected while it copies.
+ORIGINAL AUDIO IN RAM | The deck plays from memory.
+USB OUT / RAM COPY ONLY | The music USB goes out and the deck plays on from memory. A teal card, WHOLE TRACK IN RAM · PLAYABLE, takes the waveform's place and says how to get it back.
+```
 
 A deck with its whole track in RAM keeps playing when the music USB goes out. The waveform was read from the USB, so the deck's lane cannot draw it any more. A teal card takes its place: **WHOLE TRACK IN RAM · PLAYABLE**, and under it how to get the waveform back.
 
