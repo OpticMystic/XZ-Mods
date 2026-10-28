@@ -218,7 +218,7 @@ int main(void) {
         e.theme = iface ? XZ_THEME_FLAGSHIP : 0;
         e.modern_look.known = 1;
         if (iface) e.counter_error[1] = (struct xz_ui_counter_error){"E-8302", "CANNOT PLAY TRACK"};
-        else e.usb_hub = "E-8307: HUBS ARE NOT SUPPORTED";
+        else e.stock_window = "E-8307: USB ACCESS ERROR";
         xz_ui_init(&u);
         u.page = XZ_UI_PLAY;
         struct xz_ui_widget r, strip;

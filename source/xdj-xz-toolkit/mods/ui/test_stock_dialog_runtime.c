@@ -7,9 +7,8 @@ void xz_layered_wave_configure(int mode,const uint32_t rgb[3]){(void)mode;(void)
 #include "../stock_dialog.c"
 #ifdef XZ_STOCK_DIALOG_REFERENCE
 static void xz_mods_native_frame_v1(const uint16_t*p,uint32_t w,uint32_t h,uint32_t stride){(void)p;(void)w;(void)h;(void)stride;}
-/* The reference runtime predates hub_cause.h; its baseline frames never reach the hub section. */
-#include "../hub_cause.h"
-static struct xz_hub_watch hub_watch;static int hub_calm_shown;
+/* The reference runtime predates the hub calm card; its baseline frames never reach the hub section. */
+static int hub_calm_shown;
 #endif
 #include "ui_skin.h"
 static uint16_t native_frame[800*480],frame[800*480];
@@ -48,19 +47,32 @@ static void yields(const char *dir,const char *name){
  pthread_mutex_lock(&ui_mutex);assert(!xz_mods_render_v1(frame,800,480,800,NULL));pthread_mutex_unlock(&ui_mutex);
  assert(!memcmp(frame,native_frame,sizeof frame));image(dir,name);
 }
+/* MODERN and an open MODS keep the screen over a live window: the frame is theirs, not the player's. */
+static void keeps(const char *dir,const char *name){
+ memcpy(frame,native_frame,sizeof frame);
+ assert(xz_mods_render_v1(frame,800,480,800,NULL)&&memcmp(frame,native_frame,sizeof frame)&&xz_mods_visible_v1());
+ image(dir,name);
+}
+#define STRIP_RED (frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb(0x5a0c0c))
 int main(int argc,char **argv){
  const char *dir=argc>1?argv[1]:NULL;
  unsigned char self[32]={0};started=1;settings_readonly=1;
  if(argc>2&&!strcmp(argv[2],"baseline"))goto no_dialog;
  xz_ui_init(&ui);xz_ui_init(&inline_ui);xz_native_touch_init(&touch,&ui,&model,apply,NULL);stock_touch=stock;
  native_dialog_fixture();browse=0x1adb0d8;
- touch.visible=1;visible=1;yields(dir,"classic-mods-stock-dialog");
+ /* CLASSIC with MODS open: MODS stays over the window, the window in its own words in the dock strip. */
+ touch.visible=1;visible=1;keeps(dir,"classic-mods-stock-window");
+ assert(model.stock_window&&!strcmp(model.stock_window,XZ_STOCK_WINDOW_UNREAD)&&STRIP_RED);
+ /* CLASSIC's own pages and layers with MODS closed step aside for the player's window. */
  touch.visible=0;visible=0;dv.open=dv.painted=dv.painted_open=1;yields(dir,"classic-picker-stock-dialog");
  dv.open=0;play_key.open=play_key_visible=1;yields(NULL,NULL);
  model.fb_takeover=fb_takeover_active=network_enabled=network_connected=1;yields(NULL,NULL);
  arcade_present=1;yields(NULL,NULL);arcade_present=0;
- fake_shell_running=fake_owns=fixture_shell_live=1;model.ui_interface=XZ_UI_INTERFACE_MODERN;yields(dir,"modern-stock-alert-fallback");
- assert(!fixture_shell_frames);fake_shell_running=fake_owns=fixture_shell_live=0;
+ /* MODERN never yields: the shell keeps the screen over the live window (it says the window in a notice). */
+ model.fb_takeover=fb_takeover_active=network_enabled=network_connected=0;play_key.open=play_key_visible=0;
+ fake_shell_running=fake_owns=fixture_shell_live=1;model.ui_interface=XZ_UI_INTERFACE_MODERN;keeps(dir,"modern-stock-window-kept");
+ assert(fixture_shell_frames);fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;
+ model.fb_takeover=fb_takeover_active=network_enabled=network_connected=1;play_key.open=play_key_visible=1;
  model.ui_interface=XZ_UI_INTERFACE_CLASSIC;yields(dir,"classic-cable-stock-dialog");
  /* Live native status/counter paths take the same full-screen priority. */
  browse=0;status=0x1adb118;yields(NULL,NULL);status=0;
@@ -71,18 +83,19 @@ int main(int argc,char **argv){
  stock_global_key=global_stock;stock_encoder_rotate=rotate_stock;stock_encoder_push=push_stock;
  browse=0x1adb0d8;menu_back_key_hook(NULL,NULL);assert(global_calls==1);
  assert(encoder_rotate_hook(3)==42&&rotate_calls==3);assert(encoder_push_hook(NULL,NULL,NULL,NULL)==43&&push_calls==1);
- /* MODERN opens the same MODS panel. A live window takes the screen, touch, MENU and the encoder from it,
-    and the panel is still open on the same page when stock closes the window. */
+ /* MODERN opens the same MODS panel. A live window takes nothing from it: the panel keeps the screen, its touches,
+    keys and the encoder, and its dock shows the window in the player's own words until the window goes. */
+ model.fb_takeover=fb_takeover_active=network_enabled=network_connected=0;play_key.open=play_key_visible=0;
  fake_shell_running=fake_owns=fixture_shell_live=1;model.ui_interface=XZ_UI_INTERFACE_MODERN;
- touch.visible=visible=1;touch.capture=0;ui.page=XZ_UI_PLAY;yields(dir,"modern-mods-stock-dialog");assert(!fixture_shell_frames);
- unsigned char menu_key[16]={0};menu_key[8]=0x0b;menu_key[9]=0x02;
- int stock_keys=global_calls;menu_back_key_hook(NULL,menu_key);menu_key[11]=2;menu_back_key_hook(NULL,menu_key);
- assert(global_calls==stock_keys+2&&touch.visible&&visible);
- int stock_touches=stock_calls;contact(self,770,20,1);contact(self,770,20,0);contact(self,60,120,1);contact(self,60,120,0);
- assert(stock_calls==stock_touches+4&&touch.visible&&visible&&ui.page==XZ_UI_PLAY);
- assert(encoder_rotate_hook(1)==42&&encoder_push_hook(NULL,NULL,NULL,NULL)==43&&touch.visible&&ui.page==XZ_UI_PLAY);
- browse=0;memcpy(frame,native_frame,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL));
- assert(memcmp(frame,native_frame,sizeof frame)&&xz_mods_visible_v1()&&touch.visible&&ui.page==XZ_UI_PLAY);
+ model.theme=XZ_THEME_FLAGSHIP;model.modern_look.known=1;caution_text(browse_text,"E-8307: USB ACCESS ERROR");
+ touch.visible=visible=1;touch.capture=0;ui.page=XZ_UI_PLAY;keeps(dir,"modern-mods-stock-window");
+ assert(model.stock_window&&!strcmp(model.stock_window,"E-8307: USB ACCESS ERROR")&&STRIP_RED);
+ int stock_keys=global_calls,stock_touches=stock_calls,stock_turns=rotate_calls,stock_pushes=push_calls;
+ assert(encoder_rotate_hook(1)==1&&rotate_calls==stock_turns&&touch.visible&&ui.page==XZ_UI_PLAY);
+ contact(self,60,200,1);contact(self,60,200,0);
+ assert(stock_calls==stock_touches&&global_calls==stock_keys&&push_calls==stock_pushes&&touch.visible&&visible);
+ browse=0;caution_text(browse_text,NULL);memcpy(frame,native_frame,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL));
+ assert(memcmp(frame,native_frame,sizeof frame)&&xz_mods_visible_v1()&&touch.visible&&!model.stock_window&&!STRIP_RED);
  image(dir,"modern-mods-resumed");
  fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;model.ui_interface=XZ_UI_INTERFACE_CLASSIC;
  /* Failures and unknown IDs draw the panel instead of handing off. */
@@ -149,9 +162,9 @@ int main(int argc,char **argv){
   fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;model.ui_interface=XZ_UI_INTERFACE_CLASSIC;
  }
  ids[0]=ids[1]=0;
- /* The E-8307 hub warning stays up while the loopback cable is in: MODS keeps the screen, its keys and its touches
-    in both interfaces. With no cable on the decks 3 and 4 route the dock carries the warning once it has settled
-    (../hub_cause.h); with the cable proven it shows no error. Any other E-8307 text still yields. */
+ /* The E-8307 hub warning stays up while the loopback cable is in. It is never an error, in either interface and
+    whatever the decks 3 and 4 route says: no window for the dock, no strip, and MODS keeps the screen, its keys and
+    its touches; CLASSIC's own window shows the calm card. Any other E-8307 text is an ordinary window. */
  for(int iface=0;iface<2;iface++){
   memset(&model,0,sizeof model);model.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;
   model.theme=iface?XZ_THEME_FLAGSHIP:0;model.modern_look.known=1;
@@ -161,31 +174,22 @@ int main(int argc,char **argv){
   fixture_route=(struct xz_extra_route_status){0};fixture_route.state=XZ_EXTRA_ROUTE_NOT_DETECTED;
   status=0x1adb118;caution_text(status_text,"E-8307: HUBS ARE NOT SUPPORTED");
   memset(frame,0x55,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL)&&xz_mods_visible_v1());
-  assert(model.usb_hub&&!strcmp(model.usb_hub,"E-8307: HUBS ARE NOT SUPPORTED")&&model.usb_hub_view==XZ_HUB_SETTLING);
-  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]!=rgb(0x5a0c0c)&&!hub_calm_shown);
-  /* No cable, settled: the honest warning, which names a hub before the cable. */
-  hub_watch.since-=XZ_HUB_SETTLE_MS;
-  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&model.usb_hub_view==XZ_HUB_WARN&&xz_ui_usb_hub_notice(&model));
-  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb(0x5a0c0c)&&!hub_calm_shown);
-  image(dir,iface?"modern-mods-hub-warning":"classic-mods-hub-warning");
+  assert(!model.stock_window&&!STRIP_RED&&hub_calm_shown);
+  image(dir,iface?"modern-mods-hub-no-error":"classic-mods-hub-no-error");
   int stock_before=stock_calls,rotate_before=rotate_calls;
   assert(encoder_rotate_hook(1)==1&&rotate_calls==rotate_before&&touch.visible);
   contact(self,60,200,1);contact(self,60,200,0);assert(stock_calls==stock_before&&touch.visible&&visible);
-  /* The route finds the cable (or an admitted music hub): no strip, no error; CLASSIC's window turns calm. */
-  fixture_route.state=XZ_EXTRA_ROUTE_STARTING;fixture_route.revision=3;
-  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&model.usb_hub&&model.usb_hub_view==XZ_HUB_CABLE&&!xz_ui_usb_hub_notice(&model));
-  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]!=rgb(0x5a0c0c)&&hub_calm_shown);
-  fixture_route.state=XZ_EXTRA_ROUTE_READY;
-  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&model.usb_hub_view==XZ_HUB_CABLE&&frame[(XZ_UI_COUNTER_Y+1)*800+300]!=rgb(0x5a0c0c));
-  image(dir,iface?"modern-mods-hub-cable":"classic-mods-hub-cable");
-  /* An unsupported music hub fails the route: nothing proves the cable explains it, so the warning is back. */
-  fixture_route.state=XZ_EXTRA_ROUTE_FAILED;fixture_route.fail_part=XZ_EXTRA_ROUTE_PART_PORT;
-  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&model.usb_hub_view==XZ_HUB_WARN&&!hub_calm_shown);
-  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb(0x5a0c0c));
+  static const enum xz_extra_route_state routes[]={XZ_EXTRA_ROUTE_STARTING,XZ_EXTRA_ROUTE_READY,XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_LOST};
+  for(size_t r=0;r<sizeof routes/sizeof *routes;r++){
+   fixture_route.state=routes[r];fixture_route.revision=3;fixture_route.fail_part=XZ_EXTRA_ROUTE_PART_PORT;
+   assert(xz_mods_render_v1(frame,800,480,800,NULL)&&!model.stock_window&&!STRIP_RED&&hub_calm_shown);
+  }
   fixture_route=(struct xz_extra_route_status){0};fixture_route.state=XZ_EXTRA_ROUTE_NOT_DETECTED;
-  caution_text(status_text,"E-8307: USB ACCESS ERROR");memcpy(native_frame,frame,sizeof frame);yields(NULL,NULL);
+  caution_text(status_text,"E-8307: USB ACCESS ERROR");memcpy(native_frame,frame,sizeof frame);keeps(NULL,NULL);
+  assert(model.stock_window&&!strcmp(model.stock_window,"E-8307: USB ACCESS ERROR")&&STRIP_RED&&!hub_calm_shown);
+  image(dir,iface?"modern-mods-usb-access-error":"classic-mods-usb-access-error");
   status=0;caution_text(status_text,NULL);
-  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&!model.usb_hub&&model.usb_hub_view==XZ_HUB_NONE&&!hub_calm_shown);
+  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&!model.stock_window&&!STRIP_RED&&!hub_calm_shown);
  }
  fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;
  no_dialog:
@@ -201,7 +205,7 @@ int main(int argc,char **argv){
  fake_shell_running=fake_owns=fixture_shell_live=1;model.ui_interface=XZ_UI_INTERFACE_MODERN;
  memset(frame,0,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL));image(dir,"no-dialog-modern");
  fake_shell_running=fake_owns=fixture_shell_live=0;
- puts("PASS real runtime all overlay priority, busy cache, modern native fallback, touch release, stock keys, MODERN counter strip, E-8307 hub warning kept in MODS, and resume");
+ puts("PASS real runtime all overlay priority, busy cache, modern native fallback, touch release, stock keys in CLASSIC only, MODERN and MODS keep the screen over a live window with its text in the dock, MODERN counter strip, E-8307 hub warning never an error, and resume");
  return 0;
 }
 

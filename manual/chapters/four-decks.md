@@ -108,24 +108,17 @@ When the route comes up, a banner says **DECKS 3 AND 4 ARE READY** for a few sec
 
 ### The E-8307 hub warning {experimental}
 
-The player sees the loopback cable as a USB hub. When you plug it in, the player raises its own warning **E-8307: HUBS ARE NOT SUPPORTED** and keeps it up while the cable stays in. With four decks that is not an error, so XZ Mods does not show it as one.
+The player sees the loopback cable as a USB hub. When you plug it in, the player raises its own warning **E-8307: HUBS ARE NOT SUPPORTED** and keeps it up while the cable stays in. That is not an error, so XZ Mods never shows it, whether four decks are on or not.
 
-- Once decks 3 and 4 have found the cable, MODS shows no error. That is as soon as their card says the audio is starting, waits for decks 1 and 2, or says DECKS 3 AND 4 ARE READY.
+- MODERN and MODS show nothing and keep working as usual.
 - In CLASSIC the player's own warning window turns into a calm card: **LOOPBACK CABLE CONNECTED**, **USED BY DECKS 3 AND 4 · NOT AN ERROR**.
-- For the first three seconds after the warning appears, MODS shows nothing while decks 3 and 4 look for the cable.
 
 ```gallery {classic}
 classic:hub-card The player's window with the loopback cable in
 classic:hub-card-large The same card in a larger window
 ```
 
-When nothing shows that the cable caused it, the warning stays. That happens with four decks off, before decks 3 and 4 find the cable, or with a hub the player refused:
-
-- While MODS is open, the strip at the top of the MODS dock shows the warning with **FROM A HUB OR THE LOOPBACK CABLE IN A TOP USB PORT.**
-- In MODERN the play screen shows **E-8307 HUBS ARE NOT SUPPORTED: CHECK THE TOP USB PORTS** once.
-- In CLASSIC the player's own window stays as the player draws it.
-
-If you see the warning without the loopback cable plugged in, a hub or other unsupported device is in a top USB port. Remove it.
+If a USB hub or another device the player does not support is in a top USB port, the player cannot use it either. Plug music sticks straight into a top port.
 
 ## DECK VIEW
 

@@ -17,9 +17,9 @@ extern int xz_native_skin_on_owner_thread(void);
 struct descriptor {uintptr_t gr,hw;unsigned width,height;};
 struct marker {struct descriptor d;int pitch;unsigned valid;uint16_t raw[8*48];};
 struct transaction {struct descriptor d;uint16_t *actual;int pitch,kind,slot;uint32_t text;};
-/* The player's E-8307 hub window (../hub_cause.h). While the runtime says the loopback cable explains it, the
-   window shows the calm card (ram_notice.h xz_hub_card_draw) in its own place and size; the stock pixels are kept
-   so the window returns as the player drew it when the cause is no longer the cable. Owner thread only. */
+/* The player's E-8307 hub window (../stock_dialog.h), which the loopback cable raises and is never an error. While
+   the runtime says it is up, the window shows the calm card (ram_notice.h xz_hub_card_draw) in its own place and
+   size; the stock pixels are kept so a repaint can give them back. Owner thread only. */
 #define HUB_STOCK_PIXELS (800*240)
 static int hub_calm,hub_shown;
 static struct {struct descriptor d;int pitch,valid,saved;} hub;

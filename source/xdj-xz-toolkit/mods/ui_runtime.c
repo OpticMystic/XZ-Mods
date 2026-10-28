@@ -106,7 +106,6 @@ static uint32_t ram_debug_sample_ms;
 /* CLASSIC's calm card for the loopback cable's E-8307 window and the RAM-only notice in the wave lanes. */
 #pragma weak xz_native_raw_skin_hub_calm
 #pragma weak xz_native_ram_notice_set
-#include "hub_cause.h"
 #include "ui/native_raw_skin.h"
 #pragma weak xz_shell_runtime_take_deck_view
 #pragma weak xz_shell_runtime_screen
@@ -171,7 +170,8 @@ extern int xz_settings_internal_save(const struct xz_settings *) __attribute__((
 #pragma weak xz_stock_dialog_active
 #pragma weak xz_stock_counter_ids
 #pragma weak xz_stock_usb_hub_text
-static int stock_dialog_up(void){return xz_stock_dialog_active&&xz_stock_dialog_active();}
+#pragma weak xz_stock_window_text
+static int stock_dialog_up(void);
 static int stock_counter_classic=1;
 static unsigned stock_counter_mask(uint32_t ids[2]){return xz_stock_counter_ids?xz_stock_counter_ids(ids):0;}
 #include <stdlib.h>
@@ -210,6 +210,14 @@ static struct xz_ui_dj dj_view;
 static xz_stock_touch stock_touch;
 static void (*forward_touch)(int, int, int);
 static int started, visible, audio_available, key_available, forwarded_down;
+/* A live player window takes the screen, keys, encoder and touch only from CLASSIC's own pages. MODERN and an open
+   MODS (either interface) keep all of them and show the window's text themselves: the dock strip here, the play
+   screen's notice in the shell. Polls every call, so the hub calm card and the window text stay current. */
+static int stock_dialog_up(void){
+    if(!(xz_stock_dialog_active&&xz_stock_dialog_active()))return 0;
+    if(__atomic_load_n(&visible,__ATOMIC_ACQUIRE)||!__atomic_load_n(&stock_counter_classic,__ATOMIC_ACQUIRE))return 0;
+    return !(xz_shell_runtime_owns&&xz_shell_runtime_owns());
+}
 static struct xz_key_snapshot key_snapshot[2];
 static int key_valid[2];
 /* List generation last seen while the play screen showed. A newer local USB list
@@ -634,20 +642,25 @@ static int extra_jump_page(int logical_deck){
 }
 /* Decks 3 and 4's route: the connector's published status, copied field for field (no IO, no lock). Without
    the connector in this build every field stays zero: NO_ENGINE. */
-/* The player's E-8307 hub warning (../hub_cause.h): its firmware text, what it means now, and CLASSIC's calm card in
-   the player's own window while the loopback cable explains it (ui/native_raw_skin.c). After the route is read. */
-static struct xz_hub_watch hub_watch;
+/* The player's live window for the dock (stock_window), and CLASSIC's calm card over the E-8307 hub window, which
+   the loopback cable raises and is never an error (ui/native_raw_skin.c). */
+static char stock_window_copy[XZ_STOCK_WINDOW_TEXT];
 static int hub_calm_shown;
-static void hub_refresh_locked(void){
-    const char *text=xz_stock_usb_hub_text?xz_stock_usb_hub_text():NULL;
-    model.usb_hub=text;
-    model.usb_hub_view=(int)xz_hub_step(&hub_watch,text,xz_hub_route_cable(model.route.state,model.route.revision),xz_game_milliseconds());
-    int calm=model.usb_hub_view==XZ_HUB_CABLE;
+static void stock_window_refresh_locked(void){
+    model.stock_window=xz_stock_window_text&&xz_stock_window_text(stock_window_copy)?stock_window_copy:NULL;
+    int calm=xz_stock_usb_hub_text&&xz_stock_usb_hub_text()!=NULL;
     if(calm!=hub_calm_shown){
         hub_calm_shown=calm;
         if(xz_native_raw_skin_hub_calm)xz_native_raw_skin_hub_calm(calm);
         xz_native_skin_request_repaint();
     }
+}
+/* The number of a window's E-code ("E-8304: ..." gives 8304), or 0. */
+static unsigned stock_window_code(const char *t){
+    unsigned n=0;
+    if(!t||t[0]!='E'||t[1]!='-')return 0;
+    for(int i=2;i<6;i++){if(t[i]<'0'||t[i]>'9')return 0;n=n*10+(unsigned)(t[i]-'0');}
+    return n;
 }
 static void route_refresh_locked(void){
     struct xz_extra_route_status s={0};
@@ -656,7 +669,7 @@ static void route_refresh_locked(void){
     memcpy(model.route.reason,s.reason,sizeof model.route.reason);model.route.reason[sizeof model.route.reason-1]=0;
     model.route.checked_at_ms=s.checked_at_ms;model.route.revision=s.revision;
     model.route.ready_revision=s.ready_revision;
-    hub_refresh_locked();
+    stock_window_refresh_locked();
 }
 static void deck_status_refresh_locked(void){
     deck_view_follow_locked();
@@ -1363,7 +1376,7 @@ static void support_context_locked(struct xz_support_report *r){
     r->deck_view=model.deck_view>=0&&model.deck_view<=2?model.deck_view:0;
     unsigned errors=xz_ui_counter_errors(&model);
     for(int d=0;d<2;d++)r->alert[d]=(errors>>d&1)&&xz_diary_error_code?xz_diary_error_code(model.counter_error[d].code):0;
-    r->alert[2]=xz_ui_usb_hub_notice(&model)?8307u:0;
+    r->alert[2]=xz_ui_stock_window_notice(&model)?stock_window_code(model.stock_window):0;
     r->have_settings=1;
     r->settings[0]=!!s.stems;r->settings[1]=!!s.gate;r->settings[2]=s.ui_interface;r->settings[3]=s.classic_theme;
     r->settings[4]=s.deck_view;r->settings[5]=!!s.browse_preview;
@@ -3914,7 +3927,7 @@ int xz_ui_diary_snapshot(struct xz_diary_view *out) {
     if(!xz_diary_notice_code||!xz_diary_error_code||!__atomic_load_n(&started,__ATOMIC_ACQUIRE)||pthread_mutex_trylock(&ui_mutex))return 0;
     out->settings=settings_snapshot();out->have_settings=1;
     out->notice=xz_diary_notice_code(ui.notice);
-    out->usb_error=model.usb_hub?8307u:0;
+    out->usb_error=stock_window_code(model.stock_window);
     for(unsigned i=0;i<4;i++) {
         static const unsigned states[]={XZ_DIARY_UNKNOWN,XZ_DIARY_EMPTY,XZ_DIARY_LOADING,XZ_DIARY_READY,XZ_DIARY_ERROR,XZ_DIARY_REMOVED};
         unsigned state=(unsigned)model.deck[i].ram.state;

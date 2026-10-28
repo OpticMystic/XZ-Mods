@@ -1,18 +1,14 @@
 #ifdef NDEBUG
 #error Calm card fixtures require assertions
 #endif
-/* ../hub_cause.h (what MODS makes of the player's E-8307 hub warning) and ram_notice.h (the RAM card on CLASSIC's
-   wave surface and the calm card in the player's own hub window). */
+/* ram_notice.h: the RAM card on CLASSIC's wave surface and the calm card in the player's own hub window. */
 #include "ui.h"
 #include "ram_notice.h"
 #include "wave_viewport.h"
-#include "../hub_cause.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
-_Static_assert(XZ_HUB_ROUTE_STARTING==XZ_UI_ROUTE_STARTING&&XZ_HUB_ROUTE_WAITING_NATIVE_STOP==XZ_UI_ROUTE_WAITING_NATIVE_STOP&&
- XZ_HUB_ROUTE_READY==XZ_UI_ROUTE_READY,"hub_cause.h follows the route states");
 #define KEY 0xf81fu
 static uint16_t px[XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT];
 static void key_fill(void){for(size_t i=0;i<sizeof px/sizeof *px;i++)px[i]=KEY;}
@@ -25,26 +21,6 @@ static int drawn_within(int top,int bottom){
  return n;
 }
 int main(void){
- /* The cable is proven only by a route the helper reached through it. */
- for(int state=0;state<XZ_UI_ROUTE_STATES;state++)for(uint32_t revision=0;revision<2;revision++){
-  int proven=state==XZ_UI_ROUTE_READY||((state==XZ_UI_ROUTE_STARTING||state==XZ_UI_ROUTE_WAITING_NATIVE_STOP)&&revision);
-  assert(xz_hub_route_cable(state,revision)==proven);
- }
- /* The warning appears; nothing while it settles; the honest warning after; the cable turns it into no error. */
- static const char *const text="E-8307: HUBS ARE NOT SUPPORTED",*const other="E-8307: UNSUPPORTED DEVICE";
- struct xz_hub_watch w={0};
- assert(xz_hub_step(&w,NULL,0,10)==XZ_HUB_NONE&&xz_hub_step(&w,"",1,10)==XZ_HUB_NONE);
- assert(xz_hub_step(&w,text,0,1000)==XZ_HUB_SETTLING&&xz_hub_step(&w,text,0,1000+XZ_HUB_SETTLE_MS-1)==XZ_HUB_SETTLING);
- assert(xz_hub_step(&w,text,0,1000+XZ_HUB_SETTLE_MS)==XZ_HUB_WARN);
- assert(xz_hub_step(&w,text,1,1000+XZ_HUB_SETTLE_MS+5)==XZ_HUB_CABLE);
- assert(xz_hub_step(&w,text,1,1000)==XZ_HUB_CABLE); /* the cable explains it at once, settled or not */
- /* A different warning starts its own settle time; the clock may wrap. */
- assert(xz_hub_step(&w,other,0,UINT32_MAX-10)==XZ_HUB_SETTLING&&xz_hub_step(&w,other,0,XZ_HUB_SETTLE_MS-12)==XZ_HUB_SETTLING);
- assert(xz_hub_step(&w,other,0,XZ_HUB_SETTLE_MS)==XZ_HUB_WARN);
- assert(xz_hub_step(&w,NULL,0,XZ_HUB_SETTLE_MS+1)==XZ_HUB_NONE&&!w.text&&!w.since);
- assert(xz_hub_step(&w,text,0,50000)==XZ_HUB_SETTLING);
- assert(strlen(XZ_HUB_NOTICE)<64&&!strstr(XZ_HUB_NOTICE,"LOOPBACK"));
-
  /* CLASSIC's RAM card: inside the lane, clear of its ten cue rows at each edge, in every stem layout. */
  struct xz_canvas s={px,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0};
  int layouts=0;
@@ -83,6 +59,6 @@ int main(void){
  }
  key_fill();xz_hub_card_draw((struct xz_canvas){px,40,40,10,0});
  for(size_t i=0;i<sizeof px/sizeof *px;i++)assert(px[i]==KEY);
- printf("PASS calm cards: hub cause and settle, %d RAM card lanes in bounds, no red, hub window card fills any size\n",layouts);
+ printf("PASS calm cards: %d RAM card lanes in bounds, no red, hub window card fills any size\n",layouts);
  return 0;
 }

@@ -17,11 +17,10 @@
 #include "shell_runtime.h"
 #include "shell_model.h"
 #include "stock_dialog.h"
-#include "hub_cause.h"
 #include "ram/decks.h"
 #pragma weak xz_ram_deck_status
 #pragma weak xz_stock_dialog_active
-#pragma weak xz_stock_usb_hub_text
+#pragma weak xz_stock_window_text
 #include "sync_native.h"
 #include "clock_compat.h"
 #include "shell_library.h"
@@ -2883,14 +2882,14 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  }
  moving=xz_shrt_moving_decks(&model);
  sec.moving|=moving;follow_bits=following;sec.following|=following;
- uint32_t raw_caution=xz_stock_dialog_active&&xz_stock_dialog_active()?1u:0u,caution=raw_caution;
- /* The player's E-8307 hub warning does not take the screen (stock_dialog.h). From the loopback cable it is no
-    error, so nothing is said (hub_cause.h); unexplained after the settle time, it is said once. */
- {static struct xz_hub_watch hub_watch;static const char *hub_said;
-  const char *hub=xz_stock_usb_hub_text?xz_stock_usb_hub_text():NULL;
-  enum xz_hub_view view=xz_hub_step(&hub_watch,hub,xz_hub_route_cable(model.route_state,model.route_revision),now);
-  if(view==XZ_HUB_WARN&&hub!=hub_said){notice_locked(now,XZ_HUB_NOTICE);hub_said=hub;}
-  if(view==XZ_HUB_NONE)hub_said=NULL;}
+ /* A live player window never takes MODERN's screen or controls: the play screen says it in the player's own
+    words, once each time it appears or changes, and the window waits behind the shell (stock_dialog.h). The
+    loopback cable's E-8307 hub warning is no window here and is never said. */
+ uint32_t raw_caution=xz_stock_dialog_active&&xz_stock_dialog_active()?1u:0u,caution=0;
+ {static char said[XZ_STOCK_WINDOW_TEXT];char text[XZ_STOCK_WINDOW_TEXT];
+  size_t n=raw_caution&&xz_stock_window_text?xz_stock_window_text(text):0;
+  if(!n)said[0]=0;
+  else if(strcmp(text,said)){memcpy(said,text,sizeof said);notice_locked(now,text);}}
  if(caution!=raw_caution)xz_mods_shell_proof_v1.caution_filtered++;
  xz_shrt_handoff_caution(&handoff,caution);
  xz_mods_shell_proof_v1.caution=caution;

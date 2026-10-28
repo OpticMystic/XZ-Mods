@@ -32,7 +32,7 @@ static void report_previews(const char *directory,struct xz_ui_model base,int th
   if(k==5){m.support.phase=XZ_SUPPORT_SAVED;snprintf(m.support.result,sizeof m.support.result,"OFFLINE");u.focus_kind=XZ_UI_SUPPORT_DONE;}
   if(k==6){m.support.phase=XZ_SUPPORT_UNSAVED;snprintf(m.support.result,sizeof m.support.result,"READ_ONLY");
    snprintf(m.support.detail,sizeof m.support.detail,"OFFLINE");u.focus_kind=XZ_UI_SUPPORT_RETRY;}
-  if(k==7){u.page=XZ_UI_PLAY;u.focus_kind=XZ_UI_NONE;m.usb_hub="E-8307: HUBS ARE NOT SUPPORTED";m.route.state=XZ_UI_ROUTE_STARTING;}
+  if(k==7){u.page=XZ_UI_PLAY;u.focus_kind=XZ_UI_NONE;m.stock_window="E-8307: USB ACCESS ERROR";}
   if(k==3||k==4||k==5||k==6)u.support.step=3;
   if(!xz_ui_render(&u,&m,pixels,800*480,800))exit(1);
   snprintf(name,sizeof(name),"theme-%d-%s",theme,steps[k]);save(directory,name,800,480);
