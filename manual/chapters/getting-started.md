@@ -47,10 +47,10 @@ You prepare the USB in the XZ Mods app on your computer. It does not format the 
 
 ```figure app:install-review XZ Mods app · Install XZ Mods
 The checklist before the write. Music, playlists and prepared stems are never touched.
-1 @ 580,223 Loader | XZ Mods itself.
-2 @ 706,269 Games | Free games the app downloads and checks.
-3 @ 540,315 Interface | The screen the XZ starts with.
-4 @ 632,733 Your files | What the write never changes.
+1 @ 580,227 Loader | XZ Mods itself.
+2 @ 706,273 Games | Free games the app downloads and checks.
+3 @ 540,319 Interface | The screen the XZ starts with.
+4 @ 632,737 Your files | What the write never changes.
 ```
 
 Every step of the app is in [The XZ Mods app](desktop-app#usb). To add stems to your tracks, see [Stems](stems).

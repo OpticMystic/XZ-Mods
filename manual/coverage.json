@@ -288,6 +288,16 @@
    "why": "desktop app views and labels"
   },
   {
+   "path": "ui/style.css",
+   "chapter": "desktop-app",
+   "why": "the rail, page header and Tools layout every app shot shows"
+  },
+  {
+   "path": "ui/support.css",
+   "chapter": "desktop-app",
+   "why": "the Feedback section, My reports and From your XZ"
+  },
+  {
    "path": "ui/setup.js",
    "chapter": "getting-started",
    "why": "USB setup steps and the interface choice"
