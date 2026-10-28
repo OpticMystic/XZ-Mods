@@ -269,7 +269,7 @@ A track that plays is also copied on its own when there is room. CANCEL COPY or 
 | COPYING TO RAM | CANCEL COPY | The copy is running. Cancel leaves the track playing from USB. |
 | ORIGINAL AUDIO IN RAM | RELEASE RAM COPY | The deck plays from memory. Release frees the memory and needs the USB still connected. |
 | COPY FAILED | RETRY LOAD INTO RAM | The track keeps playing from USB. Retry; if it fails again, load the track again from USB. |
-| USB OUT / RAM COPY ONLY | BACK TO PLAY | The USB is out and the deck plays from memory. Load another track to release the copy. |
+| USB OUT / RAM COPY ONLY | BACK TO PLAY | The USB is out and the deck plays from memory. The play screen says so in the deck's lane; see [below](#when-the-music-usb-goes-out). Load another track to release the copy. |
 
 When a copy does not fit, the page says why and offers the next step:
 
@@ -284,6 +284,28 @@ When a copy does not fit, the page says why and offers the next step:
 - On decks 3 and 4 the waveform, beat grid and cues already loaded stay with the copy when the USB goes out. Cues you change then are kept for the session and not written to a USB.
 - If the loopback cable goes out, decks 3 and 4 keep their copies and pause, as they do without RAM. They do not start again on their own when the cable returns.
 - Loading another track on the deck drops its RAM copy.
+
+### When the music USB goes out {experimental}
+
+A deck with its whole track in RAM keeps playing when the music USB goes out. The waveform was read from the USB, so the deck's lane cannot draw it any more. A teal card takes its place: **WHOLE TRACK IN RAM · PLAYABLE**, and under it how to get the waveform back.
+
+Everything else about the deck stays on screen: title and artist, time and remain, BPM, tempo, key, the lamps, the hot cues and the playhead.
+
+```gallery {modern}
+modern:ram-01-two-decks-deck-1 2 DECKS: deck 1 plays from RAM. Deck 2 is unchanged
+modern:ram-02-two-decks-both Both decks play from RAM
+modern:ram-03-four-decks-2-4 4 DECKS: decks 2 and 4 play from RAM
+modern:ram-04-mixer-2-4 MIXER order: the card stays with its deck
+```
+
+```figure classic:classic-ram-two-decks PLAY · CLASSIC {classic}
+Deck 1 plays from RAM after the USB went out. The stem rows, the deck column and the deck strip stay as the player shows them.
+1 @ 640,72 RAM card | The deck plays its whole track from RAM. The second line says how to get the waveform back.
+```
+
+To get the waveform back, reinsert the same USB or insert another, then load a track from it. The card goes as soon as the deck has a waveform to draw again. Loading a track also ends the deck's RAM copy, as it always does.
+
+On decks 3 and 4 the waveform loaded before the USB went out stays, so the card shows there only if the waveform had not loaded yet.
 
 | Line under the button, decks 1 and 2 | What it means |
 |---|---|
