@@ -777,6 +777,8 @@ try {
   await evaluate(`showPage('updates')`); await idle(); await shot('14-app-updates');
   await evaluate(`showPage('device-updates')`);
   await waitFor(`activeJob===null&&document.getElementById('ota-network').value==='169.254.168.10'`, 'network updates: the adapter is listed');
+  // The finished detection's panel goes, as it does on any page change; the picture shows the page itself.
+  await evaluate(`document.getElementById('job-panel').classList.add('hidden')`);
   await shot('15-network-updates');
   await evaluate(`showPage('library-repair')`);
   await waitFor(`activeJob===null&&txt('#repair-drive-status').startsWith('No Rekordbox USB found')`, 'repair library: no Rekordbox USB');
