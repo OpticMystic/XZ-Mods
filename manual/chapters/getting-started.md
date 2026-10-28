@@ -28,7 +28,7 @@ The player starts stock. Plug the XZ Mods USB back in and start again to load XZ
 | Player | Pioneer DJ XDJ-XZ on firmware 1.26. No other firmware version is supported |
 | Computer | 64-bit Windows with WebView2, or a Mac with macOS 14 or later, to prepare the USB |
 | Stems | Made on a Windows computer or an Apple silicon Mac. An Intel Mac can import stems made elsewhere |
-| USB | A FAT32 USB for the loader. It can be your music USB, or a separate loader stick |
+| USB | A USB stick for the loader. It can be your music USB, or a separate loader stick |
 | Four decks | A USB-B to USB-A cable. See [Four decks](four-decks#what-you-need) {experimental} |
 
 The app downloads the official firmware it needs from the manufacturer and checks it. No firmware or boot files come with the XZ Mods download.
@@ -40,17 +40,17 @@ The app downloads the official firmware it needs from the manufacturer and check
 You prepare the USB in the XZ Mods app on your computer. It does not format the drive or touch your music.
 
 1. Install the XZ Mods app and open it.
-2. Plug in your USB. The app finds it and opens it.
+2. Plug in your USB. The app finds it and opens it. With several USBs plugged in, choose yours from the list.
 3. Choose **Install XZ Mods**.
-4. Follow the short guide: your DJ profile, the screen the XZ starts with, the four-deck cable guide, then a checklist of what it will write.
+4. Follow the short guide: your DJ profile, the screen the XZ starts with, the four-deck cable guide, then a checklist of what it will write. **Back** returns to the step before.
 5. Choose **Write to USB**, then **Eject USB**.
 
 ```figure app:install-review XZ Mods app · Install XZ Mods
 The checklist before the write. Music, playlists and prepared stems are never touched.
-1 @ 580,223 Loader | XZ Mods itself.
-2 @ 706,269 Games | Free games the app downloads and checks.
-3 @ 540,315 Interface | The screen the XZ starts with.
-4 @ 632,733 Your files | What the write never changes.
+1 @ 580,227 Loader | XZ Mods itself.
+2 @ 706,273 Games | Free games the app downloads and checks.
+3 @ 540,319 Interface | The screen the XZ starts with.
+4 @ 890,728 Write to USB | Writes everything in the checklist.
 ```
 
 Every step of the app is in [The XZ Mods app](desktop-app#usb). To add stems to your tracks, see [Stems](stems).

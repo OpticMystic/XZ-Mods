@@ -283,14 +283,56 @@ tr.st-drawer td{padding:2px 12px 14px 42px;background:#131614;border-bottom:1px 
 .back-link{display:inline-flex;align-items:center;gap:2px;padding:5px 10px 5px 4px;border:1px solid var(--line);border-radius:999px;background:#121415;color:#d5d9d6;font-size:13px}
 .back-link:hover{border-color:#6b6a2c;color:var(--yellow)}.back-link .icon{width:18px;height:18px}
 .button{display:inline-block;padding:10px 14px;border-radius:3px;border:1px solid #555a55;font-weight:550;text-decoration:none}.panel a.button.primary{color:#181a02}
-.tool-list{display:grid;max-width:760px;border:1px solid var(--line);border-radius:10px;background:#111314;overflow:hidden}
-.tool-row{display:grid;grid-template-columns:36px minmax(0,1fr) 20px;gap:14px;align-items:center;width:100%;padding:15px 18px;border:0;border-radius:0;background:transparent;color:inherit;text-align:left;white-space:normal}
-.tool-row+.tool-row{border-top:1px solid #24282a}
-.tool-row:hover,.tool-row:focus-visible{background:#16180f;outline:none}
+.tool-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:860px}.tool-group+.tool-group{margin-top:22px}.tool-group-title{margin:0 0 9px;font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:#929b94}
+.tool-row{display:grid;grid-template-columns:36px minmax(0,1fr) 20px;gap:14px;align-items:start;width:100%;padding:16px;border:1px solid var(--line);border-radius:10px;background:#111314;color:inherit;text-align:left;white-space:normal}
+.tool-row:hover,.tool-row:focus-visible{background:#16180f;border-color:#696828}.tool-row:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
 .tool-icon{width:36px;height:36px;padding:7px;border-radius:9px;background:#1b1d14;color:var(--yellow);box-shadow:inset 0 0 0 1px #3d3f20}
 .tool-text{display:grid;gap:3px;min-width:0}.tool-text strong{font-size:14px;color:#eef0ec}.tool-text>span{color:var(--muted);font-size:13px;font-weight:400;line-height:1.4}
-.tool-chevron{color:#6d7473}.tool-row:hover .tool-chevron{color:var(--yellow)}
+.tool-chevron{align-self:center;color:#6d7473}.tool-row:hover .tool-chevron{color:var(--yellow)}
 .game-downloads .game-dl{border-top:1px solid var(--line);padding:14px 0 6px}.game-downloads .game-dl h3{margin:0 0 4px}.game-downloads .game-dl:first-of-type{border-top:0;padding-top:0}
 
 /* the four-deck dialog's cable picture: the video's own background is #080808 */
 .quad-cable{margin:4px 0 14px;border:1px solid var(--line);border-radius:6px;background:#080808;overflow:hidden}.quad-cable video{display:block;width:100%;height:auto;aspect-ratio:16/5;background:#080808}.quad-cable figcaption{padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:#c3c9c5}
+/* Shell, design 2026-10-27 (Opus 5.5): a workbench you come back to, not a one-time installer. A compact brand
+   lockup instead of the splash logo, the four work sections, Feedback pinned at the foot of the rail with its own
+   glyph and the From your XZ count, then the version. The page header is one line over a hairline. */
+aside{padding:18px 14px 16px}
+.brand{display:flex;align-items:center;gap:11px;padding:0 6px 16px;margin-bottom:14px;border-bottom:1px solid #1e2223}
+aside .logo{width:46px;height:46px;margin:0;align-self:auto;flex:none}
+.brand-text{display:grid;gap:2px;min-width:0}
+.brand-text strong{font-size:15px;font-weight:650;letter-spacing:-.2px;color:#f3f4ef}
+.brand-text span{font-size:11.5px;color:#8e9891;white-space:nowrap}
+nav{flex:1;display:flex;flex-direction:column;gap:4px;min-height:0}
+nav button.nav-feedback{position:relative;margin-top:auto;gap:10px;padding:10px;border:1px solid #34382a;border-radius:8px;background:#0f110d;color:#e7e9e2;white-space:normal}
+nav button.nav-feedback:hover{border-color:#696828;background:#15170f}
+.nav-feedback-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#1b1d14;box-shadow:inset 0 0 0 1px #3d3f20;flex:none}
+nav button.nav-feedback .sr-xz-badge{position:absolute;top:-8px;right:-6px;margin:0;box-shadow:0 0 0 3px #050505}
+nav button.nav-feedback .icon{width:18px;height:18px;color:var(--yellow)}
+.nav-feedback-text{display:grid;gap:1px;min-width:0;line-height:1.3}
+.nav-feedback-text>span{font-weight:600}
+.nav-feedback-text small{font-size:11px;font-weight:400;color:#929b94}
+nav button.nav-feedback.selected{border:1px solid #696828;border-left:3px solid var(--yellow);padding-left:8px;background:#25271d}
+nav button.nav-feedback.selected small{color:#c9cfa0}
+nav button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.side-note{margin-top:12px;padding:0 6px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 8px;font-size:11px;line-height:1.4;color:#8e9891}
+.side-note .preview-badge{padding:2px 7px;font-size:10.5px}
+header{min-height:40px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid #1e2223}
+main{padding-top:24px;padding-bottom:40px}
+@media(max-width:980px){aside .logo{width:38px;height:38px}.brand{gap:9px;padding:0 2px 14px}nav button.nav-feedback{padding:9px 8px}}
+@media(max-width:700px){.brand{border:0;margin:0;padding:0 0 8px}nav button.nav-feedback{margin-top:0}}
+/* Window sizes, 2026-10-27 (Opus 5.5). The app opens to fit the screen (src-tauri/src/main.rs) and can be made as small
+   as 760 x 520. Below 860 wide the rail keeps only its icons (the labels become tooltips) so the page keeps the width;
+   on a short window the page header and rail tighten so more of the page shows. */
+@media(min-width:701px) and (max-width:860px){body{grid-template-columns:68px minmax(0,1fr)}
+aside{padding:16px 10px}
+.brand{justify-content:center;padding:0 0 12px}
+.brand-text,.side-note{display:none}
+nav button,nav button.selected,nav button.nav-feedback,nav button.nav-feedback.selected{justify-content:center;padding:10px 0}
+nav button:not(.nav-feedback)>span,.nav-feedback-text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+main{padding:20px 22px 32px}
+}
+@media(max-height:640px){main{padding-top:14px}
+header{min-height:0;margin-bottom:14px;padding-bottom:10px}
+aside{padding-top:14px;padding-bottom:12px}
+.brand{margin-bottom:10px;padding-bottom:10px}
+}

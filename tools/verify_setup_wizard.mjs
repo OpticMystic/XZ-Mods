@@ -31,16 +31,28 @@ function installMock() {
   // A fresh USB has no settings file, so it reads the schema defaults: the new interface.
   fx.values = null;
   const settingsValues = () => fx.values || (hasLoader ? { ...defaults, interface: 0, classic_theme: 2 } : { ...defaults });
+  // mixed: a FAT32 USB, an exFAT USB (both offered: the file system is never a reason), a read-only USB and a disk of
+  // this computer that carries a loader (both left out, in one line). exfat: only the exFAT USB, which opens by
+  // itself. locked: only the read-only USB. SANDISK in multi has no filesystem or writable fields, as an older
+  // backend lists it, and stays choosable.
+  const exfat = { volume: 'G:\\', label: 'BACKUP', removable: true, loader: false, settings: false, rekordbox: true, games: 0, filesystem: 'EXFAT', writable: true };
+  const locked = { volume: 'H:\\', label: 'LOCKED', removable: true, loader: false, settings: false, rekordbox: false, games: 0, filesystem: 'FAT32', writable: false };
+  const disk = { volume: 'D:\\', label: 'DATA', removable: false, loader: true, settings: false, rekordbox: false, games: 0, filesystem: 'NTFS', writable: true };
   const usbs = () => {
     if ((mode === 'nousb' && !fx.plugged) || fx.unplugged) return [];
-    const one = { volume: 'E:\\', label: 'KINGSTON', removable: true, loader: usb.loader, settings: usb.settings, rekordbox: true, games: Object.values(fx.games).filter(Boolean).length };
-    return mode === 'multi' ? [one, { volume: 'F:\\', label: 'SANDISK', removable: true, loader: false, settings: false, rekordbox: false, games: 0 }] : [one];
+    if (mode === 'exfat') return [exfat];
+    if (mode === 'locked') return [locked];
+    const one = { volume: 'E:\\', label: 'KINGSTON', removable: true, loader: usb.loader, settings: usb.settings, rekordbox: true, games: Object.values(fx.games).filter(Boolean).length, filesystem: 'FAT32', writable: true };
+    return mode === 'multi' ? [one, { volume: 'F:\\', label: 'SANDISK', removable: true, loader: false, settings: false, rekordbox: false, games: 0 }] : mode === 'mixed' ? [disk, one, exfat, locked] : [one];
   };
+  // A folder on this computer: Write to a folder instead… picks it, and the inspection says to copy it to a USB afterward.
+  fx.folder = 'C:\\Users\\dj\\XZ USB';
+  const isFolder = volume => volume === fx.folder;
   fx.volumes = () => ['C:\\', ...usbs().map(usb => usb.volume)];
   const gamesOnUsb = () => Object.entries(fx.games).map(([id, installed]) => ({ id, name: { doom: 'Doom shareware', chex: 'Chex Quest', freedoom: 'Freedoom Phase 2', myhouse: 'My House' }[id], installed, folder: 'E:\\VJTOOLS\\Games\\' + id, requires_gzdoom: id === 'myhouse', bytes: 2450688 }));
   const inspection = volume => ({ format: 'xz-mods-usb/1', volume, identity: { serial: 1 }, loader: { exists: usb.loader, bytes: 4100000, sha256: 'abc' },
     recorded_mod_version: usb.loader ? fx.recorded : null, installed_version: null, runtime_sha256: 'newsha',
-    settings: { editable: true, values: settingsValues(), revision: { exists: usb.settings, bytes: 400 }, schema, path: volume + 'VJ.Tools\\XZ-Mods.cfg' }, backups: [], games: gamesOnUsb(), direct_usb_root: true, requires_copy_to_usb_root: false, filesystem: 'FAT32',
+    settings: { editable: true, values: settingsValues(), revision: { exists: usb.settings, bytes: 400 }, schema, path: volume + 'VJ.Tools\\XZ-Mods.cfg' }, backups: [], games: gamesOnUsb(), direct_usb_root: !isFolder(volume), requires_copy_to_usb_root: isFolder(volume), filesystem: isFolder(volume) ? 'NTFS' : volume === 'G:\\' ? 'EXFAT' : 'FAT32',
     space: { free_bytes: 29100000000, total_bytes: 32000000000 }, stems: { tracks: hasLoader ? 12 : 0, bytes: 734003200 }, rekordbox: true,
     dj_profiles: fx.profile ? { count: 1, active_name: fx.profile.dj_name } : { count: 0, active_name: null } });
   const profiles = () => ({ format: 'xz-dj-profiles/1', public_folder: fx.profile ? 'DJPROFILE' : null, revision: fx.profile ? 'r1' : null, active: fx.profile?.dj_id || null, stick_colour: '#f870f8', old_store: false, problems: [],
@@ -106,7 +118,7 @@ function installMock() {
     if (command === 'start_job') { fx.requests.push(args.request); return fx.requests.length; }
     if (command === 'job_status') return status(fx.requests[args.id - 1]);
     if (command === 'cancel_job') return {};
-    if (command === 'pick_path') return 'F:\\';
+    if (command === 'pick_path') return fx.pickPath === undefined ? 'F:\\' : fx.pickPath;
     if (command === 'eject_volume') {
       (fx.ejects ||= []).push(args.volume);
       if (fx.failEject) throw 'Another program is still using E: (Windows error 5). Close any window showing the USB, then eject again.';
@@ -190,21 +202,46 @@ try {
   const idle = () => waitFor(`activeJob===null`, 'no job running');
   const view = async (name, step) => waitFor(`setupWizard.state.view===${JSON.stringify(name)}&&${step ? `setupWizard.state.step===${JSON.stringify(step)}` : 'true'}&&activeJob===null`, 'view ' + name + (step ? ' / ' + step : ''));
   const shots = process.env.XZ_WIZARD_SHOTS; if (shots) await mkdir(shots, { recursive: true });
+  // XZ_WIZARD_SIZES=760x520,1280x680 picks the window sizes each shot is taken at (default 1100x760 and 1440x900).
+  const shotSizes = (process.env.XZ_WIZARD_SIZES || '1100x760,1440x900').split(',').map(item => item.split('x').map(Number));
   const shot = async name => {
     if (!shots) return;
-    for (const [width, height] of [[1100, 760], [1440, 900]]) {
+    for (const [width, height] of shotSizes) {
       await size(width, height);
       await new Promise(done => setTimeout(done, 150));
       const image = await send('Page.captureScreenshot', { format: 'png' });
-      await writeFile(join(shots, name + '-' + width + '.png'), Buffer.from(image.data, 'base64'));
+      await writeFile(join(shots, name + '-' + width + (process.env.XZ_WIZARD_SIZES ? 'x' + height : '') + '.png'), Buffer.from(image.data, 'base64'));
     }
     await size(1100, 760);
   };
   const txtQuad = `txt('.wz-quad-prereq').includes('paired XDJ-XZ 1.26 quad beta resources')&&txt('.wz-quad-status').includes('not checked')`;
   const fits = `document.documentElement.scrollWidth<=innerWidth`;
+  // Keys go through the browser's input pipeline, so focus, default actions and the app's handlers all run.
+  const KEYS = { Escape: 27, Enter: 13 };
+  const press = async key => { for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: KEYS[key], nativeVirtualKeyCode: KEYS[key], ...(key === 'Enter' && type === 'keyDown' ? { text: '\r' } : {}) }); };
+  // The bar every step ends in: Back first, on the left of everything else; the main action last on the right.
+  const bar = (next, primary = true) => `(()=>{const bar=document.querySelector('.wz-flow>.wz-foot'),back=document.getElementById('wz-back'),items=[...(bar?.querySelectorAll('.wz-foot-next button')||[])];
+    return Boolean(bar&&back)&&bar.firstElementChild===back&&back.textContent.trim()==='Back'&&items.length>0&&items.every(b=>b.getBoundingClientRect().left>back.getBoundingClientRect().right)
+      &&items.at(-1).textContent.trim()===${JSON.stringify(next)}&&items.at(-1).classList.contains(${JSON.stringify(primary ? 'primary' : 'secondary')});})()`;
+  // The bar is in view: inside the window even when the step is taller than it.
+  const barInView = `(()=>{const r=document.querySelector('.wz-foot')?.getBoundingClientRect();return Boolean(r)&&r.top>=0&&r.bottom<=innerHeight+0.5;})()`;
+  // Nothing is cut off at the right or forces a sideways scroll, and the rail's foot is on screen.
+  const clipped = `(()=>{if(document.documentElement.scrollWidth>innerWidth)return 'page is '+document.documentElement.scrollWidth+' wide';
+    const open=document.querySelector('dialog[open]'),scope=open?[open]:[document.querySelector('main'),document.querySelector('aside')];
+    const bad=scope.flatMap(root=>[...root.querySelectorAll('button,a.button,input,select,h1,h2,h3,p')]).filter(e=>e.checkVisibility()&&!e.closest('.table-scroll,.st-table,.visually-hidden')).filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&(r.left<-0.5||r.right>innerWidth+0.5);});
+    const rail=document.querySelector('nav button.nav-feedback').getBoundingClientRect();
+    if(rail.bottom>innerHeight+0.5&&getComputedStyle(document.querySelector('aside')).position==='sticky')return 'Feedback is below the window';
+    return bad.slice(0,3).map(e=>(e.id||e.className||e.tagName)+' "'+e.textContent.trim().slice(0,30)+'" '+Math.round(e.getBoundingClientRect().right)).join(' | ');})()`;
+  const capture = async name => {
+    if (!shots) return;
+    await new Promise(done => setTimeout(done, 120));
+    const [width, height] = await evaluate(`[innerWidth,innerHeight]`);
+    const image = await send('Page.captureScreenshot', { format: 'png' });
+    await writeFile(join(shots, name + '-' + width + 'x' + height + '.png'), Buffer.from(image.data, 'base64'));
+  };
 
   await open('fresh');
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools'&&[...document.querySelectorAll('nav button')].map(b=>b.textContent.trim()).join()==='USB,Stems,XZ Screen,Tools'&&document.querySelectorAll('nav button svg.icon use').length===4`, 'nav is USB, Stems, XZ Screen, Tools, each with an icon');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,my-reports'&&[...document.querySelectorAll('nav button:not(.nav-feedback)')].map(b=>b.textContent.trim()).join()==='USB,Stems,XZ Screen,Tools'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelectorAll('nav button svg.icon use').length===5`, 'nav is USB, Stems, XZ Screen, Tools, then Feedback at the foot of the rail, each with an icon');
   await check(`document.querySelector('nav button.selected').dataset.page==='setup'&&txt('#page-title')==='USB'&&!document.querySelector('header .eyebrow')&&getComputedStyle(document.getElementById('page-title')).fontSize==='20px'`, 'USB is the home page under a compact one-line header');
   await view('device');
   await check(`fx.requests.slice(0,3).map(r=>r.method).join()==='list_mod_versions,discover_usbs,inspect_usb'&&fx.calls.includes('list_volumes')&&!document.getElementById('job-panel').checkVisibility()`, 'a single USB opens by itself: no Find button, no job panel flash');
@@ -225,8 +262,20 @@ try {
   await check(`txt('.wz-flow-title h2')==='Install XZ Mods'&&txt('.wz-flow-count')==='Step 1 of 7'&&document.querySelectorAll('.wz-dots li').length===7&&document.querySelector('.wz-dots li[data-state=current]')===document.querySelector('.wz-dots li')&&Boolean(button('Cancel'))`, 'install flow: compact header, Step 1 of 7 with dots, Cancel');
   await check(`Boolean(button('Skip for now'))&&button('Skip for now').classList.contains('secondary')&&Boolean(button('Back'))&&fx.requests.filter(r=>r.method==='read_dj_profiles').length===1`, 'a USB without a profile starts on the DJ profile step: Skip for now, Back');
   await shot('05-flow-profile');
+  await check(bar('Skip for now', false), 'every step ends in one bar: Back on the left, the way forward on the right');
+  await evaluate(`document.querySelector('#wz-djp-slot #djp-name').focus()`);
+  await press('Escape');
+  await new Promise(done => setTimeout(done, 100));
+  await check(`setupWizard.state.view==='flow'&&setupWizard.state.step==='profile'`, 'Escape while typing a name does not leave the step');
+  await click('Back');
+  await view('device');
+  await check(`txt('.wz-drive h2')==='KINGSTON'&&djProfilePage.pending()===null`, 'Back on the first step returns to the USB dashboard');
+  await click('Install XZ Mods');
+  await view('flow', 'profile');
+  await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready again');
   await click('Skip for now');
   await view('flow', 'look');
+  await check(bar('Next'), 'screen step: Back, then Next');
   await check(`txt('.wz-flow-count')==='Step 2 of 7'&&txt('.wz-flow-body h3')==='Choose the screen the XZ shows'&&document.querySelectorAll('.wz-look-card').length===2&&document.querySelector('.wz-look-card[data-look=new] input').checked&&!document.querySelector('.wz-look-card[data-look=standard] input').checked&&document.querySelector('.wz-look-step').dataset.choice==='new'&&Boolean(button('Cancel'))`, 'look step after the profile: the new interface is selected by default on a fresh USB');
   await check(`txt('.wz-look-card[data-look=new] .wz-look-title')==='New interfaceBeta'&&txt('.wz-look-card[data-look=standard] .wz-look-title')==='Standard XDJ-XZ interface'`, 'cards: New interface (Beta) and Standard XDJ-XZ interface');
   await check(`(()=>{const v=document.querySelector('.wz-look-card[data-look=new] video');return Boolean(v)&&v.muted&&v.loop&&v.autoplay&&v.playsInline&&v.getAttribute('src')==='assets/wizard/new-interface.mp4'&&v.getAttribute('aria-label').length>40;})()&&document.querySelector('.wz-look-card[data-look=standard] img').alt.length>20`, 'the chosen card plays the new interface muted and looping in place; the other shows a still with alt text');
@@ -244,8 +293,9 @@ try {
   await new Promise(done => setTimeout(done, 700));
   await check(`(()=>{const c=[...document.querySelectorAll('.wz-look-card')].map(e=>e.getBoundingClientRect().width);return c[1]>c[0]*1.4;})()&&!document.querySelector('.wz-look-card[data-look=new] video')&&document.querySelector('.wz-look-card[data-look=new] img').getAttribute('src')==='assets/wizard/new-interface-poster.webp'`, 'the large frame moves to the standard card; the new interface stops and shows its poster');
   await shot('05c-flow-look-standard');
-  await click('Back');
+  await press('Escape');
   await view('flow', 'profile');
+  passed++; console.log('ok', 'Escape is Back: from the screen step it goes back to the profile step');
   await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready');
   await click('Skip for now');
   await view('flow', 'look');
@@ -255,6 +305,7 @@ try {
   await click('Next');
   await view('flow', 'quad');
   await check(txtQuad, 'quad guide retains paired-loader prerequisite');
+  await check(bar('Next')+`&&Boolean(button('Skip for now'))&&document.documentElement.scrollHeight>innerHeight+200&&`+barInView, 'the cable guide is taller than the window and its bar stays in view at the bottom');
   // The cable guide's picture is the deck's own explainer, a looping video under the app's CSP.
   const quadVideo = `document.querySelector('.wz-quad-art video')`;
   await check(`(()=>{const v=${quadVideo};return Boolean(v)&&v.muted&&v.loop&&v.autoplay&&v.playsInline&&!v.controls&&v.getAttribute('src')==='assets/wizard/loopback-cable.mp4'&&v.getAttribute('poster')==='assets/wizard/loopback-cable-poster.webp'&&v.getAttribute('aria-label')==='One USB-B to USB-A cable loops back into the same XDJ-XZ'&&txt('#wz-quad-desc').includes('square USB-B plug with beveled top corners')&&!document.querySelector('.wz-quad-art svg');})()`, 'quad guide: the cable explainer plays muted, looping, without controls, with a poster and a text description');
@@ -274,6 +325,7 @@ try {
   await click('Skip for now');
   await view('flow', 'review');
   await check(`plan().join('|')==='Add the XZ Mods loader (Fixture build)|Add 3 free games: Doom shareware, Chex Quest and Freedoom Phase 2|Use the new interface on the XZ|Create the settings file'&&txt('.wz-safe')==='Music, playlists and prepared stems are never touched.'&&txt('.wz-flow-count')==='Step 4 of 7'`, 'review: a plain checklist of what will happen, then the reassurance line');
+  await check(bar('Write to USB'), 'review: Back, then Write to USB last in the bar');
   await check(`!document.querySelector('.wz-games-change .games')&&Boolean(button('Change games'))&&!button('Write to USB').disabled`, 'games stay folded behind Change games');
   await shot('06-flow-review');
   await click('Change games');
@@ -295,13 +347,14 @@ try {
   await evaluate(`fx.failWrite=false;fx.hold=true;window.__mark=fx.requests.length`);
   await click('Write to USB');
   await waitFor(`setupWizard.state.step==='writing'&&fx.requests.at(-1)?.method==='prepare_usb'&&document.getElementById('job-panel').checkVisibility()`, 'writing step with the job panel');
-  await check(`document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&txt('#job-title')==='Adding the XZ Mods loader'&&!button('Write to USB')&&!document.querySelector('.wz-cancel')&&txt('.wz-flow-count')==='Step 5 of 7'`, 'writing: the job panel shows inside the flow; no Write or Cancel to press twice');
+  await check(`document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&txt('#job-title')==='Adding the XZ Mods loader'&&!button('Write to USB')&&!document.querySelector('.wz-cancel')&&!document.querySelector('.wz-foot')&&txt('.wz-flow-count')==='Step 5 of 7'`, 'writing: the job panel shows inside the flow; no Write, Cancel or Back to press');
   await shot('07-flow-writing');
   await evaluate(`fx.hold=false`);
   await view('flow', 'done');
   await check(`since(window.__mark)==='inspect_mod_settings,prepare_usb,read_usb_settings,save_usb_settings,inspect_usb'&&fx.written.length===2&&fx.written[0].method==='prepare_usb'&&fx.written[0].volume==='E:\\\\'&&fx.written[0].experimental===true&&fx.written[0].mod_version_id==='v1'&&fx.written[0].pin_mod_version===true&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'`, 'Write: settings check, prepare_usb with the chosen games, the settings file, then a fresh inspection');
   await check(`fx.written[1].method==='save_usb_settings'&&fx.saved.values.interface===1&&fx.saved.values.classic_theme===0&&!('theme' in fx.saved.values)`, 'the new interface is written as interface=1, the one setting MODS > APPEARANCE > INTERFACE reads');
-  await check(`txt('.wz-done-hero h3')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')&&txt('.wz-next').includes('REKORDBOX')&&Boolean(button('Done'))&&!document.getElementById('job-panel').checkVisibility()`, 'done: success mark, result lines, the On the XZ steps, Done');
+  await check(`txt('.wz-done-hero h3')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')&&txt('.wz-next').includes('press MENU')&&Boolean(button('Done'))&&!document.getElementById('job-panel').checkVisibility()`, 'done: success mark, result lines, the On the XZ steps, Done');
+  await check(`!document.getElementById('wz-back')&&Boolean(document.querySelector('.wz-flow>.wz-foot #wz-done'))`, 'done: no Back, a write cannot be undone; Done is in the bar');
   await check(`!(fx.links||[]).length&&Boolean(button('Done'))&&Boolean(button('Support XZ Mods (optional)'))`, 'support is optional and opens no links on completion');
   await evaluate('window.supportWriteCount=fx.written.length');
   await click('Support XZ Mods (optional)'); await view('flow','support');
@@ -311,7 +364,8 @@ try {
   for (const type of ['keyDown','keyUp']) await send('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,nativeVirtualKeyCode:13});
   await waitFor(`fx.links?.length===1`, 'explicit support link');
   await check(`fx.links[0]==='https://cash.app/$FireAtWill42'&&fx.written.length===supportWriteCount`, 'keyboard opens only the exact Cash App URL without another USB write');
-  await click('Back to results'); await view('flow','done');
+  await check(bar('Finish'), 'support: Back, then Finish');
+  await click('Back'); await view('flow','done');
 
   await shot('08-flow-done');
   await click('Done');
@@ -321,29 +375,39 @@ try {
   await click('Change USB');
   await view('find');
   await new Promise(done => setTimeout(done, 2600));
-  await check(`setupWizard.state.view==='find'&&document.querySelectorAll('#wiz .wz-usb').length===1&&txt('.wz-find h2')==='Your XZ USB'&&txt('#wiz .wz-usb').includes('KINGSTON')&&txt('#wiz .wz-usb').includes('XZ Mods installed')`, 'Change USB goes back to the list and does not reopen the same USB by itself');
+  await check(`setupWizard.state.view==='find'&&document.querySelectorAll('#wiz .wz-usb[data-volume]').length===1&&txt('.wz-find h2')==='Your XZ USB'&&txt('#wiz .wz-usb[data-volume]').includes('KINGSTON')&&txt('#wiz .wz-usb[data-volume]').includes('XZ Mods installed')`, 'Change USB goes back to the list and does not reopen the same USB by itself');
   await evaluate(`fx.unplugged=true`);
   await waitFor(`setupWizard.state.usbs?.length===0&&activeJob===null`, 'unplugged', 400);
   await evaluate(`fx.unplugged=false`);
   await view('device');
   await check(`txt('.wz-drive h2')==='KINGSTON'`, 'unplugging and plugging the USB back in opens it by itself again');
+  await check(`button('Change USB').classList.contains('secondary')&&document.getElementById('wz-folder')===null`, 'Change USB is a button, not a small link');
+  await evaluate(`document.activeElement?.blur()`);
+  await press('Escape');
+  await view('find');
+  await new Promise(done => setTimeout(done, 2600));
+  await check(`setupWizard.state.view==='find'&&document.activeElement?.dataset.volume==='E:\\\\'&&document.querySelector('#wiz .wz-usb-list>button:last-child').id==='wz-folder'&&txt('#wz-folder')==='Write to a folder instead…Copy it to the top of a USB stick afterward.'`, 'Escape on the dashboard goes back to the USB list; going back holds, the USB keeps focus, and the last choice is Write to a folder instead…');
+  await shot('01d-find-after-back');
+  await press('Enter');
+  await view('device');
+  await check(`txt('.wz-drive h2')==='KINGSTON'`, 'Enter on the focused card opens the USB again');
 
   await open('nousb');
   await waitFor(`setupWizard.state.usbs!==null&&activeJob===null&&!setupWizard.state.finding`, 'first look finished');
-  await check(`setupWizard.state.view==='find'&&document.querySelector('.wz-empty .wz-art svg')&&txt('.wz-find h2')==='Plug in your XZ USB'&&txt('.wz-find .wz-lead')==='XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'`, 'no USB: illustration, Plug in your XZ USB, one plain line');
-  await check(`!document.querySelector('#wiz button.primary')&&!button('Find my USB')&&Boolean(button('Look again'))&&Boolean(button('Choose a folder instead'))&&button('Look again').classList.contains('text-button')`, 'no USB: no primary Find button, only quiet Look again and Choose a folder instead');
+  await check(`setupWizard.state.view==='find'&&document.querySelector('.wz-empty .wz-art svg')&&txt('.wz-find h2')==='Plug in your XZ USB'&&txt('.wz-find .wz-lead')==='Any USB stick works. XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'`, 'no USB: illustration, Plug in your XZ USB, one plain line');
+  await check(`!document.querySelector('#wiz button.primary')&&!button('Find my USB')&&Boolean(button('Look again'))&&Boolean(button('Write to a folder instead…'))&&button('Look again').classList.contains('text-button')`, 'no USB: no primary Find button, only quiet Look again and Choose a folder instead');
   await shot('00-find-empty');
   await evaluate(`window.__mark=fx.requests.length;fx.failDiscover=1;fx.plugged=true`);
   await waitFor(`setupWizard.state.view==='device'&&activeJob===null`, 'plugged-in USB opened', 400);
   await check(`since(window.__mark)==='discover_usbs,discover_usbs,inspect_usb'&&txt('.wz-drive h2')==='KINGSTON'`, 'plugging in the USB opens it by itself; a discover that failed is retried on the next poll');
 
   await open('multi');
-  await waitFor(`document.querySelectorAll('#wiz .wz-usb').length===2&&activeJob===null`, 'two USB cards');
-  await check(`setupWizard.state.view==='find'&&txt('.wz-find h2')==='Choose your XZ USB'&&txt('#wiz .wz-usb:nth-child(2)').includes('No XZ Mods yet')&&!txt('#wiz .wz-usb').includes('game')`, 'several USBs: cards to pick from, with simple chips');
+  await waitFor(`document.querySelectorAll('#wiz .wz-usb[data-volume]').length===2&&activeJob===null`, 'two USB cards');
+  await check(`setupWizard.state.view==='find'&&txt('.wz-find h2')==='Choose your XZ USB'&&txt('#wiz .wz-usb:nth-child(2)').includes('No XZ Mods yet')&&!txt('#wiz .wz-usb[data-volume]').includes('game')`, 'several USBs: cards to pick from, with simple chips');
   await shot('01-find-several');
   await evaluate(`fx.holdQuiet=true;window.__mark=fx.requests.length;document.getElementById('wz-look').click()`);
   await waitFor(`activeJob!==null&&setupWizard.state.finding`, 'a slow discover holds the job slot');
-  await evaluate(`document.querySelectorAll('#wiz .wz-usb')[1].click();showPage('advanced');document.querySelector('#advanced .game-downloads').open=true;document.getElementById('download-doom').click();showPage('setup')`);
+  await evaluate(`document.querySelectorAll('#wiz .wz-usb[data-volume]')[1].click();showPage('advanced');document.querySelector('#advanced .game-downloads').open=true;document.getElementById('download-doom').click();showPage('setup')`);
   await new Promise(done => setTimeout(done, 400));
   await evaluate(`fx.holdQuiet=false`);
   await view('device');
@@ -351,18 +415,57 @@ try {
   await check(`since(window.__mark).split(',').sort().join()==='discover_usbs,download_game,inspect_usb'&&txt('.wz-drive h2')==='SANDISK'&&fx.requests.find(r=>r.method==='inspect_usb'&&fx.requests.indexOf(r)>=window.__mark).volume==='F:\\\\'`, 'clicks made while a quiet discover runs wait for it and then all run: the card opens that USB, the download starts');
 
   await open('multi');
-  await waitFor(`document.querySelectorAll('#wiz .wz-usb').length===2&&activeJob===null`, 'two USB cards again');
+  await waitFor(`document.querySelectorAll('#wiz .wz-usb[data-volume]').length===2&&activeJob===null`, 'two USB cards again');
   await evaluate(`fx.holdQuiet=true;document.getElementById('wz-look').click()`);
   await waitFor(`activeJob!==null&&setupWizard.state.finding`, 'a slow discover holds the job slot again');
-  await evaluate(`window.__mark=fx.requests.length;document.querySelectorAll('#wiz .wz-usb')[0].click()`);
-  await check(`(()=>{const cards=document.querySelectorAll('#wiz .wz-usb');return cards[0].dataset.state==='opening'&&cards[0].getAttribute('aria-busy')==='true'&&txt('#wiz .wz-opening')==='Reading the USB…'&&Boolean(cards[0].querySelector('.wz-spinner'))&&cards[1].disabled&&cards[1].dataset.state==='waiting';})()`, 'a click during a background scan shows Reading the USB with a spinner on that card at once; the other card waits');
+  await evaluate(`window.__mark=fx.requests.length;document.querySelectorAll('#wiz .wz-usb[data-volume]')[0].click()`);
+  await check(`(()=>{const cards=document.querySelectorAll('#wiz .wz-usb[data-volume]');return cards[0].dataset.state==='opening'&&cards[0].getAttribute('aria-busy')==='true'&&txt('#wiz .wz-opening')==='Reading the USB…'&&Boolean(cards[0].querySelector('.wz-spinner'))&&cards[1].disabled&&cards[1].dataset.state==='waiting';})()`, 'a click during a background scan shows Reading the USB with a spinner on that card at once; the other card waits');
   await evaluate(`fx.holdInspect=true;fx.holdQuiet=false`);
   await waitFor(`fx.requests.slice(window.__mark).some(r=>r.method==='inspect_usb')`, 'the read starts after the scan');
-  await check(`setupWizard.state.view==='find'&&document.querySelectorAll('#wiz .wz-usb')[0].dataset.state==='opening'`, 'the card keeps showing Reading the USB through a slow read');
+  await check(`setupWizard.state.view==='find'&&document.querySelectorAll('#wiz .wz-usb[data-volume]')[0].dataset.state==='opening'`, 'the card keeps showing Reading the USB through a slow read');
   await shot('01b-find-opening');
-  await evaluate(`document.querySelectorAll('#wiz .wz-usb')[0].click();document.querySelectorAll('#wiz .wz-usb')[1].click();fx.holdInspect=false`);
+  await evaluate(`document.querySelectorAll('#wiz .wz-usb[data-volume]')[0].click();document.querySelectorAll('#wiz .wz-usb[data-volume]')[1].click();fx.holdInspect=false`);
   await view('device');
   await check(`txt('.wz-drive h2')==='KINGSTON'&&fx.requests.slice(window.__mark).filter(r=>r.method==='inspect_usb').length===1&&setupWizard.state.opening===null`, 'repeat clicks while a USB opens read it once, and the clicked USB is the one that opens');
+
+  // The USB list offers every USB it can write to, whatever the file system, and the folder choice last.
+  await open('mixed');
+  await waitFor(`document.querySelectorAll('#wiz .wz-usb[data-volume]').length===2&&activeJob===null&&!setupWizard.state.finding`, 'two usable USBs listed');
+  await check(`[...document.querySelectorAll('#wiz .wz-usb[data-volume]')].map(b=>b.querySelector('strong').textContent+' '+b.querySelector('small').textContent).join('|')==='KINGSTON E:\\\\ · FAT32|BACKUP G:\\\\ · exFAT'&&!fx.requests.some(r=>r.method==='inspect_usb')`, 'FAT32 and exFAT USBs are both offered; the file system is plain information');
+  await check(`txt('#wz-skipped')==='2 drives not shown: DATA (D:\\\\) is a drive of this computer and LOCKED (H:\\\\) is read-only. XZ Mods needs a USB drive it can write to.'`, 'a read-only USB and a disk of this computer are left out, named in one line with the reason');
+  await check(`document.querySelector('#wiz .wz-usb-list>button:last-child').id==='wz-folder'&&txt('#wz-folder')==='Write to a folder instead…Copy it to the top of a USB stick afterward.'`, 'the last choice in the list is Write to a folder instead…');
+  await shot('01c-find-mixed');
+  await evaluate(`document.querySelectorAll('#wiz .wz-usb[data-volume]')[1].click()`);
+  await view('device');
+  await check(`txt('.wz-drive h2')==='BACKUP'&&txt('.wz-drive-meta').startsWith('exFAT · ')&&Boolean(button('Install XZ Mods'))`, 'an exFAT USB opens like any other and offers Install XZ Mods');
+  await open('exfat');
+  await view('device');
+  await check(`txt('.wz-drive h2')==='BACKUP'`, 'a single exFAT USB opens by itself');
+  await open('locked');
+  await waitFor(`setupWizard.state.usbs!==null&&activeJob===null&&!setupWizard.state.finding`, 'first look finished (read-only USB)');
+  await check(`setupWizard.state.view==='find'&&txt('.wz-find h2')==='Plug in your XZ USB'&&txt('#wz-skipped')==='1 drive not shown: LOCKED (H:\\\\) is read-only. XZ Mods needs a USB drive it can write to.'&&Boolean(button('Write to a folder instead…'))&&!fx.requests.some(r=>r.method==='inspect_usb')`, 'only a read-only USB: it never opens, one line says why, and a folder is still offered');
+  await shot('00b-find-locked');
+
+  // A folder, then back to the list: the one USB does not open by itself, and one click switches to it.
+  await open('fresh');
+  await view('device');
+  await click('Change USB');
+  await view('find');
+  await evaluate(`fx.pickPath=fx.folder;document.getElementById('wz-folder').click()`);
+  await view('device');
+  await check(`setupWizard.state.usb===fx.folder&&txt('.wz-drive h2')===fx.folder&&document.querySelector('.wz-drive-icon use').getAttribute('href')==='#i-folder'&&txt('#wiz .wz-device>.notice').startsWith('This is a folder, not a USB.')`, 'Write to a folder instead… opens the folder, with a folder icon and the line to copy it to a USB');
+  await click('Install XZ Mods');
+  await view('flow', 'profile');
+  await waitFor(`Boolean(button('Skip for now'))`, 'profile step ready (folder)');
+  await check(bar('Skip for now', false), 'a folder guide has the same bar');
+  await click('Cancel');
+  await view('find');
+  await new Promise(done => setTimeout(done, 2600));
+  await check(`setupWizard.state.view==='find'&&!setupWizard.state.usb&&document.activeElement===document.getElementById('wz-folder')&&document.querySelectorAll('#wiz .wz-usb[data-volume]').length===1`, 'Cancel from a folder lands on the USB list; the one USB does not open by itself and the folder choice keeps focus');
+  await evaluate(`document.querySelector('#wiz .wz-usb[data-volume]').click()`);
+  await view('device');
+  await check(`txt('.wz-drive h2')==='KINGSTON'`, 'one click on the USB card switches from the folder to the USB');
+  await evaluate(`fx.pickPath=undefined`);
 
   await open('fresh');
   await view('device');
@@ -531,8 +634,12 @@ try {
   await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ profile editor');
   await check(`txt('.wz-flow-title h2')==='Save DJ profile'&&txt('.wz-flow-count')==='Step 1 of 4'`, 'DJ profile tile: Save DJ profile flow, even though the loader is up to date');
   await click('Cancel');
+  await view('find');
+  await new Promise(done => setTimeout(done, 2600));
+  await check(`setupWizard.state.view==='find'&&djProfilePage.pending()===null&&document.activeElement?.dataset.volume==='E:\\\\'&&Boolean(document.getElementById('wz-folder'))`, 'Cancel leaves the guide for the USB list and drops the draft; the USB it left keeps focus and does not reopen by itself');
+  await evaluate(`document.querySelector('#wiz .wz-usb[data-volume]').click()`);
   await view('device');
-  await check(`djProfilePage.pending()===null&&document.querySelector('.wz-status').dataset.tone==='keep'`, 'Cancel goes back to the USB and drops the draft');
+  await check(`document.querySelector('.wz-status').dataset.tone==='keep'`, 'one click on its card returns to the same USB');
   await evaluate(`tile('profile').click()`);
   await waitFor(`document.querySelector('#wz-djp-slot #djp-name')`, 'DJ profile editor again');
   await evaluate(`const f=document.querySelector('#wz-djp-slot #djp-name');f.value='DJ Test';f.dispatchEvent(new Event('input',{bubbles:true}))`);
@@ -597,11 +704,16 @@ try {
   await evaluate(`tile('games').click()`);
   await view('flow', 'review');
   await check(`txt('.wz-flow-title h2')==='Install XZ Mods'&&[...document.querySelectorAll('.wz-games-change .games-group[data-kind=builtin] .games-switch input')].map(i=>i.closest('.games-row').dataset.id).join()==='beat-arcade,wave-rider,rhythm-lab,static-surfer'`, 'Games on a fresh USB joins the install; games_menu in the schema gives built-ins a menu switch');
+  await click('Back');
+  await view('device');
+  passed++; console.log('ok', 'a guide opened from the Games tile goes Back to the dashboard, not to steps it skipped');
+  await evaluate(`tile('games').click()`);
+  await view('flow', 'review');
   await evaluate(`gameSwitch('beat-arcade').click()`);
   await check(`setupWizard.state.settings.games_menu===62&&setupWizard.settingsChanges().join()==='games_menu'&&plan().includes('Change which games show in the GAMES menu')`, 'switching off Beat Arcade is a settings change the review lists');
 
   await evaluate(`document.querySelector('nav button[data-page=tools]').click()`);
-  await check(`txt('#page-title')==='Tools'&&[...document.querySelectorAll('#tools .tool-row strong')].map(s=>s.textContent).join('|')==='DJ Profile|Repair library|Network updates|XZ Mods version|App updates|About'&&document.querySelectorAll('#tools .tool-row .tool-chevron').length===6&&!document.getElementById('back-to-tools').checkVisibility()`, 'Tools is one list of six rows with chevrons');
+  await check(`txt('#page-title')==='Tools'&&[...document.querySelectorAll('#tools .tool-row strong')].map(s=>s.textContent).join('|')==='DJ Profile|Repair library|XZ Mods version|Network updates|App updates|About'&&[...document.querySelectorAll('#tools .tool-group-title')].map(h=>h.textContent).join('|')==='Your USB|Your XZ|This app'&&document.querySelectorAll('#tools .tool-row .tool-chevron').length===6&&!document.getElementById('back-to-tools').checkVisibility()`, 'Tools is six tools with chevrons in three groups: Your USB, Your XZ, This app');
   await shot('09-tools');
   for (const [page, title] of [['dj-profile', 'DJ Profile'], ['library-repair', 'Repair library'], ['device-updates', 'Network updates'], ['advanced', 'XZ Mods version'], ['updates', 'App updates'], ['licenses', 'About']]) {
     await evaluate(`document.querySelector('nav button[data-page=tools]').click();document.querySelector('.tool-row[data-open="${page}"]').click()`);
@@ -654,8 +766,7 @@ try {
 
 
   await open('fresh');
-  await evaluate("showPage('licenses')");
-  await click('My reports');
+  await evaluate("document.querySelector('nav button[data-page=\"my-reports\"]').click()");
   await waitFor("document.querySelectorAll('.sr-drafts .sr-report').length===1",'saved report inventory');
   await check("txt('.sr-drafts strong')==='Earlier bridge report'&&txt('.sr-drafts .sr-badge')==='Older form'&&Boolean(button('Use this text'))&&!document.getElementById('support-consent')&&!fx.requests.some(r=>r.method==='support_preview')",'a report saved by the old form is listed in My reports and never sent by the old page-by-page flow');
   await click('Use this text');
@@ -664,10 +775,41 @@ try {
   await evaluate("reportWizard.state().text='';document.getElementById('report-wizard').dispatchEvent(new Event('cancel'))");
   await idle();
   await click('Discard');
-  await waitFor("document.querySelectorAll('.sr-drafts .sr-report').length===0&&!document.querySelector('.sr-section-title')",'discarded local report');
+  await waitFor("document.querySelectorAll('.sr-drafts .sr-report').length===0&&![...document.querySelectorAll('.sr-section-title')].some(h=>h.textContent==='Saved, not sent')",'discarded local report');
   await check("fx.requests.filter(r=>r.method==='support_remove').length===1&&fx.requests.find(r=>r.method==='support_remove').stored_revision==='c'.repeat(64)",'discarding names the exact stored copy');
   await shot('saved-reports-empty');
 
+
+  // Layout sweep: from the smallest window the app allows (760 x 520) through a 1366 x 768 screen at 125 % and a
+  // 1280 x 720 one, to a large window. Nothing is cut off at the right or scrolls sideways, the rail's foot is on
+  // screen, and a guide step's bar is in view.
+  await open('fresh');
+  await view('device');
+  for (const [width, height] of [[760, 520], [1092, 582], [1280, 680], [1920, 1040]]) {
+    await size(width, height);
+    const at = ' at ' + width + 'x' + height;
+    const sweep = async (label, name) => { await new Promise(done => setTimeout(done, 150)); const bad = await evaluate(clipped); assert.equal(bad, '', label + at + ': ' + bad); if (name) await capture('sweep-' + name); };
+    await evaluate(`showPage('setup')`); await view('device');
+    await sweep('USB dashboard', 'device');
+    await evaluate(`setupWizard.startFlow('install')`);
+    for (const step of ['profile', 'look', 'quad', 'review']) {
+      await evaluate(`setupWizard.goto(${JSON.stringify(step)})`); await view('flow', step);
+      await sweep('guide step ' + step, 'flow-' + step);
+      assert(await evaluate(barInView), 'the bar is in view on ' + step + at);
+    }
+    await click('Cancel'); await view('find');
+    await sweep('USB list', 'find');
+    await evaluate(`setupWizard.chooseUsb('E:\\\\')`); await view('device');
+    for (const page of ['tools', 'advanced', 'dj-profile', 'library-repair', 'device-updates', 'updates', 'licenses', 'live-stream', 'my-reports']) {
+      await evaluate(`showPage(${JSON.stringify(page)})`); await idle();
+      await sweep('page ' + page, page);
+    }
+    await evaluate(`showPage('advanced');document.getElementById('quad-open').click()`);
+    await sweep('four-deck dialog', 'quad-dialog');
+    await evaluate(`document.getElementById('quad-close').click();showPage('setup')`);
+  }
+  await size(1100, 760);
+  passed++; console.log('ok', 'every page fits from 760 x 520 to 1920 x 1040: no sideways scroll, nothing cut off, the rail foot and the guide bar in view');
   await cspClean();
   assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));
   passed++; console.log('ok', 'no CSP violations and no page errors');

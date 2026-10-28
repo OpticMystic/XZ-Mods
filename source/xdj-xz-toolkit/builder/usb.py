@@ -14,10 +14,17 @@ from . import firmware
 def sha(path):
     with Path(path).open('rb') as file:return hashlib.file_digest(file,'sha256').hexdigest()
 
+# A drive root takes the loader when it is a USB drive: removable, or formatted FAT, FAT32 or exFAT (the disks this
+# computer runs from never are), and writable. The file system is not a condition: the XZ boots a loader from an exFAT
+# stick as well as a FAT32 one. Anything else is a folder whose contents the DJ copies to a USB afterward.
+USB_FILESYSTEMS=('FAT','FAT32','EXFAT')
+READ_ONLY='The selected USB is read-only. Reconnect it so it can be written, or unlock it, and try again.'
+NOT_USB='This drive is part of this computer, not a USB. Choose a USB drive, or a folder. XZ Mods does not format drives.'
+
 def target_info(path, *, boot_loader=True):
     path=_safe_path(path)
     if not path.is_dir():raise ValueError('Choose an existing USB root or staging folder')
-    filesystem=None;root=None;serial=None
+    filesystem=None;root=None;serial=None;removable=False;writable=True
     if os.name=='nt':
         get_root=ctypes.windll.kernel32.GetVolumePathNameW
         get_root.argtypes=[ctypes.c_wchar_p,ctypes.c_wchar_p,ctypes.c_uint32];get_root.restype=ctypes.c_int
@@ -29,31 +36,42 @@ def target_info(path, *, boot_loader=True):
         if not get_root(str(path),buffer,len(buffer)):
             raise OSError('Could not identify the target volume')
         root=buffer.value;name=ctypes.create_unicode_buffer(64)
-        volume_serial=ctypes.c_uint32()
-        if not get_info(root,None,0,ctypes.byref(volume_serial),None,None,name,len(name)):
+        volume_serial=ctypes.c_uint32();flags=ctypes.c_uint32()
+        if not get_info(root,None,0,ctypes.byref(volume_serial),None,ctypes.byref(flags),name,len(name)):
             raise OSError('Could not read the target filesystem')
         filesystem=name.value.upper();serial=volume_serial.value
-        if boot_loader and path==Path(root) and filesystem not in ('FAT','FAT32'):
-            raise ValueError('Choose a FAT/FAT32 USB root, or a staging folder. XZ Mods does not format drives.')
+        writable=not flags.value&0x80000  # FILE_READ_ONLY_VOLUME: a locked card or a write-protected stick
+        removable=ctypes.windll.kernel32.GetDriveTypeW(root)==2  # DRIVE_REMOVABLE
     elif sys.platform=='darwin':
         from .host import mac_volume
         info=mac_volume(path);root=info['volume_root'];filesystem=info['filesystem'];serial=info['volume_serial']
-        if boot_loader and path==Path(root):
-            if filesystem not in ('FAT','FAT32'):
-                raise ValueError('Choose a FAT/FAT32 USB root, or a staging folder. XZ Mods does not format drives.')
-            if not info['writable']:
-                raise ValueError('The selected USB is read-only. Reconnect a writable FAT/FAT32 USB and try again.')
-    direct=bool(root and path==Path(root) and filesystem in ('FAT','FAT32'))
+        writable=info.get('writable') is not False;removable=info.get('internal') is False
+    at_root=bool(root and path==Path(root))
+    direct=at_root and (removable or filesystem in USB_FILESYSTEMS)
+    if boot_loader and at_root:
+        if not direct:raise ValueError(NOT_USB)
+        if not writable:raise ValueError(READ_ONLY)
     return {'filesystem':filesystem,'volume_serial':serial,'volume_root':root,'direct_usb_root':direct,'requires_copy_to_usb_root':not direct}
 
 def require_usb_root(path):
     path=_safe_path(path)
     target=target_info(path)
     if not target['direct_usb_root']:
-        raise ValueError('Choose the root of a FAT/FAT32 USB drive. XZ Mods does not format drives or erase music.')
+        raise ValueError('Choose the root of a USB drive. XZ Mods does not format drives or erase music.')
     if (path/'autoexec.bin').exists():
         raise FileExistsError('This USB already has autoexec.bin. Keep that loader or back it up before preparing a new one.')
     return path
+
+def require_loader_target(path):
+    """A USB drive root, or a staging folder whose loader the DJ copies to a USB afterward."""
+    path=_safe_path(path)
+    target=target_info(path)
+    if target['direct_usb_root']:return require_usb_root(path),target
+    if target.get('volume_root') and path==Path(target['volume_root']):
+        raise ValueError(NOT_USB)
+    if (path/'autoexec.bin').exists():
+        raise FileExistsError('This folder already has autoexec.bin. Choose an empty folder.')
+    return path,target
 
 def inspect_inputs(rbp,key):
     application_path=_regular(rbp);secret=_regular(key)

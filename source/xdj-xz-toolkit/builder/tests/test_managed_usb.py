@@ -108,9 +108,10 @@ class MacDiscoverTests(unittest.TestCase):
     def test_offers_only_local_disk_mounts_from_volumes(self):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
         volumes=Path(temp.name).resolve()
-        for name in ('KINGSTON','Folder','Share','Unreadable','Ejected'):(volumes/name).mkdir()
+        for name in ('KINGSTON','Folder','Share','Unreadable','Ejected','LOCKED'):(volumes/name).mkdir()
         def mac_volume(root):
-            if root.name=='KINGSTON':return {'volume_root':str(root)}
+            if root.name=='KINGSTON':return {'volume_root':str(root),'filesystem':'FAT32','writable':True}
+            if root.name=='LOCKED':return {'volume_root':str(root),'filesystem':'EXFAT','writable':False}
             if root.name=='Folder':return {'volume_root':'/'}
             if root.name=='Share':raise ValueError('Choose a mounted USB volume or a local staging folder')
             if root.name=='Unreadable':raise subprocess.CalledProcessError(1,['/usr/sbin/diskutil'])
@@ -120,7 +121,11 @@ class MacDiscoverTests(unittest.TestCase):
              patch.object(usb,'Path',lambda path:volumes if path=='/Volumes' else Path(path)),\
              patch('builder.host.mac_volume',mac_volume):
             found=usb.discover(None)['usbs']
-        self.assertEqual([drive['volume'] for drive in found],[str(volumes/'KINGSTON')])
-        self.assertTrue(found[0]['removable'])
+        # Every local disk is listed with what the app needs to know: whether a loader can go on it.
+        self.assertEqual(sorted(drive['volume'] for drive in found),[str(volumes/'KINGSTON'),str(volumes/'LOCKED')])
+        drives={Path(drive['volume']).name:drive for drive in found}
+        self.assertTrue(drives['KINGSTON']['removable'])
+        self.assertEqual((drives['KINGSTON']['filesystem'],drives['KINGSTON']['writable']),('FAT32',True))
+        self.assertEqual((drives['LOCKED']['filesystem'],drives['LOCKED']['writable']),('EXFAT',False))
 
 if __name__=='__main__':unittest.main()

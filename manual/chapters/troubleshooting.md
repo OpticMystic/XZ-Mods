@@ -19,7 +19,6 @@ Check these first:
 | Check | Why |
 |---|---|
 | The player runs firmware 1.26 | XZ Mods supports no other firmware version |
-| The USB is FAT32 | The player reads the loader from a FAT32 drive |
 | `autoexec.bin` is at the top of the USB | A loader prepared into a folder has to be copied to the USB yourself |
 | You updated the USB after updating the app | An app update does not change the USB |
 
@@ -202,7 +201,7 @@ The diary stays on the sticks. Nothing is sent until you choose to include it in
 When something goes wrong, send a report. It helps fix the problem for everyone.
 
 - **On the player.** Open MODS › **EXTRAS** › **REPORT AN ISSUE**, or push **REPORT THIS** beside an error in the dock. Choose a topic, add words if you like, and send. Offline, the report waits on the stick for your computer. See [Report an issue](extras#report-an-issue).
-- **On your computer.** In the XZ Mods app, open **Tools** › **Report a problem or share an idea**. Only one box is required, and **My reports** shows where your report is afterwards. See [Report a problem or share an idea](desktop-app#report-a-problem-or-share-an-idea).
+- **On your computer.** In the XZ Mods app, open **Feedback** at the foot of the rail and choose **Report a problem**. Only one box is required, and **My reports** in Feedback shows where your report is afterwards. See [Report a problem or share an idea](desktop-app#report-a-problem-or-share-an-idea).
 - **On GitHub.** Open an issue at https://github.com/OpticMystic/XZ-Mods/issues.
 
 Say what you did, what you expected and what happened. The app adds the cleaned-up details itself, and you can see and untick each one. Nothing is sent until you press **Send privately**, and the app posts nothing publicly. From the player, the public GitHub issue is a separate step you submit yourself.

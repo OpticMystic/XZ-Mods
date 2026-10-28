@@ -58,12 +58,12 @@ window.XZ_SUPPORT_KB = Object.freeze({
       source: 'Manual: Performance, RAM tracks'
     },
     {
-      entry_id: 'player-will-not-start', revision: 1, kind: 'NOT_A_BUG', component: 'runtime_stability',
+      entry_id: 'player-will-not-start', revision: 2, kind: 'NOT_A_BUG', component: 'runtime_stability',
       title: 'The player will not start with the USB',
       need: ['start', 'boot', 'starts', 'load', 'stuck', 'black screen', 'freeze'],
       terms: ['start', 'boot', 'usb', 'stuck', 'black', 'screen', 'logo', 'loader', 'autoexec', 'firmware', 'will not', "won't", 'does not', 'freeze', 'update'],
       not: ['deck 3', 'deck 4', 'stems', 'ram'],
-      answer: 'Switch the player off, remove the XZ Mods USB and switch it on: it always starts stock. Check it runs firmware 1.26 and the USB is FAT32 with autoexec.bin at the top. Then open the USB in this app and update the loader. The app keeps a backup of the old loader each time.',
+      answer: 'Switch the player off, remove the XZ Mods USB and switch it on: it always starts stock. Check it runs firmware 1.26 and autoexec.bin is at the top of the USB. Then open the USB in this app and update the loader. The app keeps a backup of the old loader each time.',
       action: { id: 'OPEN_USB_SETUP', label: 'Open the USB page' },
       source: 'Manual: Messages and troubleshooting, If the player will not start with the USB'
     }

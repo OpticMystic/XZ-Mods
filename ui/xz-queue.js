@@ -2,7 +2,7 @@
 // allowed to send them. Rust holds every key and makes every request; this page sees pending rows and loader IDs
 // only, and draws report words as text. There is no screen picture: the screen is a set of names, said in words here.
 // Design 2026-10-27 (Opus 5.5). Reminders: a Windows notification for a report that arrives while the app is open,
-// a badge on My reports, and a quiet callout at start. They stop when the DJ says so or after 7 days (remind).
+// a badge on Feedback, and a quiet callout at start. They stop when the DJ says so or after 7 days (remind).
 'use strict';
 window.xzQueue = (() => {
   const W = window.reportWizard.words, listen = window.__TAURI__?.event?.listen;
@@ -86,14 +86,14 @@ window.xzQueue = (() => {
     try { apply(await invoke('support_poll_pending'), 'poll'); } catch (error) { failure = clean(error); paint(); }
   }
 
-  // The badge on Tools and My reports, and the callout under the page title.
+  // The badge on Feedback in the rail, and the callout under the page title.
   function paint() {
     const count = reminding().length;
-    for (const host of [document.querySelector('nav button[data-page="tools"]'), document.querySelector('.tool-row[data-open="my-reports"]:not(#report-tool-row)')]) {
+    for (const host of [document.querySelector('nav button[data-page="my-reports"]')]) {
       if (!host) continue;
       let badge = host.querySelector('.sr-xz-badge');
       if (!count) { badge?.remove(); continue; }
-      if (!badge) { badge = el('span', { class: 'sr-xz-badge' }); host.insertBefore(badge, host.querySelector('.tool-chevron')); }
+      if (!badge) { badge = el('span', { class: 'sr-xz-badge' }); host.append(badge); }
       badge.replaceChildren(el('span', { 'aria-hidden': 'true', text: String(count) }), el('span', { class: 'visually-hidden', text: ', ' + count + (count === 1 ? ' report from your XZ needs' : ' reports from your XZ need') + ' your words' }));
     }
     const callout = $('xz-callout'), items = reminding(), show = calloutOn && items.length > 0 && !onPage();
