@@ -338,9 +338,9 @@ Hot cues and memory points you set on decks 3 and 4 are saved on the music stick
 Press [[SYNC]] and the deck takes the master deck's BPM at once. The SYNC button stays lit for as long as SYNC is on. With QUANTIZE on and a beat grid on both tracks, the deck also locks to the master's beat. Press [[SYNC]] again to turn it off.
 
 ```explainer sync-master SYNC on deck 3
-Master | 1=MASTER@126.00, 3=@122.00 | Deck 1 is the tempo master. Deck 3 plays at its own tempo, with SYNC off.
-SYNC | 1=MASTER@126.00, 3=SYNC 1@126.00, lock | Press [[SYNC]] on deck 3. It takes the master's BPM at once and reads SYNC 1. With QUANTIZE on and a beat grid on both tracks, it also locks to the master's beat.
-Tempo only | 1=MASTER@126.00, 3=BPM 1@126.00 | With QUANTIZE off, only the tempo follows, and deck 3 reads BPM 1.
+Master | Deck 1 is the tempo master. Deck 3 plays at its own tempo, with SYNC off.
+SYNC | Press [[SYNC]] on deck 3. It takes the master's BPM at once and reads SYNC 1. With QUANTIZE on and a beat grid on both tracks, it also locks to the master's beat.
+Tempo only | With QUANTIZE off, only the tempo follows, and deck 3 reads BPM 1.
 ```
 
 If the beats drift apart, press [[SYNC]] off and on again. With QUANTIZE on, every engage snaps to the nearest position at the selected beat value, even for a small drift. The beat value can be 1, 1/2, 1/4 or 1/8 beat. With QUANTIZE off, only the tempo follows.

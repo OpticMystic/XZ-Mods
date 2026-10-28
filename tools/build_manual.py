@@ -176,7 +176,7 @@ def problems(render_dir):
             out.append(f"watched source {row['path']} is gone: update chapter {row['chapter']} and coverage.json")
         elif lock['watch'].get(row['path']) != sha256(path):
             out.append(f"{row['chapter']}: {row['path']} changed ({row['why']}). Check the chapter still matches, then accept.")
-    return out
+    return out + media_problems(chapters)
 
 
 def check(render_dir):
@@ -499,12 +499,67 @@ def fill(template, **values):
 APP_OUT = APP / 'ui/manual'
 APP_FORMAT = 'xz-manual-app/1'
 APP_SRC = 'manual/'  # where ui/index.html finds the generated files
-# Animated explainers drawn by ui/manual-art.js. A `steps` explainer steps through the numbered list that follows it
-# in the chapter; a `scenes` explainer carries its own scenes, one `Title | data | caption` line each.
-EXPLAINERS = {'four-deck-setup': 'steps', 'loopback-cable': 'video', 'loopback-signal': 'scenes', 'sync-master': 'scenes',
-              'beat-jump': 'scenes', 'three-band': 'scenes', 'ram-usb': 'scenes', 'usb-diary': 'scenes'}
-TOUR_ART = {'modern', 'stems', 'four-decks', 'beat-jump', 'key-sync', 'ram', 'themes', 'mods', 'profile', 'app'}
+# Explainers: one rendered clip per scene, played by ui/manual-art.js from ui/assets/manual/media.js (written by
+# tools/import_manual_media.py). A `steps` explainer steps through the numbered list that follows it in the chapter;
+# a `scenes` explainer carries its own scenes, one `Title | caption` line each. Only subjects that physically exist
+# (the player, its ports, cable, decks and screen) get an explainer; see manual/README.md.
+EXPLAINERS = {'four-deck-setup': 'steps', 'loopback-cable': 'scenes', 'loopback-signal': 'scenes', 'sync-master': 'scenes',
+              'beat-jump': 'scenes', 'ram-usb': 'scenes'}
+MEDIA_JS = 'ui/assets/manual/media.js'  # under APP
+MEDIA_PREFIX = 'window.XZ_MANUAL_MEDIA='
+ASSETS = 'ui/assets'  # under APP; tour pictures may name a file here as asset:<path>, such as a poster of the Blender model
 _APP = {'slug': '', 'links': []}  # the chapter being written, and every chapter link it makes (checked after the build)
+
+
+def explainer_scenes(chapters):
+    """{kind: (chapter slug, scene count)} for every explainer in the chapters. A steps explainer has one scene per
+    item of the numbered list after it."""
+    found = {}
+    for chapter in chapters:
+        lines = chapter['body'].split('\n')
+        for i, line in enumerate(lines):
+            fence = re.match(r'^```explainer\s+(\S+)', line)
+            if not fence: continue
+            j = i + 1
+            while not lines[j].startswith('```'): j += 1
+            kind = fence.group(1)
+            if EXPLAINERS.get(kind) == 'steps':
+                k, count = j + 1, 0
+                while k < len(lines) and not lines[k].strip(): k += 1
+                while k < len(lines) and (re.match(r'^\d+\.\s', lines[k]) or (count and lines[k].startswith('   ') and lines[k].strip())):
+                    count += bool(re.match(r'^\d+\.\s', lines[k])); k += 1
+            else:
+                count = sum(1 for l in lines[i + 1:j] if l.strip())
+            found.setdefault(kind, (chapter['slug'], count))
+    return found
+
+
+def load_media(path=None):
+    """The clips ui/assets/manual/media.js lists, or an empty set when none were imported."""
+    path = Path(path or APP / MEDIA_JS)
+    if not path.is_file(): return {'explainers': {}, 'hero': None}
+    text = path.read_text(encoding='utf-8')
+    start = text.index(MEDIA_PREFIX) + len(MEDIA_PREFIX)
+    return json.loads(text[start:text.rindex(';')])
+
+
+def media_problems(chapters, media=None, roots=None):
+    """Clips that no longer fit the chapters: a scene count that differs, or a file that is gone."""
+    media = load_media() if media is None else media
+    roots = roots or (APP / 'ui',)
+    scenes, out = explainer_scenes(chapters), []
+    for kind, entry in sorted(media.get('explainers', {}).items()):
+        if kind not in scenes:
+            out.append(f'explainer {kind}: ui/assets/manual/media.js has clips for it, but no chapter shows it. Re-run tools/import_manual_media.py')
+            continue
+        slug, count = scenes[kind]
+        if len(entry['scenes']) != count:
+            out.append(f'{slug}: explainer {kind} has {count} scenes in the chapter but {len(entry["scenes"])} clips. '
+                       'Render the scenes again or fix the chapter, then run tools/import_manual_media.py')
+        for scene in entry['scenes']:
+            for key in ('video', 'poster'):
+                if not any((Path(root) / scene[key]).is_file() for root in roots): out.append(f'{slug}: explainer {kind}: {scene[key]} is missing')
+    return out
 
 
 def app_link_tag(label, target):
@@ -518,13 +573,16 @@ def app_link_tag(label, target):
     raise SystemExit(f'Link {target!r}: use a chapter slug, #section or an https URL')
 
 
-def app_image_bytes(path):
-    """A shot as the app ships it: lossless WebP, so the firmware's pixel text stays sharp; SVG as it is."""
+def app_image_bytes(value):
+    """A shot as the app ships it: lossless WebP, so the firmware's pixel text stays sharp; SVG as it is. A tour
+    picture comes as (path, crop box)."""
     from io import BytesIO
     from PIL import Image
+    path, box = value if isinstance(value, tuple) else (value, None)
     if path.suffix == '.svg': return path.read_bytes()
     out = BytesIO()
-    Image.open(path).convert('RGB').save(out, 'WEBP', lossless=True, quality=70, method=4)  # effort 6 saves 10 % at 30 times the time
+    image = Image.open(path).convert('RGB')
+    (image.crop(box) if box else image).save(out, 'WEBP', lossless=True, quality=70, method=4)  # effort 6 saves 10 % at 30 times the time
     return out.getvalue()
 
 
@@ -600,11 +658,12 @@ def app_manual(render_dir, stale):
         scenes = ''
         for line in lines:
             parts = [p.strip() for p in line.split(' | ')]
-            title, data, text = parts[0], parts[1:-1], parts[-1]
-            scenes += (f'<li data-title="{html.escape(title)}"' + (f' data-v="{html.escape(" | ".join(data))}"' if data else '')
-                       + f'><b>{inline(title)}</b> <span>{inline(text)}</span></li>')
+            if len(parts) > 2: raise SystemExit(f'{_APP["slug"]}: explainer {kind}: a scene line is `Title | caption`; the clip draws the rest')
+            title, text = parts if len(parts) == 2 else ('', parts[0])
+            scenes += (f'<li data-title="{html.escape(title)}">' + (f'<b>{inline(title)}</b> ' if title else '')
+                       + f'<span>{inline(text)}</span></li>')
         return (f'<div class="mx" data-mx="{kind}" data-mode="{mode}"' + (f' data-iface="{iface.group(1)}"' if iface else '')
-                + f' role="group" aria-label="{html.escape(label or "Animated explainer")}">'
+                + f' role="group" aria-label="{html.escape(label or "Explainer")}">'
                 + (f'<ol class="mx-scenes">{scenes}</ol>' if scenes else '') + '</div>')
 
     schema = load_json(MODS / 'settings-schema.json')
@@ -638,20 +697,53 @@ def app_manual(render_dir, stale):
     for source, slug, anchor in _APP['links']:
         if slug not in anchors: raise SystemExit(f'{source}: link to chapter {slug!r}, which does not exist')
         if anchor and anchor not in anchors[slug]: raise SystemExit(f'{source}: link to {slug}#{anchor}, which has no such heading')
-    tour = []
+    tour, refs = [], referenced(chapters)
     for item in book.get('tour', []):
         slug, _, anchor = item['link'].partition('#')
         if slug not in anchors or (anchor and anchor not in anchors[slug]): raise SystemExit(f'manual.json tour: {item["link"]} does not exist')
-        if item['art'] not in TOUR_ART: raise SystemExit(f'manual.json tour: art {item["art"]!r} is not drawn by ui/manual-art.js')
-        tour.append({'title': item['title'], 'text': re.sub(r'<[^>]+>', '', inline(item['text'])), 'link': item['link'], 'art': item['art'],
-                     'tag': item.get('tag', '')})
+        if not item.get('shot'): raise SystemExit(f'manual.json tour: {item["title"]} needs a shot (a firmware shot id, app:<name> or asset:<path>)')
+        if not item['shot'].startswith('asset:') and look_shot(item['shot'], 'modern') not in refs:
+            raise SystemExit(f'manual.json tour: {item["title"]} shows {item.get("shot")!r}; use a shot a chapter figure shows, so check keeps it current')
+        src, w, h = tour_image(item, images, render_dir)
+        tour.append({'title': item['title'], 'text': re.sub(r'<[^>]+>', '', inline(item['text'])), 'link': item['link'],
+                     'img': src, 'w': w, 'h': h, 'tag': item.get('tag', '')})
     index = {'format': APP_FORMAT, 'draft': bool(stale), 'title': book['title'], 'summary': book['summary'], 'chapters': entries, 'tour': tour}
     files['index.js'] = script('window.XZ_MANUAL=', index)
     files['search.js'] = script('window.XZ_MANUAL_SEARCH=', search)
     files.update(sorted(images.items()))
     files['manifest.json'] = (json.dumps({'format': APP_FORMAT, 'generator': 'tools/build_manual.py app', 'draft': bool(stale),
-                                          'sources': {name: sha256(path) for name, path in sorted(images.items())}}, indent=1) + '\n').encode('utf-8')
+                                          'sources': {name: picture_source(value) for name, value in sorted(images.items())}}, indent=1) + '\n').encode('utf-8')
     return files
+
+
+def tour_image(item, images, render_dir):
+    """The picture of a start-page tour tile: a shot the chapters use, or asset:<path> under ui/assets (a poster of
+    the Blender model), optionally cropped to [x, y, w, h] in the picture's own pixels. Pictures only: no drawings."""
+    shot, crop = item['shot'], item.get('crop')
+    if shot.startswith('asset:'):
+        assets = (APP / ASSETS).resolve()
+        path = (assets / shot[len('asset:'):]).resolve()
+        if assets not in path.parents or path.suffix not in ('.webp', '.png'): raise SystemExit(f'manual.json tour: {shot} is not a picture under ui/assets')
+    else:
+        path = shot_path(look_shot(shot, 'modern'), render_dir)
+    if not path.is_file(): raise SystemExit(f'manual.json tour: {shot} does not render')
+    if path.suffix == '.svg': raise SystemExit(f'manual.json tour: {shot} is a drawing; the tour shows renders only')
+    w, h = png_size(path)
+    if crop:
+        x, y, cw, ch = (int(v) for v in crop)
+        if x < 0 or y < 0 or cw <= 0 or ch <= 0 or x + cw > w or y + ch > h: raise SystemExit(f'manual.json tour: crop {crop} is outside {shot} ({w} x {h})')
+        name = f'shots/{hashlib.sha256((sha256(path) + json.dumps([x, y, cw, ch])).encode()).hexdigest()[:16]}.webp'
+        images[name] = (path, (x, y, x + cw, y + ch))
+        return APP_SRC + name, cw, ch
+    name = f'shots/{sha256(path)[:16]}.webp'
+    images[name] = path
+    return APP_SRC + name, w, h
+
+
+def picture_source(value):
+    if isinstance(value, Path): return sha256(value)
+    path, box = value
+    return sha256(path) + ' crop ' + ','.join(str(v) for v in box)
 
 
 def plain(fragment):
@@ -700,7 +792,7 @@ def app_build(render_dir, out, stale):
     for name, value in files.items():
         target = out / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        data = app_image_bytes(value) if isinstance(value, Path) else value
+        data = value if isinstance(value, bytes) else app_image_bytes(value)
         target.write_bytes(data); total += len(data)
     print(f'{out}: {len(files)} files, {total / 1048576:.2f} MiB' + (' (draft: the manual failed check)' if stale else ''))
 
