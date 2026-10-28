@@ -497,10 +497,10 @@ Four reports, one with news.
 1 @ 611,118 Notice | Appears at the top of the app when a report's status changes. View opens that report.
 2 @ 345,293 Kind | Such as Problem, Got worse, Works differently, Idea or Question.
 3 @ 666,280 Your words | The start of what you wrote. It stays on this computer.
-4 @ 584,537 Status | Where the report is now. New marks a change you have not opened yet.
-5 @ 908,280 Reference and date | Your report reference and the day you sent it. Part of XZ-1042 appears when the maintainer assigns an item.
-6 @ 755,226 Check now | Checks every report at once.
-7 @ 938,226 Report a problem or share an idea | Starts a new report.
+4 @ 586,550 Status | Where the report is now. New marks a change you have not opened yet.
+5 @ 893,280 Reference and date | Your report reference and the day you sent it. Part of XZ-1042 appears when the maintainer assigns an item.
+6 @ 740,226 Check now | Checks every report at once, and asks for new reports from your XZ.
+7 @ 923,226 Report a problem or share an idea | Starts a new report.
 ```
 
 The app checks for news when it starts, after it checks for app updates, and when you open My reports, at most every 15 minutes for each report. **Check now** checks at once. If you are offline, the last known status stays.
@@ -525,6 +525,65 @@ A problem the maintainer confirmed, with a fix in progress.
 - A report saved, but not sent, by an older version of the app appears under **Saved, not sent**. **Use this text** starts a new report with its words.
 
 Details are deleted 14 days after you send them. Tracking lasts while a report is open, up to one year without news, then 180 days after it closes. A fix in a local test build is not a published update.
+
+### From your XZ
+
+A report sent from the XZ waits in My reports for your words. **From your XZ** appears at the top of My reports while one waits. The XZ notes the screen you were on as names only. It keeps no picture and no text from the screen.
+
+```figure app:xz-report XZ Mods app · My reports
+A report from the XZ, waiting for your words.
+1 @ 556,113 From your XZ | Reports from your XZ that wait for your words.
+2 @ 676,183 Reference and time | The report's reference and when the XZ sent it. It stays the same when you add your words.
+3 @ 662,233 Screen | The screen the XZ showed just before you reported, with any error code on it.
+4 @ 606,253 Stick | The stick the report came from, and when XZ Mods wrote it.
+5 @ 597,273 Typed on the XZ | What you typed on the XZ, if anything.
+6 @ 960,400 What happened? | Starts with what you typed on the XZ. Change it or add to it.
+7 @ 436,481 Collected details | What the XZ collected and sent with the report. Show displays each part exactly.
+8 @ 392,534 Stop reminding | Ends the reminders for this report. It stays in the list.
+9 @ 830,568 Send without comments | Finishes the report without words from you.
+10 @ 972,568 Send | Adds your words to the same report.
+```
+
+- **Send** adds your words to the same report, under the same reference. The report then moves to your sent reports, where you follow it like any other.
+- **Send without comments** finishes the report as it is.
+- If the app can't reach the report service, it keeps your words and sends them by itself later. You can close the app.
+- The XZ already sent the collected details. They are deleted 14 days after it sent them. After that the report says so, and your words still reach the maintainer.
+- The maintainer sees the report as soon as the XZ sends it, marked as waiting for your comments, and can start from the logs.
+
+The app tells you when a report from the XZ waits:
+
+- While the app is open, a new report brings a Windows notification, such as "Your XZ sent a report, R-4F7K-2M9Q. Add what happened?" Click it to open that report.
+- **Tools** and **My reports** show how many reports wait.
+- When the app starts with reports waiting, a callout under the page title names them.
+
+```figure app:xz-callout XZ Mods app · From your XZ
+The callout when the app starts with a report waiting.
+1 @ 472,146 Callout | Names the report your XZ sent. It never covers the window or takes the keyboard.
+2 @ 762,146 Add what happened | Opens the report in My reports with its box ready.
+3 @ 889,135 Remind me later | Hides the callout until the app starts again.
+4 @ 990,135 Stop reminding | Ends the reminders for these reports. They stay in My reports.
+5 @ 196,328 Badge | How many reports from your XZ wait for your words.
+```
+
+Reminders end when you choose **Stop reminding**, or 7 days after a report arrives. Each report brings one notification at most. If Windows notifications are off for XZ Mods, or your copy of the app is not installed, the badge and the callout tell you instead.
+
+### Your XZ sticks
+
+Every stick XZ Mods writes gets a loader ID, such as **L-7K2M-9Q4F**. It lets the XZ send reports from that stick to this computer, and to nothing else. **Your XZ sticks** at the bottom of My reports lists them.
+
+```figure app:xz-sticks XZ Mods app · My reports
+Three sticks: one waiting to register, one ready and one revoked.
+1 @ 373,396 Your XZ sticks | The sticks XZ Mods wrote on this computer.
+2 @ 422,464 Loader ID | Reports from this stick carry it.
+3 @ 433,487 Written | When XZ Mods last wrote the stick.
+4 @ 893,495 State | Can send reports, Registers when online, Plug it in to finish, Revokes when online or Revoked.
+5 @ 997,573 Revoke | Stops this stick sending reports. The app asks first.
+```
+
+- Revoke a stick you lost or gave away. The XZ can no longer send reports from it. If you are offline, the stick is revoked on this computer at once and the report service hears of it later.
+- Writing XZ Mods to that stick again gives it a new key, and it can send reports again.
+- **Plug it in to finish** means a write to that stick was not confirmed. Plug the stick in with the app open. If the state stays, write XZ Mods to the stick again.
+- With no sticks yet, **Set up a USB** opens the USB setup.
 
 ### Maintainer inbox
 
