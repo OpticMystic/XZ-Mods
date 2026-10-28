@@ -1,223 +1,187 @@
 # Chapter navigation audit
 
-Every chapter was scanned in this checkout. A matching flow illustrates that section only to the extent its JSON steps describe. A page tour does not establish every operation mentioned in its prose. Sections without a matching flow remain explicitly unassigned below.
+The table inventories every level-two and level-three chapter heading. Flow assignments illustrate excerpts only. Null entries remain explicit; REPORT.md lists unfinished operations even where a heading has a flow. SECTIONS.json retains exact text hashes and machine-readable reasons.
 
-| Chapter section | Assigned flow | Status |
+| Section | Flows | Scope or reason |
 |---|---|---|
-| [browse: Browsing in MODERN {modern}](../chapters/browse.md#browsing-in-modern) | browse-category-folder | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: Moving through a list {modern}](../chapters/browse.md#moving-through-a-list) | encoder-list | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: Loading a track {modern}](../chapters/browse.md#loading-a-track) | browse-load | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: INFO panel {modern}](../chapters/browse.md#info-panel) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [browse: Sort, columns and the track menu {modern}](../chapters/browse.md#sort-columns-and-the-track-menu) | browse-menu | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: Filter {modern}](../chapters/browse.md#filter) | filter | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: Search {modern}](../chapters/browse.md#search) | search-results-load, search | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: Tag list {modern}](../chapters/browse.md#tag-list) | tag-list | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: Playlists {modern}](../chapters/browse.md#playlists) | playlists | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: SOURCE {modern}](../chapters/browse.md#source) | source | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: INFO {modern}](../chapters/browse.md#info) | info | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [browse: Browsing in CLASSIC {classic}](../chapters/browse.md#browsing-in-classic) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [browse: Browse settings](../chapters/browse.md#browse-settings) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [browse: If browsing goes wrong](../chapters/browse.md#if-browsing-goes-wrong) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [connect: The CONNECT page](../chapters/connect.md#the-connect-page) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [connect: DJ profile](../chapters/connect.md#dj-profile) | dj-profile | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [connect: Make a profile on a computer](../chapters/connect.md#make-a-profile-on-a-computer) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [connect: Make a profile on the XZ](../chapters/connect.md#make-a-profile-on-the-xz) | dj-profile-create-switch | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [connect: Choose and switch profiles](../chapters/connect.md#choose-and-switch-profiles) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [connect: When a profile will not save or show](../chapters/connect.md#when-a-profile-will-not-save-or-show) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [connect: VJ.Tools {experimental}](../chapters/connect.md#vjtools) | vj-tools | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [connect: Network {experimental}](../chapters/connect.md#network) | network-review, network | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [connect: Updates over the network {experimental}](../chapters/connect.md#updates-over-the-network) | updates | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [desktop-app: Around the app](../chapters/desktop-app.md#around-the-app) | None | Desktop instructions, outside player harness |
-| [desktop-app: USB](../chapters/desktop-app.md#usb) | None | Desktop instructions, outside player harness |
-| [desktop-app: Choose a USB or a folder](../chapters/desktop-app.md#choose-a-usb-or-a-folder) | None | Desktop instructions, outside player harness |
-| [desktop-app: The USB dashboard](../chapters/desktop-app.md#the-usb-dashboard) | None | Desktop instructions, outside player harness |
-| [desktop-app: Install or update XZ Mods](../chapters/desktop-app.md#install-or-update-xz-mods) | None | Desktop instructions, outside player harness |
-| [desktop-app: Four decks in the app {experimental}](../chapters/desktop-app.md#four-decks-in-the-app) | None | Desktop instructions, outside player harness |
-| [desktop-app: Stems](../chapters/desktop-app.md#stems) | None | Desktop instructions, outside player harness |
-| [desktop-app: Set up the stem engine](../chapters/desktop-app.md#set-up-the-stem-engine) | None | Desktop instructions, outside player harness |
-| [desktop-app: Import stems you already have](../chapters/desktop-app.md#import-stems-you-already-have) | None | Desktop instructions, outside player harness |
-| [desktop-app: XZ Screen {experimental}](../chapters/desktop-app.md#xz-screen) | None | Desktop instructions, outside player harness |
-| [desktop-app: Tools](../chapters/desktop-app.md#tools) | None | Desktop instructions, outside player harness |
-| [desktop-app: DJ Profile](../chapters/desktop-app.md#dj-profile) | None | Desktop instructions, outside player harness |
-| [desktop-app: Repair library](../chapters/desktop-app.md#repair-library) | None | Desktop instructions, outside player harness |
-| [desktop-app: Network updates {experimental}](../chapters/desktop-app.md#network-updates) | None | Desktop instructions, outside player harness |
-| [desktop-app: XZ Mods version](../chapters/desktop-app.md#xz-mods-version) | None | Desktop instructions, outside player harness |
-| [desktop-app: App updates](../chapters/desktop-app.md#app-updates) | None | Desktop instructions, outside player harness |
-| [desktop-app: About](../chapters/desktop-app.md#about) | None | Desktop instructions, outside player harness |
-| [desktop-app: Feedback](../chapters/desktop-app.md#feedback) | None | Desktop instructions, outside player harness |
-| [desktop-app: Report a problem or share an idea](../chapters/desktop-app.md#report-a-problem-or-share-an-idea) | None | Desktop instructions, outside player harness |
-| [desktop-app: Included details](../chapters/desktop-app.md#included-details) | None | Desktop instructions, outside player harness |
-| [desktop-app: When something got worse](../chapters/desktop-app.md#when-something-got-worse) | None | Desktop instructions, outside player harness |
-| [desktop-app: After you send](../chapters/desktop-app.md#after-you-send) | None | Desktop instructions, outside player harness |
-| [desktop-app: My reports](../chapters/desktop-app.md#my-reports) | None | Desktop instructions, outside player harness |
-| [desktop-app: From your XZ](../chapters/desktop-app.md#from-your-xz) | None | Desktop instructions, outside player harness |
-| [desktop-app: Your XZ sticks](../chapters/desktop-app.md#your-xz-sticks) | None | Desktop instructions, outside player harness |
-| [desktop-app: Maintainer inbox](../chapters/desktop-app.md#maintainer-inbox) | None | Desktop instructions, outside player harness |
-| [desktop-app: Manual](../chapters/desktop-app.md#manual) | None | Desktop instructions, outside player harness |
-| [extras: The EXTRAS page](../chapters/extras.md#the-extras-page) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [extras: Games](../chapters/extras.md#games) | games | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [extras: Moving around a game](../chapters/extras.md#moving-around-a-game) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [extras: Beat Arcade {experimental}](../chapters/extras.md#beat-arcade) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [extras: Wave Rider {experimental}](../chapters/extras.md#wave-rider) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [extras: Doom and Chex Quest](../chapters/extras.md#doom-and-chex-quest) | wad-loader | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [extras: My House {experimental}](../chapters/extras.md#my-house) | my-house-setup | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [extras: USB apps {experimental}](../chapters/extras.md#usb-apps) | apps-setup, usb-apps | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [extras: Report an issue](../chapters/extras.md#report-an-issue) | report-issue | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [extras: After you send](../chapters/extras.md#after-you-send) | report-error, report-saved, report-sent | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [extras: Report an error from the dock](../chapters/extras.md#report-an-error-from-the-dock) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [extras: What the player sends](../chapters/extras.md#what-the-player-sends) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [extras: About XZ Mods](../chapters/extras.md#about-xz-mods) | about | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [four-decks: What you need {experimental}](../chapters/four-decks.md#what-you-need) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: Set up four decks {experimental}](../chapters/four-decks.md#set-up-four-decks) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: Add music and a USB hub {experimental}](../chapters/four-decks.md#add-music-and-a-usb-hub) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: The 4 DECKS page in MODS](../chapters/four-decks.md#the-4-decks-page-in-mods) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: The card in every state](../chapters/four-decks.md#the-card-in-every-state) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: The E-8307 hub warning {experimental}](../chapters/four-decks.md#the-e-8307-hub-warning) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: DECK VIEW](../chapters/four-decks.md#deck-view) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: The DECKS button and its picker](../chapters/four-decks.md#the-decks-button-and-its-picker) | deck-view | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [four-decks: Switch a side between decks {experimental}](../chapters/four-decks.md#switch-a-side-between-decks) | physical-double-shift-1, physical-double-shift-2 | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [four-decks: The MODERN four-deck screen {modern}](../chapters/four-decks.md#the-modern-four-deck-screen) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: The CLASSIC four-deck screen {classic}](../chapters/four-decks.md#the-classic-four-deck-screen) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: Load tracks onto decks 3 and 4 {experimental}](../chapters/four-decks.md#load-tracks-onto-decks-3-and-4) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: INFO, SOURCE and UTILITY with four decks {modern}](../chapters/four-decks.md#info-source-and-utility-with-four-decks) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: What decks 3 and 4 can do {experimental}](../chapters/four-decks.md#what-decks-3-and-4-can-do) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: SYNC on decks 3 and 4 {experimental}](../chapters/four-decks.md#sync-on-decks-3-and-4) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [four-decks: Limits](../chapters/four-decks.md#limits) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: What changes and what stays stock](../chapters/getting-started.md#what-changes-and-what-stays-stock) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: Go back to stock](../chapters/getting-started.md#go-back-to-stock) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: What you need](../chapters/getting-started.md#what-you-need) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: Prepare a USB](../chapters/getting-started.md#prepare-a-usb) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: First start](../chapters/getting-started.md#first-start) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: MODERN on first start {modern}](../chapters/getting-started.md#modern-on-first-start) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: CLASSIC on first start {classic}](../chapters/getting-started.md#classic-on-first-start) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: Choose MODERN or CLASSIC](../chapters/getting-started.md#choose-modern-or-classic) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [getting-started: Switch on the player](../chapters/getting-started.md#switch-on-the-player) | interface-choice | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [getting-started: Updating](../chapters/getting-started.md#updating) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [hardware: The top panel](../chapters/hardware.md#the-top-panel) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [hardware: Browse section keys](../chapters/hardware.md#browse-section-keys) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [hardware: The rekordbox button](../chapters/hardware.md#the-rekordbox-button) | physical-rekordbox, rekordbox-button-values, rekordbox-button | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [hardware: LINK and the VJ.Tools view](../chapters/hardware.md#link-and-the-vjtools-view) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [hardware: Deck keys](../chapters/hardware.md#deck-keys) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [hardware: Performance pads](../chapters/hardware.md#performance-pads) | physical-pad-mode-pages | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [hardware: Stem pads](../chapters/hardware.md#stem-pads) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [hardware: Pad lights](../chapters/hardware.md#pad-lights) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [hardware: Decks 3 and 4 from the deck controls](../chapters/hardware.md#decks-3-and-4-from-the-deck-controls) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [hardware: When a control does not respond](../chapters/hardware.md#when-a-control-does-not-respond) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [mods-menu: Open and close MODS](../chapters/mods-menu.md#open-and-close-mods) | menu-close | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: Move around](../chapters/mods-menu.md#move-around) | encoder-settings | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: HOME](../chapters/mods-menu.md#home) | mods-home | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: PLAY](../chapters/mods-menu.md#play) | mods-play-values, mods-play | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: STEMS](../chapters/mods-menu.md#stems) | mods-stems-values, mods-stems | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: SCREEN](../chapters/mods-menu.md#screen) | mods-screen-values, mods-screen | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: 4 DECKS](../chapters/mods-menu.md#4-decks) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [mods-menu: CONNECT](../chapters/mods-menu.md#connect) | mods-connect | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: EXTRAS](../chapters/mods-menu.md#extras) | mods-extras | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: UTILITY, the player's own settings](../chapters/mods-menu.md#utility-the-players-own-settings) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [mods-menu: MODERN UTILITY {modern}](../chapters/mods-menu.md#modern-utility) | needle-lock, utility | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: MY SETTINGS {modern}](../chapters/mods-menu.md#my-settings) | my-settings-load-save | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [mods-menu: Saving to the USB](../chapters/mods-menu.md#saving-to-the-usb) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [mods-menu: Older pages](../chapters/mods-menu.md#older-pages) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: The PLAY page](../chapters/performance.md#the-play-page) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: Beat jump](../chapters/performance.md#beat-jump) | beat-jump, physical-beat-jump | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [performance: Change the jump sizes](../chapters/performance.md#change-the-jump-sizes) | beat-jump-pages | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [performance: Decks 3 and 4](../chapters/performance.md#decks-3-and-4) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: When a jump is refused](../chapters/performance.md#when-a-jump-is-refused) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: Gate cue and smart cue](../chapters/performance.md#gate-cue-and-smart-cue) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: Feature setup](../chapters/performance.md#feature-setup) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: Keys and KEY SYNC](../chapters/performance.md#keys-and-key-sync) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: From the deck](../chapters/performance.md#from-the-deck) | physical-key-sync | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [performance: The KEYS page](../chapters/performance.md#the-keys-page) | key-shift-sync, keys-values, keys | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [performance: The key on the MODERN play screen {modern}](../chapters/performance.md#the-key-on-the-modern-play-screen) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: The key on the CLASSIC play screen {classic}](../chapters/performance.md#the-key-on-the-classic-play-screen) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: PLAYING KEY](../chapters/performance.md#playing-key) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: RAM tracks {experimental}](../chapters/performance.md#ram-tracks) | ram-copy-error, ram-tracks | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [performance: When the music USB goes out {experimental}](../chapters/performance.md#when-the-music-usb-goes-out) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [performance: Quantize](../chapters/performance.md#quantize) | physical-quantize | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [play-screen: The MODERN play screen {modern}](../chapters/play-screen.md#the-modern-play-screen) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: Top bar {modern}](../chapters/play-screen.md#top-bar) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: Deck column and waveform lanes {modern}](../chapters/play-screen.md#deck-column-and-waveform-lanes) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: Deck strip {modern}](../chapters/play-screen.md#deck-strip) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: Key and KEY SYNC {modern}](../chapters/play-screen.md#key-and-key-sync) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: Waveform colours {modern}](../chapters/play-screen.md#waveform-colours) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: Notices {modern}](../chapters/play-screen.md#notices) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: SHORTCUT {modern}](../chapters/play-screen.md#shortcut) | shortcut | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [play-screen: The CLASSIC play screen {classic}](../chapters/play-screen.md#the-classic-play-screen) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: Scrolling waveform {classic}](../chapters/play-screen.md#scrolling-waveform) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [play-screen: If something looks wrong](../chapters/play-screen.md#if-something-looks-wrong) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: The SCREEN page](../chapters/screen-and-themes.md#the-screen-page) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: MODERN and CLASSIC](../chapters/screen-and-themes.md#modern-and-classic) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: Classic themes {classic}](../chapters/screen-and-themes.md#classic-themes) | classic-themes | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [screen-and-themes: Theme families {classic}](../chapters/screen-and-themes.md#theme-families) | classic-overlays-analog, classic-overlays-lcars, classic-overlays-matrix, classic-overlays-standard | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [screen-and-themes: MODERN look {modern}](../chapters/screen-and-themes.md#modern-look) | lamps-and-titles | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [screen-and-themes: Waveform colours](../chapters/screen-and-themes.md#waveform-colours) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: 3-band colours](../chapters/screen-and-themes.md#3-band-colours) | band-colours-values, band-colours | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [screen-and-themes: Keys](../chapters/screen-and-themes.md#keys) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: Key notation](../chapters/screen-and-themes.md#key-notation) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: Playing key](../chapters/screen-and-themes.md#playing-key) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: Key match colours and key before title](../chapters/screen-and-themes.md#key-match-colours-and-key-before-title) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: Deck colours](../chapters/screen-and-themes.md#deck-colours) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [screen-and-themes: System readout](../chapters/screen-and-themes.md#system-readout) | system-readout | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [screen-and-themes: When something looks wrong](../chapters/screen-and-themes.md#when-something-looks-wrong) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [settings: Where settings are kept](../chapters/settings.md#where-settings-are-kept) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [settings: When the USB changes](../chapters/settings.md#when-the-usb-changes) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [settings: Going back to the defaults](../chapters/settings.md#going-back-to-the-defaults) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [settings: Every setting](../chapters/settings.md#every-setting) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [stems: Prepare stems](../chapters/stems.md#prepare-stems) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [stems: Turn stems on](../chapters/stems.md#turn-stems-on) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [stems: Stem buttons on the play screen](../chapters/stems.md#stem-buttons-on-the-play-screen) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [stems: MODERN stem buttons {modern}](../chapters/stems.md#modern-stem-buttons) | stem-mute-bypass | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [stems: Stem buttons in 4 DECKS {modern}](../chapters/stems.md#stem-buttons-in-4-decks) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [stems: CLASSIC stem rows {classic}](../chapters/stems.md#classic-stem-rows) | classic-stems | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [stems: Stem pads](../chapters/stems.md#stem-pads) | physical-stem-pads, stem-pads-values, stem-pads | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [stems: Stem order](../chapters/stems.md#stem-order) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [stems: Stem colours](../chapters/stems.md#stem-colours) | stem-colours-values, stem-colours | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [stems: Stem readiness](../chapters/stems.md#stem-readiness) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [stems: USB STEMS setup](../chapters/stems.md#usb-stems-setup) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [stems: Stems in DJ software {experimental}](../chapters/stems.md#stems-in-dj-software) | pc-stems | Scripted excerpts; inspect steps and REPORT.md for limits |
-| [stems: If stems do not play](../chapters/stems.md#if-stems-do-not-play) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: If the player will not start with the USB](../chapters/troubleshooting.md#if-the-player-will-not-start-with-the-usb) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: Stems on the USB](../chapters/troubleshooting.md#stems-on-the-usb) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: Notices on the play screen {modern}](../chapters/troubleshooting.md#notices-on-the-play-screen) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: Errors on a deck](../chapters/troubleshooting.md#errors-on-a-deck) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: The player's own warnings](../chapters/troubleshooting.md#the-players-own-warnings) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: E-8307: HUBS ARE NOT SUPPORTED](../chapters/troubleshooting.md#e-8307-hubs-are-not-supported) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: When settings cannot be saved](../chapters/troubleshooting.md#when-settings-cannot-be-saved) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: Messages in the XZ Mods app](../chapters/troubleshooting.md#messages-in-the-xz-mods-app) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: The diary on your USB sticks](../chapters/troubleshooting.md#the-diary-on-your-usb-sticks) | None | No dedicated flow; see capture backlog in INDEX.md |
-| [troubleshooting: Report a problem](../chapters/troubleshooting.md#report-a-problem) | None | No dedicated flow; see capture backlog in INDEX.md |
-
-## Follow-up capture coverage
-
-The following new flows close specific excerpts. They do not turn a whole chapter into complete acceptance. REPORT.md lists remaining host work separately from platform limits.
-
-| Flow | Section | Scope |
-|---|---|---|
-| [band-colours-values](band-colours-values.json) | screen-and-themes#3-band-colours | Dedicated scripted excerpt; local backend outcomes |
-| [browse-category-folder](browse-category-folder.json) | browse#browsing-in-modern | Dedicated scripted excerpt; local backend outcomes |
-| [classic-overlays-analog](classic-overlays-analog.json) | screen-and-themes#theme-families | Dedicated scripted excerpt; local backend outcomes |
-| [classic-overlays-lcars](classic-overlays-lcars.json) | screen-and-themes#theme-families | Dedicated scripted excerpt; local backend outcomes |
-| [classic-overlays-matrix](classic-overlays-matrix.json) | screen-and-themes#theme-families | Dedicated scripted excerpt; local backend outcomes |
-| [classic-overlays-standard](classic-overlays-standard.json) | screen-and-themes#theme-families | Dedicated scripted excerpt; local backend outcomes |
-| [dj-profile-create-switch](dj-profile-create-switch.json) | connect#make-a-profile-on-the-xz | Dedicated scripted excerpt; local backend outcomes |
-| [keys-values](keys-values.json) | performance#the-keys-page | Dedicated scripted excerpt; local backend outcomes |
-| [mods-four-decks-values](mods-four-decks-values.json) | mods-menu#FOUR-DECKS | Dedicated scripted excerpt; local backend outcomes |
-| [mods-play-values](mods-play-values.json) | mods-menu#PLAY | Dedicated scripted excerpt; local backend outcomes |
-| [mods-screen-values](mods-screen-values.json) | mods-menu#SCREEN | Dedicated scripted excerpt; local backend outcomes |
-| [mods-stems-values](mods-stems-values.json) | mods-menu#STEMS | Dedicated scripted excerpt; local backend outcomes |
-| [my-settings-load-save](my-settings-load-save.json) | mods-menu#my-settings | Dedicated scripted excerpt; local backend outcomes |
-| [network-review](network-review.json) | connect#network | Dedicated scripted excerpt; local backend outcomes |
-| [physical-beat-jump](physical-beat-jump.json) | performance#beat-jump | Dedicated scripted excerpt; local backend outcomes |
-| [physical-double-shift-1](physical-double-shift-1.json) | four-decks#switch-a-side-between-decks | Dedicated scripted excerpt; local backend outcomes |
-| [physical-double-shift-2](physical-double-shift-2.json) | four-decks#switch-a-side-between-decks | Dedicated scripted excerpt; local backend outcomes |
-| [physical-key-sync](physical-key-sync.json) | performance#from-the-deck | Dedicated scripted excerpt; local backend outcomes |
-| [physical-quantize](physical-quantize.json) | performance#quantize | Dedicated scripted excerpt; local backend outcomes |
-| [physical-rekordbox](physical-rekordbox.json) | hardware#the-rekordbox-button | Dedicated scripted excerpt; local backend outcomes |
-| [physical-stem-pads](physical-stem-pads.json) | stems#stem-pads | Dedicated scripted excerpt; local backend outcomes |
-| [ram-copy-error](ram-copy-error.json) | performance#ram-tracks | Dedicated scripted excerpt; local backend outcomes |
-| [rekordbox-button-values](rekordbox-button-values.json) | hardware#the-rekordbox-button | Dedicated scripted excerpt; local backend outcomes |
-| [report-error](report-error.json) | extras#after-you-send | Dedicated scripted excerpt; local backend outcomes |
-| [report-saved](report-saved.json) | extras#after-you-send | Dedicated scripted excerpt; local backend outcomes |
-| [report-sent](report-sent.json) | extras#after-you-send | Dedicated scripted excerpt; local backend outcomes |
-| [search-results-load](search-results-load.json) | browse#search | Dedicated scripted excerpt; local backend outcomes |
-| [stem-colours-values](stem-colours-values.json) | stems#stem-colours | Dedicated scripted excerpt; local backend outcomes |
-| [stem-pads-values](stem-pads-values.json) | stems#stem-pads | Dedicated scripted excerpt; local backend outcomes |
+| browse#browsing-in-modern | browse-category-folder | Scripted excerpts |
+| browse#moving-through-a-list | encoder-list | Scripted excerpts |
+| browse#loading-a-track | browse-load | Scripted excerpts |
+| browse#info-panel | browse-rating-edit | Scripted excerpts |
+| browse#sort-columns-and-the-track-menu | browse-cue-loop-load, browse-loop-load, browse-menu, browse-sort-columns, browse-tag-edit | Scripted excerpts |
+| browse#filter | filter | Scripted excerpts |
+| browse#search | search, search-results-load | Scripted excerpts |
+| browse#tag-list | tag-list | Scripted excerpts |
+| browse#playlists | playlists | Scripted excerpts |
+| browse#source | source | Scripted excerpts |
+| browse#info | browse-rating-edit, info | Scripted excerpts |
+| browse#browsing-in-classic | None | closed_stock_firmware |
+| browse#browse-settings | None | needs_host_implementation |
+| browse#if-browsing-goes-wrong | None | needs_host_implementation |
+| connect#the-connect-page | mods-connect | Scripted excerpts |
+| connect#dj-profile | dj-profile, profile-logo | Scripted excerpts |
+| connect#make-a-profile-on-a-computer | None | needs_host_implementation |
+| connect#make-a-profile-on-the-xz | dj-profile-create-switch, profile-logo, profile-logo-error, profile-save-error | Scripted excerpts |
+| connect#choose-and-switch-profiles | dj-profile-create-switch, profile-logo | Scripted excerpts |
+| connect#when-a-profile-will-not-save-or-show | profile-logo-error, profile-save-error | Scripted excerpts |
+| connect#vjtools | vj-tools | Scripted excerpts |
+| connect#network | network, network-review, network-static, network-static-failure | Scripted excerpts |
+| connect#updates-over-the-network | updates | Scripted excerpts |
+| desktop-app#around-the-app | None | desktop_platform |
+| desktop-app#usb | None | desktop_platform |
+| desktop-app#choose-a-usb-or-a-folder | None | desktop_platform |
+| desktop-app#the-usb-dashboard | None | desktop_platform |
+| desktop-app#install-or-update-xz-mods | None | desktop_platform |
+| desktop-app#four-decks-in-the-app | None | desktop_platform |
+| desktop-app#stems | None | desktop_platform |
+| desktop-app#set-up-the-stem-engine | None | desktop_platform |
+| desktop-app#import-stems-you-already-have | None | desktop_platform |
+| desktop-app#xz-screen | None | desktop_platform |
+| desktop-app#tools | None | desktop_platform |
+| desktop-app#dj-profile | None | desktop_platform |
+| desktop-app#repair-library | None | desktop_platform |
+| desktop-app#network-updates | None | desktop_platform |
+| desktop-app#xz-mods-version | None | desktop_platform |
+| desktop-app#app-updates | None | desktop_platform |
+| desktop-app#about | None | desktop_platform |
+| desktop-app#feedback | None | desktop_platform |
+| desktop-app#report-a-problem-or-share-an-idea | None | desktop_platform |
+| desktop-app#included-details | None | desktop_platform |
+| desktop-app#when-something-got-worse | None | desktop_platform |
+| desktop-app#after-you-send | None | desktop_platform |
+| desktop-app#my-reports | None | desktop_platform |
+| desktop-app#from-your-xz | None | desktop_platform |
+| desktop-app#your-xz-sticks | None | desktop_platform |
+| desktop-app#maintainer-inbox | None | desktop_platform |
+| desktop-app#manual | None | desktop_platform |
+| extras#the-extras-page | mods-extras | Scripted excerpts |
+| extras#games | games | Scripted excerpts |
+| extras#moving-around-a-game | None | needs_host_implementation |
+| extras#beat-arcade | None | needs_host_implementation |
+| extras#wave-rider | None | needs_host_implementation |
+| extras#doom-and-chex-quest | wad-loader | Scripted excerpts |
+| extras#my-house | my-house-setup | Scripted excerpts |
+| extras#usb-apps | apps-setup, usb-apps | Scripted excerpts |
+| extras#report-an-issue | report-issue | Scripted excerpts |
+| extras#after-you-send | report-edit-recovery, report-error, report-retry, report-saved, report-sent | Scripted excerpts |
+| extras#report-an-error-from-the-dock | None | needs_host_implementation |
+| extras#what-the-player-sends | None | needs_host_implementation |
+| extras#about-xz-mods | about | Scripted excerpts |
+| four-decks#what-you-need | None | needs_host_implementation |
+| four-decks#set-up-four-decks | None | needs_host_implementation |
+| four-decks#add-music-and-a-usb-hub | None | needs_host_implementation |
+| four-decks#the-4-decks-page-in-mods | None | needs_host_implementation |
+| four-decks#the-card-in-every-state | None | needs_host_implementation |
+| four-decks#the-e-8307-hub-warning | None | needs_host_implementation |
+| four-decks#deck-view | None | needs_host_implementation |
+| four-decks#the-decks-button-and-its-picker | deck-view | Scripted excerpts |
+| four-decks#switch-a-side-between-decks | physical-double-shift-1, physical-double-shift-2 | Scripted excerpts |
+| four-decks#the-modern-four-deck-screen | None | needs_host_implementation |
+| four-decks#the-classic-four-deck-screen | None | needs_host_implementation |
+| four-decks#load-tracks-onto-decks-3-and-4 | None | needs_host_implementation |
+| four-decks#info-source-and-utility-with-four-decks | None | needs_host_implementation |
+| four-decks#what-decks-3-and-4-can-do | None | needs_host_implementation |
+| four-decks#sync-on-decks-3-and-4 | None | needs_host_implementation |
+| four-decks#limits | None | needs_host_implementation |
+| getting-started#what-changes-and-what-stays-stock | None | needs_host_implementation |
+| getting-started#go-back-to-stock | None | needs_host_implementation |
+| getting-started#what-you-need | None | needs_host_implementation |
+| getting-started#prepare-a-usb | None | needs_host_implementation |
+| getting-started#first-start | None | needs_host_implementation |
+| getting-started#modern-on-first-start | None | needs_host_implementation |
+| getting-started#classic-on-first-start | None | needs_host_implementation |
+| getting-started#choose-modern-or-classic | None | needs_host_implementation |
+| getting-started#switch-on-the-player | interface-choice | Scripted excerpts |
+| getting-started#updating | None | needs_host_implementation |
+| hardware#the-top-panel | None | needs_host_implementation |
+| hardware#browse-section-keys | None | needs_host_implementation |
+| hardware#the-rekordbox-button | physical-rekordbox, rekordbox-button, rekordbox-button-values | Scripted excerpts |
+| hardware#link-and-the-vjtools-view | None | needs_host_implementation |
+| hardware#deck-keys | None | needs_host_implementation |
+| hardware#performance-pads | physical-pad-mode-pages | Scripted excerpts |
+| hardware#stem-pads | None | needs_host_implementation |
+| hardware#pad-lights | None | needs_host_implementation |
+| hardware#decks-3-and-4-from-the-deck-controls | None | needs_host_implementation |
+| hardware#when-a-control-does-not-respond | None | needs_host_implementation |
+| mods-menu#open-and-close-mods | menu-close | Scripted excerpts |
+| mods-menu#move-around | encoder-settings | Scripted excerpts |
+| mods-menu#home | mods-home | Scripted excerpts |
+| mods-menu#play | mods-play, mods-play-values | Scripted excerpts |
+| mods-menu#stems | mods-stems, mods-stems-values, mods-stems-values-all | Scripted excerpts |
+| mods-menu#screen | mods-screen, mods-screen-values, mods-screen-values-all | Scripted excerpts |
+| mods-menu#4-decks | mods-four-decks, mods-four-decks-values | Scripted excerpts |
+| mods-menu#connect | mods-connect | Scripted excerpts |
+| mods-menu#extras | mods-extras | Scripted excerpts |
+| mods-menu#utility-the-players-own-settings | utility | Scripted excerpts |
+| mods-menu#modern-utility | needle-lock, utility | Scripted excerpts |
+| mods-menu#my-settings | my-settings-load-save | Scripted excerpts |
+| mods-menu#saving-to-the-usb | None | needs_host_implementation |
+| mods-menu#older-pages | None | needs_host_implementation |
+| performance#the-play-page | mods-play, mods-play-values | Scripted excerpts |
+| performance#beat-jump | beat-jump, physical-beat-jump | Scripted excerpts |
+| performance#change-the-jump-sizes | beat-jump-pages | Scripted excerpts |
+| performance#decks-3-and-4 | None | needs_host_implementation |
+| performance#when-a-jump-is-refused | None | needs_host_implementation |
+| performance#gate-cue-and-smart-cue | None | needs_host_implementation |
+| performance#feature-setup | None | needs_host_implementation |
+| performance#keys-and-key-sync | keys, physical-key-sync | Scripted excerpts |
+| performance#from-the-deck | physical-key-sync | Scripted excerpts |
+| performance#the-keys-page | key-shift-sync, keys, keys-values | Scripted excerpts |
+| performance#the-key-on-the-modern-play-screen | None | needs_host_implementation |
+| performance#the-key-on-the-classic-play-screen | None | needs_host_implementation |
+| performance#playing-key | None | needs_host_implementation |
+| performance#ram-tracks | ram-copy-error, ram-tracks | Scripted excerpts |
+| performance#when-the-music-usb-goes-out | None | usb_or_boot |
+| performance#quantize | physical-quantize | Scripted excerpts |
+| play-screen#the-modern-play-screen | None | needs_host_implementation |
+| play-screen#top-bar | None | needs_host_implementation |
+| play-screen#deck-column-and-waveform-lanes | None | needs_host_implementation |
+| play-screen#deck-strip | None | needs_host_implementation |
+| play-screen#key-and-key-sync | key-shift-sync | Scripted excerpts |
+| play-screen#waveform-colours | None | needs_host_implementation |
+| play-screen#notices | None | needs_host_implementation |
+| play-screen#shortcut | shortcut | Scripted excerpts |
+| play-screen#the-classic-play-screen | None | needs_host_implementation |
+| play-screen#scrolling-waveform | None | needs_host_implementation |
+| play-screen#if-something-looks-wrong | None | needs_host_implementation |
+| screen-and-themes#the-screen-page | mods-screen-values-all | Scripted excerpts |
+| screen-and-themes#modern-and-classic | interface-choice, physical-rekordbox | Scripted excerpts |
+| screen-and-themes#classic-themes | classic-themes, classic-themes-all | Scripted excerpts |
+| screen-and-themes#theme-families | classic-overlays-analog, classic-overlays-lcars, classic-overlays-matrix, classic-overlays-standard | Scripted excerpts |
+| screen-and-themes#modern-look | lamps-and-titles, lamps-and-titles-all | Scripted excerpts |
+| screen-and-themes#waveform-colours | mods-screen-values-all | Scripted excerpts |
+| screen-and-themes#3-band-colours | band-colours, band-colours-values | Scripted excerpts |
+| screen-and-themes#keys | mods-screen-values-all | Scripted excerpts |
+| screen-and-themes#key-notation | mods-screen-values-all | Scripted excerpts |
+| screen-and-themes#playing-key | mods-screen-values-all | Scripted excerpts |
+| screen-and-themes#key-match-colours-and-key-before-title | mods-screen-values-all | Scripted excerpts |
+| screen-and-themes#deck-colours | None | needs_host_implementation |
+| screen-and-themes#system-readout | system-readout | Scripted excerpts |
+| screen-and-themes#when-something-looks-wrong | None | needs_host_implementation |
+| settings#where-settings-are-kept | None | usb_or_boot |
+| settings#when-the-usb-changes | None | usb_or_boot |
+| settings#going-back-to-the-defaults | None | usb_or_boot |
+| settings#every-setting | None | usb_or_boot |
+| stems#prepare-stems | None | usb_or_boot |
+| stems#turn-stems-on | None | needs_host_implementation |
+| stems#stem-buttons-on-the-play-screen | None | needs_host_implementation |
+| stems#modern-stem-buttons | stem-mute-bypass | Scripted excerpts |
+| stems#stem-buttons-in-4-decks | None | needs_host_implementation |
+| stems#classic-stem-rows | classic-stems | Scripted excerpts |
+| stems#stem-pads | physical-stem-pads, stem-pads, stem-pads-values | Scripted excerpts |
+| stems#stem-order | mods-stems-values-all | Scripted excerpts |
+| stems#stem-colours | stem-colours, stem-colours-values | Scripted excerpts |
+| stems#stem-readiness | None | needs_host_implementation |
+| stems#usb-stems-setup | None | needs_host_implementation |
+| stems#stems-in-dj-software | pc-stems | Scripted excerpts |
+| stems#if-stems-do-not-play | None | needs_host_implementation |
+| troubleshooting#if-the-player-will-not-start-with-the-usb | None | needs_host_implementation |
+| troubleshooting#stems-on-the-usb | None | needs_host_implementation |
+| troubleshooting#notices-on-the-play-screen | None | needs_host_implementation |
+| troubleshooting#errors-on-a-deck | None | needs_host_implementation |
+| troubleshooting#the-players-own-warnings | None | closed_stock_firmware |
+| troubleshooting#e-8307-hubs-are-not-supported | None | needs_host_implementation |
+| troubleshooting#when-settings-cannot-be-saved | None | needs_host_implementation |
+| troubleshooting#messages-in-the-xz-mods-app | None | needs_host_implementation |
+| troubleshooting#the-diary-on-your-usb-sticks | None | needs_host_implementation |
+| troubleshooting#report-a-problem | report-dock-entry | Scripted excerpts |

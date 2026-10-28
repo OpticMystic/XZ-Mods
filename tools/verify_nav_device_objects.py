@@ -8,7 +8,7 @@ def main():
  results={}
  with tempfile.TemporaryDirectory(prefix='xz-nav-arm-') as tmp:
   tmp=Path(tmp)
-  for name in ['deck_select.c','ui/stem_pads.c','ui/beat_jump.c','ui_runtime.c','doom/native_bridge.c','ui/deck_view.c','ui/key_strip.c','ui/ui_profile.c','ui/ui_support.c','ui/ui_network.c','shell/shell.c','shell/shell_browse.c']:
+  for name in ['deck_select.c','ui/stem_pads.c','ui/beat_jump.c','ui_runtime.c','doom/native_bridge.c','ui/deck_view.c','ui/key_strip.c','ui/ui_profile.c','ui/ui_support.c','ui/ui_network.c','shell/shell.c','shell/shell_browse.c','shell/shell_info.c']:
    source=MODS/name; relative=source.relative_to(ROOT).as_posix()
    baseline=subprocess.check_output(['git','show','00f16052:'+relative],cwd=ROOT)
    if source.read_bytes()!=baseline:raise SystemExit('device source changed: '+name)

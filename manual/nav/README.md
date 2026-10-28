@@ -40,3 +40,13 @@ The full harness now builds with GCC through WSL Ubuntu, because it includes the
 `gesture` records both physical edges, with `code` selecting a host adapter event and `side` selecting left/right. Codes are harness commands, not device key codes. `shift` holds or releases SHIFT across another physical gesture. `type` taps actual keyboard widgets, switching case when necessary. `settings` taps each supported value widget on the current page. SEARCH uses BROWSE hold; PLAYLIST uses the browse category rail. BACK and keys now have release timeline entries. Held BROWSE/MENU wait one second before dispatching the shell hold action.
 
 The capture process is a host execution of real renderer and handler code with fixtures. It does not boot a device OS or emulate the closed stock firmware. See REPORT.md for remaining host script work.
+
+## Third-pass scripts and section inventory
+
+`SECTIONS.json` is metadata, not a flow script. It inventories every level-two and level-three chapter heading, including desktop and informational sections. Each row has its exact heading, section-text hash and either flow names or a null assignment with a reason. Assignments mean scripted excerpts; they do not assert complete coverage of every operation in a section. `python tools/nav_sections.py` checks heading membership, duplicates, text freshness and flow references. The capture driver runs that check before rendering or checking a batch.
+
+`panel_select` turns the real encoder until a named browse-panel row is visible, then taps that row's real geometry. `digits` taps the NETWORK keypad's named digits and point. Neither operation sets navigation state.
+
+New local fixtures: 30 supplies two image paths and a decoded checkerboard logo; 31 makes image preview fail; 32 makes profile save fail; 33 clears those failure callbacks; 34/35 remove/restore the profile USB-presence snapshot; 36 makes network verification fail; 37 supplies a deck counter error for REPORT THIS. No image, profile, report or network state is read from or written to a USB.
+
+The full third batch belongs in `E:/Claude/xz-beta-rc-scratch/nav-capture-3/`. Earlier interrupted or superseded third-pass generations have distinct sibling names and are not acceptance evidence. REPORT.md lists unfinished host coverage explicitly.
