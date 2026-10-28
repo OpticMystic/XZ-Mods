@@ -1,13 +1,30 @@
 # Player navigation capture index
 
-96 flows, 1277 PNG frames. Current batch: `E:/Claude/xz-beta-rc-scratch/nav-capture-3/`. Contact sheet: `contact-sheet.png`.
+167 flows, 3464 PNG frames. Current full source-built batch: `E:/Claude/xz-beta-rc-scratch/nav-capture-4/`. Contact sheet: `contact-sheet.png`.
 
-Coverage remains partial. [REPORT.md](REPORT.md) lists host gaps separately from platform limits. [SECTIONS.json](SECTIONS.json) is the complete heading inventory. [DEVICE-BUILD.md](DEVICE-BUILD.md) records ARM identity evidence.
+[REPORT.md](REPORT.md) consolidates A/B evidence, current verification and remaining action-level host gaps. [SECTIONS.json](SECTIONS.json) and [CHAPTER-AUDIT.md](CHAPTER-AUDIT.md) cover all 181 headings; assignments are excerpts. [DEVICE-BUILD.md](DEVICE-BUILD.md) records 34 ARM object comparisons.
 
 | Flow | Chapter section | Frames |
 |---|---|---:|
 | [about](about.json) | extras#about-xz-mods | 6 |
 | [apps-setup](apps-setup.json) | extras#usb-apps | 6 |
+| [b-apps-wizard](b-apps-wizard.json) | extras#usb-apps | 12 |
+| [b-arcade](b-arcade.json) | extras#beat-arcade | 212 |
+| [b-browse-keys](b-browse-keys.json) | hardware#browse-section-keys | 11 |
+| [b-deck-error-recovery](b-deck-error-recovery.json) | troubleshooting#errors-on-a-deck | 10 |
+| [b-first-menu](b-first-menu.json) | getting-started#first-start | 16 |
+| [b-master-tempo](b-master-tempo.json) | hardware#deck-keys | 7 |
+| [b-my-settings-failure](b-my-settings-failure.json) | mods-menu#my-settings | 5 |
+| [b-my-settings-pause](b-my-settings-pause.json) | mods-menu#my-settings | 5 |
+| [b-my-settings-readonly](b-my-settings-readonly.json) | mods-menu#my-settings | 5 |
+| [b-notice-load-recovery](b-notice-load-recovery.json) | troubleshooting#notices-on-the-play-screen | 9 |
+| [b-profile-rescan](b-profile-rescan.json) | connect#make-a-profile-on-a-computer | 7 |
+| [b-profile-usb2-recovery](b-profile-usb2-recovery.json) | connect#make-a-profile-on-the-xz | 20 |
+| [b-rider](b-rider.json) | extras#wave-rider | 16 |
+| [b-save-recovery](b-save-recovery.json) | mods-menu#saving-to-the-usb | 14 |
+| [b-stem-recovery](b-stem-recovery.json) | troubleshooting#stems-on-the-usb | 4 |
+| [b-stem-setup](b-stem-setup.json) | troubleshooting#stems-on-the-usb | 12 |
+| [b-theme-recovery](b-theme-recovery.json) | screen-and-themes#when-something-looks-wrong | 38 |
 | [band-colours](band-colours.json) | screen-and-themes#3-band-colours | 6 |
 | [band-colours-values](band-colours-values.json) | screen-and-themes#3-band-colours | 32 |
 | [beat-jump](beat-jump.json) | performance#beat-jump | 6 |
@@ -57,6 +74,60 @@ Coverage remains partial. [REPORT.md](REPORT.md) lists host gaps separately from
 | [mods-stems-values-all](mods-stems-values-all.json) | mods-menu#STEMS | 11 |
 | [my-house-setup](my-house-setup.json) | extras#my-house | 6 |
 | [my-settings-load-save](my-settings-load-save.json) | mods-menu#my-settings | 6 |
+| [nav-a-browse-recovery](nav-a-browse-recovery.json) | browse#if-browsing-goes-wrong | 12 |
+| [nav-a-browse-settings](nav-a-browse-settings.json) | browse#browse-settings | 11 |
+| [nav-a-choose-track-error](nav-a-choose-track-error.json) | play-screen#notices | 14 |
+| [nav-a-classic-four](nav-a-classic-four.json) | four-decks#the-classic-four-deck-screen | 6 |
+| [nav-a-classic-wave-choices](nav-a-classic-wave-choices.json) | play-screen#scrolling-waveform | 20 |
+| [nav-a-deck-orders](nav-a-deck-orders.json) | four-decks#deck-view | 17 |
+| [nav-a-feature-gate](nav-a-feature-gate.json) | performance#feature-setup | 9 |
+| [nav-a-feature-smart](nav-a-feature-smart.json) | performance#feature-setup | 9 |
+| [nav-a-four-detail](nav-a-four-detail.json) | four-decks#the-modern-four-deck-screen | 18 |
+| [nav-a-four-fullscreens](nav-a-four-fullscreens.json) | four-decks#info-source-and-utility-with-four-decks | 21 |
+| [nav-a-four-load](nav-a-four-load.json) | four-decks#load-tracks-onto-decks-3-and-4 | 13 |
+| [nav-a-four-page](nav-a-four-page.json) | four-decks#the-4-decks-page-in-mods | 6 |
+| [nav-a-four-stems](nav-a-four-stems.json) | stems#stem-buttons-in-4-decks | 12 |
+| [nav-a-gate-smart](nav-a-gate-smart.json) | performance#gate-cue-and-smart-cue | 11 |
+| [nav-a-jump-refused](nav-a-jump-refused.json) | performance#when-a-jump-is-refused | 5 |
+| [nav-a-play-colours](nav-a-play-colours.json) | play-screen#waveform-colours | 18 |
+| [nav-a-play-zoom-time](nav-a-play-zoom-time.json) | play-screen#deck-column-and-waveform-lanes | 22 |
+| [nav-a-playing-key](nav-a-playing-key.json) | performance#playing-key | 11 |
+| [nav-a-ram-detached](nav-a-ram-detached.json) | performance#when-the-music-usb-goes-out | 9 |
+| [nav-a-route-rescan](nav-a-route-rescan.json) | four-decks#set-up-four-decks | 68 |
+| [nav-a-route-states](nav-a-route-states.json) | four-decks#the-card-in-every-state | 118 |
+| [nav-a-stem-layouts](nav-a-stem-layouts.json) | stems#stem-buttons-on-the-play-screen | 15 |
+| [nav-a-stem-toggle](nav-a-stem-toggle.json) | stems#turn-stems-on | 9 |
+| [nav-a-usb-setup](nav-a-usb-setup.json) | stems#usb-stems-setup | 13 |
+| [nav-c-arcade-0-0](nav-c-arcade-0-0.json) | extras#beat-arcade | 221 |
+| [nav-c-arcade-1-1](nav-c-arcade-1-1.json) | extras#beat-arcade | 265 |
+| [nav-c-arcade-2-2](nav-c-arcade-2-2.json) | extras#beat-arcade | 309 |
+| [nav-c-arcade-3-0](nav-c-arcade-3-0.json) | extras#beat-arcade | 221 |
+| [nav-c-classic-full](nav-c-classic-full.json) | four-decks#the-classic-four-deck-screen | 6 |
+| [nav-c-notice-00](nav-c-notice-00.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-01](nav-c-notice-01.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-02](nav-c-notice-02.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-03](nav-c-notice-03.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-04](nav-c-notice-04.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-05](nav-c-notice-05.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-06](nav-c-notice-06.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-07](nav-c-notice-07.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-08](nav-c-notice-08.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-09](nav-c-notice-09.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-10](nav-c-notice-10.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-11](nav-c-notice-11.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-12](nav-c-notice-12.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-13](nav-c-notice-13.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-14](nav-c-notice-14.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-15](nav-c-notice-15.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-16](nav-c-notice-16.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-17](nav-c-notice-17.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-18](nav-c-notice-18.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-19](nav-c-notice-19.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-notice-20](nav-c-notice-20.json) | troubleshooting#notices-on-the-play-screen | 7 |
+| [nav-c-player-3](nav-c-player-3.json) | four-decks#what-decks-3-and-4-can-do | 70 |
+| [nav-c-player-4](nav-c-player-4.json) | four-decks#what-decks-3-and-4-can-do | 70 |
+| [nav-c-profile-610](nav-c-profile-610.json) | connect#when-a-profile-will-not-save-or-show | 4 |
+| [nav-c-profile-611](nav-c-profile-611.json) | connect#when-a-profile-will-not-save-or-show | 4 |
 | [needle-lock](needle-lock.json) | mods-menu#modern-utility | 4 |
 | [network](network.json) | connect#network | 6 |
 | [network-review](network-review.json) | connect#network | 10 |
@@ -102,44 +173,3 @@ Coverage remains partial. [REPORT.md](REPORT.md) lists host gaps separately from
 | [utility](utility.json) | mods-menu#modern-utility | 12 |
 | [vj-tools](vj-tools.json) | connect#vjtools | 6 |
 | [wad-loader](wad-loader.json) | extras#doom-and-chex-quest | 6 |
-
-## Chapter A batch
-
-24 additional flows, 467 PNG frames, 300 distinct PNG hashes reviewed. Retained
-batch: `E:/Claude/xz-beta-rc-scratch/nav-capture-a/`. The contact sheet is
-`contact-sheet.png`; each flow contains its PNGs, timeline and lossless WebP.
-This supplements the earlier 96-flow batch; it is not a newly rendered combined
-120-flow batch. REPORT-A.md records incomplete action-level coverage.
-
-| Flow | Frames |
-|---|---:|
-| [nav-a-browse-recovery](nav-a-browse-recovery.json) | 12 |
-| [nav-a-browse-settings](nav-a-browse-settings.json) | 11 |
-| [nav-a-choose-track-error](nav-a-choose-track-error.json) | 14 |
-| [nav-a-classic-four](nav-a-classic-four.json) | 6 |
-| [nav-a-classic-wave-choices](nav-a-classic-wave-choices.json) | 20 |
-| [nav-a-deck-orders](nav-a-deck-orders.json) | 17 |
-| [nav-a-feature-gate](nav-a-feature-gate.json) | 9 |
-| [nav-a-feature-smart](nav-a-feature-smart.json) | 9 |
-| [nav-a-four-detail](nav-a-four-detail.json) | 18 |
-| [nav-a-four-fullscreens](nav-a-four-fullscreens.json) | 21 |
-| [nav-a-four-load](nav-a-four-load.json) | 13 |
-| [nav-a-four-page](nav-a-four-page.json) | 6 |
-| [nav-a-four-stems](nav-a-four-stems.json) | 12 |
-| [nav-a-gate-smart](nav-a-gate-smart.json) | 11 |
-| [nav-a-jump-refused](nav-a-jump-refused.json) | 5 |
-| [nav-a-play-colours](nav-a-play-colours.json) | 18 |
-| [nav-a-play-zoom-time](nav-a-play-zoom-time.json) | 22 |
-| [nav-a-playing-key](nav-a-playing-key.json) | 11 |
-| [nav-a-ram-detached](nav-a-ram-detached.json) | 9 |
-| [nav-a-route-rescan](nav-a-route-rescan.json) | 68 |
-| [nav-a-route-states](nav-a-route-states.json) | 118 |
-| [nav-a-stem-layouts](nav-a-stem-layouts.json) | 15 |
-| [nav-a-stem-toggle](nav-a-stem-toggle.json) | 9 |
-| [nav-a-usb-setup](nav-a-usb-setup.json) | 13 |
-
-## Chapter B follow-up
-
-The `b-*.json` scripts are retained separately in `E:/Claude/xz-beta-rc-scratch/nav-capture-b/`. See [REPORT-B.md](REPORT-B.md) for counts and operation-level limits. The original 96-flow table above is historical third-pass evidence.
-
-B batch: 17 new flows, 403 PNG frames, 329 distinct reviewed hashes. Source-built capture and `--flow-prefix b- --check` passed.

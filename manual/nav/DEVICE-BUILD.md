@@ -69,3 +69,7 @@ Re-run the command above to compare all **21** production objects. Retained resu
 | `arcade/wave_rider_source.c` | `c560d560fef509485242b9a34551ad0aafd99badff1d7ddb268711fca80ae00e` |
 
 The game adapter calls production renderers, game target navigation, and game input functions. The SDK adapter uses the production command planner before supplying a separate fixture state. MY SETTINGS results, notices, profile presence and settings-save status are local runtime snapshots. The USB-stem CHECK adapter displays the production next-step text; it does not run engine verification. No production handler, device source list, UI source, firmware, loader, installed resource or hardware was changed. Object identity is not a linked device-build receipt.
+
+## Consolidated fourth pass
+
+The union contains 25 production objects. Nine added player/composition/analysis objects extend the check to **34/34 byte-identical** against `00f16052`. Receipt: `E:/Claude/xz-beta-rc-scratch/nav-arm-objects-4-final.json`. No device source list changed and no linked build or installation is claimed.
