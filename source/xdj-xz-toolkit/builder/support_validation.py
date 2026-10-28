@@ -41,7 +41,7 @@ def validate(value, schema):
 
 def validate_report(report):
     validate(report,CONTRACT['report_schema'])
-    if not report['description'].strip():raise ValueError('Describe what happened')
+    if not report['description'].strip() and not (report['origin']=='controller' and report.get('comments_pending') is True):raise ValueError('Describe what happened')
     if report['incident']['before_seconds']+report['incident']['after_seconds']>3600:raise ValueError('Incident window exceeds one hour')
     private=report['private'];items=private['items']
     if private['contact'] is not None and not private['contact_consent']:raise ValueError('Contact consent required')

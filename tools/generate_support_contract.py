@@ -33,6 +33,8 @@ def outputs():
     ts = stamp + 'export const CONTRACT = ' + json.dumps(contract, indent=2) + ' as const;\n'
     ts += 'export const SOURCES = ' + json.dumps(sources, indent=2) + ' as const;\n'
     ts += 'export type ReportV2 = ' + ts_type(contract['report_schema']) + ';\n'
+    for name, key in [('PendingReport', 'pending_report_schema'), ('LoaderIdentity', 'loader_identity_schema')]:
+        ts += 'export type ' + name + ' = ' + ts_type(contract[key]) + ';\n'
     ts += 'export type ReportKind = typeof CONTRACT.kinds[number];\n'
     ts += 'export type Lifecycle = typeof CONTRACT.lifecycles[number];\n'
     ts += 'export type Outcome = typeof CONTRACT.outcomes[number];\n'
@@ -62,7 +64,7 @@ export function inboxPriority(kind: string | null, impact: string | null, expect
         'export const automaticFixEligible = (kind, impact) => contract.automatic_fix.kinds.includes(kind) && contract.automatic_fix.impacts.includes(impact);\n') + identifier_js
     # The renderer cannot import modules under the app's CSP; it reads the same contract from a classic script.
     yield 'ui/support-contract.js', (
-        stamp + "'use strict';\nwindow.XZ_SUPPORT_CONTRACT = Object.freeze(" + json.dumps(contract, separators=(',', ':'), ensure_ascii=True) + ');\n' + '(function () {\n' + identifier_js.replace('export ', '') + 'window.XZ_SUPPORT_IDENTIFIERS = Object.freeze({formatReportReference, parseReportReference, formatItemNumber, parseItemNumber});\n})();\n')
+        stamp + "'use strict';\nwindow.XZ_SUPPORT_CONTRACT = Object.freeze(" + json.dumps(contract, separators=(',', ':'), ensure_ascii=True) + ');\n' + '(function () {\n' + identifier_js.replace('export ', '') + 'window.XZ_SUPPORT_IDENTIFIERS = Object.freeze({formatReportReference, parseReportReference, formatItemNumber, parseItemNumber, formatInstallationId, parseInstallationId, formatLoaderId, parseLoaderId});\n})();\n')
     yield 'spec/generated/support_contract.rs', (
         stamp + '// Phase 3 includes this module; JSON is the authoritative wire schema.\n'
         + 'pub const CONTRACT_JSON: &str = include_str!("../support-contract.json");\n'
@@ -73,6 +75,21 @@ export function inboxPriority(kind: string | null, impact: string | null, expect
         + 'pub fn automatic_fix_eligible(kind: &str, impact: &str) -> bool {\n    matches!(kind, '
         + ' | '.join(json.dumps(v) for v in contract['automatic_fix']['kinds']) + ') && matches!(impact, '
         + ' | '.join(json.dumps(v) for v in contract['automatic_fix']['impacts']) + ')\n}\n' + identifier_rust)
+    yield 'spec/generated/loader-identity.schema.json', json.dumps(contract['loader_identity_schema'], indent=2) + '\n'
+    yield 'spec/generated/controller-pending.schema.json', json.dumps(contract['pending_report_schema'], indent=2) + '\n'
+    fixture = {
+        'schema':'xz-support-report/2', 'report_id':'0123456789abcdef0123456789abcdef',
+        'origin':'controller', 'loader_id':'L-4F7K-2M9Q', 'installation_id':'I-4F7K-2M9Q',
+        'comments_pending':True, 'kind_hint':None, 'description':'', 'category':'bridge',
+        'build':{'desktop_version':'unknown','desktop_provenance':'unknown','runtime_version':'unknown','runtime_provenance':'unknown'},
+        'incident':{'before_seconds':900,'after_seconds':0,'clock_confidence':'unknown'},
+        'screen_state':{'surface':'STOCK','stock_page':'PERFORMANCE','mods_page':'UNKNOWN','interface':'MODERN','deck_view':'FOUR','alert_code':'READ_ERROR','counter_code':'E-8302'},
+        'reporter_hints':{'topic':'NOT_WORKING'},
+        'private':{'contact':None,'contact_consent':False,'items':[]},
+        'coverage':{'omitted_items':0,'unfinished_sources':0,'scan_generation':'11111111111111111111111111111111'},
+        'redactions':{'count':0,'omitted_lines':0}}
+    yield 'spec/fixtures/controller-pending-report.json', json.dumps(fixture, indent=2) + '\n'
+    yield 'spec/fixtures/loader-identity.json', json.dumps({'version':1,'loader_id':'L-4F7K-2M9Q','loader_key':'b'*64,'installation_id':'I-4F7K-2M9Q','created_at':'2026-10-27T00:00:00.000Z','app_version':'0.5.0-preview.22.6'}, indent=2) + '\n'
     config = json.loads((ROOT / 'services/support/wrangler.jsonc').read_text())
     bindings = [(b['binding'], 'D1Database') for b in config['d1_databases']]
     bindings += [(b['binding'], 'R2Bucket') for b in config['r2_buckets']]
@@ -115,6 +132,21 @@ def main():
         for field, values in re.findall(r'CHECK\((\w+) IN \(([^)]+)\)\)', migration.read_text()):
             if field in expected and set(re.findall(r"'([^']+)'", values)) != set(contract[expected[field]]):
                 bad.append('0002_bugdesk_tracking.sql: ' + field)
+    queue_migration = ROOT / 'services/support/migrations/0004_controller_queue.sql'
+    if queue_migration.exists():
+        contract = json.loads((ROOT / 'spec/support-contract.json').read_text())
+        sql = queue_migration.read_text()
+        states = re.search(r"comments_state IN \(([^)]+)\)", sql)
+        if not states or set(re.findall(r"'([^']+)'", states[1])) != set(contract['pending_lifecycles']):
+            bad.append('0004_controller_queue.sql: comments lifecycle')
+        quotas = [('installation_daily_registrations_per_ip', 'installations WHERE day=NEW.day AND ip_hash=NEW.ip_hash'),
+                  ('daily_installations', 'installations WHERE day=NEW.day'),
+                  ('installation_loader_limit', 'loaders WHERE installation_id=NEW.installation_id'),
+                  ('installation_daily_reports', 'reports WHERE day=NEW.day AND installation_id=NEW.installation_id'),
+                  ('loader_daily_reports', 'reports WHERE day=NEW.day AND loader_id=NEW.loader_id')]
+        for key, query in quotas:
+            if query + ')>=' + str(contract['controller_queue'][key]) not in sql:
+                bad.append('0004_controller_queue.sql: ' + key)
     if bad:
         raise SystemExit('Support contract drift: ' + ', '.join(bad))
     print('Support contracts match all generated consumers and the desktop transport cap.')

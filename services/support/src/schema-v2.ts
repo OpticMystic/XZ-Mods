@@ -4,7 +4,7 @@ import { encoder } from './schema';
 
 // The shape itself is generated from the JSON contract. Zod's JSON Schema
 // importer handles strict objects; UTF-8 and cross-field rules follow below.
-function utf8(value: unknown, definition: object): boolean {
+export function utf8(value: unknown, definition: object): boolean {
   const schema: Record<string, unknown> = Object.fromEntries(Object.entries(definition));
   if (Array.isArray(schema.anyOf)) {
     return schema.anyOf.some(s => typeof s === 'object' && s !== null &&
@@ -28,7 +28,7 @@ export function parseReportV2(value: unknown): ReportV2 | null {
   if (!result.success || !utf8(value, CONTRACT.report_schema)) return null;
   // Validated by the generated shape above, then constrained semantically here.
   const report = result.data as ReportV2;
-  if (!report.description.trim() || report.incident.before_seconds + report.incident.after_seconds > 3600) return null;
+  if ((!report.description.trim() && !(report.origin === 'controller' && report.comments_pending === true)) || report.incident.before_seconds + report.incident.after_seconds > 3600) return null;
   if (report.private.contact !== null && !report.private.contact_consent) return null;
   if ((report.kind_hint === 'FEATURE' || report.reporter_hints?.topic === 'NEW_IDEA') && report.private.items.length !== 0) return null;
   if (new Set(report.private.items.map(i => i.item_id)).size !== report.private.items.length) return null;

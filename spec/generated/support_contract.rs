@@ -2,7 +2,7 @@
 // Phase 3 includes this module; JSON is the authoritative wire schema.
 pub const CONTRACT_JSON: &str = include_str!("../support-contract.json");
 pub const SOURCES_JSON: &str = include_str!("../support-sources.json");
-pub const CONTRACT_SHA256: &str = "06f94673e8be392706d620a2147819fb67457f5af139d16296fd3b58ec145c6e";
+pub const CONTRACT_SHA256: &str = "c8ad94ebf04a8dffbd1e0b54c4806fddedff92d69f6734700c3e73fa38698ea9";
 pub const REPORT_BYTES: usize = 524288;
 pub const DESCRIPTION_BYTES: usize = 4096;
 pub const ITEM_BYTES: usize = 32768;
@@ -58,7 +58,7 @@ mod identifier_tests {
         let contract: serde_json::Value = serde_json::from_str(CONTRACT_JSON).unwrap();
         for (name, parse, format) in [
             ("report_reference", parse_report_reference as fn(&str)->Option<u64>, format_report_reference as fn(u64)->Option<String>),
-            ("item_number", parse_item_number, format_item_number)
+            ("item_number", parse_item_number, format_item_number), ("installation_id", parse_installation_id, format_installation_id), ("loader_id", parse_loader_id, format_loader_id)
         ] {
             for v in contract["identifiers"][name]["vectors"].as_array().unwrap() {
                 assert_eq!(parse(v["input"].as_str().unwrap()), v["value"].as_u64(), "{name}: {v}");
@@ -69,4 +69,22 @@ mod identifier_tests {
         assert!(format_item_number(1000).is_none());
         assert!(format_item_number(9007199254740992).is_none());
     }
+}
+
+pub fn format_installation_id(value: u64) -> Option<String> {
+    format_report_reference(value).map(|r| format!("I{}", &r[1..]))
+}
+pub fn parse_installation_id(value: &str) -> Option<u64> {
+    let compact = compact_identifier(value)?;
+    let symbols = compact.strip_prefix('I')?;
+    parse_report_reference(&format!("R{symbols}"))
+}
+
+pub fn format_loader_id(value: u64) -> Option<String> {
+    format_report_reference(value).map(|r| format!("L{}", &r[1..]))
+}
+pub fn parse_loader_id(value: &str) -> Option<u64> {
+    let compact = compact_identifier(value)?;
+    let symbols = compact.strip_prefix('L')?;
+    parse_report_reference(&format!("R{symbols}"))
 }
