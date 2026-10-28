@@ -275,6 +275,24 @@ static void test_flag_encodings(void){
  put16(frame(0)+0x22,0x7fff);xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(m.deck[0].tempo_x100==32767);
  release(&s);puts("PASS quantize encoding, loop inhibit, cue-exist flag, signed tempo extrema");
 }
+static void test_hot_cue_sentinels(void){
+ for(unsigned deck=0;deck<2;deck++){
+  fixture();struct guarded_storage s=allocate();struct xz_shell_model m={0};
+  put16(frame(deck)+0x76,0);put32(frame(deck)+0x78,1200);put32(frame(deck)+0x7c,UINT32_MAX);
+  xz_shell_model_refresh(&m,s.storage,read_memory,100);
+  assert((m.deck[deck].known&K(HOT_CUES))&&m.deck[deck].hot_cue[0].set&&m.deck[deck].hot_cue[1].set);
+  assert(m.deck[deck].hot_cue[0].ms==1200&&!m.deck[deck].hot_cue[0].is_loop);
+  int32_t out=0;assert(xz_shell_model_hot_cue_out(s.storage,deck,0,&out)&&out==-1);
+  put32(frame(deck)+0x78+0x34*7,UINT32_MAX);put32(frame(deck)+0x7c+0x34*7,UINT32_MAX);
+  put32(frame(deck)+0x78+0x34*2,0);put32(frame(deck)+0x7c+0x34*2,UINT32_MAX);
+  xz_shell_model_refresh(&m,s.storage,read_memory,200);
+  assert((m.deck[deck].known&K(HOT_CUES))&&m.deck[deck].hot_cue[0].set&&!m.deck[deck].hot_cue[7].set);
+  assert(m.deck[deck].hot_cue[2].set&&m.deck[deck].hot_cue[2].ms==0);
+  assert(m.deck[deck].hot_cue[1].is_loop);
+  release(&s);
+ }
+ puts("PASS absent cue OUT and unused pad retain registered marks, including time-zero cues");
+}
 static void test_invalid_data(void){
  fixture();struct guarded_storage s=allocate();struct xz_shell_model m={0};
  put16(title_record(0)+0x20,257);xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(!(m.deck[0].known&K(TITLE)));
@@ -282,7 +300,7 @@ static void test_invalid_data(void){
  xz_shell_model_refresh(&m,s.storage,read_memory,0);assert((m.deck[0].known&K(TITLE))&&strlen(m.deck[0].title)==768);
  put16(title_record(0)+0x22,0xdc00);xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(!(m.deck[0].known&K(TITLE)));
  set_title(0);put16(title_record(0)+0x20,1);put16(title_record(0)+0x22,0xd800);xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(!(m.deck[0].known&K(TITLE)));
- set_title(0);put32(frame(0)+8,UINT32_MAX);put32(frame(0)+0x14,UINT32_MAX);put16(frame(0)+0x26,0);put32(frame(0)+0x78,UINT32_MAX);
+ set_title(0);put32(frame(0)+8,UINT32_MAX);put32(frame(0)+0x14,UINT32_MAX);put16(frame(0)+0x26,0);put32(frame(0)+0x78,UINT32_MAX-1);
  xz_shell_model_refresh(&m,s.storage,read_memory,0);assert(!(m.deck[0].known&(K(TOTAL)|K(BPM)|K(LOOP)|K(HOT_CUES))));
  int32_t out=0;assert(!xz_shell_model_hot_cue_out(s.storage,0,0,&out));
  fixture();put32(0x3201088+0x8c*2,0x100);*at(frame(1)+0x2e,1)=0x80;
@@ -385,7 +403,7 @@ static void test_master_bpm(void){
     puts("PASS master BPM for DECK 3 / 4 SYNC: master deck, none, implausible, guard, torn and failed reads");
 }
 int main(void){
- test_valid_and_input();test_guards();test_torn_and_pointers();test_identity_and_waves();test_flag_encodings();test_invalid_data();
+ test_valid_and_input();test_guards();test_torn_and_pointers();test_identity_and_waves();test_flag_encodings();test_hot_cue_sentinels();test_invalid_data();
  test_fx();test_slip_vinyl();test_settings_bulk();test_master_bpm();
  puts("shell_model: all host acceptance tests passed; no hardware/device/network access");return 0;
 }
