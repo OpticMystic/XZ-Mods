@@ -64,7 +64,7 @@
 .wz-drive-meta{margin:3px 0 0;color:#b3b9b5;font-size:13px}
 .wz-space{max-width:300px;height:4px;margin-top:9px;border-radius:2px;background:#262a2b;overflow:hidden}
 .wz-space span{display:block;width:var(--used);height:100%;border-radius:2px;background:#8b9192}
-.wz-change{align-self:start;margin-top:4px;color:#c9cec9;font-size:13px;text-decoration-color:#596059}.wz-change:hover{color:var(--yellow)}
+.wz-change{align-self:center;padding:8px 14px;font-size:13px}.wz-change:hover{border-color:#6b6a2c;color:#fff98a}
 .wz-status{display:grid;grid-template-columns:40px minmax(0,1fr);gap:16px;padding:22px}
 .wz-status-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:#262a2b;color:#d5d9d6}
 .wz-status[data-tone=add] .wz-status-icon{background:var(--yellow);color:#141500}
@@ -126,7 +126,7 @@
 .wz-safe .icon{width:16px;height:16px;color:#4fbf6a}
 .wz-games-change{display:grid;gap:12px;justify-items:start}
 .wz-games-change .games{justify-self:stretch}
-.wz-nav,.wz-nav-write{align-items:center}
+/* .wz-foot (the bar every step ends in) is at the end of this file */
 .wz-done-hero{display:grid;justify-items:center;gap:12px;padding:8px 0 2px;text-align:center}
 .wz-done-mark{display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:#15301c;color:#6fd389;box-shadow:inset 0 0 0 1px #2f6b3d}
 .wz-done-mark .icon{width:34px;height:34px;stroke-width:2.25}
@@ -506,3 +506,25 @@ details.wz-custom[open]>summary{margin-bottom:0;border-bottom:1px solid #1f2324}
 @media(prefers-reduced-motion:reduce){.wz-quad-art #wz-quad-motion{display:none}}
 
 .wz-support{max-width:620px;margin:auto;padding:16px 0 8px}.wz-support-logo{float:right;margin:0 0 20px 24px;border-radius:16px}.wz-support .wz-eyebrow{display:block;margin:8px 0;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}.wz-support h3{max-width:440px;font-size:28px;line-height:1.2}.wz-support p{line-height:1.6}.wz-support-link{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:24px 0 8px}.wz-support-link code{font-size:14px}.wz-support-credit{border-top:1px solid var(--border);padding-top:20px;margin-top:24px}.wz-support .actions{margin-top:24px}.wz-support a:focus-visible{outline:2px solid currentColor;outline-offset:4px}@media(max-width:700px){.wz-support-logo{width:80px;height:80px;margin-left:12px}.wz-support h3{font-size:24px}}
+
+/* Usability pass 2026-10-27 (Opus 5.5). Every way back lands on the USB list; every guide step ends in one bar,
+   Back on the left and the way forward on the right, that stays in view when the step is taller than the window.
+   overflow:clip keeps the rounded card without making it the bar's scroll container. */
+.wz-flow{overflow:clip}
+.wz-foot{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;padding:12px 22px;border-top:1px solid var(--line);background:#0e1011;box-shadow:0 -10px 18px -14px #000}
+.wz-foot-next{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px 18px;margin-left:auto}
+.wz-back{display:inline-flex;align-items:center;gap:3px;padding-left:8px}
+.wz-back .icon{width:18px;height:18px}
+.wz-foot .text-button{font-size:13px}
+#wiz :is(button,a.button,summary):focus-visible,.wz-usb:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+
+/* The USB list: the folder choice is the last card; drives a loader cannot go on are named in one line. */
+.wz-folder-card{grid-template-columns:44px minmax(0,1fr) 20px;border-style:dashed}
+.wz-folder-card .wz-usb-icon{background:#151819;color:#c9cec9;box-shadow:inset 0 0 0 1px #3d4340}
+.wz-folder-note{color:var(--muted);font-size:12px}
+.wz-skipped{display:flex;align-items:flex-start;gap:8px;max-width:70ch;margin:0;color:#b9bfbb;font-size:12.5px;line-height:1.5;text-align:left}
+.wz-skipped .icon{width:16px;height:16px;margin-top:1px;color:var(--muted)}
+@media(max-width:620px){.wz-foot{padding:10px 14px}
+.wz-drive{grid-template-columns:52px minmax(0,1fr)}
+.wz-change{grid-column:1/-1;justify-self:start}
+}

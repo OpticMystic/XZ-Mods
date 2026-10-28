@@ -269,7 +269,8 @@ function deviceTheme(){
 // --- views ---
 
 function viewNoUsb(){
-  const list=W.usbs;
+  // Only USBs a profile can be saved on are offered, as on the USB page.
+  const list=W.usbs&&setupWizard.usable(W.usbs);
   return el('section',{class:'wz-pane'},
     el('h2',{text:'Your DJ profile'}),
     el('p',{class:'wz-lead',text:'A DJ profile lives on your USB. Find the USB first to see or make one.'}),
