@@ -3,7 +3,13 @@
   "interface": "MODERN",
   "steps": [
     {
-      "key": "PLAYLIST"
+      "key": "BROWSE"
+    },
+    {
+      "turn": 6
+    },
+    {
+      "push": true
     },
     {
       "turn": 2

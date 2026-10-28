@@ -16,10 +16,21 @@ from shell_sources import SHELL_SOURCES
 from ui_sources import UI_SOURCES
 
 
+def linux(path):
+    path = str(Path(path).resolve()).replace('\\', '/')
+    return '/mnt/' + path[0].lower() + path[2:]
+
+
 def build(zig, exe):
-    sources = sorted({(MODS / side / p).resolve() for side, names in [('shell', SHELL_SOURCES), ('ui', UI_SOURCES)] for p in names})
-    subprocess.run([str(Path(zig).resolve()), 'cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                    *(str(p) for p in sources), str(MODS / 'shell/nav_capture.c'), '-o', str(exe)], check=True)
+    sources = {(MODS / side / p).resolve() for side, names in [('shell', SHELL_SOURCES), ('ui', UI_SOURCES)] for p in names}
+    sources.update(MODS / p for p in ['shell/nav_capture.c', 'shell/nav_runtime.c', 'deck_select.c',
+        'ui/native_touch.c', 'ui/stem_pads.c', 'ui/beat_jump.c', 'ui/wave_viewport.c', 'settings.c', 'usb_profile.c',
+        'shell/nav_clock.c', 'doom/wad_catalog.c', 'ota/native_update.c', 'ui/extra_detail.c', 'ui/extra_lane.c',
+        'ui/layered_wave.c', 'key/control.c', 'key/browser.c', 'key/catalog.c', 'key/traffic.c',
+        'arcade/arcade.c', 'arcade/render.c', 'arcade/input.c', 'arcade/clock.c', 'arcade/native_clock.c',
+        'audio/vendor/sha256/sha256.c', 'pc_control/stems.c', 'kart/xz_kart_input.c', 'kart/xz_kart_runtime.c'])
+    subprocess.run(['wsl', '-d', 'Ubuntu', '--', 'gcc', '-O1', '-std=c11', '-Wall', '-Wextra', '-Werror',
+        '-Wno-misleading-indentation', '-Wno-format-truncation', *[linux(p) for p in sorted(sources)], '-pthread', '-ldl', '-lm', '-o', linux(exe)], check=True)
 
 
 class Capture:
@@ -27,7 +38,12 @@ class Capture:
         self.folder = folder
         folder.mkdir(parents=True, exist_ok=True)
         self.raw = folder / 'screen.ppm'
-        self.proc = subprocess.Popen([str(exe), str(self.raw)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        import array
+        with Image.open(ROOT/'manual/captures/classic-play.png') as bg:
+            values = array.array('H', [((r>>3)<<11)|((g>>2)<<5)|(b>>3) for r,g,b in bg.convert('RGB').getdata()])
+        self.background = folder/'stock.rgb565'
+        self.background.write_bytes(values.tobytes())
+        self.proc = subprocess.Popen(["wsl", "-d", "Ubuntu", "--", linux(exe), linux(self.raw), linux(self.background)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         self.t = 0
         self.timeline = []
         self.frames = []
@@ -97,6 +113,36 @@ class Capture:
             else:
                 w = matches[step.get('match', 0)]
                 self.tap(w['x'], w['y'], label)
+        elif 'settings' in step:
+            controls = [(w['kind'], w['index']) for w in self.state['widgets'] if w.get('setting')]
+            if not controls:
+                raise RuntimeError('no supported setting controls on page')
+            for kind, index in controls:
+                w = next(w for w in self.state['widgets'] if w.get('kind') == kind and w.get('index') == index)
+                self.tap(w['x'], w['y'], w['label'] or f'setting {kind}:{index}')
+        elif 'type' in step:
+            for char in step['type']:
+                matches = [w for w in self.state['widgets'] if w.get('index') == ord(char) and w.get('keyboard')]
+                if not matches and char.isalpha():
+                    shift = next(w for w in self.state['widgets'] if w['label'] in ('SHIFT', 'SHIFT ON'))
+                    self.tap(shift['x'], shift['y'], 'keyboard SHIFT')
+                    matches = [w for w in self.state['widgets'] if w.get('index') == ord(char) and w.get('keyboard')]
+                if len(matches) != 1:
+                    raise RuntimeError(f'keyboard character {char!r} unavailable')
+                self.tap(matches[0]['x'], matches[0]['y'], f'keyboard {char}')
+        elif 'shift' in step:
+            side = step.get('side', 0)
+            self.send('physical', 0 if step['shift'] else 100, side,
+                      ('left' if side == 0 else 'right') + ' deck SHIFT', 'press' if step['shift'] else 'release')
+            self.wait(120)
+        elif 'gesture' in step:
+            g = step['gesture']
+            side = step.get('side', 0)
+            control = g if step['code'] == 30 else ('left' if side == 0 else 'right') + ' deck ' + g
+            self.send('physical', step['code'], side, control, 'press', g)
+            self.wait(120)
+            self.send('physical', step['code'] + 100, side, control, 'release', g)
+            self.wait(step.get('dwell', 180))
         elif 'touch' in step:
             self.tap(*step['touch'])
         elif 'turn' in step:
@@ -110,12 +156,19 @@ class Capture:
             self.wait(380)
         elif 'back' in step:
             self.send('back', control='BACK', action='press')
-            self.wait(500)
+            self.wait(120)
+            self.send('wait', control='BACK', action='release')
+            self.wait(380)
         elif 'key' in step:
-            keys = {'BROWSE': 2, 'TAG LIST': 3, 'PLAYLIST': 4, 'SEARCH': 5, 'MENU': 6,
-                    'MENU hold': 7, 'SHORTCUT': 8, 'INFO': 9, 'SOURCE': 10, 'LOAD': 14, 'TRACK FILTER': 17, 'MODS': 22}
+            keys = {'BROWSE': 2, 'TAG LIST': 3, 'BROWSE hold': 20, 'MENU': 6,
+                    'MENU hold': 7, 'SHORTCUT': 8, 'INFO': 9, 'SOURCE': 10, 'LOAD': 14, 'TRACK FILTER': 17, 'QUANTIZE': 13}
+            if 'hold' in step['key']:
+                self.send('wait', control=step['key'].split(' hold')[0], action='press')
+                self.wait(1000)
             self.send('key', keys[step['key']], control=step['key'].split(' hold')[0], action='hold' if 'hold' in step['key'] else 'press')
-            self.wait(500)
+            self.wait(120)
+            self.send('wait', control=step['key'].split(' hold')[0], action='release', detail='activation handler completed')
+            self.wait(380)
         if 'expect_page' in step and self.state['page'] != step['expect_page']:
             raise RuntimeError(f'{self.folder.name}: expected page {step["expect_page"]}, got {self.state}')
 
@@ -125,6 +178,7 @@ class Capture:
         if self.proc.returncode:
             raise RuntimeError(f'C renderer exited {self.proc.returncode}')
         self.raw.unlink(missing_ok=True)
+        self.background.unlink(missing_ok=True)
 
     def finish(self):
         self.wait(1000)
@@ -144,7 +198,7 @@ class Capture:
 def inputs():
     # Include transitive local headers as well as the renderer and handler closures. No mtimes or absolute paths.
     paths = list(MODS.rglob('*.h')) + [MODS/side/p for side,names in [('shell',SHELL_SOURCES),('ui',UI_SOURCES)] for p in names]
-    paths += [ROOT/'manual/captures/classic-play.png', MODS/'shell/shell_sources.py', MODS/'ui/ui_sources.py', MODS/'shell_runtime.h', MODS/'shell/nav_capture.c', Path(__file__), *sorted((ROOT/'manual/nav').glob('*.json')), *sorted((ROOT/'manual/chapters').glob('*.md'))]
+    paths += [ROOT/'manual/captures/classic-play.png', MODS/'shell/shell_sources.py', MODS/'ui/ui_sources.py', MODS/'shell_runtime.h', ROOT/'tools/verify_nav_device_objects.py', MODS/'shell/nav_capture.c', MODS/'shell/nav_runtime.c', MODS/'ui_runtime.c', *MODS.rglob('*.c'), MODS/'ui/stem_pads.c', MODS/'ui/beat_jump.c', MODS/'deck_select.c', Path(__file__), *sorted((ROOT/'manual/nav').glob('*.json')), *sorted((ROOT/'manual/chapters').glob('*.md'))]
     return {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(set(p.resolve() for p in paths))}
 
 
@@ -153,11 +207,18 @@ def main():
     p.add_argument('--zig', required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--flow')
+    p.add_argument('--exe', type=Path, help='development only: reuse a locally built host binary')
     p.add_argument('--check', action='store_true', help='verify retained source and output hashes without rendering')
     a = p.parse_args()
+    for script in (ROOT/'manual/nav').glob('*.json'):
+        for step in json.loads(script.read_text())['steps']:
+            if step.get('key') in ('PLAYLIST', 'SEARCH', 'MODS'):
+                raise SystemExit(f'nonphysical entry key in {script.name}: {step["key"]}')
     if a.check:
         manifest = json.loads((a.out/'manifest.json').read_text())
         expected = {p.stem for p in (ROOT/'manual/nav').glob('*.json') if not a.flow or p.stem == a.flow}
+        if manifest.get('reused_binary'):
+            raise SystemExit('development binary reuse is not acceptable capture evidence')
         if set(manifest['flows']) != expected:
             raise SystemExit('INCOMPLETE: manifest flow set does not match requested scripts')
         if manifest['source_sha256'] != inputs():
@@ -165,7 +226,26 @@ def main():
         for name,digest in manifest['outputs_sha256'].items():
             if hashlib.sha256((a.out/name).read_bytes()).hexdigest() != digest:
                 raise SystemExit(f'CORRUPT: {name}')
-        print('navigation captures current; output hashes match')
+        for name in expected:
+            required = [f'{name}/timeline.json', f'{name}/frames.json', f'{name}/preview.webp']
+            if any(path not in manifest['outputs_sha256'] for path in required):
+                raise SystemExit(f'missing output hash: {name}')
+            flow = json.loads((ROOT/'manual/nav'/f'{name}.json').read_text())
+            timeline = json.loads((a.out/name/'timeline.json').read_text())
+            frames = json.loads((a.out/name/'frames.json').read_text())
+            if not timeline or not frames['frames'] or any(b['t_ms'] < x['t_ms'] for x,b in zip(timeline,timeline[1:])):
+                raise SystemExit(f'invalid timeline: {name}')
+            if any(f['hold_ms'] <= 0 or not (a.out/name/f['frame']).is_file() for f in frames['frames']):
+                raise SystemExit(f'invalid frames: {name}')
+            if sum(f['hold_ms'] for f in frames['frames']) != frames['duration_ms']:
+                raise SystemExit(f'invalid duration: {name}')
+            for host,kind,index in flow.get('requires_actions', []):
+                if not any(e['host']==host and e['kind']==kind and e['index']==index for t in timeline for e in t['effects']):
+                    raise SystemExit(f'missing action: {name}: {host}:{kind}:{index}')
+            for host,kind in flow.get('requires_effects', []):
+                if not any(e['host']==host and e['kind']==kind for t in timeline for e in t['effects']):
+                    raise SystemExit(f'missing handler effect: {name}: {host}:{kind}')
+        print('navigation captures current; output hashes, physical entries, effects and timing match')
         return
     a.out.mkdir(parents=True, exist_ok=True)
     scripts = sorted((ROOT/'manual/nav').glob('*.json'))
@@ -176,8 +256,9 @@ def main():
     counts = {}
     captured_inputs = inputs()
     with tempfile.TemporaryDirectory(prefix='xz-nav-') as temp:
-        exe = Path(temp)/'nav.exe'
-        build(a.zig, exe)
+        exe = a.exe or Path(temp)/'nav.exe'
+        if not a.exe:
+            build(a.zig, exe)
         for script in scripts:
             flow = json.loads(script.read_text())
             folder = a.out/script.stem
@@ -194,8 +275,11 @@ def main():
                 for step in steps:
                     c.step(step)
                 for host,kind in flow.get('requires_effects', []):
-                    if not any(e['host'] == host and e['kind'] == kind for event in c.timeline for e in event['effects']):
+                    if not any(e['host']==host and e['kind']==kind for t in c.timeline for e in t['effects']):
                         raise RuntimeError(f'{script.stem}: required {host} action {kind} never emitted')
+                for host,kind,index in flow.get('requires_actions', []):
+                    if not any(e['host']==host and e['kind']==kind and e['index']==index for t in c.timeline for e in t['effects']):
+                        raise RuntimeError(f'{script.stem}: missing action {host}:{kind}:{index}')
                 counts[script.stem] = c.finish()
                 print(script.stem, counts[script.stem], flush=True)
             finally:
@@ -213,7 +297,7 @@ def main():
     sheet.save(a.out/'contact-sheet.png')
     if inputs() != captured_inputs:
         raise RuntimeError('sources changed during capture; discard this batch and rerun')
-    manifest = {'schema': 1, 'toolchain': {'zig': subprocess.check_output([str(Path(a.zig).resolve()), 'version'], text=True).strip(), 'python': sys.version.split()[0], 'pillow': PIL.__version__}, 'device_access': False, 'installed': False, 'timing': 'script clock; complete real C redraw after input and each 12ms (shell_runtime.h live-frame cadence) during holds; identical adjacent pixels deduplicated',
+    manifest = {'schema': 2, 'reused_binary': bool(a.exe), 'toolchain': {'host': subprocess.check_output(['wsl','-d','Ubuntu','--','gcc','-dumpfullversion'],text=True).strip(), 'zig': subprocess.check_output([str(Path(a.zig).resolve()), 'version'], text=True).strip(), 'python': sys.version.split()[0], 'pillow': PIL.__version__}, 'device_access': False, 'installed': False, 'timing': 'script clock; complete real C redraw after input and each 12ms (shell_runtime.h live-frame cadence) during holds; identical adjacent pixels deduplicated',
                 'source_sha256': captured_inputs, 'flows': counts,
                 'outputs_sha256': {f.relative_to(a.out).as_posix(): hashlib.sha256(f.read_bytes()).hexdigest() for f in sorted(a.out.rglob('*')) if f.is_file() and f.name != 'manifest.json'}}
     (a.out/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')

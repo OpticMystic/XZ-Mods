@@ -1,0 +1,39 @@
+{
+  "section": "extras#after-you-send",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 12,
+      "detail": "Local report callback outcome error"
+    },
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "REPORT AN ISSUE",
+      "expect_page": 34
+    },
+    {
+      "turn": 2
+    },
+    {
+      "select": "SOMETHING ISN'T WORKING"
+    },
+    {
+      "type": "test report"
+    },
+    {
+      "tap": "NEXT"
+    },
+    {
+      "tap": "SEND REPORT"
+    },
+    {
+      "wait": 600
+    }
+  ]
+}

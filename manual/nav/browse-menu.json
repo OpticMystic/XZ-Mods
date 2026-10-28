@@ -6,6 +6,9 @@
       "key": "BROWSE"
     },
     {
+      "push": true
+    },
+    {
       "key": "MENU"
     },
     {
