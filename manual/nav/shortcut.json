@@ -1,0 +1,24 @@
+{
+  "section": "play-screen#shortcut",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "SHORTCUT"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "back": true
+    }
+  ]
+}

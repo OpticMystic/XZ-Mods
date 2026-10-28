@@ -1,0 +1,21 @@
+{
+  "interface": "MODERN",
+  "section": "extras#my-house",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "GAMES"
+    },
+    {
+      "tap": "MY HOUSE / SETUP"
+    },
+    {
+      "turn": 1
+    }
+  ]
+}
