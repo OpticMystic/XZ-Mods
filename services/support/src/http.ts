@@ -5,6 +5,7 @@ export type Row = {
   id: string; digest: string; key_hash: string; object_key: string; bytes: number;
   state: 'reserved' | 'accepted' | 'deleting' | 'gone'; reserved_at: number;
   accepted_at: number | null; expires_at: number | null; gone_at: number | null;
+  installation_id:string|null; loader_id:string|null; is_pending:number;
   protocol_version: 1 | 2; legacy_public_consent: number;
   public_json: string | null; issue_state: 'pending' | 'user_provided' | 'verified'; issue_url: string | null;
 };
