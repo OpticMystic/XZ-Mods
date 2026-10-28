@@ -57,7 +57,7 @@ int xz_native_touch_dispatch(struct xz_native_touch*t,void*self,const struct xz_
  }
  if(!t->visible&&!t->capture&&s->down&&!previous.down&&stems_btn(t,s)) {
   t->capture=1;t->opening_contact=1;
-  struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};
+  struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY,.index=XZ_UI_STEMS_BUTTON};
   if(t->apply)t->apply(t->context,&act,1);
  }
  if(!t->visible&&!t->capture&&s->down&&!previous.down&&badge(t,s)) {

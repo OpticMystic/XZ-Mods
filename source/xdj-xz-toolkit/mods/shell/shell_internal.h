@@ -234,6 +234,8 @@ int sh_play_dismiss(struct xz_shell *, int back);
 void sh_play_overlay_publish(struct xz_shell *, const struct xz_shell_model *);
 /* Mod header buttons (shell.c): drawn over every screen; hit tests padded to XZ_SHELL_HEADER_HIT_H. */
 void sh_header_buttons(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_canvas c);
+/* PLAY shows four lanes (DECK VIEW 4 DECKS, or four decks playing without a published view) (shell_play.c). */
+int sh_play_four(const struct xz_shell *u, const struct xz_shell_model *m);
 enum xz_shell_action_kind sh_header_hit(int x, int y);
 /* Runtime notice toast (shell_draw.c): shown, its box, and how many lines it wraps to (1 or 2). */
 int sh_notice_shown(const struct xz_shell_model *m);
