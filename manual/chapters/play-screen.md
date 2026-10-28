@@ -159,7 +159,7 @@ Press [[SHORTCUT]] on the play screen to see the settings you change most during
 ```figure modern:screen-shortcut SHORTCUT {modern}
 The SHORTCUT screen with quantize, waveform and time settings for both decks.
 1 @ 205,68 Highlighted row | Turn the encoder to move between rows. The line under the title explains the highlighted row.
-2 @ 125,130 Locked value | A lock means XZ Mods shows this value but cannot change it here. Push or tap it and the player's own UTILITY opens at that item.
+2 @ 125,130 Locked value | A lock and READ ONLY HERE mean XZ Mods shows this value but cannot change it here. Pushing or tapping it does nothing.
 3 @ 240,174 Choice buttons | Tap a value to change it. The lit button is the current value.
 4 @ 430,92 DECK 1 lamps | QUANTIZE (or Q1), SYNC, SLIP, MASTER and the time mode for deck 1. Tap QUANTIZE to switch it, tap REMAIN or TIME to change the time mode.
 5 @ 745,49 LINK lamp | Shows whether the player is linked to other players.
@@ -168,7 +168,7 @@ The SHORTCUT screen with quantize, waveform and time settings for both decks.
 8 @ 600,295 MY SETTINGS | Time mode, play mode and auto cue for the decks.
 ```
 
-Which rows you can change depends on what the player lets XZ Mods write. Rows with a lock always open the player's own UTILITY, where you change them the stock way. A short [[MENU]] on SHORTCUT opens MODS.
+Which rows you can change depends on what the player lets XZ Mods write. PLAYER SETTINGS includes NEEDLE LOCK, so you can lock or unlock touch search without leaving SHORTCUT. A short [[MENU]] on SHORTCUT opens MODS.
 
 ```gallery {modern}
 modern:settings-shortcut-full Every row available, with HOT CUE AUTO LOAD and AUTO CUE LEVEL

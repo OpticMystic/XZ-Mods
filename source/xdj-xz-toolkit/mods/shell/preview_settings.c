@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);shot(&u,&m,"settings-utility-rail");
  push(&u,&m);turn(&u,&m,100);shot(&u,&m,"settings-utility-items-deep");
  turn(&u,&m,-100);turn(&u,&m,3);push(&u,&m);shot(&u,&m,"settings-utility-values");
- open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,1);push(&u,&m);push(&u,&m);turn(&u,&m,-1);shot(&u,&m,"settings-utility-values-writable");
+ open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,1);push(&u,&m);turn(&u,&m,3);push(&u,&m);shot(&u,&m,"settings-utility-values-writable");
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,1);push(&u,&m);turn(&u,&m,4);push(&u,&m);turn(&u,&m,11);shot(&u,&m,"settings-utility-values-scrolled");
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,1);push(&u,&m);turn(&u,&m,3);shot(&u,&m,"settings-utility-unknown");
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD);turn(&u,&m,4);push(&u,&m);turn(&u,&m,3);shot(&u,&m,"settings-utility-mixer-unknown");
