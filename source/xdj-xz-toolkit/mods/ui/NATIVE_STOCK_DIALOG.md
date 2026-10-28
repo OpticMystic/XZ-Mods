@@ -134,14 +134,30 @@ to it meant MODS never came back with the cable plugged in.
 `E-8307: UNSUPPORTED DEVICE` (the firmware's English
 `STR_CHAR_DEV_UNSUPPORTED` texts) does not take the screen. Every other text,
 including `E-8307: USB ACCESS ERROR` and `E-8307: DEVICE NO RESPONSE`, other
-languages, and unreadable or torn text, still yields. The warning is never
-hidden: `xz_stock_usb_hub_text()` feeds the MODS dock's title row in both
-interfaces (code, the firmware text, then "FROM THE LOOPBACK CABLE. DECKS 3 AND
-4 ARE READY." when the route is up, or "FROM THE LOOPBACK CABLE OR A HUB IN A
-TOP USB PORT." otherwise), MODERN's play screen raises one notice when it
-appears, and CLASSIC's stock banner stays on the stock screen. Stopping the
-firmware from raising it at all would need the kernel-side refusal avoided,
-which is outside this runtime.
+languages, and unreadable or torn text, still yields.
+
+What MODS shows for it follows `../hub_cause.h` (owner, 2026-10-27: the cable's
+own hub must not read as an error). When the decks 3 and 4 route proves the
+cable (READY, or a checked STARTING / WAITING_NATIVE_STOP, which only a helper
+that found the cable or an admitted music hub publishes), there is no error:
+no dock strip, no play-screen notice, and in CLASSIC the player's own window
+shows a calm LOOPBACK CABLE CONNECTED card. Otherwise, after a 3 s settle while
+the helper looks for the cable, the dock's title row shows the code, the
+firmware text and "FROM A HUB OR THE LOOPBACK CABLE IN A TOP USB PORT.", MODERN
+raises "E-8307 HUBS ARE NOT SUPPORTED: CHECK THE TOP USB PORTS" once, and
+CLASSIC leaves the stock window as drawn.
+
+The CLASSIC card uses the existing caution-window skin path
+(`native_raw_skin.c` kind 2, the GR lock/unlock pair the theme recolour already
+uses). At unlock it reads the window's own text buffer (browse callers
+`0x147bc0`/`0x147dec`, status caller `0x148444`) with the observer's exact
+two-read match (`xz_stock_usb_hub_at`). For the hub text it keeps the stock
+pixels and, while `xz_native_raw_skin_hub_calm(1)`, paints the card over the
+window's own pixels in its own rectangle. A cause change requests the native
+repaint; the owner-thread repaint relocks that window and paints the card or
+restores the stock pixels. The observer itself still writes no firmware memory
+and installs no hook. Stopping the firmware from raising the warning at all
+would need the kernel-side refusal avoided, which is outside this runtime.
 
 ## Verification and limits
 

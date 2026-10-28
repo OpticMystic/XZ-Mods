@@ -90,7 +90,7 @@ modern:play-notice-long A long notice wraps onto two lines
 | DECK 3 AND 4 ARE NOT RUNNING | Set up four decks first. See [Four decks](four-decks) |
 | KEY SHIFT REFUSED: AUDIO LOAD TOO HIGH | The measured audio workload leaves too little headroom for a new shift. Current shifts keep running. Check SYSTEM READOUT and retry when the load falls. See [Keys and KEY SYNC](performance#keys-and-key-sync) |
 | THIS DECK IS MASTER | KEY SYNC matches a deck to the master. Make another deck the master first |
-| E-8307 HUBS ARE NOT SUPPORTED: FROM THE LOOPBACK CABLE | Expected with the loopback cable. See [below](#e-8307-hubs-are-not-supported) |
+| E-8307 HUBS ARE NOT SUPPORTED: CHECK THE TOP USB PORTS | The player refused a hub in a top USB port, and decks 3 and 4 have not found the loopback cable. See [below](#e-8307-hubs-are-not-supported) |
 | THIS DJ PROFILE CANNOT BE READ | Make the profile again in the XZ Mods app. See [Connect and DJ profiles](connect#when-a-profile-will-not-save-or-show) |
 
 ## Errors on a deck
@@ -124,13 +124,12 @@ The player's own warning windows, for example about a USB or a device, take the 
 
 ### E-8307: HUBS ARE NOT SUPPORTED
 
-The player sees the loopback cable for four decks as a hub. It shows **E-8307: HUBS ARE NOT SUPPORTED** or **E-8307: UNSUPPORTED DEVICE** and keeps it up while the cable is in. This one warning does not take the screen.
+The player sees the loopback cable for four decks as a hub. It raises **E-8307: HUBS ARE NOT SUPPORTED** or **E-8307: UNSUPPORTED DEVICE** and keeps it up while the cable is in. This one warning does not take the screen.
 
-- While MODS is open, the warning sits in the strip at the top of the dock, with **FROM THE LOOPBACK CABLE. DECKS 3 AND 4 ARE READY.** once they run, or **FROM THE LOOPBACK CABLE OR A HUB IN A TOP USB PORT.** before.
-- In MODERN the play screen shows **E-8307 HUBS ARE NOT SUPPORTED: FROM THE LOOPBACK CABLE** once.
-- In CLASSIC the player's own banner stays on its screen.
+- Once decks 3 and 4 have found the cable, XZ Mods shows no error. In CLASSIC the player's window turns into a calm **LOOPBACK CABLE CONNECTED** card.
+- Otherwise, after three seconds, the strip at the top of the MODS dock shows the warning with **FROM A HUB OR THE LOOPBACK CABLE IN A TOP USB PORT.**, MODERN's play screen shows **E-8307 HUBS ARE NOT SUPPORTED: CHECK THE TOP USB PORTS** once, and CLASSIC keeps the player's own window.
 
-With the loopback cable in, this is expected and you can play on. Without the cable, a hub or another device the player does not support is in a top USB port. Remove it. Every other E-8307 message, such as **E-8307: USB ACCESS ERROR**, takes the screen as usual. See [Four decks](four-decks#the-e-8307-hub-warning).
+If you use four decks, set them up: the warning goes quiet once decks 3 and 4 find the cable. If you do not, a hub or another device the player does not support is in a top USB port. Remove it, or remove the loopback cable. Every other E-8307 message, such as **E-8307: USB ACCESS ERROR**, takes the screen as usual. See [Four decks](four-decks#the-e-8307-hub-warning).
 
 ## When settings cannot be saved
 

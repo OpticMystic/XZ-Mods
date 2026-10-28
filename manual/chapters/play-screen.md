@@ -152,6 +152,8 @@ modern:parity-alert-emergency EMERGENCY LOOP on deck 2
 modern:parity-alert-read CANNOT READ THE TRACK with error E-8302
 ```
 
+A deck that plays its whole track from RAM after the music USB went out is not in trouble, so its lane says so in teal instead: **WHOLE TRACK IN RAM · PLAYABLE**, in the waveform's place. See [RAM tracks](performance#when-the-music-usb-goes-out).
+
 ## SHORTCUT {modern}
 
 Press [[SHORTCUT]] on the play screen to see the settings you change most during a set on one page. It has the same four groups as the player's own SHORTCUT screen: PLAYER SETTINGS, DECK STATUS, DEVICE SETTINGS and MY SETTINGS. Press [[BACK]] or tap the arrow in the top left corner to return to the play screen.
@@ -214,6 +216,8 @@ In CLASSIC, **SCREEN** offers three scrolling waveforms. The setting is `wave_mo
 | STEMS | Drums, harmonics and vocals layered in their stem colours. A track without prepared stems shows 3-BAND |
 
 The overview in each deck strip stays the player's own in every choice.
+
+When a deck plays its whole track from RAM after the music USB went out, a teal card in its lane says **WHOLE TRACK IN RAM · PLAYABLE** where the waveform was. See [RAM tracks](performance#when-the-music-usb-goes-out).
 
 ## If something looks wrong
 

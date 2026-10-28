@@ -28,6 +28,7 @@ static unsigned usb_hub_window(xz_stock_dialog_read read,uint32_t at){
  }
  return 0;
 }
+unsigned xz_stock_usb_hub_at(xz_stock_dialog_read read,uint32_t text){return read?usb_hub_window(read,text):0;}
 int xz_stock_dialog_snapshot(xz_stock_dialog_read read,struct xz_stock_dialog_state *s){
  static const unsigned char browse[16]={0xf0,0x4f,0x2d,0xe9,0x04,0x8b,0x2d,0xed,0xfc,0xd0,0x4d,0xe2,0x59,0x6b,0xfe,0xeb};
  static const unsigned char status[16]={0xf0,0x4f,0x2d,0xe9,0xa4,0xd0,0x4d,0xe2,0x55,0x67,0xfe,0xeb,0x00,0x00,0x50,0xe3};
@@ -36,7 +37,7 @@ int xz_stock_dialog_snapshot(xz_stock_dialog_read read,struct xz_stock_dialog_st
  memset(s,0,sizeof *s);
  if(!read){s->failure=XZ_STOCK_NO_READER;return -1;}
  const unsigned char *const expected[2]={browse,status};
- const uint32_t code[2]={0x146fcc,0x147f08},cell[2]={0x1adae30,0x1adaea4},text[2]={0x1ada958,0x1ada718};
+ const uint32_t code[2]={0x146fcc,0x147f08},cell[2]={0x1adae30,0x1adaea4},text[2]={XZ_STOCK_BROWSE_TEXT,XZ_STOCK_STATUS_TEXT};
  const enum xz_stock_dialog_failure code_read[2]={XZ_STOCK_BROWSE_CODE_READ,XZ_STOCK_STATUS_CODE_READ};
  const enum xz_stock_dialog_failure mismatch[2]={XZ_STOCK_BROWSE_GUARD,XZ_STOCK_STATUS_GUARD};
  for(unsigned i=0;i<2;i++){

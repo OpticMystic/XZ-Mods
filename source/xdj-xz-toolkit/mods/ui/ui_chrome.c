@@ -235,8 +235,9 @@ static void counter_strip(struct xz_canvas c,const struct xz_ui *u,const struct 
   x+=room+20;
  }
 }
-/* The E-8307 hub warning in the counter strip's place and colours: the firmware's code and text, then what it is
-   about. No control: RESCAN and the cable steps live on the 4 DECKS page. */
+/* The E-8307 hub warning in the counter strip's place and colours: the firmware's code and text, then what it may
+   be about. Shown only when the decks 3 and 4 route does not prove the loopback cable (../hub_cause.h): from the
+   cable it is no error and the strip never appears. No control: RESCAN and the cable steps live on the 4 DECKS page. */
 static void hub_strip(struct xz_canvas c,const struct xz_ui *u,const struct xz_ui_model *m){
  enum { FILL=0x5a0c0c, EDGE=0xff4619, TEXT=0xffc8b4, H=XZ_UI_COUNTER_H };
  int y=XZ_UI_COUNTER_Y,ty=y+(H-9)/2,x=14;
@@ -249,8 +250,7 @@ static void hub_strip(struct xz_canvas c,const struct xz_ui *u,const struct xz_u
  xz_text(c,x,ty,rest,1,40,TEXT);x+=xz_text_width(c,rest,1,40)+14;
  int end=report_button(c,u,m,XZ_UI_COUNTER_W-8),tight=end<XZ_UI_COUNTER_W-8;
  /* With REPORT THIS beside it the reason says the same in fewer words. */
- const char *why=m->route.state==XZ_UI_ROUTE_READY?(tight?"FROM THE LOOPBACK CABLE. DECKS 3 AND 4 READY.":"FROM THE LOOPBACK CABLE. DECKS 3 AND 4 ARE READY."):
-  tight?"FROM THE LOOPBACK CABLE OR A HUB IN A TOP PORT.":"FROM THE LOOPBACK CABLE OR A HUB IN A TOP USB PORT.";
+ const char *why=tight?"FROM A HUB OR THE LOOPBACK CABLE IN A TOP PORT.":"FROM A HUB OR THE LOOPBACK CABLE IN A TOP USB PORT.";
  if(x<end-4)xz_text(c,x,ty,why,1,(end-x)/6,0xffffff);
 }
 void xz_ui_chrome_dock(const struct xz_ui_scene *s,uint32_t bg,uint32_t ink,uint32_t dim,uint32_t accent,uint32_t alarm){

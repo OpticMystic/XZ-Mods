@@ -7,6 +7,9 @@ int xz_native_raw_skin_start(int (*stock_lock)(void *,void **,int *),int (*stock
 void xz_native_raw_skin_locked(void *gr,void **pixels,int *pitch,uintptr_t caller,int result);
 void xz_native_raw_skin_before_unlock(void *hw);
 void xz_native_raw_skin_repaint(void);
+/* Any thread: 1 while the loopback cable explains the player's E-8307 hub window (../hub_cause.h). The window
+   shows the calm LOOPBACK CABLE CONNECTED card when next drawn or repainted; 0 gives it back its stock pixels. */
+void xz_native_raw_skin_hub_calm(int calm);
 struct xz_native_raw_skin_proof {
  uint32_t version,captures,markers,alerts,repaints,rejected,cache_full,unknown_colors,evictions;
 };

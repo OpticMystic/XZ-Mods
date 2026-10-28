@@ -35,7 +35,7 @@ if args.arch=='host':
 else:
     flags+=['-march=armv7-a','-mfpu=vfpv3-d16','-mfloat-abi=softfp']
 units=['shell/shell.c','shell/shell_draw.c','shell/shell_play.c','shell/shell_wave.c','shell/shell_browse.c',
-       'shell/shell_settings.c','shell/shell_info.c','shell/shell_source.c','ui/ui_draw.c','ui/pictures.c','ui/cable_anim.c',
+       'shell/shell_settings.c','shell/shell_info.c','shell/shell_source.c','ui/ui_draw.c','ui/pictures.c','ui/cable_anim.c','ui/ram_notice.c',
        'shell_runtime_core.c','shell_library.c','shell_playlists.c','shell_mysettings.c','my_settings.c',
        'shell_utility.c','pdb/pdb.c','ui/ui.c','key/native_browse.c','extra_player.c']
 fixture=root/'tests/test_wave_cadence.c'
