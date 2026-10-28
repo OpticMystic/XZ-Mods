@@ -22,7 +22,7 @@ before(async () => {
       return new Response(JSON.stringify(github.body),{status:github.status,headers:{'Content-Type':'application/json'}});
     }}));
   db=await mf.getD1Database('DB'); bucket=await mf.getR2Bucket('REPORTS');
-  for(const name of ['0001_reports.sql','0002_bugdesk_tracking.sql','0003_support_identifiers.sql']) await applyMigration(db,name);
+  for(const name of ['0001_reports.sql','0002_bugdesk_tracking.sql','0003_support_identifiers.sql','0004_controller_queue.sql']) await applyMigration(db,name);
 });
 after(async () => { await mf?.dispose(); });
 beforeEach(async () => {

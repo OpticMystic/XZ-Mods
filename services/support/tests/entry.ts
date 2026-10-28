@@ -10,6 +10,9 @@ export default {
       await cleanup(env,Number(req.headers.get('test-now')));
       return new Response('ok');
     }
+    if(new URL(req.url).pathname === '/__test/controller-identifiers') {
+      return json({installation_id:identifiers.CONTRACT.identifiers.installation_id.vectors.map(v=>identifiers.parseInstallationId(v.input)),loader_id:identifiers.CONTRACT.identifiers.loader_id.vectors.map(v=>identifiers.parseLoaderId(v.input))});
+    }
     if(new URL(req.url).pathname === '/__test/identifiers') {
       return json(Object.fromEntries(['report_reference','item_number'].map(name => {
         const report=name==='report_reference';

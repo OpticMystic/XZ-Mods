@@ -1,3 +1,4 @@
+import { controllerRoutes, completionDetails, expireReminders, type PendingAdmission } from './controller-queue';
 import { acceptWithReference, ownerLookup } from './identifiers';
 import { formatItemNumber } from './contract.generated';
 import { parseReportV2 } from './schema-v2';
@@ -28,14 +29,16 @@ async function receipt(r: Row, env: Env, db: DB) {
     accepted_at:new Date(r.accepted_at).toISOString(),expires_at:new Date(r.expires_at).toISOString(),
     private_logs:'stored',public_issue:r.issue_state,github_draft_url:`${env.PUBLIC_ORIGIN}/r/${r.id}/github`,issue_url:r.issue_url};
 }
-export async function submit(req: Request, env: Env, db: DB, now: number, v2 = false, referenceGenerator?: () => string): Promise<Response> {
+export async function submit(req: Request, env: Env, db: DB, now: number, v2 = false, referenceGenerator?: () => string, pending?:PendingAdmission): Promise<Response> {
   const length = bodyLength(req,MAX);
   const id = req.headers.get('X-Report-ID') ?? '';
   const digest = req.headers.get('X-Report-SHA256') ?? '';
   if (!new RegExp(`^${ID}$`).test(id) || !SECRET.test(digest) ||
       req.headers.get('X-Report-Consent') !== (v2 ? 'private-report/v2' : 'public-summary-private-logs/v1')) fail(400,'invalid_headers');
-  const keyHash = await sha(bearer(req));
+  let keyHash = pending?.keyHash ?? await sha(bearer(req));
   let previous = await row(db,id);
+  if(previous && (previous.is_pending===1)!==!!pending) fail(409,'conflict');
+  if(previous && pending) keyHash=previous.key_hash;
   if(!previous && await db.prepare('SELECT report_id FROM report_references WHERE report_id=?').bind(id).first()) fail(409,'retained_report_id');
   if (previous && (!equal(previous.key_hash,keyHash) || previous.digest !== digest || previous.bytes !== length)) fail(409,'conflict');
   if (previous && previous.state !== 'accepted') active(previous,now);
@@ -43,17 +46,22 @@ export async function submit(req: Request, env: Env, db: DB, now: number, v2 = f
     const day = new Date(now).toISOString().slice(0,10);
     const ip = req.headers.get('CF-Connecting-IP');
     if (!ip || ip.length > 64) fail(503,'rate_identity_unavailable');
-    const ipKey = await ipHash(env,day,ip);
+    const ipKey = pending ? await ipHash(env,day,'queue:'+pending.installationId+':'+(pending.loaderId ?? id)) : await ipHash(env,day,ip);
     try {
-      await db.prepare(`INSERT INTO reports(id,digest,key_hash,object_key,ip_hash,day,bytes,state,reserved_at)
-        SELECT ?,?,?,?,?,?,?,'reserved',? WHERE NOT EXISTS(SELECT 1 FROM reports WHERE id=?)`)
-        .bind(id,digest,keyHash,`reports/${day}/${id}/${crypto.randomUUID()}`,ipKey,day,length,now,id).run();
+      await db.prepare(`INSERT INTO reports(id,digest,key_hash,object_key,ip_hash,day,bytes,state,reserved_at,origin,installation_id,loader_id,loader_key_hash,is_pending)
+        SELECT ?,?,?,?,?,?,?,'reserved',?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM reports WHERE id=?)`)
+        .bind(id,digest,keyHash,`reports/${day}/${id}/${crypto.randomUUID()}`,ipKey,day,length,now,pending?'controller':'loader',pending?.installationId??null,pending?.loaderId??null,pending?.loaderKeyHash??null,pending?1:0,id).run();
     } catch (e) {
+      if (e instanceof Error && e.message.includes('queue_auth')) fail(404,'not_found');
       if (e instanceof Error && e.message.includes('quota')) fail(429,'quota');
       throw e;
     }
     previous = await row(db,id);
     if (!previous) fail(503,'outcome_unknown');
+    if(pending) {
+      if(previous.installation_id!==pending.installationId || previous.loader_id!==pending.loaderId || previous.is_pending!==1) fail(409,'conflict');
+      keyHash=previous.key_hash;
+    }
     if (!equal(previous.key_hash,keyHash) || previous.digest !== digest || previous.bytes !== length) fail(409,'conflict');
   }
   const raw = await bytes(req,length);
@@ -62,6 +70,7 @@ export async function submit(req: Request, env: Env, db: DB, now: number, v2 = f
   const v2Report = v2 ? parseReportV2(value) : null;
   const parsed = reportSchema.safeParse(value);
   if (v2 ? !v2Report || v2Report.report_id !== id : !parsed.success || parsed.data.report_id !== id) fail(400,'invalid_report');
+  if(!pending && v2Report && (v2Report.comments_pending || v2Report.loader_id || v2Report.installation_id)) fail(400,'pending_route_required');
   if (previous.state === 'accepted') { active(previous,Date.now()); return json(v2 ? await receiptV2(db,id) : await receipt(previous,env,db)); }
   // Conditional R2 creation allows one writer, even when requests race the D1 insert.
   const report = parsed.success ? parsed.data : null;
@@ -75,9 +84,15 @@ export async function submit(req: Request, env: Env, db: DB, now: number, v2 = f
   // advertises an accepted receipt. R2 orphans retain the existing cleanup path.
   const signature = v2Report ? await fingerprint(v2Report) : null;
   const result = await acceptWithReference(db, reference => {
-  const statements = [db.prepare(`UPDATE reports SET state='accepted',accepted_at=?,expires_at=?,public_json=?,protocol_version=?,legacy_public_consent=?
-    WHERE id=? AND state='reserved' AND reserved_at>?`).bind(accepted,accepted+14*DAY,publicFields ? JSON.stringify(publicFields) : null,v2?2:1,v2?0:1,id,accepted-900000),
+  const statements = [db.prepare(`UPDATE reports SET state='accepted',accepted_at=?,expires_at=?,public_json=?,protocol_version=?,legacy_public_consent=?,origin=?
+    WHERE id=? AND state='reserved' AND reserved_at>?`).bind(accepted,accepted+14*DAY,publicFields ? JSON.stringify(publicFields) : null,v2?2:1,v2?0:1,v2Report?.origin ?? report?.origin ?? 'loader',id,accepted-900000),
     initialTracking(db,id,keyHash,digest,accepted,reference,v2Report?.kind_hint)];
+  if(pending) statements.push(
+    db.prepare(`UPDATE report_tracking SET origin='controller',installation_id=?,loader_id=?,comments_state='pending_comments',reminders_until=? WHERE report_id=? AND receipt_key_hash=?`)
+      .bind(pending.installationId,pending.loaderId,accepted+7*DAY,id,keyHash),
+    db.prepare(`INSERT INTO controller_queue(report_id,description,topic,screen_state,private_expires_at)
+      SELECT report_id,?,?,?,? FROM report_tracking WHERE report_id=? AND receipt_key_hash=? ON CONFLICT DO NOTHING`)
+      .bind(pending.report.description,pending.report.reporter_hints?.topic??null,JSON.stringify(pending.report.screen_state),accepted+14*DAY,id,keyHash));
   if (signature) statements.push(db.prepare(`INSERT INTO report_signatures(report_id,exact_hash,family_hash,component)
     SELECT report_id,?,?,? FROM report_tracking WHERE report_id=? AND payload_sha256=? ON CONFLICT DO NOTHING`)
     .bind(signature.exact,signature.family,signature.component,id,digest));
@@ -154,6 +169,7 @@ export async function cleanup(env: Env, now = Date.now()): Promise<void> {
   await db.prepare(`UPDATE reports SET state='deleting',gone_at=? WHERE
     (state='accepted' AND expires_at<=?) OR (state='reserved' AND reserved_at<=?)`).bind(now,now,now-900000).run();
   const pending = await db.prepare(`SELECT * FROM reports WHERE state IN ('deleting','gone') ORDER BY last_swept LIMIT 200`).all<Row>();
+  await expireReminders(db,now);
   await cleanupTracking(db,now);
   if(!pending.results.length) return;
   await env.REPORTS.delete(pending.results.map(r=>r.object_key));
@@ -166,9 +182,9 @@ export async function cleanup(env: Env, now = Date.now()): Promise<void> {
   ]);
 }
 
-async function ownerPage(req: Request, env: Env, db: DB, id: string, search: string): Promise<Response> {
-  // Authenticate every page before checking offsets or report existence.
-  await owner(req,env);
+async function ownerPage(req: Request, env: Env, db: DB, id: string, search: string, requireOwner=true): Promise<Response> {
+  // Every caller authenticates before offsets or storage reads.
+  if(requireOwner) await owner(req,env);
   const match=/^\?offset=(0|[1-9][0-9]{0,5})$/.exec(search);
   if(search && !match) fail(400,'invalid_offset');
   const offset=match ? Number(match[1]) : 0;
@@ -189,7 +205,7 @@ async function ownerPage(req: Request, env: Env, db: DB, id: string, search: str
   const next=offset+length;
   return json({schema:'xz-support-owner-page/1',report_id:r.id,payload_sha256:r.digest,
     total_bytes:r.bytes,offset,encoding:'base64',data_base64:btoa(String.fromCharCode(...data)),
-    next_offset:next<r.bytes?next:null,receipt:latest.protocol_version===2 ? await receiptV2(db,id) : await receipt(latest,env,db)});
+    next_offset:next<r.bytes?next:null,completion:await completionDetails(db,id),receipt:latest.protocol_version===2 ? await receiptV2(db,id) : await receipt(latest,env,db)});
 }
 
 async function dispatch(req: Request, env: Env): Promise<Response> {
@@ -201,7 +217,21 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
   for(const [name,value] of req.headers) { headerSize+=name.length+value.length; if(value.length>1024) fail(431,'headers_too_large'); }
   if(headerSize>8192 || url.href.length>1024) fail(431,'headers_too_large');
   const db=env.DB.withSession('first-primary'); const now=Date.now(); const path=url.pathname;
+  const details=/^\/v2\/reports\/(R-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4})\/details$/.exec(path);
+  if(details && req.method==='GET') {
+    const tracked=await db.prepare('SELECT t.report_id FROM report_tracking t JOIN controller_queue q ON q.report_id=t.report_id WHERE t.report_reference=? AND q.claimed=1').bind(details[1]).first<{report_id:string}>();
+    if(!tracked) fail(404,'not_found');
+    await reporter(req,db,tracked.report_id,now);
+    return ownerPage(req,env,db,tracked.report_id,url.search,false);
+  }
+  const controller=await controllerRoutes(req,env,db,now,submit);if(controller) return controller;
   if(req.method==='GET' && (path==='/track' || path==='/track.js') && !url.search) return trackingPage(path);
+  const completion=new RegExp(`^/v2/admin/reports/(${ID})/completion$`).exec(path);
+  if(completion && req.method==='GET' && !url.search) {
+    await owner(req,env);
+    const tracked=await trackingRow(db,completion[1]);if(!tracked||tracked.retention_until<=now) fail(404,'not_found');
+    return json({report_id:completion[1],completion:await completionDetails(db,completion[1])});
+  }
   if(path==='/v2/admin/lookup' && req.method==='GET') return ownerLookup(req,env,db,url);
   if(path==='/v2/admin/reports' && req.method==='GET') return ownerInbox(req,env,db,url);
   const v2Page=new RegExp(`^/v2/admin/reports/(${ID})$`).exec(path);
@@ -241,7 +271,8 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
     if(new RegExp(`^${ID}$`).test(id)) {
       const r=await row(db,id); if(!r) fail(404,'not_found');
       if(req.method==='DELETE') {
-        await db.prepare(`UPDATE reports SET state='deleting',gone_at=? WHERE id=? AND state NOT IN ('deleting','gone')`).bind(now,id).run();
+        await db.batch([db.prepare(`UPDATE reports SET state='deleting',gone_at=? WHERE id=? AND state NOT IN ('deleting','gone')`).bind(now,id),
+          db.prepare('UPDATE controller_queue SET description=NULL,topic=NULL,screen_state=NULL,comments=NULL WHERE report_id=?').bind(id)]);
         await env.REPORTS.delete(r.object_key);
         await db.prepare(`UPDATE reports SET state='gone',public_json=NULL,issue_url=NULL WHERE id=? AND state='deleting'`).bind(id).run();
         return json({report_id:id,state:'gone'});

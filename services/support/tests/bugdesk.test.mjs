@@ -55,6 +55,7 @@ before(async()=>{
   for(const group of ['3'.repeat(32),'2'.repeat(32)]) await db.prepare(`INSERT INTO bug_groups(id,kind,component,created_at) VALUES(?,'BUG','bridge',?)`).bind(group,now).run();
   await db.prepare('INSERT INTO report_group_members(report_id,group_id,triage_revision,joined_at) VALUES(?,?,1,?)').bind('123456789a'+'0'.repeat(22),'2'.repeat(32),now).run();
   await apply('0003_support_identifiers.sql');
+  await apply('0004_controller_queue.sql');
   migration={references:(await db.prepare('SELECT * FROM report_references ORDER BY report_id').all()).results,items:(await db.prepare('SELECT id,item_number FROM bug_groups ORDER BY id').all()).results,row:await db.prepare('SELECT * FROM report_tracking').first(),redirect:(await get('/r/'+legacy+'/github')).status,receipt:await (await get('/v2/reports/'+legacy+'/receipt')).json()};
 });
 after(async()=>{await mf?.dispose();});

@@ -4,6 +4,7 @@ import { DB, DAY, Env, bearer, bodyLength, bytes, equal, fail, json, owner, pars
 import { triageSchema, validTriage } from './classification';
 
 export type Tracking = {
+  origin:string;installation_id:string|null;loader_id:string|null;comments_state:string;
   report_reference: string; item_number: number | null; seq: number; report_id: string; receipt_key_hash: string; read_key_hash: string | null; reply_key_hash: string | null;
   expectation: string | null; impact: string | null; severity: string | null; taxonomy_json: string | null;
   payload_sha256: string; revision: number; classified_kind: ReportKind | null; kind_hint: ReportV2['kind_hint'] | null;
@@ -15,8 +16,8 @@ export const trackingRow = (db: DB, id: string) => db.prepare(`SELECT t.*,g.item
 
 export function initialTracking(db: DB, id: string, keyHash: string, digest: string, accepted: number, reference: string, hint: ReportV2['kind_hint'] = null) {
   return db.prepare(`INSERT INTO report_tracking(report_reference,report_id,receipt_key_hash,payload_sha256,kind_hint,created_at,updated_at,retention_until,
-    diagnostics_expires_at,last_operation,last_operation_hash)
-    SELECT ?,id,key_hash,digest,?,?,?,?,?,'accepted',digest FROM reports
+    diagnostics_expires_at,last_operation,last_operation_hash,origin)
+    SELECT ?,id,key_hash,digest,?,?,?,?,?,'accepted',digest,origin FROM reports
     WHERE id=? AND key_hash=? AND digest=? AND state='accepted' AND accepted_at=? ON CONFLICT(report_id) DO NOTHING`)
     .bind(reference,hint ?? null,accepted,accepted,accepted+CONTRACT.retention.inactive_tracking_days*DAY,
       accepted+CONTRACT.retention.diagnostic_days*DAY,id,keyHash,digest,accepted);
@@ -311,7 +312,7 @@ export async function ownerInbox(req: Request, env: Env, db: DB, url: URL) {
   const reports=[];let last:typeof rows.results[number]|undefined;
   // Dense taxonomy rows can hit the response byte cap before the requested count.
   for(const r of rows.results.slice(0,limit)) {
-    const view={report_id:r.report_id,report_reference:r.report_reference,item_number:r.item_number===null ? null : formatItemNumber(r.item_number),revision:r.revision,kind:r.classified_kind,severity:r.severity,impact:r.impact,
+    const view={origin:r.origin,installation_id:r.installation_id,loader_id:r.loader_id,comments_state:r.comments_state,comments_pending:['pending_comments','expired_reminders'].includes(r.comments_state),comments_status:['pending_comments','expired_reminders'].includes(r.comments_state)?CONTRACT.controller_queue.awaiting_text:null,report_id:r.report_id,report_reference:r.report_reference,item_number:r.item_number===null ? null : formatItemNumber(r.item_number),revision:r.revision,kind:r.classified_kind,severity:r.severity,impact:r.impact,
     expectation:r.expectation,desk:r.taxonomy_json ? JSON.parse(r.taxonomy_json) : null,reach_count:Math.max(1,r.reach_count),
     lifecycle:r.lifecycle,outcome:r.outcome,automatic_fix_eligible:automaticFixEligible(r.classified_kind,r.impact),
     automation_enabled:env.AUTOMATION_ENABLED==='true',created_at:r.created_at};

@@ -1931,10 +1931,10 @@
       "format": "I-XXXX-XXXX",
       "alphabet": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
       "bits": 40,
-      "allocation": "Worker CSPRNG, five bytes, big endian; D1 unique index and collision retry at atomic acceptance.",
-      "parsing": "ASCII case insensitive; ignore ASCII spaces and dashes; R prefix required; map I/L to 1 and O to 0 in the eight symbols; reject all other characters.",
-      "authority": "None. Receipt-key and derived-capability authorization is unchanged.",
-      "backfill": "First ten hexadecimal report_id characters as a big-endian 40-bit integer; ascending report_id order; probe +1 modulo 2^40 until unused.",
+      "allocation": "App CSPRNG, five bytes, big endian; Worker unique ID constraint rejects conflicting registration.",
+      "parsing": "ASCII case insensitive; ignore ASCII spaces and dashes; I prefix required; map I/L to 1 and O to 0 in the eight symbols; reject all other characters.",
+      "authority": "None. The corresponding installation or loader key grants separately scoped authority.",
+      "backfill": "None. Earlier reports retain null installation and loader identity.",
       "vectors": [
         {
           "input": "I-4f7k-2m9q",
@@ -1968,10 +1968,10 @@
       "format": "L-XXXX-XXXX",
       "alphabet": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
       "bits": 40,
-      "allocation": "Worker CSPRNG, five bytes, big endian; D1 unique index and collision retry at atomic acceptance.",
-      "parsing": "ASCII case insensitive; ignore ASCII spaces and dashes; R prefix required; map I/L to 1 and O to 0 in the eight symbols; reject all other characters.",
-      "authority": "None. Receipt-key and derived-capability authorization is unchanged.",
-      "backfill": "First ten hexadecimal report_id characters as a big-endian 40-bit integer; ascending report_id order; probe +1 modulo 2^40 until unused.",
+      "allocation": "App CSPRNG, five bytes, big endian; Worker unique ID constraint rejects conflicting registration.",
+      "parsing": "ASCII case insensitive; ignore ASCII spaces and dashes; L prefix required; map I/L to 1 and O to 0 in the eight symbols; reject all other characters.",
+      "authority": "None. The corresponding installation or loader key grants separately scoped authority.",
+      "backfill": "None. Earlier reports retain null installation and loader identity.",
       "vectors": [
         {
           "input": "L-4f7k-2m9q",
