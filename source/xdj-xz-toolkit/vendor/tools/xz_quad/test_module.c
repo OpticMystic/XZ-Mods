@@ -25,7 +25,7 @@ static void setup(void) {
     /* Any attempt by the module to lock music fails the lock-order assertion. */
     device_init(&music,test_port==1?"2-1.1":"2-1.2",0);device_init(&child,"child",40);
     up.parent=&root;up.level=1;up.devpath="1";up.descriptor.idVendor=0x0451;up.descriptor.idProduct=0x8027;
-    hub.parent=&up;hub.level=2;hub.devpath=test_port==1?"1.2":"1.1";hub.speed=USB_SPEED_HIGH;
+    hub.parent=&up;hub.devnum=8;hub.level=2;hub.devpath=test_port==1?"1.2":"1.1";hub.speed=USB_SPEED_HIGH;
     hub.descriptor.idVendor=0x2b73;hub.descriptor.idProduct=0x002e;
     hub.descriptor.bDeviceClass=USB_CLASS_HUB;hub.descriptor.bNumConfigurations=1;
     alt.desc.bInterfaceClass=USB_CLASS_HUB;intf.cur_altsetting=&alt;
@@ -44,6 +44,129 @@ static void *worker_thread(void *p) {(void)p;run_work(&cleanup_work);return NULL
 static void *remove_thread(void *p) {(void)p;notify(USB_DEVICE_REMOVE,&hub);return NULL;}
 static void *exit_thread(void *p) {(void)p;xz_hub_depth_exit();return NULL;}
 static void *init_thread(void *p) {(void)p;assert(xz_hub_depth_init()==0);return NULL;}
+static struct usb_interface music_intf;
+static struct usb_host_interface music_alt;
+static struct usb_host_config music_cfg;
+static void music_fixture(void) {
+    music.dev.lock.rank=30;music.parent=&up;music.level=2;music.devnum=9;
+    music.devpath=test_port==1?"1.1":"1.2";music.speed=USB_SPEED_HIGH;
+    music.descriptor.idVendor=0x2109;music.descriptor.idProduct=0x2817;
+    music.descriptor.bDeviceClass=USB_CLASS_HUB;music.descriptor.bNumConfigurations=1;
+    music_alt.desc.bInterfaceClass=USB_CLASS_HUB;music_intf.cur_altsetting=&music_alt;
+    music_cfg.desc.bNumInterfaces=1;music_cfg.interface[0]=&music_intf;music.actconfig=&music_cfg;
+}
+static void detach_device(struct usb_device *d) {
+    usb_lock_device(d);d->state=USB_STATE_NOTATTACHED;usb_unlock_device(d);
+    notify(USB_DEVICE_REMOVE,d);run_work(&cleanup_work);
+}
+static void *music_remove_thread(void *p) {(void)p;notify(USB_DEVICE_REMOVE,&music);return NULL;}
+static void music_case(int n) {
+    music_fixture();music_hubs=true;
+    bool reject=false;
+    switch(n) {
+    case 41: up.children[2-test_port]=NULL;break;
+    case 42: music_hubs=false;reject=true;break;
+    case 43: apply=false;reject=true;break;
+    case 44: music_intf.dev.driver=&music_intf;reject=true;break;
+    case 45: music.children[0]=&child;reject=true;break;
+    case 46: music.speed=2;reject=true;break;
+    case 47: music.devpath="1.3";reject=true;break;
+    case 48: music.descriptor.idVendor=0x2b73;music.descriptor.idProduct=0x002e;reject=true;break;
+    case 49: music.descriptor.idVendor=0;reject=true;break;
+    case 50: music.descriptor.idProduct=0;reject=true;break;
+    case 51: music.descriptor.bDeviceClass=0;reject=true;break;
+    case 52: music.descriptor.bNumConfigurations=2;reject=true;break;
+    case 53: music_cfg.desc.bNumInterfaces=2;reject=true;break;
+    case 54: music.actconfig=NULL;reject=true;break;
+    case 55: music_alt.desc.bInterfaceClass=8;reject=true;break;
+    case 56: music.state=USB_STATE_NOTATTACHED;reject=true;break;
+    case 57: music.dev.registered=false;reject=true;break;
+    case 58: on_register=&music;break;
+    case 59: adopt_existing=false;break;
+    case 62: music.descriptor.bDeviceClass=8;music.dev.lock.rank=0;reject=true;break;
+    case 67: music.state=USB_STATE_SUSPENDED;break;
+    case 68: music.state=USB_STATE_SUSPENDED;music.actconfig=NULL;reject=true;break;
+    case 69: music.devnum=0;reject=true;break;
+    default:break;
+    }
+    if(n==65) {
+        pthread_t init;usb_lock_device(&music);
+        assert(!pthread_create(&init,NULL,init_thread,NULL));
+        while(!__atomic_load_n(&notify_registered,__ATOMIC_ACQUIRE))usleep(100);
+        hub_event(&hub_notifier,USB_DEVICE_ADD,&music);
+        usb_unlock_device(&music);pthread_join(init,NULL);
+    } else assert(xz_hub_depth_init()==0);
+    if(n==59) {assert(!target&&!music_target);notify(USB_DEVICE_ADD,&hub);notify(USB_DEVICE_ADD,&music);}
+    assert(root.level==0&&up.level==1);
+    if(reject) {
+        assert(!music_target&&!music_hub_devnum&&music.level==2&&music.refs==1);
+        if(target)detach_device(&hub);
+        assert(!target&&!module_refs&&!loopback_hub_devnum&&!queued);
+        xz_hub_depth_exit();puts("PASS music hub guard; no mutation/ref leak");return;
+    }
+    assert(music_target==&music&&music.level==1&&music.refs==2&&music_hub_devnum==9);
+    assert(target==(n==41?NULL:&hub));
+    assert(module_refs==(n==41?1:2)&&loopback_hub_devnum==(n==41?0:8));
+    notify(USB_DEVICE_ADD,&music);notify(USB_DEVICE_REMOVE,&music);run_work(&cleanup_work);
+    assert(music_target==&music&&music.refs==2&&music_hub_devnum==9);
+    if(n==61) {
+        struct usb_device nested=music;
+        nested.dev.lock.real=(pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+        nested.dev.lock.rank=40;nested.dev.name="2-1.1.1";nested.devpath="1.1.1";
+        nested.parent=&music;nested.level=2;nested.refs=1;nested.devnum=10;
+        notify(USB_DEVICE_ADD,&nested);
+        assert(nested.level==2&&nested.refs==1&&module_refs==2);
+    }
+    if(n==63) {
+        pthread_t a,b;usb_lock_device(&music);
+        assert(!pthread_create(&a,NULL,worker_thread,NULL));
+        mutex_lock(&target_lock);mutex_unlock(&target_lock);
+        assert(!pthread_create(&b,NULL,music_remove_thread,NULL));
+        usb_unlock_device(&music);pthread_join(a,NULL);pthread_join(b,NULL);
+        assert(module_refs==2&&music.refs==2&&hub.refs==2);
+    }
+    if(n==64) {
+        pthread_t a,b;usb_lock_device(&hub);hub.state=USB_STATE_NOTATTACHED;
+        music.state=USB_STATE_NOTATTACHED;
+        assert(!pthread_create(&a,NULL,worker_thread,NULL));
+        for(;;){pthread_mutex_lock(&work_lock);int running=active;pthread_mutex_unlock(&work_lock);if(running)break;usleep(100);}
+        assert(!pthread_create(&b,NULL,exit_thread,NULL));
+        usb_unlock_device(&hub);pthread_join(a,NULL);pthread_join(b,NULL);
+        assert(!target&&!music_target&&!module_refs&&!queued&&!subscriber&&cancelled==1);
+        assert(hub.level==2&&music.level==2&&hub.refs==1&&music.refs==1);
+        assert(!music_hub_devnum&&!loopback_hub_devnum);
+        puts("PASS concurrent two-hub worker/exit/last-put");return;
+    }
+    if(n==60) {
+        struct usb_device replacement=music;
+        replacement.dev.lock.real=(pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+        replacement.level=2;replacement.refs=1;replacement.devnum=10;
+        up.children[test_port-1]=&replacement;
+        music.state=USB_STATE_NOTATTACHED;notify(USB_DEVICE_ADD,&replacement);
+        assert(music_target==&music&&replacement.level==2);
+        run_work(&cleanup_work);
+        assert(music_target==&replacement&&music_hub_devnum==10&&module_refs==2);
+        assert(music.level==2&&music.refs==1&&target==&hub);
+        detach_device(&replacement);
+        up.children[test_port-1]=NULL;
+        assert(!music_target&&!music_hub_devnum&&target==&hub&&module_refs==1);
+    } else if(n==66) {
+        usb_lock_device(&music);music.state=USB_STATE_NOTATTACHED;usb_unlock_device(&music);
+        run_work(&cleanup_work);assert(!music_target&&!music_hub_devnum&&target==&hub&&module_refs==1);
+    } else if(n==70) {
+        detach_device(&music);assert(!music_target&&target==&hub&&module_refs==1&&hub.level==1);
+    }
+    if(target) {
+        detach_device(&hub);
+        assert(!target&&!loopback_hub_devnum);
+        if(music_target)assert(music_target==&music&&music.level==1&&module_refs==1&&music_hub_devnum==9);
+    }
+    if(music_target)detach_device(&music);
+    assert(!target&&!music_target&&!module_refs&&!queued&&hub.refs==1&&music.refs==1);
+    assert(!music_hub_devnum&&!loopback_hub_devnum);
+    xz_hub_depth_exit();assert(!subscriber&&cancelled==1);
+    puts("PASS two-hub independent adoption/lifecycle/refcounts");
+}
 #endif
 int main(int argc,char **argv) {
     assert(argc==2||argc==3);int n=atoi(argv[1]);if(argc==3)test_port=(unsigned)atoi(argv[2]);
@@ -52,6 +175,7 @@ int main(int argc,char **argv) {
     assert(xz_hub_depth_init()==0);assert(target==&hub&&hub.level==1);return 0;
 #else
     loopback_port=test_port;
+    if(n>=40) {assert(n<=70);music_case(n);return 0;}
     if(n>=36&&n<=38) {
         loopback_port=n==36?0:n==37?3:UINT_MAX;
         assert(xz_hub_depth_init()==-EINVAL&&!subscriber&&!target&&!module_refs&&!queued);
