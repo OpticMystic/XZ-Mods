@@ -9,7 +9,7 @@ the app names a button, it shows this glyph, with the name kept as text for scre
   [`glyphs.md`](glyphs.md), the list of every glyph and the names it answers to.
 - `python tools/build_manual.py check` fails when those files are not what `tools/xz_buttons.py` draws now, and when a
   chapter writes `[[NAME]]` for a name with no glyph.
-- `python tools/xz_buttons.py sheet --out <png>` draws every glyph, lit and unlit, at text size and large. Add
+- [`sheet.png`](sheet.png) shows every glyph as it is now. `python tools/xz_buttons.py sheet --out <png>` draws every glyph, lit and unlit, at text size and large. Add
   `--photo <top-panel photo>` to put the reference photograph's crop beside each one; keep that sheet out of the repo.
 - `python tools/xz_buttons.py firmware` writes [`firmware-spec.md`](firmware-spec.md) and its previews, for a later
   firmware pass that draws the same glyphs on the XZ's own MODS screens.
