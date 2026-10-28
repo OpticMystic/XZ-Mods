@@ -64,6 +64,9 @@ static void stale_checks(void) {
 }
 static void mapping_checks(void) {
  #include "route_reason_checks.h"
+ struct xz_extra_route_status decks=route_reason_map("WAIT_NATIVE_DECKS",0);
+ assert(decks.state==XZ_EXTRA_ROUTE_STARTING&&decks.fail_part==XZ_EXTRA_ROUTE_PART_NONE);
+ assert(!strcmp(decks.reason,"Starting decks 3 and 4."));
  for(size_t i=0;i<sizeof route_reasons/sizeof *route_reasons;i++) {
   const struct route_reason *r=&route_reasons[i];assert(strlen(r->sentence)<=80);
   assert(!strstr(r->sentence,"TERMINATED")&&!strstr(r->sentence,"WAIT_")&&!strstr(r->sentence,"XZ"));

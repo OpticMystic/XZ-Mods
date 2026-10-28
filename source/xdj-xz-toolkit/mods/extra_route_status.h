@@ -15,6 +15,7 @@ struct route_reason {
 #define RR(code,state,part,text) {code,XZ_EXTRA_ROUTE_##state,XZ_EXTRA_ROUTE_PART_##part,text}
 static const struct route_reason route_reasons[] = {
  RR("WAIT_LOOPBACK",NOT_DETECTED,CABLE,"The loopback cable has not been detected."),
+ RR("WAIT_NATIVE_DECKS",STARTING,NONE,"Starting decks 3 and 4."),
  RR("WAIT_NATIVE_PAUSED",WAITING_NATIVE_STOP,SELECTOR,"Stop or pause decks 1 and 2 so decks 3 and 4 can start."),
  RR("WAIT_SAFE_LOOPBACK_DISCONNECT",STARTING,CABLE,"Disconnect the loopback cable briefly so the audio route can start safely."),
  RR("WAIT_AUDIO_DEVICE",STARTING,SOCKET,"The cable was found and the audio input is starting."),
