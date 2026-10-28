@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0-preview.22.12 - 2026-10-28
+
+Four decks start with empty decks
+
+- Decks 3 and 4 start as soon as the loopback cable is in, with decks 1 and 2 empty, one track loaded or both loaded and paused. Before, they waited until both decks had a track loaded and paused.
+- Decks 3 and 4 also start when the cable is already in when XZ Mods starts.
+- Experimental XDJ-XZ 1.26 only.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.11 - 2026-10-28
 
 Beta release candidate: four decks from either port, a Manual in the app, and fixes from DJ reports
