@@ -195,7 +195,7 @@ XZ Mods keeps a short diagnostic diary in `VJ.Tools/XZ-Mods-diary/` on each moun
 
 The diary records the XZ Mods version, settings fingerprint, USB slots, interface, deck view, state changes and fixed notice codes. It also records available CPU, memory, audio, SYNC, key-processing and USB-read measurements. It never records track titles, music paths, serial numbers or network identities. A missing measurement stays unknown.
 
-Each stick holds at most 4 MiB of diary files. Older segments are replaced first, and the previous session's latest segment is kept when a new session starts. Writing pauses during track loads, RAM copies and heavy USB reads. No diary is created on a read-only stick or when less than 64 MiB of free space plus a small write reserve remains. RAM-only trials save nothing. Long busy periods and removal can leave gaps.
+Each stick holds at most 4 MiB of diary files. Older segments are replaced first, and the previous session's latest segment is kept when a new session starts. Writing pauses during track loads, RAM copies and heavy USB reads. No diary is created on a read-only stick or when less than 64 MiB of free space plus a small write reserve remains. Read-only test sessions save nothing. Normal USB-loader sessions write diary entries when these conditions allow it. Long busy periods and removal can leave gaps.
 
 The diary stays on the sticks. Nothing is sent until you choose to include it in a report.
 

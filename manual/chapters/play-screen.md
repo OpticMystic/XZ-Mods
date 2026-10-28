@@ -170,10 +170,12 @@ The SHORTCUT screen with quantize, waveform and time settings for both decks.
 8 @ 600,295 MY SETTINGS | Time mode, play mode and auto cue for the decks.
 ```
 
-Which rows you can change depends on what the player lets XZ Mods write. PLAYER SETTINGS includes NEEDLE LOCK, so you can lock or unlock touch search without leaving SHORTCUT. A short [[MENU]] on SHORTCUT opens MODS.
+Which rows you can change depends on what the player lets XZ Mods write. A locked row shows its value and the reason it is read-only. A short [[MENU]] on SHORTCUT opens MODS.
+
+NEEDLE LOCK appears in PLAYER SETTINGS when the player reports it. LOCK prevents a waveform touch from searching a playing deck. Pause the deck to search, or choose UNLOCK when that setting is writable.
 
 ```gallery {modern}
-modern:settings-shortcut-full Every row available, with HOT CUE AUTO LOAD and AUTO CUE LEVEL
+modern:settings-shortcut-full HOT CUE AUTO LOAD has choices; QUANTIZE BEAT VALUE and AUTO CUE LEVEL are read-only in this fixture
 modern:shortcut-runtime-table QUANTIZE BEAT VALUE as four choices, play mode and auto cue locked
 modern:r5-shortcut-graphic-stems The waveform colour row with STEMS chosen
 modern:settings-shortcut-read-only The player's own settings shown as values while it is not accepting changes. DEVICE SETTINGS still change the MODERN screen

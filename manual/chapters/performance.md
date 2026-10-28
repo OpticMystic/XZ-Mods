@@ -84,7 +84,7 @@ Decks 3 and 4 use the same sizes and both pages. They jump along the track's bea
 
 ### When a jump is refused
 
-A jump the deck cannot make does nothing else. XZ Mods never falls back to a shorter jump or a jump by time. The screen shows why:
+A jump the deck cannot make does nothing else. XZ Mods never silently shortens the selected distance. The screen shows why:
 
 | Notice | Deck | What it means |
 |---|---|---|

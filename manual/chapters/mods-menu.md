@@ -158,13 +158,13 @@ UTILITY in MODERN, open on its first setting.
 1 @ 44,104 UTILITY STOCK | The player's own settings. On the player, the rail lists the MODS sections below it, and each one opens MODS on that section.
 2 @ 180,66 Group | DJ SETTING, DISPLAY (LCD), MIXER, SYSTEM and INFO, as on the player.
 3 @ 380,99 Lock | XZ Mods shows this setting but cannot change it here. The help says why.
-4 @ 630,61 Choices | The setting's choices. The filled circle is the current one.
-5 @ 520,178 Help | What the setting does, and what the highlighted choice means.
+4 @ 630,61 Current value | A locked setting shows its value without choice buttons. Writable settings open a list of choices.
+5 @ 650,140 Help | What the setting does and why it is read-only here, or what a writable choice means.
 6 @ 690,18 Version | The player's firmware version.
 7 @ 400,428 Deck strip | Decks 1 and 2 stay in view while you change settings.
 ```
 
-Turn the encoder to move through the settings and push to open the choices. Turn again to pick a choice and push to set it. [[BACK]] goes back to the list. [[MENU]] or **X** closes UTILITY.
+Turn the encoder to move through the settings. On a writable row, push to open its choices, turn to pick one and push to set it. A locked row stays in the list and shows a read-only value and explanation. [[BACK]] goes back to the list. [[MENU]] or **X** closes UTILITY.
 
 A lock next to a setting comes with one of these notes:
 
