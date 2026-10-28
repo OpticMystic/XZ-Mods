@@ -34,9 +34,16 @@ python tools/build_manual.py check  --render <render-dir>
 python tools/build_manual.py proof  --render <render-dir> --out <dir>     # every figure with its callouts drawn on
 python tools/build_manual.py accept --render <render-dir> [shot or path ...]
 python tools/build_manual.py site   --render <render-dir> --out <dir> [--draft] [--base /manual/]
+python tools/build_manual.py app    --render <render-dir> [--draft] [--check]  # the copy inside the desktop app
 ```
 
 `site` refuses to build while `check` fails; `--draft` builds anyway for local review. Never publish a draft.
+
+The desktop app shows this manual on its Manual page from `ui/manual/`, which `app` writes from the same chapters
+and screens: one script per chapter, a search index, and every picture as a lossless WebP named by its source's hash.
+Never edit `ui/manual/` by hand. After you change a chapter or accept new screens, run `app` and commit `ui/manual/`
+with the chapter. `build_manual.py gate` (run by `tools/build_release.py`) fails when `ui/manual/` is a draft or does
+not match what `app` makes from the source being released. `node tools/verify_manual_tab.mjs` checks the page.
 The monorepo's `tools/sync-xz-manual.mjs` copies a built site into `website/xz-manual/` for xzmods.com.
 
 ## Files
@@ -100,6 +107,22 @@ modern:stems-layout-below-full Below the waveform, full height
 modern:stems-layout-outside-half Outside the waveform, half height
 ```
 ````
+
+Animated explainers draw how a feature works, step by step, in the app's Manual page. The website shows the
+text around them and skips the explainer itself, so never put a fact only in an explainer.
+
+````
+```explainer beat-jump Beat jump, page 1 and page 2
+Page 1 | 1 2 4 8 | Press [[BEAT JUMP]]. With the default sizes the pairs jump 1, 2, 4 and 8 beats.
+Page 2 | 16 32 64 128 | shift | Hold [[SHIFT]], press [[BEAT JUMP]], let go of [[SHIFT]].
+```
+````
+
+The fence names the explainer and its title. Each line is one scene: its title, any data the picture uses, then
+the caption. `four-deck-setup` takes no lines: it steps through the numbered list that follows it. The pictures
+live in `ui/manual-art.js` (`loopback-signal`, `loopback-cable`, `four-deck-setup`, `sync-master`, `beat-jump`,
+`three-band`, `ram-usb`, `usb-diary`). They draw ports, deck order, labels and colours from the firmware; when a
+watched source of that chapter changes, check its explainer as well as its figures.
 
 Tables generated from source keep themselves current. Use them instead of copying the facts:
 

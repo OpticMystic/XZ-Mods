@@ -9,7 +9,7 @@ You need 64-bit Windows with WebView2, or a Mac with macOS 14 or later. Making s
 
 ## Around the app
 
-The rail on the left has four sections for your work and, at its foot, Feedback. The current one is outlined in yellow.
+The rail on the left has four sections for your work, then the Manual and, at its foot, Feedback. The current one is outlined in yellow.
 
 | Section | What it is for |
 |---|---|
@@ -17,6 +17,7 @@ The rail on the left has four sections for your work and, at its foot, Feedback.
 | **Stems** | Make stems for the tracks on a Rekordbox USB, or import stems you already have |
 | **XZ Screen** | Watch the XZ screen on this computer and add it to OBS |
 | **Tools** | DJ Profile, Repair library, XZ Mods version, Network updates, App updates and About |
+| **Manual** | This manual, with search, animations and your place in it |
 | **Feedback** | Report a problem, request a feature or ask a question, and follow what you sent |
 
 The top of the rail names the player firmware the app prepares USBs for, XDJ-XZ 1.26. The app version is at the bottom.
@@ -663,3 +664,23 @@ The inbox, scrolled right to show Reference and Item.
 ```
 
 The reference and item number identify a report; the owner key is still required to read the inbox.
+
+## Manual
+
+Manual is this manual, inside the app. It comes with the app, so it needs no internet connection. Where the app explains a feature, **Read in the manual** opens the chapter about it.
+
+```figure app:manual XZ Mods app · Manual
+Four decks open in the Manual.
+1 @ 180,300 Manual | Opens the manual. It sits between Tools and Feedback in the rail.
+2 @ 492,109 Search | Searches every chapter as you type. Press / to get here from anywhere on the page, and Enter to open the first result.
+3 @ 450,161 Progress | How much of the manual you have read. A chapter's circle fills as you read and turns into a tick at its end.
+4 @ 380,233 Start page | What XZ Mods adds, the interface you play on, and every chapter in order.
+5 @ 400,540 Chapter list | Every chapter. The one you are reading is outlined and lists its sections.
+6 @ 700,168 Chapter | The chapter you are reading. Previous and Next at its end move through the manual in order.
+7 @ 985,580 Animation | Shows how a feature works, step by step. It plays once when it comes into view; Play, the arrows and the numbered steps move through it.
+```
+
+- **Numbers on pictures.** Point at a number, or tab to it and use the arrow keys, to light up that part of the picture and read what it is. **Play** steps through every number. The list under the picture says the same.
+- **Your interface.** Choose MODERN, CLASSIC or Both on the start page or at the foot of the chapter list. The manual then hides what does not apply to you. A MODS page drawn in both interfaces has a MODERN and CLASSIC switch on its picture.
+- **Where you stopped.** The manual remembers the chapter and section you read last. The start page offers **Continue where you left off**.
+- **Less motion.** When your computer is set to reduce motion, nothing in the manual moves by itself. Animations wait for Play and show each step at once.
