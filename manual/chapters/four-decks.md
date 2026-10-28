@@ -3,11 +3,11 @@ interface: both
 settings: deck_view
 ---
 
-Four decks adds two software players, DECK 3 and DECK 4, to the XDJ-XZ's own DECK 1 and DECK 2. You hear them on mixer channels CH3 and CH4. A short USB cable from the back of the player to a top USB port carries their sound into the mixer: it leaves through USB 1 on top and comes back in at the rear USB socket, where a computer with DJ software would connect. The physical controls switch between decks with the same presses DJ software uses on the XDJ-XZ.
+Four decks adds two software players, DECK 3 and DECK 4, to the XDJ-XZ's own DECK 1 and DECK 2. You hear them on mixer channels CH3 and CH4. A short USB cable from the back of the player to a top USB port carries their sound into the mixer: it leaves through a top USB port and comes back in at the rear USB socket, where a computer with DJ software would connect. The physical controls switch between decks with the same presses DJ software uses on the XDJ-XZ.
 
 ```explainer loopback-signal How the sound of decks 3 and 4 reaches the mixer
 Decks 3 and 4 | Decks 3 and 4 are software players. They run inside the player, beside decks 1 and 2.
-USB 1 | Their sound leaves the player through USB 1 on the top panel.
+Top USB | Their sound leaves the player through the top USB port the cable is in, USB 1 or USB 2.
 Loopback cable | The loopback cable carries it over the back edge of the player.
 Rear USB | It comes back in at the rear USB socket, where a computer with DJ software would connect.
 CH3 and CH4 | With their input switches on USB, mixer channels CH3 and CH4 play decks 3 and 4.
@@ -25,7 +25,7 @@ CH3 and CH4 | With their input switches on USB, mixer channels CH3 and CH4 play 
 The cable goes directly from the rear USB socket to either **USB 1** or **USB 2** on top. Put music in the other top port. The picture uses USB 1 as an example; both arrangements work.
 
 ```explainer loopback-cable The loopback cable
-One USB-B to USB-A cable runs from the rear USB socket over the back edge into USB 1 on top. No computer is involved.
+One USB-B to USB-A cable runs from the rear USB socket over the back edge into a top USB port; the picture shows USB 1. No computer is involved.
 ```
 
 ## Set up four decks {experimental}
