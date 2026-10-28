@@ -159,7 +159,7 @@ Press [[SHORTCUT]] on the play screen to see the settings you change most during
 ```figure modern:screen-shortcut SHORTCUT {modern}
 The SHORTCUT screen with quantize, waveform and time settings for both decks.
 1 @ 205,68 Highlighted row | Turn the encoder to move between rows. The line under the title explains the highlighted row.
-2 @ 125,130 Locked value | A lock means XZ Mods shows this value but cannot change it here. Push or tap it and the player's own UTILITY opens at that item.
+2 @ 125,130 Locked value | A lock means this value is read-only here. It has no choice buttons; pressing it does not change the setting or open another screen.
 3 @ 240,174 Choice buttons | Tap a value to change it. The lit button is the current value.
 4 @ 430,92 DECK 1 lamps | QUANTIZE (or Q1), SYNC, SLIP, MASTER and the time mode for deck 1. Tap QUANTIZE to switch it, tap REMAIN or TIME to change the time mode.
 5 @ 745,49 LINK lamp | Shows whether the player is linked to other players.
@@ -168,10 +168,12 @@ The SHORTCUT screen with quantize, waveform and time settings for both decks.
 8 @ 600,295 MY SETTINGS | Time mode, play mode and auto cue for the decks.
 ```
 
-Which rows you can change depends on what the player lets XZ Mods write. Rows with a lock always open the player's own UTILITY, where you change them the stock way. A short [[MENU]] on SHORTCUT opens MODS.
+Which rows you can change depends on what the player lets XZ Mods write. A locked row shows its value and the reason it is read-only. A short [[MENU]] on SHORTCUT opens MODS.
+
+NEEDLE LOCK appears in PLAYER SETTINGS when the player reports it. LOCK prevents a waveform touch from searching a playing deck. Pause the deck to search, or choose UNLOCK when that setting is writable.
 
 ```gallery {modern}
-modern:settings-shortcut-full Every row available, with HOT CUE AUTO LOAD and AUTO CUE LEVEL
+modern:settings-shortcut-full HOT CUE AUTO LOAD has choices; QUANTIZE BEAT VALUE and AUTO CUE LEVEL are read-only in this fixture
 modern:shortcut-runtime-table QUANTIZE BEAT VALUE as four choices, play mode and auto cue locked
 modern:r5-shortcut-graphic-stems The waveform colour row with STEMS chosen
 modern:settings-shortcut-read-only The player's own settings shown as values while it is not accepting changes. DEVICE SETTINGS still change the MODERN screen
