@@ -10,13 +10,13 @@ XZ Mods adds performance features to the pads and deck keys: two pages of beat j
 Open MODS and choose PLAY in the section rail.
 
 ```figure classic:theme-{look}-play MODS · PLAY
-The PLAY page with the default settings: gate cue and smart cue off, the default jump sizes, and the button next to LINK on INTERFACE.
+The PLAY page with the default settings: gate cue and smart cue off, the default jump sizes, and the rekordbox button above LINK on INTERFACE.
 1 @ 300,84 BEAT JUMP PADS | Opens the beat jump editor. The numbers are your page 1 and page 2 sizes in beats.
 2 @ 250,132 GATE CUE | Hot cues play only while you hold the pad. Off by default.
 3 @ 600,132 SMART CUE | A hot cue press also moves the CUE point there. Off by default.
 4 @ 230,196 KEYS | Opens the key page: key shift and KEY SYNC for all four decks.
 5 @ 605,196 RAM TRACKS | Opens RAM TRACKS: copy a deck's track into memory.
-6 @ 350,260 BUTTON NEXT TO LINK | What the media button above LINK does, alone and with SHIFT. See Controls on the player.
+6 @ 350,260 REKORDBOX BUTTON | What the rekordbox button does, alone and with SHIFT. See Controls on the player.
 7 @ 200,425 Dock | Explains the highlighted row in plain words.
 8 @ 718,425 Works on | The decks the highlighted feature works on, in mixer order 3 1 2 4. A dim number is a deck it does not work on, with the reason below.
 ```

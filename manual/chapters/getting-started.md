@@ -42,7 +42,7 @@ You prepare the USB in the XZ Mods app on your computer. It does not format the 
 1. Install the XZ Mods app and open it.
 2. Plug in your USB. The app finds it and opens it. With several USBs plugged in, choose yours from the list.
 3. Choose **Install XZ Mods**.
-4. Follow the short guide: your DJ profile, the screen the XZ starts with, the four-deck cable guide, then a checklist of what it will write. **Back** returns to the step before.
+4. Follow the short guide: your DJ profile, the screen the XZ starts with, then a checklist of what it will write. **Back** returns to the step before.
 5. Choose **Write to USB**, then **Eject USB**.
 
 ```figure app:install-review XZ Mods app · Install XZ Mods
@@ -104,7 +104,7 @@ Choose the screen the XZ shows. New interface is MODERN, Standard XDJ-XZ interfa
 
 There are two ways to switch.
 
-- Press the button next to LINK. Out of the box it switches between MODERN and CLASSIC, and the screen says which one you are in. You can give it another job in **PLAY** › **BUTTON NEXT TO LINK**.
+- Press the rekordbox button above LINK. Out of the box it switches between MODERN and CLASSIC, and the screen says which one you are in. You can give it another job in **PLAY** › **REKORDBOX BUTTON**.
 - Open MODS, go to **SCREEN** and choose **CLASSIC** or **MODERN** under **INTERFACE**.
 
 ```figure classic:theme-{look}-screen MODS · SCREEN
@@ -117,7 +117,7 @@ INTERFACE is the first choice on the SCREEN page.
 6 @ 715,442 Save state | Confirms the change is saved to the USB.
 ```
 
-> **Tip.** You can always reach MODS with the hardware alone. In CLASSIC, the button next to LINK takes you to MODERN, where [[MENU]] opens MODS, and the encoder and [[BACK]] drive it.
+> **Tip.** You can always reach MODS with the hardware alone. In CLASSIC, the rekordbox button takes you to MODERN, where [[MENU]] opens MODS, and the encoder and [[BACK]] drive it.
 
 ## Updating
 
