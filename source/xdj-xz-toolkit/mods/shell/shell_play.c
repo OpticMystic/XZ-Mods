@@ -96,16 +96,19 @@ static int card_success(const struct xz_shell_model *m) {
  return sh_deck_count(m)==4&&m->route_card_ready_at_ms&&
   m->clock_ms-m->route_card_ready_at_ms<(uint32_t)(XZ_ROUTE_CARD_READY_HOLD_MS+XZ_ROUTE_CARD_WIPE_MS);
 }
+int sh_play_four(const struct xz_shell *u, const struct xz_shell_model *m) {
+ if(m->layout_preference>0)return xz_deck_view_valid(m->layout_preference-1)!=XZ_LAYOUT_TWO;
+ return sh_deck_count(m)==4&&(!u||u->play_decks!=2);
+}
 /* DECK VIEW chooses the geometry alone: four slots even while only two decks play, decks 3 and 4 then
    drawn as placeholders. TWO keeps MODERN's assigned pair. Audio deck_count never changes here. */
 void xz_shell_play_projection(const struct xz_shell *u, const struct xz_shell_model *m, struct xz_shell_model *view) {
  *view=*m;view->play_placeholders=0;
+ view->play_view_count=sh_play_four(u,m)?4:2;
  if(m->layout_preference>0){
-  int layout=xz_deck_view_valid(m->layout_preference-1);
-  view->play_view_count=layout!=XZ_LAYOUT_TWO?4:2;
-  view->wave_order=layout==XZ_LAYOUT_MIXER;
+  view->wave_order=xz_deck_view_valid(m->layout_preference-1)==XZ_LAYOUT_MIXER;
   if(view->play_view_count==4&&(sh_deck_count(m)!=4||card_success(m)))view->play_placeholders=0xc;
- }else view->play_view_count=sh_deck_count(m)==4&&u->play_decks!=2?4:2;
+ }
 }
 static const int zoom_pps[XZ_SHELL_ZOOM_MAX+1]={32,48,64,96,128,192,256};
 static const char *const cue_letters[XZ_SHELL_HOT_CUES]={"A","B","C","D","E","F","G","H"};
@@ -152,7 +155,9 @@ struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *m, int deck)
  const struct play_layout *L=layout_of(m);
  int layout=stem_layout(m);
  if(L->stem_rows_half){
-  if(layout==XZ_SHELL_STEMS_HIDDEN||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
+  /* Four lanes: one half row for a deck whose track has stems, unless the STEMS button hid them; the 2 DECKS
+     layouts do not apply. A deck without stems keeps its whole lane. */
+  if(m->four_stems_hidden||!stem_buttons(m,deck))return (struct xz_shell_rect){0,0,0,0};
   return (struct xz_shell_rect){WAVE_X,lane_y(L,m,deck)+L->lane_h-STEM_ROW_HALF,WAVE_W,STEM_ROW_HALF};
  }
  if(layout<=XZ_SHELL_STEMS_HIDDEN||layout==XZ_SHELL_STEMS_PADS)return (struct xz_shell_rect){0,0,0,0};

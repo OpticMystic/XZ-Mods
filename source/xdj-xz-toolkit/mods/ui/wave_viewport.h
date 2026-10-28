@@ -51,6 +51,26 @@ static inline const char *xz_wave_layout_name(int mode);
 static inline const char *xz_modern_stems_name(int mode) {
  return mode==XZ_MODERN_STEMS_PADS?"PAD ROW / SMALL":xz_wave_layout_name(mode);
 }
+/* One press of the STEMS button: MODERN's header STEMS, CLASSIC's top-bar STEMS and the REKORDBOX key set to
+   STEMS. 2 DECKS view: it steps the stem layout as above (MODERN's six, CLASSIC's five). A 4 DECKS view leaves
+   that layout alone, because the four lanes have no room for the layouts: MODERN shows or hides its four
+   lanes' stem buttons, one press each, remembered apart from the layout (settings.h XZ_HIDE_FOUR_STEMS), and
+   CLASSIC, whose four lanes draw no stem rows at all, only says where they are. */
+enum xz_stems_press { XZ_STEMS_PRESS_STEP, XZ_STEMS_PRESS_SHOW, XZ_STEMS_PRESS_HIDE, XZ_STEMS_PRESS_TWO_ONLY };
+static inline enum xz_stems_press xz_stems_press(int modern,int four_view,int four_hidden) {
+ if(!four_view)return XZ_STEMS_PRESS_STEP;
+ if(!modern)return XZ_STEMS_PRESS_TWO_ONLY;
+ return four_hidden?XZ_STEMS_PRESS_SHOW:XZ_STEMS_PRESS_HIDE;
+}
+/* The notice a press raises; NULL for a layout step, whose marks under STEMS show the layout. */
+static inline const char *xz_stems_press_notice(enum xz_stems_press press) {
+ return press==XZ_STEMS_PRESS_SHOW?"STEM BUTTONS SHOWN":press==XZ_STEMS_PRESS_HIDE?"STEM BUTTONS HIDDEN":
+  press==XZ_STEMS_PRESS_TWO_ONLY?"STEM BUTTONS SHOW IN 2 DECKS VIEW":NULL;
+}
+/* CLASSIC's top-bar STEMS lamp and marks: the layout on screen, so none while four lanes show. */
+static inline int xz_classic_stems_lamp(int layout,int four_view) {
+ return four_view?XZ_STEM_LAYOUT_HIDDEN:layout;
+}
 static inline const char *xz_wave_layout_name(int mode) {
  static const char *const names[XZ_STEM_LAYOUT_COUNT]={"HIDDEN","BELOW / FULL","BELOW / HALF","OUTER / FULL","OUTER / HALF"};
  return names[(unsigned)mode<XZ_STEM_LAYOUT_COUNT?mode:0];

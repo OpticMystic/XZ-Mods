@@ -1553,7 +1553,7 @@
       "group": "advanced",
       "default": 0,
       "min": 0,
-      "max": 15,
+      "max": 31,
       "kind": "number",
       "readonly": false
     },

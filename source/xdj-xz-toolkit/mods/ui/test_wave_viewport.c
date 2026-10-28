@@ -6,11 +6,36 @@
 #include <stdio.h>
 #include <string.h>
 static uint16_t pixels[540*268+8];
+/* The STEMS button, both interfaces: two lanes step the layout as before; four lanes show or hide the stem
+   buttons with one press each in MODERN and change nothing in CLASSIC, whose four lanes have no stem rows. */
+static void stems_button(void) {
+ int classic=XZ_STEM_LAYOUT_BELOW,modern=XZ_MODERN_STEMS_PADS,hidden=0;
+ for(int i=1;i<=2*XZ_MODERN_STEMS_COUNT;i++){
+  assert(xz_stems_press(1,0,hidden)==XZ_STEMS_PRESS_STEP&&!xz_stems_press_notice(XZ_STEMS_PRESS_STEP));
+  modern=xz_modern_stems_next(modern);assert(modern==xz_modern_stems_order[i%XZ_MODERN_STEMS_COUNT]);
+  assert(xz_stems_press(0,0,hidden)==XZ_STEMS_PRESS_STEP);
+  classic=xz_wave_layout_next(classic);assert(classic==(XZ_STEM_LAYOUT_BELOW+i)%XZ_STEM_LAYOUT_COUNT);
+ }
+ for(int i=0;i<6;i++){
+  enum xz_stems_press p=xz_stems_press(1,1,hidden);
+  assert(p==(hidden?XZ_STEMS_PRESS_SHOW:XZ_STEMS_PRESS_HIDE));
+  assert(!strcmp(xz_stems_press_notice(p),hidden?"STEM BUTTONS SHOWN":"STEM BUTTONS HIDDEN"));
+  hidden=p==XZ_STEMS_PRESS_HIDE;
+  assert(hidden==!(i&1));
+  /* CLASSIC four lanes: no change, the same sentence every press, and a dark STEMS lamp. */
+  assert(xz_stems_press(0,1,hidden)==XZ_STEMS_PRESS_TWO_ONLY);
+  assert(!strcmp(xz_stems_press_notice(XZ_STEMS_PRESS_TWO_ONLY),"STEM BUTTONS SHOW IN 2 DECKS VIEW"));
+ }
+ for(int layout=0;layout<XZ_STEM_LAYOUT_COUNT;layout++){
+  assert(xz_classic_stems_lamp(layout,0)==layout&&xz_classic_stems_lamp(layout,1)==XZ_STEM_LAYOUT_HIDDEN);
+ }
+}
 static void fill(void) {
  for(unsigned y=0;y<268;y++)for(unsigned x=0;x<540;x++)pixels[y*540+x]=x<536?(uint16_t)(y*127+x):0xbeef;
  for(unsigned i=540*268;i<sizeof(pixels)/sizeof(*pixels);i++)pixels[i]=0xabcd;
 }
 int main(void) {
+ stems_button();
  int mode=XZ_STEM_LAYOUT_BELOW;
  const unsigned heights[5]={0,48,24,48,24};
  const unsigned first_wave[5]={0,0,0,48,24},second_wave[5]={136,132,132,136,136};
@@ -55,5 +80,5 @@ int main(void) {
  assert(!xz_wave_layout_pixels(pixels,540*268,530,1));
  assert(!xz_wave_layout_pixels(pixels,SIZE_MAX,SIZE_MAX,1));
  assert(!xz_wave_layout_pixels(pixels,540*268,540,5));
- puts("PASS five layouts, larger half-height waves, downward relocation, fixed cue bands, inverse mapping and stride guards; one deck's half alone");
+ puts("PASS five layouts, larger half-height waves, downward relocation, fixed cue bands, inverse mapping and stride guards; one deck's half alone; STEMS steps two lanes, shows or hides four");
 }

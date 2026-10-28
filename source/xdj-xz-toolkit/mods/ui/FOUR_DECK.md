@@ -213,8 +213,12 @@ marks and the readout are themed. The pairing, identity and transactional
 rules are the stem-row path's.
 
 Stem rows are not drawn while four decks show: there is no room for them. The
-saved `stems_overlay` is untouched and returns on the first frame after the
-route goes down. Pressing STEMS meanwhile still cycles the saved layout.
+saved `stems_overlay` is untouched and returns on the first frame of 2 DECKS.
+Pressing STEMS meanwhile leaves it alone and says STEM BUTTONS SHOW IN 2 DECKS
+VIEW, and the STEMS lamp and its layout marks stay dark, because no stem
+buttons are on screen (`wave_viewport.h` `xz_stems_press`,
+`xz_classic_stems_lamp`). MODERN's four lanes do draw stem buttons; there STEMS
+shows or hides them (`settings.h` `XZ_HIDE_FOUR_STEMS`).
 
 ## Touch
 

@@ -427,7 +427,7 @@ static const struct xz_shell_item_help help_items[]={
  HELP(LOOK_HARMONICS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
  HELP(LOOK_VOCALS,"The colour for this stem on the pads, the stem rows and the STEMS waveform.",9,help_stem_color),
  HELP(LOOK_BYPASS,"The BYPASS button after each deck's stem buttons: lit, the original track plays over the stems.",2,help_bypass),
- HELP(LOOK_STEM_LAYOUT,"Where the stem buttons sit on the play screen. The STEMS button steps through these in this order.",XZ_SHELL_STEM_LAYOUTS,help_stem_layout),
+ HELP(LOOK_STEM_LAYOUT,"Where the stem buttons sit on the 2 DECKS play screen. The STEMS button steps through these in this order. In 4 DECKS it shows or hides them.",XZ_SHELL_STEM_LAYOUTS,help_stem_layout),
 };
 #undef HELP
 static const struct xz_shell_help_model help_model={sizeof help_items/sizeof *help_items,help_items};
@@ -2973,6 +2973,11 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  last_call_ms=now;int key_overlay_changed=last_input.key_controls_open!=in->key_controls_open;
  int waveform_changed=last_input.look_known!=in->look_known||last_input.wave_mode!=in->wave_mode;
  int display_changed=apply_display_input(in);
+ /* 4 DECKS: the stem buttons shown or hidden (the STEMS button there; ui_runtime.c saves it in hidden_parts). */
+ if(in->look_known){
+  int four_hidden=(in->hidden_parts&XZ_HIDE_FOUR_STEMS)!=0;
+  display_changed|=model.four_stems_hidden!=four_hidden;model.four_stems_hidden=four_hidden;
+ }
  if(in->look_known)for(int i=0;i<3;i++){
   uint32_t color=xz_band_palette_color(in->band_colors[i],0);
   display_changed|=model.wave_band_rgb[i]!=color;model.wave_band_rgb[i]=color;

@@ -69,9 +69,14 @@ struct xz_settings {
     int key_display;       /* enum xz_shell_key_display: 0 as the deck shows it (default), 1 classic, 2 alphanumeric */
     int wave_zoom;         /* 0..XZ_SHELL_ZOOM_MAX (6), default XZ_SHELL_ZOOM_DEFAULT (3) */
     int usb_colors;        /* enum xz_shell_usb_colors: 0 ALL (default), 1 TILE, 2 OFF */
-    int hidden_parts;      /* bit per enum xz_shell_indicator set: hidden (mode lamps, quantize lamp, bypass, titles) */
+    int hidden_parts;      /* bit per enum xz_shell_indicator set: hidden (mode lamps, quantize lamp, bypass, titles),
+                              and XZ_HIDE_FOUR_STEMS */
     int modern_browse_columns; /* optional field 57: shell column bitmask, 0 keeps automatic columns, 0..2047 */
 };
+/* hidden_parts bit 4: MODERN's 4 DECKS view hides its stem buttons. The STEMS button sets and clears it there
+   (ui/wave_viewport.h xz_stems_press); the 2 DECKS layout, modern_stems, stays as it is. */
+#define XZ_HIDE_FOUR_STEMS 16
+#define XZ_HIDDEN_PARTS_MAX 31
 /* The theme every renderer draws: FLAGSHIP (24) while MODERN, else the classic theme. */
 int xz_settings_look(int ui_interface, int classic_theme);
 void xz_settings_default(struct xz_settings *);
