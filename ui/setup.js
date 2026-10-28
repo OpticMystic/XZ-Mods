@@ -15,7 +15,7 @@ const FLOWS={
 };
 // The top ports four decks use. The firmware names them in every cable instruction (source/xdj-xz-toolkit/mods/ui/
 // loopback_port.h, XZ_LOOPBACK_PORT); tools/verify_setup_wizard.mjs checks this matches it.
-const LOOPBACK_PORT='USB 1',MUSIC_PORT='USB 2';
+const LOOPBACK_PORT='USB 1 or 2',MUSIC_PORT='the other top port';
 const POLL_MS=2000;
 const W={view:'find',flow:null,step:null,usbs:null,finding:false,opening:null,eject:null,usb:null,left:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,result:null,
   quadReturn:null,quadConfirmed:false,quadPaused:false,
@@ -477,7 +477,7 @@ function fourDeckEntry(){
 // The three things to do at the player, the same as the manual's Four decks chapter and the cable card on the XZ.
 const FOUR_DECK_STEPS=[
   {title:'Cable from the rear USB-B socket to top '+LOOPBACK_PORT,text:'A USB-B to USB-A cable, the kind a printer uses.'},
-  {title:'Music stick in '+MUSIC_PORT,text:'Decks 3 and 4 play their tracks from it.'},
+  {title:'Music in '+MUSIC_PORT,text:'A stick, or one USB 2.0 hub with several. It can go in later.'},
   {title:'CH3 and CH4 set to USB',text:'The mixer inputs, so you hear decks 3 and 4.'}
 ];
 // writing: while the USB is written, as something to read; done: on the done screen. During a write the button only
@@ -518,8 +518,8 @@ function quadStatus(){return W.quadConfirmed?'User confirmation: you saw four de
 // the app by tools/build_cable_media.py. Muted, looping, no controls; with reduced motion, its first frame.
 const QUAD_VIDEO='assets/wizard/loopback-cable.mp4',QUAD_POSTER='assets/wizard/loopback-cable-poster.webp';
 const QUAD_TITLE='One USB-B to USB-A cable loops back into the same XDJ-XZ';
-const QUAD_DESC='The XDJ-XZ seen from behind and above, with one cable from the rear USB-B socket over the back edge into top '+LOOPBACK_PORT+'. The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of '+LOOPBACK_PORT+' and goes back in. '+MUSIC_PORT+' is beside it. The loop ends where it began, both ends connected. No computer is involved.';
-const LOOPBACK_PORT_CAPTION='Rear USB-B → top '+LOOPBACK_PORT+' · Music stays in '+MUSIC_PORT;
+const QUAD_DESC='The XDJ-XZ seen from behind and above, with one cable from the rear USB-B socket over the back edge into top USB 1; USB 2 works the same way.'+' The view turns to the rear panel, where the square USB-B plug with beveled top corners comes out to show the socket and goes back in, then to the top, where the flat USB-A plug lifts out of USB 1 and goes back in. USB 2 is beside it. The loop ends where it began, both ends connected. No computer is involved.';
+const LOOPBACK_PORT_CAPTION='Rear USB-B → top '+LOOPBACK_PORT+' · Music in '+MUSIC_PORT;
 // The cable picture with its caption and a pause button; prefix keeps the ids apart (wz-quad in the guide, wz-fourdeck
 // on the USB pages). One pause choice (W.quadPaused) holds for both.
 function cableFigure(prefix,caption){
@@ -544,16 +544,16 @@ function stepQuad(){
     el('p',{class:'notice wz-quad-prereq',text:'Requires the paired XDJ-XZ 1.26 quad beta resources. The matching loader starts the automatic bridge; this cable guide does not install it or verify the connection. Other saved versions may not include quad support.'}),
     cableFigure('wz-quad',LOOPBACK_PORT_CAPTION),
     el('ol',{class:'wz-quad-steps'},
-      el('li',{},el('strong',{text:'Boot first. '}),'Keep the boot stick in '+LOOPBACK_PORT+' until XZ Mods has finished starting. Keep the music stick in '+MUSIC_PORT+'. Leave the square, beveled USB-B end plugged into the rear USB-B socket; leave its rectangular USB-A end free.'),
-      el('li',{},el('strong',{text:'Stop every deck. '}),'Hold '+LOOPBACK_PORT+' STOP for more than 2 seconds. Wait until the '+LOOPBACK_PORT+' indicator is off, then remove only the boot stick.'),
-      el('li',{},el('strong',{text:'Loop back. '}),'Insert only the free USB-A cable end into top '+LOOPBACK_PORT+'. It connects back to the XZ, not a computer. Keep music '+MUSIC_PORT+' connected.'),
+      el('li',{},el('strong',{text:'Connect the cable. '}),'Square USB-B end into the rear USB-B socket, flat USB-A end into a free top port, '+LOOPBACK_PORT+'. It connects back to the XZ, not a computer. It can go in before or after XZ Mods starts.'),
+      el('li',{},el('strong',{text:'Music. '}),'Your music stick, or one USB 2.0 hub with several sticks, goes in '+MUSIC_PORT+'. It can go in later.'),
+      el('li',{},el('strong',{text:'Decks 1 and 2 stopped. '}),'Decks 3 and 4 start while decks 1 and 2 are stopped or paused. Empty decks are fine.'),
       el('li',{},el('strong',{text:'Check on the XZ. '}),'Four decks should appear when the route is ready. Set the CH3 and CH4 input selectors to USB if required. Press left SHIFT twice to switch 1/3; right SHIFT twice to switch 2/4.')),
     el('label',{class:'check wz-quad-confirm'},el('input',{type:'checkbox',id:'wz-quad-confirm',checked:W.quadConfirmed?true:null,onchange:event=>{W.quadConfirmed=event.currentTarget.checked;$('wz-quad-status').textContent=quadStatus();}}),'I can see four decks on the XZ'),
     el('p',{class:'wz-quad-status',id:'wz-quad-status',role:'status',text:quadStatus()}),
     el('details',{class:'wz-quad-trouble'},el('summary',{text:'Still two decks, or no CH3/CH4 audio?'}),
-      el('p',{text:'Confirm the matching four-deck loader and bridge are running. With all decks stopped, check rear USB-B → top '+LOOPBACK_PORT+', music '+MUSIC_PORT+' and the CH3/CH4 USB selectors. If the cable was connected before boot, leave the rear USB-B end in place and reconnect only the free USB-A end after startup. Stop every deck before reconnecting.'}),
-      el('p',{text:'These '+LOOPBACK_PORT+' loopback / '+MUSIC_PORT+' music instructions describe the paired quad beta setup. Other loader/bridge configurations may differ. This guide does not detect your configuration. Reopen it from USB → Four decks.'})),
-    el('p',{class:'wz-mono',text:'Keep the music USB connected. Music removal and full RAM carry are unsupported. Four-deck stems are still incomplete.'})];
+      el('p',{text:'Confirm the USB was written with a four-deck build. With decks 1 and 2 stopped, check the cable from the rear USB-B socket to a top port, and the CH3/CH4 USB selectors. RESCAN on the XZ checks again at once.'}),
+      el('p',{text:'This guide does not detect your setup. Reopen it from USB → Four decks.'})),
+    el('p',{class:'wz-mono',text:'A track copied to RAM keeps playing if its stick comes out. Stems are not available on decks 3 and 4 yet.'})];
 }
 
 // --- the screen the XZ starts with ---

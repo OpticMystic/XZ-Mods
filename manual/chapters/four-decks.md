@@ -28,6 +28,7 @@ The cable goes directly from the rear USB socket to either **USB 1** or **USB 2*
 8. Press [[SHIFT]] twice on the left side to play deck 3, or on the right side to play deck 4.
 
 Decks 3 and 4 start as soon as the cable is in, even when decks 1 and 2 have no tracks loaded. You can leave the cable connected before starting the USB loader. No **RESCAN** is needed. Decks 1 and 2 must be stopped or paused while the route starts. **RESCAN** checks at once if you want to check again. After a disconnection, reconnect the cable to the same top port. To move it to the other port, stop playback and restart the USB loader first.
+
 > **Note.** The [XZ Mods app](desktop-app#four-decks-in-the-app) shows steps 2 to 5 with an animation of the cable while it writes your USB and when it is done. You set four decks up at the player, not in the app.
 
 > **Tip.** You can choose a four-deck view before you plug in the cable. Decks 3 and 4 then show a card with the cable steps and their current state, and decks 1 and 2 keep playing as usual.
