@@ -531,25 +531,28 @@ void xz_pic_home_icon(struct xz_canvas c, const struct xz_pic_style *s, int sect
  default:break;
  }
 }
-const unsigned xz_ui_grid_features[XZ_UI_GRID_ROWS]={XZ_DECK_CAN_BEAT_JUMP,XZ_DECK_CAN_GATE_CUE,XZ_DECK_CAN_SMART_CUE,XZ_DECK_CAN_CUE_PREVIEW,
- XZ_DECK_CAN_PLAYING_KEY,XZ_DECK_CAN_KEY_SYNC,XZ_DECK_CAN_STEMS,XZ_DECK_CAN_XPAD,XZ_DECK_CAN_GROOVE,XZ_DECK_CAN_RAM};
+const unsigned xz_ui_grid_features[XZ_UI_GRID_ROWS]={XZ_DECK_CAN_BEAT_JUMP,XZ_DECK_CAN_GATE_CUE,XZ_DECK_CAN_SMART_CUE,
+ XZ_DECK_CAN_PLAYING_KEY,XZ_DECK_CAN_KEY_SYNC,XZ_DECK_CAN_STEMS,XZ_DECK_CAN_RAM};
 const char *xz_ui_grid_name(int row){
- static const char *const names[XZ_UI_GRID_ROWS]={"BEAT JUMP PADS","GATE CUE","SMART CUE","HOT CUE PREVIEW","PLAYING KEY","KEY SYNC",
-  "STEMS","X-PAD SAMPLER","GROOVE PADS","RAM TRACKS"};
+ static const char *const names[XZ_UI_GRID_ROWS]={"BEAT JUMP PADS","GATE CUE","SMART CUE","PLAYING KEY","KEY SYNC",
+  "STEMS","RAM TRACKS"};
  return row>=0&&row<XZ_UI_GRID_ROWS?names[row]:"";
 }
+/* Rows per half: the first half takes the odd one. */
+enum { GRID_HALF=(XZ_UI_GRID_ROWS+1)/2 };
+_Static_assert(XZ_UI_GRID_ROWS<=(int)(sizeof ((struct xz_pic_grid_geo *)0)->rows/sizeof(struct xz_rect)),"grid geometry holds every row");
 void xz_pic_grid_geometry(int x, int y, int w, int row_h, struct xz_pic_grid_geo *g) {
  memset(g,0,sizeof *g);
  int bw=w/2;g->header_y=y;
- for(int b=0;b<2;b++){g->x[b]=x+b*bw;for(int r=0;r<5;r++)g->rows[b*5+r]=(struct xz_rect){x+b*bw-4,y+16+r*row_h,bw-10,row_h};}
+ for(int b=0;b<2;b++){g->x[b]=x+b*bw;for(int r=0;r<GRID_HALF&&b*GRID_HALF+r<XZ_UI_GRID_ROWS;r++)g->rows[b*GRID_HALF+r]=(struct xz_rect){x+b*bw-4,y+16+r*row_h,bw-10,row_h};}
 }
 void xz_pic_grid_draw(struct xz_canvas c, const struct xz_pic_style *s, const struct xz_pic_grid_geo *g, const unsigned caps[4], int focus) {
  static const int order[4]={2,0,1,3};
  for(int b=0;b<2;b++){
-  int col0=g->x[b]+(g->rows[b*5].w+4)-128;
+  int col0=g->x[b]+(g->rows[b*GRID_HALF].w+4)-128;
   for(int j=0;j<4;j++)deck_box(c,s,col0+j*30-6,g->header_y-2,13,order[j]);
-  for(int r=0;r<5;r++){
-   int row=b*5+r;struct xz_rect rr=g->rows[row];
+  for(int r=0;r<GRID_HALF&&b*GRID_HALF+r<XZ_UI_GRID_ROWS;r++){
+   int row=b*GRID_HALF+r;struct xz_rect rr=g->rows[row];
    uint32_t fill=row==focus?(s->modern?0x0c2a48:xz_blend(s->bg,s->select,60)):r%2==0?s->row:s->bg;
    xz_rect(c,rr.x,rr.y,rr.w,rr.h,fill);
    xz_pic_text(c,rr.x+8,rr.y+(rr.h-9)/2,xz_ui_grid_name(row),12,s->modern?0xffffff:s->ink);

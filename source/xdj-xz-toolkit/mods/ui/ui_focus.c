@@ -132,7 +132,7 @@ const char *xz_ui_page_title(int page){
 const char *xz_ui_page_body(int page){
  switch(page){
  case XZ_UI_HOME:return "What MODS can do, and anything that needs you.";
- case XZ_UI_PLAY:return "Changes what the pads and buttons do while you perform: custom beat jump distances, gate cue, smart cue, hot cue preview, key sync, the X-PAD sampler, RAM tracks and the button next to LINK.";
+ case XZ_UI_PLAY:return "Changes what the pads and buttons do while you perform: custom beat jump distances, gate cue, smart cue, key sync, RAM tracks and the button next to LINK.";
  case XZ_UI_STEM_SECTION:return "Mute vocals, harmonics and drums from the pads or the screen: USB stems, stems in DJ software, the stem pads, the stem buttons on screen and their colours.";
  case XZ_UI_SCREEN:return "How the play screen looks: interface, deck view, theme, waveform colours, titles, keys and the top bar.";
  case XZ_UI_FOUR_DECKS:return "Play decks 3 and 4 over the loopback cable: the cable's state, the deck view and what works on each deck.";
@@ -176,15 +176,15 @@ static unsigned feature_of(const struct xz_ui_widget *a){
  switch(a->kind){
  case XZ_UI_JUMP_PAIR:case XZ_UI_JUMP_SIZE:case XZ_UI_JUMP_ENABLE:case XZ_UI_JUMP_EDIT_PAGE:case XZ_UI_JUMP_STEP:return XZ_DECK_CAN_BEAT_JUMP;
  case XZ_UI_ENABLE:case XZ_UI_FEATURE_SETUP_OPEN:
-  return k==XZ_UI_GATE?XZ_DECK_CAN_GATE_CUE:k==XZ_UI_SMART?XZ_DECK_CAN_SMART_CUE:k==XZ_UI_PREVIEW?XZ_DECK_CAN_CUE_PREVIEW:k==XZ_UI_SAMPLE?XZ_DECK_CAN_XPAD:k==XZ_UI_STEM?XZ_DECK_CAN_STEMS:0;
+  return k==XZ_UI_GATE?XZ_DECK_CAN_GATE_CUE:k==XZ_UI_SMART?XZ_DECK_CAN_SMART_CUE:k==XZ_UI_STEM?XZ_DECK_CAN_STEMS:0;
  case XZ_UI_INFO:
   if(k>=XZ_UI_INFO_GRID&&k<XZ_UI_INFO_GRID+XZ_UI_GRID_ROWS)return xz_ui_grid_features[k-XZ_UI_INFO_GRID];
-  return k==XZ_UI_INFO_PREVIEW?XZ_DECK_CAN_CUE_PREVIEW:k==XZ_UI_INFO_XPAD?XZ_DECK_CAN_XPAD:k==XZ_UI_INFO_GROOVE?XZ_DECK_CAN_GROOVE:k==XZ_UI_INFO_COLUMNS?XZ_DECK_CAN_DISPLAY:0;
+  return k==XZ_UI_INFO_COLUMNS?XZ_DECK_CAN_DISPLAY:0;
  case XZ_UI_FEATURE_LINK:case XZ_UI_PANEL:
   switch(k){
-  case XZ_UI_BEAT_JUMP:return XZ_DECK_CAN_BEAT_JUMP;case XZ_UI_KEY_SETUP:return XZ_DECK_CAN_KEY_SYNC;case XZ_UI_XPAD:return XZ_DECK_CAN_XPAD;
+  case XZ_UI_BEAT_JUMP:return XZ_DECK_CAN_BEAT_JUMP;case XZ_UI_KEY_SETUP:return XZ_DECK_CAN_KEY_SYNC;
   case XZ_UI_RAM_SETUP:return XZ_DECK_CAN_RAM;case XZ_UI_PC_STEMS:case XZ_UI_STEM_PADS:case XZ_UI_LOCAL_STEM_SETUP:return XZ_DECK_CAN_STEMS;
-  case XZ_UI_STEMS:return XZ_DECK_CAN_GROOVE;case XZ_UI_STEM_COLORS:case XZ_UI_THEME_PICK:case XZ_UI_BAND_COLORS:return XZ_DECK_CAN_DISPLAY;
+  case XZ_UI_STEM_COLORS:case XZ_UI_THEME_PICK:case XZ_UI_BAND_COLORS:return XZ_DECK_CAN_DISPLAY;
   default:return 0;
   }
  case XZ_UI_LOCAL_STEM_SETUP_OPEN:case XZ_UI_STEM_PAGE:case XZ_UI_STEM_BANK:case XZ_UI_STEM_ORDER:case XZ_UI_PAD_FEEDBACK:case XZ_UI_STEM_PAD_CONFIG:
@@ -233,11 +233,6 @@ static const char *jump_pair_body(const struct xz_ui *u,const struct xz_ui_model
 /* The 4 DECKS grid: what one feature does on each deck, from the capabilities only. */
 static const char *grid_body(const struct xz_ui_model *m,unsigned f){
  unsigned on=0;for(int d=0;d<4;d++)if(xz_deck_caps(m,d)&f)on|=1u<<d;
- if(xz_deck_cap_absent(f)){
-  if(f==XZ_DECK_CAN_CUE_PREVIEW)return "Hot cue preview is not in this version of XZ Mods, on any deck.";
-  if(f==XZ_DECK_CAN_XPAD)return "The X-PAD sampler is not in this version of XZ Mods, on any deck.";
-  return "Groove pads are not in this version of XZ Mods, on any deck.";
- }
  if((on&3u)!=3u){
   if(f==XZ_DECK_CAN_STEMS)return "This USB loader has no stem engine. USB STEMS setup in STEMS checks it.";
   return xz_deck_cap_reason(m,(on&1u)?1:0,f);
@@ -256,10 +251,7 @@ static const char *section_body(const struct xz_ui *u,const struct xz_ui_model *
  switch(a->kind){
  case XZ_UI_INFO:
   if(k>=XZ_UI_INFO_GRID)return grid_body(m,xz_ui_grid_features[(k-XZ_UI_INFO_GRID)%XZ_UI_GRID_ROWS]);
-  return k==XZ_UI_INFO_PREVIEW?"While a deck is paused, hold a hot cue pad to hear it from that point; let go and the deck goes back. Not in this version of XZ Mods.":
-   k==XZ_UI_INFO_XPAD?"A sampler on the pads: a loop strip, eight sample pads, HOLD and OVERDUB. Not in this version of XZ Mods.":
-   k==XZ_UI_INFO_GROOVE?"Plays a groove in place of a stem. A pad with a groove swaps it in; pads without one keep their hot cues. Not in this version of XZ Mods.":
-   k==XZ_UI_INFO_COLUMNS?"Tap a column title in the track list, or press MENU there, to choose its columns and sort.":
+  return k==XZ_UI_INFO_COLUMNS?"Tap a column title in the track list, or press MENU there, to choose its columns and sort.":
    "Press SHIFT twice on a side to switch it between decks 1 and 3 (left) or 2 and 4 (right). LOAD loads into the deck that side controls.";
  case XZ_UI_HOME_SETUP:return k==XZ_UI_STEM_SECTION?"Opens USB STEMS setup: it checks the stem engine, turns stems on and checks a loaded track.":
   "Opens 4 DECKS: the cable's state and RESCAN, which checks the loopback cable and audio route now.";
@@ -311,8 +303,6 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
   if(k==XZ_UI_STEM)return "Plays prepared stem files from the USB so pads and stem buttons can mute vocals, harmonics and drums. Off gives every pad its normal job back.";
   if(k==XZ_UI_GATE)return "Hot cue pads play only while you hold them and jump back to the hot cue when you let go. Use it to stab hot cues like samples.";
   if(k==XZ_UI_SMART)return "Pressing a hot cue also moves the CUE point there, so CUE takes you back to the last hot cue you used.";
-  if(k==XZ_UI_PREVIEW)return "Hold a hot cue pad to hear it while the deck is paused.";
-  if(k==XZ_UI_SAMPLE)return "Turns on the experimental X-PAD sample engine.";
   return "Turns this feature on or off.";
  case XZ_UI_FOUR_WAVE_ORDER:return "Four-deck waveforms: numeric 1 2 3 4 or physical mixer 3 1 2 4. Shared across interfaces until reboot.";
  case XZ_UI_STEMS_OVERLAY:return "Push to cycle where the stem mute row sits on the play screen.";
@@ -443,7 +433,6 @@ int xz_ui_describe_widget(const struct xz_ui *u,const struct xz_ui_model *m,cons
   enum xz_ui_usb_reason why=xz_ui_usb_blocked(m,a.deck>=0?a.deck:u->deck<2?u->deck:0);
   out->state=xz_ui_usb_reason_text(why);out->body=xz_ui_usb_next_step(why);
  }
- else if(a.kind==XZ_UI_INFO&&a.index<XZ_UI_INFO_GRID&&a.index!=XZ_UI_INFO_COLUMNS)out->state="NOT IN THIS VERSION";
  else if(!l.available)out->state="NOT READY";
  else if(u->adjusting)out->state="ADJUSTING";
  else switch(a.kind){

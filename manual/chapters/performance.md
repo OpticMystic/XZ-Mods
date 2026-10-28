@@ -14,13 +14,11 @@ The PLAY page with the default settings: gate cue and smart cue off, the default
 1 @ 300,84 BEAT JUMP PADS | Opens the beat jump editor. The numbers are your page 1 and page 2 sizes in beats.
 2 @ 250,132 GATE CUE | Hot cues play only while you hold the pad. Off by default.
 3 @ 600,132 SMART CUE | A hot cue press also moves the CUE point there. Off by default.
-4 @ 318,180 HOT CUE PREVIEW | Not in this version of XZ Mods.
-5 @ 545,180 KEYS | Opens the key page: key shift and KEY SYNC for all four decks.
-6 @ 310,244 X-PAD SAMPLER | Not in this version of XZ Mods.
-7 @ 605,244 RAM TRACKS | Opens RAM TRACKS: copy a deck's track into memory.
-8 @ 350,308 BUTTON NEXT TO LINK | What the media button above LINK does, alone and with SHIFT. See Controls on the player.
-9 @ 200,425 Dock | Explains the highlighted row in plain words.
-10 @ 718,425 Works on | The decks the highlighted feature works on, in mixer order 3 1 2 4. A dim number is a deck it does not work on, with the reason below.
+4 @ 230,196 KEYS | Opens the key page: key shift and KEY SYNC for all four decks.
+5 @ 605,196 RAM TRACKS | Opens RAM TRACKS: copy a deck's track into memory.
+6 @ 350,260 BUTTON NEXT TO LINK | What the media button above LINK does, alone and with SHIFT. See Controls on the player.
+7 @ 200,425 Dock | Explains the highlighted row in plain words.
+8 @ 718,425 Works on | The decks the highlighted feature works on, in mixer order 3 1 2 4. A dim number is a deck it does not work on, with the reason below.
 ```
 
 If the cue engine has not reported on this USB loader, GATE CUE and SMART CUE show as SET UP GATE CUE and SET UP SMART CUE instead of switches. See [Feature setup](#feature-setup).
@@ -112,7 +110,7 @@ Gate cue and smart cue work on all four decks. On decks 1 and 2 they need the cu
 When the cue engine has not reported on a deck, MODS shows a short setup instead of the switch. It checks the feature on a loaded USB track in four steps: detect, choose deck, enable and test.
 
 ```figure classic:theme-{look}-feature-setup MODS · FEATURE SETUP
-The setup page at its first step. It is drawn here with its X-PAD title; for gate cue and smart cue it reads GATE CUE or SMART CUE.
+The setup page at its first step, checking gate cue. For smart cue it reads SMART CUE.
 1 @ 270,60 Feature | The feature this setup checks.
 2 @ 390,82 Steps | The four steps. The button at the bottom always runs the next one.
 3 @ 410,20 Deck | Choose deck 1 or deck 2.
@@ -307,15 +305,3 @@ While a side drives deck 3 or 4:
 | [[SHIFT]] + [[DECK QUANTIZE]] | Switches quantize only for the deck of that side. |
 
 With quantize on, decks 3 and 4 put cue points, loop in and out, hot cues and beat and slip loops on the beat grid, at a one-beat value. [[SYNC]] then also locks the deck to the master's beat. [Four decks](four-decks) has the rest of what decks 3 and 4 do.
-
-## Sampler, hot cue preview and groove pads
-
-These are not in this version of XZ Mods, on any deck. MODS lists them and marks them NOT IN THIS VERSION:
-
-| Feature | What MODS says it does |
-|---|---|
-| X-PAD SAMPLER | A sampler on the pads: a loop strip, eight sample pads, HOLD and OVERDUB. |
-| HOT CUE PREVIEW | While a deck is paused, hold a hot cue pad to hear it from that point. Let go and the deck goes back. |
-| GROOVE PADS | Plays a groove in place of a stem. Listed on the STEMS page. |
-
-The XDJ-XZ's own X-PAD, the touch strip in the BEAT FX section of the mixer, is a different control. XZ Mods does not change it.

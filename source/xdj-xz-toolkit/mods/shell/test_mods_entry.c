@@ -23,7 +23,7 @@ static uint16_t frame[800*480];
 /* The rail shell_runtime.c publishes: UTILITY, then one entry per MODS section. */
 static const struct xz_shell_mods_tab tabs[XZ_UI_SECTIONS]={
  {"HOME",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_HOME,"What MODS can do, and anything that needs you.",0},
- {"PLAY",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_PLAY,"Beat jump pads, cue tricks, key sync, the sampler and RAM tracks.",0},
+ {"PLAY",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_PLAY,"Beat jump pads, cue tricks, key sync and RAM tracks.",0},
  {"STEMS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_STEM_SECTION,"Mute vocals, harmonics and drums from the pads or the screen.",0},
  {"SCREEN",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_SCREEN,"Interface, deck view, waveform colours and how keys are written.",0},
  {"4 DECKS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_FOUR_DECKS,"Play decks 3 and 4 over the loopback cable.",1},

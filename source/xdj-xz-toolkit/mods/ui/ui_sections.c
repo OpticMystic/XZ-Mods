@@ -21,6 +21,10 @@ enum xz_ui_page xz_ui_page_current(enum xz_ui_page page){
  case XZ_UI_CONTROLS:return XZ_UI_STEM_PADS;
  case XZ_UI_THEMES:return XZ_UI_SCREEN;
  case XZ_UI_SETTINGS:return XZ_UI_PLAY;
+ /* Groove pads and the X-PAD sampler are not built: their pages stay in the source for a runtime with the
+    engines, and nothing opens them. */
+ case XZ_UI_STEMS:return XZ_UI_STEM_SECTION;
+ case XZ_UI_XPAD:return XZ_UI_PLAY;
  default:return page;
  }
 }
@@ -36,13 +40,6 @@ const char *xz_ui_save_state(const struct xz_ui_model *m, int *alert){
  }
  if(alert)*alert=bad;
  return out;
-}
-/* Through xz_deck_caps, so a ready bit for an engine this runtime does not run never opens its controls. */
-int xz_ui_has_engine(const struct xz_ui_model *m, uint32_t cap){
- unsigned feature=cap==XZ_UI_PREVIEW?XZ_DECK_CAN_CUE_PREVIEW:cap==XZ_UI_SAMPLE?XZ_DECK_CAN_XPAD:cap==XZ_UI_GROOVE?XZ_DECK_CAN_GROOVE:0u;
- if(!m||!feature)return 0;
- for(int d=0;d<4;d++)if(xz_deck_caps(m,d)&feature)return 1;
- return 0;
 }
 int xz_ui_section_page(int page){
  switch(page){
@@ -87,11 +84,7 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BEAT_JUMP,0,"BEAT JUMP PADS");
   if(available&XZ_UI_GATE)add(w,&n,XZ_UI_ENABLE,XZ_UI_GATE,XZ_UI_GATE,"GATE CUE");else add(w,&n,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_GATE,0,"SET UP GATE CUE");
   if(available&XZ_UI_SMART)add(w,&n,XZ_UI_ENABLE,XZ_UI_SMART,XZ_UI_SMART,"SMART CUE");else add(w,&n,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_SMART,0,"SET UP SMART CUE");
-  if(xz_ui_has_engine(m,XZ_UI_PREVIEW))add(w,&n,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_PREVIEW,0,"HOT CUE PREVIEW");
-  else add(w,&n,XZ_UI_INFO,XZ_UI_INFO_PREVIEW,0,"HOT CUE PREVIEW");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_KEY_SETUP,0,"KEYS");
-  if(xz_ui_has_engine(m,XZ_UI_SAMPLE))add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_XPAD,0,"X-PAD SAMPLER");
-  else add(w,&n,XZ_UI_INFO,XZ_UI_INFO_XPAD,0,"X-PAD SAMPLER");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP,0,"RAM TRACKS");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BUTTONS,0,"BUTTON NEXT TO LINK");
   break;}
@@ -100,8 +93,6 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   else add(w,&n,XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM,0,"SET UP USB STEMS");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_PC_STEMS,0,"STEMS IN DJ SOFTWARE");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_PADS,0,"STEM PADS");
-  if(xz_ui_has_engine(m,XZ_UI_GROOVE))add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEMS,0,"GROOVE PADS");
-  else add(w,&n,XZ_UI_INFO,XZ_UI_INFO_GROOVE,0,"GROOVE PADS");
   {const int *order;int count=stem_layouts_of(m,&order);
    for(i=0;i<count;i++)add(w,&n,XZ_UI_STEMS_OVERLAY,1+order[i],0,stem_layout_label(m,order[i]));}
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_STEM_COLORS,0,"STEM COLOURS");
@@ -222,21 +213,18 @@ void xz_ui_section_place(const struct xz_ui *u, const struct xz_ui_model *m, str
    else if(a->kind==XZ_UI_HOME_SETUP){struct xz_rect r=home_tile(k);put(a,r.x+10,r.y+r.h-50,r.w-20,40);}
    break;
   case XZ_UI_PLAY:
+   /* Three groups under their captions (xz_ui_section_render): pads and cues, keys and memory, buttons. */
    if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_BEAT_JUMP)full(a,64);
-   else if(a->kind==XZ_UI_INFO)left(a,k==XZ_UI_INFO_PREVIEW?160:224);
    else if((a->kind==XZ_UI_ENABLE||a->kind==XZ_UI_FEATURE_SETUP_OPEN)&&k==XZ_UI_GATE)left(a,112);
    else if((a->kind==XZ_UI_ENABLE||a->kind==XZ_UI_FEATURE_SETUP_OPEN)&&k==XZ_UI_SMART)right(a,112);
-   else if(a->kind==XZ_UI_FEATURE_SETUP_OPEN&&k==XZ_UI_PREVIEW)left(a,160);
-   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_KEY_SETUP)right(a,160);
-   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_XPAD)left(a,224);
-   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_RAM_SETUP)right(a,224);
-   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_BUTTONS)full(a,288);
+   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_KEY_SETUP)left(a,176);
+   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_RAM_SETUP)right(a,176);
+   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_BUTTONS)full(a,240);
    break;
   case XZ_UI_STEM_SECTION:
    if(a->kind==XZ_UI_ENABLE||a->kind==XZ_UI_LOCAL_STEM_SETUP_OPEN)left(a,64);
    else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_PC_STEMS)right(a,64);
-   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_STEM_PADS)left(a,128);
-   else if((a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_STEMS)||(a->kind==XZ_UI_INFO&&k==XZ_UI_INFO_GROOVE))right(a,128);
+   else if(a->kind==XZ_UI_FEATURE_LINK&&k==XZ_UI_STEM_PADS)full(a,128);
    else if(a->kind==XZ_UI_STEMS_OVERLAY){
     const int *order;int count=stem_layouts_of(m,&order),at=0;
     for(int j=0;j<count;j++)if(order[j]==k-1)at=j;
@@ -341,12 +329,11 @@ const char *xz_ui_section_value(const struct xz_ui_model *m, const struct xz_ui_
  default:return NULL;
  }
  if(a->kind==XZ_UI_PANEL&&a->index==XZ_UI_THEME_PICK)return xz_theme_name(m->classic_theme>=0&&m->classic_theme<XZ_THEME_FLAGSHIP?m->classic_theme:0);
- if(a->kind==XZ_UI_INFO)return a->index==XZ_UI_INFO_COLUMNS?NULL:a->index<XZ_UI_INFO_GRID?"NOT IN THIS VERSION":NULL;
  return NULL;
 }
 const char *xz_ui_section_purpose(int section){
  switch(section){
- case XZ_UI_PLAY:return "Beat jump pads, cue tricks, key sync, the sampler and RAM tracks.";
+ case XZ_UI_PLAY:return "Beat jump pads, cue tricks, key sync and RAM tracks.";
  case XZ_UI_STEM_SECTION:return "Mute vocals, harmonics and drums from the pads or the screen.";
  case XZ_UI_SCREEN:return "Interface, deck view, waveform colours and how keys are written.";
  case XZ_UI_FOUR_DECKS:return "Play decks 3 and 4 over the loopback cable.";
@@ -593,7 +580,7 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
  switch(u->page){
  case XZ_UI_HOME:home(sc,&s);break;
  case XZ_UI_PLAY:
-  caption(c,&s,X0,48,CW,"PADS AND CUES");caption(c,&s,X0,208,CW,"SAMPLER AND MEMORY");caption(c,&s,X0,272,CW,"BUTTONS");
+  caption(c,&s,X0,48,CW,"PADS AND CUES");caption(c,&s,X0,160,CW,"KEYS AND MEMORY");caption(c,&s,X0,224,CW,"BUTTONS");
   list_values(sc,&s);break;
  case XZ_UI_STEM_SECTION:
   caption(c,&s,X0,48,CW,"STEM AUDIO");caption(c,&s,X0,112,CW,"PADS");caption(c,&s,X0,176,CW,"STEM BUTTONS ON SCREEN");

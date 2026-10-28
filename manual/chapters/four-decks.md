@@ -43,9 +43,8 @@ The 4 DECKS page before the cable is plugged in. In this picture the key and RAM
 4 @ 128,178 DECK VIEW | 2 DECKS, 4 DECKS in number order (1 2 3 4) or 4 DECKS in mixer order (3 1 2 4). The highlighted box is the saved view.
 5 @ 442,208 Deck columns | One column per deck, in mixer order 3 1 2 4, the same on both halves of the grid.
 6 @ 128,238 Feature row | A tick means the feature works on that deck. A dash means it does not. Turn the encoder onto a row and the dock says why.
-7 @ 128,345 Not in this version | HOT CUE PREVIEW, X-PAD SAMPLER and GROOVE PADS have no tick on any deck in this version.
-8 @ 120,425 Dock | Explains the highlighted control or row.
-9 @ 712,425 Save state | Confirms that your deck view is saved to the USB.
+7 @ 120,425 Dock | Explains the highlighted control or row.
+8 @ 712,425 Save state | Confirms that your deck view is saved to the USB.
 ```
 
 The HOME page shows the same state on the 4 DECKS card. When four decks need you (no cable found, a failed start, a lost connection, or no four-deck engine on the USB loader) HOME also shows **SET UP FOUR DECKS**, which opens this page.
@@ -285,7 +284,6 @@ Decks 3 and 4 are software players. They follow the player's own controls on the
 | Key sync and key shift | Yes | Yes. Both can shift together; new shifts check measured audio headroom. |
 | Stems | Yes, with USB stems set up | No. Decks 3 and 4 have no stems. |
 | RAM tracks | Yes | Yes, while the loopback cable is connected. See [RAM tracks](performance#ram-tracks). |
-| Hot cue preview, X-PAD sampler, groove pads | Not in this version | Not in this version |
 
 On a side that controls deck 3 or 4, these controls work on that deck {experimental}:
 

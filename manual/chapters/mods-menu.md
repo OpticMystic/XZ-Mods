@@ -68,10 +68,9 @@ PLAY changes what the pads and buttons do while you perform.
 ```figure classic:theme-{look}-play MODS · PLAY
 1 @ 128,84 BEAT JUMP PADS | Your own beat jump distances for both pad pages. The row shows the sizes now in use.
 2 @ 128,132 GATE CUE and SMART CUE | Switch each cue trick on or off. A feature the player has not reported yet shows a SET UP button instead.
-3 @ 128,180 Not in this version | HOT CUE PREVIEW and X-PAD SAMPLER explain what they would do, and say NOT IN THIS VERSION.
-4 @ 462,244 KEYS and RAM TRACKS | Open their own pages.
-5 @ 128,308 BUTTON NEXT TO LINK | What the media button next to LINK does on a press, and with SHIFT.
-6 @ 722,425 WORKS ON | The decks the highlighted feature works on.
+3 @ 462,196 KEYS and RAM TRACKS | Open their own pages.
+4 @ 128,260 BUTTON NEXT TO LINK | What the media button next to LINK does on a press, and with SHIFT.
+5 @ 722,425 WORKS ON | The decks the highlighted feature works on.
 ```
 
 [Beat jump and performance features](performance) explains every item on this page.

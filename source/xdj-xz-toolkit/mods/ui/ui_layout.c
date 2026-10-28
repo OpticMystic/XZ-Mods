@@ -228,7 +228,8 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
  uint32_t ink=m->theme==XZ_THEME_ANALOG?0x3a3020:p->ink,bg=m->theme==XZ_THEME_ANALOG?0xd9c9a3:p->bg;
  uint32_t dim=xz_blend(bg,ink,170);char buf[96];
  if(u->page==XZ_UI_FEATURE_SETUP){
-  const char *name=u->feature_cap==XZ_UI_GATE?"GATE CUE":u->feature_cap==XZ_UI_SMART?"SMART CUE":u->feature_cap==XZ_UI_PREVIEW?"HOT-CUE PREVIEW":"X-PAD ENGINE";
+  /* Gate cue and smart cue are the features this setup checks. */
+  const char *name=u->feature_cap==XZ_UI_SMART?"SMART CUE":"GATE CUE";
   label(c,X0,52,CW,name,2,ink);
   label(c,X0,78,CW,"1 DETECT  /  2 CHOOSE DECK  /  3 ENABLE  /  4 TEST",1,dim);
   static const char *instructions[4]={"DETECT THE FEATURE ON A LOADED USB DECK.","CHOOSE DECK 1 OR DECK 2 ABOVE.","ENABLE THE FEATURE USING ITS SAVED SETTING.","TEST THE FEATURE ON THIS DECK, THEN CONFIRM BELOW."};
@@ -238,7 +239,7 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
   label(c,X0,204,CW,(d->ready&(uint32_t)u->feature_cap)?"FEATURE DETECTED":"LOAD A USB TRACK. IF STILL MISSING, UPDATE THE USB LOADER IN XZ MODS.",1,dim);
   if(step==3){
    label(c,X0,248,CW,"CLOSE MODS TO TEST, THEN REOPEN THIS SETUP TO CONFIRM.",1,dim);
-   label(c,X0,276,CW,u->feature_cap==XZ_UI_GATE?"HOLD AND RELEASE A HOT CUE TO CHECK GATE CUE.":u->feature_cap==XZ_UI_SMART?"RECALL A HOT CUE AND CHECK THAT THE CUE POINT FOLLOWS.":u->feature_cap==XZ_UI_PREVIEW?"HOLD A HOT CUE WHILE PAUSED AND LISTEN FOR ITS PREVIEW.":"OPEN X-PAD SETTINGS AND CHECK A LOADED SAMPLE.",1,ink);
+   label(c,X0,276,CW,u->feature_cap==XZ_UI_SMART?"RECALL A HOT CUE AND CHECK THAT THE CUE POINT FOLLOWS.":"HOLD AND RELEASE A HOT CUE TO CHECK GATE CUE.",1,ink);
   }
  }else if(u->page==XZ_UI_LOCAL_STEM_SETUP){
   /* One deck, one reason, one next step. The button below is that step. */

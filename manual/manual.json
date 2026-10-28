@@ -7,7 +7,7 @@
   {"slug": "play-screen", "group": "On the player", "title": "The play screen", "summary": "Every part of the play screen in both interfaces: decks, waveforms, key, tempo, notices and the top bar."},
   {"slug": "browse", "group": "On the player", "title": "Browsing and loading", "summary": "Finding tracks, search, filters, track info, tag lists, playlists and loading to any deck."},
   {"slug": "stems", "group": "On the player", "title": "Stems", "summary": "Muting vocals, harmonics and drums live, stem layouts and pads, and how to prepare stems for a USB."},
-  {"slug": "performance", "group": "On the player", "title": "Beat jump and performance features", "summary": "Beat jump distances, gate cue, smart cue, key sync, the sampler and RAM tracks."},
+  {"slug": "performance", "group": "On the player", "title": "Beat jump and performance features", "summary": "Beat jump distances, gate cue, smart cue, key sync and RAM tracks."},
   {"slug": "four-decks", "group": "On the player", "title": "Four decks", "summary": "Playing decks 3 and 4 over the loopback cable: setup, deck view, what decks 3 and 4 can do, and every status."},
   {"slug": "mods-menu", "group": "MODS menu", "title": "The MODS menu", "summary": "How to open MODS, move around it with the encoder or touch, and what is on every section page."},
   {"slug": "screen-and-themes", "group": "MODS menu", "title": "Screen, interfaces and themes", "summary": "MODERN or CLASSIC, the 25 themes, waveform colours, key notation, deck view and the play screen's parts."},

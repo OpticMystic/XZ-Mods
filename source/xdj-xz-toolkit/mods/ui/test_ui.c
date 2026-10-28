@@ -60,12 +60,13 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  {size_t n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_BELOW,a);assert(n==1&&a[0].kind==XZ_UI_STEMS_OVERLAY);
   n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_OUTER_HALF,a);assert(n==4);
   n=press(u,m,XZ_UI_STEMS_OVERLAY,1+XZ_STEM_LAYOUT_HIDDEN,a);assert(n==0);}
- /* No groove engine runs in this runtime: even with every ready bit set, GROOVE PADS explains itself and opens
-    nothing. Its page's own pads are checked directly, for a runtime that adds the engine. */
- find(u,m,XZ_UI_INFO,XZ_UI_INFO_GROOVE);
+ /* Groove pads are not built: even with every ready bit set, STEMS has no row for them and nothing opens their
+    old page; opening it lands on STEMS. The dormant page's own pads are checked directly, for a runtime that
+    adds the engine. */
  {struct xz_ui_widget widgets[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,widgets);
-  for(size_t k=0;k<count;k++)assert(!(widgets[k].kind==XZ_UI_FEATURE_LINK&&widgets[k].index==XZ_UI_STEMS));}
- xz_ui_navigate(u,XZ_UI_STEMS);assert(u->page==XZ_UI_STEMS);
+  for(size_t k=0;k<count;k++)assert(!(widgets[k].kind==XZ_UI_FEATURE_LINK&&widgets[k].index==XZ_UI_STEMS)&&widgets[k].kind!=XZ_UI_INFO);}
+ xz_ui_navigate(u,XZ_UI_STEMS);assert(u->page==XZ_UI_STEM_SECTION);
+ u->page=XZ_UI_STEMS;
  m->deck[0].groove_assigned=255;m->deck[0].groove_loaded=255;m->deck[0].sample_loaded=255;m->deck[0].loop_index=3;
  for(i=0;i<8;i++)assert(tap(u,m,XZ_UI_GROOVE_PAD,i).index==i);
  m->deck[0].groove_assigned=254;
@@ -73,9 +74,11 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  m->deck[0].groove_assigned=255;m->deck[0].groove_loaded=254;
  assert(tap(u,m,XZ_UI_GROOVE_PAD,0).kind==XZ_UI_UNAVAILABLE);
  m->deck[0].groove_loaded=255;
- /* The same for the X-PAD sampler: PLAY explains it; the page is checked directly. */
- tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);find(u,m,XZ_UI_INFO,XZ_UI_INFO_XPAD);find(u,m,XZ_UI_INFO,XZ_UI_INFO_PREVIEW);
- xz_ui_navigate(u,XZ_UI_XPAD);assert(u->page==XZ_UI_XPAD);
+ /* The same for the X-PAD sampler: PLAY has no row for it, its old page opens PLAY, and the page is checked
+    directly. */
+ tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);
+ xz_ui_navigate(u,XZ_UI_XPAD);assert(u->page==XZ_UI_PLAY);
+ u->page=XZ_UI_XPAD;
  for(i=0;i<6;i++){
   w=find(u,m,XZ_UI_STRIP,0);int x=w.x+i*(w.w/6)+w.w/12;
   assert(xz_ui_touch(u,m,x,w.y,1,a)==1&&a[0].index==i&&a[0].secondary==12);
@@ -90,17 +93,16 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  assert(tap(u,m,XZ_UI_SAMPLE_PAD,7).kind==XZ_UI_UNAVAILABLE);
  tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);
  for(i=0;i<2;i++){int flags[2]={XZ_UI_GATE,XZ_UI_SMART};assert(tap(u,m,XZ_UI_ENABLE,flags[i]).kind==XZ_UI_ENABLE);}
- /* Without an engine, hot cue preview and the sampler explain themselves; they offer no dead control. */
+ /* Hot cue preview and the sampler are not built: with their ready bits or without, PLAY has the same rows, none
+    of them for these two and none an explanation of something missing. */
  {struct xz_ui_model none=*m;for(int d=0;d<4;d++)none.deck[d].ready&=~(uint32_t)(XZ_UI_PREVIEW|XZ_UI_SAMPLE);
-  struct xz_ui_widget controls[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,&none,controls);int infos=0;
+  struct xz_ui_widget with[XZ_UI_WIDGETS],controls[XZ_UI_WIDGETS];size_t ready=xz_ui_layout(u,m,with),count=xz_ui_layout(u,&none,controls);
+  assert(ready==count);
   for(size_t k=0;k<count;k++){
-   if(controls[k].kind==XZ_UI_INFO)infos++;
+   assert(controls[k].kind==with[k].kind&&controls[k].index==with[k].index&&controls[k].kind!=XZ_UI_INFO);
    assert(!(controls[k].kind==XZ_UI_FEATURE_LINK&&controls[k].index==XZ_UI_XPAD));
    assert(!(controls[k].kind==XZ_UI_FEATURE_SETUP_OPEN&&controls[k].index==XZ_UI_PREVIEW));
-  }
-  assert(infos==2);
-  w=find(u,&none,XZ_UI_INFO,XZ_UI_INFO_XPAD);assert(xz_ui_touch(u,&none,w.x+5,w.y+5,1,a)==0);xz_ui_touch(u,&none,0,0,0,a);
-  struct xz_ui_info info;assert(xz_ui_describe(u,&none,&info)&&!strcmp(info.state,"NOT IN THIS VERSION")&&strstr(info.body,"Not in this version"));}
+  }}
  /* KEYS lives under PLAY: its key buttons only there, and only PLAY links to it. */
  for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
   struct xz_ui copy=*u;copy.page=(enum xz_ui_page)page;struct xz_ui_widget controls[XZ_UI_WIDGETS];
@@ -744,6 +746,7 @@ static void dock_fits(void){
  int bad=0,checked=0;
  for(int iface=0;iface<2;iface++)for(int route=0;route<2;route++)for(int theme=0;theme<XZ_THEME_COUNT;theme++)for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
   if(iface!=(theme==XZ_THEME_FLAGSHIP))continue;   /* each interface draws its own looks */
+  if(xz_ui_page_current((enum xz_ui_page)page)!=(enum xz_ui_page)page)continue;   /* retired: never shown */
   struct xz_ui u;struct xz_ui_model m;memset(&m,0,sizeof m);xz_ui_init(&u);u.page=(enum xz_ui_page)page;
   m.theme=theme;m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.modern_look.known=1;m.dj=&dj;
   m.enabled=XZ_UI_STEM|XZ_UI_GATE;m.deck[0].ready=m.deck[1].ready=0x3fff;m.connection.ready=1;

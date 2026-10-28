@@ -25,11 +25,10 @@ Open MODS, choose **STEMS** on the section rail, and turn **USB STEMS** on. It i
 The STEMS page with USB stems on.
 1 @ 445,116 USB STEMS | Plays prepared stems from the USB. Off gives every pad its normal job back. Without the stem engine on the USB it reads SET UP USB STEMS and starts the setup.
 2 @ 775,116 STEMS IN DJ SOFTWARE | Sets up stem control for DJ software on a computer. See [Stems in DJ software](#stems-in-dj-software).
-3 @ 445,180 STEM PADS | Which pad mode gives stem pads, the stem order and the pad lights. See [Stem pads](#stem-pads).
-4 @ 775,180 GROOVE PADS | Not in this version.
-5 @ 400,287 Stem buttons on screen | Where the stem buttons sit on the play screen. The outlined tile is the current layout.
-6 @ 400,350 STEM COLOURS | The colour of each stem. See [Stem colours](#stem-colours).
-7 @ 725,425 WORKS ON | The decks this page applies to. Decks 3 and 4 have no stems.
+3 @ 400,180 STEM PADS | Which pad mode gives stem pads, the stem order and the pad lights. See [Stem pads](#stem-pads).
+4 @ 400,287 Stem buttons on screen | Where the stem buttons sit on the play screen. The outlined tile is the current layout.
+5 @ 400,350 STEM COLOURS | The colour of each stem. See [Stem colours](#stem-colours).
+6 @ 725,425 WORKS ON | The decks this page applies to. Decks 3 and 4 have no stems.
 ```
 
 ## Stem buttons on the play screen
