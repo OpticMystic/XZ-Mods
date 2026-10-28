@@ -23,7 +23,7 @@ The top of the rail names the player firmware the app prepares USBs for, XDJ-XZ 
 
 ## USB
 
-USB is the first page. Plug in your USB and the app finds it. When only one USB is connected, it opens by itself.
+USB is the first page. Plug in your XZ USB, or any USB stick formatted FAT32, and the app finds it. When only one USB is connected, it opens by itself.
 
 ```gallery
 app:usb-plug-in No USB yet. The app keeps looking, so plug one in. Choose a folder instead prepares a folder on this computer
