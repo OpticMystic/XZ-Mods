@@ -30,6 +30,16 @@ static void route_down(struct xz_shell_model *m, int view, int state, int part, 
  snprintf(m->route_reason,sizeof m->route_reason,"%s",reason?reason:"");
  m->route_card_since_ms=m->clock_ms-4000;
 }
+/* The music USB went out while deck d plays its whole track from RAM: the runtime drops what it read from the USB
+   (waveform, overview, grid, memory cues) and marks the deck RAM ONLY; everything the player reports stays. */
+static void ram_only(struct xz_shell_model *m, int d) {
+ struct xz_shell_deck *k=&m->deck[d];
+ k->known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_WAVE)|XZ_SHELL_KNOWN(XZ_SHELL_F_OVERVIEW)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_WAVE)
+  |XZ_SHELL_KNOWN(XZ_SHELL_F_GRID)|XZ_SHELL_KNOWN(XZ_SHELL_F_MEMORY_CUES));
+ memset(&k->wave,0,sizeof k->wave);memset(&k->overview,0,sizeof k->overview);memset(&k->stems,0,sizeof k->stems);
+ k->grid=NULL;k->grid_count=0;k->memory_count=0;
+ k->known|=XZ_SHELL_KNOWN(XZ_SHELL_F_RAM_ONLY);k->ram_only=1;
+}
 int main(int argc, char **argv) {
  struct xz_shell u;struct xz_shell_model m;
  if(argc<2){fputs("usage: preview_deck_view OUTPUT_DIR\n",stderr);return 2;}
@@ -68,5 +78,12 @@ int main(int argc, char **argv) {
  fx_model_four(&m,&track);m.layout_preference=XZ_LAYOUT_FOUR+1;m.route_state=XZ_EXTRA_ROUTE_READY;
  m.route_card_ready_at_ms=m.clock_ms-300;shot(&u,&m,"card-10-ready-hold");
  m.route_card_ready_at_ms=m.clock_ms-800;shot(&u,&m,"card-11-ready-wipe");
+ /* Whole track in RAM, USB out: the RAM card in each affected lane, every other readout kept. */
+ xz_shell_init(&u);
+ fx_model_full(&m,&track);m.layout_preference=XZ_LAYOUT_TWO+1;ram_only(&m,0);shot(&u,&m,"ram-01-two-decks-deck-1");
+ ram_only(&m,1);shot(&u,&m,"ram-02-two-decks-both");
+ fx_model_four(&m,&track);m.layout_preference=XZ_LAYOUT_FOUR+1;m.route_state=XZ_EXTRA_ROUTE_READY;
+ ram_only(&m,1);ram_only(&m,3);shot(&u,&m,"ram-03-four-decks-2-4");
+ m.layout_preference=XZ_LAYOUT_MIXER+1;shot(&u,&m,"ram-04-mixer-2-4");
  return 0;
 }

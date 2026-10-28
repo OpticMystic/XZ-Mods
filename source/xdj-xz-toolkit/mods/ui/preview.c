@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "wave_viewport.h"
+#include "ram_notice.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -148,6 +149,22 @@ int main(int argc,char **argv){
   snprintf(name,sizeof(name),"theme-%d-usb-setup-%s",theme,usb_names[why]);save(argv[1],name,800,480);
   ui.page=XZ_UI_GENERAL;if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
   snprintf(name,sizeof(name),"theme-%d-general-usb-%s",theme,usb_names[why]);save(argv[1],name,800,480);
+ }
+ /* CLASSIC, whole track in RAM after the USB went out: the card in DECK 1's lane on the wave surface (BELOW / HALF
+    stem rows, as manual/captures/classic-play.png), over the key colour preview.py swaps for that capture. Then the
+    calm card the player's own E-8307 window shows while the loopback cable explains it, at two window sizes. */
+ {
+  for(int i=0;i<XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT;i++)pixels[i]=0xf81f;
+  struct xz_canvas surface={pixels,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0};struct xz_wave_layout g;
+  if(!xz_wave_layout_get(XZ_STEM_LAYOUT_BELOW_HALF,&g))return 1;
+  xz_ram_notice_two_lane(surface,(int)g.lane_y[0],(int)g.lane_height);
+  save(argv[1],"classic-ram-surface-two",XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT);
+  static const int sizes[2][2]={{304,60},{420,100}};static const char *const hub_names[2]={"hub-card","hub-card-large"};
+  for(int k=0;k<2;k++){
+   memset(pixels,0,sizeof(pixels));
+   xz_hub_card_draw((struct xz_canvas){pixels,(size_t)sizes[k][0],sizes[k][0],sizes[k][1],0});
+   save(argv[1],hub_names[k],sizes[k][0],sizes[k][1]);
+  }
  }
  memset(pixels,0,sizeof(pixels));xz_ui_render_badge(pixels,800);save(argv[1],"badge",800,480);
  char path[1024];snprintf(path,sizeof(path),"%s/themes.txt",argv[1]);FILE *list=fopen(path,"w");if(!list)return 1;

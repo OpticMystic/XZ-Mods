@@ -22,6 +22,21 @@ with tempfile.TemporaryDirectory(prefix='xz-ui-preview-') as temporary:
     subprocess.run([str(exe),str(a.output.resolve())],check=True)
 for path in a.output.glob('*.ppm'):
     Image.open(path).save(path.with_suffix('.png'));path.unlink()
+# CLASSIC RAM card: the C surface (key colour where the player's own pixels show) over the real play-screen capture,
+# DECK 1's waveform rows cleared as after the USB went out (its ten cue rows at each lane edge stay).
+surface_path=a.output/'classic-ram-surface-two.png'
+capture_path=root.parents[3]/'manual'/'captures'/'classic-play.png'
+if surface_path.is_file():
+    if capture_path.is_file():
+        screen=Image.open(capture_path).convert('RGB');surface=Image.open(surface_path).convert('RGB')
+        screen.paste((0,0,0),(131,18+10,131+536,18+108-10))
+        mask=Image.new('L',surface.size,0);key=surface.load();m=mask.load()
+        for y in range(surface.size[1]):
+            for x in range(surface.size[0]):
+                if key[x,y]!=(255,0,255):m[x,y]=255
+        screen.paste(surface,(131,18),mask)
+        screen.save(a.output/'classic-ram-two-decks.png')
+    surface_path.unlink()
 themes=[line.split('\t') for line in (a.output/'themes.txt').read_text(encoding='utf8').splitlines()]
 options=''.join(f'<option value="{index}">{name}</option>' for index,name in themes)
 reference=''
