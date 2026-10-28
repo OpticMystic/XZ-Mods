@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0-preview.22.11 - 2026-10-28
+
+Beta release candidate: four decks from either port, a Manual in the app, and fixes from DJ reports
+
+- Four decks start as soon as the loopback cable is in, with empty decks and with the cable already plugged in when XZ Mods starts. No RESCAN needed.
+- The loopback cable works in either top port, USB 1 or USB 2. Music goes in the other top port, or through one USB 2.0 hub there for several sticks. Decks 3 and 4 can start with no music stick at all.
+- When the music USB goes out, a deck playing its whole track from RAM keeps playing and shows WHOLE TRACK IN RAM · PLAYABLE in place of its waveform.
+- The loopback cable no longer brings up an error. In CLASSIC the player's warning window becomes a calm LOOPBACK CABLE CONNECTED card.
+- In the four-deck view the STEMS button hides the stem buttons with one press and shows them with the next. A deck whose track has no stems shows no stem buttons and keeps its whole waveform.
+- The app has a Manual tab: every chapter with pictures drawn by the firmware, numbered points you can point at, search, and animated explainers for four-deck setup, SYNC, beat jump, 3-band waveforms, RAM tracks and the USB diary.
+- Feedback has its own place at the foot of the app rail. Report a problem, request a feature or ask a question, and follow it in My reports. Reports sent from the XZ wait there for your words.
+- A new About page: what XZ Mods is, who makes it, links to the source, issues, releases and websites, plain disclaimers and the open-source licenses.
+- The USB guide no longer stops at four decks. Four decks are explained while the USB is written and on the final page, with the cable animation and a link to the Manual.
+- The app is laid out as a tool, opens at a size that fits your screen, has Back on every step, and writes the loader to any writable USB stick or into a folder.
+- Settings, UTILITY and SHORTCUT changes, deck 3 and 4 cues and the USB diary save again when the XZ starts from the USB loader.
+- Choosing a value in UTILITY or SHORTCUT changes it instead of going back unchanged. NEEDLE LOCK is in SHORTCUT.
+- Hot cue marks on decks 1 and 2 in MODERN no longer vanish when a pad holds a cue without an OUT point or a pad is unused.
+- On decks 3 and 4, TRACK SEARCH respects AUTO CUE, and BEAT JUMP works on tracks without a detected BPM (120 BPM).
+- The KEYS page shows the master deck plainly instead of a SET UP KEYS button with nothing to set up.
+- The rekordbox button above LINK is named correctly everywhere; it switches between CLASSIC and MODERN by default.
+- Hot cue preview, the X-PAD sampler and groove pads are no longer listed, because they are not built yet.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1 or USB 2, music in the other top port.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.10 - 2026-10-28
 
 - When the music USB goes out, a deck playing its whole track from RAM shows a card in place of its waveform: WHOLE TRACK IN RAM · PLAYABLE, and how to get the waveform back. Title, time, BPM, tempo, key, lamps and hot cues stay on screen. This works on every deck, in MODERN and CLASSIC.
