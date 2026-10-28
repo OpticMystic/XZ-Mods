@@ -21,10 +21,28 @@ class PrepareUsbTests(unittest.TestCase):
 
     def test_requires_fat_usb_root_before_network(self):
         with tempfile.TemporaryDirectory() as temporary:
-            with patch.object(usb,'target_info',return_value={'direct_usb_root':False}), \
+            with patch.object(usb,'target_info',return_value={'direct_usb_root':False,'volume_root':temporary}), \
                  patch.object(service,'official_firmware') as download:
                 with self.assertRaisesRegex(ValueError,'FAT/FAT32 USB drive'):
                     service.dispatch({'method':'prepare_usb','volume':temporary,'experimental':True},Job())
+                download.assert_not_called()
+
+    def test_staging_folder_gets_the_loader_without_games(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder=Path(temporary)/'staging';folder.mkdir()
+            with patch.object(usb,'target_info',return_value={'direct_usb_root':False,'volume_root':temporary}),                  patch.object(service,'official_firmware',return_value=folder/'firmware.zip') as download,                  patch('builder.boot_support.ensure_boot_key',return_value=folder/'boot.key'),                  patch.object(usb,'build_usb',return_value={'image':str(folder/'autoexec.bin')}) as build,                  patch.object(service.games,'prepare_usb') as games:
+                result=service.dispatch({'method':'prepare_usb','volume':str(folder),'experimental':True,'games':['doom']},Job())
+            download.assert_called_once()
+            self.assertEqual(build.call_args.args[0],folder)
+            games.assert_not_called()
+            self.assertIsNone(result['game_setup'])
+
+    def test_staging_folder_keeps_an_existing_loader(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder=Path(temporary)/'staging';folder.mkdir();(folder/'autoexec.bin').write_bytes(b'keep')
+            with patch.object(usb,'target_info',return_value={'direct_usb_root':False,'volume_root':temporary}),                  patch.object(service,'official_firmware') as download:
+                with self.assertRaisesRegex(FileExistsError,'already has autoexec.bin'):
+                    service.dispatch({'method':'prepare_usb','volume':str(folder),'experimental':True},Job())
                 download.assert_not_called()
 
     def test_one_job_downloads_then_builds(self):

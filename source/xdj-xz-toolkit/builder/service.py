@@ -285,14 +285,16 @@ def _dispatch(request,job,loader_resources=None,settings_change=None):
     if method=='prepare_usb':
         from .boot_support import ensure_boot_key
         if request.get('experimental') is not True:raise ValueError('Review the experimental build notice before preparing a USB')
-        volume=usb.require_usb_root(request['volume'])
+        volume,target=usb.require_loader_target(request['volume'])
         firmware=official_firmware(job)
         key=ensure_boot_key(job)
         if settings_change:
             from . import managed_usb
             result=managed_usb.build_with_settings(volume,firmware,key,loader_resources or resources(),job,settings_change)
         else:result=usb.build_usb(volume,firmware,key,loader_resources or resources(),job,True)
-        return {**result,'firmware_source':'AlphaTheta','one_step':True,'game_setup':games.prepare_usb(volume,job,request.get('games'))}
+        # Games need the USB itself; a staging folder gets the loader only.
+        game_setup=games.prepare_usb(volume,job,request.get('games')) if target['direct_usb_root'] else None
+        return {**result,'firmware_source':'AlphaTheta','one_step':True,'game_setup':game_setup}
     if method in ('apply_three_band','restore_rgb_waveforms'):return three_band_waveforms(request,job,method=='restore_rgb_waveforms')
     if method=='save_engine_report':
         from . import engines
