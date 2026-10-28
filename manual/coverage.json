@@ -331,6 +331,16 @@
    "path": "ui/support-kb.js",
    "chapter": "desktop-app",
    "why": "Is this it? answers quoted from the manual"
+  },
+  {
+   "path": "ui/xz-queue.js",
+   "chapter": "desktop-app",
+   "why": "From your XZ, its notification, badge and callout, and Your XZ sticks"
+  },
+  {
+   "path": "src-tauri/src/controller_notify.rs",
+   "chapter": "desktop-app",
+   "why": "the Windows notification for a report from the XZ"
   }
  ]
 }
