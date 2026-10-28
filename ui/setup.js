@@ -478,7 +478,7 @@ function fourDeckEntry(){
 const FOUR_DECK_STEPS=[
   {title:'Cable from the rear USB-B socket to top '+LOOPBACK_PORT,text:'A USB-B to USB-A cable, the kind a printer uses.'},
   {title:'Music in '+MUSIC_PORT,text:'A stick, or one USB 2.0 hub with several. It can go in later.'},
-  {title:'CH3 and CH4 set to USB',text:'The mixer inputs, so you hear decks 3 and 4.'}
+  {title:'[[CH 3 INPUT]] and [[CH 4 INPUT]] set to USB',text:'The mixer inputs, so you hear decks 3 and 4.'}
 ];
 // writing: while the USB is written, as something to read; done: on the done screen. During a write the button only
 // opens the manual: the cable guide would take the place of the running write.
@@ -497,7 +497,7 @@ function fourDeckSection(where){
     cableFigure('wz-fourdeck',LOOPBACK_PORT_CAPTION),
     el('ol',{class:'wz-fourdeck-steps'},...FOUR_DECK_STEPS.map((step,index)=>el('li',{},
       el('span',{class:'wz-fourdeck-num','aria-hidden':'true',text:String(index+1)}),
-      el('span',{},el('strong',{text:step.title}),el('small',{text:step.text}))))),
+      el('span',{},el('strong',{},...xzText(step.title)),el('small',{text:step.text}))))),
     noEngine&&includedQuad?el('div',{class:'wz-fourdeck-setup',role:'status'},
       el('p',{text:'The build on this USB has no four-deck engine. Choose the four-deck build, then update this USB.'}),
       el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'wz-fourdeck-build',text:'Choose the four-deck build',onclick:()=>document.getElementById('quad-open')?.click()}),how)):
@@ -547,11 +547,11 @@ function stepQuad(){
       el('li',{},el('strong',{text:'Connect the cable. '}),'Square USB-B end into the rear USB-B socket, flat USB-A end into a free top port, '+LOOPBACK_PORT+'. It connects back to the XZ, not a computer. It can go in before or after XZ Mods starts.'),
       el('li',{},el('strong',{text:'Music. '}),'Your music stick, or one USB 2.0 hub with several sticks, goes in '+MUSIC_PORT+'. It can go in later.'),
       el('li',{},el('strong',{text:'Decks 1 and 2 stopped. '}),'Decks 3 and 4 start while decks 1 and 2 are stopped or paused. Empty decks are fine.'),
-      el('li',{},el('strong',{text:'Check on the XZ. '}),'Four decks should appear when the route is ready. Set the CH3 and CH4 input selectors to USB if required. Press left SHIFT twice to switch 1/3; right SHIFT twice to switch 2/4.')),
+      el('li',{},el('strong',{text:'Check on the XZ. '}),...xzText('Four decks should appear when the route is ready. Set [[CH 3 INPUT]] and [[CH 4 INPUT]] to USB if required. Press left [[SHIFT]] twice to switch 1/3; right [[SHIFT]] twice to switch 2/4.'))),
     el('label',{class:'check wz-quad-confirm'},el('input',{type:'checkbox',id:'wz-quad-confirm',checked:W.quadConfirmed?true:null,onchange:event=>{W.quadConfirmed=event.currentTarget.checked;$('wz-quad-status').textContent=quadStatus();}}),'I can see four decks on the XZ'),
     el('p',{class:'wz-quad-status',id:'wz-quad-status',role:'status',text:quadStatus()}),
     el('details',{class:'wz-quad-trouble'},el('summary',{text:'Still two decks, or no CH3/CH4 audio?'}),
-      el('p',{text:'Confirm the USB was written with a four-deck build. With decks 1 and 2 stopped, check the cable from the rear USB-B socket to a top port, and the CH3/CH4 USB selectors. RESCAN on the XZ checks again at once.'}),
+      el('p',{},...xzText('Confirm the USB was written with a four-deck build. With decks 1 and 2 stopped, check the cable from the rear USB-B socket to a top port, and that [[CH 3 INPUT]] and [[CH 4 INPUT]] are on USB. RESCAN on the XZ checks again at once.')),
       el('p',{text:'This guide does not detect your setup. Reopen it from USB → Four decks.'})),
     el('p',{class:'wz-mono',text:'A track copied to RAM keeps playing if its stick comes out. Stems are not available on decks 3 and 4 yet.'})];
 }
@@ -763,8 +763,8 @@ function stepDone(){
     ejectStatus(),
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
-      el('li',{text:'On the play screen, press MENU or touch MODS at the top right to open the menu. Hold MENU for the player’s own settings. HOME is the first page.'}),
-      el('li',{text:'Press the rekordbox button above LINK to switch between the CLASSIC and MODERN screens. You can give it another job in MODS > PLAY.'}),
+      el('li',{},...xzText('On the play screen, press [[MENU]] or touch MODS at the top right to open the menu. Hold [[MENU]] for the player’s own settings. HOME is the first page.')),
+      el('li',{},...xzText('Press the [[rekordbox]] button above [[LINK]] to switch between the CLASSIC and MODERN screens. You can give it another job in MODS > PLAY.')),
       el('li',{text:'Test the loader before you use it in a set.'}))):null,
     r.loader?fourDeckSection('done'):null,
     r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,

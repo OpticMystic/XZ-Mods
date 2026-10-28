@@ -129,7 +129,10 @@ settings: stems, stem_layout   # every settings-schema key this chapter explains
 - `## Heading` and `### Heading`. Add ` {modern}` or ` {classic}` to a heading when that section only
   applies to one interface; readers who chose the other interface do not see it.
 - Paragraphs, `-` lists, `1.` lists (drawn as numbered steps), `| tables |`, `**bold**`, `*italic*`, `` `code` ``.
-- `[[MENU]]` draws a hardware key. Use the name printed on the player.
+- `[[MENU]]` draws that control of the XDJ-XZ as it looks on the player (its glyph from `tools/xz_buttons.py`), with
+  its name kept as text for screen readers and search. Use the name printed on the player; `manual/buttons/glyphs.md`
+  lists every glyph and the spellings it accepts. `[[SYNC:off]]` draws the lamp off. `check` fails on a name with no
+  glyph: add the glyph or an alias. See `manual/buttons/README.md`.
 - `{experimental}` and `{new}` draw a small tag.
 - Links: `[text](stems)` to a chapter, `[text](stems#bypass)` to a section, or a full https URL.
 - Notes: a line starting `> **Tip.**`, `> **Note.**`, `> **Caution.**` or `> **Experimental.**`.
