@@ -27,9 +27,10 @@ let repairInspection=null,repairDiscovery=null;
 // unsaved dropdown and checkbox state. USB writes read only the saved choice, through selectedVersionRequest().
 let modInventory=null,modDraft=null,modLoadError='',modImportFolder='',modImportedId=null;
 const modChannels={preview:'Preview',public:'Public release',release:'Public release',released:'Released',development:'Development build',dev:'Development build',imported:'Imported'};
-const titles={setup:'USB',stems:'Stems','live-stream':'XZ Screen',tools:'Tools',manual:'Manual','dj-profile':'DJ Profile','library-repair':'Repair library','device-updates':'Network updates',advanced:'XZ Mods version',updates:'App updates',licenses:'About'};
-// Pages opened from the Tools list. They keep Tools selected in the sidebar and show a back link.
-const toolPages=new Set(['dj-profile','library-repair','device-updates','advanced','updates','licenses']);
+const titles={setup:'USB',stems:'Stems','dj-profile':'DJ Profile',updates:'Updates',advanced:'Updates','device-updates':'Updates',tools:'Tools','library-repair':'Repair library',games:'Game downloads','live-stream':'XZ Screen',manual:'Manual',licenses:'About'};
+// The rail item of each page that is not a rail item itself. Tools pages show a back link to Tools; the three
+// Updates pages show the Updates tabs in the header. Every other page is its own rail item.
+const pageSection={'library-repair':'tools',games:'tools','live-stream':'tools',updates:'updates',advanced:'updates','device-updates':'updates'};
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
 const jobPanel=$('job-panel'),quietMethods=['discover_usbs','discover_stem_usbs','browse_stem_library','plan_engine_setup','list_mod_versions','inspect_mod_settings'];
@@ -39,15 +40,25 @@ const pageShown={setup:()=>window.setupWizard?.shown(),stems:()=>startStemLibrar
   'library-repair':()=>{if(!repairDiscovery)repairDiscovery=discoverRepairDrives();},'device-updates':()=>$('ota-detect').click(),manual:()=>window.manualPage?.shown()};
 function showPage(name){
   document.querySelectorAll('main>.page').forEach(page=>page.classList.toggle('hidden',page.id!==name));
-  const section=toolPages.has(name)?'tools':name;
+  const section=pageSection[name]||name;
   document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('selected',item.dataset.page===section));
   $('page-title').textContent=titles[name];
-  $('back-to-tools').classList.toggle('hidden',!toolPages.has(name));
+  $('back-to-tools').classList.toggle('hidden',section!=='tools'||name==='tools');
+  $('updates-tabs').classList.toggle('hidden',section!=='updates');
+  for(const tab of $('updates-tabs').children){const on=tab.dataset.open===name;tab.setAttribute('aria-selected',String(on));tab.tabIndex=on?0:-1;}
   if(!feedbackLive)jobPanel.classList.add('hidden');else{positionFeedback();revealFeedback();}
   pageShown[name]?.();
 }
 for(const button of document.querySelectorAll('nav button'))button.onclick=()=>showPage(button.dataset.page);
 for(const row of document.querySelectorAll('.tool-row'))row.onclick=()=>showPage(row.dataset.open);
+// The Updates tabs: a click opens the page; the arrow keys, Home and End move between the tabs and open each one.
+for(const tab of $('updates-tabs').children)tab.onclick=()=>showPage(tab.dataset.open);
+$('updates-tabs').onkeydown=event=>{
+  const tabs=[...$('updates-tabs').children],at=tabs.indexOf(document.activeElement);
+  const next={ArrowRight:at+1,ArrowLeft:at-1,Home:0,End:tabs.length-1}[event.key];
+  if(at<0||next===undefined)return;event.preventDefault();
+  const tab=tabs[(next+tabs.length)%tabs.length];showPage(tab.dataset.open);tab.focus();
+};
 $('back-to-tools').onclick=()=>showPage('tools');
 function required(ids,origin){for(const id of ids)if(!$(id).value.trim()){showError('Enter or choose the required '+({'volume':'USB folder',firmware:'firmware input',key:'boot key'}[id]||id)+' first.',origin);return false;}return true;}
 function movePanel(insert){
@@ -239,9 +250,19 @@ function renderReleaseNotes(holder,notes,version){
   }
   holder.append(entry);
 }
+// A dot on Updates in the rail and on the App updates tab while a newer app is on offer.
+function paintUpdateDot(on){
+  for(const host of [document.querySelector('nav button[data-page="updates"]'),$('tab-updates')]){
+    const dot=host.querySelector('.nav-dot');
+    if(!on){dot?.remove();continue;}
+    if(dot)continue;
+    const mark=node('span',undefined,'nav-dot'),spoken=node('span',', update available','visually-hidden');mark.append(spoken);host.append(mark);
+  }
+}
 function renderAppUpdate(status){
   $('update-status').textContent=status.message;
   $('app-update-banner').classList.toggle('hidden',status.phase!=='available');
+  paintUpdateDot(status.phase==='available');
   if(status.phase==='available')$('app-update-banner-text').textContent='XZ Mods '+status.latest_version+' is available.';
   $('install-app-update').classList.toggle('hidden',status.phase!=='available');
   $('install-app-update').disabled=activeJob!==null||appUpdating;
@@ -1448,8 +1469,8 @@ function modDirty(){if(!modVersionsReady())return false;const draft=modDraftStat
 // The only source of mod_version_id for prepare_usb, build_usb and update_usb: the saved choice, never the dropdown.
 function selectedVersionRequest(origin){
   const saved=savedModVersion();
-  if(!saved){showError('Choose the XZ Mods build in Tools › XZ Mods version before writing a loader.',origin);return null;}
-  if(modDirty()){showError('You changed the mod version but did not save it. Choose Save choice or Undo change in Tools › XZ Mods version, then try again.',origin);return null;}
+  if(!saved){showError('Choose the XZ Mods build in Updates › XZ Mods version before writing a loader.',origin);return null;}
+  if(modDirty()){showError('You changed the mod version but did not save it. Choose Save choice or Undo change in Updates › XZ Mods version, then try again.',origin);return null;}
   return {mod_version_id:saved.id,pin_mod_version:savedPinned()};
 }
 // True while the saved choice on this computer is still exactly the one a request was built from.
