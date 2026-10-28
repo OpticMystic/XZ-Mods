@@ -27,7 +27,7 @@ let repairInspection=null,repairDiscovery=null;
 // unsaved dropdown and checkbox state. USB writes read only the saved choice, through selectedVersionRequest().
 let modInventory=null,modDraft=null,modLoadError='',modImportFolder='',modImportedId=null;
 const modChannels={preview:'Preview',public:'Public release',release:'Public release',released:'Released',development:'Development build',dev:'Development build',imported:'Imported'};
-const titles={setup:'USB',stems:'Stems','live-stream':'XZ Screen',tools:'Tools','dj-profile':'DJ Profile','library-repair':'Repair library','device-updates':'Network updates',advanced:'XZ Mods version',updates:'App updates',licenses:'About'};
+const titles={setup:'USB',stems:'Stems','live-stream':'XZ Screen',tools:'Tools',manual:'Manual','dj-profile':'DJ Profile','library-repair':'Repair library','device-updates':'Network updates',advanced:'XZ Mods version',updates:'App updates',licenses:'About'};
 // Pages opened from the Tools list. They keep Tools selected in the sidebar and show a back link.
 const toolPages=new Set(['dj-profile','library-repair','device-updates','advanced','updates','licenses']);
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
@@ -36,7 +36,7 @@ const jobPanel=$('job-panel'),quietMethods=['discover_usbs','discover_stem_usbs'
 const feedbackGroups='p,label,.actions,.path-row,.st-foot,.section-heading,.columns';
 let feedbackHome=null,feedbackLive=false;
 const pageShown={setup:()=>window.setupWizard?.shown(),stems:()=>startStemLibrary(),'dj-profile':()=>window.djProfilePage?.show(),
-  'library-repair':()=>{if(!repairDiscovery)repairDiscovery=discoverRepairDrives();},'device-updates':()=>$('ota-detect').click()};
+  'library-repair':()=>{if(!repairDiscovery)repairDiscovery=discoverRepairDrives();},'device-updates':()=>$('ota-detect').click(),manual:()=>window.manualPage?.shown()};
 function showPage(name){
   document.querySelectorAll('main>.page').forEach(page=>page.classList.toggle('hidden',page.id!==name));
   const section=toolPages.has(name)?'tools':name;
