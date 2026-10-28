@@ -13,7 +13,7 @@ window.XZ_SUPPORT_KB = Object.freeze({
       need: ['deck 3', 'deck 4', 'decks 3', '3 and 4', 'four deck', '4 deck', 'loopback', 'cable', 'ch3', 'ch4', 'no cable found', 'rescan'],
       terms: ['silent', 'no sound', 'not working', 'nothing', 'cable', 'loopback', 'usb 1', 'usb 2', 'rear', 'ch3', 'ch4', 'no cable found', 'not connected', 'start', 'set up', 'setup', 'connect'],
       not: ['e-8307', '8307', 'hub', 'sync', 'bpm', 'limit', 'master', 'ram'],
-      answer: 'Stop or pause decks 1 and 2. Plug the USB-B end of the loopback cable into the rear USB socket and the USB-A end into USB 1 on top. Put your music stick in USB 2 and set CH3 and CH4 to USB. Then press RESCAN on the card.',
+      answer: 'Plug the USB-B end of the loopback cable into the rear USB socket and the USB-A end into USB 1 or USB 2 on top. Put your music in the other top port and set CH3 and CH4 to USB. Decks 3 and 4 start by themselves while decks 1 and 2 are stopped or paused, even with no tracks loaded.',
       action: { id: 'OPEN_FOUR_DECK_SETUP', label: 'Set up four decks' },
       source: 'Manual: Four decks, Set up four decks'
     },
