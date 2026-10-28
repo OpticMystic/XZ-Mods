@@ -29,7 +29,7 @@ under the same reference, and returned as its effective description by the compl
 - `screen_state` contains `surface`, `stock_page`, `mods_page`, `interface`, `deck_view`, `alert_code` and
   `counter_code`. All are generated enums. An inactive page is `UNKNOWN`. Unrecognized codes are `UNKNOWN`,
   absent errors are `NONE`. No arbitrary text suffix is permitted. Current known counter codes include
-  E-8302, E-8304, E-8305 and E-8307. MODS page names follow the current `xz_ui_page` names without `XZ_UI_`.
+  E-7206, E-8302, E-8304, E-8305, E-8306 and E-8307. MODS page names follow the current `xz_ui_page` names without `XZ_UI_`.
 - The app moves the original file to `VJ.Tools/XZ-Mods-reports/sent/` only after a matching Worker acceptance.
   Rejections, offline errors, changed files, and mismatched receipts leave the pending file in place.
   Windows moves use the verified file handle while denying replacement and writes. Existing sent bytes
