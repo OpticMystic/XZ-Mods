@@ -1,41 +1,54 @@
 # Navigation capture implementation report
 
-The host capture harness works and captures the flows listed in INDEX.md. The full request to capture every manual navigation is **not complete**. The chapter audit exposes the remaining assignments instead of treating page tours as exhaustive coverage.
+This revision expands the real C host capture and replaces the nonphysical entry injections. The full request for every relevant chapter operation remains incomplete. Remaining script work is listed separately from platform limits below.
 
-## What runs
+## Added and corrected
 
-`mods/shell/nav_capture.c` links the actual shell and MODS renderer/input source lists. `tools/capture_manual_nav.py` builds it with Zig, runs JSON scripts, records deduplicated 800x480 PNGs, timelines, hold durations, lossless animated WebPs, a contact sheet, and a source/output hash manifest. There are no changes to production handlers or device build inputs. No existing tracked file was edited.
+- SEARCH enters through physical BROWSE held for one second. PLAYLIST enters through BROWSE, six encoder detents from TRACK to PLAYLIST, then encoder push. The driver rejects PLAYLIST, SEARCH and MODS as direct script keys.
+- `shell/nav_runtime.c` includes the existing runtime test fixture, with its test main renamed and never called. Physical mode buttons, pads, SHIFT+SYNC and the rekordbox interface action enter the real `ui_runtime.c` handlers. SHIFT edges enter `xz_deck_select_shift`. The shell handles QUANTIZE. Press/release events name the deck side and physical pad A-H, mode button, SHIFT or SYNC. The rekordbox button is identified as the button above LINK.
+- Double SHIFT on both sides, both BEAT JUMP pages, all eight jump pads, stem pads and BYPASS, KEY SYNC and interface switching have dedicated scripts. KEY SYNC fails the capture unless the runtime engages its sync state. Beat-jump requests and mute changes are recorded as handler effects.
+- Nine value-control tours exercise the supported setting controls on their actual pages. They call the production runtime action handler for the supported actions. They are not an exhaustive walk of every setting and every possible value.
+- DJ profile creation types a name and tagline, chooses NO LOGO, saves two profiles and switches the active profile using local callbacks. No profile file is written.
+- Report flows type text, review and SEND, with local SENT, SAVED/OFFLINE and UNSAVED/FULL callbacks. Nothing is uploaded or written to a stick.
+- Network inventory is a local `fixture0` snapshot. The review flow chooses KEEP CURRENT and DHCP and visits the rendered review; it does not apply OS changes.
+- Browse fixtures implement category/folder callbacks and deterministic title-substring search results. MY SETTINGS has local load/save callbacks. RAM copy has a fixture error result in addition to completion.
+- CLASSIC compositions use retained stock pixels with the real inline stem, key-strip and deck-view renderers. STANDARD, LCARS, MATRIX and ANALOG have dedicated picker flows. Stock pixels remain a still capture; they are not closed-firmware execution.
 
-Captured paths include all seven MODS sections, MENU open/close, encoder focus and activation, CLASSIC theme selection, interface choice in SCREEN, browse/load, search keyboard, list menus, filter, INFO/SOURCE, SHORTCUT/UTILITY, NEEDLE LOCK, deck-view selection, stem mute/BYPASS, stem-pad configuration, beat-jump page selection, key shift/KEY SYNC, RAM copy request with explicit fixture completion, report topic/text-skip/review, and the available connection/extras setup landing pages.
+## Device identity evidence
 
-The driver checks expected page IDs on important links. Required-action checks cover LOAD, DECK LAYOUT, STEM MUTE/BYPASS, KEY SHIFT/SYNC, and NEEDLE LOCK. Complete render calls publish input geometry before later events. Frame deduplication preserves the control timeline even when a detent does not change pixels. Fixture state is deterministic and local.
+No production source or source-list file changed. All new adapters are host-only files, selected explicitly by the capture driver, outside the device source lists.
 
-## Remaining implementation work
+`tools/verify_nav_device_objects.py` compares source bytes with baseline `00f16052`, compiles baseline and current ARM objects using Zig's `arm-linux-gnueabi.2.13`, Cortex-A9, O2, PIC and hidden visibility flags, and rejects any byte difference. All 12 comparisons passed:
 
-These paths are possible with more host adapters or scripts and must not be described as platform limitations:
+- SHIFT/deck-side seam: `deck_select.c`.
+- Pad/mode/BEAT JUMP seam: `ui/stem_pads.c`, `ui/beat_jump.c`, `ui_runtime.c`.
+- KEY SYNC and rekordbox seam: `ui_runtime.c`.
+- QUANTIZE and browse seams: `shell/shell.c`, `shell/shell_browse.c`.
+- CLASSIC overlays: `ui/deck_view.c`, `ui/key_strip.c`.
+- Profile/report/network fixture boundaries: `ui/ui_profile.c`, `ui/ui_support.c`, `ui/ui_network.c`.
+- Deterministic host clock: `doom/native_bridge.c` remains byte-identical; `shell/nav_clock.c` replaces only the host clock symbol.
 
-- The physical rekordbox button above LINK switching interfaces. SCREEN's CLASSIC/MODERN buttons are captured; the runtime's `rekordbox_run_locked` hook is not linked into this host program.
-- Physical SHIFT, performance-pad, double-SHIFT deck-side switching, pad-page changes on the play screen, gate/smart cue playback, and quantize controls. Their engine/native input paths need a host-callable adapter. The MODS setup pages are captured, not those physical gestures.
-- Every value on every MODS page, complete DJ profile keyboard/logo/save/switch flows, feature setup wizards, network setup/review steps, PC-stem setup, app setup steps, and game setup/run navigation. Current scripts show their landing pages or selected excerpts.
-- Full MODERN browse category/folder, search-result filtering, column/sort mutation, playlist editing, tag editing, cue/loop loading, MY SETTINGS load/save, and rating workflows. Current fixture callbacks do not implement those backend operations. Search intentionally keeps a deterministic fixture result list rather than asserting catalog query correctness.
-- Report typing, SEND, saved/sent/error results, dock REPORT THIS, and retries. The report script reaches READY TO SEND and sends nothing.
-- CLASSIC deck-view/key overlays and additional theme-family overlay compositions. Only CLASSIC inline stems and the MODS theme picker are currently captured.
+The exact before/after SHA-256 values are retained in `E:/Claude/xz-beta-rc-scratch/nav-arm-objects.json`. This is object identity evidence, not a full linked-runtime build, installation, USB or hardware acceptance.
 
-`PLAYLIST` and `SEARCH` are shell semantic-key injections in the current scripts. They are not complete demonstrations of how a finger or physical BROWSE hold reaches those routes on the device. Do not use those timeline labels as physical-button animation instructions without replacing these entry steps. Key events record activation plus dwell, not physical release edges. See README.md for the exact timing contract.
+## Remaining host implementation work
 
-## Unavailable or out of scope
+These are unfinished tasks, not platform limitations:
 
-- Stock CLASSIC browsing, stock utility, stock dialogs, and moving stock waveforms belong to closed firmware. The retained CLASSIC background is a still capture. Only our overlays and MODS pages can run here.
-- Boot/install/update, USB insertion/removal, actual RAM copying, USB writes, network responses, remote app connections, audio, and hardware acceptance are not exercised. Some UI snapshots can be scripted later, but they cannot prove those operations.
-- Desktop app chapters require a separate app capture task.
-- No LINK, PRO DJ LINK, or CONTROL MODE protocol work was performed.
+- Exhaustive chapter-directed values, including shell look/columns/sort, every theme and colour choice, every setup wizard, PC-stem/app/game setup and game navigation. Value tours only cover the adapter's explicit supported action set.
+- Profile logo-file selection and preview, profile save failures, report dock entry and retry/edit recovery. Current profile flows choose NO LOGO; report result fixtures complete immediately.
+- Full static-IP keyboard/review/apply/rollback UI scenarios and network error results. Current inventory and review are local examples.
+- Playlist/tag/rating edits, cue/loop loading and full MY SETTINGS failure/confirmation variants. Search is a fixture query, not catalog-backend acceptance.
+- Gate/smart cue transport, software-deck performance-pad playback and quantize modifier variants. The native stock audio backend is absent, but further host input fixtures could still demonstrate the UI paths.
+- CLASSIC four-deck native wave surfaces, additional native theme recolouring, key popover interaction and complete overlay runtime hit-routing. The current CLASSIC picker adapter uses the shared production geometry/draw helpers, not the native stock framebuffer hook.
 
-## Gate handoff
+## Platform and scope boundaries
 
-Run the driver's `--check` to compare current source hashes, the complete script set, and retained output hashes. Stale or missing flows must fail a future manual gate. Regenerate, inspect, then accept a new navigation manifest separately from static figures. The present checker proves integrity and freshness, not full manual coverage. A gate that requires complete navigation coverage must also reject the unfinished assignments above and in CHAPTER-AUDIT.md. `build_manual.py` was not modified.
+Closed firmware owns stock CLASSIC browse/utility/dialog motion. Actual boot/install, USB changes/writes, RAM media copy, network responses, remote connections, audio and hardware require their respective platforms. Desktop app chapters need a separate desktop capture task. No controller connection, USB write, publication, LINK/PRO DJ LINK/CONTROL MODE protocol work occurred.
 
-## Verification retained in this session
+## Capture verification
 
-All 49 scripts completed with 450 unique frames. All frames were visually inspected on six sequence sheets under `E:/Claude/xz-beta-rc-scratch/nav-final-proof/`, with additional full-size inspection of the deck picker. Strict Zig compilation passed. Required-action and expected-page assertions passed. Timeline timestamps are monotonic; every PNG reference exists; every saved image has a positive hold; hold durations sum to the recorded flow duration. The source/output freshness check passed. A deliberate source-hash mismatch was rejected. A second deck-view capture produced byte-identical PNGs, timeline, frame-duration file, and animated WebP.
+The batch is under `E:/Claude/xz-beta-rc-scratch/nav-capture-2/`. INDEX.md records the final counts. The driver checks source/output hashes, exact script membership, physical entry-key rules, required handler effects, monotonic timestamps, positive frame holds and duration totals. Reused development binaries cannot pass `--check`. The host runtime uses the script clock; no runtime threads or clients are started.
 
-The capture batch is under `E:/Claude/xz-beta-rc-scratch/nav-capture/`. Earlier scratch passes were retained separately. No controller/USB access, installation, publication, or push was performed.
+Final verification: 79 flows completed with 908 PNG frames, including 30 new flows with 446 frames. All final PNGs match visually reviewed image hashes, covering 472 distinct PNG hashes across the review sheets and corrected browse-menu review. A repeated physical KEY SYNC capture produced byte-identical PNGs, timeline, frame-duration file and animated WebP. The full `--check` passed; deliberate stale-source and corrupt-output manifest hashes were rejected, and the restored manifest passed again. Python compilation and `git diff --check` passed. Existing tracked files retain CRLF line endings.
+
+Review sheets and hash receipt: `E:/Claude/xz-beta-rc-scratch/nav-proof-2/`, `nav-proof-remaining/`, `nav-browse-menu-review.png` and `nav-final-review.json`. Capture integrity evidence: `nav-negative-proof.json` and `nav-determinism-proof.json` in the same scratch parent. Failed intermediate generations are retained as `nav-capture-2-attempt1`, `attempt2` and `attempt3`; only `nav-capture-2` is the accepted current batch.

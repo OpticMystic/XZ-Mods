@@ -1,0 +1,58 @@
+{
+  "section": "mods-menu#my-settings",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 22,
+      "detail": "Paused local decks before MY SETTINGS load"
+    },
+    {
+      "key": "BROWSE"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "touch": [
+        660,
+        131
+      ]
+    },
+    {
+      "touch": [
+        660,
+        131
+      ]
+    },
+    {
+      "touch": [
+        660,
+        199
+      ]
+    },
+    {
+      "touch": [
+        660,
+        199
+      ]
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      19
+    ]
+  ],
+  "requires_actions": [
+    [
+      "shell",
+      19,
+      0
+    ],
+    [
+      "shell",
+      19,
+      1
+    ]
+  ]
+}
