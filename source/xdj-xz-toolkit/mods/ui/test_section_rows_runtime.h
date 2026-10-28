@@ -16,12 +16,35 @@ static void rows_route(int on){
         "The software players are unavailable or have not been started.");
 }
 
-/* Everything a MODS setting control can change: the published model, the panel's own edit state, the key engine,
-   and the shell's own parts in MODERN. */
+/* The sync link's master authority, as sync_link_runtime.c gives the full runtime: with the route available the
+   runtime takes the master from it alone. During the walk it names deck 2, as the fixture's keys do; otherwise it
+   has none. */
+static int rows_master=-1;
+int xz_sync_link_runtime_master_observe(struct xz_master_observation *m){
+    if(rows_master<0)return 0;
+    *m=(struct xz_master_observation){.deck=rows_master,.revision=1,.operator_epoch=1,.observed_ms=xz_game_milliseconds()};
+    return 1;
+}
+/* KEYS has a tab for every deck: analysed tracks on decks 3 and 4 too (as test_key_four_deck.c), so its controls
+   can act on the software decks; off again restores the fixture. */
+static void rows_software_keys(int on){
+    static struct xz_extra_decks saved;
+    if(!on){fixture_extra=saved;return;}
+    saved=fixture_extra;fixture_extra.route_up=1;
+    for(int d=0;d<2;d++){
+        struct xz_extra_deck *v=&fixture_extra.deck[d];v->loaded=1;v->known|=XZ_EXTRA_KNOWN(XZ_EXTRA_F_KEY_STATE);
+        v->key_state=(struct xz_deck_key){.owner={.route_epoch=1,.load_revision=(uint32_t)d+1,.media_generation=11},
+            .original={d?7:4,1},.playing={.key={d?7:4,1},.cents=0},.metadata_valid=1,.engine_ready=1,
+            .playing_valid=1,.audio_state=XZ_KEY_AUDIO_APPLIED};
+    }
+}
+
+/* Everything a MODS setting control can change: the published model, the panel's own edit state, the key engine
+   (decks 3 and 4 take key requests as player events), and the shell's own parts in MODERN. */
 struct row_state {
     int deck_view,rb[2],stem_page,stem_bank,stem_order,pad_feedback,modern_stems,
         key_format,key_feedback,browse_traffic,browse_key_prefix,stem_colors[3],edit_page,edit_pair,adjusting,
-        key_requests,wakes,deck,key_synced[2],mt_calls,stems_overlay,wave_mode,look_wave,look_usb;
+        key_requests,player_events,wakes,deck,key_synced[2],mt_calls,stems_overlay,wave_mode,look_wave,look_usb;
     uint32_t enabled,scanning,look_hidden;
     struct xz_jump_settings jump;
 };
@@ -34,7 +57,7 @@ static struct row_state row_state_now(void){
     for(int i=0;i<3;i++)s.stem_colors[i]=model.stem_colors[i];
     s.edit_page=ui.jump_edit_page;s.edit_pair=ui.jump_edit_pair;s.adjusting=ui.adjusting;s.deck=ui.deck;
     s.key_synced[0]=model.deck[0].key_synced;s.key_synced[1]=model.deck[1].key_synced;s.mt_calls=rows_mt_calls;s.stems_overlay=model.stems_overlay;s.wave_mode=model.wave_mode;
-    s.key_requests=fixture_key_requests;s.wakes=fixture_rescans;s.enabled=model.enabled;s.scanning=model.route.state==XZ_UI_ROUTE_SCANNING;s.jump=model.jump;
+    s.key_requests=fixture_key_requests;s.player_events=fixture_event_count;s.wakes=fixture_rescans;s.enabled=model.enabled;s.scanning=model.route.state==XZ_UI_ROUTE_SCANNING;s.jump=model.jump;
     s.look_wave=model.modern_look.wave_color;s.look_usb=model.modern_look.usb_colors;s.look_hidden=model.modern_look.hidden;
     return s;
 }
@@ -72,6 +95,7 @@ static int one_of_several(const struct xz_ui_widget *w){
 static int rows_checked[2];
 static void every_control_on(int interface,int page){
     rows_fixture(interface);ui.page=(enum xz_ui_page)page;
+    if(page==XZ_UI_KEY_SETUP)rows_software_keys(1);
     pthread_mutex_lock(&ui_mutex);refresh_local();pthread_mutex_unlock(&ui_mutex);
     struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&ui,&model,w);
     for(size_t i=0;i<n;i++){
@@ -99,14 +123,15 @@ static void every_control_on(int interface,int page){
         assert(!touch.visible||ui.page==(enum xz_ui_page)page);
         rows_checked[interface!=0]++;
     }
+    if(page==XZ_UI_KEY_SETUP)rows_software_keys(0);
 }
 static void every_row_works(void){
-    rows_players=1;
+    rows_players=1;rows_master=1;
     static const int pages[]={XZ_UI_PLAY,XZ_UI_BEAT_JUMP,XZ_UI_KEY_SETUP,XZ_UI_BUTTONS,XZ_UI_STEM_SECTION,XZ_UI_STEM_PADS,
         XZ_UI_STEM_COLORS,XZ_UI_SCREEN,XZ_UI_SCREEN_LOOK,XZ_UI_FOUR_DECKS};
     for(int interface=0;interface<2;interface++)
         for(size_t i=0;i<sizeof pages/sizeof *pages;i++)every_control_on(interface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC,pages[i]);
-    rows_route(0);rows_players=0;
+    rows_route(0);rows_players=0;rows_master=-1;
     for(int d=0;d<2;d++)fixture_key_valid[d]=0;
     native_master_tempo_on=NULL;fake_look=(struct xz_ui_modern_look){0};
     assert(rows_checked[0]>=60&&rows_checked[1]>rows_checked[0]);
