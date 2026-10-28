@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "types": "wrangler types --include-runtime false --strict-vars false",
+    "types": "python -B ../../tools/generate_support_contract.py",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/service.test.mjs"
+    "contract:check": "python -B ../../tools/generate_support_contract.py --check",
+    "test": "npm run contract:check && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "zod": "latest"

@@ -1,47 +1,13 @@
+import { controllerRoutes, completionDetails, expireReminders, type PendingAdmission } from './controller-queue';
+import { acceptWithReference, ownerLookup } from './identifiers';
+import { formatItemNumber } from './contract.generated';
+import { parseReportV2 } from './schema-v2';
+import { fingerprint } from './classification';
+import { initialTracking, trackingRow, ownerHistory, receiptV2, readTracking, ownerInbox, ownerMutation, cleanupTracking, revokeCapabilities, trackingSession } from './tracking';
+import { trackingPage } from './tracking-page';
 import { encoder, reportSchema, publicSchema, issueSchema } from './schema';
 
-type Env = Cloudflare.Env & { ADMIN_TOKEN_SHA256: string; RATE_KEY: string };
-type DB = ReturnType<Env['DB']['withSession']>;
-type Row = {
-  id: string; digest: string; key_hash: string; object_key: string; bytes: number;
-  state: 'reserved' | 'accepted' | 'deleting' | 'gone'; reserved_at: number;
-  accepted_at: number | null; expires_at: number | null; gone_at: number | null;
-  public_json: string | null; issue_state: 'pending' | 'user_provided' | 'verified'; issue_url: string | null;
-};
-const DAY = 86400000;
-const MAX = 524288;
-const ID = '[a-f0-9]{32}';
-const SECRET = /^[a-f0-9]{64}$/;
-class HttpError extends Error {
-  constructor(readonly status: number, readonly code: string) { super(code); }
-}
-function fail(status: number, code: string): never { throw new HttpError(status,code); }
-const headers = {
-  'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
-  'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'"
-};
-function json(value: unknown, status = 200): Response {
-  const body = JSON.stringify(value);
-  if (encoder.encode(body).length >= 65536) fail(500,'response_limit');
-  return new Response(body,{status,headers:{...headers,'Content-Type':'application/json'}});
-}
-const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2,'0')).join('');
-const sha = async (value: string | Uint8Array) => hex(await crypto.subtle.digest('SHA-256',typeof value === 'string' ? encoder.encode(value) : value));
-function equal(a: string, b: string): boolean {
-  return a.length === b.length && crypto.subtle.timingSafeEqual(encoder.encode(a),encoder.encode(b));
-}
-async function ipHash(env: Env, day: string, ip: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw',encoder.encode(env.RATE_KEY),{name:'HMAC',hash:'SHA-256'},false,['sign']);
-  return hex(await crypto.subtle.sign('HMAC',key,encoder.encode(`${day}\n${ip}`)));
-}
-function bearer(req: Request): string {
-  const match = /^Bearer ([a-f0-9]{64})$/.exec(req.headers.get('Authorization') ?? '');
-  return match?.[1] ?? fail(401,'unauthorized');
-}
-async function owner(req: Request, env: Env): Promise<void> {
-  const match=/^Bearer ([a-zA-Z0-9_-]{32,256})$/.exec(req.headers.get('Authorization') ?? '');
-  if (!match || !equal(await sha(match[1]),env.ADMIN_TOKEN_SHA256)) fail(401,'unauthorized');
-}
+import { Env, DB, Row, DAY, MAX, ID, SECRET, HttpError, fail, json, headers, sha, equal, bearer, owner, ipHash, bodyLength, bytes, parse } from './http';
 const row = (db: DB, id: string) => db.prepare('SELECT * FROM reports WHERE id=?').bind(id).first<Row>();
 function active(r: Row, now: number): void {
   if (r.state === 'gone' || r.state === 'deleting' || r.expires_at !== null && r.expires_at <= now ||
@@ -55,101 +21,94 @@ async function reporter(req: Request, db: DB, id: string, now: number): Promise<
   active(r,now);
   return r;
 }
-function receipt(r: Row, env: Env) {
+async function receipt(r: Row, env: Env, db: DB) {
   if (r.accepted_at === null || r.expires_at === null) fail(503,'outcome_unknown');
-  return {schema:'xz-support-receipt/1', report_id:r.id, payload_sha256:r.digest,
+  const tracking=await trackingRow(db,r.id);
+  if(!tracking) fail(503,'outcome_unknown');
+  return {schema:'xz-support-receipt/1', report_reference:tracking.report_reference,item_number:tracking.item_number===null ? null : formatItemNumber(tracking.item_number),report_id:r.id, payload_sha256:r.digest,
     accepted_at:new Date(r.accepted_at).toISOString(),expires_at:new Date(r.expires_at).toISOString(),
     private_logs:'stored',public_issue:r.issue_state,github_draft_url:`${env.PUBLIC_ORIGIN}/r/${r.id}/github`,issue_url:r.issue_url};
 }
-function bodyLength(req: Request, max: number): number {
-  if (req.headers.get('Content-Type') !== 'application/json' || req.headers.has('Content-Encoding') ||
-      req.headers.has('Transfer-Encoding')) fail(415,'unsupported_encoding');
-  const raw = req.headers.get('Content-Length') ?? '';
-  if (!/^[1-9][0-9]{0,6}$/.test(raw)) fail(411,'length_required');
-  const length = Number(raw);
-  if (length > max) fail(413,'too_large');
-  return length;
-}
-async function bytes(req: Request, length: number): Promise<Uint8Array> {
-  if (!req.body) fail(400,'length_mismatch');
-  const reader = req.body.getReader();
-  const out = new Uint8Array(length);
-  let total = 0;
-  const timeout = AbortSignal.timeout(15000);
-  const timedOut = new Promise<never>((_,reject) => {
-    timeout.addEventListener('abort',() => reject(new HttpError(408,'body_timeout')),{once:true});
-  });
-  try {
-    while (true) {
-      const next = await Promise.race([
-        reader.read(),
-        timedOut
-      ]);
-      if (next.done) break;
-      total += next.value.byteLength;
-      if (total > length) fail(400,'length_mismatch');
-      out.set(next.value,total-next.value.byteLength);
-    }
-    if (total !== length) fail(400,'length_mismatch');
-    return out;
-  } finally { void reader.cancel().catch(() => {}); }
-}
-function parse(raw: Uint8Array): unknown {
-  try { return JSON.parse(new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(raw)); }
-  catch { return fail(400,'invalid_json'); }
-}
-async function submit(req: Request, env: Env, db: DB, now: number): Promise<Response> {
+export async function submit(req: Request, env: Env, db: DB, now: number, v2 = false, referenceGenerator?: () => string, pending?:PendingAdmission): Promise<Response> {
   const length = bodyLength(req,MAX);
   const id = req.headers.get('X-Report-ID') ?? '';
   const digest = req.headers.get('X-Report-SHA256') ?? '';
   if (!new RegExp(`^${ID}$`).test(id) || !SECRET.test(digest) ||
-      req.headers.get('X-Report-Consent') !== 'public-summary-private-logs/v1') fail(400,'invalid_headers');
-  const keyHash = await sha(bearer(req));
+      req.headers.get('X-Report-Consent') !== (v2 ? 'private-report/v2' : 'public-summary-private-logs/v1')) fail(400,'invalid_headers');
+  let keyHash = pending?.keyHash ?? await sha(bearer(req));
   let previous = await row(db,id);
+  if(previous && (previous.is_pending===1)!==!!pending) fail(409,'conflict');
+  if(previous && pending) keyHash=previous.key_hash;
+  if(!previous && await db.prepare('SELECT report_id FROM report_references WHERE report_id=?').bind(id).first()) fail(409,'retained_report_id');
   if (previous && (!equal(previous.key_hash,keyHash) || previous.digest !== digest || previous.bytes !== length)) fail(409,'conflict');
   if (previous && previous.state !== 'accepted') active(previous,now);
   if (!previous) {
     const day = new Date(now).toISOString().slice(0,10);
     const ip = req.headers.get('CF-Connecting-IP');
     if (!ip || ip.length > 64) fail(503,'rate_identity_unavailable');
-    const ipKey = await ipHash(env,day,ip);
+    const ipKey = pending ? await ipHash(env,day,'queue:'+pending.installationId+':'+(pending.loaderId ?? id)) : await ipHash(env,day,ip);
     try {
-      await db.prepare(`INSERT INTO reports(id,digest,key_hash,object_key,ip_hash,day,bytes,state,reserved_at)
-        SELECT ?,?,?,?,?,?,?,'reserved',? WHERE NOT EXISTS(SELECT 1 FROM reports WHERE id=?)`)
-        .bind(id,digest,keyHash,`reports/${day}/${id}/${crypto.randomUUID()}`,ipKey,day,length,now,id).run();
+      await db.prepare(`INSERT INTO reports(id,digest,key_hash,object_key,ip_hash,day,bytes,state,reserved_at,origin,installation_id,loader_id,loader_key_hash,is_pending)
+        SELECT ?,?,?,?,?,?,?,'reserved',?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM reports WHERE id=?)`)
+        .bind(id,digest,keyHash,`reports/${day}/${id}/${crypto.randomUUID()}`,ipKey,day,length,now,pending?'controller':'loader',pending?.installationId??null,pending?.loaderId??null,pending?.loaderKeyHash??null,pending?1:0,id).run();
     } catch (e) {
+      if (e instanceof Error && e.message.includes('queue_auth')) fail(404,'not_found');
       if (e instanceof Error && e.message.includes('quota')) fail(429,'quota');
       throw e;
     }
     previous = await row(db,id);
     if (!previous) fail(503,'outcome_unknown');
+    if(pending) {
+      if(previous.installation_id!==pending.installationId || previous.loader_id!==pending.loaderId || previous.is_pending!==1) fail(409,'conflict');
+      keyHash=previous.key_hash;
+    }
     if (!equal(previous.key_hash,keyHash) || previous.digest !== digest || previous.bytes !== length) fail(409,'conflict');
   }
   const raw = await bytes(req,length);
   if (await sha(raw) !== digest) fail(400,'digest_mismatch');
-  const parsed = reportSchema.safeParse(parse(raw));
-  if (!parsed.success || parsed.data.report_id !== id) fail(400,'invalid_report');
-  if (previous.state === 'accepted') { active(previous,Date.now()); return json(receipt(previous,env)); }
+  const value = parse(raw);
+  const v2Report = v2 ? parseReportV2(value) : null;
+  const parsed = reportSchema.safeParse(value);
+  if (v2 ? !v2Report || v2Report.report_id !== id : !parsed.success || parsed.data.report_id !== id) fail(400,'invalid_report');
+  if(!pending && v2Report && (v2Report.comments_pending || v2Report.loader_id || v2Report.installation_id)) fail(400,'pending_route_required');
+  if (previous.state === 'accepted') { active(previous,Date.now()); return json(v2 ? await receiptV2(db,id) : await receipt(previous,env,db)); }
   // Conditional R2 creation allows one writer, even when requests race the D1 insert.
-  const report = parsed.data;
-  const publicFields = {title:report.public_issue.title, description:report.public_issue.description,
+  const report = parsed.success ? parsed.data : null;
+  const publicFields = report && !v2 ? {title:report.public_issue.title, description:report.public_issue.description,
     origin:report.origin,category:report.category,
-    version:/^[a-zA-Z0-9.+_-]{0,64}$/.test(report.build.app_version) ? report.build.app_version : ''};
+    version:/^[a-zA-Z0-9.+_-]{0,64}$/.test(report.build.app_version) ? report.build.app_version : ''} : null;
   const stored = await env.REPORTS.put(previous.object_key,raw,{onlyIf:{etagDoesNotMatch:'*'},sha256:digest});
   if (!stored) fail(503,'outcome_unknown');
   const accepted = Date.now();
-  const result = await db.prepare(`UPDATE reports SET state='accepted',accepted_at=?,expires_at=?,public_json=?
-    WHERE id=? AND state='reserved' AND reserved_at>?`).bind(accepted,accepted+14*DAY,JSON.stringify(publicFields),id,accepted-900000).run();
-  if (result.meta.changes !== 1) fail(503,'outcome_unknown');
+  // Acceptance and initial tracking commit together. A failed batch never
+  // advertises an accepted receipt. R2 orphans retain the existing cleanup path.
+  const signature = v2Report ? await fingerprint(v2Report) : null;
+  const result = await acceptWithReference(db, reference => {
+  const statements = [db.prepare(`UPDATE reports SET state='accepted',accepted_at=?,expires_at=?,public_json=?,protocol_version=?,legacy_public_consent=?,origin=?
+    WHERE id=? AND state='reserved' AND reserved_at>?`).bind(accepted,accepted+14*DAY,publicFields ? JSON.stringify(publicFields) : null,v2?2:1,v2?0:1,v2Report?.origin ?? report?.origin ?? 'loader',id,accepted-900000),
+    initialTracking(db,id,keyHash,digest,accepted,reference,v2Report?.kind_hint)];
+  if(pending) statements.push(
+    db.prepare(`UPDATE report_tracking SET origin='controller',installation_id=?,loader_id=?,comments_state='pending_comments',reminders_until=? WHERE report_id=? AND receipt_key_hash=?`)
+      .bind(pending.installationId,pending.loaderId,accepted+7*DAY,id,keyHash),
+    db.prepare(`INSERT INTO controller_queue(report_id,description,topic,screen_state,private_expires_at)
+      SELECT report_id,?,?,?,? FROM report_tracking WHERE report_id=? AND receipt_key_hash=? ON CONFLICT DO NOTHING`)
+      .bind(pending.report.description,pending.report.reporter_hints?.topic??null,JSON.stringify(pending.report.screen_state),accepted+14*DAY,id,keyHash));
+  if (signature) statements.push(db.prepare(`INSERT INTO report_signatures(report_id,exact_hash,family_hash,component)
+    SELECT report_id,?,?,? FROM report_tracking WHERE report_id=? AND payload_sha256=? ON CONFLICT DO NOTHING`)
+    .bind(signature.exact,signature.family,signature.component,id,digest));
+  return statements;
+  }, referenceGenerator);
+  if (result[0].meta.changes !== 1) fail(503,'outcome_unknown');
   const done = await row(db,id);
   if (!done) fail(503,'outcome_unknown');
-  return json(receipt(done,env));
+  return json(v2 ? await receiptV2(db,id) : await receipt(done,env,db));
 }
 
 async function githubDraft(db: DB, id: string, now: number): Promise<Response> {
   const r = await row(db,id);
   if (!r) fail(404,'not_found');
   active(r,now);
+  if (r.protocol_version !== 1 || r.legacy_public_consent !== 1) fail(404,'not_found');
   const p = publicSchema.parse(JSON.parse(r.public_json ?? 'null'));
   const url = new URL('https://github.com/OpticMystic/XZ-Mods/issues/new');
   url.searchParams.set('title',p.title);
@@ -159,6 +118,7 @@ async function githubDraft(db: DB, id: string, now: number): Promise<Response> {
 
 async function linkIssue(req: Request, env: Env, db: DB, id: string, now: number): Promise<Response> {
   const r = await reporter(req,db,id,now);
+  if (r.protocol_version !== 1 || r.legacy_public_consent !== 1) fail(404,'not_found');
   const parsed = issueSchema.safeParse(parse(await bytes(req,bodyLength(req,1024))));
   if (!parsed.success) fail(400,'invalid_issue');
   const match = /^https:\/\/github\.com\/OpticMystic\/XZ-Mods\/issues\/([1-9][0-9]{0,9})$/.exec(parsed.data.issue_url);
@@ -183,7 +143,7 @@ async function linkIssue(req: Request, env: Env, db: DB, id: string, now: number
   const updated = await row(db,r.id);
   if (!updated) fail(404,'not_found');
   active(updated,Date.now());
-  return json(receipt(updated,env));
+  return json(await receipt(updated,env,db));
 }
 async function boundedResponse(response: Response, limit: number): Promise<string> {
   if (!response.body) throw new Error('empty');
@@ -209,6 +169,8 @@ export async function cleanup(env: Env, now = Date.now()): Promise<void> {
   await db.prepare(`UPDATE reports SET state='deleting',gone_at=? WHERE
     (state='accepted' AND expires_at<=?) OR (state='reserved' AND reserved_at<=?)`).bind(now,now,now-900000).run();
   const pending = await db.prepare(`SELECT * FROM reports WHERE state IN ('deleting','gone') ORDER BY last_swept LIMIT 200`).all<Row>();
+  await expireReminders(db,now);
+  await cleanupTracking(db,now);
   if(!pending.results.length) return;
   await env.REPORTS.delete(pending.results.map(r=>r.object_key));
   const ids=JSON.stringify(pending.results.map(r=>r.id));
@@ -220,9 +182,9 @@ export async function cleanup(env: Env, now = Date.now()): Promise<void> {
   ]);
 }
 
-async function ownerPage(req: Request, env: Env, db: DB, id: string, search: string): Promise<Response> {
-  // Authenticate every page before checking offsets or report existence.
-  await owner(req,env);
+async function ownerPage(req: Request, env: Env, db: DB, id: string, search: string, requireOwner=true): Promise<Response> {
+  // Every caller authenticates before offsets or storage reads.
+  if(requireOwner) await owner(req,env);
   const match=/^\?offset=(0|[1-9][0-9]{0,5})$/.exec(search);
   if(search && !match) fail(400,'invalid_offset');
   const offset=match ? Number(match[1]) : 0;
@@ -243,7 +205,7 @@ async function ownerPage(req: Request, env: Env, db: DB, id: string, search: str
   const next=offset+length;
   return json({schema:'xz-support-owner-page/1',report_id:r.id,payload_sha256:r.digest,
     total_bytes:r.bytes,offset,encoding:'base64',data_base64:btoa(String.fromCharCode(...data)),
-    next_offset:next<r.bytes?next:null,receipt:receipt(latest,env)});
+    next_offset:next<r.bytes?next:null,completion:await completionDetails(db,id),receipt:latest.protocol_version===2 ? await receiptV2(db,id) : await receipt(latest,env,db)});
 }
 
 async function dispatch(req: Request, env: Env): Promise<Response> {
@@ -255,12 +217,46 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
   for(const [name,value] of req.headers) { headerSize+=name.length+value.length; if(value.length>1024) fail(431,'headers_too_large'); }
   if(headerSize>8192 || url.href.length>1024) fail(431,'headers_too_large');
   const db=env.DB.withSession('first-primary'); const now=Date.now(); const path=url.pathname;
+  const details=/^\/v2\/reports\/(R-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4})\/details$/.exec(path);
+  if(details && req.method==='GET') {
+    const tracked=await db.prepare('SELECT t.report_id FROM report_tracking t JOIN controller_queue q ON q.report_id=t.report_id WHERE t.report_reference=? AND q.claimed=1').bind(details[1]).first<{report_id:string}>();
+    if(!tracked) fail(404,'not_found');
+    await reporter(req,db,tracked.report_id,now);
+    return ownerPage(req,env,db,tracked.report_id,url.search,false);
+  }
+  const controller=await controllerRoutes(req,env,db,now,submit);if(controller) return controller;
+  if(req.method==='GET' && (path==='/track' || path==='/track.js') && !url.search) return trackingPage(path);
+  const completion=new RegExp(`^/v2/admin/reports/(${ID})/completion$`).exec(path);
+  if(completion && req.method==='GET' && !url.search) {
+    await owner(req,env);
+    const tracked=await trackingRow(db,completion[1]);if(!tracked||tracked.retention_until<=now) fail(404,'not_found');
+    return json({report_id:completion[1],completion:await completionDetails(db,completion[1])});
+  }
+  if(path==='/v2/admin/lookup' && req.method==='GET') return ownerLookup(req,env,db,url);
+  if(path==='/v2/admin/reports' && req.method==='GET') return ownerInbox(req,env,db,url);
+  const v2Page=new RegExp(`^/v2/admin/reports/(${ID})$`).exec(path);
+  if(v2Page && req.method==='GET') return ownerPage(req,env,db,v2Page[1],url.search);
+  const ownerRead=new RegExp(`^/v2/admin/reports/(${ID})/(triage|notes|status|history|items)$`).exec(path);
+  if(ownerRead && req.method==='GET') return ownerHistory(req,env,db,ownerRead[1],ownerRead[2]);
+  if(!url.search) {
+    if(path==='/v2/reports' && req.method==='POST') return submit(req,env,db,now,true);
+    if(path==='/v2/tracking/session' && req.method==='POST') return trackingSession(req,db);
+    const status=new RegExp(`^/v2/reports/(${ID})/(receipt|status)$`).exec(path);
+    if(status && req.method==='GET') return readTracking(req,db,status[1],status[2]==='receipt'?'receipt':'status');
+    const read=new RegExp(`^/v2/tracking/(${ID})$`).exec(path);
+    if(read && req.method==='GET') return readTracking(req,db,read[1],'read');
+    const caps=new RegExp(`^/v2/reports/(${ID})/capabilities$`).exec(path);
+    if(caps && req.method==='POST') return revokeCapabilities(req,db,caps[1]);
+    const mutation=new RegExp(`^/v2/admin/reports/(${ID})/(triage|notes|status|history|items)$`).exec(path);
+    if(mutation && req.method==='GET') return ownerHistory(req,env,db,mutation[1],mutation[2]);
+    if(mutation && req.method==='POST') return ownerMutation(req,env,db,mutation[1],mutation[2]);
+  }
   const ownerPath=new RegExp(`^/v1/admin/reports/(${ID})$`).exec(path);
   if(ownerPath && req.method==='GET') return ownerPage(req,env,db,ownerPath[1],url.search);
   if(url.search) fail(400,'invalid_query');
   if(req.method==='POST' && path==='/v1/reports') return submit(req,env,db,now);
   let m=new RegExp(`^/v1/reports/(${ID})/receipt$`).exec(path);
-  if(m && req.method==='GET') return json(receipt(await reporter(req,db,m[1],now),env));
+  if(m && req.method==='GET') { const r=await reporter(req,db,m[1],now); if(r.protocol_version!==1) fail(404,'not_found'); return json(await receipt(r,env,db)); }
   m=new RegExp(`^/r/(${ID})/github$`).exec(path);
   if(m && req.method==='GET') return githubDraft(db,m[1],now);
   m=new RegExp(`^/v1/reports/(${ID})/issue$`).exec(path);
@@ -275,7 +271,8 @@ async function dispatch(req: Request, env: Env): Promise<Response> {
     if(new RegExp(`^${ID}$`).test(id)) {
       const r=await row(db,id); if(!r) fail(404,'not_found');
       if(req.method==='DELETE') {
-        await db.prepare(`UPDATE reports SET state='deleting',gone_at=? WHERE id=? AND state NOT IN ('deleting','gone')`).bind(now,id).run();
+        await db.batch([db.prepare(`UPDATE reports SET state='deleting',gone_at=? WHERE id=? AND state NOT IN ('deleting','gone')`).bind(now,id),
+          db.prepare('UPDATE controller_queue SET description=NULL,topic=NULL,screen_state=NULL,comments=NULL WHERE report_id=?').bind(id)]);
         await env.REPORTS.delete(r.object_key);
         await db.prepare(`UPDATE reports SET state='gone',public_json=NULL,issue_url=NULL WHERE id=? AND state='deleting'`).bind(id).run();
         return json({report_id:id,state:'gone'});

@@ -5,7 +5,7 @@ sys.dont_write_bytecode=True
 from builder import support_reports as s
 class Reports(unittest.TestCase):
  def setUp(self):
-  self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'tests');self.data=Path(self.tmp.name);self.env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1','XZ_BUILDER_DATA':str(self.data)}
+  self.tmp=tempfile.TemporaryDirectory(dir=os.environ.get('XZ_SUPPORT_TEST_OUTPUT',tempfile.gettempdir()));self.data=Path(self.tmp.name);self.env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1','XZ_BUILDER_DATA':str(self.data)}
  def tearDown(self):self.tmp.cleanup()
  def call(self,r,env=None):
   p=subprocess.run([sys.executable,'-B','-m','builder.entry'],cwd=str(ROOT.parent),input=json.dumps(r).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env or self.env,timeout=10)
@@ -34,7 +34,9 @@ class Reports(unittest.TestCase):
   (self.data/'app.log').write_text('state=ACTIVE\n'*10000);d=self.prepare();parts=[]
   for page in range(d['pages']):
    r=self.call({'method':'support_preview',**d,'page':page});self.assertTrue(r['ok'],r);parts.append(r['result']['text']);self.assertLessEqual(len(parts[-1].encode()),16384)
-  self.assertEqual(''.join(parts),self.body(d)['body']);review=json.loads((self.data/'support-reports'/(d['report_id']+'.review')).read_text());self.assertTrue(review['complete'])
+  self.assertEqual(''.join(parts),self.body(d)['body'])
+  # Reading pages is optional and records nothing; only an explicit v2 Send writes consent.
+  self.assertEqual(sorted(p.suffix for p in (self.data/'support-reports').iterdir()),['.draft'])
  def test_actual_boot_session_and_explicit_native_export(self):
   usb=self.data/'usb';(usb/'XZ_RUNTIME').mkdir(parents=True)
   (usb/'XZ_RUNTIME/session.txt').write_text('[2026-10-25 01:02:03] VJ_NETWORK_READY: address=192.168.9.4 serial=CANARY\n[2026-10-25 01:02:04] FAILED: C:/Users/NamedPerson/private.wav\nprivate token CANARY\n')
@@ -75,7 +77,9 @@ class Reports(unittest.TestCase):
   first=drafts[0];before=self.body(first);entry=next(x for x in listing['reports'] if x['report_id']==first['report_id'])
   self.assertNotIn(before['key'],json.dumps(listing))
   self.call({'method':'support_preview',**first,'page':0})
-  marker=self.data/'support-reports'/(first['report_id']+'.review');self.assertTrue(marker.exists())
+  marker=self.data/'support-reports'/(first['report_id']+'.review');self.assertFalse(marker.exists())
+  refused=self.call({'method':'support_consent','report_id':first['report_id'],'sha256':first['sha256'],'bytes':first['bytes'],'consent':'private-report/v2'})
+  self.assertFalse(refused['ok']);self.assertIn('v2',refused['error']);self.assertFalse(marker.with_suffix('.consent').exists())
   resumed=self.call({'method':'support_resume','report_id':first['report_id'],'sha256':first['sha256']})
   self.assertTrue(resumed['ok']);self.assertEqual(resumed['result']['sha256'],first['sha256']);self.assertEqual(resumed['result']['fields']['title'],'Saved report 0')
   self.assertFalse(marker.exists());self.assertEqual(self.body(first),before)
@@ -96,16 +100,17 @@ class NativeSupport(unittest.TestCase):
   # Compile the real module, not a rewritten proxy. Tauri application build.rs,
   # generated schemas, UI, shared release output and hosted endpoints are unused.
   app=ROOT.parents[2];manifest=app/'src-tauri/Cargo.toml';native=app/'src-tauri/src/support.rs'
+  modules=[('support_contract',app/'spec/generated/support_contract.rs'),('support',native),('support_store',app/'src-tauri/src/support_store.rs'),('support_tracking',app/'src-tauri/src/support_tracking.rs')]
   lines=manifest.read_text().splitlines();selected=[];inside=False
   for line in lines:
    if line=='[dependencies]':inside=True;continue
    if line.startswith('['):inside=False
    if inside and line.split('=',1)[0].strip() in {'tauri','tauri-plugin-dialog','serde_json','sha2','reqwest','rustls','tokio'}:selected.append(line)
-  with tempfile.TemporaryDirectory(dir=ROOT/'tests',prefix='native-support-') as work:
+  with tempfile.TemporaryDirectory(dir=os.environ.get('XZ_SUPPORT_TEST_OUTPUT',tempfile.gettempdir()),prefix='native-support-') as work:
    work=Path(work);(work/'Cargo.toml').write_text('[package]\nname="xz-support-focused-check"\nversion="0.0.0"\nedition="2021"\n[workspace]\n[lib]\npath="lib.rs"\n[dependencies]\n'+'\n'.join(selected)+'\n[profile.dev]\ndebug=0\nincremental=false\n')
-   (work/'lib.rs').write_text('#[path='+json.dumps(native.as_posix())+']\nmod support;\n')
+   (work/'lib.rs').write_text(''.join('#[path='+json.dumps(path.as_posix())+']\n#[allow(dead_code)]\nmod '+name+';\n' for name,path in modules))
    (work/'Cargo.lock').write_bytes((app/'src-tauri/Cargo.lock').read_bytes())
-   target=Path('E:/Codex/xz-reliability-20261024/public-activation-r1/desktop-support/native-test-target')
+   target=work/'target'
    p=subprocess.run(['cargo','test','--offline','--manifest-path',str(work/'Cargo.toml'),'--target-dir',str(target),'--lib'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=600)
    print(p.stdout.decode('utf-8','replace')[-8000:]);self.assertEqual(p.returncode,0)
 if __name__=='__main__':unittest.main(verbosity=2)

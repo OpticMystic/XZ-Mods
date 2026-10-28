@@ -145,6 +145,7 @@ async fn check_inner(app:&tauri::AppHandle)->Result<Value,String>{
 }
 #[tauri::command]
 pub async fn check_app_update(app:tauri::AppHandle)->Result<Value,String>{
+    crate::controller_queue::wake(app.clone());
     if app.state::<crate::Jobs>().updating.load(Ordering::Acquire){return Err("An app update is already running".into());}
     {
         let state=app.state::<Updates>();let mut s=state.inner.lock().map_err(|_|"Update state unavailable")?;
