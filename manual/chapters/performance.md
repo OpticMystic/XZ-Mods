@@ -80,11 +80,11 @@ The sizes apply to every deck. UTILITY's own beat jump setting is separate and d
 
 ### Decks 3 and 4
 
-Decks 3 and 4 use the same sizes and both pages. They jump along the track's beat grid, or by its BPM when there is no grid. With a loop on, the loop moves.
+Decks 3 and 4 use the same sizes and both pages. They jump along the track's beat grid, or by its BPM when there is no grid. If neither a grid nor a BPM is available, they count the selected beats at 120 BPM. With a loop on, the loop moves.
 
 ### When a jump is refused
 
-A jump the deck cannot make does nothing else. XZ Mods never falls back to a shorter jump or a jump by time. The screen shows why:
+A jump the deck cannot make does nothing else. XZ Mods never silently shortens the selected distance. The screen shows why:
 
 | Notice | Deck | What it means |
 |---|---|---|
@@ -92,7 +92,7 @@ A jump the deck cannot make does nothing else. XZ Mods never falls back to a sho
 | JUMP UNAVAILABLE: BEFORE TRACK START | 3 or 4 | The jump would land before the start of the track. |
 | JUMP UNAVAILABLE: AFTER TRACK END | 3 or 4 | The jump would land after the end of the track. |
 | JUMP UNAVAILABLE: LOOP MOVE OUT OF TRACK | 3 or 4 | Moving the loop would push it past the start or end. |
-| JUMP UNAVAILABLE: NO BEAT GRID OR BPM | 3 or 4 | The track has no beat grid and no BPM to count beats with. Analyse it in rekordbox. |
+| JUMP UNAVAILABLE: NO BEAT GRID OR BPM | 3 or 4 | The beat timing could not be used safely. Reanalyse the track in rekordbox. A track without a grid normally uses its BPM or the 120 BPM fallback. |
 
 ## Gate cue and smart cue
 

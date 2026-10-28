@@ -158,27 +158,28 @@ UTILITY in MODERN, open on its first setting.
 1 @ 44,104 UTILITY STOCK | The player's own settings. On the player, the rail lists the MODS sections below it, and each one opens MODS on that section.
 2 @ 180,66 Group | DJ SETTING, DISPLAY (LCD), MIXER, SYSTEM and INFO, as on the player.
 3 @ 380,99 Lock | XZ Mods shows this setting but cannot change it here. The help says why.
-4 @ 630,61 Choices | The setting's choices. The filled circle is the current one.
-5 @ 520,178 Help | What the setting does, and what the highlighted choice means.
+4 @ 630,61 Current value | A locked setting shows its value without choice buttons. Writable settings open a list of choices.
+5 @ 650,140 Help | What the setting does and why it is read-only here, or what a writable choice means.
 6 @ 690,18 Version | The player's firmware version.
 7 @ 400,428 Deck strip | Decks 1 and 2 stay in view while you change settings.
 ```
 
-Turn the encoder to move through the settings and push to open the choices. Turn again to pick a choice and push to set it. [[BACK]] goes back to the list. [[MENU]] or **X** closes UTILITY.
+Turn the encoder to move through the settings. On a writable row, push to open its choices, turn to pick one and push to set it. A locked row stays in the list and shows a read-only value and explanation. [[BACK]] goes back to the list. [[MENU]] or **X** closes UTILITY.
 
 A lock next to a setting comes with one of these notes:
 
 | Note | What it means |
 |---|---|
-| THE PLAYER RUNS THIS ITSELF | Change it on the player's own screen. XZ Mods only shows it. |
-| NOT AVAILABLE ON THIS FIRMWARE | XZ Mods cannot read or set it on this firmware version. |
-| FIXED IN THIS TEST BUILD | A test build keeps settings fixed. |
+| PLAYER CONTROLLED | The player owns this setting. XZ Mods only shows it. |
+| FIRMWARE LIMIT | XZ Mods cannot read or set it on this firmware version. |
+| READ-ONLY BUILD | This session does not allow writes to the player's stock settings. |
+| READ ONLY HERE | The setting is visible but cannot be changed on this screen. |
 
 ```gallery {modern}
 modern:settings-utility-info A setting highlighted in the list
 modern:settings-utility-values The choices open. Turn and push to set one
-modern:settings-utility-values-writable A setting XZ Mods can change, its choices open
-modern:settings-utility-values-scrolled A locked setting with its choices open
+modern:settings-utility-values-writable LOAD LOCK remains read-only in this fixture, so no choices open
+modern:settings-utility-values-scrolled A locked LANGUAGE setting shows its value and explanation
 modern:settings-utility-items-deep The end of the list. MIXER, SYSTEM and VERSION No.
 modern:settings-utility-empty Before the version is read. TIME MODE first, then the display settings
 modern:screen-utility UTILITY on its DJ SETTING and DISPLAY (LCD) groups

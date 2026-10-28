@@ -309,6 +309,8 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 | [[MEMORY]], [[DELETE]], [[CUE/LOOP CALL]] | Store, delete and call memory points. |
 | [[TRACK SEARCH]], [[SEARCH]] | Previous and next track, and fine search. |
 
+On decks 3 and 4, TRACK SEARCH respects AUTO CUE. With AUTO CUE on, a newly loaded track waits at its cue point. With AUTO CUE off, a deck that was playing continues with the new track; a paused deck stays paused.
+
 Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and rekordbox do not see them, and the rekordbox export stays unchanged.
 
 ### SYNC on decks 3 and 4 {experimental}
