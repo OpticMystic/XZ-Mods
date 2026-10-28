@@ -66,7 +66,7 @@ Both slots at their defaults. A press switches the interface, and SHIFT + press 
 | ITS OWN JOB | The stock job: the screen for playing a computer's or phone's library. In MODERN the player's own screen for it takes over until you are back on the play screen. |
 | INTERFACE | Switches between MODERN and CLASSIC, with the same notice as MODS > SCREEN. |
 | VJ.TOOLS SCREEN | Switches the VJ.Tools screen on and off. Without an enabled, connected VJ.Tools link it says so instead. |
-| STEMS | Steps the stem buttons on the play screen through their places, as the STEMS button on the screen does. |
+| STEMS | Does what the STEMS button on the screen does: steps the stem buttons through their places in 2 DECKS, and shows or hides them in MODERN's 4 DECKS. |
 | DECK VIEW | Steps DECK VIEW: 2 DECKS, 4 DECKS in number order 1 2 3 4, 4 DECKS in mixer order 3 1 2 4, then 2 DECKS again. It saves the choice and shows the new view in a short notice. |
 | NOTHING | The button does nothing. |
 

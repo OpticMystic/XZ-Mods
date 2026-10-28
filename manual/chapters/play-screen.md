@@ -19,7 +19,7 @@ Deck 1 is the master, deck 2 plays in a 4-beat loop with KEY SYNC holding its ke
 4 @ 380,40 BEAT FX | The effect, its beat and time, the FX BPM and the channel it is on. It fills red while the effect is on.
 5 @ 563,40 DECKS | Shows which decks the sides drive and opens DECK VIEW. See [Four decks](four-decks).
 6 @ 650,40 INFO | Opens INFO for the active deck's track.
-7 @ 708,40 STEMS | Steps the stem buttons through their layouts. Lit blue while stems are on. See [Stems](stems).
+7 @ 708,40 STEMS | Steps the stem buttons through their layouts. Lit blue while stems are on. In 4 DECKS it shows or hides them. See [Stems](stems).
 8 @ 772,40 MODS | Opens MODS.
 ```
 
@@ -190,7 +190,7 @@ The ORIGINAL theme with stems on in the BELOW / HALF layout. Deck 1's playing ke
 1 @ 120,10 VJ.TOOLS | Switches to the VJ.Tools screen when a VJ.Tools computer is connected. See [Connect and DJ profiles](connect).
 2 @ 220,30 DECKS | Shows which decks the sides drive and opens DECK VIEW. See [Four decks](four-decks).
 3 @ 440,30 Metrics | The player's CPU load, free memory and temperature. Tap METRICS to set it up. See [Extras](extras).
-4 @ 678,30 STEMS | Steps the stem rows through their layouts. The marks under the label show the current one. See [Stems](stems).
+4 @ 678,30 STEMS | Steps the stem rows through their layouts. The marks under the label show the current one. Dark in 4 DECKS, which has no stem rows. See [Stems](stems).
 5 @ 789,28 MODS | Opens MODS.
 6 @ 110,140 Playing key | Shown under the player's own key. The analysed key, an arrow, then the key the deck plays now, with its tuning in cents.
 7 @ 110,280 Same key | When the playing key has not moved, KEY and the key, with the cents.

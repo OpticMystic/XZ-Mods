@@ -185,6 +185,11 @@
    "why": "CLASSIC stem rows shown in captures"
   },
   {
+   "path": "source/xdj-xz-toolkit/mods/ui/wave_viewport.h",
+   "chapter": "stems",
+   "why": "what one STEMS press does in 2 DECKS and 4 DECKS, both interfaces (xz_stems_press)"
+  },
+  {
    "path": "source/xdj-xz-toolkit/mods/ui/stem_pads.c",
    "chapter": "hardware",
    "why": "stem pads and SHIFT + pad mode buttons"
