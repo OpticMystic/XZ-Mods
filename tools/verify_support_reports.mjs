@@ -271,15 +271,19 @@ try {
   const shots = process.env.XZ_SUPPORT_SHOTS; if (shots) await mkdir(shots, { recursive: true });
   // Each shot can record the boxes of named elements, so manual callouts sit beside what they name.
   const boxes = {};
-  const shot = async (name, marks = {}) => {
+  const shot = async (name, marks = {}, tall = false) => {
     if (!shots) return;
     await new Promise(done => setTimeout(done, 200));
     // The clip is in page coordinates, so a scrolled page is captured where it is scrolled to.
     const [left, top] = await evaluate(`[scrollX,scrollY]`);
-    const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: left, y: top, width: 1100, height: 760, scale: 1 } });
+    // tall: the whole page, for a page the manual shows in one picture.
+    const height = tall ? await evaluate(`document.documentElement.scrollHeight`) : 760;
+    if (tall) { await size(1100, height); await new Promise(done => setTimeout(done, 200)); }
+    const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: left, y: top, width: 1100, height, scale: 1 } });
     await writeFile(join(shots, name + '.png'), Buffer.from(image.data, 'base64'));
     boxes[name] = await evaluate(`(()=>{const out={};for(const [key,selector] of Object.entries(${JSON.stringify(marks)})){const item=[...document.querySelectorAll(selector)].find(e=>e.checkVisibility());if(item){const range=document.createRange();range.selectNodeContents(item);const r=['BUTTON','INPUT','PRE','TEXTAREA','DL'].includes(item.tagName)?item.getBoundingClientRect():range.getBoundingClientRect();out[key]=[Math.round(r.left),Math.round(r.top),Math.round(r.right),Math.round(r.bottom)];}}return out;})()`);
     await writeFile(join(shots, 'boxes.json'), JSON.stringify(boxes, null, 1));
+    if (tall) await size(1100, 760);
   };
   const idle = () => waitFor(`activeJob===null`, 'no job running');
   const click = async (text, root = 'wiz()') => { assert(await evaluate(`Boolean(button(${JSON.stringify(text)},${root}))`), 'button "' + text + '" is visible\n  ' + await context()); await evaluate(`button(${JSON.stringify(text)},${root}).click()`); };
@@ -296,11 +300,11 @@ try {
   const startReport = async () => { await feedback(); await evaluate(`document.getElementById('support-open').click()`); await waitFor(`wiz().open&&reportWizard.state().screen==='topic'`, 'wizard open'); };
 
   await open();
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,my-reports'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelector('nav button.nav-feedback use').getAttribute('href')==='#i-report'&&!document.querySelector('#tools [data-open="my-reports"]')&&!document.getElementById('licenses').textContent.includes('Report')`, 'Feedback has its own place in the rail, with its glyph; Tools and About no longer hold the report entries');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,my-reports'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelector('nav button.nav-feedback use').getAttribute('href')==='#i-report'&&!document.querySelector('#tools [data-open="my-reports"]')&&!document.querySelector('#licenses [id^=support],#licenses .sr-start-action')&&document.getElementById('about-feedback')?.textContent.includes('Feedback')`, 'Feedback has its own place in the rail, with its glyph; Tools and About hold no report entries, and About links to Feedback');
   await evaluate(`showPage('tools')`);
   await shot('00-tools', Object.fromEntries([...['dj-profile', 'library-repair', 'device-updates', 'advanced', 'updates', 'licenses'].map(id => [id, '.tool-row[data-open="' + id + '"] strong']), ['feedback', 'nav button.nav-feedback']]));
   await evaluate(`showPage('licenses')`);
-  await shot('00-about', { updates: '#about-updates', licenses: '#open-licenses' });
+  await shot('00-about', { version: '.about-version', maker: '.about-maker strong', updates: '#about-updates', projects: '#about-maker-title', links: '#about-links-title', feedback: '#about-feedback strong', support: '.about-link[href^="https://cash.app"] strong', notes: '#about-notes-title', licenses: '#open-licenses' }, true);
   await check(`!document.getElementById('support-wizard')&&!document.getElementById('support-consent')&&!document.querySelector('[id^=support-preview]')`, 'the old form, its page-by-page preview and consent checkbox are gone');
   await waitFor(`(fx.checks||[]).includes('launch')`, 'status check at launch');
   await evaluate(`document.getElementById('check-app-update').click()`);

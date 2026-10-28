@@ -336,3 +336,43 @@ header{min-height:0;margin-bottom:14px;padding-bottom:10px}
 aside{padding-top:14px;padding-bottom:12px}
 .brand{margin-bottom:10px;padding-bottom:10px}
 }
+/* About, design 2026-10-28 (Opus 5.5). A page a DJ reads once and comes back to for a link: a header with the logo,
+   the version and who makes it, then calm cards (the maker and his projects, links, disclaimers, licenses). Short
+   lines, no wall of legal text. Two columns from 900 px, one below. */
+.about{display:grid;gap:14px;max-width:880px}
+.about-hero{display:grid;grid-template-columns:76px minmax(0,1fr);gap:20px;align-items:start;padding:22px;border:1px solid #3d4130;border-radius:10px;background:linear-gradient(160deg,#1b1d14,#121415 62%)}
+.about-logo{width:76px;height:76px;object-fit:contain;border-radius:14px}
+.about-hero-text{min-width:0}
+.about-title-line{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+.about-title-line h2{margin:0;font-size:24px;letter-spacing:-.4px;font-weight:650}
+.about-version{font-size:12px;color:#c9cfb0;font-variant-numeric:tabular-nums}
+.about-maker{margin:4px 0 0;font-size:13px;color:#b9bfbb}.about-maker strong{color:#fff98a;font-weight:600}
+.about-what{margin:12px 0 16px;max-width:62ch;line-height:1.6;color:#d5d9d6}
+.about-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch}
+.about-card{min-width:0;padding:18px 20px;border:1px solid var(--line);border-radius:10px;background:#111314}
+.about-card h3{margin:0 0 10px;font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:#a1a5a4}
+.about-card p{margin:0;line-height:1.55;color:#b9bfbb}
+.about-card .about-card-lead{margin-bottom:12px;color:#d5d9d6}
+.about-projects{list-style:none;padding:0;margin:0;display:grid;gap:0}
+.about-projects li{display:grid;gap:3px;padding:11px 0;border-top:1px solid #23272a;line-height:1.5}
+.about-projects li:first-child{border-top:0;padding-top:0}.about-projects li:last-child{padding-bottom:0}
+.about-projects strong{color:#eef0ec;font-size:14px}.about-projects span{color:#b9bfbb;font-size:13px}
+.about-projects .text-button{font-size:13px;margin-left:2px}
+.about-links{list-style:none;padding:0;margin:0 -8px;display:grid;gap:2px;line-height:1.3}
+.about-link{display:grid;grid-template-columns:30px minmax(0,1fr) 16px;gap:12px;align-items:center;width:100%;padding:7px 8px;border:1px solid transparent;border-radius:8px;background:none;color:inherit;font:inherit;font-weight:400;text-align:left;text-decoration:none;white-space:normal;cursor:pointer}
+.about-link:hover{background:#16180f;border-color:#3d3f20}
+.about-link:focus-visible,.about-projects .text-button:focus-visible,.about button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.about-link-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:#1b1d14;box-shadow:inset 0 0 0 1px #3d3f20;color:var(--yellow)}
+.about-link-icon .icon{width:17px;height:17px}
+.about-link-text{display:grid;gap:2px;min-width:0}
+.about-link-text strong{font-size:13.5px;font-weight:600;color:#eef0ec}
+.about-link-text small{font-size:12px;color:#a1a5a4;overflow-wrap:anywhere}
+.about-go{width:16px;height:16px;color:#6d7473}.about-link:hover .about-go{color:var(--yellow)}
+.about-notes-list{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 22px}
+.about-notes-list li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;align-items:start}
+.about-notes-list .icon{width:18px;height:18px;margin-top:2px;color:#8e9891}
+.about-notes-list p{font-size:13px}.about-notes-list strong{color:#eef0ec;font-weight:600}
+.about-licenses{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+.about-licenses>div{flex:1;min-width:260px}.about-licenses h3{margin-bottom:6px}.about-licenses p{font-size:13px}
+@media(max-width:1000px){.about-grid,.about-notes-list{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.about-hero{grid-template-columns:minmax(0,1fr)}.about-logo{width:56px;height:56px}}
