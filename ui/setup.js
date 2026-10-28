@@ -222,7 +222,7 @@ function viewFind(){
   return el('section',{class:'wz-find wz-empty',dataset:{looking:W.finding?'1':null}},
     $('tpl-usb-art').content.firstElementChild.cloneNode(true),
     el('h2',{text:'Plug in your XZ USB'}),
-    el('p',{class:'wz-lead',text:'XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
+    el('p',{class:'wz-lead',text:'Or any USB stick formatted FAT32. XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
     quietActions(),quadEntry(),jobSlot);
 }
 
