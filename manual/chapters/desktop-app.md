@@ -3,21 +3,23 @@ interface: computer
 settings:
 ---
 
-The XZ Mods app runs on your computer. It puts XZ Mods on a USB, makes stems for your tracks, shows the XZ screen live, holds tools for your profile, your library and updates, and sends your reports and ideas to the maintainer. It never formats a drive and never changes your music or your Rekordbox export.
+The XZ Mods app runs on your computer. It puts XZ Mods on a USB, makes stems for your tracks, makes your DJ profile, keeps the app and your USB up to date, holds tools for your library, games and the XZ screen, and sends your reports and ideas to the maintainer. It never formats a drive and never changes your music or your Rekordbox export.
 
 You need 64-bit Windows with WebView2, or a Mac with macOS 14 or later. Making stems needs a Windows computer or an Apple silicon Mac. On an Intel Mac you can still import stems you made elsewhere.
 
 ## Around the app
 
-The rail on the left has four sections for your work, then the Manual and, at its foot, Feedback. The current one is outlined in yellow.
+The rail on the left has five sections for your work, then the Manual and About and, at its foot, Feedback. The current one is outlined in yellow.
 
 | Section | What it is for |
 |---|---|
 | **USB** | Install or update XZ Mods on a USB, add your DJ profile and games |
 | **Stems** | Make stems for the tracks on a Rekordbox USB, or import stems you already have |
-| **XZ Screen** | Watch the XZ screen on this computer and add it to OBS |
-| **Tools** | DJ Profile, Repair library, XZ Mods version, Network updates, App updates and About |
+| **DJ Profile** | Your name and logo on the XZ, and the profile track |
+| **Updates** | App updates, the XZ Mods version for your USB, and network updates for your XZ |
+| **Tools** | Repair library, Game downloads and XZ Screen |
 | **Manual** | This manual, with search, animations and your place in it |
+| **About** | The app, its maker, links, disclaimers and open-source licenses |
 | **Feedback** | Report a problem, request a feature or ask a question, and follow what you sent |
 
 The top of the rail names the player firmware the app prepares USBs for, XDJ-XZ 1.26. The app version is at the bottom.
@@ -55,7 +57,7 @@ Once a USB is open, the page shows one status and one action for it.
 
 ```figure app:usb-install XZ Mods app · USB
 A fresh USB. XZ Mods is not on it yet, so the one action is Install XZ Mods.
-1 @ 150,186 Sections | USB, Stems, XZ Screen and Tools.
+1 @ 150,209 Sections | USB, Stems, DJ Profile, Updates and Tools.
 2 @ 492,121 USB | The USB's name and drive.
 3 @ 662,162 Free space | The file system, the free space and a bar of how full the USB is.
 4 @ 988,100 Change USB | Goes back to the USB list, to choose another USB or a folder.
@@ -64,7 +66,7 @@ A fresh USB. XZ Mods is not on it yet, so the one action is Install XZ Mods.
 7 @ 364,442 DJ profile | The active profile on the USB. Add or Edit opens the profile step.
 8 @ 604,442 Games | How many games are on the USB. Choose opens the games list.
 9 @ 870,442 Stems | How many tracks have stems. Prepare opens the Stems section.
-10 @ 430,541 Build | The XZ Mods build that goes on the USB. Change opens XZ Mods version.
+10 @ 430,541 Build | The XZ Mods build that goes on the USB. Change opens [XZ Mods version](#xz-mods-version) in Updates.
 11 @ 1064,595 Four decks | How four decks work. It sets nothing up. See [Four decks in the app](#four-decks-in-the-app).
 12 @ 464,664 Show every file | A read-only list of what XZ Mods keeps on this USB.
 13 @ 152,676 Feedback | Reports and ideas for the maintainer. See [Feedback](desktop-app#feedback).
@@ -260,17 +262,161 @@ app:stems-import-done Stems written and checked
 
 A vocals and instrumental pair needs the stem engine to pull the drums out of the instrumental. If the engine is not set up yet, the import offers **Set up stem engine** and carries on afterward. To use stems on the player, see [Stems](stems).
 
-## XZ Screen {experimental}
+## DJ Profile
+
+DJ Profile makes and edits the profiles on a USB. A profile is your name, logo and colour. The XZ shows each profile as a logo tile, and the active one is the DJ the XZ and VJ software on the same network see. Profiles are saved on the USB only. Nothing is uploaded. To use them on the player, see [Connect and DJ profiles](connect#dj-profile).
+
+```figure app:dj-profile-new XZ Mods app · DJ Profile
+A new profile.
+1 @ 340,213 DJ name | Your name as it should read on the XZ.
+2 @ 530,508 Logo | A PNG or JPEG up to 8 MB. A transparent PNG looks best. You can add alternate logos.
+3 @ 572,649 Colour | The profile colour. The first swatch matches the USB's colour in rekordbox.
+4 @ 778,213 On the XZ | The header and the logo tile as the XZ draws them.
+5 @ 852,506 What VJ software sees | Your name and links as VJ software reads them.
+6 @ 503,751 More | An optional tagline, links and more.
+```
+
+```figure app:dj-profile-list XZ Mods app · DJ Profile
+The profiles on a USB after a save.
+1 @ 1050,183 Create profile track | The next step after a save.
+2 @ 540,432 Profile tile | One tile per profile.
+3 @ 430,546 Active | The profile the XZ uses.
+4 @ 520,546 Edit | Changes this profile.
+5 @ 415,613 New DJ profile | Adds another profile to the USB.
+6 @ 505,677 Profile track | A track that carries your profile to players that cannot read extra files.
+```
+
+Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through rekordbox like any other track.
+
+```figure app:dj-profile-track XZ Mods app · DJ Profile
+Making a profile track.
+1 @ 625,166 Steps | Where, Create, then Add it to rekordbox.
+2 @ 565,299 This computer | Saves the track in your Music folder, ready for rekordbox.
+3 @ 979,289 Choose folder | Saves the track somewhere else.
+4 @ 510,360 Copy on the USB | Also puts a copy in your profile folder on the USB.
+5 @ 525,434 Create or Cancel | Makes the track, or leaves without one.
+```
+
+## Updates
+
+Updates keeps every version in one place, on three tabs: **App updates** for this app, **XZ Mods version** for the build that goes on your USB, and **Network updates** to send that build to XZs on your network. Updates opens on App updates. A yellow dot on Updates and on its App updates tab means a newer app is ready.
+
+### App updates
+
+```figure app:app-updates XZ Mods app · App updates
+The app is up to date.
+1 @ 612,77 Tabs | App updates, XZ Mods version and Network updates. Updates opens on App updates.
+2 @ 432,155 Version | The app version on this computer.
+3 @ 430,186 Status | Up to date, or the newer version on offer.
+4 @ 435,301 Check for updates | Checks now. Download and install update appears when there is one.
+5 @ 385,441 What's new | The release notes.
+6 @ 435,533 Other downloads | The installer and the portable ZIP.
+```
+
+On Windows the app checks for updates by itself at launch and shows **Review update** at the top of the page when one is ready. The installer updates the app and opens it again. Mac versions download from the release page.
+
+> **Caution.** Updating the app does not change the loader on your USB. Open the USB page afterward and choose **Update USB**.
+
+### XZ Mods version
+
+XZ Mods version chooses which build goes on your USB the next time you install or update it. Saving your choice does not write to any USB.
+
+```figure app:mod-version XZ Mods app · XZ Mods version
+The saved build choice.
+1 @ 885,157 Verified | Says whether the build was checked on a real XDJ-XZ.
+2 @ 430,257 Saved choice | The build your next install or update uses.
+3 @ 645,293 Details | Its channel, whether it stays on the USB and where it came from.
+4 @ 852,397 Change mod version | Every build on this computer.
+5 @ 490,441 Keep this version on the USB | A loader built with this on skips network updates, so the USB stays on this build.
+6 @ 527,505 Save choice and Import a build | Saves the choice, or adds a build from a folder.
+7 @ 432,592 Set up four decks | Chooses the included four-deck build.
+8 @ 582,685 Restore or update a loader by hand | Updates the loader on a USB you choose and keeps a backup of the old one.
+```
+
+Lower on the page:
+
+- **Restore or update a loader by hand** updates the loader on a USB you choose and keeps a backup of the old one. Music and saved settings stay in place.
+- **Prepare from a downloaded firmware file** builds a loader from an official XDJ-XZ 1.26 firmware file into a folder you choose.
+
+**Import a build** takes a prepared XZ Mods `resources` folder, or a whole XZ Mods app folder that holds one. The app checks every file before it adds the build. Imported builds are not checked on a real XDJ-XZ.
+
+### Network updates {experimental}
+
+Network updates sends the build installed on this computer to XZs on your local network. Each XZ checks the signed update, saves it on its USB and starts it at the next boot.
+
+```figure app:network-updates XZ Mods app · Network updates
+The update server, before it starts.
+1 @ 1053,221 Choose mod version | A USB built with Keep this version on the USB ignores network updates. Change that here.
+2 @ 265,501 Detect adapters | Lists this computer's network connections.
+3 @ 1050,440 XZ network adapter | The connection that reaches the XZ.
+4 @ 580,494 Start update server | Offers the update on that network until you cancel.
+5 @ 262,541 On the XZ | What to do on the player.
+```
+
+1. Prepare or update the USB loader once, so it supports network updates.
+2. Choose **Detect adapters**, then the adapter connected to the XZ network.
+3. Choose **Start update server**.
+4. On the XZ, open **CONNECT** › **UPDATES**, then download the update. See [Updates over the network](connect#updates-over-the-network).
+5. Switch the XZ off and on when you are ready to start the new version.
+
+Network updates change XZ Mods and the game engine. They keep your music and the original USB loader, so you can always go back. **Cancel** stops the server.
+
+> **Note.** The app's step 3 still says MODS › Extras › Network updates. On the player the page is CONNECT › UPDATES.
+
+## Tools
+
+Tools holds what you need now and then, grouped by what it works on: your USB and your XZ. **Tools** in the top left of each tool goes back to this list.
+
+```figure app:tools XZ Mods app · Tools
+Every tool, in two groups.
+1 @ 430,138 Repair library | Fixes a Rekordbox USB the XZ cannot read.
+2 @ 863,138 Game downloads | Gets the free games again and copies them to a USB.
+3 @ 404,276 XZ Screen | Shows the XZ screen on this computer, ready for OBS.
+4 @ 125,254 Updates | App updates, XZ Mods version and Network updates are in their own section in the rail.
+5 @ 150,655 Feedback | Reports and ideas have their own section at the foot of the rail.
+```
+
+### Repair library
+
+Repair library checks the Rekordbox library on a USB the XZ cannot read. It can clear invalid unused pages and reconnect playback history pages that survived. It keeps track records, playlists, music and prepared stems.
+
+```figure app:repair-library XZ Mods app · Repair library
+Step 1, choose the USB.
+1 @ 420,219 USB | The Rekordbox USB or a folder holding a copy of it.
+2 @ 1052,242 Choose folder and Find USBs | Picks a folder, or looks for USBs again.
+3 @ 410,336 Connect a USB | Appears when no USB is found. Opens a short guide to connect one.
+4 @ 665,370 Read only | Checking only reads the library.
+```
+
+1. **Choose the USB.** Then choose **Check library**.
+2. **Library check.** The verdict, what the library holds and what is wrong. **Save report** keeps the result on this computer.
+3. **Repair plan.** What changes and what stays the same. **Back up and repair** backs up the library files first.
+
+If rekordbox is open on this computer, the check says so and offers **Prepare for repair**. Close rekordbox so both apps do not write at the same time, then check again. After a repair, **Undo this repair** puts the library files back exactly as they were before it.
+
+### Game downloads
+
+Game downloads gets the free games again and copies them to a USB. Use it to retry a download that failed while the app wrote your USB, or to add the games to a USB that already has XZ Mods. Games already on the USB stay in place.
+
+```figure app:game-downloads XZ Mods app · Game downloads
+The free games.
+1 @ 513,266 Choose USB and set up games | Downloads and checks every free game, keeps its license notice and copies it to the USB you choose.
+2 @ 712,391 One game | Download keeps the game on this computer. Download and copy to USB also puts it on a USB.
+```
+
+**Doom shareware**, **Chex Quest** and **Freedoom Phase 2** each have their own download. Put your own compatible WADs in a `WADS` folder on either USB, then choose a base game and an optional add-on in the XZ's USB WAD loader. Downloading games does not change the XZ loader.
+
+### XZ Screen {experimental}
 
 XZ Screen shows the XDJ-XZ screen on this computer over the network, so you can add it to an OBS scene. It sends the picture only, no audio, and the XZ keeps all its controls.
 
 ```figure app:xz-screen XZ Mods app · XZ Screen
 Before the first connection.
-1 @ 356,174 Set up Live Streamer | Opens the three-step connection guide.
-2 @ 668,203 Stop stream and Fullscreen | Work once the XZ is connected.
-3 @ 362,244 Stream color | 8-bit with 256 colors, or 16-bit with the original colors. A change applies when you reconnect.
-4 @ 560,347 Status | What the connection is doing, and the frame rate it measures.
-5 @ 735,585 Screen | The XZ screen at 800 × 480 once it is connected.
+1 @ 356,177 Set up Live Streamer | Opens the three-step connection guide.
+2 @ 668,206 Stop stream and Fullscreen | Work once the XZ is connected.
+3 @ 362,247 Stream color | 8-bit with 256 colors, or 16-bit with the original colors. A change applies when you reconnect.
+4 @ 560,350 Status | What the connection is doing, and the frame rate it measures.
+5 @ 735,588 Screen | The XZ screen at 800 × 480 once it is connected.
 ```
 
 ```figure app:xz-screen-setup XZ Mods app · Set up Live Streamer
@@ -294,151 +440,41 @@ Tick **Show a logo while browsing USB** to cover the stream with the XZ Mods log
 
 With an older USB loader the picture updates about once a second and the status says it is not performance video. **Update the USB loader** appears beside it.
 
-## Tools
+## Manual
 
-Tools holds everything you need less often, grouped by what it works on: your USB, your XZ and this app. **Tools** in the top left of each tool goes back to this list.
+Manual is this manual, inside the app. It comes with the app, so it needs no internet connection. Where the app explains a feature, **Read in the manual** opens the chapter about it.
 
-```figure app:tools XZ Mods app · Tools
-Every tool, in three groups.
-1 @ 405,138 DJ Profile | Your name and logo on the XZ, and the profile track.
-2 @ 840,138 Repair library | Fixes a Rekordbox USB the XZ cannot read.
-3 @ 453,240 XZ Mods version | Picks which build goes on your USB, or imports one.
-4 @ 456,380 Network updates | Sends the newest XZ Mods to XZs on your network.
-5 @ 424,518 App updates | Checks for a newer app.
-6 @ 789,518 About | The app, its maker, links, disclaimers and open-source licenses.
-7 @ 150,655 Feedback | Reports and ideas are not in Tools. They have their own section at the foot of the rail.
+```figure app:manual XZ Mods app · Manual
+Four decks open in the Manual, at the video of how the sound of decks 3 and 4 reaches the mixer.
+1 @ 125,356 Manual | Opens the manual. It sits between Tools and About in the rail.
+2 @ 492,21 Search | Searches every chapter as you type. Press / to get here from anywhere on the page, and Enter to open the first result.
+3 @ 450,73 Progress | How much of the manual you have read. A chapter's circle fills as you read and turns into a tick at its end.
+4 @ 380,145 Start page | What XZ Mods adds, the interface you play on, and every chapter in order.
+5 @ 430,452 Chapter list | Every chapter. The one you are reading is outlined and lists its sections.
+6 @ 1072,30 Chapter | The chapter you are reading. Previous and Next at its end move through the manual in order.
+7 @ 1010,420 Video | A clip rendered from a true-scale model of the XDJ-XZ shows how a feature works. It plays when it comes into view, and Play pauses it. A video in several steps also has arrows and numbered steps, and its caption follows the step.
 ```
 
-### DJ Profile
+- **Numbers on pictures.** Point at a number, or tab to it and use the arrow keys, to light up that part of the picture and read what it is. **Play** steps through every number. The list under the picture says the same.
+- **Your interface.** Choose MODERN, CLASSIC or Both on the start page or at the foot of the chapter list. The manual then hides what does not apply to you. A MODS page drawn in both interfaces has a MODERN and CLASSIC switch on its picture.
+- **Where you stopped.** The manual remembers the chapter and section you read last. The start page offers **Continue where you left off**.
+- **Less motion.** When your computer is set to reduce motion, nothing in the manual moves by itself. A video shows a still picture of each step and plays only when you press Play.
 
-DJ Profile makes and edits the profiles on a USB. A profile is your name, logo and colour. The XZ shows each profile as a logo tile, and the active one is the DJ the XZ and VJ software on the same network see. Profiles are saved on the USB only. Nothing is uploaded. To use them on the player, see [Connect and DJ profiles](connect#dj-profile).
-
-```figure app:dj-profile-new XZ Mods app · DJ Profile
-A new profile.
-1 @ 340,216 DJ name | Your name as it should read on the XZ.
-2 @ 530,511 Logo | A PNG or JPEG up to 8 MB. A transparent PNG looks best. You can add alternate logos.
-3 @ 572,652 Colour | The profile colour. The first swatch matches the USB's colour in rekordbox.
-4 @ 778,216 On the XZ | The header and the logo tile as the XZ draws them.
-5 @ 852,509 What VJ software sees | Your name and links as VJ software reads them.
-6 @ 503,754 More | An optional tagline, links and more.
-```
-
-```figure app:dj-profile-list XZ Mods app · DJ Profile
-The profiles on a USB after a save.
-1 @ 1050,186 Create profile track | The next step after a save.
-2 @ 540,435 Profile tile | One tile per profile.
-3 @ 430,549 Active | The profile the XZ uses.
-4 @ 520,549 Edit | Changes this profile.
-5 @ 415,616 New DJ profile | Adds another profile to the USB.
-6 @ 505,680 Profile track | A track that carries your profile to players that cannot read extra files.
-```
-
-Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through rekordbox like any other track.
-
-```figure app:dj-profile-track XZ Mods app · DJ Profile
-Making a profile track.
-1 @ 625,169 Steps | Where, Create, then Add it to rekordbox.
-2 @ 565,302 This computer | Saves the track in your Music folder, ready for rekordbox.
-3 @ 979,292 Choose folder | Saves the track somewhere else.
-4 @ 510,363 Copy on the USB | Also puts a copy in your profile folder on the USB.
-5 @ 525,437 Create or Cancel | Makes the track, or leaves without one.
-```
-
-### Repair library
-
-Repair library checks the Rekordbox library on a USB the XZ cannot read. It can clear invalid unused pages and reconnect playback history pages that survived. It keeps track records, playlists, music and prepared stems.
-
-```figure app:repair-library XZ Mods app · Repair library
-Step 1, choose the USB.
-1 @ 420,219 USB | The Rekordbox USB or a folder holding a copy of it.
-2 @ 1052,242 Choose folder and Find USBs | Picks a folder, or looks for USBs again.
-3 @ 410,336 Connect a USB | Appears when no USB is found. Opens a short guide to connect one.
-4 @ 665,370 Read only | Checking only reads the library.
-```
-
-1. **Choose the USB.** Then choose **Check library**.
-2. **Library check.** The verdict, what the library holds and what is wrong. **Save report** keeps the result on this computer.
-3. **Repair plan.** What changes and what stays the same. **Back up and repair** backs up the library files first.
-
-If rekordbox is open on this computer, the check says so and offers **Prepare for repair**. Close rekordbox so both apps do not write at the same time, then check again. After a repair, **Undo this repair** puts the library files back exactly as they were before it.
-
-### Network updates {experimental}
-
-Network updates sends the build installed on this computer to XZs on your local network. Each XZ checks the signed update, saves it on its USB and starts it at the next boot.
-
-```figure app:network-updates XZ Mods app · Network updates
-The update server, before it starts.
-1 @ 1053,192 Choose mod version | A USB built with Keep this version on the USB ignores network updates. Change that here.
-2 @ 265,472 Detect adapters | Lists this computer's network connections.
-3 @ 1050,411 XZ network adapter | The connection that reaches the XZ.
-4 @ 580,465 Start update server | Offers the update on that network until you cancel.
-5 @ 262,512 On the XZ | What to do on the player.
-```
-
-1. Prepare or update the USB loader once, so it supports network updates.
-2. Choose **Detect adapters**, then the adapter connected to the XZ network.
-3. Choose **Start update server**.
-4. On the XZ, open **CONNECT** › **UPDATES**, then download the update. See [Updates over the network](connect#updates-over-the-network).
-5. Switch the XZ off and on when you are ready to start the new version.
-
-Network updates change XZ Mods and the game engine. They keep your music and the original USB loader, so you can always go back. **Cancel** stops the server.
-
-> **Note.** The app's step 3 still says MODS › Extras › Network updates. On the player the page is CONNECT › UPDATES.
-
-### XZ Mods version
-
-XZ Mods version chooses which build goes on your USB the next time you install or update it. Saving your choice does not write to any USB.
-
-```figure app:mod-version XZ Mods app · XZ Mods version
-The saved build choice.
-1 @ 885,128 Verified | Says whether the build was checked on a real XDJ-XZ.
-2 @ 430,228 Saved choice | The build your next install or update uses.
-3 @ 645,264 Details | Its channel, whether it stays on the USB and where it came from.
-4 @ 852,368 Change mod version | Every build on this computer.
-5 @ 490,412 Keep this version on the USB | A loader built with this on skips network updates, so the USB stays on this build.
-6 @ 527,476 Save choice and Import a build | Saves the choice, or adds a build from a folder.
-7 @ 432,563 Set up four decks | Chooses the included four-deck build.
-8 @ 465,756 Choose USB to update | Restores or updates a loader by hand.
-```
-
-Lower on the page:
-
-- **Restore or update a loader by hand** updates the loader on a USB you choose and keeps a backup of the old one. Music and saved settings stay in place.
-- **Prepare from a downloaded firmware file** builds a loader from an official XDJ-XZ 1.26 firmware file into a folder you choose.
-- **Game downloads** downloads and checks the free games and copies them to a USB. Use it to retry a download that failed during setup.
-
-**Import a build** takes a prepared XZ Mods `resources` folder, or a whole XZ Mods app folder that holds one. The app checks every file before it adds the build. Imported builds are not checked on a real XDJ-XZ.
-
-### App updates
-
-```figure app:app-updates XZ Mods app · App updates
-The app is up to date.
-1 @ 430,118 Version | The app version on this computer.
-2 @ 355,150 Status | Up to date, or the newer version on offer.
-3 @ 435,265 Check for updates | Checks now. Download and install update appears when there is one.
-4 @ 385,405 What's new | The release notes.
-5 @ 545,587 Other downloads | The installer and the portable ZIP.
-```
-
-On Windows the app checks for updates by itself at launch and shows **Review update** at the top of the page when one is ready. The installer updates the app and opens it again. Mac versions download from the release page.
-
-> **Caution.** Updating the app does not change the loader on your USB. Open the USB page afterward and choose **Update USB**.
-
-### About
+## About
 
 About says what XZ Mods is and who makes it, and gathers the links, the disclaimers and the open-source licenses in one place.
 
 ```figure app:about XZ Mods app · About
 About.
-1 @ 640,135 Version | The app version on this computer.
-2 @ 775,159 Maker | XZ Mods is made by OpticMystic.
-3 @ 620,283 App updates and release notes | Opens App updates.
-4 @ 365,367 The maker | OpticMystic's projects: XZ Mods, VJ.Tools and DJ Profile. Make yours opens DJ Profile.
-5 @ 742,367 Links | The source code, issues and releases on GitHub, xzmods.com and vj.tools. Each opens in your browser.
-6 @ 805,666 Feedback | Opens [Feedback](#feedback) in the app.
-7 @ 920,719 Support XZ Mods (optional) | Voluntary support on Cash App. Every feature stays available.
-8 @ 378,813 Disclaimers | XZ Mods is independent of Pioneer DJ and AlphaTheta, experimental, runs from the USB, and builds its loader from the official firmware for your own use.
-9 @ 960,1012 Open license notices | Every open-source project XZ Mods uses and its license.
+1 @ 640,132 Version | The app version on this computer.
+2 @ 775,156 Maker | XZ Mods is made by OpticMystic.
+3 @ 620,280 App updates and release notes | Opens App updates in Updates.
+4 @ 365,364 The maker | OpticMystic's projects: XZ Mods, VJ.Tools and DJ Profile. Make yours opens DJ Profile.
+5 @ 742,364 Links | The source code, issues and releases on GitHub, xzmods.com and vj.tools. Each opens in your browser.
+6 @ 805,663 Feedback | Opens [Feedback](#feedback) in the app.
+7 @ 920,716 Support XZ Mods (optional) | Voluntary support on Cash App. Every feature stays available.
+8 @ 378,810 Disclaimers | XZ Mods is independent of Pioneer DJ and AlphaTheta, experimental, runs from the USB, and builds its loader from the official firmware for your own use.
+9 @ 960,1009 Open license notices | Every open-source project XZ Mods uses and its license.
 ```
 
 ## Feedback
@@ -563,8 +599,8 @@ When a report's status changes, a notice appears at the top of whichever page is
 
 ```figure app:report-notice XZ Mods app · App updates
 A status change, shown while App updates is open.
-1 @ 248,125 Notice | Appears when the status of one of your reports changes.
-2 @ 613,125 View | Opens that report.
+1 @ 248,154 Notice | Appears when the status of one of your reports changes.
+2 @ 613,154 View | Opens that report.
 ```
 
 The app checks for news when it starts, after it checks for app updates, and when you open My reports, at most every 15 minutes for each report. **Check now** checks at once. If you are offline, the last known status stays.
@@ -664,23 +700,3 @@ The inbox, scrolled right to show Reference and Item.
 ```
 
 The reference and item number identify a report; the owner key is still required to read the inbox.
-
-## Manual
-
-Manual is this manual, inside the app. It comes with the app, so it needs no internet connection. Where the app explains a feature, **Read in the manual** opens the chapter about it.
-
-```figure app:manual XZ Mods app · Manual
-Four decks open in the Manual, at the video of how the sound of decks 3 and 4 reaches the mixer.
-1 @ 180,300 Manual | Opens the manual. It sits between Tools and Feedback in the rail.
-2 @ 492,21 Search | Searches every chapter as you type. Press / to get here from anywhere on the page, and Enter to open the first result.
-3 @ 450,73 Progress | How much of the manual you have read. A chapter's circle fills as you read and turns into a tick at its end.
-4 @ 380,145 Start page | What XZ Mods adds, the interface you play on, and every chapter in order.
-5 @ 430,452 Chapter list | Every chapter. The one you are reading is outlined and lists its sections.
-6 @ 1072,30 Chapter | The chapter you are reading. Previous and Next at its end move through the manual in order.
-7 @ 1010,420 Video | A clip rendered from a true-scale model of the XDJ-XZ shows how a feature works. It plays when it comes into view, and Play pauses it. A video in several steps also has arrows and numbered steps, and its caption follows the step.
-```
-
-- **Numbers on pictures.** Point at a number, or tab to it and use the arrow keys, to light up that part of the picture and read what it is. **Play** steps through every number. The list under the picture says the same.
-- **Your interface.** Choose MODERN, CLASSIC or Both on the start page or at the foot of the chapter list. The manual then hides what does not apply to you. A MODS page drawn in both interfaces has a MODERN and CLASSIC switch on its picture.
-- **Where you stopped.** The manual remembers the chapter and section you read last. The start page offers **Continue where you left off**.
-- **Less motion.** When your computer is set to reduce motion, nothing in the manual moves by itself. A video shows a still picture of each step and plays only when you press Play.
