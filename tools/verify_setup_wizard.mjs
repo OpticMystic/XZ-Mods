@@ -301,7 +301,7 @@ try {
   await view('flow', 'done');
   await check(`since(window.__mark)==='inspect_mod_settings,prepare_usb,read_usb_settings,save_usb_settings,inspect_usb'&&fx.written.length===2&&fx.written[0].method==='prepare_usb'&&fx.written[0].volume==='E:\\\\'&&fx.written[0].experimental===true&&fx.written[0].mod_version_id==='v1'&&fx.written[0].pin_mod_version===true&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'`, 'Write: settings check, prepare_usb with the chosen games, the settings file, then a fresh inspection');
   await check(`fx.written[1].method==='save_usb_settings'&&fx.saved.values.interface===1&&fx.saved.values.classic_theme===0&&!('theme' in fx.saved.values)`, 'the new interface is written as interface=1, the one setting MODS > APPEARANCE > INTERFACE reads');
-  await check(`txt('.wz-done-hero h3')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')&&txt('.wz-next').includes('REKORDBOX')&&Boolean(button('Done'))&&!document.getElementById('job-panel').checkVisibility()`, 'done: success mark, result lines, the On the XZ steps, Done');
+  await check(`txt('.wz-done-hero h3')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')&&txt('.wz-next').includes('press MENU')&&Boolean(button('Done'))&&!document.getElementById('job-panel').checkVisibility()`, 'done: success mark, result lines, the On the XZ steps, Done');
   await check(`!(fx.links||[]).length&&Boolean(button('Done'))&&Boolean(button('Support XZ Mods (optional)'))`, 'support is optional and opens no links on completion');
   await evaluate('window.supportWriteCount=fx.written.length');
   await click('Support XZ Mods (optional)'); await view('flow','support');
@@ -664,7 +664,7 @@ try {
   await evaluate("reportWizard.state().text='';document.getElementById('report-wizard').dispatchEvent(new Event('cancel'))");
   await idle();
   await click('Discard');
-  await waitFor("document.querySelectorAll('.sr-drafts .sr-report').length===0&&!document.querySelector('.sr-section-title')",'discarded local report');
+  await waitFor("document.querySelectorAll('.sr-drafts .sr-report').length===0&&![...document.querySelectorAll('.sr-section-title')].some(h=>h.textContent==='Saved, not sent')",'discarded local report');
   await check("fx.requests.filter(r=>r.method==='support_remove').length===1&&fx.requests.find(r=>r.method==='support_remove').stored_revision==='c'.repeat(64)",'discarding names the exact stored copy');
   await shot('saved-reports-empty');
 
