@@ -55,16 +55,18 @@ window.myReports = (() => {
   // My reports page.
   function render() {
     if (!host) return;
-    const unconfirmed = reports.filter(r => r.state !== 'accepted');
+    // A report from the XZ that still waits for words is listed under From your XZ, not twice.
+    const xz = window.xzQueue, listed = xz ? reports.filter(r => !xz.has(r.report_id)) : reports;
+    const unconfirmed = listed.filter(r => r.state !== 'accepted');
     const head = el('div', { class: 'sr-page-head' },
       el('p', { text: 'Reports and ideas sent from this computer, with where each one is now. XZ Mods checks for news when it starts and when you open this page. Your words stay on this computer.' }),
-      el('div', { class: 'actions' }, plainButton('Check now', async () => { await check('refresh'); }, { key: 'check-now' }),
-        plainButton('Report a problem or share an idea', () => window.reportWizard.open(), { primary: true, key: 'new-report' })));
-    const parts = [head];
+      el('div', { class: 'actions' }, plainButton('Check now', async () => { await Promise.all([check('refresh'), window.xzQueue?.poll()]); }, { key: 'check-now' }),
+        plainButton('Report a problem or share an idea', () => window.reportWizard.open(), { primary: !xz?.count(), key: 'new-report' })));
+    const parts = [xz?.section(), head].filter(Boolean);
     if (error) parts.push(el('div', { class: 'notice', text: 'My reports could not be read. ' + error }));
-    if (!reports.length && !drafts.length) parts.push(el('div', { class: 'sr-empty' }, el('strong', { text: loaded ? 'Nothing sent yet' : 'Reading My reports...' }),
+    if (!listed.length && !drafts.length && !xz?.count()) parts.push(el('div', { class: 'sr-empty' }, el('strong', { text: loaded ? 'Nothing sent yet' : 'Reading My reports...' }),
       loaded ? el('span', { text: 'When you send a report or an idea, its receipt appears here so you can follow it.' }) : null));
-    if (reports.length) parts.push(el('ul', { class: 'sr-reports', 'aria-label': 'Sent reports' }, ...reports.map(r => el('li', {},
+    if (listed.length) parts.push(el('ul', { class: 'sr-reports', 'aria-label': 'Sent reports' }, ...listed.map(r => el('li', {},
       el('button', { type: 'button', class: 'sr-report', dataset: { unseen: r.unseen ? '' : undefined, key: 'r-' + r.report_id }, onclick: () => show(r.report_id) },
         badge(r), el('strong', { text: r.summary || r.report_reference || 'Report' }), el('span', { class: 'sr-status', text: (r.unseen ? 'New: ' : '') + words(r) }),
         el('span', { class: 'sr-when' }, el('span', { class: 'sr-reference', text: r.report_reference || 'Reference after receipt' }), r.item_number ? el('span', { class: 'sr-item-number', text: 'Part of ' + r.item_number }) : null, 'Sent ' + day(r.created_at)), icon('i-chevron'))))));
@@ -77,7 +79,13 @@ window.myReports = (() => {
         el('span', { class: 'sr-status', text: d.readable ? (d.schema === 'xz-support-report/2' ? 'Saved ' + day(d.saved_at) + ' · ' + Math.max(1, Math.round(d.bytes / 1024)) + ' KB, sealed when you pressed Send' : 'Made with an older version of the report form') : 'This copy is damaged' }),
         el('div', { class: 'actions' }, ...draftActions(d)))))));
     }
+    if (xz) parts.push(xz.sticks());
+    // Redraws come from background checks too, so whatever has focus, and the caret in a box, stays put.
+    const focused = host.contains(document.activeElement) ? document.activeElement : null, key = focused?.dataset.key;
+    const caret = focused?.tagName === 'TEXTAREA' ? [focused.selectionStart, focused.selectionEnd] : null;
     host.replaceChildren(...parts);
+    const again = key && host.querySelector('[data-key="' + CSS.escape(key) + '"]');
+    if (again) { again.focus({ preventScroll: true }); if (caret && again.tagName === 'TEXTAREA') again.setSelectionRange(...caret); }
   }
   function draftActions(d) {
     if (d.confirming) return [plainButton('Send privately', () => sendDraft(d), { primary: true, key: 'ds-' + d.report_id }), plainButton('Keep', () => { d.confirming = false; render(); }, { key: 'dk-' + d.report_id })];
@@ -320,5 +328,5 @@ window.myReports = (() => {
   $('my-reports-open').onclick = () => showPage('my-reports');
   $('support-owner-open').onclick = openInbox;
   if (invoke) setTimeout(() => check('launch'), 1500);
-  return { refresh: load, check, show, notice, openInbox, state: () => ({ reports, drafts }) };
+  return { refresh: load, render, check, show, notice, openInbox, state: () => ({ reports, drafts }) };
 })();

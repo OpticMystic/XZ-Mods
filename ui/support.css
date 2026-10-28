@@ -182,3 +182,73 @@
  .sr-report .sr-when{display:block;grid-row:3;grid-column:1;text-align:left}
  .sr-report .icon{grid-column:2}
 }
+
+/* From your XZ, its reminders and Your XZ sticks. Design 2026-10-27 (Opus 5.5). The section takes the attention
+   panel of XZ Mods version (yellow left rule); each report is a card with the same box, details panel and footer
+   as the report window. Badge and callout use the setup tone #696828/#fff98a. */
+.sr-xz{max-width:860px;margin:0 0 22px;padding:16px 18px 6px;border:1px solid #696828;border-left:3px solid var(--yellow);border-radius:6px;background:linear-gradient(180deg,#1b1d14,#121410 60%)}
+.sr-xz-title-row{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sr-xz h2{margin:0;font-size:16px;color:#fff98a}
+.sr-xz h2:focus{outline:none}
+.sr-xz-count{font-size:12px;color:#c9cfa0}
+.sr-xz-lede{margin:4px 0 12px;font-size:12.5px;color:#b7bcb9;line-height:1.5}
+.sr-xz-offline{margin:0 0 12px;font-size:12px;color:#e0c99a}
+.sr-xz .st-note{margin:0 0 12px}
+.sr-xz-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.sr-xz-list>li{margin:0}
+.sr-xz-item{padding:14px 16px 12px;border:1px solid #3d4130;border-radius:5px;background:#0d0f0c;transition:box-shadow .3s}
+.sr-xz-item[data-target]{box-shadow:0 0 0 2px var(--yellow)}
+@media(prefers-reduced-motion:reduce){.sr-xz-item{transition:none}}
+.sr-xz-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-bottom:10px}
+.sr-xz-head .sr-reference{font-size:16px;color:#fff;letter-spacing:.2px}
+.sr-xz-when{font-size:12px;color:#929b94}
+.sr-xz-quiet{margin-left:auto;padding:2px 7px;border:1px solid #3a4040;border-radius:3px;font-size:10.5px;color:#929b94}
+.sr-xz-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;margin:0 0 12px;font-size:12.5px}
+.sr-xz-facts dt{color:#929b94}
+.sr-xz-facts dd{margin:0;color:#ededeb;overflow-wrap:anywhere}
+.sr-xz-facts .sr-xz-typed{color:#c9cfcb;white-space:pre-wrap}
+.sr-xz-label{margin:0 0 6px;font-size:13.5px;font-weight:600;color:#fff}
+.sr-xz .sr-box{min-height:96px}
+.sr-xz-expired{margin:12px 0 2px;font-size:12px;color:#929b94}
+.sr-xz-foot{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;margin-top:14px}
+.sr-xz-foot .st-foot-left{margin-right:auto;font-size:12px}
+.sr-xz-foot .primary{padding:10px 22px}
+.sr-xz-items .sr-item{grid-template-columns:minmax(0,1fr) auto}
+.sr-xz-items .sr-item small{grid-column:1}
+.sr-xz-items .sr-item .text-button{grid-column:2}
+.sr-xz-source{font-size:12.5px;color:#ededeb}
+.sr-xz :focus-visible,.sr-xz-callout :focus-visible,.sr-xz-sticks :focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.sr-xz .sr-box:focus-visible{outline:none}
+
+/* Badge on Tools and on My reports: how many reports from the XZ wait for words. */
+.sr-xz-badge{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 6px;border-radius:10px;background:var(--yellow);color:#181a02;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+nav button .sr-xz-badge{margin-left:auto}
+.tool-row:has(.sr-xz-badge){grid-template-columns:36px minmax(0,1fr) auto 20px}
+
+/* The quiet callout at start, under the page title. Not a dialog: it never takes focus. */
+.sr-xz-callout{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:10px 14px;margin-bottom:18px;border:1px solid #696828;border-radius:4px;background:#1b1d14;color:#ede9b0;font-size:13px}
+.sr-xz-callout .icon{width:20px;height:20px;color:var(--yellow);flex:none}
+.sr-xz-callout-text{flex:1;min-width:220px}
+.sr-xz-callout .actions{align-items:center;gap:14px}
+.sr-xz-callout .secondary{padding:7px 12px;font-size:12px}
+.sr-xz-callout .text-button{font-size:12px;color:#d9d47a}
+
+/* Your XZ sticks. */
+.sr-xz-sticks{max-width:860px;margin-top:6px}
+.sr-xz-sticks h3:focus{outline:none}
+.sr-xz-sticks-lede{margin:0 0 10px;font-size:12.5px;color:#aeb5b0;line-height:1.5}
+.sr-xz-sticks .st-note{max-width:860px}
+.sr-loaders{list-style:none;margin:0 0 8px;padding:0;border:1px solid var(--line);border-radius:10px;background:#111314;overflow:hidden}
+.sr-loader{display:grid;grid-template-columns:30px minmax(0,1fr) auto auto;gap:6px 14px;align-items:center;padding:11px 16px}
+.sr-loader+.sr-loader{border-top:1px solid #24282a}
+.sr-loader>.icon{width:30px;height:30px;padding:6px;border-radius:7px;background:#1b1f16;color:#fff98a;box-shadow:inset 0 0 0 1px #474d3a}
+.sr-loader[data-state=off]>.icon{color:#6d7473;box-shadow:inset 0 0 0 1px #2c3130}
+.sr-loader-name{display:grid;gap:1px;min-width:0}
+.sr-loader-name strong{font-size:13.5px;color:#eef0ec}
+.sr-loader[data-state=off] .sr-loader-name strong{color:#929b94}
+.sr-loader-name small{font-size:11.5px;color:#929b94}
+.sr-loader .sr-tag{margin:0}
+.sr-tag[data-tone=off]{color:#929b94}
+.sr-loader>button{padding:6px 12px;font-size:12px}
+.sr-loader .sr-confirm{grid-column:1/-1;margin-top:2px}
+@media(max-width:760px){.sr-loader{grid-template-columns:30px minmax(0,1fr) auto}.sr-loader .sr-tag{grid-column:2;justify-self:start}.sr-loader>button{grid-column:3;grid-row:1}}

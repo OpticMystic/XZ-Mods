@@ -69,6 +69,52 @@ function installMock() {
     return { scan_generation: request.scan_generation, incident: { before_seconds: 600, after_seconds: 300, clock_confidence: 'known' }, category: 'bridge', kind_hint: 'BUG', items, diary_coverage: diary, bytes: items.reduce((s, i) => s + i.bytes, 0), omitted_items: 0, unfinished_sources: fx.cancelled.has(request.scan_generation) ? 5 : 0 };
   };
   fx.content = new Map();
+  // From your XZ: the pending queue, loader identities and notifications. A test sets fx.preset in localStorage
+  // before loading the page, the way the host holds a queue before the window opens.
+  const preset = JSON.parse(localStorage.getItem('fx.preset') || '{}');
+  Object.assign(fx, { pending: preset.pending || [], online: true, notifyMode: preset.notifyMode || 'shown', toasts: [], completions: [], dismissed: [], revoked: [], listeners: {}, detailsReads: 0,
+    identity: preset.identity || { installation_id: 'I-4F7K-2M9Q', registered: true, loaders: [{ loader_id: 'L-7K2M-9Q4F', created_at: '2026-10-12T19:30:00.000Z', revoked: false, revocation_pending: false, registration_pending: false, write_pending: false }] } });
+  // Each pending report was claimed, so its receipt is already stored; My reports must not list it twice.
+  for (const p of fx.pending) fx.receipts.push({ report_id: p.report_id, state: 'accepted', report_reference: p.report_reference, item_number: null, protocol: 2, kind_hint: 'BUG', topic: p.topic, summary: p.description || '', classified_kind: null, lifecycle: 'received',
+    status_text_key: 'received', status_text: 'Received privately. Track it here.', question: null, revision: 1, created_at: Math.floor(p.created_at / 1000), accepted_at: null, updated_at: null, retention_until: '2027-10-27T13:00:00.000Z', diagnostics_expires_at: '2026-11-10T13:00:00.000Z', unseen: false, checked_at: null, last_error: null, links_revoked: false });
+  fx.queue = () => ({ pending: fx.pending.filter(p => p.comments_pending), connected: fx.online, identity: fx.identity, error: fx.online ? null : 'offline', usb_scan_error: null });
+  fx.emit = (name, payload) => { for (const handler of fx.listeners[name] || []) handler({ event: name, payload }); };
+  const queueCommand = (command, args) => {
+    const find = () => { const p = fx.pending.find(x => x.report_id === args.id); if (!p) throw 'Invalid pending report ID'; return p; };
+    switch (command) {
+      case 'support_pending_reports': return { pending: fx.queue().pending };
+      case 'support_loader_identities': return fx.identity;
+      case 'support_poll_pending': return fx.queue();
+      case 'support_pending_details': {
+        fx.detailsReads++; const p = find();
+        return { schema: 'xz-support-report/2', report_id: p.report_id, origin: 'controller', loader_id: p.loader_id, installation_id: 'I-4F7K-2M9Q', comments_pending: true, kind_hint: null, description: p.description || '', category: 'bridge',
+          incident: { before_seconds: 900, after_seconds: 0, clock_confidence: 'known' }, screen_state: p.screen_state, reporter_hints: { topic: p.topic },
+          private: { contact: null, contact_consent: false, items: [
+            { item_id: 'c'.repeat(32), source_id: 'usb_session', source_slot: 'usb_a', parser_version: 2, capture: 'at_collection', clock_confidence: 'known', selected: true, facts: [{ code: 'WAIT_LOOPBACK', clock_basis: 'device_utc', relative_seconds: -240 }, { code: 'READY_CH3_CH4', clock_basis: 'device_utc', relative_seconds: -200 }] },
+            { item_id: 'd'.repeat(32), source_id: 'usb_diary', source_slot: 'usb_a', parser_version: 2, capture: 'at_collection', clock_confidence: 'known', selected: true, facts: [{ code: 'MUSIC_READY', clock_basis: 'device_utc', relative_seconds: -600 }] }] } };
+      }
+      case 'support_complete_pending': {
+        const p = find();
+        if (args.comments !== null && (!args.comments.trim() || new TextEncoder().encode(args.comments).length > 4096)) throw 'Describe what happened in at most 4096 UTF-8 bytes';
+        fx.completions.push({ id: args.id, comments: args.comments });
+        if (fx.online) Object.assign(p, { comments_pending: false, remind: false, comments_state: args.comments === null ? 'completed_without_comments' : 'completed' });
+        else Object.assign(p, { completion_pending: true });
+        return fx.queue();
+      }
+      case 'support_dismiss_pending': { const p = find(); p.remind = false; fx.dismissed.push(args.id); return fx.queue(); }
+      case 'support_revoke_loader': {
+        const l = fx.identity.loaders.find(x => x.loader_id === args.loaderId); if (!l) throw 'Unknown loader';
+        fx.revoked.push(args.loaderId); Object.assign(l, fx.online ? { revoked: true, revocation_pending: false } : { revocation_pending: true });
+        return fx.queue();
+      }
+      case 'support_notify_pending': {
+        const p = fx.pending.find(x => x.report_id === args.id);
+        if (!p || !p.remind || p.report_reference !== args.reference) throw 'This report does not need a reminder';
+        fx.toasts.push(args); return fx.notifyMode === 'off' ? { shown: false, reason: 'off' } : { shown: true };
+      }
+    }
+    return undefined;
+  };
   const ok = result => ({ running: false, ok: true, result });
   const fail = error => ({ running: false, ok: false, error });
   const prepare = async request => {
@@ -117,8 +163,10 @@ function installMock() {
     return fail('Not part of this fixture: ' + request.method);
   };
   navigator.clipboard.writeText = async text => { fx.clipboard.push(text); };
-  window.__TAURI__ = { webviewWindow: { getCurrentWebviewWindow: () => ({ onDragDropEvent: async () => () => {} }) }, core: { invoke: async (command, args = {}) => {
+  window.__TAURI__ = { webviewWindow: { getCurrentWebviewWindow: () => ({ onDragDropEvent: async () => () => {} }) },
+    event: { listen: async (name, handler) => { (fx.listeners[name] ||= []).push(handler); return () => {}; } }, core: { invoke: async (command, args = {}) => {
     fx.calls.push(command);
+    if (command.startsWith('support_') && (command.includes('pending') || command.includes('loader'))) return queueCommand(command, args);
     switch (command) {
       case 'app_information': return { version: '0.5.0-preview.22.6', platform: 'windows', installed: true, release_notes: { releases: [] }, update_channel: 'beta' };
       case 'check_app_update': return { phase: 'current', message: 'XZ Mods beta is up to date.' };
@@ -226,7 +274,9 @@ try {
   const shot = async (name, marks = {}) => {
     if (!shots) return;
     await new Promise(done => setTimeout(done, 200));
-    const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: 1100, height: 760, scale: 1 } });
+    // The clip is in page coordinates, so a scrolled page is captured where it is scrolled to.
+    const [left, top] = await evaluate(`[scrollX,scrollY]`);
+    const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: left, y: top, width: 1100, height: 760, scale: 1 } });
     await writeFile(join(shots, name + '.png'), Buffer.from(image.data, 'base64'));
     boxes[name] = await evaluate(`(()=>{const out={};for(const [key,selector] of Object.entries(${JSON.stringify(marks)})){const item=[...document.querySelectorAll(selector)].find(e=>e.checkVisibility());if(item){const range=document.createRange();range.selectNodeContents(item);const r=['BUTTON','INPUT','PRE','TEXTAREA','DL'].includes(item.tagName)?item.getBoundingClientRect():range.getBoundingClientRect();out[key]=[Math.round(r.left),Math.round(r.top),Math.round(r.right),Math.round(r.bottom)];}}return out;})()`);
     await writeFile(join(shots, 'boxes.json'), JSON.stringify(boxes, null, 1));
@@ -466,6 +516,126 @@ try {
   await evaluate(`document.getElementById('support-inbox-search').value='XZ-1000';button('Find',document.getElementById('support-inbox')).click()`);
   await check(`txt('#support-inbox [role=status]').includes('Enter a reference')`, 'invalid identifier gets a useful search message');
   await evaluate(`document.getElementById('support-inbox').close()`);
+
+  assert.deepEqual(errors, [], 'no page errors before From your XZ: ' + errors.join(' / '));
+  assert.deepEqual(await evaluate(`fx.csp`), [], 'CSP violations before From your XZ');
+
+  // From your XZ: a report sent from the XZ waits in My reports for the DJ's words.
+  const today = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); };
+  const pendingRow = (n, extra = {}) => ({ report_id: String(n).repeat(32), report_reference: 'R-7Q2M-4F8' + 'KMNPR'[n - 1], installation_id: 'I-4F7K-2M9Q', loader_id: 'L-7K2M-9Q4F', origin: 'controller',
+    comments_state: 'pending_comments', comments_pending: true, remind: true, created_at: today(21, 14 + n), reminders_until: Date.now() + 6 * 86400000, description: '', topic: 'NOT_WORKING',
+    screen_state: { surface: 'STOCK', stock_page: 'PERFORMANCE', mods_page: 'UNKNOWN', interface: 'MODERN', deck_view: 'FOUR', alert_code: 'NONE', counter_code: 'E-8307' }, details_expired: false, completion_pending: false, ...extra });
+  const preset = async value => { await evaluate(`localStorage.setItem('fx.preset',${JSON.stringify(JSON.stringify(value))});localStorage.removeItem('xz-mods.from-xz.notified')`); await open(); };
+  const item = id => `document.getElementById('xz-item-${id}')`;
+  const typeInto = (id, text) => evaluate(`(()=>{const box=document.getElementById('xz-text-${id}');box.value=${JSON.stringify(text)};box.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  const waiting = pendingRow(1, { description: 'Deck 3 went silent after the cable' }), id1 = waiting.report_id;
+  await preset({ pending: [waiting] });
+  await waitFor(`!document.getElementById('xz-callout').classList.contains('hidden')`, 'start callout');
+  await check(`txt('#xz-callout .sr-xz-callout-text')==='Your XZ sent a report, R-7Q2M-4F8K. Add what happened?'&&fx.toasts.length===0&&!document.querySelector('dialog[open]')&&!document.getElementById('xz-callout').contains(document.activeElement)`, 'start with a pending report: a quiet callout names it, no notification, no dialog, focus left alone');
+  await check(`txt('nav button[data-page="tools"] .sr-xz-badge')==='1, 1 report from your XZ needs your words'&&txt('.tool-row[data-open="my-reports"]:not(#report-tool-row) .sr-xz-badge [aria-hidden]')==='1'&&!document.querySelector('#report-tool-row .sr-xz-badge')`, 'Tools and My reports carry a badge with a spoken count');
+  await shot('21-xz-callout', { callout: '#xz-callout .sr-xz-callout-text', open: '[data-key="xz-callout-open"]', later: '[data-key="xz-callout-later"]', stop: '[data-key="xz-callout-stop"]', badge: 'nav button[data-page="tools"] .sr-xz-badge' });
+  await click('Add what happened', `document.getElementById('xz-callout')`);
+  await waitFor(`!document.getElementById('my-reports').classList.contains('hidden')&&document.activeElement?.id==='xz-text-${id1}'`, 'item opened with its box focused');
+  await check(`document.activeElement.value==='Deck 3 went silent after the cable'&&document.activeElement.selectionStart===document.activeElement.value.length&&document.getElementById('xz-callout').classList.contains('hidden')`, 'Add what happened opens the report with the XZ text in the box, ready to type');
+  await check(`(()=>{const it=${item(id1)};const facts=[...it.querySelectorAll('dd')].map(d=>d.textContent);return txt('.sr-xz-head .sr-reference',it)==='R-7Q2M-4F8K'&&txt('.sr-xz-when',it)==='Sent from your XZ today at 21:15'&&facts.join('|')==="Something isn't working|MODERN play screen, 4 decks, E-8307 shown|L-7K2M-9Q4F, written 12 Oct 2026|Deck 3 went silent after the cable";})()`, 'each report shows reference, time, topic, screen in words, stick and what was typed on the XZ');
+  await check(`(()=>{const it=${item(id1)};return it.getAttribute('aria-labelledby')==='xz-ref-${id1}'&&txt('label[for="xz-text-${id1}"]')==='What happened?'&&it.querySelectorAll('.primary').length===1&&button('Send',it).classList.contains('primary')&&Boolean(button('Send without comments',it))&&!it.querySelector('.sr-details').open&&fx.detailsReads===0;})()`, 'one labelled box, one primary Send, Send without comments, details closed and not read yet');
+  await check(`![...document.querySelectorAll('.sr-reports .sr-reference')].some(r=>r.textContent==='R-7Q2M-4F8K')&&document.querySelectorAll('.sr-xz-item').length===1`, 'a waiting report is listed once, under From your XZ');
+  await evaluate(`window.scrollTo(0,0)`);
+  await waitFor(`!${item(id1)}.hasAttribute('data-target')`, 'the opening outline fades', 4);
+  await shot('22-xz-report', { title: '#sr-xz-title', reference: '.sr-xz-head .sr-reference', when: '.sr-xz-when', screen: '.sr-xz-facts dd:nth-of-type(2)', stick: '.sr-xz-facts dd:nth-of-type(3)', typed: '.sr-xz-typed', box: '.sr-xz .sr-box', details: '.sr-xz .sr-details summary b', stop: '[data-key^="xz-stop-"]', bare: '[data-key^="xz-bare-"]', send: '[data-key^="xz-send-"]' });
+  await evaluate(`${item(id1)}.querySelector('.sr-details summary').click()`);
+  await waitFor(`${item(id1)}.querySelectorAll('.sr-xz-items .sr-item').length===2`, 'details read');
+  await check(`fx.detailsReads===1&&[...${item(id1)}.querySelectorAll('.sr-xz-source')].map(s=>s.textContent).join('|')==='Session log · USB A|Diary · USB A'&&txt('.sr-details .sr-meta',${item(id1)})==='2 sources · last 15 min'`, 'opening Collected details reads them once and names each source in words');
+  await evaluate(`(()=>{const b=button('Show',${item(id1)});b.focus();b.click();})()`);
+  await waitFor(`txt('.sr-preview',${item(id1)}).includes('WAIT_LOOPBACK')`, 'exact content');
+  await check(`document.activeElement.dataset.key==='xz-show-${'c'.repeat(32)}'&&txt('.sr-preview',${item(id1)}).includes('"source_id": "usb_session"')`, 'Show displays exactly what the XZ sent, and focus stays on the button');
+  await evaluate(`${item(id1)}.querySelector('.sr-details').scrollIntoView({block:'center'})`);
+  await shot('23-xz-details', { summary: '#xz-item-' + id1 + ' .sr-details summary b', source: '#xz-item-' + id1 + ' .sr-xz-source', preview: '#xz-item-' + id1 + ' .sr-preview' });
+  await typeInto(id1, '   ');
+  await evaluate(`button('Send',${item(id1)}).click()`);
+  await check(`txt('#xz-note-${id1} .sr-error')==='Write a few words first, or choose Send without comments.'&&fx.completions.length===0&&document.activeElement.id==='xz-text-${id1}'&&document.activeElement.getAttribute('aria-invalid')==='true'`, 'an empty box explains itself and sends nothing');
+  await typeInto(id1, 'Deck 3 went silent after the cable. I had just plugged it into USB 1.');
+  await evaluate(`button('Send',${item(id1)}).click()`);
+  await waitFor(`fx.completions.length===1&&!${item(id1)}`, 'completed');
+  await waitFor(`[...document.querySelectorAll('.sr-reports .sr-reference')].some(r=>r.textContent==='R-7Q2M-4F8K')`, 'listed with sent reports');
+  await check(`fx.completions[0].id==='${id1}'&&fx.completions[0].comments==='Deck 3 went silent after the cable. I had just plugged it into USB 1.'&&txt('.sr-xz .st-note')==='Sent. R-7Q2M-4F8K now has your words and is listed with your reports below.'&&document.activeElement.id==='sr-xz-title'`, 'Send completes the same report with the edited words; its reference does not change');
+  await check(`!document.querySelector('.sr-xz-badge')&&document.querySelectorAll('.sr-xz-item').length===0`, 'once completed, the badge goes');
+  await evaluate(`window.scrollTo(0,0)`);
+  await shot('24-xz-sent', { sent: '.sr-xz .st-note', reference: '.sr-reports .sr-reference' });
+
+  // Several reports, reminders stopped, live arrivals, notifications on and off.
+  const quiet = pendingRow(2, { remind: false, loader_id: null, details_expired: true, topic: null, created_at: today(20, 2) - 86400000,
+    screen_state: { surface: 'MODS', stock_page: 'UNKNOWN', mods_page: 'STEMS', interface: 'CLASSIC', deck_view: 'TWO', alert_code: 'NONE', counter_code: 'NONE' } });
+  const live = pendingRow(1), id2 = quiet.report_id;
+  await preset({ pending: [live, quiet], identity: { installation_id: 'I-4F7K-2M9Q', registered: true, loaders: [
+    { loader_id: 'L-7K2M-9Q4F', created_at: '2026-10-12T19:30:00.000Z', revoked: false, revocation_pending: false, registration_pending: false, write_pending: false },
+    { loader_id: 'L-3H8W-1D6C', created_at: '2026-10-20T09:05:00.000Z', revoked: false, revocation_pending: false, registration_pending: true, write_pending: false },
+    { loader_id: 'L-0P5T-6V2X', created_at: '2026-09-02T18:00:00.000Z', revoked: true, revocation_pending: false, registration_pending: false, write_pending: false }] } });
+  await waitFor(`!document.getElementById('xz-callout').classList.contains('hidden')`, 'callout');
+  await check(`txt('#xz-callout .sr-xz-callout-text')==='Your XZ sent a report, R-7Q2M-4F8K. Add what happened?'&&txt('nav button[data-page="tools"] .sr-xz-badge [aria-hidden]')==='1'`, 'a report whose reminders ended is neither in the callout nor in the badge');
+  await click('Remind me later', `document.getElementById('xz-callout')`);
+  await check(`document.getElementById('xz-callout').classList.contains('hidden')&&txt('nav button[data-page="tools"] .sr-xz-badge [aria-hidden]')==='1'&&fx.dismissed.length===0`, 'Remind me later hides the callout for now; the badge stays and nothing is dismissed');
+  await evaluate(`fx.emit('xz-controller-queue-changed',fx.queue())`);
+  await check(`fx.toasts.length===0&&xzQueue.state().startup===false&&document.getElementById('xz-callout').classList.contains('hidden')`, 'the launch check brings no notification for reports already known, and Remind me later holds');
+  const third = pendingRow(3, { topic: 'GOT_WORSE', description: 'Dropouts after an hour' }), id3 = third.report_id;
+  await evaluate(`fx.pending.push(${JSON.stringify(third)});fx.emit('xz-controller-queue-changed',fx.queue())`);
+  await waitFor(`fx.toasts.length===1`, 'notification');
+  await check(`fx.toasts[0].id==='${id3}'&&fx.toasts[0].reference==='R-7Q2M-4F8N'&&txt('nav button[data-page="tools"] .sr-xz-badge [aria-hidden]')==='2'&&document.getElementById('xz-callout').classList.contains('hidden')`, 'a report arriving while the app is open raises one Windows notification and the badge counts it');
+  await evaluate(`fx.emit('xz-controller-queue-changed',fx.queue());fx.emit('xz-controller-queue-changed',fx.queue())`);
+  await new Promise(done => setTimeout(done, 150));
+  await check(`fx.toasts.length===1&&JSON.parse(localStorage.getItem('xz-mods.from-xz.notified')).includes('${id3}')`, 'each report is announced once, remembered across restarts');
+  await evaluate(`fx.emit('xz-controller-report-open',{id:'${id3}'})`);
+  await waitFor(`!document.getElementById('my-reports').classList.contains('hidden')&&document.activeElement?.id==='xz-text-${id3}'`, 'notification opens its report');
+  await check(`${item(id3)}.hasAttribute('data-target')&&document.activeElement.value==='Dropouts after an hour'`, 'clicking the notification opens that report in My reports with its box focused');
+  await evaluate(`showPage('setup');fx.notifyMode='off'`);
+  const fourth = pendingRow(4), fifth = pendingRow(5);
+  await evaluate(`fx.pending.push(${JSON.stringify(fourth)});fx.emit('xz-controller-queue-changed',fx.queue())`);
+  await waitFor(`!document.getElementById('xz-callout').classList.contains('hidden')`, 'fallback callout');
+  await evaluate(`fx.pending.push(${JSON.stringify(fifth)});fx.emit('xz-controller-queue-changed',fx.queue())`);
+  await waitFor(`txt('#xz-callout .sr-xz-callout-text')==='Your XZ sent 4 reports. Add what happened?'`, 'fallback callout counts');
+  await check(`fx.toasts.length===2&&xzQueue.state().toasts==='off'&&txt('nav button[data-page="tools"] .sr-xz-badge [aria-hidden]')==='4'&&!/notification|Settings/i.test(txt('#xz-callout'))&&!document.querySelector('dialog[open]')`, 'notifications off: one try, then the badge and callout carry new reports, with no request to turn notifications on');
+  await shot('25-xz-callout-several', { callout: '#xz-callout .sr-xz-callout-text' });
+  await click('Stop reminding', `document.getElementById('xz-callout')`);
+  await waitFor(`fx.dismissed.length===4`, 'dismissed');
+  await check(`document.getElementById('xz-callout').classList.contains('hidden')&&!document.querySelector('.sr-xz-badge')&&[...fx.dismissed].sort().join()===${JSON.stringify([live, third, fourth, fifth].map(p => p.report_id).sort().join())}&&!fx.dismissed.includes('${id2}')`, 'Stop reminding dismisses every reminding report: callout and badge go');
+  await evaluate(`fx.pending.push(${JSON.stringify(pendingRow(5, { report_id: '6'.repeat(32), report_reference: 'R-7Q2M-4F8T', remind: false }))});fx.emit('xz-controller-queue-changed',fx.queue())`);
+  await new Promise(done => setTimeout(done, 150));
+  await check(`fx.toasts.length===2&&document.getElementById('xz-callout').classList.contains('hidden')`, 'a report whose reminders stopped or ended never notifies');
+  await evaluate(`showPage('my-reports')`);
+  await waitFor(`document.querySelectorAll('.sr-xz-item').length===6`, 'all waiting reports listed');
+  await check(`(()=>{const it=${item(id2)};const facts=[...it.querySelectorAll('dd')].map(d=>d.textContent);return txt('.sr-xz-quiet',it)==='No reminders'&&!button('Stop reminding',it)&&facts.join('|')==='Not chosen on the XZ|CLASSIC MODS menu, STEMS page, 2 decks|An older loader stick with no ID'&&txt('.sr-xz-expired',it).startsWith('The collected details were deleted after 14 days')&&txt('.sr-xz-when',it)==='Sent from your XZ yesterday at 20:02';})()`, 'reports keep their place after reminders stop; expired details and an older stick are said plainly');
+  await evaluate(`button('Send without comments',${item(id2)}).click()`);
+  await waitFor(`fx.completions.length===1&&!${item(id2)}`, 'completed without comments');
+  await check(`fx.completions[0].comments===null&&txt('.sr-xz .st-note')==='Sent. R-7Q2M-4F8M is complete and is listed with your reports below.'`, 'Send without comments completes the report with no words');
+  await evaluate(`fx.online=false`);
+  await typeInto(id3, 'Dropouts after an hour, on deck 3 only');
+  await evaluate(`button('Send',${item(id3)}).click()`);
+  await waitFor(`txt('.st-note',${item(id3)}).startsWith('Saved on this computer.')`, 'saved offline');
+  await check(`fx.completions.at(-1).comments==='Dropouts after an hour, on deck 3 only'&&!document.getElementById('xz-text-${id3}')&&txt('.sr-xz-offline').startsWith("This computer can't reach the report service")`, 'offline: the words are saved and go by themselves; the box closes so they cannot be changed');
+  await evaluate(`${item(id3)}.scrollIntoView({block:'center'})`);
+  await shot('26-xz-saved-offline', { saved: '#xz-item-' + id3 + ' .st-note', offline: '.sr-xz-offline' });
+  await size(700, 760);
+  await check(`[...${item(fourth.report_id)}.querySelectorAll('.sr-xz-foot button')].every(b=>b.checkVisibility()&&b.getBoundingClientRect().right<=document.documentElement.clientWidth)`, 'narrow window: every action stays visible');
+  await size(1100, 760);
+
+  // Your XZ sticks.
+  await evaluate(`document.getElementById('xz-sticks-title').scrollIntoView({block:'start'})`);
+  await check(`[...document.querySelectorAll('.sr-loader')].map(l=>txt('.sr-reference',l)+'|'+txt('small',l)+'|'+txt('.sr-tag',l)).join('/')==='L-3H8W-1D6C|Written 20 Oct 2026|Registers when online/L-7K2M-9Q4F|Written 12 Oct 2026|Can send reports/L-0P5T-6V2X|Written '+new Date('2026-09-02T18:00:00.000Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+'|Revoked'&&document.querySelectorAll('.sr-loader button').length===2`, 'Your XZ sticks lists each loader ID, when it was written and whether it can send reports');
+  await shot('27-xz-sticks', { title: '#xz-sticks-title', id: '.sr-loader .sr-reference', written: '.sr-loader small', state: '.sr-loader .sr-tag', revoke: '[data-key="xz-revoke-L-7K2M-9Q4F"]' });
+  await evaluate(`document.querySelector('[data-key="xz-revoke-L-7K2M-9Q4F"]').click()`);
+  await check(`txt('.sr-loader .sr-confirm').startsWith('Revoke L-7K2M-9Q4F? The XZ can no longer send reports from this stick.')&&document.activeElement.dataset.key==='xz-revoke-no'&&fx.revoked.length===0`, 'Revoke asks first, with focus on Keep it');
+  await shot('28-xz-revoke', { confirm: '.sr-loader .sr-confirm', yes: '[data-key="xz-revoke-yes"]', no: '[data-key="xz-revoke-no"]' });
+  await click('Revoke this stick', `document.querySelector('.sr-xz-sticks')`);
+  await waitFor(`fx.revoked.length===1&&txt('.sr-xz-sticks-status')!==''`, 'revoked');
+  await check(`fx.revoked[0]==='L-7K2M-9Q4F'&&[...document.querySelectorAll('.sr-loader')].some(l=>txt('.sr-reference',l)==='L-7K2M-9Q4F'&&txt('.sr-tag',l)==='Revokes when online'&&!l.querySelector('button'))&&txt('.sr-xz-sticks-status')==='L-7K2M-9Q4F is revoked on this computer. The report service hears of it the next time XZ Mods is online.'&&document.activeElement.id==='xz-sticks-title'`, 'Revoke is kept on this computer and sent when online; focus returns to the list');
+  await evaluate(`fx.identity.loaders=[];xzQueue.reload()`);
+  await waitFor(`Boolean(document.querySelector('.sr-xz-sticks-setup'))`, 'no sticks');
+  await check(`document.querySelectorAll('.sr-xz-sticks .primary').length===1&&txt('.sr-xz-sticks-setup').startsWith('No XZ sticks yet.')`, 'no sticks yet: one primary button into the USB setup');
+  await evaluate(`document.getElementById('xz-sticks-title').scrollIntoView({block:'start'})`);
+  await shot('29-xz-sticks-empty', { setup: '.sr-xz-sticks-setup strong', button: '[data-key="xz-setup-usb"]' });
+  await click('Set up a USB', `document.querySelector('.sr-xz-sticks')`);
+  await check(`!document.getElementById('setup').classList.contains('hidden')`, 'Set up a USB opens the USB setup');
+  await evaluate(`localStorage.removeItem('fx.preset')`);
 
   assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));
   const violations = await evaluate(`fx.csp`);
