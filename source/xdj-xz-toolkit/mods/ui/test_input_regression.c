@@ -129,11 +129,12 @@ static void menu_back_navigation(void){
   assert(found&&xz_ui_render(&test,&state,frame,800*480,800));
  }
  reset_input();stock_global_key=back_stock;menu_back_contact=0;back_stock_calls=0;
- ui.page=XZ_UI_SETTINGS;xz_ui_navigate(&ui,XZ_UI_RAM_SETUP);touch.visible=1;__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
- unsigned char self[32]={0};contact(self,62,20,1);contact(self,0,0,0);assert(ui.page==XZ_UI_SETTINGS&&touch.visible);
+ /* PLAY: the section RAM TRACKS and KEYS open from (the retired SETTINGS page opens PLAY). */
+ ui.page=XZ_UI_PLAY;xz_ui_navigate(&ui,XZ_UI_RAM_SETUP);touch.visible=1;__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
+ unsigned char self[32]={0};contact(self,62,20,1);contact(self,0,0,0);assert(ui.page==XZ_UI_PLAY&&touch.visible);
  xz_ui_navigate(&ui,XZ_UI_KEY_SETUP);xz_ui_navigate(&ui,XZ_UI_BROWSE_SETUP);
  back_input(0);assert(ui.page==XZ_UI_KEY_SETUP&&touch.visible&&!back_stock_calls);back_input(1);assert(ui.page==XZ_UI_KEY_SETUP);back_input(2);
- back_input(0);back_input(3);assert(ui.page==XZ_UI_SETTINGS&&touch.visible);
+ back_input(0);back_input(3);assert(ui.page==XZ_UI_PLAY&&touch.visible);
  back_input(0);assert(!touch.visible&&!__atomic_load_n(&visible,__ATOMIC_ACQUIRE));back_input(1);back_input(3);assert(!back_stock_calls&&!menu_back_contact);
  back_input(0);back_input(2);assert(back_stock_calls==2);
  touch.visible=0;back_input(0);touch.visible=1;back_input(1);back_input(2);assert(back_stock_calls==5&&!menu_back_contact);
