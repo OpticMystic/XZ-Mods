@@ -8,7 +8,7 @@ import vm from 'node:vm';
 import { serveUi } from './csp_server.mjs';
 import { killBrowser } from './kill_browser.mjs';
 
-// Drives "Report a problem or share an idea", My reports and the maintainer inbox in headless Edge over CDP, served
+// Drives Feedback: "Report a problem or share an idea", My reports and the maintainer inbox in headless Edge over CDP, served
 // with the app's real CSP, against a mocked host that follows the support_* commands (src-tauri/src/support*.rs) and
 // the support_sources / support_collect / support_prepare_v2 contract (builder/support_reports.py). The mock checks
 // the selection digest the way the collector does, so a Send that does not match what was shown fails here too.
@@ -292,20 +292,23 @@ try {
     await idle();
     errors.length = 0;
   };
-  const startReport = async () => { await evaluate(`showPage('tools')`); await evaluate(`document.getElementById('report-tool-row').click()`); await waitFor(`wiz().open&&reportWizard.state().screen==='topic'`, 'wizard open'); };
+  const feedback = () => evaluate(`document.querySelector('nav button[data-page="my-reports"]').click()`);
+  const startReport = async () => { await feedback(); await evaluate(`document.getElementById('support-open').click()`); await waitFor(`wiz().open&&reportWizard.state().screen==='topic'`, 'wizard open'); };
 
   await open();
-  await check(`txt('#report-tool-row strong')==='Report a problem or share an idea'&&Boolean(document.querySelector('.tool-row[data-open="my-reports"]:not(#report-tool-row)'))`, 'Tools lists Report a problem or share an idea and My reports');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,my-reports'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelector('nav button.nav-feedback use').getAttribute('href')==='#i-report'&&!document.querySelector('#tools [data-open="my-reports"]')&&!document.getElementById('licenses').textContent.includes('Report')`, 'Feedback has its own place in the rail, with its glyph; Tools and About no longer hold the report entries');
   await evaluate(`showPage('tools')`);
-  await shot('00-tools', Object.fromEntries([...['dj-profile', 'library-repair', 'device-updates', 'advanced', 'updates'].map(id => [id, '.tool-row[data-open="' + id + '"] strong']),
-    ['report', '#report-tool-row strong'], ['my-reports', '.tool-row[data-open="my-reports"]:not(#report-tool-row) strong'], ['licenses', '.tool-row[data-open="licenses"] strong']]));
+  await shot('00-tools', Object.fromEntries([...['dj-profile', 'library-repair', 'device-updates', 'advanced', 'updates', 'licenses'].map(id => [id, '.tool-row[data-open="' + id + '"] strong']), ['feedback', 'nav button.nav-feedback']]));
   await evaluate(`showPage('licenses')`);
-  await shot('00-about', { report: '#support-open', mine: '#my-reports-open', inbox: '#support-owner-open', updates: '#about-updates', licenses: '#open-licenses' });
+  await shot('00-about', { updates: '#about-updates', licenses: '#open-licenses' });
   await check(`!document.getElementById('support-wizard')&&!document.getElementById('support-consent')&&!document.querySelector('[id^=support-preview]')`, 'the old form, its page-by-page preview and consent checkbox are gone');
   await waitFor(`(fx.checks||[]).includes('launch')`, 'status check at launch');
   await evaluate(`document.getElementById('check-app-update').click()`);
   await waitFor(`(fx.checks||[]).includes('update')`, 'status check after the update check');
   await check(`fx.checks.filter(c=>c==='update').length>=1&&fx.checks.includes('launch')&&!fx.requests.some(r=>r.method==='support_list')&&yieldingMethods.includes('support_collect')`, 'My reports checks status at launch and on the app update check, without holding the job slot');
+  await feedback();
+  await check(`txt('#page-title')==='Feedback'&&document.querySelector('nav button.selected').dataset.page==='my-reports'&&!document.getElementById('back-to-tools').checkVisibility()&&[...document.querySelectorAll('.sr-start-action strong')].map(s=>s.textContent).join('|')==='Report a problem|Request a feature|Ask a question'&&txt('#my-reports .sr-page-head h2')==='My reports'&&document.getElementById('support-owner-open').checkVisibility()`, 'Feedback opens from the rail: Report a problem, Request a feature, Ask a question, then My reports and the maintainer inbox');
+  await shot('00-feedback', { rail: 'nav button.nav-feedback', art: '.sr-start-art', problem: '#support-open strong', idea: '#support-idea-open strong', question: '#support-question-open strong', mine: '#my-reports .sr-page-head h2', check: '[data-key="check-now"]', inbox: '#support-owner-open' });
   await startReport();
   await check(`[...wiz().querySelectorAll('.sr-choice')].map(b=>b.dataset.key.slice(2)).join()===XZ_SUPPORT_CONTRACT.reporter_hints.topic.join()&&document.activeElement.classList.contains('sr-choice')`, 'screen 1 offers the five topics in contract order, focus on the first');
   await check(`txt('#report-wizard .st-steps')==='1 Topic2 Describe'&&Boolean(button('Not sure'))&&Boolean(button('Cancel'))`, 'every screen has Not sure; the step strip shows where the box is');
@@ -410,9 +413,10 @@ try {
   await click('Cancel');
 
   // Idea: no logs, and the question path answers SYNC and KEY SYNC differently.
-  await startReport();
-  await choice('NEW_IDEA');
-  await waitFor(`reportWizard.state().screen==='idea'`, 'idea type');
+  await feedback();
+  await evaluate(`document.getElementById('support-idea-open').click()`);
+  await waitFor(`wiz().open&&reportWizard.state().screen==='idea'`, 'idea type');
+  await check(`reportWizard.state().hints.topic==='NEW_IDEA'&&txt('#report-wizard .st-steps li[data-s=done]').includes('Topic')`, 'Request a feature skips the topic question: it opens on the kind of idea');
   await shot('10-idea-type');
   await choice('APPEARANCE');
   await waitFor(`reportWizard.state().screen==='describe'`, 'idea box');
@@ -424,9 +428,9 @@ try {
   await waitFor(`reportWizard.state().screen==='done'`, 'idea sent');
   await check(`count('support_collect')===${collects}&&last('support_prepare_v2').collect===false&&last('support_prepare_v2').reporter_hints.idea_type==='APPEARANCE'&&txt('#report-wizard-title')==='Idea received'`, 'an idea collects nothing and sends only the words');
   await click('Done');
-  await startReport();
-  await choice('HOW_DO_I');
-  await waitFor(`reportWizard.state().screen==='describe'&&txt('#report-wizard-title')==="What's your question?"`, 'question box');
+  await feedback();
+  await evaluate(`document.getElementById('support-question-open').click()`);
+  await waitFor(`wiz().open&&reportWizard.state().screen==='describe'&&txt('#report-wizard-title')==="What's your question?"`, 'Ask a question opens straight on the question box');
   await evaluate(`type('KEY SYNC does not work on deck 3')`);
   await waitFor(`wiz().querySelectorAll('.sr-answer').length===1`, 'question answer');
   await check(`txt('.sr-answer strong')==='KEY SYNC and KEY CPU LIMIT'`, 'KEY SYNC gets the KEY SYNC answer, not the SYNC labels');
@@ -468,7 +472,7 @@ try {
   await waitFor(`document.querySelectorAll('.sr-reports .sr-report').length===4`, 'my reports list');
   await check(`txt('.sr-report[data-unseen] .sr-status')==='New: A fix is in progress.'&&[...document.querySelectorAll('.sr-reports .sr-badge')].map(b=>b.textContent).includes('Idea')`, 'My reports shows each report with its kind and status in plain words');
   await check(`txt('.sr-report[data-unseen] .sr-reference')==='R-4F7K-2M9Q'&&txt('.sr-report[data-unseen] .sr-item-number')==='Part of XZ-1042'`, 'My reports shows the report reference and assigned item');
-  await shot('16-my-reports', { notice: '#report-notice-text', view: '#report-notice-view', kind: '.sr-reports .sr-badge', words: '.sr-reports .sr-report strong', status: '.sr-report[data-unseen] .sr-status', sent: '.sr-reports .sr-when', check: '[data-key="check-now"]', report: '[data-key="new-report"]' });
+  await shot('16-my-reports', { notice: '#report-notice-text', view: '#report-notice-view', kind: '.sr-reports .sr-badge', words: '.sr-reports .sr-report strong', status: '.sr-report[data-unseen] .sr-status', sent: '.sr-reports .sr-when', check: '[data-key="check-now"]', mine: '#my-reports .sr-page-head h2', problem: '#support-open strong' });
   await size(700,760);
   await check(`document.querySelector('.sr-report[data-unseen] .sr-reference').checkVisibility()&&document.querySelector('.sr-report[data-unseen] .sr-item-number').checkVisibility()`, 'narrow My reports rows keep both identifiers visible');
   await size(1100,760);
@@ -487,7 +491,7 @@ try {
   await evaluate(`button('Keep it',document.getElementById('report-track')).click();document.getElementById('report-track').close()`);
 
   // Maintainer inbox: setup, then the taxonomy columns in priority order.
-  await evaluate(`showPage('licenses')`);
+  await feedback();
   await evaluate(`document.getElementById('support-owner-open').click()`);
   await waitFor(`document.getElementById('support-inbox').open&&Boolean(document.getElementById('support-owner-key'))`, 'inbox setup');
   await check(`document.querySelectorAll('#support-inbox .primary').length===1&&Boolean(button('Connect and check',document.getElementById('support-inbox')))`, 'not connected: one primary button into the key setup with a live check');
@@ -532,8 +536,8 @@ try {
   await preset({ pending: [waiting] });
   await waitFor(`!document.getElementById('xz-callout').classList.contains('hidden')`, 'start callout');
   await check(`txt('#xz-callout .sr-xz-callout-text')==='Your XZ sent a report, R-7Q2M-4F8K. Add what happened?'&&fx.toasts.length===0&&!document.querySelector('dialog[open]')&&!document.getElementById('xz-callout').contains(document.activeElement)`, 'start with a pending report: a quiet callout names it, no notification, no dialog, focus left alone');
-  await check(`txt('nav button[data-page="tools"] .sr-xz-badge')==='1, 1 report from your XZ needs your words'&&txt('.tool-row[data-open="my-reports"]:not(#report-tool-row) .sr-xz-badge [aria-hidden]')==='1'&&!document.querySelector('#report-tool-row .sr-xz-badge')`, 'Tools and My reports carry a badge with a spoken count');
-  await shot('21-xz-callout', { callout: '#xz-callout .sr-xz-callout-text', open: '[data-key="xz-callout-open"]', later: '[data-key="xz-callout-later"]', stop: '[data-key="xz-callout-stop"]', badge: 'nav button[data-page="tools"] .sr-xz-badge' });
+  await check(`txt('nav button[data-page="my-reports"] .sr-xz-badge')==='1, 1 report from your XZ needs your words'&&document.querySelectorAll('.sr-xz-badge').length===1`, 'Feedback in the rail carries one badge with a spoken count');
+  await shot('21-xz-callout', { callout: '#xz-callout .sr-xz-callout-text', open: '[data-key="xz-callout-open"]', later: '[data-key="xz-callout-later"]', stop: '[data-key="xz-callout-stop"]', badge: 'nav button[data-page="my-reports"] .sr-xz-badge' });
   await click('Add what happened', `document.getElementById('xz-callout')`);
   await waitFor(`!document.getElementById('my-reports').classList.contains('hidden')&&document.activeElement?.id==='xz-text-${id1}'`, 'item opened with its box focused');
   await check(`document.activeElement.value==='Deck 3 went silent after the cable'&&document.activeElement.selectionStart===document.activeElement.value.length&&document.getElementById('xz-callout').classList.contains('hidden')`, 'Add what happened opens the report with the XZ text in the box, ready to type');
@@ -572,15 +576,15 @@ try {
     { loader_id: 'L-3H8W-1D6C', created_at: '2026-10-20T09:05:00.000Z', revoked: false, revocation_pending: false, registration_pending: true, write_pending: false },
     { loader_id: 'L-0P5T-6V2X', created_at: '2026-09-02T18:00:00.000Z', revoked: true, revocation_pending: false, registration_pending: false, write_pending: false }] } });
   await waitFor(`!document.getElementById('xz-callout').classList.contains('hidden')`, 'callout');
-  await check(`txt('#xz-callout .sr-xz-callout-text')==='Your XZ sent a report, R-7Q2M-4F8K. Add what happened?'&&txt('nav button[data-page="tools"] .sr-xz-badge [aria-hidden]')==='1'`, 'a report whose reminders ended is neither in the callout nor in the badge');
+  await check(`txt('#xz-callout .sr-xz-callout-text')==='Your XZ sent a report, R-7Q2M-4F8K. Add what happened?'&&txt('nav button[data-page="my-reports"] .sr-xz-badge [aria-hidden]')==='1'`, 'a report whose reminders ended is neither in the callout nor in the badge');
   await click('Remind me later', `document.getElementById('xz-callout')`);
-  await check(`document.getElementById('xz-callout').classList.contains('hidden')&&txt('nav button[data-page="tools"] .sr-xz-badge [aria-hidden]')==='1'&&fx.dismissed.length===0`, 'Remind me later hides the callout for now; the badge stays and nothing is dismissed');
+  await check(`document.getElementById('xz-callout').classList.contains('hidden')&&txt('nav button[data-page="my-reports"] .sr-xz-badge [aria-hidden]')==='1'&&fx.dismissed.length===0`, 'Remind me later hides the callout for now; the badge stays and nothing is dismissed');
   await evaluate(`fx.emit('xz-controller-queue-changed',fx.queue())`);
   await check(`fx.toasts.length===0&&xzQueue.state().startup===false&&document.getElementById('xz-callout').classList.contains('hidden')`, 'the launch check brings no notification for reports already known, and Remind me later holds');
   const third = pendingRow(3, { topic: 'GOT_WORSE', description: 'Dropouts after an hour' }), id3 = third.report_id;
   await evaluate(`fx.pending.push(${JSON.stringify(third)});fx.emit('xz-controller-queue-changed',fx.queue())`);
   await waitFor(`fx.toasts.length===1`, 'notification');
-  await check(`fx.toasts[0].id==='${id3}'&&fx.toasts[0].reference==='R-7Q2M-4F8N'&&txt('nav button[data-page="tools"] .sr-xz-badge [aria-hidden]')==='2'&&document.getElementById('xz-callout').classList.contains('hidden')`, 'a report arriving while the app is open raises one Windows notification and the badge counts it');
+  await check(`fx.toasts[0].id==='${id3}'&&fx.toasts[0].reference==='R-7Q2M-4F8N'&&txt('nav button[data-page="my-reports"] .sr-xz-badge [aria-hidden]')==='2'&&document.getElementById('xz-callout').classList.contains('hidden')`, 'a report arriving while the app is open raises one Windows notification and the badge counts it');
   await evaluate(`fx.emit('xz-controller-queue-changed',fx.queue());fx.emit('xz-controller-queue-changed',fx.queue())`);
   await new Promise(done => setTimeout(done, 150));
   await check(`fx.toasts.length===1&&JSON.parse(localStorage.getItem('xz-mods.from-xz.notified')).includes('${id3}')`, 'each report is announced once, remembered across restarts');
@@ -593,7 +597,7 @@ try {
   await waitFor(`!document.getElementById('xz-callout').classList.contains('hidden')`, 'fallback callout');
   await evaluate(`fx.pending.push(${JSON.stringify(fifth)});fx.emit('xz-controller-queue-changed',fx.queue())`);
   await waitFor(`txt('#xz-callout .sr-xz-callout-text')==='Your XZ sent 4 reports. Add what happened?'`, 'fallback callout counts');
-  await check(`fx.toasts.length===2&&xzQueue.state().toasts==='off'&&txt('nav button[data-page="tools"] .sr-xz-badge [aria-hidden]')==='4'&&!/notification|Settings/i.test(txt('#xz-callout'))&&!document.querySelector('dialog[open]')`, 'notifications off: one try, then the badge and callout carry new reports, with no request to turn notifications on');
+  await check(`fx.toasts.length===2&&xzQueue.state().toasts==='off'&&txt('nav button[data-page="my-reports"] .sr-xz-badge [aria-hidden]')==='4'&&!/notification|Settings/i.test(txt('#xz-callout'))&&!document.querySelector('dialog[open]')`, 'notifications off: one try, then the badge and callout carry new reports, with no request to turn notifications on');
   await shot('25-xz-callout-several', { callout: '#xz-callout .sr-xz-callout-text' });
   await click('Stop reminding', `document.getElementById('xz-callout')`);
   await waitFor(`fx.dismissed.length===4`, 'dismissed');

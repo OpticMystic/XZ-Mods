@@ -491,7 +491,10 @@ window.reportWizard = (() => {
 
   function open(prefill = {}) {
     // Words typed before a close come back; with nothing typed, a new report starts at the first question.
-    if (['done', 'failed', 'answered'].includes(rw.screen) || (rw.screen !== 'sending' && !rw.text.trim())) rw = blank();
+    // A topic from Feedback (Request a feature, Ask a question) answers that first question for a new report.
+    const fresh = ['done', 'failed', 'answered'].includes(rw.screen) || (rw.screen !== 'sending' && !rw.text.trim());
+    if (fresh) rw = blank();
+    if (fresh && prefill.topic) { rw.hints = { topic: prefill.topic }; rw.screen = path()[1] || 'describe'; }
     if (prefill.text !== undefined) { rw = blank(); rw.text = prefill.text; rw.hints = prefill.hints || {}; rw.screen = 'describe'; }
     if (!dialog.open) dialog.showModal();
     render();
@@ -507,6 +510,7 @@ window.reportWizard = (() => {
   // A close event is queued; if the window was opened again before it arrives, it belongs to the old session.
   dialog.addEventListener('close', () => { if (!dialog.open) stopWatching(); });
   $('support-open').onclick = () => open();
-  $('report-tool-row').onclick = () => open();
+  $('support-idea-open').onclick = () => open({ topic: 'NEW_IDEA' });
+  $('support-question-open').onclick = () => open({ topic: 'HOW_DO_I' });
   return { open, openConnection, state: () => rw, watching: () => watch && { volumes: watch.volumes, timer: Boolean(watch.timer) }, words: { topic: WORDS.topic, sources: SOURCES } };
 })();
