@@ -10,34 +10,26 @@ Four decks adds two software players, DECK 3 and DECK 4, to the XDJ-XZ's own DEC
 ## What you need {experimental}
 
 - The **loopback cable**: a USB cable with a USB-B plug on one end and a USB-A plug on the other, the kind a printer uses.
-- For tracks, a **music stick** in the other top USB port, or music sticks on one **USB 2.0 hub** in that port. Decks 3 and 4 can start before you insert any music.
+- Your **music stick** in the other top USB port. Decks 3 and 4 read their tracks from it.
 - Decks 1 and 2 **stopped or paused** while decks 3 and 4 start. Once they run, you can play all four decks.
 - **CH3** and **CH4** on the mixer set to **USB** so you hear decks 3 and 4.
 
-The cable goes directly from the rear USB socket to either **USB 1** or **USB 2** on top. Put music in the other top port. The picture uses USB 1 as an example; both arrangements work.
+The cable goes from the rear USB socket to a top USB port. In this version the screens name **USB 1** for the cable and **USB 2** for the music stick. Use those ports.
 
 ## Set up four decks {experimental}
 
 1. Stop or pause decks 1 and 2.
-2. Choose either top USB port for the loopback cable. Leave the other port for music.
+2. Put your music stick in **USB 2** on the top panel.
 3. Plug the USB-B end of the loopback cable into the **rear USB socket**.
-4. Plug the USB-A end directly into your chosen top port, **USB 1** or **USB 2**.
+4. Plug the USB-A end into **USB 1** on the top panel.
 5. Set the **CH3** and **CH4** input switches to **USB**.
 6. Tap **DECKS** at the top of the play screen and choose one of the **4 DECKS** pictures, or open MODS and choose [4 DECKS](mods-menu#4-decks).
 7. Wait for **DECKS 3 AND 4 ARE READY**. The card in the lanes of decks 3 and 4 tells you each step it is waiting for.
 8. Press [[SHIFT]] twice on the left side to play deck 3, or on the right side to play deck 4.
 
-The XZ detects cable connections automatically. **RESCAN** checks at once. After a disconnection, reconnect the cable to the same top port. To move it to the other port, stop playback and restart the USB loader first.
+The XZ keeps looking for the cable on its own. You never have to restart anything. **RESCAN** checks at once.
 
 > **Tip.** You can choose a four-deck view before you plug in the cable. Decks 3 and 4 then show a card with the cable steps and their current state, and decks 1 and 2 keep playing as usual.
-
-## Add music and a USB hub {experimental}
-
-Once the USB loader is running, you can bring up decks 3 and 4 with only the loopback cable connected. Insert music later in the other top port. Starting the audio route does not load a track.
-
-To connect several music sticks, put one high-speed USB 2.0 hub in the top port opposite the loopback cable. Stop or pause decks 1 and 2 while a newly connected hub starts. Connect the sticks to that hub and choose the sources the player makes available. The hub does not add more decks or source buttons.
-
-Connect the loopback cable directly to the player, never through the music hub. Do not connect a second hub behind the first. Check that your hub and drives have enough power; use the hub's own power supply if it has one. Keep any drive that holds a playing track connected.
 
 ## The 4 DECKS page in MODS
 
@@ -45,7 +37,7 @@ MODS > **4 DECKS** shows the cable's state, lets you choose the deck view, and l
 
 ```figure classic:theme-{look}-four-decks MODS · 4 DECKS
 The 4 DECKS page before the cable is plugged in. In this picture the key and RAM engines have not reported yet, so KEY SYNC has no tick on decks 1 and 2 and RAM TRACKS none on any deck.
-1 @ 138,58 Cable picture | Shows USB 1 as an example; USB 2 works too. The picture explains the connections, not which port is currently occupied.
+1 @ 138,58 Cable picture | Shows the cable going from USB 1 on top to the rear USB socket. The part that needs you is marked in the state's colour.
 2 @ 340,67 State | Where four decks stand now, with one sentence on what happens next. The states are listed under [The card in every state](#the-card-in-every-state).
 3 @ 620,110 RESCAN | Checks the cable and the audio route now. Reads TRY AGAIN after a failed start and SCANNING while a check runs.
 4 @ 128,178 DECK VIEW | 2 DECKS, 4 DECKS in number order (1 2 3 4) or 4 DECKS in mixer order (3 1 2 4). The highlighted box is the saved view.
@@ -76,7 +68,7 @@ While decks 3 and 4 are not running, a four-deck view puts a card in their lanes
 
 ```figure modern:card-01-not-detected Play screen · NO CABLE FOUND
 Four decks in number order before the cable is plugged in. CLASSIC draws the same card in its own colours, with shorter sentences.
-1 @ 240,266 Cable picture | USB 1 is the illustrated example; USB 2 works too. The picture moves for a minute after the card appears or your last input, then rests.
+1 @ 240,266 Cable picture | The cable from USB 1 on top to the rear USB socket. It moves for a minute after the card appears or after your last input, then rests.
 2 @ 665,203 Steps | The two things to do: connect the cable, and set the CH3 and CH4 input switches to USB.
 3 @ 282,283 State | The state's title and what happens next.
 4 @ 475,299 RESCAN | Checks for the cable now.
@@ -90,12 +82,12 @@ You can drive the card with the encoder. While the card shows, push the encoder 
 
 | Card title | What it means | What to do |
 |---|---|---|
-| NO CABLE FOUND | The XZ does not see the loopback cable. | Connect the cable directly to either top port. Music goes in the other port and is optional for startup. Press **RESCAN** to check at once. |
+| NO CABLE FOUND | The XZ does not see the loopback cable. | Plug in the cable as in the steps. Keep the music stick in USB 2. Press **RESCAN** to check at once. |
 | LOOKING FOR THE CABLE... | A check runs now. The button reads **SCANNING**. | Wait a moment. |
 | STARTING DECKS 3 AND 4 | The cable is found and the audio input is starting. | Wait a few seconds. The card's sentence says which step is running. |
-| STOP DECKS 1 AND 2 | Decks 3 and 4 or a newly connected music hub wait for decks 1 and 2 to stop. | Stop or pause decks 1 and 2. The card changes by itself. |
-| COULD NOT START DECKS 3 AND 4 | The start failed. The picture marks the type of connection that needs attention: top USB, cable, rear socket or CH3/CH4 switches. The drawn port is an example. | Read the sentence, fix that part, then press **TRY AGAIN**. |
-| DECKS 3 AND 4 DISCONNECTED | The cable was unplugged or lost power while decks 3 and 4 ran. | Plug the cable back into the same top port and press **RESCAN**. |
+| STOP DECKS 1 AND 2 | Decks 3 and 4 start only while decks 1 and 2 are both stopped. | Stop or pause decks 1 and 2. The card changes by itself. |
+| COULD NOT START DECKS 3 AND 4 | The start failed. The picture marks the part that failed in red: USB 1, the cable, the rear socket or the CH3/CH4 switches. | Read the sentence, fix that part, then press **TRY AGAIN**. |
+| DECKS 3 AND 4 DISCONNECTED | The cable was unplugged or lost power while decks 3 and 4 ran. | Plug the cable back in and press **RESCAN**. |
 | FOUR DECKS ARE NOT AVAILABLE | The software players are not running in this build. Decks 1 and 2 play as usual. | Press **TWO DECKS**. |
 | DECKS 3 AND 4 ARE READY | The route came up. The card turns green, then wipes away. | Press [[SHIFT]] twice on a side to play deck 3 or 4. |
 
@@ -121,7 +113,7 @@ The player sees the loopback cable as a USB hub. When you plug it in, the player
 - While MODS is open, MODS keeps the screen. The warning takes the strip at the bottom left of MODS, with **FROM THE LOOPBACK CABLE OR A HUB IN A TOP USB PORT**, or **FROM THE LOOPBACK CABLE. DECKS 3 AND 4 ARE READY.** once they run.
 - In MODERN the play screen shows **E-8307 HUBS ARE NOT SUPPORTED: FROM THE LOOPBACK CABLE** once when the warning appears.
 
-The warning can also appear when you connect a music hub. With the loopback cable connected, stop or pause decks 1 and 2 and let the music hub finish connecting. A hub in the loopback port, a second hub behind the first, or a hub that does not support high-speed USB 2.0 is not supported. Remove that hub or connect the music stick directly.
+If you see the warning without the loopback cable plugged in, a hub or other unsupported device is in a top USB port. Remove it.
 
 ## DECK VIEW
 

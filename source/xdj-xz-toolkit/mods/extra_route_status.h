@@ -18,19 +18,10 @@ static const struct route_reason route_reasons[] = {
  RR("WAIT_NATIVE_PAUSED",WAITING_NATIVE_STOP,SELECTOR,"Stop or pause decks 1 and 2 so decks 3 and 4 can start."),
  RR("WAIT_SAFE_LOOPBACK_DISCONNECT",STARTING,CABLE,"Disconnect the loopback cable briefly so the audio route can start safely."),
  RR("WAIT_AUDIO_DEVICE",STARTING,SOCKET,"The cable was found and the audio input is starting."),
- RR("WAIT_MUSIC_HUB_PAUSED",WAITING_NATIVE_STOP,SELECTOR,"Stop or pause decks 1 and 2 so the music hub can connect."),
- RR("WAIT_MUSIC_HUB",STARTING,PORT,"The music hub was found and is connecting."),
- RR("MUSIC_HUB_BIND_FAILED",FAILED,PORT,"The music hub could not connect; unplug it briefly and reconnect it."),
- RR("UNSUPPORTED_MUSIC_PORT",FAILED,PORT,"Connect music drives to the top USB port opposite the loopback cable."),
- RR("UNSUPPORTED_MUSIC_TOPOLOGY",FAILED,PORT,"Use one music hub in the other top USB port; do not connect hubs together."),
- RR("UNSUPPORTED_MUSIC_INVENTORY",FAILED,PORT,"The connected music drives could not be checked safely."),
- RR("RACE_MUSIC_INVENTORY",STARTING,PORT,"The music connections changed during setup; checking them again."),
- RR("TERMINATED_ROUTE_IDENTITY",FAILED,NONE,"The USB connections or player session changed; restart the USB loader."),
- RR("TERMINATED_MUSIC_HUB_IDENTITY",FAILED,PORT,"The music hub could not be checked safely; restart the USB loader."),
  RR("WAIT_MUSIC_MOUNT",STARTING,PORT,"Waiting for the music drive in either top USB port to become available."),
  RR("WAIT_MUSIC_SERIAL_READ",STARTING,PORT,"Waiting to identify the music drive."),
  RR("WAIT_MUSIC_DESCRIPTORS",STARTING,PORT,"Waiting for the music drive to finish connecting."),
- RR("UNSUPPORTED_MUSIC_MOUNT",FAILED,PORT,"Connect music drives to the top USB port opposite the loopback cable."),
+ RR("UNSUPPORTED_MUSIC_MOUNT",FAILED,PORT,"Use one music drive and connect the loopback cable to the other top USB port."),
  RR("UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY",FAILED,PORT,"The music drive connection does not support this audio route."),
  RR("UNSUPPORTED_MUSIC_SERIAL_LENGTH",FAILED,PORT,"The music drive could not be identified safely."),
  RR("UNSUPPORTED_USB2_BLOCK_ANCESTRY",FAILED,PORT,"The music drive could not be confirmed on its top USB port."),
@@ -194,7 +185,7 @@ static struct xz_extra_route_status route_observed(const struct route_bridge *b,
  if(ever_up)return route_message(XZ_EXTRA_ROUTE_LOST,XZ_EXTRA_ROUTE_PART_CABLE,"The audio route was disconnected; check the loopback cable.");
  if(faults>=3)return route_message(XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_PART_SOCKET,"The audio connection has failed repeatedly; check the cable and audio input.");
  if(refused==XZ_USB_BUSY)return route_message(XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_PART_SOCKET,"The audio input is busy; close the application that is using it.");
- if(refused==XZ_USB_WRONG_DEVICE)return route_message(XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_PART_CABLE,"The connected device is not the expected loopback audio input.");
+ if(refused==XZ_USB_WRONG_DEVICE)return route_message(XZ_EXTRA_ROUTE_FAILED,XZ_EXTRA_ROUTE_PART_CABLE,"The device on USB 1 is not the expected loopback audio input.");
  if(node)return route_message(XZ_EXTRA_ROUTE_STARTING,XZ_EXTRA_ROUTE_PART_NONE,"The audio route was found and decks 3 and 4 are starting.");
  if(b->valid)return route_reason_map(b->reason,0);
  return route_message(XZ_EXTRA_ROUTE_NOT_DETECTED,XZ_EXTRA_ROUTE_PART_CABLE,"The loopback audio route has not been detected.");
