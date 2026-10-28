@@ -76,21 +76,21 @@ int main(int argc, char **argv) {
  shot(&u,&m,"play-4deck-long-titles");
  fx_model_four(&m,&track);
 
- /* Stems on decks 1 and 2 in every stem layout: the four-deck view draws each as a half row. */
- static const char *const layouts[XZ_SHELL_STEM_LAYOUTS]={"hidden","below-full","below-half","outside-full","outside-half","pads"};
+ /* Stems on decks 1 and 2 (deck 2's vocals muted): a half row under each. The 2 DECKS layout does not apply to
+    four lanes; STEMS shows or hides the buttons, one press each. */
  m.capabilities|=XZ_SHELL_CAP_STEM_MUTE|XZ_SHELL_CAP_STEM_GAIN;
- m.stems_known=1;m.stems_on=1;m.stem_layout_known=1;
+ m.stems_known=1;m.stems_on=1;m.stem_layout_known=1;m.stem_layout=XZ_SHELL_STEMS_BELOW_FULL;
  stems_on(&m,0,0);stems_on(&m,1,4);
  for(int d=2;d<4;d++)m.deck[d].known&=~XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE);
- for(int l=0;l<XZ_SHELL_STEM_LAYOUTS;l++){
-  char name[64];snprintf(name,sizeof name,"play-4deck-stems-%s",layouts[l]);
-  m.stem_layout=(enum xz_shell_stem_layout)l;shot(&u,&m,name);
- }
- m.stem_layout_known=0;shot(&u,&m,"play-4deck-stems-layout-unread");
- m.stem_layout_known=1;m.stem_layout=XZ_SHELL_STEMS_PADS;
+ shot(&u,&m,"play-4deck-stems-shown");
+ m.four_stems_hidden=1;shot(&u,&m,"play-4deck-stems-hidden");m.four_stems_hidden=0;
+ /* Deck 2's track has no prepared stems: no row, its waveform keeps the whole lane. */
+ m.deck[1].known&=~(XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_MUTE)|XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_GAIN));
+ shot(&u,&m,"play-4deck-stems-deck2-none");
+ stems_on(&m,1,4);
  m.capabilities|=XZ_SHELL_CAP_STEM_BYPASS;
  for(int d=0;d<2;d++)m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_BYPASS);
- m.deck[1].stem_bypass=1;shot(&u,&m,"play-4deck-stems-pads-bypass");
+ m.deck[1].stem_bypass=1;shot(&u,&m,"play-4deck-stems-bypass");
  m.stem_layout_known=1;m.stem_layout=XZ_SHELL_STEMS_BELOW_HALF;
 
  /* GRID on deck 4: its buttons take deck 4's stem row while they show. */
