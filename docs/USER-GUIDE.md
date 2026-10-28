@@ -8,7 +8,7 @@ to build source.
 
 ## Prepare your USB
 
-1. Back up your Rekordbox USB. Start with a few tracks and a spare FAT/FAT32 USB.
+1. Back up your Rekordbox USB. Start with a few tracks and a spare USB stick.
 2. Extract the supplied XZ Mods 0.1.6 ZIP.
    Extract it and keep `XZ Mods.exe` beside its `resources` folder. Windows needs
    WebView2. VJ.Tools and a separate Python installation are not required.
@@ -16,7 +16,7 @@ to build source.
    and select the USB drive root. The app downloads and verifies the official
    firmware and required boot support, then builds and checks `autoexec.bin`.
    First setup downloads about 320 MB; verified files are cached locally.
-   The USB must be FAT/FAT32. Existing music and loader files are not overwritten.
+   The app never formats the USB. Existing music and loader files are not overwritten.
    The public download contains no firmware, boot support or personal boot image.
 4. Prepare stems with [OverCue](https://overcue.gg/). This is the recommended
    path. OverCue Desktop separates your tracks and writes a `CDJMODS` folder on

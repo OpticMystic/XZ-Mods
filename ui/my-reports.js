@@ -4,7 +4,8 @@
 window.myReports = (() => {
   const C = window.XZ_SUPPORT_CONTRACT, ID = window.XZ_SUPPORT_IDENTIFIERS;
   const host = $('my-reports-host'), track = $('report-track'), inbox = $('support-inbox');
-  titles['my-reports'] = 'My reports'; toolPages.add('my-reports');
+  // My reports is the Feedback section: its own place in the rail, with the report actions above the list.
+  titles['my-reports'] = 'Feedback';
   pageShown['my-reports'] = () => { render(); check('open', null, true); };
   const day = iso => iso ? new Date(typeof iso === 'number' ? iso * 1000 : iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown';
   function icon(id) {
@@ -59,9 +60,9 @@ window.myReports = (() => {
     const xz = window.xzQueue, listed = xz ? reports.filter(r => !xz.has(r.report_id)) : reports;
     const unconfirmed = listed.filter(r => r.state !== 'accepted');
     const head = el('div', { class: 'sr-page-head' },
-      el('p', { text: 'Reports and ideas sent from this computer, with where each one is now. XZ Mods checks for news when it starts and when you open this page. Your words stay on this computer.' }),
-      el('div', { class: 'actions' }, plainButton('Check now', async () => { await Promise.all([check('refresh'), window.xzQueue?.poll()]); }, { key: 'check-now' }),
-        plainButton('Report a problem or share an idea', () => window.reportWizard.open(), { primary: !xz?.count(), key: 'new-report' })));
+      el('div', { class: 'sr-page-head-text' }, el('h2', { text: 'My reports' }),
+        el('p', { text: 'Reports and ideas sent from this computer, with where each one is now. XZ Mods checks for news when it starts and when you open this page. Your words stay on this computer.' })),
+      el('div', { class: 'actions' }, plainButton('Check now', async () => { await Promise.all([check('refresh'), window.xzQueue?.poll()]); }, { key: 'check-now' })));
     const parts = [xz?.section(), head].filter(Boolean);
     if (error) parts.push(el('div', { class: 'notice', text: 'My reports could not be read. ' + error }));
     if (!listed.length && !drafts.length && !xz?.count()) parts.push(el('div', { class: 'sr-empty' }, el('strong', { text: loaded ? 'Nothing sent yet' : 'Reading My reports...' }),
@@ -84,7 +85,7 @@ window.myReports = (() => {
     const focused = host.contains(document.activeElement) ? document.activeElement : null, key = focused?.dataset.key;
     const caret = focused?.tagName === 'TEXTAREA' ? [focused.selectionStart, focused.selectionEnd] : null;
     host.replaceChildren(...parts);
-    const again = key && host.querySelector('[data-key="' + CSS.escape(key) + '"]');
+    const again = key ? host.querySelector('[data-key="' + CSS.escape(key) + '"]') : focused?.id ? host.querySelector('#' + CSS.escape(focused.id)) : null;
     if (again) { again.focus({ preventScroll: true }); if (caret && again.tagName === 'TEXTAREA') again.setSelectionRange(...caret); }
   }
   function draftActions(d) {
@@ -325,7 +326,6 @@ window.myReports = (() => {
     (focused && inbox.querySelector('[data-key="' + CSS.escape(focused) + '"]') || inbox.querySelector('h2')).focus({ preventScroll: true });
   }
 
-  $('my-reports-open').onclick = () => showPage('my-reports');
   $('support-owner-open').onclick = openInbox;
   if (invoke) setTimeout(() => check('launch'), 1500);
   return { refresh: load, render, check, show, notice, openInbox, state: () => ({ reports, drafts }) };

@@ -72,7 +72,7 @@ def obtain(game,job):
 
 def _target(volume):
     volume=cache._safe_path(volume);target=usb.target_info(volume,boot_loader=False)
-    if not target['direct_usb_root']:raise ValueError('Choose the root of a FAT/FAT32 USB. XZ Mods does not format drives.')
+    if not target['direct_usb_root']:raise ValueError('Choose the root of a USB drive. XZ Mods does not format drives.')
     stat=volume.stat()
     return (stat.st_dev,stat.st_ino,target.get('volume_serial'),target.get('volume_root'))
 

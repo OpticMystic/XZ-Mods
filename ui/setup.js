@@ -1,7 +1,9 @@
 // USB home: a device utility. W.view is the one state that decides what shows:
-//   find   -> no USB chosen; USBs are found automatically and a single one opens by itself
+//   find   -> the USB list: every connected USB a loader can go on, and a folder instead. A single one opens by
+//             itself, unless the DJ just stepped back from it (Change USB, Cancel, Back or Escape on the dashboard)
 //   device -> the chosen USB's dashboard: status, one obvious action, tiles
-//   flow   -> a short write wizard; W.flow.steps lists the steps that apply and W.step is the current one
+//   flow   -> a short write wizard; W.flow.steps lists the steps that apply and W.step is the current one.
+//             Every step but a running write ends in one bar: Back on the left, the way forward on the right
 // Writes go through the same backend requests, in the same order, as before.
 (function(){
 const FLOWS={
@@ -12,7 +14,7 @@ const FLOWS={
   quad:{title:'Quad standalone mixer',loader:'keep'}
 };
 const POLL_MS=2000;
-const W={view:'find',flow:null,step:null,usbs:null,finding:false,opening:null,eject:null,usb:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,result:null,
+const W={view:'find',flow:null,step:null,usbs:null,finding:false,opening:null,eject:null,usb:null,left:null,inspection:null,loader:'auto',games:new Set(),settings:null,settingsStart:null,result:null,
   quadReturn:null,quadConfirmed:false,quadPaused:false,
   changesOpen:false,changesAll:false,gamesOpen:false,filesOpen:false};
 const host=$('wiz'),listeners=[];
@@ -33,7 +35,8 @@ function loaderChoice(){
   const saved=savedModVersion(),recorded=W.inspection.recorded_mod_version;
   return saved&&recorded?.id===saved.id&&recorded?.runtime_sha256===saved.runtime_sha256?'keep':'update';
 }
-function newGames(){return [...W.games].filter(id=>!W.inspection?.games.find(game=>game.id===id)?.installed);}
+// A folder gets the loader only: games go straight onto a USB, so none are planned for a folder.
+function newGames(){return W.inspection?.requires_copy_to_usb_root?[]:[...W.games].filter(id=>!W.inspection?.games.find(game=>game.id===id)?.installed);}
 // Games the catalog offers (ui/games.js); the backend may list others, which are never offered or planned.
 function offeredGames(inspection){return (inspection.games||[]).filter(game=>GAMES.some(entry=>entry.id===game.id));}
 function installedGames(inspection){return new Set(offeredGames(inspection).filter(game=>game.installed).map(game=>game.id));}
@@ -55,6 +58,17 @@ function writesLoader(){return loaderChoice()!=='keep';}
 function profilePlan(){return window.djProfilePage?.pending()||null;}
 function nothingToWrite(){return !writesLoader()&&!newGames().length&&!settingsChanges().length&&!profilePlan()?.plan&&W.inspection?.settings?.revision?.exists!==false;}
 function driveLabel(){return W.usbs?.find(item=>item.volume===W.usb)?.label||W.usb;}
+// Any USB drive takes the loader, whatever its file system (the XZ boots exFAT as well as FAT32); the file system
+// is shown, never a reason. Not offered: a read-only drive, and a disk of this computer (not removable and not
+// FAT or exFAT), the same rule the backend applies (builder/usb.py target_info). A drive the list says nothing about
+// stays choosable, and reading it gives the reason if it cannot be used.
+const fsName=filesystem=>filesystem&&filesystem.toUpperCase()==='EXFAT'?'exFAT':filesystem;
+function unusable(item){
+  if(item.writable===false)return 'is read-only';
+  if(item.removable===false&&item.filesystem&&!['FAT','FAT32','EXFAT'].includes(item.filesystem.toUpperCase()))return 'is a drive of this computer';
+  return null;
+}
+const usable=list=>(list||[]).filter(item=>!unusable(item));
 
 // --- finding the USB ---
 
@@ -78,11 +92,11 @@ function discover(user,origin=jobSlot){
   })().finally(()=>{discovering=null;});
   return discovering;
 }
-// One USB opens by itself, unless it is the set the DJ just stepped away from with Change USB.
+// One usable USB opens by itself, unless it is the set the DJ just stepped back from.
 async function lookForUsbs(user){
   if(user)await idle();
   const list=await discover(user);
-  if(W.view==='find'&&list?.length===1&&usbSig(list)!==dismissed)await chooseUsb(list[0].volume);
+  if(W.view==='find'&&usable(list).length===1&&usbSig(list)!==dismissed)await chooseUsb(usable(list)[0].volume);
   return list;
 }
 function pollWanted(){return Boolean(invoke)&&W.view==='find'&&!$('setup').classList.contains('hidden');}
@@ -145,18 +159,28 @@ async function pickFolder(){
   if(!invoke){showError('Open the desktop app to choose a USB.',jobSlot);return;}
   try{const volume=await invoke('pick_path',{kind:'folder'});if(volume)await chooseUsb(volume);}catch(error){showError(String(error),jobSlot);}
 }
-function changeUsb(){
+// Change USB, Cancel in a guide, and Back or Escape on the dashboard all come here: the USB list. Going back holds:
+// the USB just left does not open by itself again until the set of drives changes. Its card (or the folder choice,
+// after a folder) keeps the focus, so Enter opens it again.
+function toList(){
+  if(W.flow?.steps.includes('profile')&&W.step!=='done')window.djProfilePage?.discard();
   dismissed=W.usbs?.length?usbSig(W.usbs):W.usb;
-  go({view:'find',usb:null,inspection:null,flow:null,step:null,result:null});
+  const left=W.usb;
+  go({view:'find',usb:null,inspection:null,flow:null,step:null,result:null,loader:'auto',gamesOpen:false,left,eject:null});
+  focusLeft();
   // The cards may describe the USB as it was before a write; list again.
   lookForUsbs(false);
+}
+function focusLeft(){
+  const card=[...host.querySelectorAll('.wz-usb[data-volume]')].find(item=>item.dataset.volume===W.left);
+  (card||host.querySelector('#wz-folder'))?.focus({preventScroll:true});
 }
 // The DJ Profile page's Find my USB: an explicit request, so a single USB opens even right after Change USB.
 async function findAndChoose(origin){
   dismissed=null;
   await idle();
   const list=await discover(true,origin);
-  if(list?.length===1)await chooseUsb(list[0].volume,origin);
+  if(usable(list).length===1)await chooseUsb(usable(list)[0].volume,origin);
 }
 // A view change drops a finished job panel from the view before; a running one stays.
 function go(patch){
@@ -196,48 +220,64 @@ async function followNewest(){
 function usbCard(item){
   const chips=[item.loader?'XZ Mods installed':'No XZ Mods yet',item.rekordbox?'Rekordbox USB':null].filter(Boolean);
   const opening=W.opening===item.volume,waiting=Boolean(W.opening)&&!opening;
-  return el('button',{type:'button',class:'wz-usb',dataset:{state:opening?'opening':waiting?'waiting':null},'aria-busy':opening?'true':null,disabled:waiting?true:null,
+  return el('button',{type:'button',class:'wz-usb',dataset:{volume:item.volume,state:opening?'opening':waiting?'waiting':null},'aria-busy':opening?'true':null,disabled:waiting?true:null,
       onclick:event=>chooseUsb(item.volume,host.contains(event.currentTarget)?jobSlot:event.currentTarget)},
     el('span',{class:'wz-usb-icon'},icon('usb')),
-    el('span',{class:'wz-usb-text'},el('strong',{text:item.label}),el('small',{text:item.volume+(item.removable?'':' · not a removable drive')})),
+    el('span',{class:'wz-usb-text'},el('strong',{text:item.label}),el('small',{text:[item.volume,fsName(item.filesystem),item.removable?null:'not a removable drive'].filter(Boolean).join(' · ')})),
     opening?el('span',{class:'wz-opening',role:'status',text:'Reading the USB…'}):
       el('span',{class:'wz-chips'},...chips.map((text,index)=>el('span',{class:'wz-chip',dataset:{tone:index===0&&item.loader?'on':null},text}))),
     opening?el('span',{class:'wz-spinner wz-go','aria-hidden':'true'}):icon('chevron','wz-go'));
 }
-function quietActions(){
+// The folder choice: the loader and settings go into a folder on this computer, to copy to a USB later.
+const FOLDER_LABEL='Write to a folder instead…';
+function folderCard(){
+  return el('button',{type:'button',class:'wz-usb wz-folder-card',id:'wz-folder',disabled:W.opening?true:null,onclick:pickFolder},
+    el('span',{class:'wz-usb-icon'},icon('folder')),
+    el('span',{class:'wz-usb-text'},el('strong',{text:FOLDER_LABEL}),el('span',{class:'wz-folder-note',text:'Copy it to the top of a USB stick afterward.'})),
+    icon('chevron','wz-go'));
+}
+// Drives a loader cannot go on are not offered; one line says which and why. Formatting is up to the DJ.
+function skippedLine(){
+  const skipped=(W.usbs||[]).filter(unusable);
+  if(!skipped.length)return null;
+  const named=skipped.map(item=>(item.label&&item.label!==item.volume?item.label+' ('+item.volume+')':item.volume)+' '+unusable(item));
+  return el('p',{class:'wz-skipped',id:'wz-skipped'},icon('info'),
+    el('span',{text:plural(skipped.length,'drive')+' not shown: '+listText(named)+'. XZ Mods needs a USB drive it can write to.'}));
+}
+function quietActions(withFolder){
   // A folder, or a USB not in the list, being opened has no card to show it on.
-  if(W.opening&&!W.usbs?.some(item=>item.volume===W.opening))
+  if(W.opening&&!usable(W.usbs).some(item=>item.volume===W.opening))
     return el('div',{class:'wz-quiet'},el('span',{class:'wz-looking',role:'status'},el('span',{class:'wz-spinner','aria-hidden':'true'}),'Reading '+W.opening+'…'));
   return el('div',{class:'wz-quiet'},
     W.finding?el('span',{class:'wz-looking',role:'status'},el('span',{class:'wz-spinner','aria-hidden':'true'}),'Looking…'):
       el('button',{type:'button',class:'text-button',id:'wz-look',text:'Look again',onclick:()=>lookForUsbs(true)}),
-    el('button',{type:'button',class:'text-button',id:'wz-folder',text:'Choose a folder instead',onclick:pickFolder}));
+    withFolder?el('button',{type:'button',class:'text-button',id:'wz-folder',text:FOLDER_LABEL,onclick:pickFolder}):null);
 }
 function viewFind(){
-  const list=W.usbs||[];
+  const list=usable(W.usbs);
   if(list.length)return el('section',{class:'wz-find wz-find-list'},
     el('h2',{text:list.length>1?'Choose your XZ USB':'Your XZ USB'}),
-    el('div',{class:'wz-usb-list',role:'list'},...list.map(usbCard)),
-    quietActions(),quadEntry(),jobSlot);
+    el('div',{class:'wz-usb-list',role:'list'},...list.map(usbCard),folderCard()),
+    skippedLine(),quietActions(false),quadEntry(),jobSlot);
   return el('section',{class:'wz-find wz-empty',dataset:{looking:W.finding?'1':null}},
     $('tpl-usb-art').content.firstElementChild.cloneNode(true),
     el('h2',{text:'Plug in your XZ USB'}),
-    el('p',{class:'wz-lead',text:'XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
-    quietActions(),quadEntry(),jobSlot);
+    el('p',{class:'wz-lead',text:'Any USB stick works. XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
+    skippedLine(),quietActions(true),quadEntry(),jobSlot);
 }
 
 // --- device view ---
 
 function driveHeader(){
   const ins=W.inspection,space=ins.space||{},known=space.free_bytes!=null&&space.total_bytes>0;
-  const meta=[ins.filesystem,known?gb(space.free_bytes)+' free of '+gb(space.total_bytes):''].filter(Boolean).join(' · ');
+  const meta=[fsName(ins.filesystem),known?gb(space.free_bytes)+' free of '+gb(space.total_bytes):''].filter(Boolean).join(' · ');
   return el('div',{class:'wz-drive'},
-    el('span',{class:'wz-drive-icon'},icon('usb')),
+    el('span',{class:'wz-drive-icon'},icon(ins.requires_copy_to_usb_root?'folder':'usb')),
     el('div',{class:'wz-drive-text'},
       el('div',{class:'wz-drive-name'},el('h2',{text:driveLabel()}),el('span',{class:'wz-mono',text:W.usb})),
       meta?el('p',{class:'wz-drive-meta',text:meta}):null,
       known?el('div',{class:'wz-space','aria-hidden':'true'},el('span',{style:'--used:'+(100*(1-space.free_bytes/space.total_bytes)).toFixed(1)+'%'})):null),
-    el('button',{type:'button',class:'text-button wz-change',text:'Change USB',onclick:changeUsb}));
+    el('button',{type:'button',class:'secondary wz-change',id:'wz-change',text:'Change USB',onclick:toList}));
 }
 function changesBox(){
   const update=modUpdate(W.inspection.recorded_mod_version?.id?W.inspection.recorded_mod_version:null,savedModVersion());
@@ -300,7 +340,7 @@ function tree(){return createUsbTree({nodes:usbLoadout(W.inspection,{driveLabel:
 function viewDevice(){
   return el('section',{class:'wz-device'},
     el('div',{class:'wz-card'},driveHeader(),statusBlock(),jobSlot),
-    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy the finished autoexec.bin to the USB afterward.'}):null,
+    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.'}):null,
     tiles(),
     buildLine(),quadEntry(),
     el('details',{class:'wz-files',open:W.filesOpen?true:null,ontoggle:event=>{W.filesOpen=event.target.open;}},
@@ -346,7 +386,8 @@ function startFlow(kind,{profile=false,gamesOpen=false}={}){
   const withLook=(kind==='install'||kind==='update')&&lookAvailable();
   const steps=[...(withProfile?['profile']:[]),...(withLook?['look']:[]),...((kind==='install'||kind==='update')?['quad']:[]),'review','writing','done',...((kind==='install'||kind==='update')?['support']:[])];
   if(kind==='profile')W.games=installedGames(ins);
-  go({view:'flow',flow:{kind,steps},step:gamesOpen?'review':steps[0],loader:FLOWS[kind].loader,result:null,gamesOpen,quadConfirmed:false,quadPaused:false});focusStep();
+  const entry=gamesOpen?'review':steps[0];
+  go({view:'flow',flow:{kind,steps,entry},step:entry,loader:FLOWS[kind].loader,result:null,gamesOpen,quadConfirmed:false,quadPaused:false});focusStep();
 }
 function backToDevice(){
   if(W.flow?.steps.includes('profile')&&W.step!=='done')window.djProfilePage?.discard();
@@ -357,7 +398,17 @@ function goto(step){
   if(W.view!=='flow'||!W.flow.steps.includes(step))return;
   W.step=step;render();host.scrollIntoView({block:'start'});focusStep();
 }
-function previous(){const steps=W.flow.steps,index=steps.indexOf(W.step);if(index>0)goto(steps[index-1]);else backToDevice();}
+// Back is the screen before: the step before this one, or the dashboard from the step the guide opened on.
+// Support goes back to the results. A running write and the done screen have no Back.
+function previous(){
+  if(W.view!=='flow')return;
+  if(W.flow.kind==='quad')return closeQuad();
+  if(W.step==='support')return goto('done');
+  if(W.step==='writing'||W.step==='done')return;
+  const steps=W.flow.steps,index=steps.indexOf(W.step);
+  if(index>steps.indexOf(W.flow.entry??steps[0]))goto(steps[index-1]);else backToDevice();
+}
+function nextStep(){return W.flow.steps[W.flow.steps.indexOf(W.step)+1];}
 function flowHead(){
   const steps=W.flow.steps,index=steps.indexOf(W.step),cancellable=W.step==='profile'||W.step==='look'||W.step==='review'||W.step==='quad';
   return el('div',{class:'wz-flow-head'},
@@ -365,27 +416,39 @@ function flowHead(){
     el('div',{class:'wz-flow-progress'},
       el('span',{class:'wz-flow-count',text:'Step '+(index+1)+' of '+steps.length}),
       el('ol',{class:'wz-dots','aria-hidden':'true'},...steps.map((step,i)=>el('li',{dataset:{state:i<index?'done':i===index?'current':'todo'}})))),
-    cancellable?el('button',{type:'button',class:'text-button wz-cancel',text:'Cancel',onclick:W.flow.kind==='quad'?closeQuad:backToDevice}):null);
+    // Cancel leaves the guide for the USB list, so another USB or a folder is one click away.
+    cancellable?el('button',{type:'button',class:'text-button wz-cancel',text:'Cancel',onclick:W.flow.kind==='quad'?closeQuad:toList}):null);
 }
-function navButtons(next,label,primary=true){
-  return el('div',{class:'actions wz-nav'},
-    el('button',{type:'button',class:primary?'primary':'secondary',text:label,onclick:next}),
-    el('button',{type:'button',class:'secondary',text:'Back',onclick:previous}));
+// Every step ends in the same bar: Back on the left, the way forward on the right, the main action last. The bar
+// stays in view when a step is taller than the window. A running write has no bar: its own panel has Cancel.
+function action(label,onclick,kind='primary',extra={}){return el('button',{type:'button',class:kind,text:label,onclick,...extra});}
+function foot(back,...next){
+  return el('div',{class:'wz-foot'},
+    back?el('button',{type:'button',class:'secondary wz-back',id:'wz-back',onclick:back},icon('back'),el('span',{text:'Back'})):null,
+    el('div',{class:'wz-foot-next'},...next));
 }
-// Skipping is allowed but not the suggested path, so Skip for now is not drawn as the primary action.
-function stepNav(){
-  if(W.view!=='flow'||W.step!=='profile')return null;
-  const profile=profilePlan()||W.inspection?.dj_profiles?.count;
-  const next=W.flow.steps[W.flow.steps.indexOf('profile')+1];
-  return navButtons(()=>goto(next),profile?'Next':'Skip for now',Boolean(profile));
+function stepFoot(){
+  switch(W.step){
+    case 'profile':{
+      // Skipping is allowed but not the suggested path, so Skip for now is not drawn as the primary action.
+      const profile=profilePlan()||W.inspection?.dj_profiles?.count;
+      return foot(previous,action(profile?'Next':'Skip for now',()=>goto(nextStep()),profile?'primary':'secondary'));
+    }
+    case 'look':return foot(previous,action('Next',()=>goto(nextStep())));
+    case 'quad':return W.flow.kind==='quad'?foot(previous,action('Done',closeQuad)):
+      foot(previous,action('Skip for now',quadNext,'text-button'),action('Next',quadNext));
+    case 'review':return foot(previous,action('Write to USB',startWrite,'primary',{id:'wz-write',disabled:nothingToWrite()?true:null}));
+    case 'done':return foot(null,...doneActions());
+    case 'support':return foot(previous,action('Finish',W.eject?.state==='done'?afterEject:backToDevice,'primary',{id:'wz-support-finish'}));
+    default:return null;
+  }
 }
-function refreshNav(){const old=host.querySelector('.wz-nav'),next=stepNav();if(old&&next)old.replaceWith(next);}
+function refreshNav(){const old=host.querySelector('.wz-foot');if(old&&W.view==='flow'&&W.step==='profile')old.replaceWith(stepFoot());}
 // dj-profile.js draws into the slot (and asks for refreshNav as the draft changes).
 function stepProfile(){
   return [el('h3',{text:'Your DJ profile'}),
     el('p',{class:'wz-lead',text:'Your name and logo on the XZ, and for VJ software on the same network. '+(W.inspection.dj_profiles?.count?'Edit it here, or go on.':'It takes a minute. Skip it if you like and add it later.')}),
-    el('div',{id:'wz-djp-slot'}),
-    stepNav()];
+    el('div',{id:'wz-djp-slot'})];
 }
 
 // This guide records a user's observation only. It makes no host/device requests or settings changes.
@@ -402,7 +465,7 @@ function closeQuad(){
   go(target||{view:W.inspection?'device':'find',flow:null,step:null});
   host.querySelector('#wz-quad-open')?.focus({preventScroll:true});
 }
-function quadNext(){if(W.flow.kind==='quad')closeQuad();else goto(W.flow.steps[W.flow.steps.indexOf('quad')+1]);}
+function quadNext(){if(W.flow.kind==='quad')closeQuad();else goto(nextStep());}
 function quadStatus(){return W.quadConfirmed?'User confirmation: you saw four decks. This app has not detected or verified the cable connection.':'Connection not checked by this app. Confirm the result on the XZ.';}
 // The cable guide's picture: the deck's own loopback-cable explainer (source/.../mods/ui/cable_anim.c), rendered for
 // the app by tools/build_cable_media.py. Muted, looping, no controls; with reduced motion, its first frame.
@@ -439,11 +502,7 @@ function stepQuad(){
     el('details',{class:'wz-quad-trouble'},el('summary',{text:'Still two decks, or no CH3/CH4 audio?'}),
       el('p',{text:'Confirm the matching four-deck loader and bridge are running. With all decks stopped, check rear USB-B → top USB1, music USB2 and the CH3/CH4 USB selectors. If the cable was connected before boot, leave the rear USB-B end in place and reconnect only the free USB-A end after startup. Stop every deck before reconnecting.'}),
       el('p',{text:'These USB1 loopback / USB2 music instructions describe the paired quad beta setup. Other loader/bridge configurations may differ. This guide does not detect your configuration. Reopen it from USB → Set up four decks.'})),
-    el('p',{class:'wz-mono',text:'Keep the music USB connected. Music removal and full RAM carry are unsupported. Four-deck stems are still incomplete.'}),
-    el('div',{class:'actions wz-nav'},
-      el('button',{type:'button',class:'secondary',text:'Back',onclick:W.flow.kind==='quad'?closeQuad:previous}),
-      el('button',{type:'button',class:'primary',text:'Next',onclick:quadNext}),
-      el('button',{type:'button',class:'text-button',text:'Skip for now',onclick:quadNext}))];
+    el('p',{class:'wz-mono',text:'Keep the music USB connected. Music removal and full RAM carry are unsupported. Four-deck stems are still incomplete.'})];
 }
 
 // --- the screen the XZ starts with ---
@@ -513,8 +572,7 @@ function stepLook(){
     el('p',{class:'wz-lead',text:'XZ Mods can draw the whole player screen itself, or keep the deck\'s own screen.'}),
     el('div',{class:'wz-look-step',dataset:{choice:choice===LOOK_NEW?'new':'standard'}},
       el('div',{class:'wz-look',role:'radiogroup','aria-label':'Screen the XZ shows'},...LOOKS.map(look=>lookCard(look,choice))),
-      lookLater(choice)),
-    navButtons(()=>goto('quad'),'Next')];
+      lookLater(choice))];
 }
 // The review lists what the write will do, from the same plan data the write uses.
 function planLines(){
@@ -559,16 +617,13 @@ function stepReview(){
   const nothing=nothingToWrite();
   return [el('h3',{text:'Ready to write to '+driveLabel()}),
     planList(),
-    el('div',{class:'wz-games-change'},
+    W.inspection.requires_copy_to_usb_root?null:el('div',{class:'wz-games-change'},
       el('button',{type:'button',class:'text-button',id:'wz-change-games','aria-expanded':String(W.gamesOpen),text:W.gamesOpen?'Hide games':'Change games',onclick:()=>{W.gamesOpen=!W.gamesOpen;render();}}),
       W.gamesOpen?gamesChooser():null),
-    nothing?el('p',{class:'notice',role:'status',text:'Nothing to write yet. Add a game or a DJ profile, or cancel.'}):null,
-    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy the finished autoexec.bin to the USB afterward.'}):null,
+    nothing?el('p',{class:'notice',role:'status',text:'Nothing to write yet. Add a game or a DJ profile, or go back.'}):null,
+    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.'}):null,
     safeLine(),
     ejectChoice(),
-    el('div',{class:'actions wz-nav-write'},
-      el('button',{type:'button',class:'primary',id:'wz-write',disabled:nothing?true:null,text:'Write to USB',onclick:startWrite}),
-      el('button',{type:'button',class:'secondary',text:'Back',onclick:previous})),
     jobSlot];
 }
 function stepWriting(){return [el('h3',{text:'Writing to '+driveLabel()}),planList(),safeLine(),ejectChoice(),jobSlot];}
@@ -648,9 +703,8 @@ function stepDone(){
   if(r.settings)lines.push('Settings saved to the USB and read back.');
   if(r.profile?.ok)lines.push('DJ profile '+r.profile.name+' saved to the USB.',...(r.profile.notes||[]));
   lines.push(...r.errors);
-  const trouble=Boolean(failed.length||r.errors.length),ejected=W.eject?.state==='done',ejecting=W.eject?.state==='ejecting';
+  const trouble=Boolean(failed.length||r.errors.length),ejected=W.eject?.state==='done';
   if(failed.length&&ejectAfterWrite()&&canEject()&&!W.eject)lines.push('The USB was not ejected, so you can retry the failed games first.');
-  const offerEject=canEject()&&!ejected&&!failed.length;
   return [el('div',{class:'wz-done-hero',dataset:{tone:trouble?'warn':'ok'}},el('span',{class:'wz-done-mark'},icon(trouble?'alert':'check')),
       el('h3',{text:trouble?'Finished, with something to check':'Your USB is ready'})),
     el('ul',{class:'wz-done'},...lines.map(text=>el('li',{text}))),
@@ -660,15 +714,19 @@ function stepDone(){
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
       el('li',{text:'On the play screen, press MENU or touch MODS at the top right to open the menu. Hold MENU for the player’s own settings. HOME is the first page.'}),el('li',{text:'The button next to LINK switches between the Classic and Modern screens.'}),el('li',{text:'Test the loader before you use it in a set.'}))):null,
-    el('div',{class:'actions'},
-      failed.length?el('button',{type:'button',class:'primary',text:'Retry the failed games',onclick:()=>retryGames(failed)}):null,
-      offerEject?el('button',{type:'button',class:'primary wz-eject',id:'wz-eject',disabled:ejecting?true:null,'aria-busy':ejecting?'true':null,onclick:ejectUsb},
-        ejecting?el('span',{class:'wz-spinner wz-spinner-dark','aria-hidden':'true'}):icon('eject'),
-        el('span',{text:ejecting?'Ejecting…':W.eject?.state==='error'?'Try ejecting again':'Eject USB'})):null,
-      el('button',{type:'button',class:failed.length||offerEject?'secondary':'primary',id:'wz-done',disabled:ejecting?true:null,text:'Done',onclick:ejected?afterEject:backToDevice}),
-      r.profile?.ok?el('button',{type:'button',class:'secondary',text:'Make the profile track',onclick:()=>showPage('dj-profile')}):null),
     failed.length||ejected?null:ejectChoice(true),
     jobSlot];
+}
+// The done screen has no Back: the write cannot be undone. Its ways out sit in the bar, the main one last.
+function doneActions(){
+  const r=W.result,failed=failedGames(),ejected=W.eject?.state==='done',ejecting=W.eject?.state==='ejecting';
+  const offerEject=canEject()&&!ejected&&!failed.length;
+  return [r.profile?.ok?action('Make the profile track',()=>showPage('dj-profile'),'secondary'):null,
+    action('Done',ejected?afterEject:backToDevice,failed.length||offerEject?'secondary':'primary',{id:'wz-done',disabled:ejecting?true:null}),
+    failed.length?action('Retry the failed games',()=>retryGames(failed)):null,
+    offerEject?el('button',{type:'button',class:'primary wz-eject',id:'wz-eject',disabled:ejecting?true:null,'aria-busy':ejecting?'true':null,onclick:ejectUsb},
+      ejecting?el('span',{class:'wz-spinner wz-spinner-dark','aria-hidden':'true'}):icon('eject'),
+      el('span',{text:ejecting?'Ejecting…':W.eject?.state==='error'?'Try ejecting again':'Eject USB'})):null];
 }
 function ejectStatus(){
   if(W.eject?.state==='done')return el('p',{class:'wz-ejected',role:'status'},icon('check'),el('span',{text:'USB ejected. You can unplug it now.'}));
@@ -691,26 +749,44 @@ function stepSupport(){
     el('p',{text:'Every feature stays available whether you contribute or not. Thanks for using it and sharing what works for you.'}),
     el('div',{class:'wz-support-link'},supportLink('Support on Cash App','https://cash.app/$FireAtWill42'),el('code',{text:'$FireAtWill42'})),
     el('p',{class:'muted',text:'Opens Cash App in your browser. You choose whether to pay and how much.'}),
-    el('p',{class:'wz-support-credit',text:'Created by VJ OpticMystic. Updates and projects: @opticmysticvj. Available for live VJ performances and custom visuals.'}),
-    el('div',{class:'actions'},
-      el('button',{type:'button',class:'primary',id:'wz-support-finish',text:'Finish',onclick:W.eject?.state==='done'?afterEject:backToDevice}),
-      el('button',{type:'button',class:'secondary',text:'Back to results',onclick:()=>goto('done')})))];
+    el('p',{class:'wz-support-credit',text:'Created by VJ OpticMystic. Updates and projects: @opticmysticvj. Available for live VJ performances and custom visuals.'}))];
 }
 const STEPS={support:stepSupport,quad:stepQuad,profile:stepProfile,look:stepLook,review:stepReview,writing:stepWriting,done:stepDone};
-function viewFlow(){return el('section',{class:'wz-flow',dataset:{step:W.step}},flowHead(),el('div',{class:'wz-flow-body'},...STEPS[W.step]()));}
+function viewFlow(){return el('section',{class:'wz-flow',dataset:{step:W.step}},flowHead(),el('div',{class:'wz-flow-body'},...STEPS[W.step]()),stepFoot());}
 
 const VIEWS={find:viewFind,device:viewDevice,flow:viewFlow};
+// A re-render (a USB list that changed, a toggle) keeps keyboard focus on the same button.
+function focusedButton(){
+  const node=document.activeElement;
+  if(node?.tagName!=='BUTTON'||!host.contains(node))return null;
+  return node.dataset.volume?{volume:node.dataset.volume}:node.dataset.tile?{tile:node.dataset.tile}:node.id?{id:node.id}:null;
+}
+function refocus(key){
+  if(!key||(document.activeElement&&document.activeElement!==document.body&&host.contains(document.activeElement)))return;
+  const node=[...host.querySelectorAll('button')].find(item=>key.volume?item.dataset.volume===key.volume:key.tile?item.dataset.tile===key.tile:item.id===key.id);
+  if(node&&!node.disabled)node.focus({preventScroll:true});
+}
 function render(){
   // The shared job panel may sit inside a view being replaced; re-place it so its ids stay in the document.
-  const hadPanel=host.contains(jobPanel);
+  const hadPanel=host.contains(jobPanel),focused=focusedButton();
   host.replaceChildren(VIEWS[W.view]());
   if(hadPanel||feedbackLive)positionFeedback();
   // The done step lists the outcome itself; a finished job panel would say it twice.
   if(W.view==='flow'&&W.step==='done'&&!feedbackLive&&!jobPanel.classList.contains('is-error'))jobPanel.classList.add('hidden');
   for(const listener of listeners)listener();
+  refocus(focused);
   schedulePoll();
 }
-window.setupWizard={state:W,render,shown,refreshNav,goto,startFlow,chooseUsb,findAndChoose,usbCard,driveLabel,loaderChoice,newGames,settingsChanges,onRender:listener=>listeners.push(listener)};
+// Escape is Back: in a guide it presses Back where the bar has one; on the dashboard it is Change USB. Never while
+// typing, in a dialog, or on another page.
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape'||event.defaultPrevented||event.repeat||$('setup').classList.contains('hidden')||document.querySelector('dialog[open]'))return;
+  if(event.target.closest?.('input:not([type=checkbox]):not([type=radio]),textarea,select,[contenteditable]'))return;
+  const target=W.view==='flow'?host.querySelector('#wz-back'):W.view==='device'?host.querySelector('#wz-change'):null;
+  if(!target||target.disabled)return;
+  event.preventDefault();target.click();
+});
+window.setupWizard={state:W,render,shown,refreshNav,goto,startFlow,chooseUsb,findAndChoose,usbCard,usable,driveLabel,loaderChoice,newGames,settingsChanges,onRender:listener=>listeners.push(listener)};
 // Other pages can hand over a USB they already read.
 window.openSetupFor=inspection=>{open(inspection.volume,inspection);showPage('setup');followNewest();};
 shown();
