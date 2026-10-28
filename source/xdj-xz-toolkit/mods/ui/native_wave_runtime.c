@@ -10,6 +10,11 @@
 #include "native_skin_runtime.h"
 #include "native_raw_skin.h"
 #include "layered_wave_runtime.h"
+#include "ram_notice.h"
+/* Optional parts: harnesses without them show no RAM card, and an absent column count means nothing is known. */
+#pragma weak xz_layered_wave_native_columns
+#pragma weak xz_ram_notice_two_lane
+#pragma weak xz_ram_notice_four_lane
 #include "../runtime.h"
 #include <pthread.h>
 #include <stdio.h>
@@ -82,6 +87,16 @@ static int pair_seen_valid;
 static uint32_t pair_seen_at,pair_from;
 static const char *pair_text;
 static _Thread_local uint8_t four_keep[XZ_FOUR_KEEP_BYTES];
+/* RAM ONLY (ui_runtime.c, ram/status.h DETACHED): bit d while deck d plays its whole track from RAM since the music
+   USB went out. The draw thread shows the RAM card (ram_notice.h) in that deck's lane only while it has no waveform:
+   decks 1 and 2 when the player drew fewer than RAM_WAVE_COLUMNS columns from waveform data this frame (or the
+   column hook is absent, so nothing is known), decks 3 and 4 when their player published no waveform. */
+#define RAM_WAVE_COLUMNS 200
+static unsigned ram_mask;
+static _Thread_local unsigned ram_frame;
+static _Thread_local int ram_rows;
+void xz_native_ram_notice_set(unsigned mask){__atomic_store_n(&ram_mask,mask&15u,__ATOMIC_RELEASE);}
+static void ram_four(uint16_t *pixels);
 struct xz_inline_proof { uint32_t version,captures,frames,skipped; };
 __attribute__((visibility("default"))) struct xz_inline_proof xz_inline_proof_v1={1,0,0,0};
 
@@ -106,7 +121,8 @@ static int play_scene(struct xz_native_wave_scene *s){
 static int four_view(void){return xz_deck_layout_get()!=XZ_LAYOUT_TWO;}
 static int scene(struct xz_native_wave_scene *s){
  return ((requested&&requested())||xz_mods_native_style_v1()||xz_layered_wave_active()||
-         __atomic_load_n(&route_up,__ATOMIC_ACQUIRE)||__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE)||four_view())&&play_scene(s);
+         __atomic_load_n(&route_up,__ATOMIC_ACQUIRE)||__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE)||four_view()||
+         __atomic_load_n(&ram_mask,__ATOMIC_ACQUIRE))&&play_scene(s);
 }
 static void ready_route(int up,uint32_t now){
  if(__atomic_exchange_n(&ready_seen_up,up,__ATOMIC_ACQ_REL)!=up){
@@ -327,6 +343,7 @@ static void style_four(uint16_t *pixels,uint32_t count){
   struct xz_four_frame frame={&extra,four_frame_order,0,0,0,four_frame_detail,0,!four_frame_live};
   xz_four_identity_draw(pixels,count,&frame);
  }
+ ram_four(pixels);
  /* The card after the theme, in its own colours; it says what a route notice would. */
  if(xz_route_card_visible(&card_frame)){
   struct xz_four_layout g;xz_four_layout_get(four_frame_order,&g);
@@ -335,6 +352,44 @@ static void style_four(uint16_t *pixels,uint32_t count){
    (int)g.lane_y[2],(int)g.lane_y[3],&card_frame,cached?&card_cache:NULL);
   if(cached)__atomic_store_n(&card_cache_busy,0,__ATOMIC_RELEASE);
  }else if(four_frame_detail<0)notice_banner(pixels,count);
+}
+/* The decks that show the RAM card this frame; after the player drew its columns, with this frame's snapshot. */
+static unsigned ram_cards_now(void){
+ unsigned mask=__atomic_load_n(&ram_mask,__ATOMIC_ACQUIRE),out=0;
+ for(unsigned d=0;d<2;d++)if(mask>>d&1u){
+  int columns=xz_layered_wave_native_columns?xz_layered_wave_native_columns(d):-1;
+  if(columns<RAM_WAVE_COLUMNS)out|=1u<<d;
+ }
+ for(unsigned i=0;i<XZ_EXTRA_DECKS;i++)if(mask>>(2+i)&1u){
+  const struct xz_extra_deck *e=&extra.deck[i];
+  int wave=(e->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_WAVE))&&e->wave.columns&&e->wave.count;
+  if(e->loaded&&!wave)out|=4u<<i;
+ }
+ return out;
+}
+static struct xz_canvas ram_surface(uint16_t *pixels){return (struct xz_canvas){pixels,XZ_WAVE_WIDTH,XZ_WAVE_WIDTH,XZ_WAVE_HEIGHT,0};}
+/* 2 DECKS, over the finished surface: each native lane where its stem layout put it, a side on DECK 3 or 4 in
+   that deck's half. The notice banner keeps its place over them. */
+static void ram_two(uint16_t *pixels,uint32_t count){
+ struct xz_wave_layout g;
+ if(count!=XZ_NATIVE_WAVE_PIXELS||!ram_frame||!xz_ram_notice_two_lane||!xz_wave_layout_get(ram_rows,&g))return;
+ for(unsigned side=0;side<2;side++){
+  if(two_frame_pair>>side&1u){
+   if(ram_frame>>(2+side)&1u)xz_ram_notice_two_lane(ram_surface(pixels),(int)XZ_TWO_LANE_Y(side),132);
+  }else if(ram_frame>>side&1u)xz_ram_notice_two_lane(ram_surface(pixels),(int)g.lane_y[side],(int)g.lane_height);
+ }
+}
+static void ram_two_banner(uint16_t *pixels,uint32_t count){ram_two(pixels,count);notice_banner(pixels,count);}
+static void ram_two_styled(uint16_t *pixels,uint32_t count){
+ ram_two(pixels,count);
+ if(__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE))notice_banner(pixels,count);
+}
+/* Four decks: below each lane's deck tag, the lane's lower edge left clear. Not over the open DECK 3/4 panel, nor
+   over decks 3 and 4 while their route card stands in their lanes. */
+static void ram_four(uint16_t *pixels){
+ struct xz_four_layout g;
+ if(!ram_frame||four_frame_detail>=0||!xz_ram_notice_four_lane||!xz_four_layout_get(four_frame_order,&g))return;
+ for(unsigned d=0;d<XZ_FOUR_DECKS;d++)if(ram_frame>>d&1u&&(d<2||four_frame_live))xz_ram_notice_four_lane(ram_surface(pixels),(int)g.lane_y[d]);
 }
 static int unlock_hook(void *window){
     xz_native_raw_skin_before_unlock(window);
@@ -366,11 +421,17 @@ static int unlock_hook(void *window){
         /* Two decks again, or decks 3 and 4 down: the DECK 3/4 panel has nothing to show and closes. */
         if(!four||!four_frame_live)xz_native_four_set_detail(-1);
         if(!four)card_route_seen=0;
+        ram_frame=ram_cards_now();ram_rows=inline_rows;
         if(scene(&current)&&!observe_only){
             if(four)drawn=xz_native_wave_finish_four(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,four_frame_order,draw_extra,style_four);
             else if(two_frame_pair)drawn=xz_native_wave_finish_pair(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
-                scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,inline_rows,two_frame_pair,draw_two,style_two,notice_banner);
+                scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,inline_rows,two_frame_pair,draw_two,style_two,
+                ram_frame?ram_two_banner:notice_banner);
+            /* The RAM card goes over the finished surface, so the banner moves after it to stay on top. */
+            else if(ram_frame)drawn=xz_native_wave_finish_styled_after(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
+                scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,
+                xz_mods_native_style_v1()?style_main_wave:NULL,inline_rows,ram_two_styled);
             else drawn=xz_native_wave_finish_styled(&pair,&current,(uintptr_t)pthread_self(),(uintptr_t)window,
                 scratch,XZ_NATIVE_WAVE_PIXELS,renderer,renderer_context,
                 (xz_mods_native_style_v1()||__atomic_load_n(&notice_up,__ATOMIC_ACQUIRE))?style_main_notice:NULL,inline_rows);

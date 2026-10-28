@@ -26,6 +26,8 @@ extern int xz_ram_retained_source(unsigned,struct xz126_deck_source *) __attribu
 #define CENTER(deck) (65u+(deck)*136u)
 typedef void (XZ_WAVE_ABI *native_column_fn)(unsigned,unsigned,unsigned,unsigned,unsigned,float);
 static native_column_fn stock_column;
+/* Columns the player drew with waveform data for each native deck this frame (xz_layered_wave_native_columns). */
+static _Thread_local unsigned native_columns[2];
 struct prepared {uint32_t player,file_frames;int mode,pc;unsigned physical,slot;uint32_t epoch,serial;char path[XZ126_READER_PATH_MAX];struct xz_wave_load load;struct xz_layered_data data;};
 /* Published read-only to the draw thread; the worker is the only writer. A replaced copy
  * is freed only after RETIRE_MS, so a frame that picked it up always finishes with it.
@@ -212,6 +214,7 @@ const struct xz_layered_col *xz_layered_wave_drawn(unsigned deck,struct xz_layer
 }
 void xz_layered_wave_begin(uint16_t *pixels){
  xz_layered_wave_end();
+ native_columns[0]=native_columns[1]=0;
  if(xz_layered_wave_enabled())frame_began=now_us();
  drawn.any=0;memset(drawn.col,0,sizeof(drawn.col));
  if(!xz_layered_wave_active()||!pixels)return;
@@ -234,8 +237,13 @@ void xz_layered_wave_begin(uint16_t *pixels){
   }
  }
 }
+int xz_layered_wave_native_columns(unsigned deck){
+ if(deck>=2||!stock_column)return -1;
+ return (int)native_columns[deck];
+}
 static void XZ_WAVE_ABI column(unsigned deck,unsigned x,unsigned first,unsigned end,unsigned bg,float scale){
  stock_column(deck,x,first,end,bg,scale);
+ if(deck<2&&end>first&&native_columns[deck]<WIDTH)native_columns[deck]++;
  if(deck<2)for(unsigned k=0;k<3;k++)if(x==zoom_x[k]){
   zoom.first[deck][k]=first;zoom.seen[deck]|=(uint8_t)(1u<<k);
   __atomic_store_n(&zoom_background,bg,__ATOMIC_RELAXED);
