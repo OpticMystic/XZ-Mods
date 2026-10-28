@@ -40,9 +40,9 @@ The app downloads the official firmware it needs from the manufacturer and check
 You prepare the USB in the XZ Mods app on your computer. It does not format the drive or touch your music.
 
 1. Install the XZ Mods app and open it.
-2. Plug in your USB. The app finds it and opens it.
+2. Plug in your USB. The app finds it and opens it. With several USBs plugged in, choose yours from the list.
 3. Choose **Install XZ Mods**.
-4. Follow the short guide: your DJ profile, the screen the XZ starts with, the four-deck cable guide, then a checklist of what it will write.
+4. Follow the short guide: your DJ profile, the screen the XZ starts with, the four-deck cable guide, then a checklist of what it will write. **Back** returns to the step before.
 5. Choose **Write to USB**, then **Eject USB**.
 
 ```figure app:install-review XZ Mods app · Install XZ Mods
@@ -50,7 +50,7 @@ The checklist before the write. Music, playlists and prepared stems are never to
 1 @ 580,227 Loader | XZ Mods itself.
 2 @ 706,273 Games | Free games the app downloads and checks.
 3 @ 540,319 Interface | The screen the XZ starts with.
-4 @ 632,737 Your files | What the write never changes.
+4 @ 890,728 Write to USB | Writes everything in the checklist.
 ```
 
 Every step of the app is in [The XZ Mods app](desktop-app#usb). To add stems to your tracks, see [Stems](stems).
