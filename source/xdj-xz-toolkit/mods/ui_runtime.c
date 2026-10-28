@@ -103,6 +103,11 @@ static uint32_t ram_debug_sample_ms;
 #pragma weak xz_native_four_card_input
 /* 2 DECKS follows the sides (FOUR_DECK.md): the halves the wave last painted as DECK 3 or 4. */
 #pragma weak xz_native_two_pair
+/* CLASSIC's calm card for the loopback cable's E-8307 window and the RAM-only notice in the wave lanes. */
+#pragma weak xz_native_raw_skin_hub_calm
+#pragma weak xz_native_ram_notice_set
+#include "hub_cause.h"
+#include "ui/native_raw_skin.h"
 #pragma weak xz_shell_runtime_take_deck_view
 #pragma weak xz_shell_runtime_screen
 #pragma weak xz_support_identity_load
@@ -629,6 +634,21 @@ static int extra_jump_page(int logical_deck){
 }
 /* Decks 3 and 4's route: the connector's published status, copied field for field (no IO, no lock). Without
    the connector in this build every field stays zero: NO_ENGINE. */
+/* The player's E-8307 hub warning (../hub_cause.h): its firmware text, what it means now, and CLASSIC's calm card in
+   the player's own window while the loopback cable explains it (ui/native_raw_skin.c). After the route is read. */
+static struct xz_hub_watch hub_watch;
+static int hub_calm_shown;
+static void hub_refresh_locked(void){
+    const char *text=xz_stock_usb_hub_text?xz_stock_usb_hub_text():NULL;
+    model.usb_hub=text;
+    model.usb_hub_view=(int)xz_hub_step(&hub_watch,text,xz_hub_route_cable(model.route.state,model.route.revision),xz_game_milliseconds());
+    int calm=model.usb_hub_view==XZ_HUB_CABLE;
+    if(calm!=hub_calm_shown){
+        hub_calm_shown=calm;
+        if(xz_native_raw_skin_hub_calm)xz_native_raw_skin_hub_calm(calm);
+        xz_native_skin_request_repaint();
+    }
+}
 static void route_refresh_locked(void){
     struct xz_extra_route_status s={0};
     if(xz_extra_decks_route_status)s=xz_extra_decks_route_status();
@@ -636,6 +656,7 @@ static void route_refresh_locked(void){
     memcpy(model.route.reason,s.reason,sizeof model.route.reason);model.route.reason[sizeof model.route.reason-1]=0;
     model.route.checked_at_ms=s.checked_at_ms;model.route.revision=s.revision;
     model.route.ready_revision=s.ready_revision;
+    hub_refresh_locked();
 }
 static void deck_status_refresh_locked(void){
     deck_view_follow_locked();
@@ -1342,7 +1363,7 @@ static void support_context_locked(struct xz_support_report *r){
     r->deck_view=model.deck_view>=0&&model.deck_view<=2?model.deck_view:0;
     unsigned errors=xz_ui_counter_errors(&model);
     for(int d=0;d<2;d++)r->alert[d]=(errors>>d&1)&&xz_diary_error_code?xz_diary_error_code(model.counter_error[d].code):0;
-    r->alert[2]=model.usb_hub&&model.usb_hub[0]?8307u:0;
+    r->alert[2]=xz_ui_usb_hub_notice(&model)?8307u:0;
     r->have_settings=1;
     r->settings[0]=!!s.stems;r->settings[1]=!!s.gate;r->settings[2]=s.ui_interface;r->settings[3]=s.classic_theme;
     r->settings[4]=s.deck_view;r->settings[5]=!!s.browse_preview;
@@ -2391,6 +2412,12 @@ static void refresh_local(void) {
     __atomic_add_fetch(&xz_prepared_proof_v1.sequence,1,__ATOMIC_SEQ_CST);
     __atomic_add_fetch(&xz_mods_key_proof_v1.sequence,1,__ATOMIC_SEQ_CST);
     for(int deck=0;deck<4;deck++)ram_refresh(deck);
+    /* CLASSIC's wave surface: the decks playing their whole track from RAM since the music USB went out. */
+    if(xz_native_ram_notice_set){
+        unsigned ram_only=0;
+        for(int deck=0;deck<4;deck++)if(model.deck[deck].ram.state==XZ_UI_RAM_DETACHED)ram_only|=1u<<deck;
+        xz_native_ram_notice_set(ram_only);
+    }
     for (int deck = 0; deck < 2; deck++) {
         if(model.deck[deck].pc_stems.source!=XZ_UI_SOURCE_LOCAL){key_valid[deck]=0;continue;}
         model.deck[deck].ready = XZ_UI_GATE | XZ_UI_SMART | XZ_UI_THEME;
@@ -3513,7 +3540,6 @@ static void counter_errors_locked(void){
         if(!(mask>>d&1u)||!xz_stock_counter_alert(ids[d],&a))a.code=a.text=NULL;
         model.counter_error[d]=(struct xz_ui_counter_error){a.code,a.text};
     }
-    model.usb_hub=xz_stock_usb_hub_text?xz_stock_usb_hub_text():NULL;
 }
 static int render_mods_frame(uint16_t *pixels, uint32_t width,
         uint32_t height, uint32_t stride, const struct xz_vj_connection_v1 *connection) {
