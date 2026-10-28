@@ -50,3 +50,27 @@ The capture process is a host execution of real renderer and handler code with f
 New local fixtures: 30 supplies two image paths and a decoded checkerboard logo; 31 makes image preview fail; 32 makes profile save fail; 33 clears those failure callbacks; 34/35 remove/restore the profile USB-presence snapshot; 36 makes network verification fail; 37 supplies a deck counter error for REPORT THIS. No image, profile, report or network state is read from or written to a USB.
 
 The full third batch belongs in `E:/Claude/xz-beta-rc-scratch/nav-capture-3/`. Earlier interrupted or superseded third-pass generations have distinct sibling names and are not acceptance evidence. REPORT.md lists unfinished host coverage explicitly.
+
+## Chapter A host adapters
+
+Use `--flow 'nav-a-*'` to render or check this branch's 24 flows together. The
+filter accepts shell-style patterns. `--check` also validates required observed
+snapshots and deck-specific handler actions. These checks catch successful taps
+that never cause the requested transition.
+
+Fixture codes 200..207 publish connector states; 220..228 publish USB stem
+readiness; 240/241 remove/restore cue support; 242 assigns stem pads to SLIP LOOP;
+250 supplies a deck-3 read error; 251 supplies RAM-only playback; 260 selects the
+CLASSIC four-deck host fixture; 270 refuses a native beat-jump backend request.
+None connects hardware or starts a service. The setup buttons emit production
+requests; local callbacks supply the shown outcomes.
+
+`nav_adapter_perf.h` includes the unchanged cue state machine with local
+cue-read, pause, seek and memory callbacks. `nav_adapter_classic.h` uses the
+existing runtime fixture's real `touch_hook` and `xz_four_frame_draw`. Native
+wave pixels are reconstructed with the existing preview's BELOW / HALF inverse
+row map. The stock header, side column and bottom panels remain a photograph.
+
+Run `python tools/nav_review_sheets.py <capture> <proof-dir>` for exhaustive
+pixel-deduplicated review sheets. A generated sheet is not a visual acceptance
+receipt. See REPORT-A.md for the reviewed batch and remaining host work.

@@ -185,3 +185,81 @@ The table inventories every level-two and level-three chapter heading. Flow assi
 | troubleshooting#messages-in-the-xz-mods-app | None | needs_host_implementation |
 | troubleshooting#the-diary-on-your-usb-sticks | None | needs_host_implementation |
 | troubleshooting#report-a-problem | report-dock-entry | Scripted excerpts |
+
+## Chapter A assignment update
+
+These rows supersede the older assignments above for this branch. Assignments
+remain excerpts; REPORT-A.md lists unfinished operations.
+
+| Section | Flows or reason |
+|---|---|
+| browse#browsing-in-modern | browse-category-folder |
+| browse#moving-through-a-list | encoder-list |
+| browse#loading-a-track | browse-load |
+| browse#info-panel | browse-rating-edit |
+| browse#sort-columns-and-the-track-menu | browse-cue-loop-load, browse-loop-load, browse-menu, browse-sort-columns, browse-tag-edit |
+| browse#filter | filter |
+| browse#search | search, search-results-load |
+| browse#tag-list | tag-list |
+| browse#playlists | playlists |
+| browse#source | source |
+| browse#info | browse-rating-edit, info |
+| browse#browsing-in-classic | closed_stock_firmware |
+| browse#browse-settings | nav-a-browse-settings |
+| browse#if-browsing-goes-wrong | nav-a-browse-recovery |
+| four-decks#what-you-need | physical_usb |
+| four-decks#set-up-four-decks | nav-a-route-rescan |
+| four-decks#add-music-and-a-usb-hub | physical_usb |
+| four-decks#the-4-decks-page-in-mods | nav-a-four-page |
+| four-decks#the-card-in-every-state | nav-a-route-states |
+| four-decks#the-e-8307-hub-warning | physical_usb |
+| four-decks#deck-view | nav-a-deck-orders, nav-a-four-page |
+| four-decks#the-decks-button-and-its-picker | deck-view |
+| four-decks#switch-a-side-between-decks | physical-double-shift-1, physical-double-shift-2 |
+| four-decks#the-modern-four-deck-screen | nav-a-four-detail |
+| four-decks#the-classic-four-deck-screen | nav-a-classic-four |
+| four-decks#load-tracks-onto-decks-3-and-4 | nav-a-four-load |
+| four-decks#info-source-and-utility-with-four-decks | nav-a-four-fullscreens |
+| four-decks#what-decks-3-and-4-can-do | needs_host_implementation |
+| four-decks#sync-on-decks-3-and-4 | needs_host_implementation |
+| four-decks#limits | informational |
+| performance#the-play-page | mods-play, mods-play-values |
+| performance#beat-jump | beat-jump, physical-beat-jump |
+| performance#change-the-jump-sizes | beat-jump-pages |
+| performance#decks-3-and-4 | informational |
+| performance#when-a-jump-is-refused | nav-a-jump-refused |
+| performance#gate-cue-and-smart-cue | nav-a-gate-smart |
+| performance#feature-setup | nav-a-feature-gate, nav-a-feature-smart |
+| performance#keys-and-key-sync | keys, physical-key-sync |
+| performance#from-the-deck | physical-key-sync |
+| performance#the-keys-page | key-shift-sync, keys, keys-values |
+| performance#the-key-on-the-modern-play-screen | informational |
+| performance#the-key-on-the-classic-play-screen | informational |
+| performance#playing-key | nav-a-playing-key |
+| performance#ram-tracks | ram-copy-error, ram-tracks |
+| performance#when-the-music-usb-goes-out | nav-a-ram-detached |
+| performance#quantize | physical-quantize |
+| play-screen#the-modern-play-screen | nav-a-play-zoom-time |
+| play-screen#top-bar | nav-a-four-stems, nav-a-play-zoom-time |
+| play-screen#deck-column-and-waveform-lanes | nav-a-play-zoom-time |
+| play-screen#deck-strip | nav-a-play-zoom-time |
+| play-screen#key-and-key-sync | key-shift-sync |
+| play-screen#waveform-colours | nav-a-play-colours |
+| play-screen#notices | nav-a-choose-track-error |
+| play-screen#shortcut | shortcut |
+| play-screen#the-classic-play-screen | classic-stems, nav-a-classic-four |
+| play-screen#scrolling-waveform | nav-a-classic-wave-choices |
+| play-screen#if-something-looks-wrong | nav-a-playing-key |
+| stems#prepare-stems | desktop_platform |
+| stems#turn-stems-on | nav-a-stem-toggle |
+| stems#stem-buttons-on-the-play-screen | nav-a-stem-layouts |
+| stems#modern-stem-buttons | stem-mute-bypass |
+| stems#stem-buttons-in-4-decks | nav-a-four-stems |
+| stems#classic-stem-rows | classic-stems |
+| stems#stem-pads | physical-stem-pads, stem-pads, stem-pads-values |
+| stems#stem-order | mods-stems-values-all |
+| stems#stem-colours | stem-colours, stem-colours-values |
+| stems#stem-readiness | nav-a-usb-setup |
+| stems#usb-stems-setup | nav-a-usb-setup |
+| stems#stems-in-dj-software | pc-stems |
+| stems#if-stems-do-not-play | nav-a-stem-toggle, nav-a-stem-layouts |

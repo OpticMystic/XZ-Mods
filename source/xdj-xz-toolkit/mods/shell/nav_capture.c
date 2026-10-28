@@ -28,6 +28,11 @@ static struct xz_ui_dj dj;
 static struct xz_ui ui;
 static struct xz_ui_model um;
 static uint16_t pixels[800*480];
+static int classic_four;
+int nav_classic_detail(void);
+void nav_classic_start(struct xz_ui_model *);
+void nav_classic_touch(int,int,int);
+void nav_classic_draw(uint16_t *,const uint16_t *,unsigned);
 static int panel, classic_inline,classic_picker,classic_down=-9;
 static uint16_t stock[800*480];
 static uint16_t surface[536*96];
@@ -50,6 +55,7 @@ static const char logo_images[2][256]={"DJPROFILE/dj test/logo.png","pictures/al
 static char profile_names[32][641],profile_tags[32][321];
 static struct xz_shell_my_settings_model my_settings={.source=XZ_SHELL_SRC_USB1,.source_name="USB 1",.on_stick=1,.writable=1,.stored=&settings};
 static const char *output;
+#include "nav_adapter_perf.h"
 static void string(const char *s){putchar('"');for(;s&&*s;s++){if(*s=='"'||*s=='\\')putchar('\\');if((unsigned char)*s>=32)putchar(*s);}putchar('"');}
 static void apply_ui(struct xz_ui_action *a,size_t n){
  for(size_t i=0;i<n;i++){struct xz_ui_action v=a[i];int d=v.deck>=0&&v.deck<4?v.deck:ui.deck;effect("MODS",v.kind,v.deck,v.index,v.value);
@@ -66,6 +72,8 @@ static void apply_ui(struct xz_ui_action *a,size_t n){
  snprintf(um.support.reference,sizeof um.support.reference,"R-TEST-0001");
  snprintf(um.support.result,sizeof um.support.result,"%s",report_result==XZ_SUPPORT_SAVED?"OFFLINE":report_result==XZ_SUPPORT_UNSAVED?"FULL":"OK");
  snprintf(um.support.detail,sizeof um.support.detail,"OFFLINE");break;
+ case XZ_UI_LOCAL_STEM_SETUP_OPEN:xz_ui_navigate(&ui,XZ_UI_LOCAL_STEM_SETUP);ui.deck=v.deck<2?v.deck:0;break;
+ case XZ_UI_LOCAL_STEM_SETUP_STEP:if(um.deck[ui.deck].usb_reason==XZ_UI_USB_WHY_NONE)panel=0;else if(v.index==1)um.enabled|=XZ_UI_STEM;break;
  case XZ_UI_CLOSE:panel=0;break;
  case XZ_UI_OPEN_UTILITY:panel=0;{struct xz_shell_action o[XZ_SHELL_ACTIONS];xz_shell_input(&sh,&sm,&(struct xz_shell_event){.kind=XZ_SHELL_KEY,.key=XZ_SHELL_KEY_MENU_HOLD,.deck=-1},o);}break;
  case XZ_UI_SET_INTERFACE:um.ui_interface=(int)v.value;um.theme=um.ui_interface?XZ_THEME_FLAGSHIP:um.classic_theme;break;
@@ -90,7 +98,7 @@ static void apply_ui(struct xz_ui_action *a,size_t n){
  case XZ_UI_RAM_REQUEST:um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_LOADING;break;
  default:break;
  }
- nav_runtime_apply(&um,&ui,&v);
+ nav_runtime_apply(&um,&ui,&v);nav_perf_ui(&v);
  }
 }
 static void search_fixture(void){
@@ -103,7 +111,7 @@ static void search_fixture(void){
 }
 static void shell_event(struct xz_shell_event e){
  struct xz_shell_action a[XZ_SHELL_ACTIONS];size_t n=xz_shell_input(&sh,&sm,&e,a);
- for(size_t i=0;i<n;i++){effect("shell",a[i].kind,a[i].deck,a[i].id,(float)a[i].value);switch(a[i].kind){
+ for(size_t i=0;i<n;i++){effect("shell",a[i].kind,a[i].deck,a[i].id,(float)a[i].value);nav_perf_shell(&a[i]);switch(a[i].kind){
  case XZ_SHELL_ACT_OPEN_MODS:panel=1;xz_ui_navigate(&ui,a[i].value>=0?(enum xz_ui_page)a[i].value:XZ_UI_HOME);break;
  case XZ_SHELL_ACT_DECK_LAYOUT:sm.layout_preference=a[i].value+1;break;
  case XZ_SHELL_ACT_WAVE_ORDER:sm.layout_preference=a[i].value?3:2;break;
@@ -141,7 +149,8 @@ static void render(void){
  enum xz_shell_screen screen=xz_shell_screen(&sh);
  if(screen==XZ_SHELL_BROWSE||screen==XZ_SHELL_SEARCH||screen==XZ_SHELL_TAG_LIST||screen==XZ_SHELL_PLAYLIST){if(browse.screen!=screen){if(screen==XZ_SHELL_PLAYLIST)bx_folders(&browse,&library,screen);else bx_tracks(&browse,&library,screen);}bx_panels(&browse,&library);browse.edit=browse.rows==library.folders?XZ_SHELL_EDIT_PLAYLISTS:XZ_SHELL_EDIT_TRACKS;browse.edit_playlist=1;static const struct xz_shell_cue_entry cues[]={{.ms=16000,.comment="INTRO CUE"},{.loop=1,.ms=32000,.end_ms=40000,.comment="EIGHT BEAT LOOP"}};const struct xz_shell_browse_row *r=xz_shell_browse_highlight(&sh,&sm);browse.cue_track=r?r->id:0;browse.cues=cues;browse.cue_count=2;}
 
- if(classic_inline){memcpy(pixels,stock,sizeof pixels);if(!xz_ui_inline_render(&ui,&um,surface,536*96,536,536,96))exit(4);for(int y=0;y<96;y++)memcpy(pixels+(y+18)*800+131,surface+y*536,536*sizeof(uint16_t));
+ if(classic_four){nav_classic_draw(pixels,stock,now);}
+ else if(classic_inline){memcpy(pixels,stock,sizeof pixels);if(!xz_ui_inline_render(&ui,&um,surface,536*96,536,536,96))exit(4);for(int y=0;y<96;y++)memcpy(pixels+(y+18)*800+131,surface+y*536,536*sizeof(uint16_t));
  struct xz_canvas canvas={pixels,800,800,480,um.theme};
  xz_deck_view_button_draw(canvas,&xz_deck_view_classic,um.deck_view,1,sm.sides_extra,classic_picker,0);
  if(classic_picker)xz_deck_view_picker_draw(canvas,&xz_deck_view_classic,um.deck_view,1,-1);
@@ -153,13 +162,13 @@ static void render(void){
  if(changed){static unsigned char rgb[800*480*3];memcpy(previous,pixels,sizeof pixels);for(int i=0;i<800*480;i++){unsigned p=pixels[i];rgb[i*3]=(unsigned char)(((p>>11)&31)*255/31);rgb[i*3+1]=(unsigned char)(((p>>5)&63)*255/63);rgb[i*3+2]=(unsigned char)((p&31)*255/31);}FILE *f=fopen(output,"wb");if(!f)exit(5);fprintf(f,"P6\n800 480\n255\n");if(fwrite(rgb,1,sizeof rgb,f)!=sizeof rgb||fclose(f))exit(5);}
  printf("{\"changed\":%d,\"panel\":%d,\"page\":%d,\"title\":",changed,panel,panel?(int)ui.page:(int)sh.stack[sh.depth-1].screen);string(panel?xz_ui_page_title(ui.page):xz_shell_screen_name(sh.stack[sh.depth-1].screen));printf(",\"widgets\":[");
  if(panel){struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(&ui,&um,w);for(size_t i=0;i<n;i++){if(i)putchar(',');printf("{\"label\":");string(w[i].label);printf(",\"kind\":%d,\"index\":%d,\"setting\":%d,\"keyboard\":%d,\"x\":%d,\"y\":%d}",w[i].kind,w[i].index,setting_action(w[i].kind),w[i].kind==XZ_UI_SUPPORT_KEY||w[i].kind==XZ_UI_KEYBOARD,w[i].x+w[i].w/2,w[i].y+w[i].h/2);}}
- if(!panel){int n=0;struct xz_ui_widget bw[XZ_UI_WIDGETS];size_t bn=nav_browse_widgets(&sh,&sm,bw);for(size_t i=0;i<bn;i++)rect_widget(bw[i].label,(struct xz_shell_rect){bw[i].x,bw[i].y,bw[i].w,bw[i].h},&n);if(xz_shell_screen(&sh)==XZ_SHELL_SHORTCUT)rect_widget("NEEDLE LOCK",xz_shell_shortcut_slot(0,3),&n);struct xz_shell_model projection;xz_shell_play_projection(&sh,&sm,&projection);
+ if(!panel){int n=0;nav_perf_widgets(&n);struct xz_ui_widget bw[XZ_UI_WIDGETS];size_t bn=nav_browse_widgets(&sh,&sm,bw);for(size_t i=0;i<bn;i++)rect_widget(bw[i].label,(struct xz_shell_rect){bw[i].x,bw[i].y,bw[i].w,bw[i].h},&n);if(xz_shell_screen(&sh)==XZ_SHELL_SHORTCUT)rect_widget("NEEDLE LOCK",xz_shell_shortcut_slot(0,3),&n);struct xz_shell_model projection;xz_shell_play_projection(&sh,&sm,&projection);
  rect_widget("DECKS",xz_shell_play_rect(&projection,XZ_SHELL_R_VIEW_TWO,0),&n);
  rect_widget("DRUMS",xz_shell_stem_button(&sh,&projection,0,0),&n);
  rect_widget("BYPASS",xz_shell_bypass_button(&sh,&projection,0),&n);
  if(sh.stack[sh.depth-1].screen==XZ_SHELL_SEARCH){for(int k=0;k<XZ_SHELL_BROWSE_KEYS;k++)rect_widget(xz_shell_browse_key_label(k),xz_shell_browse_rect(&sh,&sm,XZ_SHELL_BR_KEY,k),&n);}
  }
- printf("],\"focus\":");struct xz_ui_widget focus;if(panel&&xz_ui_focused(&ui,&um,&focus))string(focus.label);else string("");printf(",\"effects\":[%s],\"classic_overlay\":%d}\n",effects,classic_inline);fflush(stdout);
+ printf("],\"focus\":");struct xz_ui_widget focus;if(panel&&xz_ui_focused(&ui,&um,&focus))string(focus.label);else string("");printf(",\"observations\":{\"classic_detail\":%d,\"view\":%d,\"four_stems_hidden\":%d,\"ram_only\":%d,\"loaded3\":%d},\"effects\":[%s],\"classic_overlay\":%d}\n",classic_four?nav_classic_detail():-1,sm.layout_preference,sm.four_stems_hidden,sm.deck[0].ram_only,sm.deck[2].track_no,effects,classic_inline);fflush(stdout);
 }
 int main(int argc,char **argv){
  if(argc!=3)return 2;FILE *bg=fopen(argv[2],"rb");if(!bg||fread(stock,2,800*480,bg)!=800*480)return 9;fclose(bg);output=argv[1];fx_track_build(&track,7);bx_build(&library);fx_model_four(&sm,&track);xz_shell_init(&sh);xz_ui_init(&ui);nav_runtime_init();xz_deck_select_init(&selection);xz_deck_select_route(&selection,1);bx_tracks(&browse,&library,XZ_SHELL_BROWSE);bx_folders(&browse,&library,XZ_SHELL_PLAYLIST);sm.browse=&browse;bx_tracks(&browse,&library,XZ_SHELL_BROWSE);sm.my_settings=&my_settings;sm.settings_screen=&settings;sm.settings.writable=((uint64_t)1<<XZ_SHELL_SET_TIME_MODE)|((uint64_t)1<<XZ_SHELL_SET_QUANTIZE);sm.capabilities|=XZ_SHELL_CAP_SET_SETTING;
@@ -174,7 +183,7 @@ int main(int argc,char **argv){
  for(int d=0;d<4;d++){um.deck[d].ready=0x3fff;um.deck[d].track=sm.deck[d].title;um.deck[d].bpm=128;um.deck[d].status="STEMS READY";um.deck[d].levels[0]=um.deck[d].levels[1]=um.deck[d].levels[2]=1;um.deck[d].ram.state=XZ_UI_RAM_EMPTY;um.deck[d].ram.supported=um.deck[d].ram.source_current=um.deck[d].ram.can_request=1;snprintf(um.deck[d].key_readout,48,"Am");}
  char line[512],cmd[64];int a,b,t;
  while(fgets(line,sizeof line,stdin)){a=b=t=0;if(sscanf(line,"%63s %d %d %d",cmd,&a,&b,&t)<1)continue;now=100000u+(unsigned)t;nav_clock_set(now);um.clock_ms=sm.clock_ms=now;effects_len=0;effects[0]=0;struct xz_ui_action o[XZ_UI_ACTIONS];size_t n=0;
- if(!strcmp(cmd,"fixture")){if(a==37){um.counter_error[0].code="E-8304";um.counter_error[0].text="USB ACCESS ERROR";}else if(a==30){dj.images_usb=0;dj.image_count=2;dj.images=logo_images;for(int i=0;i<160*160;i++)logo_tile[i]=((i/160/20+i%160/20)&1)?0x07ff:0xf81f;}else if(a==31){logo_failure=1;}else if(a==32){profile_failure=1;}else if(a==33){profile_failure=logo_failure=0;}else if(a==34){dj.usb_present=0;}else if(a==35){dj.usb_present=3;}else if(a==36){network_failure=1;}else if(a==22){for(int d=0;d<4;d++)sm.deck[d].playing=0;}else if(a==20){um.network.actual=(struct xz_net_snapshot){.generation=1,.observed_ms=now,.count=1};struct xz_net_adapter *ad=&um.network.actual.adapter[0];snprintf(ad->id.name,16,"fixture0");ad->id.ifindex=7;ad->id.identity_epoch=1;ad->id.mac_known=XZ_NET_YES;ad->admin_up=ad->link_up=ad->addresses_known=ad->gateway_known=XZ_NET_YES;ad->caps=63;ad->dhcp_enabled=XZ_NET_NO;ad->network_owner=XZ_NET_OWNER_MODS;ad->state_revision=1;um.network.phase=XZ_NET_IDLE;}else if(a==21){um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_ERROR;snprintf(um.deck[ui.ram_deck].ram.message,sizeof um.deck[ui.ram_deck].ram.message,"FIXTURE COPY ERROR");}else if(a>=100&&a<124){classic_inline=1;um.ui_interface=0;um.theme=um.classic_theme=a-100;um.stems_overlay=1;}else if(a>=10&&a<=12){report_result=a==10?XZ_SUPPORT_SENT:a==11?XZ_SUPPORT_SAVED:XZ_SUPPORT_UNSAVED;}else if(a==1){classic_inline=1;um.ui_interface=0;um.theme=um.classic_theme;um.stems_overlay=1;}else if(a==2){um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_READY;um.deck[ui.ram_deck].ram.can_request=0;um.deck[ui.ram_deck].ram.can_release=1;um.deck[ui.ram_deck].ram.bytes=um.deck[ui.ram_deck].ram.copied=16000000;}}
+ if(!strcmp(cmd,"fixture")){if(a==260){classic_four=1;nav_classic_start(&um);}else if(nav_perf_fixture(a)){}else if(a==37){um.counter_error[0].code="E-8304";um.counter_error[0].text="USB ACCESS ERROR";}else if(a==30){dj.images_usb=0;dj.image_count=2;dj.images=logo_images;for(int i=0;i<160*160;i++)logo_tile[i]=((i/160/20+i%160/20)&1)?0x07ff:0xf81f;}else if(a==31){logo_failure=1;}else if(a==32){profile_failure=1;}else if(a==33){profile_failure=logo_failure=0;}else if(a==34){dj.usb_present=0;}else if(a==35){dj.usb_present=3;}else if(a==36){network_failure=1;}else if(a==22){for(int d=0;d<4;d++)sm.deck[d].playing=0;}else if(a==20){um.network.actual=(struct xz_net_snapshot){.generation=1,.observed_ms=now,.count=1};struct xz_net_adapter *ad=&um.network.actual.adapter[0];snprintf(ad->id.name,16,"fixture0");ad->id.ifindex=7;ad->id.identity_epoch=1;ad->id.mac_known=XZ_NET_YES;ad->admin_up=ad->link_up=ad->addresses_known=ad->gateway_known=XZ_NET_YES;ad->caps=63;ad->dhcp_enabled=XZ_NET_NO;ad->network_owner=XZ_NET_OWNER_MODS;ad->state_revision=1;um.network.phase=XZ_NET_IDLE;}else if(a==21){um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_ERROR;snprintf(um.deck[ui.ram_deck].ram.message,sizeof um.deck[ui.ram_deck].ram.message,"FIXTURE COPY ERROR");}else if(a>=100&&a<124){classic_inline=1;um.ui_interface=0;um.theme=um.classic_theme=a-100;um.stems_overlay=1;}else if(a>=10&&a<=12){report_result=a==10?XZ_SUPPORT_SENT:a==11?XZ_SUPPORT_SAVED:XZ_SUPPORT_UNSAVED;}else if(a==1){classic_inline=1;um.ui_interface=0;um.theme=um.classic_theme;um.stems_overlay=1;}else if(a==2){um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_READY;um.deck[ui.ram_deck].ram.can_request=0;um.deck[ui.ram_deck].ram.can_release=1;um.deck[ui.ram_deck].ram.bytes=um.deck[ui.ram_deck].ram.copied=16000000;}}
  else if(!strcmp(cmd,"physical")){
  int release=a>=100,code=a%100,side=b;
  if(side<0||side>1)return 6;
@@ -183,8 +192,10 @@ int main(int argc,char **argv){
  if(code>=1&&code<=4){e.mode_button=code-1;if(!release&&!shifts[side])pages[side]=code-1;e.pad_page=pages[side];}
  else if(code>=10&&code<=17)e.pad=code-10;
  unsigned old_mute=um.deck[side].muted;int old_bypass=um.deck[side].bypass,old_interface=um.ui_interface;
+ nav_perf_pad(code,side,release);
  int beats=nav_runtime_event(&um,code,side,release,shifts[side],pages[side]);
- if(beats){effect("runtime-beat-jump",1,side,e.pad,(float)beats);sm.deck[side].elapsed_ms+=beats*60000/128;}
+ if(*nav_runtime_notice())sm.notice=nav_runtime_notice();
+ if(beats){effect("runtime-beat-jump",1,side,e.pad,(float)beats);if(!*nav_runtime_notice())sm.deck[side].elapsed_ms+=beats*60000/128;}
  sm.deck[side].key_synced=um.deck[side].key_synced;sm.deck[side].key_shift=um.deck[side].key_semitones;sm.deck[side].stem_muted=um.deck[side].muted;sm.deck[side].stem_bypass=um.deck[side].bypass;
  if(old_mute!=um.deck[side].muted||old_bypass!=um.deck[side].bypass)effect("runtime-pad",code,side,e.pad,1);
  if(old_interface!=um.ui_interface){classic_inline=!um.ui_interface;effect("rekordbox",1,side,0,(float)um.ui_interface);}
@@ -194,7 +205,7 @@ int main(int argc,char **argv){
  }
  else if(!strcmp(cmd,"turn")){if(panel)n=xz_ui_encoder_turn(&ui,&um,a,o);else shell_event((struct xz_shell_event){.kind=XZ_SHELL_ENCODER_TURN,.delta=a,.deck=-1});}
  else if(!strcmp(cmd,"push")){if(panel)n=xz_ui_encoder_push(&ui,&um,o);else shell_event((struct xz_shell_event){.kind=XZ_SHELL_ENCODER_PUSH,.deck=-1});}
- else if(!strcmp(cmd,"down")||!strcmp(cmd,"up")){int down=!strcmp(cmd,"down");if(classic_inline&&(classic_picker||xz_deck_view_button_hit(&xz_deck_view_classic,a,b))){
+ else if(!strcmp(cmd,"down")||!strcmp(cmd,"up")){int down=!strcmp(cmd,"down");if(classic_four){nav_classic_touch(a,b,down);}else if(classic_inline&&(classic_picker||xz_deck_view_button_hit(&xz_deck_view_classic,a,b))){
  if(down)classic_down=classic_picker?xz_deck_view_picker_hit(&xz_deck_view_classic,a,b):3;
  else{int hit=classic_picker?xz_deck_view_picker_hit(&xz_deck_view_classic,a,b):3;if(hit==classic_down){if(hit==3)classic_picker=1;else{if(hit>=0)um.deck_view=hit;classic_picker=0;}}classic_down=-9;}
  }else if(classic_inline)n=xz_ui_inline_touch(&ui,&um,536,96,a-131,b-18,down,o);else if(panel)n=xz_ui_touch(&ui,&um,a,b,down,o);else shell_event((struct xz_shell_event){.kind=down?XZ_SHELL_TOUCH_DOWN:XZ_SHELL_TOUCH_UP,.x=a,.y=b,.deck=-1});}

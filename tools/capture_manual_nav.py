@@ -1,4 +1,5 @@
 """Capture real C interface handlers against deterministic, offline fixture snapshots."""
+import fnmatch
 import argparse
 import hashlib
 import json
@@ -75,7 +76,7 @@ class Capture:
                 im.save(self.folder / name)
                 self.last = digest
         self.timeline.append(dict(t_ms=self.t, control=control, action=action, detail=detail,
-                                  frame=self.frames[-1]['frame'], panel=self.state['panel'], page=self.state['page'], effects=self.state.get('effects', [])))
+                                  frame=self.frames[-1]['frame'], panel=self.state['panel'], page=self.state['page'], effects=self.state.get('effects', []), observations=self.state.get('observations', {})))
         return self.state
 
     def wait(self, ms):
@@ -212,6 +213,15 @@ class Capture:
         return len(self.frames)
 
 
+def validate_observations(flow, timeline):
+    for required in flow.get('requires_observations', []):
+        if not any(all(t.get('observations', {}).get(k) == v for k, v in required.items()) for t in timeline):
+            raise RuntimeError(f'missing observed state: {required}')
+    for host, kind, deck in flow.get('requires_deck_actions', []):
+        if not any(e['host'] == host and e['kind'] == kind and e['deck'] == deck for t in timeline for e in t['effects']):
+            raise RuntimeError(f'missing deck action: {host}:{kind}:{deck}')
+
+
 def inputs():
     # Include transitive local headers as well as the renderer and handler closures. No mtimes or absolute paths.
     paths = list(MODS.rglob('*.h')) + [MODS/side/p for side,names in [('shell',SHELL_SOURCES),('ui',UI_SOURCES)] for p in names]
@@ -239,7 +249,7 @@ def main():
                 raise SystemExit(f'nonphysical entry key in {script.name}: {step["key"]}')
     if a.check:
         manifest = json.loads((a.out/'manifest.json').read_text())
-        expected = {p.stem for p in flow_scripts() if not a.flow or p.stem == a.flow}
+        expected = {p.stem for p in flow_scripts() if not a.flow or fnmatch.fnmatchcase(p.stem, a.flow)}
         if manifest.get('reused_binary'):
             raise SystemExit('development binary reuse is not acceptable capture evidence')
         if set(manifest['flows']) != expected:
@@ -255,6 +265,7 @@ def main():
                 raise SystemExit(f'missing output hash: {name}')
             flow = json.loads((ROOT/'manual/nav'/f'{name}.json').read_text())
             timeline = json.loads((a.out/name/'timeline.json').read_text())
+            validate_observations(flow, timeline)
             frames = json.loads((a.out/name/'frames.json').read_text())
             if not timeline or not frames['frames'] or any(b['t_ms'] < x['t_ms'] for x,b in zip(timeline,timeline[1:])):
                 raise SystemExit(f'invalid timeline: {name}')
@@ -273,7 +284,7 @@ def main():
     a.out.mkdir(parents=True, exist_ok=True)
     scripts = sorted(flow_scripts())
     if a.flow:
-        scripts = [s for s in scripts if s.stem == a.flow]
+        scripts = [s for s in scripts if fnmatch.fnmatchcase(s.stem, a.flow)]
     if not scripts:
         raise SystemExit('no matching flows')
     counts = {}
@@ -303,6 +314,7 @@ def main():
                 for host,kind,index in flow.get('requires_actions', []):
                     if not any(e['host']==host and e['kind']==kind and e['index']==index for t in c.timeline for e in t['effects']):
                         raise RuntimeError(f'{script.stem}: missing action {host}:{kind}:{index}')
+                validate_observations(flow, c.timeline)
                 counts[script.stem] = c.finish()
                 print(script.stem, counts[script.stem], flush=True)
             finally:

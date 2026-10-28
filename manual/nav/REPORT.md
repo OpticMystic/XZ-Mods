@@ -36,3 +36,10 @@ All 13 before/after ARM handler objects are byte-identical to baseline `00f16052
 ## Platform and scope boundaries
 
 Closed stock firmware owns stock CLASSIC browse/utility/dialog motion. Actual boot/install, USB persistence/media copy, real network responses, remote connections, audio and hardware require their respective platforms. Desktop app chapters need separate desktop captures. No XZ connection, USB write, public push, publication or LINK/PRO DJ LINK/CONTROL MODE protocol work occurred. Superseded third-pass generations are retained in separately named sibling directories and are not current acceptance evidence.
+
+## Chapter A implementation branch
+
+The additive chapter-A work is documented in [REPORT-A.md](REPORT-A.md). It adds
+24 host flows. The owner's complete action-level goal remains unfinished;
+assigned excerpts must not be counted as full section acceptance. The two
+software-player control headings remain explicit host implementation work.
