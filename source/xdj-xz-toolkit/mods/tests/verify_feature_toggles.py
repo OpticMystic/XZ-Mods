@@ -10,7 +10,7 @@ def main():
  parser.add_argument('--zig',required=True,type=Path)
  args=parser.parse_args()
  schema=json.loads((ROOT/'settings-schema.json').read_text())
- retired={'jump_shift_page','ram_debug','metrics_enabled','shift_pages','shift_keysync'}
+ retired={'jump_shift_page','ram_debug','metrics_enabled','shift_pages','shift_keysync','deck_view_button'}
  assert set(schema['retired_fields'])==retired
  assert not retired & {f['key'] for f in schema['fields']}
  # Every remaining saved boolean belongs to one distinct behavior. Adding a
@@ -41,9 +41,10 @@ def main():
  assert 'XZ_MODS_LAYERED_WAVE' not in (ROOT/'ui/layered_wave_runtime.c').read_text()
  assert 'XZ_MODS_INLINE' not in (ROOT/'ui/native_wave_runtime.c').read_text()
  assert 'XZ_KART_CONTROLS' not in (ROOT/'kart/xz_kart_runtime.c').read_text()
- jump=(ROOT/'ui/beat_jump.c').read_text()
+ # The shared resolver (ui/beat_jump.h) holds the page 1 gate since jumps work on all four decks.
+ jump=(ROOT/'ui/beat_jump.c').read_text()+(ROOT/'ui/beat_jump.h').read_text()
  assert 'cfg->shift_page' not in jump
- assert '(!page&&!cfg->enabled)' in jump
+ assert '(!s->page&&!cfg->enabled)' in jump
  # Windows cannot compile the Linux USB/mount implementation. Compile the exact
  # production definitions up to its filesystem boundary, without rewriting logic.
  source=(ROOT/'settings.c').read_text().split('static int paths(')[0]
