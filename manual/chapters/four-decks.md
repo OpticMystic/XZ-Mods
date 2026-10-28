@@ -163,7 +163,7 @@ DECK VIEW is saved to the USB with your other settings. You can change it in fiv
 - **TWO DECKS** on the card;
 - MODS > **SCREEN** > **DECK VIEW**;
 - MODS > **4 DECKS** > **DECK VIEW**;
-- the rekordbox button above LINK, when you set it to **DECK VIEW** in MODS > PLAY > **REKORDBOX BUTTON**. Each press then steps 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order.
+- the [[rekordbox]] button above [[LINK]], when you set it to **DECK VIEW** in MODS > PLAY > **REKORDBOX BUTTON**. Each press then steps 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order.
 
 ### The DECKS button and its picker
 
@@ -320,7 +320,7 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 | [[PLAY/PAUSE]], [[CUE]] | Play and pause, back cue and cue audition. With VINYL on, pause brakes to a stop at the VINYL SPEED ADJUST rate. |
 | [[HOT CUE]], [[BEAT LOOP]], [[SLIP LOOP]], [[BEAT JUMP]] | Set the pad mode of the software deck. The native deck keeps its own mode. |
 | Pads | Hot cues, beat loops, slip loops and beat jumps, as on decks 1 and 2. |
-| [[LOOP IN]], [[LOOP OUT]], [[RELOOP/EXIT]] | Manual loops, loop adjustment with the jog, reloop and exit. |
+| [[IN/CUE]], [[OUT]], [[RELOOP/EXIT]] | Manual loops, loop adjustment with the jog, reloop and exit. |
 | [[SLIP]], [[DIRECTION REV]], [[VINYL]] | Slip, reverse and vinyl mode. |
 | [[TEMPO RANGE]], [[TEMPO RESET]], [[MASTER TEMPO]] | Tempo range up to WIDE, original speed, and key lock while the tempo moves. |
 | [[SYNC]], [[MASTER]] | Follow the master deck's tempo, and with QUANTIZE its beat. Make this deck the master. See [SYNC on decks 3 and 4](#sync-on-decks-3-and-4). |

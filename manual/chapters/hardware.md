@@ -32,13 +32,13 @@ The XDJ-XZ from above: the browse section with the touch screen at the top centr
 | [[MENU]] press | Opens MODS on the play screen, the SOURCE screen, the INFO screen and the SHORTCUT screen {experimental}. Everywhere else it keeps its stock job. In MODS it closes MODS. |
 | [[MENU]] hold | Opens the player's own UTILITY, in both interfaces. |
 | [[BACK]] | Goes up one level. In MODS it steps from an open item to its page, then to the section rail. |
-| Rotary selector, turn | Moves the highlight to the next card, row or button in MODS. On a beat jump pair, after a push, it steps the jump size. |
-| Rotary selector, push | Opens or changes the highlighted item in MODS. |
-| rekordbox button | Does what you chose in MODS > PLAY > REKORDBOX BUTTON. The default is INTERFACE. |
-| [[SHIFT]] + rekordbox button | Hold [[SHIFT]] on either deck and press it. Does the second choice on the same page. The default is ITS OWN JOB. |
+| [[TURN]] Rotary selector, turn | Moves the highlight to the next card, row or button in MODS. On a beat jump pair, after a push, it steps the jump size. |
+| [[PUSH]] Rotary selector, push | Opens or changes the highlighted item in MODS. |
+| [[rekordbox]] | Does what you chose in MODS > PLAY > REKORDBOX BUTTON. The default is INTERFACE. |
+| [[SHIFT]] + [[rekordbox]] | Hold [[SHIFT]] on either deck and press it. Does the second choice on the same page. The default is ITS OWN JOB. |
 | [[LINK]] | Its stock job. With the screen switch key set to LINK it also switches the VJ.Tools view on and off. |
 | [[SHORTCUT]] | Opens the SHORTCUT screen. In MODERN this is MODERN's own SHORTCUT screen. |
-| [[LOAD]] 1, 2 | Loads the highlighted track into the deck that side controls: deck 1 or 3, deck 2 or 4. |
+| [[LOAD]] | Loads the highlighted track into the deck that side controls: deck 1 or 3, deck 2 or 4. |
 | [[TIME MODE]], [[DECK QUANTIZE]] | Stock on decks 1 and 2. For decks 3 and 4, see [Quantize](performance#quantize) and [Four decks](four-decks). |
 
 A short press of [[MENU]] keeps the job the player's own firmware gives it wherever there is one. This table comes from the firmware itself:
@@ -81,7 +81,7 @@ When VJ.Tools on a computer is connected, the player's screen can show the VJ.To
 | LINK (default) | Pressing [[LINK]]. [[LINK]] also keeps its stock job. |
 | ONSCREEN | A VJ.Tools button on the screen, in the corner opposite MODS. |
 
-To switch the view with the rekordbox button instead, set that button to VJ.TOOLS SCREEN. See [Connect and DJ profiles](connect) for the connection itself.
+To switch the view with the [[rekordbox]] button instead, set that button to VJ.TOOLS SCREEN. See [Connect and DJ profiles](connect) for the connection itself.
 
 ## Deck keys
 
@@ -179,7 +179,7 @@ If the loopback route goes down, both sides go back to decks 1 and 2. [Four deck
 |---|---|
 | [[MENU]] opens a stock menu instead of MODS | That screen has its own MENU job. Press [[BACK]] to the play screen, then press [[MENU]]. |
 | [[MENU]] opens UTILITY | You held it. A short press opens MODS. |
-| The rekordbox button does nothing | It is set to NOTHING. Change it in MODS > PLAY > REKORDBOX BUTTON. |
+| The [[rekordbox]] button does nothing | It is set to NOTHING. Change it in MODS > PLAY > REKORDBOX BUTTON. |
 | [[SHIFT]] twice shows DECK 3 AND 4 NEED THE CH3/CH4 ROUTE | Decks 3 and 4 are not connected. Open MODS > 4 DECKS. |
 | The TEMPO slider does not change the deck | Pickup after a deck switch. Move the slider through the deck's tempo. |
 | A key sync press shows a message on the deck's key | See [Keys and KEY SYNC](performance#keys-and-key-sync). |
