@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "ui_skin.h"
+#include "../hub_cause.h"
 #include "play_key.h"
 #include "wave_viewport.h"
 #include "ui_network.h"
@@ -878,8 +879,30 @@ static void hub_strip(void){
    if(!(x<XZ_UI_COUNTER_W&&y>=XZ_UI_COUNTER_Y&&y<XZ_UI_COUNTER_Y+XZ_UI_COUNTER_H))assert(frame[y*800+x]==plain[y*800+x]);
   assert(frame[(XZ_UI_COUNTER_Y+2)*800+1]==rgb565(0xff4619)&&frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb565(0x5a0c0c));
   memcpy(plain,frame,sizeof plain);
-  hub.route.state=XZ_UI_ROUTE_READY;assert(xz_ui_render(&u,&hub,frame,800*480,800));memcpy(ready,frame,sizeof ready);
-  assert(memcmp(plain,ready,sizeof plain));
+  /* From the loopback cable it is no error: the route proves the cable (READY, or a checked STARTING), or the
+     runtime says so (usb_hub_view); a warning still settling shows nothing either. The dock is exactly as without it. */
+  static uint16_t none[800*480];
+  struct xz_ui_model cable[4];for(int k=0;k<4;k++)cable[k]=hub;
+  cable[0].route.state=XZ_UI_ROUTE_READY;
+  cable[1].route.state=XZ_UI_ROUTE_STARTING;cable[1].route.revision=9;
+  cable[2].route.state=XZ_UI_ROUTE_WAITING_NATIVE_STOP;cable[2].route.revision=2;cable[2].usb_hub_view=XZ_HUB_WARN;
+  cable[3].route.state=XZ_UI_ROUTE_NOT_DETECTED;cable[3].usb_hub_view=XZ_HUB_CABLE;
+  for(int k=0;k<4;k++){
+   struct xz_ui_widget w[XZ_UI_WIDGETS],wq[XZ_UI_WIDGETS];
+   struct xz_ui_model quiet=cable[k];quiet.usb_hub=NULL;assert(xz_ui_render(&u,&quiet,none,800*480,800));
+   size_t nq=xz_ui_layout(&u,&quiet,wq);
+   assert(!xz_ui_usb_hub_notice(&cable[k])&&xz_ui_layout(&u,&cable[k],w)==nq&&!memcmp(w,wq,nq*sizeof *w));
+   assert(xz_ui_render(&u,&cable[k],frame,800*480,800)&&!memcmp(frame,none,sizeof none));
+  }
+  struct xz_ui_model settling=hub;settling.usb_hub_view=XZ_HUB_SETTLING;assert(!xz_ui_usb_hub_notice(&settling));
+  /* Not proven: no route, nothing found yet, an unchecked start, a failed port or a lost route keep the warning. */
+  static const int unproven[]={XZ_UI_ROUTE_NO_ENGINE,XZ_UI_ROUTE_NOT_DETECTED,XZ_UI_ROUTE_SCANNING,XZ_UI_ROUTE_STARTING,
+   XZ_UI_ROUTE_FAILED,XZ_UI_ROUTE_LOST};
+  for(size_t k=0;k<sizeof unproven/sizeof *unproven;k++){
+   struct xz_ui_model w=hub;w.route.state=unproven[k];w.route.revision=unproven[k]==XZ_UI_ROUTE_STARTING?0:5;w.usb_hub_view=XZ_HUB_WARN;
+   assert(xz_ui_usb_hub_notice(&w));
+  }
+  memcpy(ready,none,sizeof ready);
   if(getenv("XZ_HUB_PREVIEW")&&p<2){
    char path[512];
    for(int r=0;r<2;r++){

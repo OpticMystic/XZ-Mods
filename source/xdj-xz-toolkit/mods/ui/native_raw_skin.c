@@ -5,6 +5,10 @@
 #include <pthread.h>
 #include <string.h>
 #include <stddef.h>
+#include "ram_notice.h"
+#include "../stock_dialog.h"
+#pragma weak xz_stock_usb_hub_at
+#pragma weak xz_hub_card_draw
 
 extern int xz_native_skin_on_owner_thread(void);
 #define CACHE_COUNT 32
@@ -12,7 +16,14 @@ extern int xz_native_skin_on_owner_thread(void);
 #define SENTINEL 0x1234
 struct descriptor {uintptr_t gr,hw;unsigned width,height;};
 struct marker {struct descriptor d;int pitch;unsigned valid;uint16_t raw[8*48];};
-struct transaction {struct descriptor d;uint16_t *actual;int pitch,kind,slot;};
+struct transaction {struct descriptor d;uint16_t *actual;int pitch,kind,slot;uint32_t text;};
+/* The player's E-8307 hub window (../hub_cause.h). While the runtime says the loopback cable explains it, the
+   window shows the calm card (ram_notice.h xz_hub_card_draw) in its own place and size; the stock pixels are kept
+   so the window returns as the player drew it when the cause is no longer the cable. Owner thread only. */
+#define HUB_STOCK_PIXELS (800*240)
+static int hub_calm,hub_shown;
+static struct {struct descriptor d;int pitch,valid,saved;} hub;
+static uint16_t hub_stock[HUB_STOCK_PIXELS];
 static struct marker cache[CACHE_COUNT];
 static struct transaction pending;
 static _Alignas(64) uint16_t alert_scratch[1024*480];
@@ -60,9 +71,29 @@ static void paint_marker(struct marker *m,uint16_t *actual,int pitch){
   for(unsigned x=0;x<8;x++){unsigned at=y*8+x;row[x]=m->raw[at]==KEY565?KEY565:themed[at];}
  }
 }
+static void hub_paint(uint16_t *actual,int pitch,const struct descriptor *d,int calm){
+ if(calm&&xz_hub_card_draw)xz_hub_card_draw((struct xz_canvas){actual,(size_t)(pitch/2),(int)d->width,(int)d->height,0});
+ else if(!calm&&hub.saved)for(unsigned y=0;y<d->height;y++)
+  memcpy((unsigned char *)actual+(size_t)y*(unsigned)pitch,hub_stock+(size_t)y*d->width,d->width*2u);
+ hub_shown=calm;
+}
+/* After the player drew a caution window: note whether it is the hub warning, keep its stock pixels, and paint the
+   calm card over them while the cable explains it. */
+static void hub_drawn(const struct transaction *p,const struct descriptor *d){
+ if(!p->text||!xz_stock_usb_hub_at||!xz_stock_usb_hub_at(xz_read_memory,p->text)){
+  if(hub.d.gr==d->gr)memset(&hub,0,sizeof(hub));
+  return;
+ }
+ hub.d=*d;hub.pitch=p->pitch;hub.valid=1;hub.saved=(size_t)d->width*d->height<=HUB_STOCK_PIXELS;
+ if(hub.saved)for(unsigned y=0;y<d->height;y++)
+  memcpy(hub_stock+(size_t)y*d->width,(unsigned char *)p->actual+(size_t)y*(unsigned)p->pitch,d->width*2u);
+ if(__atomic_load_n(&hub_calm,__ATOMIC_ACQUIRE))hub_paint(p->actual,p->pitch,d,1);else hub_shown=0;
+}
+void xz_native_raw_skin_hub_calm(int calm){__atomic_store_n(&hub_calm,!!calm,__ATOMIC_RELEASE);}
 static int destroy_hook(void *gr){
  xz_native_window_keys_forget(gr);
  enter();
+ if(hub.d.gr==(uintptr_t)gr)memset(&hub,0,sizeof(hub));
  for(unsigned i=0;i<CACHE_COUNT;i++)if(cache[i].d.gr==(uintptr_t)gr){memset(&cache[i],0,sizeof(cache[i]));count(&xz_native_raw_skin_v1.evictions);}
  if(pending.d.gr==(uintptr_t)gr)memset(&pending,0,sizeof(pending));
  leave();return original_destroy(gr);
@@ -91,7 +122,9 @@ void xz_native_raw_skin_locked(void *gr,void **pixels,int *pitch,uintptr_t calle
   if(fresh||seed){memset(m,0,sizeof(*m));m->d=d;m->pitch=*pitch;if(seed){copy_raw(m,*pixels,*pitch,1);m->valid=1;}}
   else copy_raw(m,*pixels,*pitch,0);
  }
- pending=(struct transaction){d,*pixels,*pitch,kind,slot};
+ /* Caution windows: the browse family's callers read sCautionBrowseString, the status family's sCautionStatusString. */
+ uint32_t text=kind!=2?0u:caller==0x148444?XZ_STOCK_STATUS_TEXT:XZ_STOCK_BROWSE_TEXT;
+ pending=(struct transaction){d,*pixels,*pitch,kind,slot,text};
  if(kind==2){
   size_t n=(size_t)(*pitch/2)*d.height;
   for(size_t i=0;i<n;i++)alert_scratch[i]=SENTINEL;
@@ -124,6 +157,7 @@ void xz_native_raw_skin_before_unlock(void *hw){
    }
   }
   count(&xz_native_raw_skin_v1.alerts);
+  hub_drawn(&p,&d);
  }
  leave();
 }
@@ -141,6 +175,18 @@ void xz_native_raw_skin_repaint(void){
    paint_marker(m,pixels,pitch);count(&xz_native_raw_skin_v1.repaints);
   }else{m->valid=0;count(&xz_native_raw_skin_v1.rejected);}
   original_unlock((void *)m->d.gr);
+ }
+ /* The hub window follows the cause: calm card while the cable explains it, the stock pixels again when not. */
+ int calm=__atomic_load_n(&hub_calm,__ATOMIC_ACQUIRE);
+ if(hub.valid&&calm!=hub_shown){
+  struct descriptor d;void *pixels=NULL;int pitch=0;
+  if(!read_descriptor(hub.d.gr,&d,0)||!same(d,hub.d))memset(&hub,0,sizeof(hub));
+  else if(original_lock((void *)hub.d.gr,&pixels,&pitch)==0){
+   if(read_descriptor(hub.d.gr,&d,1)&&same(d,hub.d)&&pitch==hub.pitch&&pitch_valid(&d,pitch,pixels)){
+    hub_paint(pixels,pitch,&d,calm);count(&xz_native_raw_skin_v1.repaints);
+   }else count(&xz_native_raw_skin_v1.rejected);
+   original_unlock((void *)hub.d.gr);
+  }else count(&xz_native_raw_skin_v1.rejected);
  }
  repainting=0;leave();
 }

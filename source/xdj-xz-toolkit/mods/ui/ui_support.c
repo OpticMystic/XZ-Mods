@@ -476,7 +476,7 @@ static void send_step(const struct xz_ui_scene *s, const struct look *l) {
         size_t used = strlen(alert);
         snprintf(alert + used, sizeof alert - used, "%s%s on deck %d", used ? ", " : "", m->counter_error[d].code, d + 1);
     }
-    if (m->usb_hub && m->usb_hub[0]) {
+    if (xz_ui_usb_hub_notice(m)) {
         size_t used = strlen(alert);
         snprintf(alert + used, sizeof alert - used, "%sE-8307 on the USB port", used ? ", " : "");
     }
