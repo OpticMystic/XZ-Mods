@@ -36,6 +36,7 @@ with tempfile.TemporaryDirectory(prefix='xz-ui-test-') as folder:
         'pad-order': [*UI_SOURCES, 'stem_pads.c', 'test_pad_order.c'],
         'four-stems': [*UI_SOURCES, 'stem_pads.c', 'test_four_stems.c'],
         'ui': [*UI_SOURCES, 'test_ui.c'],
+        'support-ui': [*UI_SOURCES, 'test_support_ui.c'],
         'general-menu': [*UI_SOURCES, 'test_general_menu.c'],
         'help-parity': [*UI_SOURCES, 'test_help_parity.c'],
         'deck-caps': [*UI_SOURCES, 'test_deck_caps.c'],

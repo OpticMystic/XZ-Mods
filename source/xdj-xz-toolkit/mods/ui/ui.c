@@ -290,8 +290,8 @@ size_t xz_ui_back(struct xz_ui *u,struct xz_ui_action out[XZ_UI_ACTIONS]){
   size_t n=xz_ui_cancel(u,out);u->profile_open=0;
   u->focus_kind=XZ_UI_PROFILE;u->focus_index=0;u->focus_deck=-1;return n;
  }
- /* In the profile editor BACK goes one step back before it leaves. */
- if(xz_ui_profile_back(u))return xz_ui_cancel(u,out);
+ /* In the profile editor and REPORT AN ISSUE BACK goes one step back before it leaves. */
+ if(xz_ui_profile_back(u)||xz_ui_support_back(u))return xz_ui_cancel(u,out);
  enum xz_ui_page old=u->page,target=old;size_t n=xz_ui_cancel(u,out);
  if(u->history_count)target=u->history[--u->history_count];else if(!root_page(old))target=parent_page(old);
  u->notice[0]=0;
@@ -468,7 +468,9 @@ size_t xz_ui_layout(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_
  xz_ui_network_place(u,m,w,n);
  xz_ui_support_place(u,m,w,n);
  /* Last, so it never shifts focus or takes a touch from a control: touch only (CLOSE is not focusable), it closes
-    MODS onto the play screen, where the deck shows the error and CHOOSE TRACK. */
+    MODS onto the play screen, where the deck shows the error and CHOOSE TRACK. REPORT THIS comes first so its
+    touch wins over the strip's; it is touch only too (EXTRAS > REPORT AN ISSUE is the encoder's way in). */
+ if(n<XZ_UI_WIDGETS&&xz_ui_strip_report(u,m,&w[n]))n++;
  if(xz_ui_counter_errors(m)&&n<XZ_UI_WIDGETS){
   add(w,&n,XZ_UI_CLOSE,XZ_UI_CLOSE_COUNTER,0,"COUNTER ERROR");
   w[n-1].x=0;w[n-1].y=XZ_UI_COUNTER_Y;w[n-1].w=XZ_UI_COUNTER_W;w[n-1].h=XZ_UI_COUNTER_H;
@@ -477,6 +479,7 @@ size_t xz_ui_layout(const struct xz_ui *u,const struct xz_ui_model *m,struct xz_
 }
 static int ready(const struct xz_ui *u,const struct xz_ui_model *m,int deck,const struct xz_ui_widget *w){
  const struct xz_ui_deck *d=&m->deck[deck];
+ if(xz_ui_support_kind(w->kind))return xz_ui_support_ready(u,m,w);
  if(w->kind==XZ_UI_CONNECTION_ENABLE)return m->connection.ready&&m->connection.can_enable;
  if(w->kind==XZ_UI_DISCOVERY)return m->connection.ready&&m->connection.can_discover;
  if(xz_ui_profile_owns(w->kind))return xz_ui_profile_ready(u,m,w);
@@ -616,7 +619,7 @@ const char *xz_ui_ram_scope(const struct xz_ui_ram *r){
  return "COPIES AUDIO / STEMS STAY ON USB";
 }
 const char *xz_ui_footer_text(const struct xz_ui *u,const struct xz_ui_model *m){
- if(xz_ui_support_page(u->page))return u->notice[0]?u->notice:m->support.status[0]?m->support.status:"PREPARE SANITIZED DRAFT / PREVIEW SHA256 / SEND OR EXPORT";
+ if(xz_ui_support_page(u->page))return xz_ui_support_footer(u,m);
  if(xz_ui_network_page(u->page))return u->notice[0]?u->notice:m->network.detail[0]?m->network.detail:"SET UP NETWORK / CHANGES LAST UNTIL REBOOT";
  const struct xz_ui_deck *d=&m->deck[u->deck];
  const char *saved=m->settings_status?m->settings_status:"INSERT USB TO SAVE SETTINGS";
@@ -714,7 +717,7 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  size_t n=xz_ui_layout(u,m,w),skin_n=0;
  struct xz_ui_scene s=scene(u,m,(struct xz_canvas){pixels,stride,800,480,m->theme},&m->deck[u->deck],w,looks,n,&palette);
  /* Skins never see the profile chip or the counter error strip; shared chrome draws them the same in every theme. */
- for(size_t i=0;i<n;i++)if(!profile_kind(w[i].kind)&&!(w[i].kind==XZ_UI_CLOSE&&w[i].index==XZ_UI_CLOSE_COUNTER)){
+ for(size_t i=0;i<n;i++)if(!profile_kind(w[i].kind)&&!(w[i].kind==XZ_UI_CLOSE&&w[i].index==XZ_UI_CLOSE_COUNTER)&&w[i].kind!=XZ_UI_SUPPORT_ALERT){
   skin_w[skin_n]=w[i];skin_looks[skin_n++]=looks[i];
  }
  struct xz_ui_scene skin=s;skin.w=skin_w;skin.look=skin_looks;skin.n=skin_n;
@@ -722,7 +725,10 @@ static void render_page(const struct xz_ui *u,const struct xz_ui_model *m,uint16
  if(u->page==XZ_UI_STEM_COLORS)xz_ui_stem_colors(&s);
  if(u->page==XZ_UI_BAND_COLORS)xz_ui_band_colors(&s);
  if(u->page==XZ_UI_ABOUT){struct xz_ui_widget focus;int f=xz_ui_focused(u,m,&focus)&&focus.kind==XZ_UI_ABOUT_LINK?focus.index:-1;
-  xz_about_render(s.c,u->about_link,f,1);}
+  char loader[40];
+  if(m->support.loader_id[0])snprintf(loader,sizeof loader,"Loader %s",m->support.loader_id);
+  else snprintf(loader,sizeof loader,"Loader: not identified");
+  xz_about_render(s.c,u->about_link,f,1,loader);}
  xz_key_display_panel(pixels,stride,u,m);
  if(u->page>=XZ_UI_EXTRAS&&u->page!=XZ_UI_CONNECTION)xz_ui_page_details(&s);
  xz_ui_profile_render(&s);
@@ -914,6 +920,7 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
  if(a.kind==XZ_UI_PANEL||a.kind==XZ_UI_FEATURE_LINK){
   enum xz_ui_page old=u->page;xz_ui_navigate(u,(enum xz_ui_page)a.index);
   if(a.kind==XZ_UI_FEATURE_LINK&&root_page(u->page))u->history[u->history_count++]=old;
+  if(u->page==XZ_UI_SUPPORT&&old!=XZ_UI_SUPPORT)xz_ui_support_opened(u,m,old);
   u->capture=-1;out[n++]=action(XZ_UI_PANEL,XZ_UI_PRESS,u->deck,(int)old,(float)u->page,0);
  }
  else if(a.kind==XZ_UI_DECK){int old=u->deck;u->deck=a.index;u->capture=-1;out[n++]=action(a.kind,XZ_UI_PRESS,old,a.index,0,0);}

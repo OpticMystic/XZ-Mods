@@ -100,9 +100,13 @@ enum xz_ui_action_kind {
     XZ_UI_NETWORK_SETUP_OPEN, XZ_UI_NETWORK_DETECT, XZ_UI_NETWORK_ADAPTER, XZ_UI_NETWORK_PRIORITY,
     XZ_UI_NETWORK_MODE, XZ_UI_NETWORK_FIELD, XZ_UI_NETWORK_KEY, XZ_UI_NETWORK_STEP,
     XZ_UI_NETWORK_APPLY, XZ_UI_NETWORK_REVERT, XZ_UI_NETWORK_CANCEL, XZ_UI_ABOUT_LINK,
-    XZ_UI_SUPPORT_STEP, XZ_UI_SUPPORT_CATEGORY, XZ_UI_SUPPORT_SUMMARY, XZ_UI_SUPPORT_PREPARE,
-    XZ_UI_SUPPORT_PAGE, XZ_UI_SUPPORT_CONSENT, XZ_UI_SUPPORT_CLOCK, XZ_UI_SUPPORT_SEND,
-    XZ_UI_SUPPORT_EXPORT, XZ_UI_SUPPORT_CHECK,
+    /* REPORT AN ISSUE (ui_support.c), ten slots. STEP: index = the step to show. TOPIC: index = enum
+     * xz_support_topic, or -1 NOT SURE. KEY: index = the byte typed, or an XZ_UI_KB_* key. SKIP / NEXT leave the
+     * text step without or with the text. SEND and RETRY carry a send (value 1). EDIT goes back to the send step,
+     * DONE ends the report. ALERT: REPORT THIS on the dock's error strip (touch only). */
+    XZ_UI_SUPPORT_STEP, XZ_UI_SUPPORT_TOPIC, XZ_UI_SUPPORT_KEY, XZ_UI_SUPPORT_SKIP,
+    XZ_UI_SUPPORT_NEXT, XZ_UI_SUPPORT_EDIT, XZ_UI_SUPPORT_RETRY, XZ_UI_SUPPORT_SEND,
+    XZ_UI_SUPPORT_DONE, XZ_UI_SUPPORT_ALERT,
     /* DECK VIEW (settings deck_view): value 0 2 DECKS, 1 4 DECKS 1 2 3 4, 2 4 DECKS 3 1 2 4. Saved. */
     XZ_UI_DECK_VIEW,
     /* Retired (the DECKS button is always on the play screen): nothing lays it out or runs it. Kept for numbering. */
@@ -398,7 +402,10 @@ struct xz_ui {
     int edit_step, edit_origin;/* enum xz_ui_edit_step; origin is where the editor opened */
     int edit_logo;             /* image index, XZ_UI_LOGO_KEEP or XZ_UI_LOGO_NONE */
     int about_link;
-    struct { int step, category, summary, preview_page, consented, clock_edit, clock_field[5]; uint32_t consented_revision; char consented_sha256[65]; } support;
+    /* REPORT AN ISSUE: enum xz_ui_support_step; topic 0 none yet, 1..XZ_SUPPORT_TOPICS a topic + 1, else NOT SURE;
+       entry enum xz_support_entry; skipped: the DJ chose SKIP, so text stays here but is not sent. The text is
+       kept until the report is sent or saved, so nothing is typed twice. */
+    struct { int step, topic, entry, skipped; char text[XZ_SUPPORT_TEXT_CHARS + 1]; } support;
     int edit_logo_chosen;      /* the DJ picked; no automatic pick after that */
     int kb_shift, kb_symbols, image_offset;
     struct xz_network_ui_draft network;

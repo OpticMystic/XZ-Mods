@@ -103,6 +103,13 @@ static uint32_t ram_debug_sample_ms;
 /* 2 DECKS follows the sides (FOUR_DECK.md): the halves the wave last painted as DECK 3 or 4. */
 #pragma weak xz_native_two_pair
 #pragma weak xz_shell_runtime_take_deck_view
+#pragma weak xz_shell_runtime_screen
+#pragma weak xz_support_identity_load
+#include "audio/vendor/sha256/sha256.h"
+/* The settings fingerprint for REPORT AN ISSUE, the diary's; host harnesses without it send none. */
+#pragma weak sha256_init
+#pragma weak sha256_update
+#pragma weak sha256_final
 /* FLAGSHIP shell. Weak so UI harnesses link without it; the device build links it. */
 #pragma weak xz_shell_runtime_start
 #pragma weak xz_shell_runtime_stop
@@ -766,7 +773,40 @@ static void inline_layout_publish(void) {
    One menu, this panel, in both interfaces: MODERN draws it in the FLAGSHIP skin over the shell (the shell is
    not eligible while it shows, shell_eligible_locked). Closing it in MODERN also closes the shell's UTILITY when
    it was under the panel, so MODS always closes to the screen it was opened from. */
+/* REPORT AN ISSUE: the screen under MODS when it opened, as an enum only (native_support.h). */
+static int report_before=XZ_SUPPORT_AT_UNKNOWN;
+static enum xz_menu_place classic_menu_place_locked(void);
+static int report_place_locked(void){
+    if(model.ui_interface==XZ_UI_INTERFACE_MODERN){
+        switch(xz_shell_runtime_screen?xz_shell_runtime_screen():-1){
+        case XZ_SHELL_PLAY:return XZ_SUPPORT_AT_PLAY;
+        case XZ_SHELL_BROWSE:return XZ_SUPPORT_AT_BROWSE;
+        case XZ_SHELL_PLAYLIST:return XZ_SUPPORT_AT_PLAYLIST;
+        case XZ_SHELL_TAG_LIST:return XZ_SUPPORT_AT_TAG_LIST;
+        case XZ_SHELL_SEARCH:return XZ_SUPPORT_AT_SEARCH;
+        case XZ_SHELL_INFO:return XZ_SUPPORT_AT_INFO;
+        case XZ_SHELL_SHORTCUT:return XZ_SUPPORT_AT_SHORTCUT;
+        case XZ_SHELL_UTILITY:return XZ_SUPPORT_AT_UTILITY;
+        case XZ_SHELL_SOURCE:return XZ_SUPPORT_AT_SOURCE;
+        default:return XZ_SUPPORT_AT_UNKNOWN;}
+    }
+    switch(classic_menu_place_locked()){
+    case XZ_MENU_AT_PLAY:return XZ_SUPPORT_AT_PLAY;
+    case XZ_MENU_AT_STOCK_MENU:return XZ_SUPPORT_AT_STOCK_MENU;
+    case XZ_MENU_AT_TRACK_LIST:return XZ_SUPPORT_AT_TRACK_LIST;
+    case XZ_MENU_AT_TAG_LIST:return XZ_SUPPORT_AT_TAG_LIST;
+    case XZ_MENU_AT_GRID_ADJUST:return XZ_SUPPORT_AT_GRID_ADJUST;
+    case XZ_MENU_AT_SOURCE:return XZ_SUPPORT_AT_SOURCE;
+    case XZ_MENU_AT_INFO:return XZ_SUPPORT_AT_INFO;
+    case XZ_MENU_AT_SHORTCUT:return XZ_SUPPORT_AT_SHORTCUT;
+    case XZ_MENU_AT_UTILITY:return XZ_SUPPORT_AT_UTILITY;
+    case XZ_MENU_AT_TAKEOVER:return XZ_SUPPORT_AT_TAKEOVER;
+    case XZ_MENU_AT_GAME:return XZ_SUPPORT_AT_GAME;
+    case XZ_MENU_AT_OTHER:return XZ_SUPPORT_AT_OTHER;
+    default:return XZ_SUPPORT_AT_UNKNOWN;}
+}
 static void panel_show_locked(void){
+    if(!touch.visible)report_before=report_place_locked();
     play_key.open=0;play_key_dirty=1;__atomic_store_n(&play_key_visible,0,__ATOMIC_RELEASE);
     xz_native_touch_visible(&touch,1);__atomic_store_n(&visible,1,__ATOMIC_RELEASE);
 }
@@ -1290,16 +1330,38 @@ static void network_apply(const struct xz_ui_action *a) {
     if(result!=XZ_NET_OK)snprintf(ui.notice,sizeof ui.notice,"%s",xz_net_result_text(result));
 }
 static void support_refresh(void) {
-    if (xz_support_read) xz_support_read(&model.support, ui.support.preview_page);
+    if (xz_support_read) xz_support_read(&model.support, 0);
+}
+/* What REPORT AN ISSUE adds to the DJ's answers: the interface, the screen under MODS, the deck view, the error codes
+   on screen and the settings with the diary's fingerprint of them. Enums and numbers only. */
+static void support_context_locked(struct xz_support_report *r){
+    struct xz_settings s=settings_snapshot();
+    r->ui_interface=model.ui_interface==XZ_UI_INTERFACE_MODERN;
+    r->before=report_before;
+    r->deck_view=model.deck_view>=0&&model.deck_view<=2?model.deck_view:0;
+    unsigned errors=xz_ui_counter_errors(&model);
+    for(int d=0;d<2;d++)r->alert[d]=(errors>>d&1)&&xz_diary_error_code?xz_diary_error_code(model.counter_error[d].code):0;
+    r->alert[2]=model.usb_hub&&model.usb_hub[0]?8307u:0;
+    r->have_settings=1;
+    r->settings[0]=!!s.stems;r->settings[1]=!!s.gate;r->settings[2]=s.ui_interface;r->settings[3]=s.classic_theme;
+    r->settings[4]=s.deck_view;r->settings[5]=!!s.browse_preview;
+    char text[1024];int n=xz_settings_format(&s,text,sizeof text);
+    if(n>0&&sha256_init&&sha256_update&&sha256_final){
+        SHA256_CTX hash;unsigned char digest[32];static const char hex[]="0123456789abcdef";
+        sha256_init(&hash);sha256_update(&hash,(unsigned char *)text,(size_t)n);sha256_final(&hash,digest);
+        for(int i=0;i<32;i++){r->settings_sha256[2*i]=hex[digest[i]>>4];r->settings_sha256[2*i+1]=hex[digest[i]&15];}
+        r->settings_sha256[64]=0;
+    }
 }
 static void support_apply(const struct xz_ui_action *a) {
     struct xz_support_request_args req;
     if (!xz_ui_support_take_request(&ui, &model, a, &req)) return;
+    if (req.op == XZ_SUPPORT_OP_REPORT) support_context_locked(&req.report);
     if (!xz_support_request || xz_support_request(&req) != 0) {
-        if (xz_support_read) xz_support_read(&model.support, ui.support.preview_page);
+        if (xz_support_read) xz_support_read(&model.support, 0);
         if (model.support.status[0]) snprintf(ui.notice, sizeof ui.notice, "%.95s", model.support.status);
     } else if (xz_support_read) {
-        xz_support_read(&model.support, ui.support.preview_page);
+        xz_support_read(&model.support, 0);
     }
 }
 static void deck_view_apply(int view);
@@ -3665,6 +3727,8 @@ __attribute__((visibility("default"))) int xz_mods_render_v1(uint16_t *pixels,ui
 }
 
 int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
+    /* Which computer made this loader, for ABOUT and REPORT AN ISSUE. Read once; older loaders have none. */
+    if (xz_support_identity_load) xz_support_identity_load(getenv("XZ_MODS_USB"));
     static const unsigned char guard[8] = {0xf0,0x45,0x2d,0xe9,0x02,0x70,0xa0,0xe1};
     static const unsigned char link_guard[8] = {0x70,0x40,0x2d,0xe9,0x00,0x50,0xa0,0xe1};
     static const unsigned char rekordbox_guard[8] = {0x38,0x40,0x2d,0xe9,0x00,0x50,0xa0,0xe1};

@@ -794,9 +794,11 @@ static void counter_strip(void){
   assert(!memcmp(stop_plain,stop_err,sizeof stop_plain));
   if(!iface){assert(!xz_ui_counter_errors(&err)&&na==nb&&!memcmp(before,after,nb*sizeof *before)&&!memcmp(plain,frame,sizeof plain));continue;}
   assert(xz_ui_counter_errors(&err)==(unsigned)which);
-  /* One more widget, last: the strip on the dock's title row, touch only. Every other widget stays where it was. */
-  assert(na==nb+1&&!memcmp(before,after,nb*sizeof *before));
-  struct xz_ui_widget s=after[nb];
+  /* Two more widgets, last: REPORT THIS, then the strip on the dock's title row, both touch only. Every other widget
+     stays where it was. */
+  assert(na==nb+2&&!memcmp(before,after,nb*sizeof *before));
+  struct xz_ui_widget r=after[nb],s=after[nb+1];
+  assert(r.kind==XZ_UI_SUPPORT_ALERT&&!xz_ui_focusable(&r)&&r.y==XZ_UI_COUNTER_Y&&r.h==XZ_UI_COUNTER_H&&r.x>s.w/2&&r.x+r.w<s.w-60);
   assert(s.kind==XZ_UI_CLOSE&&s.index==XZ_UI_CLOSE_COUNTER&&!xz_ui_focusable(&s));
   assert(s.x==0&&s.y==XZ_UI_COUNTER_Y&&s.w==XZ_UI_COUNTER_W&&s.h==XZ_UI_COUNTER_H&&s.y+s.h<=XZ_UI_DOCK_Y+XZ_UI_DOCK_BODY_Y);
   /* Only the strip's pixels change: page, rail, header, explanation and the right column stay as they were. */
@@ -812,12 +814,18 @@ static void counter_strip(void){
    size_t n1=xz_ui_touch(&t1,&m,x,y,1,a1),n2=xz_ui_touch(&t2,&err,x,y,1,a2);
    assert(n1==n2&&!memcmp(a1,a2,n1*sizeof *a1)&&t1.focus_kind==t2.focus_kind&&t1.focus_index==t2.focus_index&&t1.page==t2.page);
   }
-  /* A touch anywhere on the strip closes MODS (the runtime's CLOSE), and moves no focus. */
+  /* A touch anywhere else on the strip closes MODS (the runtime's CLOSE), and moves no focus. */
   int xs[3]={2,s.w/2,s.w-8};
   for(int k=0;k<3;k++){
    struct xz_ui t=u;struct xz_ui_action a[XZ_UI_ACTIONS];
    assert(xz_ui_touch(&t,&err,xs[k],s.y+s.h/2,1,a)==1&&a[0].kind==XZ_UI_CLOSE&&a[0].phase==XZ_UI_PRESS);
    assert(t.focus_kind==u.focus_kind&&t.focus_index==u.focus_index&&t.page==u.page);xz_ui_touch(&t,&err,0,0,0,a);
+  }
+  /* REPORT THIS opens REPORT AN ISSUE at WHAT HAPPENED, about this error. */
+  {
+   struct xz_ui t=u;struct xz_ui_action a[XZ_UI_ACTIONS];
+   xz_ui_touch(&t,&err,r.x+r.w/2,r.y+r.h/2,1,a);xz_ui_touch(&t,&err,0,0,0,a);
+   assert(t.page==XZ_UI_SUPPORT&&t.support.entry==XZ_SUPPORT_FROM_ALERT&&t.support.topic==XZ_SUPPORT_NOT_WORKING+1);
   }
   /* The error leaving takes the strip with it. */
   struct xz_ui_model clear=err;memset(clear.counter_error,0,sizeof clear.counter_error);
@@ -837,8 +845,9 @@ static void counter_strip(void){
  }
  printf("PASS counter strip: %d MODERN cases (one deck, the other, both) change only the dock's title row; CLASSIC unchanged\n",shown);
 }
-/* The player's E-8307 hub warning (the loopback cable) takes the dock's title row in both interfaces, adds no
-   control and changes nothing else; a deck's counter error keeps the row; READY changes only the reason. */
+/* The player's E-8307 hub warning (the loopback cable) takes the dock's title row in both interfaces, adds one
+   control (REPORT THIS, touch only) and changes nothing else; a deck's counter error keeps the row; READY changes
+   only the reason. */
 static void hub_strip(void){
  static uint16_t plain[800*480],ready[800*480];
  static const enum xz_ui_page pages[]={XZ_UI_HOME,XZ_UI_PLAY,XZ_UI_FOUR_DECKS,XZ_UI_SCREEN};
@@ -851,7 +860,8 @@ static void hub_strip(void){
   struct xz_ui_model hub=m;hub.usb_hub="E-8307: HUBS ARE NOT SUPPORTED";
   struct xz_ui_widget before[XZ_UI_WIDGETS],after[XZ_UI_WIDGETS];
   size_t nb=xz_ui_layout(&u,&m,before),na=xz_ui_layout(&u,&hub,after);
-  assert(!xz_ui_usb_hub_notice(&m)&&xz_ui_usb_hub_notice(&hub)&&na==nb&&!memcmp(before,after,nb*sizeof *before));
+  assert(!xz_ui_usb_hub_notice(&m)&&xz_ui_usb_hub_notice(&hub)&&na==nb+1&&!memcmp(before,after,nb*sizeof *before));
+  assert(after[nb].kind==XZ_UI_SUPPORT_ALERT&&!xz_ui_focusable(&after[nb])&&after[nb].x+after[nb].w<=XZ_UI_COUNTER_W);
   assert(xz_ui_render(&u,&m,frame,800*480,800));memcpy(plain,frame,sizeof plain);
   assert(xz_ui_render(&u,&hub,frame,800*480,800));
   for(int y=0;y<480;y++)for(int x=0;x<800;x++)
@@ -876,7 +886,7 @@ static void hub_strip(void){
   }
   shown++;
  }
- printf("PASS hub strip: %d cases, both interfaces, title row only, no new control, counter errors keep the row\n",shown);
+ printf("PASS hub strip: %d cases, both interfaces, title row only, REPORT THIS the one new control, counter errors keep the row\n",shown);
 }
 int main(int argc,char **argv){
  struct xz_ui u;struct xz_ui_model m;int i,j;

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "ui_about.h"
 #include "about_assets.h"
+#include <string.h>
 
 void xz_about_place(struct xz_ui_widget *w,int index){
  w->x=148+(index%2)*204;w->y=184+(index/2)*42;w->w=196;w->h=36;
@@ -8,7 +9,7 @@ void xz_about_place(struct xz_ui_widget *w,int index){
 static void line(struct xz_canvas c,int x,int y,int width,const char *text,int size,uint32_t ink){
  xz_ui_chrome_fit(c,x,y,width,text,size,ink);
 }
-void xz_about_render(struct xz_canvas c,int selected,int focused,int lit){
+void xz_about_render(struct xz_canvas c,int selected,int focused,int lit,const char *loader){
  const uint32_t bg=0x0a0d15,ink=0xf5f7fb,dim=0xb8c3d5,gold=0xffe633;
  if((unsigned)selected>=XZ_ABOUT_LINKS)selected=0;
  xz_rect(c,136,42,656,362,bg);
@@ -18,8 +19,12 @@ void xz_about_render(struct xz_canvas c,int selected,int focused,int lit){
  }
  line(c,276,57,282,"XZMods.com",3,gold);
  line(c,276,94,282,"Created by VJ OpticMystic",1,ink);
- line(c,276,116,282,"Live VJ performances",1,dim);
- line(c,276,134,282,"& custom visuals",1,dim);
+ line(c,276,114,282,"Live VJ performances & custom visuals",1,dim);
+ /* "Loader L-4F7K-2M9Q": the word dim, the ID that reports from this stick carry in ink. */
+ if(loader&&!strncmp(loader,"Loader ",7)&&loader[7]!=':'){
+  line(c,276,136,282,"Loader",1,dim);
+  line(c,276+xz_text_width(c,"Loader ",1,8),136,282-xz_text_width(c,"Loader ",1,8),loader+7,1,ink);
+ }else if(loader&&loader[0])line(c,276,136,282,loader,1,dim);
  line(c,148,164,410,"UPDATES, PROJECTS & BOOKINGS",1,dim);
  for(int i=0;i<XZ_ABOUT_LINKS;i++){
   struct xz_ui_widget w={0};xz_about_place(&w,i);

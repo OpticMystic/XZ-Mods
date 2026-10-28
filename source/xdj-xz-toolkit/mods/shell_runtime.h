@@ -111,6 +111,9 @@ int xz_shell_runtime_look_set(int item, int choice);
 int xz_shell_runtime_stock_play(void);
 /* MODS is the shell's top screen (it then draws over the VJ takeover, as the panel does in CLASSIC). */
 int xz_shell_runtime_mods_open(void);
+/* The screen the shell shows (enum xz_shell_screen), or -1 when it is not running. Read for REPORT AN ISSUE when
+   MODS opens; never blocks (a busy shell answers with the screen of its last whole second). */
+int xz_shell_runtime_screen(void);
 /* XZ_SHELL_UI_ACTION: MODS-panel actions the shell's item tabs asked for, oldest first (kind = enum
    xz_ui_action_kind, index, value as the panel sends them); 0 when none is left. ui_runtime.c runs them
    through apply(), so side effects and the settings save are the panel's own. */

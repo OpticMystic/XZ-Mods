@@ -46,6 +46,9 @@ enum { XZ_UI_RAIL_DIVIDER_Y=88 };
 enum { XZ_UI_DOCK_BODY_Y=28, XZ_UI_DOCK_BODY_W=532, XZ_UI_DOCK_LINES=3 };
 /* The counter error strip: the dock's title row, left of the WORKS ON column; the explanation stays below it. */
 enum { XZ_UI_COUNTER_Y=XZ_UI_DOCK_Y+1, XZ_UI_COUNTER_W=556, XZ_UI_COUNTER_H=25 };
+/* REPORT THIS on that strip (a counter error or the E-8307 hub warning; not on REPORT AN ISSUE itself): its widget,
+   left of SHOW DECK, or 0 when there is none. ui_chrome.c draws it where this puts it. */
+int xz_ui_strip_report(const struct xz_ui *u, const struct xz_ui_model *m, struct xz_ui_widget *out);
 /* Rows text takes in the dock's word wrap at width px (99 when one word does not fit). */
 int xz_ui_wrap_lines(struct xz_canvas c, int width, const char *text);
 /* DJ Profile list panel under the header's right corner. */
@@ -70,6 +73,11 @@ int xz_ui_profile_owns(enum xz_ui_action_kind kind);
 int xz_ui_profile_ready(const struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *a);
 int xz_ui_profile_touch(struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *a, struct xz_ui_action out[XZ_UI_ACTIONS]);
 int xz_ui_profile_back(struct xz_ui *u);
+/* The MODS on-screen keyboard (DJ profile editor, REPORT AN ISSUE): four rows of ten in the current layout (letters
+   or symbols, kb_symbols), the byte a key types (capitals while kb_shift), and a typed byte's row*10+column or -1. */
+const char *xz_ui_kb_row(const struct xz_ui *u, int row);
+int xz_ui_kb_byte(const struct xz_ui *u, char c);
+int xz_ui_kb_slot(const struct xz_ui *u, int byte);
 void xz_ui_profile_render(const struct xz_ui_scene *s);
 const char *xz_ui_profile_describe(const struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *a, const char **title);
 const char *xz_ui_profile_footer(const struct xz_ui *u, const struct xz_ui_model *m);
