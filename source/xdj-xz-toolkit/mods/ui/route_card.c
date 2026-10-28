@@ -48,12 +48,12 @@ struct words { const char *title, *short_title, *line[2]; int reason_line; };
 static struct words words_of(enum xz_route_card_kind k, int classic) {
  switch(k){
  case XZ_ROUTE_CARD_NOT_DETECTED:return (struct words){"NO CABLE FOUND",NULL,
-  {classic?"The XZ keeps looking on its own.":"The XZ keeps looking on its own. RESCAN checks right now.","Keep the music stick in USB 2."},-1};
+  {classic?"The XZ keeps looking on its own.":"The XZ keeps looking on its own. RESCAN checks right now.","Music is optional; use the other port."},-1};
  case XZ_ROUTE_CARD_SCANNING:return (struct words){"LOOKING FOR THE CABLE...",NULL,{"Checking for the loopback cable now.",NULL},0};
  case XZ_ROUTE_CARD_STARTING:return (struct words){"STARTING DECKS 3 AND 4","STARTING 3 AND 4",{NULL,"This takes a few seconds."},0};
  case XZ_ROUTE_CARD_WAITING:return (struct words){"STOP DECKS 1 AND 2",NULL,
   {classic?"Decks 3 and 4 start once 1 and 2 stop.":"Decks 3 and 4 start once decks 1 and 2 are both stopped.",
-   classic?"This card changes by itself.":"This card changes by itself once they stop."},-1};
+   classic?"This card changes by itself.":"This card changes by itself once they stop."},0};
  case XZ_ROUTE_CARD_READY:return (struct words){"DECKS 3 AND 4 ARE READY","3 AND 4 READY",{NULL,NULL},-1};
  case XZ_ROUTE_CARD_FAILED:return (struct words){"COULD NOT START DECKS 3 AND 4","3 AND 4 DID NOT START",{NULL,NULL},0};
  case XZ_ROUTE_CARD_LOST:return (struct words){"DECKS 3 AND 4 DISCONNECTED","3 AND 4 DISCONNECTED",
@@ -405,7 +405,7 @@ static void primary_button(struct pen p, const struct xz_route_card_style *s, st
  text(p,cx+r+(s->classic?9:10),b.y+(b.h-14)/2,k==XZ_ROUTE_CARD_FAILED?"TRY AGAIN":"RESCAN",2,s->primary_ink);
 }
 static void steps(struct pen p, const struct xz_route_card_style *s, int x, int y, int classic) {
- /* 1 Rear USB socket to USB 1 on top (USB-B to USB-A cable).  2 CH3 and CH4 input switches to USB.
+ /* 1 Rear USB socket to either top USB port (USB-B to USB-A cable).  2 CH3 and CH4 input switches to USB.
     The port name stands out; it comes from loopback_port.h. */
  static const char *const first[2][4]={{"Rear USB socket to ",XZ_LOOPBACK_PORT," on top (USB-B to USB-A cable).",NULL},{"Rear USB socket to ",XZ_LOOPBACK_PORT," on top.",NULL}};
  static const char *const second[4]={"CH3"," and ","CH4"," input switches to "};
