@@ -1,197 +1,17 @@
 # Chapter navigation audit
 
-The table inventories every level-two and level-three chapter heading. Flow assignments illustrate excerpts only. Null entries remain explicit; REPORT.md lists unfinished operations even where a heading has a flow. SECTIONS.json retains exact text hashes and machine-readable reasons.
+All 181 level-two and level-three headings are inventoried. Assignment means a scripted excerpt, not complete action acceptance. See [REPORT.md](REPORT.md) for remaining host work and [SECTIONS.json](SECTIONS.json) for section text hashes.
 
-| Section | Flows | Scope or reason |
-|---|---|---|
-| browse#browsing-in-modern | browse-category-folder | Scripted excerpts |
-| browse#moving-through-a-list | encoder-list | Scripted excerpts |
-| browse#loading-a-track | browse-load | Scripted excerpts |
-| browse#info-panel | browse-rating-edit | Scripted excerpts |
-| browse#sort-columns-and-the-track-menu | browse-cue-loop-load, browse-loop-load, browse-menu, browse-sort-columns, browse-tag-edit | Scripted excerpts |
-| browse#filter | filter | Scripted excerpts |
-| browse#search | search, search-results-load | Scripted excerpts |
-| browse#tag-list | tag-list | Scripted excerpts |
-| browse#playlists | playlists | Scripted excerpts |
-| browse#source | source | Scripted excerpts |
-| browse#info | browse-rating-edit, info | Scripted excerpts |
-| browse#browsing-in-classic | None | closed_stock_firmware |
-| browse#browse-settings | None | needs_host_implementation |
-| browse#if-browsing-goes-wrong | None | needs_host_implementation |
-| connect#the-connect-page | mods-connect | Scripted excerpts |
-| connect#dj-profile | dj-profile, profile-logo | Scripted excerpts |
-| connect#make-a-profile-on-a-computer | None | needs_host_implementation |
-| connect#make-a-profile-on-the-xz | dj-profile-create-switch, profile-logo, profile-logo-error, profile-save-error | Scripted excerpts |
-| connect#choose-and-switch-profiles | dj-profile-create-switch, profile-logo | Scripted excerpts |
-| connect#when-a-profile-will-not-save-or-show | profile-logo-error, profile-save-error | Scripted excerpts |
-| connect#vjtools | vj-tools | Scripted excerpts |
-| connect#network | network, network-review, network-static, network-static-failure | Scripted excerpts |
-| connect#updates-over-the-network | updates | Scripted excerpts |
-| desktop-app#around-the-app | None | desktop_platform |
-| desktop-app#usb | None | desktop_platform |
-| desktop-app#choose-a-usb-or-a-folder | None | desktop_platform |
-| desktop-app#the-usb-dashboard | None | desktop_platform |
-| desktop-app#install-or-update-xz-mods | None | desktop_platform |
-| desktop-app#four-decks-in-the-app | None | desktop_platform |
-| desktop-app#stems | None | desktop_platform |
-| desktop-app#set-up-the-stem-engine | None | desktop_platform |
-| desktop-app#import-stems-you-already-have | None | desktop_platform |
-| desktop-app#xz-screen | None | desktop_platform |
-| desktop-app#tools | None | desktop_platform |
-| desktop-app#dj-profile | None | desktop_platform |
-| desktop-app#repair-library | None | desktop_platform |
-| desktop-app#network-updates | None | desktop_platform |
-| desktop-app#xz-mods-version | None | desktop_platform |
-| desktop-app#app-updates | None | desktop_platform |
-| desktop-app#about | None | desktop_platform |
-| desktop-app#feedback | None | desktop_platform |
-| desktop-app#report-a-problem-or-share-an-idea | None | desktop_platform |
-| desktop-app#included-details | None | desktop_platform |
-| desktop-app#when-something-got-worse | None | desktop_platform |
-| desktop-app#after-you-send | None | desktop_platform |
-| desktop-app#my-reports | None | desktop_platform |
-| desktop-app#from-your-xz | None | desktop_platform |
-| desktop-app#your-xz-sticks | None | desktop_platform |
-| desktop-app#maintainer-inbox | None | desktop_platform |
-| desktop-app#manual | None | desktop_platform |
-| extras#the-extras-page | mods-extras | Scripted excerpts |
-| extras#games | games | Scripted excerpts |
-| extras#moving-around-a-game | None | needs_host_implementation |
-| extras#beat-arcade | None | needs_host_implementation |
-| extras#wave-rider | None | needs_host_implementation |
-| extras#doom-and-chex-quest | wad-loader | Scripted excerpts |
-| extras#my-house | my-house-setup | Scripted excerpts |
-| extras#usb-apps | apps-setup, usb-apps | Scripted excerpts |
-| extras#report-an-issue | report-issue | Scripted excerpts |
-| extras#after-you-send | report-edit-recovery, report-error, report-retry, report-saved, report-sent | Scripted excerpts |
-| extras#report-an-error-from-the-dock | None | needs_host_implementation |
-| extras#what-the-player-sends | None | needs_host_implementation |
-| extras#about-xz-mods | about | Scripted excerpts |
-| four-decks#what-you-need | None | needs_host_implementation |
-| four-decks#set-up-four-decks | None | needs_host_implementation |
-| four-decks#add-music-and-a-usb-hub | None | needs_host_implementation |
-| four-decks#the-4-decks-page-in-mods | None | needs_host_implementation |
-| four-decks#the-card-in-every-state | None | needs_host_implementation |
-| four-decks#the-e-8307-hub-warning | None | needs_host_implementation |
-| four-decks#deck-view | None | needs_host_implementation |
-| four-decks#the-decks-button-and-its-picker | deck-view | Scripted excerpts |
-| four-decks#switch-a-side-between-decks | physical-double-shift-1, physical-double-shift-2 | Scripted excerpts |
-| four-decks#the-modern-four-deck-screen | None | needs_host_implementation |
-| four-decks#the-classic-four-deck-screen | None | needs_host_implementation |
-| four-decks#load-tracks-onto-decks-3-and-4 | None | needs_host_implementation |
-| four-decks#info-source-and-utility-with-four-decks | None | needs_host_implementation |
-| four-decks#what-decks-3-and-4-can-do | None | needs_host_implementation |
-| four-decks#sync-on-decks-3-and-4 | None | needs_host_implementation |
-| four-decks#limits | None | needs_host_implementation |
-| getting-started#what-changes-and-what-stays-stock | None | needs_host_implementation |
-| getting-started#go-back-to-stock | None | needs_host_implementation |
-| getting-started#what-you-need | None | needs_host_implementation |
-| getting-started#prepare-a-usb | None | needs_host_implementation |
-| getting-started#first-start | None | needs_host_implementation |
-| getting-started#modern-on-first-start | None | needs_host_implementation |
-| getting-started#classic-on-first-start | None | needs_host_implementation |
-| getting-started#choose-modern-or-classic | None | needs_host_implementation |
-| getting-started#switch-on-the-player | interface-choice | Scripted excerpts |
-| getting-started#updating | None | needs_host_implementation |
-| hardware#the-top-panel | None | needs_host_implementation |
-| hardware#browse-section-keys | None | needs_host_implementation |
-| hardware#the-rekordbox-button | physical-rekordbox, rekordbox-button, rekordbox-button-values | Scripted excerpts |
-| hardware#link-and-the-vjtools-view | None | needs_host_implementation |
-| hardware#deck-keys | None | needs_host_implementation |
-| hardware#performance-pads | physical-pad-mode-pages | Scripted excerpts |
-| hardware#stem-pads | None | needs_host_implementation |
-| hardware#pad-lights | None | needs_host_implementation |
-| hardware#decks-3-and-4-from-the-deck-controls | None | needs_host_implementation |
-| hardware#when-a-control-does-not-respond | None | needs_host_implementation |
-| mods-menu#open-and-close-mods | menu-close | Scripted excerpts |
-| mods-menu#move-around | encoder-settings | Scripted excerpts |
-| mods-menu#home | mods-home | Scripted excerpts |
-| mods-menu#play | mods-play, mods-play-values | Scripted excerpts |
-| mods-menu#stems | mods-stems, mods-stems-values, mods-stems-values-all | Scripted excerpts |
-| mods-menu#screen | mods-screen, mods-screen-values, mods-screen-values-all | Scripted excerpts |
-| mods-menu#4-decks | mods-four-decks, mods-four-decks-values | Scripted excerpts |
-| mods-menu#connect | mods-connect | Scripted excerpts |
-| mods-menu#extras | mods-extras | Scripted excerpts |
-| mods-menu#utility-the-players-own-settings | utility | Scripted excerpts |
-| mods-menu#modern-utility | needle-lock, utility | Scripted excerpts |
-| mods-menu#my-settings | my-settings-load-save | Scripted excerpts |
-| mods-menu#saving-to-the-usb | None | needs_host_implementation |
-| mods-menu#older-pages | None | needs_host_implementation |
-| performance#the-play-page | mods-play, mods-play-values | Scripted excerpts |
-| performance#beat-jump | beat-jump, physical-beat-jump | Scripted excerpts |
-| performance#change-the-jump-sizes | beat-jump-pages | Scripted excerpts |
-| performance#decks-3-and-4 | None | needs_host_implementation |
-| performance#when-a-jump-is-refused | None | needs_host_implementation |
-| performance#gate-cue-and-smart-cue | None | needs_host_implementation |
-| performance#feature-setup | None | needs_host_implementation |
-| performance#keys-and-key-sync | keys, physical-key-sync | Scripted excerpts |
-| performance#from-the-deck | physical-key-sync | Scripted excerpts |
-| performance#the-keys-page | key-shift-sync, keys, keys-values | Scripted excerpts |
-| performance#the-key-on-the-modern-play-screen | None | needs_host_implementation |
-| performance#the-key-on-the-classic-play-screen | None | needs_host_implementation |
-| performance#playing-key | None | needs_host_implementation |
-| performance#ram-tracks | ram-copy-error, ram-tracks | Scripted excerpts |
-| performance#when-the-music-usb-goes-out | None | usb_or_boot |
-| performance#quantize | physical-quantize | Scripted excerpts |
-| play-screen#the-modern-play-screen | None | needs_host_implementation |
-| play-screen#top-bar | None | needs_host_implementation |
-| play-screen#deck-column-and-waveform-lanes | None | needs_host_implementation |
-| play-screen#deck-strip | None | needs_host_implementation |
-| play-screen#key-and-key-sync | key-shift-sync | Scripted excerpts |
-| play-screen#waveform-colours | None | needs_host_implementation |
-| play-screen#notices | None | needs_host_implementation |
-| play-screen#shortcut | shortcut | Scripted excerpts |
-| play-screen#the-classic-play-screen | None | needs_host_implementation |
-| play-screen#scrolling-waveform | None | needs_host_implementation |
-| play-screen#if-something-looks-wrong | None | needs_host_implementation |
-| screen-and-themes#the-screen-page | mods-screen-values-all | Scripted excerpts |
-| screen-and-themes#modern-and-classic | interface-choice, physical-rekordbox | Scripted excerpts |
-| screen-and-themes#classic-themes | classic-themes, classic-themes-all | Scripted excerpts |
-| screen-and-themes#theme-families | classic-overlays-analog, classic-overlays-lcars, classic-overlays-matrix, classic-overlays-standard | Scripted excerpts |
-| screen-and-themes#modern-look | lamps-and-titles, lamps-and-titles-all | Scripted excerpts |
-| screen-and-themes#waveform-colours | mods-screen-values-all | Scripted excerpts |
-| screen-and-themes#3-band-colours | band-colours, band-colours-values | Scripted excerpts |
-| screen-and-themes#keys | mods-screen-values-all | Scripted excerpts |
-| screen-and-themes#key-notation | mods-screen-values-all | Scripted excerpts |
-| screen-and-themes#playing-key | mods-screen-values-all | Scripted excerpts |
-| screen-and-themes#key-match-colours-and-key-before-title | mods-screen-values-all | Scripted excerpts |
-| screen-and-themes#deck-colours | None | needs_host_implementation |
-| screen-and-themes#system-readout | system-readout | Scripted excerpts |
-| screen-and-themes#when-something-looks-wrong | None | needs_host_implementation |
-| settings#where-settings-are-kept | None | usb_or_boot |
-| settings#when-the-usb-changes | None | usb_or_boot |
-| settings#going-back-to-the-defaults | None | usb_or_boot |
-| settings#every-setting | None | usb_or_boot |
-| stems#prepare-stems | None | usb_or_boot |
-| stems#turn-stems-on | None | needs_host_implementation |
-| stems#stem-buttons-on-the-play-screen | None | needs_host_implementation |
-| stems#modern-stem-buttons | stem-mute-bypass | Scripted excerpts |
-| stems#stem-buttons-in-4-decks | None | needs_host_implementation |
-| stems#classic-stem-rows | classic-stems | Scripted excerpts |
-| stems#stem-pads | physical-stem-pads, stem-pads, stem-pads-values | Scripted excerpts |
-| stems#stem-order | mods-stems-values-all | Scripted excerpts |
-| stems#stem-colours | stem-colours, stem-colours-values | Scripted excerpts |
-| stems#stem-readiness | None | needs_host_implementation |
-| stems#usb-stems-setup | None | needs_host_implementation |
-| stems#stems-in-dj-software | pc-stems | Scripted excerpts |
-| stems#if-stems-do-not-play | None | needs_host_implementation |
-| troubleshooting#if-the-player-will-not-start-with-the-usb | None | needs_host_implementation |
-| troubleshooting#stems-on-the-usb | None | needs_host_implementation |
-| troubleshooting#notices-on-the-play-screen | None | needs_host_implementation |
-| troubleshooting#errors-on-a-deck | None | needs_host_implementation |
-| troubleshooting#the-players-own-warnings | None | closed_stock_firmware |
-| troubleshooting#e-8307-hubs-are-not-supported | None | needs_host_implementation |
-| troubleshooting#when-settings-cannot-be-saved | None | needs_host_implementation |
-| troubleshooting#messages-in-the-xz-mods-app | None | needs_host_implementation |
-| troubleshooting#the-diary-on-your-usb-sticks | None | needs_host_implementation |
-| troubleshooting#report-a-problem | report-dock-entry | Scripted excerpts |
+| Assignment or reason | Headings |
+|---|---:|
+| assigned | 130 |
+| closed_stock_firmware | 2 |
+| desktop_platform | 30 |
+| informational | 11 |
+| physical_usb | 3 |
+| usb_or_boot | 5 |
 
-## Chapter A assignment update
-
-These rows supersede the older assignments above for this branch. Assignments
-remain excerpts; REPORT-A.md lists unfinished operations.
-
-| Section | Flows or reason |
+| Section | Flows or platform/informational reason |
 |---|---|
 | browse#browsing-in-modern | browse-category-folder |
 | browse#moving-through-a-list | encoder-list |
@@ -204,37 +24,120 @@ remain excerpts; REPORT-A.md lists unfinished operations.
 | browse#playlists | playlists |
 | browse#source | source |
 | browse#info | browse-rating-edit, info |
-| browse#browsing-in-classic | closed_stock_firmware |
+| browse#browsing-in-classic | closed_stock_firmware: The closed stock firmware owns this screen or operation. |
 | browse#browse-settings | nav-a-browse-settings |
 | browse#if-browsing-goes-wrong | nav-a-browse-recovery |
-| four-decks#what-you-need | physical_usb |
+| connect#the-connect-page | mods-connect |
+| connect#dj-profile | dj-profile, profile-logo |
+| connect#make-a-profile-on-a-computer | b-profile-rescan |
+| connect#make-a-profile-on-the-xz | dj-profile-create-switch, profile-logo, profile-logo-error, profile-save-error |
+| connect#choose-and-switch-profiles | dj-profile-create-switch, profile-logo |
+| connect#when-a-profile-will-not-save-or-show | profile-logo-error, profile-save-error, b-profile-usb2-recovery, nav-c-profile-610, nav-c-profile-611 |
+| connect#vjtools | vj-tools |
+| connect#network | network, network-review, network-static, network-static-failure |
+| connect#updates-over-the-network | updates |
+| desktop-app#around-the-app | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#usb | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#choose-a-usb-or-a-folder | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#the-usb-dashboard | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#install-or-update-xz-mods | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#four-decks-in-the-app | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#stems | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#set-up-the-stem-engine | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#import-stems-you-already-have | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#xz-screen | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#tools | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#dj-profile | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#repair-library | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#network-updates | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#xz-mods-version | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#app-updates | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#about | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#feedback | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#report-a-problem-or-share-an-idea | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#included-details | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#when-something-got-worse | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#after-you-send | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#my-reports | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#from-your-xz | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#your-xz-sticks | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#maintainer-inbox | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| desktop-app#manual | desktop_platform: Desktop app actions require a separate desktop capture task. |
+| extras#the-extras-page | mods-extras |
+| extras#games | games |
+| extras#moving-around-a-game | b-rider, b-arcade |
+| extras#beat-arcade | b-arcade, nav-c-arcade-0-0, nav-c-arcade-1-1, nav-c-arcade-2-2, nav-c-arcade-3-0 |
+| extras#wave-rider | b-rider |
+| extras#doom-and-chex-quest | wad-loader |
+| extras#my-house | my-house-setup |
+| extras#usb-apps | apps-setup, usb-apps, b-apps-wizard |
+| extras#report-an-issue | report-issue |
+| extras#after-you-send | report-edit-recovery, report-error, report-retry, report-saved, report-sent |
+| extras#report-an-error-from-the-dock | report-dock-entry |
+| extras#what-the-player-sends | informational: Report payload explanation; no player action. |
+| extras#about-xz-mods | about |
+| four-decks#what-you-need | physical_usb: Cable, mixer switches and music-stick prerequisites require physical hardware. |
 | four-decks#set-up-four-decks | nav-a-route-rescan |
-| four-decks#add-music-and-a-usb-hub | physical_usb |
+| four-decks#add-music-and-a-usb-hub | physical_usb: Connecting hubs and waiting for USB enumeration needs physical USB. |
 | four-decks#the-4-decks-page-in-mods | nav-a-four-page |
 | four-decks#the-card-in-every-state | nav-a-route-states |
-| four-decks#the-e-8307-hub-warning | physical_usb |
+| four-decks#the-e-8307-hub-warning | physical_usb: The warning and hub admission need real stock USB enumeration; no hardware touched. |
 | four-decks#deck-view | nav-a-deck-orders, nav-a-four-page |
 | four-decks#the-decks-button-and-its-picker | deck-view |
 | four-decks#switch-a-side-between-decks | physical-double-shift-1, physical-double-shift-2 |
 | four-decks#the-modern-four-deck-screen | nav-a-four-detail |
-| four-decks#the-classic-four-deck-screen | nav-a-classic-four |
+| four-decks#the-classic-four-deck-screen | nav-a-classic-four, nav-c-classic-full |
 | four-decks#load-tracks-onto-decks-3-and-4 | nav-a-four-load |
 | four-decks#info-source-and-utility-with-four-decks | nav-a-four-fullscreens |
-| four-decks#what-decks-3-and-4-can-do | needs_host_implementation |
-| four-decks#sync-on-decks-3-and-4 | needs_host_implementation |
-| four-decks#limits | informational |
+| four-decks#what-decks-3-and-4-can-do | nav-c-player-3, nav-c-player-4 |
+| four-decks#sync-on-decks-3-and-4 | nav-c-player-3, nav-c-player-4 |
+| four-decks#limits | informational: Format, readiness, master handover and experimental-limit reference; no additional navigation procedure. |
+| getting-started#what-changes-and-what-stays-stock | utility |
+| getting-started#go-back-to-stock | usb_or_boot: Power-off and boot with the loader USB absent require a player boot; no host screen owns these actions. |
+| getting-started#what-you-need | informational: Requirements table; no player action. |
+| getting-started#prepare-a-usb | desktop_platform: Install/write/eject wizard runs on the computer, not the player. |
+| getting-started#first-start | b-first-menu |
+| getting-started#modern-on-first-start | b-first-menu, deck-view, stem-mute-bypass |
+| getting-started#classic-on-first-start | physical-rekordbox, interface-choice |
+| getting-started#choose-modern-or-classic | interface-choice |
+| getting-started#switch-on-the-player | interface-choice |
+| getting-started#updating | updates |
+| hardware#the-top-panel | informational: Annotated physical control map; per-control actions are assigned under Browse section keys and Deck keys. |
+| hardware#browse-section-keys | b-browse-keys, encoder-settings, browse-load |
+| hardware#the-rekordbox-button | physical-rekordbox, rekordbox-button, rekordbox-button-values |
+| hardware#link-and-the-vjtools-view | vj-tools |
+| hardware#deck-keys | b-master-tempo, physical-key-sync, physical-double-shift-1, physical-double-shift-2, physical-stem-pads, physical-beat-jump |
+| hardware#performance-pads | physical-pad-mode-pages |
+| hardware#stem-pads | stem-pads-values, physical-stem-pads |
+| hardware#pad-lights | stem-pads-values, physical-pad-mode-pages |
+| hardware#decks-3-and-4-from-the-deck-controls | physical-double-shift-1, physical-double-shift-2 |
+| hardware#when-a-control-does-not-respond | b-browse-keys, rekordbox-button-values, mods-four-decks |
+| mods-menu#open-and-close-mods | menu-close |
+| mods-menu#move-around | encoder-settings |
+| mods-menu#home | mods-home |
+| mods-menu#play | mods-play, mods-play-values |
+| mods-menu#stems | mods-stems, mods-stems-values, mods-stems-values-all |
+| mods-menu#screen | mods-screen, mods-screen-values, mods-screen-values-all |
+| mods-menu#4-decks | mods-four-decks, mods-four-decks-values |
+| mods-menu#connect | mods-connect |
+| mods-menu#extras | mods-extras |
+| mods-menu#utility-the-players-own-settings | utility |
+| mods-menu#modern-utility | needle-lock, utility |
+| mods-menu#my-settings | my-settings-load-save, b-my-settings-pause, b-my-settings-failure, b-my-settings-readonly |
+| mods-menu#saving-to-the-usb | b-save-recovery |
+| mods-menu#older-pages | informational: Historical page redirect table; retired pages cannot be opened by a reader. |
 | performance#the-play-page | mods-play, mods-play-values |
 | performance#beat-jump | beat-jump, physical-beat-jump |
 | performance#change-the-jump-sizes | beat-jump-pages |
-| performance#decks-3-and-4 | informational |
+| performance#decks-3-and-4 | informational: Describes shared jump sizing and BPM fallback; the heading gives no separate player procedure. |
 | performance#when-a-jump-is-refused | nav-a-jump-refused |
 | performance#gate-cue-and-smart-cue | nav-a-gate-smart |
 | performance#feature-setup | nav-a-feature-gate, nav-a-feature-smart |
 | performance#keys-and-key-sync | keys, physical-key-sync |
 | performance#from-the-deck | physical-key-sync |
 | performance#the-keys-page | key-shift-sync, keys, keys-values |
-| performance#the-key-on-the-modern-play-screen | informational |
-| performance#the-key-on-the-classic-play-screen | informational |
+| performance#the-key-on-the-modern-play-screen | informational: Readout legend; operation is described under From the deck and PLAYING KEY. |
+| performance#the-key-on-the-classic-play-screen | informational: Readout legend without a separate player action. |
 | performance#playing-key | nav-a-playing-key |
 | performance#ram-tracks | ram-copy-error, ram-tracks |
 | performance#when-the-music-usb-goes-out | nav-a-ram-detached |
@@ -250,7 +153,25 @@ remain excerpts; REPORT-A.md lists unfinished operations.
 | play-screen#the-classic-play-screen | classic-stems, nav-a-classic-four |
 | play-screen#scrolling-waveform | nav-a-classic-wave-choices |
 | play-screen#if-something-looks-wrong | nav-a-playing-key |
-| stems#prepare-stems | desktop_platform |
+| screen-and-themes#the-screen-page | mods-screen-values-all |
+| screen-and-themes#modern-and-classic | interface-choice, physical-rekordbox |
+| screen-and-themes#classic-themes | classic-themes, classic-themes-all |
+| screen-and-themes#theme-families | classic-overlays-analog, classic-overlays-lcars, classic-overlays-matrix, classic-overlays-standard |
+| screen-and-themes#modern-look | lamps-and-titles, lamps-and-titles-all |
+| screen-and-themes#waveform-colours | mods-screen-values-all |
+| screen-and-themes#3-band-colours | band-colours, band-colours-values |
+| screen-and-themes#keys | mods-screen-values-all |
+| screen-and-themes#key-notation | mods-screen-values-all |
+| screen-and-themes#playing-key | mods-screen-values-all |
+| screen-and-themes#key-match-colours-and-key-before-title | mods-screen-values-all |
+| screen-and-themes#deck-colours | informational: Explains fixed badges and colour meanings; no player action. |
+| screen-and-themes#system-readout | system-readout |
+| screen-and-themes#when-something-looks-wrong | b-theme-recovery |
+| settings#where-settings-are-kept | usb_or_boot: USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow. |
+| settings#when-the-usb-changes | usb_or_boot: USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow. |
+| settings#going-back-to-the-defaults | usb_or_boot: USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow. |
+| settings#every-setting | usb_or_boot: USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow. |
+| stems#prepare-stems | desktop_platform: Preparation and media copy take place in the desktop app and on USB. |
 | stems#turn-stems-on | nav-a-stem-toggle |
 | stems#stem-buttons-on-the-play-screen | nav-a-stem-layouts |
 | stems#modern-stem-buttons | stem-mute-bypass |
@@ -263,7 +184,13 @@ remain excerpts; REPORT-A.md lists unfinished operations.
 | stems#usb-stems-setup | nav-a-usb-setup |
 | stems#stems-in-dj-software | pc-stems |
 | stems#if-stems-do-not-play | nav-a-stem-toggle, nav-a-stem-layouts |
-
-## Chapter B inventory changes
-
-The 35 previously unassigned headings in getting-started, hardware, troubleshooting, extras, mods-menu, screen-and-themes and connect are re-audited in [REPORT-B.md](REPORT-B.md). Its per-heading table and SECTIONS.json supersede those rows above. Assignments are excerpts only.
+| troubleshooting#if-the-player-will-not-start-with-the-usb | updates, b-first-menu |
+| troubleshooting#stems-on-the-usb | b-stem-setup |
+| troubleshooting#notices-on-the-play-screen | b-notice-load-recovery, nav-c-notice-00, nav-c-notice-01, nav-c-notice-02, nav-c-notice-03, nav-c-notice-04, nav-c-notice-05, nav-c-notice-06, nav-c-notice-07, nav-c-notice-08, nav-c-notice-09, nav-c-notice-10, nav-c-notice-11, nav-c-notice-12, nav-c-notice-13, nav-c-notice-14, nav-c-notice-15, nav-c-notice-16, nav-c-notice-17, nav-c-notice-18, nav-c-notice-19, nav-c-notice-20 |
+| troubleshooting#errors-on-a-deck | b-deck-error-recovery, report-dock-entry |
+| troubleshooting#the-players-own-warnings | closed_stock_firmware: The closed stock firmware owns this screen or operation. |
+| troubleshooting#e-8307-hubs-are-not-supported | informational: Explains automatic warning suppression and the cable card; no player action in this section. Actual cable detection needs hardware. |
+| troubleshooting#when-settings-cannot-be-saved | b-save-recovery |
+| troubleshooting#messages-in-the-xz-mods-app | desktop_platform: Every action is in the computer app. |
+| troubleshooting#the-diary-on-your-usb-sticks | informational: Explains automatically written diagnostic files; no on-player control. Actual USB diary persistence requires USB runtime. |
+| troubleshooting#report-a-problem | report-dock-entry |
