@@ -29,6 +29,8 @@ The cable goes from the rear USB socket to a top USB port. In this version the s
 
 The XZ keeps looking for the cable on its own. You never have to restart anything. **RESCAN** checks at once.
 
+> **Note.** The [XZ Mods app](desktop-app#four-decks-in-the-app) shows steps 2 to 5 with an animation of the cable while it writes your USB and when it is done. You set four decks up at the player, not in the app.
+
 > **Tip.** You can choose a four-deck view before you plug in the cable. Decks 3 and 4 then show a card with the cable steps and their current state, and decks 1 and 2 keep playing as usual.
 
 ## The 4 DECKS page in MODS
@@ -138,7 +140,7 @@ DECK VIEW is saved to the USB with your other settings. You can change it in fiv
 - **TWO DECKS** on the card;
 - MODS > **SCREEN** > **DECK VIEW**;
 - MODS > **4 DECKS** > **DECK VIEW**;
-- the button next to LINK, when you set it to **DECK VIEW** in MODS > PLAY > **BUTTON NEXT TO LINK**. Each press then steps 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order.
+- the rekordbox button above LINK, when you set it to **DECK VIEW** in MODS > PLAY > **REKORDBOX BUTTON**. Each press then steps 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order.
 
 ### The DECKS button and its picker
 

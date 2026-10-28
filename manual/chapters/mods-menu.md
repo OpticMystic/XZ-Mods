@@ -16,7 +16,7 @@ Press [[MENU]] on the play screen. A short press opens MODS wherever the player'
 
 To leave MODS, press [[MENU]] again, tap **CLOSE** in the top right corner, or press [[BACK]] until you are back on the play screen.
 
-You can also open MODS from the **MODS** button at the top of the MODERN play screen, or from the button next to LINK when you set it to **MODS MENU** in [PLAY](#play).
+You can also open MODS from the **MODS** button at the top of the MODERN play screen, or from the rekordbox button above LINK when you set it to **MODS MENU** in [PLAY](#play).
 
 ## Move around
 
@@ -69,7 +69,7 @@ PLAY changes what the pads and buttons do while you perform.
 1 @ 128,84 BEAT JUMP PADS | Your own beat jump distances for both pad pages. The row shows the sizes now in use.
 2 @ 128,132 GATE CUE and SMART CUE | Switch each cue trick on or off. A feature the player has not reported yet shows a SET UP button instead.
 3 @ 462,196 KEYS and RAM TRACKS | Open their own pages.
-4 @ 128,260 BUTTON NEXT TO LINK | What the media button next to LINK does on a press, and with SHIFT.
+4 @ 128,260 REKORDBOX BUTTON | What the rekordbox button does on a press, and with SHIFT.
 5 @ 722,425 WORKS ON | The decks the highlighted feature works on.
 ```
 

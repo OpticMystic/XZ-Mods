@@ -61,7 +61,7 @@ XZ Mods gives the player two interfaces. You choose one with **INTERFACE** on th
 
 Each interface keeps its own theme. If you switch from CLASSIC to MODERN and back, your classic theme comes back with you.
 
-To switch without opening MODS, press the button next to **LINK**. Out of the box it switches between MODERN and CLASSIC. You can give it another job in **PLAY** › **BUTTON NEXT TO LINK**. See [Controls on the player](hardware).
+To switch without opening MODS, press the rekordbox button above **LINK**. Out of the box it switches between MODERN and CLASSIC. You can give it another job in **PLAY** › **REKORDBOX BUTTON**. See [Controls on the player](hardware).
 
 ```figure modern:play-full MODERN play screen {modern}
 The MODERN play screen with two decks, 3-BAND waveforms and the playing key shown.

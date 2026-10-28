@@ -64,8 +64,8 @@ A fresh USB. XZ Mods is not on it yet, so the one action is Install XZ Mods.
 8 @ 604,442 Games | How many games are on the USB. Choose opens the games list.
 9 @ 870,442 Stems | How many tracks have stems. Prepare opens the Stems section.
 10 @ 430,541 Build | The XZ Mods build that goes on the USB. Change opens XZ Mods version.
-11 @ 1064,598 Set up four decks | The cable guide for four decks. It installs nothing.
-12 @ 464,669 Show every file | A read-only list of what XZ Mods keeps on this USB.
+11 @ 1064,595 Four decks | How four decks work. It sets nothing up. See [Four decks in the app](#four-decks-in-the-app).
+12 @ 464,664 Show every file | A read-only list of what XZ Mods keeps on this USB.
 13 @ 152,676 Feedback | Reports and ideas for the maintainer. See [Feedback](desktop-app#feedback).
 ```
 
@@ -93,15 +93,15 @@ Every step ends in the same bar. **Back** on the left returns to the step before
 
 1. **Your DJ profile.** Appears when the USB has no profile yet. Type your name and add a logo, or choose **Skip for now** and add it later.
 2. **Choose the screen the XZ shows.** New interface (MODERN) or Standard XDJ-XZ interface (CLASSIC). See [Getting started](getting-started#choose-modern-or-classic).
-3. **Four decks.** The cable guide for decks 3 and 4. **Skip for now** if you play two decks. See [Four decks](four-decks).
-4. **Ready to write.** A checklist of everything the write will do.
-5. **Writing.** The progress of each part.
-6. **Done.** What was written and what to do on the XZ.
-7. **Optional support.** A thank-you page with a voluntary support link. Every feature works whether you contribute or not.
+3. **Ready to write.** A checklist of everything the write will do.
+4. **Writing.** The progress of each part. Underneath, the app explains four decks while you wait.
+5. **Done.** What was written, what to do on the XZ, and how four decks work.
+6. **Optional support.** A thank-you page with a voluntary support link. Every feature works whether you contribute or not.
+
+Four decks is not a step of the guide. Nothing about it happens while the USB is written: you set it up at the player, whenever you want. See [Four decks in the app](#four-decks-in-the-app).
 
 ```gallery
 app:install-profile Your DJ profile. Skip for now leaves it for later
-app:install-four-decks The four-deck cable guide, with the cable animation
 ```
 
 ```figure app:install-screen XZ Mods app · Install XZ Mods
@@ -136,16 +136,16 @@ Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer are built into the loader 
 Press **Write to USB** in the bar under the checklist. If a newer build needs a setting changed on the USB, the app first asks in **Adjust USB settings for this version**. It saves a copy of the settings file first and puts it back if the loader write fails.
 
 ```figure app:install-done XZ Mods app · Install XZ Mods
-Your USB is ready.
+Your USB is ready. Four decks and the optional support link follow further down.
 1 @ 757,180 Result | Your USB is ready, or Finished, with something to check.
-2 @ 520,246 What was written | One line per part. A game that did not download says why.
-3 @ 1020,340 Set up four decks | Opens the cable guide again.
-4 @ 757,408 Support XZ Mods | The optional support page.
-5 @ 372,455 On the XZ | What to do with the USB next.
+2 @ 575,246 What was written | One line per part. A game that did not download says why.
+3 @ 372,319 On the XZ | What to do with the USB next, and how to switch between CLASSIC and MODERN with the rekordbox button above LINK.
+4 @ 490,554 Four decks | How four decks work. See [Four decks in the app](#four-decks-in-the-app).
+5 @ 808,728 Done | Back to the dashboard.
 6 @ 1062,728 Eject USB | Ejects the USB so you can unplug it.
-7 @ 808,728 Done | Back to the dashboard.
-8 @ 505,629 Eject by itself | Ejects the USB on its own after the next write.
 ```
+
+Under Four decks, **Support XZ Mods (optional)** opens the optional support page, and **Eject the USB by itself next time** ejects the USB on its own after the next write.
 
 If a game download failed, **Retry the failed games** tries only those, and the USB is not ejected until you have. When the write also saved a DJ profile, **Make the profile track** opens the profile track steps.
 
@@ -153,6 +153,21 @@ If a game download failed, **Retry the failed games** tries only those, and the 
 app:install-writing Writing. The progress of each part shows inside the guide
 app:install-ejected The USB is ejected and can be unplugged
 ```
+
+### Four decks in the app {experimental}
+
+[Four decks](four-decks) is set up at the player, so the app explains it rather than asking you to do anything. The USB list and the dashboard show a **Four decks** row. While a USB is written, and again on the done screen, a Four decks section shows the cable animation and the three things to do at the player.
+
+```figure app:install-four-decks XZ Mods app · Install XZ Mods
+The Four decks section on the done screen.
+1 @ 490,51 Four decks | Experimental. Nothing to do now. You set it up at the player when you want it.
+2 @ 560,300 Cable animation | The loopback cable from the rear USB-B socket to top USB 1.
+3 @ 1006,387 Pause cable animation | Stops and starts the animation. With reduced motion turned on, the app shows a still picture.
+4 @ 650,500 At the player | Cable from the rear USB-B socket to top USB 1, the music stick in USB 2, and CH3 and CH4 set to USB.
+5 @ 478,553 How four decks work | Opens the [Four decks](four-decks) chapter of this manual.
+```
+
+**How four decks work** and the **Four decks** row both open the Four decks chapter of this manual. If the build just written has no four-deck engine, the section says so and offers **Choose the four-deck build**, which opens the four-deck build choice in [XZ Mods version](#xz-mods-version). Save it, then update the USB.
 
 ## Stems
 
@@ -289,7 +304,7 @@ Every tool, in three groups.
 3 @ 453,240 XZ Mods version | Picks which build goes on your USB, or imports one.
 4 @ 456,380 Network updates | Sends the newest XZ Mods to XZs on your network.
 5 @ 424,518 App updates | Checks for a newer app.
-6 @ 789,518 About | The version and open-source licenses.
+6 @ 789,518 About | The app, its maker, links, disclaimers and open-source licenses.
 7 @ 150,655 Feedback | Reports and ideas are not in Tools. They have their own section at the foot of the rail.
 ```
 
@@ -410,12 +425,19 @@ On Windows the app checks for updates by itself at launch and shows **Review upd
 
 ### About
 
-About shows the app version and the open-source licenses.
+About says what XZ Mods is and who makes it, and gathers the links, the disclaimers and the open-source licenses in one place.
 
 ```figure app:about XZ Mods app · About
 About.
-1 @ 518,276 App updates and release notes | Opens App updates.
-2 @ 453,447 Open license notices | Every open-source project XZ Mods uses and its license.
+1 @ 640,135 Version | The app version on this computer.
+2 @ 775,159 Maker | XZ Mods is made by OpticMystic.
+3 @ 620,283 App updates and release notes | Opens App updates.
+4 @ 365,367 The maker | OpticMystic's projects: XZ Mods, VJ.Tools and DJ Profile. Make yours opens DJ Profile.
+5 @ 742,367 Links | The source code, issues and releases on GitHub, xzmods.com and vj.tools. Each opens in your browser.
+6 @ 805,666 Feedback | Opens [Feedback](#feedback) in the app.
+7 @ 920,719 Support XZ Mods (optional) | Voluntary support on Cash App. Every feature stays available.
+8 @ 378,813 Disclaimers | XZ Mods is independent of Pioneer DJ and AlphaTheta, experimental, runs from the USB, and builds its loader from the official firmware for your own use.
+9 @ 960,1012 Open license notices | Every open-source project XZ Mods uses and its license.
 ```
 
 ## Feedback
