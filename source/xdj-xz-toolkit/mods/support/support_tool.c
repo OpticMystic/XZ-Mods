@@ -1438,9 +1438,12 @@ static int cmd_set_clock(const char *state_dir, const char *epoch_str) {
    `pending <state_dir>` reads one bounded request from stdin (the runtime writes it; the loader key travels this
    way so it never appears in argv or a file), collects the allowlisted diagnostics, saves the report to the
    loader stick first, then uploads it with the loader key. The stick copy is removed once the Worker accepts it,
-   so a report is never lost to a hang, a power cut or a missing network. Output, one line each, stdout:
+   so a report is never lost to a hang, a power cut or a missing network. The wire contract is the bug desk's
+   (spec/generated/controller-pending.schema.json, services/support/CONTROLLER-QUEUE.md): the body and the stick
+   file are the same report-v2 bytes, and a retry of one report ID sends exactly those bytes again.
+   Output, one line each, stdout:
      SAVED_FIRST <id>                    the stick copy exists (flushed before the upload starts)
-     SENT <id> <R-XXXX-XXXX> <url>       the Worker accepted it
+     SENT <id> <R-XXXX-XXXX>             the Worker accepted it
      SAVED <id> <why>                    on the stick only; why: NO_IDENTITY NEEDS_CLOCK OFFLINE REJECTED UNKNOWN
      UNSAVED <stick> <why>               neither; stick: NO_STICK READ_ONLY FULL LIMIT FAILED */
 #include "crockford.h"
@@ -1456,10 +1459,10 @@ static int cmd_set_clock(const char *state_dir, const char *epoch_str) {
 struct pending_request {
     char report_id[33], topic[24], text[PENDING_TEXT_CHARS + 1], version[65];
     char iface[8], before[16], entry[8];
-    int deck_view;
+    int deck_view, mods_page; /* mods_page: enum xz_ui_page, or -1 */
     unsigned alert[3]; /* deck 1, deck 2, the USB port (E-8307) */
     int settings[6], have_settings;
-    char settings_sha[65], loader_id[12], loader_key[65], usb[1024];
+    char settings_sha[65], loader_id[12], loader_key[65], installation_id[12], usb[1024];
 };
 
 /* The report v2 contract's enums (spec/support-contract.json). tests/verify_support_report.py checks they match. */
@@ -1499,7 +1502,17 @@ static const char *const topic_kinds[] = {"REGRESSION","BUG","EXPECTATION","FEAT
 static const char *const places[] = {"UNKNOWN","PLAY","BROWSE","PLAYLIST","TAG_LIST","SEARCH","INFO","SHORTCUT",
     "UTILITY","SOURCE","STOCK_MENU","TRACK_LIST","GRID_ADJUST","TAKEOVER","GAME","OTHER"};
 static const char *const entries[] = {"EXTRAS","ALERT","UPDATES"};
-static const char *const deck_views[] = {"TWO_DECKS","FOUR_DECKS_1234","FOUR_DECKS_3124"};
+/* screen_state's enums (spec/generated/controller-pending.schema.json). The MODS pages are enum xz_ui_page in
+   order, after UNKNOWN; tests/verify_support_report.py checks every list against the contract. */
+static const char *const deck_views[] = {"TWO","FOUR","MIXER"};
+static const char *const mods_pages[] = {"UNKNOWN","STEMS","XPAD","SETTINGS","THEMES","CONNECTION","CONTROLS","BEAT_JUMP",
+    "EXTRAS","DOOM","DOOM_SETUP","DOOM_FILES","UPDATES","UPDATE_SETUP","GAMES","MYHOUSE_SETUP","KEY_SETUP","BROWSE_SETUP",
+    "PC_STEMS","STEM_COLORS","APPS","APPS_SETUP","RAM_SETUP","LOCAL_STEM_SETUP","METRICS_SETUP","PROFILE_SETUP",
+    "PROFILE_EDIT","GENERAL","FEATURE_SETUP","THEME_PICK","BUTTONS","NETWORK","NETWORK_SETUP","NETWORK_EDIT","ABOUT",
+    "SUPPORT","HOME","PLAY","STEM_SECTION","SCREEN","FOUR_DECKS","CONNECT","STEM_PADS","SCREEN_LOOK","BAND_COLORS"};
+/* The stock page under MODS for each place the runtime names (places[]); NULL when it is not a stock page. */
+static const char *const place_pages[] = {NULL,"PERFORMANCE","BROWSE","BROWSE","TAG_LIST","SEARCH","INFO",NULL,
+    "UTILITY","SOURCE","MENU","BROWSE","PERFORMANCE",NULL,NULL,NULL};
 static const char *const setting_names[6] = {"stems","gate","interface","classic_theme","deck_view","browse_preview"};
 static const unsigned alert_codes[] = {7206, 8302, 8304, 8305, 8306, 8307};
 
@@ -1528,9 +1541,10 @@ static int known_alert(unsigned long code) {
 /* Every line is key=value; every key is known and appears at most once; every value is allowlisted. */
 static int parse_pending_request(char *text, struct pending_request *r) {
     static const char *const keys[] = {"report_id","topic","text","version","interface","before","entry","deck_view",
-        "alert","settings","settings_sha256","loader_id","loader_key","usb"};
+        "alert","settings","settings_sha256","loader_id","loader_key","usb","installation_id","mods_page"};
     unsigned seen = 0;
     memset(r, 0, sizeof(*r));
+    r->mods_page = -1;
     char *line = text;
     if (strncmp(line, "xz-pending-request/1\n", 21) != 0) return -1;
     line += 21;
@@ -1587,18 +1601,20 @@ static int parse_pending_request(char *text, struct pending_request *r) {
             break;
         }
         case 10: if (!is_lower_hex(v, 64)) return -1; strcpy(r->settings_sha, v); break;
-        case 11: if (vlen > 32 || xz_crockford_ref(v, vlen, 'L', r->loader_id)) return -1; break;
+        case 11: if (vlen != 11 || xz_crockford_ref(v, vlen, 'L', r->loader_id) || memcmp(r->loader_id, v, 11)) return -1; break;
         case 12: if (!is_lower_hex(v, 64)) return -1; strcpy(r->loader_key, v); break;
         case 13:
             if (vlen >= sizeof(r->usb) || (vlen && (v[0] != '/' || strstr(v, "..")))) return -1;
             strcpy(r->usb, v);
             break;
+        case 14: if (vlen != 11 || xz_crockford_ref(v, vlen, 'I', r->installation_id) || memcmp(r->installation_id, v, 11)) return -1; break;
+        case 15: if (parse_uint(v, sizeof(mods_pages) / sizeof(*mods_pages) - 2, &n)) return -1; r->mods_page = (int)n; break;
         }
         line = eol + 1;
     }
     /* report_id, interface, before, entry and deck_view are required. A key needs its ID. */
     if ((seen & 0xf1u) != 0xf1u) return -1;
-    if (!r->loader_id[0] != !r->loader_key[0]) return -1;
+    if (!r->loader_id[0] != !r->loader_key[0] || !r->loader_id[0] != !r->installation_id[0]) return -1;
     return 0;
 }
 
@@ -1928,7 +1944,26 @@ static void collect_settings_item(struct out *o, int *first, const struct pendin
     put_item(o, first, "usb_settings", "xz_a", 1, "current", &fs, NULL, 0);
 }
 
-/* The upload body and the stick copy: one envelope around a report v2. NULL when it would not fit. */
+/* What the DJ was looking at, as screen_state: the stock page under MODS when it is one, else the MODS page the
+   report was opened from. Enums only. */
+static void put_screen_state(struct out *o, const struct pending_request *r) {
+    int place = in_list(LIST(places), r->before, strlen(r->before));
+    const char *stock = place >= 0 ? place_pages[place] : NULL;
+    const char *mods = !stock && r->mods_page >= 0 ? mods_pages[r->mods_page + 1] : "UNKNOWN";
+    const char *surface = stock ? "STOCK" : strcmp(mods, "UNKNOWN") ? "MODS" : "UNKNOWN";
+    unsigned code = r->alert[0] ? r->alert[0] : r->alert[1] ? r->alert[1] : r->alert[2];
+    const char *alert = !code ? "NONE" : code == 8302 || code == 8306 ? "READ_ERROR" : code == 8304 || code == 8305 ? "UNSUPPORTED_FILE" :
+        code == 7206 ? "DEVICE_ERROR" : code == 8307 ? "HUB_UNSUPPORTED" : "UNKNOWN";
+    char counter[16];
+    if (!code) strcpy(counter, "NONE");
+    else if (code == 8302 || code == 8304 || code == 8305 || code == 8307) snprintf(counter, sizeof(counter), "E-%u", code);
+    else strcpy(counter, "UNKNOWN");
+    put(o, "\"screen_state\":{\"surface\":\"%s\",\"stock_page\":\"%s\",\"mods_page\":\"%s\",\"interface\":\"%s\","
+           "\"deck_view\":\"%s\",\"alert_code\":\"%s\",\"counter_code\":\"%s\"}",
+        surface, stock ? stock : "UNKNOWN", mods, r->iface, deck_views[r->deck_view], alert, counter);
+}
+
+/* The upload body and the stick copy: the report object itself, exactly. NULL when it would not fit. */
 static char *build_pending_report(const struct pending_request *r, const char *state_dir, const char *src_root, size_t *out_len) {
     struct out o = { calloc(1, MAX_DRAFT_BYTES), 0, MAX_DRAFT_BYTES, 0 };
     if (!o.p) return NULL;
@@ -1937,26 +1972,28 @@ static char *build_pending_report(const struct pending_request *r, const char *s
     char clean[PENDING_TEXT_CHARS * 2 + 64] = "";
     if (r->text[0]) sanitize_text(r->text, clean, sizeof(clean), &redactions, &omitted);
     for (size_t i = strlen(clean); i > 0 && (clean[i - 1] == ' ' || clean[i - 1] == '\n'); i--) clean[i - 1] = 0;
-    int typed = clean[0] != 0;
+    if (strlen(clean) > PENDING_TEXT_CHARS) clean[PENDING_TEXT_CHARS] = 0; /* a redaction marker can lengthen it */
     const char *category = r->alert[2] == 8307 ? "bridge" : (r->alert[0] && r->alert[0] != 7206) || (r->alert[1] && r->alert[1] != 7206) ? "app_usb" : "other";
     int64_t now = 0;
     int used_override = 0;
     int now_known = resolve_effective_clock(state_dir, &now, &used_override) == 0;
 
-    put(&o, "{\"schema\":\"xz-pending-report/1\",\"report_id\":\"%s\",\"loader_id\":", r->report_id);
-    if (r->loader_id[0]) put(&o, "\"%s\"", r->loader_id); else put(&o, "null");
-    put(&o, ",\"description_from_xz\":%s,\"screen\":{\"interface\":\"%s\",\"before\":\"%s\",\"entry\":\"%s\",\"deck_view\":\"%s\",\"alerts\":[",
-        typed ? "true" : "false", r->iface, r->before, r->entry, deck_views[r->deck_view]);
-    int any = 0;
-    for (int i = 0; i < 3; i++) if (r->alert[i]) { put(&o, "%s{\"deck\":%d,\"code\":%u}", any ? "," : "", i < 2 ? i + 1 : 0, r->alert[i]); any = 1; }
-    put(&o, "]},\"report\":{\"schema\":\"xz-support-report/2\",\"report_id\":\"%s\",\"origin\":\"controller\",\"kind_hint\":", r->report_id);
+    put(&o, "{\"schema\":\"xz-support-report/2\",\"report_id\":\"%s\",\"origin\":\"controller\",\"loader_id\":", r->report_id);
+    if (r->loader_id[0]) put(&o, "\"%s\",\"installation_id\":\"%s\"", r->loader_id, r->installation_id);
+    else put(&o, "null,\"installation_id\":null");
+    put(&o, ",\"comments_pending\":true,\"kind_hint\":");
     if (topic >= 0) put(&o, "\"%s\"", topic_kinds[topic]); else put(&o, "null");
+    /* Empty when the DJ skipped typing; their computer asks for it either way. */
     put(&o, ",\"description\":");
-    put_string(&o, typed ? clean : "Sent from the XZ without a description. The DJ adds what happened on their computer.");
+    put_string(&o, clean);
     put(&o, ",\"category\":\"%s\",\"build\":{\"desktop_version\":\"unknown\",\"desktop_provenance\":\"unknown\","
             "\"runtime_version\":\"unknown\",\"runtime_provenance\":\"unknown\"},"
-            "\"incident\":{\"before_seconds\":900,\"after_seconds\":300,\"clock_confidence\":\"%s\"},"
-            "\"private\":{\"contact\":null,\"contact_consent\":false,\"items\":[", category, now_known ? "known" : "unknown");
+            "\"incident\":{\"before_seconds\":900,\"after_seconds\":300,\"clock_confidence\":\"%s\"},",
+        category, now_known ? "known" : "unknown");
+    put_screen_state(&o, r);
+    put(&o, ",\"reporter_hints\":{\"topic\":");
+    if (topic >= 0) put(&o, "\"%s\"", topics[topic]); else put(&o, "null");
+    put(&o, "},\"private\":{\"contact\":null,\"contact_consent\":false,\"items\":[");
     int first = 1;
     /* The running runtime: its version and hash, then its log's known events. */
     {
@@ -1991,10 +2028,8 @@ static char *build_pending_report(const struct pending_request *r, const char *s
     if (random_bytes(gen, sizeof(gen)) != 0) memset(gen, 0, sizeof(gen));
     to_hex(gen, sizeof(gen), gen_hex);
     put(&o, "]},\"coverage\":{\"omitted_items\":0,\"unfinished_sources\":0,\"scan_generation\":\"%s\"},"
-            "\"redactions\":{\"count\":%u,\"omitted_lines\":%u},\"reporter_hints\":{\"topic\":",
+            "\"redactions\":{\"count\":%u,\"omitted_lines\":%u}}\n",
         gen_hex, redactions > 1000000u ? 1000000u : redactions, omitted > 1000000u ? 1000000u : omitted);
-    if (topic >= 0) put(&o, "\"%s\"", topics[topic]); else put(&o, "null");
-    put(&o, "}}}\n");
     if (o.full) { free(o.p); return NULL; }
     *out_len = o.len;
     return o.p;
@@ -2011,15 +2046,23 @@ static const char *stick_error(int err) {
     return "FAILED";
 }
 
+/* A pending report's file name: exactly 32 lower-case hex digits, then .json. */
+static int is_lower_hex_prefix(const char *name) {
+    for (int i = 0; i < 32; i++) if (!((name[i] >= '0' && name[i] <= '9') || (name[i] >= 'a' && name[i] <= 'f'))) return 0;
+    return !strcmp(name + 32, ".json");
+}
+
 static unsigned count_pending(const char *dir, const char *except) {
     unsigned n = 0;
 #if defined(_WIN32)
     char pattern[1200];
     struct _finddata_t found;
-    snprintf(pattern, sizeof(pattern), "%s/xz-report-*.json", dir);
+    snprintf(pattern, sizeof(pattern), "%s/*.json", dir);
     intptr_t h = _findfirst(pattern, &found);
     if (h == -1) return 0;
-    do { if (strcmp(found.name, except) && ++n > 4096) break; } while (_findnext(h, &found) == 0);
+    do {
+        if (strlen(found.name) == 37 && is_lower_hex_prefix(found.name) && strcmp(found.name, except) && ++n > 4096) break;
+    } while (_findnext(h, &found) == 0);
     _findclose(h);
 #else
     DIR *d = opendir(dir);
@@ -2028,14 +2071,14 @@ static unsigned count_pending(const char *dir, const char *except) {
     unsigned seen = 0;
     while ((e = readdir(d)) && ++seen <= 4096) {
         size_t len = strlen(e->d_name);
-        if (len > 15 && !strncmp(e->d_name, "xz-report-", 10) && !strcmp(e->d_name + len - 5, ".json") && strcmp(e->d_name, except)) n++;
+        if (len == 37 && is_lower_hex_prefix(e->d_name) && !strcmp(e->d_name + 32, ".json") && strcmp(e->d_name, except)) n++;
     }
     closedir(d);
 #endif
     return n;
 }
 
-/* The stick copy: <usb>/VJ.Tools/XZ-Mods-reports/pending/xz-report-<id>.json, written atomically. */
+/* The stick copy: <usb>/VJ.Tools/XZ-Mods-reports/pending/<id>.json, written atomically. */
 static const char *save_pending(const char *usb, const char *id, const char *body, size_t len, char *path_out, size_t path_cap) {
     struct stat st;
     if (!usb || !usb[0] || stat(usb, &st) != 0 || !(st.st_mode & S_IFDIR)) return "NO_STICK";
@@ -2044,28 +2087,17 @@ static const char *save_pending(const char *usb, const char *id, const char *bod
     snprintf(b, sizeof(b), "%s/XZ-Mods-reports", a);
     snprintf(c, sizeof(c), "%s/pending", b);
     if (ensure_dir_safe(a) != 0 || ensure_dir_safe(b) != 0 || ensure_dir_safe(c) != 0) return stick_error(errno);
-    snprintf(name, sizeof(name), "xz-report-%s.json", id);
+    snprintf(name, sizeof(name), "%s.json", id);
     if (count_pending(c, name) >= PENDING_MAX_STICK_REPORTS) return "LIMIT";
     if (write_atomic(c, name, body, len) != 0) return stick_error(errno);
     snprintf(path_out, path_cap, "%s/%s", c, name);
     return NULL;
 }
 
-static int valid_tracking_url(const char *s, size_t n) {
-    static const char *const prefixes[] = {DEFAULT_ORIGIN "/", "https://xzmods.com/"};
-    if (n < 12 || n > 160) return 0;
-    int ok = 0;
-    for (size_t i = 0; i < 2; i++) if (n > strlen(prefixes[i]) && !strncmp(s, prefixes[i], strlen(prefixes[i]))) ok = 1;
-    for (size_t i = 0; ok && i < n; i++) {
-        char ch = s[i];
-        if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || strchr(":/._-", ch))) ok = 0;
-    }
-    return ok;
-}
-
-/* The Worker's answer: {"report_id":"<the same id>","reference":"R-XXXX-XXXX"[,"tracking_url":"https://..."]}.
-   Other keys are ignored; the ones read must be exactly right. */
-static int parse_pending_receipt(const char *json, const char *report_id, char reference[12], char *url, size_t url_cap) {
+/* The Worker's acceptance: {"schema":"xz-controller-accepted/1","report_id":<ours>,"report_reference":"R-XXXX-XXXX",
+   "payload_sha256":<the body's>,"accepted_at":...,"comments_pending":true}. A loader gets no tracking link. Other keys
+   are ignored; the ones read must be exactly right. */
+static int parse_pending_receipt(const char *json, const char *report_id, const char *payload_sha, char reference[12]) {
     jsmn_parser p;
     jsmntok_t t[64];
     jsmn_init(&p);
@@ -2074,26 +2106,44 @@ static int parse_pending_receipt(const char *json, const char *report_id, char r
     if (count < 1 || t[0].type != JSMN_OBJECT) return -1;
     for (size_t n = (size_t)t[0].end; n < len; n++) if (!isspace((unsigned char)json[n])) return -1;
     unsigned seen = 0;
-    url[0] = 0;
     for (int i = 1; i < count; i++) {
-        if (t[i].type != JSMN_STRING || t[i].size != 1 || i + 1 >= count) continue; /* only top-level keys own a value */
+        if (t[i].type != JSMN_STRING || t[i].size != 1 || i + 1 >= count) continue; /* only keys own a value */
         const jsmntok_t *v = &t[i + 1];
         size_t n = (size_t)(v->end - v->start);
-        if (token_is(json, &t[i], "report_id")) {
-            if (v->type != JSMN_STRING || n != 32 || memcmp(json + v->start, report_id, 32)) return -1;
-            seen |= 1;
-        } else if (token_is(json, &t[i], "reference")) {
-            if (v->type != JSMN_STRING || n > 16 || xz_crockford_ref(json + v->start, n, 'R', reference)) return -1;
-            seen |= 2;
-        } else if (token_is(json, &t[i], "tracking_url")) {
-            if (v->type != JSMN_STRING || !valid_tracking_url(json + v->start, n) || n >= url_cap) return -1;
-            memcpy(url, json + v->start, n);
-            url[n] = 0;
-        }
+        unsigned bit = 0;
+        if (token_is(json, &t[i], "schema")) { if (!token_is(json, v, "xz-controller-accepted/1")) return -1; bit = 1; }
+        else if (token_is(json, &t[i], "report_id")) { if (!token_is(json, v, report_id)) return -1; bit = 2; }
+        else if (token_is(json, &t[i], "report_reference")) {
+            if (v->type != JSMN_STRING || n > 32 || xz_crockford_ref(json + v->start, n, 'R', reference)) return -1;
+            bit = 4;
+        } else if (token_is(json, &t[i], "payload_sha256")) { if (!token_is(json, v, payload_sha)) return -1; bit = 8; }
+        else if (token_is(json, &t[i], "comments_pending")) {
+            if (v->type != JSMN_PRIMITIVE || n != 4 || memcmp(json + v->start, "true", 4)) return -1;
+            bit = 16;
+        } else if (token_is(json, &t[i], "accepted_at")) bit = 32;
+        if (bit && (seen & bit)) return -1;
+        seen |= bit;
     }
-    if (seen != 3) return -1;
-    if (!url[0]) snprintf(url, url_cap, "%s/r/%s", DEFAULT_ORIGIN, reference);
-    return 0;
+    return seen == 63 ? 0 : -1;
+}
+
+/* One report ID, one set of bytes: a retry reuses them from RAM (the support state directory, never the XZ's
+   flash) or from the stick copy. */
+static char *reuse_pending(const char *state_dir, const char *usb, const char *id, size_t *out_len) {
+    char path[1400];
+    char *buf = calloc(1, MAX_DRAFT_BYTES);
+    if (!buf) return NULL;
+    for (int place = 0; place < 2; place++) {
+        if (place == 0) snprintf(path, sizeof(path), "%s/report-%s.json", state_dir, id);
+        else if (usb[0]) snprintf(path, sizeof(path), "%s/VJ.Tools/XZ-Mods-reports/pending/%s.json", usb, id);
+        else break;
+        size_t len = 0;
+        int truncated = 0;
+        if (read_file_bounded(path, buf, MAX_DRAFT_BYTES, &len, &truncated) == 0 && !truncated && len > 2 &&
+            buf[0] == '{' && strstr(buf, id)) { *out_len = len; return buf; }
+    }
+    free(buf);
+    return NULL;
 }
 
 static int cmd_pending(const char *state_dir) {
@@ -2113,11 +2163,17 @@ static int cmd_pending(const char *state_dir) {
         if (env_root) src_root = env_root;
     }
     size_t len = 0;
-    char *body = build_pending_report(&r, state_dir, src_root, &len);
+    char *body = reuse_pending(state_dir, r.usb, r.report_id, &len);
     if (!body) {
-        fprintf(stderr, "XZ_SUPPORT_ERROR PENDING_REPORT_TOO_LARGE\n");
-        return 2;
+        body = build_pending_report(&r, state_dir, src_root, &len);
+        if (!body) {
+            fprintf(stderr, "XZ_SUPPORT_ERROR PENDING_REPORT_TOO_LARGE\n");
+            return 2;
+        }
     }
+    char ram_name[64];
+    snprintf(ram_name, sizeof(ram_name), "report-%s.json", r.report_id);
+    write_atomic(state_dir, ram_name, body, len);
     char saved_path[1400] = "";
     const char *stick = save_pending(r.usb, r.report_id, body, len, saved_path, sizeof(saved_path));
     if (!stick) { printf("SAVED_FIRST %s\n", r.report_id); fflush(stdout); }
@@ -2128,20 +2184,23 @@ static int cmd_pending(const char *state_dir) {
             const char *test_origin = getenv("XZ_SUPPORT_TEST_ORIGIN");
             if (test_origin && *test_origin) origin = test_origin;
         }
-        char sha[65], headers[512], resp[16384] = {0}, reference[12] = "", url[192] = "";
+        char sha[65], headers[512], resp[16384] = {0}, reference[12] = "";
         sha256_hex(body, len, sha);
-        snprintf(headers, sizeof(headers), "Authorization: Bearer %s\r\nX-Loader-ID: %s\r\nX-Report-ID: %s\r\nX-Report-SHA256: %s\r\n",
-                 r.loader_key, r.loader_id, r.report_id, sha);
+        snprintf(headers, sizeof(headers), "Authorization: Bearer %s\r\nX-Report-ID: %s\r\nX-Report-SHA256: %s\r\n"
+                 "X-Report-Consent: private-report/v2\r\n", r.loader_key, r.report_id, sha);
         int status = 0;
         int rc = https_exchange(state_dir, origin, "POST", "/v2/xz/pending", headers, body, len, 2, &status, resp, sizeof(resp));
         mbedtls_platform_zeroize(headers, sizeof(headers));
-        if (rc == 0 && (status == 200 || status == 201) && parse_pending_receipt(resp, r.report_id, reference, url, sizeof(url)) == 0) {
+        if (rc == 0 && (status == 200 || status == 201) && parse_pending_receipt(resp, r.report_id, sha, reference) == 0) {
             if (saved_path[0]) unlink(saved_path); /* the Worker has it; the app finds it in the queue */
+            char ram_path[1200];
+            snprintf(ram_path, sizeof(ram_path), "%s/%s", state_dir, ram_name);
+            unlink(ram_path);
             free(body);
             char id[33];
             strcpy(id, r.report_id);
             mbedtls_platform_zeroize(&r, sizeof(r));
-            printf("SENT %s %s %s\n", id, reference, url);
+            printf("SENT %s %s\n", id, reference);
             return 0;
         }
         why = rc == 3 ? "NEEDS_CLOCK" : rc == 4 || (rc == 0 && status >= 200 && status < 300) ? "UNKNOWN" :
@@ -2152,7 +2211,14 @@ static int cmd_pending(const char *state_dir) {
     char id[33];
     strcpy(id, r.report_id);
     mbedtls_platform_zeroize(&r, sizeof(r));
-    if (!stick) { printf("SAVED %s %s\n", id, why); return 0; }
+    if (!stick) {
+        /* On the stick for good: the next report is a new one, so the RAM copy goes. */
+        char ram_path[1200];
+        snprintf(ram_path, sizeof(ram_path), "%s/%s", state_dir, ram_name);
+        unlink(ram_path);
+        printf("SAVED %s %s\n", id, why);
+        return 0;
+    }
     printf("UNSAVED %s %s\n", stick, why);
     return 1;
 }
