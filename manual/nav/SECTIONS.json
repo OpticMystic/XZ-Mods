@@ -1,0 +1,1935 @@
+{
+  "schema": 1,
+  "scope": "All chapter level-2 and level-3 headings are inventoried, including informational and desktop sections. Flows illustrate excerpts, not full section acceptance.",
+  "sections": [
+    {
+      "section": "browse#browsing-in-modern",
+      "title": "Browsing in MODERN {modern}",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "94ac66990fbfa5bd874138db07a0b6af959d97e5bd1179ff8b0b9f0d3cc74971",
+      "flows": [
+        "browse-category-folder"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#moving-through-a-list",
+      "title": "Moving through a list {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "abc1ce4e504729650902b9ade43895294bc72db43df5f2c2263ed4dbd0a2c31d",
+      "flows": [
+        "encoder-list"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#loading-a-track",
+      "title": "Loading a track {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "5cd293117af5e2bb7d30fcb819464ced338d97ccff9a445d6356c378fb86a6f0",
+      "flows": [
+        "browse-load"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#info-panel",
+      "title": "INFO panel {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "cc6972bf7b1f5ca0f578882a86f6251b7b778593b0a241c876158b11f469836f",
+      "flows": [
+        "browse-rating-edit"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#sort-columns-and-the-track-menu",
+      "title": "Sort, columns and the track menu {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "1255caf939031ae0090e9a36893525aa6b60e5b121ff620e9e644c63b96e51bb",
+      "flows": [
+        "browse-cue-loop-load",
+        "browse-loop-load",
+        "browse-menu",
+        "browse-sort-columns",
+        "browse-tag-edit"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#filter",
+      "title": "Filter {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "918df63eb09d52a799f67e4bca6b170932cfdcc027b324d1e99e346dd7f20c0f",
+      "flows": [
+        "filter"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#search",
+      "title": "Search {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "9b07e81e2a937f7dfbdb18c30cd74621bca1f4f84b82bade7eead3e245a1ffd1",
+      "flows": [
+        "search",
+        "search-results-load"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#tag-list",
+      "title": "Tag list {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "56ffadfdcd2d7341982e551ec7e2941ce21dded235258e6d6564c4c99aaa2c9a",
+      "flows": [
+        "tag-list"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#playlists",
+      "title": "Playlists {modern}",
+      "level": 3,
+      "chapter": "browse.md",
+      "sha256": "c30ed1306a8040a2a9d55ca108554922d5e858870d2ca374aaef9f5233dc8df3",
+      "flows": [
+        "playlists"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#source",
+      "title": "SOURCE {modern}",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "ac6fdec1e7b1d039f7681766db4a86ded0226961922ced940e9c583dc34b4a3b",
+      "flows": [
+        "source"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#info",
+      "title": "INFO {modern}",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "e4a5103180892db62e68464899ae57d06bc23cb8889d9e2d08138005e0a96ce3",
+      "flows": [
+        "browse-rating-edit",
+        "info"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "browse#browsing-in-classic",
+      "title": "Browsing in CLASSIC {classic}",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "4e0a39358eb531d8811534812eb59ec053c67e807358e9be255068c8b9c78f59",
+      "flows": null,
+      "reason": "closed_stock_firmware",
+      "detail": "The closed stock firmware owns this screen or operation."
+    },
+    {
+      "section": "browse#browse-settings",
+      "title": "Browse settings",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "b4c071df1f472446e54c05edbbdd4c7202ca42215ba17a5543b1a02168ba59a1",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "browse#if-browsing-goes-wrong",
+      "title": "If browsing goes wrong",
+      "level": 2,
+      "chapter": "browse.md",
+      "sha256": "b920cd48d53dff699bb904579079ca2ee6136309035c0dba5215499dc79f0162",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "connect#the-connect-page",
+      "title": "The CONNECT page",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "86d26597870dacbc3f84315cf9a64ba6c181f2d710e958652e28418ecd96d224",
+      "flows": [
+        "mods-connect"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#dj-profile",
+      "title": "DJ profile",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "2c5b48b41ebec366164bec16004573acfaf5f43329b33e39c3b41786ae3f172e",
+      "flows": [
+        "dj-profile",
+        "profile-logo"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#make-a-profile-on-a-computer",
+      "title": "Make a profile on a computer",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "bb0385eda990c59b19775b4002a505925bdf53a963e0c8d7b6662619f8d0e65e",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "connect#make-a-profile-on-the-xz",
+      "title": "Make a profile on the XZ",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "95b22fecbaea9a4f63e9f03d3d042fb866f14b0ae1be168b5f0c0148cbced303",
+      "flows": [
+        "dj-profile-create-switch",
+        "profile-logo",
+        "profile-logo-error",
+        "profile-save-error"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#choose-and-switch-profiles",
+      "title": "Choose and switch profiles",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "15354743b7bda639571ed623651f198bce8894b6b4fba813b5b1f095160d3cad",
+      "flows": [
+        "dj-profile-create-switch",
+        "profile-logo"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#when-a-profile-will-not-save-or-show",
+      "title": "When a profile will not save or show",
+      "level": 3,
+      "chapter": "connect.md",
+      "sha256": "25b9e74bef1e75ff8e9a31308a6bc4e4430256bdf7d296d1ad9ce76db797bfe1",
+      "flows": [
+        "profile-logo-error",
+        "profile-save-error"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#vjtools",
+      "title": "VJ.Tools {experimental}",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "7416e589fee15d75cc15877887523041b38ebdc75c0c5997c948d4ebf18aa33d",
+      "flows": [
+        "vj-tools"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#network",
+      "title": "Network {experimental}",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "c9662b39a0d5bb376759e30a1032f743e716400f62aac11f4828e3ecdba1781e",
+      "flows": [
+        "network",
+        "network-review",
+        "network-static",
+        "network-static-failure"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "connect#updates-over-the-network",
+      "title": "Updates over the network {experimental}",
+      "level": 2,
+      "chapter": "connect.md",
+      "sha256": "860cb2b53abc164dde524142bb6491fc571ec6ded1804cc421ca7cd96a7acd0c",
+      "flows": [
+        "updates"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "desktop-app#around-the-app",
+      "title": "Around the app",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "adabe34e4d4815860c7b40630581cc8bad948b95b74a82c07af40a4c5997c7a9",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#usb",
+      "title": "USB",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "772e60e713208e8d2ae70072329e602c3bed88b25ccee31ea5bf6b6f72701cfe",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#choose-a-usb-or-a-folder",
+      "title": "Choose a USB or a folder",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "95f04b4fcd7cdc791a052bbf63042f12020eb99963624456e95f56fb692a8572",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#the-usb-dashboard",
+      "title": "The USB dashboard",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "45fd08c16cbf3357a61646ece66abb7855fe52077008b3adac61dba867e2ee92",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#install-or-update-xz-mods",
+      "title": "Install or update XZ Mods",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "459488708ec862616225c47da84b6a9a5c1bef99412501e55a13246f294055d8",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#four-decks-in-the-app",
+      "title": "Four decks in the app {experimental}",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "e58defdadc0123c7526cd1d6550900b75aa8ed2caddd75c79e70d15b214b1cdf",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#stems",
+      "title": "Stems",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "2ab2570d9a8defbb1ab82885c470fd1684c0e6c34cd6c69f2a9b27e71d031e64",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#set-up-the-stem-engine",
+      "title": "Set up the stem engine",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "8a2e4cec927c36878e5b4f6dad14ee7a8eeeeca7668f57ab73ba4cab18ec6697",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#import-stems-you-already-have",
+      "title": "Import stems you already have",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "b0564b4e60b51ec451eb16acdbacee8641aa6a6cbb7683aed4fbc2eb7f3e9b34",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#xz-screen",
+      "title": "XZ Screen {experimental}",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "e5c0f57514bf5eb582190c1141be559383d5aed3bfeea2b7fa944618f1a9706b",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#tools",
+      "title": "Tools",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "3ee9f24baa2d199bda8ac48009b348af0e5a705149e0317038439c2f685e477e",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#dj-profile",
+      "title": "DJ Profile",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "63ad69f80ace07b171059286ccf8e96ce84c7f6656a90c4e4d139f540c1f5006",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#repair-library",
+      "title": "Repair library",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "5cd9f6f4708f4d7896a7f7e3c294624d3be347f004773d5a58dc9c7e3f352346",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#network-updates",
+      "title": "Network updates {experimental}",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "298ab1f837c518bd0d23026d43f9431a8d352338aaf20c04acb0cc416572231b",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#xz-mods-version",
+      "title": "XZ Mods version",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "d51ec7188edc6ab5eefba52417513b5b2065b7b2515186364d7f1b1280c4919f",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#app-updates",
+      "title": "App updates",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "d618b28aa6b4c09cff59218755eff8ef0e0a5537e3a793fe77ecffce969f36d1",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#about",
+      "title": "About",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "cfacd2deb0acac9bdf0f03b779e2ef57696f8e811275028fe20c5b51eb3cdeb3",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#feedback",
+      "title": "Feedback",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "94a701043705d7d0bcf47d2b9a52f217e47a89d2d108de6e4ca4deb3fd2e5a7e",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#report-a-problem-or-share-an-idea",
+      "title": "Report a problem or share an idea",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "2274846333512766e7fcce8276323d54d56d4145ae9812bdf26ad3ebb95e4687",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#included-details",
+      "title": "Included details",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "af5125de1ff5705803a36acf2f4a0a32f308d93a40ee2e618df1e71bb7510ec1",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#when-something-got-worse",
+      "title": "When something got worse",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "73a1f92db906a674843a10dba012926d6045460a7cbf9448459df1599c1ca669",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#after-you-send",
+      "title": "After you send",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "8052ded7f41095a13888d61b4e8bfe884388dda0d6c89073302800beb886dfbc",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#my-reports",
+      "title": "My reports",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "0cc12b83db04e35bdbe0c2abfdcea1f0dde40eaa2e129f23690e34ee77ebad74",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#from-your-xz",
+      "title": "From your XZ",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "b4ac032c7d6ff9293986550e0bc0fe5ba9055c7678fd5dedd834152aba4fb586",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#your-xz-sticks",
+      "title": "Your XZ sticks",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "58eccf353d5ef9f313a27c21d7af180a42dbcbe5c8fd53590080e75cd9278afb",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#maintainer-inbox",
+      "title": "Maintainer inbox",
+      "level": 3,
+      "chapter": "desktop-app.md",
+      "sha256": "e0a79c91e0a606bd997c3e0483434553d6aced20f10eeb53e7306a85c75a7e7c",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "desktop-app#manual",
+      "title": "Manual",
+      "level": 2,
+      "chapter": "desktop-app.md",
+      "sha256": "f276c3f67ad7343f2b5f648113ff6243ff3b4ddd01c7425006efaeb38a657dee",
+      "flows": null,
+      "reason": "desktop_platform",
+      "detail": "Desktop app actions require a separate desktop capture task."
+    },
+    {
+      "section": "extras#the-extras-page",
+      "title": "The EXTRAS page",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "e594329a649f36d1c47f6a831dc9eeec568ac1356fd45061d82d7c5a56119db8",
+      "flows": [
+        "mods-extras"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#games",
+      "title": "Games",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "8167677400d7a6aeabb25d1f2f39c5253c2684c3f601377571c8aa20f997fc4d",
+      "flows": [
+        "games"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#moving-around-a-game",
+      "title": "Moving around a game",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "167e4a892babae5a0d8c77e1273ba7b4fbdb7ded825cdb16c12fe557caff7e65",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "extras#beat-arcade",
+      "title": "Beat Arcade {experimental}",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "c9013fec315c8c86b301105ce977729e0106918237cc934ac911cca02024b47b",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "extras#wave-rider",
+      "title": "Wave Rider {experimental}",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "0e8bc4b195257df3140e6084eb5f256faefc039134c57f488a06ce609bfb5da8",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "extras#doom-and-chex-quest",
+      "title": "Doom and Chex Quest",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "8abae76cd09c3073b039e1cf6be40ac33831f6cf6e6c1ee7375d0948db934a93",
+      "flows": [
+        "wad-loader"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#my-house",
+      "title": "My House {experimental}",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "79d47d363b4665ed4d241dec38b718b93866c033cf97af025aea5a788ad275b4",
+      "flows": [
+        "my-house-setup"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#usb-apps",
+      "title": "USB apps {experimental}",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "e42df2d6abefb2916c41f1ed90ddc1f75c12ad2652a961b675226a7384a3744d",
+      "flows": [
+        "apps-setup",
+        "usb-apps"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#report-an-issue",
+      "title": "Report an issue",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "34d64745e922279e608071314a98df2c0d2e876974c4f70f6eebc64b89a118fc",
+      "flows": [
+        "report-issue"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#after-you-send",
+      "title": "After you send",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "1bea684995de7d18e94dfe22b229982ee063dce52a77e7c480f3fc92ce27892c",
+      "flows": [
+        "report-edit-recovery",
+        "report-error",
+        "report-retry",
+        "report-saved",
+        "report-sent"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "extras#report-an-error-from-the-dock",
+      "title": "Report an error from the dock",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "39dda2920f6b969bfd30cc0ad44d6a7d4c13a37317cd5cd71e458f90550ce4aa",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "extras#what-the-player-sends",
+      "title": "What the player sends",
+      "level": 3,
+      "chapter": "extras.md",
+      "sha256": "b157808b798501e76c5e7826e113c13821471e90a9e6b779118a8ef4ef44dcd0",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "extras#about-xz-mods",
+      "title": "About XZ Mods",
+      "level": 2,
+      "chapter": "extras.md",
+      "sha256": "ac1a21719fa0c1d3ba1880b811aadf2226e9fff74a6a5ac74f2b8da5597153d8",
+      "flows": [
+        "about"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "four-decks#what-you-need",
+      "title": "What you need {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "76e6dd6f6d484847fa1e1f1759e6529ef75ac06cd44f901f771ef1289e611975",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#set-up-four-decks",
+      "title": "Set up four decks {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "c4f62ae64e3971bcf61b53457d4b416a7ef0389705ff3b93b3fe4b1b02e04d30",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#add-music-and-a-usb-hub",
+      "title": "Add music and a USB hub {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "08b7ca30fcc0b6c444f3967f8c6627d5cd29c19f1119b64dc645b081e306db64",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#the-4-decks-page-in-mods",
+      "title": "The 4 DECKS page in MODS",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "d9a2739bc3bbf1772019d4e43fb7cc2988ab79d5def4d97e8d824f30a736e15f",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#the-card-in-every-state",
+      "title": "The card in every state",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "1e58c59cab91cf9b3982ce7e6055c4e47a053df62a9e1f694f1fe65c604e85a4",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#the-e-8307-hub-warning",
+      "title": "The E-8307 hub warning {experimental}",
+      "level": 3,
+      "chapter": "four-decks.md",
+      "sha256": "0a766dbf776ab9ffc30921d7d37f72d8f98047acfa96c137ab81b1aa9f53072d",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#deck-view",
+      "title": "DECK VIEW",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "43cc745fce3352a6a3434521e7a7b16d5ab3d1f1f7476950ee4153519c7f3118",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#the-decks-button-and-its-picker",
+      "title": "The DECKS button and its picker",
+      "level": 3,
+      "chapter": "four-decks.md",
+      "sha256": "ffae9dc5a5a04db7c08af72d46ee6d05e1e8d0fc7aaaac01b23cfa8adc40ee85",
+      "flows": [
+        "deck-view"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "four-decks#switch-a-side-between-decks",
+      "title": "Switch a side between decks {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "e43418e08e2f6e724dba74a137a13b1f80204a2c2b54620f6631e098649172a7",
+      "flows": [
+        "physical-double-shift-1",
+        "physical-double-shift-2"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "four-decks#the-modern-four-deck-screen",
+      "title": "The MODERN four-deck screen {modern}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "118539ef35812487b375fb5758d8f16da1fd338e279d6df42adc281b42f4746d",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#the-classic-four-deck-screen",
+      "title": "The CLASSIC four-deck screen {classic}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "28d9bb6315388c143f2a92f3c4dedf9005bf628d568832048563d74da4bbaf0a",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#load-tracks-onto-decks-3-and-4",
+      "title": "Load tracks onto decks 3 and 4 {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "c92ab2ead48110c5a986b29d424ab1094337498cb8ac3d6255bdd3fe31ee005b",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#info-source-and-utility-with-four-decks",
+      "title": "INFO, SOURCE and UTILITY with four decks {modern}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "c8923de6bfb70885a9b6bff3d370260b5d98cf8afce04288c9b62faa9d1814ed",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#what-decks-3-and-4-can-do",
+      "title": "What decks 3 and 4 can do {experimental}",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "fa080199d721588b5443a5c80741978a8bf596dc21e8f257a57afdb286d3a7b6",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#sync-on-decks-3-and-4",
+      "title": "SYNC on decks 3 and 4 {experimental}",
+      "level": 3,
+      "chapter": "four-decks.md",
+      "sha256": "8dfb61bf1e32641e5dd27a5b6b7d58f3408acfbccc396f0326d6b49e5f14960d",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "four-decks#limits",
+      "title": "Limits",
+      "level": 2,
+      "chapter": "four-decks.md",
+      "sha256": "e98843e052efb4c453abe664fda4fc180bee1a13aceae4c0ae50d6958e710ec7",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#what-changes-and-what-stays-stock",
+      "title": "What changes and what stays stock",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "ff88a55dd947b699a067ae2bb7630c3cbe57c6f67f602e059ebee5b444c10c8b",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#go-back-to-stock",
+      "title": "Go back to stock",
+      "level": 3,
+      "chapter": "getting-started.md",
+      "sha256": "12b933452fd6b7103c82d77900487129f82aa212eaf71364957d885da35a7656",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#what-you-need",
+      "title": "What you need",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "1cb34ebf1ba32747e6b452bca6b2ff707981b43227524b6fa5964b64d79eba02",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#prepare-a-usb",
+      "title": "Prepare a USB",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "72297c681e7318f43583fe4498697446876ae3717afc520e50719234b4988a94",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#first-start",
+      "title": "First start",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "5ba4fb5d23b36900e3763111b7570e003f7e33b5512f059089f68d8ba2e6fe16",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#modern-on-first-start",
+      "title": "MODERN on first start {modern}",
+      "level": 3,
+      "chapter": "getting-started.md",
+      "sha256": "be6cce1458a4678b6562c35a62acd89ca1a1431b0ffc081922a9fcc996d59eaf",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#classic-on-first-start",
+      "title": "CLASSIC on first start {classic}",
+      "level": 3,
+      "chapter": "getting-started.md",
+      "sha256": "858f2e56477e843d7cc0d0ef606704582386dcbe4b173489fd91a128eb8077d2",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#choose-modern-or-classic",
+      "title": "Choose MODERN or CLASSIC",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "4ab4d303ce57975a79e2433f01dde3a13aa2e36e521a2626893dc47eb92ab6b7",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "getting-started#switch-on-the-player",
+      "title": "Switch on the player",
+      "level": 3,
+      "chapter": "getting-started.md",
+      "sha256": "14ec2de50c674bad626ad779537709e3ee82b86259b8d9e9a08f6f27f8c5be62",
+      "flows": [
+        "interface-choice"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "getting-started#updating",
+      "title": "Updating",
+      "level": 2,
+      "chapter": "getting-started.md",
+      "sha256": "94c75a56fe19c81df6a56c939b17ad4b46d35615ef0de3b265bf274efda678d2",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "hardware#the-top-panel",
+      "title": "The top panel",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "2afbee594a1c98538b34fbbdf225a0e49e22306867a308ce2554f695b966a3e9",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "hardware#browse-section-keys",
+      "title": "Browse section keys",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "4aaa9fb662ffcc39fa76a2188d40714c8634ccbdab8b860404eb37fd739ed7c1",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "hardware#the-rekordbox-button",
+      "title": "The rekordbox button",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "6b96c541cc7af4e12099a9f7552048d1f7367ed11b457401d728daba70aaee9b",
+      "flows": [
+        "physical-rekordbox",
+        "rekordbox-button",
+        "rekordbox-button-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "hardware#link-and-the-vjtools-view",
+      "title": "LINK and the VJ.Tools view",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "359b84a2d1c722619db056972a1a8915b50ed5e5e66bc3a23b17735bd3329af2",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "hardware#deck-keys",
+      "title": "Deck keys",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "e80bafc07dc3a762450a5100426c4fa12a8549c17d1fbc5326f6c688004f207a",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "hardware#performance-pads",
+      "title": "Performance pads",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "80b0ca9e8f30428f85233e5841da32d3313eb35ece1aa5588f37181675d99701",
+      "flows": [
+        "physical-pad-mode-pages"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "hardware#stem-pads",
+      "title": "Stem pads",
+      "level": 3,
+      "chapter": "hardware.md",
+      "sha256": "9573429cd2836ea4968a856c9dbac81eead13c4ac79ebb9d7d610c0c5d27fae5",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "hardware#pad-lights",
+      "title": "Pad lights",
+      "level": 3,
+      "chapter": "hardware.md",
+      "sha256": "fd4ac0bffc98162fc57eb16f5621448711bd6278418ecfcb0a0de4f4ad023ab6",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "hardware#decks-3-and-4-from-the-deck-controls",
+      "title": "Decks 3 and 4 from the deck controls",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "90f7367fe0dcecfb47ff6c0fe8835de2149d9bc1ace5b2b61960958a19859cab",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "hardware#when-a-control-does-not-respond",
+      "title": "When a control does not respond",
+      "level": 2,
+      "chapter": "hardware.md",
+      "sha256": "8ca7396f3f15540f383390fab826e1397c8dc8e1c98adec446ed852b0f25d496",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "mods-menu#open-and-close-mods",
+      "title": "Open and close MODS",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "b38105fc034239eaa3efa8298a63dd9f197ce9722a9c833bcaf9c975e9e78552",
+      "flows": [
+        "menu-close"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#move-around",
+      "title": "Move around",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "6017ccb541c0f1a6c2bef41985b51f334a7fb2574cdd857605297dfd4ae60d37",
+      "flows": [
+        "encoder-settings"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#home",
+      "title": "HOME",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "fe47e849dfb79ec8df0ff5f475c7c8879d920eadb41cf5db3bc2b733acf83b2b",
+      "flows": [
+        "mods-home"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#play",
+      "title": "PLAY",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "6f76ff00e25f13237520b3db367c1e74a04c956f0654d8874ceb734dbfa89d1f",
+      "flows": [
+        "mods-play",
+        "mods-play-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#stems",
+      "title": "STEMS",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "702be55f4a14952af2e28764ed8d239df46ed68b32be634552d7f999e14fdbb2",
+      "flows": [
+        "mods-stems",
+        "mods-stems-values",
+        "mods-stems-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#screen",
+      "title": "SCREEN",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "afcfbfda3d1d8abeb9d0572dcb29fb06df4607645b0c38653cf672ba8164be85",
+      "flows": [
+        "mods-screen",
+        "mods-screen-values",
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#4-decks",
+      "title": "4 DECKS",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "86cabdc4016a9b608d27be5423500de7ddafa1e5caa4c661977d6d1c7ac2c892",
+      "flows": [
+        "mods-four-decks",
+        "mods-four-decks-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#connect",
+      "title": "CONNECT",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "b708dc4b2e980d8bb7a11463971ee79faf5c90d19c59cd23a6bbb4f8f335ef93",
+      "flows": [
+        "mods-connect"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#extras",
+      "title": "EXTRAS",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "40c8502979ba0e009f429fa07ba3a435070962e2f8c0c53c9e9a265744b8bc10",
+      "flows": [
+        "mods-extras"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#utility-the-players-own-settings",
+      "title": "UTILITY, the player's own settings",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "92a2d4a3bafa2d511a5db1269f9b2fff306d00318002be87806e4ab352b25477",
+      "flows": [
+        "utility"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#modern-utility",
+      "title": "MODERN UTILITY {modern}",
+      "level": 3,
+      "chapter": "mods-menu.md",
+      "sha256": "41ad4948291e5cb3a983e46edbc0d7d51c3fab4ac3b02f0fe61a06c2ed18d488",
+      "flows": [
+        "needle-lock",
+        "utility"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#my-settings",
+      "title": "MY SETTINGS {modern}",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "51d24a2a6d414f1d03fcdd171512c40e85cd16fcd702e4e88dca874d2cd655c1",
+      "flows": [
+        "my-settings-load-save"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "mods-menu#saving-to-the-usb",
+      "title": "Saving to the USB",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "acb853e01a7d13752c107aa776c883680df79745e91ffc6964dae73083180460",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "mods-menu#older-pages",
+      "title": "Older pages",
+      "level": 2,
+      "chapter": "mods-menu.md",
+      "sha256": "7505617158341900fed63afd7f7b3f09f4b7a47e9fb9f339f5ebfbe0bdfb8892",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "performance#the-play-page",
+      "title": "The PLAY page",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "c2c0cd77f465d449fb13c6e7291b388d301716dd97027008ad69cef8fef49e2a",
+      "flows": [
+        "mods-play",
+        "mods-play-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#beat-jump",
+      "title": "Beat jump",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "a227da2f28c052d88515231d2887225d4cdba4d3f3abf7a2bd751f320de5e3ac",
+      "flows": [
+        "beat-jump",
+        "physical-beat-jump"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#change-the-jump-sizes",
+      "title": "Change the jump sizes",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "9e47ec3ee9f3673c506b8bbf622839a5349c1fcee5966cdacc1e9dd54f712595",
+      "flows": [
+        "beat-jump-pages"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#decks-3-and-4",
+      "title": "Decks 3 and 4",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "a5dc19ec227acd7e250bf4ee2af443a12608f213ce773c7390e300861d559b9f",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "performance#when-a-jump-is-refused",
+      "title": "When a jump is refused",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "4bfff6bfbf955f8ab7a35d08ada500e9c90cec793dc5f1a008026b0ef021db0f",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "performance#gate-cue-and-smart-cue",
+      "title": "Gate cue and smart cue",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "1d9c15022e48639cf0ccd0efa8a05ec5531cd2d58f09cebe284ec65685414586",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "performance#feature-setup",
+      "title": "Feature setup",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "68eb54bf3cd6db637da2b246eb1b2496a37c22445de395d91105f25d7e554146",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "performance#keys-and-key-sync",
+      "title": "Keys and KEY SYNC",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "0f5a5d1e17a42cb8bf205d05aa5041b17c0e81f774adb6cd706572447aa1d249",
+      "flows": [
+        "keys",
+        "physical-key-sync"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#from-the-deck",
+      "title": "From the deck",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "7a892732157343496de8c010d592d4e7181af4cf391e32fba2dd1f6920348053",
+      "flows": [
+        "physical-key-sync"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#the-keys-page",
+      "title": "The KEYS page",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "a055038a9c15aa542052ff3ffc47ea6b376cc70bf7412ab028e934c8d9ed7170",
+      "flows": [
+        "key-shift-sync",
+        "keys",
+        "keys-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#the-key-on-the-modern-play-screen",
+      "title": "The key on the MODERN play screen {modern}",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "a6757539583391b1dc6ca926378a76b65f2b4abbe0a6609e4644bfbdc084079d",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "performance#the-key-on-the-classic-play-screen",
+      "title": "The key on the CLASSIC play screen {classic}",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "045b045b579f7c7c88931047c8bec826f1e5ea7fab7e963420a27c56d33bcdc7",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "performance#playing-key",
+      "title": "PLAYING KEY",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "86a5703160c1c2970768a9fe196c8dd48beda7a2b661024dfbe03dd94f1c5249",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "performance#ram-tracks",
+      "title": "RAM tracks {experimental}",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "9799ff9fc6ee2d5bb7ac0d4475cd3a3f1d3e0e2a4b40bc888115929e0ac5cb17",
+      "flows": [
+        "ram-copy-error",
+        "ram-tracks"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "performance#when-the-music-usb-goes-out",
+      "title": "When the music USB goes out {experimental}",
+      "level": 3,
+      "chapter": "performance.md",
+      "sha256": "8b8e1c74c5532bc18d75fd6e7370c6f54e779dd63d8ca2167f35dd2f0e947dda",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "performance#quantize",
+      "title": "Quantize",
+      "level": 2,
+      "chapter": "performance.md",
+      "sha256": "d0163c34cc4e42332db31412bb9ce15fd28e050a8201e683d63289541ce85db9",
+      "flows": [
+        "physical-quantize"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "play-screen#the-modern-play-screen",
+      "title": "The MODERN play screen {modern}",
+      "level": 2,
+      "chapter": "play-screen.md",
+      "sha256": "278ed444b440a4a05620d31ae886461d831d80077e5c3634a95bca91f473eaeb",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "play-screen#top-bar",
+      "title": "Top bar {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "c3d18a761138437a6f9dcf3ff6c9358cce8202280251e019a4a8e62633326473",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "play-screen#deck-column-and-waveform-lanes",
+      "title": "Deck column and waveform lanes {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "7dab7ed6579f54b5879aea624e415ab1cbdd4adfb9d3af7fdaa26a41e8989129",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "play-screen#deck-strip",
+      "title": "Deck strip {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "c0aab25fa8d9fb23436fd7ef09ec18a740a80e36c823c0258ef3a3f318c30f2a",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "play-screen#key-and-key-sync",
+      "title": "Key and KEY SYNC {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "461de4e3a3001b1ce73d81a6de16c146f32e7c68bc0fcf5b325d670530e66ac6",
+      "flows": [
+        "key-shift-sync"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "play-screen#waveform-colours",
+      "title": "Waveform colours {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "9f869410fadd8247c8d7e0705d70f9f9caa8c66120053a0d4f1b99783caa65ff",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "play-screen#notices",
+      "title": "Notices {modern}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "ef1ca50fdae068d9796d28beb7319017d55cf64d9ed1817c2d4d2d8b49aed46d",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "play-screen#shortcut",
+      "title": "SHORTCUT {modern}",
+      "level": 2,
+      "chapter": "play-screen.md",
+      "sha256": "719f1c097bba952e5585238cd702e829fdf6a9d1a6bcbb740531900a90a6b608",
+      "flows": [
+        "shortcut"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "play-screen#the-classic-play-screen",
+      "title": "The CLASSIC play screen {classic}",
+      "level": 2,
+      "chapter": "play-screen.md",
+      "sha256": "5c0dfee3ed210373167a66d3ef9ce762f5eeb111232f75113528bed461dad306",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "play-screen#scrolling-waveform",
+      "title": "Scrolling waveform {classic}",
+      "level": 3,
+      "chapter": "play-screen.md",
+      "sha256": "b4f34ca8af7765920f0acbd027f6a18ed4f8dce24bc232cf4d6400fdb320205a",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "play-screen#if-something-looks-wrong",
+      "title": "If something looks wrong",
+      "level": 2,
+      "chapter": "play-screen.md",
+      "sha256": "328ac4703c0ca50d7b579f4d1e5281d29cb075af20a06f9fa05003007286aab6",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "screen-and-themes#the-screen-page",
+      "title": "The SCREEN page",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "fb4d70913a4967246a4f4733a929629b361c58620cbd5534503ced40356a7722",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#modern-and-classic",
+      "title": "MODERN and CLASSIC",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "671d7225f1cd767a42f4bb9ccfba0407382c3b5793e2abe9354ac3e74bc8e0cc",
+      "flows": [
+        "interface-choice",
+        "physical-rekordbox"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#classic-themes",
+      "title": "Classic themes {classic}",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "1b02646446bdbe8a0e0b074e3e48683874447ca983210a9ab719c77a62fc47ea",
+      "flows": [
+        "classic-themes",
+        "classic-themes-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#theme-families",
+      "title": "Theme families {classic}",
+      "level": 3,
+      "chapter": "screen-and-themes.md",
+      "sha256": "1ecac8bcad6a1fd9a8221e8d270e5684668ab1d473329b32303dc9d05256335a",
+      "flows": [
+        "classic-overlays-analog",
+        "classic-overlays-lcars",
+        "classic-overlays-matrix",
+        "classic-overlays-standard"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#modern-look",
+      "title": "MODERN look {modern}",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "db12660e0f15152da7cd215f926eb9b67594d04ba04823da787498c6dd84bfb0",
+      "flows": [
+        "lamps-and-titles",
+        "lamps-and-titles-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#waveform-colours",
+      "title": "Waveform colours",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "f602e89864833811340e5da3cacc8129f25832833f0d91b87495ef241aee349d",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#3-band-colours",
+      "title": "3-band colours",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "5875a8bc1cabc8c6563cb3f34174c772153ba6a83b39bbbc171f58ed30abdcc0",
+      "flows": [
+        "band-colours",
+        "band-colours-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#keys",
+      "title": "Keys",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "c34b2604622f04b6040a6dd604c16af53e881346c36c747a643c76d87e8339e5",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#key-notation",
+      "title": "Key notation",
+      "level": 3,
+      "chapter": "screen-and-themes.md",
+      "sha256": "1b014b510d6c152ab57dec94c6b50ff08905036c066bb1f5576f5714feedca01",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#playing-key",
+      "title": "Playing key",
+      "level": 3,
+      "chapter": "screen-and-themes.md",
+      "sha256": "e9893078184b41c6e0665fdb0a280b427853a4dfbc19e1d43584c1a60b7f9ff6",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#key-match-colours-and-key-before-title",
+      "title": "Key match colours and key before title",
+      "level": 3,
+      "chapter": "screen-and-themes.md",
+      "sha256": "a4a016d6c10ee1ddff27135656e062602939ede23415d68e02f5758b7435c9dd",
+      "flows": [
+        "mods-screen-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#deck-colours",
+      "title": "Deck colours",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "44efa2fa3d5e56d3d4668744d30beca5cb1caa1f68091d6c9cf58050732b975b",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "screen-and-themes#system-readout",
+      "title": "System readout",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "651e33aa32eeb9ed8e0c4b53ee44bb1c979efb73ca151f7fa65ac7d095a6fc90",
+      "flows": [
+        "system-readout"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "screen-and-themes#when-something-looks-wrong",
+      "title": "When something looks wrong",
+      "level": 2,
+      "chapter": "screen-and-themes.md",
+      "sha256": "2544669bd4e1b5c6ec7a3f5439d9f1d44d546a3e7dd9a971d423fe370072f656",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "settings#where-settings-are-kept",
+      "title": "Where settings are kept",
+      "level": 2,
+      "chapter": "settings.md",
+      "sha256": "aa31ffff3b7b1737ae03290141d16d7003e3767d9907b201a7a11b2e985610f1",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "settings#when-the-usb-changes",
+      "title": "When the USB changes",
+      "level": 2,
+      "chapter": "settings.md",
+      "sha256": "26f879d957a4f1bf41bdcc1220c534f503270ca34a258ea64a44a86184e6ccc0",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "settings#going-back-to-the-defaults",
+      "title": "Going back to the defaults",
+      "level": 2,
+      "chapter": "settings.md",
+      "sha256": "3da012409c4c1637281b34d1c301912e65fd8b5220bc185a5c1aa921ec17eecb",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "settings#every-setting",
+      "title": "Every setting",
+      "level": 2,
+      "chapter": "settings.md",
+      "sha256": "bced64a60ff1a32f04ca3b681da7fa7bed8b61ce8f31ad61fb09f9bf7132dec2",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "stems#prepare-stems",
+      "title": "Prepare stems",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "4662787bc57e0f99b08cb63617bb7e397aead180ba476c7b65b83f6cf3f56efd",
+      "flows": null,
+      "reason": "usb_or_boot",
+      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+    },
+    {
+      "section": "stems#turn-stems-on",
+      "title": "Turn stems on",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "c93df8e9c7d3fd1f6d77f16b1810f68a635010b493dce311bb7b51d928720648",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "stems#stem-buttons-on-the-play-screen",
+      "title": "Stem buttons on the play screen",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "97e3238eef20e21a076d05c891d8e2c74e1011a7894508d111ac39ebc02f07a2",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "stems#modern-stem-buttons",
+      "title": "MODERN stem buttons {modern}",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "0827037ea8d8cc749a906c900d93f6d51c25dc777cf11f426287c6fd65840f6b",
+      "flows": [
+        "stem-mute-bypass"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-buttons-in-4-decks",
+      "title": "Stem buttons in 4 DECKS {modern}",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "fafc1e29240343b2c82b231cddf71b70985fd83ce78a672227ad97ff1a0ae647",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "stems#classic-stem-rows",
+      "title": "CLASSIC stem rows {classic}",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "2bc3fe18e618e2d2ea0add61585bddd220dc8f81d29e6e638f11b900a5a5a641",
+      "flows": [
+        "classic-stems"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-pads",
+      "title": "Stem pads",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "7883aa17202023aea08d65d50ec747b70c053e721e3a1fac167843199d6aba1e",
+      "flows": [
+        "physical-stem-pads",
+        "stem-pads",
+        "stem-pads-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-order",
+      "title": "Stem order",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "d74bda24e2ba7e808567360e8cf395e8288532afa40fc437ac7e2c112b531e76",
+      "flows": [
+        "mods-stems-values-all"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-colours",
+      "title": "Stem colours",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "b729f64e437f8314d3ce805a35f6bce72b5285f7ae237008979c2f4c99849954",
+      "flows": [
+        "stem-colours",
+        "stem-colours-values"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#stem-readiness",
+      "title": "Stem readiness",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "462559cd343ef358c497fcc7f1b7a747afc4ba00a7811b9cd8ce549b98c001f2",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "stems#usb-stems-setup",
+      "title": "USB STEMS setup",
+      "level": 3,
+      "chapter": "stems.md",
+      "sha256": "e28d8c169accda0f5480f9d66bf8311595c8b7e3fe52ea6459fc33765904f422",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "stems#stems-in-dj-software",
+      "title": "Stems in DJ software {experimental}",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "50e95036430d5096969750ebb061cdb7d6ec990eb0dc7106145fbde1af1127cc",
+      "flows": [
+        "pc-stems"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    },
+    {
+      "section": "stems#if-stems-do-not-play",
+      "title": "If stems do not play",
+      "level": 2,
+      "chapter": "stems.md",
+      "sha256": "994eb89d220118b8251396d9191911fba8200ad95498aa875b5b3417259a6714",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#if-the-player-will-not-start-with-the-usb",
+      "title": "If the player will not start with the USB",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "4bd2035e3b7de15a11967c2b8dacde32147ba1674a208e1bf9f34df7963e2bfe",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#stems-on-the-usb",
+      "title": "Stems on the USB",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "a181e323ce1384ed62c32c3b93e9d98c3ff4b6d8b5fe248941834a1db1b73157",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#notices-on-the-play-screen",
+      "title": "Notices on the play screen {modern}",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "7f46461512ab95fa07438fa12a348a4319157d71451adadb95bffe33a58acb24",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#errors-on-a-deck",
+      "title": "Errors on a deck",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "46e4a4b4546234a35f7f3db9e20719c9345874daefe6999bf5319df596eeab01",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#the-players-own-warnings",
+      "title": "The player's own warnings",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "d24c5a90202347eafb24650021749b14f47b1520d24ab7f34016905c1bc1a7d7",
+      "flows": null,
+      "reason": "closed_stock_firmware",
+      "detail": "The closed stock firmware owns this screen or operation."
+    },
+    {
+      "section": "troubleshooting#e-8307-hubs-are-not-supported",
+      "title": "E-8307: HUBS ARE NOT SUPPORTED",
+      "level": 3,
+      "chapter": "troubleshooting.md",
+      "sha256": "9842705bdaef1652921279d8e53199e684b74d6d7dd5c80e3b9709539f75003a",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#when-settings-cannot-be-saved",
+      "title": "When settings cannot be saved",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "e70147d97a5a1a61ac26839b283250abdab3c3d1463ae18c4a992abb495d3db8",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#messages-in-the-xz-mods-app",
+      "title": "Messages in the XZ Mods app",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "511e94d4c76e675b7455de5979f5dea97b6b2299885b2d127b231dd6a31b619f",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#the-diary-on-your-usb-sticks",
+      "title": "The diary on your USB sticks",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "0b753993c7d36865c2c85605225d8bc351cdc144760bc315462c8942d3cffb1b",
+      "flows": null,
+      "reason": "needs_host_implementation",
+      "detail": "No dedicated real-handler flow has yet been verified for this section."
+    },
+    {
+      "section": "troubleshooting#report-a-problem",
+      "title": "Report a problem",
+      "level": 2,
+      "chapter": "troubleshooting.md",
+      "sha256": "5083db30ac3178d5db325a0efc6093233c7d547842d4e8974619ebb139b5f1c6",
+      "flows": [
+        "report-dock-entry"
+      ],
+      "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
+    }
+  ]
+}

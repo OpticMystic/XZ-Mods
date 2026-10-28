@@ -52,6 +52,7 @@ void nav_runtime_apply(struct xz_ui_model *out,struct xz_ui *state,struct xz_ui_
  case XZ_UI_BAND_COLOR:case XZ_UI_BAND_COLORS_RESET:case XZ_UI_PAD_FEEDBACK:
  case XZ_UI_KEY_FORMAT:case XZ_UI_KEY_FEEDBACK:case XZ_UI_BROWSE_TRAFFIC:case XZ_UI_BROWSE_KEY_PREFIX:
  case XZ_UI_REKORDBOX_ASSIGN:case XZ_UI_JUMP_SIZE:case XZ_UI_STEM_BANK:case XZ_UI_STEM_PAGE:
+ case XZ_UI_SHELL_DISPLAY:case XZ_UI_SHELL_BROWSE_COLUMNS:case XZ_UI_SET_MODERN_THEME:case XZ_UI_WAVE_MODE:case XZ_UI_BROWSE_PREVIEW:case XZ_UI_STEMS_OVERLAY:
  case XZ_UI_ENABLE:case XZ_UI_SET_THEME:case XZ_UI_SET_INTERFACE:case XZ_UI_DECK_VIEW:
  apply(NULL,action,1);break;
  default:break;

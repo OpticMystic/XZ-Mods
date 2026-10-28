@@ -23,6 +23,8 @@ def linux(path):
 
 def build(zig, exe):
     sources = {(MODS / side / p).resolve() for side, names in [('shell', SHELL_SOURCES), ('ui', UI_SOURCES)] for p in names}
+    sources.discard((MODS/'shell/shell_browse.c').resolve())
+    sources.add(MODS/'shell/nav_browse.c')
     sources.update(MODS / p for p in ['shell/nav_capture.c', 'shell/nav_runtime.c', 'deck_select.c',
         'ui/native_touch.c', 'ui/stem_pads.c', 'ui/beat_jump.c', 'ui/wave_viewport.c', 'settings.c', 'usb_profile.c',
         'shell/nav_clock.c', 'doom/wad_catalog.c', 'ota/native_update.c', 'ui/extra_detail.c', 'ui/extra_lane.c',
@@ -93,6 +95,17 @@ class Capture:
             self.send('fixture', step['fixture'], control='fixture runtime', action='snapshot', detail=step.get('detail', ''))
         elif 'wait' in step:
             self.wait(step['wait'])
+        elif 'panel_select' in step:
+            for _ in range(90):
+                matches = [w for w in self.state['widgets'] if w['label'] == step['panel_select']]
+                if matches:
+                    w = matches[step.get('match',0)]
+                    self.tap(w['x'],w['y'],step['panel_select'])
+                    break
+                self.send('turn',1,control='ROTARY SELECTOR',action='turn',detail='+1 detent')
+                self.wait(160)
+            else:
+                raise RuntimeError('unreachable panel row: '+step['panel_select'])
         elif 'tap' in step or 'select' in step:
             label = step.get('tap', step.get('select'))
             matches = [w for w in self.state['widgets'] if w['label'] == label]
@@ -113,6 +126,10 @@ class Capture:
             else:
                 w = matches[step.get('match', 0)]
                 self.tap(w['x'], w['y'], label)
+        elif 'digits' in step:
+            for char in step['digits']:
+                w = next(w for w in self.state['widgets'] if w['label'] == char)
+                self.tap(w['x'], w['y'], char)
         elif 'settings' in step:
             controls = [(w['kind'], w['index']) for w in self.state['widgets'] if w.get('setting')]
             if not controls:
@@ -198,8 +215,12 @@ class Capture:
 def inputs():
     # Include transitive local headers as well as the renderer and handler closures. No mtimes or absolute paths.
     paths = list(MODS.rglob('*.h')) + [MODS/side/p for side,names in [('shell',SHELL_SOURCES),('ui',UI_SOURCES)] for p in names]
-    paths += [ROOT/'manual/captures/classic-play.png', MODS/'shell/shell_sources.py', MODS/'ui/ui_sources.py', MODS/'shell_runtime.h', ROOT/'tools/verify_nav_device_objects.py', MODS/'shell/nav_capture.c', MODS/'shell/nav_runtime.c', MODS/'ui_runtime.c', *MODS.rglob('*.c'), MODS/'ui/stem_pads.c', MODS/'ui/beat_jump.c', MODS/'deck_select.c', Path(__file__), *sorted((ROOT/'manual/nav').glob('*.json')), *sorted((ROOT/'manual/chapters').glob('*.md'))]
+    paths += [ROOT/'manual/captures/classic-play.png', MODS/'shell/shell_sources.py', MODS/'ui/ui_sources.py', MODS/'shell_runtime.h', ROOT/'tools/verify_nav_device_objects.py', ROOT/'tools/nav_sections.py', ROOT/'manual/nav/SECTIONS.json', MODS/'shell/nav_capture.c', MODS/'shell/nav_runtime.c', MODS/'ui_runtime.c', *MODS.rglob('*.c'), MODS/'ui/stem_pads.c', MODS/'ui/beat_jump.c', MODS/'deck_select.c', Path(__file__), *sorted(flow_scripts()), *sorted((ROOT/'manual/chapters').glob('*.md'))]
     return {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(set(p.resolve() for p in paths))}
+
+
+def flow_scripts():
+    return sorted(p for p in (ROOT/'manual/nav').glob('*.json') if p.name != 'SECTIONS.json')
 
 
 def main():
@@ -210,13 +231,15 @@ def main():
     p.add_argument('--exe', type=Path, help='development only: reuse a locally built host binary')
     p.add_argument('--check', action='store_true', help='verify retained source and output hashes without rendering')
     a = p.parse_args()
-    for script in (ROOT/'manual/nav').glob('*.json'):
+    from nav_sections import check as check_sections
+    check_sections()
+    for script in flow_scripts():
         for step in json.loads(script.read_text())['steps']:
             if step.get('key') in ('PLAYLIST', 'SEARCH', 'MODS'):
                 raise SystemExit(f'nonphysical entry key in {script.name}: {step["key"]}')
     if a.check:
         manifest = json.loads((a.out/'manifest.json').read_text())
-        expected = {p.stem for p in (ROOT/'manual/nav').glob('*.json') if not a.flow or p.stem == a.flow}
+        expected = {p.stem for p in flow_scripts() if not a.flow or p.stem == a.flow}
         if manifest.get('reused_binary'):
             raise SystemExit('development binary reuse is not acceptable capture evidence')
         if set(manifest['flows']) != expected:
@@ -248,7 +271,7 @@ def main():
         print('navigation captures current; output hashes, physical entries, effects and timing match')
         return
     a.out.mkdir(parents=True, exist_ok=True)
-    scripts = sorted((ROOT/'manual/nav').glob('*.json'))
+    scripts = sorted(flow_scripts())
     if a.flow:
         scripts = [s for s in scripts if s.stem == a.flow]
     if not scripts:

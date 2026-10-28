@@ -1,0 +1,89 @@
+{
+  "section": "connect#network",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 20,
+      "detail": "Local inventory fixture, no OS network access"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "CONNECT"
+    },
+    {
+      "tap": "NETWORK"
+    },
+    {
+      "tap": "CHOOSE ADAPTER / SETTINGS"
+    },
+    {
+      "tap": "STATIC IP"
+    },
+    {
+      "tap": "REVIEW CHANGES"
+    },
+    {
+      "tap": "EDIT IP"
+    },
+    {
+      "tap": "CLEAR"
+    },
+    {
+      "digits": "192.168.50.22"
+    },
+    {
+      "tap": "DONE"
+    },
+    {
+      "tap": "EDIT MASK / PREFIX"
+    },
+    {
+      "tap": "CLEAR"
+    },
+    {
+      "digits": "24"
+    },
+    {
+      "tap": "DONE"
+    },
+    {
+      "tap": "EDIT GATEWAY"
+    },
+    {
+      "tap": "CLEAR"
+    },
+    {
+      "digits": "192.168.50.1"
+    },
+    {
+      "tap": "DONE"
+    },
+    {
+      "tap": "PRIORITY UP"
+    },
+    {
+      "tap": "PRIORITY DOWN"
+    },
+    {
+      "tap": "REVIEW CHANGES"
+    },
+    {
+      "tap": "APPLY FOR THIS BOOT"
+    },
+    {
+      "tap": "REVERT TRIAL / MODS DHCP OFF"
+    }
+  ],
+  "requires_effects": [
+    [
+      "MODS",
+      122
+    ],
+    [
+      "MODS",
+      123
+    ]
+  ]
+}
