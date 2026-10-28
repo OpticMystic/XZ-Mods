@@ -1,0 +1,15 @@
+{
+  "section": "browse#info",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "INFO"
+    },
+    {
+      "turn": 3
+    },
+    {
+      "back": true
+    }
+  ]
+}

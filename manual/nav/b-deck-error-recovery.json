@@ -1,0 +1,24 @@
+{
+  "section": "troubleshooting#errors-on-a-deck",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 417
+    },
+    {
+      "tap": "CHOOSE TRACK"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "key": "LOAD"
+    },
+    {
+      "fixture": 418
+    },
+    {
+      "back": true
+    }
+  ]
+}

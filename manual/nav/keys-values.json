@@ -1,0 +1,28 @@
+{
+  "section": "performance#the-keys-page",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "tap": "KEYS"
+    },
+    {
+      "select": "KEY UP"
+    },
+    {
+      "select": "KEY DOWN"
+    },
+    {
+      "select": "RESET"
+    },
+    {
+      "select": "KEY SYNC"
+    }
+  ]
+}

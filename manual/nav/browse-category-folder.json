@@ -1,0 +1,27 @@
+{
+  "section": "browse#browsing-in-modern",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "turn": 7
+    },
+    {
+      "push": true
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "back": true
+    },
+    {
+      "back": true
+    }
+  ]
+}

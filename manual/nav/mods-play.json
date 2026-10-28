@@ -1,0 +1,19 @@
+{
+  "section": "mods-menu#PLAY",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "turn": 3
+    },
+    {
+      "back": true
+    }
+  ]
+}

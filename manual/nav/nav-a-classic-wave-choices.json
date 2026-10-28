@@ -1,0 +1,21 @@
+{
+  "section": "play-screen#scrolling-waveform",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "CLASSIC"
+    },
+    {
+      "settings": true
+    },
+    {
+      "tap": "CLOSE"
+    }
+  ]
+}

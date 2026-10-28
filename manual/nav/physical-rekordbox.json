@@ -1,0 +1,22 @@
+{
+  "section": "hardware#the-rekordbox-button",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "gesture": "rekordbox button above LINK",
+      "code": 30,
+      "side": 0
+    },
+    {
+      "gesture": "rekordbox button above LINK",
+      "code": 30,
+      "side": 0
+    }
+  ],
+  "requires_effects": [
+    [
+      "rekordbox",
+      1
+    ]
+  ]
+}
