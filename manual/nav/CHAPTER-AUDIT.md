@@ -185,3 +185,7 @@ The table inventories every level-two and level-three chapter heading. Flow assi
 | troubleshooting#messages-in-the-xz-mods-app | None | needs_host_implementation |
 | troubleshooting#the-diary-on-your-usb-sticks | None | needs_host_implementation |
 | troubleshooting#report-a-problem | report-dock-entry | Scripted excerpts |
+
+## Chapter B inventory changes
+
+The 35 previously unassigned headings in getting-started, hardware, troubleshooting, extras, mods-menu, screen-and-themes and connect are re-audited in [REPORT-B.md](REPORT-B.md). Its per-heading table and SECTIONS.json supersede those rows above. Assignments are excerpts only.

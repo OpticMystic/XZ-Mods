@@ -1,0 +1,53 @@
+{
+  "section": "extras#usb-apps",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "USB APPS"
+    },
+    {
+      "tap": "SET UP APPS"
+    },
+    {
+      "tap": "CHECK AGAIN"
+    },
+    {
+      "fixture": 220,
+      "detail": "Local app manager catalog appears; no process started"
+    },
+    {
+      "tap": "2 FOLDERS"
+    },
+    {
+      "tap": "START ON USB INSERT"
+    },
+    {
+      "tap": "3 INSTALL"
+    },
+    {
+      "tap": "4 LIVE TEST"
+    },
+    {
+      "tap": "RUN TEST APP"
+    },
+    {
+      "fixture": 221,
+      "detail": "Local RUNNING snapshot, not a displayed child app"
+    },
+    {
+      "tap": "IT WORKS"
+    }
+  ],
+  "requires_effects": [
+    [
+      "sdk-plan",
+      1
+    ]
+  ]
+}

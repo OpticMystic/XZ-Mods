@@ -1,0 +1,18 @@
+{
+  "section": "troubleshooting#stems-on-the-usb",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 213
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "STEMS"
+    },
+    {
+      "turn": 1
+    }
+  ]
+}

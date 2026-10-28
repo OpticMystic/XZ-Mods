@@ -188,9 +188,10 @@
       "level": 3,
       "chapter": "connect.md",
       "sha256": "bb0385eda990c59b19775b4002a505925bdf53a963e0c8d7b6662619f8d0e65e",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-profile-rescan"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "connect#make-a-profile-on-the-xz",
@@ -226,7 +227,8 @@
       "sha256": "25b9e74bef1e75ff8e9a31308a6bc4e4430256bdf7d296d1ad9ce76db797bfe1",
       "flows": [
         "profile-logo-error",
-        "profile-save-error"
+        "profile-save-error",
+        "b-profile-usb2-recovery"
       ],
       "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
     },
@@ -564,9 +566,11 @@
       "level": 3,
       "chapter": "extras.md",
       "sha256": "167e4a892babae5a0d8c77e1273ba7b4fbdb7ded825cdb16c12fe557caff7e65",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-rider",
+        "b-arcade"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "extras#beat-arcade",
@@ -574,9 +578,10 @@
       "level": 3,
       "chapter": "extras.md",
       "sha256": "c9013fec315c8c86b301105ce977729e0106918237cc934ac911cca02024b47b",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-arcade"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "extras#wave-rider",
@@ -584,9 +589,10 @@
       "level": 3,
       "chapter": "extras.md",
       "sha256": "0e8bc4b195257df3140e6084eb5f256faefc039134c57f488a06ce609bfb5da8",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-rider"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "extras#doom-and-chex-quest",
@@ -618,7 +624,8 @@
       "sha256": "e42df2d6abefb2916c41f1ed90ddc1f75c12ad2652a961b675226a7384a3744d",
       "flows": [
         "apps-setup",
-        "usb-apps"
+        "usb-apps",
+        "b-apps-wizard"
       ],
       "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
     },
@@ -654,9 +661,10 @@
       "level": 3,
       "chapter": "extras.md",
       "sha256": "39dda2920f6b969bfd30cc0ad44d6a7d4c13a37317cd5cd71e458f90550ce4aa",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "report-dock-entry"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "extras#what-the-player-sends",
@@ -665,8 +673,8 @@
       "chapter": "extras.md",
       "sha256": "b157808b798501e76c5e7826e113c13821471e90a9e6b779118a8ef4ef44dcd0",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Report payload explanation; no player action."
     },
     {
       "section": "extras#about-xz-mods",
@@ -848,9 +856,10 @@
       "level": 2,
       "chapter": "getting-started.md",
       "sha256": "ff88a55dd947b699a067ae2bb7630c3cbe57c6f67f602e059ebee5b444c10c8b",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "utility"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "getting-started#go-back-to-stock",
@@ -859,8 +868,8 @@
       "chapter": "getting-started.md",
       "sha256": "12b933452fd6b7103c82d77900487129f82aa212eaf71364957d885da35a7656",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "usb_or_boot",
+      "detail": "Power-off and boot with the loader USB absent require a player boot; no host screen owns these actions."
     },
     {
       "section": "getting-started#what-you-need",
@@ -869,8 +878,8 @@
       "chapter": "getting-started.md",
       "sha256": "1cb34ebf1ba32747e6b452bca6b2ff707981b43227524b6fa5964b64d79eba02",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Requirements table; no player action."
     },
     {
       "section": "getting-started#prepare-a-usb",
@@ -879,8 +888,8 @@
       "chapter": "getting-started.md",
       "sha256": "72297c681e7318f43583fe4498697446876ae3717afc520e50719234b4988a94",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "desktop_platform",
+      "detail": "Install/write/eject wizard runs on the computer, not the player."
     },
     {
       "section": "getting-started#first-start",
@@ -888,9 +897,10 @@
       "level": 2,
       "chapter": "getting-started.md",
       "sha256": "5ba4fb5d23b36900e3763111b7570e003f7e33b5512f059089f68d8ba2e6fe16",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-first-menu"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "getting-started#modern-on-first-start",
@@ -898,9 +908,12 @@
       "level": 3,
       "chapter": "getting-started.md",
       "sha256": "be6cce1458a4678b6562c35a62acd89ca1a1431b0ffc081922a9fcc996d59eaf",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-first-menu",
+        "deck-view",
+        "stem-mute-bypass"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "getting-started#classic-on-first-start",
@@ -908,9 +921,11 @@
       "level": 3,
       "chapter": "getting-started.md",
       "sha256": "858f2e56477e843d7cc0d0ef606704582386dcbe4b173489fd91a128eb8077d2",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "physical-rekordbox",
+        "interface-choice"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "getting-started#choose-modern-or-classic",
@@ -918,9 +933,10 @@
       "level": 2,
       "chapter": "getting-started.md",
       "sha256": "4ab4d303ce57975a79e2433f01dde3a13aa2e36e521a2626893dc47eb92ab6b7",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "interface-choice"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "getting-started#switch-on-the-player",
@@ -939,9 +955,10 @@
       "level": 2,
       "chapter": "getting-started.md",
       "sha256": "94c75a56fe19c81df6a56c939b17ad4b46d35615ef0de3b265bf274efda678d2",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "updates"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "hardware#the-top-panel",
@@ -950,8 +967,8 @@
       "chapter": "hardware.md",
       "sha256": "2afbee594a1c98538b34fbbdf225a0e49e22306867a308ce2554f695b966a3e9",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Annotated physical control map; per-control actions are assigned under Browse section keys and Deck keys."
     },
     {
       "section": "hardware#browse-section-keys",
@@ -959,9 +976,12 @@
       "level": 2,
       "chapter": "hardware.md",
       "sha256": "4aaa9fb662ffcc39fa76a2188d40714c8634ccbdab8b860404eb37fd739ed7c1",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-browse-keys",
+        "encoder-settings",
+        "browse-load"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "hardware#the-rekordbox-button",
@@ -982,9 +1002,10 @@
       "level": 2,
       "chapter": "hardware.md",
       "sha256": "359b84a2d1c722619db056972a1a8915b50ed5e5e66bc3a23b17735bd3329af2",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "vj-tools"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "hardware#deck-keys",
@@ -992,9 +1013,15 @@
       "level": 2,
       "chapter": "hardware.md",
       "sha256": "e80bafc07dc3a762450a5100426c4fa12a8549c17d1fbc5326f6c688004f207a",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-master-tempo",
+        "physical-key-sync",
+        "physical-double-shift-1",
+        "physical-double-shift-2",
+        "physical-stem-pads",
+        "physical-beat-jump"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "hardware#performance-pads",
@@ -1013,9 +1040,11 @@
       "level": 3,
       "chapter": "hardware.md",
       "sha256": "9573429cd2836ea4968a856c9dbac81eead13c4ac79ebb9d7d610c0c5d27fae5",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "stem-pads-values",
+        "physical-stem-pads"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "hardware#pad-lights",
@@ -1023,9 +1052,11 @@
       "level": 3,
       "chapter": "hardware.md",
       "sha256": "fd4ac0bffc98162fc57eb16f5621448711bd6278418ecfcb0a0de4f4ad023ab6",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "stem-pads-values",
+        "physical-pad-mode-pages"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "hardware#decks-3-and-4-from-the-deck-controls",
@@ -1033,9 +1064,11 @@
       "level": 2,
       "chapter": "hardware.md",
       "sha256": "90f7367fe0dcecfb47ff6c0fe8835de2149d9bc1ace5b2b61960958a19859cab",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "physical-double-shift-1",
+        "physical-double-shift-2"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "hardware#when-a-control-does-not-respond",
@@ -1043,9 +1076,12 @@
       "level": 2,
       "chapter": "hardware.md",
       "sha256": "8ca7396f3f15540f383390fab826e1397c8dc8e1c98adec446ed852b0f25d496",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-browse-keys",
+        "rekordbox-button-values",
+        "mods-four-decks"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "mods-menu#open-and-close-mods",
@@ -1182,7 +1218,10 @@
       "chapter": "mods-menu.md",
       "sha256": "51d24a2a6d414f1d03fcdd171512c40e85cd16fcd702e4e88dca874d2cd655c1",
       "flows": [
-        "my-settings-load-save"
+        "my-settings-load-save",
+        "b-my-settings-pause",
+        "b-my-settings-failure",
+        "b-my-settings-readonly"
       ],
       "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
     },
@@ -1192,9 +1231,10 @@
       "level": 2,
       "chapter": "mods-menu.md",
       "sha256": "acb853e01a7d13752c107aa776c883680df79745e91ffc6964dae73083180460",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-save-recovery"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "mods-menu#older-pages",
@@ -1203,8 +1243,8 @@
       "chapter": "mods-menu.md",
       "sha256": "7505617158341900fed63afd7f7b3f09f4b7a47e9fb9f339f5ebfbe0bdfb8892",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Historical page redirect table; retired pages cannot be opened by a reader."
     },
     {
       "section": "performance#the-play-page",
@@ -1627,8 +1667,8 @@
       "chapter": "screen-and-themes.md",
       "sha256": "44efa2fa3d5e56d3d4668744d30beca5cb1caa1f68091d6c9cf58050732b975b",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Explains fixed badges and colour meanings; no player action."
     },
     {
       "section": "screen-and-themes#system-readout",
@@ -1647,9 +1687,10 @@
       "level": 2,
       "chapter": "screen-and-themes.md",
       "sha256": "2544669bd4e1b5c6ec7a3f5439d9f1d44d546a3e7dd9a971d423fe370072f656",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-theme-recovery"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "settings#where-settings-are-kept",
@@ -1836,9 +1877,11 @@
       "level": 2,
       "chapter": "troubleshooting.md",
       "sha256": "4bd2035e3b7de15a11967c2b8dacde32147ba1674a208e1bf9f34df7963e2bfe",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "updates",
+        "b-first-menu"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "troubleshooting#stems-on-the-usb",
@@ -1846,9 +1889,10 @@
       "level": 2,
       "chapter": "troubleshooting.md",
       "sha256": "a181e323ce1384ed62c32c3b93e9d98c3ff4b6d8b5fe248941834a1db1b73157",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-stem-setup"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "troubleshooting#notices-on-the-play-screen",
@@ -1856,9 +1900,10 @@
       "level": 2,
       "chapter": "troubleshooting.md",
       "sha256": "7f46461512ab95fa07438fa12a348a4319157d71451adadb95bffe33a58acb24",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-notice-load-recovery"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "troubleshooting#errors-on-a-deck",
@@ -1866,9 +1911,11 @@
       "level": 2,
       "chapter": "troubleshooting.md",
       "sha256": "46e4a4b4546234a35f7f3db9e20719c9345874daefe6999bf5319df596eeab01",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-deck-error-recovery",
+        "report-dock-entry"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "troubleshooting#the-players-own-warnings",
@@ -1887,8 +1934,8 @@
       "chapter": "troubleshooting.md",
       "sha256": "9842705bdaef1652921279d8e53199e684b74d6d7dd5c80e3b9709539f75003a",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Explains automatic warning suppression and the cable card; no player action in this section. Actual cable detection needs hardware."
     },
     {
       "section": "troubleshooting#when-settings-cannot-be-saved",
@@ -1896,9 +1943,10 @@
       "level": 2,
       "chapter": "troubleshooting.md",
       "sha256": "e70147d97a5a1a61ac26839b283250abdab3c3d1463ae18c4a992abb495d3db8",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "b-save-recovery"
+      ],
+      "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
       "section": "troubleshooting#messages-in-the-xz-mods-app",
@@ -1907,8 +1955,8 @@
       "chapter": "troubleshooting.md",
       "sha256": "511e94d4c76e675b7455de5979f5dea97b6b2299885b2d127b231dd6a31b619f",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "desktop_platform",
+      "detail": "Every action is in the computer app."
     },
     {
       "section": "troubleshooting#the-diary-on-your-usb-sticks",
@@ -1917,8 +1965,8 @@
       "chapter": "troubleshooting.md",
       "sha256": "0b753993c7d36865c2c85605225d8bc351cdc144760bc315462c8942d3cffb1b",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Explains automatically written diagnostic files; no on-player control. Actual USB diary persistence requires USB runtime."
     },
     {
       "section": "troubleshooting#report-a-problem",

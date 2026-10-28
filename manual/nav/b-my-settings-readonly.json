@@ -1,0 +1,25 @@
+{
+  "section": "mods-menu#my-settings",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 200,
+      "detail": "Read-only stick, no stored settings"
+    },
+    {
+      "key": "BROWSE"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "touch": [
+        660,
+        131
+      ]
+    },
+    {
+      "back": true
+    }
+  ]
+}

@@ -102,3 +102,9 @@ Coverage remains partial. [REPORT.md](REPORT.md) lists host gaps separately from
 | [utility](utility.json) | mods-menu#modern-utility | 12 |
 | [vj-tools](vj-tools.json) | connect#vjtools | 6 |
 | [wad-loader](wad-loader.json) | extras#doom-and-chex-quest | 6 |
+
+## Chapter B follow-up
+
+The `b-*.json` scripts are retained separately in `E:/Claude/xz-beta-rc-scratch/nav-capture-b/`. See [REPORT-B.md](REPORT-B.md) for counts and operation-level limits. The original 96-flow table above is historical third-pass evidence.
+
+B batch: 17 new flows, 403 PNG frames, 329 distinct reviewed hashes. Source-built capture and `--flow-prefix b- --check` passed.
