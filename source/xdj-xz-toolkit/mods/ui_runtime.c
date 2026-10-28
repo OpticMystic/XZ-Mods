@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include "writes.h"
 #include "ui_runtime.h"
 #include "ui/play_key.h"
 #include "ui/play_key_classic.h"
@@ -3783,8 +3784,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
     const char *usb = getenv("XZ_MODS_SETTINGS_USB");
     if(!usb||!usb[0])usb=getenv("XZ_MODS_USB");
     if(usb&&usb[0])settings_restore_usb_locked(usb,restored);
-    const char *ram_settings = getenv("XZ_MODS_SETTINGS_READONLY");
-    settings_readonly = ram_settings && !strcmp(ram_settings,"1");
+    settings_readonly = !xz_mods_may_write();
     if (settings_readonly) model.settings_status = "CHANGES LAST UNTIL REBOOT";
     performance_publish_locked();wave_configure();
     if(audio_ready)xz_audio_set_enabled(requested_stems);

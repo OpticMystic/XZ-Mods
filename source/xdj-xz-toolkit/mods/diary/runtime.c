@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #define _GNU_SOURCE
+#include "../writes.h"
 #include "runtime.h"
 #include "store.h"
 #include "../clock_compat.h"
@@ -271,7 +272,7 @@ static void *worker(void *unused){
  return NULL;
 }
 int xz_diary_start(void){
- const char *readonly=getenv("XZ_MODS_SETTINGS_READONLY");if(readonly&&!strcmp(readonly,"1"))return 0;
+ if(!xz_mods_may_write())return 0;
  if(created)return 0;memset(mounts,0,sizeof mounts);memset(&session,0,sizeof session);have_previous=0;
  __atomic_store_n(&running,1,__ATOMIC_RELEASE);
  pthread_attr_t attr;
