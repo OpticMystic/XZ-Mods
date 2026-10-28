@@ -472,27 +472,56 @@ struct native {
     pid_t pid;
     int memory;
     unsigned long long start;
-    uint32_t engine, begin, players[2];
+    uint32_t engine, begin;
 };
+
+static int native_engine(const struct native *native, uint32_t *engine, uint32_t *begin)
+{
+    uint32_t range[2];
+    if (!read_at(native->memory, 0x10e9688, engine, 4) ||
+        *engine < 0x10000 || *engine > UINT32_MAX - 20 || (*engine & 3) ||
+        !read_at(native->memory, *engine + 12, range, 8) ||
+        range[0] < 0x10000 || range[0] > UINT32_MAX - 8 || (range[0] & 3) ||
+        range[1] - range[0] != 8) return 0;
+    *begin = range[0];
+    return 1;
+}
 
 static int native_alive(const struct native *native)
 {
-    return native->start && start_time(native->pid) == native->start;
+    uint32_t engine, begin;
+    return native->start && start_time(native->pid) == native->start &&
+        (!native->engine || (native_engine(native, &engine, &begin) &&
+                            engine == native->engine && begin == native->begin));
+}
+
+static int native_decks_ready(struct native *native)
+{
+    if (native->engine) return native_alive(native);
+    uint32_t engine, begin, again_engine, again_begin;
+    if (!native_alive(native) || !native_engine(native, &engine, &begin) ||
+        !native_engine(native, &again_engine, &again_begin) ||
+        engine != again_engine || begin != again_begin) return 0;
+    native->engine = engine;
+    native->begin = begin;
+    return 1;
 }
 
 static int native_stopped(const struct native *native)
 {
-    uint32_t engine, range[2], players[2];
-    uint16_t flags[2];
-    if (!native_alive(native) ||
-        !read_at(native->memory, 0x10e9688, &engine, 4) || engine != native->engine ||
-        !read_at(native->memory, engine + 12, range, 8) || range[0] != native->begin || range[1] - range[0] != 8 ||
-        !read_at(native->memory, range[0], players, 8) || memcmp(players, native->players, 8)) return 0;
-    for (unsigned i = 0; i < 2; i++)
-        if (!read_at(native->memory, (uint64_t)players[i] + 0xe76, &flags[i], 2) || flags[i]) return 0;
-    return read_at(native->memory, 0x10e9688, &engine, 4) && engine == native->engine &&
-        read_at(native->memory, engine + 12, range, 8) && range[0] == native->begin && range[1] - range[0] == 8 &&
-        read_at(native->memory, range[0], players, 8) && !memcmp(players, native->players, 8);
+    uint32_t engine, begin, players[2], again[2];
+    if (!native->engine || !native_alive(native) ||
+        !native_engine(native, &engine, &begin) || engine != native->engine || begin != native->begin ||
+        !read_at(native->memory, begin, players, sizeof(players))) return 0;
+    for (unsigned i = 0; i < 2; i++) {
+        if (!players[i]) continue;
+        uint16_t flag;
+        if (players[i] < 0x10000 || players[i] > UINT32_MAX - 0xe78 || (players[i] & 3) ||
+            !read_at(native->memory, (uint64_t)players[i] + 0xe76, &flag, sizeof(flag)) || flag) return 0;
+    }
+    return native_engine(native, &engine, &begin) && engine == native->engine && begin == native->begin &&
+        read_at(native->memory, begin, again, sizeof(again)) && !memcmp(players, again, sizeof(players)) &&
+        native_alive(native);
 }
 
 /* Only a fully captured temporary candidate can become ACTIVE. Never revive RETIRED. */
@@ -557,6 +586,7 @@ static int qualify_native(struct native *native, pid_t pid)
     char path[80], environment[32768];
     native->pid = pid;
     native->memory = -1;
+    native->engine = native->begin = 0;
     native->start = start_time(pid);
     if (!native->start || !process_set(pid)) return 0;
     snprintf(path, sizeof(path), "/proc/%d/exe", pid);
@@ -579,15 +609,9 @@ static int qualify_native(struct native *native, pid_t pid)
     native->memory = open(path, O_RDONLY | O_CLOEXEC);
     const unsigned char signature[8] = {0x0c,0x30,0x90,0xe5,0x10,0x20,0x90,0xe5};
     unsigned char actual[8];
-    uint32_t range[2], field;
+    uint32_t field;
     if (native->memory < 0 || !read_at(native->memory, 0x494ec, actual, 8) || memcmp(actual, signature, 8) ||
-        !read_at(native->memory, 0x49508, &field, 4) || field != 0x15d00e77 ||
-        !read_at(native->memory, 0x10e9688, &native->engine, 4) || native->engine < 0x10000 || native->engine > UINT32_MAX - 20 || (native->engine & 3) ||
-        !read_at(native->memory, native->engine + 12, range, 8) || range[0] < 0x10000 || (range[0] & 3) || range[1] - range[0] != 8 ||
-        !read_at(native->memory, range[0], native->players, 8)) return 0;
-    native->begin = range[0];
-    for (unsigned i = 0; i < 2; i++)
-        if (native->players[i] < 0x10000 || native->players[i] > UINT32_MAX - 0xe78 || (native->players[i] & 3)) return 0;
+        !read_at(native->memory, 0x49508, &field, 4) || field != 0x15d00e77) return 0;
     return native_alive(native);
 }
 
@@ -1118,6 +1142,7 @@ admission:
         if (access(RUN "/stop", F_OK) == 0) { reason = "TERMINATED_STOP_MARKER"; goto done; }
         if (!native_alive(native)) { reason = "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE"; goto done; }
         if (!process_set(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; goto done; }
+        if (!native_decks_ready(native)) { state_log("WAIT_NATIVE_DECKS"); event_wait(events, 500); continue; }
         if (binding->state == BINDING_NEW) {
             if (!native_stopped(native)) { state_log("WAIT_NATIVE_PAUSED"); event_wait(events, 1000); continue; }
             if (status_attempt < UINT_MAX) status_attempt++;
@@ -1157,6 +1182,7 @@ admission:
     loaded = 1;
     state_log("WAIT_LOOPBACK");
     while (!stopping && native_alive(native) && access(RUN "/stop", F_OK) != 0) {
+        if (!process_set(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; break; }
         if (!route_binding_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
         const char *music_reason;
         if (!service_music_hub(native, binding, &music_attempt, &music_reason)) {
@@ -1197,6 +1223,7 @@ admission:
                 state_log("BIND_FAILED; disconnect loopback to retry");
             } else state_log("WAIT_AUDIO_DEVICE");
         } else if (action == PUBLISH) {
+            if (!native_alive(native)) { reason = "TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE"; failed = 1; break; }
             if (!route_binding_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
             if (mknod(NODE, S_IFCHR | 0600, makedev(189, 127 + device.number))) { reason = "TERMINATED_NODE_WRITE_FAILURE"; failed = 1; break; }
             route.published = device;
@@ -1297,6 +1324,7 @@ int main(int argc, char **argv)
     int result = 0;
     if (!strcmp(argv[1], "--run")) result = run_bridge(&native, module, &binding);
     else {
+        if (!native_decks_ready(&native)) { close(native.memory); puts("WAIT_NATIVE_DECKS"); return 1; }
         if (route_binding_admit(&binding, &native) != ADMIT_READY) { close(native.memory); puts("REFUSED_STOPPED_UNIT_ROUTE_BINDING"); return 1; }
         printf("NATIVE_PAUSED=%d\n", native_stopped(&native));
     }

@@ -201,15 +201,15 @@ stage_auto_bridge() {
     mkdir -p "$auto_root" || return 1
     [ "$(cd -P "$auto_root" && pwd -P)" = "$auto_root" ] || return 1
     if [ ! -f "$auto_root/xz-auto-bridge" ]; then
-        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge")" = 6ecbd0b23f9661e21309625247a038e9 ] || return 1
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge")" = effd083b28a5b0d37ab93809542b2605 ] || return 1
         cp "$PAYLOAD_ROOT/tools/auto-bridge/xz-auto-bridge" "$auto_root/xz-auto-bridge" || return 1
     fi
-    [ ! -L "$auto_root/xz-auto-bridge" ] && [ "$(file_md5 "$auto_root/xz-auto-bridge")" = 6ecbd0b23f9661e21309625247a038e9 ] || return 1
+    [ ! -L "$auto_root/xz-auto-bridge" ] && [ "$(file_md5 "$auto_root/xz-auto-bridge")" = effd083b28a5b0d37ab93809542b2605 ] || return 1
     if [ ! -f "$auto_root/xz_hub_depth.ko" ]; then
-        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko")" = a9463514dcf4e2b0c3bef40b11a26dad ] || return 1
+        [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko")" = 5758787588f11479dbcca905f294ea69 ] || return 1
         cp "$PAYLOAD_ROOT/tools/auto-bridge/xz_hub_depth.ko" "$auto_root/xz_hub_depth.ko" || return 1
     fi
-    [ ! -L "$auto_root/xz_hub_depth.ko" ] && [ "$(file_md5 "$auto_root/xz_hub_depth.ko")" = a9463514dcf4e2b0c3bef40b11a26dad ] || return 1
+    [ ! -L "$auto_root/xz_hub_depth.ko" ] && [ "$(file_md5 "$auto_root/xz_hub_depth.ko")" = 5758787588f11479dbcca905f294ea69 ] || return 1
     if [ ! -f "$auto_root/detach" ]; then
         [ "$(file_md5 "$PAYLOAD_ROOT/tools/auto-bridge/detach")" = ba080b47a9a12ec4dc11eb37807b0533 ] || return 1
         cp "$PAYLOAD_ROOT/tools/auto-bridge/detach" "$auto_root/detach" || return 1

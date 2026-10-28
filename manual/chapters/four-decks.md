@@ -27,8 +27,7 @@ The cable goes directly from the rear USB socket to either **USB 1** or **USB 2*
 7. Wait for **DECKS 3 AND 4 ARE READY**. The card in the lanes of decks 3 and 4 tells you each step it is waiting for.
 8. Press [[SHIFT]] twice on the left side to play deck 3, or on the right side to play deck 4.
 
-The XZ detects cable connections automatically. **RESCAN** checks at once. After a disconnection, reconnect the cable to the same top port. To move it to the other port, stop playback and restart the USB loader first.
-
+Decks 3 and 4 start as soon as the cable is in, even when decks 1 and 2 have no tracks loaded. You can leave the cable connected before starting the USB loader. No **RESCAN** is needed. Decks 1 and 2 must be stopped or paused while the route starts. **RESCAN** checks at once if you want to check again. After a disconnection, reconnect the cable to the same top port. To move it to the other port, stop playback and restart the USB loader first.
 > **Note.** The [XZ Mods app](desktop-app#four-decks-in-the-app) shows steps 2 to 5 with an animation of the cable while it writes your USB and when it is done. You set four decks up at the player, not in the app.
 
 > **Tip.** You can choose a four-deck view before you plug in the cable. Decks 3 and 4 then show a card with the cable steps and their current state, and decks 1 and 2 keep playing as usual.
@@ -313,6 +312,8 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 | [[DECK QUANTIZE]] | Cue, loop and hot cue points land on the beat. [[DECK QUANTIZE]] switches every deck. [[SHIFT]] + [[DECK QUANTIZE]] switches only this side's deck. |
 | [[MEMORY]], [[DELETE]], [[CUE/LOOP CALL]] | Store, delete and call memory points. |
 | [[TRACK SEARCH]], [[SEARCH]] | Previous and next track, and fine search. With AUTO CUE on, the new track waits at its cue. Previous and next follow the list the track was loaded from in MODERN. After a CLASSIC load the deck shows NO SAVED TRACK ORDER, and [[TRACK SEARCH]] back returns to the cue. |
+
+On decks 3 and 4, TRACK SEARCH respects AUTO CUE. With AUTO CUE on, a newly loaded track waits at its cue point. With AUTO CUE off, a deck that was playing continues with the new track; a paused deck stays paused.
 
 Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and rekordbox do not see them, and the rekordbox export stays unchanged.
 
