@@ -138,7 +138,7 @@ CONNECT links the player to you and to computers.
 ```figure classic:theme-{look}-extras MODS · EXTRAS
 1 @ 225,110 GAMES | Doom, Chex Quest, Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer. The music keeps playing.
 2 @ 557,110 USB APPS | Apps for the XZ from the USB.
-3 @ 225,288 REPORT AN ISSUE | Prepares a report, lets you check it, and sends it.
+3 @ 225,288 REPORT AN ISSUE | Sends a problem, a question or an idea, in three presses.
 4 @ 557,288 ABOUT XZ MODS | Credits, links and support.
 ```
 
