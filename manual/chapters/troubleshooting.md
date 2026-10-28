@@ -11,7 +11,7 @@ XZ Mods never changes the player's firmware, so the player always starts stock w
 
 1. Switch the player off.
 2. Remove the XZ Mods USB and switch the player on. It starts stock. Play from a stick without XZ Mods if you are in a set.
-3. On your computer, open the USB in the XZ Mods app. If it says **Update available**, choose **Update USB**. If it says **Up to date**, open **Tools** › **XZ Mods version** › **Restore or update a loader by hand** and update the loader again. The app keeps a backup of the old loader each time.
+3. On your computer, open the USB in the XZ Mods app. If it says **Update available**, choose **Update USB**. If it says **Up to date**, open **Updates** › **XZ Mods version** › **Restore or update a loader by hand** and update the loader again. The app keeps a backup of the old loader each time.
 4. Try the USB again. If it still does not start, [report the problem](#report-a-problem).
 
 Check these first:

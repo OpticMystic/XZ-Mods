@@ -21,7 +21,7 @@ Apple Silicon and Intel Macs running macOS 14 or later.
 - Download and prepare Doom shareware, Chex Quest and Freedoom data. Installing
   XZ Mods on a USB includes them; leave any out with Change games before you write.
   Commercial IWADs must come from the user.
-- On Windows, install signed app updates from Tools > App updates. Mac versions
+- On Windows, install signed app updates from Updates > App updates. Mac versions
   are downloaded from the release page.
 
 Apple Silicon supports generation with the current models. Intel Macs support
