@@ -467,12 +467,14 @@ try {
   await waitFor(`!document.getElementById('report-notice').classList.contains('hidden')`, 'notice');
   await check(`txt('#report-notice-text')==='Update on your report: A fix is in progress.'`, 'a status change shows a notice in plain words');
   await evaluate(`showPage('updates');window.scrollTo(0,0)`);
-  await shot('15-status-notice');
+  await shot('15-status-notice', { notice: '#report-notice-text', view: '#report-notice-view' });
   await evaluate(`showPage('my-reports')`);
   await waitFor(`document.querySelectorAll('.sr-reports .sr-report').length===4`, 'my reports list');
   await check(`txt('.sr-report[data-unseen] .sr-status')==='New: A fix is in progress.'&&[...document.querySelectorAll('.sr-reports .sr-badge')].map(b=>b.textContent).includes('Idea')`, 'My reports shows each report with its kind and status in plain words');
   await check(`txt('.sr-report[data-unseen] .sr-reference')==='R-4F7K-2M9Q'&&txt('.sr-report[data-unseen] .sr-item-number')==='Part of XZ-1042'`, 'My reports shows the report reference and assigned item');
-  await shot('16-my-reports', { notice: '#report-notice-text', view: '#report-notice-view', kind: '.sr-reports .sr-badge', words: '.sr-reports .sr-report strong', status: '.sr-report[data-unseen] .sr-status', sent: '.sr-reports .sr-when', check: '[data-key="check-now"]', mine: '#my-reports .sr-page-head h2', problem: '#support-open strong' });
+  await evaluate(`document.querySelector('#my-reports .sr-page-head').scrollIntoView({block:'start'});scrollBy(0,-20)`);
+  await shot('16-my-reports', { notice: '#report-notice-text', view: '#report-notice-view', kind: '.sr-reports .sr-badge', words: '.sr-reports .sr-report strong', status: '.sr-report[data-unseen] .sr-status', sent: '.sr-reports .sr-when', check: '[data-key="check-now"]', mine: '#my-reports .sr-page-head h2', item: '.sr-report[data-unseen] .sr-item-number' });
+  await evaluate(`scrollTo(0,0)`);
   await size(700,760);
   await check(`document.querySelector('.sr-report[data-unseen] .sr-reference').checkVisibility()&&document.querySelector('.sr-report[data-unseen] .sr-item-number').checkVisibility()`, 'narrow My reports rows keep both identifiers visible');
   await size(1100,760);
@@ -544,7 +546,7 @@ try {
   await check(`(()=>{const it=${item(id1)};const facts=[...it.querySelectorAll('dd')].map(d=>d.textContent);return txt('.sr-xz-head .sr-reference',it)==='R-7Q2M-4F8K'&&txt('.sr-xz-when',it)==='Sent from your XZ today at 21:15'&&facts.join('|')==="Something isn't working|MODERN play screen, 4 decks, E-8307 shown|L-7K2M-9Q4F, written 12 Oct 2026|Deck 3 went silent after the cable";})()`, 'each report shows reference, time, topic, screen in words, stick and what was typed on the XZ');
   await check(`(()=>{const it=${item(id1)};return it.getAttribute('aria-labelledby')==='xz-ref-${id1}'&&txt('label[for="xz-text-${id1}"]')==='What happened?'&&it.querySelectorAll('.primary').length===1&&button('Send',it).classList.contains('primary')&&Boolean(button('Send without comments',it))&&!it.querySelector('.sr-details').open&&fx.detailsReads===0;})()`, 'one labelled box, one primary Send, Send without comments, details closed and not read yet');
   await check(`![...document.querySelectorAll('.sr-reports .sr-reference')].some(r=>r.textContent==='R-7Q2M-4F8K')&&document.querySelectorAll('.sr-xz-item').length===1`, 'a waiting report is listed once, under From your XZ');
-  await evaluate(`window.scrollTo(0,0)`);
+  await evaluate(`document.querySelector('.sr-xz').scrollIntoView({block:'start'});scrollBy(0,-20)`);
   await waitFor(`!${item(id1)}.hasAttribute('data-target')`, 'the opening outline fades', 4);
   await shot('22-xz-report', { title: '#sr-xz-title', reference: '.sr-xz-head .sr-reference', when: '.sr-xz-when', screen: '.sr-xz-facts dd:nth-of-type(2)', stick: '.sr-xz-facts dd:nth-of-type(3)', typed: '.sr-xz-typed', box: '.sr-xz .sr-box', details: '.sr-xz .sr-details summary b', stop: '[data-key^="xz-stop-"]', bare: '[data-key^="xz-bare-"]', send: '[data-key^="xz-send-"]' });
   await evaluate(`${item(id1)}.querySelector('.sr-details summary').click()`);
