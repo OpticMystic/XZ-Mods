@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #define _GNU_SOURCE
+#include "writes.h"
 #include "extra_cue_store.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -142,8 +143,7 @@ int xz_cues_restore(const struct xz_extra_track *t,uint64_t generation,int32_t d
  int dir=directory(t);if(dir<0)return 0;int result=xz_cues_read_at(dir,t->track_id,duration,out);close(dir);return result;
 }
 int xz_cues_enqueue(int deck,const struct xz_extra_track *t,uint64_t generation,int32_t duration,const struct xz_saved_cues *s,const struct xz_cue_edit *e){
- const char *read_only=getenv("XZ_MODS_SETTINGS_READONLY");
- if(!writer.started||!generation||!t||!s||!e||(read_only&&!strcmp(read_only,"1")))return 0;
+ if(!writer.started||!generation||!t||!s||!e||!xz_mods_may_write())return 0;
  pthread_mutex_lock(&writer.lock);
  int ok=!writer.quit&&writer.count<CUE_JOBS;
  if(ok){writer.queue[(writer.head+writer.count)%CUE_JOBS]=(struct cue_job){deck,*t,generation,duration,*s,*e};writer.count++;pthread_cond_signal(&writer.ready);}

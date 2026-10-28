@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #define _POSIX_C_SOURCE 200809L
+#include "writes.h"
 #include "settings_internal.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -153,8 +154,7 @@ int xz_settings_internal_load(struct xz_settings *out, unsigned *present) {
     close_store(root,folder);return rc;
 }
 int xz_settings_internal_save(const struct xz_settings *settings) {
-    const char *readonly=getenv("XZ_MODS_SETTINGS_READONLY");
-    if(readonly&&!strcmp(readonly,"1")) return XZ_INTERNAL_SETTINGS_UNAVAILABLE;
+    if(!xz_mods_may_write()) return XZ_INTERNAL_SETTINGS_UNAVAILABLE;
     unsigned char bytes[HEADER_BYTES+PAYLOAD_BYTES];
     char text[PAYLOAD_BYTES+1];
     int length=settings?xz_settings_format(settings,text,sizeof(text)):-1;
