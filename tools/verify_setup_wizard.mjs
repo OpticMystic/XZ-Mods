@@ -263,7 +263,7 @@ try {
   await evaluate(`window.__manual=[];window.openManual=(chapter,anchor)=>window.__manual.push([chapter,anchor])`);
   await evaluate(`document.getElementById('wz-fourdeck-open').click()`);
   await check(`JSON.stringify(window.__manual)==='[["four-decks",null]]'&&setupWizard.state.view==='device'`, 'the entry opens the manual at Four decks');
-  await evaluate(`delete window.openManual;document.getElementById('wz-fourdeck-open').click()`);
+  await evaluate(`window.openManual=undefined;document.getElementById('wz-fourdeck-open').click()`);
   await view('flow', 'quad');
   await check(`txt('.wz-flow-title h2')==='Four decks'&&!document.querySelector('.wz-flow-progress')&&!document.querySelector('.wz-dots')&&`+txtQuad+`&&txt('.wz-quad-art figcaption').startsWith('Rear USB-B → top USB 1 or 2 · Music in the other top port')`, 'without the manual the entry opens the cable guide instead: one page, no step count');
   await check(bar('Done'), 'the cable guide: Back, then Done');
@@ -355,7 +355,7 @@ try {
   await check(`Boolean(document.getElementById('wz-fourdeck-how'))&&setupWizard.state.step==='writing'`, 'writing: with the manual in this host, How four decks work is offered');
   await evaluate(`document.querySelector('.wz-fourdeck').scrollIntoView({block:'start'})`);
   await shot('07b-flow-writing-fourdecks');
-  await evaluate(`delete window.openManual;setupWizard.render();scrollTo(0,0)`);
+  await evaluate(`window.openManual=undefined;setupWizard.render();scrollTo(0,0)`);
   await evaluate(`fx.hold=false`);
   await view('flow', 'done');
   await check(`since(window.__mark)==='inspect_mod_settings,prepare_usb,read_usb_settings,save_usb_settings,inspect_usb'&&fx.written.length===2&&fx.written[0].method==='prepare_usb'&&fx.written[0].volume==='E:\\\\'&&fx.written[0].experimental===true&&fx.written[0].mod_version_id==='v1'&&fx.written[0].pin_mod_version===true&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'`, 'Write: settings check, prepare_usb with the chosen games, the settings file, then a fresh inspection');
@@ -382,7 +382,7 @@ try {
   await evaluate(`scrollTo(0,0);window.__manual=[];window.openManual=(chapter,anchor)=>window.__manual.push([chapter,anchor])`);
   await click('How four decks work');
   await check(`JSON.stringify(window.__manual)==='[["four-decks",null]]'&&setupWizard.state.step==='done'`, 'How four decks work opens the manual at Four decks and leaves the done screen as it is');
-  await evaluate(`delete window.openManual`);
+  await evaluate(`window.openManual=undefined`);
   await click('How four decks work');
   await view('flow', 'quad');
   await check(txtQuad, 'without the manual it opens the cable guide, which keeps the paired-loader prerequisite');
@@ -846,7 +846,7 @@ try {
       await sweep('guide step ' + step, 'flow-' + step);
       assert(await evaluate(barInView), 'the bar is in view on ' + step + at);
     }
-    await evaluate(`setupWizard.openFourDecks()`); await view('flow', 'quad');
+    await evaluate(`window.openManual=undefined;setupWizard.openFourDecks()`); await view('flow', 'quad');
     await sweep('cable guide', 'flow-quad');
     await click('Done'); await view('flow', 'review');
     await click('Cancel'); await view('find');
