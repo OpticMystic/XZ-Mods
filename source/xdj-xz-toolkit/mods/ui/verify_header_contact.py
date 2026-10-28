@@ -5,7 +5,8 @@ root=Path(__file__).resolve().parent
 p=argparse.ArgumentParser();p.add_argument('--zig',type=Path,required=True);a=p.parse_args()
 source=(root.parent/'ui_runtime.c').read_text()
 start=source.index('static int head_shown,')
-end=source.index('static void touch_hook(',start)
+# Through the end of browse_head_touch only: the functions after it belong to other touch owners.
+end=source.index('\n}\n',source.index('static int browse_head_touch(',start))+3
 handler=source[start:end]
 prefix=r'''
 #include <assert.h>
