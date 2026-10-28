@@ -1635,7 +1635,7 @@ static void test_ordered_next(void){
   e.load.media_generation=42;e.load.route_epoch=500;e.load.order=order;e.load.order_index=0;
   assert(input(e));xz_extra_order_release(order);step();
   assert(xz_extra_order_live()==1);
-  if(playing)press(side,XZ_EXTRA_IN_PLAY);
+  if(playing){struct xz_extra_deck_event ac=event(side,XZ_EXTRA_IN_AUTO_CUE,1);ac.shift=1;assert(input(ac));step();press(side,XZ_EXTRA_IN_PLAY);}
   f.capture[side]=1;f.captured_frames[side]=0;
   press(side,XZ_EXTRA_IN_TRACK_NEXT);
   assert(debug(side).source_rate==48000&&!strcmp(view.deck[side].title,"Track B"));
@@ -1802,7 +1802,7 @@ static void test_mods_jump(void){
  p=xz_xp_create(&env);assert(p);fake_route(9913);step();load(0,4);load(1,2);
  mode(0,XZ_EXTRA_PAD_BEAT_JUMP,0);seek(0,300);pad_key(0,1,1);pad_key(0,1,0);assert(debug(0).position==ms_frames(0,800));
  mode(1,XZ_EXTRA_PAD_BEAT_JUMP,0);seek(1,300);pad_key(1,1,1);pad_key(1,1,0);
- assert(debug(1).position==ms_frames(1,300)&&!strcmp(view.notice,"JUMP UNAVAILABLE: NO BEAT GRID OR BPM"));
+ assert(debug(1).position==ms_frames(1,800)); /* Undetected BPM uses the stock 120 BPM fallback. */
  xz_xp_destroy(p);p=NULL;
  puts("PASS MODS jump: both software decks, revision capture, pages, stock defaults, SHIFT, refusal, variable grid phase and edge extrapolation, BPM-only fallback");
 }
