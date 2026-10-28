@@ -2,7 +2,7 @@
 #ifndef XZ_UI_SECTIONS_H
 #define XZ_UI_SECTIONS_H
 /* The MODS sections (HOME, PLAY, STEMS, SCREEN, 4 DECKS, CONNECT, EXTRAS) and the picture pages they open
-   (BEAT JUMP PADS, STEM PADS, BUTTON NEXT TO LINK, KEYS): which controls each page has, where the CLASSIC panel
+   (BEAT JUMP PADS, STEM PADS, REKORDBOX BUTTON, KEYS): which controls each page has, where the CLASSIC panel
    puts them, and what it draws over the skin. One menu for both interfaces: MODERN draws the same pages in
    the FLAGSHIP skin and adds its own play-screen parts (xz_ui_modern_menu). Internal to ui/. */
 #include "ui_skin.h"

@@ -86,7 +86,7 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   if(available&XZ_UI_SMART)add(w,&n,XZ_UI_ENABLE,XZ_UI_SMART,XZ_UI_SMART,"SMART CUE");else add(w,&n,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_SMART,0,"SET UP SMART CUE");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_KEY_SETUP,0,"KEYS");
   add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_RAM_SETUP,0,"RAM TRACKS");
-  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BUTTONS,0,"BUTTON NEXT TO LINK");
+  add(w,&n,XZ_UI_FEATURE_LINK,XZ_UI_BUTTONS,0,"REKORDBOX BUTTON");
   break;}
  case XZ_UI_STEM_SECTION:
   if(xz_ui_usb_engine(m))add(w,&n,XZ_UI_ENABLE,XZ_UI_STEM,0,"USB STEMS");
@@ -603,7 +603,7 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
  case XZ_UI_BUTTONS:{
   xz_rect(c,X0,XZ_UI_CY,CW,XZ_UI_DOCK_Y-8-XZ_UI_CY,s.bg);
   xz_pic_media_buttons(c,&s,X0,50,260,32);
-  xz_pic_wrap(c,X0+276,52,CW-276,15,2,"The media button next to LINK: what it does on a press, and while SHIFT is held on either deck.",s.dim);
+  xz_pic_wrap(c,X0+276,52,CW-276,15,2,"The rekordbox button above LINK: what it does on a press, and while SHIFT is held on either deck.",s.dim);
   caption(c,&s,X0,88,CW,"PRESS");caption(c,&s,X0,224,CW,"SHIFT + PRESS");
   for(size_t i=0;i<sc->n;i++){
    const struct xz_ui_widget *a=&sc->w[i];if(a->kind!=XZ_UI_REKORDBOX_ASSIGN)continue;
