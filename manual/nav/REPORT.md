@@ -43,3 +43,7 @@ The additive chapter-A work is documented in [REPORT-A.md](REPORT-A.md). It adds
 24 host flows. The owner's complete action-level goal remains unfinished;
 assigned excerpts must not be counted as full section acceptance. The two
 software-player control headings remain explicit host implementation work.
+
+## Chapter B follow-up
+
+See [REPORT-B.md](REPORT-B.md) for the seven-chapter pass, retained batch, per-heading assignments and remaining action-level host work. Heading assignment remains excerpt coverage.

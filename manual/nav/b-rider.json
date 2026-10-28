@@ -1,0 +1,101 @@
+{
+  "section": "extras#wave-rider",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "GAMES"
+    },
+    {
+      "tap": "WAVE RIDER",
+      "expect_game": 2
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true,
+      "expect_game_step": 1
+    },
+    {
+      "push": true,
+      "expect_game_step": 2
+    },
+    {
+      "push": true,
+      "expect_game_step": 3
+    },
+    {
+      "game_input": [
+        "jog",
+        4
+      ],
+      "control": "left deck jog wheel"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true,
+      "expect_game_phase": 2
+    },
+    {
+      "game_input": [
+        "cue",
+        1
+      ],
+      "control": "left deck CUE"
+    },
+    {
+      "game_input": [
+        "jog",
+        -4
+      ],
+      "control": "left deck jog wheel"
+    },
+    {
+      "game_input": [
+        "cue",
+        0
+      ],
+      "control": "left deck CUE"
+    },
+    {
+      "touch": [
+        750,
+        24
+      ],
+      "expect_game": 0
+    }
+  ],
+  "requires_states": [
+    {
+      "game": 2,
+      "game_step": 0
+    },
+    {
+      "game": 2,
+      "game_step": 1
+    },
+    {
+      "game": 2,
+      "game_step": 2
+    },
+    {
+      "game": 2,
+      "game_step": 3
+    },
+    {
+      "game": 2,
+      "game_phase": 2
+    },
+    {
+      "game": 0
+    }
+  ]
+}

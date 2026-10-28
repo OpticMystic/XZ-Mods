@@ -263,3 +263,7 @@ remain excerpts; REPORT-A.md lists unfinished operations.
 | stems#usb-stems-setup | nav-a-usb-setup |
 | stems#stems-in-dj-software | pc-stems |
 | stems#if-stems-do-not-play | nav-a-stem-toggle, nav-a-stem-layouts |
+
+## Chapter B inventory changes
+
+The 35 previously unassigned headings in getting-started, hardware, troubleshooting, extras, mods-menu, screen-and-themes and connect are re-audited in [REPORT-B.md](REPORT-B.md). Its per-heading table and SECTIONS.json supersede those rows above. Assignments are excerpts only.
