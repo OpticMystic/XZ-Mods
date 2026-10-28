@@ -201,15 +201,19 @@ static void frame_fields(struct xz_shell_deck *d,struct deck_storage *storage,co
     int valid=1;
     for(unsigned j=0;j<XZ_SHELL_HOT_CUES;j++){
         unsigned off=0x34*j;in=u32(f+0x78+off);out=u32(f+0x7c+off);
-        if(in>INT32_MAX||out>INT32_MAX){valid=0;break;}
+        /* The native cue API uses -1 for an absent point or OUT. An unused
+         * slot must not hide the registered pads, and point cues need no OUT. */
+        if(in==UINT32_MAX){storage->hot_out[j]=-1;continue;}
+        if(in>INT32_MAX||(out>INT32_MAX&&out!=UINT32_MAX)){valid=0;break;}
         /* No registered-flag contract is available. Presence inferred from
          * nonzero position/loop/color needs hardware confirmation. All-zero
          * cannot distinguish unset from a colorless cue at track time 0. */
         struct xz_shell_cue *cue=d->hot_cue+j;
         cue->rgb=(uint32_t)f[0xa4+off]<<16|(uint32_t)f[0xa5+off]<<8|f[0xa6+off];
-        cue->set=!!(in||out||u16(f+0x76+off)||cue->rgb);
-        cue->ms=(int32_t)in;cue->is_loop=out!=0;
-        storage->hot_out[j]=(int32_t)out;
+        int loop=u16(f+0x76+off)!=0&&out!=UINT32_MAX&&out>in;
+        cue->set=!!(in||loop||cue->rgb);
+        cue->ms=(int32_t)in;cue->is_loop=loop;
+        storage->hot_out[j]=out==UINT32_MAX?-1:(int32_t)out;
         /* shell_cue has no out_ms member; see the separate read-only getter. */
     }
     storage->hot_out_known=valid;
