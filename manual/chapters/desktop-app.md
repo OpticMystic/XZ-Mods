@@ -162,9 +162,9 @@ app:install-ejected The USB is ejected and can be unplugged
 ```figure app:install-four-decks XZ Mods app · Install XZ Mods
 The Four decks section on the done screen.
 1 @ 490,51 Four decks | Experimental. Nothing to do now. You set it up at the player when you want it.
-2 @ 560,300 Cable animation | The loopback cable from the rear USB-B socket to top USB 1.
+2 @ 560,300 Cable animation | The loopback cable from the rear USB-B socket to a top port. The animation shows USB 1; USB 2 works too.
 3 @ 1006,387 Pause cable animation | Stops and starts the animation. With reduced motion turned on, the app shows a still picture.
-4 @ 650,500 At the player | Cable from the rear USB-B socket to top USB 1, the music stick in USB 2, and CH3 and CH4 set to USB.
+4 @ 722,502 At the player | Cable from the rear USB-B socket to top USB 1 or 2, music in the other top port (a stick, or one USB 2.0 hub), and CH3 and CH4 set to USB.
 5 @ 478,553 How four decks work | Opens the [Four decks](four-decks) chapter of this manual.
 ```
 
@@ -279,7 +279,7 @@ The connection guide.
 2 @ 355,283 XZ address | Found by itself, or type the address the XZ shows.
 3 @ 395,352 Network details | The ports a firewall must allow, UDP 50006 and TCP 50010.
 4 @ 430,517 Open USB setup | Older USB loaders have no screen service. Update the loader on the USB page.
-5 @ 420,663 Status | Looking for your XZ, or what stopped it.
+5 @ 488,663 Status | Found your XZ, still looking, or what stopped it.
 6 @ 450,710 Connect and Close | The first picture from the XZ confirms the connection.
 ```
 
@@ -318,8 +318,8 @@ A new profile.
 1 @ 340,216 DJ name | Your name as it should read on the XZ.
 2 @ 530,511 Logo | A PNG or JPEG up to 8 MB. A transparent PNG looks best. You can add alternate logos.
 3 @ 572,652 Colour | The profile colour. The first swatch matches the USB's colour in rekordbox.
-4 @ 755,216 On the XZ | The header and the logo tile as the XZ draws them.
-5 @ 830,509 What VJ software sees | Your name and links as VJ software reads them.
+4 @ 778,216 On the XZ | The header and the logo tile as the XZ draws them.
+5 @ 852,509 What VJ software sees | Your name and links as VJ software reads them.
 6 @ 503,754 More | An optional tagline, links and more.
 ```
 
@@ -369,7 +369,7 @@ Network updates sends the build installed on this computer to XZs on your local 
 ```figure app:network-updates XZ Mods app · Network updates
 The update server, before it starts.
 1 @ 1053,192 Choose mod version | A USB built with Keep this version on the USB ignores network updates. Change that here.
-2 @ 341,438 Detect adapters | Lists this computer's network connections.
+2 @ 265,472 Detect adapters | Lists this computer's network connections.
 3 @ 1050,411 XZ network adapter | The connection that reaches the XZ.
 4 @ 580,465 Start update server | Offers the update on that network until you cancel.
 5 @ 262,512 On the XZ | What to do on the player.
