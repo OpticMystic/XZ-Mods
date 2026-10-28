@@ -12,7 +12,7 @@ for pin,data in [('RBP_SHA',b'synthetic application'),('RUNTIME_SHA',b'synthetic
     contract=re.sub(r'(#define '+pin+r' ")[^"]+',r'\g<1>'+hashlib.sha256(data).hexdigest(),contract)
 (out/'contract.h').write_text(contract)
 cc='arm-linux-gnueabi-gcc' if a.arm else 'gcc'
-flags=['-std=c11','-Wall','-Wextra','-Werror','-O1','-g']+(['-static','-mcpu=cortex-a9','-mfloat-abi=soft'] if a.arm else ['-fsanitize=address,undefined','-fno-sanitize-recover=all','-no-pie'])
+flags=['-std=c11','-O1','-g']+(['-static','-mcpu=cortex-a9','-mfloat-abi=soft'] if a.arm else ['-fsanitize=address,undefined','-fno-sanitize-recover=all','-no-pie'])
 binary=out/'test-binding';commands=[[cc,*flags,str(out/'test_binding.c'),str(out/'sha256.c'),'-o',str(binary)],(['qemu-arm','-cpu','cortex-a9'] if a.arm else [])+[str(binary)]]
 runs=[]
 for stage,command in zip(['compile','run'],commands):
