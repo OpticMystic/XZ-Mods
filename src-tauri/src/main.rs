@@ -15,6 +15,7 @@ mod live_stream;
 mod screen_protocol;
 mod screen_transport;
 mod stream_privacy;
+mod window_fit;
 use serde_json::{json, Value};
 use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Command, Stdio}, sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex}, time::{Duration, Instant}};
 use tauri::Manager;
@@ -204,8 +205,11 @@ fn main(){
         .setup(|app|{
             controller_queue::start(app.handle().clone());
             let config=app.config().app.windows[0].clone();
-            tauri::WebviewWindowBuilder::from_config(app,&config)?
-                .visible(std::env::var_os("XZ_BUILDER_HIDDEN").is_none()).build()?;
+            // Built hidden, then sized to fit the screen it opens on and shown, so it never opens past the screen edge.
+            let window=tauri::WebviewWindowBuilder::from_config(app,&config)?.visible(false).build()?;
+            let smallest=(config.min_width.unwrap_or(config.width),config.min_height.unwrap_or(config.height));
+            if let Err(error)=window_fit::place(app,&window,(config.width,config.height),smallest){eprintln!("Window size left as configured: {error}");}
+            if std::env::var_os("XZ_BUILDER_HIDDEN").is_none(){window.show()?;}
             Ok(())
         }).run(tauri::generate_context!()).expect("XZ Mods failed to start");
 }

@@ -113,7 +113,8 @@ try {
     assert(await evaluate('testCalls.length===0&&activeJob===null'), 'Installed layout checks must not start native jobs');
     console.log('PASS: installed renderer notices are visible beside their actions; no native test jobs');
   } else {
-  for (const size of [{width:900,height:680}, {width:1120,height:820}]) {
+  // The smallest window the app allows, a 1366 x 768 screen at 125 %, and the size it opens at on a large screen.
+  for (const size of [{width:760,height:520}, {width:1092,height:582}, {width:1240,height:900}]) {
     if (!endpoint) await send('Emulation.setDeviceMetricsOverride', { ...size, deviceScaleFactor: 1, mobile: false });
     await evaluate(`showPage('advanced');document.querySelector('#advanced .game-downloads').open=true;document.getElementById('setup-games-usb').scrollIntoView({block:'center'});document.getElementById('setup-games-usb').click();`);
     await waitFor(`activeJob===null&&document.getElementById('job-panel').checkVisibility()&&document.getElementById('job-message').textContent.includes('Not enough free space')`);

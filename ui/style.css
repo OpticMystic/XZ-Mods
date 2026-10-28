@@ -320,3 +320,19 @@ header{min-height:40px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px 
 main{padding-top:24px;padding-bottom:40px}
 @media(max-width:980px){aside .logo{width:38px;height:38px}.brand{gap:9px;padding:0 2px 14px}nav button.nav-feedback{padding:9px 8px}}
 @media(max-width:700px){.brand{border:0;margin:0;padding:0 0 8px}nav button.nav-feedback{margin-top:0}}
+/* Window sizes, 2026-10-27 (Opus 5.5). The app opens to fit the screen (src-tauri/src/main.rs) and can be made as small
+   as 760 x 520. Below 860 wide the rail keeps only its icons (the labels become tooltips) so the page keeps the width;
+   on a short window the page header and rail tighten so more of the page shows. */
+@media(min-width:701px) and (max-width:860px){body{grid-template-columns:68px minmax(0,1fr)}
+aside{padding:16px 10px}
+.brand{justify-content:center;padding:0 0 12px}
+.brand-text,.side-note{display:none}
+nav button,nav button.selected,nav button.nav-feedback,nav button.nav-feedback.selected{justify-content:center;padding:10px 0}
+nav button:not(.nav-feedback)>span,.nav-feedback-text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+main{padding:20px 22px 32px}
+}
+@media(max-height:640px){main{padding-top:14px}
+header{min-height:0;margin-bottom:14px;padding-bottom:10px}
+aside{padding-top:14px;padding-bottom:12px}
+.brand{margin-bottom:10px;padding-bottom:10px}
+}
