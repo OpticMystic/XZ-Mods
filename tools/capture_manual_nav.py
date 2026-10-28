@@ -30,7 +30,7 @@ def build(zig, exe):
         'ui/native_touch.c', 'ui/stem_pads.c', 'ui/beat_jump.c', 'ui/wave_viewport.c', 'settings.c', 'usb_profile.c',
         'shell/nav_clock.c', 'doom/wad_catalog.c', 'ota/native_update.c', 'ui/extra_detail.c', 'ui/extra_lane.c',
         'ui/layered_wave.c', 'key/control.c', 'key/browser.c', 'key/catalog.c', 'key/traffic.c',
-        'arcade/arcade.c', 'arcade/render.c', 'arcade/input.c', 'arcade/clock.c', 'arcade/native_clock.c',
+        'arcade/wave_rider.c', 'shell/nav_wave_source.c', 'arcade/wave_rider_render.c', 'arcade/wave_rider_art.c', 'arcade/game_motion_draw.c', 'arcade/game_feel_art.c', 'arcade/game_font.c', 'arcade/arcade.c', 'arcade/render.c', 'arcade/input.c', 'arcade/clock.c', 'arcade/native_clock.c',
         'audio/vendor/sha256/sha256.c', 'pc_control/stems.c', 'kart/xz_kart_input.c', 'kart/xz_kart_runtime.c'])
     subprocess.run(['wsl', '-d', 'Ubuntu', '--', 'gcc', '-O1', '-std=c11', '-Wall', '-Wextra', '-Werror',
         '-Wno-misleading-indentation', '-Wno-format-truncation', *[linux(p) for p in sorted(sources)], '-pthread', '-ldl', '-lm', '-o', linux(exe)], check=True)
@@ -76,7 +76,7 @@ class Capture:
                 im.save(self.folder / name)
                 self.last = digest
         self.timeline.append(dict(t_ms=self.t, control=control, action=action, detail=detail,
-                                  frame=self.frames[-1]['frame'], panel=self.state['panel'], page=self.state['page'], effects=self.state.get('effects', []), observations=self.state.get('observations', {})))
+                                  frame=self.frames[-1]['frame'], panel=self.state['panel'], page=self.state['page'], effects=self.state.get('effects', []), observations=self.state.get('observations', {}), game=self.state.get("game",0), game_phase=self.state.get("game_phase",0), game_step=self.state.get("game_step",0)))
         return self.state
 
     def wait(self, ms):
@@ -92,7 +92,11 @@ class Capture:
         self.wait(400)
 
     def step(self, step):
-        if 'fixture' in step:
+        if 'game_input' in step:
+            command, value = step['game_input']
+            self.send(command, value, step.get('side',0), control=step['control'], action='input')
+            self.wait(180)
+        elif 'fixture' in step:
             self.send('fixture', step['fixture'], control='fixture runtime', action='snapshot', detail=step.get('detail', ''))
         elif 'wait' in step:
             self.wait(step['wait'])
@@ -187,6 +191,9 @@ class Capture:
             self.wait(120)
             self.send('wait', control=step['key'].split(' hold')[0], action='release', detail='activation handler completed')
             self.wait(380)
+        for field in ('game', 'game_phase', 'game_step'):
+            if 'expect_'+field in step and self.state[field] != step['expect_'+field]:
+                raise RuntimeError(f'{self.folder.name}: unexpected {field}: {self.state[field]}')
         if 'expect_page' in step and self.state['page'] != step['expect_page']:
             raise RuntimeError(f'{self.folder.name}: expected page {step["expect_page"]}, got {self.state}')
 
@@ -238,6 +245,7 @@ def main():
     p.add_argument('--zig', required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--flow')
+    p.add_argument('--flow-prefix', default='')
     p.add_argument('--exe', type=Path, help='development only: reuse a locally built host binary')
     p.add_argument('--check', action='store_true', help='verify retained source and output hashes without rendering')
     a = p.parse_args()
@@ -249,7 +257,7 @@ def main():
                 raise SystemExit(f'nonphysical entry key in {script.name}: {step["key"]}')
     if a.check:
         manifest = json.loads((a.out/'manifest.json').read_text())
-        expected = {p.stem for p in flow_scripts() if not a.flow or fnmatch.fnmatchcase(p.stem, a.flow)}
+        expected = {p.stem for p in flow_scripts() if (not a.flow or fnmatch.fnmatchcase(p.stem, a.flow)) and p.stem.startswith(a.flow_prefix)}
         if manifest.get('reused_binary'):
             raise SystemExit('development binary reuse is not acceptable capture evidence')
         if set(manifest['flows']) != expected:
@@ -273,6 +281,9 @@ def main():
                 raise SystemExit(f'invalid frames: {name}')
             if sum(f['hold_ms'] for f in frames['frames']) != frames['duration_ms']:
                 raise SystemExit(f'invalid duration: {name}')
+            for state in flow.get('requires_states', []):
+                if not any(all(t.get(k)==v for k,v in state.items()) for t in timeline):
+                    raise SystemExit(f'missing required state: {name}: {state}')
             for host,kind,index in flow.get('requires_actions', []):
                 if not any(e['host']==host and e['kind']==kind and e['index']==index for t in timeline for e in t['effects']):
                     raise SystemExit(f'missing action: {name}: {host}:{kind}:{index}')
@@ -282,7 +293,7 @@ def main():
         print('navigation captures current; output hashes, physical entries, effects and timing match')
         return
     a.out.mkdir(parents=True, exist_ok=True)
-    scripts = sorted(flow_scripts())
+    scripts = [s for s in flow_scripts() if s.stem.startswith(a.flow_prefix)]
     if a.flow:
         scripts = [s for s in scripts if fnmatch.fnmatchcase(s.stem, a.flow)]
     if not scripts:
@@ -315,6 +326,9 @@ def main():
                     if not any(e['host']==host and e['kind']==kind and e['index']==index for t in c.timeline for e in t['effects']):
                         raise RuntimeError(f'{script.stem}: missing action {host}:{kind}:{index}')
                 validate_observations(flow, c.timeline)
+                for state in flow.get('requires_states', []):
+                    if not any(all(t.get(k)==v for k,v in state.items()) for t in c.timeline):
+                        raise RuntimeError(f'missing required state: {script.stem}: {state}')
                 counts[script.stem] = c.finish()
                 print(script.stem, counts[script.stem], flush=True)
             finally:

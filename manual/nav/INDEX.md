@@ -137,3 +137,9 @@ This supplements the earlier 96-flow batch; it is not a newly rendered combined
 | [nav-a-stem-layouts](nav-a-stem-layouts.json) | 15 |
 | [nav-a-stem-toggle](nav-a-stem-toggle.json) | 9 |
 | [nav-a-usb-setup](nav-a-usb-setup.json) | 13 |
+
+## Chapter B follow-up
+
+The `b-*.json` scripts are retained separately in `E:/Claude/xz-beta-rc-scratch/nav-capture-b/`. See [REPORT-B.md](REPORT-B.md) for counts and operation-level limits. The original 96-flow table above is historical third-pass evidence.
+
+B batch: 17 new flows, 403 PNG frames, 329 distinct reviewed hashes. Source-built capture and `--flow-prefix b- --check` passed.

@@ -74,3 +74,7 @@ row map. The stock header, side column and bottom panels remain a photograph.
 Run `python tools/nav_review_sheets.py <capture> <proof-dir>` for exhaustive
 pixel-deduplicated review sheets. A generated sheet is not a visual acceptance
 receipt. See REPORT-A.md for the reviewed batch and remaining host work.
+
+## Chapter B capture subset
+
+Use `--flow-prefix b-` with both capture and `--check` for the separate B batch. `game_input` sends an offline jog, CUE or pad input to the real game functions. `expect_game`, `expect_game_phase` and `expect_game_step` validate live state after a step. `requires_states` also requires those states in retained timelines during `--check`. No game phase or navigation page is assigned by a fixture. See REPORT-B.md for the operation-level limits.

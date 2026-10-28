@@ -16,7 +16,8 @@ void nav_runtime_init(void){
 }
 int nav_runtime_event(struct xz_ui_model *out,int code,int side,int release,int shift,int page){
  int previous_jumps=jump_calls;model=*out;
- if(code==30&&!release)rekordbox_run_locked(XZ_REKORDBOX_INTERFACE);
+ if(code==32){unsigned char player_bytes[0x40]={0},input_bytes[16]={0};player_bytes[0x26]=(unsigned char)(side+1);player_bytes[0x34]=(unsigned char)shift;input_bytes[0x0b]=(unsigned char)(release?2:0);master_tempo_key_hook(player_bytes,input_bytes);model.deck[side].key_synced=key_sync[side].valid;if(!key_sync[side].valid)model.deck[side].key_semitones=0;}
+ else if(code==30&&!release)rekordbox_run_locked(XZ_REKORDBOX_INTERFACE);
  else {
   struct xz_cue_event e={.deck=side,.pad=-1,.mode_button=-1,.operation=release?2:0,.shift=shift,.pad_page=page};
   if(code==31)e.sync=1;

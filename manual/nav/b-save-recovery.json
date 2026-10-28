@@ -1,0 +1,55 @@
+{
+  "section": "mods-menu#saving-to-the-usb",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "fixture": 403,
+      "detail": "Local settings-worker result snapshot; no writer runs"
+    },
+    {
+      "wait": 500
+    },
+    {
+      "fixture": 404,
+      "detail": "Local settings-worker result snapshot; no writer runs"
+    },
+    {
+      "wait": 500
+    },
+    {
+      "fixture": 405,
+      "detail": "Local settings-worker result snapshot; no writer runs"
+    },
+    {
+      "wait": 500
+    },
+    {
+      "fixture": 406,
+      "detail": "Local settings-worker result snapshot; no writer runs"
+    },
+    {
+      "wait": 500
+    },
+    {
+      "tap": "CLASSIC"
+    },
+    {
+      "tap": "MODERN"
+    },
+    {
+      "fixture": 407
+    },
+    {
+      "wait": 500
+    },
+    {
+      "key": "MENU"
+    }
+  ]
+}

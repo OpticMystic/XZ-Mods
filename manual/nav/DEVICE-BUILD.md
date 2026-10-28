@@ -50,3 +50,22 @@ hook and four-deck drawing functions. Their host callbacks live in new
 and `nav_runtime.c`. Device source lists and production files are unchanged.
 This is object identity only; no linked device build, installation or hardware
 acceptance is claimed.
+
+## Chapter B host adapters
+
+The source-built B host adds `shell/nav_adapter_setup.c`, included only by `nav_capture.c`, and `shell/nav_wave_source.c`, which defines the existing portable-source guard before including the unchanged Wave Rider source. The portable wrapper excludes the USB source worker; no worker starts. Neither file appears in device source lists. `nav_runtime.c` adds only a host call to the existing MASTER TEMPO hook with local byte arrays.
+
+Re-run the command above to compare all **21** production objects. Retained result: `E:/Claude/xz-beta-rc-scratch/nav-arm-objects-b.json`. The original 13 objects retain their hashes. The eight additional objects below match baseline `00f16052` byte for byte.
+
+| Production source | Baseline and current SHA-256 |
+|---|---|
+| `shell/shell_settings.c` | `001e48fe633f56049e3878311e3060321ebd9312b566f07cffeb562609179639` |
+| `ui/ui.c` | `7f1356271af6d4fed08600a066f0f5873143559abb73ab31eaef4287451d7f01` |
+| `ui/sdk_ui.c` | `0d1259307098bd1ec9815ba7265c525ce43cc56adecbb08795bdcdcd994ab7b1` |
+| `arcade/arcade.c` | `ffa3e8df6735f467b0aa9c7ae663612bd1eb5eae0a8864f5d43bcabc69222703` |
+| `arcade/render.c` | `c0b27af716a76a0783040b66fc01c3e5c8085995029e742f5e3386f30d1198fb` |
+| `arcade/wave_rider.c` | `61805465945c60e804c1c95301db8be7fb019bbf881320a888516dbb3697846a` |
+| `arcade/wave_rider_render.c` | `a5f102f97624588d1e68778dd6c0631d16d50ab8adb865fdbb8a1a02bd18c60d` |
+| `arcade/wave_rider_source.c` | `c560d560fef509485242b9a34551ad0aafd99badff1d7ddb268711fca80ae00e` |
+
+The game adapter calls production renderers, game target navigation, and game input functions. The SDK adapter uses the production command planner before supplying a separate fixture state. MY SETTINGS results, notices, profile presence and settings-save status are local runtime snapshots. The USB-stem CHECK adapter displays the production next-step text; it does not run engine verification. No production handler, device source list, UI source, firmware, loader, installed resource or hardware was changed. Object identity is not a linked device-build receipt.
