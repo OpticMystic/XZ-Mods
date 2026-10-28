@@ -16,5 +16,17 @@
   {"slug": "desktop-app", "group": "On your computer", "title": "The XZ Mods app", "summary": "Preparing a USB, building stems, watching the XZ screen live and the tools in the desktop app."},
   {"slug": "troubleshooting", "group": "Help", "title": "Messages and troubleshooting", "summary": "What every notice and warning means, and what to do about it."},
   {"slug": "settings", "group": "Help", "title": "Settings reference", "summary": "Every setting XZ Mods stores on the USB, its values, its default and where it is explained."}
+ ],
+ "tour": [
+  {"title": "MODERN interface", "art": "modern", "link": "screen-and-themes#modern-and-classic", "text": "XZ Mods can draw the whole play screen: bigger waveforms, a browse sidebar and stem buttons. CLASSIC keeps the player's own screen."},
+  {"title": "Stems", "art": "stems", "link": "stems", "text": "Mute vocals, harmonics and drums live from the pads or the screen. BYPASS brings back the whole track."},
+  {"title": "Four decks", "art": "four-decks", "link": "four-decks", "tag": "experimental", "text": "Decks 3 and 4 play on mixer channels CH3 and CH4, over one short USB cable from the back of the player to the top."},
+  {"title": "Beat jump", "art": "beat-jump", "link": "performance#beat-jump", "text": "Two pages of jump sizes you choose, from 1 beat to 64 bars, on all four decks."},
+  {"title": "Keys and KEY SYNC", "art": "key-sync", "link": "performance#keys-and-key-sync", "text": "Move a deck's key a semitone at a time, or match it to the master deck with SHIFT + SYNC."},
+  {"title": "RAM tracks", "art": "ram", "link": "performance#ram-tracks", "tag": "experimental", "text": "Copy a track into the player's memory, so the deck keeps playing if the music USB goes out."},
+  {"title": "Themes and colours", "art": "themes", "link": "screen-and-themes", "text": "25 themes, waveform colours, your own 3-band colours and key notation."},
+  {"title": "The MODS menu", "art": "mods", "link": "mods-menu", "text": "Everything XZ Mods can change, in one menu on the player. Every change saves to your USB."},
+  {"title": "DJ profile", "art": "profile", "link": "connect#dj-profile", "text": "Your name and logo on the player, carried on your USB."},
+  {"title": "This app", "art": "app", "link": "desktop-app", "text": "Prepare the USB, make stems and watch the XZ screen live on your computer."}
  ]
 }
