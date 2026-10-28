@@ -4,7 +4,7 @@ import argparse,hashlib,json,re,shutil,subprocess
 
 ROOT=Path(__file__).resolve().parent
 p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);p.add_argument('--arm',action='store_true');a=p.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False)
-for name in ['bridge.c','contract.h','port_layout.h','test_binding.c']:shutil.copyfile(ROOT/name,out/name)
+for name in ['bridge.c','contract.h','test_binding.c']:shutil.copyfile(ROOT/name,out/name)
 crypto=ROOT.parents[2]/'mods/audio/vendor/sha256'
 for name in ['sha256.c','sha256.h']:shutil.copyfile(crypto/name,out/name)
 contract=(out/'contract.h').read_text()

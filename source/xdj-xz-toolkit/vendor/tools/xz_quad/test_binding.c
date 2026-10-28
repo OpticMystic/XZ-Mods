@@ -30,7 +30,6 @@ static unsigned file_count;
 struct mock_fd { struct mock_file *file; size_t pos; struct stat opened; int used; };
 static struct mock_fd fds[128];
 static int fault, reads, unexpected;
-static unsigned fixture_music_port=2;
 static struct mock_file *find(const char *path) {
     for (unsigned i=0;i<file_count;i++) if (!strcmp(files[i].path,path)) return files+i;
     return NULL;
@@ -63,26 +62,9 @@ static int m_fstat(int fd,struct stat *s) { assert(fd>=3&&fd<128&&fds[fd].used);
 static char *m_realpath(const char *path,char *out) { struct mock_file *f=find(path); if(!f){errno=ENOENT;return NULL;} strcpy(out,*f->resolved?f->resolved:path);return out; }
 static int m_statfs(const char *path,struct statfs *fs) { if(!find(path))return -1; memset(fs,0,sizeof(*fs));fs->f_type=fault==8?0:0x01021994;return 0; }
 static FILE *m_fopen(const char *path,const char *mode) { assert(!strcmp(mode,"r"));struct mock_file *f=find(path);if(!f)return NULL;return fmemopen(f->bytes,f->size,"r"); }
-static unsigned directory_cursor[3];
-static DIR *m_opendir(const char *path) {
-    unsigned id=!strcmp(path,"/proc")?1:!strcmp(path,"/sys/bus/usb/devices/")?2:0;
-    assert(id);directory_cursor[id]=0;return (DIR *)(uintptr_t)id;
-}
-static struct dirent *m_readdir(DIR *dir) {
-    static struct dirent d;unsigned id=(unsigned)(uintptr_t)dir;assert(id==1||id==2);
-    if(id==1) {
-        unsigned n=directory_cursor[id]++;
-        if(n==0){strcpy(d.d_name,"42");return &d;}
-        if(n==1&&fault==5){strcpy(d.d_name,"43");return &d;}
-    } else while(directory_cursor[id]<file_count) {
-        const char *path=files[directory_cursor[id]++].path,*prefix="/sys/bus/usb/devices/";
-        if(strncmp(path,prefix,strlen(prefix)))continue;
-        const char *name=path+strlen(prefix);if(!*name||strchr(name,'/'))continue;
-        assert(strlen(name)<sizeof(d.d_name));strcpy(d.d_name,name);return &d;
-    }
-    return NULL;
-}
-static int m_closedir(DIR *dir) { assert(dir==(DIR *)(uintptr_t)1||dir==(DIR *)(uintptr_t)2);return 0; }
+static DIR *m_opendir(const char *path) { assert(!strcmp(path,"/proc"));return (DIR *)(uintptr_t)1; }
+static struct dirent *m_readdir(DIR *dir) { static struct dirent d; static int n; assert(dir==(DIR *)(uintptr_t)1); if(n++==0){strcpy(d.d_name,"42");return &d;}if(n==2&&fault==5){strcpy(d.d_name,"43");return &d;}n=0;return NULL; }
+static int m_closedir(DIR *dir) { assert(dir==(DIR *)(uintptr_t)1);return 0; }
 static int m_uname(struct utsname *u);
 static ssize_t m_pread(int fd,void *out,size_t size,off_t offset);
 /* Guard accidental entry into bridge execution or live side effects. */
@@ -125,12 +107,8 @@ static ssize_t m_pread(int fd,void *out,size_t size,off_t offset) {
     memset(out,0,size);
     if(!strncmp(path,"/dev/sd",7)) {
         assert(offset>=0&&size==512&&(size_t)offset+size<=fds[fd].file->size);memcpy(out,fds[fd].file->bytes+offset,size);
-        if(fault==1&&++reads==1) {
-            char name[128];snprintf(name,sizeof(name),USB "%s",xz_quad_port(fixture_music_port)->usb);find(name)->st.st_ino++;
-        }
-        if(fault==2&&++reads==1) {
-            char line[160];snprintf(line,sizeof(line),"51 20 0:42 / /media/usb%u/sdc1 rw - fuseblk /dev/sdc1 rw\n",fixture_music_port);txt("/proc/self/mountinfo",line);
-        }
+        if(fault==1&&++reads==1) find(USB "2-1.1")->st.st_ino++;
+        if(fault==2&&++reads==1) txt("/proc/self/mountinfo","51 20 0:42 / /media/usb2/sdc1 rw - fuseblk /dev/sdc1 rw\n");
         return (ssize_t)size;
     }
     if(!strcmp(path,"/proc/42/mem")) {
@@ -157,7 +135,7 @@ static unsigned checks;
 #define CHECK(x) do { checks++; if(!(x)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);exit(1);} }while(0)
 static void fixture(unsigned unit) {
     for(unsigned i=3;i<128;i++)assert(!fds[i].used);
-    memset(files,0,sizeof(files));file_count=0;fault=reads=0;fixture_music_port=2;
+    memset(files,0,sizeof(files));file_count=0;fault=reads=0;
     txt("/proc/sys/kernel/random/boot_id",unit?"22222222-2222-4222-8222-222222222222":"11111111-1111-4111-8111-111111111111");
     txt("/sys/class/net/eth0/address",unit?"02:11:22:33:44:66":"02:11:22:33:44:55");
     txt(USB "2-1/idVendor","0451");txt(USB "2-1/idProduct","8027");
@@ -190,96 +168,6 @@ int main(void) { fixture(0); CHECK(qualify_music()); fixture(1); CHECK(qualify_m
 #else
 static struct native native_fixture(void) { struct native n={.memory=-1};CHECK(qualify_kernel());CHECK(qualify_native(&n,42));CHECK(native_stopped(&n));return n; }
 static void finish(struct binding *b,struct native *n) { binding_close(b);if(n->memory>=0)m_close(n->memory); }
-
-static void select_fixture_port(unsigned port) {
-    if(port==2)return;
-    CHECK(port==1);
-    fixture_music_port=1;
-    for(unsigned i=0;i<file_count;i++) {
-        struct mock_file *f=files+i;
-        for(char *p=f->path;(p=strstr(p,"2-1.1"));p+=5)p[4]='2';
-        for(char *p=f->resolved;(p=strstr(p,"2-1.1"));p+=5)p[4]='2';
-        char *p=strstr(f->path,"/media/usb2");if(p)p[10]='1';
-    }
-    struct mock_file *mount=find("/proc/self/mountinfo");
-    char *p=strstr((char *)mount->bytes,"/media/usb2");CHECK(p!=NULL);p[10]='1';
-}
-static void fixture_port(unsigned port) {
-    fixture(0);select_fixture_port(port);
-}
-static void port_tests(void) {
-    for(unsigned port=1;port<=2;port++) {
-        fixture_port(port);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
-        CHECK(binding_admit(&b,&n)==ADMIT_READY);CHECK(b.identity.music_port==port);CHECK(binding_check(&b));finish(&b,&n);
-        for(unsigned change=0;change<7;change++) {
-            fixture_port(port);n=native_fixture();b=(struct binding){.volume_fd=-1,.block_fd=-1};
-            CHECK(binding_admit(&b,&n)==ADMIT_READY);
-            char path[128],line[256];
-            snprintf(path,sizeof(path),USB "%s",xz_quad_port(port)->usb);
-            if(change==0)find(path)->st.st_ino++;
-            if(change==1)strcpy(find("/sys/class/block/sdc1")->resolved,"/sys/wrong");
-            if(change==2){snprintf(path,sizeof(path),USB "%s/devnum",xz_quad_port(port)->usb);txt(path,"8");}
-            if(change==3){snprintf(line,sizeof(line),"51 20 0:42 / /media/usb%u/sdc1 rw - fuseblk /dev/sdc1 rw\n",port);txt("/proc/self/mountinfo",line);}
-            if(change==4){snprintf(line,sizeof(line),"50 20 0:42 / /media/usb%u/sdc1 rw - fuseblk /dev/sdc1 rw\n",3-port);txt("/proc/self/mountinfo",line);}
-            if(change==5)find("/dev/sdc1")->bytes[100]^=1;
-            if(change==6)strcpy(find("/proc/self/mountinfo")->path,"/missing");
-            CHECK(!binding_check(&b));CHECK(b.state==BINDING_RETIRED);
-            CHECK(binding_admit(&b,&n)==ADMIT_FATAL);finish(&b,&n);
-        }
-        for(unsigned wrong=0;wrong<3;wrong++) {
-            fixture_port(port);n=native_fixture();b=(struct binding){.volume_fd=-1,.block_fd=-1};
-            char path[128];
-            if(wrong==0)snprintf(find("/sys/class/block/sdc1")->resolved,512,"/sys/devices%sblock/sdc/sdc1",xz_quad_port(3-port)->ancestry);
-            if(wrong==1){snprintf(path,sizeof(path),USB "%s/busnum",xz_quad_port(port)->usb);txt(path,"1");}
-            if(wrong==2)txt("/proc/self/mountinfo","50 20 0:42 / /media/usb1/sdc1 rw - fuseblk /dev/sdc1 rw\n51 20 0:43 / /media/usb2/sdd1 rw - vfat /dev/sdd1 rw\n");
-            CHECK(binding_admit(&b,&n)==ADMIT_UNSUPPORTED);CHECK(b.state==BINDING_NEW);
-            CHECK(b.volume_fd==-1&&b.block_fd==-1);finish(&b,&n);
-        }
-        for(int f=1;f<=4;f++) {
-            fixture_port(port);n=native_fixture();b=(struct binding){.volume_fd=-1,.block_fd=-1};fault=f;
-            CHECK(binding_admit(&b,&n)!=ADMIT_READY);CHECK(b.state==BINDING_NEW);
-            CHECK(b.volume_fd==-1&&b.block_fd==-1);fault=0;
-            CHECK(binding_admit(&b,&n)==ADMIT_READY);finish(&b,&n);
-        }
-    }
-    puts("PASS both music ports; exact ancestry, ambiguity refusal and permanent identity retirement");
-}
-
-static void mock_loopback(unsigned port,int bound,int audio) {
-    const char *hub=xz_quad_port(port)->usb;char path[256];
-    snprintf(path,sizeof(path),USB "%s",hub);put(path,"",0,S_IFDIR|0700,700+port,1,0);
-    const char *keys[]={"idVendor","idProduct","bDeviceClass","speed","devnum"};
-    const char *values[]={"2b73","002e","09","480","9"};
-    for(unsigned i=0;i<COUNT(keys);i++){snprintf(path,sizeof(path),USB "%s/%s",hub,keys[i]);txt(path,values[i]);}
-    if(bound){snprintf(path,sizeof(path),USB "%s/%s:1.0/driver",hub,hub);txt(path,"");strcpy(find(path)->resolved,"/sys/bus/usb/drivers/hub");}
-    if(audio) {
-        snprintf(path,sizeof(path),USB "%s.1",hub);put(path,"",0,S_IFDIR|0700,800+port,1,0);
-        const char *child_keys[]={"idVendor","idProduct","busnum","speed","devnum"};
-        const char *child_values[]={"2b73","002d","2","480","10"};
-        for(unsigned i=0;i<COUNT(child_keys);i++){snprintf(path,sizeof(path),USB "%s.1/%s",hub,child_keys[i]);txt(path,child_values[i]);}
-    }
-}
-static void loopback_port_tests(void) {
-    for(unsigned music=1;music<=2;music++)for(unsigned shape=0;shape<7;shape++) {
-        fixture_port(music);unsigned cable=3-music;struct device d;struct route r={0};
-        if(shape==0){CHECK(admission_loopback_safe(cable));CHECK(!scan_device(&d,cable)&&!*d.hub);continue;}
-        mock_loopback(shape==4?music:cable,shape==2,shape==3);
-        if(shape==5)mock_loopback(music,0,0);
-        if(shape==6){char path[128];snprintf(path,sizeof(path),USB "%s.7",xz_quad_port(cable)->usb);put(path,"",0,S_IFDIR,900,1,0);}
-        CHECK(admission_loopback_safe(cable)==(shape==1));
-        if(shape==4||shape==5){CHECK(scan_device(&d,cable)!=0);continue;}
-        CHECK(!scan_device(&d,cable));CHECK(!strcmp(d.hub,xz_quad_port(cable)->usb));
-        if(shape==1) {
-            CHECK(next_action(&r,&d,0)==WAIT);CHECK(next_action(&r,&d,1)==BIND);
-            r.bound=d;r.bind_attempted=1;mock_loopback(cable,1,1);
-            CHECK(!scan_device(&d,cable));CHECK(next_action(&r,&d,1)==PUBLISH);
-            r.published=d;CHECK(next_action(&r,&d,1)==WAIT);
-            d.hub_inode++;CHECK(next_action(&r,&d,1)==CLEAR);
-        }
-    }
-    fixture(0);CHECK(!admission_loopback_safe(0));CHECK(!admission_loopback_safe(3));
-    puts("PASS both loopback ports; opposite-port guard, wrong/duplicate/bound/child refusals, route publish/clear");
-}
 
 static void hfs_fixture(unsigned x) {
     fixture(0);unsigned char data[1536]={0},*h=data+1024;
@@ -355,26 +243,8 @@ static void new_media_tests(void) {
     }
     puts("PASS sysfs major/minor/partition/topology negatives; FAT mutable state versus volume ID");
 }
-static void port_format_tests(void) {
-    for(unsigned port=1;port<=2;port++)for(unsigned format=0;format<5;format++) {
-        if(format>=3){hfs_fixture(format==4);select_fixture_port(port);}
-        else {
-            fixture_port(port);
-            if(format<2) {
-                char line[160];snprintf(line,sizeof(line),"50 20 0:42 / /media/usb%u/sdc1 rw - vfat /dev/sdc1 rw\n",port);txt("/proc/self/mountinfo",line);
-                memset(find("/dev/sdc1")->bytes+3,0,8);memcpy(find("/dev/sdc1")->bytes+(format?82:54),format?"FAT32   ":"FAT16   ",8);
-            }
-        }
-        struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};
-        CHECK(binding_admit(&b,&n)==ADMIT_READY);CHECK(b.identity.music_port==port);CHECK(binding_check(&b));finish(&b,&n);
-    }
-    puts("PASS unchanged FAT16/FAT32/exFAT/HFS+/HFSX admission on both music ports");
-}
 int main(void) {
     CHECK(self_test()==0);
-    port_tests();
-    loopback_port_tests();
-    port_format_tests();
     new_media_tests();
     for(unsigned unit=0;unit<2;unit++) {
         fixture(unit);struct native n=native_fixture();struct binding b={.volume_fd=-1,.block_fd=-1};

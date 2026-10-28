@@ -18,13 +18,13 @@ static const struct route_reason route_reasons[] = {
  RR("WAIT_NATIVE_PAUSED",WAITING_NATIVE_STOP,SELECTOR,"Stop or pause decks 1 and 2 so decks 3 and 4 can start."),
  RR("WAIT_SAFE_LOOPBACK_DISCONNECT",STARTING,CABLE,"Disconnect the loopback cable briefly so the audio route can start safely."),
  RR("WAIT_AUDIO_DEVICE",STARTING,SOCKET,"The cable was found and the audio input is starting."),
- RR("WAIT_MUSIC_MOUNT",STARTING,PORT,"Waiting for the music drive in either top USB port to become available."),
- RR("WAIT_MUSIC_SERIAL_READ",STARTING,PORT,"Waiting to identify the music drive."),
- RR("WAIT_MUSIC_DESCRIPTORS",STARTING,PORT,"Waiting for the music drive to finish connecting."),
- RR("UNSUPPORTED_MUSIC_MOUNT",FAILED,PORT,"Use one music drive and connect the loopback cable to the other top USB port."),
- RR("UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY",FAILED,PORT,"The music drive connection does not support this audio route."),
+ RR("WAIT_MUSIC_MOUNT",STARTING,PORT,"Waiting for the music drive in USB 2 to become available."),
+ RR("WAIT_MUSIC_SERIAL_READ",STARTING,PORT,"Waiting to identify the music drive in USB 2."),
+ RR("WAIT_MUSIC_DESCRIPTORS",STARTING,PORT,"Waiting for the music drive in USB 2 to finish connecting."),
+ RR("UNSUPPORTED_MUSIC_MOUNT",FAILED,PORT,"The music drive could not be used; check that it is connected to USB 2."),
+ RR("UNSUPPORTED_UNIT_OR_USB2_TOPOLOGY",FAILED,PORT,"The USB 2 connection does not support this audio route."),
  RR("UNSUPPORTED_MUSIC_SERIAL_LENGTH",FAILED,PORT,"The music drive could not be identified safely."),
- RR("UNSUPPORTED_USB2_BLOCK_ANCESTRY",FAILED,PORT,"The music drive could not be confirmed on its top USB port."),
+ RR("UNSUPPORTED_USB2_BLOCK_ANCESTRY",FAILED,PORT,"The music drive could not be confirmed on USB 2."),
  RR("UNSUPPORTED_MUSIC_FILESYSTEM",FAILED,PORT,"The music drive format does not support this audio route."),
  RR("RACE_MUSIC_DESCRIPTORS",STARTING,PORT,"The music drive changed while being checked; waiting to check it again."),
  RR("RACE_MUSIC_CAPTURE",STARTING,PORT,"The music drive changed while being checked; waiting to check it again."),
@@ -61,7 +61,7 @@ static const struct route_reason route_reasons[] = {
  RR("TERMINATED_NODE_WRITE_FAILURE",FAILED,NONE,"The four-deck helper could not publish the audio route."),
  RR("TERMINATED_UNSPECIFIED",FAILED,NONE,"The four-deck helper stopped without reporting why."),
  /* Reserved diagnosis: the current helper cannot distinguish this from scan failure. */
- RR("LOOPBACK_ON_USB2",FAILED,PORT,"Move the loopback cable to the top USB port opposite the music drive.")
+ RR("LOOPBACK_ON_USB2",FAILED,PORT,"The cable is in USB 2. Move it to USB 1 and keep music in USB 2.")
 };
 #undef RR
 
