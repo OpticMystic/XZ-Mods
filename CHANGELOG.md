@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0-preview.22.9 - 2026-10-27
+
+- Tools has a new Report a problem or share an idea page. You fill in one box, and the app adds cleaned-up details from your XZ Mods USB, which you can see and untick before anything is sent. Each report gets a reference such as R-4F7K-2M9Q, and My reports shows where it stands.
+- A report sent from the XZ (MODS > EXTRAS > REPORT AN ISSUE) now waits in My reports under From your XZ, so you can add what happened. While the app is open, a Windows notification tells you when one arrives.
+- Settings now save again when the XZ starts from the USB loader. Since preview.19 a loader start kept XZ Mods settings, deck 3 and 4 cues, UTILITY and SHORTCUT changes and the USB diary only until the next restart.
+- Choosing a value in UTILITY or SHORTCUT, such as NEEDLE LOCK, changes it again instead of going back to the list unchanged.
+- Hot cue marks on decks 1 and 2 in MODERN no longer vanish when one pad holds a cue without an OUT point or a pad is unused.
+- On decks 3 and 4, TRACK SEARCH previous and next track now respect AUTO CUE: the new track waits at its cue instead of playing.
+- BEAT JUMP on decks 3 and 4 works again on tracks without a detected BPM, counting beats at 120 BPM as decks 1 and 2 do.
+- The KEYS page no longer offers KEY SYNC and SET UP KEYS on the master deck. It says the deck is the master.
+- Hot cue preview, the X-PAD sampler and groove pads are no longer listed in MODS, because they are not built yet.
+- Experimental XDJ-XZ 1.26 only.
+- Loopback cable in USB 1, music in USB 2.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.8 - 2026-10-27
 
 - While the XZ plays, XZ Mods keeps a small diary on every USB stick in VJ.Tools/XZ-Mods-diary (at most 4 MB per stick, oldest part replaced first). It holds settings, state changes, the notices shown and a reading every 10 seconds of CPU, RAM, missed audio, SYNC drift, key shift load and USB read speed, so a later bug report can show what happened. It never holds track titles, file paths or serial numbers, never writes to the XZ itself, pauses while a stick loads a track or copies to RAM, and skips read-only or full sticks.
