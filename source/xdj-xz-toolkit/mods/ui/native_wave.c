@@ -41,9 +41,15 @@ static int claim(struct xz_native_wave_pair *p,const struct xz_native_wave_scene
 int xz_native_wave_finish_styled(struct xz_native_wave_pair *p,const struct xz_native_wave_scene *s,
                          uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,
                          xz_native_wave_render render,void *context,xz_native_wave_style style,int inline_rows) {
+    return xz_native_wave_finish_styled_after(p,s,thread,hw,scratch,count,render,context,style,inline_rows,NULL);
+}
+int xz_native_wave_finish_styled_after(struct xz_native_wave_pair *p,const struct xz_native_wave_scene *s,
+                         uintptr_t thread,uintptr_t hw,uint16_t *scratch,size_t count,
+                         xz_native_wave_render render,void *context,xz_native_wave_style style,int inline_rows,
+                         xz_native_wave_style after) {
     struct xz_native_wave_pair saved;
     if(!p || !claim(p,s,thread,hw,scratch,count,&saved) || (unsigned)inline_rows>=XZ_STEM_LAYOUT_COUNT ||
-       (inline_rows&&!render)||(!inline_rows&&!style))return 0;
+       (inline_rows&&!render)||(!inline_rows&&!style&&!after))return 0;
     size_t bytes=XZ_NATIVE_WAVE_PIXELS*sizeof(*scratch);
     memcpy(scratch,saved.pixels,bytes);
     if(style)style(scratch,XZ_NATIVE_WAVE_PIXELS);
@@ -55,6 +61,7 @@ int xz_native_wave_finish_styled(struct xz_native_wave_pair *p,const struct xz_n
         memcpy(scratch+536*g.control_y[0],rows,row_pixels*sizeof(*rows));
         memcpy(scratch+536*g.control_y[1],rows+row_pixels,row_pixels*sizeof(*rows));
     }
+    if(after)after(scratch,XZ_NATIVE_WAVE_PIXELS);
     memcpy(saved.pixels,scratch,bytes);
     return 1;
 }

@@ -14,6 +14,7 @@
 #include "../ui/deck_view.h"
 #include "../ui/route_card.h"
 #include "../ui/deck_colour.h"
+#include "../ui/ram_notice.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -358,6 +359,7 @@ static uint32_t ink_on(uint32_t fill) { return xz_theme_luma(fill)>150?SH_BLACK:
 /* ---- top bar ---- */
 static void render_fx(const struct xz_shell_model *m, struct xz_canvas c, struct xz_shell_rect r);
 static int alert_on(const struct xz_shell_deck *d);
+static int ram_card_on(const struct xz_shell_deck *d);
 static void render_alert(const struct play_layout *L, const struct xz_shell_model *m, struct xz_canvas c, const struct xz_shell_deck *d, int deck);
 static int grid_edit_shown(const struct xz_shell *u, const struct xz_shell_model *m, int deck);
 static void render_grid_buttons(const struct play_layout *L, const struct xz_shell_model *m, struct xz_canvas c, int deck);
@@ -717,6 +719,11 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
  }else if(sh_has(d,XZ_SHELL_F_LOADED)&&!d->loaded)
   sh_text_center(c,WAVE_X+WAVE_W/2,ly+lh/2-7,"Not Loaded.",SH_TEXT,0x5a5a5a);
  xz_rect(c,v.ph_x,ruler_top,1,lh+title_h,SH_PLAYHEAD);
+ /* Whole track in RAM with no waveform (USB out): one calm card across the lane, in the alert's place. */
+ if(!alert_on(d)&&ram_card_on(d)){
+  int h=xz_ram_notice_height(lh,tick_h);
+  xz_ram_notice_draw(c,WAVE_X,ly+(lh-h)/2,WAVE_W,h);
+ }
  /* ON AIR: the channel is live on the master (XZ manual p.70), red on the lane's top right. */
  if(sh_has(d,XZ_SHELL_F_ON_AIR)&&d->on_air){
   int w=sh_text_width(c,"ON AIR",SH_SMALL)+12;
@@ -734,6 +741,10 @@ static void render_lane(const struct play_layout *L, const struct xz_shell *u, c
  if(!grid||!L->grid_in_stem_row)render_stem_row(u,m,c,deck);
 }
 /* ---- persistent deck conditions and GRID mode buttons ---- */
+static int ram_card_on(const struct xz_shell_deck *d) {
+ return sh_has(d,XZ_SHELL_F_RAM_ONLY)&&d->ram_only&&sh_has(d,XZ_SHELL_F_LOADED)&&d->loaded&&
+  !(sh_has(d,XZ_SHELL_F_WAVE)&&d->wave.columns&&d->wave.count);
+}
 static int alert_on(const struct xz_shell_deck *d) {
  return sh_has(d,XZ_SHELL_F_ALERT)&&d->alert.kind>XZ_SHELL_ALERT_NONE&&d->alert.kind<=XZ_SHELL_ALERT_DEVICE_ERROR;
 }

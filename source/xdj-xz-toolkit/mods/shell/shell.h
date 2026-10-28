@@ -80,6 +80,7 @@ enum xz_shell_field {
  XZ_SHELL_F_PLAYBACK_RATE, XZ_SHELL_F_MOTION, XZ_SHELL_F_SYNC_STATUS,
  XZ_SHELL_F_AUTO_CUE,
  XZ_SHELL_F_KEY_PROOF,
+ XZ_SHELL_F_RAM_ONLY,
  XZ_SHELL_FIELD_COUNT
 };
 /* The deck carries the 3-stem waveform layer (struct xz_shell_deck stems, XZ_SHELL_F_STEM_WAVE). */
@@ -219,6 +220,11 @@ struct xz_shell_deck {
     dark: a deck the runtime drives through a narrower input (the four-deck view's DECK 3 and 4 take LOAD
     and SEEK only). 0: every capability of the model. */
  uint32_t caps_off;
+ /* XZ_SHELL_F_RAM_ONLY: the deck plays its whole track from RAM since the music USB went out (ram/status.h
+    DETACHED). While it has no waveform to draw, its lane shows the calm RAM card (ui/ram_notice.h) in the alert's
+    place; title, times, BPM, tempo, key, lamps and cues stay as they are. The card goes when a waveform arrives
+    (the same USB back, or a track loaded from another) or the RAM copy ends. */
+ int ram_only;
 };
 
 /* Actions the runtime can execute. A missing bit hides or disables the control. */
