@@ -113,8 +113,12 @@ static void test_layout(void) {
   zoom.y-=row3.h;
   assert(!overlap(zoom,row3)&&within(zoom,rect(&m,XZ_SHELL_R_LANE,3)));
  }
+ /* The 2 DECKS layouts do not apply to four lanes, HIDDEN included: the STEMS button hides them there. */
  m.stem_layout=XZ_SHELL_STEMS_HIDDEN;
+ assert(xz_shell_stem_row(&m,0).h==24&&xz_shell_stem_button(NULL,&m,0,0).h==44);
+ m.four_stems_hidden=1;
  for(int d=0;d<4;d++)assert(xz_shell_stem_row(&m,d).h==0&&xz_shell_stem_button(NULL,&m,d,1).h==0);
+ m.four_stems_hidden=0;
  /* An unread layout still shows the buttons: the four-deck view has no pad row to hold them. */
  m.stem_layout_known=0;
  assert(xz_shell_stem_row(&m,0).h==24&&xz_shell_stem_button(NULL,&m,0,0).h==44);
@@ -128,15 +132,16 @@ static void test_bypass_four(void) {
  m.capabilities|=XZ_SHELL_CAP_STEM_BYPASS;
  for(int d=0;d<4;d++)m.deck[d].known|=XZ_SHELL_KNOWN(XZ_SHELL_F_STEM_BYPASS);
  for(int layout=0;layout<XZ_SHELL_STEM_LAYOUTS;layout++){
-  m.stem_layout=(enum xz_shell_stem_layout)layout;
+  /* Every layout draws the same; the HIDDEN pass also hides the buttons with the STEMS button. */
+  m.stem_layout=(enum xz_shell_stem_layout)layout;m.four_stems_hidden=layout==XZ_SHELL_STEMS_HIDDEN;
   for(int d=0;d<4;d++){
    struct xz_shell_rect b=xz_shell_bypass_button(&u,&m,d);
-   if(layout==XZ_SHELL_STEMS_HIDDEN){assert(b.h==0);continue;}
+   if(m.four_stems_hidden){assert(b.h==0);continue;}
    assert(b.h==44&&within(b,rect(&m,XZ_SHELL_R_LANE,d)));
    for(int s=0;s<3;s++)assert(!overlap(b,xz_shell_stem_button(&u,&m,d,s)));
    assert(tap_rect(&u,&m,b,out)==1&&out[0].kind==XZ_SHELL_ACT_STEM_BYPASS&&out[0].deck==d);
   }
-  if(layout!=XZ_SHELL_STEMS_HIDDEN){
+  if(!m.four_stems_hidden){
    struct xz_shell_rect zoom=rect(&m,XZ_SHELL_R_ZOOM,0);zoom.y-=44;
    assert(!overlap(zoom,xz_shell_bypass_button(&u,&m,3)));
    u.deck=3;
