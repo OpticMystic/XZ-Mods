@@ -90,7 +90,7 @@ modern:play-notice-long A long notice wraps onto two lines
 | DECK 3 AND 4 ARE NOT RUNNING | Set up four decks first. See [Four decks](four-decks) |
 | KEY SHIFT REFUSED: AUDIO LOAD TOO HIGH | The measured audio workload leaves too little headroom for a new shift. Current shifts keep running. Check SYSTEM READOUT and retry when the load falls. See [Keys and KEY SYNC](performance#keys-and-key-sync) |
 | THIS DECK IS MASTER | KEY SYNC matches a deck to the master. Make another deck the master first |
-| A player warning such as E-8307: USB ACCESS ERROR | The player raised its own warning window. MODERN says it once in the player's words and keeps working. See [The player's own warnings](#the-players-own-warnings) |
+| A player warning such as E-8307: USB ACCESS ERROR | The player raised its own warning window. MODERN says it once in the player's words and keeps working. See [The player's own warnings](#the-player-s-own-warnings) |
 | THIS DJ PROFILE CANNOT BE READ | Make the profile again in the XZ Mods app. See [Connect and DJ profiles](connect#when-a-profile-will-not-save-or-show) |
 
 ## Errors on a deck
@@ -192,6 +192,13 @@ Every page of the app is in [The XZ Mods app](desktop-app).
 ## The diary on your USB sticks
 
 XZ Mods keeps a short diagnostic diary in `VJ.Tools/XZ-Mods-diary/` on each mounted USB stick, including music sticks. If a problem happens during a set, keep those sticks so you can include their diaries in a later report.
+
+```explainer usb-diary How the diary fills a stick
+Writing | XZ Mods writes a short diagnostic diary in VJ.Tools/XZ-Mods-diary on each mounted USB stick.
+Full | Each stick holds at most 4 MiB of diary files. Older segments are replaced first.
+Pauses | Writing pauses during track loads, RAM copies and heavy USB reads.
+Never recorded | The diary never records track titles, music paths, serial numbers or network identities.
+```
 
 The diary records the XZ Mods version, settings fingerprint, USB slots, interface, deck view, state changes and fixed notice codes. It also records available CPU, memory, audio, SYNC, key-processing and USB-read measurements. It never records track titles, music paths, serial numbers or network identities. A missing measurement stays unknown.
 

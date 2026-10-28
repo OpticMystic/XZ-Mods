@@ -3,7 +3,15 @@ interface: both
 settings: deck_view
 ---
 
-Four decks adds two software players, DECK 3 and DECK 4, to the XDJ-XZ's own DECK 1 and DECK 2. You hear them on mixer channels CH3 and CH4. A short USB cable from the back of the player to a top USB port carries their sound into the mixer. The physical controls switch between decks with the same presses DJ software uses on the XDJ-XZ.
+Four decks adds two software players, DECK 3 and DECK 4, to the XDJ-XZ's own DECK 1 and DECK 2. You hear them on mixer channels CH3 and CH4. A short USB cable from the back of the player to a top USB port carries their sound into the mixer: it leaves through USB 1 on top and comes back in at the rear USB socket, where a computer with DJ software would connect. The physical controls switch between decks with the same presses DJ software uses on the XDJ-XZ.
+
+```explainer loopback-signal How the sound of decks 3 and 4 reaches the mixer
+Decks 3 and 4 | Decks 3 and 4 are software players. They run inside the player, beside decks 1 and 2.
+USB 1 | Their sound leaves the player through USB 1 on the top panel.
+Loopback cable | The loopback cable carries it over the back edge of the player.
+Rear USB | It comes back in at the rear USB socket, where a computer with DJ software would connect.
+CH3 and CH4 | With their input switches on USB, mixer channels CH3 and CH4 play decks 3 and 4.
+```
 
 > **Experimental.** Four decks is experimental in this version. Test it with your own tracks before a set, keep the music stick connected, and keep a two-deck plan ready.
 
@@ -16,7 +24,14 @@ Four decks adds two software players, DECK 3 and DECK 4, to the XDJ-XZ's own DEC
 
 The cable goes directly from the rear USB socket to either **USB 1** or **USB 2** on top. Put music in the other top port. The picture uses USB 1 as an example; both arrangements work.
 
+```explainer loopback-cable The loopback cable
+One USB-B to USB-A cable runs from the rear USB socket over the back edge into USB 1 on top. No computer is involved.
+```
+
 ## Set up four decks {experimental}
+
+```explainer four-deck-setup Set up four decks, step by step
+```
 
 1. Stop or pause decks 1 and 2.
 2. Choose either top USB port for the loopback cable. Leave the other port for music.
@@ -321,6 +336,12 @@ Hot cues and memory points you set on decks 3 and 4 are saved on the music stick
 ### SYNC on decks 3 and 4 {experimental}
 
 Press [[SYNC]] and the deck takes the master deck's BPM at once. The SYNC button stays lit for as long as SYNC is on. With QUANTIZE on and a beat grid on both tracks, the deck also locks to the master's beat. Press [[SYNC]] again to turn it off.
+
+```explainer sync-master SYNC on deck 3
+Master | 1=MASTER@126.00, 3=@122.00 | Deck 1 is the tempo master. Deck 3 plays at its own tempo, with SYNC off.
+SYNC | 1=MASTER@126.00, 3=SYNC 1@126.00, lock | Press [[SYNC]] on deck 3. It takes the master's BPM at once and reads SYNC 1. With QUANTIZE on and a beat grid on both tracks, it also locks to the master's beat.
+Tempo only | 1=MASTER@126.00, 3=BPM 1@126.00 | With QUANTIZE off, only the tempo follows, and deck 3 reads BPM 1.
+```
 
 If the beats drift apart, press [[SYNC]] off and on again. With QUANTIZE on, every engage snaps to the nearest position at the selected beat value, even for a small drift. The beat value can be 1, 1/2, 1/4 or 1/8 beat. With QUANTIZE off, only the tempo follows.
 
