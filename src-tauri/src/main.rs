@@ -5,6 +5,8 @@ mod support_contract;
 mod support;
 mod support_store;
 mod support_tracking;
+mod controller_identity;
+mod controller_queue;
 mod app_updates;
 mod eject;
 mod host;
@@ -74,8 +76,9 @@ fn watchdog(child:Arc<Mutex<std::process::Child>>,finished:Arc<AtomicBool>,stall
 }
 
 #[tauri::command]
-fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
+fn start_job(app: tauri::AppHandle, mut request: Value) -> Result<u64,String> {
     if !request.is_object(){return Err("Expected a builder operation".into());}
+    if request["method"].as_str().is_some_and(|m|m.starts_with("controller_")) || request.as_object().is_some_and(|o|o.keys().any(|k|k.starts_with('_'))) {return Err("Internal builder operation refused".into());}
     let root=resource_root(&app)?;
     let state=app.state::<Jobs>();
     let mut entries=state.entries.lock().map_err(|_|"Job state unavailable")?;
@@ -90,6 +93,7 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
     drop(entries);
     std::thread::spawn(move || {
         let result=(|| -> Result<(),String> {
+            if matches!(request["method"].as_str(),Some("prepare_usb"|"build_usb"|"update_usb")) {controller_queue::prepare_loader(&app,&mut request)?;}
             let backend=root.join("backend").join(host::executable("xz-mods-service"));
             let mut command=Command::new(backend);
             command.env("XZ_BUILDER_RESOURCES",&root).env("XZ_BUILDER_CANCEL_FILE",&cancel)
@@ -119,6 +123,7 @@ fn start_job(app: tauri::AppHandle, request: Value) -> Result<u64,String> {
                 return Err(if stalled.load(Ordering::Acquire){"Collection stopped: a drive did not answer in time".into()}else{"Builder backend ended without a result".into()});
             };
             if !exit.success(){return Err("Builder backend exited unexpectedly after its result".into());}
+            controller_queue::finish_loader(&app,&request,&event)?;
             event["running"]=json!(false);
             app.state::<Jobs>().entries.lock().map_err(|_|"Job state unavailable")?.insert(id,(event,cancel.clone()));
             Ok(())
@@ -184,10 +189,11 @@ fn list_volumes()->Vec<String>{
     volumes
 }
 fn main(){
-    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(support::Support::default()).manage(Jobs::default()).manage(app_updates::Updates::default()).manage(live_stream::LiveStream::default())
-        .invoke_handler(tauri::generate_handler![support::support_send,support::support_export,support::support_cancel,support::support_connect,support::support_owner_status,support::support_inbox,support::support_inbox_page,support_store::support_reports,support_store::support_report_seen,support_store::support_forget,support_tracking::support_check_statuses,support_tracking::support_tracking_link,support_tracking::support_open_tracking,support_tracking::support_revoke_links,start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,eject::eject_volume,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
+    tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_updater::Builder::new().build()).manage(support::Support::default()).manage(controller_queue::Queue::default()).manage(Jobs::default()).manage(app_updates::Updates::default()).manage(live_stream::LiveStream::default())
+        .invoke_handler(tauri::generate_handler![controller_queue::support_pending_details,controller_queue::support_pending_reports,controller_queue::support_poll_pending,controller_queue::support_loader_identities,controller_queue::support_complete_pending,controller_queue::support_dismiss_pending,controller_queue::support_revoke_loader,support::support_send,support::support_export,support::support_cancel,support::support_connect,support::support_owner_status,support::support_inbox,support::support_inbox_page,support_store::support_reports,support_store::support_report_seen,support_store::support_forget,support_tracking::support_check_statuses,support_tracking::support_tracking_link,support_tracking::support_open_tracking,support_tracking::support_revoke_links,start_job,job_status,cancel_job,pick_path,pick_stem_files,open_link,open_licenses,list_volumes,eject::eject_volume,app_updates::app_information,app_updates::acknowledge_release_notes,app_updates::app_update_status,app_updates::check_app_update,app_updates::install_app_update,live_stream::live_stream_start,live_stream::live_stream_status,live_stream::live_stream_stop,live_stream::live_stream_detect,live_stream::live_stream_privacy])
         .on_window_event(|window,event|{
             if matches!(event,tauri::WindowEvent::CloseRequested{..}) {
+                window.state::<controller_queue::Queue>().stopping.store(true,Ordering::Release);
                 let _=live_stream::stop(&window.state::<live_stream::LiveStream>());
                 if let Ok(entries)=window.state::<Jobs>().entries.lock(){
                     for(value,path) in entries.values(){if value["running"]==true{let _=std::fs::write(path,b"cancel");}}
@@ -195,6 +201,7 @@ fn main(){
             }
         })
         .setup(|app|{
+            controller_queue::start(app.handle().clone());
             let config=app.config().app.windows[0].clone();
             tauri::WebviewWindowBuilder::from_config(app,&config)?
                 .visible(std::env::var_os("XZ_BUILDER_HIDDEN").is_none()).build()?;

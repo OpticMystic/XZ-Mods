@@ -211,10 +211,13 @@ impl OwnerReport{
  }
 }
 async fn read_owner(origin:&str,id:&str,key:&str,cancel:&AtomicBool)->Result<Vec<u8>,String>{
+ read_report_pages(origin,id,key,&format!("/v2/admin/reports/{id}"),cancel).await
+}
+pub(crate) async fn read_report_pages(origin:&str,id:&str,key:&str,endpoint:&str,cancel:&AtomicBool)->Result<Vec<u8>,String>{
  let mut report=OwnerReport::default();
  for _ in 0..CAP.div_ceil(OWNER_PAGE){
   if cancel.load(Ordering::Acquire){return Err("Owner report read cancelled".into())}
-  let path=format!("/v2/admin/reports/{id}?offset={}",report.bytes.len());
+  let path=format!("{endpoint}?offset={}",report.bytes.len());
   let page=exchange(origin,reqwest::Method::GET,&path,key,None,&[],65535,cancel).await?;
   if report.push(&page,id)?{return Ok(report.bytes)}
  }
@@ -257,7 +260,14 @@ fn owner_row(r:&Value)->Result<Value,String>{
     "decks":bounded_list(&reach["decks"],4,|x|x.as_u64().filter(|n|(1..=4).contains(n)).map(|n|json!(n)))?}})
  };
  let lifecycle=r["lifecycle"].as_str().filter(|s|listed("lifecycles",s)).ok_or("Unexpected owner lifecycle")?;
- Ok(json!({"report_id":id,"report_reference":reference,"item_number":item,"revision":r["revision"].as_u64().ok_or("Unexpected owner revision")?,
+ let origin=r["origin"].as_str().unwrap_or("loader");
+ if !matches!(origin,"loader"|"controller"){return Err("Unexpected report origin".into())}
+ let installation=r["installation_id"].as_str();let loader=r["loader_id"].as_str();
+ if installation.is_some_and(|s|!crate::controller_identity::canonical_installation(s))||loader.is_some_and(|s|!crate::controller_identity::canonical_loader(s)){return Err("Unexpected loader identity".into())}
+ let comments=r["comments_state"].as_str().unwrap_or("completed");
+ if !contract()["pending_lifecycles"].as_array().is_some_and(|a|a.iter().any(|v|v==comments)){return Err("Unexpected comments state".into())}
+ let pending=matches!(comments,"pending_comments"|"expired_reminders");
+ Ok(json!({"origin":origin,"installation_id":installation,"loader_id":loader,"comments_state":comments,"comments_pending":pending,"comments_status":if pending{contract()["controller_queue"]["awaiting_text"].clone()}else{Value::Null},"report_id":id,"report_reference":reference,"item_number":item,"revision":r["revision"].as_u64().ok_or("Unexpected owner revision")?,
   "kind":enum_or_null(&r["kind"],"kinds")?,"severity":enum_or_null(&r["severity"],"severities")?,"impact":enum_or_null(&r["impact"],"impacts")?,
   "expectation":enum_or_null(&r["expectation"],"expectations")?,"outcome":enum_or_null(&r["outcome"],"outcomes")?,"lifecycle":lifecycle,"desk":desk,
   "reach_count":r["reach_count"].as_u64().filter(|n|*n<=1_000_000).ok_or("Unexpected owner reach")?,
@@ -308,6 +318,15 @@ pub async fn support_inbox(app:tauri::AppHandle,state:tauri::State<'_,Support>,a
   "more"=>{
    let cursor=cursor.filter(|c|!c.is_empty()&&c.len()<=1024).ok_or("Invalid inbox cursor")?;
    owner_list(&exchange(ORIGIN,reqwest::Method::GET,&format!("/v2/admin/reports?limit=50&cursor={}",query(&cursor)),key,None,&[],65535,&state.cancel).await?)
+  },
+  "completion"=>{
+   let id=report()?;
+   let value=exchange(ORIGIN,reqwest::Method::GET,&format!("/v2/admin/reports/{id}/completion"),key,None,&[],32768,&state.cancel).await?;
+   if value["report_id"]!=id{return Err("Unexpected completion identity".into())}
+   let c=&value["completion"];if c.is_null(){return Ok(json!({"report_id":id,"completion":null}))}
+   let status=c["comments_state"].as_str().filter(|s|contract()["pending_lifecycles"].as_array().is_some_and(|a|a.iter().any(|v|v==*s))).ok_or("Unexpected comments state")?;
+   let description=if c["description"].is_null(){Value::Null}else{json!(c["description"].as_str().filter(|s|s.len()<=4096).ok_or("Invalid completion text")?)};
+   Ok(json!({"report_id":id,"completion":{"comments_state":status,"description":description,"completed_at":c["completed_at"].as_u64()}}))
   },
   "changes"=>owner_changes(ORIGIN,&dir,key,&state.cancel).await,
   "read"=>{
