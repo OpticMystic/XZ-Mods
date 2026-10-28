@@ -1,0 +1,45 @@
+{
+  "section": "browse#info",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "INFO"
+    },
+    {
+      "touch": [
+        36,
+        276
+      ]
+    },
+    {
+      "touch": [
+        76,
+        276
+      ]
+    },
+    {
+      "touch": [
+        116,
+        276
+      ]
+    },
+    {
+      "touch": [
+        156,
+        276
+      ]
+    },
+    {
+      "touch": [
+        196,
+        276
+      ]
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      12
+    ]
+  ]
+}

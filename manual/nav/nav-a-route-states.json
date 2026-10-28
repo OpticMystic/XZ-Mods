@@ -1,0 +1,71 @@
+{
+  "section": "four-decks#the-card-in-every-state",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "fixture": 200,
+      "detail": "local connector snapshot, no hardware access"
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 201,
+      "detail": "local connector snapshot, no hardware access"
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 202,
+      "detail": "local connector snapshot, no hardware access"
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 203,
+      "detail": "local connector snapshot, no hardware access"
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 204,
+      "detail": "local connector snapshot, no hardware access"
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 206,
+      "detail": "local connector snapshot, no hardware access"
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 207,
+      "detail": "local connector snapshot, no hardware access"
+    },
+    {
+      "wait": 400
+    },
+    {
+      "fixture": 205,
+      "detail": "local connector snapshot, no hardware access"
+    },
+    {
+      "wait": 400
+    }
+  ]
+}

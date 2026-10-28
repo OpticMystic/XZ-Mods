@@ -1,0 +1,27 @@
+{
+  "section": "browse#sort-columns-and-the-track-menu",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "push": true
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "panel_select": "CUE/LOOP LIST"
+    },
+    {
+      "panel_select": "INTRO CUE"
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      24
+    ]
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "section": "connect#network",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 20,
+      "detail": "Local inventory fixture, no OS network access"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "CONNECT"
+    },
+    {
+      "tap": "NETWORK"
+    },
+    {
+      "tap": "CHOOSE ADAPTER / SETTINGS"
+    },
+    {
+      "tap": "KEEP CURRENT"
+    },
+    {
+      "tap": "REVIEW CHANGES"
+    },
+    {
+      "tap": "EDIT CHOICES"
+    },
+    {
+      "tap": "DHCP ON"
+    },
+    {
+      "tap": "REVIEW CHANGES"
+    }
+  ]
+}

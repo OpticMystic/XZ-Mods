@@ -1,0 +1,20 @@
+{
+  "section": "hardware#the-rekordbox-button",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "tap": "REKORDBOX BUTTON",
+      "expect_page": 29
+    },
+    {
+      "settings": "all supported value controls on this page"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "section": "mods-menu#SCREEN",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "settings": "all supported value controls on this page"
+    }
+  ]
+}

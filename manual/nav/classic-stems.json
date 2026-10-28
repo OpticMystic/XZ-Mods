@@ -1,0 +1,38 @@
+{
+  "interface": "CLASSIC overlay over retained stock capture",
+  "section": "stems#classic-stem-rows",
+  "steps": [
+    {
+      "fixture": 1,
+      "detail": "CLASSIC stem overlay over manual/captures/classic-play.png"
+    },
+    {
+      "touch": [
+        180,
+        40
+      ]
+    },
+    {
+      "touch": [
+        620,
+        40
+      ]
+    },
+    {
+      "touch": [
+        620,
+        40
+      ]
+    }
+  ],
+  "requires_effects": [
+    [
+      "MODS",
+      7
+    ],
+    [
+      "MODS",
+      8
+    ]
+  ]
+}
