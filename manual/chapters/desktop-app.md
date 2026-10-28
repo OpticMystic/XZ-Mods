@@ -3,22 +3,23 @@ interface: computer
 settings:
 ---
 
-The XZ Mods app runs on your computer. It puts XZ Mods on a USB, makes stems for your tracks, shows the XZ screen live and holds a few tools for your profile, your library and updates. It never formats a drive and never changes your music or your Rekordbox export.
+The XZ Mods app runs on your computer. It puts XZ Mods on a USB, makes stems for your tracks, shows the XZ screen live, holds tools for your profile, your library and updates, and sends your reports and ideas to the maintainer. It never formats a drive and never changes your music or your Rekordbox export.
 
 You need 64-bit Windows with WebView2, or a Mac with macOS 14 or later. Making stems needs a Windows computer or an Apple silicon Mac. On an Intel Mac you can still import stems you made elsewhere.
 
 ## Around the app
 
-The rail on the left has four sections. The current one is outlined in yellow.
+The rail on the left has four sections for your work and, at its foot, Feedback. The current one is outlined in yellow.
 
 | Section | What it is for |
 |---|---|
 | **USB** | Install or update XZ Mods on a USB, add your DJ profile and games |
 | **Stems** | Make stems for the tracks on a Rekordbox USB, or import stems you already have |
 | **XZ Screen** | Watch the XZ screen on this computer and add it to OBS |
-| **Tools** | DJ Profile, Repair library, Network updates, XZ Mods version, App updates and About |
+| **Tools** | DJ Profile, Repair library, XZ Mods version, Network updates, App updates and About |
+| **Feedback** | Report a problem, request a feature or ask a question, and follow what you sent |
 
-The app version is at the bottom of the rail. The footer names the player firmware the app prepares USBs for, XDJ-XZ firmware 1.26.
+The top of the rail names the player firmware the app prepares USBs for, XDJ-XZ 1.26. The app version is at the bottom.
 
 ## USB
 
@@ -37,18 +38,19 @@ Once a USB is open, the page shows one status and one action for it.
 
 ```figure app:usb-install XZ Mods app · USB
 A fresh USB. XZ Mods is not on it yet, so the one action is Install XZ Mods.
-1 @ 145,236 Sections | USB, Stems, XZ Screen and Tools.
-2 @ 492,117 USB | The USB's name and drive.
-3 @ 662,158 Free space | The file system, the free space and a bar of how full the USB is.
-4 @ 988,96 Change USB | Goes back to the list of USBs.
-5 @ 606,224 Status | What XZ Mods found on this USB.
-6 @ 494,320 Action | The one thing to do next. Here it installs XZ Mods.
-7 @ 364,438 DJ profile | The active profile on the USB. Add or Edit opens the profile step.
-8 @ 604,438 Games | How many games are on the USB. Choose opens the games list.
-9 @ 870,438 Stems | How many tracks have stems. Prepare opens the Stems section.
-10 @ 430,537 Build | The XZ Mods build that goes on the USB. Change opens XZ Mods version.
-11 @ 1064,594 Set up four decks | The cable guide for four decks. It installs nothing.
-12 @ 464,665 Show every file | A read-only list of what XZ Mods keeps on this USB.
+1 @ 150,186 Sections | USB, Stems, XZ Screen and Tools.
+2 @ 492,121 USB | The USB's name and drive.
+3 @ 662,162 Free space | The file system, the free space and a bar of how full the USB is.
+4 @ 988,100 Change USB | Goes back to the list of USBs.
+5 @ 606,228 Status | What XZ Mods found on this USB.
+6 @ 494,324 Action | The one thing to do next. Here it installs XZ Mods.
+7 @ 364,442 DJ profile | The active profile on the USB. Add or Edit opens the profile step.
+8 @ 604,442 Games | How many games are on the USB. Choose opens the games list.
+9 @ 870,442 Stems | How many tracks have stems. Prepare opens the Stems section.
+10 @ 430,541 Build | The XZ Mods build that goes on the USB. Change opens XZ Mods version.
+11 @ 1064,598 Set up four decks | The cable guide for four decks. It installs nothing.
+12 @ 464,669 Show every file | A read-only list of what XZ Mods keeps on this USB.
+13 @ 152,676 Feedback | Reports and ideas for the maintainer. See [Feedback](desktop-app#feedback).
 ```
 
 The status changes with what the app finds:
@@ -97,15 +99,15 @@ Choose the screen the XZ shows. The selected card plays a short clip of it.
 
 ```figure app:install-review XZ Mods app · Install XZ Mods
 Ready to write, with Change games open.
-1 @ 580,223 Loader | Adds the XZ Mods loader, or backs up and updates it.
-2 @ 706,269 Games | The free games that will be copied.
-3 @ 540,315 Interface | The screen the XZ starts with.
-4 @ 478,380 Settings file | A USB without settings gets a new settings file.
-5 @ 368,428 Change games | Opens or hides the games list.
-6 @ 1040,497 Add all free games | Ticks every download. None unticks the ones not on the USB yet.
-7 @ 638,550 Game state | WILL ADD, NOT ON USB, or already on the USB.
-8 @ 890,551 Add | Ticks one game. The size is what it adds to the USB.
-9 @ 632,733 Your files | Music, playlists and prepared stems are never touched.
+1 @ 580,227 Loader | Adds the XZ Mods loader, or backs up and updates it.
+2 @ 706,273 Games | The free games that will be copied.
+3 @ 540,319 Interface | The screen the XZ starts with.
+4 @ 478,384 Settings file | A USB without settings gets a new settings file.
+5 @ 368,432 Change games | Opens or hides the games list.
+6 @ 1040,501 Add all free games | Ticks every download. None unticks the ones not on the USB yet.
+7 @ 638,554 Game state | WILL ADD, NOT ON USB, or already on the USB.
+8 @ 890,555 Add | Ticks one game. The size is what it adds to the USB.
+9 @ 632,737 Your files | Music, playlists and prepared stems are never touched.
 ```
 
 Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer are built into the loader and always come with it. Doom shareware, Chex Quest and Freedoom Phase 2 are free downloads that the app checks and copies to `VJTOOLS\Games` on the USB. A fresh USB gets every free game unless you untick it. An update keeps the games the USB already has and adds none on its own. Under the checklist, **Eject the USB when writing finishes** ejects it for you so you can take it straight to the XZ.
@@ -227,11 +229,11 @@ XZ Screen shows the XDJ-XZ screen on this computer over the network, so you can 
 
 ```figure app:xz-screen XZ Mods app · XZ Screen
 Before the first connection.
-1 @ 356,170 Set up Live Streamer | Opens the three-step connection guide.
-2 @ 668,199 Stop stream and Fullscreen | Work once the XZ is connected.
-3 @ 362,240 Stream color | 8-bit with 256 colors, or 16-bit with the original colors. A change applies when you reconnect.
-4 @ 560,343 Status | What the connection is doing, and the frame rate it measures.
-5 @ 735,581 Screen | The XZ screen at 800 × 480 once it is connected.
+1 @ 356,174 Set up Live Streamer | Opens the three-step connection guide.
+2 @ 668,203 Stop stream and Fullscreen | Work once the XZ is connected.
+3 @ 362,244 Stream color | 8-bit with 256 colors, or 16-bit with the original colors. A change applies when you reconnect.
+4 @ 560,347 Status | What the connection is doing, and the frame rate it measures.
+5 @ 735,585 Screen | The XZ screen at 800 × 480 once it is connected.
 ```
 
 ```figure app:xz-screen-setup XZ Mods app · Set up Live Streamer
@@ -257,18 +259,17 @@ With an older USB loader the picture updates about once a second and the status 
 
 ## Tools
 
-Tools holds everything you need less often. **Tools** in the top left of each tool goes back to this list.
+Tools holds everything you need less often, grouped by what it works on: your USB, your XZ and this app. **Tools** in the top left of each tool goes back to this list.
 
 ```figure app:tools XZ Mods app · Tools
-Every tool.
-1 @ 405,110 DJ Profile | Your name and logo on the XZ, and the profile track.
-2 @ 431,181 Repair library | Fixes a Rekordbox USB the XZ cannot read.
-3 @ 456,252 Network updates | Sends the newest XZ Mods to XZs on your network.
-4 @ 453,324 XZ Mods version | Picks which build goes on your USB, or imports one.
-5 @ 424,395 App updates | Checks for a newer app.
-6 @ 572,466 Report a problem or share an idea | Sends a private report or an idea to the maintainer.
-7 @ 413,537 My reports | What you sent and where each report is now.
-8 @ 380,608 About | The version, open-source licenses and reports.
+Every tool, in three groups.
+1 @ 405,138 DJ Profile | Your name and logo on the XZ, and the profile track.
+2 @ 840,138 Repair library | Fixes a Rekordbox USB the XZ cannot read.
+3 @ 453,240 XZ Mods version | Picks which build goes on your USB, or imports one.
+4 @ 456,380 Network updates | Sends the newest XZ Mods to XZs on your network.
+5 @ 424,518 App updates | Checks for a newer app.
+6 @ 789,518 About | The version and open-source licenses.
+7 @ 150,655 Feedback | Reports and ideas are not in Tools. They have their own section at the foot of the rail.
 ```
 
 ### DJ Profile
@@ -353,14 +354,14 @@ XZ Mods version chooses which build goes on your USB the next time you install o
 
 ```figure app:mod-version XZ Mods app · XZ Mods version
 The saved build choice.
-1 @ 885,121 Verified | Says whether the build was checked on a real XDJ-XZ.
-2 @ 430,221 Saved choice | The build your next install or update uses.
-3 @ 645,257 Details | Its channel, whether it stays on the USB and where it came from.
-4 @ 852,361 Change mod version | Every build on this computer.
-5 @ 490,405 Keep this version on the USB | A loader built with this on skips network updates, so the USB stays on this build.
-6 @ 527,469 Save choice and Import a build | Saves the choice, or adds a build from a folder.
-7 @ 432,556 Set up four decks | Chooses the included four-deck build.
-8 @ 465,749 Choose USB to update | Restores or updates a loader by hand.
+1 @ 885,128 Verified | Says whether the build was checked on a real XDJ-XZ.
+2 @ 430,228 Saved choice | The build your next install or update uses.
+3 @ 645,264 Details | Its channel, whether it stays on the USB and where it came from.
+4 @ 852,368 Change mod version | Every build on this computer.
+5 @ 490,412 Keep this version on the USB | A loader built with this on skips network updates, so the USB stays on this build.
+6 @ 527,476 Save choice and Import a build | Saves the choice, or adds a build from a folder.
+7 @ 432,563 Set up four decks | Chooses the included four-deck build.
+8 @ 465,756 Choose USB to update | Restores or updates a loader by hand.
 ```
 
 Lower on the page:
@@ -388,20 +389,33 @@ On Windows the app checks for updates by itself at launch and shows **Review upd
 
 ### About
 
-About shows the app version and the open-source licenses. **Reports and ideas** at the top opens the report window and My reports.
+About shows the app version and the open-source licenses.
 
 ```figure app:about XZ Mods app · About
 About.
-1 @ 400,250 Report a problem or share an idea | Opens the report window. Tools has the same entry.
-2 @ 583,250 My reports | What you sent and where each report is now.
-3 @ 712,250 Maintainer inbox | For the maintainer only.
-4 @ 516,462 App updates and release notes | Opens App updates.
-5 @ 451,633 Open license notices | Every open-source project XZ Mods uses and its license.
+1 @ 518,276 App updates and release notes | Opens App updates.
+2 @ 453,447 Open license notices | Every open-source project XZ Mods uses and its license.
 ```
+
+## Feedback
+
+Feedback is where you tell the maintainer about a problem, ask for a feature or ask a question, and follow what you sent. It sits at the foot of the rail on every page.
+
+```figure app:feedback XZ Mods app · Feedback
+The Feedback section.
+1 @ 150,655 Feedback | Opens this section from any page. A count on it shows reports from your XZ that wait for your words.
+2 @ 462,212 Report a problem | Opens the report window at its first question.
+3 @ 721,212 Request a feature | Opens the report window at the kind of idea.
+4 @ 963,212 Ask a question | Goes straight to the box. Answers from this manual appear as you type.
+5 @ 350,322 My reports | What you sent from this computer and where each report is now.
+6 @ 466,680 Maintainer inbox | For the maintainer only.
+```
+
+Reports from your XZ that wait for your words appear above My reports, under **From your XZ**. The sticks that may send them are listed under **Your XZ sticks**.
 
 ### Report a problem or share an idea
 
-Report a problem or share an idea sends a private report to the maintainer: a problem, something that got worse, an idea or a question. Open it from **Tools** or **About**. The only thing you have to fill in is one box. Nothing is posted publicly.
+The report window sends a private report to the maintainer: a problem, something that got worse, an idea or a question. **Report a problem** in Feedback opens it at the first question. **Request a feature** and **Ask a question** answer that question for you. The only thing you have to fill in is one box. Nothing is posted publicly.
 
 ```figure app:report-topic XZ Mods app · Report a problem or share an idea
 The first question.
@@ -490,17 +504,23 @@ The setup after a send that was not confirmed.
 
 ### My reports
 
-My reports lists every report and idea sent from this computer, with its kind and where it is now, in plain words. Open it from **Tools** or **About**.
+My reports lists every report and idea sent from this computer, with its kind and where it is now, in plain words. It is the list under the buttons in Feedback.
 
 ```figure app:my-reports XZ Mods app · My reports
 Four reports, one with news.
-1 @ 611,118 Notice | Appears at the top of the app when a report's status changes. View opens that report.
-2 @ 345,293 Kind | Such as Problem, Got worse, Works differently, Idea or Question.
-3 @ 666,280 Your words | The start of what you wrote. It stays on this computer.
-4 @ 586,550 Status | Where the report is now. New marks a change you have not opened yet.
-5 @ 893,280 Reference and date | Your report reference and the day you sent it. Part of XZ-1042 appears when the maintainer assigns an item.
-6 @ 740,226 Check now | Checks every report at once, and asks for new reports from your XZ.
-7 @ 923,226 Report a problem or share an idea | Starts a new report.
+1 @ 338,258 Kind | Such as Problem, Got worse, Works differently, Idea or Question.
+2 @ 668,245 Your words | The start of what you wrote. It stays on this computer.
+3 @ 586,515 Status | Where the report is now. New marks a change you have not opened yet.
+4 @ 893,256 Reference and date | Your report reference and the day you sent it. Part of XZ-1042 appears when the maintainer assigns an item.
+5 @ 930,155 Check now | Checks every report at once, and asks for new reports from your XZ.
+```
+
+When a report's status changes, a notice appears at the top of whichever page is open.
+
+```figure app:report-notice XZ Mods app · App updates
+A status change, shown while App updates is open.
+1 @ 248,125 Notice | Appears when the status of one of your reports changes.
+2 @ 613,125 View | Opens that report.
 ```
 
 The app checks for news when it starts, after it checks for app updates, and when you open My reports, at most every 15 minutes for each report. **Check now** checks at once. If you are offline, the last known status stays.
@@ -528,20 +548,20 @@ Details are deleted 14 days after you send them. Tracking lasts while a report i
 
 ### From your XZ
 
-A report sent from the XZ waits in My reports for your words. **From your XZ** appears at the top of My reports while one waits. The XZ notes the screen you were on as names only. It keeps no picture and no text from the screen.
+A report sent from the XZ waits in Feedback for your words. **From your XZ** appears above My reports while one waits. The XZ notes the screen you were on as names only. It keeps no picture and no text from the screen.
 
 ```figure app:xz-report XZ Mods app · My reports
 A report from the XZ, waiting for your words.
-1 @ 556,113 From your XZ | Reports from your XZ that wait for your words.
-2 @ 676,183 Reference and time | The report's reference and when the XZ sent it. It stays the same when you add your words.
-3 @ 662,233 Screen | The screen the XZ showed just before you reported, with any error code on it.
-4 @ 606,253 Stick | The stick the report came from, and when XZ Mods wrote it.
-5 @ 597,273 Typed on the XZ | What you typed on the XZ, if anything.
-6 @ 960,400 What happened? | Starts with what you typed on the XZ. Change it or add to it.
-7 @ 436,481 Collected details | What the XZ collected and sent with the report. Show displays each part exactly.
-8 @ 392,534 Stop reminding | Ends the reminders for this report. It stays in the list.
-9 @ 830,568 Send without comments | Finishes the report without words from you.
-10 @ 972,568 Send | Adds your words to the same report.
+1 @ 556,48 From your XZ | Reports from your XZ that wait for your words.
+2 @ 676,118 Reference and time | The report's reference and when the XZ sent it. It stays the same when you add your words.
+3 @ 662,168 Screen | The screen the XZ showed just before you reported, with any error code on it.
+4 @ 606,188 Stick | The stick the report came from, and when XZ Mods wrote it.
+5 @ 597,208 Typed on the XZ | What you typed on the XZ, if anything.
+6 @ 960,335 What happened? | Starts with what you typed on the XZ. Change it or add to it.
+7 @ 436,416 Collected details | What the XZ collected and sent with the report. Show displays each part exactly.
+8 @ 392,469 Stop reminding | Ends the reminders for this report. It stays in the list.
+9 @ 830,503 Send without comments | Finishes the report without words from you.
+10 @ 972,503 Send | Adds your words to the same report.
 ```
 
 - **Send** adds your words to the same report, under the same reference. The report then moves to your sent reports, where you follow it like any other.
@@ -553,31 +573,31 @@ A report from the XZ, waiting for your words.
 The app tells you when a report from the XZ waits:
 
 - While the app is open, a new report brings a Windows notification, such as "Your XZ sent a report, R-4F7K-2M9Q. Add what happened?" Click it to open that report.
-- **Tools** and **My reports** show how many reports wait.
+- **Feedback** in the rail shows how many reports wait.
 - When the app starts with reports waiting, a callout under the page title names them.
 
 ```figure app:xz-callout XZ Mods app · From your XZ
 The callout when the app starts with a report waiting.
-1 @ 472,146 Callout | Names the report your XZ sent. It never covers the window or takes the keyboard.
-2 @ 762,146 Add what happened | Opens the report in My reports with its box ready.
-3 @ 889,135 Remind me later | Hides the callout until the app starts again.
-4 @ 990,135 Stop reminding | Ends the reminders for these reports. They stay in My reports.
-5 @ 196,328 Badge | How many reports from your XZ wait for your words.
+1 @ 472,150 Callout | Names the report your XZ sent. It never covers the window or takes the keyboard.
+2 @ 762,150 Add what happened | Opens the report in Feedback with its box ready.
+3 @ 889,139 Remind me later | Hides the callout until the app starts again.
+4 @ 990,139 Stop reminding | Ends the reminders for these reports. They stay in Feedback.
+5 @ 240,636 Badge | How many reports from your XZ wait for your words.
 ```
 
 Reminders end when you choose **Stop reminding**, or 7 days after a report arrives. Each report brings one notification at most. If Windows notifications are off for XZ Mods, or your copy of the app is not installed, the badge and the callout tell you instead.
 
 ### Your XZ sticks
 
-Every stick XZ Mods writes gets a loader ID, such as **L-7K2M-9Q4F**. It lets the XZ send reports from that stick to this computer, and to nothing else. **Your XZ sticks** at the bottom of My reports lists them.
+Every stick XZ Mods writes gets a loader ID, such as **L-7K2M-9Q4F**. It lets the XZ send reports from that stick to this computer, and to nothing else. **Your XZ sticks**, near the bottom of Feedback, lists them.
 
 ```figure app:xz-sticks XZ Mods app · My reports
 Three sticks: one waiting to register, one ready and one revoked.
-1 @ 373,396 Your XZ sticks | The sticks XZ Mods wrote on this computer.
-2 @ 422,464 Loader ID | Reports from this stick carry it.
-3 @ 433,487 Written | When XZ Mods last wrote the stick.
-4 @ 893,495 State | Can send reports, Registers when online, Plug it in to finish, Revokes when online or Revoked.
-5 @ 997,573 Revoke | Stops this stick sending reports. The app asks first.
+1 @ 373,418 Your XZ sticks | The sticks XZ Mods wrote on this computer.
+2 @ 422,486 Loader ID | Reports from this stick carry it.
+3 @ 433,509 Written | When XZ Mods last wrote the stick.
+4 @ 893,517 State | Can send reports, Registers when online, Plug it in to finish, Revokes when online or Revoked.
+5 @ 997,595 Revoke | Stops this stick sending reports. The app asks first.
 ```
 
 - Revoke a stick you lost or gave away. The XZ can no longer send reports from it. If you are offline, the stick is revoked on this computer at once and the report service hears of it later.
@@ -587,7 +607,7 @@ Three sticks: one waiting to register, one ready and one revoked.
 
 ### Maintainer inbox
 
-**Maintainer inbox** in About is for the maintainer. Connect it with the report-only owner key. The short setup checks that key by reading the inbox.
+**Maintainer inbox**, at the bottom of Feedback, is for the maintainer. Connect it with the report-only owner key. The short setup checks that key by reading the inbox.
 
 Enter a report reference or item number in the search box and choose **Find**. You can type either case, with or without spaces and dashes. For a report reference, I or L also means 1, and O means 0. A report reference finds one report; an item number finds the reports assigned to that item. **Clear** returns to the inbox.
 

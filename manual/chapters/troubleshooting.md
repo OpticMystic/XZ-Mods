@@ -192,7 +192,7 @@ Every page of the app is in [The XZ Mods app](desktop-app).
 When something goes wrong, send a report. It helps fix the problem for everyone.
 
 - **On the player.** Open MODS › **EXTRAS** › **REPORT AN ISSUE**. The player builds a cleaned-up report, shows you what it holds, and sends it or saves it to the USB. See [Report an issue](extras#report-an-issue).
-- **On your computer.** In the XZ Mods app, open **Tools** › **Report a problem or share an idea**. Only one box is required, and **My reports** shows where your report is afterwards. See [Report a problem or share an idea](desktop-app#report-a-problem-or-share-an-idea).
+- **On your computer.** In the XZ Mods app, open **Feedback** at the foot of the rail and choose **Report a problem**. Only one box is required, and **My reports** in Feedback shows where your report is afterwards. See [Report a problem or share an idea](desktop-app#report-a-problem-or-share-an-idea).
 - **On GitHub.** Open an issue at https://github.com/OpticMystic/XZ-Mods/issues.
 
 Say what you did, what you expected and what happened. The app adds the cleaned-up details itself, and you can see and untick each one. Nothing is sent until you press **Send privately**, and the app posts nothing publicly. From the player, the public GitHub issue is a separate step you submit yourself.
