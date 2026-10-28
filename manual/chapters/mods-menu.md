@@ -170,15 +170,18 @@ A lock next to a setting comes with one of these notes:
 
 | Note | What it means |
 |---|---|
-| THE PLAYER RUNS THIS ITSELF | Change it on the player's own screen. XZ Mods only shows it. |
-| NOT AVAILABLE ON THIS FIRMWARE | XZ Mods cannot read or set it on this firmware version. |
-| FIXED IN THIS TEST BUILD | A test build keeps settings fixed. |
+| PLAYER CONTROLLED | The player sets this itself. XZ Mods only shows it. |
+| FIRMWARE LIMIT | XZ Mods cannot read or set it on this firmware version. |
+| READ-ONLY BUILD | A RAM trial shows settings but changes none. Start from the USB loader to change them. |
+| READ ONLY HERE | XZ Mods shows this setting but cannot change it here. |
+
+Pushing a locked setting does nothing.
 
 ```gallery {modern}
 modern:settings-utility-info A setting highlighted in the list
 modern:settings-utility-values The choices open. Turn and push to set one
 modern:settings-utility-values-writable A setting XZ Mods can change, its choices open
-modern:settings-utility-values-scrolled A locked setting with its choices open
+modern:settings-utility-values-scrolled A locked setting further down. Its help says it is read only here
 modern:settings-utility-items-deep The end of the list. MIXER, SYSTEM and VERSION No.
 modern:settings-utility-empty Before the version is read. TIME MODE first, then the display settings
 modern:screen-utility UTILITY on its DJ SETTING and DISPLAY (LCD) groups
