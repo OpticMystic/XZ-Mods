@@ -79,6 +79,8 @@ function installMock() {
       case 'support_preview': return {running:false,ok:true,result:{page:request.page,pages:2,sha256:'b'.repeat(64),text:request.page?'LAST REVIEWED PAGE':'FIRST REVIEWED PAGE'}};
       case 'support_remove': fx.savedReportDeleted=true;return {running:false,ok:true,result:{discarded:true}};
       case 'list_mod_versions': return { running: false, ok: true, result: inventory() };
+      case 'ota_networks': return { running: false, ok: true, result: { addresses: ['169.254.168.10'], ready: true } };
+      case 'discover_stem_usbs': return { running: false, ok: true, result: { drives: [] } };
       case 'select_mod_version': { fx.selected = { id: request.mod_version_id, pinned: request.pinned, revision: fx.selected.revision + 1 }; fx.selections.push(request); return { running: false, ok: true, result: inventory() }; }
       case 'discover_usbs':
         if (fx.holdQuiet) return { running: true };
@@ -116,6 +118,7 @@ function installMock() {
     if (command === 'support_reports') return { reports: [], limit: 200, migrated: 0 };
     if (command === 'support_check_statuses') return { checked: 0, failed: 0, updated: [], unseen: [] };
     if (command === 'open_link') { (fx.links ||= []).push(args.url); return null; }
+    if (command === 'live_stream_detect') return ['169.254.168.59'];
     if (command === 'list_volumes') return fx.volumes();
     if (command === 'start_job') { fx.requests.push(args.request); return fx.requests.length; }
     if (command === 'job_status') return status(fx.requests[args.id - 1]);
@@ -770,6 +773,19 @@ try {
   await check(`txt('#page-title')==='Feedback'`, 'About › Feedback opens Feedback in the app');
   await evaluate(`showPage('licenses');document.getElementById('about-dj-profile').click()`);
   await check(`txt('#page-title')==='DJ Profile'`, 'About › Make yours opens DJ Profile');
+  // Pages the manual shows that have no flow of their own, drawn here so their pictures carry the current rail.
+  await evaluate(`showPage('updates')`); await idle(); await shot('14-app-updates');
+  await evaluate(`showPage('device-updates')`);
+  await waitFor(`activeJob===null&&document.getElementById('ota-network').value==='169.254.168.10'`, 'network updates: the adapter is listed');
+  await shot('15-network-updates');
+  await evaluate(`showPage('library-repair')`);
+  await waitFor(`activeJob===null&&txt('#repair-drive-status').startsWith('No Rekordbox USB found')`, 'repair library: no Rekordbox USB');
+  await shot('16-repair-library');
+  await evaluate(`showPage('live-stream')`); await shot('17-xz-screen');
+  await evaluate(`document.getElementById('live-setup').click()`);
+  await waitFor(`document.getElementById('live-wizard').open&&txt('#live-wizard-status')==='Found your XZ. Press Connect.'`, 'Live Streamer setup finds the XZ');
+  await shot('18-xz-screen-setup');
+  await evaluate(`document.getElementById('live-wizard-close').click();showPage('setup')`);
   await evaluate(`showPage('advanced')`);
   await check(`document.getElementById('mod-version')&&document.getElementById('setup-games-usb')&&document.getElementById('build')&&document.getElementById('loader-backups')&&!document.getElementById('prepare-usb')&&!document.querySelector('#advanced .intro')&&txt('#advanced .game-downloads summary')==='Game downloads'&&!document.querySelector('#advanced .game-downloads').open&&!document.getElementById('download-myhouse')&&!txt('#advanced').includes('My House')`, 'XZ Mods version page: build panel, loader restore, firmware file, games in one folded section; no Prepare a new USB');
   await shot('11-tools-version');
