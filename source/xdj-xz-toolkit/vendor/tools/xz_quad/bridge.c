@@ -751,8 +751,7 @@ static int route_binding_check(struct route_binding *binding)
     memset(&unit, 0, sizeof(unit));
     if (binding->state == BINDING_ACTIVE && unit_identity(&unit) &&
         !memcmp(&unit, &binding->unit, sizeof(unit)) &&
-        !scan_device(&device, binding->loopback_port) &&
-        music_inventory(3 - binding->loopback_port, &binding->reason)) return 1;
+        !scan_device(&device, binding->loopback_port)) return 1;
     binding->state = BINDING_RETIRED;
     return 0;
 }
@@ -882,10 +881,13 @@ static int service_music_hub(const struct native *native, struct route_binding *
     unsigned loopback_port = binding->loopback_port;
     struct music_hub music, fresh;
     if (!scan_music_hub(&music, 3 - loopback_port)) {
-        *reason = "TERMINATED_MUSIC_HUB_IDENTITY"; return 0;
+        /* Optional storage can be between add, configuration and mount events.
+         * Refuse new binding until it settles; keep the existing audio route. */
+        *reason = "WAIT_MUSIC_HUB"; return 1;
     }
     if (!*music.name) { memset(attempt, 0, sizeof(*attempt)); return 1; }
     if (music.bound || !memcmp(&music, attempt, sizeof(music))) return 1;
+    if (!music_inventory(3 - loopback_port, reason)) return 1;
     if (!native_stopped(native)) { *reason = "WAIT_MUSIC_HUB_PAUSED"; return 1; }
     if (!module_owns_hub(MODULE "parameters/music_hub_devnum", music.number, loopback_port)) {
         *reason = "WAIT_MUSIC_HUB"; return 1;
@@ -897,6 +899,7 @@ static int service_music_hub(const struct native *native, struct route_binding *
         *reason = "TERMINATED_ROUTE_IDENTITY"; return 0;
     }
     if (!native_stopped(native)) { *reason = "WAIT_MUSIC_HUB_PAUSED"; return 1; }
+    if (!music_inventory(3 - loopback_port, reason)) return 1;
     if (!module_owns_hub(MODULE "parameters/music_hub_devnum", fresh.number, loopback_port)) {
         *reason = "WAIT_MUSIC_HUB"; return 1;
     }
@@ -1128,6 +1131,9 @@ admission:
         }
         if (!route_binding_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; goto done; }
         loopback_port = binding->loopback_port;
+        if (!music_inventory(3 - loopback_port, &binding->reason)) {
+            state_log(binding->reason); event_wait(events, 1000); continue;
+        }
         if (access(MODULE, F_OK) == 0 || access(NODE, F_OK) == 0) {
             reason = "TERMINATED_FOREIGN_MODULE_OR_NODE"; failed = 1; goto done;
         }
@@ -1145,7 +1151,8 @@ admission:
     /* Repeat all admission guards before metadata-only existing-hub adoption. */
     if (stopping || access(RUN "/stop", F_OK) == 0 || !native_alive(native) ||
         !native_stopped(native) || !admission_loopback_safe(loopback_port) || !process_set(native->pid) ||
-        !route_binding_check(binding) || access(MODULE, F_OK) == 0 || access(NODE, F_OK) == 0) goto admission;
+        !route_binding_check(binding) || !music_inventory(3 - loopback_port, &binding->reason) ||
+        access(MODULE, F_OK) == 0 || access(NODE, F_OK) == 0) goto admission;
     if (!command("/sbin/insmod", module, "apply=1", "adopt_existing=1", port_option, "music_hubs=1")) { reason = "TERMINATED_APPLY_LOAD_FAILURE"; failed = 1; goto done; }
     loaded = 1;
     state_log("WAIT_LOOPBACK");
@@ -1174,6 +1181,9 @@ admission:
             if (!process_set(native->pid)) { reason = "TERMINATED_PROCESS_SET_CHANGE"; failed = 1; break; }
             if (!native_stopped(native)) { state_log("WAIT_NATIVE_PAUSED"); event_wait(events, 300); continue; }
             if (!route_binding_check(binding)) { reason = "TERMINATED_ROUTE_IDENTITY"; failed = 1; break; }
+            if (!music_inventory(3 - loopback_port, &binding->reason)) {
+                state_log(binding->reason); event_wait(events, 300); continue;
+            }
             if (!module_configuration(loopback_port) || fresh.bound) { reason = "TERMINATED_MODULE_ADMISSION_FAILURE"; failed = 1; break; }
             if (!module_owns_hub(MODULE "parameters/loopback_hub_devnum", fresh.hub_number, loopback_port)) {
                 state_log("WAIT_LOOPBACK"); event_wait(events, 300); continue;
