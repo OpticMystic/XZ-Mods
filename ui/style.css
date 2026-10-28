@@ -320,6 +320,18 @@ header{min-height:40px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px 
 main{padding-top:24px;padding-bottom:40px}
 @media(max-width:980px){aside .logo{width:38px;height:38px}.brand{gap:9px;padding:0 2px 14px}nav button.nav-feedback{padding:9px 8px}}
 @media(max-width:700px){.brand{border:0;margin:0;padding:0 0 8px}nav button.nav-feedback{margin-top:0}}
+/* Rail, design 2026-10-28 (Opus 5.5): the work sections (USB, Stems, DJ Profile, Updates, Tools), a hairline, then the
+   reading pages (Manual, About), then Feedback at the foot. Updates gathers every version: this app, the XZ Mods build
+   for your USB and the copy sent to XZs over the network, as tabs on one hairline. A yellow dot marks a newer app. */
+nav button{position:relative}
+nav button.nav-manual{margin-top:9px}nav button.nav-manual::before{content:"";position:absolute;left:8px;right:8px;top:-7px;border-top:1px solid #1e2223;pointer-events:none}
+.nav-dot{width:7px;height:7px;margin-left:auto;border-radius:50%;background:var(--yellow);box-shadow:0 0 0 3px #050505;flex:none}
+header:has(.subnav:not(.hidden)){flex-wrap:wrap;row-gap:10px}
+.subnav{flex-basis:100%;display:flex;gap:24px;margin-bottom:-15px}
+.subnav button{display:inline-flex;align-items:center;gap:7px;padding:6px 0 11px;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:#a1a5a4;font-size:13.5px;font-weight:550}
+.subnav button:hover{color:#eef0ec}.subnav button[aria-selected=true]{color:#fff98a;border-bottom-color:var(--yellow)}
+.subnav button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}.subnav .nav-dot{margin:0;box-shadow:none}
+@media(max-width:700px){nav button.nav-manual{margin-top:0}nav button.nav-manual::before{display:none}.subnav{gap:16px;flex-wrap:wrap}}
 /* Window sizes, 2026-10-27 (Opus 5.5). The app opens to fit the screen (src-tauri/src/main.rs) and can be made as small
    as 760 x 520. Below 860 wide the rail keeps only its icons (the labels become tooltips) so the page keeps the width;
    on a short window the page header and rail tighten so more of the page shows. */
@@ -328,13 +340,16 @@ aside{padding:16px 10px}
 .brand{justify-content:center;padding:0 0 12px}
 .brand-text,.side-note{display:none}
 nav button,nav button.selected,nav button.nav-feedback,nav button.nav-feedback.selected{justify-content:center;padding:10px 0}
-nav button:not(.nav-feedback)>span,.nav-feedback-text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+nav button:not(.nav-feedback)>span:not(.nav-dot),.nav-feedback-text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 main{padding:20px 22px 32px}
+nav .nav-dot{position:absolute;top:7px;right:13px}
 }
 @media(max-height:640px){main{padding-top:14px}
 header{min-height:0;margin-bottom:14px;padding-bottom:10px}
 aside{padding-top:14px;padding-bottom:12px}
 .brand{margin-bottom:10px;padding-bottom:10px}
+nav{gap:2px}nav button:not(.nav-feedback){padding-top:7px;padding-bottom:7px}
+.subnav{margin-bottom:-11px}
 }
 /* About, design 2026-10-28 (Opus 5.5). A page a DJ reads once and comes back to for a link: a header with the logo,
    the version and who makes it, then calm cards (the maker and his projects, links, disclaimers, licenses). Short
