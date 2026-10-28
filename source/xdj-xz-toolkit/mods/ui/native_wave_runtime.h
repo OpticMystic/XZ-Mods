@@ -37,4 +37,7 @@ int xz_native_play_visible(void);
 uint32_t xz_native_four_card(void);
 void xz_native_four_card_input(uint32_t now_ms,int focus);
 uint32_t xz_native_four_card_success(uint32_t now_ms);
+/* RAM ONLY: bit d (0..3) while deck d plays its whole track from RAM since the music USB went out (any thread).
+   The wave surface shows the RAM card (ram_notice.h) in that deck's lane while it has no waveform to draw. */
+void xz_native_ram_notice_set(unsigned mask);
 #endif

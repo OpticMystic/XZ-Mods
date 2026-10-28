@@ -18,6 +18,9 @@ void xz_layered_wave_end(void);
 /* The native lanes' zoom (audio microseconds per column, 0 before any lane is drawn) and column
    background mode. Any thread. */
 void xz_layered_wave_view(uint32_t *column_us,unsigned *background);
+/* Draw thread, after _end: how many columns the player drew from waveform data for native deck (0 or 1) since
+   _begin, capped at 536; -1 when the column hook is not installed (nothing is known). */
+int xz_layered_wave_native_columns(unsigned deck);
 /* Draw thread, after _end: native deck's layer columns this frame drew (536), or NULL. */
 struct xz_layered_data;struct xz_layered_col;
 const struct xz_layered_col *xz_layered_wave_drawn(unsigned deck,struct xz_layered_data *look);

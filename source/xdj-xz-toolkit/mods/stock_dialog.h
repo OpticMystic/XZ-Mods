@@ -25,4 +25,9 @@ unsigned xz_stock_counter_ids(uint32_t out[2]);
 /* The firmware's exact English text of a live E-8307 hub window as of the last poll, or NULL. No memory reads:
    every frame already polls through xz_stock_dialog_active. */
 const char *xz_stock_usb_hub_text(void);
+/* The caution text buffers (NATIVE_STOCK_DIALOG.md): browse sCautionBrowseString, status sCautionStatusString. */
+#define XZ_STOCK_BROWSE_TEXT 0x1ada958u
+#define XZ_STOCK_STATUS_TEXT 0x1ada718u
+/* 1 or 2 when the UTF-16 text at text reads exactly XZ_STOCK_USB_HUB_TEXT[n-1] (two stable reads), else 0. Reads only. */
+unsigned xz_stock_usb_hub_at(xz_stock_dialog_read read,uint32_t text);
 #endif

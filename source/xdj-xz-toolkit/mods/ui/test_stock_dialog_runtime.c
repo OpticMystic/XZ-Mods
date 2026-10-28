@@ -7,6 +7,9 @@ void xz_layered_wave_configure(int mode,const uint32_t rgb[3]){(void)mode;(void)
 #include "../stock_dialog.c"
 #ifdef XZ_STOCK_DIALOG_REFERENCE
 static void xz_mods_native_frame_v1(const uint16_t*p,uint32_t w,uint32_t h,uint32_t stride){(void)p;(void)w;(void)h;(void)stride;}
+/* The reference runtime predates hub_cause.h; its baseline frames never reach the hub section. */
+#include "../hub_cause.h"
+static struct xz_hub_watch hub_watch;static int hub_calm_shown;
 #endif
 #include "ui_skin.h"
 static uint16_t native_frame[800*480],frame[800*480];
@@ -146,25 +149,43 @@ int main(int argc,char **argv){
   fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;model.ui_interface=XZ_UI_INTERFACE_CLASSIC;
  }
  ids[0]=ids[1]=0;
- /* The loopback cable's E-8307 hub warning stays up while the cable is in: MODS keeps the screen, its keys and its
-    touches in both interfaces, and the dock carries the warning. Any other E-8307 text still yields. */
+ /* The E-8307 hub warning stays up while the loopback cable is in: MODS keeps the screen, its keys and its touches
+    in both interfaces. With no cable on the decks 3 and 4 route the dock carries the warning once it has settled
+    (../hub_cause.h); with the cable proven it shows no error. Any other E-8307 text still yields. */
  for(int iface=0;iface<2;iface++){
   memset(&model,0,sizeof model);model.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;
   model.theme=iface?XZ_THEME_FLAGSHIP:0;model.modern_look.known=1;
   fake_shell_running=fake_owns=fixture_shell_live=iface;touch.visible=visible=1;touch.capture=0;
   fb_takeover_active=network_connected=network_enabled=0;play_key.open=play_key_visible=0;dv.open=dv.painted=dv.painted_open=0;
   xz_ui_init(&ui);ui.page=XZ_UI_PLAY;
+  fixture_route=(struct xz_extra_route_status){0};fixture_route.state=XZ_EXTRA_ROUTE_NOT_DETECTED;
   status=0x1adb118;caution_text(status_text,"E-8307: HUBS ARE NOT SUPPORTED");
   memset(frame,0x55,sizeof frame);assert(xz_mods_render_v1(frame,800,480,800,NULL)&&xz_mods_visible_v1());
-  assert(model.usb_hub&&!strcmp(model.usb_hub,"E-8307: HUBS ARE NOT SUPPORTED"));
-  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb(0x5a0c0c));
+  assert(model.usb_hub&&!strcmp(model.usb_hub,"E-8307: HUBS ARE NOT SUPPORTED")&&model.usb_hub_view==XZ_HUB_SETTLING);
+  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]!=rgb(0x5a0c0c)&&!hub_calm_shown);
+  /* No cable, settled: the honest warning, which names a hub before the cable. */
+  hub_watch.since-=XZ_HUB_SETTLE_MS;
+  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&model.usb_hub_view==XZ_HUB_WARN&&xz_ui_usb_hub_notice(&model));
+  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb(0x5a0c0c)&&!hub_calm_shown);
   image(dir,iface?"modern-mods-hub-warning":"classic-mods-hub-warning");
   int stock_before=stock_calls,rotate_before=rotate_calls;
   assert(encoder_rotate_hook(1)==1&&rotate_calls==rotate_before&&touch.visible);
   contact(self,60,200,1);contact(self,60,200,0);assert(stock_calls==stock_before&&touch.visible&&visible);
+  /* The route finds the cable (or an admitted music hub): no strip, no error; CLASSIC's window turns calm. */
+  fixture_route.state=XZ_EXTRA_ROUTE_STARTING;fixture_route.revision=3;
+  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&model.usb_hub&&model.usb_hub_view==XZ_HUB_CABLE&&!xz_ui_usb_hub_notice(&model));
+  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]!=rgb(0x5a0c0c)&&hub_calm_shown);
+  fixture_route.state=XZ_EXTRA_ROUTE_READY;
+  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&model.usb_hub_view==XZ_HUB_CABLE&&frame[(XZ_UI_COUNTER_Y+1)*800+300]!=rgb(0x5a0c0c));
+  image(dir,iface?"modern-mods-hub-cable":"classic-mods-hub-cable");
+  /* An unsupported music hub fails the route: nothing proves the cable explains it, so the warning is back. */
+  fixture_route.state=XZ_EXTRA_ROUTE_FAILED;fixture_route.fail_part=XZ_EXTRA_ROUTE_PART_PORT;
+  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&model.usb_hub_view==XZ_HUB_WARN&&!hub_calm_shown);
+  assert(frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb(0x5a0c0c));
+  fixture_route=(struct xz_extra_route_status){0};fixture_route.state=XZ_EXTRA_ROUTE_NOT_DETECTED;
   caution_text(status_text,"E-8307: USB ACCESS ERROR");memcpy(native_frame,frame,sizeof frame);yields(NULL,NULL);
   status=0;caution_text(status_text,NULL);
-  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&!model.usb_hub);
+  assert(xz_mods_render_v1(frame,800,480,800,NULL)&&!model.usb_hub&&model.usb_hub_view==XZ_HUB_NONE&&!hub_calm_shown);
  }
  fake_shell_running=fake_owns=fixture_shell_live=0;fixture_shell_frames=0;
  no_dialog:

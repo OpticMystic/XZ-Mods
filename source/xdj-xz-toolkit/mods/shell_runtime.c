@@ -17,6 +17,9 @@
 #include "shell_runtime.h"
 #include "shell_model.h"
 #include "stock_dialog.h"
+#include "hub_cause.h"
+#include "ram/decks.h"
+#pragma weak xz_ram_deck_status
 #pragma weak xz_stock_dialog_active
 #pragma weak xz_stock_usb_hub_text
 #include "sync_native.h"
@@ -2363,6 +2366,16 @@ static void deck_view_route_locked(uint32_t now, const struct xz_extra_route_sta
   notice_locked(now,XZ_DECK_VIEW_READY_NOTICE);
  card_seen.card=card;card_seen.state=(int)route->state;card_seen.up=up;
 }
+/* RAM ONLY (shell.h ram_only): each deck playing its whole track from RAM after the music USB went out. The lane
+   shows its card only while the deck also has no waveform; shell_play.c decides that from what it draws. */
+static void ram_only_locked(void) {
+ for(int d=0;d<XZ_SHELL_DECKS;d++){
+  struct xz_ram_status s;memset(&s,0,sizeof s);
+  if(!xz_ram_deck_status){model.deck[d].known&=~K(RAM_ONLY);model.deck[d].ram_only=0;continue;}
+  xz_ram_deck_status((unsigned)d,&s);
+  model.deck[d].ram_only=s.state==XZ_RAM_DETACHED;model.deck[d].known|=K(RAM_ONLY);
+ }
+}
 static void extra_refresh_locked(uint32_t now) {
     struct xz_extra_route_status route_status={0};
     if(xz_extra_decks_route_status)route_status=xz_extra_decks_route_status();
@@ -2796,7 +2809,7 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  }
  apply_waves_locked();
  unsigned changed=xz_shell_model_refresh(&model,storage,model_read,now);
- extra_refresh_locked(now);extra_source_look_locked();
+ extra_refresh_locked(now);extra_source_look_locked();ram_only_locked();
  matching_follow();
  if(debug){
   /* BEAT FX channel selector and the rest of the record, raw, on change: the channel label mapping is not
@@ -2871,10 +2884,13 @@ static void refresh_locked(uint32_t now, const struct xz_shell_runtime_frame_inp
  moving=xz_shrt_moving_decks(&model);
  sec.moving|=moving;follow_bits=following;sec.following|=following;
  uint32_t raw_caution=xz_stock_dialog_active&&xz_stock_dialog_active()?1u:0u,caution=raw_caution;
- /* The player's E-8307 hub warning does not take the screen (stock_dialog.h); say it once when it appears. */
- {static const char *hub_said;const char *hub=xz_stock_usb_hub_text?xz_stock_usb_hub_text():NULL;
-  if(hub&&hub!=hub_said)notice_locked(now,"E-8307 HUBS ARE NOT SUPPORTED: FROM THE LOOPBACK CABLE");
-  hub_said=hub;}
+ /* The player's E-8307 hub warning does not take the screen (stock_dialog.h). From the loopback cable it is no
+    error, so nothing is said (hub_cause.h); unexplained after the settle time, it is said once. */
+ {static struct xz_hub_watch hub_watch;static const char *hub_said;
+  const char *hub=xz_stock_usb_hub_text?xz_stock_usb_hub_text():NULL;
+  enum xz_hub_view view=xz_hub_step(&hub_watch,hub,xz_hub_route_cable(model.route_state,model.route_revision),now);
+  if(view==XZ_HUB_WARN&&hub!=hub_said){notice_locked(now,XZ_HUB_NOTICE);hub_said=hub;}
+  if(view==XZ_HUB_NONE)hub_said=NULL;}
  if(caution!=raw_caution)xz_mods_shell_proof_v1.caution_filtered++;
  xz_shrt_handoff_caution(&handoff,caution);
  xz_mods_shell_proof_v1.caution=caution;
@@ -2978,7 +2994,7 @@ int xz_shell_runtime_frame(uint16_t *pixels, size_t stride, const struct xz_shel
  if(!owned||!refreshed||input_changed||follow_bits||now-last_refresh_ms>=XZ_SHRT_REFRESH_MS){
   uint64_t r0=now_us();refresh_locked(now,in);wf.refresh_us=(uint32_t)(now_us()-r0);
  }else if(extra_changed){
-  extra_refresh_locked(now);extra_source_look_locked();
+  extra_refresh_locked(now);extra_source_look_locked();ram_only_locked();
   uint32_t period=xz_shrt_frame_period_ms(xz_shell_screen(&shell),xz_shrt_moving_decks(&model)!=0),motion=xz_shell_motion_ms(&shell,&model);
   __atomic_store_n(&period_ms,motion&&motion<period?motion:period,__ATOMIC_RELAXED);
  }
