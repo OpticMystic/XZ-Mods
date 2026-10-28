@@ -19,13 +19,7 @@ module_param(adopt_existing, bool, 0444);
 MODULE_PARM_DESC(adopt_existing, "Also inspect an existing unbound childless loopback hub");
 static unsigned int loopback_port;
 module_param(loopback_port, uint, 0444);
-MODULE_PARM_DESC(loopback_port, "Required top USB port (1 or 2) for the loopback cable");
-static bool music_hubs;
-module_param(music_hubs, bool, 0444);
-MODULE_PARM_DESC(music_hubs, "Admit one idle high-speed USB hub on the opposite top port");
-static unsigned int loopback_hub_devnum, music_hub_devnum;
-module_param(loopback_hub_devnum, uint, 0444);
-module_param(music_hub_devnum, uint, 0444);
+MODULE_PARM_DESC(loopback_port, "Required top USB port (1 or 2), opposite the admitted music drive");
 
 /* Read-only, bounded admission trace. Values are reset only by module load.
  * These fields describe the last existing-device scan, not device addresses. */
@@ -95,35 +89,23 @@ static void diagnose_existing(struct usb_device *dev)
 }
 
 static DEFINE_MUTEX(target_lock);
-static struct usb_device *target, *music_target;
+static struct usb_device *target;
 static bool exiting;
 static void cleanup_target(struct work_struct *work);
 static void inspect_existing(void);
 static DECLARE_DELAYED_WORK(cleanup_work, cleanup_target);
 
-/* Only a direct child of either physical top port can be owned. A child hub
- * below the music hub still reaches the stock depth limit and is refused. */
-static int hub_slot(const struct usb_device *dev)
-{
-    unsigned int slot;
-    for (slot = 0; slot < (music_hubs ? 2u : 1u); ++slot) {
-        const struct xz_quad_port *port = xz_quad_port(slot ? 3 - loopback_port : loopback_port);
-        if (port && !strcmp(dev_name(&dev->dev), port->usb) &&
-            !strcmp(dev->devpath, port->devpath)) return (int)slot;
-    }
-    return -1;
-}
-
-static bool qualified_hub(const struct usb_device *dev, int slot)
+static bool qualified_hub(const struct usb_device *dev)
 {
     const struct usb_device *parent = dev->parent;
-    unsigned int vendor = le16_to_cpu(dev->descriptor.idVendor);
-    unsigned int product = le16_to_cpu(dev->descriptor.idProduct);
-    bool loopback = vendor == 0x2b73 && product == 0x002e;
+    const struct xz_quad_port *port = xz_quad_port(loopback_port);
 
-    return slot >= 0 && dev->level == 2 && dev->speed == USB_SPEED_HIGH &&
-        dev->devnum > 0 && (slot == 0 ? loopback : (!loopback && vendor && product)) &&
-        dev->descriptor.bDeviceClass == USB_CLASS_HUB && parent &&
+    return port && !strcmp(dev_name(&dev->dev), port->usb) &&
+        dev->level == 2 && dev->speed == USB_SPEED_HIGH &&
+        le16_to_cpu(dev->descriptor.idVendor) == 0x2b73 &&
+        le16_to_cpu(dev->descriptor.idProduct) == 0x002e &&
+        dev->descriptor.bDeviceClass == USB_CLASS_HUB &&
+        !strcmp(dev->devpath, port->devpath) && parent &&
         parent->level == 1 && !strcmp(parent->devpath, "1") &&
         le16_to_cpu(parent->descriptor.idVendor) == 0x0451 &&
         le16_to_cpu(parent->descriptor.idProduct) == 0x8027 &&
@@ -160,23 +142,20 @@ static bool idle_hub(struct usb_device *dev)
  * No bind, reset, or configuration operations occur in this module. */
 static void consider_locked(struct usb_device *dev, bool existing)
 {
-    int slot = hub_slot(dev);
-    struct usb_device **owned = slot == 1 ? &music_target : &target;
-
     mutex_lock(&target_lock);
-    if (existing && slot != 1) {
+    if (existing) {
         if (exiting || target) reject_reason = 7;
         else diagnose_existing(dev);
     }
-    if (!exiting && !*owned && qualified_hub(dev, slot) && idle_hub(dev)) {
-        printk(KERN_INFO "xz_hub_depth: qualified %s existing=%u apply=%u music=%u\n",
-               dev_name(&dev->dev), existing, apply, slot == 1);
+    if (!exiting && !target &&
+        qualified_hub(dev) && idle_hub(dev)) {
+        printk(KERN_INFO "xz_hub_depth: qualified %s existing=%u apply=%u\n",
+               dev_name(&dev->dev), existing, apply);
         if (apply && try_module_get(THIS_MODULE)) {
-            *owned = usb_get_dev(dev);
-            if (slot == 1) music_hub_devnum = dev->devnum;
-            else loopback_hub_devnum = dev->devnum;
+            target = usb_get_dev(dev);
             dev->level = 1;
-            /* Generic-driver unbind can emit REMOVE while still configured. */
+            /* Monitor even without REMOVE: generic-driver unbind emits REMOVE
+             * while configured, and subsequent disconnect may emit none. */
             schedule_delayed_work(&cleanup_work, HZ);
             printk(KERN_INFO "xz_hub_depth: level 2 -> 1; awaiting explicit hub bind\n");
         }
@@ -186,44 +165,44 @@ static void consider_locked(struct usb_device *dev, bool existing)
 
 static void cleanup_target(struct work_struct *work)
 {
-    unsigned int slot, released = 0;
+    struct usb_device *dev;
+    bool released = false;
     (void)work;
 
-    for (slot = 0; slot < 2; ++slot) {
-        struct usb_device **owned = slot ? &music_target : &target;
-        struct usb_device *dev;
-        bool dropped = false;
-
-        /* Never hold target_lock while acquiring a USB device lock. */
-        mutex_lock(&target_lock);
-        dev = usb_get_dev(*owned);
-        mutex_unlock(&target_lock);
-        if (!dev) continue;
-        usb_lock_device(dev);
-        mutex_lock(&target_lock);
-        if (*owned == dev && dev->state == USB_STATE_NOTATTACHED) {
-            dev->level = 2;
-            *owned = NULL;
-            if (slot) music_hub_devnum = 0;
-            else loopback_hub_devnum = 0;
-            dropped = true;
-            released++;
-            printk(KERN_INFO "xz_hub_depth: physically disconnected; level restored\n");
-        }
-        mutex_unlock(&target_lock);
-        usb_unlock_device(dev);
-        if (dropped) usb_put_dev(dev); /* ownership reference */
-        usb_put_dev(dev); /* temporary reference */
-    }
-    /* Recover replacement ADDs which arrived before deferred cleanup. The old
-     * self-pins keep module text alive until any replacements acquire theirs. */
-    if (released && adopt_existing) inspect_existing();
+    /* Snapshot a temporary reference without holding target_lock while
+     * acquiring the USB device lock. */
     mutex_lock(&target_lock);
-    if (!exiting && (target || music_target)) schedule_delayed_work(&cleanup_work, HZ);
+    dev = usb_get_dev(target);
     mutex_unlock(&target_lock);
-    if (released == 2) module_put(THIS_MODULE);
-    /* No module state access after the last ownership pin is released. */
-    if (released) module_put(THIS_MODULE);
+    if (!dev)
+        return;
+    usb_lock_device(dev);
+    mutex_lock(&target_lock);
+    if (target == dev) {
+        if (dev->state == USB_STATE_NOTATTACHED) {
+            dev->level = 2;
+            target = NULL;
+            released = true;
+            printk(KERN_INFO "xz_hub_depth: physically disconnected; level restored\n");
+        } else if (!exiting) {
+            schedule_delayed_work(&cleanup_work, HZ);
+        }
+    }
+    mutex_unlock(&target_lock);
+    usb_unlock_device(dev);
+    if (released)
+        usb_put_dev(dev); /* ownership reference, after all device locks */
+    usb_put_dev(dev); /* temporary reference */
+    /* ADD may precede this deferred cleanup. While the old self-pin still
+     * protects module text, recover a missed replacement on the supported
+     * adoption path. The scan takes all device locks afresh, never target_lock
+     * -> device lock. The new generation acquires its own independent pin. */
+    if (released && adopt_existing)
+        inspect_existing();
+    /* exit synchronizes with this callback before freeing module text. No
+     * work is queued and no module state is accessed after this final put. */
+    if (released)
+        module_put(THIS_MODULE);
 }
 
 static int hub_event(struct notifier_block *block, unsigned long action, void *data)
@@ -234,7 +213,7 @@ static int hub_event(struct notifier_block *block, unsigned long action, void *d
         consider_locked(dev, false);
     } else if (action == USB_DEVICE_REMOVE) {
         mutex_lock(&target_lock);
-        if (target == dev || music_target == dev) {
+        if (target == dev) {
             printk(KERN_INFO "xz_hub_depth: REMOVE observed state=%u; cleanup deferred\n",
                    dev->state);
             schedule_delayed_work(&cleanup_work, HZ);
@@ -251,8 +230,10 @@ static struct notifier_block hub_notifier = { .notifier_call = hub_event };
 static void inspect_existing(void)
 {
     struct usb_bus *bus;
-    /* Match usbfs traversal locking. Only the two top-port children are
-     * inspected. A direct storage device is never locked or changed. */
+    const struct xz_quad_port *port = xz_quad_port(loopback_port);
+    /* Match the public usbfs traversal locking in devices.c. Bus-list mutex
+     * also excludes root teardown. Only bus 2 / root port 1 / selected child
+     * is inspected; the music port is never locked or modified. */
     scan_stage = 0;
     reject_reason = 1;
     mutex_lock(&usb_bus_list_lock);
@@ -273,20 +254,13 @@ static void inspect_existing(void)
             if (upstream->level == 1 && !strcmp(upstream->devpath, "1") &&
                 le16_to_cpu(upstream->descriptor.idVendor) == 0x0451 &&
                 le16_to_cpu(upstream->descriptor.idProduct) == 0x8027) {
-                unsigned int slot;
-                for (slot = 0; slot < (music_hubs ? 2u : 1u); ++slot) {
-                    const struct xz_quad_port *port = xz_quad_port(slot ? 3 - loopback_port : loopback_port);
-                    dev = upstream->children[port->child];
-                    if (!dev) { if (!slot) reject_reason = 6; continue; }
-                    /* Descriptor fields are stable under the parent lock.
-                     * Bound hubs are inspected under their device lock but
-                     * idle_hub refuses them without changing any metadata. */
-                    if (slot && dev->descriptor.bDeviceClass != USB_CLASS_HUB) continue;
-                    if (!slot) scan_stage = 4;
+                dev = upstream->children[port->child];
+                if (dev) {
+                    scan_stage = 4;
                     usb_lock_device(dev);
                     consider_locked(dev, true);
                     usb_unlock_device(dev);
-                }
+                } else reject_reason = 6;
             } else reject_reason = 5;
             usb_unlock_device(upstream);
         } else reject_reason = 4;
@@ -308,8 +282,8 @@ static int __init xz_hub_depth_init(void)
     if (adopt_existing)
         inspect_existing();
     /* No failure return after notifier registration, pin, or mutation. */
-    printk(KERN_INFO "xz_hub_depth: registered apply=%u adopt_existing=%u loopback_port=%u music_hubs=%u\n",
-           apply, adopt_existing, loopback_port, music_hubs);
+    printk(KERN_INFO "xz_hub_depth: registered apply=%u adopt_existing=%u loopback_port=%u\n",
+           apply, adopt_existing, loopback_port);
     return 0;
 }
 
@@ -326,4 +300,4 @@ static void __exit xz_hub_depth_exit(void)
 module_init(xz_hub_depth_init);
 module_exit(xz_hub_depth_exit);
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Volatile XDJ-XZ loopback and opposite-port music hub metadata");
+MODULE_DESCRIPTION("Volatile XDJ-XZ loopback hub metadata with guarded selected-port adoption");

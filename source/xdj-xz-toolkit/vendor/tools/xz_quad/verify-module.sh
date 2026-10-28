@@ -18,7 +18,7 @@ test "$rc" = 134
 gcc -std=gnu11 -Wall -Wextra -Werror -pthread -g -fsanitize=address,undefined -fno-omit-frame-pointer -no-pie test_module.c -o test-module-host
 arm-linux-gnueabi-gcc -std=gnu11 -Wall -Wextra -Werror -pthread -g -static test_module.c -o test-module-arm
 for port in 1 2; do
-for n in $(seq 0 70); do
+for n in $(seq 0 39); do
     ./test-module-host "$n" "$port" > "module-host-$port-$n.log" 2>&1
     qemu-arm ./test-module-arm "$n" "$port" > "module-arm-$port-$n.log" 2>&1
     echo "PASS module host+ARM port=$port case=$n"
@@ -26,14 +26,12 @@ done
 for n in $(seq 1 40); do
     ./test-module-host 22 "$port" > /dev/null
     ./test-module-host 23 "$port" > /dev/null
-    ./test-module-host 63 "$port" > /dev/null
-    ./test-module-host 64 "$port" > /dev/null
 done
 done
-echo 'PASS 320 additional host concurrent ordering runs'
+echo 'PASS 160 additional host concurrent ordering runs'
 gcc -std=gnu11 -Wall -Wextra -Werror -pthread -g -fsanitize=thread -fno-pie -no-pie test_module.c -o test-module-tsan
 for port in 1 2; do
-for n in 22 23 24 25 27 60 63 64 65; do
+for n in 22 23 24 25 27; do
     setarch "$(uname -m)" -R ./test-module-tsan "$n" "$port" > "module-tsan-$port-$n.log" 2>&1
 done
 done
