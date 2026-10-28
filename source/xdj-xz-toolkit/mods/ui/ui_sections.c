@@ -167,9 +167,10 @@ size_t xz_ui_section_controls(const struct xz_ui *u, const struct xz_ui_model *m
   break;
  case XZ_UI_KEY_SETUP:
   add(w,&n,XZ_UI_KEY_SHIFT,-1,XZ_UI_KEY,"KEY DOWN");add(w,&n,XZ_UI_KEY_SHIFT,0,XZ_UI_KEY,"RESET");add(w,&n,XZ_UI_KEY_SHIFT,1,XZ_UI_KEY,"KEY UP");
-  add(w,&n,XZ_UI_KEY_SYNC,0,XZ_UI_KEYSYNC,"KEY SYNC");
-  if((m->deck[u->deck].ready&(XZ_UI_KEY|XZ_UI_KEYSYNC))!=(XZ_UI_KEY|XZ_UI_KEYSYNC))
-   add(w,&n,XZ_UI_KEY_CHECK,0,0,"SET UP KEYS");
+  {/* The master deck is what the others match: KEY SYNC has no target there and nothing needs setting up. */
+   const struct xz_ui_deck *d=&m->deck[u->deck];uint32_t need=XZ_UI_KEY|(d->key_master?0u:XZ_UI_KEYSYNC);
+   if(!d->key_master)add(w,&n,XZ_UI_KEY_SYNC,0,XZ_UI_KEYSYNC,"KEY SYNC");
+   if((d->ready&need)!=need)add(w,&n,XZ_UI_KEY_CHECK,0,0,"SET UP KEYS");}
   break;
  default:break;
  }
@@ -618,6 +619,8 @@ void xz_ui_section_render(const struct xz_ui_scene *sc){
   xz_pic_text(c,X0,58,"KEYS",20,s.ink);
   xz_pic_wrap(c,X0,86,CW,15,3,"Shift the chosen deck's key a semitone at a time, put it back with RESET, or match it to the master deck with KEY SYNC. SHIFT + SYNC on a deck does the same match.",s.dim);
   xz_pic_wrap(c,X0,140,CW,15,2,"With MASTER TEMPO on, the key holds while the tempo moves; without it, the tempo changes the key too.",s.dim);
+  if(m->deck[u->deck].key_master)
+   xz_pic_wrap(c,X0+412,204,CW-412,15,2,"This deck is the master. The other decks match their key to it.",s.ink);
   break;}
  case XZ_UI_SCREEN_LOOK:
   caption(c,&s,X0,48,CW,"TOP BAR");caption(c,&s,X0,112,CW,"WAVEFORMS");caption(c,&s,X0,176,CW,"TRACK COLOURS");

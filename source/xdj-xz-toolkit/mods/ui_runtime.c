@@ -2511,7 +2511,7 @@ static void refresh_local(void) {
             else if(k->playing_valid)snprintf(u->key_readout,sizeof u->key_readout,"%s > %s %+dc",original,playing,k->playing.cents);
             else snprintf(u->key_readout,sizeof u->key_readout,"TRACK %s / REQUEST %+dc",original,k->desired_cents);
         }
-        u->ready&=~XZ_UI_KEYSYNC;
+        u->ready&=~XZ_UI_KEYSYNC;u->key_master=have_master&&authority.deck==d;
         if(k->engine_ready&&(k->engaged||(have_master&&authority.deck!=d&&k->metadata_valid))&&
             (d>=2||native_master_tempo_on))u->ready|=XZ_UI_KEYSYNC;
         u->key_color=0xa8b2bf;
