@@ -55,6 +55,17 @@ def require_usb_root(path):
         raise FileExistsError('This USB already has autoexec.bin. Keep that loader or back it up before preparing a new one.')
     return path
 
+def require_loader_target(path):
+    """A FAT/FAT32 USB root, or a staging folder whose loader the DJ copies to a USB afterward."""
+    path=_safe_path(path)
+    target=target_info(path)
+    if target['direct_usb_root']:return require_usb_root(path),target
+    if target.get('volume_root') and path==Path(target['volume_root']):
+        raise ValueError('Choose the root of a FAT/FAT32 USB drive, or a folder. XZ Mods does not format drives or erase music.')
+    if (path/'autoexec.bin').exists():
+        raise FileExistsError('This folder already has autoexec.bin. Choose an empty folder.')
+    return path,target
+
 def inspect_inputs(rbp,key):
     application_path=_regular(rbp);secret=_regular(key)
     application,key_verified=firmware.import_application(application_path,firmware.effective_key(secret))
