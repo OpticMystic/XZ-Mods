@@ -34,7 +34,8 @@ static unsigned bind_writes, music_stat_reads, module_music_reads, native_flag_r
 static char last_bind[32];
 static uint32_t fixture_engine, fixture_begin, fixture_end, fixture_players[2];
 static uint16_t fixture_flags[2];
-static unsigned slot_reads, torn_read, lifecycle, event_waits, ready_waits, node_creates, node_removes;
+static unsigned slot_reads, range_reads, torn_read, lifecycle, event_waits, ready_waits, node_creates, node_removes;
+static unsigned native_deck_waits, native_pause_waits;
 static int m_command(const char *,const char *,const char *,const char *,const char *,const char *);
 static int m_event_socket(void);
 static void m_event_wait(int,int);
@@ -201,15 +202,32 @@ static ssize_t m_pread(int fd,void *out,size_t size,off_t offset) {
         if(offset==0x494ec&&size==8) { const unsigned char sig[]={0x0c,0x30,0x90,0xe5,0x10,0x20,0x90,0xe5};memcpy(out,sig,8);if(fault==13)((unsigned char *)out)[0]^=1;return 8; }
         if(offset==0x49508)word=0x15d00e77+(fault==14);
         else if(offset==0x10e9688)word=fixture_engine;
-        else if(offset==(off_t)fixture_engine+12&&size==8) { uint32_t r[]={fixture_begin,fixture_end};memcpy(out,r,8);return 8; }
-        else if(offset==(off_t)fixture_begin&&size==8) {
-            memcpy(out,fixture_players,8);slot_reads++;
+        else if(offset==(off_t)fixture_engine+12&&size==8) {
+            uint32_t r[]={fixture_begin,fixture_end};memcpy(out,r,8);range_reads++;
+            if(torn_read==4)fixture_end=fixture_end==fixture_begin?fixture_begin+4:fixture_begin;
+            if(torn_read==5)fixture_engine+=0x1000;
+            if(torn_read==6)txt("/proc/42/stat","42 (rbp) S 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 778 0");
+            return 8;
+        }
+        else if(offset==(off_t)fixture_begin&&(size==4||size==8)) {
+            if(fault==16)return -1;
+            assert(size<=fixture_end-fixture_begin);
+            memcpy(out,fixture_players,size);slot_reads++;
             if(torn_read==1)fixture_players[0]=fixture_players[0]?0:0x40000;
             if(torn_read==2)fixture_engine+=0x1000;
             if(torn_read==3){fixture_begin+=0x100;fixture_end+=0x100;}
-            return 8;
+            if(torn_read==7&&slot_reads==1)fixture_flags[0]=0x100;
+            if(torn_read==8&&slot_reads==2)fixture_end+=4;
+            return (ssize_t)size;
         }
-        else if(offset==0x40e76||offset==0x50e76) { uint16_t flags=fixture_flags[offset==0x50e76]||fault==3||(fault==12&&++native_flag_reads>=3);memcpy(out,&flags,2);return 2; }
+        else if(offset==0x40e76||offset==0x50e76||offset==0x40e77||offset==0x50e77) {
+            if(fault==15)return -1;
+            uint16_t flags=fixture_flags[offset>=0x50000];
+            if(fault==3||(fault==12&&++native_flag_reads>=3))flags|=0x100;
+            if((offset&1)==0){assert(size==2);memcpy(out,&flags,2);}
+            else {assert(size==1);*(unsigned char *)out=(unsigned char)(flags>>8);}
+            return (ssize_t)size;
+        }
         else assert(0);
         memcpy(out,&word,size); return (ssize_t)size;
     }
@@ -229,7 +247,8 @@ static void fixture(unsigned unit) {
     memset(files,0,sizeof(files));file_count=0;fault=reads=0;fixture_music_port=2;bind_writes=music_stat_reads=module_music_reads=native_flag_reads=0;last_bind[0]=0;
     fixture_engine=0x20000;fixture_begin=0x30000;fixture_end=0x30008;
     fixture_players[0]=0x40000;fixture_players[1]=0x50000;fixture_flags[0]=fixture_flags[1]=0;
-    slot_reads=torn_read=lifecycle=event_waits=ready_waits=node_creates=node_removes=0;stopping=0;
+    slot_reads=range_reads=torn_read=lifecycle=event_waits=ready_waits=node_creates=node_removes=0;
+    native_deck_waits=native_pause_waits=0;stopping=0;
     txt("/dev/shm/helper/xz_hub_depth.ko","synthetic module");
     txt("/proc/sys/kernel/random/boot_id",unit?"22222222-2222-4222-8222-222222222222":"11111111-1111-4111-8111-111111111111");
     txt("/sys/class/net/eth0/address",unit?"02:11:22:33:44:66":"02:11:22:33:44:55");
@@ -607,12 +626,14 @@ static void m_event_wait(int fd,int ms) {
     CHECK(lifecycle&&fds[fd].used&&++event_waits<40);
     if(*status_terminal) { hide_prefix(USB "2-1.2");txt(MODULE "refcnt","0");return; }
     if(equals(RUN "/status","WAIT_NATIVE_DECKS")) {
+        native_deck_waits++;
         CHECK(ms==500&&!bind_writes&&!find(MODULE));
         struct mock_file *json=find(RUN "/status.json");CHECK(json!=NULL);
         CHECK(strstr((char *)json->bytes,"\"retryable\":true")!=NULL);
         CHECK(!node_creates);fixture_engine=0x20000;fixture_begin=0x30000;fixture_end=0x30008;return;
     }
     if(equals(RUN "/status","WAIT_NATIVE_PAUSED")) {
+        native_pause_waits++;
         CHECK(!bind_writes&&!node_creates);
         fixture_flags[0]=fixture_flags[1]=0;fixture_players[0]=fixture_players[1]=0;return;
     }
@@ -620,7 +641,8 @@ static void m_event_wait(int fd,int ms) {
     CHECK(find(NODE)!=NULL&&node_creates==1&&!node_removes);
     ready_waits++;
     if(ready_waits==1) {
-        fixture_players[0]=0x40000;fixture_flags[0]=1;
+        fixture_players[0]=0x40000;fixture_flags[0]=0x100;
+        if(lifecycle==9||(lifecycle>=11&&lifecycle<=13)){fixture_begin=0x30100;fixture_end=fixture_begin+8;}
     } else if(ready_waits==2) {
         /* A loaded, now playing deck keeps the already-published route. */
         if(lifecycle==4)fixture_engine+=0x1000;
@@ -629,6 +651,55 @@ static void m_event_wait(int fd,int ms) {
         else if(lifecycle==7)fault=5;
         else txt(RUN "/stop","");
     } else CHECK(0);
+}
+static void native_empty_vector_tests(void) {
+    for(unsigned shape=0;shape<4;shape++) {
+        fixture(0);unsigned count=shape?shape-1:0;
+        if(!shape)fixture_begin=0;
+        fixture_end=fixture_begin+count*4;
+        struct native n={.memory=-1};struct route_binding b={0};mock_loopback(1,0,0);
+        CHECK(qualify_native(&n,42));
+        CHECK(native_decks_ready(&n));CHECK(n.count==count&&range_reads>=2);CHECK(native_stopped(&n));
+        CHECK(route_binding_admit(&b,&n)==ADMIT_READY);m_close(n.memory);
+    }
+    puts("PASS native vectors with zero, one and two players admit without tracks");
+    for(unsigned relocate=0;relocate<2;relocate++) {
+        fixture(0);fixture_end=fixture_begin;
+        struct native n=native_fixture();struct route_binding b={0};mock_loopback(1,0,0);
+        CHECK(route_binding_admit(&b,&n)==ADMIT_READY);
+        for(unsigned count=1;count<=2;count++) {
+            if(relocate)fixture_begin+=0x100;
+            fixture_end=fixture_begin+count*4;
+            fixture_flags[count-1]=0x101;
+            CHECK(native_alive(&n));CHECK(n.count==count);CHECK(!native_stopped(&n));
+            CHECK(route_binding_check(&b));
+            fixture_flags[count-1]=1;CHECK(native_stopped(&n));
+        }
+        fixture_begin+=0x100;fixture_end+=0x100;CHECK(!native_alive(&n));m_close(n.memory);
+    }
+    for(unsigned count=1;count<=2;count++) {
+        fixture(0);fixture_end=fixture_begin+count*4;struct native n=native_fixture();
+        fixture_end-=4;CHECK(!native_alive(&n));m_close(n.memory);
+    }
+    puts("PASS stable short-vector growth retains the route; shrink or full-vector replacement ends native identity");
+    for(unsigned torn=4;torn<=6;torn++) {
+        fixture(0);fixture_end=fixture_begin;struct native n={.memory=-1};
+        CHECK(qualify_native(&n,42));torn_read=torn;
+        CHECK(!native_decks_ready(&n));CHECK(!n.engine&&!slot_reads);m_close(n.memory);
+    }
+    puts("PASS torn empty-vector capture and process restart do not capture native identity");
+}
+static void native_adjacent_flag_tests(void) {
+    const unsigned adjacent[]={0,1,0x80,0xff};
+    for(unsigned slot=0;slot<2;slot++)for(unsigned i=0;i<COUNT(adjacent);i++) {
+        fixture(0);fixture_flags[slot]=(uint16_t)adjacent[i];
+        struct native n={.memory=-1};struct route_binding b={0};mock_loopback(1,0,0);
+        CHECK(qualify_native(&n,42));CHECK(native_decks_ready(&n));
+        CHECK(native_stopped(&n));CHECK(route_binding_admit(&b,&n)==ADMIT_READY);
+        fixture_flags[slot]|=0x100;
+        CHECK(!native_stopped(&n));m_close(n.memory);
+    }
+    puts("PASS adjacent +0xe76 values do not override the +0xe77 playing byte");
 }
 static void native_slot_tests(void) {
     for(unsigned zero=0;zero<3;zero++) {
@@ -643,18 +714,27 @@ static void native_slot_tests(void) {
     for(unsigned slot=0;slot<2;slot++)for(unsigned i=0;i<COUNT(invalid)+2;i++) {
         fixture(0);struct native n=native_fixture();struct route_binding b={0};mock_loopback(1,0,0);
         if(i<COUNT(invalid))fixture_players[slot]=invalid[i];
-        else fixture_flags[slot]=(i==COUNT(invalid)?1:0x8000);
+        else fixture_flags[slot]=(i==COUNT(invalid)?0x100:0x8000);
         CHECK(!native_stopped(&n));CHECK(route_binding_admit(&b,&n)==ADMIT_WAIT);
         CHECK(b.state==BINDING_NEW);CHECK(!strcmp(b.reason,"WAIT_NATIVE_PAUSED"));m_close(n.memory);
     }
     puts("PASS playing flags and nonzero invalid slots wait without dereferencing invalid addresses");
-    for(unsigned kind=1;kind<=3;kind++) {
+    for(int failed_read=15;failed_read<=16;failed_read++) {
         fixture(0);struct native n=native_fixture();struct route_binding b={0};mock_loopback(1,0,0);
-        fixture_players[0]=fixture_players[1]=0;torn_read=kind;
-        CHECK(!native_stopped(&n));CHECK(route_binding_admit(&b,&n)!=ADMIT_READY);m_close(n.memory);
+        fault=failed_read;CHECK(!native_stopped(&n));CHECK(route_binding_admit(&b,&n)==ADMIT_WAIT);
+        CHECK(b.state==BINDING_NEW);m_close(n.memory);
+    }
+    for(unsigned kind=1;kind<=8;kind++)for(unsigned admit=0;admit<2;admit++) {
+        fixture(0);struct native n=native_fixture();struct route_binding b={0};mock_loopback(1,0,0);
+        if(kind<=3)fixture_players[0]=fixture_players[1]=0;
+        if(kind==8){fixture_end=fixture_begin+4;n.count=1;}
+        torn_read=kind;slot_reads=0;
+        if(admit)CHECK(route_binding_admit(&b,&n)!=ADMIT_READY);
+        else CHECK(!native_stopped(&n));
+        m_close(n.memory);
     }
     puts("PASS torn player, engine and range reads cannot admit");
-    for(unsigned kind=0;kind<7;kind++) {
+    for(unsigned kind=0;kind<10;kind++) {
         fixture(0);struct native n={.memory=-1};
         if(kind==0)fixture_engine=0;
         if(kind==1)fixture_engine=1;
@@ -663,6 +743,9 @@ static void native_slot_tests(void) {
         if(kind==4)fixture_end+=4;
         if(kind==5){fixture_begin=UINT32_MAX-3;fixture_end=4;}
         if(kind==6){fixture_begin++;fixture_end++;}
+        if(kind==7)fixture_end=fixture_begin-4;
+        if(kind==8)fixture_end=fixture_begin+2;
+        if(kind==9){fixture_begin=1;fixture_end=1;}
         CHECK(qualify_native(&n,42));CHECK(!slot_reads&&!n.engine);
         CHECK(!native_decks_ready(&n));CHECK(native_alive(&n));
         fixture_engine=0x20000;fixture_begin=0x30000;fixture_end=0x30008;
@@ -676,19 +759,27 @@ static void native_slot_tests(void) {
     puts("PASS wrong runtime signature/field still REFUSED_NATIVE_RUNTIME before deck admission");
 }
 static void native_lifecycle_tests(void) {
-    for(unsigned scenario=1;scenario<=10;scenario++) {
+    for(unsigned scenario=1;scenario<=16;scenario++) {
         fixture_port(2);txt("/proc/self/mountinfo",no_music_mounts);mock_loopback(1,0,0);
         lifecycle=scenario;fixture_players[0]=fixture_players[1]=0;
         if(scenario==2)fixture_engine=0;
-        if(scenario==3){fixture_players[1]=0x50000;fixture_flags[1]=1;}
+        if(scenario==3){fixture_players[1]=0x50000;fixture_flags[1]=0x100;}
         if(scenario==8)fixture_players[0]=1;
         if(scenario==9)fixture_end=fixture_begin;
         if(scenario==10)fixture_players[1]=0x50000;
+        if(scenario==11)fixture_begin=fixture_end=0;
+        if(scenario==12){fixture_end=fixture_begin+4;fixture_players[0]=0x40000;}
+        if(scenario==13){fixture_end=fixture_begin+4;fixture_players[0]=0x40000;fixture_flags[0]=1;}
+        if(scenario>=14){fixture_players[0]=0x40000;fixture_players[1]=0x50000;fixture_flags[0]=fixture_flags[1]=1;}
+        if(scenario==15)fixture_flags[0]|=0x100;
+        if(scenario==16)fixture_flags[1]|=0x100;
         char *args[]={"xz-auto-bridge","--run","42",NULL};
         int result=bridge_unused_main(3,args);
         if(result!=(scenario==7))fprintf(stderr,"scenario=%u result=%d terminal=%s\n",scenario,result,status_terminal);
         CHECK(result==(scenario==7));
         CHECK(ready_waits==2&&node_creates==1&&node_removes==1&&bind_writes==1);
+        CHECK(native_deck_waits==(scenario==2));
+        CHECK(native_pause_waits==(scenario==3||scenario==8||scenario==15||scenario==16));
         CHECK(!find(NODE)&&!find(RUN "/bridge.pid")&&!find(MODULE));
         const char *reason=scenario>=4&&scenario<=6?"TERMINATED_NATIVE_END_OR_IDENTITY_CHANGE":
             scenario==7?"TERMINATED_PROCESS_SET_CHANGE":"TERMINATED_STOP_MARKER";
@@ -700,6 +791,7 @@ static void native_lifecycle_tests(void) {
 }
 
 int main(void) {
+    native_adjacent_flag_tests();native_empty_vector_tests();
     native_slot_tests();native_lifecycle_tests();
     CHECK(self_test()==0);
     route_media_tests();
