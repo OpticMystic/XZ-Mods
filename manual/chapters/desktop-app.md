@@ -140,7 +140,7 @@ Press **Write to USB** in the bar under the checklist. If a newer build needs a 
 Your USB is ready. Four decks and the optional support link follow further down.
 1 @ 757,180 Result | Your USB is ready, or Finished, with something to check.
 2 @ 575,246 What was written | One line per part. A game that did not download says why.
-3 @ 372,319 On the XZ | What to do with the USB next, and how to switch between CLASSIC and MODERN with the rekordbox button above LINK.
+3 @ 372,319 On the XZ | What to do with the USB next, and how to switch between CLASSIC and MODERN with the [[rekordbox]] button above [[LINK]].
 4 @ 490,554 Four decks | How four decks work. See [Four decks in the app](#four-decks-in-the-app).
 5 @ 808,728 Done | Back to the dashboard.
 6 @ 1062,728 Eject USB | Ejects the USB so you can unplug it.
@@ -164,7 +164,7 @@ The Four decks section on the done screen.
 1 @ 490,51 Four decks | Experimental. Nothing to do now. You set it up at the player when you want it.
 2 @ 560,300 Cable animation | The loopback cable from the rear USB-B socket to a top port. The animation shows USB 1; USB 2 works too.
 3 @ 1006,387 Pause cable animation | Stops and starts the animation. With reduced motion turned on, the app shows a still picture.
-4 @ 722,502 At the player | Cable from the rear USB-B socket to top USB 1 or 2, music in the other top port (a stick, or one USB 2.0 hub), and CH3 and CH4 set to USB.
+4 @ 722,502 At the player | Cable from the rear USB-B socket to top USB 1 or 2, music in the other top port (a stick, or one USB 2.0 hub), and [[CH 3 INPUT]] and [[CH 4 INPUT]] set to USB.
 5 @ 478,553 How four decks work | Opens the [Four decks](four-decks) chapter of this manual.
 ```
 

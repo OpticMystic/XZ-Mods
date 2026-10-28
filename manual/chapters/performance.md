@@ -10,7 +10,7 @@ XZ Mods adds performance features to the pads and deck keys: two pages of beat j
 Open MODS and choose PLAY in the section rail.
 
 ```figure classic:theme-{look}-play MODS · PLAY
-The PLAY page with the default settings: gate cue and smart cue off, the default jump sizes, and the rekordbox button above LINK on INTERFACE.
+The PLAY page with the default settings: gate cue and smart cue off, the default jump sizes, and the [[rekordbox]] button above [[LINK]] on INTERFACE.
 1 @ 300,84 BEAT JUMP PADS | Opens the beat jump editor. The numbers are your page 1 and page 2 sizes in beats.
 2 @ 250,132 GATE CUE | Hot cues play only while you hold the pad. Off by default.
 3 @ 600,132 SMART CUE | A hot cue press also moves the CUE point there. Off by default.

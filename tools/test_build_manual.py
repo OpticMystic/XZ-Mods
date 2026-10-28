@@ -74,9 +74,15 @@ with tempfile.TemporaryDirectory(prefix='xz-manual-test-') as temp:
 
 bm.BASE='/manual/'
 html,toc=bm.blocks('## Stems {classic}\nPress [[MENU]] {experimental}, see [pads](hardware#pads).\n1. One\n2. Two\n',{'figure':None})
-assert '<h2 id="stems" data-iface="classic">' in html and '<kbd>MENU</kbd>' in html and 'tag--experimental' in html,html
+assert '<h2 id="stems" data-iface="classic">' in html and 'tag--experimental' in html,html
+assert '<span class="xzb" data-key="menu"><img class="xzb-g" src="/manual/buttons/menu.svg" alt=""' in html and '<span class="xzb-n">MENU</span>' in html,html
 assert 'href="/manual/hardware#pads"' in html and '<ol class="steps">' in html and toc[0][3]=='classic',html
-print('ok markdown: interface headings, keys, tags, chapter links and steps')
+print('ok markdown: interface headings, key glyphs with their names as text, tags, chapter links and steps')
+key=bm.inline('[[SYNC:off]], [[LOOP IN]] and [[NO SUCH KEY]]')
+assert 'src="/manual/buttons/sync.off.svg"' in key and 'data-key="in-cue"' in key and '<span class="xzb-n">LOOP IN</span>' in key and '<kbd>NO SUCH KEY</kbd>' in key,key
+found=bm.key_problems([{'slug':'one','body':'Press [[SHIFT]] and [[PLAYLIST]].'}],{'title':'[[MENU]]'})
+assert [f for f in found if 'has no button glyph' in f]==['one: [[PLAYLIST]] has no button glyph. Use the name printed on the player, or add the glyph or an alias in tools/xz_buttons.py'],found
+print('ok keys: a lamp can be drawn off, aliases name the printed control, and check fails on a name with no glyph')
 
 bm.MODS=REAL_MODS
 table=bm.menu_key_table()
@@ -105,6 +111,7 @@ with tempfile.TemporaryDirectory(prefix='xz-manual-app-test-') as temp:
     assert 'data-mx="four-deck-setup" data-mode="steps"' in one and 'data-mx="beat-jump" data-mode="scenes"' in one and 'data-title="Page 1"' in one and 'data-v=' not in one,one
     assert 'data-x="50.000" data-y="50.000"' in one and 'aria-describedby="f-one-1-1"' in one and 'data-chapter="two" data-anchor="end"' in one,one
     assert r'm-url\">xzmods.com/manual<\/span>' in files['chapters/two.js'].decode()
+    assert 'src=\\"assets/buttons/shift.svg\\"' in raw and bm.BUTTON_SRC=='/manual/buttons/',raw[:400]
     index=json.loads(files['index.js'].decode().split('=',1)[1].rstrip().rstrip(';'))
     tile=index['tour'][0]
     assert index['chapters'][0]['sections'][0][2]=='Setup' and tile['link']=='one#setup' and (tile['w'],tile['h'])==(400,240) and 'art' not in tile and index['draft'] is False,index
