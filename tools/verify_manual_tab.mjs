@@ -10,6 +10,8 @@ import { killBrowser } from './kill_browser.mjs';
 // Drives the Manual page of ui/index.html in headless Edge over CDP, served with the app's real CSP. It checks the
 // rail entry, every chapter, the numbered points against the chapters' figure blocks, search, openManual, the
 // explainers, the reading position, the interface filter, reduced motion and narrow windows. No packages needed.
+// The menu map (ui/manual-map.js): its doorways, the tree, pan and zoom, keys, find, the screen panel, chapter links
+// both ways, every state, CLASSIC, window sizes and reduced motion, all under the app CSP.
 // Explainers are rendered clips, one per scene, listed by ui/assets/manual/media.js; an explainer without clips must be
 // hidden. Nothing on the start page or in an explainer may be an SVG drawing.
 // Run: node tools/verify_manual_tab.mjs   (XZ_MANUAL_SHOTS=<dir> saves screenshots and explainer frames;
@@ -359,6 +361,158 @@ try {
   await evaluate(`document.querySelector('.m-seg [data-iface=both]').click()`);
   await evaluate(`openManual('four-decks')`);
 
+  // The menu map: every screen the firmware draws, from the play screen, with the control that opens each.
+  const press = async (key, code, vk, text) => { for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key, code, windowsVirtualKeyCode: vk, ...(type === 'keyDown' && text ? { text } : {}) }); };
+  const MAP = `manualPage.state().map`;
+  const tree = JSON.parse(await readFile(join(app, 'manual/menu-tree/menu-tree.json'), 'utf8'));
+  const screensOf = iface => new Set(tree.nodes.filter(n => n.interface === iface).map(n => n.path.join('/'))).size;
+  await size(1440, 900);
+  await evaluate(`openManual()`); await waitFor(`manualPage.state().view==='start'`, 'start for the map');
+  await check(`!!document.querySelector('.m-mapcard')&&document.querySelectorAll('.m-mapcard-art img').length===XZ_MANUAL.map.preview.length&&!document.querySelector('.m-mapnav').hidden&&document.querySelector('.m-mapnav small').textContent==='${screensOf('modern')}'`, 'the start page and the chapter list both offer the menu map, with its screen count');
+  await check(drawings, 'the menu map doorway shows renders only');
+  await evaluate(`document.querySelector('.m-mapcard').click()`);
+  await waitFor(`manualPage.state().view==='map'&&${MAP}?.screen==='play-screen'&&document.querySelectorAll('.mm-card:not([hidden])').length>5`, 'the menu map opens');
+  await check(`(()=>{const s=${MAP};return s.iface==='modern'&&s.screens===${screensOf('modern')}&&document.querySelectorAll('.mm-card').length===s.screens&&document.querySelectorAll('.mm-card:not([hidden])').length===s.shown&&document.querySelector('[role=tree]').contains(document.querySelector('.mm-card[aria-selected=true]'))&&document.querySelector('.m-mapnav').getAttribute('aria-current')==='page'||s;})()`, `the map shows the ${screensOf('modern')} MODERN screens as a tree, the play screen selected`);
+  await check(`(()=>{const roots=[...document.querySelectorAll('.mm-card[aria-level="1"]:not([hidden])')],kids=[...document.querySelectorAll('.mm-card[aria-level="2"]:not([hidden])')];const x=c=>c.getBoundingClientRect().left;return roots.length>=1&&kids.length>=5&&kids.every(k=>x(k)>x(roots[0])+100);})()`, 'the play screen is on the left and what its keys open fans out to its right');
+  await check(`(()=>{const labels=[...document.querySelectorAll('.mm-label:not([hidden])')];return labels.length>=5&&labels.some(l=>l.querySelector('kbd')?.textContent==='MENU')&&labels.some(l=>/^Tap/.test(l.textContent)&&l.querySelector('.mm-scr'))&&labels.every(l=>l.querySelector('kbd,.mm-g'));})()`, 'every branch is labelled with its control: keys as keycaps, taps with the words on the screen');
+  await waitFor(`[...document.querySelectorAll('.mm-card:not([hidden]) .mm-thumb img')].filter(i=>{const r=i.getBoundingClientRect(),v=document.querySelector('.mm-view').getBoundingClientRect();return r.bottom>v.top&&r.top<v.bottom&&r.right>v.left&&r.left<v.right;}).every(i=>i.complete&&i.naturalWidth===240)`, 'map thumbnails in view load');
+  await check(`(()=>{const imgs=[...document.querySelectorAll('.mm-thumb img')],loaded=imgs.filter(i=>i.getAttribute('src'));return loaded.length>0&&loaded.length<imgs.length&&loaded.every(i=>/^manual\\/map\\/t-[0-9a-f]{16}\\.webp$/.test(i.getAttribute('src')));})()`, 'thumbnails load lazily: the ones near the view only, each a render from ui/manual/map');
+  await shot('10-map-1440');
+  await cspClean('on the menu map');
+  ok('no CSP violations and no page errors on the menu map');
+
+  // Pan and zoom: drag, wheel, keys, fit.
+  const cam = () => evaluate(`${MAP}.cam`);
+  const viewBox = await evaluate(`(()=>{const r=document.querySelector('.mm-view').getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height};})()`);
+  let before = await cam();
+  const px = viewBox.x + viewBox.w - 60, py = viewBox.y + viewBox.h - 160;
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: px, y: py, button: 'left', clickCount: 1 });
+  for (let i = 1; i <= 6; i++) await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: px - i * 20, y: py - i * 10, button: 'left', buttons: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: px - 120, y: py - 60, button: 'left', clickCount: 1 });
+  let after = await cam();
+  assert(Math.abs(after.x - before.x + 120) < 2 && Math.abs(after.y - before.y + 60) < 2 && after.k === before.k, 'dragging the map moves it with the pointer: ' + JSON.stringify([before, after]));
+  ok('dragging pans the map with the pointer');
+  before = after;
+  await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: viewBox.x + 300, y: viewBox.y + 200, deltaX: 0, deltaY: -240 });
+  await waitFor(`${MAP}.cam.k>${before.k}`, 'the wheel zooms in');
+  after = await cam();
+  const wx = (viewBox.x + 300 - viewBox.x - before.x) / before.k, wx2 = (300 - after.x) / after.k;
+  assert(Math.abs(wx - wx2) < 1, 'the wheel zooms around the pointer');
+  ok('the wheel zooms in around the pointer');
+  await evaluate(`document.querySelector('.mm-card[aria-selected=true]').focus()`);
+  before = await cam();
+  await press('-', 'Minus', 189, '-');
+  await waitFor(`${MAP}.cam.k<${before.k - 0.01}`, '- zooms out');
+  await press('0', 'Digit0', 48, '0');
+  await sleep(500);
+  await check(`(()=>{const v=document.querySelector('.mm-view').getBoundingClientRect(),c=[...document.querySelectorAll('.mm-card:not([hidden])')].map(c=>c.getBoundingClientRect());return c.every(r=>r.left>=v.left-1&&r.right<=v.right+1&&r.top>=v.top-1&&r.bottom<=v.bottom+1);})()`, '- zooms out and 0 fits every open screen into the view');
+  await evaluate(`document.querySelector('.mm-tool[data-tool=plus]').click()`);
+  await waitFor(`${MAP}.cam.k>${(await cam()).k + 0.01}`, 'the + button zooms in');
+  ok('the zoom buttons and keys work');
+
+  // Keys walk the tree; Enter opens a screen; Escape closes it.
+  await evaluate(`manualMap.focus('play-screen')`);
+  await waitFor(`${MAP}.screen==='play-screen'&&document.activeElement.classList.contains('mm-card')`, 'focus on the play screen');
+  await evaluate(`document.querySelector('.mm-panel:not([hidden]) .mm-panel-head .mm-tool')?.click();document.querySelector('.mm-card[aria-selected=true]').focus()`);
+  await press('ArrowRight', 'ArrowRight', 39);
+  await check(`(()=>{const a=document.activeElement;return a.getAttribute('aria-level')==='2'&&a.getAttribute('aria-selected')==='true'&&${MAP}.screen===a.dataset.key&&a.dataset.key==='mods-home';})()`, 'ArrowRight walks from the play screen to MODS, the first branch');
+  await press('ArrowDown', 'ArrowDown', 40);
+  await check(`document.activeElement.getAttribute('aria-level')==='2'&&document.activeElement.dataset.key!=='mods-home'&&${MAP}.screen===document.activeElement.dataset.key`, 'ArrowDown walks to the next branch');
+  await press('ArrowUp', 'ArrowUp', 38);
+  await press('ArrowRight', 'ArrowRight', 39);
+  await check(`document.activeElement.getAttribute('aria-level')==='3'&&document.activeElement.getBoundingClientRect().left>0`, 'ArrowRight walks into a section of MODS');
+  await press('ArrowLeft', 'ArrowLeft', 37); await press('ArrowLeft', 'ArrowLeft', 37);
+  await check(`document.activeElement.dataset.key==='mods-home'&&document.activeElement.getAttribute('aria-expanded')==='false'&&${MAP}.shown<${screensOf('modern')}`, 'ArrowLeft goes back up, then closes the branch');
+  await press('ArrowRight', 'ArrowRight', 39);
+  await check(`document.activeElement.getAttribute('aria-expanded')==='true'`, 'ArrowRight opens it again');
+  await press('Enter', 'Enter', 13, '\r');
+  await waitFor(`${MAP}.panel&&!document.querySelector('.mm-panel').hidden&&document.querySelector('.mm-panel-title').textContent==='HOME'`, 'Enter opens the screen');
+  await waitFor(`(()=>{const i=document.querySelector('.mm-big-img');return i.complete&&i.naturalWidth===800&&i.naturalHeight===480&&/^manual\\/map\\/[0-9a-f]{16}\\.webp$/.test(i.getAttribute('src'));})()`, 'the big screen loads');
+  ok('Enter opens the screen at full size, 800 x 480, as the firmware drew it');
+  await press('Escape', 'Escape', 27);
+  await check(`!${MAP}.panel&&document.querySelector('.mm-panel').hidden&&document.activeElement.dataset.key==='mods-home'`, 'Escape closes the screen and keeps the place on the map');
+
+  // Find a screen, follow a path, read about it.
+  await evaluate(`(()=>{const q=document.querySelector('.mm-q');q.focus();q.value='beat jump';q.dispatchEvent(new Event('input'));})()`);
+  await waitFor(`document.querySelectorAll('.mm-found [role=option]').length>0`, 'search on the map');
+  await check(`document.querySelector('.mm-found [role=option] b').textContent==='BEAT JUMP PADS'&&document.querySelector('.mm-q').getAttribute('aria-expanded')==='true'`, 'Find a screen lists BEAT JUMP PADS first for "beat jump"');
+  await press('Enter', 'Enter', 13, '\r');
+  await waitFor(`${MAP}.screen==='mods-play-beat-jump-pads'&&${MAP}.panel`, 'Enter opens the found screen');
+  await sleep(500);
+  await check(`(()=>{const c=document.querySelector('.mm-card[aria-selected=true]').getBoundingClientRect(),v=document.querySelector('.mm-view').getBoundingClientRect();return c.left>=v.left&&c.right<=v.right&&c.top>=v.top&&c.top<v.bottom&&[...document.querySelectorAll('.mm-crumbs button')].map(b=>b.querySelector('b').textContent).join('>')==='PLAY SCREEN>HOME>PLAY>BEAT JUMP PADS';})()`, 'the found screen is opened in view, its branch opened, with its path from the play screen');
+  await check(`(()=>{const how=[...document.querySelectorAll('.mm-crumbs .mm-crumb-how')].map(e=>e.textContent);return how[0].includes('MENU')&&how.length===1&&document.querySelectorAll('.mm-crumbs li').length===4;})()`, 'the path names the control for each step (MENU; a tap on a screen name is said once)');
+  const states = await evaluate(`${MAP}.title&&document.querySelectorAll('.mm-strip button').length`);
+  assert(states > 1, 'BEAT JUMP PADS shows its states');
+  await evaluate(`document.querySelector('.mm-states-nav button[aria-label="Next state"]').click()`);
+  await check(`${MAP}.stateIndex===1&&document.querySelectorAll('.mm-strip button')[1].getAttribute('aria-pressed')==='true'&&!!document.querySelector('.mm-states-head .mm-move kbd,.mm-states-head .mm-move .mm-scr')`, `the states strip steps through the ${states} states and names the control between them`);
+  await check(`document.querySelectorAll('.mm-ways .mm-link-row').length>=1&&[...document.querySelectorAll('.mm-ways h4')].map(h=>h.textContent).join()==='How you get here,Where it leads'`, 'the screen lists how you get to it and where it leads');
+  await evaluate(`document.querySelector('.mm-pager button:last-child').click()`);
+  await waitFor(`${MAP}.screen!=='mods-play-beat-jump-pads'`, 'Next screen');
+  await evaluate(`document.querySelector('.mm-pager button:first-child').click()`);
+  await waitFor(`${MAP}.screen==='mods-play-beat-jump-pads'`, 'Previous screen');
+  ok('Previous and Next screen walk the map in order');
+  await shot('11-map-panel-1440');
+  const read = await evaluate(`(()=>{const b=document.querySelector('.mm-read');return b&&{text:b.textContent};})()`);
+  assert(read && /Beat jump/i.test(read.text), 'the screen links to its manual section: ' + JSON.stringify(read));
+  await evaluate(`document.querySelector('.mm-read').click()`);
+  await waitFor(`manualPage.state().view==='chapter'&&manualPage.state().slug==='performance'`, 'Read in the manual');
+  await check(`(()=>{const a=document.activeElement;return /^(beat-jump|change-the-jump-sizes)$/.test(a.dataset.anchor)&&a.getBoundingClientRect().top<innerHeight/2;})()`, 'Read in the manual opens the chapter at the section that explains the screen');
+  await check(`!document.querySelector('.m-root').classList.contains('m-map-on')&&!document.querySelector('.mm')`, 'leaving the map gives the chapter its usual layout');
+
+  // Chapters open the map at a screen.
+  const onMap = await evaluate(`(()=>{const b=document.querySelector('.m-chapter .m-onmap');return b&&{key:b.dataset.map,head:b.closest('[data-anchor]').dataset.anchor};})()`);
+  assert(onMap, 'a section the map shows has an "On the menu map" button');
+  await evaluate(`document.querySelector('.m-chapter .m-onmap').click()`);
+  await waitFor(`manualPage.state().view==='map'&&${MAP}?.screen===${JSON.stringify(onMap.key)}&&${MAP}.panel`, 'On the menu map');
+  ok(`"On the menu map" at ${onMap.head} opens the map at ${onMap.key}, with the screen open`);
+  await evaluate(`showPage('tools')`);
+  await evaluate(`openManual('menu-map','mods-extras-about-xz-mods')`);
+  await waitFor(`!document.getElementById('manual').classList.contains('hidden')&&${MAP}?.screen==='mods-extras-about-xz-mods'&&document.activeElement.dataset.key==='mods-extras-about-xz-mods'`, "openManual('menu-map', screen)");
+  ok("openManual('menu-map', screen) opens the map focused on that screen, from anywhere in the app");
+  const linked = await evaluate(`(()=>{const out=[];for(const [k,v] of Object.entries(XZ_MANUAL.map.sections))out.push([k,v,!!manualMap.resolve(v)]);return out;})()`);
+  assert(linked.length > 10 && linked.every(([, , found]) => found), 'every section link to the map lands on a screen');
+  ok(`${linked.length} chapter sections link to a screen on the map`);
+
+  // Branches, every state, the other interface.
+  await evaluate(`document.querySelector('.mm-tool[data-tool=collapse]').click()`);
+  const closed = await evaluate(`${MAP}.shown`);
+  await evaluate(`document.querySelector('.mm-tool[data-tool=expand]').click()`);
+  await check(`${MAP}.shown===${screensOf('modern')}&&${closed}<${screensOf('modern')}`, 'Close and Open every branch');
+  await evaluate(`[...document.querySelectorAll('.mm-card:not([hidden]) .mm-twist')][2].click()`);
+  await check(`${MAP}.shown<${screensOf('modern')}`, 'a branch button closes that branch');
+  await evaluate(`document.querySelector('.mm-tool[data-tool=expand]').click();document.querySelector('.mm-chip').click()`);
+  await sleep(400);
+  const perScreen = Object.values(tree.nodes.filter(n => n.interface === 'modern').reduce((a, n) => { const k = n.path.join('/'); a[k] = (a[k] || 0) + 1; return a; }, {}));
+  const laneCells = perScreen.filter(c => c > 1).reduce((a, c) => a + c, 0);
+  await check(`(()=>{const cells=document.querySelectorAll('.mm-card:not([hidden]) .mm-cell');return ${MAP}.lanes&&cells.length===${laneCells}||cells.length;})()`, `Show every state lays out all ${laneCells} states of the MODERN screens that have more than one`);
+  await evaluate(`document.querySelector('.mm-tool[data-tool=fit]').click()`);
+  await sleep(500);
+  await shot('12-map-every-state');
+  await check(`(()=>{const imgs=[...document.querySelectorAll('.mm-cell img')];return imgs.filter(i=>i.getAttribute('src')).length<imgs.length;})()`, 'with every state shown, pictures still load only near the view');
+  await evaluate(`document.querySelector('.mm-cell').click()`);
+  await check(`${MAP}.panel&&${MAP}.stateIndex===0`, 'a state on the map opens it in the panel');
+  await evaluate(`document.querySelector('.mm-chip').click()`);
+  await evaluate(`document.querySelector('.mm-seg [data-iface=classic]').click()`);
+  await waitFor(`${MAP}.iface==='classic'&&${MAP}.screens===${screensOf('classic')}`, 'CLASSIC');
+  await check(`document.querySelector('.mm-seg [data-iface=classic]').getAttribute('aria-pressed')==='true'&&[...document.querySelectorAll('.mm-card:not([hidden])')].length===${screensOf('classic')}`, `CLASSIC shows its ${screensOf('classic')} screens`);
+  await evaluate(`document.querySelector('.m-seg [data-iface=modern]').click()`);
+  await waitFor(`${MAP}.iface==='modern'`, 'the manual\'s interface choice switches the map');
+  ok('the map follows the interface chosen for the manual');
+  await evaluate(`document.querySelector('.m-seg [data-iface=both]').click()`);
+
+  // Window sizes.
+  for (const [w, hgt] of [[1100, 760], [1440, 900], [760, 520]]) {
+    await size(w, hgt); await sleep(200);
+    await evaluate(`openManual('menu-map','mods-play-keys')`);
+    await waitFor(`${MAP}?.screen==='mods-play-keys'`, 'map at ' + w);
+    await sleep(500);
+    await check(fits, `the map fits ${w} x ${hgt}`);
+    await check(`(()=>{const m=document.querySelector('.mm').getBoundingClientRect(),v=document.querySelector('.mm-view').getBoundingClientRect(),c=document.querySelector('.mm-card[aria-selected=true]').getBoundingClientRect(),p=document.querySelector('.mm-panel');const cover=getComputedStyle(p).position==='absolute'?p.getBoundingClientRect().left:v.right;return m.bottom<=innerHeight+1&&v.height>=180&&c.left>=v.left-1&&c.right<=cover+1||{m:m.bottom,v:v.height,c:[c.left,c.right],cover};})()`, `at ${w} x ${hgt} the map fills the window and the open screen's card stays clear of the panel`);
+    if (w !== 760) { await shot(`13-map-panel-${w}`); await evaluate(`document.querySelector('.mm-panel-head .mm-tool').click()`); await sleep(400); await shot(`13-map-${w}`); }
+  }
+  await size(1280, 860);
+  await cspClean('on the menu map, after every check');
+
   // Narrow and wide windows.
   for (const [w, h] of [[760, 520], [1100, 760], [1440, 900], [1920, 1040]]) {
     await size(w, h); await sleep(150);
@@ -397,8 +551,20 @@ try {
     const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: await evaluate('scrollY'), width: 1100, height: 760, scale: 1 } });
     await motion('no-preference');
     await writeFile(join(shots, 'app-manual.png'), Buffer.from(image.data, 'base64'));
-    const marks = { rail: 'nav button[data-page=manual] span', search: '#m-q', progress: '.m-progress b', chapter: '.m-toc-ch[aria-current=page] span', sections: '.m-toc-secs', start: '.m-home span', title: '.mc-title', explainer: '.mx:not([hidden]) .mx-head h5', video: '.mx:not([hidden]) .mx-stage', play: '.mx:not([hidden]) .mx-play', dots: '.mx:not([hidden]) .mx-dots' };
+    const marks = { rail: 'nav button[data-page=manual] span', search: '#m-q', progress: '.m-progress b', chapter: '.m-toc-ch[aria-current=page] span', sections: '.m-toc-secs', start: '.m-home span', mapnav: '.m-mapnav span', title: '.mc-title', explainer: '.mx:not([hidden]) .mx-head h5', video: '.mx:not([hidden]) .mx-stage', play: '.mx:not([hidden]) .mx-play', dots: '.mx:not([hidden]) .mx-dots' };
     await writeFile(join(shots, 'app-manual-boxes.json'), JSON.stringify(await evaluate(`(()=>{const out={};for(const [k,s] of Object.entries(${JSON.stringify(marks)})){const r=document.querySelector(s)?.getBoundingClientRect();if(r)out[k]=[Math.round(r.left),Math.round(r.top),Math.round(r.right),Math.round(r.bottom)];}return out;})()`), null, 1));
+    // The manual's picture of the menu map (manual/app-shots/menu-map.png): at BEAT JUMP PADS with its screen open.
+    await evaluate(`localStorage.clear()`);
+    await open();
+    await evaluate(`openManual('menu-map','mods-play-beat-jump-pads')`);
+    await waitFor(`manualPage.state().map?.screen==='mods-play-beat-jump-pads'&&manualPage.state().map.panel`, 'menu map shot');
+    await evaluate(`document.activeElement.blur()`);
+    await waitFor(`[...document.querySelectorAll('.mm img:not([loading=lazy])')].filter(i=>i.getAttribute('src')&&i.getBoundingClientRect().width&&i.getBoundingClientRect().top<innerHeight).every(i=>i.complete)`, 'menu map pictures');
+    await sleep(800);
+    const mapImage = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: await evaluate('scrollY'), width: 1100, height: 760, scale: 1 } });
+    await writeFile(join(shots, 'app-menu-map.png'), Buffer.from(mapImage.data, 'base64'));
+    const mapMarks = { seg: '.mm-seg', find: '.mm-find', tools: '.mm-tools', crumbs: '.mm-crumbs', card: '.mm-card[aria-selected=true] .mm-thumb', label: '.mm-label.is-trail', twist: '.mm-card:not([hidden]) .mm-twist', panel: '.mm-panel-title', big: '.mm-big', states: '.mm-states-head', read: '.mm-read', mini: '.mm-mini', jumps: '.mm-jumps' };
+    await writeFile(join(shots, 'app-menu-map-boxes.json'), JSON.stringify(await evaluate(`(()=>{const out={};for(const [k,s] of Object.entries(${JSON.stringify(mapMarks)})){const r=[...document.querySelectorAll(s)].find(e=>e.getBoundingClientRect().width)?.getBoundingClientRect();if(r)out[k]=[Math.round(r.left),Math.round(r.top),Math.round(r.right),Math.round(r.bottom)];}return out;})()`), null, 1));
     await size(1280, 860);
   }
 
@@ -424,6 +590,13 @@ try {
   await evaluate(`openManual()`); await waitFor(`manualPage.state().view==='start'`, 'start reduced');
   await sleep(600);
   await check(`(()=>{const v=document.querySelector('.m-hero-video');return v.paused&&v.currentTime===0&&v.getAttribute('poster')===manualArt.media().hero.poster&&[...document.querySelectorAll('.mt-card img')].every(e=>getComputedStyle(e).transitionDuration.split(',').every(d=>parseFloat(d)===0));})()`, 'with reduced motion the start page shows the hero poster and nothing moves');
+  // The menu map with reduced motion: the view jumps instead of gliding and nothing on it animates.
+  await evaluate(`openManual('menu-map')`); await waitFor(`manualPage.state().map?.screen==='play-screen'`, 'map reduced');
+  const k0 = await evaluate(`manualPage.state().map.cam.k`);
+  await evaluate(`document.querySelector('.mm-tool[data-tool=plus]').click()`);
+  await check(`manualPage.state().map.cam.k>${k0}&&document.querySelector('.mm').classList.contains('mm-still')&&getComputedStyle(document.querySelector('.mm-card')).transitionDuration.split(',').every(d=>parseFloat(d)===0)`, 'with reduced motion the map zooms at once, with no glide, and its cards do not animate');
+  await evaluate(`document.querySelector('.mm-twist').click()`);
+  await check(`(()=>{const c=[...document.querySelectorAll('.mm-card:not([hidden])')];return c.every(e=>e.style.transform.startsWith('translate('));})()`, 'with reduced motion a branch opens and closes at once');
   await motion('no-preference');
   await cspClean('with reduced motion');
   await check(`(()=>{const probe=document.createElement('div');probe.setAttribute('style','color:rgb(255, 0, 0)');document.body.append(probe);const blocked=getComputedStyle(probe).color!=='rgb(255, 0, 0)';probe.remove();return location.protocol==='http:'&&blocked;})()`, 'the page runs under the app CSP: a style attribute is blocked, as in the installed app');
@@ -435,6 +608,12 @@ try {
   assert.deepEqual(files.filter(f => !used.has(f)), [], 'no unused pictures');
   assert.deepEqual([...used].filter(f => !files.includes(f)), [], 'no missing pictures');
   ok(`the embedded manual ships ${files.length} pictures, each used`);
+  const mapJs = await readFile(join(app, 'ui/manual/map.js'), 'utf8');
+  const mapUsed = new Set(mapJs.match(/manual\/map\/t?-?[0-9a-f]{16}\.webp/g));
+  const mapFiles = (await readdir(join(app, 'ui/manual/map'))).map(f => 'manual/map/' + f);
+  assert.deepEqual(mapFiles.filter(f => !mapUsed.has(f)), [], 'no unused map pictures');
+  assert.deepEqual([...mapUsed].filter(f => !mapFiles.includes(f)), [], 'no missing map pictures');
+  ok(`the menu map ships ${mapFiles.length} pictures (screens and their card pictures), each used`);
   console.log('\n' + passed + ' checks passed');
 } finally {
   socket?.close();

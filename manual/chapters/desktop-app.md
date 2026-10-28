@@ -675,7 +675,8 @@ Four decks open in the Manual, at the video of how the sound of decks 3 and 4 re
 2 @ 492,21 Search | Searches every chapter as you type. Press / to get here from anywhere on the page, and Enter to open the first result.
 3 @ 450,73 Progress | How much of the manual you have read. A chapter's circle fills as you read and turns into a tick at its end.
 4 @ 380,145 Start page | What XZ Mods adds, the interface you play on, and every chapter in order.
-5 @ 430,452 Chapter list | Every chapter. The one you are reading is outlined and lists its sections.
+8 @ 380,187 Menu map | Every screen of the player as a flow chart. See [The menu map](#the-menu-map).
+5 @ 440,412 Chapter list | Every chapter. The one you are reading is outlined and lists its sections.
 6 @ 1072,30 Chapter | The chapter you are reading. Previous and Next at its end move through the manual in order.
 7 @ 1010,420 Video | A clip rendered from a true-scale model of the XDJ-XZ shows how a feature works. It plays when it comes into view, and Play pauses it. A video in several steps also has arrows and numbered steps, and its caption follows the step.
 ```
@@ -684,3 +685,26 @@ Four decks open in the Manual, at the video of how the sound of decks 3 and 4 re
 - **Your interface.** Choose MODERN, CLASSIC or Both on the start page or at the foot of the chapter list. The manual then hides what does not apply to you. A MODS page drawn in both interfaces has a MODERN and CLASSIC switch on its picture.
 - **Where you stopped.** The manual remembers the chapter and section you read last. The start page offers **Continue where you left off**.
 - **Less motion.** When your computer is set to reduce motion, nothing in the manual moves by itself. A video shows a still picture of each step and plays only when you press Play.
+
+### The menu map
+
+**Menu map**, under the start page in the chapter list, shows every screen on the player and how to get to it, as a flow chart. Each screen on it is a picture the firmware drew. The play screen is on the left, and what each key opens fans out to its right. Every branch is labelled with the control that opens it: a key such as [[MENU]], the rotary selector, or a tap on a word on the screen.
+
+```figure app:menu-map XZ Mods app · Menu map
+The menu map at BEAT JUMP PADS, opened with MENU, then PLAY, then BEAT JUMP PADS.
+1 @ 364,70 Interface | MODERN or CLASSIC. The map starts on the interface you chose for the manual.
+2 @ 826,93 Find a screen | Type the name of a screen and press Enter to go to it.
+3 @ 636,135 View | Zoom out and in, fit the whole map, open every branch, or close them back to the MODS sections. Show every state lays out every state of every screen.
+4 @ 262,183 Path | How you got here from the play screen, one control at a time. Click a step to go back to it.
+5 @ 1040,158 Jump to | The play screen and what each of its keys opens.
+6 @ 360,400 Screen | The screen you picked, outlined in yellow, as are the branches that lead to it. The number on its picture counts its states.
+7 @ 300,432 Control | The control that opens the screen. A keycap is a key on the player; a tap names the words on the screen.
+8 @ 655,280 The screen | The screen at full size. Its states follow below it, then the parts you can pick, how you get here and where it leads.
+9 @ 660,525 States | Each state of the screen as you turn the rotary selector or change a value, and the control between them.
+10 @ 655,650 Read in the manual | Opens the part of this manual that explains the screen.
+```
+
+- **Move around.** Drag the map to move it. The mouse wheel, or the + and − keys on your computer, zoom in and out, and 0 fits the whole map. In a wide window the small map in the corner shows where you are; click it to go there.
+- **Branches.** The number beside a screen opens the screens after it, and **−** closes them again. The map opens with the MODS sections closed, so the first view stays readable.
+- **Keys.** The arrow keys walk the map: right into a branch, left back out, up and down to the screens beside it. Enter opens a screen and Esc closes it. **Previous screen** and **Next screen** at the foot of a screen walk the whole map in order.
+- **From a chapter.** A section of the manual about a screen has **On the menu map** beside its heading. It opens the map at that screen.
