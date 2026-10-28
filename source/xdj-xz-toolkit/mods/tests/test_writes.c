@@ -23,6 +23,8 @@ int main(void) {
     assert(!with("1", "", NULL));                         /* an empty boot marker is not a loader */
     assert(with("1", "5eb042be:ui", "0"));                /* USB loader: bridge needs READONLY=1, saving still works */
     assert(!with("1", "5eb042be:observer", "1"));         /* observer launch never writes */
+    assert(!with(NULL, NULL, "1"));
+    assert(!with("0", NULL, "1"));
     puts("PASS write policy: development, RAM trial, USB loader and observer launches");
     return 0;
 }

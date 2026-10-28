@@ -12,6 +12,7 @@ static inline int xz_mods_env_is(const char *name, const char *value) {
     return v && !strcmp(v, value);
 }
 static inline int xz_mods_may_write(void) {
+    if (xz_mods_env_is("XZ_MODS_OBSERVER", "1")) return 0;
     if (!xz_mods_env_is("XZ_MODS_SETTINGS_READONLY", "1")) return 1;
     const char *boot = getenv("XZ_MODS_BOOT_RUNTIME");
     return boot && boot[0] && !xz_mods_env_is("XZ_MODS_OBSERVER", "1");
