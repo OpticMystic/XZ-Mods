@@ -230,7 +230,9 @@
       "flows": [
         "profile-logo-error",
         "profile-save-error",
-        "b-profile-usb2-recovery"
+        "b-profile-usb2-recovery",
+        "nav-c-profile-610",
+        "nav-c-profile-611"
       ],
       "scope": "Scripted excerpts only; assignment does not assert every operation in the section is captured."
     },
@@ -581,7 +583,11 @@
       "chapter": "extras.md",
       "sha256": "c9013fec315c8c86b301105ce977729e0106918237cc934ac911cca02024b47b",
       "flows": [
-        "b-arcade"
+        "b-arcade",
+        "nav-c-arcade-0-0",
+        "nav-c-arcade-1-1",
+        "nav-c-arcade-2-2",
+        "nav-c-arcade-3-0"
       ],
       "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
@@ -805,7 +811,8 @@
       "chapter": "four-decks.md",
       "sha256": "28d9bb6315388c143f2a92f3c4dedf9005bf628d568832048563d74da4bbaf0a",
       "flows": [
-        "nav-a-classic-four"
+        "nav-a-classic-four",
+        "nav-c-classic-full"
       ],
       "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
@@ -837,9 +844,10 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "fa080199d721588b5443a5c80741978a8bf596dc21e8f257a57afdb286d3a7b6",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-c-player-3",
+        "nav-c-player-4"
+      ]
     },
     {
       "section": "four-decks#sync-on-decks-3-and-4",
@@ -847,9 +855,10 @@
       "level": 3,
       "chapter": "four-decks.md",
       "sha256": "8dfb61bf1e32641e5dd27a5b6b7d58f3408acfbccc396f0326d6b49e5f14960d",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-c-player-3",
+        "nav-c-player-4"
+      ]
     },
     {
       "section": "four-decks#limits",
@@ -1936,7 +1945,28 @@
       "chapter": "troubleshooting.md",
       "sha256": "7f46461512ab95fa07438fa12a348a4319157d71451adadb95bffe33a58acb24",
       "flows": [
-        "b-notice-load-recovery"
+        "b-notice-load-recovery",
+        "nav-c-notice-00",
+        "nav-c-notice-01",
+        "nav-c-notice-02",
+        "nav-c-notice-03",
+        "nav-c-notice-04",
+        "nav-c-notice-05",
+        "nav-c-notice-06",
+        "nav-c-notice-07",
+        "nav-c-notice-08",
+        "nav-c-notice-09",
+        "nav-c-notice-10",
+        "nav-c-notice-11",
+        "nav-c-notice-12",
+        "nav-c-notice-13",
+        "nav-c-notice-14",
+        "nav-c-notice-15",
+        "nav-c-notice-16",
+        "nav-c-notice-17",
+        "nav-c-notice-18",
+        "nav-c-notice-19",
+        "nav-c-notice-20"
       ],
       "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },

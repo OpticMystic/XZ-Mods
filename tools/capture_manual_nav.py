@@ -26,13 +26,13 @@ def build(zig, exe):
     sources = {(MODS / side / p).resolve() for side, names in [('shell', SHELL_SOURCES), ('ui', UI_SOURCES)] for p in names}
     sources.discard((MODS/'shell/shell_browse.c').resolve())
     sources.add(MODS/'shell/nav_browse.c')
-    sources.update(MODS / p for p in ['shell/nav_capture.c', 'shell/nav_runtime.c', 'deck_select.c',
+    sources.update(MODS / p for p in ['shell/nav_capture.c', 'shell/nav_runtime.c', 'shell/nav_adapter_player.c', 'extra_player.c', 'anlz_extra.c', 'shell_analysis.c', 'key/keyshift.c', 'ui/layered_wave_source.c', 'audio/stem_media.c', 'audio/stem_decode.c', 'audio/stem_mp3.c', 'deck_select.c',
         'ui/native_touch.c', 'ui/stem_pads.c', 'ui/beat_jump.c', 'ui/wave_viewport.c', 'settings.c', 'usb_profile.c',
-        'shell/nav_clock.c', 'doom/wad_catalog.c', 'ota/native_update.c', 'ui/extra_detail.c', 'ui/extra_lane.c',
+        'shell/nav_clock.c', 'doom/wad_catalog.c', 'ota/native_update.c', 'ui/extra_detail.c', 'ui/extra_lane.c', 'ui/classic_column.c', 'ui/classic_mixer.c',
         'ui/layered_wave.c', 'key/control.c', 'key/browser.c', 'key/catalog.c', 'key/traffic.c',
         'arcade/wave_rider.c', 'shell/nav_wave_source.c', 'arcade/wave_rider_render.c', 'arcade/wave_rider_art.c', 'arcade/game_motion_draw.c', 'arcade/game_feel_art.c', 'arcade/game_font.c', 'arcade/arcade.c', 'arcade/render.c', 'arcade/input.c', 'arcade/clock.c', 'arcade/native_clock.c',
         'audio/vendor/sha256/sha256.c', 'pc_control/stems.c', 'kart/xz_kart_input.c', 'kart/xz_kart_runtime.c'])
-    subprocess.run(['wsl', '-d', 'Ubuntu', '--', 'gcc', '-O1', '-std=c11', '-Wall', '-Wextra', '-Werror',
+    subprocess.run(['wsl', '-d', 'Ubuntu', '--', 'gcc', '-O1', '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections', '-std=c11', '-Wall', '-Wextra', '-Werror',
         '-Wno-misleading-indentation', '-Wno-format-truncation', *[linux(p) for p in sorted(sources)], '-pthread', '-ldl', '-lm', '-o', linux(exe)], check=True)
 
 
@@ -46,6 +46,12 @@ class Capture:
             values = array.array('H', [((r>>3)<<11)|((g>>2)<<5)|(b>>3) for r,g,b in bg.convert('RGB').getdata()])
         self.background = folder/'stock.rgb565'
         self.background.write_bytes(values.tobytes())
+        import wave
+        fixture = folder/'player-fixture'
+        (fixture/'anlz').mkdir(parents=True, exist_ok=True)
+        with wave.open(str(fixture/'44100.wav'), 'wb') as w:
+            w.setparams((2,2,44100,0,'NONE','not compressed'))
+            w.writeframes(bytes(44100*2*2*2))
         self.proc = subprocess.Popen(["wsl", "-d", "Ubuntu", "--", linux(exe), linux(self.raw), linux(self.background)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         self.t = 0
         self.timeline = []
@@ -165,6 +171,10 @@ class Capture:
             self.wait(120)
             self.send('physical', step['code'] + 100, side, control, 'release', g)
             self.wait(step.get('dwell', 180))
+        elif 'player' in step:
+            kind, side = step['player']
+            self.send('player',kind,side,control=step['control'],action='press')
+            self.wait(500)
         elif 'touch' in step:
             self.tap(*step['touch'])
         elif 'turn' in step:

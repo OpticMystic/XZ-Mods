@@ -28,9 +28,15 @@ static struct xz_ui_dj dj;
 static struct xz_ui ui;
 static struct xz_ui_model um;
 static uint16_t pixels[800*480];
+#include "../extra_decks.h"
+#include "../ui/extra_lane.h"
+void nav_player_open(const char *);
+const struct xz_extra_decks *nav_player_input(int,int);
+static int player_active;
 static int classic_four;
 int nav_classic_detail(void);
 void nav_classic_start(struct xz_ui_model *);
+void nav_classic_full(const struct xz_shell_model *);
 void nav_classic_touch(int,int,int);
 void nav_classic_draw(uint16_t *,const uint16_t *,unsigned);
 static int panel, classic_inline,classic_picker,classic_down=-9;
@@ -58,6 +64,7 @@ static const char *output;
 #include "nav_adapter_perf.h"
 static void string(const char *s){putchar('"');for(;s&&*s;s++){if(*s=='"'||*s=='\\')putchar('\\');if((unsigned char)*s>=32)putchar(*s);}putchar('"');}
 #include "nav_adapter_setup.c"
+#include "nav_adapter_matrix.h"
 static void apply_ui(struct xz_ui_action *a,size_t n){
  for(size_t i=0;i<n;i++){struct xz_ui_action v=a[i];int d=v.deck>=0&&v.deck<4?v.deck:ui.deck;effect("MODS",v.kind,v.deck,v.index,v.value);
  switch(v.kind){
@@ -174,7 +181,7 @@ static void render(void){
  rect_widget("BYPASS",xz_shell_bypass_button(&sh,&projection,0),&n);
  if(sh.stack[sh.depth-1].screen==XZ_SHELL_SEARCH){for(int k=0;k<XZ_SHELL_BROWSE_KEYS;k++)rect_widget(xz_shell_browse_key_label(k),xz_shell_browse_rect(&sh,&sm,XZ_SHELL_BR_KEY,k),&n);}
  }
- printf("],\"game\":%d,\"game_phase\":%d,\"game_step\":%u,\"focus\":",nav_game_active,nav_game_active==1?(int)nav_arcade.phase:(int)nav_rider.phase,nav_rider.setup_step);struct xz_ui_widget focus;if(panel&&xz_ui_focused(&ui,&um,&focus))string(focus.label);else string("");printf(",\"observations\":{\"classic_detail\":%d,\"view\":%d,\"four_stems_hidden\":%d,\"ram_only\":%d,\"loaded3\":%d},\"effects\":[%s],\"classic_overlay\":%d}\n",classic_four?nav_classic_detail():-1,sm.layout_preference,sm.four_stems_hidden,sm.deck[0].ram_only,sm.deck[2].track_no,effects,classic_inline);fflush(stdout);
+ printf("],\"game\":%d,\"game_phase\":%d,\"game_step\":%u,\"focus\":",nav_game_active,nav_game_active==1?(int)nav_arcade.phase:(int)nav_rider.phase,nav_rider.setup_step);struct xz_ui_widget focus;if(panel&&xz_ui_focused(&ui,&um,&focus))string(focus.label);else string("");printf(",\"observations\":{\"classic_detail\":%d,\"view\":%d,\"four_stems_hidden\":%d,\"ram_only\":%d,\"loaded3\":%d,\"software_loaded\":%d,\"sync3\":%d,\"sync4\":%d},\"effects\":[%s],\"classic_overlay\":%d}\n",classic_four?nav_classic_detail():-1,sm.layout_preference,sm.four_stems_hidden,sm.deck[0].ram_only,sm.deck[2].track_no,player_active,sm.deck[2].sync,sm.deck[3].sync,effects,classic_inline);fflush(stdout);
 }
 int main(int argc,char **argv){
  if(argc!=3)return 2;FILE *bg=fopen(argv[2],"rb");if(!bg||fread(stock,2,800*480,bg)!=800*480)return 9;fclose(bg);output=argv[1];fx_track_build(&track,7);bx_build(&library);fx_model_four(&sm,&track);xz_shell_init(&sh);xz_ui_init(&ui);nav_runtime_init();xz_deck_select_init(&selection);xz_deck_select_route(&selection,1);bx_tracks(&browse,&library,XZ_SHELL_BROWSE);bx_folders(&browse,&library,XZ_SHELL_PLAYLIST);sm.browse=&browse;bx_tracks(&browse,&library,XZ_SHELL_BROWSE);sm.my_settings=&my_settings;sm.settings_screen=&settings;sm.settings.writable=((uint64_t)1<<XZ_SHELL_SET_TIME_MODE)|((uint64_t)1<<XZ_SHELL_SET_QUANTIZE);sm.capabilities|=XZ_SHELL_CAP_SET_SETTING;
@@ -190,7 +197,13 @@ int main(int argc,char **argv){
  char line[512],cmd[64];int a,b,t;
  while(fgets(line,sizeof line,stdin)){a=b=t=0;if(sscanf(line,"%63s %d %d %d",cmd,&a,&b,&t)<1)continue;now=100000u+(unsigned)t;nav_clock_set(now);um.clock_ms=sm.clock_ms=now;effects_len=0;effects[0]=0;struct xz_ui_action o[XZ_UI_ACTIONS];size_t n=0;
  if(nav_game_active&&strcmp(cmd,"fixture"))nav_game_input(cmd,a,b,now);
- else if(!strcmp(cmd,"fixture")){if(a==260){classic_four=1;nav_classic_start(&um);}else if(nav_setup_fixture(a)||nav_perf_fixture(a)){}else if(a==37){um.counter_error[0].code="E-8304";um.counter_error[0].text="USB ACCESS ERROR";}else if(a==30){dj.images_usb=0;dj.image_count=2;dj.images=logo_images;for(int i=0;i<160*160;i++)logo_tile[i]=((i/160/20+i%160/20)&1)?0x07ff:0xf81f;}else if(a==31){logo_failure=1;}else if(a==32){profile_failure=1;}else if(a==33){profile_failure=logo_failure=0;}else if(a==34){dj.usb_present=0;}else if(a==35){dj.usb_present=3;}else if(a==36){network_failure=1;}else if(a==22){for(int d=0;d<4;d++)sm.deck[d].playing=0;}else if(a==20){um.network.actual=(struct xz_net_snapshot){.generation=1,.observed_ms=now,.count=1};struct xz_net_adapter *ad=&um.network.actual.adapter[0];snprintf(ad->id.name,16,"fixture0");ad->id.ifindex=7;ad->id.identity_epoch=1;ad->id.mac_known=XZ_NET_YES;ad->admin_up=ad->link_up=ad->addresses_known=ad->gateway_known=XZ_NET_YES;ad->caps=63;ad->dhcp_enabled=XZ_NET_NO;ad->network_owner=XZ_NET_OWNER_MODS;ad->state_revision=1;um.network.phase=XZ_NET_IDLE;}else if(a==21){um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_ERROR;snprintf(um.deck[ui.ram_deck].ram.message,sizeof um.deck[ui.ram_deck].ram.message,"FIXTURE COPY ERROR");}else if(a>=100&&a<124){classic_inline=1;um.ui_interface=0;um.theme=um.classic_theme=a-100;um.stems_overlay=1;}else if(a>=10&&a<=12){report_result=a==10?XZ_SUPPORT_SENT:a==11?XZ_SUPPORT_SAVED:XZ_SUPPORT_UNSAVED;}else if(a==1){classic_inline=1;um.ui_interface=0;um.theme=um.classic_theme;um.stems_overlay=1;}else if(a==2){um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_READY;um.deck[ui.ram_deck].ram.can_request=0;um.deck[ui.ram_deck].ram.can_release=1;um.deck[ui.ram_deck].ram.bytes=um.deck[ui.ram_deck].ram.copied=16000000;}}
+ else if(!strcmp(cmd,"fixture")){if(a==260||a==261){classic_four=1;nav_classic_start(&um);if(a==261)nav_classic_full(&sm);}else if(nav_matrix_fixture(a)||nav_setup_fixture(a)||nav_perf_fixture(a)){}else if(a==37){um.counter_error[0].code="E-8304";um.counter_error[0].text="USB ACCESS ERROR";}else if(a==30){dj.images_usb=0;dj.image_count=2;dj.images=logo_images;for(int i=0;i<160*160;i++)logo_tile[i]=((i/160/20+i%160/20)&1)?0x07ff:0xf81f;}else if(a==31){logo_failure=1;}else if(a==32){profile_failure=1;}else if(a==33){profile_failure=logo_failure=0;}else if(a==34){dj.usb_present=0;}else if(a==35){dj.usb_present=3;}else if(a==36){network_failure=1;}else if(a==22){for(int d=0;d<4;d++)sm.deck[d].playing=0;}else if(a==20){um.network.actual=(struct xz_net_snapshot){.generation=1,.observed_ms=now,.count=1};struct xz_net_adapter *ad=&um.network.actual.adapter[0];snprintf(ad->id.name,16,"fixture0");ad->id.ifindex=7;ad->id.identity_epoch=1;ad->id.mac_known=XZ_NET_YES;ad->admin_up=ad->link_up=ad->addresses_known=ad->gateway_known=XZ_NET_YES;ad->caps=63;ad->dhcp_enabled=XZ_NET_NO;ad->network_owner=XZ_NET_OWNER_MODS;ad->state_revision=1;um.network.phase=XZ_NET_IDLE;}else if(a==21){um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_ERROR;snprintf(um.deck[ui.ram_deck].ram.message,sizeof um.deck[ui.ram_deck].ram.message,"FIXTURE COPY ERROR");}else if(a>=100&&a<124){classic_inline=1;um.ui_interface=0;um.theme=um.classic_theme=a-100;um.stems_overlay=1;}else if(a>=10&&a<=12){report_result=a==10?XZ_SUPPORT_SENT:a==11?XZ_SUPPORT_SAVED:XZ_SUPPORT_UNSAVED;}else if(a==1){classic_inline=1;um.ui_interface=0;um.theme=um.classic_theme;um.stems_overlay=1;}else if(a==2){um.deck[ui.ram_deck].ram.state=XZ_UI_RAM_READY;um.deck[ui.ram_deck].ram.can_request=0;um.deck[ui.ram_deck].ram.can_release=1;um.deck[ui.ram_deck].ram.bytes=um.deck[ui.ram_deck].ram.copied=16000000;}}
+ else if(!strcmp(cmd,"player")){
+ if(!player_active){char path[2048];snprintf(path,sizeof path,"%s",output);char *slash=strrchr(path,'/');if(!slash)return 11;snprintf(slash+1,(size_t)(path+sizeof path-slash-1),"player-fixture");nav_player_open(path);player_active=1;}
+ const struct xz_extra_decks *v=nav_player_input(a,b);
+ for(int d=0;d<2;d++){const struct xz_extra_deck *in=&v->deck[d];struct xz_shell_deck *out=&sm.deck[d+2];out->title=in->title;out->artist=in->artist;out->bpm_x100=in->bpm_x100;out->playing=in->playing;out->elapsed_ms=in->elapsed_ms;out->total_ms=in->total_ms;out->quantize_on=in->quantize;out->master=in->master;struct xz_extra_sync_presentation sp=xz_extra_sync_present(in);out->sync=in->sync.requested;out->sync_status=sp.status;out->sync_master_deck=in->sync.master_deck;}
+ effect("software-player",a,b+2,0,1);
+ }
  else if(!strcmp(cmd,"physical")){
  int release=a>=100,code=a%100,side=b;
  if(side<0||side>1)return 6;

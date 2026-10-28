@@ -28,7 +28,7 @@ static void nav_perf_shell(const struct xz_shell_action *a){
  if(a->kind==XZ_SHELL_ACT_ROUTE_RESCAN){um.route.state=sm.route_state=XZ_UI_ROUTE_SCANNING;}
  if(a->kind==XZ_SHELL_ACT_DECK_SELECT){if(a->value)sm.sides_extra|=1u<<a->deck;else sm.sides_extra&=~(1u<<a->deck);}
  if(a->kind==XZ_SHELL_ACT_SET_SETTING&&a->id==XZ_SHELL_SET_TIME_MODE){sm.settings.time_mode=a->value;for(int d=0;d<4;d++)sm.deck[d].time_mode=a->value;}
- if(a->kind==XZ_SHELL_ACT_LOAD&&a->id>=1000&&a->id<1000+BX_TRACKS)sm.deck[a->deck].alert.kind=XZ_SHELL_ALERT_NONE;
+ if(a->kind==XZ_SHELL_ACT_LOAD&&a->deck>=2&&a->id>=1000&&a->id<1000+BX_TRACKS)sm.deck[a->deck].alert.kind=XZ_SHELL_ALERT_NONE;
  if(a->kind==XZ_SHELL_ACT_SEEK)sm.deck[a->deck].elapsed_ms=a->value;
 }
 static void rect_widget(const char *,struct xz_shell_rect,int *);

@@ -1,3 +1,8 @@
+#include "../ui/classic_column.h"
+#include "../ui/classic_mixer.h"
+static int nav_full_composition;
+static struct xz_shell_deck nav_full_native[2];
+void nav_classic_full(const struct xz_shell_model *s){nav_full_composition=1;memcpy(nav_full_native,s->deck,sizeof nav_full_native);}
 #include "../ui/extra_lane.h"
 /* The same CLASSIC surface and touch hook used by the runtime fixture tests. */
 void nav_classic_start(struct xz_ui_model *out){
@@ -30,6 +35,14 @@ void nav_classic_draw(uint16_t *pixels,const uint16_t *stock,unsigned now){
  xz_four_frame_draw(wave,XZ_WAVE_WIDTH*XZ_WAVE_HEIGHT,&frame,NULL);
  memcpy(pixels,stock,800*480*2);
  for(int y=0;y<XZ_WAVE_HEIGHT;y++)memcpy(pixels+(y+18)*800+131,wave+y*XZ_WAVE_WIDTH,XZ_WAVE_WIDTH*2);
+ if(nav_full_composition){
+ struct xz_classic_column_view col={.layout=XZ_LAYOUT_FOUR};
+ for(int d=0;d<4;d++){col.deck[d].live=1;col.deck[d].source=1;snprintf(col.deck[d].key,8,"Am");}
+ xz_classic_column_draw(pixels,800,800*480,&col);
+
+ struct xz_classic_mixer_view mix={.native=nav_full_native,.extra=&fixture_extra,.now_ms=now,.layout=XZ_LAYOUT_FOUR};
+ xz_classic_mixer_draw(pixels,800,800*480,&mix);
+ }
 }
 
 int nav_classic_detail(void){return fixture_detail;}
