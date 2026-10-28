@@ -29,7 +29,7 @@ void xz_ram_notice_four_lane(struct xz_canvas surface, int lane_y);
 /* The RAM chip glyph, 30 x 22, its top left at x,y. */
 void xz_ram_glyph(struct xz_canvas c, int x, int y, uint32_t ink, uint32_t fill);
 
-/* The player's E-8307 window while the loopback cable explains it (../hub_cause.h): the whole window becomes
+/* The player's E-8307 hub window, which the loopback cable raises (../stock_dialog.h): the whole window becomes
    this calm card in its own place and size. */
 #define XZ_HUB_CARD_HEAD "LOOPBACK CABLE CONNECTED"
 #define XZ_HUB_CARD_LINE "USED BY DECKS 3 AND 4 \xc2\xb7 NOT AN ERROR"

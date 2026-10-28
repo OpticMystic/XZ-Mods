@@ -271,7 +271,7 @@ A saved report waits in `VJ.Tools/XZ-Mods-reports/pending/` on the stick, up to 
 When an error shows in the dock's top row, **REPORT THIS** beside it opens REPORT AN ISSUE at **WHAT HAPPENED?** with SOMETHING ISN'T WORKING chosen. Push **SKIP** and **SEND REPORT**, and the error goes with it. Every report includes an error on screen, however you open it.
 
 ```figure classic:theme-{look}-support-strip REPORT THIS
-The E-8307 hub warning in the dock, when nothing shows that the loopback cable caused it, with REPORT THIS.
+A player warning in the dock, here E-8307: USB ACCESS ERROR, with REPORT THIS.
 1 @ 510,447 REPORT THIS | Opens REPORT AN ISSUE about this error. Touch only: with the encoder, open EXTRAS › REPORT AN ISSUE.
 ```
 

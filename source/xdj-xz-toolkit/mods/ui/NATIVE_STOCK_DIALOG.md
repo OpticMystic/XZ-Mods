@@ -105,13 +105,22 @@ including the other deck, wave, menus and games. Native footer transforms leave
 an affected deck's counter area alone. Runtime and display bridge from the same
 build are required for this background-presenter protection.
 
-Live global windows always use the native-screen fallback. Their translated
-multi-row text, runtime substitutions, buttons and scope still have no complete
-proven mapping to the per-deck alert model. Stock alone dismisses them.
+Live global windows take the screen only from CLASSIC's own pages, where the
+player's interface is the one on screen: CLASSIC's layers step aside and the
+screen, touches, keys and the encoder go to stock. Their translated multi-row
+text, runtime substitutions, buttons and scope still have no complete proven
+mapping to the per-deck alert model, and stock alone dismisses them.
 
-MODERN opens the same MODS panel as CLASSIC (one MODS menu). A live window hides
-it like any other layer: the screen, touches, keys and the encoder go to stock,
-and the panel comes back open, on the same page, when stock closes the window.
+MODERN and an open MODS panel (either interface) never yield to a live window
+(owner, 2026-10-28: handing MODERN to stock put the old interface on screen,
+answering the controls and leaving browse). The window waits behind and its own
+text is said instead: `stock_dialog.c` reads the live window's text buffer and
+publishes it as printable ASCII (`xz_stock_window_text`; an unreadable text gives
+THE PLAYER SHOWS A WARNING). MODERN's play screen shows it as a notice once each
+time it appears or changes. While MODS is open, the dock's title row shows it in
+the counter strip's colours: the E-code in white, the firmware's text and REPORT
+THIS. The E-8307 hub window has neither (below).
+
 A known counter error is never covered. On MODERN's play screen it shows on its
 deck with CHOOSE TRACK. While MODS is open, the dock's title row turns into one red
 strip: each deck's badge, the code and the firmware's own text, and SHOW DECK. A tap
@@ -130,22 +139,18 @@ to it meant MODS never came back with the cable plugged in.
 
 `stock_dialog.c` therefore reads the live window's UTF-16 text
 (`sCautionBrowseString` `0x01ada958`, `sCautionStatusString` `0x01ada718`,
-64 bytes, read twice). Exactly `E-8307: HUBS ARE NOT SUPPORTED` or
-`E-8307: UNSUPPORTED DEVICE` (the firmware's English
-`STR_CHAR_DEV_UNSUPPORTED` texts) does not take the screen. Every other text,
-including `E-8307: USB ACCESS ERROR` and `E-8307: DEVICE NO RESPONSE`, other
-languages, and unreadable or torn text, still yields.
+64 bytes, read twice). A text that starts with `E-8307: HUBS ARE NOT SUPPORTED`
+or `E-8307: UNSUPPORTED DEVICE` (the firmware's English
+`STR_CHAR_DEV_UNSUPPORTED` texts) is the hub window: it never takes the screen,
+not even in CLASSIC. Every other text, including `E-8307: USB ACCESS ERROR` and
+`E-8307: DEVICE NO RESPONSE`, other languages, and unreadable or torn text, is an
+ordinary live window.
 
-What MODS shows for it follows `../hub_cause.h` (owner, 2026-10-27: the cable's
-own hub must not read as an error). When the decks 3 and 4 route proves the
-cable (READY, or a checked STARTING / WAITING_NATIVE_STOP, which only a helper
-that found the cable or an admitted music hub publishes), there is no error:
-no dock strip, no play-screen notice, and in CLASSIC the player's own window
-shows a calm LOOPBACK CABLE CONNECTED card. Otherwise, after a 3 s settle while
-the helper looks for the cable, the dock's title row shows the code, the
-firmware text and "FROM A HUB OR THE LOOPBACK CABLE IN A TOP USB PORT.", MODERN
-raises "E-8307 HUBS ARE NOT SUPPORTED: CHECK THE TOP USB PORTS" once, and
-CLASSIC leaves the stock window as drawn.
+The hub window is never an error (owner, 2026-10-28: eliminate it, it is no
+longer relevant). Nothing says it: no dock strip, no play-screen notice, in any
+route state. In CLASSIC the player's own window shows a calm LOOPBACK CABLE
+CONNECTED card for as long as it is up. (Until 2026-10-28 the warning came back
+after a 3 s settle when the decks 3 and 4 route did not prove the cable.)
 
 The CLASSIC card uses the existing caution-window skin path
 (`native_raw_skin.c` kind 2, the GR lock/unlock pair the theme recolour already

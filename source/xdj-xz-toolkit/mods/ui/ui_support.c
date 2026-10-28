@@ -476,9 +476,9 @@ static void send_step(const struct xz_ui_scene *s, const struct look *l) {
         size_t used = strlen(alert);
         snprintf(alert + used, sizeof alert - used, "%s%s on deck %d", used ? ", " : "", m->counter_error[d].code, d + 1);
     }
-    if (xz_ui_usb_hub_notice(m)) {
+    if (xz_ui_stock_window_notice(m)) {
         size_t used = strlen(alert);
-        snprintf(alert + used, sizeof alert - used, "%sE-8307 on the USB port", used ? ", " : "");
+        snprintf(alert + used, sizeof alert - used, "%s%s", used ? ", " : "", m->stock_window);
     }
     if (alert[0]) { y += 6 + summary_row(c, l, y, "ERROR ON SCREEN", alert, 1, l->alarm, CW - 160); xz_rect(c, X0, y + 2, CW, 1, l->edge); y += 10; }
     char also[240];

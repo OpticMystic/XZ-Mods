@@ -1,6 +1,6 @@
 #include "ui.h"
 #include "ui_skin.h"
-#include "../hub_cause.h"
+#include "../stock_dialog.h"
 #include "play_key.h"
 #include "wave_viewport.h"
 #include "ui_network.h"
@@ -856,70 +856,36 @@ static void counter_strip(void){
  }
  printf("PASS counter strip: %d MODERN cases (one deck, the other, both) change only the dock's title row; CLASSIC unchanged\n",shown);
 }
-/* The player's E-8307 hub warning (the loopback cable) takes the dock's title row in both interfaces, adds one
-   control (REPORT THIS, touch only) and changes nothing else; a deck's counter error keeps the row; READY changes
-   only the reason. */
-static void hub_strip(void){
- static uint16_t plain[800*480],ready[800*480];
+/* A live player window takes the dock's title row in both interfaces while MODS stays open: its E-code and its own
+   text, one control (REPORT THIS, touch only), nothing else changed. A deck's counter error keeps the row. */
+static void window_strip(void){
+ static uint16_t plain[800*480];
  static const enum xz_ui_page pages[]={XZ_UI_HOME,XZ_UI_PLAY,XZ_UI_FOUR_DECKS,XZ_UI_SCREEN};
+ static const char *const texts[]={"E-8307: USB ACCESS ERROR",XZ_STOCK_WINDOW_UNREAD};
  int shown=0;
- for(int iface=0;iface<2;iface++)for(size_t p=0;p<sizeof pages/sizeof pages[0];p++){
+ for(int iface=0;iface<2;iface++)for(size_t p=0;p<sizeof pages/sizeof pages[0];p++)for(int k=0;k<2;k++){
   struct xz_ui u;struct xz_ui_model m;memset(&m,0,sizeof m);xz_ui_init(&u);u.page=pages[p];
   m.theme=iface?XZ_THEME_FLAGSHIP:0;m.ui_interface=iface?XZ_UI_INTERFACE_MODERN:XZ_UI_INTERFACE_CLASSIC;m.modern_look.known=1;
-  m.route.state=XZ_UI_ROUTE_STARTING;
   for(int d=0;d<4;d++){m.deck[d].groove_active=m.deck[d].sample_active=-1;m.deck[d].sample_volume=1;}
-  struct xz_ui_model hub=m;hub.usb_hub="E-8307: HUBS ARE NOT SUPPORTED";
+  struct xz_ui_model win=m;win.stock_window=texts[k];
   struct xz_ui_widget before[XZ_UI_WIDGETS],after[XZ_UI_WIDGETS];
-  size_t nb=xz_ui_layout(&u,&m,before),na=xz_ui_layout(&u,&hub,after);
-  assert(!xz_ui_usb_hub_notice(&m)&&xz_ui_usb_hub_notice(&hub)&&na==nb+1&&!memcmp(before,after,nb*sizeof *before));
+  size_t nb=xz_ui_layout(&u,&m,before),na=xz_ui_layout(&u,&win,after);
+  assert(!xz_ui_stock_window_notice(&m)&&xz_ui_stock_window_notice(&win)&&na==nb+1&&!memcmp(before,after,nb*sizeof *before));
   assert(after[nb].kind==XZ_UI_SUPPORT_ALERT&&!xz_ui_focusable(&after[nb])&&after[nb].x+after[nb].w<=XZ_UI_COUNTER_W);
   assert(xz_ui_render(&u,&m,frame,800*480,800));memcpy(plain,frame,sizeof plain);
-  assert(xz_ui_render(&u,&hub,frame,800*480,800));
+  assert(xz_ui_render(&u,&win,frame,800*480,800));
   for(int y=0;y<480;y++)for(int x=0;x<800;x++)
    if(!(x<XZ_UI_COUNTER_W&&y>=XZ_UI_COUNTER_Y&&y<XZ_UI_COUNTER_Y+XZ_UI_COUNTER_H))assert(frame[y*800+x]==plain[y*800+x]);
   assert(frame[(XZ_UI_COUNTER_Y+2)*800+1]==rgb565(0xff4619)&&frame[(XZ_UI_COUNTER_Y+1)*800+300]==rgb565(0x5a0c0c));
-  memcpy(plain,frame,sizeof plain);
-  /* From the loopback cable it is no error: the route proves the cable (READY, or a checked STARTING), or the
-     runtime says so (usb_hub_view); a warning still settling shows nothing either. The dock is exactly as without it. */
-  static uint16_t none[800*480];
-  struct xz_ui_model cable[4];for(int k=0;k<4;k++)cable[k]=hub;
-  cable[0].route.state=XZ_UI_ROUTE_READY;
-  cable[1].route.state=XZ_UI_ROUTE_STARTING;cable[1].route.revision=9;
-  cable[2].route.state=XZ_UI_ROUTE_WAITING_NATIVE_STOP;cable[2].route.revision=2;cable[2].usb_hub_view=XZ_HUB_WARN;
-  cable[3].route.state=XZ_UI_ROUTE_NOT_DETECTED;cable[3].usb_hub_view=XZ_HUB_CABLE;
-  for(int k=0;k<4;k++){
-   struct xz_ui_widget w[XZ_UI_WIDGETS],wq[XZ_UI_WIDGETS];
-   struct xz_ui_model quiet=cable[k];quiet.usb_hub=NULL;assert(xz_ui_render(&u,&quiet,none,800*480,800));
-   size_t nq=xz_ui_layout(&u,&quiet,wq);
-   assert(!xz_ui_usb_hub_notice(&cable[k])&&xz_ui_layout(&u,&cable[k],w)==nq&&!memcmp(w,wq,nq*sizeof *w));
-   assert(xz_ui_render(&u,&cable[k],frame,800*480,800)&&!memcmp(frame,none,sizeof none));
-  }
-  struct xz_ui_model settling=hub;settling.usb_hub_view=XZ_HUB_SETTLING;assert(!xz_ui_usb_hub_notice(&settling));
-  /* Not proven: no route, nothing found yet, an unchecked start, a failed port or a lost route keep the warning. */
-  static const int unproven[]={XZ_UI_ROUTE_NO_ENGINE,XZ_UI_ROUTE_NOT_DETECTED,XZ_UI_ROUTE_SCANNING,XZ_UI_ROUTE_STARTING,
-   XZ_UI_ROUTE_FAILED,XZ_UI_ROUTE_LOST};
-  for(size_t k=0;k<sizeof unproven/sizeof *unproven;k++){
-   struct xz_ui_model w=hub;w.route.state=unproven[k];w.route.revision=unproven[k]==XZ_UI_ROUTE_STARTING?0:5;w.usb_hub_view=XZ_HUB_WARN;
-   assert(xz_ui_usb_hub_notice(&w));
-  }
-  memcpy(ready,none,sizeof ready);
-  if(getenv("XZ_HUB_PREVIEW")&&p<2){
-   char path[512];
-   for(int r=0;r<2;r++){
-    snprintf(path,sizeof path,"%s/hub-%s-%s-%s.ppm",getenv("XZ_HUB_PREVIEW"),iface?"modern":"classic",p?"play":"home",r?"ready":"starting");
-    FILE *f=fopen(path,"wb");assert(f);fprintf(f,"P6\n800 480\n255\n");
-    const uint16_t *px=r?ready:plain;
-    for(int i=0;i<800*480;i++){unsigned v=px[i];unsigned char c[3]={(unsigned char)((v>>11)*255/31),(unsigned char)((v>>5&63)*255/63),(unsigned char)((v&31)*255/31)};fwrite(c,1,3,f);}
-    fclose(f);
-   }
-  }
+  /* An empty text is no window. */
+  struct xz_ui_model empty=m;empty.stock_window="";assert(!xz_ui_stock_window_notice(&empty));
   if(iface){
-   struct xz_ui_model both=hub;both.counter_error[0]=(struct xz_ui_counter_error){"E-8304","UNSUPPORTED"};
-   assert(xz_ui_counter_errors(&both)&&!xz_ui_usb_hub_notice(&both));
+   struct xz_ui_model both=win;both.counter_error[0]=(struct xz_ui_counter_error){"E-8304","UNSUPPORTED"};
+   assert(xz_ui_counter_errors(&both)&&!xz_ui_stock_window_notice(&both));
   }
   shown++;
  }
- printf("PASS hub strip: %d cases, both interfaces, title row only, REPORT THIS the one new control, counter errors keep the row\n",shown);
+ printf("PASS window strip: %d cases, both interfaces, title row only, REPORT THIS the one new control, counter errors keep the row\n",shown);
 }
 int main(int argc,char **argv){
  struct xz_ui u;struct xz_ui_model m;int i,j;
@@ -935,7 +901,7 @@ int main(int argc,char **argv){
  editor();
  dock_fits();
  counter_strip();
- hub_strip();
+ window_strip();
  assert(!xz_ui_render(&u,&m,frame,10,800));assert(!xz_ui_render(&u,&m,frame,800*480,799));
  for(i=0;i<16;i++)frame[800*480+i]=0xdead;
  for(i=0;i<XZ_THEME_COUNT;i++)for(j=0;j<XZ_UI_PAGE_COUNT;j++){m.theme=i;u.page=(enum xz_ui_page)j;assert(xz_ui_render(&u,&m,frame,800*480,800));}

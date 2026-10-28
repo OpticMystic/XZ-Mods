@@ -16,7 +16,8 @@ static int guard(xz_stock_dialog_read read,uint32_t at,const unsigned char expec
  unsigned char actual[16];if(read(at,actual,sizeof actual))return 1;return memcmp(actual,expected,sizeof actual)?2:0;
 }
 /* Firmware-1.26 English STR_CHAR_DEV_UNSUPPORTED texts the kernel's hub refusal raises (the loopback cable's hub at
-   the second level). USB ACCESS ERROR and DEVICE NO RESPONSE, other languages and any unreadable text still yield. */
+   the second level). A window whose text starts with one of them is the hub warning, whatever follows. USB ACCESS
+   ERROR and DEVICE NO RESPONSE, other languages and any unreadable text are ordinary windows. */
 static const char *const usb_hub_text[2]={"E-8307: HUBS ARE NOT SUPPORTED","E-8307: UNSUPPORTED DEVICE"};
 static unsigned usb_hub_window(xz_stock_dialog_read read,uint32_t at){
  uint16_t a[32],b[32];
@@ -24,7 +25,7 @@ static unsigned usb_hub_window(xz_stock_dialog_read read,uint32_t at){
  for(unsigned k=0;k<2;k++){
   const char *t=usb_hub_text[k];size_t i=0;
   while(t[i]&&a[i]==(unsigned char)t[i])i++;
-  if(!t[i]&&!a[i])return k+1;
+  if(!t[i])return k+1;
  }
  return 0;
 }
@@ -49,7 +50,7 @@ int xz_stock_dialog_snapshot(xz_stock_dialog_read read,struct xz_stock_dialog_st
    if(a)failure=a==1?XZ_STOCK_WINDOW_READ:XZ_STOCK_WINDOW_TORN;
    else if(window){
     unsigned hub=usb_hub_window(read,text[i]);
-    if(!hub){s->window=1;s->usb_hub=0;s->failure=XZ_STOCK_OK;return 1;}
+    if(!hub){s->window=1;s->usb_hub=0;s->text_at=text[i];s->failure=XZ_STOCK_OK;return 1;}
     s->usb_hub=hub;
    }
   }
@@ -87,6 +88,39 @@ static void unknown(uint32_t id){
  if(first&&log){char line[100];snprintf(line,sizeof line,"STOCK_DIALOG: ignored unmapped counter id=%u",id);log(line);}
 }
 static unsigned shown_hub;
+/* The live window's text, copied under a spin lock: one 64-byte copy each way. A poll that finds the lock taken
+   leaves the copy for the next poll. */
+static unsigned window_lock;static char window_text[XZ_STOCK_WINDOW_TEXT];
+static size_t ascii_text(const uint16_t *u,size_t n,char out[XZ_STOCK_WINDOW_TEXT]){
+ size_t k=0;
+ for(size_t i=0;i<n&&u[i]&&k<XZ_STOCK_WINDOW_TEXT-1;i++){
+  char ch=u[i]>=0x20&&u[i]<0x7f?(char)u[i]:u[i]<0x20?' ':'?';
+  if(ch==' '&&(!k||out[k-1]==' '))continue;
+  out[k++]=ch;
+ }
+ while(k&&out[k-1]==' ')k--;
+ out[k]=0;return k;
+}
+static void publish_window(const struct xz_stock_dialog_state *s){
+ char t[XZ_STOCK_WINDOW_TEXT]="";
+ if(s->window){
+  uint16_t a[32],b[32];
+  if(!s->text_at||xz_read_memory(s->text_at,a,sizeof a)||xz_read_memory(s->text_at,b,sizeof b)||memcmp(a,b,sizeof a)||!ascii_text(a,32,t))
+   snprintf(t,sizeof t,"%s",XZ_STOCK_WINDOW_UNREAD);
+ }
+ if(__atomic_exchange_n(&window_lock,1u,__ATOMIC_ACQUIRE))return;
+ int changed=strcmp(window_text,t)!=0;
+ if(changed)memcpy(window_text,t,sizeof t);
+ __atomic_store_n(&window_lock,0u,__ATOMIC_RELEASE);
+ void (*log)(const char*)=xz_log;
+ if(changed&&log){char line[120];snprintf(line,sizeof line,"STOCK_DIALOG: window %s; shown by mods",t[0]?t:"cleared");log(line);}
+}
+size_t xz_stock_window_text(char out[XZ_STOCK_WINDOW_TEXT]){
+ while(__atomic_exchange_n(&window_lock,1u,__ATOMIC_ACQUIRE));
+ memcpy(out,window_text,XZ_STOCK_WINDOW_TEXT);
+ __atomic_store_n(&window_lock,0u,__ATOMIC_RELEASE);
+ out[XZ_STOCK_WINDOW_TEXT-1]=0;return strlen(out);
+}
 static struct xz_stock_dialog_state poll_state(void){
  static unsigned previous_reason,previous_priority;
  static const char *const reasons[]={"ok","no reader","browse prologue mismatch","status prologue mismatch",
@@ -103,8 +137,9 @@ static struct xz_stock_dialog_state poll_state(void){
  }
  unsigned hub=s.window?0:s.usb_hub;
  if(__atomic_exchange_n(&shown_hub,hub,__ATOMIC_ACQ_REL)!=hub&&log){
-  char line[100];snprintf(line,sizeof line,"STOCK_DIALOG: hub warning %s; shown by mods",hub?usb_hub_text[hub-1]:"cleared");log(line);
+  char line[100];snprintf(line,sizeof line,"STOCK_DIALOG: hub warning %s; not an error",hub?usb_hub_text[hub-1]:"cleared");log(line);
  }
+ publish_window(&s);
  unsigned priority=s.window|(mask<<1)|(hub<<3);
  void (*repaint)(void)=xz_native_skin_request_repaint;
  if(__atomic_exchange_n(&previous_priority,priority,__ATOMIC_ACQ_REL)!=priority&&repaint)repaint();
