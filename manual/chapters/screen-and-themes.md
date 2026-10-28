@@ -69,7 +69,7 @@ The MODERN play screen with two decks, 3-BAND waveforms and the playing key show
 2 @ 243,300 QUANTIZE lamp | Red while QUANTIZE is on, with its beat value. Hide it in LAMPS AND TITLES.
 3 @ 70,105 Playing key | The key the track plays in now. ORIGINAL below it is the key it was analysed in.
 4 @ 690,60 Scrolling waveform | Coloured by WAVEFORM COLOURS.
-5 @ 713,34 STEMS and MODS | STEMS steps the stem buttons through their places. MODS opens the MODS menu.
+5 @ 713,34 STEMS and MODS | STEMS steps the stem buttons through their places, or shows and hides them in 4 DECKS. MODS opens the MODS menu.
 ```
 
 ## Classic themes {classic}

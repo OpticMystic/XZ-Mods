@@ -27,7 +27,7 @@ static int valid(const struct xz_settings *s) {
         for (int j=0;j<i;j++) if(s->browse_columns[i]==s->browse_columns[j]) return 0;
     }
     return (unsigned)s->modern_wave_color<=3 && (unsigned)s->wave_position<=1 && (unsigned)s->key_display<=2 &&
-        (unsigned)s->wave_zoom<=6 && (unsigned)s->usb_colors<=2 && (unsigned)s->hidden_parts<=15 && (unsigned)s->modern_browse_columns<=2047 &&
+        (unsigned)s->wave_zoom<=6 && (unsigned)s->usb_colors<=2 && (unsigned)s->hidden_parts<=XZ_HIDDEN_PARTS_MAX && (unsigned)s->modern_browse_columns<=2047 &&
         (unsigned)s->ui_interface<=XZ_INTERFACE_MODERN && (unsigned)s->classic_theme<XZ_CLASSIC_THEME_COUNT && (unsigned)s->modern_theme<XZ_MODERN_THEME_COUNT &&
         (unsigned)s->stem_order<XZ_STEM_ORDER_COUNT && (unsigned)s->metrics_enabled<=1 && (unsigned)s->rekordbox_menu<=1 && (unsigned)s->rekordbox_press<XZ_REKORDBOX_ACTIONS && (unsigned)s->rekordbox_shift<XZ_REKORDBOX_ACTIONS && (unsigned)s->ram_debug<=1 && (unsigned)s->key_feedback<=1 && (unsigned)s->browse_key_prefix<=1 && (unsigned)s->browse_traffic<=1 && (unsigned)s->key_format<=XZ_KEY_FORMAT_CAMELOT && (unsigned)s->stems_overlay<XZ_STEM_LAYOUT_COUNT && (unsigned)s->modern_stems<XZ_MODERN_STEMS_COUNT && (unsigned)s->deck_view<XZ_DECK_VIEW_COUNT && (unsigned)s->deck_view_button<=1 && (unsigned)s->browse_preview<=1 && (unsigned)s->wave_mode<=2 && (unsigned)s->jump.enabled<=1 && (unsigned)s->jump.shift_page<=1 && (unsigned)s->stems <= 1 && (unsigned)s->gate <= 1 &&
         (unsigned)s->smart <= 1 && (unsigned)s->theme < XZ_THEME_COUNT &&

@@ -333,12 +333,22 @@ including changes made in UTILITY, MODS > SCREEN and the waveform zoom control:
 | 53 | `key_display` | 0 AS THE DECK SHOWS IT, 1 CLASSIC, 2 ALPHANUMERIC | 0 |
 | 54 | `wave_zoom` | 0 to 6 | 3 |
 | 55 | `usb_colors` | 0 TILE AND WAVEFORM, 1 TILE ONLY, 2 OFF | 0 |
-| 56 | `hidden_parts` | 0 to 15, bitmask below | 0 |
+| 56 | `hidden_parts` | 0 to 31, bitmask below | 0 |
 
-`hidden_parts` has four independent bits: 1 HIDE MODE LAMPS, 2 HIDE QUANTIZE
-LAMP, 4 HIDE BYPASS BUTTON and 8 HIDE WAVEFORM TITLES. Add the chosen bits;
-0 shows all four parts and 15 hides them all. The desktop schema has no
-bitmask/checkbox-group control, so this is one advanced numeric field.
+`hidden_parts` has five independent bits: 1 HIDE MODE LAMPS, 2 HIDE QUANTIZE
+LAMP, 4 HIDE BYPASS BUTTON, 8 HIDE WAVEFORM TITLES and 16 HIDE 4 DECKS STEM
+BUTTONS. Add the chosen bits; 0 shows all five parts and 31 hides them all.
+The desktop schema has no bitmask/checkbox-group control, so this is one
+advanced numeric field.
+
+Bit 16 is the STEMS button's choice in MODERN's 4 DECKS view. There the button
+shows or hides the stem buttons with one press each, and the 2 DECKS layout
+(`modern_stems`, field 43) stays as it is; in 2 DECKS the button steps that
+layout. The two are kept apart because four lanes have no room for the
+layouts: hiding the buttons to give four waveforms their height does not take
+them off the 2 DECKS screen. CLASSIC draws no stem rows in four lanes, so its
+STEMS button there changes nothing and says STEM BUTTONS SHOW IN 2 DECKS VIEW.
+A runtime older than this bit rejects a record that sets it.
 
 The audit also found MODERN's browse column mask in RAM. Optional field 57,
 `modern_browse_columns`, now saves it. 0 keeps the automatic columns. Values

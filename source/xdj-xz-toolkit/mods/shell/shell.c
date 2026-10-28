@@ -155,10 +155,12 @@ static int header_matches(const struct xz_shell *u){
 void sh_header_buttons(const struct xz_shell *u,const struct xz_shell_model *m, struct xz_canvas c) {
  xz_rect(c,XZ_SHELL_HEADER_X-2,0,XZ_SHELL_WIDTH-XZ_SHELL_HEADER_X+2,XZ_SHELL_HEADER_BUTTON_H,SH_CHROME);
  if(header_closes(u)){header_button(c,XZ_SHELL_MODS_X,XZ_SHELL_MODS_W,"X",0);return;}
- header_button(c,XZ_SHELL_STEMS_X,XZ_SHELL_STEMS_W,"STEMS",m->stems_known&&m->stems_on);
+ /* Four lanes: STEMS shows or hides the stem buttons, so it is lit while they show and has no layout marks. */
+ int four=sh_play_four(u,m);
+ header_button(c,XZ_SHELL_STEMS_X,XZ_SHELL_STEMS_W,"STEMS",m->stems_known&&(four?!m->four_stems_hidden:m->stems_on));
  /* One mark under STEMS per layout, in the order the button steps them, as the classic STEMS button shows its
     choice. */
- if(m->stem_layout_known&&(unsigned)m->stem_layout<XZ_SHELL_STEM_LAYOUTS){
+ if(!four&&m->stem_layout_known&&(unsigned)m->stem_layout<XZ_SHELL_STEM_LAYOUTS){
   int h=XZ_SHELL_HEADER_BUTTON_H,x=XZ_SHELL_STEMS_X+8,w=XZ_SHELL_STEMS_W-16,mw=(w-(XZ_SHELL_STEM_LAYOUTS-1)*2)/XZ_SHELL_STEM_LAYOUTS;
   int lit=m->stems_known&&m->stems_on;
   xz_rect(c,x,h-5,w,2,lit?SH_BLUE:XZ_FLAGSHIP_TILE);

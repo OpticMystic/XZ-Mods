@@ -1013,6 +1013,14 @@ static _Thread_local struct {
 } badge_frame_cache;
 static struct xz_ui_transient_notice async_notice;
 static _Thread_local struct xz_ui_notice_pixels notice_pixels;
+/* A STEMS button notice where the DJ is looking: the shell's own notice in MODERN, the badge in CLASSIC or over
+   MODS. Under ui_mutex. */
+static void stems_notice_locked(const char *text){
+    if(!text)return;
+    if(model.ui_interface==XZ_UI_INTERFACE_MODERN&&!touch.visible&&xz_shell_runtime_notice){xz_shell_runtime_notice(text);return;}
+    xz_ui_notice_set(&async_notice,text,xz_game_milliseconds());
+    snprintf(ui.notice,sizeof ui.notice,"%s",async_notice.text);
+}
 void xz_ui_runtime_notice(const char *text){
     pthread_mutex_lock(&ui_mutex);
     xz_ui_notice_set(&async_notice,text,xz_game_milliseconds());
@@ -1551,6 +1559,20 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             xz_native_touch_visible(&touch,0); __atomic_store_n(&visible,0,__ATOMIC_RELEASE);
             break;
         case XZ_UI_STEMS_OVERLAY:
+            /* The STEMS button in a 4 DECKS view shows or hides the stem buttons, one press each; the 2 DECKS
+               layout stays as it is (wave_viewport.h xz_stems_press). */
+            if(a->index==XZ_UI_STEMS_BUTTON){
+                enum xz_stems_press press=xz_stems_press(model.ui_interface==XZ_UI_INTERFACE_MODERN,
+                    xz_deck_layout_get()!=XZ_LAYOUT_TWO,(modern_display.hidden_parts&XZ_HIDE_FOUR_STEMS)!=0);
+                if(press!=XZ_STEMS_PRESS_STEP){
+                    if(press==XZ_STEMS_PRESS_SHOW)modern_display.hidden_parts&=~XZ_HIDE_FOUR_STEMS;
+                    else if(press==XZ_STEMS_PRESS_HIDE)modern_display.hidden_parts|=XZ_HIDE_FOUR_STEMS;
+                    stems_notice_locked(press==XZ_STEMS_PRESS_SHOW&&!requested_stems&&!pc_present?
+                        "STEM ROWS SHOW ONCE STEMS ARE ON IN MODS":xz_stems_press_notice(press));
+                    xz_native_skin_request_repaint();
+                    break;
+                }
+            }
             /* MODERN has its own layout (the shell draws it); CLASSIC's native rows keep stems_overlay. */
             /* A MODERN layout picture carries its layout (value = layout + 1); the STEMS button steps. */
             if(model.ui_interface==XZ_UI_INTERFACE_MODERN){
@@ -1969,9 +1991,11 @@ static void shell_ui_requests_locked(void){
         if(view>=0)deck_view_apply(view);
     }
     if(requests&XZ_SHELL_UI_TOGGLE_STEMS){
-        struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&act,1);
-        /* The layout changes as on the stock button, but rows only appear once stems are on. */
-        if(!requested_stems&&!pc_present&&xz_shell_runtime_notice)xz_shell_runtime_notice("STEM ROWS SHOW ONCE STEMS ARE ON IN MODS");
+        int two=xz_deck_layout_get()==XZ_LAYOUT_TWO;
+        struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY,.index=XZ_UI_STEMS_BUTTON};apply(NULL,&act,1);
+        /* The layout changes as on the stock button, but rows only appear once stems are on. (4 DECKS: the
+           press said what it did itself.) */
+        if(two&&!requested_stems&&!pc_present&&xz_shell_runtime_notice)xz_shell_runtime_notice("STEM ROWS SHOW ONCE STEMS ARE ON IN MODS");
     }
     /* The shell's stem mute buttons: through the pads' own mute toggle, so the stem engine and the
        hot cue mute preservation see exactly what a pad press does. */
@@ -2261,9 +2285,11 @@ static int rekordbox_run_locked(int action){
         xz_native_skin_request_repaint();
         return 0;}
     case XZ_REKORDBOX_STEMS:{
-        /* The STEMS button's own layout step, and the shell header's note when rows cannot show yet. */
-        struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY};apply(NULL,&act,1);
-        if(modern&&!requested_stems&&!pc_present&&xz_shell_runtime_notice)xz_shell_runtime_notice("STEM ROWS SHOW ONCE STEMS ARE ON IN MODS");
+        /* The STEMS button's own press (a layout step, or show / hide in 4 DECKS), and the shell header's note
+           when rows cannot show yet. */
+        int two=xz_deck_layout_get()==XZ_LAYOUT_TWO;
+        struct xz_ui_action act={.kind=XZ_UI_STEMS_OVERLAY,.index=XZ_UI_STEMS_BUTTON};apply(NULL,&act,1);
+        if(two&&modern&&!requested_stems&&!pc_present&&xz_shell_runtime_notice)xz_shell_runtime_notice("STEM ROWS SHOW ONCE STEMS ARE ON IN MODS");
         xz_native_skin_request_repaint();return 0;}
     default:return 1; /* the stock action */
     }
@@ -3435,7 +3461,7 @@ static void badge(uint16_t *pixels, uint32_t stride) {
     }else head_shown=0;
     if(!model.fb_takeover)xz_ui_render_ram_debug(pixels,stride,model.theme,model.ram_debug&&!model.metrics_enabled,model.ram_debug_valid,model.ram_free_mib);
     xz_ui_notice_restore(&notice_pixels,pixels,stride);
-    xz_ui_render_native_buttons(pixels,stride,model.theme,model.stems_overlay,
+    xz_ui_render_native_buttons(pixels,stride,model.theme,xz_classic_stems_lamp(model.stems_overlay,xz_deck_layout_get()!=XZ_LAYOUT_TWO),
         model.connection.enabled&&model.connection.connected&&(model.fb_takeover||play),model.fb_takeover);
     badge_frame_cache.notice=async_notice;
     if(!model.fb_takeover)xz_ui_notice_badge(pixels,stride,model.theme,&async_notice,xz_game_milliseconds(),&notice_pixels);
@@ -3689,7 +3715,7 @@ static int render_mods_frame(uint16_t *pixels, uint32_t width,
         badge_frame_cache.ram_debug=model.ram_debug;badge_frame_cache.ram_valid=model.ram_debug_valid;
         badge_frame_cache.ram_free_mib=model.ram_free_mib;
         badge_frame_cache.metrics_enabled=model.metrics_enabled;badge_frame_cache.metrics=model.metrics;
-        badge_frame_cache.theme=model.theme;badge_frame_cache.layout=model.stems_overlay;
+        badge_frame_cache.theme=model.theme;badge_frame_cache.layout=xz_classic_stems_lamp(model.stems_overlay,xz_deck_layout_get()!=XZ_LAYOUT_TWO);
         badge_frame_cache.takeover=model.fb_takeover;
         badge_frame_cache.vj=model.connection.enabled&&model.connection.connected&&xz_native_play_visible();
         badge_frame_cache.shortcut=shortcut_visible();

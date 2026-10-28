@@ -219,17 +219,15 @@ modern:play-4deck-grid-deck4 GRID ADJUST on deck 4
 modern:play-4deck-grid-deck4-stems GRID ADJUST on deck 4 with stem rows on decks 1 and 2
 ```
 
-Stem buttons show only for decks 1 and 2, because decks 3 and 4 have no stems. Each stem layout keeps its place in the four-deck view.
+Stem buttons show in a half row under a deck's waveform, only for decks 1 and 2 and only while the deck's track has prepared stems. Decks 3 and 4 have no stems. A deck without stems shows no stem buttons and its waveform keeps the whole lane.
+
+**STEMS** in the top bar shows or hides the stem buttons on all four lanes: one tap hides them, the next shows them. The screen says **STEM BUTTONS HIDDEN** or **STEM BUTTONS SHOWN**, and **STEMS** is lit while they show. Your 2 DECKS stem layout does not apply here and does not change. See [Stems](stems).
 
 ```gallery {modern}
-modern:play-4deck-stems-below-full Stem rows below decks 1 and 2, full height
-modern:play-4deck-stems-below-half Stem rows below decks 1 and 2, half height
-modern:play-4deck-stems-outside-full Stem rows outside, full height
-modern:play-4deck-stems-outside-half Stem rows outside, half height
-modern:play-4deck-stems-hidden Stem rows hidden
-modern:play-4deck-stems-pads Stem pads in the four-deck view
-modern:play-4deck-stems-pads-bypass Stem pads with BYPASS on deck 2
-modern:play-4deck-stems-layout-unread Before the stem layout is read
+modern:play-4deck-stems-shown Stem buttons on decks 1 and 2. STEMS is lit
+modern:play-4deck-stems-hidden One tap of STEMS: the stem buttons are hidden and every waveform has its whole lane
+modern:play-4deck-stems-deck2-none Deck 2's track has no prepared stems: no stem buttons, the whole lane
+modern:play-4deck-stems-bypass BYPASS on deck 2
 ```
 
 ## The CLASSIC four-deck screen {classic}
@@ -239,7 +237,7 @@ CLASSIC keeps the player's own look and adds what four decks need.
 - **Waveforms.** The waveform area holds four narrower lanes, one per deck, in the order DECK VIEW chooses. Decks 3 and 4 draw the same 3-band waveform with beat ticks, hot cue flags A to H, the cue point, loops and the playhead.
 - **Side column.** The left column has one tag per lane. The tag of a deck a side controls is pale blue with LEFT or RIGHT. Decks 1 and 2 show the analysed key, the playing key and its cents. Decks 3 and 4 show their playing key and its cents the same way, TRACK KEY until they report it, or NOT CONNECTED and SEE THE CARD while they are not running.
 - **Bottom panel.** Four channels in mixer order 3 1 2 4. Each shows the deck's title, time, QUANTIZE, tempo and range, AUTO CUE and MT, what SYNC follows, what the pads do, the BPM (orange with MASTER for the master deck) and the whole-track overview. A deck that is not connected shows a dim band with NOT CONNECTED and DECK n WAITS FOR THE LOOPBACK CABLE.
-- **Stem rows** are not drawn while four decks show, because there is no room. Your stem layout comes back when you return to two decks. Pressing STEMS meanwhile still steps the saved layout.
+- **Stem rows** are not drawn while four decks show, because there is no room, and **STEMS** stays dark. Your stem layout comes back when you return to two decks. Pressing STEMS meanwhile changes nothing and says **STEM BUTTONS SHOW IN 2 DECKS VIEW**.
 - **2 DECKS** shows the decks the sides control. A side on deck 3 or 4 gets a whole half in the player's own style: its waveform, its side tag and its bottom panel.
 
 Tap a lane, side tag or channel title of deck 3 or 4 to open its detail panel. Touch the overview in the bottom channel to search the track. NEEDLE LOCK refuses a search while the deck plays.

@@ -178,6 +178,9 @@ enum xz_ui_usb_reason {
     XZ_UI_USB_WHY_ALIGNING, XZ_UI_USB_WHY_ERROR
 };
 enum xz_ui_phase { XZ_UI_PRESS, XZ_UI_MOVE, XZ_UI_RELEASE };
+/* XZ_UI_STEMS_OVERLAY's index: above 0 a MODS layout picture (layout + 1), 0 one layout step, and this, the STEMS
+   button itself, which shows or hides the stem buttons in a 4 DECKS view instead (wave_viewport.h xz_stems_press). */
+#define XZ_UI_STEMS_BUTTON (-1)
 struct xz_ui_action {
     enum xz_ui_action_kind kind;
     enum xz_ui_phase phase;

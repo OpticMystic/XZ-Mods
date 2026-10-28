@@ -39,7 +39,7 @@ Each deck gets three stem buttons and **BYPASS**. Tap a stem button to mute that
 
 ```figure modern:stems-bypass-below-full PLAY · STEMS {modern}
 BELOW / FULL rows. Deck 1 plays its stems with INST muted. Deck 2 is bypassed and plays the whole track.
-1 @ 708,40 STEMS | Lit blue while stems are on. Tap to step to the next layout. The marks under the label show which one is current.
+1 @ 708,40 STEMS | Lit blue while stems are on. Tap to step to the next layout. The marks under the label show which one is current. In 4 DECKS it shows or hides the stem buttons.
 2 @ 240,90 DRUMS | Tap to mute. Slide sideways to set the level. The fill and the percentage show it.
 3 @ 395,90 VOCAL | The vocals stem.
 4 @ 595,90 INST | Muted. It goes dark and keeps its level in the label.
@@ -49,7 +49,7 @@ BELOW / FULL rows. Deck 1 plays its stems with INST muted. Deck 2 is bypassed an
 
 On full-height rows each stem button is also a fader. Put a finger on it and slide right to raise the level or left to lower it. One button's width covers the whole range. A tap without a slide toggles the mute. Half-height rows and the small buttons beside the hot cues mute only.
 
-**STEMS** in the top bar steps through six layouts in this order: beside the hot cues, below each deck at full height, below at half height, at the outer edges at full height, at the outer edges at half height, and hidden. You can also pick one in MODS under **STEMS**. MODERN keeps its own layout (`modern_stems`), so switching to CLASSIC and back does not change it. The default is the small buttons beside the hot cues.
+In 2 DECKS, **STEMS** in the top bar steps through six layouts in this order: beside the hot cues, below each deck at full height, below at half height, at the outer edges at full height, at the outer edges at half height, and hidden. You can also pick one in MODS under **STEMS**. MODERN keeps its own layout (`modern_stems`), so switching to CLASSIC and back does not change it. The default is the small buttons beside the hot cues.
 
 ```gallery {modern}
 modern:stems-layout-pad-row BY THE CUES: small buttons beside the hot-cue lamps (the default)
@@ -94,6 +94,12 @@ modern:r5-play-no-stems-hot-cue-row A track without stems: only the hot-cue lamp
 
 If stems are off when you tap **STEMS**, the layout still changes, and a notice says **STEM ROWS SHOW ONCE STEMS ARE ON IN MODS**.
 
+### Stem buttons in 4 DECKS {modern}
+
+In a 4 DECKS view the lanes are too short for the layouts, so **STEMS** is a switch there. One tap hides the stem buttons on every deck, and the screen says **STEM BUTTONS HIDDEN**. The next tap brings them back and says **STEM BUTTONS SHOWN**. **STEMS** is lit while they show and has no layout marks. Your 2 DECKS layout does not change, and XZ Mods saves the 4 DECKS choice on the USB separately.
+
+A deck whose track has no prepared stems shows no stem buttons in 4 DECKS, and its waveform keeps the whole lane. The buttons appear when you load a track with stems. Decks 3 and 4 have no stems, so they never show stem buttons. [Four decks](four-decks) has pictures.
+
 ### CLASSIC stem rows {classic}
 
 In CLASSIC the stem rows sit inside the player's own waveform area, one row per deck.
@@ -106,9 +112,9 @@ Two full rows. Deck 1 plays HARMONICS at 70 % with DRUMS muted.
 4 @ 470,48 BYPASS | D1 OFF means deck 1 plays its stems. Tap to play the original track.
 ```
 
-The **STEMS** button in the top right corner of the play screen steps the rows through five layouts: BELOW / FULL, BELOW / HALF, OUTER / FULL, OUTER / HALF and HIDDEN, then back to BELOW / FULL. Its five marks show the current one. Half rows give each waveform more height. HIDDEN gives the player's waveforms their full size back while the stems keep playing. CLASSIC keeps its own layout (`stems_overlay`).
+In 2 DECKS, the **STEMS** button in the top right corner of the play screen steps the rows through five layouts: BELOW / FULL, BELOW / HALF, OUTER / FULL, OUTER / HALF and HIDDEN, then back to BELOW / FULL. Its five marks show the current one. Half rows give each waveform more height. HIDDEN gives the player's waveforms their full size back while the stems keep playing. CLASSIC keeps its own layout (`stems_overlay`).
 
-While four decks show in CLASSIC, no stem rows are drawn. The layout comes back when you return to two decks.
+While four decks show in CLASSIC, no stem rows are drawn, and **STEMS** stays dark. A tap changes nothing and says **STEM BUTTONS SHOW IN 2 DECKS VIEW**. The layout comes back when you return to two decks.
 
 ## Stem pads
 
@@ -193,7 +199,7 @@ classic:theme-0-inline-usb-error STEM SET ERROR on deck 1
 classic:theme-0-inline-unavailable USB STEMS off and no deck ready: TURN ON for all decks
 ```
 
-In MODERN the stem buttons on a deck that cannot play stems read **STEMS ARE OFF** or **NO STEMS ON THIS TRACK**, and only the hot-cue lamps stay in the pad row.
+In MODERN the stem buttons on a deck that cannot play stems read **STEMS ARE OFF** or **NO STEMS ON THIS TRACK**, and only the hot-cue lamps stay in the pad row. In 4 DECKS such a deck shows no stem buttons, and its waveform keeps the whole lane.
 
 ### USB STEMS setup
 
@@ -272,7 +278,7 @@ classic:theme-0-pc3-setup-unknown Three stems, source not confirmed
 
 | You see | What to do |
 |---|---|
-| No stem buttons at all in MODERN | Tap **STEMS** in the top bar until the layout you want shows. HIDDEN shows none |
+| No stem buttons at all in MODERN | Tap **STEMS** in the top bar until the layout you want shows. HIDDEN shows none. In 4 DECKS, tap **STEMS** once. A deck whose track has no stems shows none |
 | STEMS ARE OFF | Turn USB STEMS on in MODS under **STEMS** |
 | NO STEMS ON THIS TRACK or NOT PREPARED | Prepare the track in the XZ Mods app, copy it to the USB, then load it again |
 | PLAY TO ALIGN does not go away | Let the track play for a few seconds. If it stays, check the track in the XZ Mods app |

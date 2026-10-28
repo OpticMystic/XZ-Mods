@@ -304,9 +304,12 @@ struct xz_shell_model {
  uint8_t stem_rgb_custom;            /* bit per stem: stem_rgb holds a colour the DJ picked; clear bits draw the
                                         shell's default stem colours (sh_stem_bright) */
  int stem_layout_known;
- enum xz_shell_stem_layout stem_layout; /* modern_stems; the header STEMS button asks the runtime to step it
-                                        (XZ_SHELL_ACT_TOGGLE_STEMS: 1, 2, 3, 4, 0, then 1, as the classic
-                                        STEMS button does) */
+ enum xz_shell_stem_layout stem_layout; /* modern_stems, the 2 DECKS view's: there the header STEMS button asks
+                                        the runtime to step it (XZ_SHELL_ACT_TOGGLE_STEMS, in xz_shell_stem_cycle
+                                        order, as the classic STEMS button does) */
+ int four_stems_hidden;              /* a 4 DECKS view hides its stem buttons (settings hidden_parts
+                                        XZ_HIDE_FOUR_STEMS): there the header STEMS button asks the runtime to show
+                                        or hide them, one press each, and stem_layout does not apply */
  const char *notice;                 /* one short caps sentence, e.g. "DECK 1 DID NOT LOAD THE TRACK"; NULL = none */
  uint32_t notice_at_ms;              /* clock_ms when it was raised; shown while clock_ms - notice_at_ms < XZ_SHELL_NOTICE_MS */
  uint32_t clock_ms;                  /* animation and playhead extrapolation */
@@ -589,8 +592,9 @@ static inline int xz_shell_key_frame_selected(uint32_t projection,int side){retu
 struct xz_shell_rect xz_shell_play_rect(const struct xz_shell_model *, enum xz_shell_play_region, int deck);
 /* A deck's stem row on PLAY for the model's stem layout (zero size when hidden or not read); the
    waveform takes the rest of the deck's lane. ZOOM/GRID and the GRID buttons move clear of it. In the
-   four-deck view every layout draws as a half row below the lane, and only for a deck whose stem mute
-   buttons show; the row is not read there, and GRID edit takes the active deck's row while it shows. */
+   four-deck view the layout does not apply: a half row below the lane, only for a deck whose stem mute
+   buttons show (its track has stems) and only while four_stems_hidden is clear; a deck without one keeps
+   its whole lane, and GRID edit takes the active deck's row while it shows. */
 struct xz_shell_rect xz_shell_stem_row(const struct xz_shell_model *, int deck);
 /* A deck's BYPASS button's touch target (44 px tall), at the right end of its stem buttons; zero size
    while the deck shows no stem buttons, the runtime cannot bypass, or APPEARANCE hides it. */

@@ -267,7 +267,7 @@ static const char *section_body(const struct xz_ui *u,const struct xz_ui_model *
   if(k==3)return "BEAT JUMP gives stem pads, but page 2 jumps always win its pads and page 1 jumps win while page 1 is MY SIZES. With page 1 on STOCK, its pads use this mode's stem bank.";
   return "The pad mode button that gives stem pads. SHIFT + HOT CUE, BEAT LOOP or SLIP LOOP always gives stem pads too.";
  case XZ_UI_PAD_FEEDBACK:if(k)return "On decks 1 and 2, STEM COLOURS lights stem pads in their stem colours and dims muted stems. OFF leaves the pad lights to the player.";break;
- case XZ_UI_STEMS_OVERLAY:if(k)return "Where the stem buttons sit on the play screen. Tap a button to mute that stem; drag along it to set its level. The STEMS button on the play screen steps through these.";break;
+ case XZ_UI_STEMS_OVERLAY:if(k)return "Where the stem buttons sit on the 2 DECKS play screen. Tap a button to mute that stem; drag along it to set its level. The STEMS button steps through these; in 4 DECKS it shows or hides them.";break;
  case XZ_UI_BROWSE_TRAFFIC:return "Colours keys in the track list green or amber by how well they mix with the master deck.";
  case XZ_UI_OPEN_UTILITY:return "The player's own settings: quantize, auto cue, play mode, the display and more. MODS closes and they open.";
  case XZ_UI_SHELL_LOOK:
