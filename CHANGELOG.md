@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0-preview.22.9 - 2026-10-27
+
+- Connect the rear USB-B loopback cable directly to either top USB port. Decks 3 and 4 can initialize with no music drive inserted.
+- The opposite top port accepts one high-speed USB 2.0 hub for music drives. Pause decks 1 and 2 before connecting a new hub. Cascaded hubs are not supported.
+- Keep the existing audio route running through optional music-drive and music-hub enumeration transitions.
+- Use the loader save policy for settings, cues, the diary, stock UTILITY and MY SETTINGS. Observer launches remain read-only.
+- Experimental XDJ-XZ 1.26 local test build. Physical hub compatibility, native multi-drive browsing and playback acceptance are pending.
+- The loopback port is fixed for this loader session. Restart the loader before moving it to the other top port.
+- Local build only. No public release or server deployment.
+
 ## 0.5.0-preview.22.8 - 2026-10-27
 
 - While the XZ plays, XZ Mods keeps a small diary on every USB stick in VJ.Tools/XZ-Mods-diary (at most 4 MB per stick, oldest part replaced first). It holds settings, state changes, the notices shown and a reading every 10 seconds of CPU, RAM, missed audio, SYNC drift, key shift load and USB read speed, so a later bug report can show what happened. It never holds track titles, file paths or serial numbers, never writes to the XZ itself, pauses while a stick loads a track or copies to RAM, and skips read-only or full sticks.

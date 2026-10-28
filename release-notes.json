@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "0.5.0-preview.22.9",
+      "date": "2026-10-27",
+      "title": "Either-port loopback and optional music hubs",
+      "features": [
+        "Connect the rear USB-B loopback cable directly to either top USB port. Decks 3 and 4 can initialize with no music drive inserted.",
+        "The opposite top port accepts one high-speed USB 2.0 hub for music drives. Pause decks 1 and 2 before connecting a new hub. Cascaded hubs are not supported."
+      ],
+      "fixes": [
+        "Keep the existing audio route running through optional music-drive and music-hub enumeration transitions.",
+        "Use the loader save policy for settings, cues, the diary, stock UTILITY and MY SETTINGS. Observer launches remain read-only."
+      ],
+      "requirements": [
+        "Experimental XDJ-XZ 1.26 local test build. Physical hub compatibility, native multi-drive browsing and playback acceptance are pending.",
+        "The loopback port is fixed for this loader session. Restart the loader before moving it to the other top port.",
+        "Local build only. No public release or server deployment."
+      ]
+    },
+    {
       "version": "0.5.0-preview.22.8",
       "date": "2026-10-27",
       "title": "A diary on every USB stick for bug reports",
