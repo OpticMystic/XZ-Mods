@@ -50,3 +50,7 @@ The capture process is a host execution of real renderer and handler code with f
 New local fixtures: 30 supplies two image paths and a decoded checkerboard logo; 31 makes image preview fail; 32 makes profile save fail; 33 clears those failure callbacks; 34/35 remove/restore the profile USB-presence snapshot; 36 makes network verification fail; 37 supplies a deck counter error for REPORT THIS. No image, profile, report or network state is read from or written to a USB.
 
 The full third batch belongs in `E:/Claude/xz-beta-rc-scratch/nav-capture-3/`. Earlier interrupted or superseded third-pass generations have distinct sibling names and are not acceptance evidence. REPORT.md lists unfinished host coverage explicitly.
+
+## Chapter B capture subset
+
+Use `--flow-prefix b-` with both capture and `--check` for the separate B batch. `game_input` sends an offline jog, CUE or pad input to the real game functions. `expect_game`, `expect_game_phase` and `expect_game_step` validate live state after a step. `requires_states` also requires those states in retained timelines during `--check`. No game phase or navigation page is assigned by a fixture. See REPORT-B.md for the operation-level limits.

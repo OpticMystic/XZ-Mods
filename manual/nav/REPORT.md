@@ -36,3 +36,7 @@ All 13 before/after ARM handler objects are byte-identical to baseline `00f16052
 ## Platform and scope boundaries
 
 Closed stock firmware owns stock CLASSIC browse/utility/dialog motion. Actual boot/install, USB persistence/media copy, real network responses, remote connections, audio and hardware require their respective platforms. Desktop app chapters need separate desktop captures. No XZ connection, USB write, public push, publication or LINK/PRO DJ LINK/CONTROL MODE protocol work occurred. Superseded third-pass generations are retained in separately named sibling directories and are not current acceptance evidence.
+
+## Chapter B follow-up
+
+See [REPORT-B.md](REPORT-B.md) for the seven-chapter pass, retained batch, per-heading assignments and remaining action-level host work. Heading assignment remains excerpt coverage.

@@ -1,0 +1,43 @@
+{
+  "section": "troubleshooting#stems-on-the-usb",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 219
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "STEMS"
+    },
+    {
+      "tap": "SET UP USB STEMS",
+      "expect_page": 22
+    },
+    {
+      "tap": "CHECK STEM ENGINE"
+    },
+    {
+      "fixture": 214
+    },
+    {
+      "tap": "CHECK THIS DECK AGAIN"
+    },
+    {
+      "fixture": 215
+    },
+    {
+      "tap": "CHECK THIS DECK AGAIN"
+    },
+    {
+      "fixture": 216
+    },
+    {
+      "tap": "STEMS READY / BACK TO PLAY"
+    },
+    {
+      "key": "MENU"
+    }
+  ]
+}

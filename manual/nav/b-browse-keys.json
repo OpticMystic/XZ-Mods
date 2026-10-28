@@ -1,0 +1,42 @@
+{
+  "section": "hardware#browse-section-keys",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "SOURCE"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "key": "INFO"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "back": true
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "key": "SHORTCUT"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "key": "MENU hold"
+    },
+    {
+      "back": true
+    }
+  ]
+}
