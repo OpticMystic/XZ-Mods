@@ -50,7 +50,7 @@ struct usb_interface { struct device dev; struct usb_host_interface *cur_altsett
 struct usb_host_config { struct { unsigned char bNumInterfaces; } desc; struct usb_interface *interface[1]; };
 struct usb_device {
     struct device dev; struct usb_device *parent;
-    int level,speed,state,refs;
+    int level,speed,state,refs,devnum;
     const char *devpath;
     struct { unsigned short idVendor,idProduct; unsigned char bDeviceClass,bNumConfigurations; } descriptor;
     struct usb_host_config *actconfig;
