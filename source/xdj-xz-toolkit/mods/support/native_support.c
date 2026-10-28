@@ -277,6 +277,8 @@ static int report_request(const struct xz_support_report *r, const char *id, con
         for (size_t i = 0; i < XZ_LOADER_KEY_BYTES; i++) { key[2 * i] = hex[identity.key[i] >> 4]; key[2 * i + 1] = hex[identity.key[i] & 15]; }
         key[64] = 0;
     }
+    char page[24] = "";
+    if (r->mods_page >= 0 && r->mods_page < 44) snprintf(page, sizeof(page), "mods_page=%d\n", r->mods_page);
     unsigned alert[3];
     for (int i = 0; i < 3; i++) {
         unsigned a = r->alert[i];
@@ -284,11 +286,11 @@ static int report_request(const struct xz_support_report *r, const char *id, con
     }
     int w = snprintf(out, cap,
         "xz-pending-request/1\nreport_id=%s\ntopic=%s\ntext=%s\nversion=%s\ninterface=%s\nbefore=%s\nentry=%s\n"
-        "deck_view=%d\nalert=%u,%u,%u\n",
+        "deck_view=%d\nalert=%u,%u,%u\n%s",
         id, r->topic >= 0 && r->topic < XZ_SUPPORT_TOPICS ? topic_words[r->topic] : "", text, XZ_DIARY_VERSION,
         r->ui_interface ? "MODERN" : "CLASSIC", place_words[r->before >= 0 && r->before < XZ_SUPPORT_PLACES ? r->before : 0],
         entry_words[r->entry >= 0 && r->entry < XZ_SUPPORT_ENTRIES ? r->entry : 0],
-        r->deck_view >= 0 && r->deck_view <= 2 ? r->deck_view : 0, alert[0], alert[1], alert[2]);
+        r->deck_view >= 0 && r->deck_view <= 2 ? r->deck_view : 0, alert[0], alert[1], alert[2], page);
     if (w > 0 && (size_t)w < cap && r->have_settings) {
         int s[6];
         for (int i = 0; i < 6; i++) s[i] = r->settings[i] >= 0 && r->settings[i] <= 1000 ? r->settings[i] : 0;
@@ -297,7 +299,8 @@ static int report_request(const struct xz_support_report *r, const char *id, con
         for (int i = 0; sha_ok && i < 64; i++) sha_ok = strchr(hex, r->settings_sha256[i]) != NULL;
         if (w > 0 && (size_t)w < cap && sha_ok) w += snprintf(out + w, cap - (size_t)w, "settings_sha256=%s\n", r->settings_sha256);
     }
-    if (w > 0 && (size_t)w < cap && keyed) w += snprintf(out + w, cap - (size_t)w, "loader_id=%s\nloader_key=%s\n", identity.id, key);
+    if (w > 0 && (size_t)w < cap && keyed)
+        w += snprintf(out + w, cap - (size_t)w, "loader_id=%s\nloader_key=%s\ninstallation_id=%s\n", identity.id, key, identity.installation);
     if (w > 0 && (size_t)w < cap && usb && usb[0] == '/') w += snprintf(out + w, cap - (size_t)w, "usb=%s\n", usb);
     volatile char *wipe = key;
     for (size_t i = 0; i < sizeof(key); i++) wipe[i] = 0;
@@ -323,10 +326,9 @@ static void report_result_locked(const char *text, int timed_out) {
             while (*t && *t != ' ') t++;
         }
         if (words == 2 && !strcmp(word[0], "SAVED_FIRST")) saved_first = 1;
-        else if (words == 4 && !strcmp(word[0], "SENT") && strlen(word[2]) == 11 && !strncmp(word[3], "https://", 8)) {
+        else if (words == 3 && !strcmp(word[0], "SENT") && strlen(word[2]) == 11 && word[2][0] == 'R' && word[2][1] == '-') {
             state.phase = XZ_SUPPORT_SENT;
             snprintf(state.reference, sizeof(state.reference), "%s", word[2]);
-            snprintf(state.tracking_url, sizeof(state.tracking_url), "%s", word[3]);
             state.result[0] = state.detail[0] = 0;
             done = 1;
         } else if (words == 3 && !strcmp(word[0], "SAVED")) {
@@ -622,7 +624,7 @@ int xz_support_request(const struct xz_support_request_args *req) {
                 return -1;
             }
         }
-        state.reference[0] = state.tracking_url[0] = state.result[0] = state.detail[0] = 0;
+        state.reference[0] = state.result[0] = state.detail[0] = 0;
     }
     if (req->op == XZ_SUPPORT_OP_EXPORT && !usb_ready()) {
         state.phase = XZ_SUPPORT_ERROR;

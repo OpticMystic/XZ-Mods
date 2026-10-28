@@ -8,13 +8,14 @@ mode=$(cat "$dir/report-mode")
 cat > "$dir/last-request"
 id=$(sed -n 's/^report_id=//p' "$dir/last-request")
 case "$mode" in
-sent) printf 'SAVED_FIRST %s\\nSENT %s R-4F7K-2M9Q https://xz-mods-support.will-026.workers.dev/r/R-4F7K-2M9Q\\n' "$id" "$id";;
+sent) printf 'SAVED_FIRST %s\\nSENT %s R-4F7K-2M9Q\\n' "$id" "$id";;
 unsaved) echo "XZ_SUPPORT_ERROR CONNECT_FAILED" >&2; printf 'UNSAVED READ_ONLY OFFLINE\\n'; exit 1;;
 saved) printf 'SAVED_FIRST %s\\nSAVED %s OFFLINE\\n' "$id" "$id";;
 hang) printf 'SAVED_FIRST %s\\n' "$id"; exec sleep 5;;
 esac
 '''
-IDENTITY = b'{"schema":"xz-loader-identity/1","loader_id":"L-4F7K-2M9Q","loader_key":"00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"}\n'
+IDENTITY = (b'{"version":1,"loader_id":"L-4F7K-2M9Q","loader_key":"00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",'
+            b'"installation_id":"I-4F7K-2M9Q","created_at":"2026-10-27T00:00:00.000Z","app_version":"0.5.0-preview.22.7"}\n')
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)

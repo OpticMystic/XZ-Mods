@@ -37,7 +37,7 @@ static void field(const char *request, const char *key, char *out, size_t cap) {
 static struct xz_support_model report(int retry, const char *text) {
     struct xz_support_request_args request = {.op = XZ_SUPPORT_OP_REPORT};
     request.report = (struct xz_support_report){.topic = XZ_SUPPORT_NOT_WORKING, .entry = XZ_SUPPORT_FROM_ALERT, .retry = retry,
-        .ui_interface = 1, .before = XZ_SUPPORT_AT_BROWSE, .deck_view = 2, .alert = {8302, 1234, 8307}, .have_settings = 1,
+        .ui_interface = 1, .before = XZ_SUPPORT_AT_BROWSE, .deck_view = 2, .alert = {8302, 1234, 8307}, .mods_page = 7, .have_settings = 1,
         .settings = {1, 0, 1, 3, 2, 0}};
     snprintf(request.report.text, sizeof request.report.text, "%s", text);
     struct xz_support_model model = {0};
@@ -73,12 +73,12 @@ int main(int argc,char **argv) {
     mode("sent");
     model = report(0, "Deck 1\x01 stopped\n");
     assert(model.phase == XZ_SUPPORT_SENT && !strcmp(model.reference, "R-4F7K-2M9Q"));
-    assert(!strcmp(model.tracking_url, "https://xz-mods-support.will-026.workers.dev/r/R-4F7K-2M9Q"));
     last_request(request_text, sizeof request_text);
     assert(!strncmp(request_text, "xz-pending-request/1\n", 21));
     assert(strstr(request_text, "\ntopic=NOT_WORKING\n") && strstr(request_text, "\ntext=Deck 1  stopped \n"));
     assert(strstr(request_text, "\ninterface=MODERN\n") && strstr(request_text, "\nbefore=BROWSE\n") && strstr(request_text, "\nentry=ALERT\n"));
     assert(strstr(request_text, "\ndeck_view=2\n") && strstr(request_text, "\nalert=8302,0,8307\n") && strstr(request_text, "\nsettings=1,0,1,3,2,0\n"));
+    assert(strstr(request_text, "\nmods_page=7\n") && strstr(request_text, "\ninstallation_id=I-4F7K-2M9Q\n"));
     assert(strstr(request_text, "\nloader_id=L-4F7K-2M9Q\n") && strstr(request_text, "\nloader_key=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff\n"));
     char usb_seen[600];
     field(request_text, "\nusb=", usb_seen, sizeof usb_seen);
@@ -113,7 +113,7 @@ int main(int argc,char **argv) {
     assert(!model.loader_id[0] && model.loader_state == XZ_LOADER_NONE);
     model = report(0, "");
     last_request(request_text, sizeof request_text);
-    assert(!strstr(request_text, "loader_key") && !strstr(request_text, "loader_id"));
+    assert(!strstr(request_text, "loader_key") && !strstr(request_text, "loader_id") && !strstr(request_text, "installation_id"));
 
     /* Killed at the deadline after the stick copy was written: SAVED, outcome unknown. */
     mode("hang");

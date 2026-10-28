@@ -12,7 +12,7 @@ enum xz_support_phase {
     XZ_SUPPORT_OUTCOME_UNKNOWN,
     XZ_SUPPORT_NEEDS_CLOCK,
     XZ_SUPPORT_ERROR,
-    /* REPORT AN ISSUE (XZ_SUPPORT_OP_REPORT): the Worker took it (reference, tracking_url); it is on the loader
+    /* REPORT AN ISSUE (XZ_SUPPORT_OP_REPORT): the Worker took it (reference); it is on the loader
        stick (result: why it was not sent); or neither (result: the stick's reason, detail: the upload's). */
     XZ_SUPPORT_SENT,
     XZ_SUPPORT_SAVED,
@@ -51,12 +51,11 @@ struct xz_support_model {
     char export_path[160];
     char status[128];
     char preview[XZ_SUPPORT_PREVIEW_LINES][XZ_SUPPORT_LINE_CHARS];
-    /* REPORT AN ISSUE. reference "R-XXXX-XXXX" and tracking_url once SENT; result and detail are the helper's
-       reason words (SAVED: NO_IDENTITY NEEDS_CLOCK OFFLINE REJECTED UNKNOWN; UNSAVED: NO_STICK READ_ONLY FULL
-       LIMIT FAILED TIMEOUT, then the upload's). loader_id "L-XXXX-XXXX", or "" with loader_state saying why
-       (enum xz_loader_identity_state, support/loader_identity.h). */
+    /* REPORT AN ISSUE. reference "R-XXXX-XXXX" once SENT (a loader gets no tracking link: the DJ follows the report
+       in the XZ Mods app); result and detail are the helper's reason words (SAVED: NO_IDENTITY NEEDS_CLOCK OFFLINE
+       REJECTED UNKNOWN; UNSAVED: NO_STICK READ_ONLY FULL LIMIT FAILED TIMEOUT, then the upload's). loader_id
+       "L-XXXX-XXXX", or "" with loader_state saying why (enum xz_loader_identity_state, support/loader_identity.h). */
     char reference[12];
-    char tracking_url[192];
     char result[16];
     char detail[16];
     char loader_id[12];
@@ -82,6 +81,7 @@ struct xz_support_report {
     int before;           /* enum xz_support_place */
     int deck_view;        /* settings.h enum xz_deck_view: 0 two decks, 1 four 1 2 3 4, 2 four 3 1 2 4 */
     unsigned alert[3];    /* E- codes on screen: deck 1, deck 2, the USB port (8307); 0 none */
+    int mods_page;        /* enum xz_ui_page the report was opened from, or -1 */
     int have_settings;
     int settings[6];      /* stems, gate, interface, classic theme, deck view, browse preview */
     char settings_sha256[65];

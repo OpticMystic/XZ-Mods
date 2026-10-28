@@ -21,7 +21,6 @@ void xz_ui_support_place(const struct xz_ui *u, const struct xz_ui_model *m, str
 int xz_ui_support_selected(const struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *w);
 int xz_ui_support_ready(const struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *w);
 void xz_ui_support_render(const struct xz_ui_scene *s);
-void xz_ui_support_render_qr_box(struct xz_canvas c, int x, int y, int box_side, const char *url);
 size_t xz_ui_support_action(struct xz_ui *u, const struct xz_ui_model *m, int kind, int index, struct xz_ui_action *out);
 /* The dock's text for a control; *title when the label is not the title. */
 const char *xz_ui_support_describe(const struct xz_ui *u, const struct xz_ui_model *m, const struct xz_ui_widget *w, const char **title);
