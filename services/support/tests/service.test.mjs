@@ -1,5 +1,6 @@
 import { before, after, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
+import {applyMigration} from './migrations.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFile, mkdir } from 'node:fs/promises';
 import { build } from 'esbuild';
@@ -10,9 +11,10 @@ const origin='https://xz-mods-support.will-026.workers.dev';
 const admin='a'.repeat(64), key='b'.repeat(64);
 let mf, db, bucket, github = {status:503,body:{}}, outbound=[];
 before(async () => {
-  await mkdir('.test',{recursive:true});
-  await build({entryPoints:['tests/entry.ts'],outfile:'.test/worker.mjs',bundle:true,format:'esm',platform:'browser',target:'es2022'});
-  mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.test/worker.mjs',compatibilityDate:'2026-10-24',
+  const out=process.env.XZ_SUPPORT_TEST_OUTPUT; if(!out) throw new Error('XZ_SUPPORT_TEST_OUTPUT must name scratch output');
+  await mkdir(out,{recursive:true});
+  await build({entryPoints:['tests/entry.ts'],outfile:process.env.XZ_SUPPORT_TEST_OUTPUT+'/worker-v1.mjs',bundle:true,format:'esm',platform:'browser',target:'es2022'});
+  mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:await readFile(process.env.XZ_SUPPORT_TEST_OUTPUT+'/worker-v1.mjs','utf8'),compatibilityDate:'2026-10-24',
     d1Databases:['DB'],r2Buckets:['REPORTS'],unsafeEphemeralDurableObjects:true,
     bindings:{ENABLED:'true',PUBLIC_ORIGIN:origin,ADMIN_TOKEN_SHA256:sha(admin),RATE_KEY:'local-test-rate-key-only-'.repeat(3)},
     outboundService: async req => {
@@ -20,12 +22,11 @@ before(async () => {
       return new Response(JSON.stringify(github.body),{status:github.status,headers:{'Content-Type':'application/json'}});
     }}));
   db=await mf.getD1Database('DB'); bucket=await mf.getR2Bucket('REPORTS');
-  const sql=await readFile('migrations/0001_reports.sql','utf8');
-  // Separate top-level CREATE statements, retaining the entire trigger body.
-  for(const statement of sql.split(/;\s*(?=CREATE)/)) await db.prepare(statement).run();
+  for(const name of ['0001_reports.sql','0002_bugdesk_tracking.sql','0003_support_identifiers.sql','0004_controller_queue.sql']) await applyMigration(db,name);
 });
 after(async () => { await mf?.dispose(); });
 beforeEach(async () => {
+  await db.prepare('DELETE FROM report_tracking').run();
   await db.prepare('DELETE FROM reports').run();
   const list=await bucket.list();
   for(const object of list.objects) await bucket.delete(object.key);
@@ -55,6 +56,8 @@ test('public HTTP privacy, exact R2 bytes and distinct reporter/owner authority'
   const report=draft(), raw=JSON.stringify(report,null,2)+'\n';
   const res=await upload(report,{raw}); assert.equal(res.status,200,await res.clone().text());
   const receipt=await res.json(); assert.equal(receipt.payload_sha256,sha(raw));
+  assert.match(receipt.report_reference,/^R-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);assert.equal(receipt.item_number,null);
+  assert.equal((await (await get(`/v2/reports/${report.report_id}/receipt`)).json()).report_reference,receipt.report_reference);
   assert.equal(receipt.public_issue,'pending'); assert.equal(receipt.issue_url,null);
   const stored=await db.prepare('SELECT * FROM reports').first();
   assert.equal(await (await bucket.get(stored.object_key)).text(),raw);
@@ -167,6 +170,7 @@ test('global count and retained-byte reservations enforce limits atomically',asy
   await seed({count:99,size:1});
   const race=await Promise.all([upload(draft(),{ip:'203.0.113.8'}),upload(draft(),{ip:'203.0.113.9'})]);
   assert.deepEqual(race.map(r=>r.status).sort(),[200,429]);
+  await db.prepare('DELETE FROM report_tracking').run();
   await db.prepare('DELETE FROM reports').run();
   // Distinct days avoid daily quotas while filling retained reservations to exactly 1 GiB.
   for(let d=1;d<=21;d++) await seed({count:d===21?48:100,day:`2026-09-${String(d).padStart(2,'0')}`});

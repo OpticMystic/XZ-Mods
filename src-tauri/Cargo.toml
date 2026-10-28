@@ -23,6 +23,9 @@ tokio = { version = "1", features = ["time", "macros"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = ["Foundation", "Data_Xml_Dom", "UI_Notifications"] }
+
 [profile.dev]
 debug = 0
 incremental = false

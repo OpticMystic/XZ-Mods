@@ -313,6 +313,31 @@
    "path": "source/xdj-xz-toolkit/mods/diary/format.c",
    "chapter": "troubleshooting",
    "why": "USB diary contents, retention and write safety"
+  },
+  {
+   "path": "ui/support.js",
+   "chapter": "desktop-app",
+   "why": "Report a problem or share an idea: questions, the box, included details and sending"
+  },
+  {
+   "path": "ui/my-reports.js",
+   "chapter": "desktop-app",
+   "why": "My reports, the status notice and the tracking view"
+  },
+  {
+   "path": "ui/support-kb.js",
+   "chapter": "desktop-app",
+   "why": "Is this it? answers quoted from the manual"
+  },
+  {
+   "path": "ui/xz-queue.js",
+   "chapter": "desktop-app",
+   "why": "From your XZ, its notification, badge and callout, and Your XZ sticks"
+  },
+  {
+   "path": "src-tauri/src/controller_notify.rs",
+   "chapter": "desktop-app",
+   "why": "the Windows notification for a report from the XZ"
   }
  ]
 }
