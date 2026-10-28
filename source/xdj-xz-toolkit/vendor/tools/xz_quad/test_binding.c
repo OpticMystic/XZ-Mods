@@ -464,7 +464,13 @@ static void route_media_tests(void) {
         CHECK(!route_binding_check(&r));CHECK(r.state==BINDING_RETIRED);CHECK(route_binding_admit(&r,&n)==ADMIT_FATAL);m_close(n.memory);
         for(unsigned count=1;count<=2;count++) {
             hub_media_fixture(music,count);mock_loopback(cable,0,0);n=native_fixture();r=(struct route_binding){0};
-            CHECK(route_binding_admit(&r,&n)==ADMIT_READY);CHECK(route_binding_check(&r));m_close(n.memory);
+            CHECK(route_binding_admit(&r,&n)==ADMIT_READY);CHECK(route_binding_check(&r));
+            /* Sysfs removal can precede the native mount-table update. */
+            strcpy(find("/sys/class/block/sdc1")->path,"/removed/block/sdc1");
+            CHECK(route_binding_check(&r));CHECK(r.state==BINDING_ACTIVE);
+            const char *pending_reason;
+            CHECK(!music_inventory(music,&pending_reason));
+            m_close(n.memory);
         }
         for(unsigned change=0;change<7;change++) {
             hub_media_fixture(music,2);mock_loopback(cable,0,0);n=native_fixture();r=(struct route_binding){0};
@@ -488,7 +494,7 @@ static void route_media_tests(void) {
     puts("PASS actual route no-stick start, late media/removal, 1/2 hub drives, bad/racy inventory, stopped admission, same-port reconnect and permanent wrong-port retirement");
 }
 static void music_hub_service_tests(void) {
-    for(unsigned music=1;music<=2;music++)for(unsigned change=0;change<12;change++) {
+    for(unsigned music=1;music<=2;music++)for(unsigned change=0;change<14;change++) {
         fixture_port(music);txt("/proc/self/mountinfo",no_music_mounts);setup_music_hub(music,change==5);mock_loopback(3-music,0,0);
         struct native n=native_fixture();struct route_binding r={0};CHECK(route_binding_admit(&r,&n)==ADMIT_READY);
         module_fixture(3-music,11);struct music_hub attempted={0};const char *reason;char path[256];
@@ -502,9 +508,13 @@ static void music_hub_service_tests(void) {
         if(change==9)fault=10;
         if(change==10)fault=11;
         if(change==11)fault=12;
+        /* KOBJ_ADD precedes configuration, so this attribute is initially empty. */
+        if(change==12){snprintf(path,sizeof(path),USB "%s/bNumInterfaces",xz_quad_port(music)->usb);txt(path,"");}
+        if(change==13){txt("/proc/self/mountinfo","50 20 0:42 / /media/usb2/sdz1 rw - fuseblk /dev/sdz1 rw\n");}
         int ok=service_music_hub(&n,&r,&attempted,&reason);
-        CHECK(ok==(change!=6&&change!=8));
+        CHECK(ok);
         CHECK(bind_writes==(change==0||change==7));
+        CHECK(r.state==BINDING_ACTIVE);
         if(change==0) {
             snprintf(path,sizeof(path),"%s:1.0",xz_quad_port(music)->usb);CHECK(!strcmp(last_bind,path));
             CHECK(service_music_hub(&n,&r,&attempted,&reason));CHECK(bind_writes==1);
