@@ -472,60 +472,81 @@ struct native {
     pid_t pid;
     int memory;
     unsigned long long start;
-    uint32_t engine, begin;
+    uint32_t engine, begin, count;
 };
 
-static int native_engine(const struct native *native, uint32_t *engine, uint32_t *begin)
+static int native_engine(const struct native *native, uint32_t *engine, uint32_t *begin, uint32_t *count)
 {
     uint32_t range[2];
     if (!read_at(native->memory, 0x10e9688, engine, 4) ||
         *engine < 0x10000 || *engine > UINT32_MAX - 20 || (*engine & 3) ||
         !read_at(native->memory, *engine + 12, range, 8) ||
-        range[0] < 0x10000 || range[0] > UINT32_MAX - 8 || (range[0] & 3) ||
-        range[1] - range[0] != 8) return 0;
+        range[1] < range[0] || range[1] - range[0] > 8 || (range[1] & 3)) return 0;
+    if (!range[0]) {
+        if (range[1]) return 0;
+    } else if (range[0] < 0x10000 || range[0] > UINT32_MAX - 8 || (range[0] & 3)) return 0;
     *begin = range[0];
+    *count = (range[1] - range[0]) / 4;
     return 1;
 }
 
-static int native_alive(const struct native *native)
+static int native_alive(struct native *native)
 {
-    uint32_t engine, begin;
-    return native->start && start_time(native->pid) == native->start &&
-        (!native->engine || (native_engine(native, &engine, &begin) &&
-                            engine == native->engine && begin == native->begin));
+    uint32_t engine, begin, count, again_engine, again_begin, again_count;
+    if (!native->start || start_time(native->pid) != native->start) return 0;
+    if (!native->engine) return 1;
+    if (!native_engine(native, &engine, &begin, &count) || engine != native->engine ||
+        count < native->count || (count == native->count && begin != native->begin) ||
+        !native_engine(native, &again_engine, &again_begin, &again_count) ||
+        engine != again_engine || begin != again_begin || count != again_count ||
+        start_time(native->pid) != native->start) return 0;
+    /* Construction may grow/reallocate a short vector. Once full, its storage
+       stays pinned; shrinking or replacing it still ends this helper session. */
+    native->begin = begin;
+    native->count = count;
+    return 1;
 }
 
 static int native_decks_ready(struct native *native)
 {
     if (native->engine) return native_alive(native);
-    uint32_t engine, begin, again_engine, again_begin;
-    if (!native_alive(native) || !native_engine(native, &engine, &begin) ||
-        !native_engine(native, &again_engine, &again_begin) ||
-        engine != again_engine || begin != again_begin) return 0;
+    uint32_t engine, begin, count, again_engine, again_begin, again_count;
+    if (!native_alive(native) || !native_engine(native, &engine, &begin, &count) ||
+        !native_engine(native, &again_engine, &again_begin, &again_count) ||
+        engine != again_engine || begin != again_begin || count != again_count ||
+        !native_alive(native)) return 0;
     native->engine = engine;
     native->begin = begin;
+    native->count = count;
     return 1;
 }
 
-static int native_stopped(const struct native *native)
+static int native_stopped(struct native *native)
 {
-    uint32_t engine, begin, players[2], again[2];
+    uint32_t engine, begin, count, players[2] = {0}, again[2] = {0};
     if (!native->engine || !native_alive(native) ||
-        !native_engine(native, &engine, &begin) || engine != native->engine || begin != native->begin ||
-        !read_at(native->memory, begin, players, sizeof(players))) return 0;
-    for (unsigned i = 0; i < 2; i++) {
-        if (!players[i]) continue;
-        uint16_t flag;
-        if (players[i] < 0x10000 || players[i] > UINT32_MAX - 0xe78 || (players[i] & 3) ||
-            !read_at(native->memory, (uint64_t)players[i] + 0xe76, &flag, sizeof(flag)) || flag) return 0;
+        !native_engine(native, &engine, &begin, &count) || engine != native->engine ||
+        begin != native->begin || count != native->count ||
+        (count && !read_at(native->memory, begin, players, count * 4))) return 0;
+    for (unsigned pass = 0; pass < 2; pass++) {
+        for (unsigned i = 0; i < count; i++) {
+            if (!players[i]) continue;
+            unsigned char playing;
+            /* PlayEngine::isPlaying (0x494ec) reads this byte, not +0xe76. */
+            if (players[i] < 0x10000 || players[i] > UINT32_MAX - 0xe78 || (players[i] & 3) ||
+                !read_at(native->memory, (uint64_t)players[i] + 0xe77, &playing, sizeof(playing)) || playing) return 0;
+        }
+        uint32_t again_engine, again_begin, again_count;
+        if (!native_engine(native, &again_engine, &again_begin, &again_count) ||
+            engine != again_engine || begin != again_begin || count != again_count ||
+            (count && !read_at(native->memory, begin, again, count * 4)) ||
+            memcmp(players, again, sizeof(players))) return 0;
     }
-    return native_engine(native, &engine, &begin) && engine == native->engine && begin == native->begin &&
-        read_at(native->memory, begin, again, sizeof(again)) && !memcmp(players, again, sizeof(players)) &&
-        native_alive(native);
+    return native_alive(native) && begin == native->begin && count == native->count;
 }
 
 /* Only a fully captured temporary candidate can become ACTIVE. Never revive RETIRED. */
-static enum admission_result binding_admit(struct binding *binding, const struct native *native)
+static enum admission_result binding_admit(struct binding *binding, struct native *native)
 {
     if (binding->state != BINDING_NEW) { binding->reason = "FATAL_BINDING_NOT_NEW"; return ADMIT_FATAL; }
     struct binding candidate = {.volume_fd = -1, .block_fd = -1,
@@ -586,7 +607,7 @@ static int qualify_native(struct native *native, pid_t pid)
     char path[80], environment[32768];
     native->pid = pid;
     native->memory = -1;
-    native->engine = native->begin = 0;
+    native->engine = native->begin = native->count = 0;
     native->start = start_time(pid);
     if (!native->start || !process_set(pid)) return 0;
     snprintf(path, sizeof(path), "/proc/%d/exe", pid);
@@ -780,7 +801,7 @@ static int route_binding_check(struct route_binding *binding)
     return 0;
 }
 
-static enum admission_result route_binding_admit(struct route_binding *binding, const struct native *native)
+static enum admission_result route_binding_admit(struct route_binding *binding, struct native *native)
 {
     if (binding->state != BINDING_NEW) { binding->reason = "FATAL_BINDING_NOT_NEW"; return ADMIT_FATAL; }
     binding->reason = "FATAL_PROCESS_SET_CHANGE";
@@ -898,7 +919,7 @@ static int write_text(const char *path, const char *text, int flags)
     return ok;
 }
 
-static int service_music_hub(const struct native *native, struct route_binding *binding,
+static int service_music_hub(struct native *native, struct route_binding *binding,
     struct music_hub *attempt, const char **reason)
 {
     *reason = NULL;
