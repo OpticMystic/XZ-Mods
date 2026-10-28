@@ -2327,8 +2327,9 @@ static int jump_target(const struct deck *d,uint64_t at,int beats,double *target
   else{unsigned i=(unsigned)base;result=a->grid[i].ms+fraction*(a->grid[i+1].ms-a->grid[i].ms);}
   *target=result*d->r->rate/1000;return isfinite(*target);
  }
- if(d->track.track_bpm_x100<=0)return 0;
- *target=(double)at+beats*(double)d->r->rate*6000/d->track.track_bpm_x100;return isfinite(*target);
+ /* Manual p.56: without a detected BPM, BEAT JUMP uses 120 BPM. */
+ int32_t bpm=d->track.track_bpm_x100>0?d->track.track_bpm_x100:12000;
+ *target=(double)at+beats*(double)d->r->rate*6000/bpm;return isfinite(*target);
 }
 static void pad_jump_beats(struct xz_xp_players *p,struct deck *d,int beats,uint32_t now){
  uint64_t at=heard_now(d,now);double to;
@@ -2756,7 +2757,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
   next.load.source=d->order->source;next.load.media_generation=d->order->media_generation;
   next.load.route_epoch=d->order_epoch;next.load.track_id=d->order->id[row];next.load.order=d->order;next.load.order_index=row;
   int playing=d->state==XZ_XP_PLAYING||d->state==XZ_XP_SAMPLING||(d->state==XZ_XP_SCRATCHING&&streaming(d->scratch.resume));
-  if(load(p,d,&next,now,1)&&playing)start(d,now);
+  if(load(p,d,&next,now,1)&&playing&&!d->auto_cue)start(d,now);
   return;
  }
  if(e->kind==XZ_EXTRA_IN_TRACK_PREV){
@@ -2774,7 +2775,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
     prev.load.source=d->order->source;prev.load.media_generation=d->order->media_generation;
     prev.load.route_epoch=d->order_epoch;prev.load.track_id=d->order->id[row-1];prev.load.order=d->order;prev.load.order_index=row-1;
     d->track_prev_known=0;
-    if(load(p,d,&prev,now,1)&&playing)start(d,now);
+    if(load(p,d,&prev,now,1)&&playing&&!d->auto_cue)start(d,now);
     return;
    }
   }
