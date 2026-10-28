@@ -280,6 +280,16 @@
    "why": "the Manual page layout the app:manual shot shows"
   },
   {
+   "path": "ui/manual-map.js",
+   "chapter": "desktop-app",
+   "why": "the menu map: its layout, controls, keys and the screen panel the app:menu-map shot shows"
+  },
+  {
+   "path": "ui/manual-map.css",
+   "chapter": "desktop-app",
+   "why": "the menu map layout the app:menu-map shot shows"
+  },
+  {
    "path": "ui/manual-art.js",
    "chapter": "four-decks",
    "why": "the explainer player: scene N shows clip N, the steps and captions follow the chapter"

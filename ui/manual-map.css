@@ -1,0 +1,217 @@
+/* The menu map on the Manual page (design 2026-10-28, Opus 5.5). Classes start mm- (the map) or m-map / m-mapcard /
+   m-onmap (its doorways in ui/manual.js). Same palette as ui/manual.css: yellow #f3e900 marks "you are here" and the
+   path to it; panels #0e1011/#121415; lines #2c3031. The player's on-screen words are drawn as teal chips (#8fe3d9),
+   its keys as the manual's keycaps, so a move reads "tap EXTRAS" or "[ROTARY SELECTOR] push" at a glance. */
+
+/* The map takes the whole page: the chapter list folds into the top row, as in a narrow window. */
+main:has(.m-root.m-map-on){max-width:none}
+.m-root.m-map-on{grid-template-columns:minmax(0,1fr)}
+.m-root.m-map-on .m-side{position:static;max-height:none;overflow:visible;padding:0;margin:0 0 10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;align-items:start}
+.m-root.m-map-on .m-search{margin:0;max-width:420px}
+.m-root.m-map-on .m-side-toggle{display:inline-flex;align-items:center;gap:6px;padding:9px 12px;font-size:13px}
+.m-root.m-map-on .m-side-toggle svg{width:14px;height:14px;transition:transform .2s}
+.m-root.m-map-on .m-side-toggle[aria-expanded=true] svg{transform:rotate(90deg)}
+.m-root.m-map-on .m-side-body{grid-column:1/-1;display:none;padding:12px;border:1px solid var(--m-line);border-radius:10px;background:#0e1011}
+.m-root.m-map-on .m-side.is-open .m-side-body{display:block}
+.m-root.m-map-on .m-side-body .m-toc{columns:3 200px;column-gap:18px}
+.m-root.m-map-on .m-bar{display:none}
+.m-root.m-map-on .m-view{min-height:0}
+
+/* Side entry */
+.m-mapnav{margin-top:-6px}
+.m-mapnav small{margin-left:auto;font:600 10.5px/1 ui-monospace,Consolas,monospace;color:#8d9491;padding:3px 6px;border:1px solid #2f3434;border-radius:10px}
+.m-mapnav[aria-current=page] small{color:#fff98a;border-color:#5a5824}
+
+/* Start page doorway */
+.m-mapcard{display:grid;grid-template-columns:minmax(0,1fr);width:100%;padding:0;text-align:left;white-space:normal;border-radius:14px;border:1px solid #2e3330;background:#0f1112;overflow:hidden;font-weight:500;transition:border-color .25s,box-shadow .3s}
+.m-mapcard:hover,.m-mapcard:focus-visible{border-color:#77762a;box-shadow:0 18px 34px -20px #000}
+.m-mapcard:focus-visible{outline:2px solid #f3e900;outline-offset:2px}
+/* One real path across the top: three screens the firmware drew and the controls between them. */
+.m-mapcard-art{display:flex;align-items:center;gap:0;padding:18px 20px 14px;background:radial-gradient(120% 140% at 0% 0%,#1b1d15 0%,#0b0c0d 70%);border-bottom:1px solid #202425;background-image:radial-gradient(120% 140% at 0% 0%,#1b1d15 0%,#0b0c0d00 70%),radial-gradient(circle,#1c2021 1px,transparent 1.2px);background-size:auto,22px 22px}
+.m-mapcard-screen{flex:1 1 0;min-width:0;display:grid;gap:7px}
+.m-mapcard-screen img{width:100%;height:auto;aspect-ratio:5/3;border-radius:6px;border:1px solid #3a3f3d;background:#000;box-shadow:0 10px 24px -12px #000;transition:transform .45s cubic-bezier(.2,.8,.2,1),border-color .25s}
+.m-mapcard-screen:first-child img{border-color:#8a8530}
+.m-mapcard-screen b{font-size:11.5px;letter-spacing:.4px;color:#d9dedb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-mapcard-move{position:relative;flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:84px;margin-bottom:22px}
+.m-mapcard-move i{display:block;width:100%;height:1.5px;background:#6b6a2a}
+.m-mapcard-move kbd{font-size:10px!important}
+.m-mapcard:hover .m-mapcard-screen img,.m-mapcard:focus-visible .m-mapcard-screen img{transform:translateY(-2px)}
+.m-mapcard-text{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 24px;padding:16px 22px 18px}
+.m-mapcard-text small{grid-column:1;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#d9d34a}
+.m-mapcard-text b{grid-column:1;font-size:19px;line-height:1.2;letter-spacing:-.3px;color:#f4f5f1}
+.m-mapcard-text>span{grid-column:1;font-size:13px;line-height:1.55;color:#a9b0ac;max-width:62ch}
+.m-mapcard-text .m-mapcard-go{grid-column:2;grid-row:1/span 3;display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:6px;background:#f3e900;color:#181a02;font-size:13.5px;font-weight:650;white-space:nowrap}
+.m-mapcard-go .icon{width:14px;height:14px}
+
+/* "On the menu map" beside a chapter heading */
+.m-chapter .m-onmap{display:inline-flex;align-items:center;gap:5px;margin-left:10px;padding:3px 8px;vertical-align:3px;border-radius:12px;border:1px solid #33403e;background:#101615;color:#8fe3d9;font-size:11px;font-weight:600;letter-spacing:.2px}
+.m-chapter .m-onmap:hover{border-color:#4f8a84;color:#c4f4ee}
+.m-chapter .m-onmap svg{width:13px;height:13px}
+
+/* ---------------------------------------------------------------- the map */
+.mm [hidden]{display:none!important}
+.m-map{min-width:0}
+.mm{display:flex;flex-direction:column;height:max(440px,calc(100vh - 78px));min-height:0;border:1px solid #262a2b;border-radius:14px;background:#0b0c0d;overflow:hidden}
+.mm-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 14px 9px;border-bottom:1px solid #202425;background:linear-gradient(#121415,#0e1011)}
+.mm-title{flex:1 1 260px;min-width:0}
+.mm-title h2{margin:0;font-size:18px;letter-spacing:-.3px;color:#f4f5f1;outline:none}
+.mm-title p{margin:2px 0 0;font-size:12px;line-height:1.4;color:#959c98}
+.mm-seg{display:inline-flex;border:1px solid #30363a;border-radius:7px;overflow:hidden;flex:none}
+.mm-seg button{display:grid;gap:1px;padding:5px 12px;border:0;border-radius:0;background:#111314;color:#aeb4b1;text-align:left;line-height:1.15}
+.mm-seg button+button{border-left:1px solid #30363a}
+.mm-seg button b{font-size:11px;letter-spacing:.6px}
+.mm-seg button span{font-size:10.5px;font-weight:500;color:#848b88}
+.mm-seg button[aria-pressed=true]{background:#2a2b17;color:#fff98a;box-shadow:inset 0 -2px #f3e900}
+.mm-seg button[aria-pressed=true] span{color:#c9c47a}
+.mm-find{position:relative;flex:1 1 150px;max-width:280px;min-width:130px}
+.mm-find>svg{position:absolute;left:9px;top:50%;width:14px;height:14px;transform:translateY(-50%);color:#7f8685;pointer-events:none}
+.mm-find input.mm-q{padding:7px 10px 7px 29px;font-size:12.5px;border-radius:6px;background:#0d0f10;border-color:#30363a}
+.mm-find input.mm-q:focus{outline:2px solid #f3e900;outline-offset:1px;border-color:transparent}
+.mm-found{position:absolute;z-index:20;top:calc(100% + 6px);right:0;width:min(360px,80vw);max-height:360px;overflow:auto;margin:0;padding:6px;list-style:none;border:1px solid #3a3f3d;border-radius:10px;background:#111314f7;box-shadow:0 18px 40px -12px #000}
+.mm-found li[role=option]{display:grid;grid-template-columns:60px minmax(0,1fr);gap:10px;align-items:center;padding:6px;border-radius:7px;cursor:pointer;outline:none}
+.mm-found li[role=option]:hover,.mm-found li[role=option]:focus{background:#1d1f15;box-shadow:inset 0 0 0 1px #6b6a2a}
+.mm-found img{width:60px;height:36px;border-radius:3px;background:#000;display:block}
+.mm-found b{display:block;font-size:12.5px;color:#eef0ec}
+.mm-found small{display:block;font-size:11px;color:#8f9693;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm-found .mm-nothing{padding:10px;font-size:12px;color:#9aa19c}
+.mm-tools{display:flex;align-items:center;gap:4px;flex:none}
+.mm .mm-tool{display:inline-grid;place-items:center;width:30px;height:30px;padding:0;border-radius:6px;background:#161919;border:1px solid #343a3a;color:#d6dad6}
+.mm .mm-tool:hover:not(:disabled){border-color:#8a8f3a;color:#fff98a}
+.mm .mm-tool svg{width:15px;height:15px}
+.mm-zoom{min-width:42px;text-align:center;font:600 11px/1 ui-monospace,Consolas,monospace;color:#9aa19c}
+.mm-chip{display:inline-flex;align-items:center;gap:6px;margin-left:6px;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:600;background:#161919;border:1px solid #343a3a;color:#d6dad6}
+.mm-chip svg{width:14px;height:14px}
+.mm-chip:hover{border-color:#8a8f3a}
+.mm-chip[aria-pressed=true]{background:#2a2b17;border-color:#8a8a2a;color:#fff98a}
+.mm :focus-visible{outline:2px solid #f3e900;outline-offset:2px}
+
+/* Path and jumps */
+.mm-path{display:flex;align-items:center;gap:8px 18px;flex-wrap:nowrap;padding:5px 14px;border-bottom:1px solid #1d2122;background:#0d0f10;min-height:40px}
+.mm-crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:2px;flex:0 1 auto;min-width:0;margin:0;padding:0;list-style:none}
+.mm-crumbs li{display:flex;align-items:center;gap:2px;min-width:0}
+.mm-crumbs button{display:inline-flex;align-items:center;gap:6px;padding:3px 7px;border:1px solid transparent;border-radius:5px;background:none;color:#aeb4b1;font-size:12px;font-weight:550}
+.mm-crumbs button:hover{background:#15181a;color:#eef0ec}
+.mm-crumbs button[aria-current=location]{color:#fff98a;background:#1e2018;border-color:#4a4a22}
+.mm-crumbs b{font-weight:650}
+.mm-sep{color:#565d5b;font-size:14px;padding:0 1px}
+.mm-crumb-how{display:inline-flex;align-items:center;gap:3px;opacity:.85}
+.mm-crumb-how kbd{font-size:9px!important;padding:2px 4px 1px!important}
+.mm-crumb-how .mm-scr{font-size:9.5px;padding:1px 4px}
+.mm-crumb-how .mm-g{font-size:10.5px}
+.mm-jumps{display:flex;align-items:center;gap:5px;flex:1 1 0;min-width:120px;flex-wrap:nowrap;overflow-x:auto;padding:2px 0;margin-left:auto;justify-content:flex-start;scrollbar-width:thin;scrollbar-color:#2c3031 transparent;border-left:1px solid #23282a;padding-left:14px}
+.mm-jump{flex:none}
+.mm-jumps>span{flex:none;white-space:nowrap;font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:#7d8481;margin-right:2px}
+.mm-jump{padding:3px 8px;border-radius:11px;border:1px solid #30363a;background:#111314;color:#bfc5c1;font-size:11px;font-weight:600}
+.mm-jump:hover{border-color:#6b6a2a;color:#fff98a}
+
+/* Stage: the viewport and the screen panel */
+.mm-stage{position:relative;flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr)}
+.mm-stage.has-panel{grid-template-columns:minmax(0,1fr) clamp(330px,40%,540px)}
+.mm-view{position:relative;overflow:hidden;min-width:0;cursor:grab;touch-action:none;background:#0a0b0c;background-image:radial-gradient(circle,#1c2021 1px,transparent 1.2px);background-size:22px 22px;outline:none}
+.mm-view.is-dragging{cursor:grabbing}
+.mm-view.is-dragging .mm-card{cursor:grabbing}
+.mm-world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.mm-wires{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.mm-wire{fill:none;stroke:#3c4342;stroke-width:1.6}
+.mm-wire.is-trail{stroke:#d9d34a;stroke-width:2.4}
+.mm-tree,.mm-labels{position:absolute;left:0;top:0}
+.mm-labels{pointer-events:none}
+.mm-hint{position:absolute;left:12px;bottom:10px;margin:0;padding:6px 10px;border-radius:7px;background:#0b0c0de0;border:1px solid #23282a;color:#8f9693;font-size:11px;line-height:1.5;pointer-events:none;max-width:calc(100% - 220px)}
+.mm-key{display:inline-block;min-width:16px;padding:0 4px;border:1px solid #3a4040;border-radius:3px;font:600 10px/15px ui-monospace,Consolas,monospace;color:#c9cecb;text-align:center}
+.mm-mini{position:absolute;right:10px;bottom:10px;width:176px;height:110px;border:1px solid #2c3132;border-radius:8px;cursor:crosshair;box-shadow:0 8px 20px -10px #000}
+
+/* A screen on the map */
+.mm-card{position:absolute;left:0;top:0;display:block;box-sizing:border-box;padding:8px;border:1px solid #2c3132;border-radius:10px;background:#111314;color:#d6dad6;cursor:pointer;box-shadow:0 10px 22px -16px #000;outline:none;transition:border-color .2s,background .2s,box-shadow .2s}
+.mm-card:hover{border-color:#55594a;background:#15181a}
+.mm-card.is-trail{border-color:#5a5824}
+.mm-card.is-sel{border-color:#f3e900;background:#1b1c12;box-shadow:0 0 0 3px #f3e90033,0 14px 30px -16px #000}
+.mm-card:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.mm-thumb{position:relative;display:block;width:160px;height:96px;border-radius:5px;overflow:hidden;background:#000;line-height:0}
+.mm-thumb img{display:block;width:160px;height:96px}
+.mm-count{position:absolute;right:4px;bottom:4px;padding:2px 5px;border-radius:3px;background:#000000cc;color:#d9dedb;font:600 9.5px/1.2 system-ui,sans-serif;letter-spacing:.3px}
+.mm-name{display:block;margin:7px 0 0;width:160px;font-size:12.5px;font-weight:650;color:#eef0ec;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm-card.is-sel .mm-name{color:#fff98a}
+.mm-sub{display:block;width:160px;font-size:10.5px;color:#868d8a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.2px}
+.mm .mm-twist{position:absolute;right:-13px;top:46px;min-width:26px;height:22px;padding:0 6px;border-radius:11px;border:1px solid #4a5150;background:#181b1c;color:#d9dedb;font:700 11px/1 system-ui,sans-serif}
+.mm .mm-twist:hover{border-color:#a8a43a;color:#fff98a}
+.mm-card[aria-expanded=false] .mm-twist{background:#2a2b17;border-color:#8a8a2a;color:#fff98a}
+.mm-lane{display:grid;grid-template-columns:repeat(4,112px);gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed #2f3536}
+.mm-cell{display:grid;gap:3px;width:112px;padding:0;border:0;background:none;text-align:left;color:inherit;cursor:pointer}
+.mm-cell img{width:112px;height:67px;border-radius:4px;border:1px solid #2c3132;background:#000;display:block}
+.mm-cell:hover img{border-color:#8a8530}
+.mm-cell-how{display:flex;align-items:center;gap:3px;min-height:20px;overflow:hidden;white-space:nowrap}
+.mm-cell-how kbd{font-size:8.5px!important;padding:2px 3px 1px!important}
+.mm-cell-how .mm-g{font-size:10px}
+.mm-cell-how .mm-scr{font-size:9px;padding:1px 3px;max-width:76px;overflow:hidden;text-overflow:ellipsis}
+
+/* The control on a branch */
+.mm-label{position:absolute;left:0;top:0;display:flex;align-items:center;gap:4px;flex-wrap:nowrap;padding:3px 6px;border-radius:6px;background:#111314;border:1px solid #2c3132;white-space:nowrap;overflow:hidden;box-shadow:0 4px 10px -6px #000}
+.mm-label.is-trail{border-color:#8a8530;background:#1b1c12}
+.mm-label.is-cross{border-style:dashed}
+.mm-label.is-orphan{background:#0f1314;border-color:#2b5c5a}
+.mm-label kbd,.mm-move kbd,.mm-crumbs kbd{font-size:9.5px!important;padding:3px 5px 2px!important}
+.mm-g{font-size:11px;color:#b9bfbb;font-weight:550}
+.mm-side{color:#8f9693;font-weight:500}
+.mm-scr{display:inline-block;padding:2px 5px;border-radius:3px;background:#102422;border:1px solid #2b5c5a;color:#8fe3d9;font:700 10px/1.2 system-ui,sans-serif;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+.mm.is-far .mm-label,.mm.is-far .mm-sub,.mm.is-far .mm-count,.mm.is-far .mm-cell-how{visibility:hidden}
+.mm.is-far .mm-name{font-size:20px}
+
+/* The screen panel */
+.mm-panel{min-width:0;min-height:0;overflow:auto;border-left:1px solid #23282a;background:#0e1011;padding:14px 16px 18px;scrollbar-width:thin;scrollbar-color:#2c3031 transparent}
+.mm-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0 0 10px}
+.mm-eyebrow{margin:0 0 3px;font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;color:#a6ab8f}
+.mm-panel-title{margin:0;font-size:19px;line-height:1.2;letter-spacing:-.3px;color:#f4f5f1;outline:none}
+.mm-big{position:relative;line-height:0;border:1px solid #2c3132;border-radius:8px;overflow:hidden;background:#000}
+.mm-big-img{display:block;width:100%;height:auto;image-rendering:auto}
+.mm-marks{position:absolute;inset:0}
+.mm-focus{position:absolute;border:1.5px dashed #8fe3d9aa;border-radius:3px;pointer-events:none}
+.mm .mm-hot{position:absolute;padding:0;border:2px solid #f3e900;border-radius:50%;background:#f3e90033;box-shadow:0 0 0 3px #0008;cursor:pointer}
+.mm .mm-hot:hover{background:#f3e90066}
+.mm .mm-enlarge{position:absolute;right:8px;bottom:8px;display:grid;place-items:center;width:30px;height:30px;padding:0;border-radius:50%;background:#0d0f10cc;border:1px solid #3a403f;color:#e5e8e4}
+.mm .mm-enlarge:hover{border-color:#a8a43a;color:#fff98a}
+.mm-enlarge svg{width:13px;height:13px}
+.mm-states{margin:12px 0 0;padding:10px;border:1px solid #23282a;border-radius:8px;background:#0b0c0d}
+.mm-states-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-size:12px;color:#d6dad6}
+.mm-states-head>b{font-weight:650}
+.mm-states-nav{display:flex;gap:4px;margin-left:auto}
+.mm-strip{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin;scrollbar-color:#2c3031 transparent}
+.mm-strip button{flex:none;padding:0;border:1px solid #2c3132;border-radius:4px;background:#000;line-height:0;overflow:hidden}
+.mm-strip button[aria-pressed=true]{border-color:#f3e900;box-shadow:0 0 0 2px #f3e90044}
+.mm-strip img{width:80px;height:48px;display:block}
+.mm-move{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
+.mm-focusables{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:12px 0 0;font-size:12px;color:#a9b0ac;line-height:1.5}
+.mm-focusables b{font-weight:600;color:#d6dad6;margin-right:2px}
+.mm .mm-read{display:flex;align-items:center;gap:10px;width:100%;margin:14px 0 0;padding:10px 14px;text-align:left;white-space:normal;border-radius:8px}
+.mm-read svg{width:18px;height:18px;flex:none}
+.mm-read small{display:block;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;font-weight:650;opacity:.75}
+.mm-read b{display:block;font-size:13.5px;line-height:1.3}
+.mm-ways{display:grid;gap:12px;margin:16px 0 0}
+.mm-ways h4{margin:0 0 6px;font-size:11px;letter-spacing:1.3px;text-transform:uppercase;color:#9aa19c;font-weight:650}
+.mm-ways ul{list-style:none;margin:0;padding:0;display:grid;gap:5px;line-height:1.3;color:inherit}
+.mm-link-row{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:center;width:100%;padding:5px;text-align:left;white-space:normal;border-radius:7px;border:1px solid #23282a;background:#111314;font-weight:500}
+.mm-link-row:hover{border-color:#6b6a2a;background:#16180f}
+.mm-link-row img{width:64px;height:38px;border-radius:3px;background:#000;display:block}
+.mm-link-row b{display:block;font-size:12.5px;color:#eef0ec;margin-bottom:3px}
+.mm-none{margin:0;font-size:12px;color:#8f9693}
+.mm-pager{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 0}
+.mm-pager button{display:grid;gap:2px;padding:8px 10px;text-align:left;white-space:normal;border-radius:7px;font-weight:500}
+.mm-pager button+button{text-align:right}
+.mm-pager small{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#8f9693}
+.mm-pager b{font-size:12.5px;color:#eef0ec;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+@media (max-width:1400px){.mm-title p{display:none}.mm-title{flex:0 1 auto}}
+/* Narrow: the panel lies over the map's right side */
+@media (max-width:1180px){
+ .mm-stage.has-panel{grid-template-columns:minmax(0,1fr)}
+ .mm-stage.has-panel .mm-panel{position:absolute;right:0;top:0;bottom:0;width:min(400px,78%);box-shadow:-20px 0 40px -18px #000;z-index:5}
+ .mm-stage.has-panel .mm-mini{display:none}
+}
+@media (max-width:860px){
+ .mm-hint{display:none}
+ .m-mapcard-move{width:56px}
+ .m-mapcard-text{grid-template-columns:1fr}
+ .m-mapcard-text .m-mapcard-go{grid-column:1;grid-row:auto;justify-self:start;margin-top:8px}
+}
+@media (prefers-reduced-motion:reduce){
+ .mm *,.m-mapcard *,.m-mapcard{transition:none!important;animation:none!important}
+}
