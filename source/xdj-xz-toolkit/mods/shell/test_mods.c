@@ -138,7 +138,8 @@ static void test_held_menu_and_back_chain(void) {
  assert(turn(&u,&m,1)==0&&u.mods_view.tab==TAB_STEMS&&u.mods_view.on_tabs==1);
  turn(&u,&m,99);assert(u.mods_view.tab==TABS-1);
  turn(&u,&m,-99);assert(u.mods_view.tab==TAB_UTILITY);
- /* Push enters UTILITY at its first item; push opens its values. */
+ /* Push enters UTILITY at its first item; a writable item opens its values. */
+ fxs_item(XZ_SHELL_ITEM_LOAD_LOCK)->writable=1;
  assert(push(&u,&m)==0&&u.mods_view.on_tabs==0&&pane(&u)==ITEMS_PANE);
  assert(push(&u,&m)==0&&pane(&u)==VALUES_PANE);
  /* BACK: values, items, the rail, closed. No BACK does anything else on the way. */
@@ -266,7 +267,8 @@ static void test_descriptions(void) {
  struct xz_shell_rect v=xz_shell_settings_rect(XZ_SHELL_SR_VALUES);
  const int row=XZ_SHELL_SETTINGS_ROW_H;
  xz_shell_init(&u);hold_menu(&u,&m);push(&u,&m);
- /* UTILITY: what the highlighted item does sits under its two choices, and what the lit choice does. */
+ /* UTILITY: writable items explain their choices. */
+ fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)->writable=1;
  goto_item(&u,&m,0,XZ_SHELL_ITEM_HOT_CUE_COLOR);
  struct xz_shell_rect below={v.x,v.y+2*row,v.w,v.h-2*row};
  const uint16_t *f=render_into(buffer_a,&u,&m);
@@ -282,19 +284,20 @@ static void test_descriptions(void) {
   if(x>=v.x&&y>=v.y)differs_in=1;else differs_out=1;
  }
  assert(differs_in&&!differs_out);
- /* Push on an item the runtime cannot write still hands it to the stock deck at that item. */
+ /* Losing write permission exits the choices without a write or hand-off. */
+ fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)->writable=0;
+ assert(push(&u,&m)==0&&pane(&u)==ITEMS_PANE);
  copy=u;
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_UTILITY&&out[0].value==XZ_SHELL_ITEM_HOT_CUE_COLOR+1);
  /* The runtime's note joins the panel with a lock, and only the panel changes. */
  static const char *notes[FXS_COUNT];
- notes[fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)-fxs_table]="FIXED IN THIS TEST BUILD";
+ notes[fxs_item(XZ_SHELL_ITEM_HOT_CUE_COLOR)-fxs_table]="READ-ONLY BUILD";
  const uint16_t *plain=render_into(buffer_a,&copy,&m);
  fxs_model.notes=notes;
  const uint16_t *noted=render_into(buffer_b,&copy,&m);
  differs_in=differs_out=0;
  for(int y=0;y<XZ_SHELL_HEIGHT;y++)for(int x=0;x<XZ_SHELL_WIDTH;x++){
   if(plain[(size_t)y*STRIDE+(size_t)x]==noted[(size_t)y*STRIDE+(size_t)x])continue;
-  if(x>=v.x&&y>=v.y+2*row)differs_in=1;else differs_out=1;
+  if(x>=v.x&&y>=v.y+row)differs_in=1;else differs_out=1;
  }
  assert(differs_in&&!differs_out);
  fxs_model.notes=NULL;

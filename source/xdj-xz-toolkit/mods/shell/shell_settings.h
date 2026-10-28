@@ -34,10 +34,9 @@
    CONTINUE).
 
    An item the runtime cannot write (writable clear, or no
-   XZ_SHELL_CAP_SET_SETTING) still shows its value and one line on how to
-   change it (notes, or the shell's line): pushing it hands the screen to the
-   stock deck (HAND_OFF, value = 1 + item id), where holding MENU opens the
-   stock UTILITY.
+   XZ_SHELL_CAP_SET_SETTING) shows only its current value and one short
+   reason (notes, or the shell's line). It has no alternative choices and
+   neither touch nor encoder push sends a setting or hands off the screen.
 
    Shell-owned display items (WAVE_COLOR, WAVE_POSITION, KEY_DISPLAY,
    WAVE_ZOOM) are always shown and always settable: the shell adds them when
@@ -121,7 +120,7 @@ struct xz_shell_setting_item {
 };
 
 /* count comes first: a zeroed model reads nothing else. notes, when set, is parallel to items: one caps
-   line saying how to change an item the runtime cannot write (NULL entries take the shell's line). */
+   line saying why an item cannot be changed here (NULL entries take the shell's line). */
 struct xz_shell_settings_model {
  uint32_t count;
  const struct xz_shell_setting_item *items;

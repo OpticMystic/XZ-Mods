@@ -220,24 +220,27 @@ static void test_utility_encoder(void) {
  assert(xz_shell_settings_back(&u,&m)==1&&pane(&u)==1&&!u.mods_view.on_tabs);
  assert(xz_shell_settings_back(&u,&m)==1&&u.depth==1);
  assert(xz_shell_settings_back(&u,&m)==0);   /* not on UTILITY */
- /* Read-only items hand the screen to the stock menu on apply. */
+ /* Read-only items keep focus on their row and send no action. */
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
  turn(&u,&m,1);assert(cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
- push(&u,&m);turn(&u,&m,-1);
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_UTILITY&&pane(&u)==2);
- /* So do writable items when the runtime cannot set settings. */
+ assert(push(&u,&m)==0&&pane(&u)==1);
+ assert(push(&u,&m)==0&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
+ /* The same applies when the runtime cannot set settings. */
  struct xz_shell_model no_set=m;no_set.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;
  open_screen(&u,&no_set,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
  turn(&u,&no_set,8);assert(cursor_id(&u)==XZ_SHELL_ITEM_PLAY_MODE);
- push(&u,&no_set);turn(&u,&no_set,1);
- assert(push(&u,&no_set)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ assert(push(&u,&no_set)==0&&pane(&u)==1);
+ assert(push(&u,&no_set)==0&&cursor_id(&u)==XZ_SHELL_ITEM_PLAY_MODE);
  /* Shell-owned display items need no capability: the shell applies them itself. */
  open_screen(&u,&no_set,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
  hold(&u,&no_set);assert(cursor_id(&u)==XZ_SHELL_ITEM_WAVE_COLOR);
  push(&u,&no_set);turn(&u,&no_set,-1);
  assert(push(&u,&no_set)>=1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_RGB);
  assert(u.display.wave_color==XZ_SHELL_WAVE_RGB);
- /* A known value draws the blue dot; an unknown one draws none. */
+ /* A writable known value draws the blue dot; an unknown one draws none. */
+ fxs_item(XZ_SHELL_ITEM_LCD_BRIGHTNESS)->writable=1;
+ fxs_item(XZ_SHELL_ITEM_JOG_LCD_BRIGHTNESS)->writable=1;
+ fxs_item(XZ_SHELL_ITEM_LANGUAGE)->writable=1;
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
  hold(&u,&m);turn(&u,&m,2);assert(cursor_id(&u)==XZ_SHELL_ITEM_LCD_BRIGHTNESS);
  f=render(&u,&m);
@@ -273,8 +276,8 @@ static void test_utility_touch(void) {
  struct xz_shell_rect page0=xz_shell_mods_tab_rect(&u,&m,0);
  assert(tap(&u,&m,page0.x+10,page0.y+10)==0&&u.mods_view.on_tabs);
  assert(tap(&u,&m,page0.x+10,page0.y+10)==0&&!u.mods_view.on_tabs&&pane(&u)==1);
- /* One tap opens values; header rows take no touch. */
- assert(tap(&u,&m,item_x()+100,list_row(2))==0&&pane(&u)==2&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
+ /* Read-only rows stay in the item pane; writable rows open values. */
+ assert(tap(&u,&m,item_x()+100,list_row(2))==0&&pane(&u)==1&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
  assert(tap(&u,&m,item_x()+100,list_row(0))==0&&cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);   /* the header */
  assert(tap(&u,&m,item_x()+100,list_row(4))==0&&pane(&u)==2&&cursor_id(&u)==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD);
  /* One tap picks the value on release. */
@@ -298,6 +301,7 @@ static void test_utility_touch(void) {
  assert(send(&u,&m,XZ_SHELL_TOUCH_DOWN,value_x()+60,list_row(ROWS-1),0)==0);
  send(&u,&m,XZ_SHELL_TOUCH_UP,value_x()+60,list_row(ROWS-1),0);
  /* The back button leaves values, then closes top-level MODS. */
+ turn(&u,&m,2); /* writable HOT CUE AUTO LOAD */
  push(&u,&m);assert(pane(&u)==2);
  struct xz_shell_rect back=R(XZ_SHELL_SR_BACK_BUTTON);
  assert(tap(&u,&m,back.x+10,back.y+10)==0&&pane(&u)==1&&u.depth==2);
@@ -333,8 +337,8 @@ static void test_shortcut(void) {
  turn(&u,&m,100);assert(cursor_id(&u)==XZ_SHELL_ITEM_AUTO_CUE_LEVEL);
  f=render(&u,&m);assert(at(f,slot_of(3,3).x+1,slot_of(3,3).y+20)==rgb565(SH_BLUE));
  turn(&u,&m,-100);assert(cursor_id(&u)==XZ_SHELL_ITEM_QUANTIZE_BEAT);
- /* Push on a read-only item hands off; on a writable one it steps to the next value, wrapping. */
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
+ /* Push on read-only items is inert; writable items step to the next value. */
+ assert(push(&u,&m)==0);
  turn(&u,&m,4);
  assert(push(&u,&m)>=1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_WAVE_COLOR&&out[0].value==XZ_SHELL_WAVE_STEMS&&out[0].deck==-1);
  /* Chip taps set that value; the current chip writes nothing; the label line only focuses. */
@@ -347,7 +351,7 @@ static void test_shortcut(void) {
  assert(tap(&u,&m,chip_x(2,3,6,7),chip_y(2,3))==1&&out[0].kind==XZ_SHELL_ACT_ZOOM&&out[0].value==6&&u.zoom==6);
  assert(tap(&u,&m,chip_x(3,1,1,2),slot_of(3,1).y+5)==0&&cursor_id(&u)==XZ_SHELL_ITEM_PLAY_MODE);
  assert(tap(&u,&m,chip_x(0,2,0,3),chip_y(0,2))==1&&out[0].kind==XZ_SHELL_ACT_SET_SETTING&&out[0].id==XZ_SHELL_ITEM_HOT_CUE_AUTO_LOAD&&out[0].value==0);
- assert(tap(&u,&m,chip_x(0,1,5,8),chip_y(0,1))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ assert(tap(&u,&m,chip_x(0,1,5,8),chip_y(0,1))==0);
  f=render(&u,&m);assert(chip_fill(f,2,0,3,4)==rgb565(SH_BLUE));                /* STEMS, shell-owned */
  assert(chip_fill(f,0,1,0,8)==rgb565(SH_ROW_ALT)&&chip_fill(f,0,1,5,8)!=rgb565(SH_BLUE)); /* read-only: a flat value box, no chips */
  /* Device information reads only. */
@@ -362,9 +366,9 @@ static void test_shortcut(void) {
  fxs_item(XZ_SHELL_ITEM_AUTO_CUE_LEVEL)->current=8;
  assert(tap(&u,&m,s.x+s.w-20,chip_y(3,3))==0);
  assert(tap(&u,&m,s.x+20,chip_y(3,3))==1&&out[0].value==7);
- /* Without the capability every chip hands off. */
+ /* Without the capability stock rows are read-only. */
  struct xz_shell_model no_set=m;no_set.capabilities&=~(uint32_t)XZ_SHELL_CAP_SET_SETTING;
- assert(tap(&u,&no_set,chip_x(3,0,1,2),chip_y(3,0))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
+ assert(tap(&u,&no_set,chip_x(3,0,1,2),chip_y(3,0))==0);
  f=render(&u,&no_set);assert(chip_fill(f,2,0,3,4)==rgb565(SH_BLUE)&&chip_fill(f,3,0,0,2)==rgb565(SH_ROW_ALT));
  /* Unknown values: nothing is chosen, push picks the first value. */
  model(&m);
@@ -384,8 +388,8 @@ static void test_shortcut(void) {
  fxs_item(XZ_SHELL_ITEM_BEAT_JUMP_BEAT)->id=XZ_SHELL_ITEM_ID_END+5;
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
  turn(&u,&m,1);assert(cursor_id(&u)==XZ_SHELL_ITEM_BEAT_JUMP_BEAT);
- assert(push(&u,&m)==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF&&out[0].id==XZ_SHELL_SHORTCUT);
- assert(tap(&u,&m,chip_x(0,1,5,8),chip_y(0,1))==1&&out[0].kind==XZ_SHELL_ACT_HAND_OFF);
+ assert(push(&u,&m)==0);
+ assert(tap(&u,&m,chip_x(0,1,5,8),chip_y(0,1))==0);
  /* Closing: the back button and SHORTCUT both return to the screen below. */
  model(&m);
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
@@ -394,7 +398,7 @@ static void test_shortcut(void) {
  assert(key(&u,&m,XZ_SHELL_KEY_SHORTCUT)==0&&u.depth==1);
  open_screen(&u,&m,XZ_SHELL_KEY_SHORTCUT,XZ_SHELL_SHORTCUT);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&u.depth==1);
- puts("PASS SHORTCUT: reading-order focus, chip and stepper taps, push cycles, read-only hand-off, close");
+ puts("PASS SHORTCUT: reading-order focus, chip and stepper taps, push cycles, read-only rows, close");
 }
 
 static void test_bounds_and_determinism(void) {
@@ -443,6 +447,7 @@ static void test_bounds_and_determinism(void) {
 static void test_back_key_steps_panes(void) {
  struct xz_shell u;struct xz_shell_model m;model(&m);xz_shell_init(&u);
  open_screen(&u,&m,XZ_SHELL_KEY_MENU_HOLD,XZ_SHELL_UTILITY);
+ turn(&u,&m,3); /* writable HOT CUE AUTO LOAD */
  push(&u,&m);
  assert(pane(&u)==2);
  assert(key(&u,&m,XZ_SHELL_KEY_BACK)==0&&xz_shell_screen(&u)==XZ_SHELL_UTILITY&&pane(&u)==1);
