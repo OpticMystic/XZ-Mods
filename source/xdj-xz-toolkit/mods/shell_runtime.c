@@ -9,6 +9,7 @@
    owner tick take only `mutex`, and never call native code while holding it. */
 #define _GNU_SOURCE
 #include "diary/runtime.h"
+#include "writes.h"
 #pragma weak xz_diary_notice
 #pragma weak xz_diary_notice_code
 #pragma weak xz_diary_error_code
@@ -212,8 +213,9 @@ static void native_observed_position(int d,struct xz_shell_deck *deck,int32_t so
  deck->elapsed_ms=clamped;deck->elapsed_at_ms=0;
 }
 /* The stock UTILITY items (shell_utility.h). raw/known are written on the owner tick under the mutex.
-   trial: SETTINGS_READONLY, used by RAM trials and the USB loader. Stock saves every UTILITY set
-   to flash, so these items need the separate XZ_MODS_SHELL_UTILITY_WRITES opt-in. */
+   trial: a RAM trial (writes.h: read-only flag without the loader's boot marker), where nothing may be saved.
+   A USB loader launch saves like stock: every UTILITY set goes to the player's own settings, as stock does.
+   XZ_MODS_SHELL_UTILITY_WRITES=1 still opts a RAM trial in. */
 static struct {
  int32_t raw[XZ_SHUT_DEFS];uint8_t known[XZ_SHUT_DEFS],get_ok[XZ_SHUT_DEFS],set_ok[XZ_SHUT_DEFS],apply_ok[XZ_SHUT_DEFS];
  int trial,version_ok,poll_now;uint32_t polled_ms;char version[24];const char *version_choice[1];
@@ -3537,9 +3539,9 @@ static int start_locked(void) {
  for(int k=0;k<L_COUNT;k++)list_reset(&lists[k],k);
  ui_action_count=0;stock_key_pending=-1;push_input=0;
  le_count=0;
- memset(mys,0,sizeof mys);memset(&mys_job,0,sizeof mys_job);memset(mys_state,0,sizeof mys_state);memset(mys_result,0,sizeof mys_result);dj_pick=-1;mys_readonly=flag("XZ_MODS_SETTINGS_READONLY");
+ memset(mys,0,sizeof mys);memset(&mys_job,0,sizeof mys_job);memset(mys_state,0,sizeof mys_state);memset(mys_result,0,sizeof mys_result);dj_pick=-1;mys_readonly=!xz_mods_may_write();
  memset(&util,0,sizeof util);memset(cue_cache,0,sizeof cue_cache);memset(&cue_want,0,sizeof cue_want);memset(previews,0,sizeof previews);preview_want.n=0;preview_clock=0;
- util.trial=xz_shut_trial(flag("XZ_MODS_SETTINGS_READONLY"),flag("XZ_MODS_SHELL_UTILITY_WRITES"));util.poll_now=1;
+ util.trial=xz_shut_trial(!xz_mods_may_write(),flag("XZ_MODS_SHELL_UTILITY_WRITES"));util.poll_now=1;
  check_guards();
  running=1;
  if(pthread_create(&worker_thread,NULL,worker,NULL)){running=0;free(storage);storage=NULL;xz_log("FLAGSHIP shell unavailable: worker thread");return -1;}
