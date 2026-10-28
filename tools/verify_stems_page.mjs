@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,8 @@ import { serveUi } from './csp_server.mjs';
 import { killBrowser } from './kill_browser.mjs';
 
 // No packages needed. Drives the real renderer in headless Edge over CDP with a mocked Tauri invoke.
-// Run: node tools/verify_stems_page.mjs   (XZ_TEST_BROWSER overrides the browser path)
+// Run: node tools/verify_stems_page.mjs   (XZ_TEST_BROWSER overrides the browser path; XZ_STEMS_SHOTS=<dir> saves the manual's
+// stems-*.png pictures, 1100 x 720, under their manual names)
 const app = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function installMock() {
@@ -146,6 +147,8 @@ try {
     await waitFor(`typeof renderStems==='function'&&Boolean(document.querySelector('nav button[data-page="stems"]')?.onclick)&&activeJob===null`, 'app loaded');
     await evaluate(`document.querySelector('nav button[data-page="stems"]').click()`);
   };
+  const shots = process.env.XZ_STEMS_SHOTS; if (shots) await mkdir(shots, { recursive: true });
+  const shot = async name => { if (!shots) return; await new Promise(done => setTimeout(done, 200)); const image = await send('Page.captureScreenshot', { format: 'png' }); await writeFile(join(shots, name + '.png'), Buffer.from(image.data, 'base64')); };
   const ready = `activeJob===null&&stemPhase==='ready'&&!document.getElementById('st-page').classList.contains('hidden')`;
   const selectMissing = count => evaluate(`(()=>{let n=0;for(;n<${count};n++){const box=[...document.querySelectorAll('#stem-tracks input[data-pick]')].find(item=>!item.checked&&!item.disabled);if(!box)break;box.click();}return n;})()`);
   const selectedBytes = () => evaluate(`[...stemSelection.values()].reduce((sum,track)=>sum+track.estimate.bytes,0)`);
@@ -154,6 +157,7 @@ try {
   await open('nousb');
   await waitFor(`!document.getElementById('st-empty').classList.contains('hidden')`, 'no-USB state');
   await check(`txt('#st-empty')==='Connect a Rekordbox USBPlug in the USB you export to from Rekordbox. XZ Mods finds it and lists its tracks.Connect a USB'&&document.querySelectorAll('#st-empty button').length===1`, 'no USB shows one sentence and one Connect a USB button');
+  await shot('stems-connect');
   await evaluate(`fx.drives=[{volume:'E:\\\\',label:'KINGSTON',removable:true}];button('Connect a USB').click()`);
   await check(`document.getElementById('stem-connect').open`, 'Connect a USB opens the connect wizard');
   await evaluate(`document.getElementById('stem-connect-find').click()`);
@@ -183,6 +187,7 @@ try {
   const bytes12 = await selectedBytes();
   await check(`txt('#st-bar .st-estimate').startsWith('12 tracks selected·about ${gb(bytes12)}·${gb(42.9 * 1073741824 - bytes12)} free after')&&document.querySelector('#st-bar .st-estimate').dataset.fit==='ok'`, 'twelve selected: estimate line with free space after');
   await check(`button('Prepare 12 tracks')&&!button('Prepare 12 tracks').disabled&&txt('#st-tabs').endsWith('Selected12')`, 'primary reads Prepare 12 tracks and the Selected tab appears');
+  await shot('stems-list');
   await check(`document.querySelector('#st-bar .st-range').title==='Estimate learned from 14 tracks prepared on this computer'`, 'range tooltip says where the estimate comes from');
 
   await evaluate(`fx.free=${bytes12}+1.4*1073741824;browseStemLibrary(stemLibrary.volume,0)`);
@@ -193,6 +198,7 @@ try {
   await evaluate(`fx.free=${free};browseStemLibrary(stemLibrary.volume,0)`);
   await waitFor(ready + `&&document.querySelector('#st-bar .st-estimate')?.dataset.fit==='over'`, 'over state');
   await check(`txt('#st-bar .st-estimate').includes('2.3 GB more than this USB has free')&&Boolean(button('Prepare ${fit} that fit'))`, `does not fit: 2.3 GB short and Prepare ${fit} that fit`);
+  await shot('stems-does-not-fit');
   await evaluate(`fx.free=42.9*1073741824;fx.indexBytes=4*1048576-5*1200;browseStemLibrary(stemLibrary.volume,0)`);
   await waitFor(ready + `&&document.querySelector('#st-bar .st-estimate')?.dataset.fit==='index'`, 'index full state');
   await check(`txt('#st-bar .st-estimate')==='12 tracks selected·the stem index on this USB has room for 5 more'&&Boolean(button('Prepare 5 that fit'))`, 'stem index full: room for 5 more and Prepare 5 that fit');
@@ -210,12 +216,14 @@ try {
     return ['${ids[0]}','${ids[1]}','${ids[2]}'].every(id=>pill(id)==='ReadyNew')&&pill('${ids[3]}')==='Preparing 65%'&&row('${ids[3]}').querySelector('.st-sub').textContent==='Separating drums'
       &&pill('${ids[4]}')==='Queued'&&pill('${ids[11]}')==='Queued';})()`, 'rows change in place: Ready New, Preparing 65% (blended), Queued');
   await check(`/^Preparing 4 of 12·.+·Separating drums·65%·about 9 min left$/.test(txt('#st-bar .st-progress-line'))&&document.querySelector('#st-bar progress').value>0.3`, 'progress line: stage, blended percent and about 9 min left');
+  await shot('stems-preparing');
   await evaluate(`fx.batch={done:3,stage:'separate-drums',pct:20,eta:530}`);
   await new Promise(done => setTimeout(done, 500));
   await check(`txt('#stem-tracks tr[data-id="${ids[3]}"] .st-pill')==='Preparing 65%'`, 'displayed percent never goes down');
   await evaluate(`fx.batch={final:true,failed:[3]}`);
   await waitFor(`stemBatch&&!stemBatch.running&&stemBatch.ending&&activeJob===null`, 'batch finished');
   await check(`/^Done in \\d+ s·11 prepared·1 failed·\\d+\\.\\d GB written$/.test(txt('#st-bar .st-summary'))&&Boolean(button('Retry 1 failed'))`, 'finished with a failure: summary and Retry 1 failed');
+  await shot('stems-finished-failed');
   await check(`txt('#stem-tracks tr[data-id="${ids[3]}"] .st-pill')==='Failed'&&txt('#stem-tracks tr[data-id="${ids[3]}"] .st-sub')==='Graphics card ran out of memory'&&stemSelection.size===1`, 'failed row shows the reason and stays selected; prepared rows leave the selection');
 
   await evaluate(`fx.batch={done:0,stage:'separate-vocals',pct:30};button('Retry 1 failed').click()`);
@@ -232,6 +240,7 @@ try {
   await evaluate(`button('Next',document.getElementById('st-import-wiz')).click()`);
   await waitFor(`imp?.step==='check'`, 'plan ready');
   await check(`txt('#st-import-title')==='2 files need a place'&&button('Place 2 files to continue').disabled&&fx.requests.at(-1).method==='plan_stem_import'`, 'needs review: 2 files need a place, primary disabled');
+  await shot('stems-import-place');
   await check(`txt('#st-import-wiz .st-slots')==='Vocalsvox_leadDrumskick, hats_loopHarmonicsNothing yet'&&document.querySelectorAll('#st-import-wiz tr[data-need]').length===2`, 'slots list their files; empty Harmonics reads Nothing yet; two rows need a place');
   await evaluate(`(()=>{const selects=[...document.querySelectorAll('#st-import-wiz tr[data-need] select')];selects[0].value='harmonics';selects[0].dispatchEvent(new Event('change'));})()`);
   await check(`txt('#st-import-title')==='1 file needs a place'&&Boolean(button('Place 1 file to continue'))`, 'placing one file updates the count');
@@ -242,6 +251,7 @@ try {
   await evaluate(`button('Write stems to USB').click()`);
   await waitFor(`imp?.step==='done'`, 'import written');
   await check(`txt('#st-import-title')==='Stems written and checked'&&txt('#st-import-wiz').includes('is ready for the XZ. 534 MB written.')`, 'import done: written and checked');
+  await shot('stems-import-done');
   await check(`(()=>{const files=fx.lastImport.files;return fx.lastImport.method==='import_grouped_stems'&&files.length===4&&files.some(f=>f.path.endsWith('track_07_a.wav')&&f.group==='harmonics')&&!files.some(f=>f.path.endsWith('stem3.wav'))&&fx.lastImport.alignment.gain===1;})()`, 'write uses the plan import_request with the user overrides');
   await evaluate(`button('Done',document.getElementById('st-import-wiz')).click()`);
   await waitFor(ready + `&&!document.getElementById('st-import-wiz').open`, 'import closed');
@@ -250,15 +260,19 @@ try {
   await open('fresh');
   await waitFor(ready, 'fresh library');
   await check(`Boolean(button('Set up stem engine'))&&txt('#st-bar .st-engine')==='Stem engine not set up yet · a few minutes, once'`, 'engine not set up: primary becomes Set up stem engine');
+  await shot('stems-engine-needed');
   await selectMissing(12);
   await check(`Boolean(button('Set up stem engine'))`, 'selecting keeps the setup button');
   await evaluate(`button('Set up stem engine').click()`);
   await waitFor(`document.getElementById('st-engine').open&&txt('#st-engine-title')==='Graphics card found'`, 'engine check');
   await check(`txt('#st-engine .st-found')==='\\u25a6NVIDIA GeForce RTX 4070 Ti SUPER16 GB video memory'`, 'engine check: graphics card card');
+  await shot('stems-engine-check');
   await evaluate(`button('Next',document.getElementById('st-engine')).click()`);
   await check(`txt('#st-engine-title')==='Choose quality'&&document.querySelector('#st-engine input[value=balanced]').checked&&txt('#st-engine .st-preset').includes('Recommended')&&txt('#st-engine .st-preset').includes('About 1 minute per track on this computer.')`, 'choose: Balanced recommended with a per-track time');
+  await shot('stems-engine-quality');
   await evaluate(`button('Next',document.getElementById('st-engine')).click()`);
   await check(`txt('#st-engine-title')==='Download and install'&&txt('#st-engine').includes('XZ Mods downloads 2.4 GB to this computer, once.')&&txt('#st-engine .st-kv')==='Graphics runtime1.9 GBBalanced models520 MBSpace on C:212 GB free'`, 'install: size, parts and free space');
+  await shot('stems-engine-download');
   await evaluate(`button('Download and install').click()`);
   await waitFor(`txt('#st-engine-title')==='Installing'&&txt('#st-engine .st-stages').includes('310 of 520 MB · about 1 min left')`, 'installing progress');
   passed++; console.log('ok', 'installing: stage list with 310 of 520 MB · about 1 min left');
@@ -268,6 +282,7 @@ try {
   await evaluate(`fx.setupFrame='done'`);
   await waitFor(`txt('#st-engine-title')==='Stem engine ready'`, 'engine ready');
   await check(`txt('#st-engine').includes('30 seconds took 5.8 s. A 5-minute track will take about a minute.')&&Boolean(button('Prepare 12 tracks',document.getElementById('st-engine')))`, 'engine ready ends on Prepare 12 tracks');
+  await shot('stems-engine-ready');
   await evaluate(`fx.batch={done:0,stage:'decode',pct:5};button('Prepare 12 tracks',document.getElementById('st-engine')).click()`);
   await waitFor(`stemBatch?.running`, 'batch from wizard');
   await check(`fx.requests.at(-1).preset==='balanced'&&txt('#st-bar .st-engine')==='Engine: Balanced on RTX 4070 Ti SUPER · Change'`, 'the wizard hands off straight into the batch');
@@ -306,6 +321,7 @@ try {
   await evaluate(`button('Download and install').click()`);
   await waitFor(`txt('#st-engine-title')==='Graphics driver too old'`, 'driver failure');
   await check(`txt('#st-engine .st-fail')==='The graphics engine needs NVIDIA driver 525 or newer. This computer has 516.94.Use the processor now, or update the driver and check again for full speed.'&&Boolean(button('Use the processor'))&&Boolean(button('Open NVIDIA drivers'))`, 'driver too old: one reason, Use the processor');
+  await shot('stems-engine-driver');
   await evaluate(`fx.setupFrame='done';button('Use the processor').click()`);
   await waitFor(`txt('#st-engine-title')==='Stem engine ready'`, 'cpu fallback ready');
   await check(`fx.requests.at(-1).device==='cpu'&&txt('#st-engine .fine')==='Fast on this processor'`, 'Use the processor reruns setup on the CPU');
