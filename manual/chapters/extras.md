@@ -246,25 +246,25 @@ The report goes one of three ways. Whichever it is, nothing is lost and you neve
 
 | The screen says | What happened | What to do |
 |---|---|---|
-| **SENT** and a reference like **R-4F7K-2M9Q** | It reached the XZ Mods inbox | Finish it on your computer: the XZ Mods app reminds you. Scan the code to follow it on your phone |
+| **SENT** and a reference like **R-4F7K-2M9Q** | It reached the XZ Mods inbox | Finish it on your computer: the XZ Mods app reminds you and shows the same reference |
 | **SAVED ON THIS STICK** | The player is offline, its clock is not set, the loader is from an older XZ Mods app, or the inbox did not take it | Plug the stick into your computer. The XZ Mods app opens the report |
 | **NOT SENT YET** | It could not be sent, and the stick could not take it | Do what the line says (put the stick back, use a writable stick, make room on it), then push **TRY AGAIN** |
 
 ```gallery {modern}
-classic:theme-24-support-sent SENT: the reference, and a code to follow it on your phone
+classic:theme-24-support-sent SENT: the reference to look for in the XZ Mods app
 classic:theme-24-support-saved SAVED ON THIS STICK
 classic:theme-24-support-unsaved NOT SENT YET: the reason, TRY AGAIN and EDIT REPORT
 classic:theme-24-support-sending While it sends. You can keep playing and close MODS
 ```
 
 ```gallery {classic}
-classic:theme-0-support-sent SENT: the reference, and a code to follow it on your phone
+classic:theme-0-support-sent SENT: the reference to look for in the XZ Mods app
 classic:theme-0-support-saved SAVED ON THIS STICK
 classic:theme-0-support-unsaved NOT SENT YET: the reason, TRY AGAIN and EDIT REPORT
 classic:theme-0-support-sending While it sends. You can keep playing and close MODS
 ```
 
-A saved report waits in `VJ.Tools/XZ-Mods-reports/pending/` on the stick, up to 32 of them. **TRY AGAIN** sends the same report, so the maintainer gets it once.
+A saved report waits in `VJ.Tools/XZ-Mods-reports/pending/` on the stick, up to 32 of them. The XZ Mods app sends it from there and moves it to `sent/`. **TRY AGAIN** sends the same report, so the maintainer gets it once.
 
 ### Report an error from the dock
 
@@ -286,7 +286,7 @@ The report holds facts the player can check, never text read from its screens:
 
 - the topic and your words, if any;
 - the XZ Mods version and a fingerprint of your settings, with a few of them (stems, gate cue, interface, theme, deck view, browse preview);
-- the loader ID from ABOUT, so the report reaches your own XZ Mods app;
+- the loader ID from ABOUT and the ID of the computer that made the loader, so the report reaches your own XZ Mods app;
 - the screen MODS was opened from (PLAY, BROWSE and so on), the interface, the deck view and the code of any error on screen;
 - known status codes from the four-deck bridge and the player, and the recent entries of the USB diary on this stick.
 
