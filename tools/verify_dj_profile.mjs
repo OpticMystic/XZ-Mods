@@ -227,12 +227,12 @@ try {
   const showDj = () => evaluate(`showPage('dj-profile');window.scrollTo(0,0)`);
 
   await open('empty');
-  await check(`document.querySelector('.tool-row[data-open="dj-profile"]')&&txt('.tool-row[data-open="dj-profile"] strong')==='DJ Profile'`, 'DJ Profile is the first row in Tools');
+  await check(`txt('nav button[data-page="dj-profile"] span')==='DJ Profile'&&!document.querySelector('.tool-row[data-open="dj-profile"]')`, 'DJ Profile is its own rail item, not a row in Tools');
   await waitFor(`setupWizard.state.view==='device'&&activeJob===null`, 'the USB page opened the one USB by itself');
   await check(`!fx.requests.some(r=>r.method==='read_dj_profiles')`, 'no profile read until the DJ Profile page shows');
   await showDj();
   await waitFor(`djProfilePage.state.phase==='editing'`, 'editor once the page shows');
-  await check(`document.querySelector('nav button.selected').dataset.page==='tools'&&txt('#page-title')==='DJ Profile'&&setupWizard.state.usb==='E:\\\\'&&last('read_dj_profiles').volume==='E:\\\\'`, 'one USB: found automatically, shared with the USB page, profiles read');
+  await check(`document.querySelector('nav button.selected').dataset.page==='dj-profile'&&txt('#page-title')==='DJ Profile'&&setupWizard.state.usb==='E:\\\\'&&last('read_dj_profiles').volume==='E:\\\\'`, 'one USB: found automatically, shared with the USB page, profiles read');
   await check(`txt('#dj-profile h2')==='New DJ profile'&&document.activeElement!==null&&Boolean(document.getElementById('djp-name'))`, 'empty stick: the editor opens straight away, no extra click');
   await check(`djProfilePage.state.draft.accent==='#9828f0'&&document.getElementById('djp-accent').value==='#9828f0'&&page().querySelector('.djp-swatch[data-hex="#9828f0"]').getAttribute('aria-pressed')==='true'&&page().querySelector('.djp-swatch[data-hex="#9828f0"]').dataset.stick==='1'&&txt('.djp-colour-note')==="Matches this USB's colour in rekordbox (Purple)."`, 'colour defaults to the USB colour set in rekordbox, marked on its swatch');
   await check(`page().querySelectorAll('.djp-swatch').length===8&&txt('.djp-drop[data-empty="1"] strong')==='Drop your logo here'&&button('Choose file').classList.contains('primary')`, 'eight rekordbox swatches; an empty logo drop target with a primary Choose file');

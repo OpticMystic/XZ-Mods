@@ -127,7 +127,7 @@ try {
   const fits = `(()=>{const out=[];if(document.documentElement.scrollWidth>innerWidth+1)out.push('page '+document.documentElement.scrollWidth+' wide');for(const item of document.querySelectorAll('#manual .m-chapter>*,#manual .m-start>*,#manual .m-side'))if(item.getBoundingClientRect().right>innerWidth+1)out.push((item.className||item.tagName)+' '+Math.round(item.getBoundingClientRect().right));return out.length?out.slice(0,4).join('; '):true;})()`;
 
   await open();
-  await check(`[...document.querySelectorAll('aside nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,manual,my-reports'&&document.querySelector('nav button[data-page=manual] use').getAttribute('href')==='#i-book'&&txt('nav button[data-page=manual]')==='Manual'`, 'the rail has Manual, with its book glyph, between Tools and Feedback');
+  await check(`[...document.querySelectorAll('aside nav button')].map(b=>b.dataset.page).join()==='setup,stems,dj-profile,updates,tools,manual,licenses,my-reports'&&document.querySelector('nav button[data-page=manual] use').getAttribute('href')==='#i-book'&&txt('nav button[data-page=manual]')==='Manual'`, 'the rail has Manual, with its book glyph, between Tools and About');
   await evaluate(`document.querySelector('nav button[data-page=manual]').click()`);
   await waitFor(`manualPage.state().view==='start'&&document.querySelectorAll('.mt-card').length>0`, 'start page');
   await check(`txt('#page-title')==='Manual'&&document.querySelector('nav button[data-page=manual]').classList.contains('selected')&&!document.getElementById('manual').classList.contains('hidden')`, 'the rail item opens the Manual page and is selected');
