@@ -55,9 +55,8 @@ int main(void){
  /* Every ready bit a loader could report, both native decks, the RAM engine, decks 3 and 4 connected. */
  m.deck[0].ready=m.deck[1].ready=0xffffffffu;m.deck[0].ram.state=XZ_UI_RAM_EMPTY;m.route.state=XZ_UI_ROUTE_READY;
  for(int d=0;d<4;d++)assert(!(xz_deck_caps(&m,d)&ABSENT));
- for(size_t f=0;f<3;f++){unsigned a=(unsigned[]){XZ_DECK_CAN_CUE_PREVIEW,XZ_DECK_CAN_XPAD,XZ_DECK_CAN_GROOVE}[f];
-  assert(xz_deck_cap_absent(a));assert(!strcmp(xz_deck_cap_reason(&m,0,a),"Not in this version, on any deck."));}
- assert(!xz_ui_has_engine(&m,XZ_UI_PREVIEW)&&!xz_ui_has_engine(&m,XZ_UI_SAMPLE)&&!xz_ui_has_engine(&m,XZ_UI_GROOVE));
+ /* Not built, so not shown: the grid has no row for them. */
+ for(int r=0;r<XZ_UI_GRID_ROWS;r++)assert(!(xz_ui_grid_features[r]&ABSENT));
  for(int d=0;d<2;d++)assert((xz_deck_caps(&m,d)&(PARITY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC|XZ_DECK_CAN_RAM|XZ_DECK_CAN_DISPLAY))==
   (PARITY|XZ_DECK_CAN_PLAYING_KEY|XZ_DECK_CAN_KEY_SYNC|XZ_DECK_CAN_RAM|XZ_DECK_CAN_DISPLAY));
  /* Decks 3 and 4: the shared beat jump, Gate Cue and Smart Cue, and the display; not the playing key, key
@@ -96,10 +95,9 @@ int main(void){
  struct xz_ui_info info;struct xz_ui_widget w[XZ_UI_WIDGETS];xz_ui_navigate(&u,XZ_UI_FOUR_DECKS);size_t n=xz_ui_layout(&u,&m,w);int rows=0;
  for(size_t i=0;i<n;i++)if(w[i].kind==XZ_UI_INFO&&w[i].index>=XZ_UI_INFO_GRID&&xz_ui_describe_widget(&u,&m,&w[i],&info)){
   rows++;unsigned on=0;for(int d=0;d<4;d++)if(xz_deck_caps(&m,d)&info.feature)on|=1u<<d;
-  assert(info.works_on==on);
-  if(info.feature&ABSENT)assert(!on&&strstr(info.body,"not in this version"));
+  assert(info.works_on==on&&!(info.feature&ABSENT));
  }
  assert(rows==XZ_UI_GRID_ROWS);
- puts("PASS deck caps: no preview/X-PAD/groove engine on any deck whatever the ready bits, decks 3/4 parity and display only, native bits follow the runtime, one short reason per missing feature, grid = caps, WORKS ON chips as deck badges");
+ puts("PASS deck caps: no preview/X-PAD/groove engine on any deck whatever the ready bits and no grid row for them, decks 3/4 parity and display only, native bits follow the runtime, one short reason per missing feature, grid = caps, WORKS ON chips as deck badges");
  return 0;
 }

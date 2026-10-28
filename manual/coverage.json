@@ -21,26 +21,6 @@
    "why": "Retired: no control opens this page since KEY NOTATION moved to SCREEN."
   },
   {
-   "glob": "classic:theme-0-stems",
-   "why": "GROOVE PADS: shown as NOT IN THIS VERSION; there is no groove engine yet."
-  },
-  {
-   "glob": "classic:theme-0-muted",
-   "why": "GROOVE PADS state; no groove engine yet."
-  },
-  {
-   "glob": "classic:theme-0-external",
-   "why": "GROOVE PADS state; no groove engine yet."
-  },
-  {
-   "glob": "classic:theme-0-unavailable",
-   "why": "GROOVE PADS state; no groove engine yet."
-  },
-  {
-   "glob": "classic:theme-0-xpad",
-   "why": "X-PAD never opens in this version: there is no sampler engine. performance.md says so."
-  },
-  {
    "glob": "classic:theme-0-profile-edit",
    "why": "The preview fixture has no DJ profile, so the page renders blank. connect.md documents it with a table; add a figure when the fixture has a profile."
   },
@@ -54,14 +34,6 @@
   },
   {
    "glob": "classic:badge",
-   "why": "Renderer helper image, not a screen."
-  },
-  {
-   "glob": "classic:external",
-   "why": "Renderer helper image, not a screen."
-  },
-  {
-   "glob": "classic:unavailable",
    "why": "Renderer helper image, not a screen."
   },
   {

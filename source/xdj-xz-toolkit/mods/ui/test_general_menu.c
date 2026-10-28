@@ -1,4 +1,5 @@
 #include "ui_skin.h"
+#include "ui_sections.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -54,8 +55,34 @@ static void no_retired_switches(const struct xz_ui *u,const struct xz_ui_model *
  for(size_t i=0;i<n;i++)assert(w[i].kind!=XZ_UI_METRICS_TOGGLE&&w[i].kind!=XZ_UI_RAM_DEBUG&&w[i].kind!=XZ_UI_JUMP_SHIFT&&
   w[i].kind!=XZ_UI_SHIFT_PAGES&&w[i].kind!=XZ_UI_SHIFT_KEYSYNC&&w[i].kind!=XZ_UI_FOUR_WAVE_ORDER&&w[i].kind!=XZ_UI_CONTROL_SECTION);
 }
+static int mentions_unbuilt(const char *text){
+ static const char *const words[]={"x-pad","sampler","groove","cue preview","not in this version"};
+ char low[512];size_t i=0;
+ for(;text&&text[i]&&i<sizeof low-1;i++)low[i]=(char)(text[i]>='A'&&text[i]<='Z'?text[i]+32:text[i]);
+ low[i]=0;
+ for(size_t k=0;k<sizeof words/sizeof *words;k++)if(strstr(low,words[k]))return 1;
+ return 0;
+}
+/* Hot cue preview, the X-PAD sampler and groove pads are not built, so they appear nowhere: no row, link, switch,
+   setup or explanation, and no control's dock text names them. */
+static void no_unbuilt(const struct xz_ui *u,const struct xz_ui_model *m){
+ struct xz_ui_widget w[XZ_UI_WIDGETS];size_t n=xz_ui_layout(u,m,w);
+ for(size_t i=0;i<n;i++){
+  assert(!mentions_unbuilt(w[i].label));
+  assert(!((w[i].kind==XZ_UI_FEATURE_LINK||w[i].kind==XZ_UI_PANEL)&&(w[i].index==XZ_UI_XPAD||w[i].index==XZ_UI_STEMS)));
+  assert(!((w[i].kind==XZ_UI_ENABLE||w[i].kind==XZ_UI_FEATURE_SETUP_OPEN)&&
+   (w[i].index==XZ_UI_PREVIEW||w[i].index==XZ_UI_SAMPLE||w[i].index==XZ_UI_GROOVE)));
+  assert(!(w[i].kind==XZ_UI_INFO&&w[i].index<XZ_UI_INFO_SIDES));
+  struct xz_ui_info info;
+  if(xz_ui_describe_widget(u,m,&w[i],&info)){
+   assert(!mentions_unbuilt(info.title)&&!mentions_unbuilt(info.body)&&!mentions_unbuilt(info.state)&&!mentions_unbuilt(info.excluded));
+   assert(!(info.feature&(XZ_DECK_CAN_CUE_PREVIEW|XZ_DECK_CAN_XPAD|XZ_DECK_CAN_GROOVE)));
+  }
+ }
+ assert(!mentions_unbuilt(xz_ui_page_body(u->page))&&!mentions_unbuilt(xz_ui_section_purpose(u->page)));
+}
 int main(void){
- const int caps[]={XZ_UI_STEM,XZ_UI_GATE,XZ_UI_SMART,XZ_UI_PREVIEW,XZ_UI_SAMPLE};
+ const int caps[]={XZ_UI_STEM,XZ_UI_GATE,XZ_UI_SMART};
  static const struct { enum xz_ui_page from, link; } links[]={
   {XZ_UI_PLAY,XZ_UI_BEAT_JUMP},{XZ_UI_PLAY,XZ_UI_KEY_SETUP},{XZ_UI_PLAY,XZ_UI_RAM_SETUP},{XZ_UI_PLAY,XZ_UI_BUTTONS},
   {XZ_UI_STEM_SECTION,XZ_UI_PC_STEMS},{XZ_UI_STEM_SECTION,XZ_UI_STEM_PADS},{XZ_UI_STEM_SECTION,XZ_UI_STEM_COLORS},
@@ -66,12 +93,12 @@ int main(void){
  for(int theme=0;theme<XZ_THEME_COUNT;theme++){
   xz_ui_init(&u);assert(u.page==XZ_UI_HOME);m.theme=theme;
   m.deck[0].ready=m.deck[1].ready=0x3fff;m.enabled=0;m.metrics_enabled=0;m.jump.enabled=0;m.route.state=XZ_UI_ROUTE_NOT_DETECTED;
-  geometry(&u,&m);no_retired_switches(&u,&m);capture(&u,&m,"home");
+  geometry(&u,&m);no_retired_switches(&u,&m);no_unbuilt(&u,&m);capture(&u,&m,"home");
   /* HOME: each tile opens its section; BACK returns HOME onto that tile. */
   for(int s=1;s<XZ_UI_SECTIONS;s++){
    int section=xz_ui_sections[s];
    assert(tap(&u,&m,XZ_UI_FEATURE_LINK,section,a)==1&&a[0].kind==XZ_UI_PANEL&&u.page==(enum xz_ui_page)section);
-   assert(u.history_count==1&&u.history[0]==XZ_UI_HOME);geometry(&u,&m);no_retired_switches(&u,&m);
+   assert(u.history_count==1&&u.history[0]==XZ_UI_HOME);geometry(&u,&m);no_retired_switches(&u,&m);no_unbuilt(&u,&m);
    assert(xz_ui_widget_look(&u,&m,&(struct xz_ui_widget){0,0,0,0,XZ_UI_PANEL,section,0,"",-1}).selected);
    assert(xz_ui_back(&u,a)==1&&u.page==XZ_UI_HOME&&!u.history_count);
    struct xz_ui_widget focused;assert(xz_ui_focused(&u,&m,&focused)&&focused.kind==XZ_UI_FEATURE_LINK&&focused.index==section);
@@ -86,12 +113,9 @@ int main(void){
    assert(tap(&u,&m,XZ_UI_ENABLE,caps[k],a)==1&&a[0].kind==XZ_UI_ENABLE&&a[0].index==caps[k]&&a[0].value==1);
    assert(!memcmp(&m,&saved,sizeof(m)));
   }
-  /* No preview or sampler engine runs in this runtime (MENU-AUDIT defect 5): every ready bit set still gives
-     one explanation per row and nothing to press. */
-  assert(listed(&u,&m,XZ_UI_INFO,XZ_UI_INFO_PREVIEW)&&listed(&u,&m,XZ_UI_INFO,XZ_UI_INFO_XPAD));
-  assert(!listed(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_PREVIEW)&&!listed(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_XPAD));
-  assert(!listed(&u,&m,XZ_UI_ENABLE,XZ_UI_PREVIEW)&&!listed(&u,&m,XZ_UI_ENABLE,XZ_UI_SAMPLE));
-  tap(&u,&m,XZ_UI_PANEL,XZ_UI_STEM_SECTION,a);
+  /* Preview and sampler are not built (MENU-AUDIT defect 5): every ready bit set still lists nothing for them. */
+  no_unbuilt(&u,&m);
+  tap(&u,&m,XZ_UI_PANEL,XZ_UI_STEM_SECTION,a);no_unbuilt(&u,&m);
   {struct xz_ui_model saved=m;assert(tap(&u,&m,XZ_UI_ENABLE,XZ_UI_STEM,a)==1&&a[0].value==1&&!memcmp(&m,&saved,sizeof(m)));}
   m.enabled=0x3fff;m.jump.enabled=1;m.metrics_enabled=1;
   capture(&u,&m,"stems-on");
@@ -113,10 +137,9 @@ int main(void){
   {struct xz_ui_widget gate=find(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_GATE);m.deck[0].ready=XZ_UI_GATE;
    struct xz_ui_widget on=find(&u,&m,XZ_UI_ENABLE,XZ_UI_GATE);
    assert(gate.x==on.x&&gate.y==on.y&&gate.w==on.w&&gate.h==on.h);m.deck[0].ready=0;}
-  /* Without the preview or sampler engine, each row says so and offers nothing to press. */
-  assert(listed(&u,&m,XZ_UI_INFO,XZ_UI_INFO_PREVIEW)&&listed(&u,&m,XZ_UI_INFO,XZ_UI_INFO_XPAD));
-  assert(!listed(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_PREVIEW)&&!listed(&u,&m,XZ_UI_FEATURE_LINK,XZ_UI_XPAD));
-  tap(&u,&m,XZ_UI_PANEL,XZ_UI_STEM_SECTION,a);geometry(&u,&m);
+  /* No engines at all: still nothing for preview or the sampler. */
+  no_unbuilt(&u,&m);
+  tap(&u,&m,XZ_UI_PANEL,XZ_UI_STEM_SECTION,a);geometry(&u,&m);no_unbuilt(&u,&m);
   const struct xz_ui_widget unavailable=find(&u,&m,XZ_UI_LOCAL_STEM_SETUP_OPEN,XZ_UI_STEM);
   m.deck[1].ready=XZ_UI_STEM;
   const struct xz_ui_widget available=find(&u,&m,XZ_UI_ENABLE,XZ_UI_STEM);
@@ -144,10 +167,12 @@ int main(void){
   /* It lands on the slot it left from, which now holds the switch. */
   struct xz_ui_widget focused;assert(xz_ui_focused(&u,&m,&focused)&&focused.kind==XZ_UI_ENABLE&&focused.index==caps[k]);
  }
- /* A ready bit is not an engine: with PREVIEW reported, PLAY still explains HOT CUE PREVIEW and opens no check. */
+ /* A ready bit is not an engine: with PREVIEW, SAMPLE and GROOVE reported, no page lists them or opens a check,
+    and their old pages open their sections. */
  {xz_ui_init(&u);memset(&m,0,sizeof(m));m.deck[0].ready=XZ_UI_PREVIEW|XZ_UI_SAMPLE|XZ_UI_GROOVE;m.deck[0].track="READY ACTION TRACK";
-  tap(&u,&m,XZ_UI_PANEL,XZ_UI_PLAY,a);
-  assert(listed(&u,&m,XZ_UI_INFO,XZ_UI_INFO_PREVIEW)&&!listed(&u,&m,XZ_UI_FEATURE_SETUP_OPEN,XZ_UI_PREVIEW));
+  for(int s=0;s<XZ_UI_SECTIONS;s++){tap(&u,&m,XZ_UI_PANEL,xz_ui_sections[s],a);no_unbuilt(&u,&m);}
+  xz_ui_navigate(&u,XZ_UI_STEMS);assert(u.page==XZ_UI_STEM_SECTION);
+  xz_ui_navigate(&u,XZ_UI_XPAD);assert(u.page==XZ_UI_PLAY);
   for(int d=0;d<4;d++)assert(!(xz_deck_caps(&m,d)&(XZ_DECK_CAN_CUE_PREVIEW|XZ_DECK_CAN_XPAD|XZ_DECK_CAN_GROOVE)));}
  puts("PASS sections: HOME tiles and SET UP, PLAY and STEMS switches and setup gates, links with BACK history and the lit rail, encoder, bounds in every theme");
  return 0;

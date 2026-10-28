@@ -17,7 +17,8 @@ static const unsigned deck34_now=XZ_DECK_CAN_DISPLAY|XZ_DECK_CAN_PLAYING_KEY|XZ_
 /* Engines this runtime runs. A ready bit only lights a feature the runtime can also carry out: the menu audit
    (audit/MENU-AUDIT.md, highest-impact defect 5) found no hot cue preview, X-PAD sampler or groove pad engine on
    any deck. refresh_local never sets PREVIEW, SAMPLE, GROOVE or HOTCUE, and the dispatcher has no handler for
-   their actions. Add a feature's bit here only with the runtime handler that makes it work. */
+   their actions. Add a feature's bit here only with the runtime handler that makes it work. Until then MODS
+   shows none of the three anywhere: no row, grid line or help names them. */
 #define XZ_DECK_ENGINES_RUN 0u /* of XZ_DECK_CAN_CUE_PREVIEW | XZ_DECK_CAN_XPAD | XZ_DECK_CAN_GROOVE */
 
 static unsigned engine(const struct xz_ui_model *m, int deck, uint32_t ready_bit, unsigned feature) {
@@ -39,14 +40,9 @@ unsigned xz_deck_caps(const struct xz_ui_model *m, int deck) {
  if(m->deck[0].ram.state!=XZ_UI_RAM_UNAVAILABLE||m->deck[1].ram.state!=XZ_UI_RAM_UNAVAILABLE)caps|=XZ_DECK_CAN_RAM;
  return caps;
 }
-/* 1 when no deck can have feature in this build, whatever the decks report: say so once, hide its controls. */
-int xz_deck_cap_absent(unsigned feature) {
- return (feature&(XZ_DECK_CAN_CUE_PREVIEW|XZ_DECK_CAN_XPAD|XZ_DECK_CAN_GROOVE)&~XZ_DECK_ENGINES_RUN)!=0;
-}
 /* One short sentence (it fits one line of the CLASSIC dock): why feature is not on logical_deck now. */
 const char *xz_deck_cap_reason(const struct xz_ui_model *m, int deck, unsigned feature) {
  if(!m||deck<0||deck>3||(xz_deck_caps(m,deck)&feature))return NULL;
- if(xz_deck_cap_absent(feature))return "Not in this version, on any deck.";
  if(deck>=2){
   switch(feature){
   case XZ_DECK_CAN_STEMS:return "Decks 3 and 4 have no stems.";

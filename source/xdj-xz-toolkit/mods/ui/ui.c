@@ -322,8 +322,7 @@ static size_t page_controls(const struct xz_ui *u,const struct xz_ui_model *m,st
  if(xz_ui_section_page(u->page))return xz_ui_section_controls(u,m,w,n);
  if(u->page==XZ_UI_FEATURE_SETUP){
   static const char *steps[4]={"DETECT FEATURE","USE SELECTED DECK","ENABLE FEATURE","I TESTED IT / DONE"};
-  int additive=u->feature_cap==XZ_UI_PREVIEW||u->feature_cap==XZ_UI_SAMPLE;
-  add(w,&n,XZ_UI_FEATURE_SETUP_STEP,u->feature_step,0,additive&&u->feature_step==2?"VERIFY FEATURE":steps[u->feature_step>=0&&u->feature_step<4?u->feature_step:0]);
+  add(w,&n,XZ_UI_FEATURE_SETUP_STEP,u->feature_step,0,steps[u->feature_step>=0&&u->feature_step<4?u->feature_step:0]);
  }else if(u->page==XZ_UI_METRICS_SETUP){
   static const char *steps[]={"DETECT METRICS","USE ON-DEVICE SENSORS","CONNECT READINGS","LIVE VERIFY"};
   int step=u->metrics_step>=0&&u->metrics_step<4?u->metrics_step:0;
@@ -890,11 +889,11 @@ static size_t touch_widgets(struct xz_ui *u,const struct xz_ui_model *m,int x,in
  if(a.kind==XZ_UI_FEATURE_SETUP_STEP){
   uint32_t cap=(uint32_t)u->feature_cap;
   if(!(d->ready&cap)){
-   snprintf(u->notice,sizeof(u->notice),u->feature_cap==XZ_UI_SAMPLE?"X-PAD ENGINE MISSING / REBUILD USB LOADER IN XZ MODS":"CUE FEATURE NOT READY / LOAD A USB TRACK OR UPDATE THE USB LOADER");return 0;
+   snprintf(u->notice,sizeof(u->notice),"CUE FEATURE NOT READY / LOAD A USB TRACK OR UPDATE THE USB LOADER");return 0;
   }
-  if(u->feature_step==2){u->feature_step=3;if(cap==XZ_UI_PREVIEW||cap==XZ_UI_SAMPLE)return 0;out[0]=action(XZ_UI_ENABLE,XZ_UI_PRESS,deck,u->feature_cap,1,0);return 1;}
+  if(u->feature_step==2){u->feature_step=3;out[0]=action(XZ_UI_ENABLE,XZ_UI_PRESS,deck,u->feature_cap,1,0);return 1;}
   if(u->feature_step==3){
-   if((cap!=XZ_UI_PREVIEW&&cap!=XZ_UI_SAMPLE&&!(m->enabled&cap))||!d->track||!*d->track){snprintf(u->notice,sizeof(u->notice),cap==XZ_UI_PREVIEW||cap==XZ_UI_SAMPLE?"LOAD A TRACK ON THIS DECK, THEN TEST THE ACTION":"LOAD A TRACK ON THIS DECK, ENABLE THE FEATURE, THEN TEST IT");return 0;}
+   if(!(m->enabled&cap)||!d->track||!*d->track){snprintf(u->notice,sizeof(u->notice),"LOAD A TRACK ON THIS DECK, ENABLE THE FEATURE, THEN TEST IT");return 0;}
    return xz_ui_back(u,out);
   }
   u->feature_step++;return 0;

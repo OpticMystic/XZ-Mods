@@ -76,7 +76,7 @@ int main(int argc,char **argv){
   model.theme=theme;
   for(int page=0;page<XZ_UI_PAGE_COUNT;page++){
    if(xz_ui_page_current((enum xz_ui_page)page)!=(enum xz_ui_page)page)continue; /* retired: opens its replacement */
-   ui.page=(enum xz_ui_page)page;
+   ui.page=(enum xz_ui_page)page;ui.feature_cap=XZ_UI_GATE; /* FEATURE SETUP checks gate cue or smart cue */
    model.metrics=(struct xz_metrics_sample){0};
    if(page==XZ_UI_METRICS_SETUP){
     model.clock_ms=1000;
@@ -88,9 +88,7 @@ int main(int argc,char **argv){
    if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
    snprintf(name,sizeof(name),"theme-%d-%s",theme,names[page]);save(argv[1],name,800,480);
   }
-  ui.page=XZ_UI_STEMS;model.deck[0].muted=1;model.deck[0].levels[1]=.7f;
-  if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
-  snprintf(name,sizeof(name),"theme-%d-muted",theme);save(argv[1],name,800,480);
+  model.deck[0].muted=1;model.deck[0].levels[1]=.7f;
   report_previews(argv[1],model,theme);
   if(!xz_ui_inline_render(&ui,&model,pixels,536*XZ_WAVE_INLINE_HEIGHT,536,536,XZ_WAVE_INLINE_HEIGHT))return 1;
   snprintf(name,sizeof(name),"theme-%d-inline",theme);save(argv[1],name,536,XZ_WAVE_INLINE_HEIGHT);
@@ -103,9 +101,8 @@ int main(int argc,char **argv){
   for(int j=0;j<2;j++){model.deck[j].ready=0x3fff;model.deck[j].groove_assigned=255;model.deck[j].groove_loaded=255;model.deck[j].sample_loaded=255;model.deck[j].groove_active=2;model.deck[j].sample_active=3;model.deck[j].wave_peaks=peaks;model.deck[j].wave_count=256;model.deck[j].sample_volume=.62f;model.deck[j].pitch=3.5f;model.deck[j].loop_index=3;for(int k=0;k<8;k++)model.deck[j].groove_stem[k]=(unsigned char)(k%3);}
   model.connection.connected=model.connection.stats_valid=model.connection.can_enable=model.connection.can_discover=1;model.connection.frame_hz=47.8f;model.connection.status="CONNECTED / PREVIEW FIXTURE";
   for(int page=0;page<XZ_UI_PAGE_COUNT;page++){if(xz_ui_page_current((enum xz_ui_page)page)!=(enum xz_ui_page)page)continue;ui.page=(enum xz_ui_page)page;xz_ui_render(&ui,&model,pixels,800*480,800);snprintf(name,sizeof(name),"theme-%d-active-%s",theme,names[page]);save(argv[1],name,800,480);}
-  model=baseline;model.theme=theme;ui.page=XZ_UI_STEMS;ui.deck=2;xz_ui_render(&ui,&model,pixels,800*480,800);snprintf(name,sizeof(name),"theme-%d-external",theme);save(argv[1],name,800,480);
+  model=baseline;model.theme=theme;
   ui.deck=0;model.enabled=0;model.deck[0].ready=0;model.deck[0].track="NO TRACK LOADED";model.deck[0].bpm=0;model.deck[0].status="LOAD A TRACK WITH A STEM CACHE";
-  xz_ui_render(&ui,&model,pixels,800*480,800);snprintf(name,sizeof(name),"theme-%d-unavailable",theme);save(argv[1],name,800,480);
   xz_ui_inline_render(&ui,&model,pixels,536*XZ_WAVE_INLINE_HEIGHT,536,536,XZ_WAVE_INLINE_HEIGHT);snprintf(name,sizeof(name),"theme-%d-inline-unavailable",theme);save(argv[1],name,536,XZ_WAVE_INLINE_HEIGHT);
  }
  /* PC stems: each source/setup state in 3- and 4-stem mode on deck 1, the
@@ -152,16 +149,9 @@ int main(int argc,char **argv){
   ui.page=XZ_UI_GENERAL;if(!xz_ui_render(&ui,&model,pixels,800*480,800))return 1;
   snprintf(name,sizeof(name),"theme-%d-general-usb-%s",theme,usb_names[why]);save(argv[1],name,800,480);
  }
- xz_ui_init(&ui);
- model=baseline;ui.page=XZ_UI_STEMS;
- model.theme=0;ui.deck=2;
- xz_ui_render(&ui,&model,pixels,800*480,800);save(argv[1],"external",800,480);
- ui.deck=0;model.enabled=0;model.deck[0].ready=XZ_UI_GATE|XZ_UI_SMART|XZ_UI_THEME;
- model.deck[0].bpm=0;model.deck[0].track="NO TRACK LOADED";model.deck[0].status="LOAD A TRACK WITH A STEM CACHE";
- xz_ui_render(&ui,&model,pixels,800*480,800);save(argv[1],"unavailable",800,480);
  memset(pixels,0,sizeof(pixels));xz_ui_render_badge(pixels,800);save(argv[1],"badge",800,480);
  char path[1024];snprintf(path,sizeof(path),"%s/themes.txt",argv[1]);FILE *list=fopen(path,"w");if(!list)return 1;
  for(int theme=0;theme<XZ_THEME_COUNT;theme++)fprintf(list,"%d\t%s\n",theme,xz_theme_name(theme));
  if(fclose(list))return 1;
- printf("Rendered all pages, %d themes, mute/inline/external/unavailable and PC stem states\n",XZ_THEME_COUNT);
+ printf("Rendered all pages, %d themes, inline and PC stem states\n",XZ_THEME_COUNT);
 }

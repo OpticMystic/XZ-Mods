@@ -102,8 +102,7 @@ The 0.1.4 loader automatically applies the original loading artwork to a validat
 copy of the device GUI in RAM. The public package contains only the replacement
 artwork, not the manufacturer GUI pack.
 
-The streamlined menu has Controls, Appearance, VJ.Tools and Advanced. Groove
-pads and X-PAD remain under Advanced with readiness indicators. VJ.Tools is
+The streamlined menu has Controls, Appearance, VJ.Tools and Advanced. VJ.Tools is
 optional; its corner button appears only when the connection setting is enabled
 and the network connection is live. Exit VJ returns to native playback.
 

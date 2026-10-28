@@ -542,7 +542,7 @@ static void look_set_locked(int id, int choice, uint32_t now) {
 enum { FOUR_DECKS_TAB=4 };
 static struct xz_shell_mods_tab mod_tabs[7]={
  {"HOME",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_HOME,"What MODS can do, and anything that needs you.",0},
- {"PLAY",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_PLAY,"Beat jump pads, cue tricks, key sync, the sampler and RAM tracks.",0},
+ {"PLAY",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_PLAY,"Beat jump pads, cue tricks, key sync and RAM tracks.",0},
  {"STEMS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_STEM_SECTION,"Mute vocals, harmonics and drums from the pads or the screen.",0},
  {"SCREEN",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_SCREEN,"Interface, deck view, waveform colours and how keys are written.",0},
  {"4 DECKS",XZ_SHELL_TAB_PAGE,NULL,NULL,0,XZ_UI_FOUR_DECKS,"Play decks 3 and 4 over the loopback cable.",0},

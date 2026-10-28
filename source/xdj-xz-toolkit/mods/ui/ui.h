@@ -116,8 +116,8 @@ enum xz_ui_action_kind {
     XZ_UI_SHELL_LOOK,
     /* MODERN's rail: UTILITY, the player's own settings. The runtime closes MODS and shows that screen. */
     XZ_UI_OPEN_UTILITY,
-    /* Something the menu explains but cannot change (a feature not in this version, a fact, a row of the 4 DECKS
-       grid): focusing it explains it, pressing it does nothing. index = enum xz_ui_info_topic. */
+    /* Something the menu explains but cannot change (a fact, a row of the 4 DECKS grid): focusing it explains it,
+       pressing it does nothing. A feature that is not built gets no row at all. index = enum xz_ui_info_topic. */
     XZ_UI_INFO,
     /* A HOME tile's SET UP button: index = the section that needs the DJ; it opens that section's fix. */
     XZ_UI_HOME_SETUP,
@@ -366,8 +366,6 @@ enum xz_deck_feature {
 unsigned xz_deck_caps(const struct xz_ui_model *, int logical_deck);
 /* One sentence on why feature cannot work on logical_deck, or NULL when it can. */
 const char *xz_deck_cap_reason(const struct xz_ui_model *, int logical_deck, unsigned feature);
-/* 1 when no deck can have feature in this build (no engine in this runtime), whatever ready bits say. */
-int xz_deck_cap_absent(unsigned feature);
 /* 4 DECKS needs the DJ: a four-deck view is chosen and decks 3 and 4 are not connected (the rail's amber dot,
    DESIGN 1.1, in both interfaces). */
 int xz_ui_four_decks_attention(const struct xz_ui_model *);
@@ -446,10 +444,11 @@ int xz_ui_focused(const struct xz_ui *, const struct xz_ui_model *, struct xz_ui
    feature: the enum xz_deck_feature the control belongs to, 0 for the whole player. works_on: bit d set when
    it works on logical deck d now (xz_deck_caps). excluded: why a deck is left out, one sentence, or NULL. */
 struct xz_ui_info { const char *title, *body, *state; int available, selected; unsigned feature, works_on; const char *excluded; };
+/* PREVIEW, XPAD and GROOVE keep their numbers but nothing lists them: those features are not built. */
 enum xz_ui_info_topic { XZ_UI_INFO_PREVIEW, XZ_UI_INFO_XPAD, XZ_UI_INFO_GROOVE, XZ_UI_INFO_SIDES, XZ_UI_INFO_COLUMNS,
     XZ_UI_INFO_ROUTE, XZ_UI_INFO_GRID=16 /* + row of xz_ui_grid_features */ };
-/* The 4 DECKS grid's rows, top to bottom then the second column. */
-enum { XZ_UI_GRID_ROWS=10 };
+/* The 4 DECKS grid's rows, top to bottom then the second column: only features this runtime has. */
+enum { XZ_UI_GRID_ROWS=7 };
 extern const unsigned xz_ui_grid_features[XZ_UI_GRID_ROWS];
 const char *xz_ui_grid_name(int row);
 /* The save line of every explanation area (DESIGN 3.4), from the runtime's settings_status. */

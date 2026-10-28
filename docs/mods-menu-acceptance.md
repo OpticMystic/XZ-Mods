@@ -43,9 +43,7 @@ MENU a job it keeps it; MODS opens only where it has none. A held MENU always op
 | PLAY | Size chips / encoder | Tap a size; then push a pair, turn, push | The tap sets that size at once; turning steps 1..256; the pads, the PADS readout and the lit size follow | - |
 | PLAY | GATE CUE | Turn on, hold and release a hot cue | Plays while held, back to the hot cue on release | 1 2 3 4 |
 | PLAY | SMART CUE | Turn on, press a hot cue, press CUE | CUE returns to that hot cue | 1 2 3 4 |
-| PLAY | HOT CUE PREVIEW | Check the row | One line: NOT IN THIS VERSION, no control (no engine in this runtime) | - |
 | PLAY | KEYS | KEY UP, KEY DOWN, RESET, KEY SYNC | Key moves a semitone each press; KEY SYNC matches the master deck | 1 2 |
-| PLAY | X-PAD SAMPLER | Check the row | One line: NOT IN THIS VERSION, no control (no engine in this runtime) | - |
 | PLAY | RAM TRACKS | LOAD/CANCEL/RETRY/RELEASE on each deck; verify READY before source removal | Originals share 64 MiB/file, 128 MiB total and a 64 MiB free floor; 3/4 admission needs loopback; completed copies survive source/route loss until release or unload. Hardware audio remains unqualified. | 1 2 3 4 |
 | PLAY | BUTTON NEXT TO LINK | Set DECK VIEW, press the button three times | 2 decks, 4 decks 1 2 3 4, 4 decks 3 1 2 4, each with a notice | - |
 | PLAY | SHIFT + BUTTON NEXT TO LINK | Set STEMS, hold SHIFT and press | The stem layout steps | - |
@@ -55,7 +53,6 @@ MENU a job it keeps it; MODS opens only where it has none. A held MENU always op
 | STEMS | STEM PADS: PADS E-H | Choose E-H | Stems move to pads E to H | 1 2 |
 | STEMS | STEM PADS: ORDER | Push, turn | Pad and screen order change together | 1 2 |
 | STEMS | STEM PADS: STEM PAD LIGHTS | Choose OFF | Stem pads stop lighting in stem colours | 1 2 |
-| STEMS | GROOVE PADS | Check the row | One line: NOT IN THIS VERSION, no control (no engine in this runtime) | - |
 | STEMS | STEM BUTTONS ON SCREEN | Pick each layout | The play screen's stem buttons move as pictured | 1 2 |
 | STEMS | BYPASS BUTTON (MODERN) | HIDE | The BYPASS button leaves the stem rows | 1 2 |
 | STEMS | STEM COLOURS | Pick a colour per stem | Pads, stem buttons and STEMS waveform use it | all |
