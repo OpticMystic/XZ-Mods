@@ -28,7 +28,7 @@ The player starts stock. Plug the XZ Mods USB back in and start again to load XZ
 | Player | Pioneer DJ XDJ-XZ on firmware 1.26. No other firmware version is supported |
 | Computer | 64-bit Windows with WebView2, or a Mac with macOS 14 or later, to prepare the USB |
 | Stems | Made on a Windows computer or an Apple silicon Mac. An Intel Mac can import stems made elsewhere |
-| USB | A FAT32 USB for the loader. It can be your music USB, or a separate loader stick |
+| USB | A USB stick for the loader. It can be your music USB, or a separate loader stick |
 | Four decks | A USB-B to USB-A cable. See [Four decks](four-decks#what-you-need) {experimental} |
 
 The app downloads the official firmware it needs from the manufacturer and checks it. No firmware or boot files come with the XZ Mods download.

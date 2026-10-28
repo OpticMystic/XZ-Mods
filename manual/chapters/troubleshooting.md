@@ -19,7 +19,6 @@ Check these first:
 | Check | Why |
 |---|---|
 | The player runs firmware 1.26 | XZ Mods supports no other firmware version |
-| The USB is FAT32 | The player reads the loader from a FAT32 drive |
 | `autoexec.bin` is at the top of the USB | A loader prepared into a folder has to be copied to the USB yourself |
 | You updated the USB after updating the app | An app update does not change the USB |
 

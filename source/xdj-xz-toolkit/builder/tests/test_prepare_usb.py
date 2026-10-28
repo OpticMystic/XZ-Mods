@@ -1,5 +1,7 @@
+import ctypes
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -19,11 +21,11 @@ class PrepareUsbTests(unittest.TestCase):
                 download.assert_not_called()
             self.assertEqual((volume/'autoexec.bin').read_bytes(),b'keep this loader')
 
-    def test_requires_fat_usb_root_before_network(self):
+    def test_refuses_a_computer_drive_root_before_network(self):
         with tempfile.TemporaryDirectory() as temporary:
             with patch.object(usb,'target_info',return_value={'direct_usb_root':False,'volume_root':temporary}), \
                  patch.object(service,'official_firmware') as download:
-                with self.assertRaisesRegex(ValueError,'FAT/FAT32 USB drive'):
+                with self.assertRaisesRegex(ValueError,'not a USB'):
                     service.dispatch({'method':'prepare_usb','volume':temporary,'experimental':True},Job())
                 download.assert_not_called()
 
@@ -87,5 +89,55 @@ class PrepareUsbTests(unittest.TestCase):
         self.assertEqual(result['image'],'folder/autoexec.bin')
         games.assert_not_called()
 
+
+
+class FakeKernel:
+    """GetVolumePathNameW, GetVolumeInformationW and GetDriveTypeW for one volume rooted at root."""
+    def __init__(self,root,filesystem,drive_type=2,read_only=False):
+        kernel=self
+        def path_name(path,buffer,size):buffer.value=root;return 1
+        def information(name,label,size,serial,length,flags,fs_name,fs_size):
+            serial._obj.value=1234;flags._obj.value=0x80000 if read_only else 0;fs_name.value=filesystem;return 1
+        self.GetVolumePathNameW=path_name;self.GetVolumeInformationW=information
+        self.GetDriveTypeW=lambda name:drive_type
+
+
+class TargetInfoTests(unittest.TestCase):
+    """Any USB drive root takes the loader, whatever its file system. Computer disks and read-only drives do not."""
+    def target(self,filesystem,*,drive_type=2,read_only=False,folder=False,boot_loader=True):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve();path=root/'staging' if folder else root
+            path.mkdir(exist_ok=True)
+            with patch.object(usb.os,'name','nt'),patch.object(ctypes,'windll',SimpleNamespace(kernel32=FakeKernel(str(root),filesystem,drive_type,read_only)),create=True):
+                return usb.target_info(path,boot_loader=boot_loader)
+
+    def test_any_file_system_on_a_usb_drive_takes_the_loader(self):
+        for filesystem in ('FAT32','FAT','exFAT','NTFS'):
+            with self.subTest(filesystem=filesystem):
+                target=self.target(filesystem)
+                self.assertTrue(target['direct_usb_root']);self.assertFalse(target['requires_copy_to_usb_root'])
+                self.assertEqual(target['filesystem'],filesystem.upper())
+
+    def test_a_usb_disk_that_reports_fixed_counts_by_its_file_system(self):
+        self.assertTrue(self.target('exFAT',drive_type=3)['direct_usb_root'])
+        self.assertTrue(self.target('FAT32',drive_type=3)['direct_usb_root'])
+
+    def test_a_computer_disk_root_is_refused_but_a_folder_on_it_is_staging(self):
+        with self.assertRaisesRegex(ValueError,'not a USB'):self.target('NTFS',drive_type=3)
+        self.assertFalse(self.target('NTFS',drive_type=3,boot_loader=False)['direct_usb_root'])
+        folder=self.target('NTFS',drive_type=3,folder=True)
+        self.assertTrue(folder['requires_copy_to_usb_root']);self.assertFalse(folder['direct_usb_root'])
+
+    def test_a_read_only_usb_is_refused(self):
+        with self.assertRaisesRegex(ValueError,'read-only'):self.target('exFAT',read_only=True)
+        with self.assertRaisesRegex(ValueError,'read-only'):self.target('FAT32',read_only=True)
+
+    def test_exfat_and_ntfs_roots_reach_the_loader_write(self):
+        for filesystem in ('exFAT','NTFS'):
+            with self.subTest(filesystem=filesystem),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary).resolve()
+                with patch.object(usb.os,'name','nt'),patch.object(ctypes,'windll',SimpleNamespace(kernel32=FakeKernel(str(root),filesystem)),create=True):
+                    path,target=usb.require_loader_target(root)
+                self.assertEqual(path,root);self.assertTrue(target['direct_usb_root'])
 
 if __name__=='__main__':unittest.main()

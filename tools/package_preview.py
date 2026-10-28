@@ -22,7 +22,7 @@ shutil.copytree(APP/'docs',portable/'docs')
 (portable/'START HERE.txt').write_text(
     'XZ Mods Builder\n\n'
     'Run XZ Mods.exe. Windows requires the Microsoft Edge WebView2 Runtime.\n'
-    'Choose a FAT/FAT32 USB in the app to prepare or update its loader.\n'
+    'Choose a USB in the app to prepare or update its loader.\n'
     'The app downloads the required firmware and boot support on first use.\n'
     'Test your USB on the XDJ-XZ before using it in a set.\n'
     'For app updates, use App updates. To stay portable, download the latest ZIP\n'

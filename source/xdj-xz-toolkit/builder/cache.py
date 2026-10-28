@@ -194,10 +194,11 @@ def _publish_new(source: Path, target: Path) -> None:
 
 
 def _publish_fat_new(source: Path, target: Path) -> None:
-    """FAT lacks Darwin exclusive rename. Create exclusively, verify, then retire staging.
+    """For a macOS volume without exclusive rename (FAT32 has none; the file system says
+    so with ENOTSUP, whatever it is). Create exclusively, verify, then retire staging.
 
     Stem indexes are published after complete bundles. A new loader's first write
-    is not crash-atomic on FAT; no pre-existing file or directory is replaced.
+    is not crash-atomic on such a volume; no pre-existing file or directory is replaced.
     """
     created = []
 

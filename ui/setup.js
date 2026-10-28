@@ -223,7 +223,7 @@ function viewFind(){
   return el('section',{class:'wz-find wz-empty',dataset:{looking:W.finding?'1':null}},
     $('tpl-usb-art').content.firstElementChild.cloneNode(true),
     el('h2',{text:'Plug in your XZ USB'}),
-    el('p',{class:'wz-lead',text:'Or any USB stick formatted FAT32. XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
+    el('p',{class:'wz-lead',text:'Any USB stick works. XZ Mods finds it as soon as it is connected. It never formats a drive or touches your music.'}),
     quietActions(),quadEntry(),jobSlot);
 }
 
@@ -301,7 +301,7 @@ function tree(){return createUsbTree({nodes:usbLoadout(W.inspection,{driveLabel:
 function viewDevice(){
   return el('section',{class:'wz-device'},
     el('div',{class:'wz-card'},driveHeader(),statusBlock(),jobSlot),
-    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a FAT32 USB afterward. Games are added only when you write to the USB itself.'}):null,
+    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.'}):null,
     tiles(),
     buildLine(),quadEntry(),
     el('details',{class:'wz-files',open:W.filesOpen?true:null,ontoggle:event=>{W.filesOpen=event.target.open;}},
@@ -564,7 +564,7 @@ function stepReview(){
       el('button',{type:'button',class:'text-button',id:'wz-change-games','aria-expanded':String(W.gamesOpen),text:W.gamesOpen?'Hide games':'Change games',onclick:()=>{W.gamesOpen=!W.gamesOpen;render();}}),
       W.gamesOpen?gamesChooser():null),
     nothing?el('p',{class:'notice',role:'status',text:'Nothing to write yet. Add a game or a DJ profile, or cancel.'}):null,
-    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a FAT32 USB afterward. Games are added only when you write to the USB itself.'}):null,
+    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to the USB itself.'}):null,
     safeLine(),
     ejectChoice(),
     el('div',{class:'actions wz-nav-write'},
