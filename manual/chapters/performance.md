@@ -80,7 +80,7 @@ The sizes apply to every deck. UTILITY's own beat jump setting is separate and d
 
 ### Decks 3 and 4
 
-Decks 3 and 4 use the same sizes and both pages. They jump along the track's beat grid, or by its BPM when there is no grid. With a loop on, the loop moves.
+Decks 3 and 4 use the same sizes and both pages. They jump along the track's beat grid, or by its BPM when there is no grid. A track with neither jumps at 120 BPM, as on decks 1 and 2. With a loop on, the loop moves.
 
 ### When a jump is refused
 
@@ -92,7 +92,7 @@ A jump the deck cannot make does nothing else. XZ Mods never falls back to a sho
 | JUMP UNAVAILABLE: BEFORE TRACK START | 3 or 4 | The jump would land before the start of the track. |
 | JUMP UNAVAILABLE: AFTER TRACK END | 3 or 4 | The jump would land after the end of the track. |
 | JUMP UNAVAILABLE: LOOP MOVE OUT OF TRACK | 3 or 4 | Moving the loop would push it past the start or end. |
-| JUMP UNAVAILABLE: NO BEAT GRID OR BPM | 3 or 4 | The track has no beat grid and no BPM to count beats with. Analyse it in rekordbox. |
+| JUMP UNAVAILABLE: NO BEAT GRID OR BPM | 3 or 4 | The track's beat grid is damaged, so beats can't be counted. Analyse it in rekordbox again. |
 
 ## Gate cue and smart cue
 
@@ -152,7 +152,7 @@ If KEY SYNC cannot work, a notice or the deck's key display shows why for a few 
 | DECK 1 TRACK HAS NO KEY (or another deck) | The track on this deck has no analysed key. Analyse it in rekordbox. |
 | LOAD AN ANALYZED TRACK / SET UP KEYS | The deck has no track with an analysed key. Load one. |
 | LOAD A KEYED TRACK ON DECK 2 (or another deck) | The master deck has no track with an analysed key. |
-| THIS DECK IS MASTER, MAKE DECK 2 MASTER FIRST | The deck you pressed is the master, so there is nothing to match. Make another deck the master. |
+| THIS DECK IS MASTER, MAKE DECK 2 MASTER FIRST | The deck you pressed is the master, so there is nothing to match. Make another deck the master. On the KEYS page the master deck has no KEY SYNC button and says it is the master. |
 | SELECT ONE LOCAL MASTER / SET UP KEYS | No deck on this player is the tempo master. Press [[MASTER]] on the deck to match to. |
 | VERIFY MASTER PLAYING KEY / SET UP KEYS | The master deck's playing key is not known yet. Let it play a moment, then try again. |
 | MASTER CHANGED / RETRY KEY SYNC, TRACK CHANGED / RETRY KEY CONTROL | The master or the track changed before the key moved. Press again. |

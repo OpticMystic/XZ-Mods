@@ -307,7 +307,7 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 | [[SHIFT]] + [[SYNC]], [[MASTER TEMPO]] | KEY SYNC to the master deck, and back to the deck's own key. See [Keys and KEY SYNC](performance#keys-and-key-sync). |
 | [[DECK QUANTIZE]] | Cue, loop and hot cue points land on the beat. [[DECK QUANTIZE]] switches every deck. [[SHIFT]] + [[DECK QUANTIZE]] switches only this side's deck. |
 | [[MEMORY]], [[DELETE]], [[CUE/LOOP CALL]] | Store, delete and call memory points. |
-| [[TRACK SEARCH]], [[SEARCH]] | Previous and next track, and fine search. |
+| [[TRACK SEARCH]], [[SEARCH]] | Previous and next track, and fine search. With AUTO CUE on, the new track waits at its cue. Previous and next follow the list the track was loaded from in MODERN. After a CLASSIC load the deck shows NO SAVED TRACK ORDER, and [[TRACK SEARCH]] back returns to the cue. |
 
 Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and rekordbox do not see them, and the rekordbox export stays unchanged.
 
