@@ -145,9 +145,10 @@
       "level": 2,
       "chapter": "browse.md",
       "sha256": "b4c071df1f472446e54c05edbbdd4c7202ca42215ba17a5543b1a02168ba59a1",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-browse-settings"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "browse#if-browsing-goes-wrong",
@@ -155,9 +156,10 @@
       "level": 2,
       "chapter": "browse.md",
       "sha256": "b920cd48d53dff699bb904579079ca2ee6136309035c0dba5215499dc79f0162",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-browse-recovery"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "connect#the-connect-page",
@@ -686,8 +688,8 @@
       "chapter": "four-decks.md",
       "sha256": "76e6dd6f6d484847fa1e1f1759e6529ef75ac06cd44f901f771ef1289e611975",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "physical_usb",
+      "detail": "Cable, mixer switches and music-stick prerequisites require physical hardware."
     },
     {
       "section": "four-decks#set-up-four-decks",
@@ -695,9 +697,10 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "c4f62ae64e3971bcf61b53457d4b416a7ef0389705ff3b93b3fe4b1b02e04d30",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-route-rescan"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "four-decks#add-music-and-a-usb-hub",
@@ -706,8 +709,8 @@
       "chapter": "four-decks.md",
       "sha256": "08b7ca30fcc0b6c444f3967f8c6627d5cd29c19f1119b64dc645b081e306db64",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "physical_usb",
+      "detail": "Connecting hubs and waiting for USB enumeration needs physical USB."
     },
     {
       "section": "four-decks#the-4-decks-page-in-mods",
@@ -715,9 +718,10 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "d9a2739bc3bbf1772019d4e43fb7cc2988ab79d5def4d97e8d824f30a736e15f",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-four-page"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "four-decks#the-card-in-every-state",
@@ -725,9 +729,10 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "1e58c59cab91cf9b3982ce7e6055c4e47a053df62a9e1f694f1fe65c604e85a4",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-route-states"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "four-decks#the-e-8307-hub-warning",
@@ -736,8 +741,8 @@
       "chapter": "four-decks.md",
       "sha256": "0a766dbf776ab9ffc30921d7d37f72d8f98047acfa96c137ab81b1aa9f53072d",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "physical_usb",
+      "detail": "The warning and hub admission need real stock USB enumeration; no hardware touched."
     },
     {
       "section": "four-decks#deck-view",
@@ -745,9 +750,11 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "43cc745fce3352a6a3434521e7a7b16d5ab3d1f1f7476950ee4153519c7f3118",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-deck-orders",
+        "nav-a-four-page"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "four-decks#the-decks-button-and-its-picker",
@@ -778,9 +785,10 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "118539ef35812487b375fb5758d8f16da1fd338e279d6df42adc281b42f4746d",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-four-detail"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "four-decks#the-classic-four-deck-screen",
@@ -788,9 +796,10 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "28d9bb6315388c143f2a92f3c4dedf9005bf628d568832048563d74da4bbaf0a",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-classic-four"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "four-decks#load-tracks-onto-decks-3-and-4",
@@ -798,9 +807,10 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "c92ab2ead48110c5a986b29d424ab1094337498cb8ac3d6255bdd3fe31ee005b",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-four-load"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "four-decks#info-source-and-utility-with-four-decks",
@@ -808,9 +818,10 @@
       "level": 2,
       "chapter": "four-decks.md",
       "sha256": "c8923de6bfb70885a9b6bff3d370260b5d98cf8afce04288c9b62faa9d1814ed",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-four-fullscreens"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "four-decks#what-decks-3-and-4-can-do",
@@ -839,8 +850,8 @@
       "chapter": "four-decks.md",
       "sha256": "e98843e052efb4c453abe664fda4fc180bee1a13aceae4c0ae50d6958e710ec7",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Format, readiness, master handover and experimental-limit reference; no additional navigation procedure."
     },
     {
       "section": "getting-started#what-changes-and-what-stays-stock",
@@ -1248,8 +1259,8 @@
       "chapter": "performance.md",
       "sha256": "a5dc19ec227acd7e250bf4ee2af443a12608f213ce773c7390e300861d559b9f",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Describes shared jump sizing and BPM fallback; the heading gives no separate player procedure."
     },
     {
       "section": "performance#when-a-jump-is-refused",
@@ -1257,9 +1268,10 @@
       "level": 3,
       "chapter": "performance.md",
       "sha256": "4bfff6bfbf955f8ab7a35d08ada500e9c90cec793dc5f1a008026b0ef021db0f",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-jump-refused"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "performance#gate-cue-and-smart-cue",
@@ -1267,9 +1279,10 @@
       "level": 2,
       "chapter": "performance.md",
       "sha256": "1d9c15022e48639cf0ccd0efa8a05ec5531cd2d58f09cebe284ec65685414586",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-gate-smart"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "performance#feature-setup",
@@ -1277,9 +1290,11 @@
       "level": 3,
       "chapter": "performance.md",
       "sha256": "68eb54bf3cd6db637da2b246eb1b2496a37c22445de395d91105f25d7e554146",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-feature-gate",
+        "nav-a-feature-smart"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "performance#keys-and-key-sync",
@@ -1324,8 +1339,8 @@
       "chapter": "performance.md",
       "sha256": "a6757539583391b1dc6ca926378a76b65f2b4abbe0a6609e4644bfbdc084079d",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Readout legend; operation is described under From the deck and PLAYING KEY."
     },
     {
       "section": "performance#the-key-on-the-classic-play-screen",
@@ -1334,8 +1349,8 @@
       "chapter": "performance.md",
       "sha256": "045b045b579f7c7c88931047c8bec826f1e5ea7fab7e963420a27c56d33bcdc7",
       "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "reason": "informational",
+      "detail": "Readout legend without a separate player action."
     },
     {
       "section": "performance#playing-key",
@@ -1343,9 +1358,10 @@
       "level": 3,
       "chapter": "performance.md",
       "sha256": "86a5703160c1c2970768a9fe196c8dd48beda7a2b661024dfbe03dd94f1c5249",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-playing-key"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "performance#ram-tracks",
@@ -1365,9 +1381,10 @@
       "level": 3,
       "chapter": "performance.md",
       "sha256": "8b8e1c74c5532bc18d75fd6e7370c6f54e779dd63d8ca2167f35dd2f0e947dda",
-      "flows": null,
-      "reason": "usb_or_boot",
-      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+      "flows": [
+        "nav-a-ram-detached"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "performance#quantize",
@@ -1386,9 +1403,10 @@
       "level": 2,
       "chapter": "play-screen.md",
       "sha256": "278ed444b440a4a05620d31ae886461d831d80077e5c3634a95bca91f473eaeb",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-play-zoom-time"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "play-screen#top-bar",
@@ -1396,9 +1414,11 @@
       "level": 3,
       "chapter": "play-screen.md",
       "sha256": "c3d18a761138437a6f9dcf3ff6c9358cce8202280251e019a4a8e62633326473",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-four-stems",
+        "nav-a-play-zoom-time"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "play-screen#deck-column-and-waveform-lanes",
@@ -1406,9 +1426,10 @@
       "level": 3,
       "chapter": "play-screen.md",
       "sha256": "7dab7ed6579f54b5879aea624e415ab1cbdd4adfb9d3af7fdaa26a41e8989129",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-play-zoom-time"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "play-screen#deck-strip",
@@ -1416,9 +1437,10 @@
       "level": 3,
       "chapter": "play-screen.md",
       "sha256": "c0aab25fa8d9fb23436fd7ef09ec18a740a80e36c823c0258ef3a3f318c30f2a",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-play-zoom-time"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "play-screen#key-and-key-sync",
@@ -1437,9 +1459,10 @@
       "level": 3,
       "chapter": "play-screen.md",
       "sha256": "9f869410fadd8247c8d7e0705d70f9f9caa8c66120053a0d4f1b99783caa65ff",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-play-colours"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "play-screen#notices",
@@ -1447,9 +1470,10 @@
       "level": 3,
       "chapter": "play-screen.md",
       "sha256": "ef1ca50fdae068d9796d28beb7319017d55cf64d9ed1817c2d4d2d8b49aed46d",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-choose-track-error"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "play-screen#shortcut",
@@ -1468,9 +1492,11 @@
       "level": 2,
       "chapter": "play-screen.md",
       "sha256": "5c0dfee3ed210373167a66d3ef9ce762f5eeb111232f75113528bed461dad306",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "classic-stems",
+        "nav-a-classic-four"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "play-screen#scrolling-waveform",
@@ -1478,9 +1504,10 @@
       "level": 3,
       "chapter": "play-screen.md",
       "sha256": "b4f34ca8af7765920f0acbd027f6a18ed4f8dce24bc232cf4d6400fdb320205a",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-classic-wave-choices"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "play-screen#if-something-looks-wrong",
@@ -1488,9 +1515,10 @@
       "level": 2,
       "chapter": "play-screen.md",
       "sha256": "328ac4703c0ca50d7b579f4d1e5281d29cb075af20a06f9fa05003007286aab6",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-playing-key"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "screen-and-themes#the-screen-page",
@@ -1698,8 +1726,8 @@
       "chapter": "stems.md",
       "sha256": "4662787bc57e0f99b08cb63617bb7e397aead180ba476c7b65b83f6cf3f56efd",
       "flows": null,
-      "reason": "usb_or_boot",
-      "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
+      "reason": "desktop_platform",
+      "detail": "Preparation and media copy take place in the desktop app and on USB."
     },
     {
       "section": "stems#turn-stems-on",
@@ -1707,9 +1735,10 @@
       "level": 2,
       "chapter": "stems.md",
       "sha256": "c93df8e9c7d3fd1f6d77f16b1810f68a635010b493dce311bb7b51d928720648",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-stem-toggle"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "stems#stem-buttons-on-the-play-screen",
@@ -1717,9 +1746,10 @@
       "level": 2,
       "chapter": "stems.md",
       "sha256": "97e3238eef20e21a076d05c891d8e2c74e1011a7894508d111ac39ebc02f07a2",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-stem-layouts"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "stems#modern-stem-buttons",
@@ -1738,9 +1768,10 @@
       "level": 3,
       "chapter": "stems.md",
       "sha256": "fafc1e29240343b2c82b231cddf71b70985fd83ce78a672227ad97ff1a0ae647",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-four-stems"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "stems#classic-stem-rows",
@@ -1795,9 +1826,10 @@
       "level": 2,
       "chapter": "stems.md",
       "sha256": "462559cd343ef358c497fcc7f1b7a747afc4ba00a7811b9cd8ce549b98c001f2",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-usb-setup"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "stems#usb-stems-setup",
@@ -1805,9 +1837,10 @@
       "level": 3,
       "chapter": "stems.md",
       "sha256": "e28d8c169accda0f5480f9d66bf8311595c8b7e3fe52ea6459fc33765904f422",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-usb-setup"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "stems#stems-in-dj-software",
@@ -1826,9 +1859,11 @@
       "level": 2,
       "chapter": "stems.md",
       "sha256": "994eb89d220118b8251396d9191911fba8200ad95498aa875b5b3417259a6714",
-      "flows": null,
-      "reason": "needs_host_implementation",
-      "detail": "No dedicated real-handler flow has yet been verified for this section."
+      "flows": [
+        "nav-a-stem-toggle",
+        "nav-a-stem-layouts"
+      ],
+      "scope": "Scripted host excerpts with local snapshots; see REPORT-A.md for acceptance limits."
     },
     {
       "section": "troubleshooting#if-the-player-will-not-start-with-the-usb",

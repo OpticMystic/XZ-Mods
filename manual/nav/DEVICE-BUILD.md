@@ -35,3 +35,18 @@ New seams use the following unchanged ARM objects. The repeated before/after obj
 | Static keypad, review publication consumption, trial and restore callbacks | `ui/ui_network.c`, same hash as above |
 
 All fixture outcomes remain local snapshots. The network apply adapter calls `xz_ui_network_take_apply` before supplying its result. This proves the UI review guard ran; it does not prove an OS network change. The checkerboard logo is a deterministic decoded-image fixture, not proof of reading or decoding an actual USB image.
+
+## Chapter A adapters
+
+Rebuilt before/after ARM objects against `00f16052` with the same target and
+flags above: **18/18 byte-identical**. Retained machine-readable hashes:
+`E:/Claude/xz-beta-rc-scratch/nav-arm-objects-a.json`.
+
+The previous 13 objects plus `cue/cue.c`, `ui/ui.c`, `ui/extra_detail.c`,
+`ui/extra_lane.c` and `shell/shell_play.c` were compared. The cue adapter executes
+the unchanged cue state machine; CLASSIC detail uses the unchanged runtime touch
+hook and four-deck drawing functions. Their host callbacks live in new
+`nav_adapter_perf.h` and `nav_adapter_classic.h`, included only by `nav_capture.c`
+and `nav_runtime.c`. Device source lists and production files are unchanged.
+This is object identity only; no linked device build, installation or hardware
+acceptance is claimed.

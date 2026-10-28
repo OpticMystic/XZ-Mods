@@ -102,3 +102,38 @@ Coverage remains partial. [REPORT.md](REPORT.md) lists host gaps separately from
 | [utility](utility.json) | mods-menu#modern-utility | 12 |
 | [vj-tools](vj-tools.json) | connect#vjtools | 6 |
 | [wad-loader](wad-loader.json) | extras#doom-and-chex-quest | 6 |
+
+## Chapter A batch
+
+24 additional flows, 467 PNG frames, 300 distinct PNG hashes reviewed. Retained
+batch: `E:/Claude/xz-beta-rc-scratch/nav-capture-a/`. The contact sheet is
+`contact-sheet.png`; each flow contains its PNGs, timeline and lossless WebP.
+This supplements the earlier 96-flow batch; it is not a newly rendered combined
+120-flow batch. REPORT-A.md records incomplete action-level coverage.
+
+| Flow | Frames |
+|---|---:|
+| [nav-a-browse-recovery](nav-a-browse-recovery.json) | 12 |
+| [nav-a-browse-settings](nav-a-browse-settings.json) | 11 |
+| [nav-a-choose-track-error](nav-a-choose-track-error.json) | 14 |
+| [nav-a-classic-four](nav-a-classic-four.json) | 6 |
+| [nav-a-classic-wave-choices](nav-a-classic-wave-choices.json) | 20 |
+| [nav-a-deck-orders](nav-a-deck-orders.json) | 17 |
+| [nav-a-feature-gate](nav-a-feature-gate.json) | 9 |
+| [nav-a-feature-smart](nav-a-feature-smart.json) | 9 |
+| [nav-a-four-detail](nav-a-four-detail.json) | 18 |
+| [nav-a-four-fullscreens](nav-a-four-fullscreens.json) | 21 |
+| [nav-a-four-load](nav-a-four-load.json) | 13 |
+| [nav-a-four-page](nav-a-four-page.json) | 6 |
+| [nav-a-four-stems](nav-a-four-stems.json) | 12 |
+| [nav-a-gate-smart](nav-a-gate-smart.json) | 11 |
+| [nav-a-jump-refused](nav-a-jump-refused.json) | 5 |
+| [nav-a-play-colours](nav-a-play-colours.json) | 18 |
+| [nav-a-play-zoom-time](nav-a-play-zoom-time.json) | 22 |
+| [nav-a-playing-key](nav-a-playing-key.json) | 11 |
+| [nav-a-ram-detached](nav-a-ram-detached.json) | 9 |
+| [nav-a-route-rescan](nav-a-route-rescan.json) | 68 |
+| [nav-a-route-states](nav-a-route-states.json) | 118 |
+| [nav-a-stem-layouts](nav-a-stem-layouts.json) | 15 |
+| [nav-a-stem-toggle](nav-a-stem-toggle.json) | 9 |
+| [nav-a-usb-setup](nav-a-usb-setup.json) | 13 |

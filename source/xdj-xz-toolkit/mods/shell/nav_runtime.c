@@ -59,3 +59,8 @@ void nav_runtime_apply(struct xz_ui_model *out,struct xz_ui *state,struct xz_ui_
  }
  *out=model;
 }
+
+#include "nav_adapter_classic.h"
+
+void nav_runtime_jump_result(int accept){jump_accept=accept;}
+const char *nav_runtime_notice(void){return async_notice.text;}
