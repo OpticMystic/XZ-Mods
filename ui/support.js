@@ -508,5 +508,5 @@ window.reportWizard = (() => {
   dialog.addEventListener('close', () => { if (!dialog.open) stopWatching(); });
   $('support-open').onclick = () => open();
   $('report-tool-row').onclick = () => open();
-  return { open, openConnection, state: () => rw, watching: () => watch && { volumes: watch.volumes, timer: Boolean(watch.timer) } };
+  return { open, openConnection, state: () => rw, watching: () => watch && { volumes: watch.volumes, timer: Boolean(watch.timer) }, words: { topic: WORDS.topic, sources: SOURCES } };
 })();
