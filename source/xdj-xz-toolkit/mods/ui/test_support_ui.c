@@ -91,7 +91,7 @@ int main(void) {
     check_page(&u, &m);
     n = tap(&u, &m, XZ_UI_SUPPORT_SEND, 0, a);
     assert(sends(&u, &m, a, n, &req) && req.op == XZ_SUPPORT_OP_REPORT && req.report.topic == XZ_SUPPORT_NOT_WORKING);
-    assert(req.report.entry == XZ_SUPPORT_FROM_EXTRAS && !req.report.retry && !req.report.text[0]);
+    assert(req.report.entry == XZ_SUPPORT_FROM_EXTRAS && !req.report.retry && !req.report.text[0] && req.report.mods_page == XZ_UI_EXTRAS);
     assert(u.support.step == XZ_UI_REPORT_RESULT);
 
     /* The encoder: push, push, push, with no turn, lands on SEND. NOT SURE sends no topic. */
@@ -192,16 +192,15 @@ int main(void) {
     snprintf(m.support.result, sizeof m.support.result, "OFFLINE");
     check_page(&u, &m);
 
-    /* Sent: the reference and its QR code, then DONE starts the next report afresh. */
+    /* Sent: the reference, and no code to scan (a loader has no tracking credential). DONE starts afresh. */
     m.support.phase = XZ_SUPPORT_SENT;
     snprintf(m.support.reference, sizeof m.support.reference, "R-4F7K-2M9Q");
-    snprintf(m.support.tracking_url, sizeof m.support.tracking_url, "https://xz-mods-support.will-026.workers.dev/r/R-4F7K-2M9Q");
     check_page(&u, &m);
     m.theme = 0;
     assert(xz_ui_render(&u, &m, pixels, 800 * 480, 800));
-    int white = 0, black = 0;
-    for (int y = 60; y < 248; y++) for (int x = 600; x < 788; x++) { white += pixels[y * 800 + x] == 0xffff; black += pixels[y * 800 + x] == 0; }
-    assert(white > 3000 && black > 3000);
+    int white = 0;
+    for (int y = 48; y < 404; y++) for (int x = 560; x < 792; x++) white += pixels[y * 800 + x] == 0xffff;
+    assert(white < 200);
     tap(&u, &m, XZ_UI_SUPPORT_DONE, 0, a);
     assert(u.page == XZ_UI_EXTRAS && u.support.step == XZ_UI_REPORT_TOPIC && !u.support.text[0] && !u.support.topic);
     /* A finished report seen by leaving with BACK is also replaced when the page opens again. */
@@ -237,6 +236,7 @@ int main(void) {
         tap(&u, &e, XZ_UI_SUPPORT_SKIP, 0, a);presses_alert++;
         n = tap(&u, &e, XZ_UI_SUPPORT_SEND, 0, a);presses_alert++;
         assert(sends(&u, &e, a, n, &req) && presses_alert == 3 && req.report.entry == XZ_SUPPORT_FROM_ALERT && req.report.topic == XZ_SUPPORT_NOT_WORKING);
+        assert(req.report.mods_page == XZ_UI_PLAY);
         /* BACK from the report returns to the page it came from. */
         u.support.step = XZ_UI_REPORT_TOPIC;
         xz_ui_back(&u, a);

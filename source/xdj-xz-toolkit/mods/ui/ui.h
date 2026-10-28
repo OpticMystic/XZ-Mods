@@ -405,7 +405,7 @@ struct xz_ui {
     /* REPORT AN ISSUE: enum xz_ui_support_step; topic 0 none yet, 1..XZ_SUPPORT_TOPICS a topic + 1, else NOT SURE;
        entry enum xz_support_entry; skipped: the DJ chose SKIP, so text stays here but is not sent. The text is
        kept until the report is sent or saved, so nothing is typed twice. */
-    struct { int step, topic, entry, skipped; char text[XZ_SUPPORT_TEXT_CHARS + 1]; } support;
+    struct { int step, topic, entry, skipped, from; char text[XZ_SUPPORT_TEXT_CHARS + 1]; } support; /* from: page it opened from */
     int edit_logo_chosen;      /* the DJ picked; no automatic pick after that */
     int kb_shift, kb_symbols, image_offset;
     struct xz_network_ui_draft network;

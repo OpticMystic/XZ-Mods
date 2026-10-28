@@ -27,7 +27,6 @@ static void report_previews(const char *directory,struct xz_ui_model base,int th
   if(k==2){u.focus_kind=XZ_UI_SUPPORT_SEND;}
   if(k==3)m.support.phase=XZ_SUPPORT_WORKING;
   if(k==4){m.support.phase=XZ_SUPPORT_SENT;snprintf(m.support.reference,sizeof m.support.reference,"R-4F7K-2M9Q");
-   snprintf(m.support.tracking_url,sizeof m.support.tracking_url,"https://xz-mods-support.will-026.workers.dev/r/R-4F7K-2M9Q");
    u.focus_kind=XZ_UI_SUPPORT_DONE;}
   if(k==5){m.support.phase=XZ_SUPPORT_SAVED;snprintf(m.support.result,sizeof m.support.result,"OFFLINE");u.focus_kind=XZ_UI_SUPPORT_DONE;}
   if(k==6){m.support.phase=XZ_SUPPORT_UNSAVED;snprintf(m.support.result,sizeof m.support.result,"READ_ONLY");

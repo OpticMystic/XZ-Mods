@@ -3,7 +3,6 @@
    collected automatically by the support helper; the DJ only says what it is about and, if they like, what
    happened. Typing and steps stay in the UI; SEND and TRY AGAIN hand the runtime one request. */
 #include "ui_support.h"
-#include "../vendor/qrcodegen/qrcodegen.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -161,13 +160,16 @@ static void go(struct xz_ui *u, int to) {
 static void fresh(struct xz_ui *u, int entry) {
     memset(&u->support, 0, sizeof u->support);
     u->support.entry = entry;
+    u->support.from = entry == XZ_SUPPORT_FROM_UPDATES ? XZ_UI_UPDATES : XZ_UI_EXTRAS;
 }
 
 void xz_ui_support_opened(struct xz_ui *u, const struct xz_ui_model *m, enum xz_ui_page from) {
     if (!u || u->page != XZ_UI_SUPPORT) return;
     if (step(u) == XZ_UI_REPORT_RESULT && finished(m)) fresh(u, XZ_SUPPORT_FROM_EXTRAS);
-    if (step(u) == XZ_UI_REPORT_TOPIC && topic(u) == -2 && !u->support.text[0])
+    if (step(u) == XZ_UI_REPORT_TOPIC && topic(u) == -2 && !u->support.text[0]) {
         u->support.entry = from == XZ_UI_UPDATES ? XZ_SUPPORT_FROM_UPDATES : XZ_SUPPORT_FROM_EXTRAS;
+        u->support.from = (int)from;
+    }
     go(u, step(u));
 }
 
@@ -238,10 +240,12 @@ size_t xz_ui_support_action(struct xz_ui *u, const struct xz_ui_model *m, int ki
         /* The error on the strip is what it is about: straight to WHAT HAPPENED. A report still on its way keeps
            the page; text already typed is kept. */
         int busy = step(u) == XZ_UI_REPORT_RESULT && (phase(m) == XZ_SUPPORT_WORKING || phase(m) == XZ_SUPPORT_UNSAVED);
+        int from = (int)u->page;
         if (u->page != XZ_UI_SUPPORT) xz_ui_navigate(u, XZ_UI_SUPPORT);
         if (busy) { go(u, XZ_UI_REPORT_RESULT); return 1; }
         if (step(u) == XZ_UI_REPORT_RESULT || !u->support.text[0]) fresh(u, XZ_SUPPORT_FROM_ALERT);
         u->support.entry = XZ_SUPPORT_FROM_ALERT;
+        u->support.from = from;
         u->support.topic = XZ_SUPPORT_NOT_WORKING + 1;
         go(u, XZ_UI_REPORT_TEXT);
         return 1;
@@ -260,6 +264,7 @@ int xz_ui_support_take_request(struct xz_ui *u, const struct xz_ui_model *m, con
     out->report.topic = topic(u) >= 0 ? topic(u) : -1;
     out->report.entry = u->support.entry;
     out->report.retry = a->kind == XZ_UI_SUPPORT_RETRY;
+    out->report.mods_page = u->support.from >= 0 && u->support.from < XZ_UI_PAGE_COUNT ? u->support.from : -1;
     if (text_sent(u)) snprintf(out->report.text, sizeof out->report.text, "%s", u->support.text);
     return 1;
 }
@@ -508,16 +513,12 @@ static void result_step(const struct xz_ui_scene *s, const struct look *l) {
     const struct xz_ui_model *m = s->m;
     switch (phase(m)) {
     case XZ_SUPPORT_SENT:
+        /* No code to scan: a loader has no tracking credential. The reference is what the DJ will see again. */
         heading(c, l, "SENT", -1);
-        label(c, X0, 100, 420, "YOUR REFERENCE", 1, l->dim);
+        label(c, X0, 100, CW, "YOUR REFERENCE", 1, l->dim);
         big_text(c, X0 - 2, 112, m->support.reference[0] ? m->support.reference : "R-....-....", l->ink, l->bg);
-        label(c, X0, 186, 440, "Finish this on your computer:", 2, l->ink);
-        label(c, X0, 208, 440, "XZ Mods will remind you.", 2, l->ink);
-        wrap(c, X0, 246, 420, 2, 14, 1, "Scan the code to follow it on your phone. Plug in this stick or open XZ Mods to add what happened.", l->dim);
-        if (m->support.tracking_url[0]) {
-            xz_ui_support_render_qr_box(c, X0 + CW - 196, 56, 196, m->support.tracking_url);
-            label(c, X0 + CW - 196, 258, 196, "FOLLOW THIS REPORT", 1, l->dim);
-        }
+        label(c, X0, 186, CW, "Finish this on your computer: XZ Mods will remind you.", 2, l->ink);
+        wrap(c, X0, 222, CW, 2, 14, 1, "Open XZ Mods or plug in this stick to add what happened. The reference above is the same there.", l->dim);
         break;
     case XZ_SUPPORT_SAVED:
         heading(c, l, "SAVED ON THIS STICK", -1);
@@ -542,24 +543,6 @@ static void result_step(const struct xz_ui_scene *s, const struct look *l) {
         break;
     }
     }
-}
-
-void xz_ui_support_render_qr_box(struct xz_canvas c, int x, int y, int box_side, const char *url) {
-    if (!url || !url[0] || box_side < 64) return;
-    uint8_t qrcode[qrcodegen_BUFFER_LEN_FOR_VERSION(10)];
-    uint8_t temp[qrcodegen_BUFFER_LEN_FOR_VERSION(10)];
-    if (!qrcodegen_encodeText(url, temp, qrcode, qrcodegen_Ecc_LOW, 1, 10, qrcodegen_Mask_AUTO, true)) return;
-    int qr_size = qrcodegen_getSize(qrcode);
-    if (qr_size <= 0) return;
-    int scale = box_side / (qr_size + 6);
-    if (scale < 1) scale = 1;
-    int drawn = (qr_size + 6) * scale;
-    int left = x + (box_side - drawn) / 2;
-    int top = y + (box_side - drawn) / 2;
-    xz_rect(c, x, y, box_side, box_side, 0xffffff);
-    for (int py = 0; py < qr_size; py++)
-        for (int px = 0; px < qr_size; px++)
-            if (qrcodegen_getModule(qrcode, px, py)) xz_rect(c, left + (px + 3) * scale, top + (py + 3) * scale, scale, scale, 0x000000);
 }
 
 void xz_ui_support_render(const struct xz_ui_scene *s) {
