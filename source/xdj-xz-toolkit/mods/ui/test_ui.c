@@ -117,6 +117,13 @@ static void semantics(struct xz_ui *u,struct xz_ui_model *m,int theme){
  for(i=-1;i<=1;i++){result=tap(u,m,XZ_UI_KEY_SHIFT,i);assert(result.kind==XZ_UI_KEY_SHIFT&&result.index==i&&result.deck==0);}
  assert(tap(u,m,XZ_UI_KEY_SYNC,0).kind==XZ_UI_KEY_SYNC);
  m->deck[0].ready&=~(uint32_t)XZ_UI_KEYSYNC;assert(tap(u,m,XZ_UI_KEY_SYNC,0).kind==XZ_UI_UNAVAILABLE);
+ /* The master deck: key shifts stay, KEY SYNC and SET UP KEYS are gone because nothing is missing. */
+ m->deck[0].key_master=1;
+ {struct xz_ui_widget controls[XZ_UI_WIDGETS];size_t count=xz_ui_layout(u,m,controls),shifts=0;
+  for(size_t k=0;k<count;k++){assert(controls[k].kind!=XZ_UI_KEY_SYNC&&controls[k].kind!=XZ_UI_KEY_CHECK);shifts+=controls[k].kind==XZ_UI_KEY_SHIFT;}
+  assert(shifts==3);}
+ m->deck[0].ready&=~(uint32_t)XZ_UI_KEY;assert(find(u,m,XZ_UI_KEY_CHECK,0).w>0);
+ m->deck[0].ready|=XZ_UI_KEY;m->deck[0].key_master=0;
  tap(u,m,XZ_UI_PANEL,XZ_UI_PLAY);
  for(int deck=0;deck<2;deck++){
   struct xz_play_key play;xz_play_key_open(&play,deck);xz_play_key_touch(&play,m,0,0,0,&result);

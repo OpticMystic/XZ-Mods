@@ -218,6 +218,7 @@ struct xz_ui_deck {
     char key_readout[48];
     unsigned key_color;
     int key_synced; /* last KEY SYNC still holds: same track, shift untouched */
+    int key_master; /* this deck is the sync master: KEY SYNC has nothing to match here */
     int stem_loading;
     int stem_count;          /* loaded stem set: 4, else three (OverCue default, zero included) */
     const char *stem_format; /* short set name for setup, e.g. "OVERCUE 3"; NULL when none */
