@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64
 #include "native_support.h"
+#include "loader_identity.h"
 #include "../clock_compat.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -12,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -27,6 +29,13 @@ static struct xz_support_model state = {
     .status = "PREPARE A SANITIZED DIAGNOSTIC DRAFT TO PREVIEW"
 };
 static char cached_draft[262144];
+#ifndef XZ_DIARY_VERSION
+#define XZ_DIARY_VERSION "unknown"
+#endif
+/* The loader's identity, read once at start. Its key never leaves this module except on the helper's stdin. */
+static struct xz_loader_identity identity;
+/* The report being sent; a retry keeps it so the Worker and the app see one report, not two. */
+static char report_id[33];
 static size_t cached_draft_len = 0;
 static pid_t pending_helper;
 #ifndef XZ_SUPPORT_WORKER_TIMEOUT_MS
@@ -224,6 +233,130 @@ static void reload_draft_locked(int bump_revision) {
     }
 }
 
+void xz_support_identity_load(const char *usb_root) {
+    struct xz_loader_identity next;
+    xz_loader_identity_read(usb_root, &next);
+    pthread_mutex_lock(&mutex);
+    identity = next;
+    state.loader_state = next.state;
+    snprintf(state.loader_id, sizeof(state.loader_id), "%s", next.state == XZ_LOADER_OK ? next.id : "");
+    pthread_mutex_unlock(&mutex);
+    xz_loader_identity_clear(&next);
+}
+
+static int fresh_report_id(char out[33]) {
+    unsigned char bytes[16];
+    int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    ssize_t n = read(fd, bytes, sizeof(bytes));
+    close(fd);
+    if (n != (ssize_t)sizeof(bytes)) return -1;
+    static const char hex[] = "0123456789abcdef";
+    for (size_t i = 0; i < sizeof(bytes); i++) { out[2 * i] = hex[bytes[i] >> 4]; out[2 * i + 1] = hex[bytes[i] & 15]; }
+    out[32] = 0;
+    return 0;
+}
+
+static const char *const topic_words[XZ_SUPPORT_TOPICS] = {"GOT_WORSE", "NOT_WORKING", "WORK_DIFFERENTLY", "NEW_IDEA", "HOW_DO_I"};
+static const char *const entry_words[XZ_SUPPORT_ENTRIES] = {"EXTRAS", "ALERT", "UPDATES"};
+static const char *const place_words[XZ_SUPPORT_PLACES] = {"UNKNOWN", "PLAY", "BROWSE", "PLAYLIST", "TAG_LIST", "SEARCH",
+    "INFO", "SHORTCUT", "UTILITY", "SOURCE", "STOCK_MENU", "TRACK_LIST", "GRID_ADJUST", "TAKEOVER", "GAME", "OTHER"};
+
+/* The helper's request (support_tool.c cmd_pending). Values are allowlisted again on the helper's side. */
+static int report_request(const struct xz_support_report *r, const char *id, const char *usb, char *out, size_t cap) {
+    char text[XZ_SUPPORT_TEXT_CHARS + 1], key[65] = "";
+    size_t n = 0;
+    for (; n < XZ_SUPPORT_TEXT_CHARS && r->text[n]; n++) {
+        unsigned char c = (unsigned char)r->text[n];
+        text[n] = c >= 32 && c <= 126 ? (char)c : ' ';
+    }
+    text[n] = 0;
+    static const char hex[] = "0123456789abcdef";
+    int keyed = identity.state == XZ_LOADER_OK;
+    if (keyed) {
+        for (size_t i = 0; i < XZ_LOADER_KEY_BYTES; i++) { key[2 * i] = hex[identity.key[i] >> 4]; key[2 * i + 1] = hex[identity.key[i] & 15]; }
+        key[64] = 0;
+    }
+    unsigned alert[3];
+    for (int i = 0; i < 3; i++) {
+        unsigned a = r->alert[i];
+        alert[i] = a == 7206 || a == 8302 || a == 8304 || a == 8305 || a == 8306 || a == 8307 ? a : 0;
+    }
+    int w = snprintf(out, cap,
+        "xz-pending-request/1\nreport_id=%s\ntopic=%s\ntext=%s\nversion=%s\ninterface=%s\nbefore=%s\nentry=%s\n"
+        "deck_view=%d\nalert=%u,%u,%u\n",
+        id, r->topic >= 0 && r->topic < XZ_SUPPORT_TOPICS ? topic_words[r->topic] : "", text, XZ_DIARY_VERSION,
+        r->ui_interface ? "MODERN" : "CLASSIC", place_words[r->before >= 0 && r->before < XZ_SUPPORT_PLACES ? r->before : 0],
+        entry_words[r->entry >= 0 && r->entry < XZ_SUPPORT_ENTRIES ? r->entry : 0],
+        r->deck_view >= 0 && r->deck_view <= 2 ? r->deck_view : 0, alert[0], alert[1], alert[2]);
+    if (w > 0 && (size_t)w < cap && r->have_settings) {
+        int s[6];
+        for (int i = 0; i < 6; i++) s[i] = r->settings[i] >= 0 && r->settings[i] <= 1000 ? r->settings[i] : 0;
+        w += snprintf(out + w, cap - (size_t)w, "settings=%d,%d,%d,%d,%d,%d\n", s[0], s[1], s[2], s[3], s[4], s[5]);
+        int sha_ok = strlen(r->settings_sha256) == 64;
+        for (int i = 0; sha_ok && i < 64; i++) sha_ok = strchr(hex, r->settings_sha256[i]) != NULL;
+        if (w > 0 && (size_t)w < cap && sha_ok) w += snprintf(out + w, cap - (size_t)w, "settings_sha256=%s\n", r->settings_sha256);
+    }
+    if (w > 0 && (size_t)w < cap && keyed) w += snprintf(out + w, cap - (size_t)w, "loader_id=%s\nloader_key=%s\n", identity.id, key);
+    if (w > 0 && (size_t)w < cap && usb && usb[0] == '/') w += snprintf(out + w, cap - (size_t)w, "usb=%s\n", usb);
+    volatile char *wipe = key;
+    for (size_t i = 0; i < sizeof(key); i++) wipe[i] = 0;
+    return w > 0 && (size_t)w < cap ? w : -1;
+}
+
+/* The helper's answer: the last SENT, SAVED or UNSAVED line; SAVED_FIRST says the stick copy exists. */
+static void report_result_locked(const char *text, int timed_out) {
+    char line[256];
+    int saved_first = 0, done = 0;
+    for (const char *p = text; *p;) {
+        const char *eol = strchr(p, '\n');
+        size_t len = eol ? (size_t)(eol - p) : strlen(p);
+        if (len >= sizeof(line)) len = sizeof(line) - 1;
+        memcpy(line, p, len);
+        line[len] = 0;
+        char *word[5] = {0};
+        int words = 0;
+        for (char *t = line; *t && words < 5;) {
+            while (*t == ' ') *t++ = 0;
+            if (!*t) break;
+            word[words++] = t;
+            while (*t && *t != ' ') t++;
+        }
+        if (words == 2 && !strcmp(word[0], "SAVED_FIRST")) saved_first = 1;
+        else if (words == 4 && !strcmp(word[0], "SENT") && strlen(word[2]) == 11 && !strncmp(word[3], "https://", 8)) {
+            state.phase = XZ_SUPPORT_SENT;
+            snprintf(state.reference, sizeof(state.reference), "%s", word[2]);
+            snprintf(state.tracking_url, sizeof(state.tracking_url), "%s", word[3]);
+            state.result[0] = state.detail[0] = 0;
+            done = 1;
+        } else if (words == 3 && !strcmp(word[0], "SAVED")) {
+            state.phase = XZ_SUPPORT_SAVED;
+            snprintf(state.result, sizeof(state.result), "%s", word[2]);
+            state.detail[0] = 0;
+            done = 1;
+        } else if (words == 3 && !strcmp(word[0], "UNSAVED")) {
+            state.phase = XZ_SUPPORT_UNSAVED;
+            snprintf(state.result, sizeof(state.result), "%s", word[1]);
+            snprintf(state.detail, sizeof(state.detail), "%s", word[2]);
+            done = 1;
+        }
+        p = eol ? eol + 1 : p + strlen(p);
+    }
+    if (!done && saved_first) {
+        state.phase = XZ_SUPPORT_SAVED;
+        snprintf(state.result, sizeof(state.result), "UNKNOWN");
+        state.detail[0] = 0;
+    } else if (!done) {
+        state.phase = XZ_SUPPORT_UNSAVED;
+        snprintf(state.result, sizeof(state.result), "%s", timed_out ? "TIMEOUT" : "FAILED");
+        snprintf(state.detail, sizeof(state.detail), "UNKNOWN");
+    }
+    if (state.phase != XZ_SUPPORT_UNSAVED) report_id[0] = 0; /* the next report is a new one */
+    snprintf(state.status, sizeof(state.status), "%s",
+             state.phase == XZ_SUPPORT_SENT ? "REPORT SENT" : state.phase == XZ_SUPPORT_SAVED ? "REPORT SAVED ON THIS STICK" :
+             "REPORT NOT SENT YET / TRY AGAIN");
+}
+
 void xz_support_read(struct xz_support_model *out, int requested_page) {
     if (!out) return;
     pthread_mutex_lock(&mutex);
@@ -267,7 +400,17 @@ static void *worker_run(void *arg) {
     snprintf(epoch, sizeof(epoch), "%llu", (unsigned long long)req.report_epoch);
     char *argv[8] = {0};
     argv[0] = (char *)bin;
-    if (req.op == XZ_SUPPORT_OP_PREPARE) {
+    char request[2048];
+    int request_len = -1;
+    if (req.op == XZ_SUPPORT_OP_REPORT) {
+        char id[33];
+        pthread_mutex_lock(&mutex);
+        snprintf(id, sizeof(id), "%s", report_id);
+        request_len = report_request(&req.report, id, usb, request, sizeof(request));
+        pthread_mutex_unlock(&mutex);
+        argv[1] = "pending";
+        argv[2] = (char *)sdir;
+    } else if (req.op == XZ_SUPPORT_OP_PREPARE) {
         argv[1] = "prepare";
         argv[2] = (char *)sdir;
         argv[3] = (char *)category_slug(req.category);
@@ -306,19 +449,39 @@ static void *worker_run(void *arg) {
     }
 
     int pipefd[2] = {-1, -1}, spawn_rc = -1, wstatus = 0, timed_out = 0, child_done = 0;
+    /* REPORT's request goes in on stdin over a socket pair: send() never raises SIGPIPE in the player. */
+    int input[2] = {-1, -1};
     char text[4096] = {0};
     pid_t pid = 0;
-    if (env && pipe(pipefd) == 0) {
+    int input_ready = req.op != XZ_SUPPORT_OP_REPORT || (request_len > 0 && socketpair(AF_UNIX, SOCK_STREAM, 0, input) == 0);
+    if (env && input_ready && pipe(pipefd) == 0) {
         posix_spawn_file_actions_t actions;
         posix_spawn_file_actions_init(&actions);
         posix_spawn_file_actions_adddup2(&actions, pipefd[1], 1);
         posix_spawn_file_actions_adddup2(&actions, pipefd[1], 2);
         posix_spawn_file_actions_addclose(&actions, pipefd[0]);
         posix_spawn_file_actions_addclose(&actions, pipefd[1]);
+        if (input[1] >= 0) {
+            posix_spawn_file_actions_adddup2(&actions, input[1], 0);
+            posix_spawn_file_actions_addclose(&actions, input[0]);
+            posix_spawn_file_actions_addclose(&actions, input[1]);
+        }
         spawn_rc = posix_spawn(&pid, argv[0], &actions, NULL, argv, env);
         posix_spawn_file_actions_destroy(&actions);
         close(pipefd[1]);
         pipefd[1] = -1;
+        if (input[1] >= 0) { close(input[1]); input[1] = -1; }
+        if (spawn_rc == 0 && input[0] >= 0) {
+            /* At most 2 KiB into an empty socket buffer: this never waits on the helper. */
+            size_t sent = 0;
+            while (sent < (size_t)request_len) {
+                ssize_t n = send(input[0], request + sent, (size_t)request_len - sent, MSG_NOSIGNAL | MSG_DONTWAIT);
+                if (n < 0 && errno == EINTR) continue;
+                if (n <= 0) break;
+                sent += (size_t)n;
+            }
+        }
+        if (input[0] >= 0) { close(input[0]); input[0] = -1; }
         if (spawn_rc == 0) {
             size_t used = 0;
             char buf[512];
@@ -360,17 +523,32 @@ static void *worker_run(void *arg) {
     }
     if (pipefd[0] >= 0) close(pipefd[0]);
     if (pipefd[1] >= 0) close(pipefd[1]);
+    if (input[0] >= 0) close(input[0]);
+    if (input[1] >= 0) close(input[1]);
+    {
+        volatile char *wipe = request;
+        for (size_t i = 0; i < sizeof(request); i++) wipe[i] = 0;
+    }
     free(env);
 
     int exit_code = (spawn_rc == 0 && child_done && wstatus != -1 && !timed_out && WIFEXITED(wstatus)) ? WEXITSTATUS(wstatus) : -1;
     if(timed_out && (req.op==XZ_SUPPORT_OP_SEND || req.op==XZ_SUPPORT_OP_CHECK)) exit_code=4;
-    char *msg = text;
-    if (strncmp(msg, "XZ_SUPPORT_ERROR ", 17) == 0) msg += 17;
-    msg[strcspn(msg, "\r\n")] = 0;
+    /* The first line, for the older operations' status; REPORT reads every line of text. */
+    char msg[160];
+    const char *first = strncmp(text, "XZ_SUPPORT_ERROR ", 17) == 0 ? text + 17 : text;
+    snprintf(msg, sizeof(msg), "%.*s", (int)strcspn(first, "\r\n"), first);
 
     pthread_mutex_lock(&mutex);
     if(spawn_rc == 0 && !child_done) pending_helper=pid;
-    if (req.op == XZ_SUPPORT_OP_PREPARE && exit_code == 0) {
+    if (req.op == XZ_SUPPORT_OP_REPORT) {
+        if (spawn_rc == 0) report_result_locked(text, timed_out);
+        else {
+            state.phase = XZ_SUPPORT_UNSAVED;
+            snprintf(state.result, sizeof(state.result), "FAILED");
+            snprintf(state.detail, sizeof(state.detail), "NOT_STARTED");
+            snprintf(state.status, sizeof(state.status), "COULD NOT START THE REPORT HELPER / TRY AGAIN");
+        }
+    } else if (req.op == XZ_SUPPORT_OP_PREPARE && exit_code == 0) {
         reload_draft_locked(1);
         state.prepared_selection = cached_draft_len ? 16u | (unsigned)(req.category & 3) | (unsigned)((req.summary & 3) << 2) : 0;
         state.phase = cached_draft_len ? XZ_SUPPORT_PREPARED : XZ_SUPPORT_ERROR;
@@ -434,6 +612,18 @@ int xz_support_request(const struct xz_support_request_args *req) {
         pthread_mutex_unlock(&mutex);
         return -1;
     }
+    if (req->op == XZ_SUPPORT_OP_REPORT) {
+        if (!req->report.retry || !report_id[0]) {
+            if (fresh_report_id(report_id) != 0) {
+                state.phase = XZ_SUPPORT_UNSAVED;
+                snprintf(state.result, sizeof(state.result), "FAILED");
+                snprintf(state.detail, sizeof(state.detail), "NO_RANDOM");
+                pthread_mutex_unlock(&mutex);
+                return -1;
+            }
+        }
+        state.reference[0] = state.tracking_url[0] = state.result[0] = state.detail[0] = 0;
+    }
     if (req->op == XZ_SUPPORT_OP_EXPORT && !usb_ready()) {
         state.phase = XZ_SUPPORT_ERROR;
         snprintf(state.status, sizeof(state.status), "USB NOT WRITABLE / INSERT WRITABLE XZ MODS USB");
@@ -452,6 +642,7 @@ int xz_support_request(const struct xz_support_request_args *req) {
              req->op == XZ_SUPPORT_OP_SET_CLOCK ? "SETTING REPORTING TLS DATE (PLAYBACK CLOCK UNCHANGED)..." :
              req->op == XZ_SUPPORT_OP_SEND ? "UPLOADING PRIVATE LOGS OVER VERIFIED TLS 1.2..." :
              req->op == XZ_SUPPORT_OP_CHECK ? "CHECKING RECEIPT WITH SUPPORT SERVICE..." :
+             req->op == XZ_SUPPORT_OP_REPORT ? "SENDING YOUR REPORT..." :
              "WRITING SANITIZED REPORT BUNDLE TO USB...");
     pthread_t th;
     if (pthread_create(&th, NULL, worker_run, copy) == 0) {
