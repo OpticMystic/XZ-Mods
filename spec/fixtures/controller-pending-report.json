@@ -1,0 +1,48 @@
+{
+  "schema": "xz-support-report/2",
+  "report_id": "0123456789abcdef0123456789abcdef",
+  "origin": "controller",
+  "loader_id": "L-4F7K-2M9Q",
+  "installation_id": "I-4F7K-2M9Q",
+  "comments_pending": true,
+  "kind_hint": null,
+  "description": "",
+  "category": "bridge",
+  "build": {
+    "desktop_version": "unknown",
+    "desktop_provenance": "unknown",
+    "runtime_version": "unknown",
+    "runtime_provenance": "unknown"
+  },
+  "incident": {
+    "before_seconds": 900,
+    "after_seconds": 0,
+    "clock_confidence": "unknown"
+  },
+  "screen_state": {
+    "surface": "STOCK",
+    "stock_page": "PERFORMANCE",
+    "mods_page": "UNKNOWN",
+    "interface": "MODERN",
+    "deck_view": "FOUR",
+    "alert_code": "READ_ERROR",
+    "counter_code": "E-8302"
+  },
+  "reporter_hints": {
+    "topic": "NOT_WORKING"
+  },
+  "private": {
+    "contact": null,
+    "contact_consent": false,
+    "items": []
+  },
+  "coverage": {
+    "omitted_items": 0,
+    "unfinished_sources": 0,
+    "scan_generation": "11111111111111111111111111111111"
+  },
+  "redactions": {
+    "count": 0,
+    "omitted_lines": 0
+  }
+}
