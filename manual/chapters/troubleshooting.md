@@ -128,7 +128,7 @@ The player sometimes raises its own warning window, for example about a USB or a
 
 ```figure classic:theme-{look}-support-strip MODS · dock
 A player warning in the dock while MODS is open.
-1 @ 80,425 Warning | The player's code and text.
+1 @ 40,447 Warning | The player's code and text.
 ```
 
 ### E-8307: HUBS ARE NOT SUPPORTED
