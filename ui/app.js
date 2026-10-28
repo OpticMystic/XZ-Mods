@@ -252,6 +252,9 @@ function renderAppUpdate(status){
   if(status.notes){$('available-notes').replaceChildren();renderReleaseNotes($('available-notes'),status.notes,status.latest_version);$('available-notes').classList.remove('hidden');}
 }
 $('about-updates').onclick=()=>showPage('updates');
+// About: Feedback and DJ Profile are pages of this app; every other About link is an external a[target=_blank] above.
+$('about-feedback').onclick=()=>showPage('my-reports');
+$('about-dj-profile').onclick=()=>showPage('dj-profile');
 $('review-app-update').onclick=()=>showPage('updates');
 $('open-licenses').onclick=async()=>{try{await invoke('open_licenses');}catch(error){showError(String(error),$('open-licenses'));}};
 async function checkForAppUpdates(){
