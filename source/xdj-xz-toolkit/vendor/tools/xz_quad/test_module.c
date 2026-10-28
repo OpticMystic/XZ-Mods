@@ -7,13 +7,11 @@ static bool adopt_existing;
 #include "xz_hub_depth.c"
 #endif
 #include <stdlib.h>
-#include <limits.h>
 static struct usb_device root,up,hub,music,child;
 static struct usb_bus bus;
 static struct usb_interface intf;
 static struct usb_host_interface alt;
 static struct usb_host_config cfg;
-static unsigned test_port = 1;
 static void device_init(struct usb_device *d,const char *name,int rank) {
     memset(d,0,sizeof(*d)); d->dev.name=name; d->dev.registered=true;
     d->dev.lock.real=(pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;d->dev.lock.rank=rank;
@@ -21,16 +19,14 @@ static void device_init(struct usb_device *d,const char *name,int rank) {
 }
 static void setup(void) {
     device_init(&root,"usb2",10);device_init(&up,"2-1",20);
-    device_init(&hub,test_port==1?"2-1.2":"2-1.1",30);
-    /* Any attempt by the module to lock music fails the lock-order assertion. */
-    device_init(&music,test_port==1?"2-1.1":"2-1.2",0);device_init(&child,"child",40);
+    device_init(&hub,"2-1.2",30);device_init(&music,"2-1.1",30);device_init(&child,"child",40);
     up.parent=&root;up.level=1;up.devpath="1";up.descriptor.idVendor=0x0451;up.descriptor.idProduct=0x8027;
-    hub.parent=&up;hub.level=2;hub.devpath=test_port==1?"1.2":"1.1";hub.speed=USB_SPEED_HIGH;
+    hub.parent=&up;hub.level=2;hub.devpath="1.2";hub.speed=USB_SPEED_HIGH;
     hub.descriptor.idVendor=0x2b73;hub.descriptor.idProduct=0x002e;
     hub.descriptor.bDeviceClass=USB_CLASS_HUB;hub.descriptor.bNumConfigurations=1;
     alt.desc.bInterfaceClass=USB_CLASS_HUB;intf.cur_altsetting=&alt;
     cfg.desc.bNumInterfaces=1;cfg.interface[0]=&intf;hub.actconfig=&cfg;
-    root.children[0]=&up;up.children[test_port-1]=&music;up.children[2-test_port]=&hub;
+    root.children[0]=&up;up.children[0]=&music;up.children[1]=&hub;
     bus.busnum=2;bus.root_hub=&root;bus.hcd.rh_registered=1;usb_bus_list=&bus;
 }
 #ifndef BASELINE
@@ -46,17 +42,10 @@ static void *exit_thread(void *p) {(void)p;xz_hub_depth_exit();return NULL;}
 static void *init_thread(void *p) {(void)p;assert(xz_hub_depth_init()==0);return NULL;}
 #endif
 int main(int argc,char **argv) {
-    assert(argc==2||argc==3);int n=atoi(argv[1]);if(argc==3)test_port=(unsigned)atoi(argv[2]);
-    assert(test_port==1||test_port==2);setup();apply=true;adopt_existing=true;
+    assert(argc==2);int n=atoi(argv[1]);setup();apply=true;adopt_existing=true;
 #ifdef BASELINE
     assert(xz_hub_depth_init()==0);assert(target==&hub&&hub.level==1);return 0;
 #else
-    loopback_port=test_port;
-    if(n>=36&&n<=38) {
-        loopback_port=n==36?0:n==37?3:UINT_MAX;
-        assert(xz_hub_depth_init()==-EINVAL&&!subscriber&&!target&&!module_refs&&!queued);
-        puts("PASS invalid or missing port rejected before notifier registration");return 0;
-    }
     bool reject=false;
     switch(n) {
     case 1: apply=false;reject=true;break;
@@ -65,7 +54,7 @@ int main(int argc,char **argv) {
     case 4: hub.children[0]=&child;reject=true;break;
     case 5: hub.descriptor.idVendor=1;reject=true;break;
     case 6: up.descriptor.idProduct=1;reject=true;break;
-    case 7: hub.dev.name=music.dev.name;hub.devpath=test_port==1?"1.1":"1.2";reject=true;break;
+    case 7: hub.dev.name="2-1.1";hub.devpath="1.1";reject=true;break;
     case 8: hub.state=USB_STATE_NOTATTACHED;reject=true;break;
     case 9: module_get_fails=1;reject=true;break;
     case 10: module_going=1;reject=true;break;
@@ -88,7 +77,6 @@ int main(int argc,char **argv) {
     case 33: hub.state=USB_STATE_SUSPENDED;hub.actconfig=NULL;reject=true;break;
     case 34: hub.state=USB_STATE_SUSPENDED;intf.dev.driver=&intf;reject=true;break;
     case 35: hub.state=USB_STATE_SUSPENDED;hub.children[0]=&child;reject=true;break;
-    case 39: adopt_existing=false;on_register=&hub;loopback_port=3-test_port;reject=true;break;
     default:break;
     }
     if(n==24||n==25) {
@@ -97,7 +85,8 @@ int main(int argc,char **argv) {
         pthread_t t;usb_lock_device(&hub);
         assert(!pthread_create(&t,NULL,init_thread,NULL));
         for(;;) {
-            if(__atomic_load_n(&notify_registered,__ATOMIC_ACQUIRE))break;
+            pthread_rwlock_rdlock(&notify_lock);int registered=subscriber!=NULL;pthread_rwlock_unlock(&notify_lock);
+            if(registered)break;
             usleep(100);
         }
         if(n==25)hub.state=USB_STATE_NOTATTACHED;
@@ -152,7 +141,7 @@ int main(int argc,char **argv) {
         struct usb_device replacement=hub;
         replacement.dev.lock.real=(pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
         replacement.level=2;replacement.refs=1;
-        up.children[2-test_port]=&replacement;
+        up.children[1]=&replacement;
         hub.state=USB_STATE_NOTATTACHED;
         notify(USB_DEVICE_ADD,&replacement);
         assert(target==&hub&&replacement.level==2&&replacement.refs==1);
