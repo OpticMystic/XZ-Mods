@@ -21,16 +21,32 @@ The rail on the left has four sections for your work and, at its foot, Feedback.
 
 The top of the rail names the player firmware the app prepares USBs for, XDJ-XZ 1.26. The app version is at the bottom.
 
+The app opens as large as its pages need, but never larger than your screen. In a narrow window the rail shows only its icons. Point at one to see its name.
+
 ## USB
 
 USB is the first page. Plug in your XZ USB, or any USB stick, and the app finds it. When only one USB is connected, it opens by itself.
 
 ```gallery
-app:usb-plug-in No USB yet. The app keeps looking, so plug one in. Choose a folder instead prepares a folder on this computer
+app:usb-plug-in No USB yet. The app keeps looking, so plug one in. Write to a folder instead… prepares a folder on this computer
 app:usb-choose Several USBs. Each card says whether XZ Mods is on it yet and whether it holds a Rekordbox export
 ```
 
-Look again searches at once. **Choose a folder instead** prepares a folder on this computer. The app then reminds you to copy the finished `autoexec.bin` to the USB yourself.
+### Choose a USB or a folder
+
+The USB list shows every connected USB the app can write XZ Mods to. Any file system works, FAT32 or exFAT, and each card shows it beside the drive letter. Choose a card to open that USB.
+
+```figure app:usb-list XZ Mods app · USB
+Two USBs and a folder to choose from. One line names the drives the app leaves out.
+1 @ 640,190 USB | A USB the app can write to, with its drive and file system.
+2 @ 640,358 Write to a folder instead… | Prepares a folder on this computer instead of a USB.
+3 @ 762,413 Drives not shown | A read-only USB, or a disk of this computer, with the reason.
+4 @ 366,467 Look again | Searches for USBs at once.
+```
+
+**Write to a folder instead…** puts the loader and its settings in a folder on this computer. Copy everything in it to the top of a USB stick afterward. Games are added only when you write to a USB itself.
+
+The list comes back whenever you step back from a USB: **Change USB** on the dashboard, **Cancel** in a guide, or **Esc** on the dashboard. The USB you left does not open by itself again until you plug in or remove a drive, so you can pick another one. Its card is still selected, and Enter opens it again.
 
 ### The USB dashboard
 
@@ -41,7 +57,7 @@ A fresh USB. XZ Mods is not on it yet, so the one action is Install XZ Mods.
 1 @ 150,186 Sections | USB, Stems, XZ Screen and Tools.
 2 @ 492,121 USB | The USB's name and drive.
 3 @ 662,162 Free space | The file system, the free space and a bar of how full the USB is.
-4 @ 988,100 Change USB | Goes back to the list of USBs.
+4 @ 988,100 Change USB | Goes back to the USB list, to choose another USB or a folder.
 5 @ 606,228 Status | What XZ Mods found on this USB.
 6 @ 494,324 Action | The one thing to do next. Here it installs XZ Mods.
 7 @ 364,442 DJ profile | The active profile on the USB. Add or Edit opens the profile step.
@@ -71,7 +87,9 @@ app:usb-choose-build No build chosen yet. Use the newest build picks the one tha
 
 ### Install or update XZ Mods
 
-**Install XZ Mods** and **Update USB** open a short guide. The steps that do not apply are left out, so the count at the top changes. **Cancel** returns to the dashboard without writing anything.
+**Install XZ Mods** and **Update USB** open a short guide. The steps that do not apply are left out, so the count at the top changes.
+
+Every step ends in the same bar. **Back** on the left returns to the step before; from the first step it returns to the dashboard. The way forward is on the right. **Esc** does the same as Back. **Cancel** at the top leaves the guide without writing anything and shows the USB list, so you can choose another USB or a folder. While the USB is written there is no Back, and the done screen has **Done** instead, because a write cannot be undone.
 
 1. **Your DJ profile.** Appears when the USB has no profile yet. Type your name and add a logo, or choose **Skip for now** and add it later.
 2. **Choose the screen the XZ shows.** New interface (MODERN) or Standard XDJ-XZ interface (CLASSIC). See [Getting started](getting-started#choose-modern-or-classic).
@@ -93,12 +111,14 @@ Choose the screen the XZ shows. The selected card plays a short clip of it.
 3 @ 486,452 New interface | MODERN. XZ Mods draws the whole player screen.
 4 @ 1012,332 Standard XDJ-XZ interface | CLASSIC. The player's own screen with MODS added. Classic themes can restyle it.
 5 @ 782,560 Switch later | How to change your mind on the player.
+6 @ 372,728 Back | The step before. From the first step, the dashboard.
+7 @ 945,728 Next | The next step.
 ```
 
 > **Note.** The two small pictures under the cards show an older version of the MODS menu. On the player, INTERFACE is on the [SCREEN](screen-and-themes#modern-and-classic) page.
 
 ```figure app:install-review XZ Mods app · Install XZ Mods
-Ready to write, with Change games open.
+Ready to write, with Change games open. Under the list, a line says music, playlists and prepared stems are never touched.
 1 @ 580,227 Loader | Adds the XZ Mods loader, or backs up and updates it.
 2 @ 706,273 Games | The free games that will be copied.
 3 @ 540,319 Interface | The screen the XZ starts with.
@@ -107,12 +127,13 @@ Ready to write, with Change games open.
 6 @ 1040,501 Add all free games | Ticks every download. None unticks the ones not on the USB yet.
 7 @ 638,554 Game state | WILL ADD, NOT ON USB, or already on the USB.
 8 @ 890,555 Add | Ticks one game. The size is what it adds to the USB.
-9 @ 632,737 Your files | Music, playlists and prepared stems are never touched.
+9 @ 372,728 Back | The step before.
+10 @ 890,728 Write to USB | Writes everything in the checklist.
 ```
 
 Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer are built into the loader and always come with it. Doom shareware, Chex Quest and Freedoom Phase 2 are free downloads that the app checks and copies to `VJTOOLS\Games` on the USB. A fresh USB gets every free game unless you untick it. An update keeps the games the USB already has and adds none on its own. Under the checklist, **Eject the USB when writing finishes** ejects it for you so you can take it straight to the XZ.
 
-Press **Write to USB** at the bottom of the checklist. If a newer build needs a setting changed on the USB, the app first asks in **Adjust USB settings for this version**. It saves a copy of the settings file first and puts it back if the loader write fails.
+Press **Write to USB** in the bar under the checklist. If a newer build needs a setting changed on the USB, the app first asks in **Adjust USB settings for this version**. It saves a copy of the settings file first and puts it back if the loader write fails.
 
 ```figure app:install-done XZ Mods app · Install XZ Mods
 Your USB is ready.
@@ -121,9 +142,9 @@ Your USB is ready.
 3 @ 1020,340 Set up four decks | Opens the cable guide again.
 4 @ 757,408 Support XZ Mods | The optional support page.
 5 @ 372,455 On the XZ | What to do with the USB next.
-6 @ 333,604 Eject USB | Ejects the USB so you can unplug it.
-7 @ 480,636 Done | Back to the dashboard.
-8 @ 505,684 Eject by itself | Ejects the USB on its own after the next write.
+6 @ 1062,728 Eject USB | Ejects the USB so you can unplug it.
+7 @ 808,728 Done | Back to the dashboard.
+8 @ 505,629 Eject by itself | Ejects the USB on its own after the next write.
 ```
 
 If a game download failed, **Retry the failed games** tries only those, and the USB is not ejected until you have. When the write also saved a DJ profile, **Make the profile track** opens the profile track steps.
