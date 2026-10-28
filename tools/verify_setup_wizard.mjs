@@ -204,7 +204,7 @@ try {
   const fits = `document.documentElement.scrollWidth<=innerWidth`;
 
   await open('fresh');
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools'&&[...document.querySelectorAll('nav button')].map(b=>b.textContent.trim()).join()==='USB,Stems,XZ Screen,Tools'&&document.querySelectorAll('nav button svg.icon use').length===4`, 'nav is USB, Stems, XZ Screen, Tools, each with an icon');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,my-reports'&&[...document.querySelectorAll('nav button:not(.nav-feedback)')].map(b=>b.textContent.trim()).join()==='USB,Stems,XZ Screen,Tools'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelectorAll('nav button svg.icon use').length===5`, 'nav is USB, Stems, XZ Screen, Tools, then Feedback at the foot of the rail, each with an icon');
   await check(`document.querySelector('nav button.selected').dataset.page==='setup'&&txt('#page-title')==='USB'&&!document.querySelector('header .eyebrow')&&getComputedStyle(document.getElementById('page-title')).fontSize==='20px'`, 'USB is the home page under a compact one-line header');
   await view('device');
   await check(`fx.requests.slice(0,3).map(r=>r.method).join()==='list_mod_versions,discover_usbs,inspect_usb'&&fx.calls.includes('list_volumes')&&!document.getElementById('job-panel').checkVisibility()`, 'a single USB opens by itself: no Find button, no job panel flash');
@@ -601,7 +601,7 @@ try {
   await check(`setupWizard.state.settings.games_menu===62&&setupWizard.settingsChanges().join()==='games_menu'&&plan().includes('Change which games show in the GAMES menu')`, 'switching off Beat Arcade is a settings change the review lists');
 
   await evaluate(`document.querySelector('nav button[data-page=tools]').click()`);
-  await check(`txt('#page-title')==='Tools'&&[...document.querySelectorAll('#tools .tool-row strong')].map(s=>s.textContent).join('|')==='DJ Profile|Repair library|Network updates|XZ Mods version|App updates|About'&&document.querySelectorAll('#tools .tool-row .tool-chevron').length===6&&!document.getElementById('back-to-tools').checkVisibility()`, 'Tools is one list of six rows with chevrons');
+  await check(`txt('#page-title')==='Tools'&&[...document.querySelectorAll('#tools .tool-row strong')].map(s=>s.textContent).join('|')==='DJ Profile|Repair library|XZ Mods version|Network updates|App updates|About'&&[...document.querySelectorAll('#tools .tool-group-title')].map(h=>h.textContent).join('|')==='Your USB|Your XZ|This app'&&document.querySelectorAll('#tools .tool-row .tool-chevron').length===6&&!document.getElementById('back-to-tools').checkVisibility()`, 'Tools is six tools with chevrons in three groups: Your USB, Your XZ, This app');
   await shot('09-tools');
   for (const [page, title] of [['dj-profile', 'DJ Profile'], ['library-repair', 'Repair library'], ['device-updates', 'Network updates'], ['advanced', 'XZ Mods version'], ['updates', 'App updates'], ['licenses', 'About']]) {
     await evaluate(`document.querySelector('nav button[data-page=tools]').click();document.querySelector('.tool-row[data-open="${page}"]').click()`);
@@ -654,8 +654,7 @@ try {
 
 
   await open('fresh');
-  await evaluate("showPage('licenses')");
-  await click('My reports');
+  await evaluate("document.querySelector('nav button[data-page=\"my-reports\"]').click()");
   await waitFor("document.querySelectorAll('.sr-drafts .sr-report').length===1",'saved report inventory');
   await check("txt('.sr-drafts strong')==='Earlier bridge report'&&txt('.sr-drafts .sr-badge')==='Older form'&&Boolean(button('Use this text'))&&!document.getElementById('support-consent')&&!fx.requests.some(r=>r.method==='support_preview')",'a report saved by the old form is listed in My reports and never sent by the old page-by-page flow');
   await click('Use this text');
