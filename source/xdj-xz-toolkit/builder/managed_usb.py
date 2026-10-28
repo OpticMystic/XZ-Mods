@@ -157,14 +157,15 @@ def inspect(volume,resources):
             'rekordbox':volume.joinpath(*rekordbox_pdb.EXPORT_PDB).is_file(),'dj_profiles':dj_profile.summary(volume),**usb.target_info(volume)}
 
 def discover(resources):
-    """Drives the setup wizard can offer: removable volumes, plus any volume already carrying an XZ Mods loader."""
+    """Drives the setup wizard can offer: removable volumes, plus any volume already carrying an XZ Mods loader.
+    filesystem is shown to the DJ; writable False means no loader can go on it. Each is None when unknown."""
     found=[]
-    def describe(root,label,removable):
+    def describe(root,label,removable,filesystem=None,writable=None):
         loader=(root/'autoexec.bin').is_file();settings=(root/SETTINGS).is_file()
         rekordbox=root.joinpath('PIONEER','rekordbox','export.pdb').is_file()
         if not (removable or loader):return
         found.append({'volume':str(root),'label':label or str(root),'removable':removable,'loader':loader,'settings':settings,'rekordbox':rekordbox,
-                      'games':sum(game['installed'] for game in games.installed(root))})
+                      'filesystem':filesystem or None,'writable':writable,'games':sum(game['installed'] for game in games.installed(root))})
     if os.name=='nt':
         kernel=ctypes.windll.kernel32
         for number in range(26):
@@ -172,10 +173,11 @@ def discover(resources):
             if not kernel.GetLogicalDrives()&(1<<number):continue
             kind=kernel.GetDriveTypeW(str(root))
             if kind not in (2,3):continue
-            label=ctypes.create_unicode_buffer(261)
-            try:kernel.GetVolumeInformationW(str(root),label,261,None,None,None,None,0)
+            label=ctypes.create_unicode_buffer(261);name=ctypes.create_unicode_buffer(64);flags=ctypes.c_uint32()
+            try:known=kernel.GetVolumeInformationW(str(root),label,261,None,None,ctypes.byref(flags),name,64)
             except OSError:continue
-            describe(root,label.value,kind==2)
+            # FILE_READ_ONLY_VOLUME: a locked SD card or a write-protected stick.
+            describe(root,label.value,kind==2,name.value.upper() if known else None,not flags.value&0x80000 if known else None)
     elif sys.platform=='darwin':
         import subprocess
         from .host import mac_volume
@@ -183,10 +185,11 @@ def discover(resources):
             if root.is_symlink() or not root.is_dir():continue
             try:
                 # Network shares and plain folders also appear in /Volumes; keep only local /dev/disk mounts rooted at this entry.
-                if Path(mac_volume(root)['volume_root'])!=root:continue
+                info=mac_volume(root)
+                if Path(info['volume_root'])!=root:continue
                 removable=os.stat(root).st_dev!=os.stat('/').st_dev
             except (OSError,ValueError,subprocess.SubprocessError):continue
-            describe(root,root.name,removable)
+            describe(root,root.name,removable,info.get('filesystem'),info.get('writable'))
     return {'format':'xz-usbs/1','usbs':found}
 
 def _commit_loader(volume,observed,expected_loader,candidate,job,settings_change=None):
