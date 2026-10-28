@@ -47,7 +47,8 @@
     script.onerror = () => { delete loading[src]; script.remove(); reject(Error('The manual file ' + src + ' is missing from this app.')); };
     document.head.append(script);
   }));
-  const loadIndex = () => Promise.all([load(BASE + 'index.js'), load('manual-art.js')]).then(() => window.XZ_MANUAL);
+  // The explainer clips are optional: without assets/manual/media.js the page shows no clips and the text says it all.
+  const loadIndex = () => Promise.all([load(BASE + 'index.js'), load('manual-art.js'), load('assets/manual/media.js').catch(() => {})]).then(() => window.XZ_MANUAL);
   const loadChapter = slug => load(BASE + 'chapters/' + slug + '.js').then(() => window.XZ_MANUAL_CHAPTERS[slug]);
   const loadSearch = () => load(BASE + 'search.js').then(() => window.XZ_MANUAL_SEARCH);
 
@@ -173,9 +174,9 @@
     const actions = h('div', { class: 'm-hero-actions' },
       h('button', { class: 'primary', type: 'button', text: 'Start with ' + first.title, onclick: () => openChapter(first.slug, '', { focus: true }) }),
       h('button', { class: 'secondary', type: 'button', text: 'Search the manual', onclick: () => { input.focus(); side.classList.add('is-open'); } }));
-    const hero = h('header', { class: 'm-hero' },
-      h('div', null, h('p', { class: 'mc-eyebrow', text: 'XZ Mods manual' }), h('h2', { tabindex: '-1', class: 'm-start-title', text: book.title }), h('p', { class: 'm-lede', text: book.summary }), actions),
-      h('div', { class: 'm-hero-art' }, window.manualArt?.hero() || ''));
+    // The hero picture is a render of the true-scale model of the XDJ-XZ (ui/manual-art.js), above the title.
+    const hero = h('header', { class: 'm-hero' }, window.manualArt?.hero() || null,
+      h('div', { class: 'm-hero-body' }, h('div', null, h('p', { class: 'mc-eyebrow', text: 'XZ Mods manual' }), h('h2', { tabindex: '-1', class: 'm-start-title', text: book.title }), h('p', { class: 'm-lede', text: book.summary })), actions));
     const resume = last ? h('button', { class: 'm-continue', type: 'button', onclick: () => openChapter(last.slug, state.last.anchor || '', { focus: true }) },
       ring(fraction(last.slug)), h('div', null, h('small', { text: 'Continue where you left off' }), h('b', { text: last.title + (lastSection ? ' · ' + lastSection[2] : '') }), h('span', { text: Math.round(fraction(last.slug) * 100) + '% of this chapter read' })), icon('i-chevron')) : null;
     const pick = h('div', { class: 'm-pick', role: 'group', 'aria-label': 'Which interface do you play on?' },
@@ -188,7 +189,7 @@
     const tour = h('ul', { class: 'mt-grid' }, book.tour.map(item => {
       const [slug, anchor] = item.link.split('#');
       return h('li', null, h('button', { class: 'mt-card', type: 'button', onclick: () => openChapter(slug, anchor || '', { focus: true }) },
-        h('span', { class: 'mt-art', 'aria-hidden': 'true' }, window.manualArt?.tour(item.art) || ''),
+        h('span', { class: 'mt-art', 'aria-hidden': 'true' }, h('img', { src: item.img, alt: '', width: item.w, height: item.h, loading: 'lazy', decoding: 'async' })),
         h('b', null, item.title, item.tag ? h('span', { class: 'tag tag--' + item.tag, text: item.tag }) : null),
         h('span', { class: 'mt-text', text: item.text })));
     }));

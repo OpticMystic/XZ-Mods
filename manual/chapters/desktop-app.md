@@ -670,17 +670,17 @@ The reference and item number identify a report; the owner key is still required
 Manual is this manual, inside the app. It comes with the app, so it needs no internet connection. Where the app explains a feature, **Read in the manual** opens the chapter about it.
 
 ```figure app:manual XZ Mods app · Manual
-Four decks open in the Manual.
+Four decks open in the Manual, at the loopback cable video.
 1 @ 180,300 Manual | Opens the manual. It sits between Tools and Feedback in the rail.
-2 @ 492,109 Search | Searches every chapter as you type. Press / to get here from anywhere on the page, and Enter to open the first result.
-3 @ 450,161 Progress | How much of the manual you have read. A chapter's circle fills as you read and turns into a tick at its end.
-4 @ 380,233 Start page | What XZ Mods adds, the interface you play on, and every chapter in order.
-5 @ 400,540 Chapter list | Every chapter. The one you are reading is outlined and lists its sections.
-6 @ 700,168 Chapter | The chapter you are reading. Previous and Next at its end move through the manual in order.
-7 @ 985,580 Animation | Shows how a feature works, step by step. It plays once when it comes into view; Play, the arrows and the numbered steps move through it.
+2 @ 492,21 Search | Searches every chapter as you type. Press / to get here from anywhere on the page, and Enter to open the first result.
+3 @ 450,73 Progress | How much of the manual you have read. A chapter's circle fills as you read and turns into a tick at its end.
+4 @ 380,145 Start page | What XZ Mods adds, the interface you play on, and every chapter in order.
+5 @ 430,452 Chapter list | Every chapter. The one you are reading is outlined and lists its sections.
+6 @ 800,48 Chapter | The chapter you are reading. Previous and Next at its end move through the manual in order.
+7 @ 1010,420 Video | A clip rendered from a true-scale model of the XDJ-XZ shows how a feature works. It plays when it comes into view, and Play pauses it. A video in several steps also has arrows and numbered steps, and its caption follows the step.
 ```
 
 - **Numbers on pictures.** Point at a number, or tab to it and use the arrow keys, to light up that part of the picture and read what it is. **Play** steps through every number. The list under the picture says the same.
 - **Your interface.** Choose MODERN, CLASSIC or Both on the start page or at the foot of the chapter list. The manual then hides what does not apply to you. A MODS page drawn in both interfaces has a MODERN and CLASSIC switch on its picture.
 - **Where you stopped.** The manual remembers the chapter and section you read last. The start page offers **Continue where you left off**.
-- **Less motion.** When your computer is set to reduce motion, nothing in the manual moves by itself. Animations wait for Play and show each step at once.
+- **Less motion.** When your computer is set to reduce motion, nothing in the manual moves by itself. A video shows a still picture of each step and plays only when you press Play.

@@ -108,21 +108,63 @@ modern:stems-layout-outside-half Outside the waveform, half height
 ```
 ````
 
-Animated explainers draw how a feature works, step by step, in the app's Manual page. The website shows the
-text around them and skips the explainer itself, so never put a fact only in an explainer.
+### Pictures of the player: physically accurate only
+
+Every picture or moving picture of the XDJ-XZ, and of what its screen shows, is a real render:
+
+- **Hardware** (the player, its controls, ports, the loopback cable, a USB stick) is shown only by renders of the
+  true-to-scale Blender model. The loopback-cable clip `ui/assets/wizard/loopback-cable.mp4` is the bar.
+- **The player's screen** is shown only by the firmware's own preview renders: figure shots (`modern:`, `classic:`)
+  or, inside a Blender clip, those same screens on the model.
+- **A concept with no physical subject** (waveform layering, a file on a stick, a signal path drawn as boxes) gets no
+  picture of its own. The chapter text carries it, and points at the firmware screen that shows it when one exists.
+- No hand-drawn SVG or CSS drawing of the XZ, its controls, ports, sticks, screens or signal flow anywhere on the
+  Manual page. `tools/verify_manual_tab.mjs` fails on one in an explainer, the start page or a tour tile.
+- Known exception, still to replace: the `hw:` top-panel schematics in `hardware.md` (`manual/hardware/*.svg`). They
+  go once the Blender model has top-down stills; move their callouts onto the stills then.
+
+### Explainers: one rendered clip per scene
+
+An explainer shows a feature in the app's Manual page as a short sequence of clips with a caption under each. The
+website shows the text around it and skips the explainer, so never put a fact only in an explainer.
 
 ````
 ```explainer beat-jump Beat jump, page 1 and page 2
-Page 1 | 1 2 4 8 | Press [[BEAT JUMP]]. With the default sizes the pairs jump 1, 2, 4 and 8 beats.
-Page 2 | 16 32 64 128 | shift | Hold [[SHIFT]], press [[BEAT JUMP]], let go of [[SHIFT]].
+Page 1 | Press [[BEAT JUMP]]. With the default sizes the pairs jump 1, 2, 4 and 8 beats.
+Page 2 | Hold [[SHIFT]], press [[BEAT JUMP]], let go of [[SHIFT]].
 ```
 ````
 
-The fence names the explainer and its title. Each line is one scene: its title, any data the picture uses, then
-the caption. `four-deck-setup` takes no lines: it steps through the numbered list that follows it. The pictures
-live in `ui/manual-art.js` (`loopback-signal`, `loopback-cable`, `four-deck-setup`, `sync-master`, `beat-jump`,
-`three-band`, `ram-usb`, `usb-diary`). They draw ports, deck order, labels and colours from the firmware; when a
-watched source of that chapter changes, check its explainer as well as its figures.
+The fence names the explainer and its title. Each line is one scene, `Title | caption` (a single scene may be just a
+caption). `four-deck-setup` takes no lines: it steps through the numbered list that follows it. Scene N plays clip N.
+The kinds are `EXPLAINERS` in `tools/build_manual.py`: `four-deck-setup`, `loopback-cable`, `loopback-signal`,
+`sync-master`, `beat-jump`, `ram-usb`. Add one only for a subject the Blender model can show.
+
+The clips are rendered from the Blender model into a folder with a `manifest.json`:
+
+```
+{ "<kind>": { "w": 1280, "h": 480, "scenes": [ { "video": "<kind>/scene-1.mp4", "poster": "<kind>/scene-1.webp",
+                                                 "seconds": 6.5, "loop": false, "screen": ... }, ... ] },
+  "hero": { "w": 1280, "h": 480, "video": "hero/hero.mp4", "poster": "hero/hero.webp", "seconds": 12, "loop": true } }
+```
+
+`python tools/import_manual_media.py <render-folder>` checks it and copies it into the app: one clip per scene of the
+chapter (it refuses another count), paths inside the folder, H.264 yuv420p MP4 of the stated size and length (checked
+with ffprobe when it is on PATH), WebP posters. It writes `ui/assets/manual/<kind>/scene-<n>.mp4` and `.webp` and
+`ui/assets/manual/media.js`, which the Manual page loads; `screen` is carried through as given. Re-run it whenever the
+renders change, then commit `ui/assets/manual/`. `--out <dir>` stages a test copy instead; `--none` writes the
+built-in clips only (the cable clip, and the cable render as the start page picture until a `hero` is rendered).
+
+In the app, a scene shows its poster at once and plays its clip, muted, when the explainer is in view or the reader
+picks the scene. A scene lasts as long as its clip or as long as its caption takes to read, whichever is longer.
+With reduced motion nothing plays by itself: each scene shows its poster until the reader presses Play. An explainer
+with no clips yet is hidden; its text is still in the chapter. `build_manual.py check` fails when a chapter's scene
+count no longer matches its clips: render the scenes again or fix the chapter. When the clips change, check each one
+against its scene lines and capture `app:manual` again (`coverage.json` watches `media.js`).
+
+The start page's tour tiles are pictures too: each `manual.json` tour item names a `shot` a chapter figure already
+shows (or `asset:<path>` under `ui/assets`, such as a poster of the model) and an optional `crop` `[x, y, w, h]` in
+that picture's pixels. `app` writes them with the figures.
 
 Tables generated from source keep themselves current. Use them instead of copying the facts:
 

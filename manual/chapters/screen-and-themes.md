@@ -149,12 +149,8 @@ The **BYPASS BUTTON** switch for MODERN sits with the stem buttons in **STEMS**.
 | 3-BAND | Lows, mids and highs as layers: lows outside, mids around them, highs at the core. Blue, amber and white unless you choose your own [3-band colours](#3-band-colours) |
 | STEMS | Drums outside, harmonics around them, vocals at the core, in your stem colours |
 
-```explainer three-band How the 3-BAND waveform is layered
-Lows | Lows are the outer layer, in blue.
-Mids | Mids sit around them, in amber.
-Highs | Highs are at the core, in white.
-Your colours | PURPLE CYAN WHITE | Choose your own colour for each band in 3-BAND COLOURS. RESET 3-BAND COLOURS puts every band back to STANDARD.
-```
+The preview strip on the [3-BAND COLOURS](#3-band-colours) page draws the three layers in the colours in use: lows outside, mids around them, highs at the core.
+
 
 - 3-BAND and STEMS read the analysis rekordbox and the XZ Mods stem builder already put on the USB. You do not prepare anything extra.
 - A track without stems shows 3-BAND under STEMS. A track with four stems also shows 3-BAND, because its stems carry no waveform data yet.
