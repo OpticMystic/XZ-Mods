@@ -33,7 +33,8 @@ function loaderChoice(){
   const saved=savedModVersion(),recorded=W.inspection.recorded_mod_version;
   return saved&&recorded?.id===saved.id&&recorded?.runtime_sha256===saved.runtime_sha256?'keep':'update';
 }
-function newGames(){return [...W.games].filter(id=>!W.inspection?.games.find(game=>game.id===id)?.installed);}
+// A folder gets the loader only: games go straight onto a USB, so none are planned for a folder.
+function newGames(){return W.inspection?.requires_copy_to_usb_root?[]:[...W.games].filter(id=>!W.inspection?.games.find(game=>game.id===id)?.installed);}
 // Games the catalog offers (ui/games.js); the backend may list others, which are never offered or planned.
 function offeredGames(inspection){return (inspection.games||[]).filter(game=>GAMES.some(entry=>entry.id===game.id));}
 function installedGames(inspection){return new Set(offeredGames(inspection).filter(game=>game.installed).map(game=>game.id));}
@@ -300,7 +301,7 @@ function tree(){return createUsbTree({nodes:usbLoadout(W.inspection,{driveLabel:
 function viewDevice(){
   return el('section',{class:'wz-device'},
     el('div',{class:'wz-card'},driveHeader(),statusBlock(),jobSlot),
-    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy the finished autoexec.bin to the USB afterward.'}):null,
+    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a FAT32 USB afterward. Games are added only when you write to the USB itself.'}):null,
     tiles(),
     buildLine(),quadEntry(),
     el('details',{class:'wz-files',open:W.filesOpen?true:null,ontoggle:event=>{W.filesOpen=event.target.open;}},
@@ -559,11 +560,11 @@ function stepReview(){
   const nothing=nothingToWrite();
   return [el('h3',{text:'Ready to write to '+driveLabel()}),
     planList(),
-    el('div',{class:'wz-games-change'},
+    W.inspection.requires_copy_to_usb_root?null:el('div',{class:'wz-games-change'},
       el('button',{type:'button',class:'text-button',id:'wz-change-games','aria-expanded':String(W.gamesOpen),text:W.gamesOpen?'Hide games':'Change games',onclick:()=>{W.gamesOpen=!W.gamesOpen;render();}}),
       W.gamesOpen?gamesChooser():null),
     nothing?el('p',{class:'notice',role:'status',text:'Nothing to write yet. Add a game or a DJ profile, or cancel.'}):null,
-    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy the finished autoexec.bin to the USB afterward.'}):null,
+    W.inspection.requires_copy_to_usb_root?el('p',{class:'notice',text:'This is a folder, not a USB. Copy everything in it to the top of a FAT32 USB afterward. Games are added only when you write to the USB itself.'}):null,
     safeLine(),
     ejectChoice(),
     el('div',{class:'actions wz-nav-write'},
