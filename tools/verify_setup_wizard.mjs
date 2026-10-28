@@ -241,7 +241,7 @@ try {
   };
 
   await open('fresh');
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,my-reports'&&[...document.querySelectorAll('nav button:not(.nav-feedback)')].map(b=>b.textContent.trim()).join()==='USB,Stems,XZ Screen,Tools'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelectorAll('nav button svg.icon use').length===5`, 'nav is USB, Stems, XZ Screen, Tools, then Feedback at the foot of the rail, each with an icon');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,manual,my-reports'&&[...document.querySelectorAll('nav button:not(.nav-feedback)')].map(b=>b.textContent.trim()).join()==='USB,Stems,XZ Screen,Tools,Manual'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelectorAll('nav button svg.icon use').length===6`, 'nav is USB, Stems, XZ Screen, Tools, Manual, then Feedback at the foot of the rail, each with an icon');
   await check(`document.querySelector('nav button.selected').dataset.page==='setup'&&txt('#page-title')==='USB'&&!document.querySelector('header .eyebrow')&&getComputedStyle(document.getElementById('page-title')).fontSize==='20px'`, 'USB is the home page under a compact one-line header');
   await view('device');
   await check(`fx.requests.slice(0,3).map(r=>r.method).join()==='list_mod_versions,discover_usbs,inspect_usb'&&fx.calls.includes('list_volumes')&&!document.getElementById('job-panel').checkVisibility()`, 'a single USB opens by itself: no Find button, no job panel flash');
@@ -800,7 +800,7 @@ try {
     await click('Cancel'); await view('find');
     await sweep('USB list', 'find');
     await evaluate(`setupWizard.chooseUsb('E:\\\\')`); await view('device');
-    for (const page of ['tools', 'advanced', 'dj-profile', 'library-repair', 'device-updates', 'updates', 'licenses', 'live-stream', 'my-reports']) {
+    for (const page of ['tools', 'advanced', 'dj-profile', 'library-repair', 'device-updates', 'updates', 'licenses', 'live-stream', 'my-reports', 'manual']) {
       await evaluate(`showPage(${JSON.stringify(page)})`); await idle();
       await sweep('page ' + page, page);
     }
