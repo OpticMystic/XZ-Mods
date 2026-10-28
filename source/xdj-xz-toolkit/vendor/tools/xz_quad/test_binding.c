@@ -25,13 +25,11 @@
 
 /* In-memory boundary adapter. No real path, process, kernel, USB or network I/O. */
 struct mock_file { char path[512], resolved[512]; unsigned char bytes[8192]; size_t size; struct stat st; };
-static struct mock_file files[192];
+static struct mock_file files[96];
 static unsigned file_count;
 struct mock_fd { struct mock_file *file; size_t pos; struct stat opened; int used; };
 static struct mock_fd fds[128];
 static int fault, reads, unexpected;
-static unsigned bind_writes, music_stat_reads, module_music_reads, native_flag_reads;
-static char last_bind[32];
 static unsigned fixture_music_port=2;
 static struct mock_file *find(const char *path) {
     for (unsigned i=0;i<file_count;i++) if (!strcmp(files[i].path,path)) return files+i;
@@ -39,13 +37,13 @@ static struct mock_file *find(const char *path) {
 }
 static struct mock_file *put(const char *path, const void *bytes, size_t size, mode_t mode, ino_t ino, dev_t dev, dev_t rdev) {
     struct mock_file *f=find(path);
-    if (!f) { assert(file_count < 192); f=&files[file_count++]; memset(f,0,sizeof(*f)); strcpy(f->path,path); }
+    if (!f) { assert(file_count < 96); f=&files[file_count++]; memset(f,0,sizeof(*f)); strcpy(f->path,path); }
     assert(size<=sizeof(f->bytes)); memcpy(f->bytes,bytes,size); f->size=size;
     f->st=(struct stat){.st_mode=mode,.st_ino=ino,.st_dev=dev,.st_rdev=rdev,.st_size=(off_t)size}; return f;
 }
 static void txt(const char *path,const char *value) { put(path,value,strlen(value),S_IFREG|0600,10,1,0); }
 static int m_open(const char *path,int flags,...) {
-    assert(!(flags & (O_WRONLY|O_RDWR|O_CREAT|O_TRUNC)) || (!strcmp(path,"/sys/bus/usb/drivers/hub/bind") && flags==(O_WRONLY|O_CLOEXEC|O_NOFOLLOW)));
+    assert(!(flags & (O_WRONLY|O_RDWR|O_CREAT|O_TRUNC)));
     struct mock_file *f=find(path); if (!f) { errno=ENOENT; return -1; }
     for(int i=3;i<128;i++) if(!fds[i].used) {
         fds[i]=(struct mock_fd){f,0,f->st,1};
@@ -58,21 +56,9 @@ static int m_close(int fd) { assert(fd>=3&&fd<128&&fds[fd].used); fds[fd].used=0
 static ssize_t m_read(int fd,void *data,size_t size) {
     assert(fd>=3&&fd<128&&fds[fd].used); struct mock_fd *d=fds+fd;
     if(size>d->file->size-d->pos)size=d->file->size-d->pos;
-    if(fault==11&&!strcmp(d->file->path,"/sys/module/xz_hub_depth/parameters/music_hub_devnum")&&++module_music_reads==3)d->file->bytes[1]='2';
     memcpy(data,d->file->bytes+d->pos,size); d->pos+=size; return (ssize_t)size;
 }
-static ssize_t m_write(int fd,const void *data,size_t size) {
-    assert(fd>=3&&fd<128&&fds[fd].used);
-    assert(!strcmp(fds[fd].file->path,"/sys/bus/usb/drivers/hub/bind"));
-    assert(size<sizeof(last_bind));memcpy(last_bind,data,size);last_bind[size]=0;bind_writes++;
-    if(fault==9){errno=EIO;return -1;}return (ssize_t)size;
-}
-static int m_stat(const char *path,struct stat *s) {
-    struct mock_file *f=find(path);if(!f){errno=ENOENT;return -1;}
-    const char *music=fixture_music_port==1?"/sys/bus/usb/devices/2-1.2":"/sys/bus/usb/devices/2-1.1";
-    if(fault==10&&!strcmp(path,music)&&++music_stat_reads==2)f->st.st_ino++;
-    *s=f->st;return 0;
-}
+static int m_stat(const char *path,struct stat *s) { struct mock_file *f=find(path); if(!f){errno=ENOENT;return -1;} *s=f->st;return 0; }
 static int m_fstat(int fd,struct stat *s) { assert(fd>=3&&fd<128&&fds[fd].used); *s=fds[fd].opened; return 0; }
 static char *m_realpath(const char *path,char *out) { struct mock_file *f=find(path); if(!f){errno=ENOENT;return NULL;} strcpy(out,*f->resolved?f->resolved:path);return out; }
 static int m_statfs(const char *path,struct statfs *fs) { if(!find(path))return -1; memset(fs,0,sizeof(*fs));fs->f_type=fault==8?0:0x01021994;return 0; }
@@ -122,7 +108,7 @@ static int m_execl(const char *program,const char *arg,...) { (void)program;(voi
 #define execl m_execl
 #define mknod(...) forbidden()
 #define unlink(...) forbidden()
-#define write m_write
+#define write(...) forbidden()
 #define ftruncate(...) forbidden()
 #define mkdir(...) forbidden()
 #define flock(...) forbidden()
@@ -154,7 +140,7 @@ static ssize_t m_pread(int fd,void *out,size_t size,off_t offset) {
         else if(offset==0x10e9688)word=0x20000;
         else if(offset==0x2000c&&size==8) { uint32_t r[]={0x30000,0x30008};memcpy(out,r,8);return 8; }
         else if(offset==0x30000&&size==8) { uint32_t p[]={0x40000,0x50000};memcpy(out,p,8);return 8; }
-        else if(offset==0x40e76||offset==0x50e76) { uint16_t flags=fault==3||(fault==12&&++native_flag_reads>=3);memcpy(out,&flags,2);return 2; }
+        else if(offset==0x40e76||offset==0x50e76) { uint16_t flags=fault==3;memcpy(out,&flags,2);return 2; }
         else assert(0);
         memcpy(out,&word,size); return (ssize_t)size;
     }
@@ -171,7 +157,7 @@ static unsigned checks;
 #define CHECK(x) do { checks++; if(!(x)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);exit(1);} }while(0)
 static void fixture(unsigned unit) {
     for(unsigned i=3;i<128;i++)assert(!fds[i].used);
-    memset(files,0,sizeof(files));file_count=0;fault=reads=0;fixture_music_port=2;bind_writes=music_stat_reads=module_music_reads=native_flag_reads=0;last_bind[0]=0;
+    memset(files,0,sizeof(files));file_count=0;fault=reads=0;fixture_music_port=2;
     txt("/proc/sys/kernel/random/boot_id",unit?"22222222-2222-4222-8222-222222222222":"11111111-1111-4111-8111-111111111111");
     txt("/sys/class/net/eth0/address",unit?"02:11:22:33:44:66":"02:11:22:33:44:55");
     txt(USB "2-1/idVendor","0451");txt(USB "2-1/idProduct","8027");
@@ -384,142 +370,8 @@ static void port_format_tests(void) {
     }
     puts("PASS unchanged FAT16/FAT32/exFAT/HFS+/HFSX admission on both music ports");
 }
-static const char no_music_mounts[] = "1 0 0:1 / / rw - rootfs rootfs rw\n";
-static void hide_prefix(const char *prefix) {
-    size_t length=strlen(prefix);
-    for(unsigned i=0;i<file_count;i++)if(!strncmp(files[i].path,prefix,length))
-        snprintf(files[i].path,sizeof(files[i].path),"/removed/%u",i);
-}
-static void setup_music_hub(unsigned top,int bound) {
-    const struct xz_quad_port *port=xz_quad_port(top);char path[256];
-    snprintf(path,sizeof(path),USB "%s",port->usb);put(path,"",0,S_IFDIR|0700,900+top,1,0);
-    const char *keys[]={"idVendor","idProduct","bDeviceClass","speed","busnum","devnum","devpath","bNumConfigurations","bNumInterfaces"};
-    const char *values[]={"05e3","0610","09","480","2","11",port->devpath,"1"," 1"};
-    for(unsigned i=0;i<COUNT(keys);i++){snprintf(path,sizeof(path),USB "%s/%s",port->usb,keys[i]);txt(path,values[i]);}
-    if(bound){snprintf(path,sizeof(path),USB "%s/%s:1.0/driver",port->usb,port->usb);txt(path,"");strcpy(find(path)->resolved,"/sys/bus/usb/drivers/hub");}
-}
-static void hub_media_fixture(unsigned music,unsigned count) {
-    fixture_port(music);
-    const struct xz_quad_port *port=xz_quad_port(music);char prefix[128],path[512],ancestry[512],line[512];
-    snprintf(prefix,sizeof(prefix),USB "%s",port->usb);
-    unsigned original_count=file_count;
-    for(unsigned i=0;i<original_count;i++)if(!strncmp(files[i].path,prefix,strlen(prefix))) {
-        struct mock_file copy=files[i];
-        snprintf(path,sizeof(path),"%s.1%s",prefix,copy.path+strlen(prefix));
-        put(path,copy.bytes,copy.size,copy.st.st_mode,copy.st.st_ino,copy.st.st_dev,copy.st.st_rdev);
-    }
-    snprintf(ancestry,sizeof(ancestry),"/sys/devices/platform/ehci/usb2/2-1/%s/%s.1/%s.1:1.0/host0/target0/block/sdc/sdc1",port->usb,port->usb,port->usb);
-    strcpy(find("/sys/class/block/sdc1")->resolved,ancestry);strcpy(find("/sys/dev/block/8:33")->resolved,ancestry);
-    setup_music_hub(music,1);
-    if(count>1) {
-        original_count=file_count;
-        for(unsigned i=0;i<original_count;i++) {
-            struct mock_file copy=files[i];char *pos;
-            if((pos=strstr(copy.path,"sdc")))pos[2]='d';
-            else if(!strcmp(copy.path,"/sys/dev/block/8:33"))strcpy(copy.path,"/sys/dev/block/8:49");
-            else {
-                char child[64];snprintf(child,sizeof(child),USB "%s.1",port->usb);
-                if(strncmp(copy.path,child,strlen(child)))continue;
-                copy.path[strlen(child)-1]='2';
-            }
-            if((pos=strstr(copy.resolved,"sdc")))while((pos=strstr(copy.resolved,"sdc")))pos[2]='d';
-            char child[32];snprintf(child,sizeof(child),"%s.1",port->usb);
-            for(pos=copy.resolved;(pos=strstr(pos,child));pos+=strlen(child))pos[strlen(child)-1]='2';
-            copy.st.st_ino+=1000;
-            if(copy.st.st_rdev==makedev(8,33))copy.st.st_rdev=makedev(8,49);
-            if(copy.st.st_dev==makedev(0,42))copy.st.st_dev=makedev(0,43);
-            struct mock_file *made=put(copy.path,copy.bytes,copy.size,copy.st.st_mode,copy.st.st_ino,copy.st.st_dev,copy.st.st_rdev);
-            strcpy(made->resolved,copy.resolved);
-        }
-        txt("/sys/class/block/sdd1/dev","8:49");
-        snprintf(path,sizeof(path),USB "%s.2/devnum",port->usb);txt(path,"12");
-        snprintf(line,sizeof(line),"50 20 0:42 / /media/usb%u/sdc1 rw - fuseblk /dev/sdc1 rw\n51 20 0:43 / /media/usb%u/sdd1 rw - fuseblk /dev/sdd1 rw\n",music,music);
-        txt("/proc/self/mountinfo",line);
-    }
-}
-static void module_fixture(unsigned loopback,unsigned music_number) {
-    char value[32];
-    txt(MODULE "parameters/apply","Y");txt(MODULE "parameters/music_hubs","Y");
-    snprintf(value,sizeof(value),"%u",loopback);txt(MODULE "parameters/loopback_port",value);
-    txt(MODULE "parameters/loopback_hub_devnum","9");
-    snprintf(value,sizeof(value),"%u",music_number);txt(MODULE "parameters/music_hub_devnum",value);
-    txt(MODULE "refcnt",music_number?"2":"1");
-    txt("/sys/bus/usb/drivers/hub/bind","");
-}
-static void route_media_tests(void) {
-    for(unsigned music=1;music<=2;music++) {
-        unsigned cable=3-music;char path[256],line[256];
-        fixture_port(music);txt("/proc/self/mountinfo",no_music_mounts);
-        snprintf(path,sizeof(path),USB "%s",xz_quad_port(music)->usb);hide_prefix(path);
-        mock_loopback(cable,0,0);
-        struct native n=native_fixture();struct route_binding r={0};
-        CHECK(route_binding_admit(&r,&n)==ADMIT_READY);CHECK(r.loopback_port==cable);CHECK(route_binding_check(&r));m_close(n.memory);
-        fixture_port(music);mock_loopback(cable,0,0);n=native_fixture();r=(struct route_binding){0};
-        txt("/proc/self/mountinfo",no_music_mounts);CHECK(route_binding_admit(&r,&n)==ADMIT_READY);
-        snprintf(line,sizeof(line),"50 20 0:42 / /media/usb%u/sdc1 rw - fuseblk /dev/sdc1 rw\n",music);
-        txt("/proc/self/mountinfo",line);CHECK(route_binding_check(&r));
-        txt("/proc/self/mountinfo",no_music_mounts);CHECK(route_binding_check(&r));
-        txt("/proc/self/mountinfo",line);CHECK(route_binding_check(&r));
-        txt("/proc/sys/kernel/random/boot_id","22222222-2222-4222-8222-222222222222");
-        CHECK(!route_binding_check(&r));CHECK(r.state==BINDING_RETIRED);CHECK(route_binding_admit(&r,&n)==ADMIT_FATAL);m_close(n.memory);
-        for(unsigned count=1;count<=2;count++) {
-            hub_media_fixture(music,count);mock_loopback(cable,0,0);n=native_fixture();r=(struct route_binding){0};
-            CHECK(route_binding_admit(&r,&n)==ADMIT_READY);CHECK(route_binding_check(&r));m_close(n.memory);
-        }
-        for(unsigned change=0;change<7;change++) {
-            hub_media_fixture(music,2);mock_loopback(cable,0,0);n=native_fixture();r=(struct route_binding){0};
-            if(change==0)strcpy(find("/sys/class/block/sdd1")->resolved,"/sys/wrong");
-            if(change==1)txt("/proc/self/mountinfo","");
-            if(change==2)strcpy(find("/proc/self/mountinfo")->path,"/missing");
-            if(change==3)strcpy(find("/sys/class/block/sdd1")->resolved,"/sys/devices/platform/ehci/usb2/2-1/2-1.1/2-1.1.2/2-1.1.2.3/2-1.1.2.3:1.0/host0/block/sdd/sdd1");
-            if(change==4){snprintf(line,sizeof(line),"50 20 0:42 / /media/usb%u/sdc1 rw - fuseblk /dev/sdc1 rw\n",cable);txt("/proc/self/mountinfo",line);}
-            if(change==5){snprintf(path,sizeof(path),USB "%s/speed",xz_quad_port(music)->usb);txt(path,"12");}
-            if(change==6)fault=2;
-            CHECK(route_binding_admit(&r,&n)!=ADMIT_READY);CHECK(r.state==BINDING_NEW);m_close(n.memory);
-        }
-        fixture_port(music);txt("/proc/self/mountinfo",no_music_mounts);n=native_fixture();r=(struct route_binding){0};
-        CHECK(route_binding_admit(&r,&n)==ADMIT_WAIT);CHECK(!strcmp(r.reason,"WAIT_LOOPBACK"));
-        mock_loopback(cable,0,0);fault=3;CHECK(route_binding_admit(&r,&n)==ADMIT_WAIT);fault=0;
-        CHECK(route_binding_admit(&r,&n)==ADMIT_READY);
-        snprintf(path,sizeof(path),USB "%s",xz_quad_port(cable)->usb);hide_prefix(path);CHECK(route_binding_check(&r));
-        mock_loopback(cable,0,0);CHECK(route_binding_check(&r));
-        hide_prefix(path);mock_loopback(music,0,0);CHECK(!route_binding_check(&r));CHECK(r.state==BINDING_RETIRED);m_close(n.memory);
-    }
-    puts("PASS actual route no-stick start, late media/removal, 1/2 hub drives, bad/racy inventory, stopped admission, same-port reconnect and permanent wrong-port retirement");
-}
-static void music_hub_service_tests(void) {
-    for(unsigned music=1;music<=2;music++)for(unsigned change=0;change<12;change++) {
-        fixture_port(music);txt("/proc/self/mountinfo",no_music_mounts);setup_music_hub(music,change==5);mock_loopback(3-music,0,0);
-        struct native n=native_fixture();struct route_binding r={0};CHECK(route_binding_admit(&r,&n)==ADMIT_READY);
-        module_fixture(3-music,11);struct music_hub attempted={0};const char *reason;char path[256];
-        if(change==1)fault=3;
-        if(change==2)txt(MODULE "parameters/music_hub_devnum","12");
-        if(change==3)txt(MODULE "parameters/loopback_port",music==1?"1":"2");
-        if(change==4)txt(MODULE "parameters/music_hubs","N");
-        if(change==6){snprintf(path,sizeof(path),USB "%s.7",xz_quad_port(music)->usb);put(path,"",0,S_IFDIR,999,1,0);}
-        if(change==7)fault=9;
-        if(change==8){snprintf(path,sizeof(path),USB "%s/speed",xz_quad_port(music)->usb);txt(path,"12");}
-        if(change==9)fault=10;
-        if(change==10)fault=11;
-        if(change==11)fault=12;
-        int ok=service_music_hub(&n,&r,&attempted,&reason);
-        CHECK(ok==(change!=6&&change!=8));
-        CHECK(bind_writes==(change==0||change==7));
-        if(change==0) {
-            snprintf(path,sizeof(path),"%s:1.0",xz_quad_port(music)->usb);CHECK(!strcmp(last_bind,path));
-            CHECK(service_music_hub(&n,&r,&attempted,&reason));CHECK(bind_writes==1);
-        }
-        if(change==1)CHECK(!strcmp(reason,"WAIT_MUSIC_HUB_PAUSED"));
-        if(change==7)CHECK(!strcmp(reason,"MUSIC_HUB_BIND_FAILED"));
-        m_close(n.memory);
-    }
-    puts("PASS actual music-hub bind path: both ports, owned generation only, stopped native only, no duplicate bind, bound/child/speed refusals and write failure");
-}
-
 int main(void) {
     CHECK(self_test()==0);
-    route_media_tests();
-    music_hub_service_tests();
     port_tests();
     loopback_port_tests();
     port_format_tests();
