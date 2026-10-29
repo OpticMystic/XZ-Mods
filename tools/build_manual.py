@@ -178,7 +178,7 @@ def problems(render_dir):
             out.append(f"watched source {row['path']} is gone: update chapter {row['chapter']} and coverage.json")
         elif lock['watch'].get(row['path']) != sha256(path):
             out.append(f"{row['chapter']}: {row['path']} changed ({row['why']}). Check the chapter still matches, then accept.")
-    return out + media_problems(chapters) + menu_problems(chapters)
+    return out + media_problems(chapters) + menu_problems(chapters) + nav_problems(chapters)
 
 
 def check(render_dir):
@@ -251,13 +251,15 @@ def blocks(body, ctx):
     while i < len(lines):
         line = lines[i]
         if not line.strip(): i += 1; continue
-        fence = re.match(r'^```(figure|gallery|explainer)(.*)$', line)
+        fence = re.match(r'^```(figure|gallery|explainer|nav)(.*)$', line)
         if fence:
             j = i + 1
             while not lines[j].startswith('```'): j += 1
             args, inner = fence.group(2).strip(), [l for l in lines[i + 1:j] if l.strip()]
             if fence.group(1) == 'explainer':  # animated explainers exist only in the app; the site keeps the prose around them
                 if ctx.get('explainer'): out.append(ctx['explainer'](args, inner))
+            elif fence.group(1) == 'nav':
+                if ctx.get('nav'): out.append(ctx['nav'](args, inner))
             else: out.append(ctx['figure'](fence.group(1), args, inner))
             i = j + 1; continue
         heading = re.match(r'^(#{2,4})\s+(.+)$', line)
@@ -377,6 +379,11 @@ def build_site(render_dir, out, book, chapters, stale):
                 + (f'<figcaption>{inline(caption)}</figcaption>' if caption else '')
                 + (f'<ol class="legend">{legend}</ol>' if legend else '') + '</figure>')
 
+    def site_nav_src(path):  # a navigation video or poster under ui/, copied beside the pages
+        (out / 'nav').mkdir(exist_ok=True)
+        shutil.copyfile(APP / 'ui' / path, out / 'nav' / Path(path).name)
+        return BASE + 'nav/' + Path(path).name
+
     version = load_json(APP / 'src-tauri/tauri.conf.json')['version']
     commit = subprocess.run(['git', '-C', str(APP), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
     dirty = bool(subprocess.run(['git', '-C', str(APP), 'status', '--porcelain', '--', 'manual', 'source'],
@@ -395,7 +402,7 @@ def build_site(render_dir, out, book, chapters, stale):
         body = c['body']
         if c['slug'] == 'settings':
             body += '\n' + settings_table(schema, explained)
-        content, toc = blocks(body, {'figure': figure})
+        content, toc = blocks(body, {'figure': figure, 'nav': lambda args, lines: nav_html(args, lines, site_nav_src, True)})
         thumb = next((shots[0] for kind, shots, _, _ in c['figures'] if kind == 'figure'), None)
         c['thumb'] = image(thumb)[0] if thumb else ''
         c['html'], c['toc'] = content, toc
@@ -496,6 +503,53 @@ def svg_size(path):
 
 def fill(template, **values):
     return re.sub(r'\{\{(\w+)\}\}', lambda m: values[m.group(1)], template)
+
+
+# ---------------------------------------------------------------- navigation videos
+
+# A ```nav <flow> <title>``` block shows how the player is driven through that flow: the firmware's own frames beside
+# the true-scale Blender render of the control being pressed, turned or tapped, made by tools/build_nav_videos.py from
+# the navigation capture (manual/nav/<flow>.json). Extra lines `<flow> | <title>` add more flows to the same player.
+# The steps under the video come from the capture's timeline, so the words always match what the video does.
+NAV_MEDIA = MANUAL / 'nav-media.json'
+
+
+def nav_media():
+    return load_json(NAV_MEDIA) if NAV_MEDIA.is_file() else {'flows': {}}
+
+
+def nav_html(args, lines, src, player=False):
+    """The HTML of one nav block. src(path under ui/) gives the URL a page uses for a video or poster. The app's
+    manual-art.js builds the player; with player=True (the website) each flow carries its own <video controls>."""
+    flow, _, title = args.partition(' ')
+    iface = re.search(r'\{(modern|classic)\}', title)
+    title = re.sub(r'\s*\{(modern|classic)\}', '', title).strip()
+    title, _, first = (p.strip() for p in title.partition('|'))      # `<title> | <first flow's label>`
+    scenes = [(flow, first)] + [tuple(p.strip() for p in (l.split('|', 1) + [''])[:2]) for l in lines]
+    flows = nav_media().get('flows', {})
+    items, faces = '', set()
+    for name, label in scenes:
+        entry = flows.get(name)
+        if not entry: raise SystemExit(f'```nav {name}```: no video. Run tools/build_nav_videos.py build')
+        faces.add(entry.get('interface') or '')
+        steps = ''.join(f'<li data-t="{s["t_ms"]}">{inline(s["text"])}</li>' for s in entry['steps'])
+        items += (f'<li data-flow="{html.escape(name)}" data-video="{html.escape(src(entry["video"]))}" '
+                  f'data-poster="{html.escape(src(entry["poster"]))}" data-w="{entry["w"]}" data-h="{entry["h"]}" '
+                  f'data-seconds="{entry["seconds"]}" data-title="{html.escape(label or title)}">'
+                  + (f'<video controls muted loop playsinline preload="none" width="{entry["w"]}" height="{entry["h"]}" '
+                     f'poster="{html.escape(src(entry["poster"]))}" src="{html.escape(src(entry["video"]))}"></video>' if player else '')
+                  + f'<ol class="mn-steps">{steps}</ol></li>')
+    face = iface.group(1) if iface else (faces.pop() if len(faces) == 1 and '' not in faces else '')
+    return (f'<div class="mn"' + (f' data-iface="{face}"' if face else '') + f' role="group" aria-label="{html.escape(title or "How to")}">'
+            f'<ol class="mn-scenes">{items}</ol></div>')
+
+
+def nav_problems(chapters):
+    """Stale or missing navigation videos (tools/build_nav_videos.py check) for the nav blocks these chapters hold."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import build_nav_videos
+    flows = build_nav_videos.chapter_flows([(c['slug'], c['body']) for c in chapters], APP)
+    return build_nav_videos.problems(flows, APP)
 
 
 # ---------------------------------------------------------------- app: the manual inside the desktop app
@@ -687,7 +741,7 @@ def app_manual(render_dir, stale):
         for c in chapters:
             _APP['slug'] = c['slug']; counter['figure'] = 0
             body = c['body'] + ('\n' + settings_table(schema, explained) if c['slug'] == 'settings' else '')
-            content, toc = blocks(body, {'figure': figure, 'explainer': explainer})
+            content, toc = blocks(body, {'figure': figure, 'explainer': explainer, 'nav': lambda args, lines: nav_html(args, lines, str)})
             content = re.sub(r'<a class="anchor" href="#[^"]*" aria-hidden="true">#</a>', '', content)
             content = re.sub(r'<h([234]) id="([^"]+)"', r'<h\1 id="m-\2" data-anchor="\2"', content)  # ids apart from the app's own
             content = re.sub(r'<(/?)h([234])\b', lambda m: f'<{m.group(1)}h{int(m.group(2)) + 1}', content)  # under the chapter's h2

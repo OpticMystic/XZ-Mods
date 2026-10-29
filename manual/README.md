@@ -111,8 +111,11 @@ panel, links both ways, every state, CLASSIC, window sizes and reduced motion.
 - `shots.lock.json`: written by `accept`. The screen and file hashes the chapters were last reviewed against.
 - `menu-tree/`: the menu map's tree and screens (see [The menu map](#the-menu-map)). Replace it with `menu-tree --from`.
 - `app-shots/`, `captures/`, `hardware/`: curated pictures (desktop app screenshots, photos of the player's
-  screen, the top-panel drawing). Watch the sources they depict in `coverage.json`. The top-panel
-  drawings come from `tools/draw_xz_panel.py manual/hardware`; edit that, not the SVGs.
+  screen, the top-down renders of the player). Watch the sources they depict in `coverage.json`. `hardware/`
+  holds the Blender model's orthographic top-down stills (`controls_scene.py --topdown`; the deck still downscaled
+  to 1000 px wide). Re-render them from the model; never draw them.
+- `nav/`: the navigation capture scripts and `SECTIONS.json` (see [Navigation videos](#navigation-videos)).
+- `nav-media.json`: written by `tools/build_nav_videos.py build`. Each navigation video, its steps and its source hashes.
 - `template/`: the page, its stylesheet and script.
 
 ## Writing a chapter
@@ -177,8 +180,41 @@ Every picture or moving picture of the XDJ-XZ, and of what its screen shows, is 
   picture of its own. The chapter text carries it, and points at the firmware screen that shows it when one exists.
 - No hand-drawn SVG or CSS drawing of the XZ, its controls, ports, sticks, screens or signal flow anywhere on the
   Manual page. `tools/verify_manual_tab.mjs` fails on one in an explainer, the start page or a tour tile.
-- Known exception, still to replace: the `hw:` top-panel schematics in `hardware.md` (`manual/hardware/*.svg`). They
-  go once the Blender model has top-down stills; move their callouts onto the stills then.
+- The `hw:` figures in `hardware.md` are the Blender model's top-down stills; their callouts sit beside each control.
+
+### Navigation videos
+
+A navigation video shows how to reach something on the player: the firmware's own screen, frame by frame, beside the
+true-scale Blender render of the control being pressed, turned or tapped. Put one in a section with
+
+````
+```nav encoder-list Moving through a list {modern}
+```
+````
+
+The fence names a flow (`manual/nav/<flow>.json`) and the title. More flows can join the same player, one per line as
+`<flow> | <label>`; then write the first flow's label after the title: `` ```nav beat-jump Beat jump | In MODS ``. The
+app shows the video with its steps under it; the website shows the video and the steps. The steps come from the
+capture's timeline (press, hold, turn N clicks, push, tap, SHIFT held with another key), written in the manual's key
+notation, so they always describe what the video shows. Keep the chapter text complete without the video.
+
+Every section `manual/nav/SECTIONS.json` assigns a flow has a video, placed after the section's opening paragraph.
+A section shows its first flow and its `physical-*` flows; a flow already shown earlier in the same chapter is not
+repeated. To make the videos:
+
+```
+python tools/capture_manual_nav.py --zig <zig.exe> --out <new capture dir>         # the firmware's frames (README in manual/nav)
+python tools/build_nav_videos.py build --captures <capture dir> --controls <control clips dir>
+python tools/build_nav_videos.py check
+```
+
+`--controls` is the Blender control clips folder (`out/manifest.json` with each camera's screen quad and glass mask,
+and the untagged frames in `tmp/frames/`). The videos are 1280 x 480, 30 fps, H.264 CRF 30 with a WebP poster (`ui/assets/manual/nav/`):
+left the firmware frame at 1:1, right the control's close-up with the same frame warped onto its display glass. A tap is
+a ring at the tapped point on the screen frame. `check` and the release `gate` fail when a ```nav``` block has no
+video, a video file changed, or the firmware sources, the flow scripts or the compositor changed since the videos were
+made: capture again and build. Section text changes do not stale a video; `nav_sections.py --restamp <section>`
+records a reviewed change in `SECTIONS.json`.
 
 ### Explainers: one rendered clip per scene
 
