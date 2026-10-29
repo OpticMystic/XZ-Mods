@@ -367,7 +367,7 @@ void xz_ui_page_details(const struct xz_ui_scene *s){
   label(c,468,100,324,"SCREEN SWITCH KEY",1,dim);
   label(c,468,296,324,"OPTIONAL VJ.TOOLS LIBRARY CONNECTION",1,dim);
   label(c,468,312,324,"vj.tools",2,ink);
-  label(c,X0,380,CW,"DJ MODS: CDJ3K-MODS / NSAINTOT + CONTRIBUTORS",1,dim);
+  label(c,X0,380,CW,"DJ MODS: NSAINTOT + CONTRIBUTORS",1,dim);
  }
 }
 
