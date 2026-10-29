@@ -170,7 +170,7 @@ Tap **PLAYLIST** in the BROWSE category rail, or on the SHORTCUT screen, to open
 | REMOVE FROM PLAYLIST | Takes the highlighted track out of the playlist |
 | MOVE TRACK | Picks up a track. Turn the encoder to move it, push to drop it |
 
-Playlists, the tag list, played marks and histories can change only on a USB that is not read-only. Changes made on the player are saved on the same USB in `XZMODS/playlists.txt`. They never change your rekordbox export, so rekordbox and the CLASSIC browse screens do not show them. A playlist you changed on the player is marked in the list. In HISTORY the [[MENU]] panel offers DELETE HISTORY and DELETE ALL HISTORIES, each after a second push. If the USB is read-only you see **THIS STICK IS READ-ONLY: PLAYLISTS CANNOT CHANGE**. If it is full you see **THE STICK IS FULL: PLAYLIST NOT SAVED**.
+Playlists, the tag list, played marks and histories can change only on a USB that is not read-only. Changes made on the player are saved on the same USB in `XZMODS/playlists.txt`. They never change the library your DJ software exported, so your DJ software and the CLASSIC browse screens do not show them. A playlist you changed on the player is marked in the list. In HISTORY the [[MENU]] panel offers DELETE HISTORY and DELETE ALL HISTORIES, each after a second push. If the USB is read-only you see **THIS STICK IS READ-ONLY: PLAYLISTS CANNOT CHANGE**. If it is full you see **THE STICK IS FULL: PLAYLIST NOT SAVED**.
 
 ```figure modern:r5-playlist-menu PLAYLIST · MENU {modern}
 The playlist list with its MENU panel open and DELETE highlighted.
@@ -203,7 +203,7 @@ USB1 is being browsed and plays on both decks. USB2 is still loading.
 4 @ 190,298 FREE | Free space on the USB.
 5 @ 120,404 Decks | The decks playing a track from this source.
 6 @ 565,250 LINK | Players on LINK. Browsing LINK from MODERN is not available yet.
-7 @ 690,250 COMPUTER | rekordbox on a computer. Browsing it from MODERN is not available yet.
+7 @ 690,250 COMPUTER | DJ software on a computer linked to the player. Browsing it from MODERN is not available yet.
 8 @ 446,22 Hint | Opening a source opens its library in BROWSE.
 ```
 
@@ -235,7 +235,7 @@ INFO for deck 1's track.
 4 @ 222,275 RATING | The track's stars.
 5 @ 395,128 Linked field | A field with an arrow opens BROWSE with every track that shares it. ARTIST, ALBUM, KEY, BPM and GENRE are linked.
 6 @ 379,230 KEY and BPM | Tap to open the KEY or BPM category at this value.
-7 @ 540,340 COMMENT | The comment saved in rekordbox.
+7 @ 540,340 COMMENT | The comment saved with the track in your DJ software.
 8 @ 110,370 SOURCE | Where the track came from.
 9 @ 200,436 Deck strip | Both decks stay in view.
 ```
@@ -256,13 +256,13 @@ modern:screen-info INFO opened before anything has been read
 
 CLASSIC keeps the player's own browse screens: the same lists, keys and menus the XDJ-XZ operating instructions describe. XZ Mods adds three things to them.
 
-- **The key in every row.** Each track row shows up to three fields from your rekordbox export inside the title cell. The default is the title, then the key, then the BPM.
+- **The key in every row.** Each track row shows up to three fields from the library exported to your USB inside the title cell. The default is the title, then the key, then the BPM.
 - **Key before title.** With **KEY BEFORE TITLE** on, the key leads the row, so you can read keys down the list.
 - **Key match colours.** With **KEY MATCH COLOURS** on, a leading key is green when it mixes with the master deck's key, amber when it is detuned against it, and grey otherwise.
 
 The table header names what the player's own [[MENU]] click changes: **SORT** over the title column and **COLUMN** over the right-hand column. The STEMS and MODS buttons stay at the top right.
 
-These additions only use tracks on a USB with a rekordbox export. A track XZ Mods cannot match in the export keeps the player's own row, and a field the export does not have is left out.
+These additions only use tracks on a USB with an exported library. A track XZ Mods cannot match in the export keeps the player's own row, and a field the export does not have is left out.
 
 ## Browse settings
 

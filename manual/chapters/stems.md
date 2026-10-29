@@ -12,7 +12,7 @@ Stems split a track into its parts so you can mute them live. XZ Mods plays thre
 The player cannot split a track itself. You prepare stems on your computer, once per track, and they travel on the USB beside your music.
 
 1. Prepare the stems in the XZ Mods app on your computer, or in OverCue Desktop. See [The XZ Mods app](desktop-app).
-2. Keep the stems on the same USB as the music. Your original files and the rekordbox export stay unchanged.
+2. Keep the stems on the same USB as the music. Your original files and the library your DJ software exported stay unchanged.
 3. On the player, load the original track through the normal browser and wait a moment for its stems to load.
 
 A track without prepared stems plays as normal. Its stem buttons say why, and the button at their end tells you what to do (see [Stem readiness](#stem-readiness)).
@@ -228,7 +228,7 @@ classic:theme-0-stem-setup The setup page reached from MODS
 
 ## Stems in DJ software {experimental}
 
-When the XZ plays from rekordbox on a computer over USB, the stem buttons can switch the software's stems instead. Open **STEMS IN DJ SOFTWARE** on the STEMS page and follow its four steps for each deck: **DETECT**, **MAP STEMS**, **LIVE TEST** and **CONFIRM**.
+When the XZ plays from DJ software on a computer over USB, the stem buttons can switch the software's stems instead. Open **STEMS IN DJ SOFTWARE** on the STEMS page and follow its four steps for each deck: **DETECT**, **MAP STEMS**, **LIVE TEST** and **CONFIRM**.
 
 > **Experimental.** Stem switching works after the live test. Levels and BYPASS for DJ software need more checking, and the software has no stem bypass over USB.
 
@@ -240,7 +240,7 @@ Deck 1 before setup, with no computer deck found yet.
 4 @ 590,356 DETECT PC | Checks that this deck plays from the computer.
 ```
 
-Connect the XZ to the computer by USB and open rekordbox in Performance mode before you start. A deck playing from the computer then shows a stem row for the software, with three or four stems.
+Connect the XZ to the computer by USB and open your DJ software in Performance mode before you start. A deck playing from the computer then shows a stem row for the software, with three or four stems.
 
 ```gallery {classic}
 classic:theme-0-inline-pc4-ready Four software stems ready on deck 1, the XZ's own stems on deck 2

@@ -26,7 +26,7 @@ If XZ Mods started after a network update and stopped working, open **CONNECT** 
 
 If the sound goes wrong while you test, stop playback and switch the player off and on. Load the same track again and check the original mix before you go on.
 
-> **Tip.** MODS is always reachable with the hardware alone. In CLASSIC, the [[rekordbox]] button above [[LINK]] switches to MODERN, where [[MENU]] opens MODS. Turn the encoder to move, push it to choose and press [[BACK]] to go back.
+> **Tip.** MODS is always reachable with the hardware alone. In CLASSIC, the button above [[LINK]] switches to MODERN, where [[MENU]] opens MODS. Turn the encoder to move, push it to choose and press [[BACK]] to go back.
 
 ## Stems on the USB
 
@@ -71,7 +71,7 @@ modern:play-notice-long A long notice wraps onto two lines
 
 | Notice | What to do |
 |---|---|
-| DECK 1 DID NOT LOAD THE TRACK | Load the track again. If it fails again, check the file in rekordbox |
+| DECK 1 DID NOT LOAD THE TRACK | Load the track again. If it fails again, check the file in your DJ software |
 | THE TRACK ON USB 2 COULD NOT BE READ BECAUSE THE DEVICE WAS REMOVED WHILE IT WAS LOADING | Plug the USB back in and load the track again |
 | USB1 IS NOT CONNECTED, USB2 IS NOT CONNECTED | Plug in the USB, or choose the other source |
 | USB SOURCE CHANGED: SELECT TRACK AGAIN | The USB changed under the list. Choose the track again |
@@ -115,7 +115,7 @@ modern:play-4deck-alert-deck3 The same error on deck 3, with four decks
 |---|---|---|
 | E-8302 | CANNOT PLAY TRACK | Load another track. Check the USB and the file on a computer |
 | E-8304, E-8305 | UNSUPPORTED | The player cannot play this file. Export it in another format |
-| E-8306 | NO FILE | The file is missing from the USB. Export the track from rekordbox again |
+| E-8306 | NO FILE | The file is missing from the USB. Export the track to the USB again from your DJ software |
 | E-7206 | AUTH CHIP ERROR | Switch the player off and on. If it also happens without the XZ Mods USB, the player needs service |
 
 ## The player's own warnings
@@ -164,10 +164,10 @@ Every "needs setup" state in the app comes with one button that starts a short g
 | No XZ Mods build is on this computer yet, so there is nothing to write | **Set up mod versions** | Finds or imports a build |
 | Choose which XZ Mods build goes on this USB | **Use the newest build** | Picks the build that came with the app |
 | Stem engine not set up yet | **Set up stem engine** | Checks the computer, downloads the engine and tests it |
-| Connect a Rekordbox USB | **Connect a USB** | Finds a USB or a folder and checks its library |
+| Connect your music USB | **Connect a USB** | Finds a USB or a folder and checks its library |
 | Set up Live Streamer to connect to your XZ | **Set up Live Streamer** | Finds the XZ on the network and connects |
 | Older USB loaders have no screen service | **Update the USB loader** | Opens the USB page to update the loader |
-| Rekordbox is open on this computer | **Prepare for repair** | Waits for you to close rekordbox, then checks again |
+| The DJ software that writes this USB is open on this computer | **Prepare for repair** | Waits for you to close it, then checks again |
 | Not confirmed yet, after sending a report | **Set up reporting connection** | Checks the internet connection and the clock, then sends the same report again. It never arrives twice |
 | Maintainer inbox, not connected (maintainer only) | **Connect and check** | Keeps the owner key under Windows protection and reads the inbox to check it |
 

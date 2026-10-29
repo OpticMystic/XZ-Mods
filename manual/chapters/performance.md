@@ -10,13 +10,13 @@ XZ Mods adds performance features to the pads and deck keys: two pages of beat j
 Open MODS and choose PLAY in the section rail.
 
 ```figure classic:theme-{look}-play MODS · PLAY
-The PLAY page with the default settings: gate cue and smart cue off, the default jump sizes, and the [[rekordbox]] button above [[LINK]] on INTERFACE.
+The PLAY page with the default settings: gate cue and smart cue off, the default jump sizes, and the button above [[LINK]] on INTERFACE.
 1 @ 300,84 BEAT JUMP PADS | Opens the beat jump editor. The numbers are your page 1 and page 2 sizes in beats.
 2 @ 250,132 GATE CUE | Hot cues play only while you hold the pad. Off by default.
 3 @ 600,132 SMART CUE | A hot cue press also moves the CUE point there. Off by default.
 4 @ 230,196 KEYS | Opens the key page: key shift and KEY SYNC for all four decks.
 5 @ 605,196 RAM TRACKS | Opens RAM TRACKS: copy a deck's track into memory.
-6 @ 350,260 REKORDBOX BUTTON | What the rekordbox button does, alone and with SHIFT. See Controls on the player.
+6 @ 350,260 BUTTON ABOVE LINK | What the button above LINK does, alone and with SHIFT. See Controls on the player.
 7 @ 200,425 Dock | Explains the highlighted row in plain words.
 8 @ 718,425 Works on | The decks the highlighted feature works on, in mixer order 3 1 2 4. A dim number is a deck it does not work on, with the reason below.
 ```
@@ -98,7 +98,7 @@ A jump the deck cannot make does nothing else. XZ Mods never silently shortens t
 | JUMP UNAVAILABLE: BEFORE TRACK START | 3 or 4 | The jump would land before the start of the track. |
 | JUMP UNAVAILABLE: AFTER TRACK END | 3 or 4 | The jump would land after the end of the track. |
 | JUMP UNAVAILABLE: LOOP MOVE OUT OF TRACK | 3 or 4 | Moving the loop would push it past the start or end. |
-| JUMP UNAVAILABLE: NO BEAT GRID OR BPM | 3 or 4 | The track's beat grid is damaged, so beats can't be counted. Analyse it in rekordbox again. |
+| JUMP UNAVAILABLE: NO BEAT GRID OR BPM | 3 or 4 | The track's beat grid is damaged, so beats can't be counted. Analyse it again in your DJ software. |
 
 ## Gate cue and smart cue
 
@@ -155,7 +155,7 @@ If KEY SYNC cannot work, a notice or the deck's key display shows why for a few 
 | Message | What to do |
 |---|---|
 | KEY ENGINE OFF: SET UP KEYS | This USB loader has no key engine. Open MODS > PLAY > KEYS and press SET UP KEYS, or prepare the USB again with the current XZ Mods app. |
-| DECK 1 TRACK HAS NO KEY (or another deck) | The track on this deck has no analysed key. Analyse it in rekordbox. |
+| DECK 1 TRACK HAS NO KEY (or another deck) | The track on this deck has no analysed key. Analyse it in your DJ software. |
 | LOAD AN ANALYZED TRACK / SET UP KEYS | The deck has no track with an analysed key. Load one. |
 | LOAD A KEYED TRACK ON DECK 2 (or another deck) | The master deck has no track with an analysed key. |
 | THIS DECK IS MASTER, MAKE DECK 2 MASTER FIRST | The deck you pressed is the master, so there is nothing to match. Make another deck the master. On the KEYS page the master deck has no KEY SYNC button and says it is the master. |
