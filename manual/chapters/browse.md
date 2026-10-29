@@ -7,7 +7,7 @@ This chapter covers finding a track and putting it on a deck. MODERN has its own
 
 ## Browsing in MODERN {modern}
 
-Press [[BROWSE]], [[TAG LIST]], [[PLAYLIST]] or [[SEARCH]] to open that list. Press [[BACK]] to go up one level. At the top of a list [[BACK]] opens SOURCE, where you pick the USB to browse.
+Press [[BROWSE]] or [[TAG LIST]] to open that list, or hold [[BROWSE]] for SEARCH. PLAYLIST is in the BROWSE category rail and on the SHORTCUT screen. Press [[BACK]] to go up one level. At the top of a list [[BACK]] opens SOURCE, where you pick the USB to browse.
 
 ```nav browse-category-folder Browsing in MODERN {modern}
 ```
@@ -147,7 +147,7 @@ modern:r5-browse-filter-chip The filter chip in the header. Tap it to clear ever
 
 ### Search {modern}
 
-Press [[SEARCH]]. Type on the keyboard and the list updates as you type. **SEARCH** puts the keyboard away so you can scroll the results. **DELETE** removes a letter and **CLEAR** empties the field.
+Hold [[BROWSE]] (SEARCH is printed above it), or tap SEARCH on the SHORTCUT screen. Type on the keyboard and the list updates as you type. **SEARCH** puts the keyboard away so you can scroll the results. **DELETE** removes a letter and **CLEAR** empties the field.
 
 ```nav search Search {modern}
 ```
@@ -183,7 +183,7 @@ modern:parity-tag-clear-armed REMOVE ALL TRACKS armed: push again to clear the t
 
 ### Playlists {modern}
 
-Press [[PLAYLIST]] to open the USB's playlists. You can also make your own and change them on the player. Press [[MENU]] in the playlist list or inside a playlist.
+Tap **PLAYLIST** in the BROWSE category rail, or on the SHORTCUT screen, to open the USB's playlists. You can also make your own and change them on the player. Press [[MENU]] in the playlist list or inside a playlist.
 
 ```nav playlists Playlists {modern}
 ```

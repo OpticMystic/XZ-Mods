@@ -19,7 +19,7 @@ Press [[MENU]] on the play screen. A short press opens MODS wherever the player'
 
 To leave MODS, press [[MENU]] again, tap **CLOSE** in the top right corner, or press [[BACK]] until you are back on the play screen.
 
-You can also open MODS from the **MODS** button at the top of the MODERN play screen, or from the rekordbox button above LINK when you set it to **MODS MENU** in [PLAY](#play).
+You can also open MODS from the **MODS** button at the top of the MODERN play screen, or from the [[rekordbox]] button above [[LINK]] when you set it to **MODS MENU** in [PLAY](#play).
 
 ## Move around
 

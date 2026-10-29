@@ -14,6 +14,7 @@ in a documented screen fails `check` until a person updates the chapter and runs
 """
 import argparse
 from fnmatch import fnmatchcase
+import functools
 import hashlib
 import html
 import json
@@ -22,6 +23,9 @@ import re
 import shutil
 import subprocess
 import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import xz_buttons  # noqa: E402  the button glyphs [[NAME]] draws
 
 APP = Path(__file__).resolve().parents[1]
 MANUAL = APP / 'manual'
@@ -178,7 +182,7 @@ def problems(render_dir):
             out.append(f"watched source {row['path']} is gone: update chapter {row['chapter']} and coverage.json")
         elif lock['watch'].get(row['path']) != sha256(path):
             out.append(f"{row['chapter']}: {row['path']} changed ({row['why']}). Check the chapter still matches, then accept.")
-    return out + media_problems(chapters) + menu_problems(chapters) + nav_problems(chapters)
+    return out + media_problems(chapters) + menu_problems(chapters) + key_problems(chapters, book) + nav_problems(chapters)
 
 
 def check(render_dir):
@@ -210,12 +214,48 @@ def accept(render_dir, only):
 def inline(text):
     text = html.escape(text, quote=False)
     text = re.sub(r'`([^`]+)`', lambda m: '<code>' + m.group(1) + '</code>', text)
-    text = re.sub(r'\[\[([^\]]+)\]\]', lambda m: '<kbd>' + m.group(1) + '</kbd>', text)
+    text = re.sub(r'\[\[([^\]]+)\]\]', lambda m: key_tag(m.group(1)), text)
     text = re.sub(r'\{(experimental|modern|classic|new)\}', lambda m: f'<span class="tag tag--{m.group(1)}">{m.group(1)}</span>', text)
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])', r'<em>\1</em>', text)
     text = re.sub(r'\[([^\]]+)\]\(([^)\s]+)\)', lambda m: LINK_TAG(m.group(1), m.group(2)), text)
     return text
+
+
+# [[NAME]] draws the control's glyph (tools/xz_buttons.py): an image of the button, with its name as text for screen
+# readers, search and copying. BUTTON_SRC is where the page finds ui/assets/buttons: the site copies the files it uses.
+BUTTON_SRC = '/manual/buttons/'
+BUTTONS_USED = set()
+
+
+@functools.lru_cache(maxsize=None)
+def glyph_width(gid, state):
+    g = next(x for x in xz_buttons.GLYPHS if x['id'] == gid)
+    return round(xz_buttons.draw(g, state)[1], 2)
+
+
+def key_tag(name):
+    """A hardware key as its glyph. A name with no glyph stays a plain key; check reports it."""
+    g, state = xz_buttons.find(html.unescape(name))
+    label = re.sub(r'\s*:\s*(off|lit)$', '', name)
+    if not g: return '<kbd>' + label + '</kbd>'
+    state = 'off' if state == 'off' and g['lamp'] else 'lit' if g['lamp'] else 'plain'
+    file = xz_buttons.file_name(g, state)
+    BUTTONS_USED.add(file)
+    return (f'<span class="xzb" data-key="{g["id"]}"><img class="xzb-g" src="{BUTTON_SRC}{file}" alt="" width="{glyph_width(g["id"], state):g}" '
+            f'height="{xz_buttons.H}"><span class="xzb-n">{label}</span></span>')
+
+
+def key_problems(chapters, book):
+    """Every [[NAME]] with no glyph, and button glyph files that are not what tools/xz_buttons.py draws."""
+    out = []
+    texts = [(c['slug'], c['body']) for c in chapters] + [('manual.json', json.dumps(book, ensure_ascii=False))]
+    for where, text in texts:
+        for name in sorted(set(re.findall(r'\[\[([^\]]+)\]\]', text))):
+            if not xz_buttons.find(name)[0]:
+                out.append(f'{where}: [[{name}]] has no button glyph. Use the name printed on the player, or add the glyph '
+                           'or an alias in tools/xz_buttons.py')
+    return out + xz_buttons.problems()
 
 
 def site_link_tag(label, target):
@@ -444,6 +484,8 @@ def build_site(render_dir, out, book, chapters, stale):
     (out / 'index.html').write_text(home.replace('<body class="manual', '<body class="manual manual--home'), encoding='utf-8')
     for name in ('manual.css', 'manual.js'):
         shutil.copyfile(MANUAL / 'template' / name, out / name)
+    (out / 'buttons').mkdir()
+    for name in sorted(BUTTONS_USED): shutil.copyfile(xz_buttons.APP / xz_buttons.OUT / name, out / 'buttons' / name)
     (out / 'search.json').write_text(json.dumps(search, separators=(',', ':')), encoding='utf-8')
     (out / 'manifest.json').write_text(json.dumps({'format': 'xz-manual-site/1', 'version': version, 'source_commit': commit,
                                                    'source_dirty': dirty, 'draft': stale, 'pages': ['index', *pages],
@@ -735,7 +777,8 @@ def app_manual(render_dir, stale):
     schema = load_json(MODS / 'settings-schema.json')
     explained = {key: c for c in chapters for key in c['meta']['settings']}
     entries, search, anchors = [], [], {}
-    saved, LINK_TAG = LINK_TAG, app_link_tag
+    global BUTTON_SRC
+    saved, LINK_TAG, saved_src, BUTTON_SRC = LINK_TAG, app_link_tag, BUTTON_SRC, 'assets/buttons/'  # ui/index.html's own copy
     _APP['links'], _APP['map_links'] = [], []
     try:
         for c in chapters:
@@ -759,7 +802,7 @@ def app_manual(render_dir, stale):
                             'sections': [[level, anchor, plain(title), iface] for level, anchor, title, iface in toc]})
             search += section_text(c['slug'], c['title'], content)
     finally:
-        LINK_TAG = saved
+        LINK_TAG, BUTTON_SRC = saved, saved_src
     for source, slug, anchor in _APP['links']:
         if slug not in anchors: raise SystemExit(f'{source}: link to chapter {slug!r}, which does not exist')
         if anchor and anchor not in anchors[slug]: raise SystemExit(f'{source}: link to {slug}#{anchor}, which has no such heading')
@@ -1099,8 +1142,9 @@ def main():
         stale = bool(check(a.render))
         if stale and not a.draft: return 1
         return app_build(a.render, a.out, stale)
-    global BASE
+    global BASE, BUTTON_SRC
     BASE = a.base
+    BUTTON_SRC = BASE + 'buttons/'
     stale = bool(check(a.render))
     if stale and not a.draft: return 1
     book, chapters = load_manual(a.render)
