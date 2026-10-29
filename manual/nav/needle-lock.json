@@ -1,0 +1,27 @@
+{
+  "interface": "MODERN",
+  "section": "mods-menu#modern-utility",
+  "steps": [
+    {
+      "key": "SHORTCUT"
+    },
+    {
+      "touch": [
+        100,
+        216
+      ]
+    },
+    {
+      "touch": [
+        300,
+        216
+      ]
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      4
+    ]
+  ]
+}

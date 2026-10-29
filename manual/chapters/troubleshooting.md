@@ -9,9 +9,12 @@ This chapter lists every message XZ Mods can show you, what it means and the one
 
 XZ Mods never changes the player's firmware, so the player always starts stock without the USB.
 
+```nav updates If the player will not start with the USB
+```
+
 1. Switch the player off.
 2. Remove the XZ Mods USB and switch the player on. It starts stock. Play from a stick without XZ Mods if you are in a set.
-3. On your computer, open the USB in the XZ Mods app. If it says **Update available**, choose **Update USB**. If it says **Up to date**, open **Tools** › **XZ Mods version** › **Restore or update a loader by hand** and update the loader again. The app keeps a backup of the old loader each time.
+3. On your computer, open the USB in the XZ Mods app. If it says **Update available**, choose **Update USB**. If it says **Up to date**, open **Updates** › **XZ Mods version** › **Restore or update a loader by hand** and update the loader again. The app keeps a backup of the old loader each time.
 4. Try the USB again. If it still does not start, [report the problem](#report-a-problem).
 
 Check these first:
@@ -26,11 +29,14 @@ If XZ Mods started after a network update and stopped working, open **CONNECT** 
 
 If the sound goes wrong while you test, stop playback and switch the player off and on. Load the same track again and check the original mix before you go on.
 
-> **Tip.** MODS is always reachable with the hardware alone. In CLASSIC, the rekordbox button above LINK switches to MODERN, where [[MENU]] opens MODS. Turn the encoder to move, push it to choose and press [[BACK]] to go back.
+> **Tip.** MODS is always reachable with the hardware alone. In CLASSIC, the button above [[LINK]] switches to MODERN, where [[MENU]] opens MODS. Turn the encoder to move, push it to choose and press [[BACK]] to go back.
 
 ## Stems on the USB
 
 When a deck cannot play stems, its stem row says why and its last button offers the next step. In CLASSIC the row sits under the deck's waveform. Open the button to see the deck's setup page in MODS.
+
+```nav b-stem-setup Stems on the USB
+```
 
 ```figure classic:theme-0-usb-setup-not-prepared MODS · USB STEMS
 Deck 1 has a track loaded that has no stems yet.
@@ -60,6 +66,9 @@ Every state on both interfaces, with pictures, is in [Stems](stems).
 
 A notice is a short message in the middle of the lanes. It clears on its own after a few seconds, and the deck keeps playing.
 
+```nav b-notice-load-recovery Notices on the play screen {modern}
+```
+
 ```figure modern:play-notice MODERN · Play screen {modern}
 A notice over the lanes.
 1 @ 560,231 Notice | What happened. Nothing else on the screen changes.
@@ -71,7 +80,7 @@ modern:play-notice-long A long notice wraps onto two lines
 
 | Notice | What to do |
 |---|---|
-| DECK 1 DID NOT LOAD THE TRACK | Load the track again. If it fails again, check the file in rekordbox |
+| DECK 1 DID NOT LOAD THE TRACK | Load the track again. If it fails again, check the file in your DJ software |
 | THE TRACK ON USB 2 COULD NOT BE READ BECAUSE THE DEVICE WAS REMOVED WHILE IT WAS LOADING | Plug the USB back in and load the track again |
 | USB1 IS NOT CONNECTED, USB2 IS NOT CONNECTED | Plug in the USB, or choose the other source |
 | USB SOURCE CHANGED: SELECT TRACK AGAIN | The USB changed under the list. Choose the track again |
@@ -97,6 +106,9 @@ modern:play-notice-long A long notice wraps onto two lines
 
 When the player cannot play a track, XZ Mods shows the player's own error code and text on that deck. XZ Mods never hides these errors.
 
+```nav b-deck-error-recovery Errors on a deck
+```
+
 ```figure modern:parity-alert-read MODERN · Play screen {modern}
 A read error on deck 2.
 1 @ 400,208 Error | The player's own code and text.
@@ -115,7 +127,7 @@ modern:play-4deck-alert-deck3 The same error on deck 3, with four decks
 |---|---|---|
 | E-8302 | CANNOT PLAY TRACK | Load another track. Check the USB and the file on a computer |
 | E-8304, E-8305 | UNSUPPORTED | The player cannot play this file. Export it in another format |
-| E-8306 | NO FILE | The file is missing from the USB. Export the track from rekordbox again |
+| E-8306 | NO FILE | The file is missing from the USB. Export the track to the USB again from your DJ software |
 | E-7206 | AUTH CHIP ERROR | Switch the player off and on. If it also happens without the XZ Mods USB, the player needs service |
 
 ## The player's own warnings
@@ -138,6 +150,9 @@ The player sees the loopback cable for four decks as a hub. It raises **E-8307: 
 ## When settings cannot be saved
 
 Every change in MODS saves on its own to the USB. The save state at the right of the MODS dock says what happened. Lines that say NOT SAVED or NO SETTINGS USB show in amber. The full list is in [Saving to the USB](mods-menu#saving-to-the-usb).
+
+```nav b-save-recovery When settings cannot be saved
+```
 
 | Message | What it means | What to do |
 |---|---|---|
@@ -164,10 +179,10 @@ Every "needs setup" state in the app comes with one button that starts a short g
 | No XZ Mods build is on this computer yet, so there is nothing to write | **Set up mod versions** | Finds or imports a build |
 | Choose which XZ Mods build goes on this USB | **Use the newest build** | Picks the build that came with the app |
 | Stem engine not set up yet | **Set up stem engine** | Checks the computer, downloads the engine and tests it |
-| Connect a Rekordbox USB | **Connect a USB** | Finds a USB or a folder and checks its library |
+| Connect your music USB | **Connect a USB** | Finds a USB or a folder and checks its library |
 | Set up Live Streamer to connect to your XZ | **Set up Live Streamer** | Finds the XZ on the network and connects |
 | Older USB loaders have no screen service | **Update the USB loader** | Opens the USB page to update the loader |
-| Rekordbox is open on this computer | **Prepare for repair** | Waits for you to close rekordbox, then checks again |
+| The DJ software that writes this USB is open on this computer | **Prepare for repair** | Waits for you to close it, then checks again |
 | Not confirmed yet, after sending a report | **Set up reporting connection** | Checks the internet connection and the clock, then sends the same report again. It never arrives twice |
 | Maintainer inbox, not connected (maintainer only) | **Connect and check** | Keeps the owner key under Windows protection and reads the inbox to check it |
 
@@ -193,13 +208,6 @@ Every page of the app is in [The XZ Mods app](desktop-app).
 
 XZ Mods keeps a short diagnostic diary in `VJ.Tools/XZ-Mods-diary/` on each mounted USB stick, including music sticks. If a problem happens during a set, keep those sticks so you can include their diaries in a later report.
 
-```explainer usb-diary How the diary fills a stick
-Writing | XZ Mods writes a short diagnostic diary in VJ.Tools/XZ-Mods-diary on each mounted USB stick.
-Full | Each stick holds at most 4 MiB of diary files. Older segments are replaced first.
-Pauses | Writing pauses during track loads, RAM copies and heavy USB reads.
-Never recorded | The diary never records track titles, music paths, serial numbers or network identities.
-```
-
 The diary records the XZ Mods version, settings fingerprint, USB slots, interface, deck view, state changes and fixed notice codes. It also records available CPU, memory, audio, SYNC, key-processing and USB-read measurements. It never records track titles, music paths, serial numbers or network identities. A missing measurement stays unknown.
 
 Each stick holds at most 4 MiB of diary files. Older segments are replaced first, and the previous session's latest segment is kept when a new session starts. Writing pauses during track loads, RAM copies and heavy USB reads. No diary is created on a read-only stick or when less than 64 MiB of free space plus a small write reserve remains. Read-only test sessions save nothing. Normal USB-loader sessions write diary entries when these conditions allow it. Long busy periods and removal can leave gaps.
@@ -209,6 +217,9 @@ The diary stays on the sticks. Nothing is sent until you choose to include it in
 ## Report a problem
 
 When something goes wrong, send a report. It helps fix the problem for everyone.
+
+```nav report-dock-entry Report a problem
+```
 
 - **On the player.** Open MODS › **EXTRAS** › **REPORT AN ISSUE**, or push **REPORT THIS** beside an error in the dock. Choose a topic, add words if you like, and send. Offline, the report waits on the stick for your computer. See [Report an issue](extras#report-an-issue).
 - **On your computer.** In the XZ Mods app, open **Feedback** at the foot of the rail and choose **Report a problem**. Only one box is required, and **My reports** in Feedback shows where your report is afterwards. See [Report a problem or share an idea](desktop-app#report-a-problem-or-share-an-idea).

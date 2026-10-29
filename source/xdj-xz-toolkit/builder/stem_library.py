@@ -36,7 +36,7 @@ def discover():
 def source_path(root,file_path):
     parts=PurePosixPath(file_path).parts
     if not parts or parts[0]!='/' or len(parts)<3 or parts[1].casefold()!='contents' or any(p in ('.','..') or '\\' in p or ':' in p for p in parts[1:]):
-        raise ValueError('Invalid track path in the Rekordbox database')
+        raise ValueError('Invalid track path in the exported library database')
     return cache._safe_path(root.joinpath(*parts[1:]))
 
 def stem_status(root,track,index,index_error):
@@ -94,7 +94,7 @@ def stem_status(root,track,index,index_error):
 def browse(request,job):
     root=cache._safe_path(request['volume'])
     pdb=root.joinpath(*rekordbox_pdb.EXPORT_PDB)
-    if not pdb.is_file():raise ValueError('No Rekordbox Device Library found. Export this USB for the XDJ-XZ in Rekordbox, then refresh.')
+    if not pdb.is_file():raise ValueError('No exported music library found. Export your music to this USB for the XDJ-XZ from your DJ software, then refresh.')
     tracks=rekordbox_pdb.library_tracks(cache._regular(pdb))
     query=str(request.get('query','')).casefold()[:200]
     filtered=sorted((t for t in tracks if query in (t['title']+' '+t['artist']+' '+t['file_path']).casefold()),key=lambda t:(t['artist'].casefold(),t['title'].casefold(),t['id']))

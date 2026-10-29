@@ -221,7 +221,7 @@ async function followNewest(){
 // --- find view ---
 
 function usbCard(item){
-  const chips=[item.loader?'XZ Mods installed':'No XZ Mods yet',item.rekordbox?'Rekordbox USB':null].filter(Boolean);
+  const chips=[item.loader?'XZ Mods installed':'No XZ Mods yet',item.rekordbox?'Music exported':null].filter(Boolean);
   const opening=W.opening===item.volume,waiting=Boolean(W.opening)&&!opening;
   return el('button',{type:'button',class:'wz-usb',dataset:{volume:item.volume,state:opening?'opening':waiting?'waiting':null},'aria-busy':opening?'true':null,disabled:waiting?true:null,
       onclick:event=>chooseUsb(item.volume,host.contains(event.currentTarget)?jobSlot:event.currentTarget)},
@@ -478,7 +478,7 @@ function fourDeckEntry(){
 const FOUR_DECK_STEPS=[
   {title:'Cable from the rear USB-B socket to top '+LOOPBACK_PORT,text:'A USB-B to USB-A cable, the kind a printer uses.'},
   {title:'Music in '+MUSIC_PORT,text:'A stick, or one USB 2.0 hub with several. It can go in later.'},
-  {title:'CH3 and CH4 set to USB',text:'The mixer inputs, so you hear decks 3 and 4.'}
+  {title:'[[CH 3 INPUT]] and [[CH 4 INPUT]] set to USB',text:'The mixer inputs, so you hear decks 3 and 4.'}
 ];
 // writing: while the USB is written, as something to read; done: on the done screen. During a write the button only
 // opens the manual: the cable guide would take the place of the running write.
@@ -497,7 +497,7 @@ function fourDeckSection(where){
     cableFigure('wz-fourdeck',LOOPBACK_PORT_CAPTION),
     el('ol',{class:'wz-fourdeck-steps'},...FOUR_DECK_STEPS.map((step,index)=>el('li',{},
       el('span',{class:'wz-fourdeck-num','aria-hidden':'true',text:String(index+1)}),
-      el('span',{},el('strong',{text:step.title}),el('small',{text:step.text}))))),
+      el('span',{},el('strong',{},...xzText(step.title)),el('small',{text:step.text}))))),
     noEngine&&includedQuad?el('div',{class:'wz-fourdeck-setup',role:'status'},
       el('p',{text:'The build on this USB has no four-deck engine. Choose the four-deck build, then update this USB.'}),
       el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'wz-fourdeck-build',text:'Choose the four-deck build',onclick:()=>document.getElementById('quad-open')?.click()}),how)):
@@ -547,17 +547,17 @@ function stepQuad(){
       el('li',{},el('strong',{text:'Connect the cable. '}),'Square USB-B end into the rear USB-B socket, flat USB-A end into a free top port, '+LOOPBACK_PORT+'. It connects back to the XZ, not a computer. It can go in before or after XZ Mods starts.'),
       el('li',{},el('strong',{text:'Music. '}),'Your music stick, or one USB 2.0 hub with several sticks, goes in '+MUSIC_PORT+'. It can go in later.'),
       el('li',{},el('strong',{text:'Decks 1 and 2 stopped. '}),'Decks 3 and 4 start while decks 1 and 2 are stopped or paused. Empty decks are fine.'),
-      el('li',{},el('strong',{text:'Check on the XZ. '}),'Four decks should appear when the route is ready. Set the CH3 and CH4 input selectors to USB if required. Press left SHIFT twice to switch 1/3; right SHIFT twice to switch 2/4.')),
+      el('li',{},el('strong',{text:'Check on the XZ. '}),...xzText('Four decks should appear when the route is ready. Set [[CH 3 INPUT]] and [[CH 4 INPUT]] to USB if required. Press left [[SHIFT]] twice to switch 1/3; right [[SHIFT]] twice to switch 2/4.'))),
     el('label',{class:'check wz-quad-confirm'},el('input',{type:'checkbox',id:'wz-quad-confirm',checked:W.quadConfirmed?true:null,onchange:event=>{W.quadConfirmed=event.currentTarget.checked;$('wz-quad-status').textContent=quadStatus();}}),'I can see four decks on the XZ'),
     el('p',{class:'wz-quad-status',id:'wz-quad-status',role:'status',text:quadStatus()}),
     el('details',{class:'wz-quad-trouble'},el('summary',{text:'Still two decks, or no CH3/CH4 audio?'}),
-      el('p',{text:'Confirm the USB was written with a four-deck build. With decks 1 and 2 stopped, check the cable from the rear USB-B socket to a top port, and the CH3/CH4 USB selectors. RESCAN on the XZ checks again at once.'}),
+      el('p',{},...xzText('Confirm the USB was written with a four-deck build. With decks 1 and 2 stopped, check the cable from the rear USB-B socket to a top port, and that [[CH 3 INPUT]] and [[CH 4 INPUT]] are on USB. RESCAN on the XZ checks again at once.')),
       el('p',{text:'This guide does not detect your setup. Reopen it from USB → Four decks.'})),
     el('p',{class:'wz-mono',text:'A track copied to RAM keeps playing if its stick comes out. Stems are not available on decks 3 and 4 yet.'})];
 }
 
 // --- the screen the XZ starts with ---
-// One setting decides it: interface (1 new, 0 standard), the same value MODS > APPEARANCE > INTERFACE
+// One setting decides it: interface (1 new, 0 standard), the same value MODS > SCREEN > INTERFACE
 // changes on the deck. Choosing the standard interface leaves classic_theme as the USB has it.
 const LOOK_NEW=1,LOOK_STANDARD=0;
 const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -582,19 +582,28 @@ function lookMedia(look,selected){
   video.muted=true;video.play?.().catch(()=>{});
   return video;
 }
-// After install, the way back, drawn by the deck's own menus: the new interface's MODS button opens its MODS
-// screen, whose APPEARANCE tab opens the panel page; the standard screen's MODS button opens the panel directly.
+// After install, the way back on the player. First the media button directly above LINK, whose default job (MODS >
+// PLAY) is INTERFACE; then the menu route MENU > SCREEN > INTERFACE. Both are the manual's navigation videos
+// (tools/build_nav_videos.py APP_FLOWS): the firmware's own screens beside the Blender render of the control.
+const NAV_ABOVE_LINK={video:'assets/manual/nav/physical-above-link.mp4',poster:'assets/manual/nav/physical-above-link.webp',
+  alt:'Left, the XZ screen switching from MODERN to CLASSIC and back. Right, the button directly above LINK, pressed twice.'};
+const NAV_INTERFACE={video:'assets/manual/nav/interface-choice.mp4',poster:'assets/manual/nav/interface-choice.webp',
+  alt:'Left, the XZ screen: MENU opens MODS, then SCREEN, CLASSIC and MODERN are tapped. Right, the MENU key pressed, then the touch screen.'};
+function navClip(nav){
+  if(reducedMotion())return el('img',{class:'wz-nav-media',src:nav.poster,alt:nav.alt,width:1280,height:480});
+  const video=el('video',{class:'wz-nav-media',src:nav.video,poster:nav.poster,muted:true,loop:true,autoplay:true,playsinline:true,
+    preload:'auto',width:1280,height:480,'aria-label':nav.alt});
+  video.muted=true;video.play?.().catch(()=>{});
+  return video;
+}
 function lookLater(choice){
-  const fromNew=choice===LOOK_NEW,images=fromNew?WIZARD_MEDIA.switchFromNew:WIZARD_MEDIA.switchFromStandard,other=fromNew?'CLASSIC':'MODERN';
-  const first=fromNew?{w:560,h:336,alt:'The MODS screen of the new interface on its APPEARANCE tab, with the tab and the OPEN APPEARANCE button marked.',
-      text:'Tap MODS in the top right corner, then the APPEARANCE tab and OPEN APPEARANCE.'}:
-    {w:450,h:135,alt:'The top right of the standard screen with the MODS button marked.',text:'Tap MODS in the top right corner, then APPEARANCE.'};
+  const fromNew=choice===LOOK_NEW,other=fromNew?'CLASSIC':'MODERN';
   return el('div',{class:'wz-later',dataset:{choice:fromNew?'new':'standard'}},
-    el('p',{class:'wz-later-line',text:'You can switch any time on the deck: tap MODS, then APPEARANCE → INTERFACE.'}),
-    el('ol',{class:'wz-later-steps'},
-      el('li',{},el('img',{src:images[0],width:first.w,height:first.h,alt:first.alt}),el('span',{},el('b',{text:'1'}),first.text)),
-      el('li',{},el('img',{src:images[1],width:560,height:336,alt:'The MODS menu on its APPEARANCE page, with INTERFACE marked: MODERN or CLASSIC.'}),
-        el('span',{},el('b',{text:'2'}),'Choose INTERFACE: '+other+'.'))));
+    el('p',{class:'wz-later-line'},el('strong',{},...xzText('Press the button directly above [[LINK]]')),' to switch between MODERN and CLASSIC, any time.'),
+    el('figure',{class:'wz-later-nav'},navClip(NAV_ABOVE_LINK),
+      el('figcaption',{text:'Switching the interface is that button’s default job. MODS > PLAY can give it another.'})),
+    el('p',{class:'wz-later-line'},...xzText('Or use the menu: press [[MENU]], tap SCREEN, then tap '+other+' under INTERFACE.')),
+    el('figure',{class:'wz-later-nav'},navClip(NAV_INTERFACE)));
 }
 function lookCard(look,choice){
   const selected=look.value===choice;
@@ -641,7 +650,7 @@ function planLines(){
   const changes=settingsChanges(),creates=ins.settings?.revision?.exists===false&&(writesLoader()||settingsEditable());
   if(changes.includes('interface')||(creates&&W.flow?.steps.includes('look')))
     lines.push({icon:'screen',text:W.settings.interface===LOOK_NEW?'Use the new interface on the XZ':'Use the standard XDJ-XZ interface on the XZ',
-      detail:'Switch any time in MODS → APPEARANCE → INTERFACE'});
+      detail:'Switch any time with the button above LINK, or in MODS → SCREEN → INTERFACE'});
   if(changes.includes('games_menu'))lines.push({icon:'gear',text:'Change which games show in the GAMES menu'});
   if(creates&&!changes.length)lines.push({icon:'gear',text:'Create the settings file'});
   return lines;
@@ -763,8 +772,9 @@ function stepDone(){
     ejectStatus(),
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
-      el('li',{text:'On the play screen, press MENU or touch MODS at the top right to open the menu. Hold MENU for the player’s own settings. HOME is the first page.'}),
-      el('li',{text:'Press the rekordbox button above LINK to switch between the CLASSIC and MODERN screens. You can give it another job in MODS > PLAY.'}),
+      el('li',{},...xzText('On the play screen, press [[MENU]] or touch MODS at the top right to open the menu. Hold [[MENU]] for the player’s own settings. HOME is the first page.')),
+      el('li',{},...xzText('Press the button above [[LINK]] to switch between the CLASSIC and MODERN screens. MODS > PLAY can give it another job.'),
+        el('figure',{class:'wz-later-nav wz-done-nav'},navClip(NAV_ABOVE_LINK))),
       el('li',{text:'Test the loader before you use it in a set.'}))):null,
     r.loader?fourDeckSection('done'):null,
     r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,

@@ -1,0 +1,24 @@
+{
+  "section": "four-decks#the-decks-button-and-its-picker",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "tap": "DECKS"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "wait": 1000
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      30
+    ]
+  ]
+}

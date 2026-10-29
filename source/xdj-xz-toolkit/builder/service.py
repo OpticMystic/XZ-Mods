@@ -18,7 +18,7 @@ FIRMWARE_126={'filename':'XDJXZ_v126.zip',
 
 def official_firmware(job):
     from .engines import data_root,download
-    job.progress('download','Getting the official XDJ-XZ 1.26 firmware from AlphaTheta')
+    job.progress('download','Getting the official XDJ-XZ 1.26 firmware from its maker')
     return download(FIRMWARE_126,data_root()/'local-firmware',job)
 
 def resources():
@@ -67,7 +67,7 @@ def locate_track(source):
     """The USB root is everything before the first Contents folder, as the device reader derives it."""
     source=cache._regular(source);parts=source.parts
     at=parts.index('Contents',1) if 'Contents' in parts[1:-1] else 0
-    if not at:raise ValueError('Choose the track inside the USB Contents folder that Rekordbox exported.')
+    if not at:raise ValueError('Choose the track inside the USB Contents folder that your DJ software exported.')
     root=Path(*parts[:at])
     track_id,file_path=rekordbox_pdb.find_track(root,'/'+'/'.join(parts[at:]))
     info=cache.inspect_audio(source)
@@ -122,7 +122,7 @@ def prepare_stems(track,parts,separation_id,python,job,work,mix=None):
 def import_stems(request,job):
     from .engines import data_root,engine_lock,engine_python
     separation_id=cache.validate_model_id(request['separation_id'])
-    job.progress('inspect','Checking the USB track, its Rekordbox export and the stem files')
+    job.progress('inspect','Checking the USB track, its exported library entry and the stem files')
     track=locate_track(request['source'])
     parts={name:(cache._regular(request[name]),cache._gain(request.get(name+'_gain',1))) for name in ('vocals','harmonics')}
     with engine_lock():
@@ -152,10 +152,10 @@ def inspect_cache_entry(entry,source):
     return result
 
 def three_band_waveforms(request,job,restore):
-    job.progress('waveforms','Putting back the Rekordbox waveform colours' if restore else 'Giving the USB waveforms 3-band colours')
+    job.progress('waveforms','Putting back the original waveform colours' if restore else 'Giving the USB waveforms 3-band colours')
     from . import three_band
     volume=cache._safe_path(request['volume'])
-    if not volume.is_dir():raise ValueError('Choose the USB root folder that has the PIONEER folder')
+    if not volume.is_dir():raise ValueError('Choose the root folder of the USB your DJ software exported to')
     report=(three_band.restore if restore else three_band.apply)(volume,job);failed=report['failed']
     # The Tauri host drops result lines over 64 KiB.
     return {'format':'rgb-waveforms-restored/1' if restore else 'three-band-waveforms/1','usb_root':str(volume),

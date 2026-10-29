@@ -1,0 +1,5150 @@
+{
+ "capture_inputs_sha256": "b33633ae88658016ab10e26ad2a4db7c5a41306873959638c1d4d1e315b0400f",
+ "compositor_sha256": "6e1982915100c029ae4c8f1a2479e4b427224b976fa0d99ca355d1e254b09ccb",
+ "controls": "out-v2",
+ "crf": 30,
+ "flows": {
+  "about": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/about.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "6794009f4c6ad12a962ad0860c30b05209c5f79d814f837e6e5ab30625256a84",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "33dc9c04626886d80a0c661b4dfc170a4e1bff937a863336bd5f02bc07e24171",
+    "script": "1ae1e1cea29000c794aa938d69a7b66dbf255a3dfad8bd42c2e7c44b5550a242",
+    "video": "42d42290127fb906027b5bc80addc8833445404db67a7cd1432b438757b09082"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **ABOUT XZ MODS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/about.mp4",
+   "w": 1280
+  },
+  "apps-setup": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/apps-setup.webp",
+   "seconds": 3.772,
+   "sha256": {
+    "capture": "91a738970774e5f52f59bffc4e962d6f0c8006764edf899af6cc8e24418c1c49",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c47e1bf7a80e789f570066b32debacde5f51c6effd4ec73bdcdca1ec75587944",
+    "script": "f5b851b754e4d213a46e018a69da809ea73ba015084d7a2f9aaf6da1bb5152aa",
+    "video": "b41d3938cac3c14bdc10972d6f92041de1e5cf0faf6326a45c4c584dd99a4ebd"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **USB APPS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **SET UP APPS**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/apps-setup.mp4",
+   "w": 1280
+  },
+  "b-arcade": {
+   "clips": [
+    "left-cue",
+    "left-pad-g",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-arcade.webp",
+   "seconds": 6.032,
+   "sha256": {
+    "capture": "48eea20ca33a2ebdb53102bbcfacf892c23b186fc4551d2ba7d1b43854f707d6",
+    "clips": {
+     "left-cue": "54bdd617ea5b49bb8cbfe54093e985361dacb8e259b44804a7bddf22bb54e0ab",
+     "left-pad-g": "1e44ff22a73e68ae4bd6939936b978b5fbdaa08764d59e707361163c1842114c",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "f9486ab0d40e8d7b96a8e26db0c8231755fa4e777542a9e6b1b5b98c53dce347",
+    "script": "337ae51cee41a2be1f93ec5675575ea98cb43b69b3a5b0d36b969d78b83eb07a",
+    "video": "5d37105bb20d4fd3a12b64f97ec830da032b107c885cd861a534a1d096dce6de"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **GAMES**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **BEAT ARCADE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 3260,
+     "text": "Turn the left jog wheel"
+    },
+    {
+     "t_ms": 3440,
+     "text": "Press [[CUE]] on the left deck"
+    },
+    {
+     "t_ms": 3800,
+     "text": "Press pad G on the left deck"
+    },
+    {
+     "t_ms": 3980,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 4500,
+     "text": "Tap the screen"
+    }
+   ],
+   "unclipped": [
+    "left deck jog wheel"
+   ],
+   "video": "assets/manual/nav/b-arcade.mp4",
+   "w": 1280
+  },
+  "b-browse-keys": {
+   "clips": [
+    "back",
+    "info",
+    "menu",
+    "shortcut"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-browse-keys.webp",
+   "seconds": 8.512,
+   "sha256": {
+    "capture": "09781c010a54a7d1f60f50d3ce9e1734f255598ade635ac0e8e073b22aae3026",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "info": "dc9e7ab30394ba3fa7141e25303dcbf5a2527cb6408df2750105670cc7cf9521",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "shortcut": "88e54d50e6f8a28baa6b37de8f308a6a9fa2a9759cd6646b9ab8f3001347d6d8",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "1ac76dfee231b1b80ad6ca3ce53a54f38f5fbf1a7801d6b5c4a1d6cc9628c0de",
+    "script": "350aa1d94eae8f6f05260f0bd49ac838c8c97898e43e180fc221fae4691ab477",
+    "video": "d534ea2823e2ae430718c03fdabbc31a2d5490f5d6d174aef32ddf9c9f6957c7"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Open SOURCE ([[BACK]] at the top of a list)"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 2000,
+     "text": "Press [[INFO]]"
+    },
+    {
+     "t_ms": 2500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 3000,
+     "text": "Press [[BACK]]"
+    },
+    {
+     "t_ms": 3500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 4000,
+     "text": "Press [[SHORTCUT]]"
+    },
+    {
+     "t_ms": 4500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 5000,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 5500,
+     "text": "Hold [[MENU]] for a second"
+    },
+    {
+     "t_ms": 7000,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [
+    "SOURCE"
+   ],
+   "video": "assets/manual/nav/b-browse-keys.mp4",
+   "w": 1280
+  },
+  "b-deck-error-recovery": {
+   "clips": [
+    "back",
+    "load",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-deck-error-recovery.webp",
+   "seconds": 3.232,
+   "sha256": {
+    "capture": "3d90dc50c8359e89526df0620fef974927d64effd31a3f313d12ed3c36694e67",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "load": "def377c8e04ff052b98b95e970e444182a0696d8c658c69278d8160ceeb0b785",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "d4ea8dd6c1dc428028272a275de0ed365d8fbd5bf1fc7e9b0a5687ef4c779a7e",
+    "script": "b087c7a7ef4538527c1dc7f01d533d4ae444a7fbdf2201bdb3ac86c731a1d66d",
+    "video": "d69b23066c0880853df1b98048012366021b6d0f576d17bcf876ea9b08e9f3a1"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **CHOOSE TRACK**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise"
+    },
+    {
+     "t_ms": 1220,
+     "text": "Press [[LOAD]] 1"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/b-deck-error-recovery.mp4",
+   "w": 1280
+  },
+  "b-first-menu": {
+   "clips": [
+    "back",
+    "browse",
+    "load",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-first-menu.webp",
+   "seconds": 6.072,
+   "sha256": {
+    "capture": "ea11c7929301645ad2773116831f1b8fb31004fcf21dcff0e8b342afad136bb1",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "load": "def377c8e04ff052b98b95e970e444182a0696d8c658c69278d8160ceeb0b785",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "5623a5b06cc046f516c58460a0dedd63a105f3e0860d8bede2a922f1c970102e",
+    "script": "ed476e2e1a062b6cb211b822cfd7e65f1ffde0c035dbad98f1253597fda5f273",
+    "video": "abe0494e08327ccf2d3fe85dad3d0af377a41bc3f5b415fdadcaf70ff8353112"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise"
+    },
+    {
+     "t_ms": 1200,
+     "text": "Press [[LOAD]] 1"
+    },
+    {
+     "t_ms": 1700,
+     "text": "Press [[BACK]]"
+    },
+    {
+     "t_ms": 2200,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 2700,
+     "text": "Turn [[ROTARY SELECTOR]] to **SCREEN** and push it"
+    },
+    {
+     "t_ms": 3520,
+     "text": "Tap **CLASSIC**"
+    },
+    {
+     "t_ms": 4040,
+     "text": "Tap **MODERN**"
+    },
+    {
+     "t_ms": 4560,
+     "text": "Press [[MENU]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/b-first-menu.mp4",
+   "w": 1280
+  },
+  "b-master-tempo": {
+   "clips": [
+    "left-master-tempo",
+    "left-shift",
+    "left-sync"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-master-tempo.webp",
+   "seconds": 2.352,
+   "sha256": {
+    "capture": "9ab93fa0ed7acf9e5a1a31697412f287dcd16af0705609ae5a2b4f597353d324",
+    "clips": {
+     "left-master-tempo": "f942376bed3baca68b85793f79f1c4c8fa813cd87605a87951d9f7d9730b99dc",
+     "left-shift": "2666c7eb987bd64375363a71188f773510441ce48c1904ad05e9ea84de3ac146",
+     "left-sync": "b23e38c6f68a2f420c499209f5e91af1fca3e7f0278e54f75165da759772af78",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "6e4f17c3c752865d98af80f7003109695d6cff6a7f93b0b85f491ff2b639a48a",
+    "script": "26cd88c053fdecf4ba712dee62aba5f7ed3aae6bdcc4633946b699e243dbd051",
+    "video": "b84ee253e9aa8d1d70a79b80503c11fe62b53bc4f0b2d0dd8a7c1f6772fdd093"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Hold [[SHIFT]] on the left deck and press [[SYNC]] on the left deck"
+    },
+    {
+     "t_ms": 1040,
+     "text": "Press [[MASTER TEMPO]] on the left deck"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/b-master-tempo.mp4",
+   "w": 1280
+  },
+  "b-notice-load-recovery": {
+   "clips": [
+    "back",
+    "browse",
+    "load",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-notice-load-recovery.webp",
+   "seconds": 3.212,
+   "sha256": {
+    "capture": "1235586d8dfb3005c382aba78d0b59972d08ebbfc7cb5216da0db438147874ff",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "load": "def377c8e04ff052b98b95e970e444182a0696d8c658c69278d8160ceeb0b785",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "d4ea8dd6c1dc428028272a275de0ed365d8fbd5bf1fc7e9b0a5687ef4c779a7e",
+    "script": "bfa1edf14dfd2638c1b0e0bccaf92a7166aee7d06b14cc86ab4fe1cdddbe2804",
+    "video": "055f2dd8ed1ab4e898828790c727b3f6d7ff14a27e45069ce739d1d9a0c0f0b3"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise"
+    },
+    {
+     "t_ms": 1200,
+     "text": "Press [[LOAD]] 1"
+    },
+    {
+     "t_ms": 1700,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/b-notice-load-recovery.mp4",
+   "w": 1280
+  },
+  "b-profile-rescan": {
+   "clips": [
+    "back",
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-profile-rescan.webp",
+   "seconds": 4.592,
+   "sha256": {
+    "capture": "e677ebddadb0eb6a99d67d0a10603d288607bb52a9a42c7e3cc60416b1327d26",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "34ff990e67a6c69b708eabd7c9831c1e8add3c4ac58971f2d6640a92d9318daa",
+    "script": "6737f21d4eaab9290adeac033c8e3413b94966288d084e06332f19ffd73d6cef",
+    "video": "066a1113a29dddddc00051d07b70e4eddbf9e9f3582b738a2f2b91c3a66128c7"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **CONNECT**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **DJ PROFILE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **SET UP DJ PROFILE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **CHECK USB FOR PROFILES**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/b-profile-rescan.mp4",
+   "w": 1280
+  },
+  "b-rider": {
+   "clips": [
+    "left-cue",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-rider.webp",
+   "seconds": 7.212,
+   "sha256": {
+    "capture": "4ea229e417a0268d30592f6a4817120060298dbe6eadfe1da92d23fa9f059d82",
+    "clips": {
+     "left-cue": "54bdd617ea5b49bb8cbfe54093e985361dacb8e259b44804a7bddf22bb54e0ab",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "f4d6e8dfa335984edcc5a43534b83f95a113a7a8d3a8b828f3a30c4e5c7f88d2",
+    "script": "529c9c91a92712caa6ff925bf4aced64644b9e503ab417232877e7b639c02a76",
+    "video": "6ce14bafec7134ab657b020d5a6caf500cf28b981004df9c9e98f8173d1d293d"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **GAMES**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **WAVE RIDER**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 3260,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 3760,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 4260,
+     "text": "Turn the left jog wheel"
+    },
+    {
+     "t_ms": 4440,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 5140,
+     "text": "Press [[CUE]] on the left deck"
+    },
+    {
+     "t_ms": 5320,
+     "text": "Turn the left jog wheel"
+    },
+    {
+     "t_ms": 5680,
+     "text": "Tap the screen"
+    }
+   ],
+   "unclipped": [
+    "left deck jog wheel"
+   ],
+   "video": "assets/manual/nav/b-rider.mp4",
+   "w": 1280
+  },
+  "b-save-recovery": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-save-recovery.webp",
+   "seconds": 6.572,
+   "sha256": {
+    "capture": "bed694e4a322a809290a086e89be707082d2f49fb5ec18c33a2457ce33d2cbba",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "f594da54cdb2958fd6903fce9f466870bf54fd7464b066ad97aea025f6b958bd",
+    "script": "0830ee5b04140a1954568a478adfe21a156469261942668d630743bd3dd56429",
+    "video": "80f321532a57d5ba48086291ac785325129456e782003432c735b70270fe47dc"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 3520,
+     "text": "Tap **CLASSIC**"
+    },
+    {
+     "t_ms": 4040,
+     "text": "Tap **MODERN**"
+    },
+    {
+     "t_ms": 5060,
+     "text": "Press [[MENU]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/b-save-recovery.mp4",
+   "w": 1280
+  },
+  "b-stem-setup": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-stem-setup.webp",
+   "seconds": 5.632,
+   "sha256": {
+    "capture": "35d733f5b698a7b37bf6056bd026142bfdd6c9f33549b92fc2cbea47efecefc5",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "f594da54cdb2958fd6903fce9f466870bf54fd7464b066ad97aea025f6b958bd",
+    "script": "af50575c7006fa9864cedbb6c79d47edafbc116294edb30db286fef3f4503d12",
+    "video": "ad7542a0007d487beb8fa847e954bafb2799665decf15dea3296dc785f55f84f"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **SET UP USB STEMS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **CHECK STEM ENGINE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **CHECK THIS DECK AGAIN**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **CHECK THIS DECK AGAIN**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **STEMS READY / BACK TO PLAY**"
+    },
+    {
+     "t_ms": 4120,
+     "text": "Press [[MENU]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/b-stem-setup.mp4",
+   "w": 1280
+  },
+  "b-theme-recovery": {
+   "clips": [
+    "back",
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/b-theme-recovery.webp",
+   "seconds": 20.172,
+   "sha256": {
+    "capture": "a1e5d10b55c2da9b8f451076f55d0aeaf8456006f7319c379d00999a7d2911a6",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c48dad64af4d2baff10035b1988bd5ded9b8168a63185f89ea0f58bba307e8ae",
+    "script": "4501084793d970d3c232f5def88f6c21ec5626727ab7ff383f645e83b51fe1f7",
+    "video": "c4a45c0bab2ebfc76cb97115edd91102caa53294a1140b33163d175c7d97b0d1"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **CLASSIC**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **MODERN**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **3-BAND COLOURS**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **STANDARD**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **BLUE**"
+    },
+    {
+     "t_ms": 4120,
+     "text": "Tap **RED**"
+    },
+    {
+     "t_ms": 4640,
+     "text": "Tap **GREEN**"
+    },
+    {
+     "t_ms": 5160,
+     "text": "Tap **AMBER**"
+    },
+    {
+     "t_ms": 5680,
+     "text": "Tap **PURPLE**"
+    },
+    {
+     "t_ms": 6200,
+     "text": "Tap **CYAN**"
+    },
+    {
+     "t_ms": 6720,
+     "text": "Tap **PINK**"
+    },
+    {
+     "t_ms": 7240,
+     "text": "Tap **WHITE**"
+    },
+    {
+     "t_ms": 7760,
+     "text": "Tap **STANDARD**"
+    },
+    {
+     "t_ms": 8280,
+     "text": "Tap **BLUE**"
+    },
+    {
+     "t_ms": 8800,
+     "text": "Tap **RED**"
+    },
+    {
+     "t_ms": 9320,
+     "text": "Tap **GREEN**"
+    },
+    {
+     "t_ms": 9840,
+     "text": "Tap **AMBER**"
+    },
+    {
+     "t_ms": 10360,
+     "text": "Tap **PURPLE**"
+    },
+    {
+     "t_ms": 10880,
+     "text": "Tap **CYAN**"
+    },
+    {
+     "t_ms": 11400,
+     "text": "Tap **PINK**"
+    },
+    {
+     "t_ms": 11920,
+     "text": "Tap **WHITE**"
+    },
+    {
+     "t_ms": 12440,
+     "text": "Tap **STANDARD**"
+    },
+    {
+     "t_ms": 12960,
+     "text": "Tap **BLUE**"
+    },
+    {
+     "t_ms": 13480,
+     "text": "Tap **RED**"
+    },
+    {
+     "t_ms": 14000,
+     "text": "Tap **GREEN**"
+    },
+    {
+     "t_ms": 14520,
+     "text": "Tap **AMBER**"
+    },
+    {
+     "t_ms": 15040,
+     "text": "Tap **PURPLE**"
+    },
+    {
+     "t_ms": 15560,
+     "text": "Tap **CYAN**"
+    },
+    {
+     "t_ms": 16080,
+     "text": "Tap **PINK**"
+    },
+    {
+     "t_ms": 16600,
+     "text": "Tap **WHITE**"
+    },
+    {
+     "t_ms": 17120,
+     "text": "Tap **RESET 3-BAND COLOURS**"
+    },
+    {
+     "t_ms": 17640,
+     "text": "Tap **RESET 3-BAND COLOURS**"
+    },
+    {
+     "t_ms": 18160,
+     "text": "Press [[BACK]]"
+    },
+    {
+     "t_ms": 18660,
+     "text": "Press [[MENU]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/b-theme-recovery.mp4",
+   "w": 1280
+  },
+  "band-colours": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/band-colours.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "71d72fd67662f05f3e98e2430318958470fbbbed891a4cf92b6ae76242e027a5",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "9f51f57453a90719b42ae69e4fc38e440141a271649f765333587c21af804c24",
+    "script": "803a1ac4dfe396962eec733b9f54781d26e7565a450124c9c9bfbce51d7c4b6c",
+    "video": "919e8aa0207c459006a431304467c22f60e29d9e3098c0de59cd7836af35c65f"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **3-BAND COLOURS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/band-colours.mp4",
+   "w": 1280
+  },
+  "beat-jump": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/beat-jump.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "7064db84101eea49ce524dfeed1ab6d7fb5290db075b8e922d224880c40c97a4",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "652a2d4a8884e26b00b1cfe94ec87ab7f4bdf58f278ef6389a67ecb23e238e88",
+    "script": "7dd53eba75a5ef011f8bef62e4a4f211b2486aa72b2e1382d6ded288a6a1c0f0",
+    "video": "3d374ac99b204609855334f75fd7a55e9a55ba7c4c8c6bfc1142e56c2bfb79cb"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **PLAY**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **BEAT JUMP PADS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/beat-jump.mp4",
+   "w": 1280
+  },
+  "beat-jump-pages": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/beat-jump-pages.webp",
+   "seconds": 13.532,
+   "sha256": {
+    "capture": "74c8308299ccab3c1588c7d8fb567388f15198537339f215615489139726801b",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "4e28c90959e315da06f951f5707d5aee07b3fad08f06792df8ace7b44da85a85",
+    "script": "e6d8d197e91b718517e8dae036217aa13929a2fe6f5ca85f578a15d7b0c56dd4",
+    "video": "6380b77aa6b0fb001423bfd1f85da196e57cdcd9823c1293b916978797fdabb0"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **PLAY**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **BEAT JUMP PADS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] to **PAGE 2** and push it"
+    },
+    {
+     "t_ms": 2700,
+     "text": "Turn [[ROTARY SELECTOR]] to **PAGE 1** and push it"
+    },
+    {
+     "t_ms": 7200,
+     "text": "Turn [[ROTARY SELECTOR]] to **PAGE 1: MY SIZES** and push it"
+    },
+    {
+     "t_ms": 8180,
+     "text": "Turn [[ROTARY SELECTOR]] to **PAGE 2** and push it"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/beat-jump-pages.mp4",
+   "w": 1280
+  },
+  "browse-category-folder": {
+   "clips": [
+    "back",
+    "browse",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/browse-category-folder.webp",
+   "seconds": 5.612,
+   "sha256": {
+    "capture": "16fb922975230d0e3072fa2546a5e7bd52240d383d8506e1653b3e5ae0ac56c5",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "ba87ba6f841936a328bcba50d6550f07c1f81aa374e129214d49e58f09bf248a",
+    "script": "9f650b8ea273248dc261e5f422fdc4855b332237342ee1057eda4544f6a3ede5",
+    "video": "88b473a7389bfeff688149369f723e77a2261a3a959aee587d633b95b2526965"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Turn [[ROTARY SELECTOR]] 7 clicks clockwise, then push it"
+    },
+    {
+     "t_ms": 2900,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Press [[BACK]]"
+    },
+    {
+     "t_ms": 4100,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/browse-category-folder.mp4",
+   "w": 1280
+  },
+  "browse-cue-loop-load": {
+   "clips": [
+    "browse",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/browse-cue-loop-load.webp",
+   "seconds": 4.052,
+   "sha256": {
+    "capture": "1bd34a6b832e85afbf05db01e485c19567abeae308aaaedd0cf57c5ad7424a6a",
+    "clips": {
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "9e212b2534bcc542df2cc209438fbea143ed25e5f3404a54b1aea876e18167e0",
+    "script": "74a785a56fdd6a376281a7ac40ea1372d3d368ddb22b3648624c5f5980783394",
+    "video": "32ac0d8021a9c3afc2dea201488ab2c1d3d8ed87436bb65b05ebaba4a3397642"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 1500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 2000,
+     "text": "Tap **CUE/LOOP LIST**"
+    },
+    {
+     "t_ms": 2520,
+     "text": "Tap **INTRO CUE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/browse-cue-loop-load.mp4",
+   "w": 1280
+  },
+  "browse-load": {
+   "clips": [
+    "back",
+    "browse",
+    "load",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/browse-load.webp",
+   "seconds": 4.112,
+   "sha256": {
+    "capture": "54e4d77276c1745c22097211fb08bcba8584d9759f0a1872af427510f5f0fc88",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "load": "def377c8e04ff052b98b95e970e444182a0696d8c658c69278d8160ceeb0b785",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "0b5360e4ff24dba2a078cb645a6824fbefc27b1ebdf52918a76153a37a609ab7",
+    "script": "77398a492c5c17f1c656f5ecc61f33a42a00a2d6600dd43360b61b1486bfabec",
+    "video": "e947a8657d3d398d854ef9233eb600980ddd158d44cec3580a218186a82031b0"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 1500,
+     "text": "Turn [[ROTARY SELECTOR]] 3 clicks clockwise"
+    },
+    {
+     "t_ms": 2100,
+     "text": "Press [[LOAD]] 1"
+    },
+    {
+     "t_ms": 2600,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/browse-load.mp4",
+   "w": 1280
+  },
+  "browse-rating-edit": {
+   "clips": [
+    "info",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/browse-rating-edit.webp",
+   "seconds": 4.612,
+   "sha256": {
+    "capture": "0804763cbcbd3fc013ebf1dc6ac6ab594eadcd4753546bfe3992721881fe887c",
+    "clips": {
+     "info": "dc9e7ab30394ba3fa7141e25303dcbf5a2527cb6408df2750105670cc7cf9521",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "fd4551d113c6883039a486442d5295c0f8eae455af8eb83822f81dc3dc4b12e5",
+    "script": "e0f38be43dbfeb3054e817bab91d14ecf23bd7ab56dd27ad1997e74ec18cf3c6",
+    "video": "32fe87db33c2fd3a83ad4f44c8fdc22fff6b64573464996354c0a23f970d6f6d"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[INFO]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap the screen"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/browse-rating-edit.mp4",
+   "w": 1280
+  },
+  "classic-overlays-analog": {
+   "clips": [
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "classic overlay over retained stock capture",
+   "poster": "assets/manual/nav/classic-overlays-analog.webp",
+   "seconds": 3.152,
+   "sha256": {
+    "capture": "5e87b63bddf689e79e3c2d0170cef57f6dfdfb47158b7f2b87b25ab667231fd4",
+    "clips": {
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "07f890bd447433e3ab5d86427cfb1cea31fc068706a2299a8e75358daa89d3e3",
+    "script": "032978cee2f8279ed910a834c53c6c4bf8038ef3a0cd7d2fc06e53a584215505",
+    "video": "9a5e44f3ec14c6a02ce57d2e587be9edcdecbf502846e41611cfa631601c4e34"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 1320,
+     "text": "Tap the screen"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/classic-overlays-analog.mp4",
+   "w": 1280
+  },
+  "classic-stems": {
+   "clips": [
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "classic overlay over retained stock capture",
+   "poster": "assets/manual/nav/classic-stems.webp",
+   "seconds": 3.072,
+   "sha256": {
+    "capture": "3413ece91d8a86ae97d761443a9d140f6d2b93b4768745ced601f2ec44ca4274",
+    "clips": {
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "90bd9a6c9a0f4d3bf5c44018da363687b9fe4a39fcb4d8b8a68d195fb59885a1",
+    "script": "f864f32d655b350b88be1ef32da8716b49aa0fa657662ec126c90cd825428c73",
+    "video": "89f77001fbda595154386580c743c59e6dfaf17396a8959eeda51f5fa4d1ef7c"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 1540,
+     "text": "Tap the screen"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/classic-stems.mp4",
+   "w": 1280
+  },
+  "classic-themes": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "classic mods panel",
+   "poster": "assets/manual/nav/classic-themes.webp",
+   "seconds": 4.472,
+   "sha256": {
+    "capture": "98d200d48d5ea26952a84f0c68d60292007e54ae46229e53db61bc259914fa99",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "f6a141831d561e1e957aa03a3fbeb0459ac4d23d5fad04b18a6d04e096f29828",
+    "script": "ff9e7c10454b088113b8235c59d2d026a1dd6bef7972e72515035322d4507131",
+    "video": "505f104a88b8618a892824bbdff9d10c40635e6804835d329116b4afcf8cc943"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **CLASSIC**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **THEME**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise, then push it"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/classic-themes.mp4",
+   "w": 1280
+  },
+  "deck-view": {
+   "clips": [
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/deck-view.webp",
+   "seconds": 3.732,
+   "sha256": {
+    "capture": "6064b9ece5d61d71cf937d7353b0c39109c9e76a2d5991ec1065f692a95d5bc3",
+    "clips": {
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "2bb833b073887b1099bfdb6d4a1f56fcddacf398b0edd641cc17c7a34711617f",
+    "script": "d4ee41529b058b895c6ad4ea3ad10c6123fe50e5164fea985904463e8b4c54b2",
+    "video": "b33550861175eec12eb7707cbf8d70f5d7d89a0b1f9fb490c79c8889a1e15195"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/deck-view.mp4",
+   "w": 1280
+  },
+  "dj-profile": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/dj-profile.webp",
+   "seconds": 3.972,
+   "sha256": {
+    "capture": "3c846cfe19af8eb5d99c00a65ecb13ef3599ffb587eb9a0eb8ea6c3295c93efd",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "32d3e335060a7d599ced7382e11123f1e3b008e4e657a56bd3852f0b72d64112",
+    "script": "5e4eec0e5f1e1d7c97d9b1357689889a8056b1945cd0719d29bc9a00c235e9a3",
+    "video": "9e57cc19c432bffe594395656dc5d24901880c083c68d79c3e260676c0d25253"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **CONNECT**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **DJ PROFILE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **SET UP DJ PROFILE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/dj-profile.mp4",
+   "w": 1280
+  },
+  "dj-profile-create-switch": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/dj-profile-create-switch.webp",
+   "seconds": 24.372,
+   "sha256": {
+    "capture": "136c8a1f55fc297404f8e93d39b8aa26533799791b188b64d2a651ff9869450d",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "a2ffd3149a98e1fc77004d23f0bb5e476aaca3d30b506aa790f18ad90065c677",
+    "script": "67af921980987623641865c1df60c0fe52f8ff00d8ef620b058f2d89ad5221cd",
+    "video": "5eff799e415c53063d7310aae4f59d72321ff5d2cbafe512cc1ad639d2c13893"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **CONNECT**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **DJ PROFILE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **SET UP DJ PROFILE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **CREATE ON THIS XZ**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Type **dj test** on the screen keyboard"
+    },
+    {
+     "t_ms": 7240,
+     "text": "Tap **NEXT: LOGO**"
+    },
+    {
+     "t_ms": 7760,
+     "text": "Tap **NO LOGO**"
+    },
+    {
+     "t_ms": 8280,
+     "text": "Tap **NEXT: TAGLINE**"
+    },
+    {
+     "t_ms": 8800,
+     "text": "Type **fixture set** on the screen keyboard"
+    },
+    {
+     "t_ms": 14520,
+     "text": "Tap **NEXT: REVIEW**"
+    },
+    {
+     "t_ms": 15040,
+     "text": "Tap **SAVE TO USB 1**"
+    },
+    {
+     "t_ms": 15560,
+     "text": "Tap **NEW PROFILE**"
+    },
+    {
+     "t_ms": 16080,
+     "text": "Type **dj two** on the screen keyboard"
+    },
+    {
+     "t_ms": 19720,
+     "text": "Tap **NEXT: LOGO**"
+    },
+    {
+     "t_ms": 20240,
+     "text": "Tap **NO LOGO**"
+    },
+    {
+     "t_ms": 20760,
+     "text": "Tap **NEXT: TAGLINE**"
+    },
+    {
+     "t_ms": 21280,
+     "text": "Tap **SKIP TAGLINE**"
+    },
+    {
+     "t_ms": 21800,
+     "text": "Tap **SAVE TO USB 1**"
+    },
+    {
+     "t_ms": 22320,
+     "text": "Tap **< PREV**"
+    },
+    {
+     "t_ms": 22840,
+     "text": "Tap **MAKE ACTIVE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/dj-profile-create-switch.mp4",
+   "w": 1280
+  },
+  "encoder-list": {
+   "clips": [
+    "back",
+    "browse",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/encoder-list.webp",
+   "seconds": 4.012,
+   "sha256": {
+    "capture": "30fe9131a2df5edd594880cdd9aecac4ee43284f5efa85be827ac9a63d7d9e8b",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "e3455c62c286aa6d75b8099580fd312742cf4921eee37dab40c13d27663308d9",
+    "script": "4ff9941fadc50418e33a28372bf56284851957893d58ca81a0fcee37c8e2c961",
+    "video": "d4e5f6095c89a10b04bb0844cea11b957401da95b08c7a7bce2d2c22d13ffbe2"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 1500,
+     "text": "Turn [[ROTARY SELECTOR]] 5 clicks clockwise"
+    },
+    {
+     "t_ms": 2500,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/encoder-list.mp4",
+   "w": 1280
+  },
+  "encoder-settings": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/encoder-settings.webp",
+   "seconds": 4.332,
+   "sha256": {
+    "capture": "afcf62787966eacc1480954b64573cfe99e38ab9e126dc8cecb1b776b4b9e10a",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "f06724cc109d3363865cc5959d5ff78e8d1f6eb1c316f2fd83116b9662f91a87",
+    "script": "a5c9648c32cbfa154d42a94c8c42fe1d19c43ed5e4c5c8dcca9d9d210ad77e96",
+    "video": "7ca84a87da3d6bf35e0dfdb3f9507e160e81007d7b64c6b17333d817eaf4b07e"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Push [[ROTARY SELECTOR]] to choose **PLAY**"
+    },
+    {
+     "t_ms": 1500,
+     "text": "Turn [[ROTARY SELECTOR]] to **GATE CUE** and push it"
+    },
+    {
+     "t_ms": 2160,
+     "text": "Turn [[ROTARY SELECTOR]] to **SMART CUE** and push it"
+    },
+    {
+     "t_ms": 2820,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/encoder-settings.mp4",
+   "w": 1280
+  },
+  "filter": {
+   "clips": [
+    "back",
+    "browse",
+    "rotary-selector",
+    "track-filter"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/filter.webp",
+   "seconds": 3.912,
+   "sha256": {
+    "capture": "417047b0e79e81b5474f99b27177c8a91e7da90a78c6e5ebd6493f2a0fd59441",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7",
+     "track-filter": "80b54aa62e142fdd90570e92a76c93ba210881c77d44369cc0379ca8ace31b0e"
+    },
+    "poster": "c92891bea896a3b440ff21731313413703d37f2906b36742c90d1fa69e1f462b",
+    "script": "b8dad5e72dda484d63645203baa2fc38c33346c57727d0c81ea6189992fded40",
+    "video": "c71c33572dcc102a4ceff12b3e9a7b890fc358000a07d38832008c8e2a7ea169"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Press [[TRACK FILTER]]"
+    },
+    {
+     "t_ms": 1500,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise, then push it"
+    },
+    {
+     "t_ms": 2400,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/filter.mp4",
+   "w": 1280
+  },
+  "games": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/games.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "ded60caedd307024c940f0bb333532a1e3a3ed86b031f68b091818531755d893",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "3171f299f585bcb63747662bdfab2cbe1d8afd749c6f8c73e4141f812e41acea",
+    "script": "ab8fe1b2751bc0eaeade4a6f6d378de3384f925a0a96418b480a8ef7b35b998c",
+    "video": "356086a9c94dbcbb0f07698696e897d363630fc4c96cea763cb79d5bb2cc0a6f"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **GAMES**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/games.mp4",
+   "w": 1280
+  },
+  "interface-choice": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/interface-choice.webp",
+   "seconds": 3.572,
+   "sha256": {
+    "capture": "3b1bb735a39aa3d35c91a84ca7a49e831e384f4450de1c327573de2c4d4d3b12",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "4569b068d9025517794a56c1c7c0744306afca1493eee83c59c448a2d3507ebb",
+    "script": "0048dcefead0636b9b3d37044a43a7d480a8268e893aac85dc54eb3091d0d7d5",
+    "video": "15ee2128851c67baab7101753a6907efe9119b4c5c63677172cd93d5686a200f"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **CLASSIC**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **MODERN**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/interface-choice.mp4",
+   "w": 1280
+  },
+  "key-shift-sync": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/key-shift-sync.webp",
+   "seconds": 8.252,
+   "sha256": {
+    "capture": "43b03759c9ec339c7d7a074c881a35987b6b75f1168f840c36646a02b84ec172",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "a64104c538d6e170f56ad81e1d852c9f4dc44f181fdbb3a5710b7bff5ba16c9a",
+    "script": "f5b7192474288594a041e2bff53cd74bde3b246802be68ac8f6f9157e43a0894",
+    "video": "7c5bcbcfc37e74f57ab15b68d22d76a6c46b64f0ba6ff83f1ef287a99ea182cc"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **PLAY**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **KEYS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] to **KEY UP** and push it"
+    },
+    {
+     "t_ms": 2860,
+     "text": "Turn [[ROTARY SELECTOR]] to **KEY DOWN** and push it"
+    },
+    {
+     "t_ms": 5760,
+     "text": "Turn [[ROTARY SELECTOR]] to **RESET** and push it"
+    },
+    {
+     "t_ms": 6420,
+     "text": "Turn [[ROTARY SELECTOR]] to **KEY SYNC** and push it"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/key-shift-sync.mp4",
+   "w": 1280
+  },
+  "keys": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/keys.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "5935d8e9df3d5164abc71a5497a7eadbc91484a7d07f763f4bacd2dbc85dbd11",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "cd8491e0448b5b311c2fed2c86b5dd76111ebdd51424a66185610d7e3b77983b",
+    "script": "cc29ab771543cc22e189227d5834d1cc2c2fb4e43cdd0837463cd450ba8eb5fb",
+    "video": "e6d64c19a79c8920f5a7dfc0243dbd65020cbc43ef090ff2246a3bcfe848cb2e"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **PLAY**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **KEYS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/keys.mp4",
+   "w": 1280
+  },
+  "lamps-and-titles": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/lamps-and-titles.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "62975b07788aa2da12ad56ea3c6cab78a78dea13eaf93de5a92fce9039e2d0a1",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "4d0d16d40e6021f9636d6739e11e1474ab64a8decaff251b54ad4d39edc3c5cf",
+    "script": "71961324b1f2b997d26bdf55ddda2192706a4d5eec02792bea1c97f2a56057c9",
+    "video": "0b45bab763a104c1499d69024dfa23446c38465caadd5dc6985aebee50f5c612"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **LAMPS AND TITLES**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/lamps-and-titles.mp4",
+   "w": 1280
+  },
+  "menu-close": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/menu-close.webp",
+   "seconds": 3.532,
+   "sha256": {
+    "capture": "b33277a5aaf049b9e0bea908c9be055fad9a3b2bf0a6af82ed4c68a586102ee1",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "63d64c64d11aab58f64a191115c78d1593f811e00d9d5d0a244794c5ee7e8a63",
+    "script": "b3d4d9a693bcb9cdee7e3e9f37814e9668688a38e324360c65ca318e0e619839",
+    "video": "b9281f212d79f9ce4254aed613feb6c4d0374f1b8d0fc4eef6c1d2ca0e805092"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 2000,
+     "text": "Tap **CLOSE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/menu-close.mp4",
+   "w": 1280
+  },
+  "mods-connect": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-connect.webp",
+   "seconds": 3.632,
+   "sha256": {
+    "capture": "080f77573274fbf36fefb8884cd3c98c8fb0999e668149d226b0317674d06899",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "fa76d05f3e1e8046f0c849a4b507ee1176a8c5912720bf200f0f4d5eec6857d2",
+    "video": "49c3936591ae3b5f61d878363413c237071658841403c32895d2e74e149c2731"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **CONNECT**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Turn [[ROTARY SELECTOR]] 3 clicks clockwise"
+    },
+    {
+     "t_ms": 2120,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-connect.mp4",
+   "w": 1280
+  },
+  "mods-extras": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-extras.webp",
+   "seconds": 3.632,
+   "sha256": {
+    "capture": "2cd337583c2f51b1686fdbbc6fa2dcd4adf31250159828147480f4504e023860",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "26e80ea76a043e83d0f975fb2193e97f3b37696a14ebc6f6bd5475cc595b372d",
+    "video": "1681b661d0d297d921bbd0f3ad5cb2ebb7e096f4ddceb726a7cb041477e1254d"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Turn [[ROTARY SELECTOR]] 3 clicks clockwise"
+    },
+    {
+     "t_ms": 2120,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-extras.mp4",
+   "w": 1280
+  },
+  "mods-four-decks": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-four-decks.webp",
+   "seconds": 3.632,
+   "sha256": {
+    "capture": "00eb6fc7d8417b9b0cd918c468e9b6523e5fb234baa4f2e0d80431e9e8d00a9d",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "33ca1ef0cded9602d1b2faa382188d2276421fbee62ba8e0c112b66c9db67666",
+    "video": "7a04cb2942b4b257da494e7c787eca00286f0451fe78bc765ac9f6e924ad15e7"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **4 DECKS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Turn [[ROTARY SELECTOR]] 3 clicks clockwise"
+    },
+    {
+     "t_ms": 2120,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-four-decks.mp4",
+   "w": 1280
+  },
+  "mods-home": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-home.webp",
+   "seconds": 3.632,
+   "sha256": {
+    "capture": "a8f40d58c8ab0fdaf6847d7cc5222bb4018e696913cfdd4500de32a674b7236c",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "e04c08a5f4b02171b45a956b533a8054eea5b5bb379462465cdcf8b5a5e90749",
+    "video": "1c1cc454dd09cd7a8a753ecfb804b2127d2f41203c2f36e1b417c3cbe547a6e9"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **HOME**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Turn [[ROTARY SELECTOR]] 3 clicks clockwise"
+    },
+    {
+     "t_ms": 2120,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-home.mp4",
+   "w": 1280
+  },
+  "mods-play": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-play.webp",
+   "seconds": 3.632,
+   "sha256": {
+    "capture": "0a64fa619bb93403054a064316110e5b3f580f7c79c4549cad4951b57db3ecd5",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "d866f08ad623647ca6ef4492e45b727672841df8d97ce0090400d43df24facf2",
+    "video": "e7a6b2d611e7edd12134552fbe5bf57d89c50f7f82e1427d63f7aa746da61d94"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **PLAY**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Turn [[ROTARY SELECTOR]] 3 clicks clockwise"
+    },
+    {
+     "t_ms": 2120,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-play.mp4",
+   "w": 1280
+  },
+  "mods-screen": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-screen.webp",
+   "seconds": 3.632,
+   "sha256": {
+    "capture": "f11cff30765da3a8e79e275b65770f77900fb5c44c8ed5970d565d64acc1fd98",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "78c5d469f77361ba55853a999f492bf7852efb388d4782983c20ddecbe41a6a5",
+    "video": "382ecc3d93d1b3d8efa7b3c5299bc09c5fb2d1920c8519d29c3b81b97c294214"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Turn [[ROTARY SELECTOR]] 3 clicks clockwise"
+    },
+    {
+     "t_ms": 2120,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-screen.mp4",
+   "w": 1280
+  },
+  "mods-screen-values-all": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-screen-values-all.webp",
+   "seconds": 9.292,
+   "sha256": {
+    "capture": "4c844d6810e4313a13b3ade4d5fee4b4a8ab6ead8d692a4b1fe5854bf8c1b006",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "a07f0181ba85a33f5268f94be43447244ee301aa71b753e71fad4a7a6ca8b7cb",
+    "script": "d0d0983d6acd904436c7177118cd4805d5cff380a4cdcf53a31ca553b97adac1",
+    "video": "9338cd232f7b05bdc128bc4ca9a8ec044901aa1fcff95315540ca926201a9501"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **2 DECKS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **4 DECKS**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **4 DECKS**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **STOCK**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **RGB**"
+    },
+    {
+     "t_ms": 4120,
+     "text": "Tap **3-BAND**"
+    },
+    {
+     "t_ms": 4640,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 5160,
+     "text": "Tap **AS ON THE USB**"
+    },
+    {
+     "t_ms": 5680,
+     "text": "Tap **MUSICAL**"
+    },
+    {
+     "t_ms": 6200,
+     "text": "Tap **WHEEL**"
+    },
+    {
+     "t_ms": 6720,
+     "text": "Tap **PLAYING KEY**"
+    },
+    {
+     "t_ms": 7240,
+     "text": "Tap **KEY MATCH COLOURS**"
+    },
+    {
+     "t_ms": 7760,
+     "text": "Tap **KEY BEFORE TITLE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-screen-values-all.mp4",
+   "w": 1280
+  },
+  "mods-stems": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-stems.webp",
+   "seconds": 3.632,
+   "sha256": {
+    "capture": "d914fb595b31a69884c8ecaf8870173b62b1181020875c1c7724d274396f7747",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "7149ade30a3c5365aa1b8e948e276469cc4a696a127238d3daa0cbf5252ba48e",
+    "video": "eba7c575a402346398bd0b979181e1f4391bfb2905c7e88e926f08b3d872135b"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Turn [[ROTARY SELECTOR]] 3 clicks clockwise"
+    },
+    {
+     "t_ms": 2120,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-stems.mp4",
+   "w": 1280
+  },
+  "mods-stems-values-all": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/mods-stems-values-all.webp",
+   "seconds": 6.692,
+   "sha256": {
+    "capture": "5ccadc9423b39646fbfb08b89b8c6dad0d92ad3472aeea1329d1280e2a86e7de",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "d1269c16159a0d3a5eb362198f9c5e2908a995659593666bb09624634f3862d3",
+    "script": "764ca320bdd1d575421666b2d0ee2d9ac463e342865d6fdf96d05e56e4ba3a22",
+    "video": "60d0a09cffc58d81e362ee79009f5d454303a8f255f9ce8f9eed4dc1eadb810e"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **USB STEMS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **BY THE CUES**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **BELOW / FULL**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **BELOW / HALF**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **OUTER / FULL**"
+    },
+    {
+     "t_ms": 4120,
+     "text": "Tap **OUTER / HALF**"
+    },
+    {
+     "t_ms": 4640,
+     "text": "Tap **HIDDEN**"
+    },
+    {
+     "t_ms": 5160,
+     "text": "Tap **BYPASS BUTTON**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/mods-stems-values-all.mp4",
+   "w": 1280
+  },
+  "my-house-setup": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/my-house-setup.webp",
+   "seconds": 3.772,
+   "sha256": {
+    "capture": "0830c28245aef099fe48ee9390fa7c76793d94e7b4a9222a2784a26bfdce7a62",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "1db0d8c74a5cd08abd9b10cac7891f2a70b52a2fc3d45273faeb63bacc55a59c",
+    "script": "36e65f4b6f9a27ba291ddf7f06a8e22efc4d77954adefd2d687cfa2406680780",
+    "video": "704a50f5939cba02ae6c6034023b5e364638faeec5525347da4b80863cefd5f4"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **GAMES**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **MY HOUSE / SETUP**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/my-house-setup.mp4",
+   "w": 1280
+  },
+  "my-settings-load-save": {
+   "clips": [
+    "browse",
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/my-settings-load-save.webp",
+   "seconds": 4.592,
+   "sha256": {
+    "capture": "019657217b902018c8c4957b4ce64d06363efd778bb72f67379ec1f946561a39",
+    "clips": {
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "a4f93c1c8f0a0a9812be54e55cbaa78bcfefe05e2aedae32231499d1f892b33a",
+    "script": "c8b0a68fa10b286571134e0a80183f1fe0e108bd41fec24cf74831f7a0c88c1c",
+    "video": "659be637375c6309b3b3e6c6dc15ac9347a94facba7644295d3f5821ddb8dbba"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1500,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 2020,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 2540,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 3060,
+     "text": "Tap the screen"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/my-settings-load-save.mp4",
+   "w": 1280
+  },
+  "nav-a-browse-recovery": {
+   "clips": [
+    "browse",
+    "load",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-browse-recovery.webp",
+   "seconds": 4.212,
+   "sha256": {
+    "capture": "3dcb344239f602e4bc6d9951994dd3446c3f3d0ea5a446043ae0fd18cdddc56e",
+    "clips": {
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "load": "def377c8e04ff052b98b95e970e444182a0696d8c658c69278d8160ceeb0b785",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "37d35a215f4d98624fa281ba486c27fb6f0c0fdfb5b959450ccf11e0bfd405e6",
+    "script": "0f76973b357425fb5f666ae01279e8dd1a7fc0c1aa907c90ecd4f2865c2e0d91",
+    "video": "dfda6ad0f867c690d6dee2c1bbc1bb01f2595a83385b66ee21cb8e76a21bbee4"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Open SOURCE ([[BACK]] at the top of a list)"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1700,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 2200,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 2700,
+     "text": "Press [[LOAD]] 1"
+    }
+   ],
+   "unclipped": [
+    "SOURCE"
+   ],
+   "video": "assets/manual/nav/nav-a-browse-recovery.mp4",
+   "w": 1280
+  },
+  "nav-a-browse-settings": {
+   "clips": [
+    "browse",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-browse-settings.webp",
+   "seconds": 6.112,
+   "sha256": {
+    "capture": "2747bb1e4b51669bb22cd8a690b27b9e81a01c5fbf8160987d8f5228e9806d7f",
+    "clips": {
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "307d6dc153cba08e8b4bc1d0ac59505da64dbbc155707237707fbf6369a39094",
+    "script": "8231e1b852e68ad6593c7c48475f5812b1fd6c771a9bd31db24055eb3e4e70a4",
+    "video": "5b64d355dd828162e8109473e690dc4d81b7cdc4d7f7b17245d3ee6a2a6beba3"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **KEY MATCH COLOURS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **KEY BEFORE TITLE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **CLOSE**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 3580,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 4080,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 4580,
+     "text": "Tap **ARTIST**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-browse-settings.mp4",
+   "w": 1280
+  },
+  "nav-a-choose-track-error": {
+   "clips": [
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-choose-track-error.webp",
+   "seconds": 4.792,
+   "sha256": {
+    "capture": "0631caed1d44eb70a4bddc87963b129b37b2cf5738f38a987fef7d27581901cc",
+    "clips": {
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "d8921835fa2c6208a1d3e9fd82c31451ff483e81eab65fc2edbd44b16a5825d7",
+    "script": "902d5aaf662af015f34899581a4c36ced5490e42f639016ee69b78aaf1055100",
+    "video": "0bc5fd0bc16858747c82d3367b7cf6a2546a617126ce43edeab3ca53b9e00c57"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Tap **CHOOSE TRACK**"
+    },
+    {
+     "t_ms": 2240,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 2740,
+     "text": "Tap **TRACK ROW**"
+    },
+    {
+     "t_ms": 3260,
+     "text": "Tap **LOAD DECK 3**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-choose-track-error.mp4",
+   "w": 1280
+  },
+  "nav-a-classic-four": {
+   "clips": [
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "classic",
+   "poster": "assets/manual/nav/nav-a-classic-four.webp",
+   "seconds": 4.112,
+   "sha256": {
+    "capture": "f13a060710a8809081743c28f6a67fb3b642b9c39936a4ee7fa4f2ae6b8412c2",
+    "clips": {
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "390b1ee7e89b8eaf2916379abf01caacc09ef4cb3c5b5e60231255a0470157b4",
+    "script": "419b76316c5bf3b89b6a3a4806011af0dd4c9338a08b9df3aec894f53a620988",
+    "video": "5d37e668e14f72e8d320f596d0cf5febeba9aec2eb35683cea4c761b2206043e"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 1540,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 2060,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 2580,
+     "text": "Tap the screen"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-classic-four.mp4",
+   "w": 1280
+  },
+  "nav-a-classic-wave-choices": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-classic-wave-choices.webp",
+   "seconds": 9.812,
+   "sha256": {
+    "capture": "c4dff3e61548269742716038f186b56ff9f7ade7c2394f31ecf2f2c6ec7f3861",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "2dd798bab74233430e17218b7fc6c17338a766b6573ded42e0802f5697df8212",
+    "script": "7df772795bf2d7f0840967c4cbf9e9024860632449b7e0f94462f6c17669fbcd",
+    "video": "6072dcafaeb028f7811df32486c2603d07a3b6c779e5b74dbd7cfc58bf9d7273"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **CLASSIC**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **2 DECKS**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **4 DECKS**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **4 DECKS**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **STOCK**"
+    },
+    {
+     "t_ms": 4120,
+     "text": "Tap **3-BAND**"
+    },
+    {
+     "t_ms": 4640,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 5160,
+     "text": "Tap **AS ON THE USB**"
+    },
+    {
+     "t_ms": 5680,
+     "text": "Tap **MUSICAL**"
+    },
+    {
+     "t_ms": 6200,
+     "text": "Tap **WHEEL**"
+    },
+    {
+     "t_ms": 6720,
+     "text": "Tap **PLAYING KEY**"
+    },
+    {
+     "t_ms": 7240,
+     "text": "Tap **KEY MATCH COLOURS**"
+    },
+    {
+     "t_ms": 7760,
+     "text": "Tap **KEY BEFORE TITLE**"
+    },
+    {
+     "t_ms": 8280,
+     "text": "Tap **CLOSE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-classic-wave-choices.mp4",
+   "w": 1280
+  },
+  "nav-a-deck-orders": {
+   "clips": [
+    "back",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-deck-orders.webp",
+   "seconds": 4.972,
+   "sha256": {
+    "capture": "4893c667e2edfdb540bd622215b3566ed018c3b3af820102f58fa9942740b0cc",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "7cc51a5b6a31394dac9173ccc4676f69c316121902ca381277ec98a74582743c",
+    "script": "39da951dfc8e4e89a3cc15a3f17fc2833fe90431948c8916163da4eaee7aa809",
+    "video": "7cef743523dde61cc7b878f537cdcd7cbbfe32272cd7d875a30c375a78c81867"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 2240,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 2940,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 3460,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-deck-orders.mp4",
+   "w": 1280
+  },
+  "nav-a-feature-gate": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-feature-gate.webp",
+   "seconds": 5.652,
+   "sha256": {
+    "capture": "60f216fb9b8e3708d9890a624d355dc13d398c251b4963af017310fdf4bf4f15",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "b382de0ca481288fbe1ebfd76d023b2d68a6c07f4886b6b3475b01df85b99dca",
+    "script": "e14cf11e4f7e7a6a92dc4e6d10cbd5093d5950c69ea1cc98ef85a0a78482cee2",
+    "video": "d024e4c73c1aeb53cf63b9fd79f92acdf04f1f10c54361cce8f5135ca52e3ccf"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **PLAY**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **SET UP GATE CUE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **DETECT FEATURE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **DETECT FEATURE**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **USE SELECTED DECK**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **ENABLE FEATURE**"
+    },
+    {
+     "t_ms": 4120,
+     "text": "Tap **I TESTED IT / DONE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-feature-gate.mp4",
+   "w": 1280
+  },
+  "nav-a-four-detail": {
+   "clips": [
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-four-detail.webp",
+   "seconds": 5.332,
+   "sha256": {
+    "capture": "b1974939ec8c6ef09d1e43ce3ff28d6b5d25e2539bde2ea1651023d3cd3e6a7c",
+    "clips": {
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "cffd27039d55eadad76c4d90dde4970f5a9af7a7dbb99073766e29587a185e06",
+    "script": "45f95f53af83164770ca9583aed94f0a9b37d7db40e035b5d13eac63ecb79b80",
+    "video": "0c035b837118fa33ad123c4073bf727aa53f3e041e22afe1b062edae6053fc3c"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Tap **LANE 3**"
+    },
+    {
+     "t_ms": 2240,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 2760,
+     "text": "Tap **LANE 3**"
+    },
+    {
+     "t_ms": 3280,
+     "text": "Tap **STEMS HEADER**"
+    },
+    {
+     "t_ms": 3800,
+     "text": "Tap **STEMS HEADER**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-four-detail.mp4",
+   "w": 1280
+  },
+  "nav-a-four-fullscreens": {
+   "clips": [
+    "back",
+    "info",
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-four-fullscreens.webp",
+   "seconds": 7.772,
+   "sha256": {
+    "capture": "5288a39c7c6b890fb00def038785e5de8c58e56bd88dde6c8e72b98c784615ed",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "info": "dc9e7ab30394ba3fa7141e25303dcbf5a2527cb6408df2750105670cc7cf9521",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "61404ab7a6c2c1ce2c5b99036dca707b1e6ffcd25e155603e25686ea05a14dce",
+    "script": "74236cb70cb2058fff1ba9d09bd457bee53cf7c7f1957f70a3f0270e94e64899",
+    "video": "a7570cf3e8c56efbd4660a588a9edf6f5df1afd2bab2aec699645866e4ee56f1"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Press [[INFO]]"
+    },
+    {
+     "t_ms": 2220,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 2740,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 3260,
+     "text": "Press [[BACK]]"
+    },
+    {
+     "t_ms": 3760,
+     "text": "Open SOURCE ([[BACK]] at the top of a list)"
+    },
+    {
+     "t_ms": 4260,
+     "text": "Press [[BACK]]"
+    },
+    {
+     "t_ms": 4760,
+     "text": "Hold [[MENU]] for a second"
+    },
+    {
+     "t_ms": 6260,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [
+    "SOURCE"
+   ],
+   "video": "assets/manual/nav/nav-a-four-fullscreens.mp4",
+   "w": 1280
+  },
+  "nav-a-four-load": {
+   "clips": [
+    "browse",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-four-load.webp",
+   "seconds": 4.772,
+   "sha256": {
+    "capture": "8f52ae7a25a4c2addd94af86ea22e6bff0d0fb0332e668cc635d2b9c81f34fca",
+    "clips": {
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "b6f06d689c212cb8d2481fb89a0e029b4cc4185fd7c5063516c5803744404080",
+    "script": "a7af1170762d33f27936f68586f92769923d0101d48d322c4cbb47e5294c4f3b",
+    "video": "3fcbc8896e71c2b330817eb544479e053d701fe2d446fc770c752e51a144732c"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 2220,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 2720,
+     "text": "Tap **TRACK ROW**"
+    },
+    {
+     "t_ms": 3240,
+     "text": "Tap **LOAD DECK 3**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-four-load.mp4",
+   "w": 1280
+  },
+  "nav-a-four-page": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-four-page.webp",
+   "seconds": 4.092,
+   "sha256": {
+    "capture": "1fd61d7306145b22c1eec999853354c5fef349c86c4c1ccd9ac161880559ad5b",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "7af2a8123528cf4de44e0309a161935d789ef91f114a0cf543e640fe8cc9aeab",
+    "script": "c0ffd72cedb67260d468fc81f6722c957450e600f59fc00cf827335d692d0ec0",
+    "video": "087b6f7620dcf45af7644c44a4872b003f715d2ab01a1009fcf17346a764fbcf"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **4 DECKS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **4 DECKS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **4 DECKS**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **2 DECKS**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-four-page.mp4",
+   "w": 1280
+  },
+  "nav-a-four-stems": {
+   "clips": [
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-four-stems.webp",
+   "seconds": 3.772,
+   "sha256": {
+    "capture": "22be7982b7f9402ac87153e540ed6df53c6241aafb622c128b3c94288ba9739c",
+    "clips": {
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "f98e3e749b1aa6f91a7ab17911409319f92944e661c3156910ee266337390049",
+    "script": "319a92cf9759a5fb1eb1dc2c6d5dac3ebf9c58ae2e5355414e1ccd3e9db9a869",
+    "video": "afb307c0b1737c1c0c1e664d31e5620845d4f0f81829dd48211fbfa4858ed53d"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Tap **STEMS HEADER**"
+    },
+    {
+     "t_ms": 2240,
+     "text": "Tap **STEMS HEADER**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-four-stems.mp4",
+   "w": 1280
+  },
+  "nav-a-gate-smart": {
+   "clips": [
+    "left-hot-cue",
+    "left-pad-a",
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-gate-smart.webp",
+   "seconds": 4.692,
+   "sha256": {
+    "capture": "145dde11f5856a894a60203ad99e21ff4a4745dd6f57ec5d20adcb99d64ff75e",
+    "clips": {
+     "left-hot-cue": "6c478dae8a1d3ec3178e96e17b6f19fefa625a3d63e4e9f378f527dc35ed67f2",
+     "left-pad-a": "10194aca37a3ec0d49f0805dc50d6c7cac59ebb66ba85119462b01f46a26fe1b",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "6f2c39b86822306184e5dd562cb429008ae05d28d3abfb003d3aa317c09fe164",
+    "script": "341696e7601ed0037e2d32f8a7826936ea59113a1b2644bce0247a846139adb0",
+    "video": "2284d9662ee6ffa2f6416bc054d4b0030907bbd5af70f41f8b472582aa3662a8"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **PLAY**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **GATE CUE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **SMART CUE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **CLOSE**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Press [[HOT CUE]] on the left deck"
+    },
+    {
+     "t_ms": 3380,
+     "text": "Press pad A on the left deck"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-gate-smart.mp4",
+   "w": 1280
+  },
+  "nav-a-jump-refused": {
+   "clips": [
+    "left-beat-jump",
+    "left-pad-a"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-jump-refused.webp",
+   "seconds": 2.112,
+   "sha256": {
+    "capture": "39b263c2c5c17e6e51324e5d25a4167a401e7e504471279dd4eaeb3fcb750848",
+    "clips": {
+     "left-beat-jump": "e56479755382172f88175ea2af47f67cc78d68f59926249d0d212604f4635eda",
+     "left-pad-a": "10194aca37a3ec0d49f0805dc50d6c7cac59ebb66ba85119462b01f46a26fe1b",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "0cd83d013b74a216b6e7c91c1afb56a265278938b8bebe781ae608fec34e71c7",
+    "script": "6c763cbfa0235f15332b38a329a166ebaadea155a963a2ce7aa540bc3c5f638b",
+    "video": "efa262375c47c70db6096984cbdc1e04e88086e35a7848c762ea27226650c43f"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BEAT JUMP]] on the left deck"
+    },
+    {
+     "t_ms": 800,
+     "text": "Press pad A on the left deck"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-jump-refused.mp4",
+   "w": 1280
+  },
+  "nav-a-play-colours": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-play-colours.webp",
+   "seconds": 8.772,
+   "sha256": {
+    "capture": "f86c3d20a3d798d815aa4c28ffba53f0627d3b11b992640653d2f272208a9f76",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "5629fd2517786fb7acf38a45f0cdd4fc7db0ef4569ad2fb0a5efd9e2ede7105b",
+    "script": "94b77e70a8a2d0818cbcff9d11d80595e9480e9cb0af6de614c6c2af0231b49a",
+    "video": "b4786a7363d944a446ecce3dd691f6e853a410d018b36577b1a60c4a913a66cd"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **STOCK**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **RGB**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **3-BAND**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **LAMPS AND TITLES**"
+    },
+    {
+     "t_ms": 4120,
+     "text": "Tap **MODE LAMPS**"
+    },
+    {
+     "t_ms": 4640,
+     "text": "Tap **QUANTIZE LAMP**"
+    },
+    {
+     "t_ms": 5160,
+     "text": "Tap **TITLES IN WAVEFORMS**"
+    },
+    {
+     "t_ms": 5680,
+     "text": "Tap **DECK + WAVE**"
+    },
+    {
+     "t_ms": 6200,
+     "text": "Tap **DECK ONLY**"
+    },
+    {
+     "t_ms": 6720,
+     "text": "Tap **OFF**"
+    },
+    {
+     "t_ms": 7240,
+     "text": "Tap **CLOSE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-play-colours.mp4",
+   "w": 1280
+  },
+  "nav-a-play-zoom-time": {
+   "clips": [
+    "back",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-play-zoom-time.webp",
+   "seconds": 5.972,
+   "sha256": {
+    "capture": "9f4d1ccd67ebaa2eb21190219f7a316795a4242c482f9dc38e36e113aab30a2c",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "66e8ac54cd076049795f050f91f4b1d6c226d2ea085f7980fb800fed272562ed",
+    "script": "6616b67bdaf014697903f459aef38f91b743a71346577f98eb9f2b01ecac147c",
+    "video": "f9cfe3b41c28e15a5bec54ab3f6c0b57977ebea7ad2402dc267101edbbd0e02f"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Turn [[ROTARY SELECTOR]] 6 clicks clockwise"
+    },
+    {
+     "t_ms": 1700,
+     "text": "Turn [[ROTARY SELECTOR]] 6 clicks anticlockwise"
+    },
+    {
+     "t_ms": 2900,
+     "text": "Tap **TIME 1**"
+    },
+    {
+     "t_ms": 3420,
+     "text": "Tap **TIME 1**"
+    },
+    {
+     "t_ms": 3940,
+     "text": "Tap **INFO HEADER**"
+    },
+    {
+     "t_ms": 4460,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-play-zoom-time.mp4",
+   "w": 1280
+  },
+  "nav-a-playing-key": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-playing-key.webp",
+   "seconds": 5.132,
+   "sha256": {
+    "capture": "bde73ca94194e34135a9dbaa57cf4e5af229270f0fc42074f8711914d078e381",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c5244c6c87c3bd9ff101b9edf79d55190a8c429d5708e367e8a67084ffe0185e",
+    "script": "168f8a95e9048dab7258390376013d3b2fcc93509b3b7ede0b8f8d70e4a64b80",
+    "video": "936a69566f87464ec6f07fcb9440c9a539d3b1ede65de3b158325c8ebc28951e"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **PLAYING KEY**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **PLAYING KEY**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **KEY MATCH COLOURS**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **KEY BEFORE TITLE**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **CLOSE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-playing-key.mp4",
+   "w": 1280
+  },
+  "nav-a-ram-detached": {
+   "clips": [
+    "browse",
+    "load",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-ram-detached.webp",
+   "seconds": 3.612,
+   "sha256": {
+    "capture": "a501cac1be398125ce55cfdafe3e533a842efed4a063bc80cf461542fa94e6eb",
+    "clips": {
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "load": "def377c8e04ff052b98b95e970e444182a0696d8c658c69278d8160ceeb0b785",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "9a061bcb579bc5bc6aa0876992ebc0fba3a3404342fe6255852c9e611cbc0787",
+    "script": "de8bfe15fbfa3bba322fa5b66202af2156608920fd7c039390adae146f6fb08a",
+    "video": "35f688ea8bbe44d0fcfbe647ba34fc694e362abea428067522886d7e2a248b3f"
+   },
+   "steps": [
+    {
+     "t_ms": 1100,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1600,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 2100,
+     "text": "Press [[LOAD]] 1"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-ram-detached.mp4",
+   "w": 1280
+  },
+  "nav-a-route-rescan": {
+   "clips": [
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-route-rescan.webp",
+   "seconds": 3.252,
+   "sha256": {
+    "capture": "a29fb58aa05bd19d0ee70e860be434acbbd1cec461c006dd4199884008619c59",
+    "clips": {
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "6cc7c4c2cf257a1b626620d2216eee1b3392ca8d1579d58d82b0f59ed97ee444",
+    "script": "1ec32b2918d8a8420f9f0e2f3ae6dcc0676c5604a1cf96515753d83f9be43795",
+    "video": "f6ada944bfe0468eeb0d4dad7de19248df62194b37f36888513c4ff006959237"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Tap **RESCAN**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-route-rescan.mp4",
+   "w": 1280
+  },
+  "nav-a-route-states": {
+   "clips": [
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-route-states.webp",
+   "seconds": 5.932,
+   "sha256": {
+    "capture": "4eeff452e827928b64ae756ec4d4a21c0d652b187ca77bcfa08fc122116e0d2d",
+    "clips": {
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "00b0ebaae873e0bfdf2b112f77a136c073bd211242b65f76154488b7305b78c5",
+    "script": "8e2da3ae94ba082e00744b6a896cbae963f081bd9f034ccc453aacb6cd131636",
+    "video": "6d0df96104165f9b3f011f9ad9377092db320ec73b5f52ae4f722a2cce110130"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-route-states.mp4",
+   "w": 1280
+  },
+  "nav-a-stem-layouts": {
+   "clips": [
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-stem-layouts.webp",
+   "seconds": 4.632,
+   "sha256": {
+    "capture": "ea9a6f98fabb02499b860d743eb85ca58cef47cd4373c4540e358613d2f83fb6",
+    "clips": {
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "1b2bc6f161620a6a2d42978cc9fea806f6b10d4cc923f4c87b77cad5e969c815",
+    "script": "877c73c483bade0c4f6c21cb2d2f29d9437a038727374b22ccfb351893e61684",
+    "video": "593137bf1f102c7954e8fc4264ac18d40f30286f3798372a79e6954998b1dad5"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **STEMS HEADER**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Tap **STEMS HEADER**"
+    },
+    {
+     "t_ms": 1540,
+     "text": "Tap **STEMS HEADER**"
+    },
+    {
+     "t_ms": 2060,
+     "text": "Tap **STEMS HEADER**"
+    },
+    {
+     "t_ms": 2580,
+     "text": "Tap **STEMS HEADER**"
+    },
+    {
+     "t_ms": 3100,
+     "text": "Tap **STEMS HEADER**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-stem-layouts.mp4",
+   "w": 1280
+  },
+  "nav-a-stem-toggle": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-stem-toggle.webp",
+   "seconds": 4.092,
+   "sha256": {
+    "capture": "9ca40a4d9d00a07fd1c2fc546fda0938cd1a40bb1e979489595ece87d4951eda",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "d6556b233fe1020a82deb82f452d89b24b6d6964c025c713c6c0a94f36243b5d",
+    "script": "da07ed0168744395b0578a670cea905bee96dc42b1d52a2a2efc593f1de0cd22",
+    "video": "0d9d5e615a0b5253d4b3f7849b074d41c8162d62e805f6a2031ff6d05a20857b"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **USB STEMS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **USB STEMS**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **CLOSE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-stem-toggle.mp4",
+   "w": 1280
+  },
+  "nav-a-usb-setup": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-a-usb-setup.webp",
+   "seconds": 6.452,
+   "sha256": {
+    "capture": "47c936a3e70b2589cbfedda6ee77bb235ed4a754915425c066c08f276936d8cd",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "63d64c64d11aab58f64a191115c78d1593f811e00d9d5d0a244794c5ee7e8a63",
+    "script": "67cb1684fdf427798ba6880714c3db8941929d0deb448b9e9c6b9a37ec56f06e",
+    "video": "b711c6c7fcb2ec9c9cd618d7356f9fc8b4ce81c1339ad14e366d9e864b3fa00b"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **SET UP USB STEMS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **CHECK STEM ENGINE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **TURN ON USB STEMS / DECKS 1 + 2**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **CHECK THIS DECK AGAIN**"
+    },
+    {
+     "t_ms": 4400,
+     "text": "Tap **CHECK THIS DECK AGAIN**"
+    },
+    {
+     "t_ms": 4920,
+     "text": "Tap **STEMS READY / BACK TO PLAY**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-a-usb-setup.mp4",
+   "w": 1280
+  },
+  "nav-c-player-3": {
+   "clips": [
+    "left-cue",
+    "left-loop-in",
+    "left-loop-out",
+    "left-master",
+    "left-play-pause",
+    "left-reloop",
+    "left-sync",
+    "quantize",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/nav-c-player-3.webp",
+   "seconds": 8.732,
+   "sha256": {
+    "capture": "3a00fdebf7490a2e52cce2dbdf2200ced586ec967f64076411d28444aa1e7e09",
+    "clips": {
+     "left-cue": "54bdd617ea5b49bb8cbfe54093e985361dacb8e259b44804a7bddf22bb54e0ab",
+     "left-loop-in": "e926741eda533cfe81e82ed3d981a5488aeee356b3b7ab79ca9740d3d09e7030",
+     "left-loop-out": "79e9048793f1702cd6d57c8ca3767b4e93fd1f9aaa52e3314dafede2a6d05d29",
+     "left-master": "ac627eda29189907c19778f85496c2d04f0bb0e9aaaf156d2438ec4390cb864b",
+     "left-play-pause": "872712b49d83c75900ed8da0ff112ae9d33cf4bf8f6e89c5f40e54c8ed0ac897",
+     "left-reloop": "108e4d3ee036fc0ce4ee52919b67dc40414c59ef72cf96742e24b75f0dfdf984",
+     "left-sync": "b23e38c6f68a2f420c499209f5e91af1fca3e7f0278e54f75165da759772af78",
+     "quantize": "f58768ab3e27740bf8ad6dabd3d16de646a5378a8ae3626fe891a9c1ed0c959d",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "e3fcf3032f630f4d4293988377353c17c49bd5a63fc6297ffd560d2588778eec",
+    "script": "852abffdf9c7c896effb69ec8ed2b0c2de2f4c3962b06c7a7bd44bb3a623b078",
+    "video": "8d4a3b6bdc1669497d05575caf30db392845f7316e61dbda7fe2def6da47a2a4"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DECKS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1720,
+     "text": "Press [[PLAY/PAUSE]] on the left deck"
+    },
+    {
+     "t_ms": 2220,
+     "text": "Press [[CUE]] on the left deck"
+    },
+    {
+     "t_ms": 2720,
+     "text": "Press [[PLAY/PAUSE]] on the left deck"
+    },
+    {
+     "t_ms": 3220,
+     "text": "Press [[SYNC]] on the left deck"
+    },
+    {
+     "t_ms": 3720,
+     "text": "Press [[DECK QUANTIZE]] on the left deck"
+    },
+    {
+     "t_ms": 4220,
+     "text": "Press [[SYNC]] on the left deck"
+    },
+    {
+     "t_ms": 4720,
+     "text": "Press [[MASTER]] on the left deck"
+    },
+    {
+     "t_ms": 5220,
+     "text": "Press [[SYNC]] on the left deck"
+    },
+    {
+     "t_ms": 5720,
+     "text": "Press [[PLAY/PAUSE]] on the left deck"
+    },
+    {
+     "t_ms": 6220,
+     "text": "Press [[IN/CUE]] on the left deck"
+    },
+    {
+     "t_ms": 6720,
+     "text": "Press [[OUT]] on the left deck"
+    },
+    {
+     "t_ms": 7220,
+     "text": "Press [[RELOOP/EXIT]] on the left deck"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/nav-c-player-3.mp4",
+   "w": 1280
+  },
+  "needle-lock": {
+   "clips": [
+    "shortcut",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/needle-lock.webp",
+   "seconds": 3.052,
+   "sha256": {
+    "capture": "6877f7c6b98aa8e50325c0e4ee78071b44a516c693288f13825e5e0067d48f33",
+    "clips": {
+     "shortcut": "88e54d50e6f8a28baa6b37de8f308a6a9fa2a9759cd6646b9ab8f3001347d6d8",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "32993a5f767c9deda2f00e8348766225c026082e1a229e80e839d6f71cff4b64",
+    "script": "79f3218355915fcc7a739c783fd3d7fc6f4ff9cec587824b01fc39e9c5e5820e",
+    "video": "7b7d04501e25518b66b9f0d87146ca095a5d85fdae027eebf445bc691f2e73ea"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[SHORTCUT]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap the screen"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap the screen"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/needle-lock.mp4",
+   "w": 1280
+  },
+  "network": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/network.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "39ab11e6565db92e86998613f385cca84ce56313391365afa7e4cd9e60f20a4e",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "ae9cc467869b1c8120f0e7e45b520c4981222838d2a76c0722dab4349788eecd",
+    "script": "7c5e5ddd4dd794896f1265032f66d06a529f3bc541b5d3043e56ba678ec24b56",
+    "video": "fd8bda81bb4070bf0b5246b9904439a4ef98c484cd999421e3cf5fc8c8f4dfe0"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **CONNECT**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **NETWORK**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/network.mp4",
+   "w": 1280
+  },
+  "pc-stems": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/pc-stems.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "34c4966d7a256083490d034d31a52696de40da0d447aa70192448dccc7ee9114",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "844ba7b957195bff586de29ce5f392b8e8331bac43fad8ad77b5346c43ea4559",
+    "script": "df8f96214ffbb1366b4039c506e2faa529733325bb34f2d4db234f5c93ef58d0",
+    "video": "bf574bffa73998016025866018684d9d8fb9111e509282c122ec1cfe60cf0e66"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **STEMS IN DJ SOFTWARE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/pc-stems.mp4",
+   "w": 1280
+  },
+  "physical-above-link": {
+   "clips": [
+    "button-above-link"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/physical-above-link.webp",
+   "seconds": 2.112,
+   "sha256": {
+    "capture": "a5f42861188273299efcaba98db881afcda0e7bbc96f4ca2423d2ed9fa9589e8",
+    "clips": {
+     "button-above-link": "819c33e20a74dff0b8d2eb76f47ac5c6b3c101c4fbeccf7a1d7bc0be2622a5c7",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "94cec834db2db730f1f21094d479346871d66340153719340f58ad1be5da2598",
+    "script": "45054751eb00a4d2e969c6fcbaf0098ebab93a6e08dff9eb3680b2b5ced3a103",
+    "video": "0f014acd79443c83669f7c9d14aca4f22ccf27b24243169bb468399ba09c3503"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press the button above [[LINK]]"
+    },
+    {
+     "t_ms": 800,
+     "text": "Press the button above [[LINK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/physical-above-link.mp4",
+   "w": 1280
+  },
+  "physical-beat-jump": {
+   "clips": [
+    "left-beat-jump",
+    "left-pad-a",
+    "left-pad-b",
+    "left-pad-c",
+    "left-pad-d",
+    "left-pad-e",
+    "left-pad-f",
+    "left-pad-g",
+    "left-pad-h",
+    "left-shift"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/physical-beat-jump.webp",
+   "seconds": 7.152,
+   "sha256": {
+    "capture": "50c38a02139fa077e6d0ab70ccf71f646263d6acd4bd390560396903414226f1",
+    "clips": {
+     "left-beat-jump": "e56479755382172f88175ea2af47f67cc78d68f59926249d0d212604f4635eda",
+     "left-pad-a": "10194aca37a3ec0d49f0805dc50d6c7cac59ebb66ba85119462b01f46a26fe1b",
+     "left-pad-b": "86ec60ee3d1b3438c0d6c7f53dec91e28868f865c7fe34e7dff9e79f384b148d",
+     "left-pad-c": "c28db1e47591e070d499af3c3ee5d942c237d44788c796eeebc1730ceb5978d7",
+     "left-pad-d": "874278612f3abec60902769b077aa4d4b90103568f4fcf2ef07143290b08c49b",
+     "left-pad-e": "cd887cd4ba97542e4ab9c774eb1659e811f4d39a4a78e9d6a8bc57a103ea7cb4",
+     "left-pad-f": "ec49978cc3e159f935b9f44a59d0afda9d76f17d6d9be8fcee9cceb89738642f",
+     "left-pad-g": "1e44ff22a73e68ae4bd6939936b978b5fbdaa08764d59e707361163c1842114c",
+     "left-pad-h": "dd10d238cb4689fdfd050cec11e0c7e28d74d6122b563f540bbf8a04853e1051",
+     "left-shift": "2666c7eb987bd64375363a71188f773510441ce48c1904ad05e9ea84de3ac146",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "b863d34951a5d9493493cbae9ef52fb68325006cc4c535e05933556f048c29ff",
+    "script": "09bcff519931c89e6294e658c675cfacc135fb376b1d8f48f139812b2ff48253",
+    "video": "d14405b360058f873777f8398f2f248f8a6c715f610ae992a617733b005dc4e1"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BEAT JUMP]] on the left deck"
+    },
+    {
+     "t_ms": 800,
+     "text": "Press pad A on the left deck"
+    },
+    {
+     "t_ms": 1100,
+     "text": "Press pad B on the left deck"
+    },
+    {
+     "t_ms": 1400,
+     "text": "Press pad C on the left deck"
+    },
+    {
+     "t_ms": 1700,
+     "text": "Press pad D on the left deck"
+    },
+    {
+     "t_ms": 2000,
+     "text": "Press pad E on the left deck"
+    },
+    {
+     "t_ms": 2300,
+     "text": "Press pad F on the left deck"
+    },
+    {
+     "t_ms": 2600,
+     "text": "Press pad G on the left deck"
+    },
+    {
+     "t_ms": 2900,
+     "text": "Press pad H on the left deck"
+    },
+    {
+     "t_ms": 3200,
+     "text": "Hold [[SHIFT]] on the left deck and press [[BEAT JUMP]] on the left deck"
+    },
+    {
+     "t_ms": 3740,
+     "text": "Press pad A on the left deck"
+    },
+    {
+     "t_ms": 4040,
+     "text": "Press pad B on the left deck"
+    },
+    {
+     "t_ms": 4340,
+     "text": "Press pad C on the left deck"
+    },
+    {
+     "t_ms": 4640,
+     "text": "Press pad D on the left deck"
+    },
+    {
+     "t_ms": 4940,
+     "text": "Press pad E on the left deck"
+    },
+    {
+     "t_ms": 5240,
+     "text": "Press pad F on the left deck"
+    },
+    {
+     "t_ms": 5540,
+     "text": "Press pad G on the left deck"
+    },
+    {
+     "t_ms": 5840,
+     "text": "Press pad H on the left deck"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/physical-beat-jump.mp4",
+   "w": 1280
+  },
+  "physical-double-shift-1": {
+   "clips": [
+    "left-shift"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/physical-double-shift-1.webp",
+   "seconds": 2.912,
+   "sha256": {
+    "capture": "86daa2286741a83a23aca50563f8da7abf1d0ef0577a7b6cd5425a563c41bc3c",
+    "clips": {
+     "left-shift": "2666c7eb987bd64375363a71188f773510441ce48c1904ad05e9ea84de3ac146",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "7fe0127724c9c7cf7dd9fd277ae4261e081fd05cdba9baa80b810389c30fa108",
+    "script": "9b3f3ad148eeccdb6e71eeee1addebfd6565e029b1ddb7785c69054e29c2a689",
+    "video": "610629e898dc152639a3d80e018af92fd38fef3a02aea5ee9352d5db867f4991"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[SHIFT]] on the left deck twice quickly"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/physical-double-shift-1.mp4",
+   "w": 1280
+  },
+  "physical-double-shift-2": {
+   "clips": [
+    "right-shift"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/physical-double-shift-2.webp",
+   "seconds": 2.912,
+   "sha256": {
+    "capture": "e71b46209111242d16b4e160909491622caa6a47be2824652f548cfe1f7f3ae8",
+    "clips": {
+     "right-shift": "3aa885d5a7c8a616523801a8314112fb0b38cf2b2a47ae0a6a440c46ffd9a228",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "6f2cb454adea10c18827514b34c0de77f3214af7838db707b7392c2a7d070036",
+    "script": "360fc9312653d5e259f4e8f8f470bc99cec0fac25348df26cb94c1b0ac9807d8",
+    "video": "a183df502783968cd2d7d516579ac5c925fa73b58a5c4272a006db184d0685e0"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[SHIFT]] on the right deck twice quickly"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/physical-double-shift-2.mp4",
+   "w": 1280
+  },
+  "physical-key-sync": {
+   "clips": [
+    "left-shift",
+    "left-sync"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/physical-key-sync.webp",
+   "seconds": 2.052,
+   "sha256": {
+    "capture": "33dd22258e807c04d6127e32dbe806889675c645cf4fe14c6a826e07e0d4c093",
+    "clips": {
+     "left-shift": "2666c7eb987bd64375363a71188f773510441ce48c1904ad05e9ea84de3ac146",
+     "left-sync": "b23e38c6f68a2f420c499209f5e91af1fca3e7f0278e54f75165da759772af78",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "1876e58461a54ae9350e8a0ee00130c0c321a592abdd58de1ce17f5190fc41bd",
+    "script": "dfdcc8ee199bfd5c048b14888397e6198b17ce23ad01ba66a47d3e3b098bc8a6",
+    "video": "a6f0228ea5d9c3c05473b5ec2f017c0ee58d4ece27e0537bd1f40bed2ca70c72"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Hold [[SHIFT]] on the left deck and press [[SYNC]] on the left deck"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/physical-key-sync.mp4",
+   "w": 1280
+  },
+  "physical-pad-mode-pages": {
+   "clips": [
+    "left-beat-jump",
+    "left-beat-loop",
+    "left-hot-cue",
+    "left-shift",
+    "left-slip-loop"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/physical-pad-mode-pages.webp",
+   "seconds": 3.852,
+   "sha256": {
+    "capture": "c0d3cce509fee3029a994b8fdd85076b9bd29aeb0f01e0b8185d8e5fa0daf31b",
+    "clips": {
+     "left-beat-jump": "e56479755382172f88175ea2af47f67cc78d68f59926249d0d212604f4635eda",
+     "left-beat-loop": "b51b488a8959f70c6bfd53bd21596a1fc4072c3316832f3b5929f2a4396a3f25",
+     "left-hot-cue": "6c478dae8a1d3ec3178e96e17b6f19fefa625a3d63e4e9f378f527dc35ed67f2",
+     "left-shift": "2666c7eb987bd64375363a71188f773510441ce48c1904ad05e9ea84de3ac146",
+     "left-slip-loop": "fc7db8376616ef7f951830aec7fec0c0e9af30f58a915214aee176720b64a98b",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "a46014d796749480f174636e7d8b0a64a3dba9305fb1e0183faa9e87102bf749",
+    "script": "85c4957d8fdf9cd9c7cf5a19fe6968dd6d0af60c35f50166fd18bc7ff200a436",
+    "video": "a27e577dd33464c33fae034e10ebc9ea91128afb391718ef83c82d0510ffe1cb"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[HOT CUE]] on the left deck"
+    },
+    {
+     "t_ms": 800,
+     "text": "Press [[BEAT LOOP]] on the left deck"
+    },
+    {
+     "t_ms": 1100,
+     "text": "Press [[SLIP LOOP]] on the left deck"
+    },
+    {
+     "t_ms": 1400,
+     "text": "Press [[BEAT JUMP]] on the left deck"
+    },
+    {
+     "t_ms": 1700,
+     "text": "Hold [[SHIFT]] on the left deck and press [[HOT CUE]] on the left deck, then [[BEAT LOOP]] on the left deck, then [[SLIP LOOP]] on the left deck"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/physical-pad-mode-pages.mp4",
+   "w": 1280
+  },
+  "physical-quantize": {
+   "clips": [
+    "quantize"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/physical-quantize.webp",
+   "seconds": 2.512,
+   "sha256": {
+    "capture": "33f98ae18ede5e87b5e4cdfc063e4fb6d0e0b08e60e885826f9ede6c088bcde8",
+    "clips": {
+     "quantize": "f58768ab3e27740bf8ad6dabd3d16de646a5378a8ae3626fe891a9c1ed0c959d",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "4c3d4c047f2fca9f46401874b89e5213dd4e16cd1d188bf804b6fe0f745ca2e6",
+    "script": "1838e959ee6f453e672f12d829cbc925ff4d8bdd1e45deecae5c93132736aa73",
+    "video": "f0e4e770425bf230a5da39be5c1f584fdbed3deff15994232ba5d5a61d5bdbb6"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[DECK QUANTIZE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Press [[DECK QUANTIZE]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/physical-quantize.mp4",
+   "w": 1280
+  },
+  "physical-stem-pads": {
+   "clips": [
+    "left-hot-cue",
+    "left-pad-a",
+    "left-pad-b",
+    "left-pad-c",
+    "left-pad-d"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/physical-stem-pads.webp",
+   "seconds": 3.312,
+   "sha256": {
+    "capture": "19fdcec5e778c74aaf8be00703335f179c8368ff71953e88c93b3c4be88551b3",
+    "clips": {
+     "left-hot-cue": "6c478dae8a1d3ec3178e96e17b6f19fefa625a3d63e4e9f378f527dc35ed67f2",
+     "left-pad-a": "10194aca37a3ec0d49f0805dc50d6c7cac59ebb66ba85119462b01f46a26fe1b",
+     "left-pad-b": "86ec60ee3d1b3438c0d6c7f53dec91e28868f865c7fe34e7dff9e79f384b148d",
+     "left-pad-c": "c28db1e47591e070d499af3c3ee5d942c237d44788c796eeebc1730ceb5978d7",
+     "left-pad-d": "874278612f3abec60902769b077aa4d4b90103568f4fcf2ef07143290b08c49b",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "39e9ca26e2e484e5ffdc2e2c8d4fefdd82f57694188db3d0dba48472f2bc2e2f",
+    "script": "11e9319031d09c876b0ba7b4221175711815d4b61a3c658d4ff9adee69bd4ce2",
+    "video": "7135e3f452d624d88c3fae771e9dc446078d37f814fff318770c97dc422969f6"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[HOT CUE]] on the left deck"
+    },
+    {
+     "t_ms": 800,
+     "text": "Press pad A on the left deck"
+    },
+    {
+     "t_ms": 1100,
+     "text": "Press pad B on the left deck"
+    },
+    {
+     "t_ms": 1400,
+     "text": "Press pad C on the left deck"
+    },
+    {
+     "t_ms": 1700,
+     "text": "Press pad D on the left deck"
+    },
+    {
+     "t_ms": 2000,
+     "text": "Press pad A on the left deck"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/physical-stem-pads.mp4",
+   "w": 1280
+  },
+  "playlists": {
+   "clips": [
+    "back",
+    "browse",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/playlists.webp",
+   "seconds": 5.112,
+   "sha256": {
+    "capture": "5a2d97194f958ce0e064db3caba12316aeabff047071025d9c794e409e6c1cd0",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "e9de065d4ad6dd71e0fe47dd2453f39f4863846c9c1f9c7d0694d9d5b4b68a7a",
+    "script": "6e74910d2578f661b6e7897d2517ad4ba0c8e9a4b3e1f7f458213c0d4328e4d5",
+    "video": "8edd0ceb3989d3d8a1666f821d639d6ad6e35b273b953d5f517c6ae3a3a4d170"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[BROWSE]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Turn [[ROTARY SELECTOR]] 6 clicks clockwise, then push it"
+    },
+    {
+     "t_ms": 2700,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise, then push it"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/playlists.mp4",
+   "w": 1280
+  },
+  "profile-logo-error": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/profile-logo-error.webp",
+   "seconds": 13.452,
+   "sha256": {
+    "capture": "361c55b628fcefc069f11b00bb113005db098935557e4f0cf0fe3bca6e75000b",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "351d2efc7315afb50877c7a273731417c3998a72d9336b99e27f60b2310dcad4",
+    "script": "d1895d8457ddcea29885f2b4ad61c7a2230094cc488e60dc3af64ad25db2b322",
+    "video": "5a47307a66a8098e7ac9428d533f862fb9b503d897ffbce1566b5427a53a9e5b"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **CONNECT**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **DJ PROFILE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **SET UP DJ PROFILE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **CREATE ON THIS XZ**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Type **dj test** on the screen keyboard"
+    },
+    {
+     "t_ms": 7240,
+     "text": "Tap **NEXT: LOGO**"
+    },
+    {
+     "t_ms": 7760,
+     "text": "Tap **pictures/alternate.jpg**"
+    },
+    {
+     "t_ms": 8280,
+     "text": "Tap **NEXT: TAGLINE**"
+    },
+    {
+     "t_ms": 8800,
+     "text": "Tap **SKIP TAGLINE**"
+    },
+    {
+     "t_ms": 9320,
+     "text": "Tap **SAVE TO USB 1**"
+    },
+    {
+     "t_ms": 9840,
+     "text": "Tap **CHANGE LOGO**"
+    },
+    {
+     "t_ms": 10360,
+     "text": "Tap **NO LOGO**"
+    },
+    {
+     "t_ms": 10880,
+     "text": "Tap **NEXT: TAGLINE**"
+    },
+    {
+     "t_ms": 11400,
+     "text": "Tap **SKIP TAGLINE**"
+    },
+    {
+     "t_ms": 11920,
+     "text": "Tap **SAVE TO USB 1**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/profile-logo-error.mp4",
+   "w": 1280
+  },
+  "ram-copy-error": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/ram-copy-error.webp",
+   "seconds": 6.272,
+   "sha256": {
+    "capture": "0e81096b041558006ae478df6a2f64e1292d4f435bdc369e6462e38ef74a2bff",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "8f0f13012b97522d177117c35d000eb11f15fcfdb5b169d378c55364ff46a305",
+    "script": "badacd22cd1b3315c0b5d242d0a9eeb019a21414ef51fd8564201269d803fbff",
+    "video": "129fb8bc8688a9a2dc7785d3a1bb5a19b8fae104d853ba34dd4f0102da0403f0"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **PLAY**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **RAM TRACKS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] to **LOAD TRACK INTO RAM** and push it"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/ram-copy-error.mp4",
+   "w": 1280
+  },
+  "report-dock-entry": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/report-dock-entry.webp",
+   "seconds": 3.572,
+   "sha256": {
+    "capture": "04e22946c18a9e59dd7c74cd44d26e4a2b3af615f98b78538a0456cbc21c5ba0",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "fa8f162c96347a68021ffdf6f49cbeaf24a88a950b8662519d6af9562ff313b5",
+    "script": "e620b38179ea8f682d89a0c58e5cd5ace6c6a1bd9a3015b4a008b6ea146be5f5",
+    "video": "3574419caf10fbc288f6bb5a1d2991b28303325bece2c393b8269915ccb3c8a4"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **REPORT THIS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **SKIP, I'LL ADD IT ON MY COMPUTER**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **SEND REPORT**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/report-dock-entry.mp4",
+   "w": 1280
+  },
+  "report-edit-recovery": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/report-edit-recovery.webp",
+   "seconds": 17.192,
+   "sha256": {
+    "capture": "e5b0da1d931652a21e77ce0b1d9e68d2fb9dbd91b6db6282480cebd57e3e194c",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "22a6072d1281835e7a8c82c3da8635f5b5d965c6c70a26657fa425a980cf89b1",
+    "script": "191a769c170c21d80e745f6019bce73802a440529e568e5c11b0852a5562ad80",
+    "video": "969ed7e8249c30b6d66916589d90b92405a99e0c1243a27e4c70c6e95cdb8e64"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **REPORT AN ISSUE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] to **SOMETHING ISN'T WORKING** and push it"
+    },
+    {
+     "t_ms": 5180,
+     "text": "Type **test report** on the screen keyboard"
+    },
+    {
+     "t_ms": 11420,
+     "text": "Tap **NEXT**"
+    },
+    {
+     "t_ms": 11940,
+     "text": "Tap **SEND REPORT**"
+    },
+    {
+     "t_ms": 13060,
+     "text": "Tap **EDIT REPORT**"
+    },
+    {
+     "t_ms": 13580,
+     "text": "Tap **CHANGE**"
+    },
+    {
+     "t_ms": 14100,
+     "text": "Tap **HOW DO I...?**"
+    },
+    {
+     "t_ms": 14620,
+     "text": "Tap **NEXT**"
+    },
+    {
+     "t_ms": 15140,
+     "text": "Tap **SEND REPORT**"
+    },
+    {
+     "t_ms": 15660,
+     "text": "Tap **DONE**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/report-edit-recovery.mp4",
+   "w": 1280
+  },
+  "report-issue": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/report-issue.webp",
+   "seconds": 7.192,
+   "sha256": {
+    "capture": "0ed78554fc0f242ed0ba528193ac5749fc024d0215d59ebc984bb116b4c8774e",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "01f6ea5da2f565f9cd63cbc52571b23b834b473dd79eee133b03096fb2230244",
+    "script": "5ee17ba59e7ef7a5a80104018d9c5334c10d0d9dbc53f06032be609ed2f5647f",
+    "video": "02cc15c6c2e54bac3a6491c48ea5718c22d11244a30ebce2d7cd51de77604afd"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **REPORT AN ISSUE**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] to **SOMETHING ISN'T WORKING** and push it"
+    },
+    {
+     "t_ms": 5180,
+     "text": "Push [[ROTARY SELECTOR]] to choose **SKIP, I'LL ADD IT ON MY COMPUTER**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/report-issue.mp4",
+   "w": 1280
+  },
+  "search": {
+   "clips": [
+    "browse",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/search.webp",
+   "seconds": 4.452,
+   "sha256": {
+    "capture": "e40f207a808b5392b7a1f3433f452a4170e0e3c79eccfa9b62e62ca63da970b6",
+    "clips": {
+     "browse": "8ab3144d1e0424e71d135a23df83a0d522160710c36d09a208b7c2109f79bb8b",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "543e65b87a9d7e29f5025489348f871d692ef63e0b95d465f3bfee7d72319e82",
+    "script": "0b3fdd25362ab281a647c2bfd4b8ced00cbb6d917ec3dc903d2956ea2d5bb926",
+    "video": "95b8f93fc7309a9c30dad7586a7c037e159914ed90a2ee68d71012fd169086e9"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Hold [[BROWSE]] for a second"
+    },
+    {
+     "t_ms": 2000,
+     "text": "Tap **A**"
+    },
+    {
+     "t_ms": 2520,
+     "text": "Tap **B**"
+    },
+    {
+     "t_ms": 3040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/search.mp4",
+   "w": 1280
+  },
+  "shortcut": {
+   "clips": [
+    "back",
+    "rotary-selector",
+    "shortcut"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/shortcut.webp",
+   "seconds": 3.912,
+   "sha256": {
+    "capture": "452f804bfc0ea1c9047907c03e424807c27335d8d55fbfc92b3bfeac54062ed2",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "shortcut": "88e54d50e6f8a28baa6b37de8f308a6a9fa2a9759cd6646b9ab8f3001347d6d8",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "0b71cf456cf7553f9114a19d9e086da7f450c19579daaebe7b021440380e75ac",
+    "script": "dd79560fe43d3c561a1242762eec00bb5abac896121318812bbcf72bc4afd565",
+    "video": "fe30772ca54a4feae67eb55fdfa009fb2a1dae8c5cbf2ae6baf3d10f8a557526"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[SHORTCUT]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 1700,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 2400,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/shortcut.mp4",
+   "w": 1280
+  },
+  "source": {
+   "clips": [
+    "back",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/source.webp",
+   "seconds": 2.712,
+   "sha256": {
+    "capture": "31fe7595412149130eb6d98881f7ebdafefed31c8904d6c628020b81d7f86866",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "532ad5ce5c503e94942a2feeff305af12de2ffabc8b6d4e10d10e2a24a611e0b",
+    "video": "1a0057e9ff53ce98934af14d877bf217d53ed9ad1ad4d996717edbf39609ed59"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Open SOURCE ([[BACK]] at the top of a list)"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise"
+    },
+    {
+     "t_ms": 1200,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [
+    "SOURCE"
+   ],
+   "video": "assets/manual/nav/source.mp4",
+   "w": 1280
+  },
+  "stem-colours": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/stem-colours.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "637babe63953c51751f7672e7bd26427e9d214b16cc993b623cefbb2efbf2811",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "54bb809e2314ee97d81b08833d58da38120f3f46eb475e06997c60eacbb4963b",
+    "script": "fadceb3abfa7f726df60ef9abab1b760134b52e584530c739c49d19383709e55",
+    "video": "490c1957c37d7e05f1610e55b7d3013f3742ddfaf6ca62205f67e89210454857"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **STEM COLOURS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/stem-colours.mp4",
+   "w": 1280
+  },
+  "stem-mute-bypass": {
+   "clips": [
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/stem-mute-bypass.webp",
+   "seconds": 3.072,
+   "sha256": {
+    "capture": "c378cb0e2990511ac8ddd623efc0495f86386bcd03017d7081ea570a00a4639a",
+    "clips": {
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "b139d496cb9d3ba7bfe08c8ab2ae73c7d7f8731f0148199f192ae2691fccfab9",
+    "script": "04a5a50a29e2acc4e969e54ac95e5e9213f64dea8af681c4b65d5b4950f275a6",
+    "video": "c9b8fb53406a0b6c07dc5349d8213a38cced35e3fac3e32a9d7760ae48df7dc5"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Tap **DRUMS**"
+    },
+    {
+     "t_ms": 1020,
+     "text": "Tap **BYPASS**"
+    },
+    {
+     "t_ms": 1540,
+     "text": "Tap **BYPASS**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/stem-mute-bypass.mp4",
+   "w": 1280
+  },
+  "stem-pads-values": {
+   "clips": [
+    "menu",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/stem-pads-values.webp",
+   "seconds": 7.732,
+   "sha256": {
+    "capture": "b2455e9fbb905f251a359bd697a1a2ebac4dcae9777a834c9993ece279071eae",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "f38c68afaa9fb006caff760a3afd709176a5b382e8f282bb4913a8b9f8d25b30",
+    "script": "3bdd15c38afca165f0ed5081995a8053579c4786e24dc88639da108d6b4d1d1b",
+    "video": "94c296ca67e23a2122819b438fbaa9672fd8aac2e82a41a5d916fb23a73b9eb9"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **STEMS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **STEM PADS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **HOT CUE**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Tap **BEAT LOOP**"
+    },
+    {
+     "t_ms": 3080,
+     "text": "Tap **SLIP LOOP**"
+    },
+    {
+     "t_ms": 3600,
+     "text": "Tap **BEAT JUMP**"
+    },
+    {
+     "t_ms": 4120,
+     "text": "Tap **PADS A-D**"
+    },
+    {
+     "t_ms": 4640,
+     "text": "Tap **PADS E-H**"
+    },
+    {
+     "t_ms": 5160,
+     "text": "Tap **ORDER**"
+    },
+    {
+     "t_ms": 5680,
+     "text": "Tap **STEM COLOURS**"
+    },
+    {
+     "t_ms": 6200,
+     "text": "Tap **OFF**"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/stem-pads-values.mp4",
+   "w": 1280
+  },
+  "system-readout": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/system-readout.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "ec9d5376cae6fabef3f2a5b8bf76c4ecf8d3378bb93cf43c3fb2d729ed82a74b",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "8d26392eeec81b4ba9e762a0ad6c8fefe0ac29a9d5183f90b15b2244c2450a5b",
+    "script": "2100b3c25bac07eac289c65806a3054de9b9bbd0967bcbf0b3d70c4499b52316",
+    "video": "6a561190a81344d99d0bc2ffb28e6ae9ab2861e28a0d7bac37fb10330c106b1c"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **SCREEN**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **SYSTEM READOUT**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/system-readout.mp4",
+   "w": 1280
+  },
+  "tag-list": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector",
+    "tag-list"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/tag-list.webp",
+   "seconds": 3.412,
+   "sha256": {
+    "capture": "a1f607e6e705a7d89d372478b27bd636f4cca5dc4c0446696baddc1d02f487b2",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "tag-list": "dce6a368543e77c5f1e60bcce161bfba060dd59768667667f981e486664d6e1f",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "85f37414611de94b4d2ea9fddc8eda9ff889627634e2fffd204eec4e8dea439d",
+    "script": "1feef62b6533310251427feb3e8ce52560d683a7e5aa2ae50580a51df13d3078",
+    "video": "8e256d71cb76c57f5314c187d463d783adb0aa4b90cee51f005d55cfe1c45a4c"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[TAG LIST]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    },
+    {
+     "t_ms": 1400,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1900,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/tag-list.mp4",
+   "w": 1280
+  },
+  "updates": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/updates.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "541108108d44e4384d69dc64050332e4261dac95cb2e952d0424916439f90d72",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "0abf6e003e335afcecb668412dec65d642f18b14c29e99b31cc08755bd0ce5c7",
+    "script": "ef1f8f50b4264276c5d70bc323efcda9229fafe2fa86cd85b79f7bab402a9e20",
+    "video": "f960152065a27ddef07c4a77c200e6ae2eae150d685f1af6a16f5037f7051caf"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **CONNECT**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **UPDATES**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/updates.mp4",
+   "w": 1280
+  },
+  "utility": {
+   "clips": [
+    "back",
+    "menu",
+    "rotary-selector"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/utility.webp",
+   "seconds": 5.412,
+   "sha256": {
+    "capture": "ef0cb64ad724381471eee90c3c9ac00a2324d489c943e5fb61f694cfebacce3c",
+    "clips": {
+     "back": "43c62a9237d47d6868cbdb573fce2dc39d867658233bf69c63fce1843bc6ad13",
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "c01587c1845bf0980e57e58c6e83a5ee63d6aa243e492b20032c717807c09923",
+    "script": "724ef14cd7e142d30024a97a12a955b190eb38cfbb552fca9698a95d5baf336f",
+    "video": "6d94cc60c412fddb94d0dd959d700b8d387a0119777f46a355b78dc6589b8eeb"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Hold [[MENU]] for a second"
+    },
+    {
+     "t_ms": 2000,
+     "text": "Push [[ROTARY SELECTOR]]"
+    },
+    {
+     "t_ms": 2500,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 3200,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise, then push it"
+    },
+    {
+     "t_ms": 3900,
+     "text": "Press [[BACK]]"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/utility.mp4",
+   "w": 1280
+  },
+  "vj-tools": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/vj-tools.webp",
+   "seconds": 3.452,
+   "sha256": {
+    "capture": "636644069eea4e42dc44b02581ac016b9f87c7ccd41288ba83e44f2aefe5aec0",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "500246a6950b54496c3807bd1e6a3a45ec84a94b8cbaa9d088276773f5aa30cb",
+    "script": "9b10c29d9daf62341e492df8c102131f1d80821efaaeb1d8eb6dd569eaaac494",
+    "video": "d4990ed242844bfec54c0ffb8ecf0e4aafbe54ef9ea44a65bfd7fc41e4eb894b"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **CONNECT**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **VJ.TOOLS**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Turn [[ROTARY SELECTOR]] 2 clicks clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/vj-tools.mp4",
+   "w": 1280
+  },
+  "wad-loader": {
+   "clips": [
+    "menu",
+    "rotary-selector",
+    "touch-screen"
+   ],
+   "h": 480,
+   "interface": "modern",
+   "poster": "assets/manual/nav/wad-loader.webp",
+   "seconds": 3.772,
+   "sha256": {
+    "capture": "7b6ea7a344fffe4a4931772aa874462c1b6f2424c47ba8856246f99690095019",
+    "clips": {
+     "menu": "28710d18d60d322d0f4549689517a6c5433f1af0c79f47833ef04d0a8616453c",
+     "rotary-selector": "9f1373a5ff93ce3cb40f7e5f808f9e792fb99225aea9138ef1e829ca0954829e",
+     "touch-screen": "31d17966443b362d6d1df050aec08ad30e45d4cc5ab2fb78ee6c2009f1e524d7"
+    },
+    "poster": "fc5ab054f3a53d7f1b9f2dfeaa2a4ffe362717bf42f6ee59c55ac0dbf684dd24",
+    "script": "c0a9c50219bb649ca2e913d655534eedc5cd57f39decbf83710046f1c758f28c",
+    "video": "f14a9fb3a91d05efaca24ba44afa7358974a2d97a172a777de9680a2f65cd55c"
+   },
+   "steps": [
+    {
+     "t_ms": 500,
+     "text": "Press [[MENU]]"
+    },
+    {
+     "t_ms": 1000,
+     "text": "Tap **EXTRAS**"
+    },
+    {
+     "t_ms": 1520,
+     "text": "Tap **GAMES**"
+    },
+    {
+     "t_ms": 2040,
+     "text": "Tap **USB WAD LOADER**"
+    },
+    {
+     "t_ms": 2560,
+     "text": "Turn [[ROTARY SELECTOR]] 1 click clockwise"
+    }
+   ],
+   "unclipped": [],
+   "video": "assets/manual/nav/wad-loader.mp4",
+   "w": 1280
+  }
+ },
+ "format": "xz-nav-media/1",
+ "fps": 30,
+ "frames": "out-v2",
+ "generator": "tools/build_nav_videos.py",
+ "scene_sha256": "712174f44feb563bf93248b68d25aa13ebac9dfa1543e80cf304e2d6483e4727",
+ "size": [
+  1280,
+  480
+ ]
+}

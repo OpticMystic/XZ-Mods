@@ -703,7 +703,7 @@ static void editor(void){
  assert(u.page==XZ_UI_PROFILE_EDIT&&u.edit_entry==1&&!u.edit_id[0]&&!strcmp(u.edit_name,"LENA B")&&u.edit_logo==XZ_UI_LOGO_KEEP);
 }
 static int rb_overlap(struct xz_ui_widget a,struct xz_ui_widget b){return a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;}
-/* PLAY > REKORDBOX BUTTON: two slots of seven choices, no overlap in any theme, labels that fit, one help
+/* PLAY > BUTTON ABOVE LINK: two slots of seven choices, no overlap in any theme, labels that fit, one help
    line per slot; no brand name in the choices and their help (the page names the button by its printed name); PLAY and VJ.TOOLS no longer offer the old switches. */
 static void rekordbox_buttons(void){
  struct xz_ui u;struct xz_ui_model m;struct xz_ui_widget w[XZ_UI_WIDGETS];struct xz_ui_info info;
@@ -744,7 +744,7 @@ static void rekordbox_buttons(void){
   for(size_t i=0;i<n;i++)if(w[i].kind==XZ_UI_TAKEOVER_ASSIGN){assert(w[i].index!=1);assign++;
    for(size_t j=0;j<n;j++)if(j!=i)assert(!rb_overlap(w[i],w[j]));}
   assert(assign==2);}
- puts("PASS PLAY > REKORDBOX BUTTON: 2 x 7 choices, 25 themes without overlap, slot/value taps, help, no brand name, retired switches gone");
+ puts("PASS PLAY > BUTTON ABOVE LINK: 2 x 7 choices, 25 themes without overlap, slot/value taps, help, no brand name, retired switches gone");
 }
 /* Every explanation the dock shows fits its three lines, so nothing is cut mid-word (the room MODERN's detail pane
    gave): every focusable control of every page, both interfaces, every theme's face. */

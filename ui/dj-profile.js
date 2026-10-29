@@ -1,7 +1,7 @@
 // DJ Profile page: the profiles on the selected USB, an editor with a live device preview, and the profile track
 // wizard. One state object P moves through the phases below; each phase has one view. Errors are data on P.
 //   no-usb  -> loading -> list <-> editing -> saving -> list
-//                         list  -> track (where -> create -> rekordbox, ending on a live USB check) -> list
+//                         list  -> track (where -> create -> library, ending on a live USB check) -> list
 // The USB is the wizard's (setupWizard.state): choosing it on any page is enough.
 // The same state draws the DJ profile step of the USB page's write flow. There the draft is not saved on its own:
 // the write saves it (pending / writePending), with the loader, games and settings.
@@ -11,14 +11,14 @@
 const LIMITS={nameBytes:160,tagline:80,taglineBytes:240,aliases:8,alias:80,aliasBytes:160,links:12,url:2048,logos:8,logoBytes:8*1048576,totalBytes:24*1048576,noteBytes:8192};
 const LINK_KINDS=[['media-kit','EPK'],['files','Files'],['website','Website'],['instagram','Instagram'],['soundcloud','SoundCloud'],['mixcloud','Mixcloud'],['bandcamp','Bandcamp'],['link','Other']];
 const DEFAULT_ACCENT='#2997ff',BUDGET_SHOWN_FROM=16*1048576;
-// rekordbox's eight USB colours, as builder/dj_profile.py STICK_COLOURS reads them from export.pdb.
+// The eight USB colours of the exported library, as builder/dj_profile.py STICK_COLOURS reads them from export.pdb.
 const STICK_SWATCHES=[['#f870f8','Pink'],['#f87070','Red'],['#ffa064','Orange'],['#f8e550','Yellow'],['#1ee12b','Green'],['#10e4dc','Aqua'],['#1e50f0','Blue'],['#9828f0','Purple']];
 const IMAGE_FILE=/\.(png|jpe?g)$/i;
 const CONFLICT=/changed since they were loaded|changed while its track was written/;
 const CONFLICT_TEXT="This USB's profiles changed since you opened them. Reload and try again.";
-const TRACK_STEPS=[['where','Where'],['create','Create'],['rekordbox','Add it to rekordbox']];
-const TRACK_LIBRARIES=[['device_library','rekordbox device library'],['onelibrary','OneLibrary']];
-const TRACK_LEAD='Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through rekordbox like any other track.';
+const TRACK_STEPS=[['where','Where'],['create','Create'],['library','Add it to your library']];
+const TRACK_LIBRARIES=[['device_library','Device library'],['onelibrary','OneLibrary']];
+const TRACK_LEAD='Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through your DJ software like any other track.';
 const W=setupWizard.state,pageHost=$('djp-host');
 const P={phase:'no-usb',volume:null,data:null,error:null,saved:null,draft:null,track:null,notes:[]};
 
@@ -365,20 +365,20 @@ function preview(){
 function setAccent(hex){
   P.draft.accent=hex;$('djp-accent').value=hex;$('djp-accent-pick').value=hex;refreshEditor();
 }
-// The stick's own rekordbox colour comes first and is the default for a new profile.
+// The stick's own colour in the exported library comes first and is the default for a new profile.
 function colourNote(d){
   const stick=P.data?.stick_colour,name=swatchName(stick)||stick;
-  if(!stick)return ['No colour is set for this USB in rekordbox, so pick one.'];
-  if(d.accent.toLowerCase()===stick)return ['Matches this USB\'s colour in rekordbox ('+name+').'];
-  return ['This USB is '+name+' in rekordbox. ',el('button',{type:'button',class:'text-button',id:'djp-use-stick',text:'Use '+name,onclick:()=>setAccent(stick)})];
+  if(!stick)return ['No colour is set for this USB in your DJ software, so pick one.'];
+  if(d.accent.toLowerCase()===stick)return ['Matches this USB\'s colour in your DJ software ('+name+').'];
+  return ['This USB is '+name+' in your DJ software. ',el('button',{type:'button',class:'text-button',id:'djp-use-stick',text:'Use '+name,onclick:()=>setAccent(stick)})];
 }
 function colourField(d){
   const stick=P.data?.stick_colour;
   return el('div',{class:'djp-group'},
     el('div',{class:'djp-group-head'},el('h3',{text:'Colour'}),el('small',{class:'djp-colour-note',role:'status'})),
     el('div',{class:'djp-colour'},
-      el('div',{class:'djp-swatches',role:'group','aria-label':'rekordbox USB colours'},...STICK_SWATCHES.map(([hex,name])=>el('button',{type:'button',class:'djp-swatch',style:'--swatch:'+hex,
-        dataset:{hex,stick:hex===stick?'1':null},title:name+(hex===stick?' · this USB in rekordbox':''),'aria-label':name+(hex===stick?', this USB in rekordbox':''),onclick:()=>setAccent(hex)}))),
+      el('div',{class:'djp-swatches',role:'group','aria-label':'USB colours'},...STICK_SWATCHES.map(([hex,name])=>el('button',{type:'button',class:'djp-swatch',style:'--swatch:'+hex,
+        dataset:{hex,stick:hex===stick?'1':null},title:name+(hex===stick?' · this USB\'s colour':''),'aria-label':name+(hex===stick?', this USB\'s colour':''),onclick:()=>setAccent(hex)}))),
       el('span',{class:'djp-custom'},el('input',{type:'color',id:'djp-accent-pick','aria-label':'Any colour',title:'Any colour',value:/^#[0-9a-fA-F]{6}$/.test(d.accent)?d.accent.toLowerCase():DEFAULT_ACCENT,oninput:event=>{d.accent=event.target.value;$('djp-accent').value=d.accent;refreshEditor();}}),
       input({type:'text',id:'djp-accent',value:d.accent,maxlength:'7','aria-label':'Colour hex',spellcheck:'false'},value=>{d.accent=value.trim();if(/^#[0-9a-fA-F]{6}$/.test(d.accent))$('djp-accent-pick').value=d.accent.toLowerCase();}))),
     el('p',{class:'djp-err',dataset:{err:'accent'},role:'status'}));
@@ -493,7 +493,7 @@ function trackWhere(t){
   return [el('p',{class:'wz-lead',text:TRACK_LEAD}),
     el('div',{class:'djp-dest'},
       el('div',{class:'djp-dest-row',dataset:{dest:'folder'}},el('span',{class:'tree-dot',dataset:{tone:'ok'},'aria-hidden':'true'}),
-        el('span',{class:'djp-dest-text'},el('strong',{text:'Save to this computer for rekordbox'}),el('small',{id:'djp-track-folder',text:t.folder||'Music › DJ Profile in your user folder'})),
+        el('span',{class:'djp-dest-text'},el('strong',{text:'Save to this computer for your DJ software'}),el('small',{id:'djp-track-folder',text:t.folder||'Music › DJ Profile in your user folder'})),
         el('button',{type:'button',class:'text-button',text:'Choose folder',onclick:pickTrackFolder})),
       el('label',{class:'djp-dest-row'},el('input',{type:'checkbox',id:'djp-usb-copy',checked:t.usbCopy?true:null,onchange:event=>{t.usbCopy=event.target.checked;}}),
         el('span',{class:'djp-dest-text'},el('strong',{text:'Also put a copy on this USB'}),el('small',{text:'In your profile folder in DJPROFILE. VJ software on the network can read it from there.'})))),
@@ -514,12 +514,12 @@ function trackCreate(t){
     el('dl',{class:'djp-facts'},...facts.flatMap(([term,text])=>[el('dt',{text:term}),el('dd',{text})])),
     pathLine(r.path),
     banner(t.error),
-    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-next',text:'Next: add it to rekordbox',onclick:()=>{t.step='rekordbox';render();}}))];
+    el('div',{class:'actions'},el('button',{type:'button',class:'primary',id:'djp-track-next',text:'Next: add it to your library',onclick:()=>{t.step='library';render();}}))];
 }
 // One line per library, from dj_profile_track_status. A stick may carry either library or both.
 function libraryLine(entry){
   if(entry.library==='absent')return ['off','Not on this USB.'];
-  if(entry.library==='unreadable')return ['warn','Could not be read. Export the USB again from rekordbox.'];
+  if(entry.library==='unreadable')return ['warn','Could not be read. Export the USB again from your DJ software.'];
   if(entry.track==='missing')return ['off','Your track is not in it yet.'];
   // The wizard has just made a current track, so an older one on the USB means it was not exported again.
   if(entry.track==='stale')return ['warn','Found, but made before your last edit. Export the new track to this USB.'];
@@ -539,7 +539,7 @@ async function checkTrack(){
 }
 function trackCheck(c){
   if(!c)return null;
-  if(c.running)return el('p',{class:'wz-lead',role:'status',text:'Reading the rekordbox libraries on '+driveName()+'…'});
+  if(c.running)return el('p',{class:'wz-lead',role:'status',text:'Reading the exported libraries on '+driveName()+'…'});
   if(c.error)return banner(c.error);
   return el('div',{class:'djp-dest djp-check',role:'status'},...TRACK_LIBRARIES.map(([key,label],i)=>{
     const [tone,text]=libraryLine(c.entries[i]);
@@ -547,26 +547,26 @@ function trackCheck(c){
       el('span',{class:'djp-dest-text'},el('strong',{text:label}),el('small',{text})));
   }));
 }
-function trackRekordbox(t){
+function trackLibrary(t){
   const file=baseName(t.result.path),c=t.check,finish=()=>{P.track=null;P.saved=null;P.notes=[];load(P.volume);};
   const actions=c?.running?[]:c?.found
     ?[el('button',{type:'button',class:'primary',id:'djp-track-done',text:'Done',onclick:finish}),el('button',{type:'button',class:'secondary',text:'Check again',onclick:checkTrack})]
     :[el('button',{type:'button',class:'primary',id:'djp-track-check',text:'Check the USB',onclick:checkTrack}),
       el('button',{type:'button',class:'secondary',text:'Check later',onclick:finish})];
-  return [el('p',{class:'wz-lead',text:'rekordbox puts the track on the USB like any other song. Players that block extra files still read your name, logo and links from it.'}),
+  return [el('p',{class:'wz-lead',text:'Your DJ software puts the track on the USB like any other song. Players that block extra files still read your name, logo and links from it.'}),
     el('ol',{class:'djp-howto'},
-      el('li',{text:'Open rekordbox on this computer.'}),
+      el('li',{text:'Open your DJ software on this computer.'}),
       el('li',{},'Drag ',el('b',{text:file}),' into Collection.'),
       el('li',{},'Make a playlist named ',el('b',{text:'DJ PROFILE'}),' and put the track in it.'),
       el('li',{text:'Export the DJ PROFILE playlist to this USB ('+driveName()+').'}),
       el('li',{text:'Leave the USB plugged in and check it here.'})),
-    el('p',{class:'djp-caption',text:'djay and other apps that export OneLibrary can put the track on the USB too.'}),
+    el('p',{class:'djp-caption',text:'Other DJ apps that export OneLibrary can put the track on the USB too.'}),
     pathLine(t.result.path),
     trackCheck(c),
     el('div',{class:'actions'},...actions)];
 }
 function viewTrack(){
-  const t=P.track,body=t.step==='where'?trackWhere(t):t.step==='create'?trackCreate(t):trackRekordbox(t);
+  const t=P.track,body=t.step==='where'?trackWhere(t):t.step==='create'?trackCreate(t):trackLibrary(t);
   return el('section',{class:'wz-pane djp-track',dataset:{step:t.step}},el('h2',{text:'Profile track for '+t.name}),trackSteps(t.step),...body);
 }
 

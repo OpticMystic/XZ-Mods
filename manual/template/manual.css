@@ -15,6 +15,11 @@ img{max-width:100%;height:auto}
 code{font:.86em var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:.08em .38em;color:#e9edf1;overflow-wrap:anywhere}
 kbd{display:inline-block;min-width:1.7em;padding:.05em .5em .12em;font:700 .74em/1.6 var(--mono);letter-spacing:.04em;text-align:center;
   color:#eef1f4;background:linear-gradient(#262c34,#1a1f25);border:1px solid #3f4853;border-bottom-width:3px;border-radius:6px;vertical-align:.08em;white-space:nowrap}
+/* [[NAME]]: the XDJ-XZ control's glyph (tools/xz_buttons.py), its name kept as text for screen readers and search */
+.xzb{display:inline-block;position:relative;line-height:0;vertical-align:-.42em;margin:0 .1em;white-space:nowrap}
+.xzb-g{display:inline-block;height:1.4em;width:auto;max-width:none}
+.xzb-n{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+td .xzb .xzb-g,.legend .xzb .xzb-g{height:1.7em}td .xzb{vertical-align:-.55em}
 .skip{position:fixed;left:16px;top:-80px;z-index:50;padding:10px 16px;background:var(--gold);color:#121;border-radius:8px}
 .skip:focus{top:12px}
 
@@ -103,6 +108,12 @@ ol.steps>li:not(:last-child)::after{content:"";position:absolute;left:14.5px;top
 .callout{display:grid;grid-template-columns:auto 1fr;gap:12px;margin:22px auto;padding:14px 18px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ink-faint);border-radius:10px}
 .callout b{font:700 .66rem/2.2 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)}
 .callout p{margin:0;font-size:.95rem}
+/* navigation videos: the player's screen beside the control in use, and the steps it shows */
+.mn{margin:22px auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mn-scenes{list-style:none;margin:0;padding:0}
+.mn-scenes>li+li{border-top:1px solid var(--line)}
+.mn video{display:block;width:100%;height:auto;background:#000}
+.mn-steps{margin:10px 18px 14px;padding-left:20px;font-size:.95rem}
 .callout--tip{border-left-color:var(--gold)}.callout--tip b{color:var(--gold)}
 .callout--caution{border-left-color:var(--warn)}.callout--caution b{color:var(--warn)}
 .callout--experimental{border-left-color:var(--warn)}.callout--experimental b{color:var(--warn)}

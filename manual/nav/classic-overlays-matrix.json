@@ -1,0 +1,28 @@
+{
+  "section": "screen-and-themes#theme-families",
+  "interface": "CLASSIC overlay over retained stock capture",
+  "steps": [
+    {
+      "fixture": 122,
+      "detail": "CLASSIC theme overlay fixture, retained stock pixels"
+    },
+    {
+      "touch": [
+        220,
+        10
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "touch": [
+        390,
+        130
+      ]
+    },
+    {
+      "wait": 300
+    }
+  ]
+}

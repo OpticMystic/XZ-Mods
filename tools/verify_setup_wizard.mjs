@@ -252,7 +252,7 @@ try {
   };
 
   await open('fresh');
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,manual,my-reports'&&[...document.querySelectorAll('nav button:not(.nav-feedback)')].map(b=>b.textContent.trim()).join()==='USB,Stems,XZ Screen,Tools,Manual'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelectorAll('nav button svg.icon use').length===6`, 'nav is USB, Stems, XZ Screen, Tools, Manual, then Feedback at the foot of the rail, each with an icon');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,dj-profile,updates,tools,manual,licenses,my-reports'&&[...document.querySelectorAll('nav button:not(.nav-feedback)')].map(b=>b.textContent.trim()).join()==='USB,Stems,DJ Profile,Updates,Tools,Manual,About'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelectorAll('nav button svg.icon use').length===8&&new Set([...document.querySelectorAll('nav button svg.icon use')].map(u=>u.getAttribute('href'))).size===8`, 'nav is USB, Stems, DJ Profile, Updates, Tools, Manual, About, then Feedback at the foot of the rail, each with its own icon');
   await check(`document.querySelector('nav button.selected').dataset.page==='setup'&&txt('#page-title')==='USB'&&!document.querySelector('header .eyebrow')&&getComputedStyle(document.getElementById('page-title')).fontSize==='20px'`, 'USB is the home page under a compact one-line header');
   await view('device');
   await check(`fx.requests.slice(0,3).map(r=>r.method).join()==='list_mod_versions,discover_usbs,inspect_usb'&&fx.calls.includes('list_volumes')&&!document.getElementById('job-panel').checkVisibility()`, 'a single USB opens by itself: no Find button, no job panel flash');
@@ -304,15 +304,16 @@ try {
   await check(`(()=>{const v=document.querySelector('.wz-look-card[data-look=new] video');return Boolean(v)&&v.muted&&v.loop&&v.autoplay&&v.playsInline&&v.getAttribute('src')==='assets/wizard/new-interface.mp4'&&v.getAttribute('aria-label').length>40;})()&&document.querySelector('.wz-look-card[data-look=standard] img').alt.length>20`, 'the chosen card plays the new interface muted and looping in place; the other shows a still with alt text');
   await waitFor(`(()=>{const v=document.querySelector('.wz-look-card[data-look=new] video');return Boolean(v)&&v.readyState>=2&&v.videoWidth===800&&v.videoHeight===480;})()`, 'the new-interface video decodes under the app CSP');
   await check(`(()=>{const c=[...document.querySelectorAll('.wz-look-card')].map(e=>e.getBoundingClientRect().width);return c[0]>c[1]*1.4;})()`, 'the selected card is the large one');
-  await check(`txt('.wz-later-line')==='You can switch any time on the deck: tap MODS, then APPEARANCE → INTERFACE.'&&txt('.wz-later-steps').includes('Tap MODS in the top right corner, then the APPEARANCE tab and OPEN APPEARANCE.')&&txt('.wz-later-steps').includes('Choose INTERFACE: CLASSIC.')`, 'one line on switching later, and two steps naming the deck labels');
-  await waitFor(`[...document.querySelectorAll('.wz-look-step img')].every(i=>i.complete&&i.naturalWidth>0&&i.alt)`, 'stills and switch-later graphics load, each with alt text');
+  await check(`txt('.wz-later').includes('Press the button directly above LINK to switch between MODERN and CLASSIC, any time.')&&txt('.wz-later').includes("default job. MODS > PLAY can give it another.")&&txt('.wz-later').includes('Or use the menu: press MENU, tap SCREEN, then tap CLASSIC under INTERFACE.')&&(()=>{const v=[...document.querySelectorAll('.wz-later video')];return v.length===2&&v[0].getAttribute('src')==='assets/manual/nav/physical-above-link.mp4'&&v[1].getAttribute('src')==='assets/manual/nav/interface-choice.mp4'&&v.every(x=>x.muted&&x.loop&&x.getAttribute('aria-label').length>40);})()`, 'switching later leads with the button above LINK and its navigation video, then the menu route with its own');
+  await waitFor(`[...document.querySelectorAll('.wz-later video')].every(v=>v.readyState>=2&&v.videoWidth===1280&&v.videoHeight===480)`, 'both navigation videos decode under the app CSP')
+  await waitFor(`[...document.querySelectorAll('.wz-look-step img')].every(i=>i.complete&&i.naturalWidth>0&&(i.alt||i.classList.contains('xzb-g')))`, 'stills and switch-later graphics load, each with alt text');
   await check(`!/\\b(CDJ|Pioneer|rekordbox|AlphaTheta)\\b/i.test(txt('.wz-look-step')+[...document.querySelectorAll('.wz-look-step [alt],.wz-look-step [aria-label]')].map(e=>e.getAttribute('alt')||e.getAttribute('aria-label')).join(' '))`, 'the step names no other brand');
   await check(fits, 'look step fits without horizontal scroll');
   await shot('05b-flow-look-new');
   await evaluate(`document.querySelector('.wz-look-card[data-look=new] input').focus()`);
   for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39 });
   await waitFor(`document.querySelector('.wz-look-step').dataset.choice==='standard'`, 'the arrow key picks the standard interface');
-  await check(`setupWizard.state.settings.interface===0&&document.activeElement===document.querySelector('.wz-look-card[data-look=standard] input')&&getComputedStyle(document.querySelector('.wz-look-card[data-look=standard]')).outlineStyle==='solid'&&txt('.wz-later-steps').includes('Tap MODS in the top right corner, then APPEARANCE.')&&txt('.wz-later-steps').includes('Choose INTERFACE: MODERN.')`, 'keyboard: arrows move the choice, the focused card shows a ring, the switch-later graphic follows the choice');
+  await check(`setupWizard.state.settings.interface===0&&document.activeElement===document.querySelector('.wz-look-card[data-look=standard] input')&&getComputedStyle(document.querySelector('.wz-look-card[data-look=standard]')).outlineStyle==='solid'&&txt('.wz-later').includes('then tap MODERN under INTERFACE.')`, 'keyboard: arrows move the choice, the focused card shows a ring, the switch-later graphic follows the choice');
   await new Promise(done => setTimeout(done, 700));
   await check(`(()=>{const c=[...document.querySelectorAll('.wz-look-card')].map(e=>e.getBoundingClientRect().width);return c[1]>c[0]*1.4;})()&&!document.querySelector('.wz-look-card[data-look=new] video')&&document.querySelector('.wz-look-card[data-look=new] img').getAttribute('src')==='assets/wizard/new-interface-poster.webp'`, 'the large frame moves to the standard card; the new interface stops and shows its poster');
   await shot('05c-flow-look-standard');
@@ -353,7 +354,7 @@ try {
   await waitFor(`setupWizard.state.step==='writing'&&fx.requests.at(-1)?.method==='prepare_usb'&&document.getElementById('job-panel').checkVisibility()`, 'writing step with the job panel');
   await check(`document.querySelector('.wz-flow').contains(document.getElementById('job-panel'))&&txt('#job-title')==='Adding the XZ Mods loader'&&!button('Write to USB')&&!document.querySelector('.wz-cancel')&&!document.querySelector('.wz-foot')&&txt('.wz-flow-count')==='Step 4 of 6'`, 'writing: the job panel shows inside the flow; no Write, Cancel or Back to press');
   await shot('07-flow-writing');
-  await check(`(()=>{const s=document.querySelector('.wz-flow[data-step=writing] .wz-fourdeck');return Boolean(s)&&s.dataset.where==='writing'&&txt('.wz-fourdeck .wz-eyebrow')==='While you wait'&&[...s.querySelectorAll('.wz-fourdeck-steps strong')].map(e=>e.textContent).join('|')==='Cable from the rear USB-B socket to top USB 1 or 2|Music in the other top port|CH3 and CH4 set to USB'&&!s.querySelector('button.primary')&&!document.getElementById('wz-fourdeck-how')&&s.querySelector('video')?.getAttribute('src')==='assets/wizard/loopback-cable.mp4'&&Boolean(document.getElementById('job-panel').compareDocumentPosition(s)&Node.DOCUMENT_POSITION_FOLLOWING);})()`, 'writing: four decks is explained under the progress, as something to read; without the manual there is no button that would leave the write');
+  await check(`(()=>{const s=document.querySelector('.wz-flow[data-step=writing] .wz-fourdeck');return Boolean(s)&&s.dataset.where==='writing'&&txt('.wz-fourdeck .wz-eyebrow')==='While you wait'&&[...s.querySelectorAll('.wz-fourdeck-steps strong')].map(e=>e.textContent).join('|')==='Cable from the rear USB-B socket to top USB 1 or 2|Music in the other top port|CH 3 INPUT and CH 4 INPUT set to USB'&&!s.querySelector('button.primary')&&!document.getElementById('wz-fourdeck-how')&&s.querySelector('video')?.getAttribute('src')==='assets/wizard/loopback-cable.mp4'&&Boolean(document.getElementById('job-panel').compareDocumentPosition(s)&Node.DOCUMENT_POSITION_FOLLOWING);})()`, 'writing: four decks is explained under the progress, as something to read; without the manual there is no button that would leave the write');
   await evaluate(`window.openManual=()=>{};setupWizard.render()`);
   await check(`Boolean(document.getElementById('wz-fourdeck-how'))&&setupWizard.state.step==='writing'`, 'writing: with the manual in this host, How four decks work is offered');
   await evaluate(`document.querySelector('.wz-fourdeck').scrollIntoView({block:'start'})`);
@@ -366,7 +367,7 @@ try {
   await check(`txt('.wz-done-hero h3')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')&&txt('.wz-next').includes('press MENU')&&Boolean(button('Done'))&&!document.getElementById('job-panel').checkVisibility()`, 'done: success mark, result lines, the On the XZ steps, Done');
   await check(`!document.getElementById('wz-back')&&Boolean(document.querySelector('.wz-flow>.wz-foot #wz-done'))`, 'done: no Back, a write cannot be undone; Done is in the bar');
   await check(`(()=>{const s=document.querySelector('.wz-flow[data-step=done] .wz-fourdeck'),next=document.querySelector('.wz-next');return Boolean(s&&next)&&Boolean(next.compareDocumentPosition(s)&Node.DOCUMENT_POSITION_FOLLOWING)&&txt('.wz-fourdeck h4')==='Four decksExperimental'&&s.querySelectorAll('.wz-fourdeck-steps li').length===3&&s.querySelectorAll('button.primary').length===1&&button('How four decks work').classList.contains('primary')&&!s.querySelector('.wz-fourdeck-setup')&&!document.querySelector('.wz-quad-entry')&&!txt('#wiz').includes('Quad standalone mixer');})()`, 'done: after On the XZ, a Four decks section with the cable picture, three steps and one primary button, How four decks work');
-  await check(`txt('.wz-next').includes('Press the rekordbox button above LINK to switch between the CLASSIC and MODERN screens. You can give it another job in MODS > PLAY.')&&!txt('.wz-next').includes('next to LINK')`, 'done: On the XZ names the rekordbox button above LINK');
+  await check(`txt('.wz-next').includes('Press the button above LINK to switch between the CLASSIC and MODERN screens. MODS > PLAY can give it another job.')&&!/rekordbox/i.test(txt('.wz-next'))&&document.querySelector('.wz-next .wz-done-nav video')?.getAttribute('src')==='assets/manual/nav/physical-above-link.mp4'&&!txt('.wz-next').includes('next to LINK')`, 'done: On the XZ names the button above LINK, with its navigation video and no maker name');
   await check(`!(fx.links||[]).length&&Boolean(button('Done'))&&Boolean(button('Support XZ Mods (optional)'))`, 'support is optional and opens no links on completion');
   await evaluate('window.supportWriteCount=fx.written.length');
   await click('Support XZ Mods (optional)'); await view('flow','support');
@@ -448,7 +449,7 @@ try {
   await shot('01-find-several');
   await evaluate(`fx.holdQuiet=true;window.__mark=fx.requests.length;document.getElementById('wz-look').click()`);
   await waitFor(`activeJob!==null&&setupWizard.state.finding`, 'a slow discover holds the job slot');
-  await evaluate(`document.querySelectorAll('#wiz .wz-usb[data-volume]')[1].click();showPage('advanced');document.querySelector('#advanced .game-downloads').open=true;document.getElementById('download-doom').click();showPage('setup')`);
+  await evaluate(`document.querySelectorAll('#wiz .wz-usb[data-volume]')[1].click();showPage('games');document.getElementById('download-doom').click();showPage('setup')`);
   await new Promise(done => setTimeout(done, 400));
   await evaluate(`fx.holdQuiet=false`);
   await view('device');
@@ -723,7 +724,7 @@ try {
   await waitFor(`fx.selections.length===1&&activeJob===null&&document.querySelector('.wz-build-note')`, 'older included build follows the newest');
   await check(`fx.selections[0].mod_version_id==='v1'&&txt('.wz-build-note')==='Switched to the newest build, which came with this app.'&&txt('.wz-build-name')==='Development build newsha12'`, 'a saved older included build follows the newest build, said in the build line');
   await click('Change');
-  await check(`txt('#page-title')==='XZ Mods version'&&document.querySelector('nav button.selected').dataset.page==='tools'&&document.getElementById('back-to-tools').checkVisibility()`, 'Change in the build line opens Tools › XZ Mods version');
+  await check(`txt('#page-title')==='Updates'&&!document.getElementById('advanced').classList.contains('hidden')&&document.querySelector('nav button.selected').dataset.page==='updates'&&document.getElementById('tab-advanced').getAttribute('aria-selected')==='true'&&!document.getElementById('back-to-tools').checkVisibility()`, 'Change in the build line opens Updates › XZ Mods version');
 
   await open('unknown');
   await view('device');
@@ -752,18 +753,44 @@ try {
   await check(`setupWizard.state.settings.games_menu===62&&setupWizard.settingsChanges().join()==='games_menu'&&plan().includes('Change which games show in the GAMES menu')`, 'switching off Beat Arcade is a settings change the review lists');
 
   await evaluate(`document.querySelector('nav button[data-page=tools]').click()`);
-  await check(`txt('#page-title')==='Tools'&&[...document.querySelectorAll('#tools .tool-row strong')].map(s=>s.textContent).join('|')==='DJ Profile|Repair library|XZ Mods version|Network updates|App updates|About'&&[...document.querySelectorAll('#tools .tool-group-title')].map(h=>h.textContent).join('|')==='Your USB|Your XZ|This app'&&document.querySelectorAll('#tools .tool-row .tool-chevron').length===6&&!document.getElementById('back-to-tools').checkVisibility()`, 'Tools is six tools with chevrons in three groups: Your USB, Your XZ, This app');
+  await check(`txt('#page-title')==='Tools'&&[...document.querySelectorAll('#tools .tool-row strong')].map(s=>s.textContent).join('|')==='Repair library|Game downloads|XZ Screen'&&[...document.querySelectorAll('#tools .tool-group-title')].map(h=>h.textContent).join('|')==='Your USB|Your XZ'&&document.querySelectorAll('#tools .tool-row .tool-chevron').length===3&&!document.getElementById('back-to-tools').checkVisibility()&&!document.getElementById('updates-tabs').checkVisibility()`, 'Tools is three tools with chevrons in two groups: Your USB, Your XZ');
   await shot('09-tools');
-  for (const [page, title] of [['dj-profile', 'DJ Profile'], ['library-repair', 'Repair library'], ['device-updates', 'Network updates'], ['advanced', 'XZ Mods version'], ['updates', 'App updates'], ['licenses', 'About']]) {
+  for (const [page, title] of [['library-repair', 'Repair library'], ['games', 'Game downloads'], ['live-stream', 'XZ Screen']]) {
     await evaluate(`document.querySelector('nav button[data-page=tools]').click();document.querySelector('.tool-row[data-open="${page}"]').click()`);
     await check(`!document.getElementById('${page}').classList.contains('hidden')&&txt('#page-title')==='${title}'&&document.querySelector('nav button.selected').dataset.page==='tools'&&document.getElementById('back-to-tools').checkVisibility()`, 'Tools › ' + title + ' opens with a back link and Tools selected');
   }
+  await check(`(()=>{const e=document.querySelector('#live-stream .live-frame'),f=e.getBoundingClientRect(),c=getComputedStyle(e.parentElement),room=e.parentElement.clientWidth-parseFloat(c.paddingLeft)-parseFloat(c.paddingRight);return f.width>0&&Math.abs(f.width-Math.min(800,room))<1;})()`, 'XZ Screen under Tools keeps its full-size view: the whole panel width, up to 800');
   await evaluate(`document.getElementById('back-to-tools').click()`);
   await check(`!document.getElementById('tools').classList.contains('hidden')&&txt('#page-title')==='Tools'`, 'the back link returns to Tools');
+  await waitFor(`activeJob===null`, 'repair drive discovery finished');
+  for (const [page, title] of [['dj-profile', 'DJ Profile'], ['licenses', 'About'], ['updates', 'Updates']]) {
+    await evaluate(`document.querySelector('nav button[data-page="${page}"]').click()`);
+    await check(`!document.getElementById('${page}').classList.contains('hidden')&&txt('#page-title')==='${title}'&&document.querySelector('nav button.selected').dataset.page==='${page}'&&!document.getElementById('back-to-tools').checkVisibility()&&!document.querySelector('#tools .tool-row[data-open="${page}"]')`, title + ' is its own rail item, with no back link and no second entry in Tools');
+  }
+  await check(`[...document.querySelectorAll('#updates-tabs [role=tab]')].map(t=>t.textContent.trim()+':'+t.getAttribute('aria-selected')).join('|')==='App updates:true|XZ Mods version:false|Network updates:false'&&document.getElementById('updates-tabs').checkVisibility()&&document.getElementById('tab-updates').tabIndex===0`, 'Updates opens on App updates, with tabs for XZ Mods version and Network updates');
+  for (const [tab, page] of [['tab-advanced', 'advanced'], ['tab-device-updates', 'device-updates'], ['tab-updates', 'updates']]) {
+    await evaluate(`document.getElementById('${tab}').click()`);
+    await check(`!document.getElementById('${page}').classList.contains('hidden')&&document.getElementById('${tab}').getAttribute('aria-selected')==='true'&&document.querySelector('nav button.selected').dataset.page==='updates'&&txt('#page-title')==='Updates'`, 'the ' + tab.slice(4) + ' tab opens its page under Updates');
+  }
+  await waitFor(`activeJob===null`, 'network adapter detection finished');
+  await evaluate(`document.getElementById('tab-updates').focus();document.getElementById('tab-updates').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))`);
+  await check(`!document.getElementById('advanced').classList.contains('hidden')&&document.activeElement===document.getElementById('tab-advanced')`, 'Right arrow moves to the next Updates tab and opens it');
+  await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))`);
+  await check(`!document.getElementById('device-updates').classList.contains('hidden')&&document.activeElement===document.getElementById('tab-device-updates')`, 'End moves to the last Updates tab');
+  await waitFor(`activeJob===null`, 'network adapter detection finished again');
+  await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))`);
+  await check(`!document.getElementById('updates').classList.contains('hidden')&&document.activeElement===document.getElementById('tab-updates')`, 'Right arrow on the last tab wraps to App updates');
+  await evaluate(`showPage('setup');renderAppUpdate({phase:'available',latest_version:'9.9.9',message:'XZ Mods 9.9.9 is available.'})`);
+  await check(`document.querySelector('nav button[data-page=updates] .nav-dot')&&document.querySelector('#tab-updates .nav-dot')&&txt('nav button[data-page=updates]').endsWith(', update available')&&document.getElementById('app-update-banner').checkVisibility()`, 'a newer app puts a spoken dot on Updates in the rail and on its App updates tab');
+  await evaluate(`document.getElementById('review-app-update').click()`);
+  await check(`!document.getElementById('updates').classList.contains('hidden')&&document.querySelector('nav button.selected').dataset.page==='updates'`, 'Review update opens Updates › App updates');
+  await shot('20-update-dot');
+  await evaluate(`renderAppUpdate({phase:'current',message:'XZ Mods is up to date.'})`);
+  await check(`!document.querySelector('nav .nav-dot,#updates-tabs .nav-dot')&&txt('nav button[data-page=updates]')==='Updates'`, 'the dot goes when no update is on offer');
   await evaluate(`showPage('licenses')`);
   await check(`txt('#about-title')==='XZ Mods'&&txt('.about-version')==='Version 0.3.0'&&txt('.about-maker').startsWith('Made by OpticMystic')&&txt('.about-what').split('. ').length===2&&Boolean(button('App updates and release notes'))&&Boolean(document.getElementById('open-licenses'))`, 'About: what XZ Mods is in two sentences, the version, the maker, App updates and the license notices');
   await check(`[...document.querySelectorAll('.about-projects strong')].map(e=>e.textContent).join('|')==='XZ Mods|VJ.Tools|DJ Profile'&&txt('.about-projects').includes('VJ.Tools Library, is a local-first media library and Resolume prep system')&&!/wingman|instagram|@opticmystic/i.test(txt('#licenses'))`, 'About: the maker\'s three projects, and no social handles');
-  await check(`[...document.querySelectorAll('.about-notes-list strong')].map(e=>e.textContent).join('|')==='Independent.|Experimental.|Runs from the USB.|Your own firmware.'&&txt('.about-notes').includes('not affiliated with or endorsed by Pioneer DJ or AlphaTheta')`, 'About: four short disclaimers');
+  await check(`[...document.querySelectorAll('.about-notes-list strong')].map(e=>e.textContent).join('|')==='Independent.|Experimental.|Runs from the USB.|Your own firmware.'&&txt('.about-notes').includes('not affiliated with or endorsed by the maker of the XDJ-XZ')`, 'About: four short disclaimers');
   await check(`[...document.querySelectorAll('#licenses a.about-link')].map(a=>a.getAttribute('href')).join('|')===${JSON.stringify(aboutLinks.join('|'))}&&[...document.querySelectorAll('#licenses a.about-link')].every(a=>a.target==='_blank'&&a.rel.includes('noopener')&&a.textContent.includes('opens in your browser'))`, 'About: links to the source, issues, releases, both sites and optional support, each saying it opens the browser');
   await evaluate(`window.__links=(fx.links||[]).length;for(const a of document.querySelectorAll('#licenses a.about-link'))a.click()`);
   await waitFor(`(fx.links||[]).length===window.__links+${aboutLinks.length}`, 'every About link asks the host to open it');
@@ -772,7 +799,7 @@ try {
   await evaluate(`document.getElementById('about-feedback').click()`);
   await check(`txt('#page-title')==='Feedback'`, 'About › Feedback opens Feedback in the app');
   await evaluate(`showPage('licenses');document.getElementById('about-dj-profile').click()`);
-  await check(`txt('#page-title')==='DJ Profile'`, 'About › Make yours opens DJ Profile');
+  await check(`txt('#page-title')==='DJ Profile'&&document.querySelector('nav button.selected').dataset.page==='dj-profile'`, 'About › Make yours opens DJ Profile');
   // Pages the manual shows that have no flow of their own, drawn here so their pictures carry the current rail.
   await evaluate(`showPage('updates')`); await idle(); await shot('14-app-updates');
   await evaluate(`showPage('device-updates')`);
@@ -781,15 +808,18 @@ try {
   await evaluate(`document.getElementById('job-panel').classList.add('hidden')`);
   await shot('15-network-updates');
   await evaluate(`showPage('library-repair')`);
-  await waitFor(`activeJob===null&&txt('#repair-drive-status').startsWith('No Rekordbox USB found')`, 'repair library: no Rekordbox USB');
+  await waitFor(`activeJob===null&&txt('#repair-drive-status').startsWith('No music USB found')`, 'repair library: no music USB');
   await shot('16-repair-library');
   await evaluate(`showPage('live-stream')`); await shot('17-xz-screen');
   await evaluate(`document.getElementById('live-setup').click()`);
   await waitFor(`document.getElementById('live-wizard').open&&txt('#live-wizard-status')==='Found your XZ. Press Connect.'`, 'Live Streamer setup finds the XZ');
   await shot('18-xz-screen-setup');
   await evaluate(`document.getElementById('live-wizard-close').click();showPage('setup')`);
+  await evaluate(`showPage('games')`);
+  await check(`txt('#page-title')==='Game downloads'&&document.querySelector('#games .game-downloads #setup-games-usb')&&!document.querySelector('#advanced .game-downloads,#advanced #setup-games-usb')&&!document.getElementById('download-myhouse')&&!txt('#games').includes('My House')`, 'Tools › Game downloads holds the game downloads, and the XZ Mods version page no longer does');
+  await shot('19-game-downloads');
   await evaluate(`showPage('advanced')`);
-  await check(`document.getElementById('mod-version')&&document.getElementById('setup-games-usb')&&document.getElementById('build')&&document.getElementById('loader-backups')&&!document.getElementById('prepare-usb')&&!document.querySelector('#advanced .intro')&&txt('#advanced .game-downloads summary')==='Game downloads'&&!document.querySelector('#advanced .game-downloads').open&&!document.getElementById('download-myhouse')&&!txt('#advanced').includes('My House')`, 'XZ Mods version page: build panel, loader restore, firmware file, games in one folded section; no Prepare a new USB');
+  await check(`document.getElementById('mod-version')&&document.getElementById('build')&&document.getElementById('loader-backups')&&!document.getElementById('prepare-usb')&&!document.querySelector('#advanced .intro')`, 'XZ Mods version page: build panel, loader restore and firmware file; no Prepare a new USB');
   await shot('11-tools-version');
   // The four-deck dialog shows the same cable picture: it plays while open and stops when it closes.
   await evaluate(`document.getElementById('quad-open').click()`);
@@ -828,8 +858,7 @@ try {
   await evaluate(`showPage('updates')`);
   await check(`!document.getElementById('check-app-update').checkVisibility()&&!document.getElementById('install-app-update').checkVisibility()&&Boolean(button('Open downloads page'))&&button('Open downloads page').classList.contains('primary')&&txt('#updates .mac-only p')==='Mac versions are downloaded from the release page.'&&!fx.calls.includes('check_app_update')`, 'Mac: App updates says where Mac versions come from, with one Open downloads page button and no update controls');
   await shot('12-mac-updates');
-  await evaluate(`showPage('tools')`);
-  await check(`document.querySelector('.tool-row[data-open=updates] .mac-only').checkVisibility()&&txt('.tool-row[data-open=updates] .mac-only')==='Mac versions download from the release page'&&!document.querySelector('.tool-row[data-open=updates] .win-only').checkVisibility()`, 'Mac: the Tools row says the same in short');
+  await check(`document.querySelector('nav button.selected').dataset.page==='updates'&&document.getElementById('tab-updates').getAttribute('aria-selected')==='true'&&!document.querySelector('nav .nav-dot')`, 'Mac: Updates in the rail opens App updates, with no update dot');
 
 
   await open('fresh');
@@ -870,7 +899,7 @@ try {
     await click('Cancel'); await view('find');
     await sweep('USB list', 'find');
     await evaluate(`setupWizard.chooseUsb('E:\\\\')`); await view('device');
-    for (const page of ['tools', 'advanced', 'dj-profile', 'library-repair', 'device-updates', 'updates', 'licenses', 'live-stream', 'my-reports', 'manual']) {
+    for (const page of ['tools', 'advanced', 'dj-profile', 'library-repair', 'games', 'device-updates', 'updates', 'licenses', 'live-stream', 'my-reports', 'manual']) {
       await evaluate(`showPage(${JSON.stringify(page)})`); await idle();
       await sweep('page ' + page, page);
     }

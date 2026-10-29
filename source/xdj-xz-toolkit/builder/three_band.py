@@ -30,7 +30,7 @@ ORIGINALS=Path('CDJMODS','waveform-rgb-originals')
 
 def waves(data):
     """Entry offset and count of each waveform section, after strict PMAI length checks."""
-    if len(data)<12 or data[:4]!=b'PMAI':raise ValueError('Not a rekordbox analysis file')
+    if len(data)<12 or data[:4]!=b'PMAI':raise ValueError('Not a track analysis file')
     header,length=struct.unpack_from('>II',data,4)
     if length!=len(data) or not 12<=header<=length:raise ValueError('Analysis file length is inconsistent')
     found={};offset=header
@@ -125,7 +125,7 @@ def _write(path,data):
 
 def _usb_root(root):
     root=Path(root).absolute()
-    if not (root/'PIONEER'/'USBANLZ').is_dir():raise ValueError('Choose the root of a USB exported by rekordbox. It has a PIONEER folder.')
+    if not (root/'PIONEER'/'USBANLZ').is_dir():raise ValueError('Choose the root of the USB your DJ software exported to.')
     return root
 
 def _stale(backup,current):
@@ -159,7 +159,7 @@ def restore(root,job=None):
     backups=sorted(originals.glob('PIONEER/USBANLZ/*/*/ANLZ0000.EXT'))
     for number,backup in enumerate(backups):
         if job:job.check()
-        if job and not number%50:job.progress('waveforms',f'Restoring rekordbox colours ({number} of {len(backups)} tracks)')
+        if job and not number%50:job.progress('waveforms',f'Restoring the original colours ({number} of {len(backups)} tracks)')
         ext=root/backup.relative_to(originals)
         try:
             saved=backup.read_bytes()

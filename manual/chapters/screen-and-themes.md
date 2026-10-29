@@ -9,6 +9,9 @@ Open MODS with [[MENU]], then choose **SCREEN** in the section rail.
 
 ## The SCREEN page
 
+```nav mods-screen-values-all The SCREEN page
+```
+
 ```figure classic:theme-{look}-screen MODS · SCREEN
 The SCREEN page with CLASSIC chosen. Under MODERN, the THEME row reads LAMPS AND TITLES, 3-BAND COLOURS sits beside it, and WAVEFORM COLOURS offers four choices.
 1 @ 250,53 INTERFACE | MODERN or CLASSIC. The framed picture is the one in use.
@@ -46,6 +49,10 @@ The HOME card for SCREEN sums the page up in one line, for example **Classic | 3
 
 XZ Mods gives the player two interfaces. You choose one with **INTERFACE** on the SCREEN page, or when you prepare the USB in the XZ Mods app. MODERN is the default.
 
+```nav interface-choice MODERN and CLASSIC | In MODS
+physical-above-link | The button above LINK
+```
+
 - **MODERN** is a full-screen layout drawn by XZ Mods, with bigger waveforms and a browse sidebar.
 - **CLASSIC** keeps the player's own play screen and adds MODS to it. The classic themes restyle that screen.
 
@@ -61,7 +68,7 @@ XZ Mods gives the player two interfaces. You choose one with **INTERFACE** on th
 
 Each interface keeps its own theme. If you switch from CLASSIC to MODERN and back, your classic theme comes back with you.
 
-To switch without opening MODS, press the rekordbox button above **LINK**. Out of the box it switches between MODERN and CLASSIC. You can give it another job in **PLAY** › **REKORDBOX BUTTON**. See [Controls on the player](hardware).
+To switch without opening MODS, press the button above [[LINK]]. Out of the box it switches between MODERN and CLASSIC. You can give it another job in **PLAY** › **BUTTON ABOVE LINK**. See [Controls on the player](hardware).
 
 ```figure modern:play-full MODERN play screen {modern}
 The MODERN play screen with two decks, 3-BAND waveforms and the playing key shown.
@@ -75,6 +82,9 @@ The MODERN play screen with two decks, 3-BAND waveforms and the playing key show
 ## Classic themes {classic}
 
 A classic theme restyles the player's own play screen and the MODS menu: artwork, text, waveforms, cue marks and dialogs. Track positions, numbers and touch areas stay where the player puts them, so a theme never moves a control under your finger.
+
+```nav classic-themes Classic themes {classic}
+```
 
 Choose **THEME** on the SCREEN page to open **CLASSIC THEMES**. Tap a theme, or turn the encoder to it and push. Close MODS to see the play screen in the new theme.
 
@@ -92,6 +102,9 @@ The gallery shows the HOME page of MODS in every theme.
 ```
 
 ### Theme families {classic}
+
+```nav classic-overlays-analog Theme families {classic}
+```
 
 | Family | Themes | What to expect |
 |---|---|---|
@@ -113,6 +126,9 @@ Most families come in a light and a **DARK** version. Pick the dark one for dim 
 
 MODERN has one look, **STANDARD**, so it has no theme list. The MODS menu is drawn in FLAGSHIP: black pages, a grey section rail and blue selections. More MODERN looks are planned.
 
+```nav lamps-and-titles MODERN look {modern}
+```
+
 Instead of THEME, the SCREEN page offers **LAMPS AND TITLES**. Its row shows **ALL SHOWN**, or how many parts you have hidden.
 
 | Group | Switch or choice | Shown | Hidden |
@@ -120,7 +136,7 @@ Instead of THEME, the SCREEN page offers **LAMPS AND TITLES**. Its row shows **A
 | TOP BAR | MODE LAMPS | The SINGLE / CONTINUE, A. HOT CUE and A. CUE lamps light while their mode is on | The lamps leave the screen. The modes keep working |
 | TOP BAR | QUANTIZE LAMP | Each deck's QUANTIZE lamp and beat value above its time | The QUANTIZE button's own light still shows it |
 | WAVEFORMS | TITLES IN WAVEFORMS | Track titles inside the waveform lanes | The waveforms use that space. Titles at the bottom stay |
-| TRACK COLOURS | DECK + WAVE | The colours set for the USB in rekordbox show on the deck tag and its waveform | |
+| TRACK COLOURS | DECK + WAVE | The colours set for the USB in your DJ software show on the deck tag and its waveform | |
 | TRACK COLOURS | DECK ONLY | Those colours show on the deck tag only | |
 | TRACK COLOURS | OFF | USB colours are not shown | |
 
@@ -149,14 +165,10 @@ The **BYPASS BUTTON** switch for MODERN sits with the stem buttons in **STEMS**.
 | 3-BAND | Lows, mids and highs as layers: lows outside, mids around them, highs at the core. Blue, amber and white unless you choose your own [3-band colours](#3-band-colours) |
 | STEMS | Drums outside, harmonics around them, vocals at the core, in your stem colours |
 
-```explainer three-band How the 3-BAND waveform is layered
-Lows | Lows are the outer layer, in blue.
-Mids | Mids sit around them, in amber.
-Highs | Highs are at the core, in white.
-Your colours | PURPLE CYAN WHITE | Choose your own colour for each band in 3-BAND COLOURS. RESET 3-BAND COLOURS puts every band back to STANDARD.
-```
+The preview strip on the [3-BAND COLOURS](#3-band-colours) page draws the three layers in the colours in use: lows outside, mids around them, highs at the core.
 
-- 3-BAND and STEMS read the analysis rekordbox and the XZ Mods stem builder already put on the USB. You do not prepare anything extra.
+
+- 3-BAND and STEMS read the track analysis your DJ software and the XZ Mods stem builder already put on the USB. You do not prepare anything extra.
 - A track without stems shows 3-BAND under STEMS. A track with four stems also shows 3-BAND, because its stems carry no waveform data yet.
 - Stem colours are set in **STEMS** › **STEM COLOURS**. See [Stems](stems).
 - In MODERN, UTILITY's **WAVEFORM COLOR** is the same setting. Your choice is saved to the USB and comes back after a restart.
@@ -164,6 +176,9 @@ Your colours | PURPLE CYAN WHITE | Choose your own colour for each band in 3-BAN
 ## 3-band colours
 
 **3-BAND COLOURS** chooses the colour of each band in the 3-BAND waveform: the lows, the mids and the highs. On the SCREEN page it sits beside **THEME** in CLASSIC and beside **LAMPS AND TITLES** in MODERN. Its row shows the three colours in use.
+
+```nav band-colours 3-band colours
+```
 
 ```figure classic:theme-{look}-band-colors MODS · 3-BAND COLOURS
 Every band on STANDARD, the interface's own colours.
@@ -201,7 +216,7 @@ Every band on STANDARD, the interface's own colours.
 
 | Choice | Example | When to use it |
 |---|---|---|
-| AS ON THE USB | as set in your library | Keys look the way your rekordbox library writes them |
+| AS ON THE USB | as set in your library | Keys look the way your DJ software writes them |
 | MUSICAL | Am | You think in note names |
 | WHEEL | 8A | You mix by key wheel numbers |
 
@@ -245,6 +260,9 @@ No deck owns a colour. Blue and pale blue mark the deck a side of the player con
 
 **SYSTEM READOUT** puts CPU load, memory and temperature beside **STEMS** and **MODS** on the top bar. Open it to see deck 3 and 4 audio render times and active key shifters across all four decks. P99 is the time at or below which 99% of the last 256 rendered blocks finished; MAX is the longest. Short blocks are scaled to a full block. D3+D4 MAX adds both maxima and compares them with the 5,805 microseconds available per block. New shifts use a stricter 3,483 microsecond budget, leaving time for other work. These render numbers include decoding, time stretch and key shift; they do not measure the complete output path. Use them when you suspect the player is working hard, for example with stems on both decks and four decks running.
 
+```nav system-readout System readout
+```
+
 ```figure classic:theme-{look}-metrics-setup SYSTEM READOUT
 The first setup step with live readings and four key shifters engaged.
 1 @ 225,105 STEP | Where you are in the setup.
@@ -263,6 +281,9 @@ After setup the row on the SCREEN page reads **ON**. On the top bar, **METRICS S
 > **Note.** Only the temperature of the main chip is available on the XDJ-XZ.
 
 ## When something looks wrong
+
+```nav b-theme-recovery When something looks wrong
+```
 
 | What you see | What to do |
 |---|---|

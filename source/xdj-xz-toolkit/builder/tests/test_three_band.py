@@ -138,7 +138,7 @@ class AdaptExtTests(unittest.TestCase):
         shortened=original[:8]+struct.pack('>I',len(original)-5)+original[12:-5]
         with self.assertRaisesRegex(ValueError,'PCO2.* section length is inconsistent'):three_band.waves(shortened)
         with self.assertRaisesRegex(ValueError,'header is truncated'):three_band.waves(pmai(b'PWV4'))
-        with self.assertRaisesRegex(ValueError,'Not a rekordbox analysis file'):three_band.waves(b'RIFF'+bytes(40))
+        with self.assertRaisesRegex(ValueError,'Not a track analysis file'):three_band.waves(b'RIFF'+bytes(40))
         with self.assertRaises(ValueError):three_band.adapt_ext(original,pmai(section(b'PWV7',3,noise(1,30))))
 
 
@@ -214,7 +214,7 @@ class UsbTests(unittest.TestCase):
         self.assertTrue(self.backup(good).exists())
 
     def test_requires_rekordbox_usb_root(self):
-        with self.assertRaisesRegex(ValueError,'PIONEER folder'):three_band.apply(self.root)
+        with self.assertRaisesRegex(ValueError,'root of the USB your DJ software exported to'):three_band.apply(self.root)
 
     def test_reports_progress(self):
         usb_track(self.root)

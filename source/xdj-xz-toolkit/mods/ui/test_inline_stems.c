@@ -84,9 +84,9 @@ static void pc_rows(void){
             assert(!u.down&&u.held_kind==XZ_UI_NONE);
         }
         /* A runtime reason replaces the built-in text for a locked deck. */
-        m.deck[0].pc_stems.reason="REKORDBOX NOT IN PERFORMANCE";
+        m.deck[0].pc_stems.reason="DJ SOFTWARE NOT IN PERFORMANCE MODE";
         struct xz_ui_widget r=pc_widget(&u,&m,XZ_UI_PC_TOGGLE,XZ_UI_PC_BASS,0);
-        assert(press(&u,&m,r.x+4,r.y+4,a)==1&&!strcmp(u.notice,"REKORDBOX NOT IN PERFORMANCE"));
+        assert(press(&u,&m,r.x+4,r.y+4,a)==1&&!strcmp(u.notice,"DJ SOFTWARE NOT IN PERFORMANCE MODE"));
         xz_ui_inline_touch(&u,&m,536,XZ_WAVE_INLINE_HEIGHT,0,0,0,a);
         m.deck[0].pc_stems.reason=NULL;
         assert(!memcmp(&snapshot,&m,sizeof(m)));

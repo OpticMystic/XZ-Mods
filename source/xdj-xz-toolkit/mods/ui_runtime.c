@@ -920,8 +920,8 @@ static void pc_refresh_locked(void){
         if(!valid[d])out->reason="PLAYER SOURCE IS NOT READABLE";
         else if(kind==XZ_UI_SOURCE_PC&&!pc_observing)out->reason="PC SOURCE OBSERVER IS UNAVAILABLE";
         else if(kind==XZ_UI_SOURCE_PC&&!source[d].linked)out->reason="RECONNECT THE COMPUTER BY USB";
-        else if(kind==XZ_UI_SOURCE_PC&&!source[d].rekordbox)out->reason="OPEN REKORDBOX IN PERFORMANCE MODE";
-        else if(kind==XZ_UI_SOURCE_PC&&!source[d].loaded)out->reason="LOAD AN ANALYZED TRACK IN REKORDBOX";
+        else if(kind==XZ_UI_SOURCE_PC&&!source[d].rekordbox)out->reason="OPEN THE DJ SOFTWARE IN PERFORMANCE MODE";
+        else if(kind==XZ_UI_SOURCE_PC&&!source[d].loaded)out->reason="LOAD AN ANALYZED TRACK IN THE DJ SOFTWARE";
         else if(kind==XZ_UI_SOURCE_PC&&!out->verified)out->reason="IMPORT THE XZ STEMS MAP AND RUN THE LIVE TEST";
     }
     pthread_mutex_unlock(&pc_mutex);
@@ -945,7 +945,7 @@ static void pc_apply(const struct xz_ui_action *a){
     if(a->kind==XZ_UI_PC_CHECK){
         pc_refresh_locked();
         struct xz_ui_pc_stems *state=&model.deck[d].pc_stems;
-        if(state->source!=XZ_UI_SOURCE_PC||!state->connected){snprintf(ui.notice,sizeof(ui.notice),"%s",state->reason?state->reason:"SELECT A REKORDBOX DECK");return;}
+        if(state->source!=XZ_UI_SOURCE_PC||!state->connected){snprintf(ui.notice,sizeof(ui.notice),"%s",state->reason?state->reason:"SELECT A DECK PLAYING FROM THE PC");return;}
         if(a->index==XZ_UI_PC_STEP_DONE)pc_setup_step[d]=XZ_UI_PC_STEP_DETECT;
         else if(pc_setup_step[d]==XZ_UI_PC_STEP_DETECT)pc_setup_step[d]=XZ_UI_PC_STEP_MAPPING;
         else if(pc_setup_step[d]==XZ_UI_PC_STEP_MAPPING)pc_setup_step[d]=XZ_UI_PC_STEP_TEST;
@@ -953,12 +953,12 @@ static void pc_apply(const struct xz_ui_action *a){
     }
     if(a->kind==XZ_UI_PC_TOGGLE&&a->phase==XZ_UI_PRESS){
         pc_refresh_locked();
-        if(a->index<0||a->index>=XZ_PC_ROLES||!(pc_available_roles&(1u<<a->index))){snprintf(ui.notice,sizeof(ui.notice),"BASS IS PART OF INST / ENABLE 4 STEMS IN REKORDBOX");return;}
+        if(a->index<0||a->index>=XZ_PC_ROLES||!(pc_available_roles&(1u<<a->index))){snprintf(ui.notice,sizeof(ui.notice),"BASS IS PART OF INST / TURN ON 4 STEMS IN THE DJ SOFTWARE");return;}
         if(!pc_action_current(a,&source)){snprintf(ui.notice,sizeof(ui.notice),"PC SOURCE OR TRACK CHANGED / CHECK AGAIN");return;}
         pthread_mutex_lock(&pc_mutex);
         int sent=xz_pc_stems_toggle(&pc_stems,(unsigned)source.slot,(unsigned)a->index,xz_game_milliseconds());
         pthread_mutex_unlock(&pc_mutex);
-        snprintf(ui.notice,sizeof(ui.notice),"%s",sent?"STEM COMMAND SENT / WAITING FOR REKORDBOX":"STEM COMMAND NOT SENT / CHECK THE PC LINK");
+        snprintf(ui.notice,sizeof(ui.notice),"%s",sent?"STEM COMMAND SENT / WAITING FOR THE DJ SOFTWARE":"STEM COMMAND NOT SENT / CHECK THE PC LINK");
         pc_refresh_locked();return;
     }
     if(a->kind==XZ_UI_PC_TEST&&a->phase==XZ_UI_PRESS){
@@ -973,7 +973,7 @@ static void pc_apply(const struct xz_ui_action *a){
         if(!was_verified){state->verified=0;state->caps&=~XZ_PC_TOGGLE;}
         pthread_mutex_unlock(&pc_mutex);
         if(!sent){pc_test[d].valid=0;snprintf(ui.notice,sizeof(ui.notice),"TEST NOT SENT / CHECK MIDI MAPPING AND USB");return;}
-        pc_setup_step[d]=XZ_UI_PC_STEP_CONFIRM;snprintf(ui.notice,sizeof(ui.notice),"TEST SENT / CHECK DRUMS IN REKORDBOX");
+        pc_setup_step[d]=XZ_UI_PC_STEP_CONFIRM;snprintf(ui.notice,sizeof(ui.notice),"TEST SENT / CHECK DRUMS IN THE DJ SOFTWARE");
         pc_refresh_locked();return;
     }
     if(a->kind==XZ_UI_PC_CONFIRM&&a->phase==XZ_UI_PRESS){
@@ -986,7 +986,7 @@ static void pc_apply(const struct xz_ui_action *a){
         pc_map_confirmed[source.slot]=1;xz_pc_stems_verify(&pc_stems,(unsigned)source.slot);
         pthread_mutex_unlock(&pc_mutex);
         pc_setup_step[d]=XZ_UI_PC_STEP_DONE;pc_test[d].valid=0;
-        snprintf(ui.notice,sizeof(ui.notice),"ONSCREEN STEMS CONTROL REKORDBOX");pc_refresh_locked();
+        snprintf(ui.notice,sizeof(ui.notice),"ONSCREEN STEMS CONTROL THE DJ SOFTWARE");pc_refresh_locked();
     }
 }
 
@@ -1807,13 +1807,13 @@ static void apply(void *context, const struct xz_ui_action *actions, size_t coun
             break;
         case XZ_UI_REKORDBOX_KEY: /* the retired switch: on = MODS MENU, off = the stock action */
             model.rekordbox_assign[0] = a->value != 0 ? XZ_REKORDBOX_MODS : XZ_REKORDBOX_STOCK;
-            snprintf(ui.notice, sizeof(ui.notice), "REKORDBOX BUTTON: %s", xz_ui_rekordbox_choice_name(model.rekordbox_assign[0]));
+            snprintf(ui.notice, sizeof(ui.notice), "BUTTON ABOVE LINK: %s", xz_ui_rekordbox_choice_name(model.rekordbox_assign[0]));
             break;
         case XZ_UI_REKORDBOX_ASSIGN: {
             int choice = (int)a->value;
             if ((a->index == 0 || a->index == 1) && choice >= 0 && choice < XZ_REKORDBOX_ACTIONS && (float)choice == a->value) {
                 model.rekordbox_assign[a->index] = choice;
-                snprintf(ui.notice, sizeof(ui.notice), "%s: %s", a->index ? "SHIFT + REKORDBOX BUTTON" : "REKORDBOX BUTTON", xz_ui_rekordbox_choice_name(choice));
+                snprintf(ui.notice, sizeof(ui.notice), "%s: %s", a->index ? "SHIFT + BUTTON ABOVE LINK" : "BUTTON ABOVE LINK", xz_ui_rekordbox_choice_name(choice));
             }
             break;
         }
@@ -3860,7 +3860,7 @@ int xz_ui_runtime_start(int audio_ready, int key_ready, int stems_enabled) {
         model.deck[i].stem_count=3;
         model.deck[i].sample_volume = 1;
         model.deck[i].track = i < 2 ? "NO TRACK CAPTURED" : "EXTERNAL USB AUDIO";
-        model.deck[i].status = i < 2 ? "NATIVE ADAPTER EXPERIMENTAL" : "CONTROL IN REKORDBOX OR SERATO";
+        model.deck[i].status = i < 2 ? "NATIVE ADAPTER EXPERIMENTAL" : "CONTROL IN DJ SOFTWARE";
     }
     pc_available_roles=0;
     xz_pc_stems_init(&pc_stems,xz_pc_stems_native_sink());

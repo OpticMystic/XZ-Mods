@@ -53,9 +53,9 @@ WAL_HEADER = struct.Struct(">8I")  # magic, version, page size, checkpoint, salt
 WAL_FRAME = struct.Struct(">6I")  # page number, pages after commit (0 if not a commit), salt-1, salt-2, checksums
 WAL_MAGIC = 0x377F0682  # the low bit set means big-endian checksum words
 
-LOCKED = ("The OneLibrary database on this USB could not be unlocked. It was not written by rekordbox, "
-          "or it is damaged. Export the USB again from rekordbox.")
-DAMAGED = "The OneLibrary database on this USB is damaged ({}). Export the USB again from rekordbox."
+LOCKED = ("The OneLibrary database on this USB could not be unlocked. It was not written by DJ software, "
+          "or it is damaged. Export the USB again from your DJ software.")
+DAMAGED = "The OneLibrary database on this USB is damaged ({}). Export the USB again from your DJ software."
 MISSING = "This USB has no OneLibrary database."
 
 

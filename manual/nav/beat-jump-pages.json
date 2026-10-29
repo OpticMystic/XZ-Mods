@@ -1,0 +1,28 @@
+{
+  "section": "performance#change-the-jump-sizes",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "tap": "BEAT JUMP PADS"
+    },
+    {
+      "select": "PAGE 2"
+    },
+    {
+      "select": "PAGE 1"
+    },
+    {
+      "select": "PAGE 1: MY SIZES"
+    },
+    {
+      "select": "PAGE 2"
+    }
+  ]
+}
