@@ -156,7 +156,7 @@ try {
 
   await open('nousb');
   await waitFor(`!document.getElementById('st-empty').classList.contains('hidden')`, 'no-USB state');
-  await check(`txt('#st-empty')==='Connect a Rekordbox USBPlug in the USB you export to from Rekordbox. XZ Mods finds it and lists its tracks.Connect a USB'&&document.querySelectorAll('#st-empty button').length===1`, 'no USB shows one sentence and one Connect a USB button');
+  await check(`txt('#st-empty')==='Connect your music USBPlug in the USB your DJ software exports your music to. XZ Mods finds it and lists its tracks.Connect a USB'&&document.querySelectorAll('#st-empty button').length===1`, 'no USB shows one sentence and one Connect a USB button');
   await shot('stems-connect');
   await evaluate(`fx.drives=[{volume:'E:\\\\',label:'KINGSTON',removable:true}];button('Connect a USB').click()`);
   await check(`document.getElementById('stem-connect').open`, 'Connect a USB opens the connect wizard');

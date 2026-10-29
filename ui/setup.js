@@ -221,7 +221,7 @@ async function followNewest(){
 // --- find view ---
 
 function usbCard(item){
-  const chips=[item.loader?'XZ Mods installed':'No XZ Mods yet',item.rekordbox?'Rekordbox USB':null].filter(Boolean);
+  const chips=[item.loader?'XZ Mods installed':'No XZ Mods yet',item.rekordbox?'Music exported':null].filter(Boolean);
   const opening=W.opening===item.volume,waiting=Boolean(W.opening)&&!opening;
   return el('button',{type:'button',class:'wz-usb',dataset:{volume:item.volume,state:opening?'opening':waiting?'waiting':null},'aria-busy':opening?'true':null,disabled:waiting?true:null,
       onclick:event=>chooseUsb(item.volume,host.contains(event.currentTarget)?jobSlot:event.currentTarget)},
@@ -764,7 +764,7 @@ function stepDone(){
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
       el('li',{},...xzText('On the play screen, press [[MENU]] or touch MODS at the top right to open the menu. Hold [[MENU]] for the player’s own settings. HOME is the first page.')),
-      el('li',{},...xzText('Press the [[rekordbox]] button above [[LINK]] to switch between the CLASSIC and MODERN screens. You can give it another job in MODS > PLAY.')),
+      el('li',{},...xzText('Press the button above [[LINK]] to switch between the CLASSIC and MODERN screens. MODS > PLAY can give it another job.')),
       el('li',{text:'Test the loader before you use it in a set.'}))):null,
     r.loader?fourDeckSection('done'):null,
     r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,
