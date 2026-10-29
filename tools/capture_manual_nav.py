@@ -59,7 +59,7 @@ class Capture:
         self.last = None
         self.state = None
 
-    def send(self, cmd, a=0, b=0, control='clock', action='redraw', detail=''):
+    def send(self, cmd, a=0, b=0, control='clock', action='redraw', detail='', point=None):
         self.proc.stdin.write(f'{cmd} {a} {b} {self.t}\n')
         self.proc.stdin.flush()
         self.state = json.loads(self.proc.stdout.readline())
@@ -83,6 +83,8 @@ class Capture:
                 self.last = digest
         self.timeline.append(dict(t_ms=self.t, control=control, action=action, detail=detail,
                                   frame=self.frames[-1]['frame'], panel=self.state['panel'], page=self.state['page'], effects=self.state.get('effects', []), observations=self.state.get('observations', {}), game=self.state.get("game",0), game_phase=self.state.get("game_phase",0), game_step=self.state.get("game_step",0)))
+        if point is not None:
+            self.timeline[-1]['point'] = list(point)
         return self.state
 
     def wait(self, ms):
@@ -92,9 +94,9 @@ class Capture:
             self.send('wait')
 
     def tap(self, x, y, label=''):
-        self.send('down', x, y, 'touch screen', 'press', label or f'{x},{y}')
+        self.send('down', x, y, 'touch screen', 'press', label or f'{x},{y}', point=(x, y))
         self.wait(120)
-        self.send('up', x, y, 'touch screen', 'release', label or f'{x},{y}')
+        self.send('up', x, y, 'touch screen', 'release', label or f'{x},{y}', point=(x, y))
         self.wait(400)
 
     def step(self, step):
@@ -241,8 +243,9 @@ def validate_observations(flow, timeline):
 
 def inputs():
     # Include transitive local headers as well as the renderer and handler closures. No mtimes or absolute paths.
+    # Chapter text and SECTIONS.json are not inputs: no captured pixel depends on them. nav_sections.py checks them.
     paths = list(MODS.rglob('*.h')) + [MODS/side/p for side,names in [('shell',SHELL_SOURCES),('ui',UI_SOURCES)] for p in names]
-    paths += [ROOT/'manual/captures/classic-play.png', MODS/'shell/shell_sources.py', MODS/'ui/ui_sources.py', MODS/'shell_runtime.h', ROOT/'tools/verify_nav_device_objects.py', ROOT/'tools/nav_sections.py', ROOT/'manual/nav/SECTIONS.json', MODS/'shell/nav_capture.c', MODS/'shell/nav_runtime.c', MODS/'ui_runtime.c', *MODS.rglob('*.c'), MODS/'ui/stem_pads.c', MODS/'ui/beat_jump.c', MODS/'deck_select.c', Path(__file__), *sorted(flow_scripts()), *sorted((ROOT/'manual/chapters').glob('*.md'))]
+    paths += [ROOT/'manual/captures/classic-play.png', MODS/'shell/shell_sources.py', MODS/'ui/ui_sources.py', MODS/'shell_runtime.h', ROOT/'tools/verify_nav_device_objects.py', MODS/'shell/nav_capture.c', MODS/'shell/nav_runtime.c', MODS/'ui_runtime.c', *MODS.rglob('*.c'), MODS/'ui/stem_pads.c', MODS/'ui/beat_jump.c', MODS/'deck_select.c', Path(__file__), *sorted(flow_scripts())]
     return {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(set(p.resolve() for p in paths))}
 
 
@@ -273,7 +276,7 @@ def main():
         if set(manifest['flows']) != expected:
             raise SystemExit('INCOMPLETE: manifest flow set does not match requested scripts')
         if manifest['source_sha256'] != inputs():
-            raise SystemExit('STALE: navigation sources, scripts or chapters changed')
+            raise SystemExit('STALE: navigation sources or scripts changed')
         for name,digest in manifest['outputs_sha256'].items():
             if hashlib.sha256((a.out/name).read_bytes()).hexdigest() != digest:
                 raise SystemExit(f'CORRUPT: {name}')
