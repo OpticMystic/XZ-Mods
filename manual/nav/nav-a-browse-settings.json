@@ -1,0 +1,33 @@
+{
+  "section": "browse#browse-settings",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "KEY MATCH COLOURS"
+    },
+    {
+      "tap": "KEY BEFORE TITLE"
+    },
+    {
+      "tap": "CLOSE"
+    },
+    {
+      "key": "BROWSE"
+    },
+    {
+      "push": true
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "panel_select": "ARTIST"
+    }
+  ]
+}

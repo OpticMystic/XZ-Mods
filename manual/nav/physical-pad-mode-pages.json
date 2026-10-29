@@ -1,0 +1,47 @@
+{
+  "section": "hardware#performance-pads",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "gesture": "HOT CUE",
+      "code": 1,
+      "side": 0
+    },
+    {
+      "gesture": "BEAT LOOP",
+      "code": 2,
+      "side": 0
+    },
+    {
+      "gesture": "SLIP LOOP",
+      "code": 3,
+      "side": 0
+    },
+    {
+      "gesture": "BEAT JUMP",
+      "code": 4,
+      "side": 0
+    },
+    {
+      "shift": true
+    },
+    {
+      "gesture": "HOT CUE",
+      "code": 1,
+      "side": 0
+    },
+    {
+      "gesture": "BEAT LOOP",
+      "code": 2,
+      "side": 0
+    },
+    {
+      "gesture": "SLIP LOOP",
+      "code": 3,
+      "side": 0
+    },
+    {
+      "shift": false
+    }
+  ]
+}

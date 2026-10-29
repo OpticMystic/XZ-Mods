@@ -32,14 +32,14 @@ Pictures: `ui/assets/buttons/<id>.svg` (in text) and `<id>.panel.svg` (with the 
 | ![SLIP LOOP](../../ui/assets/buttons/slip-loop.svg) | `[[SLIP LOOP]]` |   | each deck, PAD MODE row | `#1f8fff` |
 | ![BEAT JUMP](../../ui/assets/buttons/beat-jump.svg) | `[[BEAT JUMP]]` |   | each deck, PAD MODE row | `#ff2424` |
 | ![Performance pads](../../ui/assets/buttons/pads.svg) | `[[Performance pads]]` | `[[PADS]]`, `[[pads]]`, `[[PERFORMANCE PADS]]` | each deck, eight pads below PAD MODE (HOT CUE colours as photographed) | `#ffffff` |
-| ![Pad 1](../../ui/assets/buttons/pad-1.svg) | `[[Pad 1]]` | `[[PAD 1]]`, `[[pad 1]]` | each deck, pad 1 of 8 (top row 1 to 4, bottom row 5 to 8) | `#ff3b3b` |
-| ![Pad 2](../../ui/assets/buttons/pad-2.svg) | `[[Pad 2]]` | `[[PAD 2]]`, `[[pad 2]]` | each deck, pad 2 of 8 (top row 1 to 4, bottom row 5 to 8) | `#33d6ff` |
-| ![Pad 3](../../ui/assets/buttons/pad-3.svg) | `[[Pad 3]]` | `[[PAD 3]]`, `[[pad 3]]` | each deck, pad 3 of 8 (top row 1 to 4, bottom row 5 to 8) | `#c6f024` |
-| ![Pad 4](../../ui/assets/buttons/pad-4.svg) | `[[Pad 4]]` | `[[PAD 4]]`, `[[pad 4]]` | each deck, pad 4 of 8 (top row 1 to 4, bottom row 5 to 8) | `#5a5cff` |
-| ![Pad 5](../../ui/assets/buttons/pad-5.svg) | `[[Pad 5]]` | `[[PAD 5]]`, `[[pad 5]]` | each deck, pad 5 of 8 (top row 1 to 4, bottom row 5 to 8) | `#2ee84e` |
-| ![Pad 6](../../ui/assets/buttons/pad-6.svg) | `[[Pad 6]]` | `[[PAD 6]]`, `[[pad 6]]` | each deck, pad 6 of 8 (top row 1 to 4, bottom row 5 to 8) | `#ff8f1f` |
-| ![Pad 7](../../ui/assets/buttons/pad-7.svg) | `[[Pad 7]]` | `[[PAD 7]]`, `[[pad 7]]` | each deck, pad 7 of 8 (top row 1 to 4, bottom row 5 to 8) | `#1f74ff` |
-| ![Pad 8](../../ui/assets/buttons/pad-8.svg) | `[[Pad 8]]` | `[[PAD 8]]`, `[[pad 8]]` | each deck, pad 8 of 8 (top row 1 to 4, bottom row 5 to 8) | `#ffd426` |
+| ![PAD A](../../ui/assets/buttons/pad-1.svg) | `[[PAD A]]` | `[[pad A]]`, `[[PERFORMANCE PAD A]]`, `[[PAD 1]]`, `[[pad 1]]` | each deck, pad A (A B C D the top row, E F G H the bottom row, as MODS names them) | `#ff3b3b` |
+| ![PAD B](../../ui/assets/buttons/pad-2.svg) | `[[PAD B]]` | `[[pad B]]`, `[[PERFORMANCE PAD B]]`, `[[PAD 2]]`, `[[pad 2]]` | each deck, pad B (A B C D the top row, E F G H the bottom row, as MODS names them) | `#33d6ff` |
+| ![PAD C](../../ui/assets/buttons/pad-3.svg) | `[[PAD C]]` | `[[pad C]]`, `[[PERFORMANCE PAD C]]`, `[[PAD 3]]`, `[[pad 3]]` | each deck, pad C (A B C D the top row, E F G H the bottom row, as MODS names them) | `#c6f024` |
+| ![PAD D](../../ui/assets/buttons/pad-4.svg) | `[[PAD D]]` | `[[pad D]]`, `[[PERFORMANCE PAD D]]`, `[[PAD 4]]`, `[[pad 4]]` | each deck, pad D (A B C D the top row, E F G H the bottom row, as MODS names them) | `#5a5cff` |
+| ![PAD E](../../ui/assets/buttons/pad-5.svg) | `[[PAD E]]` | `[[pad E]]`, `[[PERFORMANCE PAD E]]`, `[[PAD 5]]`, `[[pad 5]]` | each deck, pad E (A B C D the top row, E F G H the bottom row, as MODS names them) | `#2ee84e` |
+| ![PAD F](../../ui/assets/buttons/pad-6.svg) | `[[PAD F]]` | `[[pad F]]`, `[[PERFORMANCE PAD F]]`, `[[PAD 6]]`, `[[pad 6]]` | each deck, pad F (A B C D the top row, E F G H the bottom row, as MODS names them) | `#ff8f1f` |
+| ![PAD G](../../ui/assets/buttons/pad-7.svg) | `[[PAD G]]` | `[[pad G]]`, `[[PERFORMANCE PAD G]]`, `[[PAD 7]]`, `[[pad 7]]` | each deck, pad G (A B C D the top row, E F G H the bottom row, as MODS names them) | `#1f74ff` |
+| ![PAD H](../../ui/assets/buttons/pad-8.svg) | `[[PAD H]]` | `[[pad H]]`, `[[PERFORMANCE PAD H]]`, `[[PAD 8]]`, `[[pad 8]]` | each deck, pad H (A B C D the top row, E F G H the bottom row, as MODS names them) | `#ffd426` |
 | ![Pads in BEAT LOOP](../../ui/assets/buttons/pads-beat-loop.svg) | `[[Pads in BEAT LOOP]]` |   | pad colours the firmware sets in BEAT LOOP (native_led.h, provisional) | `#ff6000` |
 | ![Pads in SLIP LOOP](../../ui/assets/buttons/pads-slip-loop.svg) | `[[Pads in SLIP LOOP]]` |   | pad colours the firmware sets in SLIP LOOP (native_led.h, provisional) | `#0060ff` |
 | ![Pads in BEAT JUMP](../../ui/assets/buttons/pads-beat-jump.svg) | `[[Pads in BEAT JUMP]]` |   | pad colours the firmware sets in BEAT JUMP page 2 (native_led.h xz_jump_page2_color) | `#ff3000` |

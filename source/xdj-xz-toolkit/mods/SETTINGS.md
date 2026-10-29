@@ -70,10 +70,10 @@ A record with the block ignores the value in the `theme` slot. The shipped
 loader starts the runtime with the shell armed (`XZ_MODS_SHELL` follows
 `XZ_MODS_UI`, like the other UI attachments), so `interface` alone decides.
 
-## Rekordbox button (`rekordbox_press`, `rekordbox_shift`)
+## Button above LINK (`rekordbox_press`, `rekordbox_shift`)
 
-MODS calls the rekordbox button above LINK REKORDBOX BUTTON, its printed name; the code
-and the wire keys use the name REKORDBOX too. It has two slots: `rekordbox_press` for a plain press and
+MODS calls the media button above LINK BUTTON ABOVE LINK (its cap prints a logo, which XZ Mods never names); the
+code and the wire keys keep the name REKORDBOX. It has two slots: `rekordbox_press` for a plain press and
 `rekordbox_shift` for a press while either deck's SHIFT is held. Each holds one
 of these (stored numbers never change):
 
@@ -88,7 +88,7 @@ of these (stored numbers never change):
 | 6 | DECK VIEW | steps DECK VIEW 2 DECKS, 4 DECKS (1 2 3 4), 4 DECKS (3 1 2 4), then 2 DECKS, saves it and shows the new view in a short notice |
 
 Defaults: `rekordbox_press=2` (INTERFACE), `rekordbox_shift=1` (stock). MODS >
-PLAY > REKORDBOX BUTTON sets both, in both interfaces. Value 6 is newer than the
+PLAY > BUTTON ABOVE LINK sets both, in both interfaces. Value 6 is newer than the
 DECK VIEW block below; older runtimes refuse a record that holds it.
 
 Recovery without a touchscreen: in CLASSIC, REKORDBOX (INTERFACE) switches to

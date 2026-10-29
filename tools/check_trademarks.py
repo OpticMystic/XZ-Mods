@@ -9,7 +9,8 @@ exported to the USB", "the button above LINK".
 What is checked, and only the parts a user reads:
   - the desktop app (ui/): text and attributes in HTML, string literals in JS and CSS, SVG titles; ui/manual is the
     manual as the app shows it
-  - the manual: manual/chapters, manual.json, and the menu map's screen titles and moves
+  - the manual: manual/chapters, manual.json, the menu map's screen titles and moves, and the navigation videos'
+    captions (nav-media.json)
   - the XZ: string literals in source/xdj-xz-toolkit/mods (not tests, not log lines), and the labels in
     settings-schema.json
   - the Python backend's messages, which the app shows (source/xdj-xz-toolkit/builder, string literals)
@@ -173,6 +174,7 @@ def targets():
     for p in sorted((APP / 'manual/chapters').glob('*.md')): out.append((p.relative_to(APP).as_posix(), whole))
     out.append(('manual/manual.json', whole))
     out.append(('manual/menu-tree/menu-tree.json', lambda t: json_values(t, {'title', 'label', 'control', 'target', 'path'})))
+    out.append(('manual/nav-media.json', lambda t: json_values(t, {'text'})))  # the navigation videos' captions
     out.append((f'{MODS}/settings-schema.json', lambda t: json_values(t, {'label'})))
     for p in sorted((APP / MODS).rglob('*')):
         rel = p.relative_to(APP).as_posix()

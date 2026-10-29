@@ -1,0 +1,27 @@
+{
+  "section": "mods-menu#modern-utility",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU hold"
+    },
+    {
+      "push": true
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "back": true
+    }
+  ]
+}

@@ -436,11 +436,11 @@ Where: each deck, eight pads below PAD MODE (HOT CUE colours as photographed). T
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-## Pad 1 (`pad-1`)
+## PAD A (`pad-1`)
 
-Where: each deck, pad 1 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it: `PAD 1`.
+Where: each deck, pad A (A B C D the top row, E F G H the bottom row, as MODS names them). Text after it: `PAD A`.
 
-**Lit**: ![Pad 1, lit, beside SH_SMALL](firmware/pad-1-14.png) ![Pad 1, lit, beside SH_TEXT](firmware/pad-1-22.png)
+**Lit**: ![PAD A, lit, beside SH_SMALL](firmware/pad-1-14.png) ![PAD A, lit, beside SH_TEXT](firmware/pad-1-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -453,7 +453,7 @@ Where: each deck, pad 1 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-**Lamp off**: ![Pad 1, lamp off, beside SH_SMALL](firmware/pad-1.off-14.png) ![Pad 1, lamp off, beside SH_TEXT](firmware/pad-1.off-22.png)
+**Lamp off**: ![PAD A, lamp off, beside SH_SMALL](firmware/pad-1.off-14.png) ![PAD A, lamp off, beside SH_TEXT](firmware/pad-1.off-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -466,11 +466,11 @@ Where: each deck, pad 1 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-## Pad 2 (`pad-2`)
+## PAD B (`pad-2`)
 
-Where: each deck, pad 2 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it: `PAD 2`.
+Where: each deck, pad B (A B C D the top row, E F G H the bottom row, as MODS names them). Text after it: `PAD B`.
 
-**Lit**: ![Pad 2, lit, beside SH_SMALL](firmware/pad-2-14.png) ![Pad 2, lit, beside SH_TEXT](firmware/pad-2-22.png)
+**Lit**: ![PAD B, lit, beside SH_SMALL](firmware/pad-2-14.png) ![PAD B, lit, beside SH_TEXT](firmware/pad-2-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -483,7 +483,7 @@ Where: each deck, pad 2 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-**Lamp off**: ![Pad 2, lamp off, beside SH_SMALL](firmware/pad-2.off-14.png) ![Pad 2, lamp off, beside SH_TEXT](firmware/pad-2.off-22.png)
+**Lamp off**: ![PAD B, lamp off, beside SH_SMALL](firmware/pad-2.off-14.png) ![PAD B, lamp off, beside SH_TEXT](firmware/pad-2.off-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -496,11 +496,11 @@ Where: each deck, pad 2 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-## Pad 3 (`pad-3`)
+## PAD C (`pad-3`)
 
-Where: each deck, pad 3 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it: `PAD 3`.
+Where: each deck, pad C (A B C D the top row, E F G H the bottom row, as MODS names them). Text after it: `PAD C`.
 
-**Lit**: ![Pad 3, lit, beside SH_SMALL](firmware/pad-3-14.png) ![Pad 3, lit, beside SH_TEXT](firmware/pad-3-22.png)
+**Lit**: ![PAD C, lit, beside SH_SMALL](firmware/pad-3-14.png) ![PAD C, lit, beside SH_TEXT](firmware/pad-3-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -513,7 +513,7 @@ Where: each deck, pad 3 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-**Lamp off**: ![Pad 3, lamp off, beside SH_SMALL](firmware/pad-3.off-14.png) ![Pad 3, lamp off, beside SH_TEXT](firmware/pad-3.off-22.png)
+**Lamp off**: ![PAD C, lamp off, beside SH_SMALL](firmware/pad-3.off-14.png) ![PAD C, lamp off, beside SH_TEXT](firmware/pad-3.off-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -526,11 +526,11 @@ Where: each deck, pad 3 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-## Pad 4 (`pad-4`)
+## PAD D (`pad-4`)
 
-Where: each deck, pad 4 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it: `PAD 4`.
+Where: each deck, pad D (A B C D the top row, E F G H the bottom row, as MODS names them). Text after it: `PAD D`.
 
-**Lit**: ![Pad 4, lit, beside SH_SMALL](firmware/pad-4-14.png) ![Pad 4, lit, beside SH_TEXT](firmware/pad-4-22.png)
+**Lit**: ![PAD D, lit, beside SH_SMALL](firmware/pad-4-14.png) ![PAD D, lit, beside SH_TEXT](firmware/pad-4-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -543,7 +543,7 @@ Where: each deck, pad 4 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-**Lamp off**: ![Pad 4, lamp off, beside SH_SMALL](firmware/pad-4.off-14.png) ![Pad 4, lamp off, beside SH_TEXT](firmware/pad-4.off-22.png)
+**Lamp off**: ![PAD D, lamp off, beside SH_SMALL](firmware/pad-4.off-14.png) ![PAD D, lamp off, beside SH_TEXT](firmware/pad-4.off-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -556,11 +556,11 @@ Where: each deck, pad 4 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-## Pad 5 (`pad-5`)
+## PAD E (`pad-5`)
 
-Where: each deck, pad 5 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it: `PAD 5`.
+Where: each deck, pad E (A B C D the top row, E F G H the bottom row, as MODS names them). Text after it: `PAD E`.
 
-**Lit**: ![Pad 5, lit, beside SH_SMALL](firmware/pad-5-14.png) ![Pad 5, lit, beside SH_TEXT](firmware/pad-5-22.png)
+**Lit**: ![PAD E, lit, beside SH_SMALL](firmware/pad-5-14.png) ![PAD E, lit, beside SH_TEXT](firmware/pad-5-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -573,7 +573,7 @@ Where: each deck, pad 5 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-**Lamp off**: ![Pad 5, lamp off, beside SH_SMALL](firmware/pad-5.off-14.png) ![Pad 5, lamp off, beside SH_TEXT](firmware/pad-5.off-22.png)
+**Lamp off**: ![PAD E, lamp off, beside SH_SMALL](firmware/pad-5.off-14.png) ![PAD E, lamp off, beside SH_TEXT](firmware/pad-5.off-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -586,11 +586,11 @@ Where: each deck, pad 5 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-## Pad 6 (`pad-6`)
+## PAD F (`pad-6`)
 
-Where: each deck, pad 6 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it: `PAD 6`.
+Where: each deck, pad F (A B C D the top row, E F G H the bottom row, as MODS names them). Text after it: `PAD F`.
 
-**Lit**: ![Pad 6, lit, beside SH_SMALL](firmware/pad-6-14.png) ![Pad 6, lit, beside SH_TEXT](firmware/pad-6-22.png)
+**Lit**: ![PAD F, lit, beside SH_SMALL](firmware/pad-6-14.png) ![PAD F, lit, beside SH_TEXT](firmware/pad-6-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -603,7 +603,7 @@ Where: each deck, pad 6 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-**Lamp off**: ![Pad 6, lamp off, beside SH_SMALL](firmware/pad-6.off-14.png) ![Pad 6, lamp off, beside SH_TEXT](firmware/pad-6.off-22.png)
+**Lamp off**: ![PAD F, lamp off, beside SH_SMALL](firmware/pad-6.off-14.png) ![PAD F, lamp off, beside SH_TEXT](firmware/pad-6.off-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -616,11 +616,11 @@ Where: each deck, pad 6 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-## Pad 7 (`pad-7`)
+## PAD G (`pad-7`)
 
-Where: each deck, pad 7 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it: `PAD 7`.
+Where: each deck, pad G (A B C D the top row, E F G H the bottom row, as MODS names them). Text after it: `PAD G`.
 
-**Lit**: ![Pad 7, lit, beside SH_SMALL](firmware/pad-7-14.png) ![Pad 7, lit, beside SH_TEXT](firmware/pad-7-22.png)
+**Lit**: ![PAD G, lit, beside SH_SMALL](firmware/pad-7-14.png) ![PAD G, lit, beside SH_TEXT](firmware/pad-7-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -633,7 +633,7 @@ Where: each deck, pad 7 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#1f74ff` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-**Lamp off**: ![Pad 7, lamp off, beside SH_SMALL](firmware/pad-7.off-14.png) ![Pad 7, lamp off, beside SH_TEXT](firmware/pad-7.off-22.png)
+**Lamp off**: ![PAD G, lamp off, beside SH_SMALL](firmware/pad-7.off-14.png) ![PAD G, lamp off, beside SH_TEXT](firmware/pad-7.off-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -646,11 +646,11 @@ Where: each deck, pad 7 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 
-## Pad 8 (`pad-8`)
+## PAD H (`pad-8`)
 
-Where: each deck, pad 8 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it: `PAD 8`.
+Where: each deck, pad H (A B C D the top row, E F G H the bottom row, as MODS names them). Text after it: `PAD H`.
 
-**Lit**: ![Pad 8, lit, beside SH_SMALL](firmware/pad-8-14.png) ![Pad 8, lit, beside SH_TEXT](firmware/pad-8-22.png)
+**Lit**: ![PAD H, lit, beside SH_SMALL](firmware/pad-8-14.png) ![PAD H, lit, beside SH_TEXT](firmware/pad-8-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|
@@ -663,7 +663,7 @@ Where: each deck, pad 8 of 8 (top row 1 to 4, bottom row 5 to 8). Text after it:
 | pad 7 | 32.4, 17.3; 11.6 x 11.6; stroke 1.7 | `#3d4044` |  |
 | pad 8 | 46.6, 17.3; 11.6 x 11.6; stroke 1.7 | `#ffd426` |  |
 
-**Lamp off**: ![Pad 8, lamp off, beside SH_SMALL](firmware/pad-8.off-14.png) ![Pad 8, lamp off, beside SH_TEXT](firmware/pad-8.off-22.png)
+**Lamp off**: ![PAD H, lamp off, beside SH_SMALL](firmware/pad-8.off-14.png) ![PAD H, lamp off, beside SH_TEXT](firmware/pad-8.off-22.png)
 
 | Part | Design units | Colour | Note |
 |---|---|---|---|

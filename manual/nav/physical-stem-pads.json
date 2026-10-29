@@ -1,0 +1,46 @@
+{
+  "section": "stems#stem-pads",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "gesture": "HOT CUE",
+      "code": 1,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad A",
+      "code": 10,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad B",
+      "code": 11,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad C",
+      "code": 12,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad D",
+      "code": 13,
+      "side": 0
+    },
+    {
+      "gesture": "performance pad A",
+      "code": 10,
+      "side": 0
+    }
+  ],
+  "requires_effects": [
+    [
+      "runtime-pad",
+      10
+    ],
+    [
+      "runtime-pad",
+      13
+    ]
+  ]
+}

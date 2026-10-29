@@ -9,6 +9,9 @@ Open MODS with [[MENU]], then choose **EXTRAS** in the section rail.
 
 ## The EXTRAS page
 
+```nav mods-extras The EXTRAS page
+```
+
 ```figure classic:theme-{look}-extras MODS · EXTRAS
 The four parts of EXTRAS.
 1 @ 230,88 GAMES | Doom and Chex Quest, Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer.
@@ -23,6 +26,9 @@ The HOME card for EXTRAS counts the games and the apps found on your USBs, for e
 ## Games
 
 Every game runs on the XZ itself. The music keeps playing while you play, and PLAY and track search keep their normal jobs in Beat Arcade. Doom and Beat Arcade make no sound of their own.
+
+```nav games Games
+```
 
 ```figure classic:theme-{look}-games MODS · GAMES
 Every game, plus USB WAD LOADER and MY HOUSE / SETUP.
@@ -49,6 +55,9 @@ Every game, plus USB WAD LOADER and MY HOUSE / SETUP.
 
 You do not need the touchscreen in any game.
 
+```nav b-rider Moving around a game
+```
+
 | Control | In a game |
 |---|---|
 | Turn the encoder | Moves a ring over the controls on the screen |
@@ -59,6 +68,9 @@ You do not need the touchscreen in any game.
 ### Beat Arcade {experimental}
 
 Turn the jog to move your paddle and tap **CUE** on each beat as the moving light meets the target. Good notes build charge. Eight good notes in a row earn a shield, and sixteen build a Drop that fires on the next downbeat.
+
+```nav b-arcade Beat Arcade
+```
 
 | Control | Action |
 |---|---|
@@ -91,6 +103,9 @@ A missed landing never stops the music.
 ### Doom and Chex Quest
 
 Doom and Chex Quest need game files on the USB. The XZ Mods app can download and check free Doom shareware, Chex Quest and Freedoom data when you prepare the USB. For the full Doom or Doom II you supply your own files. See [The XZ Mods app](desktop-app).
+
+```nav wad-loader Doom and Chex Quest
+```
 
 ```figure classic:theme-{look}-doom DOOM
 The Doom page before its game files have been checked.
@@ -139,6 +154,9 @@ If the list says **PUT .WAD FILES ON USB, THEN RESCAN**, copy the files to the U
 
 My House is a Doom mod that needs the GZDoom engine. The MY HOUSE page checks for that engine and the files, but the classic Doom engine cannot load this mod, and the XZ Mods app no longer copies it to the USB.
 
+```nav my-house-setup My House
+```
+
 ```figure classic:theme-{look}-myhouse-setup MY HOUSE
 The My House check.
 1 @ 420,128 Steps | Find the GZDoom engine, choose the Doom II data and MYHOUSE.PK3, check and start.
@@ -150,6 +168,9 @@ The My House check.
 ## USB apps {experimental}
 
 USB APPS runs apps built with the XZ SDK from a USB. DJ controls keep working while an app runs.
+
+```nav apps-setup USB apps
+```
 
 ```figure classic:theme-{look}-applications MODS · USB APPS
 USB APPS while the app manager is not running.
@@ -194,6 +215,9 @@ Step 1 of SET UP APPS, with the app manager not running.
 ## Report an issue
 
 REPORT AN ISSUE sends the maintainer a problem, a question or an idea from the player. You say what it is about and, if you like, what happened. The player adds its own details. A topic and **SEND** take three presses.
+
+```nav report-issue Report an issue
+```
 
 1. **What's this about?** Push one of the five topics, or **NOT SURE**.
 2. **What happened?** Type a few words, or push **SKIP, I'LL ADD IT ON MY COMPUTER**.
@@ -244,6 +268,9 @@ BACK goes back a step. If you leave the page before sending, your words wait for
 
 The report goes one of three ways. Whichever it is, nothing is lost and you never type it again.
 
+```nav report-edit-recovery After you send
+```
+
 | The screen says | What happened | What to do |
 |---|---|---|
 | **SENT** and a reference like **R-4F7K-2M9Q** | It reached the XZ Mods inbox | Finish it on your computer: the XZ Mods app reminds you and shows the same reference |
@@ -270,6 +297,9 @@ A saved report waits in `VJ.Tools/XZ-Mods-reports/pending/` on the stick, up to 
 
 When an error shows in the dock's top row, **REPORT THIS** beside it opens REPORT AN ISSUE at **WHAT HAPPENED?** with SOMETHING ISN'T WORKING chosen. Push **SKIP** and **SEND REPORT**, and the error goes with it. Every report includes an error on screen, however you open it.
 
+```nav report-dock-entry Report an error from the dock
+```
+
 ```figure classic:theme-{look}-support-strip REPORT THIS
 A player warning in the dock, here E-8307: USB ACCESS ERROR, with REPORT THIS.
 1 @ 510,447 REPORT THIS | Opens REPORT AN ISSUE about this error. Touch only: with the encoder, open EXTRAS › REPORT AN ISSUE.
@@ -293,6 +323,9 @@ The report holds facts the player can check, never text read from its screens:
 It never holds music, track or playlist names, file names or network addresses. Only the maintainer reads it. You can also report from the XZ Mods app. See [Messages and troubleshooting](troubleshooting).
 
 ## About XZ Mods
+
+```nav about About XZ Mods
+```
 
 ```figure classic:theme-{look}-about ABOUT XZ MODS
 The About page with XZMODS.COM highlighted and its QR code shown.

@@ -9,6 +9,9 @@ This chapter covers finding a track and putting it on a deck. MODERN has its own
 
 Press [[BROWSE]] or [[TAG LIST]] to open that list, or hold [[BROWSE]] for SEARCH. PLAYLIST is in the BROWSE category rail and on the SHORTCUT screen. Press [[BACK]] to go up one level. At the top of a list [[BACK]] opens SOURCE, where you pick the USB to browse.
 
+```nav browse-category-folder Browsing in MODERN {modern}
+```
+
 ```figure modern:browse-touched-load BROWSE · TRACK {modern}
 The TRACK category of USB1, sorted by title, with PREVIEW on and a row touched.
 1 @ 64,46 Source | The USB you are browsing, in its own colour. Tap to open SOURCE.
@@ -26,6 +29,9 @@ The TRACK category of USB1, sorted by title, with PREVIEW on and a row touched.
 ```
 
 ### Moving through a list {modern}
+
+```nav encoder-list Moving through a list {modern}
+```
 
 | Control | What it does |
 |---|---|
@@ -62,6 +68,9 @@ The preview column starts hidden. One tap on **PREVIEW** shows it, and XZ Mods r
 
 There are three ways to load the highlighted track:
 
+```nav browse-load Loading a track {modern}
+```
+
 - Tap the row, then tap **1** or **2** on its LOAD chip.
 - Push the encoder twice to load on the active deck, or push, turn to another deck and push.
 - Press the [[LOAD]] button of the deck you want.
@@ -78,6 +87,9 @@ modern:browse-touched-load-off-notice SELECT A TRACK, THEN PRESS LOAD
 
 Press [[INFO]] or tap **INFO** to open a panel with the highlighted track's details beside the list. The list narrows to make room.
 
+```nav browse-rating-edit INFO panel {modern}
+```
+
 ```gallery {modern}
 modern:browse-info The INFO panel: BPM, KEY, TIME, RATING, COLOR, PLAYED and ON DECK
 modern:r5-browse-info-panel The INFO panel opened with [[INFO]] while keys are colour coded
@@ -87,6 +99,9 @@ modern:r5-browse-traffic-keys Keys coloured against deck 1's Fm
 ### Sort, columns and the track menu {modern}
 
 Press [[MENU]] or tap a column title. The MENU panel opens on the right with the sort order, the columns to show, and the actions for the highlighted track.
+
+```nav browse-cue-loop-load Sort, columns and the track menu {modern}
+```
 
 ```figure modern:parity-track-menu BROWSE · MENU {modern}
 The MENU panel on a track list, with three tracks already in the tag list.
@@ -112,6 +127,9 @@ modern:parity-history-menu HISTORY: ADD ALL TO TAG LIST, DELETE HISTORY and DELE
 
 Tap **FILTER** to narrow the list without leaving it. The filters stay on while you move between categories, and a chip in the header says which are on.
 
+```nav filter Filter {modern}
+```
+
 | Filter | What it keeps |
 |---|---|
 | BPM | Tracks within a range of the master deck's BPM, for example MASTER ±6 |
@@ -131,6 +149,9 @@ modern:r5-browse-filter-chip The filter chip in the header. Tap it to clear ever
 
 Hold [[BROWSE]] (SEARCH is printed above it), or tap SEARCH on the SHORTCUT screen. Type on the keyboard and the list updates as you type. **SEARCH** puts the keyboard away so you can scroll the results. **DELETE** removes a letter and **CLEAR** empties the field.
 
+```nav search Search {modern}
+```
+
 ```figure modern:browse-search-typing SEARCH {modern}
 Typing NEON. Eleven tracks match so far.
 1 @ 500,18 Search field | What you have typed.
@@ -149,6 +170,9 @@ modern:browse-search-results The results with the keyboard put away
 
 The tag list is a quick list of tracks you want to play next. It holds up to 100 tracks and shows how many it has in the header. XZ Mods keeps it on the USB in `XZMODS/playlists.txt`, with your playlist changes. To add a track, use ADD TO TAG LIST in the [[MENU]] panel. To add a whole folder, highlight it and use ADD ALL TO TAG LIST.
 
+```nav tag-list Tag list {modern}
+```
+
 ```gallery {modern}
 modern:browse-tag-list The tag list with 12 of 100 tracks, one row touched
 modern:browse-tag-list-full The tag list full at 100 tracks
@@ -160,6 +184,9 @@ modern:parity-tag-clear-armed REMOVE ALL TRACKS armed: push again to clear the t
 ### Playlists {modern}
 
 Tap **PLAYLIST** in the BROWSE category rail, or on the SHORTCUT screen, to open the USB's playlists. You can also make your own and change them on the player. Press [[MENU]] in the playlist list or inside a playlist.
+
+```nav playlists Playlists {modern}
+```
 
 | In the MENU panel | What it does |
 |---|---|
@@ -194,6 +221,9 @@ modern:r5-playlist-edited-marks A playlist changed on the player, marked in the 
 ## SOURCE {modern}
 
 SOURCE shows every place music can come from, one tile each. Press [[BACK]] at the top of a list, or tap the source tile at the top left of BROWSE.
+
+```nav source SOURCE {modern}
+```
 
 ```figure modern:source-full SOURCE {modern}
 USB1 is being browsed and plays on both decks. USB2 is still loading.
@@ -266,6 +296,9 @@ These additions only use tracks on a USB with an exported library. A track XZ Mo
 
 ## Browse settings
 
+```nav nav-a-browse-settings Browse settings
+```
+
 | Setting | MODS | What it does | Default |
 |---|---|---|---|
 | `browse_preview` | PREVIEW tile in MODERN browse | Shows the preview waveform column in MODERN browse | Hidden |
@@ -277,6 +310,9 @@ These additions only use tracks on a USB with an exported library. A track XZ Mo
 MODS has no control for the three CLASSIC row fields in this version. They keep the values stored on the USB. In MODERN, choose columns from the [[MENU]] panel instead.
 
 ## If browsing goes wrong
+
+```nav nav-a-browse-recovery If browsing goes wrong
+```
 
 | You see | What to do |
 |---|---|

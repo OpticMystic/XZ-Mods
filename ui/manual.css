@@ -331,6 +331,39 @@
 .mx-count{font:600 11px/1 ui-monospace,Consolas,monospace;color:#8f9693;white-space:nowrap}
 .mx-scenes{display:none}
 
+/* Navigation videos (manual-art.js mountNav): the player's own screen beside the Blender control, steps under it */
+.mn{margin:12px 0 30px;max-width:800px;border:1px solid #2d3230;border-radius:14px;background:#0b0c0d;overflow:hidden}
+.mn-head{display:flex;align-items:center;gap:10px;padding:10px 12px 10px 14px;border-bottom:1px solid #1f2324}
+.mn-badge{font:700 9.5px/1 system-ui,sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:#181a02;background:#f3e900;border-radius:3px;padding:4px 6px 3px}
+.mn-head h5{margin:0;flex:1;min-width:0;font-size:13px;font-weight:620;color:#e9ece8}
+.mn-big{width:30px;height:30px;padding:0;display:grid;place-items:center;border-radius:8px;background:none;border:1px solid #30363a;color:#aeb5b1}
+.mn-big:hover{border-color:#a8a43a;color:#fff98a}
+.mn-big svg{width:14px;height:14px}
+.mn-stage{position:relative;line-height:0;background:#000;cursor:pointer}
+.mn-stage video{display:block;width:100%;height:auto;aspect-ratio:8/3;background:#000}
+.mn-stage:fullscreen{display:grid;place-items:center}
+.mn-stage:fullscreen video{width:100vw;height:auto;max-height:100vh}
+.mn-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:#ffffff14}
+.mn-bar i{position:absolute;inset:0;background:#f3e900;transform-origin:0 50%;transform:scaleX(0)}
+.mn-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 0}
+.mn-tabs button{padding:5px 10px;border-radius:14px;border:1px solid #3a403f;background:#121415;color:#aab1ad;font:600 12px/1.2 system-ui,sans-serif}
+.mn-tabs button[aria-pressed=true]{border-color:#f3e900;background:#3a3812;color:#fff98a}
+.m-chapter ol.mn-list{list-style:none;counter-reset:mn;margin:0;padding:10px 10px 2px;display:grid;gap:2px;max-width:none}
+.m-chapter ol.mn-list li{counter-increment:mn;position:relative;padding:7px 10px 7px 42px;border-radius:8px;font-size:14px;line-height:1.5;color:#c9cfcb;cursor:pointer;transition:background .2s,color .2s}
+.m-chapter ol.mn-list li::before{content:counter(mn);position:absolute;left:10px;top:7px;width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#1c2021;border:1px solid #3a403f;color:#aab1ad;font:800 11px/1 system-ui,sans-serif}
+.m-chapter ol.mn-list li:hover{background:#121415}
+.m-chapter ol.mn-list li:focus-visible{outline:2px solid #f3e900;outline-offset:-2px}
+.m-chapter ol.mn-list li.is-done::before{content:"✓";color:#d9d34a;border-color:#5a5824}
+.m-chapter ol.mn-list li.is-now{background:#1c1e15;color:#f6f7f2}
+.m-chapter ol.mn-list li.is-now::before{background:#f3e900;border-color:#f3e900;color:#181a02}
+.mn-ctl{display:flex;align-items:center;gap:10px;padding:6px 12px 12px}
+.mn-play{width:36px;height:36px;padding:0;display:grid;place-items:center;border-radius:50%;background:#f3e900;border:1px solid #f3e900;color:#181a02}
+.mn-play:hover{background:#fffa60}
+.mn-play svg{width:14px;height:14px}
+.mn-note{font-size:12px;color:#7f8783}
+.mn-scenes{list-style:none;margin:0;padding:0}
+.mn:not([data-mounted]) .mn-scenes>li{padding:8px 14px}
+
 /* Narrow windows: the chapter list folds above the page */
 @media (max-width:1060px){
  .m-root{grid-template-columns:minmax(0,1fr)}

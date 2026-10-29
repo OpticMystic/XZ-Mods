@@ -1,0 +1,21 @@
+{
+  "interface": "MODERN",
+  "section": "extras#doom-and-chex-quest",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "GAMES"
+    },
+    {
+      "tap": "USB WAD LOADER"
+    },
+    {
+      "turn": 1
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "section": "browse#sort-columns-and-the-track-menu",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "push": true
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "panel_select": "ADD TO TAG LIST"
+    },
+    {
+      "panel_select": "REMOVE FROM TAG LIST"
+    }
+  ],
+  "requires_effects": [
+    [
+      "shell",
+      22
+    ]
+  ]
+}

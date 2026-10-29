@@ -1,0 +1,37 @@
+{
+  "section": "play-screen#waveform-colours",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "STOCK",
+      "match": 0
+    },
+    {
+      "tap": "RGB",
+      "match": 0
+    },
+    {
+      "tap": "3-BAND",
+      "match": 0
+    },
+    {
+      "tap": "STEMS",
+      "match": 1
+    },
+    {
+      "tap": "LAMPS AND TITLES"
+    },
+    {
+      "settings": true
+    },
+    {
+      "tap": "CLOSE"
+    }
+  ]
+}
