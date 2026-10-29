@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0-preview.22.13.1 - 2026-10-29
+
+SYNC and MASTER hand over cleanly between all four decks
+
+- When a deck 3 or 4 gives up MASTER and no other deck takes it, the MASTER lamps go dark and SYNC is free again. Before, the engine could keep following a deck that no longer led, and SYNC stayed stuck.
+- In VINYL mode MASTER passes to the next playing deck when you press pause, while the deck slows down.
+- When the master stops and the next deck is a playing deck 1 or 2, MASTER passes at once instead of waiting for the stopping deck to finish braking.
+- When a deck 1 or 2 master stops, a playing deck 3 or 4 takes MASTER after a moment, even if it was paused while the master played.
+- Includes everything in 22.13.
+- Experimental XDJ-XZ 1.26 only.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.13 - 2026-10-28
 
 A visual Manual, a menu map, accurate button pictures and a cleaner app
