@@ -2,6 +2,7 @@
 // ui/manual/. This file only shows it. The app's CSP allows no fetch of its own files and no style attributes,
 // so chapters arrive as scripts loaded on first use, and positions are set through CSSOM.
 // window.openManual(chapterId, anchorId?) opens the page at a chapter and, optionally, a heading in it.
+// openManual('menu-map', screen?) opens the menu map (ui/manual-map.js), at a screen when one is named.
 'use strict';
 (() => {
   const KEY = 'xz-manual/1', BASE = 'manual/';
@@ -47,9 +48,11 @@
     script.onerror = () => { delete loading[src]; script.remove(); reject(Error('The manual file ' + src + ' is missing from this app.')); };
     document.head.append(script);
   }));
-  const loadIndex = () => Promise.all([load(BASE + 'index.js'), load('manual-art.js')]).then(() => window.XZ_MANUAL);
+  // The explainer clips are optional: without assets/manual/media.js the page shows no clips and the text says it all.
+  const loadIndex = () => Promise.all([load(BASE + 'index.js'), load('manual-art.js'), load('assets/manual/media.js').catch(() => {})]).then(() => window.XZ_MANUAL);
   const loadChapter = slug => load(BASE + 'chapters/' + slug + '.js').then(() => window.XZ_MANUAL_CHAPTERS[slug]);
   const loadSearch = () => load(BASE + 'search.js').then(() => window.XZ_MANUAL_SEARCH);
+  const loadMap = () => Promise.all([load('manual-map.js'), load(BASE + 'map.js')]).then(() => window.manualMap);
 
   // ---------------------------------------------------------------- page skeleton
   let root, side, view, bar, input, book = null, current = { view: 'none', slug: null }, built = false;
@@ -67,10 +70,12 @@
     ui.progressText = h('b'); ui.progressNote = h('span');
     const progress = h('div', { class: 'm-progress', role: 'status' }, svgEl('svg', { viewBox: '0 0 34 34', 'aria-hidden': 'true' }, svgEl('circle', { class: 'm-ring-track', cx: 17, cy: 17, r: 14 }), ui.ring), h('div', null, ui.progressText, ui.progressNote));
     ui.home = h('button', { class: 'm-home', type: 'button', onclick: () => showStart(true) }, bookGlyph(), h('span', { text: 'Start page' }));
+    ui.mapCount = h('small');
+    ui.map = h('button', { class: 'm-home m-mapnav', type: 'button', hidden: true, onclick: () => showMap(null, true) }, mapGlyph(), h('span', { text: 'Menu map' }), ui.mapCount);
     ui.toc = h('ol', { class: 'm-toc', 'aria-label': 'Chapters' });
     ui.seg = h('div', { class: 'm-seg', role: 'group', 'aria-label': 'Interface' }, ['modern', 'classic', 'both'].map(name => h('button', { type: 'button', dataset: { iface: name }, 'aria-pressed': String(state.iface === name), text: name === 'both' ? 'Both' : name.toUpperCase(), onclick: () => setIface(name, true) })));
     const iface = h('div', { class: 'm-iface' }, h('p', { text: 'Show the parts for the interface you play on.' }), ui.seg);
-    side = h('div', { class: 'm-side', role: 'navigation', 'aria-label': 'Manual' }, search, ui.toggle, h('div', { class: 'm-side-body', id: 'm-side-body' }, progress, ui.home, ui.toc, iface));
+    side = h('div', { class: 'm-side', role: 'navigation', 'aria-label': 'Manual' }, search, ui.toggle, h('div', { class: 'm-side-body', id: 'm-side-body' }, progress, ui.home, ui.map, ui.toc, iface));
     bar = h('span');
     view = h('div', { class: 'm-view', id: 'm-view', tabindex: '-1' });
     root.replaceChildren(side, h('div', { class: 'm-main' }, h('div', { class: 'm-bar', 'aria-hidden': 'true' }, bar), view));
@@ -98,6 +103,11 @@
     return svgEl('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
       svgEl('path', { d: 'M3.5 12 12 4.5l8.5 7.5' }), svgEl('path', { d: 'M5.5 10.5v9h13v-9' }));
   }
+  // Three screens joined like branches: the menu map.
+  function mapGlyph() {
+    return svgEl('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+      svgEl('path', { d: 'M2.5 9.5h6v5h-6zM15.5 3.5h6v5h-6zM15.5 15.5h6v5h-6z' }), svgEl('path', { d: 'M8.5 12h3.5V6h3.5M12 12v6h3.5' }));
+  }
 
   // ---------------------------------------------------------------- chapter list and progress
   const fraction = slug => Math.max(0, Math.min(1, state.read[slug] || 0));
@@ -119,6 +129,9 @@
         h('li', iface ? { dataset: { iface } } : null, h('button', { class: 'm-toc-sec', type: 'button', dataset: { anchor }, text: title, onclick: () => openChapter(chapter.slug, anchor, { focus: true }) })))) : null);
     })))));
     ui.home.setAttribute('aria-current', current.view === 'start' ? 'page' : 'false');
+    ui.map.hidden = !book.map;
+    ui.map.setAttribute('aria-current', current.view === 'map' ? 'page' : 'false');
+    if (book.map) ui.mapCount.textContent = String(book.map.screens[state.iface === 'classic' && book.map.screens.classic ? 'classic' : 'modern']);
     renderProgress();
   }
   function dot(slug) {
@@ -143,6 +156,8 @@
     if (current.view === 'start') for (const button of view.querySelectorAll('.m-pick button')) button.setAttribute('aria-pressed', String(button.dataset.iface === name));
     if (current.view === 'search') runSearch();
     if (name !== 'both') for (const figure of view.querySelectorAll('.mf[data-look]')) setLook(figure, name);
+    if (current.view === 'map' && name !== 'both') window.manualMap?.setIface(name);
+    if (book) renderToc();
   }
   function applyIface() {
     if (!root) return;
@@ -152,8 +167,13 @@
   }
 
   // ---------------------------------------------------------------- views
+  function leaveMap() {
+    window.manualMap?.unmount();
+    root.classList.remove('m-map-on');
+  }
   function swap(nodes, kind) {
     window.manualArt?.stopAll();
+    leaveMap();
     view.replaceChildren(...nodes);
     view.classList.remove('m-enter');
     if (!reduced()) { void view.offsetWidth; view.classList.add('m-enter'); }
@@ -173,9 +193,9 @@
     const actions = h('div', { class: 'm-hero-actions' },
       h('button', { class: 'primary', type: 'button', text: 'Start with ' + first.title, onclick: () => openChapter(first.slug, '', { focus: true }) }),
       h('button', { class: 'secondary', type: 'button', text: 'Search the manual', onclick: () => { input.focus(); side.classList.add('is-open'); } }));
-    const hero = h('header', { class: 'm-hero' },
-      h('div', null, h('p', { class: 'mc-eyebrow', text: 'XZ Mods manual' }), h('h2', { tabindex: '-1', class: 'm-start-title', text: book.title }), h('p', { class: 'm-lede', text: book.summary }), actions),
-      h('div', { class: 'm-hero-art' }, window.manualArt?.hero() || ''));
+    // The hero picture is a render of the true-scale model of the XDJ-XZ (ui/manual-art.js), above the title.
+    const hero = h('header', { class: 'm-hero' }, window.manualArt?.hero() || null,
+      h('div', { class: 'm-hero-body' }, h('div', null, h('p', { class: 'mc-eyebrow', text: 'XZ Mods manual' }), h('h2', { tabindex: '-1', class: 'm-start-title', text: book.title }), h('p', { class: 'm-lede', text: book.summary })), actions));
     const resume = last ? h('button', { class: 'm-continue', type: 'button', onclick: () => openChapter(last.slug, state.last.anchor || '', { focus: true }) },
       ring(fraction(last.slug)), h('div', null, h('small', { text: 'Continue where you left off' }), h('b', { text: last.title + (lastSection ? ' · ' + lastSection[2] : '') }), h('span', { text: Math.round(fraction(last.slug) * 100) + '% of this chapter read' })), icon('i-chevron')) : null;
     const pick = h('div', { class: 'm-pick', role: 'group', 'aria-label': 'Which interface do you play on?' },
@@ -188,13 +208,21 @@
     const tour = h('ul', { class: 'mt-grid' }, book.tour.map(item => {
       const [slug, anchor] = item.link.split('#');
       return h('li', null, h('button', { class: 'mt-card', type: 'button', onclick: () => openChapter(slug, anchor || '', { focus: true }) },
-        h('span', { class: 'mt-art', 'aria-hidden': 'true' }, window.manualArt?.tour(item.art) || ''),
+        h('span', { class: 'mt-art', 'aria-hidden': 'true' }, h('img', { src: item.img, alt: '', width: item.w, height: item.h, loading: 'lazy', decoding: 'async' })),
         h('b', null, item.title, item.tag ? h('span', { class: 'tag tag--' + item.tag, text: item.tag }) : null),
         h('span', { class: 'mt-text', text: item.text })));
     }));
+    // The menu map: a doorway with real screens from it, the play screen first.
+    const mapCard = book.map ? h('button', { class: 'm-mapcard', type: 'button', onclick: () => showMap(null, true) },
+      h('span', { class: 'm-mapcard-art', 'aria-hidden': 'true' }, book.map.preview.flatMap(step => [
+        step.move ? h('span', { class: 'm-mapcard-move' }, step.move[0] === 'touch' ? [h('span', { class: 'mm-g', text: 'Tap' }), h('span', { class: 'mm-scr', text: step.move[2] })] : h('kbd', { text: step.move[0] }), h('i')) : null,
+        h('span', { class: 'm-mapcard-screen' }, h('img', { src: step.th, alt: '', width: 240, height: 144, loading: 'lazy', decoding: 'async' }), h('b', { text: step.t }))])),
+      h('span', { class: 'm-mapcard-text' }, h('small', { text: 'Menu map' }), h('b', { text: 'Every screen, and how to get there' }),
+        h('span', { text: book.map.screens.modern + ' screens drawn by the firmware, laid out from the play screen. Follow any path, see the control that opens each screen, and jump to the part of the manual that explains it.' }),
+        h('span', { class: 'm-mapcard-go' }, 'Open the menu map', icon('i-chevron')))) : null;
     const howto = h('div', { class: 'm-howto' },
       h('div', null, h('span', { class: 'mf-chip', text: '1' }), h('b', { text: 'Numbered points' }), 'Point at a number on a picture, or tab to it, to see what it is. Play steps through them all.'),
-      h('div', null, h('kbd', { text: 'SHIFT' }), h('b', { text: 'Keys on the player' }), 'A key drawn like this is a button on the XDJ-XZ, named as it is printed there.'),
+      h('div', null, xzKey('SHIFT'), h('b', { text: 'Keys on the player' }), 'A button drawn like this is that control on the XDJ-XZ, as it looks on the player, lamp colour included.'),
       h('div', null, h('span', { class: 'tag tag--experimental', text: 'experimental' }), h('b', { text: 'Experimental' }), 'Works, but test it with your own tracks before you rely on it in a set.'));
     const groups = [];
     for (const chapter of book.chapters) {
@@ -212,6 +240,7 @@
       book.draft ? h('p', { class: 'm-draft', role: 'note', text: 'Draft copy: this manual has not been checked against this build yet.' }) : null,
       hero, resume,
       h('h3', { class: 'm-h3', text: 'Which interface do you play on?' }), pick,
+      mapCard ? h('h3', { class: 'm-h3', text: 'Find your way around the player' }) : null, mapCard,
       h('h3', { class: 'm-h3', text: 'What XZ Mods adds' }), tour,
       h('h3', { class: 'm-h3', text: 'Reading this manual' }), howto,
       h('h3', { class: 'm-h3', text: 'The guide, chapter by chapter' }), path)], 'start');
@@ -247,6 +276,12 @@
     swap([article, pager], 'chapter');
     current.slug = slug;
     enhance(article);
+    // Sections the menu map shows offer to open it at that screen.
+    const onMap = book.map?.sections || {};
+    for (const heading of article.querySelectorAll('h3[data-anchor],h4[data-anchor]')) {
+      const key = onMap[slug + '#' + heading.dataset.anchor];
+      if (key) heading.append(h('button', { class: 'm-onmap', type: 'button', dataset: { map: key }, 'aria-label': 'Show ' + heading.textContent.trim() + ' on the menu map' }, mapGlyph(), h('span', { text: 'On the menu map' })));
+    }
     renderToc();
     side.classList.remove('is-open'); ui.toggle.setAttribute('aria-expanded', 'false');
     const target = anchor && article.querySelector(['h3', 'h4', 'h5'].map(tag => tag + '[data-anchor="' + CSS.escape(anchor) + '"]').join());
@@ -261,6 +296,23 @@
     state.last = { slug, anchor: anchor || '' };
     save();
     onScroll();
+  }
+
+  async function showMap(target, focus) {
+    build();
+    try { book = await loadIndex(); if (!book.map) return showStart(focus); await loadMap(); } catch (error) { return fail(error); }
+    if (input.value) input.value = '';
+    const host = h('div', { class: 'm-map' });
+    swap([host], 'map');
+    root.classList.add('m-map-on');
+    current.slug = null;
+    renderToc();
+    bar.style.transform = 'scaleX(0)';
+    side.classList.remove('is-open'); ui.toggle.setAttribute('aria-expanded', 'false');
+    window.manualMap.mount(host, { target: target || null, iface: state.iface === 'classic' ? 'classic' : 'modern',
+      openChapter: (slug, anchor) => openChapter(slug, anchor, { focus: true }) });
+    scrollToView(true);
+    if (focus && !target) host.querySelector('.mm-h').focus({ preventScroll: true });
   }
 
   function fail(error) {
@@ -408,6 +460,8 @@
   }
 
   function onViewClick(event) {
+    const toMap = event.target.closest('[data-map]');
+    if (toMap && view.contains(toMap) && current.view === 'chapter') { event.preventDefault(); return showMap(toMap.dataset.map, true); }
     const link = event.target.closest('a.m-link');
     if (!link) return;
     event.preventDefault();
@@ -474,6 +528,7 @@
       hits[Math.min(hits.length - 1, at + (event.key === 'ArrowDown' ? 1 : -1))]?.focus();
     });
     const head = h('div', { class: 'm-results-head' }, h('h2', { text: 'Search' }), h('p', { role: 'status', text: results.length ? results.length + (results.length === 40 ? '+' : '') + ' places mention “' + query + '”' : 'Nothing in the manual mentions “' + query + '”' }));
+    leaveMap();
     view.replaceChildren(head, results.length ? list : h('p', { class: 'm-empty', text: 'Try a shorter word, the name printed on a button, or a message shown on the screen.' }));
     window.manualArt?.stopAll();
     current.view = 'search';
@@ -523,6 +578,7 @@
     if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || !built || $('manual').classList.contains('hidden')) return;
     if (event.target.closest('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open]')) return;
     event.preventDefault();
+    if (current.view === 'map') return window.manualMap?.focusSearch();
     side.classList.add('is-open'); ui.toggle.setAttribute('aria-expanded', 'true');
     input.focus();
   });
@@ -549,9 +605,10 @@
     try {
       if ($('manual').classList.contains('hidden') && typeof window.showPage === 'function') window.showPage('manual');
       build();
-      if (chapterId) await openChapter(String(chapterId), anchorId ? String(anchorId) : '', { focus: true });
+      if (chapterId === 'menu-map') await showMap(anchorId ? String(anchorId) : null, true);
+      else if (chapterId) await openChapter(String(chapterId), anchorId ? String(anchorId) : '', { focus: true });
       else await showStart(true);
     } finally { pending = null; }
   };
-  window.manualPage = Object.freeze({ shown, state: () => ({ view: current.view, slug: current.slug, iface: state.iface }), find, setIface });
+  window.manualPage = Object.freeze({ shown, state: () => ({ view: current.view, slug: current.slug, iface: state.iface, map: current.view === 'map' ? window.manualMap?.state() : null }), find, setIface, showMap });
 })();

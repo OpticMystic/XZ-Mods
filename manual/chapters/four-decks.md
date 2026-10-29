@@ -30,6 +30,9 @@ One USB-B to USB-A cable runs from the rear USB socket over the back edge into a
 
 ## Set up four decks {experimental}
 
+```nav nav-a-route-rescan Set up four decks
+```
+
 ```explainer four-deck-setup Set up four decks, step by step
 ```
 
@@ -59,6 +62,9 @@ Connect the loopback cable directly to the player, never through the music hub. 
 ## The 4 DECKS page in MODS
 
 MODS > **4 DECKS** shows the cable's state, lets you choose the deck view, and lists what works on each deck.
+
+```nav nav-a-four-page The 4 DECKS page in MODS
+```
 
 ```figure classic:theme-{look}-four-decks MODS · 4 DECKS
 The 4 DECKS page before the cable is plugged in. In this picture the key and RAM engines have not reported yet, so KEY SYNC has no tick on decks 1 and 2 and RAM TRACKS none on any deck.
@@ -90,6 +96,9 @@ If the USB loader has no four-deck engine, the page says so and offers **CHECK I
 ## The card in every state
 
 While decks 3 and 4 are not running, a four-deck view puts a card in their lanes. The card shows the cable steps, the state, and the buttons you need. Decks 1 and 2 stay live above it. In number order the card fills the lanes of decks 3 and 4 under decks 1 and 2. In mixer order it splits into a strip above deck 1 and a strip below deck 2.
+
+```nav nav-a-route-states The card in every state
+```
 
 ```figure modern:card-01-not-detected Play screen · NO CABLE FOUND
 Four decks in number order before the cable is plugged in. CLASSIC draws the same card in its own colours, with shorter sentences.
@@ -149,6 +158,9 @@ The warning can also appear when you connect a music hub. With the loopback cabl
 
 DECK VIEW chooses what the play screen shows. It changes neither the sound, the mixer channels, nor which deck a side controls.
 
+```nav nav-a-deck-orders DECK VIEW
+```
+
 | DECK VIEW | Waveform lanes, top to bottom | Bottom channels |
 |---|---|---|
 | 2 DECKS (the default) | The two decks the sides control | The same two decks |
@@ -163,11 +175,14 @@ DECK VIEW is saved to the USB with your other settings. You can change it in fiv
 - **TWO DECKS** on the card;
 - MODS > **SCREEN** > **DECK VIEW**;
 - MODS > **4 DECKS** > **DECK VIEW**;
-- the rekordbox button above LINK, when you set it to **DECK VIEW** in MODS > PLAY > **REKORDBOX BUTTON**. Each press then steps 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order.
+- the button above [[LINK]], when you set it to **DECK VIEW** in MODS > PLAY > **BUTTON ABOVE LINK**. Each press then steps 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order.
 
 ### The DECKS button and its picker
 
 The **DECKS** button is always at the top of the play screen in both interfaces. It names the decks on screen: **DECKS 1 2**, **DECKS 1234**, **DECKS 3124**, or the pair the sides control in 2 DECKS, such as **DECKS 3 2**. In MODERN it sits left of the INFO button. In CLASSIC it sits in the black space between VJ.TOOLS and the METRICS readout.
+
+```nav deck-view The DECKS button and its picker
+```
 
 ```figure modern:deckview-02-picker DECK VIEW picker
 Tap DECKS to open the picker. Tap a picture to choose it.
@@ -192,6 +207,10 @@ modern:deckview-06-two-decks-ready-notice 2 DECKS when decks 3 and 4 come up. Th
 
 The left controls play DECK 1 or DECK 3. The right controls play DECK 2 or DECK 4. Decks 3 and 4 must be ready.
 
+```nav physical-double-shift-1 Switch a side between decks | Left side
+physical-double-shift-2 | Right side
+```
+
 - Press [[SHIFT]] twice quickly on a side to switch it. The left [[SHIFT]] switches between decks 1 and 3, the right [[SHIFT]] between decks 2 and 4. These are the presses the XDJ-XZ uses for DJ software.
 - Or press [[SHORTCUT]] and tap the deck under **DECK SELECT** {modern}.
 
@@ -215,6 +234,9 @@ modern:play-4deck-players-left-3 The play screen with the left side on deck 3. I
 ```
 
 ## The MODERN four-deck screen {modern}
+
+```nav nav-a-four-detail The MODERN four-deck screen {modern}
+```
 
 ```figure modern:play-4deck-full MODERN · four decks, number order
 All four decks loaded and playing.
@@ -257,6 +279,9 @@ modern:play-4deck-stems-bypass BYPASS on deck 2
 
 CLASSIC keeps the player's own look and adds what four decks need.
 
+```nav nav-a-classic-four The CLASSIC four-deck screen {classic}
+```
+
 - **Waveforms.** The waveform area holds four narrower lanes, one per deck, in the order DECK VIEW chooses. Decks 3 and 4 draw the same 3-band waveform with beat ticks, hot cue flags A to H, the cue point, loops and the playhead.
 - **Side column.** The left column has one tag per lane. The tag of a deck a side controls is pale blue with LEFT or RIGHT. Decks 1 and 2 show the analysed key, the playing key and its cents. Decks 3 and 4 show their playing key and its cents the same way, TRACK KEY until they report it, or NOT CONNECTED and SEE THE CARD while they are not running.
 - **Bottom panel.** Four channels in mixer order 3 1 2 4. Each shows the deck's title, time, QUANTIZE, tempo and range, AUTO CUE and MT, what SYNC follows, what the pads do, the BPM (orange with MASTER for the master deck) and the whole-track overview. A deck that is not connected shows a dim band with NOT CONNECTED and DECK n WAITS FOR THE LOOPBACK CABLE.
@@ -268,6 +293,9 @@ Tap a lane, side tag or channel title of deck 3 or 4 to open its detail panel. T
 ## Load tracks onto decks 3 and 4 {experimental}
 
 [[LOAD]] on a side loads the highlighted track into the deck that side controls, deck 3 or deck 4 included. In CLASSIC this goes through the player's own browser. In MODERN, tap a track to see a **LOAD** chip with one cell per deck, then tap the deck number. See [Browsing and loading](browse) for the rest.
+
+```nav nav-a-four-load Load tracks onto decks 3 and 4
+```
 
 ```figure modern:browse-4deck-load-cells MODERN · load to any deck {modern}
 A tapped track with its LOAD cells.
@@ -291,6 +319,9 @@ Decks 3 and 4 cannot load a track at a memory point from the CUE/LOOP LIST. The 
 
 INFO has a tab for each deck. SOURCE shows which decks use each stick. UTILITY and the other full screens keep a compact strip of all four decks at the bottom.
 
+```nav nav-a-four-fullscreens INFO, SOURCE and UTILITY with four decks {modern}
+```
+
 ```gallery {modern}
 modern:info-4deck INFO with tabs DECK 1 to DECK 4
 modern:source-4deck SOURCE. Decks 1 and 2 on USB 1, decks 3 and 4 on USB 2
@@ -302,6 +333,9 @@ modern:parity-info-player4 A LINK player with no track loaded
 ## What decks 3 and 4 can do {experimental}
 
 Decks 3 and 4 are software players. They follow the player's own controls on the side that controls them. MODS > 4 DECKS shows the current answer for each feature.
+
+```nav nav-c-player-3 What decks 3 and 4 can do
+```
 
 | Feature | Decks 1 and 2 | Decks 3 and 4 |
 |---|---|---|
@@ -320,7 +354,7 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 | [[PLAY/PAUSE]], [[CUE]] | Play and pause, back cue and cue audition. With VINYL on, pause brakes to a stop at the VINYL SPEED ADJUST rate. |
 | [[HOT CUE]], [[BEAT LOOP]], [[SLIP LOOP]], [[BEAT JUMP]] | Set the pad mode of the software deck. The native deck keeps its own mode. |
 | Pads | Hot cues, beat loops, slip loops and beat jumps, as on decks 1 and 2. |
-| [[LOOP IN]], [[LOOP OUT]], [[RELOOP/EXIT]] | Manual loops, loop adjustment with the jog, reloop and exit. |
+| [[IN/CUE]], [[OUT]], [[RELOOP/EXIT]] | Manual loops, loop adjustment with the jog, reloop and exit. |
 | [[SLIP]], [[DIRECTION REV]], [[VINYL]] | Slip, reverse and vinyl mode. |
 | [[TEMPO RANGE]], [[TEMPO RESET]], [[MASTER TEMPO]] | Tempo range up to WIDE, original speed, and key lock while the tempo moves. |
 | [[SYNC]], [[MASTER]] | Follow the master deck's tempo, and with QUANTIZE its beat. Make this deck the master. See [SYNC on decks 3 and 4](#sync-on-decks-3-and-4). |
@@ -331,16 +365,16 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 
 On decks 3 and 4, TRACK SEARCH respects AUTO CUE. With AUTO CUE on, a newly loaded track waits at its cue point. With AUTO CUE off, a deck that was playing continues with the new track; a paused deck stays paused.
 
-Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and rekordbox do not see them, and the rekordbox export stays unchanged.
+Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and your DJ software do not see them, and the exported library stays unchanged.
 
 ### SYNC on decks 3 and 4 {experimental}
 
 Press [[SYNC]] and the deck takes the master deck's BPM at once. The SYNC button stays lit for as long as SYNC is on. With QUANTIZE on and a beat grid on both tracks, the deck also locks to the master's beat. Press [[SYNC]] again to turn it off.
 
 ```explainer sync-master SYNC on deck 3
-Master | 1=MASTER@126.00, 3=@122.00 | Deck 1 is the tempo master. Deck 3 plays at its own tempo, with SYNC off.
-SYNC | 1=MASTER@126.00, 3=SYNC 1@126.00, lock | Press [[SYNC]] on deck 3. It takes the master's BPM at once and reads SYNC 1. With QUANTIZE on and a beat grid on both tracks, it also locks to the master's beat.
-Tempo only | 1=MASTER@126.00, 3=BPM 1@126.00 | With QUANTIZE off, only the tempo follows, and deck 3 reads BPM 1.
+Master | Deck 1 is the tempo master. Deck 3 plays at its own tempo, with SYNC off.
+SYNC | Press [[SYNC]] on deck 3. It takes the master's BPM at once and reads SYNC 1. With QUANTIZE on and a beat grid on both tracks, it also locks to the master's beat.
+Tempo only | With QUANTIZE off, only the tempo follows, and deck 3 reads BPM 1.
 ```
 
 If the beats drift apart, press [[SYNC]] off and on again. With QUANTIZE on, every engage snaps to the nearest position at the selected beat value, even for a small drift. The beat value can be 1, 1/2, 1/4 or 1/8 beat. With QUANTIZE off, only the tempo follows.
@@ -360,7 +394,7 @@ The bottom channel, the lane and the detail panel say what SYNC is doing:
 | 3/4 MASTER | This deck is the master for decks 3 and 4 only. |
 | LIMIT | The master's tempo is out of this deck's reach. The deck keeps its last tempo. |
 | EXT MASTER | The master is another player on the LINK network, which decks 3 and 4 cannot follow. |
-| NO BPM | The track has no BPM to sync with. Analyse it in rekordbox. |
+| NO BPM | The track has no BPM to sync with. Analyse it in your DJ software. |
 
 The detail panel adds a line about the reason, for example:
 

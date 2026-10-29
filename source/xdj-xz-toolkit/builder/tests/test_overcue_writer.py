@@ -98,7 +98,7 @@ class MergeTests(unittest.TestCase):
                        {"99": dict(self.ENTRY)}):
             with self.assertRaisesRegex(ValueError, "^OverCue already prepared this track"):
                 writer.merge(self.index(**tracks), 12, self.ENTRY, lambda bundle: False)
-        with self.assertRaisesRegex(ValueError, "track id for a different file"):
+        with self.assertRaisesRegex(ValueError, "id from the exported library for a different file"):
             writer.merge(self.index(**{"12": {"bundle": "../../../../x", "file_path": "/Contents/other.wav"}}),
                          12, self.ENTRY, lambda bundle: False)
 

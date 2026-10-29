@@ -1,0 +1,18 @@
+{
+  "interface": "MODERN",
+  "section": "mods-menu#open-and-close-mods",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "CLOSE"
+    }
+  ]
+}

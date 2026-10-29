@@ -12,7 +12,7 @@ Stems split a track into its parts so you can mute them live. XZ Mods plays thre
 The player cannot split a track itself. You prepare stems on your computer, once per track, and they travel on the USB beside your music.
 
 1. Prepare the stems in the XZ Mods app on your computer, or in OverCue Desktop. See [The XZ Mods app](desktop-app).
-2. Keep the stems on the same USB as the music. Your original files and the rekordbox export stay unchanged.
+2. Keep the stems on the same USB as the music. Your original files and the library your DJ software exported stay unchanged.
 3. On the player, load the original track through the normal browser and wait a moment for its stems to load.
 
 A track without prepared stems plays as normal. Its stem buttons say why, and the button at their end tells you what to do (see [Stem readiness](#stem-readiness)).
@@ -20,6 +20,9 @@ A track without prepared stems plays as normal. Its stem buttons say why, and th
 ## Turn stems on
 
 Open MODS, choose **STEMS** on the section rail, and turn **USB STEMS** on. It is on by default. With it off, every pad keeps its normal job and the stem buttons say **STEMS ARE OFF** or **STEMS OFF**.
+
+```nav nav-a-stem-toggle Turn stems on
+```
 
 ```figure classic:theme-{look}-stems-section MODS · STEMS
 The STEMS page with USB stems on.
@@ -35,7 +38,13 @@ The STEMS page with USB stems on.
 
 Each deck gets three stem buttons and **BYPASS**. Tap a stem button to mute that stem, and tap it again to bring it back. A muted stem goes dark and keeps its level in its label.
 
+```nav nav-a-stem-layouts Stem buttons on the play screen
+```
+
 ### MODERN stem buttons {modern}
+
+```nav stem-mute-bypass MODERN stem buttons {modern}
+```
 
 ```figure modern:stems-bypass-below-full PLAY · STEMS {modern}
 BELOW / FULL rows. Deck 1 plays its stems with INST muted. Deck 2 is bypassed and plays the whole track.
@@ -98,11 +107,17 @@ If stems are off when you tap **STEMS**, the layout still changes, and a notice 
 
 In a 4 DECKS view the lanes are too short for the layouts, so **STEMS** is a switch there. One tap hides the stem buttons on every deck, and the screen says **STEM BUTTONS HIDDEN**. The next tap brings them back and says **STEM BUTTONS SHOWN**. **STEMS** is lit while they show and has no layout marks. Your 2 DECKS layout does not change, and XZ Mods saves the 4 DECKS choice on the USB separately.
 
+```nav nav-a-four-stems Stem buttons in 4 DECKS {modern}
+```
+
 A deck whose track has no prepared stems shows no stem buttons in 4 DECKS, and its waveform keeps the whole lane. The buttons appear when you load a track with stems. Decks 3 and 4 have no stems, so they never show stem buttons. [Four decks](four-decks) has pictures.
 
 ### CLASSIC stem rows {classic}
 
 In CLASSIC the stem rows sit inside the player's own waveform area, one row per deck.
+
+```nav classic-stems CLASSIC stem rows {classic}
+```
 
 ```figure classic:theme-0-inline PLAY · STEM ROWS {classic}
 Two full rows. Deck 1 plays HARMONICS at 70 % with DRUMS muted.
@@ -119,6 +134,9 @@ While four decks show in CLASSIC, no stem rows are drawn, and **STEMS** stays da
 ## Stem pads
 
 The pads mute stems too, without looking at the screen. Open **STEM PADS** on the STEMS page.
+
+```nav physical-stem-pads Stem pads
+```
 
 ```figure classic:theme-{look}-stem-pads MODS · STEM PADS
 HOT CUE gives stem pads on A to D, in the order VOCALS, HARMONICS, DRUMS.
@@ -138,6 +156,9 @@ Mute and bypass are performance state. They are not saved, and every track start
 
 The order puts the stems where your fingers expect them. It changes the pads and the stem buttons on the screen together. There are six orders.
 
+```nav mods-stems-values-all Stem order
+```
+
 | Order | Pads A, B, C |
 |---|---|
 | VOCALS / HARMONICS / DRUMS | The default |
@@ -152,6 +173,9 @@ The layered STEMS waveform and the stem row for DJ software keep their own order
 ## Stem colours
 
 Each stem has a colour on the pads, the stem buttons and the STEMS waveform. In the ORIGINAL theme drums are blue, harmonics red and vocals green. Every theme has its own shades.
+
+```nav stem-colours Stem colours
+```
 
 ```figure classic:theme-{look}-stem-colors MODS · STEM COLOURS
 All three stems follow the theme.
@@ -175,6 +199,9 @@ modern:play-stems-deck2-not-ready Deck 2's stems not loaded yet: it draws 3-BAND
 ## Stem readiness
 
 Each deck's stem buttons tell you whether its stems can play. When they cannot, the stem buttons go dark and the last button names the reason. Where you can fix it from the player, that button does it.
+
+```nav nav-a-usb-setup Stem readiness
+```
 
 | On the stem row | What it means | What to do |
 |---|---|---|
@@ -228,7 +255,10 @@ classic:theme-0-stem-setup The setup page reached from MODS
 
 ## Stems in DJ software {experimental}
 
-When the XZ plays from rekordbox on a computer over USB, the stem buttons can switch the software's stems instead. Open **STEMS IN DJ SOFTWARE** on the STEMS page and follow its four steps for each deck: **DETECT**, **MAP STEMS**, **LIVE TEST** and **CONFIRM**.
+When the XZ plays from DJ software on a computer over USB, the stem buttons can switch the software's stems instead. Open **STEMS IN DJ SOFTWARE** on the STEMS page and follow its four steps for each deck: **DETECT**, **MAP STEMS**, **LIVE TEST** and **CONFIRM**.
+
+```nav pc-stems Stems in DJ software
+```
 
 > **Experimental.** Stem switching works after the live test. Levels and BYPASS for DJ software need more checking, and the software has no stem bypass over USB.
 
@@ -240,7 +270,7 @@ Deck 1 before setup, with no computer deck found yet.
 4 @ 590,356 DETECT PC | Checks that this deck plays from the computer.
 ```
 
-Connect the XZ to the computer by USB and open rekordbox in Performance mode before you start. A deck playing from the computer then shows a stem row for the software, with three or four stems.
+Connect the XZ to the computer by USB and open your DJ software in Performance mode before you start. A deck playing from the computer then shows a stem row for the software, with three or four stems.
 
 ```gallery {classic}
 classic:theme-0-inline-pc4-ready Four software stems ready on deck 1, the XZ's own stems on deck 2

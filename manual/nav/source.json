@@ -1,0 +1,15 @@
+{
+  "section": "browse#source",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "SOURCE"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "back": true
+    }
+  ]
+}

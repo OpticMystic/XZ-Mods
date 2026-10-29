@@ -31,7 +31,7 @@ def _selected(request, root):
     normalized = []
     for value in ids:
         if not isinstance(value, (str, int)) or isinstance(value, bool) or not re.fullmatch(r'[1-9][0-9]{0,9}', str(value)):
-            raise ValueError('Each selected track must have a Rekordbox track ID')
+            raise ValueError('Each selected track must have a track ID in the exported library')
         number = int(value)
         if number > 0xffffffff or number in normalized:
             raise ValueError('Selected track IDs must be unique unsigned 32-bit IDs')
@@ -145,7 +145,7 @@ def generate(request, job, resources):
                     # Re-read the export and index for each track; earlier publications change the index.
                     current_tracks = rekordbox_pdb.library_tracks(cache._regular(root.joinpath(*rekordbox_pdb.EXPORT_PDB)))
                     if not any(t['id'] == track['id'] and t['file_path'] == track['file_path'] for t in current_tracks):
-                        raise ValueError('Track identity changed in the Rekordbox export. Refresh the library.')
+                        raise ValueError('Track identity changed in the exported library. Refresh the library.')
                     index, _ = overcue_writer.read_index(root / 'CDJMODS')
                     state = stem_library.stem_status(root, track, index, None)
                     source = stem_library.source_path(root, track['file_path'])

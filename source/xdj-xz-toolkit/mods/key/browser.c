@@ -165,7 +165,7 @@ void xz_key_browser_list_drawn(void){__atomic_add_fetch(&list_generation,1,__ATO
 uint32_t xz_key_browser_list_generation(void){return __atomic_load_n(&list_generation,__ATOMIC_RELAXED);}
 const char *xz_key_browser_status(void){
     pthread_mutex_lock(&mutex);int have=catalogs[0].count||catalogs[1].count;pthread_mutex_unlock(&mutex);
-    return have?"USB KEYS INDEXED / GREEN MATCHES MASTER / AMBER IS DETUNED":"BROWSER KEYS: EXPORT ANALYZED TRACKS FROM REKORDBOX TO USB";
+    return have?"USB KEYS INDEXED / GREEN MATCHES MASTER / AMBER IS DETUNED":"BROWSER KEYS: EXPORT ANALYZED TRACKS TO THE USB FROM YOUR DJ SOFTWARE";
 }
 
 enum { KEY_LINE_BASE = 0x224e19c, KEY_LINE_STRIDE = 0x224 };

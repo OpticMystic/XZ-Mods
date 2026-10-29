@@ -1120,7 +1120,7 @@ class TrackStatusTests(Stick):
         database.write_bytes(damaged)
         result, profiles = self.status()
         self.assertEqual(result['libraries']['device_library']['state'], 'unreadable')
-        self.assertIn('Rekordbox export on this USB is unreadable', result['libraries']['device_library']['error'])
+        self.assertIn('library exported to this USB is unreadable', result['libraries']['device_library']['error'])
         self.assertEqual(result['libraries']['onelibrary']['state'], 'unreadable')
         self.assertIn('page 4 failed its check', result['libraries']['onelibrary']['error'])
         self.assertEqual(profiles['djp_kai']['onelibrary']['library'], 'unreadable')

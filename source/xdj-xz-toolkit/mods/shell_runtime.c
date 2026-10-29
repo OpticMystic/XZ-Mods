@@ -3319,7 +3319,7 @@ void xz_shell_runtime_stock_key_ran(int which, int ran) {
   xz_shrt_handoff_end(&handoff);dirty_flag=1;refuse();
   notice_locked(now,which?"EXPORT MODE DID NOT OPEN":"LINK DID NOT OPEN");
  }
- if(debug){char line[96];snprintf(line,sizeof line,"SHELL_STOCK_KEY: %s ran=%d",which?"rekordbox":"link",ran);xz_log(line);}
+ if(debug){char line[96];snprintf(line,sizeof line,"SHELL_STOCK_KEY: %s ran=%d",which?"above-link":"link",ran);xz_log(line);}
  pthread_mutex_unlock(&mutex);
 }
 unsigned xz_shell_runtime_take_ui_requests(void) { ui_requests_at=0;return __atomic_exchange_n(&ui_requests,0u,__ATOMIC_ACQ_REL); }

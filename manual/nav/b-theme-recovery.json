@@ -1,0 +1,33 @@
+{
+  "section": "screen-and-themes#when-something-looks-wrong",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "CLASSIC"
+    },
+    {
+      "tap": "MODERN"
+    },
+    {
+      "tap": "3-BAND COLOURS"
+    },
+    {
+      "settings": "change supported colours"
+    },
+    {
+      "tap": "RESET 3-BAND COLOURS"
+    },
+    {
+      "back": true
+    },
+    {
+      "key": "MENU"
+    }
+  ]
+}

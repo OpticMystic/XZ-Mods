@@ -1,0 +1,34 @@
+{
+  "section": "getting-started#first-start",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "BROWSE"
+    },
+    {
+      "turn": 1
+    },
+    {
+      "key": "LOAD"
+    },
+    {
+      "back": true
+    },
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "select": "SCREEN"
+    },
+    {
+      "tap": "CLASSIC"
+    },
+    {
+      "tap": "MODERN"
+    },
+    {
+      "key": "MENU"
+    }
+  ]
+}

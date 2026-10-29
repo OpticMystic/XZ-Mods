@@ -1,0 +1,67 @@
+{
+  "section": "connect#make-a-profile-on-the-xz",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 30
+    },
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "CONNECT"
+    },
+    {
+      "tap": "DJ PROFILE"
+    },
+    {
+      "tap": "SET UP DJ PROFILE"
+    },
+    {
+      "tap": "CREATE ON THIS XZ"
+    },
+    {
+      "type": "dj test"
+    },
+    {
+      "tap": "NEXT: LOGO"
+    },
+    {
+      "fixture": 31
+    },
+    {
+      "tap": "pictures/alternate.jpg"
+    },
+    {
+      "tap": "NEXT: TAGLINE"
+    },
+    {
+      "tap": "SKIP TAGLINE"
+    },
+    {
+      "tap": "SAVE TO USB 1"
+    },
+    {
+      "tap": "CHANGE LOGO"
+    },
+    {
+      "tap": "NO LOGO"
+    },
+    {
+      "tap": "NEXT: TAGLINE"
+    },
+    {
+      "tap": "SKIP TAGLINE"
+    },
+    {
+      "tap": "SAVE TO USB 1"
+    }
+  ],
+  "requires_effects": [
+    [
+      "MODS",
+      102
+    ]
+  ]
+}

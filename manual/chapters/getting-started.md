@@ -3,14 +3,17 @@ interface: both
 settings: interface
 ---
 
-XZ Mods is software for the Pioneer DJ XDJ-XZ that starts from a USB stick. It adds a MODS menu, stems you can mute live, custom beat jump, four decks over a loopback cable, DJ profiles, themes and games. It can also replace the whole play screen with its own MODERN interface.
+XZ Mods is software for the XDJ-XZ that starts from a USB stick. It adds a MODS menu, stems you can mute live, custom beat jump, four decks over a loopback cable, DJ profiles, themes and games. It can also replace the whole play screen with its own MODERN interface.
 
 ## What changes and what stays stock
 
 XZ Mods runs in the player's memory. It never writes to the player's firmware, so the XDJ-XZ itself stays stock.
 
+```nav utility What changes and what stays stock
+```
+
 - The player picks up the XZ Mods loader (`autoexec.bin`) from the USB at start and runs XZ Mods from there.
-- Your music, your Rekordbox export and your playlists stay as they are. XZ Mods adds its own folders beside them.
+- Your music, the library your DJ software exported and your playlists stay as they are. XZ Mods adds its own folders beside them.
 - The player's own settings are still there. Hold [[MENU]] to open UTILITY, exactly as on a stock XDJ-XZ.
 - Settings you change in MODS are saved on the USB, so they travel with it to another XZ running XZ Mods.
 
@@ -25,7 +28,7 @@ The player starts stock. Plug the XZ Mods USB back in and start again to load XZ
 
 | Item | What you need |
 |---|---|
-| Player | Pioneer DJ XDJ-XZ on firmware 1.26. No other firmware version is supported |
+| Player | XDJ-XZ on firmware 1.26. No other firmware version is supported |
 | Computer | 64-bit Windows with WebView2, or a Mac with macOS 14 or later, to prepare the USB |
 | Stems | Made on a Windows computer or an Apple silicon Mac. An Intel Mac can import stems made elsewhere |
 | USB | A USB stick for the loader. It can be your music USB, or a separate loader stick |
@@ -57,6 +60,9 @@ Every step of the app is in [The XZ Mods app](desktop-app#usb). To add stems to 
 
 ## First start
 
+```nav b-first-menu First start
+```
+
 1. Plug the USB into **USB 1** or **USB 2** on the top of the XDJ-XZ.
 2. Switch the player on.
 3. Wait for XZ Mods to start. Load a track as usual and check it plays.
@@ -83,6 +89,9 @@ The rest of the play screen is in [The play screen](play-screen).
 
 CLASSIC keeps the player's own play screen and adds MODS to it. Touch **MODS** at the top right, or press [[MENU]], to open the menu. A classic theme can restyle the screen. See [Screen, interfaces and themes](screen-and-themes).
 
+```nav physical-above-link CLASSIC on first start {classic}
+```
+
 ## Choose MODERN or CLASSIC
 
 The XZ starts in the interface saved on the USB. You choose it in the app before the first start, and you can change it on the player at any time. Nothing else changes when you switch. Your settings, stems and decks stay as they are.
@@ -104,8 +113,12 @@ Choose the screen the XZ shows. New interface is MODERN, Standard XDJ-XZ interfa
 
 There are two ways to switch.
 
-- Press the rekordbox button above LINK. Out of the box it switches between MODERN and CLASSIC, and the screen says which one you are in. You can give it another job in **PLAY** › **REKORDBOX BUTTON**.
+- Press the button above [[LINK]]. Out of the box it switches between MODERN and CLASSIC, and the screen says which one you are in. You can give it another job in **PLAY** › **BUTTON ABOVE LINK**.
 - Open MODS, go to **SCREEN** and choose **CLASSIC** or **MODERN** under **INTERFACE**.
+
+```nav physical-above-link Switch on the player | The button above LINK
+interface-choice | MODS › SCREEN › INTERFACE
+```
 
 ```figure classic:theme-{look}-screen MODS · SCREEN
 INTERFACE is the first choice on the SCREEN page.
@@ -117,11 +130,14 @@ INTERFACE is the first choice on the SCREEN page.
 6 @ 715,442 Save state | Confirms the change is saved to the USB.
 ```
 
-> **Tip.** You can always reach MODS with the hardware alone. In CLASSIC, the rekordbox button takes you to MODERN, where [[MENU]] opens MODS, and the encoder and [[BACK]] drive it.
+> **Tip.** You can always reach MODS with the hardware alone. In CLASSIC, the button above [[LINK]] takes you to MODERN, where [[MENU]] opens MODS, and the encoder and [[BACK]] drive it.
 
 ## Updating
 
 There are two things to update, and they update separately.
+
+```nav updates Updating
+```
 
 | What | How |
 |---|---|
@@ -131,6 +147,6 @@ There are two things to update, and they update separately.
 
 > **Caution.** Updating the app does not change the USB. After an app update, open the USB page and choose **Update USB**.
 
-Music, Rekordbox data and your saved settings stay in place through an update. A USB built with **Keep this version on the USB** stays on its build and ignores network updates. See [XZ Mods version](desktop-app#xz-mods-version).
+Music, your exported library and your saved settings stay in place through an update. A USB built with **Keep this version on the USB** stays on its build and ignores network updates. See [XZ Mods version](desktop-app#xz-mods-version).
 
 If something does not work after an update, see [Messages and troubleshooting](troubleshooting).

@@ -1,0 +1,47 @@
+{
+  "section": "performance#gate-cue-and-smart-cue",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "fixture": 242,
+      "detail": "Stem pads assigned to SLIP LOOP so HOT CUE reaches the cue engine."
+    },
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "PLAY"
+    },
+    {
+      "tap": "GATE CUE"
+    },
+    {
+      "tap": "SMART CUE"
+    },
+    {
+      "tap": "CLOSE"
+    },
+    {
+      "gesture": "HOT CUE",
+      "code": 1
+    },
+    {
+      "gesture": "PAD A",
+      "code": 10
+    }
+  ],
+  "requires_effects": [
+    [
+      "cue",
+      1
+    ],
+    [
+      "cue",
+      2
+    ],
+    [
+      "cue",
+      3
+    ]
+  ]
+}

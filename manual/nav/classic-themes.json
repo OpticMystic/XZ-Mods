@@ -1,0 +1,25 @@
+{
+  "section": "screen-and-themes#classic-themes",
+  "interface": "CLASSIC MODS panel",
+  "steps": [
+    {
+      "key": "MENU",
+      "expect_page": 35
+    },
+    {
+      "tap": "SCREEN"
+    },
+    {
+      "tap": "CLASSIC"
+    },
+    {
+      "tap": "THEME"
+    },
+    {
+      "turn": 2
+    },
+    {
+      "push": true
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "interface": "MODERN",
+  "section": "extras#usb-apps",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "USB APPS"
+    },
+    {
+      "tap": "SET UP APPS"
+    },
+    {
+      "turn": 1
+    }
+  ]
+}

@@ -125,14 +125,14 @@ const char *xz_ui_page_title(int page){
  case XZ_UI_KEY_SETUP:return "KEYS";case XZ_UI_BROWSE_SETUP:return "KEY NOTATION";case XZ_UI_PC_STEMS:return "STEMS IN DJ SOFTWARE";
  case XZ_UI_STEM_COLORS:return "STEM COLOURS";case XZ_UI_THEME_PICK:return "CLASSIC THEMES";case XZ_UI_APPS:return "USB APPS";case XZ_UI_APPS_SETUP:return "SET UP APPS";
  case XZ_UI_RAM_SETUP:return "RAM TRACKS";case XZ_UI_LOCAL_STEM_SETUP:return "USB STEMS";case XZ_UI_METRICS_SETUP:return "SYSTEM READOUT";
- case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_ABOUT:return "ABOUT XZ MODS";case XZ_UI_BUTTONS:return "REKORDBOX BUTTON";
+ case XZ_UI_PROFILE_SETUP:case XZ_UI_PROFILE_EDIT:return "DJ PROFILE";case XZ_UI_ABOUT:return "ABOUT XZ MODS";case XZ_UI_BUTTONS:return "BUTTON ABOVE LINK";
  case XZ_UI_STEM_PADS:return "STEM PADS";case XZ_UI_SCREEN_LOOK:return "LAMPS AND TITLES";case XZ_UI_BAND_COLORS:return "3-BAND COLOURS";
  default:return "MODS";}
 }
 const char *xz_ui_page_body(int page){
  switch(page){
  case XZ_UI_HOME:return "What MODS can do, and anything that needs you.";
- case XZ_UI_PLAY:return "Changes what the pads and buttons do while you perform: custom beat jump distances, gate cue, smart cue, key sync, RAM tracks and the button next to LINK.";
+ case XZ_UI_PLAY:return "Changes what the pads and buttons do while you perform: custom beat jump distances, gate cue, smart cue, key sync, RAM tracks and the button above LINK.";
  case XZ_UI_STEM_SECTION:return "Mute vocals, harmonics and drums from the pads or the screen: USB stems, stems in DJ software, the stem pads, the stem buttons on screen and their colours.";
  case XZ_UI_SCREEN:return "How the play screen looks: interface, deck view, theme, waveform colours, titles, keys and the top bar.";
  case XZ_UI_FOUR_DECKS:return "Play decks 3 and 4 over the loopback cable: the cable's state, the deck view and what works on each deck.";
@@ -166,7 +166,7 @@ const char *xz_ui_page_body(int page){
  case XZ_UI_PROFILE_SETUP:return "Your DJ name and logo for VJ screens, from the USB. The player's own saved settings are MY SETTINGS in UTILITY.";
  case XZ_UI_ABOUT:return "Created by VJ OpticMystic. Credits, project links, licences and voluntary support.";
  case XZ_UI_SUPPORT:return "Tell the maintainer about a problem or an idea. The player adds its own details; you can add words on your computer.";
- case XZ_UI_BUTTONS:return "What the rekordbox button above LINK does, alone and while SHIFT is held on either deck.";
+ case XZ_UI_BUTTONS:return "What the button above LINK does, alone and while SHIFT is held on either deck.";
  case XZ_UI_SCREEN_LOOK:return "The MODERN play screen's top bar lamps, waveform titles and track colours: show or hide each one.";
  default:return "Opens this page.";}
 }
@@ -298,7 +298,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_METRICS_TOGGLE:return "Open setup and verify live CPU, RAM and temperature readings beside STEMS and MODS.";
  case XZ_UI_DECK:return u->page==XZ_UI_PC_STEMS?"Choose the deck this setup checks.":"Choose which deck these controls act on.";
  case XZ_UI_CONTROL_SECTION:return k==0?"Assign stem mutes to four pads in a pad mode.":k==1?"Edit custom beat jump sizes for the pads.":
-  k==2?"Switch the DJ software's stems on a computer linked by USB cable.":"Choose what the rekordbox button above LINK does, alone and with SHIFT.";
+  k==2?"Switch the DJ software's stems on a computer linked by USB cable.":"Choose what the button above LINK does, alone and with SHIFT.";
  case XZ_UI_ENABLE:
   if(k==XZ_UI_STEM)return "Plays prepared stem files from the USB so pads and stem buttons can mute vocals, harmonics and drums. Off gives every pad its normal job back.";
   if(k==XZ_UI_GATE)return "Hot cue pads play only while you hold them and jump back to the hot cue when you let go. Use it to stab hot cues like samples.";
@@ -339,7 +339,7 @@ static const char *body(const struct xz_ui *u,const struct xz_ui_model *m,const 
  case XZ_UI_JUMP_PAIR:return u->adjusting?"Turn to change the size. Push or BACK when done.":"Push, then turn to change this pair's jump size. The first pad jumps back.";
  case XZ_UI_JUMP_STEP:return k>0?"Next larger jump size for the selected pair.":"Next smaller jump size for the selected pair.";
  case XZ_UI_TAKEOVER_TOGGLE:return "Shows the computer's VJ.Tools screen instead of the player screen.";
- case XZ_UI_TAKEOVER_ASSIGN:return k==0?"The LINK key switches the VJ.Tools screen.":k==1?"The rekordbox button switches the VJ.Tools screen when it is set to VJ.TOOLS SCREEN.":"An onscreen button switches the VJ.Tools screen.";
+ case XZ_UI_TAKEOVER_ASSIGN:return k==0?"The LINK key switches the VJ.Tools screen.":k==1?"The button above LINK switches the VJ.Tools screen when it is set to VJ.TOOLS SCREEN.":"An onscreen button switches the VJ.Tools screen.";
  case XZ_UI_CONNECTION_ENABLE:return "Lets VJ.Tools on a computer connect to this player.";
  case XZ_UI_DISCOVERY:return "Announces this player so VJ.Tools finds it on the network.";
  case XZ_UI_GROOVE_PAD:return "Plays the assigned groove in place of its stem.";

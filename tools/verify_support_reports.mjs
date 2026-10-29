@@ -300,9 +300,9 @@ try {
   const startReport = async () => { await feedback(); await evaluate(`document.getElementById('support-open').click()`); await waitFor(`wiz().open&&reportWizard.state().screen==='topic'`, 'wizard open'); };
 
   await open();
-  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,live-stream,tools,manual,my-reports'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelector('nav button.nav-feedback use').getAttribute('href')==='#i-report'&&!document.querySelector('#tools [data-open="my-reports"]')&&!document.querySelector('#licenses [id^=support],#licenses .sr-start-action')&&document.getElementById('about-feedback')?.textContent.includes('Feedback')`, 'Feedback has its own place in the rail, with its glyph; Tools and About hold no report entries, and About links to Feedback');
+  await check(`[...document.querySelectorAll('nav button')].map(b=>b.dataset.page).join()==='setup,stems,dj-profile,updates,tools,manual,licenses,my-reports'&&txt('nav .nav-feedback-text>span')==='Feedback'&&document.querySelector('nav button.nav-feedback use').getAttribute('href')==='#i-report'&&!document.querySelector('#tools [data-open="my-reports"]')&&!document.querySelector('#licenses [id^=support],#licenses .sr-start-action')&&document.getElementById('about-feedback')?.textContent.includes('Feedback')`, 'Feedback has its own place in the rail, with its glyph; Tools and About hold no report entries, and About links to Feedback');
   await evaluate(`showPage('tools')`);
-  await shot('00-tools', Object.fromEntries([...['dj-profile', 'library-repair', 'device-updates', 'advanced', 'updates', 'licenses'].map(id => [id, '.tool-row[data-open="' + id + '"] strong']), ['feedback', 'nav button.nav-feedback']]));
+  await shot('00-tools', Object.fromEntries([...['library-repair', 'games', 'live-stream'].map(id => [id, '.tool-row[data-open="' + id + '"] strong']), ...['setup', 'stems', 'dj-profile', 'updates', 'tools', 'manual', 'licenses'].map(id => ['rail-' + id, 'nav button[data-page="' + id + '"] span']), ['feedback', 'nav button.nav-feedback']]));
   await evaluate(`showPage('licenses')`);
   await shot('00-about', { version: '.about-version', maker: '.about-maker strong', updates: '#about-updates', projects: '#about-maker-title', links: '#about-links-title', feedback: '#about-feedback strong', support: '.about-link[href^="https://cash.app"] strong', notes: '#about-notes-title', licenses: '#open-licenses' }, true);
   await check(`!document.getElementById('support-wizard')&&!document.getElementById('support-consent')&&!document.querySelector('[id^=support-preview]')`, 'the old form, its page-by-page preview and consent checkbox are gone');
@@ -403,16 +403,13 @@ try {
   await check(`wiz().querySelectorAll('.sr-choice').length===5&&!wiz().querySelector('[data-key="c-NONE"]')`, 'compared with what: the five reporter baselines');
   await shot('08-compared-with');
   await choice('DJ_CONVENTION');
-  await waitFor(`reportWizard.state().screen==='reference'`, 'reference');
-  await check(`[...wiz().querySelectorAll('.sr-chip')].map(b=>b.textContent).join()==='CDJ-3000,CDJ-2000NXS2,XDJ-RX3,rekordbox,Serato,Traktor'&&txt('#report-wizard .st-steps')==='1 Topic2 Compared with3 Which one4 Describe'`, 'which gear: the DJ gear and software suggestions');
-  await shot('09-which-gear');
-  await choice('CDJ_3000');
   await waitFor(`reportWizard.state().screen==='describe'`, 'describe');
-  await click('Back');
+  await check(`txt('#report-wizard .st-steps')==='1 Topic2 Compared with3 Describe'&&!reportWizard.state().hints.reference_feature&&!/rekordbox|serato|traktor|\\bcdj/i.test(wiz().textContent)`, 'other DJ gear or software: straight to Describe, no brand names offered');
   await click('Back');
   await choice('XZ_CONSISTENCY');
-  await waitFor(`reportWizard.state().screen==='reference'`, 'reference again');
-  await check(`[...wiz().querySelectorAll('.sr-chip')].map(b=>b.textContent).join()==='Decks 1 and 2,Another XZ Mods feature'&&!reportWizard.state().hints.reference_feature`, 'changing the baseline changes the suggestions and drops the old pick');
+  await waitFor(`reportWizard.state().screen==='reference'`, 'reference');
+  await check(`[...wiz().querySelectorAll('.sr-chip')].map(b=>b.textContent).join()==='Decks 1 and 2,Another XZ Mods feature'&&txt('#report-wizard .st-steps')==='1 Topic2 Compared with3 Which one4 Describe'&&!reportWizard.state().hints.reference_feature`, 'which feature: the XZ suggestions');
+  await shot('09-which-gear');
   await click('Not sure');
   await click('Cancel');
 

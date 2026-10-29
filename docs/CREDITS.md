@@ -17,7 +17,7 @@ reports, and helping make more of the equipment we own.
 
 ## People and projects
 
-Thanks to **AlphaTheta / Pioneer DJ** for the hardware, and to the DJs,
+Thanks to the makers of the XDJ-XZ for the hardware, and to the DJs,
 researchers, testers, and open-source contributors who share their work.
 
 **Sam Leone and the OverCue team.** OverCue's
@@ -58,7 +58,7 @@ to manufacturer firmware, artwork, music, or other third-party material.
 
 ## Read the notices for your build
 
-The desktop app's **Tools > About > Open license notices** action opens its local `licenses`
+The desktop app's **About > Open license notices** action opens its local `licenses`
 folder. Keep that folder and the corresponding source with redistributed
 packages. This page is a readable index; it does not replace any license text,
 copyright notice, source requirement, or the terms of an individual component.

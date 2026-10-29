@@ -51,7 +51,7 @@ function usbLoadout(inspection,{driveLabel}={}){
     node('games',1,'folder','VJTOOLS\\Games','Games',anyPresent(gameNodes)?'present':'missing','Free downloads, opened from EXTRAS › GAMES',gameNodes),
     profilesNode(),
     node('stems',1,'folder',STEMS,'Prepared stems',stems.tracks>0?'present':'missing',stems.tracks>0?plural(stems.tracks,'track')+' · '+size(stems.bytes):'None yet'),
-    node('rekordbox',1,'folder',REKORDBOX,'Rekordbox library',ins.rekordbox?'untouched':'missing',ins.rekordbox?'Music and playlists, never touched':'Export from Rekordbox to this USB first')
+    node('library',1,'folder',REKORDBOX,'Exported music library',ins.rekordbox?'untouched':'missing',ins.rekordbox?'Music and playlists, never touched':'Export your music to this USB from your DJ software first')
   ])];
 }
 
