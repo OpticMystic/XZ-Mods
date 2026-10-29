@@ -49,9 +49,9 @@ with tempfile.TemporaryDirectory(prefix='xz-builder-acceptance-') as temporary:
     assert status['result']['separation_output_format']=='overcue-index/1' and status['result']['stem_builder']['beta'],status
     checks['standalone_status_without_python_path']=True
     request={'method':'import_stems','source':str(source),'separation_id':'acceptance-v1',**{name:str(path) for name,path in stems.items()}}
-    missing=call(request);assert not missing['ok'] and 'no Rekordbox export' in missing['error'],missing
+    missing=call(request);assert not missing['ok'] and 'no exported music library' in missing['error'],missing
     write_export(volume/'PIONEER/rekordbox/export.pdb',{7:'/Contents/Artist/Café track.wav',8:'/Contents/Artist/Other.wav'})
-    unexported=call({**request,'source':str(loose)});assert not unexported['ok'] and 'Rekordbox' in unexported['error'],unexported
+    unexported=call({**request,'source':str(loose)});assert not unexported['ok'] and 'not in the library exported' in unexported['error'],unexported
     outside=call({**request,'source':str(stems['vocals'])});assert not outside['ok'] and 'Contents' in outside['error'],outside
     checks['requires_rekordbox_exported_usb_track']=True
     no_engine=call(request);assert not no_engine['ok'] and 'Set up the separation engine first' in no_engine['error'],no_engine
