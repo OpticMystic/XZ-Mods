@@ -7,13 +7,12 @@
 @property --sy{syntax:'<percentage>';inherits:true;initial-value:50%}
 
 .nav-manual .icon{color:#7f8685}
-#manual{--m-read:#d3d8d5;--m-dim:#9aa19c;--m-line:#2c3031;--m-panel:#121415}
-.m-root{display:grid;grid-template-columns:228px minmax(0,1fr);gap:0 34px;align-items:start}
-.m-side{position:sticky;top:0;max-height:100vh;overflow:auto;padding:2px 4px 28px 0;scrollbar-width:thin;scrollbar-color:#2c3031 transparent}
+#manual,#ctx-manual{--m-read:#d3d8d5;--m-dim:#9aa19c;--m-line:#2c3031;--m-panel:#121415}
+.m-root{min-width:0}
+#card>#manual{max-width:1100px}
+/* The chapter list sits in the app's side list (#ctx-manual), on the base. */
+.m-side{padding:6px 0 8px}
 .m-main{min-width:0;position:relative}
-/* The app styles every <header> as its title bar and every <aside> as its rail; the manual's own are plain blocks. */
-.m-root header{display:block;min-height:0;margin:0}
-.m-root aside{position:static;height:auto;padding:0;background:none;border:0;display:block}
 
 /* Search */
 .m-search{position:relative;margin:0 0 14px}
@@ -52,7 +51,6 @@
 .m-home{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 12px;padding:8px 10px;border-radius:6px;border:1px solid var(--m-line);background:#101213;color:#c9cecb;font-size:13px;font-weight:550;text-align:left}
 .m-home[aria-current=page]{border-color:#4a4a22;color:#fff98a;background:#1e2018}
 .m-home svg{width:16px;height:16px;color:#f3e900;flex:none}
-.m-side-toggle{display:none}
 
 /* Interface choice */
 .m-iface{margin:16px 0 0;padding:12px;border:1px solid var(--m-line);border-radius:8px;background:#0e1011}
@@ -364,19 +362,6 @@
 .mn-scenes{list-style:none;margin:0;padding:0}
 .mn:not([data-mounted]) .mn-scenes>li{padding:8px 14px}
 
-/* Narrow windows: the chapter list folds above the page */
-@media (max-width:1060px){
- .m-root{grid-template-columns:minmax(0,1fr)}
- .m-side{position:static;max-height:none;overflow:visible;padding:0;margin:0 0 10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;align-items:start}
- .m-search{margin:0}
- .m-side-toggle{display:inline-flex;align-items:center;gap:6px;padding:9px 12px;font-size:13px}
- .m-side-toggle svg{width:14px;height:14px;transition:transform .2s}
- .m-side-toggle[aria-expanded=true] svg{transform:rotate(90deg)}
- .m-side-body{grid-column:1/-1;display:none;padding:12px;border:1px solid var(--m-line);border-radius:10px;background:#0e1011}
- .m-side.is-open .m-side-body{display:block}
- .m-side-body .m-toc{columns:2 220px;column-gap:18px}
- .m-toc-group{break-inside:avoid}
-}
 @media (max-width:760px){
  .m-pick,.m-howto{grid-template-columns:1fr}
  .m-hero-body{grid-template-columns:1fr;padding:18px 20px 22px}
@@ -386,5 +371,5 @@
  .mc-title{font-size:26px}
 }
 @media (prefers-reduced-motion:reduce){
- .m-root *,.m-root *::before,.m-root *::after,.m-box{animation:none!important;transition:none!important}
+ .m-root *,.m-root *::before,.m-root *::after,.m-side *,.m-box{animation:none!important;transition:none!important}
 }

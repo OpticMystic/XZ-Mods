@@ -102,7 +102,7 @@ try {
     return measured;
   };
   if (endpoint) {
-    await evaluate(`showPage('games');window.scrollTo(0,0);showError('Not enough free space. Free 2 GB and try again.',document.getElementById('setup-games-usb'));`);
+    await evaluate(`showPage('games');document.getElementById('card').scrollTo(0,0);showError('Not enough free space. Free 2 GB and try again.',document.getElementById('setup-games-usb'));`);
     await measure('#setup-games-usb', 'installed-usb-free-space');
     await evaluate(`stemLibraryStarted=true;showPage('stems');renderStemLibrary(testLibrary);document.querySelector('#stem-tracks .st-open-button').click();document.querySelector('#stem-tracks [data-action="verify"]').scrollIntoView({block:'center'});showError('Not enough free space. Free 2 GB and try again.',document.querySelector('#stem-tracks [data-action="verify"]'));`);
     await measure('#stem-tracks [data-action="verify"]', 'installed-track-free-space');

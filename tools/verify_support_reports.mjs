@@ -274,10 +274,10 @@ try {
   const shot = async (name, marks = {}, tall = false) => {
     if (!shots) return;
     await new Promise(done => setTimeout(done, 200));
-    // The clip is in page coordinates, so a scrolled page is captured where it is scrolled to.
-    const [left, top] = await evaluate(`[scrollX,scrollY]`);
-    // tall: the whole page, for a page the manual shows in one picture.
-    const height = tall ? await evaluate(`document.documentElement.scrollHeight`) : 760;
+    // The page scrolls inside the card, so the window shows it where it is scrolled to.
+    const [left, top] = [0, 0];
+    // tall: the whole page, for a page the manual shows in one picture: the window grows by what the card hides.
+    const height = tall ? await evaluate(`(()=>{const card=document.getElementById('card');return innerHeight+card.scrollHeight-card.clientHeight;})()`) : 760;
     if (tall) { await size(1100, height); await new Promise(done => setTimeout(done, 200)); }
     const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: left, y: top, width: 1100, height, scale: 1 } });
     await writeFile(join(shots, name + '.png'), Buffer.from(image.data, 'base64'));

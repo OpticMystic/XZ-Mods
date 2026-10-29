@@ -50,10 +50,10 @@ You prepare the USB in the XZ Mods app on your computer. It does not format the 
 
 ```figure app:install-review XZ Mods app · Install XZ Mods
 The checklist before the write. Music, playlists and prepared stems are never touched.
-1 @ 580,227 Loader | XZ Mods itself.
-2 @ 706,273 Games | Free games the app downloads and checks.
-3 @ 540,319 Interface | The screen the XZ starts with.
-4 @ 890,728 Write to USB | Writes everything in the checklist.
+1 @ 403,284 Loader | XZ Mods itself.
+2 @ 545,330 Games | Free games the app downloads and checks.
+3 @ 357,376 Interface | The screen the XZ starts with.
+4 @ 773,716 Write to USB | Writes everything in the checklist.
 ```
 
 Every step of the app is in [The XZ Mods app](desktop-app#usb). To add stems to your tracks, see [Stems](stems).
@@ -105,8 +105,8 @@ A new USB starts in MODERN unless you choose the standard interface in the app.
 
 ```figure app:install-screen XZ Mods app · Install XZ Mods
 Choose the screen the XZ shows. New interface is MODERN, Standard XDJ-XZ interface is CLASSIC.
-1 @ 486,452 New interface | MODERN.
-2 @ 1012,332 Standard XDJ-XZ interface | CLASSIC.
+1 @ 299,543 New interface | MODERN.
+2 @ 889,405 Standard XDJ-XZ interface | CLASSIC.
 ```
 
 ### Switch on the player
