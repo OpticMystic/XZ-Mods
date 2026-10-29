@@ -27,7 +27,7 @@ The player follows the same rules as its own MY SETTINGS:
 - A USB without settings, or with settings the player cannot read, leaves your current settings as they are. Nothing resets to defaults in the middle of a set.
 - The player remembers the last settings it used. Started without a USB, it uses those. A USB with its own settings takes over again once you browse it.
 
-The player's own MY SETTINGS, which rekordbox writes to the USB, are a separate set. XZ Mods settings never change them, and loading MY SETTINGS does not change XZ Mods settings.
+The player's own MY SETTINGS, which your DJ software writes to the USB, are a separate set. XZ Mods settings never change them, and loading MY SETTINGS does not change XZ Mods settings.
 
 MODERN's own display choices are settings too: its waveform colour, waveform position and zoom, how it writes keys, the TRACK COLOURS choice, the LAMPS AND TITLES and BYPASS BUTTON switches, and the columns of its track list. So are the 3-band colours. They are saved to the USB with everything else and come back after the player restarts.
 

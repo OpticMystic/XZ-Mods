@@ -61,7 +61,7 @@ XZ Mods gives the player two interfaces. You choose one with **INTERFACE** on th
 
 Each interface keeps its own theme. If you switch from CLASSIC to MODERN and back, your classic theme comes back with you.
 
-To switch without opening MODS, press the [[rekordbox]] button above [[LINK]]. Out of the box it switches between MODERN and CLASSIC. You can give it another job in **PLAY** › **REKORDBOX BUTTON**. See [Controls on the player](hardware).
+To switch without opening MODS, press the button above [[LINK]]. Out of the box it switches between MODERN and CLASSIC. You can give it another job in **PLAY** › **BUTTON ABOVE LINK**. See [Controls on the player](hardware).
 
 ```figure modern:play-full MODERN play screen {modern}
 The MODERN play screen with two decks, 3-BAND waveforms and the playing key shown.
@@ -120,7 +120,7 @@ Instead of THEME, the SCREEN page offers **LAMPS AND TITLES**. Its row shows **A
 | TOP BAR | MODE LAMPS | The SINGLE / CONTINUE, A. HOT CUE and A. CUE lamps light while their mode is on | The lamps leave the screen. The modes keep working |
 | TOP BAR | QUANTIZE LAMP | Each deck's QUANTIZE lamp and beat value above its time | The QUANTIZE button's own light still shows it |
 | WAVEFORMS | TITLES IN WAVEFORMS | Track titles inside the waveform lanes | The waveforms use that space. Titles at the bottom stay |
-| TRACK COLOURS | DECK + WAVE | The colours set for the USB in rekordbox show on the deck tag and its waveform | |
+| TRACK COLOURS | DECK + WAVE | The colours set for the USB in your DJ software show on the deck tag and its waveform | |
 | TRACK COLOURS | DECK ONLY | Those colours show on the deck tag only | |
 | TRACK COLOURS | OFF | USB colours are not shown | |
 
@@ -152,7 +152,7 @@ The **BYPASS BUTTON** switch for MODERN sits with the stem buttons in **STEMS**.
 The preview strip on the [3-BAND COLOURS](#3-band-colours) page draws the three layers in the colours in use: lows outside, mids around them, highs at the core.
 
 
-- 3-BAND and STEMS read the analysis rekordbox and the XZ Mods stem builder already put on the USB. You do not prepare anything extra.
+- 3-BAND and STEMS read the track analysis your DJ software and the XZ Mods stem builder already put on the USB. You do not prepare anything extra.
 - A track without stems shows 3-BAND under STEMS. A track with four stems also shows 3-BAND, because its stems carry no waveform data yet.
 - Stem colours are set in **STEMS** › **STEM COLOURS**. See [Stems](stems).
 - In MODERN, UTILITY's **WAVEFORM COLOR** is the same setting. Your choice is saved to the USB and comes back after a restart.
@@ -197,7 +197,7 @@ Every band on STANDARD, the interface's own colours.
 
 | Choice | Example | When to use it |
 |---|---|---|
-| AS ON THE USB | as set in your library | Keys look the way your rekordbox library writes them |
+| AS ON THE USB | as set in your library | Keys look the way your DJ software writes them |
 | MUSICAL | Am | You think in note names |
 | WHEEL | 8A | You mix by key wheel numbers |
 

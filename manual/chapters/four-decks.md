@@ -163,7 +163,7 @@ DECK VIEW is saved to the USB with your other settings. You can change it in fiv
 - **TWO DECKS** on the card;
 - MODS > **SCREEN** > **DECK VIEW**;
 - MODS > **4 DECKS** > **DECK VIEW**;
-- the [[rekordbox]] button above [[LINK]], when you set it to **DECK VIEW** in MODS > PLAY > **REKORDBOX BUTTON**. Each press then steps 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order.
+- the button above [[LINK]], when you set it to **DECK VIEW** in MODS > PLAY > **BUTTON ABOVE LINK**. Each press then steps 2 DECKS, 4 DECKS in number order, 4 DECKS in mixer order.
 
 ### The DECKS button and its picker
 
@@ -331,7 +331,7 @@ On a side that controls deck 3 or 4, these controls work on that deck {experimen
 
 On decks 3 and 4, TRACK SEARCH respects AUTO CUE. With AUTO CUE on, a newly loaded track waits at its cue point. With AUTO CUE off, a deck that was playing continues with the new track; a paused deck stays paused.
 
-Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and rekordbox do not see them, and the rekordbox export stays unchanged.
+Hot cues and memory points you set on decks 3 and 4 are saved on the music stick for those decks only. Decks 1 and 2 and your DJ software do not see them, and the exported library stays unchanged.
 
 ### SYNC on decks 3 and 4 {experimental}
 
@@ -360,7 +360,7 @@ The bottom channel, the lane and the detail panel say what SYNC is doing:
 | 3/4 MASTER | This deck is the master for decks 3 and 4 only. |
 | LIMIT | The master's tempo is out of this deck's reach. The deck keeps its last tempo. |
 | EXT MASTER | The master is another player on the LINK network, which decks 3 and 4 cannot follow. |
-| NO BPM | The track has no BPM to sync with. Analyse it in rekordbox. |
+| NO BPM | The track has no BPM to sync with. Analyse it in your DJ software. |
 
 The detail panel adds a line about the reason, for example:
 

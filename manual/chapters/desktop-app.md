@@ -3,7 +3,7 @@ interface: computer
 settings:
 ---
 
-The XZ Mods app runs on your computer. It puts XZ Mods on a USB, makes stems for your tracks, makes your DJ profile, keeps the app and your USB up to date, holds tools for your library, games and the XZ screen, and sends your reports and ideas to the maintainer. It never formats a drive and never changes your music or your Rekordbox export.
+The XZ Mods app runs on your computer. It puts XZ Mods on a USB, makes stems for your tracks, makes your DJ profile, keeps the app and your USB up to date, holds tools for your library, games and the XZ screen, and sends your reports and ideas to the maintainer. It never formats a drive and never changes your music or the library your DJ software exported.
 
 You need 64-bit Windows with WebView2, or a Mac with macOS 14 or later. Making stems needs a Windows computer or an Apple silicon Mac. On an Intel Mac you can still import stems you made elsewhere.
 
@@ -14,7 +14,7 @@ The rail on the left has five sections for your work, then the Manual and About 
 | Section | What it is for |
 |---|---|
 | **USB** | Install or update XZ Mods on a USB, add your DJ profile and games |
-| **Stems** | Make stems for the tracks on a Rekordbox USB, or import stems you already have |
+| **Stems** | Make stems for the tracks on your music USB, or import stems you already have |
 | **DJ Profile** | Your name and logo on the XZ, and the profile track |
 | **Updates** | App updates, the XZ Mods version for your USB, and network updates for your XZ |
 | **Tools** | Repair library, Game downloads and XZ Screen |
@@ -32,7 +32,7 @@ USB is the first page. Plug in your XZ USB, or any USB stick, and the app finds 
 
 ```gallery
 app:usb-plug-in No USB yet. The app keeps looking, so plug one in. Write to a folder instead… prepares a folder on this computer
-app:usb-choose Several USBs. Each card says whether XZ Mods is on it yet and whether it holds a Rekordbox export
+app:usb-choose Several USBs. Each card says whether XZ Mods is on it yet and whether it holds music exported from your DJ software
 ```
 
 ### Choose a USB or a folder
@@ -142,7 +142,7 @@ Press **Write to USB** in the bar under the checklist. If a newer build needs a 
 Your USB is ready. Four decks and the optional support link follow further down.
 1 @ 757,180 Result | Your USB is ready, or Finished, with something to check.
 2 @ 575,246 What was written | One line per part. A game that did not download says why.
-3 @ 372,319 On the XZ | What to do with the USB next, and how to switch between CLASSIC and MODERN with the [[rekordbox]] button above [[LINK]].
+3 @ 372,319 On the XZ | What to do with the USB next, and how to switch between CLASSIC and MODERN with the button above [[LINK]].
 4 @ 490,554 Four decks | How four decks work. See [Four decks in the app](#four-decks-in-the-app).
 5 @ 808,728 Done | Back to the dashboard.
 6 @ 1062,728 Eject USB | Ejects the USB so you can unplug it.
@@ -174,11 +174,11 @@ The Four decks section on the done screen.
 
 ## Stems
 
-Stems makes vocal, harmonic and drum stems for the tracks on your Rekordbox USB and writes them beside each track. Plug in the USB you export to from Rekordbox. The app lists every track on it. Your tracks and your Rekordbox export stay as they are.
+Stems makes vocal, harmonic and drum stems for the tracks on your music USB and writes them beside each track. Plug in the USB your DJ software exports your music to. The app lists every track on it. Your tracks and the library your DJ software exported stay as they are.
 
 ```figure app:stems-list XZ Mods app · Stems
 Twelve tracks selected and the stem engine set up.
-1 @ 355,90 USB | The Rekordbox USB. Its menu also offers Choose a folder and Look for USBs again.
+1 @ 355,90 USB | Your music USB. Its menu also offers Choose a folder and Look for USBs again.
 2 @ 568,115 Tracks | How many tracks the USB holds and how many have stems.
 3 @ 662,163 Estimate | How many tracks you selected, about how much space their stems take and what is left after.
 4 @ 935,92 Prepare | Makes stems for the selected tracks. The label counts them.
@@ -196,7 +196,7 @@ Twelve tracks selected and the stem engine set up.
 | Ready | Stems are on the USB | Nothing. Open the details to Verify them |
 | Missing | No stems yet | Select it and prepare |
 | Not yet | XZ Mods cannot prepare this format yet, such as AIFF | Export the track as WAV, FLAC or MP3 |
-| No audio file | The track's file is not on the USB | Export the track from Rekordbox again |
+| No audio file | The track's file is not on the USB | Export the track to the USB again from your DJ software |
 | Failed | Preparing stopped, with the reason under it | Fix the reason, then **Retry** |
 | Damaged | Verify found a broken stem page | Select it and prepare it again |
 | Prepare again | Made by an older version | Open the details and choose **Prepare again** |
@@ -206,7 +206,7 @@ A batch holds up to 100 tracks. The estimate turns amber when space gets tight a
 While a batch runs, each row moves from Queued to Preparing to Ready, and the bar shows the track, the step and about how long is left. The first time on a new computer it says **Timing this computer** until it has measured. **Cancel** stops within a second. Finished tracks are kept. When the batch ends, the bar offers the next step.
 
 ```gallery
-app:stems-connect No Rekordbox USB found. Connect a USB opens a short guide to find or choose one
+app:stems-connect No music USB found. Connect a USB opens a short guide to find or choose one
 app:stems-does-not-fit The selection does not fit. Prepare 7 that fit
 app:stems-preparing A batch running, with the step and the time left
 app:stems-finished-failed Finished with one failure. Retry 1 failed
@@ -270,7 +270,7 @@ DJ Profile makes and edits the profiles on a USB. A profile is your name, logo a
 A new profile.
 1 @ 340,213 DJ name | Your name as it should read on the XZ.
 2 @ 530,508 Logo | A PNG or JPEG up to 8 MB. A transparent PNG looks best. You can add alternate logos.
-3 @ 572,649 Colour | The profile colour. The first swatch matches the USB's colour in rekordbox.
+3 @ 572,649 Colour | The profile colour. The first swatch matches the USB's colour in your DJ software.
 4 @ 778,213 On the XZ | The header and the logo tile as the XZ draws them.
 5 @ 852,506 What VJ software sees | Your name and links as VJ software reads them.
 6 @ 503,751 More | An optional tagline, links and more.
@@ -286,12 +286,12 @@ The profiles on a USB after a save.
 6 @ 505,677 Profile track | A track that carries your profile to players that cannot read extra files.
 ```
 
-Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through rekordbox like any other track.
+Some newer players block reading extra files from the USB. A profile track is a silent song that carries your name, logos and links, so it reaches them through your DJ software like any other track.
 
 ```figure app:dj-profile-track XZ Mods app · DJ Profile
 Making a profile track.
-1 @ 625,166 Steps | Where, Create, then Add it to rekordbox.
-2 @ 565,299 This computer | Saves the track in your Music folder, ready for rekordbox.
+1 @ 625,166 Steps | Where, Create, then Add it to your library.
+2 @ 565,299 This computer | Saves the track in your Music folder, ready for your DJ software.
 3 @ 979,289 Choose folder | Saves the track somewhere else.
 4 @ 510,360 Copy on the USB | Also puts a copy in your profile folder on the USB.
 5 @ 525,434 Create or Cancel | Makes the track, or leaves without one.
@@ -369,7 +369,7 @@ Tools holds what you need now and then, grouped by what it works on: your USB an
 
 ```figure app:tools XZ Mods app · Tools
 Every tool, in two groups.
-1 @ 430,138 Repair library | Fixes a Rekordbox USB the XZ cannot read.
+1 @ 430,138 Repair library | Fixes a music USB the XZ cannot read.
 2 @ 863,138 Game downloads | Gets the free games again and copies them to a USB.
 3 @ 404,276 XZ Screen | Shows the XZ screen on this computer, ready for OBS.
 4 @ 125,254 Updates | App updates, XZ Mods version and Network updates are in their own section in the rail.
@@ -378,11 +378,11 @@ Every tool, in two groups.
 
 ### Repair library
 
-Repair library checks the Rekordbox library on a USB the XZ cannot read. It can clear invalid unused pages and reconnect playback history pages that survived. It keeps track records, playlists, music and prepared stems.
+Repair library checks the music library your DJ software exported to a USB the XZ cannot read. It can clear invalid unused pages and reconnect playback history pages that survived. It keeps track records, playlists, music and prepared stems.
 
 ```figure app:repair-library XZ Mods app · Repair library
 Step 1, choose the USB.
-1 @ 420,219 USB | The Rekordbox USB or a folder holding a copy of it.
+1 @ 420,219 USB | Your music USB or a folder holding a copy of it.
 2 @ 1052,242 Choose folder and Find USBs | Picks a folder, or looks for USBs again.
 3 @ 410,336 Connect a USB | Appears when no USB is found. Opens a short guide to connect one.
 4 @ 665,370 Read only | Checking only reads the library.
@@ -392,7 +392,7 @@ Step 1, choose the USB.
 2. **Library check.** The verdict, what the library holds and what is wrong. **Save report** keeps the result on this computer.
 3. **Repair plan.** What changes and what stays the same. **Back up and repair** backs up the library files first.
 
-If rekordbox is open on this computer, the check says so and offers **Prepare for repair**. Close rekordbox so both apps do not write at the same time, then check again. After a repair, **Undo this repair** puts the library files back exactly as they were before it.
+If the DJ software that writes the USB is open on this computer, the check says so and offers **Prepare for repair**. Close it so both apps do not write at the same time, then check again. After a repair, **Undo this repair** puts the library files back exactly as they were before it.
 
 ### Game downloads
 
@@ -497,7 +497,7 @@ About.
 5 @ 742,364 Links | The source code, issues and releases on GitHub, xzmods.com and vj.tools. Each opens in your browser.
 6 @ 805,663 Feedback | Opens [Feedback](#feedback) in the app.
 7 @ 920,716 Support XZ Mods (optional) | Voluntary support on Cash App. Every feature stays available.
-8 @ 378,810 Disclaimers | XZ Mods is independent of Pioneer DJ and AlphaTheta, experimental, runs from the USB, and builds its loader from the official firmware for your own use.
+8 @ 378,810 Disclaimers | XZ Mods is independent of the maker of the XDJ-XZ, experimental, runs from the USB, and builds its loader from the official firmware for your own use.
 9 @ 960,1009 Open license notices | Every open-source project XZ Mods uses and its license.
 ```
 
