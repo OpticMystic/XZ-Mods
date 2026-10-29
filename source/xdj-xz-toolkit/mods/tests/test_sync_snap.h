@@ -132,14 +132,15 @@ static void snap_manual(void){
    clock_ms+=10;consume(0,441);consume(1,441);
    unsigned first=f.write[d];double expected=snap_expected(d,master,den);step();
    if(f.flushes[d]!=before){
-    assert(q&&!snapped&&f.flushes[d]==before+1);snap_check_block(d,first,expected,den);
+    assert(q&&press_again&&!snapped&&f.flushes[d]==before+1);snap_check_block(d,first,expected,den);
     snapped=1;before=f.flushes[d];
    }
   }
-  assert(snapped==q);assert(view.deck[d].sync.tempo_matched);
+  /* S4/S5 (stock-sync-spec.md): a plain nudge is kept as an offset, no snap; SYNC off and on realigns once. */
+  assert(snapped==(q&&press_again));assert(view.deck[d].sync.tempo_matched);
   engine_end();cases++;
  }
- printf("PASS manual re-engage: %u cases, pending during bend, first valid pass snaps once inside cooldown\n",cases);
+ printf("PASS manual re-engage: %u cases, pending during bend, nudge kept as offset, SYNC off/on snaps once\n",cases);
 }
 static void snap_source_fences(void){
  for(int d=0;d<2;d++)for(int change=0;change<3;change++){
