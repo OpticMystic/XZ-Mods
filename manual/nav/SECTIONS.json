@@ -557,7 +557,7 @@
       "title": "Manual",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "418a73905da15c0893c5428d31560c93af3ad0a7b617ba28ef814fd9ea6457cc",
+      "sha256": "2e86726670e5423f8766b23670f95330902e997c02281d711431dc9dd9a61f12",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -567,7 +567,7 @@
       "title": "The menu map",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "547855686102652e2432185edbbdd33578e2e20145616849e3663f3bb6d1ca42",
+      "sha256": "0a1be11a7a29cf17b4e5006f60f6fa18f557e351bfd8cdcedc305d4dfd95498b",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -740,7 +740,7 @@
       "title": "Set up four decks {experimental}",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "c4f62ae64e3971bcf61b53457d4b416a7ef0389705ff3b93b3fe4b1b02e04d30",
+      "sha256": "af2f531c78ab7170774a204f9353f2fa982ada41b7607d676082b4899f29ae3c",
       "flows": [
         "nav-a-route-rescan"
       ],
@@ -772,7 +772,7 @@
       "title": "The card in every state",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "1e58c59cab91cf9b3982ce7e6055c4e47a053df62a9e1f694f1fe65c604e85a4",
+      "sha256": "4b9cd64f70ea9255c1897a5727148ac64f4f244dab1e2e2c915c090a370b916c",
       "flows": [
         "nav-a-route-states"
       ],
@@ -783,7 +783,7 @@
       "title": "The E-8307 hub warning {experimental}",
       "level": 3,
       "chapter": "four-decks.md",
-      "sha256": "0a766dbf776ab9ffc30921d7d37f72d8f98047acfa96c137ab81b1aa9f53072d",
+      "sha256": "b0d50eb2cf25385f0868eb1592adb3c474c1c59c4e0d1ee1a638e54bf2116ed1",
       "flows": null,
       "reason": "physical_usb",
       "detail": "The warning and hub admission need real stock USB enumeration; no hardware touched."
@@ -1025,7 +1025,7 @@
       "title": "Browse section keys",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "6f79a778b4268f62a3afef0c5025c0566f2de9f1ea988586e4c1f20507b7dd82",
+      "sha256": "9704e8114fef3f21aabfed045b1dfbda5498b6f4763d0c42c985aa1b192fbad8",
       "flows": [
         "b-browse-keys",
         "encoder-settings",
@@ -1570,7 +1570,7 @@
       "title": "The CLASSIC play screen {classic}",
       "level": 2,
       "chapter": "play-screen.md",
-      "sha256": "5c0dfee3ed210373167a66d3ef9ce762f5eeb111232f75113528bed461dad306",
+      "sha256": "5eb46333821306841a961562d8fc4f2204fa18c811526e8a5d83835a1539f17e",
       "flows": [
         "classic-stems",
         "nav-a-classic-four"
@@ -2027,7 +2027,7 @@
       "title": "E-8307: HUBS ARE NOT SUPPORTED",
       "level": 3,
       "chapter": "troubleshooting.md",
-      "sha256": "9842705bdaef1652921279d8e53199e684b74d6d7dd5c80e3b9709539f75003a",
+      "sha256": "7468a0793e6141de87fa6124dc894fe02f4fb6645d7773e2b008d08291aa0fc3",
       "flows": null,
       "reason": "informational",
       "detail": "Explains automatic warning suppression and the cable card; no player action in this section. Actual cable detection needs hardware."

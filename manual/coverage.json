@@ -1,6 +1,10 @@
 {
  "screens_not_documented": [
   {
+   "glob": "classic:hub-card*",
+   "why": "Fallback only: the calm card shows if the caution draw hooks cannot arm. Normally the player's E-8307 hub window is removed as soon as it is drawn (four-decks, The E-8307 hub warning)."
+  },
+  {
    "glob": "classic:theme-[1-9]-*",
    "why": "The same MODS pages in the other themes. Chapters show MODERN (theme 24) and CLASSIC (theme 0); every theme appears in the theme gallery."
   },

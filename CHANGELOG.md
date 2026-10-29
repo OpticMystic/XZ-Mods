@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0-preview.22.13.3 - 2026-10-29
+
+The loopback cable reconnects by itself, RETRY works, and the E-8307 hub warning is gone
+
+- Plug the loopback cable back in, into the same or the other top USB port, and decks 3 and 4 come back without restarting the USB loader.
+- A cable that is still connecting is waited for instead of stopping four decks.
+- RETRY (RESCAN, TRY AGAIN) tries a failed start again and restarts the four-deck helper if it had stopped.
+- After a replug the card says what it waits for, for example STOP DECKS 1 AND 2, instead of asking you to check the cable.
+- The player's E-8307: HUBS ARE NOT SUPPORTED window is removed as soon as it appears, in CLASSIC too.
+- Includes everything in 22.13.2.
+- Experimental XDJ-XZ 1.26 only.
+- Hardware acceptance of this build is pending.
+- Local test build; not published.
+
 ## 0.5.0-preview.22.13.2 - 2026-10-29
 
 Decks 3 and 4 handle SYNC and MASTER like decks 1 and 2
