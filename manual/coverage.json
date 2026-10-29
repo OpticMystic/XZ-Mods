@@ -302,7 +302,7 @@
   {
    "path": "ui/style.css",
    "chapter": "desktop-app",
-   "why": "the rail, page header and Tools layout every app shot shows"
+   "why": "the top bar, the side list, the page card and the Tools layout every app shot shows"
   },
   {
    "path": "ui/support.css",

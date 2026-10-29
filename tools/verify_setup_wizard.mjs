@@ -236,12 +236,12 @@ try {
       &&items.at(-1).textContent.trim()===${JSON.stringify(next)}&&items.at(-1).classList.contains(${JSON.stringify(primary ? 'primary' : 'secondary')});})()`;
   // The bar is in view: inside the window even when the step is taller than it.
   const barInView = `(()=>{const r=document.querySelector('.wz-foot')?.getBoundingClientRect();return Boolean(r)&&r.top>=0&&r.bottom<=innerHeight+0.5;})()`;
-  // Nothing is cut off at the right or forces a sideways scroll, and the rail's foot is on screen.
+  // Nothing is cut off at the right or forces a sideways scroll, and Feedback in the top bar is on screen.
   const clipped = `(()=>{if(document.documentElement.scrollWidth>innerWidth)return 'page is '+document.documentElement.scrollWidth+' wide';
-    const open=document.querySelector('dialog[open]'),scope=open?[open]:[document.querySelector('main'),document.querySelector('aside')];
+    const open=document.querySelector('dialog[open]'),scope=open?[open]:[document.querySelector('main'),document.querySelector('.topbar'),document.getElementById('ctx')];
     const bad=scope.flatMap(root=>[...root.querySelectorAll('button,a.button,input,select,h1,h2,h3,p')]).filter(e=>e.checkVisibility()&&!e.closest('.table-scroll,.st-table,.visually-hidden')).filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&(r.left<-0.5||r.right>innerWidth+0.5);});
-    const rail=document.querySelector('nav button.nav-feedback').getBoundingClientRect();
-    if(rail.bottom>innerHeight+0.5&&getComputedStyle(document.querySelector('aside')).position==='sticky')return 'Feedback is below the window';
+    const feedback=document.querySelector('nav button.nav-feedback').getBoundingClientRect();
+    if(feedback.right>innerWidth+0.5||feedback.bottom>innerHeight+0.5)return 'Feedback is outside the window';
     return bad.slice(0,3).map(e=>(e.id||e.className||e.tagName)+' "'+e.textContent.trim().slice(0,30)+'" '+Math.round(e.getBoundingClientRect().right)).join(' | ');})()`;
   const capture = async name => {
     if (!shots) return;
@@ -359,7 +359,7 @@ try {
   await check(`Boolean(document.getElementById('wz-fourdeck-how'))&&setupWizard.state.step==='writing'`, 'writing: with the manual in this host, How four decks work is offered');
   await evaluate(`document.querySelector('.wz-fourdeck').scrollIntoView({block:'start'})`);
   await shot('07b-flow-writing-fourdecks');
-  await evaluate(`window.openManual=undefined;setupWizard.render();scrollTo(0,0)`);
+  await evaluate(`window.openManual=undefined;setupWizard.render();document.getElementById('card').scrollTo(0,0)`);
   await evaluate(`fx.hold=false`);
   await view('flow', 'done');
   await check(`since(window.__mark)==='inspect_mod_settings,prepare_usb,read_usb_settings,save_usb_settings,inspect_usb'&&fx.written.length===2&&fx.written[0].method==='prepare_usb'&&fx.written[0].volume==='E:\\\\'&&fx.written[0].experimental===true&&fx.written[0].mod_version_id==='v1'&&fx.written[0].pin_mod_version===true&&JSON.stringify(fx.written[0].games)==='["doom","freedoom"]'`, 'Write: settings check, prepare_usb with the chosen games, the settings file, then a fresh inspection');
@@ -383,14 +383,14 @@ try {
   await shot('08-flow-done');
   await evaluate(`document.querySelector('.wz-fourdeck').scrollIntoView({block:'start'})`);
   await shot('08b-done-fourdecks');
-  await evaluate(`scrollTo(0,0);window.__manual=[];window.openManual=(chapter,anchor)=>window.__manual.push([chapter,anchor])`);
+  await evaluate(`document.getElementById('card').scrollTo(0,0);window.__manual=[];window.openManual=(chapter,anchor)=>window.__manual.push([chapter,anchor])`);
   await click('How four decks work');
   await check(`JSON.stringify(window.__manual)==='[["four-decks",null]]'&&setupWizard.state.step==='done'`, 'How four decks work opens the manual at Four decks and leaves the done screen as it is');
   await evaluate(`window.openManual=undefined`);
   await click('How four decks work');
   await view('flow', 'quad');
   await check(txtQuad, 'without the manual it opens the cable guide, which keeps the paired-loader prerequisite');
-  await check(bar('Done')+`&&document.documentElement.scrollHeight>innerHeight+200&&`+barInView, 'the cable guide is taller than the window and its bar stays in view at the bottom');
+  await check(bar('Done')+`&&document.getElementById('card').scrollHeight>document.getElementById('card').clientHeight+200&&`+barInView, 'the cable guide is taller than the window and its bar stays in view at the bottom');
   // The cable guide's picture is the deck's own explainer, a looping video under the app's CSP.
   const quadVideo = `document.querySelector('.wz-quad-art video')`;
   await check(`(()=>{const v=${quadVideo};return Boolean(v)&&v.muted&&v.loop&&v.autoplay&&v.playsInline&&!v.controls&&v.getAttribute('src')==='assets/wizard/loopback-cable.mp4'&&v.getAttribute('poster')==='assets/wizard/loopback-cable-poster.webp'&&v.getAttribute('aria-label')==='One USB-B to USB-A cable loops back into the same XDJ-XZ'&&txt('#wz-quad-desc').includes('square USB-B plug with beveled top corners')&&!document.querySelector('.wz-quad-art svg');})()`, 'quad guide: the cable explainer plays muted, looping, without controls, with a poster and a text description');
@@ -724,7 +724,7 @@ try {
   await waitFor(`fx.selections.length===1&&activeJob===null&&document.querySelector('.wz-build-note')`, 'older included build follows the newest');
   await check(`fx.selections[0].mod_version_id==='v1'&&txt('.wz-build-note')==='Switched to the newest build, which came with this app.'&&txt('.wz-build-name')==='Development build newsha12'`, 'a saved older included build follows the newest build, said in the build line');
   await click('Change');
-  await check(`txt('#page-title')==='Updates'&&!document.getElementById('advanced').classList.contains('hidden')&&document.querySelector('nav button.selected').dataset.page==='updates'&&document.getElementById('tab-advanced').getAttribute('aria-selected')==='true'&&!document.getElementById('back-to-tools').checkVisibility()`, 'Change in the build line opens Updates › XZ Mods version');
+  await check(`txt('#page-title')==='XZ Mods version'&&!document.getElementById('advanced').classList.contains('hidden')&&document.querySelector('nav button.selected').dataset.page==='updates'&&document.getElementById('tab-advanced').getAttribute('aria-selected')==='true'&&!document.getElementById('back-to-tools').checkVisibility()`, 'Change in the build line opens Updates › XZ Mods version');
 
   await open('unknown');
   await view('device');
@@ -763,14 +763,14 @@ try {
   await evaluate(`document.getElementById('back-to-tools').click()`);
   await check(`!document.getElementById('tools').classList.contains('hidden')&&txt('#page-title')==='Tools'`, 'the back link returns to Tools');
   await waitFor(`activeJob===null`, 'repair drive discovery finished');
-  for (const [page, title] of [['dj-profile', 'DJ Profile'], ['licenses', 'About'], ['updates', 'Updates']]) {
+  for (const [page, title] of [['dj-profile', 'DJ Profile'], ['licenses', 'About'], ['updates', 'App updates']]) {
     await evaluate(`document.querySelector('nav button[data-page="${page}"]').click()`);
-    await check(`!document.getElementById('${page}').classList.contains('hidden')&&txt('#page-title')==='${title}'&&document.querySelector('nav button.selected').dataset.page==='${page}'&&!document.getElementById('back-to-tools').checkVisibility()&&!document.querySelector('#tools .tool-row[data-open="${page}"]')`, title + ' is its own rail item, with no back link and no second entry in Tools');
+    await check(`!document.getElementById('${page}').classList.contains('hidden')&&txt('#page-title')==='${title}'&&document.querySelector('nav button.selected').dataset.page==='${page}'&&!document.getElementById('back-to-tools').checkVisibility()&&!document.querySelector('#tools .tool-row[data-open="${page}"]')`, title + ' opens from its own section, with no back link and no second entry in Tools');
   }
-  await check(`[...document.querySelectorAll('#updates-tabs [role=tab]')].map(t=>t.textContent.trim()+':'+t.getAttribute('aria-selected')).join('|')==='App updates:true|XZ Mods version:false|Network updates:false'&&document.getElementById('updates-tabs').checkVisibility()&&document.getElementById('tab-updates').tabIndex===0`, 'Updates opens on App updates, with tabs for XZ Mods version and Network updates');
-  for (const [tab, page] of [['tab-advanced', 'advanced'], ['tab-device-updates', 'device-updates'], ['tab-updates', 'updates']]) {
+  await check(`[...document.querySelectorAll('#updates-tabs [role=tab]')].map(t=>t.textContent.trim()+':'+t.getAttribute('aria-selected')).join('|')==='App updates:true|XZ Mods version:false|Network updates:false'&&document.getElementById('updates-tabs').checkVisibility()&&document.getElementById('tab-updates').tabIndex===0&&!document.getElementById('ctx-updates').hidden`, 'Updates opens on App updates, with the side list holding XZ Mods version and Network updates');
+  for (const [tab, page, title] of [['tab-advanced', 'advanced', 'XZ Mods version'], ['tab-device-updates', 'device-updates', 'Network updates'], ['tab-updates', 'updates', 'App updates']]) {
     await evaluate(`document.getElementById('${tab}').click()`);
-    await check(`!document.getElementById('${page}').classList.contains('hidden')&&document.getElementById('${tab}').getAttribute('aria-selected')==='true'&&document.querySelector('nav button.selected').dataset.page==='updates'&&txt('#page-title')==='Updates'`, 'the ' + tab.slice(4) + ' tab opens its page under Updates');
+    await check(`!document.getElementById('${page}').classList.contains('hidden')&&document.getElementById('${tab}').getAttribute('aria-selected')==='true'&&document.querySelector('nav button.selected').dataset.page==='updates'&&txt('#page-title')==='${title}'`, 'the ' + tab.slice(4) + ' item opens its page under Updates, titled ' + title);
   }
   await waitFor(`activeJob===null`, 'network adapter detection finished');
   await evaluate(`document.getElementById('tab-updates').focus();document.getElementById('tab-updates').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))`);
@@ -800,7 +800,7 @@ try {
   await check(`txt('#page-title')==='Feedback'`, 'About › Feedback opens Feedback in the app');
   await evaluate(`showPage('licenses');document.getElementById('about-dj-profile').click()`);
   await check(`txt('#page-title')==='DJ Profile'&&document.querySelector('nav button.selected').dataset.page==='dj-profile'`, 'About › Make yours opens DJ Profile');
-  // Pages the manual shows that have no flow of their own, drawn here so their pictures carry the current rail.
+  // Pages the manual shows that have no flow of their own, drawn here so their pictures carry the current top bar.
   await evaluate(`showPage('updates')`); await idle(); await shot('14-app-updates');
   await evaluate(`showPage('device-updates')`);
   await waitFor(`activeJob===null&&document.getElementById('ota-network').value==='169.254.168.10'`, 'network updates: the adapter is listed');
@@ -877,7 +877,7 @@ try {
 
 
   // Layout sweep: from the smallest window the app allows (760 x 520) through a 1366 x 768 screen at 125 % and a
-  // 1280 x 720 one, to a large window. Nothing is cut off at the right or scrolls sideways, the rail's foot is on
+  // 1280 x 720 one, to a large window. Nothing is cut off at the right or scrolls sideways, Feedback is on
   // screen, and a guide step's bar is in view.
   await open('fresh');
   await view('device');
@@ -908,7 +908,7 @@ try {
     await evaluate(`document.getElementById('quad-close').click();showPage('setup')`);
   }
   await size(1100, 760);
-  passed++; console.log('ok', 'every page fits from 760 x 520 to 1920 x 1040: no sideways scroll, nothing cut off, the rail foot and the guide bar in view');
+  passed++; console.log('ok', 'every page fits from 760 x 520 to 1920 x 1040: no sideways scroll, nothing cut off, Feedback and the guide bar in view');
   await cspClean();
   assert.deepEqual(errors, [], 'no page errors: ' + errors.join(' / '));
   passed++; console.log('ok', 'no CSP violations and no page errors');

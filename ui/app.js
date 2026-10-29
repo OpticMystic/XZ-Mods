@@ -27,9 +27,9 @@ let repairInspection=null,repairDiscovery=null;
 // unsaved dropdown and checkbox state. USB writes read only the saved choice, through selectedVersionRequest().
 let modInventory=null,modDraft=null,modLoadError='',modImportFolder='',modImportedId=null;
 const modChannels={preview:'Preview',public:'Public release',release:'Public release',released:'Released',development:'Development build',dev:'Development build',imported:'Imported'};
-const titles={setup:'USB',stems:'Stems','dj-profile':'DJ Profile',updates:'Updates',advanced:'Updates','device-updates':'Updates',tools:'Tools','library-repair':'Repair library',games:'Game downloads','live-stream':'XZ Screen',manual:'Manual',licenses:'About'};
-// The rail item of each page that is not a rail item itself. Tools pages show a back link to Tools; the three
-// Updates pages show the Updates tabs in the header. Every other page is its own rail item.
+const titles={setup:'USB',stems:'Stems','dj-profile':'DJ Profile',updates:'App updates',advanced:'XZ Mods version','device-updates':'Network updates',tools:'Tools','library-repair':'Repair library',games:'Game downloads','live-stream':'XZ Screen',manual:'Manual',licenses:'About'};
+// The section of each page that is not a section itself. Tools pages show a back link to Tools; the three Updates
+// pages are listed in the side list. Every other page is its own section.
 const pageSection={'library-repair':'tools',games:'tools','live-stream':'tools',updates:'updates',advanced:'updates','device-updates':'updates'};
 // The single job panel moves next to the control that started the work. feedbackHome is that control;
 // feedbackLive is true while a visible job runs. Library reads report in the library and leave the panel alone.
@@ -38,24 +38,65 @@ const feedbackGroups='p,label,.actions,.path-row,.st-foot,.section-heading,.colu
 let feedbackHome=null,feedbackLive=false;
 const pageShown={setup:()=>window.setupWizard?.shown(),stems:()=>startStemLibrary(),'dj-profile':()=>window.djProfilePage?.show(),
   'library-repair':()=>{if(!repairDiscovery)repairDiscovery=discoverRepairDrives();},'device-updates':()=>$('ota-detect').click(),manual:()=>window.manualPage?.shown()};
+// The side list beside the page holds what a section has inside it: its panel in <aside id="ctx">. Sections without
+// one give the page the full width. Above 900 px the toggle folds the list away and the choice is kept; below it the
+// list is a drawer that closes when a page is picked.
+const ctxPanels={tools:'ctx-tools',updates:'ctx-updates',manual:'ctx-manual'},narrow=matchMedia('(max-width:900px)');
+let shownPage='setup';
+function ctxVisible(){const list=document.body.classList;return !!document.body.dataset.ctx&&(narrow.matches?list.contains('ctx-open'):!list.contains('ctx-closed')&&!list.contains('ctx-folded'));}
+function paintCtxToggle(){const on=ctxVisible();$('ctx-toggle').setAttribute('aria-expanded',String(on));$('ctx-toggle').title=on?'Hide the side list':'Show the side list';}
+function setCtx(open){
+  if(narrow.matches)document.body.classList.toggle('ctx-open',open);
+  else{document.body.classList.toggle('ctx-closed',!open);document.body.classList.remove('ctx-folded');try{localStorage.setItem('xz-ctx-closed',open?'':'1');}catch{}}
+  paintCtxToggle();
+}
+try{document.body.classList.toggle('ctx-closed',localStorage.getItem('xz-ctx-closed')==='1');}catch{}
+$('ctx-toggle').onclick=()=>setCtx(!ctxVisible());
+narrow.addEventListener('change',()=>{document.body.classList.remove('ctx-open');paintCtxToggle();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&narrow.matches&&document.body.classList.contains('ctx-open')&&!document.querySelector('dialog[open]')){setCtx(false);$('ctx-toggle').focus();}});
+$('card').addEventListener('pointerdown',()=>{if(narrow.matches&&document.body.classList.contains('ctx-open'))setCtx(false);});
+// The Manual opens its list from its own buttons (Search the manual) and closes the drawer after a chapter is picked.
+// fold(true) hides the list for a page that needs the width (the menu map) without changing the kept choice.
+window.appShell={showContext:()=>{if(!ctxVisible())setCtx(true);},closeDrawer:()=>{if(narrow.matches)setCtx(false);},
+  fold:on=>{document.body.classList.toggle('ctx-folded',on);paintCtxToggle();}};
+// The Tools list is built from the Tools page's own rows, so the two never differ.
+(()=>{
+  const list=$('ctx-tools-list'),item=(open,iconUse,text)=>{const button=node('button',undefined,'ctx-item');button.type='button';button.dataset.open=open;if(iconUse)button.append(iconUse);button.append(node('span',text));button.onclick=()=>showPage(open);return button;};
+  const overview=node('div',undefined,'ctx-list');overview.append(item('tools',document.querySelector('nav button[data-page="tools"] .icon').cloneNode(true),'All tools'));list.append(overview);
+  for(const group of document.querySelectorAll('#tools .tool-group')){
+    list.append(node('p',group.querySelector('.tool-group-title').textContent,'ctx-group'));
+    const rows=node('div',undefined,'ctx-list');
+    for(const row of group.querySelectorAll('.tool-row'))rows.append(item(row.dataset.open,row.querySelector('.tool-icon').cloneNode(true),row.querySelector('.tool-text strong').textContent));
+    list.append(rows);
+  }
+  for(const icon of list.querySelectorAll('.tool-icon'))icon.setAttribute('class','icon');
+})();
 function showPage(name){
   document.querySelectorAll('main>.page').forEach(page=>page.classList.toggle('hidden',page.id!==name));
   const section=pageSection[name]||name;
   document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('selected',item.dataset.page===section));
   $('page-title').textContent=titles[name];
   $('back-to-tools').classList.toggle('hidden',section!=='tools'||name==='tools');
-  $('updates-tabs').classList.toggle('hidden',section!=='updates');
   for(const tab of $('updates-tabs').children){const on=tab.dataset.open===name;tab.setAttribute('aria-selected',String(on));tab.tabIndex=on?0:-1;}
+  for(const item of $('ctx-tools-list').querySelectorAll('.ctx-item')){if(item.dataset.open===name)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');}
+  const ctx=ctxPanels[section];
+  if(ctx)document.body.dataset.ctx=section;else delete document.body.dataset.ctx;
+  for(const panel of $('ctx').children)panel.hidden=panel.id!==ctx;
+  document.body.classList.remove('ctx-folded');
+  if(narrow.matches)document.body.classList.remove('ctx-open');
+  paintCtxToggle();
+  if(name!==shownPage)$('card').scrollTop=0;
+  shownPage=name;
   if(!feedbackLive)jobPanel.classList.add('hidden');else{positionFeedback();revealFeedback();}
   pageShown[name]?.();
 }
 for(const button of document.querySelectorAll('nav button'))button.onclick=()=>showPage(button.dataset.page);
 for(const row of document.querySelectorAll('.tool-row'))row.onclick=()=>showPage(row.dataset.open);
-// The Updates tabs: a click opens the page; the arrow keys, Home and End move between the tabs and open each one.
+// The Updates list: a click opens the page; the arrow keys, Home and End move between the pages and open each one.
 for(const tab of $('updates-tabs').children)tab.onclick=()=>showPage(tab.dataset.open);
 $('updates-tabs').onkeydown=event=>{
   const tabs=[...$('updates-tabs').children],at=tabs.indexOf(document.activeElement);
-  const next={ArrowRight:at+1,ArrowLeft:at-1,Home:0,End:tabs.length-1}[event.key];
+  const next={ArrowDown:at+1,ArrowUp:at-1,ArrowRight:at+1,ArrowLeft:at-1,Home:0,End:tabs.length-1}[event.key];
   if(at<0||next===undefined)return;event.preventDefault();
   const tab=tabs[(next+tabs.length)%tabs.length];showPage(tab.dataset.open);tab.focus();
 };
@@ -250,7 +291,7 @@ function renderReleaseNotes(holder,notes,version){
   }
   holder.append(entry);
 }
-// A dot on Updates in the rail and on the App updates tab while a newer app is on offer.
+// A dot on Updates in the sections and on App updates in its side list while a newer app is on offer.
 function paintUpdateDot(on){
   for(const host of [document.querySelector('nav button[data-page="updates"]'),$('tab-updates')]){
     const dot=host.querySelector('.nav-dot');
@@ -294,7 +335,7 @@ $('install-app-update').onclick=async()=>{
 async function loadAppInformation(){
   if(!invoke){$('check-app-update').disabled=true;$('open-licenses').disabled=true;return;}
   try{
-    const info=await invoke('app_information');document.querySelectorAll('[data-app-version]').forEach(item=>item.textContent=info.version);
+    const info=await invoke('app_information');document.querySelectorAll('[data-app-version]').forEach(item=>item.textContent=info.version);document.querySelector('.top-version').title='Version '+info.version;
     // The Mac build ships no signed updater files, so in-app update cannot work there; .win-only/.mac-only follow this.
     document.documentElement.dataset.platform=info.platform;
     document.documentElement.dataset.updateChannel=info.update_channel||'stable';

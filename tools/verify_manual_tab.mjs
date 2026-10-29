@@ -8,7 +8,7 @@ import { serveUi } from './csp_server.mjs';
 import { killBrowser } from './kill_browser.mjs';
 
 // Drives the Manual page of ui/index.html in headless Edge over CDP, served with the app's real CSP. It checks the
-// rail entry, every chapter, the numbered points against the chapters' figure blocks, search, openManual, the
+// section in the top bar, the chapter list in the side list, every chapter, the numbered points against the chapters' figure blocks, search, openManual, the
 // explainers, the reading position, the interface filter, reduced motion and narrow windows. No packages needed.
 // The menu map (ui/manual-map.js): its doorways, the tree, pan and zoom, keys, find, the screen panel, chapter links
 // both ways, every state, CLASSIC, window sizes and reduced motion, all under the app CSP.
@@ -129,10 +129,10 @@ try {
   const fits = `(()=>{const out=[];if(document.documentElement.scrollWidth>innerWidth+1)out.push('page '+document.documentElement.scrollWidth+' wide');for(const item of document.querySelectorAll('#manual .m-chapter>*,#manual .m-start>*,#manual .m-side'))if(item.getBoundingClientRect().right>innerWidth+1)out.push((item.className||item.tagName)+' '+Math.round(item.getBoundingClientRect().right));return out.length?out.slice(0,4).join('; '):true;})()`;
 
   await open();
-  await check(`[...document.querySelectorAll('aside nav button')].map(b=>b.dataset.page).join()==='setup,stems,dj-profile,updates,tools,manual,licenses,my-reports'&&document.querySelector('nav button[data-page=manual] use').getAttribute('href')==='#i-book'&&txt('nav button[data-page=manual]')==='Manual'`, 'the rail has Manual, with its book glyph, between Tools and About');
+  await check(`[...document.querySelectorAll('.topbar nav button')].map(b=>b.dataset.page).join()==='setup,stems,dj-profile,updates,tools,manual,licenses,my-reports'&&document.querySelector('nav button[data-page=manual] use').getAttribute('href')==='#i-book'&&txt('nav button[data-page=manual]')==='Manual'`, 'the top bar has Manual, with its book glyph, between Tools and About');
   await evaluate(`document.querySelector('nav button[data-page=manual]').click()`);
   await waitFor(`manualPage.state().view==='start'&&document.querySelectorAll('.mt-card').length>0`, 'start page');
-  await check(`txt('#page-title')==='Manual'&&document.querySelector('nav button[data-page=manual]').classList.contains('selected')&&!document.getElementById('manual').classList.contains('hidden')`, 'the rail item opens the Manual page and is selected');
+  await check(`txt('#page-title')==='Manual'&&document.querySelector('nav button[data-page=manual]').classList.contains('selected')&&!document.getElementById('manual').classList.contains('hidden')&&document.querySelector('#ctx-manual:not([hidden]) .m-side .m-toc')&&getComputedStyle(document.getElementById('ctx')).display==='block'`, 'the Manual section opens the Manual page, is selected and puts the chapter list in the side list');
   const media = await evaluate(`manualArt.media()`);
   assert.equal(media.format, 'xz-manual-media/1', 'ui/assets/manual/media.js is loaded');
   console.log('   media: ' + (process.env.XZ_MANUAL_MEDIA ? 'staged copy ' + process.env.XZ_MANUAL_MEDIA : 'ui/assets/manual') + '; clips for ' + Object.keys(media.explainers).join(', ') + '; hero ' + (media.hero.interim ? 'interim cable render' : 'rendered'));
@@ -148,7 +148,7 @@ try {
   await check(`(()=>{const imgs=[...document.querySelectorAll('.mt-card .mt-art img')];return imgs.length===XZ_MANUAL.tour.length&&imgs.every((i,k)=>i.getAttribute('src')===XZ_MANUAL.tour[k].img&&i.getAttribute('src').startsWith('manual/shots/')&&i.getAttribute('src').endsWith('.webp')&&i.naturalWidth===XZ_MANUAL.tour[k].w&&i.naturalHeight===XZ_MANUAL.tour[k].h);})()`, 'every tour tile shows its picture, a render, at its own size');
   await check(drawings, 'no SVG drawing on the start page: the hero and the tour are renders');
   if (shots) { await size(1280, 1500); await evaluate(`document.querySelector('.mt-grid').scrollIntoView({block:'start'})`); await shot('01-tour', await evaluate(`(()=>{const r=document.querySelector('.mt-grid').getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`)); await size(1280, 860); }
-  await evaluate(`scrollTo(0,0)`);
+  await evaluate(`document.getElementById('card').scrollTo(0,0)`);
   await shot('01-start');
   await cspClean('on the start page');
   ok('no CSP violations and no page errors on the start page');
@@ -200,7 +200,7 @@ try {
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: markBox[0], y: markBox[1] });
   await waitFor(`document.querySelector('.mf .mf-mark[data-n="2"]').classList.contains('is-on')`, 'hover highlights point 2');
   await check(`(()=>{const f=document.querySelector('.mf');return f.querySelector('.mf-tip').classList.contains('is-on')&&f.querySelector('.mf-tip').textContent.includes(f.querySelector('.mf-legend li[data-n="2"] b').textContent)&&f.querySelector('.mf-legend li[data-n="2"]').classList.contains('is-on')&&f.querySelector('.mf-stage').classList.contains('has-spot')&&f.querySelector('.mf-stage').style.getPropertyValue('--sx')===f.querySelector('.mf-mark[data-n="2"]').dataset.x+'%';})()`, 'pointing at a number highlights it, lights its legend row, spotlights it and shows its text');
-  await shot('03-hotspot', await evaluate(`(()=>{const r=document.querySelector('.mf').getBoundingClientRect();return {x:Math.max(0,r.left-20),y:Math.max(0,r.top+scrollY-20),width:Math.min(innerWidth,r.width+40),height:r.height+40};})()`));
+  await shot('03-hotspot', await evaluate(`(()=>{document.querySelector('.mf').scrollIntoView({block:'nearest'});const r=document.querySelector('.mf').getBoundingClientRect();return {x:Math.max(0,r.left-20),y:Math.max(0,r.top+scrollY-20),width:Math.min(innerWidth,r.width+40),height:r.height+40};})()`));
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 });
   await waitFor(`!document.querySelector('.mf .mf-stage').classList.contains('has-spot')`, 'leaving clears the highlight');
   await check(`document.querySelectorAll('.mf')[0].querySelectorAll('.mf-mark[tabindex="0"]').length===1&&document.querySelectorAll('.mf')[0].querySelectorAll('.mf-mark[tabindex="-1"]').length===document.querySelectorAll('.mf')[0].querySelectorAll('.mf-mark').length-1`, 'the numbered points are one tab stop');
@@ -224,7 +224,7 @@ try {
     await evaluate(`${FOUR}.scrollIntoView({block:'center'})`);
     await waitFor(`${FOUR}.classList.contains('is-playing')&&!${FOUR}.querySelector('video').paused`, 'the explainer plays once it is in view');
     ok('the explainer plays its first clip by itself once it scrolls into view');
-    const fourBox = async () => evaluate(`(()=>{const r=${FOUR}.getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`);
+    const fourBox = async () => evaluate(`(()=>{${FOUR}.scrollIntoView({block:'nearest'});const r=${FOUR}.getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`);
     for (let step = 1; step <= 8; step++) {
       const clip = fourDef.scenes[step - 1];
       await evaluate(`${FOUR}.querySelector('.mx-dots button[data-i="${step}"]').click()`);
@@ -266,7 +266,7 @@ try {
         if (shots) {
           await evaluate(`document.querySelectorAll('.mx')[${k}].scrollIntoView({block:'center'})`);
           await sleep(1400);
-          await shot(`05-${x.kind}-${scene}`, await evaluate(`(()=>{const r=document.querySelectorAll('.mx')[${k}].getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`));
+          await shot(`05-${x.kind}-${scene}`, await evaluate(`(()=>{document.querySelectorAll('.mx')[${k}].scrollIntoView({block:'nearest'});const r=document.querySelectorAll('.mx')[${k}].getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`));
         }
       }
     }
@@ -310,7 +310,7 @@ try {
   await evaluate(`showPage('tools')`);
   await evaluate(`openManual('performance','ram-tracks')`);
   await waitFor(`manualPage.state().slug==='performance'`, 'openManual with an anchor');
-  await check(`(()=>{const h=document.querySelector(':is(h3,h4)[data-anchor="ram-tracks"]').getBoundingClientRect();return h.top>=-2&&h.top<innerHeight/2||'top '+h.top+' scrollY '+scrollY+' height '+document.documentElement.scrollHeight;})()`, 'openManual(chapter, anchor) scrolls to that heading');
+  await check(`(()=>{const h=document.querySelector(':is(h3,h4)[data-anchor="ram-tracks"]').getBoundingClientRect();return h.top>=-2&&h.top<innerHeight/2||'top '+h.top+' scrolled '+document.getElementById('card').scrollTop+' height '+document.getElementById('card').scrollHeight;})()`, 'openManual(chapter, anchor) scrolls to that heading');
   await evaluate(`openManual('no-such-chapter')`);
   await waitFor(`manualPage.state().view==='start'`, 'an unknown chapter opens the start page');
   ok('an unknown chapter opens the start page');
@@ -525,9 +525,11 @@ try {
     await check(fits, `the start page fits ${w} x ${h}`);
   }
   await size(760, 520);
-  await check(`getComputedStyle(document.querySelector('.m-side-body')).display==='none'&&!!document.querySelector('.m-side-toggle').offsetWidth`, 'in a narrow window the chapter list folds behind Chapters');
-  await evaluate(`document.querySelector('.m-side-toggle').click()`);
-  await check(`getComputedStyle(document.querySelector('.m-side-body')).display==='block'&&document.querySelector('.m-side-toggle').getAttribute('aria-expanded')==='true'`, 'Chapters opens the list');
+  await check(`getComputedStyle(document.getElementById('ctx')).display==='none'&&!!document.getElementById('ctx-toggle').offsetWidth&&document.getElementById('ctx-toggle').getAttribute('aria-expanded')==='false'`, 'in a narrow window the chapter list folds behind the side list button');
+  await evaluate(`document.getElementById('ctx-toggle').click()`);
+  await check(`getComputedStyle(document.getElementById('ctx')).display==='block'&&!!document.querySelector('.m-side-body .m-toc').offsetWidth&&document.getElementById('ctx-toggle').getAttribute('aria-expanded')==='true'`, 'the side list button opens it as a drawer');
+  await evaluate(`document.querySelector('.m-toc-ch[data-slug="stems"]').click()`); await waitFor(`manualPage.state().slug==='stems'`, 'drawer pick');
+  await check(`getComputedStyle(document.getElementById('ctx')).display==='none'&&document.getElementById('ctx-toggle').getAttribute('aria-expanded')==='false'`, 'picking a chapter closes the drawer');
   await size(1280, 860);
 
   // "/" focuses search.
@@ -543,13 +545,13 @@ try {
   if (shots) {
     await size(1100, 760);
     // With reduced motion the explainer shows its first poster, so the picture is the same every time. When the first
-    // explainer with clips is below the fold, the page scrolls until it is in view; the chapter list stays put.
+    // explainer with clips is below the fold, the card scrolls until it is in view; the top bar and the chapter list stay put.
     await evaluate(`localStorage.clear()`);
     await motion('reduce');
     await open();
     await evaluate(`openManual('four-decks')`);
     await waitFor(`manualPage.state().slug==='four-decks'`, 'app shot');
-    await evaluate(`document.activeElement.blur();scrollTo(0,0);(()=>{const x=[...document.querySelectorAll('.mx')].find(b=>!b.hidden);const r=x?.getBoundingClientRect();if(r&&r.bottom>innerHeight-12)scrollTo(0,Math.round(r.bottom-innerHeight+28));})()`);
+    await evaluate(`document.activeElement.blur();const card=document.getElementById('card');card.scrollTo(0,0);(()=>{const x=[...document.querySelectorAll('.mx')].find(b=>!b.hidden);const r=x?.getBoundingClientRect();if(r&&r.bottom>innerHeight-12)card.scrollTo(0,Math.round(r.bottom-innerHeight+28));})()`);
     await sleep(1600);
     const image = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: await evaluate('scrollY'), width: 1100, height: 760, scale: 1 } });
     await motion('no-preference');
@@ -638,7 +640,7 @@ try {
   await evaluate(`${NAV}.querySelectorAll('.mn-list>li')[1].click()`);
   await waitFor(`(()=>{const x=${NAV},v=x.querySelector('video'),li=x.querySelectorAll('.mn-list>li');return v.currentTime*1000>=${rbSteps[1].t_ms - 300}&&li[1].classList.contains('is-now')&&li[0].classList.contains('is-done');})()`, 'a click on step 2 plays from step 2 and lights it');
   await check(`${NAV}.querySelector('.mn-list').textContent.includes('button above')&&!/rekordbox/i.test(${NAV}.textContent)&&[...${NAV}.querySelectorAll('.mn-list .xzb')].some(k=>k.dataset.key==='link')`, 'the steps name the button above LINK in key notation, with no maker name');
-  if (shots) { await sleep(600); await shot('05n-nav-above-link', await evaluate(`(()=>{const r=${NAV}.getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`)); }
+  if (shots) { await sleep(600); await shot('05n-nav-above-link', await evaluate(`(()=>{${NAV}.scrollIntoView({block:'nearest'});const r=${NAV}.getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`)); }
   const multi = `[...document.querySelectorAll('.mn')].find(x=>x.querySelectorAll('.mn-tabs button').length>1)`;
   const second = await evaluate(`${multi}?.dataset.flows.split(' ')[1]||''`);
   if (second) {
