@@ -909,8 +909,10 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
    int native_return=-1;
    /* An automatic stop handoff can choose a playing stock deck other than the
       lease's old master. The usual operator/foreign/current-master restore
-      guards still decide whether the consumer may perform that return. */
-   if(decks&&decks->route_up&&!decks->deck[side].playing&&!decks->master_intent.explicit_choice&&
+      guards still decide whether the consumer may perform that return. Only a
+      stop handoff makes a non-explicit native intent; a VINYL brake still
+      publishes the source as playing when it does. */
+   if(decks&&decks->route_up&&!decks->master_intent.explicit_choice&&
       (unsigned)decks->master_intent.deck<2&&operator_epoch==rt_lease.claim.master_choice_epoch)
     native_return=decks->master_intent.deck;
    release_runtime_lease(native_return);

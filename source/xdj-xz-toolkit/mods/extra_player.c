@@ -2450,7 +2450,7 @@ static int native_master_playing(struct xz_xp_players *p,uint32_t now,int *absen
  return 1;
 }
 static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
- uint32_t authority_choice;int selected=sync_selection(p,d,&authority_choice);
+ uint32_t authority_choice;int selected=sync_selection(p,d,&authority_choice),own=0;
  if(p->master_observer){
   uint32_t intent_epoch=atomic_load(&p->sync_choice_epoch);
   if(d->handoff_intent_epoch!=intent_epoch){
@@ -2458,15 +2458,21 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
   }
   pthread_mutex_lock(&p->publish_lock);struct xz_master_intent intent=master_intent_locked(p);
   int pending_intent=p->acknowledged_intent!=intent.epoch;pthread_mutex_unlock(&p->publish_lock);
-  if(selected< -1||(pending_intent&&intent.explicit_choice&&intent.deck!=d->master_actual.deck))return;
+  /* The engine confirmed this deck for the current intent. The bridge withdraws
+     a stopping source before this worker sees it stop, so the observation alone
+     would lose the handoff. Operator events replace the intent instead. */
+  own=!pending_intent&&intent.deck==d->index+2;
+  if(own)authority_choice=intent.epoch;
+  else if(selected< -1||(pending_intent&&intent.explicit_choice&&intent.deck!=d->master_actual.deck))return;
  }
  int other=1-d->index,other_playing=state_playing(atomic_load(&p->deck[other].published_state));
  int absent;
- if(selected==d->index){
+ if(selected==d->index||own){
   d->native_idle_pending=0;
   uint32_t choice=authority_choice;
   if(d->master_playing_choice!=choice){d->master_playing_choice=choice;d->master_playing_seen=0;}
-  if(state_playing(d->state)){d->master_playing_seen=1;return;}
+  /* A pause in VINYL mode brakes first; the master leaves at the press, as in CDJ mode. */
+  if(state_playing(d->state)){d->master_playing_seen=1;if(!(d->ramp.active&&d->ramp.stopping))return;}
   if(loaded(d->state)&&!d->master_playing_seen)return;
   struct xz_sync_native_snapshot candidate={0};
   int native=native_master_playing(p,now,&absent,NULL),native_deck=-1;
@@ -2484,10 +2490,13 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
   if(next!=d->index&&(next<0&&p->master_observer?request_master(p,native_deck,0,0,observe_operator(p)):select_sync_master(p,next)))xz_xp_notice(p,next<0?"MASTER: NATIVE DECK":next?"MASTER: DECK 4":"MASTER: DECK 3");
   return;
  }
- if(selected>=0||!state_playing(d->state)||d->state==XZ_XP_SCRATCHING){d->native_idle_pending=0;return;}
+ /* Without the observer, as before: only a playing deck reads the native clock here. */
+ if(selected>=0||(!p->master_observer&&(!state_playing(d->state)||d->state==XZ_XP_SCRATCHING))){d->native_idle_pending=0;return;}
  struct xz_sync_native_snapshot stopped={0};
  int native_playing=native_master_playing(p,now,&absent,&stopped);
- uint32_t choice=authority_choice;
+ /* An operator event is a new choice. The observation revision also moves when
+    the stock consumer pauses, which must not forget that the master played. */
+ uint32_t choice=p->master_observer?d->master_actual.operator_epoch:authority_choice;
  if(!stopped.available||(p->master_observer&&stopped.native_deck!=d->master_actual.deck)){
   d->native_idle_pending=0;return;
  }
@@ -2499,6 +2508,8 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
   d->native_playing_seen=0;d->native_idle_pending=0;
  }
  if(native_playing){d->native_playing_seen=1;d->native_idle_pending=0;return;}
+ /* A paused deck still records that the native master played; only a playing deck takes over. */
+ if(!state_playing(d->state)||d->state==XZ_XP_SCRATCHING){d->native_idle_pending=0;return;}
  if(!absent||!d->native_playing_seen){d->native_idle_pending=0;return;}
  if(!d->native_idle_pending||d->native_idle_deck!=stopped.native_deck||
     d->native_idle_identity!=stopped.track_identity||d->native_idle_revision!=stopped.source_revision||
