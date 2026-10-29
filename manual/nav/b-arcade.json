@@ -1,0 +1,75 @@
+{
+  "section": "extras#beat-arcade",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "EXTRAS"
+    },
+    {
+      "tap": "GAMES"
+    },
+    {
+      "tap": "BEAT ARCADE",
+      "expect_game": 1
+    },
+    {
+      "turn": 1
+    },
+    {
+      "push": true
+    },
+    {
+      "game_input": [
+        "jog",
+        20
+      ],
+      "control": "left deck jog wheel"
+    },
+    {
+      "game_input": [
+        "cue",
+        1
+      ],
+      "control": "left deck CUE"
+    },
+    {
+      "game_input": [
+        "cue",
+        0
+      ],
+      "control": "left deck CUE"
+    },
+    {
+      "game_input": [
+        "gamepad",
+        6
+      ],
+      "control": "left deck pad G"
+    },
+    {
+      "touch": [
+        750,
+        24
+      ]
+    },
+    {
+      "touch": [
+        750,
+        24
+      ],
+      "expect_game": 0
+    }
+  ],
+  "requires_states": [
+    {
+      "game": 1,
+      "game_phase": 1
+    },
+    {
+      "game": 0
+    }
+  ]
+}

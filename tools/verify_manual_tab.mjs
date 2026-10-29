@@ -273,6 +273,7 @@ try {
   }
   ok(`every explainer block is drawn by its clips where rendered (${shown.join(', ') || 'none yet'}) and hidden where not`);
 
+
   // Search.
   await evaluate(`showPage('manual')`);
   const search = async query => { await evaluate(`(()=>{const i=document.getElementById('m-q');i.value=${JSON.stringify(query)};i.dispatchEvent(new Event('input'));})()`); await waitFor(`manualPage.state().view==='search'&&document.querySelector('.m-results-head')`, 'search ' + query); await sleep(150); };
@@ -601,6 +602,48 @@ try {
   await cspClean('with reduced motion');
   await check(`(()=>{const probe=document.createElement('div');probe.setAttribute('style','color:rgb(255, 0, 0)');document.body.append(probe);const blocked=getComputedStyle(probe).color!=='rgb(255, 0, 0)';probe.remove();return location.protocol==='http:'&&blocked;})()`, 'the page runs under the app CSP: a style attribute is blocked, as in the installed app');
   ok('no CSP violations and no page errors');
+
+  // Navigation videos (```nav``` blocks, manual/nav-media.json): every block mounts one player whose flows, videos and
+  // steps are the ones nav-media.json records; the video decodes under the CSP; a click on a step seeks to it and
+  // lights it; the flow tabs switch the video.
+  const navMedia = JSON.parse(await readFile(join(app, 'manual/nav-media.json'), 'utf8')).flows;
+  let navCount = 0, navFlows = new Set();
+  for (const { slug } of book.chapters) {
+    const text = (await readFile(join(app, 'manual/chapters', slug + '.md'), 'utf8')).replace(/\r\n/g, '\n');
+    const blocks = [...text.matchAll(/^```nav (\S+)[^\n]*\n((?:(?!```)[^\n]*\n)*)```/gm)].map(m => [m[1], ...m[2].split('\n').filter(l => l.trim()).map(l => l.split('|')[0].trim())]);
+    if (!blocks.length) continue;
+    await evaluate(`openManual(${JSON.stringify(slug)})`);
+    await waitFor(`manualPage.state().slug===${JSON.stringify(slug)}`, slug);
+    const found = await evaluate(`[...document.querySelectorAll('.mn')].map(x=>({mounted:x.dataset.mounted||'',flows:(x.dataset.flows||'').split(' ').filter(Boolean),videos:x.querySelectorAll('.mn-stage video').length,src:x.querySelector('.mn-stage video')?.getAttribute('src')||'',steps:x.querySelectorAll('.mn-list>li').length,tabs:x.querySelectorAll('.mn-tabs button').length}))`);
+    assert.deepEqual(found.map(x => x.flows), blocks, slug + ': every nav block is in the page with its flows');
+    for (const [k, x] of found.entries()) {
+      const first = navMedia[x.flows[0]];
+      assert(x.mounted === '1' && x.videos === 1 && x.src === first.video, `${slug} nav ${x.flows[0]}: mounted with its video (${JSON.stringify(x)})`);
+      assert.equal(x.steps, first.steps.length, `${slug} nav ${x.flows[0]}: one step per recorded step`);
+      assert.equal(x.tabs, x.flows.length > 1 ? x.flows.length : 0, `${slug} nav ${x.flows[0]}: one tab per flow when there are several`);
+      x.flows.forEach(f => navFlows.add(f)); navCount++;
+    }
+    await check(`[...document.querySelectorAll('.mn svg')].every(s=>s.closest('button'))`, slug + ': no SVG drawing in its navigation videos');
+  }
+  assert(navCount > 0, 'the chapters have navigation videos');
+  // One player in depth: the button above LINK in the hardware chapter, then its second flow.
+  await evaluate(`openManual('hardware')`);
+  await waitFor(`manualPage.state().slug==='hardware'`, 'hardware');
+  const NAV = `[...document.querySelectorAll('.mn')].find(x=>(x.dataset.flows||'').split(' ')[0]==='physical-above-link')`;
+  await evaluate(`${NAV}.scrollIntoView({block:'center'})`);
+  await waitFor(`(()=>{const v=${NAV}.querySelector('video');return v.readyState>=2&&v.videoWidth===1280&&v.videoHeight===480;})()`, 'the navigation video decodes under the app CSP');
+  const rbSteps = navMedia['physical-above-link'].steps;
+  await evaluate(`${NAV}.querySelectorAll('.mn-list>li')[1].click()`);
+  await waitFor(`(()=>{const x=${NAV},v=x.querySelector('video'),li=x.querySelectorAll('.mn-list>li');return v.currentTime*1000>=${rbSteps[1].t_ms - 300}&&li[1].classList.contains('is-now')&&li[0].classList.contains('is-done');})()`, 'a click on step 2 plays from step 2 and lights it');
+  await check(`${NAV}.querySelector('.mn-list').textContent.includes('button above')&&!/rekordbox/i.test(${NAV}.textContent)&&[...${NAV}.querySelectorAll('.mn-list .xzb')].some(k=>k.dataset.key==='link')`, 'the steps name the button above LINK in key notation, with no maker name');
+  if (shots) { await sleep(600); await shot('05n-nav-above-link', await evaluate(`(()=>{const r=${NAV}.getBoundingClientRect();return {x:r.left,y:r.top+scrollY,width:r.width,height:r.height};})()`)); }
+  const multi = `[...document.querySelectorAll('.mn')].find(x=>x.querySelectorAll('.mn-tabs button').length>1)`;
+  const second = await evaluate(`${multi}?.dataset.flows.split(' ')[1]||''`);
+  if (second) {
+    await evaluate(`${multi}.querySelectorAll('.mn-tabs button')[1].click()`);
+    await check(`(()=>{const x=${multi};return x.querySelector('video').getAttribute('src')===${JSON.stringify(navMedia[second]?.video)}&&x.querySelectorAll('.mn-tabs button')[1].getAttribute('aria-pressed')==='true'&&x.querySelectorAll('.mn-list>li').length===${navMedia[second]?.steps.length};})()`, 'a flow tab switches the video and its steps');
+  }
+  ok(`${navCount} navigation videos (${navFlows.size} flows) mount with their recorded steps; steps seek; tabs switch`);
 
   // The embedded copy holds only files it uses.
   const used = new Set((manualJs + (await Promise.all((await readdir(join(app, 'ui/manual/chapters'))).map(f => readFile(join(app, 'ui/manual/chapters', f), 'utf8')))).join('')).match(/manual\/shots\/[0-9a-f]+\.(webp|svg)/g));

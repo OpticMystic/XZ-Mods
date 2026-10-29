@@ -9,6 +9,9 @@ XZ Mods is software for the XDJ-XZ that starts from a USB stick. It adds a MODS 
 
 XZ Mods runs in the player's memory. It never writes to the player's firmware, so the XDJ-XZ itself stays stock.
 
+```nav utility What changes and what stays stock
+```
+
 - The player picks up the XZ Mods loader (`autoexec.bin`) from the USB at start and runs XZ Mods from there.
 - Your music, the library your DJ software exported and your playlists stay as they are. XZ Mods adds its own folders beside them.
 - The player's own settings are still there. Hold [[MENU]] to open UTILITY, exactly as on a stock XDJ-XZ.
@@ -57,6 +60,9 @@ Every step of the app is in [The XZ Mods app](desktop-app#usb). To add stems to 
 
 ## First start
 
+```nav b-first-menu First start
+```
+
 1. Plug the USB into **USB 1** or **USB 2** on the top of the XDJ-XZ.
 2. Switch the player on.
 3. Wait for XZ Mods to start. Load a track as usual and check it plays.
@@ -83,6 +89,9 @@ The rest of the play screen is in [The play screen](play-screen).
 
 CLASSIC keeps the player's own play screen and adds MODS to it. Touch **MODS** at the top right, or press [[MENU]], to open the menu. A classic theme can restyle the screen. See [Screen, interfaces and themes](screen-and-themes).
 
+```nav physical-above-link CLASSIC on first start {classic}
+```
+
 ## Choose MODERN or CLASSIC
 
 The XZ starts in the interface saved on the USB. You choose it in the app before the first start, and you can change it on the player at any time. Nothing else changes when you switch. Your settings, stems and decks stay as they are.
@@ -107,6 +116,10 @@ There are two ways to switch.
 - Press the button above [[LINK]]. Out of the box it switches between MODERN and CLASSIC, and the screen says which one you are in. You can give it another job in **PLAY** › **BUTTON ABOVE LINK**.
 - Open MODS, go to **SCREEN** and choose **CLASSIC** or **MODERN** under **INTERFACE**.
 
+```nav physical-above-link Switch on the player | The button above LINK
+interface-choice | MODS › SCREEN › INTERFACE
+```
+
 ```figure classic:theme-{look}-screen MODS · SCREEN
 INTERFACE is the first choice on the SCREEN page.
 1 @ 200,53 INTERFACE | The interface the XZ shows. The change saves to the USB.
@@ -122,6 +135,9 @@ INTERFACE is the first choice on the SCREEN page.
 ## Updating
 
 There are two things to update, and they update separately.
+
+```nav updates Updating
+```
 
 | What | How |
 |---|---|

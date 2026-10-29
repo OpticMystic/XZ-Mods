@@ -9,6 +9,9 @@ MODS is the menu XZ Mods adds to the player. Everything the mod can change lives
 
 Press [[MENU]] on the play screen. A short press opens MODS wherever the player's own firmware has no job for [[MENU]], and leaves the stock job alone everywhere else. Hold [[MENU]] to open the player's own UTILITY, exactly as on a stock XDJ-XZ.
 
+```nav menu-close Open and close MODS
+```
+
 ```generated menu-key
 ```
 
@@ -21,6 +24,9 @@ You can also open MODS from the **MODS** button at the top of the MODERN play sc
 ## Move around
 
 You can drive the whole menu with the rotary encoder, with touch, or with both.
+
+```nav encoder-settings Move around
+```
 
 | Control | What it does in MODS |
 |---|---|
@@ -36,6 +42,9 @@ Every page has the same frame. The section rail on the left lists HOME, PLAY, ST
 ## HOME
 
 HOME is the first page. It shows one card for each section, with a one-line summary of what the section does and the current state of its most important setting, so you can see at a glance whether stems are ready or four decks are connected.
+
+```nav mods-home HOME
+```
 
 ```figure classic:theme-{look}-home MODS · HOME
 The HOME page with stems ready and four decks not connected yet.
@@ -65,6 +74,9 @@ Two setup buttons can appear on HOME. **SET UP USB STEMS** opens the USB stems g
 
 PLAY changes what the pads and buttons do while you perform.
 
+```nav mods-play PLAY
+```
+
 ```figure classic:theme-{look}-play MODS · PLAY
 1 @ 128,84 BEAT JUMP PADS | Your own beat jump distances for both pad pages. The row shows the sizes now in use.
 2 @ 128,132 GATE CUE and SMART CUE | Switch each cue trick on or off. A feature the player has not reported yet shows a SET UP button instead.
@@ -79,6 +91,9 @@ PLAY changes what the pads and buttons do while you perform.
 
 STEMS mutes vocals, harmonics and drums from the pads or the screen.
 
+```nav mods-stems STEMS
+```
+
 ```figure classic:theme-{look}-stems-section MODS · STEMS
 1 @ 128,84 USB STEMS | Switches stems from the USB on or off. Reads SET UP USB STEMS until the stem engine is ready.
 2 @ 128,148 STEM PADS | Which pad mode and pad bank the stems use.
@@ -92,6 +107,9 @@ STEMS IN DJ SOFTWARE sets up stems for a computer playing through the player. MO
 ## SCREEN
 
 SCREEN sets how the play screen looks.
+
+```nav mods-screen SCREEN
+```
 
 ```figure classic:theme-{look}-screen MODS · SCREEN
 1 @ 128,100 INTERFACE | CLASSIC or MODERN. The picture shows each one.
@@ -110,6 +128,9 @@ SCREEN sets how the play screen looks.
 
 4 DECKS plays decks 3 and 4 over the loopback cable {experimental}.
 
+```nav mods-four-decks 4 DECKS
+```
+
 ```figure classic:theme-{look}-active-four-decks MODS · 4 DECKS
 1 @ 340,67 Cable state | Where four decks stand, and what happens next.
 2 @ 620,110 RESCAN | Checks the cable now. Reads TRY AGAIN after a failed start.
@@ -123,6 +144,9 @@ SCREEN sets how the play screen looks.
 
 CONNECT links the player to you and to computers.
 
+```nav mods-connect CONNECT
+```
+
 ```figure classic:theme-{look}-connect MODS · CONNECT
 1 @ 225,110 DJ PROFILE | Your DJ name and logo from the USB, for VJ screens.
 2 @ 557,110 VJ.TOOLS | Lets VJ.Tools on a computer connect, and shows its picture instead of the play screen.
@@ -133,6 +157,9 @@ CONNECT links the player to you and to computers.
 [Connect and DJ profiles](connect) explains every page here.
 
 ## EXTRAS
+
+```nav mods-extras EXTRAS
+```
 
 ```figure classic:theme-{look}-extras MODS · EXTRAS
 1 @ 225,110 GAMES | Doom, Chex Quest, Beat Arcade, Wave Rider, Rhythm Lab and Static Surfer. The music keeps playing.
@@ -147,11 +174,17 @@ CONNECT links the player to you and to computers.
 
 [[MENU]] held opens the player's own UTILITY: quantize, auto cue, play mode, the display and the other stock settings.
 
+```nav utility UTILITY, the player's own settings
+```
+
 - In CLASSIC you see the player's own UTILITY screen, unchanged.
 - In MODERN, XZ Mods draws UTILITY in the MODERN look. It is the same list of stock settings, in the stock order.
 - In MODERN, MODS also has a **UTILITY** cell at the bottom of the section rail. It closes MODS and opens UTILITY. Until MODERN has read the player's settings, it reads NOT READY.
 
 ### MODERN UTILITY {modern}
+
+```nav needle-lock MODERN UTILITY {modern}
+```
 
 ```figure modern:settings-utility-rail MODERN · UTILITY
 UTILITY in MODERN, open on its first setting.
@@ -194,6 +227,9 @@ modern:utility-4deck UTILITY with four decks. A compact strip of all four decks
 
 MY SETTINGS shows the player settings saved on a USB stick, and the DJ profiles on it. In MODERN, open the stick in browse, highlight the category rail on the left, and press [[MENU]].
 
+```nav my-settings-load-save MY SETTINGS {modern}
+```
+
 ```figure modern:my-settings-top MODERN · MY SETTINGS
 MY SETTINGS for USB 1 while deck 1 plays.
 1 @ 700,62 MY SETTINGS | The panel for the stick you browse. X closes it.
@@ -221,6 +257,9 @@ modern:parity-my-settings-done After a load. How many settings applied and how m
 ## Saving to the USB
 
 There is no save button in MODS. Every change saves on its own to the settings USB, the stick you browse. The settings live in the VJ.Tools folder on that stick, so they travel with you to another XZ running XZ Mods. When you browse a stick, the player takes that stick's settings. A stick with no settings, or with damaged ones, leaves the current settings as they are.
+
+```nav b-save-recovery Saving to the USB
+```
 
 The XZ also remembers the last settings it applied. If you start it with no stick, it uses them.
 

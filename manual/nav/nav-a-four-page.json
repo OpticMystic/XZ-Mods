@@ -1,0 +1,23 @@
+{
+  "section": "four-decks#the-4-decks-page-in-mods",
+  "interface": "MODERN",
+  "steps": [
+    {
+      "key": "MENU"
+    },
+    {
+      "tap": "4 DECKS"
+    },
+    {
+      "tap": "4 DECKS",
+      "match": 1
+    },
+    {
+      "tap": "4 DECKS",
+      "match": 2
+    },
+    {
+      "tap": "2 DECKS"
+    }
+  ]
+}

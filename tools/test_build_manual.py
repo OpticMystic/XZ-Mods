@@ -201,3 +201,64 @@ with tempfile.TemporaryDirectory(prefix='xz-manual-app-test-') as temp:
         try: bm.app_manual(render,False); raise AssertionError(tile)
         except SystemExit as error: assert why in str(error),(why,error)
     print('ok app: a broken chapter link, an unknown or misused explainer, a data column, or a tour tile that is not a chapter render stops the build')
+
+# Navigation videos (tools/build_nav_videos.py): the steps a timeline turns into, the close-up layout, the nav block's
+# HTML, and the freshness rules check applies.
+import build_nav_videos as nv
+def ev(t,control,action,detail='',point=None,effects=()):
+    return {'t_ms':t,'control':control,'action':action,'detail':detail,'point':point,'effects':list(effects)}
+timeline=[ev(0,'clock','redraw'),ev(500,'BROWSE','press'),ev(620,'BROWSE','release'),
+          *[ev(1000+200*k,'ROTARY SELECTOR','turn','+1 detent') for k in range(3)],ev(1600,'ROTARY SELECTOR','push','SCREEN'),ev(1720,'ROTARY SELECTOR','release'),
+          ev(2000,'touch screen','press','keyboard A',[10,20]),ev(2120,'touch screen','release','keyboard A',[10,20]),
+          ev(2500,'touch screen','press','keyboard SHIFT',[5,5]),ev(2620,'touch screen','release','keyboard SHIFT',[5,5]),
+          ev(3000,'touch screen','press','keyboard b',[30,20]),ev(3120,'touch screen','release','keyboard b',[30,20]),
+          ev(3500,'left deck SHIFT','press'),ev(3620,'left deck SYNC','press','SYNC'),ev(3740,'left deck SYNC','release','SYNC'),ev(3900,'left deck SHIFT','release'),
+          ev(4500,'right deck SHIFT','press'),ev(4620,'right deck SHIFT','release'),ev(4800,'right deck SHIFT','press'),ev(4920,'right deck SHIFT','release'),
+          ev(5500,'MENU','press'),ev(6500,'MENU','hold'),ev(6620,'MENU','release'),
+          ev(7000,'button above LINK','press'),ev(7120,'button above LINK','release'),
+          ev(7500,'touch screen','press','CLASSIC',[200,140]),ev(7620,'touch screen','release','CLASSIC',[200,140]),
+          ev(8000,'PLAY','press','',None,[{'host':'software-player','deck':3}])]
+manifest={'controls':{c:{'timeline_control':[s]} for c,s in [('browse','BROWSE'),('rotary-selector','ROTARY SELECTOR'),('touch-screen','touch screen'),('left-shift','left deck SHIFT'),
+          ('left-sync','left deck SYNC'),('right-shift','right deck SHIFT'),('menu','MENU'),('rekordbox-button-above-link','button above LINK'),('right-play-pause','right deck PLAY/PAUSE')]}}
+gs=nv.assign_clips(nv.gestures(timeline),manifest)
+assert [g.clip for g in gs if g.kind=='turn']==['rotary-selector']*3 and gs[-1].clip=='right-play-pause' and gs[-1].up==8120
+assert [t for t,_ in nv.steps(gs)]==[500,1000,2000,3500,4500,5500,7000,7500,8000]
+assert [s for _,s in nv.steps(gs)]==['Press [[BROWSE]]','Turn [[ROTARY SELECTOR]] to **SCREEN** and push it','Type **Ab** on the screen keyboard',
+    'Hold [[SHIFT]] on the left deck and press [[SYNC]] on the left deck','Press [[SHIFT]] on the right deck twice quickly','Hold [[MENU]] for a second',
+    'Press the button above [[LINK]]','Tap **CLASSIC**','Press [[PLAY/PAUSE]] on the right deck'],nv.steps(gs)
+assert not any('rekordbox' in s.lower() for _,s in nv.steps(gs)),'no maker name in a caption'
+lays=dict((tuple(l),t) for t,l in nv.layouts(gs))
+assert ('left-shift','left-sync') in lays and lays[('left-shift','left-sync')]<=3500-nv.FADE_MS,'SHIFT held with SYNC splits the close-up, faded in before the press'
+print('ok nav: a timeline becomes steps in key notation (turns to a label, typing, SHIFT combos, double SHIFT, holds, taps) and the SHIFT close-up splits')
+
+with tempfile.TemporaryDirectory(prefix='xz-nav-test-') as temp:
+    root=Path(temp);saved=nv.capture_inputs
+    nv.capture_inputs=lambda:{'mods/a.c':'1'}
+    try:
+        write(root/'manual/nav/f.json','{"interface":"MODERN","steps":[]}')
+        write(root/'ui/assets/manual/nav/f.mp4',b'video');write(root/'ui/assets/manual/nav/f.webp',b'poster')
+        entry={'video':'assets/manual/nav/f.mp4','poster':'assets/manual/nav/f.webp','w':1280,'h':480,'seconds':2.0,'interface':'modern',
+               'steps':[{'t_ms':500,'text':'Press [[MENU]]'}],'sha256':{'video':nv.sha256(root/'ui/assets/manual/nav/f.mp4'),'poster':nv.sha256(root/'ui/assets/manual/nav/f.webp'),
+               'script':nv.text_sha256(root/'manual/nav/f.json')}}
+        media={'format':nv.FORMAT,'capture_inputs_sha256':nv.digest({'mods/a.c':'1'}),'compositor_sha256':nv.text_sha256(Path(nv.__file__)),'flows':{'f':entry}}
+        write(root/'manual/nav-media.json',json.dumps(media))
+        flows={'f':['one']}
+        assert nv.problems(flows,root)==[],nv.problems(flows,root)
+        assert nv.chapter_flows([('one','## A\n```nav f Title | First\ng | Second\n```\n')],root)=={'f':['one'],'g':['one']}
+        bm.NAV_MEDIA=root/'manual/nav-media.json'
+        block=bm.nav_html('f Moving around | The keys {modern}',[],str)
+        assert 'data-iface="modern"' in block and 'data-flow="f"' in block and 'data-title="The keys"' in block and 'aria-label="Moving around"' in block and 'data-t="500"' in block,block
+        assert '<video' in bm.nav_html('f T',[],str,True) and '<video' not in block,'only the website gets a plain video element'
+        write(root/'ui/assets/manual/nav/f.mp4',b'other')
+        assert any('is not the file' in p for p in nv.problems(flows,root))
+        write(root/'ui/assets/manual/nav/f.mp4',b'video');write(root/'manual/nav/f.json','{"interface":"MODERN","steps":[{"push":true}]}')
+        assert any('flow script changed' in p for p in nv.problems(flows,root))
+        write(root/'manual/nav/f.json','{"interface":"MODERN","steps":[]}')
+        nv.capture_inputs=lambda:{'mods/a.c':'2'}
+        assert any('firmware sources or flow scripts changed' in p for p in nv.problems(flows,root))
+        nv.capture_inputs=lambda:{'mods/a.c':'1'}
+        assert any('has no video' in p for p in nv.problems({'f':['one'],'g':['one']},root))
+        assert any('no chapter shows' in p for p in nv.problems({},root) or nv.problems({'g':['one']},root))
+    finally:
+        nv.capture_inputs=saved
+print('ok nav: check fails on a changed video, flow script or firmware source, a block with no video and a video no block shows; the block keeps its flows, title and interface')

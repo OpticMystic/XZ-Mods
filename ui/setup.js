@@ -557,7 +557,7 @@ function stepQuad(){
 }
 
 // --- the screen the XZ starts with ---
-// One setting decides it: interface (1 new, 0 standard), the same value MODS > APPEARANCE > INTERFACE
+// One setting decides it: interface (1 new, 0 standard), the same value MODS > SCREEN > INTERFACE
 // changes on the deck. Choosing the standard interface leaves classic_theme as the USB has it.
 const LOOK_NEW=1,LOOK_STANDARD=0;
 const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -582,19 +582,28 @@ function lookMedia(look,selected){
   video.muted=true;video.play?.().catch(()=>{});
   return video;
 }
-// After install, the way back, drawn by the deck's own menus: the new interface's MODS button opens its MODS
-// screen, whose APPEARANCE tab opens the panel page; the standard screen's MODS button opens the panel directly.
+// After install, the way back on the player. First the media button directly above LINK, whose default job (MODS >
+// PLAY) is INTERFACE; then the menu route MENU > SCREEN > INTERFACE. Both are the manual's navigation videos
+// (tools/build_nav_videos.py APP_FLOWS): the firmware's own screens beside the Blender render of the control.
+const NAV_ABOVE_LINK={video:'assets/manual/nav/physical-above-link.mp4',poster:'assets/manual/nav/physical-above-link.webp',
+  alt:'Left, the XZ screen switching from MODERN to CLASSIC and back. Right, the button directly above LINK, pressed twice.'};
+const NAV_INTERFACE={video:'assets/manual/nav/interface-choice.mp4',poster:'assets/manual/nav/interface-choice.webp',
+  alt:'Left, the XZ screen: MENU opens MODS, then SCREEN, CLASSIC and MODERN are tapped. Right, the MENU key pressed, then the touch screen.'};
+function navClip(nav){
+  if(reducedMotion())return el('img',{class:'wz-nav-media',src:nav.poster,alt:nav.alt,width:1280,height:480});
+  const video=el('video',{class:'wz-nav-media',src:nav.video,poster:nav.poster,muted:true,loop:true,autoplay:true,playsinline:true,
+    preload:'auto',width:1280,height:480,'aria-label':nav.alt});
+  video.muted=true;video.play?.().catch(()=>{});
+  return video;
+}
 function lookLater(choice){
-  const fromNew=choice===LOOK_NEW,images=fromNew?WIZARD_MEDIA.switchFromNew:WIZARD_MEDIA.switchFromStandard,other=fromNew?'CLASSIC':'MODERN';
-  const first=fromNew?{w:560,h:336,alt:'The MODS screen of the new interface on its APPEARANCE tab, with the tab and the OPEN APPEARANCE button marked.',
-      text:'Tap MODS in the top right corner, then the APPEARANCE tab and OPEN APPEARANCE.'}:
-    {w:450,h:135,alt:'The top right of the standard screen with the MODS button marked.',text:'Tap MODS in the top right corner, then APPEARANCE.'};
+  const fromNew=choice===LOOK_NEW,other=fromNew?'CLASSIC':'MODERN';
   return el('div',{class:'wz-later',dataset:{choice:fromNew?'new':'standard'}},
-    el('p',{class:'wz-later-line',text:'You can switch any time on the deck: tap MODS, then APPEARANCE → INTERFACE.'}),
-    el('ol',{class:'wz-later-steps'},
-      el('li',{},el('img',{src:images[0],width:first.w,height:first.h,alt:first.alt}),el('span',{},el('b',{text:'1'}),first.text)),
-      el('li',{},el('img',{src:images[1],width:560,height:336,alt:'The MODS menu on its APPEARANCE page, with INTERFACE marked: MODERN or CLASSIC.'}),
-        el('span',{},el('b',{text:'2'}),'Choose INTERFACE: '+other+'.'))));
+    el('p',{class:'wz-later-line'},el('strong',{},...xzText('Press the button directly above [[LINK]]')),' to switch between MODERN and CLASSIC, any time.'),
+    el('figure',{class:'wz-later-nav'},navClip(NAV_ABOVE_LINK),
+      el('figcaption',{text:'Switching the interface is that button’s default job. MODS > PLAY can give it another.'})),
+    el('p',{class:'wz-later-line'},...xzText('Or use the menu: press [[MENU]], tap SCREEN, then tap '+other+' under INTERFACE.')),
+    el('figure',{class:'wz-later-nav'},navClip(NAV_INTERFACE)));
 }
 function lookCard(look,choice){
   const selected=look.value===choice;
@@ -641,7 +650,7 @@ function planLines(){
   const changes=settingsChanges(),creates=ins.settings?.revision?.exists===false&&(writesLoader()||settingsEditable());
   if(changes.includes('interface')||(creates&&W.flow?.steps.includes('look')))
     lines.push({icon:'screen',text:W.settings.interface===LOOK_NEW?'Use the new interface on the XZ':'Use the standard XDJ-XZ interface on the XZ',
-      detail:'Switch any time in MODS → APPEARANCE → INTERFACE'});
+      detail:'Switch any time with the button above LINK, or in MODS → SCREEN → INTERFACE'});
   if(changes.includes('games_menu'))lines.push({icon:'gear',text:'Change which games show in the GAMES menu'});
   if(creates&&!changes.length)lines.push({icon:'gear',text:'Create the settings file'});
   return lines;
@@ -764,7 +773,8 @@ function stepDone(){
     r.loader?el('div',{class:'wz-next'},el('h4',{text:'On the XZ'}),el('ol',{},
       el('li',{text:ejected?'Unplug the USB and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.':'Eject the USB here and plug it into USB 1 or USB 2 on the XDJ-XZ, then power it on.'}),
       el('li',{},...xzText('On the play screen, press [[MENU]] or touch MODS at the top right to open the menu. Hold [[MENU]] for the player’s own settings. HOME is the first page.')),
-      el('li',{},...xzText('Press the button above [[LINK]] to switch between the CLASSIC and MODERN screens. MODS > PLAY can give it another job.')),
+      el('li',{},...xzText('Press the button above [[LINK]] to switch between the CLASSIC and MODERN screens. MODS > PLAY can give it another job.'),
+        el('figure',{class:'wz-later-nav wz-done-nav'},navClip(NAV_ABOVE_LINK))),
       el('li',{text:'Test the loader before you use it in a set.'}))):null,
     r.loader?fourDeckSection('done'):null,
     r.loader&&!trouble?el('button',{type:'button',class:'text-button',id:'wz-support-open',text:'Support XZ Mods (optional)',onclick:()=>goto('support')}):null,
