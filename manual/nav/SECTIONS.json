@@ -100,7 +100,7 @@
       "title": "Playlists {modern}",
       "level": 3,
       "chapter": "browse.md",
-      "sha256": "da169165fe37c3b360020453ac45dad91aa01769fd7e86b52a0c11badb89e751",
+      "sha256": "83d6953c3f0acf96832264af4d93d2b5f9ad6e58ebb56e607e73ecc45c251ae9",
       "flows": [
         "playlists"
       ],
@@ -111,7 +111,7 @@
       "title": "SOURCE {modern}",
       "level": 2,
       "chapter": "browse.md",
-      "sha256": "ac6fdec1e7b1d039f7681766db4a86ded0226961922ced940e9c583dc34b4a3b",
+      "sha256": "1d8a9e9a1069443843182d1e166be20598c7df4f8356afb49b6adeb69d6959bb",
       "flows": [
         "source"
       ],
@@ -122,7 +122,7 @@
       "title": "INFO {modern}",
       "level": 2,
       "chapter": "browse.md",
-      "sha256": "e4a5103180892db62e68464899ae57d06bc23cb8889d9e2d08138005e0a96ce3",
+      "sha256": "7a4eb39c8b95019be5e65daf21330d470829f11a1c754c750785c8e5808207c0",
       "flows": [
         "browse-rating-edit",
         "info"
@@ -134,7 +134,7 @@
       "title": "Browsing in CLASSIC {classic}",
       "level": 2,
       "chapter": "browse.md",
-      "sha256": "4e0a39358eb531d8811534812eb59ec053c67e807358e9be255068c8b9c78f59",
+      "sha256": "2cef5bfde83bbfebd8e39b1d78c54bd457c42770cdc0463b349d2b2299642507",
       "flows": null,
       "reason": "closed_stock_firmware",
       "detail": "The closed stock firmware owns this screen or operation."
@@ -241,7 +241,7 @@
       "title": "VJ.Tools {experimental}",
       "level": 2,
       "chapter": "connect.md",
-      "sha256": "798bded1bd93dc5750510166ff0a63f02991d5258f41e2332d6b12257a4678d5",
+      "sha256": "bb44b5833e9c16a5d0a43cd253f808a7302210f1a60cb6b0d8d8e677853cb307",
       "flows": [
         "vj-tools"
       ],
@@ -277,7 +277,7 @@
       "title": "Around the app",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "dcada2c543bab5c4cd34093841bd73f42f6785cfcfceffe597537fd5b530517d",
+      "sha256": "4071cbe88fe54541b27ed74d34255ab0af2a60add4b93eb2d1b71e4960db13ed",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -287,7 +287,7 @@
       "title": "USB",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "772e60e713208e8d2ae70072329e602c3bed88b25ccee31ea5bf6b6f72701cfe",
+      "sha256": "25fc3721d988340d3bcc092de65d3e4ef34b50de57db9b5ca4418cd1bede6cbf",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -317,7 +317,7 @@
       "title": "Install or update XZ Mods",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "24451eb59cbb78def62230fbc8d4f5f1a4d744e7463dcc61909b3305028e7d2d",
+      "sha256": "9caeba44b88c9bbb01da81dd0d11470053008bde11fcef3fea4aacb41cef8f62",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -337,7 +337,7 @@
       "title": "Stems",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "2ab2570d9a8defbb1ab82885c470fd1684c0e6c34cd6c69f2a9b27e71d031e64",
+      "sha256": "9b39a30dc63fb37134a8da945b94318caa0bca74b6315ccea8655570cfe75db0",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -377,7 +377,7 @@
       "title": "Tools",
       "level": 2,
       "chapter": "desktop-app.md",
-      "sha256": "9a66f4436163d5fddb1b060385e69277afe1a151ed0ffda82c3310300dca89b5",
+      "sha256": "f12e3606c9296f6b247d5c4f28901c6664864ab4193a89828c15bbd74d171d1f",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -387,7 +387,7 @@
       "title": "DJ Profile",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "4e902fec95586fc81a671079367cdd98f7d4f6d3b88c60cafff921fc6ccf4f17",
+      "sha256": "9ef6f2095af42a9df5450af5210f6e58a44b5e3e47cace4ff0c4cffcbf51740c",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -407,7 +407,7 @@
       "title": "Repair library",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "5cd9f6f4708f4d7896a7f7e3c294624d3be347f004773d5a58dc9c7e3f352346",
+      "sha256": "eb89287b0fd20594891096606b1c27d8efd35ac9c37857c49152e9eda3cd62ec",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -457,7 +457,7 @@
       "title": "About",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "4889af92e7ed3c7083ae5de35847328f2b2aef0bc29630dd4b18ec1811ccba41",
+      "sha256": "d4d3ea6a6ba66da783fe36ceaa895bf50422667c0e1cf9e9f28e27cd6e0bae04",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -793,7 +793,7 @@
       "title": "DECK VIEW",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "7380e0e3cccf2431c11a5ab1bea249b61ffa4385165fceeae5d11a4c75507bd7",
+      "sha256": "01c3258ef4f9142ee377520c00e39b805cfd91d0cdcef037e453ecd382473e69",
       "flows": [
         "nav-a-deck-orders",
         "nav-a-four-page"
@@ -873,7 +873,7 @@
       "title": "What decks 3 and 4 can do {experimental}",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "48c90f6571e0e2cfe27ca6defde90759760109309ae311c8a297b819baaca863",
+      "sha256": "e1ca480b27fc170619d0543dd1c7ce95540efdd4c40fdae123818300841d94a1",
       "flows": [
         "nav-c-player-3",
         "nav-c-player-4"
@@ -884,7 +884,7 @@
       "title": "SYNC on decks 3 and 4 {experimental}",
       "level": 3,
       "chapter": "four-decks.md",
-      "sha256": "60a0f7f46ed8b0b4f3aa11e3c971cb91d4903ae4d3c2d2d9b4a796e9b26b9c32",
+      "sha256": "6b6b7c3add6ace1f17002bfd7fa7b4673b3f73231c59ccaa091f17cd02f438b6",
       "flows": [
         "nav-c-player-3",
         "nav-c-player-4"
@@ -905,7 +905,7 @@
       "title": "What changes and what stays stock",
       "level": 2,
       "chapter": "getting-started.md",
-      "sha256": "ff88a55dd947b699a067ae2bb7630c3cbe57c6f67f602e059ebee5b444c10c8b",
+      "sha256": "b7c6cdc6db37993837e43f605dcc06552b636ba0690b8b72e726b2f797d3cf31",
       "flows": [
         "utility"
       ],
@@ -926,7 +926,7 @@
       "title": "What you need",
       "level": 2,
       "chapter": "getting-started.md",
-      "sha256": "1cb34ebf1ba32747e6b452bca6b2ff707981b43227524b6fa5964b64d79eba02",
+      "sha256": "82867861ea294066f786138e3dbd7fdf30cd52c6a3e8b640e4a1f7d770766b29",
       "flows": null,
       "reason": "informational",
       "detail": "Requirements table; no player action."
@@ -993,7 +993,7 @@
       "title": "Switch on the player",
       "level": 3,
       "chapter": "getting-started.md",
-      "sha256": "de0ec3f5db6f4f1beee60cb9ec3460a69c0f4f8aa6d44adb7d164b62f4074bc5",
+      "sha256": "919fa979a7741c83935baed66a2a62c2b3a162904f66637a44e282f35dc08dde",
       "flows": [
         "interface-choice"
       ],
@@ -1004,7 +1004,7 @@
       "title": "Updating",
       "level": 2,
       "chapter": "getting-started.md",
-      "sha256": "94c75a56fe19c81df6a56c939b17ad4b46d35615ef0de3b265bf274efda678d2",
+      "sha256": "662c52ad866f175601e66cb4e925842632554e31c47db27e8da1da3f73eee273",
       "flows": [
         "updates"
       ],
@@ -1025,7 +1025,7 @@
       "title": "Browse section keys",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "c5fffa7937d4b881e2b0f63df2272c3c3827f1c3811e67bd89fe5304dcb7bbac",
+      "sha256": "6f79a778b4268f62a3afef0c5025c0566f2de9f1ea988586e4c1f20507b7dd82",
       "flows": [
         "b-browse-keys",
         "encoder-settings",
@@ -1034,11 +1034,11 @@
       "scope": "Scripted host excerpts. Physical USB/boot/network/audio and closed stock UI remain separate platform acceptance; see REPORT-B.md for operation-level limits."
     },
     {
-      "section": "hardware#the-above-link-button",
+      "section": "hardware#the-button-above-link",
       "title": "The button above LINK",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "6b96c541cc7af4e12099a9f7552048d1f7367ed11b457401d728daba70aaee9b",
+      "sha256": "beb249bb978e3a6271c19e16183681bfb633b96eb5facc22637b1bd08201ae4b",
       "flows": [
         "physical-above-link",
         "above-link-button",
@@ -1051,7 +1051,7 @@
       "title": "LINK and the VJ.Tools view",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "2c309762d2513b19dbd84220df0c4f29cd6aea7a689ddfcd2eafba62eadae27c",
+      "sha256": "e920e6415edf1693c469f4bdfa06e87e97b456e30d55c2dedcef7c457193a7ab",
       "flows": [
         "vj-tools"
       ],
@@ -1125,7 +1125,7 @@
       "title": "When a control does not respond",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "22457aa487a48b12e11adb58a3579cc6f29c5b2c3228f33b63fc2c1e4d0671fb",
+      "sha256": "5efc473d3332159c40137f0d42c61e2f9d9313a815ed6dc15d8146d0bdc33b2e",
       "flows": [
         "b-browse-keys",
         "above-link-button-values",
@@ -1138,7 +1138,7 @@
       "title": "Open and close MODS",
       "level": 2,
       "chapter": "mods-menu.md",
-      "sha256": "dbc7cb9015c49c084c684c21e9db38bd1cd2c871177741525e6840dcf9050bf7",
+      "sha256": "be92e361b7fe8ed0d3d36509451ad2a26d1a4b9e2dcd4c2a2bd376c811df7601",
       "flows": [
         "menu-close"
       ],
@@ -1171,7 +1171,7 @@
       "title": "PLAY",
       "level": 2,
       "chapter": "mods-menu.md",
-      "sha256": "6f76ff00e25f13237520b3db367c1e74a04c956f0654d8874ceb734dbfa89d1f",
+      "sha256": "a67a2e365d49d68e0f4ab2164288d197a31a0ebff9b692c83fd160d3c96ae3ba",
       "flows": [
         "mods-play",
         "mods-play-values"
@@ -1301,7 +1301,7 @@
       "title": "The PLAY page",
       "level": 2,
       "chapter": "performance.md",
-      "sha256": "6c2dbf65b551bd10c33a3d1541f9a8a651379e8bf6cf2a3d636495cea246c3f0",
+      "sha256": "6e05e26024908068a5e597e15c2fbffa2773384fcf474c39ce11e0dd98b02f67",
       "flows": [
         "mods-play",
         "mods-play-values"
@@ -1346,7 +1346,7 @@
       "title": "When a jump is refused",
       "level": 3,
       "chapter": "performance.md",
-      "sha256": "4bfff6bfbf955f8ab7a35d08ada500e9c90cec793dc5f1a008026b0ef021db0f",
+      "sha256": "6c2aff26654613ec59d35ff9e84bab3d3b976367645852d0a8ae1714594e648b",
       "flows": [
         "nav-a-jump-refused"
       ],
@@ -1392,7 +1392,7 @@
       "title": "From the deck",
       "level": 3,
       "chapter": "performance.md",
-      "sha256": "7a892732157343496de8c010d592d4e7181af4cf391e32fba2dd1f6920348053",
+      "sha256": "0ae97d36204defc7bd70f74c0143db83c8fcb37adec0e06a9571a825d6c75771",
       "flows": [
         "physical-key-sync"
       ],
@@ -1615,7 +1615,7 @@
       "title": "MODERN and CLASSIC",
       "level": 2,
       "chapter": "screen-and-themes.md",
-      "sha256": "370ff6f27ca9e2627e110a1f06d11a3aa9b5b481f5294bc14f69c987fcf8ff9a",
+      "sha256": "b0bda868ff2f800fa9484d5c7d366de8be25b96cb0296e06b5f835027ff698be",
       "flows": [
         "interface-choice",
         "physical-above-link"
@@ -1653,7 +1653,7 @@
       "title": "MODERN look {modern}",
       "level": 2,
       "chapter": "screen-and-themes.md",
-      "sha256": "db12660e0f15152da7cd215f926eb9b67594d04ba04823da787498c6dd84bfb0",
+      "sha256": "397c91a14fba552aa994fab4fbfb214623e97d6992277c6c394caf60d7eea644",
       "flows": [
         "lamps-and-titles",
         "lamps-and-titles-all"
@@ -1665,7 +1665,7 @@
       "title": "Waveform colours",
       "level": 2,
       "chapter": "screen-and-themes.md",
-      "sha256": "8dd83746df71c2873ef7e51e9c0aeb71d844d7734eb3beafca47306fb8c55e58",
+      "sha256": "af793d20f85264cd12ac5fdd1697291ba4ef7243f3abb1a804e396946a5464c8",
       "flows": [
         "mods-screen-values-all"
       ],
@@ -1699,7 +1699,7 @@
       "title": "Key notation",
       "level": 3,
       "chapter": "screen-and-themes.md",
-      "sha256": "1b014b510d6c152ab57dec94c6b50ff08905036c066bb1f5576f5714feedca01",
+      "sha256": "45f599576052d7b490870789f82407c479ff42204cde037b439d049d94e9e189",
       "flows": [
         "mods-screen-values-all"
       ],
@@ -1774,7 +1774,7 @@
       "title": "When the USB changes",
       "level": 2,
       "chapter": "settings.md",
-      "sha256": "26f879d957a4f1bf41bdcc1220c534f503270ca34a258ea64a44a86184e6ccc0",
+      "sha256": "19606d9ea428d8784e1756742cba25946c2e01aacf09472c69fd80187bbc1fcf",
       "flows": null,
       "reason": "usb_or_boot",
       "detail": "USB preparation, persistence or boot behavior needs the respective platform; related on-player UI may still need a host flow."
@@ -1804,7 +1804,7 @@
       "title": "Prepare stems",
       "level": 2,
       "chapter": "stems.md",
-      "sha256": "4662787bc57e0f99b08cb63617bb7e397aead180ba476c7b65b83f6cf3f56efd",
+      "sha256": "2367c6466d07d2b87753e52545ed042ea92d97295466fc831d808f08f3a455ab",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Preparation and media copy take place in the desktop app and on USB."
@@ -1927,7 +1927,7 @@
       "title": "Stems in DJ software {experimental}",
       "level": 2,
       "chapter": "stems.md",
-      "sha256": "50e95036430d5096969750ebb061cdb7d6ec990eb0dc7106145fbde1af1127cc",
+      "sha256": "453be66acb21c789dfe2614ef4e4e19012abe0ef254c824045cc01f0e7441def",
       "flows": [
         "pc-stems"
       ],
@@ -1950,7 +1950,7 @@
       "title": "If the player will not start with the USB",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "cbb20a3cb7ff80b12bdb276b3371f91c0b16f1778ac546d98c9eb6565c6bf4e5",
+      "sha256": "016f7a26d0acf19148e4734f48bc4c0ce8ffbfc4dd66b03a91db004233b2634b",
       "flows": [
         "updates",
         "b-first-menu"
@@ -1973,7 +1973,7 @@
       "title": "Notices on the play screen {modern}",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "7f46461512ab95fa07438fa12a348a4319157d71451adadb95bffe33a58acb24",
+      "sha256": "d85ca6bf84ee06e8be353baa04e4c5f6c8bd378e5ba27ace9060e73e04f5cfb1",
       "flows": [
         "b-notice-load-recovery",
         "nav-c-notice-00",
@@ -2005,7 +2005,7 @@
       "title": "Errors on a deck",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "46e4a4b4546234a35f7f3db9e20719c9345874daefe6999bf5319df596eeab01",
+      "sha256": "aa16b0eb5664602cf0d88f8b3d1979159a66f7f6749b2d2d8fdf21b7adff2110",
       "flows": [
         "b-deck-error-recovery",
         "report-dock-entry"
@@ -2048,7 +2048,7 @@
       "title": "Messages in the XZ Mods app",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "511e94d4c76e675b7455de5979f5dea97b6b2299885b2d127b231dd6a31b619f",
+      "sha256": "6fa11abceb3a051a5cccd19425ebe246050dbcefadf2e4457eab03d4c89a8168",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Every action is in the computer app."

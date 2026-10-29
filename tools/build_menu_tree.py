@@ -216,9 +216,16 @@ def build(captures, flows_dir, out):
             label = edge['control'] + (' (hold)' if edge['action'] == 'hold' else '')
             label = 'MODS (MENU)' if label == 'MENU' else label
             if not any(r['label'] == label for r in roots): roots.append({'id': edge['to'], 'label': label})
-    # The firmware the screens came from: the mods sources, without tests and without the capture harness itself.
+    # Screen freshness follows the shell/UI compilation units and their headers, not unrelated DSP or games.
+    from capture_manual_nav import SHELL_SOURCES, UI_SOURCES
+    compiled = {(APP / MODS / side / name).resolve().relative_to(APP).as_posix() for side, names in
+                [('shell', SHELL_SOURCES), ('ui', UI_SOURCES)] for name in names}
+    harness = (APP / 'tools/capture_manual_nav.py').read_text(encoding='utf-8')
+    compiled.update(MODS + name for name in re.findall(r"'((?:shell|ui)/[^']+\.c)'", harness))
+    compiled.discard(MODS + 'shell/shell_browse.c')
     sources = {k: v for k, v in sorted(manifest.get('source_sha256', {}).items())
-               if k.startswith(MODS) and not re.search(r'/(tests?/|test_|nav_)', k)}
+               if k in compiled or (k.startswith((MODS + 'shell/', MODS + 'ui/'))
+                                    and k.endswith('.h') and '/test' not in k)}
     tree = {'format': FORMAT, 'interfaces': ['modern', 'classic'], 'provenance': {
                 'kind': 'provisional', 'from': 'navigation captures', 'captures': captures.name, 'flows': len(flows),
                 'generator': 'tools/build_menu_tree.py'},
