@@ -557,7 +557,7 @@ function stepQuad(){
 }
 
 // --- the screen the XZ starts with ---
-// One setting decides it: interface (1 new, 0 standard), the same value MODS > APPEARANCE > INTERFACE
+// One setting decides it: interface (1 new, 0 standard), the same value MODS > SCREEN > INTERFACE
 // changes on the deck. Choosing the standard interface leaves classic_theme as the USB has it.
 const LOOK_NEW=1,LOOK_STANDARD=0;
 const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -650,7 +650,7 @@ function planLines(){
   const changes=settingsChanges(),creates=ins.settings?.revision?.exists===false&&(writesLoader()||settingsEditable());
   if(changes.includes('interface')||(creates&&W.flow?.steps.includes('look')))
     lines.push({icon:'screen',text:W.settings.interface===LOOK_NEW?'Use the new interface on the XZ':'Use the standard XDJ-XZ interface on the XZ',
-      detail:'Switch any time in MODS → APPEARANCE → INTERFACE'});
+      detail:'Switch any time with the button above LINK, or in MODS → SCREEN → INTERFACE'});
   if(changes.includes('games_menu'))lines.push({icon:'gear',text:'Change which games show in the GAMES menu'});
   if(creates&&!changes.length)lines.push({icon:'gear',text:'Create the settings file'});
   return lines;
