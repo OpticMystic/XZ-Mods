@@ -7,7 +7,7 @@
       "title": "Browsing in MODERN {modern}",
       "level": 2,
       "chapter": "browse.md",
-      "sha256": "94ac66990fbfa5bd874138db07a0b6af959d97e5bd1179ff8b0b9f0d3cc74971",
+      "sha256": "fad6c8b98d20df6db0edfd928f09f021eae3a9945ec34c3fa69db898ab04412e",
       "flows": [
         "browse-category-folder"
       ],
@@ -77,7 +77,7 @@
       "title": "Search {modern}",
       "level": 3,
       "chapter": "browse.md",
-      "sha256": "9b07e81e2a937f7dfbdb18c30cd74621bca1f4f84b82bade7eead3e245a1ffd1",
+      "sha256": "7dd7146b07ea7277082f9dc705ed37505866161f1a796ccb8cad5e18f9cfabda",
       "flows": [
         "search",
         "search-results-load"
@@ -100,7 +100,7 @@
       "title": "Playlists {modern}",
       "level": 3,
       "chapter": "browse.md",
-      "sha256": "c30ed1306a8040a2a9d55ca108554922d5e858870d2ca374aaef9f5233dc8df3",
+      "sha256": "da169165fe37c3b360020453ac45dad91aa01769fd7e86b52a0c11badb89e751",
       "flows": [
         "playlists"
       ],
@@ -241,7 +241,7 @@
       "title": "VJ.Tools {experimental}",
       "level": 2,
       "chapter": "connect.md",
-      "sha256": "7416e589fee15d75cc15877887523041b38ebdc75c0c5997c948d4ebf18aa33d",
+      "sha256": "798bded1bd93dc5750510166ff0a63f02991d5258f41e2332d6b12257a4678d5",
       "flows": [
         "vj-tools"
       ],
@@ -317,7 +317,7 @@
       "title": "Install or update XZ Mods",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "e3fcf8573890a2f6eb2085e7d5b53920e127249e9f0bdf854a78a9345c4db782",
+      "sha256": "24451eb59cbb78def62230fbc8d4f5f1a4d744e7463dcc61909b3305028e7d2d",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -327,7 +327,7 @@
       "title": "Four decks in the app {experimental}",
       "level": 3,
       "chapter": "desktop-app.md",
-      "sha256": "e58defdadc0123c7526cd1d6550900b75aa8ed2caddd75c79e70d15b214b1cdf",
+      "sha256": "4fec1a6a753a6a7645fc55a3b215236ce560315ddfb2177978f9958d371ace71",
       "flows": null,
       "reason": "desktop_platform",
       "detail": "Desktop app actions require a separate desktop capture task."
@@ -588,7 +588,7 @@
       "title": "Games",
       "level": 2,
       "chapter": "extras.md",
-      "sha256": "8167677400d7a6aeabb25d1f2f39c5253c2684c3f601377571c8aa20f997fc4d",
+      "sha256": "0e10b92419957656b53a8bef3fea28bb6e14b29f84db05786ef8e69500886988",
       "flows": [
         "games"
       ],
@@ -793,7 +793,7 @@
       "title": "DECK VIEW",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "43cc745fce3352a6a3434521e7a7b16d5ab3d1f1f7476950ee4153519c7f3118",
+      "sha256": "7380e0e3cccf2431c11a5ab1bea249b61ffa4385165fceeae5d11a4c75507bd7",
       "flows": [
         "nav-a-deck-orders",
         "nav-a-four-page"
@@ -873,7 +873,7 @@
       "title": "What decks 3 and 4 can do {experimental}",
       "level": 2,
       "chapter": "four-decks.md",
-      "sha256": "fa080199d721588b5443a5c80741978a8bf596dc21e8f257a57afdb286d3a7b6",
+      "sha256": "48c90f6571e0e2cfe27ca6defde90759760109309ae311c8a297b819baaca863",
       "flows": [
         "nav-c-player-3",
         "nav-c-player-4"
@@ -993,7 +993,7 @@
       "title": "Switch on the player",
       "level": 3,
       "chapter": "getting-started.md",
-      "sha256": "14ec2de50c674bad626ad779537709e3ee82b86259b8d9e9a08f6f27f8c5be62",
+      "sha256": "de0ec3f5db6f4f1beee60cb9ec3460a69c0f4f8aa6d44adb7d164b62f4074bc5",
       "flows": [
         "interface-choice"
       ],
@@ -1025,7 +1025,7 @@
       "title": "Browse section keys",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "4aaa9fb662ffcc39fa76a2188d40714c8634ccbdab8b860404eb37fd739ed7c1",
+      "sha256": "c5fffa7937d4b881e2b0f63df2272c3c3827f1c3811e67bd89fe5304dcb7bbac",
       "flows": [
         "b-browse-keys",
         "encoder-settings",
@@ -1051,7 +1051,7 @@
       "title": "LINK and the VJ.Tools view",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "359b84a2d1c722619db056972a1a8915b50ed5e5e66bc3a23b17735bd3329af2",
+      "sha256": "2c309762d2513b19dbd84220df0c4f29cd6aea7a689ddfcd2eafba62eadae27c",
       "flows": [
         "vj-tools"
       ],
@@ -1125,7 +1125,7 @@
       "title": "When a control does not respond",
       "level": 2,
       "chapter": "hardware.md",
-      "sha256": "8ca7396f3f15540f383390fab826e1397c8dc8e1c98adec446ed852b0f25d496",
+      "sha256": "22457aa487a48b12e11adb58a3579cc6f29c5b2c3228f33b63fc2c1e4d0671fb",
       "flows": [
         "b-browse-keys",
         "rekordbox-button-values",
@@ -1138,7 +1138,7 @@
       "title": "Open and close MODS",
       "level": 2,
       "chapter": "mods-menu.md",
-      "sha256": "b38105fc034239eaa3efa8298a63dd9f197ce9722a9c833bcaf9c975e9e78552",
+      "sha256": "dbc7cb9015c49c084c684c21e9db38bd1cd2c871177741525e6840dcf9050bf7",
       "flows": [
         "menu-close"
       ],
@@ -1301,7 +1301,7 @@
       "title": "The PLAY page",
       "level": 2,
       "chapter": "performance.md",
-      "sha256": "c2c0cd77f465d449fb13c6e7291b388d301716dd97027008ad69cef8fef49e2a",
+      "sha256": "6c2dbf65b551bd10c33a3d1541f9a8a651379e8bf6cf2a3d636495cea246c3f0",
       "flows": [
         "mods-play",
         "mods-play-values"
@@ -1615,7 +1615,7 @@
       "title": "MODERN and CLASSIC",
       "level": 2,
       "chapter": "screen-and-themes.md",
-      "sha256": "671d7225f1cd767a42f4bb9ccfba0407382c3b5793e2abe9354ac3e74bc8e0cc",
+      "sha256": "370ff6f27ca9e2627e110a1f06d11a3aa9b5b481f5294bc14f69c987fcf8ff9a",
       "flows": [
         "interface-choice",
         "physical-rekordbox"
@@ -1950,7 +1950,7 @@
       "title": "If the player will not start with the USB",
       "level": 2,
       "chapter": "troubleshooting.md",
-      "sha256": "e7623681990a61109fbff92368d31115c9a814f161edb41fee92811cc7624ae1",
+      "sha256": "cbb20a3cb7ff80b12bdb276b3371f91c0b16f1778ac546d98c9eb6565c6bf4e5",
       "flows": [
         "updates",
         "b-first-menu"

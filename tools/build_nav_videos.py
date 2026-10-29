@@ -181,11 +181,11 @@ def steps(gs):
             push = gs[j] if j < len(gs) and gs[j].kind == 'push' and (j == i or gs[j].down - gs[j - 1].down <= 600) else None
             label = push.detail if push and push.detail and not push.detail.startswith('physical') else ''
             way = 'clockwise' if direction > 0 else 'anticlockwise'
-            if n and push and label: text = f'Turn the rotary selector to **{label}** and push it'
-            elif n and push: text = f'Turn the rotary selector {n} {"click" if n == 1 else "clicks"} {way}, then push it'
-            elif n: text = f'Turn the rotary selector {n} {"click" if n == 1 else "clicks"} {way}'
-            elif label: text = f'Push the rotary selector to choose **{label}**'
-            else: text = 'Push the rotary selector'
+            if n and push and label: text = f'Turn [[ROTARY SELECTOR]] to **{label}** and push it'
+            elif n and push: text = f'Turn [[ROTARY SELECTOR]] {n} {"click" if n == 1 else "clicks"} {way}, then push it'
+            elif n: text = f'Turn [[ROTARY SELECTOR]] {n} {"click" if n == 1 else "clicks"} {way}'
+            elif label: text = f'Push [[ROTARY SELECTOR]] to choose **{label}**'
+            else: text = 'Push [[ROTARY SELECTOR]]'
             out.append((g.down, text)); i = j + (1 if push else 0); continue
         if g.kind == 'touch':
             j, typed = i, ''

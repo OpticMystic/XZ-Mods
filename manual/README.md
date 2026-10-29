@@ -208,8 +208,12 @@ repeated. To make the videos:
 ```
 python tools/capture_manual_nav.py --zig <zig.exe> --out <new capture dir>         # the firmware's frames (README in manual/nav)
 python tools/build_nav_videos.py build --captures <capture dir> --controls <control clips dir>
+python tools/build_nav_videos.py stills --controls <control clips dir>            # the hw: figures in hardware.md
 python tools/build_nav_videos.py check
 ```
+
+`--controls` may be the clips' root: its `out-v2/` (the re-render with no maker's print on the unit) wins over `out/`.
+When `out-v2/` lands, re-run `build` and `stills` with the same root, then `build_manual.py app` and commit.
 
 `--controls` is the Blender control clips folder (`out/manifest.json` with each camera's screen quad and glass mask,
 and the untagged frames in `tmp/frames/`). The videos are 1280 x 480, 30 fps, H.264 CRF 30 with a WebP poster (`ui/assets/manual/nav/`):
