@@ -222,7 +222,7 @@
         h('span', { class: 'm-mapcard-go' }, 'Open the menu map', icon('i-chevron')))) : null;
     const howto = h('div', { class: 'm-howto' },
       h('div', null, h('span', { class: 'mf-chip', text: '1' }), h('b', { text: 'Numbered points' }), 'Point at a number on a picture, or tab to it, to see what it is. Play steps through them all.'),
-      h('div', null, h('kbd', { text: 'SHIFT' }), h('b', { text: 'Keys on the player' }), 'A key drawn like this is a button on the XDJ-XZ, named as it is printed there.'),
+      h('div', null, xzKey('SHIFT'), h('b', { text: 'Keys on the player' }), 'A button drawn like this is that control on the XDJ-XZ, as it looks on the player, lamp colour included.'),
       h('div', null, h('span', { class: 'tag tag--experimental', text: 'experimental' }), h('b', { text: 'Experimental' }), 'Works, but test it with your own tracks before you rely on it in a set.'));
     const groups = [];
     for (const chapter of book.chapters) {

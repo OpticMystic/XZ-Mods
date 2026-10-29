@@ -29,7 +29,7 @@ If XZ Mods started after a network update and stopped working, open **CONNECT** 
 
 If the sound goes wrong while you test, stop playback and switch the player off and on. Load the same track again and check the original mix before you go on.
 
-> **Tip.** MODS is always reachable with the hardware alone. In CLASSIC, the rekordbox button above LINK switches to MODERN, where [[MENU]] opens MODS. Turn the encoder to move, push it to choose and press [[BACK]] to go back.
+> **Tip.** MODS is always reachable with the hardware alone. In CLASSIC, the [[rekordbox]] button above [[LINK]] switches to MODERN, where [[MENU]] opens MODS. Turn the encoder to move, push it to choose and press [[BACK]] to go back.
 
 ## Stems on the USB
 

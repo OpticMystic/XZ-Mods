@@ -45,7 +45,7 @@ Every game, plus USB WAD LOADER and MY HOUSE / SETUP.
 | Game | What it is | Needs |
 |---|---|---|
 | Beat Arcade {experimental} | Solo Pong, Pong Duel on both jogs, Solo Breaks and a two-player Breakout. Tap CUE on the beat to build charge | Nothing. Built in |
-| Wave Rider {experimental} | The loaded track's waveform becomes hills. Steer with the jog, hold CUE to add weight. Solo, Co-op or Versus | Nothing. Built in |
+| Wave Rider {experimental} | The loaded track's waveform becomes hills. Steer with the jog, hold [[CUE]] to add weight. Solo, Co-op or Versus | Nothing. Built in |
 | Rhythm Lab | Ten short rhythm studies for the jogs and pads. They are prototypes, and you can rate each one | Nothing. Built in |
 | Static Surfer | A rhythm platformer. Tap to jump and tilt the jog to pass through the glyphs | Nothing. Built in |
 | Doom | Classic Doom or Doom II | Game files on the USB |
