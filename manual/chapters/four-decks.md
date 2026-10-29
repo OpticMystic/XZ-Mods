@@ -420,7 +420,7 @@ The detail panel adds a line about the reason, for example:
 - Keep the music stick connected while you play. Decks 3 and 4 read from it all the time.
 - Decks 3 and 4 play WAV, AIFF, FLAC, MP3 and Ogg Vorbis files. AAC and M4A files do not play on decks 3 and 4.
 - A deck 3 or 4 master reads MASTER when decks 1 and 2 can follow it too, and 3/4 MASTER when it drives decks 3 and 4 only.
-- When the master stops, MASTER passes to the next playing deck in deck order. After deck 3 comes deck 4, then decks 1 and 2. After deck 4 come decks 1 and 2, then deck 3. A master set by another player over LINK is never taken.
+- When the master stops, MASTER passes to the next playing deck in deck order. After deck 3 comes deck 4, then decks 1 and 2. After deck 4 come decks 1 and 2, then deck 3. In VINYL mode MASTER passes when you press pause, while the deck slows down. When a deck 1 or 2 master stops, a playing deck 3 or 4 takes MASTER after a moment. A master set by another player over LINK is never taken.
 - Some lamps on the player do not yet light as they do for decks 1 and 2. The beat loop and slip loop pad colours are provisional.
 - Four decks, the handover of MASTER between native and software decks, and scratching on decks 3 and 4 are experimental in this version.
 
