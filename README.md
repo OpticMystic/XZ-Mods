@@ -11,7 +11,7 @@ Apple Silicon and Intel Macs running macOS 14 or later.
 - Prepare a new USB, update an existing loader with a backup, restore a loader,
   and edit saved controller settings.
 - Choose 24 controller themes, eight-pad stem shortcuts and two Beat Jump pages.
-- Browse exported Rekordbox tracks, generate stems with Open-Unmix HQ or Vocal
+- Browse the tracks your DJ software exported to the USB, generate stems with Open-Unmix HQ or Vocal
   focus, import grouped instrument stems, or prepare selected tracks as a batch.
 - Read new OverCue FLAC pages and existing zlib pages. Generate and Import write
   FLAC and verify all seven playback mixes while preserving the original track.
@@ -32,7 +32,7 @@ The latest runtime remains experimental. The release includes native ARM tests
 and local controller screen checks; extended cold-boot, two-deck and real-song
 phase qualification remains pending. See [the changelog](CHANGELOG.md).
 
-Standalone export of new tracks without Rekordbox is a separate prototype.
+Standalone export of new tracks without DJ software on a computer is a separate prototype.
 The test track loaded and played with working stems on an XDJ-XZ. This exporter is not yet connected to the app interface.
 
 ## Repositories
@@ -75,7 +75,7 @@ OverCue v4 playback adapter. See [the changelog](CHANGELOG.md) for verification 
 
 ## Use prepared OverCue tracks
 
-Keep the matching Rekordbox `Contents` and OverCue `CDJMODS` folders on the same
+Keep the matching exported `Contents` and OverCue `CDJMODS` folders on the same
 USB. In **Stems**, choose **Check OverCue track**, then select the original
 track inside `Contents`. The builder checks source identity and every compressed
 audio page using the same decoder as the player. It does not change the USB.
@@ -88,7 +88,7 @@ The source track must match its recorded SHA-256. Unsupported schemas fail close
 XZ Mods also includes a beta stem builder. Its separation and aligned-stem import
 workflows write the [open OverCue format](https://github.com/OverCue-gg/overcue-stems-format)
 under `CDJMODS` and never replace stems OverCue made. The source must be a
-44.1 kHz stereo WAV or FLAC track that Rekordbox already exported to the USB's
+44.1 kHz stereo WAV or FLAC track that your DJ software already exported to the USB's
 `Contents` folder. Separation runs on the CPU. The beta is not hardware-qualified,
 so check playback alignment on the player.
 
