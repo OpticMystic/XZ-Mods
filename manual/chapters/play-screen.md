@@ -220,7 +220,7 @@ The ORIGINAL theme with stems on in the BELOW / HALF layout. Deck 1's playing ke
 8 @ 400,150 Stem rows | VOCALS, DRUMS, HARMONICS and BYPASS for each deck. See [Stems](stems).
 ```
 
-This picture is the stock screen of a real player with the XZ Mods buttons and stem rows drawn on by the firmware's own code. Everything else on it is the player's own: the deck tabs, source, key, BEAT FX, ZOOM, the deck strips with A.HOTCUE, A.CUE, QUANTIZE, TEMPO and the BPM box. The XDJ-XZ operating instructions explain those.
+This picture is the stock screen of a real player with the XZ Mods buttons and stem rows added. Everything else on it is the player's own: the deck tabs, source, key, BEAT FX, ZOOM, the deck strips with A.HOTCUE, A.CUE, QUANTIZE, TEMPO and the BPM box. The XDJ-XZ operating instructions explain those.
 
 The key line replaces the player's beat countdown under the key. You choose the key notation and whether the playing key shows in MODS under **SCREEN**.
 

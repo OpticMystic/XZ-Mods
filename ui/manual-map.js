@@ -137,7 +137,7 @@
     m.zoomText = h('output', { class: 'mm-zoom', 'aria-live': 'off', text: '100%' });
     m.lanes = h('button', { type: 'button', class: 'mm-chip', 'aria-pressed': 'false', onclick: () => setLanes(m.lanes.getAttribute('aria-pressed') !== 'true') }, glyph(G.states), h('span', { text: 'Show every state' }));
     const bar = h('div', { class: 'mm-bar' },
-      h('div', { class: 'mm-title' }, h('h2', { tabindex: '-1', class: 'mm-h', text: 'Menu map' }), h('p', { text: 'Every screen you can reach from the play screen, drawn by the firmware, and the control that gets you there.' })),
+      h('div', { class: 'mm-title' }, h('h2', { tabindex: '-1', class: 'mm-h', text: 'Menu map' }), h('p', { text: 'Every screen you can reach from the play screen, and the control that gets you there.' })),
       m.seg,
       h('div', { class: 'mm-find' }, glyph(G.search), m.search, m.found),
       h('div', { class: 'mm-tools', role: 'toolbar', 'aria-label': 'Map view' },
@@ -515,7 +515,7 @@
     m.panel.hidden = false; m.stage.classList.add('has-panel');
     const how = screen.how.get(node.id);
     // The big picture: the screen at full size, its focusable parts outlined, the places a tap leads from marked.
-    const shot = h('img', { class: 'mm-big-img', src: node.img, alt: screen.title + (screen.states.length > 1 ? ', state ' + (m.state + 1) : '') + ', as the player draws it', width: node.w, height: node.h, decoding: 'async' });
+    const shot = h('img', { class: 'mm-big-img', src: node.img, alt: screen.title + (screen.states.length > 1 ? ', state ' + (m.state + 1) : '') + ", on the player's screen", width: node.w, height: node.h, decoding: 'async' });
     const marks = h('div', { class: 'mm-marks' });
     for (const [label, rect] of node.f) {
       if (!rect) continue;

@@ -222,7 +222,7 @@
         step.move ? h('span', { class: 'm-mapcard-move' }, step.move[0] === 'touch' ? [h('span', { class: 'mm-g', text: 'Tap' }), h('span', { class: 'mm-scr', text: step.move[2] })] : h('kbd', { text: step.move[0] }), h('i')) : null,
         h('span', { class: 'm-mapcard-screen' }, h('img', { src: step.th, alt: '', width: 240, height: 144, loading: 'lazy', decoding: 'async' }), h('b', { text: step.t }))])),
       h('span', { class: 'm-mapcard-text' }, h('small', { text: 'Menu map' }), h('b', { text: 'Every screen, and how to get there' }),
-        h('span', { text: book.map.screens.modern + ' screens drawn by the firmware, laid out from the play screen. Follow any path, see the control that opens each screen, and jump to the part of the manual that explains it.' }),
+        h('span', { text: book.map.screens.modern + ' screens, laid out from the play screen. Follow any path, see the control that opens each screen, and jump to the part of the manual that explains it.' }),
         h('span', { class: 'm-mapcard-go' }, 'Open the menu map', icon('i-chevron')))) : null;
     const howto = h('div', { class: 'm-howto' },
       h('div', null, h('span', { class: 'mf-chip', text: '1' }), h('b', { text: 'Numbered points' }), 'Point at a number on a picture, or tab to it, to see what it is. Play steps through them all.'),

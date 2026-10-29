@@ -167,7 +167,7 @@
     const stage = el('div', { class: 'mn-stage' }, video, el('span', { class: 'mn-bar', 'aria-hidden': 'true' }, el('i')));
     const list = el('ol', { class: 'mn-list' });
     box.replaceChildren(el('div', { class: 'mn-head' }, el('span', { class: 'mn-badge', text: 'How to' }), title, big), stage, tabs, list,
-      el('div', { class: 'mn-ctl' }, play, el('span', { class: 'mn-note', text: 'The screen as the player draws it, and the control you use' })));
+      el('div', { class: 'mn-ctl' }, play, el('span', { class: 'mn-note', text: "The player's screen, and the control you use" })));
     let at = 0, userPaused = false, items = [];
     const bar = stage.querySelector('.mn-bar i');
     const sync = () => {
