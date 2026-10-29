@@ -502,7 +502,8 @@ def chapter_flows(chapters=None, root=ROOT):
 def scene_digest(clips):
     """The clips' manifest and the scene source beside it (provenance; the scene lives outside this repo)."""
     root = clips.out.parent
-    files = [clips.out / 'manifest.json', *sorted((root / 'src').rglob('*.py'))]
+    scene = root / 'v2/src' if clips.out.name == 'out-v2' and (root / 'v2/src').is_dir() else root / 'src'
+    files = [clips.out / 'manifest.json', *sorted(scene.rglob('*.py'))]
     return digest({p.relative_to(root).as_posix(): text_sha256(p) for p in files if p.is_file()})
 
 
