@@ -7,25 +7,28 @@ XZ Mods leaves every control on the XDJ-XZ doing its stock job unless this page 
 
 ## The top panel
 
-The drawing shows the XDJ-XZ from above. The controls XZ Mods uses have a lighter outline.
+The picture shows the XDJ-XZ from straight above, rendered from a true-scale model of the player.
 
 ```figure hw:xdj-xz XDJ-XZ top panel
 The XDJ-XZ from above: the browse section with the touch screen at the top centre, a deck on each side and the four-channel mixer under the screen.
-1 @ 640,82 Touch screen | Shows the play screen in the interface you chose (MODERN or CLASSIC) and the MODS menu. Every MODS control also answers touch.
-2 @ 936,44 MENU (UTILITY) | Press: opens MODS where the screen has no MENU job of its own. Hold: opens the player's own UTILITY, as on a stock XDJ-XZ.
-3 @ 928,106 BACK | Goes up one level, in MODS too.
-4 @ 1062,150 Rotary selector | Turn to move the highlight in MODS, push to select. It drives every MODS page, so you never need the touch screen.
-5 @ 1066,204 SHORTCUT | Opens the SHORTCUT screen as on a stock player. A short MENU on that screen opens MODS.
-6 @ 540,52 rekordbox button | The media button above LINK, printed rekordbox. XZ Mods lets you choose what it does, alone and with SHIFT.
-7 @ 536,107 LINK | Its stock job. It can also switch the VJ.Tools view on and off.
-8 @ 536,225 TIME MODE and DECK QUANTIZE | Stock on decks 1 and 2. While a side drives deck 3 or 4 they also reach the software decks.
-9 @ 1066,260 LOAD 1, LOAD 2 | Load into the deck that side controls now: deck 1 or 3 on the left, deck 2 or 4 on the right.
-10 @ 262,282 Left deck | Controls deck 1, or deck 3 after you press SHIFT twice.
-11 @ 1302,282 Right deck | Controls deck 2, or deck 4 after you press SHIFT twice.
-12 @ 634,604 Mixer channels 3 1 2 4 | Decks 3 and 4 play through CH3 and CH4 over the loopback cable.
+1 @ 800,162 Touch screen | Shows the play screen in the interface you chose (MODERN or CLASSIC) and the MODS menu. Every MODS control also answers touch.
+2 @ 940,57 MENU (UTILITY) | Press: opens MODS where the screen has no MENU job of its own. Hold: opens the player's own UTILITY, as on a stock XDJ-XZ.
+3 @ 960,92 BACK | Goes up one level, in MODS too.
+4 @ 1038,128 Rotary selector | Turn to move the highlight in MODS, push to select. It drives every MODS page, so you never need the touch screen.
+5 @ 1038,178 SHORTCUT | Opens the SHORTCUT screen as on a stock player. A short MENU on that screen opens MODS.
+6 @ 564,82 Button above LINK | The media button directly above LINK. XZ Mods lets you choose what it does, alone and with SHIFT.
+7 @ 564,110 LINK | Its stock job. It can also switch the VJ.Tools view on and off.
+8 @ 566,216 TIME MODE and DECK QUANTIZE | Stock on decks 1 and 2. While a side drives deck 3 or 4 they also reach the software decks.
+9 @ 1041,238 LOAD 1, LOAD 2 | Load into the deck that side controls now: deck 1 or 3 on the left, deck 2 or 4 on the right.
+10 @ 281,470 Left deck | Controls deck 1, or deck 3 after you press SHIFT twice.
+11 @ 1319,470 Right deck | Controls deck 2, or deck 4 after you press SHIFT twice.
+12 @ 800,577 Mixer channels 3 1 2 4 | Decks 3 and 4 play through CH3 and CH4 over the loopback cable.
 ```
 
 ## Browse section keys
+
+```nav b-browse-keys Browse section keys
+```
 
 | Key | Action with XZ Mods |
 |---|---|
@@ -49,6 +52,9 @@ A short press of [[MENU]] keeps the job the player's own firmware gives it where
 ## The rekordbox button
 
 The XDJ-XZ has a media button directly above [[LINK]]. On a stock player it opens the library of a computer or phone connected to the player. XZ Mods gives it two slots: a plain press, and a press while [[SHIFT]] is held on either deck. Set them in MODS > PLAY > REKORDBOX BUTTON.
+
+```nav physical-rekordbox The button above LINK
+```
 
 ```figure classic:theme-{look}-buttons MODS · REKORDBOX BUTTON
 Both slots at their defaults. A press switches the interface, and SHIFT + press keeps the button's own job.
@@ -76,6 +82,9 @@ Both slots at their defaults. A press switches the interface, and SHIFT + press 
 
 When VJ.Tools on a computer is connected, the player's screen can show the VJ.Tools view instead of the play screen. MODS > CONNECT > VJ.TOOLS has a SCREEN SWITCH KEY with two choices:
 
+```nav vj-tools LINK and the VJ.Tools view
+```
+
 | Choice | What switches the VJ.Tools view |
 |---|---|
 | LINK (default) | Pressing [[LINK]]. [[LINK]] also keeps its stock job. |
@@ -85,20 +94,25 @@ To switch the view with the rekordbox button instead, set that button to VJ.TOOL
 
 ## Deck keys
 
-The drawing shows the left deck. The right deck has the same controls in the same places.
+The picture shows the left deck from above. The right deck has the same controls in the same places.
+
+```nav b-master-tempo Deck keys | KEY SYNC, then MASTER TEMPO
+physical-key-sync | KEY SYNC on the deck
+physical-double-shift-1 | Left side
+```
 
 ```figure hw:xdj-xz-deck XDJ-XZ deck
 One deck from above. The pads are named A to D on the top row and E to H on the bottom row.
-1 @ 155,488 SHIFT | Press twice quickly to switch this side between its two decks. Held, it is the modifier for the combinations below.
-2 @ 655,282 SYNC | SHIFT + SYNC matches this deck's key to the master deck (KEY SYNC). SYNC alone is stock on decks 1 and 2.
-3 @ 684,478 MASTER TEMPO | While KEY SYNC holds, a press returns the deck to its own key.
-4 @ 684,760 TEMPO slider | After you switch decks, the new deck keeps its tempo until the slider reaches it.
-5 @ 232,188 Jog wheel | Stock on decks 1 and 2. Plays decks 3 and 4, and the games.
-6 @ 180,659 Pad mode buttons | HOT CUE, BEAT LOOP, SLIP LOOP, BEAT JUMP. One of them gives stem pads. With SHIFT, they mute stems.
-7 @ 574,628 BEAT JUMP | Press for beat jump page 1. SHIFT + BEAT JUMP gives page 2.
-8 @ 176,726 Pads A to D | Stem pads in the stem mode when the bank is A-D. Jump pairs A/B and C/D in BEAT JUMP mode.
-9 @ 176,814 Pads E to H | Stem pads when the bank is E-H. Jump pairs E/F and G/H in BEAT JUMP mode.
-10 @ 150,905 CUE and PLAY/PAUSE | Stock on decks 1 and 2. They play deck 3 or 4 while the side drives it.
+1 @ 159,651 SHIFT | Press twice quickly to switch this side between its two decks. Held, it is the modifier for the combinations below.
+2 @ 850,412 SYNC | SHIFT + SYNC matches this deck's key to the master deck (KEY SYNC). SYNC alone is stock on decks 1 and 2.
+3 @ 869,677 MASTER TEMPO | While KEY SYNC holds, a press returns the deck to its own key.
+4 @ 906,932 TEMPO slider | After you switch decks, the new deck keeps its tempo until the slider reaches it.
+5 @ 505,489 Jog wheel | Stock on decks 1 and 2. Plays decks 3 and 4, and the games.
+6 @ 505,893 Pad mode buttons | HOT CUE, BEAT LOOP, SLIP LOOP, BEAT JUMP. One of them gives stem pads. With SHIFT, they mute stems.
+7 @ 725,893 BEAT JUMP | Press for beat jump page 1. SHIFT + BEAT JUMP gives page 2.
+8 @ 505,988 Pads A to D | Stem pads in the stem mode when the bank is A-D. Jump pairs A/B and C/D in BEAT JUMP mode.
+9 @ 505,1091 Pads E to H | Stem pads when the bank is E-H. Jump pairs E/F and G/H in BEAT JUMP mode.
+10 @ 212,1016 CUE and PLAY/PAUSE | Stock on decks 1 and 2. They play deck 3 or 4 while the side drives it.
 ```
 
 | Key | Action with XZ Mods |
@@ -124,6 +138,9 @@ Every other deck key keeps its stock job on decks 1 and 2. While a side drives d
 
 The eight pads keep their stock job in every pad mode, with two exceptions: the stem pads, and the BEAT JUMP pads.
 
+```nav physical-pad-mode-pages Performance pads
+```
+
 | Pad mode | Pads with XZ Mods |
 |---|---|
 | HOT CUE | Stock hot cues. Gate cue and smart cue change what a hot cue does when you turn them on; see [Gate cue and smart cue](performance#gate-cue-and-smart-cue). |
@@ -135,6 +152,10 @@ The eight pads keep their stock job in every pad mode, with two exceptions: the 
 ### Stem pads
 
 In the pad mode you choose for stems, four pads switch stems on that deck. A, B and C mute the three stems in your STEM ORDER. D is BYPASS: it plays the original track instead of the stems. On a 4-stem track, D mutes bass instead. With the E-H bank, E to H do the same.
+
+```nav stem-pads-values Stem pads | In MODS
+physical-stem-pads | On the pads
+```
 
 ```figure classic:theme-{look}-stem-pads MODS · STEM PADS
 HOT CUE gives stem pads on A to D, in the default order, with stem colours on the pad lights.
@@ -165,6 +186,9 @@ If you choose BEAT JUMP for stems, beat jumps win its pads. Page 2 always jumps.
 ## Decks 3 and 4 from the deck controls
 
 Each side of the XZ drives one of two decks: the left side deck 1 or deck 3, the right side deck 2 or deck 4. Press [[SHIFT]] twice to switch. [[LOAD]] on that side then loads into the deck it controls.
+
+```nav physical-double-shift-2 Decks 3 and 4 from the deck controls
+```
 
 1. Connect the loopback cable and wait until MODS > 4 DECKS says the route is ready.
 2. Press [[SHIFT]] twice quickly on the left side. The left side now drives deck 3.

@@ -9,6 +9,9 @@ Open MODS with [[MENU]], then choose **CONNECT** in the section rail.
 
 ## The CONNECT page
 
+```nav mods-connect The CONNECT page
+```
+
 ```figure classic:theme-{look}-connect MODS · CONNECT
 The four parts of CONNECT. The highlighted card is explained in the dock.
 1 @ 230,88 DJ PROFILE | Your DJ name and logo from the USB, for VJ screens.
@@ -24,9 +27,15 @@ The HOME card for CONNECT shows your active DJ profile and its USB, then the sta
 
 A DJ profile is your DJ name and logo, with an optional tagline. It lives on your USB, next to your music. VJ software such as VJ.Tools shows the profile of the USB that is playing on the master deck, so the screens behind you show who is playing. Nothing is stored on the XZ and nothing is uploaded.
 
+```nav dj-profile DJ profile
+```
+
 DJ Profile is an open standard. Any player, mixer or VJ program can read the same folder.
 
 ### Make a profile on a computer
+
+```nav b-profile-rescan Make a profile on a computer
+```
 
 1. On the USB, make a folder named `DJPROFILE` at the top level.
 2. Inside it, make a folder with your DJ name, for example `DJPROFILE/DJ Kai`.
@@ -38,6 +47,9 @@ A folder with a usable logo is a profile. A folder without one is skipped. A USB
 ### Make a profile on the XZ
 
 You can type a profile on the player with the encoder or by touch.
+
+```nav dj-profile-create-switch Make a profile on the XZ
+```
 
 1. Open **CONNECT** › **DJ PROFILE**.
 2. Push **CREATE ON THIS XZ**, or **NEW PROFILE** if the USB already has one.
@@ -81,6 +93,9 @@ Your active profile also sits in the MODS header, with its logo and name. Tap it
 
 ### When a profile will not save or show
 
+```nav profile-logo-error When a profile will not save or show
+```
+
 | Message | What to do |
 |---|---|
 | INSERT THE USB WITH YOUR MUSIC | Put your USB in. Profiles live on the USB only |
@@ -96,6 +111,9 @@ Your active profile also sits in the MODS header, with its logo and name. Tap it
 ## VJ.Tools {experimental}
 
 VJ.Tools is a desktop app for VJs. The VJ.TOOLS page lets VJ.Tools on a computer connect to the player, announces the player on the network, and can show the computer's picture instead of the play screen.
+
+```nav vj-tools VJ.Tools
+```
 
 ```figure classic:theme-{look}-active-connection MODS · VJ.TOOLS
 VJ.Tools connected and sending frames. The player still shows its own play screen.
@@ -136,6 +154,9 @@ To switch the view without opening MODS, use the key you chose under SCREEN SWIT
 ## Network {experimental}
 
 NETWORK sets up the player's network adapters for VJ.Tools and network updates. You do not need it to play.
+
+```nav network Network
+```
 
 ```figure classic:theme-{look}-network MODS · NETWORK
 The NETWORK page before the adapters have been read.
@@ -184,6 +205,9 @@ The keypad for an address, mask or gateway.
 ## Updates over the network {experimental}
 
 UPDATES fetches a newer signed XZ Mods runtime from the XZ Mods app on your computer and saves it to the USB. The update starts at the next power cycle. Your music stays where it is.
+
+```nav updates Updates over the network
+```
 
 ```figure classic:theme-{look}-network-updates MODS · UPDATES
 UPDATES before the update server has been found.

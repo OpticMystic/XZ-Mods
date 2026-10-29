@@ -9,7 +9,13 @@ The play screen is where you spend the set. XZ Mods gives you two ways to draw i
 
 MODERN draws every deck the same way: a top bar across the screen, one waveform lane per deck with a narrow info column on its left, a row of hot-cue lamps, and a deck strip at the bottom. Two decks share the screen in halves. For four decks, see [Four decks](four-decks).
 
+```nav nav-a-play-zoom-time The MODERN play screen {modern}
+```
+
 ### Top bar {modern}
+
+```nav nav-a-four-stems Top bar {modern}
+```
 
 ```figure modern:play-full PLAY · TOP BAR {modern}
 Deck 1 is the master, deck 2 plays in a 4-beat loop with KEY SYNC holding its key.
@@ -94,6 +100,9 @@ modern:play-unknown The first frame after start, before anything has been read: 
 
 The large key in each deck's column is the key the deck plays right now. Tempo with MASTER TEMPO off, a key shift and KEY SYNC all move it. Its colour compares it with the master deck's key. Green means it mixes with the master's key: the same key, its relative major or minor, or one step away on the key wheel, tuned within 25 cents of the master. Amber means it would mix, but it is detuned by more than 25 cents. White means neither, and the master deck itself is always white. Turn KEY MATCH COLOURS off in **SCREEN** and every key is white. The cents beside it show how far it sits off the semitone, so you can match by ear. Once the playing key leaves the track's analysed key, ORIGINAL shows the analysed key below it.
 
+```nav key-shift-sync Key and KEY SYNC {modern}
+```
+
 While KEY SYNC holds a deck's key, the KEY caption becomes a blue **KEY SYNC** chip and the deck's **MT** lamp blinks, half a second lit and half a second dark.
 
 ```gallery {modern}
@@ -112,6 +121,9 @@ You choose how keys are written (as on the USB, musical or wheel numbers) and wh
 ### Waveform colours {modern}
 
 MODS under **SCREEN** offers four waveform colours for MODERN. They change the lanes and the overviews together. Your choice is saved to the USB. **3-BAND COLOURS**, beside LAMPS AND TITLES, changes the colour of each band; see [3-band colours](screen-and-themes#3-band-colours).
+
+```nav nav-a-play-colours Waveform colours {modern}
+```
 
 | Choice | What you see |
 |---|---|
@@ -139,6 +151,9 @@ modern:usb-colors-off OFF: every deck uses the player's own colours
 
 When something you asked for does not happen, a notice appears in the middle of the screen for two and a half seconds. It says what went wrong in one line, for example **DECK 1 DID NOT LOAD THE TRACK**. A long notice wraps. [Messages and troubleshooting](troubleshooting) explains each one.
 
+```nav nav-a-choose-track-error Notices {modern}
+```
+
 ```gallery {modern}
 modern:play-notice A notice over the lanes
 modern:play-notice-long A long notice
@@ -157,6 +172,9 @@ A deck that plays its whole track from RAM after the music USB went out is not i
 ## SHORTCUT {modern}
 
 Press [[SHORTCUT]] on the play screen to see the settings you change most during a set on one page. It has the same four groups as the player's own SHORTCUT screen: PLAYER SETTINGS, DECK STATUS, DEVICE SETTINGS and MY SETTINGS. Press [[BACK]] or tap the arrow in the top left corner to return to the play screen.
+
+```nav shortcut SHORTCUT {modern}
+```
 
 ```figure modern:screen-shortcut SHORTCUT {modern}
 The SHORTCUT screen with quantize, waveform and time settings for both decks.
@@ -187,6 +205,9 @@ With four decks, SHORTCUT also shows DECK SELECT. See [Four decks](four-decks).
 
 CLASSIC keeps the player's own play screen, so every stock element stays where the XDJ-XZ operating instructions put it. XZ Mods restyles it in the classic theme you chose and adds a row of buttons across the top, the playing key under each deck's key, and stem rows under the waveforms.
 
+```nav classic-stems The CLASSIC play screen {classic}
+```
+
 ```figure capture:classic-play PLAY · CLASSIC {classic}
 The ORIGINAL theme with stems on in the BELOW / HALF layout. Deck 1's playing key has moved from 2A to 11A.
 1 @ 120,10 VJ.TOOLS | Switches to the VJ.Tools screen when a VJ.Tools computer is connected. See [Connect and DJ profiles](connect).
@@ -211,6 +232,9 @@ An earlier capture with stems in the BELOW / FULL layout, the rows taller with r
 
 In CLASSIC, **SCREEN** offers three scrolling waveforms. The setting is `wave_mode` on the USB.
 
+```nav nav-a-classic-wave-choices Scrolling waveform {classic}
+```
+
 | Choice | What you see |
 |---|---|
 | STOCK | The player's own scrolling waveform |
@@ -222,6 +246,9 @@ The overview in each deck strip stays the player's own in every choice.
 When a deck plays its whole track from RAM after the music USB went out, a teal card in its lane says **WHOLE TRACK IN RAM · PLAYABLE** where the waveform was. See [RAM tracks](performance#when-the-music-usb-goes-out).
 
 ## If something looks wrong
+
+```nav nav-a-playing-key If something looks wrong
+```
 
 | You see | Why | What to do |
 |---|---|---|
