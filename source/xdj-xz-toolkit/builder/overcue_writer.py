@@ -34,7 +34,7 @@ INDEX_SCHEMA = "overcue-index/1"
 MANIFEST_SCHEMA = "overcue-stems/4"
 WRITER = "XZ Mods"
 REFUSAL = "OverCue already prepared this track. XZ Mods left it unchanged."
-ID_TAKEN = ("Another OverCue entry already uses this Rekordbox track id for a different file. "
+ID_TAKEN = ("Another OverCue entry already uses this track id from the exported library for a different file. "
             "XZ Mods left it unchanged.")
 STAGING = ".xz-mods-staging-"
 BUNDLE = re.compile(r"[0-9a-f]{16}")

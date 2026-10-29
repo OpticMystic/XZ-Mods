@@ -215,7 +215,7 @@ class LibraryRepairTests(unittest.TestCase):
     def test_rekordbox_open_blocks_write(self):
         request = self.request()
         with patch.object(repair, 'rekordbox_running', return_value=True):
-            with self.assertRaisesRegex(ValueError, 'Close Rekordbox'):
+            with self.assertRaisesRegex(ValueError, 'Close your DJ software'):
                 repair.mutate(request, Job())
         self.assertEqual(self.pdb.read_bytes(), self.original)
 

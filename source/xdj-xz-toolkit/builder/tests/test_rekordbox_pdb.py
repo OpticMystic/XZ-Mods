@@ -85,7 +85,7 @@ class RekordboxPdbTests(unittest.TestCase):
         self.pdb.write_bytes(data)
 
     def assert_unreadable(self):
-        with self.assertRaisesRegex(ValueError, "Rekordbox export on this USB is unreadable"):
+        with self.assertRaisesRegex(ValueError, "library exported to this USB is unreadable"):
             rekordbox_pdb.track_paths(self.pdb)
 
     def test_round_trip_across_pages_and_string_forms(self):
@@ -128,14 +128,14 @@ class RekordboxPdbTests(unittest.TestCase):
 
     def test_find_track_not_exported(self):
         self.write(tracks(2))
-        with self.assertRaisesRegex(ValueError, "has not exported this track"):
+        with self.assertRaisesRegex(ValueError, "is not in the library exported"):
             rekordbox_pdb.find_track(self.usb, "/Contents/Missing.wav")
 
     def test_missing_export(self):
         with self.assertRaises(ValueError) as caught:
             rekordbox_pdb.find_track(self.usb, "/Contents/A.wav")
         self.assertEqual(str(caught.exception),
-                         "This USB has no Rekordbox export. Export the track with Rekordbox first.")
+                         "This USB has no exported music library. Export the track to it from your DJ software first.")
 
     def test_truncated_file(self):
         self.write(tracks(40))

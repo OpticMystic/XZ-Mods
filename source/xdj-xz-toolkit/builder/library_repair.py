@@ -55,10 +55,10 @@ def rekordbox_running():
     if os.name == 'nt':
         result = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq rekordbox.exe', '/FO', 'CSV', '/NH'],
                                 capture_output=True, timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
-        _require(result.returncode == 0, 'Could not check whether Rekordbox is closed.')
+        _require(result.returncode == 0, 'Could not check whether your DJ software is closed.')
         return b'"rekordbox.exe"' in result.stdout.lower()
     result = subprocess.run(['pgrep', '-ix', 'rekordbox'], capture_output=True, timeout=15)
-    _require(result.returncode in (0, 1), 'Could not check whether Rekordbox is closed.')
+    _require(result.returncode in (0, 1), 'Could not check whether your DJ software is closed.')
     return result.returncode == 0
 
 
@@ -270,7 +270,7 @@ def inspect(volume):
                     result['repair'].update(
                         title='Clear invalid data from unused database pages',
                         changes=[f"Clear unused pages {', '.join(map(str, analysis['unused_pages']))} in {PDB}"],
-                        description='Invalid data in pages reserved for future use can prevent Rekordbox from opening this library.',
+                        description='Invalid data in pages reserved for future use can stop your DJ software opening this library.',
                         history_warning='All active database pages, including playback history, stay byte-for-byte unchanged.')
         except (ValueError, pdb._Unreadable, struct.error, UnicodeError) as exc:
             result.update(verdict='not_repairable', findings=[{'code': 'unreadable_library',
@@ -284,13 +284,13 @@ def inspect(volume):
             result['findings'].append({'code': 'stem_index_unreadable', 'summary': str(exc)})
             result['verdict'] = 'not_repairable'
             result['repair'] = None
-    _require(_files(volume) == files, 'The library changed while checking it. Close Rekordbox and check again.')
+    _require(_files(volume) == files, 'The library changed while checking it. Close your DJ software and check again.')
     result['backups'] = _backups(identity, files)
     return result
 
 
 def _closed():
-    _require(not rekordbox_running(), 'Close Rekordbox, then check the USB again before repairing or undoing a repair.')
+    _require(not rekordbox_running(), 'Close your DJ software, then check the USB again before repairing or undoing a repair.')
 
 
 def _check(volume, identity, files):
@@ -400,7 +400,7 @@ def mutate(request, job, *, restore=False):
                 'rekordbox_verified': False,
                 'summary': 'Original library restored. It may contain the original damage.' if restore else
                 ('Unused database pages cleared.' if before['repair']['id'] == UNUSED_REPAIR_ID else 'History links repaired.')
-                + ' Structural checks passed. Track IDs, playlists and stem mappings are unchanged. Reopen Rekordbox to verify the USB.'}
+                + ' Structural checks passed. Track IDs, playlists and stem mappings are unchanged. Open the USB in your DJ software to verify it.'}
 
 
 def save_report(volume):

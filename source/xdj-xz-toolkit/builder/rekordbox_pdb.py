@@ -68,11 +68,11 @@ LONG_HEADER = struct.Struct("<xHx")
 LONG_ASCII = 0x40
 LONG_UTF16LE = 0x90
 
-NO_EXPORT = "This USB has no Rekordbox export. Export the track with Rekordbox first."
-NOT_EXPORTED = "Rekordbox has not exported this track to this USB. Export it with Rekordbox first."
-AMBIGUOUS = ("The Rekordbox export on this USB lists this file more than once. "
-             "Re-export the track with Rekordbox and try again.")
-UNREADABLE = "The Rekordbox export on this USB is unreadable. Export the track with Rekordbox again."
+NO_EXPORT = "This USB has no exported music library. Export the track to it from your DJ software first."
+NOT_EXPORTED = "This track is not in the library exported to this USB. Export it from your DJ software first."
+AMBIGUOUS = ("The library exported to this USB lists this file more than once. "
+             "Export the track again from your DJ software and try again.")
+UNREADABLE = "The library exported to this USB is unreadable. Export the track again from your DJ software."
 
 
 class _Unreadable(Exception):

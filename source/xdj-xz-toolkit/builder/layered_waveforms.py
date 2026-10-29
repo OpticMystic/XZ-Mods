@@ -23,7 +23,7 @@ def track_path(ext):
             if length%2 or length>total-head:raise ValueError('Invalid PPTH path length')
             path=ext[pos+head:pos+head+length].decode('utf-16-be').rstrip('\0')
             if not path.startswith('/Contents/') or '\0' in path or '\\' in path or any(p in ('.','..') for p in path.split('/')):
-                raise ValueError('Expected a rekordbox /Contents/ track path')
+                raise ValueError('Expected a track path under the USB Contents folder')
             if len(path.encode('utf8'))>1023:raise ValueError('Track path is too long')
             return path
         pos+=total
