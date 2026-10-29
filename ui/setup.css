@@ -159,6 +159,7 @@
 .wz-later-steps img{display:block;width:100%;height:auto;border:1px solid #2c3031;border-radius:6px}
 .wz-later-steps span{display:flex;align-items:baseline;gap:8px;color:#c3c9c5;font-size:12.5px;line-height:1.45}
 .wz-later-steps b{display:inline-grid;flex:none;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--yellow);color:#141500;font-size:11px}
+.wz-later-nav{margin:0;display:grid;gap:6px;max-width:720px}.wz-later-nav .wz-nav-media{display:block;width:100%;height:auto;aspect-ratio:8/3;border:1px solid #2c3031;border-radius:6px;background:#000}.wz-later-nav figcaption{color:#9ea6a1;font-size:12px;line-height:1.45}.wz-done-nav{margin-top:8px}
 @media (prefers-reduced-motion:reduce){.wz-look,.wz-look-card,.wz-look-media{transition:none}}
 @media(max-width:820px){.wz-look,.wz-look-step[data-choice=standard] .wz-look,.wz-later-steps{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:820px){.wz-tiles{grid-template-columns:1fr}.wz-tile{min-height:0}.wz-flow-head{grid-template-columns:minmax(0,1fr) auto}.wz-flow-progress{grid-row:2}.wz-usb{grid-template-columns:44px minmax(0,1fr) 20px}.wz-chips{grid-column:2;justify-content:flex-start}}
