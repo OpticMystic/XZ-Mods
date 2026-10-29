@@ -33,7 +33,7 @@ window.XZ_SUPPORT_KB = Object.freeze({
       need: ['sync', 'bpm', 'limit', 'ext master', '3/4 master', 'master'],
       terms: ['sync', 'bpm', 'limit', 'ext master', 'external master', 'master', 'tempo', 'beat', 'label', 'means', 'what does', 'deck 3', 'deck 4', 'follow', 'drift', 'quantize'],
       not: ['key sync', 'key shift', 'key cpu', 'keys'],
-      answer: 'SYNC 1 to SYNC 4: SYNC is on and follows that deck. BPM 1 to BPM 4: only the tempo follows, because QUANTIZE is off, a track has no beat grid, a loop is running, or the beat position is not available. LIMIT: the master tempo is out of reach, so the deck keeps its last tempo. EXT MASTER: a LINK player is master, which decks 3 and 4 cannot follow. NO BPM: analyse the track in rekordbox.',
+      answer: 'SYNC 1 to SYNC 4: SYNC is on and follows that deck. BPM 1 to BPM 4: only the tempo follows, because QUANTIZE is off, a track has no beat grid, a loop is running, or the beat position is not available. LIMIT: the master tempo is out of reach, so the deck keeps its last tempo. EXT MASTER: a LINK player is master, which decks 3 and 4 cannot follow. NO BPM: analyse the track in your DJ software.',
       action: null,
       source: 'Manual: Four decks, SYNC on decks 3 and 4'
     },

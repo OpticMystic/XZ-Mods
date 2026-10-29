@@ -403,16 +403,13 @@ try {
   await check(`wiz().querySelectorAll('.sr-choice').length===5&&!wiz().querySelector('[data-key="c-NONE"]')`, 'compared with what: the five reporter baselines');
   await shot('08-compared-with');
   await choice('DJ_CONVENTION');
-  await waitFor(`reportWizard.state().screen==='reference'`, 'reference');
-  await check(`[...wiz().querySelectorAll('.sr-chip')].map(b=>b.textContent).join()==='CDJ-3000,CDJ-2000NXS2,XDJ-RX3,rekordbox,Serato,Traktor'&&txt('#report-wizard .st-steps')==='1 Topic2 Compared with3 Which one4 Describe'`, 'which gear: the DJ gear and software suggestions');
-  await shot('09-which-gear');
-  await choice('CDJ_3000');
   await waitFor(`reportWizard.state().screen==='describe'`, 'describe');
-  await click('Back');
+  await check(`txt('#report-wizard .st-steps')==='1 Topic2 Compared with3 Describe'&&!reportWizard.state().hints.reference_feature&&!/rekordbox|serato|traktor|\\bcdj/i.test(wiz().textContent)`, 'other DJ gear or software: straight to Describe, no brand names offered');
   await click('Back');
   await choice('XZ_CONSISTENCY');
-  await waitFor(`reportWizard.state().screen==='reference'`, 'reference again');
-  await check(`[...wiz().querySelectorAll('.sr-chip')].map(b=>b.textContent).join()==='Decks 1 and 2,Another XZ Mods feature'&&!reportWizard.state().hints.reference_feature`, 'changing the baseline changes the suggestions and drops the old pick');
+  await waitFor(`reportWizard.state().screen==='reference'`, 'reference');
+  await check(`[...wiz().querySelectorAll('.sr-chip')].map(b=>b.textContent).join()==='Decks 1 and 2,Another XZ Mods feature'&&txt('#report-wizard .st-steps')==='1 Topic2 Compared with3 Which one4 Describe'&&!reportWizard.state().hints.reference_feature`, 'which feature: the XZ suggestions');
+  await shot('09-which-gear');
   await click('Not sure');
   await click('Cancel');
 

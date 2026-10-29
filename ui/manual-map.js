@@ -38,7 +38,7 @@
 
   // ---------------------------------------------------------------- what a move is called
   // Keys are drawn as the manual draws [[KEY]]s: a keycap with the name printed on the player.
-  const keyName = control => /^performance pad ([A-H])$/i.test(control) ? 'PAD ' + control.slice(-1).toUpperCase() : control === 'rekordbox button above LINK' ? 'rekordbox' : control;
+  const keyName = control => /^performance pad ([A-H])$/i.test(control) ? 'PAD ' + control.slice(-1).toUpperCase() : control;
   function moveParts(move) {
     const [, , control, action, target, rect] = move;
     if (control === 'touch') return target ? [h('span', { class: 'mm-g', text: 'Tap' }), h('span', { class: 'mm-scr', text: target })] : [h('span', { class: 'mm-g', text: rect ? 'Tap the screen here' : 'Tap the screen' })];

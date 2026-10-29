@@ -414,7 +414,7 @@ label.djp-dest-row{cursor:pointer}
 .djp-path input{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
 .djp-howto{margin:0;padding-left:22px;line-height:1.9;color:#e3e7e2}
 @media(max-width:1000px){.djp-editor{grid-template-columns:minmax(0,1fr)}.djp-preview{position:static}}
-/* DJ profile: logo drop target, rekordbox colour swatches, wizard step */
+/* DJ profile: logo drop target, USB colour swatches, wizard step */
 .djp-drop{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 14px;border:1.5px dashed #3a4040;border-radius:6px;background:#0b0d0d;cursor:pointer;transition:border-color .12s,background .12s}
 .djp-drop:hover{border-color:#6d7473}
 .djp-drop[data-empty="1"]{grid-template-columns:minmax(0,1fr);justify-items:center;gap:10px;padding:26px 18px;text-align:center}

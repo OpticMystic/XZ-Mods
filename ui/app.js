@@ -133,7 +133,7 @@ async function run(request,title,origin,watch){
           }else if(state.result.format==='xz-game-installed/1')$('job-summary').textContent=state.result.name+' copied to USB and verified.';
           else if(state.result.format==='xz-game-downloaded/1')$('job-summary').textContent=state.result.name+' downloaded and verified.';
           else if(state.result.format==='xz-library-inspected/1')$('job-summary').textContent='Check finished. The results are below.';
-          else if(state.result.format==='xz-library-repaired/1'){$('job-title').textContent='Repair written · not yet tested in Rekordbox';$('job-summary').textContent=state.result.summary||'';}
+          else if(state.result.format==='xz-library-repaired/1'){$('job-title').textContent='Repair written · not yet tested in your DJ software';$('job-summary').textContent=state.result.summary||'';}
           else if(state.result.format==='xz-library-restored/1'){$('job-title').textContent='Repair undone';$('job-summary').textContent=state.result.summary||'';}
           else if(state.result.format==='xz-library-report/1')$('job-summary').textContent='Report saved: '+state.result.report_path;
           if(state.result.mod_version?.id){const summary=$('job-summary').textContent.trim();$('job-summary').textContent=(summary&&!/[.!?]$/.test(summary)?summary+'.':summary)+(summary?' ':'')+'Mod version: '+modVersionText(state.result.mod_version)+'.';}
@@ -324,7 +324,7 @@ const ST={
   'search.placeholder':'Search title or artist','filter.all':'All','filter.missing':'Missing','filter.ready':'Ready','filter.cant':'Can\'t prepare','filter.selected':'Selected','pager':'Showing {from} to {to} of {total}',
   'pill.missing':'Missing','pill.ready':'Ready','pill.verified':'Verified','pill.new':'New','pill.damaged':'Damaged','pill.unavailable':'No audio file','pill.unsupported':'Not yet','pill.error':'Can\'t read',
   'pill.queued':'Queued','pill.running':'Preparing {pct}%','pill.failed':'Failed','pill.cancelled':'Cancelled','pill.notStarted':'Not started',
-  'sub.unavailable':'Re-export from Rekordbox','sub.unsupported':'{format} support is coming','sub.reused':'Reused existing stems','sub.damaged':'{bad} of 7 mixes failed the check',
+  'sub.unavailable':'Export it to the USB again','sub.unsupported':'{format} support is coming','sub.reused':'Reused existing stems','sub.damaged':'{bad} of 7 mixes failed the check',
   'size.estimateTitle':'Estimated, between {low} and {high}','size.unsupportedTitle':'What it would need once {format} is supported',
   'stage.decode':'Reading the track','stage.load-model':'Loading the stem engine','stage.separate-vocals':'Separating vocals','stage.separate-drums':'Separating drums','stage.postprocess':'Balancing the parts',
   'stage.render':'Mixing the 7 stem mixes','stage.pack':'Writing to the USB','stage.verify':'Checking the result',
@@ -336,16 +336,16 @@ const ST={
   'drawer.byXz':'Prepared by XZ Mods on {date} · {preset} · {bytes}','drawer.byOther':'Prepared outside XZ Mods · {bytes}','drawer.unchecked':'Not checked yet. Verify reads every audio page and does not change your USB.',
   'sub.regenerate':'Prepare again · MP3 timing',
   'drawer.regenerate':'Made from an MP3 before XZ Mods 0.3.0-preview.2, so these stems start 25 ms early against the player. The XDJ-XZ lines them up live; the stem waveforms and other players do not. Prepare again fixes it.',
-  'drawer.compat':'Also works with stems prepared by OverCue Desktop.','drawer.unavailable':'The audio file for this track is not on the USB. Export it to this USB again from Rekordbox, then check again.',
+  'drawer.compat':'Also works with stems prepared by OverCue Desktop.','drawer.unavailable':'The audio file for this track is not on the USB. Export it to this USB again from your DJ software, then check again.',
   'drawer.unsupported':'{format} tracks cannot be prepared yet. Support is planned. This track would need about {bytes}.','drawer.running':'{stage}. Step {k} of 8, started {elapsed} ago.',
   'drawer.replaceAsk':'Replace the stems for {title}? The current stems stay until the new ones pass their check.','drawer.replace':'Replace','drawer.keep':'Keep',
   'drawer.verify':'Verify','drawer.verifyAgain':'Verify again','drawer.importReplace':'Import stems to replace','drawer.prepareAgain':'Prepare again','drawer.importElsewhere':'Import stems made elsewhere',
   'drawer.checkAgain':'Check again','drawer.retryTrack':'Retry this track',
   'verify.mixes':'{ok} of 7 stem mixes','verify.pages':'{n} audio pages','verify.pagesAll':'Every audio page','verify.identity':'Matches this track','verify.timing':'In time ({r} match)',
-  'empty.noUsb.title':'Connect a Rekordbox USB','empty.noUsb.body':'Plug in the USB you export to from Rekordbox. XZ Mods finds it and lists its tracks.','empty.noUsb.action':'Connect a USB',
-  'empty.noLib.title':'No Rekordbox library on {usb}','empty.noLib.body':'Export tracks to this USB from Rekordbox, then check again.','empty.noLib.action':'Check again','empty.noLib.other':'Choose another USB',
+  'empty.noUsb.title':'Connect your music USB','empty.noUsb.body':'Plug in the USB your DJ software exports your music to. XZ Mods finds it and lists its tracks.','empty.noUsb.action':'Connect a USB',
+  'empty.noLib.title':'No exported music on {usb}','empty.noLib.body':'Export tracks to this USB from your DJ software, then check again.','empty.noLib.action':'Check again','empty.noLib.other':'Choose another USB',
   'empty.badLib.title':'This USB\'s library can\'t be read','empty.badLib.body':'XZ Mods can check it and repair common damage.','empty.badLib.action':'Check and repair library',
-  'empty.locked':'This USB is write-protected. Switch off its lock, then look again.','empty.empty.title':'This Rekordbox library is empty','empty.empty.body':'Export tracks to the USB from Rekordbox, then look again.','empty.lookAgain':'Look again',
+  'empty.locked':'This USB is write-protected. Switch off its lock, then look again.','empty.empty.title':'The music library on this USB is empty','empty.empty.body':'Export tracks to the USB from your DJ software, then look again.','empty.lookAgain':'Look again',
   'eng.steps':['Check','Choose','Install','Test'],
   'eng.gpu.title':'Graphics card found','eng.gpu.body':'XZ Mods will prepare stems on this graphics card. That is the fastest way, usually about a minute per track.','eng.vram':'{gb} GB video memory',
   'eng.mps.title':'Apple silicon found','eng.mps.body':'XZ Mods will prepare stems on the built-in graphics. Nothing extra to install for the graphics part.',
@@ -419,7 +419,7 @@ const stemsApi={
       storedBytes:row.stored_bytes??null,producer:row.producer||null,preparedAt:row.prepared_at||null,preset:row.preset||null,
       timeline:row.timeline||null,needsRegeneration:row.needs_regeneration===true};
   },
-  noLibrary(state){return state.error_code==='no_library'||/^No Rekordbox Device Library/.test(state.error||'');},
+  noLibrary(state){return state.error_code==='no_library'||/^No exported music library/.test(state.error||'');},
   progress(state){
     const snapshot=state.result?.format===batchFormat?state.result:state.batch;
     return {items:(snapshot?.items||[]).map(item=>({id:String(item.id),state:item.state,stage:item.stage||'',message:item.message||'',error:item.error||'',code:item.error_code||null,pct:item.pct??null})),
@@ -616,7 +616,7 @@ function stemBarModel(){
 }
 function renderStemBar(){
   const lib=stemLibrary,model=stemBarModel(),running=Boolean(stemBatch?.running),locked=stemWorkLocked();
-  const select=el('select',{'aria-label':'Rekordbox USB',dataset:{key:'drive'},disabled:locked},
+  const select=el('select',{'aria-label':'Music USB',dataset:{key:'drive'},disabled:locked},
     ...stemDrives.map(drive=>el('option',{value:drive.volume,text:driveName(drive.volume)})),el('option',{value:'__folder',text:ST['bar.usb.chooseFolder']}),el('option',{value:'__find',text:ST['bar.usb.findAgain']}));
   select.value=stemVolume;
   select.onchange=()=>{const value=select.value;select.value=stemVolume;if(value==='__folder')chooseStemFolder(select);else if(value==='__find')discoverStemDrives();else{stemVolume=value;resetStemView();browseStemLibrary(value);}};
@@ -732,7 +732,7 @@ function renderStems(){
   const blocked=['nousb','nolib','badlib','empty'].includes(stemPhase),page=$('st-page');
   $('st-empty').classList.toggle('hidden',!blocked);page.classList.toggle('hidden',blocked);page.dataset.phase=stemPhase;
   if(blocked)renderStemEmpty();
-  else if(stemPhase==='looking')$('st-bar').replaceChildren(el('p',{class:'st-estimate',text:'Looking for Rekordbox USBs...'}));
+  else if(stemPhase==='looking')$('st-bar').replaceChildren(el('p',{class:'st-estimate',text:'Looking for music USBs...'}));
   else{renderStemBar();renderStemTabs();renderStemTable();page.style.setProperty('--st-bar-h',$('st-bar').offsetHeight+'px');}
   const find=key=>key&&$('stems').querySelector('[data-key="'+CSS.escape(key)+'"]');
   if(home&&!feedbackHome.isConnected){feedbackHome=find(home)||$('st-bar');positionFeedback();}
@@ -768,7 +768,7 @@ async function loadStemEngine(){
 async function discoverStemDrives(){
   if(!invoke)return;
   if(!stemLibrary){stemPhase='looking';renderStems();}
-  const result=await run({method:stemsApi.methods.discover},'Finding Rekordbox USBs');
+  const result=await run({method:stemsApi.methods.discover},'Finding music USBs');
   if(!result)return;
   stemLibraryStarted=true;
   const found=result.ok?result.result.drives:[],chosen=stemDrives.filter(drive=>drive.chosen&&!found.some(item=>item.volume===drive.volume));
@@ -926,7 +926,7 @@ function stemConnectResult(){
 }
 $('stem-connect-find').onclick=async()=>{
   const count=await discoverStemDrives();if(count===undefined)return;
-  $('stem-connect-found').textContent=count?plural(count,'Rekordbox USB')+' found. Selected: '+driveName(stemVolume):'No Rekordbox USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.';
+  $('stem-connect-found').textContent=count?plural(count,'music USB')+' found. Selected: '+driveName(stemVolume):'No music USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.';
   stemConnectResult();
 };
 $('stem-connect-choose').onclick=async()=>{const volume=await chooseStemFolder($('stem-connect-choose'));if(!volume)return;$('stem-connect-found').textContent='Selected: '+driveName(volume);stemConnectResult();};
@@ -1249,10 +1249,10 @@ if(invoke)window.__TAURI__.webviewWindow?.getCurrentWebviewWindow().onDragDropEv
 // Library repair. Checking only reads. Repair and undo send back the identity and file hashes from the check
 // they were planned on, so the backend refuses if the library changed in between.
 const repairVerdicts={
-  healthy:{badge:'No damage found',text:'No structural damage found in the checked tables. Rekordbox and player acceptance still need testing.'},
+  healthy:{badge:'No damage found',text:'No structural damage found in the checked tables. Opening it in your DJ software and on the player still needs testing.'},
   repairable:{badge:'Repair available',text:'Some playback history pages are cut off by blank pages. XZ Mods can reconnect the intact pages. History entries that are already missing cannot be recovered.'},
   not_repairable:{badge:'Cannot repair here',text:'This library has damage outside the supported unused-page and playback-history repairs. Save a report to keep the details.'},
-  no_library:{badge:'No library',text:'No Rekordbox library was found here. Choose the USB root or a folder that contains PIONEER.'}
+  no_library:{badge:'No library',text:'No exported music library was found here. Choose the USB root, or a folder holding a copy of the whole USB.'}
 };
 const repairCountLabels=[['tracks','Tracks'],['playlists','Playlists'],['stem_sets','Stem sets']];
 function repairVerdictText(data){return (data?.verdict==='repairable'&&data.repair?.description)||repairVerdicts[data?.verdict]?.text||'XZ Mods could not classify this library. Save a report to keep the details.';}
@@ -1334,7 +1334,7 @@ function renderRepairOutcome(kind,result){
     if(result.inspection?.verdict!=='healthy')warnings.push('The check after the repair reports: '+repairVerdictText(result.inspection));
   }
   $('repair-outcome-warning').textContent=warnings.join(' ');$('repair-outcome-warning').classList.toggle('hidden',!warnings.length);
-  $('repair-outcome-note').textContent=kind==='restore'?'The library is back to how it was before that repair, including the history damage.':result.rekordbox_verified===true?'':'Rekordbox has not checked this repair. Open the USB in Rekordbox and load tracks on the XZ before you use it in a set.';
+  $('repair-outcome-note').textContent=kind==='restore'?'The library is back to how it was before that repair, including the history damage.':result.rekordbox_verified===true?'':'Your DJ software has not checked this repair. Open the USB in your DJ software and load tracks on the XZ before you use it in a set.';
   // The control that started the work may now be hidden, so the feedback joins the outcome.
   feedbackHome=$('repair-outcome-summary');positionFeedback();panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -1347,9 +1347,9 @@ function selectRepairVolume(volume){
 }
 async function discoverRepairDrives(){
   if(!invoke){updateRepairControls();return;}
-  const result=await run({method:'discover_stem_usbs'},'Finding Rekordbox USBs');
+  const result=await run({method:'discover_stem_usbs'},'Finding music USBs');
   if(!result){repairDiscovery=null;return;}
-  if(!result.ok){$('repair-drive-status').textContent=result.error||'Rekordbox USBs could not be listed. Reconnect the USB, then choose Find USBs.';updateRepairControls();return;}
+  if(!result.ok){$('repair-drive-status').textContent=result.error||'Music USBs could not be listed. Reconnect the USB, then choose Find USBs.';updateRepairControls();return;}
   const select=$('repair-drive'),previous=select.value,chosen=[...select.options].filter(option=>option.dataset.chosen).map(option=>option.value);
   select.replaceChildren();
   for(const drive of result.result.drives){const option=node('option',drive.label+' · '+drive.volume);option.value=drive.volume;select.append(option);}
@@ -1357,7 +1357,7 @@ async function discoverRepairDrives(){
   if([...select.options].some(option=>option.value===previous))select.value=previous;
   if(select.value!==repairInspection?.volume)clearRepair();
   const count=result.result.drives.length;
-  $('repair-drive-status').textContent=count?plural(count,'Rekordbox USB')+' found. Choose one, then check its library.':select.options.length?'No Rekordbox USB found. You can check the chosen folder.':'No Rekordbox USB found. Connect the USB, then find it again.';
+  $('repair-drive-status').textContent=count?plural(count,'music USB')+' found. Choose one, then check its library.':select.options.length?'No music USB found. You can check the chosen folder.':'No music USB found. Connect the USB, then find it again.';
   updateRepairControls();return count;
 }
 async function pickRepairFolder(origin){
@@ -1367,7 +1367,7 @@ async function pickRepairFolder(origin){
 }
 async function inspectLibrary(origin){
   const volume=$('repair-drive').value;if(!volume){openRepairConnect();return null;}
-  const result=await run({method:'inspect_device_library',volume},'Checking the Rekordbox library',origin);
+  const result=await run({method:'inspect_device_library',volume},'Checking the music library',origin);
   // A result for a USB that is no longer selected is stale.
   if(!result?.ok||$('repair-drive').value!==volume)return null;
   return renderRepairInspection(result.result)?result.result:null;
@@ -1417,7 +1417,7 @@ $('repair-choose-other').onclick=openRepairConnect;
 $('repair-connect-find').onclick=async()=>{
   repairDiscovery=discoverRepairDrives();const count=await repairDiscovery;if(count===undefined)return;
   const volume=$('repair-drive').value;
-  $('repair-connect-found').textContent=count?plural(count,'Rekordbox USB')+' found. Selected: '+volume:'No Rekordbox USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.'+(volume?' Selected: '+volume:'');
+  $('repair-connect-found').textContent=count?plural(count,'music USB')+' found. Selected: '+volume:'No music USB found yet. Check that it is plugged in and shows on this computer, then find it again, or choose a folder.'+(volume?' Selected: '+volume:'');
 };
 $('repair-connect-choose').onclick=async()=>{const volume=await pickRepairFolder($('repair-connect-choose'));if(volume)$('repair-connect-found').textContent='Selected: '+volume;};
 $('repair-connect-check').onclick=async()=>{
@@ -1426,11 +1426,11 @@ $('repair-connect-check').onclick=async()=>{
   $('repair-connect').close();$('repair-inspection').scrollIntoView({behavior:'smooth',block:'nearest'});
 };
 $('repair-connect-close').onclick=()=>$('repair-connect').close();
-// Rekordbox blocks writes: close it, then check again.
+// The DJ software that wrote the USB blocks writes: close it, then check again.
 $('repair-prepare-open').onclick=()=>{$('repair-prepare-result').textContent='';$('repair-prepare').showModal();updateRepairControls();};
 $('repair-prepare-recheck').onclick=async()=>{
   const data=await inspectLibrary($('repair-prepare-recheck'));if(!data)return;
-  if(data.rekordbox_running){$('repair-prepare-result').textContent='Rekordbox is still open. Quit it, wait a few seconds, then check again.';return;}
+  if(data.rekordbox_running){$('repair-prepare-result').textContent='Your DJ software is still open. Quit it, wait a few seconds, then check again.';return;}
   $('repair-prepare').close();
   const next=data.verdict==='repairable'&&data.repair?$('repair-library'):!$('repair-undo').classList.contains('hidden')?$('restore-library-backup'):null;
   if(next){next.scrollIntoView({behavior:'smooth',block:'nearest'});next.focus({preventScroll:true});}

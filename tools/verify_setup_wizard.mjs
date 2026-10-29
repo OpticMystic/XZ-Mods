@@ -366,7 +366,7 @@ try {
   await check(`txt('.wz-done-hero h3')==='Your USB is ready'&&txt('.wz-done').includes('Loader written')&&txt('.wz-done').includes('Games on USB: doom, freedoom.')&&txt('.wz-next').includes('press MENU')&&Boolean(button('Done'))&&!document.getElementById('job-panel').checkVisibility()`, 'done: success mark, result lines, the On the XZ steps, Done');
   await check(`!document.getElementById('wz-back')&&Boolean(document.querySelector('.wz-flow>.wz-foot #wz-done'))`, 'done: no Back, a write cannot be undone; Done is in the bar');
   await check(`(()=>{const s=document.querySelector('.wz-flow[data-step=done] .wz-fourdeck'),next=document.querySelector('.wz-next');return Boolean(s&&next)&&Boolean(next.compareDocumentPosition(s)&Node.DOCUMENT_POSITION_FOLLOWING)&&txt('.wz-fourdeck h4')==='Four decksExperimental'&&s.querySelectorAll('.wz-fourdeck-steps li').length===3&&s.querySelectorAll('button.primary').length===1&&button('How four decks work').classList.contains('primary')&&!s.querySelector('.wz-fourdeck-setup')&&!document.querySelector('.wz-quad-entry')&&!txt('#wiz').includes('Quad standalone mixer');})()`, 'done: after On the XZ, a Four decks section with the cable picture, three steps and one primary button, How four decks work');
-  await check(`txt('.wz-next').includes('Press the rekordbox button above LINK to switch between the CLASSIC and MODERN screens. You can give it another job in MODS > PLAY.')&&!txt('.wz-next').includes('next to LINK')`, 'done: On the XZ names the rekordbox button above LINK');
+  await check(`txt('.wz-next').includes('Press the button above LINK to switch between the CLASSIC and MODERN screens. MODS > PLAY can give it another job.')&&!/rekordbox/i.test(txt('.wz-next'))&&!txt('.wz-next').includes('next to LINK')`, 'done: On the XZ names the button above LINK');
   await check(`!(fx.links||[]).length&&Boolean(button('Done'))&&Boolean(button('Support XZ Mods (optional)'))`, 'support is optional and opens no links on completion');
   await evaluate('window.supportWriteCount=fx.written.length');
   await click('Support XZ Mods (optional)'); await view('flow','support');
@@ -789,7 +789,7 @@ try {
   await evaluate(`showPage('licenses')`);
   await check(`txt('#about-title')==='XZ Mods'&&txt('.about-version')==='Version 0.3.0'&&txt('.about-maker').startsWith('Made by OpticMystic')&&txt('.about-what').split('. ').length===2&&Boolean(button('App updates and release notes'))&&Boolean(document.getElementById('open-licenses'))`, 'About: what XZ Mods is in two sentences, the version, the maker, App updates and the license notices');
   await check(`[...document.querySelectorAll('.about-projects strong')].map(e=>e.textContent).join('|')==='XZ Mods|VJ.Tools|DJ Profile'&&txt('.about-projects').includes('VJ.Tools Library, is a local-first media library and Resolume prep system')&&!/wingman|instagram|@opticmystic/i.test(txt('#licenses'))`, 'About: the maker\'s three projects, and no social handles');
-  await check(`[...document.querySelectorAll('.about-notes-list strong')].map(e=>e.textContent).join('|')==='Independent.|Experimental.|Runs from the USB.|Your own firmware.'&&txt('.about-notes').includes('not affiliated with or endorsed by Pioneer DJ or AlphaTheta')`, 'About: four short disclaimers');
+  await check(`[...document.querySelectorAll('.about-notes-list strong')].map(e=>e.textContent).join('|')==='Independent.|Experimental.|Runs from the USB.|Your own firmware.'&&txt('.about-notes').includes('not affiliated with or endorsed by the maker of the XDJ-XZ')`, 'About: four short disclaimers');
   await check(`[...document.querySelectorAll('#licenses a.about-link')].map(a=>a.getAttribute('href')).join('|')===${JSON.stringify(aboutLinks.join('|'))}&&[...document.querySelectorAll('#licenses a.about-link')].every(a=>a.target==='_blank'&&a.rel.includes('noopener')&&a.textContent.includes('opens in your browser'))`, 'About: links to the source, issues, releases, both sites and optional support, each saying it opens the browser');
   await evaluate(`window.__links=(fx.links||[]).length;for(const a of document.querySelectorAll('#licenses a.about-link'))a.click()`);
   await waitFor(`(fx.links||[]).length===window.__links+${aboutLinks.length}`, 'every About link asks the host to open it');
@@ -807,7 +807,7 @@ try {
   await evaluate(`document.getElementById('job-panel').classList.add('hidden')`);
   await shot('15-network-updates');
   await evaluate(`showPage('library-repair')`);
-  await waitFor(`activeJob===null&&txt('#repair-drive-status').startsWith('No Rekordbox USB found')`, 'repair library: no Rekordbox USB');
+  await waitFor(`activeJob===null&&txt('#repair-drive-status').startsWith('No music USB found')`, 'repair library: no music USB');
   await shot('16-repair-library');
   await evaluate(`showPage('live-stream')`); await shot('17-xz-screen');
   await evaluate(`document.getElementById('live-setup').click()`);

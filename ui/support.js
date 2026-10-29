@@ -43,13 +43,12 @@ window.reportWizard = (() => {
     expectation_baseline: {
       STOCK_XZ: ['The XZ did it this way before XZ Mods'],
       XZ_CONSISTENCY: ['Another XZ feature works this way', 'For example, decks 3 and 4 should do what decks 1 and 2 do.'],
-      DJ_CONVENTION: ['Other DJ gear or software works this way', 'CDJs, rekordbox, Serato, Traktor...'],
+      DJ_CONVENTION: ['Other DJ gear or software works this way', 'Another player, a controller or DJ software on a computer'],
       XZ_MODS_PREVIOUS: ['An earlier XZ Mods version did it this way'],
       PREFERENCE: ['It just feels wrong to me']
     },
     reference_feature: {
-      CDJ_3000: ['CDJ-3000'], CDJ_2000NXS2: ['CDJ-2000NXS2'], XDJ_RX3: ['XDJ-RX3'], REKORDBOX: ['rekordbox'], SERATO: ['Serato'],
-      TRAKTOR: ['Traktor'], DECKS_1_2: ['Decks 1 and 2'], XZ_MODS_FEATURE: ['Another XZ Mods feature']
+      DECKS_1_2: ['Decks 1 and 2'], XZ_MODS_FEATURE: ['Another XZ Mods feature']
     },
     idea_type: {
       NEW_FEATURE: ['A new feature'], FASTER_WORKFLOW: ['A faster way to do something I already do'],
@@ -61,7 +60,9 @@ window.reportWizard = (() => {
     if (!C.reporter_hints[field]?.includes(value)) console.error('Report wizard offers a value the contract does not know:', field, value);
   }
   const choices = field => C.reporter_hints[field].filter(value => WORDS[field][value]).map(value => [value, ...WORDS[field][value]]);
-  const REFERENCES = { XZ_CONSISTENCY: ['DECKS_1_2', 'XZ_MODS_FEATURE'], DJ_CONVENTION: ['CDJ_3000', 'CDJ_2000NXS2', 'XDJ_RX3', 'REKORDBOX', 'SERATO', 'TRAKTOR'] };
+  // The contract still knows the named players and DJ software (older reports carry them). The wizard names no brand,
+  // so DJ_CONVENTION goes straight to Describe and the reporter says which in their own words.
+  const REFERENCES = { XZ_CONSISTENCY: ['DECKS_1_2', 'XZ_MODS_FEATURE'] };
   const SCREENS = {
     topic: { field: 'topic', title: "What's this about?", label: 'Topic', lede: 'Pick the closest one, or choose Not sure. Only the next box is required.' },
     timing: { field: 'degradation_timing', title: 'When did it get worse?', label: 'When' },
