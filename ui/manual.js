@@ -9,6 +9,9 @@
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   const reduced = () => motion.matches;
   const $ = id => document.getElementById(id);
+  // The page scrolls inside the app's card (#card), not the window; the chapter list lives in the app's side list.
+  const pane = () => $('card');
+  const shell = () => window.appShell || { showContext() {}, closeDrawer() {}, fold() {} };
   // On screen. (Element.checkVisibility is missing from the macOS 14 web view.)
   const visible = item => !!(item && (item.offsetWidth || item.offsetHeight || item.getClientRects().length));
   const icon = name => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'icon'); svg.setAttribute('aria-hidden', 'true'); const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', '#' + name); svg.append(use); return svg; };
@@ -65,7 +68,6 @@
     root.className = 'm-root';
     input = h('input', { type: 'search', id: 'm-q', placeholder: 'Search the manual', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Search the manual', 'aria-controls': 'm-view' });
     const search = h('label', { class: 'm-search' }, icon('i-search'), input, h('kbd', { 'aria-hidden': 'true', text: '/' }));
-    ui.toggle = h('button', { class: 'm-side-toggle secondary', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'm-side-body' }, icon('i-chevron'), h('span', { text: 'Chapters' }));
     ui.ring = svgEl('circle', { class: 'm-ring-fill', cx: 17, cy: 17, r: 14, 'stroke-dasharray': '87.96', 'stroke-dashoffset': '87.96' });
     ui.progressText = h('b'); ui.progressNote = h('span');
     const progress = h('div', { class: 'm-progress', role: 'status' }, svgEl('svg', { viewBox: '0 0 34 34', 'aria-hidden': 'true' }, svgEl('circle', { class: 'm-ring-track', cx: 17, cy: 17, r: 14 }), ui.ring), h('div', null, ui.progressText, ui.progressNote));
@@ -75,11 +77,11 @@
     ui.toc = h('ol', { class: 'm-toc', 'aria-label': 'Chapters' });
     ui.seg = h('div', { class: 'm-seg', role: 'group', 'aria-label': 'Interface' }, ['modern', 'classic', 'both'].map(name => h('button', { type: 'button', dataset: { iface: name }, 'aria-pressed': String(state.iface === name), text: name === 'both' ? 'Both' : name.toUpperCase(), onclick: () => setIface(name, true) })));
     const iface = h('div', { class: 'm-iface' }, h('p', { text: 'Show the parts for the interface you play on.' }), ui.seg);
-    side = h('div', { class: 'm-side', role: 'navigation', 'aria-label': 'Manual' }, search, ui.toggle, h('div', { class: 'm-side-body', id: 'm-side-body' }, progress, ui.home, ui.map, ui.toc, iface));
+    side = h('div', { class: 'm-side', role: 'navigation', 'aria-label': 'Manual' }, search, h('div', { class: 'm-side-body', id: 'm-side-body' }, progress, ui.home, ui.map, ui.toc, iface));
     bar = h('span');
     view = h('div', { class: 'm-view', id: 'm-view', tabindex: '-1' });
-    root.replaceChildren(side, h('div', { class: 'm-main' }, h('div', { class: 'm-bar', 'aria-hidden': 'true' }, bar), view));
-    ui.toggle.onclick = () => { const open = !side.classList.contains('is-open'); side.classList.toggle('is-open', open); ui.toggle.setAttribute('aria-expanded', String(open)); };
+    $('ctx-manual').replaceChildren(side);
+    root.replaceChildren(h('div', { class: 'm-main' }, h('div', { class: 'm-bar', 'aria-hidden': 'true' }, bar), view));
     input.addEventListener('input', () => { clearTimeout(ui.searchTimer); ui.searchTimer = setTimeout(runSearch, 90); });
     input.addEventListener('focus', () => loadSearch().catch(() => {}), { once: true });
     input.addEventListener('keydown', event => {
@@ -175,13 +177,15 @@
     window.manualArt?.stopAll();
     leaveMap();
     view.replaceChildren(...nodes);
+    // The menu map needs the width: it folds the side list away while it is open.
+    shell().fold(kind === 'map');
     view.classList.remove('m-enter');
     if (!reduced()) { void view.offsetWidth; view.classList.add('m-enter'); }
     current.view = kind;
   }
   function scrollToView(top) {
-    const target = top ? $('manual').getBoundingClientRect().top + scrollY - 16 : scrollY;
-    scrollTo({ top: Math.max(0, target), behavior: 'auto' });
+    const box = pane(), target = top ? $('manual').getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 16 : box.scrollTop;
+    box.scrollTo({ top: Math.max(0, target), behavior: 'auto' });
   }
 
   async function showStart(focus) {
@@ -192,7 +196,7 @@
     const lastSection = last && state.last.anchor ? last.sections.find(([, anchor]) => anchor === state.last.anchor) : null;
     const actions = h('div', { class: 'm-hero-actions' },
       h('button', { class: 'primary', type: 'button', text: 'Start with ' + first.title, onclick: () => openChapter(first.slug, '', { focus: true }) }),
-      h('button', { class: 'secondary', type: 'button', text: 'Search the manual', onclick: () => { input.focus(); side.classList.add('is-open'); } }));
+      h('button', { class: 'secondary', type: 'button', text: 'Search the manual', onclick: () => { shell().showContext(); input.focus(); } }));
     // The hero picture is a render of the true-scale model of the XDJ-XZ (ui/manual-art.js), above the title.
     const hero = h('header', { class: 'm-hero' }, window.manualArt?.hero() || null,
       h('div', { class: 'm-hero-body' }, h('div', null, h('p', { class: 'mc-eyebrow', text: 'XZ Mods manual' }), h('h2', { tabindex: '-1', class: 'm-start-title', text: book.title }), h('p', { class: 'm-lede', text: book.summary })), actions));
@@ -283,7 +287,7 @@
       if (key) heading.append(h('button', { class: 'm-onmap', type: 'button', dataset: { map: key }, 'aria-label': 'Show ' + heading.textContent.trim() + ' on the menu map' }, mapGlyph(), h('span', { text: 'On the menu map' })));
     }
     renderToc();
-    side.classList.remove('is-open'); ui.toggle.setAttribute('aria-expanded', 'false');
+    shell().closeDrawer();
     const target = anchor && article.querySelector(['h3', 'h4', 'h5'].map(tag => tag + '[data-anchor="' + CSS.escape(anchor) + '"]').join());
     if (target) {
       target.scrollIntoView({ block: 'start', behavior: 'auto' });
@@ -308,7 +312,7 @@
     current.slug = null;
     renderToc();
     bar.style.transform = 'scaleX(0)';
-    side.classList.remove('is-open'); ui.toggle.setAttribute('aria-expanded', 'false');
+    shell().closeDrawer();
     window.manualMap.mount(host, { target: target || null, iface: state.iface === 'classic' ? 'classic' : 'modern',
       openChapter: (slug, anchor) => openChapter(slug, anchor, { focus: true }) });
     scrollToView(true);
@@ -512,7 +516,7 @@
     if (!query) { if (current.view === 'search') current.back ? current.back() : showStart(); return; }
     try { await loadSearch(); book = await loadIndex(); } catch (error) { return fail(error); }
     if (input.value.trim() !== query) return;
-    if (current.view !== 'search') { const before = current.view === 'chapter' ? { slug: current.slug, y: scrollY } : null; current.back = () => before ? openChapter(before.slug, '').then(() => scrollTo({ top: before.y, behavior: 'auto' })) : showStart(); }
+    if (current.view !== 'search') { const before = current.view === 'chapter' ? { slug: current.slug, y: pane().scrollTop } : null; current.back = () => before ? openChapter(before.slug, '').then(() => pane().scrollTo({ top: before.y, behavior: 'auto' })) : showStart(); }
     const terms = norm(query).trim().split(' ').filter(term => term.length > 1);
     const results = find(query);
     const titles = Object.fromEntries(book.chapters.map(chapter => [chapter.slug, chapter.title]));
@@ -546,13 +550,13 @@
       if (current.view !== 'chapter' || $('manual')?.classList.contains('hidden')) return;
       const article = view.querySelector('.m-chapter');
       if (!article) return;
-      const box = article.getBoundingClientRect();
-      const share = Math.max(0, Math.min(1, (innerHeight - box.top) / Math.max(1, box.height)));
+      const box = article.getBoundingClientRect(), frame = pane().getBoundingClientRect();
+      const share = Math.max(0, Math.min(1, (frame.bottom - box.top) / Math.max(1, box.height)));
       bar.style.transform = 'scaleX(' + share + ')';
       const slug = current.slug;
       if (share > (state.read[slug] || 0)) { const wasDone = done(slug); state.read[slug] = Math.round(share * 1000) / 1000; if (done(slug) !== wasDone) renderToc(); else updateDot(slug); renderProgress(); }
       let here = '';
-      for (const heading of article.querySelectorAll('h3[data-anchor],h4[data-anchor]')) { if (!visible(heading)) continue; if (heading.getBoundingClientRect().top < 140) here = heading.dataset.anchor; else break; }
+      for (const heading of article.querySelectorAll('h3[data-anchor],h4[data-anchor]')) { if (!visible(heading)) continue; if (heading.getBoundingClientRect().top - frame.top < 140) here = heading.dataset.anchor; else break; }
       if (state.last?.slug === slug && state.last.anchor !== here) { state.last.anchor = here; }
       for (const button of ui.toc.querySelectorAll('.m-toc-sec')) button.toggleAttribute('aria-current', false);
       const sectionAnchor = here && sectionOf(slug, here);
@@ -571,7 +575,7 @@
     const button = ui.toc.querySelector('.m-toc-ch[data-slug="' + CSS.escape(slug) + '"]');
     button?.querySelector('.m-dot-fill')?.setAttribute('stroke-dashoffset', String(34.56 * (1 - fraction(slug))));
   }
-  addEventListener('scroll', onScroll, { passive: true });
+  pane()?.addEventListener('scroll', onScroll, { passive: true });
 
   // "/" searches the manual while its page is open.
   document.addEventListener('keydown', event => {
@@ -579,7 +583,7 @@
     if (event.target.closest('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open]')) return;
     event.preventDefault();
     if (current.view === 'map') return window.manualMap?.focusSearch();
-    side.classList.add('is-open'); ui.toggle.setAttribute('aria-expanded', 'true');
+    shell().showContext();
     input.focus();
   });
   // Any element with data-manual-open="chapter#heading" opens the manual there ("Read in the manual" links).
@@ -598,7 +602,7 @@
     build();
     if (pending) return;
     if (current.view === 'none') showStart(false);
-    else onScroll();
+    else { shell().fold(current.view === 'map'); onScroll(); }
   }
   window.openManual = async (chapterId, anchorId) => {
     pending = { chapterId, anchorId };
