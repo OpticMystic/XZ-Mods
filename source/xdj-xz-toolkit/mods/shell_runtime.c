@@ -1253,11 +1253,14 @@ static void forget_root(const char *root) {
 }
 static void scan_usb(void) {
  static struct xz_shmedia seen[2];
+ static uint32_t retry_at[2];
  for(unsigned slot=0;slot<2;slot++){
   struct xz_shmedia media;int found=current_media((int)slot,&media);
   const char *path=media.database;struct stat st=media.file;
   int same_mount=found&&xz_shmedia_same_mount(&seen[slot],&media);
-  if(same_mount&&usb[slot].generation==xz_extra_source_generation((int)slot+1)&&(usb[slot].lib||(usb[slot].status==USB_ERROR&&xz_shmedia_same(&seen[slot],&media))))continue;
+  /* An unchanged export can recover from a transient USB read error. */
+  if(same_mount&&usb[slot].generation==xz_extra_source_generation((int)slot+1)&&
+     (usb[slot].lib||(usb[slot].status==USB_ERROR&&xz_shmedia_same(&seen[slot],&media)&&(int32_t)(now_ms()-retry_at[slot])<0)))continue;
   if(!found&&!seen[slot].mount_id)continue;
   struct xz_shlib *next=NULL;uint64_t free_bytes=0,total_bytes=0;int space=0,rdonly=0;char root[1024]="";
   if(found){
@@ -1272,6 +1275,12 @@ static void scan_usb(void) {
    if(!statvfs(root,&vfs)){free_bytes=(uint64_t)vfs.f_bavail*vfs.f_frsize;total_bytes=(uint64_t)vfs.f_blocks*vfs.f_frsize;space=1;rdonly=!!(vfs.f_flag&ST_RDONLY);}
   }
   pthread_mutex_lock(&mutex);
+  /* A wave job may have timed out while this export was unreadable. */
+  if(next&&!usb[slot].lib)for(int d=0;d<XZ_SHELL_NATIVE_DECKS;d++){
+   if(wave_job[d].request.device_kind==2+slot&&wave_job[d].request.media.generation==media.generation){
+    wave_job[d].wanted++;wave_job[d].retry_at=0;wave_job[d].requested_us=mono_us();
+   }
+  }
   if(usb[slot].lib&&retired.libs<4)retired.lib[retired.libs++]=usb[slot].lib;
   usb[slot].lib=next;usb[slot].status=next?USB_READY:found||media.probe_error?USB_ERROR:USB_NONE;
   usb[slot].media=media;
@@ -1332,7 +1341,8 @@ static void scan_usb(void) {
    if(debug){char line[200];snprintf(line,sizeof line,"SHELL_PLAYLISTS: usb%u sidecar=%s edited=%u readonly=%d",slot+1,rc?"unreadable":"ok",edits[slot].n,rdonly);xz_log(line);}
    if(live)publish_refs((int)slot);
   }
-  /* A failed open is retried when the file changes, not every second. */
+  /* Bound repeated failures without requiring a remount or an export rewrite. */
+  retry_at[slot]=now_ms()+5000u;
   seen[slot]=media;
   if(debug){char line[1400];snprintf(line,sizeof line,"SHELL_LIBRARY: usb%u %s tracks=%u mount=%d source=%s analysis=%s mount_error=%d",slot+1,next?path:"none",
    usb[slot].tracks,found,media.source[0]?media.source:"-",why,media.probe_error);xz_log(line);}
