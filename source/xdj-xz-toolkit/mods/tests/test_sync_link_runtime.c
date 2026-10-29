@@ -284,12 +284,14 @@ static void stale_safety_tests(void){
   hooks.sync_mgr_sync(fake_sync_mgr);
   assert(simulated_master()==(committed?2:0));
   assert(synced_status_rc!=0&&synced_beat_rc!=0);
-  /* Fresh PCM resumes only after guarded cleanup of the expired generation. */
+  /* Fresh PCM resumes only after guarded cleanup of the expired generation. M6 (stock-sync-spec.md): the
+     deck is still the chosen master and publishing again, so the cleanup names no master (-1) while it
+     claims again; it used to return the old native master for that moment. */
   clk.realtime_us+=sim_now_us-clk.mono_us;clk.mono_us=sim_now_us;
   decks=make_decks(0,(uint32_t)(clk.mono_us/1000),48951,1000000);
   xz_sync_link_runtime_step(&decks,&clk);
   hooks.sync_mgr_sync(fake_sync_mgr);
-  assert(simulated_master()==0);
+  assert(simulated_master()==(committed?-1:0));
  }
  /* Invalid phase inputs and clocks must not retain a committed virtual master. */
  for(unsigned fault=0;fault<15;fault++){
@@ -317,13 +319,18 @@ static void stale_safety_tests(void){
   xz_sync_link_runtime_step(&decks,&clk);
   assert(!xz_sync_link_runtime_master_committed(0));
   hooks.sync_mgr_sync(fake_sync_mgr);
-  assert(simulated_master()==0);
+  /* M6 (stock-sync-spec.md): a handoff never changes the tempo. While the loaded deck is still the chosen
+     master on the same route (a pause, a seek or beat jump, a reload, an anchor or clock fault), the
+     withdrawal names no master instead of the old native one, which moved every follower to its tempo.
+     An unloaded deck or a route that went down or changed still returns the previous master. These
+     cases all returned 0 under the old contract. */
+  assert(simulated_master()==(fault==1||fault==2||fault==4?0:-1));
  }
- /* Missing clock sampling is also an immediate withdrawal. */
+ /* Missing clock sampling is also an immediate withdrawal; the deck is still the chosen master (M6). */
  establish_master(1,&decks,&clk);
  xz_sync_link_runtime_step(&decks,NULL);
  assert(!xz_sync_link_runtime_master_committed(0));
- hooks.sync_mgr_sync(fake_sync_mgr);assert(simulated_master()==0);
+ hooks.sync_mgr_sync(fake_sync_mgr);assert(simulated_master()==-1);
  /* Cleanup may not override an operator choice or a foreign writer arriving later. */
  for(int foreign=0;foreign<=2;foreign++){
   establish_master(1,&decks,&clk);
@@ -389,8 +396,10 @@ static void publication_failure_test(void){
  assert(!xz_sync_link_runtime_master_committed(0));
  atomic_store(&hold_readers,0);
  for(unsigned i=0;i<2;i++)assert(pthread_join(readers[i],NULL)==0);
- hooks.sync_mgr_sync(fake_sync_mgr);assert(simulated_master()==0);
- puts("PASS publication failure withdraws owned lease and restores prior master after pinned readers finish");
+ /* M6 (stock-sync-spec.md): the deck is still the chosen master and publishing, so the withdrawal names no
+    master while it claims again (it used to restore the prior native master). */
+ hooks.sync_mgr_sync(fake_sync_mgr);assert(simulated_master()==-1);
+ puts("PASS publication failure withdraws owned lease and names no master (M6) after pinned readers finish");
 }
 
 static void completion_coordinate_tests(void){

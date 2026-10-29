@@ -705,9 +705,14 @@ static int hook_set_master_on(void *sync_master,const int *master_id){
   int internal=(f&&f->depth>0&&f->draining_sync_master==sync_master);
   if(internal&&f->draining_request&&!runtime_frame_request_current(f))return -1;
   int dummy=((const uint8_t *)sync_master)[0x15]!=0;
-  syo_class=internal?1:dummy?2:3;
+  /* M1 (stock-sync-spec.md): stock confirming the master it already has is not a DJ choice. It must not
+     cancel a waiting DECK 3/4 MASTER request; a DJ's press on a native deck reaches the players first
+     (xz_extra_decks_native_master_selected), so it is never lost here. Recorded as class 4. */
+  int32_t current=-2;memcpy(&current,(const unsigned char *)sync_master+(dummy?0x18:0x08),4);
+  int same=master_id&&*master_id==current;
+  syo_class=internal?1:dummy?2:same?4:3;
   if(internal)SYO_INC(OPERATOR_INTERNAL);else if(dummy)SYO_INC(OPERATOR_DUMMY);else SYO_INC(OPERATOR_EXTERNAL);
-  if(!internal&&!dummy){
+  if(!internal&&!dummy&&!same){
    xz_va_operator(&rt_va);
    atomic_store(&rt_restore_pending,0);
    atomic_store(&rt_committed_deck,-1);
@@ -746,6 +751,21 @@ static struct xz_sync_link_observation runtime_observation(uint32_t leased_id){
   .current_master_id=atomic_load(&rt_observed_master_id)
  };
 }
+/* native_return: 0/1 return to that native deck, -1 the lease's previous master, -2 no master. */
+#define RT_RETURN_NONE (-2)
+/* M6 (stock-sync-spec.md): a handoff never changes the tempo. While a loaded DECK 3/4 is still the chosen
+   master (the other one claiming, or this one renewing its lease after a seek, beat jump, reload, VINYL
+   pause or platter hold), release to no master: naming the old native master meanwhile moved every
+   follower to its tempo. A stale publisher (playing, timeline no longer moving), an unloaded deck or a
+   new route still returns the lease's previous master. */
+static int release_to_none(const struct xz_extra_decks *decks,int selected){
+ uint64_t now;
+ if(!decks||!decks->route_up||selected<0||selected>=XZ_EXTRA_DECKS||runtime_monotonic_us(&now))return 0;
+ const struct xz_extra_deck *d=&decks->deck[selected];
+ if(!d->loaded||d->timeline.route_epoch!=rt_lease.claim.route_epoch)return 0;
+ uint32_t age=(uint32_t)(now/1000u)-d->timeline.at_ms;
+ return !(d->playing&&(int32_t)age>90);
+}
 static void release_runtime_lease(int native_return){
  if(!rt_lease.active)return;
  uint32_t id=rt_lease.claim.source_id;
@@ -753,6 +773,7 @@ static void release_runtime_lease(int native_return){
  struct xz_sync_link_cleanup clean={0};
  xz_sync_link_lease_release(&rt_lease,&obs,&clean);
  if(clean.restore_master&&(unsigned)native_return<2)clean.restore_input_id=native_return+1;
+ if(clean.restore_master&&native_return==RT_RETURN_NONE)clean.restore_input_id=0;
  apply_cleanup(&clean,id,&obs);
 }
 
@@ -803,8 +824,14 @@ static void runtime_step_locked(const struct xz_extra_decks *decks,const struct 
    decks->deck[selected].timeline.load_revision==rt_lease.claim.source_revision&&
    decks->deck[selected].timeline.transport_generation==rt_lease.claim.playback_epoch;
   if(!keep){
+   /* A DECK 3/4 that is still the chosen master claims again within a step: the other one, or
+      this one while a VINYL hold keeps it from publishing a beat. Returning the engine to the
+      old native master meanwhile moved every follower to that deck and back. Anything else
+      (stale publisher, new load or transport generation) still returns it. */
+   int brief=release_to_none(decks,selected);
    SYO_INC(LEASE_RELEASE);
    xz_sync_link_lease_release(&rt_lease,&obs,&clean);
+   if(clean.restore_master&&brief)clean.restore_input_id=0;
    apply_cleanup(&clean,leased_id,&obs);
    SYO_LINK(4);
    return;
@@ -868,8 +895,9 @@ static void runtime_step_locked(const struct xz_extra_decks *decks,const struct 
      if(xz_va_offer(&rt_va,&bundle,ticket)){
       SYO_INC(OFFER_OK);syo_outcome=0;
       if(plan.request_master){SYO_INC(MASTER_PENDING);xz_va_explicit_request(&rt_va);}
-     }else{SYO_INC(OFFER_FAIL);syo_outcome=12;release_runtime_lease(-1);}
-    }else{if(!ticket)SYO_INC(NO_TICKET);else{SYO_INC(BUILD_FAIL);SYO_REASON(PLAN_REASON_0,plan.reason,12);}syo_outcome=ticket?13:14;release_runtime_lease(-1);}
+     }else{SYO_INC(OFFER_FAIL);syo_outcome=12;release_runtime_lease(release_to_none(decks,selected)?RT_RETURN_NONE:-1);}
+    }else{if(!ticket)SYO_INC(NO_TICKET);else{SYO_INC(BUILD_FAIL);SYO_REASON(PLAN_REASON_0,plan.reason,12);}syo_outcome=ticket?13:14;
+     release_runtime_lease(release_to_none(decks,selected)?RT_RETURN_NONE:-1);}
    }
  }
  SYO_LINK(syo_outcome);(void)syo_outcome;
@@ -915,6 +943,15 @@ void xz_sync_link_runtime_step(const struct xz_extra_decks *decks,const struct x
    if(decks&&decks->route_up&&!decks->master_intent.explicit_choice&&
       (unsigned)decks->master_intent.deck<2&&operator_epoch==rt_lease.claim.master_choice_epoch)
     native_return=decks->master_intent.deck;
+   /* Master moving to the other DECK 3/4: its own claim follows within a step. Returning the
+      engine to the lease's old (often stopped) native master in between made synced decks
+      take that deck's tempo, and a new software master kept it. No master meanwhile keeps
+      every tempo where it is. */
+   else if(decks&&decks->route_up&&decks->master_intent.deck>=XZ_EXTRA_FIRST_DECK&&
+      decks->master_intent.deck<XZ_EXTRA_FIRST_DECK+XZ_EXTRA_DECKS&&
+      decks->master_intent.deck!=(int32_t)rt_lease.claim.source_id-1&&
+      decks->deck[decks->master_intent.deck-XZ_EXTRA_FIRST_DECK].loaded)
+    native_return=RT_RETURN_NONE;
    release_runtime_lease(native_return);
   }
  }

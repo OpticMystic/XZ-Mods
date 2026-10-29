@@ -167,8 +167,8 @@ void xz_native_led_sync_master_release(struct xz_led_sync_master_owner *owner,vo
   o->active=0;
  }
 }
-size_t xz_native_led_sync_master_apply(struct xz_led_sync_master_owner *owner,void *records,
-                                     size_t bytes,unsigned count,unsigned channel,const struct xz_extra_deck *d){
+static size_t sync_master_apply(struct xz_led_sync_master_owner *owner,void *records,size_t bytes,unsigned count,
+                                unsigned channel,const struct xz_extra_deck *d,int clocked,uint32_t now_ms){
  if(!owner||!records||!d||channel<1||channel>2||count>XZ_LED_MAX_RECORDS||
     bytes<(size_t)count*XZ_LED_RECORD_BYTES)return 0;
  size_t changed=0;
@@ -185,10 +185,20 @@ size_t xz_native_led_sync_master_apply(struct xz_led_sync_master_owner *owner,vo
   struct xz_led_lamp_owner *o=&owner->lamp[slot];
   o->records=(uintptr_t)records;o->row=row;
   memcpy(o->before,r,XZ_LED_RECORD_BYTES);
-  put(r+0x10,xz_led_written_state(xz_extra_lamp(d,id)));r[0x18]=1;
+  /* A flash (SYNC with a kept offset) blinks in software at 250 ms, as the other software-deck rows do. */
+  int lamp=xz_extra_lamp(d,id);
+  put(r+0x10,lamp==XZ_LED_STATE_BLINK&&clocked?((now_ms/250u)&1u):xz_led_written_state(lamp));r[0x18]=1;
   memcpy(o->after,r,XZ_LED_RECORD_BYTES);o->active=1;changed++;
  }
  return changed;
+}
+size_t xz_native_led_sync_master_apply(struct xz_led_sync_master_owner *owner,void *records,
+                                     size_t bytes,unsigned count,unsigned channel,const struct xz_extra_deck *d){
+ return sync_master_apply(owner,records,bytes,count,channel,d,0,0);
+}
+size_t xz_native_led_sync_master_apply_at(struct xz_led_sync_master_owner *owner,void *records,size_t bytes,
+                                        unsigned count,unsigned channel,const struct xz_extra_deck *d,uint32_t now_ms){
+ return sync_master_apply(owner,records,bytes,count,channel,d,1,now_ms);
 }
 
 /* Only existing, non-forced records have a proven writable extent. The saved
@@ -252,7 +262,8 @@ int xz_extra_lamp(const struct xz_extra_deck *d,uint32_t id){
   /* p.58: SLIP lights while on and flashes while playback continues in the background. */
   case XZ_LED_ID_SLIP:return !d->slip?off:d->slip_active?flash:on;
   case XZ_LED_ID_VINYL:return d->vinyl?on:off;                            /* p.43 */
-  case XZ_LED_ID_BEAT_SYNC:return d->loaded&&d->sync.requested?on:off;    /* p.64: SYNC on */
+  /* p.64: SYNC on. It flashes while the deck keeps a beat offset made with a side nudge (stock S4). */
+  case XZ_LED_ID_BEAT_SYNC:return d->loaded&&d->sync.requested?(d->sync.offset?flash:on):off;
   case XZ_LED_ID_MASTER:return d->loaded&&d->master?on:off;
   case XZ_LED_ID_MASTER_TEMPO:return d->master_tempo?on:off;              /* p.42 */
   case XZ_LED_ID_TEMPO_RESET:return d->tempo_reset?on:off;                /* p.35 */
@@ -339,8 +350,8 @@ static void led_hook(void *player,void *packet) {
                       :!!(extra.control_revision&(channel==1?1u:2u));
   if(on_extra){
    extra_side=(int)channel-1;color=extra_pad_color;
-   if(snap_ok)changed+=xz_native_led_sync_master_apply(&sync_master_owner[extra_side],
-     (void *)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,&extra.deck[extra_side]);
+   if(snap_ok)changed+=xz_native_led_sync_master_apply_at(&sync_master_owner[extra_side],
+     (void *)(uintptr_t)pointer,(size_t)count*XZ_LED_RECORD_BYTES,count,channel,&extra.deck[extra_side],now_ms);
    changed+=xz_native_led_extra_deck((void*)(uintptr_t)pointer,
                                      (size_t)count*XZ_LED_RECORD_BYTES,&count,
                                      NULL,0,0,dimmer,now_ms,

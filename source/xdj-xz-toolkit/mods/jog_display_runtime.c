@@ -372,7 +372,7 @@ int xz_jog_display_snapshot_from_deck(int deck_index,const struct xz_extra_deck 
  uint32_t cue_ms=d->cue_ms>0?(uint32_t)d->cue_ms:0u;
  uint8_t cued=(uint8_t)(!d->playing&&pos_ms==cue_ms);
  uint8_t sync_mode=!d->sync.requested?XZ_JD_SYNC_OFF:
-  d->sync.locked?XZ_JD_SYNC_LOCKED:XZ_JD_SYNC_BLINK;
+  d->sync.locked&&!d->sync.offset?XZ_JD_SYNC_LOCKED:XZ_JD_SYNC_BLINK; /* a kept nudge offset flashes (S4) */
  uint8_t loop_active=(uint8_t)(d->loop.active&&d->loop.out_ms>d->loop.in_ms&&d->loop.in_ms>=0);
  int bpm_known=!!(d->known&XZ_EXTRA_KNOWN(XZ_EXTRA_F_BPM));
  uint16_t bpm=bpm_known&&d->bpm_x100>0&&d->bpm_x100<65535?(uint16_t)d->bpm_x100:0u;

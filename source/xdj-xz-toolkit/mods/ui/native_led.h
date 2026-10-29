@@ -94,6 +94,9 @@ struct xz_led_sync_master_owner { struct xz_led_lamp_owner lamp[2]; };
 void xz_native_led_sync_master_release(struct xz_led_sync_master_owner *,void *,size_t,unsigned,unsigned);
 size_t xz_native_led_sync_master_apply(struct xz_led_sync_master_owner *,void *,size_t,unsigned,unsigned,
                                       const struct xz_extra_deck *);
+/* As above, with the packet's clock: a flashing lamp (SYNC with a kept offset) blinks every 250 ms. */
+size_t xz_native_led_sync_master_apply_at(struct xz_led_sync_master_owner *,void *,size_t,unsigned,unsigned,
+                                         const struct xz_extra_deck *,uint32_t now_ms);
 /* Updates the state word of existing same-channel, non-forced records from xz_extra_lamp().
    No insertion or index writes: a record the native packet does not carry stays missing.
    Hot cue pad colours use apply(). */

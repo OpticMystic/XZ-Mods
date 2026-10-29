@@ -61,9 +61,13 @@ int xz_sync_native_read(xz_sync_native_read_fn read,void *context,xz_sync_native
  if(!a.track||a.track!=b.track){out->evidence|=XZ_SYNC_NATIVE_BOUNDARY_OBSERVED;goto done;}
  out->reason=XZ_SYNC_NATIVE_STATE_CHANGED;
  double dphase=fmod((double)b.bar_phase-(double)a.bar_phase+4.5,1.)-.5;
- if(a.playing!=b.playing||a.manual!=b.manual){
+ /* A play/stop edge between the paired samples is a source boundary. A manual-only flip (a side nudge
+    starting or ending on a playing deck) is not: it drops this sample without a new source revision,
+    so a synced deck does not find the beat again after a nudge on the master (stock S8). */
+ if(a.playing!=b.playing){
   out->evidence|=XZ_SYNC_NATIVE_BOUNDARY_OBSERVED;goto done;
  }
+ if(a.manual!=b.manual)goto done;
  if(a.bpm!=b.bpm||a.speed!=b.speed||a.nominal_bpm!=b.nominal_bpm)goto done;
  int coherent_phase=a.phase_valid&&b.phase_valid&&
   (a.playing?(dphase>=-.02&&dphase<=.25):(a.position_ms==b.position_ms&&a.bar_phase==b.bar_phase));
@@ -85,8 +89,8 @@ done:;
    out->track_identity=v->track;out->evidence|=XZ_SYNC_NATIVE_TRACK_OBSERVED;
   }
   if(v->observed&XZ_ARCADE_CLOCK_BOUNDARY)out->evidence|=XZ_SYNC_NATIVE_BOUNDARY_OBSERVED;
-  if(((v->observed&XZ_ARCADE_CLOCK_STATE)&&(!v->playing||v->manual))||
-     ((v->observed&XZ_ARCADE_CLOCK_MANUAL)&&v->manual))transport_boundary=1;
+  /* Stopped (a pause or a platter-top hold) is a transport boundary; a bend on a playing deck is not (S8). */
+  if((v->observed&XZ_ARCADE_CLOCK_STATE)&&!v->playing)transport_boundary=1;
  }
  out->read_count=r.count;out->earliest_us=began;out->latest_us=now(clock_context);
  if(!began||!out->latest_us||out->latest_us<began||out->latest_us-began>XZ_SYNC_NATIVE_MAX_READ_US){
@@ -104,5 +108,13 @@ done:;
  out->captured_us=began+(out->latest_us-began)/2;out->captured_ms=(uint32_t)(out->captured_us/1000);
  out->phase_available=out->phase_available&&out->uncertainty_us<=XZ_SYNC_NATIVE_MAX_PHASE_UNCERTAINTY_US;
  if(out->playing&&!out->manual)out->playing_native_mask=1u<<out->native_deck;
+ /* M2/M5: whether the other native deck plays, so a paused (or reloaded) native master is handed to a
+    playing DECK 3/4 at once unless stock's own 1/2 handoff applies. Read after the timed window, so the
+    phase sample keeps its uncertainty. A candidate grants no authority. */
+ unsigned other=1u-(unsigned)out->native_deck;struct xz_arcade_track_clock first={0},last={0};
+ if(xz_music_native_clock_read(counted,&r,other,&first)&&xz_music_native_clock_read(counted,&r,other,&last)&&
+    first.track&&first.track==last.track&&first.playing&&last.playing&&!first.manual&&!last.manual)
+  out->playing_native_mask|=1u<<other;
+ out->read_count=r.count;
  return out->available;
 }

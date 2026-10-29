@@ -10,7 +10,7 @@ static unsigned char master_state[32];
 static const unsigned char master_guard[32]={0x24,0x30,0x90,0xe5,0x00,0x00,0x53,0xe3,0x04,0x00,0x00,0x0a,0x15,0x20,0xd3,0xe5,0x00,0x00,0x52,0xe3,0x18,0x00,0x93,0x15,0x08,0x00,0x93,0x05,0x1e,0xff,0x2f,0xe1};
 static unsigned read_calls,master_reads,master_pointer_reads,info_reads,state_reads,time_calls;
 static int bad_guard,change_master,change_source,change_state,change_pointer,bad_time,change_paused_position,change_paused_phase,change_playing_phase;
-static unsigned unit_reads;
+static unsigned unit_reads,tempo_reads;static int change_bend;
 static int fixture_read(void *ctx,uint32_t address,void *out,size_t n){
  (void)ctx;read_calls++;
  if(address==0x4bc28){assert(n==32);memcpy(out,master_guard,n);if(bad_guard)((unsigned char *)out)[0]^=1;return 0;}
@@ -22,12 +22,15 @@ static int fixture_read(void *ctx,uint32_t address,void *out,size_t n){
  if(!rc&&address==0x20e64&&change_paused_position&&++state_reads>1)put(player,0xedc,57330);
  if(!rc&&address==0x35000&&n==8&&(change_paused_phase||change_playing_phase)&&++unit_reads>1)put(out,4,change_playing_phase?1250:1001);
  if(!rc&&address==0x20e64&&change_state&&++state_reads>1)((unsigned char *)out)[0x13]=0;
+ /* A side nudge starting between the paired master samples: only the second one reads a bend. */
+ if(!rc&&address==0x34000&&n>=0x40&&change_bend&&++tempo_reads>1){double bend=.02;memcpy((unsigned char *)out+0x38,&bend,8);}
  return rc;
 }
 static uint64_t fixture_time(void *ctx){(void)ctx;return !time_calls++?1000000:bad_time==1?999999:bad_time==2?1020001:bad_time==3?1003000:1000200;}
 static void reset(void){
  read_calls=master_reads=master_pointer_reads=info_reads=state_reads=time_calls=0;
  bad_guard=change_master=change_source=change_state=change_pointer=bad_time=change_paused_position=change_paused_phase=change_playing_phase=0;unit_reads=0;
+ tempo_reads=0;change_bend=0;
  memset(master_state,0,sizeof master_state);engine_ptr=0x10000;
  put(engine,16,0x10108);put(players,4,0x20000);put(player,0xedc,55125);player[0xe77]=1;player[0xea4]=0;put(pause_queue,8,5);
  double zero_bend=0.;memcpy(tempo+0x38,&zero_bend,8);
@@ -79,6 +82,16 @@ int main(void){
  reset();change_pointer=1;assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_MASTER_CHANGED);
  reset();change_source=1;assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_SOURCE_CHANGED);
  reset();change_state=1;assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_STATE_CHANGED);
+ assert(out.evidence&XZ_SYNC_NATIVE_BOUNDARY_OBSERVED); /* a play/stop edge is a source boundary */
+ /* S8 (stock-sync-spec.md): a side nudge starting on the playing master (manual flips, playing does not)
+    drops the sample but is not a source boundary, so a synced deck does not re-snap after the nudge. */
+ reset();change_bend=1;assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_STATE_CHANGED);
+ assert(!(out.evidence&XZ_SYNC_NATIVE_BOUNDARY_OBSERVED));
+ /* M2: with a native master, the other native deck's playing state is read too (here the fixture's deck 2
+    is the same playing player), after the timed window: the read count includes it, the window does not. */
+ reset();assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.playing_native_mask==3&&out.read_count==read_calls&&out.uncertainty_us==100);
+ reset();player[0xe77]=0;put(pause_queue,8,4);
+ assert(xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&!out.playing&&out.playing_native_mask==0);
  for(int mode=1;mode<=2;mode++){reset();bad_time=mode;assert(!xz_sync_native_read(fixture_read,NULL,fixture_time,NULL,&out)&&out.reason==XZ_SYNC_NATIVE_TIME_INVALID);}
  reset();assert(!xz_sync_native_read(NULL,NULL,fixture_time,NULL,&out)&&!read_calls);
  puts("PASS native sync unavailable guards: external/absent master, ABI drift, changed master/pointer/source/playing, invalid capture bounds");return 0;

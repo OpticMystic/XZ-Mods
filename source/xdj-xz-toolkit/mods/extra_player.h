@@ -32,7 +32,10 @@ enum xz_xp_state { XZ_XP_EMPTY, XZ_XP_LOADING, XZ_XP_CUED, XZ_XP_PLAYING, XZ_XP_
 #define XZ_XP_SCAN_RATE 4.0            /* SEARCH held during playback: scan speed (provisional; not in the manual) */
 #define XZ_XP_TRACK_PREV_MS 500u      /* TRACK SEARCH back twice within this: previous track (provisional) */
 #define XZ_XP_SYNC_RESNAP_MS 1000u    /* Automatic QUANTIZE re-snaps; explicit SYNC engages bypass this cooldown */
-#define XZ_XP_MASTER_HANDOFF_MS 300u  /* a stopped native master must stay stopped this long before a software deck takes over */
+#define XZ_XP_SYNC_OFFSET_MS 2.0      /* a nudge leaving more than this off the beat is kept as an offset (stock S4) */
+#define XZ_XP_SYNC_TRIM_RELEASE_MS 250u /* SYNC off: the phase trim fades out over this, no speed step (S2) */
+#define XZ_XP_MASTER_HANDOFF_MS 300u  /* a platter-top hold on the master (VINYL), or a paused native master while the
+                                         other native deck plays, lasts this long before master passes on */
 #define XZ_XP_RAMP_FAST_MS 30
 #define XZ_XP_RAMP_SLOW_MS 3000
 #define XZ_XP_RETIRE_MS 2000u          /* wave and grid arrays outlive the load that replaced them */

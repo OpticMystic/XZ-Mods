@@ -96,7 +96,8 @@ struct memory_point { uint64_t at, end; int loop; uint32_t rgb; int32_t saved_ms
 /* Accepted output provenance. Worker-owned, bounded, no render-time allocation. */
 #define OUTPUT_SPANS 64u
 struct key_output { uint32_t revision; int cents; double pitch_rate; enum xz_key_audio_state state; };
-struct output_span { uint64_t begin,end,source,step,loop_in,loop_out; struct key_output key; };
+/* tempo_step: the part of step set by the tempo (fader or SYNC rate), without a jog bend or the SYNC trim. */
+struct output_span { uint64_t begin,end,source,step,loop_in,loop_out,tempo_step; struct key_output key; };
 struct output_history {
  struct output_span span[OUTPUT_SPANS],pending;
  unsigned head,count;
@@ -128,7 +129,7 @@ static void output_accept(struct output_history *h,uint64_t begin,unsigned frame
   struct output_span *last=&h->span[(h->head+h->count-1)%OUTPUT_SPANS];uint64_t at;
   if(last->end==begin&&last->step==s.step&&last->loop_in==s.loop_in&&last->loop_out==s.loop_out&&
      last->key.revision==s.key.revision&&last->key.cents==s.key.cents&&
-     last->key.pitch_rate==s.key.pitch_rate&&last->key.state==s.key.state&&
+     last->key.pitch_rate==s.key.pitch_rate&&last->key.state==s.key.state&&last->tempo_step==s.tempo_step&&
      output_source(last,begin,&at)&&at==s.source&&
      s.end-last->begin<=(UINT64_MAX-last->source)/s.step){last->end=s.end;return;}
  }
@@ -158,6 +159,7 @@ static int output_crossing(const struct output_span *s,uint64_t begin,uint64_t e
 struct sync_segment { uint64_t begin,end; double phase,beat_step,nominal_bps; };
 struct sync_clock {
  int available,playing,loop_aligned,manual,loaded;
+ int bending; /* manual is a side nudge (jog bend), not a platter-top scratch */
  uint32_t route,load,generation,at_ms;
  uint64_t wire_frame,underrun;
  double phase,beats_per_second,nominal_beats_per_second,period_frames,tempo_bps;
@@ -309,6 +311,13 @@ struct deck {
  int sync_native_discontinuous;
  uint32_t sync_choice_seen;
  double sync_rate,sync_trim;
+ /* Offset model (stock S4, S7, S8): after a side nudge here or on the master the measured beat offset is
+    kept (beats of this grid, within one quantize step) instead of trimmed away; sync.offset shows it. */
+ double sync_offset; int sync_offset_adopt;
+ double sync_trim_out; uint32_t sync_trim_out_at; /* S2: the trim at SYNC off, fading out */
+ /* M4: this deck, as master, held on its platter top since (VINYL). M5: it loaded a track while master. */
+ uint32_t master_hold_since; int master_hold_pending,master_load_handoff,native_load_handoff;
+ double render_tempo_rate; /* tempo part of the rate of the block being rendered (S8 rule 2) */
  struct sync_clock sync_master_clock;
  struct xz_extra_track track;
  struct xz_extra_order *order;
@@ -352,6 +361,11 @@ struct xz_xp_players {
  struct sync_clock clock[XZ_EXTRA_DECKS]; /* copies only, protected by publish_lock */
  xz_usb_position sync_position;
  uint32_t sync_position_route,sync_position_at;
+ /* When the transport's completed wire count was current: wire frame W played at about
+    wire_origin_ms + W/44.1 ms. A worker sees a new position up to a pass (plus the millisecond
+    clock) after the transport published it, so the earliest observation per wire frame is the
+    estimate. publish_lock. */
+ double wire_origin_ms; uint64_t wire_origin_seen; uint32_t wire_origin_route,wire_origin_at; int wire_origin_valid;
 };
 #ifdef XZ_XP_SERVICE_PROOF
 #include "xp_service_proof.inc"
@@ -583,6 +597,12 @@ static void cue_save(struct xz_xp_players *p,struct deck *d,const struct xz_cue_
  if(!p->cue_write(d->index,&d->track,d->media_generation,to_ms(d,d->r->frames),&snapshot,edit))
   xz_xp_notice(p,"CUES KEPT FOR THIS SESSION");
 }
+/* S2: the phase trim in effect at SYNC off, fading out. */
+static double trim_release(const struct deck *d,uint32_t now){
+ uint32_t since=now-d->sync_trim_out_at;
+ if(d->sync_trim_out==0||since>=XZ_XP_SYNC_TRIM_RELEASE_MS)return 0;
+ return d->sync_trim_out*(double)(XZ_XP_SYNC_TRIM_RELEASE_MS-since)/(double)XZ_XP_SYNC_TRIM_RELEASE_MS;
+}
 static float bend_now(const struct deck *d, uint32_t now) {
  uint32_t since = now - d->bend_at;
  if (d->bend == 0.0f || since >= XZ_XP_BEND_DECAY_MS) return 0.0f;
@@ -596,7 +616,7 @@ static double speed(const struct deck *d, uint32_t now) {
   return d->scratch.count>d->scratch.group_count?d->scratch.segment[d->scratch.head].rate:d->scratch.rate;
  }
  if(d->search)return XZ_XP_SCAN_RATE;
- double s = (d->sync_rate_active?d->sync_rate:nominal(d)) + d->sync_trim + bend_now(d, now);
+ double s = (d->sync_rate_active?d->sync_rate:nominal(d)) + d->sync_trim + trim_release(d,now) + bend_now(d, now);
  return s < 0.0 ? 0.0 : s;
 }
 static uint64_t loop_frame(const struct deck *d, uint64_t frame) {
@@ -813,6 +833,9 @@ static int render_source(struct deck *d, double rate) {
  uint64_t step = (uint64_t)((double)r->rate / XZ_USB_RATE * rate * (double)ONE);
  if(d->state==XZ_XP_PLAYING&&!reversed(d)&&!d->search&&!d->ramp.active){
   d->output.pending.source=d->block_start;d->output.pending.step=step;
+  /* S8: a follower tracks the tempo setting, not a side nudge or the SYNC trim on top of it. */
+  double tempo=d->render_tempo_rate;
+  d->output.pending.tempo_step=tempo<=0||tempo==rate?step:(uint64_t)((double)r->rate/XZ_USB_RATE*tempo*(double)ONE);
   if(d->loop.active){d->output.pending.loop_in=d->loop.in<<32;d->output.pending.loop_out=d->loop.out<<32;}
  }
  if (!step) { d->pending = 0; return 1; }
@@ -1066,6 +1089,7 @@ static void flush(struct xz_xp_players *p, struct deck *d) {
 static void prepare_flush(struct xz_xp_players *p,struct deck *d,uint32_t now,uint32_t link){
  if (d->need_flush && streaming(d->state) && link && !d->pending &&
      (d->state == XZ_XP_SCRATCHING || d->pos >> 32 < d->r->frames)) {
+  d->render_tempo_rate=nominal(d);
   if (!render(d, speed(d, now))) {
    pause_at_heard(d, now); xz_xp_notice(p, "TRACK CANNOT BE READ");
   }
@@ -1133,7 +1157,8 @@ static int aligned_loop(const struct deck *d){
 static struct sync_clock sync_clock(const struct deck *d,uint32_t now){
  struct sync_clock c={.route=d->epoch,.load=d->load_revision,.generation=d->generation,
   .at_ms=d->heard_at,.wire_frame=d->timeline_sink_frame,.playing=d->state==XZ_XP_PLAYING,
-  .loop_aligned=aligned_loop(d),.manual=d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0,.underrun=d->underrun,.loaded=loaded(d->state)};
+  .loop_aligned=aligned_loop(d),.manual=d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0,.underrun=d->underrun,.loaded=loaded(d->state),
+  .bending=d->state!=XZ_XP_SCRATCHING&&bend_now(d,now)!=0};
  if(!c.playing)c.at_ms=now;
  c.tempo_bps=nominal(d)*(double)d->track.track_bpm_x100/6000.;
  if(!grid_phase(d,d->heard,&c.phase,&c.period_frames))return c;
@@ -1465,10 +1490,13 @@ static int load_inner(struct xz_xp_players *p, struct deck *d, const struct xz_e
  return 1;
 }
 
+static int current_master(struct xz_xp_players *p,const struct deck *d);
 static int load(struct xz_xp_players *p, struct deck *d, const struct xz_extra_deck_event *e, uint32_t now, int next) {
  unsigned mask=e->load.source==1?1u:e->load.source==2?2u:3u;
  if(xz_diary_busy_begin)xz_diary_busy_begin(mask);
+ int was_master=current_master(p,d);
  int result=load_inner(p,d,e,now,next);
+ if(result&&was_master)d->master_load_handoff=1; /* M5: master_handoff passes master on */
  if(xz_diary_busy_end)xz_diary_busy_end(mask);
  return result;
 }
@@ -1644,7 +1672,13 @@ static void jog(struct xz_xp_players *p,struct deck *d,int32_t delta,float platt
  d->state = to >= (d->r->frames<<32) ? XZ_XP_ENDED : XZ_XP_CUED;
 }
 
-static void sync_request(struct xz_xp_players *p,struct deck *d,int on){
+static void sync_request(struct xz_xp_players *p,struct deck *d,int on,uint32_t now){
+ /* S2: SYNC off keeps the phase and the synced BPM: the held rate stays the master's tempo, and the phase
+    trim in effect fades out over XZ_XP_SYNC_TRIM_RELEASE_MS instead of stepping the speed. Freezing it
+    into the held rate would leave the deck off the synced BPM. The tempo fader picks up from the held
+    rate (soft takeover). */
+ d->sync_trim_out=on?0:d->sync_trim;d->sync_trim_out_at=now;
+ d->sync_offset=0;d->sync_offset_adopt=0;
  d->sync=(struct xz_extra_sync){.requested=!!on,.master_deck=-1,.reason=on?XZ_EXTRA_SYNC_WAIT_MASTER:XZ_EXTRA_SYNC_OFF};
  d->sync_initial=on&&d->quantize?SYNC_INITIAL_EXPLICIT:SYNC_INITIAL_NONE;d->sync_hold=d->sync_have_master=d->sync_lock_count=0;d->sync_stationary=0;
  d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
@@ -1741,7 +1775,16 @@ static int sync_native_gap_tempo(struct xz_xp_players *p,struct deck *d,
 /* Stock SYNC stays on until it is pressed off. A break (pause, jump, master change, clock gap, underrun)
    keeps following the tempo and finds the beat again, snapping to it when QUANTIZE is on at most once per
    XZ_XP_SYNC_RESNAP_MS; between snaps the bounded phase trim closes the gap. */
+static void sync_offset_clear(struct deck *d){d->sync_offset=0;d->sync_offset_adopt=0;d->sync.offset=0;}
+/* S4/S8: the first measurement after a side nudge (here or on the master) becomes the kept offset. Under
+   XZ_XP_SYNC_OFFSET_MS it counts as aligned: no offset, the lamp stays steady. */
+static void sync_offset_take(struct deck *d,double error,double error_seconds){
+ d->sync_offset_adopt=0;d->sync_lock_count=0;
+ if(fabs(error_seconds)*1000.>XZ_XP_SYNC_OFFSET_MS){d->sync_offset=error;d->sync.offset=1;}
+ else{d->sync_offset=0;d->sync.offset=0;}
+}
 static void sync_reacquire(struct deck *d,uint32_t now){
+ sync_offset_clear(d);
  d->sync_hold=0;d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;d->sync_have_master=d->sync_lock_count=0;
  d->sync_native_captured_us=0;d->sync_native_discontinuous=d->sync_native_gap_hold=0;
  /* An explicit alignment survives phase gaps and bypasses the automatic cooldown. */
@@ -1801,7 +1844,7 @@ static void sync_stationary(struct xz_xp_players *p,struct deck *d,int selected,
   int current=authority_before(p,d);
   pthread_mutex_lock(&p->publish_lock);
   current=current&&authority_locked(p,d,selected,choice);
-  if(current){jump(d,(uint64_t)llround(to),now);d->sync_initial=0;d->sync_snap_at=now|1u;}
+  if(current){jump(d,(uint64_t)llround(to),now);d->sync_initial=0;d->sync_snap_at=now|1u;sync_offset_clear(d);}
   pthread_mutex_unlock(&p->publish_lock);
   if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
  }
@@ -1817,6 +1860,7 @@ static unsigned sync_grid_refresh(struct xz_xp_players *p,struct deck *d){
  }
  return denominator;
 }
+static int wire_time_ms(struct xz_xp_players *,uint32_t,uint64_t,double *);
 static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_position *position,uint32_t now){
  d->sync_trim=0;d->sync.correction_ppm=0;d->sync.locked=0;
  if(!d->sync.requested)return;
@@ -1885,9 +1929,15 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   if(p->native_sync_clock)d->tempo_native_bpm=native.bpm;
   if(native.manual||d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0){
    if(native.manual)d->native_phase.have=d->native_phase.ready=0;
-   if(d->quantize&&(d->state==XZ_XP_SCRATCHING||bend_now(d,now)!=0))d->sync_initial=SYNC_INITIAL_EXPLICIT;
+   int scratch=d->state==XZ_XP_SCRATCHING,platter=native.manual&&!native.playing;
+   if(d->quantize&&scratch)d->sync_initial=SYNC_INITIAL_EXPLICIT;
+   /* A side nudge on this deck or on the master (playing, manual) is an alignment offset on stock (S4,
+      S8): once it ends the measured offset is kept, not trimmed away or re-snapped. A hold on the native
+      master's platter top (VINYL: reads manual, not playing) stops its beat, and this deck's own
+      platter-top scratch moves its position: after either, this deck finds the beat again. */
+   if(scratch||platter)d->sync_offset_adopt=0;else if(d->sync_have_master)d->sync_offset_adopt=1;
    d->sync_hold=1;
-   d->sync_native_gap_hold=d->sync_have_master?SYNC_NATIVE_GAP_WAIT_PHASE:SYNC_NATIVE_GAP_NONE;
+   d->sync_native_gap_hold=d->sync_have_master&&!platter?SYNC_NATIVE_GAP_WAIT_PHASE:SYNC_NATIVE_GAP_NONE;
    d->sync_hold_reason=XZ_EXTRA_SYNC_DISCONTINUITY;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;
   }
   if(p->native_sync_clock&&(!native.playing||d->state==XZ_XP_CUED||d->state==XZ_XP_ENDED)){
@@ -1966,9 +2016,20 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   double block_age_sec=d->timeline_wire_completed>=slave.wire_frame
    ?(double)(d->timeline_wire_completed-slave.wire_frame)/(double)XZ_USB_RATE:0.;
   double dt_sec=(double)dt_us/1000000.-block_age_sec;
+  /* Time this deck's completed block from when the transport published it, not from when this
+     worker happened to look: a pass of observation lag would otherwise reach the phase trim as
+     noise (tempo flutter, a lock that comes and goes). */
+  double block_ms;
+  if(wire_time_ms(p,d->epoch,slave.wire_frame,&block_ms)){
+   double est=(block_ms-(double)native.captured_ms)/1000.-((double)sub_ms_us+(double)native.output_latency_us)/1000000.;
+   if(fabs(est-dt_sec)<.05)dt_sec=est;
+  }
   if(fabs(dt_sec)>.25){d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;}
   double target_phase=wrapped_beat((double)native.bar_phase+dt_sec*master_bps);
   double error=quantized_delta(slave.phase-target_phase,grid);
+  if(d->sync_offset_adopt)sync_offset_take(d,error,error/master_bps);
+  /* The trim holds the kept offset (zero unless a nudge made one), never closes it (S4, S7). */
+  error=quantized_delta(error-d->sync_offset,grid);
   double error_seconds=error/master_bps;
   d->sync.phase_error_us=(int32_t)llround(error_seconds*1000000.);
   d->sync_master_clock=(struct sync_clock){.route=d->epoch,.load=d->load_revision,.generation=d->generation};
@@ -1994,7 +2055,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
    int current=authority_before(p,d);
    pthread_mutex_lock(&p->publish_lock);
    current=current&&authority_locked(p,d,selected,choice);
-   if(current){d->sync_initial=0;d->sync_lock_count=d->sync_have_master=0;jump(d,target,now);d->sync_snap_at=now|1u;}
+   if(current){d->sync_initial=0;d->sync_lock_count=d->sync_have_master=0;jump(d,target,now);d->sync_snap_at=now|1u;sync_offset_clear(d);}
    pthread_mutex_unlock(&p->publish_lock);
    if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
    d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;return;
@@ -2018,7 +2079,11 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
  }
  d->sync.master_deck=selected+XZ_EXTRA_FIRST_DECK;
  d->sync.master_scope=XZ_EXTRA_MASTER_SCOPE_SOFTWARE;
- if(d->sync_hold)sync_reacquire(d,now);
+ if(d->sync_hold){
+  /* A side nudge (here or on the master) keeps the alignment it left as an offset (S4, S8). */
+  if(d->sync_offset_adopt&&d->sync_hold_reason==XZ_EXTRA_SYNC_MANUAL){d->sync_hold=0;d->sync_hold_reason=XZ_EXTRA_SYNC_OFF;}
+  else sync_reacquire(d,now);
+ }
  struct sync_clock master;
  pthread_mutex_lock(&p->publish_lock);master=p->clock[selected];pthread_mutex_unlock(&p->publish_lock);
  struct sync_clock slave=sync_clock(d,now);
@@ -2032,8 +2097,12 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   if(applied<0)d->sync.source=XZ_EXTRA_SYNC_SOURCE_CLOCK_LOST;
   return;}
  if(master.manual||slave.manual){
-  if(slave.manual&&d->quantize)d->sync_initial=SYNC_INITIAL_EXPLICIT;
-  d->sync_hold=1;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;
+  /* A platter-top scratch (here or on the master) moves the beat: find it again after. A side nudge
+     becomes a kept offset once it ends (S4, S8). */
+  int scratch=d->state==XZ_XP_SCRATCHING||(master.manual&&!master.bending);
+  if(d->state==XZ_XP_SCRATCHING&&d->quantize)d->sync_initial=SYNC_INITIAL_EXPLICIT;
+  if(scratch)d->sync_offset_adopt=0;else if(d->sync_have_master)d->sync_offset_adopt=1;
+  d->sync_hold=1;d->sync_hold_reason=XZ_EXTRA_SYNC_MANUAL;d->sync.reason=XZ_EXTRA_SYNC_MANUAL;return;
  }
  if(d->quantize&&!grid){d->sync.reason=XZ_EXTRA_SYNC_NO_GRID;return;}
  if(!master.playing||d->state==XZ_XP_CUED||d->state==XZ_XP_ENDED){
@@ -2063,6 +2132,8 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   d->sync.reason=XZ_EXTRA_SYNC_WAIT_ANCHOR;return;
  }
  double error=quantized_delta(slave.phase-target_phase,grid);
+ if(d->sync_offset_adopt)sync_offset_take(d,error,error/(master_step*XZ_USB_RATE));
+ error=quantized_delta(error-d->sync_offset,grid);
  double error_seconds=error/(master_step*XZ_USB_RATE);
  d->sync.phase_error_us=(int32_t)llround(error_seconds*1000000.);
  d->sync_master_clock=master;d->sync_have_master=1;d->sync_master_id=selected;d->sync_slave_underrun=d->underrun;d->sync_choice_seen=choice;
@@ -2089,7 +2160,7 @@ static void sync_update(struct xz_xp_players *p,struct deck *d,const xz_usb_posi
   int current=authority_before(p,d);
   pthread_mutex_lock(&p->publish_lock);
   current=current&&authority_locked(p,d,selected,choice);
-  if(current){d->sync_initial=0;d->sync_lock_count=d->sync_have_master=0;jump(d,target,now);d->sync_snap_at=now|1u;}
+  if(current){d->sync_initial=0;d->sync_lock_count=d->sync_have_master=0;jump(d,target,now);d->sync_snap_at=now|1u;sync_offset_clear(d);}
   pthread_mutex_unlock(&p->publish_lock);
   if(!current){d->sync.reason=XZ_EXTRA_SYNC_WAIT_MASTER;return;}
   d->sync.reason=XZ_EXTRA_SYNC_ACQUIRING;return;
@@ -2449,6 +2520,15 @@ static int native_master_playing(struct xz_xp_players *p,uint32_t now,int *absen
  if(!n.playing){*absent=1;if(stopped)*stopped=n;return 0;}
  return 1;
 }
+/* p.64: with no master yet, the deck that first plays an analysed track becomes master. Stock cannot
+   see DECK 3/4 until one claims, so a DECK 3/4 claims it here: only while the engine names no master
+   and nobody has chosen one since start (operator epoch 1). A native deck playing an analysed track
+   would already be master; of two DECK 3/4 starts the first claim wins (the second sees it pending). */
+static int first_play_master(const struct deck *d){
+ if(d->master_actual.deck!=XZ_MASTER_NONE||d->master_actual.operator_epoch!=1)return 0;
+ if((d->state!=XZ_XP_PLAYING&&d->state!=XZ_XP_SAMPLING)||(d->ramp.active&&d->ramp.stopping))return 0;
+ return d->analysis&&d->analysis->grid_count>=2;
+}
 static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
  uint32_t authority_choice;int selected=sync_selection(p,d,&authority_choice),own=0;
  if(p->master_observer){
@@ -2463,17 +2543,32 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
      would lose the handoff. Operator events replace the intent instead. */
   own=!pending_intent&&intent.deck==d->index+2;
   if(own)authority_choice=intent.epoch;
-  else if(selected< -1||(pending_intent&&intent.explicit_choice&&intent.deck!=d->master_actual.deck))return;
+  else if(intent.deck==XZ_MASTER_NONE&&!intent.explicit_choice&&first_play_master(d)){
+   if(select_sync_master(p,d->index))xz_xp_notice(p,d->index?"MASTER: DECK 4":"MASTER: DECK 3");
+   return;
+  }else if(selected< -1||(pending_intent&&intent.explicit_choice&&intent.deck!=d->master_actual.deck))return;
  }
  int other=1-d->index,other_playing=state_playing(atomic_load(&p->deck[other].published_state));
+ /* The stock-parity rules below (M2, M4, M5) apply with the observer; without it (legacy embedders, review
+    fixtures) the handoffs stay as before. */
+ int parity=p->master_observer!=NULL;
+ int other_synced=parity&&other_playing&&(atomic_load(&p->sync_requests)&(1u<<other));
  int absent;
  if(selected==d->index||own){
-  d->native_idle_pending=0;
+  d->native_idle_pending=0;d->native_load_handoff=0;
   uint32_t choice=authority_choice;
-  if(d->master_playing_choice!=choice){d->master_playing_choice=choice;d->master_playing_seen=0;}
+  if(d->master_playing_choice!=choice){d->master_playing_choice=choice;d->master_playing_seen=0;d->master_hold_pending=0;}
+  /* M4: held on its platter top (VINYL) for the hold time, the master passes on as at a stop; the
+     platter's own playback resumes on release. M5: a new track loaded on the master passes master to
+     the other playing deck; the loading deck keeps SYNC. */
+  int held=parity&&d->state==XZ_XP_SCRATCHING&&d->scratch.contact&&streaming(d->scratch.resume);
+  if(!held)d->master_hold_pending=0;
+  else if(!d->master_hold_pending){d->master_hold_pending=1;d->master_hold_since=now;}
+  int hold_due=held&&(uint32_t)(now-d->master_hold_since)>=XZ_XP_MASTER_HANDOFF_MS;
+  int load_due=parity&&d->master_load_handoff;d->master_load_handoff=0;
   /* A pause in VINYL mode brakes first; the master leaves at the press, as in CDJ mode. */
-  if(state_playing(d->state)){d->master_playing_seen=1;if(!(d->ramp.active&&d->ramp.stopping))return;}
-  if(loaded(d->state)&&!d->master_playing_seen)return;
+  if(state_playing(d->state)&&!hold_due&&!load_due){d->master_playing_seen=1;if(!(d->ramp.active&&d->ramp.stopping))return;}
+  if(loaded(d->state)&&!d->master_playing_seen&&!load_due)return;
   struct xz_sync_native_snapshot candidate={0};
   int native=native_master_playing(p,now,&absent,NULL),native_deck=-1;
   if(p->master_observer&&p->native_sync_clock){
@@ -2485,8 +2580,9 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
    }
    native=native_deck>=0;
   }
-  /* After DECK 3 comes DECK 4, then the native decks; after DECK 4 come the native decks, then DECK 3. */
-  int next=d->index==0?(other_playing?other:native?-1:d->index):(native?-1:other_playing?other:d->index);
+  /* M4: a playing deck with SYNC on comes first. Then after DECK 3 comes DECK 4, then the native decks;
+     after DECK 4 come the native decks, then DECK 3. */
+  int next=other_synced?other:d->index==0?(other_playing?other:native?-1:d->index):(native?-1:other_playing?other:d->index);
   if(next!=d->index&&(next<0&&p->master_observer?request_master(p,native_deck,0,0,observe_operator(p)):select_sync_master(p,next)))xz_xp_notice(p,next<0?"MASTER: NATIVE DECK":next?"MASTER: DECK 4":"MASTER: DECK 3");
   return;
  }
@@ -2503,13 +2599,32 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
  if(!d->native_observed_known||d->native_observed_choice!=choice||
     d->native_observed_deck!=stopped.native_deck||d->native_observed_identity!=stopped.track_identity||
     d->native_observed_revision!=stopped.source_revision){
+  /* M5: the native master took a new track after it played: the other playing deck becomes master.
+     With the observer only; without it (legacy embedders, review fixtures) behaviour is unchanged. */
+  d->native_load_handoff=p->master_observer&&d->native_observed_known&&d->native_playing_seen&&
+   d->native_observed_choice==choice&&d->native_observed_deck==stopped.native_deck&&
+   d->native_observed_identity!=stopped.track_identity;
   d->native_observed_known=1;d->native_observed_choice=choice;d->native_observed_deck=stopped.native_deck;
   d->native_observed_identity=stopped.track_identity;d->native_observed_revision=stopped.source_revision;
   d->native_playing_seen=0;d->native_idle_pending=0;
  }
+ /* Stock moves master between its own decks 1/2 (M2, M5): with the other native deck playing, it decides. */
+ int other_native=!!(stopped.playing_native_mask&(1u<<(1-stopped.native_deck)));
+ int me_synced=parity&&d->sync.requested,first=!(other_playing&&atomic_load(&p->deck[other].published_state)!=XZ_XP_SCRATCHING&&
+  (d->index==1?other_synced||!me_synced:other_synced&&!me_synced)); /* DECK 3 first, a synced deck before either */
+ /* A deck braking to a stop (its own VINYL pause) never takes master. */
+ int braking=d->ramp.active&&d->ramp.stopping;
+ if(d->native_load_handoff){
+  d->native_load_handoff=0;
+  if(state_playing(d->state)&&d->state!=XZ_XP_SCRATCHING&&!braking&&!other_native&&first){
+   d->native_idle_pending=0;
+   if(select_sync_master(p,d->index))xz_xp_notice(p,d->index?"MASTER: DECK 4":"MASTER: DECK 3");
+   return;
+  }
+ }
  if(native_playing){d->native_playing_seen=1;d->native_idle_pending=0;return;}
  /* A paused deck still records that the native master played; only a playing deck takes over. */
- if(!state_playing(d->state)||d->state==XZ_XP_SCRATCHING){d->native_idle_pending=0;return;}
+ if(!state_playing(d->state)||d->state==XZ_XP_SCRATCHING||(parity&&braking)){d->native_idle_pending=0;return;}
  if(!absent||!d->native_playing_seen){d->native_idle_pending=0;return;}
  if(!d->native_idle_pending||d->native_idle_deck!=stopped.native_deck||
     d->native_idle_identity!=stopped.track_identity||d->native_idle_revision!=stopped.source_revision||
@@ -2518,8 +2633,11 @@ static void master_handoff(struct xz_xp_players *p,struct deck *d,uint32_t now){
   d->native_idle_deck=stopped.native_deck;d->native_idle_identity=stopped.track_identity;
   d->native_idle_revision=stopped.source_revision;return;
  }
- if((uint32_t)(now-d->native_idle_since)<XZ_XP_MASTER_HANDOFF_MS)return;
- if(d->index==1&&other_playing&&atomic_load(&p->deck[other].published_state)!=XZ_XP_SCRATCHING)return; /* DECK 3 first */
+ /* M2: a paused native master hands over at once. The hold time applies to a hold on its platter top
+    (M4, reads manual) and, so stock's own 1/2 handoff wins, while the other native deck plays. Without
+    the observer (legacy embedders, review fixtures) the hold time applies to every stop, as before. */
+ if((stopped.manual||other_native||!p->master_observer)&&(uint32_t)(now-d->native_idle_since)<XZ_XP_MASTER_HANDOFF_MS)return;
+ if(!first)return;
  d->native_idle_pending=0;
  if(select_sync_master(p,d->index))xz_xp_notice(p,d->index?"MASTER: DECK 4":"MASTER: DECK 3");
 }
@@ -2742,7 +2860,8 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
  if(e->kind==XZ_EXTRA_IN_MASTER){
   if(e->pressed&&loaded(d->state)){
    if(p->master_observer){
-    if(request_master(p,d->index+2,1,master_choice,operator_epoch))xz_xp_notice(p,"MASTER REQUESTED");
+    /* M1: as on stock, the MASTER lamps show the change when it commits; no pending notice. */
+    (void)request_master(p,d->index+2,1,master_choice,operator_epoch);
     return;
    }
    d->master_playing_seen=state_playing(d->state);
@@ -2911,6 +3030,8 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
    if (d->ramp.active && d->ramp.stopping) {
     d->ramp.active = 0; xz_stretch_reset(&d->stretch);
     if (d->slip_pause) { d->slip_pause = 0; slip_return(d, now); }
+    /* The brake left the master's beat behind: as after any pause, a synced deck finds it again. */
+    else if (d->sync.requested) sync_reacquire(d, now);
    } else {
     if (d->slip && !d->slip_bg.active) { slip_begin(d, heard_now(d, now), now); d->slip_pause = 1; }
     if (d->vinyl_level <= -XZ_EXTRA_TEMPO_SPAN + 100) pause_at_heard(d, now);
@@ -2960,7 +3081,7 @@ static void command(struct xz_xp_players *p, struct deck *d, const struct xz_ext
  }
  case XZ_EXTRA_IN_JOG_TURN: jog(p,d,e->jog.delta,e->jog.speed,e->jog.speed_known,now,arrived); break;
  case XZ_EXTRA_IN_JOG_TOUCH: if(e->pressed&&d->vinyl)d->search=0;scratch_touch(d,e->pressed,now); break;
- case XZ_EXTRA_IN_SYNC: if (e->pressed) sync_request(p,d,!d->sync.requested); break;
+ case XZ_EXTRA_IN_SYNC: if (e->pressed) sync_request(p,d,!d->sync.requested,now); break;
  case XZ_EXTRA_IN_LOOP_IN: case XZ_EXTRA_IN_LOOP_OUT: case XZ_EXTRA_IN_RELOOP:
  case XZ_EXTRA_IN_LOOP_HALF: case XZ_EXTRA_IN_LOOP_DOUBLE: loop_button(p, d, e, now); break;
  case XZ_EXTRA_IN_SEEK: {
@@ -3033,7 +3154,9 @@ static void completed_output(struct deck *d,const xz_usb_deck_position *q){
   }else h->crossing_valid=0;
   if(last==end){
    if((source>>32)!=q->source_after_completed){h->key_valid=h->crossing_valid=0;return;}
-   h->rate=(double)s->step/(double)ONE*XZ_USB_RATE/d->r->rate;h->rate_valid=1;
+   /* The published applied rate is the tempo part: a jog bend or the SYNC trim moves the beat position
+      (an offset), never the tempo a native follower takes (stock S8). */
+   h->rate=(double)(s->tempo_step?s->tempo_step:s->step)/(double)ONE*XZ_USB_RATE/d->r->rate;h->rate_valid=1;
    h->beat_valid=h->crossing_valid&&h->crossing_ms==h->beat_ms&&h->crossing<=(double)end;
    if(h->beat_valid)h->beat_age=(double)end-h->crossing;
    return;
@@ -3069,8 +3192,29 @@ static void completed_timeline(struct deck *d,const xz_usb_deck_position *q,uint
  d->timeline_sink_frame=q->source_completed_wire_frame<=wire_completed?q->source_completed_wire_frame:0;
  d->timeline_wire_completed=wire_completed;
 }
+/* Lower envelope of (observation time - wire time), allowed to rise 0.5 ms a second for the
+   USB and CPU clocks drifting apart. A new route restarts the wire count. publish_lock. */
+static void wire_origin_observe(struct xz_xp_players *p,uint32_t route,uint64_t wire,uint32_t at){
+ if(!wire)return;
+ double sample=(double)at-(double)wire*1000./XZ_USB_RATE;
+ if(!p->wire_origin_valid||route!=p->wire_origin_route||wire<p->wire_origin_seen){
+  p->wire_origin_ms=sample;p->wire_origin_valid=1;p->wire_origin_route=route;
+ }else{
+  p->wire_origin_ms+=(double)(uint32_t)(at-p->wire_origin_at)*.0005;
+  if(sample<p->wire_origin_ms)p->wire_origin_ms=sample;
+ }
+ p->wire_origin_seen=wire;p->wire_origin_at=at;
+}
+static int wire_time_ms(struct xz_xp_players *p,uint32_t route,uint64_t wire,double *ms){
+ pthread_mutex_lock(&p->publish_lock);
+ int ok=p->wire_origin_valid&&p->wire_origin_route==route&&wire&&wire<=p->wire_origin_seen;
+ if(ok)*ms=p->wire_origin_ms+(double)wire*1000./XZ_USB_RATE;
+ pthread_mutex_unlock(&p->publish_lock);
+ return ok;
+}
 static int shared_position(struct xz_xp_players *p,uint32_t route,xz_usb_position *position,uint32_t *at,int observed){
  pthread_mutex_lock(&p->publish_lock);
+ if(observed)wire_origin_observe(p,route,position->wire_completed_frames,*at);
  if(observed){
   int newer_route=!p->sync_position_route||(int32_t)(route-p->sync_position_route)>0;
   int current=route==p->sync_position_route&&(int32_t)(*at-p->sync_position_at)>=0&&
@@ -3204,6 +3348,7 @@ static void stream(struct xz_xp_players *p, struct deck *d, uint32_t now) {
     }
    }
 render_ready:
+   d->render_tempo_rate=nominal(d);
    if (!render(d, speed(d, now) * ramp_factor(d, now))) {
     if(emergency_loop(p,d,now))return;
     pause_at_heard(d, now); xz_xp_notice(p, "TRACK CANNOT BE READ");
